@@ -140,6 +140,12 @@ public final class ChunkColumn {
         return sections;
     }
 
+    /** 읽기 전용(공유 섹션을 복사하지 않음): 그 구역(0 = 맨 아래)의 모든 칸이 한 상태면 그 상태, 아니면 -1. */
+    public int sectionUniformBlock(int sectionIndex) { return sections[sectionIndex].uniformBlock(); }
+
+    /** 읽기 전용: 그 구역에 조건을 만족하는 상태가 있을 수도 있는가(바닐라 maybeHas — 팔레트만 본다). false 면 확실히 없다. */
+    public boolean sectionMaybeHas(int sectionIndex, java.util.function.IntPredicate p) { return sections[sectionIndex].maybeHasBlock(p); }
+
     public int[] sectionBlocks(int sectionIndex) {
         return ownSection(sectionIndex).openScratch();
     }

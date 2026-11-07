@@ -1,7 +1,7 @@
 // 바닐라 Entity.getSlot(int) → SlotAccess(/item·/loot replace entity). 번호는 SlotRanges 와 같다.
 // 플레이어(Player.getSlot): 499 커서, 500..503 2x2 제작 칸, 0..35 인벤토리, 200..226 엔더 상자, 그 밖은 장비(LivingEntity.getSlot).
-// 생물(LivingEntity.getSlot): 98 주손, 99 보조손, 100..103 방어구, 105 몸.
-// 차이: 말·마을 주민·알레이·상자 보트·광산 수레·아이템 액자·아이템 디스플레이의 전용 칸은 아직 없다(SlotAccess.NULL 취급).
+// 생물(LivingEntity.getSlot): 98 주손, 99 보조손, 100..103 방어구, 105 몸. 마을 주민·방랑 상인(AbstractVillager.getSlot): 300..307 가방.
+// 차이: 말·알레이·상자 보트·광산 수레·아이템 액자·아이템 디스플레이의 전용 칸은 아직 없다(SlotAccess.NULL 취급).
 // 스레드: 플레이어 칸은 menuLock 안에서, 생물 칸은 그 엔티티를 가진 region 스레드에서 쓴다.
 package org.domi.furnace.server.command;
 
@@ -25,6 +25,20 @@ public final class ItemSlots {
     /** 칸이 없으면 null(SlotAccess.NULL). */
     public static SlotAccess of(Rider r, int slot) {
         if (r instanceof Player p) return player(p, slot);
+        if (r instanceof org.domi.furnace.server.entity.Villager || r instanceof org.domi.furnace.server.entity.WanderingTrader) {
+            var inv = ((org.domi.furnace.server.entity.InventoryCarrier) r).getInventory();
+            int i = slot - 300;
+            if (i >= 0 && i < inv.size()) {
+                return new SlotAccess() {
+                    public ItemStack get() { return inv.get(i); }
+
+                    public boolean set(ItemStack s) {
+                        inv.set(i, s);
+                        return true;
+                    }
+                };
+            }
+        }
         if (r instanceof LivingEntity le) {
             EquipmentSlot es = equipmentSlot(slot);
             if (es == null) return null;

@@ -1110,6 +1110,14 @@
 - **남은 차이(가정)**: 제목의 hover(show_entity)·insertion 은 화면에 안 보여 붙이지 않았다. 스포너 수레의 `BaseSpawner` 는 스포너 블록과 같은 코드라 `TODO(엔티티)`(승객·equipment)가 같이 남는다. 광산 수레 아이템의 이름·`entity_data` 컴포넌트는 그대로 미구현(M8 이후).
 - 시험: `ContainerEntityParityTest`(스포너 수레 틱·저장, 라마 카펫, 전리품 표 풀기 시점, 창 제목).
 
+## 2026-11-07 다차원 차이 (묶음 M10, 바이트코드)
+바닐라 1.21.1 `dcw`(Level) 생성자·`dcw$1`, `dut`(WorldBorder)·`dur$a`(DelegateBorderChangeListener), `MinecraftServer.createLevels`, `aur`(PlayerList) `sendLevelInfo`·`addWorldborderListener`, `ape`(WorldBorderCommand), `dlc`(NetherPortalBlock) `randomTick`·`getPortalDestination`, `eqy`(DerivedLevelData) 를 `javap -c` 로 대조.
+- **보더**: 차원마다 `World.border()`. 좌표 비 ≠ 1 이면 `getCenterX/Z` 만 비로 나눈다(크기·경고·피해 그대로, `createSettings` 도 나눈 중심). 오버월드가 아닌 월드는 `ServerCore.attachWorld` 가 `setAbsoluteMaxSize(max-world-size)` 뒤 `attachFollower`(지금 상태 복사 + `Delegate`)로 오버월드를 따라간다. 내린 추가 월드는 고리를 뗀다. 블록 레벨 `withinBorder`/`borderBounds`·플레이어 보더 피해는 그 차원 보더, 지옥문 출구 자르기는 목적 레벨 보더(`borderBoundsOf`). 명령·level.dat·접속·변경 패킷은 오버월드 보더(바닐라도 네더 접속자에게 오버월드 값 — 클라이언트 레벨이 자기 비로 나눈다). 보더 틱은 차원마다.
+- **차원 이동 지연**: 범위 청크가 다 올라와 있으면 IO 레인을 건너뛰고 바로 목적 region 작업으로, 올라와 있는 청크는 로드 왕복 없음, 모은 뒤 사이에 내려간 청크는 다시 올린다. 플레이어는 지옥문 대기 시작과 60틱마다 목적 청크를 미리 올린다(`Region.prewarmPortal` → `World.prewarmTravel`). 플레이어 도착은 `Player.ArrivalHandoff`: 목적 region 스레드가 연결 스레드의 패킷 보내기를 최대 2ms 기다렸다가 틱 사이(`Region.betweenTicks`)면 그 자리에서 편입, 아니면 연결이 편입 작업을 보낸다(정확히 한 번).
+- **좀비 피글린**: 11-06 구현이 바이트코드와 같다(natural·doMobSpawning·`nextInt(2000) < 난이도`·지옥문 아래 첫 칸 `isValidSpawn`·`EntityType.spawn(pos.above(), STRUCTURE)`·몹에만 `setPortalCooldown` — 탈것에는 없음). 플러그인 생성 원인을 `NETHER_PORTAL` 로(예전엔 `SPAWNER_EGG`).
+- **수면**: 추가 월드는 그 월드 접속자로 세어 충분히 자면 깨우기만(DerivedLevelData 의 시간·날씨 setter 는 빈 메서드).
+- 남은 것: 디스크 읽기·생성이 필요한 처음 가는 목적지(포털을 지나는 엔티티)는 그만큼 늦게 도착(바닐라는 서버를 멈추고 만든다). 추가 월드 보더를 월드마다 따로 둘지는 user-todo 결정 항목.
+
 ## 2026-11-07 블록 엔티티·지도 바닐라 대조 (묶음 M8, 바이트코드)
 
 `javap -c -p` 로 BaseSpawner(`dby`)·TrialSpawner(`dsf`)·EquipmentUser(`btb`)·SignBlockEntity(`drs`)·SignText(`drt`)·ComponentUtils(`xc`)·ScoreContents(`yh`)·SelectorContents(`yi`)·GsonHelper.toStableString(`aye`)·MapItemSavedData(`eqt`)·BeehiveBlockEntity(`dqe`)·BeehiveBlock(`dfs`)를 대조했다.
@@ -1123,6 +1131,11 @@
 - `chunks-per-tick=auto`(기본)는 준비된 청크만 배치에 넣는다. 배치에 생성 중인 청크를 넣으면 Finished 가 가장 느린 생성을 기다려 클라이언트 응답이 늦어지고 이미 있는 청크까지 막힌다.
 - `World.serializedChunkBody(cp, true)` 는 주인 region 스레드면 작업 큐를 건너뛴다. 다른 곳에서 inline 을 켜도 그 스레드가 주인이 아니면 예전처럼 큐로 간다.
 - furnace.properties 를 읽는 새 키를 넣으면 `FurnacePropertiesFile.sections()` 에도 넣는다(`FurnacePropertiesFileTest` 가 접속 방어 키와 고정 목록을 확인한다).
+
+## 2026-11-07 여럿일 때 청크 전송 (묶음 M12)
+- 원인 ①(데이터 유실): 종료 `flushAll` 한 번은 IO 레인이 밀리면(`ioBackedUp`, 레인당 256) 남은 dirty 청크를 `autosaveChunkQueue`(다음 틱)로 넘기는데 종료엔 다음 틱이 없다 → 여럿이 새 땅을 돌고 끄면 생성 청크 약 42% 유실, 재시작 뒤 재생성. `World.flushAllDrained` 가 미룬 수가 0 이 될 때까지 flushAll → `ioBarrier` 를 되풀이(역압은 지킴). 종료·`save-all` 이 쓴다. 미룬 수만 보므로 틱이 도는 save-all 이 끝없이 돌지 않는다.
+- 원인 ②(CPU): 디스크 청크도 생성 풀에서 빛을 처음부터 계산(바닐라는 저장된 빛을 쓰지만, Furnace 는 시야 밖 이웃이 내려가 저장된 빛이 낡을 수 있어 그대로 둠). 빠른 경로: 블록빛 원천은 팔레트에 발광 상태가 없는 구역을 건너뜀(바닐라 `findBlockLightSources`/`maybeHas`), 하늘빛 원천 높이는 한 상태로만 찬 구역을 통째로 지남, 모든 열이 15 인 구역은 `Arrays.fill`. 대기열 항목·순서 그대로. 실제 청크 5,776개 SHA-1 동일, 1.09 → 0.35ms.
+- 함정: `ChunkColumn.sections()` 는 cowCopy 공유 섹션을 복사한다 — 읽기만 할 땐 `sectionUniformBlock`/`sectionMaybeHas`. 봇 측정은 minecraft-protocol 이 map_chunk 를 해석하면 클라이언트 CPU 가 먼저 막힌다(`multi.js` 는 0x27 을 x,z 만 읽음).
 
 ## 2026-11-07 팀·PvP 규칙 연결 (묶음 M16)
 - 바닐라 1.21.1 바이트코드 대조(`bsr.s`=Entity.isAlliedTo(Entity), `bsr.a(eyi)`=isAlliedTo(Team), `cmx.a(cmx)`=Player.canHarmPlayer, `cef.a`=TargetingConditions.test, `cce.h`=HurtByTargetGoal.alertOthers, `cgh.a`=Wolf.wantsToAttack, `cnd.l`=AbstractArrow.tick): `isAlliedTo` 를 부르는 곳은 타게팅 조건·플레이어 쓸기(`cmx`)·철퇴 충격파(`cvb`)·워든 canTargetEntity(`cmb.c`)·HurtByTarget 경보·좀비 피글린 경보·송곳니(`cnh`)·MobEffectUtil.addEffectToPlayersAround(`bsa`, 장로 수호자 저주·워든 어둠) 이다. 모두 이어 붙였다.

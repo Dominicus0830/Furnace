@@ -34,6 +34,17 @@ final class PaletteStorage {
         return palette == null ? raw : palette[raw];
     }
 
+    /**
+     * 바닐라 PalettedContainer.maybeHas: 조건을 만족하는 값이 있을 수도 있는가. 단일값·간접 팔레트는 팔레트 항목만 보고(지금은 안 쓰이는
+     * 옛 항목이 남아 있으면 true 일 수 있다), 직접 저장은 늘 true. false 면 그런 칸은 확실히 없다.
+     */
+    boolean maybeHas(java.util.function.IntPredicate p) {
+        if (bits == 0) return p.test(singleValue);
+        if (palette == null) return true;
+        for (int i = 0; i < paletteSize; i++) if (p.test(palette[i])) return true;
+        return false;
+    }
+
     /** 단일값 상태면 그 값, 아니면 none. */
     int singleValueOr(int none) {
         return bits == 0 ? singleValue : none;

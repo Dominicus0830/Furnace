@@ -38,7 +38,8 @@ public class NetherPortalBlock extends BlockBehavior implements Portal {
             while (B.is(level.getBlockState(p), block)) p = p.below();
             if (level instanceof ChunkLevel cl
                     && SpawnPlacements.isValidSpawn(level.getBlockState(p), cl, p, "minecraft:zombified_piglin")) {
-                Mob mob = cl.spawnMob("minecraft:zombified_piglin", p.above(), false, false, SpawnReason.STRUCTURE);
+                // EntityType.spawn(level, pos, STRUCTURE): 내려놓기 없음 → 무작위 방향 → finalizeSpawn → 소리 → 탈것째 추가. 쿨다운은 몹에만(1.21.1 바이트코드)
+                Mob mob = cl.spawnMob("minecraft:zombified_piglin", p.above(), false, false, SpawnReason.STRUCTURE, "NETHER_PORTAL");
                 if (mob != null) mob.setPortalCooldown();
             }
         }
@@ -84,7 +85,7 @@ public class NetherPortalBlock extends BlockBehavior implements Portal {
         DimensionType to = DimensionType.byLevelKey(key);
         if (to == null) return null;
         double scale = DimensionType.teleportationScale(level.dimensionType(), to);
-        Pos exit = level.clampToBorder(t.x() * scale, t.y(), t.z() * scale);
+        Pos exit = level.clampToBorderOf(key, t.x() * scale, t.y(), t.z() * scale);   // 목적 레벨의 보더(getPortalDestination)
         // 원천 포털: getDimensionTransitionFromExit 의 entity.level().getBlockState(entryPos)
         int entry = level.getBlockState(pos);
         final int srcAxis;

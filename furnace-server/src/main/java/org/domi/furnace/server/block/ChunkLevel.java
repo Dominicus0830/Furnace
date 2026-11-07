@@ -1095,6 +1095,12 @@ public abstract class ChunkLevel implements BlockLevel {
 
     public Pos clampToBorder(Pos p) { return clampToBorder(p.x(), p.y(), p.z()); }
 
+    /** 다른 차원 레벨 보더의 clampToBounds(지옥문: 목적 레벨 보더로 출구를 자른다). 그 차원이 이 레벨이면 clampToBorder 와 같다. */
+    public Pos clampToBorderOf(String dimension, double x, double y, double z) {
+        double[] b = dimension.equals(dimension()) ? borderBounds() : services().borderBoundsOf(dimension);
+        return new Pos(Entity.floor(Math.clamp(x, b[0], b[2] - 1.0)), Entity.floor(y), Entity.floor(Math.clamp(z, b[1], b[3] - 1.0)));
+    }
+
     @Override
     public void setBlockEntity(BlockEntity be) {
         Pos pos = be.pos();
@@ -1622,6 +1628,13 @@ public abstract class ChunkLevel implements BlockLevel {
     /** EntityType.spawn(level, pos, reason, snapToGround, extendDown) — 만든 몹(몹이 아니면 null). */
     public org.domi.furnace.server.entity.Mob spawnMob(String entityType, Pos pos, boolean snapToGround, boolean extendDown,
             org.domi.furnace.server.entity.spawn.SpawnReason reason) {
+        return spawnMob(entityType, pos, snapToGround, extendDown, reason,
+                reason == org.domi.furnace.server.entity.spawn.SpawnReason.DISPENSER ? "DISPENSE_EGG" : "SPAWNER_EGG");
+    }
+
+    /** pluginReason: 플러그인 CreatureSpawnEvent 의 원인 이름(바닐라 동작에는 영향 없음). */
+    public org.domi.furnace.server.entity.Mob spawnMob(String entityType, Pos pos, boolean snapToGround, boolean extendDown,
+            org.domi.furnace.server.entity.spawn.SpawnReason reason, String pluginReason) {
         Entity e = org.domi.furnace.server.entity.Entities.create(this, entityType);
         if (!(e instanceof org.domi.furnace.server.entity.Mob mob)) return null;
         double d0 = 0.0;
@@ -1637,7 +1650,7 @@ public abstract class ChunkLevel implements BlockLevel {
         if (mob instanceof org.domi.furnace.server.entity.Villager v) v.setFinalizeReason(reason);
         if (mob instanceof org.domi.furnace.server.entity.Raider r) r.setFinalizeReason(reason);   // 알·발사기 마녀도 습격에 참여
         mob.finalizeSpawnGroup(random, getCurrentDifficultyAt(mob.blockPosition()), null);   // 무리 데이터 경로(AgeableMob·말 능력치)
-        addFreshEntityWithPassengers(mob.spawnReason(reason == org.domi.furnace.server.entity.spawn.SpawnReason.DISPENSER ? "DISPENSE_EGG" : "SPAWNER_EGG"));
+        addFreshEntityWithPassengers(mob.spawnReason(pluginReason));
         mob.makeSound(mob.ambientSoundForSpawn());
         return mob;
     }
@@ -1719,6 +1732,20 @@ public abstract class ChunkLevel implements BlockLevel {
 
         public int unloadedState() { return bedrockState; }
 
+        @Override
+        public int uniformSectionState(int cx, int sy, int cz) {
+            ChunkColumn c = col(cx, cz);
+            int i = c == null ? -1 : sy - (c.minY() >> 4);
+            return i < 0 || i >= c.sectionCount() ? -1 : c.sectionUniformBlock(i);
+        }
+
+        @Override
+        public boolean sectionMayEmit(int cx, int sy, int cz) {
+            ChunkColumn c = col(cx, cz);
+            int i = c == null ? -1 : sy - (c.minY() >> 4);
+            return i < 0 || i >= c.sectionCount() || c.sectionMaybeHas(i, org.domi.furnace.server.light.LightTables.EMITS);
+        }
+
         public int extraEmission(int x, int y, int z) { return virtualLights().emission(x, y, z); }
 
         // 같은 섹션 연속 기록은 건너뛴다(전파 중 매 칸 불린다)
@@ -1797,8 +1824,16 @@ public abstract class ChunkLevel implements BlockLevel {
     public static void precomputeLight(ChunkColumn col, int cx, int cz, int bedrockState, boolean hasSkyLight) {
         col.motionBlockingHeightmap();   // 높이 지도도 첫 사용 때 틱 스레드에서 열마다 훑지 않게 미리 채운다
         if (col.light() != null) return;
-        col.light(org.domi.furnace.server.light.LevelLight.computeIsolated(cx, cz, (x, y, z) -> col.getBlock(x & 15, y, z & 15), bedrockState,
-                col.minY(), col.maxY() + 1, hasSkyLight));
+        final int base = col.minY() >> 4;
+        col.light(org.domi.furnace.server.light.LevelLight.computeIsolated(cx, cz, new org.domi.furnace.server.light.LevelLight.StateReader() {
+            @Override public int state(int x, int y, int z) { return col.getBlock(x & 15, y, z & 15); }
+
+            @Override public int uniformSectionState(int sectionY) { return col.sectionUniformBlock(sectionY - base); }
+
+            @Override public boolean sectionMayEmit(int sectionY) {
+                return col.sectionMaybeHas(sectionY - base, org.domi.furnace.server.light.LightTables.EMITS);
+            }
+        }, bedrockState, col.minY(), col.maxY() + 1, hasSkyLight));
         col.lightPrecomputed(true);
     }
 

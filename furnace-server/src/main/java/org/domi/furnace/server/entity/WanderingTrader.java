@@ -1,6 +1,6 @@
 // 바닐라 WanderingTrader(+AbstractVillager 의 거래 부분): 방랑 상인. 거래표는 WANDERING_TRADER_TRADES 에서 처음 열 때 5+1개,
 // 사라지기까지 despawnDelay 틱, 밤엔 투명 물약·낮엔 우유, 위협에서 달아남, 사라질 위치(wander target)로 걷기.
-// TODO(인벤토리): AbstractVillager 의 8칸 Inventory 는 아직 없다. TODO(트리거): 거래 발전 과제(CriteriaTriggers.TRADE)는 생략.
+// AbstractVillager 의 8칸 Inventory(NBT "Inventory", /item 의 villager.0~7). TODO(트리거): 거래 발전 과제(CriteriaTriggers.TRADE)는 생략.
 package org.domi.furnace.server.entity;
 
 import java.util.EnumSet;
@@ -31,7 +31,7 @@ import org.domi.furnace.server.trade.MerchantOffer;
 import org.domi.furnace.server.trade.MerchantOffers;
 import org.domi.furnace.server.trade.VillagerTrades;
 
-public final class WanderingTrader extends PathfinderMob implements Merchant {
+public final class WanderingTrader extends PathfinderMob implements Merchant, InventoryCarrier {
     /** canBeLeashed(디컴파일 y): AbstractVillager(cmf)는 못 맨다. */
     @Override
     public boolean canBeLeashed() { return false; }
@@ -46,6 +46,8 @@ public final class WanderingTrader extends PathfinderMob implements Merchant {
     /** null = 아직 안 만들었다(처음 필요할 때 만든다). */
     private MerchantOffers offers;
     private int despawnDelay;
+    /** AbstractVillager.inventory: 8칸(방랑 상인은 줍지 않지만 저장·명령으로 채울 수 있다). */
+    private final MobInventory inventory = new MobInventory(8);
     private Pos wanderTarget;
 
     public WanderingTrader(ChunkLevel level, int id) {
@@ -182,6 +184,8 @@ public final class WanderingTrader extends PathfinderMob implements Merchant {
 
     // ------------------------------------------------------------------ 사라짐·마시기
 
+    @Override public MobInventory getInventory() { return inventory; }
+
     public void setDespawnDelay(int v) { despawnDelay = v; }
 
     public int despawnDelay() { return despawnDelay; }
@@ -241,6 +245,7 @@ public final class WanderingTrader extends PathfinderMob implements Merchant {
             wrapper.putList("Recipes", recipes);
             tag.putCompound("Offers", wrapper);
         }
+        writeInventoryToSave(tag);   // AbstractVillager.addAdditionalSaveData: Offers 다음 Inventory
         tag.putInt("DespawnDelay", despawnDelay);
         if (wanderTarget != null) tag.putIntArray("wander_target", new int[] {wanderTarget.x(), wanderTarget.y(), wanderTarget.z()});
     }
@@ -255,6 +260,7 @@ public final class WanderingTrader extends PathfinderMob implements Merchant {
                 if (o != null) offers.add(o);
             }
         }
+        readInventoryFromSave(tag);
         if (tag.tags().get("DespawnDelay") instanceof Number n) despawnDelay = n.intValue();
         if (tag.tags().get("wander_target") instanceof int[] a && a.length == 3) wanderTarget = new Pos(a[0], a[1], a[2]);
     }
