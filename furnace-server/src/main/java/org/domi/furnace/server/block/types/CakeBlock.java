@@ -29,7 +29,7 @@ public class CakeBlock extends org.domi.furnace.server.block.BlockBehavior {
                 level.playSound(null, pos, "minecraft:block.cake.add_candle", "blocks", 1.0F, 1.0F);
                 level.setBlockAndUpdate(pos, B.defaultState(candleCake));
                 level.gameEvent("minecraft:block_change", pos, player, -1);
-                player.awardStat("minecraft:used");
+                player.awardStat("minecraft:used:" + org.domi.furnace.server.item.ItemTools.itemName(stack));
                 return ItemInteractionResult.SUCCESS;
             }
         }

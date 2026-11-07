@@ -1110,6 +1110,14 @@
 - **남은 차이(가정)**: 제목의 hover(show_entity)·insertion 은 화면에 안 보여 붙이지 않았다. 스포너 수레의 `BaseSpawner` 는 스포너 블록과 같은 코드라 `TODO(엔티티)`(승객·equipment)가 같이 남는다. 광산 수레 아이템의 이름·`entity_data` 컴포넌트는 그대로 미구현(M8 이후).
 - 시험: `ContainerEntityParityTest`(스포너 수레 틱·저장, 라마 카펫, 전리품 표 풀기 시점, 창 제목).
 
+## 2026-11-07 다차원 차이 (묶음 M10, 바이트코드)
+바닐라 1.21.1 `dcw`(Level) 생성자·`dcw$1`, `dut`(WorldBorder)·`dur$a`(DelegateBorderChangeListener), `MinecraftServer.createLevels`, `aur`(PlayerList) `sendLevelInfo`·`addWorldborderListener`, `ape`(WorldBorderCommand), `dlc`(NetherPortalBlock) `randomTick`·`getPortalDestination`, `eqy`(DerivedLevelData) 를 `javap -c` 로 대조.
+- **보더**: 차원마다 `World.border()`. 좌표 비 ≠ 1 이면 `getCenterX/Z` 만 비로 나눈다(크기·경고·피해 그대로, `createSettings` 도 나눈 중심). 오버월드가 아닌 월드는 `ServerCore.attachWorld` 가 `setAbsoluteMaxSize(max-world-size)` 뒤 `attachFollower`(지금 상태 복사 + `Delegate`)로 오버월드를 따라간다. 내린 추가 월드는 고리를 뗀다. 블록 레벨 `withinBorder`/`borderBounds`·플레이어 보더 피해는 그 차원 보더, 지옥문 출구 자르기는 목적 레벨 보더(`borderBoundsOf`). 명령·level.dat·접속·변경 패킷은 오버월드 보더(바닐라도 네더 접속자에게 오버월드 값 — 클라이언트 레벨이 자기 비로 나눈다). 보더 틱은 차원마다.
+- **차원 이동 지연**: 범위 청크가 다 올라와 있으면 IO 레인을 건너뛰고 바로 목적 region 작업으로, 올라와 있는 청크는 로드 왕복 없음, 모은 뒤 사이에 내려간 청크는 다시 올린다. 플레이어는 지옥문 대기 시작과 60틱마다 목적 청크를 미리 올린다(`Region.prewarmPortal` → `World.prewarmTravel`). 플레이어 도착은 `Player.ArrivalHandoff`: 목적 region 스레드가 연결 스레드의 패킷 보내기를 최대 2ms 기다렸다가 틱 사이(`Region.betweenTicks`)면 그 자리에서 편입, 아니면 연결이 편입 작업을 보낸다(정확히 한 번).
+- **좀비 피글린**: 11-06 구현이 바이트코드와 같다(natural·doMobSpawning·`nextInt(2000) < 난이도`·지옥문 아래 첫 칸 `isValidSpawn`·`EntityType.spawn(pos.above(), STRUCTURE)`·몹에만 `setPortalCooldown` — 탈것에는 없음). 플러그인 생성 원인을 `NETHER_PORTAL` 로(예전엔 `SPAWNER_EGG`).
+- **수면**: 추가 월드는 그 월드 접속자로 세어 충분히 자면 깨우기만(DerivedLevelData 의 시간·날씨 setter 는 빈 메서드).
+- 남은 것: 디스크 읽기·생성이 필요한 처음 가는 목적지(포털을 지나는 엔티티)는 그만큼 늦게 도착(바닐라는 서버를 멈추고 만든다). 추가 월드 보더를 월드마다 따로 둘지는 user-todo 결정 항목.
+
 ## 2026-11-07 블록 엔티티·지도 바닐라 대조 (묶음 M8, 바이트코드)
 
 `javap -c -p` 로 BaseSpawner(`dby`)·TrialSpawner(`dsf`)·EquipmentUser(`btb`)·SignBlockEntity(`drs`)·SignText(`drt`)·ComponentUtils(`xc`)·ScoreContents(`yh`)·SelectorContents(`yi`)·GsonHelper.toStableString(`aye`)·MapItemSavedData(`eqt`)·BeehiveBlockEntity(`dqe`)·BeehiveBlock(`dfs`)를 대조했다.
@@ -1124,6 +1132,11 @@
 - `World.serializedChunkBody(cp, true)` 는 주인 region 스레드면 작업 큐를 건너뛴다. 다른 곳에서 inline 을 켜도 그 스레드가 주인이 아니면 예전처럼 큐로 간다.
 - furnace.properties 를 읽는 새 키를 넣으면 `FurnacePropertiesFile.sections()` 에도 넣는다(`FurnacePropertiesFileTest` 가 접속 방어 키와 고정 목록을 확인한다).
 
+## 2026-11-07 여럿일 때 청크 전송 (묶음 M12)
+- 원인 ①(데이터 유실): 종료 `flushAll` 한 번은 IO 레인이 밀리면(`ioBackedUp`, 레인당 256) 남은 dirty 청크를 `autosaveChunkQueue`(다음 틱)로 넘기는데 종료엔 다음 틱이 없다 → 여럿이 새 땅을 돌고 끄면 생성 청크 약 42% 유실, 재시작 뒤 재생성. `World.flushAllDrained` 가 미룬 수가 0 이 될 때까지 flushAll → `ioBarrier` 를 되풀이(역압은 지킴). 종료·`save-all` 이 쓴다. 미룬 수만 보므로 틱이 도는 save-all 이 끝없이 돌지 않는다.
+- 원인 ②(CPU): 디스크 청크도 생성 풀에서 빛을 처음부터 계산(바닐라는 저장된 빛을 쓰지만, Furnace 는 시야 밖 이웃이 내려가 저장된 빛이 낡을 수 있어 그대로 둠). 빠른 경로: 블록빛 원천은 팔레트에 발광 상태가 없는 구역을 건너뜀(바닐라 `findBlockLightSources`/`maybeHas`), 하늘빛 원천 높이는 한 상태로만 찬 구역을 통째로 지남, 모든 열이 15 인 구역은 `Arrays.fill`. 대기열 항목·순서 그대로. 실제 청크 5,776개 SHA-1 동일, 1.09 → 0.35ms.
+- 함정: `ChunkColumn.sections()` 는 cowCopy 공유 섹션을 복사한다 — 읽기만 할 땐 `sectionUniformBlock`/`sectionMaybeHas`. 봇 측정은 minecraft-protocol 이 map_chunk 를 해석하면 클라이언트 CPU 가 먼저 막힌다(`multi.js` 는 0x27 을 x,z 만 읽음).
+
 ## 2026-11-07 팀·PvP 규칙 연결 (묶음 M16)
 - 바닐라 1.21.1 바이트코드 대조(`bsr.s`=Entity.isAlliedTo(Entity), `bsr.a(eyi)`=isAlliedTo(Team), `cmx.a(cmx)`=Player.canHarmPlayer, `cef.a`=TargetingConditions.test, `cce.h`=HurtByTargetGoal.alertOthers, `cgh.a`=Wolf.wantsToAttack, `cnd.l`=AbstractArrow.tick): `isAlliedTo` 를 부르는 곳은 타게팅 조건·플레이어 쓸기(`cmx`)·철퇴 충격파(`cvb`)·워든 canTargetEntity(`cmb.c`)·HurtByTarget 경보·좀비 피글린 경보·송곳니(`cnh`)·MobEffectUtil.addEffectToPlayersAround(`bsa`, 장로 수호자 저주·워든 어둠) 이다. 모두 이어 붙였다.
 - **구조**: `Targetable.team()`/`isAlliedTo(other)` 기본 구현(같은 팀 = `PlayerTeam.isAlliedTo`). `LivingEntity.team()` = `getTeam()`, `Player.team()` 은 원래 있던 것. 덮어쓰기: `TamableAnimal`(길들였으면 주인·주인의 아군), `AbstractIllager`(팀 규칙 뒤, `illager_friends` 태그는 **둘 다 팀이 없을 때만** — 이전엔 팀과 무관하게 동맹이었다), `Evoker` 는 그대로.
@@ -1133,6 +1146,25 @@
 - **/teammsg 채팅 필터**: 바닐라의 `shouldFilterMessageTo` 분기는 글자 걸러내기 서비스(`text-filtering-config`)가 없으면 마스크가 PASS_THROUGH 라 관측 결과가 같다(받는 쪽 클라이언트 옵션과 무관하게 원문, "모두 걸러짐" 안내도 없음). Furnace 는 그 서비스를 아직 지원하지 않으므로(FurnaceMain 경고) 코드는 안 늘리고 주석으로 닫았다.
 - **독립 검토(읽기 전용)가 찾은 둘, 고침**: ① `TamableAnimal.getTeam` 은 길들였고 주인이 보이면 **주인의 팀**(바닐라 `bul.ck`)인데 Entity 기본(자기 UUID 의 팀)을 그대로 써서 쓸기·충격파·워든·선택자 `team=`·팀 충돌이 펫에서 틀렸다. ② `PlayerVitals.hurt` 의 `ap != player` 예외 제거 — 바닐라 `ServerPlayer.hurt` 는 자기 자신이 원인이어도 `canHarmPlayer(자기)` 를 검사해, pvp 꺼짐·아군 피해 꺼진 팀에서는 내 화살·내 TNT·내 폭죽에 안 다친다. `Player.team()` 에는 `hasTeams()` 단락 추가.
 - 시험: `TeamPvpRulesTest` 10개(같은 팀/없음, 전투 조건, 목표 지속, 길들인 동물 주인, 일러저 친구, canHarmPlayer 표, 맞는 쪽 무시, 늑대, 길들인 말, 화살 통과).
+
+## 2026-11-07 스컬크 마무리 (묶음 M2)
+- 상세는 `docs/feature-parity/m2-sculk-2026-11-07.md`. 스컬크 확산 코드(SculkSpreader·ChargeCursor·SculkBlock·SculkVeinBlock·촉매 리스너)는 바이트코드와 같음을 확인했고, SculkBehaviour 구현은 바닐라도 스컬크·맥뿐이다.
+- 빠져 있던 것: `Player` 는 `LivingEntity` 가 아니라 사망 때 `entity_die` 도, 경험치 구슬도 없었다. `PlayerVitals.die` 가 첫 줄에 `entity_die` 를 내고(주인 region 스레드), 끝에 `dropExperience` 를 한다. 촉매 리스너는 `Player` 도 받는다.
+- 함정: `PlayerVitals.die` 는 어느 스레드에서든 불릴 수 있으므로 게임 이벤트·구슬 드롭은 `player.onOwnerThread() ? 바로 : runOnOwner` 로 보낸다(순서 보존). 처치자 인챈트 보정(mob_experience)은 기본 데이터에 쓰는 곳이 없어 생략.
+
+## 2026-11-07 블록 잔여 (묶음 M17)
+- 근거: 바닐라 1.21.1 바이트코드 `dlt`(PowderSnowBlock: 충돌 모양 `b(dtc,dcc,jd,exh)` — fallDistance > 2.5 → 높이 0.9 상자, 그다음 FallingBlockEntity(`cjg`) 거나 걸을 수 있고 `isAbove` 이고 웅크리지 않으면 `dfy.b`(= 꽉 찬 블록), 아니면 빈 모양. entityInside 의 녹이기 조건은 mobGriefing 또는 플레이어) + 아는 바닐라 코드(Comparator/Lectern/Brewing/NoteBlock/DecoratedPot/FallingBlockEntity).
+- **비교기**: `BlockLevel.itemFrameAnalogOutput(pos, facing)` — 그 칸 안에서 비교기가 바라보는 쪽(`FACING`)을 향한 아이템 액자가 정확히 하나일 때만 `ItemFrame.getAnalogOutput`(빈 액자 0, 아니면 돌림 % 8 + 1), 아니면 MIN_VALUE. 단단한 블록 뒤 칸에서 블록 신호와 `max`.
+- **노트 블록**: 커스텀 머리 악기는 위 칸 `SkullBlockEntity.note_block_sound`(없으면 false, 씨앗도 안 뽑음), 소리는 `playSeededSound` 로 레벨 난수 `nextLong()` 씨앗을 패킷에 싣는다(`BlockLevel.playSeededSound` 추가). 이전엔 씨앗을 뽑고 버렸다.
+- **꾸며진 항아리**: 섬세한 손길(`#prevents_decorated_pot_shattering`)이면 금 가지 않는다. 드롭은 하드코딩을 없애고 바닐라 표(`blocks/decorated_pot` — 금 간 단지는 동적 항목 `minecraft:sherds`, 아니면 `copy_components pot_decorations`)에 맡겼다. 동적 항목은 `LootParams.sherds(컴포넌트)` 가 `ServerCore.blockDrops` 에서 이어 준다(데이터 팩이 표를 고치면 따른다). **차이**: 표가 없는 환경(데이터 팩 없는 시험 레벨)에서는 단지가 아무것도 안 떨군다 — 시험은 `TestBlockLoot` 로 바닐라 표를 평가한다.
+- **연단**: 책은 `spawnItemEntity` 로 (x+0.5+0.25·dx, y+1.0, z+0.5+0.25·dz) — 아이템 엔티티 생성자의 속도 난수(레벨 난수 2번, y 0.2). 주크박스(`popOutTheItem`)는 이미 바닐라와 같아 손대지 않았다.
+- **양조대**: 남는 아이템(용의 숨결 → 유리병)은 `Containers.dropItemStack(pos 모서리)` — `level.dropItemStack(x, y, z)`(칸 안 임의 위치).
+- **TNT·호박**: 부싯돌은 `hurtAndBreak`, 화염구는 1개 소모(`instabuild` 면 소모 없음), 통계 `used:<아이템>`. 호박은 씨앗 떨군 뒤 가위 `hurtAndBreak` → `shear` 게임 이벤트 → `used:shears`. 벌집(꿀·꿀벌집 조각)의 통계도 `used`(이름 없는 통계)였던 것을 `used:<아이템>` 으로 고쳤다.
+- **낙하 블록**: `TileEntityData` 읽기·쓰기. 내려앉은 뒤 블록 엔티티의 `saveWithoutMetadata` 에 최상위 키를 복사해 덮고(재귀 합치기 아님) 다시 읽고 `setChanged`(바닐라와 같은 순서: `onLand` 뒤).
+- **가루눈**: `BlockBehavior.getEntityCollisionShape(상태, 레벨, 칸, 엔티티)` 를 추가해 `ChunkLevel.collectCollisions(box, entity, …)` 가 엔티티 이동(`Entity.collide`·`findSupportingBlock`)에서 쓴다. 문맥 엔티티가 없는 질의(건설·플레이어 이동 검증·길찾기)는 그대로 빈 모양. 걸을 수 있는 엔티티는 `#powder_snow_walkable_mobs` 거나 가죽 장화를 신은 생물. 생물은 웅크리지 않으므로(`LivingEntity.isShiftKeyDown` 은 늘 거짓) 그 조건은 무의미하다. 떨어지는 블록이 2.5 넘게 떨어지면 0.9 높이 모양에 걸려 가루눈 칸 안(y=−59.1 처럼)에서 멈추고, 바꿀 수 없어 아이템이 된다 — 바닐라도 같다.
+- **이미 구현돼 있어 손대지 않은 것**: 투사체-블록 반응(양초·모닥불·TNT·종·장식 단지·후렴화·점적석·자수정·큰 흘림잎·과녁 — 2026-11-03 절), 주크박스 드롭 위치, 벌집 크리에이티브 드롭(M8).
+- **남은 것(가정)**: 플레이어는 엔티티 계층 밖이라 가루눈 `entityInside`(불붙은 플레이어가 mobGriefing 꺼짐에서도 녹이기)가 오지 않고, `noCollision`(스폰·길찾기)은 아직 엔티티 문맥이 없다(토끼 길찾기가 가루눈 위를 못 골랐을 수 있음).
+- 시험: `BlockRemainderM17Test`(15개), `BlockEntityLootTest.decoratedPotDropsItemWithDecorationsOrFourSherdsWhenCracked`, `ProjectileBlockHitTest.decoratedPotCracksAndShatters`(바닐라 표로 평가하도록 바꿈).
 
 ## 2026-11-07 월드젠 단계 훅·청크 재생성 (W3)
 - API `LifecycleEvents.WORLD_GENERATION` → `WorldGenerationRegistrar.register(키, ChunkGenerationHooks)`. 월드는 키만 쥔다(`WorldCreator.generationHooks`, 기본 차원은 `worldgen-hooks.*`). 서버 `plugin/GenerationHookStore`(키 → 플러그인·훅, 꺼지면 빠짐), `world/gen/GenHooks`(월드 바인딩·예외 격리·BlockData 변환). 문서 `docs/api/worldgen-hooks.md`.

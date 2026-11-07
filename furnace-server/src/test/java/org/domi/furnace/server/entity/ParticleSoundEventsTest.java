@@ -247,7 +247,7 @@ class ParticleSoundEventsTest {
         level.addFreshEntity(camel);
         level.events.clear();
         level.sounds.clear();
-        assertTrue(camel.canJump(), "안장 여부와 상관없이 true");
+        assertFalse(camel.canJump(), "바닐라 canJump: 안장이 있고 움직임을 거부하지 않을 때만(MobLeftoversM14Test)");
         assertFalse(camel.isDashing());
         camel.handleStartJump(80);
         assertTrue(camel.isDashing());

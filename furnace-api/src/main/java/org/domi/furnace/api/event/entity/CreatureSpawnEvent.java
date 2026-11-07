@@ -54,6 +54,8 @@ public final class CreatureSpawnEvent extends EntitySpawnEvent {
         FROZEN,
         /** 올챙이가 개구리로 자람. */
         METAMORPHOSIS,
+        /** 지옥문 블록이 무작위 틱에 좀비 피글린을 낳음. */
+        NETHER_PORTAL,
         /** 소환사의 주문(밴시). */
         SPELL,
         /** /summon 명령. */

@@ -48,6 +48,19 @@ public final class LootParams {
         return this;
     }
 
+    /**
+     * DecoratedPotBlock.getDrops 의 withDynamicDrop(minecraft:sherds): 단지 블록 엔티티의 pot_decorations 를 뒤·왼·오른·앞 순서로
+     * 아이템 하나씩(벽돌 포함) 낸다. 금 간 단지 표가 이 동적 항목을 쓴다.
+     */
+    public LootParams sherds(Map<?, ?> blockEntityComponents) {
+        if (blockEntityComponents != null && blockEntityComponents.get("minecraft:pot_decorations") instanceof java.util.List<?> l) {
+            dynamicDrop("minecraft:sherds", out -> {
+                for (Object o : l) out.accept(new LootStack(String.valueOf(o), 1));
+            });
+        }
+        return this;
+    }
+
     @SuppressWarnings("unchecked")
     public <T> T get(Key<T> key) { return (T) values.get(key); }
 

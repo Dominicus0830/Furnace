@@ -1114,6 +1114,12 @@ public abstract class LivingEntity extends Entity implements Targetable {
         s.clear();
     }
 
+    /** LivingEntity.doPush(entity): 후보.push(나). 철 골렘·워든이 덮어쓴다. */
+    protected void doPush(Entity e) { e.push(this); }
+
+    /** doPush(플레이어) = player.push(나) — 플레이어 쪽 속도는 클라이언트 권위라 내 몫만 받는다. */
+    protected void doPush(Player p) { pushByPlayer(p); }
+
     // ------------------------------------------------------------------ 장비
 
     private final java.util.EnumMap<EquipmentSlot, ItemStack> lastEquipmentItems = new java.util.EnumMap<>(EquipmentSlot.class);

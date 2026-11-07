@@ -44,6 +44,9 @@ public final class LightTables {
 
     public static int lightEmission(int state) { return BlockInfo.get().lightEmission(state); }
 
+    /** 빛을 내는 상태인가(구역 팔레트 검사용). */
+    public static final java.util.function.IntPredicate EMITS = s -> lightEmission(s) > 0;
+
     public static boolean useShapeForLightOcclusion(int state) { return USE_SHAPE[state]; }
 
     /** LightEngine.isEmptyShape: 가리지 못하거나 모양을 안 쓰는 상태는 면 모양이 비었다. */

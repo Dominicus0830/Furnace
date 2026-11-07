@@ -33,7 +33,8 @@ public final class ServerCore {
     private final org.domi.furnace.server.chat.ServicesKeys servicesKeys = new org.domi.furnace.server.chat.ServicesKeys();
     private final org.domi.furnace.server.world.GameRules gameRules;
     private final org.domi.furnace.server.world.WorldClock clock;
-    private final org.domi.furnace.server.world.WorldBorder border = new org.domi.furnace.server.world.WorldBorder();
+    /** 오버월드 보더(바닐라 overworld().getWorldBorder()) — 명령·level.dat·접속자 패킷이 이것을 쓴다. 다른 차원 보더는 이것을 따라간다. */
+    private final org.domi.furnace.server.world.WorldBorder border;
     private volatile Runnable halt = () -> {};
     private volatile Runnable saveAll = () -> {};
 
@@ -43,6 +44,7 @@ public final class ServerCore {
         this.lists = lists;
         this.profileCache = profileCache;
         this.world = world;
+        this.border = world.border();
         org.domi.furnace.server.map.MapStore.install(world.worldDir());   // 지도 저장 데이터(world/data/map_N.dat) 읽기
         this.levelData = levelData;
         this.scheduler = scheduler;
@@ -617,6 +619,17 @@ public final class ServerCore {
 
     public org.domi.furnace.server.world.WorldBorder border() { return border; }
 
+    /** 보더 {minX, minZ, maxX, maxZ}(블록 레벨 서비스 꼴). */
+    private static double[] bounds(org.domi.furnace.server.world.WorldBorder b) {
+        synchronized (b) { return new double[] {b.getMinX(), b.getMinZ(), b.getMaxX(), b.getMaxZ()}; }
+    }
+
+    /** 그 차원의 보더(바닐라 level.getWorldBorder()). 띄우지 않은 차원이면 오버월드 것. */
+    public org.domi.furnace.server.world.WorldBorder borderOf(String dimension) {
+        World w = dimension == null ? null : world(dimension);
+        return w != null ? w.border() : border;
+    }
+
     /** /tick 이 바꾸는 서버 틱 상태(모든 차원이 같은 객체를 본다). */
     public org.domi.furnace.server.world.TickState tickState() { return world.tickState(); }
 
@@ -809,7 +822,7 @@ public final class ServerCore {
     public void tick() {
         beginServerTick();
         functions.tick();   // 바닐라 tickChildren: 함수(#tick, 리로드 뒤 #load)가 레벨 틱보다 먼저
-        border.tick();
+        for (World w : worlds()) w.border().tick();   // 바닐라 ServerLevel.tick: 차원마다 자기 보더(보간이 끝나면 정적 크기로)
         java.util.function.Consumer<org.domi.furnace.server.net.protocol.Packet> all = packet -> { for (Player p : players()) p.send(packet); };
         clock.tickWeather(gameRules, all, packet -> { for (Player p : players()) if (world.dimension().equals(p.dimension())) p.send(packet); });
         tickSleep();
@@ -831,24 +844,29 @@ public final class ServerCore {
     }
 
     /**
-     * ServerLevel.tick 의 밤 건너뛰기(오버월드 — 다른 차원은 잘 수 없다): 자는 사람이 playersSleepingPercentage 만큼이고 그만큼이
-     * 100틱 넘게 잤으면 아침으로·깨우기·날씨 초기화. 깨우기는 각 플레이어의 region 스레드로 넘긴다(다음 region 틱).
+     * ServerLevel.tick 의 밤 건너뛰기(차원마다 그 차원 접속자로 센다): 자는 사람이 playersSleepingPercentage 만큼이고 그만큼이 100틱 넘게
+     * 잤으면 아침으로·깨우기·날씨 초기화. 오버월드가 아닌 차원(추가 월드 포함 — 바닐라 DerivedLevelData 는 시간·날씨 setter 가 아무 일도 하지 않는다)은
+     * 깨우기만 한다(M10). 깨우기는 각 플레이어의 region 스레드로 넘긴다(다음 region 틱).
      */
     private void tickSleep() {
         int pct = gameRules.getInt("playersSleepingPercentage");
-        var status = world.sleepStatus();
-        if (!status.areEnoughSleeping(pct)) return;
-        var here = world.playersHere();
-        if (!status.areEnoughDeepSleeping(pct, here)) return;
-        clock.skipNight(gameRules, () -> {
-            status.removeAllSleepers();   // wakeUpAllPlayers
-            for (Player p : here) {
-                if (!p.isSleeping()) continue;
-                world.runAt(p.x(), p.z(), r -> {
-                    if (p.isSleeping()) org.domi.furnace.server.entity.PlayerSleeping.stopSleepInBed(p, r.level(), false, false);
-                });
-            }
-        });
+        for (World w : worlds()) {
+            var status = w.sleepStatus();
+            if (!status.areEnoughSleeping(pct)) continue;
+            var here = w.playersHere();
+            if (!status.areEnoughDeepSleeping(pct, here)) continue;
+            Runnable wake = () -> {
+                status.removeAllSleepers();   // wakeUpAllPlayers
+                for (Player p : here) {
+                    if (!p.isSleeping()) continue;
+                    w.runAt(p.x(), p.z(), r -> {
+                        if (p.isSleeping()) org.domi.furnace.server.entity.PlayerSleeping.stopSleepInBed(p, r.level(), false, false);
+                    });
+                }
+            };
+            if (w == world) clock.skipNight(gameRules, wake);
+            else wake.run();
+        }
     }
 
     /** level.dat 저장 전에 런타임 상태를 LevelData 에 반영한다. */
@@ -1069,8 +1087,8 @@ public final class ServerCore {
             return border.computePlayerDamage(x - 0.3, z - 0.3, x + 0.3, z + 0.3, x, z);
         }
         public float borderDamage(Player player, double x, double y, double z) {
-            org.domi.furnace.server.world.WorldBorder own = player.viewLayers().enforcedBorder();
-            return (own != null ? own : border).computePlayerDamage(x - 0.3, z - 0.3, x + 0.3, z + 0.3, x, z);
+            org.domi.furnace.server.world.WorldBorder own = player.viewLayers().enforcedBorder(player.dimension());
+            return (own != null ? own : borderOf(player.dimension())).computePlayerDamage(x - 0.3, z - 0.3, x + 0.3, z + 0.3, x, z);
         }
     };
 
@@ -1096,7 +1114,8 @@ public final class ServerCore {
             ServerCore.this.runBlockCommand(world, sink, command, done);
         }
         public boolean withinBorder(int x, int z) { return border.isWithinBounds(x, z); }
-        public double[] borderBounds() { return new double[] {border.getMinX(), border.getMinZ(), border.getMaxX(), border.getMaxZ()}; }
+        public double[] borderBounds() { return bounds(border); }
+        public double[] borderBoundsOf(String dimension) { return bounds(borderOf(dimension)); }
         public boolean isRaining() { return clock.isRaining(); }
         public boolean isThundering() { return clock.thunderLevel() > 0.9f; }
         public float rainLevel() { return clock.rainLevel(); }
@@ -1173,6 +1192,9 @@ public final class ServerCore {
     /** 오버월드가 아닌 월드에 그 차원의 레벨 서비스와 공용 /tick 상태를 단다(시작 때 기본 차원, 실행 중 추가 월드). */
     public void attachWorld(World w) {
         if (w == world) return;
+        // 바닐라 ServerLevel 생성자 setAbsoluteMaxSize + createLevels 의 DelegateBorderChangeListener(오버월드 보더 변경을 따라간다)
+        w.border().setAbsoluteMaxSize(settings.get().maxWorldSize);
+        if (w.borderFollow() == null) w.borderFollow(border.attachFollower(w.border()));
         w.levelServices(new DimensionServices(w));
         w.tickState(world.tickState());   // /tick 상태는 차원 공용
     }
@@ -1189,7 +1211,14 @@ public final class ServerCore {
             @Override public void attach(World w) { attachWorld(w); }
             @Override public void loaded(World w) { pluginHost.worldLoaded(w); }
             @Override public boolean beforeUnload(World w, boolean save) { return pluginHost.worldUnloading(w, save); }
-            @Override public void detached(World w) { pluginHost.worldDetached(w); }
+            @Override public void detached(World w) {
+                var follow = w.borderFollow();
+                if (follow != null) {   // 내린 월드의 보더는 더 따라가지 않는다
+                    border.removeListener(follow);
+                    w.borderFollow(null);
+                }
+                pluginHost.worldDetached(w);
+            }
             @Override public org.domi.furnace.api.worldgen.DimensionTypeDefinition pluginDimensionType(String key) {
                 return pluginHost.pluginDimensionType(key);
             }
@@ -1273,6 +1302,8 @@ public final class ServerCore {
             ServerCore.this.runBlockCommand(w, sink, command, done);
         }
         @Override public boolean ultraWarm() { return w.dimensionType().ultraWarm(); }
+        @Override public boolean withinBorder(int x, int z) { return w.border().isWithinBounds(x, z); }   // 이 차원의 보더(네더는 중심 1/8)
+        @Override public double[] borderBounds() { return bounds(w.border()); }
         @Override public boolean hasSkyLight() { return sky(); }
         @Override public org.domi.furnace.server.world.DimensionType dimensionType() { return w.dimensionType(); }
         @Override public boolean isRaining() { return sky() && super.isRaining(); }
@@ -1362,7 +1393,10 @@ public final class ServerCore {
                 .with(org.domi.furnace.server.loot.LootParams.BLOCK_STATE, lootBlockState(state))
                 .with(org.domi.furnace.server.loot.LootParams.EXPLOSION_RADIUS, explosionRadius);
         if (entity instanceof Player p) params.with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, lootEntity(p));
-        if (blockEntity != null) params.with(org.domi.furnace.server.loot.LootParams.BLOCK_ENTITY, blockEntity);   // collectComponents(region 스레드에서 모은 것)
+        if (blockEntity != null) {
+            params.with(org.domi.furnace.server.loot.LootParams.BLOCK_ENTITY, blockEntity);   // collectComponents(region 스레드에서 모은 것)
+            if (org.domi.furnace.server.block.B.is(state, "decorated_pot")) params.sherds(blockEntity);   // DecoratedPotBlock.getDrops: 동적 드롭 minecraft:sherds
+        }
         var ctx = table.context(loot, lootWorld, params, 0L);
         java.util.List<ItemStack> out = new java.util.ArrayList<>();
         for (var s : table.getRandomItems(ctx)) {

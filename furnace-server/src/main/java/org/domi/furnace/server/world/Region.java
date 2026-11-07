@@ -120,6 +120,15 @@ public final class Region {
     /** 지금 스레드가 이 region 을 돌리고 있는가. */
     public boolean isOwnerThread() { return tickThread == Thread.currentThread(); }
 
+    /**
+     * 틱 사이(작업 큐·지연 작업·drain 차례를 도는 중)인가 — 게임 틱 한가운데(플레이어·엔티티 반복 중)가 아니다. 이 region 스레드만 읽고 쓴다.
+     * drain 차례 안의 작업이 다시 awaitUrgent 로 기다려도 참이다 — 그 기다림도 플레이어 반복 밖이라 편입해도 된다.
+     */
+    private boolean betweenTicks;
+
+    /** 이 region 스레드에서: 지금 틱 사이인가(차원 이동 도착을 그 자리에서 편입해도 되는가). */
+    public boolean betweenTicks() { return isOwnerThread() && betweenTicks; }
+
     /** 이 region 스레드에서만: 그 플레이어가 지금 이 region 소속인가. */
     public boolean ownsPlayer(Player p) { return isOwnerThread() && players.get(p.entityId()) == p; }
 
@@ -147,16 +156,21 @@ public final class Region {
         long deadline = System.nanoTime() + DRAIN_BUDGET_NANOS;
         Task t;
         int n = 0;
-        while ((t = inbox.poll()) != null) {
-            if (t.run() instanceof Regionizer.RegionWide || mine(t.chunkKey())) runTask(t.run());
-            else rz().enqueue(t.chunkKey(), t.run(), t.urgent());
-            if ((++n & 15) == 0 && System.nanoTime() > deadline) break;
-        }
-        if (hold) return;
-        while (!delayed.isEmpty() && delayed.peek().dueTick <= tickCount) {
-            Delayed d = delayed.poll();
-            if (mine(d.chunkKey)) runTask(d.run);
-            else rz().enqueue(d.chunkKey, d.run);
+        betweenTicks = true;
+        try {
+            while ((t = inbox.poll()) != null) {
+                if (t.run() instanceof Regionizer.RegionWide || mine(t.chunkKey())) runTask(t.run());
+                else rz().enqueue(t.chunkKey(), t.run(), t.urgent());
+                if ((++n & 15) == 0 && System.nanoTime() > deadline) break;
+            }
+            if (hold) return;
+            while (!delayed.isEmpty() && delayed.peek().dueTick <= tickCount) {
+                Delayed d = delayed.poll();
+                if (mine(d.chunkKey)) runTask(d.run);
+                else rz().enqueue(d.chunkKey, d.run);
+            }
+        } finally {
+            betweenTicks = false;
         }
         // 틱 붙잡기(백업 기준점·빈 서버 일시정지)는 작업 큐를 비운 뒤에 본다 — 붙잡은 뒤 넣은 작업(quiesce)이 돈 차례는 틱을 하지 않는다
         if (gameTick && !world.ticksHeld()) {
@@ -215,7 +229,12 @@ public final class Region {
     /** drain 차례(틱 사이, 이 region 스레드): 급한 작업만 돌린다. 틱 사이 합치기·나누기가 있었을 수 있어 칸 조회 캐시를 먼저 비운다. */
     void runUrgentDrain() {
         if (level != null) level.chunkUnloaded();
-        runUrgentTasks();
+        betweenTicks = true;
+        try {
+            runUrgentTasks();
+        } finally {
+            betweenTicks = false;
+        }
     }
 
     /**
@@ -887,16 +906,27 @@ public final class Region {
         }
     }
 
-    /** 로드된 dirty 청크 전부 저장(스냅샷→IO write), dirty clear. */
-    public void saveDirtyChunks() {
+    /**
+     * 로드된 dirty 청크 전부 저장(스냅샷→IO write), dirty clear. 레인이 밀려 다 넣지 못하면 남은 수를 돌려준다(그 청크들은 자동 저장
+     * 큐로 넘어간다 — 틱이 계속 돌 때만 저장된다. 종료·save-all 은 {@link World#flushAllDrained} 로 다시 부른다).
+     */
+    public int saveDirtyChunks() { return saveDirtyChunks(true, false); }
+
+    /**
+     * withEntities 면 엔티티 묶음·POI 도 저장한다(역압 없이 모두). drain 의 다음 회차는 청크만 — 엔티티 쓰기를 회차마다 다시 넣으면 그것만으로
+     * 레인이 다시 차 청크가 하나도 못 들어간다. atLeastOne 이면 역압이 있어도 첫 청크 하나는 넣는다(레인을 비운 뒤라 회차마다 진행을 보장).
+     */
+    int saveDirtyChunks(boolean withEntities, boolean atLeastOne) {
         autosaveEntityQueue = null;
         autosaveChunkQueue = null;
-        saveEntities();
-        if (dirtyChunks.isEmpty()) return;
+        if (withEntities) saveEntities();
+        if (dirtyChunks.isEmpty()) return 0;
+        boolean first = true;
         for (ChunkPos cp : new ArrayList<>(dirtyChunks)) {
             ChunkColumn col = ownedChunk(cp.x(), cp.z());
             // 레인이 밀렸다 — 남은 dirty 청크(cp 포함, 아직 지우지 않았다)를 자동 저장 큐로 넘겨 다음 틱부터 나눠 저장
-            if (world.ioBackedUp()) { autosaveChunkQueue = new java.util.ArrayDeque<>(dirtyChunks); return; }
+            if (!(atLeastOne && first) && world.ioBackedUp()) { autosaveChunkQueue = new java.util.ArrayDeque<>(dirtyChunks); return dirtyChunks.size(); }
+            first = false;
             if (col != null && col.dirty()) {
                 writeChunkTicks(cp.x(), cp.z(), col, false);
                 world.saveChunkAsync(ChunkSnapshot.forSave(cp.x(), cp.z(), col), col);
@@ -904,6 +934,7 @@ public final class Region {
             }
             dirtyChunks.remove(cp);
         }
+        return 0;
     }
 
     // 자동 저장은 한 틱에 몰아 하지 않고 틱마다 시간 예산(AUTOSAVE_BUDGET_NANOS) 안에서 나눠 한다 — 청크가 많이 바뀐 서버에서 5분마다 틱이 튀던 것.
@@ -2055,6 +2086,7 @@ public final class Region {
         var pp = p.portalProcess();
         if (pp == null) return false;
         boolean canUse = p.vehicle() == null && !p.vitals().isDeadOrDying();
+        int timeBefore = pp.getPortalTime();
         if (pp.processPlayerPortalTeleportation(level, p.vitals().invulnerableAbility(), canUse)) {
             p.portalCooldown = Player.DIMENSION_CHANGING_DELAY;
             var events = world.levelServices().gameEvents();
@@ -2075,10 +2107,31 @@ public final class Region {
             }
             sendAcross(p, plan);
             return true;
+        } else if (pp.getPortalTime() == timeBefore + 1 && timeBefore % PREWARM_INTERVAL_TICKS == 0) {
+            prewarmPortal(p, pp);   // 기다림이 막 시작됐다(그 뒤로는 유예가 지나기 전마다) — 목적 청크를 미리 올린다
         } else if (pp.hasExpired()) {
             p.portalProcess(null);
         }
         return false;
+    }
+
+    /** 지옥문 대기 중 목적 청크 미리 올리기 간격(청크 퇴출 유예 100틱보다 짧게 — 오래 기다려도 내려가지 않게). */
+    private static final int PREWARM_INTERVAL_TICKS = 60;
+
+    /**
+     * 플레이어가 차원을 옮기는 포털에서 기다리는 동안(바닐라 playersNetherPortalDefaultDelay 기본 80틱) 지금 자리로 만든 계획의 목적 청크를 올려
+     * 둔다 — 넘어갈 때 목적 청크가 이미 있어 바로 도착한다(바닐라는 넘어가는 틱에 서버를 멈추고 청크를 만든다). 같은 레벨 포털·엔드 출구는 하지 않는다.
+     */
+    private void prewarmPortal(Player p, org.domi.furnace.server.entity.PortalProcessor pp) {
+        if (pp.portal().withinLevel() || pp.portal() instanceof org.domi.furnace.server.block.types.EndPortalBlock) return;
+        if (pp.getPortalTime() > pp.portal().getPlayerTransitionTime(level, p.vitals().invulnerableAbility())) return;   // 바로 넘어간다
+        var travel = world.travelService();
+        try {
+            var plan = pp.prepareTravel(level, org.domi.furnace.server.entity.Traveler.of(p));
+            if (plan != null && !plan.targetDimension().equals(world.dimension()) && travel.isLevelEnabled(plan.targetDimension())) travel.prewarm(plan);
+        } catch (RuntimeException e) {
+            org.slf4j.LoggerFactory.getLogger(Region.class).debug("[PORTAL] 미리 올리기 계획 실패", e);
+        }
     }
 
     /**
