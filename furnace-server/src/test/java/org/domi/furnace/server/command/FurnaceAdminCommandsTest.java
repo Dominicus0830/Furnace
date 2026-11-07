@@ -119,4 +119,35 @@ class FurnaceAdminCommandsTest {
             sched.close();
         }
     }
+
+    @Test
+    void configCommandDumpsAppliedValuesAndCompletesKeys() throws Exception {
+        java.nio.file.Files.writeString(tmp.resolve("furnace.properties"), "autosave-ticks=100\nvelocity-secret=0123456789abcdef\nautosve-ticks=5\n");
+        org.domi.furnace.server.config.ConfigDump.capture(tmp.resolve("furnace.properties"));
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        try {
+            ServerCore core = TestServers.core(tmp, sched);
+            FurnaceAdminCommands.register(core.commands().getDispatcher());
+            var spawn = core.world().defaultSpawn();
+            for (String sub : new String[] {"config", "config all", "config backup"}) {
+                var sink = new RconConsole(() -> false, spawn.x(), spawn.y(), spawn.z());
+                core.commands().performPrefixedCommandAsync(CommandSource.rcon(core, sink), "furnace " + sub).get(20, java.util.concurrent.TimeUnit.SECONDS);
+                String out = sink.takeOutput();
+                assertTrue(out.contains("furnace.properties"), sub + ": " + out);
+                assertFalse(out.contains("0123456789abcdef"), "비밀값이 새면 안 된다: " + out);
+                if (sub.equals("config")) {
+                    assertTrue(out.contains("autosave-ticks = 100"), out);
+                    assertTrue(out.contains("****(16자)"), out);
+                    assertTrue(out.contains("autosve-ticks (3번째 줄)"), out);
+                }
+                if (sub.equals("config backup")) assertTrue(out.contains("backup.interval-minutes") && !out.contains("autosave-ticks"), out);
+            }
+            // 콘솔 Tab 자동완성이 쓰는 경로: 'furnace config ' 뒤에 all 과 키가 나온다
+            var s = core.commands().suggestions(CommandSource.console(core), "furnace config ba").get(20, java.util.concurrent.TimeUnit.SECONDS);
+            assertTrue(s.getList().stream().anyMatch(x -> x.getText().equals("backup.keep")), s.getList().toString());
+        } finally {
+            sched.close();
+            org.domi.furnace.server.config.ConfigDump.clearForTest();
+        }
+    }
 }

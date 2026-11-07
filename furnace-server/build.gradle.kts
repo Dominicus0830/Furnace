@@ -23,6 +23,7 @@ dependencies {
     implementation("io.airlift:aircompressor:0.27")   // 순수 자바 zstd (region-file-compression=zstd)
     implementation("org.slf4j:slf4j-api:2.0.16")
     implementation("ch.qos.logback:logback-classic:1.5.12")
+    implementation("org.jline:jline:3.26.3")   // 콘솔 줄 편집·자동완성·기록(console.jline). 터미널이 없으면 쓰지 않는다
 
     testImplementation(platform("org.junit:junit-bom:6.0.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")

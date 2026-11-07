@@ -91,11 +91,21 @@ public final class FurnaceMain {
             log.info("You need to agree to the EULA in order to run the server. Go to eula.txt for more info.");
             return;
         }
-        ConsoleInput console = ConsoleInput.startEarly();   // 월드를 불러오기 전에 연다 — stop 은 바로, 나머지는 서버가 준비된 뒤 실행
+        // 콘솔 편집기 설정(console.jline, console.history-size)은 콘솔을 여는 지금 읽는다 — 틀린 값이면 여기서 멈춘다.
+        java.util.Properties consoleProps = org.domi.furnace.server.config.FurnaceProps.read(Path.of("furnace.properties"));
+        ConsoleInput console = ConsoleInput.startEarly(   // 월드를 불러오기 전에 연다 — stop 은 바로, 나머지는 서버가 준비된 뒤 실행
+                org.domi.furnace.server.config.OptionKeys.strictBool(consoleProps, "console.jline", true),
+                org.domi.furnace.server.config.OptionKeys.strictInt(consoleProps, "console.history-size", ConsoleInput.DEFAULT_HISTORY_SIZE, 0, 100_000));
         ServerProperties props = settings.get();
         // Paper/Spigot 에서 넘어온 서버: bukkit.yml·spigot.yml·config/paper-*.yml 의 대응 키를 furnace.properties 로 옮긴다(첫 기동 한 번).
         // furnace.properties 를 읽는 모든 곳보다 먼저여야 한다.
         org.domi.furnace.server.config.PaperConfigImport.runIfNeeded(Path.of("."), Path.of("furnace.properties"));
+        // 설정 형식 버전이 옛것이면 키 이름을 옮긴다(원본은 .bak 으로 남는다). 모든 로더보다 먼저여야 한다.
+        var migration = org.domi.furnace.server.config.ConfigMigration.run(Path.of("furnace.properties"), log::warn);
+        if (migration != null) {
+            log.info("furnace.properties 를 형식 {} → {} 로 옮겼다(원본: {}):", migration.from(), migration.to(), migration.backup());
+            for (String c : migration.changes()) log.info("  {}", c);
+        }
         // furnace.properties: Paper 가져오기 뒤에(먼저 만들면 모든 키가 "이미 있음"이 되어 Paper 값을 못 옮긴다). 없으면 모든 옵션(기본값·설명)으로 만들고, 새 버전에서 생긴 옵션만 끝에 덧붙인다
         try {
             var r = org.domi.furnace.server.config.FurnacePropertiesFile.ensure(Path.of("furnace.properties"));
@@ -105,6 +115,11 @@ public final class FurnaceMain {
             log.warn("furnace.properties 를 쓰지 못했다 — 기본값으로 계속한다: {}", e.toString());
         }
         org.domi.furnace.server.config.OperatorOptions.install(org.domi.furnace.server.config.OperatorOptions.load(Path.of("furnace.properties")));
+        org.domi.furnace.server.config.ConfigDump.capture(Path.of("furnace.properties"));   // /furnace config 가 보여 줄 '시작 때 적용된 값'
+        if (org.domi.furnace.server.config.OptionKeys.strictBool(
+                org.domi.furnace.server.config.FurnaceProps.read(Path.of("furnace.properties")), org.domi.furnace.server.config.JvmCheck.KEY, true)) {
+            org.domi.furnace.server.config.JvmCheck.run(log::warn);
+        }
         org.domi.furnace.server.entity.spawn.SpawnConfig.install(org.domi.furnace.server.entity.spawn.SpawnConfig.load(Path.of("furnace.properties"), log::warn));   // spawn.limit.* / spawn.player-limit.*
         if (!org.domi.furnace.server.world.anvil.Compression.configure(props.regionFileCompression)) {
             log.error("Invalid `region-file-compression` value `{}` in server.properties. Please use one of: deflate, gzip, lz4, none, zstd",
@@ -221,6 +236,8 @@ public final class FurnaceMain {
         // 게임 레지스트리 훅: 플러그인 바이옴·차원 타입을 바닐라 항목 뒤에 붙인 세트(바닐라 인덱스는 그대로)
         RegistrySet registries = pluginBoot.collectGameRegistries(RegistrySet.load("registries/1.21.1.txt"));
         RegistrySet.install(registries);   // 데이터 팩을 읽으면 그쪽(동기화 레지스트리를 다시 만든 것)으로 바뀐다
+        pluginBoot.collectGenerationHooks();   // 월드젠 단계 훅(W3) — 월드를 만들기 전에
+        var worldSettings = org.domi.furnace.server.world.WorldSettings.load(furnaceProps);
         int plainsBiome = Math.max(0,
                 registries.indexOf("minecraft:worldgen/biome", "minecraft:plains"));
         int biomeCount = registries.entries("minecraft:worldgen/biome").size();
@@ -246,6 +263,10 @@ public final class FurnaceMain {
         // 디버그 월드: 오버월드 생성기가 minecraft:debug 면 모든 블록 상태 격자(바닐라 DebugLevelSource, 바이옴 plains)
         org.domi.furnace.server.world.gen.DebugWorldSource debugSource = levelData.isDebugWorld()
                 ? new org.domi.furnace.server.world.gen.DebugWorldSource(blockRegistry, plainsBiome) : null;
+        // 월드젠 단계 훅(furnace.properties worldgen-hooks.overworld, 기본 없음) — 스폰 계산·첫 청크보다 먼저 건다
+        org.domi.furnace.server.world.gen.GenHooks.attach(flatSource != null ? flatSource : noiseSource,
+                worldSettings.generationHooks("minecraft:overworld"), pluginBoot.generationHooks()::get, "minecraft:overworld",
+                config.levelSeed(), blockRegistry, registries);
         var anvilSource = new org.domi.furnace.server.world.gen.AnvilWorldSource(
                 worldDir, regionStore, chunkCodec, debugSource != null ? debugSource : flatSource != null ? flatSource : noiseSource);
         var entityStore = new org.domi.furnace.server.world.anvil.RegionFileStore(dimension.storageDir(worldDir), "entities", props.syncChunkWrites);
@@ -347,7 +368,6 @@ public final class FurnaceMain {
         // 접속자·시계·엔티티 id 는 오버월드와 공유한다(Dimensions.register). 조립은 추가 월드(W1)와 같은 WorldManager.build 로.
         org.domi.furnace.server.world.Dimensions dimensions = new org.domi.furnace.server.world.Dimensions();
         dimensions.register(world);
-        var worldSettings = org.domi.furnace.server.world.WorldSettings.load(furnaceProps);
         var worldManager = new org.domi.furnace.server.world.WorldManager(new org.domi.furnace.server.world.WorldManager.Parts(
                 universe, blockRegistry, itemRegistry, registries, plainsBiome, biomeDirectBits, chunkPool, scheduler, regionPool, config,
                 props.syncChunkWrites, ioPool, genPool), dimensions, levelData, levelName);
@@ -358,6 +378,8 @@ public final class FurnaceMain {
             if (dimSeed != config.levelSeed()) log.info("{} 시드 {}(dimension-seed 설정 — 바닐라와 다른 지형)", type.levelKey(), dimSeed);
             var gen = NoiseWorldSource.create(type.gen(), dimSeed, blockRegistry, registries);
             applyWorldGenOptions(levelData, gen);
+            org.domi.furnace.server.world.gen.GenHooks.attach(gen, worldSettings.generationHooks(type.levelKey()),
+                    pluginBoot.generationHooks()::get, type.levelKey(), dimSeed, blockRegistry, registries);
             var built = worldManager.build(type, worldDir, gen);
             extraStores.addAll(built.stores());
             World w = built.world();

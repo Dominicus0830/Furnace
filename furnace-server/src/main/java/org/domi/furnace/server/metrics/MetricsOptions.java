@@ -18,13 +18,7 @@ public record MetricsOptions(boolean prometheus, String bind, int port, String t
 
     public static MetricsOptions load(Path path, Consumer<String> warn) {
         if (!Files.exists(path)) return DEFAULT;
-        Properties props = new Properties();
-        try (var in = Files.newInputStream(path)) {
-            props.load(in);
-        } catch (IOException e) {
-            throw new RuntimeException("설정 로드 실패: " + path, e);
-        }
-        return from(props, warn);
+        return from(org.domi.furnace.server.config.FurnaceProps.read(path), warn);
     }
 
     static MetricsOptions from(Properties props, Consumer<String> warn) {

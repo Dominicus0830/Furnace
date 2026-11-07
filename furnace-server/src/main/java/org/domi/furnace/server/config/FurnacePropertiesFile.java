@@ -50,6 +50,9 @@ public final class FurnacePropertiesFile {
                 opt("worlds.autoload", "", "서버 시작 때 함께 여는 추가 월드 이름(쉼표로 구분)."),
                 commented("dimension-seed.the_nether", "", "네더 생성 시드. 주석이면 주 월드 시드(바닐라). 숫자 또는 글자."),
                 commented("dimension-seed.the_end", "", "엔드 생성 시드. 위와 같다."),
+                commented("worldgen-hooks.overworld", "", "오버월드에 걸 플러그인 월드젠 훅 키(namespace:path). 주석이면 바닐라."),
+                commented("worldgen-hooks.the_nether", "", "네더에 걸 플러그인 월드젠 훅 키. 위와 같다."),
+                commented("worldgen-hooks.the_end", "", "엔드에 걸 플러그인 월드젠 훅 키. 위와 같다."),
                 opt("enchantments.disabled", "", "끌 마법부여 id(쉼표로 구분, 예: minecraft:mending). 비우면 모두 켜짐(바닐라).")
         )));
         s.add(new Section("틱·region 스레드", List.of(
@@ -105,6 +108,13 @@ public final class FurnacePropertiesFile {
                 opt("backup.format", mt.backupFormat().name().toLowerCase(java.util.Locale.ROOT), "zip 또는 folder."),
                 opt("backup.skip-if-no-players", mt.backupSkipIdle(), "지난 백업 뒤 접속자가 없었으면 건너뛴다."),
                 opt("backup.hold-timeout-seconds", mt.backupHoldTimeoutSeconds(), "백업 기준점에서 저장을 기다리는 최대 초(1~600).")
+        )));
+        s.add(new Section("설정 도구·콘솔(/furnace config 로 적용된 값을 본다)", List.of(
+                opt("config-version", ConfigMigration.CURRENT, "설정 파일 형식 버전. 키 이름이 바뀌면 서버가 파일을 옮기고 이 값을 올린다(원본은 .bak). 지우지 마세요."),
+                opt("config.preset", "none", "none | vanilla | performance. 기본값 그대로인 키를 프리셋 값으로 바꾼다(기본값과 다르게 적은 키가 이긴다)."),
+                opt("jvm.check", true, "기동 때 Java 버전·힙·GC 옵션을 점검해 경고한다."),
+                opt("console.jline", true, "콘솔 줄 편집·기록·Tab 자동완성(터미널이 아니면 자동으로 꺼진다)."),
+                opt("console.history-size", org.domi.furnace.server.ConsoleInput.DEFAULT_HISTORY_SIZE, "콘솔 명령 기록 줄 수. 0 이면 .console_history 파일에 남기지 않는다.")
         )));
         s.add(new Section("플러그인", List.of(
                 opt("plugins.fail-fast", false, "플러그인 하나라도 불러오기·켜기에 실패하면 서버 시작을 멈춘다."),

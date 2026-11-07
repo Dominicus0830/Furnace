@@ -59,6 +59,8 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     private final List<SpawnTarget> spawnTargets;
     private final ChunkPipeline pipeline;
     private volatile SpawnPoint defaultSpawn;
+    /** 플러그인 월드젠 단계 훅(W3). null 이면 바닐라 그대로 — 아래 모든 훅 지점은 null 검사 하나만 더한다. */
+    private volatile GenHooks genHooks;
     // worldSurfaceHeightAt 캐시 — 청크당 SURFACE 높이 256개(16x16)를 1회만 generate()로 계산해 재사용.
     // 키: (cx<<32)^cz, 값: lz*16+lx 인덱스의 (height-1). generate()는 seed+좌표만의 순수 함수라 메모이제이션 안전.
     // bounded LRU(256) — 무제한 ConcurrentHashMap이던 것을 pristine 캐시와 같은 이유로 bounded화.
@@ -534,6 +536,38 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         return org.domi.furnace.server.world.gen.structure.Beardifier.forChunk(refs, cx, cz);
     }
 
+    /** 월드젠 단계 훅을 건다(null 이면 뗀다). 이미 만든 청크·캐시는 그대로다 — 월드를 열 때 처음 청크를 만들기 전에 건다. */
+    public void generationHooks(GenHooks hooks) {
+        this.genHooks = hooks;
+        refreshHookCaches();
+    }
+
+    /** 마지막으로 캐시를 채울 때의 훅 표식({@link GenHooks#stamp}, 0 = 훅 없음). 바뀌었으면(핫 리로드·훅 교체·꺼짐) 캐시가 낡았다. */
+    private volatile long hookStamp;
+
+    /**
+     * 훅이 바뀌었으면 훅 결과가 든 캐시(지형·높이·구조물 시작점·pristine)를 비운다 — 새 청크·청크 재생성이 지금 훅으로 만들게.
+     * 서버 경로 청크 생성과 재생성 앞에서 부른다(훅 없는 월드는 volatile 읽기 하나). 서버 경로의 공유 장식 저장소(이미 장식이 넘친
+     * 청크, 만들고 있던 pristine)는 다시 만들 수 없어 그대로 둔다. 비우는 사이 돌던 생성이 옛 값을 다시 넣을 수 있다 — 캐시는 언제
+     * 비워도 되는 것들이라 다음 바뀜까지 그 몇 칸만 옛 훅 결과다.
+     */
+    public void refreshHookCaches() {
+        GenHooks h = genHooks;
+        long now = h == null ? 0L : h.stamp();
+        if (now == hookStamp) return;
+        synchronized (this) {
+            if (now == hookStamp) return;
+            terrainCache.clear();
+            surfaceHeightCache.clear();
+            beardStartCache.clear();
+            sharedStarts.clear();
+            pipeline.clearPristineCache();
+            hookStamp = now;
+        }
+    }
+
+    public GenHooks generationHooks() { return genHooks; }
+
     private Generated generateWithBiomes(int chunkX, int chunkZ, org.domi.furnace.server.world.gen.structure.Beardifier beard) {
         int minY      = settings.minY();       // -64
         int height    = settings.height();     // 384
@@ -545,7 +579,10 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
             ? new NoiseBasedAquifer(nc, chunkX, chunkZ, router, settings, router.aquiferRandom(), stoneId, waterId, lavaId)
             : new DisabledAquifer(seaLevel, lavaFloor, waterId, lavaId);
         nc.setBeardifier(beard);
-        int[] blockIds = nc.generateBlockIds(stoneId, aquifer);
+        GenHooks hooks = genHooks;
+        boolean vanillaNoise = hooks == null || hooks.vanilla(org.domi.furnace.api.worldgen.GenerationStage.NOISE, chunkX, chunkZ);
+        // 바닐라 노이즈를 끈 청크는 공기에서 시작한다(바이옴은 그대로 샘플한다)
+        int[] blockIds = vanillaNoise ? nc.generateBlockIds(stoneId, aquifer) : new int[dimension.sectionCount * 4096];
 
         ChunkColumn col = new ChunkColumn(0, reg.directBits(), biomeDirectBits, dimension.minY, dimension.sectionCount);
         if (blockIds.length != dimension.sectionCount * 4096) {
@@ -557,8 +594,12 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
         int[] biomeIds = biomeSampler.sampleChunk(chunkX, chunkZ, nc);
         col.loadGenerated(blockIds, biomeIds);
+        if (hooks != null) hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.NOISE, col, chunkX, chunkZ);
 
-        surfaceSystem.buildSurface(col, biomeIds, nc, chunkX, chunkZ);
+        if (hooks == null || hooks.vanilla(org.domi.furnace.api.worldgen.GenerationStage.SURFACE, chunkX, chunkZ)) {
+            surfaceSystem.buildSurface(col, biomeIds, nc, chunkX, chunkZ);
+        }
+        if (hooks != null) hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.SURFACE, col, chunkX, chunkZ);
         col.rebuildHeightmapsAfterSurface();
         col.clearDirty();
 
@@ -592,7 +633,9 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         // carve regrass용 스냅샷 — vanilla WORLD_SURFACE_WG처럼 carve 이전(buildSurface 직후) 상태로 고정.
         int[] surfaceYGrid = surfaceSystem.surfaceYGrid(col);
 
-        for (int originX = chunkX - 8; originX <= chunkX + 8; originX++) {
+        GenHooks hooks = genHooks;
+        boolean vanillaCarvers = hooks == null || hooks.vanilla(org.domi.furnace.api.worldgen.GenerationStage.CARVERS, chunkX, chunkZ);
+        for (int originX = chunkX - 8; vanillaCarvers && originX <= chunkX + 8; originX++) {
             for (int originZ = chunkZ - 8; originZ <= chunkZ + 8; originZ++) {
                 org.domi.furnace.server.world.gen.carver.WorldCarver.ChunkPos originPos =
                     new org.domi.furnace.server.world.gen.carver.WorldCarver.ChunkPos(originX, originZ);
@@ -608,6 +651,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
                 }
             }
         }
+        if (hooks != null) hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.CARVERS, col, chunkX, chunkZ);
         col.freezeWgHeightmaps();
     }
 
@@ -653,7 +697,12 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
      * 블록은 쓰지 않는다(S2b 이후). 높이 조회는 매 호출마다 해당 청크를 SURFACE 상태로 재생성해 조회한다(캐시는 S3+).
      */
     public List<org.domi.furnace.server.world.gen.structure.StructureStart> applyStructureStarts(int cx, int cz) {
-        return structureEngine.createStarts(cx, cz, this);
+        GenHooks hooks = genHooks;
+        if (hooks == null) return structureEngine.createStarts(cx, cz, this);
+        if (!hooks.vanilla(org.domi.furnace.api.worldgen.GenerationStage.STRUCTURES, cx, cz)) return new ArrayList<>();
+        List<org.domi.furnace.server.world.gen.structure.StructureStart> starts = structureEngine.createStarts(cx, cz, this);
+        starts.removeIf(st -> !hooks.structure(st.structureId(), cx, cz));
+        return starts;
     }
 
     // 공유해도 되는 시작점 결과 캐시 — 위치만의 함수라 결과가 바뀌지 않는다.
@@ -866,11 +915,13 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
     /** 서버 경로 — 공유 월드 장식(바닐라처럼 청크마다 장식 한 번). */
     public ChunkColumn generateWithFeatures(int chunkX, int chunkZ) {
+        refreshHookCaches();
         return pipeline.generateShared(chunkX, chunkZ).join();
     }
 
     /** 대조 도구용 — 청크 하나를 주변 3×3 장식까지 독립적으로 만든다(공유 상태 없음, 순정 featurespill 픽스처와 같은 의미). */
     public ChunkColumn generateIsolated(int chunkX, int chunkZ) {
+        refreshHookCaches();
         return pipeline.generateFull(chunkX, chunkZ).join();
     }
 
@@ -887,8 +938,9 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
     public void decorateOrigin(FeatureWorldView view, Set<String> neighborBiomes, int ox, int oz,
                                 List<org.domi.furnace.server.world.gen.structure.StructureStart> starts) {
-        if (featurePlacer == null) return;
-        featurePlacer.decorate(view, neighborBiomes, ox, oz, starts);
+        GenHooks hooks = genHooks;
+        if (featurePlacer != null) featurePlacer.decorate(view, neighborBiomes, ox, oz, starts, hooks);
+        if (hooks != null) hooks.decorate(view, ox, oz, GenHooks.decorationSeed(seed, ox, oz));
     }
 
     public FeaturePlacer featurePlacer() {

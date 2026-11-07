@@ -80,6 +80,12 @@ public final class PluginManagerImpl implements PluginManager {
         return b == null ? null : b.gameRegistries();
     }
 
+    /** 플러그인 월드젠 훅 저장소(W3). 부트스트랩 전이면 null. */
+    public GenerationHookStore generationHooks() {
+        PluginBootstrapper b = boot;
+        return b == null ? null : b.generationHooks();
+    }
+
     public void loadAll(PluginBootstrapper boot) {
         this.boot = boot;
         failures.addAll(boot.failures());   // 찾기·순서·api-version·부트스트랩 단계 실패
