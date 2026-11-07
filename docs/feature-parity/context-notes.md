@@ -1134,6 +1134,11 @@
 - **독립 검토(읽기 전용)가 찾은 둘, 고침**: ① `TamableAnimal.getTeam` 은 길들였고 주인이 보이면 **주인의 팀**(바닐라 `bul.ck`)인데 Entity 기본(자기 UUID 의 팀)을 그대로 써서 쓸기·충격파·워든·선택자 `team=`·팀 충돌이 펫에서 틀렸다. ② `PlayerVitals.hurt` 의 `ap != player` 예외 제거 — 바닐라 `ServerPlayer.hurt` 는 자기 자신이 원인이어도 `canHarmPlayer(자기)` 를 검사해, pvp 꺼짐·아군 피해 꺼진 팀에서는 내 화살·내 TNT·내 폭죽에 안 다친다. `Player.team()` 에는 `hasTeams()` 단락 추가.
 - 시험: `TeamPvpRulesTest` 10개(같은 팀/없음, 전투 조건, 목표 지속, 길들인 동물 주인, 일러저 친구, canHarmPlayer 표, 맞는 쪽 무시, 늑대, 길들인 말, 화살 통과).
 
+## 2026-11-07 스컬크 마무리 (묶음 M2)
+- 상세는 `docs/feature-parity/m2-sculk-2026-11-07.md`. 스컬크 확산 코드(SculkSpreader·ChargeCursor·SculkBlock·SculkVeinBlock·촉매 리스너)는 바이트코드와 같음을 확인했고, SculkBehaviour 구현은 바닐라도 스컬크·맥뿐이다.
+- 빠져 있던 것: `Player` 는 `LivingEntity` 가 아니라 사망 때 `entity_die` 도, 경험치 구슬도 없었다. `PlayerVitals.die` 가 첫 줄에 `entity_die` 를 내고(주인 region 스레드), 끝에 `dropExperience` 를 한다. 촉매 리스너는 `Player` 도 받는다.
+- 함정: `PlayerVitals.die` 는 어느 스레드에서든 불릴 수 있으므로 게임 이벤트·구슬 드롭은 `player.onOwnerThread() ? 바로 : runOnOwner` 로 보낸다(순서 보존). 처치자 인챈트 보정(mob_experience)은 기본 데이터에 쓰는 곳이 없어 생략.
+
 ## 2026-11-07 월드젠 단계 훅·청크 재생성 (W3)
 - API `LifecycleEvents.WORLD_GENERATION` → `WorldGenerationRegistrar.register(키, ChunkGenerationHooks)`. 월드는 키만 쥔다(`WorldCreator.generationHooks`, 기본 차원은 `worldgen-hooks.*`). 서버 `plugin/GenerationHookStore`(키 → 플러그인·훅, 꺼지면 빠짐), `world/gen/GenHooks`(월드 바인딩·예외 격리·BlockData 변환). 문서 `docs/api/worldgen-hooks.md`.
 - 훅 지점: `NoiseWorldSource.generateWithBiomes`(NOISE·SURFACE — 높이 조회 `generate()` 에도 들어가 구조물이 플러그인 지형 위에 선다), `applyCarvers`(CARVERS, WG 높이 지도 얼리기 전), `applyStructureStarts`(STRUCTURES, 고른 뒤 거르기), `FeaturePlacer.decorate`(FEATURES 끄면 지형지물만 건너뛰고 구조물 조각은 놓음, 지형지물별 거르기), `decorateOrigin` 뒤 `decorate` 훅. 평지·빈 월드는 `SuperflatWorldSource.generate` 한 곳.
