@@ -1802,6 +1802,7 @@ public final class Region {
         return new org.domi.furnace.server.block.BreakerActor(p, main, off, head, inv == null ? 0 : inv.permissionLevel(), eyeInWater, held) {
             @Override
             public void drop(ItemStack stack) { playerDrop(p, stack, false, false); }
+            public void dropAround(ItemStack stack) { playerDrop(p, stack, true, false); }
 
             @Override
             protected void brokenEvent(int hand, ItemStack broken) {

@@ -106,6 +106,7 @@ public final class ItemUse {
                     "minecraft:lingering_potion", "minecraft:wind_charge": return throwItem(level, player, stack, n);
             case "minecraft:firework_rocket": return fireworkUse(level, player, stack);
             case "minecraft:goat_horn": return goatHornUse(level, player, hand, stack);
+            case "minecraft:bundle": return bundleUse(level, player, stack);
             case "minecraft:writable_book", "minecraft:written_book": {   // WritableBookItem/WrittenBookItem.use: openItemGui(서버는 서명된 책만 open_book) + 사용 통계, CONSUME
                 if (n.equals("minecraft:written_book")) player.openBook(hand);   // 미구현: resolveBookComponents(선택자·점수 컴포넌트 해석)
                 player.awardStat("minecraft:used:" + n);
@@ -121,6 +122,25 @@ public final class ItemUse {
         if (slot >= 0) return equip(level, player, hand, stack, slot, n);
         // TODO(엔티티·먹기): 음식·물약·우유(오래 쓰기), 활·쇠뇌·삼지창·방패, 낚싯대, 망원경, 책, 광산 수레.
         return Holder.pass(stack);
+    }
+
+    // ------------------------------------------------------------------ 가방(BundleItem.use)
+
+    /**
+     * BundleItem.use: 가방이 켜진 기능이고 비지 않았으면 내용을 비우고(컴포넌트를 빈 내용으로) 안의 아이템을 모두 흩어 떨구며(Player.drop(stack, true))
+     * 소리(item.bundle.drop_contents, 음량 0.8, 높이 0.8 + 레벨 난수 × 0.4, 본인 제외)와 사용 통계 후 sidedSuccess. 아니면 FAIL.
+     */
+    private static Holder bundleUse(BlockLevel level, BlockActor player, ItemStack stack) {
+        if (!org.domi.furnace.server.data.FeatureFlags.isEnabled("minecraft:bundle")) return Holder.pass(stack);
+        var contents = org.domi.furnace.server.menu.BundleContents.of(stack);
+        if (contents == null || contents.isEmpty()) return Holder.fail(stack);
+        ItemStack emptied = ItemTools.with(stack, org.domi.furnace.server.menu.BundleContents.KEY, java.util.List.of());
+        for (ItemStack s : contents.items()) player.dropAround(s);
+        if (player.handle() instanceof org.domi.furnace.server.entity.Player p) {
+            org.domi.furnace.server.entity.Shields.playSoundExceptSelf(p, level, "minecraft:item.bundle.drop_contents", 0.8F, 0.8F + level.random().nextFloat() * 0.4F);
+        }
+        player.awardStat("minecraft:used:minecraft:bundle");
+        return Holder.success(emptied);
     }
 
     // ------------------------------------------------------------------ 염소 뿔(GoatHornItem.use)

@@ -1,6 +1,6 @@
 // 바닐라 AbstractContainerMenu 이식 — 서버 권위 컨테이너 클릭(doClick 7종)과 클라이언트 동기(remoteSlots·stateId·broadcastChanges).
 // 바닐라 필드 대응: slots / lastSlots(리스너용) / remoteSlots(클라이언트가 아는 값) / carried / remoteCarried / quickcraft*.
-// ItemStack 이 불변이라 바닐라가 스택을 그 자리에서 바꾸는 곳은 새 스택으로 다시 set 한다. 번들 클릭 재정의는 TODO(번들).
+// ItemStack 이 불변이라 바닐라가 스택을 그 자리에서 바꾸는 곳은 새 스택으로 다시 set 한다. 가방(bundle) 클릭 재정의는 tryItemClickBehaviourOverride.
 package org.domi.furnace.server.menu;
 
 import java.util.ArrayList;
@@ -344,8 +344,8 @@ public abstract class AbstractContainerMenu {
                 Slot slot = slots.get(slotIndex);
                 ItemStack slotItem = slot.getItem();
                 ItemStack held = carried;
-                // TODO(번들): tryItemClickBehaviourOverride — 번들 아이템은 기능 플래그가 꺼져 있어 얻을 수 없다.
-                if (!allowsPickupAllOverride(player, primary, slot, slotItem, held)) {
+                if (!tryItemClickBehaviourOverride(player, primary, slot, slotItem, held)
+                        && !allowsPickupAllOverride(player, primary, slot, slotItem, held)) {
                     if (slotItem.isEmpty()) {
                         if (!held.isEmpty()) {
                             int n = primary ? held.count() : 1;
@@ -450,7 +450,55 @@ public abstract class AbstractContainerMenu {
         }
     }
 
-    /** 번들 등 클릭 동작 재정의 자리 — 지금은 해당 아이템이 없어 항상 거짓. */
+    private static boolean isBundle(ItemStack s) { return !s.isEmpty() && org.domi.furnace.server.item.ItemTools.itemName(s).equals("minecraft:bundle"); }
+
+    /**
+     * tryItemClickBehaviourOverride: 든 아이템이 가방이면 overrideStackedOnOther(가방을 든 채 칸을 우클릭), 아니면 칸의 아이템이 가방일 때
+     * overrideOtherStackedOnMe(가방 칸을 다른 걸 든 채 우클릭). 가방은 기능 플래그 minecraft:bundle 이 켜져 있어야 한다(isItemEnabled).
+     * 가방은 스택을 제자리에서 바꾸므로 여기서는 새 스택을 칸·커서에 다시 둔다.
+     */
+    private boolean tryItemClickBehaviourOverride(MenuPlayer player, boolean primary, Slot slot, ItemStack slotItem, ItemStack held) {
+        if (primary) return false;   // ClickAction.PRIMARY 는 가방이 쓰지 않는다
+        if (isBundle(held) && org.domi.furnace.server.data.FeatureFlags.isEnabled("minecraft:bundle")) {   // BundleItem.overrideStackedOnOther
+            BundleContents c = BundleContents.of(held);
+            if (c != null) {
+                if (slotItem.isEmpty()) {
+                    player.playBundleSound("minecraft:item.bundle.remove_one");
+                    ItemStack one = c.removeOne();
+                    if (one != null) c.tryInsert(slot.safeInsert(one));
+                } else if (BundleContents.canFitInside(slotItem)) {
+                    if (c.tryTransfer(slot, player) > 0) player.playBundleSound("minecraft:item.bundle.insert");
+                }
+                setCarried(c.applyTo(held));
+                return true;
+            }
+        }
+        if (isBundle(slotItem) && org.domi.furnace.server.data.FeatureFlags.isEnabled("minecraft:bundle") && slot.allowModification(player)) {   // overrideOtherStackedOnMe
+            BundleContents c = BundleContents.of(slotItem);
+            if (c != null) {
+                ItemStack newCarried = held;
+                if (held.isEmpty()) {
+                    ItemStack one = c.removeOne();
+                    if (one != null) {
+                        player.playBundleSound("minecraft:item.bundle.remove_one");
+                        newCarried = one;
+                    }
+                } else {
+                    int n = c.tryInsert(held);
+                    if (n > 0) {
+                        player.playBundleSound("minecraft:item.bundle.insert");
+                        newCarried = held.withCount(held.count() - n);
+                    }
+                }
+                slot.set(c.applyTo(slotItem));
+                setCarried(newCarried);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 전체 줍기(더블 클릭) 재정의 자리 — 해당 아이템이 없어 항상 거짓. */
     private boolean allowsPickupAllOverride(MenuPlayer player, boolean primary, Slot slot, ItemStack slotItem, ItemStack held) { return false; }
 
     // ------------------------------------------------------------------ 빠른 이동

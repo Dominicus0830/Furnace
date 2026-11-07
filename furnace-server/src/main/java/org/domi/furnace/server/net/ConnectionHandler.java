@@ -3055,6 +3055,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             world.runAt(px, pz, region -> region.level().awardExperience(px, py, pz, amount));
         }
 
+        /** Bundle 소리: 본인은 빼고(클라이언트가 직접 낸다), 높이는 0.8 + 레벨 난수 × 0.4. */
+        @Override public void playBundleSound(String sound) {
+            double px = p.x(), pz = p.z();
+            world.runAt(px, pz, region -> org.domi.furnace.server.entity.Shields.playSoundExceptSelf(p, region.level(), sound, 0.8F,
+                    0.8F + region.level().random().nextFloat() * 0.4F));
+        }
+
         @Override public int experienceLevel() { return p.vitals().xpLevel(); }
 
         @Override public void giveExperienceLevels(int levels) { p.vitals().giveExperienceLevels(levels); }

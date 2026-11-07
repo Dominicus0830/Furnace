@@ -212,6 +212,9 @@ public interface BlockActor {
     /** Player.drop(stack, false): 바닥에 떨군다. TODO(엔티티). */
     default void drop(ItemStack stack) {}
 
+    /** Player.drop(stack, true): 아무 쪽으로 흩어 떨군다(가방 비우기 등). 구현이 없으면 drop 과 같다. */
+    default void dropAround(ItemStack stack) { drop(stack); }
+
     /**
      * ItemUtils.createFilledResult(empty, player, filled, preventDuplicates): 손에 둘 결과 — 무한 재료면 빈 그릇을 그대로 두고(중복 방지면 없을 때만 넣고),
      * 아니면 하나 줄여 다 쓰면 채운 것을, 남으면 채운 것은 인벤토리(안 되면 바닥)로.
