@@ -93,7 +93,7 @@ public final class PlayerLocationEffects {
      *  ① spawn_particles minecraft:soul — 위치 x,z = 엔티티 + (nextDouble-0.5)×너비(엔티티 난수, x 먼저 z 나중), y = 엔티티 + 0.1,
      *     count 0(속도 입자): 속도 x,z = known movement × -0.2, y = 0.1, 속도 상수 1.0. 보낸 사람은 레벨 전체(32 칸 안).
      *  ② play_sound particle.soul_escape — 먼저 레벨 난수 nextFloat < 0.35(조건이 모든 틱 굴려진다), 소리 크기 0.6, 높이 = 엔티티 난수 nextFloat×0.4+0.6.
-     *     조용한 엔티티(isSilent)는 소리 없음. 분류 player, 위치 엔티티 발.
+     *     플레이어는 조용할 수 없어 isSilent 검사는 없다. 분류 player, 위치 엔티티 발.
      */
     public static void tickEffects(Player p, ChunkLevel level, BooleanSupplier onSoulBlock) {
         if (level == null || !p.isAlive()) return;
@@ -112,8 +112,8 @@ public final class PlayerLocationEffects {
         double w = p.bbWidth();
         double px = p.x() + (rnd.nextDouble() - 0.5) * w;
         double pz = p.z() + (rnd.nextDouble() - 0.5) * w;
-        level.sendParticles(org.domi.furnace.server.net.protocol.play.ParticleOptions.simple("minecraft:soul"), px, p.y() + 0.1, pz,
-                0, mv[0] * -0.2, 0.1, mv[2] * -0.2, 1.0);
+        level.sendParticles(org.domi.furnace.server.net.protocol.play.ParticleOptions.simple("minecraft:soul"), px, p.y() + (double) 0.1F, pz,
+                0, mv[0] * (double) -0.2F, (double) 0.1F, mv[2] * (double) -0.2F, 1.0);
         if (chance) {
             float pitch = rnd.nextFloat() * (1.0F - 0.6F) + 0.6F;
             level.playSound(null, p.x(), p.y(), p.z(), "minecraft:particle.soul_escape", "player", 0.6F, pitch);

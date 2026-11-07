@@ -16,10 +16,12 @@
 
 ## 남은 차이 (가정)
 - 엔티티 기본 걸음 소리(블록 SoundType × 0.15)와 amethyst chime, 몹별 걸음 소리 전반은 없다(`Entity.walkingStepSound` TODO). 플레이어 걸음 소리도 같은 묶음이다. 워든·해골 계열만 채웠다.
+- 착지 입자 앞의 `updateInWaterStateAndDoWaterCurrentPushing`(물에 막 들어가면 낙하 거리 초기화)이 몹 경로에 없어, 얕은 물 밑 블록에 착지하는 틱에 바닐라엔 없는 입자가 나올 수 있다. 날아다니는 몹(FlyingMob·박쥐·앵무새·알레이)은 바닐라처럼 낙하 처리를 비웠다.
+- 낙타 소리는 바닐라처럼 makeSound(크기 0.8, 높이 무작위). 텔레포트 확인 직후 한 번 known movement 가 큰 값으로 남아 영혼 입자가 한 번 더 나올 수 있다(가정).
 - 착지 때 `onChangedBlock`(위치 변경 효과 재실행)은 아직 없다. 영혼 가속 tick 효과는 플레이어만(영혼 가속 장화를 신은 몹은 없다고 봄). 마지막으로 `Entity.isOnRails` 조건이 걸음 판정에 빠져 있다.
 - 철퇴 착지 추가 입자(`spawnExtraParticlesOnFall`)는 M6.
 
 ## 검증
-- 단위: `ParticleSoundEventsTest` 12건, `SpawnEggWaterTest` 3건.
+- 단위: `ParticleSoundEventsTest` 13건, `SpawnEggWaterTest` 3건.
 - 봇(`tools/bot-test/m1/m1.js`, 오프라인 서버 + mineflayer): 13칸 낙하 착지 시 `block` 입자 1개 패킷(count 130, 속도 0.15), 영혼 모래 위 걷기 4초 동안 `soul` 속도 입자 12개(count 0, 속도 1.0)와 `soul_escape` 소리 5번(크기 0.6, 높이 0.6~1.0), 멈추면 입자 없음, 물 원천에 소 스폰 알 → 소 1마리. 5항목 모두 통과.
-- 전체 시험 `:furnace-api:test :furnace-server:test` 통과(BUILD SUCCESSFUL, 11분 44초).
+- 전체 시험 `:furnace-api:test :furnace-server:test` 통과(독립 검토 반영 뒤 다시 돌려 BUILD SUCCESSFUL, 11분 28초).

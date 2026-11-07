@@ -98,10 +98,10 @@ class ParticleSoundEventsTest {
         assertFalse(pt.force());
         assertEquals(0, pt.count(), "count 0 = 속도 입자");
         assertEquals(1.0, pt.speed());
-        assertEquals(-0.02, pt.dx(), 1e-9);   // known movement × -0.2
-        assertEquals(0.1, pt.dy(), 1e-9);
+        assertEquals(-0.02, pt.dx(), 1e-6);   // known movement × -0.2
+        assertEquals(0.1, pt.dy(), 1e-6);
         assertEquals(0.0, pt.dz(), 1e-9);
-        assertEquals(-59.9, pt.y(), 1e-9);    // 발 + 0.1
+        assertEquals(-59.9, pt.y(), 1e-6);    // 발 + 0.1
         assertTrue(Math.abs(pt.x() - 0.6) <= 0.3 && Math.abs(pt.z() - 0.5) <= 0.3, "몸 너비 0.6 안");
         assertEquals(1, level.sounds.size());
         var s = level.sounds.get(0);
@@ -254,7 +254,21 @@ class ParticleSoundEventsTest {
         assertEquals(List.of(GameEvent.ENTITY_ACTION), level.events);
         assertEquals(1, level.sounds.size());
         assertEquals("entity.camel.dash", level.sounds.get(0).sound());
-        assertEquals(1.0F, level.sounds.get(0).volume());
+        assertEquals(0.8F, level.sounds.get(0).volume(), "makeSound: 말 계열 크기 0.8");
+    }
+
+    @Test
+    void flyingMobsHaveNoLandingParticles() {
+        var level = new RecLevel(1);
+        int grass = B.defaultState("minecraft:grass_block");
+        for (String type : List.of("minecraft:parrot", "minecraft:bat", "minecraft:allay", "minecraft:phantom", "minecraft:ghast")) {
+            Entity e = Entities.create(level, type);
+            e.moveTo(0.5, -60, 0.5, 0, 0);
+            level.addFreshEntity(e);
+            e.fallDistance = 10.0F;
+            e.checkFallDamage(0.0, true, grass, new Pos(0, -61, 0));
+        }
+        assertTrue(level.particles.isEmpty());
     }
 
     // ------------------------------------------------------------------ 걸음 소리

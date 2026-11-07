@@ -172,7 +172,7 @@ public class Camel extends AbstractHorse {
      */
     @Override
     public void handleStartJump(int power) {
-        playSound("entity.camel.dash", 1.0F, 1.0F);
+        makeSound("entity.camel.dash");
         gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_ACTION);
         setDashing(true);
     }
@@ -197,7 +197,7 @@ public class Camel extends AbstractHorse {
 
     public void sitDown() {
         if (!isCamelSitting()) {
-            playSound("entity.camel.sit", 1.0F, 1.0F);
+            makeSound("entity.camel.sit");
             setPose(POSE_SITTING);
             gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_ACTION);
             resetLastPoseChangeTick(-level.gameTime());
@@ -206,7 +206,7 @@ public class Camel extends AbstractHorse {
 
     public void standUp() {
         if (isCamelSitting()) {
-            playSound("entity.camel.stand", 1.0F, 1.0F);
+            makeSound("entity.camel.stand");
             setPose(POSE_STANDING);
             gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_ACTION);
             resetLastPoseChangeTick(level.gameTime());
