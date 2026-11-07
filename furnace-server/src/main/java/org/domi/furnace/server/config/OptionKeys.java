@@ -27,7 +27,7 @@ public final class OptionKeys {
     public record Option(String key, String type, String def, String range, String description) {}
 
     /** 키가 아니라 이름 접두로 받는 가족(플러그인별 로그 수준, 차원별 시드). */
-    private static final List<String> PREFIXES = List.of("plugins.log-level.", "dimension-seed.");
+    private static final List<String> PREFIXES = List.of("plugins.log-level.", "dimension-seed.", "spawn.limit.", "spawn.player-limit.");
 
     private static final String[] STATES = {"handshake", "status", "login", "configuration", "play"};
 
@@ -38,7 +38,10 @@ public final class OptionKeys {
             new Option("entity-view-distance", "수", "8", "1 이상", "엔티티가 보이는 거리(청크). view-distance 보다 크게 효과 없음"),
             new Option("region-section-shift", "수", "4", "1~8", "동적 region 구역 크기(2^값 청크)"),
             new Option("region-merge-radius", "수", "1", "1 이상", "region 합치기 반경(구역 단위)"),
-            new Option("region-threads", "수", "CPU 수", "1 이상", "region 작업 스레드 수"),
+            new Option("region-threads", "수", "CPU 수", "1 이상", "region 작업 스레드 수(공유 풀이면 서버 전체, 끄면 차원마다)"),
+            new Option("shared-region-pool", "ON/OFF", "true", "true|false", "모든 차원·추가 월드가 region 워커 풀 하나를 쓴다. false 면 차원마다 region-threads 개"),
+            new Option("region-pool-dim-cap", "수", "0", "0 이상", "다른 차원 큐에 일이 있을 때 한 차원이 쓸 수 있는 워커 상한(0 = 워커 수−1)"),
+            new Option("region-pool-starve-ticks", "수", "2", "1 이상", "차원의 가장 이른 일이 이 틱 수만큼 밀리면 그 차원을 먼저 돌린다"),
             new Option("io-threads", "수", "4", "1 이상", "청크 입출력 스레드 수"),
             new Option("autosave-ticks", "수", "6000", "1 이상", "자동 저장 간격(틱)"),
             new Option("chunk-eviction-grace-ticks", "수", "100", "1 이상", "쓰지 않는 청크를 내리기 전 유예(틱)"),

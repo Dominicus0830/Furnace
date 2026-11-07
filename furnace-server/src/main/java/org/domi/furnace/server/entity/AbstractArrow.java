@@ -176,7 +176,9 @@ public abstract class AbstractArrow extends Projectile {
             if (eh != null) hit = eh;
             if (hit != null && hit.isEntity()) {
                 Targetable owner = getOwner();
-                if (hit.target() instanceof Player && owner instanceof Player) {   // TODO(PvP 규칙): 서로 때릴 수 없으면 맞지 않는다
+                if (hit.target() instanceof Player victim && owner instanceof Player shooter && !shooter.canHarmPlayer(victim, level.pvp())) {
+                    hit = null;   // PvP 규칙(pvp 꺼짐·같은 팀 아군 피해 꺼짐): 사람은 화살을 통과시킨다
+                    eh = null;
                 }
             }
             if (hit != null && !noPhysics) {

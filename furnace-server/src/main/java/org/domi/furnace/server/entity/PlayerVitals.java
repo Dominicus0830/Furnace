@@ -67,6 +67,9 @@ public final class PlayerVitals {
         /** 월드 보더 밖 피해량(0 = 없음). */
         default float borderDamage(double x, double y, double z) { return 0f; }
 
+        /** 그 플레이어 기준 보더 밖 피해 — 플러그인이 enforce 한 개인 보더가 있으면 그것으로(PlayerViews). */
+        default float borderDamage(Player player, double x, double y, double z) { return borderDamage(x, y, z); }
+
         Env DEFAULT = new Env() {
             public Difficulty difficulty() { return Difficulty.EASY; }
             public boolean gameRule(String name) { return !name.equals("keepInventory") && !name.equals("doImmediateRespawn"); }
@@ -626,11 +629,7 @@ public final class PlayerVitals {
             boolean fallOnPvpServer = env.pvp() && type.isFall();
             if (!fallOnPvpServer && spawnInvulnerableTime > 0 && !type.bypassesInvulnerability()) return false;
             // ServerPlayer.hurt: 때린 쪽(화살이면 주인)이 플레이어인데 canHarmPlayer 가 거짓(pvp 꺼짐·같은 팀이고 아군 피해 꺼짐)이면 무시
-            if (attacker != null && attacker.isPlayer() && attacker != player && !env.pvp()) return false;
-            if (attacker instanceof Player ap && ap != player) {
-                var mine = player.team();   // 바닐라 Player.canHarmPlayer: 맞은 쪽 팀이 때린 쪽과 같은 팀이고 아군 피해 꺼짐
-                if (mine != null && mine.isAlliedTo(ap.team()) && !mine.isAllowFriendlyFire()) return false;
-            }
+            if (attacker instanceof Player ap && !player.canHarmPlayer(ap, env.pvp())) return false;
             if (abilities.invulnerable && !type.bypassesInvulnerability()) return false;
             if (health <= 0.0f) return false;
             player.removeEntitiesOnShoulder();   // Player.hurt: 피해를 받으면 어깨의 몹을 내려놓는다
@@ -1054,7 +1053,7 @@ public final class PlayerVitals {
             }
             if (player.y() < s.minBuildHeight() - 64) after.add(() -> hurt(DamageType.OUT_OF_WORLD, 4.0f));
             if (alive) {
-                float border = env.borderDamage(player.x(), player.y(), player.z());
+                float border = env.borderDamage(player, player.x(), player.y(), player.z());
                 if (border > 0) after.add(() -> hurt(DamageType.OUTSIDE_BORDER, border));
                 if (s.chunkLoaded() && s.eyeInWater() && !s.eyeInBubbleColumn()) {
                     if (!abilities.invulnerable && !effects.containsKey(MobEffect.WATER_BREATHING)) {

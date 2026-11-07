@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity.ai.goal;
 import java.util.EnumSet;
 import org.domi.furnace.server.attribute.Attribute;
 import org.domi.furnace.server.entity.AABB;
+import org.domi.furnace.server.entity.TamableAnimal;
 import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.PathfinderMob;
@@ -54,7 +55,9 @@ public class HurtByTargetGoal extends TargetGoal {
         double d = getFollowDistance();
         AABB box = new AABB(mob.x(), mob.y(), mob.z(), mob.x() + 1.0, mob.y() + 1.0, mob.z() + 1.0).inflate(d, 10.0, d);
         for (Mob other : mob.level().getEntitiesOfClass(mob.getClass(), box, x -> true)) {
-            if (mob != other && other.getTarget() == null) {
+            if (mob != other && other.getTarget() == null
+                    && !(mob instanceof TamableAnimal t && other instanceof TamableAnimal o && t.getOwner() != o.getOwner())   // 주인이 다른 길들인 동물은 돕지 않는다
+                    && !other.isAlliedTo(mob.getLastHurtByMob())) {
                 boolean ignored = false;
                 if (toIgnoreAlert != null) for (Class<?> c : toIgnoreAlert) if (other.getClass() == c) ignored = true;
                 if (!ignored) alertOther(other, mob.getLastHurtByMob());

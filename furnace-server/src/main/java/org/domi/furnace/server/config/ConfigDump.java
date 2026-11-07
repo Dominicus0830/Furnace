@@ -170,7 +170,7 @@ public final class ConfigDump {
     }
 
     private static boolean isFamily(String key) {
-        return key.startsWith("plugins.log-level.") || key.startsWith("dimension-seed.");
+        return key.startsWith("plugins.log-level.") || key.startsWith("dimension-seed.") || key.startsWith("spawn.limit.") || key.startsWith("spawn.player-limit.");
     }
 
     /** 값이 기본값과 다른가. 기본값을 글자로 비교할 수 없는 키("CPU 수", "단계별")는 값이 있기만 하면 다르다고 본다. */

@@ -307,6 +307,7 @@ class ConfigToolsTest {
     @Test
     void everyKeyAnyLoaderReadsIsInTheTable() {
         for (String k : LibrarySettings.KEYS) assertTrue(OptionKeys.isKnown(k), "키 표에 없음: " + k);
+        for (String k : org.domi.furnace.server.entity.spawn.SpawnConfig.knownKeys()) assertTrue(OptionKeys.isKnown(k), "키 표에 없음: " + k);
         for (String k : RconLimits.knownKeys()) assertTrue(OptionKeys.isKnown(k), "키 표에 없음: " + k);
         for (String k : ConnectionLimits.knownKeys()) assertTrue(OptionKeys.isKnown(k), "키 표에 없음: " + k);
         for (String k : List.of("motd-format", "io-uring", "idle-pause.empty-seconds", "idle-pause.flush-caches", "backup.interval-minutes",
