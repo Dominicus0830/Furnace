@@ -235,6 +235,96 @@ class PlayerSleepingTest {
         assertEquals(-180.0F, PlayerSleeping.lookAtYaw(0.5, 0, 1.5, new Pos(0, 0, 0)), 1e-4);
     }
 
+    /** 자는 동안 소유 스레드가 떠 둔 일어설 자리(자는 중 접속 종료의 저장 위치)가 실제로 깼을 때 서는 자리와 같다. */
+    @Test
+    void standUpPositionIsCachedWhileSleepingAndMatchesWake() {
+        var level = new Lvl();
+        placeBed(level);
+        level.dayTime = 13000;
+        var p = player(level, 1.5, -60, 0.5);
+        assertNull(p.sleepStandUp());
+        assertNull(PlayerSleeping.startSleepInBed(p, level, HEAD));
+        double[] cached = p.sleepStandUp();
+        assertNotNull(cached, "잠들면 바로 떠 둔다");
+        assertEquals(4, cached.length);
+        assertNotEquals(0.5, cached[0], 1e-9, "침대 위(0.5, 0.6875, 0.5)가 아니라 옆 칸");
+        PlayerSleeping.stopSleepInBed(p, level, true, true);
+        assertEquals(cached[0], p.x(), 1e-9);
+        assertEquals(cached[1], p.y(), 1e-9);
+        assertEquals(cached[2], p.z(), 1e-9);
+        assertEquals(cached[3], p.yaw(), 1e-4);
+        assertNull(p.sleepStandUp(), "깨면 지운다");
+    }
+
+    /** 침대 곁에 벽을 세우면 일어설 자리가 바뀌고, 한 틱 갱신(1초마다)이 그걸 따라간다. */
+    @Test
+    void standUpPositionRefreshesOncePerSecond() {
+        var level = new Lvl();
+        placeBed(level);
+        level.dayTime = 13000;
+        var p = player(level, 1.5, -60, 0.5);
+        assertNull(PlayerSleeping.startSleepInBed(p, level, HEAD));
+        double[] before = p.sleepStandUp();
+        // 일어설 후보 칸(침대 양옆)을 모두 막는다 — 막힌 곳은 후보에서 빠져 다른 자리로
+        for (int dx : new int[] {-1, 1}) for (int dz : new int[] {0, 1}) {
+            level.setBlock(new Pos(dx, -60, dz), B.defaultState("minecraft:stone"), 3);
+            level.setBlock(new Pos(dx, -59, dz), B.defaultState("minecraft:stone"), 3);
+        }
+        level.gameTime = 20;
+        PlayerSleeping.tick(p, level);
+        double[] after = p.sleepStandUp();
+        assertNotNull(after);
+        assertFalse(java.util.Arrays.equals(before, after), "일어설 자리가 바뀌어 새로 떠 둔다");
+        PlayerSleeping.stopSleepInBed(p, level, true, true);
+        assertEquals(after[0], p.x(), 1e-9);
+        assertEquals(after[2], p.z(), 1e-9);
+    }
+
+    /** ServerPlayer.teleportTo(level, …): 자는 중 텔레포트는 먼저 깨운 뒤 목적지로 — 깨우기 보정이 목적지를 덮어쓰지 않는다. */
+    @Test
+    void teleportWakesSleepingPlayerBeforeMoving() {
+        var level = new Lvl();
+        placeBed(level);
+        level.dayTime = 13000;
+        var p = player(level, 1.5, -60, 0.5);
+        var sent = new java.util.ArrayList<double[]>();
+        p.teleporter(sent::add);
+        assertNull(PlayerSleeping.startSleepInBed(p, level, HEAD));
+        p.teleportTo(10.5, -60, 10.5, 90f, 0f);
+        p.drainOwnerTasks();   // 시험에는 소유 region 이 없어 소유 스레드 큐에 쌓인다
+        assertFalse(p.isSleeping());
+        assertFalse(B.prop("occupied").is(level.getBlockState(HEAD)), "침대 점유 해제");
+        assertNull(p.sleepStandUp());
+        assertFalse(sent.isEmpty());
+        double[] last = sent.get(sent.size() - 1);
+        assertEquals(10.5, last[0], 1e-9, "마지막 보정 텔레포트가 목적지");
+        assertEquals(10.5, last[2], 1e-9);
+        assertEquals(90.0, last[3], 1e-6);
+        // 깨우기 보정(일어선 자리)이 먼저 나갔다
+        assertTrue(sent.size() >= 2);
+        // 자지 않을 때는 곧바로(소유 스레드 큐 없이)
+        sent.clear();
+        p.teleportTo(1, -60, 1, 0f, 0f);
+        assertEquals(1, sent.size());
+    }
+
+    @Test
+    void relativeTeleportWakesAndAddsToStandUpPosition() {
+        var level = new Lvl();
+        placeBed(level);
+        level.dayTime = 13000;
+        var p = player(level, 1.5, -60, 0.5);
+        var sent = new java.util.ArrayList<double[]>();
+        p.teleporter(sent::add);
+        assertNull(PlayerSleeping.startSleepInBed(p, level, HEAD));
+        p.teleportRelative(0, 5, 0);
+        p.drainOwnerTasks();
+        assertFalse(p.isSleeping());
+        double[] last = sent.get(sent.size() - 1);
+        assertEquals(8, last.length, "상대 텔레포트 형식");
+        assertEquals(p.y() + 5, last[1], 1e-9, "일어선 자리 기준");
+    }
+
     @Test
     void bedUseThroughBlockActorSleepsOrExplodesInNether() {
         var level = new Lvl();
