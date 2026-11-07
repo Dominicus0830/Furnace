@@ -20,6 +20,19 @@ public interface Audience {
     /** 제목을 지우고 시간 설정도 기본값으로. */
     default void resetTitle() {}
 
+    /** 그 사람이 있는 자리에서 소리를 들려준다(그 사람에게만). */
+    default void playSound(Sound sound) {}
+
+    /** 월드의 한 지점에서 나는 것처럼 들려준다(그 사람에게만 — 멀면 크기에 따라 작게 들린다). */
+    default void playSound(Sound sound, double x, double y, double z) {}
+
+    /** 소리를 멈춘다. source·key 중 null 인 쪽은 가리지 않는다(둘 다 null 이면 모든 소리). */
+    default void stopSound(Sound.Source source, String key) {}
+
+    default void stopSound(String key) { stopSound(null, key); }
+
+    default void stopAllSounds() { stopSound(null, null); }
+
     /** 탭 목록 머리말·꼬리말. */
     default void sendPlayerListHeaderAndFooter(Text header, Text footer) {}
 
@@ -46,6 +59,9 @@ public interface Audience {
             public void hideBossBar(org.domi.furnace.api.bossbar.BossBar b) { for (Audience a : members) a.hideBossBar(b); }
             public void showSidebar(org.domi.furnace.api.scoreboard.Sidebar s) { for (Audience a : members) a.showSidebar(s); }
             public void hideSidebar(org.domi.furnace.api.scoreboard.Sidebar s) { for (Audience a : members) a.hideSidebar(s); }
+            public void playSound(Sound s) { for (Audience a : members) a.playSound(s); }
+            public void playSound(Sound s, double x, double y, double z) { for (Audience a : members) a.playSound(s, x, y, z); }
+            public void stopSound(Sound.Source src, String k) { for (Audience a : members) a.stopSound(src, k); }
             public void sendPlayerListHeaderAndFooter(Text h, Text f) { for (Audience a : members) a.sendPlayerListHeaderAndFooter(h, f); }
         };
     }

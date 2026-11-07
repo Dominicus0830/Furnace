@@ -106,6 +106,16 @@ public final class MenuSession implements Menu.Listener {
         });
     }
 
+    @Override
+    public void titleChanged(Menu m, Text title) {
+        var host0 = player.handle().inventoryHost();
+        if (host0 == null) return;
+        host0.execute(() -> {
+            if (menu == null) return;
+            host0.retitlePluginMenu(this, title);
+        });
+    }
+
     /** 클릭을 메뉴 처리기에 전한다. 허용하면 true. */
     boolean click(AbstractContainerMenu m, int windowSlot, int button, ClickType type) {
         ClickKind kind;

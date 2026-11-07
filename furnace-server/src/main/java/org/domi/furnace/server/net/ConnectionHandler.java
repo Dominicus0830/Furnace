@@ -1191,6 +1191,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openPluginMenu(p, session));
             }
 
+            public void retitlePluginMenu(org.domi.furnace.server.plugin.MenuSession session, Text title) {
+                ConnectionHandler.this.retitlePluginMenu(p, session, title);
+            }
+
             public void execute(Runnable task) { ctx.channel().eventLoop().execute(task); }
 
             public void openEntityContainer(org.domi.furnace.server.entity.ContainerEntity entity) {
@@ -2383,6 +2387,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             p.setContainerMenu(menu);
             menu.setSynchronizer(menus);
             session.opened();
+        }
+    }
+
+    /** 열린 플러그인 Menu 의 제목 바꾸기: 같은 창 번호로 open_screen 을 다시 보내고 전체 내용·커서를 다시 맞춘다. */
+    private void retitlePluginMenu(Player p, org.domi.furnace.server.plugin.MenuSession session, Text title) {
+        if (player != p || p.isDisconnected()) return;
+        synchronized (p.menuLock()) {
+            var menu = p.containerMenu();
+            if (menu == null || menu.pluginOwner() != session) return;
+            send(ctx, new OpenScreen(menu.containerId, menuTypeId(menu), p.localize(title)));
+            menu.sendAllDataToRemote();
         }
     }
 
