@@ -126,6 +126,9 @@ public final class Region {
     // ------------------------------------------------------------------ 틱(Regionizer 작업 스레드)
 
     /** 작업 큐 → 지연 작업 → (켜져 있으면) 게임 틱. */
+    /** 마지막 runTick 이 게임 틱(tick)까지 돌았는가 — 붙잡힌(백업·일시정지) 차례는 틱 시간 표본에 넣지 않는다. */
+    boolean lastRunTicked;
+
     void runTick(boolean gameTick) { runTick(gameTick, false); }
 
     /**
@@ -133,6 +136,7 @@ public final class Region {
      * 하지 않는다(sprint lockstep 의 기다림과 같은 길).
      */
     void runTick(boolean gameTick, boolean manualHold) {
+        lastRunTicked = false;
         // /tick sprint lockstep: 전역을 앞서면 이번 차례는 작업 큐만 비우고 틱(지연 작업 시계·월드·플레이어 처리)은 하지 않는다
         sprintHeld = !manualHold && gameTick && sprintHoldsNow();
         boolean hold = sprintHeld || manualHold;
@@ -152,7 +156,11 @@ public final class Region {
             if (mine(d.chunkKey)) runTask(d.run);
             else rz().enqueue(d.chunkKey, d.run);
         }
-        if (gameTick) tick();
+        // 틱 붙잡기(백업 기준점·빈 서버 일시정지)는 작업 큐를 비운 뒤에 본다 — 붙잡은 뒤 넣은 작업(quiesce)이 돈 차례는 틱을 하지 않는다
+        if (gameTick && !world.ticksHeld()) {
+            tick();
+            lastRunTicked = true;
+        }
     }
 
     /**
@@ -722,6 +730,13 @@ public final class Region {
     public void releaseDisconnectedMounts() {
         for (Player p : players.values()) {
             if (p.isDisconnected()) org.domi.furnace.server.entity.PlayerVehicleSave.onDisconnect(p, world.playerIo(), world.worldDir());
+        }
+    }
+
+    /** save-all·백업: 접속 중 플레이어의 탈것(RootVehicle)을 그 플레이어 데이터에 덧쓴다(이 region 스레드에서 — 자동 저장과 같은 길). */
+    public void saveOnlinePlayerVehicles() {
+        for (Player p : players.values()) {
+            if (!p.isDisconnected()) org.domi.furnace.server.entity.PlayerVehicleSave.autosave(p, world.playerIo(), world.worldDir());
         }
     }
 

@@ -67,3 +67,9 @@
 - 근접 공격(파트): 바닐라 handleInteract 의 canInteractWithEntity(상자, 1.0) = 상자–눈 거리² < 16 으로 바꿨다(다른 엔티티의 눈–발 거리² < 36 판정은 그대로 — 남은 차이).
 - 바닐라와 같은 특이점: 섹션 조회는 상자 ±2 만 넓혀, 드래곤 중심 청크와 먼 쪽에서 오는 투사체는 드래곤 자체가 안 잡혀 파트도 못 맞힌다.
 - region 경계: 파트는 부모와 같은 region 상태이고 조회는 기존 엔티티 조회의 region 범위를 따른다(다른 region 의 드래곤은 기존 엔티티처럼 보이지 않는다 — 가정, 별도 시험 없음).
+
+## 후속 (M7, 2026-11-07): 표 16·18·20 해소
+- 16 hasActiveExitPortal: `EndPortalBlockEntity`(데이터 없는 블록 엔티티, 엔드 포털 블록이 단다)를 추가하고 `EndGatewayBlockEntity` 를 그 하위 종류로 만들었다(바닐라 TheEndGatewayBlockEntity extends TheEndPortalBlockEntity). 판정은 바닐라대로 중심 청크 ±8 의 청크마다 이 종류 블록 엔티티가 있는지 본다(불러와 있는 청크만 — 의도한 차이). 이로써 관문만 있어도 열린 것으로 친다(바닐라 동작).
+- 18 doPostAttackEffects: 날개 밀치기(5)·머리·목 피해(10) 뒤 맞은 쪽 장비의 가시를 발동한다(드래곤은 무기가 없어 이것뿐). 벌 침도 같은 한 줄을 채웠다.
+- 20 사용자 이름 보스 바: Entity 에 사용자 이름이 생겨 이미 동작 중이라 `barName()` 접근자와 시험만 추가.
+- 시험: `DragonParityRecheckTest.activeExitPortalIsJudgedByPortalBlockEntities`, `dragonAttacksTriggerThornsOfVictim`, `bossBarUsesCustomName`.

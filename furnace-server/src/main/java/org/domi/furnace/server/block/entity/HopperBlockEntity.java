@@ -691,6 +691,7 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
         private final String type;
 
         EntityInv(ContainerEntity e) {
+            e.unpackLootTable();   // 깔때기가 열지 않은 상자 수레에 닿으면 표를 푼다(getItem → unpackChestVehicleLootTable(null))
             this.items = e.chestVehicleItems();
             String t = e instanceof Entity en ? en.typeName() : "container";
             this.type = t.indexOf(':') < 0 ? "minecraft:" + t : t;

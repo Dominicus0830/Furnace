@@ -93,6 +93,9 @@ public final class FurnaceMain {
         }
         ConsoleInput console = ConsoleInput.startEarly();   // 월드를 불러오기 전에 연다 — stop 은 바로, 나머지는 서버가 준비된 뒤 실행
         ServerProperties props = settings.get();
+        // Paper/Spigot 에서 넘어온 서버: bukkit.yml·spigot.yml·config/paper-*.yml 의 대응 키를 furnace.properties 로 옮긴다(첫 기동 한 번).
+        // furnace.properties 를 읽는 모든 곳보다 먼저여야 한다.
+        org.domi.furnace.server.config.PaperConfigImport.runIfNeeded(Path.of("."), Path.of("furnace.properties"));
         org.domi.furnace.server.config.OperatorOptions.install(org.domi.furnace.server.config.OperatorOptions.load(Path.of("furnace.properties")));
         if (!org.domi.furnace.server.world.anvil.Compression.configure(props.regionFileCompression)) {
             log.error("Invalid `region-file-compression` value `{}` in server.properties. Please use one of: deflate, gzip, lz4, none, zstd",
@@ -139,6 +142,8 @@ public final class FurnaceMain {
             var imported = org.domi.furnace.server.world.storage.BukkitWorldImport.run(universe, levelName, worldDir, levelData);
             // 엔드 드래곤 전투를 가져왔으면 바로 level.dat 에 남긴다 — DIM1 이 생긴 뒤에는 다시 가져오지 않는다.
             if (imported.dragonFightImported()) storage.saveLevelData(levelData);
+            // 못 가져온 것·서버 폴더의 추가 Bukkit 월드를 첫 기동 때 한 번 보고한다(실패해도 기동을 막지 않는다).
+            org.domi.furnace.server.world.storage.BukkitWorldReport.runIfNeeded(Path.of("."), universe, levelName, levelData, imported);
         } catch (java.io.IOException e) {
             log.error("Paper/Spigot 월드 폴더를 가져오지 못했다 — 원본은 그대로다. 디스크 공간·권한을 확인하고 다시 켜라", e);
             storage.close();
@@ -149,6 +154,7 @@ public final class FurnaceMain {
         for (String k : ConfigLoader.ignoredVanillaKeys(furnaceProps)) {
             log.warn("furnace.properties 의 '{}' 는 무시됩니다 — server.properties 값을 씁니다", k);
         }
+        org.domi.furnace.server.config.OptionKeys.audit(furnaceProps, log::warn);   // 오타 키·위험한 값 경고
         Config config = ConfigLoader.load(furnaceProps)
                 .withServerProperties(props, options.port(), options.world(), seed);
         long startNanos = System.nanoTime();
@@ -181,6 +187,12 @@ public final class FurnaceMain {
                 profileCache, Path.of("server-icon.png")).velocitySecret(config.velocitySecret()).bungeecord(config.bungeecord())
                 .limits(org.domi.furnace.server.net.ConnectionLimits.load(furnaceProps, log::warn)
                         .withVanillaRateLimit(props.rateLimitPacketsPerSecond));
+
+        // 위험하거나 막힐 수 있는 RCON·프록시 설정은 기동 로그에 한 번 경고한다(값은 그대로 둔다).
+        org.domi.furnace.server.remote.RconLimits rconLimits = org.domi.furnace.server.remote.RconLimits.load(furnaceProps);
+        org.domi.furnace.server.config.StartupWarnings.rcon(props.enableRcon, props.rconPassword, rconLimits).forEach(log::warn);
+        org.domi.furnace.server.config.StartupWarnings.proxy(props.onlineMode, config.bungeecord(), config.velocitySecret(),
+                loginContext.limits().proxyProtocol(), loginContext.limits().proxyTrusted().isEmpty()).forEach(log::warn);
 
         // region 은 동적(Folia 방식): 가까운 청크끼리 한 region, 떨어진 무리끼리는 작업 스레드 풀에서 병렬.
         FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos(), config.regionThreads());
@@ -370,17 +382,31 @@ public final class FurnaceMain {
         org.domi.furnace.server.command.builtin.WorldsCommands.register(core.commands().getDispatcher());
         org.domi.furnace.server.command.builtin.TpsCommands.register(core.commands().getDispatcher());
         org.domi.furnace.server.command.builtin.TimingsCommands.register(core.commands().getDispatcher());
+        org.domi.furnace.server.command.builtin.BackupCommands.register(core.commands().getDispatcher());
         core.onSaveAll(() -> {
+            // 바닐라 saveEverything: 플레이어(PlayerList.saveAll) → 청크 → level.dat. 플레이어 기록은 전용 실행기에서 — 끝날 때까지 기다린다
+            java.util.List<java.util.concurrent.CompletableFuture<Void>> players = new java.util.ArrayList<>();
+            for (var p : core.players()) players.add(p.requestSave());
             for (World w : dimensions.all()) for (var f : w.flushAll()) f.join();
             saveLevelData.run();
+            worldManager.saveLevelData();
+            try {
+                java.util.concurrent.CompletableFuture.allOf(players.toArray(new java.util.concurrent.CompletableFuture[0])).get(30, java.util.concurrent.TimeUnit.SECONDS);
+                java.util.concurrent.CompletableFuture.runAsync(() -> { }, world.playerIo()).get(30, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (Exception e) {
+                log.warn("save-all: 플레이어 데이터 저장이 30초 안에 끝나지 않았다", e);
+            }
         });
         NetworkServer network = new NetworkServer(
                 config.port(), config.compressionThreshold(), loginContext, scheduler,
                 world, idAllocator);
         network.useNativeTransport(props.useNativeTransport);
+        network.useIoUring(org.domi.furnace.server.net.TransportOptions.load(furnaceProps).ioUring());
         CountDownLatch shutdown = new CountDownLatch(1);
         // 운영·관측 서비스(RCON·Query·워치독): 전용 IO/데몬 스레드. 종료 훅이 가장 먼저 닫는다.
         java.util.List<AutoCloseable> remoteServices = new java.util.concurrent.CopyOnWriteArrayList<>();
+        // 빈 서버 일시정지·주기 백업(furnace.properties idle-pause.*, backup.*, 기본 꺼짐). 저장·복사는 유지보수 스레드에서.
+        remoteServices.add(installMaintenance(furnaceProps, core, dimensions, worldManager, world, worldDir, saveLevelData));
 
         // 종료 순서 계약(ShutdownSequence.Step 순서, docs/api/lifecycle.md): 종료 이벤트 → 플러그인 끄기(접속자·region 살아 있음)
         // → 원격 서비스 → 네트워크 → region 저장 → 저장소 → 스케줄러 → 플러그인 클래스로더. region 정지는 onDisable 이 다 끝난 뒤다.
@@ -481,7 +507,7 @@ public final class FurnaceMain {
         // 전역 틱: 시간·날씨(바닐라 ServerLevel.tick 의 전역 부분). 고정 박자 — /tps 의 전역 값이 이 박동이다.
         new FixedRateBeat(scheduler, core::scheduledTick, 50_000_000L).start();
 
-        startRemoteServices(core, props, config, remoteServices);
+        startRemoteServices(core, props, config, rconLimits, remoteServices);
 
         // TPS 하트비트: 5초마다 측정 TPS 로그(M0 가시성).
         scheduler.global().executeDelayed(new TpsHeartbeat(scheduler, world), 100);
@@ -492,8 +518,73 @@ public final class FurnaceMain {
         shutdown.await();
     }
 
+    /** 빈 서버 일시정지와 주기 백업을 건다. 닫으면 유지보수 스레드를 멈춘다(종료 훅). */
+    private static AutoCloseable installMaintenance(Path furnaceProps, ServerCore core, org.domi.furnace.server.world.Dimensions dimensions,
+                                                    org.domi.furnace.server.world.WorldManager worldManager, World world, Path worldDir,
+                                                    Runnable saveLevelData) {
+        var opts = org.domi.furnace.server.maintenance.MaintenanceOptions.load(furnaceProps, log::warn);
+        var maintenance = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "furnace-maintenance");
+            t.setDaemon(true);
+            return t;
+        });
+        var backup = new org.domi.furnace.server.maintenance.WorldBackup(opts, new org.domi.furnace.server.maintenance.WorldBackup.Hooks() {
+            @Override public java.util.List<World> worlds() { return dimensions.all(); }
+            @Override public void holdGlobal(boolean on) { core.holdGlobalTicks(on); }
+            @Override public java.util.concurrent.CompletableFuture<Void> quiesceGlobal() { return core.quiesceGlobal(); }
+            @Override public java.util.List<java.util.concurrent.CompletableFuture<Void>> requestPlayerSaves() {
+                java.util.List<java.util.concurrent.CompletableFuture<Void>> out = new java.util.ArrayList<>();
+                for (var p : core.players()) out.add(p.requestSave());
+                return out;
+            }
+            @Override public void saveLevelData() {
+                saveLevelData.run();
+                worldManager.saveLevelData();
+            }
+            @Override public java.util.concurrent.Executor playerIo() { return world.playerIo(); }
+            @Override public Path mainWorldDir() { return worldDir; }
+            @Override public boolean anyoneOnline() { return !core.players().isEmpty(); }
+            @Override public long joinCount() { return world.joinCount(); }
+        }, maintenance);
+        core.backup(backup);
+        backup.cleanStaleStaging();
+        if (opts.backupEnabled()) {
+            long period = opts.backupIntervalMinutes();
+            maintenance.scheduleWithFixedDelay(backup::runScheduled, period, period, java.util.concurrent.TimeUnit.MINUTES);
+            log.info("[BACKUP] 주기 백업 {}분마다 → {} ({}, {}개 보관)", period, opts.backupDirectory().toAbsolutePath(),
+                    opts.backupFormat().name().toLowerCase(java.util.Locale.ROOT), opts.backupKeep() == 0 ? "모두" : opts.backupKeep());
+        }
+        if (opts.idlePauseEnabled()) {
+            core.idlePause(new org.domi.furnace.server.maintenance.IdlePause(opts.idlePauseSeconds(), opts.idlePauseFlush(),
+                    new org.domi.furnace.server.maintenance.IdlePause.Hooks() {
+                        @Override public void holdWorlds(boolean on) { for (World w : dimensions.all()) w.holdTicks(on); }
+                        @Override public void saveAll() { core.saveAll(); }
+                        @Override public void flushCaches() {
+                            // 레인에 남은 저장이 끝난 뒤 지역 파일 핸들을 닫는다(다음 읽기·쓰기가 다시 연다) — 쉬는 동안 fd·버퍼 반납
+                            int closed = 0;
+                            for (World w : dimensions.all()) {
+                                w.ioBarrier().join();
+                                for (var st : w.regionFileStores()) {
+                                    try {
+                                        st.closeAll();
+                                        closed++;
+                                    } catch (java.io.IOException e) {
+                                        log.warn("[PAUSE] 지역 파일 닫기 실패 {}", st.regionDir(), e);
+                                    }
+                                }
+                            }
+                            System.gc();
+                            log.info("[PAUSE] 저장 완료, 지역 파일 저장소 {}개를 닫고 GC 를 권했다", closed);
+                        }
+                    }, maintenance));
+            log.info("[PAUSE] 접속자가 없으면 {}초 뒤 틱을 멈춘다(idle-pause.empty-seconds)", opts.idlePauseSeconds());
+        }
+        return maintenance::shutdownNow;
+    }
+
     /** 바닐라 DedicatedServer.initServer 끝: enable-query → enable-rcon → 워치독(max-tick-time &gt; 0). */
-    private static void startRemoteServices(ServerCore core, ServerProperties props, Config config, java.util.List<AutoCloseable> out) {
+    private static void startRemoteServices(ServerCore core, ServerProperties props, Config config,
+                                       org.domi.furnace.server.remote.RconLimits rconLimits, java.util.List<AutoCloseable> out) {
         if (props.enableQuery) {
             log.info("Starting GS4 status listener");
             var q = org.domi.furnace.server.remote.QueryServer.create(props.serverIp, props.queryPort, new QueryInfo(core, props, config, hostIp(props)));
@@ -501,8 +592,20 @@ public final class FurnaceMain {
         }
         if (props.enableRcon) {
             log.info("Starting remote control listener");
-            var r = org.domi.furnace.server.remote.RconServer.create(props.serverIp, props.rconPort, props.rconPassword, core::runRconCommand);
+            var r = org.domi.furnace.server.remote.RconServer.create(props.serverIp, props.rconPort, props.rconPassword, core::runRconCommand, rconLimits);
             if (r != null) out.add(r);
+        }
+        var metricsOpts = org.domi.furnace.server.metrics.MetricsOptions.load(Path.of("furnace.properties"), log::warn);
+        if (metricsOpts.prometheus() || metricsOpts.jmx()) {
+            var source = new org.domi.furnace.server.metrics.ServerMetrics(core);
+            if (metricsOpts.prometheus()) {
+                var p = org.domi.furnace.server.metrics.PrometheusServer.create(metricsOpts.bind(), metricsOpts.port(), metricsOpts.token(), source);
+                if (p != null) out.add(p);
+            }
+            if (metricsOpts.jmx()) {
+                var j = org.domi.furnace.server.metrics.JmxMetrics.register(source);
+                if (j != null) out.add(j);
+            }
         }
         if (ServerWatchdog.enabled(props.maxTickTime)) {
             var w = new ServerWatchdog(props.maxTickTime, System::nanoTime, core::watchdogProbes,

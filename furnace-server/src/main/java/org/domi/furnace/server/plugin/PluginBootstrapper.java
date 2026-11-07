@@ -33,6 +33,8 @@ import org.domi.furnace.api.plugin.lifecycle.LifecycleEvents;
 import org.domi.furnace.api.registry.PluginRegistries;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.data.PackRepository;
+import org.domi.furnace.server.plugin.library.LibraryResolver;
+import org.domi.furnace.server.plugin.library.LibrarySettings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -297,11 +299,16 @@ public final class PluginBootstrapper {
             failures.add(d.name());
             return null;
         }
+        List<Path> libraries = resolveLibraries(c);
+        if (libraries == null) {
+            failures.add(d.name());
+            return null;
+        }
         PluginManagerImpl.PluginClassLoader loader;
         try {
             loader = settings.devMode()
-                    ? new PluginManagerImpl.PluginClassLoader(HotReload.shadowCopy(dir, c.file()), this, true)
-                    : new PluginManagerImpl.PluginClassLoader(c.file(), this);
+                    ? new PluginManagerImpl.PluginClassLoader(HotReload.shadowCopy(dir, c.file()), this, true, libraries)
+                    : new PluginManagerImpl.PluginClassLoader(c.file(), this, false, libraries);
         } catch (IOException e) {
             log.error("Could not load '{}' in folder '{}'", dir.relativize(c.file()), dir.getFileName(), e);
             failures.add(d.name());
@@ -334,6 +341,36 @@ public final class PluginBootstrapper {
         Prepared out = new Prepared(d, c.file(), loader, logger, boot, ctx);
         prepared.add(out);
         return out;
+    }
+
+    /** 라이브러리 해석기(plugins.libraries.enabled=true 일 때 처음 필요한 순간에 만든다). */
+    private volatile LibraryResolver libraryResolver;
+
+    /**
+     * 설명 파일의 libraries 를 받아 jar 경로를 돌려 준다(없거나 꺼져 있으면 빈 목록). 풀지 못하면 로그를 남기고 null — 그 플러그인은 불러오지 않는다.
+     */
+    private List<Path> resolveLibraries(Candidate c) {
+        PluginDescription d = c.description();
+        if (d.libraries().isEmpty()) return List.of();
+        LibrarySettings ls = settings.libraries();
+        if (!ls.enabled()) {
+            log.warn("Plugin {} 이 라이브러리 {}개({})를 요구하지만 plugins.libraries.enabled=false 라 받지 않는다 — 켜거나, 라이브러리를 플러그인 jar 에 넣어라",
+                    d.fullName(), d.libraries().size(), d.libraries().stream().map(PluginDescription.Library::coordinate).toList());
+            return List.of();
+        }
+        try {
+            LibraryResolver r = libraryResolver;
+            if (r == null) {
+                r = new LibraryResolver(ls, ls.cache() != null ? ls.cache() : dir.resolve(LibrarySettings.DEFAULT_CACHE_DIR), log);
+                libraryResolver = r;
+            }
+            List<Path> jars = r.resolve(d.name(), d.libraries());
+            log.info("Plugin {}: 라이브러리 jar {}개를 클래스패스에 붙인다", d.fullName(), jars.size());
+            return jars;
+        } catch (LibraryResolver.LibraryException e) {
+            log.error("Could not load '{}' in folder '{}': 라이브러리를 준비하지 못했다 — {}", dir.relativize(c.file()), dir.getFileName(), e.getMessage());
+            return null;
+        }
     }
 
     /**

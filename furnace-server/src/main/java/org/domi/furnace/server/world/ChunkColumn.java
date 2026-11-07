@@ -494,6 +494,17 @@ public final class ChunkColumn {
         cachedSnapshot = null;
     }
 
+    /**
+     * 빛 배열만 바뀌었다(이웃 청크의 블록 변경·가짜 광원): 빛을 담는 캐시(청크 패킷 본문·스냅샷)만 버린다. 블록·높이 지도는 그대로이고
+     * 저장 대상으로 표시하지도 않는다(빛은 읽을 때 다시 계산한다).
+     */
+    public void lightTouched() {
+        modCount++;
+        cachedSerializedBody = null;
+        inflightSerializedBody = null;
+        cachedSnapshot = null;
+    }
+
     public long modCount() { return modCount; }
 
     public boolean dirty() { return dirty; }

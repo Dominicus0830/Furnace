@@ -3,6 +3,7 @@
 > 조사 문서다. 코드는 수정하지 않았다. 기준은 Paper 1.21.1 의 `paper-global.yml`, `paper-world-defaults.yml`(`world-settings.default`), `spigot.yml`, `bukkit.yml` 이다.
 > 근거: 작성자의 기억과 레포 코드만 썼다. 웹 조회와 Paper 원문 대조는 하지 않았다. **Paper 쪽 키 이름과 기본값은 전부 미확인이다.** 구현 전에 Paper 1.21.1 원문으로 대조해야 한다.
 > Furnace 쪽 근거는 `파일:줄` 로 적었다. 경로는 `furnace-server/src/main/java/org/domi/furnace/server/` 기준이다.
+> **구현됨 (2026-11-07)**: 대응 키 가져오기와 못 옮긴 키 보고는 [paper-config-import-2026-11-07.md](paper-config-import-2026-11-07.md).
 > 관련 문서: `docs/furnace-community-wishlist.md` 1.6절(설정 운영 불만 34~36).
 
 ## 0. 읽는 법

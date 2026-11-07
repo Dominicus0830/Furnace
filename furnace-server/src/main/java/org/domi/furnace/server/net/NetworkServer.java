@@ -37,6 +37,16 @@ public final class NetworkServer {
     /** start() 전에: epoll 을 쓸 수 있으면 쓸지(바닐라 ServerConnectionListener.startTcpServerListener 와 같은 선택). */
     public void useNativeTransport(boolean v) { this.useNativeTransport = v; }
 
+    private volatile boolean useIoUring = false;   // furnace.properties io-uring (기본 꺼짐)
+
+    /** start() 전에: io_uring 을 쓸 수 있으면 쓸지(기본 꺼짐). 쓸 수 없으면 경고하고 epoll/NIO 로 되돌아간다. */
+    public void useIoUring(boolean v) { this.useIoUring = v; }
+
+    /** 마지막 start() 가 고른 전송 방식("io_uring"·"epoll"·"nio"). */
+    public String transportName() { return transportName; }
+
+    private volatile String transportName = "nio";
+
     /** 테스트용: start() 전에 읽기 타임아웃(초)을 바꾼다. */
     void readTimeoutSeconds(int seconds) { this.readTimeoutSeconds = seconds; }
 
@@ -71,20 +81,51 @@ public final class NetworkServer {
         return this;
     }
 
+    /** 이 환경에서 io_uring 을 쓸 수 있는지(네이티브 로드 실패·커널 미지원이면 false). */
+    public static boolean ioUringAvailable() {
+        try {
+            return io.netty.incubator.channel.uring.IOUring.isAvailable();
+        } catch (Throwable t) {   // 네이티브 클래스가 아예 없을 때(NoClassDefFoundError 등)
+            return false;
+        }
+    }
+
+    static String ioUringUnavailableReason() {
+        try {
+            Throwable c = io.netty.incubator.channel.uring.IOUring.unavailabilityCause();
+            return c == null ? "알 수 없음" : String.valueOf(c.getMessage() != null ? c.getMessage() : c);
+        } catch (Throwable t) {
+            return t.toString();
+        }
+    }
+
     /** 서버 기동. 실제 바인딩된 포트 반환(port=0이면 OS 배정 포트). */
     public int start() {
-        // 바닐라: Epoll.isAvailable() && use-native-transport 면 epoll, 아니면 NIO("Using epoll channel type"/"Using default channel type")
-        boolean epoll = useNativeTransport && io.netty.channel.epoll.Epoll.isAvailable();
+        // io-uring=true 면 io_uring 이 우선. 못 쓰면 바닐라와 같은 선택: Epoll.isAvailable() && use-native-transport 면 epoll, 아니면 NIO
+        boolean uring = false;
+        if (useIoUring) {
+            uring = ioUringAvailable();
+            if (!uring) log.warn("io-uring=true 이지만 이 환경에서 io_uring 을 쓸 수 없습니다({}) — epoll/NIO 로 되돌아갑니다", ioUringUnavailableReason());
+        }
+        boolean epoll = !uring && useNativeTransport && io.netty.channel.epoll.Epoll.isAvailable();
         Class<? extends io.netty.channel.ServerChannel> channelType;
-        if (epoll) {
+        if (uring) {
+            bossGroup = new io.netty.incubator.channel.uring.IOUringEventLoopGroup(1);
+            workerGroup = new io.netty.incubator.channel.uring.IOUringEventLoopGroup();
+            channelType = io.netty.incubator.channel.uring.IOUringServerSocketChannel.class;
+            transportName = "io_uring";
+            log.info("Using io_uring channel type");
+        } else if (epoll) {
             bossGroup = new io.netty.channel.epoll.EpollEventLoopGroup(1);
             workerGroup = new io.netty.channel.epoll.EpollEventLoopGroup();
             channelType = io.netty.channel.epoll.EpollServerSocketChannel.class;
+            transportName = "epoll";
             log.info("Using epoll channel type");
         } else {
             bossGroup = new NioEventLoopGroup(1);
             workerGroup = new NioEventLoopGroup();
             channelType = NioServerSocketChannel.class;
+            transportName = "nio";
             log.info("Using default channel type");
         }
         if (loginContext.limits().proxyProtocol()) {

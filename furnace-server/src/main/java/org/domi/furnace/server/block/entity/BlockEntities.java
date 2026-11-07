@@ -52,6 +52,7 @@ public final class BlockEntities {
         FACTORIES.put("minecraft:trial_spawner", TrialSpawnerBlockEntity::new);
         FACTORIES.put("minecraft:vault", VaultBlockEntity::new);
         FACTORIES.put("minecraft:end_gateway", EndGatewayBlockEntity::new);
+        FACTORIES.put("minecraft:end_portal", EndPortalBlockEntity::new);
         FACTORIES.put("minecraft:conduit", ConduitBlockEntity::new);
         FACTORIES.put("minecraft:structure_block", StructureBlockEntity::new);
         FACTORIES.put("minecraft:jigsaw", JigsawBlockEntity::new);
