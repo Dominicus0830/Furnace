@@ -2241,8 +2241,11 @@ public final class Region {
      * 예전 방식(숫자)은 준비 안 된 청크도 배치에 넣어 배치 끝(Finished)이 가장 느린 생성을 기다렸고, 동시 진행 상한이 이미 있는 청크까지 막았다.
      */
     private void sendQueuedChunksAuto(Player p) {
+        // 바닐라처럼 배치는 겹치지 않는다: 앞 배치의 Finished 가 나가기 전(본문 직렬화가 다음 틱까지 걸린 경우)엔 새 배치를 열지 않는다.
+        // 겹치면 클라이언트가 재는 배치 시간(ChunkBatchSizeCalculator)이 어긋난다. 미리 불러오기는 계속한다.
+        boolean batchOpen = p.chunkBatchOpen();
         int adaptive = p.chunkSendRate().nextBudget();   // 미확인 배치가 한도면 0 — 그래도 생성 요청은 계속 건다
-        int budget = Math.min(Math.max(adaptive, 0), AUTO_MAX_CHUNKS_PER_TICK);
+        int budget = batchOpen ? 0 : Math.min(Math.max(adaptive, 0), AUTO_MAX_CHUNKS_PER_TICK);
         int genSlots = world.maxChunkSendsInFlight() - p.chunkPrefetches().size();
         List<ChunkPos> batch = new ArrayList<>(Math.min(budget, p.pendingChunks().size()));
         int scanned = 0;
@@ -2274,11 +2277,14 @@ public final class Region {
                 });
             }
         }
-        if (!batch.isEmpty()) sendBatch(p, batch, true);
+        if (!batch.isEmpty()) {
+            p.chunkBatchOpen(true);
+            sendBatch(p, batch, true).whenComplete((v, ex) -> p.chunkBatchOpen(false));
+        }
     }
 
     /** 배치 하나: Start → 청크들(본문이 준비되는 대로) → Finished(실제로 보낸 수). */
-    private void sendBatch(Player p, List<ChunkPos> batch, boolean inline) {
+    private CompletableFuture<Void> sendBatch(Player p, List<ChunkPos> batch, boolean inline) {
         p.chunkSendRate().batchSent(batch.size());
         p.send(new ChunkBatchStart());
         // 실제 전송 수(stale 드롭으로 batch.size와 다를 수 있음) — ChunkBatchFinished에 정확히 보고.
@@ -2308,7 +2314,7 @@ public final class Region {
             sends.add(f);
         }
         // allOf로 모든 future(전송/예외) 완료 후 Finished 1회 — 마샬 누락에 의한 batch 미종료(클라 stall) 방지.
-        CompletableFuture.allOf(sends.toArray(new CompletableFuture[0]))
+        return CompletableFuture.allOf(sends.toArray(new CompletableFuture[0]))
                 .thenRun(() -> p.send(new ChunkBatchFinished(sent.get())));
     }
 
