@@ -1819,6 +1819,18 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     public java.util.concurrent.atomic.AtomicInteger chunkSendsInFlight() { return chunkSendsInFlight; }
 
+    /** chunks-per-tick=auto: 이 플레이어 때문에 생성·디스크 로드를 걸어 둔(아직 안 끝난) 청크(아무 스레드). */
+    private final java.util.Set<org.domi.furnace.server.world.ChunkPos> chunkPrefetches = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    public java.util.Set<org.domi.furnace.server.world.ChunkPos> chunkPrefetches() { return chunkPrefetches; }
+
+    /** chunks-per-tick=auto: 보낸 배치의 Finished 가 아직 안 나갔다(아무 스레드). */
+    private volatile boolean chunkBatchOpen;
+
+    public boolean chunkBatchOpen() { return chunkBatchOpen; }
+
+    public void chunkBatchOpen(boolean open) { this.chunkBatchOpen = open; }
+
     private final org.domi.furnace.server.world.ChunkSendRate chunkSendRate = new org.domi.furnace.server.world.ChunkSendRate();
 
     /** 클라이언트가 알려 주는 틱당 청크 수에 맞춘 전송 속도(바닐라 PlayerChunkSender). */

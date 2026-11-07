@@ -1,4 +1,4 @@
-// 설정 프리셋(config.preset): 파일에 없는 키를 한꺼번에 채우는 값 묶음. 파일에 직접 적은 키가 항상 이긴다.
+// 설정 프리셋(config.preset): 건드리지 않은 키(파일에 없거나 기본값 그대로인 키)를 한꺼번에 채우는 값 묶음. 기본값과 다르게 적은 키가 항상 이긴다.
 //   none(기본)   — 아무것도 채우지 않는다. 키가 없으면 각 로더의 기본값(= 바닐라)이다.
 //   vanilla      — 바닐라 동작에 영향을 주는 키를 바닐라 값으로 못 박는다(옛 설정·다른 프리셋에서 돌아올 때).
 //   performance  — 서버 부하를 줄이는 쪽으로 보수적으로 조정한다(엔티티 가시 거리를 줄이고 쓰지 않는 청크를 일찍 내린다).
@@ -50,7 +50,18 @@ public final class ConfigPresets {
         if (m == null) {
             throw new IllegalArgumentException("설정 '" + KEY + "' 값 '" + name + "' 이(가) 잘못됐습니다: " + String.join(", ", NAMES) + " 중 하나");
         }
-        for (var e : m.entrySet()) props.putIfAbsent(e.getKey(), e.getValue());
+        for (var e : m.entrySet()) {
+            String cur = props.getProperty(e.getKey());
+            // 자동 생성된 furnace.properties 는 모든 키를 기본값으로 적어 두므로, '기본값 그대로인 키' 도 안 건드린 것으로 본다
+            if (cur == null || isDefault(e.getKey(), cur)) props.setProperty(e.getKey(), e.getValue());
+        }
+    }
+
+    private static boolean isDefault(String key, String value) {
+        for (OptionKeys.Option o : OptionKeys.all()) {
+            if (o.key().equals(key)) return !ConfigDump.differs(o, value);
+        }
+        return false;
     }
 
     public static String name(Properties props) {

@@ -106,6 +106,14 @@ public final class FurnaceMain {
             log.info("furnace.properties 를 형식 {} → {} 로 옮겼다(원본: {}):", migration.from(), migration.to(), migration.backup());
             for (String c : migration.changes()) log.info("  {}", c);
         }
+        // furnace.properties: Paper 가져오기 뒤에(먼저 만들면 모든 키가 "이미 있음"이 되어 Paper 값을 못 옮긴다). 없으면 모든 옵션(기본값·설명)으로 만들고, 새 버전에서 생긴 옵션만 끝에 덧붙인다
+        try {
+            var r = org.domi.furnace.server.config.FurnacePropertiesFile.ensure(Path.of("furnace.properties"));
+            if (r == org.domi.furnace.server.config.FurnacePropertiesFile.Result.CREATED) log.info("furnace.properties 를 만들었다(모든 옵션과 설명)");
+            else if (r == org.domi.furnace.server.config.FurnacePropertiesFile.Result.APPENDED) log.info("furnace.properties 에 새 옵션을 덧붙였다(적어 둔 값은 그대로)");
+        } catch (java.io.IOException e) {
+            log.warn("furnace.properties 를 쓰지 못했다 — 기본값으로 계속한다: {}", e.toString());
+        }
         org.domi.furnace.server.config.OperatorOptions.install(org.domi.furnace.server.config.OperatorOptions.load(Path.of("furnace.properties")));
         org.domi.furnace.server.config.ConfigDump.capture(Path.of("furnace.properties"));   // /furnace config 가 보여 줄 '시작 때 적용된 값'
         if (org.domi.furnace.server.config.OptionKeys.strictBool(

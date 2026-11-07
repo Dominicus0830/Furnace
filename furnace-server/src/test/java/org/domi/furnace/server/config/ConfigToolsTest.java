@@ -103,6 +103,14 @@ class ConfigToolsTest {
     }
 
     @Test
+    void presetOverridesExplicitDefaultsButNotCustomValues() throws IOException {
+        // 자동 생성 파일처럼 기본값이 명시돼 있어도 프리셋이 적용돼야 한다
+        Properties p = FurnaceProps.read(write("config.preset=performance\nentity-view-distance=8\nchunk-eviction-grace-ticks=77\n"));
+        assertEquals("6", p.getProperty("entity-view-distance"));
+        assertEquals("77", p.getProperty("chunk-eviction-grace-ticks"));
+    }
+
+    @Test
     void noPresetChangesNothing() throws IOException {
         Properties p = FurnaceProps.read(write("autosave-ticks=100\n"));
         assertEquals(1, p.size());

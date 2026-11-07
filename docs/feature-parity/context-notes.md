@@ -1077,6 +1077,11 @@
 - **남은 차이(가정)**: 제목의 hover(show_entity)·insertion 은 화면에 안 보여 붙이지 않았다. 스포너 수레의 `BaseSpawner` 는 스포너 블록과 같은 코드라 `TODO(엔티티)`(승객·equipment)가 같이 남는다. 광산 수레 아이템의 이름·`entity_data` 컴포넌트는 그대로 미구현(M8 이후).
 - 시험: `ContainerEntityParityTest`(스포너 수레 틱·저장, 라마 카펫, 전리품 표 풀기 시점, 창 제목).
 
+## 2026-11-07 청크 전송 auto · furnace.properties 자동 생성
+- 청크 로딩 속도는 봇(mineflayer)으로 못 잰다 — `tools/bot-test/chunkrate/chunkrate.js` 처럼 `chunk_batch_received` 값을 정해 답하는 접속기를 쓴다. 진단·전후 수치: `perf-chunk-send-2026-11-07.md`.
+- `chunks-per-tick=auto`(기본)는 준비된 청크만 배치에 넣는다. 배치에 생성 중인 청크를 넣으면 Finished 가 가장 느린 생성을 기다려 클라이언트 응답이 늦어지고 이미 있는 청크까지 막힌다.
+- `World.serializedChunkBody(cp, true)` 는 주인 region 스레드면 작업 큐를 건너뛴다. 다른 곳에서 inline 을 켜도 그 스레드가 주인이 아니면 예전처럼 큐로 간다.
+- furnace.properties 를 읽는 새 키를 넣으면 `FurnacePropertiesFile.sections()` 에도 넣는다(`FurnacePropertiesFileTest` 가 접속 방어 키와 고정 목록을 확인한다).
 ## 2026-11-07 팀·PvP 규칙 연결 (묶음 M16)
 - 바닐라 1.21.1 바이트코드 대조(`bsr.s`=Entity.isAlliedTo(Entity), `bsr.a(eyi)`=isAlliedTo(Team), `cmx.a(cmx)`=Player.canHarmPlayer, `cef.a`=TargetingConditions.test, `cce.h`=HurtByTargetGoal.alertOthers, `cgh.a`=Wolf.wantsToAttack, `cnd.l`=AbstractArrow.tick): `isAlliedTo` 를 부르는 곳은 타게팅 조건·플레이어 쓸기(`cmx`)·철퇴 충격파(`cvb`)·워든 canTargetEntity(`cmb.c`)·HurtByTarget 경보·좀비 피글린 경보·송곳니(`cnh`)·MobEffectUtil.addEffectToPlayersAround(`bsa`, 장로 수호자 저주·워든 어둠) 이다. 모두 이어 붙였다.
 - **구조**: `Targetable.team()`/`isAlliedTo(other)` 기본 구현(같은 팀 = `PlayerTeam.isAlliedTo`). `LivingEntity.team()` = `getTeam()`, `Player.team()` 은 원래 있던 것. 덮어쓰기: `TamableAnimal`(길들였으면 주인·주인의 아군), `AbstractIllager`(팀 규칙 뒤, `illager_friends` 태그는 **둘 다 팀이 없을 때만** — 이전엔 팀과 무관하게 동맹이었다), `Evoker` 는 그대로.

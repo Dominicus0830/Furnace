@@ -43,7 +43,9 @@ public final class ConfigLoader {
         int autosaveTicks = parseInt(props, "autosave-ticks", Config.DEFAULT.autosaveTicks());
         int evictionGrace = parseInt(props, "chunk-eviction-grace-ticks", Config.DEFAULT.chunkEvictionGraceTicks());
         int spawnChunkRadius = parseInt(props, "spawn-chunk-radius", Config.DEFAULT.spawnChunkRadius());
-        int chunksPerTick = parseInt(props, "chunks-per-tick", Config.DEFAULT.chunksPerTick());
+        String cptRaw = props.getProperty("chunks-per-tick");
+        boolean cptAuto = cptRaw == null ? Config.DEFAULT.chunksPerTick() == Config.CHUNKS_PER_TICK_AUTO : cptRaw.strip().equalsIgnoreCase("auto");
+        int chunksPerTick = cptAuto ? Config.CHUNKS_PER_TICK_AUTO : parseInt(props, "chunks-per-tick", Config.DEFAULT.chunksPerTick());
         String velocitySecret = props.getProperty("velocity-secret", Config.DEFAULT.velocitySecret()).strip();
         String bungeeRaw = props.getProperty("bungeecord", Boolean.toString(Config.DEFAULT.bungeecord())).strip();
         // 잘못된 값이 런타임 한참 뒤(0 나눗셈, 빈 경로 등)에 터지지 않게 기동 시점에 거르고 어느 키가 문제인지 알려준다.
@@ -70,7 +72,7 @@ public final class ConfigLoader {
         require(autosaveTicks >= 1, "autosave-ticks", autosaveTicks, "1 이상");
         require(evictionGrace >= 1, "chunk-eviction-grace-ticks", evictionGrace, "1 이상");
         require(spawnChunkRadius >= 0, "spawn-chunk-radius", spawnChunkRadius, "0 이상");
-        require(chunksPerTick >= 1, "chunks-per-tick", chunksPerTick, "1 이상");
+        if (!cptAuto) require(chunksPerTick >= 1, "chunks-per-tick", chunksPerTick, "auto 또는 1 이상");
         if (!bungeeRaw.equalsIgnoreCase("true") && !bungeeRaw.equalsIgnoreCase("false")) {
             throw new IllegalArgumentException("설정 'bungeecord' 값 '" + bungeeRaw + "' 이(가) 잘못됐습니다: true 또는 false");
         }
