@@ -111,20 +111,17 @@ public class SculkCatalystBlockEntity extends BlockEntity implements GameEventLi
             }
             if (source instanceof Player dying) {
                 // Player 도 LivingEntity 다: Player.getBaseExperienceReward(레벨×7, 최대 100 — keepInventory·관전자면 0), shouldDropExperience = !isBaby = true
-                var vitals = dying.vitals();
-                if (!vitals.wasExperienceConsumed()) {
-                    int i = vitals.baseExperienceReward();
+                var death = dying.vitals().death();   // 방금 죽은 기록(리스폰했으면 없음 — 그때는 건드릴 것이 없다)
+                if (death != null && !death.wasExperienceConsumed()) {
+                    int i = death.experience();
                     if (i > 0) {
                         sculkSpreader.addCursors(new Pos((int) Math.floor(pos.x()), (int) Math.floor(pos.y() + 0.5), (int) Math.floor(pos.z())), i);
                         if (dying.getKillCredit() instanceof Player killer) {
-                            // getLastDamageSource() — 방금 죽은 피해(없으면 player_attack)
-                            String type = vitals.deathType() == null ? "player_attack" : vitals.deathType();
-                            Rider causing = vitals.deathType() == null ? killer : vitals.deathCausing();
-                            Rider direct = vitals.deathType() == null ? killer : vitals.deathDirect();
-                            awardItSpreads(killer, KillCredit.lootOf(dying), KillCredit.source(type, causing, direct));
+                            // getLastDamageSource() — 방금 죽은 피해
+                            awardItSpreads(killer, KillCredit.lootOf(dying), KillCredit.source(death.type(), death.causing(), death.direct()));
                         }
                     }
-                    vitals.skipDropExperience();
+                    death.skipDropExperience();
                     bloomAt(level);
                 }
                 return true;

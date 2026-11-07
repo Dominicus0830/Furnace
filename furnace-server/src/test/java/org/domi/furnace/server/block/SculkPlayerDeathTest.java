@@ -169,22 +169,73 @@ class SculkPlayerDeathTest {
             var dying = player(l, new TestEnv(), 5.5, 14.5, 4, GameMode.SURVIVAL);
             dying.setLastHurtByMob(killer);   // getKillCredit() = 킬 크레딧이 플레이어 → kill_mob_near_sculk_catalyst 경로(발전 과제 없는 시험 플레이어는 조용히 넘어간다)
             dying.vitals().setHealth(0.0F);
-            assertEquals("minecraft:generic", dying.vitals().deathType());
+            assertEquals("minecraft:generic", dying.vitals().death().type());
             assertEquals(28, charge(be));
             return null;
         });
     }
 
     @Test
-    void consumedFlagResetsOnRespawn() throws Exception {
+    void eachDeathStartsWithAFreshConsumedFlag() throws Exception {
         onRegion(l -> {
             catalyst(l, new Pos(4, -61, -12));
             var p = player(l, new TestEnv(), 5.5, -11.5, 3, GameMode.SURVIVAL);
             p.vitals().setHealth(0.0F);
-            assertTrue(p.vitals().wasExperienceConsumed());
+            var first = p.vitals().death();
+            assertTrue(first.wasExperienceConsumed());
             p.vitals().respawn();
-            assertFalse(p.vitals().wasExperienceConsumed());
+            p.setPosRaw(40.5, -60.0, 40.5);   // 촉매 범위 밖
+            p.vitals().setHealth(0.0F);
+            assertNotSame(first, p.vitals().death());
+            assertFalse(p.vitals().wasExperienceConsumed(), "새 사망은 새 기록");
             return null;
         });
+    }
+
+    /** 주인 스레드가 아닌 곳에서 죽어 entity_die·구슬 작업이 큐로 밀리고, 그 사이 리스폰해도 죽은 순간의 값으로 처리된다. */
+    @Test
+    void queuedDeathTasksUseTheValuesFromTheMomentOfDeath() throws Exception {
+        var fut = new CompletableFuture<Void>();
+        core.world().runAt(0.5, 0.5, region -> {
+            try {
+                var l = region.level();
+                var be = catalyst(l, new Pos(20, -61, -12));
+                int before = orbXp(l);
+                var p = player(l, new TestEnv(), 21.5, -11.5, 10, GameMode.SURVIVAL);
+                p.ownerRegion = region;   // 이 region 이 소유하지 않는 플레이어 → runOnOwner 가 큐에 넣는다
+                p.vitals().setHealth(0.0F);
+                assertEquals(0, charge(be), "아직 큐에 있다");
+                assertEquals(before, orbXp(l));
+                p.vitals().respawn();   // 경험치 레벨 0 으로
+                p.drainOwnerTasks();    // 이제 주인 틱
+                assertEquals(70, charge(be), "죽은 순간의 레벨 10 → 70, entity_die 가 구슬보다 먼저");
+                assertEquals(before, orbXp(l), "촉매가 가져갔으니 구슬 없음");
+                fut.complete(null);
+            } catch (Throwable t) {
+                fut.completeExceptionally(t);
+            }
+        });
+        fut.get(60, TimeUnit.SECONDS);
+    }
+
+    @Test
+    void queuedDeathWithoutCatalystStillDropsTheXpAfterRespawn() throws Exception {
+        var fut = new CompletableFuture<Void>();
+        core.world().runAt(0.5, 0.5, region -> {
+            try {
+                var l = region.level();
+                int before = orbXp(l);
+                var p = player(l, new TestEnv(), 28.5, 12.5, 4, GameMode.SURVIVAL);
+                p.ownerRegion = region;
+                p.vitals().setHealth(0.0F);
+                p.vitals().respawn();
+                p.drainOwnerTasks();
+                assertEquals(before + 28, orbXp(l), "레벨 4 → 28");
+                fut.complete(null);
+            } catch (Throwable t) {
+                fut.completeExceptionally(t);
+            }
+        });
+        fut.get(60, TimeUnit.SECONDS);
     }
 }
