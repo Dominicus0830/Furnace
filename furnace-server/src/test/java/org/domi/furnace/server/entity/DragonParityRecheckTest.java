@@ -286,6 +286,57 @@ class DragonParityRecheckTest {
         assertTrue(org.domi.furnace.server.block.B.is(level.getBlockState(new Pos(0, level.getMotionBlockingHeight(0, 0) - 1, 0)), "minecraft:dragon_egg"));
     }
 
+    /** hasActiveExitPortal: 블록 엔티티(end_portal·end_gateway)가 있으면 열린 것, 블록만 있고 엔티티가 없으면 아니다(바닐라는 엔티티로 판정). */
+    @Test
+    void activeExitPortalIsJudgedByPortalBlockEntities() throws Exception {
+        var level = new DimensionTestLevel("minecraft:the_end");
+        var fight = new EndDragonFight(level, 0L, new Pos(0, 0, 0));
+        fight.skipArenaLoadedCheck();
+        var m = EndDragonFight.class.getDeclaredMethod("hasActiveExitPortal");
+        m.setAccessible(true);
+        assertFalse((boolean) m.invoke(fight), "처음엔 없다");
+        EndDragonFight.placePodium(level, new Pos(0, 64, 0), false);
+        assertFalse((boolean) m.invoke(fight), "닫힌 받침대(포털 블록 없음)");
+        EndDragonFight.placePodium(level, new Pos(0, 64, 0), true);
+        assertTrue(level.getBlockEntity(new Pos(1, 64, 0)) instanceof org.domi.furnace.server.block.entity.EndPortalBlockEntity, "포털 블록은 블록 엔티티를 단다");
+        assertTrue((boolean) m.invoke(fight), "열린 받침대");
+        EndDragonFight.placePodium(level, new Pos(0, 64, 0), false);
+        assertFalse((boolean) m.invoke(fight), "포털을 지우면 엔티티도 사라진다");
+        // 관문도 TheEndPortalBlockEntity 의 하위 종류라 열린 것으로 친다(청크 (3,-5) 안)
+        level.setBlock(new Pos(50, 70, -70), org.domi.furnace.server.block.B.defaultState("minecraft:end_gateway"), 3);
+        assertTrue((boolean) m.invoke(fight), "관문 블록 엔티티");
+    }
+
+    /** 머리·목 피해 뒤 doPostAttackEffects: 맞은 쪽 장비의 가시가 발동한다(내구 2 소모로 확인). */
+    @Test
+    void dragonAttacksTriggerThornsOfVictim() throws Exception {
+        var level = new DimensionTestLevel("minecraft:the_end");
+        var p = player(level, 0.5, 100, 0.5);
+        EnderDragon d = dragon(level, 0.5, 100, 0.5);
+        d.getPhaseManager().setPhase(DragonPhase.HOLDING_PATTERN);
+        var chest = new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "minecraft:iron_chestplate"), 1, null);
+        p.inventory().set(6, org.domi.furnace.server.item.EnchantTools.update(chest, m -> m.put("minecraft:thorns", 10)));   // 확률 1.5 → 항상
+        var m = EnderDragon.class.getDeclaredMethod("hurtAll", AABB.class);
+        m.setAccessible(true);
+        m.invoke(d, p.boundingBox().inflate(1.0));
+        assertEquals(2, org.domi.furnace.server.item.ItemTools.damage(p.inventory().get(6)), "가시 발동으로 내구 2(접속 직후 무적이라 hurtArmor 1 은 없다)");
+    }
+
+    /** 사용자 이름이 붙은 드래곤은 보스 바 이름을 그것으로 바꾼다. */
+    @Test
+    void bossBarUsesCustomName() {
+        var level = new DimensionTestLevel("minecraft:the_end");
+        var p = player(level, 0.5, 100, 0.5);
+        var fight = new EndDragonFight(level, 0L, new Pos(0, 0, 0));
+        fight.skipArenaLoadedCheck();
+        level.setDragonFight(fight);
+        fight.tick();
+        EnderDragon d = fight.createNewDragon();
+        d.setCustomName(org.domi.furnace.api.text.Text.text("Smaug"));
+        fight.updateDragon(d);
+        assertEquals("Smaug", fight.barName().getString());
+    }
+
     private static int countClouds(DimensionTestLevel level) {
         int n = 0;
         for (Entity e : level.entities().tickSnapshot()) if (e instanceof AreaEffectCloud a && !a.isRemoved()) n++;

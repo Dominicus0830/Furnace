@@ -1,6 +1,9 @@
-// 바닐라 StructureTemplateManager(구조물 블록이 쓰는 템플릿 저장소): 이름 → 템플릿. 월드 폴더의 generated/<네임스페이스>/structures/<경로>.nbt 를 먼저 찾고,
-// 없으면 내장 템플릿(minecraft 이름공간, 1.21.1 jar 자료)을 쓴다. 구조물 블록 저장은 메모리 템플릿을 갈아 끼우고 .nbt 로 쓴다.
-// 차이: 데이터 팩의 structure/*.nbt 와 .snbt 는 읽지 않는다(Furnace 에 데이터 팩 템플릿 경로가 아직 없다). 옛 DataVersion 파일은 데이터 픽서를 거치지 않는다.
+// 바닐라 StructureTemplateManager(구조물 블록·/place template 이 쓰는 템플릿 저장소): 이름 → 템플릿. 찾는 순서는 바닐라 sources 와 같다:
+//   1) 월드 폴더의 generated/<네임스페이스>/structures/<경로>.nbt  2) 켜진 데이터 팩의 data/<네임스페이스>/structure/<경로>.nbt(위 팩이 아래 팩을 덮음)
+//   3) 내장 템플릿(minecraft 이름공간, 1.21.1 jar 자료 — 데이터 팩을 아직 못 읽은 시험·도구용 예비).
+// 데이터 팩 리소스는 DataPackManager 가 시작·/reload 때 installDataPacks 로 걸고, 그때마다 저장소를 비운다(바닐라 onResourceManagerReload).
+// 구조물 블록 저장은 메모리 템플릿을 갈아 끼우고 generated 에 .nbt 로 쓴다.
+// 차이: .snbt 는 읽지 않는다(바닐라 1.21.1 운영 서버도 gameteststructures 의 .snbt 는 IDE 에서만 읽는다). 옛 DataVersion 파일은 데이터 픽서(Q8)를 거치지 않는다 — 경고만 남긴다.
 package org.domi.furnace.server.world.gen.structure.template;
 
 import java.io.IOException;
@@ -15,7 +18,9 @@ import java.util.Optional;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
+import org.domi.furnace.server.data.PackRepository;
 import org.domi.furnace.server.data.ResourceId;
+import org.domi.furnace.server.data.ResourceManager;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.world.BlockRegistry;
@@ -26,7 +31,19 @@ public final class TemplateManager {
 
     private static final Logger log = LoggerFactory.getLogger(TemplateManager.class);
     private static final String EXT = ".nbt";
+    private static final String DIR = "structure";
     private static final Map<Path, TemplateManager> BY_DIR = new ConcurrentHashMap<>();
+    /** 켜진 데이터 팩의 리소스(없으면 null — 시험·도구). */
+    private static volatile ResourceManager dataPacks;
+
+    /**
+     * 데이터 팩 리소스를 새로 건다(시작·/reload). 모든 월드의 저장소를 비워 다음 get 이 새 팩에서 다시 읽게 한다(바닐라 onResourceManagerReload).
+     * 구조물 블록이 아직 파일로 쓰지 않은 메모리 템플릿도 함께 사라진다 — 바닐라도 같다.
+     */
+    public static void installDataPacks(ResourceManager rm) {
+        dataPacks = rm;
+        for (TemplateManager m : BY_DIR.values()) m.repository.clear();
+    }
 
     /** 월드 폴더(차원이 공유하는 루트)당 하나. */
     public static TemplateManager forWorld(Path worldDir, BlockRegistry registry) {
@@ -51,7 +68,7 @@ public final class TemplateManager {
 
     public BlockStateTable table() { return table; }
 
-    /** get: 저장소(캐시) → 월드 generated → 내장 순으로. */
+    /** get: 저장소(캐시) → 월드 generated → 데이터 팩 → 내장 순으로. */
     public Optional<StructureTemplate> get(ResourceId id) {
         return repository.computeIfAbsent(id, this::tryLoad);
     }
@@ -73,7 +90,36 @@ public final class TemplateManager {
 
     private Optional<StructureTemplate> tryLoad(ResourceId id) {
         Optional<StructureTemplate> t = loadFromGenerated(id);
+        if (t.isEmpty()) t = loadFromDataPack(id);
         return t.isPresent() ? t : loadBuiltin(id);
+    }
+
+    /** 바닐라 loadFromResource: data/<ns>/structure/<path>.nbt. 가장 위의 팩 것을 쓴다. 읽기 실패는 로그만 남기고 없음(다음 source 로 넘어가지 않는다 — 바닐라와 같다). */
+    private Optional<StructureTemplate> loadFromDataPack(ResourceId id) {
+        ResourceManager rm = dataPacks;
+        if (rm == null) return Optional.empty();
+        Optional<ResourceManager.Resource> res = rm.getResource(id.withPath(DIR + "/" + id.path() + EXT));
+        if (res.isEmpty()) return Optional.empty();
+        try (InputStream in = res.get().open().get()) {
+            NbtCompound root = NbtIo.readGzip(in);
+            warnOldDataVersion(id, root, res.get().packId());
+            return Optional.of(StructureTemplate.fromNbt(registry, root));
+        } catch (IOException | RuntimeException e) {
+            log.error("Couldn't load structure {} from pack {}", id, res.get().packId(), e);
+            return Optional.empty();
+        }
+    }
+
+    /** 1.20.5(아이템·블록 엔티티 NBT 가 컴포넌트로 바뀐 버전). 이보다 옛 템플릿은 데이터 픽서 없이는 아이템·블록 엔티티가 어긋날 수 있다. */
+    static final int COMPONENT_DATA_VERSION = 3837;
+
+    /** DataVersion 이 없거나 1.20.5 보다 옛이면 데이터 픽서(Q8)가 없어 그대로 읽는다는 경고(구조물마다 한 번 — 저장소가 캐시한다). 바닐라 팩은 건너뛴다. */
+    private static void warnOldDataVersion(ResourceId id, NbtCompound root, String packId) {
+        if (PackRepository.VANILLA.equals(packId)) return;
+        int v = root.contains("DataVersion") ? root.getInt("DataVersion") : 500;
+        if (v < COMPONENT_DATA_VERSION) {
+            log.warn("Structure {} (pack {}) has DataVersion {} older than {}; no data fixer, read as is", id, packId, v, COMPONENT_DATA_VERSION);
+        }
     }
 
     private Optional<StructureTemplate> loadFromGenerated(ResourceId id) {
@@ -140,7 +186,27 @@ public final class TemplateManager {
         return file;
     }
 
-    /** 바닐라 listGenerated + 내장 목록 — 구조물 블록 불러오기 화면과 /place template 제안이 쓴다. */
+    /** 바닐라 listTemplates: 월드 generated 와 켜진 데이터 팩의 템플릿 이름(정렬, 중복 없음). /place template 제안이 쓴다. */
+    public List<ResourceId> listTemplates() {
+        TreeSet<ResourceId> out = new TreeSet<>(listGenerated());
+        out.addAll(listDataPack());
+        return new ArrayList<>(out);
+    }
+
+    /** 켜진 데이터 팩의 data/&lt;ns&gt;/structure/**.nbt 이름. */
+    public static List<ResourceId> listDataPack() {
+        ResourceManager rm = dataPacks;
+        if (rm == null) return List.of();
+        TreeSet<ResourceId> out = new TreeSet<>();
+        String prefix = DIR + "/";
+        for (ResourceId f : rm.listResources(DIR, p -> p.path().endsWith(EXT)).keySet()) {
+            ResourceId id = ResourceId.tryBuild(f.namespace(), f.path().substring(prefix.length(), f.path().length() - EXT.length()));
+            if (id != null) out.add(id);
+        }
+        return new ArrayList<>(out);
+    }
+
+    /** 월드 generated/ 의 템플릿 이름만(구조물 블록 저장 결과). */
     public List<ResourceId> listGenerated() {
         TreeSet<ResourceId> out = new TreeSet<>();
         if (!Files.isDirectory(generatedDir)) return List.of();

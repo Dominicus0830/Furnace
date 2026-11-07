@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import org.domi.furnace.server.net.ConnectionLimits;
 import org.domi.furnace.server.net.protocol.ConnectionState;
@@ -37,17 +39,38 @@ class FurnacePropertiesFileTest {
     }
 
     @Test
-    void listsEveryKeyTheLoadersRead() {
+    void listsEveryKeyInTheKeyTable_andOnlyKnownKeys() {
         Set<String> keys = FurnacePropertiesFile.keys();
-        assertTrue(keys.containsAll(ConnectionLimits.knownKeys()), "접속 방어 키가 빠졌다");
-        for (String k : new String[]{"tick-nanos", "entity-view-distance", "region-section-shift", "region-merge-radius", "region-threads",
-                "io-threads", "autosave-ticks", "chunk-eviction-grace-ticks", "spawn-chunk-radius", "chunks-per-tick", "velocity-secret", "bungeecord",
-                "chat.strict-order", "chat.unsigned-as-system", "server-brand", "announce-sleep-status", "confirm-interrupt", "confirm-interrupt-seconds",
-                "plugins.fail-fast", "plugins.data-root", "plugins.dev-mode", "plugins.dev-mode.auto-reload",
-                "worlds.autoload", "dimension-seed.the_nether", "dimension-seed.the_end", "enchantments.disabled"}) {
-            assertTrue(keys.contains(k), k);
+        for (String k : OptionKeys.keys()) assertTrue(keys.contains(k), "키 표에 있는데 파일에 없음: " + k);
+        for (String k : keys) {
+            if (k.contains("<")) continue;   // 플러그인별 로그 수준 예시(주석)
+            assertTrue(OptionKeys.isKnown(k), "키 표가 모르는 키를 쓴다(오타 경고가 난다): " + k);
         }
+        assertTrue(keys.containsAll(ConnectionLimits.knownKeys()));
+        assertTrue(keys.containsAll(org.domi.furnace.server.remote.RconLimits.knownKeys()));
+        assertTrue(keys.containsAll(org.domi.furnace.server.plugin.library.LibrarySettings.KEYS));
         for (String vanilla : Config.VANILLA_KEYS) assertFalse(keys.contains(vanilla), vanilla);
+    }
+
+    @Test
+    void createdFile_raisesNoStartupWarning_andOtherLoadersSeeDefaults(@TempDir Path dir) throws Exception {
+        Path f = dir.resolve("furnace.properties");
+        FurnacePropertiesFile.ensure(f);
+        List<String> warns = new ArrayList<>();
+        OptionKeys.audit(f, warns::add);
+        assertEquals(List.of(), warns, "기본값 파일은 오타·위험 경고가 없어야 한다");
+        assertEquals(org.domi.furnace.server.maintenance.MaintenanceOptions.DEFAULT,
+                org.domi.furnace.server.maintenance.MaintenanceOptions.load(f, w -> fail("경고: " + w)));
+        assertEquals(org.domi.furnace.server.metrics.MetricsOptions.DEFAULT,
+                org.domi.furnace.server.metrics.MetricsOptions.load(f, w -> fail("경고: " + w)));
+        assertEquals(org.domi.furnace.server.remote.RconLimits.DEFAULT, org.domi.furnace.server.remote.RconLimits.load(f));
+        assertEquals(org.domi.furnace.server.net.TransportOptions.DEFAULT, org.domi.furnace.server.net.TransportOptions.load(f));
+        java.util.Properties p = new java.util.Properties();
+        try (var in = Files.newInputStream(f)) { p.load(in); }
+        assertEquals(org.domi.furnace.server.plugin.library.LibrarySettings.DEFAULT,
+                org.domi.furnace.server.plugin.library.LibrarySettings.from(p, org.slf4j.LoggerFactory.getLogger("test")));
+        // 라이브러리 세부 키는 enabled=false 일 때 적혀 있으면 경고하므로 주석으로 둔다
+        assertFalse(p.containsKey("plugins.libraries.offline"));
     }
 
     @Test

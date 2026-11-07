@@ -33,7 +33,7 @@ public final class FurnacePropertiesFile {
 
     private static Option commented(String key, Object value, String help) { return new Option(key, String.valueOf(value), true, help); }
 
-    /** 모든 옵션(섹션 순서대로). 새 키를 읽는 코드를 넣으면 여기에도 넣는다 — FurnacePropertiesFileTest 가 빠진 키를 잡는다. */
+    /** 모든 옵션(섹션 순서대로). 새 키는 OptionKeys 키 표와 여기 둘 다에 넣는다 — FurnacePropertiesFileTest 가 빠진 키를 잡는다. */
     static List<Section> sections() {
         Config d = Config.DEFAULT;
         OperatorOptions o = OperatorOptions.DEFAULT;
@@ -73,12 +73,48 @@ public final class FurnacePropertiesFile {
                 commented("proxy-protocol.trusted", "", "헤더를 보내도 되는 앞단 주소(쉼표로 구분한 IP/CIDR). 주석이면 모두 허용.")
         )));
         s.add(new Section("접속 방어(기본값 = 바닐라와 같은 결과)", connectionOptions()));
+        s.add(new Section("네트워크", List.of(
+                opt("io-uring", org.domi.furnace.server.net.TransportOptions.DEFAULT.ioUring(), "리눅스 io_uring 으로 접속을 받는다. 못 쓰면 경고하고 epoll/NIO 로 돌아간다.")
+        )));
+        var rcon = org.domi.furnace.server.remote.RconLimits.DEFAULT;
+        s.add(new Section("RCON 한도(server.properties enable-rcon=true 일 때)", List.of(
+                opt("rcon.max-clients", rcon.maxClients(), "RCON 동시 연결 수 상한."),
+                opt("rcon.max-clients-per-ip", rcon.maxClientsPerIp(), "주소 하나당 동시 연결 수 상한."),
+                opt("rcon.max-fails-per-connection", rcon.maxFailsPerConnection(), "연결 하나당 인증 실패 허용 수."),
+                opt("rcon.max-fails-per-ip", rcon.maxFailsPerIp(), "주소 하나당 60초 인증 실패 허용 수.")
+        )));
+        var m = org.domi.furnace.server.metrics.MetricsOptions.DEFAULT;
+        s.add(new Section("메트릭", List.of(
+                opt("metrics.prometheus.enabled", m.prometheus(), "Prometheus 형식 메트릭을 HTTP GET /metrics 로 내보낸다."),
+                opt("metrics.prometheus.bind", m.bind(), "바인딩 주소(루프백이 아니면 token 을 꼭 정할 것)."),
+                opt("metrics.prometheus.port", m.port(), "포트(0 = 빈 포트)."),
+                opt("metrics.prometheus.token", m.token(), "비어 있지 않으면 Authorization: Bearer <값> 이 맞아야 응답한다."),
+                opt("metrics.jmx.enabled", m.jmx(), "같은 값을 JMX MBean 으로 등록한다.")
+        )));
+        var mt = org.domi.furnace.server.maintenance.MaintenanceOptions.DEFAULT;
+        s.add(new Section("빈 서버 일시정지·주기 백업(기본 꺼짐)", List.of(
+                opt("idle-pause.empty-seconds", mt.idlePauseSeconds(), "접속자가 없으면 이 초 뒤 게임 틱을 멈춘다. 0 = 끔(바닐라)."),
+                opt("idle-pause.flush-caches", mt.idlePauseFlush(), "일시정지할 때 캐시를 비운다."),
+                opt("backup.interval-minutes", mt.backupIntervalMinutes(), "주기 백업 간격(분). 0 = 끔."),
+                opt("backup.directory", "", "백업 폴더. 비우면 " + mt.backupDirectory() + "."),
+                opt("backup.keep", mt.backupKeep(), "남길 백업 수. 0 = 지우지 않음."),
+                opt("backup.format", mt.backupFormat().name().toLowerCase(java.util.Locale.ROOT), "zip 또는 folder."),
+                opt("backup.skip-if-no-players", mt.backupSkipIdle(), "지난 백업 뒤 접속자가 없었으면 건너뛴다."),
+                opt("backup.hold-timeout-seconds", mt.backupHoldTimeoutSeconds(), "백업 기준점에서 저장을 기다리는 최대 초(1~600).")
+        )));
         s.add(new Section("플러그인", List.of(
                 opt("plugins.fail-fast", false, "플러그인 하나라도 불러오기·켜기에 실패하면 서버 시작을 멈춘다."),
                 opt("plugins.data-root", "", "비우면 데이터 폴더 = plugins/<이름>/, 쓰면 <값>/<이름>/."),
                 opt("plugins.dev-mode", false, "개발 모드(플러그인 핫 리로드 /plugins reload <이름>)."),
                 opt("plugins.dev-mode.auto-reload", false, "개발 모드에서 plugins/*.jar 가 바뀌면 알아서 다시 읽는다."),
-                commented("plugins.log-level.<플러그인이름>", "INFO", "플러그인별 로그 수준(SEVERE, WARNING, INFO, FINE ...).")
+                commented("plugins.log-level.<플러그인이름>", "INFO", "플러그인별 로그 수준(SEVERE, WARNING, INFO, FINE ...)."),
+                opt("plugins.libraries.enabled", false, "플러그인 설명 파일의 libraries 를 Maven Central 에서 받아 붙인다."),
+                commented("plugins.libraries.offline", false, "캐시에 있는 것만 쓴다(enabled=true 일 때만 — 꺼져 있을 때 적으면 경고)."),
+                commented("plugins.libraries.transitive", true, "라이브러리의 compile/runtime 의존까지 받는다(enabled=true 일 때만)."),
+                commented("plugins.libraries.require-checksum", false, "체크섬 기록이 없는 jar 는 받지 않는다(enabled=true 일 때만)."),
+                opt("plugins.libraries.cache", "", "받은 라이브러리 폴더. 비우면 plugins/.libraries."),
+                opt("plugins.libraries.timeout-seconds", 30, "요청 하나의 제한 시간(1~600초)."),
+                opt("plugins.libraries.max-size-mb", 64, "파일 하나의 크기 상한(1~1024MB).")
         )));
         return s;
     }

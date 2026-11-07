@@ -14,6 +14,11 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
     /** 빛 배열 복사본(26섹션, 아직 빛이 없는 청크면 ChunkSnapshot.light 가 null). */
     public record Light(byte[][] sky, byte[][] block) {}
 
+    /** 빛 배열을 뺀 사본(저장하면 isLightOn=0 — 바닐라가 열 때 다시 계산한다). */
+    public ChunkSnapshot withoutLight() {
+        return new ChunkSnapshot(chunkX, chunkZ, heightmap, worldSurfaceHeightmap, sections, blockEntities, save, null);
+    }
+
 
     /**
      * 디스크 저장에만 필요한 추가 상태(forSave 로만 채워진다, 네트워크용 스냅샷은 null).

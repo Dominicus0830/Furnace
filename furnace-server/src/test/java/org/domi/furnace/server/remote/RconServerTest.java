@@ -246,6 +246,33 @@ class RconServerTest {
         }
     }
 
+    @Test
+    void configuredLimitsApply() throws Exception {
+        // 키로 바꾼 값: IP당 2, 연결당 실패 2회
+        ServerSocket ss = new ServerSocket(0, 0, InetAddress.getLoopbackAddress());
+        RconServer custom = RconServer.open(ss, "secret", cmd -> "ok", new RconLimits(16, 2, 2, 10));
+        custom.failDelayMillis(0);
+        List<Socket> held = new java.util.ArrayList<>();
+        try {
+            for (int i = 0; i < 2; i++) held.add(new Socket(InetAddress.getLoopbackAddress(), custom.port()));
+            long end = System.nanoTime() + 5_000_000_000L;
+            while (custom.clientCount() < 2 && System.nanoTime() < end) Thread.sleep(5);
+            try (Socket extra = new Socket(InetAddress.getLoopbackAddress(), custom.port())) {
+                assertEquals(-1, extra.getInputStream().read());   // 세 번째는 거절
+            }
+            Socket s = held.get(0);
+            DataInputStream in = new DataInputStream(s.getInputStream());
+            for (int i = 0; i < 2; i++) {
+                send(s.getOutputStream(), 7, 3, "wrong");
+                assertEquals(new Reply(-1, 2, ""), read(in));
+            }
+            assertEquals(-1, in.read());   // 두 번째 실패에서 끊김(기본이면 다섯 번)
+        } finally {
+            for (Socket x : held) x.close();
+            custom.close();
+        }
+    }
+
     private void awaitClients(int n) throws InterruptedException {
         long end = System.nanoTime() + 5_000_000_000L;
         while (server.clientCount() != n && System.nanoTime() < end) Thread.sleep(5);
