@@ -75,6 +75,12 @@ tasks.test {
 // 일반 jar 는 이름을 바꿔(furnace-server-plain.jar) fatJar 의 furnace-server.jar 와 출력이 겹치지 않게 한다.
 // 배포(maven-publish)에서는 분류자 없는 주 산출물이어야 POM 소비자가 찾는다 — 그래서 분류자 대신 파일 이름만 바꾼다.
 tasks.jar { archiveClassifier = ""; archiveFileName = "furnace-server-plain.jar" }
+// 호환 모듈과 그 런타임 의존(H6 의 ASM 등) — fatJar 에만 싣는다. 서버 모듈 클래스패스에는 올리지 않는다(순환·의존 없음).
+val compatBundle by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+dependencies { compatBundle(project(":furnace-compat-paper")) }
 val fatJar = tasks.register<Jar>("fatJar") {
     group = "build"
     // 런타임 의존성(furnace-api jar 등)을 먼저 만들어야 zipTree 로 합칠 수 있다
@@ -82,6 +88,7 @@ val fatJar = tasks.register<Jar>("fatJar") {
     // Bukkit·Paper 호환 어댑터(H1)도 함께 싣는다 — 서버가 ServiceLoader 로 찾아 plugins.compat.bukkit 가 켜져 있으면 쓴다.
     // 서버 모듈이 이 모듈에 의존하지는 않는다(순환 없음): 모듈 시험은 호환 모듈이 서버에 의존한다.
     dependsOn(":furnace-compat-paper:jar")
+    dependsOn(compatBundle)
     description = "서버와 모든 런타임 의존성을 담은 단일 실행 jar"
     archiveFileName = "furnace-server.jar"
     manifest { attributes["Main-Class"] = "org.domi.furnace.server.FurnaceMain" }
@@ -91,6 +98,8 @@ val fatJar = tasks.register<Jar>("fatJar") {
         configurations.runtimeClasspath.get().filter { it.name.endsWith(".jar") }.map { zipTree(it) }
     })
     from({ zipTree(project(":furnace-compat-paper").tasks.named<Jar>("jar").get().archiveFile) })
+    // 호환 모듈의 런타임 의존(furnace-api 는 위에서 이미 실렸다 — 겹치는 항목은 EXCLUDE)
+    from({ compatBundle.filter { it.name.endsWith(".jar") && !it.name.startsWith("furnace-") }.map { zipTree(it) } })
     // 서명 파일이 남으면 합친 jar 가 SecurityException 으로 실행되지 않는다
     exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "META-INF/MANIFEST.MF", "module-info.class")
 }

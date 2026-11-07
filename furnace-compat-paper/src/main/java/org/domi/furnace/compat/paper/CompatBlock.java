@@ -11,12 +11,12 @@ import org.bukkit.block.data.BlockData;
 import org.domi.furnace.api.concurrent.ThreadOwnershipException;
 import org.domi.furnace.api.world.BlockPos;
 
-final class CompatBlock implements Block {
+public final class CompatBlock implements Block {
 
     private final String dimension;
     private final BlockPos pos;
 
-    CompatBlock(String dimension, BlockPos pos) {
+    public CompatBlock(String dimension, BlockPos pos) {
         this.dimension = dimension;
         this.pos = pos;
     }

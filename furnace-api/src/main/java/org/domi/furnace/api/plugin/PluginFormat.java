@@ -28,4 +28,13 @@ public interface PluginFormat {
      * @param context 이 플러그인의 환경(설명·로거·폴더·jar·클래스로더). 서버가 init 에 넘기는 것과 같은 객체다.
      */
     FurnacePlugin create(PluginContext context, Class<?> main) throws ReflectiveOperationException;
+
+    /**
+     * 이 플러그인 jar 의 클래스를 올릴 때 거칠 바이트 변환기. 서버는 클래스로더를 만들 때 한 번 묻고, 그 jar(플러그인 jar 자체 — 자동으로 받은
+     * {@code libraries} jar 는 아니다)에서 읽은 클래스마다 부른다. 기본은 null(변환 없음).
+     *
+     * @param description {@link #readDescriptor} 가 돌려준 설명
+     * @param jar         플러그인 jar(개발 모드에서는 사본)
+     */
+    default ClassTransformer transformer(PluginDescription description, java.nio.file.Path jar) { return null; }
 }

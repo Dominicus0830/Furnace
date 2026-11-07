@@ -1,6 +1,7 @@
 // Furnace 객체 ↔ Bukkit 객체 변환 입구. 서버(Furnace 인스턴스)마다 따로 캐시를 둔다 — 시험처럼 서버를 여러 번 띄워도 낡은 핸들이 남지 않는다.
 package org.domi.furnace.compat.paper;
 
+import java.lang.ref.WeakReference;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -9,6 +10,11 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.command.SimpleCommandMap;
 import org.bukkit.plugin.SimpleServicesManager;
+import org.bukkit.craftbukkit.CraftServer;
+import org.bukkit.craftbukkit.CraftWorld;
+import org.bukkit.craftbukkit.entity.CraftEntity;
+import org.bukkit.craftbukkit.entity.CraftLivingEntity;
+import org.bukkit.craftbukkit.entity.CraftPlayer;
 import org.domi.furnace.api.Furnace;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.api.text.serializer.LegacyTextSerializer;
@@ -26,8 +32,10 @@ public final class Compat {
 
     private static final class State {
         final Furnace furnace;
-        final ConcurrentHashMap<String, CompatWorld> worlds = new ConcurrentHashMap<>();
-        final ConcurrentHashMap<UUID, CompatPlayer> players = new ConcurrentHashMap<>();
+        final ConcurrentHashMap<String, CraftWorld> worlds = new ConcurrentHashMap<>();
+        final ConcurrentHashMap<UUID, CraftPlayer> players = new ConcurrentHashMap<>();
+        /** 플레이어가 아닌 엔티티(H6: 같은 엔티티는 같은 CraftEntity → 같은 getHandle()). 아무도 안 들고 있으면 놓는다. */
+        final ConcurrentHashMap<UUID, WeakReference<CraftEntity>> entities = new ConcurrentHashMap<>();
         // 옛 스케줄러·명령·서비스는 쓰는 플러그인이 있을 때 처음 만든다(박동 하나를 전역에 걸기 때문)
         private volatile LegacyScheduler scheduler;
         private volatile LegacyCommands commands;
@@ -47,7 +55,7 @@ public final class Compat {
         }
 
         synchronized SimpleCommandMap commandMap() {
-            if (commandMap == null) commandMap = new SimpleCommandMap(CompatServer.INSTANCE);
+            if (commandMap == null) commandMap = new SimpleCommandMap(CraftServer.INSTANCE);
             return commandMap;
         }
 
@@ -83,7 +91,8 @@ public final class Compat {
         return s;
     }
 
-    static Furnace furnace() { return state().furnace; }
+    /** 호환 모듈 전용 — 지금 떠 있는 Furnace 서버. */
+    public static Furnace furnace() { return state().furnace; }
 
     /** 지금 서버의 옛 스케줄러(BukkitScheduler 의 바닥). */
     static LegacyScheduler scheduler() { return state().scheduler(); }
@@ -92,10 +101,10 @@ public final class Compat {
     static LegacyCommands commands() { return state().commands(); }
 
     /** 지금 서버의 Bukkit 명령 지도. */
-    static SimpleCommandMap commandMap() { return state().commandMap(); }
+    public static SimpleCommandMap commandMap() { return state().commandMap(); }
 
     /** 지금 서버의 서비스 지도. */
-    static SimpleServicesManager services() { return state().services(); }
+    public static SimpleServicesManager services() { return state().services(); }
 
     // ------------------------------------------------------------------ 월드
 
@@ -103,14 +112,14 @@ public final class Compat {
     public static World world(String dimension) {
         if (dimension == null) return null;
         State s = state();
-        CompatWorld w = s.worlds.get(dimension);
+        CraftWorld w = s.worlds.get(dimension);
         org.domi.furnace.api.world.World fw = s.furnace.world(dimension);
         if (fw == null) {
             s.worlds.remove(dimension);
             return null;
         }
-        if (w == null || w.handle() != fw) {
-            w = new CompatWorld(fw);
+        if (w == null || w.furnaceHandle() != fw) {
+            w = new CraftWorld(fw);
             s.worlds.put(dimension, w);
         }
         return w;
@@ -140,7 +149,7 @@ public final class Compat {
 
     /** Bukkit 월드의 차원 키. */
     public static String dimension(World w) {
-        if (w instanceof CompatWorld c) return c.handle().dimension();
+        if (w instanceof CraftWorld c) return c.furnaceHandle().dimension();
         org.domi.furnace.api.world.World f = state().furnace.worldNamed(w.getName());
         if (f == null) throw new IllegalArgumentException("Furnace 에 없는 월드: " + w.getName());
         return f.dimension();
@@ -160,10 +169,10 @@ public final class Compat {
     public static org.bukkit.entity.Player player(org.domi.furnace.api.entity.Player p) {
         if (p == null) return null;
         State s = state();
-        CompatPlayer c = s.players.get(p.uniqueId());
-        if (c == null || c.handle() != p) {
-            if (s.players.size() > PRUNE_AT) s.players.values().removeIf(x -> !x.handle().isOnline());
-            c = new CompatPlayer(p);
+        CraftPlayer c = s.players.get(p.uniqueId());
+        if (c == null || c.furnaceHandle() != p) {
+            if (s.players.size() > PRUNE_AT) s.players.values().removeIf(x -> !x.furnaceHandle().isOnline());
+            c = new CraftPlayer(p);
             s.players.put(p.uniqueId(), c);
         }
         return c;
@@ -172,8 +181,18 @@ public final class Compat {
     public static org.bukkit.entity.Entity entity(org.domi.furnace.api.entity.Entity e) {
         if (e == null) return null;
         if (e instanceof org.domi.furnace.api.entity.Player p) return player(p);
-        if (e instanceof org.domi.furnace.api.entity.LivingEntity l) return new CompatLivingEntity(l);
-        return new CompatEntity(e);
+        State s = state();
+        WeakReference<CraftEntity> ref = s.entities.get(e.uniqueId());
+        CraftEntity c = ref == null ? null : ref.get();
+        boolean living = e instanceof org.domi.furnace.api.entity.LivingEntity;
+        if (c != null && (c instanceof CraftLivingEntity) == living) {
+            c.furnaceHandle(e);   // 같은 엔티티의 더 새 스냅샷
+            return c;
+        }
+        if (s.entities.size() > PRUNE_AT) s.entities.values().removeIf(r -> r.get() == null);
+        c = living ? new CraftLivingEntity((org.domi.furnace.api.entity.LivingEntity) e) : new CraftEntity(e);
+        s.entities.put(e.uniqueId(), new WeakReference<>(c));
+        return c;
     }
 
     public static org.bukkit.command.CommandSender sender(org.domi.furnace.api.command.CommandSender s) {
@@ -186,10 +205,10 @@ public final class Compat {
     /** Bukkit 발신자 → Furnace 발신자. */
     public static org.domi.furnace.api.command.CommandSender furnaceSender(org.bukkit.command.CommandSender s) {
         Objects.requireNonNull(s, "sender");
-        if (s instanceof CompatPlayer p) return p.handle();
+        if (s instanceof CraftPlayer p) return p.furnaceHandle();
         if (s instanceof CompatConsole) return state().furnace.console();
         if (s instanceof CompatSender c) return c.handle();
-        if (s instanceof CompatEntity e && e.rawHandle() instanceof org.domi.furnace.api.command.CommandSender cs) return cs;
+        if (s instanceof CraftEntity e && e.furnaceHandle() instanceof org.domi.furnace.api.command.CommandSender cs) return cs;
         throw new IllegalArgumentException("Furnace 가 모르는 CommandSender 구현이다: " + s.getClass().getName());
     }
 

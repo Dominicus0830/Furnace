@@ -99,9 +99,9 @@ public final class CompatCommands {
     /** 보낸 사람이 대상을 볼 수 있는가(숨은 플레이어는 이름을 새지 않는다). 이 서버가 보이기 규칙을 모르면 보인다고 본다. */
     public static boolean canSee(Player viewer, Player target) {
         if (viewer == target) return true;
-        if (!(viewer instanceof CompatPlayer v) || !(target instanceof CompatPlayer t)) return true;
+        if (!(viewer instanceof org.bukkit.craftbukkit.entity.CraftPlayer v) || !(target instanceof org.bukkit.craftbukkit.entity.CraftPlayer t)) return true;
         try {
-            return v.handle().canSee(t.handle());
+            return v.furnaceHandle().canSee(t.furnaceHandle());
         } catch (UnsupportedOperationException e) {
             return true;
         }

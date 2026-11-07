@@ -3,12 +3,12 @@ package org.domi.furnace.compat.paper;
 import org.bukkit.Chunk;
 import org.bukkit.World;
 
-final class CompatChunk implements Chunk {
+public final class CompatChunk implements Chunk {
 
     private final String dimension;
     private final int x, z;
 
-    CompatChunk(String dimension, int x, int z) {
+    public CompatChunk(String dimension, int x, int z) {
         this.dimension = dimension;
         this.x = x;
         this.z = z;

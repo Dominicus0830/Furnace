@@ -40,6 +40,8 @@ dependencies {
     api(project(":furnace-api"))
     // 서버가 slf4j 를 싣고 있다 — 설명 파일 경고를 서버 로그로 보낸다
     compileOnly("org.slf4j:slf4j-api:2.0.16")
+    // H6: 플러그인 클래스를 올릴 때 CraftBukkit 버전 접미사·리플렉션 이름을 바꾸는 바이트코드 변환(BSD). 서버 fatJar 에 함께 싣는다.
+    implementation("org.ow2.asm:asm-commons:9.7.1")
 
     // 시험은 실제 서버(헤드리스)에 플러그인 jar 를 올려 돌린다
     testImplementation(project(":furnace-server"))

@@ -1,4 +1,4 @@
-package org.domi.furnace.compat.paper;
+package org.bukkit.craftbukkit.entity;
 
 import java.util.Locale;
 import java.util.UUID;
@@ -7,15 +7,50 @@ import org.bukkit.Location;
 import org.bukkit.Server;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
+import org.domi.furnace.compat.paper.Compat;
+import org.domi.furnace.compat.paper.EntityPdc;
+import org.domi.furnace.compat.paper.UnsupportedFeature;
 
-/** Furnace 엔티티 핸들 위의 Bukkit Entity. 위치·상태는 핸들을 만든 시점 값일 수 있다(Furnace 규칙). */
-class CompatEntity implements Entity {
+/**
+ * Furnace 엔티티 핸들 위의 Bukkit Entity. 위치·상태는 핸들을 만든 시점 값일 수 있다(Furnace 규칙).
+ * CraftBukkit 과 같은 이름·계층(CraftEntity ← CraftLivingEntity ← CraftHumanEntity ← CraftPlayer)이라
+ * {@code ((CraftEntity) e).getHandle()} 이 된다(H6). 같은 엔티티(UUID)는 Compat 캐시가 같은 객체를 주고, 새 스냅샷 핸들이 오면 갈아 끼운다.
+ */
+public class CraftEntity implements Entity {
 
-    private final org.domi.furnace.api.entity.Entity handle;
+    /** Furnace 핸들은 만든 순간의 스냅샷이다 — 같은 엔티티의 새 스냅샷이 오면 {@link #furnaceHandle(org.domi.furnace.api.entity.Entity)} 로 바꾼다. */
+    private volatile org.domi.furnace.api.entity.Entity handle;
+    private volatile net.minecraft.world.entity.Entity nms;
 
-    CompatEntity(org.domi.furnace.api.entity.Entity handle) { this.handle = handle; }
+    /** 호환 모듈 전용(Compat 캐시가 만든다). */
+    public CraftEntity(org.domi.furnace.api.entity.Entity handle) { this.handle = handle; }
 
-    org.domi.furnace.api.entity.Entity rawHandle() { return handle; }
+    /** 호환 모듈 전용 — 지금 들고 있는 Furnace 핸들. */
+    public org.domi.furnace.api.entity.Entity furnaceHandle() { return handle; }
+
+    /** 호환 모듈 전용 — 같은 엔티티의 더 새 스냅샷으로 바꾼다(UUID 가 같아야 한다). */
+    public void furnaceHandle(org.domi.furnace.api.entity.Entity fresh) {
+        if (!fresh.uniqueId().equals(handle.uniqueId())) throw new IllegalArgumentException("다른 엔티티의 핸들: " + fresh.uniqueId() + " != " + handle.uniqueId());
+        handle = fresh;
+    }
+
+    /**
+     * NMS 엔티티 shim. 같은 CraftEntity 는 같은 shim 을 준다(== 비교·Map 키). shim 의 멤버는 일부만 있다 —
+     * 없는 멤버는 호출할 때 NoSuchMethodError/NoSuchFieldError, 있지만 못 하는 것은 UnsupportedNmsCall(docs/feature-parity/compat-h6-2026-11-07.md).
+     */
+    public net.minecraft.world.entity.Entity getHandle() {
+        net.minecraft.world.entity.Entity n = nms;
+        if (n == null) {
+            synchronized (this) {
+                n = nms;
+                if (n == null) nms = n = createHandle();
+            }
+        }
+        return n;
+    }
+
+    /** 이 종류의 shim 을 만든다(하위 클래스가 더 좁은 shim 을 준다). */
+    protected net.minecraft.world.entity.Entity createHandle() { return new net.minecraft.world.entity.Entity(this); }
 
     @Override
     public UUID getUniqueId() { return handle.uniqueId(); }
@@ -115,7 +150,7 @@ class CompatEntity implements Entity {
     public boolean hasPermission(String name) { return false; }
 
     @Override
-    public boolean equals(Object o) { return o instanceof CompatEntity e && e.handle.uniqueId().equals(handle.uniqueId()); }
+    public boolean equals(Object o) { return o instanceof CraftEntity e && e.handle.uniqueId().equals(handle.uniqueId()); }
 
     @Override
     public int hashCode() { return handle.uniqueId().hashCode(); }

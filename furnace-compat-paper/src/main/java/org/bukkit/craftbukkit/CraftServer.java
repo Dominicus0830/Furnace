@@ -1,6 +1,5 @@
-package org.domi.furnace.compat.paper;
+package org.bukkit.craftbukkit;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -16,16 +15,30 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.ServicesManager;
 import org.bukkit.scheduler.BukkitScheduler;
+import net.minecraft.server.dedicated.DedicatedServer;
 import org.domi.furnace.api.Furnace;
+import org.domi.furnace.compat.paper.Compat;
+import org.domi.furnace.compat.paper.CompatBlockData;
+import org.domi.furnace.compat.paper.CompatConsole;
+import org.domi.furnace.compat.paper.CompatPluginManager;
+import org.domi.furnace.compat.paper.CompatScheduler;
+import org.domi.furnace.compat.paper.UnsupportedFeature;
 
-/** Furnace 서버를 Bukkit Server 로 보여 준다. 상태는 없고 부를 때마다 지금 떠 있는 Furnace 서버에 물어본다. */
-public final class CompatServer implements Server {
+/**
+ * Furnace 서버를 Bukkit Server 로 보여 준다. 상태는 없고 부를 때마다 지금 떠 있는 Furnace 서버에 물어본다.
+ * 클래스 이름이 Paper 1.20.5 이후와 같은 접미사 없는 {@code org.bukkit.craftbukkit.CraftServer} 라서, 서버 클래스·패키지 이름으로
+ * 구현을 고르는 라이브러리가 Paper 로 본다. {@link #getServer()} 가 NMS 서버 shim 을 준다(H6).
+ */
+public final class CraftServer implements Server {
 
-    public static final CompatServer INSTANCE = new CompatServer();
+    public static final CraftServer INSTANCE = new CraftServer();
 
     private static final Logger LOG = Logger.getLogger("Minecraft");
 
-    private CompatServer() {}
+    private CraftServer() {}
+
+    /** NMS 서버 shim(Paper·CraftBukkit 의 {@code getServer()} 처럼 DedicatedServer). 늘 같은 객체다. */
+    public DedicatedServer getServer() { return DedicatedServer.INSTANCE; }
 
     private static Furnace f() { return Compat.furnace(); }
 
@@ -168,7 +181,4 @@ public final class CompatServer implements Server {
 
     @Override
     public int getSimulationDistance() { return f().simulationDistance(); }
-
-    /** 자바 쪽에서 쓰는 UTF-8 이름 → UUID(Bukkit 의 오프라인 UUID 규칙: OfflinePlayer:이름). */
-    static UUID offlineUuid(String name) { return UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8)); }
 }

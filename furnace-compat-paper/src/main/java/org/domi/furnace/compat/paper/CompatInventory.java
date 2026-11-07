@@ -15,7 +15,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 
-class CompatInventory implements Inventory {
+public class CompatInventory implements Inventory {
 
     final org.domi.furnace.api.inventory.Inventory handle;
     private final InventoryType type;

@@ -8,14 +8,14 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 
-final class CompatPlayerInventory extends CompatInventory implements PlayerInventory {
+public final class CompatPlayerInventory extends CompatInventory implements PlayerInventory {
 
     private static final int BOOTS = 36, LEGGINGS = 37, CHESTPLATE = 38, HELMET = 39, OFF_HAND = 40, STORAGE = 36;
 
-    private final CompatPlayer player;
+    private final org.bukkit.craftbukkit.entity.CraftPlayer player;
 
-    CompatPlayerInventory(CompatPlayer player) {
-        super(player.handle().inventory(), InventoryType.PLAYER, () -> player);
+    public CompatPlayerInventory(org.bukkit.craftbukkit.entity.CraftPlayer player) {
+        super(player.furnaceHandle().inventory(), InventoryType.PLAYER, () -> player);
         this.player = player;
     }
 
@@ -27,7 +27,7 @@ final class CompatPlayerInventory extends CompatInventory implements PlayerInven
 
     private int held() {
         int p = pendingHeld;
-        return p >= 0 ? p : player.handle().heldSlot();
+        return p >= 0 ? p : player.furnaceHandle().heldSlot();
     }
 
     @Override
@@ -127,7 +127,7 @@ final class CompatPlayerInventory extends CompatInventory implements PlayerInven
     @Override
     public void setHeldItemSlot(int slot) {
         if (slot < 0 || slot > 8) throw new IllegalArgumentException("Slot is not between 0 and 8 inclusive");
-        var f = player.handle().setHeldSlot(slot);
+        var f = player.furnaceHandle().setHeldSlot(slot);
         if (!f.isDone()) {
             pendingHeld = slot;
             f.whenComplete((v, e) -> {

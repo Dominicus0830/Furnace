@@ -550,9 +550,95 @@ public final class PluginManagerImpl implements PluginManager {
 
         /** libraries: 자동 로딩이 받아 둔 라이브러리 jar(플러그인 jar 뒤에 붙는다 — 플러그인 자기 클래스가 먼저). */
         PluginClassLoader(Path jar, PluginBootstrapper group, boolean shadowCopy, List<Path> libraries) throws MalformedURLException {
+            this(jar, group, shadowCopy, libraries, null);
+        }
+
+        /** transformer: 플러그인 형식이 준 바이트 변환기(없으면 null) — 플러그인 jar 의 클래스에만 쓴다(libraries jar 는 그대로). */
+        PluginClassLoader(Path jar, PluginBootstrapper group, boolean shadowCopy, List<Path> libraries,
+                          org.domi.furnace.api.plugin.ClassTransformer transformer) throws MalformedURLException {
             super(urls(jar, libraries), PluginHost.class.getClassLoader());
             this.group = group;
             this.shadow = shadowCopy ? jar : null;
+            this.transformer = transformer;
+            this.jarPath = jar;
+            this.jarUrl = jar.toUri().toURL();
+        }
+
+        private final org.domi.furnace.api.plugin.ClassTransformer transformer;
+        private final Path jarPath;
+        private final URL jarUrl;
+        /** 변환기가 있을 때만 연다(클래스 바이트를 직접 읽는다). close 에서 닫는다. */
+        private java.util.jar.JarFile jarFile;
+        private volatile boolean transformWarned;
+
+        private synchronized java.util.jar.JarFile jar() throws IOException {
+            if (jarFile == null) jarFile = new java.util.jar.JarFile(jarPath.toFile(), true, java.util.zip.ZipFile.OPEN_READ, Runtime.version());
+            return jarFile;
+        }
+
+        /**
+         * 이 jar 에서 찾는다. 변환기가 있으면 플러그인 jar 의 클래스 바이트를 읽어 변환기를 거쳐 정의한다 — 코드 출처(URL·서명자)와 패키지 정의는
+         * URLClassLoader 와 같게 둔다(getProtectionDomain().getCodeSource() 로 자기 jar 를 찾는 플러그인이 있다).
+         */
+        private Class<?> findOwn(String name) throws ClassNotFoundException {
+            if (transformer == null) return super.findClass(name);
+            String path = name.replace('.', '/').concat(".class");
+            java.util.jar.JarFile jf;
+            java.util.jar.JarEntry entry;
+            byte[] raw;
+            try {
+                jf = jar();
+                entry = jf.getJarEntry(path);
+                if (entry == null) return super.findClass(name);   // libraries jar 의 클래스
+                try (java.io.InputStream in = jf.getInputStream(entry)) {
+                    raw = in.readAllBytes();
+                }
+            } catch (IOException e) {
+                throw new ClassNotFoundException(name, e);
+            }
+            byte[] bytes = raw;
+            try {
+                byte[] t = transformer.transform(name, raw);
+                if (t != null) bytes = t;
+            } catch (RuntimeException e) {
+                // 변환기가 못 읽는 클래스(이상한 바이트코드)는 원래 바이트로 — 그 클래스가 변환이 필요한 이름을 쓰면 그 자리에서 실패한다
+                if (!transformWarned) {
+                    transformWarned = true;
+                    log.warn("플러그인 jar {} 의 클래스 {} 를 변환하지 못해 원래 바이트로 올린다(이 jar 의 다음 실패는 DEBUG)", jarPath.getFileName(), name, e);
+                } else {
+                    log.debug("클래스 {} 변환 실패 — 원래 바이트로", name, e);
+                }
+            }
+            int dot = name.lastIndexOf('.');
+            if (dot > 0) {
+                String pkg = name.substring(0, dot);
+                if (getDefinedPackage(pkg) == null) {
+                    try {
+                        java.util.jar.Manifest man = jf.getManifest();
+                        if (man != null) definePackage(pkg, man, jarUrl);
+                        else definePackage(pkg, null, null, null, null, null, null, null);
+                    } catch (IllegalArgumentException race) {
+                        // 다른 스레드가 먼저 정의했다
+                    } catch (IOException e) {
+                        throw new ClassNotFoundException(name, e);
+                    }
+                }
+            }
+            return defineClass(name, bytes, 0, bytes.length, new java.security.CodeSource(jarUrl, entry.getCodeSigners()));
+        }
+
+        @Override
+        public void close() throws IOException {
+            try {
+                super.close();
+            } finally {
+                synchronized (this) {
+                    if (jarFile != null) {
+                        jarFile.close();
+                        jarFile = null;
+                    }
+                }
+            }
         }
 
         private static URL[] urls(Path jar, List<Path> libraries) throws MalformedURLException {
@@ -571,7 +657,7 @@ public final class PluginManagerImpl implements PluginManager {
         @Override
         protected Class<?> findClass(String name) throws ClassNotFoundException {
             try {
-                return super.findClass(name);
+                return findOwn(name);
             } catch (ClassNotFoundException e) {
                 Class<?> c = group.findInOthers(name, this);
                 if (c != null) return c;
@@ -585,7 +671,7 @@ public final class PluginManagerImpl implements PluginManager {
                 Class<?> c = findLoadedClass(name);
                 if (c != null) return c;
                 try {
-                    return super.findClass(name);
+                    return findOwn(name);
                 } catch (ClassNotFoundException e) {
                     return null;
                 }
