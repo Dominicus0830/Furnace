@@ -1089,7 +1089,13 @@ public final class PlayerVitals {
             multiplier = 2.0F;
             fallDamageType = DamageType.byKey("stalagmite");
         }
-        if (multiplier < 0 || abilities.mayfly) return 0;
+        if (multiplier < 0) return 0;
+        return fallDamage(distance, multiplier);
+    }
+
+    /** Player/ServerPlayer.causeFallDamage + LivingEntity.calculateFallDamage: 비행 가능이면 0, 충격 높이 규칙, 점프 강화로 안전 거리가 는다. */
+    private float fallDamage(float distance, float multiplier) {
+        if (abilities.mayfly) return 0;
         MobEffectInstance jump = effects.get(MobEffect.JUMP_BOOST);
         boolean impulse = false;
         if (ignoreFallFromImpulse && impulsePos != null) {   // ServerPlayer.causeFallDamage: 충격 높이보다 위에서 내려앉으면 면제, 아니면 그 높이까지만 센다
@@ -1103,6 +1109,17 @@ public final class PlayerVitals {
         float dmg = (float) Math.ceil((double) (over * multiplier) * 1.0);
         if (impulse && dmg > 0) resetCurrentImpulseContext();
         return dmg;
+    }
+
+    /**
+     * 탈것이 내려앉으며 승객인 플레이어에게 넘기는 낙하(Entity.causeFallDamage → ServerPlayer/Player/LivingEntity.causeFallDamage).
+     * 피해를 주었으면 그 양, 아니면 0(소유 region 스레드).
+     */
+    public float causePassengerFallDamage(float distance, float multiplier, String damageKey) {
+        float dmg;
+        synchronized (this) { dmg = fallDamage(distance, multiplier); }
+        if (dmg > 0) hurt(DamageType.byKey(damageKey), dmg);
+        return Math.max(dmg, 0);
     }
 
     /** -1 = 피해 없음(가루눈). */

@@ -31,6 +31,11 @@ final class EnchantAttributes {
             // 물갈퀴: linear(0.33333334,+0.33333334) → water_movement_efficiency
             new Eff("minecraft:depth_strider", Attribute.WATER_MOVEMENT_EFFICIENCY, EquipmentSlot.FEET, AttributeModifier.ADD_VALUE,
                     l -> linear(0.33333334F, 0.33333334F, l)),
+            // 불 보호: linear(-0.15,-0.15) add_multiplied_base → burning_time (방어구 네 칸)
+            new Eff("minecraft:fire_protection", Attribute.BURNING_TIME, EquipmentSlot.HEAD, AttributeModifier.ADD_MULTIPLIED_BASE, l -> linear(-0.15F, -0.15F, l)),
+            new Eff("minecraft:fire_protection", Attribute.BURNING_TIME, EquipmentSlot.CHEST, AttributeModifier.ADD_MULTIPLIED_BASE, l -> linear(-0.15F, -0.15F, l)),
+            new Eff("minecraft:fire_protection", Attribute.BURNING_TIME, EquipmentSlot.LEGS, AttributeModifier.ADD_MULTIPLIED_BASE, l -> linear(-0.15F, -0.15F, l)),
+            new Eff("minecraft:fire_protection", Attribute.BURNING_TIME, EquipmentSlot.FEET, AttributeModifier.ADD_MULTIPLIED_BASE, l -> linear(-0.15F, -0.15F, l)),
             // 민첩한 웅크리기: linear(0.15,+0.15) → sneaking_speed
             new Eff("minecraft:swift_sneak", Attribute.SNEAKING_SPEED, EquipmentSlot.LEGS, AttributeModifier.ADD_VALUE, l -> linear(0.15F, 0.15F, l)));
 

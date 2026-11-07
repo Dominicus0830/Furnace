@@ -622,8 +622,13 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     @Override public boolean canBeSeenAsEnemy() { return !isInvulnerable() && isAlive(); }
 
-    /** getVisibilityPercent: 웅크림 0.8. TODO(투명·머리 아이템). */
-    @Override public double visibilityPercent(Entity looker) { return 1.0; }
+    /** getVisibilityPercent: 웅크림 ×0.8, 투명 ×0.7×방어구 가림, 같은 종류 머리 아이템 ×0.5. */
+    @Override
+    public double visibilityPercent(Entity looker) {
+        ItemStack head = getItemBySlot(EquipmentSlot.HEAD);
+        return Visibility.percent(isShiftKeyDown(), isInvisible(),
+                Visibility.armorCoverPercentage(head, getItemBySlot(EquipmentSlot.CHEST), getItemBySlot(EquipmentSlot.LEGS), getItemBySlot(EquipmentSlot.FEET)), head, looker);
+    }
 
     @Override public boolean isPlayer() { return false; }
 
@@ -1187,6 +1192,10 @@ public abstract class LivingEntity extends Entity implements Targetable {
         if (changes != null && tracker != null) tracker.broadcast(new org.domi.furnace.server.net.protocol.play.SetEquipment(id(), changes));
     }
 
+    /** LivingEntity.igniteForTicks: 태우는 시간 속성(burning_time)을 곱해 올림한다(불 보호 인챈트가 줄인다). */
+    @Override
+    public void igniteForTicks(int ticks) { super.igniteForTicks((int) Math.ceil(ticks * attributeValue(Attribute.BURNING_TIME))); }
+
     // ------------------------------------------------------------------ 휘두르기
 
     protected boolean swinging;
@@ -1196,8 +1205,17 @@ public abstract class LivingEntity extends Entity implements Targetable {
     protected int swingingArm;
     public float attackAnim;
 
-    /** getCurrentSwingDuration: 기본 6틱. TODO(성급함·채굴 피로 효과). */
-    protected int getCurrentSwingDuration() { return 6; }
+    /** getCurrentSwingDuration: 성급함·전달체 힘이면 6−(1+증폭), 채굴 피로면 6+(1+증폭)×2, 아니면 6. */
+    protected int getCurrentSwingDuration() {
+        var haste = activeEffects.get(org.domi.furnace.server.effect.MobEffect.HASTE);
+        var conduit = activeEffects.get(org.domi.furnace.server.effect.MobEffect.CONDUIT_POWER);
+        if (haste != null || conduit != null) {
+            int amp = Math.max(haste != null ? haste.amplifier() : 0, conduit != null ? conduit.amplifier() : 0);
+            return 6 - (1 + amp);
+        }
+        var fatigue = activeEffects.get(org.domi.furnace.server.effect.MobEffect.MINING_FATIGUE);
+        return fatigue != null ? 6 + (1 + fatigue.amplifier()) * 2 : 6;
+    }
 
     public void swing(int hand) {
         if (!swinging || swingTime >= getCurrentSwingDuration() / 2 || swingTime < 0) {

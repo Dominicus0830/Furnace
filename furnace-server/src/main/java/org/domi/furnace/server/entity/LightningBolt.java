@@ -77,6 +77,10 @@ public class LightningBolt extends Entity {
             List<Rider> victims = new ArrayList<>(list);
             for (Player p : players) {
                 if (p.vitals().isSpectator()) continue;
+                p.runOnOwner(() -> {   // Entity.thunderHit: 불 틱 +1(0 이면 8초 붙임)
+                    p.setRemainingFireTicks(p.remainingFireTicks() + 1);
+                    if (p.remainingFireTicks() == 0) p.igniteForSeconds(8.0F);
+                });
                 p.vitals().hurt(DamageType.byKey("lightning_bolt"), 5.0F, null);
                 victims.add(p);
                 hitEntities.add(p);

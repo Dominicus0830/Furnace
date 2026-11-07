@@ -233,7 +233,10 @@ public abstract class AbstractHorse extends Animal {
         if (isVehicle()) {
             java.util.List<Rider> riders = new java.util.ArrayList<>();
             collectIndirectPassengers(riders);
-            for (Rider r : riders) if (r instanceof Entity e) e.hurt(fall, dmg);   // TODO(플레이어 낙하): 탄 플레이어
+            for (Rider r : riders) {
+                if (r instanceof Entity e) e.hurt(fall, dmg);
+                else if (r instanceof Player p) p.runOnOwner(() -> p.vitals().hurt(org.domi.furnace.server.entity.damage.DamageType.byKey(fall.type()), dmg));
+            }
         }
         // TODO(소리): playBlockFallSound
         return true;
