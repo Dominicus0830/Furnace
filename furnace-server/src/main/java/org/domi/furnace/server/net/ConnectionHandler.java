@@ -2565,24 +2565,35 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             else if (action == 0) {   // Player.interactOn: Entity.interact 가 PASS 면 아이템의 interactLivingEntity(이름표)
                 org.domi.furnace.server.entity.ItemEffects.nameTag(p, hand, p.inventory().get(hand == 0 ? p.inventory().heldWindowSlot() : 45), stand);
             }
-        } else if (e instanceof org.domi.furnace.server.entity.WanderingTrader wt && action == 0 && hand == 0
-                && !org.domi.furnace.server.item.ItemTools.itemName(p.inventory().get(p.inventory().heldWindowSlot())).endsWith("_spawn_egg")) {
-            // 바닐라 WanderingTrader.mobInteract: 거래 중이 아니고 거래가 있으면 거래 화면(레벨 1). 없으면 아무 일도 없다.
-            if (wt.canTrade()) {
-                openMerchantScreen(wt, wt.tradeTitle(), 1);
-                interactedWith(p, heldBefore, e);
+        } else if (e instanceof org.domi.furnace.server.entity.WanderingTrader wt && action == 0) {
+            // 바닐라 WanderingTrader.mobInteract: 거래가 있으면 거래 화면(레벨 1), 없으면 소비만. 주 손이면 대화 통계. 주민 스폰 알을 들면 넘긴다.
+            switch (wt.mobInteract(p, hand == 0, holdsVillagerSpawnEgg(p, hand))) {
+                case OPEN_TRADE -> {
+                    openMerchantScreen(wt, wt.tradeTitle(), 1);
+                    interactedWith(p, heldBefore, e);
+                }
+                case CONSUME -> interactedWith(p, heldBefore, e);
+                case PASS -> { }
             }
         } else if (e instanceof org.domi.furnace.server.entity.Mob mob && !(e instanceof org.domi.furnace.server.entity.Villager) && action == 0) {
             var inv = p.inventory();
             if (mob.interact(p, hand, inv.get(hand == 0 ? inv.heldWindowSlot() : 45), region)) interactedWith(p, heldBefore, e);
-        } else if (e instanceof org.domi.furnace.server.entity.Villager vv && !p.sneaking()) {
-            if (vv.canTrade()) {
-                vv.updateSpecialPrices(p);   // 바닐라 startTrading: 평판·영웅 특별 가격 → 거래 화면
-                openMerchantScreen(vv, vv.tradeTitle(), vv.villagerLevel());
+        } else if (e instanceof org.domi.furnace.server.entity.Villager vv && action == 0) {
+            // 바닐라 Villager.mobInteract(웅크려도 같다): 아기·거래 없음은 불만 표시, 거래가 있으면 특별 가격을 갱신하고 거래 화면
+            switch (vv.mobInteract(p, hand == 0, holdsVillagerSpawnEgg(p, hand))) {
+                case OPEN_TRADE -> {
+                    openMerchantScreen(vv, vv.tradeTitle(), vv.villagerLevel());
+                    interactedWith(p, heldBefore, e);
+                }
+                case CONSUME -> interactedWith(p, heldBefore, e);
+                case PASS -> { }
             }
-            else vv.playSound("entity.villager.no", 1.0F, 1.0F);
-            interactedWith(p, heldBefore, e);   // 바닐라 Villager.mobInteract 는 두 경우 모두 sidedSuccess
         }
+    }
+
+    /** 그 손에 든 것이 주민 스폰 알(Items.VILLAGER_SPAWN_EGG)인가. 주민·떠돌이 상인의 mobInteract 가 이것만 거른다. */
+    private static boolean holdsVillagerSpawnEgg(Player p, int hand) {
+        return org.domi.furnace.server.item.ItemTools.itemName(p.inventory().get(hand == 0 ? p.inventory().heldWindowSlot() : 45)).equals("minecraft:villager_spawn_egg");
     }
 
     /**

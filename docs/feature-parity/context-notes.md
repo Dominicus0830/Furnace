@@ -1062,6 +1062,22 @@
 - **남은 차이**(구조상): 내려간 청크·다른 region 의 POI 는 조회하지 않아 중심 둘레 ±2 섹션 중 일부가 다른 region 이면 마을 판정이 모자랄 수 있다. 같은 거리 POI 선택 순서(`getInRange` 순서)는 region 청크 순서에 따른다. 보스바 진행도 `0/0`(NaN) 은 바닐라가 NaN 을 보내지만 여기서는 0 으로 보낸다.
 - 시험: `RaidParityTest`(깃발 구성·addWaveMob 교체·습격 석궁 마법 확률/파도·영웅 처치자) 신규.
 
+## 2026-11-07 M5 주민 바닐라 대조 (바이트코드)
+- 대조 방법: 바닐라 1.21.1 jar 의 `Villager`(cmk)·`AbstractVillager`(cmf)·`ZombieVillager`(ckx)·`Mob.dropPreservedEquipment`(btp)를 `javap -c -p` 로 읽어 줄 단위로 맞췄다. 소문·평판·특별 가격 공식, 농부/거래 보이기/영웅 선물/뼛가루 행동, 생성 이유별 종류·직업은 이미 같았다.
+- **고친 차이**:
+  - `Villager.mobInteract`: 바닐라는 웅크려도 거래한다(전에는 `!sneaking` 이면 아무 일도 없었다). INTERACT_AT(2)에서는 열지 않는다(INTERACT 만). **주민 스폰 알(`villager_spawn_egg`)을 든 때만** 넘긴다(전에는 모든 스폰 알). 아기·거래 없는 주민(무직·바보)은 주 손일 때 고개 젓기(불만 카운터 40 + 소리 `villager.no`, 볼륨·목소리 높이는 `getSoundVolume`/`getVoicePitch` — 난수 2번, 아기는 높은 소리)이고, 주 손 상호작용은 거래 유무와 무관하게(아기 제외) `talked_to_villager` 통계가 오른다. 거래가 없으면 CONSUME(열지 않음)이고 `player_interacted_with_entity` 는 그대로 걸린다. 떠돌이 상인도 같은 통계(주 손)와 소비 규칙.
+  - 불만 카운터(`DATA_UNHAPPY`=17)를 실제로 쓴다: `tick` 에서 1씩 줄인다.
+  - `tellWitnessesThatIWasMurdered`: 바닐라는 `visible_mobs`(눈에 보이는 몹) 중 평판 이벤트를 듣는 것만 부른다. 전에는 `NEAREST_LIVING_ENTITIES`(근처 전부)라 벽 너머 주민도 평판이 깎였다.
+  - `Villager.removeWhenFarAway` = false, 생성자에 `DANGER_FIRE` 16·`DAMAGE_FIRE` -1 길찾기 가중치, `finalizeSpawn` 그룹 데이터가 없으면 새끼를 내지 않는 `GroupData(false)`.
+  - `die` 끝에 `stopTrading`(거래 중이던 플레이어를 놓고 특별 가격 되돌림). 번개로 마녀가 될 때 이름·이름표 표시를 넘긴다.
+  - 떠돌이 상인도 `AbstractVillager` 와 같게: 길찾기 가중치, `die` 끝 `stopTrading`. 거래 화면 제목은 이름(커스텀 이름이 있으면 그것, 없으면 `entity.minecraft.villager.<직업>`)만 보낸다 — 클라이언트가 "이름 - 단계"로 감싸므로 전에는 이중으로 감쌌다. `Pig.thunderHit` 은 `convertTo` 뒤 무적을 도로 끈다(바닐라 Pig 는 무적을 안 넘긴다).
+  - 저장: 바닐라에 없는 `Willing` 키를 더는 쓰지 않는다.
+  - `Mob.convertTo`: 이름·이름표 표시·무적을 새 몹에 넘긴다(바닐라 `convertTo`). 좀비의 주민 감염(`Zombie.killedEntity`)은 직접 만들던 것을 `villager.convertTo(ZOMBIE_VILLAGER)` 로 바꿔(새 몹을 먼저 추가한 뒤 finalizeSpawn·데이터 채움), 고집(persistence)을 주민 것 그대로 따른다 — 전에는 항상 켜서 좀비 주민이 사라지지 않았다.
+  - `ZombieVillager.finishConversion`: 바닐라는 귀속 저주 장비만 주민 가방의 `slot.getIndex()` 칸에 옮기고(손과 방어구의 번호가 겹쳐 뒤가 앞을 덮는 바닐라 특성 그대로), 나머지는 드롭 확률이 1.0 을 넘는 것만 떨군다(`Mob.dropPreservedEquipment(filter)` 새로 둠). 전에는 방어구를 전부 떨궜다. 또 `finalizeSpawn(CONVERSION)` 과 `refreshBrain` 을 건너뛰어 난수 소비·따라가는 거리 보정이 빠져 있었다. 나약함 없는 좀비 주민에게 황금 사과는 CONSUME(소비한 상호작용으로 처리).
+  - `villager_plantable_seeds`: 하드코딩 맵을 없애고 설치된 태그(데이터 팩이 바꾼 것)를 본다 — `Villager.isPlantableSeed`(태그가 아직 안 걸렸으면 바닐라 기본 태그). 심는 블록은 씨앗의 `BlockItem` 블록 기본 상태(바닐라 `blockItem.getBlock().defaultBlockState()`).
+- 시험: `VillagerParityTest` 12(불만·대화 통계·스폰 알·살해 목격자·감염 이름/무적/소문·치료 장비·씨앗 태그 등).
+- 남은 차이: 주민/떠돌이 상인 상호작용 성공 시 `ENTITY_INTERACT` 게임 이벤트가 안 나옴(일반 Mob 상호작용 전체의 공백), 주민 알을 든 채 주민 우클릭하면 바닐라는 새끼 주민 생성(AgeableMob.mobInteract — Furnace 에는 알로 새끼 만들기가 없음), `openMerchantScreen` 이 거래 플레이어를 이벤트 루프에서 늦게 설정(같은 틱 두 명 동시 우클릭 가능성). `Villager.releasePoi` 의 다른 차원 POI, 철 골렘 평판 -100 공격은 `DefendVillageTargetGoal` 이 이미 같음(확인만).
+
 ## 2026-11-07 수면·리스폰 바닐라 대조 (묶음 M9)
 - 바닐라 1.21.1 바이트코드 대조(`aqv`=ServerPlayer): `stopSleepInBed(true,true)` 를 부르는 곳은 **disconnect 와 teleportTo(level, …7인자) 둘뿐**이다. 차원 이동(changeDimension)·포털은 깨우지 않는다(자면서 포털에 들어갈 수 없다).
 - 자는 중 텔레포트: `/tp`·setCamera 는 이미 깨웠으나 플러그인 `PlayerHandle.teleport`·`Player.teleportTo`(3·5인자)·`teleportRelative`(엔더 진주 등)는 안 깨웠다. 이제 `Player.wakeThen` 이 이벤트 취소 확인 뒤 소유 스레드(`runOnOwner`)에서 깨우고 **그다음** 목적지로 보정 텔레포트한다(깨우기가 일어설 자리로 옮기는 보정이 목적지를 덮어쓰지 않게 순서 고정). 상대 텔레포트는 깬 뒤 자리 기준.
@@ -1127,3 +1143,9 @@
   - 훅 격리는 `LinkageError` 도(핫 언로드 중 NoClassDefFoundError — 공유 장식 도중 터지면 원점이 반쯤 장식된 채 남는다).
   - 재생성 생성은 월드마다 한 줄로(`regenTail`) — 289개가 생성 대기 풀을 다 붙잡지 않게.
 - 시험: `GenHooksTest` 12, `GenerationHookStoreTest` 1, `RegenerateChunkTest` 2(알레이 진동 리스너·FRESH 엔티티 지우기 포함).
+
+## 2026-11-07 걸음·헤엄 소리 전반 (묶음 M15)
+- 바닐라 1.21.1 `Entity.playStepSound` 는 블록 SoundType × 0.15 뿐이다(액체·inside_step_sound_blocks 검사 없음). 몹별 덮어쓰기는 바이트코드에서 `b(jd,dtc)` 오버라이드 34개를 전부 찾아 옮겼다. 상세·남은 차이는 `m15-step-sounds-2026-11-07.md`.
+- SoundType 표는 서버를 띄우지 못해 `Blocks.<clinit>` 바이트코드를 읽어 만든다(`tools/vanilla-data/extract_block_sound_types.py` → `blocks/soundtypes_1.21.1.txt`). 문·다락문·버튼·압력판·울타리 문·표지판은 생성자가 `properties.sound(BlockSetType/WoodType 소리)` 로 덮는다는 점이 함정이었다(처음에는 전부 STONE 으로 나왔다).
+- 플레이어는 Entity 가 아니라 `PlayerMovementEmission` 에서 걸음 소리를 낸다. 본인은 빼고 `players` 분류로 보낸다(`PlayerActor` 를 except 로).
+

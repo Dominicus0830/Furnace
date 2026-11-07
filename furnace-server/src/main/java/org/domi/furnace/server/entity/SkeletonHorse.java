@@ -146,4 +146,24 @@ public class SkeletonHorse extends AbstractHorse {
     public boolean interact(Player p, int hand, ItemStack held, org.domi.furnace.server.world.Region region) {
         return !isTamed() ? false : super.interact(p, hand, held, region);
     }
+
+
+    /**
+     * SkeletonHorse.getSwimSound: 땅을 딛고 있으면 물걸음(안 탔으면 step_water, 탄 채면 카운터로 step_water 5번 뒤 3번에 한 번 gallop_water),
+     * 땅에서 떴으면 swim. 카운터가 5 를 넘고 3 의 배수가 아닌 틱은 swim.
+     */
+    @Override
+    protected String getSwimSound() {
+        if (onGround()) {
+            if (!isVehicle()) return "minecraft:entity.skeleton_horse.step_water";
+            gallopSoundCounter++;
+            if (gallopSoundCounter > 5 && gallopSoundCounter % 3 == 0) return "minecraft:entity.skeleton_horse.gallop_water";
+            if (gallopSoundCounter <= 5) return "minecraft:entity.skeleton_horse.step_water";
+        }
+        return "minecraft:entity.skeleton_horse.swim";
+    }
+
+    /** SkeletonHorse.playSwimSound: 땅 위면 크기 0.3 고정, 아니면 min(0.1, 크기 ×25). */
+    @Override
+    protected void playSwimSound(float volume) { super.playSwimSound(onGround() ? 0.3F : Math.min(0.1F, volume * 25.0F)); }
 }

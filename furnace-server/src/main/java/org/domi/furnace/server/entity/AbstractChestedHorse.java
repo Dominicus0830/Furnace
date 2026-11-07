@@ -106,4 +106,11 @@ public abstract class AbstractChestedHorse extends AbstractHorse {
 
     @Override
     protected void followMother() { super.followMother(); }
+
+    /** AbstractChestedHorse.playGallopSound: 질주 소리에 10분의 1 확률로 숨소리(크기 ×0.6). */
+    @Override
+    protected void playGallopSound(org.domi.furnace.server.block.BlockSounds.SoundType type) {
+        super.playGallopSound(type);
+        if (random.nextInt(10) == 0) playSound("minecraft:entity.horse.breathe", type.volume() * 0.6F, type.pitch());
+    }
 }
