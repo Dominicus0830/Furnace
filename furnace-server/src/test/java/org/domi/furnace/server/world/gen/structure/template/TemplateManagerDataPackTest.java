@@ -1,5 +1,5 @@
 // 데이터 팩 구조물 템플릿(Q7): data/<ns>/structure/**.nbt 읽기 — 위 팩이 아래 팩을 덮고, 월드 generated 가 데이터 팩을 덮고,
-// 리로드로 저장소가 비며, 목록(listTemplates)에 보이고, 옛 DataVersion 파일도 읽힌다.
+// 리로드로 저장소가 비며, 목록(listTemplates)에 보이고, 옛 DataVersion 파일은 데이터 픽서(Q8)를 거쳐 읽힌다.
 package org.domi.furnace.server.world.gen.structure.template;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -138,11 +138,21 @@ class TemplateManagerDataPackTest {
     }
 
     @Test
-    void oldDataVersionTemplateIsStillRead() throws IOException {
-        TemplateManager.installDataPacks(manager(pack("p1", "mypack", "old", "minecraft:stone", 2975)));
-        assertTrue(mgr().get(ResourceId.parse("mypack:old")).isPresent(), "데이터 픽서가 없어도 읽는다(경고만)");
+    void oldDataVersionTemplateIsDataFixed() throws IOException {
+        // 2975(1.18.2) 의 grass 는 3692 에서 short_grass 로 바뀐다 — 데이터 팩·월드 generated 둘 다
+        TemplateManager.installDataPacks(manager(pack("p1", "mypack", "old", "minecraft:grass", 2975)));
+        assertEquals(REG.stateIdOrAir("minecraft:short_grass"), stateOf(mgr().get(ResourceId.parse("mypack:old")).orElseThrow()));
+        write(tmp.resolve("world/generated/mine/structures/hut.nbt"), template("minecraft:grass_path", 2586));
+        assertEquals(REG.stateIdOrAir("minecraft:dirt_path"), stateOf(mgr().get(ResourceId.parse("mine:hut")).orElseThrow()));
+    }
+
+    @Test
+    void unsupportedDataVersionIsReadAsIs() throws IOException {
         TemplateManager.installDataPacks(manager(pack("p2", "mypack", "none", "minecraft:stone", 0)));
-        assertTrue(mgr().get(ResourceId.parse("mypack:none")).isPresent(), "DataVersion 없는 파일도 읽는다");
+        assertTrue(mgr().get(ResourceId.parse("mypack:none")).isPresent(), "DataVersion 없는 파일도 읽는다(경고만)");
+        TemplateManager.installDataPacks(manager(pack("p3", "mypack", "future", "minecraft:grass_path", 4000)));
+        assertEquals(REG.stateIdOrAir("minecraft:air"), stateOf(mgr().get(ResourceId.parse("mypack:future")).orElseThrow()),
+            "3955 보다 새 판은 고치지 않고 그대로(없는 이름이라 공기)");
     }
 
     @Test

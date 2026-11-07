@@ -198,7 +198,7 @@ W3 는 청크 저장 PR #38, W4 는 구조물 블록 PR #42, K3 는 패킷 API P
 | Q5 | **공유 스케줄러 S4 기본값 검토.** 기록(`shared-scheduler-s4-2026-10-28.md`)의 남은 위험을 먼저 닫는다: 간헐 30~60ms 튐 원인(GC 로그·JFR), 과부하 시나리오(§9.2-B/C/D)를 실제 공유 풀로 측정, 기존 시험이 공유 풀을 탔는지 확인. 결과가 맞으면 `sharedRegionPool` 기본을 켜고(켜기 전 CPU 코어 수별 `region-threads` 기본값 확인) 아니면 끄고, 판단 근거를 같은 문서에 쓴다 | Opus high | 1 | 성능 측정이라 CPU 가 조용한 환경이 필요. 기본값을 바꾸는 커밋은 측정표를 PR 본문에 붙인다. 바꾸면 `user-todo` 1장에 화면 확인 한 줄 |
 | Q6 | **CI 정리.** `ci.yml` 점검: PR+push 중복 실행 막기(`concurrency`, 브랜치 제한), `permissions: contents: read`, `timeout-minutes`, 실패 시 시험 보고서 업로드, fatJar 아티팩트 보관, Gradle 캐시 확인. 러너는 `ubuntu-latest` 유지. GitHub 에서 실제로 돌려 보며(이 PR 자체가 시험) 초록 확인 | Sonnet low | 1 | 다른 PR 에 영향을 주므로 병합 직후 다른 열린 PR 에서 CI 가 정상인지 한 번 확인 |
 | Q7 | **데이터 팩 구조물 템플릿 읽기.** 월드 `datapacks/<팩>/data/<ns>/structure/*.nbt`(와 `.snbt`) 와 플러그인이 번들한 템플릿을 구조물 블록·직소·`/place template` 이 읽게 한다. D2 의 데이터 팩 로더 위에 얹는다. 우선순위는 바닐라와 같게(월드 `generated/` → 데이터 팩 → 내장) | Sonnet high | 1 | W4(구조물 API)의 선행. 구조물 블록 PR #42 코드. 구조물 블록 화면 확인은 `user-todo` 1장 |
-| Q8 | **구조물 데이터 픽서.** 옛 `DataVersion` 구조물 NBT(블록 이름 변경·블록 상태 속성 변경·엔티티 id 변경)를 1.21.1 로 올리는 최소 픽서와 시험. 알 수 없는 DataVersion 은 경고 후 그대로 읽기 | Opus high | 2 | Q7 뒤. 바닐라 데이터 픽서는 거대하므로 구조물 템플릿에 실제로 나오는 변환 위주로 시작(범위는 구현 스레드가 표로 보고) |
+| Q8 | **구조물 데이터 픽서.** 옛 `DataVersion` 구조물 NBT(블록 이름 변경·블록 상태 속성 변경·엔티티 id 변경)를 1.21.1 로 올리는 최소 픽서와 시험. 알 수 없는 DataVersion 은 경고 후 그대로 읽기 | Opus high | 2 | Q7 뒤. 바닐라 데이터 픽서는 거대하므로 구조물 템플릿에 실제로 나오는 변환 위주로 시작(범위는 구현 스레드가 표로 보고). **구현됨(2026-11-07)** — 범위표 `structure-datafixer-2026-11-07.md` |
 | H5·H6·H7 | R2 확정으로 생긴 NMS·CraftBukkit 지원 묶음 — 2.7 표 참고 | Opus high | 3 | H1~H3 뼈대 뒤. H7 은 Fable 대기열 후보(코디네이터 판단) |
 
 ### 6.3 새 묶음 — user-todo 3장 "코디네이터 항목" (M1~M13)
