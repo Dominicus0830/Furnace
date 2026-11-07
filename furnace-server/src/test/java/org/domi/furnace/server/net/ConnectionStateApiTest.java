@@ -182,9 +182,10 @@ class ConnectionStateApiTest {
             c.await(0x09);
             packResponse(c, PACK, 1);
             toPlay(c);
+            // 연결을 닫기 전에 본다 — 닫은 뒤면 서버가 먼저 나간 처리를 해 목록에서 빠질 수 있다(부하에서 흔들림)
+            awaitPlayer("Relaxed");
         }
         assertEquals(ResourcePackStatus.DECLINED, awaitValue(got));
-        awaitPlayer("Relaxed");
     }
 
     @Test
