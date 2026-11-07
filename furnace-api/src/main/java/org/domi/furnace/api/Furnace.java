@@ -122,6 +122,9 @@ public interface Furnace {
     /** 가상 엔티티·가짜 플레이어(NPC)·가짜 탭 줄 — 패킷 API 위에 쌓은 서비스. */
     default org.domi.furnace.api.virtual.VirtualEntities virtualEntities() { throw new UnsupportedOperationException("virtualEntities"); }
 
+    /** 가짜 광원 — 블록 없이 서버 빛 엔진에 광원을 더하고 뺀다. */
+    default org.domi.furnace.api.light.LightSources lightSources() { throw new UnsupportedOperationException("lightSources"); }
+
     /** 실제 엔티티·플레이어의 플레이어별 보이기·숨기기와 변장. */
     default org.domi.furnace.api.entity.EntityViews entityViews() { throw new UnsupportedOperationException("entityViews"); }
 
