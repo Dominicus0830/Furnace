@@ -356,4 +356,48 @@ class ItemFunctionsTest {
             assertTrue(item.patch().entries().get(c[2]) != null, c[2] + " 이 서버 아이템에 없다: " + item.patch().entries());
         }
     }
+
+    @Test
+    void setAttributesReplacesSameAttributeAndIdLikeVanilla() {
+        String mod = "{\"id\":\"t:a\",\"attribute\":\"minecraft:generic.max_health\",\"operation\":\"add_value\",\"amount\":%d,\"slot\":\"head\"}";
+        String fn = "{\"function\":\"minecraft:set_attributes\",\"replace\":false,\"modifiers\":[" + String.format(mod, 1) + "," + String.format(mod, 5) + "]}";
+        LootStack s = apply(fn, new LootStack("minecraft:stick", 1));
+        List<Object> mods = list(map(s.get("minecraft:attribute_modifiers")).get("modifiers"));
+        assertEquals(1, mods.size(), "같은 (속성, id) 는 앞의 것을 지우고 넣는다");
+        assertEquals(5.0, (Double) map(mods.get(0)).get("amount"), 1e-9);
+        s = apply(fn, s);
+        assertEquals(1, list(map(s.get("minecraft:attribute_modifiers")).get("modifiers")).size(), "기존 항목과 id 가 겹쳐도 중복 안 됨");
+    }
+
+    @Test
+    void listOperationValidationMatchesVanilla() {
+        // offset 이 커도 읽힌다(실행 때 로그만 찍고 그대로 둔다)
+        LootStack s = apply("{\"function\":\"minecraft:set_lore\",\"lore\":[\"x\"],\"mode\":\"insert\",\"offset\":999}", new LootStack("minecraft:stick", 1));
+        assertEquals(0, list(s.get("minecraft:lore")).size());
+        // replace_section 의 size 가 최대보다 크면 거부
+        assertThrows(LootParseException.class, () -> apply(
+                "{\"function\":\"minecraft:set_lore\",\"lore\":[],\"mode\":\"replace_section\",\"size\":257}", LootStack.empty()));
+    }
+
+    @Test
+    void bookResolvedFlagFollowsVanillaDefaults() {
+        LootStack s = apply("{\"function\":\"minecraft:set_book_cover\",\"title\":\"T\"}", new LootStack("minecraft:written_book", 1));
+        assertEquals(true, map(s.get("minecraft:written_book_content")).get("resolved"), "WrittenBookContent.EMPTY 는 resolved=true");
+        s = apply("{\"function\":\"minecraft:set_written_book_pages\",\"mode\":\"append\",\"pages\":[\"p\"]}", s);
+        assertEquals(false, map(s.get("minecraft:written_book_content")).get("resolved"), "withReplacedPages 는 resolved=false");
+    }
+
+    @Test
+    void copyCustomDataLeavesExistingEmptyComponentAloneWhenNothingMatches() {
+        NbtCompound nbt = snbt("{a:1}");
+        LootEntity self = new LootEntity() {
+            public String type() { return "minecraft:zombie"; }
+            public NbtCompound nbt() { return nbt; }
+        };
+        LootStack st = new LootStack("minecraft:stick", 1);
+        st.set("minecraft:custom_data", new NbtCompound());
+        LootStack out = apply("{\"function\":\"minecraft:copy_custom_data\",\"source\":\"this\",\"ops\":["
+                + "{\"source\":\"missing\",\"target\":\"x\",\"op\":\"replace\"}]}", st, new LootParams().with(LootParams.THIS_ENTITY, self), 1L);
+        assertNotNull(out.get("minecraft:custom_data"), "맞는 연산이 없으면 컴포넌트를 건드리지 않는다");
+    }
 }

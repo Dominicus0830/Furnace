@@ -58,6 +58,20 @@ class PredicateFieldsTest {
         assertFalse(entity("{\"type_specific\":{\"type\":\"minecraft:lightning\",\"blocks_set_on_fire\":{\"min\":4}}}", bolt));
         assertTrue(entity("{\"type_specific\":{\"type\":\"minecraft:lightning\",\"entity_struck\":{\"type\":\"minecraft:cow\"}}}", bolt));
         assertFalse(entity("{\"type_specific\":{\"type\":\"minecraft:lightning\",\"entity_struck\":{\"type\":\"minecraft:pig\"}}}", bolt));
+        // entity_struck 안의 distance 는 바깥 조건의 원점(0,0,0)에서 잰다 — 번개 위치가 아니다
+        LootEntity farBolt = new LootEntity() {
+            public String type() { return "minecraft:lightning_bolt"; }
+            public double[] position() { return new double[] {50, 0, 0}; }
+            public Object typeSpecific(String key) { return key.equals("blocks_set_on_fire") ? (Object) 0 : key.equals("entity_struck") ? List.of(victimAt(1, 0, 0)) : null; }
+        };
+        assertTrue(entity("{\"type_specific\":{\"type\":\"minecraft:lightning\",\"entity_struck\":{\"distance\":{\"horizontal\":{\"max\":3}}}}}", farBolt));
+    }
+
+    static LootEntity victimAt(double x, double y, double z) {
+        return new LootEntity() {
+            public String type() { return "minecraft:cow"; }
+            public double[] position() { return new double[] {x, y, z}; }
+        };
     }
 
     @Test
@@ -77,6 +91,8 @@ class PredicateFieldsTest {
         assertFalse(entity(t + "\"advancements\":{\"minecraft:story/root\":{\"crit\":true}}}}", p));
         // 모르는 발전 과제(null)는 거짓
         assertFalse(entity(t + "\"advancements\":{\"minecraft:nope\":true}}}", p));
+        // 바닐라 GameTypePredicate: 빈 목록은 늘 거짓
+        assertFalse(entity(t + "\"gamemode\":[]}}", p));
         // 아직 못 하는 필드는 거짓
         assertFalse(entity(t + "\"looking_at\":{\"type\":\"minecraft:cow\"}}}", p));
     }

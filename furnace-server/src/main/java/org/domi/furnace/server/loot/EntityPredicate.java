@@ -20,6 +20,9 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
     /** nbt 조건이 하나라도 읽혔나(떠 두는 쪽이 NBT 를 미리 복사할지 정하는 용도). */
     public static volatile boolean nbtUsed;
 
+    /** type_specific 변종 조건이 하나라도 읽혔나(변종은 저장 NBT 를 거치므로 쓰일 때만 미리 읽는다). */
+    public static volatile boolean variantUsed;
+
     private static final Set<String> SLOTS = Set.of("head", "chest", "legs", "feet", "body", "mainhand", "offhand");
 
     public static EntityPredicate parse(JsonElement e, LootRegistries regs) {
@@ -52,6 +55,7 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
                 }
                 case "type_specific" -> {
                     typeSpecific = f.getValue().getAsJsonObject();
+                    if (typeSpecific.has("variant")) variantUsed = true;
                     if (typeSpecific.has("entity_struck")) struck = parse(typeSpecific.get("entity_struck"), regs);
                     for (String k : new String[] {"stats", "looking_at"}) {
                         if (typeSpecific.has(k)) org.slf4j.LoggerFactory.getLogger(EntityPredicate.class)
@@ -125,7 +129,7 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
         }
         for (var q : equipment.entrySet()) if (!q.getValue().test(entity.equipment(q.getKey()), regs)) return false;
         if (location != null && !location.matches(ctx, entity.position())) return false;
-        if (typeSpecific != null && !typeSpecific(ctx, entity)) return false;
+        if (typeSpecific != null && !typeSpecific(ctx, origin, entity)) return false;
         return matchesExtra(ctx, origin, entity);
     }
 
@@ -202,7 +206,7 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
             "minecraft:painting", "minecraft:painting_variant", "minecraft:frog", "minecraft:frog_variant",
             "minecraft:wolf", "minecraft:wolf_variant", "minecraft:villager", "minecraft:villager_type");
 
-    private boolean typeSpecific(LootContext ctx, LootEntity e) {
+    private boolean typeSpecific(LootContext ctx, double[] outerOrigin, LootEntity e) {
         String t = LootJson.id(typeSpecific, "type");
         return switch (t) {
             case "minecraft:slime" -> e.typeSpecific("size") instanceof Integer size && Bounds.parse(typeSpecific.get("size")).matches(size);
@@ -218,8 +222,8 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
                 if (!Bounds.parse(typeSpecific.get("blocks_set_on_fire")).matches(fires)) yield false;
                 if (entityStruck == null) yield true;
                 if (!(e.typeSpecific("entity_struck") instanceof java.util.List<?> hit)) yield false;
-                double[] origin = e.position();
-                for (Object h : hit) if (h instanceof LootEntity he && entityStruck.matches(ctx, origin, he)) yield true;
+                // 바닐라는 맞은 엔티티를 바깥 조건의 원점 그대로 검사한다
+                for (Object h : hit) if (h instanceof LootEntity he && entityStruck.matches(ctx, outerOrigin, he)) yield true;
                 yield false;
             }
             case "minecraft:player" -> playerSpecific(ctx, e);
@@ -256,7 +260,6 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
             boolean ok = false;
             if (gm.isJsonArray()) {
                 for (JsonElement x : gm.getAsJsonArray()) if (x.getAsString().equals(actual)) ok = true;
-                if (gm.getAsJsonArray().isEmpty()) ok = true;   // 빈 목록 = 조건 없음
             } else {
                 ok = gm.getAsString().equals(actual);
             }

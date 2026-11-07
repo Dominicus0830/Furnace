@@ -22,9 +22,9 @@ final class LootTypeSpecific {
             case "size":
                 return e instanceof Slime s ? (Object) s.getSize() : null;
             case "is_captain":
-                return e instanceof Raider r ? (Object) r.isPatrolLeader() : null;
+                return e instanceof Raider r ? (Object) r.isCaptain() : null;
             case "has_raid":
-                return e instanceof Raider r ? (Object) r.hasActiveRaid() : null;
+                return e instanceof Raider r ? (Object) r.hasRaid() : null;
             case "blocks_set_on_fire":
                 return e instanceof LightningBolt b ? (Object) b.blocksSetOnFire() : null;
             case "entity_struck": {
@@ -68,7 +68,7 @@ final class LootTypeSpecific {
     /** TropicalFish.getPattern(packed): 하위 16비트 = 크기(0 작음, 1 큼) | 무늬 번호 &lt;&lt; 8. */
     private static String tropical(int variant) {
         int packed = variant & 65535, size = packed & 255, index = packed >> 8;
-        if (size > 1 || index > 5) return null;
+        if (size > 1 || index > 5) return TROPICAL[0];   // Pattern.byId: 모르는 값은 kob
         return TROPICAL[size * 6 + index];
     }
 
@@ -77,7 +77,7 @@ final class LootTypeSpecific {
             case 0 -> "brown";
             case 1 -> "white";
             case 2 -> "black";
-            case 3 -> "black_and_white";
+            case 3 -> "white_splotched";
             case 4 -> "gold";
             case 5 -> "salt";
             case 99 -> "evil";

@@ -113,10 +113,11 @@ final class ItemFunctions {
 
     private record CopyOp(NbtPathArgument.NbtPath source, NbtPathArgument.NbtPath target, String op) {
         /** 바닐라 CopyOperation.apply: 원본 경로에서 찾은 게 있을 때만 병합 방식대로 대상에 쓴다. */
-        void apply(NbtCompound into, Object src) {
+        void apply(java.util.function.Supplier<NbtCompound> intoSupplier, Object src) {
             try {
                 List<Object> found = source.get(src);
                 if (found.isEmpty()) return;
+                NbtCompound into = intoSupplier.get();   // 원본 경로에 값이 있을 때만 대상 복사본을 만든다(바닐라 공급자)
                 switch (op) {
                     case "replace" -> target.set(into, found.get(found.size() - 1));
                     case "append" -> {
@@ -160,12 +161,10 @@ final class ItemFunctions {
         return (s, c) -> {
             Object src = source.get(c);
             if (src == null) return s;
-            NbtCompound data = null;   // 처음 쓸 때 기존 값을 복사한다(아무 연산도 안 맞으면 컴포넌트를 건드리지 않는다)
-            for (CopyOp op : ops) {
-                if (data == null) data = customData(s);
-                op.apply(data, src);
-            }
-            if (data != null) putCustomData(s, data);
+            NbtCompound[] data = {null};   // 값이 있는 첫 연산이 기존 값을 복사한다(아무 연산도 안 맞으면 컴포넌트를 건드리지 않는다)
+            java.util.function.Supplier<NbtCompound> supplier = () -> data[0] != null ? data[0] : (data[0] = customData(s));
+            for (CopyOp op : ops) op.apply(supplier, src);
+            if (data[0] != null) putCustomData(s, data[0]);
             return s;
         };
     }
@@ -212,6 +211,8 @@ final class ItemFunctions {
             for (AttributeModifier m : mods) {
                 String slot = m.slots().get(c.random().nextInt(m.slots().size()));   // Util.getRandom 이 먼저
                 float amount = m.amount().getFloat(c);
+                // 바닐라 ItemAttributeModifiers.withModifierAdded: 같은 (속성, id) 항목을 먼저 지우고 끝에 넣는다
+                entries.removeIf(x -> x instanceof Map<?, ?> xm && m.attribute().equals(xm.get("type")) && m.id().equals(xm.get("id")));
                 Map<String, Object> e = new LinkedHashMap<>();
                 e.put("type", m.attribute());
                 e.put("id", m.id());
@@ -358,8 +359,9 @@ final class ItemFunctions {
                 case "insert" -> offset = nonNegative(o, "offset", 0);
                 default -> throw new LootParseException("Unknown element name:" + mode);
             }
-            if ((mode.equals("replace_section") || mode.equals("insert")) && offset > maxSize) {
-                throw new LootParseException("Insertion index " + offset + " is out of bounds (max " + maxSize + ")");
+            // 바닐라 ListOperation.codec 검증: replace_section 의 size 가 최대보다 크면 거부(offset 초과는 실행 때 로그만)
+            if (mode.equals("replace_section") && size != null && size > maxSize) {
+                throw new LootParseException("Size value too large: " + size + ", max size is " + maxSize);
             }
             return new ListOp(mode, offset, size);
         }
@@ -539,7 +541,8 @@ final class ItemFunctions {
             v.put("author", author != null ? author : old.containsKey("author") ? old.get("author") : "");
             v.put("generation", gen != null ? gen : old.get("generation") instanceof Number n ? n.intValue() : 0);
             v.put("pages", old.containsKey("pages") ? LootStack.deepCopy(old.get("pages")) : new ArrayList<>());
-            v.put("resolved", old.get("resolved") instanceof Boolean b ? b : false);
+            // WrittenBookContent.EMPTY 의 resolved 는 true
+            v.put("resolved", old.get("resolved") instanceof Boolean b ? b : old.isEmpty());
             s.set("minecraft:written_book_content", v);
             return s;
         };
@@ -555,6 +558,7 @@ final class ItemFunctions {
                     ? (Map<String, Object>) LootStack.deepCopy((Map<String, Object>) m) : new LinkedHashMap<>();
             v.putIfAbsent("title", "");
             v.putIfAbsent("author", "");
+            v.put("resolved", false);   // withReplacedPages 는 늘 resolved=false(새 쪽의 선택자·점수 텍스트를 다시 해석한다)
             List<Object> old = v.get("pages") instanceof List<?> l ? new ArrayList<>((List<Object>) l) : new ArrayList<>();
             v.put("pages", new ArrayList<>(mode.apply(old, (List<Object>) LootStack.deepCopy(pages), Integer.MAX_VALUE)));
             s.set("minecraft:written_book_content", v);

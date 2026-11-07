@@ -43,7 +43,9 @@ public final class KillCredit {
         var nbt = org.domi.furnace.server.loot.EntityPredicate.nbtUsed ? e.nbt() : null;
         // 종류별 값은 소유 스레드에서 미리 읽어 둔다(변종은 저장 NBT 를 거치므로 다른 스레드에서 읽으면 경쟁). 플레이어 기록 키는 잠금 있는 원본에 묻는다.
         java.util.Map<String, Object> specific = new java.util.HashMap<>();
+        boolean variants = org.domi.furnace.server.loot.EntityPredicate.variantUsed;
         for (String k : SPECIFIC_KEYS) {
+            if (!variants && k.equals("variant")) continue;
             Object v = e.typeSpecific(k);
             if (v != null) specific.put(k, v);
         }
