@@ -31,6 +31,7 @@ srv/stop.sh $D
 - `round10/ui.js` 플러그인 UI API(메뉴·보스바·사이드바) 10항목 — `round10/README.md`.
 - `round-w2/glow.js` 플러그인 바이옴·차원 타입 등록(W2) 11항목 — `round-w2/README.md`(시험 플러그인 `round-w2/probe`).
 - `round13/brain.js` 두뇌 API(E2) 12항목 — `round13/README.md`(시험 플러그인 `round13/probe`).
+- `round15/e3.js` 스폰 정책·엔티티 수·자세·평판·POI API(E3) 15항목 + `MODE=npcs` 1항목 — `round15/README.md`(시험 플러그인 `round15/probe`).
 - `round11/virtual.js` 가상 엔티티·NPC·가짜 탭 줄(K1) 11항목 — `round11/README.md`.
 - `round8/` 플러그인 API 3단계 셋째 묶음 이벤트(`ev.js` + `probe/Stage3cProbe`, 구역 form enchant anvil brew vehicle fish portal book spawn).
 - `round6/` user-todo 정리용 6차(시야 거리·바람 구슬·철퇴·장착 소리·포탈·양조·스트라이더·습격·돌고래·투사체) — `round6/README.md`.

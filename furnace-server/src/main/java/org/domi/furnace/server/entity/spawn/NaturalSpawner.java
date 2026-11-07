@@ -39,13 +39,25 @@ public final class NaturalSpawner {
         private final List<double[]> charges = new ArrayList<>();   // {x, y, z, charge}
         private final Map<Player, EnumMap<MobCategory, Integer>> playerCounts = new HashMap<>();
         private final List<Player> players;
+        /** 이 틱의 스폰 정책(바닐라면 VANILLA) — 상한은 틱 시작에 한 번 풀어 둔다. */
+        private final SpawnPolicyState policy;
+        private final WorldSpawnPolicy policyHolder;
+        private final int[] capNow, playerCapNow;
+        /** 이번 틱에 이미 뗀 필터(스냅샷은 틱 동안 그대로라 같은 틱에 다시 불리지 않게). */
+        private List<SpawnPolicyState.Filter> droppedFilters;
         private Pos lastPos;
         private String lastType;
         private double lastCharge;
 
-        SpawnState(int spawnableChunkCount, List<Player> players) {
+        SpawnState(int spawnableChunkCount, List<Player> players) { this(spawnableChunkCount, players, null); }
+
+        SpawnState(int spawnableChunkCount, List<Player> players, WorldSpawnPolicy policyHolder) {
             this.spawnableChunkCount = spawnableChunkCount;
             this.players = players;
+            this.policyHolder = policyHolder;
+            this.policy = policyHolder == null ? SpawnPolicyState.VANILLA : policyHolder.state();
+            this.capNow = policy.resolvedCaps();
+            this.playerCapNow = policy.resolvedPlayerCaps();
         }
 
         // 바닐라 LocalMobCapCalculator.getPlayersNear 와 같은 판정(관전자 제외, 청크 중심 128블록). 예전엔 호출마다 목록을
@@ -65,15 +77,50 @@ public final class NaturalSpawner {
         private boolean localCanSpawn(MobCategory cat, int cx, int cz) {
             for (Player p : players) {
                 if (!near(p, cx, cz)) continue;
+                int cap = policy.hasPerPlayer() ? policy.playerCap(p.uuid(), cat) : playerCapNow[cat.ordinal()];
+                if (cap <= 0) continue;   // 정책: 상한 0 이면 이 플레이어 근처는 새로 스폰하지 않는다(바닐라 상수는 늘 양수)
                 var m = playerCounts.get(p);
-                if (m == null || m.getOrDefault(cat, 0) < cat.max()) return true;
+                if (m == null || m.getOrDefault(cat, 0) < cap) return true;
             }
             return false;
         }
 
         boolean canSpawnForCategory(MobCategory cat, int cx, int cz) {
-            int limit = cat.max() * spawnableChunkCount / MAGIC_NUMBER;
+            int limit = (int) ((long) capNow[cat.ordinal()] * spawnableChunkCount / MAGIC_NUMBER);
             return counts.getOrDefault(cat, 0) < limit && localCanSpawn(cat, cx, cz);
+        }
+
+        /**
+         * 플러그인 스폰 필터(World.spawnPolicy().addFilter). 없으면 바로 true — 바닐라 경로에는 목록 비었는지 보는 비용뿐이다.
+         * 꺼진 플러그인·예외를 던진 필터는 빼고 다음으로 넘어간다.
+         */
+        boolean filtersAllow(MobCategory cat, String type, ChunkLevel level, Pos pos, Player nearest) {
+            var filters = policy.filters();
+            if (filters.isEmpty()) return true;
+            String biome = biomeName(level, pos);
+            for (var f : filters) {
+                if (droppedFilters != null && droppedFilters.contains(f)) continue;
+                if (!f.ownerEnabled().getAsBoolean()) {
+                    dropFilter(f);
+                    continue;
+                }
+                boolean ok;
+                try {
+                    ok = f.fn().allow(cat, type, level.dimension(), pos.x(), pos.y(), pos.z(), biome, nearest == null ? null : nearest.uuid());
+                } catch (Throwable t) {
+                    org.slf4j.LoggerFactory.getLogger(NaturalSpawner.class).warn("플러그인 {} 의 스폰 필터가 예외를 던져 뗀다", f.owner(), t);
+                    dropFilter(f);
+                    continue;
+                }
+                if (!ok) return false;
+            }
+            return true;
+        }
+
+        private void dropFilter(SpawnPolicyState.Filter f) {
+            if (droppedFilters == null) droppedFilters = new ArrayList<>(2);
+            droppedFilters.add(f);
+            if (policyHolder != null) policyHolder.removeFilter(f);
         }
 
         /** SpawnState.canSpawn(type, pos, chunk): 스폰 비용(에너지 예산) 검사. */
@@ -134,9 +181,14 @@ public final class NaturalSpawner {
 
     /** NaturalSpawner.createState: region 의 엔티티를 세어 종류별 수·지역 상한·전하를 모은다. */
     public static SpawnState createState(int spawnableChunkCount, Iterable<Entity> entities, ChunkLevel level) {
+        return createState(spawnableChunkCount, entities, level, null);
+    }
+
+    /** policy: 월드의 스폰 정책(null 이면 바닐라 상수). */
+    public static SpawnState createState(int spawnableChunkCount, Iterable<Entity> entities, ChunkLevel level, WorldSpawnPolicy policy) {
         List<Player> players = new ArrayList<>();
         level.forEachPlayer(players::add);
-        SpawnState state = new SpawnState(spawnableChunkCount, players);
+        SpawnState state = new SpawnState(spawnableChunkCount, players, policy);
         for (Entity e : entities) {
             if (!(e instanceof Mob mob) || mob.isRemoved()) continue;
             if (mob.isPersistentForCaps()) continue;
@@ -207,7 +259,8 @@ public final class NaturalSpawner {
                     if (data == null) break;
                     groupSize = data.minCount() + rnd.nextInt(1 + data.maxCount() - data.minCount());
                 }
-                if (!isValidSpawnPositionForType(level, cat, data, pos, distSqr, biome) || !state.canSpawn(data.type(), pos, level)) continue;
+                if (!isValidSpawnPositionForType(level, cat, data, pos, distSqr, biome) || !state.canSpawn(data.type(), pos, level)
+                        || !state.filtersAllow(cat, data.type(), level, pos, player)) continue;
                 Mob mob = getMobForSpawn(level, data.type());
                 if (mob == null) return;
                 mob.moveTo(px, y, pz, rnd.nextFloat() * 360.0F, 0.0F);

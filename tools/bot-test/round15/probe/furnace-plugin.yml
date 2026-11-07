@@ -1,0 +1,7 @@
+name: E3Probe
+version: 1.0.0
+main: probe.E3Probe
+description: 스폰 정책·엔티티 수·자세·주민 평판·POI API(E3) 봇 시험
+commands:
+  e3:
+    description: "E3 API 시험: /e3 동작 인자"

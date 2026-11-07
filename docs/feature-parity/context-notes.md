@@ -1023,3 +1023,12 @@
 - 두뇌 틱 도중(행동·센서 콜백 안) 센서·행동 넣기·빼기는 틱 끝으로 미룬다(E1 GoalSelector 와 같은 방식).
 - 함정: 플러그인 설명 파일 `commands:` 를 `{description: …}` 흐름 형식으로 쓸 때 설명에 `(`·`[` 가 들어가면 ConfigParseException 으로 플러그인이 안 뜬다 — 블록 형식 + 따옴표로.
 - 시험: `MobBrainApiTest` 18개, `MobAiHandleTest` 주민 두뇌 1건 추가, 봇 `tools/bot-test/round13/brain.js` 12/12.
+
+## 2026-11-07 스폰 정책·엔티티 수·자세·주민/마을/습격 API (E3)
+- 설계·바닐라 대조 `docs/api/spawn-and-villages.md`. 기본값은 바닐라 상수(70·10·15·5·5·20·5·…)이고 정책이 비어 있으면 스폰 경로가 바닐라와 같다(`WorldSpawnPolicy.state` 가 `VANILLA` 로 접힘). 활성 범위·엔티티 상한 같은 게임플레이 변경은 넣지 않았다(D3).
+- 세계 상한은 `(int)((long)상한 × 스폰 가능 청크 수 / 289)`. 플레이어 상한 0 이하면 그 플레이어 주변은 건너뛴다(바닐라 상수로는 닿지 않고 플러그인이 0 을 걸 때만 닿는 경로).
+- `spawn.limit.<카테고리>`·`spawn.player-limit.<카테고리>`(`furnace.properties`)는 월드 정책의 시작값. 0·바닐라 3배 초과·모르는 `spawn.*` 키는 경고, 숫자가 아니거나 범위 밖이면 시작 거부.
+- spawn-animals/npcs=false 는 바닐라 1.21.1 `ServerLevel.shouldDiscardEntity`(Animal·WaterAnimal·Npc)와 바이트코드·전 엔티티 종류로 대조해 같음(`SpawnDiscardTest`). 소·주민은 지워지고 좀비는 남는다(봇 `round15/e3.js MODE=npcs`).
+- 함정: `EntityHandle.onEntity` 는 region 틱이 돌아야 작업이 실행된다(엔티티 따라다니는 큐) — 시험이 틱을 안 돌리면 영영 안 끝난다. `World.raidAt` 같은 위치 조회는 로드 안 된 청크면 그 region 에 넘기지 않고 빈 결과를 돌려준다.
+- 평지 월드는 슬라임 청크 때문에 몬스터가 바로 쌓여 "몬스터 수 == 0" 단정이 깨진다. 상한을 건 뒤 증가 여부로 본다.
+- 시험: `SpawnPolicyStateTest` 8, `SpawnPolicySpawnTest` 6, `EntityPolicyApiTest` 8, `NoPhysicsRegionTest` 1, `SpawnDiscardTest`, 봇 `round15/e3.js` 15/15 + `MODE=npcs` 1/1.

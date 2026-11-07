@@ -47,6 +47,8 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     private final int containerSize;
     /** 원인 사슬(만든 순간 — 불변이라 참조만 복사). */
     private final org.domi.furnace.api.event.cause.CauseChain origin;
+    private final org.domi.furnace.api.entity.Pose pose;
+    private final boolean noPhysics;
 
     EntityHandle(PluginHost host, Entity e) {
         this.host = host;
@@ -58,6 +60,8 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         this.tasks = e.apiTasks();
         this.persistentData = NbtPersistentData.snapshot(e.persistentData(false));
         this.origin = e.origin();
+        this.pose = org.domi.furnace.api.entity.Pose.byId(e.getPose());
+        this.noPhysics = e.noPhysics;
         if (e instanceof ContainerEntity ce) {
             containerType = type;
             containerSize = ce.chestVehicleItems().length;
@@ -72,6 +76,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
 
     /** 소유 region 스레드에서 만든다. */
     public static EntityHandle of(PluginHost host, Entity e) {
+        if (e instanceof org.domi.furnace.server.entity.Villager v) return new VillagerHandle(host, v);
         if (e instanceof org.domi.furnace.server.trade.Merchant && e instanceof org.domi.furnace.server.entity.Mob m) return new MerchantHandle(host, m);
         if (e instanceof org.domi.furnace.server.entity.Mob m) return new MobHandle(host, m);
         return e instanceof LivingEntity le ? new Living(host, le) : new EntityHandle(host, e);
@@ -174,6 +179,31 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
             cur.discard();
             return true;
         }).thenApply(b -> b != null && b);
+    }
+
+    // ------------------------------------------------------------------ 자세·물리
+
+    @Override
+    public org.domi.furnace.api.entity.Pose pose() { return pose; }
+
+    @Override
+    public CompletableFuture<Boolean> setPose(org.domi.furnace.api.entity.Pose p) {
+        int id = p == null ? org.domi.furnace.api.entity.Pose.STANDING.id() : p.id();
+        return onEntity(e -> {
+            e.setPose(id);
+            return true;
+        }, false, false);
+    }
+
+    @Override
+    public boolean noPhysics() { return noPhysics; }
+
+    @Override
+    public CompletableFuture<Boolean> setNoPhysics(boolean value) {
+        return onEntity(e -> {
+            e.noPhysics = value;
+            return true;
+        }, false, false);
     }
 
     // ------------------------------------------------------------------ 영속 데이터·칸
@@ -302,7 +332,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     }
 
     /** 주민·떠돌이 상인. */
-    static final class MerchantHandle extends MobHandle implements org.domi.furnace.api.entity.Merchant {
+    static class MerchantHandle extends MobHandle implements org.domi.furnace.api.entity.Merchant {
 
         private final boolean trading;
 
@@ -361,6 +391,82 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
             java.util.Map<String, Object> comps = new java.util.LinkedHashMap<>();
             for (var e : s.components().entrySet()) comps.put(e.getKey(), org.domi.furnace.server.item.Snbt.parse(e.getValue()));
             return new ItemCost(s.type(), s.amount(), comps);
+        }
+    }
+    /** 마을 주민: 직업·단계(핸들 시점)와 평판(소문). */
+    static final class VillagerHandle extends MerchantHandle implements org.domi.furnace.api.entity.Villager {
+
+        private final String profession;
+        private final int level;
+
+        VillagerHandle(PluginHost host, org.domi.furnace.server.entity.Villager v) {
+            super(host, v);
+            String prof = v.profession();
+            this.profession = prof.indexOf(':') < 0 ? "minecraft:" + prof : prof;
+            this.level = v.villagerLevel();
+        }
+
+        @Override
+        public String profession() { return profession; }
+
+        @Override
+        public int professionLevel() { return level; }
+
+        private static org.domi.furnace.server.entity.gossip.GossipContainer.GossipType kind(org.domi.furnace.api.entity.GossipKind k) {
+            return org.domi.furnace.server.entity.gossip.GossipContainer.GossipType.byId(k.key());
+        }
+
+        @Override
+        public CompletableFuture<Integer> reputation(java.util.UUID target) {
+            java.util.Objects.requireNonNull(target, "target");
+            return onEntity(e -> ((org.domi.furnace.server.entity.Villager) e).getGossips().getReputation(target, t -> true), null, false);
+        }
+
+        @Override
+        public CompletableFuture<java.util.Map<org.domi.furnace.api.entity.GossipKind, Integer>> gossip(java.util.UUID target) {
+            java.util.Objects.requireNonNull(target, "target");
+            return onEntity(e -> {
+                java.util.Map<org.domi.furnace.api.entity.GossipKind, Integer> out = new java.util.EnumMap<>(org.domi.furnace.api.entity.GossipKind.class);
+                var entries = ((org.domi.furnace.server.entity.Villager) e).getGossips().getGossipEntries().get(target);
+                if (entries != null) {
+                    for (var k : org.domi.furnace.api.entity.GossipKind.values()) {
+                        Integer v = entries.get(kind(k));
+                        if (v != null && v != 0) out.put(k, v);
+                    }
+                }
+                return out;
+            }, null, false);
+        }
+
+        @Override
+        public CompletableFuture<Boolean> addGossip(java.util.UUID target, org.domi.furnace.api.entity.GossipKind kind, int value) {
+            java.util.Objects.requireNonNull(target, "target");
+            java.util.Objects.requireNonNull(kind, "kind");
+            return onEntity(e -> {
+                ((org.domi.furnace.server.entity.Villager) e).getGossips().add(target, kind(kind), value);
+                return true;
+            }, false, false);
+        }
+
+        @Override
+        public CompletableFuture<Boolean> clearGossip(java.util.UUID target) {
+            java.util.Objects.requireNonNull(target, "target");
+            return onEntity(e -> {
+                var g = ((org.domi.furnace.server.entity.Villager) e).getGossips();
+                for (var t : org.domi.furnace.server.entity.gossip.GossipContainer.GossipType.values()) g.remove(target, t);
+                return true;
+            }, false, false);
+        }
+
+        @Override
+        public CompletableFuture<Boolean> applyReputationEvent(org.domi.furnace.api.entity.ReputationEvent event, java.util.UUID target) {
+            java.util.Objects.requireNonNull(event, "event");
+            java.util.Objects.requireNonNull(target, "target");
+            var type = org.domi.furnace.server.entity.Villager.ReputationEvent.valueOf(event.name());
+            return onEntity(e -> {
+                ((org.domi.furnace.server.entity.Villager) e).onReputationEvent(type, target);
+                return true;
+            }, false, false);
         }
     }
 }

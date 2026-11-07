@@ -27,9 +27,12 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     private final PluginHost host;
     private final World world;
 
+    private final SpawnPolicyImpl spawnPolicy;
+
     WorldHandle(PluginHost host, World world) {
         this.host = host;
         this.world = world;
+        this.spawnPolicy = new SpawnPolicyImpl(world.spawnPolicy());
     }
 
     public World handle() { return world; }
@@ -314,6 +317,109 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
                 return f != null ? f : CompletableFuture.failedFuture(new IllegalStateException("청크가 로드돼 있지 않다: " + cp));
             }
         };
+    }
+
+    // ------------------------------------------------------------------ 스폰 정책·엔티티 수
+
+    @Override
+    public org.domi.furnace.api.world.SpawnPolicy spawnPolicy() { return spawnPolicy; }
+
+    @Override
+    public CompletableFuture<org.domi.furnace.api.world.EntityCounts> entityCounts() {
+        EntityTally total = new EntityTally();
+        List<CompletableFuture<Void>> fs = world.forEachRegion(r -> {
+            EntityTally local = new EntityTally();
+            for (var e : r.level().entities().all()) if (!e.isRemoved()) local.add(e);
+            for (var p : r.players().values()) if (!p.isDisconnected()) local.addPlayer();
+            total.merge(local);
+        });
+        return RegionFuture.wrap(CompletableFuture.allOf(fs.toArray(new CompletableFuture[0])).thenApply(v -> total.build()));
+    }
+
+    // ------------------------------------------------------------------ 마을·POI·습격
+
+    private <T> CompletableFuture<T> onBlock(BlockPos pos, java.util.function.BiFunction<Region, Pos, T> task, T notLoaded) {
+        ChunkPos cp = new ChunkPos(pos.chunkX(), pos.chunkZ());
+        CompletableFuture<T> f = world.submitAtOwnedChunk(cp, r -> r.chunkLoaded(cp) ? task.apply(r, new Pos(pos.x(), pos.y(), pos.z())) : notLoaded);
+        return RegionFuture.wrap(f != null ? f : CompletableFuture.completedFuture(notLoaded));
+    }
+
+    @Override
+    public CompletableFuture<Boolean> isVillage(BlockPos pos) {
+        return onBlock(pos, (r, p) -> r.level().poiManager().isVillage(p), false);
+    }
+
+    @Override
+    public CompletableFuture<Integer> sectionsToVillage(BlockPos pos) {
+        return onBlock(pos, (r, p) -> r.level().poiManager().sectionsToVillage(p.x() >> 4, p.y() >> 4, p.z() >> 4),
+                org.domi.furnace.server.world.poi.PoiManager.MAX_VILLAGE_DISTANCE + 1);
+    }
+
+    @Override
+    public CompletableFuture<List<org.domi.furnace.api.world.PointOfInterest>> pointsOfInterest(BlockPos center, int radius,
+            java.util.Set<String> types, org.domi.furnace.api.world.PoiOccupancy occupancy) {
+        if (radius < 0 || radius > 128) return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalArgumentException("radius 는 0..128: " + radius)));
+        java.util.Objects.requireNonNull(types, "types");
+        java.util.Objects.requireNonNull(occupancy, "occupancy");
+        java.util.Set<String> keys = new java.util.HashSet<>();
+        for (String t : types) keys.add(t.indexOf(':') < 0 ? "minecraft:" + t : t);
+        var occ = org.domi.furnace.server.world.poi.PoiManager.Occupancy.valueOf(occupancy.name());
+        return onBlock(center, (r, p) -> {
+            var found = r.level().poiManager().findAllClosestFirstWithType(t -> keys.isEmpty() || keys.contains(t.name()), q -> true, p, radius, occ);
+            List<org.domi.furnace.api.world.PointOfInterest> out = new ArrayList<>(found.size());
+            for (var rec : found) {
+                out.add(new org.domi.furnace.api.world.PointOfInterest(rec.type().name(), new BlockPos(rec.pos().x(), rec.pos().y(), rec.pos().z()),
+                        rec.freeTickets(), rec.type().maxTickets()));
+            }
+            return out;
+        }, List.of());
+    }
+
+    private org.domi.furnace.api.world.RaidInfo toApi(org.domi.furnace.server.world.raid.Raid r) {
+        var status = switch (r.status()) {
+            case ONGOING -> org.domi.furnace.api.world.RaidStatus.ONGOING;
+            case VICTORY -> org.domi.furnace.api.world.RaidStatus.VICTORY;
+            case LOSS -> org.domi.furnace.api.world.RaidStatus.LOSS;
+            case STOPPED -> org.domi.furnace.api.world.RaidStatus.STOPPED;
+        };
+        var c = r.center();
+        return new org.domi.furnace.api.world.RaidInfo(r.id(), world.dimension(), new BlockPos(c.x(), c.y(), c.z()), status, r.isStarted(), r.isActive(),
+                r.raidOmenLevel(), r.groupsSpawned(), r.numGroups() + (r.raidOmenLevel() > 1 ? 1 : 0), r.getTotalRaidersAlive(),
+                r.getHealthOfLivingRaiders(), r.raidCooldownTicks(), r.isBetweenWaves(), r.heroesOfTheVillage());
+    }
+
+    @Override
+    public CompletableFuture<List<org.domi.furnace.api.world.RaidInfo>> raids() {
+        List<org.domi.furnace.api.world.RaidInfo> all = java.util.Collections.synchronizedList(new ArrayList<>());
+        List<CompletableFuture<Void>> fs = world.forEachRegion(r -> {
+            for (var raid : r.level().raids().all().values()) if (raid.isActive() && !raid.isStopped()) all.add(toApi(raid));
+        });
+        return RegionFuture.wrap(CompletableFuture.allOf(fs.toArray(new CompletableFuture[0])).thenApply(v -> {
+            List<org.domi.furnace.api.world.RaidInfo> out = new ArrayList<>(all);
+            out.sort(java.util.Comparator.comparingInt(org.domi.furnace.api.world.RaidInfo::id));
+            return out;
+        }));
+    }
+
+    @Override
+    public CompletableFuture<Optional<org.domi.furnace.api.world.RaidInfo>> raidAt(BlockPos pos) {
+        return onBlock(pos, (r, p) -> {
+            var raid = r.level().raids().getRaidAt(p);
+            return raid == null ? Optional.<org.domi.furnace.api.world.RaidInfo>empty() : Optional.of(toApi(raid));
+        }, Optional.empty());
+    }
+
+    @Override
+    public CompletableFuture<Boolean> stopRaid(int id) {
+        java.util.concurrent.atomic.AtomicBoolean found = new java.util.concurrent.atomic.AtomicBoolean();
+        List<CompletableFuture<Void>> fs = world.forEachRegion(r -> {
+            var raid = r.level().raids().get(id);
+            if (raid != null && !raid.isStopped()) {
+                raid.stop();
+                found.set(true);
+            }
+        });
+        return RegionFuture.wrap(CompletableFuture.allOf(fs.toArray(new CompletableFuture[0])).thenApply(v -> found.get()));
     }
 
     // ------------------------------------------------------------------ 블록 엔티티 NBT(/data block 경로)

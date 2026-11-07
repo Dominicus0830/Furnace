@@ -94,6 +94,7 @@ public final class FurnaceMain {
         ConsoleInput console = ConsoleInput.startEarly();   // 월드를 불러오기 전에 연다 — stop 은 바로, 나머지는 서버가 준비된 뒤 실행
         ServerProperties props = settings.get();
         org.domi.furnace.server.config.OperatorOptions.install(org.domi.furnace.server.config.OperatorOptions.load(Path.of("furnace.properties")));
+        org.domi.furnace.server.entity.spawn.SpawnConfig.install(org.domi.furnace.server.entity.spawn.SpawnConfig.load(Path.of("furnace.properties"), log::warn));   // spawn.limit.* / spawn.player-limit.*
         if (!org.domi.furnace.server.world.anvil.Compression.configure(props.regionFileCompression)) {
             log.error("Invalid `region-file-compression` value `{}` in server.properties. Please use one of: deflate, gzip, lz4, none, zstd",
                     props.regionFileCompression);

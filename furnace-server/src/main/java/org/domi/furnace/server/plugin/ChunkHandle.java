@@ -76,6 +76,22 @@ final class ChunkHandle implements org.domi.furnace.api.world.Chunk {
     }
 
     @Override
+    public CompletableFuture<org.domi.furnace.api.world.EntityCounts> entityCounts() {
+        return onChunk((r, col) -> {
+            EntityTally t = new EntityTally();
+            var dim = world.handle().dimensionType();
+            r.level().entities().forEachInColumn(x, z, (dim.minY() - 64) >> 4, (dim.maxY() + 64) >> 4, e -> {
+                if (!e.isRemoved()) t.add(e);
+            });
+            for (var p : r.players().values()) {
+                ChunkPos cp = p.chunkPos();
+                if (cp.x() == x && cp.z() == z && !p.isDisconnected()) t.addPlayer();
+            }
+            return t.build();
+        }, org.domi.furnace.api.world.EntityCounts.EMPTY);
+    }
+
+    @Override
     public CompletableFuture<Optional<PersistentDataView>> persistentData() {
         return onChunk((r, col) -> {
             NbtCompound extra = col.extraNbt();
