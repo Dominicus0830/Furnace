@@ -100,12 +100,59 @@ public final class PluginHost implements Furnace {
     /** 그 차원의 월드 핸들(없는 차원이면 null). */
     public WorldHandle worldHandle(String dimension) {
         org.domi.furnace.server.world.World w = core.world(dimension);
-        if (w == null) return null;
-        return worldHandles.computeIfAbsent(dimension, k -> new WorldHandle(this, w));
+        return w == null ? null : handleFor(w);
+    }
+
+    /** 서버 월드의 손잡이 — 같은 키로 다시 올린 추가 월드면 새 손잡이(내린 월드의 손잡이는 isLoaded() = false 로 남는다). */
+    WorldHandle handleFor(org.domi.furnace.server.world.World w) {
+        return worldHandles.compute(w.dimension(), (k, old) -> old != null && old.handle() == w ? old : new WorldHandle(this, w));
     }
 
     @Override
     public WorldHandle world(String dimension) { return worldHandle(dimension); }
+
+    // ------------------------------------------------------------------ 다중 월드(W1)
+
+    @Override
+    public java.util.concurrent.CompletableFuture<org.domi.furnace.api.world.World> createWorld(org.domi.furnace.api.world.WorldCreator creator) {
+        if (creator == null) throw new NullPointerException("creator");
+        var m = core.worldManager();
+        if (m == null) return java.util.concurrent.CompletableFuture.failedFuture(new UnsupportedOperationException("이 서버는 다중 월드를 켜지 않았다"));
+        return m.create(creator).thenApply(this::handleFor);
+    }
+
+    @Override
+    public java.util.concurrent.CompletableFuture<Boolean> unloadWorld(org.domi.furnace.api.world.World world, boolean save) {
+        if (world == null) throw new NullPointerException("world");
+        var m = core.worldManager();
+        if (m == null) return java.util.concurrent.CompletableFuture.failedFuture(new UnsupportedOperationException("이 서버는 다중 월드를 켜지 않았다"));
+        if (!(world instanceof WorldHandle h) || h.handle().isUnloaded()) return java.util.concurrent.CompletableFuture.completedFuture(false);
+        return m.unload(h.handle(), save);
+    }
+
+    /** 추가 월드가 올라왔다(전역 스레드) — WorldLoadEvent. */
+    public void worldLoaded(org.domi.furnace.server.world.World w) {
+        events.call(new org.domi.furnace.api.event.world.WorldLoadEvent(w.dimension(), w.levelName()));
+    }
+
+    /** 추가 월드를 내리기 직전(전역 스레드) — WorldUnloadEvent. 취소되면 false. */
+    public boolean worldUnloading(org.domi.furnace.server.world.World w, boolean save) {
+        var ev = new org.domi.furnace.api.event.world.WorldUnloadEvent(w.dimension(), w.levelName(), save);
+        events.call(ev);
+        return !ev.isCancelled();
+    }
+
+    /** 내린 월드의 손잡이를 걷는다(다시 같은 키로 올리면 새 손잡이). */
+    public void worldDetached(org.domi.furnace.server.world.World w) {
+        worldHandles.computeIfPresent(w.dimension(), (k, h) -> h.handle() == w ? null : h);
+    }
+
+    /** 켜져 있는 플러그인이 등록한 차원 타입 정의(W2), 없거나 꺼졌으면 null. */
+    public org.domi.furnace.api.worldgen.DimensionTypeDefinition pluginDimensionType(String key) {
+        var store = plugins.gameRegistries();
+        var e = store == null ? null : store.dimensionType(key);
+        return e != null && e.active() ? e.definition() : null;
+    }
 
     private final PluginRecipes recipes = new PluginRecipes(this);
     private final GameRegistriesImpl gameRegistries = new GameRegistriesImpl();

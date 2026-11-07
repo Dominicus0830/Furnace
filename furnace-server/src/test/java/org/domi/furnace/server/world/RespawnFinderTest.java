@@ -31,7 +31,7 @@ class RespawnFinderTest {
 
     static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
 
-    /** 칸 높이는 오버월드(슈퍼플랫 바닥 -61)로 두고 차원 키만 바꾼다(침대·정박기 규칙은 차원 키로 본다). */
+    /** 칸 높이는 오버월드(슈퍼플랫 바닥 -61)로 두고 차원 키와 타입 값(침대·정박기 규칙은 바닐라처럼 타입의 bedWorks·respawnAnchorWorks)만 바꾼다. */
     static final class Lvl extends BlockPlacementTest.TestLevel {
         final String dim;
         final List<String> sounds = new ArrayList<>();
@@ -41,6 +41,7 @@ class RespawnFinderTest {
         protected LevelServices services() {
             return new LevelServices.Delegating(LevelServices.DEFAULT) {
                 @Override public String dimension() { return dim; }
+                @Override public DimensionType dimensionType() { return typeOf(dim); }
             };
         }
 
@@ -49,6 +50,15 @@ class RespawnFinderTest {
             sounds.add(sound);
             super.playSound(except, x, y, z, sound, category, volume, pitch);
         }
+    }
+
+    /** 그 차원 키의 바닐라 타입 값을 오버월드 높이로. */
+    static DimensionType typeOf(String dim) {
+        var t = DimensionType.byLevelKey(dim);
+        if (t == null) t = DimensionType.OVERWORLD;
+        var o = DimensionType.OVERWORLD;
+        return new DimensionType(dim, t.typeKey(), o.minY(), o.height(), o.logicalHeight(), t.hasSkyLight(), t.hasCeiling(), t.ultraWarm(),
+                t.natural(), t.coordinateScale(), t.fixedTime(), t.bedWorks(), t.respawnAnchorWorks(), t.piglinSafe(), t.gen());
     }
 
     static int anchor(int charges) { return REG.stateIdOrAir("minecraft:respawn_anchor", Map.of("charges", Integer.toString(charges))); }

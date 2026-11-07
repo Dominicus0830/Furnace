@@ -308,37 +308,27 @@ public final class FurnaceMain {
         world.wanderingTraderState(levelData.wanderingTrader);
         EntityIdAllocator idAllocator = new EntityIdAllocator();
         world.entityIds(idAllocator);   // 플레이어와 다른 엔티티가 같은 id 공간을 쓴다
+        world.seed(seed);
         // 다른 차원(바닐라 createLevels: 오버월드 → 네더 → 엔드). 차원마다 저장 폴더(DIM-1, DIM1)·생성기·region 이 따로이고,
-        // 접속자·시계·엔티티 id 는 오버월드와 공유한다(Dimensions.register).
+        // 접속자·시계·엔티티 id 는 오버월드와 공유한다(Dimensions.register). 조립은 추가 월드(W1)와 같은 WorldManager.build 로.
         org.domi.furnace.server.world.Dimensions dimensions = new org.domi.furnace.server.world.Dimensions();
         dimensions.register(world);
+        var worldSettings = org.domi.furnace.server.world.WorldSettings.load(furnaceProps);
+        var worldManager = new org.domi.furnace.server.world.WorldManager(new org.domi.furnace.server.world.WorldManager.Parts(
+                universe, blockRegistry, itemRegistry, registries, plainsBiome, biomeDirectBits, chunkPool, scheduler, regionPool, config,
+                props.syncChunkWrites, ioPool, genPool), dimensions, levelData, levelName);
         java.util.List<org.domi.furnace.server.world.anvil.RegionFileStore> extraStores = new java.util.ArrayList<>();
         for (var type : java.util.List.of(org.domi.furnace.server.world.DimensionType.NETHER, org.domi.furnace.server.world.DimensionType.END)) {
-            var dir = type.storageDir(worldDir);
-            var store = new org.domi.furnace.server.world.anvil.RegionFileStore(dir, "region", props.syncChunkWrites);
-            var codec = new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blockRegistry, itemRegistry,
-                    registries.entries("minecraft:worldgen/biome"), plainsBiome, type.minY(), type.sectionCount());
-            var gen = NoiseWorldSource.create(type.gen(), config.levelSeed(), blockRegistry, registries);
+            // 차원별 시드(furnace.properties dimension-seed.*, 기본 없음 = 주 월드 시드 — 바닐라)
+            long dimSeed = worldSettings.seedFor(type.levelKey(), config.levelSeed());
+            if (dimSeed != config.levelSeed()) log.info("{} 시드 {}(dimension-seed 설정 — 바닐라와 다른 지형)", type.levelKey(), dimSeed);
+            var gen = NoiseWorldSource.create(type.gen(), dimSeed, blockRegistry, registries);
             applyWorldGenOptions(levelData, gen);
-            var src = new org.domi.furnace.server.world.gen.AnvilWorldSource(worldDir, store, codec, gen);
-            var ents = new org.domi.furnace.server.world.anvil.RegionFileStore(dir, "entities", props.syncChunkWrites);
-            var pois = new org.domi.furnace.server.world.anvil.RegionFileStore(dir, "poi", props.syncChunkWrites);
-            src.entityStore(ents);
-            src.poiStore(pois);
-            extraStores.add(store);
-            extraStores.add(ents);
-            extraStores.add(pois);
-            World w = regionPool != null
-                    ? new World(type, src, chunkPool, scheduler, regionPool, config.regionSectionShift(), config.regionMergeRadius(),
-                            config.viewDistance(), config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool, genPool)
-                    : new World(type, src, chunkPool, scheduler, config.regionThreads(), config.regionSectionShift(), config.regionMergeRadius(),
-                            config.viewDistance(), config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool, genPool);
-            w.worldDir(worldDir);
+            var built = worldManager.build(type, worldDir, gen);
+            extraStores.addAll(built.stores());
+            World w = built.world();
+            w.seed(dimSeed);
             w.defaultSpawn(defaultSpawn);
-            codec.gameTime(w::gameTime);
-            w.configurePersistence(config.autosaveTicks(), config.chunkEvictionGraceTicks());
-            w.configureStreaming(config.spawnChunkRadius(), config.chunksPerTick());
-            w.setRegistries(blockRegistry, itemRegistry);
             if (type == org.domi.furnace.server.world.DimensionType.END) {   // ServerLevel: 엔드는 드래곤 전투를 가진다(level.dat DragonFight)
                 w.enableDragonFight(level.dragonFightData());
                 w.dragonFightSaver(d -> level.dragonFight = d);
@@ -354,6 +344,7 @@ public final class FurnaceMain {
         // 명령·서버 상태 핸들. /stop 은 종료 훅을 도는 별도 스레드에서 끝낸다(스케줄러 스레드에서 exit 하면 훅과 교착).
         ServerCore core = new ServerCore(settings, playerLists, profileCache, world, levelData, scheduler);
         core.dimensions(dimensions);
+        core.worldManager(worldManager);
         // 클라에 보내는 세트: 데이터 팩을 읽었으면 데이터 주도 레지스트리(변종·마법부여 등)를 다시 만든 것, 아니면 플러그인 바이옴·차원 타입까지
         core.registries(dataPacks != null ? dataPacks.dynamicRegistries().registries() : registries);
         if (dataPacks != null) core.dataPacks(dataPacks);
@@ -365,9 +356,18 @@ public final class FurnaceMain {
         org.domi.furnace.api.Furnace.setServer(core.plugins());
         core.plugins().pluginsImpl().settings(pluginSettings);
         core.plugins().pluginsImpl().loadAll(pluginBoot);
+        // 추가 월드 자동 불러오기(furnace.properties worlds.autoload, 기본 없음) — 플러그인 onLoad 뒤·onEnable 앞(onLoad 에서 단 WorldLoadEvent 처리기가 받는다)
+        for (String name : worldSettings.autoload()) {
+            try {
+                worldManager.load(name).get(5, java.util.concurrent.TimeUnit.MINUTES);
+            } catch (Exception e) {
+                log.error("worlds.autoload: 월드 '{}' 를 불러오지 못했다 — 건너뛴다", name, e instanceof java.util.concurrent.ExecutionException ? e.getCause() : e);
+            }
+        }
         // 바닐라에 없는 명령 — 바닐라 트리 대조 대상(BuiltinCommands)과 따로 등록한다
         org.domi.furnace.server.command.builtin.FurnaceCommands.register(core.commands().getDispatcher(), core.plugins());
         org.domi.furnace.server.command.builtin.FurnaceAdminCommands.register(core.commands().getDispatcher());
+        org.domi.furnace.server.command.builtin.WorldsCommands.register(core.commands().getDispatcher());
         org.domi.furnace.server.command.builtin.TpsCommands.register(core.commands().getDispatcher());
         org.domi.furnace.server.command.builtin.TimingsCommands.register(core.commands().getDispatcher());
         core.onSaveAll(() -> {
@@ -439,6 +439,7 @@ public final class FurnaceMain {
                         entityStore.closeAll();
                         poiStore.closeAll();
                         for (var st : extraStores) st.closeAll();
+                        worldManager.closeAllForShutdown();   // 추가 월드 저장소·level.dat·폴더 잠금
                         saveLevelData.run();
                         storage.close();
                     } catch (Exception e) {
@@ -470,7 +471,10 @@ public final class FurnaceMain {
 
         // 바닐라 자동 저장 주기마다 level.dat 도 저장한다(/save-off 면 건너뜀).
         scheduler.global().executeDelayed(new Repeating(scheduler, () -> {
-            if (world.autosaveEnabled()) saveLevelData.run();
+            if (world.autosaveEnabled()) {
+                saveLevelData.run();
+                worldManager.saveLevelData();
+            }
         }, config.autosaveTicks()), config.autosaveTicks());
         console.attach(core);
         InterruptConfirm.installIfEnabled(org.domi.furnace.server.config.OperatorOptions.current());

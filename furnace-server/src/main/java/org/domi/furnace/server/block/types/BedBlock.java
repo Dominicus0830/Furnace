@@ -71,7 +71,7 @@ public class BedBlock extends HorizontalDirectionalBlock {
     }
 
     /** canSetSpawn: 차원의 bedWorks(오버월드만). */
-    public static boolean canSetSpawn(BlockLevel level) { return "minecraft:overworld".equals(level.dimension()); }
+    public static boolean canSetSpawn(BlockLevel level) { return level.dimensionType().bedWorks(); }
 
     @Override
     public void fallOn(BlockLevel level, int state, Pos pos, org.domi.furnace.server.entity.Entity entity, float fallDistance) {

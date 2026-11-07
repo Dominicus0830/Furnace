@@ -17,7 +17,17 @@ public interface World {
     /** 차원 키(minecraft:overworld). 불변. 아무 스레드. */
     String dimension();
 
+    /** 이 월드의 생성 시드(차원별 시드를 정하지 않았으면 주 월드 시드 — 바닐라). */
     long seed();
+
+    /** 차원 타입 키(minecraft:overworld, 플러그인 타입이면 myplugin:deep). 불변. */
+    default String dimensionType() { return dimension(); }
+
+    /** 저장 폴더 배치·기본 생성기를 정한 환경. 불변. */
+    default WorldEnvironment environment() { return WorldEnvironment.NORMAL; }
+
+    /** 아직 올라와 있는가(추가 월드를 내리면 false). 최근 값. */
+    default boolean isLoaded() { return true; }
 
     /** 게임룰 값(문자열 true/false/숫자), 모르는 이름이면 null. 최근 값 — 아무 스레드. */
     String gameRule(String name);

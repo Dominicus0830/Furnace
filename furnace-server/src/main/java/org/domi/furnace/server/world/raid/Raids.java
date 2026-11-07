@@ -137,8 +137,8 @@ public final class Raids {
         return r != null ? r : new Raid(store().nextId(), level, pos);
     }
 
-    /** DimensionType.has_raids: 오버월드·엔드 참, 네더 거짓. */
-    private boolean dimensionHasRaids() { return !"minecraft:the_nether".equals(level.dimension()); }
+    /** DimensionType.has_raids(바닐라 타입: 오버월드·엔드 참, 네더 거짓). */
+    private boolean dimensionHasRaids() { return level.dimensionType().hasRaids(); }
 
     // ------------------------------------------------------------------ 징조 효과(플레이어 효과 틱 직전에 부른다)
 

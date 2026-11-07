@@ -103,6 +103,7 @@ class CancelContractTest {
         TABLE.put("EntityPortalEvent", new Entry(Kind.SERVER_DRIVEN, "entity.PortalCancelTest#entityPortalCancelStopsTheTravel"));
         TABLE.put("PlayerPortalEvent", new Entry(Kind.SERVER_DRIVEN, "net.DimensionChangeTest#playerPortalCancelKeepsPlayerInOverworld"));
         TABLE.put("PortalCreateEvent", new Entry(Kind.SERVER_DRIVEN, "entity.PortalCancelTest#portalCreateCancelLeavesTheFrameEmpty"));
+        TABLE.put("WorldUnloadEvent", new Entry(Kind.SERVER_DRIVEN, "world.MultiWorldTest#unloadEventCancelKeepsWorldLoaded"));
         TABLE.put("PlayerEditBookEvent", new Entry(Kind.SERVER_DRIVEN, E2E + "editBookCancelLeavesBookAlone"));
         TABLE.put("PlayerFishEvent", new Entry(Kind.SERVER_DRIVEN, E2E + "fishCastCancelThrowsNoHookAndLeavesRodAlone"));
         // --- 접속 단계(핸드셰이크): 취소하면 로그인 끊기 패킷만 나가고 서버 상태는 만들어지지 않는다

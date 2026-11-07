@@ -131,11 +131,11 @@ public final class SpawnPlacements {
     /** Monster.isDarkEnoughToSpawn. */
     static boolean darkEnough(ChunkLevel l, Pos p, RandomSource rnd) {
         if (l.getSkyLight(p) > rnd.nextInt(32)) return false;
-        boolean nether = l.dimension().equals("minecraft:the_nether");
-        int blockLimit = nether ? 15 : 0;
+        var type = l.dimensionType();   // 바닐라: monsterSpawnBlockLightLimit · monsterSpawnLightTest(네더 7 고정, 그 밖 0~7 균등)
+        int blockLimit = type.monsterSpawnBlockLightLimit();
         if (blockLimit < 15 && l.getBlockLight(p) > blockLimit) return false;
         int bright = l.isThundering() ? l.getRawBrightness(p, 10) : l.getMaxLocalRawBrightness(p);
-        int test = nether ? 7 : rnd.nextInt(8);
+        int test = type.sampleMonsterSpawnLight(rnd::nextInt);
         return bright <= test;
     }
 

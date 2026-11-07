@@ -38,6 +38,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
 
     @Override
     public String name() {
+        if (world.levelName() != null) return world.levelName();   // 추가 월드: 폴더 이름
         String base = core().levelData().levelName;
         return switch (world.dimension()) {
             case "minecraft:overworld" -> base;
@@ -51,7 +52,22 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     public String dimension() { return world.dimension(); }
 
     @Override
-    public long seed() { return core().levelData().seed; }
+    public long seed() { return core().seedOf(world); }
+
+    @Override
+    public String dimensionType() { return world.dimensionType().typeKey(); }
+
+    @Override
+    public org.domi.furnace.api.world.WorldEnvironment environment() {
+        return switch (world.dimensionType().gen()) {
+            case NETHER -> org.domi.furnace.api.world.WorldEnvironment.NETHER;
+            case END -> org.domi.furnace.api.world.WorldEnvironment.THE_END;
+            default -> org.domi.furnace.api.world.WorldEnvironment.NORMAL;
+        };
+    }
+
+    @Override
+    public boolean isLoaded() { return !world.isUnloaded(); }
 
     @Override
     public String gameRule(String name) {

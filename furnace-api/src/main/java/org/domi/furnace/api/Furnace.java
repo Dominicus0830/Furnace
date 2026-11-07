@@ -59,8 +59,33 @@ public interface Furnace {
     /** 차원 키(minecraft:overworld)의 월드, 없으면 null. */
     World world(String dimension);
 
-    /** 모든 차원 월드(오버월드 먼저). */
+    /** 모든 차원 월드(오버월드 먼저, 그다음 네더·엔드, 추가 월드는 올린 순서). */
     java.util.List<? extends World> worlds();
+
+    /** 월드 이름(폴더 이름 — 주 월드 world, world_nether, world_the_end, 추가 월드는 그 이름)으로, 없으면 null. 대소문자 구분. */
+    default World worldNamed(String name) {
+        for (World w : worlds()) if (w.name().equals(name)) return w;
+        return null;
+    }
+
+    /**
+     * 추가 월드를 만들거나 이미 있는 {@code <이름>/} 폴더를 불러온다(Bukkit createWorld, 다중 월드 — docs/api/worlds.md).
+     * 월드 준비(폴더 잠금·level.dat·생성기)는 백그라운드에서 하고, 틱을 켠 뒤 {@link org.domi.furnace.api.event.world.WorldLoadEvent} 를 보내고 완료된다.
+     * 같은 이름이 이미 올라와 있으면 그 월드로 완료된다(같은 설명서일 때). 키가 다른 월드와 겹치거나, 차원 타입을 모르거나 생성기와 높이가 안 맞으면
+     * IllegalArgumentException, 서버가 다중 월드를 지원하지 않으면 UnsupportedOperationException 으로 완료된다. 아무 스레드.
+     */
+    default java.util.concurrent.CompletableFuture<World> createWorld(org.domi.furnace.api.world.WorldCreator creator) {
+        return java.util.concurrent.CompletableFuture.failedFuture(new UnsupportedOperationException("createWorld"));
+    }
+
+    /**
+     * 추가 월드를 내린다(Bukkit unloadWorld). 기본 세 차원(오버월드·네더·엔드)은 내릴 수 없고, 월드 안에 플레이어가 있거나
+     * {@link org.domi.furnace.api.event.world.WorldUnloadEvent} 가 취소되면 false 로 완료된다. save 면 청크·엔티티·level.dat 을 다 쓴 뒤 닫는다.
+     * 내린 월드의 손잡이는 더 쓸 수 없다(블록 접근은 실패로 완료). 아무 스레드.
+     */
+    default java.util.concurrent.CompletableFuture<Boolean> unloadWorld(World world, boolean save) {
+        return java.util.concurrent.CompletableFuture.failedFuture(new UnsupportedOperationException("unloadWorld"));
+    }
 
     CommandSender console();
 

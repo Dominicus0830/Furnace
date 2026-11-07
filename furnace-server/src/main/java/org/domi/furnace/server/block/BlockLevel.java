@@ -276,6 +276,12 @@ public interface BlockLevel {
     /** 차원 id(minecraft:overworld …). */
     String dimension();
 
+    /** 이 레벨의 차원 타입. 기본: 차원 키가 바닐라 세 차원이면 그 타입, 아니면 오버월드(서버 레벨은 실제 타입). */
+    default org.domi.furnace.server.world.DimensionType dimensionType() {
+        var t = org.domi.furnace.server.world.DimensionType.byLevelKey(dimension());
+        return t != null ? t : org.domi.furnace.server.world.DimensionType.OVERWORLD;
+    }
+
     /** 플러그인 이벤트 입구(서버 레벨만 실제 구현, 나머지는 모두 허용). */
     default org.domi.furnace.server.plugin.GameEvents gameEvents() { return org.domi.furnace.server.plugin.GameEvents.NONE; }
 

@@ -77,8 +77,8 @@ public class RespawnAnchorBlock extends org.domi.furnace.server.block.BlockBehav
         }
     }
 
-    /** canSetSpawn: 차원의 respawnAnchorWorks(네더만). */
-    public static boolean canSetSpawn(BlockLevel level) { return "minecraft:the_nether".equals(level.dimension()); }
+    /** canSetSpawn: 차원 타입의 respawnAnchorWorks(바닐라 타입 중 네더만). */
+    public static boolean canSetSpawn(BlockLevel level) { return level.dimensionType().respawnAnchorWorks(); }
 
     /** charge: 충전 +1, BLOCK_CHANGE, 충전 소리. */
     public static void charge(BlockActor entity, BlockLevel level, Pos pos, int state) {
