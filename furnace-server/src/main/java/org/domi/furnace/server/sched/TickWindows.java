@@ -44,8 +44,17 @@ public final class TickWindows {
 
     private long bucketOf(long nanos) { return Math.floorDiv(nanos - origin, BUCKET_NANOS); }
 
+    /** 만든 뒤 기록한 틱 수와 소요 합(ns) — /perf 가 구간 차이를 낸다. 창과 달리 버리지 않는다. */
+    private long totalTicks, totalNanos;
+
+    public synchronized long totalTicks() { return totalTicks; }
+
+    public synchronized long totalNanos() { return totalNanos; }
+
     /** 틱 하나: startNanos 에 시작해 durationNanos 걸렸다. */
     public synchronized void record(long startNanos, long durationNanos) {
+        totalTicks++;
+        totalNanos += durationNanos;
         long b = bucketOf(startNanos);
         if (b < 0) return;   // origin 앞(만들기 전에 시작한 틱) — 버린다
         int i = (int) (b % size);

@@ -61,7 +61,15 @@
 | `minecraft:large_biomes` | 51, 65, -672 | (0, 0) → 62 deep_frozen_ocean · (500, 0) → 62 frozen_ocean |
 | (비교용) `minecraft:normal` | 96, 136, -32 | (500, 0) → 136 grove · (-500, -500) → 95 birch_forest |
 
-지면 높이는 나무 등 장식 전 지형 기준이다. `debug_all_block_states`·`single_biome_surface` 는 아직 미지원(경고 뒤 normal).
+지면 높이는 나무 등 장식 전 지형 기준이다. `debug_all_block_states`·`single_biome_surface` 는 2026-11-07 구현(아래 "M19 운영 잔여").
+
+### M19 운영 잔여 (2026-11-07) — 실제 클라이언트·바닐라 서버로 한 번
+- **`debug_all_block_states`**: `level-type=minecraft:debug_all_block_states` 로 새 월드를 만들어 접속. 기대: 스폰 (0,80,0) 위 공중에 모든 블록 상태가 격자로 y=70 에 늘어서 있고 y=60 에 장벽이 깔림, 바이옴 plains, 지하는 비어 있음. 확인할 것: ① 격자 가로·세로 칸 수(Furnace 164×163, 블록 상태 26684개)가 바닐라 1.21.1 과 같은지, ② 첫 칸 근처(1,1)·(3,1) 의 블록 순서. 알려진 차이: 그 월드에서 블록을 부수거나 놓으면 서버는 저장하지만 클라이언트는 공식 값만 그린다(바닐라는 서버도 공식 값을 돌려주고 `setBlock` 이 false, 블록·유체 예약 틱과 무작위 틱·자연 스폰도 돌지 않음).
+- **`single_biome_surface`**: 같은 방식으로 `level-type=minecraft:single_biome_surface`. 기대: 보통 오버월드 지형인데 바이옴이 전부 plains. 같은 시드 `normal` 과 높이가 같아야 한다(바이옴 때문에 달라지는 것은 나무·식물·얼음뿐).
+- **`/perf start`**: 오피로 `/perf start` → 10초 뒤 자동 멈춤(또는 `/perf stop`) → `debug/profiling/<날짜>-<월드>-<버전>.zip` 생성과 채팅 안내 문구. 보고서 안의 `profiling.txt`·`metrics/ticking.csv`·`metrics/jvm.csv` 는 Furnace 전역 박동 기준이라 바닐라 보고서와 숫자·열이 다르다(알려진 차이).
+- **JMX**: `enable-jmx-monitoring=true` 로 켜고 `jconsole` 에서 `net.minecraft.server:type=Server` 의 `tickTimes`·`averageTickTime` 이 보이는지.
+- **관전자**: `spectatorsGenerateChunks=false` 일 때 관전 모드 플레이어가 아직 안 만든 땅 쪽으로 날아가도 새 청크가 안 생기고(빈 칸), 다른 플레이어가 올려 둔 청크는 보이는지. 알려진 차이: 관전자가 한 번 받은 청크는 구독이 붙잡아 다른 플레이어가 떠나도 내려가지 않는다(바닐라는 관전자에게 티켓이 없어 내려가고 다시 로드되면 다시 보냄).
+- **전리품 함수 14종·조건 필드**: 데이터 팩 예시가 필요하면 `ItemFunctionsTest`·`PredicateFieldsTest` 의 JSON 을 쓰면 된다. 실제 게임에서 `/loot`·`/item modify` 로 한 번씩 써 보는 것은 선택.
 
 ### Paper/Spigot 설정·월드 가져오기 (O3, 2026-11-07) — 실제 Paper 폴더로 한 번
 `bukkit.yml`·`spigot.yml`·`config/paper-*.yml` 이 있는 서버 폴더로 첫 기동하면 대응 키를 `furnace.properties` 로 옮기고 `furnace-config-import-report.txt`, 월드 쪽은 `furnace-world-import-report.txt` 를 남긴다(`docs/feature-parity/paper-config-import-2026-11-07.md`).
@@ -131,7 +139,7 @@
 | **Paper/Spigot 월드 가져오기** | 복사 방식 그대로 진행 | Q4 (보강) |
 | **공유 스케줄러 S4 기본값** | 스레드가 검토한 뒤 맞다고 판단되는 쪽으로 세팅(켜는 것이 맞으면 켠다). **Q5 결과: 기본 켬** — 튐은 기계 경합·GC 쪽, 공유가 모든 지표에서 같거나 나음. 끄려면 `shared-region-pool=false`. 기존 서버의 `region-threads` 는 이제 서버 전체 워커 수 (`docs/feature-parity/shared-scheduler-default-2026-11-07.md`) | Q5 (완료) |
 | **CI (`ci.yml`)** | 필요하면 수정 | Q6 |
-| **데이터 팩 구조물 템플릿** | 필요: 데이터 팩 경로를 만들고 템플릿을 읽는다(옛 DataVersion 데이터 픽서 포함) | Q7(구현됨, PR #91), Q8 |
+| **데이터 팩 구조물 템플릿** | 필요: 데이터 팩 경로를 만들고 템플릿을 읽는다(옛 DataVersion 데이터 픽서 포함) | Q7(구현됨, PR #91), Q8(구현됨, 범위표 `structure-datafixer-2026-11-07.md`) |
 | **3장 (코디네이터 항목)** | 전부 진행 | M1~M13 |
 
 - **Paper·Spigot 불만 조사 결정 D1~D5 (2026-11-06 사용자 결정, 모두 제안대로 수용)**: D1 3단계 이벤트 마무리 뒤 Bukkit/Paper 호환 어댑터 1차(이벤트·명령·스케줄러·인벤토리)를 먼저 하고 고유 API 확장은 그다음, D2 공식 패킷 API 를 낸다, D3 바닐라 결과를 바꾸는 운영 옵션은 수요 큰 것만 기본 꺼짐으로(활성 범위·엔티티 제한 같은 게임플레이 변경은 넣지 않음), D4 핫 리로드는 개발 모드 설정에서만, D5 `apiVersion` + semver, 대체 API 를 먼저 내고 폐기는 최소 두 마이너 버전 유지. **1.21.1 이후 버전도 지원할 계획** — 플러그인 API·패킷 API 는 마인크래프트 버전에 묶이지 않게 설계한다 (`docs/feature-parity/paper-spigot-dev-complaints-2026-11-06.md` 5장)
