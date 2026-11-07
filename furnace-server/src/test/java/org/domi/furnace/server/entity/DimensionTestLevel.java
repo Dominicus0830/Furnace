@@ -26,6 +26,9 @@ public class DimensionTestLevel extends ChunkLevel {
     /** 차원 타입(높이·좌표 비). 기본은 오버월드. */
     org.domi.furnace.server.world.DimensionType type = org.domi.furnace.server.world.DimensionType.OVERWORLD;
 
+    /** 시험용 월드 보더 {minX, minZ, maxX, maxZ}(null 이면 기본 최대 크기). */
+    double[] border;
+
     public DimensionTestLevel(String dimension) {
         super(1000000);
         this.dimension = dimension;
@@ -59,6 +62,8 @@ public class DimensionTestLevel extends ChunkLevel {
             @Override public String dimension() { return dimension; }
             @Override public org.domi.furnace.server.world.DimensionType dimensionType() { return type; }
             @Override public long gameTime() { return time; }
+            @Override public double[] borderBounds() { return border != null ? border : super.borderBounds(); }
+            @Override public boolean withinBorder(int x, int z) { return border == null || x >= border[0] && x < border[2] && z >= border[1] && z < border[3]; }
             @Override public long seed() { return seed; }
             @Override public ChunkLevel otherLevel(String d) { return others.get(d); }
             @Override public DimensionTravel dimensionTravel() { return travel; }

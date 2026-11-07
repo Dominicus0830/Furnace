@@ -89,10 +89,15 @@ public abstract class Mob extends LivingEntity implements Leashable {
 
     public void onPathfindingDone() {}
 
+    /** getPathfindingMalus: 내가 조종하는 탈것이 몹이고 승객에게 비용을 물려주면(스트라이더) 그 탈것의 비용표를 쓴다. */
     public float getPathfindingMalus(PathType type) {
-        Float f = pathfindingMalus.get(type);
+        Mob owner = getControlledVehicle() instanceof Mob m && m.shouldPassengersInheritMalus() ? m : this;
+        Float f = owner.pathfindingMalus.get(type);
         return f == null ? type.malus() : f;
     }
+
+    /** shouldPassengersInheritMalus: 기본 거짓(스트라이더만 참). */
+    public boolean shouldPassengersInheritMalus() { return false; }
 
     public void setPathfindingMalus(PathType type, float malus) { pathfindingMalus.put(type, malus); }
 
