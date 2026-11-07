@@ -69,8 +69,9 @@ public final class StructureDataFixer {
                 }
             }
         }
-        if (s.blockEntity == null && s.entity == null && s.item == null) return;
+        if (s.blockEntity == null && s.entity == null && s.item == null && s.blockState == null) return;
         walk(root, new Visitor() {
+            @Override public NbtCompound blockState(NbtCompound st) { return s.blockState != null ? s.blockState.apply(st) : st; }
             @Override public NbtCompound blockEntity(NbtCompound be) { return s.blockEntity != null ? s.blockEntity.apply(be) : be; }
             @Override public NbtCompound entity(NbtCompound e) { return s.entity != null ? s.entity.apply(e) : e; }
             @Override public NbtCompound item(NbtCompound it) { return s.item != null ? s.item.apply(it) : it; }
@@ -90,6 +91,8 @@ public final class StructureDataFixer {
     // 순회: 안쪽(담긴 아이템·탑승자)부터 고친 뒤 바깥을 고친다.
 
     interface Visitor {
+        /** 팔레트 밖의 블록 상태 자리(엔티티·블록 엔티티 안). 팔레트는 apply 가 따로 고친다. */
+        default NbtCompound blockState(NbtCompound st) { return st; }
         NbtCompound blockEntity(NbtCompound be);
         NbtCompound entity(NbtCompound e);
         NbtCompound item(NbtCompound it);
@@ -116,10 +119,19 @@ public final class StructureDataFixer {
     private static final List<String> ENTITY_ITEMS = List.of(
         "Item", "item", "SaddleItem", "ArmorItem", "DecorItem", "body_armor_item", "FireworksItem", "Trident", "weapon");
     private static final Set<String> TRADE_ITEMS = Set.of("buy", "buyB", "sell");
+    /**
+     * 엔티티 안의 블록 상태 자리(바닐라 스키마): falling_block BlockState, enderman carriedBlockState, 수레 DisplayState,
+     * block_display·tnt block_state, 화살·삼지창 inBlockState.
+     */
+    private static final List<String> ENTITY_BLOCK_STATES = List.of("BlockState", "carriedBlockState", "DisplayState", "block_state", "inBlockState");
+    /** 블록 엔티티 안의 블록 상태 자리: 움직이는 피스톤 blockState. */
+    private static final List<String> BE_BLOCK_STATES = List.of("blockState");
 
     static NbtCompound visitBlockEntity(NbtCompound be, Visitor v) {
         visitItemSlots(be, BE_ITEM_LISTS, BE_ITEMS, v);
+        visitBlockStates(be, BE_BLOCK_STATES, v);
         visitSpawner(be, v);
+        visitVault(be, v);
         if (be.tags().get("bees") instanceof NbtList bees) visitBees(bees, "entity_data", v);
         if (be.tags().get("Bees") instanceof NbtList bees) visitBees(bees, "EntityData", v);
         return v.blockEntity(be);
@@ -127,6 +139,7 @@ public final class StructureDataFixer {
 
     static NbtCompound visitEntity(NbtCompound e, Visitor v) {
         visitItemSlots(e, ENTITY_ITEM_LISTS, ENTITY_ITEMS, v);
+        visitBlockStates(e, ENTITY_BLOCK_STATES, v);
         if (e.tags().get("Offers") instanceof NbtCompound offers && offers.tags().get("Recipes") instanceof NbtList recipes) {
             for (Object o : recipes.items()) {
                 if (!(o instanceof NbtCompound r)) continue;
@@ -157,6 +170,7 @@ public final class StructureDataFixer {
             for (String k : new String[] {"minecraft:bundle_contents", "minecraft:charged_projectiles"}) {
                 if (comps.tags().get(k) instanceof NbtList l) replaceCompounds(l, x -> visitItem(x, v));
             }
+            if (comps.tags().get("minecraft:bees") instanceof NbtList bees) visitBees(bees, "entity_data", v);
             if (comps.tags().get("minecraft:block_entity_data") instanceof NbtCompound be) comps.put("minecraft:block_entity_data", visitBlockEntity(be, v));
             if (comps.tags().get("minecraft:entity_data") instanceof NbtCompound et) comps.put("minecraft:entity_data", visitEntity(et, v));
         }
@@ -168,8 +182,30 @@ public final class StructureDataFixer {
         for (String k : singles) if (c.tags().get(k) instanceof NbtCompound it) c.put(k, visitItem(it, v));
     }
 
-    /** 스포너(블록 엔티티·수레)의 생성 자료: 옛 꼴(SpawnData=엔티티, SpawnPotentials[].Entity)과 새 꼴({entity}, [].data.entity). */
+    private static void visitBlockStates(NbtCompound c, List<String> keys, Visitor v) {
+        for (String k : keys) if (c.tags().get(k) instanceof NbtCompound st) c.put(k, v.blockState(st));
+    }
+
+    /** 금고(vault): config.key_item, server_data.items_to_eject, shared_data.display_item. */
+    private static void visitVault(NbtCompound be, Visitor v) {
+        if (be.tags().get("config") instanceof NbtCompound cfg && cfg.tags().get("key_item") instanceof NbtCompound it) cfg.put("key_item", visitItem(it, v));
+        if (be.tags().get("server_data") instanceof NbtCompound sd && sd.tags().get("items_to_eject") instanceof NbtList l) replaceCompounds(l, x -> visitItem(x, v));
+        if (be.tags().get("shared_data") instanceof NbtCompound sh && sh.tags().get("display_item") instanceof NbtCompound it) sh.put("display_item", visitItem(it, v));
+    }
+
+    /**
+     * 스포너(블록 엔티티·수레)의 생성 자료: 옛 꼴(SpawnData=엔티티, SpawnPotentials[].Entity)과 새 꼴({entity}, [].data.entity).
+     * 시련 스포너(1.20.3~4 실험 판)의 spawn_data·spawn_potentials 도 같은 새 꼴이다.
+     */
     private static void visitSpawner(NbtCompound c, Visitor v) {
+        if (c.tags().get("spawn_data") instanceof NbtCompound sd && sd.tags().get("entity") instanceof NbtCompound ent) sd.put("entity", visitEntity(ent, v));
+        if (c.tags().get("spawn_potentials") instanceof NbtList sp) {
+            for (Object o : sp.items()) {
+                if (o instanceof NbtCompound p && p.tags().get("data") instanceof NbtCompound data && data.tags().get("entity") instanceof NbtCompound ent) {
+                    data.put("entity", visitEntity(ent, v));
+                }
+            }
+        }
         if (c.tags().get("SpawnData") instanceof NbtCompound sd) {
             if (sd.tags().get("entity") instanceof NbtCompound ent && !sd.contains("id")) sd.put("entity", visitEntity(ent, v));
             else if (sd.contains("id")) c.put("SpawnData", visitEntity(sd, v));

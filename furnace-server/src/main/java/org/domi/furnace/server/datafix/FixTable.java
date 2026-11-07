@@ -117,6 +117,10 @@ final class FixTable {
         step(1948, "OminousBannerRenameFix").item(ItemStackFixes.tagIf(Set.of("minecraft:white_banner"), ItemStackFixes::ominousBannerName));
         step(1953, "OminousBannerBlockEntityRenameFix").blockEntity(BlockEntityFixes.named("minecraft:banner", BlockEntityFixes::ominousBannerName));
         blockAndItem(2209, "Rename bee_hive", renamer("minecraft:bee_hive", "minecraft:beehive"));
+        step(2501, "FurnaceRecipeFix")
+            .blockEntity(BlockEntityFixes.named("minecraft:furnace", BlockEntityFixes::furnaceRecipes))
+            .blockEntity(BlockEntityFixes.named("minecraft:blast_furnace", BlockEntityFixes::furnaceRecipes))
+            .blockEntity(BlockEntityFixes.named("minecraft:smoker", BlockEntityFixes::furnaceRecipes));
         step(2503, "WallPropertyFix").blockState(BlockStateFixes::wallProperty);
         blockAndItem(2508, "Renamed fungi to fungus", renamer(map(
             "minecraft:warped_fungi", "minecraft:warped_fungus", "minecraft:crimson_fungi", "minecraft:crimson_fungus")));

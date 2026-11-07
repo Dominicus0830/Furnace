@@ -52,6 +52,24 @@ final class BlockEntityFixes {
         return be;
     }
 
+    // ---- 2501 FurnaceRecipeFix (furnace·blast_furnace·smoker): RecipeLocationN/RecipeAmountN → RecipesUsed{조리법: 개수}
+
+    static NbtCompound furnaceRecipes(NbtCompound be) {
+        int size = be.tags().get("RecipesUsedSize") instanceof Number n ? n.intValue() : 0;
+        be.tags().remove("RecipesUsedSize");
+        NbtCompound used = new NbtCompound();
+        for (int i = 0; i < size; i++) {
+            String loc = "RecipeLocation" + i, amt = "RecipeAmount" + i;
+            int amount = be.tags().get(amt) instanceof Number n ? n.intValue() : 0;
+            // 바닐라: 개수가 0 보다 클 때만, 이름은 NamespacedString 으로 읽힐 때(문자열)만 넣는다
+            if (amount > 0 && be.tags().get(loc) instanceof String recipe) used.putInt(FixUtil.ns(recipe), amount);
+            be.tags().remove(loc);
+            be.tags().remove(amt);
+        }
+        be.put("RecipesUsed", used);   // 바닐라는 비어 있어도 RecipesUsed 를 쓴다
+        return be;
+    }
+
     // ---- 1953 OminousBannerBlockEntityRenameFix (minecraft:banner)
 
     static NbtCompound ominousBannerName(NbtCompound be) {

@@ -3,7 +3,7 @@
 옛 판(DataVersion)으로 저장된 구조물 `.nbt` 를 1.21.1(3955) 꼴로 올린다. 바닐라 `StructureTemplateManager.readStructure` 는 모든 source(월드 `generated/`, 데이터 팩, 내장)에서 `DataFixTypes.STRUCTURE` 로 전체 데이터 픽서를 돌린다. Furnace 는 그중 **구조물 템플릿 안에 실제로 나오는 자리**(팔레트의 블록 상태, `blocks[].nbt` 블록 엔티티, `entities[].nbt` 엔티티와 그 안의 아이템·탑승자·스포너 자료)에 닿는 고침만 바닐라 1.21.1 `DataFixers.addFixers` 순서대로 옮겼다(`furnace-server/.../datafix/`).
 
 - 코드: `StructureDataFixer`(입구·순회), `FixTable`(단계 표), `BlockStateFixes`·`BlockEntityFixes`·`EntityFixes`·`ItemStackFixes`·`MobEffectFixes`·`AttributeIds`.
-- 기대값 출처: 1.21.1 서버 jar 의 DataFix 클래스를 디컴파일해 하나씩 따라갔다(바닐라 DFU 라이브러리는 컨테이너에서 받을 수 없어 실행 대조는 못 했다). 시험 `StructureDataFixerTest`(16), `TemplateManagerDataPackTest`(데이터 팩·generated 경로).
+- 기대값 출처: 1.21.1 서버 jar 의 DataFix 클래스를 디컴파일해 하나씩 따라갔다(바닐라 DFU 라이브러리는 컨테이너에서 받을 수 없어 실행 대조는 못 했다). 시험 `StructureDataFixerTest`(19), `TemplateManagerDataPackTest`(데이터 팩·generated 경로).
 - 내장 템플릿 1180개는 모두 DataVersion 3955 라 픽서가 아무것도 바꾸지 않는다(확인함).
 
 ## 지원 범위
@@ -12,7 +12,7 @@
 |---|---|
 | 3955 | 그대로(고칠 것 없음) |
 | 1452 ~ 3954 (1.13 평탄화 직후 ~ 1.21) | 아래 "옮긴 고침" 표를 판 순서대로 적용 후 3955 로 |
-| 1451 이하, DataVersion 없음 | **경고 후 그대로 읽기**. 1.12 이하의 평탄화(`BlockStateData` 숫자·옛 이름 표 약 1700줄, 1451 하위 버전 고침 7개)는 옮기지 않았다. 바닐라는 DataVersion 이 없으면 500 으로 보고 평탄화까지 돌린다 — 이 점이 다르다 |
+| 1451 이하, DataVersion 없음 | **경고 후 그대로 읽기**. 1.12 이하의 평탄화(`BlockStateData` 숫자·옛 이름 표 약 1700줄, 1451 하위 버전 고침 7개)는 옮기지 않았다. 바닐라는 DataVersion 이 없으면 500 으로 보고 평탄화까지 돌린다 — 이 점이 다르다. 그래서 DataVersion 없이 최신 꼴로 쓴 파일(외부 도구)은 바닐라에서 오히려 이름이 바뀌고(1802 `stone_slab`→`smooth_stone_slab`, 3692 `grass`→`short_grass`, 2503 담장 `true`→`low` 등) Furnace 에서는 그대로 남는다 |
 | 3956 이상(이 서버보다 새 판) | **경고 후 그대로 읽기**(바닐라도 새 판은 고치지 않는다 — 경고만 Furnace 가 더 남긴다) |
 
 경고는 구조물마다 한 번(저장소가 결과를 캐시한다): `Structure <id> (<source>) has DataVersion <v> older than 1452; no data fixer for it, read as is` / `... newer than this server (3955); read as is`.
@@ -35,6 +35,7 @@
 | 1928·2509 | 파괴수·좀비 피글린 이름 | 엔티티 id·스폰 알 |
 | 1948·1953 | OminousBannerRenameFix(아이템·블록 엔티티) | illager_banner → ominous_banner |
 | 2209·2508·2528·2680·2690·2691·2696·2700·2717·3692 | 벌집·균류·영혼 횃불/랜턴·흙길·구리 두 번·심층암·동굴 덩굴·진달래·풀→짧은 풀 | 블록·아이템 |
+| 2501 | FurnaceRecipeFix | 화로·용광로·훈연기 RecipeLocationN/RecipeAmountN → RecipesUsed(개수 0 은 버림, 비어도 씀) |
 | 2503 | WallPropertyFix | 담장 true/false → low/none |
 | 2514 | UUID 고침 중 **능력치 수정자 UUID·머리 주인 Id·전달체 target_uuid** | 엔티티·아이템·블록 엔티티 |
 | 2518 | JigsawPropertiesFix, JigsawRotationFix | 직소 블록 엔티티 이름·속성 facing → orientation |
@@ -60,6 +61,8 @@
 | 3833 | RemoveEmptyItemInBrushableBlockFix | 빈 아이템 지우기 |
 | 3945 | AttributeIdFix, JukeboxTicksSinceSongStartedFix | 능력치 수정자 id, 주크박스 |
 
+블록 상태 고침(이름 바꾸기·담장·레드스톤·가마솥·직소)은 팔레트뿐 아니라 엔티티 안 블록 상태(`falling_block` BlockState, 엔더맨 carriedBlockState, 수레 DisplayState, `block_display`·TNT block_state, 화살·삼지창 inBlockState)와 움직이는 피스톤 blockState 에도 건다.
+
 그 밖에 바닐라 STRUCTURE 스키마로 한 번 읽고 쓰면 엔티티·블록 엔티티·아이템 `id` 에 이름공간이 붙는다 — 같게 붙인다(최신 판 파일은 건드리지 않음).
 
 ## 옮기지 않은 것(구조물에 나올 수는 있지만 드묾)
@@ -72,8 +75,10 @@
 | 2511·2702·3685·3938·3818_2 | 투사체 주인·줍기·저장 아이템·무기·물약 화살 | 날아가던 화살 자료 |
 | 2529·2533·2535·3093·3683·3808·3809·3812·3818_6·3322·3818_4 | 스트라이더 중력·주민 추적 거리·셜커 회전·염소 뿔 상태·TNT 블록 상태·말 갑옷 자리·짐 말 칸 번호·늑대 체력·효과 구름 물약·효과 지속 계산 자료·입자 | 해당 엔티티 필드가 옛 꼴 |
 | 3094·3820 | 염소 뿔 id, 자석석 나침반 스냅숏 컴포넌트 | 아이템 |
-| 3825 | TrialSpawnerConfigFix | 1.20.3~4 실험 시련 스포너 |
-| — | 팔레트 밖 블록 이름(떨어지는 블록 BlockState·엔더맨 손 블록·수레 DisplayState·아이템 CanDestroy/BlockStateTag 안 이름) | 이름 바꾸기가 그 자리엔 안 닿는다 |
-| — | 스키마 훅이 정하는 엔티티별 아이템 자리 중 이름으로 못 잡은 것 | 순회는 `Items`·`HandItems`·`ArmorItems`·`Inventory`·`Item`·`item`·`SaddleItem`·`ArmorItem`·`DecorItem`·`body_armor_item`·`FireworksItem`·`Trident`·`weapon`·`Offers.Recipes[].buy/buyB/sell`·`RecordItem`·`Book`·`Passengers`·스포너·벌을 본다 |
+| 3825 | TrialSpawnerConfigFix | 1.20.3~4 실험 시련 스포너(안의 spawn_data·spawn_potentials 엔티티와 금고 아이템은 순회해 고친다) |
+| 3209 | ItemSpawnEggFix(`pig_spawn_egg`) | EntityTag.id 가 다른 몹인 돼지 스폰 알. 바닐라 바이트코드는 EntityTag(엔티티 태그 선택형) 안에서 `id` 필드를 찾는데, DFU 가 선택형의 키를 필드로 내주는지 실행 대조 없이 확정할 수 없어 옮기지 않았다(가정 불확실) |
+| — | `falling_block` 의 TileEntityData | 스키마상 블록 엔티티 자리지만 바닐라가 저장할 때 `id` 를 안 넣어 DFU 가 어떻게 읽는지 확정할 수 없다. 순회하지 않는다 |
+| — | 아이템 안 블록 이름(CanDestroy/CanPlaceOn 문자열·BlockStateTag) | 이름 바꾸기가 그 자리엔 안 닿는다 |
+| — | 스키마 훅이 정하는 엔티티별 아이템 자리 중 이름으로 못 잡은 것 | 순회는 `Items`·`HandItems`·`ArmorItems`·`Inventory`·`Item`·`item`·`SaddleItem`·`ArmorItem`·`DecorItem`·`body_armor_item`·`FireworksItem`·`Trident`·`weapon`·`Offers.Recipes[].buy/buyB/sell`·`RecordItem`·`Book`·`Passengers`·스포너(옛 꼴·새 꼴·시련 스포너)·금고·벌(블록 엔티티와 `minecraft:bees` 컴포넌트)을 본다 |
 
 필요해지면 위 표에서 골라 `FixTable` 에 단계 하나를 더하면 된다(같은 판 안에서는 바닐라 addFixer 순서를 지킬 것).

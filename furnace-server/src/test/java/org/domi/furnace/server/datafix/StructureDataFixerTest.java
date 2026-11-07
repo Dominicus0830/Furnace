@@ -250,6 +250,46 @@ class StructureDataFixerTest {
     }
 
     @Test
+    void blockStatesOutsideThePaletteAreFixed() {
+        NbtCompound root = fixed(template(3600, "{Name:\"minecraft:air\"}", null,
+            "{id:\"minecraft:block_display\",block_state:{Name:\"minecraft:grass\"}}"));
+        assertEquals("{Name:\"minecraft:short_grass\"}", Snbt.write(entity(root, 0).getCompound("block_state")), "3692 가 블록 표시에도 닿는다");
+        root = fixed(template(2500, "{Name:\"minecraft:air\"}", null,
+            "{id:\"minecraft:enderman\",carriedBlockState:{Name:\"minecraft:grass_path\"}}",
+            "{id:\"minecraft:falling_block\",BlockState:{Name:\"minecraft:cobblestone_wall\",Properties:{up:\"true\",north:\"true\",east:\"false\",south:\"false\",west:\"false\",waterlogged:\"false\"}}}"));
+        assertEquals("{Name:\"minecraft:dirt_path\"}", Snbt.write(entity(root, 0).getCompound("carriedBlockState")));
+        assertEquals("low", entity(root, 1).getCompound("BlockState").getCompound("Properties").getString("north"));
+    }
+
+    @Test
+    void furnaceRecipesBecomeRecipesUsed() {
+        NbtCompound be = blockNbt(fixed(template(2500, "{Name:\"minecraft:furnace\"}",
+            "{id:\"minecraft:furnace\",RecipesUsedSize:3s,RecipeLocation0:\"iron_ingot\",RecipeAmount0:3,"
+                + "RecipeLocation1:\"minecraft:glass\",RecipeAmount1:0,RecipeLocation2:\"minecraft:stone\",RecipeAmount2:2}")));
+        assertEquals("{RecipesUsed:{\"minecraft:iron_ingot\":3,\"minecraft:stone\":2},id:\"minecraft:furnace\"}", Snbt.write(be),
+            "개수 0 은 버리고 옛 필드는 모두 지운다");
+        be = blockNbt(fixed(template(2500, "{Name:\"minecraft:smoker\"}", "{id:\"minecraft:smoker\"}")));
+        assertEquals("{RecipesUsed:{},id:\"minecraft:smoker\"}", Snbt.write(be), "비어 있어도 RecipesUsed 를 쓴다");
+    }
+
+    @Test
+    void vaultAndTrialSpawnerContentsAreFixed() {
+        NbtCompound vault = blockNbt(fixed(template(3800, "{Name:\"minecraft:vault\"}",
+            "{id:\"minecraft:vault\",config:{key_item:{id:\"minecraft:trial_key\",Count:1b}},"
+                + "shared_data:{display_item:{id:\"minecraft:diamond\",Count:2b}},server_data:{items_to_eject:[{id:\"minecraft:emerald\",Count:3b}]}}")));
+        assertEquals("{count:1,id:\"minecraft:trial_key\"}", Snbt.write(vault.getCompound("config").getCompound("key_item")));
+        assertEquals("{count:2,id:\"minecraft:diamond\"}", Snbt.write(vault.getCompound("shared_data").getCompound("display_item")));
+        assertEquals("[{count:3,id:\"minecraft:emerald\"}]", Snbt.write(vault.getCompound("server_data").getList("items_to_eject")));
+        NbtCompound spawner = blockNbt(fixed(template(3700, "{Name:\"minecraft:trial_spawner\"}",
+            "{id:\"minecraft:trial_spawner\",spawn_data:{entity:{id:\"minecraft:zombie\",HandItems:[{id:\"minecraft:iron_sword\",Count:1b}]}},"
+                + "spawn_potentials:[{data:{entity:{id:\"minecraft:husk\",HandItems:[{id:\"minecraft:stone_sword\",Count:1b}]}},weight:1}]}")));
+        assertEquals("[{count:1,id:\"minecraft:iron_sword\"}]",
+            Snbt.write(spawner.getCompound("spawn_data").getCompound("entity").getList("HandItems")));
+        assertEquals("[{count:1,id:\"minecraft:stone_sword\"}]",
+            Snbt.write(((NbtCompound) spawner.getList("spawn_potentials").get(0)).getCompound("data").getCompound("entity").getList("HandItems")));
+    }
+
+    @Test
     void stepsAreInVersionOrder() {
         int prev = -1;
         for (FixStep s : FixTable.STEPS) {
