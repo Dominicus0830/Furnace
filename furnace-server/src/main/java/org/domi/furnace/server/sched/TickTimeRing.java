@@ -30,6 +30,21 @@ public final class TickTimeRing {
         maxEver.accumulateAndGet(nanos, Math::max);
     }
 
+    /**
+     * 최근 틱 n 개를 바닐라 MinecraftServer.tickTimesNanos 와 같은 자리에 담은 사본: 번호가 k 인 틱의 값은 [k % n]
+     * (n 개가 차기 전의 빈 칸은 0). 마지막으로 기록된 틱 번호가 가장 큰 쪽이다.
+     */
+    public long[] recentByTickNumber(int n) {
+        long[] out = new long[n];
+        long total = next.get();
+        long from = Math.max(0, total - Math.min(n, ring.length()));
+        for (long k = from; k < total; k++) out[(int) (k % n)] = ring.get((int) (k & mask));
+        return out;
+    }
+
+    /** 지금까지 기록한 틱 수. */
+    public long count() { return next.get(); }
+
     public Stats stats() {
         int n = (int) Math.min(next.get(), ring.length());
         if (n == 0) return Stats.EMPTY;

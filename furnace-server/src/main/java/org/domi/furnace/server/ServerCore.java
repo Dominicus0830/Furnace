@@ -473,6 +473,12 @@ public final class ServerCore {
 
     public org.domi.furnace.server.sched.TickTimeRing.Stats globalTickTimes() { return globalTickRing.stats(); }
 
+    /** 최근 전역 박동 n 개의 소요(ns)를 박동 번호 % n 자리에 담은 사본(JMX tickTimes). */
+    public long[] recentGlobalTickTimes(int n) { return globalTickRing.recentByTickNumber(n); }
+
+    /** 지금까지 기록한 전역 박동 수. */
+    public long globalTickCount() { return globalTickRing.count(); }
+
     /** 전역 틱 시작 시각(/tps — 15분 × 20회를 덮는 2^15 칸)과 시간 창별 소요 시간(/mspt). 전역 스레드만 쓴다. */
     private final org.domi.furnace.server.sched.TickStartRing globalTickStarts = new org.domi.furnace.server.sched.TickStartRing(1 << 15);
     private final org.domi.furnace.server.sched.TickWindows globalTickWindows = new org.domi.furnace.server.sched.TickWindows();

@@ -2229,8 +2229,11 @@ public final class Region {
             for (int dz = -vd; dz <= vd; dz++) {
                 ChunkPos cp = new ChunkPos(center.x() + dx, center.z() + dz);
                 if (p.loadedChunks().add(cp)) {   // 새로 시야 진입
-                    world.subscribeChunk(cp, p);
-                    rz().want(cp.x(), cp.z(), this);   // 시야 구역을 이 region 이 갖는다(다른 region 것이면 합칠 대상)
+                    // 청크를 만들지 않는 관전자(spectatorsGenerateChunks 꺼짐)는 구독·구역 확보를 보내는 때로 미룬다 — 로드돼 있을 때만 보낸다
+                    if (!skipsGeneration(p)) {
+                        world.subscribeChunk(cp, p);
+                        rz().want(cp.x(), cp.z(), this);   // 시야 구역을 이 region 이 갖는다(다른 region 것이면 합칠 대상)
+                    }
                     toQueue.add(cp);              // 전송 대기열(아직 미전송)
                 }
             }
@@ -2271,10 +2274,15 @@ public final class Region {
         if (budget <= 0) return;
         List<ChunkPos> batch = new ArrayList<>(Math.min(budget, p.pendingChunks().size()));
         var it = p.pendingChunks().iterator();
+        // 바닐라 ChunkMap.skipPlayer: 관전자는 spectatorsGenerateChunks 가 꺼져 있으면 청크를 만들게 하지 않고, 이미 로드된 청크만 받는다
+        boolean loadedOnly = skipsGeneration(p);
         while (it.hasNext() && batch.size() < budget) {
-            batch.add(it.next());
+            ChunkPos next = it.next();
+            if (loadedOnly && !world.isChunkLoaded(next.x(), next.z())) continue;   // 로드될 때까지 대기열에 둔다
+            batch.add(next);
             it.remove();
         }
+        if (batch.isEmpty()) return;
 
         p.chunkSendRate().batchSent(batch.size());
         p.send(new ChunkBatchStart());
@@ -2283,7 +2291,12 @@ public final class Region {
         List<CompletableFuture<?>> sends = new ArrayList<>(batch.size());
         for (ChunkPos cp : batch) {
             // 구독은 updateChunks에서 큐에 넣을 때 했다. 이 구독이 청크 전달 전까지 블록 변경을 보류한다.
-            World.Subscription sub = world.subscriptionOf(cp, p);
+            World.Subscription existing = world.subscriptionOf(cp, p);
+            if (existing == null && p.loadedChunks().contains(cp)) {   // 구독을 미뤄 둔 청크(관전자 규칙) — 보내는 지금 구독한다
+                existing = world.subscribeChunk(cp, p);
+                rz().want(cp.x(), cp.z(), this);
+            }
+            final World.Subscription sub = existing;
             if (sub == null) continue;   // 그 사이 언로드됨 — 보낼 것 없음
             p.chunkSendsInFlight().incrementAndGet();
             CompletableFuture<?> f = world.serializedChunkBody(cp)
@@ -2307,6 +2320,11 @@ public final class Region {
         // allOf로 모든 future(전송/예외) 완료 후 Finished 1회 — 마샬 누락에 의한 batch 미종료(클라 stall) 방지.
         CompletableFuture.allOf(sends.toArray(new CompletableFuture[0]))
                 .thenRun(() -> p.send(new ChunkBatchFinished(sent.get())));
+    }
+
+    /** 관전자이고 spectatorsGenerateChunks 가 꺼져 있나 — 이 플레이어의 시야는 청크를 새로 만들게 하지 않는다. */
+    private boolean skipsGeneration(Player p) {
+        return p.gameMode() == GameMode.SPECTATOR && !world.levelServices().gameRule("spectatorsGenerateChunks");
     }
 
     /** 청크가 플레이어의 현재 시야(per-player view distance, Chebyshev) 안인지. stale 드롭·전송 게이트용. */

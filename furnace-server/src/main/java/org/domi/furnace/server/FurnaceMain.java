@@ -595,6 +595,12 @@ public final class FurnaceMain {
             var r = org.domi.furnace.server.remote.RconServer.create(props.serverIp, props.rconPort, props.rconPassword, core::runRconCommand, rconLimits);
             if (r != null) out.add(r);
         }
+        // 바닐라 DedicatedServer.initServer: enable-jmx-monitoring 이면 net.minecraft.server:type=Server MBean(tickTimes·averageTickTime)을 등록한다
+        if (props.enableJmxMonitoring) {
+            var jmx = org.domi.furnace.server.profiling.JmxMonitoring.register(() ->
+                    new org.domi.furnace.server.profiling.JmxMonitoring.Snapshot(core.recentGlobalTickTimes(org.domi.furnace.server.profiling.JmxMonitoring.SAMPLES), core.globalTickCount()));
+            if (jmx != null) out.add(jmx);
+        }
         var metricsOpts = org.domi.furnace.server.metrics.MetricsOptions.load(Path.of("furnace.properties"), log::warn);
         if (metricsOpts.prometheus() || metricsOpts.jmx()) {
             var source = new org.domi.furnace.server.metrics.ServerMetrics(core);
