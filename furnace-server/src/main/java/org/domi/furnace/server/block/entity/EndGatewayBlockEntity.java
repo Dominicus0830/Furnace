@@ -13,7 +13,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.world.ChunkColumn;
 
-public class EndGatewayBlockEntity extends BlockEntity {
+public class EndGatewayBlockEntity extends EndPortalBlockEntity {
 
     public static final String THE_END = "minecraft:the_end";
     /** SPAWN_TIME·COOLDOWN_TIME·ATTENTION_INTERVAL·GATEWAY_HEIGHT_ABOVE_SURFACE. */

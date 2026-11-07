@@ -21,8 +21,25 @@
 - 꺼져 있을 때 주소 칸은 바닐라처럼 255자다. Spigot 은 늘 Short.MAX_VALUE 자를 읽어서, 꺼진 서버에 속성까지 실은 긴 포워딩이 오면 Spigot 은 "Unknown data…" 문구, Furnace 는 프레임 상한 초과로 그냥 끊긴다.
 - Paper 의 `proxies.bungee-cord.online-mode`(프록시가 정품 인증을 했다고 볼지, 플러그인용 표시)는 없다.
 
+## 기동 경고(Q2, 2026-11-07)
+`config/StartupWarnings` 가 `FurnaceMain` 에서 한 번 경고를 찍는다. 값은 고치지 않는다(사용자가 고른 대로 동작).
+- `bungeecord=true`: 서명이 없어 방화벽·PROXY 신뢰 목록 없이는 누구든 임의 신원으로 접속할 수 있다는 경고(오프라인 모드면 Spigot 방화벽 2줄도 그대로 나온다).
+- `velocity-secret` 12자 미만: 약한 비밀 경고. `online-mode=true` 와 함께면 online-mode 가 쓰이지 않는다는 안내.
+- `proxy-protocol=true` 와 포워딩 동시 사용, 그때 `proxy-protocol.trusted` 가 비어 있으면 헤더 위조 경고. PROXY 단독 경고는 기존 `NetworkServer` 몫.
+- RCON(켜져 있을 때만): 비밀번호 8자 미만, `rcon.max-clients-per-ip` 가 기본(4)보다 높음·`rcon.max-clients` 이상·2 이하(NAT 뒤 관리자 막힘), 인증 실패 한도를 올렸거나 매우 낮음. 평문 포트가 모든 주소에 열렸다는 경고는 기존 `RconServer.create`.
+- Velocity 와 BungeeCord 동시 사용은 기존대로 기동 실패.
+
+### RCON 한도 키(furnace.properties, 기본 = 이전 고정값)
+| 키 | 기본 | 뜻 |
+|---|---|---|
+| `rcon.max-clients` | 16 | 동시 연결 전체 상한 |
+| `rcon.max-clients-per-ip` | 4 | IP당 동시 연결 상한 |
+| `rcon.max-fails-per-connection` | 5 | 한 연결의 인증 실패 한도(넘으면 끊김) |
+| `rcon.max-fails-per-ip` | 10 | IP당 60초 창의 인증 실패 한도(넘으면 접속 거절) |
+값 범위 1~10000, 벗어나면 기동 실패(키 이름 표시).
+
 ## 시험
-- 단위: `BungeeForwardingTest`(형식·속성 이름 거름·IPv6·잘못된 IP/UUID/JSON), `BungeeLoginTest`(소켓 로그인: Login Success 의 UUID·255자 넘는 textures 속성, 실제 IP 로 IP 밴, 직접 접속 거절, 꺼짐 + 포워딩 거절, Velocity 동시 사용 거부), `ConfigLoaderTest`(기본 꺼짐·값 검사·동시 사용 거부).
+- 단위: `BungeeForwardingTest`(형식·속성 이름 거름·IPv6·잘못된 IP/UUID/JSON), `BungeeLoginTest`(소켓 로그인: Login Success 의 UUID·255자 넘는 textures 속성, 실제 IP 로 IP 밴, 직접 접속 거절, 꺼짐 + 포워딩 거절, Velocity 동시 사용 거부), `ConfigLoaderTest`(기본 꺼짐·값 검사·동시 사용 거부), `StartupWarningsTest`·`RconLimitsTest`·`RconServerTest.configuredLimitsApply`(Q2 경고·키·소켓 한도).
 - 오프라인 서버 + mineflayer 봇(4.39.0, `fakeHost` 로 BungeeCord 와 같은 주소 칸을 보냄, `tools/bot-test` 방식):
   | 상황 | 결과 |
   |---|---|

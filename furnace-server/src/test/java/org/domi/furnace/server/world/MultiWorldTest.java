@@ -109,6 +109,26 @@ class MultiWorldTest {
     }
 
     @Test
+    void paperMadeNetherFolderWithoutDescriptorLoadsAsNether() throws Exception {
+        // Paper/Multiverse 가 만든 네더 월드: 설명서(furnace:world) 없이 level.dat 와 DIM-1/region 만 있다
+        Path dir = tmp.resolve("pnether");
+        Files.createDirectories(dir.resolve("DIM-1/region"));
+        var wgs = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        wgs.putLong("seed", 123L);
+        var data = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        data.putCompound("WorldGenSettings", wgs);
+        var root = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        root.putCompound("Data", data);
+        try (var out = Files.newOutputStream(dir.resolve("level.dat"))) {
+            org.domi.furnace.server.net.io.nbt.NbtIo.writeGzip(out, root, "");
+        }
+        assertEquals(WorldEnvironment.NETHER, manager.storedCreator("pnether").environment(), "폴더 배치로 환경을 추론한다");
+        World w = manager.load("pnether").get(60, TimeUnit.SECONDS);
+        assertEquals("minecraft:the_nether", w.dimensionType().typeKey());
+        assertEquals(123L, w.seed(), "level.dat 의 시드가 이긴다");
+    }
+
+    @Test
     void unloadWithoutSaveDropsChanges() throws Exception {
         World w = create(WorldCreator.named("scratch").generator(WorldGenerator.VOID).build());
         placeStone(w, 1, 64, 1);

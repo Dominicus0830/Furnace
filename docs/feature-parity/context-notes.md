@@ -1034,3 +1034,23 @@
 - 채팅 렌더러는 서명 없는 시스템 메시지(`unsigned-as-system` 과 같은 길)로 받는 사람마다 한 줄씩 보낸다.
 - 시험: `PlayerLayersTest` 12(청크 본문 다시 쓰기·소유권·재전송·차원·보더·장비), `PlayerViewsApiTest` 6, `CancelResyncE2ETest.chatRendererBuildsOneUnsignedLinePerViewer`, 봇 `tools/bot-test/round15/k3.js` 21/21(`round15/probe/K3Probe`).
 
+
+## 2026-11-07 수면·리스폰 바닐라 대조 (묶음 M9)
+- 바닐라 1.21.1 바이트코드 대조(`aqv`=ServerPlayer): `stopSleepInBed(true,true)` 를 부르는 곳은 **disconnect 와 teleportTo(level, …7인자) 둘뿐**이다. 차원 이동(changeDimension)·포털은 깨우지 않는다(자면서 포털에 들어갈 수 없다).
+- 자는 중 텔레포트: `/tp`·setCamera 는 이미 깨웠으나 플러그인 `PlayerHandle.teleport`·`Player.teleportTo`(3·5인자)·`teleportRelative`(엔더 진주 등)는 안 깨웠다. 이제 `Player.wakeThen` 이 이벤트 취소 확인 뒤 소유 스레드(`runOnOwner`)에서 깨우고 **그다음** 목적지로 보정 텔레포트한다(깨우기가 일어설 자리로 옮기는 보정이 목적지를 덮어쓰지 않게 순서 고정). 상대 텔레포트는 깬 뒤 자리 기준.
+- 자는 중 접속 종료: 연결 스레드가 저장 위치(ix/iy/iz)를 침대 위에서 읽어 침대 위가 저장됐다. 소유 region 이 자는 동안 일어설 자리를 `Player.sleepStandUp`(x,y,z,yaw)에 떠 두고(잠들 때 + 1초마다, `PlayerSleeping.refreshStandUp`), `channelInactive` 가 자는 중이면 그 값을 저장 위치로 쓴다(바닐라: 일어선 자리·침대를 보는 방향·pitch 0). 저장을 region 쪽으로 미룰 수 있지만 종료 시 region 이 먼저 멈추면 저장이 사라질 위험이 있어 미리 떠 두는 쪽을 택했다.
+- "네더·엔드 기본 스폰 (0,64,0)" 은 이미 오래전에 공유 스폰으로 바뀌었다(FurnaceMain). 남은 틈 둘: `/setworldspawn` 이 네더·엔드 `World.defaultSpawn` 에 반영되지 않았고(도착할 때 보내는 `SetDefaultSpawnPosition` 이 옛 값), 바닐라는 오버월드가 아니면 `commands.setworldspawn.failure.not_overworld` 로 거부한다(`aok`). 둘 다 고쳤다. 따로 level.dat 을 가진 추가 월드(W1)는 자기 스폰을 유지.
+- `/spawnpoint` 는 리스폰 차원을 오버월드로 고정했으나 바닐라는 `source.getLevel().dimension()` (`aoj`) — 네더에서 쓰면 네더가 리스폰 차원(강제 지점이라 침대 검사 없음). 고쳤다.
+- 스폰 보호(`spawn-protection`)는 바닐라 `DedicatedServer.isUnderSpawnProtection` 이 오버월드가 아니면 거짓(`apn`) — 네더·엔드·추가 월드에서도 걸리던 것을 고쳤다.
+- 안 고친 것(의도): 밤 건너뛰기 후 깨우기는 전역 스레드가 region 의 플레이어를 못 만져 그 플레이어의 region 으로 넘긴다(결과 같음, 그 사이 region 틱이 돌면 `Player.tick` 의 "낮이면 깨기"가 먼저 깨운다). 추가 월드(W1)의 밤 건너뛰기 판정은 주 월드 접속자만 센다(시계가 공유라 설계 판단이 필요 — 도미니코가 원하면 별 묶음).
+- 시험: `PlayerSleepingTest` +4(일어설 자리 캐시·갱신·텔레포트가 먼저 깨움·상대 텔레포트), `SetWorldSpawnDimensionTest` 2. 봇 `tools/bot-test/round-m9/sleep.js` 9/9 — 수정 전 jar 로 같은 스크립트를 돌리면 접속 종료 위치(침대 위 dist=0)·setworldspawn 거부·네더 스폰 3개가 FAIL(대조군).
+
+## 2026-11-07 컨테이너·수레·깔때기 바닐라 대조 (묶음 M3)
+- **이미 있던 것 확인(user-todo 3장이 낡았음)**: 상자/깔때기 수레·상자 배 창(`openEntityContainer`), 명령 블록 수레, 디스펜서 수레 6종 설치, 몹이 수레 밀기(`pushEntities`→`AbstractMinecart.push`), 깔때기 수레 빨아들임, `VindicatorBreakDoorGoal`, 양조기 hopper 삽입 규칙. 양조기 연료 칸은 바닐라 `BrewingStandBlockEntity.canPlaceItem(4)` 가 serverTick 의 연료 판정과 같은 단일 아이템(블레이즈 가루)만 받는 것을 `javap -c` 로 확인(가정 해소).
+- **새로 한 것**
+  - 스포너 수레(`MinecartSpawner`): 매 틱 `BaseSpawner.serverTick(level, blockPosition())`, 이벤트 1 은 엔티티 이벤트로, 저장은 `BaseSpawner.save/load`(이전엔 값만 보존하고 움직이지 않았다).
+  - 라마·상인 라마 카펫: 몸통 칸(BODY)을 늘 쓸 수 있고 `wool_carpets` 태그만 입는다(바닐라 `Llama.canUseSlot=true`, `isBodyArmorItem`). 말 인벤토리 창·우클릭·디스펜서·`body_armor_item` 저장은 기존 말 갑옷 경로를 그대로 쓴다. 당나귀·노새는 불가.
+  - 열지 않은 전리품 표(`LootTable`): 부수거나 죽어 내용물을 쏟을 때, 창 칸에 닿을 때(`EntityContainer`), 깔때기가 빨아들일 때(`EntityInv`) 먼저 표를 푼다(바닐라 `getItem`/`Containers.dropContents` 의 `unpackChestVehicleLootTable(null)`). 광산 상자 수레가 대표 사례. 푸는 길은 `ServerCore.unpackContainerLoot` 가 엔티티도 받도록 넓혔다(연 플레이어 없음 = this_entity·luck 없음).
+  - 엔티티 용기 창 제목: 이름표 이름이 있으면 그 이름, 없으면 종류 이름, 팀이 있으면 접두사·색·접미사(`ContainerEntity.containerTitle`).
+- **남은 차이(가정)**: 제목의 hover(show_entity)·insertion 은 화면에 안 보여 붙이지 않았다. 스포너 수레의 `BaseSpawner` 는 스포너 블록과 같은 코드라 `TODO(엔티티)`(승객·equipment)가 같이 남는다. 광산 수레 아이템의 이름·`entity_data` 컴포넌트는 그대로 미구현(M8 이후).
+- 시험: `ContainerEntityParityTest`(스포너 수레 틱·저장, 라마 카펫, 전리품 표 풀기 시점, 창 제목).

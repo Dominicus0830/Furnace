@@ -15,6 +15,9 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
+import org.domi.furnace.api.world.WorldCreator;
+import org.domi.furnace.api.world.WorldEnvironment;
+import org.domi.furnace.api.world.WorldGenerator;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.slf4j.Logger;
@@ -124,6 +127,68 @@ public final class BukkitWorldImport {
         } catch (IOException | RuntimeException e) {
             log.warn("{} 를 읽지 못해 엔드 드래곤 전투 상태는 새로 시작한다", levelDat, e);
             return null;
+        }
+    }
+
+    /**
+     * 월드 폴더의 폴더 배치로 본 환경(Bukkit·Furnace 공통): region/ 이 있으면 NORMAL, 없고 DIM-1/region 이 있으면 NETHER,
+     * DIM1/region 이면 THE_END. 청크 폴더가 하나도 없으면 null.
+     */
+    public static WorldEnvironment layoutEnvironment(Path worldFolder) {
+        if (Files.isDirectory(worldFolder.resolve("region"))) return WorldEnvironment.NORMAL;
+        if (Files.isDirectory(worldFolder.resolve("DIM-1").resolve("region"))) return WorldEnvironment.NETHER;
+        if (Files.isDirectory(worldFolder.resolve("DIM1").resolve("region"))) return WorldEnvironment.THE_END;
+        return null;
+    }
+
+    /**
+     * Furnace 설명서(furnace:world)가 없는 월드 폴더(Paper/Spigot/Multiverse 가 만든 것)를 올릴 때의 설명서를 폴더 배치와 level.dat 에서 추론한다.
+     * 환경은 폴더 배치로, 생성기는 WorldGenSettings 의 그 차원 생성기(flat · noise large_biomes/amplified)로, 구조물은 generate_features 로 정한다.
+     * 플러그인 생성기(ChunkGenerator)는 level.dat 에 남지 않으므로 알 수 없어 기본 생성기가 된다. 시드는 level.dat 의 것이 쓰이므로 비운다.
+     *
+     * @param data level.dat 의 Data compound(없으면 빈 compound)
+     * @throws IllegalArgumentException 이름이 월드 이름 규칙에 안 맞거나 level.dat 생성기 설정을 읽지 못할 때(기본 생성기로 조용히 대신하지 않는다)
+     */
+    public static WorldCreator inferCreator(Path worldFolder, String name, NbtCompound data) {
+        WorldEnvironment env = layoutEnvironment(worldFolder);
+        if (env == null) env = WorldEnvironment.NORMAL;
+        var b = WorldCreator.named(name).environment(env);
+        b.build();   // 이름 규칙 위반은 여기서 "월드 이름은 …" 로 먼저 걸러낸다
+        try {
+            NbtCompound wgs = data.contains("WorldGenSettings") ? data.getCompound("WorldGenSettings") : new NbtCompound();
+            if (wgs.contains("generate_features")) b.generateStructures(wgs.getBoolean("generate_features"));
+            String dimKey = switch (env) {
+                case NORMAL -> "minecraft:overworld";
+                case NETHER -> "minecraft:the_nether";
+                case THE_END -> "minecraft:the_end";
+            };
+            NbtCompound dims = wgs.contains("dimensions") ? wgs.getCompound("dimensions") : new NbtCompound();
+            NbtCompound gen = dims.contains(dimKey) && dims.getCompound(dimKey).contains("generator")
+                    ? dims.getCompound(dimKey).getCompound("generator") : null;
+            if (gen != null) {
+                String type = gen.getString("type");
+                if (type.equals("minecraft:flat")) {
+                    b.generator(WorldGenerator.FLAT);
+                    NbtCompound s = gen.getCompound("settings");
+                    if (!s.getString("biome").isEmpty()) b.flatBiome(s.getString("biome"));
+                    List<WorldCreator.FlatLayer> layers = new ArrayList<>();
+                    for (Object o : s.getList("layers").items()) {
+                        // 바닐라는 높이 0 층을 허용한다(아무것도 안 깔림) — Furnace 는 1 이상만 받으므로 건너뛴다
+                        if (o instanceof NbtCompound l && l.getInt("height") >= 1) {
+                            layers.add(new WorldCreator.FlatLayer(l.getString("block"), l.getInt("height")));
+                        }
+                    }
+                    b.flatLayers(layers);
+                } else if (env == WorldEnvironment.NORMAL && type.equals("minecraft:noise")) {
+                    String settings = gen.tags().get("settings") instanceof String id ? id : "";
+                    if (settings.equals("minecraft:large_biomes") || settings.equals("large_biomes")) b.generator(WorldGenerator.LARGE_BIOMES);
+                    else if (settings.equals("minecraft:amplified") || settings.equals("amplified")) b.generator(WorldGenerator.AMPLIFIED);
+                }
+            }
+            return b.build();
+        } catch (IllegalArgumentException e) {
+            // 평지 설정을 읽지 못했는데 기본(노이즈) 생성기로 올리면 level.dat 에 설명서가 남아 지형이 영구히 섞인다 — 올리지 않는다.
+            throw new IllegalArgumentException(name + " 의 level.dat 생성기 설정을 읽지 못해 올리지 않는다: " + e.getMessage(), e);
         }
     }
 

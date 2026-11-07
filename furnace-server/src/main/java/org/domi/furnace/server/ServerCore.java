@@ -897,6 +897,7 @@ public final class ServerCore {
      * spawn-protection > 0 이고 월드 스폰과의 체비셰프 거리가 그 이하인가.
      */
     public boolean isUnderSpawnProtection(int x, int z, Player p) {
+        if (!"minecraft:overworld".equals(p.dimension())) return false;   // 바닐라 DedicatedServer.isUnderSpawnProtection: 오버월드만
         if (lists.getOps().isEmpty()) return false;
         if (lists.isOp(profileOf(p))) return false;
         int radius = settings.get().spawnProtection;
@@ -919,7 +920,10 @@ public final class ServerCore {
         levelData.spawnY = y;
         levelData.spawnZ = z;
         levelData.spawnAngle = angle;
-        world.defaultSpawn(new org.domi.furnace.server.world.SpawnPoint(x, y, z, angle));
+        var spawn = new org.domi.furnace.server.world.SpawnPoint(x, y, z, angle);
+        world.defaultSpawn(spawn);
+        // 네더·엔드는 공유 스폰(DerivedLevelData — 오버월드 것)이라 따라간다. 따로 level.dat 을 가진 추가 월드는 자기 스폰을 유지한다.
+        for (World w : worlds()) if (w != world && !w.isExtraWorld()) w.defaultSpawn(spawn);
         var pkt = new org.domi.furnace.server.net.protocol.play.SetDefaultSpawnPosition(x, y, z, angle);
         for (Player p : players()) p.send(pkt);
     }
@@ -1060,6 +1064,7 @@ public final class ServerCore {
         }
         public void unpackContainerLoot(Object container) {
             if (container instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity c) unpackLoot(c, null);
+            else if (container instanceof org.domi.furnace.server.entity.ContainerEntity e) unpackLoot(e, null);
         }
     };
 
