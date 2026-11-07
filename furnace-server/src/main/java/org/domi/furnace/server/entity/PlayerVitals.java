@@ -845,6 +845,15 @@ public final class PlayerVitals {
 
     /** 바닐라 ServerPlayer.die: 사망 메시지·사망 화면, 인벤토리 처리, 엔티티 이벤트 3, 마지막 사망 위치. */
     private void die(DamageType type, Rider causing, Rider direct) {
+        // 바닐라 ServerPlayer.die 첫 줄: gameEvent(ENTITY_DIE). 스컬크 촉매가 듣고 경험치를 가져갈 수 있다(마지막 피해 정보는 그 리스너가 읽는다).
+        deathType = type.key();
+        deathCausing = causing;
+        deathDirect = direct;
+        onOwnerThread(() -> {
+            var lv = player.currentLevel;
+            if (lv != null) lv.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DIE,
+                    new Vec3(player.x(), player.y(), player.z()), org.domi.furnace.server.world.gameevent.GameEventContext.of(player));
+        });
         boolean showMessages = env.gameRule("showDeathMessages");
         boolean keepInventory = env.gameRule("keepInventory");
         Text name = player.displayName();
@@ -871,6 +880,7 @@ public final class PlayerVitals {
         player.removeEntitiesOnShoulder();   // ServerPlayer.die: 어깨의 몹을 내려놓는다
         DeathListener l = deathListener;
         if (l != null && !spectator) l.onDeath(outcome.keepInventory());
+        if (!spectator) onOwnerThread(this::dropDeathExperience);   // dropAllDeathLoot 의 dropExperience(전리품 다음)
         var board = player.scoreboard();   // 바닐라 ServerPlayer.die: deathCount 기준 +1
         if (board != null) board.incrementCriteria(player, org.domi.furnace.server.scores.ObjectiveCriteria.DEATH_COUNT);
         Targetable killer = player.getKillCredit();
@@ -888,6 +898,52 @@ public final class PlayerVitals {
     }
 
     private boolean keepLevelOnRespawn;
+
+    // ------------------------------------------------------------------ 사망 경험치(바닐라 Player.getBaseExperienceReward·dropExperience)
+
+    /** 마지막 사망의 피해 종류·원인(스컬크 촉매의 발전 과제가 getLastDamageSource 로 읽는다). */
+    private volatile String deathType;
+    private volatile Rider deathCausing, deathDirect;
+    /** skipDropExperience: 스컬크 촉매가 경험치를 가져갔다. 새 ServerPlayer(리스폰)에서는 다시 false. */
+    private volatile boolean experienceConsumed;
+
+    public String deathType() { return deathType; }
+
+    public Rider deathCausing() { return deathCausing; }
+
+    public Rider deathDirect() { return deathDirect; }
+
+    public boolean wasExperienceConsumed() { return experienceConsumed; }
+
+    public void skipDropExperience() { experienceConsumed = true; }
+
+    /**
+     * Player.getBaseExperienceReward: keepInventory 게임룰이 켜졌거나 관전자면 0, 아니면 레벨×7(최대 100).
+     * 바닐라처럼 int 곱셈(아주 큰 레벨은 넘쳐 음수가 될 수 있다 — 그때도 같다). EnchantmentHelper.processMobExperience 는
+     * 1.21.1 데이터에서 쓰는 인챈트가 없어 원래 값 그대로다(데이터 팩 mob_experience 효과는 가정: 반영 안 함).
+     */
+    public int baseExperienceReward() {
+        if (env.gameRule("keepInventory")) return 0;
+        synchronized (this) {
+            if (gameMode == GameMode.SPECTATOR) return 0;
+            int i = xpLevel * 7;
+            return i > 100 ? 100 : i;
+        }
+    }
+
+    /** LivingEntity.dropExperience(isAlwaysExperienceDropper = true): 이미 촉매가 가져가지 않았으면 죽은 자리에 구슬로 낸다. */
+    private void dropDeathExperience() {
+        if (experienceConsumed) return;
+        var lv = player.currentLevel;
+        int amount = baseExperienceReward();
+        if (lv != null && amount > 0) ExperienceOrb.award(lv, player.x(), player.y(), player.z(), amount);
+    }
+
+    /** 플레이어 소유 스레드에서 실행(region 에 붙은 적 없는 시험 플레이어는 바로). 순서는 보존된다. */
+    private void onOwnerThread(Runnable task) {
+        if (player.onOwnerThread()) task.run();
+        else player.runOnOwner(task);
+    }
 
     /** 플러그인 API setHealth(CraftBukkit 과 같다): 0 이하로 내려 살아 있던 플레이어는 일반 사망 처리. */
     public void setHealth(float h) {
@@ -1343,6 +1399,7 @@ public final class PlayerVitals {
         respawnEpoch++;
         boolean keepXp = keepLevelOnRespawn || gameMode == GameMode.SPECTATOR;
         keepLevelOnRespawn = false;
+        experienceConsumed = false;
         effects.clear();
         health = MAX_HEALTH;
         absorption = 0;
