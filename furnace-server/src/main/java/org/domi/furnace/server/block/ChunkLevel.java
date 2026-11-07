@@ -1094,6 +1094,12 @@ public abstract class ChunkLevel implements BlockLevel {
 
     public Pos clampToBorder(Pos p) { return clampToBorder(p.x(), p.y(), p.z()); }
 
+    /** 다른 차원 레벨 보더의 clampToBounds(지옥문: 목적 레벨 보더로 출구를 자른다). 그 차원이 이 레벨이면 clampToBorder 와 같다. */
+    public Pos clampToBorderOf(String dimension, double x, double y, double z) {
+        double[] b = dimension.equals(dimension()) ? borderBounds() : services().borderBoundsOf(dimension);
+        return new Pos(Entity.floor(Math.clamp(x, b[0], b[2] - 1.0)), Entity.floor(y), Entity.floor(Math.clamp(z, b[1], b[3] - 1.0)));
+    }
+
     @Override
     public void setBlockEntity(BlockEntity be) {
         Pos pos = be.pos();
@@ -1621,6 +1627,13 @@ public abstract class ChunkLevel implements BlockLevel {
     /** EntityType.spawn(level, pos, reason, snapToGround, extendDown) — 만든 몹(몹이 아니면 null). */
     public org.domi.furnace.server.entity.Mob spawnMob(String entityType, Pos pos, boolean snapToGround, boolean extendDown,
             org.domi.furnace.server.entity.spawn.SpawnReason reason) {
+        return spawnMob(entityType, pos, snapToGround, extendDown, reason,
+                reason == org.domi.furnace.server.entity.spawn.SpawnReason.DISPENSER ? "DISPENSE_EGG" : "SPAWNER_EGG");
+    }
+
+    /** pluginReason: 플러그인 CreatureSpawnEvent 의 원인 이름(바닐라 동작에는 영향 없음). */
+    public org.domi.furnace.server.entity.Mob spawnMob(String entityType, Pos pos, boolean snapToGround, boolean extendDown,
+            org.domi.furnace.server.entity.spawn.SpawnReason reason, String pluginReason) {
         Entity e = org.domi.furnace.server.entity.Entities.create(this, entityType);
         if (!(e instanceof org.domi.furnace.server.entity.Mob mob)) return null;
         double d0 = 0.0;
@@ -1636,7 +1649,7 @@ public abstract class ChunkLevel implements BlockLevel {
         if (mob instanceof org.domi.furnace.server.entity.Villager v) v.setFinalizeReason(reason);
         if (mob instanceof org.domi.furnace.server.entity.Raider r) r.setFinalizeReason(reason);   // 알·발사기 마녀도 습격에 참여
         mob.finalizeSpawnGroup(random, getCurrentDifficultyAt(mob.blockPosition()), null);   // 무리 데이터 경로(AgeableMob·말 능력치)
-        addFreshEntityWithPassengers(mob.spawnReason(reason == org.domi.furnace.server.entity.spawn.SpawnReason.DISPENSER ? "DISPENSE_EGG" : "SPAWNER_EGG"));
+        addFreshEntityWithPassengers(mob.spawnReason(pluginReason));
         mob.makeSound(mob.ambientSoundForSpawn());
         return mob;
     }
