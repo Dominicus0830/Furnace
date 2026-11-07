@@ -525,6 +525,13 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         return in;
     }
 
+    /** 이 view 가 그 청크를 읽을 수 있는가(격자 안이고 칸이 있다 — 단일 청크 view 는 중심만). 세지 않는다(월드젠 훅 영역용). */
+    public boolean hasCell(int chunkX, int chunkZ) {
+        if (gridCols == null) return col != null && chunkX == cx && chunkZ == cz;
+        if (Math.abs(chunkX - gridCenterX) > gridReadRadius || Math.abs(chunkZ - gridCenterZ) > gridReadRadius) return false;
+        return lazyFill != null || gridCols[gridIndex(chunkX, chunkZ)] != null;
+    }
+
     /** 격자 칸의 청크(없으면 null). /place 라이브 격자에서는 없는 칸에 닿은 횟수를 센다. */
     private ChunkColumn cell(int chunkX, int chunkZ) {
         int idx = gridIndex(chunkX, chunkZ);

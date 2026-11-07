@@ -48,6 +48,13 @@ public final class SuperflatWorldSource implements WorldSource {
         this.directBits = reg.directBits();
     }
 
+    /** 플러그인 월드젠 단계 훅(W3). 평지·빈 월드는 NOISE(층 쌓기)만 바닐라가 있고, 장식 훅은 그 청크 안에만 쓸 수 있다. */
+    private volatile GenHooks genHooks;
+
+    public void generationHooks(GenHooks hooks) { this.genHooks = hooks; }
+
+    public GenHooks generationHooks() { return genHooks; }
+
     /** FixedBiomeSource 의 바이옴 레지스트리 id. */
     public int biomeId() { return biomeId; }
 
@@ -106,11 +113,24 @@ public final class SuperflatWorldSource implements WorldSource {
         ChunkColumn c = minY == ChunkColumn.MIN_Y && sectionCount == ChunkColumn.SECTION_COUNT
                 ? new ChunkColumn(biomeId)
                 : new ChunkColumn(biomeId, directBits, ChunkColumn.DEFAULT_BIOME_DIRECT_BITS, minY, sectionCount);
-        for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
-                for (int i = 0; i < column.length; i++) if (column[i] != 0) c.setBlock(x, minY + i, z, column[i]);
-                c.setSurface(x, z, column.length);
+        GenHooks hooks = genHooks;
+        if (hooks == null || hooks.vanilla(org.domi.furnace.api.worldgen.GenerationStage.NOISE, chunkX, chunkZ)) {
+            for (int x = 0; x < 16; x++) {
+                for (int z = 0; z < 16; z++) {
+                    for (int i = 0; i < column.length; i++) if (column[i] != 0) c.setBlock(x, minY + i, z, column[i]);
+                    c.setSurface(x, z, column.length);
+                }
             }
+        }
+        if (hooks != null) {
+            hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.NOISE, c, chunkX, chunkZ);
+            hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.SURFACE, c, chunkX, chunkZ);
+            hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.CARVERS, c, chunkX, chunkZ);
+            int[] biomeIds = new int[c.sectionCount() * 64];
+            java.util.Arrays.fill(biomeIds, biomeId);
+            var view = new org.domi.furnace.server.world.gen.feature.FeatureWorldView(c, chunkX, chunkZ, biomeIds, hooks.seed());
+            hooks.decorate(view, chunkX, chunkZ, GenHooks.decorationSeed(hooks.seed(), chunkX, chunkZ));
+            c.rebuildHeightmapsAfterSurface();
         }
         return c;
     }

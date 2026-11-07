@@ -55,6 +55,9 @@
 | `plugins.dev-mode` | ON/OFF | false | true|false | 개발 모드 — 플러그인 핫 리로드를 허용한다 | true 면 경고 |
 | `plugins.dev-mode.auto-reload` | ON/OFF | false | true|false | 개발 모드에서 jar 가 바뀌면 자동으로 다시 읽는다 |  |
 | `worlds.autoload` | 목록 | (없음) | 이름,... | 시작 때 불러올 추가 월드 |  |
+| `worldgen-hooks.overworld` | 키 | (없음) | namespace:path | 오버월드에 걸 플러그인 월드젠 훅(비면 바닐라, `docs/api/worldgen-hooks.md`) |  |
+| `worldgen-hooks.the_nether` | 키 | (없음) | namespace:path | 네더에 걸 플러그인 월드젠 훅(비면 바닐라) |  |
+| `worldgen-hooks.the_end` | 키 | (없음) | namespace:path | 엔드에 걸 플러그인 월드젠 훅(비면 바닐라) |  |
 | `enchantments.disabled` | 목록 | (없음) | id,... | 끌 마법부여 id(예: minecraft:mending) |  |
 | `io-uring` | ON/OFF | false | true\|false | 리눅스 io_uring 으로 접속을 받는다(못 쓰면 경고 후 epoll/NIO) |  |
 | `rcon.max-clients` | 수 | 16 | 1 이상 | RCON 동시 연결 수 상한 | 낮추거나 올리면 경고(StartupWarnings) |

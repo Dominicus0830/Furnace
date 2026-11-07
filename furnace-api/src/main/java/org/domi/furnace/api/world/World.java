@@ -73,6 +73,22 @@ public interface World {
     /** 지금 로드돼 있는가(최근 값). */
     boolean isChunkLoaded(int chunkX, int chunkZ);
 
+    /**
+     * 그 청크를 이 월드의 생성기(시드·월드젠 훅 포함)로 처음부터 다시 만들어 바꾼다(불만 표 41번). 결과 블록은 같은 시드의 새 월드에서
+     * 그 청크가 처음 만들어질 때와 같다 — 이웃 청크에서 넘어오는 나무·구조물 조각도 포함하고, 이 청크에서 이웃으로 넘치는 장식은
+     * 이웃을 바꾸지 않는다. 블록·바이옴·블록 엔티티·예약 틱·구조물 참조·POI 를 바꾸고, 빛을 다시 계산하고, 그 청크를 보는
+     * 플레이어에게 다시 보낸다. 그 청크를 가진 region 스레드에서만 바꾸므로 다른 region 은 건드리지 않는다.
+     * 로드돼 있지 않으면 먼저 불러온다. 아무 스레드. 내린 월드면 false.
+     */
+    default CompletableFuture<Boolean> regenerateChunk(int chunkX, int chunkZ) {
+        return regenerateChunk(chunkX, chunkZ, ChunkRegeneration.DEFAULT);
+    }
+
+    /** {@link #regenerateChunk(int, int)} 에 엔티티 처리를 고른 판. */
+    default CompletableFuture<Boolean> regenerateChunk(int chunkX, int chunkZ, ChunkRegeneration options) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("regenerateChunk"));
+    }
+
     // ------------------------------------------------------------------ 엔티티
 
     /**

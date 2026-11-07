@@ -53,6 +53,8 @@ public final class PluginBootstrapper {
     private final PluginRegistryStore registries = new PluginRegistryStore();
     private final LifecycleHooks lifecycle = new LifecycleHooks();
     private final GameRegistryStore gameRegistries = new GameRegistryStore();
+    private final GenerationHookStore generationHooks = new GenerationHookStore();
+    private volatile boolean generationHooksCollected;
     /** 같은 훅의 데이터 주도 몫(몹 변종·그림·마법부여·태그 더하기). 항목은 시작 때 한 번 모아 데이터 팩과 함께 읽힌다. */
     private final GameRegistryHooks dataRegistries = new GameRegistryHooks();
     private final List<org.domi.furnace.server.data.DynamicRegistries.Contribution> dataEntries = new CopyOnWriteArrayList<>();
@@ -91,6 +93,33 @@ public final class PluginBootstrapper {
     LifecycleHooks lifecycle() { return lifecycle; }
 
     public GameRegistryStore gameRegistries() { return gameRegistries; }
+
+    /** 플러그인 월드젠 단계 훅(W3). */
+    public GenerationHookStore generationHooks() { return generationHooks; }
+
+    /** 월드젠 훅(WORLD_GENERATION)을 돌린다 — 서버 시작 때 게임 레지스트리 다음, 월드를 만들기 전에 한 번. */
+    public void collectGenerationHooks() {
+        List<GenerationHookStore.Registrar> opened = new ArrayList<>();
+        lifecycle.fire(LifecycleEvents.WORLD_GENERATION, owner -> {
+            Prepared p = find(owner);
+            GenerationHookStore.Registrar r = generationHooks.registrar(owner, p.description().namespace(), p.logger());
+            opened.add(r);
+            return r;
+        });
+        opened.forEach(GenerationHookStore.Registrar::close);
+        generationHooksCollected = true;
+    }
+
+    /** 핫 리로드로 다시 부트스트랩한 플러그인 하나의 월드젠 훅을 돌린다(같은 키를 새 훅으로). */
+    private void reregisterGenerationHooks(Prepared p) {
+        if (!generationHooksCollected) return;
+        GenerationHookStore.Registrar r = generationHooks.registrar(p.description().name(), p.description().namespace(), p.logger());
+        try {
+            lifecycle.fireOwner(p.description().name(), LifecycleEvents.WORLD_GENERATION, r);
+        } finally {
+            r.close();
+        }
+    }
 
     /**
      * 게임 레지스트리 훅(GAME_REGISTRIES)을 돌려 플러그인 바이옴·차원 타입을 모으고, base(바닐라) 뒤에 붙인 전송용 세트를 돌려 준다.
@@ -132,6 +161,7 @@ public final class PluginBootstrapper {
         registries.removeOwner(name);
         lifecycle.removeOwner(name);
         gameRegistries.deactivateOwner(name);
+        generationHooks.removeOwner(name);   // 그 월드의 새 청크는 바닐라로(월드가 플러그인 클래스를 쥐지 않게)
         dataRegistries.removeOwner(name);   // 태그 더하기만 빠진다 — 레지스트리 항목은 다음 시작까지 남는다
     }
 
@@ -427,7 +457,10 @@ public final class PluginBootstrapper {
     /** jar 를 다시 읽어 부트스트랩까지 한다(실패하면 로그 후 null). 의존 플러그인은 이미 준비돼 있어야 한다. */
     Prepared reprepare(Candidate c) {
         Prepared p = prepare(c);
-        if (p != null) reregisterGameRegistries(p);
+        if (p != null) {
+            reregisterGameRegistries(p);
+            reregisterGenerationHooks(p);
+        }
         return p;
     }
 

@@ -3,6 +3,8 @@
 //   /worlds create <이름> [normal|nether|the_end] [default|large_biomes|amplified|flat|void] [시드]
 //   /worlds load <이름>             저장된 설명서(level.dat 의 furnace:world)로 불러온다
 //   /worlds unload <이름> [save]    save 기본 true. 플레이어가 있으면 거절
+//   /worlds regen [반경]            실행 위치 청크(둘레 반경 0..8 청크)를 처음부터 다시 생성한다(W3, 엔티티는 그대로)
+//   /worlds regen <청크x> <청크z> [반경]
 // 만들기·내리기는 월드 스레드에서 돌고, 결과는 끝난 뒤 전역 스레드에서 알린다. 들어가기는 바닐라 /execute in <키> run tp … 로.
 package org.domi.furnace.server.command.builtin;
 
@@ -39,10 +41,42 @@ public final class WorldsCommands {
                                         .then(argument("seed", Arguments.longArg(Long.MIN_VALUE, Long.MAX_VALUE))
                                                 .executes(c -> create(c, str(c, "environment"), str(c, "generator"), c.getArgument("seed", Long.class))))))))
                 .then(literal("load").then(argument("name", Arguments.word()).executes(c -> load(c.getSource(), str(c, "name")))))
+                .then(literal("regen")
+                        .executes(c -> regen(c.getSource(), here(c.getSource())[0], here(c.getSource())[1], 0))
+                        .then(argument("radius", Arguments.integer(0, MAX_REGEN_RADIUS))
+                                .executes(c -> regen(c.getSource(), here(c.getSource())[0], here(c.getSource())[1], c.getArgument("radius", Integer.class))))
+                        .then(argument("chunkX", Arguments.integer()).then(argument("chunkZ", Arguments.integer())
+                                .executes(c -> regen(c.getSource(), c.getArgument("chunkX", Integer.class), c.getArgument("chunkZ", Integer.class), 0))
+                                .then(argument("radius", Arguments.integer(0, MAX_REGEN_RADIUS))
+                                        .executes(c -> regen(c.getSource(), c.getArgument("chunkX", Integer.class), c.getArgument("chunkZ", Integer.class),
+                                                c.getArgument("radius", Integer.class)))))))
                 .then(literal("unload").then(argument("name", Arguments.word())
                         .executes(c -> unload(c.getSource(), str(c, "name"), true))
                         .then(argument("save", Arguments.bool())
                                 .executes(c -> unload(c.getSource(), str(c, "name"), c.getArgument("save", Boolean.class)))))));
+    }
+
+    /** /worlds regen 반경 상한 — 17×17 = 289 청크. */
+    static final int MAX_REGEN_RADIUS = 8;
+
+    private static int[] here(CommandSource s) {
+        return new int[] {(int) Math.floor(s.x()) >> 4, (int) Math.floor(s.z()) >> 4};
+    }
+
+    private static int regen(CommandSource s, int cx, int cz, int radius) {
+        World w = s.level();
+        int n = (2 * radius + 1) * (2 * radius + 1);
+        java.util.List<CompletableFuture<Boolean>> all = new java.util.ArrayList<>(n);
+        for (int dz = -radius; dz <= radius; dz++)
+            for (int dx = -radius; dx <= radius; dx++) all.add(w.regenerateChunk(cx + dx, cz + dz, false, false));
+        s.sendSuccess(() -> Text.text("청크 " + n + "개 다시 생성 중… (" + w.dimension() + " " + cx + "," + cz + ")"), true);
+        CompletableFuture<Integer> done = CompletableFuture.allOf(all.toArray(new CompletableFuture[0])).thenApply(v -> {
+            int ok = 0;
+            for (var f : all) if (Boolean.TRUE.equals(f.join())) ok++;
+            return ok;
+        });
+        report(s, done, ok -> "청크 " + ok + "/" + n + "개를 다시 생성했다");
+        return n;
     }
 
     private static String str(CommandContext<CommandSource> c, String name) { return c.getArgument(name, String.class); }

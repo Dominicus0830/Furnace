@@ -221,6 +221,8 @@ public final class FurnaceMain {
         // 게임 레지스트리 훅: 플러그인 바이옴·차원 타입을 바닐라 항목 뒤에 붙인 세트(바닐라 인덱스는 그대로)
         RegistrySet registries = pluginBoot.collectGameRegistries(RegistrySet.load("registries/1.21.1.txt"));
         RegistrySet.install(registries);   // 데이터 팩을 읽으면 그쪽(동기화 레지스트리를 다시 만든 것)으로 바뀐다
+        pluginBoot.collectGenerationHooks();   // 월드젠 단계 훅(W3) — 월드를 만들기 전에
+        var worldSettings = org.domi.furnace.server.world.WorldSettings.load(furnaceProps);
         int plainsBiome = Math.max(0,
                 registries.indexOf("minecraft:worldgen/biome", "minecraft:plains"));
         int biomeCount = registries.entries("minecraft:worldgen/biome").size();
@@ -242,6 +244,10 @@ public final class FurnaceMain {
             flatSource = new org.domi.furnace.server.world.gen.SuperflatWorldSource(blockRegistry,
                     org.domi.furnace.server.world.gen.SuperflatWorldSource.layersOf(flatSettings), biomeId);
         }
+        // 월드젠 단계 훅(furnace.properties worldgen-hooks.overworld, 기본 없음) — 스폰 계산·첫 청크보다 먼저 건다
+        org.domi.furnace.server.world.gen.GenHooks.attach(flatSource != null ? flatSource : noiseSource,
+                worldSettings.generationHooks("minecraft:overworld"), pluginBoot.generationHooks()::get, "minecraft:overworld",
+                config.levelSeed(), blockRegistry, registries);
         var anvilSource = new org.domi.furnace.server.world.gen.AnvilWorldSource(
                 worldDir, regionStore, chunkCodec, flatSource != null ? flatSource : noiseSource);
         var entityStore = new org.domi.furnace.server.world.anvil.RegionFileStore(dimension.storageDir(worldDir), "entities", props.syncChunkWrites);
@@ -336,7 +342,6 @@ public final class FurnaceMain {
         // 접속자·시계·엔티티 id 는 오버월드와 공유한다(Dimensions.register). 조립은 추가 월드(W1)와 같은 WorldManager.build 로.
         org.domi.furnace.server.world.Dimensions dimensions = new org.domi.furnace.server.world.Dimensions();
         dimensions.register(world);
-        var worldSettings = org.domi.furnace.server.world.WorldSettings.load(furnaceProps);
         var worldManager = new org.domi.furnace.server.world.WorldManager(new org.domi.furnace.server.world.WorldManager.Parts(
                 universe, blockRegistry, itemRegistry, registries, plainsBiome, biomeDirectBits, chunkPool, scheduler, regionPool, config,
                 props.syncChunkWrites, ioPool, genPool), dimensions, levelData, levelName);
@@ -347,6 +352,8 @@ public final class FurnaceMain {
             if (dimSeed != config.levelSeed()) log.info("{} 시드 {}(dimension-seed 설정 — 바닐라와 다른 지형)", type.levelKey(), dimSeed);
             var gen = NoiseWorldSource.create(type.gen(), dimSeed, blockRegistry, registries);
             applyWorldGenOptions(levelData, gen);
+            org.domi.furnace.server.world.gen.GenHooks.attach(gen, worldSettings.generationHooks(type.levelKey()),
+                    pluginBoot.generationHooks()::get, type.levelKey(), dimSeed, blockRegistry, registries);
             var built = worldManager.build(type, worldDir, gen);
             extraStores.addAll(built.stores());
             World w = built.world();
