@@ -155,7 +155,7 @@ public class FallingBlockEntity extends Entity {
         try {
             be.loadWithComponentsInLevel(level, merged);
         } catch (RuntimeException ex) {
-            return;
+            // 바닐라는 읽기 실패를 기록만 하고 넘어간다(setChanged 는 그대로 부른다)
         }
         be.setChanged(level);
     }

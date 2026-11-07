@@ -13,7 +13,6 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.entity.DecoratedPotBlockEntity;
 import org.domi.furnace.server.entity.ItemStack;
-import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.menu.Stacks;
 
