@@ -1,5 +1,6 @@
 // 바닐라 AbstractArrow: 날아가며 중력 0.05·공기 0.99(물 0.6)로 줄고, 블록에 박히면 1200틱 뒤 사라지며, 엔티티를 맞추면 속력 × 기본 피해(2)만큼 때린다.
-// TODO:, 화살 박힘 표시(arrow count), 관통 시 맞은 대상 기록, 플레이어가 쏜 화살의 줍기 규칙.
+// 생물에 맞으면(관통 화살이 아니면) 박힌 화살 수가 늘고, 광산 수레도 맞춘다(불붙은 화살이 TNT 수레를 터뜨림). 줍기는 pickup 규칙(허용/창조 전용/불가).
+// TODO: 광산 수레 외 Targetable 이 아닌 엔티티(배·액자·그림·Interaction)는 아직 투사체에 맞지 않는다.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.BlockInfo;
@@ -209,6 +210,51 @@ public abstract class AbstractArrow extends Projectile {
 
     protected float waterInertia() { return 0.6F; }
 
+    /** 투사체가 Targetable 이 아닌 광산 수레를 맞출 때 쓰는 껍데기(Hit 는 Targetable 만 가진다). */
+    static final class CartTarget implements Targetable {
+        final AbstractMinecart cart;
+
+        CartTarget(AbstractMinecart cart) { this.cart = cart; }
+
+        @Override public int id() { return cart.id(); }
+        @Override public double x() { return cart.x(); }
+        @Override public double y() { return cart.y(); }
+        @Override public double z() { return cart.z(); }
+        @Override public double eyeY() { return cart.eyeY(); }
+        @Override public float bbWidth() { return cart.bbWidth(); }
+        @Override public float bbHeight() { return cart.bbHeight(); }
+        @Override public AABB boundingBox() { return cart.boundingBox(); }
+        @Override public Pos blockPosition() { return cart.blockPosition(); }
+        @Override public boolean isAlive() { return !cart.isRemoved(); }
+        @Override public boolean canBeSeenAsEnemy() { return false; }
+        @Override public double visibilityPercent(Entity looker) { return 1.0; }
+        @Override public boolean isPlayer() { return false; }
+        @Override public boolean hurtByMob(Entity.Damage source, float amount, Mob attacker) { return cart.hurtBy(source, amount, attacker); }
+        @Override public void knockback(double strength, double dx, double dz) {}
+        @Override public org.domi.furnace.api.text.Text displayName() { return cart.displayName(); }
+        @Override public boolean isPickable() { return cart.isPickable(); }
+    }
+
+    /** 바닐라 화살은 맞출 수 있는 엔티티 아무거나 맞춘다. 지금은 Targetable 이 아닌 것 중 광산 수레만 더 본다. */
+    @Override
+    protected Hit findHitEntity(double fx, double fy, double fz, double tx, double ty, double tz) {
+        Hit best = super.findHitEntity(fx, fy, fz, tx, ty, tz);
+        AABB box = boundingBox().expandTowards(vx(), vy(), vz()).inflate(1.0);
+        double bestD = best == null ? Double.MAX_VALUE : (best.x() - fx) * (best.x() - fx) + (best.y() - fy) * (best.y() - fy) + (best.z() - fz) * (best.z() - fz);
+        for (Entity e : level.getEntities(this, box, x -> x instanceof AbstractMinecart m && m.isPickable())) {
+            CartTarget ct = new CartTarget((AbstractMinecart) e);
+            if (!canHitTarget(ct) || !shouldHit(ct)) continue;
+            double[] p = clipTarget(ct, fx, fy, fz, tx, ty, tz);
+            if (p == null) continue;
+            double d = (p[0] - fx) * (p[0] - fx) + (p[1] - fy) * (p[1] - fy) + (p[2] - fz) * (p[2] - fz);
+            if (d < bestD) {
+                bestD = d;
+                best = new Hit(ct, null, 0, p[0], p[1], p[2]);
+            }
+        }
+        return best;
+    }
+
     protected String defaultHitGroundSound() { return "entity.arrow.hit"; }
 
     /** 스스로가 아닌 이동(피스톤 등)으로 박힌 곳에서 떨어지면 떨어지기 시작한다. */
@@ -254,19 +300,22 @@ public abstract class AbstractArrow extends Projectile {
             damage = (int) Math.min(extra + damage, Integer.MAX_VALUE);
         }
         Targetable owner = getOwner();
-        if (owner instanceof LivingEntity le) le.setLastHurtMob(target);
+        if (owner instanceof LivingEntity le && !(target instanceof CartTarget)) le.setLastHurtMob(target);
         boolean enderman = target instanceof Entity e && e.type().name().equals("minecraft:enderman");
-        int oldFire = target instanceof Entity e ? e.remainingFireTicks() : 0;
-        if (isOnFire() && !enderman && target instanceof Entity e) e.igniteForSeconds(5.0F);
+        Entity burnTarget = target instanceof Entity e ? e : target instanceof CartTarget c ? c.cart : null;   // 수레도 불이 붙는다
+        int oldFire = burnTarget != null ? burnTarget.remainingFireTicks() : 0;
+        if (isOnFire() && !enderman && burnTarget != null) burnTarget.igniteForSeconds(5.0F);
         Entity.Damage dmg = new Entity.Damage(owner instanceof Player ? "arrow" : "arrow", false, false, false);
         boolean hurt;
         Mob attacker = owner instanceof Mob m ? m : null;
-        if (target instanceof LivingEntity le) hurt = le.hurtByVia(dmg, (float) damage, owner, this);
+        if (target instanceof CartTarget ct) hurt = ct.cart.hurtByVia(dmg, (float) damage, owner, this);   // 직접 원인(화살)을 넘긴다
+        else if (target instanceof LivingEntity le) hurt = le.hurtByVia(dmg, (float) damage, owner, this);
         else if (target instanceof Player pl) hurt = pl.hurtByVia(dmg, (float) damage, owner, this);   // 막기 방향·관통은 화살로, 주인이 플레이어면 pvp 를 본다
         else hurt = target.hurtByMob(dmg, (float) damage, attacker);
         if (hurt) {
             if (enderman) return;
             if (target instanceof LivingEntity le) {
+                if (getPierceLevel() <= 0) le.setArrowCount(le.getArrowCount() + 1);   // 몸에 박힌 화살
                 doKnockback(le);
                 doPostHurtEffects(le);
                 if (!le.isAlive() && piercedAndKilled != null) piercedAndKilled.add(le);
@@ -281,10 +330,11 @@ public abstract class AbstractArrow extends Projectile {
                     }
                 }
             }
+            if (target instanceof Player pl && getPierceLevel() <= 0) pl.runOnOwner(() -> pl.setArrowCount(pl.arrowCount() + 1));   // 다른 region 의 플레이어일 수 있다
             playSound(soundEvent, 1.0F, 1.2F / (random.nextFloat() * 0.2F + 0.9F));
             if (getPierceLevel() <= 0) discard();
         } else {
-            if (target instanceof Entity e) e.setRemainingFireTicks(oldFire);
+            if (burnTarget != null) burnTarget.setRemainingFireTicks(oldFire);
             // 막히거나 무적이면 deflect(REVERSE) 후 속도 × 0.2. 거의 멈췄으면 (줍기 가능 시 아이템을 떨구고) 사라진다
             deflectReverse();
             setOwner(getOwner());
