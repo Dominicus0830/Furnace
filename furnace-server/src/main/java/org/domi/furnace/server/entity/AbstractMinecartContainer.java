@@ -59,6 +59,7 @@ public abstract class AbstractMinecartContainer extends AbstractMinecart impleme
     }
 
     private void dropContents() {
+        unpackLootTable();   // Containers.dropContents 의 getItem 이 표를 먼저 푼다
         for (int i = 0; i < items.length; i++) {
             ItemStack s = items[i];
             items[i] = ItemStack.EMPTY;
