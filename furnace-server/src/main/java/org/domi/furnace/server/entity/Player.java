@@ -268,6 +268,25 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     /** 플레이어 데이터 파일에 RootVehicle 이 남아 있다고 아는가(주인 region 스레드 전용, PlayerVehicleSave). */
     public boolean rootVehicleOnDisk;
+
+    /** 연결이 단 저장 요청 입구(save-all·백업): 이벤트 루프에서 스냅샷을 떠 플레이어 데이터 실행기에 넣은 뒤 완료. 연결 전·시험은 null. */
+    private volatile java.util.function.Supplier<java.util.concurrent.CompletableFuture<Void>> saveRequest;
+
+    public void saveRequest(java.util.function.Supplier<java.util.concurrent.CompletableFuture<Void>> r) { this.saveRequest = r; }
+
+    /**
+     * 지금 상태를 저장하라고 요청한다(바닐라 PlayerList.saveAll 의 한 사람 몫). 반환 future 는 저장이 플레이어 데이터 실행기(world.playerIo)에
+     * 들어간 뒤 완료 — 실제 기록은 그 실행기 순서대로 뒤따른다. 끊겼거나 입구가 없으면 바로 완료.
+     */
+    public java.util.concurrent.CompletableFuture<Void> requestSave() {
+        var r = saveRequest;
+        if (r == null || isDisconnected()) return java.util.concurrent.CompletableFuture.completedFuture(null);
+        try {
+            return r.get();
+        } catch (RuntimeException e) {
+            return java.util.concurrent.CompletableFuture.failedFuture(e);
+        }
+    }
     /** 퇴장 때 탈것 처리를 마쳤다(두 번 하지 않는다). */
     boolean quitMountHandled;
 
@@ -679,6 +698,13 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public int sleepCounter() { return sleepCounter; }
 
     public void sleepCounter(int v) { sleepCounter = v; }
+
+    /** 자는 동안 소유 region 이 떠 둔 일어설 자리 {x, y, z, yaw}(자지 않으면 null) — 자는 중 접속 종료의 저장 위치. */
+    private volatile double[] sleepStandUp;
+
+    public double[] sleepStandUp() { return sleepStandUp; }
+
+    public void sleepStandUp(double[] v) { sleepStandUp = v; }
 
     /** Player.isSleepingLongEnough: 자는 중이고 100틱 이상. */
     public boolean isSleepingLongEnough() { return sleepingPos != null && sleepCounter >= 100; }
@@ -1630,8 +1656,28 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 서버가 플레이어를 (x,y,z)로 옮긴다 — 연결의 IO 스레드가 보정 텔레포트를 보내고 이동 대기열을 비운다. */
     public void teleportTo(double x, double y, double z) {
         if (!vitals().env().gameEvents().playerTeleport(this, x, y, z)) return;   // 플러그인 PlayerTeleportEvent 취소
+        if (wakeThen(() -> teleportTo0(x, y, z))) return;
+        teleportTo0(x, y, z);
+    }
+
+    private void teleportTo0(double x, double y, double z) {
         var t = teleporter;
         if (t != null) t.accept(new double[] {x, y, z});
+    }
+
+    /**
+     * ServerPlayer.teleportTo(level, …) 의 첫머리(isSleeping → stopSleepInBed(true, true)): 자고 있으면 깨운 뒤에 then 을 한다. 깨우기는
+     * 침대 칸·일어설 자리를 읽고 차원 잠 목록을 바꾸므로 소유 region 스레드에서 해야 한다 — 다른 스레드(플러그인·연결)가 불렀으면 소유
+     * 스레드 큐에 깨우기와 then 을 차례로 넣는다(깨우기가 일어설 자리로 옮기는 보정이 목적지를 덮어쓰지 않게). 자고 있지 않으면 거짓
+     * (호출한 쪽이 then 을 직접 한다).
+     */
+    private boolean wakeThen(Runnable then) {
+        if (sleepingPos == null) return false;
+        runOnOwner(() -> {
+            if (sleepingPos != null) PlayerSleeping.stopSleepInBed(this, currentLevel, true, true);
+            then.run();
+        });
+        return true;
     }
 
     /**
@@ -1641,13 +1687,20 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public void teleportRelative(double dx, double dy, double dz) {
         double nx = x() + dx, ny = y() + dy, nz = z() + dz;
         if (!vitals().env().gameEvents().playerTeleport(this, nx, ny, nz)) return;
+        if (wakeThen(() -> teleportRelative0(dx, dy, dz))) return;
+        teleportRelative0(dx, dy, dz);
+    }
+
+    /** 깬 뒤의 위치(일어설 자리)에서 상대 이동을 더한다 — 자고 있던 중이면 침대 위가 아니라 일어선 자리 기준. */
+    private void teleportRelative0(double dx, double dy, double dz) {
         var t = teleporter;
-        if (t != null) t.accept(new double[] {nx, ny, nz, Double.NaN, Double.NaN, dx, dy, dz});
+        if (t != null) t.accept(new double[] {x() + dx, y() + dy, z() + dz, Double.NaN, Double.NaN, dx, dy, dz});
     }
 
     /** connection.teleport(x, y, z, yRot, xRot): 회전까지 정해 보정 텔레포트. */
     public void teleportTo(double x, double y, double z, float yaw, float pitch) {
         if (!vitals().env().gameEvents().playerTeleport(this, x, y, z)) return;   // 플러그인 PlayerTeleportEvent 취소
+        if (wakeThen(() -> correctTo(x, y, z, yaw, pitch))) return;
         correctTo(x, y, z, yaw, pitch);
     }
 

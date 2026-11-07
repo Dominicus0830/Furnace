@@ -1422,6 +1422,23 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         sendSpawnChunkBatchAsync(ctx, p, spawnChunks, subs, futs, sx, sz);
         scheduleKeepAlive();
         scheduleAutosave(ctx);
+        final ChannelHandlerContext saveCtx = ctx;
+        p.saveRequest(() -> {   // save-all·백업: 이벤트 루프에서 스냅샷 → 플레이어 데이터 실행기(넣은 뒤 완료)
+            java.util.concurrent.CompletableFuture<Void> f = new java.util.concurrent.CompletableFuture<>();
+            try {
+                saveCtx.executor().execute(() -> {
+                    try {
+                        if (saveCtx.channel().isActive()) savePlayerSnapshot();
+                        f.complete(null);
+                    } catch (Throwable t) {
+                        f.completeExceptionally(t);
+                    }
+                });
+            } catch (java.util.concurrent.RejectedExecutionException e) {
+                f.complete(null);   // 이벤트 루프가 닫혔다(끊기는 중) — 퇴장 저장이 맡는다
+            }
+            return f;
+        });
         if (login.core == null) scheduleTimeUpdate(ctx); // 서버 핸들이 있으면 전역 틱이 20틱마다 동기화한다
         scheduleSpawnGateRelease();
         if (login.core != null) login.core.scoreboard().sendTo(p);   // 바닐라 placeNewPlayer: updateEntireScoreboard 뒤 접속 알림
@@ -3986,6 +4003,14 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 }
             }
             p.awardStat("minecraft:leave_game", 1);   // 바닐라 PlayerList.remove
+            // 바닐라 ServerPlayer.disconnect 는 자고 있으면 stopSleepInBed 로 일어선 뒤 저장한다 — 저장 위치는 침대 위가 아니라 일어선 자리·침대를 보는 방향.
+            // 소유 region 이 자는 동안 떠 둔 값을 쓴다(연결 스레드는 블록을 읽을 수 없다).
+            double[] standUp = p.sleepStandUp();
+            if (p.isSleeping() && standUp != null) {
+                ix = standUp[0]; iy = standUp[1]; iz = standUp[2];
+                iyaw = (float) standUp[3]; ipitch = 0.0F;
+                ig = true;
+            }
             savePlayerSnapshot();
             p.markDisconnected(); // 소유 region이 다음 틱에 정리(라우팅 불필요)
             world.playerOffline(p.entityId());   // adopt 전에 끊긴 경우에도 접속자 집합에서 즉시 제거(누수 방지, 관찰자는 다음 틱에 탭 제거)

@@ -35,13 +35,15 @@ public final class RconServer implements AutoCloseable {
     private volatile boolean running = true;
 
     /** 보안 보강(바닐라에는 없음): 동시 연결 상한(전체·IP당), 인증 전 읽기 제한 시간, 인증 실패 지연·연결당/IP당 실패 제한. */
-    public static final int MAX_CLIENTS = 16;
+    public static final int MAX_CLIENTS = RconLimits.DEFAULT_MAX_CLIENTS;
     /** 한 IP 가 동시에 붙잡을 수 있는 연결 수 — 한 주소가 전체 상한을 다 차지해 관리 도구가 못 붙는 일을 막는다. */
-    public static final int MAX_CLIENTS_PER_IP = 4;
-    private volatile int maxClientsPerIp = MAX_CLIENTS_PER_IP;
+    public static final int MAX_CLIENTS_PER_IP = RconLimits.DEFAULT_MAX_CLIENTS_PER_IP;
+    /** 기본값은 위 상수, furnace.properties 의 rcon.* 키로 바꾼다({@link RconLimits}). */
+    private final RconLimits limits;
+    private volatile int maxClientsPerIp;
     public static final int AUTH_TIMEOUT_MILLIS = 30_000;
-    public static final int MAX_FAILS_PER_CONNECTION = 5;
-    public static final int MAX_FAILS_PER_IP = 10;
+    public static final int MAX_FAILS_PER_CONNECTION = RconLimits.DEFAULT_MAX_FAILS_PER_CONNECTION;
+    public static final int MAX_FAILS_PER_IP = RconLimits.DEFAULT_MAX_FAILS_PER_IP;
     public static final long IP_WINDOW_MILLIS = 60_000L;
     private volatile long failDelayMillis = 1000L;
     private final java.util.concurrent.atomic.AtomicInteger clientSeq = new java.util.concurrent.atomic.AtomicInteger();
@@ -63,7 +65,7 @@ public final class RconServer implements AutoCloseable {
 
     private boolean ipBlocked(String ip) {
         long[] f = ipFails.get(ip);
-        return f != null && System.currentTimeMillis() - f[1] < IP_WINDOW_MILLIS && f[0] >= MAX_FAILS_PER_IP;
+        return f != null && System.currentTimeMillis() - f[1] < IP_WINDOW_MILLIS && f[0] >= limits.maxFailsPerIp();
     }
 
     private void noteIpFail(String ip) {
@@ -76,7 +78,9 @@ public final class RconServer implements AutoCloseable {
         if (ipFails.size() > 4096) ipFails.values().removeIf(f -> now - f[1] >= IP_WINDOW_MILLIS);
     }
 
-    private RconServer(ServerSocket server, String password, CommandRunner runner) {
+    private RconServer(ServerSocket server, String password, CommandRunner runner, RconLimits limits) {
+        this.limits = limits;
+        this.maxClientsPerIp = limits.maxClientsPerIp();
         this.server = server;
         this.password = password;
         this.runner = runner;
@@ -86,6 +90,10 @@ public final class RconServer implements AutoCloseable {
 
     /** 바닐라 RconThread.create: 포트 범위 밖이거나 비밀번호가 비면 경고하고 null(꺼짐), 바인딩 실패도 null. */
     public static RconServer create(String ip, int port, String password, CommandRunner runner) {
+        return create(ip, port, password, runner, RconLimits.DEFAULT);
+    }
+
+    public static RconServer create(String ip, int port, String password, CommandRunner runner, RconLimits limits) {
         if (ip == null || ip.isEmpty()) ip = "0.0.0.0";
         if (port <= 0 || port > 65535) {
             log.warn("Invalid rcon port {} found in server.properties, rcon disabled!", port);
@@ -100,8 +108,8 @@ public final class RconServer implements AutoCloseable {
             if (ip.equals("0.0.0.0") || ip.equals("::")) {
                 log.warn("RCON 은 암호화되지 않은 평문 프로토콜이다 — 모든 주소({})로 열렸다. 방화벽으로 막거나 server-ip 를 loopback 으로 제한하는 것을 권장한다", ip);
             }
-            RconServer r = open(s, password, runner);
-            log.info("RCON running on {}:{}", ip, port);
+            RconServer r = open(s, password, runner, limits);
+            log.info("RCON running on {}:{} (max {} clients, {} per IP)", ip, port, limits.maxClients(), limits.maxClientsPerIp());
             return r;
         } catch (IOException e) {
             log.warn("Unable to initialise RCON on {}:{}", ip, port, e);
@@ -111,7 +119,11 @@ public final class RconServer implements AutoCloseable {
 
     /** 이미 연 소켓으로 시작한다(시험 — 포트 0). */
     public static RconServer open(ServerSocket socket, String password, CommandRunner runner) {
-        RconServer r = new RconServer(socket, password, runner);
+        return open(socket, password, runner, RconLimits.DEFAULT);
+    }
+
+    public static RconServer open(ServerSocket socket, String password, CommandRunner runner, RconLimits limits) {
+        RconServer r = new RconServer(socket, password, runner, limits);
         r.acceptor.start();
         return r;
     }
@@ -131,7 +143,7 @@ public final class RconServer implements AutoCloseable {
                 Socket s = server.accept();
                 clients.removeIf(x -> !x.thread.isAlive() && x.started);
                 String ip = s.getInetAddress().getHostAddress();
-                if (clients.size() >= MAX_CLIENTS || clientsFrom(ip) >= maxClientsPerIp || ipBlocked(ip)) {
+                if (clients.size() >= limits.maxClients() || clientsFrom(ip) >= maxClientsPerIp || ipBlocked(ip)) {
                     try {
                         s.close();
                     } catch (IOException ignored) {
@@ -238,7 +250,7 @@ public final class RconServer implements AutoCloseable {
                         authed = false;
                         noteIpFail(ip);   // 응답을 쓰기 전에 센다(바로 재접속하는 클라이언트가 차단 검사에서 앞서지 않게)
                         authFailed(out);
-                        if (++fails >= MAX_FAILS_PER_CONNECTION) throw new IOException("too many auth failures");
+                        if (++fails >= limits.maxFailsPerConnection()) throw new IOException("too many auth failures");
                         try {
                             Thread.sleep(failDelayMillis);
                         } catch (InterruptedException e) {

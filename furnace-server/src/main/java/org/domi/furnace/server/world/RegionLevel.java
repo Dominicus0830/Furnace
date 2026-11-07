@@ -37,6 +37,9 @@ public final class RegionLevel extends ChunkLevel {
     public org.domi.furnace.server.world.raid.RaidStore raidStore() { return world.raidStore(); }
 
     @Override
+    public org.domi.furnace.server.light.VirtualLights virtualLights() { return world.virtualLights(); }
+
+    @Override
     public boolean isOwnerThread() { return region.isOwnerThread(); }
 
     @Override
