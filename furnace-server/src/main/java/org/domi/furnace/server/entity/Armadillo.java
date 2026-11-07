@@ -1,5 +1,5 @@
 // 바닐라 Armadillo: 브레인으로 움직이는 동물. 위협을 느끼면 몸을 말고(rolling → scared → unrolling), 5~10분마다 아르마딜로 비늘을 떨구며, 솔로 쓸어 비늘을 얻는다.
-// TODO(애니메이션): 몸 마는 연출용 엔티티 이벤트 64(내다보기)만 보낸다. TODO(발소리·끈·탑승): 걷는 소리, 목줄, 탑승 판정은 엔진에 아직 없다.
+// TODO(애니메이션): 몸 마는 연출용 엔티티 이벤트 64(내다보기)만 보낸다. TODO(끈·탑승): 목줄, 탑승 판정은 엔진에 아직 없다.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -261,4 +261,8 @@ public class Armadillo extends Animal {
     @Override protected String getDeathSound() { return "entity.armadillo.death"; }
 
     @Override protected String getHurtSound(Damage source) { return isScared() ? "entity.armadillo.hurt_reduced" : "entity.armadillo.hurt"; }
+
+    /** Armadillo.playStepSound: armadillo.step 크기 0.15(블록 소리를 쓰지 않는다). */
+    @Override
+    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) { playSound("minecraft:entity.armadillo.step", 0.15F, 1.0F); }
 }

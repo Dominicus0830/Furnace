@@ -1135,3 +1135,9 @@
   - 훅 격리는 `LinkageError` 도(핫 언로드 중 NoClassDefFoundError — 공유 장식 도중 터지면 원점이 반쯤 장식된 채 남는다).
   - 재생성 생성은 월드마다 한 줄로(`regenTail`) — 289개가 생성 대기 풀을 다 붙잡지 않게.
 - 시험: `GenHooksTest` 12, `GenerationHookStoreTest` 1, `RegenerateChunkTest` 2(알레이 진동 리스너·FRESH 엔티티 지우기 포함).
+
+## 2026-11-07 걸음·헤엄 소리 전반 (묶음 M15)
+- 바닐라 1.21.1 `Entity.playStepSound` 는 블록 SoundType × 0.15 뿐이다(액체·inside_step_sound_blocks 검사 없음). 몹별 덮어쓰기는 바이트코드에서 `b(jd,dtc)` 오버라이드 34개를 전부 찾아 옮겼다. 상세·남은 차이는 `m15-step-sounds-2026-11-07.md`.
+- SoundType 표는 서버를 띄우지 못해 `Blocks.<clinit>` 바이트코드를 읽어 만든다(`tools/vanilla-data/extract_block_sound_types.py` → `blocks/soundtypes_1.21.1.txt`). 문·다락문·버튼·압력판·울타리 문·표지판은 생성자가 `properties.sound(BlockSetType/WoodType 소리)` 로 덮는다는 점이 함정이었다(처음에는 전부 STONE 으로 나왔다).
+- 플레이어는 Entity 가 아니라 `PlayerMovementEmission` 에서 걸음 소리를 낸다. 본인은 빼고 `players` 분류로 보낸다(`PlayerActor` 를 except 로).
+
