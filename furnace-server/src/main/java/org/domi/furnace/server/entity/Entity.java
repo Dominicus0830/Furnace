@@ -651,10 +651,13 @@ public abstract non-sealed class Entity implements Rider {
 
     public void setSwimming(boolean v) { setSharedFlag(FLAG_SWIMMING, v); }
 
-    /** Entity.updateSwimming: 전력 질주 중이고 물속일 때만 헤엄(몹은 대개 항상 거짓). TODO(자세): 헤엄 자세(POSE_SWIMMING) 전환 */
+    /**
+     * Entity.updateSwimming: 헤엄 중이면 질주·물에 닿음·탈것 없음이 이어지는 동안, 아니면 질주하며 물속(눈이 물 아래)이고
+     * 탈것이 없고 발 칸이 물일 때 시작한다(몹은 대개 질주하지 않아 항상 거짓). 헤엄 자세 전환은 몹에게 없다(Player 쪽 PlayerPose).
+     */
     protected void updateSwimming() {
-        if (isSwimming()) setSwimming(isSprinting() && isInWater());
-        else setSwimming(isSprinting() && isInWater() && level.isWaterAt(blockPosition()));
+        if (isSwimming()) setSwimming(isSprinting() && isInWater() && !isPassenger());
+        else setSwimming(isSprinting() && wasEyeInWater && isInWater() && !isPassenger() && level.isWaterAt(blockPosition()));
     }
 
     /** setSharedFlagOnFire: 불 표시는 실제 불 또는 HasVisualFire. */
@@ -736,7 +739,10 @@ public abstract non-sealed class Entity implements Rider {
     /** causeFallDamage: 기본 엔티티는 낙하 피해를 받지 않고, 승객에게 넘긴다(fall_damage_immune 종류는 넘기지 않는다). */
     public boolean causeFallDamage(float distance, float multiplier, Damage source) {
         if (typeInTag("minecraft:fall_damage_immune")) return false;
-        if (!passengers.isEmpty()) for (Rider r : passengers) if (r instanceof Entity e) e.causeFallDamage(distance, multiplier, source);   // TODO(플레이어 낙하): 탄 플레이어
+        if (!passengers.isEmpty()) for (Rider r : passengers) {
+            if (r instanceof Entity e) e.causeFallDamage(distance, multiplier, source);
+            else if (r instanceof Player p) p.causeFallDamageAsPassenger(distance, multiplier, source);
+        }
         return false;
     }
 

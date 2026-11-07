@@ -10,7 +10,7 @@ public class SoulFireBlock extends BaseFireBlock {
     public SoulFireBlock(int block) { super(block); }
 
     @Override
-    protected float fireDamage() { return 2.0F; }
+    public float fireDamage() { return 2.0F; }
 
     @Override
     public int updateShape(int state, int dir, int neighborState, BlockLevel level, Pos pos, Pos neighborPos) {
