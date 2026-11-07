@@ -73,6 +73,14 @@ class GameplayFlowTest {
                 assertTrue(text(kill).contains("death.attack.genericKill"), "사망 화면 메시지");
                 assertTrue(p.vitals().isDeadOrDying());
 
+                // 죽은 자리에 경험치 구슬(레벨 5 → 35)이 떨어진다(M2). 같은 자리로 리스폰하면 되주워 경험치가 0 이 아니므로 치운 뒤 리스폰한다.
+                boolean orbsRemoved = false;
+                for (int i = 0; i < 100 && !orbsRemoved; i++) {
+                    orbsRemoved = core.commands().performPrefixedCommandAsync(console, "kill @e[type=minecraft:experience_orb]").join().success();
+                    if (!orbsRemoved) Thread.sleep(50);
+                }
+                assertTrue(orbsRemoved, "플레이어가 죽으면 경험치 구슬이 떨어진다");
+
                 c.write(0x09, b -> Types.writeVarInt(b, 0));   // client_command: 리스폰
                 ByteBuf respawn = c.await(0x47);
                 Types.readVarInt(respawn);                              // 차원 종류
