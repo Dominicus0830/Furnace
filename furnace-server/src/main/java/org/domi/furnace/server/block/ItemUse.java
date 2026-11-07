@@ -372,9 +372,30 @@ public final class ItemUse {
 
     // ------------------------------------------------------------------ 유리병·물 위에 놓기·장착
 
-    /** BottleItem.use: 원천 물에 시선을 맞추면 물병(드래곤의 숨결 구름은 엔티티 체계에서). */
+    /**
+     * BottleItem.use: 몸 상자를 2칸 넓힌 안에 엔더 드래곤이 만든 효과 구름이 살아 있으면 그 구름의 반지름을 0.5 줄이고 드래곤의 숨결 병
+     * (소리·fluid_pickup 은 플레이어 자리, player_interacted_with_entity). 아니면 원천 물에 시선을 맞추면 물병.
+     */
     private static Holder glassBottleUse(BlockLevel level, BlockActor player, ItemStack stack) {
-        // TODO(엔티티): 2칸 안 드래곤의 숨결 구름(AreaEffectCloud)이 있으면 그 구름을 줄이고 드래곤의 숨결.
+        if (level instanceof ChunkLevel cl) {
+            var body = player.handle() instanceof org.domi.furnace.server.entity.Player owner ? owner.boundingBox()
+                    : new org.domi.furnace.server.entity.AABB(player.x() - 0.3, player.y(), player.z() - 0.3, player.x() + 0.3, player.y() + 1.8, player.z() + 0.3);
+            for (var e : cl.getEntities(null, body.inflate(2.0), x -> x instanceof org.domi.furnace.server.entity.AreaEffectCloud c && c.isAlive()
+                    && c.getOwner() instanceof org.domi.furnace.server.entity.EnderDragon)) {
+                var cloud = (org.domi.furnace.server.entity.AreaEffectCloud) e;
+                cloud.setRadius(cloud.getRadius() - 0.5F);
+                cl.playSound(null, player.x(), player.y(), player.z(), "minecraft:item.bottle.fill_dragonbreath", "neutral", 1.0F, 1.0F);
+                cl.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.FLUID_PICKUP, new org.domi.furnace.server.entity.Vec3(player.x(), player.y(), player.z()),
+                        org.domi.furnace.server.world.gameevent.GameEventContext.of(player.handle()));
+                if (player.handle() instanceof org.domi.furnace.server.entity.Player p) {
+                    var item = org.domi.furnace.server.ServerCore.lootStackOf(stack);
+                    var ent = org.domi.furnace.server.entity.KillCredit.lootOf(cloud);
+                    p.triggerAdvancement(a -> a.triggerItemEntity("minecraft:player_interacted_with_entity", item, ent));
+                }
+                player.awardStat("minecraft:used:minecraft:glass_bottle");
+                return Holder.success(player.createFilledResult(stack, stack("minecraft:dragon_breath")));
+            }
+        }
         Clip.Result hit = Clip.playerPOV(level, player, Clip.FluidMode.SOURCE_ONLY);
         if (hit.miss()) return Holder.pass(stack);
         Pos pos = hit.pos();
