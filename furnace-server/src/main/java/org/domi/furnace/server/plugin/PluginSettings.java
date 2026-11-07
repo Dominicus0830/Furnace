@@ -48,7 +48,7 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
     }
 
     static PluginSettings from(Properties p, Logger log) {
-        boolean failFast = Boolean.parseBoolean(p.getProperty("plugins.fail-fast", "false").strip());
+        boolean failFast = org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.fail-fast", false);
         String root = p.getProperty("plugins.data-root", "").strip();
         Map<String, Level> levels = new HashMap<>();
         String prefix = "plugins.log-level.";
@@ -61,8 +61,8 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
                 log.warn("furnace.properties 의 '{}' 값 '{}' 은 로그 수준이 아니다 — 무시한다", k, v);
             }
         }
-        boolean dev = Boolean.parseBoolean(p.getProperty("plugins.dev-mode", "false").strip());
-        boolean auto = Boolean.parseBoolean(p.getProperty("plugins.dev-mode.auto-reload", "false").strip());
+        boolean dev = org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.dev-mode", false);
+        boolean auto = org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.dev-mode.auto-reload", false);
         if (auto && !dev) log.warn("plugins.dev-mode.auto-reload 는 plugins.dev-mode=true 일 때만 쓰인다 — 무시한다");
         return new PluginSettings(failFast, root.isEmpty() ? null : Path.of(root), levels, dev, dev && auto);
     }

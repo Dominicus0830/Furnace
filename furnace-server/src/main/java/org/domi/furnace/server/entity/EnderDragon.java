@@ -282,7 +282,10 @@ public class EnderDragon extends Mob implements Enemy {
             double dx = e.x() - cx, dz = e.z() - cz;
             double d = Math.max(dx * dx + dz * dz, 0.1);
             e.push(dx / d * 4.0, 0.2F, dz / d * 4.0);
-            if (!phaseManager.getCurrentPhase().isSitting() && le.getLastHurtByMobTimestamp() < e.tickCount - 2) le.hurtByMob(new Damage("mob_attack", false, false, false), 5.0F, this);
+            if (!phaseManager.getCurrentPhase().isSitting() && le.getLastHurtByMobTimestamp() < e.tickCount - 2) {
+                le.hurtByMob(new Damage("mob_attack", false, false, false), 5.0F, this);
+                EnchantEffects.thorns(level, le, this);   // doPostAttackEffects
+            }
         }
         List<Player> players = new ArrayList<>();
         level.forEachPlayerIn(box, p -> { if (hittablePlayer(p)) players.add(p); });
@@ -291,16 +294,25 @@ public class EnderDragon extends Mob implements Enemy {
             double d = Math.max(dx * dx + dz * dz, 0.1);
             p.addDeltaMovement(dx / d * 4.0, 0.2F, dz / d * 4.0);
             // 바닐라는 플레이어도 같은 목록이라 마지막으로 맞은 틱 검사를 똑같이 받는다
-            if (!phaseManager.getCurrentPhase().isSitting() && p.getLastHurtByMobTimestamp() < p.combatTicks() - 2) p.hurtByMob(new Damage("mob_attack", false, false, false), 5.0F, this);
+            if (!phaseManager.getCurrentPhase().isSitting() && p.getLastHurtByMobTimestamp() < p.combatTicks() - 2) {
+                p.hurtByMob(new Damage("mob_attack", false, false, false), 5.0F, this);
+                EnchantEffects.thorns(level, p, this);
+            }
         }
     }
 
     /** 머리·목에 닿은 것에 10 피해. */
     private void hurtAll(AABB box) {
-        for (Entity e : level.getEntities(this, box, en -> en instanceof LivingEntity)) ((LivingEntity) e).hurtByMob(new Damage("mob_attack", false, false, false), 10.0F, this);
+        for (Entity e : level.getEntities(this, box, en -> en instanceof LivingEntity)) {
+            ((LivingEntity) e).hurtByMob(new Damage("mob_attack", false, false, false), 10.0F, this);
+            EnchantEffects.thorns(level, (LivingEntity) e, this);
+        }
         List<Player> players = new ArrayList<>();
         level.forEachPlayerIn(box, p -> { if (hittablePlayer(p)) players.add(p); });
-        for (Player p : players) p.hurtByMob(new Damage("mob_attack", false, false, false), 10.0F, this);
+        for (Player p : players) {
+            p.hurtByMob(new Damage("mob_attack", false, false, false), 10.0F, this);
+            EnchantEffects.thorns(level, p, this);
+        }
     }
 
     /** checkWalls: 상자 안 블록 — 몹 그리핑이면 dragon_immune 아닌 것을 지우고(지웠으면 무작위 칸에 2008), 못 지운 것이 있으면 벽 안. */
