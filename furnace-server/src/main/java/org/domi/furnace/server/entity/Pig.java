@@ -52,7 +52,8 @@ public class Pig extends Animal {
             ZombifiedPiglin piglin = new ZombifiedPiglin(level, level.nextEntityId());
             piglin.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "minecraft:golden_sword"), 1));
             piglin.persistenceRequired = true;
-            convertTo(piglin, false, "LIGHTNING");
+            var converted = convertTo(piglin, false, "LIGHTNING");
+            if (converted != null) converted.setInvulnerable(false);   // 바닐라 Pig.thunderHit 은 무적을 넘기지 않는다
         } else {
             super.thunderHit(level, bolt);
         }
