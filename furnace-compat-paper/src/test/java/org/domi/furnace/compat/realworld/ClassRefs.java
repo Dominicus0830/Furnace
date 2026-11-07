@@ -30,6 +30,8 @@ public final class ClassRefs {
     /** 상수 풀의 클래스 참조(자기 자신 포함, 배열은 원소 형식). */
     public final Set<String> classes = new LinkedHashSet<>();
     public final Set<Member> members = new LinkedHashSet<>();
+    /** 상수 풀의 문자열 리터럴(H5: 리플렉션으로 NMS·CraftBukkit 이름을 문자열로 만드는 코드를 찾는다). */
+    public final Set<String> strings = new LinkedHashSet<>();
 
     private ClassRefs(String name, String superName) {
         this.name = name;
@@ -78,6 +80,7 @@ public final class ClassRefs {
         for (int i = 1; i < count; i++) {
             switch (tag[i]) {
                 case 7 -> r.addClass(utf[a[i]]);
+                case 8 -> r.strings.add(utf[a[i]]);
                 case 9, 10, 11 -> {
                     String owner = utf[a[a[i]]];
                     int nt = b[i];
