@@ -74,11 +74,7 @@ public record SetEntityData(int entityId, List<Item> items) implements Packet {
                 case SERIALIZER_VECTOR3, SERIALIZER_QUATERNION, SERIALIZER_ROTATIONS -> {   // 값은 float[3] / float[4](x, y, z, w)
                     for (float f : (float[]) it.value()) buf.writeFloat(f);
                 }
-                case SERIALIZER_PARTICLE -> {   // 색을 가진 입자(entity_effect, 번호 20) 또는 옵션 없는 입자. 값은 {종류, 색(없으면 생략)}
-                    int[] d = (int[]) it.value();
-                    Types.writeVarInt(buf, d[0]);
-                    if (d.length > 1) buf.writeInt(d[1]);
-                }
+                case SERIALIZER_PARTICLE -> ((ParticleOptions) it.value()).write(buf);   // 입자 한 개(종류 id + 옵션). 값은 ParticleOptions
                 case SERIALIZER_PARTICLES -> {   // List<ParticleOptions>(효과 입자): 개수 VarInt + 입자마다 종류·옵션. 값은 List<ParticleOptions>
                     @SuppressWarnings("unchecked")
                     var list = (List<ParticleOptions>) it.value();

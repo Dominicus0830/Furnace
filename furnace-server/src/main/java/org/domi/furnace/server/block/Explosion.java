@@ -77,6 +77,14 @@ public final class Explosion {
     /** 원인이 플레이어일 때(Player 는 Entity 가 아니다): 게임 이벤트의 원인, 밀림·피해 대상에서 뺀다(Level.getEntities(source, …)). */
     private Player sourcePlayer;
 
+    /** 폭발 피해의 원인 엔티티를 직접 정한다(explosion(source, causing): 불화살을 쏜 쪽이 터뜨린 TNT 수레). */
+    private org.domi.furnace.server.entity.Targetable causingOverride;
+
+    public Explosion withCausing(org.domi.furnace.server.entity.Targetable c) {
+        causingOverride = c;
+        return this;
+    }
+
     public Explosion withSourcePlayer(Player p) {
         sourcePlayer = p;
         return this;
@@ -124,6 +132,7 @@ public final class Explosion {
      * 휘말린 TNT 의 주인이 된다(TntBlock.wasExploded).
      */
     public org.domi.furnace.server.entity.Targetable indirectSourceEntity() {
+        // 바닐라 getIndirectSourceEntity 는 폭발 엔티티만 본다(피해 원인 causing 은 쓰지 않는다).
         if (source == null) return sourcePlayer;
         if (source instanceof org.domi.furnace.server.entity.PrimedTnt tnt) return tnt.getOwner();
         if (source instanceof LivingEntity le) return le;
@@ -288,7 +297,8 @@ public final class Explosion {
     }
 
     private void hurtTarget(Object t, float damage) {
-        Mob attacker = source instanceof Mob m ? m : (source instanceof org.domi.furnace.server.entity.PrimedTnt tnt && tnt.getOwner() instanceof Mob m2 ? m2 : null);
+        org.domi.furnace.server.entity.Targetable attacker = causingOverride != null ? causingOverride
+                : source instanceof Mob m ? m : (source instanceof org.domi.furnace.server.entity.PrimedTnt tnt && tnt.getOwner() instanceof Mob m2 ? m2 : null);
         Entity.Damage dmg = damageType == DamageType.BAD_RESPAWN_POINT ? BAD_RESPAWN_POINT_DAMAGE : Entity.Damage.EXPLOSION;
         if (t instanceof org.domi.furnace.server.entity.EnderDragonPart part) {
             part.hurtVia(dmg, damage, attacker, source);

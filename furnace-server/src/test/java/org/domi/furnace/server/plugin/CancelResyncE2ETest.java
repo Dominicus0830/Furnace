@@ -686,4 +686,27 @@ class CancelResyncE2ETest {
         until(() -> !log.isEmpty(), "채팅 이벤트");
         assertTrue(none(org.domi.furnace.server.net.protocol.play.PlayerChatPacket.ID, k -> true), "취소하면 아무에게도 가지 않는다");
     }
+
+    @Test
+    void chatRendererBuildsOneUnsignedLinePerViewer() throws Exception {
+        List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        on(org.domi.furnace.api.event.player.AsyncChatEvent.class, e -> e.renderer((source, name, message, viewer) -> {
+            String who = viewer instanceof org.domi.furnace.api.entity.Player pl ? pl.name() : "console";
+            seen.add(who);
+            return org.domi.furnace.api.text.Text.text("[to " + who + "] " + source.name() + ": " + message.getString());
+        }));
+        send(frame(0x06, b -> {
+            Types.writeString(b, "hello");
+            b.writeLong(System.currentTimeMillis());
+            b.writeLong(0L);
+            b.writeBoolean(false);
+            Types.writeVarInt(b, 0);
+            b.writeBytes(new byte[3]);
+        }));
+        Pkt line = await(org.domi.furnace.server.net.protocol.play.SystemChat.ID,
+                k -> new String(k.body(), java.nio.charset.StandardCharsets.UTF_8).contains("[to Tester] Tester: hello"), "받는 사람 서식의 줄");
+        assertNotNull(line);
+        assertTrue(seen.contains("Tester") && seen.contains("console"), "받는 사람마다(콘솔 포함) 한 번씩 불린다: " + seen);
+        assertTrue(none(org.domi.furnace.server.net.protocol.play.PlayerChatPacket.ID, k -> true), "서명 있는 채팅 패킷은 가지 않는다");
+    }
 }

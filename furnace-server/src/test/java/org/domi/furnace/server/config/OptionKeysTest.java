@@ -55,7 +55,7 @@ class OptionKeysTest {
         assertEquals(Integer.toString(c.autosaveTicks()), t.get("autosave-ticks").def());
         assertEquals(Integer.toString(c.chunkEvictionGraceTicks()), t.get("chunk-eviction-grace-ticks").def());
         assertEquals(Integer.toString(c.spawnChunkRadius()), t.get("spawn-chunk-radius").def());
-        assertEquals(Integer.toString(c.chunksPerTick()), t.get("chunks-per-tick").def());
+        assertEquals(c.chunksPerTick() == Config.CHUNKS_PER_TICK_AUTO ? "auto" : Integer.toString(c.chunksPerTick()), t.get("chunks-per-tick").def());
         assertEquals(Boolean.toString(c.bungeecord()), t.get("bungeecord").def());
         RegionPoolSettings rp = RegionPoolSettings.DEFAULT;
         assertEquals(Boolean.toString(rp.shared()), t.get("shared-region-pool").def());

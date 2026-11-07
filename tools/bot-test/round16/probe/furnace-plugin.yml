@@ -1,0 +1,27 @@
+name: K3Probe
+version: 1.0.0
+main: probe.K3Probe
+description: K3 플레이어별 가상 블록·바이옴·보더·장비·채팅 서식 봇 시험
+commands:
+  kset:
+    description: "/kset x y z 블록 — 나에게만 보이는 가상 블록"
+  kfill:
+    description: "/kfill x1 y1 z1 x2 y2 z2 블록"
+  kclear:
+    description: "/kclear x y z — 그 칸의 가상 블록을 걷는다"
+  kclearall:
+    description: 이 플러그인이 내게 건 층을 모두 걷는다
+  kbiome:
+    description: "/kbiome x y z 바이옴"
+  kbiomeclear:
+    description: "/kbiomeclear x y z"
+  kborder:
+    description: "/kborder 크기 [중심x 중심z] [enforce]"
+  kborderreset:
+    description: 개인 보더를 걷는다
+  kequip:
+    description: "/kequip 대상이름 칸 아이템 — 내 화면에서 대상의 장비"
+  kequipclear:
+    description: "/kequipclear 대상이름 칸"
+  kchat:
+    description: 채팅 렌더러를 켠다

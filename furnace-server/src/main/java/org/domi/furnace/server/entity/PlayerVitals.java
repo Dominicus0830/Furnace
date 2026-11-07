@@ -67,6 +67,9 @@ public final class PlayerVitals {
         /** 월드 보더 밖 피해량(0 = 없음). */
         default float borderDamage(double x, double y, double z) { return 0f; }
 
+        /** 그 플레이어 기준 보더 밖 피해 — 플러그인이 enforce 한 개인 보더가 있으면 그것으로(PlayerViews). */
+        default float borderDamage(Player player, double x, double y, double z) { return borderDamage(x, y, z); }
+
         Env DEFAULT = new Env() {
             public Difficulty difficulty() { return Difficulty.EASY; }
             public boolean gameRule(String name) { return !name.equals("keepInventory") && !name.equals("doImmediateRespawn"); }
@@ -1050,7 +1053,7 @@ public final class PlayerVitals {
             }
             if (player.y() < s.minBuildHeight() - 64) after.add(() -> hurt(DamageType.OUT_OF_WORLD, 4.0f));
             if (alive) {
-                float border = env.borderDamage(player.x(), player.y(), player.z());
+                float border = env.borderDamage(player, player.x(), player.y(), player.z());
                 if (border > 0) after.add(() -> hurt(DamageType.OUTSIDE_BORDER, border));
                 if (s.chunkLoaded() && s.eyeInWater() && !s.eyeInBubbleColumn()) {
                     if (!abilities.invulnerable && !effects.containsKey(MobEffect.WATER_BREATHING)) {

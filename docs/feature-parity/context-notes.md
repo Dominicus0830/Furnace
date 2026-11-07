@@ -1024,6 +1024,17 @@
 - 함정: 플러그인 설명 파일 `commands:` 를 `{description: …}` 흐름 형식으로 쓸 때 설명에 `(`·`[` 가 들어가면 ConfigParseException 으로 플러그인이 안 뜬다 — 블록 형식 + 따옴표로.
 - 시험: `MobBrainApiTest` 18개, `MobAiHandleTest` 주민 두뇌 1건 추가, 봇 `tools/bot-test/round13/brain.js` 12/12.
 
+## 2026-11-07 플레이어별 가상 블록·바이옴·보더·장비·채팅 서식 (묶음 K3, 불만 표 52~54행)
+- API `Furnace.playerViews()` → `PlayerViews`(+`PlayerBorder`), `AsyncChatEvent.renderer(ChatRenderer)`. 설계·규칙 `docs/api/player-views.md`.
+- 핵심(52행): 서버 `Player` 마다 `ViewLayers`(블록·바이옴 층, 장비 덮어쓰기, 개인 `WorldBorder`)를 두고, 나가는 청크 본문·`block_update`·`section_blocks_update`·`chunks_biomes`·`set_equipment`·보더 패킷에 연결의 `ViewRewriter` 가 덧입힌다. 청크를 다시 받아도(멀리 갔다 옴) 층이 남는다 — 봇으로 확인.
+- 함정 ①: `ConnectionHandler.send(ctx, …)` 는 `Player.send` 를 거치지 않아 K2 의 `ViewRewriter` 를 못 지났다(스폰 청크·차원 이동·`LoginPlay`/`Respawn` 이 그 길이라 차원 이름도 몰랐다). 이제 이 길도 같은 `ViewRewriter` 를 거친다(`joining` 필드로 접속 도중의 Player).
+- 함정 ②: 청크 본문 다시 쓰기는 덮을 칸이 있는 섹션만 풀어 다시 인코딩하고 나머지는 바이트 복사한다. 직접 팰릿 비트 수(`World.blockDirectBits/biomeDirectBits`)를 층이 처음 걸릴 때 월드에서 읽어 둔다. 비공기 수(`nonAirCount`)를 다시 세지 않으면 클라이언트가 섹션을 빈 것으로 건너뛴다.
+- 함정 ③: 공유 청크 프레임(`SharedChunkFrames`)은 본문 `byte[]` 동일성이 키다 — 덧입힌 본문은 `shared=null` 로 만들어 그 사람에게만 압축한다(다른 사람의 캐시를 더럽히지 않는다).
+- 개인 보더는 `WorldBorder` 인스턴스 하나를 접속에 붙인다. 서버의 `InitializeBorder` 는 개인 보더 상태로 바꿔 보내고 다른 `SetBorder*` 는 버린다. `enforce` 면 `ServerCore.mayInteract`·`Env.borderDamage(Player, …)` 가 이 보더를 쓴다.
+- 채팅 렌더러는 서명 없는 시스템 메시지(`unsigned-as-system` 과 같은 길)로 받는 사람마다 한 줄씩 보낸다.
+- 시험: `PlayerLayersTest` 12(청크 본문 다시 쓰기·소유권·재전송·차원·보더·장비), `PlayerViewsApiTest` 6, `CancelResyncE2ETest.chatRendererBuildsOneUnsignedLinePerViewer`, 봇 `tools/bot-test/round16/k3.js` 21/21(`round16/probe/K3Probe`).
+
+
 ## 2026-11-07 스폰 정책·엔티티 수·자세·주민/마을/습격 API (E3)
 - 설계·바닐라 대조 `docs/api/spawn-and-villages.md`. 기본값은 바닐라 상수(70·10·15·5·5·20·5·…)이고 정책이 비어 있으면 스폰 경로가 바닐라와 같다(`WorldSpawnPolicy.state` 가 `VANILLA` 로 접힘). 활성 범위·엔티티 상한 같은 게임플레이 변경은 넣지 않았다(D3).
 - 세계 상한은 `(int)((long)상한 × 스폰 가능 청크 수 / 289)`. 플레이어 상한 0 이하면 그 플레이어 주변은 건너뛴다(바닐라 상수로는 닿지 않고 플러그인이 0 을 걸 때만 닿는 경로).
@@ -1072,6 +1083,12 @@
 - **이미 같았던 것(닫음)**: 깃발 무늬 컴포넌트 → 블록 엔티티(applyImplicitComponents), 깃발 부술 때 이름·무늬 드롭(copy_components + BLOCK_ENTITY 매개변수), 네더 지도 색(hasCeiling: 반경 절반·흙/돌 해시 무늬), 벌집 들고나기·꿀 레벨·저장, 표지판 저장 JSON(키 재귀 정렬 = toStableString, HTML 이스케이프 없음, 바닐라 코덱 필드 구성).
 - **고친 것**: (1) 지도 표식 회전 흔들림은 바닐라가 **네더**(`dcw.i` = the_nether) 지도에서 하는데 Furnace 는 엔드에서 하고 있었다. 깃발 표식도 toggleBanner 가 레벨을 넘기므로 네더에서 돈다(불러온 깃발은 레벨 null → 안 돈다). (2) 스포너: `loadEntityRecursive` — Passengers 를 깊이 우선으로 불러 강제로 태우고(승객 id 도 정규화), 함수는 엔티티마다(BaseSpawner 는 같은 자리·자기 회전, 시련 생성기는 엔티티마다 회전 nextFloat). (3) 스포너 `SpawnData.equipment` → `Mob.equip(EquipmentTable)`; 칸 고르기는 Equipable(늑대·말 갑옷·양털 카펫 → 몸, 방패 → 왼손) 기준으로 바꿨다(전엔 이름 판정이라 늑대 갑옷이 주 손으로 갔다). 시련 생성기도 같은 메서드를 쓴다. (4) 표지판: 레벨에 놓인 뒤 읽을 때(/data merge block, /setblock·/fill NBT, /clone, 아이템 block_entity_data, /place·구조물 블록 배치) 그때 읽은 면만 줄마다(원문 → 걸러진 것) `ComponentUtils.updateForEntity(표지판 소스, 줄, null, 0)` — 소스는 이름 "Sign"·권한 2·칸 가운데·엔티티 없음·그 월드. 명령 오류면 원래 줄. 청크 읽기는 레벨이 없어 안 푼다(바닐라와 같음). 면 색은 `fieldOf.orElse(BLACK)` 이라 틀린 색이면 검정(전엔 면 전체를 버렸다). (5) `ComponentUtils`: 점수(ScoreContents) 풀기 추가 — 이름을 선택자로 읽어 대상이 하나면 그 주인(둘 이상이면 toomany 오류), 없으면 이름 그대로, `*` 는 entity 로; 목표·점수가 없으면 빈 텍스트, 있으면 목표 숫자 형식 또는 NO_STYLE. 선택자 결과는 formatList — 하나면 표시 이름 자체(빈 텍스트로 감싸지 않음, 스타일은 바닐라 withStyle 처럼 원래 줄이 정한 값만 덮고 표시 이름의 클릭·호버·삽입은 남음 — 처음엔 통째로 바꿨다가 독립 검토에서 고침), 여럿이면 빈 텍스트에 구분자로. (6) `Player.displayName` 에 바닐라처럼 엔티티 호버(show_entity)를 붙였고, 플레이어·표지판 명령 소스의 표시 이름도 이것을 쓴다(전엔 팀 서식·호버가 빠졌다). (7) 벌집 크리에이티브 파괴(doTileDrops, 벌이 있거나 꿀 > 0): bees + block_state{honey_level} 를 실은 아이템을 칸 모서리에 떨군다(M17 줄에서 지움).
 - **남은 차이**: 선택자는 플레이어만 찾는다(일반 엔티티는 region 이 나눠 가져 동기 조회가 안 됨 — tellraw 와 같은 한계). NBT 내용(NbtContents)은 풀지 않고 그대로 둔다(클라이언트에는 빈 글로 보인다). 지도의 미로드 청크 칠하기(기존 TODO)는 그대로.
+
+## 2026-11-07 청크 전송 auto · furnace.properties 자동 생성
+- 청크 로딩 속도는 봇(mineflayer)으로 못 잰다 — `tools/bot-test/chunkrate/chunkrate.js` 처럼 `chunk_batch_received` 값을 정해 답하는 접속기를 쓴다. 진단·전후 수치: `perf-chunk-send-2026-11-07.md`.
+- `chunks-per-tick=auto`(기본)는 준비된 청크만 배치에 넣는다. 배치에 생성 중인 청크를 넣으면 Finished 가 가장 느린 생성을 기다려 클라이언트 응답이 늦어지고 이미 있는 청크까지 막힌다.
+- `World.serializedChunkBody(cp, true)` 는 주인 region 스레드면 작업 큐를 건너뛴다. 다른 곳에서 inline 을 켜도 그 스레드가 주인이 아니면 예전처럼 큐로 간다.
+- furnace.properties 를 읽는 새 키를 넣으면 `FurnacePropertiesFile.sections()` 에도 넣는다(`FurnacePropertiesFileTest` 가 접속 방어 키와 고정 목록을 확인한다).
 
 ## 2026-11-07 팀·PvP 규칙 연결 (묶음 M16)
 - 바닐라 1.21.1 바이트코드 대조(`bsr.s`=Entity.isAlliedTo(Entity), `bsr.a(eyi)`=isAlliedTo(Team), `cmx.a(cmx)`=Player.canHarmPlayer, `cef.a`=TargetingConditions.test, `cce.h`=HurtByTargetGoal.alertOthers, `cgh.a`=Wolf.wantsToAttack, `cnd.l`=AbstractArrow.tick): `isAlliedTo` 를 부르는 곳은 타게팅 조건·플레이어 쓸기(`cmx`)·철퇴 충격파(`cvb`)·워든 canTargetEntity(`cmb.c`)·HurtByTarget 경보·좀비 피글린 경보·송곳니(`cnh`)·MobEffectUtil.addEffectToPlayersAround(`bsa`, 장로 수호자 저주·워든 어둠) 이다. 모두 이어 붙였다.

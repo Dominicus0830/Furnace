@@ -1,5 +1,5 @@
 // 바닐라 EnderMan: 쳐다보면 화나고(조각된 호박 머리는 예외) 순간이동으로 쫓는다. 블록을 집어 들고 놓으며, 물·비에 피해를 입고, 피하면 텔레포트.
-// TODO: 투사체 맞음 시 텔레포트 판정의 일부(진주 제외), 낮에 움직이지 않을 때의 텔레포트 외 입자, 장비 드롭 외 소지 블록 전리품 문맥 일부.
+// TODO: 낮에 움직이지 않을 때의 텔레포트 외 입자, 장비 드롭 외 소지 블록 전리품 문맥 일부.
 package org.domi.furnace.server.entity;
 
 import java.util.EnumSet;
@@ -239,12 +239,12 @@ public class Enderman extends Monster implements NeutralMob {
     @Override
     public boolean hurtBy(Damage source, float amount, Targetable attacker) {
         if (isInvulnerableTo(source)) return false;
-        boolean projectile = source.type().equals("arrow") || source.type().equals("mob_projectile") || source.type().equals("thrown")
-                || source.type().equals("trident") || source.type().equals("fireball");
-        if (projectile) {
-            // 투사체는 맞지 않고 최대 64번 텔레포트를 시도한다(엔더 진주는 예외 — 진주 구현 때)
+        // 바닐라 hurt: is_projectile 태그 피해이거나 직접 원인이 물약이면 맞지 않고 최대 64번 텔레포트를 시도한다. 맑은 물 물약은 피해도 받는다.
+        boolean potion = directCause() instanceof ThrownPotion;
+        if (potion || org.domi.furnace.server.entity.damage.DamageType.keyHasTag(source.type(), "is_projectile")) {
+            boolean hurt = potion && Consuming.isWaterPotion(((ThrownPotion) directCause()).getItem()) && super.hurtBy(source, amount, attacker);
             for (int i = 0; i < 64; i++) if (teleport()) return true;
-            return false;
+            return hurt;
         }
         boolean r = super.hurtBy(source, amount, attacker);
         if (!(attacker instanceof LivingEntity || attacker instanceof Player) && random.nextInt(10) != 0) teleport();

@@ -536,8 +536,8 @@ public abstract class DragonPhase {
                 flame.setOwner(dragon);
                 flame.setRadius(5.0F);
                 flame.setDuration(200);
-                flame.setParticle(new int[] {AreaEffectCloud.DRAGON_BREATH_PARTICLE});
-                flame.setEffects(List.of(new MobEffectInstance(MobEffect.INSTANT_DAMAGE, 0, 0)), 0);
+                flame.setParticle(AreaEffectCloud.DRAGON_BREATH_PARTICLE);
+                flame.setEffects(List.of(new MobEffectInstance(MobEffect.INSTANT_DAMAGE, 0, 0)));
                 dragon.level().addFreshEntity(flame);
             }
         }

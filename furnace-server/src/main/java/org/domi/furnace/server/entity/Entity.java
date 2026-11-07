@@ -702,6 +702,9 @@ public abstract non-sealed class Entity implements Rider {
     /** 때린 쪽이 있는 피해(플레이어가 액자·그림을 칠 때). 기본은 hurt. */
     public boolean hurtBy(Damage source, float amount, Targetable attacker) { return hurt(source, amount); }
 
+    /** 직접 원인 엔티티(투사체)가 있는 피해. 기본은 hurtBy(직접 원인을 보는 엔티티가 재정의). */
+    public boolean hurtByVia(Damage source, float amount, Targetable attacker, Entity direct) { return hurtBy(source, amount, attacker); }
+
     /** Entity.skipAttackInteraction: true 면 일반 공격 피해 대신 이 엔티티가 직접 처리한다(액자·그림). */
     public boolean skipAttackInteraction(Player attacker) { return false; }
 

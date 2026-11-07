@@ -32,7 +32,7 @@ public class ThrownPotion extends ThrowableProjectile {
         if (Consuming.isWaterPotion(stack)) {
             applyWater();
         } else if (!effects.isEmpty()) {
-            if (stack.itemId() == org.domi.furnace.server.item.ItemContext.id("minecraft:item", "lingering_potion")) makeCloud(effects, Consuming.potionColor(stack));
+            if (stack.itemId() == org.domi.furnace.server.item.ItemContext.id("minecraft:item", "lingering_potion")) makeCloud(stack);
             else applySplash(effects, direct);
         }
         int color = Consuming.potionColor(stack);
@@ -41,8 +41,8 @@ public class ThrownPotion extends ThrowableProjectile {
         discard();
     }
 
-    /** makeAreaOfEffectCloud: 반경 3, 사용마다 -0.5, 대기 10틱, 틱마다 -반경/지속. 물약 효과 지속은 1/4. */
-    private void makeCloud(java.util.List<MobEffectInstance> effects, int color) {
+    /** makeAreaOfEffectCloud: 반경 3, 사용마다 -0.5, 대기 10틱, 틱마다 -반경/지속. 구름은 물약 내용물(물약 + 사용자 지정 효과·색)을 그대로 받고 기본 물약 효과의 1/4 지속은 구름이 센다. */
+    private void makeCloud(ItemStack stack) {
         AreaEffectCloud cloud = new AreaEffectCloud(level, level.nextEntityId());
         cloud.moveTo(x(), y(), z(), 0.0F, 0.0F);
         Targetable owner = getOwner();
@@ -51,11 +51,10 @@ public class ThrownPotion extends ThrowableProjectile {
         cloud.setRadiusOnUse(-0.5F);
         cloud.setWaitTime(10);
         cloud.setRadiusPerTick(-cloud.getRadius() / cloud.durationTicks());
-        java.util.List<MobEffectInstance> list = new java.util.ArrayList<>();
-        for (MobEffectInstance mi : effects) {
-            list.add(new MobEffectInstance(mi.effect(), mi.effect().isInstantaneous() ? mi.duration() : mi.duration() / 4, mi.amplifier(), mi.ambient(), mi.visible(), mi.showIcon()));
-        }
-        cloud.setEffects(list, color);
+        java.util.Map<?, ?> pc = org.domi.furnace.server.item.ItemTools.component(stack, "minecraft:potion_contents") instanceof java.util.Map<?, ?> m ? m : java.util.Map.of();
+        java.util.List<MobEffectInstance> custom = new java.util.ArrayList<>();
+        if (pc.get("custom_effects") instanceof java.util.List<?> ce) for (Object o : ce) if (o instanceof java.util.Map<?, ?> m) custom.add(Consuming.fromMap(m));
+        cloud.setPotionContents(pc.get("potion") instanceof String id ? id : null, custom, pc.get("custom_color") instanceof Number n ? n.intValue() : null);
         level.addFreshEntity(cloud);
     }
 
@@ -65,7 +64,7 @@ public class ThrownPotion extends ThrowableProjectile {
             LivingEntity le = (LivingEntity) e;
             double d = (le.x() - x()) * (le.x() - x()) + (le.y() - y()) * (le.y() - y()) + (le.z() - z()) * (le.z() - z());
             if (d < 16.0) {
-                if (le.isSensitiveToWater()) le.hurtBy(new Entity.Damage("magic", false, false, false), 1.0F, getOwner());
+                if (le.isSensitiveToWater()) le.hurtByVia(new Entity.Damage("indirect_magic", false, false, false), 1.0F, getOwner(), this);   // indirectMagic(potion, owner)
                 if (le.isOnFire() && le.isAlive()) le.clearFire();
             }
         }
@@ -102,7 +101,10 @@ public class ThrownPotion extends ThrowableProjectile {
         double proximity = le == direct ? 1.0 : 1.0 - Math.sqrt(d) / 4.0;
         for (MobEffectInstance mi : effects) {
             if (mi.effect().isInstantaneous()) {
-                mi.effect().applyInstantenousEffect(le.effectHost(), mi.amplifier(), proximity);
+                // 바닐라: 즉시 피해는 indirectMagic(물약, 주인) 으로 때린다(엔더맨은 이 직접 원인이 물약이면 순간이동).
+                int harm = mi.effect().instantHarmAmount(le.effectHost(), mi.amplifier(), proximity);
+                if (harm >= 0) le.hurtByVia(new Entity.Damage("indirect_magic", false, false, false), harm, getOwner(), this);
+                else mi.effect().applyInstantenousEffect(le.effectHost(), mi.amplifier(), proximity);
             } else {
                 int dur = (int) (proximity * mi.duration() + 0.5);
                 MobEffectInstance n = new MobEffectInstance(mi.effect(), dur, mi.amplifier(), mi.ambient(), mi.visible(), mi.showIcon());

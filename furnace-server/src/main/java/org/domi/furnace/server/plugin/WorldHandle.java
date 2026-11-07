@@ -189,16 +189,31 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         return RegionFuture.wrap(f != null ? f : CompletableFuture.completedFuture(Optional.empty()));
     }
 
-    @Override
-    public CompletableFuture<Boolean> setBiome(BlockPos pos, String biome) {
+    /** 바이옴 이름의 레지스트리 번호. 모르거나 꺼진 플러그인의 바이옴이면 IllegalArgumentException. */
+    int biomeId(String biome) {
         if (biome == null) throw new NullPointerException("biome");
         String key = biome.indexOf(':') < 0 ? "minecraft:" + biome : biome;
         int id = biomeNames().indexOf(key);
-        if (id < 0) return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalArgumentException("알 수 없는 바이옴: " + biome)));
+        if (id < 0) throw new IllegalArgumentException("알 수 없는 바이옴: " + biome);
         GameRegistryStore store = host.pluginsImpl().gameRegistries();
         GameRegistryStore.Entry<?> custom = store == null ? null : store.biome(key);
-        if (custom != null && !custom.active()) {
-            return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalArgumentException("꺼진 플러그인의 바이옴: " + biome)));
+        if (custom != null && !custom.active()) throw new IllegalArgumentException("꺼진 플러그인의 바이옴: " + biome);
+        return id;
+    }
+
+    /** 바이옴 번호의 이름, 범위 밖이면 null. */
+    String biomeName(int id) {
+        List<String> names = biomeNames();
+        return id >= 0 && id < names.size() ? names.get(id) : null;
+    }
+
+    @Override
+    public CompletableFuture<Boolean> setBiome(BlockPos pos, String biome) {
+        int id;
+        try {
+            id = biomeId(biome);
+        } catch (IllegalArgumentException e) {
+            return RegionFuture.wrap(CompletableFuture.failedFuture(e));
         }
         ChunkPos cp = new ChunkPos(pos.chunkX(), pos.chunkZ());
         CompletableFuture<Boolean> f = world.submitAtOwnedChunk(cp, r -> {
