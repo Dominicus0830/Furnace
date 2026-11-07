@@ -30,6 +30,22 @@ public final class IoLanes {
         return java.util.concurrent.CompletableFuture.allOf(fs);
     }
 
+    /** 레인 수. */
+    public int laneCount() { return lanes.length; }
+
+    /** 그 region 파일(r.rx.rz.mca)이 쓰는 레인 번호(0..laneCount-1). 같은 좌표의 region·entities·poi 파일은 같은 레인이다. */
+    public int laneOfRegion(int regionX, int regionZ) { return index(regionX, regionZ); }
+
+    /**
+     * 레인마다 marker.apply(레인 번호) 를 맨 뒤에 넣는다. 레인이 FIFO 라 marker 는 지금까지 넣은 그 레인의 작업 뒤, 이후 넣는 작업 앞에 돈다
+     * (백업 기준점 — 그 레인 파일들의 "이 시점" 을 정한다). 모든 marker 가 끝나면 완료.
+     */
+    public java.util.concurrent.CompletableFuture<Void> markers(java.util.function.IntFunction<Runnable> marker) {
+        java.util.concurrent.CompletableFuture<?>[] fs = new java.util.concurrent.CompletableFuture<?>[lanes.length];
+        for (int i = 0; i < lanes.length; i++) fs[i] = java.util.concurrent.CompletableFuture.runAsync(marker.apply(i), lanes[i]);
+        return java.util.concurrent.CompletableFuture.allOf(fs);
+    }
+
     /** 레인 대기열(아직 시작 안 한 작업) 길이 중 가장 긴 것 — region 쪽 저장 역압 기준. */
     public int maxBacklog() {
         int m = 0;

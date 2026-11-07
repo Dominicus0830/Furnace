@@ -362,6 +362,7 @@ public final class World {
         org.domi.furnace.server.map.MapStore.saveDirty();   // 바뀐 지도 데이터·idcounts
         List<CompletableFuture<Void>> fs = new ArrayList<>(forEachRegion(r -> {
             r.releaseDisconnectedMounts();
+            r.saveOnlinePlayerVehicles();   // 바닐라 saveAll 의 플레이어 저장 중 탈것 몫(본체는 Player.requestSave)
             r.saveDirtyChunks();
             r.publishRaids();
             var saver = dragonFightSaver;
@@ -434,8 +435,67 @@ public final class World {
     /** 가장 긴 IO 레인 대기열 길이. */
     public int ioBacklog() { return ioLanes == null ? 0 : ioLanes.maxBacklog(); }
 
-    /** 저장 역압: 레인이 밀려 있으면 이번 틱 저장 제출을 멈춘다. 월드를 내리며 저장하는 동안(forceSave)은 미루지 않는다. */
-    public boolean ioBackedUp() { return !forceSave && ioBacklog() >= ioBacklogLimit; }
+    /** 저장 역압: 레인이 밀려 있으면 이번 틱 저장 제출을 멈춘다. 월드를 내리며 저장하는 동안(forceSave)·백업 기준점 저장 중은 미루지 않는다. */
+    public boolean ioBackedUp() { return !forceSave && snapshotSaves.get() == 0 && ioBacklog() >= ioBacklogLimit; }
+
+    // ------------------------------------------------------------------ 틱 붙잡기(백업 기준점·빈 서버 일시정지)
+
+    private final java.util.concurrent.atomic.AtomicInteger tickHolds = new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger snapshotSaves = new java.util.concurrent.atomic.AtomicInteger();
+
+    /**
+     * 게임 틱을 붙잡는다(on) / 놓는다. 붙잡힌 동안 region 은 작업 큐·지연 작업만 돌리고 게임 틱(Region.tick)은 건너뛴다.
+     * 여러 곳(백업·빈 서버 일시정지)이 겹쳐 걸 수 있어 횟수로 센다.
+     */
+    public void holdTicks(boolean on) {
+        if (on) tickHolds.incrementAndGet();
+        else if (tickHolds.decrementAndGet() < 0) tickHolds.set(0);
+    }
+
+    /** 게임 틱이 붙잡혀 있는가. */
+    public boolean ticksHeld() { return tickHolds.get() > 0; }
+
+    /**
+     * 틱을 붙잡은 뒤 부른다: 모든 region 이 지금 도는 틱을 끝내면 완료. 붙잡은 뒤 시작하는 region 차례는 틱을 건너뛰므로(runTick 이
+     * 작업 큐를 비운 다음에 붙잡힘을 다시 본다) 완료 뒤에는 어느 region 도 게임 틱을 돌지 않는다.
+     */
+    public CompletableFuture<Void> quiesce() {
+        return CompletableFuture.allOf(forEachRegion(r -> { }).toArray(new CompletableFuture[0]));
+    }
+
+    /** 켜면 저장 역압을 무시한다(백업 기준점 저장 — 레인이 밀려 미루면 기준점 상태가 빠진다). 횟수로 센다. */
+    public void snapshotSaving(boolean on) {
+        if (on) snapshotSaves.incrementAndGet();
+        else if (snapshotSaves.decrementAndGet() < 0) snapshotSaves.set(0);
+    }
+
+    /**
+     * 백업 기준점: 레인마다 marker 를 넣고(지금까지 넣은 저장 뒤), marker 가 돈 레인의 파일은 그 뒤 첫 쓰기 전에 복사된다.
+     * 저장소(region·entities·poi)마다 스냅샷을 걸어 돌려준다 — 레인이 없으면(시험) 바로 기준점이다. 반환 future 는 모든 marker 가 돈 뒤 완료.
+     */
+    public CompletableFuture<Void> beginSnapshot(java.util.function.Function<java.nio.file.Path, java.nio.file.Path> destFor,
+                                                 List<org.domi.furnace.server.world.anvil.RegionFileStore.Snapshot> out) {
+        var lanes = ioLanes;
+        final boolean[] passed = new boolean[lanes == null ? 1 : lanes.laneCount()];
+        if (lanes == null) passed[0] = true;
+        org.domi.furnace.server.world.anvil.RegionFileStore.CutPassed cut = lanes == null
+                ? (rx, rz) -> true
+                : (rx, rz) -> { synchronized (passed) { return passed[lanes.laneOfRegion(rx, rz)]; } };
+        for (var store : regionFileStores()) out.add(store.beginSnapshot(destFor.apply(store.regionDir()), cut));
+        if (lanes == null) return CompletableFuture.completedFuture(null);
+        return lanes.markers(i -> () -> { synchronized (passed) { passed[i] = true; } });
+    }
+
+    /** 이 월드의 지역 파일 저장소들(region, entities, poi — 없는 것은 뺀다). */
+    public List<org.domi.furnace.server.world.anvil.RegionFileStore> regionFileStores() {
+        List<org.domi.furnace.server.world.anvil.RegionFileStore> out = new ArrayList<>(3);
+        if (worldSource instanceof AnvilWorldSource anvil) {
+            out.add(anvil.store());
+            if (anvil.entityStore() != null) out.add(anvil.entityStore());
+            if (anvil.poiStore() != null) out.add(anvil.poiStore());
+        }
+        return out;
+    }
 
     private volatile boolean forceSave;
 
@@ -735,7 +795,15 @@ public final class World {
         for (Player p : players) p.sendSystemMessage(msg, true);
     }
 
-    public void playerOnline(Player p) { online.put(p); }
+    public void playerOnline(Player p) {
+        online.put(p);
+        joins.incrementAndGet();
+    }
+
+    private final java.util.concurrent.atomic.AtomicLong joins = new java.util.concurrent.atomic.AtomicLong();
+
+    /** 이 월드에 접속자가 올라온 횟수(백업 건너뛰기 판단). */
+    public long joinCount() { return joins.get(); }
 
     public void playerOffline(int eid) {
         online.remove(eid);
