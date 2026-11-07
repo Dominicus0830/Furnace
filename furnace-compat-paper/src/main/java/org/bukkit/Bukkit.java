@@ -8,6 +8,8 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.PluginManager;
+import org.bukkit.plugin.ServicesManager;
+import org.bukkit.scheduler.BukkitScheduler;
 
 /** 정적 입구 — Server 의 같은 메서드를 부른다. 서버가 정해지기 전에는 getServer() 가 null. */
 public final class Bukkit {
@@ -71,6 +73,16 @@ public final class Bukkit {
     public static int getViewDistance() { return s().getViewDistance(); }
 
     public static int getSimulationDistance() { return s().getSimulationDistance(); }
+
+    public static BukkitScheduler getScheduler() { return s().getScheduler(); }
+
+    public static ServicesManager getServicesManager() { return s().getServicesManager(); }
+
+    public static boolean isPrimaryThread() { return s().isPrimaryThread(); }
+
+    public static org.bukkit.command.CommandMap getCommandMap() { return s().getCommandMap(); }
+
+    public static org.bukkit.command.PluginCommand getPluginCommand(String name) { return s().getPluginCommand(name); }
 
     public static org.bukkit.block.data.BlockData createBlockData(Material material) { return s().createBlockData(material); }
 

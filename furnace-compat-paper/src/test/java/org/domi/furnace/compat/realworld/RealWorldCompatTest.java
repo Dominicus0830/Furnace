@@ -45,6 +45,32 @@ class RealWorldCompatTest {
                 "생성자 참조를 읽는다");
     }
 
+    /** JavaPlugin 하위 클래스 안의 getCommand() 는 javac 가 owner 를 자기 클래스로 적는다 — 상속 사슬로 올라가 API 로 귀속하고, 자기 메서드는 뺀다(H4 검토 권고 1). */
+    @Test
+    void callsThroughAPluginSubclassAreAttributedToTheApiClass() throws Exception {
+        Path jar = org.domi.furnace.compat.paper.fixtures.JarCompiler.jar(tmp.resolve("sub.jar"), "name: Sub\nversion: '1'\nmain: sub.Main\n", Map.of(
+                "sub.Base", "package sub; public abstract class Base extends org.bukkit.plugin.java.JavaPlugin { public void own() {} }",
+                "sub.Main", """
+                        package sub;
+                        public final class Main extends Base {
+                            public void go() {
+                                own();                                  // 자기 jar 의 메서드 — API 가 아니다
+                                getCommand("x");                        // JavaPlugin 의 메서드(자기 → Base → JavaPlugin)
+                                saveDefaultConfig();
+                                getNoSuchThing();                       // 아래 메서드는 호환 계층에 없다
+                            }
+                            public void getNoSuchThing() {}
+                        }
+                        """));
+        ApiIndex idx = new ApiIndex(getClass().getClassLoader());
+        Coverage.JarResult r = Coverage.scan(List.of(jar), idx).get(0);
+        var needed = r.neededMembers.getOrDefault(Coverage.Kind.BUKKIT, java.util.Set.of()).stream().map(ClassRefs.Member::toString).toList();
+        assertTrue(needed.stream().anyMatch(m -> m.startsWith("org.bukkit.plugin.java.JavaPlugin#getCommand")), needed.toString());
+        assertTrue(needed.stream().anyMatch(m -> m.startsWith("org.bukkit.plugin.java.JavaPlugin#saveDefaultConfig")), needed.toString());
+        assertFalse(needed.stream().anyMatch(m -> m.contains("#own") || m.contains("getNoSuchThing")), "자기 jar 의 메서드는 API 요구가 아니다: " + needed);
+        assertEquals(0, r.apiMissing(), "getCommand·saveDefaultConfig 는 호환 계층에 있다");
+    }
+
     @Test
     void apiIndexResolvesLikeTheJvm() {
         ApiIndex idx = new ApiIndex(getClass().getClassLoader());

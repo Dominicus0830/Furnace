@@ -135,6 +135,7 @@ public final class CompatFormat implements PluginFormat {
         PluginDescriptionFile pdf = descriptors.get(key(d.name(), d.main()));
         if (pdf == null) pdf = new PluginDescriptionFile(d.name(), d.version(), d.main());
         BukkitPluginAdapter adapter = new BukkitPluginAdapter(pdf);
+        PluginLoaders.bind(context.classLoader(), adapter);
         PluginInit.expect(new PluginInit(adapter, pdf, context.logger(), context.dataFolder().toFile(), context.file().toFile(), context.classLoader()));
         try {
             Constructor<?> c = main.getDeclaredConstructor();

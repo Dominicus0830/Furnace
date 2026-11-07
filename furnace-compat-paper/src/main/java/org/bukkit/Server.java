@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import java.util.logging.Logger;
+import org.bukkit.command.CommandMap;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
@@ -11,8 +12,10 @@ import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.plugin.PluginManager;
+import org.bukkit.plugin.ServicesManager;
+import org.bukkit.scheduler.BukkitScheduler;
 
-/** 서버. 1차 호환 범위 — 스케줄러·명령 등록(H2), 인벤토리·아이템 만들기(H3)는 아직 없다. */
+/** 서버. 호환 범위는 docs/api/compat-paper.md. */
 public interface Server {
 
     String getName();
@@ -59,6 +62,21 @@ public interface Server {
     int getViewDistance();
 
     int getSimulationDistance();
+
+    /** 옛 스케줄러(틱 단위). 동기 작업은 전역(주) 스레드에서 한 줄로 돈다. */
+    BukkitScheduler getScheduler();
+
+    /** 플러그인끼리 서비스를 주고받는 곳. */
+    ServicesManager getServicesManager();
+
+    /** 지금 스레드가 "주 스레드"인가: 전역 스레드이거나, 호환 계층이 옛 코드를 돌리려고 표시한 스레드. */
+    boolean isPrimaryThread();
+
+    /** 이 서버의 명령 지도. */
+    CommandMap getCommandMap();
+
+    /** 이름이나 별칭으로 찾은 플러그인 명령(플러그인 명령이 아니면 null). */
+    org.bukkit.command.PluginCommand getPluginCommand(String name);
 
     /** 기본 상태의 블록 데이터. 블록이 아니면 IllegalArgumentException. */
     org.bukkit.block.data.BlockData createBlockData(Material material);

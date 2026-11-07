@@ -7,10 +7,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.command.SimpleCommandMap;
+import org.bukkit.plugin.SimpleServicesManager;
 import org.domi.furnace.api.Furnace;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.api.text.serializer.LegacyTextSerializer;
 import org.domi.furnace.api.world.BlockPos;
+import org.domi.furnace.compat.command.LegacyCommands;
+import org.domi.furnace.compat.sched.LegacyScheduler;
 
 public final class Compat {
 
@@ -24,8 +28,44 @@ public final class Compat {
         final Furnace furnace;
         final ConcurrentHashMap<String, CompatWorld> worlds = new ConcurrentHashMap<>();
         final ConcurrentHashMap<UUID, CompatPlayer> players = new ConcurrentHashMap<>();
+        // 옛 스케줄러·명령·서비스는 쓰는 플러그인이 있을 때 처음 만든다(박동 하나를 전역에 걸기 때문)
+        private volatile LegacyScheduler scheduler;
+        private volatile LegacyCommands commands;
+        private volatile SimpleCommandMap commandMap;
+        private volatile SimpleServicesManager services;
 
         State(Furnace furnace) { this.furnace = furnace; }
+
+        synchronized LegacyScheduler scheduler() {
+            if (scheduler == null) scheduler = new LegacyScheduler(furnace);
+            return scheduler;
+        }
+
+        synchronized LegacyCommands commands() {
+            if (commands == null) commands = new LegacyCommands(furnace);
+            return commands;
+        }
+
+        synchronized SimpleCommandMap commandMap() {
+            if (commandMap == null) commandMap = new SimpleCommandMap(CompatServer.INSTANCE);
+            return commandMap;
+        }
+
+        synchronized SimpleServicesManager services() {
+            if (services == null) services = new SimpleServicesManager();
+            return services;
+        }
+
+        void close() {
+            LegacyScheduler sc = scheduler;
+            if (sc != null) {
+                try {
+                    sc.close();
+                } catch (RuntimeException ignored) {
+                    // 이미 멈춘 서버의 박동이라 닫을 것이 없을 수 있다
+                }
+            }
+        }
     }
 
     private static State state() {
@@ -34,13 +74,28 @@ public final class Compat {
         if (s == null || s.furnace != f) {
             synchronized (Compat.class) {
                 s = state;
-                if (s == null || s.furnace != f) state = s = new State(f);
+                if (s == null || s.furnace != f) {
+                    if (s != null) s.close();   // 다른 서버로 바뀌었다(시험처럼 서버를 다시 띄움) — 옛 박동을 닫는다
+                    state = s = new State(f);
+                }
             }
         }
         return s;
     }
 
     static Furnace furnace() { return state().furnace; }
+
+    /** 지금 서버의 옛 스케줄러(BukkitScheduler 의 바닥). */
+    static LegacyScheduler scheduler() { return state().scheduler(); }
+
+    /** 지금 서버의 옛 명령 지도(명령 트리에 붙이는 바닥). */
+    static LegacyCommands commands() { return state().commands(); }
+
+    /** 지금 서버의 Bukkit 명령 지도. */
+    static SimpleCommandMap commandMap() { return state().commandMap(); }
+
+    /** 지금 서버의 서비스 지도. */
+    static SimpleServicesManager services() { return state().services(); }
 
     // ------------------------------------------------------------------ 월드
 

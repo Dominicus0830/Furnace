@@ -5,6 +5,7 @@ package org.domi.furnace.compat.command;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Predicate;
 import java.util.logging.Level;
 import org.domi.furnace.api.Furnace;
 import org.domi.furnace.api.command.CommandSender;
@@ -30,6 +31,8 @@ public final class LegacyCommand {
     private volatile String permissionMessage;   // null = 기본 문장, "" = 아무 말도 안 함
     private volatile LegacyExecutor executor;
     private volatile LegacyTabCompleter completer;
+    /** 있으면 "통과 모드": 권한 확인·사용법·꺼짐 검사를 이 명령의 실행기가 직접 한다(Bukkit Command.execute 를 그대로 부르는 명령용). 값은 트리에 보일 조건. */
+    private volatile Predicate<CommandSender> passthrough;
 
     public LegacyCommand(FurnacePlugin plugin, String name) {
         if (plugin == null) throw new IllegalArgumentException("plugin");
@@ -97,8 +100,19 @@ public final class LegacyCommand {
         return this;
     }
 
+    /**
+     * 통과 모드로 바꾼다: {@link #execute} 가 권한·사용법·꺼짐 검사를 하지 않고 실행기만 부르며(실행기가 던진 {@link LegacyCommandException} 은 그대로 나간다),
+     * 트리에 보일 조건은 {@code visibleTo} 가 정한다. null 이면 보통 모드.
+     */
+    public LegacyCommand setPassthrough(Predicate<CommandSender> visibleTo) {
+        this.passthrough = visibleTo;
+        return this;
+    }
+
     /** 보낸 사람이 이 명령을 쓸 권한이 있는가(말 없이). */
     public boolean testPermissionSilent(CommandSender sender) {
+        Predicate<CommandSender> pass = passthrough;
+        if (pass != null) return pass.test(sender);
         String p = permission;
         if (p == null || p.isEmpty()) return true;
         for (String each : p.split(";")) if (sender.hasPermission(each)) return true;
@@ -123,6 +137,16 @@ public final class LegacyCommand {
      * 호출하는 스레드가 "주 스레드"여야 한다 — LegacyCommands 가 전역 스레드로 맞춘다.
      */
     public boolean execute(CommandSender sender, String label, String[] args) {
+        if (passthrough != null) {
+            LegacyExecutor ex = executor;
+            try {
+                return ex != null && ex.onCommand(sender, this, label, args);
+            } catch (LegacyCommandException e) {
+                throw e;
+            } catch (Throwable t) {
+                throw new LegacyCommandException("Unhandled exception executing command '" + label + "' in plugin " + plugin.description().fullName(), t);
+            }
+        }
         if (!plugin.isEnabled()) {
             throw new LegacyCommandException("Cannot execute command '" + label + "' in plugin " + plugin.description().fullName() + " - plugin is disabled.", null);
         }

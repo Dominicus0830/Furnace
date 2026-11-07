@@ -46,7 +46,7 @@
 
 Furnace 이벤트가 알리지 않는 값은 지어내지 않는다. 읽기는 정직한 기본값(예: 순간이동 원인 `UNKNOWN`), 쓰기는 `UnsupportedFeature`(= `UnsupportedOperationException`)로 무엇이 없는지 말하며 던진다. 예: `PlayerMoveEvent#setTo`, `AsyncPlayerChatEvent#getRecipients()` 바꾸기(받는 사람마다 다른 서식은 `AsyncChatEvent#renderer` 가 대신한다).
 
-아직 없는 `org.bukkit` 영역: 명령 실행기·스케줄러의 `JavaPlugin` 연결(H2 코어는 있음), 엔티티 종류별 하위 인터페이스, 커스텀 `Inventory` 생성(`createInventory`; 서버에 메뉴 API 연결 전이라 `UnsupportedFeature`), 나머지 수백 개 이벤트, `Bukkit.getOnlinePlayers` 이외의 대부분의 서버 보조(권한 첨부는 `Player#hasPermission` 만). 없는 클래스를 부르면 플러그인 쪽에서 `NoClassDefFoundError` 가 나 그 플러그인만 실패한다.
+아직 없는 `org.bukkit` 영역: 엔티티 종류별 하위 인터페이스, 커스텀 `Inventory` 생성(`createInventory`; 서버에 메뉴 API 연결 전이라 `UnsupportedFeature`), 나머지 수백 개 이벤트, `Bukkit.getOnlinePlayers` 이외의 대부분의 서버 보조(권한 첨부는 `Player#hasPermission` 만). 없는 클래스를 부르면 플러그인 쪽에서 `NoClassDefFoundError` 가 나 그 플러그인만 실패한다.
 
 ## Material
 
@@ -63,12 +63,16 @@ Furnace 이벤트가 알리지 않는 값은 지어내지 않는다. 읽기는 �
 - 생성 파일(`Material`·`EntityType`·`Enchantment`)은 `tools/compat/gen-bukkit-material.py`·`gen-bukkit-registries.py` 로 다시 만든다.
 - 시험: `InventoryAdapterTest`·`BlockEntityWorldAdapterTest`·`KitPluginTest`(키트 플러그인 jar)·`RegistryValueTypesTest`.
 
+## JavaPlugin 의 명령·스케줄러·서비스 (H4 다음 묶음 A)
+
+`JavaPlugin#getCommand`(plugin.yml 의 `commands:` → `PluginCommand`, 기본 실행기는 플러그인 본체)·`getProvidingPlugin`·`getPlugin(Class)`, `Command`·`CommandMap`/`SimpleCommandMap`(명령 트리에 이어짐, `getKnownCommands()` 에서 지우면 트리에서도 빠짐), `BukkitScheduler`·`BukkitRunnable`·`BukkitTask`, `ServicesManager`, `Bukkit.getScheduler/getServicesManager/isPrimaryThread/getCommandMap/getPluginCommand`. 설계·Bukkit 과 다른 점 10가지: `docs/feature-parity/compat-javaplugin-wiring-2026-11-07.md`. 시험: `JavaPluginWiringTest`(시험 안에서 컴파일한 플러그인 jar).
+
 ## 스레드 (H2 가 H1 에 넘긴 D1·D2 에 대한 결정)
 
 Bukkit 은 메인 스레드 하나를 가정한다. 이 1차는 Furnace 이벤트가 불리는 스레드(region·global·채팅은 비동기) 그대로 Bukkit 처리기를 부른다. `Block#getType` 같은 월드 읽기는 소유 region 스레드에서만 안전하다.
 
 - **D1(옛 "주 스레드" 직렬화): (c) 경쟁을 감수하고 문서화한다.** 옛 플러그인이 정적 필드·`HashMap` 을 여러 region 스레드에서 동시에 만지면 경쟁이 날 수 있다. `PrimaryThread.enter()` 로 처리기를 감싸 상호 배제하는 방식(a)은 교착 위험이 있어 이 PR 에서 하지 않았다. 실제 플러그인으로 문제가 확인되면(H4) 후속에서 정한다.
-- **D2(기본 실행기·`JavaPlugin.getCommand`·`getScheduler`): 이 PR 범위 밖이다.** 이 모듈의 `JavaPlugin` 에는 아직 명령·스케줄러 연결이 없다. H2 코어(`org.domi.furnace.compat.command`·`sched`)를 `JavaPlugin` 에 잇는 일(`declareFromDescription` 직후 본체를 기본 실행기로 넣기 포함)은 다음 묶음이 한다 — H2 문서의 "H1 에 넘기는 주의"를 그쪽에서 이어받는다.
+- **D2(기본 실행기·`JavaPlugin.getCommand`·`getScheduler`): 위 "JavaPlugin 의 명령·스케줄러·서비스" 절에서 해결했다.** `PluginCommand` 가 Bukkit 규칙대로 실행기를 만들 때 플러그인 본체로 정한다.
 
 ## 알아 둘 점
 
@@ -78,7 +82,7 @@ Bukkit 은 메인 스레드 하나를 가정한다. 이 1차는 Furnace 이벤�
 
 ## H4: 실제 플러그인으로 잰 호환 정도
 
-실제 Bukkit·Paper API 로 컴파일된 jar(Central 의 실제 플러그인 helper·CommandAPI 와 흔한 플러그인 라이브러리 11종)를 바이트코드로 대조하고 plugin.yml jar 는 헤드리스 서버에 올려 잰 표·우선순위·한계는 `docs/feature-parity/compat-h4-2026-11-07.md`, 생성 대조표는 `docs/feature-parity/compat-h4-coverage-2026-11-07.md`. 현재 helper·CommandAPI 둘 다 켜지지 못한다(첫 장애물: `JavaPlugin.getProvidingPlugin`, Brigadier 클래스 없음). 호환 API 를 더하는 묶음은 `./gradlew -PskipOracle=true :furnace-compat-paper:compatReport` 로 대조표와 기준표(`realworld-baseline.properties`)를 새로 쓴다 — 기준표 시험(`RealWorldCompatTest`)이 후퇴를 막는다.
+실제 Bukkit·Paper API 로 컴파일된 jar(Central 의 실제 플러그인 helper·CommandAPI 와 흔한 플러그인 라이브러리 11종)를 바이트코드로 대조하고 plugin.yml jar 는 헤드리스 서버에 올려 잰 표·우선순위·한계는 `docs/feature-parity/compat-h4-2026-11-07.md`, 생성 대조표는 `docs/feature-parity/compat-h4-coverage-2026-11-07.md`. H4 측정 때 helper·CommandAPI 둘 다 켜지지 못했다(첫 장애물: `JavaPlugin.getProvidingPlugin`, Brigadier 클래스 없음). A 묶음 뒤 helper 의 첫 장애물은 Guava(`com.google.common.base.Supplier`, 서버 제공 라이브러리 B — 사용자 결정), CommandAPI 는 그대로 Brigadier. 호환 API 를 더하는 묶음은 `./gradlew -PskipOracle=true :furnace-compat-paper:compatReport` 로 대조표와 기준표(`realworld-baseline.properties`)를 새로 쓴다 — 기준표 시험(`RealWorldCompatTest`)이 후퇴를 막는다.
 
 ## 시험
 

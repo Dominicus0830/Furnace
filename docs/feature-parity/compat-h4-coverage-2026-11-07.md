@@ -14,7 +14,7 @@
 | jar | 상태 | 처음 만난 오류 |
 |---|---|---|
 | `commandapi-bukkit-plugin-10.1.2.jar` | LOADED_NOT_ENABLED | `java.lang.ClassNotFoundException: com.mojang.brigadier.context.CommandContext` |
-| `helper-5.6.14.jar` | LOADED_NOT_ENABLED | `java.lang.NoSuchMethodError: 'org.bukkit.plugin.java.JavaPlugin org.bukkit.plugin.java.JavaPlugin.getProvidingPlugin(java.lang.Class)'` |
+| `helper-5.6.14.jar` | LOADED_NOT_ENABLED | `java.lang.ClassNotFoundException: com.google.common.base.Supplier` |
 
 상태: `NOT_LOADED`(로드 자체 실패) < `LOADED_NOT_ENABLED`(onLoad·onEnable 이 던짐) < `ENABLED_THEN_CRASHED` < `ENABLED`.
 
@@ -22,25 +22,25 @@
 
 | jar | 종류 | 클래스 수 | 요구 심볼 | 없음 | 충족 |
 |---|---|---:|---:|---:|---:|
-| `IF-0.12.2.jar` | 라이브러리 | 1042 | 191 | 98 | 48.7% |
-| `XSeries-14.0.0.jar` | 라이브러리 | 332 | 946 | 699 | 26.1% |
-| `adventure-platform-bukkit-4.4.1.jar` | 라이브러리 | 65 | 172 | 97 | 43.6% |
+| `IF-0.12.2.jar` | 라이브러리 | 1042 | 191 | 94 | 50.8% |
+| `XSeries-14.0.0.jar` | 라이브러리 | 332 | 948 | 694 | 26.8% |
+| `adventure-platform-bukkit-4.4.1.jar` | 라이브러리 | 65 | 176 | 101 | 42.6% |
 | `boosted-yaml-1.3.8.jar` | 라이브러리 | 292 | 0 | 0 | 100.0% |
 | `bstats-base-3.2.1.jar` | 라이브러리 | 13 | 0 | 0 | 100.0% |
-| `bstats-bukkit-3.2.1.jar` | 라이브러리 | 1 | 28 | 4 | 85.7% |
-| `cloud-bukkit-2.0.1.jar` | 라이브러리 | 111 | 93 | 19 | 79.6% |
-| `cloud-paper-2.0.1.jar` | 라이브러리 | 38 | 103 | 72 | 30.1% |
-| `commandapi-bukkit-core-12.1.0.jar` | 라이브러리 | 155 | 144 | 62 | 56.9% |
-| `commandapi-bukkit-plugin-10.1.2.jar` | 플러그인 | 308 | 267 | 131 | 50.9% |
-| `commodore-2.2.jar` | 라이브러리 | 12 | 26 | 15 | 42.3% |
+| `bstats-bukkit-3.2.1.jar` | 라이브러리 | 1 | 28 | 1 | 96.4% |
+| `cloud-bukkit-2.0.1.jar` | 라이브러리 | 111 | 93 | 5 | 94.6% |
+| `cloud-paper-2.0.1.jar` | 라이브러리 | 38 | 103 | 67 | 35.0% |
+| `commandapi-bukkit-core-12.1.0.jar` | 라이브러리 | 155 | 149 | 51 | 65.8% |
+| `commandapi-bukkit-plugin-10.1.2.jar` | 플러그인 | 308 | 274 | 107 | 60.9% |
+| `commodore-2.2.jar` | 라이브러리 | 12 | 26 | 8 | 69.2% |
 | `fastboard-2.2.2.jar` | 라이브러리 | 8 | 13 | 0 | 100.0% |
-| `helper-5.6.14.jar` | 플러그인 | 1197 | 428 | 228 | 46.7% |
+| `helper-5.6.14.jar` | 플러그인 | 1197 | 441 | 184 | 58.3% |
 
 ## 2. 종류별 요구와 빠짐 (전체 jar 합집합)
 
 | 종류 | 요구 클래스 | 없는 클래스 | 요구 멤버(있는 클래스 기준) | 없는 멤버 | 없는 클래스의 멤버 호출 |
 |---|---:|---:|---:|---:|---:|
-| Bukkit API | 291 | 224 | 610 | 177 | 791 |
+| Bukkit API | 291 | 206 | 669 | 173 | 730 |
 | Paper API | 25 | 25 | 0 | 0 | 49 |
 | Spigot·BungeeChat | 6 | 6 | 0 | 0 | 19 |
 | CraftBukkit | 358 | 358 | 0 | 0 | 429 |
@@ -50,32 +50,26 @@
 
 ## 3. 없는 Bukkit 계열 클래스 순위 (요구하는 jar 수 → 멤버 호출 수)
 
-전체 255개 중 위 80개. 이 순서가 다음 묶음의 우선순위 후보다.
+전체 237개 중 위 80개. 이 순서가 다음 묶음의 우선순위 후보다.
 
 | 클래스 | jar 수 | 멤버 호출(합) |
 |---|---:|---:|
-| `org.bukkit.scheduler.BukkitScheduler` | 6 | 13 |
-| `org.bukkit.command.Command` | 5 | 16 |
 | `org.bukkit.Registry` | 4 | 19 |
-| `org.bukkit.command.PluginCommand` | 4 | 10 |
-| `org.bukkit.command.BlockCommandSender` | 4 | 7 |
 | `org.bukkit.potion.PotionEffectType` | 4 | 7 |
-| `org.bukkit.command.CommandMap` | 4 | 6 |
 | `net.md_5.bungee.chat.ComponentSerializer` | 4 | 5 |
 | `net.md_5.bungee.api.chat.BaseComponent` | 4 | 4 |
-| `org.bukkit.command.SimpleCommandMap` | 4 | 2 |
 | `org.bukkit.boss.BossBar` | 3 | 31 |
 | `org.bukkit.scoreboard.DisplaySlot` | 3 | 19 |
 | `org.bukkit.boss.BarColor` | 3 | 16 |
 | `org.bukkit.boss.BarStyle` | 3 | 12 |
 | `org.bukkit.plugin.messaging.Messenger` | 3 | 12 |
+| `org.bukkit.command.ProxiedCommandSender` | 3 | 9 |
 | `net.md_5.bungee.api.ChatMessageType` | 3 | 5 |
-| `org.bukkit.command.ProxiedCommandSender` | 3 | 5 |
 | `org.bukkit.entity.Player$Spigot` | 3 | 5 |
 | `org.bukkit.boss.BarFlag` | 3 | 4 |
 | `org.bukkit.block.Biome` | 3 | 2 |
 | `org.bukkit.Sound` | 3 | 1 |
-| `org.bukkit.plugin.messaging.PluginMessageListener` | 3 | 0 |
+| `org.bukkit.plugin.messaging.PluginMessageListener` | 3 | 1 |
 | `org.bukkit.inventory.InventoryView` | 2 | 19 |
 | `org.bukkit.event.inventory.InventoryClickEvent` | 2 | 14 |
 | `org.bukkit.Color` | 2 | 13 |
@@ -100,10 +94,8 @@
 | `org.bukkit.Particle$Trail` | 2 | 2 |
 | `org.bukkit.Vibration` | 2 | 2 |
 | `org.bukkit.Vibration$Destination$BlockDestination` | 2 | 2 |
-| `org.bukkit.command.PluginIdentifiableCommand` | 2 | 2 |
 | `org.bukkit.inventory.meta.SkullMeta` | 2 | 2 |
 | `org.bukkit.profile.PlayerTextures` | 2 | 2 |
-| `org.bukkit.scheduler.BukkitRunnable` | 2 | 2 |
 | `org.bukkit.scoreboard.Objective` | 2 | 2 |
 | `org.bukkit.scoreboard.Team` | 2 | 2 |
 | `io.papermc.paper.plugin.configuration.PluginMeta` | 2 | 1 |
@@ -134,6 +126,14 @@
 | `org.bukkit.attribute.AttributeModifier` | 1 | 6 |
 | `org.bukkit.inventory.meta.TropicalFishBucketMeta` | 1 | 6 |
 | `com.destroystokyo.paper.event.server.AsyncTabCompleteEvent` | 1 | 5 |
+| `org.bukkit.Art` | 1 | 5 |
+| `org.bukkit.block.Skull` | 1 | 5 |
+| `org.bukkit.entity.Ageable` | 1 | 5 |
+| `org.bukkit.inventory.meta.CompassMeta` | 1 | 5 |
+| `com.destroystokyo.paper.event.brigadier.AsyncPlayerSendCommandsEvent` | 1 | 4 |
+| `com.destroystokyo.paper.event.brigadier.CommandRegisteredEvent` | 1 | 4 |
+| `org.bukkit.Note` | 1 | 4 |
+| `org.bukkit.block.Banner` | 1 | 4 |
 
 ### 패키지별 (없는 클래스 수, 그 클래스들의 멤버 호출 합)
 
@@ -143,7 +143,6 @@
 | `org.bukkit.entity` | 62 | 118 |
 | `org.bukkit.inventory.meta` | 18 | 72 |
 | `org.bukkit.boss` | 4 | 63 |
-| `org.bukkit.command` | 12 | 53 |
 | `org.bukkit.inventory` | 7 | 45 |
 | `org.bukkit.event.inventory` | 9 | 37 |
 | `org.bukkit.scoreboard` | 5 | 26 |
@@ -151,10 +150,10 @@
 | `org.bukkit.event.player` | 9 | 20 |
 | `org.bukkit.potion` | 4 | 20 |
 | `org.bukkit.map` | 2 | 16 |
-| `org.bukkit.scheduler` | 3 | 16 |
 | `org.bukkit.material` | 8 | 15 |
 | `org.bukkit.block.data` | 7 | 14 |
-| `org.bukkit.plugin.messaging` | 2 | 12 |
+| `org.bukkit.command` | 3 | 14 |
+| `org.bukkit.plugin.messaging` | 2 | 13 |
 | `org.bukkit.attribute` | 4 | 10 |
 | `org.bukkit.event.entity` | 6 | 10 |
 | `com.destroystokyo.paper.event.brigadier` | 2 | 8 |
@@ -167,7 +166,6 @@
 | `com.destroystokyo.paper.event.server` | 2 | 7 |
 | `net.md_5.bungee.api.chat` | 2 | 7 |
 | `net.md_5.bungee.chat` | 2 | 7 |
-| `org.bukkit.plugin` | 4 | 6 |
 | `net.md_5.bungee.api` | 2 | 5 |
 | `org.bukkit.inventory.meta.trim` | 3 | 5 |
 | `org.bukkit.block.data.type` | 2 | 4 |
@@ -182,32 +180,30 @@
 | `io.papermc.paper.plugin.lifecycle.event.registrar` | 1 | 1 |
 | `io.papermc.paper.plugin.lifecycle.event.types` | 3 | 1 |
 | `org.bukkit.enchantments` | 1 | 1 |
-| `org.bukkit.event.server` | 3 | 1 |
 | `org.bukkit.help` | 1 | 1 |
 | `org.bukkit.metadata` | 1 | 1 |
 | `org.bukkit.permissions` | 1 | 1 |
 | `org.bukkit.util` | 2 | 1 |
 | `org.bukkit.advancement` | 1 | 0 |
 | `org.bukkit.loot` | 1 | 0 |
+| `org.bukkit.plugin` | 1 | 0 |
 
 ## 4. 클래스는 있는데 없는 멤버 순위
 
-전체 177개 중 위 120개 (요구하는 jar 수 순).
+전체 173개 중 위 120개 (요구하는 jar 수 순).
 
 | 멤버 | jar 수 |
 |---|---:|
-| `org.bukkit.Bukkit#getScheduler()Lorg/bukkit/scheduler/BukkitScheduler;` | 4 |
 | `org.bukkit.entity.Player#updateCommands()V` | 4 |
 | `org.bukkit.Server#getMessenger()Lorg/bukkit/plugin/messaging/Messenger;` | 3 |
-| `org.bukkit.Server#getScheduler()Lorg/bukkit/scheduler/BukkitScheduler;` | 3 |
 | `org.bukkit.entity.Player#sendPluginMessage(Lorg/bukkit/plugin/Plugin;Ljava/lang/String;[B)V` | 3 |
 | `org.bukkit.entity.Player#spigot()Lorg/bukkit/entity/Player$Spigot;` | 3 |
 | `org.bukkit.util.Vector#multiply(I)Lorg/bukkit/util/Vector;` | 3 |
 | `org.bukkit.Bukkit#addRecipe(Lorg/bukkit/inventory/Recipe;)Z` | 2 |
 | `org.bukkit.Bukkit#getOnlineMode()Z` | 2 |
-| `org.bukkit.Bukkit#getPluginCommand(Ljava/lang/String;)Lorg/bukkit/command/PluginCommand;` | 2 |
+| `org.bukkit.Keyed#name()Ljava/lang/String;` | 2 |
+| `org.bukkit.Keyed#ordinal()I` | 2 |
 | `org.bukkit.Server#getGlobalRegionScheduler()Lio/papermc/paper/threadedregions/scheduler/GlobalRegionScheduler;` | 2 |
-| `org.bukkit.Server#isPrimaryThread()Z` | 2 |
 | `org.bukkit.World#playSound(Lorg/bukkit/Location;Lorg/bukkit/Sound;FF)V` | 2 |
 | `org.bukkit.World#spawn(Lorg/bukkit/Location;Ljava/lang/Class;)Lorg/bukkit/entity/Entity;` | 2 |
 | `org.bukkit.entity.LivingEntity#getEyeHeight()D` | 2 |
@@ -223,8 +219,6 @@
 | `org.bukkit.inventory.meta.ItemMeta#displayName(Lnet/kyori/adventure/text/Component;)V` | 2 |
 | `org.bukkit.inventory.meta.ItemMeta#lore()Ljava/util/List;` | 2 |
 | `org.bukkit.inventory.meta.ItemMeta#lore(Ljava/util/List;)V` | 2 |
-| `org.bukkit.plugin.java.JavaPlugin#getCommand(Ljava/lang/String;)Lorg/bukkit/command/PluginCommand;` | 2 |
-| `org.bukkit.plugin.java.JavaPlugin#getProvidingPlugin(Ljava/lang/Class;)Lorg/bukkit/plugin/java/JavaPlugin;` | 2 |
 | `org.bukkit.util.Vector#toLocation(Lorg/bukkit/World;)Lorg/bukkit/Location;` | 2 |
 | `org.bukkit.Bukkit#createBossBar(Ljava/lang/String;Lorg/bukkit/boss/BarColor;Lorg/bukkit/boss/BarStyle;[Lorg/bukkit/boss/BarFlag;)Lorg/bukkit/boss/BossBar;` | 1 |
 | `org.bukkit.Bukkit#createInventory(Lorg/bukkit/inventory/InventoryHolder;ILnet/kyori/adventure/text/Component;)Lorg/bukkit/inventory/Inventory;` | 1 |
@@ -242,11 +236,9 @@
 | `org.bukkit.Bukkit#getOfflinePlayer(Ljava/util/UUID;)Lorg/bukkit/OfflinePlayer;` | 1 |
 | `org.bukkit.Bukkit#getOfflinePlayers()[Lorg/bukkit/OfflinePlayer;` | 1 |
 | `org.bukkit.Bukkit#getScoreboardManager()Lorg/bukkit/scoreboard/ScoreboardManager;` | 1 |
-| `org.bukkit.Bukkit#getServicesManager()Lorg/bukkit/plugin/ServicesManager;` | 1 |
 | `org.bukkit.Bukkit#getUnsafe()Lorg/bukkit/UnsafeValues;` | 1 |
 | `org.bukkit.Bukkit#getWorld(Lorg/bukkit/NamespacedKey;)Lorg/bukkit/World;` | 1 |
 | `org.bukkit.Bukkit#hasWhitelist()Z` | 1 |
-| `org.bukkit.Bukkit#isPrimaryThread()Z` | 1 |
 | `org.bukkit.Bukkit#recipeIterator()Ljava/util/Iterator;` | 1 |
 | `org.bukkit.Chunk#getBlock(III)Lorg/bukkit/block/Block;` | 1 |
 | `org.bukkit.Chunk#load()Z` | 1 |
@@ -260,12 +252,10 @@
 | `org.bukkit.OfflinePlayer#getLocation()Lorg/bukkit/Location;` | 1 |
 | `org.bukkit.Server#createBossBar(Ljava/lang/String;Lorg/bukkit/boss/BarColor;Lorg/bukkit/boss/BarStyle;[Lorg/bukkit/boss/BarFlag;)Lorg/bukkit/boss/BossBar;` | 1 |
 | `org.bukkit.Server#getAsyncScheduler()Lio/papermc/paper/threadedregions/scheduler/AsyncScheduler;` | 1 |
-| `org.bukkit.Server#getCommandMap()Lorg/bukkit/command/CommandMap;` | 1 |
 | `org.bukkit.Server#getHelpMap()Lorg/bukkit/help/HelpMap;` | 1 |
 | `org.bukkit.Server#getOfflinePlayer(Ljava/lang/String;)Lorg/bukkit/OfflinePlayer;` | 1 |
 | `org.bukkit.Server#getOfflinePlayer(Ljava/util/UUID;)Lorg/bukkit/OfflinePlayer;` | 1 |
 | `org.bukkit.Server#getRegionScheduler()Lio/papermc/paper/threadedregions/scheduler/RegionScheduler;` | 1 |
-| `org.bukkit.Server#getServicesManager()Lorg/bukkit/plugin/ServicesManager;` | 1 |
 | `org.bukkit.World#dropItemNaturally(Lorg/bukkit/Location;Lorg/bukkit/inventory/ItemStack;)Lorg/bukkit/entity/Item;` | 1 |
 | `org.bukkit.World#getGameRuleValue(Lorg/bukkit/GameRule;)Ljava/lang/Object;` | 1 |
 | `org.bukkit.World#getSpawnLocation()Lorg/bukkit/Location;` | 1 |
@@ -316,6 +306,14 @@
 | `org.bukkit.entity.LivingEntity#getEyeLocation()Lorg/bukkit/Location;` | 1 |
 | `org.bukkit.entity.LivingEntity#launchProjectile(Ljava/lang/Class;)Lorg/bukkit/entity/Projectile;` | 1 |
 | `org.bukkit.entity.LivingEntity#setAI(Z)V` | 1 |
+| `org.bukkit.entity.LivingEntity#setAbsorptionAmount(D)V` | 1 |
+| `org.bukkit.entity.LivingEntity#setCanPickupItems(Z)V` | 1 |
+| `org.bukkit.entity.LivingEntity#setCollidable(Z)V` | 1 |
+| `org.bukkit.entity.LivingEntity#setGliding(Z)V` | 1 |
+| `org.bukkit.entity.LivingEntity#setMaximumAir(I)V` | 1 |
+| `org.bukkit.entity.LivingEntity#setNoDamageTicks(I)V` | 1 |
+| `org.bukkit.entity.LivingEntity#setRemainingAir(I)V` | 1 |
+| `org.bukkit.entity.LivingEntity#setRemoveWhenFarAway(Z)V` | 1 |
 
 ## 5. CraftBukkit·net.minecraft 요구 (H5~H7 의 수요)
 
@@ -404,11 +402,11 @@
 
 ### `IF-0.12.2.jar`
 
-없는 클래스 20개: `MerchantRecipe`(11), `InventoryClickEvent`(9), `InventoryView`(7), `InventoryDragEvent`(6), `Item`(3), `EntityPickupItemEvent`(3), `Registry`(2), `ClickType`(2), `InventoryAction`(2), `InventoryCloseEvent`(2), `PlayerDropItemEvent`(2), `SkullMeta`(2), `PlayerProfile`(2), `DragType`(1), `InventoryOpenEvent`(1), `TradeSelectEvent`(1), `PlayerTextures`(1), `BukkitScheduler`(1), `ChatColor`, `InventoryType$SlotType`
+없는 클래스 19개: `MerchantRecipe`(11), `InventoryClickEvent`(9), `InventoryView`(7), `InventoryDragEvent`(6), `Item`(3), `EntityPickupItemEvent`(3), `Registry`(2), `ClickType`(2), `InventoryAction`(2), `InventoryCloseEvent`(2), `PlayerDropItemEvent`(2), `SkullMeta`(2), `PlayerProfile`(2), `DragType`(1), `InventoryOpenEvent`(1), `TradeSelectEvent`(1), `PlayerTextures`(1), `ChatColor`, `InventoryType$SlotType`
 
 ### `XSeries-14.0.0.jar`
 
-없는 클래스 159개: `DyeColor`(21), `Instrument`(18), `WorldBorder`(15), `MapView`(14), `Registry`(12), `EntityEquipment`(12), `InventoryView`(12), `MapMeta`(11), `Color`(10), `TreeSpecies`(10), `PotionMeta`(10), `SkullType`(9), `Note$Tone`(8), `BlockState`(8), `BookMeta`(8), `CustomModelDataComponent`(8), `FireworkEffect`(6), `FireworkEffect$Builder`(6), `AttributeModifier`(6), `TropicalFishBucketMeta`(6), `Art`(5), `Skull`(5), `BossBar`(5), `Ageable`(5), `CompassMeta`(5), `PotionEffectType`(5), `Note`(4), `Banner`(4), `AbstractHorse`(4), `Bee`(4) …
+없는 클래스 157개: `DyeColor`(21), `Instrument`(18), `WorldBorder`(15), `MapView`(14), `Registry`(12), `EntityEquipment`(12), `InventoryView`(12), `MapMeta`(11), `Color`(10), `TreeSpecies`(10), `PotionMeta`(10), `SkullType`(9), `Note$Tone`(8), `BlockState`(8), `BookMeta`(8), `CustomModelDataComponent`(8), `FireworkEffect`(6), `FireworkEffect$Builder`(6), `AttributeModifier`(6), `TropicalFishBucketMeta`(6), `Art`(5), `Skull`(5), `BossBar`(5), `Ageable`(5), `CompassMeta`(5), `PotionEffectType`(5), `Note`(4), `Banner`(4), `AbstractHorse`(4), `Bee`(4) …
 
 ### `adventure-platform-bukkit-4.4.1.jar`
 
@@ -424,27 +422,27 @@
 
 ### `bstats-bukkit-3.2.1.jar`
 
-없는 클래스 1개: `BukkitScheduler`(1)
+없는 클래스 없음.
 
 ### `cloud-bukkit-2.0.1.jar`
 
-없는 클래스 6개: `Command`(2), `BlockCommandSender`(1), `CommandMap`(1), `PluginIdentifiableCommand`(1), `BukkitScheduler`(1), `SimpleCommandMap`
+없는 클래스 없음.
 
 ### `cloud-paper-2.0.1.jar`
 
-없는 클래스 24개: `AsyncTabCompleteEvent`(5), `CommandRegisteredEvent`(4), `Commands`(3), `Registry`(3), `AsyncTabCompleteEvent$Completion`(2), `CommandSourceStack`(2), `MessageComponentSerializer`(2), `BootstrapContext`(2), `RegistryAccess`(2), `BlockCommandSender`(2), `BukkitBrigadierCommandSource`(1), `PaperBrigadier`(1), `CommandRegistrationFlag`(1), `PluginMeta`(1), `LifecycleEventManager`(1), `ReloadableRegistrarEvent`(1), `LifecycleEvents`(1), `RegistryKey`(1), `EntityScheduler`(1), `GlobalRegionScheduler`(1), `RegionScheduler`(1), `PluginIdentifiableCommand`(1), `LifecycleEventType`, `LifecycleEventType$Prioritizable`
+없는 클래스 22개: `AsyncTabCompleteEvent`(5), `CommandRegisteredEvent`(4), `Commands`(3), `Registry`(3), `AsyncTabCompleteEvent$Completion`(2), `CommandSourceStack`(2), `MessageComponentSerializer`(2), `BootstrapContext`(2), `RegistryAccess`(2), `BukkitBrigadierCommandSource`(1), `PaperBrigadier`(1), `CommandRegistrationFlag`(1), `PluginMeta`(1), `LifecycleEventManager`(1), `ReloadableRegistrarEvent`(1), `LifecycleEvents`(1), `RegistryKey`(1), `EntityScheduler`(1), `GlobalRegionScheduler`(1), `RegionScheduler`(1), `LifecycleEventType`, `LifecycleEventType$Prioritizable`
 
 ### `commandapi-bukkit-core-12.1.0.jar`
 
-없는 클래스 23개: `DisplaySlot`(7), `Messenger`(4), `Command`(3), `BlockCommandSender`(2), `CommandMap`(2), `ProxiedCommandSender`(2), `RemoteConsoleCommandSender`(2), `PlayerRegisterChannelEvent`(2), `ComponentSerializer`(1), `FluidCollisionMode`(1), `Biome`(1), `PluginCommand`(1), `SimpleCommandMap`(1), `Objective`(1), `Team`(1), `Sound`, `Advancement`, `BlockState`, `HelpTopic`, `Recipe`, `LootTable`, `PluginMessageListener`, `PotionEffectType`
+없는 클래스 18개: `DisplaySlot`(7), `ProxiedCommandSender`(4), `Messenger`(4), `RemoteConsoleCommandSender`(2), `PlayerRegisterChannelEvent`(2), `ComponentSerializer`(1), `FluidCollisionMode`(1), `Biome`(1), `PluginMessageListener`(1), `Objective`(1), `Team`(1), `Sound`, `Advancement`, `BlockState`, `HelpTopic`, `Recipe`, `LootTable`, `PotionEffectType`
 
 ### `commandapi-bukkit-plugin-10.1.2.jar`
 
-없는 클래스 43개: `DisplaySlot`(7), `Command`(5), `BukkitScheduler`(5), `GlobalRegionScheduler`(4), `Messenger`(4), `Axis`(3), `Color`(3), `ComponentSerializer`(2), `Registry`(2), `BlockCommandSender`(2), `CommandMap`(2), `ProxiedCommandSender`(2), `RemoteConsoleCommandSender`(2), `PlayerRegisterChannelEvent`(2), `Scoreboard`(2), `AsyncScheduler`(1), `TextComponent`(1), `FluidCollisionMode`(1), `Particle`(1), `Particle$DustOptions`(1), `Particle$DustTransition`(1), `Particle$Trail`(1), `Sound`(1), `Vibration`(1), `Vibration$Destination$BlockDestination`(1), `Biome`(1), `PluginCommand`(1), `SimpleCommandMap`(1), `HelpTopic`(1), `Recipe`(1) …
+없는 클래스 36개: `DisplaySlot`(7), `GlobalRegionScheduler`(4), `ProxiedCommandSender`(4), `Messenger`(4), `Axis`(3), `Color`(3), `ComponentSerializer`(2), `Registry`(2), `RemoteConsoleCommandSender`(2), `PlayerRegisterChannelEvent`(2), `Scoreboard`(2), `AsyncScheduler`(1), `TextComponent`(1), `FluidCollisionMode`(1), `Particle`(1), `Particle$DustOptions`(1), `Particle$DustTransition`(1), `Particle$Trail`(1), `Sound`(1), `Vibration`(1), `Vibration$Destination$BlockDestination`(1), `Biome`(1), `HelpTopic`(1), `Recipe`(1), `Permission`(1), `PotionEffectType`(1), `Objective`(1), `ScoreboardManager`(1), `Team`(1), `PluginMeta` …
 
 ### `commodore-2.2.jar`
 
-없는 클래스 4개: `AsyncPlayerSendCommandsEvent`(4), `Command`(4), `PlayerCommandSendEvent`(2), `PluginCommand`(1)
+없는 클래스 2개: `AsyncPlayerSendCommandsEvent`(4), `PlayerCommandSendEvent`(2)
 
 ### `fastboard-2.2.2.jar`
 
@@ -452,5 +450,5 @@
 
 ### `helper-5.6.14.jar`
 
-없는 클래스 52개: `ArmorStand`(18), `BossBar`(14), `BarColor`(9), `Pig`(9), `BarStyle`(7), `PluginCommand`(7), `InventoryClickEvent`(5), `DisplaySlot`(5), `Messenger`(4), `BukkitScheduler`(4), `BukkitObjectInputStream`(4), `BukkitObjectOutputStream`(4), `EntityDamageByEntityEvent`(3), `AsyncPlayerPreLoginEvent`(3), `PlayerInteractEntityEvent`(3), `BaseComponent`(2), `Command`(2), `ConfigurationSerialization`(2), `Player$Spigot`(2), `PigZapEvent`(2), `ClickType`(2), `InventoryCloseEvent`(2), `InventoryDragEvent`(2), `InventoryOpenEvent`(2), `AsyncPlayerPreLoginEvent$Result`(2), `PlayerFishEvent`(2), `RegisteredServiceProvider`(2), `ServicePriority`(2), `ServicesManager`(2), `ChatMessageType`(1) …
+없는 클래스 37개: `ArmorStand`(18), `BossBar`(14), `BarColor`(9), `Pig`(9), `BarStyle`(7), `InventoryClickEvent`(5), `DisplaySlot`(5), `Messenger`(4), `BukkitObjectInputStream`(4), `BukkitObjectOutputStream`(4), `EntityDamageByEntityEvent`(3), `AsyncPlayerPreLoginEvent`(3), `PlayerInteractEntityEvent`(3), `BaseComponent`(2), `ConfigurationSerialization`(2), `Player$Spigot`(2), `PigZapEvent`(2), `ClickType`(2), `InventoryCloseEvent`(2), `InventoryDragEvent`(2), `InventoryOpenEvent`(2), `AsyncPlayerPreLoginEvent$Result`(2), `PlayerFishEvent`(2), `ChatMessageType`(1), `ComponentSerializer`(1), `CreatureSpawnEvent$SpawnReason`(1), `PlayerDeathEvent`(1), `PlayerLoginEvent`(1), `PlayerLoginEvent$Result`(1), `LeatherArmorMeta`(1) …
 

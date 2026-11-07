@@ -68,7 +68,7 @@ final class CommandRegistryImpl implements CommandRegistry {
     /** 이름·별칭·"플러그인:이름" 을 트리에 붙이고 접속자에게 다시 보낸다. build(짧은 이름, 트리에 붙는 이름). */
     private Collection<String> registerNames(FurnacePlugin plugin, String name, List<String> aliases,
                                              java.util.function.BiFunction<String, String, LiteralArgumentBuilder<CommandSource>> build) {
-        List<String> names = new ArrayList<>();
+        Set<String> names = new LinkedHashSet<>();   // plugin.yml 의 별칭과 인자로 받은 별칭이 겹쳐도 한 번만(겹침 경고를 헛으로 내지 않는다)
         names.add(name);
         List<String> extra = new ArrayList<>(aliases);
         PluginDescription.CommandInfo info = plugin.description().commands().get(name);

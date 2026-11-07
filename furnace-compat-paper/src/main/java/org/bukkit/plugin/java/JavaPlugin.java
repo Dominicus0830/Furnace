@@ -10,18 +10,25 @@ import java.nio.file.Files;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.bukkit.Bukkit;
+import java.util.List;
+import java.util.Locale;
 import org.bukkit.Server;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandSender;
+import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.plugin.Plugin;
+import org.bukkit.plugin.PluginBase;
 import org.bukkit.plugin.PluginDescriptionFile;
+import org.domi.furnace.compat.paper.BukkitPluginAdapter;
 import org.domi.furnace.compat.paper.PluginInit;
+import org.domi.furnace.compat.paper.PluginLoaders;
 
 /**
  * Bukkit 플러그인의 바탕 클래스. 인스턴스는 호환 모듈이 플러그인 jar 의 메인 클래스를 만들 때 환경을 걸어 두고 만든다 —
  * 직접 {@code new} 하면 IllegalStateException.
  */
-public abstract class JavaPlugin implements Plugin {
+public abstract class JavaPlugin extends PluginBase {
 
     private final PluginInit init;
     private FileConfiguration newConfig;
@@ -134,8 +141,46 @@ public abstract class JavaPlugin implements Plugin {
     @Override
     public final Logger getLogger() { return init.logger(); }
 
+    /**
+     * plugin.yml 의 {@code commands:} 에 적은 명령(없으면 null). 켜지기 직전에 만들어지므로 onLoad 에서는 아직 null 이다.
+     * 실행기를 정하지 않으면 이 플러그인({@link #onCommand})이 실행기다.
+     */
+    public PluginCommand getCommand(String name) {
+        String alias = name.toLowerCase(Locale.ROOT);
+        PluginCommand command = getServer().getPluginCommand(alias);
+        if (command == null || command.getPlugin() != this) {
+            command = getServer().getPluginCommand(init.description().getName().toLowerCase(Locale.ROOT) + ":" + alias);
+        }
+        if (command != null && command.getPlugin() == this) return command;
+        return null;
+    }
+
     @Override
-    public final String getName() { return init.description().getName(); }
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) { return false; }
+
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) { return null; }
+
+    /** 이 클래스를 만든 플러그인 인스턴스. 정적 초기화 중이라면 IllegalStateException. */
+    public static <T extends JavaPlugin> T getPlugin(Class<T> clazz) {
+        if (clazz == null) throw new IllegalArgumentException("Null class cannot have a plugin");
+        if (!JavaPlugin.class.isAssignableFrom(clazz)) throw new IllegalArgumentException(clazz + " does not extend " + JavaPlugin.class);
+        return clazz.cast(providing(clazz));
+    }
+
+    /** 이 클래스를 올린 플러그인. 플러그인 jar 의 클래스가 아니면 IllegalArgumentException. */
+    public static JavaPlugin getProvidingPlugin(Class<?> clazz) {
+        if (clazz == null) throw new IllegalArgumentException("Null class cannot have a plugin");
+        return providing(clazz);
+    }
+
+    private static JavaPlugin providing(Class<?> clazz) {
+        BukkitPluginAdapter adapter = PluginLoaders.of(clazz.getClassLoader());
+        if (adapter == null) throw new IllegalArgumentException(clazz + " is not provided by a Bukkit plugin class loader");
+        JavaPlugin plugin = adapter.javaPlugin();
+        if (plugin == null) throw new IllegalStateException("Cannot get plugin for " + clazz + " from a static initializer");
+        return plugin;
+    }
 
     @Override
     public String toString() { return init.description().getFullName(); }
