@@ -87,6 +87,22 @@ public interface Furnace {
         return java.util.concurrent.CompletableFuture.failedFuture(new UnsupportedOperationException("unloadWorld"));
     }
 
+    /**
+     * 서버 TPS(Paper getTPS 에 해당). Furnace 는 region 마다 따로 틱하므로 하나의 "서버 TPS"가 없다 —
+     * {@link org.domi.furnace.api.world.ServerTps} 가 플레이어가 있는 region 의 평균(플레이어 수 가중)을 기본으로, 가장 느린 region·전역 박동 값을 함께 준다.
+     * 정의는 docs/api/tps.md. 아무 스레드. 서버가 주지 않으면 값이 모두 NaN 인 {@link org.domi.furnace.api.world.ServerTps#UNKNOWN}.
+     */
+    default org.domi.furnace.api.world.ServerTps tps() { return org.domi.furnace.api.world.ServerTps.UNKNOWN; }
+
+    /**
+     * 그 위치를 가진 region 의 최근 5초 TPS. 월드가 없거나 region 이 없거나 아직 잴 수 없으면 empty. 아무 스레드.
+     * (특정 region 의 값은 {@link World#region(int)}·{@link World#regions()} 의 {@code RegionInfo.tps()} 로도 본다.)
+     */
+    default java.util.OptionalDouble regionTps(org.domi.furnace.api.world.Location where) {
+        World w = world(where.world());
+        return w == null ? java.util.OptionalDouble.empty() : w.tpsAt(where.blockPos());
+    }
+
     CommandSender console();
 
     /** 모든 플레이어와 콘솔에 시스템 메시지(바닐라 broadcastSystemMessage). */

@@ -2,6 +2,10 @@
 
 2026-11-06 재구성. 구조: **1. 직접 확인할 것** → **2. 내가 결정할 것** → **3. 코디네이터가 이 파일에 필요하다고 보는 항목**. 맨 아래는 끝난 기록이라 할 일이 아니다.
 
+# TPS API·`/tps` 하위 명령 (Q3) — 2026-11-07
+도미니코 결정대로 `getTPS()`(= `Furnace.tps()`)는 활성 region(플레이어 있는 region) 플레이어 가중 평균, `/tps regions|here|player|region` 으로 특정 region 값. 정의 `docs/api/tps.md`. 봇(오프라인 서버 + 시험 플러그인)으로 값·명령 확인. 실제 클라이언트로 남은 것:
+- `/tps`·`/tps regions` 의 색(초록·노랑·빨강)과 줄 모양이 채팅 창에서 읽기 좋은지.
+
 # 명령 트리 API (C1) — 2026-11-07
 서버 시험(`CommandTreeApiTest`)으로 트리 명령·필터·해제는 확인. 실제 클라이언트로 남은 것:
 - 플러그인이 명령을 런타임에 등록·해제했을 때 열린 채팅 자동완성 목록이 바로 바뀌는지, 권한 없는 계정에서 `requires` 로 숨긴 명령이 자동완성에 안 보이는지.
@@ -74,7 +78,6 @@
 | **R5 한 번에 돌릴 스레드 수** | Paper·Spigot 불만 표 107행 중 37개 묶음이 남음 (`docs/feature-parity/work-packages-2026-11-06.md`) | **추천: 6개 안팎씩 3차에 나눠 시작.** 한꺼번에 다 돌리면 같은 파일 충돌과 사용량이 커짐 |
 | **RCON IP당 연결 상한 4** | 같은 기계에서 RCON 도구(패널·봇 등)를 4개보다 많이 동시에 쓰면 막힘 | 4개보다 많이 쓰는지 알려 주면 상한 조정. RCON 은 평문이라 공개 포트에 열지 말고 방화벽·loopback 권장. 인증 실패 제한(연결당 5회, IP당 60초 10회)과 연결 상한 16 때문에 NAT 뒤 관리자도 막힐 수 있음 |
 | **BungeeCord 레거시 포워딩** | 구현됨, 기본 꺼짐 (`bungeecord=false`). 사용자가 지원을 정한 것이 아니라 미구현 목록에서 고른 후보 | 지원할지. 서명이 없어 포트가 열려 있으면 누구나 아무 UUID 로 들어올 수 있음 → 켠다면 방화벽으로 프록시만 허용. 새 프록시는 Velocity 모던 포워딩(`velocity-secret`) 권장. 두 설정은 함께 켤 수 없음(기동 실패) |
-| **`/tps` 와 `getTPS()` 정의** | Furnace 는 region 마다 따로 틱해서 `/tps` 는 전역 박동 TPS 와 차원별 가장 느린 region TPS 를 함께 보임 | 플러그인용 `getTPS()` 가 돌려줄 값. 제안: 전역 박동 값 (`docs/feature-parity/tps-mspt-2026-11-03.md`) |
 | **`spawn-animals=false` / `spawn-npcs=false`** | 이제 바닐라처럼 이미 있는 동물·주민도 지움 (이전에는 자연 스폰만 막음) | 이 옵션으로 운영 중이면 첫 기동 때 기존 동물이 사라진다는 점을 감수할지 |
 | **Paper/Spigot 월드 가져오기** | 첫 기동 때 `world_nether/DIM-1`·`world_the_end/DIM1` 을 `world/` 안으로 **복사** (원본 보존). Bukkit 월드별 규칙·날씨는 안 가져오고 주 `world/level.dat` 값을 씀 | 네더·엔드 크기만큼 디스크가 더 필요. 확인 뒤 원본은 직접 지우면 됨. 이 방식이 맞는지 (`docs/feature-parity/bukkit-world-import-2026-11-03.md`) |
 | **공유 스케줄러 S4 기본값** | 병합됨, 기본 꺼짐. 켜는 법 `-Dfurnace.sharedRegionPool=true` | 기본값을 켤지. 부하 5ms 에서 지연은 줄었으나 간헐적 40~60ms 튐 원인 미확인 (`docs/feature-parity/shared-scheduler-s4-2026-10-28.md`) |

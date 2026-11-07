@@ -604,6 +604,7 @@ public final class Regionizer {
         tickRing.record(took);
         tickWindows.record(start, took);
         r.tickStarts.record(start);
+        r.observedPlayers = r.players().size();
         r.lastTickNanos = took;
         if (took > r.maxTickNanos) r.maxTickNanos = took;
     }
@@ -954,7 +955,8 @@ public final class Regionizer {
 
     /** region 한 개의 관측 사본. thread 는 지금 틱 중인 워커 이름(쉬면 null), runningNanos 는 그 틱이 돈 시간. */
     public record RegionInfo(int id, int sections, int chunks, int inbox, String thread, long runningNanos,
-                             long lastTickNanos, long maxTickNanos, int minChunkX, int minChunkZ, int maxChunkX, int maxChunkZ) {}
+                             long lastTickNanos, long maxTickNanos, int minChunkX, int minChunkZ, int maxChunkX, int maxChunkZ,
+                             int players) {}
 
     /** 살아 있는 region 들의 관측 사본(잠금 안에서 값만 복사한다 — region 상태는 만지지 않는다). */
     public List<RegionInfo> regionInfos() {
@@ -984,7 +986,7 @@ public final class Regionizer {
         Thread t = r.tickThread;
         Long started = running.get(r);
         return new RegionInfo(r.id, r.sections.size(), r.present.size(), r.inbox.size(), t == null ? null : t.getName(),
-                started == null ? 0 : now - started, r.lastTickNanos, r.maxTickNanos, minX, minZ, maxX, maxZ);
+                started == null ? 0 : now - started, r.lastTickNanos, r.maxTickNanos, minX, minZ, maxX, maxZ, r.observedPlayers);
     }
 
     /** region 틱 시간 창별 소요 시간(/mspt). */
@@ -1012,6 +1014,49 @@ public final class Regionizer {
                 }
             }
             return worst == null ? null : new RegionRate(info(worst, now), worstTps);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * 활성 region(플레이어가 있는 region) 요약 — /tps·getTPS 용. 잴 수 있는(기록 minHistory 이상) region 만 센다.
+     * weightedSum = Σ(플레이어 수 × TPS), 평균은 weightedSum / activePlayers. slowestAny 는 플레이어 없는 region 까지 포함한 최저.
+     */
+    public record ActiveSummary(int activeRegions, int activePlayers, double weightedSum, double slowestActive, double slowestAny) {
+        public static final ActiveSummary NONE = new ActiveSummary(0, 0, 0, Double.NaN, Double.NaN);
+
+        /** 여러 차원의 요약을 합친다. */
+        public ActiveSummary plus(ActiveSummary o) {
+            return new ActiveSummary(activeRegions + o.activeRegions, activePlayers + o.activePlayers, weightedSum + o.weightedSum,
+                    minNaN(slowestActive, o.slowestActive), minNaN(slowestAny, o.slowestAny));
+        }
+
+        /** 플레이어 가중 평균(활성 region 이 없으면 NaN). */
+        public double weightedAverage() { return activePlayers == 0 ? Double.NaN : weightedSum / activePlayers; }
+
+        private static double minNaN(double a, double b) { return Double.isNaN(a) ? b : Double.isNaN(b) ? a : Math.min(a, b); }
+    }
+
+    /** 활성 region 요약(잠금 안에서 각 region 의 시작 시각 고리·플레이어 수만 읽는다). */
+    public ActiveSummary activeSummary(long now, long windowNanos, long minHistoryNanos) {
+        lock.lock();
+        try {
+            int regionsN = 0, playersN = 0;
+            double sum = 0, slowActive = Double.NaN, slowAny = Double.NaN;
+            for (Region r : regions) {
+                if (!r.alive || r.yielded) continue;
+                double tps = r.tickStarts.rate(now, windowNanos, minHistoryNanos);
+                if (Double.isNaN(tps)) continue;
+                slowAny = Double.isNaN(slowAny) ? tps : Math.min(slowAny, tps);
+                int p = r.observedPlayers;
+                if (p <= 0) continue;
+                regionsN++;
+                playersN += p;
+                sum += p * tps;
+                slowActive = Double.isNaN(slowActive) ? tps : Math.min(slowActive, tps);
+            }
+            return new ActiveSummary(regionsN, playersN, sum, slowActive, slowAny);
         } finally {
             lock.unlock();
         }
