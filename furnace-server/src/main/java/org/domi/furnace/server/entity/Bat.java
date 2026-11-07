@@ -12,6 +12,10 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class Bat extends PathfinderMob {
+
+    /** 바닐라는 낙하 처리를 비운다(날아다니는 몹은 착지 입자·낙하 거리·HIT_GROUND 가 없다). */
+    @Override
+    protected void checkFallDamage(double dy, boolean ground, int state, org.domi.furnace.server.block.Pos pos) {}
     /** canBeLeashed(디컴파일 y): 박쥐(cey)는 못 맨다. */
     @Override
     public boolean canBeLeashed() { return false; }

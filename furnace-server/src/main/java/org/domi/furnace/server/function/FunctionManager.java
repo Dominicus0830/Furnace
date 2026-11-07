@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.domi.furnace.api.concurrent.ThreadOwner;
+import org.domi.furnace.api.event.server.FunctionExecuteEvent.Trigger;
 import org.domi.furnace.server.ServerCore;
 import org.domi.furnace.server.command.CommandSource;
 import org.domi.furnace.server.command.exec.CallFunction;
@@ -54,20 +55,24 @@ public final class FunctionManager {
         checkThread();
         if (postReload) {
             postReload = false;
-            executeTagFunctions(library.tag(LOAD_FUNCTION_TAG), false);
+            executeTagFunctions(library.tag(LOAD_FUNCTION_TAG), Trigger.LOAD);
         }
-        executeTagFunctions(ticking, true);
+        executeTagFunctions(ticking, Trigger.TICK);
     }
 
-    private void executeTagFunctions(Collection<CommandFunction> functions, boolean tick) {
+    private void executeTagFunctions(Collection<CommandFunction> functions, Trigger trigger) {
         CommandSource source = gameLoopSender();
-        for (CommandFunction f : functions) execute(f, source, tick);
+        for (CommandFunction f : functions) enqueue(f, source, trigger);
     }
 
     /** 바닐라 alg.a(ig, et): 함수 하나를 새 최상위 컨텍스트로(콜백 EMPTY). */
-    public void execute(CommandFunction function, CommandSource source) { execute(function, source, false); }
+    public void execute(CommandFunction function, CommandSource source) { enqueue(function, source, Trigger.SCHEDULED); }
 
-    private void execute(CommandFunction function, CommandSource source, boolean tick) {
+    /** 호출 경로를 지정해 실행(플러그인 FunctionExecuteEvent 의 trigger 로 전해진다). */
+    public void execute(CommandFunction function, CommandSource source, Trigger trigger) { enqueue(function, source, trigger); }
+
+    private void enqueue(CommandFunction function, CommandSource source, Trigger trigger) {
+        boolean tick = trigger == Trigger.TICK;
         checkThread();
         ResourceId id = function.id();
         CommandFunction.PlainTextFunction instantiated;
@@ -89,7 +94,7 @@ public final class FunctionManager {
         }
         server.commands().queue().enqueue(source, "function " + id, ctx -> {
             if (tick) waitingTick.remove(id);
-            CallFunction.queueInitial(ctx, instantiated, source, ResultCallback.EMPTY);
+            CallFunction.queueInitial(ctx, instantiated, source, ResultCallback.EMPTY, trigger);
         });
     }
 

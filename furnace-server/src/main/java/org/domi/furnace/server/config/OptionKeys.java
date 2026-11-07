@@ -53,6 +53,7 @@ public final class OptionKeys {
             new Option("chat.unsigned-as-system", "ON/OFF", "false", "true|false", "채팅을 서명 없는 시스템 메시지로 보낸다(채팅 신고 불가)"),
             new Option("server-brand", "글자", "Furnace", "", "F3 서버 브랜드와 level.dat ServerBrands"),
             new Option("announce-sleep-status", "ON/OFF", "true", "true|false", "자는 사람 수·밤 건너뛰기 액션바"),
+            new Option("motd-format", "plain|legacy|markup", "plain", "plain|legacy|markup", "server.properties motd 해석 방식(plain=바닐라)"),
             new Option("confirm-interrupt", "ON/OFF", "false", "true|false", "콘솔 Ctrl+C 를 두 번 눌러야 종료"),
             new Option("confirm-interrupt-seconds", "수", "5", "1~60", "두 번째 Ctrl+C 를 기다리는 초"),
             // 접속 방어(N2)
