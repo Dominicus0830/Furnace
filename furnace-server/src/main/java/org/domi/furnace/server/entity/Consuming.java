@@ -12,7 +12,13 @@ import org.domi.furnace.server.item.ItemTools;
 public final class Consuming {
     private Consuming() { }
 
-    private static final int DRINK_TICKS = 32, HONEY_TICKS = 40, OMINOUS_BOTTLE_TICKS = 120000;
+    private static final int DRINK_TICKS = 32, HONEY_TICKS = 40, OMINOUS_BOTTLE_TICKS = 120000, SPYGLASS_TICKS = 1200;
+
+    /** SpyglassItem.stopUsing: 쓰기를 멈추는 소리(플레이어 본인에겐 안 보낸다). */
+    public static void spyglassStopSound(Player p) {
+        var level = p.currentLevel;
+        if (level != null) Shields.playSoundExceptSelf(p, level, "minecraft:item.spyglass.stop_using", 1.0F, 1.0F);
+    }
 
     /** 그 아이템을 지금 쓸 수 있으면 사용 시간(틱), 아니면 -1. */
     public static int duration(Player p, ItemStack s) {
@@ -34,6 +40,13 @@ public final class Consuming {
     /** 사용 시작: 쓸 수 있으면 true. */
     public static boolean tryStart(Player p, int hand, ItemStack s) {
         if (Shields.isShield(s)) return Shields.tryStart(p, hand, s);
+        if (n0(s).equals("minecraft:spyglass")) {   // SpyglassItem.use: 소리·사용 통계 → ItemUtils.startUsingInstantly (CONSUME)
+            var level = p.currentLevel;
+            if (level != null) Shields.playSoundExceptSelf(p, level, "minecraft:item.spyglass.use", 1.0F, 1.0F);
+            p.awardStat("minecraft:used:minecraft:spyglass", 1);
+            p.startUsingItem(hand, SPYGLASS_TICKS);
+            return true;
+        }
         int d = duration(p, s);
         if (d < 0) return false;
         p.startUsingItem(hand, d);
@@ -65,6 +78,14 @@ public final class Consuming {
             RangedWeapons.tick(p, region == null ? null : region.level(), s);
             return;
         }
+        if (n0(s).equals("minecraft:spyglass")) {   // 망원경: 1200틱이 다 되면 finishUsingItem → stopUsing(소리)
+            if (--p.usingTicks <= 0) {
+                p.stopUsingItem();
+                spyglassStopSound(p);
+            }
+            return;
+        }
+        if (n0(s).equals("minecraft:ender_eye")) return;   // 엔더의 눈: startUsingItem 만 하고 사용 시간 0 — 놓거나 아이템이 바뀔 때까지 사용 중 표시가 남는다
         if (Shields.isShield(s)) {   // 방패: 72000틱이 다 되면 그냥 끝(finishUsingItem 은 그대로)
             if (--p.usingTicks <= 0) p.stopUsingItem();
             return;

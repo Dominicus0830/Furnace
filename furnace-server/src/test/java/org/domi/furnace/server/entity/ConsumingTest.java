@@ -87,4 +87,40 @@ class ConsumingTest {
         assertEquals(0, v.getEffect(MobEffect.BAD_OMEN).amplifier());
         assertEquals(1, player.inventory().get(player.inventory().heldWindowSlot()).count(), "창작 모드는 소비하지 않는다");
     }
+
+    @Test
+    void spyglassStartsUsingFor1200TicksAndCountsUse() {
+        ItemStack glass = TestRecipes.item("spyglass", 1);
+        hold(glass);
+        assertTrue(Consuming.tryStart(player, 0, glass));
+        assertEquals(0, player.usingHand);
+        assertEquals(1200, player.usingTicks);
+        assertEquals(1, (player.livingFlags() & 1), "사용 중 표시");
+        run(1199);
+        assertEquals(0, player.usingHand, "아직 쓰는 중");
+        run(1);
+        assertEquals(-1, player.usingHand, "1200틱 뒤 끝");
+    }
+
+    @Test
+    void spyglassStopsWhenHandChanges() {
+        ItemStack glass = TestRecipes.item("spyglass", 1);
+        hold(glass);
+        Consuming.tryStart(player, 0, glass);
+        hold(ItemStack.EMPTY);
+        run(1);
+        assertEquals(-1, player.usingHand);
+    }
+
+    @Test
+    void enderEyeUseMarkStaysUntilReleasedOrSwapped() {
+        ItemStack eye = TestRecipes.item("ender_eye", 1);
+        hold(eye);
+        player.startUsingItem(0, 0);   // EnderEyeItem.use → startUsingItem(hand), 사용 시간 0
+        run(50);
+        assertEquals(0, player.usingHand, "놓기 전까지 사용 중 표시가 남는다");
+        hold(TestRecipes.item("stone", 1));
+        run(1);
+        assertEquals(-1, player.usingHand, "다른 아이템으로 바뀌면 끝");
+    }
 }

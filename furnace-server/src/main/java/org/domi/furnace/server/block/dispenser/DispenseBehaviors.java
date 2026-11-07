@@ -161,7 +161,9 @@ public final class DispenseBehaviors {
             }
         };
         for (String m : new String[] {"leather", "iron", "golden", "diamond"}) register(m + "_horse_armor", horseArmor);
-        // 양탄자 16색: 보류(라마 장식 칸 없음) — 기본 던지기
+        // 양탄자 16색: 라마 장식(몸통 칸) — 말 갑옷과 같은 동작(길들인 라마만, isBodyArmorItem 이 양털 카펫만 받는다)
+        for (String c : new String[] {"white", "orange", "magenta", "light_blue", "yellow", "lime", "pink", "gray", "light_gray", "cyan", "purple",
+                "blue", "brown", "green", "red", "black"}) register(c + "_carpet", horseArmor);
         register("chest", new OptionalDispenseItemBehavior() {
             @Override
             protected ItemStack execute(BlockSource s, ItemStack stack) {

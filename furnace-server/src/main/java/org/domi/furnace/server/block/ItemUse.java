@@ -1136,7 +1136,7 @@ public final class ItemUse {
     /**
      * EnderEyeItem.use: 시선이 끝없는 틀을 맞히면 넘기고(useOn 이 채운다). 아니면 반경 100(청크 단위)의 #eye_of_ender_located(스트롱홀드)를
      * 찾아 있으면 눈 엔티티를 몸 가운데 높이에서 띄워 그 위치로 보내고(projectile_shoot, used_ender_eye, 소리 피치는 레벨 난수), 하나 쓰고 팔을 휘두른다.
-     * 없으면 소모 없이 CONSUME. TODO(사용 중 표시): startUsingItem 의 생물 플래그는 플레이어에 아직 없다.
+     * 없으면 소모 없이 CONSUME. 틀을 안 맞췄으면 먼저 player.startUsingItem(hand) — 사용 중 표시(생물 플래그·item_interact_start)가 남는다.
      */
     /**
      * FoodOnAStickItem.use(ctz): 탄 탈것이 그 막대의 종류(당근 낚싯대 → 돼지, 뒤틀린 균류 막대 → 스트라이더)이고 가속할 수 있으면(boost)
@@ -1162,6 +1162,7 @@ public final class ItemUse {
     private static Holder enderEyeUse(BlockLevel level, BlockActor player, int hand, ItemStack stack) {
         Clip.Result hit = Clip.playerPOV(level, player, Clip.FluidMode.NONE);
         if (!hit.miss() && B.is(level.getBlockState(hit.pos()), END_PORTAL_FRAME)) return Holder.pass(stack);
+        player.startUsingItem(hand, 0);   // EnderEyeItem.use: player.startUsingItem(hand)
         if (!(level instanceof ChunkLevel cl)) return new Holder(InteractionResult.CONSUME, stack);
         int[] found = locateEyeTarget(cl, player);
         if (found == null) return new Holder(InteractionResult.CONSUME, stack);
