@@ -46,11 +46,18 @@ class TravelPrewarmTest {
             Thread.sleep(10);
         }
         assertEquals(9, w.loadedChunkCount(), "생성 반경 3×3 만 만들었다 — 탐색 링의 만든 적 없는 청크는 디스크에 없다고 기억");
+        // 붙잡기는 로드 완료 콜백에서 건다 — 빠른 길 판정이 먼저 참이 될 수 있으니 조금 기다린다
+        while (!allHeld(w) && System.nanoTime() < deadline) Thread.sleep(10);
         for (int dz = -1; dz <= 1; dz++) {
             for (int dx = -1; dx <= 1; dx++) {
                 assertTrue(w.ticketed(Regionizer.chunkKey(dx, dz)), "미리 올린 청크는 붙잡힌다");
                 assertFalse(w.entityTicketed(dx, dz), "엔티티 틱 표는 건드리지 않는다");
             }
         }
+    }
+
+    private static boolean allHeld(World w) {
+        for (int dz = -1; dz <= 1; dz++) for (int dx = -1; dx <= 1; dx++) if (!w.ticketed(Regionizer.chunkKey(dx, dz))) return false;
+        return true;
     }
 }
