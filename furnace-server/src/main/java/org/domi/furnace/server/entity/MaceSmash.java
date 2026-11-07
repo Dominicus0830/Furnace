@@ -2,7 +2,8 @@
 // 밀도(density)의 낙하 1칸당 +0.5×레벨(smash_damage_per_fallen_block)은 여기서 합산한다.
 // 소유권: 플레이어를 때리는 region 스레드에서만 부른다(주변 몹·플레이어를 같은 region 에서 민다).
 // 차이(가정): 플레이어 넉백 저항은 방어구 합 근사, w.players() 는 호출 region 의 플레이어만, 레벨 이벤트 위치는 대상 getOnPos 근사.
-// 차이: 착지 추가 입자(setSpawnExtraParticlesOnFall)와 낙하-폭발 발전 과제(FALL_AFTER_EXPLOSION)는 아직 없다.
+// 착지 추가 입자(setSpawnExtraParticlesOnFall → dust_pillar)는 땅 위의 대상을 때릴 때 켜고 Region.processMoves 의 착지에서 뿌린다.
+// 차이: 낙하-폭발 발전 과제(FALL_AFTER_EXPLOSION)는 아직 없다.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -60,6 +61,7 @@ public final class MaceSmash {
         p.send(new SetEntityMotion(p.id(), mv[0], (double) 0.01F, mv[2]));   // 속도 Y 를 0.01 로
         String sound;
         if (onGroundOf(target)) {
+            v.setSpawnExtraParticlesOnFall(true);   // 땅 위 대상: 다음 착지에 먼지 기둥 입자(ServerPlayer.checkFallDamage)
             sound = v.fallDistance() > 5.0F ? "minecraft:item.mace.smash_ground_heavy" : "minecraft:item.mace.smash_ground";
         } else {
             sound = "minecraft:item.mace.smash_air";

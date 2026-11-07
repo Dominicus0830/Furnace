@@ -327,4 +327,8 @@ public class IronGolem extends AbstractGolem implements NeutralMob {
             super.start();
         }
     }
+
+    /** IronGolem.playStepSound: iron_golem.step 크기 1(0.15 를 곱하지 않는다). */
+    @Override
+    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) { playSound("minecraft:entity.iron_golem.step", 1.0F, 1.0F); }
 }

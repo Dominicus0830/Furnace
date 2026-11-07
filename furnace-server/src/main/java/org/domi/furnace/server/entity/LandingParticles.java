@@ -2,6 +2,7 @@
 // 발 밑 블록 입자(minecraft:block)를 개수 = (int)(150 × min(0.2F + ceil(낙하 - 안전)/15F, 2.5)), 퍼짐 0, 속도 0.15000000596046448 로 뿌린다.
 // 위치는 엔티티 (x,y,z) 인데, 발밑 칸(getOnPosLegacy)이 엔티티가 선 칸과 x·z 가 다르면(모서리에 걸쳐 선 경우) 그 칸 위 가장자리로 당긴다.
 // 몹(LivingEntity.checkFallDamage)과 플레이어(ServerPlayer.doCheckFallDamage → super.checkFallDamage)가 같은 식을 쓴다.
+// 철퇴 착지 입자(dust_pillar)는 spawnMaceDustPillar — 플레이어 전용(ServerPlayer.checkFallDamage).
 // 차이(미구현): 같은 메서드의 onChangedBlock(착지 때 위치 변경 효과 재실행)·updateInWaterStateAndDoWaterCurrentPushing 는 여기서 하지 않는다.
 package org.domi.furnace.server.entity;
 
@@ -34,5 +35,19 @@ public final class LandingParticles {
             z = on.z() + 0.5 + dz / max * 0.5;
         }
         level.sendParticles(new ParticleOptions.Block("minecraft:block", state), x, y, z, count(fallDistance, safeFall), 0.0, 0.0, 0.0, 0.15000000596046448);
+    }
+
+    /**
+     * 바닐라 ServerPlayer.checkFallDamage 의 철퇴 착지 입자: {@code spawnExtraParticlesOnFall} 가 켜진 채 땅에 닿고 낙하 거리가 0 보다 크면
+     * 발밑 칸(getOnPosLegacy) 가운데 + (0, 0.5, 0) 에 {@code dust_pillar}(그 칸 블록 상태) 를 (int)clamp(50 × 낙하 거리, 0, 200) 개, 퍼짐 0.3, 속도 0.15 로
+     * 뿌리고 표시를 끈다. 표시가 꺼져 있으면 아무것도 하지 않는다.
+     */
+    public static boolean spawnMaceDustPillar(ChunkLevel level, PlayerVitals vitals, int bx, int by, int bz, int state, float fallDistance) {
+        if (level == null || state < 0 || !(fallDistance > 0.0F) || !vitals.spawnExtraParticlesOnFall()) return false;
+        int count = (int) Math.clamp(50.0F * fallDistance, 0.0F, 200.0F);
+        level.sendParticles(new ParticleOptions.Block("minecraft:dust_pillar", state), bx + 0.5, by + 0.5 + 0.5, bz + 0.5, count,
+                0.30000001192092896, 0.30000001192092896, 0.30000001192092896, 0.15000000596046448);
+        vitals.setSpawnExtraParticlesOnFall(false);
+        return true;
     }
 }

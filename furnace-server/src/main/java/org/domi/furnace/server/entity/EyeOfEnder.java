@@ -8,6 +8,8 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class EyeOfEnder extends Entity {
+    @Override public boolean isAttackable() { return false; }
+
     public static final int DATA_ITEM_STACK = 8;
     private double tx, ty, tz;
     private int life;
