@@ -1118,6 +1118,14 @@
 - **남은 차이(가정)**: 제목의 hover(show_entity)·insertion 은 화면에 안 보여 붙이지 않았다. 스포너 수레의 `BaseSpawner` 는 스포너 블록과 같은 코드라 `TODO(엔티티)`(승객·equipment)가 같이 남는다. 광산 수레 아이템의 이름·`entity_data` 컴포넌트는 그대로 미구현(M8 이후).
 - 시험: `ContainerEntityParityTest`(스포너 수레 틱·저장, 라마 카펫, 전리품 표 풀기 시점, 창 제목).
 
+## 2026-11-07 M19 서버 옵션·운영 잔여 (spectatorsGenerateChunks·JMX·/perf·디버그/단일 바이옴 월드·전리품)
+- 관전자 청크: 바닐라 `ChunkMap.skipPlayer` 처럼 관전자(게임룰 false)는 청크 구독·월드젠 요청을 미루고, 이미 로드된 청크만 받는다(`Region.skipsGeneration`). 게임 모드가 바뀌면 다음 틱 `updateChunks` 가 다시 판정.
+- 로그인/리스폰 패킷의 `is_flat`·`is_debug` 가 늘 false 로 하드코딩돼 있었다. 이제 월드 종류(`World.levelKind`)를 따른다 — 슈퍼플랫 월드는 이제 `is_flat=true` 를 보낸다(바닐라와 같음; 클라이언트 안개·하늘 지평선이 바뀜).
+- 전리품 함수 누락 수: 바닐라 jar 의 `LootItemFunctions` 등록표(40종)와 대조하면 14개였다(문서의 15는 오차). 컴포넌트 값은 JSON 꼴 맵·리스트로 두되 `custom_data` 만 서버 아이템 정규 값(NbtCompound).
+- `set_attributes` 난수 순서: 수정자마다 슬롯 `Util.getRandom`(nextInt) → 양 `getFloat`. `replace:false` 이고 컴포넌트가 비었으면 아이템 기본 속성 위에 얹는다(바닐라 바이트코드).
+- RaiderPredicate 는 `has_raid`·`is_captain` 기본값이 false 이고 둘 다 같아야 한다(예전 구현은 안 쓴 `is_captain` 을 "무관"으로 봤다). 엔티티 서브 조건 목록은 19종(lightning, fishing_hook, player, slime, raider, axolotl, boat, fox, mooshroom, rabbit, horse, llama, villager, parrot, tropical_fish, painting, cat, frog, wolf) — `sheep`·`salmon` 은 1.21.1 에 없다(1.21.2+).
+- 변종 값은 저장 NBT 에서 바닐라 이름으로 바꾼다(`LootTypeSpecific`): 열거형 변종은 이름 그대로, 고양이·개구리·그림·늑대·주민은 `minecraft:` id. KillCredit 스냅샷은 소유 스레드에서 이 값을 미리 읽어 둔다.
+- LocationPredicate 의 새 필드는 그 칸 청크를 지금 스레드가 가진 경우에만 읽는다(`LootWorld` 훅이 null → 거짓). 다른 region 소유 칸이면 거짓이 나올 수 있다는 것이 바닐라 `isLoaded` 검사 자리의 Furnace 쪽 한계.
 ## 2026-11-07 다차원 차이 (묶음 M10, 바이트코드)
 바닐라 1.21.1 `dcw`(Level) 생성자·`dcw$1`, `dut`(WorldBorder)·`dur$a`(DelegateBorderChangeListener), `MinecraftServer.createLevels`, `aur`(PlayerList) `sendLevelInfo`·`addWorldborderListener`, `ape`(WorldBorderCommand), `dlc`(NetherPortalBlock) `randomTick`·`getPortalDestination`, `eqy`(DerivedLevelData) 를 `javap -c` 로 대조.
 - **보더**: 차원마다 `World.border()`. 좌표 비 ≠ 1 이면 `getCenterX/Z` 만 비로 나눈다(크기·경고·피해 그대로, `createSettings` 도 나눈 중심). 오버월드가 아닌 월드는 `ServerCore.attachWorld` 가 `setAbsoluteMaxSize(max-world-size)` 뒤 `attachFollower`(지금 상태 복사 + `Delegate`)로 오버월드를 따라간다. 내린 추가 월드는 고리를 뗀다. 블록 레벨 `withinBorder`/`borderBounds`·플레이어 보더 피해는 그 차원 보더, 지옥문 출구 자르기는 목적 레벨 보더(`borderBoundsOf`). 명령·level.dat·접속·변경 패킷은 오버월드 보더(바닐라도 네더 접속자에게 오버월드 값 — 클라이언트 레벨이 자기 비로 나눈다). 보더 틱은 차원마다.
@@ -1139,6 +1147,7 @@
 - `chunks-per-tick=auto`(기본)는 준비된 청크만 배치에 넣는다. 배치에 생성 중인 청크를 넣으면 Finished 가 가장 느린 생성을 기다려 클라이언트 응답이 늦어지고 이미 있는 청크까지 막힌다.
 - `World.serializedChunkBody(cp, true)` 는 주인 region 스레드면 작업 큐를 건너뛴다. 다른 곳에서 inline 을 켜도 그 스레드가 주인이 아니면 예전처럼 큐로 간다.
 - furnace.properties 를 읽는 새 키를 넣으면 `FurnacePropertiesFile.sections()` 에도 넣는다(`FurnacePropertiesFileTest` 가 접속 방어 키와 고정 목록을 확인한다).
+- 관전자(spectatorsGenerateChunks=false)는 auto 경로에서도 미리 불러오기(생성·디스크 로드)를 걸지 않는다(`sendQueuedChunksAuto` 의 `skipsGeneration`) — 이것을 빼면 auto 기본값에서 관전자가 땅을 만든다(M19·청크 전송 auto 합칠 때 발견).
 
 ## 2026-11-07 여럿일 때 청크 전송 (묶음 M12)
 - 원인 ①(데이터 유실): 종료 `flushAll` 한 번은 IO 레인이 밀리면(`ioBackedUp`, 레인당 256) 남은 dirty 청크를 `autosaveChunkQueue`(다음 틱)로 넘기는데 종료엔 다음 틱이 없다 → 여럿이 새 땅을 돌고 끄면 생성 청크 약 42% 유실, 재시작 뒤 재생성. `World.flushAllDrained` 가 미룬 수가 0 이 될 때까지 flushAll → `ioBarrier` 를 되풀이(역압은 지킴). 종료·`save-all` 이 쓴다. 미룬 수만 보므로 틱이 도는 save-all 이 끝없이 돌지 않는다.

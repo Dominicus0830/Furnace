@@ -169,10 +169,37 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
      * 노이즈 라우터만 다르다 — 큰 바이옴 기후 노이즈, 증폭 지형 depth/factor/jaggedness).
      */
     public static NoiseWorldSource overworld(long seed, BlockRegistry reg, RegistrySet registries, String noiseSettings) {
+        return overworld(seed, reg, registries, noiseSettings, null);
+    }
+
+    /**
+     * 바이옴 원천이 FixedBiomeSource 인 오버월드(바닐라 월드 프리셋 single_biome_surface — 노이즈 설정은 overworld, 바이옴은 plains 하나).
+     * fixedBiome 이 null 이면 multi_noise. 모든 칸이 그 바이옴이라 가능한 바이옴 목록(지형지물 순서·구조물 후보)도 그것 하나다.
+     */
+    public static NoiseWorldSource overworld(long seed, BlockRegistry reg, RegistrySet registries, String noiseSettings, String fixedBiome) {
         if (!OVERWORLD_NOISE_SETTINGS.contains(noiseSettings)) {
-            throw new IllegalArgumentException("지원하지 않는 오버월드 noise_settings: " + noiseSettings);
+            throw new IllegalArgumentException("지원하지 않는 오버월드 노이즈 설정: " + noiseSettings);
         }
-        return create(Dimension.OVERWORLD, noiseSettings, seed, reg, registries);
+        if (fixedBiome != null && registries.indexOf("minecraft:worldgen/biome", fixedBiome) < 0) {
+            throw new IllegalArgumentException("모르는 바이옴: " + fixedBiome);
+        }
+        return create(Dimension.OVERWORLD, noiseSettings, seed, reg, registries, fixedBiome);
+    }
+
+    /** 한 바이옴이 모든 기후 범위를 덮는 파라미터 목록(biome_parameters 형식) — FixedBiomeSource 와 같은 결과를 multi-noise 경로로 얻는다. */
+    static JsonArray fixedBiomeParameters(String biome) {
+        JsonObject e = new JsonObject();
+        e.addProperty("biome", biome);
+        for (String key : new String[] {"temperature", "humidity", "continentalness", "erosion", "depth", "weirdness"}) {
+            JsonArray range = new JsonArray();
+            range.add(-1_000_000L);
+            range.add(1_000_000L);
+            e.add(key, range);
+        }
+        e.addProperty("offset", 0L);
+        JsonArray arr = new JsonArray();
+        arr.add(e);
+        return arr;
     }
 
     public static NoiseWorldSource nether(long seed, BlockRegistry reg, RegistrySet registries) {
@@ -188,6 +215,10 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     }
 
     private static NoiseWorldSource create(Dimension dim, String noiseSettingsId, long seed, BlockRegistry reg, RegistrySet registries) {
+        return create(dim, noiseSettingsId, seed, reg, registries, null);
+    }
+
+    private static NoiseWorldSource create(Dimension dim, String noiseSettingsId, long seed, BlockRegistry reg, RegistrySet registries, String fixedBiome) {
         WorldgenData data = WorldgenData.load("worldgen/1.21.1");
         JsonObject settingsJson = data.noiseSettings(noiseSettingsId);
         NoiseSettings settings = NoiseSettings.fromJson(noiseSettingsId, settingsJson);
@@ -198,7 +229,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         int lavaId  = reg.defaultStateId("minecraft:lava");
 
         JsonArray params = switch (dim) {
-            case OVERWORLD -> data.biomeParameters();
+            case OVERWORLD -> fixedBiome != null ? fixedBiomeParameters(fixedBiome) : data.biomeParameters();
             case NETHER -> data.resourceArray(dim.biomeParameters);
             case END -> endBiomeList();
         };

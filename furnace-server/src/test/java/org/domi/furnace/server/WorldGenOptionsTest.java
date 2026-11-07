@@ -57,5 +57,19 @@ class WorldGenOptionsTest {
         assertEquals("minecraft:overworld", FurnaceMain.overworldNoiseSettings(levelFor("largebiomes")));
         // 네임스페이스 없는 flat 도 평지(이전에는 minecraft:flat 만 알아봤다)
         assertEquals("minecraft:flat", levelFor("flat").overworldGenerator().tags().get("type"));
+        // 디버그 월드·단일 바이옴 지표
+        LevelData debug = levelFor("debug_all_block_states");
+        assertTrue(debug.isDebugWorld());
+        assertFalse(debug.isFlatWorld());
+        assertEquals("minecraft:debug", debug.overworldGenerator().tags().get("type"));
+        assertTrue(levelFor("flat").isFlatWorld());
+        LevelData single = levelFor("single_biome_surface");
+        assertFalse(single.isDebugWorld());
+        assertEquals("minecraft:plains", single.overworldFixedBiome());
+        assertEquals("minecraft:overworld", FurnaceMain.overworldNoiseSettings(single));
+        assertNull(levelFor("minecraft:normal").overworldFixedBiome());
+        // level.dat 를 다시 읽어도 같다
+        assertEquals("minecraft:plains", LevelData.fromNbt(single.toNbt(0L)).overworldFixedBiome());
+        assertTrue(LevelData.fromNbt(debug.toNbt(0L)).isDebugWorld());
     }
 }

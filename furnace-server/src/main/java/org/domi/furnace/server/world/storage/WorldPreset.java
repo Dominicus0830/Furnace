@@ -8,7 +8,9 @@ public enum WorldPreset {
     FLAT("minecraft:flat", null),
     LARGE_BIOMES("minecraft:large_biomes", "minecraft:large_biomes"),
     AMPLIFIED("minecraft:amplified", "minecraft:amplified"),
+    /** 오버월드 노이즈 설정 + FixedBiomeSource(plains) — 바이옴 원천이 다르다(LevelData.useSingleBiomeOverworld). */
     SINGLE_BIOME_SURFACE("minecraft:single_biome_surface", null),
+    /** 모든 블록 상태 격자(DebugWorldSource) — LevelData.useDebugOverworld. */
     DEBUG_ALL_BLOCK_STATES("minecraft:debug_all_block_states", null);
 
     /** 프리셋 id. */

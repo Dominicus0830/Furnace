@@ -423,6 +423,9 @@ public abstract class Raider extends Monster {
     @Override
     protected boolean requiresCustomPersistence() { return super.requiresCustomPersistence() || hasRaidRef(); }
 
+    /** Raider.hasRaid: 습격에 속했거나(보류 번호 포함) 지금 서 있는 칸이 어느 습격 구역 안이다(전리품 조건 raider.has_raid). */
+    public boolean hasRaid() { return hasRaidRef() || level().raids().getRaidAt(blockPosition()) != null; }
+
     /** getCurrentRaid() != null(보류 중인 번호 포함). */
     private boolean hasRaidRef() { return currentRaid != null || pendingRaidId >= 0; }
 

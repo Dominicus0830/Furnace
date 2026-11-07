@@ -1284,8 +1284,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             send(ctx, new LoginPlay(eid, level.hardcore, loginLevelKeys(coreJ),
                     props.maxPlayers, world.viewDistance(), coreJ.simulationDistance(), rules.getBoolean("reducedDebugInfo"),
                     !rules.getBoolean("doImmediateRespawn"), rules.getBoolean("doLimitedCrafting"), dimIndex, world.dimension(),
-                    coreJ.biomeZoomSeed(world), vitals.gameMode().id(), prevMode == null ? -1 : prevMode.id(), false,
-                    vitals.lastDeathDimension(), vitals.lastDeathPos(), coreJ.enforceSecureProfile()));
+                    coreJ.biomeZoomSeed(world), vitals.gameMode().id(), prevMode == null ? -1 : prevMode.id(),
+                    world.isDebugLevel(), world.isFlatLevel(), vitals.lastDeathDimension(), vitals.lastDeathPos(), coreJ.enforceSecureProfile()));
             send(ctx, new ChangeDifficulty(level.difficulty.id(), level.difficultyLocked));
         } else {
             send(ctx, new LoginPlay(eid, "minecraft:overworld", dimIndex, world.viewDistance()));
@@ -3394,7 +3394,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var prev = vitals.previousGameMode();
         long hashedSeed = core != null ? core.biomeZoomSeed(target) : 0L;
         send(ctx, new org.domi.furnace.server.net.protocol.play.Respawn(dimensionTypeIndex(target), target.dimension(), hashedSeed,
-                vitals.gameMode().id(), prev == null ? -1 : prev.id(), false, vitals.lastDeathDimension(), vitals.lastDeathPos(), portalCooldown,
+                vitals.gameMode().id(), prev == null ? -1 : prev.id(), target.isDebugLevel(), target.isFlatLevel(),
+                vitals.lastDeathDimension(), vitals.lastDeathPos(), portalCooldown,
                 org.domi.furnace.server.net.protocol.play.Respawn.KEEP_ALL));
         if (core != null) {
             send(ctx, new ChangeDifficulty(core.levelData().difficulty.id(), core.levelData().difficultyLocked));
@@ -3469,7 +3470,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var prev = vitals.previousGameMode();
         long hashedSeed = core != null ? core.biomeZoomSeed(world) : 0L;
         send(ctx, new org.domi.furnace.server.net.protocol.play.Respawn(dimensionTypeIndex(world), world.dimension(), hashedSeed,
-                vitals.gameMode().id(), prev == null ? -1 : prev.id(), false, vitals.lastDeathDimension(), vitals.lastDeathPos(), 0, (byte) 0));
+                vitals.gameMode().id(), prev == null ? -1 : prev.id(), world.isDebugLevel(), world.isFlatLevel(),
+                vitals.lastDeathDimension(), vitals.lastDeathPos(), 0, (byte) 0));
         // 서버가 정한 위치로 텔레포트 — 확인 전까지 클라 이동은 받지 않는다.
         p.clearMoves();
         ix = x; iy = y; iz = z; iyaw = yaw; ipitch = pitch; ig = false;
@@ -3533,7 +3535,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var prev = vitals.previousGameMode();
         long hashedSeed = core != null ? core.biomeZoomSeed(target) : 0L;
         send(ctx, new org.domi.furnace.server.net.protocol.play.Respawn(dimensionTypeIndex(target), target.dimension(), hashedSeed,
-                vitals.gameMode().id(), prev == null ? -1 : prev.id(), false, vitals.lastDeathDimension(), vitals.lastDeathPos(), 0,
+                vitals.gameMode().id(), prev == null ? -1 : prev.id(), target.isDebugLevel(), target.isFlatLevel(),
+                vitals.lastDeathDimension(), vitals.lastDeathPos(), 0,
                 org.domi.furnace.server.net.protocol.play.Respawn.KEEP_ATTRIBUTES));
         world = target;
         p.dimension(target.dimension());

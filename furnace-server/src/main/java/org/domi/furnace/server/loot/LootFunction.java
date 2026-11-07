@@ -325,7 +325,11 @@ public interface LootFunction extends BiFunction<LootStack, LootContext, LootSta
                 NumberProvider value = NumberProvider.parse(LootJson.req(o, "value"));
                 yield (s, c) -> { s.set("minecraft:custom_model_data", value.getInt(c)); return s; };
             }
-            default -> throw new LootParseException("아직 지원하지 않는 전리품 함수: " + type);
+            default -> {
+                LootFunction f = ItemFunctions.parse(type, o, regs);
+                if (f == null) throw new LootParseException("아직 지원하지 않는 전리품 함수: " + type);
+                yield f;
+            }
         };
     }
 
