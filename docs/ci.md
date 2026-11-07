@@ -26,6 +26,8 @@
 - `push` 는 기준 브랜치(`claude/quirky-wright-lra834`, `main`)에서만 돈다. 작업 브랜치는 PR 을 열면 `pull_request` 로 한 번 돈다.
   충돌이 있는 PR 은 `pull_request` 실행이 만들어지지 않는다 — 기준 브랜치를 합쳐 충돌을 풀면 다시 돈다.
 - Gradle 캐시는 기준 브랜치 실행에서만 저장하고 PR 은 읽기만 한다.
+- 새 푸시가 오면 앞 실행을 취소하는 것은 PR 실행만이다. 기준 브랜치 push 실행은 병합이 잦아도 끝까지 돌아야 캐시·합친 user-todo 문서가 만들어진다.
+- 재시도는 "시험 실패"로 끝난 조각에만 한다. 시험 JVM 이 죽었거나(`non-zero exit value`) 빌드 오류면 재시도하지 않고 실패로 둔다(일부 시험이 안 돈 채 초록이 되는 것을 막는다).
 
 ## 로컬에서
 - 전체: `./gradlew -PskipOracle=true :furnace-api:test :furnace-server:test` (조각 속성 없음 = 전부).

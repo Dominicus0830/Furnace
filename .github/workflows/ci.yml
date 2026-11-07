@@ -18,7 +18,8 @@ on:
 # 같은 PR·브랜치에 새 푸시가 오면 앞선 실행을 취소해 러너 부하(시간에 민감한 시험의 불안정 원인)를 줄인다.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # PR 은 새 푸시가 오면 앞 실행을 취소한다. 기준 브랜치 push 실행은 취소하지 않는다 — 병합이 15분보다 자주 일어나도 기준 브랜치 실행(캐시 저장·user-todo 합친 문서)이 끝까지 돌게.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   BASE_BRANCH: refs/heads/claude/quirky-wright-lra834
@@ -46,12 +47,19 @@ jobs:
       - name: 서버 테스트 (조각 ${{ matrix.shard }}/3)
         id: server-test
         continue-on-error: true
-        run: ./gradlew -PskipOracle=true -PtestShard=${{ matrix.shard }}/3 :furnace-server:test
+        run: |
+          set -o pipefail
+          ./gradlew -PskipOracle=true -PtestShard=${{ matrix.shard }}/3 :furnace-server:test 2>&1 | tee /tmp/shard-run.log
       # 부하에서 가끔 실패하는 시간 민감 시험(CommandBlockOneTickTest 등): 처음에 실패한 시험 클래스만 한 번 다시 돌린다.
       - name: 실패한 시험만 재시도(1회)
         id: retry
         if: steps.server-test.outcome == 'failure'
         run: |
+          # 시험 JVM 이 죽은(메모리 부족·강제 종료) 경우는 일부 시험이 아예 안 돈 것이라 재시도하면 초록이 거짓이 된다 — 시험 실패로만 끝났을 때만 재시도한다.
+          if ! grep -q "There were failing tests" /tmp/shard-run.log || grep -q "finished with non-zero exit value" /tmp/shard-run.log; then
+            echo "::error::시험 실패가 아니라 시험 JVM 이상 종료·빌드 오류로 보여 재시도하지 않습니다."
+            exit 1
+          fi
           dir=furnace-server/build/test-results/test
           failed=$(awk '
             /<testcase /{ match($0,/name="[^"]*"/); n=substr($0,RSTART+6,RLENGTH-7); match($0,/classname="[^"]*"/); c=substr($0,RSTART+11,RLENGTH-12) }
