@@ -29,5 +29,21 @@ public final class ViewLayers {
     public void borderEnforced(boolean enforced) { this.borderEnforced = enforced; }
 
     /** 서버 판정(보더 밖 피해·상호작용)에 쓸 보더: 개인 보더가 있고 enforce 면 그것, 아니면 null. */
+    private volatile java.util.function.ToDoubleFunction<String> scaleOf;
+
+    /** 차원 키 → 좌표 비(PlayerViews 가 개인 보더를 만들 때 서버의 차원 표를 넘긴다). */
+    public void scaleOf(java.util.function.ToDoubleFunction<String> f) { this.scaleOf = f; }
+
+    /** 그 차원 기준의 개인 보더(바닐라 네더 보더처럼 중심만 좌표 비로 나눈다, 크기는 그대로). 공유 상태를 바꾸지 않는 복사본이라 스레드 간에 부딪히지 않는다. */
+    public WorldBorder borderFor(String dimension) {
+        var b = border;
+        var f = scaleOf;
+        if (b == null || f == null || dimension == null) return b;
+        return b.withCoordinateScale(f.applyAsDouble(dimension));
+    }
+
+    /** 서버 판정용(enforce 켠 경우만) — 그 차원 기준. */
+    public WorldBorder enforcedBorder(String dimension) { return borderEnforced ? borderFor(dimension) : null; }
+
     public WorldBorder enforcedBorder() { return borderEnforced ? border : null; }
 }
