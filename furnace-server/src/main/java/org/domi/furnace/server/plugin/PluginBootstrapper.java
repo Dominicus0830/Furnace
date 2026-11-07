@@ -25,6 +25,7 @@ import org.domi.furnace.api.ApiVersion;
 import org.domi.furnace.api.config.ConfigFormat;
 import org.domi.furnace.api.config.ConfigSection;
 import org.domi.furnace.api.plugin.PluginDescription;
+import org.domi.furnace.api.plugin.PluginFormat;
 import org.domi.furnace.api.plugin.bootstrap.BootstrapContext;
 import org.domi.furnace.api.plugin.bootstrap.PluginBootstrap;
 import org.domi.furnace.api.plugin.lifecycle.DatapackRegistrar;
@@ -48,6 +49,8 @@ public final class PluginBootstrapper {
 
     private final Path dir;
     private final PluginSettings settings;
+    /** 다른 서버 소프트웨어 플러그인 형식 어댑터(예: Bukkit plugin.yml). 호환 모듈이 없으면 비어 있다. */
+    private final List<PluginFormat> formats;
     /** 찾기·부트스트랩에서 실패한 플러그인(또는 jar) 이름 — plugins.fail-fast 의 근거. */
     private final List<String> failures = new CopyOnWriteArrayList<>();
     private final PluginRegistryStore registries = new PluginRegistryStore();
@@ -63,20 +66,41 @@ public final class PluginBootstrapper {
 
     /** 부트스트랩을 마친 플러그인 하나. bootstrap 은 bootstrapper 가 없으면 null. */
     record Prepared(PluginDescription description, Path file, PluginManagerImpl.PluginClassLoader loader, java.util.logging.Logger logger,
-                    PluginBootstrap bootstrap, BootstrapContext context) {}
+                    PluginBootstrap bootstrap, BootstrapContext context, PluginFormat format) {}
 
-    private PluginBootstrapper(Path dir, PluginSettings settings) {
+    private PluginBootstrapper(Path dir, PluginSettings settings, List<PluginFormat> formats) {
         this.dir = dir;
         this.settings = settings;
+        this.formats = List.copyOf(formats);
     }
 
     /** plugins/ 를 훑어 의존 순서대로 부트스트랩까지 한다. 실패한 플러그인은 로그를 남기고 건너뛴다. */
     public static PluginBootstrapper bootstrap(Path dir) { return bootstrap(dir, PluginSettings.DEFAULT); }
 
     public static PluginBootstrapper bootstrap(Path dir, PluginSettings settings) {
-        PluginBootstrapper b = new PluginBootstrapper(dir, settings);
+        return bootstrap(dir, settings, settings.compat() ? loadFormats() : List.of());
+    }
+
+    /** 형식 어댑터를 직접 정해 시작한다(시험용). */
+    public static PluginBootstrapper bootstrap(Path dir, PluginSettings settings, List<PluginFormat> formats) {
+        PluginBootstrapper b = new PluginBootstrapper(dir, settings, formats);
         b.run();
         return b;
+    }
+
+    /** 클래스패스의 호환 모듈이 ServiceLoader 로 알린 형식 어댑터. 하나가 깨져도 나머지는 쓴다. */
+    static List<PluginFormat> loadFormats() {
+        List<PluginFormat> out = new ArrayList<>();
+        var it = java.util.ServiceLoader.load(PluginFormat.class, PluginBootstrapper.class.getClassLoader()).iterator();
+        while (true) {
+            try {
+                if (!it.hasNext()) break;
+                out.add(it.next());
+            } catch (java.util.ServiceConfigurationError e) {
+                log.error("플러그인 형식 어댑터를 불러오지 못했다", e);
+            }
+        }
+        return out;
     }
 
     /** 찾기·부트스트랩에서 실패한 이름들. */
@@ -175,7 +199,7 @@ public final class PluginBootstrapper {
     // ------------------------------------------------------------------ 찾기·순서
 
     /** 설명 파일을 읽은 후보. */
-    record Candidate(Path file, PluginDescription description) {}
+    record Candidate(Path file, PluginDescription description, PluginFormat format) {}
 
     private void run() {
         try {
@@ -190,24 +214,26 @@ public final class PluginBootstrapper {
             HotReload.clearShadowDir(dir);
         }
         long bukkit = countJars(dir.resolve(BUKKIT_FOLDER));
-        if (bukkit > 0) {
-            log.warn("plugins/{}/ 에 Paper/Bukkit 플러그인 {}개가 있다 — 호환 어댑터가 아직 없어 불러오지 않는다", BUKKIT_FOLDER, bukkit);
+        if (bukkit > 0 && formats.isEmpty()) {
+            log.warn("plugins/{}/ 에 Paper/Bukkit 플러그인 {}개가 있다 — 호환 어댑터가 {} 불러오지 않는다", BUKKIT_FOLDER, bukkit,
+                    settings.compat() ? "클래스패스에 없어" : "꺼져(plugins.compat.bukkit=false) 있어");
         }
         Map<String, Candidate> byName = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-        for (Path jar : jars(dir)) {
-            PluginDescription d;
+        for (Path jar : scanJars()) {
+            Candidate c;
             try {
-                d = readDescription(jar);
+                c = readCandidate(jar, false);
             } catch (Exception e) {
                 log.error("Could not load '{}' in folder '{}'", dir.relativize(jar), dir.getFileName(), e);
                 failures.add(jar.getFileName().toString());
                 continue;
             }
-            if (d == null) {
+            if (c == null) {
                 failures.add(jar.getFileName().toString());
                 continue;
             }
-            Candidate prev = byName.putIfAbsent(d.name(), new Candidate(jar, d));
+            PluginDescription d = c.description();
+            Candidate prev = byName.putIfAbsent(d.name(), c);
             if (prev != null) {
                 log.error("Ambiguous plugin name `{}' for files `{}' and `{}' in `{}'", d.name(), prev.file(), jar, dir.getFileName());
                 failures.add(d.name());
@@ -232,10 +258,15 @@ public final class PluginBootstrapper {
         }
     }
 
-    /** 설명 파일을 읽는다. Furnace 설명이 없으면(Bukkit 플러그인이면 안내 후) null. */
-    private PluginDescription readDescription(Path jar) throws IOException { return readDescription(jar, false); }
+    /** 찾을 jar: plugins/ 의 jar, 형식 어댑터가 있으면 plugins/bukkit-plugins/ 의 jar 도(이름 순). */
+    private List<Path> scanJars() {
+        List<Path> out = new ArrayList<>(jars(dir));
+        if (!formats.isEmpty()) out.addAll(jars(dir.resolve(BUKKIT_FOLDER)));
+        return out;
+    }
 
-    private PluginDescription readDescription(Path jar, boolean quiet) throws IOException {
+    /** jar 하나의 후보. Furnace 설명 파일이 먼저, 없으면 형식 어댑터 순서대로. 없으면(안내 로그 후) null. */
+    private Candidate readCandidate(Path jar, boolean quiet) throws IOException {
         try (JarFile jf = new JarFile(jar.toFile())) {
             for (String n : DESCRIPTOR_NAMES) {
                 var entry = jf.getEntry(n);
@@ -243,7 +274,20 @@ public final class PluginBootstrapper {
                 try (InputStream in = jf.getInputStream(entry)) {
                     ConfigFormat f = ConfigFormat.fromFileName(n).orElse(ConfigFormat.YAML);
                     ConfigSection s = f.parse(new String(in.readAllBytes(), StandardCharsets.UTF_8));
-                    return PluginDescription.read(s);
+                    return new Candidate(jar, PluginDescription.read(s), null);
+                }
+            }
+            for (PluginFormat format : formats) {
+                for (String n : format.descriptorNames()) {
+                    var entry = jf.getEntry(n);
+                    if (entry == null) continue;
+                    try (InputStream in = jf.getInputStream(entry)) {
+                        String text = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+                        return new Candidate(jar, format.readDescriptor(n, text), format);
+                    } catch (RuntimeException e) {
+                        if (quiet) return null;
+                        throw e;
+                    }
                 }
             }
             if (quiet) return null;
@@ -318,7 +362,7 @@ public final class PluginBootstrapper {
 
     private Prepared prepare(Candidate c) {
         PluginDescription d = c.description();
-        if (!apiVersionOk(d, c.file())) {
+        if (c.format() == null && !apiVersionOk(d, c.file())) {
             failures.add(d.name());
             return null;
         }
@@ -350,7 +394,7 @@ public final class PluginBootstrapper {
         LifecycleHooks.Registrar hooks = lifecycle.registrar(d.name(), logger);
         Context ctx = new Context(d, c.file(), logger, hooks, registries(d));
         PluginBootstrap boot = null;
-        String cls = d.bootstrapper();
+        String cls = c.format() == null ? d.bootstrapper() : null;   // 다른 형식의 bootstrapper 는 Furnace PluginBootstrap 이 아니다
         if (cls != null && !cls.isBlank()) {
             try {
                 Class<?> type = Class.forName(cls, true, loader);
@@ -368,7 +412,7 @@ public final class PluginBootstrapper {
             }
         }
         hooks.close();
-        Prepared out = new Prepared(d, c.file(), loader, logger, boot, ctx);
+        Prepared out = new Prepared(d, c.file(), loader, logger, boot, ctx, c.format());
         prepared.add(out);
         return out;
     }
@@ -430,25 +474,24 @@ public final class PluginBootstrapper {
 
     // ------------------------------------------------------------------ 핫 리로드(개발 모드)
 
-    /** plugins/ 에서 그 이름의 Furnace 플러그인 jar 를 찾는다(없으면 null). 다른 jar 의 오류는 로그하지 않는다. */
+    /** plugins/ 에서 그 이름의 플러그인 jar 를 찾는다(없으면 null). 다른 jar 의 오류는 로그하지 않는다. */
     Candidate findOnDisk(String name) {
-        for (Path jar : jars(dir)) {
-            PluginDescription d;
+        for (Path jar : scanJars()) {
+            Candidate c;
             try {
-                d = readDescription(jar, true);
+                c = readCandidate(jar, true);
             } catch (Exception e) {
                 continue;
             }
-            if (d != null && d.name().equalsIgnoreCase(name)) return new Candidate(jar, d);
+            if (c != null && c.description().name().equalsIgnoreCase(name)) return c;
         }
         return null;
     }
 
-    /** 그 jar 파일 하나의 설명(Furnace 플러그인이 아니거나 읽을 수 없으면 null). */
+    /** 그 jar 파일 하나의 후보(플러그인이 아니거나 읽을 수 없으면 null). */
     Candidate findOnDiskFile(Path jar) {
         try {
-            PluginDescription d = readDescription(jar, true);
-            return d == null ? null : new Candidate(jar, d);
+            return readCandidate(jar, true);
         } catch (Exception e) {
             return null;
         }

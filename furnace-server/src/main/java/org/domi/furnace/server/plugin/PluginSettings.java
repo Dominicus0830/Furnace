@@ -5,6 +5,7 @@
 //   plugins.dev-mode=false         개발 모드 — 켜야 플러그인 단위 핫 리로드(/plugins reload <이름>, PluginManager.reload)가 된다
 //   plugins.dev-mode.auto-reload=false  개발 모드에서 plugins/*.jar 가 바뀌면 알아서 다시 읽는다
 //   plugins.libraries.*            라이브러리 자동 로딩(기본 꺼짐) — library/LibrarySettings 참고
+//   plugins.compat.bukkit=true     Bukkit·Paper 플러그인 호환 어댑터(클래스패스에 furnace-compat-paper 가 있을 때) — false 면 plugin.yml jar 를 읽지 않는다
 package org.domi.furnace.server.plugin;
 
 import java.io.IOException;
@@ -21,7 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels, boolean devMode, boolean autoReload,
-                             LibrarySettings libraries) {
+                             LibrarySettings libraries, boolean compat) {
 
     public static final PluginSettings DEFAULT = new PluginSettings(false, null, Map.of());
 
@@ -35,7 +36,15 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         this(failFast, dataRoot, logLevels, devMode, autoReload, LibrarySettings.DEFAULT);
     }
 
-    public PluginSettings withLibraries(LibrarySettings l) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, l); }
+    /** 호환 어댑터 켜짐(기본). */
+    public PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels, boolean devMode, boolean autoReload,
+                          LibrarySettings libraries) {
+        this(failFast, dataRoot, logLevels, devMode, autoReload, libraries, true);
+    }
+
+    public PluginSettings withLibraries(LibrarySettings l) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, l, compat); }
+
+    public PluginSettings withCompat(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, on); }
 
     public PluginSettings {
         Map<String, Level> m = new HashMap<>();
@@ -75,7 +84,8 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         boolean dev = org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.dev-mode", false);
         boolean auto = org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.dev-mode.auto-reload", false);
         if (auto && !dev) log.warn("plugins.dev-mode.auto-reload 는 plugins.dev-mode=true 일 때만 쓰인다 — 무시한다");
+        boolean compat = org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.compat.bukkit", true);
         return new PluginSettings(failFast, root.isEmpty() ? null : Path.of(root), levels, dev, dev && auto,
-                LibrarySettings.from(p, log));
+                LibrarySettings.from(p, log), compat);
     }
 }

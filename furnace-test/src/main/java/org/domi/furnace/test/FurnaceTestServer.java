@@ -151,6 +151,7 @@ public final class FurnaceTestServer implements AutoCloseable {
             this.host = core.plugins();
             core.addConsoleListener(t -> { synchronized (consoleLog) { consoleLog.add(t); } });
             this.ownsFurnaceHolder = TestHolder.claim(host);
+            host.pluginsImpl().directory(pluginsDir);
             host.pluginsImpl().settings(pluginSettings);
             host.pluginsImpl().loadAll(boot);
             var dispatcher = core.commands().getDispatcher();

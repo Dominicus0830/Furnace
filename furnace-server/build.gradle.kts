@@ -79,6 +79,9 @@ val fatJar = tasks.register<Jar>("fatJar") {
     group = "build"
     // 런타임 의존성(furnace-api jar 등)을 먼저 만들어야 zipTree 로 합칠 수 있다
     dependsOn(configurations.runtimeClasspath)
+    // Bukkit·Paper 호환 어댑터(H1)도 함께 싣는다 — 서버가 ServiceLoader 로 찾아 plugins.compat.bukkit 가 켜져 있으면 쓴다.
+    // 서버 모듈이 이 모듈에 의존하지는 않는다(순환 없음): 모듈 시험은 호환 모듈이 서버에 의존한다.
+    dependsOn(":furnace-compat-paper:jar")
     description = "서버와 모든 런타임 의존성을 담은 단일 실행 jar"
     archiveFileName = "furnace-server.jar"
     manifest { attributes["Main-Class"] = "org.domi.furnace.server.FurnaceMain" }
@@ -87,6 +90,7 @@ val fatJar = tasks.register<Jar>("fatJar") {
     from({
         configurations.runtimeClasspath.get().filter { it.name.endsWith(".jar") }.map { zipTree(it) }
     })
+    from({ zipTree(project(":furnace-compat-paper").tasks.named<Jar>("jar").get().archiveFile) })
     // 서명 파일이 남으면 합친 jar 가 SecurityException 으로 실행되지 않는다
     exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "META-INF/MANIFEST.MF", "module-info.class")
 }
