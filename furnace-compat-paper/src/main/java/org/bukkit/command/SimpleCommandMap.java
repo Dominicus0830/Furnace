@@ -59,6 +59,7 @@ public class SimpleCommandMap implements CommandMap {
                 forget(command, old);
                 command.unregister(this);
             }
+            yieldNamesTo(command, lower);
             at = CompatCommands.attach(command, lower);
             attached.put(command, at);
             for (String n : at.names()) names.put(n, command);
@@ -72,6 +73,24 @@ public class SimpleCommandMap implements CommandMap {
         command.setLabel(registered ? lower : at.namespace() + ":" + lower);
         command.register(this);
         return registered;
+    }
+
+    /**
+     * Bukkit 의 이름 규칙: ① 본 이름은 다른 명령이 별칭으로만 잡은 이름을 가져가고, ② "접두어:이름" 은 늘 덮어쓴다.
+     * 그래서 올리기 전에 그런 이름을 먼저 비운다(본 이름끼리 겹치면 먼저 온 명령이 지킨다 — Bukkit 과 같다).
+     * 이 지도 안의 명령끼리의 규칙이고, 바닐라·Furnace 가 직접 올린 명령과 겹치면 서버 등록소 규칙(접두어 형태로만)이 그대로 쓰인다.
+     */
+    private void yieldNamesTo(Command command, String label) {
+        String ns = CompatCommands.namespaceOf(command);
+        Set<String> prefixed = new java.util.LinkedHashSet<>();
+        prefixed.add(ns + ":" + label);
+        for (String a : command.getAliases()) if (a != null) prefixed.add(ns + ":" + a.toLowerCase(Locale.ROOT).trim());
+        for (String key : prefixed) {
+            Command current = names.get(key);
+            if (current != null && current != command) removeName(key);
+        }
+        Command current = names.get(label);
+        if (current != null && current != command && !label.equals(current.getLabel())) removeName(label);   // 별칭으로만 잡힌 이름
     }
 
     private void forget(Command command, CompatCommands.Attached at) {

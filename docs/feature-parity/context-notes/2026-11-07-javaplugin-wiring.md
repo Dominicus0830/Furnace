@@ -7,4 +7,6 @@
 - **`BukkitScheduler` 의 `Consumer<BukkitTask>` 변형**은 핸들이 예약 뒤에야 생기는데, 비동기 호출자와 박동은 다른 스레드라 박동이 먼저 도착할 수 있다. 핸들 `CompletableFuture` 를 몸통 맨 앞에서 `join` 한다(호출자는 예약 직후 채우므로 기다림은 마이크로초).
 - **서비스 정렬은 일부러 Bukkit 의 이진 탐색을 그대로 쓴다.** 같은 우선순위는 "나중 것이 앞"이 되는 자리에 들어간다(작은 목록에서) — 정렬 안정성을 가정한 코드로 바꾸면 `load` 결과가 달라진다.
 - **JavaPlugin 하위 클래스 안의 호출은 owner 가 자기 클래스다**(javac). `Coverage.attribute` 가 상속 사슬을 따라 올라가 API 클래스로 귀속한다(`ClassRefs.declared` 로 자기 선언 멤버를 걸러 냄). 이 변경 뒤 기준표 숫자가 바뀌므로(늘어난 jar 도 있음) 이전 묶음의 기준표와 직접 비교하지 않는다.
+- **정적 지도에는 약한 참조만.** `PluginLoaders` 가 값(어댑터)을 강하게 들면 어댑터 → `PluginInit` → 클래스로더로 키가 영영 안 풀린다. 키·값 모두 `WeakReference`/`WeakHashMap`. 생성자가 터진 플러그인은 `create` 의 catch 에서 바로 푼다(시험은 정적 초기화에서 클래스로더를 칠판에 적고 `PluginLoaders.of` 가 null 인지 본다).
+- **Coverage 귀속은 후보를 다 보고 정한다.** 상위 후보 중 API 가 그 멤버를 가졌으면 그것, 아니면 JDK 후보(부트스트랩 로더 `ApiIndex(null)` 로 확인)나 검사 대상이 아닌 서드파티 후보가 있으면 "알 수 없음"으로 세지 않고, 그 외에 첫 API 후보의 "없음".
 - 서버를 다시 띄우는 시험에서 `Compat.State` 는 Furnace 인스턴스가 바뀌면 옛 `LegacyScheduler` 박동을 닫는다(닫지 않아도 죽은 서버의 박동이지만 스레드 이름이 시험 로그에 남지 않게).

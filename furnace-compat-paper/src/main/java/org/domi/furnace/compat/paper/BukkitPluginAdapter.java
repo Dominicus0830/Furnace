@@ -54,7 +54,6 @@ public final class BukkitPluginAdapter extends FurnacePlugin {
         } finally {
             HandlerList.unregisterAll(plugin);
             bridged.clear();
-            PluginLoaders.unbind(this);
         }
     }
 }

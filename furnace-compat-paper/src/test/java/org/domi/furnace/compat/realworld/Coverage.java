@@ -119,6 +119,12 @@ public final class Coverage {
 
     private Coverage() {}
 
+    private static final ApiIndex JDK = new ApiIndex(null);   // 부트스트랩 로더 = JDK 클래스
+
+    private static boolean isJdk(String internal) {
+        return internal.startsWith("java/") || internal.startsWith("javax/") || internal.startsWith("jdk/") || internal.startsWith("sun/");
+    }
+
     /**
      * 자기 jar 클래스를 owner 로 적은 멤버 호출을 상위 API 의 멤버로 바꾼다. 자기 클래스가 선언한 것(자기 메서드)이면 null.
      * JVM 해석 순서(자기 → 상위 클래스 사슬 → 인터페이스)로 올라가며 자기 jar 가 아닌 첫 클래스들을 후보로 모으고,
@@ -129,14 +135,20 @@ public final class Coverage {
         List<String> external = new ArrayList<>();
         if (resolveOwn(m, m.owner(), byName, new HashSet<>(), external)) return null;
         ClassRefs.Member firstApi = null;
+        boolean elsewhere = false;   // API 가 아닌 상위 클래스가 그 멤버를 가졌을 수 있다
         for (String ext : external) {
             ClassRefs.Member cand = new ClassRefs.Member(ext, m.name(), m.descriptor(), m.field());
             Kind k = kindOf(ext);
-            if (k == null || !k.isApi()) continue;
-            if (index.find(ext) != null && index.hasMember(cand)) return cand;
-            if (firstApi == null) firstApi = cand;
+            if (k != null && k.isApi()) {
+                if (index.find(ext) != null && index.hasMember(cand)) return cand;
+                if (firstApi == null) firstApi = cand;
+            } else if (isJdk(ext)) {
+                if (JDK.hasMember(cand)) elsewhere = true;   // 예: enum 이 Keyed 를 구현하고 name() 을 부름 — Enum 의 것
+            } else {
+                elsewhere = true;   // 검사 대상이 아닌 서드파티 상위 클래스(예: adventure 의 FacetAudienceProvider) — 알 수 없어 세지 않는다
+            }
         }
-        return firstApi;
+        return elsewhere ? null : firstApi;
     }
 
     /** @return 자기 jar 클래스 중 하나가 그 멤버를 선언했으면 true. 아니면 거치며 만난 자기 jar 밖 클래스를 external 에 순서대로 모은다. */

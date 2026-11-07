@@ -12,6 +12,7 @@ public final class WiringProbe {
     public static volatile Plugin providingForUtil;
     public static volatile Plugin selfByClass;
     public static volatile Throwable failure;
+    public static volatile ClassLoader failingLoader;
 
     private WiringProbe() {}
 
@@ -21,5 +22,6 @@ public final class WiringProbe {
         providingForUtil = null;
         selfByClass = null;
         failure = null;
+        failingLoader = null;
     }
 }

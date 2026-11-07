@@ -79,6 +79,9 @@ public final class CompatCommands {
         return new Attached(owner, core, names);
     }
 
+    /** 이 명령이 올라갈 때 붙는 이름 접두어(소유 플러그인 이름). */
+    public static String namespaceOf(Command command) { return ownerOf(command).name().toLowerCase(Locale.ROOT).replace(' ', '_'); }
+
     /** 이름 하나만 트리에서 뺀다. */
     public static boolean detachName(Attached a, String name) { return Compat.commands().unregisterName(a.core, name); }
 

@@ -24,14 +24,14 @@
 |---|---|---:|---:|---:|---:|
 | `IF-0.12.2.jar` | 라이브러리 | 1042 | 191 | 94 | 50.8% |
 | `XSeries-14.0.0.jar` | 라이브러리 | 332 | 948 | 694 | 26.8% |
-| `adventure-platform-bukkit-4.4.1.jar` | 라이브러리 | 65 | 176 | 101 | 42.6% |
+| `adventure-platform-bukkit-4.4.1.jar` | 라이브러리 | 65 | 172 | 97 | 43.6% |
 | `boosted-yaml-1.3.8.jar` | 라이브러리 | 292 | 0 | 0 | 100.0% |
 | `bstats-base-3.2.1.jar` | 라이브러리 | 13 | 0 | 0 | 100.0% |
 | `bstats-bukkit-3.2.1.jar` | 라이브러리 | 1 | 28 | 1 | 96.4% |
 | `cloud-bukkit-2.0.1.jar` | 라이브러리 | 111 | 93 | 5 | 94.6% |
 | `cloud-paper-2.0.1.jar` | 라이브러리 | 38 | 103 | 67 | 35.0% |
-| `commandapi-bukkit-core-12.1.0.jar` | 라이브러리 | 155 | 149 | 51 | 65.8% |
-| `commandapi-bukkit-plugin-10.1.2.jar` | 플러그인 | 308 | 274 | 107 | 60.9% |
+| `commandapi-bukkit-core-12.1.0.jar` | 라이브러리 | 155 | 147 | 49 | 66.7% |
+| `commandapi-bukkit-plugin-10.1.2.jar` | 플러그인 | 308 | 272 | 105 | 61.4% |
 | `commodore-2.2.jar` | 라이브러리 | 12 | 26 | 8 | 69.2% |
 | `fastboard-2.2.2.jar` | 라이브러리 | 8 | 13 | 0 | 100.0% |
 | `helper-5.6.14.jar` | 플러그인 | 1197 | 441 | 184 | 58.3% |
@@ -40,7 +40,7 @@
 
 | 종류 | 요구 클래스 | 없는 클래스 | 요구 멤버(있는 클래스 기준) | 없는 멤버 | 없는 클래스의 멤버 호출 |
 |---|---:|---:|---:|---:|---:|
-| Bukkit API | 291 | 206 | 669 | 173 | 730 |
+| Bukkit API | 291 | 206 | 663 | 167 | 730 |
 | Paper API | 25 | 25 | 0 | 0 | 49 |
 | Spigot·BungeeChat | 6 | 6 | 0 | 0 | 19 |
 | CraftBukkit | 358 | 358 | 0 | 0 | 429 |
@@ -190,7 +190,7 @@
 
 ## 4. 클래스는 있는데 없는 멤버 순위
 
-전체 173개 중 위 120개 (요구하는 jar 수 순).
+전체 167개 중 위 120개 (요구하는 jar 수 순).
 
 | 멤버 | jar 수 |
 |---|---:|
@@ -201,8 +201,6 @@
 | `org.bukkit.util.Vector#multiply(I)Lorg/bukkit/util/Vector;` | 3 |
 | `org.bukkit.Bukkit#addRecipe(Lorg/bukkit/inventory/Recipe;)Z` | 2 |
 | `org.bukkit.Bukkit#getOnlineMode()Z` | 2 |
-| `org.bukkit.Keyed#name()Ljava/lang/String;` | 2 |
-| `org.bukkit.Keyed#ordinal()I` | 2 |
 | `org.bukkit.Server#getGlobalRegionScheduler()Lio/papermc/paper/threadedregions/scheduler/GlobalRegionScheduler;` | 2 |
 | `org.bukkit.World#playSound(Lorg/bukkit/Location;Lorg/bukkit/Sound;FF)V` | 2 |
 | `org.bukkit.World#spawn(Lorg/bukkit/Location;Ljava/lang/Class;)Lorg/bukkit/entity/Entity;` | 2 |
@@ -314,6 +312,8 @@
 | `org.bukkit.entity.LivingEntity#setNoDamageTicks(I)V` | 1 |
 | `org.bukkit.entity.LivingEntity#setRemainingAir(I)V` | 1 |
 | `org.bukkit.entity.LivingEntity#setRemoveWhenFarAway(Z)V` | 1 |
+| `org.bukkit.entity.LivingEntity#setSwimming(Z)V` | 1 |
+| `org.bukkit.entity.Player#canSee(Lorg/bukkit/entity/Player;)Z` | 1 |
 
 ## 5. CraftBukkit·net.minecraft 요구 (H5~H7 의 수요)
 

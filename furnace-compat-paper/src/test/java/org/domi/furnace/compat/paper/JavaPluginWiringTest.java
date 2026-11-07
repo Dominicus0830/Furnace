@@ -437,14 +437,78 @@ class JavaPluginWiringTest {
     }
 
     @Test
-    void pluginLoaderBindingEndsWhenThePluginIsDisabled() throws Exception {
+    void disabledPluginIsStillFoundByItsClassesLikeBukkit() throws Exception {
         try (FurnaceTestServer server = start()) {
             Plugin p = plugin();
             Class<?> util = p.getClass().getClassLoader().loadClass("wiring.Util");
             assertSame(p, JavaPlugin.getProvidingPlugin(util));
             Bukkit.getPluginManager().disablePlugin(p);
-            assertThrows(IllegalArgumentException.class, () -> JavaPlugin.getProvidingPlugin(util), "꺼진 뒤에는 묶임이 풀린다(알려진 차이)");
-            assertNotNull(PrimaryThread.class);
+            assertFalse(p.isEnabled());
+            assertSame(p, JavaPlugin.getProvidingPlugin(util), "꺼진 뒤에도(서버 목록에 있는 동안) 돌려준다 — 남아 도는 비동기 작업이 getPlugin 을 불러도 터지지 않는다");
         }
+    }
+
+    @Test
+    void aPluginWhoseConstructorThrowsLeavesNoLoaderBinding() throws Exception {
+        Path jar = JarCompiler.jar(tmp.resolve("broken.jar"), "name: Broken\nversion: '1'\nmain: broken.Main\napi-version: '1.21'\n", Map.of("broken.Main", """
+                package broken;
+                import org.domi.furnace.compat.paper.fixtures.WiringProbe;
+                public final class Main extends org.bukkit.plugin.java.JavaPlugin {
+                    static { WiringProbe.failingLoader = Main.class.getClassLoader(); }
+                    public Main() { throw new IllegalStateException("ctor"); }
+                }
+                """));
+        try (FurnaceTestServer server = FurnaceTestServer.builder().failFast(false).pluginJar(jar).start()) {
+            assertNotNull(WiringProbe.failingLoader, "플러그인 클래스가 올라와 생성자까지 갔다");
+            assertNull(PluginLoaders.of(WiringProbe.failingLoader), "생성자가 터졌으면 묶임이 남지 않는다");
+        }
+    }
+
+    @Test
+    void mainNamesTakeOverAliasOnlyNamesAndPrefixedNamesAreAlwaysReplaced() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            var map = Bukkit.getCommandMap();
+            Command wire = map.getCommand("wire");
+            assertSame(wire, map.getCommand("wi"), "wi 는 wire 의 별칭");
+            Command taker = new Taker("wi");
+            assertTrue(map.register("wiring", taker), "본 이름은 별칭으로만 잡힌 이름을 가져간다(Bukkit 규칙)");
+            assertSame(taker, map.getCommand("wi"));
+            assertSame(taker, map.getCommand("wiring:wi"), "접두어 이름은 늘 덮어쓴다");
+            assertEquals("wi", taker.getLabel());
+            assertSame(wire, map.getCommand("wire"), "wire 자체는 그대로");
+            WiringProbe.LOG.clear();
+            server.execute("wi q");
+            assertEquals(List.of("taker:wi|q"), WiringProbe.LOG);
+
+            // 본 이름끼리는 먼저 온 쪽이 지킨다
+            Command second = new Taker("wire");
+            assertFalse(map.register("wiring", second));
+            assertSame(wire, map.getCommand("wire"));
+
+            // ACF 류: 바깥 이름만 지우고 같은 이름을 다시 올리면 접두어 이름도 새 명령으로 바뀐다
+            Command plain = map.getCommand("plain");
+            assertSame(plain, map.getKnownCommands().remove("plain"));
+            Command again = new Taker("plain");
+            assertTrue(map.register("wiring", again));
+            assertSame(again, map.getCommand("plain"));
+            assertSame(again, map.getCommand("wiring:plain"), "옛 PluginCommand 가 접두어 이름에 남지 않는다");
+            WiringProbe.LOG.clear();
+            server.execute("wiring:plain z");
+            assertEquals(List.of("taker:wiring:plain|z"), WiringProbe.LOG);
+        }
+    }
+
+    /** 시험용: 플러그인 소유 명령. */
+    private static final class Taker extends Command implements org.bukkit.command.PluginIdentifiableCommand {
+        Taker(String name) { super(name); }
+
+        @Override
+        public boolean execute(CommandSender sender, String label, String[] args) {
+            WiringProbe.LOG.add("taker:" + label + "|" + String.join(",", args));
+            return true;
+        }
+
+        @Override
+        public Plugin getPlugin() { return WiringProbe.plugin; }
     }
 }

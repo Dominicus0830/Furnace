@@ -141,6 +141,9 @@ public final class CompatFormat implements PluginFormat {
             Constructor<?> c = main.getDeclaredConstructor();
             c.setAccessible(true);
             adapter.attach((JavaPlugin) c.newInstance());
+        } catch (ReflectiveOperationException | RuntimeException | Error e) {
+            PluginLoaders.unbind(adapter);   // 생성자가 터진 플러그인은 서버에 올라가지 않는다 — 묶임을 남기지 않는다
+            throw e;
         } finally {
             PluginInit.clear();
         }
