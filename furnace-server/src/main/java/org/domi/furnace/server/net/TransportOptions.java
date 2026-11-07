@@ -13,13 +13,7 @@ public record TransportOptions(boolean ioUring) {
 
     public static TransportOptions load(Path path) {
         if (!Files.exists(path)) return DEFAULT;
-        Properties props = new Properties();
-        try (var in = Files.newInputStream(path)) {
-            props.load(in);
-        } catch (IOException e) {
-            throw new RuntimeException("설정 로드 실패: " + path, e);
-        }
-        return from(props);
+        return from(org.domi.furnace.server.config.FurnaceProps.read(path));
     }
 
     static TransportOptions from(Properties props) {

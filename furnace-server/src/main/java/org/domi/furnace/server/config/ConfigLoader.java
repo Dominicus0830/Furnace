@@ -27,12 +27,7 @@ public final class ConfigLoader {
         if (!Files.exists(path)) {
             return Config.DEFAULT;
         }
-        Properties props = new Properties();
-        try (InputStream in = Files.newInputStream(path)) {
-            props.load(in);
-        } catch (IOException e) {
-            throw new RuntimeException("설정 로드 실패: " + path, e);
-        }
+        Properties props = FurnaceProps.read(path);
         String name = props.getProperty("server-name", Config.DEFAULT.serverName());
         long tick = parse(props, "tick-nanos", Config.DEFAULT.tickNanos());
         int port = parseInt(props, "port", Config.DEFAULT.port());

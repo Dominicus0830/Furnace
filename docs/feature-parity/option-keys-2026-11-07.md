@@ -11,7 +11,7 @@
 3. **엄격하게 읽는다.** `true`/`false` 가 아닌 글자, 숫자가 아닌 값, 범위 밖 값은 조용히 기본값으로 돌리지 않고 어느 키가 문제인지 말하며 기동을 멈춘다(`OptionKeys.strictBool` 등). 조정(clamp)해서 쓰는 경우에는 조정했다고 경고한다.
 4. **위험하면 경고한다.** 시작 로그에 한 줄씩 `WARN` — 대상: 보안을 푸는 값, 바닐라와 다른 게임 속도, 운영에 맞지 않는 개발용 값(`OptionKeys.audit`).
 5. **오타는 알려 준다.** 표에 없는 키는 "무시합니다 — '○○' 를 말한 건가요?" 로 경고한다. 바닐라 키(`server-name` `port` `compression-threshold` `view-distance` `level-name` `level-seed`)는 `server.properties` 가 정하므로 `furnace.properties` 에 쓰면 따로 무시 경고가 나간다.
-6. **한 곳에서 보인다.** O2 의 `/furnace config` 덤프는 `OptionKeys.all()` 을 읽어 현재 값과 기본값을 함께 보여 주면 된다.
+6. **한 곳에서 보인다.** `/furnace config` 덤프(O2)가 `OptionKeys.all()` 을 읽어 시작 때 적용된 값·기본값·출처를 함께 보여 준다. 키를 만들고 표에 안 넣으면 덤프에서도 빠지고 오타 경고가 잘못 뜬다 — `ConfigToolsTest.everyKeyAnyLoaderReadsIsInTheTable` 가 로더들의 키를 표와 맞춘다.
 7. 새 묶음(B5 라이브러리 내려받기, O4 백업·저장 레인, Q2 RCON 상한, Q3·Q5 …)의 키도 같은 규칙: 기본값=바닐라(또는 꺼짐), 표에 한 줄, 위험 값 경고.
 
 ## 2. 키 표 (`furnace.properties`)
@@ -84,12 +84,17 @@
 | `plugins.libraries.cache` | 경로 | (없음) | - | 받은 라이브러리 폴더(비면 plugins/.libraries) |  |
 | `plugins.libraries.timeout-seconds` | 수 | 30 | 1~600 | 라이브러리 요청 하나의 제한 시간(초) |  |
 | `plugins.libraries.max-size-mb` | 수 | 64 | 1~1024 | 라이브러리 파일 하나의 크기 상한(MB) |  |
+| `config-version` | 수 | 1 | 1 이상 | 설정 파일 형식 버전. 키 이름이 바뀌면 서버가 파일을 옮기고 이 값을 올린다(원본은 `.bak`) | 서버보다 새 버전이면 경고 |
+| `config.preset` | 글자 | none | none\|vanilla\|performance | 파일에 없는 키를 프리셋 값으로 채운다(파일에 적은 키가 이긴다) |  |
+| `jvm.check` | ON/OFF | true | true\|false | 기동 때 Java 버전·힙·GC 옵션을 점검해 경고한다 |  |
+| `console.jline` | ON/OFF | true | true\|false | 콘솔 줄 편집·자동완성·기록(터미널이 아니면 자동으로 꺼진다) |  |
+| `console.history-size` | 수 | 500 | 0~100000 | 콘솔 명령 기록 줄 수(0 = 파일에 저장 안 함) |  |
 | `connection.<단계>.packets-per-second` | 수 | 200 | 0~1000000 | 접속 단계(`handshake` `status` `login` `configuration` `play`)별 초당 패킷 평균 상한, 0 = 제한 없음 | 0 이면 경고 |
 | `connection.<단계>.packets-burst` | 수 | 400 | 1~10000000 | 단계별 순간 패킷 상한 | |
 | `connection.<단계>.max-frame-bytes` | 수 | 단계별(play 2097152) | 16~2097152 | 단계별 한 패킷 최대 크기, 넘으면 조정 | 조정 시 경고 |
 | `connection.<단계>.timeout-seconds` | 수 | login 30, 나머지 0 | 0~86400 | play 를 뺀 단계별 제한 시간(초) | |
 
-접두 가족(이름만 다르다): `plugins.log-level.<플러그인>`(JUL 수준 이름, 틀린 값은 경고하고 무시), `dimension-seed.the_nether` / `dimension-seed.the_end`(비우면 주 월드 시드 — 바닐라).
+접두 가족(이름만 다르다): `spawn.limit.<분류>` · `spawn.player-limit.<분류>`(몹 스폰 상한), `plugins.log-level.<플러그인>`(JUL 수준 이름, 틀린 값은 경고하고 무시), `dimension-seed.the_nether` / `dimension-seed.the_end`(비우면 주 월드 시드 — 바닐라).
 
 ## 3. R4 대상 항목별 점검 결과
 

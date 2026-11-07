@@ -24,14 +24,7 @@ public record RegionPoolSettings(boolean shared, int dimCap, int starveTicks) {
     public static final RegionPoolSettings DEFAULT = new RegionPoolSettings(true, 0, 2);
 
     public static RegionPoolSettings load(Path file, Consumer<String> warn) {
-        Properties p = new Properties();
-        if (Files.exists(file)) {
-            try (InputStream in = Files.newInputStream(file)) {
-                p.load(in);
-            } catch (IOException e) {
-                throw new RuntimeException("설정 로드 실패: " + file, e);
-            }
-        }
+        Properties p = FurnaceProps.read(file);
         return fromProperties(p, System.getProperty("furnace.sharedRegionPool"), warn);
     }
 

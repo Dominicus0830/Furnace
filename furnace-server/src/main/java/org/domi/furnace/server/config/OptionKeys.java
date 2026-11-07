@@ -8,8 +8,6 @@
 //   5. 모르는 키(오타)는 가장 비슷한 키를 알려 주며 경고한다.
 package org.domi.furnace.server.config;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -29,7 +27,7 @@ public final class OptionKeys {
     public record Option(String key, String type, String def, String range, String description) {}
 
     /** 키가 아니라 이름 접두로 받는 가족(플러그인별 로그 수준, 차원별 시드). */
-    private static final List<String> PREFIXES = List.of("plugins.log-level.", "dimension-seed.");
+    private static final List<String> PREFIXES = List.of("plugins.log-level.", "dimension-seed.", "spawn.limit.", "spawn.player-limit.");
 
     private static final String[] STATES = {"handshake", "status", "login", "configuration", "play"};
 
@@ -106,7 +104,13 @@ public final class OptionKeys {
             new Option("plugins.libraries.require-checksum", "ON/OFF", "false", "true|false", "sha256·잠금 파일 기록이 없는 jar 는 받지 않는다(enabled=true 일 때)"),
             new Option("plugins.libraries.cache", "경로", "", "", "받은 라이브러리 폴더(비면 plugins/.libraries)"),
             new Option("plugins.libraries.timeout-seconds", "수", "30", "1~600", "라이브러리 요청 하나의 제한 시간(초)"),
-            new Option("plugins.libraries.max-size-mb", "수", "64", "1~1024", "라이브러리 파일 하나의 크기 상한(MB)"));
+            new Option("plugins.libraries.max-size-mb", "수", "64", "1~1024", "라이브러리 파일 하나의 크기 상한(MB)"),
+            // 설정 자체(O2)
+            new Option(ConfigMigration.KEY, "수", Integer.toString(ConfigMigration.CURRENT), "1 이상", "설정 파일 형식 버전. 키 이름이 바뀌면 서버가 파일을 옮기고 이 값을 올린다(원본은 .bak 으로 남는다)"),
+            new Option(ConfigPresets.KEY, "글자", "none", "none|vanilla|performance", "파일에 없는 키를 프리셋 값으로 채운다(파일에 적은 키가 이긴다)"),
+            new Option(JvmCheck.KEY, "ON/OFF", "true", "true|false", "기동 때 Java 버전·힙·GC 옵션을 점검해 경고한다"),
+            new Option("console.jline", "ON/OFF", "true", "true|false", "콘솔 줄 편집·자동완성·기록(터미널이 아니면 자동으로 꺼진다)"),
+            new Option("console.history-size", "수", "500", "0~100000", "콘솔 명령 기록 줄 수(0 = 파일에 저장 안 함)"));
 
     /** 접속 방어의 단계별 키는 단계 다섯 개마다 같은 모양이라 펼쳐서 만든다. */
     public static List<Option> all() {
@@ -181,13 +185,13 @@ public final class OptionKeys {
     /** furnace.properties 를 읽어 {@link #audit(Properties, Consumer)} 를 돌린다. 파일이 없으면 아무것도 하지 않는다. */
     public static void audit(Path file, Consumer<String> warn) {
         if (!Files.exists(file)) return;
-        Properties p = new Properties();
-        try (InputStream in = Files.newInputStream(file)) {
-            p.load(in);
-        } catch (IOException e) {
+        Properties p;
+        try {
+            p = FurnaceProps.read(file);
+        } catch (RuntimeException e) {
             return;   // 읽지 못하는 것은 각 로더가 이미 알린다
         }
-        audit(p, warn);
+        audit(p, ConfigDump.lineNumbers(file), warn);
     }
 
     /**
@@ -195,9 +199,16 @@ public final class OptionKeys {
      * 동작은 바꾸지 않는다.
      */
     public static void audit(Properties p, Consumer<String> warn) {
+        audit(p, java.util.Map.of(), warn);
+    }
+
+    /** lines: 키 → 파일 줄 번호(1부터). 있으면 오타 경고에 줄 번호를 붙인다. */
+    public static void audit(Properties p, java.util.Map<String, Integer> lines, Consumer<String> warn) {
         for (String k : unknownKeys(p)) {
             String near = suggest(k);
-            warn.accept("furnace.properties 의 '" + k + "' 는 모르는 키라 무시합니다" + (near == null ? "" : " — '" + near + "' 를 말한 건가요?"));
+            Integer line = lines.get(k);
+            warn.accept("furnace.properties 의 '" + k + "'" + (line == null ? "" : "(" + line + "번째 줄)") + " 는 모르는 키라 무시합니다"
+                    + (near == null ? "" : " — '" + near + "' 를 말한 건가요?"));
         }
         if (isTrue(p, "proxy-protocol") && p.getProperty("proxy-protocol.trusted", "").isBlank()) {
             warn.accept("proxy-protocol=true 인데 proxy-protocol.trusted 가 비어 있습니다: 누구든 PROXY 헤더로 접속 주소를 꾸밀 수 있습니다(밴·접속 제한 우회). 앞단 주소만 적고, 서버 포트는 방화벽으로 앞단에만 열어 두세요");
@@ -222,6 +233,20 @@ public final class OptionKeys {
 
     private static boolean isTrue(Properties p, String key) {
         return "true".equalsIgnoreCase(p.getProperty(key, "").strip());
+    }
+
+    /** 엄격한 정수 읽기: 없으면 def, 숫자가 아니거나 min~max 밖이면 어느 키가 문제인지 알리며 거부한다. */
+    public static int strictInt(Properties p, String key, int def, int min, int max) {
+        String v = p.getProperty(key);
+        if (v == null) return def;
+        int n;
+        try {
+            n = Integer.parseInt(v.strip());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("설정 '" + key + "' 가 숫자가 아님: " + v, e);
+        }
+        if (n < min || n > max) throw new IllegalArgumentException("설정 '" + key + "' 값 " + n + " 이(가) 잘못됐습니다: " + min + "~" + max);
+        return n;
     }
 
     /** 엄격한 ON/OFF 읽기: 없으면 def, true/false 외의 글자는 어느 키가 문제인지 알리며 거부한다. */
