@@ -172,6 +172,33 @@ Text out = GlobalRenderer.render(Text.translatable("myplugin.welcome", playerNam
 - 로케일 찾기 순서: 정확한 로케일 → 같은 언어 → 기본 로케일(→ 그 언어).
 - `GlobalRenderer`: 모르는 키는 그대로(바꿀 게 없으면 같은 인스턴스를 돌려줘 인코딩 캐시 유지), 아는 키는 인자(Text 는 스타일 유지)를 끼워 넣은 완성 텍스트로. 형식이 틀린 패턴은 바닐라처럼 패턴 그대로 보인다. 호버·인자·구분자 안도 렌더링한다.
 
+### 플러그인 번역 서비스 (`server.translations()`, C2·불만 표 65)
+
+`registerGlobally()` 를 직접 부르면 플러그인이 꺼져도 저장소가 남는다. **`server.translations()`** 로 올리면 소유 플러그인이 꺼질 때 서버가 자동으로 내린다(핫 리로드 안전).
+
+```java
+// lang/en_us.properties, lang/ko_kr.properties (UTF-8, 한 줄에 키=문구). 언어 코드는 마인크래프트식 소문자.
+server().translations().load(this, "lang/{locale}.properties", Locale.US, Locale.US, Locale.KOREA);
+player.sendMessage(Text.translatable("myplugin.welcome", Text.text(player.name())));   // 받는 사람 언어로 펼쳐서 보낸다
+```
+
+- 파일 찾기: 플러그인 데이터 폴더(`plugins/이름/lang/…`)에 있으면 그 파일(관리자가 고친 것), 없으면 jar 안 리소스. 없는 언어는 건너뛰고, 기본 언어 파일이 없으면 `IllegalArgumentException`. `saveResource("lang/ko_kr.properties", false)` 로 jar 의 파일을 폴더에 복사해 두면 관리자가 고치기 쉽다.
+- 이미 만든 저장소는 `translations().register(plugin, store)`. `stores(plugin)`, `unregister(plugin, store)`, `render(text, locale)` 도 있다.
+- 서버가 보내는 모든 텍스트(채팅·시스템 메시지·액션바·타이틀·보스바·사이드바·탭 목록 머리말·메뉴 제목·킥 사유)가 받는 사람 언어로 펼쳐진다. 모르는 키(바닐라 키)는 클라이언트가 번역한다.
+- 시험: `TranslationServiceApiTest`.
+
+## MOTD 서식 (C2·불만 표 66)
+
+`furnace.properties` 의 `motd-format` 이 `server.properties` 의 `motd` 를 읽는 방식을 정한다. 기본 `plain` 은 바닐라와 같다(글자 그대로, `§` 코드는 클라이언트가 해석).
+
+| 값 | 읽는 방식 | 예 |
+|---|---|---|
+| `plain`(기본) | 글자 그대로 | `motd=§aHello` |
+| `legacy` | `&` 색 코드·`&#RRGGBB` | `motd=&6Furnace &lServer` |
+| `markup` | MiniMessage 식 태그(`TextMarkup`) | `motd=<gradient:red:blue>Furnace</gradient> <bold>서버` |
+
+서버 목록 응답, 접속 직후 `server_data`, `server.motd()` 에 같은 결과가 쓰인다. 마크업이 틀리면 경고 한 번 남기고 글자 그대로 보낸다. 플러그인은 `ServerListPingEvent.setMotd(Text)` 로 `TextMarkup` 결과를 직접 넣어도 된다. 시험: `MotdFormatTest`.
+
 ## MiniMessage/Adventure 와 다른 점
 
 - 그라디언트 `phase`, 무지개 색 공식, `pride` 깃발 색은 MiniMessage 4.17 의 알고리즘을 기억으로 재현한 것이다. 선형 보간·HSV 순서(무지개 6글자: `#ff0000 #ffff00 #00ff00 #00ffff #0000ff #ff00ff`)는 같지만, 경계 값(음수 phase, 깃발 줄무늬 색)에서 한 단계 어긋날 수 있다.

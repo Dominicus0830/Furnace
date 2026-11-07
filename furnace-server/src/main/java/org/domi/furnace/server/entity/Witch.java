@@ -55,7 +55,7 @@ public class Witch extends Raider implements RangedAttackMob {
 
     @Override public void applyRaidBuffs(int wave, boolean captain) {}
 
-    /** Witch.canBeLeader: 마녀는 순찰 지도자가 되지 않는다(가정 — 바닐라 jar 대조 필요). */
+    /** Witch.canBeLeader: 마녀는 순찰 지도자가 되지 않는다(바닐라 ckt.gl() = false, 2026-11-07 바이트코드로 확인). */
     @Override public boolean canBeLeader() { return false; }
 
     @Override public String getAmbientSound() { return "entity.witch.ambient"; }

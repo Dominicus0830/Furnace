@@ -64,6 +64,8 @@ public final class Region {
     long schedTicks, schedDelaySum, schedDelayMax;
     /** 관측용: 직전 틱·가장 긴 틱의 소요 시간(ns). 이 region 을 돌린 워커만 쓴다(한 번에 한 워커). */
     volatile long lastTickNanos, maxTickNanos;
+    /** 관측용(/tps): 이 region 의 플레이어 수 — 틱이 끝날 때와 합치기·나누기·편입 때 갱신한다(아무 스레드가 읽는다). */
+    volatile int observedPlayers;
     /** 관측용(/tps): 최근 게임 틱 시작 시각. 이 region 을 돌린 워커만 쓴다(한 번에 한 워커). 20 TPS 로 6.4초를 덮는다. */
     final org.domi.furnace.server.sched.TickStartRing tickStarts = new org.domi.furnace.server.sched.TickStartRing(128);
     /** -Dfurnace.tickstats: [0]=직전 시작, [1]=개수, 이후 (간격, 소요) 쌍. 틱 중(이 region 이 RUNNING)에만 만진다. */
@@ -234,6 +236,8 @@ public final class Region {
         o.delayed.clear();
         for (Player p : o.players.values()) players.put(p.entityId(), p);
         o.players.clear();
+        observedPlayers = players.size();
+        o.observedPlayers = 0;
         dirtyChunks.addAll(o.dirtyChunks);
         o.dirtyChunks.clear();
         evictGrace.putAll(o.evictGrace);
@@ -265,9 +269,11 @@ public final class Region {
             Region t = targetOf.apply(Regionizer.chunkKey(c.x(), c.z()));
             if (t != null) {
                 t.players.put(p.entityId(), p);
+                t.observedPlayers = t.players.size();
                 it.remove();
             }
         }
+        observedPlayers = players.size();
         for (var it = dirtyChunks.iterator(); it.hasNext(); ) {
             ChunkPos c = it.next();
             Region t = targetOf.apply(Regionizer.chunkKey(c.x(), c.z()));
@@ -892,6 +898,7 @@ public final class Region {
     public void adopt(Player p) {
         world.assertOwns(this);
         players.put(p.entityId(), p);
+        observedPlayers = players.size();
         world.playerOnline(p);   // 멱등 — 접속 등록이 누락돼도 탭/가시성 기준 집합에 항상 포함
     }
 
@@ -1059,6 +1066,7 @@ public final class Region {
             org.domi.furnace.server.entity.Tridents.tickSpin(meleeWorld, p, t -> meleeAttack(p, t));   // 급류 회전 공격
             p.syncLivingFlags();   // 사용 중(먹기·활·방패) 플래그를 다른 사람에게
             org.domi.furnace.server.entity.PlayerLocationEffects.tick(p, level, () -> onSoulSpeedBlock(p));   // 칸 이동·발 장비 변경 시 영혼 가속·서리 걸음
+            org.domi.furnace.server.entity.PlayerLocationEffects.tickEffects(p, level, () -> onSoulSpeedBlock(p));   // 영혼 가속 tick 효과(소울 입자·소리)
             p.syncEquipment();     // 든 아이템·방어구가 바뀌면 다른 사람에게(set_equipment)
             pushEntities(p);
             touchEntities(p);
@@ -1199,6 +1207,13 @@ public final class Region {
             p.vitals().onMove(dx, dy, dz, prev.onGround(), m.onGround(), p.sprinting(), sneaking,
                     inWater, eyeInWater, climbable, landing, waterOnPath);
             float landed = p.vitals().landedFallDistance();
+            if (landed > 0.0f && level != null && landingState >= 0) {
+                // 바닐라 LivingEntity.checkFallDamage 의 착지 블록 입자(ServerPlayer.doCheckFallDamage → super): 발밑 칸 getOnPosLegacy
+                org.domi.furnace.server.entity.LandingParticles.spawn(level, m.x(), m.y(), m.z(),
+                        new org.domi.furnace.server.block.Pos((int) Math.floor(m.x()), (int) Math.floor(m.y()), (int) Math.floor(m.z())),
+                        new org.domi.furnace.server.block.Pos(landingPos[0], landingPos[1], landingPos[2]), landingState, landed,
+                        p.attributes().value(org.domi.furnace.server.attribute.Attribute.SAFE_FALL_DISTANCE));
+            }
             if (landed > 0.0f && level != null) {
                 // 바닐라 doCheckFallDamage → Block.fallOn(getOnPosLegacy 칸). 피해는 위 onMove 가 이미 처리했다
                 int[] at = probe.onPos(blocks, 0.2f, m.x(), m.y(), m.z(), m.onGround());

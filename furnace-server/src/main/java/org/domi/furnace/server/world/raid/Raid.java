@@ -1,7 +1,6 @@
 // 바닐라 Raid(1.21.1) 서버 핵심: 파도 수·파도별 구성(난수 순서 그대로), 대기 300틱, 보스바, 승리(마을의 영웅)·패배·중지, 축하 600틱.
 // 저장(Raid(level, tag)·save): raids.dat 의 Raids 목록 원소. 바닐라처럼 대기 위치·축하 틱·대장·습격자 목록은 저장하지 않는다
 //   (습격자는 제 RaidId 로 다시 들어온다).
-// 차이: 처치자는 바닐라 DamageSource.getEntity 대신 마지막으로 때린 플레이어(lastHurtByPlayer).
 // 차이: 보스바 대상은 이 레벨이 아는 플레이어(services().forEachPlayer) 중 조건을 만족하는 사람.
 package org.domi.furnace.server.world.raid;
 
@@ -187,6 +186,17 @@ public final class Raid {
     public void setRaidOmenLevel(int v) { raidOmenLevel = v; }
 
     public int maxRaidOmenLevel() { return MAX_RAID_OMEN_LEVEL; }
+
+    /** getEnchantOdds: 습격 징조 단계 2 → 0.1, 3 → 0.25, 4 → 0.5, 5 → 0.75, 그 밖은 0. 습격자의 보너스 마법 확률. */
+    public float getEnchantOdds() {
+        return switch (raidOmenLevel) {
+            case 2 -> 0.1F;
+            case 3 -> 0.25F;
+            case 4 -> 0.5F;
+            case 5 -> 0.75F;
+            default -> 0.0F;
+        };
+    }
 
     public int raidCooldownTicks() { return raidCooldownTicks; }
 
@@ -496,9 +506,20 @@ public final class Raid {
         }
     }
 
+    /**
+     * addWaveMob: 같은 UUID 의 옛 개체가 있으면 새 개체로 바꾼다(청크가 내려갔다 올라온 습격자가 다시 들어오는 경우). 항상 참.
+     * 새로 들어온 것으로 칠 때(updateHealth)만 전체 체력에 더한다.
+     */
     public boolean addWaveMob(int wave, Raider r, boolean updateHealth) {
         Set<Raider> set = groupRaiderMap.computeIfAbsent(wave, w -> new LinkedHashSet<>());
-        for (Raider o : set) if (o.uuid().equals(r.uuid())) return false;
+        Raider existing = null;
+        for (Raider o : set) {
+            if (o.uuid().equals(r.uuid())) {
+                existing = o;
+                break;
+            }
+        }
+        if (existing != null) set.remove(existing);
         set.add(r);
         if (updateHealth) totalHealth += r.health();
         updateBossbar();

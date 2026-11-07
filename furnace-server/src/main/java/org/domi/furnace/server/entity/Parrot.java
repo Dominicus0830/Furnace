@@ -22,6 +22,10 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class Parrot extends TamableAnimal {
+
+    /** 바닐라는 낙하 처리를 비운다(날아다니는 몹은 착지 입자·낙하 거리·HIT_GROUND 가 없다). */
+    @Override
+    protected void checkFallDamage(double dy, boolean ground, int state, org.domi.furnace.server.block.Pos pos) {}
     public static final int DATA_VARIANT_ID = 19;
     /** 흉내 낼 수 있는 몹 → 소리(cave_spider 는 거미 소리). */
     private static final java.util.Map<String, String> IMITATIONS = new java.util.LinkedHashMap<>();

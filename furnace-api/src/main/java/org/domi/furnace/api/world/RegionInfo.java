@@ -11,9 +11,13 @@ package org.domi.furnace.api.world;
  * @param tps           최근 5초 틱 속도(초당), 기록이 1초 미만이면 NaN
  * @param lastTickNanos 직전 틱이 걸린 시간(ns)
  * @param maxTickNanos  가장 긴 틱이 걸린 시간(ns)
+ * @param playerCount   이 region 이 가진 플레이어 수(마지막 틱 끝 기준 — 합치기·나누기 직후에는 한 틱쯤 낡을 수 있다)
  */
 public record RegionInfo(int id, String dimension, int chunkCount, int minChunkX, int minChunkZ, int maxChunkX, int maxChunkZ,
-                         String ownerThread, double tps, long lastTickNanos, long maxTickNanos) {
+                         String ownerThread, double tps, long lastTickNanos, long maxTickNanos, int playerCount) {
+
+    /** 플레이어가 있는 region 인가("활성 region" — {@link ServerTps} 의 평균은 이런 region 만 센다). */
+    public boolean active() { return playerCount > 0; }
 
     /** 청크 좌표가 이 region 의 바깥 상자 안인가(상자 안이라고 꼭 이 region 것은 아니다 — 모양이 L 자일 수 있다). */
     public boolean boundsContain(int chunkX, int chunkZ) {
