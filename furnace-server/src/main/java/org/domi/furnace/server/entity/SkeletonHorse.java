@@ -162,4 +162,8 @@ public class SkeletonHorse extends AbstractHorse {
         }
         return "minecraft:entity.skeleton_horse.swim";
     }
+
+    /** SkeletonHorse.playSwimSound: 땅 위면 크기 0.3 고정, 아니면 min(0.1, 크기 ×25). */
+    @Override
+    protected void playSwimSound(float volume) { super.playSwimSound(onGround() ? 0.3F : Math.min(0.1F, volume * 25.0F)); }
 }

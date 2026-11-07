@@ -507,4 +507,7 @@ public class Turtle extends Animal {
     protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) { playSound(isBaby() ? "minecraft:entity.turtle.shamble_baby" : "minecraft:entity.turtle.shamble", 0.15F, 1.0F); }
 
     @Override protected String getSwimSound() { return "minecraft:entity.turtle.swim"; }
+
+    /** Turtle.playSwimSound: 크기 ×1.5. */
+    @Override protected void playSwimSound(float volume) { super.playSwimSound(volume * 1.5F); }
 }

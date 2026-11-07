@@ -106,12 +106,14 @@
 101 1.0 1.0 block.sculk_sensor.break block.sculk_sensor.step block.sculk_sensor.place block.sculk_sensor.hit block.sculk_sensor.fall
 102 1.0 1.0 block.sculk_catalyst.break block.sculk_catalyst.step block.sculk_catalyst.place block.sculk_catalyst.hit block.sculk_catalyst.fall
 103 1.0 1.0 block.suspicious_gravel.break block.suspicious_gravel.step block.suspicious_gravel.place block.suspicious_gravel.hit block.suspicious_gravel.fall
-104 1.0 1.0 block.trial_spawner.break block.trial_spawner.step block.trial_spawner.place block.trial_spawner.hit block.trial_spawner.fall
-105 1.0 1.0 block.sponge.break block.sponge.step block.sponge.place block.sponge.hit block.sponge.fall
-106 1.0 1.0 block.wet_sponge.break block.wet_sponge.step block.wet_sponge.place block.wet_sponge.hit block.wet_sponge.fall
-107 1.0 1.0 block.vault.break block.vault.step block.vault.place block.vault.hit block.vault.fall
-108 1.0 1.0 block.heavy_core.break block.heavy_core.step block.heavy_core.place block.heavy_core.hit block.heavy_core.fall
-109 1.0 1.0 block.cobweb.break block.cobweb.step block.cobweb.place block.cobweb.hit block.cobweb.fall
+104 1.0 1.0 block.decorated_pot.break block.decorated_pot.step block.decorated_pot.place block.decorated_pot.hit block.decorated_pot.fall
+105 1.0 1.0 block.decorated_pot.shatter block.decorated_pot.step block.decorated_pot.place block.decorated_pot.hit block.decorated_pot.fall
+106 1.0 1.0 block.trial_spawner.break block.trial_spawner.step block.trial_spawner.place block.trial_spawner.hit block.trial_spawner.fall
+107 1.0 1.0 block.sponge.break block.sponge.step block.sponge.place block.sponge.hit block.sponge.fall
+108 1.0 1.0 block.wet_sponge.break block.wet_sponge.step block.wet_sponge.place block.wet_sponge.hit block.wet_sponge.fall
+109 1.0 1.0 block.vault.break block.vault.step block.vault.place block.vault.hit block.vault.fall
+110 1.0 1.0 block.heavy_core.break block.heavy_core.step block.heavy_core.place block.heavy_core.hit block.heavy_core.fall
+111 1.0 1.0 block.cobweb.break block.cobweb.step block.cobweb.place block.cobweb.hit block.cobweb.fall
 [blocks]
 air 30
 stone 30
@@ -205,8 +207,8 @@ dark_oak_leaves 28
 mangrove_leaves 28
 azalea_leaves 100
 flowering_azalea_leaves 100
-sponge 105
-wet_sponge 106
+sponge 107
+wet_sponge 108
 glass 32
 lapis_ore 30
 deepslate_lapis_ore 55
@@ -235,7 +237,7 @@ black_bed 26
 powered_rail 31
 detector_rail 31
 sticky_piston 30
-cobweb 109
+cobweb 111
 short_grass 28
 fern 28
 dead_bush 28
@@ -1168,8 +1170,10 @@ verdant_froglight 59
 pearlescent_froglight 59
 frogspawn 60
 reinforced_deepslate 55
-decorated_pot 30
+decorated_pot 104
 crafter 30
-trial_spawner 104
-vault 107
-heavy_core 108
+trial_spawner 106
+vault 109
+heavy_core 110
+[state-overrides]
+decorated_pot cracked=true 105

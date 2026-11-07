@@ -146,4 +146,8 @@ public class Silverfish extends Monster {
     /** Silverfish.playStepSound: silverfish.step 크기 0.15(블록 소리를 쓰지 않는다). */
     @Override
     protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) { playSound("minecraft:entity.silverfish.step", 0.15F, 1.0F); }
+
+    /** getMovementEmission = EVENTS: 게임 이벤트만 내고 걸음·헤엄 소리는 이동으로 내지 않는다. */
+    @Override
+    protected MovementEmission getMovementEmission() { return MovementEmission.EVENTS; }
 }

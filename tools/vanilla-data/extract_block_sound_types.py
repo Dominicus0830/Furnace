@@ -262,8 +262,15 @@ bad = [(n, s) for n, _, s in registered if s.startswith('?')]
 if bad:
     sys.exit('풀지 못한 블록: %s' % bad[:10])
 
+# 3.5 BlockState.getSoundType 을 덮는 블록(바닐라 1.21.1 에서 dtb.g_(dtc) 를 덮는 클래스는 dhy=DecoratedPotBlock 하나뿐):
+#     금 간(cracked) 상태이면 DECORATED_POT_CRACKED(dnm.bc), 아니면 DECORATED_POT(dnm.bb). Blocks 쪽 decorated_pot 에는 sound() 호출이 없다.
+STATE_OVERRIDES = [('decorated_pot', 'cracked', 'true', 'bc')]
+registered = [(n, x, 'bb' if n == 'decorated_pot' else s) for n, x, s in registered]
+for _, _, _, k in STATE_OVERRIDES:
+    assert k in sound_types, k
+
 # 4. 출력: 소리 종류 표 + 블록 → 종류
-used = sorted({s for _, _, s in registered}, key=lambda k: (len(k), k))
+used = sorted({s for _, _, s in registered} | {k for _, _, _, k in STATE_OVERRIDES}, key=lambda k: (len(k), k))
 index = {k: i for i, k in enumerate(used)}
 with open(OUT, 'w', encoding='utf-8') as o:
     o.write('# 자동 생성(tools/vanilla-data/extract_block_sound_types.py, 바닐라 1.21.1 서버 바이트코드): 블록별 SoundType.\n')
@@ -276,4 +283,7 @@ with open(OUT, 'w', encoding='utf-8') as o:
     o.write('[blocks]\n')
     for name, _, s in registered:
         o.write('%s %d\n' % (name, index[s]))
+    o.write('[state-overrides]\n')
+    for name, prop, val, k in STATE_OVERRIDES:
+        o.write('%s %s=%s %d\n' % (name, prop, val, index[k]))
 print('types %d blocks %d' % (len(used), len(registered)))

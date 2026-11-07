@@ -969,7 +969,12 @@ public abstract non-sealed class Entity implements Rider {
         Entity e = ctl instanceof Entity ce ? ce : this;
         float f = e == this ? 0.35F : 0.4F;
         float f1 = Math.min(1.0F, (float) Math.sqrt(e.vx * e.vx * 0.2F + e.vy * e.vy + e.vz * e.vz * 0.2F) * f);
-        playSound(getSwimSound(), f1, 1.0F + (random.nextFloat() - random.nextFloat()) * 0.4F);
+        playSwimSound(f1);
+    }
+
+    /** Entity.playSwimSound: 높이 난수 두 번. 거북(×1.5)·해골말(땅 위 0.3 고정, 아니면 min(0.1, ×25))이 크기를 바꾼다. */
+    protected void playSwimSound(float volume) {
+        playSound(getSwimSound(), volume, 1.0F + (random.nextFloat() - random.nextFloat()) * 0.4F);
     }
 
     private static final int POWDER_SNOW = B.id("powder_snow");

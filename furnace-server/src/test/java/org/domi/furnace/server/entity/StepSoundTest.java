@@ -299,6 +299,57 @@ class StepSoundTest {
         assertEquals("minecraft:entity.skeleton_horse.swim", sh.getSwimSound());   // 땅에서 떴을 때
     }
 
+    @Test
+    void eventsOnlyMobsMakeNoMovementSounds() {
+        // 바닐라 getMovementEmission = EVENTS: 박쥐·오징어·수호자·브리즈·좀벌레·엔더마이트는 이동으로 소리를 내지 않는다
+        for (String id : new String[] {"minecraft:bat", "minecraft:squid", "minecraft:glow_squid", "minecraft:guardian", "minecraft:elder_guardian",
+                "minecraft:breeze", "minecraft:silverfish", "minecraft:endermite"}) {
+            Entity e = spawn(level(), id);
+            assertTrue(!e.getMovementEmission().emitsSounds() && e.getMovementEmission().emitsEvents(), id);
+        }
+        assertTrue(spawn(level(), "minecraft:cow").getMovementEmission().emitsSounds());
+    }
+
+    @Test
+    void turtleSwimVolumeIsOneAndAHalfTimes() {
+        var level = level();
+        Turtle t = spawn(level, "minecraft:turtle");
+        t.playSwimSound(0.4F);
+        assertEquals(1, level.sounds.size());
+        assertEquals("minecraft:entity.turtle.swim", level.sounds.get(0).sound());
+        assertEquals(0.4F * 1.5F, level.sounds.get(0).volume());
+    }
+
+    @Test
+    void skeletonHorseSwimVolumeDependsOnGround() {
+        var level = level();
+        SkeletonHorse sh = spawn(level, "minecraft:skeleton_horse");
+        sh.playSwimSound(0.2F);   // 땅에서 뜬 채: min(0.1, 0.2×25)
+        assertEquals(0.1F, level.sounds.get(0).volume());
+        level.sounds.clear();
+        sh.playSwimSound(0.002F);
+        assertEquals(0.002F * 25.0F, level.sounds.get(0).volume());
+    }
+
+    @Test
+    void decoratedPotSoundDependsOnCracked() {
+        var s = BlockSounds.get();
+        int pot = B.defaultState("minecraft:decorated_pot");
+        assertEquals("minecraft:block.decorated_pot.step", s.of(pot).stepSound());
+        assertEquals("minecraft:block.decorated_pot.break", s.of(pot).breakSound());
+        int cracked = B.prop("cracked").with(pot, true);
+        assertEquals("minecraft:block.decorated_pot.step", s.of(cracked).stepSound());
+        assertEquals("minecraft:block.decorated_pot.shatter", s.of(cracked).breakSound());
+    }
+
+    @Test
+    void hardCropIsNotWoodForHorse() {
+        var s = BlockSounds.get();
+        assertTrue(s.of(B.defaultState("minecraft:oak_planks")).isWoodForHorse());
+        assertTrue(s.of(B.defaultState("minecraft:crimson_stem")).isWoodForHorse());
+        assertTrue(!s.of(B.defaultState("minecraft:melon_stem")).isWoodForHorse());
+    }
+
     // ------------------------------------------------------------------ 플레이어
 
     private static Player player(ParticleSoundEventsTest.RecLevel level) {
