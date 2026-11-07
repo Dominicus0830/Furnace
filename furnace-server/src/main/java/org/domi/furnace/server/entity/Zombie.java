@@ -422,4 +422,11 @@ public class Zombie extends Monster {
         super.dropCustomDeathLoot(source, byPlayer);
         Creeper.dropSkullIfCharged(this, damageSourceEntity(), "zombie_head");
     }
+
+    /** Zombie.getStepSound: 종류별 step 소리(드라운드·허스크·좀비 주민이 덮는다). */
+    protected String getStepSound() { return "minecraft:entity.zombie.step"; }
+
+    /** Zombie.playStepSound: getStepSound 크기 0.15(블록 소리를 쓰지 않는다). */
+    @Override
+    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) { playSound(getStepSound(), 0.15F, 1.0F); }
 }

@@ -87,4 +87,8 @@ public class Chicken extends Animal {
         chickenJockey = tag.getBoolean("IsChickenJockey");
         if (tag.contains("EggLayTime")) eggTime = tag.getInt("EggLayTime");
     }
+
+    /** Chicken.playStepSound: chicken.step 크기 0.15(블록 소리를 쓰지 않는다). */
+    @Override
+    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) { playSound("minecraft:entity.chicken.step", 0.15F, 1.0F); }
 }

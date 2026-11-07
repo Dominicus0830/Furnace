@@ -193,4 +193,13 @@ public class Hoglin extends Animal implements Enemy, HoglinBase {
     /** 바닐라 Hoglin: 아기도 경험치를 준다. */
     @Override
     protected boolean shouldDropExperience() { return true; }
+
+    /** Hoglin.playStepSound: hoglin.step 크기 0.15(블록 소리를 쓰지 않는다). */
+    @Override
+    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) { playSound("minecraft:entity.hoglin.step", 0.15F, 1.0F); }
+
+    /** Hoglin.getSwimSound·getSwimSplashSound: hostile 소리. */
+    @Override protected String getSwimSound() { return "minecraft:entity.hostile.swim"; }
+
+    @Override protected String swimSplashSound() { return "minecraft:entity.hostile.splash"; }
 }

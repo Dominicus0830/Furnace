@@ -210,7 +210,9 @@ public class Dolphin extends WaterAnimal {
         return dx * dx + dy * dy + dz * dz < 144.0;
     }
 
-    @Override protected String swimSplashSound() { return "entity.dolphin.splash"; }
+    @Override protected String swimSplashSound() { return "minecraft:entity.dolphin.splash"; }
+
+    @Override protected String getSwimSound() { return "minecraft:entity.dolphin.swim"; }
 
     @Override public String getAmbientSound() { return isInWater() ? "entity.dolphin.ambient_water" : "entity.dolphin.ambient"; }
 

@@ -1,5 +1,4 @@
 // 바닐라 Turtle: 물과 땅을 오간다. 바다에서 짝짓기 해 알을 품고, 태어난 해변(집)으로 돌아가 모래에 알을 낳는다. 아기가 자라면 스트라이프 조각(스쿠트)을 떨군다.
-// TODO(발걸음 소리): 걷는 소리.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -498,4 +497,14 @@ public class Turtle extends Animal {
             super.stop();
         }
     }
+
+    /** Turtle.nextStep: moveDist + 0.15. */
+    @Override
+    protected float nextStep() { return moveDist + 0.15F; }
+
+    /** Turtle.playStepSound: 아기는 shamble_baby, 아니면 shamble. 크기 0.15. */
+    @Override
+    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) { playSound(isBaby() ? "minecraft:entity.turtle.shamble_baby" : "minecraft:entity.turtle.shamble", 0.15F, 1.0F); }
+
+    @Override protected String getSwimSound() { return "minecraft:entity.turtle.swim"; }
 }
