@@ -13,8 +13,21 @@ public final class B {
     /** 상태의 블록 번호. */
     public static int block(int state) { return BLOCKS.blockOf(state); }
 
+    private record IdEntry(String key, int id) {}
+
+    /** 이름 → 번호 기억(X1): 상수 문자열로 부르는 곳이 많아 "minecraft:" 이어 붙이기·해시 조회를 매번 하지 않는다. 직접 사상 표라 덮어써도 틀린 답은 없다. */
+    private static final IdEntry[] ID_CACHE = new IdEntry[2048];
+
     /** 블록 이름 → 번호(없으면 -1). */
-    public static int id(String name) { return BLOCKS.block(name.indexOf(':') < 0 ? "minecraft:" + name : name); }
+    public static int id(String name) {
+        int h = name.hashCode();
+        int slot = (h ^ (h >>> 11)) & (ID_CACHE.length - 1);
+        IdEntry e = ID_CACHE[slot];
+        if (e != null && (e.key == name || e.key.equals(name))) return e.id;
+        int id = BLOCKS.block(name.indexOf(':') < 0 ? "minecraft:" + name : name);
+        ID_CACHE[slot] = new IdEntry(name, id);
+        return id;
+    }
 
     public static boolean is(int state, int block) { return BLOCKS.blockOf(state) == block; }
 

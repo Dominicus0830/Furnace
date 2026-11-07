@@ -135,11 +135,25 @@ public final class ItemStackCodecs {
 
     /** 바닐라 getMaxStackSize: 패치의 max_stack_size, 없으면 아이템 기본값, 그것도 없으면 1. */
     public static int maxStackSize(ItemStack s) {
-        Object v = s.patch().entries().get("minecraft:max_stack_size");
-        if (v instanceof Integer i) return i;
-        if (s.patch().entries().containsKey("minecraft:max_stack_size")) return 1;   // 지움 표시
-        String name = ItemContext.installed() ? ItemContext.name("minecraft:item", s.itemId()) : null;
-        return name == null ? 64 : ItemPrototypes.maxStackSize(name);
+        if (!s.patch().isEmpty()) {
+            Object v = s.patch().entries().get("minecraft:max_stack_size");
+            if (v instanceof Integer i) return i;
+            if (s.patch().entries().containsKey("minecraft:max_stack_size")) return 1;   // 지움 표시
+        }
+        return defaultMaxStackSize(s.itemId());
+    }
+
+    /**
+     * 아이템 기본 최대 수량 기억(X1): 깔때기·인벤토리가 칸마다 부르는데 이름 문자열 만들기 + 맵 조회가 매번 들었다.
+     * 값은 (레지스트리 설치, 아이템 번호)로만 정해지므로 설치 때마다 비운다. 0 = 아직 안 구함.
+     */
+    private static int defaultMaxStackSize(int itemId) {
+        int[] c = ItemContext.maxStackCache();
+        if (itemId >= 0 && itemId < c.length && c[itemId] != 0) return c[itemId];
+        String name = ItemContext.installed() ? ItemContext.name("minecraft:item", itemId) : null;
+        int v = name == null ? 64 : ItemPrototypes.maxStackSize(name);
+        if (name != null && itemId >= 0 && itemId < c.length) c[itemId] = v;
+        return v;
     }
 
     public static Map<String, Object> toCanonical(ItemStack s) {

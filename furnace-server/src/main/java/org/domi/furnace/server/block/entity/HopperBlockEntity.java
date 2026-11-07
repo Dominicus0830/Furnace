@@ -68,7 +68,15 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
 
     @Override public boolean isGridAligned() { return true; }
 
-    @Override public Inv hopperInv(BlockLevel level) { return new BlockInv(level, this); }
+    private BlockInv invView;
+
+    /** 깔때기 자신을 Inv 로 본 것. BlockInv 는 (레벨, 블록 엔티티)만 가진 얇은 겉이라 레벨이 같으면 재사용한다(X1: 틱마다 새로 만들지 않는다). */
+    @Override
+    public Inv hopperInv(BlockLevel level) {
+        BlockInv v = invView;
+        if (v == null || v.level != level) invView = v = new BlockInv(level, this);
+        return v;
+    }
 
     private void setCooldown(int t) { cooldownTime = t; }
 
@@ -78,9 +86,20 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
 
     // ------------------------------------------------------------------ 틱
 
-    private int facing(int state) { return Dir.byName(B.prop("facing").valueName(state)); }
+    private static final org.domi.furnace.server.block.Prop FACING = B.prop("facing"), ENABLED = B.prop("enabled");
+    private static final int HOPPER = B.id("hopper");
 
-    private static boolean enabled(int state) { return B.prop("enabled").is(state); }
+    /** facing 값 번호 → 방향(Dir) 표. 값 목록에서 한 번 만든다. */
+    private static final int[] FACING_DIR;
+    static {
+        String[] vs = FACING.values(B.defaultState("hopper"));
+        FACING_DIR = new int[vs.length];
+        for (int i = 0; i < vs.length; i++) FACING_DIR[i] = Dir.byName(vs[i]);
+    }
+
+    private int facing(int state) { return FACING_DIR[FACING.get(state)]; }
+
+    private static boolean enabled(int state) { return ENABLED.is(state); }
 
     /** pushItemsTick. */
     @Override
@@ -90,17 +109,17 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
         if (!isOnCooldown()) {
             setCooldown(0);
             Inv self = hopperInv(level);
-            tryMoveItems(level, self, () -> suckInItems(level, this));
+            tryMoveItems(level, self, null);
         }
     }
 
     /** tryMoveItems: 쿨다운이 아니고 켜져 있으면 내보내기 → 빨아들이기. 옮겼으면 쿨다운 8 과 setChanged. */
-    private boolean tryMoveItems(BlockLevel level, Inv self, java.util.function.BooleanSupplier suck) {
+    private boolean tryMoveItems(BlockLevel level, Inv self, ItemEntity suckThis) {
         int state = level.getBlockState(pos);
-        if (!isOnCooldown() && B.is(state, "hopper") && enabled(state)) {
+        if (!isOnCooldown() && B.is(state, HOPPER) && enabled(state)) {
             boolean moved = false;
             if (!self.isEmpty()) moved = ejectItems(level, state, self);
-            if (!inventoryFull()) moved |= suck.getAsBoolean();
+            if (!inventoryFull()) moved |= suckThis != null ? addItem(self, suckThis) : suckInItems(level, this);
             if (moved) {
                 setCooldown(MOVE_ITEM_SPEED);
                 setChanged(level);
@@ -293,7 +312,7 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
         if (entity instanceof ItemEntity ie && !ie.getItem().isEmpty()
                 && entity.boundingBox().move(-pos.x(), -pos.y(), -pos.z()).intersects(SUCK_AABB)) {
             Inv self = hopperInv(level);
-            tryMoveItems(level, self, () -> addItem(self, ie));
+            tryMoveItems(level, self, ie);
         }
     }
 
@@ -330,8 +349,8 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
     /** getEntityContainer: 칸 가운데 1×1×1 에 걸친 살아 있는 용기 엔티티 중 레벨 난수로 하나. */
     private static Inv getEntityContainer(BlockLevel level, double x, double y, double z) {
         if (!(level instanceof ChunkLevel cl)) return null;
-        List<Entity> list = cl.getEntities(null, new AABB(x - 0.5, y - 0.5, z - 0.5, x + 0.5, y + 0.5, z + 0.5),
-                e -> e instanceof ContainerEntity && e.isAlive());
+        // 클래스별 구역 목록으로 훑는다(ContainerEntity 만 — 순서는 전체 목록을 거른 것과 같다). 대부분의 칸은 그런 엔티티가 없다.
+        List<Entity> list = cl.getEntitiesOfType(ContainerEntity.class, new AABB(x - 0.5, y - 0.5, z - 0.5, x + 0.5, y + 0.5, z + 0.5), Entity::isAlive);
         if (list.isEmpty()) return null;
         return new EntityInv((ContainerEntity) list.get(level.random().nextInt(list.size())));
     }

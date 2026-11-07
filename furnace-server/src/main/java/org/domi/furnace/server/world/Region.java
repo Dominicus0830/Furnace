@@ -80,7 +80,7 @@ public final class Region {
     final Set<Long> sections = new HashSet<>();
     final Set<Region> pendingMerges = new HashSet<>();
     /** 이 region 구역의 "있는" 청크 키(로드·로드 중·시야). 쓰기는 Regionizer 잠금 안. */
-    final Set<Long> present = ConcurrentHashMap.newKeySet();
+    final ChunkKeySet present = new ChunkKeySet();
     final ConcurrentLinkedQueue<Task> inbox = new ConcurrentLinkedQueue<>();
 
     // ---- 명령 블록 기다림(awaitUrgent)
@@ -1014,9 +1014,12 @@ public final class Region {
     /** 구독자 0인 "있는 청크"를 grace 후 퇴출(dirty면 저장). 로드 중인 청크는 끝날 때까지 둔다. 매 틱 호출. */
     private void evictIdleChunks() {
         List<Long> drop = null;
-        for (long key : present) {
+        for (long key : present.snapshot()) {
             ChunkPos cp = new ChunkPos(Regionizer.chunkX(key), Regionizer.chunkZ(key));
-            if (!world.subscribers(cp).isEmpty() || world.loadingChunk(key) != null || world.ticketed(key)) { evictGrace.remove(cp); continue; }
+            if (!world.subscribers(cp).isEmpty() || world.loadingChunk(key) != null || world.ticketed(key)) {
+                if (!evictGrace.isEmpty()) evictGrace.remove(cp);   // 유예 중인 청크가 없으면 지울 것도 없다(X1)
+                continue;
+            }
             int g = evictGrace.merge(cp, 1, Integer::sum);
             if (g >= world.chunkEvictionGraceTicks()) {
                 if (drop == null) drop = new ArrayList<>();
@@ -1510,7 +1513,7 @@ public final class Region {
         int range = Math.min(sim, 8);
         int n = 0;
         if (!players.isEmpty()) {
-            for (long key : present) {
+            for (long key : present.snapshot()) {
                 int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
                 if (!closeToPlayer(cx, cz, range)) continue;
                 ChunkColumn col = ownedChunk(cx, cz);

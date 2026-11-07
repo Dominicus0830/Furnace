@@ -25,13 +25,15 @@ public final class ChunkSection {
 
     /** LevelChunkSection.isRandomlyTicking: 무작위 틱 받는 칸이 하나라도 있는가. */
     public boolean isRandomlyTicking() {
+        int known = tickingCount;
+        if (known >= 0) return known > 0;   // 대부분 이미 센 값이다 — 표(volatile)를 읽을 필요 없다(X1)
         boolean[] t = randomTicking;
         if (t == null) return false;
         if (tickingCount < 0) {
             int n = 0;
             if (scratch != null) {
                 for (int v : scratch) if (t[v]) n++;
-            } else {
+            } else if (blocks.maybeHas(v -> t[v])) {   // 팔레트에 무작위 틱 상태가 하나도 없으면 4096칸을 읽을 것 없이 0 (팔레트에 남은 옛 항목은 안전한 쪽으로 true)
                 for (int i = 0; i < 4096; i++) if (t[blocks.get(i)]) n++;
             }
             tickingCount = n;

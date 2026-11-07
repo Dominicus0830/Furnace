@@ -141,10 +141,14 @@ public final class EntityStore {
         int x0 = Entity.floor(box.minX() - 2.0) >> 4, y0 = Entity.floor(box.minY() - 4.0) >> 4, z0 = Entity.floor(box.minZ() - 2.0) >> 4;
         int x1 = Entity.floor(box.maxX() + 2.0) >> 4, y1 = Entity.floor(box.maxY() + 0.0) >> 4, z1 = Entity.floor(box.maxZ() + 2.0) >> 4;
         // TreeMap 순서(마스크된 z, y 순)를 유지하면서 칸마다 직접 조회한다(열 전체 스캔·목록 복사 없이).
-        int[] zs = maskedOrder(z0, z1, 4194303), ys = maskedOrder(y0, y1, 1048575);
+        // 범위가 0 을 가로지르지 않으면 오름차순이 곧 마스크 순서라 배열을 만들지 않는다(X1: 깔때기·밀기 조회마다 할당하던 것).
+        boolean wrapZ = z0 < 0 != z1 < 0, wrapY = y0 < 0 != y1 < 0;
+        int[] zs = wrapZ ? maskedOrder(z0, z1, 4194303) : null, ys = wrapY ? maskedOrder(y0, y1, 1048575) : null;
         for (int sx = x0; sx <= x1; sx++) {
-            for (int sz : zs) {
-                for (int sy : ys) {
+            for (int zi = 0, zn = wrapZ ? zs.length : z1 - z0 + 1; zi < zn; zi++) {
+                int sz = wrapZ ? zs[zi] : z0 + zi;
+                for (int yi = 0, yn = wrapY ? ys.length : y1 - y0 + 1; yi < yn; yi++) {
+                    int sy = wrapY ? ys[yi] : y0 + yi;
                     Section sec = section(Entity.sectionKey(sx, sy, sz));
                     if (sec == null) continue;
                     ArrayList<Entity> list = sec.find(cls);
@@ -211,6 +215,15 @@ public final class EntityStore {
         List<Entity> out = new ArrayList<>();
         forEachIn(box, e -> {
             if (e != except && (filter == null || filter.test(e))) out.add(e);
+        });
+        return out;
+    }
+
+    /** getEntities 와 같은 결과(순서까지)를 그 클래스·인터페이스의 구역 목록만 훑어 얻는다. cls 는 그 종류만 걸러내는 조건이어야 한다. */
+    public List<Entity> getEntitiesOfType(Class<?> cls, AABB box, Predicate<? super Entity> filter) {
+        List<Entity> out = new ArrayList<>();
+        forEachIn(box, cls, e -> {
+            if (cls.isInstance(e) && (filter == null || filter.test(e))) out.add(e);
         });
         return out;
     }

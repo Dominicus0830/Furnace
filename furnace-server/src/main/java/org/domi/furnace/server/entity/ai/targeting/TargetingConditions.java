@@ -47,6 +47,13 @@ public final class TargetingConditions {
         return this;
     }
 
+    /**
+     * test 가 출처(source)에서 이 제곱 거리보다 먼 대상을 늘 거짓으로 돌려주는 한도(X1: 많은 플레이어 중 가까운 한 명을 고를 때 먼 사람의
+     * 조건 검사를 건너뛰는 데 쓴다). 사거리 검사는 max(range × 보임비율, 2) 이고 보임비율은 1 을 넘지 않으므로 range ≥ 2 면 range² 가 한도다.
+     * 사거리가 없거나 2 미만이면 한도 없음(+무한).
+     */
+    public double farLimitSqr() { return range >= 2.0 ? range * range : Double.POSITIVE_INFINITY; }
+
     public boolean test(Mob source, Targetable target) {
         if (source != null && source.id() == target.id()) return false;
         if (!target.canBeSeenAsEnemy()) return false;

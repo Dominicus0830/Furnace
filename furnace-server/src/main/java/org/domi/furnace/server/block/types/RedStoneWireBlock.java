@@ -17,7 +17,12 @@ public class RedStoneWireBlock extends BlockBehavior {
 
     static final Prop NORTH = B.prop("north"), EAST = B.prop("east"), SOUTH = B.prop("south"), WEST = B.prop("west"), POWER = B.prop("power");
     private static final Prop[] SIDE = {null, null, NORTH, SOUTH, WEST, EAST};
-    private static final String UP = "up", SIDE_ = "side", NONE = "none";
+    // 연결 값은 값 번호로 다룬다(X1: 문자열 비교·검색 제거). 값 목록 up|side|none 의 번호 — 아래 정적 검사로 확인한다.
+    private static final int UP = 0, SIDE_ = 1, NONE = 2;
+    static {
+        String[] vs = NORTH.values(B.defaultState("redstone_wire"));
+        if (!"up".equals(vs[UP]) || !"side".equals(vs[SIDE_]) || !"none".equals(vs[NONE])) throw new IllegalStateException("redstone_wire 연결 값 순서가 다르다");
+    }
     private static final int WIRE = B.id("redstone_wire"), HOPPER = B.id("hopper"), REPEATER = B.id("repeater"), OBSERVER = B.id("observer");
     private static final Prop FACING = B.prop("facing");
     private static final int[] VERTICAL = {Dir.UP, Dir.DOWN};
@@ -39,9 +44,9 @@ public class RedStoneWireBlock extends BlockBehavior {
 
     private static boolean shouldSignal() { return !NO_SIGNAL.get()[0]; }
 
-    private static String side(int state, int dir) { return SIDE[dir].valueName(state); }
+    private static int side(int state, int dir) { return SIDE[dir].get(state); }
 
-    private static boolean connected(int state, int dir) { return !NONE.equals(side(state, dir)); }
+    private static boolean connected(int state, int dir) { return SIDE[dir].get(state) != NONE; }
 
     @Override
     public int getStateForPlacement(PlaceContext ctx) { return getConnectionState(ctx.level(), crossState, ctx.clickedPos()); }
@@ -73,8 +78,8 @@ public class RedStoneWireBlock extends BlockBehavior {
     public int updateShape(int state, int dir, int neighborState, BlockLevel level, Pos pos, Pos neighborPos) {
         if (dir == Dir.DOWN) return !canSurviveOn(level, neighborPos, neighborState) ? B.defaultState("air") : state;
         if (dir == Dir.UP) return getConnectionState(level, state, pos);
-        String side = getConnectingSide(level, pos, dir);
-        if (!NONE.equals(side) == connected(state, dir) && !isCross(state)) return SIDE[dir].with(state, side);
+        int side = getConnectingSide(level, pos, dir);
+        if ((side != NONE) == connected(state, dir) && !isCross(state)) return SIDE[dir].with(state, side);
         return getConnectionState(level, SIDE[dir].with(POWER.withInt(crossState, POWER.intValue(state)), side), pos);
     }
 
@@ -89,7 +94,7 @@ public class RedStoneWireBlock extends BlockBehavior {
     @Override
     public void updateIndirectNeighbourShapes(int state, BlockLevel level, Pos pos, int flags, int recursionLeft) {
         for (int d : Dir.HORIZONTAL) {
-            if (!NONE.equals(side(state, d)) && !B.is(level.getBlockState(pos.relative(d)), block)) {
+            if (side(state, d) != NONE && !B.is(level.getBlockState(pos.relative(d)), block)) {
                 int o = Dir.opposite(d);
                 Pos down = pos.relative(d).below();
                 if (B.is(level.getBlockState(down), block)) {
@@ -105,11 +110,11 @@ public class RedStoneWireBlock extends BlockBehavior {
         }
     }
 
-    private String getConnectingSide(BlockLevel level, Pos pos, int dir) {
+    private int getConnectingSide(BlockLevel level, Pos pos, int dir) {
         return getConnectingSide(level, pos, dir, !conductor(level, level.getBlockState(pos.above()), pos));
     }
 
-    private String getConnectingSide(BlockLevel level, Pos pos, int dir, boolean nonConductorAbove) {
+    private int getConnectingSide(BlockLevel level, Pos pos, int dir, boolean nonConductorAbove) {
         Pos rel = pos.relative(dir);
         int s = level.getBlockState(rel);
         if (nonConductorAbove) {

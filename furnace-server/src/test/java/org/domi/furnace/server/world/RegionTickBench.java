@@ -56,6 +56,10 @@ class RegionTickBench {
                 if (!w.ownsChunkOnCurrentThread(bx, bz)) return null;
                 return nameOf.apply(w.regionizer().ownerOf(bx, bz).biomeIdAtQuart(q[0], q[1], q[2]));
             }
+            @Override public boolean gameRule(String name) {   // furnace.bench.nospawn=true: 자연 스폰 끔(다른 비용을 보려고)
+                if (Boolean.getBoolean("furnace.bench.nospawn") && name.equals("doMobSpawning")) return false;
+                return super.gameRule(name);
+            }
             @Override public String roughBiomeAt(int x, int y, int z) {   // ServerCore 와 같은 길(확대 없음)
                 if (!w.ownsChunkOnCurrentThread(x >> 4, z >> 4)) return null;
                 return nameOf.apply(w.regionizer().ownerOf(x >> 4, z >> 4).noiseBiomeIdAtBlock(x, y, z));
@@ -89,19 +93,24 @@ class RegionTickBench {
                 e.moveTo(cx0 + rnd.nextInt(60) - 30, cy0 + 2, cz0 + rnd.nextInt(60) - 30, rnd.nextFloat() * 360, 0);
                 level.addFreshEntity(e);
             }
+            if (!System.getProperty("furnace.bench.scene", "").isEmpty())
+                for (int dx = -3; dx <= 3; dx++) for (int dz = -3; dz <= 3; dz++) r.chunkAtBlocking(new ChunkPos(((int) cx0 >> 4) + dx, ((int) cz0 >> 4) + dz));
+            buildScene(level, System.getProperty("furnace.bench.scene", ""), (int) Math.floor(cx0), (int) Math.floor(cy0), (int) Math.floor(cz0));
         }).get();
         long[] samples = new long[ticks];
         long[] rawSamples = new long[ticks];
         long[] ph = new long[5];
         // -Dfurnace.bench.cpujfr=true: region 스레드 CPU 샘플(jdk.ExecutionSample 2ms)을 자기·포함 비율로 찍는다
         jdk.jfr.Recording rec = null;
-        if (Boolean.getBoolean("furnace.bench.cpujfr")) {
-            rec = new jdk.jfr.Recording();
-            rec.enable("jdk.ExecutionSample").withPeriod(java.time.Duration.ofMillis(2)).withStackTrace();
-            rec.start();
-        }
+        final boolean wantJfr = Boolean.getBoolean("furnace.bench.cpujfr");
+        final int jfrFrom = Integer.getInteger("furnace.bench.skip", ticks / 4);   // 앞 구간(청크 로드·예열)은 프로파일에서 뺀다
         long cpu0 = MultiDimensionTickBench.processCpuNanos(), wall0 = System.nanoTime();
         for (int t = 0; t < ticks; t++) {
+            if (wantJfr && t == jfrFrom) {
+                rec = new jdk.jfr.Recording();
+                rec.enable("jdk.ExecutionSample").withPeriod(java.time.Duration.ofMillis(1)).withStackTrace();
+                rec.start();
+            }
             // 반지름 24 블록 원을 걷는다(틱당 ~0.2 블록 — 걷기 속도)
             // furnace.bench.speed>0 이면 그 속도(블록/틱)로 +x 직진 — 새 청크 로드·전송·퇴출이 계속 일어난다
             double a = t * 0.2 / 24.0;
@@ -115,6 +124,7 @@ class RegionTickBench {
                 Region r = w.regionAt(pr);
                 long[] before = r.phaseSum.clone();
                 long t0 = System.nanoTime();
+                sceneTick(r.level(), System.getProperty("furnace.bench.scene", ""), (int) Math.floor(cx0), (int) Math.floor(cy0), (int) Math.floor(cz0), tt);
                 if (Boolean.getBoolean("furnace.bench.runtick")) r.runTick(true); else r.tick();
                 samples[tt] = System.nanoTime() - t0;
                 rawSamples[tt] = samples[tt];
@@ -164,6 +174,56 @@ class RegionTickBench {
         sched.close();
     }
 
+
+    /** X1 성능 점검용 장면: hoppers(깔때기 줄·저장 상자), rails(전동 레일 줄 + 레드스톤 횃불/와이어), wire(레드스톤 배선 격자), tempt(음식 든 플레이어 근처 동물). */
+    static void buildScene(RegionLevel level, String scene, int cx, int cy, int cz) {
+        int n = Integer.getInteger("furnace.bench.sceneSize", 200);
+        for (String sc : scene.split(",")) {
+            switch (sc.trim()) {
+                case "hoppers" -> {
+                    // n 줄: 상자(물건 가득) → 깔때기 7개(동쪽) → 상자. 아래쪽 줄은 비어 있는 채 놀고 있는 깔때기.
+                    int facingEast = org.domi.furnace.server.block.B.prop("facing").with(org.domi.furnace.server.block.B.defaultState("hopper"), "east");
+                    int facingDown = org.domi.furnace.server.block.B.prop("facing").with(org.domi.furnace.server.block.B.defaultState("hopper"), "down");
+                    for (int row = 0; row < n; row++) {
+                        int z = cz - 30 + (row % 60), y = cy + 3 + row / 60 * 2, x0 = cx - 30;
+                        var top = new org.domi.furnace.server.block.Pos(x0, y + 1, z);
+                        level.setBlock(top, org.domi.furnace.server.block.B.defaultState("chest"), 3);
+                        if (!Boolean.getBoolean("furnace.bench.hopperIdle") && level.getBlockEntity(top) instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity c)
+                            for (int i = 0; i < c.items.length; i++) c.items[i] = new org.domi.furnace.server.entity.ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "minecraft:cobblestone"), 64);
+                        for (int i = 0; i < 7; i++) level.setBlock(new org.domi.furnace.server.block.Pos(x0 + i, y, z), facingEast, 3);
+                        level.setBlock(new org.domi.furnace.server.block.Pos(x0 + 7, y, z), facingDown, 3);
+                        level.setBlock(new org.domi.furnace.server.block.Pos(x0 + 7, y - 1, z), org.domi.furnace.server.block.B.defaultState("chest"), 3);
+                    }
+                }
+                case "rails", "wire" -> {
+                    boolean rails = sc.trim().equals("rails");
+                    for (int row = 0; row < n; row++) {
+                        int z = cz - 30 + (row % 60), y = cy + 3 + row / 60 * 3, x0 = cx - 30;
+                        for (int i = 0; i < 30; i++) {
+                            var pos = new org.domi.furnace.server.block.Pos(x0 + i, y, z);
+                            level.setBlock(new org.domi.furnace.server.block.Pos(x0 + i, y - 1, z), org.domi.furnace.server.block.B.defaultState("stone"), 3);
+                            level.setBlock(pos, org.domi.furnace.server.block.B.defaultState(rails ? "powered_rail" : "redstone_wire"), 3);
+                        }
+                    }
+                }
+                default -> {}
+            }
+        }
+    }
+
+    /** 장면 틱 훅: rails/wire 줄 끝의 레드스톤 블록을 주기로 껐다 켠다. */
+    static void sceneTick(RegionLevel level, String scene, int cx, int cy, int cz, int t) {
+        int n = Integer.getInteger("furnace.bench.sceneSize", 200);
+        int period = Integer.getInteger("furnace.bench.scenePeriod", 20);
+        if (!(scene.contains("rails") || scene.contains("wire")) || t % period != 0) return;
+        boolean on = (t / period) % 2 == 0;
+        int rb = org.domi.furnace.server.block.B.defaultState("redstone_block"), air = org.domi.furnace.server.block.B.defaultState("air");
+        for (int row = 0; row < n; row++) {
+            int z = cz - 30 + (row % 60), y = cy + 3 + row / 60 * 3, x0 = cx - 30;
+            level.setBlock(new org.domi.furnace.server.block.Pos(x0 - 1, y, z), on ? rb : air, 3);
+        }
+    }
+
     /** region 스레드 CPU 샘플: 자기(맨 위 프레임)·포함(스택에 한 번이라도) 상위 n. */
     static void cpuProfile(java.nio.file.Path file, int n) throws Exception {
         java.util.Map<String, int[]> self = new java.util.HashMap<>(), incl = new java.util.HashMap<>();
@@ -185,6 +245,7 @@ class RegionTickBench {
                     var m = fr.get(i).getMethod();
                     String k = m.getType().getName().replace("org.domi.furnace.server.", "") + "." + m.getName();
                     if (i == 0) {
+                        if (Boolean.getBoolean("furnace.bench.lines")) k = k + ":" + fr.get(0).getLineNumber();
                         self.computeIfAbsent(k, x -> new int[1])[0]++;
                         StringBuilder sb = new StringBuilder();
                         for (int j = 1; j < Math.min(fr.size(), 1 + depth); j++) {
