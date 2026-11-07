@@ -93,6 +93,9 @@ public final class FurnaceMain {
         }
         ConsoleInput console = ConsoleInput.startEarly();   // 월드를 불러오기 전에 연다 — stop 은 바로, 나머지는 서버가 준비된 뒤 실행
         ServerProperties props = settings.get();
+        // Paper/Spigot 에서 넘어온 서버: bukkit.yml·spigot.yml·config/paper-*.yml 의 대응 키를 furnace.properties 로 옮긴다(첫 기동 한 번).
+        // furnace.properties 를 읽는 모든 곳보다 먼저여야 한다.
+        org.domi.furnace.server.config.PaperConfigImport.runIfNeeded(Path.of("."), Path.of("furnace.properties"));
         org.domi.furnace.server.config.OperatorOptions.install(org.domi.furnace.server.config.OperatorOptions.load(Path.of("furnace.properties")));
         if (!org.domi.furnace.server.world.anvil.Compression.configure(props.regionFileCompression)) {
             log.error("Invalid `region-file-compression` value `{}` in server.properties. Please use one of: deflate, gzip, lz4, none, zstd",
@@ -139,6 +142,8 @@ public final class FurnaceMain {
             var imported = org.domi.furnace.server.world.storage.BukkitWorldImport.run(universe, levelName, worldDir, levelData);
             // 엔드 드래곤 전투를 가져왔으면 바로 level.dat 에 남긴다 — DIM1 이 생긴 뒤에는 다시 가져오지 않는다.
             if (imported.dragonFightImported()) storage.saveLevelData(levelData);
+            // 못 가져온 것·서버 폴더의 추가 Bukkit 월드를 첫 기동 때 한 번 보고한다(실패해도 기동을 막지 않는다).
+            org.domi.furnace.server.world.storage.BukkitWorldReport.runIfNeeded(Path.of("."), universe, levelName, levelData, imported);
         } catch (java.io.IOException e) {
             log.error("Paper/Spigot 월드 폴더를 가져오지 못했다 — 원본은 그대로다. 디스크 공간·권한을 확인하고 다시 켜라", e);
             storage.close();

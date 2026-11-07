@@ -68,6 +68,11 @@
 
 지면 높이는 나무 등 장식 전 지형 기준이다. `debug_all_block_states`·`single_biome_surface` 는 아직 미지원(경고 뒤 normal).
 
+### Paper/Spigot 설정·월드 가져오기 (O3, 2026-11-07) — 실제 Paper 폴더로 한 번
+`bukkit.yml`·`spigot.yml`·`config/paper-*.yml` 이 있는 서버 폴더로 첫 기동하면 대응 키를 `furnace.properties` 로 옮기고 `furnace-config-import-report.txt`, 월드 쪽은 `furnace-world-import-report.txt` 를 남긴다(`docs/feature-parity/paper-config-import-2026-11-07.md`).
+- **무엇을 보나**: 실제 Paper 1.21.1 서버가 만든 폴더(설정 파일 4개 + `world`·`world_nether`·`world_the_end` + Multiverse 식 추가 월드)를 복사해 Furnace 로 켜서 ① 보고서의 "옮김" 이 맞는지 ② "모르는 키" 에 Paper 1.21.1 에 실제로 있는 키가 올라오면 알려 주기(이 환경은 Paper 원문을 못 봐서 키 이름·기본값이 기억 기준) ③ 추가 월드를 `/worlds load <이름>` 으로 올렸을 때 네더/엔드/평지 월드가 맞게 올라오는지.
+- 다시 해 보려면 보고서 파일을 지우고 켜거나 `-Dfurnace.importConfig=force` 로 켠다. 끄려면 `-Dfurnace.importConfig=off`.
+
 ---
 
 ## 2. 내가 결정할 것
