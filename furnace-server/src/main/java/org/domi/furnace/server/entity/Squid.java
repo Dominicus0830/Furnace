@@ -184,4 +184,8 @@ public class Squid extends WaterAnimal {
             }
         }
     }
+
+    /** getMovementEmission = EVENTS: 게임 이벤트만 내고 걸음·헤엄 소리는 이동으로 내지 않는다. */
+    @Override
+    protected MovementEmission getMovementEmission() { return MovementEmission.EVENTS; }
 }

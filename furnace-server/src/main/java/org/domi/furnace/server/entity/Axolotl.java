@@ -316,4 +316,8 @@ public class Axolotl extends Animal implements Bucketable {
 
     @Override
     public boolean checkSpawnObstruction(ChunkLevel level) { return level.isUnobstructed(org.domi.furnace.server.entity.spawn.NaturalSpawner.shapeOf(boundingBox())); }
+
+    @Override protected String getSwimSound() { return "minecraft:entity.axolotl.swim"; }
+
+    @Override protected String swimSplashSound() { return "minecraft:entity.axolotl.splash"; }
 }

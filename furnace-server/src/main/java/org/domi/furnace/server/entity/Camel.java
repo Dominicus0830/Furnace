@@ -1,5 +1,5 @@
 // 바닐라 Camel: 브레인으로 움직이는 말과 동물. 앉았다 일어나는 자세 전환(마지막 자세 바뀐 틱)과 선인장 먹이로 번식한다.
-// TODO(발소리·끈): 발걸음 소리(모래 위는 step_sand)와 목줄 판정은 엔진에 아직 없다. TODO(탑승): 2인 탑승·탑승자 위치는 탑승 규칙이 생기면. TODO(자세 크기): 앉은 자세 몸 크기(높이 -1.43)와 몸 회전 제어는 아직 없다.
+// TODO(끈): 목줄 판정은 엔진에 아직 없다. TODO(탑승): 2인 탑승·탑승자 위치는 탑승 규칙이 생기면. TODO(자세 크기): 앉은 자세 몸 크기(높이 -1.43)와 몸 회전 제어는 아직 없다.
 package org.domi.furnace.server.entity;
 
 import java.util.Optional;
@@ -261,5 +261,11 @@ public class Camel extends AbstractHorse {
             if (operation == Operation.MOVE_TO && !camel.isLeashed() && camel.isCamelSitting() && !camel.isInPoseTransition() && camel.canChangePose()) camel.standUp();
             super.tick();
         }
+    }
+
+    /** Camel.playStepSound: 모래 걸음 블록(camel_sand_step_sound_blocks) 위면 step_sand, 아니면 step. 크기 1. */
+    @Override
+    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) {
+        playSound(org.domi.furnace.server.block.B.isTag(state, "minecraft:camel_sand_step_sound_blocks") ? "minecraft:entity.camel.step_sand" : "minecraft:entity.camel.step", 1.0F, 1.0F);
     }
 }

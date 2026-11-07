@@ -166,7 +166,7 @@ public class Strider extends Animal {
         checkInsideBlocks();
     }
 
-    /** nextStep: moveDist + 0.6. TODO(소리): 걸음 소리(용암 위 step_lava)는 엔티티 걸음 소리 전반과 함께 아직 없다. */
+    /** nextStep: moveDist + 0.6. */
     @Override
     protected float nextStep() { return moveDist + 0.6F; }
 
@@ -351,4 +351,8 @@ public class Strider extends Animal {
 
     @Override
     public boolean checkSpawnObstruction(ChunkLevel level) { return level.isUnobstructed(org.domi.furnace.server.entity.spawn.NaturalSpawner.shapeOf(boundingBox())); }
+
+    /** Strider.playStepSound: 용암 속이면 step_lava, 아니면 step. 크기 1(0.15 를 곱하지 않는다). */
+    @Override
+    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) { playSound(isInLava() ? "minecraft:entity.strider.step_lava" : "minecraft:entity.strider.step", 1.0F, 1.0F); }
 }

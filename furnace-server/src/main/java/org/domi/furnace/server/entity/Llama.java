@@ -266,4 +266,8 @@ public class Llama extends AbstractChestedHorse implements RangedAttackMob {
         double dx = e.x() - x(), dy = e.y() - y(), dz = e.z() - z();
         return dx * dx + dy * dy + dz * dz;
     }
+
+    /** Llama.playStepSound: llama.step 크기 0.15(블록 소리를 쓰지 않는다). */
+    @Override
+    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) { playSound("minecraft:entity.llama.step", 0.15F, 1.0F); }
 }
