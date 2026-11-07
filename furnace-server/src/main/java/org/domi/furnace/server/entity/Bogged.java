@@ -1,4 +1,4 @@
-// 바닐라 Bogged: 늪 해골. 체력 16, 화살에 독(100틱), 가위로 깎으면 버섯(떨어짐). TODO: 깎기 전리품 표 `shearing/bogged`.
+// 바닐라 Bogged: 늪 해골. 체력 16, 화살에 독(100틱), 가위로 깎으면 버섯(떨어짐).
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -48,10 +48,16 @@ public class Bogged extends AbstractSkeleton {
         return super.interact(p, hand, held, region);
     }
 
-    /** Shearable.shear(source): 소리 → 깎임. TODO: 깎기 전리품(shearing/bogged 버섯). */
+    /** Bogged.shear(source)(cjn): 소리 → 깎기 전리품(shearing/bogged, 버섯 2개)을 몸 높이에서 떨어뜨림 → 깎임. */
     public void shear(String source) {
         level.playSound(null, x(), y(), z(), "entity.bogged.shear", source, 1.0F, 1.0F);
+        spawnShearedMushrooms();
         setSheared(true);
+    }
+
+    /** spawnShearedMushrooms: 표 shearing/bogged(origin=위치, this_entity=나, 난수는 표의 random_sequence). */
+    private void spawnShearedMushrooms() {
+        for (ItemStack s : level.giftLoot("minecraft:shearing/bogged", lootEntity(), x(), y(), z())) spawnAtLocation(s, bbHeight());
     }
 
     @Override protected void prepareArrow(Arrow arrow) { arrow.addEffect(new MobEffectInstance(MobEffect.POISON, 100)); }

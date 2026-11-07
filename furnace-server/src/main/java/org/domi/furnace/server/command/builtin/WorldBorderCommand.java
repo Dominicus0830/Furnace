@@ -63,7 +63,7 @@ public final class WorldBorderCommand {
                                         .executes(c -> setWarningTime(c.getSource(), c.getArgument("time", Integer.class)))))));
     }
 
-    /** 바닐라는 명령 소스의 레벨(오버월드)의 보더. 지금은 오버월드뿐이다. */
+    /** 바닐라 source.getServer().overworld().getWorldBorder() — 어느 차원에서 실행해도 오버월드 보더(다른 차원 보더는 이것을 따라간다). */
     private static WorldBorder border(CommandSource source) { return source.getServer().border(); }
 
     private static int setDamageBuffer(CommandSource source, float distance) throws CommandSyntaxException {

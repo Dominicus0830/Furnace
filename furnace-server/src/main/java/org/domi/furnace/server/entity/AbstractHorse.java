@@ -228,7 +228,13 @@ public abstract class AbstractHorse extends Animal {
         if (distance > 1.0F) playSound("entity.horse.land", 0.4F, 1.0F);
         int dmg = calculateFallDamage(distance, multiplier);
         if (dmg <= 0) return false;
-        Damage fall = source;
+        hurtWithPassengers(source, dmg);
+        // TODO(소리): playBlockFallSound
+        return true;
+    }
+
+    /** 나와(탔으면) 승객의 승객까지 같은 낙하 피해. */
+    protected final void hurtWithPassengers(Damage fall, int dmg) {
         hurt(fall, dmg);
         if (isVehicle()) {
             java.util.List<Rider> riders = new java.util.ArrayList<>();
@@ -238,8 +244,6 @@ public abstract class AbstractHorse extends Animal {
                 else if (r instanceof Player p) p.runOnOwner(() -> p.vitals().hurt(org.domi.furnace.server.entity.damage.DamageType.byKey(fall.type()), dmg));
             }
         }
-        // TODO(소리): playBlockFallSound
-        return true;
     }
 
     // ------------------------------------------------------------------ 인벤토리

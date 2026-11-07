@@ -1,5 +1,6 @@
 // 바닐라 Camel: 브레인으로 움직이는 말과 동물. 앉았다 일어나는 자세 전환(마지막 자세 바뀐 틱)과 선인장 먹이로 번식한다.
-// TODO(끈): 목줄 판정은 엔진에 아직 없다. TODO(탑승): 2인 탑승·탑승자 위치는 탑승 규칙이 생기면. TODO(자세 크기): 앉은 자세 몸 크기(높이 -1.43)와 몸 회전 제어는 아직 없다.
+// 두 명까지 탄다(앞·뒤 자리, 동물 승객은 0.2 앞으로). 앉은 자세는 몸 높이 -1.43(눈 0.845). 웅크려 우클릭하면 안장 칸 창.
+// 머리 회전 고정(clampHeadRotationToBody)은 클라이언트 표시용이라 생략.
 package org.domi.furnace.server.entity;
 
 import java.util.Optional;
@@ -23,6 +24,8 @@ public class Camel extends AbstractHorse {
     public static final int MAX_HEAD_Y_ROT = 30;
     public static final int STANDING_TO_SITTING_TICKS = 52;
     public static final int SITTING_TO_STANDING_TICKS = 40;
+    /** SITTING_DIMENSIONS: scalable(1.7, 2.375 - 1.43).withEyeHeight(0.845). */
+    private static final float SITTING_HEIGHT = 2.375F - 1.43F, SITTING_EYE = 0.845F;
     private int dashCooldown;
 
     public Camel(ChunkLevel level, int id) {
@@ -90,6 +93,21 @@ public class Camel extends AbstractHorse {
 
     @Override protected float babyScale() { return BABY_SCALE; }
 
+    /** Camel.getDefaultDimensions(pose): 앉은 자세면 SITTING_DIMENSIONS × 나이 배율. */
+    @Override
+    protected void refreshBabyDimensions() {
+        float s = getAgeScale();
+        if (getPose() == POSE_SITTING) setDimensions(EntityType.CAMEL.width() * s, SITTING_HEIGHT * s, SITTING_EYE * s);
+        else super.refreshBabyDimensions();
+    }
+
+    /** 자세가 바뀌면 몸 크기를 다시 잰다(Entity.onSyncedDataUpdated(DATA_POSE) → refreshDimensions). */
+    @Override
+    public void setPose(int pose) {
+        super.setPose(pose);
+        refreshBabyDimensions();
+    }
+
     @Override protected boolean canEatGrass() { return false; }
 
     @Override public boolean isTamed() { return true; }
@@ -106,7 +124,7 @@ public class Camel extends AbstractHorse {
     @Override
     protected void aiStep() {
         super.aiStep();
-        if (isDashing() && dashCooldown < 50 && onGround()) setDashing(false);
+        if (isDashing() && dashCooldown < 50 && (onGround() || isInWaterOrBubble() || isInLava() || isPassenger())) setDashing(false);
         if (dashCooldown > 0) {
             dashCooldown--;
             if (dashCooldown == 0) level.playSound(null, blockPosition().x() + 0.5, blockPosition().y() + 0.5, blockPosition().z() + 0.5, "entity.camel.dash_ready", "neutral", 1.0F, 1.0F);
@@ -135,13 +153,88 @@ public class Camel extends AbstractHorse {
 
     @Override
     public boolean interact(Player p, int hand, ItemStack held, org.domi.furnace.server.world.Region region) {
-        if (p.sneaking() && !isBaby()) return true;   // TODO(인벤토리): 안장 칸 열기
+        if (p.sneaking() && !isBaby()) {
+            openCustomInventoryScreen(p);
+            return true;
+        }
         if (isFood(held)) return fedFood(p, hand, held);
         if (getPassengerCount() < 2 && !isBaby()) doPlayerRide(p);
         return true;
     }
 
     private int getPassengerCount() { return passengers().size(); }
+
+    /** Camel.openCustomInventoryScreen: 길들임·승객 조건 없이 바로 안장 칸 창. */
+    @Override
+    public void openCustomInventoryScreen(Player p) {
+        Player.InventoryHost host = p.inventoryHost();
+        if (host != null) host.openHorseInventory(this, inventoryContainer());
+    }
+
+    /** Camel.canAddPassenger: 승객이 둘 이하면(바닐라 그대로 size() <= 2). */
+    @Override
+    protected boolean canAddPassenger(Rider r) { return passengers().size() <= 2; }
+
+    /**
+     * Camel.getPassengerAttachmentPoint: 앞자리 z 0.5, 둘이 타면 뒷자리 -0.7, 동물 승객은 +0.2. 높이는 자세 전환 애니메이션을 따른다
+     * (사라진 낙타는 0.01). 내 몸 방향으로 돌린다.
+     */
+    @Override
+    protected Vec3 getPassengerAttachmentPoint(Rider r, float scale) {
+        var ps = passengers();
+        int i = Math.max(ps.indexOf(r), 0);
+        boolean first = i == 0;
+        float z = 0.5F;
+        float y = (float) (isRemoved() ? 0.01F : bodyAnchorAnimationYOffset(first, 0.0F, poseHeight() * scale, scale));
+        if (ps.size() > 1) {
+            if (!first) z = -0.7F;
+            if (r instanceof Animal) z += 0.2F;
+        }
+        return new Vec3(0.0, y, z * scale).yRot(-yRot() * (float) (Math.PI / 180.0));
+    }
+
+    /** 지금 자세의 기본 몸 높이(배율 전). */
+    private float poseHeight() { return getPose() == POSE_SITTING ? SITTING_HEIGHT : EntityType.CAMEL.height(); }
+
+    /** Camel.getBodyAnchorAnimationYOffset(first, partialTick, dimensions, scale). */
+    private double bodyAnchorAnimationYOffset(boolean first, float partialTick, float height, float scale) {
+        double y = height - 0.375F * scale;
+        float sittingOffset = scale * 1.43F;
+        float lowered = sittingOffset - scale * 0.2F;
+        float remain = sittingOffset - lowered;
+        boolean transition = isInPoseTransition();
+        boolean sitting = isCamelSitting();
+        if (transition) {
+            int total = sitting ? SITTING_TO_STANDING_TICKS : STANDING_TO_SITTING_TICKS;
+            int mid;
+            float f;
+            if (sitting) {
+                mid = 28;
+                f = first ? 0.5F : 0.1F;
+            } else {
+                mid = first ? 24 : 32;
+                f = first ? 0.6F : 0.35F;
+            }
+            float t = Math.clamp((float) getPoseTime() + partialTick, 0.0F, (float) total);
+            boolean firstHalf = t < mid;
+            float a = firstHalf ? t / mid : (t - mid) / (total - mid);
+            float b = sittingOffset - f * lowered;
+            y += sitting ? lerp(a, firstHalf ? sittingOffset : b, firstHalf ? b : remain)
+                    : lerp(a, firstHalf ? remain - sittingOffset : remain - b, firstHalf ? remain - b : 0.0F);
+        }
+        if (sitting && !transition) y += remain;
+        return y;
+    }
+
+    private static float lerp(float t, float a, float b) { return a + t * (b - a); }
+
+    /** Camel.tickRidden: 앉았거나 자세가 바뀌는 중이면 몸을 돌리지 않고, 앞으로 가려 하면 앉아 있다가 일어난다. */
+    @Override
+    protected void tickRidden(Player p) {
+        if (refuseToMove()) yRotO = yBodyRot = yHeadRot = yRot();   // getRiddenRotation = 내 회전 그대로
+        else super.tickRidden(p);
+        if (p.inputZza() > 0.0F && isCamelSitting() && !isInPoseTransition()) standUp();
+    }
 
     @Override
     protected boolean handleEating(Player p, ItemStack s) {
@@ -163,8 +256,8 @@ public class Camel extends AbstractHorse {
 
     // ------------------------------------------------------------------ 질주(PlayerRideableJumping)
 
-    /** Camel.canJump: 안장 여부와 상관없이 true(바닐라 dH). 질주 쿨다운은 조종하는 클라이언트가 가진다. */
-    @Override public boolean canJump() { return true; }
+    /** Camel.canJump: 움직임을 거부하지 않고(앉음·자세 변경 중 아님) 안장이 있다. 질주 쿨다운은 조종하는 클라이언트가 가진다. */
+    @Override public boolean canJump() { return !refuseToMove() && super.canJump(); }
 
     /**
      * Camel.handleStartJump(int): 질주 시작 — 소리, entity_action 진동(소리 다음, 질주 표시 앞), 질주 표시.
@@ -179,11 +272,19 @@ public class Camel extends AbstractHorse {
 
     @Override public void handleStopJump() {}
 
+    /** Camel.getJumpCooldown: 남은 질주 쿨다운. */
+    public int getJumpCooldown() { return dashCooldown; }
+
     // ------------------------------------------------------------------ 자세 전환(앉기/서기)
 
     public boolean isDashing() { return (Boolean) entityData.get(DATA_DASH); }
 
-    public void setDashing(boolean v) { entityData.set(DATA_DASH, v); }
+    /** setDashing + onSyncedDataUpdated(DASH): 값이 바뀌면(첫 틱 제외) 질주 쿨다운이 0 일 때 55 로. 서버에서도 불려 dash_ready 소리가 난다. */
+    public void setDashing(boolean v) {
+        boolean changed = (Boolean) entityData.get(DATA_DASH) != v;
+        entityData.set(DATA_DASH, v);
+        if (changed && !firstTick) dashCooldown = dashCooldown == 0 ? DASH_COOLDOWN_TICKS : dashCooldown;
+    }
 
     /** 마지막 자세가 바뀐 틱이 음수면 앉은 상태(양수면 선 상태). */
     public boolean isCamelSitting() { return (Long) entityData.get(DATA_LAST_POSE_CHANGE_TICK) < 0L; }
@@ -192,8 +293,13 @@ public class Camel extends AbstractHorse {
 
     public boolean isVisuallySittingDown() { return isCamelSitting() && getPoseTime() < SITTING_TO_STANDING_TICKS && getPoseTime() >= 0L; }
 
-    /** TODO(자세 크기): 바뀔 자세로 들어갈 공간이 있는지 — 자세별 몸 크기가 없어 항상 참. */
-    public boolean canChangePose() { return true; }
+    /** Camel.canCamelChangePose = wouldNotSuffocateAtTargetPose(앉았으면 선 자세, 아니면 앉은 자세): 그 자세 몸 상자(1e-7 줄임)에 블록 충돌이 없다. */
+    public boolean canChangePose() {
+        float s = getAgeScale();
+        float w = EntityType.CAMEL.width() * s, h = (isCamelSitting() ? EntityType.CAMEL.height() : SITTING_HEIGHT) * s;
+        double hw = w / 2.0;
+        return level.noCollision(new AABB(x() - hw, y(), z() - hw, x() + hw, y() + h, z() + hw).deflate(1.0E-7));
+    }
 
     public void sitDown() {
         if (!isCamelSitting()) {

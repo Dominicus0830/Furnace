@@ -66,10 +66,10 @@ public final class PushScratch {
         return n;
     }
 
-    /** 엔티티 pusher 가 후보마다 후보.push(pusher). 플레이어 후보는 클라이언트 권위라 pusher 쪽 몫만 받는다. */
-    public void pushAllBy(Entity pusher) {
-        for (int i = 0, c = entities.size(); i < c; i++) entities.get(i).push(pusher);
-        for (int i = 0, c = players.size(); i < c; i++) pusher.pushByPlayer(players.get(i));
+    /** 생물 pusher 가 후보마다 doPush(후보)(기본 후보.push(pusher)). 플레이어 후보는 클라이언트 권위라 pusher 쪽 몫만 받는다. */
+    public void pushAllBy(LivingEntity pusher) {
+        for (int i = 0, c = entities.size(); i < c; i++) pusher.doPush(entities.get(i));
+        for (int i = 0, c = players.size(); i < c; i++) pusher.doPush(players.get(i));
     }
 
     /** 플레이어 pusher 가 후보 엔티티마다 후보.push(플레이어). */
