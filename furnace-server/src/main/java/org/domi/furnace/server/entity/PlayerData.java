@@ -127,6 +127,74 @@ public final class PlayerData {
         }
     }
 
+    /** 플레이어 데이터 파일이 있는가(플러그인 OfflinePlayer.hasPlayedBefore). */
+    public static boolean exists(Path worldDir, UUID id) {
+        return Files.exists(file(worldDir, id));
+    }
+
+    /** playerdata 에 파일이 있는 UUID 모두(디렉터리 읽기). */
+    public static java.util.List<UUID> knownIds(Path worldDir) {
+        Path dir = worldDir.resolve("playerdata");
+        java.util.List<UUID> out = new java.util.ArrayList<>();
+        if (!Files.isDirectory(dir)) return out;
+        try (var stream = Files.list(dir)) {
+            stream.forEach(f -> {
+                String n = f.getFileName().toString();
+                if (!n.endsWith(".dat")) return;
+                try {
+                    out.add(UUID.fromString(n.substring(0, n.length() - 4)));
+                } catch (IllegalArgumentException ignored) {
+                    // 다른 파일(임시·백업)
+                }
+            });
+        } catch (IOException e) {
+            throw new UncheckedIOException("playerdata 목록 읽기 실패", e);
+        }
+        return out;
+    }
+
+    /** 파일의 NBT 전체(없으면 null). load 와 달리 손상 파일을 옮기지 않고 예외를 그대로 던진다. */
+    public static NbtCompound readRoot(Path worldDir, UUID id) {
+        synchronized (lock(id)) {
+            Path f = file(worldDir, id);
+            if (!Files.exists(f)) return null;
+            try (var is = Files.newInputStream(f)) {
+                return NbtIo.readGzip(is);
+            } catch (IOException e) {
+                throw new UncheckedIOException("playerdata 읽기 실패 " + id, e);
+            }
+        }
+    }
+
+    /** {@link #editBukkitValues} 결과. */
+    public enum EditResult { EDITED, MISSING, ONLINE }
+
+    /**
+     * 오프라인 플레이어의 BukkitValues(플러그인 영속 데이터)를 고쳐 쓴다. 파일 잠금 안에서 offline 을 한 번 더 확인해
+     * 그 사이 접속했으면 쓰지 않고 ONLINE 을 돌려준다(호출자가 접속자 쪽으로 다시 보낸다). 파일이 없으면 만들지 않고 MISSING.
+     * edit 가 예외를 던지면 아무것도 쓰지 않는다. 비게 되면 BukkitValues 키를 지운다.
+     */
+    public static EditResult editBukkitValues(Path worldDir, UUID id, java.util.function.BooleanSupplier stillOffline,
+                                              java.util.function.Consumer<NbtCompound> edit) {
+        synchronized (lock(id)) {
+            Path f = file(worldDir, id);
+            if (!Files.exists(f)) return EditResult.MISSING;
+            if (!stillOffline.getAsBoolean()) return EditResult.ONLINE;
+            NbtCompound root;
+            try (var is = Files.newInputStream(f)) {
+                root = NbtIo.readGzip(is);
+            } catch (IOException e) {
+                throw new UncheckedIOException("playerdata 읽기 실패 " + id, e);
+            }
+            NbtCompound values = root.tags().get("BukkitValues") instanceof NbtCompound c ? c : new NbtCompound();
+            edit.accept(values);
+            if (values.tags().isEmpty()) root.tags().remove("BukkitValues");
+            else root.putCompound("BukkitValues", values);
+            write(worldDir, id, root);
+            return EditResult.EDITED;
+        }
+    }
+
     /** PlayerVitals.save 가 쓰는 선택 필드 — 값이 없어지면 파일에서도 지워야 하는 것. */
     private static final String[] VITALS_KEYS = {"previousPlayerGameType", "SpawnX", "SpawnY", "SpawnZ", "SpawnForced",
             "SpawnAngle", "SpawnDimension", "LastDeathLocation", "raid_omen_position", "Tags", "BukkitValues"};
