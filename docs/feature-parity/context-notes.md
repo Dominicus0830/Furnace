@@ -1023,3 +1023,9 @@
 - 두뇌 틱 도중(행동·센서 콜백 안) 센서·행동 넣기·빼기는 틱 끝으로 미룬다(E1 GoalSelector 와 같은 방식).
 - 함정: 플러그인 설명 파일 `commands:` 를 `{description: …}` 흐름 형식으로 쓸 때 설명에 `(`·`[` 가 들어가면 ConfigParseException 으로 플러그인이 안 뜬다 — 블록 형식 + 따옴표로.
 - 시험: `MobBrainApiTest` 18개, `MobAiHandleTest` 주민 두뇌 1건 추가, 봇 `tools/bot-test/round13/brain.js` 12/12.
+
+## 2026-11-07 청크 전송 auto · furnace.properties 자동 생성
+- 청크 로딩 속도는 봇(mineflayer)으로 못 잰다 — `tools/bot-test/chunkrate/chunkrate.js` 처럼 `chunk_batch_received` 값을 정해 답하는 접속기를 쓴다. 진단·전후 수치: `perf-chunk-send-2026-11-07.md`.
+- `chunks-per-tick=auto`(기본)는 준비된 청크만 배치에 넣는다. 배치에 생성 중인 청크를 넣으면 Finished 가 가장 느린 생성을 기다려 클라이언트 응답이 늦어지고 이미 있는 청크까지 막힌다.
+- `World.serializedChunkBody(cp, true)` 는 주인 region 스레드면 작업 큐를 건너뛴다. 다른 곳에서 inline 을 켜도 그 스레드가 주인이 아니면 예전처럼 큐로 간다.
+- furnace.properties 를 읽는 새 키를 넣으면 `FurnacePropertiesFile.sections()` 에도 넣는다(`FurnacePropertiesFileTest` 가 접속 방어 키와 고정 목록을 확인한다).

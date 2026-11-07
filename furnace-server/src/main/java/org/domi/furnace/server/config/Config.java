@@ -13,6 +13,9 @@ public record Config(String serverName, long tickNanos, int port, int compressio
                      int chunkEvictionGraceTicks, int spawnChunkRadius, int chunksPerTick,
                      String velocitySecret, boolean bungeecord) {
 
+    /** chunks-per-tick=auto: 고정 상한 없이 클라이언트가 알린 속도(바닐라 PlayerChunkSender, 최대 64)를 따른다. */
+    public static final int CHUNKS_PER_TICK_AUTO = 0;
+
     /** view-distance 하한 — 서버가 LoginPlay로 알리는 최소 반경(클라 렌더 거리 하한과 같다). */
     public static final int MIN_VIEW_DISTANCE = 2;
     /** view-distance 상한 — 클라이언트 렌더 거리 최대. 이보다 큰 서버 값은 이 값으로 조정된다. */
@@ -38,5 +41,5 @@ public record Config(String serverName, long tickNanos, int port, int compressio
     public static final Config DEFAULT =
             new Config("Furnace Server", 50_000_000L, 25565, 256, 5, 8, 4, 1,
                     Runtime.getRuntime().availableProcessors(),
-                    "world", 0L, 4, 6000, 100, 2, 16, "", false);
+                    "world", 0L, 4, 6000, 100, 2, CHUNKS_PER_TICK_AUTO, "", false);
 }

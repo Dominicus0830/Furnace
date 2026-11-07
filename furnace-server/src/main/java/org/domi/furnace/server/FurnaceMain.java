@@ -81,6 +81,14 @@ public final class FurnaceMain {
         Path propertiesPath = Path.of("server.properties");
         ServerPropertiesFile settings = new ServerPropertiesFile(propertiesPath);
         settings.forceSave();
+        // furnace.properties 도 같은 방식: 없으면 모든 옵션(기본값·설명)으로 만들고, 새 버전에서 생긴 옵션만 끝에 덧붙인다
+        try {
+            var r = org.domi.furnace.server.config.FurnacePropertiesFile.ensure(Path.of("furnace.properties"));
+            if (r == org.domi.furnace.server.config.FurnacePropertiesFile.Result.CREATED) log.info("furnace.properties 를 만들었다(모든 옵션과 설명)");
+            else if (r == org.domi.furnace.server.config.FurnacePropertiesFile.Result.APPENDED) log.info("furnace.properties 에 새 옵션을 덧붙였다(적어 둔 값은 그대로)");
+        } catch (java.io.IOException e) {
+            log.warn("furnace.properties 를 쓰지 못했다 — 기본값으로 계속한다: {}", e.toString());
+        }
         Path eulaPath = Path.of("eula.txt");
         Eula eula = new Eula(eulaPath);
         if (options.initSettings()) {
