@@ -45,8 +45,14 @@ public final class LevelLight {
         runUpdates();
     }
 
-    /** 청크 하나의 블록 상태를 읽는 함수(월드 좌표). */
-    public interface StateReader { int state(int x, int y, int z); }
+    /** 청크 하나의 블록 상태를 읽는 함수(월드 좌표). 구역 힌트 두 개는 빠른 경로용({@link LightWorld} 의 같은 이름 참고). */
+    public interface StateReader {
+        int state(int x, int y, int z);
+
+        default int uniformSectionState(int sectionY) { return -1; }
+
+        default boolean sectionMayEmit(int sectionY) { return true; }
+    }
 
     /**
      * 그 청크 하나만 있는 세계에서 빛을 미리 계산한다(생성 스레드용 — 월드 상태를 건드리지 않는다). 이웃은 없는 것으로 보므로
@@ -58,6 +64,8 @@ public final class LevelLight {
             public ChunkLight light(int x, int z) { return x == cx && z == cz ? own : null; }
             public int state(int x, int y, int z) { return y < minY || y >= maxY ? 12958 : blocks.state(x, y, z); }
             public int unloadedState() { return bedrockState; }
+            public int uniformSectionState(int x, int sy, int z) { return x == cx && z == cz ? blocks.uniformSectionState(sy) : -1; }
+            public boolean sectionMayEmit(int x, int sy, int z) { return x != cx || z != cz || blocks.sectionMayEmit(sy); }
             public int minY() { return minY; }
             public int maxY() { return maxY; }
         };
