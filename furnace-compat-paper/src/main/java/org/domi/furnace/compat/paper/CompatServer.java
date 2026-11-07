@@ -9,10 +9,13 @@ import java.util.UUID;
 import java.util.logging.Logger;
 import org.bukkit.Server;
 import org.bukkit.World;
+import org.bukkit.command.CommandMap;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.PluginManager;
+import org.bukkit.plugin.ServicesManager;
+import org.bukkit.scheduler.BukkitScheduler;
 import org.domi.furnace.api.Furnace;
 
 /** Furnace 서버를 Bukkit Server 로 보여 준다. 상태는 없고 부를 때마다 지금 떠 있는 Furnace 서버에 물어본다. */
@@ -132,9 +135,29 @@ public final class CompatServer implements Server {
     @Override
     public ConsoleCommandSender getConsoleSender() { return CompatConsole.INSTANCE; }
 
+    /** 옛 방식 명령이면 Bukkit 처럼 지금 스레드가 주 스레드일 때 바로 실행해 알리고(예외는 CommandException), 아니면 Furnace 명령 큐에 넣는다(결과는 알 수 없어 true). */
     @Override
     public boolean dispatchCommand(CommandSender sender, String commandLine) {
-        return f().dispatchCommand(Compat.furnaceSender(sender), commandLine);
+        String line = commandLine.startsWith("/") ? commandLine.substring(1) : commandLine;
+        if (Compat.commandMap().dispatch(sender, line)) return true;
+        return f().dispatchCommand(Compat.furnaceSender(sender), line);
+    }
+
+    @Override
+    public BukkitScheduler getScheduler() { return CompatScheduler.INSTANCE; }
+
+    @Override
+    public ServicesManager getServicesManager() { return Compat.services(); }
+
+    @Override
+    public boolean isPrimaryThread() { return org.domi.furnace.compat.thread.PrimaryThread.isPrimary(); }
+
+    @Override
+    public CommandMap getCommandMap() { return Compat.commandMap(); }
+
+    @Override
+    public org.bukkit.command.PluginCommand getPluginCommand(String name) {
+        return name != null && Compat.commandMap().getCommand(name) instanceof org.bukkit.command.PluginCommand pc ? pc : null;
     }
 
     @Override

@@ -106,7 +106,9 @@ public final class LegacyCommands {
             return new ConcurrentHashMap<>();
         });
         Collection<String> done = server.commands().register(plugin, cmd.name(), cmd.description(), cmd.aliases(), new Adapter(cmd));
-        registered.put(cmd, done);
+        Collection<String> live = ConcurrentHashMap.newKeySet();   // unregisterName 이 하나씩 뺀다
+        live.addAll(done);
+        registered.put(cmd, live);
         names.put(cmd.name(), cmd);
         for (String a : cmd.aliases()) names.putIfAbsent(a, cmd);
         return done;
@@ -120,6 +122,20 @@ public final class LegacyCommands {
         boolean any = false;
         if (reg != null) for (String n : reg) any |= server.commands().unregister(cmd.plugin(), n);
         return any;
+    }
+
+    /** 명령의 이름 하나만 트리에서 뺀다(Bukkit 에서 knownCommands 의 항목 하나를 지우는 것). 마지막 이름이면 명령 자체를 뺀 것과 같다. */
+    public boolean unregisterName(LegacyCommand cmd, String name) {
+        Collection<String> reg = registered.get(cmd);
+        if (reg == null || !reg.remove(name)) return false;
+        Map<String, LegacyCommand> names = byPlugin.get(cmd.plugin());
+        if (names != null) names.remove(name, cmd);
+        boolean removed = server.commands().unregister(cmd.plugin(), name);
+        if (reg.isEmpty()) {
+            registered.remove(cmd);
+            if (names != null) names.values().removeIf(c -> c == cmd);
+        }
+        return removed;
     }
 
     /**

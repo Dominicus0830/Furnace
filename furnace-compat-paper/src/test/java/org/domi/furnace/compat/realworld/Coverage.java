@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -118,6 +119,52 @@ public final class Coverage {
 
     private Coverage() {}
 
+    private static final ApiIndex JDK = new ApiIndex(null);   // 부트스트랩 로더 = JDK 클래스
+
+    private static boolean isJdk(String internal) {
+        return internal.startsWith("java/") || internal.startsWith("javax/") || internal.startsWith("jdk/") || internal.startsWith("sun/");
+    }
+
+    /**
+     * 자기 jar 클래스를 owner 로 적은 멤버 호출을 상위 API 의 멤버로 바꾼다. 자기 클래스가 선언한 것(자기 메서드)이면 null.
+     * JVM 해석 순서(자기 → 상위 클래스 사슬 → 인터페이스)로 올라가며 자기 jar 가 아닌 첫 클래스들을 후보로 모으고,
+     * 호환 계층에 그 멤버가 있는 후보가 있으면 그것으로, 없으면 Bukkit 계열 첫 후보로 귀속한다(호환 계층에도 없으면 "없음"으로 센다).
+     * 서버 쪽이 아닌 후보(Object·서드파티 라이브러리)뿐이면 null.
+     */
+    static ClassRefs.Member attribute(ClassRefs.Member m, Map<String, ClassRefs> byName, ApiIndex index) {
+        List<String> external = new ArrayList<>();
+        if (resolveOwn(m, m.owner(), byName, new HashSet<>(), external)) return null;
+        ClassRefs.Member firstApi = null;
+        boolean elsewhere = false;   // API 가 아닌 상위 클래스가 그 멤버를 가졌을 수 있다
+        for (String ext : external) {
+            ClassRefs.Member cand = new ClassRefs.Member(ext, m.name(), m.descriptor(), m.field());
+            Kind k = kindOf(ext);
+            if (k != null && k.isApi()) {
+                if (index.find(ext) != null && index.hasMember(cand)) return cand;
+                if (firstApi == null) firstApi = cand;
+            } else if (isJdk(ext)) {
+                if (JDK.hasMember(cand)) elsewhere = true;   // 예: enum 이 Keyed 를 구현하고 name() 을 부름 — Enum 의 것
+            } else {
+                elsewhere = true;   // 검사 대상이 아닌 서드파티 상위 클래스(예: adventure 의 FacetAudienceProvider) — 알 수 없어 세지 않는다
+            }
+        }
+        return elsewhere ? null : firstApi;
+    }
+
+    /** @return 자기 jar 클래스 중 하나가 그 멤버를 선언했으면 true. 아니면 거치며 만난 자기 jar 밖 클래스를 external 에 순서대로 모은다. */
+    private static boolean resolveOwn(ClassRefs.Member m, String cls, Map<String, ClassRefs> byName, Set<String> seen, List<String> external) {
+        if (cls == null || !seen.add(cls)) return false;
+        ClassRefs c = byName.get(cls);
+        if (c == null) {
+            external.add(cls);
+            return false;
+        }
+        if (c.declares(m)) return true;
+        if (resolveOwn(m, c.superName, byName, seen, external)) return true;
+        for (String i : c.interfaces) if (resolveOwn(m, i, byName, seen, external)) return true;
+        return false;
+    }
+
     /** jar 목록을 읽어 하나씩 판정한다. 서로의 클래스는 "자기 쪽"으로 보고 판정에서 뺀다(그림자 포함 라이브러리). */
     public static List<JarResult> scan(List<Path> jars, ApiIndex index) throws IOException {
         Set<String> own = new TreeSet<>();
@@ -143,6 +190,8 @@ public final class Coverage {
             parsed.put(jar, refs);
             plugin.put(jar, hasPluginYml);
         }
+        Map<String, ClassRefs> byName = new LinkedHashMap<>();
+        for (List<ClassRefs> list : parsed.values()) for (ClassRefs r : list) byName.put(r.name, r);
         List<JarResult> out = new ArrayList<>();
         for (Path jar : jars) {
             JarResult res = new JarResult(jar.getFileName().toString(), plugin.get(jar));
@@ -160,8 +209,16 @@ public final class Coverage {
                 res.neededClasses.computeIfAbsent(k, x -> new TreeSet<>()).add(c);
                 if (index.find(c) == null) res.missingClasses.computeIfAbsent(k, x -> new TreeSet<>()).add(c);
             }
-            for (ClassRefs.Member m : memberSeen) {
-                if (own.contains(m.owner())) continue;
+            Set<ClassRefs.Member> attributed = new LinkedHashSet<>();
+            for (ClassRefs.Member m0 : memberSeen) {
+                ClassRefs.Member m = m0;
+                if (own.contains(m.owner())) {
+                    // javac 는 수신 표현식의 정적 타입을 owner 로 적는다 — JavaPlugin 하위 클래스 안의 getConfig() 는 owner 가 자기 클래스다.
+                    // 자기 jar 클래스의 상속 사슬을 따라 올라가 처음 만나는 서버 쪽 클래스로 귀속한다(H4 검토 권고 1).
+                    m = attribute(m0, byName, index);
+                    if (m == null) continue;
+                }
+                if (!attributed.add(m)) continue;
                 Kind k = kindOf(m.owner());
                 if (k == null) continue;
                 if (index.find(m.owner()) == null) {

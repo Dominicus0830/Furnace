@@ -45,6 +45,67 @@ class RealWorldCompatTest {
                 "생성자 참조를 읽는다");
     }
 
+    /** JavaPlugin 하위 클래스 안의 getCommand() 는 javac 가 owner 를 자기 클래스로 적는다 — 상속 사슬로 올라가 API 로 귀속하고, 자기 메서드는 뺀다(H4 검토 권고 1). */
+    @Test
+    void callsThroughAPluginSubclassAreAttributedToTheApiClass() throws Exception {
+        Path jar = org.domi.furnace.compat.paper.fixtures.JarCompiler.jar(tmp.resolve("sub.jar"), "name: Sub\nversion: '1'\nmain: sub.Main\n", Map.of(
+                "sub.Base", "package sub; public abstract class Base extends org.bukkit.plugin.java.JavaPlugin { public void own() {} }",
+                "sub.Main", """
+                        package sub;
+                        public final class Main extends Base {
+                            public void go() {
+                                own();                                  // 자기 jar 의 메서드 — API 가 아니다
+                                getCommand("x");                        // JavaPlugin 의 메서드(자기 → Base → JavaPlugin)
+                                saveDefaultConfig();
+                                getNoSuchThing();                       // 아래 메서드는 호환 계층에 없다
+                            }
+                            public void getNoSuchThing() {}
+                        }
+                        """));
+        ApiIndex idx = new ApiIndex(getClass().getClassLoader());
+        Coverage.JarResult r = Coverage.scan(List.of(jar), idx).get(0);
+        var needed = r.neededMembers.getOrDefault(Coverage.Kind.BUKKIT, java.util.Set.of()).stream().map(ClassRefs.Member::toString).toList();
+        assertTrue(needed.stream().anyMatch(m -> m.startsWith("org.bukkit.plugin.java.JavaPlugin#getCommand")), needed.toString());
+        assertTrue(needed.stream().anyMatch(m -> m.startsWith("org.bukkit.plugin.java.JavaPlugin#saveDefaultConfig")), needed.toString());
+        assertFalse(needed.stream().anyMatch(m -> m.contains("#own") || m.contains("getNoSuchThing")), "자기 jar 의 메서드는 API 요구가 아니다: " + needed);
+        assertEquals(0, r.apiMissing(), "getCommand·saveDefaultConfig 는 호환 계층에 있다");
+    }
+
+    /** API 가 아닌 상위 클래스(JDK Enum, 검사 대상이 아닌 서드파티 클래스)가 선언했을 멤버는 "없는 Bukkit API" 로 세지 않는다(검토 F1). */
+    @Test
+    void membersInheritedFromNonApiSuperclassesAreNotCountedAsMissingApi() throws Exception {
+        Path jar = org.domi.furnace.compat.paper.fixtures.JarCompiler.jar(tmp.resolve("inh.jar"), "name: Inh\nversion: '1'\nmain: inh.Main\n", Map.of(
+                "inh.Kind", """
+                        package inh;
+                        public enum Kind implements org.bukkit.Keyed {
+                            A;
+                            @Override public org.bukkit.NamespacedKey getKey() { return null; }
+                            public String label() { return name() + ordinal(); }   // Enum 의 것
+                        }
+                        """,
+                "inh.Third", "package inh; public abstract class Third { public void viaThird() {} }",
+                "inh.Main", """
+                        package inh;
+                        public final class Main extends Third implements org.bukkit.event.Listener {
+                            public void go() { viaThird(); }     // 서드파티(검사 대상 아님) 상위 클래스의 것 — Third 는 같은 jar 라 자기 것이다
+                        }
+                        """));
+        ApiIndex idx = new ApiIndex(getClass().getClassLoader());
+        Coverage.JarResult r = Coverage.scan(List.of(jar), idx).get(0);
+        assertEquals(0, r.apiMissing(), () -> r.missingMembers + " " + r.missingOnPresentClass);
+        // 다른 jar 의 클래스를 상위로 둔 경우(미검사 서드파티) — 직접 귀속 함수로 확인
+        ClassRefs.Member viaUnknown = new ClassRefs.Member("inh/Main2", "console", "()Ljava/lang/Object;", false);
+        ClassRefs main2 = ClassRefs.parse(compileOne("inh.Main2", "package inh; public final class Main2 extends org.domi.furnace.compat.paper.fixtures.UncheckedBase implements org.bukkit.event.Listener {}"));
+        assertEquals(null, Coverage.attribute(viaUnknown, Map.of("inh/Main2", main2), idx), "UncheckedBase 는 API 도 JDK 도 아니다 — 알 수 없어 세지 않는다");
+    }
+
+    private byte[] compileOne(String name, String src) throws Exception {
+        Path jar = org.domi.furnace.compat.paper.fixtures.JarCompiler.jar(tmp.resolve("one-" + name + ".jar"), "name: x\nversion: '1'\nmain: x.X\n", Map.of(name, src));
+        try (var jf = new java.util.jar.JarFile(jar.toFile())) {
+            return jf.getInputStream(jf.getEntry(name.replace('.', '/') + ".class")).readAllBytes();
+        }
+    }
+
     @Test
     void apiIndexResolvesLikeTheJvm() {
         ApiIndex idx = new ApiIndex(getClass().getClassLoader());

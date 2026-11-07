@@ -30,6 +30,8 @@ public final class ClassRefs {
     /** 상수 풀의 클래스 참조(자기 자신 포함, 배열은 원소 형식). */
     public final Set<String> classes = new LinkedHashSet<>();
     public final Set<Member> members = new LinkedHashSet<>();
+    /** 이 클래스가 직접 선언한 필드(이름+서술자)와 메서드(이름+서술자). 자기 클래스를 owner 로 쓴 호출을 상위 API 로 귀속하는 데 쓴다. */
+    public final Set<String> declared = new LinkedHashSet<>();
     /** 상수 풀의 문자열 리터럴(H5: 리플렉션으로 NMS·CraftBukkit 이름을 문자열로 만드는 코드를 찾는다). */
     public final Set<String> strings = new LinkedHashSet<>();
 
@@ -77,6 +79,21 @@ public final class ClassRefs {
         ClassRefs r = new ClassRefs(self, superIdx == 0 ? null : utf[a[superIdx]]);
         int ifaceCount = in.readUnsignedShort();
         for (int i = 0; i < ifaceCount; i++) r.interfaces.add(utf[a[in.readUnsignedShort()]]);
+        for (int pass = 0; pass < 2; pass++) {   // 필드 표, 메서드 표 — 이름+서술자만 읽고 속성은 건너뛴다
+            int n = in.readUnsignedShort();
+            for (int i = 0; i < n; i++) {
+                in.readUnsignedShort(); // access
+                String memberName = utf[in.readUnsignedShort()];
+                String memberDesc = utf[in.readUnsignedShort()];
+                r.declared.add(memberName + memberDesc);
+                int attrs = in.readUnsignedShort();
+                for (int k = 0; k < attrs; k++) {
+                    in.readUnsignedShort();
+                    int len = in.readInt();
+                    in.skipNBytes(len);
+                }
+            }
+        }
         for (int i = 1; i < count; i++) {
             switch (tag[i]) {
                 case 7 -> r.addClass(utf[a[i]]);
@@ -96,6 +113,9 @@ public final class ClassRefs {
         }
         return r;
     }
+
+    /** 이 클래스가 그 멤버를 직접 선언했는가. */
+    public boolean declares(Member m) { return declared.contains(m.name() + m.descriptor()); }
 
     private void addClass(String internal) {
         String n = internal;

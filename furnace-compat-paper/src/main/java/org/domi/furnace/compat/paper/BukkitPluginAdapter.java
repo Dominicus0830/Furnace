@@ -2,8 +2,11 @@
 // 꺼질 때 구독·예약 작업·명령·권한 첨부를 알아서 정리한다(Bukkit 처리기 목록은 여기서 비운다).
 package org.domi.furnace.compat.paper;
 
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import org.bukkit.command.Command;
+import org.bukkit.command.PluginCommandYamlParser;
 import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -36,8 +39,13 @@ public final class BukkitPluginAdapter extends FurnacePlugin {
         plugin.onLoad();
     }
 
+    /** Bukkit 처럼 켜기 직전에 plugin.yml 의 명령을 만들어 명령 지도에 올린다 — 그래서 onLoad 에서는 getCommand 가 null 이다. */
     @Override
-    public void onEnable() { plugin.onEnable(); }
+    public void onEnable() {
+        List<Command> declared = PluginCommandYamlParser.parse(plugin);
+        if (!declared.isEmpty()) Compat.commandMap().registerAll(bukkitDescription.getName(), declared);
+        plugin.onEnable();
+    }
 
     @Override
     public void onDisable() {

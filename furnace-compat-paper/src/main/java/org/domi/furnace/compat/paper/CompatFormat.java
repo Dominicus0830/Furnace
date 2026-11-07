@@ -135,11 +135,15 @@ public final class CompatFormat implements PluginFormat {
         PluginDescriptionFile pdf = descriptors.get(key(d.name(), d.main()));
         if (pdf == null) pdf = new PluginDescriptionFile(d.name(), d.version(), d.main());
         BukkitPluginAdapter adapter = new BukkitPluginAdapter(pdf);
+        PluginLoaders.bind(context.classLoader(), adapter);
         PluginInit.expect(new PluginInit(adapter, pdf, context.logger(), context.dataFolder().toFile(), context.file().toFile(), context.classLoader()));
         try {
             Constructor<?> c = main.getDeclaredConstructor();
             c.setAccessible(true);
             adapter.attach((JavaPlugin) c.newInstance());
+        } catch (ReflectiveOperationException | RuntimeException | Error e) {
+            PluginLoaders.unbind(adapter);   // 생성자가 터진 플러그인은 서버에 올라가지 않는다 — 묶임을 남기지 않는다
+            throw e;
         } finally {
             PluginInit.clear();
         }
