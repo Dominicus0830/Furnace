@@ -300,8 +300,9 @@ public abstract class AbstractArrow extends Projectile {
         Targetable owner = getOwner();
         if (owner instanceof LivingEntity le && !(target instanceof CartTarget)) le.setLastHurtMob(target);
         boolean enderman = target instanceof Entity e && e.type().name().equals("minecraft:enderman");
-        int oldFire = target instanceof Entity e ? e.remainingFireTicks() : 0;
-        if (isOnFire() && !enderman && target instanceof Entity e) e.igniteForSeconds(5.0F);
+        Entity burnTarget = target instanceof Entity e ? e : target instanceof CartTarget c ? c.cart : null;   // 수레도 불이 붙는다
+        int oldFire = burnTarget != null ? burnTarget.remainingFireTicks() : 0;
+        if (isOnFire() && !enderman && burnTarget != null) burnTarget.igniteForSeconds(5.0F);
         Entity.Damage dmg = new Entity.Damage(owner instanceof Player ? "arrow" : "arrow", false, false, false);
         boolean hurt;
         Mob attacker = owner instanceof Mob m ? m : null;
@@ -327,11 +328,11 @@ public abstract class AbstractArrow extends Projectile {
                     }
                 }
             }
-            if (target instanceof Player pl && getPierceLevel() <= 0) pl.setArrowCount(pl.arrowCount() + 1);
+            if (target instanceof Player pl && getPierceLevel() <= 0) pl.runOnOwner(() -> pl.setArrowCount(pl.arrowCount() + 1));   // 다른 region 의 플레이어일 수 있다
             playSound(soundEvent, 1.0F, 1.2F / (random.nextFloat() * 0.2F + 0.9F));
             if (getPierceLevel() <= 0) discard();
         } else {
-            if (target instanceof Entity e) e.setRemainingFireTicks(oldFire);
+            if (burnTarget != null) burnTarget.setRemainingFireTicks(oldFire);
             // 막히거나 무적이면 deflect(REVERSE) 후 속도 × 0.2. 거의 멈췄으면 (줍기 가능 시 아이템을 떨구고) 사라진다
             deflectReverse();
             setOwner(getOwner());

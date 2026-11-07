@@ -132,7 +132,7 @@ public final class Explosion {
      * 휘말린 TNT 의 주인이 된다(TntBlock.wasExploded).
      */
     public org.domi.furnace.server.entity.Targetable indirectSourceEntity() {
-        if (causingOverride != null) return causingOverride;
+        // 바닐라 getIndirectSourceEntity 는 폭발 엔티티만 본다(피해 원인 causing 은 쓰지 않는다).
         if (source == null) return sourcePlayer;
         if (source instanceof org.domi.furnace.server.entity.PrimedTnt tnt) return tnt.getOwner();
         if (source instanceof LivingEntity le) return le;

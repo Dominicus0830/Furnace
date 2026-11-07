@@ -174,18 +174,26 @@ public abstract class Projectile extends Entity {
         super.tick();
     }
 
+    /** getRootVehicle: 탈것이 없으면 자기 자신. */
+    static Object rootOf(Object x) {
+        if (x instanceof Entity e) return e.rootVehicle();
+        if (x instanceof AbstractArrow.CartTarget c) return c.cart.rootVehicle();
+        if (x instanceof Player p) return p.vehicle() == null ? p : p.vehicle().rootVehicle();
+        return x;
+    }
+
+    /** 바닐라: 뿌리 탈것이 소유자와 같은 맞출 수 있는 엔티티가 겹쳐 있는 동안은 아직 소유자를 벗어나지 않은 것. */
     private boolean checkLeftOwner() {
         Targetable o = getOwner();
         if (o != null) {
+            Object ownerRoot = rootOf(o);
             AABB box = boundingBox().expandTowards(vx(), vy(), vz()).inflate(1.0);
-            for (Entity e : level.getEntities(this, box, x -> !(x instanceof Projectile) || true)) {
-                if (e instanceof Targetable t && t.isPickable() && NeutralMob.uuidOf(t) != null && e == o) return false;
+            for (Entity e : level.getEntities(this, box, x -> x.isPickable())) {
+                if (rootOf(e) == ownerRoot) return false;
             }
-            if (o instanceof Player p) {
-                boolean[] inside = {false};
-                level.forEachPlayerIn(box, q -> { if (q == p) inside[0] = true; });
-                if (inside[0]) return false;
-            }
+            boolean[] inside = {false};
+            level.forEachPlayerIn(box, q -> { if (rootOf(q) == ownerRoot) inside[0] = true; });
+            if (inside[0]) return false;
         }
         return true;
     }
@@ -194,7 +202,8 @@ public abstract class Projectile extends Entity {
     protected boolean canHitTarget(Targetable t) {
         if (!t.isPickable()) return false;
         Targetable o = getOwner();
-        return o == null || leftOwner || !(o == t);
+        // 바닐라 canHitEntity: 소유자와 같은 탈것(뿌리 탈것이 같음)인 대상은 소유자를 한 번 벗어나기 전에는 못 맞힌다.
+        return o == null || leftOwner || rootOf(o) != rootOf(t);
     }
 
     /** Projectile.shoot(x, y, z, speed, inaccuracy): 방향에 무작위 흩어짐(엔티티 난수 3번)을 더해 속도로. */

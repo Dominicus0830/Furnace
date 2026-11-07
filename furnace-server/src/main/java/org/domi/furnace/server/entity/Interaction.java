@@ -53,7 +53,7 @@ public class Interaction extends Entity {
         var adv = attacker.advancements();
         if (adv != null && adv.hasListeners("minecraft:player_hurt_entity")) {
             var victim = KillCredit.lootOf(this);
-            var dmg = KillCredit.source("generic", attacker, attacker);
+            var dmg = KillCredit.source("generic", null, null);
             attacker.triggerAdvancement(a -> a.triggerHurtEntity(victim, dmg, 1.0F, 1.0F, false));
         }
         return !response();

@@ -229,9 +229,9 @@ public abstract class Display extends Entity {
             tag.putInt("background", (Integer) entityData.get(DATA_BACKGROUND));
             tag.putByte("text_opacity", ((Number) entityData.get(DATA_TEXT_OPACITY)).byteValue());
             byte f = flags();
-            if ((f & FLAG_SHADOW) != 0) tag.putBoolean("shadow", true);
-            if ((f & FLAG_SEE_THROUGH) != 0) tag.putBoolean("see_through", true);
-            if ((f & FLAG_USE_DEFAULT_BACKGROUND) != 0) tag.putBoolean("default_background", true);
+            tag.putBoolean("shadow", (f & FLAG_SHADOW) != 0);
+            tag.putBoolean("see_through", (f & FLAG_SEE_THROUGH) != 0);
+            tag.putBoolean("default_background", (f & FLAG_USE_DEFAULT_BACKGROUND) != 0);
             tag.putString("alignment", alignmentOf(f));
         }
 
@@ -253,16 +253,15 @@ public abstract class Display extends Entity {
             setFlags(f);
             if (tag.tags().get("text") instanceof String json) {
                 org.domi.furnace.api.text.Text parsed = null;
+                boolean failed = false;
                 try {
                     parsed = org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize(json);
                 } catch (RuntimeException e) {
-                    // 아래에서 빈 텍스트로
-                }
-                if (parsed == null) {
+                    // 바닐라: 예외면 경고만 하고 기존 글자를 그대로 둔다(fromJson 이 null 이면 빈 글자).
+                    failed = true;
                     LOG.warn("Failed to parse display entity text {}", json);
-                    parsed = org.domi.furnace.api.text.Text.empty();
                 }
-                setText(parsed);
+                if (!failed) setText(parsed != null ? parsed : org.domi.furnace.api.text.Text.empty());
             }
         }
     }

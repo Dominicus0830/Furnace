@@ -419,7 +419,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
     public org.domi.furnace.server.effect.MobEffectInstance getEffect(org.domi.furnace.server.effect.MobEffect e) { return activeEffects.get(e); }
 
     /** LivingEntity.isAffectedByPotions: 효과 구름이 건드리는가(방어구 거치대는 아니다). */
-    public boolean isAffectedByPotions() { return true; }
+    public boolean isAffectedByPotions() { return !(health() <= 0.0F); }
 
     /** LivingEntity.canBeAffected: 되살아나지 않는 몹(언데드)은 재생·독에 안 걸린다. */
     public boolean canBeAffected(org.domi.furnace.server.effect.MobEffectInstance i) {

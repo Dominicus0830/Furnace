@@ -196,7 +196,8 @@ class EntityNbtDisplayTest {
         assertEquals("left", out.tags().get("alignment"));
         assertTrue(out.getBoolean("shadow"));
         assertTrue(out.getBoolean("see_through"));
-        assertFalse(out.contains("default_background"));
+        assertFalse(out.getBoolean("default_background"));
+        assertTrue(out.contains("default_background"), "꺼진 플래그도 항상 쓴다(바닐라)");
         assertEquals(120, out.getIntOr0("line_width"));
         assertEquals("Hello", org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize((String) out.tags().get("text")).getString());
         // 오른쪽 정렬 + 기본 배경
@@ -211,12 +212,36 @@ class EntityNbtDisplayTest {
     }
 
     @Test
-    void unparsableTextBecomesEmpty() {
+    void unparsableTextKeepsTheCurrentText() {
         var level = new BlockPlacementTest.TestLevel();
         NbtCompound in = display("minecraft:text_display");
-        in.putString("text", "{not json");
+        in.putString("text", "{\"text\":\"Hello\"}");
         Display.TextDisplay d = (Display.TextDisplay) Entities.load(level, in);
-        assertEquals("", d.text().getString());
+        NbtCompound bad = new NbtCompound();
+        bad.putString("text", "{\"text\":");
+        d.readAdditionalSaveData(bad);
+        assertEquals("Hello", d.text().getString(), "바닐라: 파싱 예외면 경고만 하고 글자를 그대로 둔다");
+    }
+
+    @Test
+    void componentRotationIsNormalizedAndAxisAngleFollowsJoml() {
+        var level = new BlockPlacementTest.TestLevel();
+        NbtCompound in = display("minecraft:block_display");
+        NbtCompound t = new NbtCompound();
+        t.putList("translation", floats(0, 0, 0));
+        t.putList("left_rotation", floats(0, 0, 0, 2));
+        t.putList("scale", floats(1, 1, 1));
+        t.putList("right_rotation", floats(0, 0, 0, 1));
+        in.putCompound("transformation", t);
+        assertArrayEquals(new float[] {0, 0, 0, 1}, get(Entities.load(level, in), Display.DATA_LEFT_ROT), 0.0F);
+        // 음수 각도는 2π 로 정리되고, 축은 정규화하지 않으며, 영벡터 축도 NaN 이 되지 않는다
+        float[] neg = DisplayTransform.fromAxisAngle(0, 1, 0, -1.0F);
+        assertEquals(0.4794255F, neg[1], 1e-6F);
+        assertEquals(-0.8775826F, neg[3], 1e-6F);
+        assertEquals(2 * 0.4794255F, DisplayTransform.fromAxisAngle(0, 2, 0, -1.0F)[1], 1e-6F);
+        float[] zero = DisplayTransform.fromAxisAngle(0, 0, 0, 1.0F);
+        assertEquals(0.0F, zero[0]);
+        assertFalse(Float.isNaN(zero[3]));
     }
 
     // ------------------------------------------------------------------ Interaction
@@ -415,5 +440,53 @@ class EntityNbtDisplayTest {
             }
         }
         assertTrue(found, "거치대 아이템에 커스텀 이름");
+    }
+
+    // ------------------------------------------------------------------ 검토 반영
+
+    @Test
+    void explosionIndirectSourceIgnoresTheCausingEntity() {
+        var level = new ZombieCombatTest.ArenaLevel();
+        var p = player(UUID.randomUUID());
+        var ex = new org.domi.furnace.server.block.Explosion(level, null, 0.5, -60, 0.5, 1.0F, false, org.domi.furnace.server.block.Explosion.BlockInteraction.KEEP).withCausing(p);
+        assertNull(ex.indirectSourceEntity(), "연쇄 TNT 의 주인은 폭발 엔티티로만 정한다");
+    }
+
+    @Test
+    void arrowCannotHitTheCartItsOwnerRidesButCanHitOthers() {
+        var level = new ZombieCombatTest.ArenaLevel();
+        AbstractMinecart cart = AbstractMinecart.create(level, 0.5, -60, 0.5, AbstractMinecart.Type.TNT);
+        level.addFreshEntity(cart);
+        AbstractMinecart other = AbstractMinecart.create(level, 8.5, -60, 0.5, AbstractMinecart.Type.TNT);
+        level.addFreshEntity(other);
+        var rider = new Zombie(level, level.nextEntityId());
+        rider.moveTo(0.5, -60, 0.5, 0, 0);
+        level.addFreshEntity(rider);
+        assertTrue(rider.startRiding(cart, true));
+        var arrow = new Arrow(level, level.nextEntityId(), 0.5, -59, 0.5);
+        arrow.setOwner(rider);
+        level.addFreshEntity(arrow);
+        assertFalse(arrow.canHitTarget(new AbstractArrow.CartTarget(cart)), "같은 탈것은 소유자를 벗어나기 전엔 못 맞힌다");
+        assertTrue(arrow.canHitTarget(new AbstractArrow.CartTarget(other)));
+    }
+
+    @Test
+    void deadCreaturesAreNotAffectedByPotions() {
+        var level = new ZombieCombatTest.ArenaLevel();
+        var z = new Zombie(level, level.nextEntityId());
+        z.moveTo(0.5, -60, 0.5, 0, 0);
+        level.addFreshEntity(z);
+        assertTrue(z.isAffectedByPotions());
+        z.setHealth(0.0F);
+        assertFalse(z.isAffectedByPotions());
+    }
+
+    @Test
+    void cloudReadsPotionContentsGivenAsAPotionName() {
+        var level = new BlockPlacementTest.TestLevel();
+        NbtCompound in = display("minecraft:area_effect_cloud");
+        in.putString("potion_contents", "minecraft:poison");
+        AreaEffectCloud c = (AreaEffectCloud) Entities.load(level, in);
+        assertFalse(c.allEffects().isEmpty(), "문자열 형식 potion_contents 도 읽는다");
     }
 }

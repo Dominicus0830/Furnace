@@ -50,19 +50,32 @@ public final class DisplayTransform {
     /** ExtraCodecs.QUATERNIONF: 성분 목록 [x,y,z,w] 먼저, 아니면 {angle, axis[3]}. */
     private static float[] rotation(Object o) {
         float[] q = vec(o, 4);
-        if (q != null) return q;
+        if (q != null) return normalize(q);
         if (!(o instanceof NbtCompound c) || !(c.tags().get("angle") instanceof Number angle)) return null;
         float[] axis = vec(c.tags().get("axis"), 3);
         return axis == null ? null : fromAxisAngle(axis[0], axis[1], axis[2], angle.floatValue());
     }
 
-    /** JOML Quaternionf.set(AxisAngle4f): 축을 정규화하고 sin(각/2), cosFromSin. */
-    static float[] fromAxisAngle(float ax, float ay, float az, float angle) {
-        double sin = Math.sin(angle * 0.5);
-        double inv = invsqrt(ax * ax + ay * ay + az * az);
-        float x = (float) (ax * inv * sin), y = (float) (ay * inv * sin), z = (float) (az * inv * sin);
-        return new float[] {x, y, z, (float) cosFromSin(sin, angle * 0.5)};
+    /** 바닐라 axw.e(List): new Quaternionf(x, y, z, w).normalize(). */
+    private static float[] normalize(float[] q) {
+        float inv = invsqrt(fma(q[0], q[0], fma(q[1], q[1], fma(q[2], q[2], q[3] * q[3]))));
+        return new float[] {q[0] * inv, q[1] * inv, q[2] * inv, q[3] * inv};
     }
+
+    /**
+     * 바닐라는 new Quaternionf(new AxisAngle4f(angle, axis)): AxisAngle4f 가 각도를 [0, 2π) 로 정리하고,
+     * Quaternionf(AxisAngle4f) 가 축을 정규화하지 않은 채 sin(각/2)를 곱한다(w 는 cosFromSin).
+     */
+    static float[] fromAxisAngle(float ax, float ay, float az, float angle) {
+        double twoPi = Math.PI + Math.PI;
+        float a = (float) ((angle < 0.0 ? twoPi + angle % twoPi : (double) angle) % twoPi);
+        float half = a * 0.5F;
+        float sin = (float) Math.sin(half);
+        return new float[] {ax * sin, ay * sin, az * sin, (float) cosFromSin((double) sin, (double) half)};
+    }
+
+    /** JOML Math.fma: joml.useMathFma 가 꺼진 기본값에서는 두 번 반올림하는 a*b+c (진짜 FMA 가 아니다). */
+    private static float fma(float a, float b, float c) { return a * b + c; }
 
     private static double invsqrt(double r) { return 1.0 / Math.sqrt(r); }
 
@@ -245,14 +258,14 @@ public final class DisplayTransform {
 
         /** this = this × q. */
         Q mul(Q q) {
-            return set(Math.fma(w, q.x, Math.fma(x, q.w, Math.fma(y, q.z, -z * q.y))),
-                    Math.fma(w, q.y, Math.fma(-x, q.z, Math.fma(y, q.w, z * q.x))),
-                    Math.fma(w, q.z, Math.fma(x, q.y, Math.fma(-y, q.x, z * q.w))),
-                    Math.fma(w, q.w, Math.fma(-x, q.x, Math.fma(-y, q.y, -z * q.z))));
+            return set(fma(w, q.x, fma(x, q.w, fma(y, q.z, -z * q.y))),
+                    fma(w, q.y, fma(-x, q.z, fma(y, q.w, z * q.x))),
+                    fma(w, q.z, fma(x, q.y, fma(-y, q.x, z * q.w))),
+                    fma(w, q.w, fma(-x, q.x, fma(-y, q.y, -z * q.z))));
         }
 
         Q normalize() {
-            float inv = invsqrt(Math.fma(x, x, Math.fma(y, y, Math.fma(z, z, w * w))));
+            float inv = invsqrt(fma(x, x, fma(y, y, fma(z, z, w * w))));
             return set(x * inv, y * inv, z * inv, w * inv);
         }
 
@@ -295,15 +308,15 @@ public final class DisplayTransform {
 
         /** this = this × r. */
         M3 mul(M3 r) {
-            float nm00 = Math.fma(m00, r.m00, Math.fma(m10, r.m01, m20 * r.m02));
-            float nm01 = Math.fma(m01, r.m00, Math.fma(m11, r.m01, m21 * r.m02));
-            float nm02 = Math.fma(m02, r.m00, Math.fma(m12, r.m01, m22 * r.m02));
-            float nm10 = Math.fma(m00, r.m10, Math.fma(m10, r.m11, m20 * r.m12));
-            float nm11 = Math.fma(m01, r.m10, Math.fma(m11, r.m11, m21 * r.m12));
-            float nm12 = Math.fma(m02, r.m10, Math.fma(m12, r.m11, m22 * r.m12));
-            float nm20 = Math.fma(m00, r.m20, Math.fma(m10, r.m21, m20 * r.m22));
-            float nm21 = Math.fma(m01, r.m20, Math.fma(m11, r.m21, m21 * r.m22));
-            float nm22 = Math.fma(m02, r.m20, Math.fma(m12, r.m21, m22 * r.m22));
+            float nm00 = fma(m00, r.m00, fma(m10, r.m01, m20 * r.m02));
+            float nm01 = fma(m01, r.m00, fma(m11, r.m01, m21 * r.m02));
+            float nm02 = fma(m02, r.m00, fma(m12, r.m01, m22 * r.m02));
+            float nm10 = fma(m00, r.m10, fma(m10, r.m11, m20 * r.m12));
+            float nm11 = fma(m01, r.m10, fma(m11, r.m11, m21 * r.m12));
+            float nm12 = fma(m02, r.m10, fma(m12, r.m11, m22 * r.m12));
+            float nm20 = fma(m00, r.m20, fma(m10, r.m21, m20 * r.m22));
+            float nm21 = fma(m01, r.m20, fma(m11, r.m21, m21 * r.m22));
+            float nm22 = fma(m02, r.m20, fma(m12, r.m21, m22 * r.m22));
             m00 = nm00; m01 = nm01; m02 = nm02; m10 = nm10; m11 = nm11; m12 = nm12; m20 = nm20; m21 = nm21; m22 = nm22;
             return this;
         }

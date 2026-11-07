@@ -73,7 +73,7 @@ public class AreaEffectCloud extends Entity {
     private boolean contentsEmpty() { return potion == null && effects.isEmpty() && customColor == null; }
 
     /** PotionContents.getAllEffects 의 구름 쪽: 기본 물약 효과는 지속 시간 1/4, 사용자 지정 효과는 그대로. */
-    private List<MobEffectInstance> allEffects() {
+    List<MobEffectInstance> allEffects() {
         List<MobEffectInstance> list = new ArrayList<>();
         if (potion != null) {
             for (MobEffectInstance mi : Potions.effectsOf(potion)) {
@@ -157,7 +157,7 @@ public class AreaEffectCloud extends Entity {
         }
         List<Object> targets = new ArrayList<>();
         for (Entity e : level.getEntities(this, boundingBox(), en -> en instanceof LivingEntity le && le.isAffectedByPotions())) targets.add(e);
-        level.forEachPlayerIn(boundingBox(), targets::add);
+        level.forEachPlayerIn(boundingBox(), p -> { if (!(p.vitals().health() <= 0.0F)) targets.add(p); });   // 죽어 가는 대상은 건너뜀(isAffectedByPotions)
         for (Object t : targets) {
             if (victims.containsKey(t)) continue;
             if (t instanceof LivingEntity le && effects.stream().noneMatch(le::canBeAffected)) continue;   // 걸 수 있는 효과가 하나도 없으면(언데드의 재생·독 등)
@@ -235,7 +235,11 @@ public class AreaEffectCloud extends Entity {
             ParticleOptions p = ParticleArgument.decodeNbt(pc);
             if (p != null) entityData.set(DATA_PARTICLE, p);
         }
-        if (tag.tags().get("potion_contents") instanceof NbtCompound pc) {
+        if (tag.tags().get("potion_contents") instanceof String ps) {
+            // 바닐라 PotionContents.CODEC 의 대체 형식: 물약 id 문자열만.
+            String id = ps.indexOf(':') < 0 ? "minecraft:" + ps : ps;
+            setPotionContents(Potions.exists(id) ? id : null, new ArrayList<>(), null);
+        } else if (tag.tags().get("potion_contents") instanceof NbtCompound pc) {
             String id = pc.tags().get("potion") instanceof String s ? (s.indexOf(':') < 0 ? "minecraft:" + s : s) : null;
             if (id != null && !Potions.exists(id)) id = null;
             Integer col = pc.tags().get("custom_color") instanceof Number n ? n.intValue() : null;

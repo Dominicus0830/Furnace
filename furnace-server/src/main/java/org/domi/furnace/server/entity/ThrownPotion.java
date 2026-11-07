@@ -64,7 +64,7 @@ public class ThrownPotion extends ThrowableProjectile {
             LivingEntity le = (LivingEntity) e;
             double d = (le.x() - x()) * (le.x() - x()) + (le.y() - y()) * (le.y() - y()) + (le.z() - z()) * (le.z() - z());
             if (d < 16.0) {
-                if (le.isSensitiveToWater()) le.hurtByVia(new Entity.Damage("magic", false, false, false), 1.0F, getOwner(), this);   // indirectMagic(potion, owner)
+                if (le.isSensitiveToWater()) le.hurtByVia(new Entity.Damage("indirect_magic", false, false, false), 1.0F, getOwner(), this);   // indirectMagic(potion, owner)
                 if (le.isOnFire() && le.isAlive()) le.clearFire();
             }
         }
@@ -101,7 +101,10 @@ public class ThrownPotion extends ThrowableProjectile {
         double proximity = le == direct ? 1.0 : 1.0 - Math.sqrt(d) / 4.0;
         for (MobEffectInstance mi : effects) {
             if (mi.effect().isInstantaneous()) {
-                mi.effect().applyInstantenousEffect(le.effectHost(), mi.amplifier(), proximity);
+                // 바닐라: 즉시 피해는 indirectMagic(물약, 주인) 으로 때린다(엔더맨은 이 직접 원인이 물약이면 순간이동).
+                int harm = mi.effect().instantHarmAmount(le.effectHost(), mi.amplifier(), proximity);
+                if (harm >= 0) le.hurtByVia(new Entity.Damage("indirect_magic", false, false, false), harm, getOwner(), this);
+                else mi.effect().applyInstantenousEffect(le.effectHost(), mi.amplifier(), proximity);
             } else {
                 int dur = (int) (proximity * mi.duration() + 0.5);
                 MobEffectInstance n = new MobEffectInstance(mi.effect(), dur, mi.amplifier(), mi.ambient(), mi.visible(), mi.showIcon());
