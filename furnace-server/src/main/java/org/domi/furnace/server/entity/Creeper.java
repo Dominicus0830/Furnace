@@ -1,5 +1,5 @@
 // 바닐라 Creeper: 대상이 가까우면 멈춰 부풀어(도화선 30틱) 폭발한다. 부싯돌·화염구로 점화, 떨어지면 도화선이 빨리 탄다.
-// TODO: 충전된 다른 크리퍼 폭발로 죽을 때 머리 떨구기(Damage 에 원인 엔티티가 없다), 폭발 직후 triggerOnDeathMobEffects.
+// 충전된 다른 크리퍼 폭발로 죽은 몹의 머리 떨구기는 canDropMobsSkull/dropSkullIfCharged 로 구현됨. 남은 것: 폭발 직후 triggerOnDeathMobEffects.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;

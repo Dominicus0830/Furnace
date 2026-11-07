@@ -236,7 +236,7 @@ public class Zombie extends Monster {
         entityData.set(DATA_DROWNED_CONVERSION, true);
     }
 
-    /** 변환 결과 몹을 만들어 돌려준다(없으면 null). 좀비 → 드라운드(TODO), 허스크 → 좀비. */
+    /** 변환 결과 몹을 만들어 돌려준다(없으면 null). 좀비 → 드라운드, 허스크 → 좀비. */
     protected Zombie createConversionTarget() { return new Drowned(level, level.nextEntityId()); }
 
     protected void doUnderWaterConversion() {
