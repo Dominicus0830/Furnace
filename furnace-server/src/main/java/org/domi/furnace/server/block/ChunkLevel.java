@@ -1060,6 +1060,9 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public int difficulty() { return services().difficulty(); }
 
+    /** 서버 설정 pvp(바닐라 MinecraftServer.isPvpAllowed). */
+    public boolean pvp() { return services().pvp(); }
+
     @Override
     public String dimension() { return services().dimension(); }
 

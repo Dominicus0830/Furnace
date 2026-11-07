@@ -104,6 +104,27 @@ public abstract class TamableAnimal extends Animal {
         });
     }
 
+    /** TamableAnimal.getTeam: 길들였고 주인이 보이면 주인의 팀(점수판 이름 UUID 가 아니라), 아니면 Entity.getTeam. */
+    @Override
+    public org.domi.furnace.server.scores.PlayerTeam getTeam() {
+        if (isTame()) {
+            Player owner = getOwner();
+            if (owner != null) return owner.team();
+        }
+        return super.getTeam();
+    }
+
+    /** TamableAnimal.isAlliedTo: 길들였으면 주인과 주인의 아군이 아군(주인이 안 보이면 팀 규칙). */
+    @Override
+    public boolean isAlliedTo(Targetable other) {
+        if (isTame()) {
+            Player owner = getOwner();
+            if (other == owner) return true;
+            if (owner != null) return owner.isAlliedTo(other);
+        }
+        return super.isAlliedTo(other);
+    }
+
     public boolean isOwnedBy(Targetable t) { return t != null && t == getOwner(); }
 
     public boolean wantsToAttack(Targetable target, Targetable owner) { return true; }

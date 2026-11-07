@@ -86,6 +86,34 @@ public interface Entity {
         return editNbt(n -> n.merge(p));
     }
 
+    // ------------------------------------------------------------------ 자세·물리
+
+    /**
+     * 핸들을 만든 시점의 자세. 플레이어는 최근 값. 자세를 스스로 바꾸는 엔티티(워든·개구리·브리즈·플레이어)는 곧 다른 값이 될 수 있다.
+     */
+    default Pose pose() { return Pose.STANDING; }
+
+    /**
+     * 자세를 바꾼다(소유 region 스레드에서 — 데이터 동기화 값이 바뀌어 보는 플레이어 화면에 반영된다).
+     * 몹은 AI 가 자기 자세를 다시 정하면 덮인다(바닐라와 같다). 플레이어는 pose 로 자세를 고정해 다른 플레이어가 보는 모습만 바뀐다
+     * (판정 상자·자기 화면은 그대로) — null 로 고정을 푼다. 몹에 null 이면 서 있는 자세로 돌린다. 엔티티가 사라졌으면 false.
+     */
+    default CompletableFuture<Boolean> setPose(Pose pose) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("setPose"));
+    }
+
+    /** 핸들을 만든 시점의 noPhysics(충돌·블록 막힘 없이 움직이는가). */
+    default boolean noPhysics() { return false; }
+
+    /**
+     * noPhysics 를 바꾼다(바닐라 Entity.noPhysics — 블록·엔티티와 부딪히지 않고 속도대로 움직인다. 중력은 그대로라 바닥을 뚫고 떨어진다).
+     * 저장되지 않는다. 아이템처럼 틱마다 스스로 정하는 엔티티는 다음 틱에 덮인다. 플레이어는 UnsupportedOperationException 으로 완료.
+     * 엔티티가 사라졌으면 false.
+     */
+    default CompletableFuture<Boolean> setNoPhysics(boolean noPhysics) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("setNoPhysics"));
+    }
+
     // ------------------------------------------------------------------ 원인 사슬
 
     /**

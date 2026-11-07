@@ -1,7 +1,7 @@
 // 플레이어 근접 공격(바닐라 Player.attack): 쿨다운 배율·치명타·질주 넉백·휘두르기 쓸기·공격 인챈트·불 붙이기. 대상은 몹·플레이어 둘 다.
 // 쓸기(sweep_attack)·피해 표시(damage_indicator)는 level_particles 로, 치명타(crit)·마법 치명타는 animate 로 보낸다.
 // 공격력·공격 속도·이동 속도·휘두르기 비율은 PlayerAttributes(힘·나약함·성급함·피로 포함)로 계산하고, 살충은 느림 IV 를 건다.
-// 철퇴: 낙하 보너스·밀도(MaceSmash), 관통(CombatRules), 돌풍·가시(EnchantEffects). TODO(팀): isAlliedTo 는 팀이 없어 늘 거짓.
+// 철퇴: 낙하 보너스·밀도(MaceSmash), 관통(CombatRules), 돌풍·가시(EnchantEffects). 쓸기는 같은 팀(isAlliedTo)을 건너뛴다.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
@@ -110,14 +110,14 @@ public final class PlayerMelee {
             float l = 1.0F + (float) PlayerAttributes.value(p, org.domi.furnace.server.attribute.Attribute.SWEEPING_DAMAGE_RATIO) * f;
             AABB box = target.boundingBox().inflate(1.0, 0.25, 1.0);
             for (LivingEntity le : level.getEntitiesOfClass(LivingEntity.class, box, e -> true)) {
-                if (le == target || (le instanceof ArmorStand as && as.isMarker()) || distSqr(p, le) >= 9.0) continue;
+                if (le == target || p.isAlliedTo(le) || (le instanceof ArmorStand as && as.isMarker()) || distSqr(p, le) >= 9.0) continue;
                 float m = (l + enchantDamageBonus(weapon, le)) * h;
                 le.knockback(0.4F, sin, -cos);
                 le.hurtBy(new Entity.Damage("player_attack", false, false, false).withWeapon(weapon), m, p);
                 postAttack(level, p, weapon, le);
             }
             for (Player o : w.players()) {
-                if (o == p || o == target || !o.isAlive() || !o.boundingBox().intersects(box) || distSqr(p, o) >= 9.0) continue;
+                if (o == p || o == target || p.isAlliedTo(o) || !o.isAlive() || !o.boundingBox().intersects(box) || distSqr(p, o) >= 9.0) continue;
                 float m = (l + enchantDamageBonus(weapon, o)) * h;
                 o.knockback(0.4F, sin, -cos);
                 hurt(level, p, o, m, weapon);

@@ -386,7 +386,9 @@ public class Wolf extends TamableAnimal implements NeutralMob {
             if (t.equals("minecraft:creeper") || t.equals("minecraft:ghast") || t.equals("minecraft:armor_stand")) return false;
             if (e instanceof Wolf w) return !w.isTame() || w.getOwner() != owner;
         }
-        // TODO(PvP): 플레이어끼리 때릴 수 없으면(pvp 꺼짐·같은 팀) 주인의 적이 플레이어라도 공격하지 않는다
+        // 플레이어끼리 때릴 수 없으면(주인 쪽 pvp 꺼짐·같은 팀이고 아군 피해 꺼짐) 주인의 적이 플레이어라도 공격하지 않는다
+        if (target instanceof Player tp && owner instanceof Player op && !op.canHarmPlayer(tp, level.pvp())) return false;
+        if (target instanceof AbstractHorse h && h.isTamed()) return false;
         return !(target instanceof TamableAnimal ta && ta.isTame());
     }
 
