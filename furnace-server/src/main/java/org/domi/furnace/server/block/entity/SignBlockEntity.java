@@ -197,6 +197,7 @@ public class SignBlockEntity extends BlockEntity {
             lines.add(base.message(i, false));
             lines.add(base.message(i, true));
         }
+        boolean[] sync = {true};   // 늦게 끝난 결과는 늘 큐를 거쳐 온다 — 그때는 부른 쪽의 갱신이 이미 지나갔으니 직접 알린다
         level.resolveSignLines(pos, lines, (lv, out) -> {
             // 늦게 끝난 경우(다른 region 의 엔티티를 찾음): 그새 표지판이 바뀌었으면 버린다
             if (lv.getBlockEntity(pos) != this || (front ? frontText : backText) != base) return;
@@ -204,8 +205,9 @@ public class SignBlockEntity extends BlockEntity {
             for (int i = 0; i < SignText.LINES; i++) t = t.setMessage(i, out.get(2 * i), out.get(2 * i + 1));
             if (front) frontText = t;
             else backText = t;
-            if (lv != level) markUpdated(lv);
+            if (!sync[0]) markUpdated(lv);
         });
+        sync[0] = false;
     }
 
     @Override

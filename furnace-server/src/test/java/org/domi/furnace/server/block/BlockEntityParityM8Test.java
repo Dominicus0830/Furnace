@@ -141,6 +141,12 @@ class BlockEntityParityM8Test {
         /** 참이면 결과를 바로 주지 않고 쌓아 둔다(다른 region 의 엔티티를 찾는 선택자처럼). */
         boolean defer;
         final List<Runnable> pending = new ArrayList<>();
+        final List<Pos> updates = new ArrayList<>();
+        @Override
+        public void sendBlockUpdated(Pos pos) {
+            updates.add(pos);
+            super.sendBlockUpdated(pos);
+        }
         @Override
         public void resolveSignLines(Pos pos, List<Text> lines, java.util.function.BiConsumer<org.domi.furnace.server.block.BlockLevel, List<Text>> apply) {
             List<Text> out = new ArrayList<>();
@@ -176,7 +182,9 @@ class BlockEntityParityM8Test {
 
         NbtCompound onlyFront = new NbtCompound();
         onlyFront.putCompound("front_text", face("{\"selector\":\"@p\",\"color\":\"red\"}", "\"a\"", "\"\"", "\"\""));
+        level.updates.clear();
         sign.loadWithComponentsInLevel(level, onlyFront);   // /data merge block 등
+        assertTrue(level.updates.isEmpty(), "바로 끝나면 갱신은 부른 쪽(명령)이 보낸다");
         assertEquals(8, level.resolved.size(), "읽은 앞면 4줄 × (걸러지지 않은 것, 걸러진 것)");
         assertEquals("{\"color\":\"red\",\"selector\":\"@p\"}", level.resolved.get(0));
         assertEquals(level.resolved.get(0), level.resolved.get(1), "줄마다 원문 → 걸러진 것 순서");
@@ -201,8 +209,10 @@ class BlockEntityParityM8Test {
         tag.putCompound("front_text", face("{\"selector\":\"@e\"}", "\"\"", "\"\"", "\"\""));
         sign.loadWithComponentsInLevel(level, tag);
         assertTrue(sign.frontText().message(0, false).content() instanceof Content.Selector, "아직 안 끝남");
+        level.updates.clear();
         level.pending.remove(0).run();
         assertEquals("풀림:@e", sign.frontText().message(0, false).getString());
+        assertEquals(List.of(POS), level.updates, "늦게 넣으면 갱신을 직접 보낸다");
 
         sign.loadWithComponentsInLevel(level, tag);
         NbtCompound other = new NbtCompound();
