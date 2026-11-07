@@ -194,4 +194,8 @@ public class Goat extends Animal {
     public boolean isScreamingGoat() { return (Boolean) entityData.get(DATA_IS_SCREAMING_GOAT); }
 
     public void setScreamingGoat(boolean v) { entityData.set(DATA_IS_SCREAMING_GOAT, v); }
+
+    /** Goat.playStepSound: goat.step 크기 0.15(블록 소리를 쓰지 않는다). */
+    @Override
+    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) { playSound("minecraft:entity.goat.step", 0.15F, 1.0F); }
 }

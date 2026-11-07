@@ -221,4 +221,6 @@ public class ZombieVillager extends Zombie {
         }
         if (tag.contains("Xp")) villagerXp = tag.getIntOr0("Xp");
     }
+
+    @Override protected String getStepSound() { return "minecraft:entity.zombie_villager.step"; }
 }

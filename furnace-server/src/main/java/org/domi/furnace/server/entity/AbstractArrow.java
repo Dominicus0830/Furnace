@@ -436,4 +436,7 @@ public abstract class AbstractArrow extends Projectile {
     }
 
     @Override public boolean isPickable() { return !inGround; }
+
+    /** AbstractArrow.isAttackable: redirectable_projectile 태그일 때만(화살은 아니다). */
+    @Override public boolean isAttackable() { return isRedirectable(); }
 }

@@ -1368,6 +1368,9 @@ public final class Region {
             p.vitals().onMove(dx, dy, dz, prev.onGround(), m.onGround(), p.sprinting(), sneaking,
                     inWater, eyeInWater, climbable, landing, waterOnPath);
             float landed = p.vitals().landedFallDistance();
+            if (landed > 0.0f && level != null && landingState >= 0) {   // ServerPlayer.checkFallDamage: 철퇴 착지 입자가 LivingEntity 입자보다 먼저
+                org.domi.furnace.server.entity.LandingParticles.spawnMaceDustPillar(level, p.vitals(), landingPos[0], landingPos[1], landingPos[2], landingState, landed);
+            }
             if (landed > 0.0f && level != null && landingState >= 0) {
                 // 바닐라 LivingEntity.checkFallDamage 의 착지 블록 입자(ServerPlayer.doCheckFallDamage → super): 발밑 칸 getOnPosLegacy
                 org.domi.furnace.server.entity.LandingParticles.spawn(level, m.x(), m.y(), m.z(),
@@ -1389,6 +1392,14 @@ public final class Region {
             if (level != null && landingState >= 0 && p.gameMode() != GameMode.SPECTATOR && p.vitals().landedOnLastMove()
                     && org.domi.furnace.server.block.B.behavior(landingState) instanceof org.domi.furnace.server.block.types.TurtleEggBlock egg) {
                 egg.fallOnPlayer(level, new org.domi.furnace.server.block.Pos(landingPos[0], landingPos[1], landingPos[2]), landingState);
+            }
+            if (landed > 0.0f && level != null) {
+                // Entity.checkFallDamage: fallOn 뒤 HIT_GROUND 게임 이벤트. 맥락 블록은 지지 블록(getOnPos 1e-5 아래; 지지 블록이 없을 때 바닐라는 getOnPosLegacy 칸 — 여기선 발 밑 칸으로 근사)
+                int[] support = probe.onPos(blocks, 1.0E-5f, m.x(), m.y(), m.z(), m.onGround());
+                int hitState = blocks.stateAt(support[0], support[1], support[2]);
+                level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.HIT_GROUND,
+                        new org.domi.furnace.server.entity.Vec3(m.x(), m.y(), m.z()),
+                        org.domi.furnace.server.world.gameevent.GameEventContext.of(p, hitState < 0 ? landingState : hitState));
             }
             if (level != null && p.gameMode() != GameMode.SPECTATOR) {
                 p.movementEmission.onMove(level, p, m.x(), m.y(), m.z(), dx, dy, dz, m.onGround(), inWater);
@@ -1552,32 +1563,28 @@ public final class Region {
         public Iterable<Player> players() { return java.util.List.copyOf(players.values()); }
     };
 
-    /** 생물이 아닌 엔티티(액자·그림·수정 …)를 때린다: skipAttackInteraction 이면 그쪽이 처리하고, 아니면 기본 피해. */
-    /** 엔더 드래곤 파트를 때린다(근사: 아이템 공격력만, 치명타·마법 부여·밀치기 없음). 본체가 파트 배율로 받는다. */
+    /** 엔더 드래곤 파트를 때린다(Player.attack — PlayerMelee: 쿨다운·힘/나약함·마법 부여는 그대로, 치명타·내구도·통계는 LivingEntity 가 아니라 없다). */
     public void attackDragonPart(Player p, org.domi.furnace.server.entity.EnderDragonPart part) {
         world.assertOwns(this);
         if (!players.containsKey(p.entityId()) || p.gameMode() == GameMode.SPECTATOR) return;
-        var inv = p.inventory();
-        ItemStack held = inv.get(inv.heldWindowSlot());
-        float damage = 1.0F + org.domi.furnace.server.item.ItemTools.attackDamageBonus(held);
-        p.vitals().causeFoodExhaustion(0.1F);
-        part.hurt(new org.domi.furnace.server.entity.Entity.Damage("player_attack", false, false, false), damage, p);
+        meleeAttack(p, part);
     }
 
+    /**
+     * 생물이 아닌 엔티티(보트·수레·액자·그림·수정 …)를 때린다(Player.attack — PlayerMelee). skipAttackInteraction 이면 그쪽이 처리하고,
+     * 튕길 수 있는 투사체는 시선 방향으로 튕기고 끝난다. 그 밖에는 생물과 같은 쿨다운·힘/나약함·마법 부여·소리·밀치기를 탄다.
+     */
     public void attackEntity(Player p, org.domi.furnace.server.entity.Entity target) {
         world.assertOwns(this);
         if (!players.containsKey(p.entityId()) || target.isRemoved()) return;
-        if (target.skipAttackInteraction(p)) return;
+        if (!target.isAttackable() || target.skipAttackInteraction(p)) return;
         // Player.attack: redirectable_projectile 는 시선 방향으로 튕기고(AIM_DEFLECT, 주인은 플레이어) 피해·소모 없이 끝난다
         if (target instanceof org.domi.furnace.server.entity.Projectile fb && fb.isRedirectable() && fb.deflectAim(p, p, true)) {
+            p.attackStrengthTicker = 0;   // 바닐라 resetAttackStrengthTicker 는 튕김 분기보다 앞이다(cmx.e 오프셋 100; 튕기지 못하면 melee 가 직접 초기화)
             level().playSound(null, p.x(), p.y(), p.z(), "entity.player.attack.nodamage", "players", 1.0F, 1.0F);
             return;
         }
-        var inv = p.inventory();
-        ItemStack held = inv.get(inv.heldWindowSlot());
-        float damage = 1.0F + org.domi.furnace.server.item.ItemTools.attackDamageBonus(held);
-        p.vitals().causeFoodExhaustion(0.1F);
-        target.hurtBy(new org.domi.furnace.server.entity.Entity.Damage("player_attack", false, false, false), damage, p);
+        meleeAttack(p, new org.domi.furnace.server.entity.PlayerMelee.Raw(target));
     }
 
     /**

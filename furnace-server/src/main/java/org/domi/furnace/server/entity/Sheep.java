@@ -170,4 +170,8 @@ public class Sheep extends Animal {
         setSheared(tag.getBoolean("Sheared"));
         setColor(DyeColor.byId(tag.getByte("Color")));
     }
+
+    /** Sheep.playStepSound: sheep.step 크기 0.15(블록 소리를 쓰지 않는다). */
+    @Override
+    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) { playSound("minecraft:entity.sheep.step", 0.15F, 1.0F); }
 }

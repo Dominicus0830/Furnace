@@ -5,6 +5,7 @@ package org.domi.furnace.server.entity;
 
 import java.util.UUID;
 import org.domi.furnace.server.block.B;
+import org.domi.furnace.server.block.BlockSounds;
 import org.domi.furnace.server.block.BlockBehaviors;
 import org.domi.furnace.server.block.BlockInfo;
 import org.domi.furnace.server.block.ChunkLevel;
@@ -705,6 +706,12 @@ public abstract non-sealed class Entity implements Rider {
     /** 직접 원인 엔티티(투사체)가 있는 피해. 기본은 hurtBy(직접 원인을 보는 엔티티가 재정의). */
     public boolean hurtByVia(Damage source, float amount, Targetable attacker, Entity direct) { return hurtBy(source, amount, attacker); }
 
+    /**
+     * Entity.isAttackable: 플레이어 공격(Player.attack)이 먼저 이것을 보고, 거짓이면 쿨다운·소리·소모 없이 그대로 끝난다.
+     * 바닐라는 경험치 구슬·아이템·떨어지는 블록·끝의 눈·폭죽·화살(튕길 수 있는 투사체 제외)만 거짓이다.
+     */
+    public boolean isAttackable() { return true; }
+
     /** Entity.skipAttackInteraction: true 면 일반 공격 피해 대신 이 엔티티가 직접 처리한다(액자·그림). */
     public boolean skipAttackInteraction(Player attacker) { return false; }
 
@@ -968,7 +975,12 @@ public abstract non-sealed class Entity implements Rider {
         Entity e = ctl instanceof Entity ce ? ce : this;
         float f = e == this ? 0.35F : 0.4F;
         float f1 = Math.min(1.0F, (float) Math.sqrt(e.vx * e.vx * 0.2F + e.vy * e.vy + e.vz * e.vz * 0.2F) * f);
-        playSound(getSwimSound(), f1, 1.0F + (random.nextFloat() - random.nextFloat()) * 0.4F);
+        playSwimSound(f1);
+    }
+
+    /** Entity.playSwimSound: 높이 난수 두 번. 거북(×1.5)·해골말(땅 위 0.3 고정, 아니면 min(0.1, ×25))이 크기를 바꾼다. */
+    protected void playSwimSound(float volume) {
+        playSound(getSwimSound(), volume, 1.0F + (random.nextFloat() - random.nextFloat()) * 0.4F);
     }
 
     private static final int POWDER_SNOW = B.id("powder_snow");
@@ -1002,14 +1014,56 @@ public abstract non-sealed class Entity implements Rider {
         }
     }
 
-    /**
-     * Entity.walkingStepSound(pos, state): 걸음 소리 한 번(바닐라는 playStepSound 뒤 amethyst 군집 위면 chime).
-     * TODO(소리): 기본 걸음 소리(블록 SoundType × 0.15)와 amethyst chime 은 아직 없다 — 자기 걸음 소리를 가진 몹만 playStepSound 를 덮어 낸다.
-     */
-    protected void walkingStepSound(Pos pos, int state) { playStepSound(pos, state); }
+    /** crystalSoundIntensity·lastCrystalSoundPlayTick: 자수정 군집 위를 걸을 때 울림 소리의 세기와 마지막으로 울린 틱. */
+    private float crystalSoundIntensity;
+    private int lastCrystalSoundPlayTick;
 
-    /** Entity.playStepSound(pos, state): 몹별 걸음 소리(워든·해골 계열). 기본은 소리 없음(위 TODO). */
-    protected void playStepSound(Pos pos, int state) {}
+    /** Entity.walkingStepSound(pos, state): 걸음 소리 한 번, 그 뒤 자수정 군집 위면 울림(chime). */
+    protected void walkingStepSound(Pos pos, int state) {
+        playStepSound(pos, state);
+        if (shouldPlayAmethystStepSound(state)) playAmethystStepSound();
+    }
+
+    /** Entity.playStepSound(pos, state): 밟은 블록의 SoundType 걸음 소리, 크기 ×0.15. 몹별 소리는 덮어쓴다(액체 검사는 1.21.1 에 없다). */
+    protected void playStepSound(Pos pos, int state) {
+        BlockSounds.SoundType t = BlockSounds.get().of(state);
+        playSound(t.stepSound(), t.volume() * 0.15F, t.pitch());
+    }
+
+    /** Entity.playCombinationStepSounds(주, 부): 주 블록 걸음 소리(×0.15)와 부 블록의 소리를 작게(playMuffledStepSound). */
+    protected void playCombinationStepSounds(int primary, int secondary) {
+        BlockSounds.SoundType t = BlockSounds.get().of(primary);
+        playSound(t.stepSound(), t.volume() * 0.15F, t.pitch());
+        playMuffledStepSound(secondary);
+    }
+
+    /** Entity.playMuffledStepSound(state): 크기 ×0.05, 높이 ×0.8. */
+    protected void playMuffledStepSound(int state) {
+        BlockSounds.SoundType t = BlockSounds.get().of(state);
+        playSound(t.stepSound(), t.volume() * 0.05F, t.pitch() * 0.8F);
+    }
+
+    /** Entity.getPrimaryStepSoundBlockPos(pos): 위 칸이 inside_step_sound_blocks 또는 combination_step_sound_blocks 면 위 칸. */
+    protected Pos getPrimaryStepSoundBlockPos(Pos pos) {
+        Pos above = pos.above();
+        int s = level.getBlockState(above);
+        return B.isTag(s, "minecraft:inside_step_sound_blocks") || B.isTag(s, "minecraft:combination_step_sound_blocks") ? above : pos;
+    }
+
+    /** Entity.shouldPlayAmethystStepSound: crystal_sound_blocks 이고 마지막 울림으로부터 20틱 이상. */
+    private boolean shouldPlayAmethystStepSound(int state) {
+        return B.isTag(state, "minecraft:crystal_sound_blocks") && tickCount >= lastCrystalSoundPlayTick + 20;
+    }
+
+    /** Entity.playAmethystStepSound: 세기는 0.997^(지난 틱)로 식고 걸을 때마다 0.07 오른다(최대 1). 난수는 한 번. */
+    private void playAmethystStepSound() {
+        crystalSoundIntensity *= (float) Math.pow(0.997, tickCount - lastCrystalSoundPlayTick);
+        crystalSoundIntensity = Math.min(1.0F, crystalSoundIntensity + 0.07F);
+        float pitch = 0.5F + crystalSoundIntensity * random.nextFloat() * 1.2F;
+        float volume = 0.1F + crystalSoundIntensity * 1.2F;
+        playSound("minecraft:block.amethyst_block.chime", volume, pitch);
+        lastCrystalSoundPlayTick = tickCount;
+    }
 
     /** vibrationAndSoundEffectsFromBlock. */
     private boolean vibrationAndSoundEffectsFromBlock(Pos pos, int state, boolean playStepSound, boolean broadcastGameEvent, double wantedDy) {

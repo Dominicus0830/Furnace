@@ -208,6 +208,7 @@ public final class PlayerVitals {
         fallDistance = tag.getFloat("FallDistance");
         ignoreFallFromImpulse = tag.getBoolean("ignore_fall_damage_from_current_explosion");
         impulseGrace = tag.getIntOr0("current_impulse_context_reset_grace_time");
+        spawnExtraParticlesOnFall = tag.getBoolean("spawn_extra_particles_on_fall");
         impulsePos = null;
         var ipos = tag.contains("current_explosion_impact_pos") ? tag.getList("current_explosion_impact_pos") : null;
         if (ipos != null && ipos.size() >= 3) {
@@ -282,6 +283,7 @@ public final class PlayerVitals {
         tag.putFloat("FallDistance", fallDistance);
         tag.putBoolean("ignore_fall_damage_from_current_explosion", ignoreFallFromImpulse);
         tag.putInt("current_impulse_context_reset_grace_time", impulseGrace);
+        tag.putBoolean("spawn_extra_particles_on_fall", spawnExtraParticlesOnFall);
         if (impulsePos != null) {
             var ip = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_DOUBLE);
             for (double d : impulsePos) ip.add(d);
@@ -404,6 +406,13 @@ public final class PlayerVitals {
         ignoreFallFromImpulse = v;
         impulseGrace = v ? 40 : 0;
     }
+
+    /** 철퇴가 땅 위의 대상을 때리면 켜지는 착지 먼지 기둥 입자 표시(바닐라 ServerPlayer.spawnExtraParticlesOnFall). 착지 때 한 번 쓰고 꺼진다. */
+    public synchronized void setSpawnExtraParticlesOnFall(boolean v) { spawnExtraParticlesOnFall = v; }
+
+    public synchronized boolean spawnExtraParticlesOnFall() { return spawnExtraParticlesOnFall; }
+
+    private boolean spawnExtraParticlesOnFall;
 
     /** 이동 표본 처리 직전에 그 표본의 y 를 알린다(Region.processMoves). */
     public synchronized void currentMoveY(double y) { moveY = y; }
