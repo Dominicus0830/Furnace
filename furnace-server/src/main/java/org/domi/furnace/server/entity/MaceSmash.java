@@ -1,7 +1,7 @@
 // 바닐라 MaceItem: 스매시 조건(낙하 > 1.5, 겉날개 비행 아님)·낙하 거리 기반 추가 피해·착지 충격파 knockback.
 // 밀도(density)의 낙하 1칸당 +0.5×레벨(smash_damage_per_fallen_block)은 여기서 합산한다.
 // 소유권: 플레이어를 때리는 region 스레드에서만 부른다(주변 몹·플레이어를 같은 region 에서 민다).
-// 차이(가정): 충격파 대상의 isAlliedTo(팀) 검사 없음, 플레이어 넉백 저항은 방어구 합 근사, w.players() 는 호출 region 의 플레이어만, 레벨 이벤트 위치는 대상 getOnPos 근사.
+// 차이(가정): 플레이어 넉백 저항은 방어구 합 근사, w.players() 는 호출 region 의 플레이어만, 레벨 이벤트 위치는 대상 getOnPos 근사.
 // 차이: 착지 추가 입자(setSpawnExtraParticlesOnFall)와 낙하-폭발 발전 과제(FALL_AFTER_EXPLOSION)는 아직 없다.
 package org.domi.furnace.server.entity;
 
@@ -85,16 +85,16 @@ public final class MaceSmash {
             push(le, le.x() - target.x(), le.y() - target.y(), le.z() - target.z(), heavy, le.attributeValue(Attribute.KNOCKBACK_RESISTANCE));
         }
         for (Player o : w.players()) {
-            if (o == p || o == target || !o.isAlive() || o.vitals().isSpectator() || !o.boundingBox().intersects(box)) continue;
+            if (o == p || o == target || p.isAlliedTo(o) || !o.isAlive() || o.vitals().isSpectator() || !o.boundingBox().intersects(box)) continue;
             double dx = target.x() - o.x(), dy = target.y() - o.y(), dz = target.z() - o.z();
             if (dx * dx + dy * dy + dz * dz > 3.5 * 3.5) continue;
             push(o, o.x() - target.x(), o.y() - target.y(), o.z() - target.z(), heavy, armorKnockbackResistance(o));
         }
     }
 
-    /** 살아 있는 몹 쪽 대상 조건: 대상 자신 아님·주인이 나인 길들인 동물 아님·표식 거치대 아님·거리 ≤ 3.5. */
+    /** 살아 있는 몹 쪽 대상 조건: 대상 자신 아님·같은 팀 아님·주인이 나인 길들인 동물 아님·표식 거치대 아님·거리 ≤ 3.5. */
     private static boolean eligible(Player p, Targetable target, LivingEntity e) {
-        if (e == target) return false;
+        if (e == target || p.isAlliedTo(e)) return false;
         if (e instanceof TamableAnimal t && t.isTame() && p.uuid().equals(t.getOwnerUUID())) return false;
         if (e instanceof ArmorStand as && as.isMarker()) return false;
         double dx = target.x() - e.x(), dy = target.y() - e.y(), dz = target.z() - e.z();
