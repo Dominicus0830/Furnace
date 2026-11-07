@@ -75,7 +75,7 @@ class GameplayFlowTest {
 
                 // 죽은 자리에 경험치 구슬(레벨 5 → 35)이 떨어진다(M2). 같은 자리로 리스폰하면 되주워 경험치가 0 이 아니므로 치운 뒤 리스폰한다.
                 boolean orbsRemoved = false;
-                for (int i = 0; i < 100 && !orbsRemoved; i++) {
+                for (int i = 0; i < 400 && !orbsRemoved; i++) {   // 부하 러너에서도 20초까지 기다린다
                     orbsRemoved = core.commands().performPrefixedCommandAsync(console, "kill @e[type=minecraft:experience_orb]").join().success();
                     if (!orbsRemoved) Thread.sleep(50);
                 }

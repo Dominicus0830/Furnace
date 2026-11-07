@@ -109,7 +109,7 @@ class ConnectionStateApiTest {
     }
 
     private Player awaitPlayer(String name) throws InterruptedException {
-        for (int i = 0; i < 500 && core.playerByName(name) == null; i++) Thread.sleep(20);
+        for (int i = 0; i < 1500 && core.playerByName(name) == null; i++) Thread.sleep(20);   // 부하 러너에서 접속 처리가 10초를 넘긴 적이 있어 30초까지
         Player p = core.playerByName(name);
         assertNotNull(p, "접속 처리 완료: " + name);
         return p;
