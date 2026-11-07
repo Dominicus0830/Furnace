@@ -1100,6 +1100,7 @@ public final class ServerCore {
         }
         public void unpackContainerLoot(Object container) {
             if (container instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity c) unpackLoot(c, null);
+            else if (container instanceof org.domi.furnace.server.entity.ContainerEntity e) unpackLoot(e, null);
         }
     };
 

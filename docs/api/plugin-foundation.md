@@ -21,6 +21,7 @@
 | `plugins.log-level.<이름>` | INFO | 플러그인별 로그 수준(JUL 이름). 실행 중에는 `PluginManager.setLogLevel` |
 | `plugins.dev-mode` | false | 개발 모드. 켜야 플러그인 핫 리로드가 된다(아래 B8) |
 | `plugins.dev-mode.auto-reload` | false | 개발 모드에서 `plugins/*.jar` 가 바뀌면 알아서 다시 읽는다 |
+| `plugins.libraries.*` | enabled=false | 설명 파일 `libraries`(Maven 좌표) 자동 로딩 — [plugin-libraries.md](plugin-libraries.md) |
 
 플러그인 로그 줄에는 MDC `plugin` 이 붙는다(logback 패턴 `%X{plugin}`).
 

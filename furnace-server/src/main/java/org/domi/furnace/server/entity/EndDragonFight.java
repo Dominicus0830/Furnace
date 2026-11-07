@@ -239,6 +239,9 @@ public final class EndDragonFight {
 
     // ------------------------------------------------------------------ 드래곤 알림
 
+    /** 지금 보스 바 이름. */
+    public Text barName() { return barName; }
+
     public void updateDragon(EnderDragon d) {
         if (d.uuid().equals(dragonUUID)) {
             setBarProgress(d.health() / d.maxHealth());
@@ -371,12 +374,20 @@ public final class EndDragonFight {
 
     private void placePodium(Pos o, boolean active) { placePodium(level, o, active); }
 
-    /** hasActiveExitPortal(가정: 받침대 둘레 칸에 end_portal 이 있는가). */
+    /**
+     * hasActiveExitPortal: 바닐라 그대로 — 중심 청크 ±8 의 청크마다 블록 엔티티 중 TheEndPortalBlockEntity(엔드 관문 포함)가 하나라도 있으면 true.
+     * 바닐라는 청크를 동기로 불러오지만 여기선 불러와 있는 청크만 본다(의도한 차이: 아레나 판정이 z+8 한 줄뿐이라 그 밖 청크는 없을 수 있다).
+     */
     private boolean hasActiveExitPortal() {
-        Pos p = findExitPortal();
-        if (p == null) return false;
-        for (int dx = -2; dx <= 2; dx++) for (int dz = -2; dz <= 2; dz++) {
-            if (B.is(level.getBlockState(new Pos(p.x() + dx, p.y(), p.z() + dz)), "minecraft:end_portal")) return true;
+        int cx = origin.x() >> 4, cz = origin.z() >> 4;
+        for (int i = -8; i <= 8; i++) {
+            for (int j = -8; j <= 8; j++) {
+                var col = level.listenerChunk(cx + i, cz + j);
+                if (col == null) continue;
+                for (var be : col.blockEntities().values()) {
+                    if (be instanceof org.domi.furnace.server.block.entity.EndPortalBlockEntity && !be.isRemoved()) return true;
+                }
+            }
         }
         return false;
     }

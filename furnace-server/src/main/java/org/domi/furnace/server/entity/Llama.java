@@ -1,5 +1,5 @@
 // 바닐라 Llama: 힘(1~5)·털색 4가지, 침을 뱉어 늑대/피격 대상을 공격, 캐러밴으로 줄지어 걷는다. 상자를 달면 칸 수 = 3 × 힘.
-// TODO(카펫·탑승): 카펫 장식·탑승은 해당 시스템이 생기면. 끈(isLeashed)은 Mob 에 있다.
+// 카펫은 몸통 갑옷 칸(BODY)에 입는다 — 양털 카펫 태그만, 늘 칸을 쓸 수 있다(바닐라 canUseSlot=true, isBodyArmorItem=wool_carpets).
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -133,6 +133,12 @@ public class Llama extends AbstractChestedHorse implements RangedAttackMob {
 
     @Override
     public boolean isFood(ItemStack s) { return ItemTags.is(s, "minecraft:llama_food"); }
+
+    /** canUseSlot: 라마는 몸통 칸(카펫)을 늘 쓸 수 있다. */
+    @Override public boolean canUseBodySlot() { return true; }
+
+    /** isBodyArmorItem: 양털 카펫. */
+    @Override public boolean isBodyArmorItem(ItemStack s) { return !s.isEmpty() && ItemTags.is(s, "minecraft:wool_carpets"); }
 
     @Override
     protected boolean handleEating(Player p, ItemStack s) {

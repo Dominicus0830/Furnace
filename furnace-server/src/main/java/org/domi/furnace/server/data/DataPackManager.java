@@ -236,6 +236,7 @@ public final class DataPackManager implements AutoCloseable {
         recipes = l.recipes();
         org.domi.furnace.server.item.JukeboxSongs.install(l.rm());
         org.domi.furnace.server.entity.spawn.StructureSpawnOverrides.install(l.rm());
+        org.domi.furnace.server.world.gen.structure.template.TemplateManager.installDataPacks(l.rm());
         loot = l.loot();
         functions = l.functions();
         advancements = l.advancements();
