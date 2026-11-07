@@ -26,4 +26,24 @@ public interface CommandRegistry {
     boolean dispatch(CommandSender sender, String commandLine);
 
     void unregisterAll(FurnacePlugin plugin);
+
+    /**
+     * Brigadier 식 트리를 같은 명령 트리에 등록한다(BasicCommand 와 섞여 쓰이고, 이름 충돌 규칙도 같다).
+     * 루트는 literal 이어야 한다. 별칭마다 같은 트리를 한 벌씩 더 붙인다.
+     * @return 실제로 등록된 이름들
+     */
+    Collection<String> register(FurnacePlugin plugin, CommandBuilder root, String description, List<String> aliases);
+
+    default Collection<String> register(FurnacePlugin plugin, CommandBuilder root) {
+        return register(plugin, root, "", List.of());
+    }
+
+    /** 이 플러그인이 등록한 명령 하나(이름 또는 "플러그인:이름")를 빼고 접속자들의 트리를 다시 보낸다. 없으면 false. */
+    boolean unregister(FurnacePlugin plugin, String name);
+
+    /** 한 발신자의 명령 트리를 다시 보낸다(권한이 바뀐 뒤 등). 콘솔이면 아무 일도 없다. */
+    void updateCommands(CommandSender sender);
+
+    /** 접속자 모두의 명령 트리를 다시 보낸다. */
+    void updateCommands();
 }
