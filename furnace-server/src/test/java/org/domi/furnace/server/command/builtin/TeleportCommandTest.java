@@ -191,7 +191,7 @@ class TeleportCommandTest {
     }
 
     static void awaitTrue(java.util.function.BooleanSupplier c) throws InterruptedException {
-        for (int i = 0; i < 200 && !c.getAsBoolean(); i++) Thread.sleep(50);
+        for (int i = 0; i < 600 && !c.getAsBoolean(); i++) Thread.sleep(50);   // 부하 러너에서 10초를 넘긴 적이 있어 30초까지
         assertTrue(c.getAsBoolean(), "시간 안에 조건이 이루어지지 않았다");
     }
 }

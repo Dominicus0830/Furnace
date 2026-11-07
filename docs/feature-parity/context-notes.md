@@ -1,5 +1,7 @@
 # Context Notes — Feature Parity
 
+> **새 절은 이 파일 끝에 붙이지 말고 `docs/feature-parity/context-notes/<날짜>-<묶음 id>.md` 새 파일로 쓴다**(병합 충돌 방지, `context-notes/README.md`). 2026-11-07 이후 작업의 기록은 그 폴더에 있다.
+
 ## 2026-06-21 초기 진단
 - 증상: 동일 seed·좌표에서 광석 위치 다름, 잡블럭 없음/위치 다름.
 - vanilla `net.minecraft.world.level.biome.FeatureSorter.buildFeaturesPerStep` 확인:
