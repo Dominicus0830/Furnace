@@ -12,6 +12,16 @@ import java.util.UUID;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.net.protocol.play.AddEntity;
+import org.domi.furnace.server.net.protocol.play.BlockUpdate;
+import org.domi.furnace.server.net.protocol.play.ChunksBiomes;
+import org.domi.furnace.server.net.protocol.play.InitializeBorder;
+import org.domi.furnace.server.net.protocol.play.LevelChunkWithLight;
+import org.domi.furnace.server.net.protocol.play.SectionBlocksUpdate;
+import org.domi.furnace.server.net.protocol.play.SetBorderCenter;
+import org.domi.furnace.server.net.protocol.play.SetBorderLerpSize;
+import org.domi.furnace.server.net.protocol.play.SetBorderSize;
+import org.domi.furnace.server.net.protocol.play.SetBorderWarningDelay;
+import org.domi.furnace.server.net.protocol.play.SetBorderWarningDistance;
 import org.domi.furnace.server.net.protocol.play.LoginPlay;
 import org.domi.furnace.server.net.protocol.play.PlayerInfoRemove;
 import org.domi.furnace.server.net.protocol.play.RemoveEntities;
@@ -34,7 +44,10 @@ public final class ViewRewriter {
     private record Applied(Appearance appearance, int prefix, UUID fakeUuid, String team, String profileName) {}
 
     private final Map<Integer, Applied> applied = new HashMap<>();
-    private String dimension;
+    private volatile String dimension;
+
+    /** 클라이언트가 지금 있는 차원 키(아직 모르면 null). */
+    public String dimension() { return dimension; }
 
     /** 시험용: 지금 묶인 엔티티 수. */
     public int appliedCount() { return applied.size(); }
@@ -45,6 +58,140 @@ public final class ViewRewriter {
     public Object rewrite(Player viewer, Packet p) {
         if (p instanceof Respawn r) return levelChanged(p, r.dimensionName());
         if (p instanceof LoginPlay l) return levelChanged(p, l.dimensionName());
+        ViewLayers layers = viewer.viewLayers();
+        if (layers.active()) {
+            Packet q = layer(layers, p);
+            if (q == null) return null;
+            if (q != p) p = q;
+            if (layers.equipment.active() && (p instanceof AddEntity || p instanceof SpawnEntity)) return withEquipment(layers, p, entities(viewer, p));
+        }
+        return entities(viewer, p);
+    }
+
+    // ------------------------------------------------------------------ 가상 블록·바이옴·보더·장비 층
+
+    /** 층을 덧입힌 패킷(바뀌지 않으면 같은 것), 보내지 않을 것이면 null. */
+    private Packet layer(ViewLayers layers, Packet p) {
+        if (p instanceof LevelChunkWithLight c) return layers.blocks.active() ? chunk(layers.blocks, c) : p;
+        if (p instanceof BlockUpdate b) return layers.blocks.active() ? blockUpdate(layers.blocks, b) : p;
+        if (p instanceof SectionBlocksUpdate s) return layers.blocks.active() ? sectionUpdate(layers.blocks, s) : p;
+        if (p instanceof ChunksBiomes b) return layers.blocks.active() ? biomes(layers.blocks, b) : p;
+        if (p instanceof SetEquipment e) return layers.equipment.active() ? equipment(layers.equipment, e) : p;
+        var border = layers.border();
+        if (border != null) {
+            // 개인 보더가 있는 사람에게는 서버 보더의 변경을 보내지 않는다. 접속·차원 이동 때 서버가 보내는 초기화는 개인 보더 상태로 바꿔 보낸다.
+            // (개인 보더를 바꿀 때도 이 초기화 패킷을 보낸다 — PlayerViewsImpl.pushBorder)
+            if (p instanceof InitializeBorder) { p.discard(); return InitializeBorder.of(border); }
+            if (p instanceof SetBorderCenter || p instanceof SetBorderSize || p instanceof SetBorderLerpSize
+                    || p instanceof SetBorderWarningDelay || p instanceof SetBorderWarningDistance) return null;
+        }
+        return p;
+    }
+
+    private Packet chunk(BlockLayer layer, LevelChunkWithLight c) {
+        String dim = dimension;
+        if (dim == null) return c;
+        BlockLayer.Dim d = layer.dim(dim);
+        if (d == null) return c;
+        BlockLayer.Chunk ch = layer.chunk(dim, chunkX(c), chunkZ(c));
+        if (ch == null) return c;
+        byte[] body = c.shared() != null ? c.shared() : bytesOf(c);
+        byte[] out = ChunkBodyRewriter.rewrite(body, d, ch);
+        if (out == null) return c;
+        c.discard();
+        return new LevelChunkWithLight(io.netty.buffer.Unpooled.wrappedBuffer(out), null);
+    }
+
+    private static byte[] bytesOf(LevelChunkWithLight c) {
+        var b = c.body();
+        byte[] out = new byte[b.readableBytes()];
+        b.getBytes(b.readerIndex(), out);
+        return out;
+    }
+
+    private static int chunkX(LevelChunkWithLight c) { return c.body().getInt(c.body().readerIndex()); }
+
+    private static int chunkZ(LevelChunkWithLight c) { return c.body().getInt(c.body().readerIndex() + 4); }
+
+    private Packet blockUpdate(BlockLayer layer, BlockUpdate b) {
+        if (dimension == null) return b;
+        BlockLayer.Entry e = layer.block(dimension, b.x(), b.y(), b.z());
+        return e == null || e.value() == b.stateId() ? b : new BlockUpdate(b.x(), b.y(), b.z(), e.value());
+    }
+
+    private Packet sectionUpdate(BlockLayer layer, SectionBlocksUpdate s) {
+        if (dimension == null) return s;
+        int[] states = null;
+        for (int i = 0; i < s.positions().length; i++) {
+            int pos = s.positions()[i] & 0xFFF;
+            BlockLayer.Entry e = layer.block(dimension, (s.sectionX() << 4) | ((pos >> 8) & 15), (s.sectionY() << 4) | (pos & 15), (s.sectionZ() << 4) | ((pos >> 4) & 15));
+            if (e != null && e.value() != s.states()[i]) {
+                if (states == null) states = s.states().clone();
+                states[i] = e.value();
+            }
+        }
+        return states == null ? s : new SectionBlocksUpdate(s.sectionX(), s.sectionY(), s.sectionZ(), s.positions(), states);
+    }
+
+    private Packet biomes(BlockLayer layer, ChunksBiomes b) {
+        if (dimension == null) return b;
+        BlockLayer.Dim d = layer.dim(dimension);
+        if (d == null) return b;
+        List<ChunksBiomes.Entry> out = null;
+        for (int i = 0; i < b.chunks().size(); i++) {
+            ChunksBiomes.Entry e = b.chunks().get(i);
+            BlockLayer.Chunk ch = layer.chunk(dimension, e.chunkX(), e.chunkZ());
+            ChunksBiomes.Entry ne = e;
+            if (ch != null && !ch.biomes().isEmpty()) {
+                int[][] secs = new int[e.sectionBiomes().length][];
+                for (int s = 0; s < secs.length; s++) secs[s] = e.sectionBiomes()[s].clone();
+                for (var en : ch.biomes().entrySet()) {
+                    int k = en.getKey(), s = k >> 6;
+                    if (s >= 0 && s < secs.length) secs[s][k & 63] = en.getValue().value();
+                }
+                ne = new ChunksBiomes.Entry(e.chunkX(), e.chunkZ(), secs);
+            }
+            if (ne != e && out == null) { out = new ArrayList<>(b.chunks()); }
+            if (out != null) out.set(i, ne);
+        }
+        return out == null ? b : new ChunksBiomes(out, b.biomeDirectBits());
+    }
+
+    private Packet equipment(EquipmentLayer layer, SetEquipment e) {
+        var o = layer.of(e.entityId());
+        if (o == null) return e;
+        List<SetEquipment.Entry> out = null;
+        for (int i = 0; i < e.slots().size(); i++) {
+            SetEquipment.Entry en = e.slots().get(i);
+            var ov = o.get(en.slot());
+            if (ov == null) continue;
+            if (out == null) out = new ArrayList<>(e.slots());
+            out.set(i, new SetEquipment.Entry(en.slot(), ov.stack()));
+        }
+        return out == null ? e : new SetEquipment(e.entityId(), out);
+    }
+
+    /** 스폰 패킷 뒤에 덮어쓴 장비를 붙인다(서버가 빈 장비라 따로 보내지 않아도 보이게). 서버의 장비 패킷이 뒤따르면 같은 값으로 한 번 더 간다. */
+    private Object withEquipment(ViewLayers layers, Packet spawn, Object rewritten) {
+        int eid = spawn instanceof AddEntity a ? a.entityId() : ((SpawnEntity) spawn).entityId();
+        var o = layers.equipment.of(eid);
+        if (o == null || rewritten == null) return rewritten;
+        Applied ap = applied.get(eid);
+        if (ap != null && !EntityKinds.isLiving(ap.appearance.kind())) return rewritten;   // 살아 있지 않은 모습엔 장비를 보내지 않는다
+        List<SetEquipment.Entry> es = new ArrayList<>(o.size());
+        for (var en : o.entrySet()) es.add(new SetEquipment.Entry(en.getKey(), en.getValue().stack()));
+        Packet extra = new SetEquipment(eid, es);
+        if (rewritten instanceof Packet[] many) {
+            Packet[] out = java.util.Arrays.copyOf(many, many.length + 1);
+            out[many.length] = extra;
+            return out;
+        }
+        return new Packet[] {(Packet) rewritten, extra};
+    }
+
+    // ------------------------------------------------------------------ 엔티티 변장
+
+    private Object entities(Player viewer, Packet p) {
         boolean any = !applied.isEmpty();
         if (!any && !EntityViewRules.active()) return p;
         if (p instanceof AddEntity a) return spawn(viewer, p, a.entityId(), a.uuid(), a.type(), a);

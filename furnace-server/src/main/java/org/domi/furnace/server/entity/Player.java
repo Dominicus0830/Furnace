@@ -525,6 +525,11 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 시험용. */
     public org.domi.furnace.server.entity.view.ViewRewriter viewRewriter() { return viewRewriter; }
 
+    /** 이 접속의 화면 덮어쓰기(가상 블록·바이옴 층, 장비 덮어쓰기, 개인 월드 보더) — 아무 스레드. */
+    private final org.domi.furnace.server.entity.view.ViewLayers viewLayers = new org.domi.furnace.server.entity.view.ViewLayers();
+
+    public org.domi.furnace.server.entity.view.ViewLayers viewLayers() { return viewLayers; }
+
     /** 이벤트 루프에서: 인코딩해 쓴다. 플러그인 패킷 리스너가 취소했으면 false. */
     private boolean writeOne(Packet packet) {
         Object msg = org.domi.furnace.server.net.io.SharedChunkFrames.encode(channel, packet);

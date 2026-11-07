@@ -994,7 +994,8 @@ public final class ServerCore {
 
     /** 바닐라 Level.mayInteract(ServerLevel): 스폰 보호 밖이고 월드 보더 안. */
     public boolean mayInteract(Player p, int x, int z) {
-        return !isUnderSpawnProtection(x, z, p) && border.isWithinBounds(x, z);
+        org.domi.furnace.server.world.WorldBorder own = p == null ? null : p.viewLayers().enforcedBorder();   // 플러그인이 enforce 한 개인 보더(PlayerViews)
+        return !isUnderSpawnProtection(x, z, p) && (own != null ? own : border).isWithinBounds(x, z);
     }
 
     /** 바닐라 ServerLevel.setDefaultSpawnPos: 바뀌었으면 level.dat 에 남기고 모두에게 알린다. */
@@ -1066,6 +1067,10 @@ public final class ServerCore {
         }
         public float borderDamage(double x, double y, double z) {
             return border.computePlayerDamage(x - 0.3, z - 0.3, x + 0.3, z + 0.3, x, z);
+        }
+        public float borderDamage(Player player, double x, double y, double z) {
+            org.domi.furnace.server.world.WorldBorder own = player.viewLayers().enforcedBorder();
+            return (own != null ? own : border).computePlayerDamage(x - 0.3, z - 0.3, x + 0.3, z + 0.3, x, z);
         }
     };
 
@@ -1541,6 +1546,35 @@ public final class ServerCore {
         logChatMessage(message.decoratedContent(), bound, null);
         Text line = bound.decorate(message.decoratedContent());
         for (Player p : players()) if (p.chat().acceptsChatMessages()) p.sendSystemMessage(line, false);
+    }
+
+    /**
+     * 플러그인 렌더러(AsyncChatEvent.renderer)로 받는 사람마다 줄을 만들어 서명 없는 시스템 메시지로 보낸다 — 채팅을 보는 설정인 플레이어에게만.
+     * 콘솔 로그에는 콘솔을 받는 사람으로 한 번 렌더한다. 렌더러가 예외를 던지면 그 사람에게는 바닐라 서식으로 보낸다.
+     */
+    public void broadcastRenderedChat(Player sender, Text senderName, Text content, org.domi.furnace.api.event.player.ChatRenderer renderer) {
+        var host = plugins();
+        var source = host.player(sender);
+        Text consoleLine;
+        try {
+            consoleLine = renderer.render(source, senderName, content, host.console());
+        } catch (RuntimeException e) {
+            log.warn("채팅 렌더러 오류(콘솔)", e);
+            consoleLine = org.domi.furnace.api.event.player.ChatRenderer.vanilla().render(source, senderName, content, host.console());
+        }
+        log.info("{}", consoleLine.getString());
+        for (var l : consoleListeners) l.accept(consoleLine);
+        for (Player p : players()) {
+            if (!p.chat().acceptsChatMessages()) continue;
+            Text line;
+            try {
+                line = renderer.render(source, senderName, content, host.player(p));
+            } catch (RuntimeException e) {
+                log.warn("채팅 렌더러 오류({})", p.name(), e);
+                line = org.domi.furnace.api.event.player.ChatRenderer.vanilla().render(source, senderName, content, host.player(p));
+            }
+            p.sendSystemMessage(line, false);
+        }
     }
 
     /** 바닐라 ServerPlayer.sendChatMessage: 채팅을 모두 보는 설정일 때만. 시스템 출처면 disguised_chat. */
