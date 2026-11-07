@@ -2,6 +2,11 @@
 
 2026-11-06 재구성. 구조: **1. 직접 확인할 것** → **2. 내가 결정할 것** → **3. 코디네이터가 이 파일에 필요하다고 보는 항목**. 맨 아래는 끝난 기록이라 할 일이 아니다.
 
+# 명령 점검 (M11) — 2026-11-07
+봇(`tools/bot-test/round15`)·서버 시험(`TextResolveCommandsTest`)으로 확인. 실제 클라이언트로 남은 것:
+- 채팅 자동완성: `/bossbar get|set|remove <id>`, `/playsound <소리>`, `/stopsound`, `/attribute ... modifier remove <id>`, `/tag @e[...] remove <태그>` 에서 후보가 바닐라처럼 뜨는지.
+- `/tellraw @a {"selector":"@e[type=cow]"}` 처럼 엔티티 이름이 들어간 글이 화면에 이름(회색 ", " 로 이음)으로 나오는지, `/say` 와 보스바 이름도 같은지.
+
 # 명령 트리 API (C1) — 2026-11-07
 서버 시험(`CommandTreeApiTest`)으로 트리 명령·필터·해제는 확인. 실제 클라이언트로 남은 것:
 - 플러그인이 명령을 런타임에 등록·해제했을 때 열린 채팅 자동완성 목록이 바로 바뀌는지, 권한 없는 계정에서 `requires` 로 숨긴 명령이 자동완성에 안 보이는지.
@@ -101,7 +106,7 @@
 - 엔더 드래곤: 활성 출구 포털 판정(관문 블록 엔티티는 생겼으나 hasActiveExitPortal 은 받침대 블록으로 판정), 공격 후 마법 부여 효과, 사용자 이름 보스 바
 - 블록 엔티티: 스포너 승객/장비, 벌집, 표지판 텍스트 선택자/점수 해석
 - 수면: 자는 중 텔레포트·차원 이동 시 깨우기
-- 명령: 명령 블록 등 (`/tick sprint` 는 구현됨). 순서는 `docs/feature-parity/roadmap-2026-10-09.md`
+- 명령: 명령 블록 등 (`/tick sprint` 는 구현됨, 명령 점검 M11 은 `docs/feature-parity/command-audit-m11-2026-11-07.md`). 순서는 `docs/feature-parity/roadmap-2026-10-09.md`
 
 ### 가정 (바닐라 jar 대조 필요)
 - 약탈자 순찰: 저장 키 `patrol_target`, 마녀 지도자 불가, 불길한 깃발 이름 스타일

@@ -4,10 +4,14 @@ package org.domi.furnace.server.command.builtin;
 import static org.domi.furnace.server.command.Commands.argument;
 import static org.domi.furnace.server.command.Commands.literal;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.command.CommandSource;
 import org.domi.furnace.server.command.ComponentUtils;
+import org.domi.furnace.server.command.EntityOps;
 import org.domi.furnace.server.command.arguments.ComponentArgument;
 import org.domi.furnace.server.command.arguments.EntityArgument;
 import org.domi.furnace.server.command.arguments.TimeArgument;
@@ -26,12 +30,16 @@ public final class TextCommands {
         d.register(literal("tellraw").requires(s -> s.hasPermission(2))
                 .then(argument("targets", EntityArgument.players())
                         .then(argument("message", ComponentArgument.textComponent()).executes(c -> {
-                            int n = 0;
-                            for (Player p : EntityArgument.getPlayers(c, "targets")) {
-                                p.sendSystemMessage(ComponentUtils.updateForEntity(c.getSource(), ComponentArgument.getComponent(c, "message"), p, 0), false);
-                                n++;
-                            }
-                            return n;
+                            // 선택자·점수·NBT 는 대상마다 풀어 보낸다(바닐라 updateForEntity(source, message, player, 0)). 일반 엔티티를 읽으면 region 을 거치므로 future.
+                            CommandSource source = c.getSource();
+                            List<Player> targets = new ArrayList<>(EntityArgument.getPlayers(c, "targets"));
+                            Text message = ComponentArgument.getComponent(c, "message");
+                            List<CompletableFuture<Text>> resolved = new ArrayList<>(targets.size());
+                            for (Player p : targets) resolved.add(ComponentUtils.resolve(source, message, p));
+                            return EntityOps.result(source, EntityOps.awaitAllAsync(source, resolved, texts -> {
+                                for (int i = 0; i < targets.size(); i++) targets.get(i).sendSystemMessage(texts.get(i), false);
+                                return targets.size();
+                            }));
                         }))));
     }
 
@@ -78,9 +86,14 @@ public final class TextCommands {
     }
 
     static int show(CommandSource s, Collection<Player> targets, Text component, String name, int packetId) throws CommandSyntaxException {
-        for (Player p : targets) p.send(new TextOnlyPacket(packetId, p.localize(ComponentUtils.updateForEntity(s, component, p, 0))));
-        report(s, "commands.title.show." + name, targets);
-        return targets.size();
+        List<Player> list = new ArrayList<>(targets);
+        List<CompletableFuture<Text>> resolved = new ArrayList<>(list.size());
+        for (Player p : list) resolved.add(ComponentUtils.resolve(s, component, p));
+        return EntityOps.result(s, EntityOps.awaitAllAsync(s, resolved, texts -> {
+            for (int i = 0; i < list.size(); i++) list.get(i).send(new TextOnlyPacket(packetId, list.get(i).localize(texts.get(i))));
+            report(s, "commands.title.show." + name, list);
+            return list.size();
+        }));
     }
 
     static int times(CommandSource s, Collection<Player> targets, int fadeIn, int stay, int fadeOut) {

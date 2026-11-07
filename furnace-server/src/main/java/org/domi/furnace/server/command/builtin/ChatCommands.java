@@ -8,6 +8,7 @@ import java.util.Collection;
 import org.domi.furnace.server.chat.ChatType;
 import org.domi.furnace.server.chat.PlayerChatMessage;
 import org.domi.furnace.server.command.CommandSource;
+import org.domi.furnace.server.command.EntityOps;
 import org.domi.furnace.server.command.arguments.EntityArgument;
 import org.domi.furnace.server.command.arguments.MessageArgument;
 import org.domi.furnace.server.command.brigadier.CommandDispatcher;
@@ -20,18 +21,14 @@ public final class ChatCommands {
     private ChatCommands() {}
 
     public static void registerMe(CommandDispatcher<CommandSource> d) {
-        d.register(literal("me").then(argument("action", MessageArgument.message()).executes(c -> {
-            MessageArgument.resolveChatMessage(c, "action", m -> broadcast(c.getSource(), m, ChatType.EMOTE_COMMAND));
-            return 1;
-        })));
+        d.register(literal("me").then(argument("action", MessageArgument.message()).executes(c ->
+                EntityOps.result(c.getSource(), MessageArgument.resolveChatMessageAsync(c, "action", 1, m -> broadcast(c.getSource(), m, ChatType.EMOTE_COMMAND))))));
     }
 
     public static void registerSay(CommandDispatcher<CommandSource> d) {
         d.register(literal("say").requires(s -> s.hasPermission(2))
-                .then(argument("message", MessageArgument.message()).executes(c -> {
-                    MessageArgument.resolveChatMessage(c, "message", m -> broadcast(c.getSource(), m, ChatType.SAY_COMMAND));
-                    return 1;
-                })));
+                .then(argument("message", MessageArgument.message()).executes(c ->
+                        EntityOps.result(c.getSource(), MessageArgument.resolveChatMessageAsync(c, "message", 1, m -> broadcast(c.getSource(), m, ChatType.SAY_COMMAND))))));
     }
 
     /** 바닐라 PlayerList.broadcastChatMessage(message, CommandSourceStack, bound). */
@@ -43,8 +40,8 @@ public final class ChatCommands {
         LiteralCommandNode<CommandSource> node = d.register(literal("msg").then(argument("targets", EntityArgument.players())
                 .then(argument("message", MessageArgument.message()).executes(c -> {
                     Collection<Player> targets = EntityArgument.getPlayers(c, "targets");
-                    if (!targets.isEmpty()) MessageArgument.resolveChatMessage(c, "message", m -> sendMessage(c.getSource(), targets, m));
-                    return targets.size();
+                    if (targets.isEmpty()) return 0;
+                    return EntityOps.result(c.getSource(), MessageArgument.resolveChatMessageAsync(c, "message", targets.size(), m -> sendMessage(c.getSource(), targets, m)));
                 }))));
         d.register(literal("tell").redirect(node));
         d.register(literal("w").redirect(node));

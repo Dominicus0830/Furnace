@@ -21,7 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-class DeferredResultTest {
+public class DeferredResultTest {
 
     @TempDir Path tmp;
     FurnaceSchedulerImpl sched;
@@ -41,7 +41,7 @@ class DeferredResultTest {
     void tearDown() { sched.close(); }
 
     /** region 스레드에서 소를 n 마리 올린다. */
-    static Cow[] spawnCows(ServerCore core, int n) throws InterruptedException {
+    public static Cow[] spawnCows(ServerCore core, int n) throws InterruptedException {
         Cow[] cows = new Cow[n];
         var done = new CountDownLatch(1);
         core.world().runAt(0.5, 0.5, region -> {

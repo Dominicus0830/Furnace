@@ -11,6 +11,7 @@ import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.chat.ChatType;
 import org.domi.furnace.server.chat.PlayerChatMessage;
 import org.domi.furnace.server.command.CommandSource;
+import org.domi.furnace.server.command.EntityOps;
 import org.domi.furnace.server.command.arguments.MessageArgument;
 import org.domi.furnace.server.command.brigadier.CommandDispatcher;
 import org.domi.furnace.server.command.brigadier.LiteralCommandNode;
@@ -36,8 +37,8 @@ public final class TeamMsgCommand {
             for (Player p : source.getServer().players()) {
                 if (p == entity || teamOf(source, p) == team) receivers.add(p);
             }
-            if (!receivers.isEmpty()) MessageArgument.resolveChatMessage(c, "message", m -> sendMessage(source, entity, team, receivers, m));
-            return receivers.size();
+            if (receivers.isEmpty()) return 0;
+            return EntityOps.result(source, MessageArgument.resolveChatMessageAsync(c, "message", receivers.size(), m -> sendMessage(source, entity, team, receivers, m)));
         })));
         d.register(literal("tm").redirect(node));
     }

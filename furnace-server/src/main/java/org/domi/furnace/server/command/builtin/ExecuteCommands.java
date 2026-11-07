@@ -150,7 +150,7 @@ public final class ExecuteCommands {
             });
         }
         return b
-                .then(literal("bossbar").then(argument("id", ResourceLocationArgument.id())
+                .then(literal("bossbar").then(argument("id", ResourceLocationArgument.id()).suggests(BossBarCommands.SUGGEST_BOSS_BAR)
                         .then(literal("value").redirect(execute, c -> storeBossbar(c, true, result)))
                         .then(literal("max").redirect(execute, c -> storeBossbar(c, false, result)))))
                 .then(literal("score").then(argument("targets", ScoreHolderArgument.scoreHolders()).suggests(ScoreHolderArgument.SUGGEST_SCORE_HOLDERS)
