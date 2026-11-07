@@ -11,7 +11,7 @@
 - 끝난(사용자가 확인했거나 결정한) 항목은 그 파일을 지우거나 줄여도 된다. 코디네이터가 `docs/user-todo.md` 의 "완료·결정 기록"으로 옮긴다.
 
 ## 한 번에 보기
-`tools/user-todo-combined.sh > /tmp/user-todo-all.md` — `docs/user-todo.md` 와 모든 항목 파일을 최신 순으로 합쳐 출력한다(저장소 파일은 안 바뀐다). CI 의 기준 브랜치 실행은 같은 결과를 `user-todo-combined` 산출물로 올린다.
+`tools/user-todo-combined.sh > /tmp/user-todo-all.md` — `docs/user-todo.md` 와 모든 항목 파일을 파일 이름 역순(날짜가 최신인 것 먼저, 같은 날짜 안에서는 id 역순)으로 합쳐 출력한다(저장소 파일은 안 바뀐다). CI 의 기준 브랜치 실행은 같은 결과를 `user-todo-combined` 산출물로 올린다.
 
 ## `docs/user-todo.md` 본문은 언제 고치나
 1~3장(직접 확인 표, 결정 표, 코디네이터 항목)과 "완료·결정 기록"은 코디네이터가 정리할 때만 고친다. 작업 스레드는 고치지 않는다(이미 있는 줄의 상태를 바꿔야 할 때만 그 줄만 최소한으로).
