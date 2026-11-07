@@ -136,7 +136,30 @@ class TextResolveCommandsTest {
         Text t = Text.of(new Content.Nbt("l[]", false, Text.text(";"), new Content.NbtSource.Storage("t:t")), org.domi.furnace.api.text.Style.empty(), List.of());
         assertEquals("1;2;3", resolve(t).getString());
         Text dflt = Text.of(new Content.Nbt("l[]", false, null, new Content.NbtSource.Storage("t:t")), org.domi.furnace.api.text.Style.empty(), List.of());
-        assertEquals("1, 2, 3", resolve(dflt).getString());
+        assertEquals("1,2,3", resolve(dflt).getString(), "구분자 없으면 공백 없는 \",\" (바닐라 NbtContents)");
+    }
+
+    // ------------------------------------------------------------------ 스타일 병합·NBT 글자
+
+    @Test
+    void resolvedTextKeepsItsOwnStyleAndTheComponentStyleOverlaysIt() {
+        run("scoreboard objectives add pts dummy");
+        run("scoreboard objectives modify pts numberformat styled {\"color\":\"red\"}");
+        run("scoreboard players set Foo pts 7");
+        Text score = Text.of(new Content.Score("Foo", "pts"), org.domi.furnace.api.text.Style.empty(), List.of());
+        assertEquals(org.domi.furnace.api.text.NamedTextColor.RED, resolve(score).color(), "점수의 숫자 형식 색은 남는다");
+        Text blue = Text.of(new Content.Score("Foo", "pts"), org.domi.furnace.api.text.Style.style(org.domi.furnace.api.text.NamedTextColor.BLUE), List.of());
+        assertEquals(org.domi.furnace.api.text.NamedTextColor.BLUE, resolve(blue).color(), "글 자신의 스타일이 덮는다");
+    }
+
+    @Test
+    void nbtStringTagInterpretsAsJsonAndPlainShowsRawString() {
+        run("data modify storage t:t s set value '{\"text\":\"Bob\",\"color\":\"gold\"}'");
+        Text interp = Text.of(new Content.Nbt("s", true, null, new Content.NbtSource.Storage("t:t")), org.domi.furnace.api.text.Style.empty(), List.of());
+        Text r = resolve(interp);
+        assertEquals("Bob", r.getString());
+        Text plain = Text.of(new Content.Nbt("s", false, null, new Content.NbtSource.Storage("t:t")), org.domi.furnace.api.text.Style.empty(), List.of());
+        assertEquals("{\"text\":\"Bob\",\"color\":\"gold\"}", resolve(plain).getString(), "문자열 태그는 따옴표·색 없이 값 그대로");
     }
 
     // ------------------------------------------------------------------ 보스바 이름
@@ -195,6 +218,6 @@ class TextResolveCommandsTest {
     @Test
     void invalidComponentJsonShowsTheGsonMessage() {
         List<String> out = run("tellraw @a {\"text\":");
-        assertTrue(out.get(0).startsWith("Invalid chat component: java.io.EOFException: End of input at line 1 column 9 path $.text"), out.get(0));
+        assertTrue(out.get(0).startsWith("Invalid chat component: End of input at line 1 column 9 path $.text"), out.get(0));
     }
 }

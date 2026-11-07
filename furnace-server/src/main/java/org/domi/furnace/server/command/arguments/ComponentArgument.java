@@ -28,22 +28,32 @@ public final class ComponentArgument implements ArgumentType<Text> {
             reader.setCursor(p.end());
             return p.text();
         } catch (RuntimeException e) {
-            // 바닐라는 lenient Gson 이 JSON 을 읽다 난 오류 메시지를 그대로 보인다("java.io.EOFException: End of input at line 1 column 19 path $.text")
-            String msg = gsonSyntaxMessage(reader.getRemaining());
-            if (msg == null) msg = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
+            // 바닐라 ParserUtils.parseJson: 엄격한 Gson 이 읽다 난 오류의 원인 메시지를 보이고, 커서는 JSON 리더가 멈춘 곳까지 옮긴다
+            String msg = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
+            var jr = new com.google.gson.stream.JsonReader(new java.io.StringReader(reader.getRemaining()));
+            jr.setLenient(false);
+            try {
+                com.google.gson.internal.Streams.parse(jr);
+            } catch (com.google.gson.JsonParseException g) {
+                msg = g.getCause() != null ? g.getCause().getMessage() : g.getMessage();
+                reader.setCursor(reader.getCursor() + readerOffset(jr));
+            } catch (RuntimeException ignored) {
+                // 엄격한 읽기도 실패하면 위 메시지 그대로
+            }
             throw ERROR_INVALID_JSON.createWithContext(reader, msg);
         }
     }
 
-    /** 바닐라 ParserUtils.parseJson 과 같은 lenient Gson 파싱이 낸 오류 메시지(문법 오류가 아니면 null). */
-    private static String gsonSyntaxMessage(String remaining) {
+    /** 바닐라 ParserUtils 가 반사로 읽는 JsonReader 의 pos - lineStart. 못 읽으면 0. */
+    private static int readerOffset(com.google.gson.stream.JsonReader jr) {
         try {
-            var jr = new com.google.gson.stream.JsonReader(new java.io.StringReader(remaining));
-            jr.setLenient(true);
-            com.google.gson.JsonParser.parseReader(jr);
-            return null;
-        } catch (RuntimeException e) {
-            return e.getMessage();
+            var pos = com.google.gson.stream.JsonReader.class.getDeclaredField("pos");
+            var lineStart = com.google.gson.stream.JsonReader.class.getDeclaredField("lineStart");
+            pos.setAccessible(true);
+            lineStart.setAccessible(true);
+            return pos.getInt(jr) - lineStart.getInt(jr);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return 0;
         }
     }
 

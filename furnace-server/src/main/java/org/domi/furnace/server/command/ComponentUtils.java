@@ -19,6 +19,8 @@ import org.domi.furnace.server.command.arguments.NbtPathArgument;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.entity.Rider;
+import org.domi.furnace.server.item.Snbt;
+import org.domi.furnace.server.net.io.nbt.NbtTags;
 import org.domi.furnace.server.scores.NumberFormat;
 import org.domi.furnace.server.scores.ScoreHolder;
 
@@ -75,7 +77,9 @@ public final class ComponentUtils {
             Text out = head.join();
             for (CompletableFuture<Text> s : siblings) out = out.append(s.join());
             Text hover = style.join();
-            return out.style(hover == null ? component.style() : component.style().hoverEvent(HoverEvent.showText(hover)));
+            // 바닐라 withStyle: 이 글이 정한 스타일만 덮고, 풀어 쓴 글 자신의 스타일(개체 표시 이름의 호버·팀 색 등)은 남긴다
+            Style own = hover == null ? component.style() : component.style().hoverEvent(HoverEvent.showText(hover));
+            return out.style(own.applyTo(out.style()));
         });
     }
 
@@ -165,7 +169,7 @@ public final class ComponentUtils {
 
     /**
      * 바닐라 NbtContents.resolve. 출처(엔티티·블록·저장소)의 NBT 에서 경로로 태그를 모아, interpret 면 텍스트로 읽어 풀고
-     * 아니면 색칠한 SNBT 로 보인다. 구분자 기본은 interpret 이면 스타일 없는 ", ", 아니면 회색 ", " 가 아니라 스타일 없는 ", " 다(바닐라 DEFAULT_NO_STYLE_SEPARATOR).
+     * 아니면 getAsString 글자 그대로 보인다. 구분자 기본은 interpret 이면 스타일 없는 ", ", 아니면 "," 로 이은 글 하나(바닐라 NbtContents).
      */
     private static CompletableFuture<Text> resolveNbt(CommandSource source, Content.Nbt nbt, Rider entity, int depth) throws CommandSyntaxException {
         NbtPathArgument.NbtPath path;
@@ -190,13 +194,18 @@ public final class ComponentUtils {
             return out;
         });
         if (!nbt.interpret()) {
-            return then(source, CompletableFuture.allOf(sep, tags), v -> join(tags.join().stream().map(NbtText::pretty).toList(), sep.join()));
+            // 바닐라: 태그마다 getAsString 을 글자 그대로(색 없이) 보인다. 구분자를 안 주면 ","(공백 없음)로 이은 글 하나
+            if (nbt.separator() == null) {
+                return then(source, tags, list -> Text.text(String.join(",", list.stream().map(ComponentUtils::tagAsString).toList())));
+            }
+            return then(source, CompletableFuture.allOf(sep, tags),
+                    v -> join(tags.join().stream().map(t -> Text.text(tagAsString(t))).toList(), sep.join()));
         }
         // interpret: 각 태그를 텍스트로 읽어 다시 풀어 쓴다(읽을 수 없으면 건너뛴다)
         return then(source, CompletableFuture.allOf(sep, tags), v -> {
             List<CompletableFuture<Text>> parts = new ArrayList<>();
             for (Object tag : tags.join()) {
-                Text t = org.domi.furnace.server.scores.TextTags.tagToText(tag);
+                Text t = tag instanceof String str ? parseJsonText(str) : org.domi.furnace.server.scores.TextTags.tagToText(tag);
                 if (t != null) parts.add(resolve(source, t, entity, depth));
             }
             return then(source, CompletableFuture.allOf(parts.toArray(new CompletableFuture[0])), w -> {
@@ -205,6 +214,20 @@ public final class ComponentUtils {
                 return join(texts, sep.join());
             });
         }).thenCompose(f -> f);
+    }
+
+    /** 바닐라 Tag.getAsString: 문자열 태그는 그 값, 나머지는 SNBT. */
+    private static String tagAsString(Object tag) {
+        return tag instanceof String s ? s : Snbt.write(NbtTags.freeze(NbtTags.copy(tag)));
+    }
+
+    /** interpret: 문자열 태그의 내용을 JSON 글로 읽는다(바닐라 Component.Serializer.fromJson). 읽을 수 없으면 null. */
+    private static Text parseJsonText(String json) {
+        try {
+            return org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize(json);
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     private static Text join(List<Text> parts, Text separator) {
