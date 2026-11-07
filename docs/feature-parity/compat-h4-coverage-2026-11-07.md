@@ -43,8 +43,8 @@
 | Bukkit API | 291 | 206 | 663 | 167 | 730 |
 | Paper API | 25 | 25 | 0 | 0 | 49 |
 | Spigot·BungeeChat | 6 | 6 | 0 | 0 | 19 |
-| CraftBukkit | 358 | 358 | 0 | 0 | 429 |
-| net.minecraft·authlib | 245 | 245 | 0 | 0 | 828 |
+| CraftBukkit | 358 | 356 | 2 | 0 | 427 |
+| net.minecraft·authlib | 245 | 239 | 120 | 113 | 706 |
 | Adventure(Paper 제공) | 80 | 80 | 0 | 0 | 153 |
 | 서버 제공 라이브러리(Guava·Gson·SnakeYAML 등) | 126 | 103 | 125 | 0 | 399 |
 
@@ -190,15 +190,19 @@
 
 ## 4. 클래스는 있는데 없는 멤버 순위
 
-전체 167개 중 위 120개 (요구하는 jar 수 순).
+전체 271개 중 위 120개 (요구하는 jar 수 순).
 
 | 멤버 | jar 수 |
 |---|---:|
+| `net.minecraft.server.MinecraftServer#server` | 9 |
 | `org.bukkit.entity.Player#updateCommands()V` | 4 |
 | `org.bukkit.Server#getMessenger()Lorg/bukkit/plugin/messaging/Messenger;` | 3 |
 | `org.bukkit.entity.Player#sendPluginMessage(Lorg/bukkit/plugin/Plugin;Ljava/lang/String;[B)V` | 3 |
 | `org.bukkit.entity.Player#spigot()Lorg/bukkit/entity/Player$Spigot;` | 3 |
 | `org.bukkit.util.Vector#multiply(I)Lorg/bukkit/util/Vector;` | 3 |
+| `net.minecraft.server.MinecraftServer#ax` | 2 |
+| `net.minecraft.world.item.ItemStack#h()Lnet/minecraft/core/Holder;` | 2 |
+| `net.minecraft.world.item.ItemStack#i()Lnet/minecraft/core/Holder;` | 2 |
 | `org.bukkit.Bukkit#addRecipe(Lorg/bukkit/inventory/Recipe;)Z` | 2 |
 | `org.bukkit.Bukkit#getOnlineMode()Z` | 2 |
 | `org.bukkit.Server#getGlobalRegionScheduler()Lio/papermc/paper/threadedregions/scheduler/GlobalRegionScheduler;` | 2 |
@@ -218,102 +222,98 @@
 | `org.bukkit.inventory.meta.ItemMeta#lore()Ljava/util/List;` | 2 |
 | `org.bukkit.inventory.meta.ItemMeta#lore(Ljava/util/List;)V` | 2 |
 | `org.bukkit.util.Vector#toLocation(Lorg/bukkit/World;)Lorg/bukkit/Location;` | 2 |
-| `org.bukkit.Bukkit#createBossBar(Ljava/lang/String;Lorg/bukkit/boss/BarColor;Lorg/bukkit/boss/BarStyle;[Lorg/bukkit/boss/BarFlag;)Lorg/bukkit/boss/BossBar;` | 1 |
-| `org.bukkit.Bukkit#createInventory(Lorg/bukkit/inventory/InventoryHolder;ILnet/kyori/adventure/text/Component;)Lorg/bukkit/inventory/Inventory;` | 1 |
-| `org.bukkit.Bukkit#createInventory(Lorg/bukkit/inventory/InventoryHolder;Lorg/bukkit/event/inventory/InventoryType;Ljava/lang/String;)Lorg/bukkit/inventory/Inventory;` | 1 |
-| `org.bukkit.Bukkit#createInventory(Lorg/bukkit/inventory/InventoryHolder;Lorg/bukkit/event/inventory/InventoryType;Lnet/kyori/adventure/text/Component;)Lorg/bukkit/inventory/Inventory;` | 1 |
-| `org.bukkit.Bukkit#createMap(Lorg/bukkit/World;)Lorg/bukkit/map/MapView;` | 1 |
-| `org.bukkit.Bukkit#createMerchant(Ljava/lang/String;)Lorg/bukkit/inventory/Merchant;` | 1 |
-| `org.bukkit.Bukkit#createMerchant(Lnet/kyori/adventure/text/Component;)Lorg/bukkit/inventory/Merchant;` | 1 |
-| `org.bukkit.Bukkit#createPlayerProfile(Ljava/util/UUID;)Lorg/bukkit/profile/PlayerProfile;` | 1 |
-| `org.bukkit.Bukkit#createWorldBorder()Lorg/bukkit/WorldBorder;` | 1 |
-| `org.bukkit.Bukkit#getEntity(Ljava/util/UUID;)Lorg/bukkit/entity/Entity;` | 1 |
-| `org.bukkit.Bukkit#getHelpMap()Lorg/bukkit/help/HelpMap;` | 1 |
-| `org.bukkit.Bukkit#getItemFactory()Lorg/bukkit/inventory/ItemFactory;` | 1 |
-| `org.bukkit.Bukkit#getOfflinePlayer(Ljava/lang/String;)Lorg/bukkit/OfflinePlayer;` | 1 |
-| `org.bukkit.Bukkit#getOfflinePlayer(Ljava/util/UUID;)Lorg/bukkit/OfflinePlayer;` | 1 |
-| `org.bukkit.Bukkit#getOfflinePlayers()[Lorg/bukkit/OfflinePlayer;` | 1 |
-| `org.bukkit.Bukkit#getScoreboardManager()Lorg/bukkit/scoreboard/ScoreboardManager;` | 1 |
-| `org.bukkit.Bukkit#getUnsafe()Lorg/bukkit/UnsafeValues;` | 1 |
-| `org.bukkit.Bukkit#getWorld(Lorg/bukkit/NamespacedKey;)Lorg/bukkit/World;` | 1 |
-| `org.bukkit.Bukkit#hasWhitelist()Z` | 1 |
-| `org.bukkit.Bukkit#recipeIterator()Ljava/util/Iterator;` | 1 |
-| `org.bukkit.Chunk#getBlock(III)Lorg/bukkit/block/Block;` | 1 |
-| `org.bukkit.Chunk#load()Z` | 1 |
-| `org.bukkit.Chunk#load(Z)Z` | 1 |
-| `org.bukkit.Location#getChunk()Lorg/bukkit/Chunk;` | 1 |
-| `org.bukkit.Material#WALL_SIGN` | 1 |
-| `org.bukkit.Material#getId()I` | 1 |
-| `org.bukkit.Material#getNewData(B)Lorg/bukkit/material/MaterialData;` | 1 |
-| `org.bukkit.Material#isInteractable()Z` | 1 |
-| `org.bukkit.NamespacedKey#asString()Ljava/lang/String;` | 1 |
-| `org.bukkit.OfflinePlayer#getLocation()Lorg/bukkit/Location;` | 1 |
-| `org.bukkit.Server#createBossBar(Ljava/lang/String;Lorg/bukkit/boss/BarColor;Lorg/bukkit/boss/BarStyle;[Lorg/bukkit/boss/BarFlag;)Lorg/bukkit/boss/BossBar;` | 1 |
-| `org.bukkit.Server#getAsyncScheduler()Lio/papermc/paper/threadedregions/scheduler/AsyncScheduler;` | 1 |
-| `org.bukkit.Server#getHelpMap()Lorg/bukkit/help/HelpMap;` | 1 |
-| `org.bukkit.Server#getOfflinePlayer(Ljava/lang/String;)Lorg/bukkit/OfflinePlayer;` | 1 |
-| `org.bukkit.Server#getOfflinePlayer(Ljava/util/UUID;)Lorg/bukkit/OfflinePlayer;` | 1 |
-| `org.bukkit.Server#getRegionScheduler()Lio/papermc/paper/threadedregions/scheduler/RegionScheduler;` | 1 |
-| `org.bukkit.World#dropItemNaturally(Lorg/bukkit/Location;Lorg/bukkit/inventory/ItemStack;)Lorg/bukkit/entity/Item;` | 1 |
-| `org.bukkit.World#getGameRuleValue(Lorg/bukkit/GameRule;)Ljava/lang/Object;` | 1 |
-| `org.bukkit.World#getSpawnLocation()Lorg/bukkit/Location;` | 1 |
-| `org.bukkit.World#getWorldBorder()Lorg/bukkit/WorldBorder;` | 1 |
-| `org.bukkit.World#isGameRule(Ljava/lang/String;)Z` | 1 |
-| `org.bukkit.World#playEffect(Lorg/bukkit/Location;Lorg/bukkit/Effect;Ljava/lang/Object;)V` | 1 |
-| `org.bukkit.World#setGameRule(Lorg/bukkit/GameRule;Ljava/lang/Object;)Z` | 1 |
-| `org.bukkit.World#spawn(Lorg/bukkit/Location;Ljava/lang/Class;Lorg/bukkit/event/entity/CreatureSpawnEvent$SpawnReason;ZLjava/util/function/Consumer;)Lorg/bukkit/entity/LivingEntity;` | 1 |
-| `org.bukkit.World#spawn(Lorg/bukkit/Location;Ljava/lang/Class;Lorg/bukkit/util/Consumer;)Lorg/bukkit/entity/Entity;` | 1 |
-| `org.bukkit.World#spawn(Lorg/bukkit/Location;Ljava/lang/Class;ZLjava/util/function/Consumer;)Lorg/bukkit/entity/Entity;` | 1 |
-| `org.bukkit.World#spawnParticle(Lorg/bukkit/Particle;Lorg/bukkit/Location;I)V` | 1 |
-| `org.bukkit.World#spawnParticle(Lorg/bukkit/Particle;Lorg/bukkit/Location;IDDD)V` | 1 |
-| `org.bukkit.World#spawnParticle(Lorg/bukkit/Particle;Lorg/bukkit/Location;IDDDDLjava/lang/Object;)V` | 1 |
-| `org.bukkit.World#spawnParticle(Lorg/bukkit/Particle;Lorg/bukkit/Location;IDDDDLjava/lang/Object;Z)V` | 1 |
-| `org.bukkit.block.Block#breakNaturally()Z` | 1 |
-| `org.bukkit.block.Block#getBiome()Lorg/bukkit/block/Biome;` | 1 |
-| `org.bukkit.block.Block#getData()B` | 1 |
-| `org.bukkit.block.Block#getState()Lorg/bukkit/block/BlockState;` | 1 |
-| `org.bukkit.block.Block#setBiome(Lorg/bukkit/block/Biome;)V` | 1 |
-| `org.bukkit.command.CommandSender#sendMessage(Lnet/kyori/adventure/text/Component;)V` | 1 |
-| `org.bukkit.command.CommandSender#spigot()Lorg/bukkit/command/CommandSender$Spigot;` | 1 |
-| `org.bukkit.enchantments.Enchantment#getByName(Ljava/lang/String;)Lorg/bukkit/enchantments/Enchantment;` | 1 |
-| `org.bukkit.enchantments.Enchantment#getName()Ljava/lang/String;` | 1 |
-| `org.bukkit.enchantments.Enchantment#values()[Lorg/bukkit/enchantments/Enchantment;` | 1 |
-| `org.bukkit.entity.Entity#getEntityId()I` | 1 |
-| `org.bukkit.entity.Entity#getScheduler()Lio/papermc/paper/threadedregions/scheduler/EntityScheduler;` | 1 |
-| `org.bukkit.entity.Entity#setCustomNameVisible(Z)V` | 1 |
-| `org.bukkit.entity.Entity#setFallDistance(F)V` | 1 |
-| `org.bukkit.entity.Entity#setFireTicks(I)V` | 1 |
-| `org.bukkit.entity.Entity#setGlowing(Z)V` | 1 |
-| `org.bukkit.entity.Entity#setGravity(Z)V` | 1 |
-| `org.bukkit.entity.Entity#setInvulnerable(Z)V` | 1 |
-| `org.bukkit.entity.Entity#setPortalCooldown(I)V` | 1 |
-| `org.bukkit.entity.Entity#setSilent(Z)V` | 1 |
-| `org.bukkit.entity.Entity#setTicksLived(I)V` | 1 |
-| `org.bukkit.entity.EntityType#fromName(Ljava/lang/String;)Lorg/bukkit/entity/EntityType;` | 1 |
-| `org.bukkit.entity.EntityType#getEntityClass()Ljava/lang/Class;` | 1 |
-| `org.bukkit.entity.EntityType#getName()Ljava/lang/String;` | 1 |
-| `org.bukkit.entity.HumanEntity#closeInventory()V` | 1 |
-| `org.bukkit.entity.HumanEntity#getItemOnCursor()Lorg/bukkit/inventory/ItemStack;` | 1 |
-| `org.bukkit.entity.HumanEntity#getOpenInventory()Lorg/bukkit/inventory/InventoryView;` | 1 |
-| `org.bukkit.entity.HumanEntity#openInventory(Lorg/bukkit/inventory/Inventory;)Lorg/bukkit/inventory/InventoryView;` | 1 |
-| `org.bukkit.entity.HumanEntity#setItemOnCursor(Lorg/bukkit/inventory/ItemStack;)V` | 1 |
-| `org.bukkit.entity.LivingEntity#addPotionEffect(Lorg/bukkit/potion/PotionEffect;)Z` | 1 |
-| `org.bukkit.entity.LivingEntity#getAttribute(Lorg/bukkit/attribute/Attribute;)Lorg/bukkit/attribute/AttributeInstance;` | 1 |
-| `org.bukkit.entity.LivingEntity#getEntityId()I` | 1 |
-| `org.bukkit.entity.LivingEntity#getEquipment()Lorg/bukkit/inventory/EntityEquipment;` | 1 |
-| `org.bukkit.entity.LivingEntity#getEyeLocation()Lorg/bukkit/Location;` | 1 |
-| `org.bukkit.entity.LivingEntity#launchProjectile(Ljava/lang/Class;)Lorg/bukkit/entity/Projectile;` | 1 |
-| `org.bukkit.entity.LivingEntity#setAI(Z)V` | 1 |
-| `org.bukkit.entity.LivingEntity#setAbsorptionAmount(D)V` | 1 |
-| `org.bukkit.entity.LivingEntity#setCanPickupItems(Z)V` | 1 |
-| `org.bukkit.entity.LivingEntity#setCollidable(Z)V` | 1 |
-| `org.bukkit.entity.LivingEntity#setGliding(Z)V` | 1 |
-| `org.bukkit.entity.LivingEntity#setMaximumAir(I)V` | 1 |
-| `org.bukkit.entity.LivingEntity#setNoDamageTicks(I)V` | 1 |
-| `org.bukkit.entity.LivingEntity#setRemainingAir(I)V` | 1 |
-| `org.bukkit.entity.LivingEntity#setRemoveWhenFarAway(Z)V` | 1 |
-| `org.bukkit.entity.LivingEntity#setSwimming(Z)V` | 1 |
-| `org.bukkit.entity.Player#canSee(Lorg/bukkit/entity/Player;)Z` | 1 |
+| `net.minecraft.server.MinecraftServer#aA` | 1 |
+| `net.minecraft.server.MinecraftServer#aA()Lnet/minecraft/server/CustomFunctionData;` | 1 |
+| `net.minecraft.server.MinecraftServer#aB()Lnet/minecraft/server/AdvancementDataWorld;` | 1 |
+| `net.minecraft.server.MinecraftServer#aB()Lnet/minecraft/server/packs/repository/ResourcePackRepository;` | 1 |
+| `net.minecraft.server.MinecraftServer#aC()Lnet/minecraft/commands/CommandDispatcher;` | 1 |
+| `net.minecraft.server.MinecraftServer#aC()Lnet/minecraft/server/CustomFunctionData;` | 1 |
+| `net.minecraft.server.MinecraftServer#aD()Lnet/minecraft/server/AdvancementDataWorld;` | 1 |
+| `net.minecraft.server.MinecraftServer#aD()Lnet/minecraft/server/packs/repository/ResourcePackRepository;` | 1 |
+| `net.minecraft.server.MinecraftServer#aE()Lnet/minecraft/commands/CommandDispatcher;` | 1 |
+| `net.minecraft.server.MinecraftServer#aE()Lnet/minecraft/server/AdvancementDataWorld;` | 1 |
+| `net.minecraft.server.MinecraftServer#aE()Lnet/minecraft/server/CustomFunctionData;` | 1 |
+| `net.minecraft.server.MinecraftServer#aF()Lnet/minecraft/server/CustomFunctionData;` | 1 |
+| `net.minecraft.server.MinecraftServer#aF()Lnet/minecraft/server/packs/repository/ResourcePackRepository;` | 1 |
+| `net.minecraft.server.MinecraftServer#aG()Lnet/minecraft/commands/CommandDispatcher;` | 1 |
+| `net.minecraft.server.MinecraftServer#aG()Lnet/minecraft/server/packs/repository/ResourcePackRepository;` | 1 |
+| `net.minecraft.server.MinecraftServer#aH()Lnet/minecraft/commands/CommandDispatcher;` | 1 |
+| `net.minecraft.server.MinecraftServer#aH()Lnet/minecraft/world/level/storage/loot/LootDataManager;` | 1 |
+| `net.minecraft.server.MinecraftServer#aI()Lnet/minecraft/world/item/crafting/CraftingManager;` | 1 |
+| `net.minecraft.server.MinecraftServer#aJ()Lnet/minecraft/world/level/storage/loot/LootDataManager;` | 1 |
+| `net.minecraft.server.MinecraftServer#aR()Lnet/minecraft/util/profiling/GameProfilerFiller;` | 1 |
+| `net.minecraft.server.MinecraftServer#aS()Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplateManager;` | 1 |
+| `net.minecraft.server.MinecraftServer#aT()Lnet/minecraft/util/profiling/GameProfilerFiller;` | 1 |
+| `net.minecraft.server.MinecraftServer#aT()Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplateManager;` | 1 |
+| `net.minecraft.server.MinecraftServer#aT()Lnet/minecraft/world/level/storage/SaveData;` | 1 |
+| `net.minecraft.server.MinecraftServer#aU()Lnet/minecraft/core/IRegistryCustom$Dimension;` | 1 |
+| `net.minecraft.server.MinecraftServer#aU()Lnet/minecraft/world/level/storage/SaveData;` | 1 |
+| `net.minecraft.server.MinecraftServer#aV()Lnet/minecraft/core/IRegistryCustom$Dimension;` | 1 |
+| `net.minecraft.server.MinecraftServer#aX()Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplateManager;` | 1 |
+| `net.minecraft.server.MinecraftServer#aY()Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplateManager;` | 1 |
+| `net.minecraft.server.MinecraftServer#aY()Lnet/minecraft/world/level/storage/SaveData;` | 1 |
+| `net.minecraft.server.MinecraftServer#aZ()Lnet/minecraft/core/IRegistryCustom$Dimension;` | 1 |
+| `net.minecraft.server.MinecraftServer#aZ()Lnet/minecraft/world/level/storage/SaveData;` | 1 |
+| `net.minecraft.server.MinecraftServer#ar` | 1 |
+| `net.minecraft.server.MinecraftServer#as` | 1 |
+| `net.minecraft.server.MinecraftServer#at` | 1 |
+| `net.minecraft.server.MinecraftServer#au` | 1 |
+| `net.minecraft.server.MinecraftServer#av` | 1 |
+| `net.minecraft.server.MinecraftServer#ay` | 1 |
+| `net.minecraft.server.MinecraftServer#az` | 1 |
+| `net.minecraft.server.MinecraftServer#az()Lnet/minecraft/server/AdvancementDataWorld;` | 1 |
+| `net.minecraft.server.MinecraftServer#b(Ljava/util/function/BooleanSupplier;)V` | 1 |
+| `net.minecraft.server.MinecraftServer#ba()Lnet/minecraft/core/IRegistryCustom$Dimension;` | 1 |
+| `net.minecraft.server.MinecraftServer#ba()Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplateManager;` | 1 |
+| `net.minecraft.server.MinecraftServer#bb()Lnet/minecraft/core/LayeredRegistryAccess;` | 1 |
+| `net.minecraft.server.MinecraftServer#bb()Lnet/minecraft/world/level/storage/SaveData;` | 1 |
+| `net.minecraft.server.MinecraftServer#bc()Lnet/minecraft/core/IRegistryCustom$Dimension;` | 1 |
+| `net.minecraft.server.MinecraftServer#bc()Lnet/minecraft/server/ReloadableServerRegistries$a;` | 1 |
+| `net.minecraft.server.MinecraftServer#be()Lnet/minecraft/server/ReloadableServerRegistries$b;` | 1 |
+| `net.minecraft.server.MinecraftServer#bl()Z` | 1 |
+| `net.minecraft.server.MinecraftServer#bq()Z` | 1 |
+| `net.minecraft.server.MinecraftServer#bw()Z` | 1 |
+| `net.minecraft.server.MinecraftServer#bx()Z` | 1 |
+| `net.minecraft.server.MinecraftServer#c(Ljava/util/function/BooleanSupplier;)V` | 1 |
+| `net.minecraft.server.MinecraftServer#vanillaCommandDispatcher` | 1 |
+| `net.minecraft.server.dedicated.DedicatedServer#aT()Lnet/minecraft/world/level/storage/SaveData;` | 1 |
+| `net.minecraft.server.dedicated.DedicatedServer#aU()Lnet/minecraft/core/IRegistryCustom$Dimension;` | 1 |
+| `net.minecraft.server.dedicated.DedicatedServer#aU()Lnet/minecraft/world/level/storage/SaveData;` | 1 |
+| `net.minecraft.server.dedicated.DedicatedServer#aV()Lnet/minecraft/core/IRegistryCustom$Dimension;` | 1 |
+| `net.minecraft.server.dedicated.DedicatedServer#aY()Lnet/minecraft/world/level/storage/SaveData;` | 1 |
+| `net.minecraft.server.dedicated.DedicatedServer#aZ()Lnet/minecraft/core/IRegistryCustom$Dimension;` | 1 |
+| `net.minecraft.server.dedicated.DedicatedServer#aZ()Lnet/minecraft/world/level/storage/SaveData;` | 1 |
+| `net.minecraft.server.dedicated.DedicatedServer#ba()Lnet/minecraft/core/IRegistryCustom$Dimension;` | 1 |
+| `net.minecraft.server.dedicated.DedicatedServer#bb()Lnet/minecraft/world/level/storage/SaveData;` | 1 |
+| `net.minecraft.server.dedicated.DedicatedServer#bc()Lnet/minecraft/core/IRegistryCustom$Dimension;` | 1 |
+| `net.minecraft.server.level.ServerPlayer#sendMerchantOffers(ILnet/minecraft/world/item/trading/MerchantOffers;IIZZ)V` | 1 |
+| `net.minecraft.world.entity.Entity#getBukkitEntity()Lorg/bukkit/craftbukkit/v1_20_R1/entity/CraftEntity;` | 1 |
+| `net.minecraft.world.entity.Entity#getBukkitEntity()Lorg/bukkit/craftbukkit/v1_20_R2/entity/CraftEntity;` | 1 |
+| `net.minecraft.world.entity.Entity#getBukkitEntity()Lorg/bukkit/craftbukkit/v1_20_R3/entity/CraftEntity;` | 1 |
+| `net.minecraft.world.entity.Entity#getBukkitEntity()Lorg/bukkit/craftbukkit/v1_20_R4/entity/CraftEntity;` | 1 |
+| `net.minecraft.world.entity.Entity#getBukkitEntity()Lorg/bukkit/craftbukkit/v1_21_R1/entity/CraftEntity;` | 1 |
+| `net.minecraft.world.entity.Entity#getBukkitEntity()Lorg/bukkit/craftbukkit/v1_21_R2/entity/CraftEntity;` | 1 |
+| `net.minecraft.world.entity.Entity#getBukkitEntity()Lorg/bukkit/craftbukkit/v1_21_R3/entity/CraftEntity;` | 1 |
+| `net.minecraft.world.entity.Entity#getBukkitEntity()Lorg/bukkit/craftbukkit/v1_21_R4/entity/CraftEntity;` | 1 |
+| `net.minecraft.world.entity.Entity#getBukkitEntity()Lorg/bukkit/craftbukkit/v1_21_R5/entity/CraftEntity;` | 1 |
+| `net.minecraft.world.entity.player.Player#containerMenu` | 1 |
+| `net.minecraft.world.entity.player.Player#getInventory()Lnet/minecraft/world/entity/player/Inventory;` | 1 |
+| `net.minecraft.world.item.ItemStack#H()I` | 1 |
+| `net.minecraft.world.item.ItemStack#I()I` | 1 |
+| `net.minecraft.world.item.ItemStack#L()I` | 1 |
+| `net.minecraft.world.item.ItemStack#M()I` | 1 |
+| `net.minecraft.world.item.ItemStack#N()I` | 1 |
+| `net.minecraft.world.item.ItemStack#a()Lnet/minecraft/core/component/DataComponentMap;` | 1 |
+| `net.minecraft.world.item.ItemStack#a(Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/item/ItemStack;)Z` | 1 |
+| `net.minecraft.world.item.ItemStack#b` | 1 |
+| `net.minecraft.world.item.ItemStack#b()Z` | 1 |
+| `net.minecraft.world.item.ItemStack#b(Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/item/ItemStack;)Z` | 1 |
+| `net.minecraft.world.item.ItemStack#c()Lnet/minecraft/world/item/Item;` | 1 |
+| `net.minecraft.world.item.ItemStack#d()Lnet/minecraft/core/component/DataComponentPatch;` | 1 |
+| `net.minecraft.world.item.ItemStack#d()Lnet/minecraft/world/item/Item;` | 1 |
+| `net.minecraft.world.item.ItemStack#e()Lnet/minecraft/core/component/DataComponentPatch;` | 1 |
+| `net.minecraft.world.item.ItemStack#e()Z` | 1 |
+| `net.minecraft.world.item.ItemStack#f` | 1 |
 
 ## 5. CraftBukkit·net.minecraft 요구 (H5~H7 의 수요)
 

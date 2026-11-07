@@ -1,21 +1,37 @@
-package org.domi.furnace.compat.paper;
+package org.bukkit.craftbukkit.entity;
 
 import java.net.InetSocketAddress;
 import java.util.Locale;
 import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
+import org.domi.furnace.compat.paper.Compat;
+import org.domi.furnace.compat.paper.CompatPlayerInventory;
 
 /** Furnace 플레이어 위의 Bukkit Player. 접속이 끊긴 뒤에도 객체는 남지만 isOnline() 이 false 다. */
-final class CompatPlayer extends CompatLivingEntity implements Player {
+public class CraftPlayer extends CraftHumanEntity implements Player {
 
     private final org.domi.furnace.api.entity.Player handle;
 
-    CompatPlayer(org.domi.furnace.api.entity.Player handle) {
+    /** 호환 모듈 전용(Compat 캐시가 만든다). 접속마다 새 Furnace 플레이어 핸들이므로 새 CraftPlayer 다. */
+    public CraftPlayer(org.domi.furnace.api.entity.Player handle) {
         super(handle);
         this.handle = handle;
     }
 
-    org.domi.furnace.api.entity.Player handle() { return handle; }
+    /** 호환 모듈 전용 — 이 플레이어의 Furnace 핸들(접속 동안 같다). */
+    @Override
+    public org.domi.furnace.api.entity.Player furnaceHandle() { return handle; }
+
+    @Override
+    public void furnaceHandle(org.domi.furnace.api.entity.Entity fresh) {
+        if (fresh != handle) throw new IllegalArgumentException("플레이어 핸들은 접속 동안 바뀌지 않는다");
+    }
+
+    @Override
+    public net.minecraft.server.level.ServerPlayer getHandle() { return (net.minecraft.server.level.ServerPlayer) super.getHandle(); }
+
+    @Override
+    protected net.minecraft.world.entity.Entity createHandle() { return new net.minecraft.server.level.ServerPlayer(this); }
 
     private CompatPlayerInventory inventory;
 

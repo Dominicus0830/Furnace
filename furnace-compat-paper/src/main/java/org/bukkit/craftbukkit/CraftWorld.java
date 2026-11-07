@@ -1,4 +1,4 @@
-package org.domi.furnace.compat.paper;
+package org.bukkit.craftbukkit;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -9,17 +9,40 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
+import net.minecraft.server.level.ServerLevel;
 import org.domi.furnace.api.Furnace;
 import org.domi.furnace.api.world.BlockPos;
+import org.domi.furnace.compat.paper.Compat;
+import org.domi.furnace.compat.paper.CompatBlock;
+import org.domi.furnace.compat.paper.CompatChunk;
+import org.domi.furnace.compat.paper.UnsupportedFeature;
 
-/** Furnace 월드 위의 Bukkit World. 같은 차원이면 같은 객체(Compat 캐시) — equals 도 차원 키로 본다. */
-final class CompatWorld implements World {
+/**
+ * Furnace 월드 위의 Bukkit World. 같은 차원이면 같은 객체(Compat 캐시) — equals 도 차원 키로 본다.
+ * CraftBukkit 과 같은 이름이라 {@code (CraftWorld) world} 캐스트와 {@link #getHandle()} 이 된다(H6).
+ */
+public final class CraftWorld implements World {
 
     private final org.domi.furnace.api.world.World handle;
+    private volatile ServerLevel nms;
 
-    CompatWorld(org.domi.furnace.api.world.World handle) { this.handle = handle; }
+    /** 호환 모듈 전용(Compat 캐시가 만든다). */
+    public CraftWorld(org.domi.furnace.api.world.World handle) { this.handle = handle; }
 
-    org.domi.furnace.api.world.World handle() { return handle; }
+    /** 호환 모듈 전용 — 이 월드의 Furnace 핸들. */
+    public org.domi.furnace.api.world.World furnaceHandle() { return handle; }
+
+    /** NMS 월드 shim. 같은 CraftWorld 는 같은 shim 을 준다(== 비교·Map 키). 멤버는 일부만 있다(docs/feature-parity/compat-h6-2026-11-07.md). */
+    public ServerLevel getHandle() {
+        ServerLevel l = nms;
+        if (l == null) {
+            synchronized (this) {
+                l = nms;
+                if (l == null) nms = l = new ServerLevel(this);
+            }
+        }
+        return l;
+    }
 
     @Override
     public String getName() { return handle.name(); }
@@ -106,7 +129,7 @@ final class CompatWorld implements World {
     public String getGameRuleValue(String rule) { return handle.gameRule(rule); }
 
     @Override
-    public boolean equals(Object o) { return o instanceof CompatWorld w && w.handle.dimension().equals(handle.dimension()); }
+    public boolean equals(Object o) { return o instanceof CraftWorld w && w.handle.dimension().equals(handle.dimension()); }
 
     @Override
     public int hashCode() { return handle.dimension().hashCode(); }

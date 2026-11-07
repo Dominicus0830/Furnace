@@ -11,11 +11,11 @@ import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.domi.furnace.api.concurrent.ThreadOwnershipException;
 
-final class EntityPdc implements PersistentDataContainer {
+public final class EntityPdc implements PersistentDataContainer {
 
     private final org.domi.furnace.api.entity.Entity entity;
 
-    EntityPdc(org.domi.furnace.api.entity.Entity entity) { this.entity = entity; }
+    public EntityPdc(org.domi.furnace.api.entity.Entity entity) { this.entity = entity; }
 
     /** 소유 스레드에서 지금 값 위에 op 를 돌린다(바뀐 것은 곧바로 적용). 엔티티가 사라졌으면 IllegalStateException. */
     private <T> T access(Function<ItemPdc, T> op) {

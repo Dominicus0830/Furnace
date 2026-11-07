@@ -39,7 +39,7 @@ class BlockEntityWorldAdapterTest {
     @BeforeAll
     void start() {
         server = FurnaceTestServer.builder().failFast(false).start();
-        Bukkit.setServer(CompatServer.INSTANCE);
+        Bukkit.setServer(org.bukkit.craftbukkit.CraftServer.INSTANCE);
         tp = server.join("Dana");
         server.tick(3);
         var loc = tp.player().location();

@@ -27,7 +27,16 @@ public final class JarCompiler {
 
     /** @param sources 클래스 이름(패키지 포함) → 소스. */
     public static Path jar(Path jar, String pluginYml, Map<String, String> sources) throws IOException {
+        return jar(jar, pluginYml, sources, java.util.Set.of());
+    }
+
+    /**
+     * @param stubs 컴파일에만 쓰고 jar 에는 넣지 않을 클래스 이름 접두(패키지 포함, 예: 서버에 실제로는 없는 Spigot 접미사 이름
+     *              {@code org.bukkit.craftbukkit.v1_21_R1.} — 실제 플러그인이 Spigot API 로 컴파일된 모양을 흉내 낸다)
+     */
+    public static Path jar(Path jar, String pluginYml, Map<String, String> sources, java.util.Set<String> stubs) throws IOException {
         Map<String, byte[]> classes = compile(sources);
+        classes.keySet().removeIf(n -> stubs.stream().anyMatch(n::startsWith));
         Files.createDirectories(jar.getParent());
         try (JarOutputStream out = new JarOutputStream(Files.newOutputStream(jar))) {
             out.putNextEntry(new JarEntry("plugin.yml"));

@@ -125,12 +125,18 @@ public final class CompatFormat implements PluginFormat {
     /** 이름이 같은 jar 가 둘일 때(부트스트랩이 하나를 버린다) 버려진 쪽 설명이 덮어쓰지 않게 main 클래스까지 키로 쓴다. */
     private static String key(String name, String main) { return name.toLowerCase(Locale.ROOT) + "|" + main; }
 
+    /** NMS·CraftBukkit 이름 변환(H6): CraftBukkit 버전 접미사 풀기와 리플렉션 이름 다리. 서버는 plugins.compat.nms.enabled=false 면 묻지 않는다. */
+    @Override
+    public org.domi.furnace.api.plugin.ClassTransformer transformer(PluginDescription description, java.nio.file.Path jar) {
+        return new org.domi.furnace.compat.nms.NmsClassTransformer(description.name());
+    }
+
     @Override
     public FurnacePlugin create(PluginContext context, Class<?> main) throws ReflectiveOperationException {
         if (!JavaPlugin.class.isAssignableFrom(main)) {
             throw new IllegalArgumentException("main 클래스가 org.bukkit.plugin.java.JavaPlugin 을 상속하지 않는다: " + main.getName());
         }
-        Bukkit.setServer(CompatServer.INSTANCE);
+        Bukkit.setServer(org.bukkit.craftbukkit.CraftServer.INSTANCE);
         PluginDescription d = context.description();
         PluginDescriptionFile pdf = descriptors.get(key(d.name(), d.main()));
         if (pdf == null) pdf = new PluginDescriptionFile(d.name(), d.version(), d.main());

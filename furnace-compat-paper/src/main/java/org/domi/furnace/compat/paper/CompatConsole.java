@@ -4,9 +4,9 @@ import org.bukkit.Server;
 import org.bukkit.command.ConsoleCommandSender;
 
 /** 서버 콘솔. 모든 권한을 가진다(Bukkit 과 같다). */
-final class CompatConsole implements ConsoleCommandSender {
+public final class CompatConsole implements ConsoleCommandSender {
 
-    static final CompatConsole INSTANCE = new CompatConsole();
+    public static final CompatConsole INSTANCE = new CompatConsole();
 
     private CompatConsole() {}
 

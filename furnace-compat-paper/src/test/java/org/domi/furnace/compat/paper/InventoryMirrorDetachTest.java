@@ -24,7 +24,7 @@ class InventoryMirrorDetachTest {
 
     @BeforeAll void start() {
         server = FurnaceTestServer.builder().failFast(false).start();
-        Bukkit.setServer(CompatServer.INSTANCE);
+        Bukkit.setServer(org.bukkit.craftbukkit.CraftServer.INSTANCE);
         tp = server.join("Dana"); server.tick(3);
         var loc = tp.player().location();
         at = new BlockPos((int) Math.floor(loc.x()), (int) Math.floor(loc.y()), (int) Math.floor(loc.z()));

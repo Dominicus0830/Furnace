@@ -128,4 +128,10 @@ public interface Entity {
      * 엔티티 자신은 들어 있지 않다. 모르면 {@link org.domi.furnace.api.event.cause.CauseChain#NONE}. 저장되지 않는다(다시 읽은 엔티티는 바닐라 주인만).
      */
     default org.domi.furnace.api.event.cause.CauseChain origin() { return org.domi.furnace.api.event.cause.CauseChain.NONE; }
+
+    /**
+     * 핸들(스냅샷)을 만든 순번 — 같은 엔티티의 두 핸들 중 값이 큰 쪽이 나중에 만든 것이다. 서버 전체에서 늘어나기만 한다.
+     * 0 이면 모른다(살아 있는 핸들이거나 서버가 순번을 매기지 않는 구현). 호환 계층이 늦게 온 옛 스냅샷으로 새 값을 덮지 않게 쓴다.
+     */
+    default long snapshotStamp() { return 0L; }
 }
