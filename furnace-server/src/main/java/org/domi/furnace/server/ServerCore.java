@@ -1362,7 +1362,10 @@ public final class ServerCore {
                 .with(org.domi.furnace.server.loot.LootParams.BLOCK_STATE, lootBlockState(state))
                 .with(org.domi.furnace.server.loot.LootParams.EXPLOSION_RADIUS, explosionRadius);
         if (entity instanceof Player p) params.with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, lootEntity(p));
-        if (blockEntity != null) params.with(org.domi.furnace.server.loot.LootParams.BLOCK_ENTITY, blockEntity);   // collectComponents(region 스레드에서 모은 것)
+        if (blockEntity != null) {
+            params.with(org.domi.furnace.server.loot.LootParams.BLOCK_ENTITY, blockEntity);   // collectComponents(region 스레드에서 모은 것)
+            if (org.domi.furnace.server.block.B.is(state, "decorated_pot")) params.sherds(blockEntity);   // DecoratedPotBlock.getDrops: 동적 드롭 minecraft:sherds
+        }
         var ctx = table.context(loot, lootWorld, params, 0L);
         java.util.List<ItemStack> out = new java.util.ArrayList<>();
         for (var s : table.getRandomItems(ctx)) {

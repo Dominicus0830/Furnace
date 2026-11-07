@@ -86,32 +86,15 @@ public class DecoratedPotBlock extends BaseEntityBlock {
         super.onRemove(state, level, pos, newState, moved);
     }
 
-    /**
-     * 바닐라 getDrops: 금 간 단지는 조각 4개(sherds 동적 드롭, 벽돌 포함), 아니면 pot_decorations 를 복사한 단지 하나.
-     * 이 표는 난수를 쓰지 않는다. TODO(전리품): 전리품 시스템이 블록 엔티티 컴포넌트·동적 드롭을 받게 되면 표(데이터 팩 수정 포함)로.
-     */
-    @Override
-    public java.util.List<ItemStack> getDrops(int state, BlockLevel level, Pos pos, Object blockEntity, BlockActor entity, ItemStack tool, Float explosionRadius) {
-        if (!(blockEntity instanceof DecoratedPotBlockEntity be)) return java.util.List.of();
-        java.util.List<ItemStack> out = new java.util.ArrayList<>();
-        if (CRACKED.is(state)) {
-            for (String sherd : be.sherds) {
-                Integer id = ItemContext.id("minecraft:item", sherd);
-                if (id != null) out.add(new ItemStack(id, 1));
-            }
-        } else {
-            Integer pot = ItemContext.id("minecraft:item", "minecraft:decorated_pot");
-            if (pot != null) out.add(ItemTools.with(new ItemStack(pot, 1), "minecraft:pot_decorations", new java.util.ArrayList<Object>(java.util.Arrays.asList(be.sherds))));
-        }
-        return out;
-    }
+    // getDrops 는 바닐라처럼 전리품 표(blocks/decorated_pot — 금 간 단지는 동적 항목 minecraft:sherds, 아니면 pot_decorations 복사)에 맡긴다.
+    // 동적 항목은 ServerCore.blockDrops 가 LootParams.sherds 로 이어 준다(데이터 팩이 표를 고치면 그대로 따른다).
 
     @Override
     public int playerWillDestroy(BlockLevel level, Pos pos, int state, BlockActor player) {
         ItemStack tool = player.itemInHand(BlockActor.MAIN_HAND);
         int s = state;
-        // TODO(마법 부여): 실크 터치 판정(EnchantmentHelper.hasTag(PREVENTS_DECORATED_POT_SHATTERING)) — 지금은 없다고 본다.
-        if (B.holdsTag(tool, "minecraft:breaks_decorated_pots")) {
+        // 섬세한 손길 등 #prevents_decorated_pot_shattering 인챈트가 있으면 금 가지 않고 통째로 나온다
+        if (B.holdsTag(tool, "minecraft:breaks_decorated_pots") && !ItemTools.hasEnchantmentTag(tool, "minecraft:prevents_decorated_pot_shattering")) {
             s = CRACKED.with(state, true);
             level.setBlock(pos, s, 4);
         }
