@@ -1,5 +1,5 @@
 // 바닐라 Pufferfish: 가까이 오는 것을 보면 부풀어(0→1→2) 닿는 대상을 찌르고 독(60틱×단계)을 건다. 부푼 정도에 따라 몸집이 커진다.
-// TODO(플레이어 접촉): 플레이어가 부딪쳐 찔리는 playerTouch(엔티티 접촉 훅 필요). 현재는 aiStep 의 주변 탐색만 한다.
+// 몹은 aiStep 의 주변 탐색(Mob 만)으로, 플레이어는 플레이어 쪽 접촉(playerTouch)으로 찔린다.
 package org.domi.furnace.server.entity;
 
 import java.util.List;
@@ -103,22 +103,31 @@ public class Pufferfish extends AbstractFish {
     protected void aiStep() {
         super.aiStep();
         if (isAlive() && getPuffState() > 0) {
-            for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, boundingBox().inflate(0.3), t -> TARGETING_CONDITIONS.test(this, t))) {
+            // cfx.aiStep: getEntitiesOfClass(Mob.class) — 플레이어·갑옷 거치대는 여기서 찔리지 않는다
+            for (Mob target : level.getEntitiesOfClass(Mob.class, boundingBox().inflate(0.3), t -> TARGETING_CONDITIONS.test(this, t))) {
                 if (target.isAlive()) touch(target);
             }
-            level.forEachPlayerIn(boundingBox().inflate(0.3), p -> {
-                if (p.isAlive() && TARGETING_CONDITIONS.test(this, p)) touch(p);
-            });
         }
     }
 
-    private void touch(Targetable target) {
+    private void touch(Mob target) {
         int state = getPuffState();
         if (target.hurtByMob(new Damage("mob_attack", false, false, false), 1 + state, this)) {
-            MobEffectInstance poison = new MobEffectInstance(MobEffect.POISON, 60 * state, 0);
-            if (target instanceof LivingEntity le) le.addEffect(poison);
-            else if (target instanceof Player p) p.vitals().addEffect(poison);
+            target.addEffect(new MobEffectInstance(MobEffect.POISON, 60 * state, 0));
             playSound("entity.puffer_fish.sting", 1.0F, 1.0F);
+        }
+    }
+
+    /**
+     * Pufferfish.playerTouch(cfx): 부풀어 있고 플레이어를 1+단계 만큼 때렸으면, 조용하지 않을 때 그 플레이어에게 PUFFER_FISH_STING(9) 게임 이벤트
+     * (클라이언트가 찔림 소리를 낸다) → 독 60×단계 틱.
+     */
+    @Override
+    public void playerTouch(Player p) {
+        int state = getPuffState();
+        if (state > 0 && p.hurtByMob(new Damage("mob_attack", false, false, false), 1 + state, this)) {
+            if (!isSilent()) p.send(new org.domi.furnace.server.net.protocol.play.GameEvent(org.domi.furnace.server.net.protocol.play.GameEvent.PUFFER_FISH_STING, 0.0F));
+            p.vitals().addEffect(new MobEffectInstance(MobEffect.POISON, 60 * state, 0));
         }
     }
 

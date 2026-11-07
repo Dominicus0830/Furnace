@@ -1,5 +1,5 @@
 // 바닐라 PiglinAi: 피글린 브레인 구성과 규칙 — 금 아이템 감상·물물교환, 금 갑옷이 없는 플레이어 공격, 호글린 사냥/도피, 석궁 사격, 축하.
-// TODO(탑승): 아기 피글린이 아기 호글린을 타는 활동(RIDE)은 탑승 규칙이 생기면. 상자 열기·금 블록 캐기 자극(angerNearbyPiglins)은 블록·탈것 쪽에서 부른다.
+// 아기 피글린은 가끔 보이는 아기 호글린을 탄다(RIDE 활동). 상자 열기·금 블록 캐기 자극(angerNearbyPiglins)은 블록·탈것 쪽에서 부른다.
 package org.domi.furnace.server.entity;
 
 import java.util.Collections;
@@ -59,6 +59,7 @@ public final class PiglinAi {
         initFightActivity(piglin, brain);
         initCelebrateActivity(brain);
         initRetreatActivity(brain);
+        initRideActivity(brain);
         brain.setCoreActivities(Set.of(Activity.CORE));
         brain.setDefaultActivity(Activity.IDLE);
         brain.useDefaultActivity();
@@ -83,7 +84,41 @@ public final class PiglinAi {
                 SetEntityLookTarget.create(PiglinAi::isPlayerHoldingLovedItem, MAX_LOOK_DIST_FOR_PLAYER_HOLDING_LOVED_ITEM),
                 StartAttacking.<Piglin>create(AbstractPiglin::isAdult, PiglinAi::findNearestValidAttackTarget),
                 OneShot.sequence(OneShot.triggerIf((Piglin p) -> p.canHunt()), StartHuntingHoglin.create()),
-                avoidRepellent(), createIdleLookBehaviors(), createIdleMovementBehaviors(), SetLookAndInteract.create(Targetable::isPlayer, 4)));
+                avoidRepellent(), babySometimesRideBabyHoglin(), createIdleLookBehaviors(), createIdleMovementBehaviors(), SetLookAndInteract.create(Targetable::isPlayer, 4)));
+    }
+
+    /** PiglinAi.initRideActivity: 올라타기 → 사랑하는 아이템 든 플레이어 보기 → 타고 있으면 둘러보기 하나 → 그만 탈지 판정. */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static void initRideActivity(Brain<Piglin> brain) {
+        List<Map.Entry<? extends OneShot<? super Piglin>, Integer>> looks = List.of(Map.entry(SetEntityLookTarget.createPlayers(MAX_LOOK_DIST), 1),
+                Map.entry(SetEntityLookTarget.create(t -> isType(t, EntityType.PIGLIN), MAX_LOOK_DIST), 1), Map.entry(SetEntityLookTarget.create(t -> true, MAX_LOOK_DIST), 1),
+                Map.entry(OneShot.<Piglin>triggerIf((Piglin p) -> true), 1));
+        brain.addActivityAndRemoveMemoryWhenStopped(Activity.RIDE, 10, List.of(Mount.create(0.8F),
+                SetEntityLookTarget.create(PiglinAi::isPlayerHoldingLovedItem, MAX_LOOK_DIST),
+                OneShot.sequence(OneShot.triggerIf((Piglin p) -> p.isPassenger()), TriggerGate.<Piglin>triggerOneShuffled(looks)),
+                DismountOrSkipMounting.<Piglin>create(MAX_WALK_DISTANCE_TO_START_RIDING, PiglinAi::wantsToStopRiding)), MemoryModuleType.RIDE_TARGET);
+    }
+
+    /** babySometimesRideBabyHoglin: 아기이고 10~40초 간격 시계가 다 됐으면, 보이는 아기 호글린을 10~30초 동안 탈 대상으로. */
+    private static OneShot<Piglin> babySometimesRideBabyHoglin() {
+        SetEntityLookTargetSometimes.Ticker ticker = new SetEntityLookTargetSometimes.Ticker(RIDE_START_INTERVAL);
+        return CopyMemoryWithExpiry.<Piglin, Entity>create(p -> p.isBaby() && ticker.tickDown(p.level().random()), MemoryModuleType.NEAREST_VISIBLE_BABY_HOGLIN,
+                MemoryModuleType.RIDE_TARGET, RIDE_DURATION);
+    }
+
+    /** wantsToStopRiding(piglin, vehicle): 탈것이 몹이 아니면 아니오. 어른이거나 죽었거나, 둘 중 누가 최근 맞았거나, 탈것이 아무것도 안 탄 피글린이면 내린다. */
+    private static boolean wantsToStopRiding(Piglin piglin, Entity e) {
+        if (!(e instanceof Mob m)) return false;
+        return !m.isBaby() || !m.isAlive() || wasHurtRecently(piglin) || wasHurtRecently(m) || m instanceof Piglin && m.vehicle() == null;
+    }
+
+    private static boolean wasHurtRecently(Mob m) { return m.getBrain() != null && m.getBrain().hasMemoryValue(MemoryModuleType.HURT_BY); }
+
+    /** isBabyRidingBaby: 아기 피글린이 아기 피글린·아기 호글린을 타고 있다. */
+    private static boolean isBabyRidingBaby(Piglin piglin) {
+        if (!piglin.isBaby()) return false;
+        Entity v = piglin.vehicle();
+        return v instanceof Piglin p && p.isBaby() || v instanceof Hoglin h && h.isBaby();
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -146,10 +181,11 @@ public final class PiglinAi {
     public static void updateActivity(Piglin piglin) {
         Brain<Piglin> brain = piglin.piglinBrain();
         Activity before = brain.getActiveNonCoreActivity().orElse(null);
-        brain.setActiveActivityToFirstValid(List.of(Activity.ADMIRE_ITEM, Activity.FIGHT, Activity.AVOID, Activity.CELEBRATE, Activity.IDLE));
+        brain.setActiveActivityToFirstValid(List.of(Activity.ADMIRE_ITEM, Activity.FIGHT, Activity.AVOID, Activity.CELEBRATE, Activity.RIDE, Activity.IDLE));
         Activity after = brain.getActiveNonCoreActivity().orElse(null);
         if (before != after) getSoundForCurrentActivity(piglin).ifPresent(piglin::makeSound);
         piglin.setAggressive(brain.hasMemoryValue(MemoryModuleType.ATTACK_TARGET));
+        if (!brain.hasMemoryValue(MemoryModuleType.RIDE_TARGET) && isBabyRidingBaby(piglin)) piglin.stopRiding();
         if (!brain.hasMemoryValue(MemoryModuleType.CELEBRATE_LOCATION)) brain.eraseMemory(MemoryModuleType.DANCING);
         piglin.setDancing(brain.hasMemoryValue(MemoryModuleType.DANCING));
     }
