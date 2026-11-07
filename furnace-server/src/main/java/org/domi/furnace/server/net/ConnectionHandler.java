@@ -1191,6 +1191,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openPluginMenu(p, session));
             }
 
+            public void retitlePluginMenu(org.domi.furnace.server.plugin.MenuSession session, Text title) {
+                ConnectionHandler.this.retitlePluginMenu(p, session, title);
+            }
+
             public void execute(Runnable task) { ctx.channel().eventLoop().execute(task); }
 
             public void openEntityContainer(org.domi.furnace.server.entity.ContainerEntity entity) {
@@ -1198,7 +1202,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 boolean blocked = entity.lootTable() != null && p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR;
                 org.domi.furnace.server.ServerCore c = login.core;
                 if (!blocked && c != null) c.unpackLoot(entity, p);
-                ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openEntityContainer(p, entity, blocked));
+                Text title = entity.containerTitle();   // 이름·팀은 엔티티 region 에서 읽는다
+                boolean hopper = entity instanceof org.domi.furnace.server.entity.MinecartHopper;
+                ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openEntityContainer(p, entity, blocked, title, hopper));
             }
 
             public int permissionLevel() {
@@ -1416,6 +1422,23 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         sendSpawnChunkBatchAsync(ctx, p, spawnChunks, subs, futs, sx, sz);
         scheduleKeepAlive();
         scheduleAutosave(ctx);
+        final ChannelHandlerContext saveCtx = ctx;
+        p.saveRequest(() -> {   // save-all·백업: 이벤트 루프에서 스냅샷 → 플레이어 데이터 실행기(넣은 뒤 완료)
+            java.util.concurrent.CompletableFuture<Void> f = new java.util.concurrent.CompletableFuture<>();
+            try {
+                saveCtx.executor().execute(() -> {
+                    try {
+                        if (saveCtx.channel().isActive()) savePlayerSnapshot();
+                        f.complete(null);
+                    } catch (Throwable t) {
+                        f.completeExceptionally(t);
+                    }
+                });
+            } catch (java.util.concurrent.RejectedExecutionException e) {
+                f.complete(null);   // 이벤트 루프가 닫혔다(끊기는 중) — 퇴장 저장이 맡는다
+            }
+            return f;
+        });
         if (login.core == null) scheduleTimeUpdate(ctx); // 서버 핸들이 있으면 전역 틱이 20틱마다 동기화한다
         scheduleSpawnGateRelease();
         if (login.core != null) login.core.scoreboard().sendTo(p);   // 바닐라 placeNewPlayer: updateEntireScoreboard 뒤 접속 알림
@@ -2346,7 +2369,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
      * ServerPlayer.openMenu(엔티티 용기): 열린 창을 닫고 → 번호를 올리고 → 메뉴(상자 수레·상자 배는 9×3, 깔때기 수레는 깔때기) → open_screen.
      * 관전자가 전리품 표 있는 것을 열려 하면 메뉴가 없다(container.spectatorCantOpen 를 액션 바로).
      */
-    private void openEntityContainer(Player p, org.domi.furnace.server.entity.ContainerEntity entity, boolean blocked) {
+    private void openEntityContainer(Player p, org.domi.furnace.server.entity.ContainerEntity entity, boolean blocked, Text title, boolean hopper) {
         if (player != p) return;
         synchronized (p.menuLock()) {
             if (p.hasOpenContainer()) closeContainer(p);
@@ -2358,11 +2381,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             }
             var inventory = p.inventoryMenu().inventoryContainer();
             var c = new org.domi.furnace.server.world.EntityContainer(entity, p, world::runAt);
-            org.domi.furnace.server.menu.AbstractContainerMenu menu = entity instanceof org.domi.furnace.server.entity.MinecartHopper
+            org.domi.furnace.server.menu.AbstractContainerMenu menu = hopper
                     ? new org.domi.furnace.server.menu.HopperMenu(containerId, inventory, c, null, menus)
                     : org.domi.furnace.server.menu.ChestMenu.threeRows(containerId, inventory, c, null, menus);
-            String type = entity.asEntity().type().name();
-            Text title = Text.translatable("entity." + type.replace(':', '.'));   // getDisplayName: 이름표 이름은 TODO(이름표)
             send(ctx, new OpenScreen(containerId, menuTypeId(menu), title));
             menu.addSlotListener(menus);
             p.setContainerMenu(menu);
@@ -2383,6 +2404,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             p.setContainerMenu(menu);
             menu.setSynchronizer(menus);
             session.opened();
+        }
+    }
+
+    /** 열린 플러그인 Menu 의 제목 바꾸기: 같은 창 번호로 open_screen 을 다시 보내고 전체 내용·커서를 다시 맞춘다. */
+    private void retitlePluginMenu(Player p, org.domi.furnace.server.plugin.MenuSession session, Text title) {
+        if (player != p || p.isDisconnected()) return;
+        synchronized (p.menuLock()) {
+            var menu = p.containerMenu();
+            if (menu == null || menu.pluginOwner() != session) return;
+            send(ctx, new OpenScreen(menu.containerId, menuTypeId(menu), p.localize(title)));
+            menu.sendAllDataToRemote();
         }
     }
 
@@ -3971,6 +4003,14 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 }
             }
             p.awardStat("minecraft:leave_game", 1);   // 바닐라 PlayerList.remove
+            // 바닐라 ServerPlayer.disconnect 는 자고 있으면 stopSleepInBed 로 일어선 뒤 저장한다 — 저장 위치는 침대 위가 아니라 일어선 자리·침대를 보는 방향.
+            // 소유 region 이 자는 동안 떠 둔 값을 쓴다(연결 스레드는 블록을 읽을 수 없다).
+            double[] standUp = p.sleepStandUp();
+            if (p.isSleeping() && standUp != null) {
+                ix = standUp[0]; iy = standUp[1]; iz = standUp[2];
+                iyaw = (float) standUp[3]; ipitch = 0.0F;
+                ig = true;
+            }
             savePlayerSnapshot();
             p.markDisconnected(); // 소유 region이 다음 틱에 정리(라우팅 불필요)
             world.playerOffline(p.entityId());   // adopt 전에 끊긴 경우에도 접속자 집합에서 즉시 제거(누수 방지, 관찰자는 다음 틱에 탭 제거)

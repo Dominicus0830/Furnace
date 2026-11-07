@@ -275,6 +275,11 @@ public final class PluginManagerImpl implements PluginManager {
         host.services().unregisterAll(p);   // 이 플러그인이 올린 서비스 제공자
         host.virtualImpl().removeAll(p);   // 가상 엔티티·가짜 탭 줄
         host.entityViewsImpl().removeAll(p);   // 보이기·숨기기·변장 규칙
+        try {
+            host.lightSourcesImpl().removeAll(p);   // 가짜 광원
+        } catch (RuntimeException e) {
+            log.warn("{} 의 가짜 광원 정리 실패", l.description().name(), e);
+        }
         for (Permission perm : l.description().permissions()) host.permissionsImpl().unregister(perm.name());
         PluginBootstrapper b = boot;
         if (b != null) b.forget(l.description().name());   // 플러그인 레지스트리 몫·수명주기 훅
@@ -519,9 +524,21 @@ public final class PluginManagerImpl implements PluginManager {
         PluginClassLoader(Path jar, PluginBootstrapper group) throws MalformedURLException { this(jar, group, false); }
 
         PluginClassLoader(Path jar, PluginBootstrapper group, boolean shadowCopy) throws MalformedURLException {
-            super(new URL[]{jar.toUri().toURL()}, PluginHost.class.getClassLoader());
+            this(jar, group, shadowCopy, List.of());
+        }
+
+        /** libraries: 자동 로딩이 받아 둔 라이브러리 jar(플러그인 jar 뒤에 붙는다 — 플러그인 자기 클래스가 먼저). */
+        PluginClassLoader(Path jar, PluginBootstrapper group, boolean shadowCopy, List<Path> libraries) throws MalformedURLException {
+            super(urls(jar, libraries), PluginHost.class.getClassLoader());
             this.group = group;
             this.shadow = shadowCopy ? jar : null;
+        }
+
+        private static URL[] urls(Path jar, List<Path> libraries) throws MalformedURLException {
+            URL[] out = new URL[1 + libraries.size()];
+            out[0] = jar.toUri().toURL();
+            for (int i = 0; i < libraries.size(); i++) out[i + 1] = libraries.get(i).toUri().toURL();
+            return out;
         }
 
         void borrowedFrom(String plugin) { borrowed.add(plugin.toLowerCase(Locale.ROOT)); }

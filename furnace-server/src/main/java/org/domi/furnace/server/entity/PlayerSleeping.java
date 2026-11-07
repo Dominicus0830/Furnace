@@ -61,6 +61,7 @@ public final class PlayerSleeping {
         // Player.startSleepInBed → ServerPlayer.startSleeping(시간 통계 초기화) → LivingEntity.startSleeping
         if (p.stats() != null) p.stats().set("minecraft:time_since_rest", 0);
         startSleeping(p, level, pos);
+        refreshStandUp(p, level);
         p.sleepCounter(0);
         p.awardStat("minecraft:sleep_in_bed", 1);
         var adv = p.advancements();
@@ -126,15 +127,33 @@ public final class PlayerSleeping {
         if (pos != null && level != null) {
             int st = level.getBlockState(pos);
             if (B.isTag(st, "minecraft:beds")) {
-                int facing = Dir.byName(B.prop("facing").valueName(st));
                 level.setBlock(pos, B.prop("occupied").with(st, false), 3);
-                Vec3 v = DismountHelper.playerBedStandUpPosition(level, pos, facing, p.yaw());
-                if (v == null) v = new Vec3(pos.x() + 0.5, pos.y() + 1 + 0.1, pos.z() + 0.5);
-                p.setPosRaw(v.x(), v.y(), v.z());
-                p.setRotRaw(lookAtYaw(v.x(), v.y(), v.z(), pos), 0.0F);
+                double[] at = standUpAt(p, level, pos, st);
+                p.setPosRaw(at[0], at[1], at[2]);
+                p.setRotRaw((float) at[3], 0.0F);
             }
         }
         p.setSleepingPos(null);
+        p.sleepStandUp(null);
+    }
+
+    /** 일어설 자리 {x, y, z, yaw}: BedBlock.findStandUpPosition(없으면 머리 칸 위 0.1)과 거기서 침대를 바라보는 yaw. */
+    private static double[] standUpAt(Player p, ChunkLevel level, Pos pos, int bedState) {
+        int facing = Dir.byName(B.prop("facing").valueName(bedState));
+        Vec3 v = DismountHelper.playerBedStandUpPosition(level, pos, facing, p.yaw());
+        if (v == null) v = new Vec3(pos.x() + 0.5, pos.y() + 1 + 0.1, pos.z() + 0.5);
+        return new double[] {v.x(), v.y(), v.z(), lookAtYaw(v.x(), v.y(), v.z(), pos)};
+    }
+
+    /**
+     * 자는 동안 일어설 자리를 소유 region 스레드가 미리 떠 둔다(p.sleepStandUp). 자는 중에 접속이 끊기면 연결 스레드가 블록을 읽을 수 없는
+     * 대신 이 값을 저장 위치로 쓴다 — 바닐라 ServerPlayer.disconnect 는 stopSleepInBed 로 일어선 뒤 저장하므로 저장 위치가 일어선 자리다.
+     */
+    static void refreshStandUp(Player p, ChunkLevel level) {
+        Pos pos = p.sleepingPos();
+        if (pos == null || level == null) return;
+        int st = level.getBlockState(pos);
+        p.sleepStandUp(B.isTag(st, "minecraft:beds") ? standUpAt(p, level, pos, st) : null);
     }
 
     /** Vec3.atBottomCenterOf(pos).subtract(from).normalize() 의 yaw = wrapDegrees(atan2(z, x)·180/π − 90). */
@@ -167,6 +186,7 @@ public final class PlayerSleeping {
         if (p.isSleeping()) {
             p.sleepCounter(Math.min(100, p.sleepCounter() + 1));
             if (isDay(level)) stopSleepInBed(p, level, false, true);
+            else if (level.gameTime() % 20 == 0) refreshStandUp(p, level);
         } else if (p.sleepCounter() > 0) {
             int c = p.sleepCounter() + 1;
             p.sleepCounter(c >= 110 ? 0 : c);

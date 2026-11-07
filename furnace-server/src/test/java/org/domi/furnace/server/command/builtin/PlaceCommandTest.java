@@ -95,6 +95,44 @@ class PlaceCommandTest {
         assertEquals(List.of("There is no template with id \"minecraft:nope\""), run("place template minecraft:nope 20 220 20"));
     }
 
+    /** Q7: 데이터 팩의 data/<ns>/structure/<path>.nbt 템플릿도 /place template 으로 놓인다(제안에도 보인다). */
+    @Test
+    void templateFromDataPackIsPlaced() throws Exception {
+        Path pack = tmp.resolve("q7pack");
+        Path file = pack.resolve("data/q7/structure/gold.nbt");
+        java.nio.file.Files.createDirectories(file.getParent());
+        var root = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        var size = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_INT);
+        for (int i = 0; i < 3; i++) size.add(1);
+        root.putList("size", size);
+        var palette = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
+        var entry = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        entry.putString("Name", "minecraft:gold_block");
+        palette.add(entry);
+        root.putList("palette", palette);
+        var blocks = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
+        var b = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        var pos = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_INT);
+        for (int i = 0; i < 3; i++) pos.add(0);
+        b.putList("pos", pos);
+        b.putInt("state", 0);
+        blocks.add(b);
+        root.putList("blocks", blocks);
+        root.putInt("DataVersion", 3955);
+        try (var out = java.nio.file.Files.newOutputStream(file)) {
+            org.domi.furnace.server.net.io.nbt.NbtIo.writeGzip(out, root, "");
+        }
+        org.domi.furnace.server.world.gen.structure.template.TemplateManager.installDataPacks(
+                new org.domi.furnace.server.data.ResourceManager(List.of(new org.domi.furnace.server.data.PackResources.PathPack("q7pack", pack)), List.of()));
+        try {
+            assertEquals(List.of("Loaded template \"q7:gold\" at 60, 220, 60"), run("place template q7:gold 60 220 60"));
+            assertTrue(B.is(at(60, 220, 60), "minecraft:gold_block"));
+            assertEquals(List.of("There is no template with id \"q7:missing\""), run("place template q7:missing 60 220 60"));
+        } finally {
+            org.domi.furnace.server.world.gen.structure.template.TemplateManager.installDataPacks(null);
+        }
+    }
+
     @Test
     void featureTreeAndUnsupportedNoop() throws Exception {
         onRegion(l -> l.setBlock(new Pos(24, 199, 24), B.defaultState("minecraft:dirt"), 2));

@@ -587,7 +587,7 @@ public final class Regionizer {
             boolean game = gameTicks;
             long tickStart = game ? System.nanoTime() : 0L;
             r.runTick(game);
-            if (game) {
+            if (game && r.lastRunTicked) {
                 long took = System.nanoTime() - tickStart;
                 world.tickState().record(took);   // /tick query 의 틱 시간 표본
                 noteTickTime(r, tickStart, took);

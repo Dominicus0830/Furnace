@@ -769,6 +769,9 @@ public abstract class ChunkLevel implements BlockLevel {
         if (idx < 0 || idx >= count) return;
         long key = (long) sx << 32 | (sz & 0xFFFFFFFFL);
         lightChanges.computeIfAbsent(key, k -> new long[2])[sky ? 0 : 1] |= 1L << idx;
+        // 나중에 이 청크를 처음 받는 플레이어가 캐시된 옛 빛을 받지 않게(바닐라는 청크 패킷을 보낼 때의 빛을 담는다)
+        ChunkColumn col = chunk(sx, sz);
+        if (col != null) col.lightTouched();
     }
 
     /** 빛 갱신 패킷을 그 청크를 보는 플레이어 중 시야 가장자리인 사람에게(바닐라 getPlayers(pos, true)). 기본은 버린다. */
@@ -1698,6 +1701,8 @@ public abstract class ChunkLevel implements BlockLevel {
 
         public int unloadedState() { return bedrockState; }
 
+        public int extraEmission(int x, int y, int z) { return virtualLights().emission(x, y, z); }
+
         // 같은 섹션 연속 기록은 건너뛴다(전파 중 매 칸 불린다)
         private int lastX = Integer.MIN_VALUE, lastY, lastZ;
         private boolean lastSky;
@@ -1734,10 +1739,37 @@ public abstract class ChunkLevel implements BlockLevel {
             if (col.lightPrecomputed()) {   // 생성 스레드가 청크 안쪽 빛을 이미 계산했다 — 이웃과 가장자리만 맞춘다
                 col.lightPrecomputed(false);
                 lightEngine().attachPrecomputed(cx, cz);
-                return;
+            } else {
+                if (col.light() == null) col.light(new org.domi.furnace.server.light.ChunkLight());
+                lightEngine().lightChunk(cx, cz);
             }
-            if (col.light() == null) col.light(new org.domi.furnace.server.light.ChunkLight());
-            lightEngine().lightChunk(cx, cz);
+        } finally {
+            initialLightChunk = Long.MIN_VALUE;
+        }
+        reapplyVirtualLights(cx, cz);
+    }
+
+    /** 다시 올라온 청크의 가짜 광원을 빛 엔진에 다시 건다(생성 스레드의 미리 계산은 그것을 모른다). 이웃으로 번지는 빛은 방송한다. */
+    private void reapplyVirtualLights(int cx, int cz) {
+        var vl = virtualLights();
+        if (vl.isEmpty()) return;
+        long[] src = vl.sourcesIn(cx, cz);
+        if (src.length == 0) return;
+        initialLightChunk = (long) cx << 32 | (cz & 0xFFFFFFFFL);
+        try {
+            for (long p : src) {
+                lightEngine().emissionChanged(org.domi.furnace.server.light.LightEngine.px(p), org.domi.furnace.server.light.LightEngine.py(p),
+                        org.domi.furnace.server.light.LightEngine.pz(p));
+            }
+            lightEngine().runUpdates();
+            // 내려가 있는 동안 지운 광원: 빛을 다 맞춘 지금 지운다 — 감소 전파가 로드된 이웃 청크에 남은 낡은 빛까지 정리한다
+            long[] retired = vl.retiredIn(cx, cz);
+            for (long p : retired) {
+                int x = org.domi.furnace.server.light.LightEngine.px(p), y = org.domi.furnace.server.light.LightEngine.py(p),
+                        z = org.domi.furnace.server.light.LightEngine.pz(p);
+                if (vl.set(org.domi.furnace.server.light.VirtualLights.RETIRED, x, y, z, 0)) lightEngine().emissionChanged(x, y, z);
+            }
+            if (retired.length > 0) lightEngine().runUpdates();
         } finally {
             initialLightChunk = Long.MIN_VALUE;
         }
@@ -1753,6 +1785,37 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     public int lightBedrockState() { return bedrockState; }
+
+    /** 그 청크가 로드돼 있고 빛이 만들어져 있는가. */
+    public boolean hasLight(int cx, int cz) {
+        ChunkColumn col = chunk(cx, cz);
+        return col != null && col.light() != null;
+    }
+
+    private org.domi.furnace.server.light.VirtualLights ownVirtualLights;
+
+    /** 이 차원의 가짜 광원 표(region 레벨은 월드가 가진 하나를 함께 쓴다 — region 이 합쳐지고 나뉘어도 따라간다). */
+    public org.domi.furnace.server.light.VirtualLights virtualLights() {
+        var v = ownVirtualLights;
+        if (v == null) ownVirtualLights = v = new org.domi.furnace.server.light.VirtualLights();
+        return v;
+    }
+
+    /**
+     * 그 주인의 가짜 광원을 level(0 이면 지움)로 두고, 실제 발광이 바뀌었으면 바로 빛을 다시 계산한다(바뀐 섹션은 다음 방송에 실린다).
+     * 소유 스레드에서. 청크가 없거나 빛이 아직 없거나 높이 밖이면 false. 실제 발광이 바뀌었으면 true.
+     */
+    public boolean setVirtualLight(Object owner, int x, int y, int z, int level) {
+        if (y < minBuildHeight() || y >= maxBuildHeight()) return false;
+        ChunkColumn col = chunk(x >> 4, z >> 4);
+        if (col == null) return false;
+        if (!virtualLights().set(owner, x, y, z, level)) return false;
+        if (col.light() != null) {
+            lightEngine().emissionChanged(x, y, z);
+            runLightUpdates();
+        }
+        return true;
+    }
 
     /** 틱 끝: 쌓인 빛 갱신 실행(LevelLightEngine.runLightUpdates). */
     public void runLightUpdates() {
