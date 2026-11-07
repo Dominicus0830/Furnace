@@ -59,7 +59,7 @@ public class ComposterBlock extends BlockBehavior {
             if (lvl < MAX_LEVEL) {
                 int ns = addItem(player, state, level, pos, stack);
                 level.levelEvent(null, 1500, pos, state != ns ? 1 : 0);
-                player.awardStat("minecraft:used");
+                player.awardStat("minecraft:used:" + org.domi.furnace.server.item.ItemTools.itemName(stack));
                 if (!player.instabuild()) player.setItemInHand(hand, stack.withCount(stack.count() - 1));
             }
             return ItemInteractionResult.sidedSuccess(false);

@@ -90,19 +90,7 @@ class DecoratedPotBlockEntityTest {
         var be = (DecoratedPotBlockEntity) level.getBlockEntity(POS);
         be.setSherds(List.of("minecraft:angler_pottery_sherd", "minecraft:brick", "minecraft:arms_up_pottery_sherd", "minecraft:brick"));
         be.setTheItem(item("diamond", 7), level);
-        // 안 금 간 단지는 조각이 붙은 단지 하나
-        var block = (DecoratedPotBlock) B.behavior(state);
-        var drops = block.getDrops(state, level, POS, be, null, ItemStack.EMPTY, null);
-        assertEquals(1, drops.size());
-        assertEquals("minecraft:decorated_pot", ItemTools.itemName(drops.get(0)));
-        assertEquals(List.of("minecraft:angler_pottery_sherd", "minecraft:brick", "minecraft:arms_up_pottery_sherd", "minecraft:brick"),
-                ItemTools.component(drops.get(0), "minecraft:pot_decorations"));
-        // 금 간 단지는 조각 네 개(벽돌 포함)
-        int cracked = B.prop("cracked").with(state, true);
-        var shards = block.getDrops(cracked, level, POS, be, null, ItemStack.EMPTY, null);
-        assertEquals(4, shards.size());
-        assertEquals("minecraft:angler_pottery_sherd", ItemTools.itemName(shards.get(0)));
-        assertEquals("minecraft:brick", ItemTools.itemName(shards.get(1)));
+        // 드롭(금 간 단지 조각·안 금 간 단지 하나)은 바닐라 전리품 표가 정한다 — BlockEntityLootTest.decoratedPotDropsItemWithDecorationsOrFourSherdsWhenCracked
         // 블록이 사라지면 내용물이 쏟아진다
         level.setBlock(POS, B.defaultState("minecraft:air"), 3);
         assertEquals(1, level.dropped.size());

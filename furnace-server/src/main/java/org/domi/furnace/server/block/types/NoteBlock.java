@@ -146,12 +146,14 @@ public class NoteBlock extends BlockBehavior {
         float pitch = inst.isTunable() ? getPitchFromNote(NOTE.intValue(state)) : 1.0F;
         String sound;
         if (inst.hasCustomSound()) {
-            // TODO(블록 엔티티): 위 머리 블록 엔티티의 note_block_sound — 없으면 바닐라도 false.
-            return false;
+            // getCustomSoundId: 위 칸 머리 블록 엔티티의 note_block_sound — 없으면 바닐라도 false(씨앗도 안 뽑는다)
+            sound = level.getBlockEntity(pos.above()) instanceof org.domi.furnace.server.block.entity.SkullBlockEntity skull ? skull.noteBlockSound() : null;
+            if (sound == null) return false;
+        } else {
+            sound = inst.sound();
         }
-        sound = inst.sound();
-        long seed = level.random().nextLong();   // playSeededSound 의 시드(TODO(소리): 패킷에 시드 실어 보내기)
-        level.playSound(null, pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5, sound, "record", 3.0F, pitch);
+        // playSeededSound: 시드는 레벨 난수의 nextLong(패킷에 실려 클라이언트가 소리 변형을 고르는 데 쓴다)
+        level.playSeededSound(null, pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5, sound, "record", 3.0F, pitch, level.random().nextLong());
         return true;
     }
 }
