@@ -233,6 +233,13 @@ public final class MobEffect {
         }
     }
 
+    /** 즉시 피해(치유/피해 효과가 대상에게 해로울 때)의 피해량. 해당하지 않으면 -1. 투척 물약이 indirectMagic 으로 직접 때릴 때 쓴다. */
+    public int instantHarmAmount(Host h, int amplifier, double proximity) {
+        if (kind != Kind.INSTANT_HEALTH && kind != Kind.INSTANT_DAMAGE) return -1;
+        boolean heals = (kind == Kind.INSTANT_HEALTH) != h.invertedHealAndHarm();
+        return heals ? -1 : (int) (proximity * (6 << amplifier) + 0.5);
+    }
+
     /** onEffectStarted: 흡수는 시작할 때 흡수량을 올린다. */
     public void onEffectStarted(Host h, int amplifier) {
         if (kind == Kind.ABSORPTION) h.setAbsorption(Math.max(h.absorption(), 4 * (1 + amplifier)));

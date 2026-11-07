@@ -1094,6 +1094,7 @@ public final class Region {
             if (p.takeXpDelay > 0) p.takeXpDelay--;
             org.domi.furnace.server.entity.Consuming.tick(p, this);
             org.domi.furnace.server.entity.Tridents.tickSpin(meleeWorld, p, t -> meleeAttack(p, t));   // 급류 회전 공격
+            p.tickArrowCount();    // 박힌 화살이 20 × (30 − 수) 틱마다 하나씩 빠진다
             p.syncLivingFlags();   // 사용 중(먹기·활·방패) 플래그를 다른 사람에게
             org.domi.furnace.server.entity.PlayerLocationEffects.tick(p, level, () -> onSoulSpeedBlock(p));   // 칸 이동·발 장비 변경 시 영혼 가속·서리 걸음
             org.domi.furnace.server.entity.PlayerLocationEffects.tickEffects(p, level, () -> onSoulSpeedBlock(p));   // 영혼 가속 tick 효과(소울 입자·소리)

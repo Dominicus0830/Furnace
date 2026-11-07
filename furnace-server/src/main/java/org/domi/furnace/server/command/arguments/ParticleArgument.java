@@ -57,6 +57,18 @@ public final class ParticleArgument implements ArgumentType<ParticleOptions> {
         }
     }
 
+    /** NBT(엔티티 Particle 필드 등)에서 입자 읽기: {type, ...옵션}. 종류를 모르거나 옵션이 틀리면 null(바닐라 코덱 오류 → 값을 바꾸지 않음). */
+    public static ParticleOptions decodeNbt(Object tag) {
+        if (!(tag instanceof NbtCompound c) || !(c.tags().get("type") instanceof String type)) return null;
+        String id = type.indexOf(':') < 0 ? "minecraft:" + type : type;
+        if (!ParticleOptions.Registry.has(id)) return null;
+        try {
+            return decode(id, c);
+        } catch (Bad e) {
+            return null;
+        }
+    }
+
     /** 입자 종류별 MapCodec 해석. */
     static ParticleOptions decode(String id, NbtCompound t) throws Bad {
         switch (id) {
