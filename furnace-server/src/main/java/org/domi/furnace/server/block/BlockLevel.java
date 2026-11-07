@@ -335,6 +335,12 @@ public interface BlockLevel {
     default void runSignCommand(BlockActor player, Pos pos, String command) {}
 
     /**
+     * SignBlockEntity.loadLine: 레벨에 놓인 표지판이 글을 읽을 때 한 줄을 ComponentUtils.updateForEntity(표지판 소스(플레이어 없음·권한 2·칸 가운데), 줄, null, 0)
+     * 로 푼다(선택자·점수). 명령 오류면 원래 줄. 서버가 없는 레벨은 그대로.
+     */
+    default org.domi.furnace.api.text.Text resolveSignText(Pos pos, org.domi.furnace.api.text.Text text) { return text; }
+
+    /**
      * 그 칸을 소유한 region 스레드에서 task 를 돌린다(이미 그 스레드면 바로, 아니면 큐로). 주인 region 이 없으면(청크 내려감) 버린다.
      * task 에는 그때 그 칸을 다루는 레벨이 온다(region 이 합쳐지면 처음 레벨과 다를 수 있다). 기본 구현은 바로 실행(시험·단독 레벨).
      */

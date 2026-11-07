@@ -117,7 +117,10 @@ public final class LiveGrid {
         String id = tag.tags().get("id") instanceof String s ? s : null;
         if (id != null && BlockEntities.known(id)) {
             var be = BlockEntities.loadStatic(pos, level.getBlockState(pos), tag);
-            if (be != null) level.setBlockEntity(be);
+            if (be != null) {
+                level.setBlockEntity(be);
+                be.afterLoad(level);   // 바닐라는 실제 레벨에 놓은 블록 엔티티에 loadWithComponents(레벨 있음)
+            }
             return;
         }
         // 아이템이 든 상자(구조물 템플릿): 생성 상자와 달리 바로 상자 블록 엔티티로 — 안 그러면 청크를 다시 읽기 전까지 열 수 없다

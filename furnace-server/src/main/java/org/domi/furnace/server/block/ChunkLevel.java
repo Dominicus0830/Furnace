@@ -1135,6 +1135,11 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     @Override
+    public org.domi.furnace.api.text.Text resolveSignText(Pos pos, org.domi.furnace.api.text.Text text) {
+        return services().resolveSignText(pos.x(), pos.y(), pos.z(), text);
+    }
+
+    @Override
     public void runSignCommand(BlockActor player, Pos pos, String command) {
         Player p = player != null && player.handle() instanceof Player pl ? pl : null;
         services().runSignCommand(p, pos.x(), pos.y(), pos.z(), command);

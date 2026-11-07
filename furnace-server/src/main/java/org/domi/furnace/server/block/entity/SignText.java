@@ -102,11 +102,8 @@ public final class SignText {
         if (m == null) return null;
         Text[] f = parseLines(t.tags().get("filtered_messages"));   // lenientOptional: 틀리면 없는 것으로
         if (f == null) f = Arrays.copyOf(m, LINES);
-        String color = "black";
-        if (t.tags().get("color") instanceof String c) {
-            if (!Arrays.asList(COLORS).contains(c)) return null;
-            color = c;
-        }
+        String color = "black";   // fieldOf("color").orElse(BLACK): 없거나 틀리면 검정
+        if (t.tags().get("color") instanceof String c && Arrays.asList(COLORS).contains(c)) color = c;
         boolean glow = t.tags().get("has_glowing_text") instanceof Number n && n.byteValue() != 0;
         return new SignText(m, f, color, glow);
     }

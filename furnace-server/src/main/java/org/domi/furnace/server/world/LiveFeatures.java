@@ -214,7 +214,10 @@ public final class LiveFeatures {
         String id = tag.tags().get("id") instanceof String s ? s : null;
         if (id != null && BlockEntities.known(id)) {
             var be = BlockEntities.loadStatic(pos, level.getBlockState(pos), tag);
-            if (be != null) level.setBlockEntity(be);
+            if (be != null) {
+                level.setBlockEntity(be);
+                be.afterLoad(level);   // 바닐라는 실제 레벨에 놓은 블록 엔티티에 loadWithComponents(레벨 있음)
+            }
             return;
         }
         col.removeBlockEntityAt(x, y, z);

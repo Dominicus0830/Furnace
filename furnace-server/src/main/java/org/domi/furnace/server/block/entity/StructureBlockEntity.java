@@ -136,7 +136,7 @@ public class StructureBlockEntity extends BlockEntity {
 
     /** 레벨에 놓인 뒤 읽었으면(아이템의 block_entity_data 등) 블록 상태의 mode 를 맞춘다. */
     @Override
-    protected void afterLoad(BlockLevel level) { updateBlockState(level); }
+    public void afterLoad(BlockLevel level) { updateBlockState(level); }
 
     private static int clamp(int v, int lo, int hi) { return Math.max(lo, Math.min(hi, v)); }
 

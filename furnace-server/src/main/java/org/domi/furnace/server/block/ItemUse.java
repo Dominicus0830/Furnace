@@ -398,7 +398,7 @@ public final class ItemUse {
             var pos = hit.pos();
             var be = level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.BannerBlockEntity b ? b : null;
             var banner = be == null ? null : new org.domi.furnace.server.map.MapData.Banner(pos.x(), pos.y(), pos.z(), be.baseColor(), be.customName);
-            if (!data.toggleBanner(pos.x(), pos.z(), banner)) return InteractionResult.FAIL;
+            if (!data.toggleBanner(pos.x(), pos.z(), banner, level.dayTime())) return InteractionResult.FAIL;
         }
         return InteractionResult.sidedSuccess(false);
     }

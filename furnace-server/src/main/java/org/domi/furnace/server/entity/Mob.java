@@ -356,6 +356,40 @@ public abstract class Mob extends LivingEntity implements Leashable {
         return EquipmentSlot.MAINHAND;
     }
 
+    /**
+     * EquipmentUser.equip(EquipmentTable): 장비 전리품 표({loot_table, slot_drop_chances?})를 몹 위치·몹 자신으로(시드 0) 평가해, 나온 아이템마다
+     * resolveSlot 으로 칸을 고른다 — 빈 것은 건너뛰고, 장착 아이템(Equipable)은 그 칸(이미 채웠으면 건너뜀), 나머지는 주 손(이미 채웠으면 건너뜀).
+     * 칸의 limit(방어구·몸 칸은 1개)로 자르고, slot_drop_chances(숫자 하나 = 모든 칸, 또는 칸 이름 → 숫자)에 그 칸이 있으면 떨굼 확률을 바꾼다.
+     */
+    public void equip(ChunkLevel level, NbtCompound table) {
+        if (!(table.tags().get("loot_table") instanceof String lootTable) || lootTable.equals("minecraft:empty")) return;
+        java.util.Map<EquipmentSlot, Float> chances = new java.util.EnumMap<>(EquipmentSlot.class);
+        Object sdc = table.tags().get("slot_drop_chances");
+        if (sdc instanceof Number num) {
+            for (EquipmentSlot s : EquipmentSlot.values()) chances.put(s, num.floatValue());
+        } else if (sdc instanceof NbtCompound c) {
+            for (EquipmentSlot s : EquipmentSlot.values()) if (c.tags().get(s.slotName()) instanceof Number num) chances.put(s, num.floatValue());
+        }
+        java.util.List<ItemStack> items = level.lootItems(lootTable, new double[] {x(), y(), z()}, lootEntity(), 0.0F, 0L, null);
+        java.util.List<EquipmentSlot> used = new java.util.ArrayList<>();
+        for (ItemStack item : items) {
+            EquipmentSlot slot = resolveEquipSlot(item, used);
+            if (slot == null) continue;
+            setItemSlot(slot, slot.type() == EquipmentSlot.Type.HAND ? item : item.withCount(Math.min(item.count(), 1)));
+            Float chance = chances.get(slot);
+            if (chance != null) setDropChance(slot, chance);
+            used.add(slot);
+        }
+    }
+
+    /** EquipmentUser.resolveSlot: 빈 것은 null, Equipable 이면 그 칸(이미 썼으면 null), 아니면 주 손(이미 썼으면 null). */
+    static EquipmentSlot resolveEquipSlot(ItemStack stack, java.util.List<EquipmentSlot> used) {
+        if (stack.isEmpty()) return null;
+        EquipmentSlot e = DispenserEquip.equipableSlot(stack);
+        if (e != null) return used.contains(e) ? null : e;
+        return used.contains(EquipmentSlot.MAINHAND) ? null : EquipmentSlot.MAINHAND;
+    }
+
     /** canReplaceCurrentItem 의 단순형: 칸이 비어 있을 때만 바꾼다. TODO(점수): 칼·활·방어구의 공격력·방어력 비교. */
     protected boolean canReplaceCurrentItem(ItemStack candidate, ItemStack existing) { return existing.isEmpty(); }
 

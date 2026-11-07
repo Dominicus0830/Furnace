@@ -1082,6 +1082,9 @@ public final class ServerCore {
                     org.domi.furnace.server.command.CommandSource.sign(ServerCore.this, player, x, y, z), command));
         }
         public boolean commandBlockEnabled() { return ServerCore.this.commandBlockEnabled(); }
+        public org.domi.furnace.api.text.Text resolveSignText(int x, int y, int z, org.domi.furnace.api.text.Text text) {
+            return ServerCore.this.resolveSignText(world, x, y, z, text);
+        }
         public void runBlockCommand(org.domi.furnace.server.block.BlockCommandSink sink, String command, java.util.function.IntConsumer done) {
             ServerCore.this.runBlockCommand(world, sink, command, done);
         }
@@ -1252,6 +1255,9 @@ public final class ServerCore {
         private boolean sky() { return w.dimensionType().hasSkyLight(); }
 
         @Override public String dimension() { return w.dimension(); }
+        @Override public org.domi.furnace.api.text.Text resolveSignText(int x, int y, int z, org.domi.furnace.api.text.Text text) {
+            return ServerCore.this.resolveSignText(w, x, y, z, text);
+        }
         @Override public void runBlockCommand(org.domi.furnace.server.block.BlockCommandSink sink, String command, java.util.function.IntConsumer done) {
             ServerCore.this.runBlockCommand(w, sink, command, done);
         }
@@ -1292,6 +1298,19 @@ public final class ServerCore {
 
         @Override public java.util.List<ItemStack> chestLoot(String lootTable, long seed, double x, double y, double z, Object player, float luck) {
             return ServerCore.this.chestLoot(lw, lootTable, seed, x, y, z, player, luck);
+        }
+    }
+
+    /**
+     * SignBlockEntity.loadLine(레벨이 서버 레벨일 때): 표지판 소스(플레이어 없음·이름 "Sign"·권한 2·칸 가운데·그 월드)로 updateForEntity(…, null, 0).
+     * 명령 오류(CommandSyntaxException)면 원래 줄을 그대로 쓴다. 표지판의 region 스레드에서 불린다(점수판·접속자 목록은 스레드 안전).
+     */
+    org.domi.furnace.api.text.Text resolveSignText(World w, int x, int y, int z, org.domi.furnace.api.text.Text text) {
+        try {
+            return org.domi.furnace.server.command.ComponentUtils.updateForEntity(
+                    org.domi.furnace.server.command.CommandSource.sign(this, w, x, y, z), text, null, 0);
+        } catch (org.domi.furnace.server.command.brigadier.CommandSyntaxException e) {
+            return text;
         }
     }
 

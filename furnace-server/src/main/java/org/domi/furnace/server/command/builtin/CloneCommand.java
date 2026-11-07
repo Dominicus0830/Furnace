@@ -175,8 +175,7 @@ public final class CloneCommand {
         for (Entry en : all) if (level.setBlock(en.pos, en.state, 2)) count++;
         for (Entry en : withBe) {
             if (en.tag != null && level.getBlockEntity(en.pos) instanceof BlockEntity be) {
-                be.load(en.tag);
-                be.loadComponents(en.tag);   // 바닐라 loadCustomOnly + setComponents
+                be.loadWithComponentsInLevel(level, en.tag);   // 바닐라 loadCustomOnly + setComponents(레벨에 놓인 뒤 — 표지판 글 풀기 등)
                 be.setChanged(level);
             }
             level.setBlock(en.pos, en.state, 2);

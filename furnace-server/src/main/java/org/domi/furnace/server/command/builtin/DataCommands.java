@@ -282,8 +282,7 @@ public final class DataCommands {
 
         public void setData(NbtCompound tag) {
             NbtCompound t = (NbtCompound) NbtTags.freeze(NbtTags.copy(tag));
-            entity.load(t);
-            entity.loadComponents(t);   // loadWithComponents
+            entity.loadWithComponentsInLevel(level, t);
             entity.setChanged(level);
             level.sendBlockUpdated(pos);
         }

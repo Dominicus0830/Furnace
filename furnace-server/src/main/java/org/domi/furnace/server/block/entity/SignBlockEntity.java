@@ -1,6 +1,8 @@
 // 바닐라 SignBlockEntity(+ HangingSignBlockEntity): 앞·뒤 면 글(SignText), 밀랍 칠, 편집 중인 플레이어.
 // 저장은 front_text·back_text·is_waxed. 갱신 태그는 저장 내용 그대로(블록 갱신 때 block_entity_data 로 보낸다).
 // 틱: 편집을 허락한 플레이어가 사라졌거나 상호작용 거리 + 4 밖이면 허락을 지운다.
+// 레벨에 놓인 뒤 읽으면(/data·/setblock·/clone·아이템 block_entity_data·구조물 배치) 읽은 면의 줄마다 선택자·점수를 푼다(loadLines → loadLine).
+// 청크를 읽을 때는 레벨이 없어 풀지 않는다(바닐라와 같다).
 package org.domi.furnace.server.block.entity;
 
 import java.util.List;
@@ -24,6 +26,8 @@ public class SignBlockEntity extends BlockEntity {
     private SignText backText = new SignText();
     private boolean isWaxed;
     private final boolean hanging;
+    /** 마지막 load 가 그 면을 읽었는가 — afterLoad 가 읽은 면만 푼다(바닐라는 코덱이 성공한 면만 loadLines). */
+    private boolean loadedFront, loadedBack;
 
     public SignBlockEntity(Pos pos, int state) { this(pos, state, false); }
 
@@ -160,15 +164,39 @@ public class SignBlockEntity extends BlockEntity {
 
     @Override
     public void load(NbtCompound tag) {
+        loadedFront = loadedBack = false;
         if (tag.tags().get("front_text") instanceof NbtCompound c) {
             SignText t = SignText.load(c);
-            if (t != null) frontText = t;   // TODO(텍스트): 바닐라는 여기서 ComponentUtils.updateForEntity(선택자·점수 해석)를 한다
+            if (t != null) {
+                frontText = t;
+                loadedFront = true;
+            }
         }
         if (tag.tags().get("back_text") instanceof NbtCompound c) {
             SignText t = SignText.load(c);
-            if (t != null) backText = t;
+            if (t != null) {
+                backText = t;
+                loadedBack = true;
+            }
         }
         isWaxed = tag.getBoolean("is_waxed");
+    }
+
+    /** loadLines(레벨 있음): 방금 읽은 면(앞 → 뒤)의 줄마다 걸러지지 않은 것 → 걸러진 것 순서로 푼다. */
+    @Override
+    public void afterLoad(BlockLevel level) {
+        if (loadedFront) frontText = loadLines(level, frontText);
+        if (loadedBack) backText = loadLines(level, backText);
+        loadedFront = loadedBack = false;
+    }
+
+    private SignText loadLines(BlockLevel level, SignText t) {
+        for (int i = 0; i < SignText.LINES; i++) {
+            Text raw = level.resolveSignText(pos, t.message(i, false));
+            Text filtered = level.resolveSignText(pos, t.message(i, true));
+            t = t.setMessage(i, raw, filtered);
+        }
+        return t;
     }
 
     @Override
