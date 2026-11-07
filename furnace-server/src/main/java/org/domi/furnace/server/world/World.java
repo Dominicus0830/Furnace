@@ -1479,6 +1479,45 @@ public final class World {
         }
 
         @Override
+        public boolean departPassenger(org.domi.furnace.server.entity.Player p) {
+            ChunkPos c = p.chunkPos();
+            Region r = regionizer.ownerOf(c.x(), c.z());
+            return r != null && r.isOwnerThread() && r.detachCarried(p);
+        }
+
+        @Override
+        public void arrivePassenger(org.domi.furnace.server.entity.Player p, org.domi.furnace.server.block.ChunkLevel target,
+                                    org.domi.furnace.server.entity.DimensionTransition t, org.domi.furnace.server.entity.Entity vehicle) {
+            if (!(target instanceof RegionLevel rl)) {
+                runAt(p.x(), p.z(), r -> r.adopt(p));   // 목적 레벨이 region 이 아니다(있을 수 없다) — 원래 자리로
+                return;
+            }
+            World tw = rl.world();
+            if (tw == World.this) {
+                // 같은 레벨(엔드 관문): 연결이 보정 텔레포트를 처리한 뒤 출구 칸 주인 region 에 편입하고 다시 태운다
+                Runnable adopt = () -> tw.runAt(t.x(), t.z(), r -> r.adoptCarriedWithinLevel(p, t, vehicle));
+                if (!p.correctToThen(t.x(), t.y(), t.z(), t.yRot(), t.xRot(), adopt)) rl.region().adoptCarriedWithinLevel(p, t, vehicle);
+                return;
+            }
+            p.carriedVehicle(vehicle);
+            if (!p.changeDimension(tw, t, p.portalCooldown)) {   // 연결이 없다 — 원래 자리로(내린 채)
+                p.carriedVehicle(null);
+                runAt(p.x(), p.z(), r -> r.adopt(p));
+            }
+        }
+
+        @Override
+        public void returnPassenger(org.domi.furnace.server.entity.Player p, org.domi.furnace.server.block.ChunkLevel source,
+                                    org.domi.furnace.server.entity.Entity vehicle) {
+            ChunkPos c = p.chunkPos();
+            if (source instanceof RegionLevel rl && rl.world() == World.this && rl.region().isOwnerThread() && regionizer.ownerOf(c.x(), c.z()) == rl.region()) {
+                rl.region().returnCarried(p, vehicle);
+            } else {
+                runAt(p.x(), p.z(), r -> r.adopt(p));   // 탈것과 다른 region 칸이다 — 내린 채로 제자리에
+            }
+        }
+
+        @Override
         public void runAtSource(int blockX, int blockZ, java.util.function.Consumer<org.domi.furnace.server.block.ChunkLevel> task) {
             runAt(blockX, blockZ, r -> task.accept(r.level()));
         }

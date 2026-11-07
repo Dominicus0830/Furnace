@@ -92,6 +92,23 @@ public interface LevelServices {
 
         /** 넘어가기 전에 목적 쪽 청크만 미리 올려 둔다(플레이어가 지옥문에서 기다리는 동안). 목적지는 정하지 않는다. 어느 스레드든. */
         default void prewarm(org.domi.furnace.server.entity.PortalTravel plan) {}
+
+        /**
+         * 탈것과 함께 포털을 건너는 승객 플레이어(바닐라 changeDimension 이 승객마다 부르는 passenger.changeDimension)를 원천 region 에서 뗀다.
+         * 원천 레벨 스레드에서, 탈것에서 내린 뒤 부른다. 뗐으면 참 — 그러면 arrivePassenger 또는 returnPassenger 가 꼭 한 번 불린다.
+         * 거짓이면(그 플레이어가 이 스레드 region 에 없다) 내려놓기만 한다.
+         */
+        default boolean departPassenger(Player p) { return false; }
+
+        /**
+         * 목적 레벨 스레드에서: 뗀 승객 플레이어를 탈것과 같은 목적지 t 로 보내고(다른 차원이면 ServerPlayer.changeDimension, 같은 레벨이면
+         * connection.teleport), 목적 region 에 편입되면 vehicle 에 startRiding(vehicle, true) 로 다시 태운다. vehicle 이 null 이면 태우지 않는다.
+         */
+        default void arrivePassenger(Player p, ChunkLevel target, org.domi.furnace.server.entity.DimensionTransition t,
+                                     org.domi.furnace.server.entity.Entity vehicle) {}
+
+        /** 원천 레벨 스레드에서: 목적지가 없어 되돌릴 때 뗀 승객 플레이어를 제자리 region 에 되돌리고 vehicle(되살린 탈것)에 다시 태운다. */
+        default void returnPassenger(Player p, ChunkLevel source, org.domi.furnace.server.entity.Entity vehicle) {}
     }
 
     /** 그 칸의 바이옴(Level.getBiome — 확대 지터 포함)이 태그에 드는가. 모르면 거짓. */

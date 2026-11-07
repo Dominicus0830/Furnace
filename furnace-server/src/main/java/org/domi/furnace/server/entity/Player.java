@@ -1853,6 +1853,39 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         }
     }
 
+    /**
+     * 탈것과 함께 포털을 건넌 승객이 목적 region 에 편입되면 다시 탈 탈것(바닐라 changeDimension 끝의 startRiding(새 탈것, true)).
+     * 떠난 쪽 region 이 쓰고 편입하는 region 이 한 번 꺼낸다(그동안 플레이어는 어느 region 에도 없다).
+     */
+    private volatile Entity carriedVehicle;
+
+    public void carriedVehicle(Entity v) { this.carriedVehicle = v; }
+
+    /** 다시 탈 탈것을 꺼내고 지운다(없으면 null). */
+    public Entity takeCarriedVehicle() {
+        Entity v = carriedVehicle;
+        carriedVehicle = null;
+        return v;
+    }
+
+    /** 연결 스레드 실행기(텔레포트와 같은 순서로 일을 넣는다). 연결이 없으면(시험) null. */
+    private volatile java.util.function.Consumer<Runnable> connectionTasks;
+
+    public void connectionTasks(java.util.function.Consumer<Runnable> c) { this.connectionTasks = c; }
+
+    /**
+     * 보정 텔레포트(correctTo — 이동 대기열을 비우고 위치를 보낸다)를 보내고, 연결 스레드가 그것을 처리한 뒤에 then 을 연결 스레드에서 한다
+     * (같은 실행기라 앞서 넣은 텔레포트가 먼저 끝난다). 연결이 없으면 아무것도 하지 않고 거짓.
+     */
+    public boolean correctToThen(double x, double y, double z, float yaw, float pitch, Runnable then) {
+        var t = teleporter;
+        var c = connectionTasks;
+        if (t == null || c == null) return false;
+        t.accept(new double[] {x, y, z, yaw, pitch});
+        c.accept(then);
+        return true;
+    }
+
     /** 차원 이동 도착(목적 월드, 목적지, 그때의 포털 대기) — 연결이 패킷을 보내고 목적 region 에 넣는다. */
     public interface DimensionChanger {
         void change(org.domi.furnace.server.world.World target, DimensionTransition t, int portalCooldown);
