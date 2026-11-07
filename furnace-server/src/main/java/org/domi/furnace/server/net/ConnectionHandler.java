@@ -1344,7 +1344,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
         pendingTeleportId = 1; // 스폰 청크 도착(타이머)까지 클라 이동 무시
         if (coreJ != null) send(ctx, new org.domi.furnace.server.net.protocol.play.ServerData(
-                org.domi.furnace.api.text.Text.text(login.motd), login.faviconBytes()));
+                Motd.parse(login.motd), login.faviconBytes()));
         // 기존 접속자 목록(없으면 빈 패킷 — 바닐라와 같다). 아직 adopt 전이라 p.listed()는 이 스레드 전용.
         java.util.List<org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry> existing = new java.util.ArrayList<>();
         for (Player b : world.onlinePlayers()) {

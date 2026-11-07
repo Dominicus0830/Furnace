@@ -109,6 +109,8 @@ class CancelContractTest {
         // --- 접속 단계(핸드셰이크): 취소하면 로그인 끊기 패킷만 나가고 서버 상태는 만들어지지 않는다
         TABLE.put("PlayerHandshakeEvent", new Entry(Kind.SERVER_DRIVEN, "net.LoginPhaseEventsTest#cancelledHandshakeDisconnectsBeforeLogin"));
         // --- 서버
+        TABLE.put("FunctionExecuteEvent", new Entry(Kind.SERVER_DRIVEN, "command.exec.FunctionHookTest#cancellingExecuteSkipsWholeFunctionBodyOnly"));
+        TABLE.put("FunctionCommandEvent", new Entry(Kind.SERVER_DRIVEN, "command.exec.FunctionHookTest#commandEventSeesEachLineAndCanCancelOne"));
         TABLE.put("ServerCommandEvent", new Entry(Kind.SERVER_DRIVEN, "plugin.PluginSystemTest#eventBusOrdersByPriorityAndHonorsCancellation"));
     }
 

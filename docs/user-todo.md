@@ -6,6 +6,10 @@
 서버 시험(`CommandTreeApiTest`)으로 트리 명령·필터·해제는 확인. 실제 클라이언트로 남은 것:
 - 플러그인이 명령을 런타임에 등록·해제했을 때 열린 채팅 자동완성 목록이 바로 바뀌는지, 권한 없는 계정에서 `requires` 로 숨긴 명령이 자동완성에 안 보이는지.
 
+# 번역·MOTD·함수 훅 (C2) — 2026-11-07
+서버 시험(`TranslationServiceApiTest`·`MotdFormatTest`·`FunctionHookTest`)으로 확인. 실제 클라이언트로 남은 것:
+- `furnace.properties` 에 `motd-format=markup`, `server.properties` 에 `motd=<gradient:red:blue>Furnace</gradient>` 를 넣고 멀티플레이 서버 목록과 접속 직후 화면에서 그라디언트 MOTD 가 보이는지(기본 `plain` 은 바닐라와 같음). 새 기본값은 모두 바닐라 동작이라 결정할 것은 없다.
+
 # 플러그인 API 3단계 셋째 묶음 — 번짐·마법부여·탈것·낚시·스폰 (2026-11-06)
 봇(`tools/bot-test/round8/ev.js` + 시험 플러그인 `round8/probe`)으로 구역 9개 통과. 실제 클라이언트로 남은 것:
 - 플러그인이 마법 부여 제안·모루 비용/결과를 바꾸거나 취소했을 때 화면(제안 세 칸·결과 칸)이 서버 상태와 맞는지, 탑승·하차를 취소했을 때 시점이 어긋나지 않는지.

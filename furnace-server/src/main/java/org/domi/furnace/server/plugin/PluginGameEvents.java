@@ -37,6 +37,8 @@ import org.domi.furnace.api.event.player.PlayerSwapHandItemsEvent;
 import org.domi.furnace.api.event.player.PlayerToggleFlightEvent;
 import org.domi.furnace.api.event.player.PlayerToggleSneakEvent;
 import org.domi.furnace.api.event.player.PlayerToggleSprintEvent;
+import org.domi.furnace.api.event.server.FunctionCommandEvent;
+import org.domi.furnace.api.event.server.FunctionExecuteEvent;
 import org.domi.furnace.api.event.server.ServerListPingEvent;
 import org.domi.furnace.api.event.block.BlockBurnEvent;
 import org.domi.furnace.api.event.block.BlockFromToEvent;
@@ -435,9 +437,24 @@ public final class PluginGameEvents implements GameEvents {
     }
 
     @Override
+    public boolean functionExecute(org.domi.furnace.server.command.CommandSource source, String function, FunctionExecuteEvent.Trigger trigger, int depth) {
+        if (!bus().hasSubscribers(FunctionExecuteEvent.class)) return true;
+        return !bus().call(new FunctionExecuteEvent(function, trigger, host.sender(source), depth)).isCancelled();
+    }
+
+    @Override
+    public boolean functionCommand(org.domi.furnace.server.command.CommandSource source, String command, int depth) {
+        if (!bus().hasSubscribers(FunctionCommandEvent.class)) return true;
+        return !bus().call(new FunctionCommandEvent(host.sender(source), command, depth)).isCancelled();
+    }
+
+    @Override
+    public boolean wantsFunctionCommands() { return bus().hasSubscribers(FunctionCommandEvent.class); }
+
+    @Override
     public StatusOverride serverListPing(java.net.InetAddress address, String motd, int online, int max, boolean hidePlayers) {
         if (!bus().hasSubscribers(ServerListPingEvent.class)) return null;
-        var motdText = org.domi.furnace.api.text.Text.text(motd);
+        var motdText = org.domi.furnace.server.net.Motd.parse(motd);
         var ev = bus().call(new ServerListPingEvent(address, motdText, online, max, hidePlayers));
         if (ev.motd() == motdText && ev.numPlayers() == online && ev.maxPlayers() == max && ev.hidePlayers() == hidePlayers) return null;
         return new StatusOverride(ev.motd() == motdText ? null : ev.motd().toJson(), ev.numPlayers(), ev.maxPlayers(), ev.hidePlayers());
