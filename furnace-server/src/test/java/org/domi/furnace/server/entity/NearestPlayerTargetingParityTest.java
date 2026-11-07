@@ -95,4 +95,25 @@ class NearestPlayerTargetingParityTest {
         }
         assertTrue(nonNull > 50 && nulls > 20, "고른 경우/못 고른 경우가 모두 나와야 한다: " + nonNull + "/" + nulls);
     }
+
+    /** 사거리가 2 보다 작아도 실제 상한은 2 이므로, 거리 1.8 의 플레이어는 range 1.5 에서도 골라져야 한다(경계 고정). */
+    @Test
+    void rangeBelowTwoStillReachesTwoBlocks() {
+        var level = new PlayersLevel();
+        var p = new Player(100, UUID.randomUUID(), "Near", new ConcurrentEmbeddedChannel());
+        p.vitals().env(new org.domi.furnace.server.entity.PlayerVitalsTest.TestEnv());
+        p.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);
+        p.applyMove(1.8, -60, 0, 0, 0, true);
+        level.players.add(p);
+        Cow cow = new Cow(level, level.nextEntityId());
+        cow.moveTo(0, -60, 0, 0, 0);
+        level.addFreshEntity(cow);
+        for (double range : new double[] {0.5, 1.0, 1.5, 1.99, 2.0}) {
+            TargetingConditions c = TargetingConditions.forNonCombat().range(range).ignoreLineOfSight();
+            Player expected = reference(c, cow, cow.x(), cow.y(), cow.z(), level.players);
+            assertSame(expected, level.getNearestPlayer(c, cow, cow.x(), cow.y(), cow.z()), "range " + range);
+        }
+        TargetingConditions c15 = TargetingConditions.forNonCombat().range(1.5).ignoreLineOfSight();
+        assertSame(p, level.getNearestPlayer(c15, cow, cow.x(), cow.y(), cow.z()));
+    }
 }
