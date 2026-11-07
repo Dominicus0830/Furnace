@@ -1088,6 +1088,10 @@ public final class ServerCore {
                     org.domi.furnace.server.command.CommandSource.sign(ServerCore.this, player, x, y, z), command));
         }
         public boolean commandBlockEnabled() { return ServerCore.this.commandBlockEnabled(); }
+        public void resolveSignLines(org.domi.furnace.server.block.BlockLevel level, int x, int y, int z, java.util.List<org.domi.furnace.api.text.Text> lines,
+                                     java.util.function.BiConsumer<org.domi.furnace.server.block.BlockLevel, java.util.List<org.domi.furnace.api.text.Text>> apply) {
+            ServerCore.this.resolveSignLines(world, level, x, y, z, lines, apply);
+        }
         public void runBlockCommand(org.domi.furnace.server.block.BlockCommandSink sink, String command, java.util.function.IntConsumer done) {
             ServerCore.this.runBlockCommand(world, sink, command, done);
         }
@@ -1261,6 +1265,10 @@ public final class ServerCore {
         private boolean sky() { return w.dimensionType().hasSkyLight(); }
 
         @Override public String dimension() { return w.dimension(); }
+        @Override public void resolveSignLines(org.domi.furnace.server.block.BlockLevel level, int x, int y, int z, java.util.List<org.domi.furnace.api.text.Text> lines,
+                                               java.util.function.BiConsumer<org.domi.furnace.server.block.BlockLevel, java.util.List<org.domi.furnace.api.text.Text>> apply) {
+            ServerCore.this.resolveSignLines(w, level, x, y, z, lines, apply);
+        }
         @Override public void runBlockCommand(org.domi.furnace.server.block.BlockCommandSink sink, String command, java.util.function.IntConsumer done) {
             ServerCore.this.runBlockCommand(w, sink, command, done);
         }
@@ -1302,6 +1310,38 @@ public final class ServerCore {
         @Override public java.util.List<ItemStack> chestLoot(String lootTable, long seed, double x, double y, double z, Object player, float luck) {
             return ServerCore.this.chestLoot(lw, lootTable, seed, x, y, z, player, luck);
         }
+    }
+
+    /**
+     * SignBlockEntity.loadLine(레벨이 서버 레벨일 때): 표지판 소스(플레이어 없음·이름 "Sign"·권한 2·칸 가운데·그 월드)로 줄마다 updateForEntity(…, null).
+     * 명령 오류(CommandSyntaxException)면 원래 줄. 표지판의 region 스레드에서 불린다. 플레이어·점수판·저장소만 쓰면 그 자리에서 끝나 apply 를 바로 부르고,
+     * 일반 엔티티를 찾는 선택자(@e)·엔티티 NBT 는 다른 region 에서 읽어야 하므로 끝난 뒤 그 칸의 주인 region 에서 apply 를 부른다(바닐라는 동기).
+     */
+    void resolveSignLines(World w, org.domi.furnace.server.block.BlockLevel level, int x, int y, int z,
+                          java.util.List<org.domi.furnace.api.text.Text> lines,
+                          java.util.function.BiConsumer<org.domi.furnace.server.block.BlockLevel, java.util.List<org.domi.furnace.api.text.Text>> apply) {
+        var source = org.domi.furnace.server.command.CommandSource.sign(this, w, x, y, z);
+        java.util.List<java.util.concurrent.CompletableFuture<org.domi.furnace.api.text.Text>> fs = new java.util.ArrayList<>(lines.size());
+        for (org.domi.furnace.api.text.Text line : lines) {
+            java.util.concurrent.CompletableFuture<org.domi.furnace.api.text.Text> f;
+            try {
+                f = org.domi.furnace.server.command.ComponentUtils.resolve(source, line, null);
+            } catch (RuntimeException e) {
+                f = java.util.concurrent.CompletableFuture.failedFuture(e);
+            }
+            fs.add(f.exceptionally(e -> {
+                Throwable c = e instanceof java.util.concurrent.CompletionException && e.getCause() != null ? e.getCause() : e;
+                if (!(c instanceof org.domi.furnace.server.command.brigadier.CommandSyntaxException)) log.warn("표지판 글 풀기 실패({},{},{})", x, y, z, c);
+                return line;
+            }));
+        }
+        var all = java.util.concurrent.CompletableFuture.allOf(fs.toArray(new java.util.concurrent.CompletableFuture[0]));
+        java.util.function.Supplier<java.util.List<org.domi.furnace.api.text.Text>> out = () -> fs.stream().map(java.util.concurrent.CompletableFuture::join).toList();
+        if (all.isDone()) {
+            apply.accept(level, out.get());
+            return;
+        }
+        all.whenComplete((v, e) -> w.runAtChunk(new org.domi.furnace.server.world.ChunkPos(x >> 4, z >> 4), r -> apply.accept(r.level(), out.get())));
     }
 
     /** 바닐라 BlockBehaviour.getDrops: 표가 비었으면 빈 목록, 아니면 random_sequence 난수로 평가하고 최대 스택으로 나눈다. */

@@ -2,7 +2,8 @@
 // serverTick 의 난수 순서(레벨 난수): [다음 데이터가 없으면 후보 nextInt(합)] → 시도마다 x: nextDouble−nextDouble, y: nextInt(3), z: nextDouble−nextDouble
 // (Pos 가 있으면 그 축은 건너뜀) → 몹 스폰 규칙 난수 → yRot nextFloat → finalizeSpawn 난수 → … → delay: nextInt(max−min)·후보 nextInt(합).
 // 스폰 데이터 저장 꼴: {entity:{…}, custom_spawn_rules?:{block_light_limit, sky_light_limit}, equipment?}, 후보: [{data:…, weight:n}].
-// TODO(입자): clientTick 의 연기·불꽃 입자는 클라이언트 몫. TODO(엔티티): 탈것 승객(loadEntityRecursive 의 Passengers), equipment 적용.
+// 엔티티는 loadEntityRecursive 로 Passengers 까지 불러 태우고(모두 같은 자리로), 몹이면 SpawnData.equipment(장비 전리품 표)를 입힌다.
+// TODO(입자): clientTick 의 연기·불꽃 입자는 클라이언트 몫.
 package org.domi.furnace.server.block.entity;
 
 import java.util.ArrayList;
@@ -148,7 +149,10 @@ public abstract class BaseSpawner {
                     org.domi.furnace.server.entity.spawn.SpawnReason.SPAWNER, at, level.random())) {
                 continue;
             }
-            Entity e = loadEntity(level, tag, id, x, y, z);
+            Entity e = loadEntityRecursive(level, tag, en -> {
+                en.moveTo(x, y, z, en.yRot(), en.xRot());
+                return en;
+            });
             if (e == null) {
                 delay(level, pos);
                 return;
@@ -173,7 +177,7 @@ public abstract class BaseSpawner {
                     if (mob instanceof org.domi.furnace.server.entity.Raider r) r.setFinalizeReason(org.domi.furnace.server.entity.spawn.SpawnReason.SPAWNER);
                 }
                 if (onlyId) mob.finalizeSpawnGroup(level.random(), level.getCurrentDifficultyAt(mob.blockPosition()), null);
-                // TODO(엔티티): sd.equipment() 가 있으면 mob.equip(장비 전리품 표)
+                if (sd.equipment() instanceof NbtCompound eq) mob.equip(level, eq);
             }
             if (!level.addFreshEntityWithPassengers(e.spawnReason("SPAWNER"))) {
                 delay(level, pos);
@@ -187,8 +191,14 @@ public abstract class BaseSpawner {
         if (spawned) delay(level, pos);
     }
 
-    /** EntityType.loadEntityRecursive(tag, level, e → moveTo(x, y, z, 자기 회전)). 태그가 id 뿐이면 load 는 건너뛴다(같은 결과). */
-    static Entity loadEntity(ChunkLevel level, NbtCompound tag, String id, double x, double y, double z) {
+    /**
+     * EntityType.loadEntityRecursive(tag, level, fn): 엔티티를 만들어 읽고(create + load — 태그가 id 뿐이면 load 는 건너뛴다, 같은 결과) fn 을 적용한 뒤,
+     * Passengers(복합 태그 목록)의 승객마다 같은 방법으로 불러 강제로 태운다(startRiding(…, true)). 만들 수 없거나 읽다 실패하면 null(그 승객만 빠진다).
+     * fn 은 뿌리부터 깊이 우선으로 엔티티마다 불린다(시련 생성기는 여기서 회전 난수를 뽑는다).
+     */
+    static Entity loadEntityRecursive(ChunkLevel level, NbtCompound tag, java.util.function.UnaryOperator<Entity> fn) {
+        String id = tag.tags().get("id") instanceof String s ? normalizeId(s) : null;
+        if (id == null) return null;
         Entity e;
         try {
             e = org.domi.furnace.server.entity.Entities.create(level, id);
@@ -197,7 +207,14 @@ public abstract class BaseSpawner {
         } catch (RuntimeException ex) {
             return null;
         }
-        e.moveTo(x, y, z, e.yRot(), e.xRot());
+        e = fn.apply(e);
+        if (tag.tags().get("Passengers") instanceof NbtList list && list.elementType() == NbtIo.TAG_COMPOUND) {
+            for (Object o : list.items()) {
+                if (!(o instanceof NbtCompound pt)) continue;
+                Entity p = loadEntityRecursive(level, pt, fn);
+                if (p != null) p.startRiding(e, true);
+            }
+        }
         return e;
     }
 

@@ -167,8 +167,7 @@ public final class BlockCommands {
             // loadWithComponents(바닐라는 setChanged 없이 불러오기만)
             if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.BlockEntity be) {
                 NbtCompound t = (NbtCompound) NbtTags.freeze(NbtTags.copy(tag));
-                be.load(t);
-                be.loadComponents(t);
+                be.loadWithComponentsInLevel(level, t);
             }
         }
         return true;

@@ -186,7 +186,7 @@ class MapRendererTest {
     void toggleBannerAddsThenRemovesAndHonoursRange() {
         MapData d = fresh();
         MapData.Banner red = new MapData.Banner(10, 70, -5, "red", "\"Home\"");
-        assertTrue(d.toggleBanner(10, -5, red));
+        assertTrue(d.toggleBanner(10, -5, red, 0L));
         // 위치는 칸 중심: f = 10.5 → (byte)(10.5*2+0.5) = 21, g = -4.5 → (byte)(-9+0.5) = -8, 회전 (180+8)*16/360 = 8.35 → 8
         MapData.Decoration deco = d.decorations().get("banner-10,70,-5");
         assertEquals(MapDecorationType.byName("banner_red"), deco.type());
@@ -195,20 +195,41 @@ class MapRendererTest {
         assertEquals(8, deco.rot());
         assertNotNull(deco.name());
         // 같은 깃발을 다시 대면 지운다
-        assertTrue(d.toggleBanner(10, -5, red));
+        assertTrue(d.toggleBanner(10, -5, red, 0L));
         assertNull(d.decorations().get("banner-10,70,-5"));
         // 지도 밖: 블록 63 → f = 63.5 > 63 실패, 블록 62 → 62.5 성공
-        assertFalse(d.toggleBanner(63, 0, new MapData.Banner(63, 70, 0, "white", null)));
-        assertTrue(d.toggleBanner(62, 0, new MapData.Banner(62, 70, 0, "white", null)));
+        assertFalse(d.toggleBanner(63, 0, new MapData.Banner(63, 70, 0, "white", null), 0L));
+        assertTrue(d.toggleBanner(62, 0, new MapData.Banner(62, 70, 0, "white", null), 0L));
         // 깃발 블록 엔티티가 없으면(fromWorld = null) 실패
-        assertFalse(d.toggleBanner(5, 5, null));
+        assertFalse(d.toggleBanner(5, 5, null, 0L));
+    }
+
+    /** 바닐라 addDecoration: 지도 안의 표식은 네더 지도에서만(레벨이 있을 때) 시각으로 돈다 — (t/10)² × 34187121 + (t/10) × 121 >> 15 & 15. */
+    @Test
+    void netherMapDecorationsSpinWithDayTimeButOtherDimensionsDoNot() {
+        long day = 123_457L;
+        int k = (int) (day / 10L);
+        byte spun = (byte) (k * k * 34187121 + k * 121 >> 15 & 15);
+        MapData nether = MapData.createFresh(0, 0, (byte) 0, true, false, MapData.THE_NETHER);
+        nether.addDecoration(MapDecorationType.PLAYER, day, "p", 0, 0, 90.0, null);
+        assertEquals(spun, nether.decorations().get("p").rot());
+        nether.addDecoration(MapDecorationType.PLAYER, null, "q", 0, 0, 90.0, null);
+        assertEquals(4, nether.decorations().get("q").rot(), "레벨 없이(null) 부르면 각도 그대로: (90+8)*16/360 = 4");
+        MapData banners = MapData.createFresh(0, 0, (byte) 0, true, false, MapData.THE_NETHER);
+        assertTrue(banners.toggleBanner(3, 3, new MapData.Banner(3, 40, 3, "red", null), day));
+        assertEquals(spun, banners.decorations().get("banner-3,40,3").rot(), "깃발 표식도 레벨 시각으로 돈다(toggleBanner 는 레벨을 넘긴다)");
+        for (String dim : new String[] {MapData.OVERWORLD, MapData.THE_END}) {
+            MapData d = MapData.createFresh(0, 0, (byte) 0, true, false, dim);
+            d.addDecoration(MapDecorationType.PLAYER, day, "p", 0, 0, 90.0, null);
+            assertEquals(4, d.decorations().get("p").rot(), dim);
+        }
     }
 
     @Test
     void mapUpdateDropsBannerMarkerWhenTheBannerChanged() {
         MapData d = fresh();
         MapData.Banner red = new MapData.Banner(1, 64, 1, "red", null);
-        assertTrue(d.toggleBanner(1, 1, red));
+        assertTrue(d.toggleBanner(1, 1, red, 0L));
         Terrain t = Terrain.flat(GRASS, 63);
         t.banner = red;
         MapData.Holding h = holding(d);

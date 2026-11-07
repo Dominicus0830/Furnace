@@ -1475,9 +1475,16 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         return !mine.isAlliedTo(other.team()) || mine.isAllowFriendlyFire();
     }
 
-    /** 바닐라 Player.getDisplayName: 팀 서식(접두사·이름·접미사·색) + 삽입 텍스트 + "/tell 이름 " 제안 클릭. */
+    /**
+     * 바닐라 Player.getDisplayName(decorateDisplayNameComponent): 팀 서식(접두사·이름·접미사·색) + "/tell 이름 " 제안 클릭 + 엔티티 호버(show_entity:
+     * minecraft:player, UUID, 이름) + 삽입 텍스트(이름).
+     */
     public org.domi.furnace.api.text.Text displayName() {
-        return org.domi.furnace.server.scores.PlayerTeam.formatNameForTeam(team(), org.domi.furnace.api.text.Text.text(name)).insertion(name).clickEvent(new org.domi.furnace.api.text.ClickEvent(org.domi.furnace.api.text.ClickEvent.Action.SUGGEST_COMMAND, "/tell " + name + " "));
+        org.domi.furnace.api.text.Text n = org.domi.furnace.api.text.Text.text(name);
+        return org.domi.furnace.server.scores.PlayerTeam.formatNameForTeam(team(), n)
+                .clickEvent(new org.domi.furnace.api.text.ClickEvent(org.domi.furnace.api.text.ClickEvent.Action.SUGGEST_COMMAND, "/tell " + name + " "))
+                .hoverEvent(org.domi.furnace.api.text.HoverEvent.showEntity("minecraft:player", uuid(), n))
+                .insertion(name);
     }
 
     // 리스폰할 때마다 증가 — 관찰자가 값이 바뀐 것을 보고 엔티티를 지웠다 다시 스폰한다(바닐라: 리스폰 = 새 ServerPlayer).

@@ -1138,6 +1138,12 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     @Override
+    public void resolveSignLines(Pos pos, java.util.List<org.domi.furnace.api.text.Text> lines,
+                                 java.util.function.BiConsumer<BlockLevel, java.util.List<org.domi.furnace.api.text.Text>> apply) {
+        services().resolveSignLines(this, pos.x(), pos.y(), pos.z(), lines, apply);
+    }
+
+    @Override
     public void runSignCommand(BlockActor player, Pos pos, String command) {
         Player p = player != null && player.handle() instanceof Player pl ? pl : null;
         services().runSignCommand(p, pos.x(), pos.y(), pos.z(), command);

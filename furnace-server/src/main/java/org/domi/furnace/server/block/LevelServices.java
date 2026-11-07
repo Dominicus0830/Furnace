@@ -186,6 +186,12 @@ public interface LevelServices {
     /** 표지판 클릭 명령(BlockLevel.runSignCommand). player 는 Player(없으면 null). */
     default void runSignCommand(Player player, int x, int y, int z, String command) {}
 
+    /** 표지판 글 풀기(BlockLevel.resolveSignLines). 서버 없는 레벨은 그대로 level 에서 바로. */
+    default void resolveSignLines(BlockLevel level, int x, int y, int z, java.util.List<org.domi.furnace.api.text.Text> lines,
+                                  java.util.function.BiConsumer<BlockLevel, java.util.List<org.domi.furnace.api.text.Text>> apply) {
+        apply.accept(level, lines);
+    }
+
     /** server.properties enable-command-block(MinecraftServer.isCommandBlockEnabled). 서버 없는 레벨은 꺼짐(바닐라 기본값). */
     default boolean commandBlockEnabled() { return false; }
 
@@ -292,6 +298,10 @@ public interface LevelServices {
         public boolean spawnAnimals() { return d.spawnAnimals(); }
         public boolean spawnNpcs() { return d.spawnNpcs(); }
         public void runSignCommand(Player player, int x, int y, int z, String command) { d.runSignCommand(player, x, y, z, command); }
+        public void resolveSignLines(BlockLevel level, int x, int y, int z, java.util.List<org.domi.furnace.api.text.Text> lines,
+                                     java.util.function.BiConsumer<BlockLevel, java.util.List<org.domi.furnace.api.text.Text>> apply) {
+            d.resolveSignLines(level, x, y, z, lines, apply);
+        }
         public boolean commandBlockEnabled() { return d.commandBlockEnabled(); }
         public void runBlockCommand(BlockCommandSink sink, String command, java.util.function.IntConsumer done) { d.runBlockCommand(sink, command, done); }
     }

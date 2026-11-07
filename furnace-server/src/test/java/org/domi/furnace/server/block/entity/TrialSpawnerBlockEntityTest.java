@@ -767,7 +767,7 @@ class TrialSpawnerBlockEntityTest {
         NbtCompound eq = new NbtCompound();
         eq.putString("loot_table", "minecraft:equipment/trial_chamber_melee");
         eq.putFloat("slot_drop_chances", 0.0F);
-        TrialSpawner.applyEquipment(level, zombie, eq);
+        zombie.equip(level, eq);
         assertEquals(helmet.itemId(), zombie.getItemBySlot(org.domi.furnace.server.entity.EquipmentSlot.HEAD).itemId());
         assertEquals(sword.itemId(), zombie.getItemBySlot(org.domi.furnace.server.entity.EquipmentSlot.MAINHAND).itemId(), "주 손은 한 번만");
         assertEquals(0.0F, zombie.getEquipmentDropChance(org.domi.furnace.server.entity.EquipmentSlot.HEAD));
