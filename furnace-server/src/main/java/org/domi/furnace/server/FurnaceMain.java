@@ -93,6 +93,9 @@ public final class FurnaceMain {
         }
         ConsoleInput console = ConsoleInput.startEarly();   // 월드를 불러오기 전에 연다 — stop 은 바로, 나머지는 서버가 준비된 뒤 실행
         ServerProperties props = settings.get();
+        // Paper/Spigot 에서 넘어온 서버: bukkit.yml·spigot.yml·config/paper-*.yml 의 대응 키를 furnace.properties 로 옮긴다(첫 기동 한 번).
+        // furnace.properties 를 읽는 모든 곳보다 먼저여야 한다.
+        org.domi.furnace.server.config.PaperConfigImport.runIfNeeded(Path.of("."), Path.of("furnace.properties"));
         org.domi.furnace.server.config.OperatorOptions.install(org.domi.furnace.server.config.OperatorOptions.load(Path.of("furnace.properties")));
         if (!org.domi.furnace.server.world.anvil.Compression.configure(props.regionFileCompression)) {
             log.error("Invalid `region-file-compression` value `{}` in server.properties. Please use one of: deflate, gzip, lz4, none, zstd",
@@ -139,6 +142,8 @@ public final class FurnaceMain {
             var imported = org.domi.furnace.server.world.storage.BukkitWorldImport.run(universe, levelName, worldDir, levelData);
             // 엔드 드래곤 전투를 가져왔으면 바로 level.dat 에 남긴다 — DIM1 이 생긴 뒤에는 다시 가져오지 않는다.
             if (imported.dragonFightImported()) storage.saveLevelData(levelData);
+            // 못 가져온 것·서버 폴더의 추가 Bukkit 월드를 첫 기동 때 한 번 보고한다(실패해도 기동을 막지 않는다).
+            org.domi.furnace.server.world.storage.BukkitWorldReport.runIfNeeded(Path.of("."), universe, levelName, levelData, imported);
         } catch (java.io.IOException e) {
             log.error("Paper/Spigot 월드 폴더를 가져오지 못했다 — 원본은 그대로다. 디스크 공간·권한을 확인하고 다시 켜라", e);
             storage.close();
@@ -149,6 +154,7 @@ public final class FurnaceMain {
         for (String k : ConfigLoader.ignoredVanillaKeys(furnaceProps)) {
             log.warn("furnace.properties 의 '{}' 는 무시됩니다 — server.properties 값을 씁니다", k);
         }
+        org.domi.furnace.server.config.OptionKeys.audit(furnaceProps, log::warn);   // 오타 키·위험한 값 경고
         Config config = ConfigLoader.load(furnaceProps)
                 .withServerProperties(props, options.port(), options.world(), seed);
         long startNanos = System.nanoTime();
@@ -181,6 +187,12 @@ public final class FurnaceMain {
                 profileCache, Path.of("server-icon.png")).velocitySecret(config.velocitySecret()).bungeecord(config.bungeecord())
                 .limits(org.domi.furnace.server.net.ConnectionLimits.load(furnaceProps, log::warn)
                         .withVanillaRateLimit(props.rateLimitPacketsPerSecond));
+
+        // 위험하거나 막힐 수 있는 RCON·프록시 설정은 기동 로그에 한 번 경고한다(값은 그대로 둔다).
+        org.domi.furnace.server.remote.RconLimits rconLimits = org.domi.furnace.server.remote.RconLimits.load(furnaceProps);
+        org.domi.furnace.server.config.StartupWarnings.rcon(props.enableRcon, props.rconPassword, rconLimits).forEach(log::warn);
+        org.domi.furnace.server.config.StartupWarnings.proxy(props.onlineMode, config.bungeecord(), config.velocitySecret(),
+                loginContext.limits().proxyProtocol(), loginContext.limits().proxyTrusted().isEmpty()).forEach(log::warn);
 
         // region 은 동적(Folia 방식): 가까운 청크끼리 한 region, 떨어진 무리끼리는 작업 스레드 풀에서 병렬.
         FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos(), config.regionThreads());
@@ -378,6 +390,7 @@ public final class FurnaceMain {
                 config.port(), config.compressionThreshold(), loginContext, scheduler,
                 world, idAllocator);
         network.useNativeTransport(props.useNativeTransport);
+        network.useIoUring(org.domi.furnace.server.net.TransportOptions.load(furnaceProps).ioUring());
         CountDownLatch shutdown = new CountDownLatch(1);
         // 운영·관측 서비스(RCON·Query·워치독): 전용 IO/데몬 스레드. 종료 훅이 가장 먼저 닫는다.
         java.util.List<AutoCloseable> remoteServices = new java.util.concurrent.CopyOnWriteArrayList<>();
@@ -481,7 +494,7 @@ public final class FurnaceMain {
         // 전역 틱: 시간·날씨(바닐라 ServerLevel.tick 의 전역 부분). 고정 박자 — /tps 의 전역 값이 이 박동이다.
         new FixedRateBeat(scheduler, core::scheduledTick, 50_000_000L).start();
 
-        startRemoteServices(core, props, config, remoteServices);
+        startRemoteServices(core, props, config, rconLimits, remoteServices);
 
         // TPS 하트비트: 5초마다 측정 TPS 로그(M0 가시성).
         scheduler.global().executeDelayed(new TpsHeartbeat(scheduler, world), 100);
@@ -493,7 +506,8 @@ public final class FurnaceMain {
     }
 
     /** 바닐라 DedicatedServer.initServer 끝: enable-query → enable-rcon → 워치독(max-tick-time &gt; 0). */
-    private static void startRemoteServices(ServerCore core, ServerProperties props, Config config, java.util.List<AutoCloseable> out) {
+    private static void startRemoteServices(ServerCore core, ServerProperties props, Config config,
+                                       org.domi.furnace.server.remote.RconLimits rconLimits, java.util.List<AutoCloseable> out) {
         if (props.enableQuery) {
             log.info("Starting GS4 status listener");
             var q = org.domi.furnace.server.remote.QueryServer.create(props.serverIp, props.queryPort, new QueryInfo(core, props, config, hostIp(props)));
@@ -501,8 +515,20 @@ public final class FurnaceMain {
         }
         if (props.enableRcon) {
             log.info("Starting remote control listener");
-            var r = org.domi.furnace.server.remote.RconServer.create(props.serverIp, props.rconPort, props.rconPassword, core::runRconCommand);
+            var r = org.domi.furnace.server.remote.RconServer.create(props.serverIp, props.rconPort, props.rconPassword, core::runRconCommand, rconLimits);
             if (r != null) out.add(r);
+        }
+        var metricsOpts = org.domi.furnace.server.metrics.MetricsOptions.load(Path.of("furnace.properties"), log::warn);
+        if (metricsOpts.prometheus() || metricsOpts.jmx()) {
+            var source = new org.domi.furnace.server.metrics.ServerMetrics(core);
+            if (metricsOpts.prometheus()) {
+                var p = org.domi.furnace.server.metrics.PrometheusServer.create(metricsOpts.bind(), metricsOpts.port(), metricsOpts.token(), source);
+                if (p != null) out.add(p);
+            }
+            if (metricsOpts.jmx()) {
+                var j = org.domi.furnace.server.metrics.JmxMetrics.register(source);
+                if (j != null) out.add(j);
+            }
         }
         if (ServerWatchdog.enabled(props.maxTickTime)) {
             var w = new ServerWatchdog(props.maxTickTime, System::nanoTime, core::watchdogProbes,

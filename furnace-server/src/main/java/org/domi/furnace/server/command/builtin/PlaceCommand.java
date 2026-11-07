@@ -16,6 +16,7 @@ import java.nio.file.FileSystemNotFoundException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
@@ -58,10 +59,12 @@ import org.domi.furnace.server.world.gen.structure.PostCtx;
 import org.domi.furnace.server.world.gen.structure.StructureEngine;
 import org.domi.furnace.server.world.gen.structure.StructureRegistry;
 import org.domi.furnace.server.world.gen.structure.StructureStart;
+import org.domi.furnace.server.world.gen.structure.template.BlockStateTable;
 import org.domi.furnace.server.world.gen.structure.template.PlaceSettings;
 import org.domi.furnace.server.world.gen.structure.template.Processor;
 import org.domi.furnace.server.world.gen.structure.template.Processors;
 import org.domi.furnace.server.world.gen.structure.template.StructureTemplate;
+import org.domi.furnace.server.world.gen.structure.template.TemplateManager;
 import org.domi.furnace.server.world.gen.structure.template.TemplatePlacer;
 
 public final class PlaceCommand {
@@ -89,7 +92,7 @@ public final class PlaceCommand {
 
     /** 바닐라 SUGGEST_TEMPLATES: 템플릿 관리자가 아는 모든 id. */
     private static final SuggestionProvider<CommandSource> SUGGEST_TEMPLATES =
-            (c, b) -> SharedSuggestions.suggest(resourceIds(DATA + "structure", ".nbt"), b);
+            (c, b) -> SharedSuggestions.suggest(templateIds(c.getSource().level()), b);
 
     public static void register(CommandDispatcher<CommandSource> d) {
         d.register(literal("place").requires(s -> s.hasPermission(2))
@@ -250,11 +253,20 @@ public final class PlaceCommand {
         return post.finish(source, EntityOps.atRegion(source.level(), p[0], p[2], region -> {
             RegionLevel level = region.level();
             if (hasPos) checkLoadedPos(level, p);
-            // StructureTemplateManager.get: 이 서버는 내장 템플릿만 안다(월드 generated/·데이터팩 템플릿은 아직 — 없는 것으로 본다).
-            if (!Resources.has(DATA + "structure/" + id.path() + ".nbt", id)) throw ERROR_TEMPLATE_INVALID.create(id.toString());
+            // StructureTemplateManager.get: 월드 generated/ → 켜진 데이터 팩 → 내장 순(월드 폴더가 없는 시험·도구는 내장만)
             if (gen == null) throw ERROR_UNSUPPORTED.create("templates in this world type");
             StructureEngine engine = gen.structureEngine();
-            StructureTemplate template = engine.template(id.toString());
+            TemplateManager mgr = manager(source.level(), engine.blocks());
+            StructureTemplate template;
+            BlockStateTable table;
+            if (mgr != null) {
+                template = mgr.get(id).orElseThrow(() -> ERROR_TEMPLATE_INVALID.create(id.toString()));
+                table = mgr.table();
+            } else {
+                if (!Resources.has(DATA + "structure/" + id.path() + ".nbt", id)) throw ERROR_TEMPLATE_INVALID.create(id.toString());
+                template = engine.template(id.toString());
+                table = engine.table();
+            }
             // checkLoaded(pos, pos + size)
             int minCx = p[0] >> 4, minCz = p[2] >> 4, maxCx = (p[0] + template.sizeX) >> 4, maxCz = (p[2] + template.sizeZ) >> 4;
             checkLoaded(level, minCx, minCz, maxCx, maxCz);
@@ -274,7 +286,7 @@ public final class PlaceCommand {
                 st.random = createRandom(seed);
             }
             LiveGrid grid = covering(level, minCx, minCz, maxCx, maxCz, gen.seed());
-            boolean ok = TemplatePlacer.placeInWorld(template, grid.view, engine.shapes(), engine.table(), new Processor.Ctx(grid.view, engine.table()),
+            boolean ok = TemplatePlacer.placeInWorld(template, grid.view, engine.shapes(), table, new Processor.Ctx(grid.view, table),
                     p[0], p[1], p[2], p[0], p[1], p[2], st, createRandom(seed), 2);
             if (!ok) throw ERROR_TEMPLATE_FAILED.create();
             complete(grid);
@@ -282,6 +294,21 @@ public final class PlaceCommand {
             post.success(source, () -> Text.translatable("commands.place.template.success", id.toString(), p[0], p[1], p[2]), true);
             return 1;
         }));
+    }
+
+    /** 월드의 템플릿 저장소(월드 폴더가 없으면 null). 블록 레지스트리는 월드의 것, 없으면 주어진 것. */
+    private static TemplateManager manager(org.domi.furnace.server.world.World w, org.domi.furnace.server.world.BlockRegistry fallback) {
+        org.domi.furnace.server.world.BlockRegistry reg = w.blockRegistry() != null ? w.blockRegistry() : fallback;
+        return w.worldDir() == null || reg == null ? null : TemplateManager.forWorld(w.worldDir(), reg);
+    }
+
+    /** /place template 제안: 내장 + 월드 generated + 켜진 데이터 팩(정렬, 중복 없음). */
+    private static List<String> templateIds(org.domi.furnace.server.world.World w) {
+        TreeSet<String> out = new TreeSet<>(resourceIds(DATA + "structure", ".nbt"));
+        NoiseWorldSource gen = NoiseWorldSource.of(w.worldSource());
+        TemplateManager mgr = manager(w, gen == null ? null : gen.structureEngine().blocks());
+        for (ResourceId id : mgr != null ? mgr.listTemplates() : TemplateManager.listDataPack()) out.add(id.toString());
+        return new ArrayList<>(out);
     }
 
     /** feature 트리(필드로 이어진 ConfiguredFeature·PlacedFeature·목록)에 Noop 이 있는가. */

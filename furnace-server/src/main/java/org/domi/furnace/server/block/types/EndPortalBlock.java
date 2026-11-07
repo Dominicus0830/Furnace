@@ -24,6 +24,11 @@ public class EndPortalBlock extends BaseEntityBlock implements Portal {
 
     public EndPortalBlock(int block) { super(block); }
 
+    @Override
+    public org.domi.furnace.server.block.entity.BlockEntity newBlockEntity(Pos pos, int state) {
+        return new org.domi.furnace.server.block.entity.EndPortalBlockEntity(pos, state);
+    }
+
     /** 모양 box(0, 6, 0, 16, 12, 16) 과 몸통이 겹치면(Shapes.joinIsNotEmpty) 포털 안이다. */
     public static boolean insideShape(AABB box, Pos pos) {
         double x0 = pos.x(), y0 = pos.y() + 0.375, z0 = pos.z(), x1 = pos.x() + 1.0, y1 = pos.y() + 0.75, z1 = pos.z() + 1.0;

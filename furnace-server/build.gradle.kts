@@ -14,6 +14,11 @@ dependencies {
     implementation(project(":furnace-api"))
     implementation("com.google.code.gson:gson:2.11.0")
     implementation("io.netty:netty-all:4.1.115.Final")
+    // io_uring transport(옵션 io-uring=true). 클래스는 항상 싣고, 네이티브 라이브러리는 리눅스 x86_64·aarch64 만 싣는다.
+    // 커널·권한이 맞지 않으면 IOUring.isAvailable() 이 false 라 epoll/NIO 로 되돌아간다.
+    implementation("io.netty.incubator:netty-incubator-transport-native-io_uring:0.0.26.Final")
+    runtimeOnly("io.netty.incubator:netty-incubator-transport-native-io_uring:0.0.26.Final:linux-x86_64")
+    runtimeOnly("io.netty.incubator:netty-incubator-transport-native-io_uring:0.0.26.Final:linux-aarch_64")
     implementation("io.airlift:aircompressor:0.27")   // 순수 자바 zstd (region-file-compression=zstd)
     implementation("org.slf4j:slf4j-api:2.0.16")
     implementation("ch.qos.logback:logback-classic:1.5.12")

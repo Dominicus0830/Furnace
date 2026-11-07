@@ -1,5 +1,6 @@
 // 바닐라 MinecartSpawner: 스포너를 실은 수레(부서지면 빈 수레를 떨어뜨린다).
-// TODO(스포너): BaseSpawner 틱(근처 플레이어·지연·소환) — Furnace 에 스포너 로직이 아직 없어 움직이지 않는다. 스포너 저장 값은 그대로 보존한다.
+// 매 틱 BaseSpawner.serverTick(수레가 있는 칸) — 근처 플레이어·지연·소환은 스포너 블록과 같다. 이벤트 1 은 엔티티 이벤트로 보낸다.
+// 저장은 BaseSpawner.save/load 키(Delay, MinSpawnDelay, … SpawnPotentials)를 수레 태그에 그대로 쓴다.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.B;
@@ -8,11 +9,12 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
 public class MinecartSpawner extends AbstractMinecart {
 
-    /** BaseSpawner.save 가 쓰는 키. */
-    private static final String[] SPAWNER_KEYS = {"Delay", "MinSpawnDelay", "MaxSpawnDelay", "SpawnCount", "MaxNearbyEntities", "RequiredPlayerRange",
-            "SpawnRange", "SpawnData", "SpawnPotentials"};
-
-    private final NbtCompound spawner = new NbtCompound();
+    private final org.domi.furnace.server.block.entity.BaseSpawner spawner = new org.domi.furnace.server.block.entity.BaseSpawner() {
+        @Override
+        public void broadcastEvent(org.domi.furnace.server.block.BlockLevel l, org.domi.furnace.server.block.Pos p, int type) {
+            broadcastEntityEvent((byte) type);
+        }
+    };
 
     public MinecartSpawner(ChunkLevel level, int id) { super(EntityType.SPAWNER_MINECART, level, id); }
 
@@ -22,16 +24,24 @@ public class MinecartSpawner extends AbstractMinecart {
 
     @Override public int getDefaultDisplayBlockState() { return B.defaultState("spawner"); }
 
+    public org.domi.furnace.server.block.entity.BaseSpawner spawner() { return spawner; }
+
+    /** MinecartSpawner.tick: 수레 틱 뒤 스포너 틱(수레가 서 있는 칸 기준). */
+    @Override
+    public void tick() {
+        super.tick();
+        if (isAlive()) spawner.serverTick(level, blockPosition());
+    }
+
     @Override
     protected void addAdditionalSaveData(NbtCompound tag) {
         super.addAdditionalSaveData(tag);
-        for (var e : spawner.tags().entrySet()) tag.put(e.getKey(), e.getValue());
+        spawner.save(tag);
     }
 
     @Override
     protected void readAdditionalSaveData(NbtCompound tag) {
         super.readAdditionalSaveData(tag);
-        spawner.tags().clear();
-        for (String k : SPAWNER_KEYS) if (tag.contains(k)) spawner.put(k, tag.tags().get(k));
+        spawner.load(tag);
     }
 }

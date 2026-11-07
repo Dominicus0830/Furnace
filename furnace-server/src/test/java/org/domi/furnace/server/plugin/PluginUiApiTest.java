@@ -182,6 +182,8 @@ class PluginUiApiTest {
                 session.opened();
             }
 
+            public void retitlePluginMenu(MenuSession session, Text title) { retitles.add(session.api().title() == title ? "new" : "stale"); }
+
             public void closeContainer(AbstractContainerMenu expect) {
                 if (p.containerMenu() == expect) {
                     events.inventoryClose(p, expect);
@@ -190,6 +192,8 @@ class PluginUiApiTest {
             }
         });
     }
+
+    private final List<String> retitles = new ArrayList<>();
 
     private boolean click(int slot, int button, ClickType type) {
         return new PluginGameEvents(host).inventoryClick(p, p.containerMenu(), slot, button, type);
@@ -276,5 +280,36 @@ class PluginUiApiTest {
             assertEquals(type.key(), m.menuType());
             handle.closeMenu();
         }
+    }
+
+    @Test
+    void menuTitleChangeReachesOpenScreenOnly() {
+        useFakeHost();
+        Menu menu = Menu.chest(Text.text("앞"), 1);
+        menu.setTitle(Text.text("닫힌 동안은 알릴 곳이 없다"));
+        assertEquals(List.of(), retitles);
+        handle.openMenu(menu);
+        Text next = Text.text("뒤");
+        menu.setTitle(next);
+        assertSame(next, menu.title());
+        assertEquals(List.of("new"), retitles);
+        menu.setTitle(next);   // 같은 제목이면 다시 안 보낸다
+        assertEquals(List.of("new"), retitles);
+        handle.closeMenu();
+        menu.setTitle(Text.text("닫힌 뒤"));
+        assertEquals(List.of("new"), retitles);
+    }
+
+    @Test
+    void soundAndStopSoundPackets() {
+        var s = org.domi.furnace.api.audience.Sound.sound("entity.player.levelup", org.domi.furnace.api.audience.Sound.Source.PLAYER, 0.5F, 1.5F);
+        handle.playSound(s);
+        handle.playSound(s, 10, 64, 10);
+        handle.stopSound(org.domi.furnace.api.audience.Sound.Source.MASTER, "minecraft:entity.player.levelup");
+        handle.stopAllSounds();
+        handle.sendActionBar(Text.text("바"));
+        assertEquals(List.of("104", "104", "106", "106", "76"), drain());
+        assertThrows(IllegalArgumentException.class, () -> org.domi.furnace.api.audience.Sound.sound("Bad Name", org.domi.furnace.api.audience.Sound.Source.MASTER));
+        assertThrows(IllegalArgumentException.class, () -> org.domi.furnace.api.audience.Sound.sound("a.b", org.domi.furnace.api.audience.Sound.Source.MASTER, 1, 3));
     }
 }
