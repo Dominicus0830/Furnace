@@ -70,6 +70,8 @@ class MultiDimensionTickBench {
         int[] count = new int[total];
         long spin = (long) (loadMs * 1_000_000L);
         List<CompletableFuture<Void>> done = new ArrayList<>();
+        Canary canary = Canary.start();
+        long gc0 = gcMillis();
         long cpu0 = processCpuNanos(), wall0 = System.nanoTime(), wake0 = wakeups(worlds);
         long[] c0 = poolCounters(worlds);
         int idx = 0;
@@ -103,6 +105,8 @@ class MultiDimensionTickBench {
         }
         CompletableFuture.allOf(done.toArray(new CompletableFuture[0])).get(ticks * 200L + 60_000L, TimeUnit.MILLISECONDS);
         long cpu = processCpuNanos() - cpu0, wall = System.nanoTime() - wall0, wakes = wakeups(worlds) - wake0;
+        long gcMs = gcMillis() - gc0;
+        canary.stop();
         long[] c1 = poolCounters(worlds);
         long tickTotal = 0;
         for (World w : worlds) for (var rs : w.regionizer().schedStats().regions()) tickTotal += rs.ticks();
@@ -116,10 +120,72 @@ class MultiDimensionTickBench {
                 dims, regionsPerDim, regionThreads, threads, Runtime.getRuntime().availableProcessors(), loadMs, a.length,
                 a[a.length / 2] / 1e6, a[a.length * 95 / 100] / 1e6, a[a.length * 99 / 100] / 1e6, a[a.length - 1] / 1e6, a[0] / 1e6,
                 cpu / 1e6, wall / 1e6, wakes, c1[0] - c0[0], c1[1] - c0[1], c1[2] - c0[2], tickTotal, CPU_LOAD);
+        // 튐 원인 가르기: 늦음이 큰 간격 3 개마다, 같은 구간에서 스케줄러와 무관한 카나리 스레드(1ms 파킹 반복)가 본 가장 큰 늦잠.
+        // 카나리도 같이 늦었으면 스케줄러 밖(OS 선점·GC·세이프포인트)이다.
+        List<long[]> worst = new ArrayList<>();   // {늦음, 구간 시작, 구간 끝}
+        for (int s = 0; s < total; s++) for (int i = 6; i <= ticks; i++)
+            worst.add(new long[]{starts[s][i] - starts[s][i - 1] - TICK, starts[s][i - 1], starts[s][i]});
+        worst.sort((x, y) -> Long.compare(y[0], x[0]));
+        StringBuilder top = new StringBuilder();
+        for (int k = 0; k < Math.min(3, worst.size()); k++) {
+            long[] w = worst.get(k);
+            top.append(String.format(" %.1f/%.1f", w[0] / 1e6, canary.maxOversleep(w[1], w[2]) / 1e6));
+        }
+        System.out.printf("MDBENCH-CAUSE %s dims=%d loadMs=%.1f gcMs=%d canaryP99=%.3fms canaryMax=%.3fms worst(늦음/카나리ms):%s%n",
+                shared ? "shared" : "perDim", dims, loadMs, gcMs, canary.percentile(99) / 1e6, canary.percentile(100) / 1e6, top);
         sched.close();
         for (World w : worlds) w.regionizer().close();
         if (pool != null) pool.close();
         for (ExecutorService e : pools) e.shutdownNow();
+    }
+
+    private static long gcMillis() {
+        long t = 0;
+        for (var gc : java.lang.management.ManagementFactory.getGarbageCollectorMXBeans()) t += Math.max(0, gc.getCollectionTime());
+        return t;
+    }
+
+    /** 스케줄러와 무관한 스레드가 1ms 파킹을 반복하며 늦잠(깬 시각 - 예정 시각)을 기록한다 — 기계·JVM 쪽 멈춤 탐지기. */
+    private static final class Canary implements Runnable {
+        private static final long PERIOD = 1_000_000L;
+        private final long[] at = new long[2_000_000], over = new long[2_000_000];
+        private volatile boolean running = true;
+        private int n;
+        private Thread thread;
+
+        static Canary start() {
+            Canary c = new Canary();
+            c.thread = new Thread(c, "bench-canary");
+            c.thread.setDaemon(true);
+            c.thread.start();
+            return c;
+        }
+
+        @Override public void run() {
+            while (running && n < at.length) {
+                long due = System.nanoTime() + PERIOD;
+                java.util.concurrent.locks.LockSupport.parkNanos(PERIOD);
+                long now = System.nanoTime();
+                at[n] = now;
+                over[n] = Math.max(0, now - due);
+                n++;
+            }
+        }
+
+        void stop() throws InterruptedException { running = false; thread.join(); }
+
+        long maxOversleep(long from, long to) {
+            long m = 0;
+            for (int i = 0; i < n; i++) if (at[i] >= from && at[i] <= to + PERIOD) m = Math.max(m, over[i]);
+            return m;
+        }
+
+        long percentile(int p) {
+            if (n == 0) return 0;
+            long[] a = java.util.Arrays.copyOf(over, n);
+            java.util.Arrays.sort(a);
+            return a[Math.min(n - 1, (int) ((long) n * p / 100))];
+        }
     }
 
     // ===== 과부하 시나리오 (2026-10-27): -Dfurnace.bench=true -Dfurnace.bench.overload=true =====

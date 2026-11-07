@@ -77,7 +77,7 @@
 | **`/tps` 와 `getTPS()` 정의** | Furnace 는 region 마다 따로 틱해서 `/tps` 는 전역 박동 TPS 와 차원별 가장 느린 region TPS 를 함께 보임 | 플러그인용 `getTPS()` 가 돌려줄 값. 제안: 전역 박동 값 (`docs/feature-parity/tps-mspt-2026-11-03.md`) |
 | **`spawn-animals=false` / `spawn-npcs=false`** | 이제 바닐라처럼 이미 있는 동물·주민도 지움 (이전에는 자연 스폰만 막음) | 이 옵션으로 운영 중이면 첫 기동 때 기존 동물이 사라진다는 점을 감수할지 |
 | **Paper/Spigot 월드 가져오기** | 첫 기동 때 `world_nether/DIM-1`·`world_the_end/DIM1` 을 `world/` 안으로 **복사** (원본 보존). Bukkit 월드별 규칙·날씨는 안 가져오고 주 `world/level.dat` 값을 씀 | 네더·엔드 크기만큼 디스크가 더 필요. 확인 뒤 원본은 직접 지우면 됨. 이 방식이 맞는지 (`docs/feature-parity/bukkit-world-import-2026-11-03.md`) |
-| **공유 스케줄러 S4 기본값** | 병합됨, 기본 꺼짐. 켜는 법 `-Dfurnace.sharedRegionPool=true` | 기본값을 켤지. 부하 5ms 에서 지연은 줄었으나 간헐적 40~60ms 튐 원인 미확인 (`docs/feature-parity/shared-scheduler-s4-2026-10-28.md`) |
+| **공유 스케줄러 S4 기본값** | **결정됨(2026-11-07): 기본 켬.** 튐은 기계 경합·GC 쪽으로 확인, 공유가 모든 지표에서 같거나 나음. 끄려면 furnace.properties `shared-region-pool=false` | 할 일 없음. 기존 서버에서 `region-threads` 를 직접 적어 뒀다면 이제 서버 전체 워커 수라는 점만 알아 두세요 (`docs/feature-parity/shared-scheduler-default-2026-11-07.md`) |
 | **CI (`.github/workflows/ci.yml`)** | 기본 ubuntu-latest 러너, push/PR 전체 트리거. `:furnace-api:test`, `:furnace-plugin-test:classes`, `:furnace-server:fatJar` 단계 포함. GitHub 에서는 아직 안 돌려 봄 | 러너 종류(자체 호스팅 여부), 브랜치 제한, 캐시 정책, 바닐라 jar 추출(3-1)용 외부 접근 허용 여부. 시작 스크립트(`start.sh`/`start.bat`)는 실제 기동을 확인하지 못함 |
 | **데이터 팩 구조물 템플릿** | 구조물 블록은 월드 `generated/<ns>/structures/` 와 내장 `minecraft` 템플릿만 읽음. 데이터 팩 `structure/*.nbt`·`.snbt` 와 옛 DataVersion 데이터 픽서는 없음(Furnace 에 데이터 팩 템플릿 경로가 없음) | 필요한지. 필요하면 데이터 팩 경로부터 만들어야 함 |
 ---

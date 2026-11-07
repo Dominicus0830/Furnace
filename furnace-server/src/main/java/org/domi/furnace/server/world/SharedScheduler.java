@@ -1,6 +1,6 @@
 // region 틱 작업 스레드 풀. 등록된 Regionizer(차원)마다 잠금 없이 발행된 "큐 머리 마감"(headDue)을 보고 가장 이른 차원을 고르고,
 // 꺼내기·끝내기만 그 차원 잠금 안에서 한다(tryTake/finishTick). 깨우기는 LockSupport.unpark — 풀에는 잠금이 없다.
-// 차원마다 풀 하나(호환 경로, 기본)이거나 -Dfurnace.sharedRegionPool=true 면 서버 전체 하나(S4).
+// 서버 전체 하나(S4, 기본)이거나 shared-region-pool=false 면 차원마다 풀 하나(이전 방식).
 // 공정성(§4.1): EDF + 머리가 2틱 넘게 밀린 차원 먼저 + 다른 차원에 때가 된 머리가 있으면 한 차원은 T-1 워커까지.
 // 설계: docs/feature-parity/shared-scheduler-design-2026-10-28.md §2.1·§3·§4
 package org.domi.furnace.server.world;
@@ -66,9 +66,19 @@ public final class SharedScheduler implements AutoCloseable {
     static final long TIE_NANOS = 1_000L;
     private final java.util.concurrent.atomic.AtomicInteger rr = new java.util.concurrent.atomic.AtomicInteger();
 
-    /** 서버 전체 공유 풀을 만들고 시작한다(FurnaceMain, 스위치 켬). */
+    /** 서버 전체 공유 풀을 만들고 시작한다(시험·벤치 — 상한·굶음 값은 -Dfurnace.sched.* 또는 기본값). */
     public static SharedScheduler startShared(int threads, String name) {
         SharedScheduler p = new SharedScheduler(threads, name);
+        p.start();
+        return p;
+    }
+
+    /**
+     * 서버 전체 공유 풀(FurnaceMain, shared-region-pool=true). dimCap 0 이면 워커 수−1, starveTicks 는 굶음 판정 틱 배수
+     * (furnace.properties 의 region-pool-dim-cap·region-pool-starve-ticks).
+     */
+    public static SharedScheduler startShared(int threads, String name, int dimCap, int starveTicks) {
+        SharedScheduler p = new SharedScheduler(threads, name, PreciseWait.spinMargin(), dimCap, starveTicks);
         p.start();
         return p;
     }
@@ -99,11 +109,16 @@ public final class SharedScheduler implements AutoCloseable {
 
     /** spinMargin 을 직접 준다(시험 — 리눅스에서도 스핀 경로를 돈다). */
     SharedScheduler(int threads, String name, long spinMargin) {
+        this(threads, name, spinMargin, Integer.getInteger("furnace.sched.dimCap", 0), Integer.getInteger("furnace.sched.starveTicks", 2));
+    }
+
+    /** dimCap 0(이하) 이면 워커 수−1. */
+    private SharedScheduler(int threads, String name, long spinMargin, int dimCap, int starveTicks) {
         this.spinMargin = Math.max(0L, spinMargin);
         this.workers = new Thread[Math.max(1, threads)];
-        int cap = Integer.getInteger("furnace.sched.dimCap", workers.length - 1);
+        int cap = dimCap > 0 ? dimCap : workers.length - 1;
         this.perDimCap = workers.length <= 1 || cap <= 0 ? Integer.MAX_VALUE : cap;
-        this.starveTicks = Math.max(1, Integer.getInteger("furnace.sched.starveTicks", 2));
+        this.starveTicks = Math.max(1, starveTicks);
         for (int i = 0; i < workers.length; i++) {
             Thread t = new Thread(this::workerLoop, name + i);
             t.setDaemon(true);

@@ -44,7 +44,7 @@ public final class Regionizer {
     private final Set<Region> regions = new LinkedHashSet<>();
     /** 틱 대기열(잠금 안, 지연 삭제 — 꺼낼 때 상태를 다시 본다). */
     private final PriorityQueue<Region> queue = new PriorityQueue<>((a, b) -> compareDue(a.nextTickNanos, b.nextTickNanos));   // nanoTime 오버플로에 안전한 차이 비교
-    /** 작업 스레드 풀. 차원마다 하나(ownsPool) 또는 서버 전체 공유(S4, -Dfurnace.sharedRegionPool=true). */
+    /** 작업 스레드 풀. 서버 전체 공유(S4, 기본) 또는 차원마다 하나(ownsPool, shared-region-pool=false). */
     private final SharedScheduler pool;
     private final boolean ownsPool;
     /** 큐 머리의 마감(비면 Long.MAX_VALUE). 쓰기는 잠금 안(publishHead), 읽기는 어디서나 — 힌트일 뿐 결정은 tryTake 가 다시 한다. */
