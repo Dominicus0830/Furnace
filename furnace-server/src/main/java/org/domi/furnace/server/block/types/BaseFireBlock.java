@@ -28,7 +28,7 @@ public abstract class BaseFireBlock extends BlockBehavior {
     protected abstract boolean canBurn(int state);
 
     /** fireDamage: 불 1, 영혼 불 2. */
-    protected float fireDamage() { return 1.0F; }
+    public float fireDamage() { return 1.0F; }
 
     /** entityInside: 불에 강하지 않으면 불 틱 +1(0 이 되면 8초 불붙이기), 그리고 불 속 피해. */
     @Override

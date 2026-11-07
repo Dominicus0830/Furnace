@@ -1364,6 +1364,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             p.loadTags(saved.root());
             p.loadPersistentData(saved.root());
             p.loadShoulders(saved.root());
+            p.loadFire(saved.root());
         }
         // 바닐라 placeNewPlayer: 위치 → server_data → 탭 목록(기존 접속자, 그다음 본인) → sendLevelInfo → 청크 중심 → 인벤토리
         send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
@@ -4075,6 +4076,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         p.saveTags(extra);
         p.savePersistentData(extra);
         p.saveShoulders(extra);
+        p.saveFire(extra);
         p.saveAttributes(extra);
         final long seq = org.domi.furnace.server.entity.PlayerData.nextSeq();
         final var advancements = p.advancements();

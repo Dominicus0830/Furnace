@@ -448,8 +448,14 @@ public class Boat extends Entity implements Leashable {
     @Override
     protected void placeRider(Rider r) {
         super.placeRider(r);
+        if (r instanceof Player p) {   // 플레이어: 클라이언트가 보낸 서버 쪽 회전을 배와 함께 돌리고 배 기준 ±105 도로 묶는다
+            float yaw = p.yaw() + deltaRotation;
+            float f = Mth.wrapDegrees(yaw - yRot());
+            float g = Math.clamp(f, -105.0F, 105.0F);
+            p.setRotRaw(yaw + g - f, p.pitch());
+            return;
+        }
         if (!(r instanceof Entity e) || EntityTypeTags.ids("minecraft:can_turn_in_boats") != null && contains(EntityTypeTags.ids("minecraft:can_turn_in_boats"), e.type().id())) return;
-        // TODO(플레이어 회전): 탄 플레이어의 서버 쪽 회전은 클라이언트가 보내 온 값을 쓴다
         e.setYRot(e.yRot() + deltaRotation);
         if (e instanceof LivingEntity le) le.setYHeadRot(le.yHeadRot() + deltaRotation);
         clampRotation(e);

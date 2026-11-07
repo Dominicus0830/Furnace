@@ -359,6 +359,7 @@ public final class PlayerData {
         p.saveTags(root);
         p.savePersistentData(root);
         p.saveShoulders(root);
+        p.saveFire(root);
         p.saveAttributes(root);
         fill(root, p.uuid(), p.x(), p.y(), p.z(), p.yaw(), p.pitch(), p.onGround(), slots);
         root.tags().remove("DataVersion");
