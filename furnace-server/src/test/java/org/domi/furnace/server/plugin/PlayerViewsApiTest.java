@@ -210,18 +210,16 @@ class PlayerViewsApiTest {
         border.center(800, 0);
         border.size(200);
         drain(vp);
-        vp.viewLayers().scaleOf(d -> 8.0);   // 네더에 있는 것처럼
-        vp.viewLayers().syncBorderScale("minecraft:the_nether");
+        vp.viewLayers().scaleOf(d -> d.endsWith("nether") ? 8.0 : 1.0);
         assertEquals(800, border.centerX(), "플러그인이 넣은 값(오버월드 좌표) 그대로");
-        assertTrue(border.contains(100, 0), "네더 중심은 1/8 = 100");
-        assertFalse(border.contains(800, 0), "나누지 않은 중심은 밖");
-        assertEquals(200, border.size(), "크기는 나누지 않는다");
-        border.size(300);   // 다시 보냄 — 이어서 InitializeBorder.of 가 나눈 중심을 쓰는지
-        assertEquals(100.0, org.domi.furnace.server.net.protocol.play.InitializeBorder.of(vp.viewLayers().border()).centerX());
-        vp.viewLayers().syncBorderScale("minecraft:overworld");
-        vp.viewLayers().scaleOf(d -> 1.0);
-        vp.viewLayers().syncBorderScale("minecraft:overworld");
-        assertTrue(border.contains(800, 0));
+        var nether = vp.viewLayers().borderFor("minecraft:the_nether");
+        assertTrue(nether.isWithinBounds(100, 0), "네더 중심은 1/8 = 100");
+        assertFalse(nether.isWithinBounds(800, 0), "나누지 않은 중심은 밖");
+        assertEquals(200, nether.getSize(), "크기는 나누지 않는다");
+        assertEquals(100.0, org.domi.furnace.server.net.protocol.play.InitializeBorder.of(nether).centerX());
+        assertTrue(vp.viewLayers().borderFor("minecraft:overworld").isWithinBounds(800, 0), "오버월드는 그대로, 공유 상태는 안 바뀜");
+        border.enforce(true);
+        assertFalse(vp.viewLayers().enforcedBorder("minecraft:the_nether").isWithinBounds(800, 0));
     }
 
     @Test

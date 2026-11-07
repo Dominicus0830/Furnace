@@ -257,7 +257,6 @@ public final class PlayerViewsImpl implements PlayerViews {
                 b.applySettings(host.core().border().createSettings());
                 layers.scaleOf(dim -> { var w = host.core().world(dim); return w != null ? w.border().coordinateScale() : 1.0; });
                 layers.border(b, plugin);
-                layers.syncBorderScale(v.dimension());
                 v.send(InitializeBorder.vanillaDefault());   // ViewRewriter 가 개인 보더 상태로 바꿔 보낸다
             } else {
                 layers.borderOwner(plugin);
@@ -318,7 +317,7 @@ public final class PlayerViewsImpl implements PlayerViews {
         @Override public void damageSafeZone(double blocks) { b.setDamageSafeZone(blocks); }
         @Override public boolean enforced() { return viewer.viewLayers().border() == b && viewer.viewLayers().borderEnforced(); }
         @Override public void enforce(boolean enforce) { if (viewer.viewLayers().border() == b) viewer.viewLayers().borderEnforced(enforce); }
-        @Override public boolean contains(double x, double z) { viewer.viewLayers().syncBorderScale(viewer.dimension()); return b.isWithinBounds(x, z); }
+        @Override public boolean contains(double x, double z) { return viewer.viewLayers().borderFor(viewer.dimension()).isWithinBounds(x, z); }
     }
 
     // ------------------------------------------------------------------ 장비 표시

@@ -1012,8 +1012,7 @@ public final class ServerCore {
 
     /** 바닐라 Level.mayInteract(ServerLevel): 스폰 보호 밖이고 월드 보더 안. */
     public boolean mayInteract(Player p, int x, int z) {
-        org.domi.furnace.server.world.WorldBorder own = p == null ? null : p.viewLayers().enforcedBorder();
-        if (own != null) p.viewLayers().syncBorderScale(p.dimension());   // 플러그인이 enforce 한 개인 보더(PlayerViews)
+        org.domi.furnace.server.world.WorldBorder own = p == null ? null : p.viewLayers().enforcedBorder();   // 플러그인이 enforce 한 개인 보더(PlayerViews)
         return !isUnderSpawnProtection(x, z, p) && (own != null ? own : border).isWithinBounds(x, z);
     }
 
@@ -1088,8 +1087,7 @@ public final class ServerCore {
             return border.computePlayerDamage(x - 0.3, z - 0.3, x + 0.3, z + 0.3, x, z);
         }
         public float borderDamage(Player player, double x, double y, double z) {
-            org.domi.furnace.server.world.WorldBorder own = player.viewLayers().enforcedBorder();
-            if (own != null) player.viewLayers().syncBorderScale(player.dimension());
+            org.domi.furnace.server.world.WorldBorder own = player.viewLayers().enforcedBorder(player.dimension());
             return (own != null ? own : borderOf(player.dimension())).computePlayerDamage(x - 0.3, z - 0.3, x + 0.3, z + 0.3, x, z);
         }
     };

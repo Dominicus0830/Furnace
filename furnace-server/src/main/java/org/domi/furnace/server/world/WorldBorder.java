@@ -94,7 +94,7 @@ public final class WorldBorder {
     private int absoluteMaxSize = DEFAULT_ABSOLUTE_MAX_SIZE;
     private Extent extent = new StaticExtent(MAX_SIZE);
     /** 차원 좌표 비(DimensionType.coordinateScale). 1 이 아니면 getCenterX/Z 가 저장된 중심을 이 값으로 나눈다. */
-    private volatile double coordinateScale;
+    private final double coordinateScale;
 
     public WorldBorder() {
         this(() -> System.nanoTime() / 1_000_000L);
@@ -117,8 +117,14 @@ public final class WorldBorder {
 
     public double coordinateScale() { return coordinateScale; }
 
-    /** 플레이어별 개인 보더(K3)가 플레이어의 지금 차원 비를 따라가게 한다. 월드 보더에는 쓰지 않는다. */
-    public void setCoordinateScale(double scale) { this.coordinateScale = scale; }
+    /** 같은 상태(중심·크기·보간·피해·경고)로 좌표 비만 다른 복사본 — 플레이어별 개인 보더(K3)를 그 차원 기준으로 판정할 때. 비가 같으면 자기 자신. */
+    public synchronized WorldBorder withCoordinateScale(double scale) {
+        if (scale == coordinateScale) return this;
+        WorldBorder c = new WorldBorder(millis, scale);
+        c.setAbsoluteMaxSize(absoluteMaxSize);
+        c.applySettings(createSettings());
+        return c;
+    }
 
     /** 저장된 중심 x(좌표 비로 나누기 전, 오버월드 좌표). */
     public synchronized double getRawCenterX() { return centerX; }
