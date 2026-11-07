@@ -149,6 +149,7 @@ public final class FurnaceMain {
         for (String k : ConfigLoader.ignoredVanillaKeys(furnaceProps)) {
             log.warn("furnace.properties 의 '{}' 는 무시됩니다 — server.properties 값을 씁니다", k);
         }
+        org.domi.furnace.server.config.OptionKeys.audit(furnaceProps, log::warn);   // 오타 키·위험한 값 경고
         Config config = ConfigLoader.load(furnaceProps)
                 .withServerProperties(props, options.port(), options.world(), seed);
         long startNanos = System.nanoTime();
