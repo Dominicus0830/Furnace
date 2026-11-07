@@ -22,6 +22,8 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class FallingBlockEntity extends Entity {
+    @Override public boolean onlyOpCanSetNbt() { return true; }
+
     public static final int DATA_START_POS = 8;
     private static final Prop WATERLOGGED = B.prop("waterlogged");
     private int blockState = B.defaultState("sand");

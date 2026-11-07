@@ -254,5 +254,6 @@ class EntityGameEventsTest {
         Object src = only(level, GameEvent.ENTITY_PLACE);
         assertInstanceOf(AbstractArrow.class, src);
         assertTrue(((AbstractArrow) src).vy() < 0, "아래로 쏜다");
+        assertEquals(AbstractArrow.Pickup.DISALLOWED, ((AbstractArrow) src).pickup, "AbstractArrow.setOwner: 주인이 불길한 생성기면 줍기 불가");
     }
 }

@@ -877,7 +877,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         send(ctx, new BrandPayload(org.domi.furnace.server.config.OperatorOptions.current().serverBrand()));         // 바닐라 순서: brand → 기능 플래그 → Known Packs
         var links = serverLinks();
         if (!links.isEmpty()) send(ctx, new org.domi.furnace.server.net.protocol.play.ServerLinksPacket(links, false));   // 바닐라 순서: brand → 서버 링크 → 기능 플래그
-        send(ctx, FeatureFlags.vanilla());
+        send(ctx, FeatureFlags.enabled());
         send(ctx, new KnownPacksClientbound());
     }
 

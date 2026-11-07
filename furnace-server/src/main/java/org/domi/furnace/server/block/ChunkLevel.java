@@ -1651,19 +1651,21 @@ public abstract class ChunkLevel implements BlockLevel {
      * 아이템 설정(이름·entity_data, createDefaultStackConfig) → 추가 → (몹이면) 주변 소리. stack 이 없으면 몹만 만든다(몹이 아니면 null).
      * 알의 entity_data 가 몹이 아닌 종류(배·수레 등)를 가리키면 그것도 만든다.
      */
+    /** EntityType.getYOffset: 칸 위에서 아래로 떨어뜨려 바닥에 맞출 높이(extendDown 이면 한 칸 아래까지). */
+    public double snapOffset(Entity e, Pos pos, boolean extendDown) {
+        e.setPos(pos.x() + 0.5, pos.y() + 1, pos.z() + 0.5);
+        AABB box = new AABB(pos.x(), pos.y(), pos.z(), pos.x() + 1.0, pos.y() + 1.0, pos.z() + 1.0);
+        if (extendDown) box = box.expandTowards(0.0, -1.0, 0.0);
+        return 1.0 + Entity.collideWithShapes(0.0, extendDown ? -2.0 : -1.0, 0.0, e.boundingBox(), blockCollisions(box))[1];
+    }
+
     public Entity spawnEntityFromStack(String entityType, Pos pos, boolean snapToGround, boolean extendDown,
             org.domi.furnace.server.entity.spawn.SpawnReason reason, String pluginReason, ItemStack stack, BlockActor player) {
         Entity e = org.domi.furnace.server.entity.Entities.create(this, entityType);
         if (e == null) return null;
         org.domi.furnace.server.entity.Mob mob = e instanceof org.domi.furnace.server.entity.Mob m ? m : null;
         if (mob == null && stack == null) return null;
-        double d0 = 0.0;
-        if (snapToGround) {
-            e.setPos(pos.x() + 0.5, pos.y() + 1, pos.z() + 0.5);
-            AABB box = new AABB(pos.x(), pos.y(), pos.z(), pos.x() + 1.0, pos.y() + 1.0, pos.z() + 1.0);
-            if (extendDown) box = box.expandTowards(0.0, -1.0, 0.0);
-            d0 = 1.0 + Entity.collideWithShapes(0.0, extendDown ? -2.0 : -1.0, 0.0, e.boundingBox(), blockCollisions(box))[1];
-        }
+        double d0 = snapToGround ? snapOffset(e, pos, extendDown) : 0.0;
         e.moveTo(pos.x() + 0.5, pos.y() + d0, pos.z() + 0.5, org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(random.nextFloat() * 360.0F), 0.0F);
         if (mob != null) {
             mob.setYHeadRot(mob.yRot());
@@ -1672,9 +1674,9 @@ public abstract class ChunkLevel implements BlockLevel {
             if (mob instanceof org.domi.furnace.server.entity.Raider r) r.setFinalizeReason(reason);   // 알·발사기 마녀도 습격에 참여
             mob.finalizeSpawnGroup(random, getCurrentDifficultyAt(mob.blockPosition()), null);   // 무리 데이터 경로(AgeableMob·말 능력치)
         }
+        if (mob != null) mob.makeSound(mob.ambientSoundForSpawn());   // 바닐라 create: finalizeSpawn → 주변 소리 → 이름·entity_data
         org.domi.furnace.server.entity.EntityStackConfig.apply(this, stack, player, e);
         addFreshEntityWithPassengers(mob != null ? mob.spawnReason(pluginReason) : e);
-        if (mob != null) mob.makeSound(mob.ambientSoundForSpawn());
         return e;
     }
 

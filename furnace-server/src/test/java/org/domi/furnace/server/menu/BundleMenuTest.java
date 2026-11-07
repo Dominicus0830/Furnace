@@ -38,6 +38,12 @@ class BundleMenuTest {
     @AfterEach
     void tearDown() { FeatureFlags.install(Set.of("minecraft:vanilla")); }
 
+    @Test
+    void enabledFlagsAreSentToTheClient() {   // 클라이언트는 꺼진 기능의 아이템은 사용 패킷을 보내지 않는다
+        assertEquals(java.util.List.of("minecraft:vanilla", "minecraft:bundle"),
+                org.domi.furnace.server.net.protocol.configuration.FeatureFlags.enabled().flags());
+    }
+
     static ItemStack it(String n, int c) { return TestRecipes.item(n, c); }
 
     static final int A = 36, B = 37;

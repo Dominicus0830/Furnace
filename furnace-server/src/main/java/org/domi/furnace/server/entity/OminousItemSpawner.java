@@ -51,6 +51,7 @@ public class OminousItemSpawner extends Entity {
         ItemStack stack = getItem();
         if (stack.isEmpty()) return;
         Entity out = org.domi.furnace.server.block.dispenser.DispenseBehaviors.projectileDown(level, x(), y(), z(), blockPosition(), stack);
+        if (out instanceof AbstractArrow arrow) arrow.pickup = AbstractArrow.Pickup.DISALLOWED;   // AbstractArrow.setOwner: 주인이 OminousItemSpawner 면 줍기 불가
         if (out == null) out = new ItemEntity(level, level.nextEntityId(), x(), y(), z(), stack);
         level.addFreshEntity(out);
         level.levelEvent(null, 3021, blockPosition(), 1);

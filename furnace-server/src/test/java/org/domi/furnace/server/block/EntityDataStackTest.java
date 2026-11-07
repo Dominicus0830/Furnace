@@ -164,6 +164,24 @@ class EntityDataStackTest {
     }
 
     @Test
+    void spawnerMinecartAndFallingBlockDataNeedAnOp() {   // 바닐라 onlyOpCanSetNbt: 명령 블록 수레·스포너 수레·낙하 블록
+        for (String type : new String[] {"minecraft:spawner_minecart", "minecraft:falling_block"}) {
+            for (int perm : new int[] {0, 2}) {
+                var level = new BlockPlacementTest.TestLevel();
+                var u = new ItemUseTest.User();
+                u.permission = perm;
+                NbtCompound d = tag(type);
+                d.putBoolean("NoGravity", true);
+                u.hands[0] = withData(stack("pig_spawn_egg", 1), d);
+                BlockPlacement.useItemOn(level, u, 0, new Hit(new Pos(0, -61, 0), Dir.UP, 0.5, -60.0, 0.5, false));
+                var e = level.entities().tickSnapshot().stream().toList();
+                assertEquals(1, e.size(), type + " perm " + perm);
+                assertEquals(perm > 0, e.get(0).isNoGravity(), type + " perm " + perm);
+            }
+        }
+    }
+
+    @Test
     void entityDataKeepsTheEntityUuid() {
         var level = new BlockPlacementTest.TestLevel();
         var u = new ItemUseTest.User();

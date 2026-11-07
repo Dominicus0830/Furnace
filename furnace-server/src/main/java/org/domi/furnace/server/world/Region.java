@@ -1673,7 +1673,9 @@ public final class Region {
                 writeBackHand(p, actor);
             }
         }
+        boolean spyglass = p.usingHand >= 0 && "minecraft:spyglass".equals(org.domi.furnace.server.item.ItemTools.itemName(breakerActor(p).itemInHand(p.usingHand)));
         org.domi.furnace.server.entity.Consuming.stop(p);
+        if (spyglass) org.domi.furnace.server.entity.Consuming.spyglassStopSound(p);   // SpyglassItem.releaseUsing → stopUsing
     }
 
     /**

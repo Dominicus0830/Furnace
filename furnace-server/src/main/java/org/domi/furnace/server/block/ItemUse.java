@@ -704,20 +704,16 @@ public final class ItemUse {
         if (!cl.noCollision(box) || anyEntityIn(cl, box)) return InteractionResult.FAIL;
         var stand = new org.domi.furnace.server.entity.ArmorStand(cl, cl.nextEntityId());
         float yaw = (float) Math.floor((wrapDegrees(player.yRot() - 180.0F) + 22.5F) / 45.0F) * 45.0F;
-        stand.moveTo(bx, by, bz, yaw, 0.0F);
-        org.domi.furnace.server.entity.EntityStackConfig.apply(cl, stack, player, stand);   // createDefaultStackConfig 뒤 방향을 다시 둔다
+        // EntityType.create(…, extendDown): 바닥에 맞춰 내리고 무작위 방향(난수 1회) → 이름·entity_data → 45° 단위 방향 (1.21.1 에는 무작위 자세가 없다)
+        double yOff = cl.snapOffset(stand, pos, true);
+        stand.moveTo(bx, by + yOff, bz, wrapDegrees(cl.random().nextFloat() * 360.0F), 0.0F);
+        org.domi.furnace.server.entity.EntityStackConfig.apply(cl, stack, player, stand);
         stand.moveTo(stand.x(), stand.y(), stand.z(), yaw, 0.0F);
-        RandomSource r = cl.random();
-        float[] head = stand.pose(0).clone();
-        float f = r.nextFloat() * 5.0F, g = r.nextFloat() * 20.0F - 10.0F;
-        stand.setPose(0, new float[] {head[0] + f, head[1] + g, head[2]});
-        float[] body = stand.pose(1).clone();
-        stand.setPose(1, new float[] {body[0], body[1] + (r.nextFloat() * 10.0F - 5.0F), body[2]});
         if (!cl.addFreshEntity(stand)) {
             player.resyncHands();
             return InteractionResult.FAIL;
         }
-        cl.playSound(null, bx, by, bz, "minecraft:entity.armor_stand.place", "blocks", 0.75F, 0.8F);
+        cl.playSound(null, stand.x(), stand.y(), stand.z(), "minecraft:entity.armor_stand.place", "blocks", 0.75F, 0.8F);
         cl.gameEvent("minecraft:entity_place", pos, player, -1);
         player.setItemInHand(hand, stack.withCount(stack.count() - 1));
         return InteractionResult.sidedSuccess(false);

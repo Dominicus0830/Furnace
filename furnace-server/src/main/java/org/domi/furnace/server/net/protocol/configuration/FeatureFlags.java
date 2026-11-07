@@ -14,6 +14,13 @@ public record FeatureFlags(List<String> flags) implements Packet {
         return new FeatureFlags(List.of("minecraft:vanilla"));
     }
 
+    /** 서버 월드에 켜진 기능 플래그(등록 순서) — 바닐라 서버도 enabledFeatures 를 보낸다. 클라이언트는 꺼진 기능의 아이템은 사용 패킷을 보내지 않는다. */
+    public static FeatureFlags enabled() {
+        List<String> out = new java.util.ArrayList<>();
+        for (String f : org.domi.furnace.server.data.FeatureFlags.ALL) if (org.domi.furnace.server.data.FeatureFlags.isEnabled(f)) out.add(f);
+        return new FeatureFlags(out);
+    }
+
     @Override
     public int id() {
         return ID;

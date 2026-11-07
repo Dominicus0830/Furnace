@@ -8,6 +8,8 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
 public class MinecartSpawner extends AbstractMinecart {
+    @Override public boolean onlyOpCanSetNbt() { return true; }
+
 
     private final org.domi.furnace.server.block.entity.BaseSpawner spawner = new org.domi.furnace.server.block.entity.BaseSpawner() {
         @Override
