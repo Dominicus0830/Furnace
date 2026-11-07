@@ -182,6 +182,12 @@ public final class FurnaceMain {
                 .limits(org.domi.furnace.server.net.ConnectionLimits.load(furnaceProps, log::warn)
                         .withVanillaRateLimit(props.rateLimitPacketsPerSecond));
 
+        // 위험하거나 막힐 수 있는 RCON·프록시 설정은 기동 로그에 한 번 경고한다(값은 그대로 둔다).
+        org.domi.furnace.server.remote.RconLimits rconLimits = org.domi.furnace.server.remote.RconLimits.load(furnaceProps);
+        org.domi.furnace.server.config.StartupWarnings.rcon(props.enableRcon, props.rconPassword, rconLimits).forEach(log::warn);
+        org.domi.furnace.server.config.StartupWarnings.proxy(props.onlineMode, config.bungeecord(), config.velocitySecret(),
+                loginContext.limits().proxyProtocol(), loginContext.limits().proxyTrusted().isEmpty()).forEach(log::warn);
+
         // region 은 동적(Folia 방식): 가까운 청크끼리 한 region, 떨어진 무리끼리는 작업 스레드 풀에서 병렬.
         FurnaceSchedulerImpl scheduler = new FurnaceSchedulerImpl(config.tickNanos(), config.regionThreads());
         // 롤백 스위치(기본 끔): 켜면 모든 차원이 region 워커 풀 하나를 공유하고 region-threads 는 서버 전체 워커 수가 된다
@@ -481,7 +487,7 @@ public final class FurnaceMain {
         // 전역 틱: 시간·날씨(바닐라 ServerLevel.tick 의 전역 부분). 고정 박자 — /tps 의 전역 값이 이 박동이다.
         new FixedRateBeat(scheduler, core::scheduledTick, 50_000_000L).start();
 
-        startRemoteServices(core, props, config, remoteServices);
+        startRemoteServices(core, props, config, rconLimits, remoteServices);
 
         // TPS 하트비트: 5초마다 측정 TPS 로그(M0 가시성).
         scheduler.global().executeDelayed(new TpsHeartbeat(scheduler, world), 100);
@@ -493,7 +499,8 @@ public final class FurnaceMain {
     }
 
     /** 바닐라 DedicatedServer.initServer 끝: enable-query → enable-rcon → 워치독(max-tick-time &gt; 0). */
-    private static void startRemoteServices(ServerCore core, ServerProperties props, Config config, java.util.List<AutoCloseable> out) {
+    private static void startRemoteServices(ServerCore core, ServerProperties props, Config config,
+                                       org.domi.furnace.server.remote.RconLimits rconLimits, java.util.List<AutoCloseable> out) {
         if (props.enableQuery) {
             log.info("Starting GS4 status listener");
             var q = org.domi.furnace.server.remote.QueryServer.create(props.serverIp, props.queryPort, new QueryInfo(core, props, config, hostIp(props)));
@@ -501,7 +508,7 @@ public final class FurnaceMain {
         }
         if (props.enableRcon) {
             log.info("Starting remote control listener");
-            var r = org.domi.furnace.server.remote.RconServer.create(props.serverIp, props.rconPort, props.rconPassword, core::runRconCommand);
+            var r = org.domi.furnace.server.remote.RconServer.create(props.serverIp, props.rconPort, props.rconPassword, core::runRconCommand, rconLimits);
             if (r != null) out.add(r);
         }
         if (ServerWatchdog.enabled(props.maxTickTime)) {
