@@ -1,5 +1,5 @@
 // 바닐라 Axolotl: 브레인으로 움직이는 양서류. 물고기를 사냥하고, 맞으면 죽은 척하며, 플레이어를 도와 싸운다. 물 밖에서는 숨이 줄어든다.
-// TODO(밀기): 죽은 척할 때 밀리지 않는 isPushable 은 밀기 규칙이 생기면.
+// 죽은 척하는 동안은 적으로 보이지 않는다(canBeSeenAsEnemy — 바닐라 1.21.1 은 isPushable 을 바꾸지 않는다).
 package org.domi.furnace.server.entity;
 
 import java.util.Optional;
@@ -151,6 +151,10 @@ public class Axolotl extends Animal implements Bucketable {
     private static int rareVariant(RandomSource r) { return 4 + r.nextInt(1); }
 
     public boolean isPlayingDead() { return (Boolean) entityData.get(DATA_PLAYING_DEAD); }
+
+    /** Axolotl.canBeSeenAsEnemy(cgq): 죽은 척하면 몹이 대상으로 삼지 않는다. */
+    @Override
+    public boolean canBeSeenAsEnemy() { return !isPlayingDead() && super.canBeSeenAsEnemy(); }
 
     public void setPlayingDead(boolean v) { entityData.set(DATA_PLAYING_DEAD, v); }
 

@@ -1,5 +1,4 @@
 // 바닐라 Phantom: 밤에 하늘에서 나타나는 날아다니는 몹. 기준점 위를 맴돌다가 플레이어를 향해 급강하해 공격한다. 크기(size)에 따라 몸집과 공격력이 커진다. 낮에 불탄다. 고양이를 무서워한다.
-// TODO(고양이 하악질): Cat.hiss 소리.
 package org.domi.furnace.server.entity;
 
 import java.util.ArrayList;

@@ -29,10 +29,12 @@ public class WalkNodeEvaluator extends NodeEvaluator {
     @Override
     public void prepare(org.domi.furnace.server.block.ChunkLevel level, Mob mob) {
         super.prepare(level, mob);
+        mob.onPathfindingStart();   // eqa.prepare: 길찾기 앞 훅(스니퍼의 물 비용)
     }
 
     @Override
     public void done() {
+        mob.onPathfindingDone();   // eqa.done: 캐시를 비우기 전에 부른다
         pathTypesByPosCache.clear();
         collisionCache.clear();
         super.done();

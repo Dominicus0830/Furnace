@@ -189,6 +189,47 @@ class DimensionChangeTest {
         assertTrue(Files.exists(tmp.resolve("DIM-1").resolve("region").resolve("r.0.0.mca")), "네더 청크는 DIM-1/region 에");
     }
 
+    /**
+     * M10 미리 올리기: 플레이어가 지옥문에서 기다리는 동안(playersNetherPortalDefaultDelay) 목적 네더 청크(생성 반경 3×3)를 먼저 올려 둔다 —
+     * 넘어갈 때는 이미 있는 청크로 바로 도착한다. 넘어가기 전에는 리스폰 패킷이 나가지 않는다.
+     */
+    @Test
+    void playerWaitingInPortal_prewarmsNetherChunksBeforeTravelling() throws Exception {
+        start(new SpawnPoint(16, -60, 0, 0f));
+        Player p = (Player) field("player");
+        over.levelServices(new org.domi.furnace.server.block.LevelServices.Delegating(over.levelServices()) {
+            @Override public int gameRuleInt(String name) {
+                return "playersNetherPortalDefaultDelay".equals(name) ? 60 : super.gameRuleInt(name);   // 3초 기다림
+            }
+        });
+        over.submitAtChunk(new ChunkPos(1, 0), r -> {
+            r.level().setBlock(new Pos(16, -60, 0), portalX(), 18);
+            r.level().setBlock(new Pos(16, -59, 0), portalX(), 18);
+            return null;
+        }).get();
+        drain();
+        assertEquals(0, nether.loadedChunkCount(), "아직 네더 청크는 없다");
+        over.startTicking();
+        nether.startTicking();
+        List<Integer> out = new ArrayList<>();
+        long deadline = System.nanoTime() + 2_000_000_000L;
+        while (nether.loadedChunkCount() < 9) {
+            out.addAll(drain());
+            assertTrue(System.nanoTime() < deadline, "기다리는 동안 목적 청크를 올리지 않음: " + nether.loadedChunkCount());
+            Thread.sleep(10);
+        }
+        out.addAll(drain());
+        assertFalse(out.contains(Respawn.ID), "아직 넘어가지 않았다: " + hex(out));
+        assertEquals("minecraft:overworld", p.dimension());
+        deadline = System.nanoTime() + 20_000_000_000L;
+        while (field("world") != nether || !out.contains(LevelEventPacket.ID)) {
+            out.addAll(drain());
+            assertTrue(System.nanoTime() < deadline, "네더로 넘어가지 않음: " + hex(out));
+            Thread.sleep(10);
+        }
+        assertEquals(3.0, (double) field("ix"), 1e-9, "미리 올린 청크에 같은 자리로 도착");
+    }
+
     /** 이벤트 취소 계약: PlayerPortalEvent 를 취소하면 넘어가지 않는다 — 플레이어는 오버월드에 남고 리스폰 패킷도 나가지 않는다(서버 시작 변화라 되돌릴 화면이 없다). */
     @Test
     void playerPortalCancelKeepsPlayerInOverworld() throws Exception {

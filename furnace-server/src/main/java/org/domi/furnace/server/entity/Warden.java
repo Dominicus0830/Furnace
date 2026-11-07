@@ -1,6 +1,6 @@
 // 바닐라 Warden: 진동(반경 16)과 냄새(Sniffing)로 용의자를 찾고 분노(AngerManagement)가 80 이상이면 포효 뒤 공격한다.
 // 근접 30 피해·음파(sonic boom), 땅에서 나오기(emerge)·파고들기(dig, 사라짐), 120틱마다 20칸 어둠.
-// 차이(TODO): 몸 밀기(doPush → touch 분노)는 생물 밀기가 아직 없어 빠져 있다. 클라이언트 애니메이션 상태는 서버에 필요 없어 생략.
+// 클라이언트 애니메이션 상태는 서버에 필요 없어 생략.
 package org.domi.furnace.server.entity;
 
 import java.util.Optional;
@@ -196,6 +196,30 @@ public class Warden extends Monster implements VibrationSystem {
     public void clearAnger(Targetable t) { angerManagement.clearAnger(t); }
 
     public void increaseAngerAt(Targetable t) { increaseAngerAt(t, DEFAULT_ANGER, true); }
+
+    /**
+     * Warden.doPush(cmb): AI 가 있고 만지기 쿨다운(20틱)이 없으면 쿨다운을 걸고, 민 대상에게 분노 35(듣는 소리)와 그 칸을 소란 위치로.
+     * 생물이 아닌 대상(보트·광산 수레)은 canTargetEntity 가 거짓이라 분노는 없고 쿨다운·소란 위치만 남는다.
+     */
+    @Override
+    protected void doPush(Entity e) {
+        touched(e instanceof Targetable t ? t : null, e.blockPosition());
+        super.doPush(e);
+    }
+
+    @Override
+    protected void doPush(Player p) {
+        touched(p, p.blockPosition());
+        super.doPush(p);
+    }
+
+    private void touched(Targetable t, Pos pos) {
+        if (!isNoAi() && !getBrain().hasMemoryValue(MemoryModuleType.TOUCH_COOLDOWN)) {
+            getBrain().setMemoryWithExpiry(MemoryModuleType.TOUCH_COOLDOWN, Unit.INSTANCE, TOUCH_COOLDOWN_TICKS);
+            if (t != null) increaseAngerAt(t);
+            WardenAi.setDisturbanceLocation(this, pos);
+        }
+    }
 
     public void increaseAngerAt(Targetable t, int amount, boolean playListeningSound) {
         if (!isNoAi() && canTargetEntity(t)) {

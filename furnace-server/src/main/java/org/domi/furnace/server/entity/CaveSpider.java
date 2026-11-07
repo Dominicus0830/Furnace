@@ -33,6 +33,10 @@ public class CaveSpider extends Spider {
         // 바닐라 CaveSpider.finalizeSpawn 은 super 를 부르지 않는다(속성 무작위화·기수·효과 모두 없음)
     }
 
+    /** CaveSpider.finalizeSpawn(cjo): 받은 무리 데이터를 그대로 돌려준다. */
+    @Override
+    public Object finalizeSpawnGroup(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty, Object group) { return group; }
+
     @Override
     protected double riderAttachY() { return 0.21875; }
 }

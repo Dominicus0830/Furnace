@@ -471,8 +471,10 @@ public class Fox extends Animal {
             if (t instanceof Chicken || t instanceof Rabbit || t instanceof Monster) return true;
             if (t instanceof TamableAnimal ta) return !ta.isTame();
             if (t instanceof Player p && (p.vitals().isSpectator() || p.vitals().isCreative())) return false;
-            if (t instanceof Player p) return !trusts(p.uuid());
-            return t instanceof Entity;   // TODO(자는 몹·웅크린 몹 제외)
+            // 그 밖(플레이어 포함): 믿는 대상·자는 대상·웅크린 대상은 위협이 아니다(cfo$c)
+            if (t instanceof Player p) return !trusts(p.uuid()) && !p.isSleeping() && !p.isShiftKeyDown();
+            if (t instanceof LivingEntity le) return !trusts(le.uuid()) && !le.isSleeping() && !le.isShiftKeyDown();
+            return false;
         }
     }
 
@@ -727,7 +729,7 @@ public class Fox extends Animal {
             }
             interval = 100;
             Pos p = blockPosition();
-            return level.isDay() && level.canSeeSky(p) && setWantedPos();   // TODO(마을): isVillage 이면 제외
+            return level.isDay() && level.canSeeSky(p) && !level.isCloseToVillage(p, 1) && setWantedPos();   // cfo$s: ServerLevel.isVillage 면 숨지 않는다
         }
 
         @Override
@@ -777,7 +779,7 @@ public class Fox extends Animal {
                 countdown--;
                 return false;
             }
-            return level.isDay() && hasShelter() && !alertable();   // TODO(가루눈): !isInPowderSnow
+            return level.isDay() && hasShelter() && !alertable() && !isInPowderSnow();   // cfo$t: 가루눈 속에서는 자지 않는다
         }
 
         @Override
