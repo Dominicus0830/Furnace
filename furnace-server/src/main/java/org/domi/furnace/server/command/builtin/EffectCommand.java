@@ -28,7 +28,8 @@ import org.domi.furnace.server.entity.Rider;
 public final class EffectCommand {
     private EffectCommand() { }
 
-    private static final SimpleCommandExceptionType ERROR_NOT_FOUND = new SimpleCommandExceptionType(Text.translatable("effect.effectNotFound", ""));
+    private static final org.domi.furnace.server.command.brigadier.Dynamic2CommandExceptionType ERROR_UNKNOWN_RESOURCE =
+            new org.domi.furnace.server.command.brigadier.Dynamic2CommandExceptionType((id, registry) -> Text.translatable("argument.resource.not_found", id, registry));
     private static final SimpleCommandExceptionType ERROR_GIVE_FAILED = new SimpleCommandExceptionType(Text.translatable("commands.effect.give.failed"));
     private static final SimpleCommandExceptionType ERROR_CLEAR_EVERYTHING_FAILED = new SimpleCommandExceptionType(Text.translatable("commands.effect.clear.everything.failed"));
     private static final SimpleCommandExceptionType ERROR_CLEAR_SPECIFIC_FAILED = new SimpleCommandExceptionType(Text.translatable("commands.effect.clear.specific.failed"));
@@ -36,7 +37,8 @@ public final class EffectCommand {
     private static MobEffect effect(CommandContext<CommandSource> c) throws CommandSyntaxException {
         var id = ResourceLocationArgument.getId(c, "effect");
         MobEffect e = MobEffect.byName(id.namespace() + ":" + id.path());
-        if (e == null) throw new SimpleCommandExceptionType(Text.translatable("effect.effectNotFound", id.namespace() + ":" + id.path())).create();
+        // 바닐라 ResourceArgument.getResource: "Can't find element 'minecraft:foo' of type 'minecraft:mob_effect'"
+        if (e == null) throw ERROR_UNKNOWN_RESOURCE.create(id.namespace() + ":" + id.path(), "minecraft:mob_effect");
         return e;
     }
 

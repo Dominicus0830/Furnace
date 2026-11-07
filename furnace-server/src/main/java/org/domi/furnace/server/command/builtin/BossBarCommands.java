@@ -6,11 +6,13 @@ import static org.domi.furnace.server.command.Commands.literal;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.concurrent.CompletableFuture;
 import java.util.List;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.bossbar.CustomBossEvent;
 import org.domi.furnace.server.command.CommandSource;
 import org.domi.furnace.server.command.ComponentUtils;
+import org.domi.furnace.server.command.EntityOps;
 import org.domi.furnace.server.command.arguments.ComponentArgument;
 import org.domi.furnace.server.command.arguments.EntityArgument;
 import org.domi.furnace.server.command.arguments.ResourceLocationArgument;
@@ -27,6 +29,9 @@ public final class BossBarCommands {
 
     private BossBarCommands() {}
 
+    /** 바닐라 SUGGEST_BOSS_BAR: 만든 보스바 id. */
+    public static final org.domi.furnace.server.command.brigadier.SuggestionProvider<CommandSource> SUGGEST_BOSS_BAR =
+            (c, b) -> org.domi.furnace.server.command.SharedSuggestions.suggestResource(c.getSource().getServer().customBossEvents().ids(), b);
     private static final DynamicCommandExceptionType ERROR_ALREADY_EXISTS = new DynamicCommandExceptionType(o -> Text.translatable("commands.bossbar.create.failed", o));
     static final DynamicCommandExceptionType ERROR_DOESNT_EXIST = new DynamicCommandExceptionType(o -> Text.translatable("commands.bossbar.unknown", o));
     private static final SimpleCommandExceptionType ERROR_NO_PLAYER_CHANGE = err("commands.bossbar.set.players.unchanged");
@@ -52,12 +57,12 @@ public final class BossBarCommands {
         d.register(literal("bossbar").requires(s -> s.hasPermission(2))
                 .then(literal("add").then(argument("id", ResourceLocationArgument.id())
                         .then(argument("name", ComponentArgument.textComponent()).executes(c ->
-                                create(c.getSource(), ResourceLocationArgument.getId(c, "id"), ComponentArgument.getComponent(c, "name"))))))
-                .then(literal("remove").then(argument("id", ResourceLocationArgument.id()).executes(c -> remove(c.getSource(), bar(c)))))
+                                EntityOps.result(c.getSource(), create(c.getSource(), ResourceLocationArgument.getId(c, "id"), ComponentArgument.getComponent(c, "name")))))))
+                .then(literal("remove").then(argument("id", ResourceLocationArgument.id()).suggests(SUGGEST_BOSS_BAR).executes(c -> remove(c.getSource(), bar(c)))))
                 .then(literal("list").executes(c -> list(c.getSource())))
-                .then(literal("set").then(argument("id", ResourceLocationArgument.id())
+                .then(literal("set").then(argument("id", ResourceLocationArgument.id()).suggests(SUGGEST_BOSS_BAR)
                         .then(literal("name").then(argument("name", ComponentArgument.textComponent()).executes(c ->
-                                setName(c.getSource(), bar(c), ComponentArgument.getComponent(c, "name")))))
+                                EntityOps.result(c.getSource(), setName(c.getSource(), bar(c), ComponentArgument.getComponent(c, "name"))))))
                         .then(setColor)
                         .then(setStyle)
                         .then(literal("value").then(argument("value", Arguments.integer(0)).executes(c ->
@@ -69,7 +74,7 @@ public final class BossBarCommands {
                         .then(literal("players").executes(c -> setPlayers(c.getSource(), bar(c), List.of()))
                                 .then(argument("targets", EntityArgument.players()).executes(c ->
                                         setPlayers(c.getSource(), bar(c), EntityArgument.getPlayers(c, "targets")))))))
-                .then(literal("get").then(argument("id", ResourceLocationArgument.id())
+                .then(literal("get").then(argument("id", ResourceLocationArgument.id()).suggests(SUGGEST_BOSS_BAR)
                         .then(literal("value").executes(c -> getValue(c.getSource(), bar(c))))
                         .then(literal("max").executes(c -> getMax(c.getSource(), bar(c))))
                         .then(literal("visible").executes(c -> getVisible(c.getSource(), bar(c))))
@@ -83,12 +88,16 @@ public final class BossBarCommands {
         return e;
     }
 
-    static int create(CommandSource s, ResourceId id, Text name) throws CommandSyntaxException {
+    static CompletableFuture<Integer> create(CommandSource s, ResourceId id, Text name) throws CommandSyntaxException {
         var events = s.getServer().customBossEvents();
         if (events.get(id) != null) throw ERROR_ALREADY_EXISTS.create(id.toString());
-        CustomBossEvent e = events.create(id, ComponentUtils.updateForEntity(s, name, null, 0));
-        s.sendSuccess(() -> Text.translatable("commands.bossbar.create.success", e.displayName()), true);
-        return events.events().size();
+        // 이름 안의 선택자·점수·NBT 를 풀고(일반 엔티티를 읽으면 region 을 거친다) 만든다. 그 사이 같은 id 가 생겼으면 다시 거절한다.
+        return EntityOps.thenOnGlobal(s, ComponentUtils.resolve(s, name, null), resolved -> {
+            if (events.get(id) != null) throw ERROR_ALREADY_EXISTS.create(id.toString());
+            CustomBossEvent e = events.create(id, resolved);
+            s.sendSuccess(() -> Text.translatable("commands.bossbar.create.success", e.displayName()), true);
+            return events.events().size();
+        });
     }
 
     static int remove(CommandSource s, CustomBossEvent e) {
@@ -119,12 +128,13 @@ public final class BossBarCommands {
         return out;
     }
 
-    static int setName(CommandSource s, CustomBossEvent e, Text name) throws CommandSyntaxException {
-        Text resolved = ComponentUtils.updateForEntity(s, name, null, 0);
-        if (e.name().equals(resolved)) throw ERROR_NO_NAME_CHANGE.create();
-        e.setName(resolved);
-        s.sendSuccess(() -> Text.translatable("commands.bossbar.set.name.success", e.displayName()), true);
-        return 0;
+    static CompletableFuture<Integer> setName(CommandSource s, CustomBossEvent e, Text name) {
+        return EntityOps.thenOnGlobal(s, ComponentUtils.resolve(s, name, null), resolved -> {
+            if (e.name().equals(resolved)) throw ERROR_NO_NAME_CHANGE.create();
+            e.setName(resolved);
+            s.sendSuccess(() -> Text.translatable("commands.bossbar.set.name.success", e.displayName()), true);
+            return 0;
+        });
     }
 
     static int setColor(CommandSource s, CustomBossEvent e, CustomBossEvent.Color color) throws CommandSyntaxException {

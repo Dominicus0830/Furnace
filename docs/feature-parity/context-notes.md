@@ -1024,6 +1024,11 @@
 - 함정: 플러그인 설명 파일 `commands:` 를 `{description: …}` 흐름 형식으로 쓸 때 설명에 `(`·`[` 가 들어가면 ConfigParseException 으로 플러그인이 안 뜬다 — 블록 형식 + 따옴표로.
 - 시험: `MobBrainApiTest` 18개, `MobAiHandleTest` 주민 두뇌 1건 추가, 봇 `tools/bot-test/round13/brain.js` 12/12.
 
+## 2026-11-07 명령 점검 M11
+- 텍스트 속 선택자·점수·NBT 는 `ComponentUtils.resolve`(future)로 푼다. 엔티티가 region 소유라 읽기가 비동기이므로 쓰는 쪽은 `EntityOps.result`/`thenOnGlobal` 로 이어야 한다. 전부 플레이어·저장소만 건드리면 future 가 이미 끝나 있어 동기 길과 같은 속도.
+- brigadier 는 입력과 똑같은 후보를 제안하지 않는다(`/tag x remove a` 에서 `a` 를 다시 안 띄움) — 자동완성 시험은 접두 일부로.
+- 새 시험 `TextResolveCommandsTest`(15개), 봇 `tools/bot-test/round15`. 자세한 내용 `command-audit-m11-2026-11-07.md`.
+
 ## 2026-11-07 플레이어별 가상 블록·바이옴·보더·장비·채팅 서식 (묶음 K3, 불만 표 52~54행)
 - API `Furnace.playerViews()` → `PlayerViews`(+`PlayerBorder`), `AsyncChatEvent.renderer(ChatRenderer)`. 설계·규칙 `docs/api/player-views.md`.
 - 핵심(52행): 서버 `Player` 마다 `ViewLayers`(블록·바이옴 층, 장비 덮어쓰기, 개인 `WorldBorder`)를 두고, 나가는 청크 본문·`block_update`·`section_blocks_update`·`chunks_biomes`·`set_equipment`·보더 패킷에 연결의 `ViewRewriter` 가 덧입힌다. 청크를 다시 받아도(멀리 갔다 옴) 층이 남는다 — 봇으로 확인.

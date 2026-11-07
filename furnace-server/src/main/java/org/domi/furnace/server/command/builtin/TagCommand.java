@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import org.domi.furnace.api.text.NamedTextColor;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.command.CommandSource;
@@ -35,19 +36,29 @@ public final class TagCommand {
                                 .executes(c -> EntityOps.result(c.getSource(), EntityArgument.withEntitiesAsync(c, "targets",
                                         t -> add(c.getSource(), t, c.getArgument("name", String.class)))))))
                         .then(literal("remove").then(argument("name", Arguments.word())
-                                .suggests((c, b) -> {
-                                    // 서버 쪽 제안: 지금 해석되는 플레이어의 태그(일반 엔티티는 region 이 나눠 가져 동기로 모을 수 없다)
-                                    Set<String> all = new HashSet<>();
-                                    try {
-                                        for (Rider r : c.getArgument("targets", EntitySelector.class).findPlayers(c.getSource())) all.addAll(r.getTags());
-                                    } catch (CommandSyntaxException e) {
-                                        // 해석 실패면 제안 없음
-                                    }
-                                    return SharedSuggestions.suggest(all, b);
-                                })
+                                .suggests(TagCommand::suggestTags)
                                 .executes(c -> EntityOps.result(c.getSource(), EntityArgument.withEntitiesAsync(c, "targets",
                                         t -> remove(c.getSource(), t, c.getArgument("name", String.class)))))))
                         .then(literal("list").executes(c -> EntityOps.result(c.getSource(), EntityArgument.withEntitiesAsync(c, "targets", t -> list(c.getSource(), t)))))));
+    }
+
+    /** 바닐라 SUGGEST: 고른 엔티티들이 가진 태그 전부. 일반 엔티티의 태그는 주인 region 에서 읽는다. */
+    private static CompletableFuture<org.domi.furnace.server.command.brigadier.Suggestions> suggestTags(
+            org.domi.furnace.server.command.brigadier.CommandContext<CommandSource> c, org.domi.furnace.server.command.brigadier.SuggestionsBuilder b) {
+        CommandSource source = c.getSource();
+        try {
+            return c.getArgument("targets", EntitySelector.class).findRiders(source).thenCompose(riders -> {
+                List<CompletableFuture<Set<String>>> fs = new java.util.ArrayList<>(riders.size());
+                for (Rider r : riders) fs.add(EntityOps.onOwner(source, r, x -> (Set<String>) new HashSet<>(x.getTags())).exceptionally(t -> Set.of()));
+                return CompletableFuture.allOf(fs.toArray(new CompletableFuture[0])).thenCompose(v -> {
+                    Set<String> all = new HashSet<>();
+                    for (var f : fs) all.addAll(f.join());
+                    return SharedSuggestions.suggest(all, b);
+                });
+            });
+        } catch (CommandSyntaxException e) {
+            return org.domi.furnace.server.command.brigadier.Suggestions.empty();   // 해석 실패면 제안 없음
+        }
     }
 
     private static java.util.concurrent.CompletableFuture<Integer> add(CommandSource source, List<Rider> targets, String tag) {
