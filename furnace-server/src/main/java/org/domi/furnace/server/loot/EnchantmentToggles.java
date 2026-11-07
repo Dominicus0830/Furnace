@@ -68,9 +68,9 @@ public final class EnchantmentToggles {
         List<String> ids = new ArrayList<>();
         if (java.nio.file.Files.exists(furnaceProps)) {
             java.util.Properties p = new java.util.Properties();
-            try (var in = java.nio.file.Files.newInputStream(furnaceProps)) {
-                p.load(in);
-            } catch (java.io.IOException e) {
+            try {
+                p = org.domi.furnace.server.config.FurnaceProps.read(furnaceProps);
+            } catch (RuntimeException e) {
                 warn.accept("furnace.properties 를 읽지 못해 enchantments.disabled 를 건너뛴다: " + e.getMessage());
             }
             for (String raw : p.getProperty("enchantments.disabled", "").split(",")) {

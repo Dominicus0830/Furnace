@@ -60,13 +60,7 @@ public final class SpawnConfig {
 
     public static SpawnConfig load(Path file, Consumer<String> warn) {
         if (!Files.exists(file)) return DEFAULT;
-        Properties props = new Properties();
-        try (InputStream in = Files.newInputStream(file)) {
-            props.load(in);
-        } catch (IOException e) {
-            throw new RuntimeException("설정 로드 실패: " + file, e);
-        }
-        return from(props, warn);
+        return from(org.domi.furnace.server.config.FurnaceProps.read(file), warn);
     }
 
     /** 잘못된 값(숫자가 아님·범위 밖)은 IllegalArgumentException. 위험한 값은 warn 으로 알리고 그대로 쓴다. */

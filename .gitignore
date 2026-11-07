@@ -75,3 +75,6 @@ tools/vanilla-data/server-1.21.1/**/*.class
 
 # 로컬 JVM 옵션
 jvm.args
+
+# 서버 콘솔 명령 기록(JLine)
+.console_history
