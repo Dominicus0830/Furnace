@@ -64,7 +64,7 @@ public class BrewingStandBlockEntity extends ContainerBlockEntity {
         ItemStack remainder = CraftRemainders.of(ing);
         if (remainder != null && !remainder.isEmpty()) {
             if (rest.isEmpty()) rest = remainder;
-            else level.popResource(pos, remainder);   // 바닐라 Containers.dropItemStack(칸 모서리) — TODO: 정확한 위치
+            else level.dropItemStack(pos.x(), pos.y(), pos.z(), remainder);   // Containers.dropItemStack(level, 칸 모서리 좌표, 남는 아이템)
         }
         items[3] = rest;
         level.levelEvent(null, 1035, pos, 0);

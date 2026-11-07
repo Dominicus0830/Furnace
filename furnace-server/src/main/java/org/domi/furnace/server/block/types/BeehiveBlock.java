@@ -93,7 +93,7 @@ public class BeehiveBlock extends BaseEntityBlock {
                 used = true;
                 level.gameEvent("minecraft:fluid_pickup", pos, player, -1);
             }
-            if (used) player.awardStat("minecraft:used");
+            if (used) player.awardStat("minecraft:used:" + org.domi.furnace.server.item.ItemTools.itemName(stack));
         }
         if (!used) return super.useItemOn(stack, state, level, pos, player, hand, hit);
         if (!CampfireBlock.isSmokeyPos(level, pos)) {

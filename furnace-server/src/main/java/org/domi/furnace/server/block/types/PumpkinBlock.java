@@ -38,8 +38,9 @@ public class PumpkinBlock extends BlockBehavior {
         } else {
             for (int i = 0; i < 4; i++) level.random().nextDouble();
         }
-        // TODO(아이템): 가위 내구도 1 소모(hurtAndBreak), 통계 used:shears
+        org.domi.furnace.server.block.BlockBreaking.hurtAndBreak(level, player, hand, stack, 1);   // 가위 내구도 1
         level.gameEvent("minecraft:shear", pos, player, -1);
+        player.awardStat("minecraft:used:minecraft:shears");
         return ItemInteractionResult.CONSUME;
     }
 }

@@ -40,6 +40,12 @@ public interface BlockLevel {
     /** Level.getEntitiesOfClass(AbstractArrow, 상자) 의 첫 화살(없으면 null) — 화살로 눌리는 버튼. */
     default Object firstArrowIn(double x0, double y0, double z0, double x1, double y1, double z1) { return null; }
 
+    /**
+     * ComparatorBlock.getItemFrame + ItemFrame.getAnalogOutput: 그 칸 안에서 facing 쪽을 향한 아이템 액자가 정확히 하나일 때 그 신호
+     * (빈 액자 0, 아니면 돌림 % 8 + 1). 하나가 아니면 Integer.MIN_VALUE(바닐라 null → MIN_VALUE).
+     */
+    default int itemFrameAnalogOutput(Pos pos, int facing) { return Integer.MIN_VALUE; }
+
     /** EntityGetter.isUnobstructed(null, shape): 건설을 막는 엔티티(관전자 제외)의 상자와 겹치지 않는가. shape 는 월드 좌표. */
     boolean isUnobstructed(Shape worldShape);
 
@@ -123,6 +129,11 @@ public interface BlockLevel {
     void playSound(BlockActor except, Pos pos, String sound, String source, float volume, float pitch);
 
     void playSound(BlockActor except, double x, double y, double z, String sound, String source, float volume, float pitch);
+
+    /** Level.playSeededSound: 소리 씨앗을 부르는 쪽이 정한다(노트 블록은 레벨 난수 nextLong). 구현이 없으면 씨앗 없이 낸다. */
+    default void playSeededSound(BlockActor except, double x, double y, double z, String sound, String source, float volume, float pitch, long seed) {
+        playSound(except, x, y, z, sound, source, volume, pitch);
+    }
 
     void levelEvent(BlockActor except, int type, Pos pos, int data);
 

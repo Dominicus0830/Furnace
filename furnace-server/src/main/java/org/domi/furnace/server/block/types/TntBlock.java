@@ -73,7 +73,13 @@ public class TntBlock extends BlockBehavior {
         }
         explode(level, pos, player, org.domi.furnace.server.plugin.Causes.tracking(level) ? org.domi.furnace.server.plugin.Causes.of(player.handle(), org.domi.furnace.api.event.cause.CauseEntry.IGNITE) : null);
         level.setBlock(pos, B.defaultState("air"), 11);
-        // TODO(아이템): 부싯돌 내구도 1(hurtAndBreak) / 화염구 1개 소모(consume), 통계 used
+        // 부싯돌은 내구도 1, 화염구는 1개 소모(크리에이티브는 둘 다 그대로), 어느 쪽이든 통계 used
+        if (B.holds(stack, "minecraft:flint_and_steel")) {
+            org.domi.furnace.server.block.BlockBreaking.hurtAndBreak(level, player, hand, stack, 1);
+        } else if (!player.instabuild()) {
+            player.setItemInHand(hand, stack.withCount(stack.count() - 1));
+        }
+        player.awardStat("minecraft:used:" + org.domi.furnace.server.item.ItemTools.itemName(stack));
         return ItemInteractionResult.CONSUME;
     }
 
