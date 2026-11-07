@@ -1185,3 +1185,12 @@
 - SoundType 표는 서버를 띄우지 못해 `Blocks.<clinit>` 바이트코드를 읽어 만든다(`tools/vanilla-data/extract_block_sound_types.py` → `blocks/soundtypes_1.21.1.txt`). 문·다락문·버튼·압력판·울타리 문·표지판은 생성자가 `properties.sound(BlockSetType/WoodType 소리)` 로 덮는다는 점이 함정이었다(처음에는 전부 STONE 으로 나왔다).
 - 플레이어는 Entity 가 아니라 `PlayerMovementEmission` 에서 걸음 소리를 낸다. 본인은 빼고 `players` 분류로 보낸다(`PlayerActor` 를 except 로).
 
+## 2026-11-07 아이템 사용 잔여 (묶음 M18)
+- 이미 되어 있던 것: 표지판 밀랍(SignBlock), 음식·활·방패 `startUsingItem`, 플레이어 쇠뇌, 화로 경험치 구슬(`awardExperience`), 이름 있는 수레·배. 이번에 확인만 하고 낡은 TODO 주석만 지웠다.
+- `EntityStackConfig`: `createDefaultStackConfig` — custom_name 먼저, 그다음 `entity_data` 를 엔티티를 저장한 NBT 위에 합쳐(compound 는 안으로) 다시 읽고 UUID 는 복원. `entity_data` 코덱이 `id` 를 요구하므로 id 없는 데이터는 무시된다. 명령 블록 수레(`onlyOpCanSetNbt`)는 권한 있는 플레이어가 놓을 때만, 발사기는 못 한다. 스폰 알 종류는 `entity_data.id` 가 덮고 모르는 종류면 알 기본. 배의 변종은 아이템이, 요는 배치 시점이 정한다.
+- 가방(javap 로 `BundleItem` 대조): 우클릭(SECONDARY)만, 무게는 정확한 분수(1/최대스택, 가방은 1/16+내용, 벌 든 아이템은 1), 새 스택은 맨 앞에 끼움, 셜커 상자는 못 넣음. `FeatureFlags` 는 정적 집합이라 월드 하나의 값만 반영한다(`DataPackManager` 가 설치). 클라이언트에는 아직 바닐라 플래그만 보낸다.
+- 몹 쇠뇌(javap 로 `CrossbowItem` 대조): `getProjectileShotVector` 는 회전마다 벡터를 복사한다. 퍼짐 각은 가운데→왼쪽→오른쪽 순. 첫 발만 실제 탄약을 쓰고 나머지는 줍기 불가 사본. 내구도는 발마다(폭죽 3, 화살 1). 난수 호출 순서(소리 높낮이)는 발 순서대로.
+- 불길한 아이템 생성기(`OminousItemSpawner.spawnItem`): 발사체 아이템이면 `asProjectile(생성기 위치, DOWN)` 을 아래로 shoot, 아니면 아이템 엔티티. 이어서 levelEvent 3021, gameEvent ENTITY_PLACE(새 엔티티가 원인). 의도적 차이: 생성기가 Targetable 이 아니라 발사체 소유자를 붙이지 않는다(같은 틱에 사라지므로 관측 불가).
+- 용의 숨결 병: 엔더 드래곤이 만든 구름(몸 ±2 안)만, 반지름 −0.5, 소리 `item.bottle.fill_dragonbreath`(중립).
+- 시험: `EntityDataStackTest`·`DragonBreathBottleTest`·`BundleMenuTest`·`CrossbowMobTest`·`ConsumingTest`(망원경·엔더의 눈)·`AnvilMenuTest`(기본 이름)·`EntityGameEventsTest`(발사체 아이템).
+- 남은 것: 스폰 알로 동물 새끼 만들기(`spawnOffspringFromSpawnEgg`), 가방 클라이언트 기능 플래그 전송.

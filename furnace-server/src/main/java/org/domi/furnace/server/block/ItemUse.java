@@ -120,7 +120,7 @@ public final class ItemUse {
         if (e != null && e.kind() == BlockItems.Kind.PLACE_ON_WATER) return placeOnWaterUse(level, player, hand, stack, e);
         int slot = equipSlot(n);
         if (slot >= 0) return equip(level, player, hand, stack, slot, n);
-        // TODO(엔티티·먹기): 음식·물약·우유(오래 쓰기), 활·쇠뇌·삼지창·방패, 낚싯대, 망원경, 책, 광산 수레.
+        // 먹기·활·쇠뇌·삼지창·방패·망원경은 Consuming 이, 낚싯대는 낚시 쪽이 맡는다.
         return Holder.pass(stack);
     }
 
@@ -1023,7 +1023,7 @@ public final class ItemUse {
         return InteractionResult.sidedSuccess(false);
     }
 
-    /** HoneycombItem.useOn: 구리 블록에 밀랍(3003). TODO(블록 엔티티): 표지판 밀랍은 SignApplicator. */
+    /** HoneycombItem.useOn: 구리 블록에 밀랍(3003). 표지판 밀랍은 SignBlock 이 맡는다. */
     private static InteractionResult honeycomb(BlockLevel level, BlockActor player, int hand, Hit hit, ItemStack stack) {
         Pos pos = hit.pos();
         int state = level.getBlockState(pos);
