@@ -70,6 +70,22 @@ class AnvilMenuTest {
     }
 
     @Test
+    void renamingToTheDefaultNameCostsNothing() {   // 이름 없는 아이템의 기본 이름(en_us)과 같으면 바뀐 게 없다 — AnvilMenu 의 getHoverName().getString() 비교
+        menu.getSlot(0).set(it("iron_sword", 1));
+        menu.setItemName("Iron Sword");
+        assertTrue(result().isEmpty());
+    }
+
+    @Test
+    void renamingABlockItemToItsDefaultNameCostsNothing() {
+        menu.getSlot(0).set(it("stone", 1));
+        menu.setItemName("Stone");
+        assertTrue(result().isEmpty());
+        menu.setItemName("Stone2");
+        assertEquals("\"Stone2\"", ItemTools.component(result(), "minecraft:custom_name"));
+    }
+
+    @Test
     void repairWithIngotRestoresQuarterPerItem() {
         menu.getSlot(0).set(ItemTools.withDamage(it("iron_sword", 1), 100));
         menu.getSlot(1).set(it("iron_ingot", 3));
