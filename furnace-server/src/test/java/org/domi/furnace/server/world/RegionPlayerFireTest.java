@@ -40,12 +40,17 @@ class RegionPlayerFireTest {
             r.adopt(p);
         }).get();
         sched.region(rp).execute(() -> w.regionAt(rp).tick()).get();
-        assertEquals(-Player.FIRE_IMMUNE_TICKS, p.remainingFireTicks(), "움직이지 않았으니 불 속이라도 checkInsideBlocks 가 돌지 않는다");
+        sched.region(rp).execute(() -> w.regionAt(rp).tick()).get();   // 첫 틱은 발행된 위치가 틱 끝에서 적용된다
+        assertEquals(-Player.FIRE_IMMUNE_TICKS + 1, p.remainingFireTicks(), "움직이지 않아도 서버 쪽 move 가 돌아 불 블록 entityInside: 불 틱 +1");
 
-        p.pushCheckedMove(at(8.6, 8.5), true);   // 이동 패킷 → 불 블록 안
+        p.pushCheckedMove(at(8.6, 8.5), true);   // 이동 패킷 → 서버 move 한 번 + 패킷 move 한 번
         sched.region(rp).execute(() -> w.regionAt(rp).tick()).get();
-        assertEquals(-Player.FIRE_IMMUNE_TICKS + 1, p.remainingFireTicks(), "불 블록 entityInside: 불 틱 +1");
+        assertEquals(-Player.FIRE_IMMUNE_TICKS + 3, p.remainingFireTicks(), "틱당 +2");
         assertFalse(p.isOnFire());
+        for (int i = 0; i < 8; i++) sched.region(rp).execute(() -> w.regionAt(rp).tick()).get();
+        assertEquals(-Player.FIRE_IMMUNE_TICKS + 11, p.remainingFireTicks(), "가만히 서 있으면 틱당 +1");
+        for (int i = 0; i < 9; i++) sched.region(rp).execute(() -> w.regionAt(rp).tick()).get();
+        assertTrue(p.isOnFire(), "불 블록 안에 20틱 서 있으면 붙는다");
 
         p.pushCheckedMove(at(12.5, 12.5), true);   // 용암 칸으로
         sched.region(rp).execute(() -> w.regionAt(rp).tick()).get();

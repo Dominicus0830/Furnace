@@ -289,6 +289,17 @@ class PlayerPoseFlagsM20Test {
     }
 
     @Test
+    void dyingPutsOutTheFire() {
+        Player p = seasoned(948, GameMode.SURVIVAL);
+        p.igniteForSeconds(10.0F);
+        p.vitals().hurt(org.domi.furnace.server.entity.damage.DamageType.byKey("generic_kill"), 1000.0F);
+        p.drainOwnerTasks();
+        assertTrue(p.vitals().isDeadOrDying());
+        assertFalse(p.isOnFire());
+        assertEquals(0, p.sharedFlags() & 1);
+    }
+
+    @Test
     void fireProtectionShortensBurningTime() {
         Player p = player(944, GameMode.SURVIVAL);
         var boots = item("minecraft:iron_boots");

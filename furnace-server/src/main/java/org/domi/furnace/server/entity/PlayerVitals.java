@@ -862,6 +862,7 @@ public final class PlayerVitals {
             if (death.level != null) death.level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DIE,
                     new Vec3(death.x, death.y, death.z), org.domi.furnace.server.world.gameevent.GameEventContext.of(player));
         });
+        onOwnerThread(player::clearFire);   // Player.die / ServerPlayer.die: clearFire + 불 플래그 끔
         boolean showMessages = env.gameRule("showDeathMessages");
         boolean keepInventory = env.gameRule("keepInventory");
         Text name = player.displayName();
