@@ -44,9 +44,8 @@
 | 구조물 경계 표시 | 구조물 블록을 켜고 보면 경계 상자·모서리 표시, 불러온 구조물이 눈으로 바닐라와 같은지(계단 방향·문·침대·상자 내용) | 바닐라와 같음 |
 | 직소 블록 화면 | 직소 블록 우클릭 화면(풀·이름·대상·최종 상태·결합 종류·우선순위)과 "생성" 버튼이 마을 같은 조각을 펼치는지(노이즈 월드) | 바닐라와 같음 |
 | 외부 프로그램 | 바닐라 1.21.1 `region-file-compression=lz4` 월드 ↔ Furnace, 실제 Paper/Spigot 월드 폴더로 첫 기동, 실제 BungeeCord(`ip_forward: true`) 뒤 접속, Fabric 클라이언트 접속 | 이 환경은 Mojang·papermc·md-5 호스트가 막혀 못 돌림. lz4 형식은 바닐라 바이트코드와 대조해 같음 |
-| PROXY 프로토콜 (N2) | `furnace.properties` 에 `proxy-protocol=true` (+ `proxy-protocol.trusted=<HAProxy 주소>`) 를 두고 실제 HAProxy(`send-proxy-v2`)나 nginx stream(`proxy_protocol on`) 뒤로 접속 | 접속은 되고 서버 로그·`/ban-ip`·플러그인이 프록시가 아니라 실제 클라이언트 IP 로 봄. 헤더 없는 직접 접속은 거부됨. 이 환경에는 앞단 프로그램이 없어 EmbeddedChannel·소켓 시험까지만 함 (`docs/feature-parity/connection-defenses-2026-11-06.md`) |
 | 가상 엔티티·NPC (K1) | 플러그인이 `Furnace.virtualEntities()` 로 가상 주민·가짜 플레이어(스킨 포함)·가짜 탭 줄을 만들었을 때 실제 화면 | 스킨이 제대로 그려지고 머리 위 이름이 숨겨지며(켜면 보임) 웅크린 자세·손에 든 장비가 보임, 우클릭·좌클릭이 플러그인에 전해지고, 멀어졌다 오면 사라졌다 나타나고, 차원을 갔다 와도 다시 보임, 탭 목록에 가짜 줄이 보이고 NPC 는 탭에 없음. 스킨 값은 실제 Mojang 서명 "textures" 속성이 필요 |
-| 구성 단계 리소스 팩·쿠키 (N1) | 플러그인이 `AsyncPlayerConfigureEvent` 에서 `connection().sendResourcePack(...)`·`requestCookie`·`storeCookie`·`transfer` 를 부르게 해 실제 클라이언트로 접속 | 팩 받기 화면이 뜨고 끝나면 입장, 필수 팩 거절 시 "서버 리소스 팩 필요" 로 끊김, 쿠키를 다시 접속해도(전송 뒤에도) 읽힘. 구성 패킷 번호(0x00·0x08·0x0A·0x0B)는 문서·기억 기준이라 이 확인이 실제 클라이언트로 처음 보는 것 |
+| 구성 단계 리소스 팩·쿠키 (N1) | 플러그인이 `AsyncPlayerConfigureEvent` 에서 `connection().sendResourcePack(...)`·`requestCookie`·`storeCookie`·`transfer` 를 부르게 해 실제 클라이언트로 접속 | 팩 받기 화면이 뜨고 끝나면 입장, 필수 팩 거절 시 "서버 리소스 팩 필요" 로 끊김, 쿠키를 다시 접속해도(전송 뒤에도) 읽힘. 구성 패킷 번호(0x00·0x08·0x09·0x0A·0x0B)는 2026-11-07 바닐라 1.21.1 서버 바이트코드(`ConfigurationProtocols`)와 대조해 일치 확인함 — 남은 건 실제 클라이언트가 팩 받기 화면·쿠키를 정상 처리하는지 |
 
 ### 월드 타입 large_biomes·amplified (2026-11-06 구현) — 바닐라 서버와 한 번 대조
 `level-type=minecraft:large_biomes` / `minecraft:amplified` 로 새 월드를 만들면 이제 바닐라와 같은 노이즈 설정(바닐라 jar 데이터와 바이트 일치)으로 생성하고 level.dat 에도 그 생성기를 기록한다. 이 환경은 Mojang·papermc 가 막혀 바닐라를 직접 돌린 대조는 못 했다.
