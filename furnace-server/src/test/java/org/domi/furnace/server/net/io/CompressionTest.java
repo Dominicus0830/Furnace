@@ -134,6 +134,54 @@ class CompressionTest {
         }
     }
 
+    // M12: 청크 풀에서 미리 압축해 두면 채널(이벤트 루프)은 압축하지 않고, 여러 채널 모두 일반 경로와 같은 바이트를 받는다.
+    // 임계값이 다른 채널은 캐시를 못 써서 예전처럼 자기 인코더로 압축한다(결과는 그 채널의 일반 경로와 같다).
+    @Test
+    void precompressedFrame_isSharedByChannels_andMatchesNormalPath() {
+        byte[] body = new byte[40_000];
+        for (int i = 0; i < body.length; i++) body[i] = (byte) (i * 13 % 11);
+        byte[] expected256 = normalPathBytes(body, 256);
+        byte[] expected64 = normalPathBytes(body, 64);
+
+        SharedChunkFrames.precompressThreshold(256);
+        try {
+            long before = SharedChunkFrames.ENCODES.get();
+            SharedChunkFrames.precompress(body);   // 청크 풀 스레드 역할
+            assertEquals(1, SharedChunkFrames.ENCODES.get() - before);
+            for (int c = 0; c < 3; c++) {
+                EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
+                ch.pipeline().addLast("compress", new CompressionEncoder(256));
+                ch.writeOutbound(SharedChunkFrames.encode(ch,
+                        org.domi.furnace.server.net.protocol.play.LevelChunkWithLight.ofShared(body)));
+                assertArrayEquals(expected256, drain(ch.readOutbound()), "channel " + c);
+            }
+            assertEquals(1, SharedChunkFrames.ENCODES.get() - before, "채널은 미리 압축한 프레임을 쓴다");
+
+            EmbeddedChannel other = new ConcurrentEmbeddedChannel();
+            other.pipeline().addLast("compress", new CompressionEncoder(64));
+            other.writeOutbound(SharedChunkFrames.encode(other,
+                    org.domi.furnace.server.net.protocol.play.LevelChunkWithLight.ofShared(body)));
+            assertArrayEquals(expected64, drain(other.readOutbound()), "다른 임계값 채널");
+
+            // 꺼져 있으면(음수) 아무것도 하지 않는다
+            SharedChunkFrames.precompressThreshold(-1);
+            long mid = SharedChunkFrames.ENCODES.get();
+            SharedChunkFrames.precompress(new byte[5000]);
+            assertEquals(mid, SharedChunkFrames.ENCODES.get());
+        } finally {
+            SharedChunkFrames.precompressThreshold(-1);
+        }
+    }
+
+    /** 미리 압축 없이, 이 임계값 채널에 청크 패킷을 보냈을 때 나가는 바이트(일반 경로). */
+    private static byte[] normalPathBytes(byte[] body, int threshold) {
+        var normal = new org.domi.furnace.server.net.protocol.play.LevelChunkWithLight(Unpooled.wrappedBuffer(body.clone()));
+        EmbeddedChannel plain = new ConcurrentEmbeddedChannel();
+        plain.pipeline().addLast("compress", new CompressionEncoder(threshold));
+        plain.writeOutbound(SharedChunkFrames.encode(plain, normal));
+        return drain(plain.readOutbound());
+    }
+
     // 같은 본문 배열을 두 채널로 보내면 압축은 한 번, 바이트는 일반 경로(패킷 인코딩→인코더)와 같다.
     @Test
     void sharedChunkFrame_compressesOnceAndMatchesNormalPath() {

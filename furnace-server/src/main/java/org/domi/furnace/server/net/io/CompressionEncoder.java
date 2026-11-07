@@ -91,7 +91,7 @@ public final class CompressionEncoder extends MessageToByteEncoder<ByteBuf> {
 
     /**
      * encode() 가 같은 패킷에 대해 내보낼 바이트와 똑같은 payload 를 만든다(공유 청크 프레임용).
-     * 이 인코더의 Deflater 를 쓰므로 채널 이벤트 루프 스레드에서만 부른다.
+     * 이 인코더의 Deflater 를 쓰므로 인코더마다 한 스레드에서만 부른다(채널 이벤트 루프, 또는 파이프라인에 붙지 않은 미리 압축용 스레드별 인코더).
      */
     public byte[] encodeToBytes(byte[] packet) {
         ByteBuf out = io.netty.buffer.Unpooled.buffer(packet.length < threshold ? packet.length + 5 : (packet.length >>> 2) + 64);
