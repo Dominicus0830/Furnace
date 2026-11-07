@@ -42,6 +42,7 @@
 | 주민 문 (U3) | 문 앞 주민이 다시 안 열리는 상황을 보시면 가까운 주민에게 `/data get entity @e[type=villager,limit=1,sort=nearest] Brain.memories` 결과를 알려 주세요 | 코드는 바닐라와 줄 단위로 같음. 재현될 때만 필요 |
 | 구조물 블록 편집 화면 | **화면 열림·기본 배치는 2026-11-07 Fabric+Sodium 클라이언트로 확인함(이름·상대 위치·경계 상자·무결성/시드·엔티티 포함·불러오기 모드 버튼 정상). 남은 것:** 구조물 블록(창조 모드·OP)을 우클릭 → 저장/불러오기/모서리/데이터 모드 전환, 이름·오프셋·크기·"크기 감지"·무결성·시드. 모서리 블록 두 개를 놓고 저장 블록에서 "감지"를 눌러 상자가 잡히는지 | 화면이 열리고 값이 저장됨 (봇 9차 `round9/structure.js` 로 패킷·저장·불러오기는 통과) |
 | 구조물 경계 표시 | 구조물 블록을 켜고 보면 경계 상자·모서리 표시, 불러온 구조물이 눈으로 바닐라와 같은지(계단 방향·문·침대·상자 내용) | 바닐라와 같음 |
+| 데이터 팩 구조물 템플릿 (Q7) | 월드 `datapacks/<팩>/data/<이름공간>/structure/<이름>.nbt` 를 넣고 `/reload`(또는 재시작) → 구조물 블록 불러오기 모드에 `<이름공간>:<이름>` 입력, `/place template <이름공간>:<이름>` 탭 제안·배치 | 팩의 템플릿이 놓임. 월드 `generated/<이름공간>/structures/` 에 같은 이름이 있으면 그쪽이 우선 |
 | 직소 블록 화면 | **화면 열림·필드 배치는 2026-11-07 확인함(대상 풀·이름·대상 이름·다음으로 변환·선택/설치 우선도·결합 유형·레벨·취소 유지·생성·완료·취소 모두 표시). 남은 것은 "생성" 버튼이 마을을 펼치는지.** 직소 블록 우클릭 화면(풀·이름·대상·최종 상태·결합 종류·우선순위)과 "생성" 버튼이 마을 같은 조각을 펼치는지(노이즈 월드) | 바닐라와 같음 |
 | 외부 프로그램 | 바닐라 1.21.1 `region-file-compression=lz4` 월드 ↔ Furnace, 실제 Paper/Spigot 월드 폴더로 첫 기동, 실제 BungeeCord(`ip_forward: true`) 뒤 접속 (Fabric 1.21.1 + Sodium + Iris 클라이언트 접속·렌더는 2026-11-07 확인함) | 이 환경은 Mojang·papermc·md-5 호스트가 막혀 못 돌림. lz4 형식은 바닐라 바이트코드와 대조해 같음 |
 | 가상 엔티티·NPC (K1) | 플러그인이 `Furnace.virtualEntities()` 로 가상 주민·가짜 플레이어(스킨 포함)·가짜 탭 줄을 만들었을 때 실제 화면 | 스킨이 제대로 그려지고 머리 위 이름이 숨겨지며(켜면 보임) 웅크린 자세·손에 든 장비가 보임, 우클릭·좌클릭이 플러그인에 전해지고, 멀어졌다 오면 사라졌다 나타나고, 차원을 갔다 와도 다시 보임, 탭 목록에 가짜 줄이 보이고 NPC 는 탭에 없음. 스킨 값은 실제 Mojang 서명 "textures" 속성이 필요 |
@@ -79,7 +80,7 @@
 | **Paper/Spigot 월드 가져오기** | 첫 기동 때 `world_nether/DIM-1`·`world_the_end/DIM1` 을 `world/` 안으로 **복사** (원본 보존). Bukkit 월드별 규칙·날씨는 안 가져오고 주 `world/level.dat` 값을 씀 | 네더·엔드 크기만큼 디스크가 더 필요. 확인 뒤 원본은 직접 지우면 됨. 이 방식이 맞는지 (`docs/feature-parity/bukkit-world-import-2026-11-03.md`) |
 | **공유 스케줄러 S4 기본값** | 병합됨, 기본 꺼짐. 켜는 법 `-Dfurnace.sharedRegionPool=true` | 기본값을 켤지. 부하 5ms 에서 지연은 줄었으나 간헐적 40~60ms 튐 원인 미확인 (`docs/feature-parity/shared-scheduler-s4-2026-10-28.md`) |
 | **CI (`.github/workflows/ci.yml`)** | 기본 ubuntu-latest 러너, push/PR 전체 트리거. `:furnace-api:test`, `:furnace-plugin-test:classes`, `:furnace-server:fatJar` 단계 포함. GitHub 에서는 아직 안 돌려 봄 | 러너 종류(자체 호스팅 여부), 브랜치 제한, 캐시 정책, 바닐라 jar 추출(3-1)용 외부 접근 허용 여부. 시작 스크립트(`start.sh`/`start.bat`)는 실제 기동을 확인하지 못함 |
-| **데이터 팩 구조물 템플릿** | 구조물 블록은 월드 `generated/<ns>/structures/` 와 내장 `minecraft` 템플릿만 읽음. 데이터 팩 `structure/*.nbt`·`.snbt` 와 옛 DataVersion 데이터 픽서는 없음(Furnace 에 데이터 팩 템플릿 경로가 없음) | 필요한지. 필요하면 데이터 팩 경로부터 만들어야 함 |
+| **데이터 팩 구조물 템플릿** (Q7, 승인됨) | 구현됨. 구조물 블록·`/place template` 이 월드 `generated/<ns>/structures/` → 켜진 데이터 팩 `data/<ns>/structure/**.nbt`(위 팩이 아래 팩을 덮음, `/reload` 로 갱신) → 내장 `minecraft` 순으로 읽음. `.snbt` 는 바닐라 1.21.1 운영 서버도 읽지 않아 제외. 옛 DataVersion(1.20.5 미만) 파일은 데이터 픽서(Q8) 전까지 그대로 읽고 경고만 남김 | 데이터 팩에 구조물 `.nbt` 를 넣고 구조물 블록 불러오기 / `/place template <ns:이름>` 이 되는지 |
 ---
 
 ## 3. 코디네이터가 이 파일에 필요하다고 보는 항목
