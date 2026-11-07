@@ -220,6 +220,21 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         }, false, false);
     }
 
+    /** 소유 스레드에서 곧바로: 이 스레드가 엔티티를 가진 region 을 돌리고 있어야 한다(아니면 ThreadOwnershipException). 사라졌으면 false. */
+    @Override
+    public boolean editPersistentDataNow(Consumer<PersistentDataContainer> edit) {
+        if (!(tasks.owner() instanceof Entity e) || e.isRemoved()) return false;
+        World w = host.core().world(e.dimensionKey());
+        ChunkPos cp = ChunkPos.ofBlock(e.x(), e.z());
+        Region r = w == null ? null : w.regionizer().ownerOf(cp.x(), cp.z());
+        if (r == null || !r.isOwnerThread() || r.level() == null || r.level().entities().get(e.uuid()) != e) {
+            throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("엔티티 " + type() + " 를 가진 region 스레드가 아니다(현재 "
+                    + Thread.currentThread().getName() + ") — editPersistentData 나 entityScheduler() 작업 안에서 부른다");
+        }
+        edit.accept(new NbtPersistentData(e.persistentData(true), false));
+        return true;
+    }
+
     @Override
     public CompletableFuture<Optional<Inventory>> container() {
         if (containerType == null) return RegionFuture.wrap(CompletableFuture.completedFuture(Optional.empty()));

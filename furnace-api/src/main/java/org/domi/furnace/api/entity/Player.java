@@ -123,6 +123,15 @@ public interface Player extends CommandSender, LivingEntity {
     /** 플레이어 인벤토리 핸들(비동기 접근). */
     Inventory inventory();
 
+    /** 지금 고른 단축 칸(0..8). 어느 스레드에서든 읽을 수 있다. 구현이 없으면 UnsupportedOperationException. */
+    default int heldSlot() { throw new UnsupportedOperationException("heldSlot"); }
+
+    /**
+     * 단축 칸 선택을 바꾼다(클라이언트에도 알린다). 소유 스레드에서 실행되고 그 스레드면 곧바로 끝난다.
+     * 0..8 밖이면 IllegalArgumentException 으로 완료한다.
+     */
+    default CompletableFuture<Void> setHeldSlot(int slot) { return CompletableFuture.failedFuture(new UnsupportedOperationException("setHeldSlot")); }
+
     @Override
     default String type() { return "minecraft:player"; }
 

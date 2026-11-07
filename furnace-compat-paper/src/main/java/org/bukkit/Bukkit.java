@@ -71,4 +71,16 @@ public final class Bukkit {
     public static int getViewDistance() { return s().getViewDistance(); }
 
     public static int getSimulationDistance() { return s().getSimulationDistance(); }
+
+    public static org.bukkit.block.data.BlockData createBlockData(Material material) { return s().createBlockData(material); }
+
+    public static org.bukkit.block.data.BlockData createBlockData(String data) { return s().createBlockData(data); }
+
+    public static org.bukkit.block.data.BlockData createBlockData(Material material, String data) { return s().createBlockData(material, data); }
+
+    public static org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, int size) { return s().createInventory(owner, size); }
+
+    public static org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, int size, String title) { return s().createInventory(owner, size, title); }
+
+    public static org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, org.bukkit.event.inventory.InventoryType type) { return s().createInventory(owner, type); }
 }

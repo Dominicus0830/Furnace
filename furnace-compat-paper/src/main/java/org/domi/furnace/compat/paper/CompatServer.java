@@ -27,6 +27,28 @@ public final class CompatServer implements Server {
     private static Furnace f() { return Compat.furnace(); }
 
     @Override
+    public org.bukkit.block.data.BlockData createBlockData(org.bukkit.Material material) { return CompatBlockData.create(material); }
+
+    @Override
+    public org.bukkit.block.data.BlockData createBlockData(String data) { return CompatBlockData.create(data); }
+
+    @Override
+    public org.bukkit.block.data.BlockData createBlockData(org.bukkit.Material material, String data) { return CompatBlockData.create(material, data); }
+
+    private static UnsupportedFeature noVirtualInventory() {
+        return new UnsupportedFeature("Bukkit.createInventory", "가상 인벤토리(메뉴)는 클릭·열기·닫기 이벤트와 함께 옮겨야 한다 — Furnace 메뉴 프레임워크(org.domi.furnace.api.menu.Menu)를 쓴다");
+    }
+
+    @Override
+    public org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, int size) { throw noVirtualInventory(); }
+
+    @Override
+    public org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, int size, String title) { throw noVirtualInventory(); }
+
+    @Override
+    public org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, org.bukkit.event.inventory.InventoryType type) { throw noVirtualInventory(); }
+
+    @Override
     public String getName() { return "Furnace"; }
 
     @Override

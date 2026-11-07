@@ -48,6 +48,33 @@ class CompatEntity implements Entity {
     }
 
     @Override
+    public org.bukkit.entity.EntityType getType() {
+        org.bukkit.entity.EntityType t = org.bukkit.entity.EntityType.fromKey(handle.type());
+        if (t == null) throw new UnsupportedFeature("Entity#getType(" + handle.type() + ")", "Bukkit EntityType 열거형에 없는 종류다(플러그인이 더한 엔티티)");
+        return t;
+    }
+
+    @Override
+    public java.util.List<org.bukkit.entity.Entity> getNearbyEntities(double x, double y, double z) {
+        var loc = handle.location();
+        double r = Math.sqrt(x * x + y * y + z * z);
+        var found = handle.world().nearbyEntitiesNow(loc, r);
+        java.util.List<org.bukkit.entity.Entity> out = new java.util.ArrayList<>();
+        for (var e : found) {
+            if (e.uniqueId().equals(handle.uniqueId())) continue;
+            var l = e.location();
+            if (Math.abs(l.x() - loc.x()) <= x && Math.abs(l.y() - loc.y()) <= y && Math.abs(l.z() - loc.z()) <= z) out.add(Compat.entity(e));
+        }
+        return out;
+    }
+
+    @Override
+    public void setCustomName(String name) { throw new UnsupportedFeature("Entity#setCustomName", "엔티티 이름 쓰기 API 가 아직 없다"); }
+
+    @Override
+    public org.bukkit.persistence.PersistentDataContainer getPersistentDataContainer() { return new EntityPdc(handle); }
+
+    @Override
     public void remove() { handle.remove(); }
 
     // ---- CommandSender / Permissible: 플레이어가 아닌 엔티티는 메시지를 받지 않고 권한이 없다(Bukkit 과 같다)

@@ -1512,6 +1512,12 @@ public enum Material implements Keyed {
     /** 최대 내구도(내구도가 없으면 0). */
     public short getMaxDurability() { return (short) maxDurability; }
 
+    /** 기본 상태의 블록 데이터(블록이 아니면 IllegalArgumentException). */
+    public org.bukkit.block.data.BlockData createBlockData() { return org.domi.furnace.compat.paper.CompatBlockData.create(this); }
+
+    /** 속성 문자열("[facing=north]")을 입힌 블록 데이터. */
+    public org.bukkit.block.data.BlockData createBlockData(String data) { return org.domi.furnace.compat.paper.CompatBlockData.create(this, data); }
+
     /** 블록으로 놓을 수 있는 종류인가(블록 레지스트리에 있다). */
     public boolean isBlock() { return block; }
 

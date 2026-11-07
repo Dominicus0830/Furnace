@@ -1,6 +1,6 @@
 # Bukkit·Paper 플러그인 호환 어댑터 (H1)
 
-`furnace-compat-paper` 모듈은 `plugin.yml`(또는 `paper-plugin.yml`)로 만든 Bukkit·Paper 플러그인 jar 를 Furnace 위에서 로드·실행한다. 이 문서는 **1차(H1)** 의 범위다: 로더, `org.bukkit` API 의 일부, 이벤트 24종. 명령·스케줄러(H2), 인벤토리·아이템·엔티티 어댑터(H3), 실제 플러그인 시험(H4)과 NMS·CraftBukkit(H5~H7)은 뒤 묶음이다.
+`furnace-compat-paper` 모듈은 `plugin.yml`(또는 `paper-plugin.yml`)로 만든 Bukkit·Paper 플러그인 jar 를 Furnace 위에서 로드·실행한다. 이 문서는 **1차(H1)** 의 범위다: 로더, `org.bukkit` API 의 일부, 이벤트 24종. 명령·스케줄러(H2), 아이템·인벤토리·블록·엔티티 어댑터(H3, 아래 "H3" 절), 실제 플러그인 시험(H4)과 NMS·CraftBukkit(H5~H7)은 뒤 묶음이다.
 
 ## 켜고 끄기
 
@@ -46,11 +46,22 @@
 
 Furnace 이벤트가 알리지 않는 값은 지어내지 않는다. 읽기는 정직한 기본값(예: 순간이동 원인 `UNKNOWN`), 쓰기는 `UnsupportedFeature`(= `UnsupportedOperationException`)로 무엇이 없는지 말하며 던진다. 예: `PlayerMoveEvent#setTo`, `AsyncPlayerChatEvent#getRecipients()` 바꾸기(받는 사람마다 다른 서식은 `AsyncChatEvent#renderer` 가 대신한다).
 
-아직 없는 `org.bukkit` 영역: 인벤토리·`ItemStack`·`Inventory`(H3), 명령 실행기·스케줄러(`getScheduler`, `Command`; H2), 엔티티 종류별 하위 인터페이스, 나머지 수백 개 이벤트, `Bukkit.getOnlinePlayers` 이외의 대부분의 서버 보조(권한 첨부는 `Player#hasPermission` 만). 없는 클래스를 부르면 플러그인 쪽에서 `NoClassDefFoundError` 가 나 그 플러그인만 실패한다.
+아직 없는 `org.bukkit` 영역: 명령 실행기·스케줄러의 `JavaPlugin` 연결(H2 코어는 있음), 엔티티 종류별 하위 인터페이스, 커스텀 `Inventory` 생성(`createInventory`; 서버에 메뉴 API 연결 전이라 `UnsupportedFeature`), 나머지 수백 개 이벤트, `Bukkit.getOnlinePlayers` 이외의 대부분의 서버 보조(권한 첨부는 `Player#hasPermission` 만). 없는 클래스를 부르면 플러그인 쪽에서 `NoClassDefFoundError` 가 나 그 플러그인만 실패한다.
 
 ## Material
 
 `org.bukkit.Material` 은 1.21.1 의 블록 레지스트리와 아이템 레지스트리의 합집합이다. 생성기 `tools/compat/gen-bukkit-material.py` 가 `furnace-server` 의 `blocks/1.21.1.txt`·`items/1.21.1.txt`·`items/properties_1.21.1.txt` 로 만든다. 레지스트리가 바뀌면 다시 돌려 커밋한다(`ApiValueTypesTest.materialMatchesTheRegistries` 가 어긋남을 잡는다). Bukkit 의 옛 이름(`LEGACY_*`)·세대 변환 이름은 두지 않았다.
+
+## H3: 아이템·인벤토리·블록·엔티티·월드
+
+설계·한계·Bukkit 과 다른 점은 `docs/feature-parity/compat-h3-2026-11-07.md`, 결정 항목은 `docs/user-todo/entries/2026-11-07-h3.md`.
+
+- **아이템**: `ItemStack`(가변)·`ItemMeta`(`Damageable`·`Repairable` 포함, 복사 의미)·`ItemFlag`·`Enchantment`(42종 생성)·`PersistentDataContainer`(`PersistentDataType` 상수들, 아이템은 `custom_data/PublicBukkitValues`). 서버 `ItemStack`(불변 record)과는 `ItemSlot` 으로 잇는다.
+- **인벤토리**: `Player#getInventory`(`PlayerInventory`: 핫바·주 칸·갑옷·왼손·`addItem`·`removeItem`·`getItemInMainHand` 등)는 칸을 거울로 비춘다. 소유 스레드가 아닌 곳의 쓰기는 예약되고 읽기에 겹쳐 보인다. `Bukkit#createInventory` 는 `UnsupportedFeature`.
+- **블록**: `Block#setType/getBlockData/setBlockData/getRelative/getFace/getChunk`, `BlockData`(`Material#createBlockData`, 문자열 `matches`).
+- **엔티티·월드**: `Entity#getType`(`EntityType` 130종 생성)·`getNearbyEntities`·`setCustomName`·엔티티 영속 데이터(소유 region 에서만 읽기), `World#spawnEntity/getNearbyEntities/getChunkAt`. 서버 API 에 동기 쌍 `World#spawnEntityNow`·`nearbyEntitiesNow`, `Entity#editPersistentDataNow`, `Player#heldSlot/setHeldSlot` 을 더했다.
+- 생성 파일(`Material`·`EntityType`·`Enchantment`)은 `tools/compat/gen-bukkit-material.py`·`gen-bukkit-registries.py` 로 다시 만든다.
+- 시험: `InventoryAdapterTest`·`BlockEntityWorldAdapterTest`·`KitPluginTest`(키트 플러그인 jar)·`RegistryValueTypesTest`.
 
 ## 스레드 (H2 가 H1 에 넘긴 D1·D2 에 대한 결정)
 
