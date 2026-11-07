@@ -2051,6 +2051,19 @@ public abstract class ChunkLevel implements BlockLevel {
         for (Entity e : entities.all()) if (e.tracker != null && !e.isRemoved()) e.tracker.updatePlayer(p, viewers);
     }
 
+    /**
+     * 플러그인 보이기·변장 규칙이 바뀌었다(엔티티를 가진 region 스레드에서): viewer(null 이면 모두)에 대해 보임을 다시 정하고,
+     * respawn 이면 지금 보는 사람에게 지웠다 다시 스폰해 새 모습을 보낸다.
+     */
+    public void refreshViews(Entity e, Player viewer, boolean respawn) {
+        EntityTracker t = e.tracker;
+        if (t == null || e.isRemoved() || e.level() != this) return;
+        if (respawn) {
+            for (Player p : t.viewersSnapshot()) if (viewer == null || viewer == p) t.removePlayer(p);
+        }
+        for (Player p : trackingPlayers()) if (viewer == null || viewer == p) t.updatePlayer(p, viewers);   // 이 region 의 플레이어만(다른 차원 좌표와 섞이지 않게)
+    }
+
     /** 플레이어가 나갔다 — 보는 목록에서 뺀다(패킷 없이). */
     public void playerLeft(Player p) {
         for (Entity e : entities.all()) if (e.tracker != null) e.tracker.removePlayer(p);

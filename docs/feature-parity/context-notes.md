@@ -1015,3 +1015,11 @@
 - ⑥ `World.worldDir()` 는 차원 폴더가 아니라 서버 공용 데이터(playerdata·stats·advancements·generated 구조물·탈것) 자리다. 추가 월드에 `<이름>/` 을 넣었더니 그 월드에서 나간 플레이어가 `mining/playerdata` 에 저장돼 재접속 때 오버월드로 왔다(봇 2단계에서 발견). → 차원 저장 뿌리는 `World.levelRoot()`(습격·forceload·command storage 의 data 폴더 기준), `worldDir` 는 추가 월드도 주 월드 폴더.
 - 봇 시험 `tools/bot-test/round-w1`: 1단계 16/16, 2단계(autoload 재시작 뒤 mining 으로 재접속·금 블록) 3/3. 새 노이즈 월드로 처음 tp 하면 청크 생성(~6초)이 명령 결과 대기(5초)를 넘어 "An unexpected error occurred" 뒤에 성공 문구가 온다 — 기존 명령 대기 구조의 일(새 네더 지역으로 tp 해도 같다), W1 에서 고치지 않았다.
 - 시험 `MultiWorldTest` 10개(만들기·저장·내리기·다시 불러오기, 네더 환경 폴더·타입 규칙, 플러그인 타입 높이, 검사, 취소(고리·WorldUnloadEvent), 플러그인 API·이벤트, 설정·설명서 왕복, 바닐라 타입 값).
+
+## 2026-11-07 두뇌(Brain) 플러그인 API (E2)
+- API `MobAi.brain()` → `MobBrain`(기억·센서·활동·플러그인 행동). 설계·규칙 `docs/api/mob-brain.md`.
+- 활동 붙잡기는 `Brain.setActiveActivity` 한 곳에서 돌린다: 붙잡힌 동안 몹이 고른 활동 대신 붙잡은 활동으로 바꾼다(비었으면 다시 켠다). 그래서 주민 `refreshBrain` 직후(새 두뇌의 켜진 활동이 비어 있음)에도 `useDefaultActivity` 한 번이면 붙잡은 활동 + 핵심 활동으로 돌아온다. 바닐라 경로는 null 검사 하나.
+- 기억 값 모양은 `MemoryModuleType` 상수의 제네릭 형식에서 반사로 읽는다(`BrainValues`). 새 기억을 넣을 때 형식을 정확히 적으면 API 가 따라오고, 시험이 내부 값 목록(dummy·path·hurt_by·ram_target)을 지킨다.
+- 두뇌 틱 도중(행동·센서 콜백 안) 센서·행동 넣기·빼기는 틱 끝으로 미룬다(E1 GoalSelector 와 같은 방식).
+- 함정: 플러그인 설명 파일 `commands:` 를 `{description: …}` 흐름 형식으로 쓸 때 설명에 `(`·`[` 가 들어가면 ConfigParseException 으로 플러그인이 안 뜬다 — 블록 형식 + 따옴표로.
+- 시험: `MobBrainApiTest` 18개, `MobAiHandleTest` 주민 두뇌 1건 추가, 봇 `tools/bot-test/round13/brain.js` 12/12.

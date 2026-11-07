@@ -409,6 +409,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public void markDisconnected() {
         this.disconnected = true;
         bumpRoster();
+        org.domi.furnace.server.entity.view.EntityViewRules.playerGone(this);   // 이 접속으로 건 보이기·변장 규칙
         apiTasks.retire();   // 플러그인 EntityScheduler: 접속 종료 = 엔티티가 사라짐
     }
 
@@ -471,9 +472,18 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public void send(Packet packet, java.util.function.BooleanSupplier current) {
         channel.eventLoop().execute(() -> {
             if (!current.getAsBoolean()) return;
-            Object msg = org.domi.furnace.server.net.io.SharedChunkFrames.encode(channel, packet);
-            if (msg == null) return;   // 플러그인 패킷 리스너가 취소
-            channel.write(msg);
+            Object view = viewRewriter.rewrite(this, packet);   // 플레이어별 변장(규칙이 없으면 그대로)
+            if (view == packet) {
+                if (!writeOne(packet)) return;
+            } else if (view instanceof Packet[] many) {
+                boolean any = false;
+                for (Packet one : many) any |= writeOne(one);
+                if (!any) return;
+            } else if (view instanceof Packet one) {
+                if (!writeOne(one)) return;
+            } else {
+                return;   // 변장 때문에 보내지 않는다(살아 있지 않은 모습에 보내는 속성 등)
+            }
             // 보낼 때마다 flush(시스템 호출) 하지 않고, 같은 순간에 쌓인 패킷은 한 번에 내보낸다(플래그는 이벤트 루프 스레드에서만 만진다).
             if (!flushPending) {
                 flushPending = true;
@@ -486,6 +496,20 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     }
 
     private boolean flushPending;
+
+    /** 이 연결의 엔티티 모습 바꾸기(변장) 상태 — 이벤트 루프에서만. */
+    private final org.domi.furnace.server.entity.view.ViewRewriter viewRewriter = new org.domi.furnace.server.entity.view.ViewRewriter();
+
+    /** 시험용. */
+    public org.domi.furnace.server.entity.view.ViewRewriter viewRewriter() { return viewRewriter; }
+
+    /** 이벤트 루프에서: 인코딩해 쓴다. 플러그인 패킷 리스너가 취소했으면 false. */
+    private boolean writeOne(Packet packet) {
+        Object msg = org.domi.furnace.server.net.io.SharedChunkFrames.encode(channel, packet);
+        if (msg == null) return false;
+        channel.write(msg);
+        return true;
+    }
 
     private volatile org.domi.furnace.api.text.Text kickReason;
 

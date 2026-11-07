@@ -2281,7 +2281,7 @@ public final class Region {
         while (it.hasNext()) {
             var e = it.next();
             Player b = world.onlinePlayer(e.getKey());
-            if (b == null || b.isDisconnected()) {
+            if (b == null || b.isDisconnected() || b != a && !org.domi.furnace.server.entity.view.EntityViewRules.canSee(a, b.uuid())) {   // 퇴장 또는 플러그인이 숨김(Bukkit hidePlayer 처럼 탭에서도 뺀다)
                 if (stopTracking(a, e.getKey())) a.send(new RemoveEntities(java.util.List.of(e.getKey())));
                 a.missingTicks().remove(e.getKey());
                 gone.add(e.getValue());
@@ -2291,7 +2291,7 @@ public final class Region {
         if (!gone.isEmpty()) a.send(new PlayerInfoRemove(gone));
         List<PlayerInfoUpdate.Entry> add = null;
         for (Player b : world.onlinePlayers()) {
-            if (b.isDisconnected()) continue;
+            if (b.isDisconnected() || b != a && !org.domi.furnace.server.entity.view.EntityViewRules.canSee(a, b.uuid())) continue;
             if (a.listed().putIfAbsent(b.entityId(), b.uuid()) == null) {
                 if (add == null) add = new ArrayList<>();
                 var session = b.chat().session();
@@ -2311,7 +2311,21 @@ public final class Region {
         }
         if (all.isEmpty()) return;
         PlayerInfoLatency pkt = new PlayerInfoLatency(all);
-        for (Player p : players.values()) p.send(pkt);
+        if (!org.domi.furnace.server.entity.view.EntityViewRules.active()) {
+            for (Player p : players.values()) p.send(pkt);
+            return;
+        }
+        for (Player p : players.values()) {   // 플러그인이 숨긴 플레이어는 그 사람의 탭에 없다 — 모르는 항목을 보내지 않는다
+            List<PlayerInfoLatency.Entry> mine = null;
+            for (int i = 0; i < all.size(); i++) {
+                PlayerInfoLatency.Entry en = all.get(i);
+                boolean see = en.uuid().equals(p.uuid()) || org.domi.furnace.server.entity.view.EntityViewRules.canSee(p, en.uuid());
+                if (!see && mine == null) mine = new ArrayList<>(all.subList(0, i));
+                else if (see && mine != null) mine.add(en);
+            }
+            if (mine == null) p.send(pkt);
+            else if (!mine.isEmpty()) p.send(new PlayerInfoLatency(mine));
+        }
     }
 
     private void updateVisibility(Player a, List<EntityView> candidates) {
@@ -2322,10 +2336,11 @@ public final class Region {
             if (b.entityId() == a.entityId()) continue;
             seen.add(b.entityId());
             if (world.onlinePlayer(b.entityId()) == null) continue;   // 이미 퇴장 처리된 플레이어는 (재)스폰하지 않는다
-            boolean near = !b.removed() && within(a, b, range);   // 사망 후 제거된 엔티티는 보이지 않는다
+            boolean near = !b.removed() && within(a, b, range) && org.domi.furnace.server.entity.view.EntityViewRules.canSee(a, b.uuid());   // 사망 후 제거된 엔티티·플러그인이 숨긴 플레이어는 보이지 않는다
             boolean tracking = a.tracked().containsKey(b.entityId());
-            if (near && tracking && (int) a.tracked().get(b.entityId())[5] != b.generation()) {
-                // 리스폰(바닐라: 옛 ServerPlayer 제거 + 새 ServerPlayer 추가) — 지웠다 다시 스폰한다.
+            double[] tr = tracking ? a.tracked().get(b.entityId()) : null;
+            if (near && tracking && ((int) tr[5] != b.generation() || (long) tr[7] != org.domi.furnace.server.entity.view.EntityViewRules.epochFor(a, b.uuid()))) {
+                // 리스폰(바닐라: 옛 ServerPlayer 제거 + 새 ServerPlayer 추가) 또는 플러그인 변장이 바뀜 — 지웠다 다시 스폰한다.
                 a.send(new RemoveEntities(java.util.List.of(b.entityId())));
                 stopTracking(a, b.entityId());
                 tracking = false;
@@ -2343,7 +2358,8 @@ public final class Region {
                 if (be != null) a.send(be);
                 var bv = bp == null ? null : bp.vehicle();
                 if (bv != null) a.send(org.domi.furnace.server.net.protocol.play.SetPassengers.of(bv));
-                startTracking(a, b.entityId(), new double[]{b.x(), b.y(), b.z(), b.yaw(), b.pitch(), b.generation(), headRotp(b.yaw())});
+                startTracking(a, b.entityId(), new double[]{b.x(), b.y(), b.z(), b.yaw(), b.pitch(), b.generation(), headRotp(b.yaw()),
+                        org.domi.furnace.server.entity.view.EntityViewRules.epochFor(a, b.uuid())});
             } else if (!near && tracking) {
                 a.send(new RemoveEntities(java.util.List.of(b.entityId())));
                 stopTracking(a, b.entityId());
