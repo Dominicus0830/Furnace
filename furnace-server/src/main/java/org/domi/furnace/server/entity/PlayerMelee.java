@@ -211,7 +211,7 @@ public final class PlayerMelee {
     }
 
     /**
-     * doPostAttackEffectsWithItemSource: 먼저 맞은 쪽 장비의 가시, 이어서 무기의 발화(불 붙이기 4초 × 레벨. 플레이어 대상은 불 상태가 아직 없어 넘어간다)·돌풍,
+     * doPostAttackEffectsWithItemSource: 먼저 맞은 쪽 장비의 가시, 이어서 무기의 발화(불 붙이기 4초 × 레벨)·돌풍,
      * 살충(절지류에게 느림 IV).
      * 살충: apply_mob_effect — 대상의 난수로 후보 고르기 nextInt(1) → 지속 nextFloat 보간(1.5초 ~ 1.5 + 0.5×(레벨−1)초, 반올림 ×20)
      * → 증폭 nextFloat 보간(3 ~ 3).
@@ -221,6 +221,7 @@ public final class PlayerMelee {
         int fire = ItemTools.enchantmentLevel(weapon, "minecraft:fire_aspect");
         Entity victim = entityOf(target);
         if (fire > 0 && victim != null) victim.igniteForSeconds(4.0F * fire);   // minecraft:ignite 는 어떤 엔티티에든(보트·수레 포함)
+        else if (fire > 0 && target instanceof Player pl) pl.igniteForSecondsLater(4.0F * fire);
         EnchantEffects.windBurst(level, p, weapon);
         int bane = ItemTools.enchantmentLevel(weapon, "minecraft:bane_of_arthropods");
         if (bane > 0 && victim instanceof LivingEntity e && e.type().is("minecraft:sensitive_to_bane_of_arthropods")) {

@@ -1236,7 +1236,14 @@ public final class Region {
             double tickX = p.x(), tickZ = p.z();   // 바닐라 xOld·zOld(틱 머리 setOldPosAndRot)
             boolean moved = processMoves(p);
             if ((moved || p.vehicle() != null) && level != null) level.playerMoved(p);
-            if (moved) checkInsideBlocksPlayer(p, p.x() - tickX, p.z() - tickZ);
+            if (p.vehicle() == null) {   // 바닐라는 연결 틱마다 서버에서 travel→move 를 한 번 돌린다: 움직이지 않아도 불 블록 안이면 불 틱이 오르고, 끝에서 불이 꺼진다
+                checkInsideBlocksPlayer(p, 0.0, 0.0, true);
+                org.domi.furnace.server.entity.PlayerFire.afterMove(p, level, p.wasTouchingWater);
+            }
+            if (moved) {
+                checkInsideBlocksPlayer(p, p.x() - tickX, p.z() - tickZ, false);
+                org.domi.furnace.server.entity.PlayerFire.afterMove(p, level, p.wasTouchingWater);   // Entity.move 의 끝: 불·용암이 없으면 면역 틱, 비·물에서 꺼짐
+            }
             p.drainPending();
             org.domi.furnace.server.entity.PlayerMoveValidator.tick(p);   // 틱 머리: 기준 위치·패킷 수·떠 있는 틱(비행 킥)
             p.currentLevel = level;
@@ -1973,6 +1980,7 @@ public final class Region {
         p.wasTouchingWater = s.inWater();
         p.onClimbable = s.climbable() != null;
         if (level != null && s.chunkLoaded()) level.raids().tickOmens(p);   // 나쁜 징조·습격 징조(효과 틱 직전)
+        if (s.chunkLoaded()) org.domi.furnace.server.entity.PlayerFire.tick(p, level, s.inWater());   // Entity.baseTick 의 불: 물에서 꺼짐·20틱마다 1 피해·용암
         p.vitals().tick(s);
         p.wardenSpawnTracker().tick();   // ServerPlayer.tick
         if (p.stats() != null) {   // 바닐라 Player.tick 의 시간 통계(time_since_rest 는 깨어 있을 때만)
@@ -1998,7 +2006,7 @@ public final class Region {
      * entityInside 는 플레이어에게 아직 연결되지 않았다(끼임·속도는 클라이언트가 계산한다).
      * 같은 칸 순회에서 ServerPlayer.onInsideBlock(state) → enter_block 트리거(공기 포함, 칸마다 entityInside 다음).
      */
-    private void checkInsideBlocksPlayer(Player p, double tickDx, double tickDz) {
+    private void checkInsideBlocksPlayer(Player p, double tickDx, double tickDz, boolean travelOnly) {
         if (level == null || p.vitals().health() <= 0.0F || p.gameMode() == GameMode.SPECTATOR) return;
         double h = p.bbHeight();
         int x0 = (int) Math.floor(p.x() - 0.3 + 1.0E-7), x1 = (int) Math.floor(p.x() + 0.3 - 1.0E-7);
@@ -2011,8 +2019,14 @@ public final class Region {
         for (int bx = x0; bx <= x1; bx++) for (int by = y0; by <= y1; by++) for (int bz = z0; bz <= z1; bz++) {
             int s = level.getBlockState(new org.domi.furnace.server.block.Pos(bx, by, bz));
             var beh = org.domi.furnace.server.block.B.behavior(s);
+            if (travelOnly) {   // 이동 패킷 없는 틱의 서버 쪽 move: 불 블록만 본다(모닥불·열매 덤불·흘림잎·진행 과제는 패킷 이동에서만 — 가정)
+                if (beh instanceof org.domi.furnace.server.block.types.BaseFireBlock fb) org.domi.furnace.server.entity.PlayerFire.fireInside(p, fb.fireDamage());
+                continue;
+            }
             if (beh instanceof org.domi.furnace.server.block.types.CampfireBlock cf) {
                 cf.entityInsidePlayer(s, p.vitals());
+            } else if (beh instanceof org.domi.furnace.server.block.types.BaseFireBlock fb) {
+                org.domi.furnace.server.entity.PlayerFire.fireInside(p, fb.fireDamage());
             } else if (beh instanceof org.domi.furnace.server.block.types.BigDripleafBlock bd) {
                 bd.entityInsideAt(s, level, new org.domi.furnace.server.block.Pos(bx, by, bz), p.onGround(), p.y());
             } else if (beh instanceof org.domi.furnace.server.block.types.SweetBerryBushBlock
