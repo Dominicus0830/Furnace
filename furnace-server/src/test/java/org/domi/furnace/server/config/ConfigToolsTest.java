@@ -69,8 +69,8 @@ class ConfigToolsTest {
     }
 
     @Test
-    void unterminatedPlaceholderIsRejected() throws IOException {
-        assertThrows(IllegalArgumentException.class, () -> FurnaceProps.read(write("server-brand=${OOPS\n")));
+    void unterminatedPlaceholderStaysLiteral() throws IOException {
+        assertEquals("pa${ss", FurnaceProps.read(write("server-brand=pa${ss\n")).getProperty("server-brand"));
     }
 
     @Test
@@ -234,6 +234,14 @@ class ConfigToolsTest {
         assertFalse(all.contains("backup.keep"), "기본값과 같은 키는 숨긴다");
         assertTrue(all.contains("entity-view-distance = 6") && all.contains("프리셋 performance"), all);
         assertTrue(all.contains("autosve-ticks (5번째 줄) — 'autosave-ticks' 를 말한 건가요?"), all);
+    }
+
+    @Test
+    void secretsAreMaskedByName() {
+        assertTrue(ConfigDump.isSecret("velocity-secret"));
+        assertTrue(ConfigDump.isSecret("future.api-Token"));
+        assertTrue(ConfigDump.isSecret("x.password"));
+        assertFalse(ConfigDump.isSecret("autosave-ticks"));
     }
 
     @Test

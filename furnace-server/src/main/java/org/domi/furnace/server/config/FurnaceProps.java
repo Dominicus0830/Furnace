@@ -69,7 +69,8 @@ public final class FurnaceProps {
             if (value.startsWith("${", i)) {
                 int end = value.indexOf('}', i + 2);
                 if (end < 0) {
-                    if (strict) throw new IllegalArgumentException("설정 '" + key + "' 의 '${' 가 닫히지 않았습니다(글자 그대로 쓰려면 '" + ESCAPE + "')");
+                    // 닫히지 않은 ${ 는 옛 파일의 평범한 글자일 수 있다 — 기동을 막지 않고 그대로 둔다
+                    if (warn != null) warn.accept("'" + key + "' 의 '${' 가 닫히지 않아 글자 그대로 둡니다");
                     sb.append(value, i, value.length());
                     break;
                 }

@@ -19,7 +19,9 @@ public final class ConsoleBridge {
     public static void print(String text) {
         Consumer<String> s = sink;
         if (s == null) {
-            System.out.print(text);
+            // 예전 ConsoleAppender 처럼 UTF-8 바이트를 그대로 낸다(터미널이 아니면 기본 인코딩이 ASCII 일 수 있다)
+            byte[] b = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            System.out.write(b, 0, b.length);
             System.out.flush();
             return;
         }

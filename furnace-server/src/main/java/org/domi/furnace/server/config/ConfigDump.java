@@ -159,8 +159,14 @@ public final class ConfigDump {
     }
 
     private static String show(String key, String value) {
-        if (SECRET_KEYS.contains(key) && !value.isEmpty()) return "****(" + value.length() + "자)";
+        if (isSecret(key) && !value.isEmpty()) return "****(" + value.length() + "자)";
         return value.isEmpty() ? "\"\"" : value;
+    }
+
+    /** 알려진 비밀 키이거나 이름에 secret·token·password 가 든 키(앞으로 생길 키도 가린다). */
+    static boolean isSecret(String key) {
+        String k = key.toLowerCase(Locale.ROOT);
+        return SECRET_KEYS.contains(key) || k.contains("secret") || k.contains("token") || k.contains("password");
     }
 
     private static boolean isFamily(String key) {

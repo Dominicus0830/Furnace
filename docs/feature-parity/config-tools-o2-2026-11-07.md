@@ -28,7 +28,7 @@
 
 ## 4. 형식 버전 마이그레이션과 프리셋 (92)
 
-- `config-version`(없으면 1). 서버의 `ConfigMigration.CURRENT`(지금 1)보다 낮으면 `STEPS` 의 단계(키 이름 바꾸기·없어진 키)를 차례로 적용해 파일을 **줄 단위로** 고친다(주석·순서 보존, 바이트 보존). 고치기 전에 `furnace.properties.v<옛버전>.bak` 로 복사한다. 새 키가 이미 있으면 덮어쓰지 않고 옛 줄을 주석 처리한다. 서버보다 새 버전이면 아무것도 안 하고 경고만.
+- `config-version`(없으면 1). 서버의 `ConfigMigration.CURRENT`(지금 1)보다 낮으면 `STEPS` 의 단계(키 이름 바꾸기·없어진 키)를 차례로 적용해 파일을 **줄 단위로** 고친다(주석·순서 보존, 줄바꿈은 LF 로 통일). 고치기 전에 `furnace.properties.v<옛버전>.bak` 로 복사한다. 새 키가 이미 있으면 덮어쓰지 않고 옛 줄을 주석 처리한다. 서버보다 새 버전이면 아무것도 안 하고 경고만.
 - 지금까지 키 이름을 바꾼 적이 없어 `STEPS` 는 비어 있다. 키 이름을 바꿀 때 `CURRENT` 를 올리고 `Step(from, renames, removes)` 한 줄을 더하면 된다.
 - `config.preset=none|vanilla|performance`: **파일에 없는 키만** 프리셋 값으로 채운다(적은 키가 이긴다).
   - `vanilla`: 바닐라 동작에 영향을 주는 키(`tick-nanos` 채팅 순서·서명, `limits.*`, `plugins.dev-mode`, `idle-pause.empty-seconds`)를 바닐라 값으로.

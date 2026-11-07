@@ -60,6 +60,7 @@ final class ConsoleTerminal implements AutoCloseable {
      * historySize 0 이면 기록을 파일에 남기지 않는다.
      */
     static ConsoleTerminal open(int historySize, Path historyFile) {
+        if (System.console() == null) return null;   // 입력이나 출력이 터미널이 아니다(Java 21: 둘 다 tty 일 때만 non-null)
         try {
             Terminal t = TerminalBuilder.builder()
                     .system(true)
