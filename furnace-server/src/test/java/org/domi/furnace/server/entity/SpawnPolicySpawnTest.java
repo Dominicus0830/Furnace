@@ -65,7 +65,8 @@ class SpawnPolicySpawnTest {
                 NaturalSpawner.spawnForChunk(level, cx, cz, state, friendlies, enemies, friendlies);
             }
         }
-        return level.entities().tickSnapshot().stream().filter(e -> e instanceof Mob).toList();
+        // 아기 좀비가 확률로 만들어 타는 닭(Zombie.finishFinalizeSpawn, 바닐라 동작)은 스폰 루프가 고른 종류가 아니라 기수 탈것이다 — 센 것에서 뺀다
+        return level.entities().tickSnapshot().stream().filter(e -> e instanceof Mob && !e.isVehicle()).toList();
     }
 
     @Test
