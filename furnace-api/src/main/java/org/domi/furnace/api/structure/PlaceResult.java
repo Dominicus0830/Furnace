@@ -17,9 +17,9 @@ public record PlaceResult(Status status, BlockPos min, BlockPos max) {
         TEMPLATE_NOT_FOUND,
         /** 템플릿은 있지만 크기가 0이거나 팔레트가 없다. */
         EMPTY_TEMPLATE,
-        /** 놓을 영역의 청크가 모두 한 region 에 올라와 있지 못했다(그 청크가 높이 밖이거나 다른 region 에 걸렸다) — 아무것도 놓지 않았다. */
+        /** 놓을 영역(과 바깥 한 칸)의 청크가 끝내 한 region 에 모이지 못했다(청크를 못 불러왔거나 region 이 합쳐지지 않았다) — 아무것도 놓지 않았다. */
         NOT_LOADED,
-        /** 영역이 월드 높이(차원 타입의 최소~최대 y) 밖으로 나간다 — 아무것도 놓지 않았다. */
+        /** 영역이 월드 높이(차원 타입의 최소~최대 y) 밖으로 나가거나 시작 좌표가 ±30,000,000 밖이다 — 아무것도 놓지 않았다. */
         OUT_OF_WORLD,
         /** 영역이 한 번에 놓을 수 있는 크기(약 19x19 청크)를 넘는다 — 아무것도 놓지 않았다. */
         TOO_LARGE,

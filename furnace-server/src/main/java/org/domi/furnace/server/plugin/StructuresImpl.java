@@ -186,16 +186,18 @@ public final class StructuresImpl implements Structures {
             return false;
         }
         mgr.remove(r);
-        return memory || file;
+        // 메모리에만 있던 것은 데이터 팩·내장에 같은 이름이 없을 때만 "지웠다" — 처음 읽어 메모리에 올라온 데이터 팩·내장 템플릿은 못 지운다
+        boolean memoryOnly = memory && !file && mgr.get(r).isEmpty();
+        return file || memoryOnly;
     }
 
     // ------------------------------------------------------------------ 영역 붙잡기·다시 시도
 
-    /** 청크 범위의 가운데·반경(LiveGrid.covering 과 같은 정사각 격자). */
-    private record Cover(int cx, int cz, int radius) {
-        static Cover of(int minCx, int minCz, int maxCx, int maxCz) {
+    /** 청크 범위(양 끝 포함). LiveGrid 가 정사각 격자라 {@link #radius()} 는 그 격자의 반경이다. */
+    private record Cover(int minCx, int minCz, int maxCx, int maxCz) {
+        int radius() {
             int cx = Math.floorDiv(minCx + maxCx, 2), cz = Math.floorDiv(minCz + maxCz, 2);
-            return new Cover(cx, cz, Math.max(Math.max(cx - minCx, maxCx - cx), Math.max(cz - minCz, maxCz - cz)));
+            return Math.max(Math.max(cx - minCx, maxCx - cx), Math.max(cz - minCz, maxCz - cz));
         }
     }
 
@@ -203,18 +205,13 @@ public final class StructuresImpl implements Structures {
     private record Attempt<T>(boolean done, T value) {}
 
     /**
-     * 영역을 임시 티켓(틱 없이 붙잡기만)으로 올려 두고 body 를 시작 청크의 region 에서 돌린다. body 가 done=false 를 돌려주면(청크가 다른
-     * region 이거나 아직 합치는 중) 잠깐 뒤 다시 하고, 끝내 안 되면 exhausted 를 돌려준다. 티켓은 끝나면 놓는다.
+     * 영역을 임시 티켓(틱 없이 붙잡기만, 영역 직사각형 그대로)으로 올려 두고 body 를 시작 청크의 region 에서 돌린다. body 가 done=false 를
+     * 돌려주면(청크가 다른 region 이거나 아직 합치는 중) 잠깐 뒤 다시 하고, 끝내 안 되면 exhausted 를 돌려준다. 티켓은 끝나면 놓는다.
      */
     private <T> CompletableFuture<T> withRegion(World w, Cover c, ChunkPos start, java.util.function.Function<RegionLevel, Attempt<T>> body, T exhausted) {
-        CompletableFuture<Void> loaded;
-        try {
-            loaded = w.addPluginTicket(c.cx, c.cz, c.radius, false);
-        } catch (RuntimeException e) {
-            return CompletableFuture.failedFuture(e);
-        }
+        CompletableFuture<Void> loaded = w.addPluginTicket(c.minCx, c.minCz, c.maxCx, c.maxCz, false);   // 던지지 않는다 — 실패는 Future 로
         CompletableFuture<T> result = loaded.thenCompose(v -> tryRegion(w, start, body, exhausted, ATTEMPTS));
-        result.whenComplete((v, t) -> w.removePluginTicket(c.cx, c.cz, c.radius, false));
+        result.whenComplete((v, t) -> w.removePluginTicket(c.minCx, c.minCz, c.maxCx, c.maxCz, false));
         return RegionFuture.wrap(result);
     }
 
@@ -242,12 +239,13 @@ public final class StructuresImpl implements Structures {
         World w = server(world);
         ResourceId rid = idOf(id);
         if (rid == null) return CompletableFuture.completedFuture(new PlaceResult(PlaceResult.Status.TEMPLATE_NOT_FOUND, null, null));
+        if (outOfCoordinates(origin)) return CompletableFuture.completedFuture(new PlaceResult(PlaceResult.Status.OUT_OF_WORLD, null, null));
         TemplateManager mgr = manager(w);
         // 템플릿 읽기는 파일 입출력이라 부른 스레드(region 일 수 있다)가 아니라 비동기 실행기에서
-        return CompletableFuture.supplyAsync(() -> mgr.get(rid), host.asyncExecutor()).thenCompose(opt -> {
+        return RegionFuture.wrap(CompletableFuture.supplyAsync(() -> mgr.get(rid), host.asyncExecutor()).thenCompose(opt -> {
             if (opt.isEmpty()) return CompletableFuture.completedFuture(new PlaceResult(PlaceResult.Status.TEMPLATE_NOT_FOUND, null, null));
             return placeTemplate(w, mgr, opt.get(), origin, options);
-        });
+        }));
     }
 
     private CompletableFuture<PlaceResult> placeTemplate(World w, TemplateManager mgr, StructureTemplate whole, BlockPos origin, PlaceOptions o) {
@@ -269,8 +267,8 @@ public final class StructuresImpl implements Structures {
         // 가장자리 블록의 모양 갱신이 영역 바로 바깥 한 칸을 읽으므로, 그 칸의 청크까지 올라와 있어야 한다(바닐라는 그 자리에서 불러온다)
         int minCx = Math.min(ox >> 4, (bb[0] - 1) >> 4), minCz = Math.min(oz >> 4, (bb[2] - 1) >> 4);
         int maxCx = Math.max(ox >> 4, (bb[3] + 1) >> 4), maxCz = Math.max(oz >> 4, (bb[5] + 1) >> 4);
-        Cover cover = Cover.of(minCx, minCz, maxCx, maxCz);
-        if (cover.radius > LiveGrid.MAX_GRID_RADIUS) return CompletableFuture.completedFuture(new PlaceResult(PlaceResult.Status.TOO_LARGE, null, null));
+        Cover cover = new Cover(minCx, minCz, maxCx, maxCz);
+        if (cover.radius() > LiveGrid.MAX_GRID_RADIUS) return CompletableFuture.completedFuture(new PlaceResult(PlaceResult.Status.TOO_LARGE, null, null));
         PlaceResult notLoaded = new PlaceResult(PlaceResult.Status.NOT_LOADED, null, null);
         BlockPos min = new BlockPos(bb[0], bb[1], bb[2]), max = new BlockPos(bb[3], bb[4], bb[5]);
         return withRegion(w, cover, new ChunkPos(ox >> 4, oz >> 4), level -> {
@@ -285,7 +283,7 @@ public final class StructuresImpl implements Structures {
                 st.random = random(o.seed());
             }
             try {
-                LiveGrid grid = LiveGrid.covering(level, minCx, minCz, maxCx, maxCz, 0L);
+                LiveGrid grid = LiveGrid.covering(level, minCx, minCz, maxCx, maxCz, host.core().seedOf(w));
                 BlockShapes shapes = BlockShapes.of(mgr.registry());
                 BlockStateTable table = mgr.table();
                 boolean ok = TemplatePlacer.placeInWorld(tpl, grid.view, shapes, table, new Processor.Ctx(grid.view, table),
@@ -322,28 +320,29 @@ public final class StructuresImpl implements Structures {
             return CompletableFuture.completedFuture(new SaveResult(SaveResult.Status.INVALID_SIZE, null));
         }
         int ox = min.x(), oy = min.y(), oz = min.z();
-        if (oy < w.dimensionType().minY() || oy + sizeY - 1 >= w.dimensionType().maxY()) {
+        if (outOfCoordinates(min) || oy < w.dimensionType().minY() || oy + sizeY - 1 >= w.dimensionType().maxY()) {
             return CompletableFuture.completedFuture(new SaveResult(SaveResult.Status.OUT_OF_WORLD, null));
         }
         int minCx = ox >> 4, minCz = oz >> 4, maxCx = (ox + sizeX - 1) >> 4, maxCz = (oz + sizeZ - 1) >> 4;
-        Cover cover = Cover.of(minCx, minCz, maxCx, maxCz);
-        SaveResult notLoaded = new SaveResult(SaveResult.Status.NOT_LOADED, null);
+        Cover cover = new Cover(minCx, minCz, maxCx, maxCz);
+        // 본문은 채운 템플릿을 region 밖으로 내보낸다(null = 청크가 한 region 에 모이지 못했다) — 저장소 갈아 끼우기·파일 쓰기·요약은 비동기 실행기에서
         return withRegion(w, cover, new ChunkPos(minCx, minCz), level -> {
-            if (!allOwned(level, minCx, minCz, maxCx, maxCz)) return new Attempt<SaveResult>(false, notLoaded);
+            if (!allOwned(level, minCx, minCz, maxCx, maxCz)) return new Attempt<StructureTemplate>(false, null);
             StructureTemplate t = StructureBlockEntity.fillFromWorld(level, mgr.table(), ox, oy, oz, sizeX, sizeY, sizeZ, options.includeEntities());
-            if (t == null) return new Attempt<SaveResult>(false, notLoaded);
+            return t == null ? new Attempt<StructureTemplate>(false, null) : new Attempt<>(true, t);
+        }, null).thenComposeAsync(t -> {
+            if (t == null) return CompletableFuture.completedFuture(new SaveResult(SaveResult.Status.NOT_LOADED, null));
             t.author(options.author());
             mgr.put(rid, t);
-            return new Attempt<SaveResult>(true, null);   // 저장소를 갈아 끼웠다 — 파일 쓰기는 region 밖에서
-        }, notLoaded).thenCompose(r -> {
-            if (r != null) return CompletableFuture.completedFuture(r);
-            if (!options.toDisk()) return CompletableFuture.completedFuture(new SaveResult(SaveResult.Status.SAVED, info(mgr, rid, mgr.get(rid).orElseThrow())));
-            return CompletableFuture.supplyAsync(() -> {
-                boolean ok = mgr.save(rid);
-                StructureTemplateInfo info = info(mgr, rid, mgr.get(rid).orElseThrow());
-                return new SaveResult(ok ? SaveResult.Status.SAVED : SaveResult.Status.WRITE_FAILED, info);
-            }, host.asyncExecutor());
-        });
+            boolean ok = !options.toDisk() || mgr.save(rid);
+            return CompletableFuture.completedFuture(new SaveResult(ok ? SaveResult.Status.SAVED : SaveResult.Status.WRITE_FAILED, info(mgr, rid, t)));
+        }, host.asyncExecutor());
+    }
+
+    /** 바닐라 월드 경계(±30,000,000) 밖 좌표 — 청크 계산이 넘치지 않게 먼저 거른다. */
+    private static boolean outOfCoordinates(BlockPos p) {
+        final int lim = 30_000_000;
+        return Math.abs(p.x()) > lim || Math.abs(p.z()) > lim;
     }
 
     // ------------------------------------------------------------------ 찾기

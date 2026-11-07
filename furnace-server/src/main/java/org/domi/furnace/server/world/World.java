@@ -1372,15 +1372,31 @@ public final class World {
      * 모두 올라오면(실패한 청크가 있으면 예외로) 끝나는 Future 를 돌려준다. 어느 스레드에서 불러도 된다.
      */
     public CompletableFuture<Void> addPluginTicket(int cx, int cz, int radius, boolean ticking) {
-        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("내린 월드: " + dimension()));
-        List<CompletableFuture<?>> loads = new ArrayList<>();
-        for (int dz = -radius; dz <= radius; dz++) {
-            for (int dx = -radius; dx <= radius; dx++) {
-                ChunkPos cp = new ChunkPos(cx + dx, cz + dz);
-                long key = Regionizer.chunkKey(cp.x(), cp.z());
+        return addPluginTicket(cx - radius, cz - radius, cx + radius, cz + radius, ticking);
+    }
+
+    /**
+     * 직사각형(청크 좌표, 양 끝 포함) 판. 개수는 먼저 모두 올리고(던지지 않는다) 그다음 청크를 불러오게 한다 — 내린 월드나 닫힌 스케줄러 때문에
+     * 불러오기가 실패해도 개수는 {@link #removePluginTicket(int, int, int, int, boolean)} 와 짝이 맞는다. 그런 청크는 Future 가 예외로 끝난다.
+     */
+    public CompletableFuture<Void> addPluginTicket(int minCx, int minCz, int maxCx, int maxCz, boolean ticking) {
+        for (int cz = minCz; cz <= maxCz; cz++) {
+            for (int cx = minCx; cx <= maxCx; cx++) {
+                long key = Regionizer.chunkKey(cx, cz);
                 pluginHolds.merge(key, 1, Integer::sum);
                 if (ticking) pluginTicking.merge(key, 1, Integer::sum);
-                loads.add(submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(f -> f));
+            }
+        }
+        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("내린 월드: " + dimension()));
+        List<CompletableFuture<?>> loads = new ArrayList<>();
+        for (int cz = minCz; cz <= maxCz; cz++) {
+            for (int cx = minCx; cx <= maxCx; cx++) {
+                ChunkPos cp = new ChunkPos(cx, cz);
+                try {
+                    loads.add(submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(f -> f));
+                } catch (RuntimeException e) {   // 월드가 그새 내려갔다 등
+                    loads.add(CompletableFuture.failedFuture(e));
+                }
             }
         }
         return CompletableFuture.allOf(loads.toArray(new CompletableFuture[0]));
@@ -1388,9 +1404,13 @@ public final class World {
 
     /** {@link #addPluginTicket} 로 건 티켓을 한 번 놓는다(같은 인자로). 청크는 퇴출 유예가 지나면 보통 규칙대로 내려간다. */
     public void removePluginTicket(int cx, int cz, int radius, boolean ticking) {
-        for (int dz = -radius; dz <= radius; dz++) {
-            for (int dx = -radius; dx <= radius; dx++) {
-                long key = Regionizer.chunkKey(cx + dx, cz + dz);
+        removePluginTicket(cx - radius, cz - radius, cx + radius, cz + radius, ticking);
+    }
+
+    public void removePluginTicket(int minCx, int minCz, int maxCx, int maxCz, boolean ticking) {
+        for (int cz = minCz; cz <= maxCz; cz++) {
+            for (int cx = minCx; cx <= maxCx; cx++) {
+                long key = Regionizer.chunkKey(cx, cz);
                 pluginHolds.computeIfPresent(key, (k, v) -> v <= 1 ? null : v - 1);
                 if (ticking) pluginTicking.computeIfPresent(key, (k, v) -> v <= 1 ? null : v - 1);
             }

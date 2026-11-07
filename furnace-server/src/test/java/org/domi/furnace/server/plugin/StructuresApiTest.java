@@ -135,6 +135,23 @@ class StructuresApiTest {
         assertEquals(PlaceResult.Status.PLACED, m.status());
         assertEquals("minecraft:gold_block", typeAt(at2.offset(3, 0, 0)));
         assertTrue(typeAt(at2.offset(1, 0, -1)).startsWith("minecraft:oak_stairs"), typeAt(at2.offset(1, 0, -1)));
+        assertTrue(typeAt(at2.offset(1, 0, -1)).contains("facing=south"), "z 를 뒤집으면 북 → 남: " + typeAt(at2.offset(1, 0, -1)));
+
+        // 180도: 로컬 (x, z) → (-x, -z). 금 (3,0,0) → at3+(-3,0,0), 계단은 북 → 남
+        BlockPos at3 = new BlockPos(10, 10, 40);
+        assertTrue(st.place(api(), "test:sample", at3, PlaceOptions.DEFAULT.withRotation(StructureRotation.CLOCKWISE_180)).get(30, TimeUnit.SECONDS).placed());
+        assertEquals("minecraft:gold_block", typeAt(at3.offset(-3, 0, 0)));
+        assertTrue(typeAt(at3.offset(-1, 0, -1)).contains("facing=south"), typeAt(at3.offset(-1, 0, -1)));
+        // 반시계 90도: 로컬 (x, z) → (z, -x). 금 (3,0,0) → at4+(0,0,-3), 계단 북 → 서
+        BlockPos at4 = new BlockPos(6, 10, 40);
+        assertTrue(st.place(api(), "test:sample", at4, PlaceOptions.DEFAULT.withRotation(StructureRotation.COUNTERCLOCKWISE_90)).get(30, TimeUnit.SECONDS).placed());
+        assertEquals("minecraft:gold_block", typeAt(at4.offset(0, 0, -3)));
+        assertTrue(typeAt(at4.offset(1, 0, -1)).contains("facing=west"), typeAt(at4.offset(1, 0, -1)));
+        // 앞뒤 대칭(x 뒤집기): 금 (3,0,0) → at5+(-3,0,0), 계단 방향 북은 그대로
+        BlockPos at5 = new BlockPos(10, 10, 20);
+        assertTrue(st.place(api(), "test:sample", at5, PlaceOptions.DEFAULT.withMirror(StructureMirror.FRONT_BACK)).get(30, TimeUnit.SECONDS).placed());
+        assertEquals("minecraft:gold_block", typeAt(at5.offset(-3, 0, 0)));
+        assertTrue(typeAt(at5.offset(-1, 0, 1)).contains("facing=north"), typeAt(at5.offset(-1, 0, 1)));
     }
 
     @Test
@@ -264,6 +281,41 @@ class StructuresApiTest {
     }
 
     @Test
+    void deleteDoesNotPretendToRemoveBuiltinsAndNamesCannotEscapeTheirFolder() throws Exception {
+        var st = host.structures();
+        var w = api();
+        assertTrue(st.templateInfo(w, "minecraft:igloo/top").isPresent());   // 읽으면 메모리에 올라온다
+        assertFalse(st.deleteTemplate(w, "minecraft:igloo/top"), "내장 템플릿은 못 지운다");
+        assertTrue(st.hasTemplate(w, "minecraft:igloo/top"));
+        // 다른 네임스페이스 폴더로 나가는 이름
+        buildSample();
+        assertEquals(SaveResult.Status.INVALID_NAME, st.save(w, "a:../../b/structures/c", BASE, 2, 1, 2).get(30, TimeUnit.SECONDS).status());
+        assertEquals(SaveResult.Status.INVALID_NAME, st.save(w, "minecraft:../x", BASE, 2, 1, 2).get(30, TimeUnit.SECONDS).status());
+        assertFalse(Files.exists(tmp.resolve("generated/b")));
+        NbtCompound nbt = new NbtCompound();
+        assertThrows(IllegalArgumentException.class, () -> st.importTemplate(w, "a:../../b/structures/c", nbt, true));
+        assertFalse(st.deleteTemplate(w, "a:../../b/structures/c"));
+    }
+
+    @Test
+    void placeFutureRefusesJoinOnRegionThread() throws Exception {
+        var st = host.structures();
+        buildSample();
+        assertTrue(st.save(api(), "test:sample", BASE, 4, 1, 2).get(30, TimeUnit.SECONDS).saved());
+        ChunkPos c = new ChunkPos(0, 0);
+        // region 스레드 안에서 미완료 place 를 join 하면 데드락 대신 즉시 거부된다
+        String msg = core.world().submitAtChunk(c, r -> {
+            try {
+                st.place(api(), "test:sample", new BlockPos(6, 20, 6)).join();
+                return "joined";
+            } catch (IllegalStateException e) {
+                return "refused";
+            }
+        }).get(30, TimeUnit.SECONDS);
+        assertEquals("refused", msg);
+    }
+
+    @Test
     void errorStatuses() throws Exception {
         var st = host.structures();
         var w = api();
@@ -280,6 +332,8 @@ class StructuresApiTest {
         buildSample();
         assertTrue(st.save(w, "test:sample", BASE, 4, 1, 2).get(30, TimeUnit.SECONDS).saved());
         assertEquals(PlaceResult.Status.OUT_OF_WORLD, st.place(w, "test:sample", new BlockPos(0, 5000, 0)).get(30, TimeUnit.SECONDS).status());
+        assertEquals(PlaceResult.Status.OUT_OF_WORLD, st.place(w, "test:sample", new BlockPos(Integer.MAX_VALUE - 1, 10, 0)).get(30, TimeUnit.SECONDS).status());
+        assertEquals(SaveResult.Status.OUT_OF_WORLD, st.save(w, "test:x", new BlockPos(Integer.MAX_VALUE - 1, 10, 0), 4, 1, 2).get(30, TimeUnit.SECONDS).status());
 
         // 한 번에 놓을 수 있는 크기(19x19 청크)를 넘는 템플릿
         NbtCompound big = st.exportTemplate(w, "test:sample").orElseThrow();

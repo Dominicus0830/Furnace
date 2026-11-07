@@ -21,7 +21,21 @@ public final class ChunkTicketsImpl implements ChunkTickets {
     /** 꺼지며 정리한 주인 — 꺼진 뒤 늦게 도착한 add 는 받지 않는다(다시 켜지면 isEnabled 로 풀린다). */
     private final java.util.Set<Object> cleared = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
 
+    /** 플러그인당 한도(시험이 줄여 본다). */
+    private volatile int maxChunksPerOwner = MAX_CHUNKS_PER_OWNER;
+
     ChunkTicketsImpl(PluginHost host) { this.host = host; }
+
+    void maxChunksPerOwner(int n) { this.maxChunksPerOwner = n; }
+
+    /** 내린 월드의 티켓은 장부에서 뺀다(한도·목록에 남지 않게, 옛 World 객체도 놓아 준다). 장부 잠금 안. */
+    private void purgeUnloaded() {
+        active.removeIf(t -> {
+            if (!t.server.isUnloaded()) return false;
+            synchronized (t) { t.released = true; }   // 월드가 사라졌으니 개수 표를 만질 일이 없다
+            return true;
+        });
+    }
 
     private static World server(org.domi.furnace.api.world.World w) {
         if (w instanceof WorldHandle h) return h.handle();
@@ -47,14 +61,15 @@ public final class ChunkTicketsImpl implements ChunkTickets {
         int n = 2 * radius + 1;
         TicketImpl t = new TicketImpl(this, owner, (WorldHandle) world, w, chunkX, chunkZ, radius, ticking);
         synchronized (this) {
+            purgeUnloaded();
             long held = (long) n * n;
             for (TicketImpl o : active) if (o.owner == owner) held += o.chunkCount();
-            if (held > MAX_CHUNKS_PER_OWNER) {
-                throw new IllegalStateException("플러그인 " + owner.name() + " 의 청크 티켓이 " + MAX_CHUNKS_PER_OWNER + " 청크를 넘는다(겹침 포함)");
+            if (held > maxChunksPerOwner) {
+                throw new IllegalStateException("플러그인 " + owner.name() + " 의 청크 티켓이 " + maxChunksPerOwner + " 청크를 넘는다(겹침 포함)");
             }
             active.add(t);
         }
-        t.loadedFuture = RegionFuture.wrap(w.addPluginTicket(chunkX, chunkZ, radius, ticking));
+        t.apply();   // 개수 표에 올리고 청크를 불러온다 — 그 전에 누가 놓았으면(release) 올리지 않는다
         if (rejected(owner)) {   // 거는 사이 꺼졌다 — 이미 정리가 지나갔을 수 있으니 직접 놓는다
             t.release();
             throw new IllegalStateException("꺼진 플러그인은 청크 티켓을 걸 수 없다: " + owner.name());
@@ -64,6 +79,7 @@ public final class ChunkTicketsImpl implements ChunkTickets {
 
     @Override
     public synchronized List<ChunkTicket> tickets(FurnacePlugin owner) {
+        purgeUnloaded();
         List<ChunkTicket> out = new ArrayList<>();
         for (TicketImpl t : active) if (t.owner == owner) out.add(t);
         return out;
@@ -71,6 +87,7 @@ public final class ChunkTicketsImpl implements ChunkTickets {
 
     @Override
     public synchronized List<ChunkTicket> tickets(org.domi.furnace.api.world.World world) {
+        purgeUnloaded();
         List<ChunkTicket> out = new ArrayList<>();
         for (TicketImpl t : active) if (t.world == world || t.handle.handle() == server(world)) out.add(t);
         return out;
@@ -78,6 +95,7 @@ public final class ChunkTicketsImpl implements ChunkTickets {
 
     @Override
     public synchronized List<ChunkTicket> ticketsAt(org.domi.furnace.api.world.World world, int chunkX, int chunkZ) {
+        purgeUnloaded();
         List<ChunkTicket> out = new ArrayList<>();
         World w = server(world);
         for (TicketImpl t : active) if (t.handle.handle() == w && t.covers(chunkX, chunkZ)) out.add(t);
@@ -120,6 +138,8 @@ public final class ChunkTicketsImpl implements ChunkTickets {
         private final World server;
         private final int cx, cz, radius;
         private final boolean ticking;
+        /** 둘 다 이 티켓 잠금 안에서만 바꾼다: applied = 개수 표에 올렸다. released 이면 더는 올리지 않는다. */
+        private boolean applied;
         private volatile boolean released;
         private volatile CompletableFuture<Void> loadedFuture = CompletableFuture.completedFuture(null);
 
@@ -146,13 +166,24 @@ public final class ChunkTicketsImpl implements ChunkTickets {
         @Override
         public CompletableFuture<Void> loaded() { return released ? CompletableFuture.completedFuture(null) : loadedFuture; }
 
+        /** 개수 표에 올리고 청크를 불러온다. 이미 놓은 티켓이면 아무것도 하지 않는다. */
+        void apply() {
+            CompletableFuture<Void> f;
+            synchronized (this) {
+                if (released) return;
+                applied = true;
+                f = server.addPluginTicket(cx, cz, radius, ticking);   // 개수는 던지지 않고 올린다
+            }
+            loadedFuture = RegionFuture.wrap(f);
+        }
+
         @Override
         public void release() {
             synchronized (this) {
                 if (released) return;
                 released = true;
+                if (applied) server.removePluginTicket(cx, cz, radius, ticking);   // 올린 적이 있을 때만 내린다(다른 티켓 몫을 건드리지 않게)
             }
-            server.removePluginTicket(cx, cz, radius, ticking);
             impl.forget(this);
         }
 

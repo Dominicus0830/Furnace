@@ -22,7 +22,7 @@ public interface Structures {
 
     // ------------------------------------------------------------------ 템플릿 저장소
 
-    /** 이 월드에서 읽을 수 있는 템플릿 이름(월드 generated/ + 켜진 데이터 팩, 정렬·중복 없음). 아직 파일로 안 쓴 메모리 템플릿은 빠진다. 아무 스레드. */
+    /** 이 월드에서 읽을 수 있는 템플릿 이름(월드 generated/ + 켜진 데이터 팩, 정렬·중복 없음). 아직 파일로 안 쓴 메모리 템플릿은 빠진다. 파일 입출력이 있으니 region 스레드 밖에서. */
     List<String> templates(World world);
 
     /** 그 이름의 템플릿을 읽을 수 있는가(메모리 포함). 처음 읽으면 파일을 읽으므로 입출력이 있다. */
@@ -50,8 +50,8 @@ public interface Structures {
     boolean importTemplateFile(World world, String id, byte[] gzipNbt, boolean toDisk);
 
     /**
-     * 메모리 저장소와 월드 generated/ 의 파일을 지운다. 데이터 팩·내장 템플릿은 못 지운다 — 같은 이름이 거기 있으면 그것이 다시 읽힌다.
-     * 지운 것(메모리나 파일)이 있으면 true.
+     * 월드 generated/ 의 파일과 메모리 저장소의 덮어쓴 템플릿을 지운다. 데이터 팩·내장 템플릿은 못 지운다 — 같은 이름이 거기 있으면 그것이 다시 읽힌다.
+     * 파일을 지웠거나, 데이터 팩·내장에 없는 메모리 전용 템플릿을 지웠으면 true(처음 읽어 메모리에 올라온 데이터 팩·내장 템플릿만 있으면 false).
      */
     boolean deleteTemplate(World world, String id);
 

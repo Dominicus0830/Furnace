@@ -166,15 +166,80 @@ class ChunkTicketsApiTest {
     }
 
     @Test
-    void limitsAndValidation() {
+    void tickingStageEndsWithTheTicketAndOverlapsAreCounted() throws Exception {
+        var tickets = host.chunkTickets();
+        var w = api();
+        var a = tickets.add(alpha, w, 44, 40, 0, true);
+        var b = tickets.add(alpha, w, 44, 40, 0, true);   // 같은 플러그인의 겹침
+        a.loaded().get(30, TimeUnit.SECONDS);
+        b.loaded().get(30, TimeUnit.SECONDS);
+        ticks(2);
+        assertTrue(isEntityTicking(44, 40));
+        a.release();
+        ticks(2);
+        assertTrue(isEntityTicking(44, 40), "하나 남았다");
+        b.release();
+        ticks(2);
+        assertFalse(isEntityTicking(44, 40), "모두 놓으면 엔티티 틱 단계도 끝난다");
+    }
+
+    @Test
+    void quotaIsEnforcedAndFreedOnRelease() throws Exception {
+        var impl = host.chunkTicketsImpl();
+        impl.maxChunksPerOwner(10);
+        var tickets = host.chunkTickets();
+        var w = api();
+        var a = tickets.add(alpha, w, 40, 40, 1, false);   // 9
+        var b = tickets.add(alpha, w, 60, 60, 0, false);   // 10
+        assertThrows(IllegalStateException.class, () -> tickets.add(alpha, w, 70, 70, 0, false), "11 번째 청크는 한도 밖");
+        tickets.add(beta, w, 70, 70, 0, false).release();   // 다른 주인은 따로 센다
+        b.release();
+        var c = tickets.add(alpha, w, 70, 70, 0, false);    // 놓은 만큼 다시 걸 수 있다
+        assertTrue(c.isActive());
+        a.release();
+        c.release();
+    }
+
+    @Test
+    void validation() {
         var tickets = host.chunkTickets();
         var w = api();
         assertThrows(IllegalArgumentException.class, () -> tickets.add(alpha, w, 0, 0, -1, true));
         assertThrows(IllegalArgumentException.class, () -> tickets.add(alpha, w, 0, 0, ChunkTickets.MAX_RADIUS + 1, true));
         assertThrows(NullPointerException.class, () -> tickets.add(null, w, 0, 0));
-        // 반경 16 은 1089 청크 — 15개째에서 한도(16384)를 넘는다. 실제로 올리지 않도록 가짜 월드로는 못 하니 걸리는 데까지만 센다
-        int n = 2 * ChunkTickets.MAX_RADIUS + 1;
-        int max = ChunkTickets.MAX_CHUNKS_PER_OWNER / (n * n);
-        assertEquals(15, max);
+    }
+
+    /** 다른 스레드가 거는 도중 놓거나 플러그인이 꺼져도 개수가 어긋나 청크를 영영 붙잡거나 남의 몫을 깎지 않는다. */
+    @Test
+    void concurrentAddAndReleaseKeepCountsBalanced() throws Exception {
+        var tickets = host.chunkTickets();
+        var w = api();
+        var keeper = tickets.add(beta, w, 40, 40, 0, false);   // 남의 몫 — 끝까지 남아야 한다
+        keeper.loaded().get(30, TimeUnit.SECONDS);
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            var adder = pool.submit(() -> {
+                for (int i = 0; i < 150; i++) {
+                    try {
+                        tickets.add(alpha, w, 40, 40, 0, i % 2 == 0).release();
+                    } catch (IllegalStateException e) {
+                        // 한도·꺼짐 — 여기선 없다
+                    }
+                }
+            });
+            var releaser = pool.submit(() -> {
+                for (int i = 0; i < 400; i++) for (var t : tickets.tickets(alpha)) t.release();   // 남이 건 티켓을 일찍 놓기
+            });
+            adder.get(60, TimeUnit.SECONDS);
+            releaser.get(60, TimeUnit.SECONDS);
+        } finally {
+            pool.shutdownNow();
+        }
+        tickets.releaseAll(alpha);
+        assertTrue(tickets.isHeld(w, 40, 40), "beta 의 티켓은 그대로");
+        assertTrue(core.world().pluginHeld(40, 40));
+        keeper.release();
+        assertFalse(core.world().pluginHeld(40, 40), "모두 놓으면 개수가 0 — 새는 몫이 없다");
+        assertFalse(isEntityTicking(40, 40));
     }
 }

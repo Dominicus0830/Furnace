@@ -227,8 +227,10 @@ public final class TemplateManager {
     /** 바닐라 createAndValidatePathToGeneratedStructure: "//" 가 있거나 generated 밖으로 나가면 예외. */
     public Path pathOf(ResourceId id) {
         if (id.path().contains("//")) throw new IllegalArgumentException("Invalid resource path: " + id);
-        Path file = generatedDir.resolve(id.namespace()).resolve("structures").resolve(id.path() + EXT).normalize();
-        if (!file.startsWith(generatedDir)) throw new IllegalArgumentException("Invalid resource path: " + file);
+        Path root = generatedDir.resolve(id.namespace()).resolve("structures").normalize();
+        Path file = root.resolve(id.path() + EXT).normalize();
+        // 바닐라: 경로가 generated/<ns>/structures 안이어야 한다("a:../../b/structures/c" 로 다른 네임스페이스 폴더에 쓰지 못하게)
+        if (!file.startsWith(generatedDir) || !file.startsWith(root) || file.equals(root)) throw new IllegalArgumentException("Invalid resource path: " + file);
         return file;
     }
 

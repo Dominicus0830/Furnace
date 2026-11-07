@@ -14,7 +14,7 @@ public record SaveResult(Status status, StructureTemplateInfo info) {
         INVALID_NAME,
         /** 크기가 1 미만이거나 한 변이 48(구조물 블록 한계)을 넘는다. */
         INVALID_SIZE,
-        /** 영역이 월드 높이 밖으로 나간다. */
+        /** 영역이 월드 높이 밖으로 나가거나 좌표가 ±30,000,000 밖이다. */
         OUT_OF_WORLD,
         /** 영역의 청크가 모두 한 region 에 올라와 있지 못했다 — 아무것도 저장하지 않았다. */
         NOT_LOADED,
