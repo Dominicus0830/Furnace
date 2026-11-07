@@ -515,7 +515,7 @@ public abstract non-sealed class Entity implements Rider {
         moveAcross(arrive -> travel.travel(plan, arrive), travel, (e, t) -> {
             e.moveTo(tx, ty, tz, yaw, p);
             if (e instanceof LivingEntity le) le.setYHeadRot(yaw);
-        }, done, dimension);
+        }, done, null);   // 바닐라 teleportTo(레벨, …) 는 changeDimension 을 거치지 않아 낙하 블록 강제 틱 훅을 켜지 않는다
         return true;
     }
 

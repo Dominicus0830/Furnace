@@ -1163,12 +1163,12 @@
 
 ## 2026-11-07 이동·길찾기·보더 (묶음 M21, 바이트코드 대조)
 바닐라 jar 의 `MoveControl`·`DismountHelper`(coy)·`FallingBlockEntity`(cjg)·`AbstractMinecart`(cot)·`WorldBorder`(dut)를 `javap -c` 로 읽고 옮겼다. 시험: `MovementBorderM21Test` 11개.
-- **옆걸음 확인**: `MoveControl.strafe` 가 `isWalkable(f7, f8)` 를 부른다 — 몹 내비게이션의 노드 평가기로 `BlockPos.containing(x + f7, blockY, z + f8)` 가 `PathType.WALKABLE` 이 아니면 `strafeForwards=1, strafeRight=0`(앞으로). 내비·평가기가 없으면 걸을 수 있다고 본다. 날거나 헤엄치는 몹의 평가기는 WALKABLE 을 안 돌려줘 바닐라도 늘 앞으로 가는 쪽이 된다(그대로).
+- **옆걸음 확인**: `MoveControl.strafe` 가 `isWalkable(f7, f8)` 를 부른다 — 몹 내비게이션의 노드 평가기로 `BlockPos.containing(x + f7, blockY, z + f8)` 가 `PathType.WALKABLE` 이 아니면 `strafeForwards=1, strafeRight=0`(앞으로). 내비·평가기가 없으면 걸을 수 있다고 본다. 평가기 종류와 상관없이 바닐라와 같은 식이다(FlyNodeEvaluator 는 단단한 바닥 위에서는 WALKABLE 을 돌려준다).
 - **승객 비용 상속**: `Mob.getPathfindingMalus` 가 조종하는 탈것이 `shouldPassengersInheritMalus()` 인 몹(스트라이더만 참)이면 그 탈것의 비용표를 쓴다. 스트라이더에 탄 좀비 피글린의 길찾기가 용암을 0 으로, 물을 −1 로 본다.
 - **월드 보더 하차**: `DismountHelper.canDismountTo` 가 충돌 없음에 더해 상자 전체의 `WorldBorder.isWithinBounds(AABB)`(최대 모서리 −1e-5, 두 모서리 모두 안)를 본다 — 말·보트·수레·스트라이더 하차에 모두 적용. `findSafeDismountLocation`(침대·리스폰 닻 일어서기)도 칸 하나가 아니라 몸 상자 전체로 본다.
 - **같이 맞춘 것**(`findSafeDismountLocation` 바이트코드): 바닥 높이를 `nonClimbableShape`(사다리 등 climbable 태그·열린 다락문은 빈 모양)로 구한다, 위험 블록 판정에서 불 면역 몹은 타는 블록을 위험으로 안 본다, 플레이어는 자리 칸·그 위 칸이 `invalid_spawn_inside`(엔드 포털·관문)면 안 된다. 기존 수레 안의 같은 함수는 `DismountHelper` 로 합쳤다.
 - **포털 직후 수레·낙하 블록**: 수레 `tick` 이 `checkBelowWorld` 다음에 `handlePortal()` 을 부른다(전에는 수레가 포털을 못 탔다). 낙하 블록은 이동 직후 `handlePortal()` 을 부르고, **엔드가 낀 차원 이동**(`from==END || to==END`, from≠to)이면 `forceTickAfterTeleportToDuplicate` 가 켜져 이미 빠진 옛 엔티티가 그 틱 끝까지 마저 돌아 제자리에 블록을 놓거나 아이템을 떨군다 — 건너간 복사본과 함께 둘이 되는 바닐라 복제(바닐라 1.21.1 에서도 그대로). 구현은 `Entity.afterChangedDimension(from, to)` 훅.
-- **남은 차이**: `EntityType.immuneTo`(여우·위더 등 몹별 위험 블록 면역)는 Furnace 에 없어 `isBlockDangerous` 가 불 면역만 본다. 차원 이동 경로가 도착하지 못해(목적지 없음) 옛 자리에 되살리는 경우에도 엔드 복제 플래그는 이미 켜진다(바닐라는 `changeDimension` 이 null 이면 안 켠다) — 목적 차원이 꺼진 엔드뿐이라 거의 안 걸린다. 침대 하차 자세 고르기(TODO(자세))는 그대로.
+- **남은 차이**: `EntityType.immuneTo`(여우·위더 등 몹별 위험 블록 면역)는 Furnace 에 없어 `isBlockDangerous` 가 불 면역만 본다. 비동기 이동이 실패해(목적 월드 없음·예외) 옛 자리에 되살리는 경우에도 엔드 복제 플래그는 이미 켜져 있다(바닐라는 `changeDimension` 이 성공해야만 켠다). `/tp` 차원 이동(`teleportToDimension`)은 바닐라처럼 플래그를 켜지 않는다. 승객은 바닐라가 함께 보내고 다시 태우지만 Furnace `moveAcross` 는 내려놓는다(기존 차이) — 이제 수레가 포털을 타므로 플레이어가 탄 수레는 수레만 건너간다. 후속 묶음 후보. 돼지·말 외 일부 탈것의 `getDismountLocationForPassenger` 보더 검사는 범위 밖. 침대 하차 자세 고르기(TODO(자세))는 그대로.
 
 ## 2026-11-07 걸음·헤엄 소리 전반 (묶음 M15)
 - 바닐라 1.21.1 `Entity.playStepSound` 는 블록 SoundType × 0.15 뿐이다(액체·inside_step_sound_blocks 검사 없음). 몹별 덮어쓰기는 바이트코드에서 `b(jd,dtc)` 오버라이드 34개를 전부 찾아 옮겼다. 상세·남은 차이는 `m15-step-sounds-2026-11-07.md`.
