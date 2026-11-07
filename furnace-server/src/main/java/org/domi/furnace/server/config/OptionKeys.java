@@ -1,0 +1,203 @@
+// furnace.properties 의 모든 키 목록(키 표)과 시작 점검. 새 옵션을 만들면 여기에도 한 줄 넣는다(없으면 시험이 실패한다).
+//
+// 규칙(R4, docs/feature-parity/option-keys-2026-11-07.md):
+//   1. 새 옵션의 기본값은 바닐라와 같은 동작이다.
+//   2. 모든 새 옵션은 키로 ON/OFF 또는 수치를 바꿀 수 있다(코드 상수·-D 시스템 속성만으로 두지 않는다).
+//   3. 잘못된 값(true/false 가 아닌 글자, 범위 밖 수)은 조용히 넘기지 않고 기동 때 어느 키가 문제인지 알리며 멈춘다.
+//   4. 위험한 값(보안·바닐라와 다른 게임 속도 등)은 시작 로그에 경고한다 — {@link #audit}.
+//   5. 모르는 키(오타)는 가장 비슷한 키를 알려 주며 경고한다.
+package org.domi.furnace.server.config;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Properties;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.Consumer;
+
+public final class OptionKeys {
+
+    private OptionKeys() {}
+
+    /** 키 하나의 설명. {@code def} 는 기본값 글자(빈 글자 = 꺼짐/없음), {@code range} 는 허용 값. */
+    public record Option(String key, String type, String def, String range, String description) {}
+
+    /** 키가 아니라 이름 접두로 받는 가족(플러그인별 로그 수준, 차원별 시드). */
+    private static final List<String> PREFIXES = List.of("plugins.log-level.", "dimension-seed.");
+
+    private static final String[] STATES = {"handshake", "status", "login", "configuration", "play"};
+
+    /** furnace.properties 키 표(접속 방어의 단계별 키는 {@link #all()} 이 펼친다). */
+    private static final List<Option> FIXED = List.of(
+            // 기본 틀
+            new Option("tick-nanos", "수", "50000000", "1 이상", "한 틱 길이(나노초). 바꾸면 게임 속도가 바닐라와 달라진다"),
+            new Option("entity-view-distance", "수", "8", "1 이상", "엔티티가 보이는 거리(청크). view-distance 보다 크게 효과 없음"),
+            new Option("region-section-shift", "수", "4", "1~8", "동적 region 구역 크기(2^값 청크)"),
+            new Option("region-merge-radius", "수", "1", "1 이상", "region 합치기 반경(구역 단위)"),
+            new Option("region-threads", "수", "CPU 수", "1 이상", "region 작업 스레드 수"),
+            new Option("io-threads", "수", "4", "1 이상", "청크 입출력 스레드 수"),
+            new Option("autosave-ticks", "수", "6000", "1 이상", "자동 저장 간격(틱)"),
+            new Option("chunk-eviction-grace-ticks", "수", "100", "1 이상", "쓰지 않는 청크를 내리기 전 유예(틱)"),
+            new Option("spawn-chunk-radius", "수", "2", "0 이상", "스폰 청크 반경"),
+            new Option("chunks-per-tick", "수", "16", "1 이상", "플레이어당 틱마다 보내는 청크 수 상한"),
+            new Option("velocity-secret", "글자", "", "", "비어 있지 않으면 Velocity 모던 포워딩을 켠다(프록시와 같은 비밀값)"),
+            new Option("bungeecord", "ON/OFF", "false", "true|false", "BungeeCord 레거시 IP 포워딩. velocity-secret 과 함께 쓸 수 없다"),
+            // 운영 옵션(O1)
+            new Option("chat.strict-order", "ON/OFF", "true", "true|false", "true(바닐라): 순서가 어긋난 채팅이면 서명 체인을 끊는다. false: 그 메시지만 버린다"),
+            new Option("chat.unsigned-as-system", "ON/OFF", "false", "true|false", "채팅을 서명 없는 시스템 메시지로 보낸다(채팅 신고 불가)"),
+            new Option("server-brand", "글자", "Furnace", "", "F3 서버 브랜드와 level.dat ServerBrands"),
+            new Option("announce-sleep-status", "ON/OFF", "true", "true|false", "자는 사람 수·밤 건너뛰기 액션바"),
+            new Option("confirm-interrupt", "ON/OFF", "false", "true|false", "콘솔 Ctrl+C 를 두 번 눌러야 종료"),
+            new Option("confirm-interrupt-seconds", "수", "5", "1~60", "두 번째 Ctrl+C 를 기다리는 초"),
+            // 접속 방어(N2)
+            new Option("connection.read-timeout-seconds", "수", "30", "1~3600", "읽기 무응답 제한(초)"),
+            new Option("limits.chat-length", "수", "256", "1~256", "채팅 최대 글자 수(바닐라 256)"),
+            new Option("limits.command-length", "수", "256", "1~256", "명령 최대 글자 수(바닐라 256)"),
+            new Option("limits.item.display-name", "수", "0", "0~1000000", "아이템 표시 이름 글자 수 상한(0 = 바닐라, 상한 없음)"),
+            new Option("limits.item.item-name", "수", "0", "0~1000000", "아이템 기본 이름 글자 수 상한(0 = 상한 없음)"),
+            new Option("limits.item.lore-line", "수", "0", "0~1000000", "아이템 설명 한 줄 글자 수 상한(0 = 상한 없음)"),
+            new Option("limits.item.book-page", "수", "0", "0~1000000", "책 한 쪽 글자 수 상한(0 = 상한 없음)"),
+            new Option("limits.item.book-author", "수", "0", "0~1000000", "책 저자 글자 수 상한(0 = 상한 없음)"),
+            new Option("proxy-protocol", "ON/OFF", "false", "true|false", "PROXY 프로토콜(HAProxy v1/v2) 헤더로 실제 클라이언트 주소를 받는다"),
+            new Option("proxy-protocol.trusted", "목록", "", "IP/CIDR,...", "PROXY 헤더를 받아 줄 앞단 주소(비면 모두 — 위험)"),
+            // 플러그인
+            new Option("plugins.fail-fast", "ON/OFF", "false", "true|false", "플러그인이 하나라도 실패하면 서버 시작을 멈춘다"),
+            new Option("plugins.data-root", "경로", "", "", "플러그인 데이터 폴더 뿌리(비면 plugins/<이름>/)"),
+            new Option("plugins.dev-mode", "ON/OFF", "false", "true|false", "개발 모드 — 플러그인 핫 리로드를 허용한다"),
+            new Option("plugins.dev-mode.auto-reload", "ON/OFF", "false", "true|false", "개발 모드에서 jar 가 바뀌면 자동으로 다시 읽는다"),
+            // 월드
+            new Option("worlds.autoload", "목록", "", "이름,...", "시작 때 불러올 추가 월드"),
+            new Option("enchantments.disabled", "목록", "", "id,...", "끌 마법부여 id(예: minecraft:mending)"));
+
+    /** 접속 방어의 단계별 키는 단계 다섯 개마다 같은 모양이라 펼쳐서 만든다. */
+    public static List<Option> all() {
+        List<Option> out = new ArrayList<>(FIXED);
+        for (String s : STATES) {
+            out.add(new Option("connection." + s + ".packets-per-second", "수", "200", "0~1000000", s + " 단계 초당 패킷 평균 상한(0 = 제한 없음)"));
+            out.add(new Option("connection." + s + ".packets-burst", "수", "400", "1~10000000", s + " 단계 순간 패킷 상한"));
+            out.add(new Option("connection." + s + ".max-frame-bytes", "수", s.equals("play") ? "2097152" : "단계별", "16~2097152", s + " 단계 한 패킷 최대 크기(바이트)"));
+            if (!s.equals("play")) {
+                out.add(new Option("connection." + s + ".timeout-seconds", "수", s.equals("login") ? "30" : "0", "0~86400", s + " 단계 제한 시간(초, 0 = 제한 없음)"));
+            }
+        }
+        return List.copyOf(out);
+    }
+
+    /** server.properties 의 값이 이 키 대신 쓰이는 키(furnace.properties 에 써도 무시 — 따로 경고한다). */
+    public static Set<String> vanillaKeys() { return Config.VANILLA_KEYS; }
+
+    /** 알려진 키 전부(접두 가족 제외). */
+    public static Set<String> keys() {
+        Set<String> k = new LinkedHashSet<>();
+        for (Option o : all()) k.add(o.key());
+        return k;
+    }
+
+    public static boolean isKnown(String key) {
+        if (Config.VANILLA_KEYS.contains(key)) return true;
+        for (Option o : all()) if (o.key().equals(key)) return true;
+        for (String p : PREFIXES) if (key.startsWith(p) && key.length() > p.length()) return true;
+        return false;
+    }
+
+    /** 모르는 키와 가장 비슷한 키(편집 거리 3 이하), 없으면 null. */
+    public static String suggest(String key) {
+        String best = null;
+        int bestD = 4;
+        List<String> pool = new ArrayList<>(keys());
+        pool.addAll(Config.VANILLA_KEYS);
+        for (String p : PREFIXES) pool.add(p + "<이름>");
+        for (String cand : pool) {
+            int d = distance(key.toLowerCase(Locale.ROOT), cand.toLowerCase(Locale.ROOT));
+            if (d < bestD) {
+                bestD = d;
+                best = cand;
+            }
+        }
+        return best;
+    }
+
+    private static int distance(String a, String b) {
+        int[] prev = new int[b.length() + 1];
+        int[] cur = new int[b.length() + 1];
+        for (int j = 0; j <= b.length(); j++) prev[j] = j;
+        for (int i = 1; i <= a.length(); i++) {
+            cur[0] = i;
+            for (int j = 1; j <= b.length(); j++) {
+                int sub = prev[j - 1] + (a.charAt(i - 1) == b.charAt(j - 1) ? 0 : 1);
+                cur[j] = Math.min(sub, Math.min(prev[j] + 1, cur[j - 1] + 1));
+            }
+            int[] t = prev;
+            prev = cur;
+            cur = t;
+        }
+        return prev[b.length()];
+    }
+
+    /** 파일에 있는데 키 표에 없는 키(오타 후보), 정렬해서. */
+    public static List<String> unknownKeys(Properties p) {
+        return new TreeSet<>(p.stringPropertyNames()).stream().filter(k -> !isKnown(k)).toList();
+    }
+
+    /** furnace.properties 를 읽어 {@link #audit(Properties, Consumer)} 를 돌린다. 파일이 없으면 아무것도 하지 않는다. */
+    public static void audit(Path file, Consumer<String> warn) {
+        if (!Files.exists(file)) return;
+        Properties p = new Properties();
+        try (InputStream in = Files.newInputStream(file)) {
+            p.load(in);
+        } catch (IOException e) {
+            return;   // 읽지 못하는 것은 각 로더가 이미 알린다
+        }
+        audit(p, warn);
+    }
+
+    /**
+     * 시작 때 한 번: 오타 키와 위험한 값을 경고한다(값 자체의 형식·범위 검사는 각 로더가 한다 — 여기는 형식이 맞는 값만 본다).
+     * 동작은 바꾸지 않는다.
+     */
+    public static void audit(Properties p, Consumer<String> warn) {
+        for (String k : unknownKeys(p)) {
+            String near = suggest(k);
+            warn.accept("furnace.properties 의 '" + k + "' 는 모르는 키라 무시합니다" + (near == null ? "" : " — '" + near + "' 를 말한 건가요?"));
+        }
+        if (isTrue(p, "proxy-protocol") && p.getProperty("proxy-protocol.trusted", "").isBlank()) {
+            warn.accept("proxy-protocol=true 인데 proxy-protocol.trusted 가 비어 있습니다: 누구든 PROXY 헤더로 접속 주소를 꾸밀 수 있습니다(밴·접속 제한 우회). 앞단 주소만 적고, 서버 포트는 방화벽으로 앞단에만 열어 두세요");
+        }
+        if (isTrue(p, "plugins.dev-mode")) {
+            warn.accept("plugins.dev-mode=true: 플러그인 핫 리로드가 열려 있습니다. 개발용이니 운영 서버에서는 끄세요");
+        }
+        String tick = p.getProperty("tick-nanos");
+        if (tick != null && !tick.strip().equals("50000000")) {
+            warn.accept("tick-nanos=" + tick.strip() + ": 틱 길이가 바닐라(50000000 = 20 TPS)와 다르면 게임 속도가 바닐라와 달라집니다");
+        }
+        for (String s : STATES) {
+            String k = "connection." + s + ".packets-per-second";
+            if ("0".equals(p.getProperty(k, "").strip())) {
+                warn.accept(k + "=0: " + s + " 단계 패킷 속도 제한이 꺼져 있습니다(접속 폭주에 취약)");
+            }
+        }
+        if ("0".equals(p.getProperty("connection.login.timeout-seconds", "").strip())) {
+            warn.accept("connection.login.timeout-seconds=0: 로그인을 끝내지 않고 붙들고 있는 접속을 끊지 않습니다(바닐라는 30초)");
+        }
+    }
+
+    private static boolean isTrue(Properties p, String key) {
+        return "true".equalsIgnoreCase(p.getProperty(key, "").strip());
+    }
+
+    /** 엄격한 ON/OFF 읽기: 없으면 def, true/false 외의 글자는 어느 키가 문제인지 알리며 거부한다. */
+    public static boolean strictBool(Properties p, String key, boolean def) {
+        String v = p.getProperty(key);
+        if (v == null) return def;
+        String t = v.strip();
+        if (t.equalsIgnoreCase("true")) return true;
+        if (t.equalsIgnoreCase("false")) return false;
+        throw new IllegalArgumentException("설정 '" + key + "' 값 '" + t + "' 이(가) 잘못됐습니다: true 또는 false");
+    }
+}
