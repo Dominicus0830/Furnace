@@ -158,6 +158,25 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     @Override
     public void resetTitle() { p.send(new ClearTitles(true)); }
 
+    private static String soundKey(String key) {
+        return key.indexOf(':') < 0 ? "minecraft:" + key : key;
+    }
+
+    @Override
+    public void playSound(org.domi.furnace.api.audience.Sound s) { playSound(s, p.x(), p.y(), p.z()); }
+
+    @Override
+    public void playSound(org.domi.furnace.api.audience.Sound s, double x, double y, double z) {
+        java.util.Objects.requireNonNull(s, "sound");
+        p.send(new org.domi.furnace.server.net.protocol.play.SoundPacket(-1, soundKey(s.key()), s.source().ordinal(), x, y, z, s.volume(), s.pitch(),
+                java.util.concurrent.ThreadLocalRandom.current().nextLong()));
+    }
+
+    @Override
+    public void stopSound(org.domi.furnace.api.audience.Sound.Source source, String key) {
+        p.send(new org.domi.furnace.server.net.protocol.play.StopSound(source == null ? -1 : source.ordinal(), key == null ? null : soundKey(key)));
+    }
+
     // 플러그인 보스바·사이드바·메뉴
 
     private final java.util.concurrent.ConcurrentHashMap<org.domi.furnace.api.bossbar.BossBar, BossBarBinding> bossBars = new java.util.concurrent.ConcurrentHashMap<>();

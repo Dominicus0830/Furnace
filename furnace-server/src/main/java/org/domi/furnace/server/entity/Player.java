@@ -147,6 +147,9 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         /** 플러그인 Menu 를 연다(연결 스레드에서 이뤄진다). 어느 스레드에서든. */
         default void openPluginMenu(org.domi.furnace.server.plugin.MenuSession session) {}
 
+        /** 열린 플러그인 Menu 의 제목을 바꾼다(같은 창 번호로 화면을 다시 열고 내용을 다시 보낸다). 연결 스레드에서 불러야 한다. */
+        default void retitlePluginMenu(org.domi.furnace.server.plugin.MenuSession session, org.domi.furnace.api.text.Text title) {}
+
         /** 이 플레이어의 연결 스레드에서 실행한다. 어느 스레드에서든. */
         default void execute(Runnable task) { task.run(); }
 

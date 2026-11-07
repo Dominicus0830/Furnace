@@ -29,6 +29,7 @@ import org.domi.furnace.server.world.gen.AnvilWorldSource;
 import org.domi.furnace.server.world.gen.NoiseWorldSource;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
 import org.domi.furnace.server.world.gen.WorldSource;
+import org.domi.furnace.server.world.storage.BukkitWorldImport;
 import org.domi.furnace.server.world.storage.LevelData;
 import org.domi.furnace.server.world.storage.LevelStorage;
 import org.slf4j.Logger;
@@ -412,7 +413,9 @@ public final class WorldManager {
             root = NbtIo.readGzip(in);
         }
         NbtCompound data = root.contains("Data") ? root.getCompound("Data") : root;
-        return specFrom(name, data.contains(LevelData.FURNACE_WORLD) ? data.getCompound(LevelData.FURNACE_WORLD) : null);
+        if (data.contains(LevelData.FURNACE_WORLD)) return specFrom(name, data.getCompound(LevelData.FURNACE_WORLD));
+        // 설명서가 없는 폴더(Paper/Spigot/Multiverse 가 만든 월드): 폴더 배치와 level.dat 로 환경·생성기를 추론한다.
+        return BukkitWorldImport.inferCreator(parts.universe().resolve(name), name, data);
     }
 
     /** 이름의 월드를 저장된 설명서로 불러온다(/worlds load, worlds.autoload). 폴더가 없으면 IllegalArgumentException. */
