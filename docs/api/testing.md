@@ -71,6 +71,7 @@ class MyPluginTest {
 
 - `tick()` / `tick(n)`: 한 틱 = 전역 예약 작업(`scheduler().global()`) → 전역 틱(함수·보더·날씨·시간) → 모든 region 틱. Bukkit 처럼 전역 예약 작업은
   시간이 오르기 전, region 작업은 그 뒤에 돈다. `runLater(10)` 은 정확히 10번째 `tick()` 에서 돈다. region 수·작업 스레드 수와 상관없이 같다.
+- `tick()` 은 먼저 모든 region 이 앞서 받은 작업을 비우게 한 뒤 틱을 낸다. 그래서 시험 스레드에서 건 `runLater(d)` 도 "지난 틱 뒤"로 세어져 정확히 d 번째 `tick()` 에 돈다.
 - 틱 사이에도 서버 스레드는 **작업 큐를 비운다**. 그래서 API future(블록 읽기·쓰기, 엔티티 조회, 명령)는 틱 없이 끝난다 — `server.await(future)`.
 - `onRegion(pos, supplier)`: 그 칸의 region 스레드에서 동기 API(`blockNow` 등)를 쓴다. `onGlobal(supplier)`: 전역 스레드에서.
 - `loadChunk(x, z)`: 청크를 올린다. 처음에는 스폰 둘레 3×3 이 올라와 있다(`spawnChunkRadius`).

@@ -47,7 +47,9 @@ class ManualClockTest {
         return w;
     }
 
-    private static void step(World w) {
+    private static void step(World w) throws Exception {
+        // 시험 서버(FurnaceTestServer.tick)처럼: 틱 전에 모든 region 이 앞서 받은 작업을 비우게 한다(밖에서 건 지연 작업이 어느 틱에 붙을지 정해지게)
+        for (var f : w.forEachRegion(r -> { })) f.get(30, TimeUnit.SECONDS);
         long target = w.advanceManualTick();
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
         while (!w.manualTickDone(target)) {
@@ -117,7 +119,7 @@ class ManualClockTest {
         g.executeDelayed(() -> log.add("d1@" + tick.get()), 1);
         Thread.sleep(200);
         assertTrue(log.isEmpty(), "벽시계로는 돌지 않는다");
-        for (int i = 0; i < 3; i++) g.submit(() -> { tick.set(g.advanceManualTick()); return null; }).get(5, TimeUnit.SECONDS);
+        for (int i = 0; i < 3; i++) g.submit(() -> { tick.incrementAndGet(); g.advanceManualTick(); return null; }).get(5, TimeUnit.SECONDS);
         assertEquals(List.of("d0@1", "d1@1", "d3@3"), log, "0·1 은 다음 틱(넣은 차례), 3 은 셋째 틱");
         assertThrows(IllegalStateException.class, g::advanceManualTick, "전역 스레드 밖에서는 거부");
     }

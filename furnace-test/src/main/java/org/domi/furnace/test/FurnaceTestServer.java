@@ -200,6 +200,9 @@ public final class FurnaceTestServer implements AutoCloseable {
         if (global.isOwnerThread() || org.domi.furnace.server.world.Regionizer.isRegionWorkerThread()) {
             throw new IllegalStateException("tick() 은 시험 스레드에서 부른다(서버 스레드 안에서는 기다릴 수 없다)");
         }
+        // 틱 전에 모든 region 이 앞서 받은 작업(시험 스레드가 건 지연 작업 등)을 비우게 한다 — 그 작업은 "지난 틱 뒤"로 세어져,
+        // 몇 번째 틱에 붙을지가 벽시계와 상관없이 정해진다
+        for (var f : world.forEachRegion(r -> { })) await(f);
         await(global.submit(() -> {
             global.advanceManualTick();
             core.scheduledTick();
