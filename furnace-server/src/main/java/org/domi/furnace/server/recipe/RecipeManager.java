@@ -245,7 +245,7 @@ public final class RecipeManager {
     }
 
     /** Item.getDescriptionId: 블록 아이템은 block.<ns>.<path>, 그 밖은 item.<ns>.<path>. */
-    private static String descriptionId(ResourceId item) {
+    public static String descriptionId(ResourceId item) {
         boolean block = org.domi.furnace.server.item.ItemContext.installed()
                 && org.domi.furnace.server.item.ItemContext.id("minecraft:block", item.toString()) != null;
         return (block ? "block." : "item.") + item.namespace() + "." + item.path().replace('/', '.');

@@ -182,4 +182,12 @@ class ItemCommandsTest {
         assertEquals("commands.give.success.single", many.translationKey(), "바닐라 1.21.1 은 여러 명에도 single 키");
         assertEquals("chat.square_brackets", ItemCommands.displayName(proto).translationKey());
     }
+
+    /** Item.getDescriptionId: 블록 아이템은 block.*, 일반 아이템은 item.* — /give 메시지가 [item.minecraft.structure_block] 로 보이던 버그. */
+    @Test
+    void hoverNameUsesBlockKeyForBlockItems() throws Exception {
+        assertEquals("block.minecraft.structure_block", ItemCommands.hoverName(item("structure_block").createItemStack(1, false)).translationKey());
+        assertEquals("block.minecraft.stone", ItemCommands.hoverName(item("stone").createItemStack(1, false)).translationKey());
+        assertEquals("item.minecraft.stick", ItemCommands.hoverName(item("stick").createItemStack(1, false)).translationKey());
+    }
 }
