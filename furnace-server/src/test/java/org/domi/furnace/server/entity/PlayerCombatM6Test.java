@@ -185,6 +185,30 @@ class PlayerCombatM6Test {
         assertTrue(new EndCrystal(level, level.nextEntityId()).isAttackable());
     }
 
+    @Test
+    void dragonPartHitUsesParentForDurabilityAndMaceSmash() {
+        // 바닐라 cmx.e 1048~1065: 파트를 맞히면 hurtEnemy·postHurtEnemy·철퇴 낙하 초기화는 부모 드래곤 기준
+        var level = new DimensionTestLevel("minecraft:the_end");
+        var d = new EnderDragon(level, level.nextEntityIds(9));
+        d.moveTo(1.5, -60, 0.5, 0.0F, 0.0F);
+        level.addFreshEntity(d);
+        var a = player(1, 0.5, -90, new PlayerVitalsTest.TestEnv());
+        var w = new PlayerMelee.World() {
+            public org.domi.furnace.server.block.ChunkLevel level() { return level; }
+            public Iterable<Player> players() { return List.of(a); }
+        };
+        ready(a, item("minecraft:diamond_sword"), 200);
+        var r = PlayerMelee.attack(w, a, d.body);
+        assertTrue(r.hurt());
+        assertEquals(1, r.weaponDamage(), "내구도는 부모 드래곤(LivingEntity) 기준으로 깎인다");
+        assertNull(a.getLastHurtMob(), "setLastHurtMob 는 파트 자신(LivingEntity 아님)이라 null");
+        ready(a, item("minecraft:mace"), 200);
+        a.vitals().setFallDistance(4.0F);
+        assertTrue(PlayerMelee.attack(w, a, d.body).hurt());
+        assertTrue(a.vitals().isIgnoringFallDamageFromCurrentImpulse(), "철퇴 스매시가 돈다");
+        assertEquals(0.0F, a.vitals().fallDistance(), "postHurtEnemy 가 낙하 거리를 지운다");
+    }
+
     // ------------------------------------------------------------------ 찌르기 근접 피해
 
     @Test

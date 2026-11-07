@@ -175,10 +175,13 @@ public final class PlayerMelee {
         if (!crit && !sweep) sound(level, p, strong ? "minecraft:entity.player.attack.strong" : "minecraft:entity.player.attack.weak");
         if (g > 0.0F) animate(p, target, 5);   // magicCrit
         p.setLastHurtMob(target instanceof Raw ? null : target);   // 바닐라 LivingEntity.setLastHurtMob: LivingEntity 가 아니면 null
-        int cost = isLiving(target) ? weaponDurabilityCost(weapon) : 0;   // hurtEnemy → postHurtEnemy
-        if (isLiving(target)) MaceSmash.hurtEnemy(w, p, weapon, target);   // Item.hurtEnemy → 철퇴 스매시
+        // 바닐라 cmx.e 1048~1065: 맞힌 것이 EnderDragonPart 면 이어지는 hurtEnemy·postHurtEnemy·철퇴 낙하 초기화는 부모 드래곤(LivingEntity) 기준이다.
+        // 공격 후 효과(doPostAttackEffects)만 맞힌 파트 자신(target)에게 간다.
+        Targetable entity = target instanceof EnderDragonPart part ? part.parent : target;
+        int cost = isLiving(entity) ? weaponDurabilityCost(weapon) : 0;   // hurtEnemy → postHurtEnemy
+        if (isLiving(entity)) MaceSmash.hurtEnemy(w, p, weapon, entity);   // Item.hurtEnemy → 철퇴 스매시
         postAttack(level, p, weapon, target);
-        if (isLiving(target) && MaceSmash.isMace(weapon) && MaceSmash.canSmash(p)) p.vitals().resetFallDistance();   // Mace.postHurtEnemy
+        if (isLiving(entity) && MaceSmash.isMace(weapon) && MaceSmash.canSmash(p)) p.vitals().resetFallDistance();   // Mace.postHurtEnemy
         float dealt = before - healthOf(target);   // 바닐라 순서: setLastHurtMob → 공격 후 효과 → 피해 표시 → 통계
         if (level != null && isLiving(target) && dealt > 2.0F) {   // damage_indicator: 입힌 양 × 0.5 개
             level.sendParticles(org.domi.furnace.server.net.protocol.play.ParticleOptions.simple("damage_indicator"),

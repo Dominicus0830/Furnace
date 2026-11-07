@@ -1580,6 +1580,7 @@ public final class Region {
         if (!target.isAttackable() || target.skipAttackInteraction(p)) return;
         // Player.attack: redirectable_projectile 는 시선 방향으로 튕기고(AIM_DEFLECT, 주인은 플레이어) 피해·소모 없이 끝난다
         if (target instanceof org.domi.furnace.server.entity.Projectile fb && fb.isRedirectable() && fb.deflectAim(p, p, true)) {
+            p.attackStrengthTicker = 0;   // 바닐라 resetAttackStrengthTicker 는 튕김 분기보다 앞이다(cmx.e 오프셋 100; 튕기지 못하면 melee 가 직접 초기화)
             level().playSound(null, p.x(), p.y(), p.z(), "entity.player.attack.nodamage", "players", 1.0F, 1.0F);
             return;
         }
