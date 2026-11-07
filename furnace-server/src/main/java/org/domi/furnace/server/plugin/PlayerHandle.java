@@ -403,6 +403,20 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     }
 
     @Override
+    public org.domi.furnace.api.entity.Pose pose() { return org.domi.furnace.api.entity.Pose.byId(p.pose()); }
+
+    @Override
+    public java.util.concurrent.CompletableFuture<Boolean> setPose(org.domi.furnace.api.entity.Pose pose) {
+        if (p.isDisconnected()) return RegionFuture.wrap(java.util.concurrent.CompletableFuture.completedFuture(false));
+        RegionFuture<Boolean> f = new RegionFuture<>();
+        p.runOnOwner(() -> {
+            p.poseOverride(pose == null ? -1 : pose.id());
+            f.complete(true);
+        });
+        return f;
+    }
+
+    @Override
     public boolean hasDiscoveredRecipe(String key) {
         var id = org.domi.furnace.server.data.ResourceId.tryParse(key);
         return id != null && p.recipeBook().contains(id);

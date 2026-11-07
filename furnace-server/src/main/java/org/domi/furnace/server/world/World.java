@@ -791,6 +791,11 @@ public final class World {
     };
 
     /** 블록 레벨이 보는 서버 쪽 정보(ServerCore 가 설치한다). */
+    /** 이 월드의 자연 스폰 정책(플러그인 API·설정이 상한·필터를 건다. 아무것도 걸지 않으면 바닐라 상수). */
+    private final org.domi.furnace.server.entity.spawn.WorldSpawnPolicy spawnPolicy = new org.domi.furnace.server.entity.spawn.WorldSpawnPolicy();
+
+    public org.domi.furnace.server.entity.spawn.WorldSpawnPolicy spawnPolicy() { return spawnPolicy; }
+
     public org.domi.furnace.server.block.LevelServices levelServices() { return levelServices; }
 
     public void levelServices(org.domi.furnace.server.block.LevelServices s) { this.levelServices = s; }

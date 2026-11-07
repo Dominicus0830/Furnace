@@ -24,6 +24,7 @@ import org.domi.furnace.server.net.ChunkWorkerPool;
 import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 class SharedPoolS4Test {
@@ -157,6 +158,39 @@ class SharedPoolS4Test {
         assertTrue(p95 <= 150_000_000L, "B 틱 간격 p95 ≤ 3·tick: " + p95 / 1_000_000 + "ms " + Arrays.toString(gaps));
         assertTrue(max < 300_000_000L, "B 틱 간격 최대(굶음 없음): " + max / 1_000_000 + "ms");
         assertTrue(aMax.get() >= 3, "A 도 상한까지는 병렬로 돈다: " + aMax.get());
+    }
+
+    /**
+     * 긴 틱(60ms) region 4 개를 가진 차원 A 옆에서 가벼운 차원 B 는 제때 돈다: B 큐에 일이 있는 동안 A 는 마지막 워커를 쓰지 않는다.
+     * (2026-11-07 이전에는 상한이 "B 머리가 지금 때가 됐을 때만" 걸려 A 가 B 틱 사이에 네 워커를 다 채웠고, B 는 틱마다 최대 60ms 늦었다.)
+     */
+    @Test
+    void longTicksInOneDimensionLeaveAWorkerForOthers() throws Exception {
+        Assumptions.assumeTrue(System.getProperty("furnace.sched.dimCap") == null, "상한을 바꾼 실행에서는 의미 없음");
+        SharedScheduler pool = sharedPool(4);
+        World a = world(DimensionType.OVERWORLD, 50_000_000L, pool), b = world(DimensionType.NETHER, 50_000_000L, pool);
+        AtomicInteger aMax = new AtomicInteger(), aNow = new AtomicInteger();
+        AtomicBoolean bRunning = new AtomicBoolean();   // B 큐에 일이 생긴 뒤의 A 병렬도만 센다
+        for (int k = 0; k < 4; k++) {
+            everyTick(a, new ChunkPos(k * 4096, 0), Integer.MAX_VALUE, r -> {
+                int now = aNow.incrementAndGet();
+                if (bRunning.get()) aMax.accumulateAndGet(now, Math::max);
+                long end = System.nanoTime() + 60_000_000L;
+                while (System.nanoTime() - end < 0) Thread.onSpinWait();
+                aNow.decrementAndGet();
+            });
+        }
+        ConcurrentLinkedQueue<Long> starts = new ConcurrentLinkedQueue<>();
+        everyTick(b, new ChunkPos(0, 0), 50, r -> { bRunning.set(true); starts.add(System.nanoTime()); }).get(30, TimeUnit.SECONDS);
+        stop.set(true);
+        Long[] st = starts.toArray(Long[]::new);
+        long[] gaps = new long[st.length - 6];
+        for (int i = 6; i < st.length; i++) gaps[i - 6] = st[i] - st[i - 1];   // 첫 몇 간격(A 가 자리 잡는 동안) 제외
+        Arrays.sort(gaps);
+        // 틱 간격이 50ms 에서 10ms 넘게 벗어난 횟수. 이전 동작은 B 가 늦었다가 따라잡느라 절반 넘게(44 중 24) 벗어났다.
+        long off = Arrays.stream(gaps).filter(g -> Math.abs(g - 50_000_000L) > 10_000_000L).count();
+        assertTrue(off <= gaps.length / 10, "B 틱 간격이 50±10ms 를 벗어난 횟수 " + off + "/" + gaps.length + " " + Arrays.toString(gaps));
+        assertEquals(3, aMax.get(), "B 에 할 일이 있는 동안 A 는 워커 3 개(T−1)까지만");
     }
 
     /** 한 차원을 떼어도(Regionizer.close — 공유 경로는 풀을 멈추지 않는다) 다른 차원은 계속 돌고 flush 도 끝난다. 풀 종료는 1초 안. */
