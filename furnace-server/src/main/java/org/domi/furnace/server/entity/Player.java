@@ -1824,7 +1824,12 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         private volatile java.util.function.Consumer<org.domi.furnace.server.world.Region> adopt;
 
         /** 기다리는 쪽이 없다(연결 스레드가 편입 작업을 보낸다). */
-        public void detach() { state.compareAndSet(0, 2); }
+        public void detach() {
+            if (state.compareAndSet(0, 2)) {
+                Thread t = waiter;
+                if (t != null) java.util.concurrent.locks.LockSupport.unpark(t);   // 기다리던 쪽을 바로 놓아준다
+            }
+        }
 
         /** 연결 스레드: 패킷을 다 보냈다 — 기다리는 쪽이 있으면 넘기고, 없으면 그 칸 주인 region 에 편입 작업을 보낸다. */
         public void sent(org.domi.furnace.server.world.World w, double x, double z, java.util.function.Consumer<org.domi.furnace.server.world.Region> adopt) {
@@ -1845,7 +1850,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
             if (state.get() == 0 && nanos > 0) {
                 waiter = Thread.currentThread();
                 long deadline = System.nanoTime() + nanos;
-                while (state.get() == 0) {
+                while (state.get() == 0) {   // 1(보냄) 또는 2(detach — 편입 없음)가 되면 끝
                     long left = deadline - System.nanoTime();
                     if (left <= 0) break;
                     java.util.concurrent.locks.LockSupport.parkNanos(this, left);
@@ -1853,11 +1858,19 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
                 waiter = null;
             }
             if (state.compareAndSet(0, 2)) return;   // 기다림을 넘겼다 — 연결이 보낼 때 편입 작업을 보낸다
-            if (state.get() != 1) return;
+            if (state.get() != 1) return;   // detach — 편입하지 않는다
             var w = world;
-            var r = w.regionizer().ownerOf(ChunkPos.ofBlock(x, z).x(), ChunkPos.ofBlock(x, z).z());
-            if (r != null && r.isOwnerThread() && r.betweenTicks()) adopt.accept(r);
-            else w.runAt(x, z, adopt);
+            ChunkPos cp = ChunkPos.ofBlock(x, z);
+            var r = w.regionizer().ownerOf(cp.x(), cp.z());
+            if (r != null && r.isOwnerThread() && r.betweenTicks()) {
+                try {
+                    adopt.accept(r);
+                } catch (RuntimeException e) {   // 편입 실패가 차원 이동 콜백(되돌리기 판단) 위로 올라가지 않게
+                    org.slf4j.LoggerFactory.getLogger(Player.class).error("[PORTAL] 도착 편입 실패", e);
+                }
+            } else {
+                w.runAt(x, z, adopt);
+            }
         }
     }
 

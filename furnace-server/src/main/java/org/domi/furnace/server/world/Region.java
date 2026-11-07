@@ -120,7 +120,10 @@ public final class Region {
     /** 지금 스레드가 이 region 을 돌리고 있는가. */
     public boolean isOwnerThread() { return tickThread == Thread.currentThread(); }
 
-    /** 틱 사이(작업 큐·지연 작업·drain 차례를 도는 중)인가 — 게임 틱 한가운데(플레이어·엔티티 반복 중)가 아니다. 이 region 스레드만 읽고 쓴다. */
+    /**
+     * 틱 사이(작업 큐·지연 작업·drain 차례를 도는 중)인가 — 게임 틱 한가운데(플레이어·엔티티 반복 중)가 아니다. 이 region 스레드만 읽고 쓴다.
+     * drain 차례 안의 작업이 다시 awaitUrgent 로 기다려도 참이다 — 그 기다림도 플레이어 반복 밖이라 편입해도 된다.
+     */
     private boolean betweenTicks;
 
     /** 이 region 스레드에서: 지금 틱 사이인가(차원 이동 도착을 그 자리에서 편입해도 되는가). */

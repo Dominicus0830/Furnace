@@ -1477,7 +1477,7 @@ public final class World {
     public void withTravelChunks(org.domi.furnace.server.entity.PortalTravel plan, java.util.function.Consumer<org.domi.furnace.server.block.ChunkLevel> task) {
         List<ChunkPos> resident = residentTravelChunks(plan);
         if (resident != null) {
-            finishTravel(plan, resident, task, 0);
+            finishTravel(plan, resident, task, 0, 0);
             return;
         }
         loadTravelChunks(plan).whenComplete((list, err) -> {
@@ -1486,7 +1486,7 @@ public final class World {
                 task.accept(null);
                 return;
             }
-            finishTravel(plan, list, task, 0);
+            finishTravel(plan, list, task, 0, 0);
         });
     }
 
@@ -1495,22 +1495,83 @@ public final class World {
      * 도착이 늦지 않게. 생성 반경 청크는 만들어서라도 올린다(바닐라는 넘어가는 그 틱에 서버를 멈추고 만든다). 결과·목적지 계산은 없다.
      */
     public void prewarmTravel(org.domi.furnace.server.entity.PortalTravel plan) {
-        if (unloaded || residentTravelChunks(plan) != null) return;
-        loadTravelChunks(plan).exceptionally(err -> {
-            log.debug("[PORTAL] 목적 청크 미리 올리기 실패 {}", plan.targetDimension(), err);
-            return null;
+        if (unloaded) return;
+        List<ChunkPos> resident = residentTravelChunks(plan);
+        if (resident != null) {
+            holdTravelChunks(resident);   // 이미 있다 — 기다리는 동안 내려가지 않게 붙잡기만 늘린다
+            return;
+        }
+        loadTravelChunks(plan).whenComplete((list, err) -> {
+            if (err != null) log.debug("[PORTAL] 목적 청크 미리 올리기 실패 {}", plan.targetDimension(), err);
+            else holdTravelChunks(list);
         });
     }
 
-    /** 범위 청크(생성 반경 전부 + 탐색 반경)가 모두 이미 올라와 있으면 그 목록, 하나라도 없으면 null(아무 스레드 — 로드 표는 동시 맵). */
+    /** 시험용: 지금 그 계획이 빠른 길(IO 확인 없이 바로)을 타는가. */
+    boolean travelChunksResident(org.domi.furnace.server.entity.PortalTravel plan) { return residentTravelChunks(plan) != null; }
+
+    /** 미리 올린 청크를 붙잡아 두는 틱 수(미리 올리기 간격 60틱보다 길게 — 기다리는 동안 계속 이어진다). */
+    private static final int PREWARM_HOLD_TICKS = 100;
+
+    /**
+     * 미리 올린 청크를 잠깐 내리지 않게 붙잡는다(퇴출 유예와 무관하게, 포털 대기가 길어도). 내리기 표(tickets)에만 걸고 엔티티 틱 표는
+     * 건드리지 않는다 — 그 청크의 블록·엔티티는 바닐라처럼 틱을 받지 않는다.
+     */
+    private void holdTravelChunks(List<ChunkPos> list) {
+        long until = gameTime() + PREWARM_HOLD_TICKS;
+        for (ChunkPos cp : list) tickets.merge(Regionizer.chunkKey(cp.x(), cp.z()), until, Math::max);
+    }
+
+    /** 디스크 확인 결과(탐색 범위에서 디스크에도 메모리에도 없던 청크) — 미리 올린 뒤 빠른 길 판정에 쓴다. 잠깐만 믿는다. */
+    private record TravelScanKey(int ccx, int ccz, int radius) {}
+
+    private record TravelScan(long expiresNanos, java.util.Set<Long> absent) {}
+
+    private final ConcurrentHashMap<TravelScanKey, TravelScan> travelScans = new ConcurrentHashMap<>();
+
+    /** 디스크 확인을 믿는 시간(10초). 그 사이 새로 만들어졌다가 다시 내려간 청크는 놓칠 수 있다(가정 — 포털이 그 안에 생길 일은 사실상 없다). */
+    private static final long TRAVEL_SCAN_TTL_NANOS = 10_000_000_000L;
+
+    private static TravelScanKey scanKey(org.domi.furnace.server.entity.PortalTravel plan) {
+        return new TravelScanKey(plan.centerX() >> 4, plan.centerZ() >> 4, travelRadiusChunks(plan));
+    }
+
+    private void rememberScan(org.domi.furnace.server.entity.PortalTravel plan, List<ChunkPos> have) {
+        long now = System.nanoTime();
+        if (travelScans.size() > 64) travelScans.values().removeIf(sc -> now - sc.expiresNanos() > 0);
+        TravelScanKey k = scanKey(plan);
+        java.util.Set<Long> present = new java.util.HashSet<>(have.size() * 2);
+        for (ChunkPos cp : have) present.add(Regionizer.chunkKey(cp.x(), cp.z()));
+        java.util.Set<Long> absent = new java.util.HashSet<>();
+        for (int dz = -k.radius(); dz <= k.radius(); dz++) {
+            for (int dx = -k.radius(); dx <= k.radius(); dx++) {
+                long key = Regionizer.chunkKey(k.ccx() + dx, k.ccz() + dz);
+                if (!present.contains(key)) absent.add(key);
+            }
+        }
+        travelScans.put(k, new TravelScan(now + TRAVEL_SCAN_TTL_NANOS, absent));
+    }
+
+    /**
+     * 범위 청크(생성 반경 전부 + 탐색 반경)가 모두 이미 올라와 있으면 그 목록, 하나라도 없으면 null(아무 스레드 — 로드 표는 동시 맵).
+     * 최근 디스크 확인에서 디스크에 없던 탐색 범위 청크는 없어도 된다(만든 적 없는 땅에는 포털이 없다).
+     */
     private List<ChunkPos> residentTravelChunks(org.domi.furnace.server.entity.PortalTravel plan) {
-        int ccx = plan.centerX() >> 4, ccz = plan.centerZ() >> 4;
-        int r = travelRadiusChunks(plan);
+        TravelScanKey k = scanKey(plan);
+        TravelScan scan = travelScans.get(k);
+        if (scan != null && System.nanoTime() - scan.expiresNanos() > 0) scan = null;
+        int cr = plan.createRadius() < 0 ? -1 : (plan.createRadius() + 15) >> 4;
+        int r = k.radius();
         List<ChunkPos> out = new ArrayList<>((2 * r + 1) * (2 * r + 1));
         for (int dz = -r; dz <= r; dz++) {
             for (int dx = -r; dx <= r; dx++) {
-                if (loadedChunk(ccx + dx, ccz + dz) == null) return null;
-                out.add(new ChunkPos(ccx + dx, ccz + dz));
+                int cx = k.ccx() + dx, cz = k.ccz() + dz;
+                if (loadedChunk(cx, cz) != null) {
+                    out.add(new ChunkPos(cx, cz));
+                    continue;
+                }
+                boolean create = Math.abs(dx) <= cr && Math.abs(dz) <= cr;
+                if (create || scan == null || !scan.absent().contains(Regionizer.chunkKey(cx, cz))) return null;
             }
         }
         return out;
@@ -1524,7 +1585,11 @@ public final class World {
 
     /** 디스크 확인(IO 레인) 뒤 올라와 있지 않은 범위 청크만 올린다. 결과는 범위 청크 목록(실패한 청크도 넣는다 — 모으기가 다시 본다). */
     private CompletableFuture<List<ChunkPos>> loadTravelChunks(org.domi.furnace.server.entity.PortalTravel plan) {
-        return CompletableFuture.supplyAsync(() -> travelChunks(plan), ioLane(plan.centerX() >> 4, plan.centerZ() >> 4))
+        return CompletableFuture.supplyAsync(() -> {
+                    List<ChunkPos> list = travelChunks(plan);
+                    rememberScan(plan, list);
+                    return list;
+                }, ioLane(plan.centerX() >> 4, plan.centerZ() >> 4))
                 .thenCompose(list -> loadMissing(list).thenApply(v -> list));
     }
 
@@ -1539,8 +1604,11 @@ public final class World {
         return CompletableFuture.allOf(fs.toArray(new CompletableFuture[0])).handle((v, t) -> null);
     }
 
+    /** 모은 뒤 사이에 내려간(또는 올리기에 실패한) 청크를 다시 올려 보는 횟수 — 넘으면 있는 그대로 계산한다. */
+    private static final int TRAVEL_RELOAD_TRIES = 2;
+
     private void finishTravel(org.domi.furnace.server.entity.PortalTravel plan, List<ChunkPos> chunks,
-                              java.util.function.Consumer<org.domi.furnace.server.block.ChunkLevel> task, int attempt) {
+                              java.util.function.Consumer<org.domi.furnace.server.block.ChunkLevel> task, int attempt, int reloads) {
         ChunkPos center = ChunkPos.ofBlock(plan.centerX(), plan.centerZ());
         runAtChunk(center, r -> {
             boolean gathered = true;
@@ -1554,11 +1622,11 @@ public final class World {
             }
             if (attempt < TRAVEL_GATHER_TICKS) {
                 if (!gathered) {   // 합치기는 틱 사이에만 — 다음 틱에 다시 본다
-                    r.schedule(Regionizer.chunkKey(center.x(), center.z()), r2 -> finishTravel(plan, chunks, task, attempt + 1), 1);
+                    r.schedule(Regionizer.chunkKey(center.x(), center.z()), r2 -> finishTravel(plan, chunks, task, attempt + 1, reloads), 1);
                     return;
                 }
-                if (evicted != null) {
-                    loadMissing(evicted).whenComplete((v, t) -> finishTravel(plan, chunks, task, attempt + 1));
+                if (evicted != null && reloads < TRAVEL_RELOAD_TRIES) {
+                    loadMissing(evicted).whenComplete((v, t) -> finishTravel(plan, chunks, task, attempt + 1, reloads + 1));
                     return;
                 }
             }
