@@ -79,13 +79,18 @@ final class CompatPlayerInventory extends CompatInventory implements PlayerInven
 
     /** 손 아이템은 비어 있어도 null 이 아니라 공기 스택이다(Bukkit 과 같다). */
     @Override
-    public ItemStack getItemInMainHand() { return new ItemStack(mirror(held())); }
+    public ItemStack getItemInMainHand() { return hand(held()); }
+
+    /** 손 칸: 차 있으면 칸 거울, 비었으면 칸에 묶이지 않은 평범한 공기 스택(CraftBukkit 의 빈 손과 같다 — setType 해도 칸이 바뀌지 않고 setItemInMainHand 로 넣어야 한다). */
+    private ItemStack hand(int slot) {
+        return readSlot(slot).isEmpty() ? CompatItems.copyOf(org.domi.furnace.api.item.ItemStack.EMPTY) : new ItemStack(mirror(slot));
+    }
 
     @Override
     public void setItemInMainHand(ItemStack item) { setItem(held(), item); }
 
     @Override
-    public ItemStack getItemInOffHand() { return new ItemStack(mirror(OFF_HAND)); }
+    public ItemStack getItemInOffHand() { return hand(OFF_HAND); }
 
     @Override
     public void setItemInOffHand(ItemStack item) { setItem(OFF_HAND, item); }
@@ -110,7 +115,7 @@ final class CompatPlayerInventory extends CompatInventory implements PlayerInven
     @Override
     public ItemStack getItem(EquipmentSlot slot) {
         int i = slotOf(slot);
-        return slot == EquipmentSlot.HAND || slot == EquipmentSlot.OFF_HAND ? new ItemStack(mirror(i)) : getItem(i);
+        return slot == EquipmentSlot.HAND || slot == EquipmentSlot.OFF_HAND ? hand(i) : getItem(i);
     }
 
     @Override

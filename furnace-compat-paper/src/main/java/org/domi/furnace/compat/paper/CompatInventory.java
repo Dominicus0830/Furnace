@@ -77,20 +77,81 @@ class CompatInventory implements Inventory {
 
     // ------------------------------------------------------------------ 칸 거울
 
-    /** 칸 하나를 비추는 ItemSlot — 읽을 때마다 칸을 다시 읽고, 쓸 때마다 칸을 덮어쓴다. */
+    /**
+     * 칸 하나를 비추는 ItemSlot — 읽을 때마다 칸을 다시 읽고, 쓸 때마다 칸을 덮어쓴다.
+     * 거울을 거치지 않고 그 칸을 바꾸면(setItem·clear·setContents) {@link #detachMirrors} 가 거울을 그 순간의 값으로 떼어 낸다.
+     * CraftBukkit 의 거울이 NMS 객체에 묶여 칸이 바뀌면 옛 값을 들고 남는 것과 같은 결과다(칸 번호가 아니라 칸 안의 아이템에 묶인다).
+     */
     private final class Mirror implements ItemSlot {
         private final int index;
+        private volatile ItemSlot detached;
 
         Mirror(int index) { this.index = index; }
 
         @Override
-        public org.domi.furnace.api.item.ItemStack get() { return readSlot(index); }
+        public org.domi.furnace.api.item.ItemStack get() {
+            ItemSlot d = detached;
+            return d != null ? d.get() : readSlot(index);
+        }
 
         @Override
-        public void set(org.domi.furnace.api.item.ItemStack stack) { writeSlot(index, stack, "ItemStack(Inventory slot " + index + ") 쓰기"); }
+        public void set(org.domi.furnace.api.item.ItemStack stack) {
+            ItemSlot d = detached;
+            if (d != null) d.set(stack);
+            else writeSlot(index, stack, "ItemStack(Inventory slot " + index + ") 쓰기");
+        }
+
+        @Override
+        public int amount() {
+            ItemSlot d = detached;
+            return d != null ? d.amount() : get().amount();
+        }
+
+        @Override
+        public void setAmount(int n) {
+            ItemSlot d = detached;
+            if (d != null) d.setAmount(n);
+            else set(get().withAmount(n));
+        }
     }
 
-    final ItemSlot mirror(int index) { return new Mirror(index); }
+    /** 칸 번호 → 살아 있는(아직 떨어져 나가지 않은) 거울들. 약한 참조라 버려진 스택은 남지 않는다. */
+    private final java.util.Map<Integer, List<java.lang.ref.WeakReference<Mirror>>> liveMirrors = new HashMap<>();
+
+    final ItemSlot mirror(int index) {
+        Mirror m = new Mirror(index);
+        synchronized (liveMirrors) {
+            List<java.lang.ref.WeakReference<Mirror>> refs = liveMirrors.computeIfAbsent(index, k -> new java.util.ArrayList<>(2));
+            refs.removeIf(r -> r.get() == null);
+            refs.add(new java.lang.ref.WeakReference<>(m));
+        }
+        return m;
+    }
+
+    /** 거울을 거치지 않는 칸 쓰기 직전에 부른다: 그 칸의 거울을 지금 값의 평범한 사본으로 떼어 낸다. */
+    private void detachMirrors(int index) {
+        List<Mirror> mirrors = new java.util.ArrayList<>(2);
+        synchronized (liveMirrors) {
+            List<java.lang.ref.WeakReference<Mirror>> refs = liveMirrors.remove(index);
+            if (refs == null) return;
+            for (var r : refs) {
+                Mirror m = r.get();
+                if (m != null) mirrors.add(m);
+            }
+        }
+        if (mirrors.isEmpty()) return;
+        org.domi.furnace.api.item.ItemStack now;
+        try {
+            now = readSlot(index);
+        } catch (RuntimeException e) {
+            // 소유 스레드가 아니라 읽을 수 없다 — 그 거울도 읽을 때마다 같은 예외를 던지므로 떼어 낼 값이 없다
+            synchronized (liveMirrors) {
+                liveMirrors.computeIfAbsent(index, k -> new java.util.ArrayList<>(2)).addAll(mirrors.stream().map(java.lang.ref.WeakReference::new).toList());
+            }
+            return;
+        }
+        for (Mirror m : mirrors) m.detached = new PlainSlot(now, now.amount());
+    }
 
     private void check(int index) {
         if (index < 0 || index >= handle.size()) throw new IndexOutOfBoundsException("Index " + index + " out of bounds for length " + handle.size());
@@ -109,13 +170,15 @@ class CompatInventory implements Inventory {
     @Override
     public ItemStack getItem(int index) {
         check(index);
-        return CompatItems.mirror(new Mirror(index));
+        return readSlot(index).isEmpty() ? null : new ItemStack(mirror(index));
     }
 
     @Override
     public void setItem(int index, ItemStack item) {
         check(index);
-        writeSlot(index, CompatItems.toFurnace(item), "Inventory#setItem(" + index + ")");
+        org.domi.furnace.api.item.ItemStack value = CompatItems.toFurnace(item); // 넣을 값은 거울이 떨어져 나가기 전에 읽는다
+        detachMirrors(index);
+        writeSlot(index, value, "Inventory#setItem(" + index + ")");
     }
 
     @Override
@@ -127,7 +190,7 @@ class CompatInventory implements Inventory {
     private ItemStack[] slice(int from, int to) {
         List<org.domi.furnace.api.item.ItemStack> all = readAll();
         ItemStack[] out = new ItemStack[to - from];
-        for (int i = from; i < to; i++) out[i - from] = all.get(i).isEmpty() ? null : CompatItems.mirror(new Mirror(i));
+        for (int i = from; i < to; i++) out[i - from] = all.get(i).isEmpty() ? null : new ItemStack(mirror(i));
         return out;
     }
 
