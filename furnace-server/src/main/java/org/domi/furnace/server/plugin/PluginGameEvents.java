@@ -449,6 +449,9 @@ public final class PluginGameEvents implements GameEvents {
     }
 
     @Override
+    public boolean wantsFunctionExecute() { return bus().hasSubscribers(FunctionExecuteEvent.class); }
+
+    @Override
     public boolean wantsFunctionCommands() { return bus().hasSubscribers(FunctionCommandEvent.class); }
 
     @Override

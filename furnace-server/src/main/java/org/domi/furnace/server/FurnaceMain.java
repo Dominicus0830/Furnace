@@ -524,7 +524,12 @@ public final class FurnaceMain {
 
     /** Query 응답이 읽는 서버 정보(기동 때 값 + 접속자 수·이름은 매번). */
     private record QueryInfo(ServerCore core, ServerProperties props, Config config, String hostIp) implements org.domi.furnace.server.remote.QueryHandler.Info {
-        @Override public String motd() { return props.motd; }
+        @Override public String motd() {
+            // Query 는 § 코드 문자열 — 마크업·& 형식이면 해석해 § 로 다시 쓴다(plain 은 바닐라처럼 원문 그대로)
+            return org.domi.furnace.server.net.Motd.isRich()
+                    ? org.domi.furnace.api.text.serializer.LegacyTextSerializer.section().serialize(org.domi.furnace.server.net.Motd.parse(props.motd))
+                    : props.motd;
+        }
         @Override public String levelName() { return config.levelName(); }
         @Override public String version() { return "1.21.1"; }
         @Override public String plugins() { return ""; }

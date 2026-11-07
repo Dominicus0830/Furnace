@@ -149,6 +149,9 @@ public interface GameEvents {
     default boolean functionExecute(org.domi.furnace.server.command.CommandSource source, String function,
                                     org.domi.furnace.api.event.server.FunctionExecuteEvent.Trigger trigger, int depth) { return true; }
 
+    /** 함수 실행 구독자가 있는가 — 함수 호출마다 부르는 길목의 빠른 검사. */
+    default boolean wantsFunctionExecute() { return false; }
+
     /** 함수 줄 하나 실행 직전: false 면 그 줄만 건너뛴다. */
     default boolean functionCommand(org.domi.furnace.server.command.CommandSource source, String command, int depth) { return true; }
 

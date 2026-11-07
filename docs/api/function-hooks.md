@@ -9,7 +9,7 @@
 | 필드 | 뜻 |
 |---|---|
 | `function()` | 함수 ID(`namespace:path`) |
-| `trigger()` | `TICK`(#minecraft:tick) · `LOAD`(#minecraft:load) · `SCHEDULED`(/schedule) · `COMMAND`(/function, execute if function 등 최상위 호출) · `NESTED`(함수 안에서 부른 호출) |
+| `trigger()` | `TICK`(#minecraft:tick) · `LOAD`(#minecraft:load) · `SCHEDULED`(/schedule) · `ADVANCEMENT`(업적 보상) · `COMMAND`(/function, execute if function 등 최상위 호출) · `NESTED`(함수 안에서 부른 호출) |
 | `sender()` | 명령 소스. tick·load·schedule 은 권한 2 서버 소스 |
 | `depth()` | 호출 깊이(최상위 0) |
 

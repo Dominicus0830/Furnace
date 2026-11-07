@@ -30,9 +30,14 @@ public final class CallFunction implements UnboundEntryAction {
     public void execute(CommandSource source, ExecutionContext context, Frame frame) {
         if (source.getServer() != null) {
             var events = source.getServer().gameEvents();
-            var t = trigger != null ? trigger
-                    : frame.depth() == 0 ? FunctionExecuteEvent.Trigger.COMMAND : FunctionExecuteEvent.Trigger.NESTED;
-            if (!events.functionExecute(source, function.id().toString(), t, frame.depth())) return;   // 플러그인이 취소: 본문을 돌리지 않는다
+            if (events.wantsFunctionExecute()) {
+                var t = trigger != null ? trigger
+                        : frame.depth() == 0 ? FunctionExecuteEvent.Trigger.COMMAND : FunctionExecuteEvent.Trigger.NESTED;
+                if (!events.functionExecute(source, function.id().toString(), t, frame.depth())) {
+                    resultCallback.onFailure();   // 플러그인이 취소: 본문은 돌리지 않고 호출은 실패로 알린다(store·if function 이 결과를 받는다)
+                    return;
+                }
+            }
         }
         context.incrementCost();
         List<UnboundEntryAction> entries = function.entries();

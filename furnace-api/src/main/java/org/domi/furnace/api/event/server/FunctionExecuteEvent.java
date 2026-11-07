@@ -17,6 +17,8 @@ public final class FunctionExecuteEvent extends Event implements Cancellable {
         SCHEDULED,
         /** /function · execute if function · /return run function 등 명령이 직접 부른 최상위 호출. */
         COMMAND,
+        /** 업적 보상 함수. */
+        ADVANCEMENT,
         /** 다른 함수 안에서 부른 호출(중첩). */
         NESTED
     }

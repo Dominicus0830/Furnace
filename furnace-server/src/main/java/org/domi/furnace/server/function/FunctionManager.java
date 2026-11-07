@@ -62,13 +62,16 @@ public final class FunctionManager {
 
     private void executeTagFunctions(Collection<CommandFunction> functions, Trigger trigger) {
         CommandSource source = gameLoopSender();
-        for (CommandFunction f : functions) execute(f, source, trigger);
+        for (CommandFunction f : functions) enqueue(f, source, trigger);
     }
 
     /** 바닐라 alg.a(ig, et): 함수 하나를 새 최상위 컨텍스트로(콜백 EMPTY). */
-    public void execute(CommandFunction function, CommandSource source) { execute(function, source, Trigger.SCHEDULED); }
+    public void execute(CommandFunction function, CommandSource source) { enqueue(function, source, Trigger.SCHEDULED); }
 
-    private void execute(CommandFunction function, CommandSource source, Trigger trigger) {
+    /** 호출 경로를 지정해 실행(플러그인 FunctionExecuteEvent 의 trigger 로 전해진다). */
+    public void execute(CommandFunction function, CommandSource source, Trigger trigger) { enqueue(function, source, trigger); }
+
+    private void enqueue(CommandFunction function, CommandSource source, Trigger trigger) {
         boolean tick = trigger == Trigger.TICK;
         checkThread();
         ResourceId id = function.id();

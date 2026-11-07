@@ -110,6 +110,16 @@ class FunctionHookTest {
     }
 
     @Test
+    void cancelledCallReportsFailureToStoreAndIfFunction() {
+        on(FunctionExecuteEvent.class, e -> { if (e.function().equals("t:inner")) e.setCancelled(true); });
+        run("scoreboard players set #s o 5");
+        run("execute store success score #s o run function t:inner");
+        assertEquals(0, score("#s"), "취소된 호출은 실패 콜백을 받는다");
+        run("execute if function t:inner run scoreboard players set #if o 1");
+        assertNull(score("#if"));
+    }
+
+    @Test
     void tickLoadAndScheduleTriggersAreDistinguished() throws Exception {
         on(FunctionExecuteEvent.class, e -> log.add(e.function() + ":" + e.trigger()));
         onGlobal(core::tick);
