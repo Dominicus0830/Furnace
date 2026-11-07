@@ -1,6 +1,7 @@
 // 바닐라 FallingBlockEntity: 떨어지는 모래·자갈·모루 등. 중력 0.04 로 떨어져 땅에 닿으면 그 칸에 다시 놓이고(놓을 수 없으면 아이템으로 떨어지고),
 // 모루처럼 피해를 주는 종류는 내려앉는 거리에 비례해 아래 생물을 다치게 한다. 콘크리트 가루는 물에 닿으면 굳는다.
-// TODO: 블록 엔티티 데이터(TileEntityData) 되살리기, 플레이어 건축 막기(blocksBuilding).
+// TileEntityData(blockData): /summon 으로 준 블록 엔티티 데이터를 내려앉은 뒤 그 칸 블록 엔티티에 덮어쓴다.
+// TODO: 플레이어 건축 막기(blocksBuilding).
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.B;
@@ -29,6 +30,8 @@ public class FallingBlockEntity extends Entity {
     private boolean cancelDrop, hurtEntities;
     private int fallDamageMax = 40;
     private float fallDamagePerDistance;
+    /** TileEntityData: 내려앉은 뒤 블록 엔티티에 덮어쓸 최상위 키들(없으면 null). */
+    private NbtCompound blockData;
 
     public FallingBlockEntity(ChunkLevel level, int id) { super(EntityType.FALLING_BLOCK, level, id); }
 
@@ -118,6 +121,7 @@ public class FallingBlockEntity extends Entity {
                             if (level.setBlock(pos, place, 3)) {
                                 discard();
                                 behavior.onLand(level, pos, place, replaced, isSilent());
+                                applyBlockData(pos, place);
                             } else if (dropItem && level.gameRule("doEntityDrops")) {
                                 discard();
                                 behavior.onBrokenAfterFall(level, pos, isSilent());
@@ -150,6 +154,23 @@ public class FallingBlockEntity extends Entity {
     protected void afterChangedDimension(String from, String to) {
         boolean end = "minecraft:the_end".equals(from) || "minecraft:the_end".equals(to);
         forceTickAfterTeleportToDuplicate = end && to != null && !from.equals(to);
+    }
+
+    /**
+     * 내려앉은 칸 블록 엔티티의 현재 저장 꼴에 blockData 의 최상위 키를 복사해 덮고(재귀 합치기 아님) 다시 읽는다.
+     * 바닐라는 읽기에 실패하면 오류만 남기고 넘어간다.
+     */
+    private void applyBlockData(Pos pos, int placed) {
+        if (blockData == null || !org.domi.furnace.server.block.BlockInfo.get().hasBlockEntity(placed)) return;
+        if (!(level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.BlockEntity be)) return;
+        NbtCompound merged = be.saveWithoutMetadata();
+        for (var e : blockData.tags().entrySet()) merged.put(e.getKey(), org.domi.furnace.server.net.io.nbt.NbtTags.copy(e.getValue()));
+        try {
+            be.loadWithComponentsInLevel(level, merged);
+        } catch (RuntimeException ex) {
+            // 바닐라는 읽기 실패를 기록만 하고 넘어간다(setChanged 는 그대로 부른다)
+        }
+        be.setChanged(level);
     }
 
     private static boolean isAnvil(int s) { return B.is(s, "anvil") || B.is(s, "chipped_anvil") || B.is(s, "damaged_anvil"); }
@@ -193,6 +214,7 @@ public class FallingBlockEntity extends Entity {
         tag.putFloat("FallHurtAmount", fallDamagePerDistance);
         tag.putInt("FallHurtMax", fallDamageMax);
         tag.putBoolean("CancelDrop", cancelDrop);
+        if (blockData != null) tag.putCompound("TileEntityData", blockData);
     }
 
     @Override
@@ -208,6 +230,7 @@ public class FallingBlockEntity extends Entity {
         }
         if (tag.containsNumber("DropItem")) dropItem = tag.getBoolean("DropItem");
         cancelDrop = tag.getBoolean("CancelDrop");
+        if (tag.tags().get("TileEntityData") instanceof NbtCompound c) blockData = c.copy();
         if (B.isAir(blockState)) blockState = B.defaultState("sand");
     }
 }

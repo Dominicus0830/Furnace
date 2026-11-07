@@ -59,13 +59,15 @@ public class LecternBlock extends BaseEntityBlock {
         level.levelEvent(null, 1043, pos, 0);
     }
 
-    /** popBook: 책이 있으면 앞쪽 0.25 위에 떨구고 블록 엔티티를 비운다. */
+    /** popBook: 책이 있으면 앞쪽 0.25 · 위 1.0 에 아이템 엔티티로 떨구고(속도는 아이템 엔티티 생성자의 레벨 난수 2번) 블록 엔티티를 비운다. */
     private static void popBook(int state, BlockLevel level, Pos pos) {
         if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.LecternBlockEntity be && be.hasBook()) {
+            int dir = Dir.byName(FACING.valueName(state));
             ItemStack book = be.book();
+            float dx = 0.25F * Dir.DX[dir];
+            float dz = 0.25F * Dir.DZ[dir];
+            level.spawnItemEntity(pos.x() + 0.5 + (double) dx, (double) (pos.y() + 1), pos.z() + 0.5 + (double) dz, book);
             be.setBook(ItemStack.EMPTY, null);
-            // TODO(엔티티): 바닐라는 앞쪽 0.25 · 위 1.0 · 무작위 보정(0.25·0.25·0.1 가우시안 자리)으로 ItemEntity 를 만든다 — 지금은 칸 위로 popResource.
-            level.popResource(pos, book);
         }
     }
 

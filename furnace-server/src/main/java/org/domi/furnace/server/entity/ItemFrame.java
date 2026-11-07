@@ -1,6 +1,6 @@
 // 바닐라 ItemFrame / GlowItemFrame: 블록 면에 걸리는 액자. 아이템 하나를 넣고(우클릭) 돌리며(8방향), 때리면 아이템이 먼저 빠지고 빈 액자는 부서져 떨어진다.
 // Fixed(고정)면 건드릴 수 없고, Invisible 이면 투명하다. 폭발에는 아이템과 함께 통째로 부서진다.
-// TODO: 지도 아이템(지도 데이터의 액자 연결·배너 확인), 아이템 액자의 비교기 출력 신호는 이웃 갱신만 한다.
+// TODO: 지도 아이템(지도 데이터의 액자 연결·배너 확인).
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
@@ -125,6 +125,9 @@ public class ItemFrame extends HangingEntity {
         if (!stack.isEmpty()) playSound(sound("add_item"), 1.0F, 1.0F);
         if (updateNeighbours && blockPos != null) level.updateNeighbourForOutputSignal(blockPos, org.domi.furnace.server.block.B.id("minecraft:air"));
     }
+
+    /** ItemFrame.getAnalogOutput: 빈 액자 0, 아니면 돌림 % 8 + 1(비교기가 읽는다). */
+    public int getAnalogOutput() { return getItem().isEmpty() ? 0 : rotation() % 8 + 1; }
 
     public int rotation() { return (Integer) entityData.get(DATA_ROTATION); }
 

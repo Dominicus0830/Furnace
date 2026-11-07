@@ -42,17 +42,10 @@ class BlockEntityLootTest {
     static int id(String name) { return ItemContext.id("minecraft:item", name); }
 
     /** 표를 block_entity = be.collectComponents() 로 평가해 서버 아이템으로. */
-    static List<ItemStack> drops(String table, String block, BlockEntity be, LootStack tool) {
-        RandomSequences seqs = new RandomSequences(1L);
-        LootWorld world = new LootWorld() {
-            public NoiseRandom random() { throw new AssertionError(); }
-            public NoiseRandom randomSequence(ResourceId rid) { return seqs.get(rid); }
-        };
-        LootParams p = new LootParams().with(LootParams.ORIGIN, new double[]{0.5, 64.5, 0.5})
-                .with(LootParams.BLOCK_STATE, new LootBlockState(block, Map.of()))
-                .with(LootParams.TOOL, tool).with(LootParams.BLOCK_ENTITY, be.collectComponents());
-        LootTable t = data.table(table);
-        return t.getRandomItems(t.context(data, world, p, 0L)).stream().filter(s -> !s.isEmpty()).map(net::toItemStack).toList();
+    static List<ItemStack> drops(String table, String block, BlockEntity be, LootStack tool) { return drops(table, block, Map.of(), be, tool); }
+
+    static List<ItemStack> drops(String table, String block, Map<String, String> props, BlockEntity be, LootStack tool) {
+        return TestBlockLoot.drops(data, net, table, block, props, be.collectComponents(), tool);
     }
 
     @Test
@@ -79,6 +72,22 @@ class BlockEntityLootTest {
         assertEquals("key", placed.lock);
         assertTrue(placed.components().isEmpty(), "읽은 컴포넌트는 남기지 않는다");
         assertEquals(box.collectComponents(), placed.collectComponents());
+    }
+
+    @Test
+    void decoratedPotDropsItemWithDecorationsOrFourSherdsWhenCracked() {
+        var pot = new org.domi.furnace.server.block.entity.DecoratedPotBlockEntity(POS, -1);
+        pot.setSherds(List.of("minecraft:angler_pottery_sherd", "minecraft:brick", "minecraft:arms_up_pottery_sherd", "minecraft:brick"));
+        // 안 금 간 단지: pot_decorations 를 복사한 단지 하나(바닐라 copy_components)
+        List<ItemStack> whole = drops("minecraft:blocks/decorated_pot", "minecraft:decorated_pot", Map.of("cracked", "false"), pot, LootStack.empty());
+        assertEquals(1, whole.size());
+        assertEquals(id("minecraft:decorated_pot"), whole.get(0).itemId());
+        assertEquals(List.of("minecraft:angler_pottery_sherd", "minecraft:brick", "minecraft:arms_up_pottery_sherd", "minecraft:brick"),
+                whole.get(0).patch().entries().get("minecraft:pot_decorations"));
+        // 금 간 단지: 동적 항목 minecraft:sherds — 조각 네 개(벽돌 포함, 뒤·왼·오른·앞 순서)
+        List<ItemStack> cracked = drops("minecraft:blocks/decorated_pot", "minecraft:decorated_pot", Map.of("cracked", "true"), pot, LootStack.empty());
+        assertEquals(List.of(id("minecraft:angler_pottery_sherd"), id("minecraft:brick"), id("minecraft:arms_up_pottery_sherd"), id("minecraft:brick")),
+                cracked.stream().map(ItemStack::itemId).toList());
     }
 
     @Test
