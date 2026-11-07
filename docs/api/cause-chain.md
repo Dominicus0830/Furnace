@@ -74,4 +74,4 @@ EntityExplodeEvent.causeChain()
 ## 7. 시험
 
 - 단위: `furnace-api` `CauseChainTest`(순서·빈 사슬·길이 제한), `furnace-server` `plugin/CauseChainTest`(플레이어→TNT→TNT, 레드스톤·발사기, 투사체·폭발 피해, 침대, 구독 없을 때 기록 안 함, 바닐라 주인).
-- 봇: `tools/bot-test/round13/cause.js` + 시험 플러그인 `round13/probe/CauseProbe` — 2026-11-07 11/11 통과(부싯돌 연쇄 TNT·소/플레이어 폭발 피해·레드스톤·발사기·눈덩이·블록 부수기). 화면에 보이는 것이 없어 실제 클라이언트 확인은 필요 없다.
+- 봇: `tools/bot-test/round14/cause.js` + 시험 플러그인 `round14/probe/CauseProbe` — 2026-11-07 11/11 통과(부싯돌 연쇄 TNT·소/플레이어 폭발 피해·레드스톤·발사기·눈덩이·블록 부수기). 화면에 보이는 것이 없어 실제 클라이언트 확인은 필요 없다.

@@ -1004,3 +1004,11 @@
 - 기다리는 동안 돌리는 작업은 전역 스레드가 보낸 것 전부다(다른 사람의 채팅 명령 왕복 포함) — 바닐라에서 명령이 그 자리에서 도는 것과 같은 자리라 결과는 같다고 본다(가정). 다른 출처(연결·IO·다른 region)의 작업은 그대로 다음 틱 머리에 돈다.
 - 남은 차이: 체인이 로드되지 않은 청크로 이어지면 끊긴다(바닐라 getBlockState 는 청크를 그 자리에서 불러온다). 이웃 청크는 region 불변식(구역 반경)상 늘 같은 region 이라 로드된 청크 사이에서는 끊기지 않는다. `set_command_minecart` 는 여전히 플레이어 region 의 수레만 찾는다.
 - 시험: `CommandBlockOneTickTest`(체인 세 칸이 예약 틱 호출 하나 안에 끝나고 성공 횟수 111, 3200칸 떨어진 다른 region 의 돼지를 찾는 `@e` 체인도 같은 호출 안에). 봇 `tools/bot-test/round8/cmdchain.js`: 임펄스+체인 5칸(첫 칸·끝 칸이 `time query gametime` 을 점수로, 중간은 3000칸 떨어진 다른 봇 옆 돼지를 `@e` 로) 10번 — 이 PR 은 차이 10번 모두 0, 기준 브랜치 jar 는 5~8틱.
+
+## 2026-11-07 두뇌(Brain) 플러그인 API (E2)
+- API `MobAi.brain()` → `MobBrain`(기억·센서·활동·플러그인 행동). 설계·규칙 `docs/api/mob-brain.md`.
+- 활동 붙잡기는 `Brain.setActiveActivity` 한 곳에서 돌린다: 붙잡힌 동안 몹이 고른 활동 대신 붙잡은 활동으로 바꾼다(비었으면 다시 켠다). 그래서 주민 `refreshBrain` 직후(새 두뇌의 켜진 활동이 비어 있음)에도 `useDefaultActivity` 한 번이면 붙잡은 활동 + 핵심 활동으로 돌아온다. 바닐라 경로는 null 검사 하나.
+- 기억 값 모양은 `MemoryModuleType` 상수의 제네릭 형식에서 반사로 읽는다(`BrainValues`). 새 기억을 넣을 때 형식을 정확히 적으면 API 가 따라오고, 시험이 내부 값 목록(dummy·path·hurt_by·ram_target)을 지킨다.
+- 두뇌 틱 도중(행동·센서 콜백 안) 센서·행동 넣기·빼기는 틱 끝으로 미룬다(E1 GoalSelector 와 같은 방식).
+- 함정: 플러그인 설명 파일 `commands:` 를 `{description: …}` 흐름 형식으로 쓸 때 설명에 `(`·`[` 가 들어가면 ConfigParseException 으로 플러그인이 안 뜬다 — 블록 형식 + 따옴표로.
+- 시험: `MobBrainApiTest` 18개, `MobAiHandleTest` 주민 두뇌 1건 추가, 봇 `tools/bot-test/round13/brain.js` 12/12.

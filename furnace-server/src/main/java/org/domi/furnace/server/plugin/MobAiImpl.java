@@ -76,6 +76,12 @@ final class MobAiImpl implements MobAi {
     public boolean usesBrain() { return mob.getBrain() != null; }
 
     @Override
+    public Optional<org.domi.furnace.api.entity.ai.brain.MobBrain> brain() {
+        check();
+        return mob.getBrain() == null ? Optional.empty() : Optional.of(new MobBrainImpl(host, mob));
+    }
+
+    @Override
     public org.domi.furnace.api.entity.Mob snapshot() {
         check();
         return (org.domi.furnace.api.entity.Mob) EntityHandle.of(host, mob);

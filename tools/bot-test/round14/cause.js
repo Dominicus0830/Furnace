@@ -1,5 +1,5 @@
-// 원인 사슬(B4) 봇 시험 — round13/probe/CauseProbe 를 넣은 서버에서. 결과는 "RESULT 이름 PASS|FAIL 근거" 줄.
-// SRV=<서버 폴더> node round13/cause.js
+// 원인 사슬(B4) 봇 시험 — round14/probe/CauseProbe 를 넣은 서버에서. 결과는 "RESULT 이름 PASS|FAIL 근거" 줄.
+// SRV=<서버 폴더> node round14/cause.js
 const fs = require('fs');
 const V = require('vec3');
 const { setup, chat, sleep, hold } = require('../round2/u');

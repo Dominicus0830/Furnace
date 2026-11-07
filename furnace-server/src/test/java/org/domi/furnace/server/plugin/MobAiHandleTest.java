@@ -147,5 +147,15 @@ class MobAiHandleTest {
         Mob m = assertInstanceOf(Mob.class, h);
         Boolean brain = run(m.editAi(MobAi::usesBrain));
         assertTrue(brain, "주민은 두뇌로 움직인다");
+
+        // 두뇌 손잡이도 같은 소유 스레드 규칙: editAi 안에서 붙잡은 활동은 region 틱이 지나도 남고, 밖으로 가져가면 거부
+        var forced = run(m.editAi(ai -> {
+            var b = ai.brain().orElseThrow();
+            b.forceActivity(org.domi.furnace.api.entity.ai.brain.ActivityKey.REST);
+            return b;
+        }));
+        assertThrows(ThreadOwnershipException.class, forced::activeActivities);
+        var active = run(m.editAi(ai -> ai.brain().orElseThrow().activeActivities()));
+        assertEquals(java.util.Set.of(org.domi.furnace.api.entity.ai.brain.ActivityKey.CORE, org.domi.furnace.api.entity.ai.brain.ActivityKey.REST), active);
     }
 }
