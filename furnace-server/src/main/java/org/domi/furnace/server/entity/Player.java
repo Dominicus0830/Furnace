@@ -999,6 +999,21 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         return new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(index, org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_BYTE, v);
     }
 
+    /** 몸에 박힌 화살 수(LivingEntity.DATA_ARROW_COUNT 12). 20 × (30 − 수) 틱마다 하나씩 빠진다. */
+    private int arrowCount, removeArrowTime, sentArrowCount;
+
+    public int arrowCount() { return arrowCount; }
+
+    public void setArrowCount(int n) { arrowCount = n; }
+
+    /** LivingEntity.tick 의 화살 제거(region 이 syncLivingFlags 앞에서 매 틱). */
+    public void tickArrowCount() {
+        if (arrowCount > 0) {
+            if (removeArrowTime <= 0) removeArrowTime = 20 * (30 - arrowCount);
+            if (--removeArrowTime <= 0) arrowCount--;
+        }
+    }
+
     /** LivingEntity.DATA_EFFECT_PARTICLES(10)·DATA_EFFECT_AMBIENCE_ID(11) — 마지막으로 보낸 값. */
     private java.util.List<org.domi.furnace.server.net.protocol.play.ParticleOptions> sentEffectParticles = java.util.List.of();
     private boolean sentEffectAmbient;
@@ -1084,6 +1099,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
             resendEntityData = false;
             sentSharedFlags = 0; sentPose = 0; sentLivingFlags = 0; sentSleepingPos = null; sentSkinParts = 0; sentMainArm = 1; sentShoulderLeft = null; sentShoulderRight = null;
             sentEffectParticles = java.util.List.of(); sentEffectAmbient = false;
+            sentArrowCount = 0; arrowCount = 0; removeArrowTime = 0;
         }
         byte shared = sharedFlags(), f = livingFlags();
         int pose = pose();
@@ -1097,6 +1113,8 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         boolean amb = ambNow == null ? sentEffectAmbient : ambNow;
         if (!ep.equals(sentEffectParticles)) items.add(effectParticlesItem(ep));
         if (amb != sentEffectAmbient) items.add(effectAmbientItem(amb));
+        int arrows = arrowCount;
+        if (arrows != sentArrowCount) items.add(new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(LivingEntity.DATA_ARROW_COUNT, org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_INT, arrows));
         var sp = sleepingPos;
         if (!java.util.Objects.equals(sp, sentSleepingPos)) items.add(sleepingPosItem(sp));
         byte skin = skinParts, arm = mainArm;
@@ -1114,6 +1132,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         sentLivingFlags = f;
         sentEffectParticles = ep;
         sentEffectAmbient = amb;
+        sentArrowCount = arrows;
         sentSleepingPos = sp;
         sentSkinParts = skin;
         sentMainArm = arm;
@@ -1320,6 +1339,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         if (sentLivingFlags != 0) items.add(flagItem(8, sentLivingFlags));
         if (!sentEffectParticles.isEmpty()) items.add(effectParticlesItem(sentEffectParticles));
         if (sentEffectAmbient) items.add(effectAmbientItem(true));
+        if (sentArrowCount != 0) items.add(new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(LivingEntity.DATA_ARROW_COUNT, org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_INT, sentArrowCount));
         if (sentSleepingPos != null) items.add(sleepingPosItem(sentSleepingPos));
         if (sentSkinParts != 0) items.add(flagItem(DATA_PLAYER_MODE_CUSTOMISATION, sentSkinParts));
         if (sentMainArm != 1) items.add(flagItem(DATA_PLAYER_MAIN_HAND, sentMainArm));

@@ -1,5 +1,5 @@
 // 바닐라 Interaction: 크기(width, height)만 가진 보이지 않는 상호작용 상자. 마지막으로 때린/우클릭한 플레이어와 시각을 NBT 로 가진다.
-// TODO(플레이어 입력): 플레이어의 공격·우클릭이 이 엔티티에 attack/interaction 기록을 남기도록 연결(Entity 쪽 플레이어 경로 필요).
+// 플레이어 공격은 skipAttackInteraction, 우클릭은 interact 가 기록한다(Region.attackEntity·ConnectionHandler 가 부른다).
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
@@ -41,6 +41,48 @@ public class Interaction extends Entity {
     @Override public void tick() {}
 
     @Override public boolean isPickable() { return true; }
+
+    /**
+     * 바닐라 skipAttackInteraction: 때린 플레이어와 게임 시각을 기록하고 player_hurt_entity(일반 피해 1/1, 막지 않음)를 낸다.
+     * response 가 꺼져 있으면 true(일반 공격 처리를 건너뜀), 켜져 있으면 false(공격 소리·소모는 평소대로).
+     */
+    @Override
+    public boolean skipAttackInteraction(Player attacker) {
+        attackPlayer = uuidInts(attacker.uuid());
+        attackTime = level.gameTime();
+        var adv = attacker.advancements();
+        if (adv != null && adv.hasListeners("minecraft:player_hurt_entity")) {
+            var victim = KillCredit.lootOf(this);
+            var dmg = KillCredit.source("generic", attacker, attacker);
+            attacker.triggerAdvancement(a -> a.triggerHurtEntity(victim, dmg, 1.0F, 1.0F, false));
+        }
+        return !response();
+    }
+
+    /** 바닐라 interact(서버): 우클릭한 플레이어와 게임 시각을 기록한다(결과 CONSUME). */
+    public boolean interact(Player p) {
+        interactionPlayer = uuidInts(p.uuid());
+        interactionTime = level.gameTime();
+        return true;
+    }
+
+    private static int[] uuidInts(java.util.UUID u) {
+        long m = u.getMostSignificantBits(), l = u.getLeastSignificantBits();
+        return new int[] {(int) (m >> 32), (int) m, (int) (l >> 32), (int) l};
+    }
+
+    /** 마지막으로 때린 플레이어 UUID(없으면 null)와 시각(게임 틱). */
+    public java.util.UUID lastAttackPlayer() { return fromInts(attackPlayer); }
+
+    public long lastAttackTime() { return attackTime; }
+
+    public java.util.UUID lastInteractionPlayer() { return fromInts(interactionPlayer); }
+
+    public long lastInteractionTime() { return interactionTime; }
+
+    private static java.util.UUID fromInts(int[] u) {
+        return u == null ? null : new java.util.UUID((long) u[0] << 32 | u[1] & 0xFFFFFFFFL, (long) u[2] << 32 | u[3] & 0xFFFFFFFFL);
+    }
 
     @Override
     protected void addAdditionalSaveData(NbtCompound tag) {

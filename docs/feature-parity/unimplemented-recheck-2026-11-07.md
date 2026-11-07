@@ -90,3 +90,16 @@
 1. 지금: M16, M19, M22 (서로·기존 묶음과 파일이 안 겹침).
 2. M1 병합 뒤 M15, M3 병합 뒤 M14·M18, M8 병합 뒤 M17.
 3. M9 뒤 M20, M10 뒤 M21.
+
+## 7. M22 결과 (엔티티 NBT·표시 엔티티, 2026-11-07)
+바닐라 1.21.1 클래스 바이트코드(`bsq` Display, `bsn` AreaEffectCloud, `ciw` ArmorStand, `bth` Interaction, `f` MatrixUtil 등)를 `javap -c` 로 읽고 맞췄다. 시험 `EntityNbtDisplayTest`.
+- **Display**: `transformation` 을 바닐라 `EXTENDED_CODEC` 대로 읽는다 — 복합 태그(회전은 `[x,y,z,w]` 또는 `{angle, axis}`)와 16개 숫자 행렬(행 우선). 행렬은 바닐라 `MatrixUtil.svdDecompose`(자코비 5회 + 기븐스 QR)를 JOML 순서대로 옮긴 `DisplayTransform` 으로 이동·왼쪽 회전·크기·오른쪽 회전으로 쪼갠다(시험은 쪼갠 값을 다시 합쳐 같은 행렬이 나오는지 본다). 코덱이 실패하면(필드 누락·길이 틀림) 바닐라처럼 transformation 을 건드리지 않는다. `start_interpolation` 읽기, `width`/`height` 한쪽만 있을 때 다른 쪽을 0 으로 만들던 것 고침.
+- **TextDisplay**: `text`(JSON) 읽기·쓰기(못 읽으면 빈 글자 + 경고), `alignment`(`center/left/right`), `shadow`·`see_through`·`default_background` 플래그, 플래그는 읽을 때 0 에서 다시 쌓는다.
+- **Interaction**: 플레이어 공격(`skipAttackInteraction`: `attack` 기록 + `player_hurt_entity` 트리거, `response` 가 꺼져 있으면 일반 공격을 건너뜀)과 우클릭(`interaction` 기록, 결과 CONSUME)을 연결.
+- **AreaEffectCloud**: `Particle` NBT(입자 종류 전부, `ParticleNbt`/`ParticleArgument.decodeNbt`)와 `potion_contents`(potion·custom_color·custom_effects) 읽기·쓰기. 물약은 바닐라처럼 **기본 물약 효과만 지속 1/4**, 사용자 지정 효과는 그대로(이전엔 구름을 만든 쪽이 전부 1/4 로 줄였다 — ThrownPotion 이 이제 내용물을 그대로 넘긴다). 입자가 `entity_effect` 면 물약 색(없으면 불투명 검정)으로 다시 칠함. `isAffectedByPotions`(거치대 제외)·`canBeAffected`(언데드의 재생·독, 위더 등)로 걸 수 없는 효과뿐이면 건너뜀.
+- **ArmorStand**: 두 번째 타격·크리에이티브로 부술 때 참나무 널빤지 블록 입자 10개, 거치대 아이템이 커스텀 이름을 이어받음.
+- **Enderman**: `is_projectile` 태그 피해(트라이던트·위더 해골·바람 충전 포함)나 직접 원인이 물약이면 64번 텔레포트 시도, 맑은 물 물약이면 피해도 받음(물 물약 피해의 직접 원인을 물약으로 넘기도록 `ThrownPotion.applyWater` 도 고침).
+- **MinecartTNT**: 불붙은 화살이 직접 원인이면 화살 속도²로 바로 폭발, 폭발 피해의 원인은 쏜 쪽(`Explosion.withCausing`). 이를 위해 **화살이 광산 수레를 맞히게** 했다(`AbstractArrow.CartTarget`) — 바닐라는 화살이 pickable 엔티티를 아무거나 맞히지만 Furnace 는 Targetable 만 맞혔다.
+- **AbstractArrow**: 맞은 생물(플레이어 포함)의 박힌 화살 수 +1(관통 화살 제외), `20 × (30 − 수)` 틱마다 하나씩 빠짐, 플레이어는 `DATA_ARROW_COUNT` 동기화. 줍기 규칙(허용/창조 전용/불가)과 관통 대상 기록은 이미 있었다.
+- **낚시 행운**: 낚싯대 바다의 행운 + 플레이어 `luck` 속성.
+- **남은 것**: 선택자·점수가 든 TextDisplay 텍스트(`updateForEntity`, 엔티티가 서버 코어에 닿는 길이 없음), 광산 수레 외 Targetable 이 아닌 엔티티(배·액자·그림·Interaction)를 투사체가 맞히는 것, 침(stinger) 수의 플레이어 동기화(`Bee.java`).

@@ -287,7 +287,7 @@ public abstract class Projectile extends Entity {
     public double[] hurtKnockbackDirection(Targetable target) { return new double[] {vx(), vz()}; }
 
     /** ProjectileUtil.getEntityHitResult 의 한 칸: 상자를 0.3 키워 선분과 교차(시작점이 안이면 시작점). */
-    private static double[] clipTarget(Targetable t, double fx, double fy, double fz, double tx, double ty, double tz) {
+    protected static double[] clipTarget(Targetable t, double fx, double fy, double fz, double tx, double ty, double tz) {
         AABB bb = t.boundingBox().inflate(0.3F);
         if (bb.contains(fx, fy, fz)) return new double[] {fx, fy, fz};
         return bb.clip(fx, fy, fz, tx, ty, tz);

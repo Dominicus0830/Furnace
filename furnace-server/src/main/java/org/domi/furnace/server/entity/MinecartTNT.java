@@ -1,6 +1,6 @@
 // 바닐라 MinecartTNT: 켜진 활성화 레일·불·폭발로 도화선(80 틱), 빠르게 부딪히거나 3 넘게 떨어지면 바로 터진다.
 // 세기 4 + 난수 × 1.5 × min(√속도², 5). 도화선이 탄 동안 자기 폭발은 레일(과 위가 레일인 칸)을 부수지 않는다.
-// TODO(불화살): 불붙은 화살에 맞으면 화살 속도로 터지기 — 화살 피해가 직접 원인 엔티티를 넘기지 않는다.
+// 불붙은 화살에 맞으면(hurt 의 직접 원인) 화살 속도²로 바로 터지고, 폭발 피해의 원인은 화살을 쏜 쪽이다.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.B;
@@ -57,11 +57,25 @@ public class MinecartTNT extends AbstractMinecart {
     /** damageSourceIgnitesTnt: is_fire 또는 is_explosion. */
     private static boolean ignitesTnt(Damage source) { return source.fire() || source.explosion(); }
 
+    /** hurt: 불붙은 화살이 직접 원인이면 먼저 화살 속도²로 터진 뒤 평소 피해(이미 지워졌으면 그대로 true). */
+    @Override
+    public boolean hurtByVia(Damage source, float amount, Targetable attacker, Entity direct) {
+        if (direct instanceof AbstractArrow arrow && arrow.isOnFire()) {
+            explode(attacker, arrow.vx() * arrow.vx() + arrow.vy() * arrow.vy() + arrow.vz() * arrow.vz());
+        }
+        return hurtBy(source, amount, attacker);
+    }
+
     /** explode(power): 세기 4 + 난수 × 1.5 × min(√power, 5) 의 TNT 폭발 뒤 지운다. */
-    protected void explode(double power) {
+    protected void explode(double power) { explode(null, power); }
+
+    /** explode(damageSource, power): causing 이 폭발 피해의 원인(없으면 이 수레). */
+    protected void explode(Targetable causing, double power) {
         double d = Math.sqrt(power);
         if (d > 5.0) d = 5.0;
-        level.explode(this, x(), y(), z(), (float) (4.0 + random.nextDouble() * 1.5 * d), false, level.destroyType("TNT"));
+        float radius = (float) (4.0 + random.nextDouble() * 1.5 * d);
+        if (causing != null) level.explode(this, causing, x(), y(), z(), radius, false, level.destroyType("TNT"));
+        else level.explode(this, x(), y(), z(), radius, false, level.destroyType("TNT"));
         discard();
     }
 

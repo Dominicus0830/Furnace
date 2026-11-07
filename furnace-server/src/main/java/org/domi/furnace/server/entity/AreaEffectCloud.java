@@ -1,6 +1,6 @@
 // 바닐라 AreaEffectCloud: 지속 물약·드래곤의 숨결이 남기는 구름. 대기(waitTime) 뒤 5틱마다 반경 안 생물에게 효과를 주고(대상마다 reapplicationDelay),
-// 반경이 틱·사용마다 줄고 duration 이 끝나면 사라진다. 효과는 물약 효과 목록으로 직접 가진다(물약 기본 효과의 1/4 지속 시간은 만든 쪽이 적용).
-// TODO: 입자 종류 지정(NBT Particle), canBeAffected 면역 검사.
+// 반경이 틱·사용마다 줄고 duration 이 끝나면 사라진다. 효과는 바닐라 PotionContents 처럼 기본 물약(potion, 효과 지속 1/4) + 사용자 지정 효과(custom_effects, 그대로)로 가진다.
+// 입자(NBT Particle)는 아무 종류나 가질 수 있고, entity_effect 면 물약 색으로 다시 칠한다. 생물마다 canBeAffected 로 걸 수 있는 효과가 하나도 없으면 건너뛴다.
 package org.domi.furnace.server.entity;
 
 import java.util.ArrayList;
@@ -11,7 +11,13 @@ import java.util.UUID;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.effect.MobEffect;
 import org.domi.furnace.server.effect.MobEffectInstance;
+import org.domi.furnace.server.command.arguments.ParticleArgument;
+import org.domi.furnace.server.effect.Potions;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
+import org.domi.furnace.server.net.io.nbt.NbtIo;
+import org.domi.furnace.server.net.io.nbt.NbtList;
+import org.domi.furnace.server.net.protocol.play.ParticleNbt;
+import org.domi.furnace.server.net.protocol.play.ParticleOptions;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class AreaEffectCloud extends Entity {
@@ -21,11 +27,12 @@ public class AreaEffectCloud extends Entity {
     public boolean ignoresPistonPush() { return true; }
 
     public static final int DATA_RADIUS = 8, DATA_WAITING = 9, DATA_PARTICLE = 10;
-    private static final int ENTITY_EFFECT_PARTICLE = 20;
-    public static final int DRAGON_BREATH_PARTICLE = 7;
+    public static final ParticleOptions DRAGON_BREATH_PARTICLE = ParticleOptions.simple("dragon_breath");
 
+    /** PotionContents: 기본 물약 id(없으면 null) + 사용자 지정 효과 + 사용자 지정 색(없으면 null). */
+    private String potion;
     private final List<MobEffectInstance> effects = new ArrayList<>();
-    private int color = -1;   // -1 이면 효과 없음(바닐라 기본 입자 색)
+    private Integer customColor;
     private final Map<Object, Integer> victims = new HashMap<>();
     private int duration = 600, waitTime = 20, reapplicationDelay = 20, durationOnUse;
     private float radiusOnUse, radiusPerTick;
@@ -41,7 +48,7 @@ public class AreaEffectCloud extends Entity {
     protected void defineSynchedData() {
         entityData.define(DATA_RADIUS, SetEntityData.SERIALIZER_FLOAT, 3.0F);
         entityData.define(DATA_WAITING, SetEntityData.SERIALIZER_BOOLEAN, false);
-        entityData.define(DATA_PARTICLE, SetEntityData.SERIALIZER_PARTICLE, new int[] {ENTITY_EFFECT_PARTICLE, -1});
+        entityData.define(DATA_PARTICLE, SetEntityData.SERIALIZER_PARTICLE, new ParticleOptions.Color(-1));
     }
 
     public float getRadius() { return (Float) entityData.get(DATA_RADIUS); }
@@ -51,14 +58,53 @@ public class AreaEffectCloud extends Entity {
         setDimensions(getRadius() * 2.0F, 0.5F, dimEye);
     }
 
-    public void setEffects(List<MobEffectInstance> list, int rgb) {
+    /** 사용자 지정 효과만 둔다(바닐라 addEffect: 지속 시간을 줄이지 않는다). */
+    public void setEffects(List<MobEffectInstance> list) { setPotionContents(null, list, null); }
+
+    /** 바닐라 setPotionContents. 입자가 entity_effect 면 그 색을 물약 색(불투명)으로 바꾼다. */
+    public void setPotionContents(String potionId, List<MobEffectInstance> custom, Integer color) {
+        potion = potionId;
         effects.clear();
-        effects.addAll(list);
-        color = rgb;
-        entityData.set(DATA_PARTICLE, new int[] {ENTITY_EFFECT_PARTICLE, effects.isEmpty() ? 0 : 0xFF000000 | rgb});
+        effects.addAll(custom);
+        customColor = color;
+        updateColor();
     }
 
-    public void setParticle(int[] particle) { entityData.set(DATA_PARTICLE, particle); }
+    private boolean contentsEmpty() { return potion == null && effects.isEmpty() && customColor == null; }
+
+    /** PotionContents.getAllEffects 의 구름 쪽: 기본 물약 효과는 지속 시간 1/4, 사용자 지정 효과는 그대로. */
+    private List<MobEffectInstance> allEffects() {
+        List<MobEffectInstance> list = new ArrayList<>();
+        if (potion != null) {
+            for (MobEffectInstance mi : Potions.effectsOf(potion)) {
+                list.add(new MobEffectInstance(mi.effect(), mi.effect().isInstantaneous() ? mi.duration() : mi.duration() / 4, mi.amplifier(), mi.ambient(), mi.visible(), mi.showIcon()));
+            }
+        }
+        list.addAll(effects);
+        return list;
+    }
+
+    /** PotionContents.getColor: 사용자 지정 색, 없으면 효과 색 평균(효과가 없으면 물 색). 지속 시간과 무관해 1/4 전 효과로 센다. */
+    private int contentsColor() {
+        if (customColor != null) return customColor;
+        List<MobEffectInstance> all = new ArrayList<>(potion == null ? List.<MobEffectInstance>of() : Potions.effectsOf(potion));
+        all.addAll(effects);
+        return all.isEmpty() ? -13083194 : Creeper.effectsColor(all);
+    }
+
+    private void updateColor() {
+        if (entityData.get(DATA_PARTICLE) instanceof ParticleOptions.Color) {
+            int c = contentsEmpty() ? 0 : contentsColor();
+            entityData.set(DATA_PARTICLE, new ParticleOptions.Color(0xFF000000 | c));
+        }
+    }
+
+    public ParticleOptions getParticle() { return (ParticleOptions) entityData.get(DATA_PARTICLE); }
+
+    public void setParticle(ParticleOptions particle) {
+        entityData.set(DATA_PARTICLE, particle);
+        updateColor();
+    }
 
     public int durationTicks() { return duration; }
 
@@ -104,15 +150,17 @@ public class AreaEffectCloud extends Entity {
         }
         if (tickCount % 5 != 0) return;
         victims.entrySet().removeIf(e -> tickCount >= e.getValue());
+        List<MobEffectInstance> effects = allEffects();
         if (effects.isEmpty()) {
             victims.clear();
             return;
         }
         List<Object> targets = new ArrayList<>();
-        for (Entity e : level.getEntities(this, boundingBox(), en -> en instanceof LivingEntity)) targets.add(e);
+        for (Entity e : level.getEntities(this, boundingBox(), en -> en instanceof LivingEntity le && le.isAffectedByPotions())) targets.add(e);
         level.forEachPlayerIn(boundingBox(), targets::add);
         for (Object t : targets) {
             if (victims.containsKey(t)) continue;
+            if (t instanceof LivingEntity le && effects.stream().noneMatch(le::canBeAffected)) continue;   // 걸 수 있는 효과가 하나도 없으면(언데드의 재생·독 등)
             double tx = t instanceof Player p ? p.x() : ((Entity) t).x(), tz = t instanceof Player p ? p.z() : ((Entity) t).z();
             double dx = tx - x(), dz = tz - z();
             if (dx * dx + dz * dz > radius * radius) continue;
@@ -155,7 +203,22 @@ public class AreaEffectCloud extends Entity {
         tag.putFloat("RadiusOnUse", radiusOnUse);
         tag.putFloat("RadiusPerTick", radiusPerTick);
         tag.putFloat("Radius", getRadius());
+        tag.putCompound("Particle", ParticleNbt.encode(getParticle()));
+        if (!contentsEmpty()) tag.putCompound("potion_contents", savePotionContents());
         if (ownerUUID != null) tag.putIntArray("Owner", new int[] {(int) (ownerUUID.getMostSignificantBits() >> 32), (int) ownerUUID.getMostSignificantBits(), (int) (ownerUUID.getLeastSignificantBits() >> 32), (int) ownerUUID.getLeastSignificantBits()});
+    }
+
+    /** PotionContents.CODEC 저장 모양: {potion, custom_color, custom_effects}. */
+    private NbtCompound savePotionContents() {
+        NbtCompound c = new NbtCompound();
+        if (potion != null) c.putString("potion", potion);
+        if (customColor != null) c.putInt("custom_color", customColor);
+        if (!effects.isEmpty()) {
+            NbtList l = new NbtList(NbtIo.TAG_COMPOUND);
+            for (MobEffectInstance mi : effects) l.add(mi.save());
+            c.putList("custom_effects", l);
+        }
+        return c;
     }
 
     @Override
@@ -168,6 +231,20 @@ public class AreaEffectCloud extends Entity {
         radiusOnUse = tag.getFloat("RadiusOnUse");
         radiusPerTick = tag.getFloat("RadiusPerTick");
         setRadius(tag.getFloat("Radius"));
+        if (tag.tags().get("Particle") instanceof NbtCompound pc) {
+            ParticleOptions p = ParticleArgument.decodeNbt(pc);
+            if (p != null) entityData.set(DATA_PARTICLE, p);
+        }
+        if (tag.tags().get("potion_contents") instanceof NbtCompound pc) {
+            String id = pc.tags().get("potion") instanceof String s ? (s.indexOf(':') < 0 ? "minecraft:" + s : s) : null;
+            if (id != null && !Potions.exists(id)) id = null;
+            Integer col = pc.tags().get("custom_color") instanceof Number n ? n.intValue() : null;
+            List<MobEffectInstance> custom = new ArrayList<>();
+            if (pc.tags().get("custom_effects") instanceof NbtList l) {
+                for (Object o : l.items()) if (o instanceof NbtCompound ec && MobEffectInstance.load(ec) instanceof MobEffectInstance mi) custom.add(mi);
+            }
+            setPotionContents(id, custom, col);
+        }
         if (tag.tags().get("Owner") instanceof int[] u && u.length == 4) {
             ownerUUID = new UUID((long) u[0] << 32 | u[1] & 0xFFFFFFFFL, (long) u[2] << 32 | u[3] & 0xFFFFFFFFL);
             owner = level.getTargetableByUuid(ownerUUID);

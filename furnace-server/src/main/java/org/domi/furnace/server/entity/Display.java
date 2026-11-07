@@ -1,5 +1,4 @@
 // 바닐라 Display: 블록·아이템·글자를 변환(이동·크기·회전)해 보여 주는 보이지 않는 엔티티의 공통 부분. 보간은 클라이언트가 하므로 서버는 데이터만 가진다.
-// TODO: NBT 의 transformation 은 리스트 형식만 받는다(행렬·axis_angle 미지원), 빛(brightness)·정렬 외 세부.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
@@ -67,16 +66,6 @@ public abstract class Display extends Entity {
         return l;
     }
 
-    private static float[] readFloats(Object o, int n, float[] fallback) {
-        if (!(o instanceof NbtList l) || l.size() != n) return fallback;
-        float[] r = new float[n];
-        for (int i = 0; i < n; i++) {
-            if (!(l.get(i) instanceof Number x)) return fallback;
-            r[i] = x.floatValue();
-        }
-        return r;
-    }
-
     @Override
     protected void addAdditionalSaveData(NbtCompound tag) {
         NbtCompound t = new NbtCompound();
@@ -105,20 +94,25 @@ public abstract class Display extends Entity {
 
     @Override
     protected void readAdditionalSaveData(NbtCompound tag) {
-        if (tag.tags().get("transformation") instanceof NbtCompound t) {
-            setTransformation(readFloats(t.tags().get("translation"), 3, new float[] {0, 0, 0}), readFloats(t.tags().get("left_rotation"), 4, new float[] {0, 0, 0, 1}),
-                    readFloats(t.tags().get("scale"), 3, new float[] {1, 1, 1}), readFloats(t.tags().get("right_rotation"), 4, new float[] {0, 0, 0, 1}));
+        // 바닐라 Transformation.EXTENDED_CODEC: 복합 태그(회전은 [x,y,z,w] 또는 {angle, axis}) 또는 16개 행렬. 코덱이 실패하면 transformation 은 그대로.
+        if (tag.tags().containsKey("transformation")) {
+            DisplayTransform.Decomposed d = DisplayTransform.decode(tag.tags().get("transformation"));
+            if (d != null) setTransformation(d.translation(), d.leftRotation(), d.scale(), d.rightRotation());
         }
         if (tag.tags().get("billboard") instanceof String s) {
             for (int i = 0; i < BILLBOARDS.length; i++) if (BILLBOARDS[i].equals(s)) setBillboard(i);
         }
         if (tag.containsNumber("interpolation_duration")) entityData.set(DATA_INTERPOLATION, tag.getIntOr0("interpolation_duration"));
+        if (tag.containsNumber("start_interpolation")) entityData.set(DATA_START_DELTA, tag.getIntOr0("start_interpolation"));
         if (tag.containsNumber("teleport_duration")) entityData.set(DATA_TELEPORT, Math.max(0, Math.min(59, tag.getIntOr0("teleport_duration"))));
         if (tag.containsNumber("view_range")) entityData.set(DATA_VIEW_RANGE, tag.getFloat("view_range"));
         if (tag.containsNumber("shadow_radius")) entityData.set(DATA_SHADOW_RADIUS, tag.getFloat("shadow_radius"));
         if (tag.containsNumber("shadow_strength")) entityData.set(DATA_SHADOW_STRENGTH, tag.getFloat("shadow_strength"));
         if (tag.containsNumber("glow_color_override")) entityData.set(DATA_GLOW, tag.getIntOr0("glow_color_override"));
-        if (tag.containsNumber("width") || tag.containsNumber("height")) setSize(tag.getFloat("width"), tag.getFloat("height"));
+        if (tag.containsNumber("width") || tag.containsNumber("height")) {
+            setSize(tag.containsNumber("width") ? tag.getFloat("width") : (Float) entityData.get(DATA_WIDTH),
+                    tag.containsNumber("height") ? tag.getFloat("height") : (Float) entityData.get(DATA_HEIGHT));
+        }
         if (tag.tags().get("brightness") instanceof NbtCompound b) entityData.set(DATA_BRIGHTNESS, b.getIntOr0("block") << 4 | b.getIntOr0("sky") << 20);
         else entityData.set(DATA_BRIGHTNESS, -1);
     }
@@ -184,9 +178,15 @@ public abstract class Display extends Entity {
         }
     }
 
-    /** 글자 표시. TODO: NBT 의 text(JSON 컴포넌트) 읽기·쓰기, alignment, 스타일 플래그(그림자·투명 배경 등) 해석. */
+    /**
+     * 글자 표시. 플래그(DATA_FLAGS): 1 그림자, 2 투과, 4 기본 배경, 8 왼쪽 정렬, 16 오른쪽 정렬(둘 다 아니면 가운데).
+     * NBT text 는 JSON 컴포넌트 문자열. TODO(선택자): 바닐라는 읽을 때 ComponentUtils.updateForEntity 로 선택자·점수를 풀지만
+     * 엔티티가 서버 코어에 닿는 길이 없어 풀지 않고 그대로 둔다.
+     */
     public static class TextDisplay extends Display {
         public static final int DATA_TEXT = 23, DATA_LINE_WIDTH = 24, DATA_BACKGROUND = 25, DATA_TEXT_OPACITY = 26, DATA_FLAGS = 27;
+        public static final byte FLAG_SHADOW = 1, FLAG_SEE_THROUGH = 2, FLAG_USE_DEFAULT_BACKGROUND = 4, FLAG_ALIGN_LEFT = 8, FLAG_ALIGN_RIGHT = 16;
+        private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(TextDisplay.class);
 
         public TextDisplay(ChunkLevel level, int id) { super(EntityType.TEXT_DISPLAY, level, id); }
 
@@ -202,20 +202,68 @@ public abstract class Display extends Entity {
 
         public void setText(org.domi.furnace.api.text.Text t) { entityData.set(DATA_TEXT, t); }
 
+        public org.domi.furnace.api.text.Text text() { return (org.domi.furnace.api.text.Text) entityData.get(DATA_TEXT); }
+
+        public byte flags() { return ((Number) entityData.get(DATA_FLAGS)).byteValue(); }
+
+        public void setFlags(byte f) { entityData.set(DATA_FLAGS, f); }
+
+        public void setLineWidth(int w) { entityData.set(DATA_LINE_WIDTH, w); }
+
+        public void setBackground(int argb) { entityData.set(DATA_BACKGROUND, argb); }
+
+        public void setTextOpacity(byte o) { entityData.set(DATA_TEXT_OPACITY, o); }
+
+        private static final String[] ALIGNMENTS = {"center", "left", "right"};
+
+        private static String alignmentOf(byte flags) {
+            if ((flags & FLAG_ALIGN_LEFT) != 0) return "left";
+            return (flags & FLAG_ALIGN_RIGHT) != 0 ? "right" : "center";
+        }
+
         @Override
         protected void addAdditionalSaveData(NbtCompound tag) {
             super.addAdditionalSaveData(tag);
+            tag.putString("text", text().toJson());
             tag.putInt("line_width", (Integer) entityData.get(DATA_LINE_WIDTH));
             tag.putInt("background", (Integer) entityData.get(DATA_BACKGROUND));
             tag.putByte("text_opacity", ((Number) entityData.get(DATA_TEXT_OPACITY)).byteValue());
+            byte f = flags();
+            if ((f & FLAG_SHADOW) != 0) tag.putBoolean("shadow", true);
+            if ((f & FLAG_SEE_THROUGH) != 0) tag.putBoolean("see_through", true);
+            if ((f & FLAG_USE_DEFAULT_BACKGROUND) != 0) tag.putBoolean("default_background", true);
+            tag.putString("alignment", alignmentOf(f));
         }
 
         @Override
         protected void readAdditionalSaveData(NbtCompound tag) {
             super.readAdditionalSaveData(tag);
             if (tag.containsNumber("line_width")) entityData.set(DATA_LINE_WIDTH, tag.getIntOr0("line_width"));
-            if (tag.containsNumber("background")) entityData.set(DATA_BACKGROUND, tag.getIntOr0("background"));
             if (tag.containsNumber("text_opacity")) entityData.set(DATA_TEXT_OPACITY, (byte) tag.getIntOr0("text_opacity"));
+            if (tag.containsNumber("background")) entityData.set(DATA_BACKGROUND, tag.getIntOr0("background"));
+            // 바닐라: 플래그를 0 에서 다시 쌓는다(NBT 에 없는 비트는 꺼진다).
+            byte f = 0;
+            if (tag.getBoolean("shadow")) f |= FLAG_SHADOW;
+            if (tag.getBoolean("see_through")) f |= FLAG_SEE_THROUGH;
+            if (tag.getBoolean("default_background")) f |= FLAG_USE_DEFAULT_BACKGROUND;
+            if (tag.tags().get("alignment") instanceof String a) {
+                if (ALIGNMENTS[1].equals(a)) f |= FLAG_ALIGN_LEFT;
+                else if (ALIGNMENTS[2].equals(a)) f |= FLAG_ALIGN_RIGHT;
+            }
+            setFlags(f);
+            if (tag.tags().get("text") instanceof String json) {
+                org.domi.furnace.api.text.Text parsed = null;
+                try {
+                    parsed = org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize(json);
+                } catch (RuntimeException e) {
+                    // 아래에서 빈 텍스트로
+                }
+                if (parsed == null) {
+                    LOG.warn("Failed to parse display entity text {}", json);
+                    parsed = org.domi.furnace.api.text.Text.empty();
+                }
+                setText(parsed);
+            }
         }
     }
 }

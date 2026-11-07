@@ -2539,6 +2539,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             }
         } else if (e instanceof org.domi.furnace.server.entity.HangingEntity hanging) {
             if (action == 0) hanging.interact(p, hand);
+        } else if (e instanceof org.domi.furnace.server.entity.Interaction box) {
+            if (action == 0 && box.interact(p)) interactedWith(p, heldBefore, e);   // 서버 결과 CONSUME: 소비한 상호작용
         } else if (e instanceof org.domi.furnace.server.entity.ArmorStand stand) {
             if (action == 2) stand.interactAt(p, hitY, hand);
             else if (action == 0) {   // Player.interactOn: Entity.interact 가 PASS 면 아이템의 interactLivingEntity(이름표)
