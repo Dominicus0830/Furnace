@@ -22,6 +22,14 @@ val realWorld by configurations.creating {
     isTransitive = false
 }
 
+// H5: NMS·CraftBukkit 을 직접 쓰는 jar 표본(호출 빈도 조사용). 기준표 시험에는 넣지 않는다(realWorld 와 별개) — nmsReport 에만 붙는다.
+// commandapi-bukkit-plugin-mojang-mapped 는 Mojang 이름 쪽, commandapi-bukkit-plugin·scoreboard-library 구현은 버전별 Spigot 난독화 이름 쪽 표본이다.
+val nmsSurvey by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+    isTransitive = false
+}
+
 // 경로 목록은 태스크 실행 때 푼다 — 설정 단계에서 풀면 다른 모듈의 시험(:furnace-server:test)도 jar 13개를 받으려 든다.
 class RealWorldJars(@get:InputFiles @get:PathSensitive(PathSensitivity.NONE) val jars: FileCollection) : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String> =
@@ -57,6 +65,13 @@ dependencies {
     realWorld("net.kyori:adventure-platform-bukkit:4.4.1")
     realWorld("fr.mrmicky:fastboard:2.2.2")
     realWorld("dev.dejvokep:boosted-yaml:1.3.8")
+
+    nmsSurvey("dev.jorel:commandapi-bukkit-plugin-mojang-mapped:10.1.2")
+    nmsSurvey("de.rapha149.signgui:signgui:2.5.4")
+    nmsSurvey("fr.skytasul:glowingentities:2.0.2")
+    nmsSurvey("com.github.fierioziy.particlenativeapi:ParticleNativeAPI-core:4.5.1")
+    nmsSurvey("xyz.jpenilla:reflection-remapper:0.1.3")
+    nmsSurvey("net.megavex:scoreboard-library-implementation:2.8.3")
 }
 
 tasks.test {
@@ -102,4 +117,19 @@ tasks.register<JavaExec>("liveProbe") {
     mainClass.set("org.domi.furnace.compat.realworld.LiveProbeMain")
     args(providers.gradleProperty("jar").orElse("helper").get())
     jvmArgumentProviders.add(RealWorldJars(realWorld + extraJars))
+}
+
+// H5: NMS·CraftBukkit 호출 빈도 표(docs/feature-parity/compat-h5-nms-calls-2026-11-07.md)를 다시 만든다.
+// 표본 = realWorld 13개 + nmsSurvey. 추가 jar(-PextraJars)를 주면 저장소 문서는 건드리지 않고 build/compat-h5-extra-report.md 에 쓴다.
+tasks.register<JavaExec>("nmsReport") {
+    group = "verification"
+    description = "실제 jar 의 net.minecraft·CraftBukkit 참조 빈도·이름 체계·리플렉션 표를 만든다(H5)"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("org.domi.furnace.compat.realworld.NmsReport")
+    if (withExtras) {
+        args(layout.buildDirectory.file("compat-h5-extra-report.md").get().asFile.absolutePath)
+    } else {
+        args(rootProject.layout.projectDirectory.file("docs/feature-parity/compat-h5-nms-calls-2026-11-07.md").asFile.absolutePath)
+    }
+    jvmArgumentProviders.add(RealWorldJars(realWorld + nmsSurvey + extraJars))
 }

@@ -32,6 +32,8 @@ public final class ClassRefs {
     public final Set<Member> members = new LinkedHashSet<>();
     /** 이 클래스가 직접 선언한 필드(이름+서술자)와 메서드(이름+서술자). 자기 클래스를 owner 로 쓴 호출을 상위 API 로 귀속하는 데 쓴다. */
     public final Set<String> declared = new LinkedHashSet<>();
+    /** 상수 풀의 문자열 리터럴(H5: 리플렉션으로 NMS·CraftBukkit 이름을 문자열로 만드는 코드를 찾는다). */
+    public final Set<String> strings = new LinkedHashSet<>();
 
     private ClassRefs(String name, String superName) {
         this.name = name;
@@ -95,6 +97,7 @@ public final class ClassRefs {
         for (int i = 1; i < count; i++) {
             switch (tag[i]) {
                 case 7 -> r.addClass(utf[a[i]]);
+                case 8 -> r.strings.add(utf[a[i]]);
                 case 9, 10, 11 -> {
                     String owner = utf[a[a[i]]];
                     int nt = b[i];
