@@ -1,6 +1,6 @@
 // 바닐라 Sniffer: 냄새를 맡고 땅을 파 씨앗을 찾는 동물(IDLING → SNIFFING → SEARCHING → DIGGING → RISING). 번식하면 알 아이템을 떨군다.
-// TODO(길찾기 훅): 걷는 길찾기가 onPathfindingStart/Done 을 부르지 않아 물 비용 전환은 아직 안 먹는다(부르면 GolemTest 가 깨졌다 — 원인 조사 필요).
-// TODO(연출): 파는 입자·소리(클라이언트)와 게임 이벤트, 파는 자세 몸 크기, 발소리·끈·탑승은 아직 없다.
+// 길찾기 앞뒤 훅(onPathfindingStart/Done)으로 불붙었거나 물속이면 물 비용을 0 으로 풀었다가 되돌린다. 파는 동안 몸 높이 -0.4(눈 0.81).
+// 파는 입자·찾는 소리는 바닐라도 클라이언트(애니메이션 시간)에서만 나서 서버는 10틱마다 entity_action 게임 이벤트만 낸다.
 package org.domi.furnace.server.entity;
 
 import java.util.ArrayList;
@@ -108,8 +108,24 @@ public class Sniffer extends Animal {
 
     private Sniffer setState(State state) {
         entityData.set(DATA_STATE, state.id());
+        refreshBabyDimensions();   // onSyncedDataUpdated(DATA_STATE) → refreshDimensions
         return this;
     }
+
+    /** Sniffer.getDefaultDimensions: 파는 중이면 scalable(1.9, 1.75 - 0.4).withEyeHeight(0.81) × 나이 배율. */
+    @Override
+    protected void refreshBabyDimensions() {
+        if (getState() == State.DIGGING) {
+            float s = getAgeScale();
+            setDimensions(EntityType.SNIFFER.width() * s, (EntityType.SNIFFER.height() - 0.4F) * s, 0.81F * s);
+        } else {
+            super.refreshBabyDimensions();
+        }
+    }
+
+    /** Sniffer.playStepSound. */
+    @Override
+    protected void playStepSound(Pos pos, int state) { playSound("entity.sniffer.step", 0.15F, 1.0F); }
 
     @Override
     public void tick() {
@@ -184,7 +200,8 @@ public class Sniffer extends Animal {
         if ((Integer) entityData.get(DATA_DROP_SEED_AT_TICK) == tickCount) {
             double[] head = getHeadPosition();
             Pos headBlock = getHeadBlock();
-            for (ItemStack s : level.entityDrops("minecraft:gameplay/sniffer_digging", lootEntity(), head[0], head[1], head[2], "generic", null, null, 0L)) {
+            // 표 gameplay/sniffer_digging(origin=머리 위치, this_entity=나, 선물 매개변수 묶음)
+            for (ItemStack s : level.giftLoot("minecraft:gameplay/sniffer_digging", lootEntity(), head[0], head[1], head[2])) {
                 ItemEntity item = new ItemEntity(level, level.nextEntityId(), headBlock.x(), headBlock.y(), headBlock.z(), s);
                 item.setDefaultPickUpDelay();
                 level.addFreshEntity(item);

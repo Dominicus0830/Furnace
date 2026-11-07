@@ -1,5 +1,4 @@
 // 바닐라 IronGolem: 마을을 지키는 철 골렘(체력 100, 공격력 15, 넉백 저항 1). 적대 몹과 화난 대상을 공격하고, 때리면 상대를 공중으로 띄운다. 철 주괴로 25 회복.
-// TODO: 밀치기(doPush: 적대 몹 1/20 확률로 공격 대상).
 package org.domi.furnace.server.entity;
 
 import java.util.UUID;
@@ -62,6 +61,13 @@ public class IronGolem extends AbstractGolem implements NeutralMob {
         targetSelector.addGoal(3, new NearestAttackableTargetGoal(this, Player.class, 10, true, false, this::isAngryAt));
         targetSelector.addGoal(3, new NearestAttackableTargetGoal(this, Mob.class, 5, false, false, t -> t instanceof Enemy && !(t instanceof Creeper)));
         targetSelector.addGoal(4, new ResetUniversalAngerTargetGoal<>(this, false));
+    }
+
+    /** IronGolem.doPush(cfq): 민 대상이 크리퍼가 아닌 적대 몹이면 1/20 확률로 공격 대상으로 삼는다. */
+    @Override
+    protected void doPush(Entity e) {
+        if (e instanceof Enemy && !(e instanceof Creeper) && random.nextInt(20) == 0) setTarget((LivingEntity) e);
+        super.doPush(e);
     }
 
     @Override

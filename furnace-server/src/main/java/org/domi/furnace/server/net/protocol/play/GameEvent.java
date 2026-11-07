@@ -17,6 +17,7 @@ public record GameEvent(int event, float value) implements Packet {
     public static final int STOP_RAINING = 2;
     public static final int RAIN_LEVEL_CHANGE = 7;
     public static final int THUNDER_LEVEL_CHANGE = 8;
+    public static final int PUFFER_FISH_STING = 9;
     public static final int ELDER_GUARDIAN_EFFECT = 10;
     public static final int IMMEDIATE_RESPAWN = 11;
     public static final int LIMITED_CRAFTING = 12;

@@ -81,6 +81,19 @@ public class Spider extends Monster {
 
     @Override
     public void finalizeSpawn(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty) {
+        spiderFinalizeSpawn(r, difficulty, null);
+    }
+
+    @Override
+    public Object finalizeSpawnGroup(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty, Object group) {
+        return spiderFinalizeSpawn(r, difficulty, group);
+    }
+
+    /**
+     * Spider.finalizeSpawn(cko): Mob 기본 → 해골 기수(1%) → 무리 데이터가 없으면 새 SpiderEffectsGroupData 를 만들고 어려움이면
+     * 10% × 지역 난이도로 효과를 고른다 → 무리 데이터의 효과를 무한 시간으로 건다. 같은 무리(자연 스폰 한 묶음)는 처음 거미가 고른 효과를 함께 받는다.
+     */
+    private Object spiderFinalizeSpawn(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty, Object group) {
         super.finalizeSpawn(r, difficulty);
         org.domi.furnace.server.block.RandomSource lr = level.random();
         if (lr.nextInt(100) == 0) {   // 해골 기수: 레벨에 넣지 않고 태운다 — 부른 쪽이 승객째 넣는다
@@ -89,11 +102,26 @@ public class Spider extends Monster {
             s.finalizeSpawn(lr, difficulty);
             s.startRiding(this);
         }
-        // 첫 번째 거미(무리가 없을 때)만: 어려움이면 10% × 지역 난이도로 효과 부여 (그룹 데이터 미구현이라 항상 처음 거미로 본다)
-        if (level.difficulty() == 3 && lr.nextFloat() < 0.1F * difficulty.specialMultiplier()) {
-            int i = lr.nextInt(5);
-            MobEffect eff = i <= 1 ? MobEffect.SPEED : i <= 2 ? MobEffect.STRENGTH : i <= 3 ? MobEffect.REGENERATION : MobEffect.INVISIBILITY;
-            addEffect(new MobEffectInstance(eff, MobEffectInstance.INFINITE_DURATION, 0));
+        if (group == null) {
+            EffectsGroupData g = new EffectsGroupData();
+            if (level.difficulty() == 3 && lr.nextFloat() < 0.1F * difficulty.specialMultiplier()) g.setRandomEffect(lr);
+            group = g;
+        }
+        if (group instanceof EffectsGroupData g && g.effect != null) addEffect(new MobEffectInstance(g.effect, MobEffectInstance.INFINITE_DURATION, 0));
+        return group;
+    }
+
+    /** Spider.SpiderEffectsGroupData: 무리가 함께 받을 효과(없으면 null). */
+    public static final class EffectsGroupData {
+        public MobEffect effect;
+
+        /** setRandomEffect: nextInt(5) — 0·1 신속, 2 힘, 3 재생, 4 투명. */
+        public void setRandomEffect(org.domi.furnace.server.block.RandomSource r) {
+            int i = r.nextInt(5);
+            if (i <= 1) effect = MobEffect.SPEED;
+            else if (i <= 2) effect = MobEffect.STRENGTH;
+            else if (i <= 3) effect = MobEffect.REGENERATION;
+            else if (i <= 4) effect = MobEffect.INVISIBILITY;
         }
     }
 

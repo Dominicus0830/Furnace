@@ -177,6 +177,16 @@ public class Llama extends AbstractChestedHorse implements RangedAttackMob {
         return used;
     }
 
+    /** Llama.causeFallDamage: 착지 소리 없이, 피해가 있어도 6칸 이상 떨어졌을 때만 나와 승객이 다친다. */
+    @Override
+    public boolean causeFallDamage(float distance, float multiplier, Damage source) {
+        int dmg = calculateFallDamage(distance, multiplier);
+        if (dmg <= 0) return false;
+        if (distance >= 6.0F) hurtWithPassengers(source, dmg);
+        // TODO(소리): playBlockFallSound
+        return true;
+    }
+
     @Override
     public boolean isImmobile() { return health() <= 0.0F || isEating(); }
 
@@ -202,6 +212,10 @@ public class Llama extends AbstractChestedHorse implements RangedAttackMob {
     @Override protected String getDeathSound() { return "entity.llama.death"; }
 
     @Override protected String getEatingSound() { return "entity.llama.eat"; }
+
+    /** Llama.playStepSound. */
+    @Override
+    protected void playStepSound(org.domi.furnace.server.block.Pos pos, int state) { playSound("entity.llama.step", 0.15F, 1.0F); }
 
     @Override
     protected void playChestEquipsSound() { playSound("entity.llama.chest", 1.0F, (random.nextFloat() - random.nextFloat()) * 0.2F + 1.0F); }
