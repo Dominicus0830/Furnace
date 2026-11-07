@@ -125,6 +125,9 @@ public interface Furnace {
     /** 실제 엔티티·플레이어의 플레이어별 보이기·숨기기와 변장. */
     default org.domi.furnace.api.entity.EntityViews entityViews() { throw new UnsupportedOperationException("entityViews"); }
 
+    /** 플레이어별 화면 덮어쓰기 — 가상 블록·바이옴 층, 월드 보더, 장비 표시. */
+    default org.domi.furnace.api.view.PlayerViews playerViews() { throw new UnsupportedOperationException("playerViews"); }
+
     PermissionManager permissions();
 
     PluginManager plugins();

@@ -540,6 +540,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             if (dropIfOutOfOrder()) return;
             msg = msg.withUnsignedContent(msg.decoratedContent()); // 채팅 꾸밈(decorator)은 없다
             var events = core.events();
+            org.domi.furnace.api.event.player.ChatRenderer renderer = null;
             if (events.hasSubscribers(org.domi.furnace.api.event.player.AsyncChatEvent.class)) {
                 Text original = msg.decoratedContent();
                 var ev = events.call(new org.domi.furnace.api.event.player.AsyncChatEvent(core.plugins().player(p), message, original,
@@ -549,9 +550,15 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     return;
                 }
                 if (!ev.message().equals(original)) msg = msg.withUnsignedContent(ev.message());
+                renderer = ev.renderer();
             }
             var bound = org.domi.furnace.server.chat.ChatType.CHAT.bind(
                     org.domi.furnace.server.command.CommandSource.player(core, p).getDisplayName());
+            if (renderer != null) {
+                core.broadcastRenderedChat(p, bound.name(), msg.decoratedContent(), renderer);
+                detectRateSpam();
+                return;
+            }
             if (org.domi.furnace.server.config.OperatorOptions.current().unsignedChatAsSystem()) core.broadcastChatAsSystem(msg, bound);
             else core.broadcastChatMessage(msg, p, bound);
             detectRateSpam();
@@ -1147,6 +1154,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
         dimIndex = Math.max(0, registries().indexOf("minecraft:dimension_type", world.dimensionType().typeKey()));
         Player p = new Player(eid, playerUuid, playerName, ctx.channel());
+        this.joining = p;
         if (login.core != null) login.core.plugins().packetsImpl().attach(p);   // 플러그인 패킷 리스너 — 첫 play 패킷(login)부터
         p.clientBrand(clientBrand);   // 바닐라 클라이언트는 brand 를 구성 단계에서 보낸다 — Player 가 생기기 전이라 여기서 넘긴다
         p.pluginChannels(pluginChannels);
@@ -4070,15 +4078,37 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 응답 패킷 전송: [VarInt id][body] 프레임으로 인코딩 → FrameEncoder가 길이 prefix. */
     void send(ChannelHandlerContext ctx, Packet packet) {
+        // 이 연결에 직접 쓰는 패킷(접속 직후 스폰 청크·차원 이동·보더 초기화 …)도 플레이어별 층(가상 블록·바이옴·개인 보더·변장)을 거친다 —
+        // Player.send 로 나가는 것과 같은 ViewRewriter 이고, 차원 이름도 여기서 LoginPlay·Respawn 을 지나며 알게 된다.
+        Player view = player != null ? player : joining;
+        if (view != null) {
+            Object out = view.viewRewriter().rewrite(view, packet);
+            if (out != packet) {
+                if (out instanceof Packet[] many) {
+                    for (Packet one : many) write(ctx, one);
+                } else if (out instanceof Packet one) {
+                    write(ctx, one);
+                }
+                scheduleFlush(ctx);
+                return;
+            }
+        }
+        write(ctx, packet);
+        scheduleFlush(ctx);
+    }
+
+    private void write(ChannelHandlerContext ctx, Packet packet) {
         Object msg = org.domi.furnace.server.net.io.SharedChunkFrames.encode(ctx.channel(), packet);
         if (msg == null) return;   // 플러그인 패킷 리스너가 취소
         ctx.write(msg);
-        scheduleFlush(ctx);
     }
 
     // 같은 이벤트 루프 순간에 쌓인 패킷(접속 직후 스폰 청크 수백 개 등)은 시스템 호출 한 번으로 내보낸다.
     // 쓰기 순서는 그대로고, 플래그는 이벤트 루프 스레드에서만 만진다(Player.send 와 같은 방식).
     private boolean flushPending;
+
+    /** 접속 처리 중인(아직 player 에 넣기 전) 플레이어 — LoginPlay 가 나갈 때부터 ViewRewriter 가 차원을 알게 한다. */
+    private Player joining;
 
     private void scheduleFlush(ChannelHandlerContext ctx) {
         if (flushPending) return;

@@ -1023,3 +1023,14 @@
 - 두뇌 틱 도중(행동·센서 콜백 안) 센서·행동 넣기·빼기는 틱 끝으로 미룬다(E1 GoalSelector 와 같은 방식).
 - 함정: 플러그인 설명 파일 `commands:` 를 `{description: …}` 흐름 형식으로 쓸 때 설명에 `(`·`[` 가 들어가면 ConfigParseException 으로 플러그인이 안 뜬다 — 블록 형식 + 따옴표로.
 - 시험: `MobBrainApiTest` 18개, `MobAiHandleTest` 주민 두뇌 1건 추가, 봇 `tools/bot-test/round13/brain.js` 12/12.
+
+## 2026-11-07 플레이어별 가상 블록·바이옴·보더·장비·채팅 서식 (묶음 K3, 불만 표 52~54행)
+- API `Furnace.playerViews()` → `PlayerViews`(+`PlayerBorder`), `AsyncChatEvent.renderer(ChatRenderer)`. 설계·규칙 `docs/api/player-views.md`.
+- 핵심(52행): 서버 `Player` 마다 `ViewLayers`(블록·바이옴 층, 장비 덮어쓰기, 개인 `WorldBorder`)를 두고, 나가는 청크 본문·`block_update`·`section_blocks_update`·`chunks_biomes`·`set_equipment`·보더 패킷에 연결의 `ViewRewriter` 가 덧입힌다. 청크를 다시 받아도(멀리 갔다 옴) 층이 남는다 — 봇으로 확인.
+- 함정 ①: `ConnectionHandler.send(ctx, …)` 는 `Player.send` 를 거치지 않아 K2 의 `ViewRewriter` 를 못 지났다(스폰 청크·차원 이동·`LoginPlay`/`Respawn` 이 그 길이라 차원 이름도 몰랐다). 이제 이 길도 같은 `ViewRewriter` 를 거친다(`joining` 필드로 접속 도중의 Player).
+- 함정 ②: 청크 본문 다시 쓰기는 덮을 칸이 있는 섹션만 풀어 다시 인코딩하고 나머지는 바이트 복사한다. 직접 팰릿 비트 수(`World.blockDirectBits/biomeDirectBits`)를 층이 처음 걸릴 때 월드에서 읽어 둔다. 비공기 수(`nonAirCount`)를 다시 세지 않으면 클라이언트가 섹션을 빈 것으로 건너뛴다.
+- 함정 ③: 공유 청크 프레임(`SharedChunkFrames`)은 본문 `byte[]` 동일성이 키다 — 덧입힌 본문은 `shared=null` 로 만들어 그 사람에게만 압축한다(다른 사람의 캐시를 더럽히지 않는다).
+- 개인 보더는 `WorldBorder` 인스턴스 하나를 접속에 붙인다. 서버의 `InitializeBorder` 는 개인 보더 상태로 바꿔 보내고 다른 `SetBorder*` 는 버린다. `enforce` 면 `ServerCore.mayInteract`·`Env.borderDamage(Player, …)` 가 이 보더를 쓴다.
+- 채팅 렌더러는 서명 없는 시스템 메시지(`unsigned-as-system` 과 같은 길)로 받는 사람마다 한 줄씩 보낸다.
+- 시험: `PlayerLayersTest` 12(청크 본문 다시 쓰기·소유권·재전송·차원·보더·장비), `PlayerViewsApiTest` 6, `CancelResyncE2ETest.chatRendererBuildsOneUnsignedLinePerViewer`, 봇 `tools/bot-test/round15/k3.js` 21/21(`round15/probe/K3Probe`).
+
