@@ -10,7 +10,6 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -172,7 +171,10 @@ public final class PaperConfigImport {
                 docs.put(label, org.domi.furnace.api.config.Config.load(path).root());
                 filesRead.add(label);
             } catch (IOException | RuntimeException e) {
-                filesFailed.put(label, e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+                // 문법 오류 메시지는 문제 줄 원문을 담는데 그 줄이 비밀키일 수 있다 — 줄·칸 번호와 설명만 남긴다.
+                filesFailed.put(label, e instanceof org.domi.furnace.api.config.ConfigParseException pe
+                        ? pe.detail() + " (줄 " + pe.line() + ", 칸 " + pe.column() + ")"
+                        : e.getClass().getSimpleName());
             }
         }
 
@@ -195,8 +197,9 @@ public final class PaperConfigImport {
         }
 
         static Long asLong(Object v) {
-            if (v instanceof Number n && !(v instanceof Double) && !(v instanceof Float)) return n.longValue();
-            if (v instanceof Number n && n.doubleValue() == Math.rint(n.doubleValue())) return n.longValue();
+            if (v instanceof Long || v instanceof Integer || v instanceof Short || v instanceof Byte) return ((Number) v).longValue();
+            if ((v instanceof Double || v instanceof Float) && ((Number) v).doubleValue() == Math.rint(((Number) v).doubleValue())
+                    && Math.abs(((Number) v).doubleValue()) < 9e18) return ((Number) v).longValue();
             if (v instanceof String s) {
                 try {
                     return Long.parseLong(s.strip());
@@ -300,8 +303,13 @@ public final class PaperConfigImport {
             Boolean proxyProtocol = asBool(val(PAPER_GLOBAL, "proxies.proxy-protocol"));
             Object bungeeOnline = val(PAPER_GLOBAL, "proxies.bungee-cord.online-mode");
 
+            boolean velocityWanted = Boolean.TRUE.equals(velEnabled) && !secret.isEmpty();
+            boolean existingBungee = "true".equalsIgnoreCase(existing.getProperty("bungeecord", "false").strip());
             if (Boolean.TRUE.equals(velEnabled)) {
-                if (secret.isEmpty()) {
+                if (!secret.isEmpty() && existingBungee) {
+                    manual(PAPER_GLOBAL, "proxies.velocity.secret", secretRaw, "velocity-secret",
+                            "furnace.properties 에 bungeecord=true 가 이미 있다 — Velocity 와 함께 켜면 기동이 실패해 옮기지 않았다. 쓰려면 bungeecord 를 지우고 velocity-secret 을 넣어라");
+                } else if (secret.isEmpty()) {
                     manual(PAPER_GLOBAL, "proxies.velocity.secret", secretRaw, "velocity-secret",
                             "Velocity 를 켰는데 secret 이 비어 있다 — 프록시의 forwarding.secret 과 같은 값을 velocity-secret 에 넣어라");
                 } else {
@@ -314,7 +322,7 @@ public final class PaperConfigImport {
 
             if (Boolean.TRUE.equals(bungee)) {
                 String curSecret = existing.getProperty("velocity-secret", "").strip();
-                boolean velocityActive = !curSecret.isEmpty() || toWrite.containsKey("velocity-secret");
+                boolean velocityActive = !curSecret.isEmpty() || toWrite.containsKey("velocity-secret") || velocityWanted;
                 if (velocityActive) {
                     manual(SPIGOT, "settings.bungeecord", true, "bungeecord",
                             "Velocity 와 BungeeCord 포워딩은 함께 켤 수 없다(켜면 기동 실패) — Velocity 를 남기고 bungeecord 는 옮기지 않았다");
@@ -334,8 +342,14 @@ public final class PaperConfigImport {
             }
 
             if (bungeeOnline != null) {
-                manual(PAPER_GLOBAL, "proxies.bungee-cord.online-mode", bungeeOnline, "server.properties online-mode",
-                        "프록시 뒤에서는 server.properties 의 online-mode=false 여야 한다(프록시가 인증한다). Furnace 는 server.properties 를 그대로 읽는다");
+                boolean behindProxy = toWrite.containsKey("bungeecord") || toWrite.containsKey("velocity-secret") || existingBungee
+                        || !existing.getProperty("velocity-secret", "").isBlank();
+                if (behindProxy) {
+                    manual(PAPER_GLOBAL, "proxies.bungee-cord.online-mode", bungeeOnline, "server.properties online-mode",
+                            "프록시 뒤에서는 server.properties 의 online-mode=false 여야 한다(프록시가 인증한다). Furnace 는 server.properties 를 그대로 읽는다");
+                } else {
+                    ignored(PAPER_GLOBAL, "proxies.bungee-cord.online-mode", bungeeOnline, "프록시(BungeeCord/Velocity)를 쓰지 않아 해당 없다");
+                }
             }
         }
 
@@ -374,7 +388,7 @@ public final class PaperConfigImport {
             Long ticks = durationTicks(raw);
             if (ticks == null || ticks < 1 || ticks > Integer.MAX_VALUE) {
                 manual(PAPER_WORLD, "chunks.delay-chunk-unloads-by", raw, "chunk-eviction-grace-ticks",
-                        "시간 표기를 읽지 못했다 — 틱 수로 직접 넣어라(1초 = 20틱)");
+                        "시간 표기를 읽지 못했다(숫자만 또는 10s·2m·1h·1d 만 읽는다) — 틱 수로 직접 넣어라(1초 = 20틱)");
             } else if (ticks == PAPER_DEFAULT_UNLOAD_DELAY_TICKS) {
                 keptDefault(PAPER_WORLD, "chunks.delay-chunk-unloads-by", raw, "chunk-eviction-grace-ticks", "200",
                         "Paper 기본(10s)과 같다 — Furnace 는 기본 100틱(5초)을 쓴다. Paper 와 같게 하려면 이 줄을 넣어라");
@@ -440,7 +454,9 @@ public final class PaperConfigImport {
             Object timeout = val(SPIGOT, "settings.timeout-time");
             if (timeout != null) {
                 Long s = asLong(timeout);
-                manual(SPIGOT, "settings.timeout-time", timeout, s == null ? "server.properties max-tick-time" : "server.properties max-tick-time=" + s * 1000,
+                if (s != null && s == 60) {
+                    keptDefault(SPIGOT, "settings.timeout-time", timeout, "max-tick-time(server.properties)", "60000", "Spigot 기본(60초)과 같다 — 바닐라 max-tick-time 기본도 60000ms 다");
+                } else manual(SPIGOT, "settings.timeout-time", timeout, s == null ? "server.properties max-tick-time" : "server.properties max-tick-time=" + s * 1000,
                         "서버가 멈췄다고 보는 시간(워치독). 바닐라 키 max-tick-time(밀리초)이 같은 역할이다");
             }
             group(Kind.MANUAL, PAPER_GLOBAL, "watchdog", "server.properties max-tick-time",
@@ -448,13 +464,17 @@ public final class PaperConfigImport {
             Object sendRate = val(PAPER_GLOBAL, "chunk-loading-basic.player-max-chunk-send-rate");
             if (sendRate != null) {
                 Long r = asLong(sendRate);
+                if (sendRate instanceof Number nn && nn.doubleValue() == 75.0) {
+                    keptDefault(PAPER_GLOBAL, "chunk-loading-basic.player-max-chunk-send-rate", sendRate, "chunks-per-tick", "16", "Paper 기본(75.0)과 같다 — Furnace 는 기본 chunks-per-tick=16 을 쓴다");
+                } else {
                 String hint = r != null && r > 0 ? "chunks-per-tick=" + Math.max(1, Math.round(r / 20.0)) : "chunks-per-tick";
                 manual(PAPER_GLOBAL, "chunk-loading-basic.player-max-chunk-send-rate", sendRate, hint,
                         "Paper 는 초당, Furnace chunks-per-tick 은 틱당 청크 수(≈ 값 ÷ 20). 새 땅은 월드 생성 속도가 더 큰 제한이라 자동 변환하지 않는다");
+                }
             }
             group(Kind.MANUAL, PAPER_GLOBAL, "packet-limiter", "connection.<단계>.packets-per-second / packets-burst",
                     "Furnace 는 접속 단계별(handshake·status·login·configuration·play) 패킷 속도·크기 한도를 가진다(connection-defenses-2026-11-06.md). 단위·판정이 달라 자동 변환하지 않는다");
-            group(Kind.MANUAL, PAPER_GLOBAL, "spam-limiter", "", "채팅 도배 킥은 바닐라 규칙 고정이다(Furnace 에 조절 키 없음)");
+            unsupported(PAPER_GLOBAL, "spam-limiter", "탭 완성·레시피 패킷 도배 제한 — Furnace 에는 대응이 없다(접속 단계별 패킷 속도 한도 connection.play.* 가 비슷한 방어를 한다)");
             group(Kind.MANUAL, BUKKIT, "chunk-gc", "chunk-eviction-grace-ticks", "청크 내리기는 유예 시간 하나로 조절한다(Bukkit 의 주기·기준 방식이 아님)");
             Object container = val(BUKKIT, "settings.world-container");
             if (container != null) {
@@ -567,32 +587,27 @@ public final class PaperConfigImport {
 
     // ------------------------------------------------------------------ 값 도우미
 
-    private static final Pattern DURATION_PART = Pattern.compile("(\\d+)\\s*(ms|s|m|h|d)");
+    private static final Pattern DURATION = Pattern.compile("(\\d{1,12})\\s*([smhd]?)");
 
-    /** "10s" "500ms" "1m 30s" 같은 표기(숫자만 있으면 초)를 틱(올림)으로. 읽지 못하면 null. */
+    /**
+     * Paper 의 시간 표기 중 해석이 확실한 것만 읽는다: 숫자만(초) 또는 숫자 + s·m·h·d 하나("10s", "2m"). 틱(올림)으로.
+     * "500ms"·"1m 30s" 같은 복합·밀리초 표기는 Paper 가 다르게 읽는다고 알려져 있어(확실하지 않음) 읽지 않고 null 을 돌려준다.
+     */
     static Long durationTicks(Object raw) {
-        if (raw instanceof Number n && !(raw instanceof Double) && !(raw instanceof Float)) return Math.ceilDiv(n.longValue() * 1000, 50);
-        if (!(raw instanceof String s)) return null;
-        String t = s.strip().toLowerCase(Locale.ROOT);
-        if (t.isEmpty()) return null;
-        if (t.matches("\\d+")) return Math.ceilDiv(Long.parseLong(t) * 1000, 50);
-        Matcher m = DURATION_PART.matcher(t);
-        long ms = 0;
-        int end = 0;
-        while (m.find()) {
-            if (!t.substring(end, m.start()).isBlank()) return null;
-            long n = Long.parseLong(m.group(1));
-            ms += switch (m.group(2)) {
-                case "ms" -> n;
-                case "s" -> n * 1000;
-                case "m" -> n * 60_000;
-                case "h" -> n * 3_600_000;
-                default -> n * 86_400_000;
-            };
-            end = m.end();
-        }
-        if (end == 0 || !t.substring(end).isBlank()) return null;
-        return Math.ceilDiv(ms, 50);
+        String t;
+        if (raw instanceof Integer || raw instanceof Long) t = String.valueOf(raw);
+        else if (raw instanceof String s) t = s.strip().toLowerCase(Locale.ROOT);
+        else return null;
+        Matcher m = DURATION.matcher(t);
+        if (!m.matches()) return null;
+        long n = Long.parseLong(m.group(1));
+        long sec = switch (m.group(2)) {
+            case "m" -> n * 60;
+            case "h" -> n * 3600;
+            case "d" -> n * 86400;
+            default -> n;
+        };
+        return Math.ceilDiv(sec * 1000, 50);
     }
 
     private static boolean isSecret(String key) {
@@ -622,17 +637,9 @@ public final class PaperConfigImport {
         for (var e : r.toWrite().entrySet()) {
             sb.append(escapeKey(e.getKey())).append('=').append(escapeValue(e.getValue())).append('\n');
         }
-        byte[] add = sb.toString().getBytes(StandardCharsets.UTF_8);
-        byte[] all = new byte[old.length + add.length];
-        System.arraycopy(old, 0, all, 0, old.length);
-        System.arraycopy(add, 0, all, old.length, add.length);
-        Path tmp = furnaceProps.resolveSibling(furnaceProps.getFileName() + ".tmp");
-        Files.write(tmp, all);
-        try {
-            Files.move(tmp, furnaceProps, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
-            Files.move(tmp, furnaceProps, StandardCopyOption.REPLACE_EXISTING);
-        }
+        // 끝에 덧붙이기만 한다 — 파일 권한·심볼릭 링크·단일 파일 바인드 마운트를 그대로 둔다(임시 파일로 바꾸면 사라진다).
+        Files.write(furnaceProps, sb.toString().getBytes(StandardCharsets.UTF_8),
+                java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
     }
 
     // Properties.load 는 ISO-8859-1 로 읽으므로 ASCII 밖은 \\uXXXX 로 쓴다.

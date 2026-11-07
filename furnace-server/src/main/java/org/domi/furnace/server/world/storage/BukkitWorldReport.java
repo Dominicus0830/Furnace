@@ -143,7 +143,8 @@ public final class BukkitWorldReport {
             try {
                 out.add(new ExtraWorld(name, BukkitWorldImport.inferCreator(dir, name, data), null));
             } catch (IllegalArgumentException e) {
-                out.add(new ExtraWorld(name, null, "월드 이름이 Furnace 규칙(영문·숫자·_ . - 1~64자)에 맞지 않는다"));
+                out.add(new ExtraWorld(name, null, e.getMessage() != null && e.getMessage().startsWith("월드 이름")
+                        ? "월드 이름이 Furnace 규칙(영문·숫자·_ . - 1~64자)에 맞지 않는다" : e.getMessage()));
             }
         }
         return out;

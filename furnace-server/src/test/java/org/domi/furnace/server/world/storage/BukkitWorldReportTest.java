@@ -95,7 +95,11 @@ class BukkitWorldReportTest {
         NbtCompound l2 = new NbtCompound();
         l2.putString("block", "minecraft:sand");
         l2.putInt("height", 3);
+        NbtCompound l0 = new NbtCompound();
+        l0.putString("block", "minecraft:stone");
+        l0.putInt("height", 0);   // 바닐라는 높이 0 층을 허용한다 — 건너뛴다
         layers.add(l1);
+        layers.add(l0);
         layers.add(l2);
         flat.putList("layers", layers);
         NbtCompound d1 = gen("minecraft:flat", "minecraft:overworld", flat, null);
@@ -106,6 +110,10 @@ class BukkitWorldReportTest {
         levelDat(universe.resolve("desert_nether"), gen("minecraft:noise", "minecraft:the_nether", null, "minecraft:nether"));
         touch(universe.resolve("big/region/r.0.0.mca"));
         levelDat(universe.resolve("big"), gen("minecraft:noise", "minecraft:overworld", null, "minecraft:large_biomes"));
+        NbtCompound badFlat = new NbtCompound();
+        badFlat.putString("biome", "Not A Biome");
+        touch(universe.resolve("brokenflat/region/r.0.0.mca"));
+        levelDat(universe.resolve("brokenflat"), gen("minecraft:flat", "minecraft:overworld", badFlat, null));
         touch(universe.resolve("sky_the_end/DIM1/region/r.0.0.mca"));
         levelDat(universe.resolve("sky_the_end"), new NbtCompound());
         // 후보가 아닌 것: 설명서가 있는 Furnace 월드, level.dat 없음, 청크 폴더 없음, 규칙에 안 맞는 이름, 서버 폴더들
@@ -122,11 +130,13 @@ class BukkitWorldReportTest {
 
         var extras = BukkitWorldReport.findExtraWorlds(universe, "world");
 
-        assertEquals(List.of("bad name", "big", "desert", "desert_nether", "sky_the_end"),
+        assertEquals(List.of("bad name", "big", "brokenflat", "desert", "desert_nether", "sky_the_end"),
                 extras.stream().map(BukkitWorldReport.ExtraWorld::name).toList());
         var byName = extras.stream().collect(java.util.stream.Collectors.toMap(BukkitWorldReport.ExtraWorld::name, e -> e));
         assertNull(byName.get("bad name").creator());
         assertTrue(byName.get("bad name").problem().contains("월드 이름"));
+        assertNull(byName.get("brokenflat").creator(), "평지 설정을 못 읽으면 기본 생성기로 대신하지 않고 올리지 않는다");
+        assertTrue(byName.get("brokenflat").problem().contains("생성기 설정을 읽지 못해"), byName.get("brokenflat").problem());
         assertEquals(WorldGenerator.LARGE_BIOMES, byName.get("big").creator().generator());
         WorldCreator desert = byName.get("desert").creator();
         assertEquals(WorldEnvironment.NORMAL, desert.environment());

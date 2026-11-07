@@ -133,10 +133,10 @@ class PaperConfigImportTest {
                 title: 8192
             packet-limiter:
               kick-message: <red><lang:disconnect.exceeded_packet_rate>
-              limits:
-                all:
-                  interval: 7.0
-                  max-packet-rate: 500.0
+              all-packets:
+                action: KICK
+                interval: 7.0
+                max-packet-rate: 500.0
             logging:
               log-player-ip-addresses: false
             watchdog:
@@ -255,6 +255,61 @@ class PaperConfigImportTest {
     }
 
     @Test
+    void doesNotAddVelocityOnTopOfExistingBungeecord(@TempDir Path dir) throws Exception {
+        write(dir, "config/paper-global.yml", "proxies:\n  velocity:\n    enabled: true\n    secret: abc\n");
+        Properties existing = new Properties();
+        existing.setProperty("bungeecord", "true");
+        Result r = run(dir, existing);
+        assertTrue(r.toWrite().isEmpty(), "함께 켜면 ConfigLoader 가 기동을 거부한다");
+        assertTrue(has(r, Kind.MANUAL, "paper-global.yml", "proxies.velocity.secret"));
+        // 실제로 쓰고 읽어 본다: 기동 가능한 상태가 유지된다
+        Path props = dir.resolve("furnace.properties");
+        Files.writeString(props, "bungeecord=true\n");
+        PaperConfigImport.analyzeAndApply(dir, props, dir.resolve(PaperConfigImport.REPORT_FILE));
+        assertTrue(ConfigLoader.load(props).bungeecord());
+    }
+
+    @Test
+    void velocityKeptEvenWhenItsKeyExistsBlankStillBlocksBungeecord(@TempDir Path dir) throws Exception {
+        write(dir, "spigot.yml", "settings:\n  bungeecord: true\n");
+        write(dir, "config/paper-global.yml", "proxies:\n  velocity:\n    enabled: true\n    secret: abc\n");
+        Properties existing = new Properties();
+        existing.setProperty("velocity-secret", "");
+        Result r = run(dir, existing);
+        assertFalse(r.toWrite().containsKey("bungeecord"), "Paper 가 Velocity 를 켰다면 BungeeCord 를 켜지 않는다");
+    }
+
+    @Test
+    void parseErrorDoesNotLeakTheOffendingLine(@TempDir Path dir) throws Exception {
+        write(dir, "config/paper-global.yml", "proxies:\n  velocity:\n    secret: TOPSECRETVALUE\n  bad: [unclosed\n");
+        Result r = run(dir, new Properties());
+        assertTrue(r.filesFailed().containsKey("paper-global.yml"));
+        assertFalse(r.filesFailed().get("paper-global.yml").contains("TOPSECRET"));
+    }
+
+    @Test
+    void appendKeepsExistingFileInPlace(@TempDir Path dir) throws Exception {
+        write(dir, "config/paper-global.yml", "chunk-system:\n  io-threads: 6\n");
+        Path real = dir.resolve("real.properties");
+        Files.writeString(real, "a=1\n");
+        Path link = dir.resolve("furnace.properties");
+        Files.createSymbolicLink(link, real);
+        PaperConfigImport.analyzeAndApply(dir, link, dir.resolve(PaperConfigImport.REPORT_FILE));
+        assertTrue(Files.isSymbolicLink(link), "심볼릭 링크를 일반 파일로 바꾸지 않는다");
+        assertTrue(Files.readString(real).contains("io-threads=6"));
+    }
+
+    @Test
+    void defaultsAreNotManualNoise(@TempDir Path dir) throws Exception {
+        write(dir, "spigot.yml", "settings:\n  timeout-time: 60\n");
+        write(dir, "config/paper-global.yml", "proxies:\n  bungee-cord:\n    online-mode: true\nchunk-loading-basic:\n  player-max-chunk-send-rate: 75.0\n");
+        Result r = run(dir, new Properties());
+        assertTrue(of(r, Kind.MANUAL).isEmpty(), of(r, Kind.MANUAL).toString());
+        assertTrue(has(r, Kind.DEFAULT, "spigot.yml", "settings.timeout-time"));
+        assertTrue(has(r, Kind.IGNORED, "paper-global.yml", "proxies.bungee-cord.online-mode"), "프록시를 안 쓰면 안내하지 않는다");
+    }
+
+    @Test
     void velocityEnabledWithEmptySecretIsManual(@TempDir Path dir) throws Exception {
         write(dir, "config/paper-global.yml", "proxies:\n  velocity:\n    enabled: true\n    secret: ''\n");
         Result r = run(dir, new Properties());
@@ -353,9 +408,9 @@ class PaperConfigImportTest {
             System.setProperty(PaperConfigImport.MODE_PROPERTY, "force");
             PaperConfigImport.runIfNeeded(dir, props);
             assertTrue(Files.exists(report));
-            long before = Files.getLastModifiedTime(report).toMillis();
+            Files.writeString(report, "OLD");
             PaperConfigImport.runIfNeeded(dir, props);   // force 는 보고서가 있어도 다시 한다
-            assertTrue(Files.getLastModifiedTime(report).toMillis() >= before);
+            assertTrue(Files.readString(report).startsWith("Furnace — Paper/Spigot"), "보고서를 다시 썼다");
         } finally {
             System.clearProperty(PaperConfigImport.MODE_PROPERTY);
         }
@@ -384,10 +439,12 @@ class PaperConfigImportTest {
     @Test
     void parsesDurations() {
         assertEquals(200L, PaperConfigImport.durationTicks("10s"));
-        assertEquals(10L, PaperConfigImport.durationTicks("500ms"));
-        assertEquals(1800L, PaperConfigImport.durationTicks("1m 30s"));
+        assertEquals(2400L, PaperConfigImport.durationTicks("2m"));
+        assertEquals(72000L, PaperConfigImport.durationTicks("1h"));
+        assertNull(PaperConfigImport.durationTicks("1m 30s"), "복합 표기는 Paper 가 다르게 읽는다 — 읽지 않는다");
+        assertNull(PaperConfigImport.durationTicks("500ms"), "밀리초 표기도 읽지 않는다");
+        assertNull(PaperConfigImport.durationTicks("99999999999999999999999s"), "너무 큰 수도 던지지 않고 null");
         assertEquals(20L, PaperConfigImport.durationTicks("1"), "숫자만 있으면 초");
-        assertEquals(1L, PaperConfigImport.durationTicks("1ms"), "올림");
         assertNull(PaperConfigImport.durationTicks("soon"));
         assertNull(PaperConfigImport.durationTicks("10 parsecs"));
         assertNull(PaperConfigImport.durationTicks(""));

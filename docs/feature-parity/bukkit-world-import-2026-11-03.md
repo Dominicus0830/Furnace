@@ -38,7 +38,7 @@ Paper 흔적(`bukkit.yml`·`spigot.yml`·`config/paper-global.yml`·`paper.yml`,
   Bukkit 의 `<이름>_nether` 는 `<이름>` 과 별개의 월드(NETHER 환경)이기 때문이다. 자동으로 올리지는 않는다: `/worlds load <이름>` 이나 `furnace.properties` 의 `worlds.autoload` 에 넣는다
   (자동으로 올리면 같은 이름으로 `createWorld` 를 부르는 플러그인과 설명서가 달라 충돌할 수 있다). 보고서가 그 줄을 보여 준다.
 - **환경·생성기 추론**: 설명서가 없는 폴더를 올릴 때 환경은 폴더 배치로, 생성기는 `level.dat` 의 `WorldGenSettings.dimensions.<차원>.generator`(`minecraft:flat` → 평지(바이옴·층 포함), `minecraft:noise` + `large_biomes`/`amplified`), 구조물은 `generate_features` 로 정한다.
-  `/worlds load` 도 같은 추론을 쓴다(전에는 설명서가 없으면 항상 NORMAL·기본 생성기라, Paper 가 만든 네더 월드가 오버월드로 올라왔다). 플러그인 생성기(`ChunkGenerator`)는 `level.dat` 에 안 남아 새 청크는 바닐라 생성기로 만든다.
+  `/worlds load` 도 같은 추론을 쓴다(전에는 설명서가 없으면 항상 NORMAL·기본 생성기라, Paper 가 만든 네더 월드가 오버월드로 올라왔다). 플러그인 생성기(`ChunkGenerator`)는 `level.dat` 에 안 남아 새 청크는 바닐라 생성기로 만든다. 평지 높이 0 층은 건너뛴다. 생성기 설정을 읽지 못하면(예: 형식이 잘못된 바이옴) 기본 생성기로 대신하지 않고 올리지 않는다(올리면 설명서가 `level.dat` 에 영구히 남아 지형이 섞인다).
 - 이름이 월드 이름 규칙(영문·숫자·`_ . -` 1~64자)에 안 맞는 폴더(예: 공백·한글)는 "올릴 수 없다"로 보고한다.
 
 ## 가져오지 않는 것
