@@ -705,6 +705,12 @@ public abstract non-sealed class Entity implements Rider {
     /** 직접 원인 엔티티(투사체)가 있는 피해. 기본은 hurtBy(직접 원인을 보는 엔티티가 재정의). */
     public boolean hurtByVia(Damage source, float amount, Targetable attacker, Entity direct) { return hurtBy(source, amount, attacker); }
 
+    /**
+     * Entity.isAttackable: 플레이어 공격(Player.attack)이 먼저 이것을 보고, 거짓이면 쿨다운·소리·소모 없이 그대로 끝난다.
+     * 바닐라는 경험치 구슬·아이템·떨어지는 블록·끝의 눈·폭죽·화살(튕길 수 있는 투사체 제외)만 거짓이다.
+     */
+    public boolean isAttackable() { return true; }
+
     /** Entity.skipAttackInteraction: true 면 일반 공격 피해 대신 이 엔티티가 직접 처리한다(액자·그림). */
     public boolean skipAttackInteraction(Player attacker) { return false; }
 

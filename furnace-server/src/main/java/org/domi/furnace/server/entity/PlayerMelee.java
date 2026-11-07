@@ -2,6 +2,8 @@
 // 쓸기(sweep_attack)·피해 표시(damage_indicator)는 level_particles 로, 치명타(crit)·마법 치명타는 animate 로 보낸다.
 // 공격력·공격 속도·이동 속도·휘두르기 비율은 PlayerAttributes(힘·나약함·성급함·피로 포함)로 계산하고, 살충은 느림 IV 를 건다.
 // 철퇴: 낙하 보너스·밀도(MaceSmash), 관통(CombatRules), 돌풍·가시(EnchantEffects). 쓸기는 같은 팀(isAlliedTo)을 건너뛴다.
+// 생물이 아닌 엔티티(보트·수레·액자·수정)와 엔더 드래곤 파트도 같은 경로를 탄다(바닐라 Player.attack 은 대상 종류를 가리지 않는다):
+// 쿨다운·힘/나약함·마법 부여·소리·밀치기는 똑같이 적용하고, 치명타·무기 내구도·피해 표시·통계는 대상이 LivingEntity 일 때만이다.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
@@ -23,16 +25,52 @@ public final class PlayerMelee {
         Iterable<Player> players();
     }
 
-    /** getEnchantedDamage(target, base) - base: 날카로움 0.5 × 레벨 + 0.5, 강타(언데드)·살충(절지류) 2.5 × 레벨. */
+    /**
+     * 생물이 아닌 엔티티를 Player.attack 에 태우는 어댑터(Entity 는 Targetable 이 아니다). 생물 전용 단계는 {@link #isLiving} 이 막고,
+     * 피해(hurtBy)·밀기(push)·불 붙이기·종류 태그 조회만 엔티티로 넘긴다.
+     */
+    public record Raw(Entity entity) implements Targetable {
+        @Override public int id() { return entity.id(); }
+        @Override public double x() { return entity.x(); }
+        @Override public double y() { return entity.y(); }
+        @Override public double z() { return entity.z(); }
+        @Override public double eyeY() { return entity.eyeY(); }
+        @Override public float bbWidth() { return entity.bbWidth(); }
+        @Override public float bbHeight() { return entity.bbHeight(); }
+        @Override public AABB boundingBox() { return entity.boundingBox(); }
+        @Override public org.domi.furnace.server.block.Pos blockPosition() { return entity.blockPosition(); }
+        @Override public boolean isAlive() { return entity.isAlive(); }
+        @Override public boolean canBeSeenAsEnemy() { return false; }
+        @Override public double visibilityPercent(Entity looker) { return 1.0; }
+        @Override public boolean isPlayer() { return false; }
+        @Override public boolean hurtByMob(Entity.Damage source, float amount, Mob attacker) { return entity.hurt(source, amount); }
+        @Override public void addDeltaMovement(double dx, double dy, double dz) { entity.push(dx, dy, dz); }
+        @Override public void knockback(double strength, double dx, double dz) {}
+        @Override public org.domi.furnace.api.text.Text displayName() { return entity.getName(); }
+    }
+
+    /** 대상이 엔티티면 그 엔티티(생물이 아닌 것은 어댑터 안의 것), 플레이어·드래곤 파트면 null. 종류 태그·불 붙이기에 쓴다. */
+    private static Entity entityOf(Targetable t) {
+        if (t instanceof Raw r) return r.entity();
+        return t instanceof Entity e ? e : null;
+    }
+
+    /**
+     * getEnchantedDamage(target, base) - base: 날카로움 0.5 × 레벨 + 0.5, 강타(언데드)·살충(절지류)·찌르기(수중 생물) 2.5 × 레벨.
+     * 바닐라 EnchantmentHelper.modifyDamage 는 무기의 minecraft:damage 효과를 전부 합치므로 찌르기(삼지창)도 근접에서 같이 더해진다.
+     */
     static float enchantDamageBonus(ItemStack weapon, Targetable target) {
         float bonus = 0.0F;
         int sharp = ItemTools.enchantmentLevel(weapon, "minecraft:sharpness");
         if (sharp > 0) bonus += 1.0F + 0.5F * (sharp - 1);
-        if (target instanceof Entity e) {
+        Entity e = entityOf(target);
+        if (e != null) {
             int smite = ItemTools.enchantmentLevel(weapon, "minecraft:smite");
             if (smite > 0 && e.type().is("minecraft:sensitive_to_smite")) bonus += 2.5F * smite;
             int bane = ItemTools.enchantmentLevel(weapon, "minecraft:bane_of_arthropods");
             if (bane > 0 && e.type().is("minecraft:sensitive_to_bane_of_arthropods")) bonus += 2.5F * bane;
+            int impaling = ItemTools.enchantmentLevel(weapon, "minecraft:impaling");
+            if (impaling > 0 && e.type().is("minecraft:sensitive_to_impaling")) bonus += 2.5F * impaling;
         }
         return bonus;
     }
@@ -136,7 +174,7 @@ public final class PlayerMelee {
         }
         if (!crit && !sweep) sound(level, p, strong ? "minecraft:entity.player.attack.strong" : "minecraft:entity.player.attack.weak");
         if (g > 0.0F) animate(p, target, 5);   // magicCrit
-        p.setLastHurtMob(target);
+        p.setLastHurtMob(target instanceof Raw ? null : target);   // 바닐라 LivingEntity.setLastHurtMob: LivingEntity 가 아니면 null
         int cost = isLiving(target) ? weaponDurabilityCost(weapon) : 0;   // hurtEnemy → postHurtEnemy
         if (isLiving(target)) MaceSmash.hurtEnemy(w, p, weapon, target);   // Item.hurtEnemy → 철퇴 스매시
         postAttack(level, p, weapon, target);
@@ -164,6 +202,8 @@ public final class PlayerMelee {
             }
             return r;
         }
+        if (target instanceof Raw r) return r.entity().hurtBy(dmg, amount, p);
+        if (target instanceof EnderDragonPart part) return part.hurt(dmg, amount, p);
         return target.hurtByMob(dmg, amount, null);
     }
 
@@ -176,17 +216,17 @@ public final class PlayerMelee {
     static void postAttack(ChunkLevel level, Player p, ItemStack weapon, Targetable target) {
         if (isLiving(target)) EnchantEffects.thorns(level, target, p);
         int fire = ItemTools.enchantmentLevel(weapon, "minecraft:fire_aspect");
-        if (fire > 0 && target instanceof LivingEntity le) le.igniteForSeconds(4.0F * fire);
+        Entity victim = entityOf(target);
+        if (fire > 0 && victim != null) victim.igniteForSeconds(4.0F * fire);   // minecraft:ignite 는 어떤 엔티티에든(보트·수레 포함)
         EnchantEffects.windBurst(level, p, weapon);
         int bane = ItemTools.enchantmentLevel(weapon, "minecraft:bane_of_arthropods");
-        if (bane > 0 && target instanceof Entity e && e.type().is("minecraft:sensitive_to_bane_of_arthropods")) {
+        if (bane > 0 && victim instanceof LivingEntity e && e.type().is("minecraft:sensitive_to_bane_of_arthropods")) {
             var rnd = e.random();
             rnd.nextInt(1);
             float max = 1.5F + 0.5F * (bane - 1);
             int duration = Math.round((rnd.nextFloat() * (max - 1.5F) + 1.5F) * 20.0F);
             int amp = Math.max(0, Math.round(rnd.nextFloat() * (3.0F - 3.0F) + 3.0F));
-            var slow = new org.domi.furnace.server.effect.MobEffectInstance(MobEffect.SLOWNESS, duration, amp);
-            if (e instanceof LivingEntity le) le.addEffect(slow);
+            e.addEffect(new org.domi.furnace.server.effect.MobEffectInstance(MobEffect.SLOWNESS, duration, amp));
         }
     }
 

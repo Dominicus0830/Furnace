@@ -15,7 +15,7 @@
 |---|---|
 | 1장 3 플레이어 이동 서버 검증·`allow-flight` | `PlayerMoveValidator`(+시험)가 `moved too quickly`·비행 판정 |
 | 1장 4 블록 파괴 속도에 성급함 등 | `BlockActor` 에 `HASTE` 처리 있음(물속·피로 세부는 미확인) |
-| 1장 5 근접 전투·철퇴·살충 | `PlayerMelee`, `MaceSmash`, `MaceEnchantTest`. (힘·나약함·쓸기 파티클은 M6 이 계속 본다) |
+| 1장 5 근접 전투·철퇴·살충 | `PlayerMelee`, `MaceSmash`, `MaceEnchantTest`. (힘·나약함·쓸기 파티클·철퇴 착지 입자는 M6 에서 바이트코드 대조로 닫음 — `context-notes.md` "M6") |
 | 1장 6 인챈트(가시·물갈퀴·서리 걸음·영혼 가속·호흡·민첩한 웅크리기) | `EnchantEffects`, `EnchantAttributes`, `PlayerLocationEffects`, `PlayerEnchantAttributeTest` |
 | 1장 7 명령 블록·수레, `set_command_block`, `enable-command-block` | `CommandBlock(Entity)`, `ConnectionHandler`, `ServerCore` 소비, `CommandBlockTest` |
 | 1장 8 시련 스포너·금고 | `TrialSpawnerBlock/Data`, `VaultBlock/Entity`, 시험 |
