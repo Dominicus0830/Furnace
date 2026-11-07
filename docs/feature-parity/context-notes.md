@@ -1202,8 +1202,8 @@
 - 불길한 아이템 생성기(`OminousItemSpawner.spawnItem`): 발사체 아이템이면 `asProjectile(생성기 위치, DOWN)` 을 아래로 shoot, 아니면 아이템 엔티티. 이어서 levelEvent 3021, gameEvent ENTITY_PLACE(새 엔티티가 원인). 소유자(Targetable 아님)는 붙이지 않지만 `setOwner` 의 관측 효과인 화살 줍기 불가(DISALLOWED)는 직접 적용한다(독립 검토 H1).
 - 용의 숨결 병: 엔더 드래곤이 만든 구름(몸 ±2 안)만, 반지름 −0.5, 소리 `item.bottle.fill_dragonbreath`(중립).
 - 시험: `EntityDataStackTest`·`DragonBreathBottleTest`·`BundleMenuTest`·`CrossbowMobTest`·`ConsumingTest`(망원경·엔더의 눈)·`AnvilMenuTest`(기본 이름)·`EntityGameEventsTest`(발사체 아이템).
-- 독립 검토(`/furnace/reviews/m18-pr124-review.md`) 뒤 고친 것: 불길한 생성기 화살 줍기 불가, `onlyOpCanSetNbt` 에 스포너 수레·낙하 블록 추가(바닐라 셋), 망원경 놓을 때 멈춤 소리, 접속 때 켜진 기능 플래그 전송(`FeatureFlags.enabled()` — 클라이언트는 꺼진 기능 아이템의 사용 패킷을 안 보낸다), 스폰 알 주변 소리를 entity_data 앞으로(Silent 알도 생성 때 한 번 운다), 갑옷 거치대는 1.21.1 에 무작위 자세가 없어 지우고 create 의 방향 난수 1회·바닥 맞춤을 넣음, 몹 쇠뇌 JOML 은 FMA 없이 a*b+c.
-- 안 고친 것(낮음): 모루 기본 이름의 아이템별 getName(서명된 책·물약·머리·색 방패), 구름 소유자 늦은 조회, 구름 여럿일 때 순서, 망원경 1200틱 끝 패킷 순서, `rotateAxis` 단위 축 갈래, 대상 없이 쏠 때 yHeadRot.
+- 독립 검토(`/furnace/reviews/m18-pr124-review.md`) 뒤 고친 것: 불길한 생성기 화살 줍기 불가, `onlyOpCanSetNbt` 에 스포너 수레·낙하 블록 추가(바닐라 셋), 망원경 놓을 때 멈춤 소리, 접속 때 켜진 기능 플래그 전송(`FeatureFlags.enabled()` — 클라이언트는 꺼진 기능 아이템의 사용 패킷을 안 보낸다), 스폰 알 주변 소리를 entity_data 앞으로(Silent 알도 생성 때 한 번 운다), 갑옷 거치대는 1.21.1 에 무작위 자세가 없어 지우고 create 의 방향 난수 1회·바닥 맞춤을 넣음, 몹 쇠뇌 JOML 은 FMA 없이 a*b+c(덧셈 순서도 JOML 처럼 x*x+(y*y+z*z)).
+- 안 고친 것(기존 코드): `RangedWeapons.rotate`(사원수 transform)는 아직 `Math.fma` 를 쓴다(플레이어 다중 발사·몹의 대상 없는 갈래), 갑옷 거치대 gameEvent 위치가 거치대가 아닌 칸 위치. 낮음: 모루 기본 이름의 아이템별 getName(서명된 책·물약·머리·색 방패), 구름 소유자 늦은 조회, 구름 여럿일 때 순서, 망원경 1200틱 끝 패킷 순서, `rotateAxis` 단위 축 갈래, 대상 없이 쏠 때 yHeadRot.
 - 남은 것: 스폰 알로 동물 새끼 만들기(`spawnOffspringFromSpawnEgg`).
 
 ## 2026-11-07 플레이어 자세·공유 플래그·탑승 (묶음 M20)

@@ -1646,11 +1646,6 @@ public abstract class ChunkLevel implements BlockLevel {
                 reason == org.domi.furnace.server.entity.spawn.SpawnReason.DISPENSER ? "DISPENSE_EGG" : "SPAWNER_EGG", stack, player) != null;
     }
 
-    /**
-     * EntityType.spawn(level, stack, player, pos, reason, snapToGround, extendDown): create → 바닥에 맞춤 → moveTo(무작위 방향) → (몹이면) 머리·몸통 방향·finalizeSpawn →
-     * 아이템 설정(이름·entity_data, createDefaultStackConfig) → 추가 → (몹이면) 주변 소리. stack 이 없으면 몹만 만든다(몹이 아니면 null).
-     * 알의 entity_data 가 몹이 아닌 종류(배·수레 등)를 가리키면 그것도 만든다.
-     */
     /** EntityType.getYOffset: 칸 위에서 아래로 떨어뜨려 바닥에 맞출 높이(extendDown 이면 한 칸 아래까지). */
     public double snapOffset(Entity e, Pos pos, boolean extendDown) {
         e.setPos(pos.x() + 0.5, pos.y() + 1, pos.z() + 0.5);
@@ -1659,6 +1654,11 @@ public abstract class ChunkLevel implements BlockLevel {
         return 1.0 + Entity.collideWithShapes(0.0, extendDown ? -2.0 : -1.0, 0.0, e.boundingBox(), blockCollisions(box))[1];
     }
 
+    /**
+     * EntityType.spawn(level, stack, player, pos, reason, snapToGround, extendDown): create → 바닥에 맞춤 → moveTo(무작위 방향) → (몹이면) 머리·몸통 방향·finalizeSpawn →
+     * (몹이면) 주변 소리 → 아이템 설정(이름·entity_data, createDefaultStackConfig) → 추가. stack 이 없으면 몹만 만든다(몹이 아니면 null).
+     * 알의 entity_data 가 몹이 아닌 종류(배·수레 등)를 가리키면 그것도 만든다.
+     */
     public Entity spawnEntityFromStack(String entityType, Pos pos, boolean snapToGround, boolean extendDown,
             org.domi.furnace.server.entity.spawn.SpawnReason reason, String pluginReason, ItemStack stack, BlockActor player) {
         Entity e = org.domi.furnace.server.entity.Entities.create(this, entityType);

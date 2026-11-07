@@ -159,10 +159,10 @@ public final class Crossbow {
      * 방향이 위/아래와 거의 나란하면 몹의 위쪽 벡터와 외적한다. 각 0 이면 정규화 방향 그대로다.
      */
     private static float[] projectileShotVector(Mob shooter, float dx, float dy, float dz, float angle) {
-        float inv = 1.0F / (float) Math.sqrt(dx * dx + dy * dy + dz * dz);   // JOML 기본값은 FMA 없이 a*b+c
+        float inv = 1.0F / (float) Math.sqrt(dx * dx + (dy * dy + dz * dz));   // JOML 기본값은 FMA 없이 a*b+c
         float[] n = {dx * inv, dy * inv, dz * inv};
         float[] c = cross(n, 0.0F, 1.0F, 0.0F);
-        if ((double) (c[0] * c[0] + c[1] * c[1] + c[2] * c[2]) <= 1.0E-7) {
+        if ((double) (c[0] * c[0] + (c[1] * c[1] + c[2] * c[2])) <= 1.0E-7) {
             float[] up = RangedWeapons.viewVector(shooter.xRot() - 90.0F, shooter.yRot());
             c = cross(n, up[0], up[1], up[2]);
         }
