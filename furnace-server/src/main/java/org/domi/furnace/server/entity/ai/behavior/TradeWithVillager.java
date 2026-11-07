@@ -1,5 +1,5 @@
 // 바닐라 TradeWithVillager: 상호작용 대상 주민과 마주 보며 다가가(5 이내) 소문을 나누고(골렘 소환 확인), 남는 음식·농부에게 밀·상대 직업이 원하는 아이템을 반 묶음 던져 준다.
-// 차이: 소문(gossip) 체계가 아직 없어 옮길 소문은 없다(빈 소문이면 바닐라도 난수를 쓰지 않는다). 시각 기록과 골렘 확인은 한다.
+// 소문은 Villager.gossip 이 옮긴다(소문 10개를 엔티티 난수로 고르고, 시각 기록과 골렘 확인도 한다).
 package org.domi.furnace.server.entity.ai.behavior;
 
 import java.util.HashSet;

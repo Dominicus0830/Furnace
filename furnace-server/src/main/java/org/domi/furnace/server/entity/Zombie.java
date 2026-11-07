@@ -179,20 +179,15 @@ public class Zombie extends Monster {
         int diff = level.difficulty();
         if ((diff == 2 || diff == 3) && victim instanceof Villager v) {
             if (diff != 3 && random.nextBoolean()) return ok;
-            ZombieVillager zv = new ZombieVillager(level, level.nextEntityId());
-            zv.moveTo(v.x(), v.y(), v.z(), v.yRot(), v.xRot());
+            // 바닐라: villager.convertTo(ZOMBIE_VILLAGER) 가 먼저 새 몹을 추가하고(이름·무적·고집 복사), 그다음 finalizeSpawn(CONVERSION)·데이터를 채운다
+            ZombieVillager zv = v.convertTo(new ZombieVillager(level, level.nextEntityId()), false, "INFECTION");
+            if (zv == null) return ok;
             int[] d = v.villagerData();
+            zv.finalizeSpawnForConversion(level.random(), level.getCurrentDifficultyAt(zv.blockPosition()));
             zv.setVillagerData(Villager.TYPES.get(d[0]), Villager.PROFESSIONS.get(d[1]), d[2]);
             zv.setGossips(v.getGossips().store());
             zv.setOffers(v.offers());
             zv.setVillagerXp(v.villagerXp());
-            zv.finalizeSpawnForConversion(level.random(), level.getCurrentDifficultyAt(zv.blockPosition()));
-            zv.setVillagerData(Villager.TYPES.get(d[0]), Villager.PROFESSIONS.get(d[1]), d[2]);
-            zv.setBabyForConversion(v.isBaby());
-            zv.setNoAi(v.isNoAi());
-            zv.persistenceRequired = true;
-            v.discard();
-            level.addFreshEntity(zv.spawnReason("INFECTION"));
             if (!isSilent()) level.levelEvent(null, 1026, blockPosition(), 0);
             ok = false;
         }

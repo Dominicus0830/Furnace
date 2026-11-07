@@ -80,7 +80,7 @@ public class ZombieVillager extends Zombie {
                 startConverting(p.uuid(), random.nextInt(2401) + 3600);
                 return true;
             }
-            return false;
+            return true;   // 바닐라: 나약함이 없으면 CONSUME(소비한 상호작용이라 다른 처리를 하지 않는다)
         }
         return super.interact(p, hand, held, region);
     }
@@ -97,19 +97,19 @@ public class ZombieVillager extends Zombie {
     private void finishConversion() {
         Villager v = convertTo(new Villager(level, level.nextEntityId()), false, "CURED");
         if (v == null) return;
-        for (EquipmentSlot slot : EquipmentSlot.values()) {
-            if (slot == EquipmentSlot.MAINHAND || slot == EquipmentSlot.OFFHAND) continue;
-            ItemStack item = getItemBySlot(slot);
-            if (!item.isEmpty() && !hasBindingCurse(item)) {
-                // 주민은 장비 칸이 없어 아이템을 인벤토리 대신 바닥에 둔다(바닐라: slotId 300+ 인벤토리 칸에 넣음)
-                v.spawnAtLocation(item);
-            }
+        // 바닐라: 귀속 저주 장비는 주민 가방의 (칸 종류별 번호) 칸에 옮기고, 나머지는 드롭 확률이 1.0 을 넘는 것만 떨군다
+        // (바닐라 getSlot(slot.getIndex() + 300): 손과 방어구의 번호가 겹쳐 뒤의 것이 앞의 것을 덮는다)
+        for (EquipmentSlot slot : dropPreservedEquipment(item -> !hasBindingCurse(item)).stream().sorted().toList()) {
+            v.getInventory().set(slot.index(), getItemBySlot(slot));
         }
         int[] d = villagerData();
         v.setVillagerData(Villager.TYPES.get(d[0]), Villager.PROFESSIONS.get(d[1]), d[2]);
         if (gossips != null) v.getGossips().update(gossips);
         if (tradeOffers != null) v.setOffers(tradeOffers);
         v.overrideXp(villagerXp);
+        v.setFinalizeReason(org.domi.furnace.server.entity.spawn.SpawnReason.CONVERSION);
+        v.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(v.blockPosition()), null);   // 바닐라: finalizeSpawn(CONVERSION) 뒤 브레인 새로 고침
+        v.refreshBrain(level);
         if (conversionStarter != null) {
             UUID starter = conversionStarter;
             var zombieSnap = KillCredit.lootOf(this);
