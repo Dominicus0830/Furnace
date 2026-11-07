@@ -968,7 +968,20 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public byte sharedFlags() { return (byte) ((sneaking ? 2 : 0) | (sprinting ? 8 : 0) | (swimming ? 0x10 : 0) | (fallFlying ? 0x80 : 0)); }
 
     /** Player.updatePlayerPose: 겉날개 비행 FALL_FLYING(1), 잠 2, 회전 공격 SPIN_ATTACK(4), 웅크림 CROUCHING(5), 아니면 STANDING(0). TODO(수영 자세·끼임 검사). */
-    public int pose() { return fallFlying ? 1 : sleepingPos != null ? 2 : isSwimPose() ? 3 : autoSpinAttackTicks > 0 ? 4 : isCrouchPose() ? 5 : 0; }
+    public int pose() {
+        int o = poseOverride;
+        return o >= 0 ? o : computedPose();
+    }
+
+    /** 서버가 계산한 자세(플러그인 고정과 무관). */
+    public int computedPose() { return fallFlying ? 1 : sleepingPos != null ? 2 : isSwimPose() ? 3 : autoSpinAttackTicks > 0 ? 4 : isCrouchPose() ? 5 : 0; }
+
+    /** 플러그인이 고정한 자세(Entity.setPose) — -1 이면 서버 계산값. 다른 플레이어가 보는 자세 데이터만 바뀌고 판정 상자는 그대로다. */
+    private volatile int poseOverride = -1;
+
+    public void poseOverride(int pose) { poseOverride = pose; }
+
+    public int poseOverride() { return poseOverride; }
 
     // ------------------------------------------------------------------ 겉날개 비행(LivingEntity 공유 플래그 7·fallFlyTicks) — 쓰기는 region 스레드
     private volatile boolean fallFlying;
