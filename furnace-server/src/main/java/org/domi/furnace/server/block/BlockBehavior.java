@@ -242,6 +242,14 @@ public class BlockBehavior {
         entity.setDeltaMovement(entity.vx() * 1.0, entity.vy() * 0.0, entity.vz() * 1.0);
     }
 
+    /**
+     * getCollisionShape(state, level, pos, EntityCollisionContext.of(entity)): 엔티티 이동·착지 판정이 쓴다. 대부분의 블록은 문맥과 무관하다
+     * (가루눈만 엔티티마다 다르다).
+     */
+    public Shape getEntityCollisionShape(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
+        return getCollisionShape(state, level, pos, null);
+    }
+
     /** getCollisionShape(state, level, pos, 문맥 엔티티 — 없으면 null). */
     public Shape getCollisionShape(int state, BlockLevel level, Pos pos, BlockActor entity) { return INFO.collisionShape(state); }
 

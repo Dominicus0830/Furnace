@@ -69,7 +69,7 @@ public interface CauldronInteraction {
                         if (!isWaterPotion(stack)) return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
                         player.setItemInHand(hand, player.createFilledResult(stack, B.stack("glass_bottle", 1)));
                         player.awardStat("minecraft:use_cauldron");
-                        player.awardStat("minecraft:used");
+                        player.awardStat("minecraft:used:" + org.domi.furnace.server.item.ItemTools.itemName(stack));
                         level.setBlockAndUpdate(pos, B.defaultState("water_cauldron"));
                         level.playSound(null, pos, "minecraft:item.bottle.empty", "blocks", 1.0F, 1.0F);
                         level.gameEvent("minecraft:fluid_place", pos, null, -1);
@@ -83,7 +83,7 @@ public interface CauldronInteraction {
                     t.put("glass_bottle", (state, level, pos, player, hand, stack) -> {
                         player.setItemInHand(hand, player.createFilledResult(stack, waterPotion()));
                         player.awardStat("minecraft:use_cauldron");
-                        player.awardStat("minecraft:used");
+                        player.awardStat("minecraft:used:" + org.domi.furnace.server.item.ItemTools.itemName(stack));
                         LayeredCauldronBlock.lowerFillLevel(state, level, pos);
                         level.playSound(null, pos, "minecraft:item.bottle.fill", "blocks", 1.0F, 1.0F);
                         level.gameEvent("minecraft:fluid_pickup", pos, null, -1);
@@ -93,7 +93,7 @@ public interface CauldronInteraction {
                         if (LEVEL.get(state) == 3 || !isWaterPotion(stack)) return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
                         player.setItemInHand(hand, player.createFilledResult(stack, B.stack("glass_bottle", 1)));
                         player.awardStat("minecraft:use_cauldron");
-                        player.awardStat("minecraft:used");
+                        player.awardStat("minecraft:used:" + org.domi.furnace.server.item.ItemTools.itemName(stack));
                         level.setBlockAndUpdate(pos, LEVEL.cycle(state));
                         level.playSound(null, pos, "minecraft:item.bottle.empty", "blocks", 1.0F, 1.0F);
                         level.gameEvent("minecraft:fluid_place", pos, null, -1);
@@ -178,7 +178,7 @@ public interface CauldronInteraction {
             if (!full.test(state)) return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
             player.setItemInHand(hand, player.createFilledResult(empty, filled));
             player.awardStat("minecraft:use_cauldron");
-            player.awardStat("minecraft:used");
+            player.awardStat("minecraft:used:" + org.domi.furnace.server.item.ItemTools.itemName(empty));
             level.setBlockAndUpdate(pos, B.defaultState(CAULDRON));
             level.playSound(null, pos, sound, "blocks", 1.0F, 1.0F);
             level.gameEvent("minecraft:fluid_pickup", pos, null, -1);
@@ -189,7 +189,7 @@ public interface CauldronInteraction {
         static ItemInteractionResult emptyBucket(BlockLevel level, Pos pos, BlockActor player, int hand, ItemStack filled, int newState, String sound) {
             player.setItemInHand(hand, player.createFilledResult(filled, B.stack("bucket", 1)));
             player.awardStat("minecraft:fill_cauldron");
-            player.awardStat("minecraft:used");
+            player.awardStat("minecraft:used:" + org.domi.furnace.server.item.ItemTools.itemName(filled));
             level.setBlockAndUpdate(pos, newState);
             level.playSound(null, pos, sound, "blocks", 1.0F, 1.0F);
             level.gameEvent("minecraft:fluid_place", pos, null, -1);
