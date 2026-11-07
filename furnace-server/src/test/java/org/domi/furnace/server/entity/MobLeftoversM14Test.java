@@ -224,6 +224,17 @@ class MobLeftoversM14Test {
     }
 
     @Test
+    void sittingSaddledCamelCannotDash() {
+        Lvl l = new Lvl();
+        Camel c = put(l, new Camel(l, l.nextEntityId()), 0.5, 0.5);
+        assertFalse(c.canJump());   // 안장 없음
+        c.equipSaddle(new ItemStack(ItemContext.id("minecraft:item", "saddle"), 1));
+        assertTrue(c.canJump());
+        c.sitDown();
+        assertFalse(c.canJump());   // 앉아 있으면 refuseToMove
+    }
+
+    @Test
     void sittingCamelIsShorter() {
         Lvl l = new Lvl();
         Camel c = put(l, new Camel(l, l.nextEntityId()), 0.5, 0.5);

@@ -256,8 +256,8 @@ public class Camel extends AbstractHorse {
 
     // ------------------------------------------------------------------ 질주(PlayerRideableJumping)
 
-    /** Camel.canJump: 안장 여부와 상관없이 true(바닐라 dH). 질주 쿨다운은 조종하는 클라이언트가 가진다. */
-    @Override public boolean canJump() { return true; }
+    /** Camel.canJump: 움직임을 거부하지 않고(앉음·자세 변경 중 아님) 안장이 있다. 질주 쿨다운은 조종하는 클라이언트가 가진다. */
+    @Override public boolean canJump() { return !refuseToMove() && super.canJump(); }
 
     /**
      * Camel.handleStartJump(int): 질주 시작 — 소리, entity_action 진동(소리 다음, 질주 표시 앞), 질주 표시.

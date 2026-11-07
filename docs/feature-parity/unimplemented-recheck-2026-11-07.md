@@ -120,5 +120,5 @@
 - **낙타**: 웅크려 우클릭 → 안장 칸 창, 둘까지 탑승(앞 z 0.5·뒤 -0.7, 동물 +0.2, 자세 전환 애니메이션 높이), 앉은 자세 몸 높이 -1.43(눈 0.845)와 자세를 바꿀 공간 검사, 질주 데이터가 바뀌면 쿨다운 55(서버에서 dash_ready 소리), 질주 표시는 물·용암·탈것 위에서도 풀림, 탄 채 앞으로 가면 앉아 있다 일어남·앉은 동안 몸을 안 돌림, 걸음 소리(`camel_sand_step_sound_blocks` 위면 step_sand).
 - **라마**: 6칸 이상 떨어졌을 때만 낙하 피해(말 착지 소리 없음), 걸음 소리.
 - **스니퍼**: 걷는 길찾기(`WalkNodeEvaluator`)가 `onPathfindingStart/Done` 을 부른다(불붙었거나 물속이면 물 비용 0 → 끝나면 -1). 예전 주석의 "GolemTest 가 깨짐" 은 지금 재현되지 않았다. 파는 동안 몸 높이 -0.4(눈 0.81), 씨앗 전리품은 `gameplay/sniffer_digging` 을 선물 매개변수(origin·this_entity)로, 걸음 소리. 파는 입자·찾는 소리는 바닐라도 클라이언트 전용이다.
-- **남은 것**: 낙타 머리 회전 고정(clampHeadRotationToBody, 표시용), 플레이어 승객의 말·라마 낙하 피해(`AbstractHorse` TODO), `playBlockFallSound`, 피글린 머리 드롭·방어구 교체 방지 인챈트(`Piglin.java:2`), 호글린 인챈트 후처리, 셜커가 껍데기를 열 때 플레이어 밀기, 밀기 순서(바닐라는 엔티티 구역 순서로 플레이어와 섞여 있고 Furnace 는 엔티티 다음 플레이어 — 워든 만지기 쿨다운이 둘 다 닿을 때 누구에게 먼저 걸리는지만 다를 수 있음).
+- **남은 것**: 낙타 머리 회전 고정(clampHeadRotationToBody, 표시용), 플레이어 승객의 말·라마 낙하 피해(`AbstractHorse` TODO), `playBlockFallSound`, 피글린 머리 드롭·방어구 교체 방지 인챈트(`Piglin.java:2`), 호글린 인챈트 후처리, 셜커가 껍데기를 열 때 플레이어 밀기, 밀기 순서(바닐라는 엔티티 구역 순서로 플레이어와 섞여 있고 Furnace 는 엔티티 다음 플레이어 — 워든 만지기 쿨다운이 둘 다 닿을 때 누구에게 먼저 걸리는지만 다를 수 있음). 검토(PR #112)에서 나온 낮은 차이: 낙타 `canChangePose`·앉은 크기에 SCALE 속성 미반영, 크기 변경 뒤 `fudgePositionAfterSizeChange` 없음(엔진 공통), 낙타 질주 처리가 tick 끝이 아니라 aiStep 안, 복어 독에 출처 엔티티 없음.
 
