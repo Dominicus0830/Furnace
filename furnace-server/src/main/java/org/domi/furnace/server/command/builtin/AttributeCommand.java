@@ -6,6 +6,7 @@ package org.domi.furnace.server.command.builtin;
 import static org.domi.furnace.server.command.Commands.argument;
 import static org.domi.furnace.server.command.Commands.literal;
 
+import java.util.List;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.attribute.Attribute;
 import org.domi.furnace.server.attribute.AttributeInstance;
@@ -63,10 +64,36 @@ public final class AttributeCommand {
                                                         .then(literal("add_value").executes(c -> addModifier(c, AttributeModifier.ADD_VALUE)))
                                                         .then(literal("add_multiplied_base").executes(c -> addModifier(c, AttributeModifier.ADD_MULTIPLIED_BASE)))
                                                         .then(literal("add_multiplied_total").executes(c -> addModifier(c, AttributeModifier.ADD_MULTIPLIED_TOTAL))))))
-                                        .then(literal("remove").then(argument("id", ResourceLocationArgument.id()).executes(AttributeCommand::removeModifier)))
-                                        .then(literal("value").then(literal("get").then(argument("id", ResourceLocationArgument.id())
+                                        .then(literal("remove").then(argument("id", ResourceLocationArgument.id()).suggests(AttributeCommand::suggestModifiers).executes(AttributeCommand::removeModifier)))
+                                        .then(literal("value").then(literal("get").then(argument("id", ResourceLocationArgument.id()).suggests(AttributeCommand::suggestModifiers)
                                                 .executes(c -> getModifier(c, 1.0))
                                                 .then(argument("scale", dbl).executes(c -> getModifier(c, c.getArgument("scale", Double.class)))))))))));
+    }
+
+    /**
+     * 바닐라 getAttributeModifiers 제안: 고른 엔티티(하나)의 그 속성에 붙은 보정 id. 대상이 하나가 아니거나 살아 있는 것이 아니면 제안 없음.
+     * 일반 엔티티의 속성 맵은 주인 region 에서 읽는다.
+     */
+    private static java.util.concurrent.CompletableFuture<org.domi.furnace.server.command.brigadier.Suggestions> suggestModifiers(
+            CommandContext<CommandSource> c, org.domi.furnace.server.command.brigadier.SuggestionsBuilder b) {
+        try {
+            Attribute a = attribute(c);
+            CommandSource source = c.getSource();
+            return c.getArgument("target", org.domi.furnace.server.command.arguments.EntitySelector.class).findRiders(source).thenCompose(list -> {
+                if (list.size() != 1) return org.domi.furnace.server.command.brigadier.Suggestions.empty();
+                return EntityOps.onOwner(source, list.get(0), r -> {
+                    List<ResourceId> ids = new java.util.ArrayList<>();
+                    try {
+                        for (String id : instance(r, a).modifiers().keySet()) ids.add(ResourceId.parse(id));
+                    } catch (CommandSyntaxException e) {
+                        // 그 속성이 없거나 살아 있는 것이 아니면 제안 없음
+                    }
+                    return ids;
+                }).thenCompose(ids -> org.domi.furnace.server.command.SharedSuggestions.suggestResource(ids, b));
+            });
+        } catch (CommandSyntaxException | RuntimeException e) {
+            return org.domi.furnace.server.command.brigadier.Suggestions.empty();
+        }
     }
 
     /** 바닐라 ResourceArgument.getAttribute: 레지스트리에 없는 id 면 argument.resource.not_found. */

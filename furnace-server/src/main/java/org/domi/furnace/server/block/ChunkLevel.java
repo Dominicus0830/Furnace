@@ -1138,8 +1138,9 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     @Override
-    public org.domi.furnace.api.text.Text resolveSignText(Pos pos, org.domi.furnace.api.text.Text text) {
-        return services().resolveSignText(pos.x(), pos.y(), pos.z(), text);
+    public void resolveSignLines(Pos pos, java.util.List<org.domi.furnace.api.text.Text> lines,
+                                 java.util.function.BiConsumer<BlockLevel, java.util.List<org.domi.furnace.api.text.Text>> apply) {
+        services().resolveSignLines(this, pos.x(), pos.y(), pos.z(), lines, apply);
     }
 
     @Override

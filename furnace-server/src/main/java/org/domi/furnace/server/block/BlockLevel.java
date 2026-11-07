@@ -335,10 +335,14 @@ public interface BlockLevel {
     default void runSignCommand(BlockActor player, Pos pos, String command) {}
 
     /**
-     * SignBlockEntity.loadLine: 레벨에 놓인 표지판이 글을 읽을 때 한 줄을 ComponentUtils.updateForEntity(표지판 소스(플레이어 없음·권한 2·칸 가운데), 줄, null, 0)
-     * 로 푼다(선택자·점수). 명령 오류면 원래 줄. 서버가 없는 레벨은 그대로.
+     * SignBlockEntity.loadLine: 레벨에 놓인 표지판이 글을 읽을 때 줄마다 ComponentUtils.updateForEntity(표지판 소스(플레이어 없음·권한 2·칸 가운데), 줄, null)
+     * 로 푼다(선택자·점수·NBT). 명령 오류면 원래 줄. 서버가 없는 레벨은 그대로.
+     * 결과는 apply(그 칸의 주인 레벨, 풀린 줄들)로 받는다 — 다른 region 의 엔티티를 찾지 않으면 그 자리에서, 찾으면 끝난 뒤 그 칸의 주인 스레드에서.
      */
-    default org.domi.furnace.api.text.Text resolveSignText(Pos pos, org.domi.furnace.api.text.Text text) { return text; }
+    default void resolveSignLines(Pos pos, java.util.List<org.domi.furnace.api.text.Text> lines,
+                                  java.util.function.BiConsumer<BlockLevel, java.util.List<org.domi.furnace.api.text.Text>> apply) {
+        apply.accept(this, lines);
+    }
 
     /**
      * 그 칸을 소유한 region 스레드에서 task 를 돌린다(이미 그 스레드면 바로, 아니면 큐로). 주인 region 이 없으면(청크 내려감) 버린다.

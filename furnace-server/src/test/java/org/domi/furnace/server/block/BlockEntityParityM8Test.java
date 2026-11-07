@@ -138,10 +138,18 @@ class BlockEntityParityM8Test {
     /** 표지판 글 풀기를 기록하는 레벨: 선택자 줄을 "풀림:<패턴>" 으로 바꾼다. */
     static final class SignLvl extends BlockPlacementTest.TestLevel {
         final List<String> resolved = new ArrayList<>();
+        /** 참이면 결과를 바로 주지 않고 쌓아 둔다(다른 region 의 엔티티를 찾는 선택자처럼). */
+        boolean defer;
+        final List<Runnable> pending = new ArrayList<>();
         @Override
-        public Text resolveSignText(Pos pos, Text text) {
-            resolved.add(FlatText.stable(text));
-            return text.content() instanceof Content.Selector s ? Text.text("풀림:" + s.pattern()).style(text.style()) : text;
+        public void resolveSignLines(Pos pos, List<Text> lines, java.util.function.BiConsumer<org.domi.furnace.server.block.BlockLevel, List<Text>> apply) {
+            List<Text> out = new ArrayList<>();
+            for (Text text : lines) {
+                resolved.add(FlatText.stable(text));
+                out.add(text.content() instanceof Content.Selector s ? Text.text("풀림:" + s.pattern()).style(text.style()) : text);
+            }
+            if (defer) pending.add(() -> apply.accept(this, out));
+            else apply.accept(this, out);
         }
     }
 
@@ -180,6 +188,28 @@ class BlockEntityParityM8Test {
         NbtCompound saved = sign.saveWithoutMetadata();
         assertFalse(saved.getCompound("front_text").contains("filtered_messages"), "풀린 두 판이 같으면 filtered_messages 는 쓰지 않는다");
         assertEquals("{\"color\":\"red\",\"text\":\"풀림:@p\"}", saved.getCompound("front_text").getList("messages").get(0));
+    }
+
+    @Test
+    void lateSignResolutionAppliesOnlyIfTheSignIsUnchanged() {
+        // 일반 엔티티 선택자는 다른 region 에서 읽어 늦게 끝난다 — 그때 표지판이 그대로면 넣고, 그새 바뀌었으면 버린다
+        SignLvl level = new SignLvl();
+        level.defer = true;
+        level.setBlock(POS, B.defaultState("minecraft:oak_sign"), 3);
+        var sign = (SignBlockEntity) level.getBlockEntity(POS);
+        NbtCompound tag = new NbtCompound();
+        tag.putCompound("front_text", face("{\"selector\":\"@e\"}", "\"\"", "\"\"", "\"\""));
+        sign.loadWithComponentsInLevel(level, tag);
+        assertTrue(sign.frontText().message(0, false).content() instanceof Content.Selector, "아직 안 끝남");
+        level.pending.remove(0).run();
+        assertEquals("풀림:@e", sign.frontText().message(0, false).getString());
+
+        sign.loadWithComponentsInLevel(level, tag);
+        NbtCompound other = new NbtCompound();
+        other.putCompound("front_text", face("\"새 글\"", "\"\"", "\"\"", "\"\""));
+        sign.load(other);
+        level.pending.remove(0).run();
+        assertEquals("새 글", sign.frontText().message(0, false).getString(), "그새 바뀐 표지판은 덮지 않는다");
     }
 
     @Test

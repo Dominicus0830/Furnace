@@ -185,18 +185,27 @@ public class SignBlockEntity extends BlockEntity {
     /** loadLines(레벨 있음): 방금 읽은 면(앞 → 뒤)의 줄마다 걸러지지 않은 것 → 걸러진 것 순서로 푼다. */
     @Override
     public void afterLoad(BlockLevel level) {
-        if (loadedFront) frontText = loadLines(level, frontText);
-        if (loadedBack) backText = loadLines(level, backText);
+        if (loadedFront) loadLines(level, true);
+        if (loadedBack) loadLines(level, false);
         loadedFront = loadedBack = false;
     }
 
-    private SignText loadLines(BlockLevel level, SignText t) {
+    private void loadLines(BlockLevel level, boolean front) {
+        SignText base = front ? frontText : backText;
+        java.util.List<Text> lines = new java.util.ArrayList<>(SignText.LINES * 2);
         for (int i = 0; i < SignText.LINES; i++) {
-            Text raw = level.resolveSignText(pos, t.message(i, false));
-            Text filtered = level.resolveSignText(pos, t.message(i, true));
-            t = t.setMessage(i, raw, filtered);
+            lines.add(base.message(i, false));
+            lines.add(base.message(i, true));
         }
-        return t;
+        level.resolveSignLines(pos, lines, (lv, out) -> {
+            // 늦게 끝난 경우(다른 region 의 엔티티를 찾음): 그새 표지판이 바뀌었으면 버린다
+            if (lv.getBlockEntity(pos) != this || (front ? frontText : backText) != base) return;
+            SignText t = base;
+            for (int i = 0; i < SignText.LINES; i++) t = t.setMessage(i, out.get(2 * i), out.get(2 * i + 1));
+            if (front) frontText = t;
+            else backText = t;
+            if (lv != level) markUpdated(lv);
+        });
     }
 
     @Override

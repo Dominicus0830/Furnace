@@ -1,4 +1,4 @@
-// ComponentUtils.updateForEntity 바닐라 대조(xc·yh ScoreContents·yi SelectorContents·xc.formatList):
+// ComponentUtils.resolve(바닐라 updateForEntity) 대조(xc·yh ScoreContents·yi SelectorContents·xc.formatList):
 // 점수는 이름·목표로 점수판을 찾아 숫자 형식(목표 형식 또는 NO_STYLE), 없으면 빈 텍스트. 선택자는 대상 하나면 그 표시 이름(원래 스타일이 정한 값만 덮음),
 // 여럿이면 빈 텍스트에 구분자로 잇는다. 표지판 소스(이름 "Sign", 권한 2, 칸 가운데). 저장 문자열은 키를 정렬한 JSON(FlatText.stable).
 package org.domi.furnace.server.command;
@@ -14,6 +14,7 @@ import org.domi.furnace.api.text.Style;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.ServerCore;
 import org.domi.furnace.server.entity.Player;
+import org.domi.furnace.server.entity.Rider;
 import org.domi.furnace.server.item.FlatText;
 import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import org.domi.furnace.server.scores.NumberFormat;
@@ -42,7 +43,7 @@ class ComponentUtilsTest {
 
     private CommandSource sign() { return CommandSource.sign(core, core.world(), 4, 70, -2); }
 
-    private Text resolve(Text t) throws Exception { return ComponentUtils.updateForEntity(sign(), t, null, 0); }
+    private Text resolve(Text t) { return ComponentUtils.resolve(sign(), t, null).join(); }
 
     private static Text score(String name, String objective) { return Text.of(new Content.Score(name, objective), Style.empty(), List.of()); }
 
@@ -105,17 +106,17 @@ class ComponentUtilsTest {
     @Test
     void formatListSingleIsTheDisplayNameAndManyAreJoined() {
         Player a = player(1, "Ann"), b = player(2, "Ben");
-        Text one = ComponentUtils.formatList(List.of(a), ComponentUtils.defaultSeparator());
+        Text one = ComponentUtils.formatList(List.<Rider>of(a), ComponentUtils.defaultSeparator());
         assertEquals(a.displayName(), one, "하나면 빈 텍스트로 감싸지 않고 표시 이름 그대로");
         assertEquals("{\"clickEvent\":{\"action\":\"suggest_command\",\"value\":\"/tell Ann \"},"
                 + "\"hoverEvent\":{\"action\":\"show_entity\",\"contents\":{\"id\":[0,1,0,1],\"name\":\"Ann\",\"type\":\"minecraft:player\"}},"
                 + "\"insertion\":\"Ann\",\"text\":\"Ann\"}", FlatText.stable(one), "바닐라 Player.getDisplayName: 클릭·엔티티 호버·삽입");
-        Text many = ComponentUtils.formatList(List.of(a, b), ComponentUtils.defaultSeparator());
+        Text many = ComponentUtils.formatList(List.<Rider>of(a, b), ComponentUtils.defaultSeparator());
         assertEquals("", many.literal());
         assertEquals(3, many.children().size());
         assertEquals("Ann, Ben", many.getString());
         assertEquals(NamedTextColor.GRAY, many.children().get(1).style().color());
-        assertEquals("\"\"", FlatText.stable(ComponentUtils.formatList(List.of(), ComponentUtils.defaultSeparator())));
+        assertEquals("\"\"", FlatText.stable(ComponentUtils.formatList(List.<Rider>of(), ComponentUtils.defaultSeparator())));
     }
 
     @Test
@@ -124,7 +125,7 @@ class ComponentUtilsTest {
         Player a = player(3, "Cid");
         CommandSource src = CommandSource.player(core, a).withPermission(2);
         Text sel = Text.of(new Content.Selector("@s", null), Style.empty().color(NamedTextColor.GOLD).insertion("x"), List.of());
-        Text resolved = ComponentUtils.updateForEntity(src, sel, null, 0);
+        Text resolved = ComponentUtils.resolve(src, sel, null).join();
         assertEquals("{\"clickEvent\":{\"action\":\"suggest_command\",\"value\":\"/tell Cid \"},\"color\":\"gold\","
                 + "\"hoverEvent\":{\"action\":\"show_entity\",\"contents\":{\"id\":[0,3,0,3],\"name\":\"Cid\",\"type\":\"minecraft:player\"}},"
                 + "\"insertion\":\"x\",\"text\":\"Cid\"}", FlatText.stable(resolved));

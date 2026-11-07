@@ -16,6 +16,11 @@
 도미니코 결정대로 `getTPS()`(= `Furnace.tps()`)는 활성 region(플레이어 있는 region) 플레이어 가중 평균, `/tps regions|here|player|region` 으로 특정 region 값. 정의 `docs/api/tps.md`. 봇(오프라인 서버 + 시험 플러그인)으로 값·명령 확인. 실제 클라이언트로 남은 것:
 - `/tps`·`/tps regions` 의 색(초록·노랑·빨강)과 줄 모양이 채팅 창에서 읽기 좋은지.
 
+# 명령 점검 (M11) — 2026-11-07
+봇(`tools/bot-test/round15`)·서버 시험(`TextResolveCommandsTest`)으로 확인. 실제 클라이언트로 남은 것:
+- 채팅 자동완성: `/bossbar get|set|remove <id>`, `/playsound <소리>`, `/stopsound`, `/attribute ... modifier remove <id>`, `/tag @e[...] remove <태그>` 에서 후보가 바닐라처럼 뜨는지.
+- `/tellraw @a {"selector":"@e[type=cow]"}` 처럼 엔티티 이름이 들어간 글이 화면에 이름(회색 ", " 로 이음)으로 나오는지, `/say` 와 보스바 이름도 같은지.
+
 # 명령 트리 API (C1) — 2026-11-07
 서버 시험(`CommandTreeApiTest`)으로 트리 명령·필터·해제는 확인. 실제 클라이언트로 남은 것:
 - 플러그인이 명령을 런타임에 등록·해제했을 때 열린 채팅 자동완성 목록이 바로 바뀌는지, 권한 없는 계정에서 `requires` 로 숨긴 명령이 자동완성에 안 보이는지.
@@ -121,7 +126,7 @@
 - 스컬크: 스컬크 영혼 파티클, 발전 과제, 플레이어 사망 경험치 흡수 **(M2)**
 - 주민: 밭 수확·뼛가루, 거래 보여주기, 영웅 선물, 생성 이유별 종류/직업 설정, 철 골렘 평판 -100 플레이어 공격, 발전 과제, 스포너 경로 finalizeSpawn **(M5)**
 - 주민 소문·평판·특별 가격(거래 평판, 좀비 주민 치료 할인, 마을의 영웅): 나중에 확인하기로 함 **(M5)**
-- 명령: 명령 블록 등 (`/tick sprint` 는 구현됨). 순서는 `docs/feature-parity/roadmap-2026-10-09.md` **(M11)**
+- 명령: 명령 블록 등 (`/tick sprint` 는 구현됨, 명령 점검 M11 은 `docs/feature-parity/command-audit-m11-2026-11-07.md`). 순서는 `docs/feature-parity/roadmap-2026-10-09.md` **(M11)**
 
 ### 가정 (바닐라 jar 대조 필요)
 - 깔때기·용기: 양조기 연료 칸은 블레이즈 가루만 **(M3)**

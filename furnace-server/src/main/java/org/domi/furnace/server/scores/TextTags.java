@@ -13,7 +13,7 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 
-final class TextTags {
+public final class TextTags {
 
     private TextTags() {}
 
@@ -24,7 +24,7 @@ final class TextTags {
     static NbtCompound styleToTag(Style s) { return (NbtCompound) NbtIo.readUnnamed(s.networkNbt()); }
 
     /** NBT 값 → 텍스트(형식이 틀리면 null). */
-    static Text tagToText(Object tag) {
+    public static Text tagToText(Object tag) {
         try {
             return JsonTextSerializer.json().deserialize(toJson(tag).toString());
         } catch (RuntimeException e) {

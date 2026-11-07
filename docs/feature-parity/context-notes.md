@@ -1024,6 +1024,11 @@
 - 함정: 플러그인 설명 파일 `commands:` 를 `{description: …}` 흐름 형식으로 쓸 때 설명에 `(`·`[` 가 들어가면 ConfigParseException 으로 플러그인이 안 뜬다 — 블록 형식 + 따옴표로.
 - 시험: `MobBrainApiTest` 18개, `MobAiHandleTest` 주민 두뇌 1건 추가, 봇 `tools/bot-test/round13/brain.js` 12/12.
 
+## 2026-11-07 명령 점검 M11
+- 텍스트 속 선택자·점수·NBT 는 `ComponentUtils.resolve`(future)로 푼다. 엔티티가 region 소유라 읽기가 비동기이므로 쓰는 쪽은 `EntityOps.result`/`thenOnGlobal` 로 이어야 한다. 전부 플레이어·저장소만 건드리면 future 가 이미 끝나 있어 동기 길과 같은 속도.
+- brigadier 는 입력과 똑같은 후보를 제안하지 않는다(`/tag x remove a` 에서 `a` 를 다시 안 띄움) — 자동완성 시험은 접두 일부로.
+- 새 시험 `TextResolveCommandsTest`(15개), 봇 `tools/bot-test/round15`. 자세한 내용 `command-audit-m11-2026-11-07.md`.
+
 ## 2026-11-07 플레이어별 가상 블록·바이옴·보더·장비·채팅 서식 (묶음 K3, 불만 표 52~54행)
 - API `Furnace.playerViews()` → `PlayerViews`(+`PlayerBorder`), `AsyncChatEvent.renderer(ChatRenderer)`. 설계·규칙 `docs/api/player-views.md`.
 - 핵심(52행): 서버 `Player` 마다 `ViewLayers`(블록·바이옴 층, 장비 덮어쓰기, 개인 `WorldBorder`)를 두고, 나가는 청크 본문·`block_update`·`section_blocks_update`·`chunks_biomes`·`set_equipment`·보더 패킷에 연결의 `ViewRewriter` 가 덧입힌다. 청크를 다시 받아도(멀리 갔다 옴) 층이 남는다 — 봇으로 확인.
@@ -1082,7 +1087,8 @@
 `javap -c -p` 로 BaseSpawner(`dby`)·TrialSpawner(`dsf`)·EquipmentUser(`btb`)·SignBlockEntity(`drs`)·SignText(`drt`)·ComponentUtils(`xc`)·ScoreContents(`yh`)·SelectorContents(`yi`)·GsonHelper.toStableString(`aye`)·MapItemSavedData(`eqt`)·BeehiveBlockEntity(`dqe`)·BeehiveBlock(`dfs`)를 대조했다.
 - **이미 같았던 것(닫음)**: 깃발 무늬 컴포넌트 → 블록 엔티티(applyImplicitComponents), 깃발 부술 때 이름·무늬 드롭(copy_components + BLOCK_ENTITY 매개변수), 네더 지도 색(hasCeiling: 반경 절반·흙/돌 해시 무늬), 벌집 들고나기·꿀 레벨·저장, 표지판 저장 JSON(키 재귀 정렬 = toStableString, HTML 이스케이프 없음, 바닐라 코덱 필드 구성).
 - **고친 것**: (1) 지도 표식 회전 흔들림은 바닐라가 **네더**(`dcw.i` = the_nether) 지도에서 하는데 Furnace 는 엔드에서 하고 있었다. 깃발 표식도 toggleBanner 가 레벨을 넘기므로 네더에서 돈다(불러온 깃발은 레벨 null → 안 돈다). (2) 스포너: `loadEntityRecursive` — Passengers 를 깊이 우선으로 불러 강제로 태우고(승객 id 도 정규화), 함수는 엔티티마다(BaseSpawner 는 같은 자리·자기 회전, 시련 생성기는 엔티티마다 회전 nextFloat). (3) 스포너 `SpawnData.equipment` → `Mob.equip(EquipmentTable)`; 칸 고르기는 Equipable(늑대·말 갑옷·양털 카펫 → 몸, 방패 → 왼손) 기준으로 바꿨다(전엔 이름 판정이라 늑대 갑옷이 주 손으로 갔다). 시련 생성기도 같은 메서드를 쓴다. (4) 표지판: 레벨에 놓인 뒤 읽을 때(/data merge block, /setblock·/fill NBT, /clone, 아이템 block_entity_data, /place·구조물 블록 배치) 그때 읽은 면만 줄마다(원문 → 걸러진 것) `ComponentUtils.updateForEntity(표지판 소스, 줄, null, 0)` — 소스는 이름 "Sign"·권한 2·칸 가운데·엔티티 없음·그 월드. 명령 오류면 원래 줄. 청크 읽기는 레벨이 없어 안 푼다(바닐라와 같음). 면 색은 `fieldOf.orElse(BLACK)` 이라 틀린 색이면 검정(전엔 면 전체를 버렸다). (5) `ComponentUtils`: 점수(ScoreContents) 풀기 추가 — 이름을 선택자로 읽어 대상이 하나면 그 주인(둘 이상이면 toomany 오류), 없으면 이름 그대로, `*` 는 entity 로; 목표·점수가 없으면 빈 텍스트, 있으면 목표 숫자 형식 또는 NO_STYLE. 선택자 결과는 formatList — 하나면 표시 이름 자체(빈 텍스트로 감싸지 않음, 스타일은 바닐라 withStyle 처럼 원래 줄이 정한 값만 덮고 표시 이름의 클릭·호버·삽입은 남음 — 처음엔 통째로 바꿨다가 독립 검토에서 고침), 여럿이면 빈 텍스트에 구분자로. (6) `Player.displayName` 에 바닐라처럼 엔티티 호버(show_entity)를 붙였고, 플레이어·표지판 명령 소스의 표시 이름도 이것을 쓴다(전엔 팀 서식·호버가 빠졌다). (7) 벌집 크리에이티브 파괴(doTileDrops, 벌이 있거나 꿀 > 0): bees + block_state{honey_level} 를 실은 아이템을 칸 모서리에 떨군다(M17 줄에서 지움).
-- **남은 차이**: 선택자는 플레이어만 찾는다(일반 엔티티는 region 이 나눠 가져 동기 조회가 안 됨 — tellraw 와 같은 한계). NBT 내용(NbtContents)은 풀지 않고 그대로 둔다(클라이언트에는 빈 글로 보인다). 지도의 미로드 청크 칠하기(기존 TODO)는 그대로.
+- **M11 과 합침**: 기준 브랜치의 M11 이 `ComponentUtils.resolve`(future, 일반 엔티티 선택자·NBT 까지)를 넣어 M8 의 동기 판을 버리고 그것을 쓴다. 표지판은 `BlockLevel.resolveSignLines(pos, 줄들, apply)` — 플레이어·점수판만 쓰면 그 자리에서, 다른 region 의 엔티티를 읽으면 끝난 뒤 그 칸의 주인 region 에서 넣고(그새 표지판이 바뀌었으면 버림) 갱신을 보낸다.
+- **남은 차이**: 위의 늦게 끝나는 경우 바닐라(동기)보다 한 틱 안팎 늦게 바뀐다(최종 글은 같다). 아직 포팅 안 된 엔티티 종류의 스포너 승객은 빠진다. 지도의 미로드 청크 칠하기(기존 TODO)는 그대로.
 
 ## 2026-11-07 청크 전송 auto · furnace.properties 자동 생성
 - 청크 로딩 속도는 봇(mineflayer)으로 못 잰다 — `tools/bot-test/chunkrate/chunkrate.js` 처럼 `chunk_batch_received` 값을 정해 답하는 접속기를 쓴다. 진단·전후 수치: `perf-chunk-send-2026-11-07.md`.

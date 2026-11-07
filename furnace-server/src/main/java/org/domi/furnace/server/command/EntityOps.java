@@ -111,6 +111,35 @@ public final class EntityOps {
         return f;
     }
 
+    @FunctionalInterface
+    public interface ThrowingFunction<T, R> {
+        R apply(T value) throws Exception;
+    }
+
+    /**
+     * future 가 끝나 있으면 그 자리에서, 아니면 끝난 뒤 **전역 스레드에서** fn 을 돌려 결과 future 를 만든다(region 에서 완성되는 future 에
+     * thenApply 를 그냥 붙이면 fn 이 region 에서 돈다). fn 의 오류(CommandSyntaxException 포함)는 실패한 future 로.
+     */
+    public static <T, R> CompletableFuture<R> thenOnGlobal(CommandSource source, CompletableFuture<T> f, ThrowingFunction<T, R> fn) {
+        if (f.isDone()) {
+            try {
+                return CompletableFuture.completedFuture(fn.apply(f.join()));
+            } catch (Throwable t) {
+                return CompletableFuture.failedFuture(unwrap(t));
+            }
+        }
+        java.util.concurrent.Executor global = r -> source.getServer().scheduler().global().execute(r);
+        return f.thenApplyAsync(v -> {
+            try {
+                return fn.apply(v);
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new java.util.concurrent.CompletionException(e);
+            }
+        }, global);
+    }
+
     /** 값을 받아 future 결과를 내는 다음 단계(헬퍼 합성용). */
     @FunctionalInterface
     public interface AsyncAction<T> {

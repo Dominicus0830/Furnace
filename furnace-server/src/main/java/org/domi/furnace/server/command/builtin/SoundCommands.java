@@ -29,10 +29,43 @@ public final class SoundCommands {
 
     private SoundCommands() {}
 
+    /** 바닐라 SuggestionProviders.AVAILABLE_SOUNDS — 클라이언트가 이름으로 아는 공급자(소리 이름은 클라이언트 레지스트리에서). 서버에 직접 물으면 소리 레지스트리 전부. */
+    public static final org.domi.furnace.server.command.NamedSuggestionProvider AVAILABLE_SOUNDS = new org.domi.furnace.server.command.NamedSuggestionProvider() {
+        @Override public String id() { return "minecraft:available_sounds"; }
+
+        @Override
+        public java.util.concurrent.CompletableFuture<org.domi.furnace.server.command.brigadier.Suggestions> getSuggestions(
+                CommandContext<CommandSource> c, org.domi.furnace.server.command.brigadier.SuggestionsBuilder b) {
+            return org.domi.furnace.server.command.SharedSuggestions.suggest(soundNames(), b);
+        }
+    };
+
+    private static volatile java.util.List<String> soundNames;
+
+    /** builtin 레지스트리 덤프의 minecraft:sound_event 엔트리(레지스트리 순서). */
+    private static java.util.List<String> soundNames() {
+        java.util.List<String> l = soundNames;
+        if (l == null) {
+            java.util.List<String> out = new java.util.ArrayList<>();
+            try (var in = SoundCommands.class.getClassLoader().getResourceAsStream("registries/builtin-1.21.1.txt")) {
+                if (in != null) {
+                    var r = new java.io.BufferedReader(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
+                    String line;
+                    String prefix = "minecraft:sound_event ";
+                    while ((line = r.readLine()) != null) if (line.startsWith(prefix)) out.add(line.substring(prefix.length()));
+                }
+            } catch (java.io.IOException e) {
+                // 목록을 못 읽으면 빈 제안
+            }
+            soundNames = l = java.util.List.copyOf(out);
+        }
+        return l;
+    }
+
     private static final SimpleCommandExceptionType ERROR_TOO_FAR = new SimpleCommandExceptionType(Text.translatable("commands.playsound.failed"));
 
     public static void registerPlaySound(CommandDispatcher<CommandSource> d) {
-        var sound = argument("sound", ResourceLocationArgument.id())
+        var sound = argument("sound", ResourceLocationArgument.id()).suggests(AVAILABLE_SOUNDS)
                 .executes(c -> play(c, SoundSource.MASTER, caller(c.getSource()), pos(c.getSource()), 1.0F, 1.0F, 0.0F));
         for (SoundSource src : SoundSource.values()) sound.then(sourceNode(src));
         d.register(literal("playsound").requires(s -> s.hasPermission(2)).then(sound));
@@ -104,12 +137,12 @@ public final class SoundCommands {
     public static void registerStopSound(CommandDispatcher<CommandSource> d) {
         var targets = argument("targets", EntityArgument.players())
                 .executes(c -> stop(c.getSource(), EntityArgument.getPlayers(c, "targets"), null, null))
-                .then(literal("*").then(argument("sound", ResourceLocationArgument.id())
+                .then(literal("*").then(argument("sound", ResourceLocationArgument.id()).suggests(AVAILABLE_SOUNDS)
                         .executes(c -> stop(c.getSource(), EntityArgument.getPlayers(c, "targets"), null, ResourceLocationArgument.getId(c, "sound")))));
         for (SoundSource src : SoundSource.values()) {
             targets.then(literal(src.key())
                     .executes(c -> stop(c.getSource(), EntityArgument.getPlayers(c, "targets"), src, null))
-                    .then(argument("sound", ResourceLocationArgument.id())
+                    .then(argument("sound", ResourceLocationArgument.id()).suggests(AVAILABLE_SOUNDS)
                             .executes(c -> stop(c.getSource(), EntityArgument.getPlayers(c, "targets"), src, ResourceLocationArgument.getId(c, "sound")))));
         }
         d.register(literal("stopsound").requires(s -> s.hasPermission(2)).then(targets));
