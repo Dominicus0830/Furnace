@@ -341,13 +341,13 @@ class BlockRemainderM17Test {
         rabbit.moveTo(5.5, -59.5, 5.5, 0, 0);
         assertEquals(Shape.EMPTY, behavior.getEntityCollisionShape(ps, level, snow, rabbit));
 
+        // 웅크리기(isDescending)는 생물에게는 늘 거짓(LivingEntity.isShiftKeyDown) — 플레이어는 이 경로를 타지 않는다
+        rabbit.moveTo(5.5, -59.0, 5.5, 0, 0);
+
         // 발밑 칸(가장자리 칸)도 잡힌다: 위에 선 토끼는 아래로 움직이면 막히고, 소는 막히지 않는다
         AABB down = rabbit.boundingBox().expandTowards(0.0, -0.01, 0.0);
         assertFalse(level.blockCollisions(rabbit, down).isEmpty(), "토끼는 가루눈 위에 선다");
         assertTrue(level.blockCollisions(cow, cow.boundingBox().expandTowards(0.0, -0.01, 0.0)).isEmpty(), "소는 빠진다");
-
-        // 웅크리기(isDescending)는 생물에게는 늘 거짓(LivingEntity.isShiftKeyDown) — 플레이어는 이 경로를 타지 않는다
-        rabbit.moveTo(5.5, -59.0, 5.5, 0, 0);
 
         // 2.5 넘게 떨어지는 중이면 누구든 높이 0.9 상자
         cow.fallDistance = 3.0F;
