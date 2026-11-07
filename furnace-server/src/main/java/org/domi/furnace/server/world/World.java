@@ -377,12 +377,16 @@ public final class World {
     }
 
     /** 저장·종료용: 모든 region 의 dirty 청크 저장(각 region 스레드에서). 플레이어 저장은 각 연결의 channelInactive 가 한다. */
-    public List<CompletableFuture<Void>> flushAll() {
+    public List<CompletableFuture<Void>> flushAll() { return flushAll(null); }
+
+    /** deferred 가 있으면 레인이 밀려 이번에 넣지 못한(자동 저장으로 넘긴) 청크 수를 더한다. */
+    private List<CompletableFuture<Void>> flushAll(java.util.concurrent.atomic.AtomicInteger deferred) {
         org.domi.furnace.server.map.MapStore.saveDirty();   // 바뀐 지도 데이터·idcounts
         List<CompletableFuture<Void>> fs = new ArrayList<>(forEachRegion(r -> {
             r.releaseDisconnectedMounts();
             r.saveOnlinePlayerVehicles();   // 바닐라 saveAll 의 플레이어 저장 중 탈것 몫(본체는 Player.requestSave)
-            r.saveDirtyChunks();
+            int left = r.saveDirtyChunks();
+            if (deferred != null) deferred.addAndGet(left);
             r.publishRaids();
             var saver = dragonFightSaver;
             if (saver != null) snapshotDragonFight(r, saver);
@@ -397,6 +401,38 @@ public final class World {
             return null;
         }));
         return fs;
+    }
+
+    /**
+     * 종료·save-all 용: {@link #flushAll} 이 레인 역압으로 청크를 다 넣지 못했으면 IO 레인이 빈 뒤 다시 부르기를 되풀이한다(역압은 그대로
+     * 지켜 저장 스냅샷이 한꺼번에 쌓이지 않는다). flushAll 한 번은 레인이 밀리면 남은 청크를 다음 틱의 자동 저장으로 넘기는데, 종료 때는
+     * 다음 틱이 없어 그 청크가 저장되지 않고 사라졌다(여럿이 새 땅을 돌아 생성 청크가 많을 때 — M12). 한 번이라도 밀리지 않고 다 넣으면
+     * 끝난다(그 사이 새로 dirty 가 된 청크는 기다리지 않는다 — 틱이 도는 save-all 이 끝없이 돌지 않게). 마감을 넘기면 남은 수를 돌려준다.
+     */
+    public int flushAllDrained(long timeoutNanos) throws InterruptedException {
+        long deadline = System.nanoTime() + timeoutNanos;
+        int left = 0;
+        for (int round = 0; ; round++) {
+            java.util.concurrent.atomic.AtomicInteger deferred = new java.util.concurrent.atomic.AtomicInteger();
+            awaitQuietly(flushAll(deferred), deadline, "저장");
+            left = deferred.get();
+            if (left == 0 || System.nanoTime() >= deadline) break;
+            if (round > 0 && round % 10 == 0) {
+                org.slf4j.LoggerFactory.getLogger(World.class).info("[SAVE] {} 레인이 밀려 나눠 저장 중 — 남은 청크 {}", dimension(), left);
+            }
+            awaitQuietly(java.util.List.of(ioBarrier()), deadline, "IO 레인 비우기");
+        }
+        return left;
+    }
+
+    private static void awaitQuietly(java.util.List<CompletableFuture<Void>> fs, long deadline, String what) throws InterruptedException {
+        for (var f : fs) {
+            try {
+                f.get(Math.max(1, deadline - System.nanoTime()), java.util.concurrent.TimeUnit.NANOSECONDS);
+            } catch (java.util.concurrent.TimeoutException | java.util.concurrent.ExecutionException e) {
+                org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] {} 실패/지연", what, e);
+            }
+        }
     }
 
     /** owner 스레드서 스냅샷 뜬 뒤 IO 레인서 .mca write. worldSource가 AnvilWorldSource일 때만. */

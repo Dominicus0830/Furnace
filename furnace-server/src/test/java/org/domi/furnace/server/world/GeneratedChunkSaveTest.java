@@ -413,6 +413,36 @@ class GeneratedChunkSaveTest {
         sched.close();
     }
 
+    /**
+     * 종료·save-all(M12): 레인이 밀려 flushAll 한 번이 남은 청크를 자동 저장(다음 틱)으로 넘겨도, flushAllDrained 는 레인이 빈 뒤 다시 넣어
+     * dirty 청크를 남기지 않는다. 예전 종료는 flushAll 한 번뿐이라 틱이 더 돌지 않아 그 청크들이 디스크에 없었다.
+     */
+    @Test
+    void flushAllDrained_savesEverythingDespiteBacklog(@TempDir Path dir) throws Exception {
+        var gen = new SuperflatWorldSource(REG, PLAINS);
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        ExecutorService io = Executors.newSingleThreadExecutor();
+        World w = world(dir, gen, sched, io, 1_000_000);
+        int n = 12;
+        for (int x = 0; x < n; x++) for (int z = 0; z < n; z++) w.awaitChunk(new ChunkPos(x, z));
+        w.ioBacklogLimit(8);
+        var gate = new java.util.concurrent.CountDownLatch(1);
+        io.execute(() -> { try { gate.await(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } });
+        // 레인이 막힌 동안 flushAll 한 번: 임계까지만 넣고 나머지는 미룬다(예전 종료 경로가 여기서 끝났다)
+        for (var f : w.flushAll()) f.get(30, TimeUnit.SECONDS);
+        int deferred = sched.region(R00).submit(() -> w.regionAt(R00).dirtyChunkCount()).get();
+        assertTrue(deferred >= n * n - 9, "막힌 레인: flushAll 한 번은 대부분을 미룬다 — 남은 dirty " + deferred);
+        gate.countDown();
+        int left = w.flushAllDrained(TimeUnit.SECONDS.toNanos(60));
+        assertEquals(0, left);
+        assertEquals(0, (int) sched.region(R00).submit(() -> w.regionAt(R00).dirtyChunkCount()).get());
+        w.ioBarrier().get(30, TimeUnit.SECONDS);
+        RegionFileStore check = new RegionFileStore(dir);
+        for (int x = 0; x < n; x++) for (int z = 0; z < n; z++) assertNotNull(check.readChunk(x, z), "디스크에 있어야 한다: " + x + "," + z);
+        io.shutdown();
+        sched.close();
+    }
+
     /** 같은 청크: 퇴출 저장이 레인에 밀려 있는 동안 다시 읽어도 FIFO 라 최신 내용을 읽는다. */
     @Test
     void saveThenReload_readsLatestUnderBacklog(@TempDir Path dir) throws Exception {

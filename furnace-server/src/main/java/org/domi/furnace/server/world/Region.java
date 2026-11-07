@@ -887,16 +887,19 @@ public final class Region {
         }
     }
 
-    /** 로드된 dirty 청크 전부 저장(스냅샷→IO write), dirty clear. */
-    public void saveDirtyChunks() {
+    /**
+     * 로드된 dirty 청크 전부 저장(스냅샷→IO write), dirty clear. 레인이 밀려 다 넣지 못하면 남은 수를 돌려준다(그 청크들은 자동 저장
+     * 큐로 넘어간다 — 틱이 계속 돌 때만 저장된다. 종료·save-all 은 {@link World#flushAllDrained} 로 다시 부른다).
+     */
+    public int saveDirtyChunks() {
         autosaveEntityQueue = null;
         autosaveChunkQueue = null;
         saveEntities();
-        if (dirtyChunks.isEmpty()) return;
+        if (dirtyChunks.isEmpty()) return 0;
         for (ChunkPos cp : new ArrayList<>(dirtyChunks)) {
             ChunkColumn col = ownedChunk(cp.x(), cp.z());
             // 레인이 밀렸다 — 남은 dirty 청크(cp 포함, 아직 지우지 않았다)를 자동 저장 큐로 넘겨 다음 틱부터 나눠 저장
-            if (world.ioBackedUp()) { autosaveChunkQueue = new java.util.ArrayDeque<>(dirtyChunks); return; }
+            if (world.ioBackedUp()) { autosaveChunkQueue = new java.util.ArrayDeque<>(dirtyChunks); return dirtyChunks.size(); }
             if (col != null && col.dirty()) {
                 writeChunkTicks(cp.x(), cp.z(), col, false);
                 world.saveChunkAsync(ChunkSnapshot.forSave(cp.x(), cp.z(), col), col);
@@ -904,6 +907,7 @@ public final class Region {
             }
             dirtyChunks.remove(cp);
         }
+        return 0;
     }
 
     // 자동 저장은 한 틱에 몰아 하지 않고 틱마다 시간 예산(AUTOSAVE_BUDGET_NANOS) 안에서 나눠 한다 — 청크가 많이 바뀐 서버에서 5분마다 틱이 튀던 것.

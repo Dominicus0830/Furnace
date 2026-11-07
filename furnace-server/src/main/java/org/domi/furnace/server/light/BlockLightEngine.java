@@ -70,10 +70,17 @@ public final class BlockLightEngine extends LightEngine {
         }
     }
 
-    /** propagateLightSources: 그 청크의 발광 블록을 모두 증가 대기열에 넣는다. */
+    /**
+     * propagateLightSources: 그 청크의 발광 블록을 모두 증가 대기열에 넣는다. 바닐라 findBlockLightSources 처럼 팔레트에 발광 상태가
+     * 없는 구역은 칸을 훑지 않는다(넣는 항목과 순서는 그대로 — 그런 구역에서는 원래 아무것도 넣지 않는다).
+     */
     public void propagateLightSources(int cx, int cz) {
         int minY = world.minY(), maxY = world.maxY();
         for (int y = minY; y < maxY; y++) {
+            if ((y & 15) == 0 && y + 16 <= maxY && !world.sectionMayEmit(cx, y >> 4, cz)) {
+                y += 15;   // 구역 하나를 건너뛴다(for 의 y++ 가 다음 구역 맨 아래로)
+                continue;
+            }
             for (int z = 0; z < 16; z++) {
                 for (int x = 0; x < 16; x++) {
                     int s = world.state(cx * 16 + x, y, cz * 16 + z);

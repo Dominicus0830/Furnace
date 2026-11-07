@@ -1112,6 +1112,11 @@
 - `World.serializedChunkBody(cp, true)` 는 주인 region 스레드면 작업 큐를 건너뛴다. 다른 곳에서 inline 을 켜도 그 스레드가 주인이 아니면 예전처럼 큐로 간다.
 - furnace.properties 를 읽는 새 키를 넣으면 `FurnacePropertiesFile.sections()` 에도 넣는다(`FurnacePropertiesFileTest` 가 접속 방어 키와 고정 목록을 확인한다).
 
+## 2026-11-07 여럿일 때 청크 전송 (묶음 M12)
+- 원인 ①(데이터 유실): 종료 `flushAll` 한 번은 IO 레인이 밀리면(`ioBackedUp`, 레인당 256) 남은 dirty 청크를 `autosaveChunkQueue`(다음 틱)로 넘기는데 종료엔 다음 틱이 없다 → 여럿이 새 땅을 돌고 끄면 생성 청크 약 42% 유실, 재시작 뒤 재생성. `World.flushAllDrained` 가 미룬 수가 0 이 될 때까지 flushAll → `ioBarrier` 를 되풀이(역압은 지킴). 종료·`save-all` 이 쓴다. 미룬 수만 보므로 틱이 도는 save-all 이 끝없이 돌지 않는다.
+- 원인 ②(CPU): 디스크 청크도 생성 풀에서 빛을 처음부터 계산(바닐라는 저장된 빛을 쓰지만, Furnace 는 시야 밖 이웃이 내려가 저장된 빛이 낡을 수 있어 그대로 둠). 빠른 경로: 블록빛 원천은 팔레트에 발광 상태가 없는 구역을 건너뜀(바닐라 `findBlockLightSources`/`maybeHas`), 하늘빛 원천 높이는 한 상태로만 찬 구역을 통째로 지남, 모든 열이 15 인 구역은 `Arrays.fill`. 대기열 항목·순서 그대로. 실제 청크 5,776개 SHA-1 동일, 1.09 → 0.35ms.
+- 함정: `ChunkColumn.sections()` 는 cowCopy 공유 섹션을 복사한다 — 읽기만 할 땐 `sectionUniformBlock`/`sectionMaybeHas`. 봇 측정은 minecraft-protocol 이 map_chunk 를 해석하면 클라이언트 CPU 가 먼저 막힌다(`multi.js` 는 0x27 을 x,z 만 읽음).
+
 ## 2026-11-07 팀·PvP 규칙 연결 (묶음 M16)
 - 바닐라 1.21.1 바이트코드 대조(`bsr.s`=Entity.isAlliedTo(Entity), `bsr.a(eyi)`=isAlliedTo(Team), `cmx.a(cmx)`=Player.canHarmPlayer, `cef.a`=TargetingConditions.test, `cce.h`=HurtByTargetGoal.alertOthers, `cgh.a`=Wolf.wantsToAttack, `cnd.l`=AbstractArrow.tick): `isAlliedTo` 를 부르는 곳은 타게팅 조건·플레이어 쓸기(`cmx`)·철퇴 충격파(`cvb`)·워든 canTargetEntity(`cmb.c`)·HurtByTarget 경보·좀비 피글린 경보·송곳니(`cnh`)·MobEffectUtil.addEffectToPlayersAround(`bsa`, 장로 수호자 저주·워든 어둠) 이다. 모두 이어 붙였다.
 - **구조**: `Targetable.team()`/`isAlliedTo(other)` 기본 구현(같은 팀 = `PlayerTeam.isAlliedTo`). `LivingEntity.team()` = `getTeam()`, `Player.team()` 은 원래 있던 것. 덮어쓰기: `TamableAnimal`(길들였으면 주인·주인의 아군), `AbstractIllager`(팀 규칙 뒤, `illager_friends` 태그는 **둘 다 팀이 없을 때만** — 이전엔 팀과 무관하게 동맹이었다), `Evoker` 는 그대로.
