@@ -1492,6 +1492,14 @@ public abstract class ChunkLevel implements BlockLevel {
         return e;
     }
 
+    /** explode 에 피해 원인 엔티티(causing)를 따로 준 것: 불화살로 터진 TNT 수레처럼 폭발 엔티티와 원인이 다를 때. */
+    public Explosion explode(Entity source, org.domi.furnace.server.entity.Targetable causing, double x, double y, double z, float radius, boolean fire, Explosion.BlockInteraction interaction) {
+        Explosion e = new Explosion(this, source, x, y, z, radius, fire, interaction).withCausing(causing);
+        e.explode();
+        e.finalizeExplosion(true);
+        return e;
+    }
+
     /**
      * 리스폰 지점 폭발(침대·정박기의 level.explode(null, badRespawnPointExplosion(center), 계산기, center, 5.0, 불, BLOCK)).
      * overridePos 가 null 이 아니면 그 칸의 폭발 저항을 resistance 로(정박기 옆 물).

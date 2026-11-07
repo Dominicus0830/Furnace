@@ -78,6 +78,7 @@ public class ThrownTrident extends AbstractArrow {
         dealtDamage = true;
         boolean hurt;
         if (target instanceof LivingEntity le) hurt = le.hurtByVia(dmg, damage, owner == null ? null : owner, this);
+        else if (target instanceof AbstractArrow.CartTarget ct) hurt = ct.cart.hurtByVia(dmg, damage, owner, this);   // 수레: 삼지창도 화살이라 직접 원인·주인을 넘긴다
         else hurt = target.hurtByMob(dmg, damage, owner instanceof Mob m ? m : null);
         if (hurt) {
             if (target instanceof Entity e && e.type() == EntityType.ENDERMAN) return;

@@ -421,6 +421,9 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     public org.domi.furnace.server.effect.MobEffectInstance getEffect(org.domi.furnace.server.effect.MobEffect e) { return activeEffects.get(e); }
 
+    /** LivingEntity.isAffectedByPotions: 효과 구름이 건드리는가(방어구 거치대는 아니다). */
+    public boolean isAffectedByPotions() { return !(health() <= 0.0F); }
+
     /** LivingEntity.canBeAffected: 되살아나지 않는 몹(언데드)은 재생·독에 안 걸린다. */
     public boolean canBeAffected(org.domi.furnace.server.effect.MobEffectInstance i) {
         if (type.is("minecraft:ignores_poison_and_regen")) {
@@ -985,6 +988,22 @@ public abstract class LivingEntity extends Entity implements Targetable {
         yHeadRotO = yHeadRot;
     }
 
+    private int removeArrowTime;
+
+    /** 몸에 박힌 화살 수(DATA_ARROW_COUNT). */
+    public int getArrowCount() { return (Integer) entityData.get(DATA_ARROW_COUNT); }
+
+    public void setArrowCount(int n) { entityData.set(DATA_ARROW_COUNT, n); }
+
+    /** LivingEntity.tick: 박힌 화살이 있으면 20 × (30 − 수) 틱마다 하나씩 빠진다. */
+    private void tickArrowCount() {
+        int n = getArrowCount();
+        if (n > 0) {
+            if (removeArrowTime <= 0) removeArrowTime = 20 * (30 - n);
+            if (--removeArrowTime <= 0) setArrowCount(n - 1);
+        }
+    }
+
     @Override
     public void tick() {
         super.tick();
@@ -992,6 +1011,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
         if (isSleeping() && !checkBedExists()) stopSleeping();
         updateSwingTime();
         updateUsingItem();
+        tickArrowCount();
         detectEquipmentUpdates();
         aiStep();
         double dx = x() - xo, dz = z() - zo;

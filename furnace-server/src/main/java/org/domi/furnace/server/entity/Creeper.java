@@ -169,7 +169,7 @@ public class Creeper extends Monster {
         cloud.setRadiusPerTick(-cloud.getRadius() / cloud.durationTicks());
         var list = new java.util.ArrayList<org.domi.furnace.server.effect.MobEffectInstance>();
         for (var e : effects) list.add(new org.domi.furnace.server.effect.MobEffectInstance(e));
-        cloud.setEffects(list, effectsColor(list));
+        cloud.setEffects(list);
         level.addFreshEntity(cloud);
     }
 

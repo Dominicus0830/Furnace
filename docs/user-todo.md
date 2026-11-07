@@ -2,6 +2,11 @@
 
 2026-11-06 재구성. 구조: **1. 직접 확인할 것** → **2. 내가 결정할 것** → **3. 코디네이터가 이 파일에 필요하다고 보는 항목**. 맨 아래는 끝난 기록이라 할 일이 아니다.
 
+# 표시 엔티티·효과 구름·화살 (M22) — 2026-11-07
+서버 시험(`EntityNbtDisplayTest`)으로 NBT 읽기·쓰기와 규칙은 확인. 실제 클라이언트로 남은 것:
+- `/summon text_display ~ ~2 ~ {text:'{"text":"안녕","color":"gold"}',alignment:"left",shadow:1b}` 로 정렬·그림자가, `/summon block_display ~ ~ ~ {block_state:{Name:"stone"},transformation:[2f,0f,0f,0f, 0f,1f,0f,0f, 0f,0f,1f,0f, 0f,0f,0f,1f]}` 로 행렬 변환(가로 2배)이 화면에 맞게 보이는지.
+- 화살에 맞은 좀비·본인 몸에 화살이 박혀 보이고 시간이 지나면 하나씩 빠지는지, 효과 구름 `{Particle:{type:"minecraft:dust",color:[1f,0f,0f],scale:1f}}` 가 빨간 가루로 보이는지, 거치대를 부술 때 나무 조각이 튀는지.
+
 # TPS API·`/tps` 하위 명령 (Q3) — 2026-11-07
 도미니코 결정대로 `getTPS()`(= `Furnace.tps()`)는 활성 region(플레이어 있는 region) 플레이어 가중 평균, `/tps regions|here|player|region` 으로 특정 region 값. 정의 `docs/api/tps.md`. 봇(오프라인 서버 + 시험 플러그인)으로 값·명령 확인. 실제 클라이언트로 남은 것:
 - `/tps`·`/tps regions` 의 색(초록·노랑·빨강)과 줄 모양이 채팅 창에서 읽기 좋은지.

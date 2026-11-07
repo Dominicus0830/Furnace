@@ -1,6 +1,7 @@
 // 바닐라 ArmorStand: 손 2칸·방어구 4칸을 놓는 거치대. 우클릭한 높이로 칸을 골라 아이템을 바꿔 끼우고, 때리면 5틱 안에 두 번째 타격에 부서진다(아이템과 장비를 떨군다).
 // 자세는 머리·몸·양팔·양다리 회전(데이터 16~21), 플래그(작게·팔·받침 없음·마커)는 15 번.
-// TODO: 부서질 때 나무 입자, 커스텀 이름 아이템 이름, 탑승자 처리(없음), 밀림(isPushable) 무시.
+// 부술 때(크리에이티브·두 번째 타격) 참나무 널빤지 블록 입자를 뿌리고, 맨손/도구로 부순 거치대 아이템은 거치대의 커스텀 이름을 이어받는다.
+// TODO: 탑승자 처리(없음).
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -15,6 +16,9 @@ import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class ArmorStand extends LivingEntity {
+
+    /** ArmorStand.isAffectedByPotions = false. */
+    @Override public boolean isAffectedByPotions() { return false; }
 
     /** ArmorStand.isPushable = false. */
     @Override public boolean isPushable() { return false; }
@@ -252,6 +256,7 @@ public class ArmorStand extends LivingEntity {
         if (direct instanceof Player pl && (pl.gameMode() == org.domi.furnace.server.world.GameMode.ADVENTURE || pl.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR)) return false;
         if (direct instanceof Player pl && pl.vitals().isCreative()) {
             playBrokenSound();
+            showBreakingParticles();
             kill();
             return true;
         }
@@ -262,6 +267,7 @@ public class ArmorStand extends LivingEntity {
             lastHit = now;
         } else {
             brokenByPlayer(attacker);
+            showBreakingParticles();
             kill();
         }
         return true;
@@ -285,6 +291,7 @@ public class ArmorStand extends LivingEntity {
 
     private void brokenByPlayer(Targetable attacker) {
         ItemStack item = new ItemStack(ItemContext.id("minecraft:item", "minecraft:armor_stand"), 1);
+        if (hasCustomName()) item = org.domi.furnace.server.item.ItemTools.with(item, "minecraft:custom_name", getCustomName().toJson());
         level.popResource(blockPosition(), item);
         brokenByAnything();
     }
@@ -304,6 +311,13 @@ public class ArmorStand extends LivingEntity {
                 armorItems[i] = ItemStack.EMPTY;
             }
         }
+    }
+
+    /** showBreakingParticles: 참나무 널빤지 블록 입자 10개(몸 높이 2/3 지점, 퍼짐 너비/4·높이/4). */
+    private void showBreakingParticles() {
+        level.sendParticles(new org.domi.furnace.server.net.protocol.play.ParticleOptions.Block("minecraft:block",
+                org.domi.furnace.server.block.B.defaultState("oak_planks")), x(), y() + bbHeight() * 0.6666666666666666, z(), 10,
+                bbWidth() / 4.0F, bbHeight() / 4.0F, bbWidth() / 4.0F, 0.05);
     }
 
     private void playBrokenSound() { level.playSound(null, x(), y(), z(), "minecraft:entity.armor_stand.break", soundSource(), 1.0F, 1.0F); }
