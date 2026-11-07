@@ -479,7 +479,7 @@ public abstract non-sealed class Entity implements Rider {
      * 새로 만들어 넣는다(바닐라 changeDimension 의 create + restoreFrom + addDuringTeleport). 목적지가 없으면 원천에 되돌린다.
      */
     private void travelAcross(PortalTravel plan, org.domi.furnace.server.block.LevelServices.DimensionTravel travel) {
-        moveAcross(arrive -> travel.travel(plan, arrive), travel, PORTAL_PLACE, null);
+        moveAcross(arrive -> travel.travel(plan, arrive), travel, PORTAL_PLACE, null, plan.targetDimension());
     }
 
     /** changeDimension 이 옮긴 엔티티를 놓는 방식: moveTo(위치, 목적 yRot, 지금 xRot) 후 목적 속도. */
@@ -496,7 +496,7 @@ public abstract non-sealed class Entity implements Rider {
     private void teleportWithinLevel(Portal portal, Pos entry, org.domi.furnace.server.block.LevelServices.DimensionTravel travel) {
         final ChunkLevel src = level;
         final Traveler tr = Traveler.of(this);
-        moveAcross(arrive -> portal.travelWithinLevel(src, entry, tr, arrive), travel, PORTAL_PLACE, null);
+        moveAcross(arrive -> portal.travelWithinLevel(src, entry, tr, arrive), travel, PORTAL_PLACE, null, src.dimension());
     }
 
     /**
@@ -515,13 +515,16 @@ public abstract non-sealed class Entity implements Rider {
         moveAcross(arrive -> travel.travel(plan, arrive), travel, (e, t) -> {
             e.moveTo(tx, ty, tz, yaw, p);
             if (e instanceof LivingEntity le) le.setYHeadRot(yaw);
-        }, done);
+        }, done, null);   // 바닐라 teleportTo(레벨, …) 는 changeDimension 을 거치지 않아 낙하 블록 강제 틱 훅을 켜지 않는다
         return true;
     }
 
+    /** changeDimension 이 끝난 뒤 옛 쪽에서 부르는 훅(바닐라 FallingBlockEntity.changeDimension 의 재정의 자리). 기본은 아무것도 안 한다. */
+    protected void afterChangedDimension(String from, String to) {}
+
     private void moveAcross(java.util.function.Consumer<java.util.function.BiConsumer<ChunkLevel, DimensionTransition>> route,
                             org.domi.furnace.server.block.LevelServices.DimensionTravel travel,
-                            java.util.function.BiConsumer<Entity, DimensionTransition> place, Runnable done) {
+                            java.util.function.BiConsumer<Entity, DimensionTransition> place, Runnable done, String targetDimension) {
         stopRidingForced(this);
         ejectPassengers();
         final NbtCompound tag = saveWithoutId(new NbtCompound());
@@ -529,7 +532,9 @@ public abstract non-sealed class Entity implements Rider {
         final PortalProcessor process = portalProcess;
         final String typeName = type.name();
         final double ox = x, oz = z;
+        final String fromDimension = level.dimension();
         setRemoved(RemovalReason.CHANGED_DIMENSION);
+        afterChangedDimension(fromDimension, targetDimension);
         route.accept((target, t) -> {
             try {
                 arriveAcross(target, t, travel, tag, cooldown, process, typeName, ox, oz, place);
@@ -577,6 +582,7 @@ public abstract non-sealed class Entity implements Rider {
         if (e != this) {
             e.restoreFrom(this);
             setRemoved(RemovalReason.CHANGED_DIMENSION);
+            afterChangedDimension(level.dimension(), target.dimension());
         }
         e.moveTo(t.x(), t.y(), t.z(), t.yRot(), e.xRot());
         e.setDeltaMovement(t.vx(), t.vy(), t.vz());
