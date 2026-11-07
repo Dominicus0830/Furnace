@@ -231,19 +231,25 @@ class MultiDimensionTickBench {
         }
     }
 
-    /** shared=true : 모든 region 을 한 월드에 넣는다(공유 큐 근사: 풀 하나, 데드라인 큐 하나). */
+    /**
+     * shared=true : 차원마다 월드 하나, 모두 실제 공유 풀(SharedScheduler) 하나에 건다(S4, 2026-11-07 — 이전에는 한 월드 근사).
+     * shared=false : 차원마다 threads 개짜리 풀.
+     */
     private void runOv(String name, List<Dim> dims, int threads, int ticks, boolean shared) throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(TICK, 1);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         List<ExecutorService> pools = new ArrayList<>();
         List<World> worlds = new ArrayList<>();
-        int nw = shared ? 1 : dims.size();
-        for (int d = 0; d < nw; d++) {
+        SharedScheduler pool = shared ? SharedScheduler.startShared(threads, "furnace-region-") : null;
+        for (int d = 0; d < dims.size(); d++) {
             ExecutorService io = Executors.newSingleThreadExecutor(), gen = Executors.newSingleThreadExecutor();
             pools.add(io);
             pools.add(gen);
-            World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, threads, 4, 1, 2, 2,
-                    reg.directBits(), 7, io, gen);
+            World w = pool == null
+                    ? new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, threads, 4, 1, 2, 2,
+                            reg.directBits(), 7, io, gen)
+                    : new World(DimensionType.OVERWORLD, new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, pool, 4, 1, 2, 2,
+                            reg.directBits(), 7, io, gen);
             w.configurePersistence(Integer.MAX_VALUE, Integer.MAX_VALUE);
             worlds.add(w);
         }
@@ -256,12 +262,12 @@ class MultiDimensionTickBench {
         int idx = 0;
         for (int d = 0; d < dims.size(); d++) {
             Dim dim = dims.get(d);
-            World w = worlds.get(shared ? 0 : d);
+            World w = worlds.get(d);
             long spin = (long) (dim.loadMs() * 1_000_000L);
             for (int k = 0; k < dim.regions(); k++) {
                 final int slot = idx++;
                 dimOf[slot] = d;
-                ChunkPos cp = new ChunkPos((shared ? slot : k) * 4096, 0);
+                ChunkPos cp = new ChunkPos(k * 4096, 0);
                 CompletableFuture<Void> f = new CompletableFuture<>();
                 if (dim.measured()) done.add(f);
                 long key = Regionizer.chunkKey(cp.x(), cp.z());
@@ -310,6 +316,7 @@ class MultiDimensionTickBench {
         System.out.printf("OVBENCH %-24s %-7s threads=%d%s%n", name, shared ? "shared" : "perDim", threads, sb);
         sched.close();
         for (World w : worlds) w.regionizer().close();
+        if (pool != null) pool.close();
         for (ExecutorService e : pools) e.shutdownNow();
     }
 

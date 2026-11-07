@@ -1,7 +1,7 @@
 // region 틱 작업 스레드 풀. 등록된 Regionizer(차원)마다 잠금 없이 발행된 "큐 머리 마감"(headDue)을 보고 가장 이른 차원을 고르고,
 // 꺼내기·끝내기만 그 차원 잠금 안에서 한다(tryTake/finishTick). 깨우기는 LockSupport.unpark — 풀에는 잠금이 없다.
 // 서버 전체 하나(S4, 기본)이거나 shared-region-pool=false 면 차원마다 풀 하나(이전 방식).
-// 공정성(§4.1): EDF + 머리가 2틱 넘게 밀린 차원 먼저 + 다른 차원에 때가 된 머리가 있으면 한 차원은 T-1 워커까지.
+// 공정성(§4.1): EDF + 머리가 2틱 넘게 밀린 차원 먼저 + 다른 차원에 할 일이 있으면 한 차원은 T-1 워커까지.
 // 설계: docs/feature-parity/shared-scheduler-design-2026-10-28.md §2.1·§3·§4
 package org.domi.furnace.server.world;
 
@@ -58,7 +58,7 @@ public final class SharedScheduler implements AutoCloseable {
     /** 시험 전용: 지금 자는(등록된) 워커 수. */
     int parkedCount() { return parked.size(); }
 
-    /** 한 차원의 동시 실행 상한(다른 차원에 때가 된 머리가 있을 때만). 워커 1개면 상한 없음. */
+    /** 한 차원의 동시 실행 상한(다른 차원 큐에 할 일이 있을 때만). 워커 1개면 상한 없음. */
     private final int perDimCap;
     /** 굶음 판정: 머리 지연 >= 이 배수 × 그 차원 틱 주기. */
     private final int starveTicks;
@@ -196,7 +196,7 @@ public final class SharedScheduler implements AutoCloseable {
 
     /**
      * 선택기(§4.1, 잠금 없음): 차원마다 키 = (capped ? 2 : starved ? 0 : 1, headDue), 사전식 최소. 같은 클래스에서 마감 차 ≤ TIE 면
-     * 시작 위치를 rr 로 돌려 번갈아 고른다. maxRunning = 다른 차원에 때가 된 머리가 있으면 perDimCap, 없으면 상한 없음(N3) —
+     * 시작 위치를 rr 로 돌려 번갈아 고른다. maxRunning = 다른 차원에 할 일(큐 머리)이 있으면 perDimCap, 없으면 상한 없음(N3) —
      * 상한은 tryTake 가 잠금 안에서 다시 확인한다. 차원이 하나면 순수 EDF(호환 경로와 같은 동작).
      */
     private Pick select(long now, Pick out) {
@@ -212,29 +212,31 @@ public final class SharedScheduler implements AutoCloseable {
             if (d != Long.MAX_VALUE) { out.best = rz; out.due = d; }
             return out;
         }
-        int dueCount = 0;
-        for (Regionizer o : ds) if (isDue(o.headDue(), now)) dueCount++;
+        // 상한은 다른 차원에 "할 일이 있으면"(큐가 비지 않았으면) 건다 — "지금 때가 됐을 때만" 걸면, 무거운 차원이 가벼운 차원의
+        // 틱 사이에 마지막 워커까지 긴 틱(40~80ms)으로 채워 가벼운 차원이 그만큼 늦는다(2026-11-07 과부하 벤치 asym).
+        int pendingCount = 0;
+        for (Regionizer o : ds) if (o.headDue() != Long.MAX_VALUE) pendingCount++;
         int start = Math.floorMod(rr.getAndIncrement(), n);
         int bestClass = 3;
-        boolean bestOthersDue = false;
+        boolean bestOthersPending = false;
         for (int k = 0; k < n; k++) {
             Regionizer rz = ds[(start + k) % n];
             long d = rz.headDue();
             if (d == Long.MAX_VALUE) continue;                       // N4: MAX 먼저 거른다
             boolean due = now - d >= 0;
-            boolean othersDue = dueCount - (due ? 1 : 0) > 0;
+            boolean othersPending = pendingCount > 1;   // 자기 자신(d != MAX)을 빼고도 할 일이 있는 차원이 있다
             int cls;
-            if (othersDue && rz.activeTicks() >= perDimCap) cls = 2;
+            if (othersPending && rz.activeTicks() >= perDimCap) cls = 2;
             else if (due && now - d >= starveTicks * rz.tickNanos()) cls = 0;
             else cls = 1;
             if (cls < bestClass || (cls == bestClass && d - out.due < -TIE_NANOS)) {
                 bestClass = cls;
                 out.best = rz;
                 out.due = d;
-                bestOthersDue = othersDue;
+                bestOthersPending = othersPending;
             }
         }
-        out.maxRunning = bestOthersDue ? perDimCap : Integer.MAX_VALUE;
+        out.maxRunning = bestOthersPending ? perDimCap : Integer.MAX_VALUE;
         return out;
     }
 
