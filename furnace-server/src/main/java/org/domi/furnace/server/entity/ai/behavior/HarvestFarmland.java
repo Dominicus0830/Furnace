@@ -1,6 +1,6 @@
 // 바닐라 HarvestFarmland(농부): 주변 3×3×3 에서 다 자란 작물·빈 경작지 위 칸을 모아(레벨 난수로 하나 고름) 걸어가
 // 다 자랐으면 부수고, 비었으면 가방의 첫 심을 씨앗(villager_plantable_seeds)을 심는다. 최대 200틱 일한다.
-// 차이: 부수기·심기 game_event 의 원인 엔티티는 넘기지 않는다(BlockActor 아님). 씨앗 태그는 바닐라 기본값을 코드로 둔다.
+// 차이: 부수기·심기 game_event 의 원인 엔티티는 넘기지 않는다(BlockActor 아님).
 package org.domi.furnace.server.entity.ai.behavior;
 
 import java.util.ArrayList;
@@ -23,11 +23,6 @@ import org.domi.furnace.server.item.ItemTools;
 public class HarvestFarmland extends Behavior<Villager> {
     private static final int HARVEST_DURATION = 200;
     public static final float SPEED_MODIFIER = 0.5F;
-    /** 태그 villager_plantable_seeds(바닐라 기본) → 심기는 블록(BlockItem.getBlock). */
-    public static final Map<String, String> PLANTABLE_SEEDS = Map.of("minecraft:wheat_seeds", "minecraft:wheat", "minecraft:potato", "minecraft:potatoes",
-            "minecraft:carrot", "minecraft:carrots", "minecraft:beetroot_seeds", "minecraft:beetroots", "minecraft:torchflower_seeds", "minecraft:torchflower_crop",
-            "minecraft:pitcher_pod", "minecraft:pitcher_crop");
-
     private Pos aboveFarmlandPos;
     private long nextOkStartTime;
     private int timeWorkedSoFar;
@@ -95,9 +90,10 @@ public class HarvestFarmland extends Behavior<Villager> {
                 for (int i = 0; i < inv.size(); i++) {
                     ItemStack s = inv.get(i);
                     boolean planted = false;
-                    String plant = s.isEmpty() ? null : PLANTABLE_SEEDS.get(ItemTools.itemName(s));
-                    if (plant != null) {
-                        int state = B.defaultState(plant);
+                    // 바닐라: villager_plantable_seeds 태그에 들고 BlockItem 이면 그 블록의 기본 상태를 심는다(데이터 팩이 씨앗을 더할 수 있다)
+                    var blockItem = Villager.isPlantableSeed(s) ? org.domi.furnace.server.block.BlockItems.entry(ItemTools.itemName(s)) : null;
+                    if (blockItem != null && blockItem.block() >= 0) {
+                        int state = B.defaultState(blockItem.block());
                         level.setBlock(aboveFarmlandPos, state, 3);
                         level.gameEventFrom("minecraft:block_place", aboveFarmlandPos, v, state);
                         planted = true;

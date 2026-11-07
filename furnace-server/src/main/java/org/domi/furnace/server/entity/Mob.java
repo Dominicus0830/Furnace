@@ -261,7 +261,12 @@ public abstract class Mob extends LivingEntity implements Leashable {
         target.moveTo(x(), y(), z(), yRot(), xRot());
         if (isBaby()) target.setBabyForConversion(true);
         target.setNoAi(isNoAi());
+        if (hasCustomName()) {   // 바닐라 convertTo: 이름과 이름표 표시, 무적 여부도 넘긴다
+            target.setCustomName(getCustomName());
+            target.setCustomNameVisible(isCustomNameVisible());
+        }
         if (persistenceRequired) target.persistenceRequired = true;
+        target.setInvulnerable(isInvulnerable());
         if (keepEquipment) {
             target.setCanPickUpLoot(canPickUpLoot());
             for (EquipmentSlot slot : EquipmentSlot.values()) {
@@ -281,6 +286,24 @@ public abstract class Mob extends LivingEntity implements Leashable {
         }
         discard();
         return target;
+    }
+
+    /**
+     * 바닐라 Mob.dropPreservedEquipment(filter): 필터를 통과하지 못하는 장비(보존할 것)의 칸을 모아 돌려주고,
+     * 통과하는 장비는 드롭 확률이 1.0 을 넘을 때만 칸을 비우고 바닥에 떨군다.
+     */
+    protected java.util.Set<EquipmentSlot> dropPreservedEquipment(java.util.function.Predicate<ItemStack> filter) {
+        java.util.Set<EquipmentSlot> kept = new java.util.HashSet<>();
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            ItemStack item = getItemBySlot(slot);
+            if (item.isEmpty()) continue;
+            if (!filter.test(item)) kept.add(slot);
+            else if ((double) getEquipmentDropChance(slot) > 1.0) {
+                setItemSlot(slot, ItemStack.EMPTY);
+                spawnAtLocation(item);
+            }
+        }
+        return kept;
     }
 
     /** Entity.killedEntity: 이 몹이 죽였을 때(false 면 죽은 쪽의 드롭을 막는다). */
