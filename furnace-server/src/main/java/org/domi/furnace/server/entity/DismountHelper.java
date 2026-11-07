@@ -1,9 +1,11 @@
 // 바닐라 DismountHelper 와 AbstractHorse.getDismountLocationFromVehicle: 탈것 옆 자리에서 발 디딜 바닥을 위로 찾아, 승객 몸(자세별)이 블록에 끼지 않는 곳.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockInfo;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
+import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.Shape;
 
 public final class DismountHelper {
@@ -13,8 +15,34 @@ public final class DismountHelper {
     /** isBlockFloorValid: 바닥 높이가 무한이 아니고 1 보다 낮다. */
     public static boolean isBlockFloorValid(double h) { return !Double.isInfinite(h) && h < 1.0; }
 
-    /** canDismountTo: 그 상자에 블록 충돌이 없다. TODO(월드 보더): getWorldBorder().isWithinBounds(box). */
-    public static boolean canDismountTo(ChunkLevel level, AABB box) { return level.noCollision(box); }
+    /** canDismountTo: 그 상자에 블록 충돌이 없고 월드 보더 안이다(getWorldBorder().isWithinBounds(box)). */
+    public static boolean canDismountTo(ChunkLevel level, AABB box) { return level.noCollision(box) && withinBorder(level, box); }
+
+    /** WorldBorder.isWithinBounds(AABB): 두 모서리(최대는 1e-5 안쪽)가 모두 보더 안(최소 이상, 최대 미만). */
+    public static boolean withinBorder(ChunkLevel level, AABB box) {
+        double[] w = level.borderBounds();
+        return inside(w, box.minX(), box.minZ()) && inside(w, box.maxX() - 1.0E-5F, box.maxZ() - 1.0E-5F);
+    }
+
+    private static boolean inside(double[] w, double x, double z) { return x >= w[0] && x < w[2] && z >= w[1] && z < w[3]; }
+
+    /** DismountHelper.nonClimbableShape: 오를 수 있는 블록(사다리 등)·열린 다락문은 빈 모양, 나머지는 충돌 모양. */
+    public static Shape nonClimbableShape(ChunkLevel level, Pos p) {
+        int s = level.getBlockState(p);
+        if (B.isTag(s, "minecraft:climbable")) return Shape.EMPTY;
+        Prop open = B.prop("open");
+        if (B.isTag(s, "minecraft:trapdoors") && open.has(s) && open.is(s)) return Shape.EMPTY;
+        return BlockInfo.get().collisionShape(s);
+    }
+
+    /** getBlockFloorHeight(nonClimbableShape(p), nonClimbableShape(p.below())): 탈것 아래 사다리·열린 다락문은 바닥이 아니다. */
+    public static double nonClimbableFloorHeight(ChunkLevel level, Pos p) {
+        Shape s = nonClimbableShape(level, p);
+        if (!s.isEmpty()) return s.bounds()[4];
+        Shape below = nonClimbableShape(level, p.below());
+        double d = below.isEmpty() ? Double.NEGATIVE_INFINITY : below.bounds()[4];
+        return d >= 1.0 ? d - 1.0 : Double.NEGATIVE_INFINITY;
+    }
 
     /** BlockGetter.getBlockFloorHeight(pos): 칸의 충돌 모양 꼭대기, 비었으면 아래 칸 꼭대기 − 1(1 미만이면 −무한). */
     public static double blockFloorHeight(ChunkLevel level, Pos p) {
@@ -65,40 +93,43 @@ public final class DismountHelper {
 
     /** BedBlock.findStandUpPosition(type, level, pos, facing, yRot). 자리가 없으면 null. */
     public static Vec3 bedStandUpPosition(LivingEntity e, Pos pos, int facing, float yRot) {
-        return bedStandUpPosition(e.level(), e.type().width(), e.type().height(), pos, facing, yRot);
+        return bedStandUpPosition(e.level(), new Body(e.type().width(), e.type().height(), e.fireImmune(), false), pos, facing, yRot);
     }
 
     /** 플레이어(EntityType.PLAYER 0.6×1.8)가 침대에서 일어설 자리. 없으면 null. */
     public static Vec3 playerBedStandUpPosition(ChunkLevel level, Pos pos, int facing, float yRot) {
-        return bedStandUpPosition(level, PLAYER_WIDTH, PLAYER_HEIGHT, pos, facing, yRot);
+        return bedStandUpPosition(level, new Body(PLAYER_WIDTH, PLAYER_HEIGHT, false, true), pos, facing, yRot);
     }
 
     /** EntityType.PLAYER 의 몸 크기. */
     public static final float PLAYER_WIDTH = 0.6F, PLAYER_HEIGHT = 1.8F;
 
-    private static Vec3 bedStandUpPosition(ChunkLevel level, float w, float h, Pos pos, int facing, float yRot) {
+    /** 내려서는 몸의 종류: 크기, 불 면역, 플레이어 여부(EntityType 이 알려 주는 것). */
+    private record Body(float w, float h, boolean fireImmune, boolean player) {}
+
+    private static Vec3 bedStandUpPosition(ChunkLevel level, Body body, Pos pos, int facing, float yRot) {
         int cw = org.domi.furnace.server.block.Dir.clockWise(facing);
         int side = isFacingAngle(cw, yRot) ? org.domi.furnace.server.block.Dir.opposite(cw) : cw;
         if (org.domi.furnace.server.block.B.isTag(level.getBlockState(pos.below()), "minecraft:beds")) {
             int[][] around = surround(facing, side);
-            Vec3 v = atOffset(level, w, h, pos, around, true);
+            Vec3 v = atOffset(level, body, pos, around, true);
             if (v != null) return v;
-            v = atOffset(level, w, h, pos.below(), around, true);
+            v = atOffset(level, body, pos.below(), around, true);
             if (v != null) return v;
             int[][] above = aboveOffsets(facing);
-            v = atOffset(level, w, h, pos, above, true);
+            v = atOffset(level, body, pos, above, true);
             if (v != null) return v;
-            v = atOffset(level, w, h, pos, around, false);
+            v = atOffset(level, body, pos, around, false);
             if (v != null) return v;
-            v = atOffset(level, w, h, pos.below(), around, false);
-            return v != null ? v : atOffset(level, w, h, pos, above, false);
+            v = atOffset(level, body, pos.below(), around, false);
+            return v != null ? v : atOffset(level, body, pos, above, false);
         }
         int[][] a = surround(facing, side), b = aboveOffsets(facing);
         int[][] offs = new int[a.length + b.length][];
         System.arraycopy(a, 0, offs, 0, a.length);
         System.arraycopy(b, 0, offs, a.length, b.length);
-        Vec3 v = atOffset(level, w, h, pos, offs, true);
-        return v != null ? v : atOffset(level, w, h, pos, offs, false);
+        Vec3 v = atOffset(level, body, pos, offs, true);
+        return v != null ? v : atOffset(level, body, pos, offs, false);
     }
 
     private static int[][] surround(int f, int s) {
@@ -112,36 +143,46 @@ public final class DismountHelper {
         return new int[][] {{0, 0}, {-org.domi.furnace.server.block.Dir.DX[f], -org.domi.furnace.server.block.Dir.DZ[f]}};
     }
 
-    private static Vec3 atOffset(ChunkLevel level, float w, float h, Pos pos, int[][] offs, boolean checkDangerous) {
+    private static Vec3 atOffset(ChunkLevel level, Body body, Pos pos, int[][] offs, boolean checkDangerous) {
         for (int[] o : offs) {
-            Vec3 v = findSafeDismountLocation(level, w, h, new Pos(pos.x() + o[0], pos.y(), pos.z() + o[1]), checkDangerous);
+            Vec3 v = findSafeDismountLocation(level, body.w(), body.h(), body.fireImmune(), body.player(), new Pos(pos.x() + o[0], pos.y(), pos.z() + o[1]), checkDangerous);
             if (v != null) return v;
         }
         return null;
     }
 
-    /** EntityType.isBlockDangerous(불에 면역이 아닌 몹): 타는 블록·위더 장미·달콤한 열매 덤불·선인장·가루눈. */
-    private static boolean isBlockDangerous(int state) {
-        return org.domi.furnace.server.entity.ai.navigation.WalkNodeEvaluator.isBurningBlock(state) || org.domi.furnace.server.block.B.is(state, "minecraft:wither_rose")
+    /** EntityType.isBlockDangerous(state): 불에 면역이 아니면 타는 블록, 그리고 위더 장미·달콤한 열매 덤불·선인장·가루눈. */
+    private static boolean isBlockDangerous(boolean fireImmune, int state) {
+        return !fireImmune && org.domi.furnace.server.entity.ai.navigation.WalkNodeEvaluator.isBurningBlock(state) || org.domi.furnace.server.block.B.is(state, "minecraft:wither_rose")
                 || org.domi.furnace.server.block.B.is(state, "minecraft:sweet_berry_bush") || org.domi.furnace.server.block.B.is(state, "minecraft:cactus")
                 || org.domi.furnace.server.block.B.is(state, "minecraft:powder_snow");
     }
 
-    /** DismountHelper.findSafeDismountLocation(type, level, pos, checkDangerous). TODO(월드 보더): 상자 전체 대신 칸 하나로 검사한다. */
+    /** DismountHelper.findSafeDismountLocation(type, level, pos, checkDangerous): 그 몹 종류의 몸으로(Furnace 의 Player 는 LivingEntity 가 아니므로 여기는 플레이어가 아니다). */
     public static Vec3 findSafeDismountLocation(LivingEntity e, Pos pos, boolean checkDangerous) {
-        return findSafeDismountLocation(e.level(), e.type().width(), e.type().height(), pos, checkDangerous);
+        return findSafeDismountLocation(e.level(), e.type().width(), e.type().height(), e.fireImmune(), false, pos, checkDangerous);
     }
 
-    /** 몸 크기 w×h(불 면역 아님)로 findSafeDismountLocation. */
+    /** 몸 크기 w×h 의 플레이어(불에 면역 아님)로 findSafeDismountLocation. */
     public static Vec3 findSafeDismountLocation(ChunkLevel level, float w, float hgt, Pos pos, boolean checkDangerous) {
-        if (checkDangerous && isBlockDangerous(level.getBlockState(pos))) return null;
-        double h = blockFloorHeight(level, pos);
+        return findSafeDismountLocation(level, w, hgt, false, true, pos, checkDangerous);
+    }
+
+    /**
+     * DismountHelper.findSafeDismountLocation(type, level, pos, checkDangerous): 위험한 블록(그 자리·아래)을 거르고, 사다리·열린 다락문을 뺀
+     * 바닥 높이로 서 있을 곳을 정한 뒤, 몸 상자에 블록 충돌이 없고 월드 보더 안(상자 전체)이어야 한다. 플레이어는 invalid_spawn_inside 블록
+     * (엔드 포털·관문) 안/바로 위 칸이면 안 된다.
+     */
+    public static Vec3 findSafeDismountLocation(ChunkLevel level, float w, float hgt, boolean fireImmune, boolean player, Pos pos, boolean checkDangerous) {
+        if (checkDangerous && isBlockDangerous(fireImmune, level.getBlockState(pos))) return null;
+        double h = nonClimbableFloorHeight(level, pos);
         if (!isBlockFloorValid(h)) return null;
-        if (checkDangerous && h <= 0.0 && isBlockDangerous(level.getBlockState(pos.below()))) return null;
+        if (checkDangerous && h <= 0.0 && isBlockDangerous(fireImmune, level.getBlockState(pos.below()))) return null;
         Vec3 v = new Vec3(pos.x() + 0.5, pos.y() + h, pos.z() + 0.5);
         double hw = w / 2.0F;
         AABB box = new AABB(v.x() - hw, v.y(), v.z() - hw, v.x() + hw, v.y() + hgt, v.z() + hw);
         if (!level.noCollision(box)) return null;
-        return level.withinBorder(pos) ? v : null;
+        if (player && (B.isTag(level.getBlockState(pos), "minecraft:invalid_spawn_inside") || B.isTag(level.getBlockState(pos.above()), "minecraft:invalid_spawn_inside"))) return null;
+        return withinBorder(level, box) ? v : null;
     }
 }
