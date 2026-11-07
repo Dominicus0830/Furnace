@@ -74,6 +74,7 @@ public class FallingBlockEntity extends Entity {
     @Override protected double defaultGravity() { return 0.04; }
 
     @Override public boolean isPickable() { return !isRemoved(); }
+    @Override public boolean isAttackable() { return false; }
 
     @Override
     public void tick() {

@@ -12,6 +12,8 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public final class ItemEntity extends Entity {
+    @Override public boolean isAttackable() { return false; }
+
 
     public static final int DATA_ITEM = 8;
 
