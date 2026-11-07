@@ -184,6 +184,56 @@ public final class LevelData {
         raw.putCompound("WorldGenSettings", wgs);
     }
 
+    /** 새 디버그 월드(바닐라 월드 프리셋 debug_all_block_states): 오버월드 생성기를 minecraft:debug 로 기록한다. 네더·엔드는 기본값. */
+    public void useDebugOverworld() {
+        NbtCompound wgs = raw.contains("WorldGenSettings") ? raw.getCompound("WorldGenSettings") : new NbtCompound();
+        NbtCompound dims = defaultDimensions();
+        NbtCompound gen = new NbtCompound();
+        gen.putString("type", "minecraft:debug");
+        NbtCompound ow = new NbtCompound();
+        ow.putCompound("generator", gen);
+        ow.putString("type", "minecraft:overworld");
+        dims.putCompound("minecraft:overworld", ow);
+        wgs.putCompound("dimensions", dims);
+        raw.putCompound("WorldGenSettings", wgs);
+    }
+
+    /**
+     * 새 단일 바이옴 월드(바닐라 월드 프리셋 single_biome_surface): 오버월드 노이즈 생성기에 FixedBiomeSource(biome) 를 단다.
+     * 노이즈 설정은 overworld. 네더·엔드는 기본값.
+     */
+    public void useSingleBiomeOverworld(String biome) {
+        NbtCompound wgs = raw.contains("WorldGenSettings") ? raw.getCompound("WorldGenSettings") : new NbtCompound();
+        NbtCompound dims = defaultDimensions();
+        NbtCompound source = new NbtCompound();
+        source.putString("biome", biome);
+        source.putString("type", "minecraft:fixed");
+        dims.putCompound("minecraft:overworld", dimension("minecraft:overworld", "minecraft:overworld", source));
+        wgs.putCompound("dimensions", dims);
+        raw.putCompound("WorldGenSettings", wgs);
+    }
+
+    /** 오버월드 생성기가 minecraft:debug 인가(바닐라 PrimaryLevelData.isDebugWorld). 모든 차원이 같은 값을 클라이언트에 알린다. */
+    public boolean isDebugWorld() {
+        NbtCompound gen = overworldGenerator();
+        return gen != null && "minecraft:debug".equals(gen.tags().get("type"));
+    }
+
+    /** 오버월드 생성기가 minecraft:flat 인가(바닐라 PrimaryLevelData.isFlatWorld). */
+    public boolean isFlatWorld() {
+        NbtCompound gen = overworldGenerator();
+        return gen != null && "minecraft:flat".equals(gen.tags().get("type"));
+    }
+
+    /** 오버월드 노이즈 생성기의 바이옴 원천이 minecraft:fixed 면 그 바이옴 id(네임스페이스 포함), 아니면 null. */
+    public String overworldFixedBiome() {
+        NbtCompound gen = overworldGenerator();
+        if (gen == null || !"minecraft:noise".equals(gen.tags().get("type"))) return null;
+        if (!(gen.tags().get("biome_source") instanceof NbtCompound src)) return null;
+        if (!"minecraft:fixed".equals(src.tags().get("type")) || !(src.tags().get("biome") instanceof String b)) return null;
+        return b.indexOf(':') >= 0 ? b : "minecraft:" + b;
+    }
+
     /**
      * 오버월드 노이즈 생성기의 noise_settings id(네임스페이스 없으면 minecraft:). 생성기가 없으면(새 월드 기본) minecraft:overworld,
      * 노이즈 생성기가 아니거나 settings 가 id 가 아닌 직접 정의(compound)면 null.

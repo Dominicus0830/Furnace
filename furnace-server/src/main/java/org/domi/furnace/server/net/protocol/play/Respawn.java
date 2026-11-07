@@ -7,7 +7,13 @@ import org.domi.furnace.server.net.protocol.Packet;
 
 /** @param lastDeath 마지막 사망 위치 {x,y,z}(차원은 lastDeathDimension), 없으면 null */
 public record Respawn(int dimensionType, String dimensionName, long hashedSeed, int gameMode, int previousGameMode,
-                      boolean flat, String lastDeathDimension, int[] lastDeath, int portalCooldown, byte dataToKeep) implements Packet {
+                      boolean debug, boolean flat, String lastDeathDimension, int[] lastDeath, int portalCooldown, byte dataToKeep) implements Packet {
+
+    /** 평지·디버그가 아닌 월드(시험·예전 호출부). */
+    public Respawn(int dimensionType, String dimensionName, long hashedSeed, int gameMode, int previousGameMode,
+                   boolean flat, String lastDeathDimension, int[] lastDeath, int portalCooldown, byte dataToKeep) {
+        this(dimensionType, dimensionName, hashedSeed, gameMode, previousGameMode, false, flat, lastDeathDimension, lastDeath, portalCooldown, dataToKeep);
+    }
 
     public static final int ID = 0x47;
     public static final byte KEEP_ATTRIBUTES = 1;
@@ -24,7 +30,7 @@ public record Respawn(int dimensionType, String dimensionName, long hashedSeed, 
         buf.writeLong(hashedSeed);
         buf.writeByte(gameMode);
         buf.writeByte(previousGameMode);
-        buf.writeBoolean(false);         // is debug
+        buf.writeBoolean(debug);         // is debug (월드 생성기가 minecraft:debug)
         buf.writeBoolean(flat);
         buf.writeBoolean(lastDeath != null);
         if (lastDeath != null) {

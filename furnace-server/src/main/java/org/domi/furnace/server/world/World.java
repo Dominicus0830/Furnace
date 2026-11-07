@@ -280,6 +280,20 @@ public final class World {
     /** 로드된 청크 수(테스트·모니터링). */
     public int loadedChunkCount() { return chunks.size(); }
 
+    // 바닐라 PrimaryLevelData.specialWorldProperty(FLAT·DEBUG): 월드 하나의 모든 차원이 같은 값을 login/respawn 의 is_flat·is_debug 로 클라이언트에 알린다.
+    private volatile boolean flatLevel, debugLevel;
+
+    /** 이 월드(level.dat)의 오버월드 생성기가 평지인가 — 클라이언트의 지평선 높이·허공 안개가 달라진다. */
+    public boolean isFlatLevel() { return flatLevel; }
+
+    /** 오버월드 생성기가 디버그(모든 블록 상태 격자)인가 — 클라이언트는 저장된 블록 대신 격자 식으로 그린다. */
+    public boolean isDebugLevel() { return debugLevel; }
+
+    public void levelKind(boolean flat, boolean debug) {
+        this.flatLevel = flat;
+        this.debugLevel = debug;
+    }
+
     // ------------------------------------------------------------------ 작업 보내기
 
     /** 그 청크 주인 region 에서 task 실행(주인이 없으면 그 구역의 region 을 만든다). 실패는 로그로 남긴다. */

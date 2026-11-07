@@ -27,6 +27,7 @@ import org.domi.furnace.server.world.anvil.AnvilChunkCodec;
 import org.domi.furnace.server.world.anvil.RegionFileStore;
 import org.domi.furnace.server.world.gen.AnvilWorldSource;
 import org.domi.furnace.server.world.gen.NoiseWorldSource;
+import org.domi.furnace.server.world.gen.DebugWorldSource;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
 import org.domi.furnace.server.world.gen.WorldSource;
 import org.domi.furnace.server.world.storage.BukkitWorldImport;
@@ -217,6 +218,8 @@ public final class WorldManager {
                     case FLAT -> ld.useFlatOverworld(flatSettings(spec));
                     case LARGE_BIOMES -> ld.useNoiseOverworld("minecraft:large_biomes");
                     case AMPLIFIED -> ld.useNoiseOverworld("minecraft:amplified");
+                    case SINGLE_BIOME_SURFACE -> ld.useSingleBiomeOverworld("minecraft:plains");
+                    case DEBUG_ALL_BLOCK_STATES -> ld.useDebugOverworld();
                     default -> { }
                 }
             }
@@ -228,6 +231,7 @@ public final class WorldManager {
             w.levelRoot(dir);                                            // 청크·data 는 <이름>/
             w.worldDir(parts.universe().resolve(mainLevelName));         // playerdata·stats 등 서버 공용은 주 월드 폴더(Paper 와 같다)
             w.markExtraWorld(spec.name());
+            w.levelKind(spec.generator() == WorldGenerator.FLAT || spec.generator() == WorldGenerator.VOID, spec.generator() == WorldGenerator.DEBUG_ALL_BLOCK_STATES);
             w.seed(seed);
             if (!ld.initialized) {
                 SpawnPoint sp = initialSpawn(spec, type, gen);
@@ -299,7 +303,8 @@ public final class WorldManager {
 
     /** 노이즈 생성기는 그 계열 원래 높이(오버월드 -64..320, 네더·엔드 0..256)에서만 바닐라와 같은 지형을 만든다. 평지·빈 월드는 아무 높이. */
     private static void checkHeight(WorldCreator spec, DimensionType type, NoiseWorldSource.Dimension family) {
-        boolean noise = spec.generator() != WorldGenerator.FLAT && spec.generator() != WorldGenerator.VOID;
+        boolean noise = spec.generator() != WorldGenerator.FLAT && spec.generator() != WorldGenerator.VOID
+                && spec.generator() != WorldGenerator.DEBUG_ALL_BLOCK_STATES;
         if (noise && (type.minY() != family.minY || type.sectionCount() != family.sectionCount)) {
             throw new IllegalArgumentException("노이즈 생성기(" + spec.environment() + ")는 높이 " + family.minY + ".." + (family.minY + family.sectionCount * 16)
                     + " 차원 타입만 쓸 수 있다: " + type.typeKey() + " 는 " + type.minY() + ".." + type.maxY() + " — FLAT·VOID 를 쓰거나 높이를 맞춘다");
@@ -318,6 +323,9 @@ public final class WorldManager {
             case VOID -> new SuperflatWorldSource(parts.blocks(), List.of(), biomeId("minecraft:the_void"), type.minY(), type.sectionCount());
             case LARGE_BIOMES -> structures(NoiseWorldSource.overworld(seed, parts.blocks(), parts.registries(), "minecraft:large_biomes"), spec);
             case AMPLIFIED -> structures(NoiseWorldSource.overworld(seed, parts.blocks(), parts.registries(), "minecraft:amplified"), spec);
+            case SINGLE_BIOME_SURFACE -> structures(NoiseWorldSource.overworld(seed, parts.blocks(), parts.registries(), "minecraft:overworld",
+                    "minecraft:plains"), spec);
+            case DEBUG_ALL_BLOCK_STATES -> new DebugWorldSource(parts.blocks(), biomeId("minecraft:plains"), type.minY(), type.sectionCount());
             case DEFAULT -> structures(NoiseWorldSource.create(family, seed, parts.blocks(), parts.registries()), spec);
         };
     }
@@ -335,6 +343,7 @@ public final class WorldManager {
 
     /** 새 월드의 스폰: 오버월드 노이즈는 바닐라 setInitialSpawn(생성기 기본 스폰), 평지는 (0, 맨 위 층 위, 0), 그 밖은 (0, 64 를 높이 안으로, 0). */
     private static SpawnPoint initialSpawn(WorldCreator spec, DimensionType type, WorldSource gen) {
+        if (gen instanceof DebugWorldSource) return new SpawnPoint(0, DebugWorldSource.SPAWN_Y, 0, 0f);   // 바닐라 setInitialSpawn(debug)
         if (gen instanceof NoiseWorldSource n && spec.environment() == WorldEnvironment.NORMAL) return n.defaultSpawn();
         if (gen instanceof SuperflatWorldSource f && spec.generator() == WorldGenerator.FLAT) {
             return new SpawnPoint(0, Math.min(f.surfaceY(), type.maxY() - 1), 0, 0f);

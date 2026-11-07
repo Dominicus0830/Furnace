@@ -40,7 +40,8 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
         key = full("key", key == null ? "minecraft:" + name.toLowerCase(Locale.ROOT) : key);
         Objects.requireNonNull(environment, "environment");
         Objects.requireNonNull(generator, "generator");
-        if ((generator == WorldGenerator.LARGE_BIOMES || generator == WorldGenerator.AMPLIFIED) && environment != WorldEnvironment.NORMAL) {
+        if ((generator == WorldGenerator.LARGE_BIOMES || generator == WorldGenerator.AMPLIFIED || generator == WorldGenerator.SINGLE_BIOME_SURFACE
+                || generator == WorldGenerator.DEBUG_ALL_BLOCK_STATES) && environment != WorldEnvironment.NORMAL) {
             throw new IllegalArgumentException(generator + " 생성기는 NORMAL 환경에서만 쓸 수 있다");
         }
         dimensionType = full("dimensionType", dimensionType == null ? environment.defaultDimensionType() : dimensionType);
