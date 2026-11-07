@@ -1,7 +1,7 @@
 // 바닐라 FallingBlockEntity: 떨어지는 모래·자갈·모루 등. 중력 0.04 로 떨어져 땅에 닿으면 그 칸에 다시 놓이고(놓을 수 없으면 아이템으로 떨어지고),
 // 모루처럼 피해를 주는 종류는 내려앉는 거리에 비례해 아래 생물을 다치게 한다. 콘크리트 가루는 물에 닿으면 굳는다.
 // TileEntityData(blockData): /summon 으로 준 블록 엔티티 데이터를 내려앉은 뒤 그 칸 블록 엔티티에 덮어쓴다.
-// TODO: 포탈/차원 이동 직후 강제 틱, 플레이어 건축 막기(blocksBuilding).
+// TODO: 플레이어 건축 막기(blocksBuilding).
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.B;
@@ -91,7 +91,8 @@ public class FallingBlockEntity extends Entity {
         time++;
         applyGravity();
         move(MOVER_SELF, vx(), vy(), vz());
-        if (!isRemoved()) {
+        handlePortal();
+        if (!isRemoved() || forceTickAfterTeleportToDuplicate) {
             Pos pos = blockPosition();
             boolean concrete = behavior instanceof ConcretePowderBlock;
             boolean waterConcrete = concrete && Fluids.isWater(level.getFluidState(pos));
@@ -143,6 +144,18 @@ public class FallingBlockEntity extends Entity {
             }
         }
         setDeltaMovement(vx() * 0.98, vy() * 0.98, vz() * 0.98);
+    }
+
+    /**
+     * forceTickAfterTeleportToDuplicate: 엔드와 다른 차원 사이를 포털로 넘어간 직후에는, 이미 빠진 옛 엔티티가 이번 틱 끝까지 마저 돌아
+     * 제자리에 블록을 놓는다(건너간 복사본과 함께 둘이 되는 바닐라 중력 블록 복제). 엔드가 끼지 않은 이동에는 켜지지 않는다.
+     */
+    private boolean forceTickAfterTeleportToDuplicate;
+
+    @Override
+    protected void afterChangedDimension(String from, String to) {
+        boolean end = "minecraft:the_end".equals(from) || "minecraft:the_end".equals(to);
+        forceTickAfterTeleportToDuplicate = end && to != null && !from.equals(to);
     }
 
     /**

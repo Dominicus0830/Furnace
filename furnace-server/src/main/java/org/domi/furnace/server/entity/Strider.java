@@ -170,7 +170,8 @@ public class Strider extends Animal {
     @Override
     protected float nextStep() { return moveDist + 0.6F; }
 
-    /** shouldPassengersInheritMalus: 참(바닐라). TODO(길찾기): Furnace 길찾기는 아직 승객의 비용 상속을 보지 않는다. */
+    /** shouldPassengersInheritMalus: 참(바닐라) — 탄 몹의 길찾기는 스트라이더의 비용표(용암 걷기)를 쓴다. */
+    @Override
     public boolean shouldPassengersInheritMalus() { return true; }
 
     private void floatStrider() {

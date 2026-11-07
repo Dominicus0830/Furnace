@@ -213,7 +213,7 @@ public abstract class AbstractMinecart extends Entity {
         if (getHurtTime() > 0) setHurtTime(getHurtTime() - 1);
         if (getDamage() > 0.0F) setDamage(getDamage() - 1.0F);
         checkBelowWorld();
-        // TODO(차원 이동): handlePortal
+        handlePortal();
         applyGravity();
         int i = floor(x()), j = floor(y()), k = floor(z());
         if (B.isTag(level.getBlockState(new Pos(i, j - 1, k)), "minecraft:rails")) j--;
@@ -567,7 +567,7 @@ public abstract class AbstractMinecart extends Entity {
             for (int dy : DISMOUNT_HEIGHTS[pi]) {
                 for (int[] off : offsets) {
                     Pos m = new Pos(pos.x() + off[0], pos.y() + dy, pos.z() + off[1]);
-                    double h = floorHeight(m);
+                    double h = DismountHelper.nonClimbableFloorHeight(level, m);
                     if (DismountHelper.isBlockFloorValid(h)) {
                         double vx = m.x() + 0.5, vy = m.y() + h, vz = m.z() + 0.5;
                         AABB box = new AABB(vx - hw, vy, vz - hw, vx + hw, vy + poses[pi][1], vz + hw);
@@ -589,24 +589,6 @@ public abstract class AbstractMinecart extends Entity {
             {Dir.DX[dir] + Dir.DX[a], Dir.DZ[dir] + Dir.DZ[a]}, {Dir.DX[dir] + Dir.DX[b], Dir.DZ[dir] + Dir.DZ[b]},
             {Dir.DX[c], Dir.DZ[c]}, {Dir.DX[dir], Dir.DZ[dir]}
         };
-    }
-
-    /** getBlockFloorHeight(nonClimbableShape(m), nonClimbableShape(m.below())). */
-    private double floorHeight(Pos m) {
-        Shape s = nonClimbableShape(m);
-        if (!s.isEmpty()) return s.bounds()[4];
-        Shape below = nonClimbableShape(m.below());
-        double d = below.isEmpty() ? Double.NEGATIVE_INFINITY : below.bounds()[4];
-        return d >= 1.0 ? d - 1.0 : Double.NEGATIVE_INFINITY;
-    }
-
-    /** DismountHelper.nonClimbableShape: 오를 수 있는 블록·열린 다락문은 빈 모양. */
-    private Shape nonClimbableShape(Pos p) {
-        int s = level.getBlockState(p);
-        if (B.isTag(s, "minecraft:climbable")) return Shape.EMPTY;
-        Prop open = B.prop("open");
-        if (B.isTag(s, "minecraft:trapdoors") && open.has(s) && open.is(s)) return Shape.EMPTY;
-        return BlockInfo.get().collisionShape(s);
     }
 
     // ------------------------------------------------------------------ 저장
