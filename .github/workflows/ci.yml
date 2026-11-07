@@ -1,18 +1,37 @@
 name: CI
 
+# 실행 구조 (2026-11-07 병합 병목 개선)
+#  - 서버 시험(약 12분, 3500개)은 시험 클래스 해시로 3조각(-PtestShard=i/3)으로 나눠 러너 3대에서 동시에 돌린다.
+#  - 실패한 조각은 전체가 아니라 "처음에 실패한 시험 클래스만" 한 번 다시 돌린다(부하에서만 실패하는 시간 민감 시험 대응, 재시도 비용 12분 → 1분 안팎).
+#    다시 돌려도 실패하면 진짜 실패로 처리하고, 재시도에서 통과한 시험은 실행 요약에 "흔들린 시험"으로 남긴다.
+#  - 나머지(API 시험·샘플 플러그인 컴파일·시험 서버 모듈·fatJar)는 light 작업으로 동시에 돈다.
+#  - 합쳐진 판정은 이름이 `test` 인 마지막 작업 하나다(기존 점검 이름 유지).
+#  - push 는 기준 브랜치에서만 돈다. 작업 브랜치는 pull_request 로 한 번만 돈다(전에는 push 와 pull_request 가 둘 다 돌아 같은 시험이 두 번 돌았다).
+#    충돌이 있는 PR 은 pull_request 실행이 만들어지지 않으니 기준 브랜치를 합쳐 충돌부터 푼다.
 on:
   push:
+    branches:
+      - claude/quirky-wright-lra834   # 기준 브랜치가 바뀌면 이 이름과 아래 BASE_BRANCH 둘 다 바꾼다
+      - main
   pull_request:
 
-# 같은 브랜치에 새 푸시가 오면 앞선 실행을 취소해 러너 부하(시간에 민감한 시험의 불안정 원인)를 줄인다.
+# 같은 PR·브랜치에 새 푸시가 오면 앞선 실행을 취소해 러너 부하(시간에 민감한 시험의 불안정 원인)를 줄인다.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  BASE_BRANCH: refs/heads/claude/quirky-wright-lra834
+
 jobs:
-  test:
+  server-tests:
+    name: server-tests (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -20,32 +39,97 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          # 기본값은 "기본 브랜치(main)에서만 캐시 저장"이라 기준 브랜치 캐시가 한 번도 안 만들어졌다. 기준 브랜치 실행에서만 저장한다.
+          cache-read-only: ${{ github.ref != env.BASE_BRANCH }}
       # Paper 저장소 없이 돌리므로 oracle 모듈은 건너뛴다(-PskipOracle=true)
+      - name: 서버 테스트 (조각 ${{ matrix.shard }}/3)
+        id: server-test
+        continue-on-error: true
+        run: ./gradlew -PskipOracle=true -PtestShard=${{ matrix.shard }}/3 :furnace-server:test
+      # 부하에서 가끔 실패하는 시간 민감 시험(CommandBlockOneTickTest 등): 처음에 실패한 시험 클래스만 한 번 다시 돌린다.
+      - name: 실패한 시험만 재시도(1회)
+        id: retry
+        if: steps.server-test.outcome == 'failure'
+        run: |
+          dir=furnace-server/build/test-results/test
+          failed=$(awk '
+            /<testcase /{ match($0,/name="[^"]*"/); n=substr($0,RSTART+6,RLENGTH-7); match($0,/classname="[^"]*"/); c=substr($0,RSTART+11,RLENGTH-12) }
+            /<(failure|error)[ >]/{ print c "#" n }
+          ' "$dir"/TEST-*.xml 2>/dev/null | sort -u)
+          classes=$(printf '%s\n' "$failed" | sed 's/#.*//' | sort -u | sed '/^$/d')
+          if [ -z "$classes" ]; then
+            echo "::error::실패한 시험을 찾지 못했습니다(컴파일·환경 오류로 보임). 재시도하지 않습니다."
+            exit 1
+          fi
+          echo "::warning::서버 테스트 조각 ${{ matrix.shard }} 에서 실패한 시험 클래스만 다시 돌립니다(불안정 시험 의심):"
+          printf '%s\n' "$failed"
+          # 첫 실행 결과는 보고서 올리기용으로 따로 보관(재시도가 같은 폴더를 덮어쓴다)
+          rm -rf /tmp/first-run && mkdir -p /tmp/first-run && cp -r furnace-server/build/reports/tests /tmp/first-run/reports || true
+          printf '%s\n' "$failed" > /tmp/first-run/failed-tests.txt
+          args=()
+          for c in $classes; do args+=(--tests "$c"); done
+          ./gradlew -PskipOracle=true :furnace-server:test "${args[@]}"
+          {
+            echo "### 흔들린 시험 (조각 ${{ matrix.shard }}/3: 처음 실패, 재시도에서 통과)"
+            printf '%s\n' "$failed" | sed 's/^/- /'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: 서버 테스트 보고서 올리기
+        if: failure() || steps.server-test.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-test-reports-${{ matrix.shard }}
+          path: |
+            furnace-server/build/reports/tests
+            /tmp/first-run
+          if-no-files-found: ignore
+          retention-days: 7
+
+  light:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != env.BASE_BRANCH }}
       - name: API 테스트
         run: ./gradlew -PskipOracle=true :furnace-api:test
       # 샘플 플러그인이 공개 API 만으로 컴파일되는지(테스트 코드는 없다)
       - name: 플러그인 샘플 컴파일
         run: ./gradlew -PskipOracle=true :furnace-plugin-test:classes
-      - name: 서버 테스트
-        id: server-test
-        continue-on-error: true
-        run: ./gradlew -PskipOracle=true :furnace-server:test
-      # 부하에서 가끔 실패하는 시간 민감 시험(CommandBlockOneTickTest 등)용: 한 번만 다시 돌린다. 두 번 다 실패하면 실패로 처리한다.
-      - name: 서버 테스트 재시도(1회)
-        if: steps.server-test.outcome == 'failure'
-        run: |
-          echo "::warning::서버 테스트가 한 번 실패해 재시도합니다(불안정 시험 의심)"
-          ./gradlew -PskipOracle=true :furnace-server:cleanTest :furnace-server:test
-      - name: 서버 테스트 보고서 올리기
-        if: failure() || steps.server-test.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: server-test-reports
-          path: furnace-server/build/reports/tests
-          if-no-files-found: ignore
       # 헤드리스 시험 서버(플러그인 개발자용 시험 라이브러리) 자체 시험
       - name: 시험 서버 모듈 테스트
         run: ./gradlew -PskipOracle=true :furnace-test:test
       # 단일 실행 jar 가 만들어지는지(실행 검사는 아님). 러너·캐시·브랜치 정책은 사용자 결정 전이라 바꾸지 않았다.
       - name: fatJar 빌드
         run: ./gradlew -PskipOracle=true :furnace-server:fatJar
+      # 기준 브랜치 실행에서만: user-todo 항목 파일을 한 문서로 합쳐 올린다(docs/user-todo/README.md)
+      - name: user-todo 합친 문서 만들기
+        if: github.event_name == 'push' && github.ref == env.BASE_BRANCH
+        run: |
+          mkdir -p build/user-todo
+          tools/user-todo-combined.sh > build/user-todo/user-todo-combined.md
+      - name: user-todo 합친 문서 올리기
+        if: github.event_name == 'push' && github.ref == env.BASE_BRANCH
+        uses: actions/upload-artifact@v4
+        with:
+          name: user-todo-combined
+          path: build/user-todo/user-todo-combined.md
+          retention-days: 14
+
+  # 이름이 `test` 인 합친 판정(기존 점검 이름). 조각·light 중 하나라도 실패·취소면 실패.
+  test:
+    if: always()
+    needs: [server-tests, light]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 판정
+        run: |
+          echo "server-tests=${{ needs.server-tests.result }} light=${{ needs.light.result }}"
+          [ "${{ needs.server-tests.result }}" = "success" ] && [ "${{ needs.light.result }}" = "success" ]

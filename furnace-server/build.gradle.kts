@@ -46,8 +46,25 @@ tasks.test {
     enableAssertions = true
     maxHeapSize = "3g"   // 통합 테스트가 월드를 많이 만들어 기본 힙으로는 모자란다
     testLogging { showStandardStreams = true }
+    // 명령 블록이 명령을 같은 틱 안에 끝내려고 기다리는 시간 예산(서버 기본 20ms)을 시험 JVM 에서만 넉넉히 준다.
+    // 20ms 로는 CI 처럼 바쁜 러너에서 다른 region 왕복이 늦어 CommandBlockOneTickTest 가 자주 실패했다(2026-11-05~07 집계 24건, 서버 동작 문제가 아니라 시험 시간 예산 문제).
+    // 시험은 "그 틱 안에 끝난다"는 동작을 보는 것이라 예산 크기에는 기대지 않는다. 직접 정한 값(-Dfurnace.commandBlockWaitMicros=…)이 있으면 아래 반복문이 덮어쓴다.
+    systemProperty("furnace.commandBlockWaitMicros", "500000")
     System.getProperties().forEach { k, v ->
         if (k.toString().startsWith("furnace.")) systemProperty(k.toString(), v.toString())
+    }
+    // CI 분할 실행: -PtestShard=2/3 → 시험 클래스 이름 해시가 (2-1) % 3 인 클래스만 돌린다(서버 시험 3천 개를 러너 여러 대로 나눈다).
+    // 같은 이름은 항상 같은 조각에 들어가고(@Nested·내부 클래스는 바깥 클래스를 따른다) 조각을 모두 합치면 전체와 같다. 속성이 없으면 전부 돌린다.
+    // shardSalt 는 조각 시간이 고르게 나뉘도록 tools/ci/shard-balance.py 로 고른 값이다(바꿔도 정확성에는 영향 없고 균형만 달라진다).
+    (findProperty("testShard") as String?)?.let { spec ->
+        val m = Regex("""(\d+)/(\d+)""").matchEntire(spec.trim()) ?: error("testShard 는 '번호/전체' 꼴이다(예: 2/3): $spec")
+        val total = m.groupValues[2].toInt()
+        val index = m.groupValues[1].toInt()
+        val shardSalt = "100"
+        require(total >= 1 && index in 1..total) { "testShard 범위 오류: $spec" }
+        include(Spec<FileTreeElement> { el ->
+            el.isDirectory || Math.floorMod((el.path.substringBefore('$').removeSuffix(".class") + shardSalt).hashCode(), total) == index - 1
+        })
     }
 }
 
