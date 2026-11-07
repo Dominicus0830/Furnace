@@ -197,6 +197,7 @@ public final class FurnaceMain {
         org.domi.furnace.server.entity.PlayerData.itemRegistry(itemRegistry);
         // 게임 레지스트리 훅: 플러그인 바이옴·차원 타입을 바닐라 항목 뒤에 붙인 세트(바닐라 인덱스는 그대로)
         RegistrySet registries = pluginBoot.collectGameRegistries(RegistrySet.load("registries/1.21.1.txt"));
+        RegistrySet.install(registries);   // 데이터 팩을 읽으면 그쪽(동기화 레지스트리를 다시 만든 것)으로 바뀐다
         int plainsBiome = Math.max(0,
                 registries.indexOf("minecraft:worldgen/biome", "minecraft:plains"));
         int biomeCount = registries.entries("minecraft:worldgen/biome").size();
@@ -290,10 +291,13 @@ public final class FurnaceMain {
             Path vanillaRoot = org.domi.furnace.server.data.VanillaData.ensure(Path.of("."));
             dataPacks = org.domi.furnace.server.data.DataPackManager.start(vanillaRoot, worldDir, levelData,
                     registries, newWorld,
-                    props.initialEnabledPacks, props.initialDisabledPacks, pluginBoot::discoverPacks);
+                    props.initialEnabledPacks, props.initialDisabledPacks, pluginBoot.dataPackHooks());
         } catch (Exception e) {
             log.error("바닐라 데이터를 준비하지 못해 데이터 팩 없이 시작한다 — 태그는 내장 목록을 쓴다", e);
         }
+        // 마법부여 끄기(운영 설정, 기본 없음) — 레지스트리를 읽은 뒤라 데이터 팩·플러그인 마법부여도 끌 수 있다
+        org.domi.furnace.server.loot.EnchantmentToggles.load(furnaceProps,
+                id -> org.domi.furnace.server.net.registry.RegistrySet.current().indexOf("minecraft:enchantment", id) >= 0, log::warn);
         saveLevelData.run();
         log.info("월드 시드={}, 기본 스폰=({}, {}, {})",
                 config.levelSeed(), defaultSpawn.x(), defaultSpawn.y(), defaultSpawn.z());
@@ -350,7 +354,8 @@ public final class FurnaceMain {
         // 명령·서버 상태 핸들. /stop 은 종료 훅을 도는 별도 스레드에서 끝낸다(스케줄러 스레드에서 exit 하면 훅과 교착).
         ServerCore core = new ServerCore(settings, playerLists, profileCache, world, levelData, scheduler);
         core.dimensions(dimensions);
-        core.registries(registries);
+        // 클라에 보내는 세트: 데이터 팩을 읽었으면 데이터 주도 레지스트리(변종·마법부여 등)를 다시 만든 것, 아니면 플러그인 바이옴·차원 타입까지
+        core.registries(dataPacks != null ? dataPacks.dynamicRegistries().registries() : registries);
         if (dataPacks != null) core.dataPacks(dataPacks);
         coreRef.set(core);
         loginContext.core(core);

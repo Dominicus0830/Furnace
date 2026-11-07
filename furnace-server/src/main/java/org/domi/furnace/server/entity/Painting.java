@@ -15,8 +15,9 @@ import org.domi.furnace.server.net.registry.TagSet;
 public class Painting extends HangingEntity {
     public static final int DATA_VARIANT = 8;
 
+    private static final String REGISTRY = "minecraft:painting_variant";
+
     private static final class Variants {
-        static final RegistrySet REG = RegistrySet.load("registries/1.21.1.txt");
         static final TagSet TAGS = TagSet.load("registries/tags-1.21.1.txt");
         static final java.util.Map<String, int[]> SIZES = new java.util.HashMap<>();
 
@@ -47,28 +48,48 @@ public class Painting extends HangingEntity {
     @Override
     protected void defineSynchedData() {
         super.defineSynchedData();
-        entityData.define(DATA_VARIANT, SetEntityData.SERIALIZER_PAINTING_VARIANT, Variants.REG.indexOf("minecraft:painting_variant", "minecraft:kebab"));
+        entityData.define(DATA_VARIANT, SetEntityData.SERIALIZER_PAINTING_VARIANT, RegistrySet.current().indexOf(REGISTRY, "minecraft:kebab"));
     }
 
     public void setVariant(String name) {
         variant = name;
-        entityData.set(DATA_VARIANT, Variants.REG.indexOf("minecraft:painting_variant", name));
+        entityData.set(DATA_VARIANT, RegistrySet.current().indexOf(REGISTRY, name));
         if (blockPos != null) recalculate();
     }
 
     public String variant() { return variant; }
 
-    private int[] size() { return Variants.SIZES.getOrDefault(variant, new int[] {1, 1}); }
+    private int[] size() { return sizeOf(variant); }
+
+    /** 변종 크기(가로, 세로). 데이터 팩·플러그인 변종은 시작 때 읽은 정의에서, 없으면 바닐라 표에서. */
+    static int[] sizeOf(String v) {
+        var dyn = org.domi.furnace.server.data.DynamicRegistries.current();
+        var def = dyn == null ? null : dyn.definition(REGISTRY, v);
+        if (def != null) {
+            try {
+                return new int[] {def.get("width").getAsInt(), def.get("height").getAsInt()};
+            } catch (RuntimeException ignored) {
+                // 모양 검사를 거친 정의라 오지 않는다
+            }
+        }
+        return Variants.SIZES.getOrDefault(v, new int[] {1, 1});
+    }
+
+    /** 레지스트리에 있는 변종인가. */
+    static boolean known(String v) { return RegistrySet.current().indexOf(REGISTRY, v) >= 0; }
 
     /** Painting.create: 놓을 수 있는 모양 중 이 자리에 맞는 가장 넓은 것들에서 무작위. 없으면 null. */
     public static Painting create(ChunkLevel level, Pos pos, int dir) {
         if (!Dir.horizontal(dir)) return null;
         Painting painting = new Painting(level, level.nextEntityId(), pos);
         List<String> list = new ArrayList<>();
-        int[] ids = Variants.TAGS.ids("minecraft:painting_variant", "minecraft:placeable");
+        // placeable 태그: 데이터 팩 태그가 걸려 있으면 그것(데이터 팩·플러그인이 바꾼 것 포함), 아니면 내장 태그
+        int[] ids = org.domi.furnace.server.item.ItemContext.hasTag(REGISTRY, "minecraft:placeable")
+                ? org.domi.furnace.server.item.ItemContext.tagEntries(REGISTRY, "minecraft:placeable")
+                : Variants.TAGS.ids(REGISTRY, "minecraft:placeable");
         if (ids == null) return null;
-        List<String> all = Variants.REG.entries("minecraft:painting_variant");
-        for (int i : ids) list.add(all.get(i));
+        List<String> all = RegistrySet.current().entries(REGISTRY);
+        for (int i : ids) if (i >= 0 && i < all.size()) list.add(all.get(i));
         if (list.isEmpty()) return null;
         painting.setDirection(dir);
         list.removeIf(v -> {
@@ -84,13 +105,13 @@ public class Painting extends HangingEntity {
     }
 
     private static int area(String v) {
-        int[] s = Variants.SIZES.getOrDefault(v, new int[] {1, 1});
+        int[] s = sizeOf(v);
         return s[0] * s[1];
     }
 
     @Override
     protected AABB calculateBoundingBox(Pos pos, int dir) {
-        int[] s = Variants.SIZES.getOrDefault(variant, new int[] {1, 1});
+        int[] s = sizeOf(variant);
         double cx = pos.x() + 0.5 - Dir.DX[dir] * 0.46875, cy = pos.y() + 0.5 - Dir.DY[dir] * 0.46875, cz = pos.z() + 0.5 - Dir.DZ[dir] * 0.46875;
         int ccw = Dir.counterClockWise(dir);
         double ow = s[0] % 2 == 0 ? 0.5 : 0.0, oh = s[1] % 2 == 0 ? 0.5 : 0.0;
@@ -122,7 +143,7 @@ public class Painting extends HangingEntity {
 
     @Override
     protected void readAdditionalSaveData(NbtCompound tag) {
-        if (tag.tags().get("variant") instanceof String v && Variants.SIZES.containsKey(v)) setVariant(v);
+        if (tag.tags().get("variant") instanceof String v && known(v.indexOf(':') < 0 ? "minecraft:" + v : v)) setVariant(v.indexOf(':') < 0 ? "minecraft:" + v : v);
         super.readAdditionalSaveData(tag);
         setDirection(Dir.from2D(tag.getIntOr0("facing")));
     }

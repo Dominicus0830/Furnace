@@ -51,6 +51,9 @@ public final class PluginBootstrapper {
     private final PluginRegistryStore registries = new PluginRegistryStore();
     private final LifecycleHooks lifecycle = new LifecycleHooks();
     private final GameRegistryStore gameRegistries = new GameRegistryStore();
+    /** 같은 훅의 데이터 주도 몫(몹 변종·그림·마법부여·태그 더하기). 항목은 시작 때 한 번 모아 데이터 팩과 함께 읽힌다. */
+    private final GameRegistryHooks dataRegistries = new GameRegistryHooks();
+    private final List<org.domi.furnace.server.data.DynamicRegistries.Contribution> dataEntries = new CopyOnWriteArrayList<>();
     /** 부트스트랩을 마친 플러그인(의존 순서). 클래스로더끼리 서로 찾는 범위이기도 하다. */
     private final List<Prepared> prepared = new CopyOnWriteArrayList<>();
 
@@ -96,7 +99,8 @@ public final class PluginBootstrapper {
         List<GameRegistryStore.Registrar> opened = new ArrayList<>();
         lifecycle.fire(LifecycleEvents.GAME_REGISTRIES, owner -> {
             Prepared p = find(owner);
-            GameRegistryStore.Registrar r = gameRegistries.registrar(owner, p.description().namespace(), p.logger());
+            GameRegistryStore.Registrar r = gameRegistries.registrar(owner, p.description().namespace(), p.logger())
+                    .data(dataRegistries.registrar(p.description(), dataEntries));
             opened.add(r);
             return r;
         });
@@ -108,7 +112,9 @@ public final class PluginBootstrapper {
     /** 핫 리로드로 다시 부트스트랩한 플러그인 하나의 게임 레지스트리 훅을 돌린다(이미 있는 자기 키를 갱신·재활성만 한다). */
     private void reregisterGameRegistries(Prepared p) {
         if (!gameRegistries.isFrozen()) return;   // 시작 때 훅이 아직 안 돌았다(그때 한꺼번에 돈다)
-        GameRegistryStore.Registrar r = gameRegistries.registrar(p.description().name(), p.description().namespace(), p.logger());
+        // 데이터 주도 항목은 시작 때 고정이라 버리고(번호가 이미 정해졌다) 태그 더하기만 다시 받는다
+        GameRegistryStore.Registrar r = gameRegistries.registrar(p.description().name(), p.description().namespace(), p.logger())
+                .data(dataRegistries.registrar(p.description(), new ArrayList<>()));
         try {
             lifecycle.fireOwner(p.description().name(), LifecycleEvents.GAME_REGISTRIES, r);
         } finally {
@@ -124,6 +130,7 @@ public final class PluginBootstrapper {
         registries.removeOwner(name);
         lifecycle.removeOwner(name);
         gameRegistries.deactivateOwner(name);
+        dataRegistries.removeOwner(name);   // 태그 더하기만 빠진다 — 레지스트리 항목은 다음 시작까지 남는다
     }
 
     /** 불러오기에 실패한 플러그인을 뺀다(정리 + 클래스로더 닫기). */
@@ -421,6 +428,19 @@ public final class PluginBootstrapper {
             return new Datapacks(p.description(), p.file(), out);
         });
         return out;
+    }
+
+    // ------------------------------------------------------------------ 게임 레지스트리 훅
+
+    /** collectGameRegistries 가 훅을 돌릴 때 플러그인이 더한 데이터 주도 항목(아직 돌지 않았으면 빈 목록). */
+    public List<org.domi.furnace.server.data.DynamicRegistries.Contribution> gameRegistryEntries() { return List.copyOf(dataEntries); }
+
+    /** 지금 남아 있는 플러그인 태그 더하기(데이터를 읽을 때마다 부른다). */
+    public List<org.domi.furnace.server.data.DataPackManager.TagAddition> tagAdditions() { return dataRegistries.tagAdditions(); }
+
+    /** 데이터 팩 매니저에 넘길 플러그인 훅 묶음. */
+    public org.domi.furnace.server.data.DataPackManager.PluginHooks dataPackHooks() {
+        return new org.domi.furnace.server.data.DataPackManager.PluginHooks(this::discoverPacks, this::gameRegistryEntries, this::tagAdditions);
     }
 
     private record Datapacks(PluginDescription d, Path jar, List<PackRepository.JarPack> out) implements DatapackRegistrar {

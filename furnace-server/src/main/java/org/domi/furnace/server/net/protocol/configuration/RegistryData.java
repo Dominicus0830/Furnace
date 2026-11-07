@@ -1,5 +1,5 @@
-// S→C 한 레지스트리의 엔트리 목록. 바닐라 항목은 known-packs 전략이라 데이터 없이 id만 보낸다(hasData=false).
-// 플러그인이 더한 항목(RegistrySet.data 가 있는 것)은 hasData=true 와 네트워크 NBT 본문을 같이 보낸다.
+// S→C 한 레지스트리의 엔트리 목록. known-packs 전략이라 바닐라 core 항목은 데이터 없이 id만 보내고(hasData=false),
+// 데이터 팩·플러그인 항목(RegistrySet.data 가 있는 것)은 hasData=true 와 네트워크 NBT 를 싣는다(바닐라 RegistrySynchronization.packRegistry).
 package org.domi.furnace.server.net.protocol.configuration;
 
 import io.netty.buffer.ByteBuf;

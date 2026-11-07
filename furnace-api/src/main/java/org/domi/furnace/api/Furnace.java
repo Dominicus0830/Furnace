@@ -142,4 +142,13 @@ public interface Furnace {
      * 종료 순서는 docs/api/lifecycle.md.
      */
     boolean isStopping();
+
+    /** 게임 동기화 레지스트리 보기·마법부여 끄기(불만 표 27·32번). */
+    default org.domi.furnace.api.registry.GameRegistries gameRegistries() { throw new UnsupportedOperationException("gameRegistries"); }
+
+    /** 게임 규칙(바닐라 + 플러그인 규칙). */
+    default org.domi.furnace.api.world.GameRuleRegistry gameRules() { throw new UnsupportedOperationException("gameRules"); }
+
+    /** 난이도·난이도 프로필. */
+    default org.domi.furnace.api.world.DifficultySettings difficulty() { throw new UnsupportedOperationException("difficulty"); }
 }

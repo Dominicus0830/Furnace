@@ -100,6 +100,18 @@ public final class PluginHost implements Furnace {
     public WorldHandle world(String dimension) { return worldHandle(dimension); }
 
     private final PluginRecipes recipes = new PluginRecipes(this);
+    private final GameRegistriesImpl gameRegistries = new GameRegistriesImpl();
+    private final GameRuleRegistryImpl gameRules = new GameRuleRegistryImpl(this);
+    private final DifficultySettingsImpl difficulty = new DifficultySettingsImpl(this);
+
+    @Override
+    public org.domi.furnace.api.registry.GameRegistries gameRegistries() { return gameRegistries; }
+
+    @Override
+    public GameRuleRegistryImpl gameRules() { return gameRules; }
+
+    @Override
+    public DifficultySettingsImpl difficulty() { return difficulty; }
 
     @Override
     public PluginRecipes recipes() { return recipes; }

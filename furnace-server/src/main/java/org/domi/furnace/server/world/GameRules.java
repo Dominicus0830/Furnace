@@ -49,6 +49,11 @@ public final class GameRules {
 
     private final Map<String, Integer> values = new ConcurrentHashMap<>();
     private volatile BiConsumer<Rule, Integer> listener = (r, v) -> {};
+    /** 플러그인 규칙(이름 "namespace:이름") → 정의·주인. 바닐라 규칙 이름에는 ':' 가 없다. */
+    private final Map<String, Rule> custom = new ConcurrentHashMap<>();
+    private final Map<String, String> customOwner = new ConcurrentHashMap<>();
+    /** level.dat 에 있었지만 아직 등록되지 않은(또는 주인이 꺼진) 플러그인 규칙 값 — 저장할 때 그대로 남긴다. */
+    private final Map<String, String> dormant = new ConcurrentHashMap<>();
 
     public GameRules() {
         for (Rule r : RULES.values()) values.put(r.name(), r.defaultValue());
@@ -59,7 +64,10 @@ public final class GameRules {
         GameRules g = new GameRules();
         for (var e : saved.entrySet()) {
             Rule r = RULES.get(e.getKey());
-            if (r == null) continue;
+            if (r == null) {
+                if (e.getKey().indexOf(':') > 0) g.dormant.put(e.getKey(), e.getValue());   // 플러그인 규칙(등록되면 이 값으로 시작)
+                continue;
+            }
             g.values.put(r.name(), r.isBoolean() ? (Boolean.parseBoolean(e.getValue()) ? 1 : 0) : parseInt(e.getValue()));
         }
         return g;
@@ -79,6 +87,8 @@ public final class GameRules {
     public Map<String, String> toStrings() {
         Map<String, String> out = new TreeMap<>();
         for (Rule r : RULES.values()) out.put(r.name(), serialize(r, values.get(r.name())));
+        out.putAll(dormant);
+        for (Rule r : custom.values()) out.put(r.name(), serialize(r, values.getOrDefault(r.name(), r.defaultValue())));
         return out;
     }
 
@@ -92,8 +102,57 @@ public final class GameRules {
 
     public int raw(String name) { return values.getOrDefault(name, 0); }
 
-    public void set(String name, int value) {
+    /** 바닐라 또는 플러그인 규칙(없으면 null). */
+    public Rule rule(String name) {
         Rule r = RULES.get(name);
+        return r != null ? r : custom.get(name);
+    }
+
+    /** 플러그인 규칙들(이름 순). */
+    public java.util.List<Rule> customRules() {
+        java.util.List<Rule> l = new java.util.ArrayList<>(custom.values());
+        l.sort(java.util.Comparator.comparing(Rule::name));
+        return l;
+    }
+
+    /** 그 규칙의 주인(플러그인 이름, 바닐라면 null). */
+    public String owner(String name) { return customOwner.get(name); }
+
+    /**
+     * 플러그인 규칙을 더한다. 저장된 값이 있으면 그 값(바닐라와 같은 해석), 없으면 기본값으로 시작한다.
+     * 이름은 "namespace:이름"(영문·숫자·_). 이미 있으면 IllegalArgumentException.
+     */
+    public synchronized void register(String owner, Rule rule) {
+        String n = rule.name();
+        int colon = n.indexOf(':');
+        if (colon <= 0 || !n.substring(colon + 1).matches("[A-Za-z0-9_]+") || !n.substring(0, colon).matches("[a-z0-9_.-]+")) {
+            throw new IllegalArgumentException("플러그인 규칙 이름은 namespace:이름(영문·숫자·_): " + n);
+        }
+        if (RULES.containsKey(n) || custom.containsKey(n)) throw new IllegalArgumentException("이미 있는 게임 규칙: " + n);
+        String saved = dormant.remove(n);
+        values.put(n, saved == null ? rule.defaultValue() : rule.isBoolean() ? (Boolean.parseBoolean(saved) ? 1 : 0) : parseInt(saved));
+        custom.put(n, rule);
+        customOwner.put(n, owner);
+    }
+
+    /** 그 주인의 규칙을 뺀다. 값은 저장용으로 남는다(다시 등록하면 그 값). 뺀 규칙 목록. */
+    public synchronized java.util.List<Rule> unregisterOwner(String owner) {
+        java.util.List<Rule> out = new java.util.ArrayList<>();
+        for (var e : java.util.List.copyOf(customOwner.entrySet())) {
+            if (!e.getValue().equals(owner)) continue;
+            Rule r = custom.remove(e.getKey());
+            customOwner.remove(e.getKey());
+            Integer v = values.remove(e.getKey());
+            if (r != null) {
+                dormant.put(r.name(), serialize(r, v == null ? r.defaultValue() : v));
+                out.add(r);
+            }
+        }
+        return out;
+    }
+
+    public void set(String name, int value) {
+        Rule r = rule(name);
         if (r == null) throw new IllegalArgumentException(name);
         values.put(name, value);
         listener.accept(r, value);

@@ -102,6 +102,8 @@ public final class GameRegistryStore {
         private final String namespace;
         private final Logger logger;
         private volatile boolean open = true;
+        /** 데이터 주도 항목(몹 변종·그림·마법부여·태그 더하기)을 받는 쪽(D2). 없으면 그 메서드는 쓸 수 없다. */
+        private volatile GameRegistryHooks.DataRegistrar data;
 
         Registrar(String owner, String namespace, Logger logger) {
             this.owner = owner;
@@ -110,6 +112,33 @@ public final class GameRegistryStore {
         }
 
         void close() { open = false; }
+
+        Registrar data(GameRegistryHooks.DataRegistrar data) {
+            this.data = data;
+            return this;
+        }
+
+        private GameRegistryHooks.DataRegistrar data() {
+            if (!open) throw new IllegalStateException("게임 레지스트리 등록기는 훅이 도는 동안만 쓸 수 있다");
+            GameRegistryHooks.DataRegistrar d = data;
+            if (d == null) throw new IllegalStateException("데이터 주도 레지스트리 항목은 서버 시작 때만 더할 수 있다");
+            return d;
+        }
+
+        @Override
+        public void wolfVariant(String key, org.domi.furnace.api.registry.WolfVariant variant) { data().wolfVariant(key, variant); }
+
+        @Override
+        public void paintingVariant(String key, org.domi.furnace.api.registry.PaintingVariant variant) { data().paintingVariant(key, variant); }
+
+        @Override
+        public void enchantment(String key, org.domi.furnace.api.registry.EnchantmentDefinition definition) { data().enchantment(key, definition); }
+
+        @Override
+        public void json(String registry, String key, String json) { data().json(registry, key, json); }
+
+        @Override
+        public void addToTag(String registry, String tag, String... entries) { data().addToTag(registry, tag, entries); }
 
         private String fullKey(String key) {
             if (key == null) throw new NullPointerException("key");

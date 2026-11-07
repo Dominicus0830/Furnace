@@ -75,13 +75,14 @@ import org.slf4j.LoggerFactory;
 public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf> {
 
     private static final Logger log = LoggerFactory.getLogger(ConnectionHandler.class);
-    private static final RegistrySet VANILLA_REGISTRIES = RegistrySet.load("registries/1.21.1.txt");
-
-    /** 클라이언트에 보내는 동기 레지스트리 — 서버가 시작 때 만든 세트(플러그인 바이옴·차원 타입 포함), 없으면 바닐라. */
+    /**
+     * 클라이언트에 보내는 동기 레지스트리 — 서버가 시작 때 만든 세트(플러그인 바이옴·차원 타입, 데이터 팩·플러그인 변종·마법부여 포함).
+     * 서버 없이 돌면 지금 걸린 세트(없으면 내장 1.21.1 목록).
+     */
     private RegistrySet registries() {
         var core = login != null ? login.core : null;
         RegistrySet r = core != null ? core.registries() : null;
-        return r != null ? r : VANILLA_REGISTRIES;
+        return r != null ? r : RegistrySet.current();
     }
     private static final org.domi.furnace.server.net.registry.TagSet TAGS =
             org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt");

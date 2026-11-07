@@ -35,9 +35,18 @@ public final class LootData {
     }
 
     public static LootData load(ResourceManager rm, LootRegistries regs) {
+        return load(rm, regs, null);
+    }
+
+    /**
+     * enchantments: 시작 때 고정된 마법부여 레지스트리의 정의(레지스트리 순서). null 이거나 비면 rm 의 enchantment/*.json 을 읽는다.
+     * 바닐라는 마법부여를 동적 레지스트리로 시작 때 한 번 읽는다 — /reload 로 새 마법부여가 생기지 않는다.
+     */
+    public static LootData load(ResourceManager rm, LootRegistries regs, Map<String, com.google.gson.JsonObject> enchantments) {
         EntityPredicate.nbtUsed = false;   // 리로드마다 다시 센다(이후 읽는 조건이 켠다)
         // 인챈트 정의 먼저(전리품 함수가 참조). 레지스트리 순서 = 파일 id 순(path → namespace).
-        for (var e : read(rm, "enchantment").entrySet()) {
+        Map<String, ? extends JsonElement> defs = enchantments != null && !enchantments.isEmpty() ? enchantments : read(rm, "enchantment");
+        for (var e : defs.entrySet()) {
             try {
                 regs.putEnchantment(e.getKey(), Enchantment.parse(e.getKey(), e.getValue().getAsJsonObject(), regs));
             } catch (RuntimeException ex) {

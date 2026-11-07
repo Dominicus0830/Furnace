@@ -629,6 +629,8 @@ public final class PlayerVitals {
                 if (d == Difficulty.PEACEFUL) amount = 0.0f;
                 if (d == Difficulty.EASY) amount = Math.min(amount / 2.0f + 1.0f, amount);
                 if (d == Difficulty.HARD) amount = amount * 3.0f / 2.0f;
+                float mul = org.domi.furnace.server.world.DifficultyModifiers.playerDamage();   // 난이도 프로필(기본 1 = 바닐라)
+                if (mul != 1.0f) amount *= mul;
             }
             if (amount == 0.0f) return false;
             dealt = amount;
