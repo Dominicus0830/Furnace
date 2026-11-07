@@ -225,7 +225,7 @@ public final class DispenseBehaviors {
                     level.setBlockAndUpdate(p, LIT.with(state, true));
                     level.gameEvent("minecraft:block_change", p, null, -1);
                 } else if (B.behavior(state) instanceof TntBlock) {
-                    TntBlock.prime(level, p);
+                    TntBlock.prime(level, p, org.domi.furnace.server.plugin.Causes.tracking(level) ? org.domi.furnace.server.plugin.Causes.block(level.dimension(), s.pos(), s.state(), org.domi.furnace.api.event.cause.CauseEntry.DISPENSE, null) : null);
                     level.removeBlock(p, false);
                 } else {
                     setSuccess(false);
@@ -252,7 +252,7 @@ public final class DispenseBehaviors {
             protected ItemStack execute(BlockSource s, ItemStack stack) {
                 BlockLevel level = s.level();
                 Pos p = s.front();
-                level.spawnPrimedTnt(p, null, -1);
+                level.spawnPrimedTnt(p, null, -1, org.domi.furnace.server.plugin.Causes.tracking(level) ? org.domi.furnace.server.plugin.Causes.block(level.dimension(), s.pos(), s.state(), org.domi.furnace.api.event.cause.CauseEntry.DISPENSE, null) : null);
                 level.playSound(null, p.x() + 0.5, p.y(), p.z() + 0.5, "minecraft:entity.tnt.primed", "blocks", 1.0F, 1.0F);
                 level.gameEvent("minecraft:entity_place", p, null, -1);
                 return stack.withCount(stack.count() - 1);

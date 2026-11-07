@@ -192,11 +192,14 @@ public interface BlockLevel {
     /** 호박 머리로 완성된 골렘을 만든다(눈 골렘 또는 플레이어가 만든 철 골렘). bottom 은 모양의 맨 아래 가운데 칸. */
     default void spawnGolem(boolean iron, Pos bottom) {}
 
-    /** 점화된 TNT 엔티티를 만든다(fuse < 0 이면 기본 80틱). 엔티티가 없는 레벨은 아무것도 안 한다. */
-    default void spawnPrimedTnt(Pos pos, BlockActor igniter, int fuse) {}
+    /**
+     * 점화된 TNT 엔티티를 만든다(fuse < 0 이면 기본 80틱). 엔티티가 없는 레벨은 아무것도 안 한다.
+     * why 는 켠 원인 사슬(원인 추적이 꺼져 있으면 null — plugin.Causes.tracking).
+     */
+    default void spawnPrimedTnt(Pos pos, BlockActor igniter, int fuse, org.domi.furnace.api.event.cause.CauseChain why) {}
 
-    /** spawnPrimedTnt 와 같되 주인을 생물로 바로 준다(불붙은 투사체를 쏜 쪽). */
-    default void spawnPrimedTntOwned(Pos pos, org.domi.furnace.server.entity.Targetable owner, int fuse) {}
+    /** spawnPrimedTnt 와 같되 주인을 생물로 바로 준다(불붙은 투사체를 쏜 쪽, 폭발의 간접 원인). */
+    default void spawnPrimedTntOwned(Pos pos, org.domi.furnace.server.entity.Targetable owner, int fuse, org.domi.furnace.api.event.cause.CauseChain why) {}
 
     /** FallingBlockEntity.fall(level, pos, state): 그 자리를 유체(없으면 공기)로 바꾸고 떨어지는 블록 엔티티를 만든다. 만든 엔티티(없으면 null). */
     default Object spawnFallingBlock(Pos pos, int state) { return null; }

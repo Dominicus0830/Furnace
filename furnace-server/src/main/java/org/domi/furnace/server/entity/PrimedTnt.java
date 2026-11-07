@@ -46,6 +46,13 @@ public class PrimedTnt extends Entity {
         return owner;
     }
 
+    /** 원인 사슬(적힌 것이 없을 때): [켠 생물 ignite] — 바닐라 주인만 안다. */
+    @Override
+    protected org.domi.furnace.api.event.cause.CauseChain derivedOrigin() {
+        return owner == null ? org.domi.furnace.api.event.cause.CauseChain.NONE
+                : org.domi.furnace.server.plugin.Causes.of(owner, org.domi.furnace.api.event.cause.CauseEntry.IGNITE);
+    }
+
     @Override protected double defaultGravity() { return 0.04; }
 
     @Override public boolean fireImmune() { return true; }

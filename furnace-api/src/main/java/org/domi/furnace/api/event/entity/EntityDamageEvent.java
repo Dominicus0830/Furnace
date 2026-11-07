@@ -5,11 +5,12 @@ package org.domi.furnace.api.event.entity;
 import org.domi.furnace.api.entity.Entity;
 import org.domi.furnace.api.event.Cancellable;
 
-public final class EntityDamageEvent extends EntityEvent implements Cancellable {
+public final class EntityDamageEvent extends EntityEvent implements Cancellable, org.domi.furnace.api.event.cause.Caused {
 
     private final String cause;
     private float damage;
     private boolean cancelled;
+    private org.domi.furnace.api.event.cause.CauseChain causeChain = org.domi.furnace.api.event.cause.CauseChain.NONE;
 
     @Override
     public boolean isCancelled() { return cancelled; }
@@ -22,6 +23,18 @@ public final class EntityDamageEvent extends EntityEvent implements Cancellable 
         this.cause = cause;
         this.damage = damage;
     }
+
+    public EntityDamageEvent(Entity entity, String cause, float damage, org.domi.furnace.api.event.cause.CauseChain causeChain) {
+        this(entity, cause, damage);
+        if (causeChain != null) this.causeChain = causeChain;
+    }
+
+    /**
+     * 누가·무엇이 피해를 줬나: 맨 앞이 직접 맞힌 것(action damage — 화살·TNT·때린 몹), 그 뒤가 그것의 원인(쏜 쪽·켠 플레이어).
+     * 환경 피해(낙하·용암·굶주림 …)는 NONE — 종류는 {@link #cause()}.
+     */
+    @Override
+    public org.domi.furnace.api.event.cause.CauseChain causeChain() { return causeChain; }
 
     /** 피해 종류 키(minecraft:fall, minecraft:player_attack …). */
     public String cause() { return cause; }

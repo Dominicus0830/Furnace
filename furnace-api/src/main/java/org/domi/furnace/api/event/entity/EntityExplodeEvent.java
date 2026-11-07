@@ -9,11 +9,12 @@ import org.domi.furnace.api.event.Cancellable;
 import org.domi.furnace.api.world.BlockPos;
 import org.domi.furnace.api.world.Location;
 
-public final class EntityExplodeEvent extends EntityEvent implements Cancellable {
+public final class EntityExplodeEvent extends EntityEvent implements Cancellable, org.domi.furnace.api.event.cause.Caused {
 
     private final Location location;
     private final List<BlockPos> blocks;
     private boolean cancelled;
+    private org.domi.furnace.api.event.cause.CauseChain cause;
 
     @Override
     public boolean isCancelled() { return cancelled; }
@@ -25,6 +26,19 @@ public final class EntityExplodeEvent extends EntityEvent implements Cancellable
         super(entity);
         this.location = location;
         this.blocks = blocks;
+    }
+
+    /** 원인 사슬을 직접 준다(null 이면 터진 엔티티와 그 {@link Entity#origin()}). */
+    public EntityExplodeEvent(Entity entity, Location location, List<BlockPos> blocks, org.domi.furnace.api.event.cause.CauseChain cause) {
+        this(entity, location, blocks);
+        this.cause = cause;
+    }
+
+    /** [터진 엔티티 explode] ← 그 엔티티의 origin(켠 플레이어·앞선 TNT·레드스톤 칸 …). */
+    @Override
+    public org.domi.furnace.api.event.cause.CauseChain causeChain() {
+        if (cause == null) cause = org.domi.furnace.api.event.cause.CauseChain.of(entity(), org.domi.furnace.api.event.cause.CauseEntry.EXPLODE);
+        return cause;
     }
 
     /** 폭발 중심. */

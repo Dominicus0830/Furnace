@@ -1,0 +1,4 @@
+name: CauseProbe
+version: 1.0.0
+main: probe.CauseProbe
+description: 원인 사슬(B4) 봇 시험 — 원인을 담는 이벤트의 사슬을 [CAUSE] 로그로

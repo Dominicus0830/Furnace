@@ -90,6 +90,50 @@ public final class Explosion {
         return this;
     }
 
+    /** 원인 사슬(B4): 엔티티 없이 터진 블록을 일으킨 쪽(침대를 쓴 플레이어). 피해·게임 이벤트에는 쓰지 않는다. null 이면 모름. */
+    private org.domi.furnace.api.event.cause.CauseChain causedBy;
+    /** cause() 가 만든 사슬(한 번만 만든다 — 휘말린 TNT 들이 나눠 쓴다). */
+    private org.domi.furnace.api.event.cause.CauseChain cause;
+
+    public Explosion causedBy(org.domi.furnace.api.event.cause.CauseChain c) {
+        causedBy = c;
+        return this;
+    }
+
+    public org.domi.furnace.api.event.cause.CauseChain causedBy() { return causedBy; }
+
+    /**
+     * 이 폭발의 원인 사슬: 엔티티가 터졌으면 [그 엔티티 explode] ← 그 엔티티의 origin, 블록이 터졌으면 [그 블록 explode] ← causedBy.
+     * 필요할 때만(이벤트 구독자·원인 추적) 만든다.
+     */
+    public org.domi.furnace.api.event.cause.CauseChain cause() {
+        if (cause == null) {
+            var E = org.domi.furnace.api.event.cause.CauseEntry.EXPLODE;
+            if (source != null) cause = org.domi.furnace.server.plugin.Causes.of(source, E);
+            else if (sourcePlayer != null) cause = org.domi.furnace.server.plugin.Causes.of(sourcePlayer, E);
+            else if (explodedState != 0) {
+                cause = org.domi.furnace.server.plugin.Causes.block(level.dimension(), new Pos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)),
+                        explodedState, E, causedBy);
+            } else cause = causedBy != null ? causedBy : org.domi.furnace.api.event.cause.CauseChain.NONE;
+        }
+        return cause;
+    }
+
+    /**
+     * 바닐라 Explosion.getIndirectSourceEntity: TNT 면 그 주인, 생물이면 그 생물, 투사체면 생물인 주인. 플레이어가 원인이면 플레이어.
+     * 휘말린 TNT 의 주인이 된다(TntBlock.wasExploded).
+     */
+    public org.domi.furnace.server.entity.Targetable indirectSourceEntity() {
+        if (source == null) return sourcePlayer;
+        if (source instanceof org.domi.furnace.server.entity.PrimedTnt tnt) return tnt.getOwner();
+        if (source instanceof LivingEntity le) return le;
+        if (source instanceof org.domi.furnace.server.entity.Projectile pr) {
+            var o = pr.getOwner();
+            return o instanceof LivingEntity || o instanceof Player ? o : null;
+        }
+        return null;
+    }
+
     public Explosion(ChunkLevel level, Entity source, double x, double y, double z, float radius, boolean fire, BlockInteraction interaction) {
         this.level = level;
         this.source = source;
@@ -251,7 +295,7 @@ public final class Explosion {
         } else if (t instanceof LivingEntity le) {
             le.hurtByVia(dmg, damage, attacker, source);
         } else if (t instanceof Player p) {
-            p.vitals().hurt(damageType, damage, attacker, p.shieldSource(damageType.key(), attacker, source));   // 원인 위치 = 폭발 원인 엔티티
+            p.vitals().hurtVia(damageType, damage, attacker, p.shieldSource(damageType.key(), attacker, source), source);   // 원인 위치 = 폭발 원인 엔티티
         } else if (t instanceof Entity e) {
             e.hurt(dmg, damage);
         }
@@ -268,7 +312,7 @@ public final class Explosion {
         if (breaking) shuffle(toBlow, level.random());
         // 플러그인 EntityExplodeEvent/BlockExplodeEvent(CraftBukkit 처럼 섞은 뒤): 목록을 고치거나, 취소하면 블록·불·패킷 모두 없음
         if (destroy && !level.gameEvents().explode(level.dimension(), source, sourcePlayer, x, y, z,
-                explodedState != 0 ? explodedState : level.getBlockState(new Pos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z))), toBlow)) {
+                explodedState != 0 ? explodedState : level.getBlockState(new Pos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z))), toBlow, this)) {
             toBlow.clear();
             return;
         }

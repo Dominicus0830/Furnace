@@ -5,7 +5,7 @@ package org.domi.furnace.api.event.entity;
 import org.domi.furnace.api.entity.Entity;
 import org.domi.furnace.api.event.Cancellable;
 
-public class EntitySpawnEvent extends EntityEvent implements Cancellable {
+public class EntitySpawnEvent extends EntityEvent implements Cancellable, org.domi.furnace.api.event.cause.Caused {
 
     private boolean cancelled;
 
@@ -16,4 +16,8 @@ public class EntitySpawnEvent extends EntityEvent implements Cancellable {
     public void setCancelled(boolean cancelled) { this.cancelled = cancelled; }
 
     public EntitySpawnEvent(Entity entity) { super(entity); }
+
+    /** 이 엔티티를 만든 원인 = {@link Entity#origin()}(점화된 TNT 면 켠 쪽, 투사체면 쏜 쪽). 엔티티 자신은 들어 있지 않다. */
+    @Override
+    public org.domi.furnace.api.event.cause.CauseChain causeChain() { return entity().origin(); }
 }

@@ -38,7 +38,7 @@ public class RespawnAnchorBlock extends org.domi.furnace.server.block.BlockBehav
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
         if (CHARGE.intValue(state) == 0) return InteractionResult.PASS;
         if (!canSetSpawn(level)) {
-            explode(level, pos);
+            explode(level, pos, org.domi.furnace.server.plugin.Causes.tracking(level) ? org.domi.furnace.server.plugin.Causes.of(player.handle(), org.domi.furnace.api.event.cause.CauseEntry.USE) : null);
             return InteractionResult.CONSUME;
         }
         // 리스폰 지점이 이 칸이 아니면 정하고(메시지) set_spawn 소리
@@ -63,7 +63,7 @@ public class RespawnAnchorBlock extends org.domi.furnace.server.block.BlockBehav
      * explode: 블록을 지우고, 옆(북·동·남·서)에 흐를 물이 있거나 위가 물이면 이 칸의 폭발 저항을 물(100)로 해서
      * 가운데에서 BAD_RESPAWN_POINT 폭발(5.0, 불, BLOCK).
      */
-    private static void explode(BlockLevel level, Pos pos) {
+    private static void explode(BlockLevel level, Pos pos, org.domi.furnace.api.event.cause.CauseChain causedBy) {
         int exploded = level.getBlockState(pos);
         level.removeBlock(pos, false);
         boolean water = false;
@@ -73,7 +73,7 @@ public class RespawnAnchorBlock extends org.domi.furnace.server.block.BlockBehav
         boolean inWater = water || Fluids.isWater(level.getFluidState(pos.above()));
         if (level instanceof org.domi.furnace.server.block.ChunkLevel cl) {
             cl.explodeBadRespawnPoint(pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5, inWater ? pos : null,
-                    org.domi.furnace.server.block.BlockInfo.get().explosionResistance(org.domi.furnace.server.block.B.id("water")), exploded);
+                    org.domi.furnace.server.block.BlockInfo.get().explosionResistance(org.domi.furnace.server.block.B.id("water")), exploded, causedBy);
         }
     }
 
