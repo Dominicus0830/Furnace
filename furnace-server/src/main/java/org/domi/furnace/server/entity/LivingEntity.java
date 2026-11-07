@@ -1476,9 +1476,12 @@ public abstract class LivingEntity extends Entity implements Targetable {
         return "other_climbable";
     }
 
-    /** LivingEntity.checkFallDamage 끝: 땅에 닿으면 lastClimbablePos 를 지운다(착지 입자·onChangedBlock 은 아직 없다). */
+    /** LivingEntity.checkFallDamage: 땅에 닿으면 착지 블록 입자(onChangedBlock 은 아직 없다), 끝에서 lastClimbablePos 를 지운다. */
     @Override
     protected void checkFallDamage(double dy, boolean ground, int state, org.domi.furnace.server.block.Pos pos) {
+        if (ground && fallDistance > 0.0F) {
+            LandingParticles.spawn(level, x(), y(), z(), blockPosition(), pos, state, fallDistance, attributeValue(Attribute.SAFE_FALL_DISTANCE));
+        }
         super.checkFallDamage(dy, ground, state, pos);
         if (ground) lastClimbablePos = null;
     }

@@ -1,5 +1,5 @@
 // 바닐라 Camel: 브레인으로 움직이는 말과 동물. 앉았다 일어나는 자세 전환(마지막 자세 바뀐 틱)과 선인장 먹이로 번식한다.
-// TODO(발소리·끈): 발걸음 소리(모래 위는 step_sand)와 목줄 판정은 엔진에 아직 없다. TODO(탑승): 안장·2인 탑승·질주(dash)·탑승자 위치는 탑승 규칙이 생기면. TODO(자세 크기): 앉은 자세 몸 크기(높이 -1.43)와 몸 회전 제어는 아직 없다.
+// TODO(발소리·끈): 발걸음 소리(모래 위는 step_sand)와 목줄 판정은 엔진에 아직 없다. TODO(탑승): 2인 탑승·탑승자 위치는 탑승 규칙이 생기면. TODO(자세 크기): 앉은 자세 몸 크기(높이 -1.43)와 몸 회전 제어는 아직 없다.
 package org.domi.furnace.server.entity;
 
 import java.util.Optional;
@@ -160,6 +160,24 @@ public class Camel extends AbstractHorse {
         gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.EAT);
         return true;
     }
+
+    // ------------------------------------------------------------------ 질주(PlayerRideableJumping)
+
+    /** Camel.canJump: 안장 여부와 상관없이 true(바닐라 dH). 질주 쿨다운은 조종하는 클라이언트가 가진다. */
+    @Override public boolean canJump() { return true; }
+
+    /**
+     * Camel.handleStartJump(int): 질주 시작 — 소리, entity_action 진동(소리 다음, 질주 표시 앞), 질주 표시.
+     * 질주 힘(executeRidersJump)은 조종하는 클라이언트가 계산하고 서버는 탈것 이동 패킷으로 받는다.
+     */
+    @Override
+    public void handleStartJump(int power) {
+        playSound("entity.camel.dash", 1.0F, 1.0F);
+        gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_ACTION);
+        setDashing(true);
+    }
+
+    @Override public void handleStopJump() {}
 
     // ------------------------------------------------------------------ 자세 전환(앉기/서기)
 

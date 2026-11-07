@@ -114,6 +114,7 @@ public final class ItemUse {
             default: break;
         }
         if (n.endsWith("_boat") || n.endsWith("_raft")) return boatUse(level, player, stack, n);
+        if (n.endsWith("_spawn_egg")) return spawnEggUse(level, player, stack, n);
         BlockItems.Entry e = BlockItems.entry(stack.itemId());
         if (e != null && e.kind() == BlockItems.Kind.PLACE_ON_WATER) return placeOnWaterUse(level, player, hand, stack, e);
         int slot = equipSlot(n);
@@ -607,6 +608,29 @@ public final class ItemUse {
             level.gameEvent("minecraft:entity_place", pos, player, -1);
         }
         return InteractionResult.sidedSuccess(false);
+    }
+
+    /**
+     * SpawnEggItem.use: 물·용암 원천(fluid SOURCE_ONLY 시선)을 맞췄을 때만 — 블록이 LiquidBlock 이어야 하고(아니면 PASS), 상호작용 가능한 자리가 아니면 FAIL,
+     * 몹이 안 만들어지면 PASS. 만들면 하나 줄이고(크리에이티브 제외) 사용 통계, 마지막에 entity_place 진동(출처 플레이어, 자리는 만든 몹 위치).
+     * 몹은 그 칸 바닥 가운데에 바닥 맞춤 없이 놓인다(spawn(…, SPAWN_EGG, false, false)).
+     */
+    private static Holder spawnEggUse(BlockLevel level, BlockActor player, ItemStack stack, String itemName) {
+        Clip.Result hit = Clip.playerPOV(level, player, Clip.FluidMode.SOURCE_ONLY);
+        if (hit.miss()) return Holder.pass(stack);
+        if (!(level instanceof ChunkLevel cl)) return Holder.pass(stack);
+        Pos pos = hit.pos();
+        int state = level.getBlockState(pos);
+        if (!B.is(state, "minecraft:water") && !B.is(state, "minecraft:lava")) return Holder.pass(stack);
+        if (!player.mayInteract(level, pos) || !mayUseItemAt(level, player, pos, hit.face(), stack)) return Holder.fail(stack);
+        String type = "minecraft:" + itemName.substring("minecraft:".length(), itemName.length() - "_spawn_egg".length());
+        var mob = cl.spawnMob(type, pos, false, false, org.domi.furnace.server.entity.spawn.SpawnReason.SPAWN_EGG);
+        if (mob == null) return Holder.pass(stack);
+        ItemStack rest = player.instabuild() ? stack : stack.withCount(stack.count() - 1);
+        player.awardStat("minecraft:used:" + itemName);
+        cl.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_PLACE, new org.domi.furnace.server.entity.Vec3(mob.x(), mob.y(), mob.z()),
+                org.domi.furnace.server.world.gameevent.GameEventContext.of(player.handle()));
+        return Holder.success(rest);
     }
 
     private static float wrapDegrees(float d) {

@@ -1059,6 +1059,7 @@ public final class Region {
             org.domi.furnace.server.entity.Tridents.tickSpin(meleeWorld, p, t -> meleeAttack(p, t));   // 급류 회전 공격
             p.syncLivingFlags();   // 사용 중(먹기·활·방패) 플래그를 다른 사람에게
             org.domi.furnace.server.entity.PlayerLocationEffects.tick(p, level, () -> onSoulSpeedBlock(p));   // 칸 이동·발 장비 변경 시 영혼 가속·서리 걸음
+            org.domi.furnace.server.entity.PlayerLocationEffects.tickEffects(p, level, () -> onSoulSpeedBlock(p));   // 영혼 가속 tick 효과(소울 입자·소리)
             p.syncEquipment();     // 든 아이템·방어구가 바뀌면 다른 사람에게(set_equipment)
             pushEntities(p);
             touchEntities(p);
@@ -1199,6 +1200,13 @@ public final class Region {
             p.vitals().onMove(dx, dy, dz, prev.onGround(), m.onGround(), p.sprinting(), sneaking,
                     inWater, eyeInWater, climbable, landing, waterOnPath);
             float landed = p.vitals().landedFallDistance();
+            if (landed > 0.0f && level != null && landingState >= 0) {
+                // 바닐라 LivingEntity.checkFallDamage 의 착지 블록 입자(ServerPlayer.doCheckFallDamage → super): 발밑 칸 getOnPosLegacy
+                org.domi.furnace.server.entity.LandingParticles.spawn(level, m.x(), m.y(), m.z(),
+                        new org.domi.furnace.server.block.Pos((int) Math.floor(m.x()), (int) Math.floor(m.y()), (int) Math.floor(m.z())),
+                        new org.domi.furnace.server.block.Pos(landingPos[0], landingPos[1], landingPos[2]), landingState, landed,
+                        p.attributes().value(org.domi.furnace.server.attribute.Attribute.SAFE_FALL_DISTANCE));
+            }
             if (landed > 0.0f && level != null) {
                 // 바닐라 doCheckFallDamage → Block.fallOn(getOnPosLegacy 칸). 피해는 위 onMove 가 이미 처리했다
                 int[] at = probe.onPos(blocks, 0.2f, m.x(), m.y(), m.z(), m.onGround());

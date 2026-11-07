@@ -5,7 +5,8 @@
 //  - 서리 걸음: 지면에 있으면 발 아래(offset -1) 반경 clamped(linear(3,+1),0,16) 원판의 물 원천 중 위가 공기이고 엔티티가 막지 않는 칸을 frosted_ice(age 0)로.
 // 호출 시점: 블록 칸이 바뀌었을 때(LivingEntity.baseTick), 그리고 발 장비 아이템이 바뀌었을 때(detectEquipmentUpdates — 먼저 비활성화).
 // 소유권: 플레이어를 가진 region 스레드에서만 부른다.
-// 차이(미구현): 영혼 가속의 tick 효과(소울 입자·particle.soul_escape 소리), 서리 걸음의 burn_from_stepping 피해 면역(플레이어의 마그마 블록 피해가
+// 영혼 가속의 tick 효과(effects.minecraft:tick, LivingEntity.baseTick 머리의 EnchantmentHelper.tickEffects)는 tickEffects 가 한다.
+// 차이(미구현): 서리 걸음의 burn_from_stepping 피해 면역(플레이어의 마그마 블록 피해가
 //   아직 없다). 영혼 블록 판정은 호출자가 넘긴다(Entity.getBlockPosBelowThatAffectsMyMovement = getOnPos(0.500001) ∈ #soul_speed_blocks).
 package org.domi.furnace.server.entity;
 
@@ -80,6 +81,42 @@ public final class PlayerLocationEffects {
             st.lastBoots = boots;
             deactivate(st);
             run(p, level, onSoulBlock);
+        }
+    }
+
+    /** (double) 1.0E-5F 의 제곱 — movement.horizontal_speed 의 min(항상 제곱으로 비교한다). */
+    private static final double MIN_HORIZONTAL_SPEED_SQR = (double) 1.0E-5F * (double) 1.0E-5F;
+
+    /**
+     * 영혼 가속 tick 효과(data/minecraft/enchantment/soul_speed.json effects.minecraft:tick 두 개). 발 장비에 영혼 가속이 있으면 매 틱 평가한다.
+     * 공통 조건: 비행 아님·지면·known movement 의 수평 속도(×20) ≥ 1.0E-5·발밑이 #soul_speed_blocks·tickCount % 5 == 0.
+     *  ① spawn_particles minecraft:soul — 위치 x,z = 엔티티 + (nextDouble-0.5)×너비(엔티티 난수, x 먼저 z 나중), y = 엔티티 + 0.1,
+     *     count 0(속도 입자): 속도 x,z = known movement × -0.2, y = 0.1, 속도 상수 1.0. 보낸 사람은 레벨 전체(32 칸 안).
+     *  ② play_sound particle.soul_escape — 먼저 레벨 난수 nextFloat < 0.35(조건이 모든 틱 굴려진다), 소리 크기 0.6, 높이 = 엔티티 난수 nextFloat×0.4+0.6.
+     *     조용한 엔티티(isSilent)는 소리 없음. 분류 player, 위치 엔티티 발.
+     */
+    public static void tickEffects(Player p, ChunkLevel level, BooleanSupplier onSoulBlock) {
+        if (level == null || !p.isAlive()) return;
+        if (ItemTools.enchantmentLevel(p.equipment(EquipmentSlot.FEET), "minecraft:soul_speed") <= 0) return;
+        // random_chance 는 all_of 의 첫 항이라 나머지 조건이 거짓이어도 매 틱 레벨 난수를 쓴다
+        boolean chance = level.random().nextFloat() < 0.35F;
+        boolean met = false;
+        if (p.combatTicks() % 5 == 0 && p.onGround() && !(p.isFallFlying() || p.vitals().isFlying())) {
+            double[] mv = p.knownMovement();
+            double sx = mv[0] * 20.0, sz = mv[2] * 20.0;
+            met = sx * sx + sz * sz >= MIN_HORIZONTAL_SPEED_SQR && onSoulBlock.getAsBoolean();
+        }
+        if (!met) return;
+        double[] mv = p.knownMovement();
+        var rnd = p.random();
+        double w = p.bbWidth();
+        double px = p.x() + (rnd.nextDouble() - 0.5) * w;
+        double pz = p.z() + (rnd.nextDouble() - 0.5) * w;
+        level.sendParticles(org.domi.furnace.server.net.protocol.play.ParticleOptions.simple("minecraft:soul"), px, p.y() + 0.1, pz,
+                0, mv[0] * -0.2, 0.1, mv[2] * -0.2, 1.0);
+        if (chance) {
+            float pitch = rnd.nextFloat() * (1.0F - 0.6F) + 0.6F;
+            level.playSound(null, p.x(), p.y(), p.z(), "minecraft:particle.soul_escape", "player", 0.6F, pitch);
         }
     }
 
