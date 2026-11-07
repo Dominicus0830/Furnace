@@ -116,6 +116,41 @@ public final class PluginHost implements Furnace {
     @Override
     public PluginRecipes recipes() { return recipes; }
 
+    private final ServiceRegistryImpl services = new ServiceRegistryImpl(this);
+    private final AccessListsImpl access = new AccessListsImpl(this);
+
+    @Override
+    public ServiceRegistryImpl services() { return services; }
+
+    @Override
+    public AccessListsImpl access() { return access; }
+
+    @Override
+    public org.domi.furnace.api.entity.OfflinePlayer offlinePlayer(UUID id) { return new OfflinePlayerImpl(this, id); }
+
+    @Override
+    public org.domi.furnace.api.entity.OfflinePlayer offlinePlayerCached(String name) {
+        Player online = core.playerByName(name);
+        if (online != null) return new OfflinePlayerImpl(this, online.uuid());
+        // get(String) 은 모르는 이름이면 인증 서버를 부르거나 오프라인 프로필을 만들어 캐시에 넣는다 — 캐시에 있는 이름만 본다
+        return core.profileCache().peek(name).map(p -> (org.domi.furnace.api.entity.OfflinePlayer) new OfflinePlayerImpl(this, p.id())).orElse(null);
+    }
+
+    @Override
+    public java.util.concurrent.CompletableFuture<List<org.domi.furnace.api.entity.OfflinePlayer>> knownPlayers() {
+        RegionFuture<List<org.domi.furnace.api.entity.OfflinePlayer>> out = new RegionFuture<>();
+        org.domi.furnace.server.entity.PlayerData.io().execute(() -> {
+            try {
+                List<org.domi.furnace.api.entity.OfflinePlayer> all = new ArrayList<>();
+                for (UUID id : org.domi.furnace.server.entity.PlayerData.knownIds(core.world().worldDir())) all.add(new OfflinePlayerImpl(this, id));
+                out.complete(List.copyOf(all));
+            } catch (Throwable t) {
+                out.completeExceptionally(t);
+            }
+        });
+        return out;
+    }
+
     private volatile BlockTypesImpl blockTypes;
 
     @Override

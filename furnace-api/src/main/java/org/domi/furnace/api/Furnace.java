@@ -151,4 +151,26 @@ public interface Furnace {
 
     /** 난이도·난이도 프로필. */
     default org.domi.furnace.api.world.DifficultySettings difficulty() { throw new UnsupportedOperationException("difficulty"); }
+
+    /**
+     * UUID 로 가리키는 오프라인 플레이어(접속 중이어도 된다). 서버가 한 번도 못 본 UUID 도 받으며 그 경우 name() 은 null.
+     */
+    default org.domi.furnace.api.entity.OfflinePlayer offlinePlayer(UUID id) { throw new UnsupportedOperationException("offlinePlayer"); }
+
+    /**
+     * 이름(대소문자 무시)으로 오프라인 플레이어를 찾는다. 서버가 아는 이름(접속 중 + usercache.json)만 보고 없으면 null.
+     * 인증 서버에 묻지 않으므로 아무 스레드에서 불러도 막히지 않는다.
+     */
+    default org.domi.furnace.api.entity.OfflinePlayer offlinePlayerCached(String name) { throw new UnsupportedOperationException("offlinePlayerCached"); }
+
+    /** 플레이어 데이터 파일이 있는 모든 플레이어(디렉터리를 읽으니 비동기). */
+    default java.util.concurrent.CompletableFuture<java.util.List<org.domi.furnace.api.entity.OfflinePlayer>> knownPlayers() {
+        throw new UnsupportedOperationException("knownPlayers");
+    }
+
+    /** OP·밴·IP 밴·화이트리스트 목록. */
+    default org.domi.furnace.api.access.AccessLists access() { throw new UnsupportedOperationException("access"); }
+
+    /** 서비스 레지스트리(권한·경제·플레이스홀더 등 플러그인 사이 공용 인터페이스). */
+    default org.domi.furnace.api.service.ServiceRegistry services() { throw new UnsupportedOperationException("services"); }
 }
