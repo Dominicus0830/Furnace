@@ -25,12 +25,24 @@ public final class SkyLightEngine extends LightEngine {
     /** 처음부터 모든 열의 원천 높이를 센다(ChunkSkyLightSources.fillFrom). */
     public void computeSources(int cx, int cz) {
         ChunkLight cl = world.light(cx, cz);
+        int minSection = world.minY() >> 4, maxSection = (world.maxY() - 1) >> 4;
+        int[] uniform = new int[maxSection - minSection + 1];
+        for (int s = minSection; s <= maxSection; s++) uniform[s - minSection] = world.uniformSectionState(cx, s, cz);
         for (int lz = 0; lz < 16; lz++) {
             for (int lx = 0; lx < 16; lx++) {
                 int x = cx * 16 + lx, z = cz * 16 + lz;
                 int above = 0;   // air
                 int result = ChunkLight.NO_BLOCKER;
                 for (int y = world.maxY() - 1; y >= world.minY(); y--) {
+                    if ((y & 15) == 15 && y - 15 >= world.minY()) {
+                        // 한 상태로만 찬 구역: 그 칸들은 모두 같은 상태라, 맨 위 칸도 그 아래 칸들도 막지 않으면 구역 전체를 그대로 지난다
+                        int u = uniform[(y >> 4) - minSection];
+                        if (u >= 0 && !blocks(above, u) && !blocks(u, u)) {
+                            above = u;
+                            y -= 15;   // for 의 y-- 가 아래 구역 맨 위로
+                            continue;
+                        }
+                    }
                     int here = state(x, y, z);
                     if (blocks(above, here)) {
                         result = y + 1;
@@ -179,6 +191,11 @@ public final class SkyLightEngine extends LightEngine {
     /** propagateLightSources(eox.b(dcd)): 원천 높이 위를 15 로 채우고 옆으로 퍼질 가장자리 칸을 증가 대기열에 넣는다. */
     public void propagateLightSources(int cx, int cz) {
         ChunkLight cl = world.light(cx, cz);
+        // 모든 열이 15 로 채우는 구역(모든 열의 시작 높이보다 위)은 한 번에 채운다 — 칸마다 쓰는 것과 같은 값이다.
+        int maxStart = ChunkLight.MIN_Y;
+        for (int raw : cl.lowestSource) maxStart = Math.max(maxStart, reported(raw));
+        int fillBottom = ChunkLight.MIN_Y + ((maxStart - ChunkLight.MIN_Y + 15) >> 4 << 4);
+        for (int y = fillBottom; y < ChunkLight.MAX_Y; y += 16) java.util.Arrays.fill(cl.sky[ChunkLight.sectionIndex(y)], (byte) 0xFF);
         for (int lz = 0; lz < 16; lz++) {
             for (int lx = 0; lx < 16; lx++) {
                 int x = cx * 16 + lx, z = cz * 16 + lz;
@@ -186,7 +203,15 @@ public final class SkyLightEngine extends LightEngine {
                 int n = lowestAt(x, z - 1, Integer.MIN_VALUE), s = lowestAt(x, z + 1, Integer.MIN_VALUE),
                         w = lowestAt(x - 1, z, Integer.MIN_VALUE), e = lowestAt(x + 1, z, Integer.MIN_VALUE);
                 int neighborMax = Math.max(Math.max(n, s), Math.max(w, e));
-                for (int y = ChunkLight.MAX_Y - 1; y >= Math.max(ChunkLight.MIN_Y, lowest); y--) {
+                int start = Math.max(ChunkLight.MIN_Y, lowest);
+                // 채운 구역: 값은 이미 15 — 대기열에 넣는 칸(y == lowest 또는 y < neighborMax)만 위에서 아래 순서 그대로 본다
+                int hi = Math.min(ChunkLight.MAX_Y - 1, Math.max(neighborMax == Integer.MIN_VALUE ? Integer.MIN_VALUE : neighborMax - 1, lowest));
+                for (int y = hi; y >= Math.max(start, fillBottom); y--) {
+                    if (y == lowest || y < neighborMax) {
+                        enqueueIncrease(pack(x, y, z), increaseSkySourceInDirections(y == lowest, y < n, y < s, y < w, y < e));
+                    }
+                }
+                for (int y = Math.min(ChunkLight.MAX_Y, fillBottom) - 1; y >= start; y--) {
                     ChunkLight.set(cl.sky[ChunkLight.sectionIndex(y)], x, y, z, 15);
                     if (y == lowest || y < neighborMax) {
                         enqueueIncrease(pack(x, y, z), increaseSkySourceInDirections(y == lowest, y < n, y < s, y < w, y < e));
