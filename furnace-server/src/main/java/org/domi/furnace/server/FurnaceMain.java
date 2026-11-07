@@ -425,10 +425,10 @@ public final class FurnaceMain {
             for (World w : dimensions.all()) {
                 try {
                     int left = w.flushAllDrained(java.util.concurrent.TimeUnit.SECONDS.toNanos(60));
-                    if (left > 0) log.warn("save-all: {} 청크 {}개는 자동 저장으로 넘어갔다(IO 레인이 60초 안에 비지 않았다)", w.dimension(), left);
+                    if (left != 0) log.warn("save-all: {} 청크 {}개는 자동 저장으로 넘어갔다(IO 레인이 60초 안에 비지 않았다, -1 = 수 모름)", w.dimension(), left);
                 } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return;
+                    Thread.currentThread().interrupt();   // 남은 차원은 건너뛰어도 level.dat 은 아래에서 저장한다
+                    break;
                 }
             }
             saveLevelData.run();
@@ -478,7 +478,7 @@ public final class FurnaceMain {
                     for (World w : dimensions.all()) {
                         try {
                             int left = w.flushAllDrained(Math.max(1, flushDeadline - System.nanoTime()));
-                            if (left > 0) log.error("[STOP] {} 저장 마감을 넘겼다 — 저장하지 못한 청크 {}개", w.dimension(), left);
+                            if (left != 0) log.error("[STOP] {} 저장 마감을 넘겼다 — 저장하지 못한 청크 {}개(-1 = 수 모름)", w.dimension(), left);
                         } catch (InterruptedException e) {
                             log.error("[STOP] region flush 대기 중단", e);   // 인터럽트 표시는 다시 세우지 않는다 — 뒤 단계(저장소 닫기)가 대기를 건너뛰지 않게
                         }

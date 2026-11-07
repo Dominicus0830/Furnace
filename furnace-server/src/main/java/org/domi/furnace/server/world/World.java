@@ -407,15 +407,20 @@ public final class World {
      * 종료·save-all 용: {@link #flushAll} 이 레인 역압으로 청크를 다 넣지 못했으면 IO 레인이 빈 뒤 다시 부르기를 되풀이한다(역압은 그대로
      * 지켜 저장 스냅샷이 한꺼번에 쌓이지 않는다). flushAll 한 번은 레인이 밀리면 남은 청크를 다음 틱의 자동 저장으로 넘기는데, 종료 때는
      * 다음 틱이 없어 그 청크가 저장되지 않고 사라졌다(여럿이 새 땅을 돌아 생성 청크가 많을 때 — M12). 한 번이라도 밀리지 않고 다 넣으면
-     * 끝난다(그 사이 새로 dirty 가 된 청크는 기다리지 않는다 — 틱이 도는 save-all 이 끝없이 돌지 않게). 마감을 넘기면 남은 수를 돌려준다.
+     * 끝난다(그 사이 새로 dirty 가 된 청크는 기다리지 않는다 — 틱이 도는 save-all 이 끝없이 돌지 않게). 마감을 넘기면 남은 수를,
+     * region 이 마감 안에 답하지 않아 남은 수를 모르면 -1 을 돌려준다.
      */
     public int flushAllDrained(long timeoutNanos) throws InterruptedException {
         long deadline = System.nanoTime() + timeoutNanos;
         int left = 0;
         for (int round = 0; ; round++) {
             java.util.concurrent.atomic.AtomicInteger deferred = new java.util.concurrent.atomic.AtomicInteger();
-            awaitQuietly(flushAll(deferred), deadline, "저장");
+            // 첫 회차는 전부(엔티티·지도·습격 포함), 다음 회차는 레인을 비운 뒤 미룬 청크만 — 적어도 하나는 넣어 회차마다 진행한다
+            boolean done = round == 0
+                    ? awaitQuietly(flushAll(deferred), deadline, "저장")
+                    : awaitQuietly(forEachRegion(r -> deferred.addAndGet(r.saveDirtyChunks(false, true))), deadline, "저장");
             left = deferred.get();
+            if (!done) return -1;   // 마감 안에 region 이 답하지 않았다 — 남은 수를 모른다
             if (left == 0 || System.nanoTime() >= deadline) break;
             if (round > 0 && round % 10 == 0) {
                 org.slf4j.LoggerFactory.getLogger(World.class).info("[SAVE] {} 레인이 밀려 나눠 저장 중 — 남은 청크 {}", dimension(), left);
@@ -425,14 +430,20 @@ public final class World {
         return left;
     }
 
-    private static void awaitQuietly(java.util.List<CompletableFuture<Void>> fs, long deadline, String what) throws InterruptedException {
+    /** 모두 마감 안에 끝났으면 true(실패해도 끝난 것으로 본다 — 로그만). */
+    private static boolean awaitQuietly(java.util.List<CompletableFuture<Void>> fs, long deadline, String what) throws InterruptedException {
+        boolean all = true;
         for (var f : fs) {
             try {
                 f.get(Math.max(1, deadline - System.nanoTime()), java.util.concurrent.TimeUnit.NANOSECONDS);
-            } catch (java.util.concurrent.TimeoutException | java.util.concurrent.ExecutionException e) {
-                org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] {} 실패/지연", what, e);
+            } catch (java.util.concurrent.TimeoutException e) {
+                all = false;
+                org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] {} 지연(마감 초과)", what, e);
+            } catch (java.util.concurrent.ExecutionException e) {
+                org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] {} 실패", what, e);
             }
         }
+        return all;
     }
 
     /** owner 스레드서 스냅샷 뜬 뒤 IO 레인서 .mca write. worldSource가 AnvilWorldSource일 때만. */

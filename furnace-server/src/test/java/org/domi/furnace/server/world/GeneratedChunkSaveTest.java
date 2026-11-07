@@ -443,6 +443,42 @@ class GeneratedChunkSaveTest {
         sched.close();
     }
 
+    /**
+     * 독립 검토 재현(M12): 청크마다 엔티티가 있으면 회차마다 엔티티 쓰기만으로 레인이 차서 청크가 하나도 못 들어가 마감까지 헛돌았다.
+     * 다음 회차는 미룬 청크만, 적어도 하나씩 넣어 끝까지 저장한다.
+     */
+    @Test
+    void flushAllDrained_entityWritesDoNotStarveChunkSaves(@TempDir Path dir) throws Exception {
+        var flat = new SuperflatWorldSource(REG, PLAINS);
+        WorldSource gen = (cx, cz) -> {
+            ChunkColumn c = flat.generate(cx, cz);
+            NbtCompound v = new NbtCompound();
+            v.putString("id", "minecraft:villager");
+            NbtList pos = new NbtList((byte) 6);
+            pos.add(cx * 16 + 8.5);
+            pos.add(-60.0);
+            pos.add(cz * 16 + 8.5);
+            v.put("Pos", pos);
+            c.addGeneratedEntity(v);
+            return c;
+        };
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        ExecutorService io = Executors.newSingleThreadExecutor();
+        World w = world(dir, gen, sched, io, 1_000_000);
+        int n = 12;
+        for (int x = 0; x < n; x++) for (int z = 0; z < n; z++) w.awaitChunk(new ChunkPos(x, z));
+        w.ioBarrier().get(30, TimeUnit.SECONDS);
+        w.ioBacklogLimit(8);
+        int left = w.flushAllDrained(TimeUnit.SECONDS.toNanos(30));
+        assertEquals(0, left, "엔티티 쓰기가 회차마다 레인을 채워도 청크가 모두 저장돼야 한다");
+        assertEquals(0, (int) sched.region(R00).submit(() -> w.regionAt(R00).dirtyChunkCount()).get());
+        w.ioBarrier().get(30, TimeUnit.SECONDS);
+        RegionFileStore check = new RegionFileStore(dir);
+        for (int x = 0; x < n; x++) for (int z = 0; z < n; z++) assertNotNull(check.readChunk(x, z), "디스크에 있어야 한다: " + x + "," + z);
+        io.shutdown();
+        sched.close();
+    }
+
     /** 같은 청크: 퇴출 저장이 레인에 밀려 있는 동안 다시 읽어도 FIFO 라 최신 내용을 읽는다. */
     @Test
     void saveThenReload_readsLatestUnderBacklog(@TempDir Path dir) throws Exception {
