@@ -67,6 +67,12 @@ public final class ItemStack {
         this.removed = value.removedComponents();
     }
 
+    /** 호환 모듈 전용 — 종류만 바꾼다(개수·컴포넌트 패치는 그대로, CraftBukkit 의 setItem 자리). EMPTY 는 바꾸지 않는다. */
+    public void furnaceSetItem(Item item) {
+        if (this == EMPTY) throw new IllegalStateException("ItemStack.EMPTY 는 바꿀 수 없다");
+        this.item = java.util.Objects.requireNonNull(item, "item");
+    }
+
     // ------------------------------------------------------------------ 바닐라 표면
 
     /** 바닐라: EMPTY 이거나 종류가 공기이거나 개수가 0 이하. */
@@ -106,15 +112,31 @@ public final class ItemStack {
         return out;
     }
 
-    /** minecraft:max_stack_size 컴포넌트가 있으면 그 값, 없으면 종류의 기본값. */
-    public int getMaxStackSize() {
-        if (isEmpty()) return Item.AIR.getDefaultMaxStackSize();
-        Integer v = furnaceValue().get(ItemComponents.MAX_STACK_SIZE);
-        return v != null ? v : item.getDefaultMaxStackSize();
+    /**
+     * 컴포넌트를 읽을 값 — 바닐라 컴포넌트 조회는 isEmpty 를 보지 않는다(개수 0 인 엔더 진주도 16). EMPTY 는 컴포넌트가 하나도 없어 null.
+     */
+    private org.domi.furnace.api.item.ItemStack componentView() {
+        if (this == EMPTY) return null;
+        return new org.domi.furnace.api.item.ItemStack(item.furnaceKey(), Math.max(count, 0), components, removed);
     }
 
-    /** minecraft:damage 컴포넌트(없으면 0). */
-    public int getDamageValue() { return isEmpty() ? 0 : furnaceValue().damage(); }
+    /** 바닐라 getOrDefault(MAX_STACK_SIZE, 1) — 종류 기본값 위에 패치를 얹은 값, 패치로 지웠거나 EMPTY 면 1. */
+    public int getMaxStackSize() {
+        var v = componentView();
+        return v == null ? 1 : v.getOrDefault(ItemComponents.MAX_STACK_SIZE, 1);
+    }
+
+    /** 바닐라 getOrDefault(MAX_DAMAGE, 0) — 내구도가 없는 아이템·EMPTY 는 0. */
+    public int getMaxDamage() {
+        var v = componentView();
+        return v == null ? 0 : v.getOrDefault(ItemComponents.MAX_DAMAGE, 0);
+    }
+
+    /** 바닐라 Mth.clamp(getOrDefault(DAMAGE, 0), 0, getMaxDamage()) — 내구도 없는 아이템의 damage 는 0 으로 잘린다. */
+    public int getDamageValue() {
+        var v = componentView();
+        return v == null ? 0 : Math.min(Math.max(v.damage(), 0), getMaxDamage());
+    }
 
     /** 같은 종류인가(바닐라 isSameItem). */
     public static boolean isSameItem(ItemStack a, ItemStack b) { return a.is(b.getItem()); }

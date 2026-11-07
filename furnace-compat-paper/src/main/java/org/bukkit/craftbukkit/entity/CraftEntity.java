@@ -28,9 +28,15 @@ public class CraftEntity implements Entity {
     /** 호환 모듈 전용 — 지금 들고 있는 Furnace 핸들. */
     public org.domi.furnace.api.entity.Entity furnaceHandle() { return handle; }
 
-    /** 호환 모듈 전용 — 같은 엔티티의 더 새 스냅샷으로 바꾼다(UUID 가 같아야 한다). */
-    public void furnaceHandle(org.domi.furnace.api.entity.Entity fresh) {
-        if (!fresh.uniqueId().equals(handle.uniqueId())) throw new IllegalArgumentException("다른 엔티티의 핸들: " + fresh.uniqueId() + " != " + handle.uniqueId());
+    /**
+     * 호환 모듈 전용 — 같은 엔티티의 더 새 스냅샷으로 바꾼다(UUID 가 같아야 한다). 지금 것보다 먼저 만든 스냅샷({@code snapshotStamp} 이 작다)은
+     * 버린다 — 늦게 도착한 옛 이벤트 객체가 새 위치·체력을 되돌리지 않게. 순번을 모르는(0) 핸들은 늘 받는다.
+     */
+    public synchronized void furnaceHandle(org.domi.furnace.api.entity.Entity fresh) {
+        org.domi.furnace.api.entity.Entity cur = handle;
+        if (!fresh.uniqueId().equals(cur.uniqueId())) throw new IllegalArgumentException("다른 엔티티의 핸들: " + fresh.uniqueId() + " != " + cur.uniqueId());
+        long f = fresh.snapshotStamp(), c = cur.snapshotStamp();
+        if (f != 0 && c != 0 && f < c) return;
         handle = fresh;
     }
 

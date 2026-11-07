@@ -32,6 +32,7 @@ public interface PluginFormat {
     /**
      * 이 플러그인 jar 의 클래스를 올릴 때 거칠 바이트 변환기. 서버는 클래스로더를 만들 때 한 번 묻고, 그 jar(플러그인 jar 자체 — 자동으로 받은
      * {@code libraries} jar 는 아니다)에서 읽은 클래스마다 부른다. 기본은 null(변환 없음).
+     * 서버 옵션 {@code plugins.compat.nms.enabled} 가 꺼져 있으면 서버는 이 메서드를 부르지 않는다(모든 형식의 변환기가 꺼진다).
      *
      * @param description {@link #readDescriptor} 가 돌려준 설명
      * @param jar         플러그인 jar(개발 모드에서는 사본)

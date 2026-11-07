@@ -569,9 +569,12 @@ public final class PluginManagerImpl implements PluginManager {
         private final URL jarUrl;
         /** 변환기가 있을 때만 연다(클래스 바이트를 직접 읽는다). close 에서 닫는다. */
         private java.util.jar.JarFile jarFile;
+        /** close 뒤에는 jar 를 다시 열지 않는다(URLClassLoader 처럼 찾기가 실패한다). */
+        private boolean closed;
         private volatile boolean transformWarned;
 
         private synchronized java.util.jar.JarFile jar() throws IOException {
+            if (closed) throw new IOException("닫힌 플러그인 로더: " + jarPath.getFileName());
             if (jarFile == null) jarFile = new java.util.jar.JarFile(jarPath.toFile(), true, java.util.zip.ZipFile.OPEN_READ, Runtime.version());
             return jarFile;
         }
@@ -633,6 +636,7 @@ public final class PluginManagerImpl implements PluginManager {
                 super.close();
             } finally {
                 synchronized (this) {
+                    closed = true;
                     if (jarFile != null) {
                         jarFile.close();
                         jarFile = null;

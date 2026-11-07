@@ -27,13 +27,19 @@ public final class CraftItemStack extends ItemStack {
 
     private CraftItemStack(net.minecraft.world.item.ItemStack handle) { this(new Mirror(), handle); }
 
+    /** 지금 handle — 리플렉션으로 ItemStack.EMPTY 를 넣었어도 빈 거울(null)로 본다(EMPTY 는 바꿀 수 없다). */
+    private net.minecraft.world.item.ItemStack live() {
+        var h = handle;
+        return h == net.minecraft.world.item.ItemStack.EMPTY ? null : h;
+    }
+
     /** 거울 칸: 읽을 때마다 지금 handle 필드를 본다(리플렉션으로 바꿔 끼워도 따라간다). */
     private static final class Mirror implements ItemSlot {
         CraftItemStack owner;
 
         @Override
         public org.domi.furnace.api.item.ItemStack get() {
-            var h = owner.handle;
+            var h = owner.live();
             return h == null ? org.domi.furnace.api.item.ItemStack.EMPTY : h.furnaceValue();
         }
 
@@ -43,21 +49,21 @@ public final class CraftItemStack extends ItemStack {
                 owner.handle = null;
                 return;
             }
-            var h = owner.handle;
+            var h = owner.live();
             if (h == null) owner.handle = net.minecraft.world.item.ItemStack.fromFurnace(value, value.amount());
             else h.furnaceSet(value);
         }
 
         @Override
         public int amount() {
-            var h = owner.handle;
+            var h = owner.live();
             return h == null ? 0 : h.getCount();
         }
 
         /** CraftBukkit: 빈 거울은 그대로, 아니면 NMS 개수를 바꾸고 0 이면 떨어진다. */
         @Override
         public void setAmount(int n) {
-            var h = owner.handle;
+            var h = owner.live();
             if (h == null) return;
             h.setCount(n);
             if (n == 0) owner.handle = null;
@@ -68,7 +74,10 @@ public final class CraftItemStack extends ItemStack {
 
     /** Bukkit → 새 NMS 사본. null·공기는 EMPTY. CraftItemStack 이면 그 NMS 스택의 사본. */
     public static net.minecraft.world.item.ItemStack asNMSCopy(ItemStack original) {
-        if (original instanceof CraftItemStack c) return c.handle == null ? net.minecraft.world.item.ItemStack.EMPTY : c.handle.copy();
+        if (original instanceof CraftItemStack c) {
+            var h = c.live();
+            return h == null ? net.minecraft.world.item.ItemStack.EMPTY : h.copy();
+        }
         if (original == null) return net.minecraft.world.item.ItemStack.EMPTY;
         var value = original.asFurnace();
         if (value.type().equals("minecraft:air")) return net.minecraft.world.item.ItemStack.EMPTY;
@@ -88,7 +97,7 @@ public final class CraftItemStack extends ItemStack {
 
     /** Bukkit → 자기 NMS 사본을 든 새 CraftItemStack. */
     public static CraftItemStack asCraftCopy(ItemStack original) {
-        if (original instanceof CraftItemStack c) return new CraftItemStack(c.handle == null ? null : nonEmpty(c.handle.copy()));
+        if (original instanceof CraftItemStack c) return c.clone();
         Objects.requireNonNull(original, "original");
         return new CraftItemStack(nonEmpty(asNMSCopy(original)));
     }
@@ -106,23 +115,31 @@ public final class CraftItemStack extends ItemStack {
 
     // ------------------------------------------------------------------ 인스턴스
 
-    /** CraftBukkit 처럼: 같은 종류면 그대로, 공기면 떨어지고, 빈 거울에 종류를 주면 개수 1 인 새 NMS 스택. */
+    /**
+     * CraftBukkit 처럼: 지금 종류(빈 스택은 공기)와 같으면 그대로, 공기·아이템 아닌 종류면 떨어지고, 빈 거울에 종류를 주면 개수 1 인 새 NMS 스택,
+     * 붙어 있으면 같은 NMS 스택에서 종류만 바꾼다(개수·컴포넌트 패치 유지 — 개수 0 으로 붙어 있어도 떨어지지 않는다).
+     */
     @Override
     public void setType(Material type) {
         Objects.requireNonNull(type, "Material cannot be null");
-        if (handle != null && handle.getItem().furnaceKey().equals(type.getKey().toString())) return;
-        if (type == Material.AIR) {
+        var h = live();
+        String key = type.getKey().toString();
+        if (h != null ? h.getItem().furnaceKey().equals(key) : type == Material.AIR) return;
+        if (type == Material.AIR || !type.isItem()) {
             handle = null;
             return;
         }
-        if (handle == null) {
-            handle = new net.minecraft.world.item.ItemStack(Item.byKey(type.getKey().toString()), 1);
+        if (h == null) {
+            handle = new net.minecraft.world.item.ItemStack(Item.byKey(key), 1);
             return;
         }
-        super.setType(type);
+        h.furnaceSetItem(Item.byKey(key));
     }
 
     /** CraftBukkit 처럼 CraftItemStack 사본(NMS 스택도 따로). */
     @Override
-    public CraftItemStack clone() { return new CraftItemStack(handle == null ? null : nonEmpty(handle.copy())); }
+    public CraftItemStack clone() {
+        var h = live();
+        return new CraftItemStack(h == null ? null : nonEmpty(h.copy()));
+    }
 }

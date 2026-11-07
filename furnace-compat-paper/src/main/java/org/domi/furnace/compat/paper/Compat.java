@@ -170,29 +170,37 @@ public final class Compat {
         if (p == null) return null;
         State s = state();
         CraftPlayer c = s.players.get(p.uniqueId());
-        if (c == null || c.furnaceHandle() != p) {
-            if (s.players.size() > PRUNE_AT) s.players.values().removeIf(x -> !x.furnaceHandle().isOnline());
-            c = new CraftPlayer(p);
-            s.players.put(p.uniqueId(), c);
-        }
-        return c;
+        if (c != null && c.furnaceHandle() == p) return c;
+        if (s.players.size() > PRUNE_AT) s.players.values().removeIf(x -> !x.furnaceHandle().isOnline());
+        // 처음 감싸기·핸들 교체를 원자적으로 — 두 스레드가 동시에 와도 같은 CraftPlayer 를 받는다
+        return s.players.compute(p.uniqueId(), (k, cur) -> cur != null && cur.furnaceHandle() == p ? cur : new CraftPlayer(p));
     }
 
     public static org.bukkit.entity.Entity entity(org.domi.furnace.api.entity.Entity e) {
         if (e == null) return null;
         if (e instanceof org.domi.furnace.api.entity.Player p) return player(p);
         State s = state();
+        boolean living = e instanceof org.domi.furnace.api.entity.LivingEntity;
         WeakReference<CraftEntity> ref = s.entities.get(e.uniqueId());
         CraftEntity c = ref == null ? null : ref.get();
-        boolean living = e instanceof org.domi.furnace.api.entity.LivingEntity;
         if (c != null && (c instanceof CraftLivingEntity) == living) {
-            c.furnaceHandle(e);   // 같은 엔티티의 더 새 스냅샷
+            c.furnaceHandle(e);   // 같은 엔티티의 새 스냅샷(옛 것이면 버린다)
             return c;
         }
         if (s.entities.size() > PRUNE_AT) s.entities.values().removeIf(r -> r.get() == null);
-        c = living ? new CraftLivingEntity((org.domi.furnace.api.entity.LivingEntity) e) : new CraftEntity(e);
-        s.entities.put(e.uniqueId(), new WeakReference<>(c));
-        return c;
+        // 없거나 지워졌을 때만 원자적으로 새로 만든다 — 동시에 처음 감싸도 CraftEntity(=getHandle 정체성)가 하나다
+        CraftEntity[] out = new CraftEntity[1];
+        s.entities.compute(e.uniqueId(), (k, r) -> {
+            CraftEntity cur = r == null ? null : r.get();
+            if (cur != null && (cur instanceof CraftLivingEntity) == living) {
+                cur.furnaceHandle(e);
+                out[0] = cur;
+                return r;
+            }
+            out[0] = living ? new CraftLivingEntity((org.domi.furnace.api.entity.LivingEntity) e) : new CraftEntity(e);
+            return new WeakReference<>(out[0]);
+        });
+        return out[0];
     }
 
     public static org.bukkit.command.CommandSender sender(org.domi.furnace.api.command.CommandSender s) {
