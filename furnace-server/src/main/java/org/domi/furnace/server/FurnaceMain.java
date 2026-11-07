@@ -247,7 +247,8 @@ public final class FurnaceMain {
         var regionStore = new org.domi.furnace.server.world.anvil.RegionFileStore(dimension.storageDir(worldDir), "region", props.syncChunkWrites);
         var chunkCodec = new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blockRegistry, itemRegistry,
                 registries.entries("minecraft:worldgen/biome"), plainsBiome, dimension.minY, dimension.sectionCount);
-        var noiseSource = NoiseWorldSource.overworld(config.levelSeed(), blockRegistry, registries, overworldNoiseSettings(levelData));
+        var noiseSource = NoiseWorldSource.overworld(config.levelSeed(), blockRegistry, registries, overworldNoiseSettings(levelData),
+                levelData.overworldFixedBiome());
         applyWorldGenOptions(levelData, noiseSource);
         // 오버월드 생성기: level.dat 의 생성기가 minecraft:flat 이면 평지(바닐라 FlatLevelSource 층), 아니면 노이즈
         var generator = levelData.overworldGenerator();
@@ -259,12 +260,15 @@ public final class FurnaceMain {
             flatSource = new org.domi.furnace.server.world.gen.SuperflatWorldSource(blockRegistry,
                     org.domi.furnace.server.world.gen.SuperflatWorldSource.layersOf(flatSettings), biomeId);
         }
+        // 디버그 월드: 오버월드 생성기가 minecraft:debug 면 모든 블록 상태 격자(바닐라 DebugLevelSource, 바이옴 plains)
+        org.domi.furnace.server.world.gen.DebugWorldSource debugSource = levelData.isDebugWorld()
+                ? new org.domi.furnace.server.world.gen.DebugWorldSource(blockRegistry, plainsBiome) : null;
         // 월드젠 단계 훅(furnace.properties worldgen-hooks.overworld, 기본 없음) — 스폰 계산·첫 청크보다 먼저 건다
         org.domi.furnace.server.world.gen.GenHooks.attach(flatSource != null ? flatSource : noiseSource,
                 worldSettings.generationHooks("minecraft:overworld"), pluginBoot.generationHooks()::get, "minecraft:overworld",
                 config.levelSeed(), blockRegistry, registries);
         var anvilSource = new org.domi.furnace.server.world.gen.AnvilWorldSource(
-                worldDir, regionStore, chunkCodec, flatSource != null ? flatSource : noiseSource);
+                worldDir, regionStore, chunkCodec, debugSource != null ? debugSource : flatSource != null ? flatSource : noiseSource);
         var entityStore = new org.domi.furnace.server.world.anvil.RegionFileStore(dimension.storageDir(worldDir), "entities", props.syncChunkWrites);
         anvilSource.entityStore(entityStore);
         var poiStore = new org.domi.furnace.server.world.anvil.RegionFileStore(dimension.storageDir(worldDir), "poi", props.syncChunkWrites);
@@ -288,9 +292,16 @@ public final class FurnaceMain {
                         scheduler, config.regionThreads(), config.regionSectionShift(), config.regionMergeRadius(), config.viewDistance(),
                         config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool, genPool);
         world.worldDir(worldDir);
+        world.levelKind(levelData.isFlatWorld(), levelData.isDebugWorld());   // 클라이언트 login/respawn 의 is_flat·is_debug
         if (!levelData.initialized) {
             // 새 월드: 바닐라 setInitialSpawn 에 해당하는 생성기 기본 스폰을 정해 level.dat 에 남긴다.
-            if (flatSource != null) {
+            if (debugSource != null) {
+                // 바닐라 MinecraftServer.setInitialSpawn(debug): BlockPos.ZERO.above(80)
+                levelData.spawnX = 0;
+                levelData.spawnY = org.domi.furnace.server.world.gen.DebugWorldSource.SPAWN_Y;
+                levelData.spawnZ = 0;
+                levelData.spawnAngle = 0f;
+            } else if (flatSource != null) {
                 // 평지: 바닐라 setInitialSpawn 은 청크 (0,0) 에서 첫 서 있을 수 있는 칸 — 맨 위 층 바로 위
                 levelData.spawnX = 0;
                 levelData.spawnY = flatSource.surfaceY();
@@ -372,6 +383,7 @@ public final class FurnaceMain {
             var built = worldManager.build(type, worldDir, gen);
             extraStores.addAll(built.stores());
             World w = built.world();
+            w.levelKind(levelData.isFlatWorld(), levelData.isDebugWorld());   // 바닐라: 월드 하나의 모든 차원이 같은 값
             w.seed(dimSeed);
             w.defaultSpawn(defaultSpawn);
             if (type == org.domi.furnace.server.world.DimensionType.END) {   // ServerLevel: 엔드는 드래곤 전투를 가진다(level.dat DragonFight)
@@ -630,6 +642,12 @@ public final class FurnaceMain {
             var r = org.domi.furnace.server.remote.RconServer.create(props.serverIp, props.rconPort, props.rconPassword, core::runRconCommand, rconLimits);
             if (r != null) out.add(r);
         }
+        // 바닐라 DedicatedServer.initServer: enable-jmx-monitoring 이면 net.minecraft.server:type=Server MBean(tickTimes·averageTickTime)을 등록한다
+        if (props.enableJmxMonitoring) {
+            var jmx = org.domi.furnace.server.profiling.JmxMonitoring.register(() ->
+                    new org.domi.furnace.server.profiling.JmxMonitoring.Snapshot(core.recentGlobalTickTimes(org.domi.furnace.server.profiling.JmxMonitoring.SAMPLES), core.globalTickCount()));
+            if (jmx != null) out.add(jmx);
+        }
         var metricsOpts = org.domi.furnace.server.metrics.MetricsOptions.load(Path.of("furnace.properties"), log::warn);
         if (metricsOpts.prometheus() || metricsOpts.jmx()) {
             var source = new org.domi.furnace.server.metrics.ServerMetrics(core);
@@ -803,7 +821,8 @@ public final class FurnaceMain {
             case FLAT -> levelData.useFlatOverworld(
                     org.domi.furnace.server.world.gen.SuperflatWorldSource.settingsNbt(props.generatorSettings));
             case LARGE_BIOMES, AMPLIFIED -> levelData.useNoiseOverworld(preset.noiseSettings);
-            default -> log.warn("level-type {} 는 아직 지원하지 않는다 — {} 로 만든다", preset.id, "minecraft:normal");
+            case SINGLE_BIOME_SURFACE -> levelData.useSingleBiomeOverworld("minecraft:plains");
+            case DEBUG_ALL_BLOCK_STATES -> levelData.useDebugOverworld();
         }
     }
 
@@ -811,7 +830,7 @@ public final class FurnaceMain {
     static String overworldNoiseSettings(LevelData levelData) {
         String id = levelData.overworldNoiseSettings();
         var gen = levelData.overworldGenerator();
-        boolean flat = gen != null && "minecraft:flat".equals(gen.tags().get("type"));
+        boolean flat = gen != null && ("minecraft:flat".equals(gen.tags().get("type")) || "minecraft:debug".equals(gen.tags().get("type")));
         if (id != null && NoiseWorldSource.OVERWORLD_NOISE_SETTINGS.contains(id)) return id;
         if (!flat) {
             log.warn("level.dat 의 오버월드 생성기({})는 지원하지 않는다 — minecraft:overworld 노이즈 설정으로 생성한다",

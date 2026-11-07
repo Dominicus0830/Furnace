@@ -12,13 +12,16 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
                               Map<String, EffectPredicate> effects, org.domi.furnace.server.net.io.nbt.NbtCompound nbt, Bounds[] movement,
                               LocationPredicate steppingOn, LocationPredicate movementAffectedBy, Integer periodicTick,
                               EntityPredicate vehicle, EntityPredicate passenger, EntityPredicate targetedEntity, String team,
-                              Map<String, ItemPredicate> slots) {
+                              Map<String, ItemPredicate> slots, EntityPredicate entityStruck) {
 
     /** 바닐라 EntityEffectPredicate.MobEffectInstancePredicate. */
     public record EffectPredicate(Bounds amplifier, Bounds duration, Boolean ambient, Boolean visible) {}
 
     /** nbt 조건이 하나라도 읽혔나(떠 두는 쪽이 NBT 를 미리 복사할지 정하는 용도). */
     public static volatile boolean nbtUsed;
+
+    /** type_specific 변종 조건이 하나라도 읽혔나(변종은 저장 NBT 를 거치므로 쓰일 때만 미리 읽는다). */
+    public static volatile boolean variantUsed;
 
     private static final Set<String> SLOTS = Set.of("head", "chest", "legs", "feet", "body", "mainhand", "offhand");
 
@@ -39,6 +42,7 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
         EntityPredicate vehicle = null, passenger = null, targeted = null;
         String team = null;
         Map<String, ItemPredicate> slots = null;
+        EntityPredicate struck = null;
         for (var f : o.entrySet()) {
             switch (f.getKey()) {
                 case "type" -> type = HolderSet.parse("minecraft:entity_type", f.getValue(), regs);
@@ -49,7 +53,15 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
                         equipment.put(x.getKey(), ItemPredicate.parse(x.getValue(), regs));
                     }
                 }
-                case "type_specific" -> typeSpecific = f.getValue().getAsJsonObject();
+                case "type_specific" -> {
+                    typeSpecific = f.getValue().getAsJsonObject();
+                    if (typeSpecific.has("variant")) variantUsed = true;
+                    if (typeSpecific.has("entity_struck")) struck = parse(typeSpecific.get("entity_struck"), regs);
+                    for (String k : new String[] {"stats", "looking_at"}) {
+                        if (typeSpecific.has(k)) org.slf4j.LoggerFactory.getLogger(EntityPredicate.class)
+                                .warn("아직 지원하지 않는 player 조건 필드(늘 거짓으로 본다): {}", k);
+                    }
+                }
                 case "location" -> location = LocationPredicate.parse(f.getValue(), regs);
                 case "distance" -> distance = parseDistance(f.getValue());
                 case "effects" -> {
@@ -92,7 +104,7 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
         }
         if (unsupported) org.slf4j.LoggerFactory.getLogger(EntityPredicate.class).warn("아직 지원하지 않는 엔티티 조건 필드: {}", o.keySet());
         return new EntityPredicate(type, flags, equipment, typeSpecific, location, distance, unsupported, effects, nbt, movement,
-                steppingOn, affectedBy, periodic, vehicle, passenger, targeted, team, slots);
+                steppingOn, affectedBy, periodic, vehicle, passenger, targeted, team, slots, struck);
     }
 
     public boolean matches(LootContext ctx, double[] origin, LootEntity entity) {
@@ -117,7 +129,7 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
         }
         for (var q : equipment.entrySet()) if (!q.getValue().test(entity.equipment(q.getKey()), regs)) return false;
         if (location != null && !location.matches(ctx, entity.position())) return false;
-        if (typeSpecific != null && !typeSpecific(ctx, entity)) return false;
+        if (typeSpecific != null && !typeSpecific(ctx, origin, entity)) return false;
         return matchesExtra(ctx, origin, entity);
     }
 
@@ -186,22 +198,90 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
         return (b.min() == null || b.min() * b.min() <= sq) && (b.max() == null || sq <= b.max() * b.max());
     }
 
-    private boolean typeSpecific(LootContext ctx, LootEntity e) {
+    /** 변종을 열거형 이름으로 비교하는 종류(바닐라 EntitySubPredicates 의 enum 변종). */
+    private static final Set<String> ENUM_VARIANT = Set.of("minecraft:axolotl", "minecraft:boat", "minecraft:fox", "minecraft:horse",
+            "minecraft:llama", "minecraft:mooshroom", "minecraft:parrot", "minecraft:rabbit", "minecraft:tropical_fish");
+
+    private static final Map<String, String> VARIANT_REGISTRY = Map.of("minecraft:cat", "minecraft:cat_variant",
+            "minecraft:painting", "minecraft:painting_variant", "minecraft:frog", "minecraft:frog_variant",
+            "minecraft:wolf", "minecraft:wolf_variant", "minecraft:villager", "minecraft:villager_type");
+
+    private boolean typeSpecific(LootContext ctx, double[] outerOrigin, LootEntity e) {
         String t = LootJson.id(typeSpecific, "type");
         return switch (t) {
             case "minecraft:slime" -> e.typeSpecific("size") instanceof Integer size && Bounds.parse(typeSpecific.get("size")).matches(size);
+            // 바닐라 RaiderPredicate: has_raid·is_captain 기본값 false, 둘 다 같아야 한다
             case "minecraft:raider" -> e.typeSpecific("is_captain") instanceof Boolean captain
-                    && (!typeSpecific.has("is_captain") || typeSpecific.get("is_captain").getAsBoolean() == captain);
+                    && e.typeSpecific("has_raid") instanceof Boolean raid
+                    && captain == (typeSpecific.has("is_captain") && typeSpecific.get("is_captain").getAsBoolean())
+                    && raid == (typeSpecific.has("has_raid") && typeSpecific.get("has_raid").getAsBoolean());
             case "minecraft:fishing_hook" -> !typeSpecific.has("in_open_water")
                     || Boolean.valueOf(typeSpecific.get("in_open_water").getAsBoolean()).equals(e.typeSpecific("in_open_water"));
-            case "minecraft:frog", "minecraft:cat", "minecraft:wolf", "minecraft:painting", "minecraft:axolotl", "minecraft:fox",
-                 "minecraft:horse", "minecraft:llama", "minecraft:mooshroom", "minecraft:parrot", "minecraft:rabbit",
-                 "minecraft:tropical_fish", "minecraft:villager" -> {
+            case "minecraft:lightning" -> {
+                if (!(e.typeSpecific("blocks_set_on_fire") instanceof Integer fires)) yield false;
+                if (!Bounds.parse(typeSpecific.get("blocks_set_on_fire")).matches(fires)) yield false;
+                if (entityStruck == null) yield true;
+                if (!(e.typeSpecific("entity_struck") instanceof java.util.List<?> hit)) yield false;
+                // 바닐라는 맞은 엔티티를 바깥 조건의 원점 그대로 검사한다
+                for (Object h : hit) if (h instanceof LootEntity he && entityStruck.matches(ctx, outerOrigin, he)) yield true;
+                yield false;
+            }
+            case "minecraft:player" -> playerSpecific(ctx, e);
+            default -> {
+                if (!ENUM_VARIANT.contains(t) && !VARIANT_REGISTRY.containsKey(t)) yield false;
                 Object v = e.typeSpecific("variant");
                 JsonElement want = typeSpecific.get("variant");
-                yield v != null && want != null && (want.isJsonArray() ? want.toString().contains("\"" + v + "\"") : LootJson.id(want.getAsString()).equals(v));
+                if (v == null || want == null) yield false;
+                boolean enumVariant = ENUM_VARIANT.contains(t);
+                yield variantMatches(want, v.toString(), enumVariant, VARIANT_REGISTRY.get(t), ctx.registries());
             }
-            default -> false;
         };
+    }
+
+    /** 바닐라 변종 조건: 문자열 하나, 목록, "#태그"(태그를 아는 레지스트리만). */
+    private static boolean variantMatches(JsonElement want, String actual, boolean enumVariant, String registry, LootRegistries regs) {
+        if (want.isJsonArray()) {
+            for (JsonElement x : want.getAsJsonArray()) if (variantMatches(x, actual, enumVariant, registry, regs)) return true;
+            return false;
+        }
+        String s = want.getAsString();
+        if (enumVariant) return s.equals(actual);
+        if (s.startsWith("#")) return regs.tag(registry, s.substring(1)).contains(actual);
+        return LootJson.id(s).equals(actual);
+    }
+
+    /** 바닐라 PlayerPredicate: level, gamemode, recipes, advancements(stats·looking_at 는 읽을 때 경고하고 거짓). */
+    private boolean playerSpecific(LootContext ctx, LootEntity e) {
+        if (typeSpecific.has("stats") || typeSpecific.has("looking_at")) return false;
+        if (!(e.typeSpecific("level") instanceof Integer level) || !Bounds.parse(typeSpecific.get("level")).matches(level)) return false;
+        if (typeSpecific.has("gamemode")) {
+            JsonElement gm = typeSpecific.get("gamemode");
+            Object actual = e.typeSpecific("gamemode");
+            boolean ok = false;
+            if (gm.isJsonArray()) {
+                for (JsonElement x : gm.getAsJsonArray()) if (x.getAsString().equals(actual)) ok = true;
+            } else {
+                ok = gm.getAsString().equals(actual);
+            }
+            if (!ok) return false;
+        }
+        if (typeSpecific.has("recipes")) {
+            for (var r : typeSpecific.getAsJsonObject("recipes").entrySet()) {
+                if (!Boolean.valueOf(r.getValue().getAsBoolean()).equals(e.typeSpecific("recipe:" + LootJson.id(r.getKey())))) return false;
+            }
+        }
+        if (typeSpecific.has("advancements")) {
+            for (var a : typeSpecific.getAsJsonObject("advancements").entrySet()) {
+                String id = LootJson.id(a.getKey());
+                if (a.getValue().isJsonObject()) {
+                    for (var c : a.getValue().getAsJsonObject().entrySet()) {
+                        if (!Boolean.valueOf(c.getValue().getAsBoolean()).equals(e.typeSpecific("advancement:" + id + "|" + c.getKey()))) return false;
+                    }
+                } else if (!Boolean.valueOf(a.getValue().getAsBoolean()).equals(e.typeSpecific("advancement:" + id))) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 }
