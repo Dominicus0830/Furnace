@@ -1075,6 +1075,7 @@ public final class ServerCore {
         public int gameRuleInt(String name) { return gameRules.getInt(name); }
         public org.domi.furnace.server.plugin.GameEvents gameEvents() { return pluginHost == null ? org.domi.furnace.server.plugin.GameEvents.NONE : pluginHost.gameEvents(); }
         public int difficulty() { return levelData.difficulty.id(); }
+        public boolean pvp() { return settings.get().pvp; }
         public org.domi.furnace.server.scores.Scoreboard scoreboard() { return scoreboard; }
         public boolean worldAdventure() { return levelData.gameType == org.domi.furnace.server.world.GameMode.ADVENTURE; }
         public void runSignCommand(Player player, int x, int y, int z, String command) {
@@ -1341,8 +1342,7 @@ public final class ServerCore {
                 .with(org.domi.furnace.server.loot.LootParams.ORIGIN, new double[]{x, y, z})
                 .with(org.domi.furnace.server.loot.LootParams.DAMAGE_SOURCE, new org.domi.furnace.server.loot.LootDamageSource() {
                     public String type() { return damageType; }
-                    // TODO(피해 종류 태그): is_fire·is_explosion 등 태그 조회
-                    public boolean is(String tag) { return false; }
+                    public boolean is(String tag) { return damageType != null && org.domi.furnace.server.entity.damage.DamageType.keyHasTag(damageType, tag); }   // damage_type 태그(is_fire·is_explosion …)
                     public org.domi.furnace.server.loot.LootEntity entity() { return attackerEntity; }
                     public org.domi.furnace.server.loot.LootEntity directEntity() { return attackerEntity; }
                 })

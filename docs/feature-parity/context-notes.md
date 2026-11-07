@@ -1056,3 +1056,13 @@
   - 엔티티 용기 창 제목: 이름표 이름이 있으면 그 이름, 없으면 종류 이름, 팀이 있으면 접두사·색·접미사(`ContainerEntity.containerTitle`).
 - **남은 차이(가정)**: 제목의 hover(show_entity)·insertion 은 화면에 안 보여 붙이지 않았다. 스포너 수레의 `BaseSpawner` 는 스포너 블록과 같은 코드라 `TODO(엔티티)`(승객·equipment)가 같이 남는다. 광산 수레 아이템의 이름·`entity_data` 컴포넌트는 그대로 미구현(M8 이후).
 - 시험: `ContainerEntityParityTest`(스포너 수레 틱·저장, 라마 카펫, 전리품 표 풀기 시점, 창 제목).
+
+## 2026-11-07 팀·PvP 규칙 연결 (묶음 M16)
+- 바닐라 1.21.1 바이트코드 대조(`bsr.s`=Entity.isAlliedTo(Entity), `bsr.a(eyi)`=isAlliedTo(Team), `cmx.a(cmx)`=Player.canHarmPlayer, `cef.a`=TargetingConditions.test, `cce.h`=HurtByTargetGoal.alertOthers, `cgh.a`=Wolf.wantsToAttack, `cnd.l`=AbstractArrow.tick): `isAlliedTo` 를 부르는 곳은 타게팅 조건·플레이어 쓸기(`cmx`)·철퇴 충격파(`cvb`)·워든 canTargetEntity(`cmb.c`)·HurtByTarget 경보·좀비 피글린 경보·송곳니(`cnh`)·MobEffectUtil.addEffectToPlayersAround(`bsa`, 장로 수호자 저주·워든 어둠) 이다. 모두 이어 붙였다.
+- **구조**: `Targetable.team()`/`isAlliedTo(other)` 기본 구현(같은 팀 = `PlayerTeam.isAlliedTo`). `LivingEntity.team()` = `getTeam()`, `Player.team()` 은 원래 있던 것. 덮어쓰기: `TamableAnimal`(길들였으면 주인·주인의 아군), `AbstractIllager`(팀 규칙 뒤, `illager_friends` 태그는 **둘 다 팀이 없을 때만** — 이전엔 팀과 무관하게 동맹이었다), `Evoker` 는 그대로.
+- **PvP**: `Player.canHarmPlayer(other, pvp)` — this 쪽 서버 설정 pvp 가 꺼지면 거짓, 팀이 없거나 다른 팀이면 참, 같은 팀이면 그 팀의 아군 피해. 쓰는 곳: 맞는 쪽(`PlayerVitals.hurt`, 이미 있던 인라인 검사를 이 함수로), **화살 주인→맞은 사람**(`AbstractArrow.tick`: 못 때리면 hit·entityHit 둘 다 null — 바닐라처럼 블록 맞음도 그 틱엔 사라지고 사람을 통과한다), **늑대**(`wantsToAttack`: 주인이 맞는 사람을 못 때리면 공격 안 함, 길들인 말도 안 함 — 이쪽은 이전에 빠져 있었다). pvp 설정은 `LevelServices.pvp()`(기본 참, `ServerCore` 가 `settings.pvp`) → `ChunkLevel.pvp()`.
+- **TargetGoal.canContinueToUse**: 바닐라는 isAlliedTo 가 아니라 `getTeam()` 동일 객체 비교(`team != null && target.team == team`). 그대로 옮겼다. HurtByTargetGoal 경보는 `isAlliedTo(lastHurtByMob)` + 길들인 동물은 **주인이 같을 때만** 돕는다(이전엔 둘 다 빠짐).
+- **전리품 피해 태그**: `/loot kill`(`minecraft:magic`)과 몹 죽음 전리품(`ServerCore.entityDrops`) 의 `LootDamageSource.is(tag)` 가 늘 거짓이었다 → `DamageType.keyHasTag`. `damage_source_properties` 의 `is_fire`·`is_explosion` 등 태그 조건이 이제 맞다.
+- **/teammsg 채팅 필터**: 바닐라의 `shouldFilterMessageTo` 분기는 글자 걸러내기 서비스(`text-filtering-config`)가 없으면 마스크가 PASS_THROUGH 라 관측 결과가 같다(받는 쪽 클라이언트 옵션과 무관하게 원문, "모두 걸러짐" 안내도 없음). Furnace 는 그 서비스를 아직 지원하지 않으므로(FurnaceMain 경고) 코드는 안 늘리고 주석으로 닫았다.
+- **남은 차이(가정)**: `ServerPlayer.canHarmPlayer` 는 자기 자신이 때린 것(예: pvp 꺼짐에서 내가 놓은 TNT·내 화살)도 막지만, `PlayerVitals.hurt` 는 `attacker != player` 를 걸러 자해를 막지 않는다(이전부터). 바닐라 대조만 했고 엔더 진주 낙하 등 `attacker` 가 자기 자신으로 들어오는 경로를 아직 전수 확인하지 않아 건드리지 않았다. 플레이어가 아닌 쪽(몹 플레이어→몹) 화살 거름은 바닐라에도 없다.
+- 시험: `TeamPvpRulesTest` 10개(같은 팀/없음, 전투 조건, 목표 지속, 길들인 동물 주인, 일러저 친구, canHarmPlayer 표, 맞는 쪽 무시, 늑대, 길들인 말, 화살 통과).

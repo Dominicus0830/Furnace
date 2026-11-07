@@ -1426,6 +1426,17 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         return b == null ? null : b.getPlayersTeam(name);
     }
 
+    /**
+     * 바닐라 ServerPlayer.canHarmPlayer(other)/Player.canHarmPlayer: this 쪽 서버 설정 pvp 가 꺼져 있으면 거짓, 팀이 없으면 참,
+     * 서로 다른 팀이면 참, 같은 팀이면 이 팀의 friendlyFire(아군 피해) 설정. 맞는 쪽·화살 주인·늑대 주인이 this 다.
+     */
+    public boolean canHarmPlayer(Player other, boolean pvp) {
+        if (!pvp) return false;
+        var mine = team();
+        if (mine == null) return true;
+        return !mine.isAlliedTo(other.team()) || mine.isAllowFriendlyFire();
+    }
+
     /** 바닐라 Player.getDisplayName: 팀 서식(접두사·이름·접미사·색) + 삽입 텍스트 + "/tell 이름 " 제안 클릭. */
     public org.domi.furnace.api.text.Text displayName() {
         return org.domi.furnace.server.scores.PlayerTeam.formatNameForTeam(team(), org.domi.furnace.api.text.Text.text(name)).insertion(name).clickEvent(new org.domi.furnace.api.text.ClickEvent(org.domi.furnace.api.text.ClickEvent.Action.SUGGEST_COMMAND, "/tell " + name + " "));

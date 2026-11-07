@@ -626,11 +626,7 @@ public final class PlayerVitals {
             boolean fallOnPvpServer = env.pvp() && type.isFall();
             if (!fallOnPvpServer && spawnInvulnerableTime > 0 && !type.bypassesInvulnerability()) return false;
             // ServerPlayer.hurt: 때린 쪽(화살이면 주인)이 플레이어인데 canHarmPlayer 가 거짓(pvp 꺼짐·같은 팀이고 아군 피해 꺼짐)이면 무시
-            if (attacker != null && attacker.isPlayer() && attacker != player && !env.pvp()) return false;
-            if (attacker instanceof Player ap && ap != player) {
-                var mine = player.team();   // 바닐라 Player.canHarmPlayer: 맞은 쪽 팀이 때린 쪽과 같은 팀이고 아군 피해 꺼짐
-                if (mine != null && mine.isAlliedTo(ap.team()) && !mine.isAllowFriendlyFire()) return false;
-            }
+            if (attacker instanceof Player ap && ap != player && !player.canHarmPlayer(ap, env.pvp())) return false;
             if (abilities.invulnerable && !type.bypassesInvulnerability()) return false;
             if (health <= 0.0f) return false;
             player.removeEntitiesOnShoulder();   // Player.hurt: 피해를 받으면 어깨의 몹을 내려놓는다

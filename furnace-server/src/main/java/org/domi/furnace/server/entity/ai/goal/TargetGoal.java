@@ -32,7 +32,8 @@ public abstract class TargetGoal extends Goal {
         if (target == null) target = targetMob;
         if (target == null) return false;
         if (!target.canBeSeenAsEnemy()) return false;   // Mob.canAttack(target)
-        // TODO(팀): 같은 팀이면 계속하지 않는다
+        var team = mob.getTeam();
+        if (team != null && target.team() == team) return false;   // 같은 팀이면 계속하지 않는다
         double follow = getFollowDistance();
         double dx = mob.x() - target.x(), dy = mob.y() - target.y(), dz = mob.z() - target.z();
         if (dx * dx + dy * dy + dz * dz > follow * follow) return false;

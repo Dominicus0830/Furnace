@@ -104,6 +104,17 @@ public abstract class TamableAnimal extends Animal {
         });
     }
 
+    /** TamableAnimal.isAlliedTo: 길들였으면 주인과 주인의 아군이 아군(주인이 안 보이면 팀 규칙). */
+    @Override
+    public boolean isAlliedTo(Targetable other) {
+        if (isTame()) {
+            Player owner = getOwner();
+            if (other == owner) return true;
+            if (owner != null) return owner.isAlliedTo(other);
+        }
+        return super.isAlliedTo(other);
+    }
+
     public boolean isOwnedBy(Targetable t) { return t != null && t == getOwner(); }
 
     public boolean wantsToAttack(Targetable target, Targetable owner) { return true; }
