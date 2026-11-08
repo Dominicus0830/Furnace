@@ -22,6 +22,10 @@ public final class CompatMenuInventory extends CompatInventory {
 
     private final Menu menu;
     private final String title;
+    /** InventoryView#setTitle 에 준 원 문자열 — 플레이어별, 그때 넘긴 Text 와 짝(같은 Text 가 화면 제목일 때만 쓴다). Paper 는 뷰 필드라 그대로 돌려준다. */
+    private final java.util.concurrent.ConcurrentHashMap<java.util.UUID, RetitledAs> retitled = new java.util.concurrent.ConcurrentHashMap<>();
+
+    record RetitledAs(org.domi.furnace.api.text.Text text, String raw) {}
 
     private CompatMenuInventory(Menu menu, InventoryType type, InventoryHolder owner, String title) {
         super(new Slots(menu), type, () -> owner);
@@ -83,8 +87,16 @@ public final class CompatMenuInventory extends CompatInventory {
     /** HumanEntity#getOpenInventory. */
     public static org.bukkit.inventory.InventoryView openView(org.bukkit.craftbukkit.entity.CraftPlayer p) { return CompatInventories.openView(p); }
 
-    /** createInventory 의 제목(§ 서식 문자열). 플러그인이 InventoryView#setTitle 로 바꿨으면 메뉴 제목이 바뀐다. */
+    /** createInventory 의 제목(§ 서식 문자열). InventoryView#setTitle 은 그 창만 바꾸고 이 값·메뉴 제목은 그대로다(Paper 와 같다). */
     String title() { return title; }
+
+    void retitled(java.util.UUID player, org.domi.furnace.api.text.Text text, String raw) { retitled.put(player, new RetitledAs(text, raw)); }
+
+    /** shown 이 그 플레이어의 setTitle 이 넘긴 바로 그 Text 면 원 문자열, 아니면 null. */
+    String retitledRaw(java.util.UUID player, org.domi.furnace.api.text.Text shown) {
+        RetitledAs r = retitled.get(player);
+        return r != null && r.text() == shown ? r.raw() : null;
+    }
 
     @Override
     public List<HumanEntity> getViewers() {

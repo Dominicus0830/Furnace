@@ -178,6 +178,7 @@ class PluginUiApiTest {
 
             public void openPluginMenu(MenuSession session) {
                 var m = session.createMenu(1, new SimpleContainer(36), null);
+                session.titleForOpen();   // ConnectionHandler 가 open_screen 에 싣는 제목
                 p.setContainerMenu(m);
                 session.opened();
             }

@@ -122,18 +122,30 @@ public final class CompatInventoryView implements InventoryView {
     @Override
     public int countSlots() { return top.getSize() + getBottomInventory().getSize(); }
 
+    /** Paper: 이 창의 제목(setTitle 로 바꿨으면 그 값). 같은 인벤토리를 보는 다른 사람의 setTitle 은 보이지 않는다. */
     @Override
     public String getTitle() {
-        return top instanceof CompatMenuInventory m ? Compat.legacy(m.menu().title()) : title;
+        if (!(top instanceof CompatMenuInventory m)) return title;
+        org.domi.furnace.api.text.Text shown = player.furnaceHandle().menuTitle(m.menu());
+        if (shown == null || shown == m.menu().title()) return m.title();
+        String raw = m.retitledRaw(player.getUniqueId(), shown);
+        return raw != null ? raw : Compat.legacy(shown);
     }
 
     @Override
     public String getOriginalTitle() { return top instanceof CompatMenuInventory m ? m.title() : title; }
 
+    /**
+     * Paper CraftInventoryView#setTitle: 이 플레이어 창에만 open_screen 을 다시 보낸다 — 인벤토리 제목·다른 보는 사람·다음에 여는 창은 그대로.
+     * null 은 IllegalArgumentException("Title cannot be null").
+     */
     @Override
     public void setTitle(String title) {
+        if (title == null) throw new IllegalArgumentException("Title cannot be null");
         if (top instanceof CompatMenuInventory m) {
-            m.menu().setTitle(Compat.text(title == null ? "" : title));
+            org.domi.furnace.api.text.Text t = Compat.text(title);
+            m.retitled(player.getUniqueId(), t, title);   // getTitle 이 서식 문자열을 그대로 돌려주게(Text 를 거치면 §r 이 붙는 등 달라진다)
+            player.furnaceHandle().retitleMenu(t);
             return;
         }
         throw new UnsupportedFeature("InventoryView#setTitle", "플러그인이 만든 인벤토리(createInventory)의 창만 제목을 바꿀 수 있다");

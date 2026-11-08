@@ -14,9 +14,22 @@ public record Sound(String key, Source source, float volume, float pitch) {
     public Sound {
         Objects.requireNonNull(key, "key");
         Objects.requireNonNull(source, "source");
-        if (!KEY.matcher(key).matches()) throw new IllegalArgumentException("잘못된 소리 이름: " + key);
+        if (!isValidKey(key)) throw new IllegalArgumentException("잘못된 소리 이름: " + key);
         if (!(volume >= 0.0F) || Float.isInfinite(volume)) throw new IllegalArgumentException("크기는 0 이상: " + volume);
-        if (!(pitch >= 0.5F && pitch <= 2.0F)) throw new IllegalArgumentException("높이는 0.5~2: " + pitch);
+        if (!(pitch >= 0.0F && pitch <= 2.0F)) throw new IllegalArgumentException("높이는 0~2: " + pitch);
+    }
+
+    /** 바닐라 클라이언트가 소리 이름을 읽는 길이 상한(readUtf(32767), 생략한 minecraft: 를 붙인 뒤). */
+    private static final int MAX_KEY_LENGTH = 32767;
+
+    /**
+     * 리소스 id 로 쓸 수 있는 이름인가(바닐라 ResourceLocation 규칙: 소문자·숫자·_ . - 와 경로의 /, 이름공간은 생략 가능).
+     * 생략한 이름공간 minecraft: 을 붙여 32767 자를 넘으면 안 된다(넘으면 클라이언트가 접속을 끊는다).
+     */
+    public static boolean isValidKey(String key) {
+        if (key == null) return false;
+        int len = key.length() + (key.indexOf(':') < 0 ? "minecraft:".length() : 0);
+        return len <= MAX_KEY_LENGTH && KEY.matcher(key).matches();
     }
 
     /** 크기 1, 높이 1. */
