@@ -131,6 +131,23 @@ public interface Entity {
         return CompletableFuture.failedFuture(new UnsupportedOperationException("setNoPhysics"));
     }
 
+    // ------------------------------------------------------------------ 지금 상태(이름·플래그·탑승·효과)
+
+    /**
+     * 지금 이 스레드가 그 엔티티를 가진 region 스레드면(그 엔티티 이벤트 처리기 안·entityScheduler 작업 안·옛 동기 작업의 빌림 구간) 곧바로
+     * 상태 손잡이. 아니면 ThreadOwnershipException. 엔티티가 사라졌으면 빈 값. 살아 있는 엔티티는 {@link LivingEntityState},
+     * 갑옷 거치대는 {@link ArmorStandState} 다. 플레이어는 아직 없다(UnsupportedOperationException).
+     */
+    default Optional<EntityState> stateNow() { throw new UnsupportedOperationException("stateNow"); }
+
+    /**
+     * 그 엔티티를 가진 region 스레드에서 다음 틱에 action 을 돈다(엔티티가 region 을 옮겨 가도 따라간다). action 의 결과로 완료하고,
+     * 엔티티가 이미 사라졌거나 그 전에 사라지면 IllegalStateException 으로 완료. 손잡이를 밖으로 들고 나가 다른 스레드에서 쓰지 않는다.
+     */
+    default <T> CompletableFuture<T> editState(java.util.function.Function<? super EntityState, ? extends T> action) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("editState"));
+    }
+
     // ------------------------------------------------------------------ 원인 사슬
 
     /**

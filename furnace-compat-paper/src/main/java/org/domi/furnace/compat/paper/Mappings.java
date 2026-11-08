@@ -24,6 +24,7 @@ final class Mappings {
         registerWorld();
         registerOther();
         registerInventory();
+        registerEntityInteract();
     }
 
     private static final java.util.Map<Object, String> FORMAT_BASE = java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
@@ -148,13 +149,6 @@ final class Mappings {
     }
 
     private static void registerOther() {
-        EventBridge.reg(org.domi.furnace.api.event.entity.EntityDamageEvent.class, org.bukkit.event.entity.EntityDamageEvent.class,
-                f -> new org.bukkit.event.entity.EntityDamageEvent(Compat.entity(f.entity()), cause(f.cause()), f.damage()),
-                (f, b) -> {
-                    if ((float) b.getDamage() != f.damage()) f.setDamage((float) b.getDamage());
-                }, (f, b) -> {
-                    if ((float) b.getDamage() != f.damage()) b.setDamage(f.damage());
-                });
         EventBridge.reg(org.domi.furnace.api.event.server.PluginEnableEvent.class, org.bukkit.event.server.PluginEnableEvent.class,
                 f -> {
                     Plugin pl = bukkitPlugin(f.plugin());
@@ -331,5 +325,37 @@ final class Mappings {
             if (p instanceof org.bukkit.craftbukkit.entity.CraftPlayer c) return c.furnaceHandle();
             throw new IllegalArgumentException("Furnace 가 모르는 Player 구현이다: " + p.getClass().getName());
         }
+    }
+
+    // ------------------------------------------------------------------ 엔티티 피해·상호작용(홀로그램 묶음)
+
+    private static void registerEntityInteract() {
+        // EntityDamageByEntityEvent 는 EntityDamageEvent 의 처리기 목록을 나눠 쓴다(Bukkit) — 짝도 하나이고, 때린 엔티티가 있으면 하위 이벤트를 만든다.
+        // damager 는 Paper 처럼 직접 맞힌 엔티티(화살·TNT·때린 몹), Furnace 가 직접 엔티티 없이 주인만 알리면 주인.
+        EventBridge.reg(org.domi.furnace.api.event.entity.EntityDamageEvent.class, org.bukkit.event.entity.EntityDamageEvent.class,
+                f -> {
+                    var target = Compat.entity(f.entity());
+                    var source = f.directEntity() != null ? f.directEntity() : f.causingEntity();
+                    if (source == null) return new org.bukkit.event.entity.EntityDamageEvent(target, cause(f.cause()), f.damage());
+                    return new org.bukkit.event.entity.EntityDamageByEntityEvent(Compat.entity(source), target, byEntityCause(f.cause(), source), f.damage());
+                },
+                (f, b) -> {
+                    if ((float) b.getDamage() != f.damage()) f.setDamage((float) b.getDamage());
+                }, (f, b) -> {
+                    if ((float) b.getDamage() != f.damage()) b.setDamage(f.damage());
+                });
+        EventBridge.reg(org.domi.furnace.api.event.player.PlayerInteractEntityEvent.class, org.bukkit.event.player.PlayerInteractEntityEvent.class,
+                f -> new org.bukkit.event.player.PlayerInteractEntityEvent(p(f.player()), Compat.entity(f.target()),
+                        f.isMainHand() ? org.bukkit.inventory.EquipmentSlot.HAND : org.bukkit.inventory.EquipmentSlot.OFF_HAND),
+                (f, b) -> {});
+    }
+
+    /** 때린 엔티티가 있는 피해의 DamageCause — Paper 처럼 폭발은 점화된 TNT 면 BLOCK_EXPLOSION, 다른 엔티티면 ENTITY_EXPLOSION. 그 밖은 피해 종류 키로. */
+    static DamageCause byEntityCause(String type, org.domi.furnace.api.entity.Entity damager) {
+        String k = type == null ? "" : type.substring(type.indexOf(':') + 1);
+        if (k.equals("explosion") || k.equals("player_explosion")) {
+            return "minecraft:tnt".equals(damager.type()) ? DamageCause.BLOCK_EXPLOSION : DamageCause.ENTITY_EXPLOSION;
+        }
+        return cause(type);
     }
 }

@@ -73,6 +73,12 @@ final class MobAiImpl implements MobAi {
     }
 
     @Override
+    public void setNoAi(boolean noAi) {
+        check();
+        if (!mob.isRemoved()) mob.setNoAi(noAi);
+    }
+
+    @Override
     public boolean usesBrain() { return mob.getBrain() != null; }
 
     @Override

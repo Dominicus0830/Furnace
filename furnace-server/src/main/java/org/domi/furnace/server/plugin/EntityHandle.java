@@ -267,6 +267,25 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         return true;
     }
 
+    // ------------------------------------------------------------------ 지금 상태
+
+    @Override
+    public Optional<org.domi.furnace.api.entity.EntityState> stateNow() {
+        // 엔티티를 따라가는 대기열이 지금의 엔티티를 쥐고 있다 — 스폰 이벤트처럼 아직 레벨 목록에 오르기 전에도 찾는다(aiNow 와 같다)
+        if (!(tasks.owner() instanceof Entity e)) return Optional.empty();
+        if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(e) && !e.level().isOwnerThread()) {
+            throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("stateNow() 는 엔티티 " + type() + " 를 가진 region 스레드에서만 부를 수 있다 (현재 "
+                    + Thread.currentThread().getName() + ") — editState 를 쓴다");
+        }
+        return e.isRemoved() ? Optional.empty() : Optional.of(EntityStateImpl.of(host, e));
+    }
+
+    @Override
+    public <T> CompletableFuture<T> editState(Function<? super org.domi.furnace.api.entity.EntityState, ? extends T> action) {
+        java.util.Objects.requireNonNull(action, "action");
+        return onEntity(e -> (T) action.apply(EntityStateImpl.of(host, e)), null, true);
+    }
+
     @Override
     public CompletableFuture<Optional<Inventory>> container() {
         if (containerType == null) return RegionFuture.wrap(CompletableFuture.completedFuture(Optional.empty()));

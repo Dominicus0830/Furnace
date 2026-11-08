@@ -120,4 +120,18 @@ public final class CompatBlock implements Block {
 
     @Override
     public String toString() { return "CraftBlock{world=" + dimension + ",x=" + pos.x() + ",y=" + pos.y() + ",z=" + pos.z() + "}"; }
+
+    // ---- 메타데이터(월드 UID 와 칸으로 — 블록이 바뀌어도 칸에 남는다)
+
+    @Override
+    public void setMetadata(String metadataKey, org.bukkit.metadata.MetadataValue newMetadataValue) { Compat.blockMetadata().setMetadata(this, metadataKey, newMetadataValue); }
+
+    @Override
+    public java.util.List<org.bukkit.metadata.MetadataValue> getMetadata(String metadataKey) { return Compat.blockMetadata().getMetadata(this, metadataKey); }
+
+    @Override
+    public boolean hasMetadata(String metadataKey) { return Compat.blockMetadata().hasMetadata(this, metadataKey); }
+
+    @Override
+    public void removeMetadata(String metadataKey, org.bukkit.plugin.Plugin owningPlugin) { Compat.blockMetadata().removeMetadata(this, metadataKey, owningPlugin); }
 }

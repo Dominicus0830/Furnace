@@ -131,4 +131,6 @@ public final class RecorderPlugin extends JavaPlugin implements Listener {
     @EventHandler public void on(ChunkLoadEvent e) { rec(e); }
 
     @EventHandler public void on(ChunkUnloadEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.player.PlayerInteractEntityEvent e) { rec(e); }
 }

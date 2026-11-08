@@ -101,7 +101,7 @@ public final class PluginGameEvents implements GameEvents {
                               org.domi.furnace.server.entity.Rider direct) {
         if (!bus().hasSubscribers(EntityDamageEvent.class)) return amount;
         var ev = bus().call(new EntityDamageEvent(EntityHandle.of(host, e), cause.indexOf(':') < 0 ? "minecraft:" + cause : cause, amount,
-                Causes.damage(causing, direct)));
+                Causes.damage(causing, direct), riderHandle(direct), riderHandle(causing)));
         return ev.isCancelled() ? -1f : ev.damage();
     }
 
@@ -110,7 +110,7 @@ public final class PluginGameEvents implements GameEvents {
                               org.domi.furnace.server.entity.Rider direct) {
         if (!bus().hasSubscribers(EntityDamageEvent.class)) return amount;
         var ev = bus().call(new EntityDamageEvent(host.player(p), cause.indexOf(':') < 0 ? "minecraft:" + cause : cause, amount,
-                Causes.damage(causing, direct)));
+                Causes.damage(causing, direct), riderHandle(direct), riderHandle(causing)));
         return ev.isCancelled() ? -1f : ev.damage();
     }
 

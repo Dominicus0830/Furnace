@@ -54,6 +54,12 @@ public class Location implements Cloneable {
 
     public void setPitch(float pitch) { this.pitch = pitch; }
 
+    /** 이 위치의 청크(world.getChunkAt(this)). 월드가 없으면 IllegalArgumentException. */
+    public Chunk getChunk() {
+        if (world == null) throw new IllegalArgumentException("Location has no world");
+        return world.getChunkAt(this);
+    }
+
     public Block getBlock() {
         if (world == null) throw new IllegalStateException("world 가 없는 Location");
         return world.getBlockAt(this);

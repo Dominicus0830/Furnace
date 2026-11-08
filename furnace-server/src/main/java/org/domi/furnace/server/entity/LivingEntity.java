@@ -951,9 +951,15 @@ public abstract class LivingEntity extends Entity implements Targetable {
         return flag;
     }
 
-    /** LivingEntity.isPushable: 살아 있고 관전자가 아니며 사다리 등에 매달리지 않았다. */
+    /**
+     * 플러그인이 끈 밀림(CraftBukkit LivingEntity.collides — Bukkit setCollidable). 저장되지 않는다. 바닐라 엔티티는 늘 true.
+     * 소유 region 스레드에서만 바꾼다.
+     */
+    public boolean collides = true;
+
+    /** LivingEntity.isPushable: 살아 있고 관전자가 아니며 사다리 등에 매달리지 않았다(+ CraftBukkit collides). */
     @Override
-    public boolean isPushable() { return isAlive() && !isSpectator() && !onClimbable(); }
+    public boolean isPushable() { return isAlive() && !isSpectator() && !onClimbable() && collides; }
 
     // ------------------------------------------------------------------ 틱
 

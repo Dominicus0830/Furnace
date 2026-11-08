@@ -123,6 +123,8 @@ class EventBridgeTest {
                     new org.domi.furnace.api.event.inventory.InventoryClickEvent(p, chest, 2, 1, "quick_craft", stone),
                     new org.domi.furnace.api.event.inventory.InventoryClickEvent(p, chest, -999, 2, "quick_craft", stone)));
             fire.put(org.bukkit.event.inventory.InventoryDragEvent.class, null);
+            fire.put(org.bukkit.event.player.PlayerInteractEntityEvent.class,
+                    () -> new org.domi.furnace.api.event.player.PlayerInteractEntityEvent(p, p, org.domi.furnace.api.item.ItemStack.EMPTY, true));
 
             // 시험이 빠뜨린 짝이 없는지: 다리가 아는 이벤트 = 이 시험이 발행한 이벤트
             assertEquals(EventBridge.bridgedEvents(), new HashSet<Class<?>>(fire.keySet()));

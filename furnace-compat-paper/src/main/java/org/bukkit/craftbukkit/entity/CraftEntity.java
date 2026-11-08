@@ -9,6 +9,11 @@ import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.domi.furnace.compat.paper.Compat;
 import org.domi.furnace.compat.paper.EntityPdc;
+import org.domi.furnace.compat.paper.EntityStates;
+import org.bukkit.metadata.MetadataValue;
+import org.bukkit.plugin.Plugin;
+import org.domi.furnace.api.entity.EntityState;
+import org.domi.furnace.api.text.Text;
 import org.domi.furnace.compat.paper.UnsupportedFeature;
 
 /**
@@ -73,8 +78,15 @@ public class CraftEntity implements Entity {
     @Override
     public boolean isDead() { return !handle.isValid(); }
 
+    /** 소유 스레드면 지금 이름, 아니면(또는 상태 손잡이가 없는 플레이어면) 핸들 시점 이름. */
     @Override
-    public String getCustomName() { return Compat.legacy(handle.customName()); }
+    public String getCustomName() {
+        try {
+            return EntityStates.read(handle, EntityState.class, s -> Compat.legacy(s.customName()), Compat.legacy(handle.customName()), "Entity#getCustomName");
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature notNow) {
+            return Compat.legacy(handle.customName());
+        }
+    }
 
     @Override
     public String getTypeKey() { return handle.type(); }
@@ -121,7 +133,119 @@ public class CraftEntity implements Entity {
     }
 
     @Override
-    public void setCustomName(String name) { throw new UnsupportedFeature("Entity#setCustomName", "엔티티 이름 쓰기 API 가 아직 없다"); }
+    public void setCustomName(String name) {
+        if (name != null && name.length() > 256) name = name.substring(0, 256);   // Paper 의 길이 제한
+        Text text = name == null || name.isEmpty() ? null : Compat.text(name);
+        EntityStates.write(handle, EntityState.class, s -> s.setCustomName(text), "Entity#setCustomName");
+    }
+
+    @Override
+    public boolean isCustomNameVisible() { return EntityStates.read(handle, EntityState.class, EntityState::isCustomNameVisible, false, "Entity#isCustomNameVisible"); }
+
+    @Override
+    public void setCustomNameVisible(boolean flag) { EntityStates.write(handle, EntityState.class, s -> s.setCustomNameVisible(flag), "Entity#setCustomNameVisible"); }
+
+    @Override
+    public boolean hasGravity() { return EntityStates.read(handle, EntityState.class, s -> !s.isNoGravity(), true, "Entity#hasGravity"); }
+
+    @Override
+    public void setGravity(boolean gravity) { EntityStates.write(handle, EntityState.class, s -> s.setNoGravity(!gravity), "Entity#setGravity"); }
+
+    @Override
+    public boolean isInvulnerable() { return EntityStates.read(handle, EntityState.class, EntityState::isInvulnerable, false, "Entity#isInvulnerable"); }
+
+    @Override
+    public void setInvulnerable(boolean flag) { EntityStates.write(handle, EntityState.class, s -> s.setInvulnerable(flag), "Entity#setInvulnerable"); }
+
+    @Override
+    public boolean isSilent() { return EntityStates.read(handle, EntityState.class, EntityState::isSilent, false, "Entity#isSilent"); }
+
+    @Override
+    public void setSilent(boolean flag) { EntityStates.write(handle, EntityState.class, s -> s.setSilent(flag), "Entity#setSilent"); }
+
+    /** Paper isCurrentlyGlowing: 발광 태그, 살아 있으면 발광 효과도. */
+    @Override
+    public boolean isGlowing() {
+        return EntityStates.read(handle, EntityState.class, s -> s.hasGlowingTag()
+                || s instanceof org.domi.furnace.api.entity.LivingEntityState l && l.effect("minecraft:glowing").isPresent(), false, "Entity#isGlowing");
+    }
+
+    @Override
+    public void setGlowing(boolean flag) { EntityStates.write(handle, EntityState.class, s -> s.setGlowingTag(flag), "Entity#setGlowing"); }
+
+    // ---- 탑승
+
+    @Override
+    public java.util.List<org.bukkit.entity.Entity> getPassengers() {
+        return EntityStates.read(handle, EntityState.class, s -> {
+            java.util.List<org.bukkit.entity.Entity> out = new java.util.ArrayList<>();
+            for (var p : s.passengers()) out.add(Compat.entity(p));
+            return out;
+        }, new java.util.ArrayList<>(), "Entity#getPassengers");
+    }
+
+    @Override
+    public boolean addPassenger(org.bukkit.entity.Entity passenger) {
+        if (passenger == null) throw new IllegalArgumentException("Entity passenger cannot be null");
+        if (this.equals(passenger)) throw new IllegalArgumentException("Entity cannot ride itself.");
+        var p = furnace(passenger);
+        return EntityStates.read(handle, EntityState.class, s -> s.addPassenger(p), false, "Entity#addPassenger");
+    }
+
+    @Override
+    public boolean removePassenger(org.bukkit.entity.Entity passenger) {
+        if (passenger == null) throw new IllegalArgumentException("Entity passenger cannot be null");
+        var p = furnace(passenger);
+        // Paper 는 승객 쪽 stopRiding 을 부르고 늘 true — 그 승객이 다른 탈것에 타 있어도 내린다
+        EntityStates.write(p, EntityState.class, EntityState::leaveVehicle, "Entity#removePassenger");
+        return true;
+    }
+
+    @Override
+    public boolean isEmpty() { return EntityStates.read(handle, EntityState.class, s -> s.passengers().isEmpty(), true, "Entity#isEmpty"); }
+
+    @Override
+    public boolean eject() { return EntityStates.read(handle, EntityState.class, EntityState::ejectPassengers, false, "Entity#eject"); }
+
+    @Override
+    public org.bukkit.entity.Entity getVehicle() {
+        return EntityStates.read(handle, EntityState.class, s -> s.vehicle().map(Compat::entity).orElse(null), null, "Entity#getVehicle");
+    }
+
+    @Override
+    public boolean isInsideVehicle() { return EntityStates.read(handle, EntityState.class, s -> s.vehicle().isPresent(), false, "Entity#isInsideVehicle"); }
+
+    @Override
+    public boolean leaveVehicle() { return EntityStates.read(handle, EntityState.class, EntityState::leaveVehicle, false, "Entity#leaveVehicle"); }
+
+    private static org.domi.furnace.api.entity.Entity furnace(org.bukkit.entity.Entity e) {
+        if (e instanceof CraftEntity c) return c.furnaceHandle();
+        throw new IllegalArgumentException("Furnace 가 모르는 Entity 구현이다: " + e.getClass().getName());
+    }
+
+    // ---- 메타데이터(메모리에만 — Paper 처럼 엔티티는 UUID, 플레이어는 이름으로 가른다)
+
+    @Override
+    public void setMetadata(String metadataKey, MetadataValue newMetadataValue) {
+        if (this instanceof org.bukkit.entity.Player p) Compat.playerMetadata().setMetadata(p, metadataKey, newMetadataValue);
+        else Compat.entityMetadata().setMetadata(this, metadataKey, newMetadataValue);
+    }
+
+    @Override
+    public java.util.List<MetadataValue> getMetadata(String metadataKey) {
+        return this instanceof org.bukkit.entity.Player p ? Compat.playerMetadata().getMetadata(p, metadataKey) : Compat.entityMetadata().getMetadata(this, metadataKey);
+    }
+
+    @Override
+    public boolean hasMetadata(String metadataKey) {
+        return this instanceof org.bukkit.entity.Player p ? Compat.playerMetadata().hasMetadata(p, metadataKey) : Compat.entityMetadata().hasMetadata(this, metadataKey);
+    }
+
+    @Override
+    public void removeMetadata(String metadataKey, Plugin owningPlugin) {
+        if (this instanceof org.bukkit.entity.Player p) Compat.playerMetadata().removeMetadata(p, metadataKey, owningPlugin);
+        else Compat.entityMetadata().removeMetadata(this, metadataKey, owningPlugin);
+    }
 
     @Override
     public org.bukkit.persistence.PersistentDataContainer getPersistentDataContainer() { return new EntityPdc(handle); }

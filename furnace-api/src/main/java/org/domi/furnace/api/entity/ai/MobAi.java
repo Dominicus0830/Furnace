@@ -26,6 +26,9 @@ public interface MobAi {
     /** NoAI 표시가 붙었는가(붙으면 목표가 돌지 않는다). */
     boolean isNoAi();
 
+    /** NoAI 표시를 바꾼다(바닐라 Mob.setNoAi — 켜면 목표·두뇌·이동이 서고 저장된다). */
+    default void setNoAi(boolean noAi) { throw new UnsupportedOperationException("setNoAi"); }
+
     /** 두뇌(Brain)로 움직이는 몹인가(주민·피글린 등). 목표도 함께 돌지만 두뇌가 같은 일을 하면 서로 다툰다. */
     boolean usesBrain();
 

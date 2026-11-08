@@ -11,7 +11,7 @@ import org.bukkit.block.data.BlockData;
  * 쓰기(setType·setBlockData)는 소유 스레드면 곧바로, 아니면 소유 스레드로 예약된다(이웃 갱신·클라이언트 알림은 Furnace 의 setBlock 과 같다).
  * BlockState(표지판·상자 등)는 아직 없다.
  */
-public interface Block {
+public interface Block extends org.bukkit.metadata.Metadatable {
 
     World getWorld();
 
