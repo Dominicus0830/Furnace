@@ -90,4 +90,4 @@ Bukkit 은 메인 스레드 하나를 가정한다. 이 1차는 Furnace 이벤�
 
 ## 법적 메모
 
-`org.bukkit` 클래스의 공개 이름·서명은 호환을 위해 필요한 만큼만 새로 썼다(Bukkit 소스를 복사하지 않았다). 라이선스 판단은 `docs/user-todo/entries/2026-11-07-h1.md` 의 결정 항목.
+`org.bukkit` 클래스의 공개 이름·서명은 호환을 위해 필요한 만큼만 새로 썼다(Bukkit 소스를 복사하지 않았다). `furnace-compat-paper` 는 GPL-3.0-only (확정, `docs/policy/licensing.md`). 이 문서는 법률 자문이 아니다.

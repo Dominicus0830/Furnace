@@ -25,6 +25,7 @@ public final class ConfigPresets {
         vanilla.put("tick-nanos", "50000000");
         vanilla.put("chat.strict-order", "true");
         vanilla.put("chat.unsigned-as-system", "false");
+        vanilla.put("gravity-block-portal-dupe", "true");
         vanilla.put("limits.chat-length", "256");
         vanilla.put("limits.command-length", "256");
         for (String k : new String[]{"display-name", "item-name", "lore-line", "book-page", "book-author"}) vanilla.put("limits.item." + k, "0");

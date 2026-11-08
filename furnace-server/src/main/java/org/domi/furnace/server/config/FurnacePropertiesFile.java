@@ -69,6 +69,7 @@ public final class FurnacePropertiesFile {
                 opt("chat.unsigned-as-system", o.unsignedChatAsSystem(), "true 면 채팅을 서명 없는 시스템 메시지로 보낸다(채팅 신고 불가)."),
                 opt("server-brand", o.serverBrand(), "F3 화면에 보이는 서버 브랜드."),
                 opt("announce-sleep-status", o.announceSleepStatus(), "false 면 자는 사람 수 액션바를 보내지 않는다(기본 true = 바닐라)."),
+                opt("gravity-block-portal-dupe", o.gravityBlockPortalDupe(), "true(기본 = 바닐라) 면 엔드 포털로 넘어간 모래·자갈 같은 중력 블록이 제자리에도 놓여 복제된다. false 면 복제되지 않는다."),
                 opt("motd-format", o.motdFormat(), "server.properties 의 motd 해석: plain(기본, 바닐라) | legacy(& 색 코드) | markup(<gradient:red:blue>…</gradient> 같은 태그)."),
                 opt("confirm-interrupt", o.confirmInterrupt(), "true 면 콘솔 Ctrl+C 를 한 번 더 눌러야 종료한다."),
                 opt("confirm-interrupt-seconds", o.interruptConfirmSeconds(), "Ctrl+C 두 번째 입력을 기다리는 시간(1~60초).")
@@ -124,6 +125,7 @@ public final class FurnacePropertiesFile {
                 commented("plugins.log-level.<플러그인이름>", "INFO", "플러그인별 로그 수준(SEVERE, WARNING, INFO, FINE ...)."),
                 opt("plugins.compat.bukkit", true, "Bukkit·Paper 플러그인(plugin.yml) 호환 어댑터. 끄면 plugins/bukkit-plugins/ 와 plugin.yml jar 를 읽지 않는다."),
                 opt("plugins.compat.nms.enabled", true, "Bukkit 호환 플러그인의 NMS·CraftBukkit 이름 변환(CraftBukkit 버전 접미사 v1_21_R1 을 접미사 없는 이름으로). 끄면 그런 이름을 쓰는 플러그인은 그 자리에서 실패한다."),
+                opt("plugins.chunk-tickets.max-per-plugin", org.domi.furnace.api.world.ChunkTickets.MAX_CHUNKS_PER_OWNER, "플러그인 하나가 청크 티켓(chunkTickets API)으로 붙잡을 수 있는 청크 수 상한(겹침 포함, 1 이상). 넘으면 add 가 거부된다."),
                 opt("plugins.compat.libraries", "needed", "Paper 가 싣는 라이브러리(Guava·Adventure·SnakeYAML·Brigadier 등)를 Furnace jar 에 넣지 않고 필요할 때 받는다. needed: 호환 플러그인 클래스가 쓰는 것만, all: 호환 플러그인이 있으면 전부, off: 받지 않는다(그것을 쓰는 플러그인은 실패)."),
                 opt("plugins.compat.libraries.mojang", true, "Brigadier·authlib·DataFixerUpper 는 Mojang 저장소(libraries.minecraft.net)에서 받는다. false 면 그 셋은 빼고 경고."),
                 opt("plugins.compat.libraries.declared", true, "호환 플러그인 plugin.yml 의 libraries 를 Paper·Spigot 처럼 받는다(plugins.libraries.enabled 와 별개)."),

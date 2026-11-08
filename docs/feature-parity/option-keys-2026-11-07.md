@@ -37,6 +37,7 @@
 | `chat.unsigned-as-system` | ON/OFF | false | true|false | 채팅을 서명 없는 시스템 메시지로 보낸다(채팅 신고 불가) | true 면 경고 |
 | `server-brand` | 글자 | Furnace | - | F3 서버 브랜드와 level.dat ServerBrands |  |
 | `announce-sleep-status` | ON/OFF | true | true|false | 자는 사람 수·밤 건너뛰기 액션바 |  |
+| `gravity-block-portal-dupe` | ON/OFF | true | true|false | 엔드 포털로 넘어간 중력 블록(모래·자갈 등)이 제자리에도 놓이는 바닐라 복제 현상. false 면 복제되지 않는다(바닐라와 달라짐) |  |
 | `motd-format` | plain|legacy|markup | plain | plain|legacy|markup | server.properties motd 해석 방식(plain=바닐라) |  |
 | `confirm-interrupt` | ON/OFF | false | true|false | 콘솔 Ctrl+C 를 두 번 눌러야 종료 |  |
 | `confirm-interrupt-seconds` | 수 | 5 | 1~60 | 두 번째 Ctrl+C 를 기다리는 초 |  |
@@ -79,6 +80,7 @@
 | `backup.hold-timeout-seconds` | 수 | 10 | 1~600 | 백업 기준점에서 저장을 기다리는 최대 초 |  |
 | `plugins.compat.bukkit` | ON/OFF | true | true\|false | Bukkit·Paper 플러그인(plugin.yml) 호환 어댑터 — 끄면 plugin.yml jar 를 읽지 않는다(호환 모듈이 있을 때) |  |
 | `plugins.compat.nms.enabled` | ON/OFF | true | true\|false | Bukkit 호환 플러그인을 올릴 때 NMS·CraftBukkit 이름 변환(CraftBukkit 버전 접미사 v1_21_R1 풀기)을 한다 — 끄면 그런 플러그인은 그 이름에서 실패한다 |  |
+| `plugins.chunk-tickets.max-per-plugin` | 수 | 16384 | 1~100000000 | 플러그인 하나가 청크 티켓으로 붙잡을 수 있는 청크 수 상한(겹침 포함) |  |
 | `plugins.compat.libraries` | 글자 | needed | needed\|all\|off | Paper 가 싣는 라이브러리(Guava·Adventure·SnakeYAML·Brigadier 등)를 호환 플러그인 클래스가 쓸 때만(needed)·호환 플러그인이 있으면 전부(all) 받아 공유 로더에 붙인다(H4 묶음 B, `docs/api/plugin-libraries.md`) | 잘못된 값은 경고 후 needed |
 | `plugins.compat.libraries.mojang` | ON/OFF | true | true\|false | Brigadier·authlib·DataFixerUpper 를 Mojang 저장소에서 받는다 | off 인데 적혀 있으면 경고 |
 | `plugins.compat.libraries.declared` | ON/OFF | true | true\|false | 호환 플러그인 plugin.yml 의 libraries 를 Paper·Spigot 처럼 받는다 |  |

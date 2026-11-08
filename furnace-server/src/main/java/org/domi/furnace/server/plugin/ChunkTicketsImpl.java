@@ -21,12 +21,18 @@ public final class ChunkTicketsImpl implements ChunkTickets {
     /** 꺼지며 정리한 주인 — 꺼진 뒤 늦게 도착한 add 는 받지 않는다(다시 켜지면 isEnabled 로 풀린다). */
     private final java.util.Set<Object> cleared = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
 
-    /** 플러그인당 한도(시험이 줄여 본다). */
-    private volatile int maxChunksPerOwner = MAX_CHUNKS_PER_OWNER;
+    /** 시험이 한도를 직접 줄여 볼 때만 쓴다(0 이하 = 설정 plugins.chunk-tickets.max-per-plugin 을 따른다). */
+    private volatile int maxChunksOverride = 0;
 
     ChunkTicketsImpl(PluginHost host) { this.host = host; }
 
-    void maxChunksPerOwner(int n) { this.maxChunksPerOwner = n; }
+    void maxChunksPerOwner(int n) { this.maxChunksOverride = n; }
+
+    /** 플러그인당 한도 — furnace.properties 의 plugins.chunk-tickets.max-per-plugin(기본 16384). */
+    public int maxChunksPerOwner() {
+        int o = maxChunksOverride;
+        return o > 0 ? o : host.pluginsImpl().settings().chunkTicketLimit();
+    }
 
     /** 내린 월드의 티켓은 장부에서 뺀다(한도·목록에 남지 않게, 옛 World 객체도 놓아 준다). 장부 잠금 안. */
     private void purgeUnloaded() {
@@ -64,8 +70,10 @@ public final class ChunkTicketsImpl implements ChunkTickets {
             purgeUnloaded();
             long held = (long) n * n;
             for (TicketImpl o : active) if (o.owner == owner) held += o.chunkCount();
-            if (held > maxChunksPerOwner) {
-                throw new IllegalStateException("플러그인 " + owner.name() + " 의 청크 티켓이 " + maxChunksPerOwner + " 청크를 넘는다(겹침 포함)");
+            int limit = maxChunksPerOwner();
+            if (held > limit) {
+                throw new IllegalStateException("플러그인 " + owner.name() + " 의 청크 티켓이 " + limit
+                        + " 청크를 넘는다(겹침 포함, 한도는 furnace.properties 의 plugins.chunk-tickets.max-per-plugin)");
             }
             active.add(t);
         }
