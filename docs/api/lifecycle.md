@@ -41,7 +41,7 @@ API 는 버전 중립이다: 내부 패킷 타입을 드러내지 않고, 단계
 | 2. `DISABLE_PLUGINS` | 켠 순서의 반대로 `onDisable`. 끝나면 그 플러그인의 이벤트·명령·작업이 정리된다. 모두 끝난 뒤 형식 어댑터가 `PluginFormat.afterPluginsDisabled` 로 한 번 마무리한다(Bukkit 어댑터: 돌고 있는 비동기 작업을 최대 5초 기다리고 남으면 로그) | 접속자·네트워크·region·스케줄러 |
 | 3. `CLOSE_REMOTE_SERVICES` | RCON·Query·워치독 | 접속자·region |
 | 4. `STOP_NETWORK` | 새 접속 막기, 접속자 내보내기(`multiplayer.disconnect.server_shutdown`) | region |
-| 5. `FLUSH_WORLDS` | region 스레드에서 dirty 청크·플레이어 저장, 플레이어 데이터 실행기 비우기 | region |
+| 5. `FLUSH_WORLDS` | 저장 기준점(전역·모든 차원 게임 틱 붙잡기, 새 엔티티 이동 막기, 날아가는 차원 이동 도착 기다리기 — 놓지 않는다) 뒤 region 스레드에서 dirty 청크·플레이어 저장, 플레이어 데이터 실행기 비우기 | region(작업만, 게임 틱 없음) |
 | 6. `CLOSE_STORAGE` | 청크 IO 풀·리전 파일·level.dat·저장소 닫기 | region |
 | 7. `STOP_SCHEDULER` | 청크 작업 풀·스케줄러(region 스레드) 정지 | 없음 |
 | 8. `CLOSE_PLUGINS` | 플러그인 클래스로더·비동기 실행기 닫기 | 없음 |

@@ -487,6 +487,16 @@ public final class FurnaceMain {
                     // 넘기지 않고 비울 때까지 되풀이한다(종료 때는 다음 틱이 없다 — 예전엔 그 청크가 사라졌다).
                     // region 스레드가 멈춰 있어도 종료가 영원히 안 끝나지 않게 마감을 둔다. 하나가 실패/지연돼도 나머지 정리는 계속한다.
                     long flushDeadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(60);
+                    // 저장 기준점(A03-01): 틱을 붙잡고 날아가는 차원 이동을 다 도착시킨 뒤 저장한다 — 차원마다 차례로 저장하는 사이에 엔티티가
+                    // 건너가 복제(먼저 저장된 차원에서 나감)되거나 소실(나중 차원에서 들어옴)되지 않게. 백업 기준점과 같다. 종료라 놓지 않는다.
+                    try {
+                        if (!World.holdForShutdown(dimensions.all(), () -> core.holdGlobalTicks(true), core::quiesceGlobal,
+                                System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(20))) {
+                            log.error("[STOP] 저장 기준점(틱 멈춤)이 마감 안에 끝나지 않았다 — 그대로 저장한다");
+                        }
+                    } catch (InterruptedException e) {
+                        log.error("[STOP] 저장 기준점 대기 중단", e);
+                    }
                     for (World w : dimensions.all()) {
                         try {
                             int left = w.flushAllDrained(Math.max(1, flushDeadline - System.nanoTime()));

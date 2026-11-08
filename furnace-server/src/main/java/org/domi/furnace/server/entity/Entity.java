@@ -509,7 +509,7 @@ public abstract non-sealed class Entity implements Rider {
     public boolean teleportToDimension(String dimension, double tx, double ty, double tz, float yaw, float pitch, Runnable done) {
         if (level == null || isRemoved()) return false;
         var travel = level.dimensionTravel();
-        if (travel == null) return false;
+        if (travel == null || travel.frozen()) return false;   // 종료 저장 기준점 뒤 — 옮기지 않는다
         float p = Math.clamp(pitch, -90.0F, 90.0F);
         PortalTravel plan = new PortalTravel(dimension, floor(tx), floor(tz), 0, 0,
                 lvl -> new DimensionTransition(lvl, tx, ty, tz, 0, 0, 0, yaw, p));
@@ -573,6 +573,10 @@ public abstract non-sealed class Entity implements Rider {
                             org.domi.furnace.server.block.LevelServices.DimensionTravel travel,
                             java.util.function.BiConsumer<Entity, DimensionTransition> place, Runnable done, String targetDimension,
                             boolean carryPassengers) {
+        if (travel.frozen()) {   // 종료 저장 기준점 뒤: 떠나지 않는다(저장된 차원과 나중 차원 사이에서 둘이 되거나 사라지지 않게)
+            if (done != null) done.run();
+            return;
+        }
         final double ox = x, oz = z;
         final CarriedEntity self = depart(travel, targetDimension, carryPassengers);
         final java.util.concurrent.atomic.AtomicBoolean called = new java.util.concurrent.atomic.AtomicBoolean();

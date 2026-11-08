@@ -74,6 +74,9 @@ public interface LevelServices {
         /** MinecraftServer.isLevelEnabled + 그 차원을 띄웠는가. */
         boolean isLevelEnabled(String dimension);
 
+        /** 종료 저장 기준점(World.holdForShutdown) 뒤 참: 새 차원·region 사이 이동을 시작하지 않는다(엔티티는 제자리에 남는다). */
+        default boolean frozen() { return false; }
+
         /**
          * 목적 차원에서 plan.complete 로 목적지를 확정하고 arrive(목적 레벨, 목적지)를 목적 레벨 스레드에서 부른다.
          * 목적 차원이 없거나 목적지가 없으면 arrive(null, null) — 부르는 쪽이 되돌린다. 어느 스레드에서 불러도 된다.
