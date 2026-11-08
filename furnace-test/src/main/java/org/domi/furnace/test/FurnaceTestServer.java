@@ -104,7 +104,9 @@ public final class FurnaceTestServer implements AutoCloseable {
             this.global = (GlobalThread) sched.global();
             global.useManualClock();
             // 플러그인 부트스트랩: 레지스트리·월드보다 먼저(FurnaceMain 과 같은 자리). 시험에서는 실패를 숨기지 않는다(fail-fast).
-            PluginSettings pluginSettings = new PluginSettings(b.failFast, null, java.util.Map.of()).withCompatNms(b.compatNms);
+            PluginSettings pluginSettings = new PluginSettings(b.failFast, null, java.util.Map.of()).withCompatNms(b.compatNms)
+                    .withCompatOptions(java.util.Map.of("plugins.compat.nms.strict", String.valueOf(b.compatNmsStrict),
+                            "plugins.compat.nms.version-package", b.compatNmsVersionPackage));
             PluginBootstrapper boot = PluginBootstrapper.bootstrap(pluginsDir, pluginSettings);
             BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
             ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
@@ -441,6 +443,8 @@ public final class FurnaceTestServer implements AutoCloseable {
         private int maxPlayers = 20;
         private boolean failFast = true;
         private boolean compatNms = true;
+        private boolean compatNmsStrict = false;
+        private String compatNmsVersionPackage = "plain";
         private long timeoutMillis = DEFAULT_TIMEOUT_MILLIS;
         private String serverProperties = "";
         private Path directory;
@@ -502,6 +506,12 @@ public final class FurnaceTestServer implements AutoCloseable {
 
         /** Bukkit 호환 플러그인의 NMS·CraftBukkit 이름 변환(furnace.properties plugins.compat.nms.enabled, 기본 참). */
         public Builder compatNms(boolean v) { this.compatNms = v; return this; }
+
+        /** 미지원 NMS 심볼이 있는 호환 플러그인은 불러오지 않는다(plugins.compat.nms.strict, 기본 거짓). */
+        public Builder compatNmsStrict(boolean v) { this.compatNmsStrict = v; return this; }
+
+        /** 플러그인이 읽는 CraftBukkit 패키지 이름: plain(기본, Paper) 또는 versioned(Spigot, v1_21_R1) — plugins.compat.nms.version-package. */
+        public Builder compatNmsVersionPackage(String v) { this.compatNmsVersionPackage = java.util.Objects.requireNonNull(v); return this; }
 
         /** 틱·future 기다림 한도. */
         public Builder timeout(long millis) { this.timeoutMillis = Math.max(1, millis); return this; }

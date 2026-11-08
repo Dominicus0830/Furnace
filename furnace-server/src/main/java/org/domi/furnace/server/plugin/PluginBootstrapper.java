@@ -381,7 +381,7 @@ public final class PluginBootstrapper {
         PluginManagerImpl.PluginClassLoader loader;
         try {
             Path jar = settings.devMode() ? HotReload.shadowCopy(dir, c.file()) : c.file();
-            org.domi.furnace.api.plugin.ClassTransformer transformer = c.format() != null && settings.compatNms() ? c.format().transformer(d, jar) : null;
+            org.domi.furnace.api.plugin.ClassTransformer transformer = c.format() != null && settings.compatNms() ? c.format().transformer(d, jar, settings.compatOptions()) : null;
             loader = new PluginManagerImpl.PluginClassLoader(jar, this, settings.devMode(), libraries, transformer);
         } catch (IOException | RuntimeException e) {
             log.error("Could not load '{}' in folder '{}'", dir.relativize(c.file()), dir.getFileName(), e);

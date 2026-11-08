@@ -12,6 +12,9 @@ public abstract class Level {
     /** CraftBukkit 이 더한 메서드: 이 월드의 Bukkit 객체. */
     public CraftWorld getWorld() { return world; }
 
+    /** 서버 레지스트리 묶음(H7b, {@link net.minecraft.server.MinecraftServer#registryAccess()} 와 같다). */
+    public net.minecraft.core.RegistryAccess registryAccess() { return net.minecraft.core.RegistryAccess.SERVER; }
+
     public boolean isClientSide() { return false; }
 
     @Override

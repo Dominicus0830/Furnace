@@ -7,6 +7,9 @@
 //   plugins.libraries.*            라이브러리 자동 로딩(기본 꺼짐) — library/LibrarySettings 참고
 //   plugins.compat.bukkit=true     Bukkit·Paper 플러그인 호환 어댑터(클래스패스에 furnace-compat-paper 가 있을 때) — false 면 plugin.yml jar 를 읽지 않는다
 //   plugins.compat.nms.enabled=true  호환 플러그인 클래스를 올릴 때 NMS·CraftBukkit 이름 변환(버전 접미사 v1_21_R1 풀기 등)을 한다 — false 면 바이트 그대로 올린다
+//   plugins.compat.nms.strict=false   미지원 NMS 심볼이 있는 플러그인은 불러오지 않는다(기본: 그 호출만 실패)
+//   plugins.compat.nms.version-package=plain  플러그인이 읽는 CraftBukkit 패키지 이름(plain = Paper 처럼 접미사 없음, versioned = Spigot 처럼 v1_21_R1)
+//   bukkit·nms.enabled 를 뺀 plugins.compat.* 키는 compatOptions 로 플러그인 형식(PluginFormat#transformer)에 그대로 넘긴다
 package org.domi.furnace.server.plugin;
 
 import java.io.IOException;
@@ -23,7 +26,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels, boolean devMode, boolean autoReload,
-                             LibrarySettings libraries, boolean compat, boolean compatNms) {
+                             LibrarySettings libraries, boolean compat, boolean compatNms, Map<String, String> compatOptions) {
+
+    /** plugins.compat.nms.* 기본값(빈 설정 파일을 읽은 것과 같다). */
+    public static final Map<String, String> DEFAULT_COMPAT_OPTIONS =
+            Map.of("plugins.compat.nms.strict", "false", "plugins.compat.nms.version-package", "plain");
 
     public static final PluginSettings DEFAULT = new PluginSettings(false, null, Map.of());
 
@@ -49,17 +56,27 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         this(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, true);
     }
 
-    public PluginSettings withLibraries(LibrarySettings l) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, l, compat, compatNms); }
+    /** 호환 형식 설정은 기본값. */
+    public PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels, boolean devMode, boolean autoReload,
+                          LibrarySettings libraries, boolean compat, boolean compatNms) {
+        this(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, DEFAULT_COMPAT_OPTIONS);
+    }
 
-    public PluginSettings withCompat(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, on, compatNms); }
+    public PluginSettings withLibraries(LibrarySettings l) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, l, compat, compatNms, compatOptions); }
 
-    public PluginSettings withCompatNms(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, on); }
+    public PluginSettings withCompat(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, on, compatNms, compatOptions); }
+
+    public PluginSettings withCompatNms(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, on, compatOptions); }
+
+    /** plugins.compat.* 설정(접두어 포함 키)을 바꾼 사본 — 시험 서버가 쓴다. */
+    public PluginSettings withCompatOptions(Map<String, String> o) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, o); }
 
     public PluginSettings {
         Map<String, Level> m = new HashMap<>();
         logLevels.forEach((k, v) -> m.put(k.toLowerCase(Locale.ROOT), v));
         logLevels = Map.copyOf(m);
         if (libraries == null) libraries = LibrarySettings.DEFAULT;
+        compatOptions = compatOptions == null ? DEFAULT_COMPAT_OPTIONS : Map.copyOf(compatOptions);
     }
 
     /** 이 플러그인에 지정된 로그 수준(없으면 null). */
@@ -95,7 +112,21 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         if (auto && !dev) log.warn("plugins.dev-mode.auto-reload 는 plugins.dev-mode=true 일 때만 쓰인다 — 무시한다");
         boolean compat = org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.compat.bukkit", true);
         boolean nms = org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.compat.nms.enabled", true);
+        Map<String, String> compatOptions = new HashMap<>();
+        for (String k : p.stringPropertyNames()) {
+            // bukkit·nms.enabled 는 위에서 필드로 읽었다
+            if (k.startsWith("plugins.compat.") && !k.equals("plugins.compat.bukkit") && !k.equals("plugins.compat.nms.enabled")) {
+                compatOptions.put(k, p.getProperty(k).strip());
+            }
+        }
+        // 값 검사는 여기서(잘못된 값은 기동을 멈춘다, OptionKeys 규칙 3) — 호환 형식은 받은 값을 믿는다
+        compatOptions.put("plugins.compat.nms.strict", String.valueOf(org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.compat.nms.strict", false)));
+        String vp = compatOptions.getOrDefault("plugins.compat.nms.version-package", "plain").toLowerCase(Locale.ROOT);
+        if (!vp.equals("plain") && !vp.equals("versioned")) {
+            throw new IllegalArgumentException("설정 'plugins.compat.nms.version-package' 값 '" + vp + "' 이(가) 잘못됐습니다: plain 또는 versioned");
+        }
+        compatOptions.put("plugins.compat.nms.version-package", vp);
         return new PluginSettings(failFast, root.isEmpty() ? null : Path.of(root), levels, dev, dev && auto,
-                LibrarySettings.from(p, log), compat, nms);
+                LibrarySettings.from(p, log), compat, nms, compatOptions);
     }
 }

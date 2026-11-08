@@ -124,6 +124,8 @@ public final class FurnacePropertiesFile {
                 commented("plugins.log-level.<플러그인이름>", "INFO", "플러그인별 로그 수준(SEVERE, WARNING, INFO, FINE ...)."),
                 opt("plugins.compat.bukkit", true, "Bukkit·Paper 플러그인(plugin.yml) 호환 어댑터. 끄면 plugins/bukkit-plugins/ 와 plugin.yml jar 를 읽지 않는다."),
                 opt("plugins.compat.nms.enabled", true, "Bukkit 호환 플러그인의 NMS·CraftBukkit 이름 변환(CraftBukkit 버전 접미사 v1_21_R1 을 접미사 없는 이름으로). 끄면 그런 이름을 쓰는 플러그인은 그 자리에서 실패한다."),
+                opt("plugins.compat.nms.strict", false, "미지원 NMS 심볼을 쓰는 Bukkit 호환 플러그인은 불러오지 않는다. 끄면 그 호출만 실행 때 실패하고 나머지는 돈다."),
+                opt("plugins.compat.nms.version-package", "plain", "plain | versioned. 플러그인이 읽는 CraftBukkit 패키지 이름(plain = Paper 처럼 접미사 없음, versioned = Spigot 처럼 v1_21_R1)."),
                 opt("plugins.libraries.enabled", false, "플러그인 설명 파일의 libraries 를 Maven Central 에서 받아 붙인다."),
                 commented("plugins.libraries.offline", false, "캐시에 있는 것만 쓴다(enabled=true 일 때만 — 꺼져 있을 때 적으면 경고)."),
                 commented("plugins.libraries.transitive", true, "라이브러리의 compile/runtime 의존까지 받는다(enabled=true 일 때만)."),
