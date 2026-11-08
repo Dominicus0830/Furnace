@@ -1,0 +1,73 @@
+// A05-02 재현: 바닐라 PlayerDataStorage.load(1.21.1, 난독화 eri.b(cmx)) 는 <uuid>.dat 이 없거나 깨졌으면 그 파일을 백업한 뒤
+// <uuid>.dat_old 를 읽는다(Optional.or(load ".dat_old")). Paper 도 그대로다(Rewrite-dataconverter-system.patch 는 변환기만 바꾼다).
+// Furnace PlayerData.load 는 .dat 만 보고, 없으면 null·깨졌으면 .corrupt 로 옮기고 null — 새 플레이어로 시작한다.
+// 저장(PlayerData.write)은 ".dat → .dat_old 이동" 뒤 "임시 → .dat 이동" 이라 두 이동 사이에서 꺼지면 .dat 이 없고 .dat_old 만 남는다.
+// 이 시험은 바닐라 기대(.dat_old 의 내용이 읽힌다)를 단언한다 — 기준 커밋에서 실패하는 것이 재현이다.
+package org.domi.furnace.server.entity;
+
+import static org.junit.jupiter.api.Assertions.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+class A05PlayerDataFallbackReproTest {
+
+    @TempDir Path world;
+
+    private Path dat(UUID id) { return world.resolve("playerdata").resolve(id + ".dat"); }
+
+    private Path old(UUID id) { return world.resolve("playerdata").resolve(id + ".dat_old"); }
+
+    private static ItemStack[] slots() { return new ItemStack[46]; }
+
+    /** 저장 두 번: .dat = x=200, .dat_old = x=100. */
+    private void twoSaves(UUID id) {
+        PlayerData.save(world, id, 100, 64, 0, 0f, 0f, true, slots());
+        PlayerData.save(world, id, 200, 64, 0, 0f, 0f, true, slots());
+        assertTrue(Files.exists(dat(id)) && Files.exists(old(id)));
+    }
+
+    @Test
+    void crashBetweenTheTwoMoves_vanillaReadsDatOld() throws Exception {
+        UUID id = UUID.randomUUID();
+        twoSaves(id);
+        // 세 번째 저장 도중 첫 이동(.dat → .dat_old)까지만 되고 꺼졌다(임시 파일 이동 전) — 그 상태를 그대로 만든다
+        Files.move(dat(id), old(id), StandardCopyOption.REPLACE_EXISTING);
+        assertFalse(Files.exists(dat(id)));
+        PlayerData.Snapshot s = PlayerData.load(world, id);
+        System.out.println("[A05-02] 이동 사이 종료 뒤 load: " + (s == null ? "null(새 플레이어)" : "x=" + s.x()));
+        assertNotNull(s, "바닐라는 .dat 이 없으면 .dat_old(x=200) 를 읽는다 — Furnace 는 새 플레이어로 시작");
+        assertEquals(200, s.x());
+    }
+
+    @Test
+    void corruptDat_vanillaReadsDatOld() throws Exception {
+        UUID id = UUID.randomUUID();
+        twoSaves(id);
+        Files.write(dat(id), new byte[] {0x1f, (byte) 0x8b, 8, 0, 0, 0});   // 잘린 gzip
+        PlayerData.Snapshot s = PlayerData.load(world, id);
+        System.out.println("[A05-02] .dat 손상 뒤 load: " + (s == null ? "null(새 플레이어)" : "x=" + s.x()));
+        assertNotNull(s, "바닐라는 .dat 이 깨지면 백업 후 .dat_old(x=100) 를 읽는다 — Furnace 는 새 플레이어로 시작");
+        assertEquals(100, s.x());
+    }
+
+    @Test
+    void afterFreshStart_secondSaveOverwritesLastGoodCopy() throws Exception {
+        UUID id = UUID.randomUUID();
+        twoSaves(id);
+        Files.move(dat(id), old(id), StandardCopyOption.REPLACE_EXISTING);   // .dat_old = x=200 (마지막 좋은 사본)
+        assertNull(PlayerData.load(world, id));                              // Furnace: 새 플레이어
+        // 새 플레이어로 놀다 자동 저장 두 번(스폰 x=0)
+        PlayerData.save(world, id, 0, 64, 0, 0f, 0f, true, slots());
+        PlayerData.save(world, id, 0, 64, 0, 0f, 0f, true, slots());
+        double oldX;
+        try (var in = Files.newInputStream(old(id))) {
+            oldX = (Double) org.domi.furnace.server.net.io.nbt.NbtIo.readGzip(in).getList("Pos").get(0);
+        }
+        System.out.println("[A05-02] 새 플레이어 저장 두 번 뒤 .dat_old x=" + oldX);
+        assertEquals(200, oldX, "마지막 좋은 사본(.dat_old x=200)이 두 번째 저장에서 새 플레이어 데이터로 덮였다 — 손으로도 되살릴 수 없다");
+    }
+}
