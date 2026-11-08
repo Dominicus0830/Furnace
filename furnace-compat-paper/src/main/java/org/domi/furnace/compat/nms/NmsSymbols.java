@@ -98,6 +98,9 @@ public final class NmsSymbols {
 
     boolean isInterface(String internalName) { return info(internalName).isInterface; }
 
+    /** 이 클래스가 바로 구현하는 인터페이스(없거나 모르면 빈 목록). */
+    List<String> interfacesOf(String internalName) { return info(internalName).interfaces; }
+
     private Info info(String internalName) {
         Info i = cache.get(internalName);
         if (i != null) return i;

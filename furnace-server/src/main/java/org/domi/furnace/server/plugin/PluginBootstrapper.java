@@ -38,6 +38,7 @@ import org.domi.furnace.server.plugin.library.LibraryResolver;
 import org.domi.furnace.server.plugin.library.LibrarySettings;
 import org.domi.furnace.server.plugin.library.ServerLibraries;
 import org.domi.furnace.server.plugin.library.SharedLibraryLoader;
+import org.domi.furnace.server.plugin.library.SpigotMappingFiles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -430,7 +431,7 @@ public final class PluginBootstrapper {
         PluginManagerImpl.PluginClassLoader loader;
         try {
             Path jar = settings.devMode() ? HotReload.shadowCopy(dir, c.file()) : c.file();
-            org.domi.furnace.api.plugin.ClassTransformer transformer = c.format() != null && settings.compatNms() ? c.format().transformer(d, jar, settings.compatOptions()) : null;
+            org.domi.furnace.api.plugin.ClassTransformer transformer = c.format() != null && settings.compatNms() ? c.format().transformer(d, jar, compatOptionsFor(c)) : null;
             ClassLoader parent = c.format() != null ? sharedLibrariesFor(c) : null;
             loader = new PluginManagerImpl.PluginClassLoader(jar, this, settings.devMode(), libraries, transformer, parent,
                     c.format() == null && !settings.exposeCompatToNative());
@@ -601,6 +602,58 @@ public final class PluginBootstrapper {
                     + "인터넷이 없는 서버라면 jar 를 {} 아래에 두고 plugins.libraries.offline=true 로 켜라", unreachable, resolver().cacheRoot());
         }
         return sharedLoader;
+    }
+
+    // ------------------------------------------------------------------ Spigot 이름 대응표 (H7d, 사용자 결정 9)
+
+    /** furnace.properties 키: off(기본) | download | files. */
+    public static final String SPIGOT_MAPPINGS = "plugins.compat.nms.spigot-mappings";
+    /** 대응표 재료 세 파일 경로(경로 구분자로 이음) — files 모드에서는 운영자가 적고, download 모드에서는 서버가 채운다. 호환 모듈 CompatFormat.SPIGOT_MAPPING_FILES 와 같은 값. */
+    static final String SPIGOT_MAPPING_FILES = "plugins.compat.nms.spigot-mappings.files";
+    /** download 모드에서 준비한 세 파일(경로 구분자로 이음). 실패했으면 "" — 플러그인마다 다시 받지 않는다. null 은 아직 시도 안 함. */
+    private String spigotMappingFiles;
+
+    /**
+     * 이 호환 플러그인에 넘길 plugins.compat.* 설정. jar 가 Spigot 이름 NMS 플러그인일 때만 대응표 재료 경로를 넘긴다: download 면 Mojang·Spigot
+     * 매핑을 (처음 한 번) 받아서, files 면 운영자가 적은 경로 그대로. 받지 못하면 경고하고 넘기지 않는다 — 그 플러그인의 Spigot 이름 NMS 호출만 실패한다.
+     */
+    private synchronized Map<String, String> compatOptionsFor(Candidate c) {
+        Map<String, String> opts = settings.compatOptions();
+        String mode = opts.getOrDefault(SPIGOT_MAPPINGS, "off");
+        if (mode.equals("off")) {
+            if (!opts.containsKey(SPIGOT_MAPPING_FILES)) return opts;
+            Map<String, String> copy = new HashMap<>(opts);
+            copy.remove(SPIGOT_MAPPING_FILES);
+            return copy;
+        }
+        boolean needs;
+        try {
+            needs = SpigotMappingFiles.needs(c.file());
+        } catch (IOException e) {
+            log.warn("Plugin {} 의 jar 를 훑지 못해 Spigot 이름 대응표 판단을 건너뛴다: {}", c.description().fullName(), e.getMessage());
+            needs = false;
+        }
+        Map<String, String> copy = new HashMap<>(opts);
+        if (mode.equals("files")) {
+            if (!needs) copy.remove(SPIGOT_MAPPING_FILES);
+            return copy;
+        }
+        copy.remove(SPIGOT_MAPPING_FILES);
+        if (!needs) return copy;
+        if (spigotMappingFiles == null) {
+            LibrarySettings ls = settings.libraries();
+            SpigotMappingFiles files = new SpigotMappingFiles(ls, ls.cache() != null ? ls.cache() : dir.resolve(LibrarySettings.DEFAULT_CACHE_DIR), log);
+            log.info("Spigot 이름 NMS 플러그인({})이 있어 Spigot → Mojang 이름 대응표를 준비한다({}=download)", c.description().fullName(), SPIGOT_MAPPINGS);
+            try {
+                spigotMappingFiles = files.ensure().joined();
+            } catch (LibraryResolver.LibraryException e) {
+                spigotMappingFiles = "";
+                log.warn("Spigot 이름 대응표를 준비하지 못했다 — {}. Spigot 이름으로 컴파일된 NMS 플러그인(처음: {})의 NMS 호출은 실패한다. "
+                        + "인터넷이 없는 서버라면 파일을 {} 에 두고 plugins.libraries.offline=true 로 켜라", e.getMessage(), c.description().fullName(), files.directory());
+            }
+        }
+        if (!spigotMappingFiles.isEmpty()) copy.put(SPIGOT_MAPPING_FILES, spigotMappingFiles);
+        return copy;
     }
 
     /** 서버 종료 — 공유 로더를 닫는다(호환 플러그인 로더를 다 닫은 뒤). */

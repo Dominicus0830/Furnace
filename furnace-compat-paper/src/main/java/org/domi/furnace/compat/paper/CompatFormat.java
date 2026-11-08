@@ -156,8 +156,30 @@ public final class CompatFormat implements PluginFormat {
     public org.domi.furnace.api.plugin.ClassTransformer transformer(PluginDescription description, java.nio.file.Path jar, Map<String, String> settings) {
         var options = new org.domi.furnace.compat.nms.NmsClassTransformer.Options(
                 Boolean.parseBoolean(settings.getOrDefault("plugins.compat.nms.strict", "false")),
-                "versioned".equalsIgnoreCase(settings.getOrDefault("plugins.compat.nms.version-package", "plain")));
+                "versioned".equalsIgnoreCase(settings.getOrDefault("plugins.compat.nms.version-package", "plain")),
+                spigotMappings(description.name(), settings.get(SPIGOT_MAPPING_FILES)));
         return org.domi.furnace.compat.nms.NmsClassTransformer.forJar(description.name(), jar, options);
+    }
+
+    /**
+     * H7d: 서버가 이 jar 에 Spigot 이름 대응표를 쓰기로 했으면(plugins.compat.nms.spigot-mappings=download 이고 준비됨) 세 파일 경로를
+     * 경로 구분자({@link java.io.File#pathSeparator})로 이어 이 키에 넣는다: Mojang server.txt, Spigot 클래스 csrg, Spigot 멤버 csrg.
+     */
+    public static final String SPIGOT_MAPPING_FILES = "plugins.compat.nms.spigot-mappings.files";
+
+    private static org.domi.furnace.compat.nms.SpigotMappings spigotMappings(String plugin, String files) {
+        if (files == null || files.isBlank()) return null;
+        String[] p = files.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator));
+        if (p.length != 3) {
+            LOG.warn("플러그인 {}: {} 값은 파일 세 개(Mojang server.txt, Spigot 클래스 csrg, 멤버 csrg)여야 한다 — Spigot 이름을 바꾸지 않는다", plugin, SPIGOT_MAPPING_FILES);
+            return null;
+        }
+        try {
+            return org.domi.furnace.compat.nms.SpigotMappings.load(java.nio.file.Path.of(p[0].strip()), java.nio.file.Path.of(p[1].strip()), java.nio.file.Path.of(p[2].strip()));
+        } catch (java.io.IOException | RuntimeException e) {
+            LOG.warn("플러그인 {}: Spigot 이름 대응표를 읽지 못했다({}) — Spigot 이름을 바꾸지 않는다(그 NMS 호출은 실패한다)", plugin, e.toString());
+            return null;
+        }
     }
 
     @Override
