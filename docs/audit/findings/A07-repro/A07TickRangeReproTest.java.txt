@@ -1,0 +1,81 @@
+// A07 재현: 플레이어 시뮬레이션 거리에 따른 "블록이 틱하는 범위".
+// 바닐라 1.21.1(바이트코드 대조):
+//  - 예약 틱(LevelTicks, ServerLevel.d(long) = 엔티티 로드됨 && isPositionTicking)과 블록 이벤트(runBlockEvents 의 shouldTickBlocksAt)는
+//    블록 틱 범위(TickingTracker 레벨 ≤ 32 = 체비셰프 거리 ≤ sim + 1)에서만 돈다. 범위 밖 블록 이벤트는 다음 틱으로 미룬다.
+//  - 블록 엔티티(LevelChunk.isTicking: BLOCK_TICKING 이상 + 엔티티 로드됨 + 보더 안, 그리고 Level.tickBlockEntities 의 shouldTickBlocksAt)도
+//    같은 범위(≤ sim + 1).
+// 장면: 시뮬레이션 거리 4, 시야 10. 플레이어 청크에서 동쪽으로 d 청크 떨어진 곳마다 피스톤(뒤에 레드스톤 블록)과
+// 중계기(뒤에 레드스톤 블록)를 놓고 8틱 뒤 상태를 본다.
+package org.domi.furnace.test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+import org.domi.furnace.server.block.B;
+import org.domi.furnace.server.block.Blocks;
+import org.domi.furnace.server.block.Pos;
+import org.domi.furnace.server.world.ChunkPos;
+import org.junit.jupiter.api.Test;
+
+class A07TickRangeReproTest {
+
+    private static final int[] DISTANCES = {2, 3, 4, 5, 8};
+
+    @Test
+    void scheduledTicksBlockEventsAndBlockEntitiesFollowVanillaTickingRange() {
+        try (var server = FurnaceTestServer.builder().viewDistance(10).serverProperty("simulation-distance", "4").start()) {
+            TestPlayer tp = server.join("Dana");
+            server.tick(5);
+            tp.sync();
+            server.execute("tp Dana 8.5 -60 8.5");   // 스폰 무작위 위치를 피해 청크 (0,0) 가운데에 세운다
+            server.tick(5);
+            tp.sync();
+            server.tick(5);
+            var p = server.internals().playerByName("Dana");
+            int pcx = (int) Math.floor(p.x()) >> 4, pcz = (int) Math.floor(p.z()) >> 4, y = (int) Math.floor(p.y());
+            Blocks bl = Blocks.get();
+            int piston = B.prop("facing").with(B.defaultState(B.id("piston")), "east");
+            int repeater = B.prop("facing").with(B.defaultState(B.id("repeater")), "north");
+            int rb = B.defaultState(B.id("redstone_block"));
+            for (int d : DISTANCES) {
+                int cx = pcx + d;
+                server.loadChunk(cx, pcz);
+                int x = cx * 16 + 4, z = pcz * 16 + 4;
+                server.await(server.internals().world().submitAtChunk(new ChunkPos(cx, pcz), r -> {
+                    var l = r.level();
+                    l.setBlock(new Pos(x, y, z), piston, 3);
+                    l.setBlock(new Pos(x - 1, y, z), rb, 3);
+                    l.setBlock(new Pos(x, y - 1, z + 4), B.defaultState(B.id("stone")), 3);   // 중계기 받침(플레이어 발 높이가 땅 위일 수 있다)
+                    l.setBlock(new Pos(x, y, z + 4), repeater, 3);
+                    l.setBlock(new Pos(x, y, z + 3), rb, 3);
+                    return null;
+                }));
+            }
+            server.tick(8);
+            tp.sync();
+            var p2 = server.internals().playerByName("Dana");
+            String where = "플레이어 청크 처음 (" + pcx + "," + pcz + ") y=" + y + ", 끝 (" + ((int) Math.floor(p2.x()) >> 4) + "," + ((int) Math.floor(p2.z()) >> 4) + ") 좌표 "
+                    + p2.x() + "," + p2.y() + "," + p2.z();
+            Map<Integer, String> got = new LinkedHashMap<>(), want = new LinkedHashMap<>();
+            for (int d : DISTANCES) {
+                int cx = pcx + d;
+                int x = cx * 16 + 4, z = pcz * 16 + 4;
+                String s = server.await(server.internals().world().submitAtChunk(new ChunkPos(cx, pcz), r -> {
+                    var l = r.level();
+                    return bl.describe(l.getBlockState(new Pos(x, y, z))).replace("minecraft:", "") + " | "
+                            + bl.describe(l.getBlockState(new Pos(x + 1, y, z))).replace("minecraft:", "") + " | "
+                            + bl.describe(l.getBlockState(new Pos(x, y, z + 4))).replace("minecraft:", "");
+                }));
+                got.put(d, s);
+                boolean ticking = d <= 4 + 1;   // 바닐라: 체비셰프 ≤ sim + 1
+                want.put(d, ticking
+                        ? "piston[extended=true,facing=east] | piston_head[facing=east,short=false,type=normal] | repeater[delay=1,facing=north,locked=false,powered=true]"
+                        : "piston[extended=false,facing=east] | air | repeater[delay=1,facing=north,locked=false,powered=false]");
+            }
+            StringBuilder table = new StringBuilder();
+            for (int d : DISTANCES) table.append("\n d=").append(d).append(" 기대: ").append(want.get(d)).append("\n     실제: ").append(got.get(d));
+            assertEquals(want, got, "시뮬레이션 거리 4 에서 거리별 상태(" + where + "):" + table);
+        }
+    }
+}
