@@ -116,6 +116,22 @@ class EffectCommandTest {
         assertEquals(0, run(src, "effect clear @e[type=cow]"));
     }
 
+    /** 포화는 즉시 효과: 기본 /effect give 는 음식 +1 만 주고 효과 목록에 남지 않는다. */
+    @Test
+    void saturationGivenToPlayerIsInstantAndNotListed() throws Exception {
+        var ch = new EmbeddedChannel();
+        var p = new Player(10, UUID.randomUUID(), "Steve", ch);
+        p.applyMove(0, -60, 0, 0, 0, true);
+        var src = CommandSource.player(core, p).withPermission(2);
+        p.vitals().setFoodLevel(5);
+        assertEquals(1, run(src, "effect give @s minecraft:saturation"));
+        assertEquals(6, p.vitals().foodLevel());
+        assertFalse(p.vitals().hasEffect(MobEffect.SATURATION));
+        assertEquals(1, run(src, "effect give @s minecraft:saturation 30 2"));
+        assertEquals(9, p.vitals().foodLevel());
+        assertFalse(p.vitals().hasEffect(MobEffect.SATURATION));
+    }
+
     @Test
     void hiddenParticlesAreNotSent_andNonLivingEntitiesAreSkipped() throws Exception {
         Cow c = spawn(l -> new Cow(l, l.nextEntityId()), 0.5);
