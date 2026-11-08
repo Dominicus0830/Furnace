@@ -170,9 +170,15 @@ final class Mappings {
                 f -> new org.bukkit.event.server.ServerLoadEvent(org.bukkit.event.server.ServerLoadEvent.LoadType.STARTUP), (f, b) -> {});
     }
 
-    /** 창 칸 가운데 그 아이템과 같은 종류가 있는가(CraftBukkit 이 두 인벤토리의 contains(Material) 로 보는 것 — 갑옷·왼손 칸은 창에 없어 보지 않는다). */
+    /**
+     * 위쪽·아래쪽 인벤토리에 그 아이템과 같은 종류가 있는가 — CraftBukkit 이 두 인벤토리의 contains(Material) 로 보는 것. contains 는
+     * getStorageContents 만 보므로 플레이어 인벤토리 창(minecraft:player)에서는 제작 칸(0..4)·갑옷(5..8)·왼손(45)을 빼고 주 36칸(9..44)만 본다.
+     */
     private static boolean sameTypeIn(org.domi.furnace.api.inventory.InventorySnapshot snap, org.domi.furnace.api.item.ItemStack item) {
-        for (var s : snap.contents()) if (!s.isEmpty() && s.type().equals(item.type())) return true;
+        var c = snap.contents();
+        boolean playerWindow = snap.type().equals("minecraft:player");
+        int from = playerWindow ? 9 : 0, to = playerWindow ? Math.min(45, c.size()) : c.size();
+        for (int i = from; i < to; i++) if (!c.get(i).isEmpty() && c.get(i).type().equals(item.type())) return true;
         return false;
     }
 

@@ -77,7 +77,7 @@ Furnace `PlayerDeathEvent` → Bukkit `PlayerDeathEvent`(Bukkit 에서 `EntityDe
 4. 플러그인 인벤토리가 아닌 창(상자·화로 블록 등)의 위쪽 칸은 이벤트 순간의 읽기 전용 사본이다. 쓰기는 `UnsupportedFeature`, `getHolder()` 는 null, 상자 모양 창의 종류는 모두 `CHEST`, 제목은 기본 제목. 이벤트 밖 `getOpenInventory()` 로는 내용을 읽을 수 없다.
 5. 블록·엔티티 보관함을 `openInventory` 로 여는 것은 `UnsupportedFeature`. `Inventory#getViewers()` 는 플러그인 인벤토리만 안다.
 6. `InventoryView#setCursor`·`InventoryDragEvent#setCursor` 는 `UnsupportedFeature`(Furnace 이벤트가 커서를 되쓰지 않는다). `getCursor` 는 열기 이벤트에서 빈 스택, 닫기 이벤트와 이벤트 밖 `getOpenInventory()` 에서 `UnsupportedFeature`.
-7. 칸이 그 아이템을 받거나 내줄 수 있는지(`mayPlace`·`mayPickup`)는 Furnace 이벤트가 알리지 않아 "비었거나 같은 아이템"으로 본다 — 끌어 나누기의 칸 목록과 클릭의 `InventoryAction`(갑옷 칸·결과 칸 등)이 Paper 와 다를 수 있다. `COLLECT_TO_CURSOR` 는 창에 보이는 칸만 보고 정한다(Paper 는 갑옷·왼손 칸도 본다). 끌어 나누기 도중 다른 종류 클릭의 action 은 Paper 의 `NOTHING` 대신 보통 규칙을 따른다.
+7. 칸이 그 아이템을 받거나 내줄 수 있는지(`mayPlace`·`mayPickup`)는 Furnace 이벤트가 알리지 않아 "비었거나 같은 아이템"으로 본다 — 끌어 나누기의 칸 목록과 클릭의 `InventoryAction`(갑옷 칸·결과 칸 등)이 Paper 와 다를 수 있다. `COLLECT_TO_CURSOR` 는 Paper 처럼 위쪽 칸과 플레이어 주 36칸(`getStorageContents`)만 보고 정한다(플레이어 인벤토리 창의 제작·갑옷·왼손 칸은 보지 않는다). 끌어 나누기 도중 다른 종류 클릭의 action 은 Paper 의 `NOTHING` 대신 보통 규칙을 따른다.
 8. 제작 결과 칸 꺼내기(Bukkit `CraftItemEvent`)는 다리가 없다 — 그 클릭은 `InventoryClickEvent` 도 내지 않는다.
 9. `EntityDeathEvent`·`PlayerDeathEvent` 모두 `getDrops`·`getDroppedExp`·`setDroppedExp`·취소가 `UnsupportedFeature`(Furnace 사망 이벤트가 싣지 않음). 흔한 `setKeepInventory(true); getDrops().clear();` 는 keepInventory 는 되지만 그 줄에서 던진다 — 후속으로 Furnace 사망 이벤트에 떨어뜨릴 목록을 실어야 한다. `PlayerDeathEvent` 의 새 경험치·레벨 메서드도 같다.
 10. 보스바 보는 사람 목록은 접속이 끊겨도 저절로 비지 않는다(Paper 와 같다). 다시 접속한 플레이어는 새 객체라 다시 `addPlayer` 해야 한다.
