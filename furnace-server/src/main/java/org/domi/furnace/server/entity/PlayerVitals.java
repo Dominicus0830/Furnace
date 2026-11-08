@@ -117,11 +117,11 @@ public final class PlayerVitals {
     private volatile Env env = Env.DEFAULT;
     private volatile DeathListener deathListener;
 
-    private GameMode gameMode = GameMode.SURVIVAL;
+    private volatile GameMode gameMode = GameMode.SURVIVAL;
     private GameMode previousGameMode;
     private final Abilities abilities = new Abilities();
 
-    private float health = MAX_HEALTH;
+    private volatile float health = MAX_HEALTH;
     private float absorption;
     private final java.util.Map<MobEffect, MobEffectInstance> effects = new java.util.LinkedHashMap<>();
     private final java.util.List<Object[]> pendingEffectHurts = new java.util.ArrayList<>();
@@ -349,7 +349,7 @@ public final class PlayerVitals {
 
     // ------------------------------------------------------------------ 게임 모드
 
-    public synchronized GameMode gameMode() { return gameMode; }
+    public GameMode gameMode() { return gameMode; }
 
     public synchronized GameMode previousGameMode() { return previousGameMode; }
 
@@ -404,7 +404,7 @@ public final class PlayerVitals {
 
     public synchronized float health() { return health; }
 
-    public synchronized boolean isDeadOrDying() { return health <= 0.0f; }
+    public boolean isDeadOrDying() { return health <= 0.0f; }
 
     public synchronized boolean removedAfterDeath() { return removedAfterDeath; }
 
