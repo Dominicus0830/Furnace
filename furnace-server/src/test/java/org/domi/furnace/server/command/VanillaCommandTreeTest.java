@@ -44,7 +44,7 @@ class VanillaCommandTreeTest {
 
     static ServerCore core(Path tmp, FurnaceSchedulerImpl sched) { return org.domi.furnace.server.TestServers.core(tmp, sched); }
 
-    private static List<Node> decode(CommandTreePacket p, int[] rootOut) {
+    static List<Node> decode(CommandTreePacket p, int[] rootOut) {
         ByteBuf b = Unpooled.buffer();
         p.write(b);
         int n = Types.readVarInt(b);
@@ -190,13 +190,14 @@ class VanillaCommandTreeTest {
             int checked = 0;
             for (int c : nodes.get(root[0]).children()) {
                 String name = nodes.get(c).name();
+                if (name.startsWith("minecraft:")) continue;   // Paper 식 이름공간 별칭은 NamespacedCommandsTest 가 본다
                 assertTrue(vanilla.has(name), "바닐라에 없는 명령: " + name);
                 compare("/" + name, vanilla.getAsJsonObject(name), nodes, c, root[0]);
                 checked++;
             }
             assertTrue(checked >= 18, "검사한 명령 수 " + checked);
             TreeSet<String> registered = new TreeSet<>();
-            for (int c : nodes.get(root[0]).children()) registered.add(nodes.get(c).name());
+            for (int c : nodes.get(root[0]).children()) if (!nodes.get(c).name().startsWith("minecraft:")) registered.add(nodes.get(c).name());
             for (String name : MOVEMENT_COMMANDS) assertTrue(registered.contains(name), "등록돼 있어야 하는 명령: " + name);
             // jfr 은 JFR 을 쓸 수 있는 JVM 에서만 등록된다(바닐라 JvmProfiler.isAvailable)
             for (String name : PROFILING_COMMANDS) {
@@ -217,7 +218,7 @@ class VanillaCommandTreeTest {
             // 권한 0 이면 help·list·me·msg·random·teammsg·tell·tm·trigger·w 만(바닐라 random·teammsg·trigger 는 requires 가 없다)
             List<Node> guest = decode(core.commands().treeFor(CommandSource.forProfile(core, "Guest", 0)), root);
             TreeSet<String> names = new TreeSet<>();
-            for (int c : guest.get(root[0]).children()) names.add(guest.get(c).name());
+            for (int c : guest.get(root[0]).children()) if (!guest.get(c).name().startsWith("minecraft:")) names.add(guest.get(c).name());
             assertEquals(new TreeSet<>(List.of("help", "list", "me", "msg", "random", "teammsg", "tell", "tm", "trigger", "w")), names);
             // 바닐라 권한 레벨 3 명령(KickCommand 등)은 레벨 2 트리에 없고 레벨 3 트리에 있다
             for (String name : List.of("kick", "ban", "op", "deop", "whitelist")) {

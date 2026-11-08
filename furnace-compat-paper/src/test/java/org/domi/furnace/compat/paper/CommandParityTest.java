@@ -160,6 +160,34 @@ class CommandParityTest {
         }
     }
 
+    /** Paper 1.21.1 은 바닐라 명령마다 minecraft:이름 노드를 만든다 — dispatchCommand 도 같은 줄 정리로 돌고, 없는 이름만 false. */
+    @Test
+    void minecraftPrefixedVanillaCommandsDispatchLikePaper() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            int from = server.consoleMessages().size();
+            assertTrue(server.onGlobal(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "minecraft:say hi")));
+            assertTrue(server.onGlobal(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "MINECRAFT:SAY  a   b ")));
+            assertTrue(server.onGlobal(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "minecraft:time  query   daytime")));
+            assertTrue(server.onGlobal(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "minecraft:tp @a 0 70 0")), "별칭의 별칭도 접두로 통한다");
+            server.tick(2);
+            var after = server.consoleMessages().subList(from, server.consoleMessages().size()).stream().map(t -> t.plainText()).toList();
+            assertTrue(after.stream().noneMatch(s -> s.contains("Unknown or incomplete") && !s.contains("tp")), "오류 없이 돌았다: " + after);
+            assertTrue(after.stream().anyMatch(s -> s.endsWith("hi")), after.toString());
+            assertTrue(after.stream().anyMatch(s -> s.endsWith("a b")), after.toString());
+            assertTrue(after.stream().anyMatch(s -> s.startsWith("The time is")), after.toString());
+
+            // 모르는 접두는 없는 이름이라 false + 바닐라 오류 문장, 플러그인 접두("parity:echo")는 옛 명령 길로 돈다
+            int mark = server.consoleMessages().size();
+            assertFalse(server.onGlobal(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "minecraft:no-such x")));
+            assertFalse(server.onGlobal(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "bukkit:say x")));
+            server.tick();
+            assertTrue(server.consoleMessages().subList(mark, server.consoleMessages().size()).stream()
+                    .anyMatch(t -> t.plainText().contains("Unknown or incomplete command")));
+            assertTrue(server.onGlobal(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "parity:echo  1  2")));
+            assertTrue(CommandProbe.LOG.stream().anyMatch(l -> l.startsWith("echo:") && l.endsWith("|1|2|n=2")), CommandProbe.LOG.toString());
+        }
+    }
+
     // ------------------------------------------------------------------ 채팅 명령 기록
 
     @Test
