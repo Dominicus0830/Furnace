@@ -13,7 +13,7 @@ final class CompatSender implements CommandSender {
     org.domi.furnace.api.command.CommandSender handle() { return handle; }
 
     @Override
-    public void sendMessage(String message) { handle.sendMessage(Compat.text(message)); }
+    public void sendMessage(String message) { handle.sendMessage(Compat.message(message)); }
 
     @Override
     public void sendMessage(String... messages) {

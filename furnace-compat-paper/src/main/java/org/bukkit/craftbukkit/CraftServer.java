@@ -141,7 +141,7 @@ public final class CraftServer implements Server {
 
     @Override
     public int broadcastMessage(String message) {
-        f().broadcast(Compat.text(message));
+        f().broadcast(Compat.message(message));
         return f().onlinePlayers().size();
     }
 

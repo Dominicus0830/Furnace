@@ -11,6 +11,8 @@ public final class PlayerKickEvent extends PlayerEvent implements Cancellable {
 
     private Text reason;
     private boolean cancelled;
+    private Text leaveMessage;
+    private boolean leaveMessageSet;
 
     @Override
     public boolean isCancelled() { return cancelled; }
@@ -27,4 +29,21 @@ public final class PlayerKickEvent extends PlayerEvent implements Cancellable {
     public Text reason() { return reason; }
 
     public void setReason(Text reason) { this.reason = Objects.requireNonNull(reason, "reason"); }
+
+    /**
+     * 내보낸 뒤 모두에게 보일 퇴장 알림(기본: 노란 "multiplayer.player.left"). 바꾸면 그 값이 PlayerQuitEvent 의 처음 퇴장 메시지가 된다
+     * (Paper·Spigot 의 PlayerKickEvent#leaveMessage). null 이면 알림이 없다.
+     */
+    public Text leaveMessage() {
+        if (leaveMessageSet) return leaveMessage;
+        return Text.translatable("multiplayer.player.left", player().displayName()).color(org.domi.furnace.api.text.NamedTextColor.YELLOW);
+    }
+
+    public void leaveMessage(Text message) {
+        this.leaveMessage = message;
+        this.leaveMessageSet = true;
+    }
+
+    /** 처리기가 퇴장 알림을 정했는가(정하지 않았으면 서버가 평소대로 만든다). */
+    public boolean hasLeaveMessage() { return leaveMessageSet; }
 }
