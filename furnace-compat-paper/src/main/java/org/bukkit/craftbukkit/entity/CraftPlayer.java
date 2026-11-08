@@ -101,6 +101,32 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
         handle.setGameMode(org.domi.furnace.api.entity.GameMode.valueOf(mode.name()));
     }
 
+    // ---- 플러그인 메시지
+
+    /**
+     * CraftPlayer.sendPluginMessage 와 같다: 검사(켜진 플러그인·보내는 채널 등록·1 MiB) 뒤, 클라이언트가 그 채널을 알렸을 때만 보낸다.
+     * "BungeeCord" 는 "bungeecord:main" 으로 나간다. 접속이 끊겼으면 아무 일도 없다.
+     */
+    @Override
+    public void sendPluginMessage(org.bukkit.plugin.Plugin source, String channel, byte[] message) {
+        org.bukkit.plugin.messaging.StandardMessenger.validatePluginMessage(Compat.messenger(), source, channel, message);
+        if (!handle.isOnline()) return;
+        // 선 이름("bungeecord:main")으로 바꿔 찾는다 — getListeningPluginChannels().contains(channel) 과 같은 결과, 집합을 만들지 않는다
+        String wire = org.bukkit.plugin.messaging.StandardMessenger.validateAndCorrectChannel(channel);
+        if (handle.listeningPluginChannels().contains(wire)) handle.sendPluginMessage(wire, message);
+    }
+
+    /** 클라이언트가 minecraft:register 로 알린 채널(Bukkit 이름 — "bungeecord:main" 은 "BungeeCord", Bukkit 이 받지 않는 이름은 뺀다). */
+    @Override
+    public java.util.Set<String> getListeningPluginChannels() {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        for (String wire : handle.listeningPluginChannels()) {
+            String name = org.domi.furnace.compat.paper.CompatMessenger.bukkitName(wire);
+            if (name != null) out.add(name);
+        }
+        return java.util.Collections.unmodifiableSet(out);
+    }
+
     // ---- CommandSender / Permissible
 
     @Override

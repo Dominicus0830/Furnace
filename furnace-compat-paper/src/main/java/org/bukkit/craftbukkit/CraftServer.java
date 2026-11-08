@@ -163,6 +163,24 @@ public final class CraftServer implements Server {
     public ServicesManager getServicesManager() { return Compat.services(); }
 
     @Override
+    public org.bukkit.plugin.messaging.Messenger getMessenger() { return Compat.messenger(); }
+
+    /** 모든 접속자에게(각자 그 채널을 알린 클라이언트에만 간다 — CraftServer 와 같다). */
+    @Override
+    public void sendPluginMessage(org.bukkit.plugin.Plugin source, String channel, byte[] message) {
+        org.bukkit.plugin.messaging.StandardMessenger.validatePluginMessage(getMessenger(), source, channel, message);
+        for (Player player : getOnlinePlayers()) player.sendPluginMessage(source, channel, message);
+    }
+
+    /** 접속자들이 알린 채널의 합. */
+    @Override
+    public java.util.Set<String> getListeningPluginChannels() {
+        java.util.Set<String> result = new java.util.HashSet<>();
+        for (Player player : getOnlinePlayers()) result.addAll(player.getListeningPluginChannels());
+        return result;
+    }
+
+    @Override
     public boolean isPrimaryThread() { return org.domi.furnace.compat.thread.PrimaryThread.isPrimary(); }
 
     @Override

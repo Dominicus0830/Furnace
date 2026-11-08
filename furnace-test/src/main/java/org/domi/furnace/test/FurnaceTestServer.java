@@ -297,10 +297,13 @@ public final class FurnaceTestServer implements AutoCloseable {
      * 접속 처리가 끝나 서버 접속자 목록에 들 때까지 기다린다(틱은 내지 않는다). 기본은 op 가 아니다 — 명령·채팅을 짧은 사이에 10번 넘게
      * 보내면 바닐라 스팸 감지(벽시계)에 쫓겨나니, 그런 시험은 먼저 execute("op 이름") 를 부른다.
      */
-    public TestPlayer join(String name) {
+    public TestPlayer join(String name) { return join(name, new String[0]); }
+
+    /** {@link #join(String)} 과 같고, 구성 단계에서 그 채널들을 minecraft:register 로 알린다(모드 클라이언트·프록시처럼). */
+    public TestPlayer join(String name, String... configChannels) {
         checkOpen();
         ensureNetwork();
-        TestPlayer p = TestPlayer.connect(this, port, name);
+        TestPlayer p = TestPlayer.connect(this, port, name, configChannels);
         players.add(p);
         return p;
     }

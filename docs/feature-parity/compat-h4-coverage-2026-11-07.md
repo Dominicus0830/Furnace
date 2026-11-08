@@ -30,17 +30,17 @@
 | `bstats-bukkit-3.2.1.jar` | 라이브러리 | 1 | 28 | 1 | 96.4% |
 | `cloud-bukkit-2.0.1.jar` | 라이브러리 | 111 | 93 | 5 | 94.6% |
 | `cloud-paper-2.0.1.jar` | 라이브러리 | 38 | 103 | 67 | 35.0% |
-| `commandapi-bukkit-core-12.1.0.jar` | 라이브러리 | 155 | 147 | 49 | 66.7% |
-| `commandapi-bukkit-plugin-10.1.2.jar` | 플러그인 | 308 | 272 | 105 | 61.4% |
+| `commandapi-bukkit-core-12.1.0.jar` | 라이브러리 | 155 | 147 | 38 | 74.1% |
+| `commandapi-bukkit-plugin-10.1.2.jar` | 플러그인 | 308 | 272 | 94 | 65.4% |
 | `commodore-2.2.jar` | 라이브러리 | 12 | 26 | 8 | 69.2% |
 | `fastboard-2.2.2.jar` | 라이브러리 | 8 | 13 | 0 | 100.0% |
-| `helper-5.6.14.jar` | 플러그인 | 1197 | 441 | 184 | 58.3% |
+| `helper-5.6.14.jar` | 플러그인 | 1197 | 441 | 176 | 60.1% |
 
 ## 2. 종류별 요구와 빠짐 (전체 jar 합집합)
 
 | 종류 | 요구 클래스 | 없는 클래스 | 요구 멤버(있는 클래스 기준) | 없는 멤버 | 없는 클래스의 멤버 호출 |
 |---|---:|---:|---:|---:|---:|
-| Bukkit API | 291 | 206 | 663 | 167 | 730 |
+| Bukkit API | 291 | 203 | 671 | 166 | 713 |
 | Paper API | 25 | 25 | 0 | 0 | 49 |
 | Spigot·BungeeChat | 6 | 6 | 0 | 0 | 19 |
 | CraftBukkit | 358 | 356 | 2 | 0 | 427 |
@@ -50,7 +50,7 @@
 
 ## 3. 없는 Bukkit 계열 클래스 순위 (요구하는 jar 수 → 멤버 호출 수)
 
-전체 237개 중 위 80개. 이 순서가 다음 묶음의 우선순위 후보다.
+전체 234개 중 위 80개. 이 순서가 다음 묶음의 우선순위 후보다.
 
 | 클래스 | jar 수 | 멤버 호출(합) |
 |---|---:|---:|
@@ -62,14 +62,12 @@
 | `org.bukkit.scoreboard.DisplaySlot` | 3 | 19 |
 | `org.bukkit.boss.BarColor` | 3 | 16 |
 | `org.bukkit.boss.BarStyle` | 3 | 12 |
-| `org.bukkit.plugin.messaging.Messenger` | 3 | 12 |
 | `org.bukkit.command.ProxiedCommandSender` | 3 | 9 |
 | `net.md_5.bungee.api.ChatMessageType` | 3 | 5 |
 | `org.bukkit.entity.Player$Spigot` | 3 | 5 |
 | `org.bukkit.boss.BarFlag` | 3 | 4 |
 | `org.bukkit.block.Biome` | 3 | 2 |
 | `org.bukkit.Sound` | 3 | 1 |
-| `org.bukkit.plugin.messaging.PluginMessageListener` | 3 | 1 |
 | `org.bukkit.inventory.InventoryView` | 2 | 19 |
 | `org.bukkit.event.inventory.InventoryClickEvent` | 2 | 14 |
 | `org.bukkit.Color` | 2 | 13 |
@@ -84,7 +82,6 @@
 | `org.bukkit.command.RemoteConsoleCommandSender` | 2 | 4 |
 | `org.bukkit.event.inventory.ClickType` | 2 | 4 |
 | `org.bukkit.event.inventory.InventoryCloseEvent` | 2 | 4 |
-| `org.bukkit.event.player.PlayerRegisterChannelEvent` | 2 | 4 |
 | `net.md_5.bungee.api.chat.TextComponent` | 2 | 3 |
 | `org.bukkit.Particle` | 2 | 3 |
 | `org.bukkit.event.inventory.InventoryOpenEvent` | 2 | 3 |
@@ -134,6 +131,9 @@
 | `com.destroystokyo.paper.event.brigadier.CommandRegisteredEvent` | 1 | 4 |
 | `org.bukkit.Note` | 1 | 4 |
 | `org.bukkit.block.Banner` | 1 | 4 |
+| `org.bukkit.entity.AbstractHorse` | 1 | 4 |
+| `org.bukkit.entity.Bee` | 1 | 4 |
+| `org.bukkit.inventory.meta.FireworkMeta` | 1 | 4 |
 
 ### 패키지별 (없는 클래스 수, 그 클래스들의 멤버 호출 합)
 
@@ -147,13 +147,12 @@
 | `org.bukkit.event.inventory` | 9 | 37 |
 | `org.bukkit.scoreboard` | 5 | 26 |
 | `org.bukkit.block` | 7 | 25 |
-| `org.bukkit.event.player` | 9 | 20 |
 | `org.bukkit.potion` | 4 | 20 |
+| `org.bukkit.event.player` | 8 | 16 |
 | `org.bukkit.map` | 2 | 16 |
 | `org.bukkit.material` | 8 | 15 |
 | `org.bukkit.block.data` | 7 | 14 |
 | `org.bukkit.command` | 3 | 14 |
-| `org.bukkit.plugin.messaging` | 2 | 13 |
 | `org.bukkit.attribute` | 4 | 10 |
 | `org.bukkit.event.entity` | 6 | 10 |
 | `com.destroystokyo.paper.event.brigadier` | 2 | 8 |
@@ -190,14 +189,12 @@
 
 ## 4. 클래스는 있는데 없는 멤버 순위
 
-전체 271개 중 위 120개 (요구하는 jar 수 순).
+전체 270개 중 위 120개 (요구하는 jar 수 순).
 
 | 멤버 | jar 수 |
 |---|---:|
 | `net.minecraft.server.MinecraftServer#server` | 9 |
 | `org.bukkit.entity.Player#updateCommands()V` | 4 |
-| `org.bukkit.Server#getMessenger()Lorg/bukkit/plugin/messaging/Messenger;` | 3 |
-| `org.bukkit.entity.Player#sendPluginMessage(Lorg/bukkit/plugin/Plugin;Ljava/lang/String;[B)V` | 3 |
 | `org.bukkit.entity.Player#spigot()Lorg/bukkit/entity/Player$Spigot;` | 3 |
 | `org.bukkit.util.Vector#multiply(I)Lorg/bukkit/util/Vector;` | 3 |
 | `net.minecraft.server.MinecraftServer#ax` | 2 |
@@ -314,6 +311,8 @@
 | `net.minecraft.world.item.ItemStack#e()Lnet/minecraft/core/component/DataComponentPatch;` | 1 |
 | `net.minecraft.world.item.ItemStack#e()Z` | 1 |
 | `net.minecraft.world.item.ItemStack#f` | 1 |
+| `net.minecraft.world.item.ItemStack#f()Z` | 1 |
+| `net.minecraft.world.item.ItemStack#g()Lnet/minecraft/world/item/Item;` | 1 |
 
 ## 5. CraftBukkit·net.minecraft 요구 (H5~H7 의 수요)
 
@@ -434,11 +433,11 @@
 
 ### `commandapi-bukkit-core-12.1.0.jar`
 
-없는 클래스 18개: `DisplaySlot`(7), `ProxiedCommandSender`(4), `Messenger`(4), `RemoteConsoleCommandSender`(2), `PlayerRegisterChannelEvent`(2), `ComponentSerializer`(1), `FluidCollisionMode`(1), `Biome`(1), `PluginMessageListener`(1), `Objective`(1), `Team`(1), `Sound`, `Advancement`, `BlockState`, `HelpTopic`, `Recipe`, `LootTable`, `PotionEffectType`
+없는 클래스 15개: `DisplaySlot`(7), `ProxiedCommandSender`(4), `RemoteConsoleCommandSender`(2), `ComponentSerializer`(1), `FluidCollisionMode`(1), `Biome`(1), `Objective`(1), `Team`(1), `Sound`, `Advancement`, `BlockState`, `HelpTopic`, `Recipe`, `LootTable`, `PotionEffectType`
 
 ### `commandapi-bukkit-plugin-10.1.2.jar`
 
-없는 클래스 36개: `DisplaySlot`(7), `GlobalRegionScheduler`(4), `ProxiedCommandSender`(4), `Messenger`(4), `Axis`(3), `Color`(3), `ComponentSerializer`(2), `Registry`(2), `RemoteConsoleCommandSender`(2), `PlayerRegisterChannelEvent`(2), `Scoreboard`(2), `AsyncScheduler`(1), `TextComponent`(1), `FluidCollisionMode`(1), `Particle`(1), `Particle$DustOptions`(1), `Particle$DustTransition`(1), `Particle$Trail`(1), `Sound`(1), `Vibration`(1), `Vibration$Destination$BlockDestination`(1), `Biome`(1), `HelpTopic`(1), `Recipe`(1), `Permission`(1), `PotionEffectType`(1), `Objective`(1), `ScoreboardManager`(1), `Team`(1), `PluginMeta` …
+없는 클래스 33개: `DisplaySlot`(7), `GlobalRegionScheduler`(4), `ProxiedCommandSender`(4), `Axis`(3), `Color`(3), `ComponentSerializer`(2), `Registry`(2), `RemoteConsoleCommandSender`(2), `Scoreboard`(2), `AsyncScheduler`(1), `TextComponent`(1), `FluidCollisionMode`(1), `Particle`(1), `Particle$DustOptions`(1), `Particle$DustTransition`(1), `Particle$Trail`(1), `Sound`(1), `Vibration`(1), `Vibration$Destination$BlockDestination`(1), `Biome`(1), `HelpTopic`(1), `Recipe`(1), `Permission`(1), `PotionEffectType`(1), `Objective`(1), `ScoreboardManager`(1), `Team`(1), `PluginMeta`, `BaseComponent`, `Vibration$Destination` …
 
 ### `commodore-2.2.jar`
 
@@ -450,5 +449,5 @@
 
 ### `helper-5.6.14.jar`
 
-없는 클래스 37개: `ArmorStand`(18), `BossBar`(14), `BarColor`(9), `Pig`(9), `BarStyle`(7), `InventoryClickEvent`(5), `DisplaySlot`(5), `Messenger`(4), `BukkitObjectInputStream`(4), `BukkitObjectOutputStream`(4), `EntityDamageByEntityEvent`(3), `AsyncPlayerPreLoginEvent`(3), `PlayerInteractEntityEvent`(3), `BaseComponent`(2), `ConfigurationSerialization`(2), `Player$Spigot`(2), `PigZapEvent`(2), `ClickType`(2), `InventoryCloseEvent`(2), `InventoryDragEvent`(2), `InventoryOpenEvent`(2), `AsyncPlayerPreLoginEvent$Result`(2), `PlayerFishEvent`(2), `ChatMessageType`(1), `ComponentSerializer`(1), `CreatureSpawnEvent$SpawnReason`(1), `PlayerDeathEvent`(1), `PlayerLoginEvent`(1), `PlayerLoginEvent$Result`(1), `LeatherArmorMeta`(1) …
+없는 클래스 35개: `ArmorStand`(18), `BossBar`(14), `BarColor`(9), `Pig`(9), `BarStyle`(7), `InventoryClickEvent`(5), `DisplaySlot`(5), `BukkitObjectInputStream`(4), `BukkitObjectOutputStream`(4), `EntityDamageByEntityEvent`(3), `AsyncPlayerPreLoginEvent`(3), `PlayerInteractEntityEvent`(3), `BaseComponent`(2), `ConfigurationSerialization`(2), `Player$Spigot`(2), `PigZapEvent`(2), `ClickType`(2), `InventoryCloseEvent`(2), `InventoryDragEvent`(2), `InventoryOpenEvent`(2), `AsyncPlayerPreLoginEvent$Result`(2), `PlayerFishEvent`(2), `ChatMessageType`(1), `ComponentSerializer`(1), `CreatureSpawnEvent$SpawnReason`(1), `PlayerDeathEvent`(1), `PlayerLoginEvent`(1), `PlayerLoginEvent$Result`(1), `LeatherArmorMeta`(1), `FixedMetadataValue`(1) …
 

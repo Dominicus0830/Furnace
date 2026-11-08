@@ -12,6 +12,7 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
+import org.bukkit.event.player.PlayerChannelEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerExpChangeEvent;
 import org.bukkit.event.player.PlayerGameModeChangeEvent;
@@ -69,6 +70,8 @@ public final class RecorderPlugin extends JavaPlugin implements Listener {
     }
 
     @EventHandler public void on(PlayerJoinEvent e) { rec(e); }
+
+    @EventHandler public void on(PlayerChannelEvent e) { rec(e); }
 
     @EventHandler public void on(PlayerQuitEvent e) { rec(e); }
 
