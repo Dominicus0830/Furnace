@@ -37,7 +37,7 @@ public final class CommandTreePacket implements Packet {
     }
 
     /**
-     * sendNamespaced=false 면 루트의 "이름공간:이름" 명령(minecraft:give, 플러그인:명령)을 보내지 않는다
+     * sendNamespaced=false 면 이름에 ':' 가 든 노드(루트의 minecraft:give·플러그인:명령, 하위 리터럴 포함 — Spigot fillUsableCommands 처럼 모든 단계)를 보내지 않는다
      * (Paper spigot.yml commands.send-namespaced=false — 서버에서는 계속 실행된다).
      */
     public static CommandTreePacket forSource(RootCommandNode<CommandSource> root, CommandSource source, boolean sendNamespaced) {
@@ -74,7 +74,7 @@ public final class CommandTreePacket implements Packet {
                                 Map<CommandNode<CommandSource>, List<CommandNode<CommandSource>>> usable, boolean sendNamespaced) {
         List<CommandNode<CommandSource>> kept = new ArrayList<>();
         for (CommandNode<CommandSource> child : node.getChildren()) {
-            if (!sendNamespaced && node instanceof RootCommandNode && child.getName().indexOf(':') >= 0) continue;
+            if (!sendNamespaced && child.getName().indexOf(':') >= 0) continue;   // Paper/Spigot: 모든 단계에서 ':' 든 자식을 뺀다
             if (!child.canUse(source)) continue;
             kept.add(child);
             if (!usable.containsKey(child)) collect(child, source, usable, sendNamespaced);

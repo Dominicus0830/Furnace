@@ -217,4 +217,106 @@ class PaperSchedulersTest {
             assertEquals(1, runs.get());
         }
     }
+
+    // ---- Paper 1.21.1 FoliaAsyncScheduler: 이름 붙은 플랫폼 풀
+
+    @Test
+    void asyncSchedulerRunsOnAPaperShapedPlatformPool() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            assertTrue(p.paper.usesPlatformThreads());
+            AtomicReference<Thread> now = new AtomicReference<>(), delayed = new AtomicReference<>(), rep = new AtomicReference<>();
+            CountDownLatch all = new CountDownLatch(3);
+            p.paper.async().runNow(p, t -> {
+                now.set(Thread.currentThread());
+                all.countDown();
+            });
+            p.paper.async().runDelayed(p, t -> {
+                delayed.set(Thread.currentThread());
+                all.countDown();
+            }, 20, TimeUnit.MILLISECONDS);
+            CompatTask task = p.paper.async().runAtFixedRate(p, t -> {
+                if (rep.compareAndSet(null, Thread.currentThread())) all.countDown();
+            }, 0, 10, TimeUnit.MILLISECONDS);
+            assertTrue(all.await(5, TimeUnit.SECONDS));
+            task.cancel();
+            for (Thread th : new Thread[]{now.get(), delayed.get(), rep.get()}) {
+                assertFalse(th.isVirtual(), "가상 스레드가 아니다");
+                assertTrue(th.getName().matches("Folia Async Scheduler Thread #\\d+"), th.getName());
+                assertTrue(th.isDaemon(), "멈춘 작업이 JVM 종료를 붙잡지 않는다");
+                assertEquals(Thread.NORM_PRIORITY - 1, th.getPriority());
+            }
+            assertTrue(Thread.getAllStackTraces().keySet().stream().anyMatch(t -> t.getName().equals("Folia Async Scheduler Thread Timer")
+                    && t.getPriority() == Thread.NORM_PRIORITY + 1), "시간 재는 스레드(Paper 이름·우선순위)");
+        }
+    }
+
+    /** Paper 풀은 대기열이 없다(SynchronousQueue) — 코어 수보다 많은 작업이 동시에 서 있어도 서로 기다리지 않는다. */
+    @Test
+    void asyncSchedulerPoolDoesNotQueueBehindBlockedTasks() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            int n = Runtime.getRuntime().availableProcessors() * 2 + 8;
+            CountDownLatch started = new CountDownLatch(n), release = new CountDownLatch(1);
+            for (int i = 0; i < n; i++) {
+                Object lock = new Object();
+                p.paper.async().runNow(p, t -> {
+                    synchronized (lock) {
+                        started.countDown();
+                        try {
+                            release.await(10, TimeUnit.SECONDS);
+                        } catch (InterruptedException ignored) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                });
+            }
+            try {
+                assertTrue(started.await(5, TimeUnit.SECONDS), "전부 동시에 선다");
+            } finally {
+                release.countDown();
+            }
+        }
+    }
+
+    @Test
+    void virtualOptionRunsPaperAsyncTasksOnTheServersVirtualThreads() throws Exception {
+        try (var server = FurnaceTestServer.builder().exposeCompatToNative(true).plugin(CompatTestPlugin.class)
+                .compatOption(org.domi.furnace.compat.sched.LegacyScheduler.ASYNC_THREADS_OPTION, "virtual").start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            assertFalse(p.paper.usesPlatformThreads());
+            AtomicReference<Thread> th = new AtomicReference<>();
+            CountDownLatch done = new CountDownLatch(1);
+            p.paper.async().runNow(p, t -> {
+                th.set(Thread.currentThread());
+                done.countDown();
+            });
+            assertTrue(done.await(5, TimeUnit.SECONDS));
+            assertTrue(th.get().isVirtual());
+        }
+    }
+
+    @Test
+    void closingTheSchedulersLetsARunningAsyncTaskFinishWithoutInterrupt() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            CountDownLatch inside = new CountDownLatch(1);
+            AtomicReference<Boolean> interrupted = new AtomicReference<>();
+            CountDownLatch done = new CountDownLatch(1);
+            p.paper.async().runNow(p, t -> {
+                inside.countDown();
+                try {
+                    Thread.sleep(300);
+                    interrupted.set(false);
+                } catch (InterruptedException e) {
+                    interrupted.set(true);
+                }
+                done.countDown();
+            });
+            assertTrue(inside.await(5, TimeUnit.SECONDS));
+            p.paper.close();
+            assertTrue(done.await(5, TimeUnit.SECONDS));
+            assertEquals(Boolean.FALSE, interrupted.get(), "닫아도 도는 작업을 끊지 않는다");
+        }
+    }
 }

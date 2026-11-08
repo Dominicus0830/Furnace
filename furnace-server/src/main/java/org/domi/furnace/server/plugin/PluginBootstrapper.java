@@ -208,6 +208,21 @@ public final class PluginBootstrapper {
         }
     }
 
+    /**
+     * 핫 리로드가 플러그인 몇 개를 끈 직후 — 이미 만들어 둔 형식 어댑터가 그 플러그인의 남은 일을 기다린다(안 만들었다면 그 형식의 플러그인이 없었다).
+     * 어댑터 하나가 던져도 나머지와 리로드는 계속된다.
+     */
+    void awaitPluginTasks(org.domi.furnace.api.Furnace server, java.util.Collection<org.domi.furnace.api.plugin.FurnacePlugin> plugins, long maxMillis) {
+        if (!formats.loaded()) return;
+        for (PluginFormat f : formats.get()) {
+            try {
+                f.awaitPluginTasks(server, plugins, maxMillis);
+            } catch (Throwable t) {
+                log.warn("플러그인 형식 '{}' 의 리로드 대기 실패", f.id(), t);
+            }
+        }
+    }
+
     /** 불러오기에 실패한 플러그인을 뺀다(정리 + 클래스로더 닫기). */
     void drop(Prepared p) {
         forget(p.description().name());

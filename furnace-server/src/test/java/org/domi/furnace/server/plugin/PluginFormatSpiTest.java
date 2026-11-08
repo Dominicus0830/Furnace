@@ -32,6 +32,16 @@ class PluginFormatSpiTest {
         final List<String> created = new ArrayList<>();
         final List<String> events = new ArrayList<>();
         boolean throwAfterDisabled;
+        boolean throwAwait;
+        final List<String> awaited = new ArrayList<>();
+        long awaitedMillis = -1;
+
+        @Override
+        public void awaitPluginTasks(org.domi.furnace.api.Furnace server, java.util.Collection<FurnacePlugin> plugins, long maxMillis) {
+            for (FurnacePlugin p : plugins) awaited.add(p.name() + (p.isEnabled() ? ":enabled" : ":disabled"));
+            awaitedMillis = maxMillis;
+            if (throwAwait) throw new IllegalStateException("기다리기 실패");
+        }
 
         @Override
         public void afterPluginsDisabled(org.domi.furnace.api.Furnace server) {
@@ -87,9 +97,14 @@ class PluginFormatSpiTest {
         sched.close();
     }
 
-    private PluginHost load(Path dir, List<PluginFormat> formats) {
+    private PluginHost load(Path dir, List<PluginFormat> formats) { return load(dir, formats, PluginSettings.DEFAULT); }
+
+    private PluginHost load(Path dir, List<PluginFormat> formats, PluginSettings settings) {
         host = new PluginHost(core, dir);
-        host.pluginsImpl().loadAll(PluginBootstrapper.bootstrap(dir, PluginSettings.DEFAULT, formats));
+        host.pluginsImpl().settings(settings);
+        host.pluginsImpl().retireDelayTicks = 0;
+        host.pluginsImpl().leakCheckMillis = -1;
+        host.pluginsImpl().loadAll(PluginBootstrapper.bootstrap(dir, settings, formats));
         host.pluginsImpl().enableAll();
         return host;
     }
@@ -153,6 +168,22 @@ class PluginFormatSpiTest {
         host.pluginsImpl().disableAll();
         assertEquals(List.of("after"), first.events);
         assertEquals(List.of("after"), second.events);
+    }
+
+    @Test
+    void hotReloadAsksEveryFormatToAwaitTheDisabledPluginsTasksAfterDisablingAndBeforeReloading() throws Exception {
+        Path dir = tmp.resolve("plugins");
+        PluginSystemTest.jar(dir.resolve("a.jar"), "fake.cfg", "name=Alpha\nmain=org.domi.furnace.server.plugin.TestPlugins$Alpha\n", TestPlugins.Alpha.class);
+        FakeFormat first = new FakeFormat(), second = new FakeFormat();
+        first.throwAwait = true;   // 하나가 던져도 다음 형식과 리로드는 계속된다
+        load(dir, List.of(first, second), new PluginSettings(false, null, java.util.Map.of(), true, false));
+        assertTrue(first.awaited.isEmpty(), "처음 켤 때는 안 불린다");
+        java.util.List<String> back = host.pluginsImpl().reloadNow("Alpha");
+        assertEquals(List.of("Alpha"), back, "다시 켜졌다");
+        assertEquals(List.of("Alpha:disabled"), first.awaited, "끈 뒤(다시 읽기 전)에 그 플러그인을 넘긴다");
+        assertEquals(List.of("Alpha:disabled"), second.awaited);
+        assertEquals(2_500, second.awaitedMillis, "Paper reload 와 같은 2.5초");
+        assertTrue(first.events.isEmpty(), "종료 훅(afterPluginsDisabled)은 리로드에서 안 불린다");
     }
 
     @Test

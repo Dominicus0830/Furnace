@@ -7,7 +7,9 @@
 //    그래서 모든 옛 작업이 한 박자를 공유하고, 같은 틱 안의 순서가 Bukkit 과 같으며(반복 작업은 처음 만든 순서를 지킨다),
 //    작업 안에서 runTask 를 하면 같은 틱에 이어서 돈다. 반복 작업의 다음 회차는 이번 비움이 끝난 뒤 들어간다.
 //    운영 서버에서 박동의 간격은 서버의 전역 지연(벽시계 50ms, 느리면 밀림)을 따르고, 시험 서버에서는 tick() 한 번이 한 박동이다.
-//  - 비동기 작업은 박동에서 "도착"한 뒤 비동기 풀로 넘어간다(Bukkit 도 틱 대기열이 먼저 돌고 풀로 넘긴다).
+//  - 비동기 작업은 자기 대기열(PriorityQueue)을 따로 갖고, 박동은 "이번 틱" 메시지를 관리 스레드("Craft Async Scheduler Management Thread", 하나)에 보낼 뿐이다 —
+//    대기열을 비우고 풀로 넘기는 일은 관리 스레드가 한다(Paper Improved-Async-Task-Scheduler: 전역 스레드는 비동기 작업의 정리·스레드 만들기를 안 한다).
+//    박동은 비동기 메시지를 동기 대기열 비우기보다 먼저 보낸다(CraftScheduler.mainThreadHeartbeat 순서) — 그래서 동기 작업이 같은 틱에 건 비동기 작업은 다음 틱에 돈다.
 //    풀은 Paper 1.21.1 CraftAsyncScheduler 와 같은 모양이다: 코어 4·최대 무제한·30초 놀면 정리·대기열 없음(SynchronousQueue), 스레드 이름
 //    "Craft Scheduler Thread - N", 작업이 도는 동안은 "… - 플러그인이름"(Name-craft-scheduler-threads-according-to-the-plugin).
 //    JDK 21 의 가상 스레드는 synchronized 안에서 소켓·파일을 기다리면 운반 스레드를 붙잡으므로(옛 JDBC·풀 라이브러리가 그렇다)
@@ -29,6 +31,8 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.SynchronousQueue;
@@ -54,6 +58,8 @@ public final class LegacyScheduler {
     /** Paper 의 CraftAsyncScheduler 풀 크기(코어 스레드 수). */
     static final int POOL_CORE_THREADS = 4;
     static final long POOL_KEEP_ALIVE_SECONDS = 30;
+    /** Paper 의 비동기 관리 스레드 이름. */
+    public static final String MANAGEMENT_THREAD_NAME = "Craft Async Scheduler Management Thread";
 
     /** 서버 로그(플러그인 접두 없음). */
     private static final org.slf4j.Logger SERVER_LOG = org.slf4j.LoggerFactory.getLogger("Furnace");
@@ -68,9 +74,18 @@ public final class LegacyScheduler {
     /** 몸통이 도는 중인 비동기 작업(취소됐어도 끝나기 전까지 남는다). */
     private final Map<Integer, Task> asyncRunning = new ConcurrentHashMap<>();
     private final PluginTaskBook<Task> book = new PluginTaskBook<>(Task::cancel);
-    /** 대기열: (다음 실행 틱, 번호) 순. queue 의 모니터로 보호한다. */
+    /** 동기 대기열: (다음 실행 틱, 번호) 순. queue 의 모니터로 보호한다. */
     private final PriorityQueue<Task> queue = new PriorityQueue<>(
             Comparator.<Task>comparingLong(t -> t.nextRun).thenComparingInt(t -> t.id));
+    /** 비동기 대기열(CraftAsyncScheduler.pending): 관리 스레드가 비운다. asyncQueue 의 모니터로 보호한다. */
+    private final PriorityQueue<Task> asyncQueue = new PriorityQueue<>(
+            Comparator.<Task>comparingLong(t -> t.nextRun).thenComparingInt(t -> t.id));
+    /** CraftAsyncScheduler.management: 비동기 대기열을 비우고 풀로 넘기는 스레드 하나. */
+    private final ExecutorService management = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, MANAGEMENT_THREAD_NAME);
+        t.setDaemon(true);
+        return t;
+    });
     /** 마지막으로 돈 박동의 틱(처음은 0). 새 작업의 nextRun = tick + 지연 이라 지연 0·1 은 다음 박동에 돈다. */
     private volatile long tick;
     private final ScheduledTask heartbeat;
@@ -110,11 +125,15 @@ public final class LegacyScheduler {
     /** 박동을 멈추고 남은 작업을 모두 취소한다(서버 쪽 소유자가 닫을 때). 돌고 있는 비동기 작업은 끝까지 간다(인터럽트 없음). */
     public void close() {
         heartbeat.cancel();
+        management.shutdown();   // 이미 받은 "이번 틱" 은 마저 비우고(닫힌 풀에 넘기려던 작업은 취소된다), 새 메시지는 안 받는다
         if (ownedPool != null) ownedPool.shutdown();
         List<Task> all;
         synchronized (queue) {
             all = new ArrayList<>(tasks.values());
             queue.clear();
+        }
+        synchronized (asyncQueue) {
+            asyncQueue.clear();
         }
         for (Task t : all) t.cancel();
     }
@@ -249,9 +268,13 @@ public final class LegacyScheduler {
     }
 
     /** 지금 비동기로 도는 작업과 그 스레드(회차가 겹치면 회차마다 하나). */
-    public List<Worker> activeWorkers() {
+    public List<Worker> activeWorkers() { return activeWorkers(p -> true); }
+
+    /** 그 플러그인들이 만든 일꾼만. */
+    public List<Worker> activeWorkers(java.util.function.Predicate<FurnacePlugin> owner) {
         List<Worker> out = new ArrayList<>();
         for (Task t : asyncRunning.values()) {   // 취소됐어도 몸통이 끝나기 전까지는 일꾼이다(CraftAsyncTask.cancel0)
+            if (!owner.test(t.plugin)) continue;
             for (Thread th : t.asyncThreads) out.add(new Worker(t.id, t.plugin, th));
         }
         out.sort(Comparator.comparingInt(Worker::taskId));
@@ -271,22 +294,45 @@ public final class LegacyScheduler {
 
     /** @param nag 남은 일꾼마다 한 줄씩 받는 곳(시험이 엿볼 수 있게) */
     public List<Worker> awaitAsyncWorkers(long maxMillis, java.util.function.Consumer<String> nag) {
+        return awaitAsyncWorkers(p -> true, maxMillis, nag);
+    }
+
+    /**
+     * 개발 모드 핫 리로드: 방금 끈 플러그인들의 비동기 일꾼이 끝나기를 같은 규칙(100ms 마다, 최대 {@code maxMillis}, 남으면 Nag — 문구는 Paper reload 의 것)으로 기다린다.
+     * 호출한 스레드(전역)를 그동안 붙잡는다 — 일꾼이 callSyncMethod 로 전역을 기다리면 그 시간만큼 서로 기다리다 풀린다(개발 모드 한정).
+     */
+    public List<Worker> awaitAsyncWorkers(java.util.Collection<? extends FurnacePlugin> plugins, long maxMillis) {
+        return awaitAsyncWorkers(plugins::contains, maxMillis, msg -> SERVER_LOG.error(msg), true);
+    }
+
+    public List<Worker> awaitAsyncWorkers(java.util.function.Predicate<FurnacePlugin> owner, long maxMillis,
+                                          java.util.function.Consumer<String> nag) {
+        return awaitAsyncWorkers(owner, maxMillis, nag, false);
+    }
+
+    /** @param reloading true 면 Paper CraftServer.reload 의 문구(종료 문구와 다르다) */
+    public List<Worker> awaitAsyncWorkers(java.util.function.Predicate<FurnacePlugin> owner, long maxMillis,
+                                          java.util.function.Consumer<String> nag, boolean reloading) {
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(maxMillis);
-        while (!activeWorkers().isEmpty() && System.nanoTime() < deadline) {
+        while (!activeWorkers(owner).isEmpty() && System.nanoTime() < deadline) {
             try {
                 Thread.sleep(100);
             } catch (InterruptedException e) {
-                // Paper 처럼 삼키고 마감까지 계속 센다. 표시를 다시 세우지 않는다 — 같은 종료 스레드의 뒤 단계(저장 대기)가 바로 중단되지 않게
+                // Paper 처럼 삼키고 마감까지 계속 센다. 표시를 다시 세우지 않는다 — 같은 종료 스레드의 뒤 단계(저장 대기)가 바로 중단되지 않게.
+                // 리로드도 같다: 전역 스레드는 인터럽트되지 않고, 표시를 세우면 뒤의 jar 읽기·켜기가 깨질 수 있다
             }
         }
-        List<Worker> overdue = activeWorkers();
+        List<Worker> overdue = activeWorkers(owner);
         for (Worker w : overdue) {
             FurnacePlugin plugin = w.owner();
             nag.accept(String.format(
                     "Nag author(s): '%s' of '%s' about the following: %s",
                     plugin.description().authors(), plugin.description().fullName(),
-                    "This plugin is not properly shutting down its async tasks when it is being shut down. "
-                            + "This task may throw errors during the final shutdown logs and might not complete before process dies."));
+                    reloading
+                            ? "This plugin is not properly shutting down its async tasks when it is being reloaded.  "
+                                    + "This may cause conflicts with the newly loaded version of the plugin"
+                            : "This plugin is not properly shutting down its async tasks when it is being shut down. "
+                                    + "This task may throw errors during the final shutdown logs and might not complete before process dies."));
         }
         return overdue;
     }
@@ -315,9 +361,11 @@ public final class LegacyScheduler {
         Task t = new Task(ids.incrementAndGet(), plugin, runnable, sync, period, onCancel);
         tasks.put(t.id, t);
         book.add(plugin, t);
-        synchronized (queue) {
-            t.nextRun = tick + delay;
-            queue.add(t);
+        PriorityQueue<Task> q = sync ? queue : asyncQueue;
+        synchronized (q) {
+            // 비동기는 지연 0 도 다음 틱(Paper 는 "이번 틱 비우기" 와 겹치면 같은 틱에 돌 수 있는 경합이 있지만, 여기서는 항상 다음 틱으로 못 박는다)
+            t.nextRun = tick + (sync ? delay : Math.max(1L, delay));
+            q.add(t);
         }
         return t;
     }
@@ -325,6 +373,11 @@ public final class LegacyScheduler {
     /** CraftScheduler.mainThreadHeartbeat: 이번 틱에 차례가 된 작업을 모두 비운다(그 사이 새로 들어온 지연 0 작업도 같은 틱에). */
     private void heartbeat() {
         long now = ++tick;
+        try {
+            management.execute(() -> runAsyncTick(now));   // 동기 대기열보다 먼저(CraftScheduler.mainThreadHeartbeat)
+        } catch (RejectedExecutionException closed) {
+            // 닫는 중 — 비동기 쪽은 더 돌지 않는다
+        }
         List<Task> again = new ArrayList<>();
         // 한 박동의 동기 작업 전체를 한 표시 구간으로 — 작업이 빌린 region 은 이번 비움이 끝날 때 한꺼번에 돌려준다(작업마다 넘겨주고 받지 않는다)
         try (PrimaryThread.Scope ignored = PrimaryThread.enter()) {
@@ -333,6 +386,35 @@ public final class LegacyScheduler {
         if (!again.isEmpty()) {
             synchronized (queue) {
                 for (Task t : again) if (!t.cancelled) queue.add(t);
+            }
+        }
+    }
+
+    /** 관리 스레드: 이번 틱에 차례가 된 비동기 작업을 풀로 넘긴다(CraftAsyncScheduler.runTasks). 반복 작업의 다음 회차는 이번 비움이 끝난 뒤 들어간다. */
+    private void runAsyncTick(long now) {
+        List<Task> again = new ArrayList<>();
+        try {
+            while (true) {
+                Task t;
+                synchronized (asyncQueue) {
+                    t = asyncQueue.peek();
+                    if (t == null || t.nextRun > now) break;
+                    asyncQueue.poll();
+                }
+                if (t.cancelled) continue;
+                t.arrive(now);
+                if (t.period > 0 && !t.cancelled) {
+                    t.nextRun = now + t.period;
+                    again.add(t);
+                }
+            }
+        } catch (Throwable e) {
+            SERVER_LOG.error("Craft Async Scheduler 관리 스레드에서 예외", e);
+        } finally {
+            if (!again.isEmpty()) {
+                synchronized (asyncQueue) {
+                    for (Task t : again) if (!t.cancelled) asyncQueue.add(t);
+                }
             }
         }
     }

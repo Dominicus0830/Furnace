@@ -294,4 +294,55 @@ class MovementParityTest {
         var h = host.player(p);   // 보정 텔레포트를 보낼 연결이 없다
         assertFalse(h.teleportNow(new Location(OVERWORLD, 1, -60, 1)));
     }
+
+    /** CraftPlayer#teleport: 이벤트가 통과하면 열린 창을 닫는다(취소·실패면 그대로). 창 없이도 문제없다. */
+    @Test
+    void pluginTeleportClosesOpenWindowOnlyWhenItHappens() throws Exception {
+        boolean[] cancel = {false};
+        host.eventsImpl().subscribe(plugin, PlayerTeleportEvent.class, e -> e.setCancelled(cancel[0]));
+        Player p = player(new ArrayList<>());
+        p.vitals().env(core.vitalsEnv());
+        var h = host.player(p);
+        List<String> closed = new ArrayList<>();
+        var open = org.domi.furnace.server.menu.ChestMenu.threeRows(1, new org.domi.furnace.server.menu.SimpleContainer(36), new org.domi.furnace.server.menu.SimpleContainer(27), null, null);
+        p.inventoryHost(new Player.InventoryHost() {
+            public org.domi.furnace.server.entity.ItemStack slot(int w) { return org.domi.furnace.server.entity.ItemStack.EMPTY; }
+            public int selected() { return 0; }
+            public void replace(int w, org.domi.furnace.server.entity.ItemStack e, org.domi.furnace.server.entity.ItemStack n) {}
+            public int permissionLevel() { return 0; }
+            public void execute(Runnable r) { r.run(); }
+            public void closeContainer(org.domi.furnace.server.menu.AbstractContainerMenu expect) {
+                if (p.containerMenu() == expect) { closed.add("close"); p.setContainerMenu(p.inventoryMenu()); }
+            }
+        });
+        Object[] out = core.world().submitAtChunk(C00, r -> {
+            r.adopt(p);
+            r.tick();
+            p.setContainerMenu(open);
+            cancel[0] = true;
+            boolean cancelled = h.teleportNow(new Location(OVERWORLD, 20.5, -60, 8.5));
+            int afterCancel = closed.size();
+            boolean otherDim = h.teleportNow(new Location("minecraft:the_nether", 1, 64, 1));
+            int afterDim = closed.size();
+            cancel[0] = false;
+            boolean ok = h.teleportNow(new Location(OVERWORLD, 12.5, -60, 8.5));
+            int afterOk = closed.size();
+            boolean noWindow = h.teleportNow(new Location(OVERWORLD, 13.5, -60, 8.5));
+            int afterNoWindow = closed.size();
+            p.setContainerMenu(open);
+            p.vitals().setHealth(0.0F);
+            boolean dead = h.teleportNow(new Location(OVERWORLD, 14.5, -60, 8.5));
+            return new Object[] {cancelled, afterCancel, otherDim, afterDim, ok, afterOk, noWindow, afterNoWindow, dead, closed.size()};
+        }).get(30, TimeUnit.SECONDS);
+        assertEquals(false, out[0]);
+        assertEquals(0, out[1], "취소된 텔레포트는 창을 닫지 않는다");
+        assertEquals(false, out[2]);
+        assertEquals(0, out[3], "실패한 텔레포트도 닫지 않는다");
+        assertEquals(true, out[4]);
+        assertEquals(1, out[5], "성공한 텔레포트는 창을 한 번 닫는다");
+        assertEquals(true, out[6]);
+        assertEquals(1, out[7], "창이 없으면 더 닫지 않는다");
+        assertEquals(false, out[8], "죽은 플레이어는 false");
+        assertEquals(1, out[9], "죽은 플레이어 텔레포트는 창을 닫지 않는다");
+    }
 }
