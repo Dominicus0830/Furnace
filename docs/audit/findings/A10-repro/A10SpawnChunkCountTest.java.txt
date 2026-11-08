@@ -1,0 +1,79 @@
+// A10-01 재현: 자연 스폰 전역 상한의 "스폰 가능 청크 수".
+// 바닐라 1.21.1 ServerChunkCache.tickChunks(aqs) 는 createState 에 DistanceManager.getNaturalSpawnChunkCount()(aqk.b) 를 넘긴다.
+// 그 값은 FixedPlayerDistanceChunkTracker(aqk$b, 범위 8) 의 칸 수 — 플레이어 청크에서 체비셰프 8 안의 17×17=289 칸이고,
+// 청크가 올라와 있는지·시뮬레이션 거리·128 블록 원과 무관하다. 그래서 혼자 있는 플레이어의 몬스터 상한은 70×289/289 = 70.
+// Furnace 는 collectTickingChunks 가 고른 "무작위 틱 받을 청크"(체비셰프 min(sim-1,8) 이고 청크 가운데가 128 블록 원 안) 수를 쓴다.
+package org.domi.furnace.server.world;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import io.netty.channel.embedded.EmbeddedChannel;
+import java.nio.file.Path;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import org.domi.furnace.server.ServerCore;
+import org.domi.furnace.server.TestServers;
+import org.domi.furnace.server.data.TagRegistries;
+import org.domi.furnace.server.entity.Player;
+import org.domi.furnace.server.entity.PlayerInventory;
+import org.domi.furnace.server.item.ItemContext;
+import org.domi.furnace.server.net.registry.RegistrySet;
+import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+class A10SpawnChunkCountTest {
+
+    private static final ChunkPos C00 = new ChunkPos(0, 0);
+
+    @TempDir Path tmp;
+    private FurnaceSchedulerImpl sched;
+    private ServerCore core;
+
+    @BeforeAll
+    static void install() {
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+    }
+
+    @BeforeEach
+    void setUp() {
+        sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        core = TestServers.core(tmp, sched);
+        core.world().setRegistries(BlockRegistry.load("blocks/1.21.1.txt"), ItemRegistry.load("items/1.21.1.txt"));
+    }
+
+    @AfterEach
+    void tearDown() throws Exception {
+        core.plugins().close();
+        sched.close();
+        TestServers.drainIoPools();
+    }
+
+    @Test
+    void naturalSpawnChunkCountForOnePlayerIs289() throws Exception {
+        int count = core.world().submitAtChunk(C00, r -> {
+            // 플레이어 청크(0,0) 둘레 체비셰프 8 을 모두 올린다 — 바닐라 기준 289 칸 전부가 로드된 가장 유리한 경우
+            for (int x = -8; x <= 8; x++) for (int z = -8; z <= 8; z++) r.chunkAtBlocking(new ChunkPos(x, z));
+            Player p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "A", new EmbeddedChannel());
+            p.inventory(new PlayerInventory());
+            p.applyMove(8.5, -60, 8.5, 0, 0, true);
+            r.adopt(p);
+            try {
+                var m = Region.class.getDeclaredMethod("collectTickingChunks");
+                m.setAccessible(true);
+                m.invoke(r);
+                var f = Region.class.getDeclaredField("spawnChunkCount");
+                f.setAccessible(true);
+                return (Integer) f.get(r);
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException(e);
+            }
+        }).get(120, TimeUnit.SECONDS);
+        int monsterCap = 70 * count / 289;
+        assertEquals(289, count, "바닐라 getNaturalSpawnChunkCount = 17×17 = 289 (Furnace " + count + " → 몬스터 상한 " + monsterCap + ", 바닐라 70)");
+    }
+}
+
