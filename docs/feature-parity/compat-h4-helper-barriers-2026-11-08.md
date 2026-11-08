@@ -19,8 +19,8 @@ PR #148 로 helper 5.6.14 가 켜졌다. 켜지는 것과 **helper 를 쓰는 �
 | `ItemStackBuilder` | `NoSuchFieldError ItemFlag.HIDE_POTION_EFFECTS` | ok |
 | `InventorySerialization` | `ClassNotFoundException BukkitObjectOutputStream` | ok |
 | 보스바(`BukkitBossBarFactory`) | `ClassNotFoundException BarColor` | ok |
-| 메뉴(`Gui`) 열기·클릭 | `UnsupportedFeature Bukkit.createInventory` | ok(첫 칸 클릭 처리기까지 불림) |
-| 홀로그램(`Hologram.create().spawn()`) | `ClassNotFoundException MetadataValue` | 아래 "홀로그램" 절 |
+| 메뉴(`Gui`) 열기·클릭 | `UnsupportedFeature Bukkit.createInventory` | ok(다음 틱 `isValid()=true`, 첫 칸 클릭 처리기까지 불림) |
+| 홀로그램(`Hologram.create().spawn()`) | `ClassNotFoundException MetadataValue` | ok(`isSpawned()=true`) — 상세·Paper 차이 16개는 `compat-hologram-entities-2026-11-08.md` |
 
 helper 의 스코어보드는 ProtocolLib 이 있어야 해서(`PacketScoreboard`) helper 만으로는 장벽이 아니다 — `DisplaySlot` 열거형만 참조한다.
 `Gui#open()` 은 1.16 이후 한 틱 뒤에 열린다(helper 코드). 그래서 `isValid()` 는 연 직후가 아니라 다음 틱에 잰다(Paper 에서도 같다).
