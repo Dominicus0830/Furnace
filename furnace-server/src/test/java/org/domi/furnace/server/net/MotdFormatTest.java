@@ -17,7 +17,7 @@ class MotdFormatTest {
     private static void useFormat(String f) {
         var d = OperatorOptions.DEFAULT;
         OperatorOptions.install(new OperatorOptions(d.strictChatOrder(), d.unsignedChatAsSystem(), d.serverBrand(), d.announceSleepStatus(),
-                d.confirmInterrupt(), d.interruptConfirmSeconds(), f));
+                d.confirmInterrupt(), d.interruptConfirmSeconds(), f, d.gravityBlockPortalDupe()));
     }
 
     @Test

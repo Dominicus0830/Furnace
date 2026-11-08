@@ -69,6 +69,7 @@ public final class FurnacePropertiesFile {
                 opt("chat.unsigned-as-system", o.unsignedChatAsSystem(), "true 면 채팅을 서명 없는 시스템 메시지로 보낸다(채팅 신고 불가)."),
                 opt("server-brand", o.serverBrand(), "F3 화면에 보이는 서버 브랜드."),
                 opt("announce-sleep-status", o.announceSleepStatus(), "false 면 자는 사람 수 액션바를 보내지 않는다(기본 true = 바닐라)."),
+                opt("gravity-block-portal-dupe", o.gravityBlockPortalDupe(), "true(기본 = 바닐라) 면 엔드 포털로 넘어간 모래·자갈 같은 중력 블록이 제자리에도 놓여 복제된다. false 면 복제되지 않는다."),
                 opt("motd-format", o.motdFormat(), "server.properties 의 motd 해석: plain(기본, 바닐라) | legacy(& 색 코드) | markup(<gradient:red:blue>…</gradient> 같은 태그)."),
                 opt("confirm-interrupt", o.confirmInterrupt(), "true 면 콘솔 Ctrl+C 를 한 번 더 눌러야 종료한다."),
                 opt("confirm-interrupt-seconds", o.interruptConfirmSeconds(), "Ctrl+C 두 번째 입력을 기다리는 시간(1~60초).")
@@ -126,6 +127,7 @@ public final class FurnacePropertiesFile {
                 opt("plugins.compat.nms.enabled", true, "Bukkit 호환 플러그인의 NMS·CraftBukkit 이름 변환(CraftBukkit 버전 접미사 v1_21_R1 을 접미사 없는 이름으로). 끄면 그런 이름을 쓰는 플러그인은 그 자리에서 실패한다."),
                 opt("plugins.compat.nms.strict", false, "미지원 NMS 심볼을 쓰는 Bukkit 호환 플러그인은 불러오지 않는다. 끄면 그 호출만 실행 때 실패하고 나머지는 돈다."),
                 opt("plugins.compat.nms.version-package", "plain", "plain | versioned. 플러그인이 읽는 CraftBukkit 패키지 이름(plain = Paper 처럼 접미사 없음, versioned = Spigot 처럼 v1_21_R1)."),
+                opt("plugins.chunk-tickets.max-per-plugin", org.domi.furnace.api.world.ChunkTickets.MAX_CHUNKS_PER_OWNER, "플러그인 하나가 청크 티켓(chunkTickets API)으로 붙잡을 수 있는 청크 수 상한(겹침 포함, 1 이상). 넘으면 add 가 거부된다."),
                 opt("plugins.libraries.enabled", false, "플러그인 설명 파일의 libraries 를 Maven Central 에서 받아 붙인다."),
                 commented("plugins.libraries.offline", false, "캐시에 있는 것만 쓴다(enabled=true 일 때만 — 꺼져 있을 때 적으면 경고)."),
                 commented("plugins.libraries.transitive", true, "라이브러리의 compile/runtime 의존까지 받는다(enabled=true 일 때만)."),

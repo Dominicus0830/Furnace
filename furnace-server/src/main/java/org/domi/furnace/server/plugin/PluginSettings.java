@@ -6,6 +6,7 @@
 //   plugins.dev-mode.auto-reload=false  개발 모드에서 plugins/*.jar 가 바뀌면 알아서 다시 읽는다
 //   plugins.libraries.*            라이브러리 자동 로딩(기본 꺼짐) — library/LibrarySettings 참고
 //   plugins.compat.bukkit=true     Bukkit·Paper 플러그인 호환 어댑터(클래스패스에 furnace-compat-paper 가 있을 때) — false 면 plugin.yml jar 를 읽지 않는다
+//   plugins.chunk-tickets.max-per-plugin=16384  플러그인 하나가 청크 티켓으로 붙잡을 수 있는 청크 수(겹침 포함, 1 이상)
 //   plugins.compat.nms.enabled=true  호환 플러그인 클래스를 올릴 때 NMS·CraftBukkit 이름 변환(버전 접미사 v1_21_R1 풀기 등)을 한다 — false 면 바이트 그대로 올린다
 //   plugins.compat.nms.strict=false   미지원 NMS 심볼이 있는 플러그인은 불러오지 않는다(기본: 그 호출만 실패)
 //   plugins.compat.nms.version-package=plain  플러그인이 읽는 CraftBukkit 패키지 이름(plain = Paper 처럼 접미사 없음, versioned = Spigot 처럼 v1_21_R1)
@@ -26,7 +27,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels, boolean devMode, boolean autoReload,
-                             LibrarySettings libraries, boolean compat, boolean compatNms, Map<String, String> compatOptions) {
+                             LibrarySettings libraries, boolean compat, boolean compatNms, Map<String, String> compatOptions,
+                             int chunkTicketLimit) {
 
     /** plugins.compat.nms.* 기본값(빈 설정 파일을 읽은 것과 같다). */
     public static final Map<String, String> DEFAULT_COMPAT_OPTIONS =
@@ -56,20 +58,35 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         this(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, true);
     }
 
-    /** 호환 형식 설정은 기본값. */
+    /** 호환 형식 설정·플러그인당 청크 티켓 한도는 기본값(16384). */
     public PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels, boolean devMode, boolean autoReload,
                           LibrarySettings libraries, boolean compat, boolean compatNms) {
         this(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, DEFAULT_COMPAT_OPTIONS);
     }
 
-    public PluginSettings withLibraries(LibrarySettings l) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, l, compat, compatNms, compatOptions); }
+    /** 청크 티켓 한도는 기본값. */
+    public PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels, boolean devMode, boolean autoReload,
+                          LibrarySettings libraries, boolean compat, boolean compatNms, Map<String, String> compatOptions) {
+        this(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, compatOptions,
+                org.domi.furnace.api.world.ChunkTickets.MAX_CHUNKS_PER_OWNER);
+    }
 
-    public PluginSettings withCompat(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, on, compatNms, compatOptions); }
+    /** 호환 형식 설정은 기본값. */
+    public PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels, boolean devMode, boolean autoReload,
+                          LibrarySettings libraries, boolean compat, boolean compatNms, int chunkTicketLimit) {
+        this(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, DEFAULT_COMPAT_OPTIONS, chunkTicketLimit);
+    }
 
-    public PluginSettings withCompatNms(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, on, compatOptions); }
+    public PluginSettings withLibraries(LibrarySettings l) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, l, compat, compatNms, compatOptions, chunkTicketLimit); }
+
+    public PluginSettings withCompat(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, on, compatNms, compatOptions, chunkTicketLimit); }
+
+    public PluginSettings withCompatNms(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, on, compatOptions, chunkTicketLimit); }
 
     /** plugins.compat.* 설정(접두어 포함 키)을 바꾼 사본 — 시험 서버가 쓴다. */
-    public PluginSettings withCompatOptions(Map<String, String> o) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, o); }
+    public PluginSettings withCompatOptions(Map<String, String> o) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, o, chunkTicketLimit); }
+
+    public PluginSettings withChunkTicketLimit(int n) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, compatOptions, n); }
 
     public PluginSettings {
         Map<String, Level> m = new HashMap<>();
@@ -77,6 +94,7 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         logLevels = Map.copyOf(m);
         if (libraries == null) libraries = LibrarySettings.DEFAULT;
         compatOptions = compatOptions == null ? DEFAULT_COMPAT_OPTIONS : Map.copyOf(compatOptions);
+        if (chunkTicketLimit < 1) throw new IllegalArgumentException("chunkTicketLimit 는 1 이상: " + chunkTicketLimit);
     }
 
     /** 이 플러그인에 지정된 로그 수준(없으면 null). */
@@ -127,6 +145,8 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         }
         compatOptions.put("plugins.compat.nms.version-package", vp);
         return new PluginSettings(failFast, root.isEmpty() ? null : Path.of(root), levels, dev, dev && auto,
-                LibrarySettings.from(p, log), compat, nms, compatOptions);
+                LibrarySettings.from(p, log), compat, nms, compatOptions,
+                org.domi.furnace.server.config.OptionKeys.strictInt(p, "plugins.chunk-tickets.max-per-plugin",
+                        org.domi.furnace.api.world.ChunkTickets.MAX_CHUNKS_PER_OWNER, 1, 100_000_000));
     }
 }

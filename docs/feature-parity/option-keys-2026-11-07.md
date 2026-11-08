@@ -37,6 +37,7 @@
 | `chat.unsigned-as-system` | ON/OFF | false | true|false | 채팅을 서명 없는 시스템 메시지로 보낸다(채팅 신고 불가) | true 면 경고 |
 | `server-brand` | 글자 | Furnace | - | F3 서버 브랜드와 level.dat ServerBrands |  |
 | `announce-sleep-status` | ON/OFF | true | true|false | 자는 사람 수·밤 건너뛰기 액션바 |  |
+| `gravity-block-portal-dupe` | ON/OFF | true | true|false | 엔드 포털로 넘어간 중력 블록(모래·자갈 등)이 제자리에도 놓이는 바닐라 복제 현상. false 면 복제되지 않는다(바닐라와 달라짐) |  |
 | `motd-format` | plain|legacy|markup | plain | plain|legacy|markup | server.properties motd 해석 방식(plain=바닐라) |  |
 | `confirm-interrupt` | ON/OFF | false | true|false | 콘솔 Ctrl+C 를 두 번 눌러야 종료 |  |
 | `confirm-interrupt-seconds` | 수 | 5 | 1~60 | 두 번째 Ctrl+C 를 기다리는 초 |  |
@@ -81,6 +82,7 @@
 | `plugins.compat.nms.enabled` | ON/OFF | true | true\|false | Bukkit 호환 플러그인을 올릴 때 NMS·CraftBukkit 이름 변환(CraftBukkit 버전 접미사 v1_21_R1 풀기)을 한다 — 끄면 그런 플러그인은 그 이름에서 실패한다 |  |
 | `plugins.compat.nms.strict` | ON/OFF | false | true\|false | 미지원 NMS·CraftBukkit 심볼을 쓰는 Bukkit 호환 플러그인은 불러오지 않는다(끄면 그 호출만 실행 때 실패하고 나머지는 돈다) |  |
 | `plugins.compat.nms.version-package` | 글자 | plain | plain\|versioned | 플러그인이 읽는 CraftBukkit 패키지 이름 — plain 은 Paper 처럼 접미사 없음, versioned 는 Spigot 처럼 v1_21_R1 을 붙인다(두 이름 모두 클래스는 풀린다) |  |
+| `plugins.chunk-tickets.max-per-plugin` | 수 | 16384 | 1~100000000 | 플러그인 하나가 청크 티켓으로 붙잡을 수 있는 청크 수 상한(겹침 포함) |  |
 | `plugins.libraries.enabled` | ON/OFF | false | true\|false | 플러그인 설명 파일의 libraries 를 Maven Central 에서 받아 붙인다 | 켜면 안내 |
 | `plugins.libraries.offline` | ON/OFF | false | true\|false | 캐시에 있는 라이브러리만 쓴다 | enabled=false 인데 적혀 있으면 경고 |
 | `plugins.libraries.transitive` | ON/OFF | true | true\|false | 라이브러리의 compile/runtime 의존까지 받는다 | 위와 같음 |
