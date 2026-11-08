@@ -1862,6 +1862,10 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public boolean pluginTeleport(double x, double y, double z, float yaw, float pitch) {
         if (isDisconnected() || !hasTeleporter() || vitals().health() <= 0.0F) return false;   // 죽은 플레이어는 이벤트 없이 false(CraftPlayer#teleport)
         if (!vitals().env().gameEvents().playerTeleport(this, x, y, z, yaw, pitch)) return false;
+        // CraftPlayer#teleport: 이벤트가 통과한 뒤 열린 창(상자·플러그인 메뉴 등)을 TELEPORT 사유로 닫는다 — 바닐라 이동 경로는 닫지 않는다.
+        var ih = inventoryHost();
+        var open = containerMenu;
+        if (ih != null && hasOpenContainer()) ih.closeContainer(open);
         Runnable go = () -> {
             if (vehicle != null) stopRiding();
             correctTo(x, y, z, yaw, pitch);
