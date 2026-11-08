@@ -12,7 +12,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -519,25 +518,18 @@ class LegacySchedulerTest {
             });
             server.tick();
             assertTrue(inside.await(5, TimeUnit.SECONDS));
-            List<java.util.logging.LogRecord> records = new CopyOnWriteArrayList<>();
-            var oldFilter = p.logger().getFilter();
-            p.logger().setFilter(r -> {   // 플러그인 로거는 핸들러 없이 서버 로그로 바로 보낸다 — 필터로 엿본다
-                records.add(r);
-                return true;
-            });
+            List<String> nags = new CopyOnWriteArrayList<>();
             try {
                 long t0 = System.nanoTime();
-                var overdue = p.legacy.awaitAsyncWorkers(300);
+                var overdue = p.legacy.awaitAsyncWorkers(300, nags::add);
                 long ms = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - t0);
                 assertEquals(1, overdue.size());
                 assertTrue(ms >= 280 && ms < 3_000, "한도만큼만 기다린다: " + ms + "ms");
             } finally {
-                p.logger().setFilter(oldFilter);
                 release.countDown();
             }
-            assertEquals(1, records.stream().filter(r -> r.getLevel() == Level.SEVERE
-                    && r.getMessage().startsWith("Nag author(s): ") && r.getMessage().contains("This plugin is not properly shutting down its async tasks")).count(),
-                    "records=" + records.stream().map(r -> r.getLevel() + ":" + r.getMessage()).toList());
+            assertEquals(1, nags.size(), "일꾼마다 한 줄: " + nags);
+            assertTrue(nags.get(0).startsWith("Nag author(s): ") && nags.get(0).contains("This plugin is not properly shutting down its async tasks"), nags.get(0));
         }
     }
 
@@ -559,6 +551,72 @@ class LegacySchedulerTest {
             assertTrue(primary.get());
             assertThrows(IllegalArgumentException.class, () -> ex.execute(null));
             assertThrows(IllegalArgumentException.class, () -> p.legacy.mainThreadExecutor(null));
+        }
+    }
+
+    @Test
+    void awaitAsyncWorkersSwallowsInterruptsAndKeepsWaiting() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            CountDownLatch inside = new CountDownLatch(1);
+            p.legacy.runTaskAsynchronously(p, () -> {
+                inside.countDown();
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            server.tick();
+            assertTrue(inside.await(5, TimeUnit.SECONDS));
+            AtomicReference<Boolean> stillInterrupted = new AtomicReference<>();
+            AtomicReference<Integer> overdue = new AtomicReference<>();
+            Thread waiter = new Thread(() -> {
+                overdue.set(p.legacy.awaitAsyncWorkers(5_000, m -> {}).size());
+                stillInterrupted.set(Thread.currentThread().isInterrupted());
+            });
+            waiter.start();
+            Thread.sleep(150);
+            waiter.interrupt();   // 종료 스레드가 인터럽트를 받아도 기다림을 이어 가고, 표시를 남기지 않는다
+            waiter.join(10_000);
+            assertEquals(0, overdue.get(), "일꾼이 끝날 때까지 기다렸다");
+            assertEquals(Boolean.FALSE, stillInterrupted.get(), "뒤 단계가 중단되지 않게 인터럽트 표시를 다시 세우지 않는다");
+        }
+    }
+
+    @Test
+    void cancelledBeforeItArrivesNeverCountsAsAWorker() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            AtomicInteger runs = new AtomicInteger();
+            LegacyTask t = p.legacy.runTaskAsynchronously(p, runs::incrementAndGet);
+            t.cancel();
+            server.tick(2);
+            assertEquals(0, runs.get());
+            assertTrue(p.legacy.activeWorkers().isEmpty());
+        }
+    }
+
+    /** 주기가 몸통보다 짧아 회차가 겹치는 반복 작업: 도는 회차가 하나라도 있으면 늘 일꾼 목록에 있다. */
+    @Test
+    void overlappingRoundsOfARepeatingTaskStayListedAsWorkers() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            AtomicBoolean missing = new AtomicBoolean();
+            AtomicInteger runs = new AtomicInteger();
+            LegacyTask t = p.legacy.runTaskTimerAsynchronously(p, () -> {
+                runs.incrementAndGet();
+                long until = System.nanoTime() + 300_000;
+                while (System.nanoTime() < until) {
+                    Thread self = Thread.currentThread();
+                    if (p.legacy.activeWorkers().stream().noneMatch(w -> w.thread() == self)) missing.set(true);
+                }
+            }, 1, 1);
+            for (int i = 0; i < 400; i++) server.tick();
+            t.cancel();
+            assertTrue(p.legacy.awaitAsyncWorkers(5_000, m -> {}).isEmpty());
+            assertTrue(runs.get() > 100, "회차가 충분히 돌았다: " + runs.get());
+            assertFalse(missing.get(), "도는 회차는 항상 일꾼 목록에 있다");
         }
     }
 }

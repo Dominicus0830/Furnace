@@ -55,6 +55,9 @@ public final class LegacyScheduler {
     static final int POOL_CORE_THREADS = 4;
     static final long POOL_KEEP_ALIVE_SECONDS = 30;
 
+    /** 서버 로그(플러그인 접두 없음). */
+    private static final org.slf4j.Logger SERVER_LOG = org.slf4j.LoggerFactory.getLogger("Furnace");
+
     private final Furnace server;
     /** 비동기 작업을 돌릴 곳. */
     private final Executor asyncPool;
@@ -257,25 +260,29 @@ public final class LegacyScheduler {
 
     /**
      * 종료 때 비동기 일꾼이 끝나기를 기다린다(Paper Wait-for-Async-Tasks-during-shutdown): 100ms 마다 보고 최대 {@code maxMillis}.
-     * 끝나지 않은 일꾼이 있으면 그 플러그인마다 "Nag author(s)" 오류를 남기고 돌려준다. 이 호출은 플러그인이 모두 꺼진 뒤에 부른다.
+     * 끝나지 않은 일꾼마다 "Nag author(s)" 오류를 서버 로그에 남기고(Paper 는 서버 로거 — 플러그인 접두 없음) 돌려준다.
+     * 이 호출은 플러그인이 모두 꺼진 뒤에 부른다.
      *
      * @return 시간이 지나도 끝나지 않은 일꾼
      */
     public List<Worker> awaitAsyncWorkers(long maxMillis) {
+        return awaitAsyncWorkers(maxMillis, msg -> SERVER_LOG.error(msg));
+    }
+
+    /** @param nag 남은 일꾼마다 한 줄씩 받는 곳(시험이 엿볼 수 있게) */
+    public List<Worker> awaitAsyncWorkers(long maxMillis, java.util.function.Consumer<String> nag) {
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(maxMillis);
         while (!activeWorkers().isEmpty() && System.nanoTime() < deadline) {
             try {
                 Thread.sleep(100);
             } catch (InterruptedException e) {
-                // Paper 처럼 인터럽트는 무시하고 한 번 더 센다(종료가 길어지지 않도록 한 바퀴만 건너뛴다)
-                Thread.currentThread().interrupt();
-                break;
+                // Paper 처럼 삼키고 마감까지 계속 센다. 표시를 다시 세우지 않는다 — 같은 종료 스레드의 뒤 단계(저장 대기)가 바로 중단되지 않게
             }
         }
         List<Worker> overdue = activeWorkers();
         for (Worker w : overdue) {
             FurnacePlugin plugin = w.owner();
-            plugin.logger().log(Level.SEVERE, String.format(
+            nag.accept(String.format(
                     "Nag author(s): '%s' of '%s' about the following: %s",
                     plugin.description().authors(), plugin.description().fullName(),
                     "This plugin is not properly shutting down its async tasks when it is being shut down. "
@@ -397,13 +404,25 @@ public final class LegacyScheduler {
             } catch (SecurityException ignored) {
                 // 이름을 못 바꿔도 일은 한다
             }
-            asyncThreads.add(me);
-            asyncRunning.put(id, this);
+            // 일꾼 등록·해제는 한 모니터 안에서 한다(Paper 의 synchronized(workers)): 겹치는 회차가 "비었다" 확인과 목록 제거 사이에 끼어들어
+            // 도는 중인 회차가 일꾼 목록에서 빠지는 일이 없다. 이미 취소됐으면 일꾼으로 넣지 않는다(CANCEL 을 잠금 안에서 먼저 본다).
+            boolean worker;
+            synchronized (asyncThreads) {
+                worker = !cancelled;
+                if (worker) {
+                    asyncThreads.add(me);
+                    asyncRunning.put(id, this);
+                }
+            }
             try {
                 execute();
             } finally {
-                asyncThreads.remove(me);
-                if (asyncThreads.isEmpty()) asyncRunning.remove(id, this);
+                if (worker) {
+                    synchronized (asyncThreads) {
+                        asyncThreads.remove(me);
+                        if (asyncThreads.isEmpty()) asyncRunning.remove(id, this);
+                    }
+                }
                 try {
                     me.setName(nameBefore);
                 } catch (SecurityException ignored) {
