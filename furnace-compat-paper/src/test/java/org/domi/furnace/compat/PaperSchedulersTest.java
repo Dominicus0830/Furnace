@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 
 class PaperSchedulersTest {
 
-    private static FurnaceTestServer start() { return FurnaceTestServer.builder().plugin(CompatTestPlugin.class).start(); }
+    private static FurnaceTestServer start() { return FurnaceTestServer.builder().exposeCompatToNative(true).plugin(CompatTestPlugin.class).start(); }
 
     @Test
     void globalRunsOnGlobalThreadWithPaperDelayRules() {

@@ -72,6 +72,8 @@ class CompatIsolationStaticTest {
 
     private static void check(String name, byte[] bytes, List<String> offenders) {
         // 상수 풀의 클래스·서술자 문자열은 내부 이름(슬래시)으로 들어 있다. latin1 로 읽으면 바이트 그대로 문자열 검색이 된다.
+        // CompatPackages 는 "숨길 이름 목록" 자체라 그 문자열을 가진다(클래스 참조가 아니다)
+        if (name.endsWith("CompatPackages.class")) return;
         String text = new String(bytes, StandardCharsets.ISO_8859_1);
         for (String f : FORBIDDEN) {
             if (text.contains(f)) {

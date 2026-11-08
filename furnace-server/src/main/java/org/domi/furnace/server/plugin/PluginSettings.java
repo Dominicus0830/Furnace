@@ -24,7 +24,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels, boolean devMode, boolean autoReload,
-                             LibrarySettings libraries, boolean compat, boolean compatNms, int chunkTicketLimit) {
+                             LibrarySettings libraries, boolean compat, boolean compatNms, int chunkTicketLimit,
+                             boolean exposeCompatToNative) {
 
     public static final PluginSettings DEFAULT = new PluginSettings(false, null, Map.of());
 
@@ -57,13 +58,25 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
                 org.domi.furnace.api.world.ChunkTickets.MAX_CHUNKS_PER_OWNER);
     }
 
-    public PluginSettings withLibraries(LibrarySettings l) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, l, compat, compatNms, chunkTicketLimit); }
+    /** 네이티브 플러그인 클래스로더에 호환 클래스를 숨김(기본). */
+    public PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels, boolean devMode, boolean autoReload,
+                          LibrarySettings libraries, boolean compat, boolean compatNms, int chunkTicketLimit) {
+        this(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, chunkTicketLimit, false);
+    }
 
-    public PluginSettings withCompat(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, on, compatNms, chunkTicketLimit); }
+    /**
+     * 시험용 문: true 면 Furnace 네이티브 플러그인에도 호환 클래스(org.bukkit.*·호환 코어 등)가 보인다. 서버 설정(furnace.properties)에는 없다 —
+     * 지향점은 네이티브 플러그인이 Furnace API 만 쓰는 것이다. 호환 코어를 네이티브 시험 플러그인으로 직접 부리는 호환 모듈 시험만 켠다.
+     */
+    public PluginSettings withExposeCompatToNative(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, chunkTicketLimit, on); }
 
-    public PluginSettings withCompatNms(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, on, chunkTicketLimit); }
+    public PluginSettings withLibraries(LibrarySettings l) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, l, compat, compatNms, chunkTicketLimit, exposeCompatToNative); }
 
-    public PluginSettings withChunkTicketLimit(int n) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, n); }
+    public PluginSettings withCompat(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, on, compatNms, chunkTicketLimit, exposeCompatToNative); }
+
+    public PluginSettings withCompatNms(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, on, chunkTicketLimit, exposeCompatToNative); }
+
+    public PluginSettings withChunkTicketLimit(int n) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, n, exposeCompatToNative); }
 
     public PluginSettings {
         Map<String, Level> m = new HashMap<>();
