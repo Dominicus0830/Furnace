@@ -1,0 +1,378 @@
+// A14 재현 시험(2차 점검) — 플러그인 수명·자동 정리·스케줄러 계약. 저장소에 커밋하지 않는다(docs/audit/findings/A14-repro/ 에 .java.txt 로).
+// 기대값은 "고친 뒤" 의 동작이다: 기준 커밋에서 실패하면 재현된 것이다.
+// 플러그인 클래스는 HotReloadTest 처럼 시험 중에 컴파일해 jar 로 만든다(서버 클래스패스에 없어야 옛 클래스로더 회수를 볼 수 있다).
+package org.domi.furnace.server.plugin;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
+import java.io.IOException;
+import java.lang.ref.WeakReference;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
+import java.util.stream.Stream;
+import javax.tools.JavaCompiler;
+import javax.tools.ToolProvider;
+import org.domi.furnace.api.event.player.AsyncPlayerConfigureEvent;
+import org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent;
+import org.domi.furnace.api.event.server.ServerCommandEvent;
+import org.domi.furnace.api.plugin.FurnacePlugin;
+import org.domi.furnace.api.plugin.PluginTasks;
+import org.domi.furnace.server.ServerCore;
+import org.domi.furnace.server.TestServers;
+import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+class A14PluginLifecycleReproTest {
+
+    @TempDir Path tmp;
+    private FurnaceSchedulerImpl sched;
+    private ServerCore core;
+    private PluginHost host;
+    private Path dir;
+
+    private static final PluginSettings DEV = new PluginSettings(false, null, Map.of(), true, false);
+
+    @BeforeEach
+    void setUp() {
+        TestPlugins.LOG.clear();
+        sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        core = TestServers.core(tmp, sched);
+        dir = tmp.resolve("plugins");
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (host != null) {
+            host.pluginsImpl().disableAll();
+            host.pluginsImpl().closeAll();
+            host.close();
+        }
+        sched.close();
+    }
+
+    /** 대조군: 아무것도 걸지 않은 플러그인은 회수된다(측정 방법이 맞다는 확인). */
+    @Test
+    void control_plainPluginIsCollected() throws Exception {
+        assertOldLoaderCollected("server().events().subscribe(this, org.domi.furnace.api.event.server.ServerCommandEvent.class, e -> {});", true);
+    }
+
+    // ------------------------------------------------------------------ A14-07: 이벤트 버스가 옛 클래스로더를 붙잡는다
+
+    /** 플러그인이 자기 이벤트 클래스를 정의하고 구독한 뒤 발화한다(커스텀 이벤트를 쓰는 플러그인의 흔한 모양). */
+    @Test
+    void a14_07a_ownEventSubscriptionPinsOldLoaderAfterReload() throws Exception {
+        String body = """
+                server().events().subscribe(this, hot.a.Ping.class, e -> {});
+                server().events().call(new hot.a.Ping());
+                """;
+        assertOldLoaderCollected(body, true);
+    }
+
+    /** 구독 없이 자기 이벤트를 발화만 한다(다른 플러그인이 받으라고 내는 API 이벤트) — 구운 배열 표의 키가 남는다. */
+    @Test
+    void a14_07b_firingOwnEventWithoutSubscribersPinsOldLoader() throws Exception {
+        String body = "server().events().call(new hot.a.Ping());";
+        assertOldLoaderCollected(body, true);
+    }
+
+    /** MONITOR 처리기가 취소 상태를 한 번 바꾸면 경고 기록 집합이 그 처리기(=플러그인·람다)를 영원히 쥔다. */
+    @Test
+    void a14_07c_monitorWarningSetPinsOldLoader() throws Exception {
+        String body = """
+                server().events().subscribe(this, org.domi.furnace.api.event.server.ServerCommandEvent.class,
+                        org.domi.furnace.api.event.EventPriority.MONITOR, false, e -> e.setCancelled(true));
+                """;
+        assertOldLoaderCollected(body, false, () -> host.eventsImpl().call(new ServerCommandEvent(host.console(), "x")));
+    }
+
+    // ------------------------------------------------------------------ A14-02: 스케줄러를 바로 쓴 작업은 꺼진 뒤에도 돈다
+
+    @Test
+    void a14_02_directSchedulerTaskKeepsRunningAfterReload() throws Exception {
+        String body = """
+                server().scheduler().global().runAtFixedRate(() -> org.domi.furnace.server.plugin.TestPlugins.LOG.add("tick:" + VER), 1, 1);
+                """;
+        jar("v1", body, false);
+        start();
+        awaitLog("tick:v1");
+        jar("v2", body, false);
+        reload();
+        awaitLog("tick:v2");
+        TestPlugins.LOG.clear();
+        Thread.sleep(500);
+        assertFalse(TestPlugins.LOG.contains("tick:v1"),
+                "꺼진(옛) 플러그인이 server().scheduler() 로 건 반복 작업은 멈춰야 한다 — Paper 는 disablePlugin 때 그 플러그인의 작업을 모두 취소한다. 기록: "
+                        + TestPlugins.LOG.subList(0, Math.min(10, TestPlugins.LOG.size())));
+    }
+
+    // ------------------------------------------------------------------ A14-01: PluginTasks 가 끝난 한 번짜리 작업을 놓지 않는다
+
+    @Test
+    void a14_01_pluginTasksKeepsFinishedOneShotTasks() throws Exception {
+        String body = """
+                for (int i = 0; i < 2000; i++) tasks().runGlobal(() -> org.domi.furnace.server.plugin.TestPlugins.LOG.add("t"), 0);
+                """;
+        jar("v1", body, false);
+        start();
+        long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (TestPlugins.LOG.stream().filter("t"::equals).count() < 2000) {
+            if (System.nanoTime() > end) fail("작업이 다 돌지 않았다");
+            Thread.sleep(10);
+        }
+        Thread.sleep(200);
+        FurnacePlugin p = host.plugins().plugin("Hot");
+        var f = PluginTasks.class.getDeclaredField("tasks");
+        f.setAccessible(true);
+        Set<?> tracked = (Set<?>) f.get(p.tasks());
+        assertEquals(0, tracked.size(),
+                "끝난 한 번짜리 작업은 추적 집합에서 빠져야 한다 — 남으면 매 틱 runGlobal/runRegion 을 거는 플러그인의 메모리가 끝없이 는다(작업 람다까지 붙잡힘)");
+    }
+
+    // ------------------------------------------------------------------ A14-06: 스폰 필터는 꺼질 때 떼지 않는다
+
+    @Test
+    void a14_06_spawnFilterOfDisabledPluginPinsOldLoader() throws Exception {
+        assumeTrue(core.world() != null);
+        String body = """
+                org.domi.furnace.api.world.World w = server().worlds().get(0);
+                w.spawnPolicy().addFilter(this, c -> true);
+                """;
+        assertOldLoaderCollected(body, false);
+    }
+
+    // ------------------------------------------------------------------ A14-04: 전역 지연 작업은 서버 틱이 아니라 벽시계로 센다 (A03-08)
+
+    @Test
+    void a14_04_globalDelayIgnoresTickRate() throws Exception {
+        core.tickState().setRate(5f);   // /tick rate 5 — 서버 틱 하나 = 200ms
+        long t0 = System.nanoTime();
+        sched.global().executeDelayed(() -> {}, 20).get(10, TimeUnit.SECONDS);
+        long ms = (System.nanoTime() - t0) / 1_000_000;
+        assertTrue(ms >= 3_500,
+                "TaskScheduler.executeDelayed 문서: \"delayTicks 는 서버 틱 단위\". /tick rate 5 에서 20틱은 4초(Paper runTaskLater 도 서버 틱으로 센다). 실제 " + ms + "ms");
+    }
+
+    /** 전역 runAtFixedRate(…, 1, 1) 은 "끝난 뒤 50ms" 로 다시 걸어 초당 20번에 못 미친다(Bukkit 어댑터 박동도 이것을 쓴다). */
+    @Test
+    void a14_04b_globalFixedRateDriftsBelow20PerSecond() throws Exception {
+        java.util.concurrent.atomic.AtomicInteger runs = new java.util.concurrent.atomic.AtomicInteger();
+        var t = sched.global().runAtFixedRate(runs::incrementAndGet, 1, 1);
+        Thread.sleep(5_000);
+        t.cancel();
+        int n = runs.get();
+        System.out.println("[A14-04b] 5초 동안 전역 1틱 반복 " + n + "번");
+        assertTrue(n >= 98, "5초면 100번(초당 20) 이어야 한다(Paper 박동은 서버 틱마다 한 번). 실제 " + n);
+    }
+
+    // ------------------------------------------------------------------ A14-03: 네트워크·가상 스레드에서 부르는 이벤트가 isAsync()=false
+
+    @Test
+    void a14_03_offThreadEventsReportSync() throws Exception {
+        var pre = new AsyncPlayerPreLoginEvent("a", java.util.UUID.randomUUID(), java.net.InetAddress.getLoopbackAddress());
+        assertTrue(pre.isAsync(),
+                "Event 문서: isAsync()==false 면 region/전역 스레드에서 불린다. AsyncPlayerPreLoginEvent 는 가상 스레드에서 불리므로 true 여야 한다(Paper 도 true)");
+    }
+
+    // ------------------------------------------------------------------ A14-08: 공개 setEnabled(false) 로 꺼진 플러그인의 명령이 계속 돈다
+
+    @Test
+    void a14_08_commandOfSelfDisabledPluginStillRuns() throws Exception {
+        String body = """
+                server().commands().register(this, "selfoff", (s, a) -> {
+                    org.domi.furnace.server.plugin.TestPlugins.LOG.add("selfoff:run");
+                    setEnabled(false);   // 공개 메서드라 플러그인이(또는 다른 플러그인이) 부를 수 있다
+                });
+                """;
+        jar("v1", body, false);
+        start();
+        host.dispatchCommand(host.console(), "selfoff");
+        awaitLog("selfoff:run");
+        assertFalse(host.plugins().isEnabled("Hot"));
+        TestPlugins.LOG.clear();
+        host.dispatchCommand(host.console(), "selfoff");
+        Thread.sleep(300);
+        assertFalse(TestPlugins.LOG.contains("selfoff:run"),
+                "꺼진 플러그인의 명령은 돌지 않아야 한다(Bukkit PluginCommand.execute 는 isEnabled 를 보고 거부한다)");
+    }
+
+    // ------------------------------------------------------------------ 측정: 리로드 100회 뒤 남는 클래스로더·스레드 (계획서 A14 방법)
+
+    /** 자동 정리 대상 API 만 쓰는 플러그인(구독·명령·PluginTasks 반복·패킷 리스너·번역)을 100번 다시 읽는다. 이 경우는 새지 않아야 한다. */
+    @Test
+    void measure_hundredReloadsOfWellBehavedPlugin() throws Exception {
+        String body = """
+                server().events().subscribe(this, org.domi.furnace.api.event.server.ServerCommandEvent.class, e -> {});
+                server().commands().register(this, "hotcmd", (s, a) -> {});
+                tasks().runGlobalRepeating(() -> {}, 1, 1);
+                server().packets().listen(this, org.domi.furnace.api.packet.PacketTypes.Clientbound.SYSTEM_CHAT, e -> {});
+                """;
+        jar("v1", body, false);
+        byte[] v1 = Files.readAllBytes(dir.resolve("hot.jar"));
+        jar("v2", body, false);
+        byte[] v2 = Files.readAllBytes(dir.resolve("hot.jar"));
+        if (Boolean.getBoolean("furnace.a14.prewarm")) java.util.concurrent.CompletableFuture.delayedExecutor(1, TimeUnit.MILLISECONDS).execute(() -> {});
+        start();
+        int threadsBefore = Thread.activeCount();
+        List<WeakReference<ClassLoader>> loaders = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            loaders.add(new WeakReference<>(host.plugins().plugin("Hot").getClass().getClassLoader()));
+            Path j = dir.resolve("hot.jar");
+            Files.write(j, i % 2 == 0 ? v1 : v2);
+            Files.setLastModifiedTime(j, FileTime.fromMillis(MTIME.addAndGet(5_000)));
+            reload();
+        }
+        for (int i = 0; i < 40; i++) {
+            System.gc();
+            Thread.sleep(50);
+        }
+        long alive = loaders.stream().filter(r -> r.get() != null).count();
+        for (int i = 0; i < loaders.size(); i++) if (loaders.get(i).get() != null) System.out.println("[A14 측정] 남은 로더 #" + i + " " + pinnedBy(loaders.get(i).get()));
+        int threadsAfter = Thread.activeCount();
+        System.out.println("[A14 측정] 리로드 100회: 남은 옛 클래스로더 " + alive + "개, 스레드 " + threadsBefore + " -> " + threadsAfter);
+        assertEquals(0, alive, "자동 정리 API 만 쓴 플러그인은 옛 클래스로더가 남지 않아야 한다");
+        assertTrue(threadsAfter - threadsBefore <= 2, "리로드마다 스레드가 늘면 안 된다: " + threadsBefore + " -> " + threadsAfter);
+    }
+
+    // ------------------------------------------------------------------ 도우미
+
+    private void assertOldLoaderCollected(String body, boolean withPingEvent) throws Exception {
+        assertOldLoaderCollected(body, withPingEvent, () -> {});
+    }
+
+    private void assertOldLoaderCollected(String body, boolean withPingEvent, Runnable afterStart) throws Exception {
+        jar("v1", body, withPingEvent);
+        start();
+        afterStart.run();
+        WeakReference<ClassLoader> ref = new WeakReference<>(host.plugins().plugin("Hot").getClass().getClassLoader());
+        jar("v2", body, withPingEvent);
+        reload();
+        for (int i = 0; i < 40 && ref.get() != null; i++) {
+            System.gc();
+            Thread.sleep(50);
+        }
+        assertNull(ref.get(), "핫 리로드 뒤 옛 플러그인 클래스로더가 회수돼야 한다(서버 쪽 참조가 남음): " + pinnedBy(ref.get()));
+    }
+
+    /** 옛 로더를 붙잡는 서버 쪽 자리(알려진 후보만): 이벤트 버스 byType·baked 키, monitorWarned, 월드 스폰 필터. */
+    private String pinnedBy(ClassLoader old) throws Exception {
+        if (old == null) return "없음";
+        List<String> out = new ArrayList<>();
+        for (String name : List.of("byType", "baked")) {
+            var f = EventBusImpl.class.getDeclaredField(name);
+            f.setAccessible(true);
+            for (Object k : ((Map<?, ?>) f.get(host.eventsImpl())).keySet())
+                if (k instanceof Class<?> c && c.getClassLoader() == old) out.add("EventBusImpl." + name + " 키 " + c.getName());
+        }
+        var mw = EventBusImpl.class.getDeclaredField("monitorWarned");
+        mw.setAccessible(true);
+        int n = ((Set<?>) mw.get(host.eventsImpl())).size();
+        if (n > 0) out.add("EventBusImpl.monitorWarned " + n + "개");
+        for (Thread t : Thread.getAllStackTraces().keySet())
+            if (t.getContextClassLoader() == old) out.add("문맥 로더로 쥔 스레드 " + t.getName());
+        if (core.world() != null) {
+            int filters = core.world().spawnPolicy().filterCount();
+            if (filters > 0) out.add("WorldSpawnPolicy 필터 " + filters + "개");
+        }
+        return out.toString();
+    }
+
+    private void jar(String ver, String body, boolean withPingEvent) throws IOException {
+        Map<String, String> src = new LinkedHashMap<>();
+        src.put("hot/a/Main.java", """
+                package hot.a;
+                public final class Main extends org.domi.furnace.api.plugin.FurnacePlugin {
+                    static final String VER = "%s";
+                    @Override public void onEnable() {
+                        %s
+                    }
+                }
+                """.formatted(ver, body));
+        if (withPingEvent) src.put("hot/a/Ping.java", "package hot.a; public final class Ping extends org.domi.furnace.api.event.Event {}");
+        pluginJar("hot.jar", "name: Hot\nversion: '" + ver + "'\nmain: hot.a.Main\n", src);
+    }
+
+    private void start() {
+        host = new PluginHost(core, dir);
+        host.pluginsImpl().settings(DEV);
+        host.pluginsImpl().retireDelayTicks = 0;
+        host.pluginsImpl().leakCheckMillis = -1;
+        host.pluginsImpl().asyncWaitMillis = 50;
+        host.pluginsImpl().loadAll(PluginBootstrapper.bootstrap(dir, DEV));
+        host.pluginsImpl().enableAll();
+        assertTrue(host.plugins().isEnabled("Hot"), "Hot 이 켜져야 한다");
+    }
+
+    private void reload() throws Exception {
+        assertEquals(List.of("Hot"), host.plugins().reload("Hot").get(10, TimeUnit.SECONDS));
+    }
+
+    private static void awaitLog(String entry) throws InterruptedException {
+        long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (!TestPlugins.LOG.contains(entry)) {
+            if (System.nanoTime() > end) fail("기록에 " + entry + " 이 오지 않았다");
+            Thread.sleep(10);
+        }
+    }
+
+    private static final java.util.concurrent.atomic.AtomicLong MTIME = new java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis());
+
+    private void pluginJar(String file, String descriptor, Map<String, String> sources) throws IOException {
+        JavaCompiler javac = ToolProvider.getSystemJavaCompiler();
+        assumeTrue(javac != null, "JDK 컴파일러가 없다");
+        Path src = Files.createTempDirectory(tmp, "src");
+        Path out = Files.createTempDirectory(tmp, "classes");
+        List<String> args = new ArrayList<>(List.of("-d", out.toString(), "-cp", classpath(), "-encoding", "UTF-8", "-proc:none"));
+        for (var e : sources.entrySet()) {
+            Path f = src.resolve(e.getKey());
+            Files.createDirectories(f.getParent());
+            Files.writeString(f, e.getValue());
+            args.add(f.toString());
+        }
+        assertEquals(0, javac.run(null, null, null, args.toArray(String[]::new)), "컴파일 실패");
+        Path jar = dir.resolve(file);
+        Files.createDirectories(dir);
+        Path staging = tmp.resolve(file + ".tmp");
+        try (JarOutputStream jo = new JarOutputStream(Files.newOutputStream(staging)); Stream<Path> walk = Files.walk(out)) {
+            jo.putNextEntry(new JarEntry("furnace-plugin.yml"));
+            jo.write(descriptor.getBytes(StandardCharsets.UTF_8));
+            jo.closeEntry();
+            for (Path p : walk.filter(Files::isRegularFile).toList()) {
+                jo.putNextEntry(new JarEntry(out.relativize(p).toString().replace('\\', '/')));
+                jo.write(Files.readAllBytes(p));
+                jo.closeEntry();
+            }
+        }
+        Files.write(jar, Files.readAllBytes(staging));
+        Files.setLastModifiedTime(jar, FileTime.fromMillis(MTIME.addAndGet(5_000)));
+    }
+
+    private static String classpath() {
+        List<String> parts = new ArrayList<>();
+        for (Class<?> c : new Class<?>[]{FurnacePlugin.class, TestPlugins.class}) {
+            try {
+                parts.add(Path.of(c.getProtectionDomain().getCodeSource().getLocation().toURI()).toString());
+            } catch (URISyntaxException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+        return String.join(java.io.File.pathSeparator, parts);
+    }
+
+    @SuppressWarnings("unused")
+    private static final Class<?>[] KEEP = {AsyncPlayerConfigureEvent.class};
+}
