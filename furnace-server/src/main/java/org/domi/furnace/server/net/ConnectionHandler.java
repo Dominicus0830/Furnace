@@ -1183,6 +1183,19 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 }
             }
 
+            public void closeContainerFromAnyThread(org.domi.furnace.server.menu.AbstractContainerMenu expect) {
+                // handleContainerClose 와 같은 규칙: 블록에 매인 창(상자 stopOpen·신호기 등)은 그 블록의 region 스레드에서 닫는다
+                int[] bp = expect.containerBlockPos();
+                Runnable close = () -> {
+                    if (p.containerMenu() == expect && p.hasOpenContainer()) ConnectionHandler.this.closeContainer(p);
+                };
+                if (bp == null) {
+                    synchronized (p.menuLock()) { close.run(); }
+                } else {
+                    world.runAt(bp[0], bp[2], region -> runOnBlockRegion(region, p, expect, bp, close));
+                }
+            }
+
             public boolean menuStillValid(org.domi.furnace.server.menu.AbstractContainerMenu menu) { return menu.stillValid(menus); }
 
             public void validateBlockMenu(org.domi.furnace.server.world.Region region, org.domi.furnace.server.menu.AbstractContainerMenu menu) {
