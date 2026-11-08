@@ -183,6 +183,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         if (w == null || w.regionizer().ownerOf(tcp.x(), tcp.z()) != r) return false;
         if (cur.vehicle() != null) cur.stopRiding();
         cur.moveTo(to.x(), to.y(), to.z(), to.yaw(), to.pitch());
+        cur.setDeltaMovement(0.0, 0.0, 0.0);   // Paper moveTo 처럼 텔레포트하면 속도를 지운다
         return true;
     }
 

@@ -1368,8 +1368,9 @@ public final class Region {
      * 알린 자리이고 문턱 아래 움직임은 기준을 옮기지 않는다(쌓여서 문턱을 넘으면 그때 부른다). 죽은·자는 플레이어는 부르지 않는다(isImmobile).
      * 취소되면 서버 위치를 기준 자리로 되돌리고 보정 텔레포트(검증 거부와 같은 방식, 이벤트 우회, 시선도 기준 시선으로). 취소되지 않았으면 true.
      */
-    private boolean movedEvent(Player p, Player.MoveSample prev, Player.MoveSample m) {
-        float toYaw = p.yaw(), toPitch = p.pitch();
+    private boolean movedEvent(Player p, Player.MoveSample prev, Player.MoveSample m, org.domi.furnace.server.entity.PlayerMoveValidator.Check packet) {
+        boolean raw = packet != null && packet.hasRot();   // 회전이 든 패킷은 원값, 아니면 서버의 지금 시선
+        float toYaw = raw ? packet.yaw() : p.yaw(), toPitch = raw ? packet.pitch() : p.pitch();
         if (!p.moveEventBaseSet()) {   // 접속·텔레포트 직후 첫 패킷: 이 자리가 기준(CraftBukkit lastPosX = 도착 자리) — 이 패킷은 부르지 않는다
             if (prev == null) { p.moveEventBase(m.x(), m.y(), m.z(), toYaw, toPitch); return true; }
             p.moveEventBase(prev.x(), prev.y(), prev.z(), toYaw, toPitch);
@@ -1385,7 +1386,7 @@ public final class Region {
         if (world.levelServices().gameEvents().playerMove(p, fx, fy, fz, fyaw, fpitch, m.x(), m.y(), m.z(), toYaw, toPitch)) return true;
         // 플러그인 PlayerMoveEvent 취소: 검증기가 이미 옮긴 서버 위치를 기준 자리로 되돌리고 보정 텔레포트
         p.moveEventBase(fx, fy, fz, fyaw, fpitch);
-        p.applyMove(fx, fy, fz, fyaw, fpitch, prev != null ? prev.onGround() : p.onGround());
+        p.applyMove(fx, fy, fz, org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(fyaw), org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(fpitch), prev != null ? prev.onGround() : p.onGround());
         p.moveAnchor(new Player.MoveSample(fx, fy, fz, prev != null ? prev.onGround() : p.onGround(), false));
         if (p.hasTeleporter()) {
             p.moveRejectHold = true;
@@ -1401,6 +1402,7 @@ public final class Region {
         p.validatesMoves = true;   // 이 region 이 검증한다 — 연결은 위치를 발행하지 않고 검증 대기열에 넣는다
         while ((m = p.pollMove()) != null) {
             any = true;
+            org.domi.furnace.server.entity.PlayerMoveValidator.Check packet = m.check();   // 패킷의 감기지 않은 시선 — CraftBukkit 은 to.setYaw(packet.yRot) 원값끼리 비교한다
             if (m.teleport()) {
                 // 서버가 정한 자리: 뒤따르는 검증 패킷의 기준이 되도록 위치를 먼저 맞춘다(회전은 곧 드레인이 맞춘다)
                 p.applyMove(m.x(), m.y(), m.z(), p.yaw(), p.pitch(), p.onGround());
@@ -1421,7 +1423,7 @@ public final class Region {
                 m = new Player.MoveSample(p.x(), p.y(), p.z(), m.onGround(), false);
             }
             Player.MoveSample prev = p.moveAnchor();
-            if (!m.teleport() && !movedEvent(p, prev, m)) continue;
+            if (!m.teleport() && !movedEvent(p, prev, m, packet)) continue;
             p.moveAnchor(m);
             if (m.teleport() || prev == null || probe == null) continue;
             boolean sneaking = p.sneaking();

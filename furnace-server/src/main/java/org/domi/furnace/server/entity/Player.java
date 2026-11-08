@@ -1847,12 +1847,12 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     }
 
     /**
-     * 플러그인 teleport 의 결과 규칙(Paper CraftPlayer#teleport): 연결이 없거나 끊겼으면, PlayerTeleportEvent 가 취소됐으면 false —
+     * 플러그인 teleport 의 결과 규칙(Paper CraftPlayer#teleport): 연결이 없거나 끊겼거나 죽었으면, PlayerTeleportEvent 가 취소됐으면 false —
      * 아무것도 바뀌지 않는다. 그 밖에는 탈것을 타고 있으면 먼저 내리고(깨어 있어야 하니 자던 중이면 깨운 뒤) 보정 텔레포트를 보내
      * true. 결과는 이벤트가 정하므로 어느 스레드에서나 부를 수 있고, 내리기·깨우기는 소유 region 스레드로 넘어간다.
      */
     public boolean pluginTeleport(double x, double y, double z, float yaw, float pitch) {
-        if (isDisconnected() || !hasTeleporter()) return false;
+        if (isDisconnected() || !hasTeleporter() || vitals().health() <= 0.0F) return false;   // 죽은 플레이어는 이벤트 없이 false(CraftPlayer#teleport)
         if (!vitals().env().gameEvents().playerTeleport(this, x, y, z, yaw, pitch)) return false;
         Runnable go = () -> {
             if (vehicle != null) stopRiding();
