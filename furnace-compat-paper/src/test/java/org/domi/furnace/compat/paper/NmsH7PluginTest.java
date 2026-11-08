@@ -236,7 +236,8 @@ class NmsH7PluginTest {
                 return null;
             });
             long until = System.nanoTime() + 5_000_000_000L;
-            while (tp.isConnected() && System.nanoTime() < until) {
+            // 봇 소켓이 먼저 닫혀도 서버가 끊김을 처리해 기록하기까지는 틱이 더 든다 — 기록이 남을 때까지 돈다
+            while ((tp.isConnected() || !messages().contains("Nms lost connection: bye nms")) && System.nanoTime() < until) {
                 server.tick();
                 Thread.sleep(10);
             }
