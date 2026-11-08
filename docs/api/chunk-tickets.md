@@ -20,7 +20,7 @@ t.release();                                                         // 또는 t
 - **ticking**: 참이면 그 청크의 엔티티·블록 엔티티가 플레이어 없이도 틱을 받는다(`/forceload` 와 같은 단계). 거짓이면 올려 두기만 한다(청크 읽기·쓰기, 구조물 놓기·저장 같은 작업용). 무작위 틱·자연 스폰은 `/forceload` 처럼 플레이어 가까이에서만 돈다.
 - **겹침**: 같은 청크에 티켓이 여럿 겹쳐도 된다(여러 플러그인이든 한 플러그인이든). 모두 풀려야 보통 규칙대로(플레이어가 없고 퇴출 유예가 지나면) 내려간다. `/forceload`·포털·드래곤 티켓과도 독립이다.
 - **저장 안 됨**: 티켓은 서버를 다시 켜면 사라진다. 플러그인이 켤 때 다시 건다(`/forceload` 는 `chunks.dat` 에 저장된다).
-- **한도**: 한 티켓 반경 0..16, 한 플러그인이 걸 수 있는 청크 수는 겹침 포함 16384(`ChunkTickets.MAX_CHUNKS_PER_OWNER`). 넘으면 `IllegalStateException`. 꺼진 플러그인의 `add` 도 `IllegalStateException`.
+- **한도**: 한 티켓 반경 0..16, 한 플러그인이 걸 수 있는 청크 수는 겹침 포함 기본 16384(`ChunkTickets.MAX_CHUNKS_PER_OWNER` 는 이 기본값). 서버 운영자가 `furnace.properties` 의 `plugins.chunk-tickets.max-per-plugin`(1 이상)으로 바꿀 수 있고, 잘못된 값이면 기동이 멈춘다. 넘으면 `IllegalStateException`. 꺼진 플러그인의 `add` 도 `IllegalStateException`.
 - **조회**: `tickets(owner)`, `tickets(world)`, `ticketsAt(world, cx, cz)`, `isHeld(world, cx, cz)`. 아무 스레드.
 - 월드가 내려가면 그 월드의 티켓은 `isActive()` 가 거짓이 된다.
 
