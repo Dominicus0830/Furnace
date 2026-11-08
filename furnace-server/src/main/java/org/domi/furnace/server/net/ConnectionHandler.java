@@ -1969,7 +1969,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 }
                 // 바닐라: 슬롯 1..45만, 개수·아이템 유효. 비정상 값은 다른 플레이어(공유 상자 경유)까지 클라이언트를 깨뜨린다.
                 Player cp = player;
-                boolean creative = cp != null && cp.gameMode() == org.domi.furnace.server.world.GameMode.CREATIVE;
+                boolean creative = cp != null && cp.gameMode() == org.domi.furnace.server.world.GameMode.CREATIVE && !cp.vitals().isDeadOrDying();
                 if (creative && slot >= 1 && slot < org.domi.furnace.server.entity.PlayerInventory.SIZE && validStack(stack)) {
                     // 바닐라 handleSetCreativeModeSlot: 인벤토리 창의 칸에 놓고, 클라이언트가 이미 아는 값으로 받아들이고, 변경을 방송한다.
                     synchronized (cp.menuLock()) {
@@ -2356,6 +2356,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             org.domi.furnace.server.menu.ClickType type, java.util.Map<Integer, ItemStack> changed, ItemStack carried) {
         var menu = p.containerMenu();
         if (menu == null || menu.containerId != containerId) return;   // 바닐라: 열린 창과 다르면 무시
+        if (p.vitals().isDeadOrDying()) return;   // 죽은 플레이어의 창 클릭은 무시(Paper isImmobile) — 사망 드롭 목록을 떠 간 뒤 아이템이 빠져나가지 않게
         Runnable body = () -> applyContainerClick(p, menu, stateId, slotNum, button, type, changed, carried);
         int[] bp = menu.containerBlockPos();
         if (bp == null) {
@@ -2371,6 +2372,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 바닐라 handlePlaceRecipe: 레시피 북이 열린 창의 격자를 채운다(스펙테이터는 안 된다). */
     private void handlePlaceRecipe(Player p, int containerId, String recipeId, boolean shift) {
+        if (p.vitals().isDeadOrDying()) return;   // 죽은 플레이어의 창 조작은 무시
         var rm = menus.recipes();
         if (rm == null) return;
         org.domi.furnace.server.data.ResourceId rid = org.domi.furnace.server.data.ResourceId.tryParse(recipeId);
@@ -2707,7 +2709,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (menu == null || menu.containerId != containerId) return;
         Runnable body = () -> {
             if (p.containerMenu() != menu) return;
-            if (p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return;
+            if (p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR || p.vitals().isDeadOrDying()) return;
             if (!menu.stillValid(menus)) {
                 log.debug("Player {} interacted with invalid menu {}", p.name(), menu);
             } else if (menu.clickMenuButton(menus, buttonId)) {
@@ -2725,6 +2727,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void applyContainerClick(Player p, org.domi.furnace.server.menu.AbstractContainerMenu menu, int stateId, int slotNum, int button,
             org.domi.furnace.server.menu.ClickType type, java.util.Map<Integer, ItemStack> changed, ItemStack carried) {
         if (p.containerMenu() != menu) return;   // 그 사이 닫혔다
+        if (p.vitals().isDeadOrDying()) return;   // 큐에서 기다리는 사이 죽었다
         try {
             if (p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) {
                 menu.sendAllDataToRemote();
@@ -3258,13 +3261,18 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     /** ServerPlayer.drop(all): 든 칸에서 하나(또는 다) 꺼내 던진다. 열린 창에서 그 칸을 찾아, 클라이언트가 이미 비운 값을 아는 것으로 맞춘다(setRemoteSlot). */
     private void dropFromSelected(boolean all) {
         Player p = player;
+        if (p != null && p.vitals().isDeadOrDying()) return;   // 죽은 플레이어의 버리기는 무시(Paper isImmobile) — 사망 드롭을 가져간 무덤 플러그인과 바닥에 둘 다 생기는 복제를 막는다
         int ws = inv.heldWindowSlot();
         ItemStack held = inv.get(ws);
         ItemStack left = held;
         if (!held.isEmpty()) {
             int n = all ? held.count() : 1;
             left = held.withCount(held.count() - n);
-            if (!inv.replace(ws, held, left)) return;
+            // 죽음 확인과 칸 바꾸기를 인벤토리 잠금 안에서 함께 한다: 사망 스냅샷(같은 잠금)이 먼저면 이 확인에서 막히고, 이 바꾸기가 먼저면 스냅샷에 반영된다
+            synchronized (inv) {
+                if (p != null && p.vitals().isDeadOrDying()) return;
+                if (!inv.replace(ws, held, left)) return;
+            }
             fireInventoryChanged(ws);
             spawnDrop(held.withCount(n), false, true);
         }
@@ -3296,12 +3304,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
      * 클라이언트는 예측하지 않으므로 바뀐 칸은 평소 인벤토리 동기화로 간다. 플러그인 PlayerSwapHandItemsEvent 로 취소하거나 결과를 바꿀 수 있다.
      */
     private void swapHands(Player p) {
-        if (p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return;
+        if (p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR || p.vitals().isDeadOrDying()) return;
         int ws = inv.heldWindowSlot();
         ItemStack main = inv.get(ws), off = inv.get(45);
         ItemStack[] now = pluginEvents().playerSwapHands(p, off, main);
         if (now == null) return;
         synchronized (inv) {   // 이벤트 사이에 창 클릭(연결 스레드)이 칸을 바꿨으면 버린다 — 두 칸을 한 번에
+            if (p.vitals().isDeadOrDying()) return;
             if (inv.get(ws) != main || inv.get(45) != off) return;
             inv.set(45, now[1]);
             inv.set(ws, now[0]);
