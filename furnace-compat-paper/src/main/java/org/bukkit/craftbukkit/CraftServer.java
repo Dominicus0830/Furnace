@@ -161,12 +161,21 @@ public final class CraftServer implements Server {
     @Override
     public ConsoleCommandSender getConsoleSender() { return CompatConsole.INSTANCE; }
 
-    /** 옛 방식 명령이면 Bukkit 처럼 지금 스레드가 주 스레드일 때 바로 실행해 알리고(예외는 CommandException), 아니면 Furnace 명령 큐에 넣는다(결과는 알 수 없어 true). */
+    /**
+     * 옛 방식 명령이면 Bukkit 처럼 지금 스레드가 주 스레드일 때 바로 실행해 알리고(예외는 CommandException), 아니면 Furnace 명령 큐에 넣는다.
+     * 큐에 넣은 명령은 결과를 알 수 없어 트리에 있는 이름이면 true 다. 트리 루트에 없는 이름(없는 명령)이면 Paper·Spigot 처럼 false 를 돌려주고,
+     * 보낸 사람에게는 바닐라의 "알 수 없는 명령" 오류 문장이 간다(Paper 1.21.1: Brigadier 파싱 실패 문장).
+     */
     @Override
     public boolean dispatchCommand(CommandSender sender, String commandLine) {
         String line = commandLine.startsWith("/") ? commandLine.substring(1) : commandLine;
         if (Compat.commandMap().dispatch(sender, line)) return true;
-        return f().dispatchCommand(Compat.furnaceSender(sender), line);
+        String[] tokens = org.domi.furnace.compat.command.LegacyCommands.splitLine(line);
+        if (tokens.length == 0) return false;
+        var commands = f().commands();
+        boolean known = commands.hasCommand(tokens[0]) || commands.hasCommand(tokens[0].toLowerCase(java.util.Locale.ROOT));
+        f().dispatchCommand(Compat.furnaceSender(sender), line.stripLeading());   // 앞 빈 칸은 Paper 의 지도 길처럼 무시한다
+        return known;
     }
 
     @Override

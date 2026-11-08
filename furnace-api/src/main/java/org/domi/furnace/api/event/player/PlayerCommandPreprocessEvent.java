@@ -1,10 +1,11 @@
 // 플레이어 명령 실행 직전 — "/명령 인자" 전체. 취소하거나 바꿀 수 있다(바꾸면 서명 없는 명령으로 실행). 연결 스레드에서 불린다.
+// 표지판 클릭 명령도 {@link PlayerSignCommandPreprocessEvent} 로 같은 처리기에 온다(Paper 와 같다 — 명령 기록·보안 플러그인이 받는다).
 package org.domi.furnace.api.event.player;
 
 import org.domi.furnace.api.entity.Player;
 import org.domi.furnace.api.event.Cancellable;
 
-public final class PlayerCommandPreprocessEvent extends PlayerEvent implements Cancellable {
+public class PlayerCommandPreprocessEvent extends PlayerEvent implements Cancellable {
 
     private String message;
     private boolean cancelled;

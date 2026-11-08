@@ -355,6 +355,15 @@ public interface BlockLevel {
     default void runSignCommand(BlockActor player, Pos pos, String command) {}
 
     /**
+     * 면(front)을 아는 표지판 클릭 명령. 플러그인이 명령 전처리 이벤트를 취소해 돌리지 않았으면 false(Paper: 이때 executeClickCommandsIfPresent 도 false 로 끝난다).
+     * 기본은 면을 모르는 {@link #runSignCommand(BlockActor, Pos, String)} 로 넘기고 true.
+     */
+    default boolean runSignCommand(BlockActor player, Pos pos, boolean front, String command) {
+        runSignCommand(player, pos, command);
+        return true;
+    }
+
+    /**
      * SignBlockEntity.loadLine: 레벨에 놓인 표지판이 글을 읽을 때 줄마다 ComponentUtils.updateForEntity(표지판 소스(플레이어 없음·권한 2·칸 가운데), 줄, null)
      * 로 푼다(선택자·점수·NBT). 명령 오류면 원래 줄. 서버가 없는 레벨은 그대로.
      * 결과는 apply(그 칸의 주인 레벨, 풀린 줄들)로 받는다 — 다른 region 의 엔티티를 찾지 않으면 그 자리에서, 찾으면 끝난 뒤 그 칸의 주인 스레드에서.

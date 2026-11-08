@@ -1166,9 +1166,12 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     @Override
-    public void runSignCommand(BlockActor player, Pos pos, String command) {
+    public void runSignCommand(BlockActor player, Pos pos, String command) { runSignCommand(player, pos, true, command); }
+
+    @Override
+    public boolean runSignCommand(BlockActor player, Pos pos, boolean front, String command) {
         Player p = player != null && player.handle() instanceof Player pl ? pl : null;
-        services().runSignCommand(p, pos.x(), pos.y(), pos.z(), command);
+        return services().runSignCommand(p, pos.x(), pos.y(), pos.z(), front, command);
     }
 
     @Override
