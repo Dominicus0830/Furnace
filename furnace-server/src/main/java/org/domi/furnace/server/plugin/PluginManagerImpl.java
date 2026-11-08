@@ -227,6 +227,12 @@ public final class PluginManagerImpl implements PluginManager {
         failFastCheck("켜기");
     }
 
+    @Override
+    public void enable(FurnacePlugin p) {
+        Loaded l = find(p);
+        if (l != null) enable(l);
+    }
+
     private void enable(Loaded l) {
         FurnacePlugin p = l.plugin();
         if (p.isEnabled()) return;

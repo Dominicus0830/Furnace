@@ -47,7 +47,7 @@
 
 Furnace 이벤트가 알리지 않는 값은 지어내지 않는다. 읽기는 정직한 기본값(예: 순간이동 원인 `UNKNOWN`), 쓰기는 `UnsupportedFeature`(= `UnsupportedOperationException`)로 무엇이 없는지 말하며 던진다. 예: `PlayerMoveEvent#setTo`, `AsyncPlayerChatEvent#getRecipients()` 바꾸기(받는 사람마다 다른 서식은 `AsyncChatEvent#renderer` 가 대신한다).
 
-아직 없는 `org.bukkit` 영역: 엔티티 종류별 하위 인터페이스, 커스텀 `Inventory` 생성(`createInventory`; 서버에 메뉴 API 연결 전이라 `UnsupportedFeature`), 나머지 수백 개 이벤트, `Bukkit.getOnlinePlayers` 이외의 대부분의 서버 보조(권한 첨부는 `Player#hasPermission` 만). 없는 클래스를 부르면 플러그인 쪽에서 `NoClassDefFoundError` 가 나 그 플러그인만 실패한다.
+아직 없는 `org.bukkit` 영역: 엔티티 종류별 하위 인터페이스, 커스텀 `Inventory` 생성(`createInventory`; 서버에 메뉴 API 연결 전이라 `UnsupportedFeature`), 나머지 수백 개 이벤트, `Bukkit.getOnlinePlayers` 이외의 대부분의 서버 보조(권한은 `PluginManager` 의 노드 API·구독·`Bukkit.broadcast(메시지, 권한)` 까지 — 첨부 `addAttachment` 는 아직 없다). 없는 클래스를 부르면 플러그인 쪽에서 `NoClassDefFoundError` 가 나 그 플러그인만 실패한다.
 
 ## Material
 
@@ -87,7 +87,7 @@ Bukkit 은 메인 스레드 하나를 가정한다. 이 1차는 Furnace 이벤�
 
 ## H4: 실제 플러그인으로 잰 호환 정도
 
-실제 Bukkit·Paper API 로 컴파일된 jar(Central 의 실제 플러그인 helper·CommandAPI 와 흔한 플러그인 라이브러리 11종)를 바이트코드로 대조하고 plugin.yml jar 는 헤드리스 서버에 올려 잰 표·우선순위·한계는 `docs/feature-parity/compat-h4-2026-11-07.md`, 생성 대조표는 `docs/feature-parity/compat-h4-coverage-2026-11-07.md`. H4 측정 때 helper·CommandAPI 둘 다 켜지지 못했다(첫 장애물: `JavaPlugin.getProvidingPlugin`, Brigadier 클래스 없음). A 묶음 뒤 helper 의 첫 장애물은 Guava(`com.google.common.base.Supplier`, 서버 제공 라이브러리 B — 사용자 결정), CommandAPI 는 그대로 Brigadier. B 묶음(2026-11-08)부터 Paper 가 싣는 라이브러리(Guava·Adventure·SnakeYAML·Brigadier 등)는 호환 플러그인이 쓸 때만 받아 공유 로더에 붙인다(`docs/api/plugin-libraries.md`) — 그 뒤 둘 다 `PluginMessageListener`(묶음 E)에서 멈췄고, E 묶음(2026-11-08) 뒤 helper 는 `SimplePluginManager`, CommandAPI 는 Spigot 이름 NMS(H7d)에서 멈춘다. 호환 API 를 더하는 묶음은 `./gradlew -PskipOracle=true :furnace-compat-paper:compatReport` 로 대조표와 기준표(`realworld-baseline.properties`)를 새로 쓴다 — 기준표 시험(`RealWorldCompatTest`)이 후퇴를 막는다.
+실제 Bukkit·Paper API 로 컴파일된 jar(Central 의 실제 플러그인 helper·CommandAPI 와 흔한 플러그인 라이브러리 11종)를 바이트코드로 대조하고 plugin.yml jar 는 헤드리스 서버에 올려 잰 표·우선순위·한계는 `docs/feature-parity/compat-h4-2026-11-07.md`, 생성 대조표는 `docs/feature-parity/compat-h4-coverage-2026-11-07.md`. H4 측정 때 helper·CommandAPI 둘 다 켜지지 못했다(첫 장애물: `JavaPlugin.getProvidingPlugin`, Brigadier 클래스 없음). A 묶음 뒤 helper 의 첫 장애물은 Guava(`com.google.common.base.Supplier`, 서버 제공 라이브러리 B — 사용자 결정), CommandAPI 는 그대로 Brigadier. B 묶음(2026-11-08)부터 Paper 가 싣는 라이브러리(Guava·Adventure·SnakeYAML·Brigadier 등)는 호환 플러그인이 쓸 때만 받아 공유 로더에 붙인다(`docs/api/plugin-libraries.md`) — 그 뒤 둘 다 `PluginMessageListener`(묶음 E)에서 멈췄고, E 묶음(2026-11-08) 뒤 helper 는 `SimplePluginManager`, CommandAPI 는 Spigot 이름 NMS(H7d)에서 멈춘다. `SimplePluginManager`(2026-11-08, `docs/feature-parity/compat-h4-simplepluginmanager-2026-11-08.md`) 뒤 helper 는 켜지고 `/helper` 가 돈다(라이브러리 캐시를 준 상태). 호환 API 를 더하는 묶음은 `./gradlew -PskipOracle=true :furnace-compat-paper:compatReport` 로 대조표와 기준표(`realworld-baseline.properties`)를 새로 쓴다 — 기준표 시험(`RealWorldCompatTest`)이 후퇴를 막는다.
 
 ## 시험
 

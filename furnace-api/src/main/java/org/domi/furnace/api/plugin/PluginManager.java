@@ -15,6 +15,12 @@ public interface PluginManager {
     /** 켜진 플러그인을 끈다(명령·이벤트·작업·권한 첨부가 모두 정리된다). */
     void disable(FurnacePlugin plugin);
 
+    /**
+     * 불러왔지만 꺼져 있는 플러그인을 켠다(아직 켜지 않았거나 {@link #disable} 로 끈 것). 이미 켜져 있거나 이 서버가 불러온 플러그인이 아니면
+     * 아무 일도 없다. 켜기에 실패하면 서버 로그에 남기고 다시 끈다(시작 때와 같다).
+     */
+    default void enable(FurnacePlugin plugin) { throw new UnsupportedOperationException("이 서버는 플러그인을 다시 켜지 못한다"); }
+
     /** 플러그인 로거의 수준을 바꾼다(서버 설정 plugins.log-level.<이름> 으로 시작값을 줄 수 있다). */
     void setLogLevel(String pluginName, java.util.logging.Level level);
 

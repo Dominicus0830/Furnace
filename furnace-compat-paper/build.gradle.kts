@@ -119,7 +119,8 @@ tasks.register<JavaExec>("liveProbe") {
     classpath = sourceSets["test"].runtimeClasspath
     mainClass.set("org.domi.furnace.compat.realworld.LiveProbeMain")
     // -PlibraryCache=<폴더>: 그 폴더를 라이브러리 캐시로 offline 으로 써서 서버 제공 라이브러리(H4 묶음 B)를 준 상태로 잰다(online 이면 실제로 받는다)
-    args(providers.gradleProperty("jar").orElse("helper").get(), providers.gradleProperty("libraryCache").orElse("").get())
+    args(providers.gradleProperty("jar").orElse("helper").get(), providers.gradleProperty("libraryCache").orElse("").get(),
+        providers.gradleProperty("commands").orElse("").get())
     jvmArgumentProviders.add(RealWorldJars(realWorld + extraJars))
 }
 

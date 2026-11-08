@@ -10,6 +10,12 @@ public interface PermissionManager {
 
     void unregister(String name);
 
+    /** 같은 이름의 노드를 바꾸거나(없으면 올린다) 한 번에 — 사이에 노드가 빈 순간이 없다. */
+    default void replace(Permission permission) {
+        unregister(permission.name());
+        register(permission);
+    }
+
     Permission permission(String name);
 
     Collection<Permission> permissions();

@@ -201,6 +201,42 @@ public class SimpleCommandMap implements CommandMap {
         }
     }
 
+    /**
+     * knownCommands.put: 그 이름을 이 명령으로 트리에 붙인다. 다른 명령이 잡고 있던 이름이면 그 이름만 먼저 뺀다(Bukkit 의 지도 덮어쓰기).
+     * "접두어:이름" 은 접두어가 그 명령의 플러그인일 때만 된다 — Furnace 트리는 "플러그인:이름" 을 이름과 함께 붙이므로 이름도 같이 생긴다
+     * (그 이름을 바닐라·다른 플러그인이 잡고 있으면 접두어 형태만).
+     */
+    private synchronized Command putName(String key, Command command) {
+        Command current = names.get(key);
+        if (current == command) return current;
+        String ns = CompatCommands.namespaceOf(command);
+        String bare = key;
+        int colon = key.indexOf(':');
+        if (colon >= 0) {
+            if (!key.substring(0, colon).equals(ns)) {
+                throw new UnsupportedFeature("SimpleCommandMap#knownCommands.put(" + key + ")",
+                        "Furnace 명령 트리는 다른 플러그인 접두어로 명령을 붙이지 못한다(이 명령의 접두어는 '" + ns + "')");
+            }
+            bare = key.substring(colon + 1);
+        }
+        if (bare.isEmpty() || bare.indexOf(' ') >= 0 || bare.indexOf(':') >= 0) {
+            throw new IllegalArgumentException("명령 트리에 올릴 수 없는 이름: '" + key + "'");
+        }
+        if (current != null) removeName(key);
+        CompatCommands.Attached at = attached.get(command);
+        java.util.Collection<String> added;
+        if (at == null) {
+            CompatCommands.Attached fresh = CompatCommands.attachName(command, bare);
+            attached.put(command, fresh);
+            if (hookedOwners.add(fresh.owner())) fresh.owner().own(() -> dropOwner(fresh.owner()));
+            added = fresh.names();
+        } else {
+            added = CompatCommands.attachExtraName(at, bare);
+        }
+        for (String n : added) names.putIfAbsent(n, command);
+        return current;
+    }
+
     /** 이름 하나를 트리에서 뺐다(knownCommands 에서 지웠다). */
     private synchronized void removeName(String name) {
         Command c = names.remove(name);
@@ -234,11 +270,11 @@ public class SimpleCommandMap implements CommandMap {
             }
         }
 
+        /** 이름 하나를 그 명령으로 트리에 붙인다(Paper 의 knownCommands 도 넣으면 명령 트리에 붙는다 — helper 가 별칭을 이렇게 올린다). */
         @Override
         public Command put(String key, Command value) {
-            Command current = get(key);
-            if (current == value) return current;
-            throw new UnsupportedFeature("SimpleCommandMap#knownCommands.put", "명령은 CommandMap.register 로 올려야 Furnace 명령 트리에 붙는다");
+            if (key == null || value == null) throw new NullPointerException("knownCommands 에는 null 을 넣을 수 없다");
+            return putName(key.toLowerCase(Locale.ROOT), value);
         }
 
         @Override

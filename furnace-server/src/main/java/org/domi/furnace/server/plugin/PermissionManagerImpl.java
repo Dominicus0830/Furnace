@@ -25,6 +25,12 @@ public final class PermissionManagerImpl implements PermissionManager {
     }
 
     @Override
+    public void replace(Permission permission) {
+        permissions.put(permission.name(), permission);
+        version.incrementAndGet();
+    }
+
+    @Override
     public void unregister(String name) {
         if (permissions.remove(name.toLowerCase(Locale.ROOT)) != null) version.incrementAndGet();
     }

@@ -53,6 +53,9 @@ public interface Server extends org.bukkit.plugin.messaging.PluginMessageRecipie
 
     int broadcastMessage(String message);
 
+    /** 그 권한을 가진(값이 정해져 참인) 접속자·콘솔에게 보낸다. 받은 수를 돌려준다. */
+    int broadcast(String message, String permission);
+
     ConsoleCommandSender getConsoleSender();
 
     boolean dispatchCommand(CommandSender sender, String commandLine);

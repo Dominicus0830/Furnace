@@ -42,6 +42,8 @@ public final class Compat {
         private volatile SimpleCommandMap commandMap;
         private volatile SimpleServicesManager services;
         private volatile CompatMessenger messenger;
+        @SuppressWarnings("removal")
+        private volatile org.bukkit.plugin.SimplePluginManager pluginManager;
 
         State(Furnace furnace) { this.furnace = furnace; }
 
@@ -63,6 +65,12 @@ public final class Compat {
         synchronized SimpleServicesManager services() {
             if (services == null) services = new SimpleServicesManager();
             return services;
+        }
+
+        @SuppressWarnings("removal")
+        synchronized org.bukkit.plugin.SimplePluginManager pluginManager() {
+            if (pluginManager == null) pluginManager = new org.bukkit.plugin.SimplePluginManager(CraftServer.INSTANCE, commandMap());
+            return pluginManager;
         }
 
         synchronized CompatMessenger messenger() {
@@ -111,6 +119,10 @@ public final class Compat {
 
     /** 지금 서버의 서비스 지도. */
     public static SimpleServicesManager services() { return state().services(); }
+
+    /** 지금 서버의 Bukkit 플러그인 관리자(Bukkit.getPluginManager()). */
+    @SuppressWarnings("removal")
+    public static org.bukkit.plugin.SimplePluginManager pluginManager() { return state().pluginManager(); }
 
     /** 지금 서버의 플러그인 메신저. */
     public static CompatMessenger messenger() { return state().messenger(); }
