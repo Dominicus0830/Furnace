@@ -50,18 +50,30 @@ public final class CraftServer implements Server {
     @Override
     public org.bukkit.block.data.BlockData createBlockData(org.bukkit.Material material, String data) { return CompatBlockData.create(material, data); }
 
-    private static UnsupportedFeature noVirtualInventory() {
-        return new UnsupportedFeature("Bukkit.createInventory", "가상 인벤토리(메뉴)는 클릭·열기·닫기 이벤트와 함께 옮겨야 한다 — Furnace 메뉴 프레임워크(org.domi.furnace.api.menu.Menu)를 쓴다");
+    @Override
+    public org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, int size) {
+        return org.domi.furnace.compat.paper.CompatMenuInventory.chest(owner, size, null);
     }
 
     @Override
-    public org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, int size) { throw noVirtualInventory(); }
+    public org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, int size, String title) {
+        return org.domi.furnace.compat.paper.CompatMenuInventory.chest(owner, size, title);
+    }
 
     @Override
-    public org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, int size, String title) { throw noVirtualInventory(); }
+    public org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, org.bukkit.event.inventory.InventoryType type) {
+        return org.domi.furnace.compat.paper.CompatMenuInventory.ofType(owner, type, null);
+    }
 
     @Override
-    public org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, org.bukkit.event.inventory.InventoryType type) { throw noVirtualInventory(); }
+    public org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, org.bukkit.event.inventory.InventoryType type, String title) {
+        return org.domi.furnace.compat.paper.CompatMenuInventory.ofType(owner, type, title);
+    }
+
+    @Override
+    public org.bukkit.boss.BossBar createBossBar(String title, org.bukkit.boss.BarColor color, org.bukkit.boss.BarStyle style, org.bukkit.boss.BarFlag... flags) {
+        return new org.bukkit.craftbukkit.boss.CraftBossBar(title, color, style, flags);
+    }
 
     @Override
     public String getName() { return "Furnace"; }

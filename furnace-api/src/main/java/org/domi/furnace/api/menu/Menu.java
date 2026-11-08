@@ -8,6 +8,8 @@
 //       .onClose(p -> p.sendMessage(Text.text("안녕히!")));
 //   player.openMenu(menu);
 //
+// 보관함 메뉴(storage(true))는 상자처럼 움직인다: 허용된 클릭이 메뉴 칸을 실제로 바꾸고, 보는 사람 모두 같은 칸을 쓴다(Bukkit createInventory 와 같은 뜻).
+//
 // 어느 스레드에서 만들고 바꿔도 된다. 처리기는 그 플레이어의 연결 스레드에서 불린다.
 package org.domi.furnace.api.menu;
 
@@ -44,6 +46,8 @@ public final class Menu {
     private final Consumer<MenuClick>[] handlers;
     private volatile Consumer<MenuClick> anyClick;
     private volatile Consumer<Player> openHandler, closeHandler;
+    private volatile boolean storage;
+    private final Object storageLock = new Object();
     private final Set<Player> viewers = new LinkedHashSet<>();
     private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
 
@@ -100,6 +104,13 @@ public final class Menu {
     public Menu set(int slot, ItemStack item) {
         check(slot);
         Objects.requireNonNull(item, "item");
+        if (storage) {
+            synchronized (storageLock) { return set0(slot, item); }   // 보는 사람의 클릭과 한 줄로
+        }
+        return set0(slot, item);
+    }
+
+    private Menu set0(int slot, ItemStack item) {
         ItemStack now = item.isEmpty() ? ItemStack.EMPTY : item;
         synchronized (lock) {
             if (items[slot].equals(now)) return this;
@@ -157,6 +168,24 @@ public final class Menu {
         }
         return this;
     }
+
+    // ------------------------------------------------------------------ 보관함
+
+    /**
+     * 보관함 메뉴로 만든다(기본은 false — 보여 주기만 하는 메뉴). 보관함이면 처리기가 allow() 한 클릭이 바닐라 규칙대로 이 메뉴의 칸을
+     * 바꾸고(꺼내기·넣기·나누기·끌어 놓기), 그 결과가 {@link #item(int)} 과 다른 보는 사람 화면에 곧바로 보인다. 보는 사람들의 클릭은
+     * 한 번에 하나씩 처리된다(두 사람이 같은 아이템을 동시에 꺼내 복제되지 않는다). 보여 주기만 하는 메뉴에서 allow() 한 클릭은
+     * 그 사람 화면에서만 아이템이 움직이고 메뉴 내용은 그대로다. 열기 전에 정한다(연 뒤에 바꾸면 다음 클릭부터 따른다).
+     */
+    public Menu storage(boolean storage) {
+        this.storage = storage;
+        return this;
+    }
+
+    public boolean isStorage() { return storage; }
+
+    /** 서버 구현 전용: 보관함 메뉴의 클릭 하나를 처리하는 동안 쥐는 잠금(칸 쓰기도 이 잠금 안에서 한다). */
+    public Object storageLock() { return storageLock; }
 
     // ------------------------------------------------------------------ 열기·닫기 처리기
 

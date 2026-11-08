@@ -1,5 +1,7 @@
 // 플러그인 Menu 하나를 한 플레이어가 열어 본 것 — 그 사람 몫의 용기(칸 내용 사본)와 서버 메뉴를 쥔다.
 // 칸 변경은 Menu 리스너로 받아 연결 스레드에서 용기에 반영하고 broadcastChanges 로 클라이언트에 보낸다. 변환 실패(모르는 아이템)는 열기 전에 던진다.
+// 보관함 메뉴(Menu#isStorage)는 클릭 하나를 Menu 의 보관함 잠금 안에서 처리한다: 직전에 메뉴 내용을 용기에 다시 읽고, 클릭이 바꾼 위쪽 칸만
+// 메뉴에 되돌려 쓴다 — 보는 사람마다 용기 사본이 있어도 클릭이 한 줄로 서서 같은 아이템을 둘이 꺼내는 일이 없다.
 package org.domi.furnace.server.plugin;
 
 import java.util.List;
@@ -84,6 +86,28 @@ public final class MenuSession implements Menu.Listener {
         api.removeListener(this);
         menu = null;
         api.viewerClosed(player);
+    }
+
+    /**
+     * 연결 스레드에서 menuLock 을 쥔 채: 보관함 메뉴의 클릭 하나(body = 이벤트 → 바닐라 클릭 재현 → 변경 보내기)를 보관함 잠금 안에서 돌리고,
+     * 클릭이 바꾼 위쪽 칸을 메뉴에 되돌려 쓴다. 클릭 처리 중 처리기가 Menu#set 으로 바꾼 칸은 그 값이 이긴다(클릭이 그 칸을 바꾸지 않았다면).
+     */
+    public void runStorageClick(Runnable body) {
+        synchronized (api.storageLock()) {
+            refresh();   // 다른 보는 사람·플러그인이 바꾼 것 — 이 사람 용기에 아직 오지 않았을 수 있다
+            int n = container.size();
+            ItemStack[] before = new ItemStack[n];
+            for (int i = 0; i < n; i++) before[i] = container.get(i);
+            try {
+                body.run();
+            } finally {
+                for (int i = 0; i < n; i++) {
+                    ItemStack now = container.get(i);
+                    if (now == before[i] || now.equals(before[i])) continue;
+                    api.set(i, ApiConvert.item(now, items()));   // 다른 보는 사람에게도 간다(이 사람 것은 같은 값이라 그대로)
+                }
+            }
+        }
     }
 
     @Override

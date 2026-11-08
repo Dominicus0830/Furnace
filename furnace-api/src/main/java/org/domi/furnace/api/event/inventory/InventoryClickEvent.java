@@ -22,7 +22,13 @@ public class InventoryClickEvent extends InventoryEvent implements Cancellable {
 
     /** slot: 창 칸 번호(-999 는 창 밖), button: 클라이언트 버튼, clickType: 클릭 종류 이름(pickup, quick_move, swap, clone, throw, quick_craft, pickup_all). */
     public InventoryClickEvent(Player player, InventorySnapshot inventory, int slot, int button, String clickType, ItemStack cursor) {
-        super(player, inventory);
+        this(player, inventory, slot, button, clickType, cursor, null);
+    }
+
+    /** menu: 플러그인 메뉴 창이면 그 메뉴. */
+    public InventoryClickEvent(Player player, InventorySnapshot inventory, int slot, int button, String clickType, ItemStack cursor,
+                               org.domi.furnace.api.menu.Menu menu) {
+        super(player, inventory, menu);
         this.slot = slot;
         this.button = button;
         this.clickType = clickType;

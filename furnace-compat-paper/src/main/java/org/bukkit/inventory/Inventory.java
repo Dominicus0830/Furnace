@@ -71,6 +71,9 @@ public interface Inventory extends Iterable<ItemStack> {
 
     InventoryHolder getHolder();
 
+    /** 이 인벤토리를 창으로 보고 있는 사람. 플러그인이 만든 인벤토리(createInventory)만 알 수 있고 나머지는 빈 목록이다. */
+    java.util.List<org.bukkit.entity.HumanEntity> getViewers();
+
     @Override
     ListIterator<ItemStack> iterator();
 }

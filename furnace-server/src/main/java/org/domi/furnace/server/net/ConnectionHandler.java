@@ -2346,7 +2346,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         Runnable body = () -> applyContainerClick(p, menu, stateId, slotNum, button, type, changed, carried);
         int[] bp = menu.containerBlockPos();
         if (bp == null) {
-            synchronized (p.menuLock()) { body.run(); }
+            synchronized (p.menuLock()) {
+                // 플러그인 보관함 메뉴: 보는 사람들의 클릭을 한 줄로 세우고 결과를 메뉴에 되돌려 쓴다
+                if (menu.pluginOwner() instanceof org.domi.furnace.server.plugin.MenuSession ms && ms.api().isStorage()) ms.runStorageClick(body);
+                else body.run();
+            }
         } else {
             world.runAt(bp[0], bp[2], region -> runOnBlockRegion(region, p, menu, bp, body));
         }

@@ -52,6 +52,18 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
     public void updateInventory() {}
 
     @Override
+    public org.bukkit.inventory.InventoryView openInventory(org.bukkit.inventory.Inventory inventory) {
+        java.util.Objects.requireNonNull(inventory, "inventory");
+        return org.domi.furnace.compat.paper.CompatMenuInventory.open(this, inventory);
+    }
+
+    @Override
+    public void closeInventory() { handle.closeContainer(); }
+
+    @Override
+    public org.bukkit.inventory.InventoryView getOpenInventory() { return org.domi.furnace.compat.paper.CompatMenuInventory.openView(this); }
+
+    @Override
     public String getName() { return handle.name(); }
 
     @Override

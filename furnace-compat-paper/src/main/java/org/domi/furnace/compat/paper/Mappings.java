@@ -1,4 +1,4 @@
-// Bukkit 이벤트 ↔ Furnace 이벤트 짝(1차 24종). 새 짝을 더할 때는 Bukkit 이벤트 클래스를 org.bukkit.event 아래에 두고 여기에 reg 한 줄을 더한다.
+// Bukkit 이벤트 ↔ Furnace 이벤트 짝(1차 24종 + 인벤토리 창·사망). 새 짝을 더할 때는 Bukkit 이벤트 클래스를 org.bukkit.event 아래에 두고 여기에 reg 한 줄을 더한다.
 // 원칙: Furnace 이벤트가 알리지 않는 값은 지어내지 않는다 — 읽기는 정직한 기본값(예: TeleportCause.UNKNOWN) 또는 UnsupportedFeature,
 // 쓰기는 UnsupportedFeature. 처리기가 바꾼 값은 Furnace 이벤트에 되돌려 쓴다(바뀌지 않았으면 손대지 않아 서식이 깎이지 않는다).
 package org.domi.furnace.compat.paper;
@@ -23,6 +23,7 @@ final class Mappings {
         registerPlayer();
         registerWorld();
         registerOther();
+        registerInventory();
     }
 
     private static final java.util.Map<Object, String> FORMAT_BASE = java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
@@ -173,6 +174,68 @@ final class Mappings {
                 });
         EventBridge.reg(org.domi.furnace.api.event.server.ServerLoadEvent.class, org.bukkit.event.server.ServerLoadEvent.class,
                 f -> new org.bukkit.event.server.ServerLoadEvent(org.bukkit.event.server.ServerLoadEvent.LoadType.STARTUP), (f, b) -> {});
+    }
+
+    private static void registerInventory() {
+        // 클릭: 끌어 나누기(quick_craft)는 InventoryDragEvent 로, 제작 결과 칸 꺼내기(Furnace CraftItemEvent)는 Bukkit 에서 CraftItemEvent 자기
+        // 처리기 목록으로 가므로 InventoryClickEvent 처리기에는 오지 않는다(Bukkit 과 같다 — CraftItemEvent 는 아직 없다)
+        EventBridge.reg(org.domi.furnace.api.event.inventory.InventoryClickEvent.class, org.bukkit.event.inventory.InventoryClickEvent.class,
+                f -> {
+                    if (f instanceof org.domi.furnace.api.event.inventory.CraftItemEvent || CompatInventories.isDrag(f.clickType())) return null;
+                    CompatInventoryView view = CompatInventories.view(f.player(), f.inventory(), f.menu(), f.cursor());
+                    int raw = f.slot();
+                    var ct = CompatInventories.click(f.clickType(), raw, f.button());
+                    org.domi.furnace.api.item.ItemStack hotbar = org.domi.furnace.api.item.ItemStack.EMPTY;
+                    if (f.clickType().equals("swap")) {
+                        int hr = CompatInventories.hotbarRaw(f.inventory().type(), f.inventory().size(), f.button());
+                        hotbar = hr >= 0 ? f.inventory().get(hr) : CompatItems.toFurnace(view.getBottomInventory().getItem(40));
+                    }
+                    boolean creative = f.player().gameMode() == org.domi.furnace.api.entity.GameMode.CREATIVE;
+                    var action = CompatInventories.action(f.clickType(), raw, f.button(), raw >= 0 ? f.current() : org.domi.furnace.api.item.ItemStack.EMPTY,
+                            f.cursor(), hotbar, creative);
+                    var st = raw < 0 || raw >= view.countSlots() ? org.bukkit.event.inventory.InventoryType.SlotType.OUTSIDE : view.getSlotType(raw);
+                    return ct == org.bukkit.event.inventory.ClickType.NUMBER_KEY || ct == org.bukkit.event.inventory.ClickType.SWAP_OFFHAND
+                            ? new org.bukkit.event.inventory.InventoryClickEvent(view, st, raw, ct, action, f.button())
+                            : new org.bukkit.event.inventory.InventoryClickEvent(view, st, raw, ct, action);
+                }, (f, b) -> {});
+        EventBridge.reg(org.domi.furnace.api.event.inventory.InventoryClickEvent.class, org.bukkit.event.inventory.InventoryDragEvent.class,
+                f -> {
+                    if (!CompatInventories.isDrag(f.clickType())) return null;
+                    boolean creative = f.player().gameMode() == org.domi.furnace.api.entity.GameMode.CREATIVE;
+                    var r = CompatInventories.dragStep(f.player().uniqueId(), f.slot(), f.button(), f.inventory(), f.cursor(), creative);
+                    if (r == null) return null;
+                    CompatInventoryView view = CompatInventories.view(f.player(), f.inventory(), f.menu(), r.oldCursor());
+                    java.util.Map<Integer, org.bukkit.inventory.ItemStack> placed = new java.util.LinkedHashMap<>();
+                    for (var e : r.placed().entrySet()) placed.put(e.getKey(), CompatItems.copyOf(e.getValue()));
+                    return new org.bukkit.event.inventory.InventoryDragEvent(view, r.newCursor().isEmpty() ? null : CompatItems.copyOf(r.newCursor()),
+                            CompatItems.copyOf(r.oldCursor()), r.kind() == 1, placed);
+                }, (f, b) -> {});
+        EventBridge.reg(org.domi.furnace.api.event.inventory.InventoryOpenEvent.class, org.bukkit.event.inventory.InventoryOpenEvent.class,
+                f -> new org.bukkit.event.inventory.InventoryOpenEvent(CompatInventories.view(f.player(), f.inventory(), f.menu(),
+                        org.domi.furnace.api.item.ItemStack.EMPTY)), (f, b) -> {});
+        EventBridge.reg(org.domi.furnace.api.event.inventory.InventoryCloseEvent.class, org.bukkit.event.inventory.InventoryCloseEvent.class,
+                f -> new org.bukkit.event.inventory.InventoryCloseEvent(CompatInventories.view(f.player(), f.inventory(), f.menu(), null)), (f, b) -> {});
+
+        // 사망: 플레이어는 Furnace PlayerDeathEvent(메시지·유지 여부를 되돌려 쓴다), 몹은 Furnace EntityDeathEvent. Bukkit 은 둘 다 EntityDeathEvent 목록이다.
+        EventBridge.reg(org.domi.furnace.api.event.player.PlayerDeathEvent.class, org.bukkit.event.entity.EntityDeathEvent.class,
+                f -> new org.bukkit.event.entity.PlayerDeathEvent(p(f.player()), Compat.legacy(f.deathMessage()), f.keepInventory(), f.keepLevel()),
+                (f, b) -> {
+                    var pd = (org.bukkit.event.entity.PlayerDeathEvent) b;
+                    if (!Objects.equals(pd.getDeathMessage(), Compat.legacy(f.deathMessage()))) f.deathMessage(Compat.text(pd.getDeathMessage()));
+                    if (pd.getKeepInventory() != f.keepInventory()) f.keepInventory(pd.getKeepInventory());
+                    if (pd.getKeepLevel() != f.keepLevel()) f.keepLevel(pd.getKeepLevel());
+                }, (f, b) -> {
+                    var pd = (org.bukkit.event.entity.PlayerDeathEvent) b;
+                    String cur = Compat.legacy(f.deathMessage());
+                    if (!Objects.equals(cur, pd.getDeathMessage())) pd.setDeathMessage(cur);
+                    if (pd.getKeepInventory() != f.keepInventory()) pd.setKeepInventory(f.keepInventory());
+                    if (pd.getKeepLevel() != f.keepLevel()) pd.setKeepLevel(f.keepLevel());
+                });
+        EventBridge.reg(org.domi.furnace.api.event.entity.EntityDeathEvent.class, org.bukkit.event.entity.EntityDeathEvent.class,
+                f -> {
+                    if (f.entity() instanceof org.domi.furnace.api.entity.Player) return null;   // 플레이어는 위 짝
+                    return Compat.entity(f.entity()) instanceof org.bukkit.entity.LivingEntity le ? new org.bukkit.event.entity.EntityDeathEvent(le, null, 0) : null;
+                }, (f, b) -> {});
     }
 
     private static Plugin bukkitPlugin(org.domi.furnace.api.plugin.FurnacePlugin p) {

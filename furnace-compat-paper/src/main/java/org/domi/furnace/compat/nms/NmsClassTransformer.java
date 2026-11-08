@@ -26,6 +26,8 @@ import org.slf4j.LoggerFactory;
  *   <li>리플렉션 호출 → 다리: {@code Class.forName}·{@code ClassLoader.loadClass}·{@code Lookup.findClass}({@link CraftNames}, 문자열 이름의
  *       접미사를 실행 때 푼다. {@code Class.forName(String)} 은 호출자 민감이라 부른 클래스를 상수로 넘긴다), NMS 이름을 담은 클래스의
  *       {@code Class#getDeclaredField} 류·{@code Lookup#find*}({@link NmsReflect}, 없으면 경고 한 번 뒤 원래 예외).</li>
+ *   <li>Paper 가 옛 플러그인을 위해 바꿔 주는 Bukkit 필드 이름({@link ApiRenames} — 예: {@code ItemFlag.HIDE_POTION_EFFECTS} →
+ *       {@code HIDE_ADDITIONAL_TOOLTIP})과 그 {@code valueOf}.</li>
  *   <li>옵션 {@code version-package=versioned} 이면 {@code Class#getName}·{@code getPackageName}·{@code Package#getName} → 접미사를 붙여 읽는 다리.</li>
  * </ol>
  * 바꿀 것이 없는 클래스는 null(원래 바이트)이다. 덫·다리는 분기·지역 변수와 프레임 지점의 스택 모양을 바꾸지 않으므로 스택 맵 프레임은 그대로
@@ -49,7 +51,8 @@ public final class NmsClassTransformer implements ClassTransformer {
     }
 
     /** 이 바이트 조각이 하나도 없으면 바꿀 것이 없다(상수 풀의 UTF-8 이름을 바로 훑는다). */
-    private static final byte[][] NEEDLES = utf8(CraftNames.VERSIONED_INTERNAL, "forName", "loadClass", "findClass", "net/minecraft/", "org/bukkit/craftbukkit/");
+    private static final byte[][] NEEDLES = utf8(CraftNames.VERSIONED_INTERNAL, "forName", "loadClass", "findClass", "net/minecraft/", "org/bukkit/craftbukkit/",
+            ApiRenames.ITEM_FLAG);
     /** 리플렉션 멤버 다리는 NMS 이름(리터럴 조각 포함)을 담은 클래스에만 건다 — 일반 플러그인 코드의 리플렉션은 건드리지 않는다. */
     private static final byte[][] NMS_HINTS = utf8("minecraft", "craftbukkit");
     private static final byte[][] NAME_READS = utf8("getName", "getPackageName");
@@ -170,6 +173,13 @@ public final class NmsClassTransformer implements ClassTransformer {
         public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
             MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
             return mv == null ? null : new MethodVisitor(Opcodes.ASM9, mv) {
+                @Override
+                public void visitFieldInsn(int opcode, String owner, String fname, String desc) {
+                    String renamed = opcode == Opcodes.GETSTATIC ? ApiRenames.field(owner, fname) : fname;
+                    if (!renamed.equals(fname)) changed[1] = true;
+                    super.visitFieldInsn(opcode, owner, renamed, desc);
+                }
+
                 /** 원래 스택 뒤에 플러그인 이름을 얹고 다리를 부른다. */
                 private void bridge(String owner, String mname, String desc) {
                     super.visitLdcInsn(plugin);
@@ -179,6 +189,11 @@ public final class NmsClassTransformer implements ClassTransformer {
 
                 @Override
                 public void visitMethodInsn(int opcode, String owner, String mname, String desc, boolean itf) {
+                    if (opcode == Opcodes.INVOKESTATIC && mname.equals("valueOf") && ApiRenames.reroutesValueOf(owner, desc)) {
+                        super.visitMethodInsn(Opcodes.INVOKESTATIC, ApiRenames.INTERNAL, ApiRenames.valueOfName(owner), desc, false);
+                        changed[1] = true;
+                        return;
+                    }
                     if (opcode == Opcodes.INVOKESTATIC && owner.equals("java/lang/Class") && mname.equals("forName")) {
                         if (desc.equals("(Ljava/lang/String;)Ljava/lang/Class;") && canLdcClass) {
                             super.visitLdcInsn(Type.getObjectType(self));

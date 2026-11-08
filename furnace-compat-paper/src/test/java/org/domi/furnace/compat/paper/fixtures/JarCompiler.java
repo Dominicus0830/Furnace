@@ -35,7 +35,12 @@ public final class JarCompiler {
      *              {@code org.bukkit.craftbukkit.v1_21_R1.} — 실제 플러그인이 Spigot API 로 컴파일된 모양을 흉내 낸다)
      */
     public static Path jar(Path jar, String pluginYml, Map<String, String> sources, java.util.Set<String> stubs) throws IOException {
-        Map<String, byte[]> classes = compile(sources);
+        return jar(jar, pluginYml, sources, stubs, List.of());
+    }
+
+    /** @param extraClasspath 컴파일에만 더할 jar(예: 의존 플러그인 jar — 실제 helper 를 쓰는 플러그인을 흉내 낸다) */
+    public static Path jar(Path jar, String pluginYml, Map<String, String> sources, java.util.Set<String> stubs, List<Path> extraClasspath) throws IOException {
+        Map<String, byte[]> classes = compile(sources, extraClasspath);
         classes.keySet().removeIf(n -> stubs.stream().anyMatch(n::startsWith));
         Files.createDirectories(jar.getParent());
         try (JarOutputStream out = new JarOutputStream(Files.newOutputStream(jar))) {
@@ -51,7 +56,7 @@ public final class JarCompiler {
         return jar;
     }
 
-    private static Map<String, byte[]> compile(Map<String, String> sources) throws IOException {
+    private static Map<String, byte[]> compile(Map<String, String> sources, List<Path> extraClasspath) throws IOException {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         if (compiler == null) throw new IllegalStateException("시험 JVM 에 컴파일러가 없다(JDK 필요)");
         Map<String, java.io.ByteArrayOutputStream> out = new LinkedHashMap<>();
@@ -74,10 +79,16 @@ public final class JarCompiler {
             });
         }
         StringWriter log = new StringWriter();
-        boolean ok = compiler.getTask(log, fm, null, List.of("-classpath", System.getProperty("java.class.path"), "--release", "21", "-proc:none"), null, units).call();
+        boolean ok = compiler.getTask(log, fm, null, List.of("-classpath", classpath(extraClasspath), "--release", "21", "-proc:none"), null, units).call();
         if (!ok) throw new IllegalStateException("시험 플러그인 컴파일 실패:\n" + log);
         Map<String, byte[]> classes = new LinkedHashMap<>();
         out.forEach((k, v) -> classes.put(k, v.toByteArray()));
         return classes;
+    }
+
+    private static String classpath(List<Path> extra) {
+        StringBuilder cp = new StringBuilder(System.getProperty("java.class.path"));
+        for (Path p : extra) cp.append(java.io.File.pathSeparator).append(p.toAbsolutePath());
+        return cp.toString();
     }
 }

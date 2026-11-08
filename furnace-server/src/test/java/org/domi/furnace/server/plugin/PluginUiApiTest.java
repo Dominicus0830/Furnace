@@ -245,6 +245,33 @@ class PluginUiApiTest {
     }
 
     @Test
+    void storageMenuWritesClickResultsBackToTheMenu() {
+        useFakeHost();
+        Menu menu = Menu.chest(Text.text("보관함"), 1).storage(true).onClick(c -> c.allow());
+        menu.set(0, ItemStack.of("stone").withAmount(10));
+        handle.openMenu(menu);
+        var open = p.containerMenu();
+        assertTrue(menu.isStorage());
+        var session = (MenuSession) open.pluginOwner();
+        // 클릭 처리 중 이 사람 용기에서 일어난 변화(0번 칸 돌을 2번 칸으로 옮김)가 메뉴 칸으로 돌아간다
+        session.runStorageClick(() -> {
+            var stone = open.getSlot(0).getItem();
+            open.getSlot(0).set(org.domi.furnace.server.entity.ItemStack.EMPTY);
+            open.getSlot(2).set(stone);
+        });
+        assertTrue(menu.item(0).isEmpty(), "옮긴 칸은 메뉴에서도 비었다: " + menu.item(0));
+        assertEquals(10, menu.item(2).amount(), "놓은 칸이 메뉴에 남는다");
+        // 보관함이 아닌 메뉴는 보는 사람마다 사본이라 클릭 결과가 메뉴로 돌아가지 않는다
+        handle.closeMenu();
+        Menu plain = Menu.chest(Text.text("상점"), 1).onClick(c -> c.allow());
+        plain.set(0, ItemStack.of("stone"));
+        handle.openMenu(plain);
+        assertFalse(plain.isStorage());
+        p.containerMenu().getSlot(0).set(org.domi.furnace.server.entity.ItemStack.EMPTY);
+        assertTrue(plain.item(0).type().endsWith("stone"), "보관함이 아닌 메뉴의 칸은 그대로: " + plain.item(0));
+    }
+
+    @Test
     void menuChangesReachTheOpenScreenAndThrowingHandlerCancels() {
         useFakeHost();
         Menu menu = Menu.chest(Text.text("m"), 1).button(0, ItemStack.of("stone"), c -> {

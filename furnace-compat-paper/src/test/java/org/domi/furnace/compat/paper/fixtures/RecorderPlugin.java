@@ -71,6 +71,17 @@ public final class RecorderPlugin extends JavaPlugin implements Listener {
 
     @EventHandler public void on(PlayerJoinEvent e) { rec(e); }
 
+    @EventHandler public void on(org.bukkit.event.inventory.InventoryClickEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.inventory.InventoryDragEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.inventory.InventoryOpenEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.inventory.InventoryCloseEvent e) { rec(e); }
+
+    /** PlayerDeathEvent 도 여기로 온다(Bukkit 에서 같은 HandlerList). */
+    @EventHandler public void on(org.bukkit.event.entity.EntityDeathEvent e) { rec(e); }
+
     @EventHandler public void on(PlayerChannelEvent e) { rec(e); }
 
     @EventHandler public void on(PlayerQuitEvent e) { rec(e); }

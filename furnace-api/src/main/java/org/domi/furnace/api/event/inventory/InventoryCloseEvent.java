@@ -7,4 +7,7 @@ import org.domi.furnace.api.inventory.InventorySnapshot;
 public final class InventoryCloseEvent extends InventoryEvent {
 
     public InventoryCloseEvent(Player player, InventorySnapshot inventory) { super(player, inventory); }
+
+    /** menu: 닫히는 플러그인 메뉴. */
+    public InventoryCloseEvent(Player player, InventorySnapshot inventory, org.domi.furnace.api.menu.Menu menu) { super(player, inventory, menu); }
 }

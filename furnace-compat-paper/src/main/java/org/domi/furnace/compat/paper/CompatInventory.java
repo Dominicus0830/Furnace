@@ -416,6 +416,10 @@ public class CompatInventory implements Inventory {
     @Override
     public InventoryHolder getHolder() { return holder.get(); }
 
+    /** Furnace 는 블록·엔티티 보관함을 누가 보고 있는지 알리지 않아 빈 목록이다(플러그인이 만든 인벤토리만 안다). */
+    @Override
+    public java.util.List<org.bukkit.entity.HumanEntity> getViewers() { return java.util.List.of(); }
+
     @Override
     public ListIterator<ItemStack> iterator() {
         return new AbstractList<ItemStack>() {
