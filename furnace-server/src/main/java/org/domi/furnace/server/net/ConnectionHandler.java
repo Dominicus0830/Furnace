@@ -2208,7 +2208,16 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 byte[] data = new byte[n];
                 frame.readBytes(data);
                 boolean reg = channel.equals(PluginChannels.REGISTER);
-                java.util.List<String> changed = reg ? pluginChannels.add(data) : pluginChannels.remove(data);
+                java.util.List<String> changed;
+                try {
+                    changed = reg ? pluginChannels.add(data) : pluginChannels.remove(data);
+                } catch (PluginChannels.InvalidChannelException e) {
+                    // Paper: addChannel/removeChannel 예외 → "Invalid payload REGISTER!"/"UNREGISTER!" 로 연결 종료
+                    log.debug("잘못된 {} 본문: {}", channel, e.getMessage());
+                    ChannelHandlerContext cx = ctx;
+                    if (cx != null) kick(cx, reg ? "Invalid payload REGISTER!" : "Invalid payload UNREGISTER!");
+                    return;
+                }
                 // play 단계면 바로 알린다. 구성 단계(Player 가 아직 없다)에서 알린 채널은 play 진입 때 한꺼번에(announceChannels)
                 if (inPlay) fireChannelEvents(player, changed, reg ? org.domi.furnace.api.event.player.PlayerChannelEvent.Action.REGISTER
                         : org.domi.furnace.api.event.player.PlayerChannelEvent.Action.UNREGISTER);
