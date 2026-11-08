@@ -37,6 +37,33 @@ class MobEffectRegistryTest {
         assertEffect(MobEffect.INFESTED, 9214860, MobEffect.Category.HARMFUL);
     }
 
+    /** 바닐라 1.21.1 에서 InstantenousMobEffect 를 잇는 효과는 즉시 치유·즉시 피해·포화 셋뿐이다. */
+    @Test
+    void onlyHealDamageAndSaturationAreInstantaneous() {
+        List<String> instant = MobEffect.all().stream().filter(MobEffect::isInstantaneous).map(MobEffect::name).toList();
+        assertEquals(List.of("minecraft:instant_health", "minecraft:instant_damage", "minecraft:saturation"), instant);
+    }
+
+    @Test
+    void saturationInstantApplicationFeedsPlayerOnce() {
+        int[] eaten = new int[1];
+        float[] mod = new float[1];
+        MobEffect.Host h = new MobEffect.Host() {
+            public float health() { return 20; }
+            public float maxHealth() { return 20; }
+            public void heal(float a) { }
+            public boolean hurtBy(String k, float a) { return false; }
+            public boolean isPlayer() { return true; }
+            public void causeFoodExhaustion(float a) { }
+            public void eat(int n, float m) { eaten[0] += n; mod[0] = m; }
+            public float absorption() { return 0; }
+            public void setAbsorption(float a) { }
+        };
+        MobEffect.SATURATION.applyInstantenousEffect(h, 1, 1.0);
+        assertEquals(2, eaten[0]);
+        assertEquals(1.0F, mod[0]);
+    }
+
     private static void assertEffect(MobEffect e, int color, MobEffect.Category category) {
         assertNotNull(e);
         assertEquals(color, e.color(), e.name());

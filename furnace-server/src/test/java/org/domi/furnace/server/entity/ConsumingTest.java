@@ -42,6 +42,19 @@ class ConsumingTest {
         assertTrue(v.hasEffect(MobEffect.ABSORPTION));
     }
 
+    /** 포화는 즉시 효과: 마시면 효과 목록에 남지 않고 음식만 (단계+1) 차오른다. */
+    @Test
+    void drinkingSaturationIsInstantAndLeavesNoEffect() {
+        v.setFoodLevel(10);
+        ItemStack potion = org.domi.furnace.server.item.ItemTools.with(TestRecipes.item("potion", 1), "minecraft:potion_contents",
+                java.util.Map.of("custom_effects", java.util.List.of(java.util.Map.of("id", "minecraft:saturation", "amplifier", 1, "duration", 200))));
+        hold(potion);
+        assertTrue(Consuming.tryStart(player, 0, player.inventory().get(player.inventory().heldWindowSlot())));
+        run(40);
+        assertEquals(12, v.foodLevel());
+        assertFalse(v.hasEffect(MobEffect.SATURATION));
+    }
+
     @Test
     void fullHungerCannotEatNormalFood() {
         assertFalse(Consuming.tryStart(player, 0, TestRecipes.item("apple", 1)));
