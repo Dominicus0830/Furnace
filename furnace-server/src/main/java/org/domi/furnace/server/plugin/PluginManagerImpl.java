@@ -314,6 +314,8 @@ public final class PluginManagerImpl implements PluginManager {
         synchronized (reloadLock) {
             for (Loaded l : plugins) closeQuietly(l.loader());
             plugins.clear();
+            PluginBootstrapper b = boot;
+            if (b != null) b.closeSharedLibraries();
             if (settings.devMode()) HotReload.clearShadowDir(dir);
         }
     }
@@ -556,7 +558,16 @@ public final class PluginManagerImpl implements PluginManager {
         /** transformer: 플러그인 형식이 준 바이트 변환기(없으면 null) — 플러그인 jar 의 클래스에만 쓴다(libraries jar 는 그대로). */
         PluginClassLoader(Path jar, PluginBootstrapper group, boolean shadowCopy, List<Path> libraries,
                           org.domi.furnace.api.plugin.ClassTransformer transformer) throws MalformedURLException {
-            super(urls(jar, libraries), PluginHost.class.getClassLoader());
+            this(jar, group, shadowCopy, libraries, transformer, null);
+        }
+
+        /**
+         * parent: 부모 로더(null 이면 서버 클래스로더). 호환 플러그인은 서버 제공 라이브러리 공유 로더(SharedLibraryLoader — 그 부모가 서버 클래스로더)를
+         * 부모로 받아, Paper 처럼 모든 호환 플러그인이 같은 Guava·Adventure 클래스를 본다.
+         */
+        PluginClassLoader(Path jar, PluginBootstrapper group, boolean shadowCopy, List<Path> libraries,
+                          org.domi.furnace.api.plugin.ClassTransformer transformer, ClassLoader parent) throws MalformedURLException {
+            super(urls(jar, libraries), parent != null ? parent : PluginHost.class.getClassLoader());
             this.group = group;
             this.shadow = shadowCopy ? jar : null;
             this.transformer = transformer;

@@ -82,7 +82,7 @@ Bukkit 은 메인 스레드 하나를 가정한다. 이 1차는 Furnace 이벤�
 
 ## H4: 실제 플러그인으로 잰 호환 정도
 
-실제 Bukkit·Paper API 로 컴파일된 jar(Central 의 실제 플러그인 helper·CommandAPI 와 흔한 플러그인 라이브러리 11종)를 바이트코드로 대조하고 plugin.yml jar 는 헤드리스 서버에 올려 잰 표·우선순위·한계는 `docs/feature-parity/compat-h4-2026-11-07.md`, 생성 대조표는 `docs/feature-parity/compat-h4-coverage-2026-11-07.md`. H4 측정 때 helper·CommandAPI 둘 다 켜지지 못했다(첫 장애물: `JavaPlugin.getProvidingPlugin`, Brigadier 클래스 없음). A 묶음 뒤 helper 의 첫 장애물은 Guava(`com.google.common.base.Supplier`, 서버 제공 라이브러리 B — 사용자 결정), CommandAPI 는 그대로 Brigadier. 호환 API 를 더하는 묶음은 `./gradlew -PskipOracle=true :furnace-compat-paper:compatReport` 로 대조표와 기준표(`realworld-baseline.properties`)를 새로 쓴다 — 기준표 시험(`RealWorldCompatTest`)이 후퇴를 막는다.
+실제 Bukkit·Paper API 로 컴파일된 jar(Central 의 실제 플러그인 helper·CommandAPI 와 흔한 플러그인 라이브러리 11종)를 바이트코드로 대조하고 plugin.yml jar 는 헤드리스 서버에 올려 잰 표·우선순위·한계는 `docs/feature-parity/compat-h4-2026-11-07.md`, 생성 대조표는 `docs/feature-parity/compat-h4-coverage-2026-11-07.md`. H4 측정 때 helper·CommandAPI 둘 다 켜지지 못했다(첫 장애물: `JavaPlugin.getProvidingPlugin`, Brigadier 클래스 없음). A 묶음 뒤 helper 의 첫 장애물은 Guava(`com.google.common.base.Supplier`, 서버 제공 라이브러리 B — 사용자 결정), CommandAPI 는 그대로 Brigadier. B 묶음(2026-11-08)부터 Paper 가 싣는 라이브러리(Guava·Adventure·SnakeYAML·Brigadier 등)는 호환 플러그인이 쓸 때만 받아 공유 로더에 붙인다(`docs/api/plugin-libraries.md`) — 그 뒤 둘 다 `PluginMessageListener`(묶음 E)에서 멈춘다. 호환 API 를 더하는 묶음은 `./gradlew -PskipOracle=true :furnace-compat-paper:compatReport` 로 대조표와 기준표(`realworld-baseline.properties`)를 새로 쓴다 — 기준표 시험(`RealWorldCompatTest`)이 후퇴를 막는다.
 
 ## 시험
 

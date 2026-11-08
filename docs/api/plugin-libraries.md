@@ -51,3 +51,52 @@ libraries:
 ## 핫 리로드·부트스트랩
 
 해석은 플러그인 부트스트랩 단계(클래스로더를 만들기 직전, 부트스트래퍼가 불리기 전)에 한 번 한다. 그래서 `bootstrapper` 클래스도 라이브러리를 쓸 수 있다. 개발 모드 핫 리로드(`/plugins reload`)도 같은 길을 타서 캐시에서 다시 붙인다. 내려받기는 서버 시작을 막는 동기 작업이다(플러그인 하나당 jar 수 × 네트워크 시간).
+
+## Paper/Bukkit 플러그인용 서버 제공 라이브러리 (H4 묶음 B)
+
+Paper 는 Guava·Adventure·SnakeYAML·Brigadier 같은 라이브러리를 서버 jar 에 싣고 있어서, Paper/Bukkit 플러그인은 `libraries:` 선언 없이 그것들을 그냥 쓴다. Furnace 는 서버 jar 를 가볍게 두려고(사용자 결정 4·5) 이 라이브러리를 싣지 않고, **`plugins/bukkit-plugins/` 의 플러그인이 쓸 때만** 받아서 붙인다. Furnace 플러그인(`furnace-plugin.yml`)과 위의 `plugins.libraries.*` 기능에는 영향이 없다.
+
+| 키 | 기본 | 뜻 |
+|---|---|---|
+| `plugins.compat.libraries` | needed | `needed`: 호환 플러그인 jar 의 클래스 파일에 그 라이브러리의 패키지 이름(슬래시·점 표기)이 보이는 묶음만 받는다. `all`: 호환 플러그인이 하나라도 있으면 목록 전부(jar-in-jar 처럼 훑기로 못 보는 경우). `off`: 받지 않는다(그것을 쓰는 플러그인은 `NoClassDefFoundError`) |
+| `plugins.compat.libraries.mojang` | true | Brigadier·authlib·DataFixerUpper 는 Maven Central 에 없어 Mojang 저장소(`libraries.minecraft.net`, 바닐라 런처·Paper 가 쓰는 곳)에서 받는다. false 면 그 셋은 빼고 경고 |
+| `plugins.compat.libraries.declared` | true | 호환 플러그인 `plugin.yml` 의 `libraries:` 를 Paper·Spigot 처럼 받는다(`plugins.libraries.enabled` 가 꺼져 있어도). 체크섬·잠금 파일·전이 의존 규칙은 위와 같다 |
+
+`plugins.libraries.offline`·`cache`·`timeout-seconds`·`max-size-mb` 는 이 기능에도 그대로 쓰인다.
+
+### 무엇을 받나 (버전·sha256 은 코드 `ServerLibraries` 에 고정)
+
+| 묶음 | jar | 저장소 | 표지(이 패키지가 보이면 필요) |
+|---|---|---|---|
+| guava | guava 32.1.2-jre, failureaccess 1.0.1 | Central | `com/google/common/`, `com/google/thirdparty/` |
+| adventure | adventure-api·key·text-minimessage·text-serializer-json/gson/legacy/plain/ansi·text-logger-slf4j 4.17.0, examination-api/string 1.3.0, option 1.0.0, ansi 1.0.3 | Central | `net/kyori/adventure/`, `net/kyori/examination/` |
+| snakeyaml | snakeyaml 2.2 | Central | `org/yaml/snakeyaml/` |
+| bungeecord-chat | bungeecord-chat 1.20-R0.2 | Central | `net/md_5/bungee/api/chat/`, `net/md_5/bungee/chat/` |
+| json-simple | json-simple 1.1.1 | Central | `org/json/simple/` |
+| joml | joml 1.10.5 | Central | `org/joml/` |
+| fastutil | fastutil 8.5.12 (23 MB) | Central | `it/unimi/dsi/fastutil/` |
+| commons-lang3 | commons-lang3 3.14.0 | Central | `org/apache/commons/lang3/` |
+| commons-io | commons-io 2.15.1 | Central | `org/apache/commons/io/` |
+| log4j | log4j-api 2.22.1 + log4j-to-slf4j 2.22.1(플러그인의 log4j 로그를 서버 로그로) | Central | `org/apache/logging/log4j/` |
+| brigadier | brigadier 1.3.10 | Mojang | `com/mojang/brigadier/` |
+| authlib | authlib 6.0.54 (+ guava·commons-io·commons-lang3) | Mojang | `com/mojang/authlib/` |
+| datafixerupper | datafixerupper 8.0.16 (+ guava·fastutil) | Mojang | `com/mojang/serialization/`, `com/mojang/datafixers/` |
+
+- 바닐라 1.21.1 서버 jar 가 싣는 것(Guava·failureaccess·JOML·fastutil·commons-lang3·commons-io·log4j-api·Brigadier·authlib·DataFixerUpper)은 바닐라 jar 의 `META-INF/libraries.list` 에 Mojang 이 적은 버전·sha256 을 그대로 썼다. 나머지(Adventure·SnakeYAML·BungeeChat·json-simple·log4j-to-slf4j)는 Maven Central 의 jar 를 받아 잰 값이다. Paper 1.21.1 이 정확히 어느 버전을 싣는지는 Paper 저장소에 못 닿아 대조하지 못했다(기억 기준: Adventure 4.17.0, SnakeYAML 2.2).
+- 서버 클래스패스에 이미 있는 Gson·slf4j·netty 는 받지 않는다(두 벌이면 플러그인과 서버가 다른 Class 를 본다).
+- 받은 jar 는 고정 sha256 과 같은 바이트만 쓴다. 캐시 파일이 다르면 지우고 다시 받는다. 잠금 파일(`libraries.lock`)은 보지도 쓰지도 않는다 — 코드의 고정값이 기준이다.
+
+### 어떻게 붙나
+
+- 모든 호환 플러그인은 서버 제공 라이브러리 **공유 로더 하나**를 부모로 둔다(Paper 처럼 서버 쪽 한 벌). 그래서 플러그인끼리 Adventure `Component`·Guava `ImmutableList` 를 주고받아도 같은 Class 다. 부모 우선이라 플러그인이 같은 이름 클래스를 리로케이션 없이 품고 와도 서버 쪽이 이긴다(Paper 와 같다).
+- 묶음은 처음 필요한 플러그인을 준비할 때 받는다(서버 시작 중, 동기). 개발 모드 핫 리로드로 새 묶음이 필요해지면 그때 더 붙인다.
+
+### 끄거나 오프라인일 때
+
+- 받지 못한 묶음(오프라인·캐시 없음·404·sha256 불일치·Mojang 금지)은 **경고 한 줄만 남기고 플러그인은 그대로 올린다.** 그 클래스를 쓰는 순간 `NoClassDefFoundError` 가 나고 서버는 평소처럼 그 플러그인의 오류를 남긴다(옆 플러그인은 영향 없음). 경고에는 받을 주소, 캐시 경로, sha256 이 들어 있다.
+- 인터넷이 없는 서버: 다른 곳에서 받은 jar 를 경고에 나온 경로(`plugins/.libraries/<그룹 경로>/<아티팩트>/<버전>/<아티팩트>-<버전>.jar`)에 두고 `plugins.libraries.offline=true` 로 켠다. 고정 sha256 과 같으면 그대로 쓴다. Mojang 라이브러리 셋은 바닐라 1.21.1 서버 jar 안 `META-INF/libraries/com/mojang/...` 에 있는 jar 와 바이트가 같다.
+- `off` 면 시작할 때 한 번 경고한다.
+
+### 시험 서버
+
+`FurnaceTestServer` 는 기본으로 이 기능과 `declared` 를 끈다(시험이 네트워크에 기대지 않게 — 실제 서버 기본과 다르다). Paper 플러그인을 Guava 등과 함께 시험하려면 캐시를 채워 두고 `builder.libraries(LibrarySettings.DEFAULT.withOffline(true).withCache(폴더))` 로 켠다.

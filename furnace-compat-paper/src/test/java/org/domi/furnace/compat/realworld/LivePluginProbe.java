@@ -27,7 +27,13 @@ public final class LivePluginProbe {
     private LivePluginProbe() {}
 
     /** 플러그인 jar 를 올려 서버를 띄우고 몇 틱 돌린 뒤 결과를 돌려준다. {@code pluginName} 은 plugin.yml 의 name. */
-    public static Result run(Path jar, String pluginName, int ticks, Path serverDir) {
+    public static Result run(Path jar, String pluginName, int ticks, Path serverDir) { return run(jar, pluginName, ticks, serverDir, null); }
+
+    /**
+     * libraries: 라이브러리 내려받기 설정(null 이면 시험 서버 기본 — 모두 꺼짐). 서버 제공 라이브러리(Guava·Adventure·Brigadier 등)를 준 상태로 재려면
+     * 캐시를 채워 두고 {@code LibrarySettings.DEFAULT.withOffline(true).withCache(폴더)} 를 넘긴다.
+     */
+    public static Result run(Path jar, String pluginName, int ticks, Path serverDir, org.domi.furnace.server.plugin.library.LibrarySettings libraries) {
         Logger root = (Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
@@ -35,7 +41,9 @@ public final class LivePluginProbe {
         List<String> errors = new ArrayList<>();
         Status status = Status.NOT_LOADED;
         int survived = 0;
-        try (FurnaceTestServer server = FurnaceTestServer.builder().failFast(false).directory(serverDir).pluginJar(jar).start()) {
+        FurnaceTestServer.Builder builder = FurnaceTestServer.builder().failFast(false).directory(serverDir).pluginJar(jar);
+        if (libraries != null) builder.libraries(libraries);
+        try (FurnaceTestServer server = builder.start()) {
             FurnacePlugin p = server.plugin(pluginName);
             if (p != null) {
                 status = p.isEnabled() ? Status.ENABLED : Status.LOADED_NOT_ENABLED;

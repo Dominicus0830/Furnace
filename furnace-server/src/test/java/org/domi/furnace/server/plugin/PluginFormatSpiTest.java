@@ -38,6 +38,7 @@ class PluginFormatSpiTest {
         @Override
         public PluginDescription readDescriptor(String fileName, String text) {
             String name = null, version = "1", main = null, api = null;
+            List<PluginDescription.Library> libs = new ArrayList<>();
             for (String line : text.split("\n")) {
                 String[] kv = line.split("=", 2);
                 switch (kv[0]) {
@@ -45,12 +46,13 @@ class PluginFormatSpiTest {
                     case "version" -> version = kv[1];
                     case "main" -> main = kv[1];
                     case "api" -> api = kv[1];
+                    case "lib" -> libs.add(new PluginDescription.Library(kv[1]));
                     case "boom" -> throw new IllegalArgumentException("읽을 수 없는 설명 파일");
                     default -> {}
                 }
             }
             return new PluginDescription(name, version, main, "", List.of(), "", api, List.of(), List.of(), List.of(), null,
-                    java.util.Map.of(), List.of(), null, List.of());
+                    java.util.Map.of(), List.of(), null, libs);
         }
 
         @Override

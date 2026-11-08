@@ -63,6 +63,8 @@ public final class LibraryResolver {
     private final LibrarySettings settings;
     private final Path cache;
     private final URI repo;
+    /** Mojang 라이브러리 저장소(서버 제공 라이브러리 중 Brigadier·authlib·DataFixerUpper 만 쓴다). */
+    private final URI mojangRepo;
     private final Fetcher fetcher;
     private final Logger log;
     private final Path lockFile;
@@ -70,14 +72,20 @@ public final class LibraryResolver {
     private final Map<String, Effective> poms = new HashMap<>();
 
     public LibraryResolver(LibrarySettings settings, Path cache, Logger log) {
-        this(settings, cache, CENTRAL, new HttpFetcher(settings.timeoutSeconds(), 1000), log);
+        this(settings, cache, CENTRAL, ServerLibraries.MOJANG, new HttpFetcher(settings.timeoutSeconds(), 1000), log);
     }
 
     /** 시험용: 다른 저장소·가져오기 구현. */
     LibraryResolver(LibrarySettings settings, Path cache, URI repo, Fetcher fetcher, Logger log) {
+        this(settings, cache, repo, ServerLibraries.MOJANG, fetcher, log);
+    }
+
+    /** 시험용: Maven Central·Mojang 저장소 둘 다 바꾼다. */
+    LibraryResolver(LibrarySettings settings, Path cache, URI repo, URI mojangRepo, Fetcher fetcher, Logger log) {
         this.settings = settings;
         this.cache = cache;
-        this.repo = repo.toString().endsWith("/") ? repo : URI.create(repo + "/");
+        this.repo = slash(repo);
+        this.mojangRepo = slash(mojangRepo);
         this.fetcher = fetcher;
         this.log = log;
         this.lockFile = cache.resolve(LOCK_FILE);
@@ -121,6 +129,45 @@ public final class LibraryResolver {
             }
         }
         return jars;
+    }
+
+    private static URI slash(URI u) { return u.toString().endsWith("/") ? u : URI.create(u + "/"); }
+
+    // ------------------------------------------------------------------ 서버 제공 라이브러리(고정 sha256)
+
+    /**
+     * 서버 제공 라이브러리 jar 하나를 캐시에 두고 경로를 돌려 준다. 코드에 고정된 sha256 과 같은 바이트만 쓴다(잠금 파일은 보지도 쓰지도 않는다 —
+     * 고정값이 기준이다). 캐시 파일이 다르면 지우고 다시 받는다. offline 이면 네트워크에 나가지 않는다. 전이 의존은 따라가지 않는다(목록이 이미 닫혀 있다).
+     */
+    public Path ensurePinned(ServerLibraries.Artifact a) throws LibraryException {
+        Library lib = a.library();
+        String coord = lib.coordinate();
+        String pin = lib.sha256();
+        if (pin == null) throw new LibraryException(coord + " 에 고정 sha256 이 없다");
+        Path file = fileOf(lib, "jar");
+        if (Files.isRegularFile(file)) {
+            if (pin.equals(sha256(file))) return file;
+            log.warn("캐시된 서버 제공 라이브러리 {} 의 해시가 고정값과 다르다 — 지우고 다시 받는다", coord);
+            deleteQuietly(file);
+        }
+        if (settings.offline()) throw new LibraryException("plugins.libraries.offline=true 인데 캐시에 없다");
+        URI base = a.repo() == ServerLibraries.Repo.MOJANG ? mojangRepo : repo;
+        URI uri = base.resolve(relative(lib, "jar"));
+        log.info("서버 제공 라이브러리 {} 를 {} 에서 받는다", coord, a.repo().label);
+        byte[] body = fetch(uri, settings.maxSizeMb() * 1024L * 1024L, coord);
+        if (body == null) throw new NotFound(a.repo().label + " 에 없다(" + uri + ")");
+        String got = sha256(body);
+        if (!pin.equals(got)) throw new LibraryException("받은 파일의 sha256 이 고정값과 다르다 (기대 " + pin + ", 실제 " + got + ", " + uri + ")");
+        store(file, body);
+        return file;
+    }
+
+    /** 서버 제공 라이브러리 jar 가 놓일 캐시 경로(오프라인 서버에 손으로 둘 자리 안내용). */
+    public Path cachedPath(ServerLibraries.Artifact a) { return fileOf(a.library(), "jar"); }
+
+    /** 그 jar 를 받는 주소(안내용). */
+    public URI sourceOf(ServerLibraries.Artifact a) {
+        return (a.repo() == ServerLibraries.Repo.MOJANG ? mojangRepo : repo).resolve(relative(a.library(), "jar"));
     }
 
     // ------------------------------------------------------------------ 전이 의존

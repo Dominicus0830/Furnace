@@ -474,4 +474,68 @@ class LibraryResolverTest {
         if (body.length > 0) ex.getResponseBody().write(body);
         ex.close();
     }
+
+    // ------------------------------------------------------------------ 서버 제공 라이브러리(고정 sha256, H4 묶음 B)
+
+    private static final String MOJANG_REPO = "https://mojang.test/libs/";
+
+    private LibraryResolver resolverWithMojang(LibrarySettings s) {
+        return new LibraryResolver(s, cache, URI.create(REPO), URI.create(MOJANG_REPO), (uri, max) -> {
+            requests.add(uri.toString());
+            return remote.get(uri.toString());
+        }, LOG);
+    }
+
+    @Test
+    void pinnedArtifactsComeFromTheirRepositoryAndMustMatchThePin() throws Exception {
+        byte[] central = jarBytes("central");
+        byte[] mojang = jarBytes("mojang");
+        remote.put(url("org.test", "lib", "1.0", "jar"), central);
+        remote.put(MOJANG_REPO + "com/mojang/brig/1.0/brig-1.0.jar", mojang);
+        LibraryResolver r = resolverWithMojang(LibrarySettings.DEFAULT);
+        Path a = r.ensurePinned(new ServerLibraries.Artifact("org.test:lib:1.0", hex("SHA-256", central), ServerLibraries.Repo.CENTRAL));
+        Path b = r.ensurePinned(new ServerLibraries.Artifact("com.mojang:brig:1.0", hex("SHA-256", mojang), ServerLibraries.Repo.MOJANG));
+        assertArrayEquals(central, Files.readAllBytes(a));
+        assertArrayEquals(mojang, Files.readAllBytes(b));
+        assertEquals(List.of(url("org.test", "lib", "1.0", "jar"), MOJANG_REPO + "com/mojang/brig/1.0/brig-1.0.jar"), requests, ".sha1 은 묻지 않는다(고정값이 기준)");
+        assertFalse(Files.exists(cache.resolve(LibraryResolver.LOCK_FILE)), "잠금 파일을 쓰지 않는다");
+
+        // 캐시에 있으면 다시 받지 않는다(offline 이어도 된다)
+        requests.clear();
+        resolverWithMojang(LibrarySettings.DEFAULT.withOffline(true))
+                .ensurePinned(new ServerLibraries.Artifact("org.test:lib:1.0", hex("SHA-256", central), ServerLibraries.Repo.CENTRAL));
+        assertEquals(List.of(), requests);
+
+        // 다른 바이트는 거부(파일도 남기지 않는다)
+        remote.put(url("org.test", "evil", "1.0", "jar"), jarBytes("evil"));
+        LibraryException e = assertThrows(LibraryException.class, () -> r.ensurePinned(
+                new ServerLibraries.Artifact("org.test:evil:1.0", hex("SHA-256", central), ServerLibraries.Repo.CENTRAL)));
+        assertTrue(e.getMessage().contains("sha256"), e.getMessage());
+        assertFalse(Files.exists(cache.resolve("org/test/evil/1.0/evil-1.0.jar")));
+    }
+
+    @Test
+    void pinnedArtifactsIgnoreTheLockFileAndRepairTheCache() throws Exception {
+        byte[] good = jarBytes("good");
+        String pin = hex("SHA-256", good);
+        remote.put(url("org.test", "lib", "1.0", "jar"), good);
+        Files.createDirectories(cache);
+        Files.writeString(cache.resolve(LibraryResolver.LOCK_FILE), "org.test:lib:1.0=" + "0".repeat(64) + "\n");
+        Path f = cache.resolve("org/test/lib/1.0/lib-1.0.jar");
+        Files.createDirectories(f.getParent());
+        Files.writeString(f, "망가진 파일");
+        Path got = resolverWithMojang(LibrarySettings.DEFAULT.withRequireChecksum(true))
+                .ensurePinned(new ServerLibraries.Artifact("org.test:lib:1.0", pin, ServerLibraries.Repo.CENTRAL));
+        assertArrayEquals(good, Files.readAllBytes(got), "망가진 캐시는 지우고 다시 받는다 — 잠금 파일·require-checksum 은 고정값 앞에서 상관없다");
+
+        Files.writeString(f, "또 망가짐");
+        LibraryException e = assertThrows(LibraryException.class, () -> resolverWithMojang(LibrarySettings.DEFAULT.withOffline(true))
+                .ensurePinned(new ServerLibraries.Artifact("org.test:lib:1.0", pin, ServerLibraries.Repo.CENTRAL)));
+        assertTrue(e.getMessage().contains("offline"), e.getMessage());
+        LibraryResolver r = resolverWithMojang(LibrarySettings.DEFAULT);
+        assertThrows(LibraryException.class, () -> r.ensurePinned(new ServerLibraries.Artifact("org.test:none:1.0", pin, ServerLibraries.Repo.MOJANG)),
+                "저장소에 없으면(404) 실패");
+        assertEquals(URI.create(MOJANG_REPO + "org/test/none/1.0/none-1.0.jar"),
+                r.sourceOf(new ServerLibraries.Artifact("org.test:none:1.0", pin, ServerLibraries.Repo.MOJANG)));
+    }
 }
