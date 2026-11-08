@@ -82,6 +82,8 @@
 | `plugins.compat.nms.enabled` | ON/OFF | true | true\|false | Bukkit 호환 플러그인을 올릴 때 NMS·CraftBukkit 이름 변환(CraftBukkit 버전 접미사 v1_21_R1 풀기)을 한다 — 끄면 그런 플러그인은 그 이름에서 실패한다 |  |
 | `plugins.compat.nms.strict` | ON/OFF | false | true\|false | 미지원 NMS·CraftBukkit 심볼을 쓰는 Bukkit 호환 플러그인은 불러오지 않는다(끄면 그 호출만 실행 때 실패하고 나머지는 돈다) |  |
 | `plugins.compat.nms.version-package` | 글자 | plain | plain\|versioned | 플러그인이 읽는 CraftBukkit 패키지 이름 — plain 은 Paper 처럼 접미사 없음, versioned 는 Spigot 처럼 v1_21_R1 을 붙인다(두 이름 모두 클래스는 풀린다) |  |
+| `plugins.compat.nms.spigot-mappings` | 글자 | off | off\|download\|files | Spigot 이름으로 컴파일된 NMS 플러그인(매니페스트에 `paperweight-mappings-namespace: mojang` 이 없는 jar)의 NMS 이름을 Mojang 이름으로 바꿔 올린다(H7d). download: 그런 플러그인이 있을 때만 Mojang·Spigot 매핑을 처음 한 번 받아 캐시에 둔다. files: 받지 않고 아래 키의 파일을 쓴다. off: 바꾸지 않는다(그 NMS 호출은 실패) |  |
+| `plugins.compat.nms.spigot-mappings.files` | 글자 | (빈칸) | 경로 구분자로 이은 세 파일 | files 모드의 Mojang server.txt, Spigot 클래스 csrg, Spigot 멤버 csrg 경로 |  |
 | `plugins.chunk-tickets.max-per-plugin` | 수 | 16384 | 1~100000000 | 플러그인 하나가 청크 티켓으로 붙잡을 수 있는 청크 수 상한(겹침 포함) |  |
 | `plugins.compat.libraries` | 글자 | needed | needed\|all\|off | Paper 가 싣는 라이브러리(Guava·Adventure·SnakeYAML·Brigadier 등)를 호환 플러그인 클래스가 쓸 때만(needed)·호환 플러그인이 있으면 전부(all) 받아 공유 로더에 붙인다(H4 묶음 B, `docs/api/plugin-libraries.md`) | 잘못된 값은 경고 후 needed |
 | `plugins.compat.libraries.mojang` | ON/OFF | true | true\|false | Brigadier·authlib·DataFixerUpper 를 Mojang 저장소에서 받는다 | off 인데 적혀 있으면 경고 |

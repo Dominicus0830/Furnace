@@ -10,6 +10,8 @@
 //   plugins.compat.nms.enabled=true  호환 플러그인 클래스를 올릴 때 NMS·CraftBukkit 이름 변환(버전 접미사 v1_21_R1 풀기 등)을 한다 — false 면 바이트 그대로 올린다
 //   plugins.compat.nms.strict=false   미지원 NMS 심볼이 있는 플러그인은 불러오지 않는다(기본: 그 호출만 실패)
 //   plugins.compat.nms.version-package=plain  플러그인이 읽는 CraftBukkit 패키지 이름(plain = Paper 처럼 접미사 없음, versioned = Spigot 처럼 v1_21_R1)
+//   plugins.compat.nms.spigot-mappings=off    download 면 Spigot 이름 NMS 플러그인이 있을 때만 Mojang·Spigot 매핑을 받아 Spigot → Mojang 이름으로 바꿔 올린다(H7d).
+//                                             files 면 받지 않고 plugins.compat.nms.spigot-mappings.files 의 세 파일(server.txt, 클래스 csrg, 멤버 csrg)을 쓴다
 //   bukkit·nms.enabled 를 뺀 plugins.compat.* 키는 compatOptions 로 플러그인 형식(PluginFormat#transformer)에 그대로 넘긴다
 package org.domi.furnace.server.plugin;
 
@@ -32,7 +34,7 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
 
     /** plugins.compat.nms.* 기본값(빈 설정 파일을 읽은 것과 같다). */
     public static final Map<String, String> DEFAULT_COMPAT_OPTIONS =
-            Map.of("plugins.compat.nms.strict", "false", "plugins.compat.nms.version-package", "plain");
+            Map.of("plugins.compat.nms.strict", "false", "plugins.compat.nms.version-package", "plain", "plugins.compat.nms.spigot-mappings", "off");
 
     public static final PluginSettings DEFAULT = new PluginSettings(false, null, Map.of());
 
@@ -156,6 +158,15 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
             throw new IllegalArgumentException("설정 'plugins.compat.nms.version-package' 값 '" + vp + "' 이(가) 잘못됐습니다: plain 또는 versioned");
         }
         compatOptions.put("plugins.compat.nms.version-package", vp);
+        String sm = compatOptions.getOrDefault("plugins.compat.nms.spigot-mappings", "off").toLowerCase(Locale.ROOT);
+        if (!sm.equals("off") && !sm.equals("download") && !sm.equals("files")) {
+            throw new IllegalArgumentException("설정 'plugins.compat.nms.spigot-mappings' 값 '" + sm + "' 이(가) 잘못됐습니다: off, download 또는 files");
+        }
+        if (sm.equals("files") && compatOptions.getOrDefault("plugins.compat.nms.spigot-mappings.files", "").isBlank()) {
+            throw new IllegalArgumentException("설정 'plugins.compat.nms.spigot-mappings=files' 는 'plugins.compat.nms.spigot-mappings.files' 에 파일 세 개"
+                    + "(Mojang server.txt, Spigot 클래스 csrg, Spigot 멤버 csrg)를 경로 구분자 '" + java.io.File.pathSeparator + "' 로 이어 적어야 합니다");
+        }
+        compatOptions.put("plugins.compat.nms.spigot-mappings", sm);
         return new PluginSettings(failFast, root.isEmpty() ? null : Path.of(root), levels, dev, dev && auto,
                 LibrarySettings.from(p, log), compat, nms, compatOptions,
                 org.domi.furnace.server.config.OptionKeys.strictInt(p, "plugins.chunk-tickets.max-per-plugin",

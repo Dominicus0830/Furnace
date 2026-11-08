@@ -347,6 +347,17 @@ class PluginFoundationTest {
         Properties badBool = new Properties();
         badBool.setProperty("plugins.compat.nms.strict", "yes");
         assertThrows(IllegalArgumentException.class, () -> PluginSettings.from(badBool, log));
+        // H7d: Spigot 이름 대응표 — 기본 off, download|files 만, files 는 경로가 있어야 한다
+        assertEquals("off", d.compatOptions().get("plugins.compat.nms.spigot-mappings"));
+        Properties dl = new Properties();
+        dl.setProperty("plugins.compat.nms.spigot-mappings", "Download");
+        assertEquals("download", PluginSettings.from(dl, log).compatOptions().get("plugins.compat.nms.spigot-mappings"));
+        Properties badMode = new Properties();
+        badMode.setProperty("plugins.compat.nms.spigot-mappings", "yes");
+        assertThrows(IllegalArgumentException.class, () -> PluginSettings.from(badMode, log));
+        Properties filesNoPath = new Properties();
+        filesNoPath.setProperty("plugins.compat.nms.spigot-mappings", "files");
+        assertThrows(IllegalArgumentException.class, () -> PluginSettings.from(filesNoPath, log), "files 는 경로 세 개가 있어야 한다");
     }
 
     // ---- 조기 콘솔 ----
