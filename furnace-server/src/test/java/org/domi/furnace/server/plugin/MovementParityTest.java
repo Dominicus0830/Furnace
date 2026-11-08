@@ -326,8 +326,13 @@ class MovementParityTest {
             int afterDim = closed.size();
             cancel[0] = false;
             boolean ok = h.teleportNow(new Location(OVERWORLD, 12.5, -60, 8.5));
+            int afterOk = closed.size();
             boolean noWindow = h.teleportNow(new Location(OVERWORLD, 13.5, -60, 8.5));
-            return new Object[] {cancelled, afterCancel, otherDim, afterDim, ok, closed.size(), noWindow};
+            int afterNoWindow = closed.size();
+            p.setContainerMenu(open);
+            p.vitals().setHealth(0.0F);
+            boolean dead = h.teleportNow(new Location(OVERWORLD, 14.5, -60, 8.5));
+            return new Object[] {cancelled, afterCancel, otherDim, afterDim, ok, afterOk, noWindow, afterNoWindow, dead, closed.size()};
         }).get(30, TimeUnit.SECONDS);
         assertEquals(false, out[0]);
         assertEquals(0, out[1], "취소된 텔레포트는 창을 닫지 않는다");
@@ -336,6 +341,8 @@ class MovementParityTest {
         assertEquals(true, out[4]);
         assertEquals(1, out[5], "성공한 텔레포트는 창을 한 번 닫는다");
         assertEquals(true, out[6]);
-        assertSame(p.inventoryMenu(), p.containerMenu());
+        assertEquals(1, out[7], "창이 없으면 더 닫지 않는다");
+        assertEquals(false, out[8], "죽은 플레이어는 false");
+        assertEquals(1, out[9], "죽은 플레이어 텔레포트는 창을 닫지 않는다");
     }
 }
