@@ -42,8 +42,9 @@ public interface Entity extends CommandSender, PersistentDataHolder {
     CompletableFuture<Boolean> teleportAsync(Location location);
 
     /**
-     * Bukkit 의 teleport — Furnace 에는 "메인 스레드"가 없어 옮기기를 예약만 하고 true 를 돌려준다(결과는 알 수 없다).
-     * 결과가 필요하면 teleportAsync.
+     * Bukkit 의 teleport(Paper 와 같은 결과 규칙). 엔티티를 가진 region 스레드(플레이어는 어느 스레드나)에서는 곧바로 옮기고 진짜 결과를
+     * 돌려준다 — 사라졌거나 승객이 타고 있거나 PlayerTeleportEvent 가 취소됐거나 다른 차원·region 이면 false, 탈것은 먼저 내린다.
+     * 소유 스레드가 아니면 옮기기를 맡기고 핸들이 살아 있으면 true(결과는 알 수 없다). 결과가 필요하면 teleportAsync.
      */
     boolean teleport(Location location);
 

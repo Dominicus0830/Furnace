@@ -170,13 +170,36 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     public CompletableFuture<Boolean> teleport(Location to) {
         if (!to.world().equals(location.world())) return RegionFuture.wrap(CompletableFuture.completedFuture(false));
         World w = serverWorld();
-        return onOwner((r, cur) -> {
-            // 목적지 청크가 같은 region 것일 때만 — 다른 region 으로 넘기는 이동은 다음 단계(핸드오프 필요)
-            ChunkPos tcp = ChunkPos.ofBlock(to.x(), to.z());
-            if (w.regionizer().ownerOf(tcp.x(), tcp.z()) != r) return false;
-            cur.moveTo(to.x(), to.y(), to.z(), to.yaw(), to.pitch());
-            return true;
-        }).thenApply(b -> b != null && b);
+        return onOwner((r, cur) -> moveWithin(w, r, cur, to)).thenApply(b -> b != null && b);
+    }
+
+    /**
+     * 같은 region 안의 이동 규칙(Paper CraftEntity#teleport): 승객이 타고 있으면 false(아무것도 안 바꾼다), 목적지가 다른 region 이면 false
+     * (핸드오프는 다음 단계), 그 밖에는 탈것에서 먼저 내리고 옮긴다. 소유 region 스레드에서.
+     */
+    private static boolean moveWithin(World w, Region r, Entity cur, Location to) {
+        if (cur.isRemoved() || cur.isVehicle()) return false;
+        ChunkPos tcp = ChunkPos.ofBlock(to.x(), to.z());
+        if (w == null || w.regionizer().ownerOf(tcp.x(), tcp.z()) != r) return false;
+        if (cur.vehicle() != null) cur.stopRiding();
+        cur.moveTo(to.x(), to.y(), to.z(), to.yaw(), to.pitch());
+        return true;
+    }
+
+    /** 소유 region 스레드에서 곧바로. 그 스레드가 아니면 ThreadOwnershipException, 사라졌으면 false. */
+    @Override
+    public boolean teleportNow(Location to) {
+        if (!(tasks.owner() instanceof Entity e) || e.isRemoved()) return false;
+        World w = host.core().world(e.dimensionKey());
+        if (!to.world().equals(e.dimensionKey())) return false;
+        ChunkPos cp = ChunkPos.ofBlock(e.x(), e.z());
+        if (org.domi.furnace.server.world.RegionBorrow.claimEntity(e)) cp = ChunkPos.ofBlock(e.x(), e.z());
+        Region r = w == null ? null : w.regionizer().ownerOf(cp.x(), cp.z());
+        if (r == null || !r.isOwnerThread() || r.level() == null || r.level().entities().get(e.uuid()) != e) {
+            throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("엔티티 " + type() + " 를 가진 region 스레드가 아니다(현재 "
+                    + Thread.currentThread().getName() + ") — entityScheduler() 작업 안에서 부른다");
+        }
+        return moveWithin(w, r, e, to);
     }
 
     @Override

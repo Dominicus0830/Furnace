@@ -82,10 +82,21 @@ public class CraftEntity implements Entity {
     @Override
     public CompletableFuture<Boolean> teleportAsync(Location location) { return handle.teleport(Compat.location(location)); }
 
+    /**
+     * Paper 와 같은 결과 규칙: 사라졌거나 승객이 타고 있거나 플레이어의 PlayerTeleportEvent 가 취소됐으면 false, 아니면 탈것에서 내리고 옮겨 true.
+     * 엔티티를 가진 region 스레드(플레이어는 어느 스레드나)에서는 곧바로 진짜 결과를 돌려준다. 그 스레드가 아니면(Paper 라면 주 스레드가
+     * 아니라는 오류인 호출) 옮기기를 맡기고 핸들이 아직 살아 있으면 true — 결과가 필요하면 teleportAsync.
+     */
     @Override
     public boolean teleport(Location location) {
-        handle.teleport(Compat.location(location));
-        return true;
+        if (location == null) throw new IllegalArgumentException("location cannot be null");
+        var to = Compat.location(location);
+        try {
+            return handle.teleportNow(to);
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException notOwner) {
+            handle.teleport(to);
+            return handle.isValid();
+        }
     }
 
     @Override

@@ -295,13 +295,17 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         return host.profiled().wrap(w.handle().chunkScheduler(Math.floorDiv((int) Math.floor(p.x()), 16), Math.floorDiv((int) Math.floor(p.z()), 16)));
     }
 
-    /** 같은 차원 안만. 서버 텔레포트는 연결 스레드가 보정 패킷을 보내는 스레드 안전 경로다. */
+    /** 같은 차원 안만. 서버 텔레포트는 연결 스레드가 보정 패킷을 보내는 스레드 안전 경로다. 결과는 PlayerTeleportEvent 취소까지 반영한 진짜 값. */
     @Override
     public java.util.concurrent.CompletableFuture<Boolean> teleport(Location to) {
-        if (!to.world().equals(p.dimension()) || p.isDisconnected()) return java.util.concurrent.CompletableFuture.completedFuture(false);
-        if (!p.hasTeleporter()) return java.util.concurrent.CompletableFuture.completedFuture(false);
-        p.teleportTo(to.x(), to.y(), to.z(), to.yaw(), to.pitch());
-        return java.util.concurrent.CompletableFuture.completedFuture(true);
+        return java.util.concurrent.CompletableFuture.completedFuture(teleportNow(to));
+    }
+
+    /** 이벤트가 결과를 정하므로 어느 스레드에서나 곧바로(탈것 내리기·깨우기만 소유 스레드로 넘어간다). 다른 차원·끊긴 접속·이벤트 취소는 false. */
+    @Override
+    public boolean teleportNow(Location to) {
+        if (!to.world().equals(p.dimension())) return false;
+        return p.pluginTeleport(to.x(), to.y(), to.z(), to.yaw(), to.pitch());
     }
 
     private volatile EntitySchedulerImpl entityScheduler;

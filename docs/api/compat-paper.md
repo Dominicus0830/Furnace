@@ -28,7 +28,7 @@
 | `PlayerJoinEvent` / `PlayerQuitEvent` | 같은 이름 | 입·퇴장 메시지 |
 | `PlayerKickEvent` | `PlayerKickEvent` | 사유, 취소 |
 | `AsyncPlayerChatEvent` | `AsyncChatEvent` | 메시지, 서식(`setFormat`), 취소 |
-| `PlayerMoveEvent` / `PlayerTeleportEvent` | 같은 이름 | 취소 |
+| `PlayerMoveEvent` / `PlayerTeleportEvent` | 같은 이름 | 취소. `PlayerMoveEvent` 는 CraftBukkit 간격(거리² > 1/256 또는 회전 합 > 10°, 시선만 돌려도 발화)으로 온다 |
 | `PlayerRespawnEvent` | 같은 이름 | 부활 위치 |
 | `PlayerChangedWorldEvent`, `PlayerGameModeChangeEvent`, `PlayerToggleSneak/Sprint/FlightEvent` | 같은 이름 | 취소 |
 | `PlayerCommandPreprocessEvent` | 같은 이름 | 명령 문자열, 취소 |
@@ -82,7 +82,7 @@ Bukkit 은 메인 스레드 하나를 가정한다. 이 1차는 Furnace 이벤�
 ## 알아 둘 점
 
 - `plugins.compat.bukkit` 이 기본 켜짐이라 예전에 경고 후 건너뛰던 Bukkit jar 가 이제 로드를 시도한다. 아직 없는 API 를 쓰는 플러그인은 로드에 실패해 `failures` 에 들어가므로, `plugins.fail-fast=true` 인 서버는 부팅이 멈출 수 있다(그럴 때는 `plugins.compat.bukkit=false`).
-- 읽기 기본값이 있는 곳(정직한 기본값): `PlayerKickEvent#getLeaveMessage`(영어 고정 "<이름> left the game"; Furnace 킥 이벤트에 없는 값), `CraftPlayer#getLocale`(없으면 `en_us`), `CraftEntity#teleport` 는 비동기 텔레포트의 결과를 기다리지 않고 `true`, `isDead` 는 `!isValid()`(언로드된 엔티티도 죽음으로 본다). `paper-plugin.yml` 의 `load: OMIT` 인 `required: true` 의존은 순서도 강제된다(Paper 는 순서 없음).
+- 읽기 기본값이 있는 곳(정직한 기본값): `PlayerKickEvent#getLeaveMessage`(영어 고정 "<이름> left the game"; Furnace 킥 이벤트에 없는 값), `CraftPlayer#getLocale`(없으면 `en_us`), `CraftEntity#teleport` 는 Paper 처럼 진짜 결과(승객·사라짐·`PlayerTeleportEvent` 취소·다른 region/차원이면 `false`, 탈것은 먼저 내림) — 소유 스레드가 아닐 때만 맡기고 `true`(P4), `isDead` 는 `!isValid()`(언로드된 엔티티도 죽음으로 본다). `paper-plugin.yml` 의 `load: OMIT` 인 `required: true` 의존은 순서도 강제된다(Paper 는 순서 없음).
 - 이벤트 값 되돌려 쓰기: 처리기 전달 직전에 Furnace 의 현재 값을 Bukkit 이벤트에 맞추고(그래서 사이에 낀 Furnace 처리기의 변경이 보인다), 전달 뒤 달라진 값만 Furnace 에 쓴다.
 
 ## H4: 실제 플러그인으로 잰 호환 정도
