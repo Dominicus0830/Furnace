@@ -41,6 +41,12 @@ public final class CompatFormat implements PluginFormat {
         if (createdPlugin) Compat.awaitAsyncTasksAtShutdown(server, SHUTDOWN_ASYNC_WAIT_MILLIS);
     }
 
+    /** 개발 모드 핫 리로드: 끈 Bukkit 플러그인의 비동기 작업을 종료 때와 같은 규칙으로 기다린다(Compat 은 Bukkit 플러그인이 있을 때만 건드린다). */
+    @Override
+    public void awaitPluginTasks(org.domi.furnace.api.Furnace server, java.util.Collection<FurnacePlugin> plugins, long maxMillis) {
+        if (createdPlugin) Compat.awaitPluginAsyncTasks(server, plugins, maxMillis);
+    }
+
     private volatile boolean createdPlugin;
 
     static final long SHUTDOWN_ASYNC_WAIT_MILLIS = 5_000;

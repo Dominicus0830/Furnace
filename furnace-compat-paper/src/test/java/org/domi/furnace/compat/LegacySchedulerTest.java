@@ -619,4 +619,84 @@ class LegacySchedulerTest {
             assertFalse(missing.get(), "도는 회차는 항상 일꾼 목록에 있다");
         }
     }
+
+    // ---- Paper Improved-Async-Task-Scheduler: 비동기 대기열은 관리 스레드가 비운다
+
+    private static java.util.Set<Thread> managementThreads() {
+        return Thread.getAllStackTraces().keySet().stream()
+                .filter(t -> t.getName().equals(LegacyScheduler.MANAGEMENT_THREAD_NAME) && t.isAlive()).collect(java.util.stream.Collectors.toSet());
+    }
+
+    @Test
+    void asyncQueueIsDrainedByANamedManagementThreadNotByTheGlobalThread() throws Exception {
+        java.util.Set<Thread> before = managementThreads();
+        Thread mgmt;
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            server.tick();   // 관리 스레드는 첫 박동에서 뜬다(Paper 의 단일 스레드 실행기도 처음 일이 올 때)
+            java.util.Set<Thread> added = managementThreads();
+            added.removeAll(before);
+            assertEquals(1, added.size(), "스케줄러 하나에 관리 스레드 하나");
+            mgmt = added.iterator().next();
+            assertTrue(mgmt.isDaemon());
+            CountDownLatch done = new CountDownLatch(1);
+            AtomicReference<Thread> ranOn = new AtomicReference<>();
+            p.legacy.runTaskAsynchronously(p, () -> {
+                ranOn.set(Thread.currentThread());
+                done.countDown();
+            });
+            server.tick();
+            assertTrue(done.await(5, TimeUnit.SECONDS));
+            assertNotSame(mgmt, ranOn.get(), "관리 스레드는 대기열만 비우고 작업은 풀에서 돈다");
+            assertTrue(mgmt.isAlive());
+        }
+        mgmt.join(5_000);
+        assertFalse(mgmt.isAlive(), "스케줄러를 닫으면 관리 스레드도 끝난다");
+    }
+
+    /** 박동은 비동기 메시지를 동기 대기열보다 먼저 보낸다(CraftScheduler.mainThreadHeartbeat) — 같은 틱의 동기 작업이 건 비동기 작업은 다음 틱에. */
+    @Test
+    void asyncTaskScheduledByASyncTaskRunsOnTheNextTick() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            CountDownLatch done = new CountDownLatch(1);
+            p.legacy.runTask(p, () -> p.legacy.runTaskAsynchronously(p, done::countDown));
+            server.tick();
+            assertFalse(done.await(300, TimeUnit.MILLISECONDS), "같은 틱에는 안 돈다");
+            server.tick();
+            assertTrue(done.await(5, TimeUnit.SECONDS), "다음 틱에 돈다");
+        }
+    }
+
+    @Test
+    void asyncDelaysAreCountedInTicksAndRepeatsKeepTheirPeriodOnTheManagementThread() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            AtomicInteger runs = new AtomicInteger();
+            LegacyTask t = p.legacy.runTaskTimerAsynchronously(p, runs::incrementAndGet, 2, 3);
+            for (int i = 0; i < 8; i++) {
+                server.tick();
+                Thread.sleep(30);   // 관리 스레드가 이번 틱을 비울 틈
+            }
+            // 틱 2·5·8 에 도착
+            long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (runs.get() < 3 && System.nanoTime() < until) Thread.sleep(10);
+            assertEquals(3, runs.get());
+            t.cancel();
+            assertTrue(p.legacy.pendingTasks().isEmpty());
+        }
+    }
+
+    @Test
+    void closeRejectsNothingAndPendingAsyncTasksAreCancelled() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            AtomicInteger runs = new AtomicInteger();
+            LegacyTask later = p.legacy.runTaskLaterAsynchronously(p, runs::incrementAndGet, 5);
+            p.legacy.close();
+            assertTrue(later.isCancelled());
+            server.tick(10);
+            assertEquals(0, runs.get());
+        }
+    }
 }

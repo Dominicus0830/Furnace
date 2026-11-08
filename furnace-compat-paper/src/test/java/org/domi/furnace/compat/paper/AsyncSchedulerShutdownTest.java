@@ -35,6 +35,7 @@ class AsyncSchedulerShutdownTest {
                 import org.domi.furnace.compat.paper.fixtures.WiringProbe;
                 public final class SlowPlugin extends JavaPlugin {
                     @Override public void onEnable() {
+                        WiringProbe.LOG.add("enable");
                         WiringProbe.plugin = this;
                         getServer().getScheduler().runTaskAsynchronously(this, () -> {
                             WiringProbe.LOG.add("started|" + Thread.currentThread().getName() + "|virtual=" + Thread.currentThread().isVirtual());
@@ -53,9 +54,11 @@ class AsyncSchedulerShutdownTest {
     @BeforeEach
     void reset() { WiringProbe.reset(); }
 
-    private FurnaceTestServer start(long sleepMillis) throws Exception {
+    private FurnaceTestServer start(long sleepMillis) throws Exception { return start(sleepMillis, false); }
+
+    private FurnaceTestServer start(long sleepMillis, boolean devMode) throws Exception {
         Path jar = JarCompiler.jar(tmp.resolve("slow.jar"), YML, Map.of("slow.SlowPlugin", plugin(sleepMillis)));
-        return FurnaceTestServer.builder().failFast(false).pluginJar(jar).start();
+        return FurnaceTestServer.builder().failFast(false).devMode(devMode).pluginJar(jar).start();
     }
 
     private static void awaitLog(String prefix) throws InterruptedException {
@@ -112,5 +115,37 @@ class AsyncSchedulerShutdownTest {
         long ms = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - t0);
         assertTrue(ms < 4_000, "일꾼이 없으면 기다리지 않는다: " + ms + "ms");
         assertEquals(1, WiringProbe.LOG.stream().filter("done"::equals).count());
+    }
+
+    /** 개발 모드 핫 리로드도 종료와 같은 규칙: 끈 플러그인의 비동기 작업이 끝난 뒤에 새 것이 켜진다(옛 작업이 새 클래스·자원과 겹치지 않는다). */
+    @Test
+    void hotReloadWaitsForTheDisabledPluginsAsyncTaskBeforeEnablingTheNewOne() throws Exception {
+        try (FurnaceTestServer server = start(700, true)) {
+            server.tick();
+            awaitLog("started");
+            assertFalse(WiringProbe.LOG.contains("done"));
+            var reload = server.api().plugins().reload("Slow");
+            for (int i = 0; i < 50 && !reload.isDone(); i++) server.tick();
+            assertEquals(java.util.List.of("Slow"), reload.get(10, TimeUnit.SECONDS));
+            var log = WiringProbe.LOG;
+            assertTrue(log.contains("done"), "리로드가 끝났을 때 옛 작업은 이미 끝났다: " + log);
+            assertTrue(log.indexOf("disable") < log.indexOf("done"), log.toString());
+            assertTrue(log.indexOf("done") < log.lastIndexOf("enable"), "새 플러그인은 옛 작업이 끝난 뒤에 켜진다: " + log);
+            assertEquals(2, log.stream().filter("enable"::equals).count());
+        }
+    }
+
+    @Test
+    void hotReloadDoesNotWaitWhenTheDisabledPluginHasNoAsyncWorker() throws Exception {
+        try (FurnaceTestServer server = start(0, true)) {
+            server.tick();
+            awaitLog("done");
+            long t0 = System.nanoTime();
+            var reload = server.api().plugins().reload("Slow");
+            for (int i = 0; i < 50 && !reload.isDone(); i++) server.tick();
+            assertEquals(java.util.List.of("Slow"), reload.get(10, TimeUnit.SECONDS));
+            long ms = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - t0);
+            assertTrue(ms < 4_000, "일꾼이 없으면 기다리지 않는다: " + ms + "ms");
+        }
     }
 }
