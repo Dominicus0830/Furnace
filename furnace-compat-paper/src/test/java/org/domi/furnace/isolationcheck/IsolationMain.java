@@ -12,6 +12,8 @@ public final class IsolationMain {
     /** args[0] = 서버 폴더(plugins/ 에 jar 를 미리 넣어 둘 수 있다). 끝에 "RESULT ..." 한 줄을 찍는다. */
     public static void main(String[] args) {
         Path dir = Path.of(args[0]);
+        // 호환 모듈이 이 JVM 클래스패스에 있는가 — 클래스를 올리지 않고 자원으로만 본다(필터가 헛돌았는지 부모 시험이 단언한다)
+        System.out.println("PROBE compatOnClasspath=" + (IsolationMain.class.getClassLoader().getResource("org/domi/furnace/compat/paper/CompatFormat.class") != null));
         try (FurnaceTestServer server = FurnaceTestServer.builder().directory(dir).failFast(false).start()) {
             server.tick(5);
             var bot = server.join("IsoBot");

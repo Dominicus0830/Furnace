@@ -97,7 +97,7 @@ Bukkit 은 메인 스레드 하나를 가정한다. 이 1차는 Furnace 이벤�
 
 호환 모듈(`org.bukkit.*`·어댑터·ASM, 약 0.6 MB)은 서버 `fatJar` 에 함께 실리지만 서버 핵심과 얽히지 않는다.
 - **모듈 방향:** `furnace-server` 와 `furnace-api` 는 호환 모듈에 의존하지 않는다(호환 모듈 → API 한 방향. 서버 `fatJar` 만 둘을 합친다). `CompatIsolationStaticTest` 가 서버·API 클래스 파일에 `org/bukkit/` 등 호환 패키지 이름이 없음을 확인한다.
-- **지연 로딩:** 서버는 시작할 때 호환 어댑터(`PluginFormat`)를 만들지 않는다. `PluginFormats` 가 클래스패스에 `META-INF/services` 자원이 있는지만 보고(클래스를 읽지 않는다), Furnace 설명 파일이 없는 jar(= Bukkit·Paper 플러그인)를 처음 만났을 때 한 번만 `ServiceLoader` 로 만든다. 그 전에는 호환 모듈 클래스가 JVM 에 하나도 올라오지 않는다 — `plugins/` 가 비었거나 Furnace 플러그인뿐이거나 `plugins/bukkit-plugins/` 가 비어 있어도 마찬가지다.
+- **지연 로딩:** 서버는 시작할 때 호환 어댑터(`PluginFormat`)를 만들지 않는다. `PluginFormats` 가 클래스패스에 `META-INF/services` 자원이 있는지만 보고(클래스를 읽지 않는다), Furnace 설명 파일이 없는 jar(= Bukkit·Paper 플러그인)를 처음 만났을 때 한 번만 `ServiceLoader` 로 만든다. 그 전에는 호환 모듈 클래스가 JVM 에 하나도 올라오지 않는다 — `plugins/` 가 비었거나 Furnace 플러그인뿐이거나 `plugins/bukkit-plugins/` 가 비어 있어도 마찬가지다. 단 설명 파일이 없는 다른 jar(라이브러리 jar 를 잘못 둔 경우 등 — 원래 오류 jar)가 `plugins/` 나 `plugins/bukkit-plugins/` 에 있으면 그 판정을 위해 어댑터가 올라온다. 호환 모듈 자원은 있는데 어댑터를 만들 수 없으면(깨진 호환 모듈) Bukkit jar 는 실패로 세지 않고 경고 후 건너뛴다.
 - **모듈이 없어도 된다:** 호환 모듈이 클래스패스에 아예 없어도(서버를 호환 없이 붙일 때) 서버 관측 결과는 같다. Bukkit jar 가 있으면 "클래스패스에 없어 불러오지 않는다" 경고만 남긴다.
 - **증거:** `CompatIsolationTest` 가 별도 JVM 을 `-Xlog:class+load` 로 띄워 서버 기동·접속·명령·종료 동안 올라온 클래스에 `org.bukkit.`·`org.domi.furnace.compat.`·`org.objectweb.asm.` 등이 없음을 센다(대조군: Bukkit 플러그인을 넣으면 `CompatFormat` 이 올라온다). `PluginFormatsLazyTest` 는 어댑터 생성 횟수를 센다.
 - **남은 경계(알려 둠):** 서버 `fatJar` 의 클래스패스에는 호환 클래스가 있으므로 Furnace 네이티브 플러그인의 클래스로더(부모 우선)에는 보인다 — 네이티브 플러그인이 같은 이름의 클래스를 자기 jar 에 넣어도 서버 쪽이 이긴다. 정의는 `docs/user-todo/entries/2026-11-08-paper-api-isolation.md` 의 결정 항목.

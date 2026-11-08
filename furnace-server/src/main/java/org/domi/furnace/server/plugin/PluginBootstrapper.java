@@ -205,6 +205,10 @@ public final class PluginBootstrapper {
     /** 설명 파일을 읽은 후보. */
     record Candidate(Path file, PluginDescription description, PluginFormat format) {}
 
+    /** 읽지 않고 건너뛴 jar 표시(실패로 세지 않는다) — 호환 어댑터를 만들 수 없을 때의 bukkit-plugins/ jar. */
+    private static final Candidate SKIPPED = new Candidate(null, null, null);
+    private boolean brokenAdapterWarned;
+
     private void run() {
         try {
             Files.createDirectories(dir);
@@ -232,6 +236,7 @@ public final class PluginBootstrapper {
                 failures.add(jar.getFileName().toString());
                 continue;
             }
+            if (c == SKIPPED) continue;
             if (c == null) {
                 failures.add(jar.getFileName().toString());
                 continue;
@@ -295,6 +300,16 @@ public final class PluginBootstrapper {
                 }
             }
             if (quiet) return null;
+            if (formats.get().isEmpty() && jar.getParent() != null && jar.getParent().getFileName() != null
+                    && jar.getParent().getFileName().toString().equals(BUKKIT_FOLDER)
+                    && (jf.getEntry("plugin.yml") != null || jf.getEntry("paper-plugin.yml") != null)) {
+                // 호환 모듈 자원은 있는데 어댑터를 만들 수 없다(깨진 호환 모듈). 어댑터가 아예 없을 때와 같이 경고만 하고 실패로 세지 않는다.
+                if (!brokenAdapterWarned) {
+                    brokenAdapterWarned = true;
+                    log.warn("plugins/{}/ 에 Paper/Bukkit 플러그인이 있지만 호환 어댑터를 만들지 못해(클래스패스의 호환 모듈이 깨졌다) 불러오지 않는다", BUKKIT_FOLDER);
+                }
+                return SKIPPED;
+            }
             if (jf.getEntry("plugin.yml") != null || jf.getEntry("paper-plugin.yml") != null) {
                 log.error("Could not load '{}' in folder '{}': Paper/Bukkit 플러그인이다 — plugins/{}/ 에 넣어야 한다",
                         dir.relativize(jar), dir.getFileName(), BUKKIT_FOLDER);

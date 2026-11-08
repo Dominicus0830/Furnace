@@ -113,4 +113,21 @@ class PluginFormatsLazyTest {
         assertTrue(boot.prepared().isEmpty());
         assertEquals(0, CountingFormat.CONSTRUCTED.get());
     }
+
+    /** 검토 F1: 서비스 파일은 있는데 어댑터를 만들 수 없을 때(깨진 호환 모듈) — 전처럼 경고만, 실패로 세지 않는다(fail-fast 가 서버를 멈추면 안 된다). */
+    @Test
+    void brokenAdapterSkipsBukkitJarsWithoutCountingFailures() throws Exception {
+        Path res = tmp.resolve("broken");
+        Files.createDirectories(res.resolve("META-INF/services"));
+        Files.writeString(res.resolve("META-INF/services/" + PluginFormat.class.getName()), "no.such.Format\n");
+        try (URLClassLoader broken = new URLClassLoader(new URL[] {res.toUri().toURL()}, getClass().getClassLoader())) {
+            Path dir = tmp.resolve("plugins");
+            furnaceJar(dir);
+            PluginSystemTest.jar(dir.resolve(PluginBootstrapper.BUKKIT_FOLDER).resolve("b.jar"), "plugin.yml",
+                    "name: Beta\nversion: 1\nmain: org.domi.furnace.server.plugin.TestPlugins$Beta\n", TestPlugins.Beta.class);
+            boot = PluginBootstrapper.bootstrap(dir, PluginSettings.DEFAULT, PluginFormats.discover(broken), ServerLibraries.DEFAULT);
+            assertEquals(List.of(), boot.failures(), "깨진 어댑터 때문에 Bukkit jar 를 실패로 세면 plugins.fail-fast 가 시작을 멈춘다");
+            assertEquals(List.of("Alpha"), boot.prepared().stream().map(p -> p.description().name()).toList());
+        }
+    }
 }

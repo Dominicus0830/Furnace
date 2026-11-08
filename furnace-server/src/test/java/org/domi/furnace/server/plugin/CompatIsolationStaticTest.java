@@ -23,7 +23,10 @@ import org.junit.jupiter.api.Test;
 class CompatIsolationStaticTest {
 
     /** 호환 모듈이 가진 패키지의 JVM 내부 이름 접두. (net/md_5 는 서버 라이브러리 표지 문자열로만 나오므로 뺀다.) */
-    private static final List<String> FORBIDDEN = List.of("org/bukkit/", "io/papermc/", "com/destroystokyo/", "org/domi/furnace/compat/", "org/objectweb/asm/");
+    private static final List<String> FORBIDDEN = List.of("org/bukkit/", "io/papermc/", "com/destroystokyo/", "org/domi/furnace/compat/", "org/objectweb/asm/",
+            "net/minecraft/",   // 호환 jar 의 getHandle NMS shim(H6). 점 표기는 JmxMonitoring 의 JMX 이름 "net.minecraft.server:type=Server" 와 겹쳐 뺀다
+            // 문자열로 부르는 이름(Class.forName("org.bukkit.Bukkit") 같은 리플렉션)도 잡는다
+            "org.bukkit.", "io.papermc.", "com.destroystokyo.", "org.domi.furnace.compat.", "org.objectweb.asm.");
 
     @Test
     void serverAndApiClassFilesNeverNameACompatClass() throws Exception {

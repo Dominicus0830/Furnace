@@ -27,7 +27,8 @@ class CompatIsolationTest {
 
     /** 호환 모듈이 가진 패키지 접두(플러그인 API 클래스·어댑터·바이트코드 변환기). */
     private static final List<String> COMPAT_PREFIXES = List.of(
-            "org.bukkit.", "io.papermc.", "com.destroystokyo.", "net.md_5.", "org.domi.furnace.compat.", "org.objectweb.asm.");
+            "org.bukkit.", "io.papermc.", "com.destroystokyo.", "net.md_5.", "org.domi.furnace.compat.", "org.objectweb.asm.",
+            "net.minecraft.");   // 호환 jar 의 getHandle NMS shim(H6) — 서버 본체는 난독화 이름이라 겹치지 않는다
 
     @TempDir
     Path tmp;
@@ -46,12 +47,14 @@ class CompatIsolationTest {
         Path java = Path.of(System.getProperty("java.home"), "bin", "java");
         List<String> cmd = List.of(java.toString(), "-Xmx512m", "-Xlog:class+load=info:file=" + classLog,
                 "-cp", String.join(File.pathSeparator, cp), "org.domi.furnace.isolationcheck.IsolationMain", serverDir.toString());
-        Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start();
-        byte[] out = p.getInputStream().readAllBytes();
+        // 출력은 파일로 받는다 — 파이프를 읽으며 막히면 아래 제한 시간이 듣지 않는다
+        Path outFile = tmp.resolve("out-" + System.nanoTime() + ".log");
+        Process p = new ProcessBuilder(cmd).redirectErrorStream(true).redirectOutput(outFile.toFile()).start();
         if (!p.waitFor(120, TimeUnit.SECONDS)) {
             p.destroyForcibly();
-            throw new AssertionError("자식 JVM 이 끝나지 않는다:\n" + new String(out, StandardCharsets.UTF_8));
+            throw new AssertionError("자식 JVM 이 120초 안에 끝나지 않는다:\n" + Files.readString(outFile, StandardCharsets.UTF_8));
         }
+        byte[] out = Files.readAllBytes(outFile);
         List<String> loaded = new ArrayList<>();
         Pattern line = Pattern.compile("\\] (\\S+) source:");
         for (String l : Files.readAllLines(classLog, StandardCharsets.UTF_8)) {
@@ -89,6 +92,7 @@ class CompatIsolationTest {
     void noBukkitPluginMeansNoCompatClassIsEverLoaded() throws Exception {
         Run r = run(Files.createDirectories(tmp.resolve("s1")), e -> true);   // 호환 모듈이 클래스패스에 있다
         assertEquals(0, r.exit(), r.output());
+        assertTrue(r.output().contains("PROBE compatOnClasspath=true"), "이 시험은 호환 모듈이 클래스패스에 있을 때를 본다:\n" + r.output());
         assertTrue(r.output().contains("RESULT players=1 tpsOk=true plugins=[]"), r.output());
         assertTrue(r.loaded().stream().anyMatch(n -> n.equals("org.domi.furnace.server.plugin.PluginBootstrapper")), "기록이 서버 클래스를 담고 있어야 의미가 있다");
         assertEquals(List.of(), r.compatClasses(), "Bukkit·Paper 플러그인이 없는데 호환 모듈 클래스가 올라왔다");
@@ -119,6 +123,8 @@ class CompatIsolationTest {
         Run with = run(Files.createDirectories(tmp.resolve("s4")), e -> true);
         Run without = run(Files.createDirectories(tmp.resolve("s5")), e -> !isCompatModuleEntry(e));
         assertEquals(0, without.exit(), without.output());
+        assertTrue(with.output().contains("PROBE compatOnClasspath=true"), with.output());
+        assertTrue(without.output().contains("PROBE compatOnClasspath=false"), "필터가 호환 모듈을 클래스패스에서 빼지 못했다:\n" + without.output());
         assertEquals(result(with.output()), result(without.output()), "호환 모듈 유무로 서버의 관측 결과가 달라진다");
         assertEquals(List.of(), without.compatClasses());
         assertFalse(without.output().contains("Exception"), without.output());
@@ -130,6 +136,7 @@ class CompatIsolationTest {
         bukkitJar(dir);
         Run r = run(dir, e -> !isCompatModuleEntry(e));
         assertEquals(0, r.exit(), r.output());
+        assertTrue(r.output().contains("PROBE compatOnClasspath=false"), r.output());
         assertTrue(r.output().contains("plugins=[]"), r.output());
         assertTrue(r.output().contains("클래스패스에 없어"), "호환 모듈이 없어 Bukkit 플러그인을 못 불러온다는 안내가 있어야 한다:\n" + r.output());
         assertEquals(List.of(), r.compatClasses());
