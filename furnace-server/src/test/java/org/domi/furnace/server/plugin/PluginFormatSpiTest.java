@@ -182,7 +182,7 @@ class PluginFormatSpiTest {
         assertEquals(List.of("Alpha"), back, "다시 켜졌다");
         assertEquals(List.of("Alpha:disabled"), first.awaited, "끈 뒤(다시 읽기 전)에 그 플러그인을 넘긴다");
         assertEquals(List.of("Alpha:disabled"), second.awaited);
-        assertEquals(5_000, second.awaitedMillis, "종료 때와 같은 5초");
+        assertEquals(2_500, second.awaitedMillis, "Paper reload 와 같은 2.5초");
         assertTrue(first.events.isEmpty(), "종료 훅(afterPluginsDisabled)은 리로드에서 안 불린다");
     }
 

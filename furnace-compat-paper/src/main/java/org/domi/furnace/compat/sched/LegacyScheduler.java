@@ -298,21 +298,28 @@ public final class LegacyScheduler {
     }
 
     /**
-     * 개발 모드 핫 리로드: 방금 끈 플러그인들의 비동기 일꾼이 끝나기를 같은 규칙(100ms 마다, 최대 {@code maxMillis}, 남으면 Nag)으로 기다린다.
+     * 개발 모드 핫 리로드: 방금 끈 플러그인들의 비동기 일꾼이 끝나기를 같은 규칙(100ms 마다, 최대 {@code maxMillis}, 남으면 Nag — 문구는 Paper reload 의 것)으로 기다린다.
      * 호출한 스레드(전역)를 그동안 붙잡는다 — 일꾼이 callSyncMethod 로 전역을 기다리면 그 시간만큼 서로 기다리다 풀린다(개발 모드 한정).
      */
     public List<Worker> awaitAsyncWorkers(java.util.Collection<? extends FurnacePlugin> plugins, long maxMillis) {
-        return awaitAsyncWorkers(plugins::contains, maxMillis, msg -> SERVER_LOG.error(msg));
+        return awaitAsyncWorkers(plugins::contains, maxMillis, msg -> SERVER_LOG.error(msg), true);
     }
 
     public List<Worker> awaitAsyncWorkers(java.util.function.Predicate<FurnacePlugin> owner, long maxMillis,
                                           java.util.function.Consumer<String> nag) {
+        return awaitAsyncWorkers(owner, maxMillis, nag, false);
+    }
+
+    /** @param reloading true 면 Paper CraftServer.reload 의 문구(종료 문구와 다르다) */
+    public List<Worker> awaitAsyncWorkers(java.util.function.Predicate<FurnacePlugin> owner, long maxMillis,
+                                          java.util.function.Consumer<String> nag, boolean reloading) {
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(maxMillis);
         while (!activeWorkers(owner).isEmpty() && System.nanoTime() < deadline) {
             try {
                 Thread.sleep(100);
             } catch (InterruptedException e) {
-                // Paper 처럼 삼키고 마감까지 계속 센다. 표시를 다시 세우지 않는다 — 같은 종료 스레드의 뒤 단계(저장 대기)가 바로 중단되지 않게
+                // Paper 처럼 삼키고 마감까지 계속 센다. 표시를 다시 세우지 않는다 — 같은 종료 스레드의 뒤 단계(저장 대기)가 바로 중단되지 않게.
+                // 리로드도 같다: 전역 스레드는 인터럽트되지 않고, 표시를 세우면 뒤의 jar 읽기·켜기가 깨질 수 있다
             }
         }
         List<Worker> overdue = activeWorkers(owner);
@@ -321,8 +328,11 @@ public final class LegacyScheduler {
             nag.accept(String.format(
                     "Nag author(s): '%s' of '%s' about the following: %s",
                     plugin.description().authors(), plugin.description().fullName(),
-                    "This plugin is not properly shutting down its async tasks when it is being shut down. "
-                            + "This task may throw errors during the final shutdown logs and might not complete before process dies."));
+                    reloading
+                            ? "This plugin is not properly shutting down its async tasks when it is being reloaded.  "
+                                    + "This may cause conflicts with the newly loaded version of the plugin"
+                            : "This plugin is not properly shutting down its async tasks when it is being shut down. "
+                                    + "This task may throw errors during the final shutdown logs and might not complete before process dies."));
         }
         return overdue;
     }
@@ -353,7 +363,8 @@ public final class LegacyScheduler {
         book.add(plugin, t);
         PriorityQueue<Task> q = sync ? queue : asyncQueue;
         synchronized (q) {
-            t.nextRun = tick + delay;
+            // 비동기는 지연 0 도 다음 틱(Paper 는 "이번 틱 비우기" 와 겹치면 같은 틱에 돌 수 있는 경합이 있지만, 여기서는 항상 다음 틱으로 못 박는다)
+            t.nextRun = tick + (sync ? delay : Math.max(1L, delay));
             q.add(t);
         }
         return t;

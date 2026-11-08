@@ -699,4 +699,48 @@ class LegacySchedulerTest {
             assertEquals(0, runs.get());
         }
     }
+
+    /** Paper CraftServer.reload 의 Nag 문구(공백 두 칸)와 플러그인 필터: 다른 플러그인의 일꾼은 안 기다린다. */
+    @Test
+    void reloadNagUsesPapersReloadWordingAndOnlyCountsTheGivenPlugins() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            CountDownLatch inside = new CountDownLatch(1), release = new CountDownLatch(1);
+            p.legacy.runTaskAsynchronously(p, () -> {
+                inside.countDown();
+                try {
+                    release.await(10, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            server.tick();
+            assertTrue(inside.await(5, TimeUnit.SECONDS));
+            List<String> nags = new CopyOnWriteArrayList<>();
+            try {
+                assertTrue(p.legacy.awaitAsyncWorkers(q -> false, 5_000, nags::add, true).isEmpty(), "다른 플러그인 것만 보면 기다릴 것이 없다");
+                assertEquals(1, p.legacy.awaitAsyncWorkers(q -> q == p, 200, nags::add, true).size());
+            } finally {
+                release.countDown();
+            }
+            assertEquals(1, nags.size(), nags.toString());
+            assertTrue(nags.get(0).endsWith("when it is being reloaded.  This may cause conflicts with the newly loaded version of the plugin"), nags.get(0));
+        }
+    }
+
+    /** 비동기는 지연 0 도 항상 다음 틱 — 관리 스레드가 이번 틱을 비우는 중이어도 같은 틱에 돌지 않는다(반복해서 경합을 건다). */
+    @Test
+    void asyncDelayZeroNeverRunsOnTheSameTickEvenUnderRepetition() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            for (int i = 0; i < 30; i++) {
+                CountDownLatch done = new CountDownLatch(1);
+                p.legacy.runTask(p, () -> p.legacy.runTaskAsynchronously(p, done::countDown));
+                server.tick();
+                assertFalse(done.await(40, TimeUnit.MILLISECONDS), "같은 틱에 돌았다(회차 " + i + ")");
+                server.tick();
+                assertTrue(done.await(5, TimeUnit.SECONDS));
+            }
+        }
+    }
 }
