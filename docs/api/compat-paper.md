@@ -64,6 +64,10 @@ Furnace 이벤트가 알리지 않는 값은 지어내지 않는다. 읽기는 �
 - 생성 파일(`Material`·`EntityType`·`Enchantment`)은 `tools/compat/gen-bukkit-material.py`·`gen-bukkit-registries.py` 로 다시 만든다.
 - 시험: `InventoryAdapterTest`·`BlockEntityWorldAdapterTest`·`KitPluginTest`(키트 플러그인 jar)·`RegistryValueTypesTest`.
 
+## Bukkit 비동기 작업의 스레드 (Paper 와 같은 풀)
+
+`runTaskAsynchronously` 등 옛 비동기 작업은 이름 붙은 **플랫폼 스레드 풀**에서 돈다(Paper 1.21.1 `CraftAsyncScheduler` 모양: 코어 4·최대 무제한·30초 놀면 정리·대기열 없음). 스레드 이름은 `Craft Scheduler Thread - N`, 작업이 도는 동안 `… - 플러그인이름`. 서버 옵션 `plugins.compat.scheduler.async-threads=virtual` 이면 서버의 가상 스레드 실행기를 쓴다. 가상 스레드는 JDK 21 에서 `synchronized` 안에서 소켓·파일을 기다리면 운반 스레드를 붙잡는다(옛 JDBC 드라이버·풀 라이브러리가 그런 모양이라 몇 개만 겹쳐도 모든 비동기 작업이 멈출 수 있다). 서버를 끌 때는 모든 `onDisable` 이 끝난 뒤 돌고 있는 비동기 일꾼을 최대 5초 기다리고, 남은 플러그인마다 `Nag author(s)…` 오류를 남긴다(Paper `Wait-for-Async-Tasks-during-shutdown`). `BukkitScheduler#getMainThreadExecutor(Plugin)`(Paper API)도 있다. 설계·남은 차이: `docs/feature-parity/context-notes/2026-11-08-p2.md`. 시험: `LegacySchedulerTest`, `AsyncSchedulerShutdownTest`.
+
 ## JavaPlugin 의 명령·스케줄러·서비스 (H4 다음 묶음 A)
 
 `JavaPlugin#getCommand`(plugin.yml 의 `commands:` → `PluginCommand`, 기본 실행기는 플러그인 본체)·`getProvidingPlugin`·`getPlugin(Class)`, `Command`·`CommandMap`/`SimpleCommandMap`(명령 트리에 이어짐, `getKnownCommands()` 에서 지우면 트리에서도 빠짐), `BukkitScheduler`·`BukkitRunnable`·`BukkitTask`, `ServicesManager`, `Bukkit.getScheduler/getServicesManager/isPrimaryThread/getCommandMap/getPluginCommand`. 설계·Bukkit 과 다른 점 10가지: `docs/feature-parity/compat-javaplugin-wiring-2026-11-07.md`. 시험: `JavaPluginWiringTest`(시험 안에서 컴파일한 플러그인 jar).

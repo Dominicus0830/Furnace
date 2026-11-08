@@ -125,6 +125,12 @@ public interface Furnace {
     /** 블로킹 작업용 실행기(가상 스레드). */
     Executor asyncExecutor();
 
+    /**
+     * 호환 어댑터(Bukkit·Paper)가 읽는 서버 설정 값: furnace.properties 의 {@code plugins.compat.*} 키를 적힌 글자 그대로 돌려준다.
+     * 키가 없거나 기본값과 같게 적었으면 null(= 어댑터의 기본값). 그 밖의 키는 늘 null — 다른 설정은 플러그인이 볼 수 없다.
+     */
+    default String compatOption(String key) { return null; }
+
     /** 플러그인별 시간 프로파일러(/timings). 서버가 주지 않으면 아무것도 재지 않는 것. */
     default org.domi.furnace.api.profiler.PluginProfiler profiler() { return org.domi.furnace.api.profiler.PluginProfiler.NONE; }
 

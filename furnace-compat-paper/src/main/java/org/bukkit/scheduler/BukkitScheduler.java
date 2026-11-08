@@ -91,4 +91,11 @@ public interface BukkitScheduler {
 
     @Deprecated
     BukkitTask runTaskTimerAsynchronously(Plugin plugin, BukkitRunnable task, long delay, long period) throws IllegalArgumentException;
+
+    /**
+     * Paper 전용 API: 실행하면 다음 틱에 그 플러그인의 동기 작업으로 도는 실행기.
+     *
+     * @param plugin 작업을 거는 플러그인
+     */
+    java.util.concurrent.Executor getMainThreadExecutor(Plugin plugin);
 }

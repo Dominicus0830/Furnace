@@ -9,10 +9,14 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import org.domi.furnace.compat.sched.LegacyScheduler;
 import org.domi.furnace.compat.sched.LegacyTask;
 import org.domi.furnace.compat.sched.PluginDisabledException;
 import org.domi.furnace.compat.thread.PrimaryThread;
@@ -155,8 +159,10 @@ class LegacySchedulerTest {
             CountDownLatch done = new CountDownLatch(1);
             AtomicReference<Thread> ranOn = new AtomicReference<>();
             AtomicReference<Boolean> primary = new AtomicReference<>();
+            AtomicReference<String> nameInside = new AtomicReference<>();
             LegacyTask t = p.legacy.runTaskLaterAsynchronously(p, () -> {
                 ranOn.set(Thread.currentThread());
+                nameInside.set(Thread.currentThread().getName());
                 primary.set(PrimaryThread.isPrimary());
                 done.countDown();
             }, 2);
@@ -165,7 +171,10 @@ class LegacySchedulerTest {
             assertFalse(done.await(200, TimeUnit.MILLISECONDS), "한 틱 뒤에는 아직");
             server.tick();
             assertTrue(done.await(5, TimeUnit.SECONDS));
-            assertTrue(ranOn.get().isVirtual(), "비동기 실행기(가상 스레드)에서 돈다");
+            assertFalse(ranOn.get().isVirtual(), "기본은 플랫폼 스레드 풀(Paper 모양) — 가상 스레드가 아니다");
+            assertTrue(p.legacy.usesPlatformThreads());
+            assertTrue(nameInside.get().matches("Craft Scheduler Thread - \\d+ - " + java.util.regex.Pattern.quote(p.name())),
+                    "일하는 동안 스레드 이름에 플러그인 이름이 붙는다(Paper): " + nameInside.get());
             assertEquals(Boolean.FALSE, primary.get());
             Thread global = server.onGlobal(Thread::currentThread);
             assertNotSame(global, ranOn.get());
@@ -376,6 +385,180 @@ class LegacySchedulerTest {
             assertEquals(2, p.legacy.activeWorkers().size());
             t.cancel();
             release.countDown();
+        }
+    }
+
+    // ---- Paper 1.21.1 CraftAsyncScheduler: 이름 붙은 플랫폼 풀, 종료 대기, getMainThreadExecutor
+
+    @Test
+    void platformPoolThreadsAreNamedAndNameIsRestoredAfterTheTask() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            AtomicReference<Thread> th = new AtomicReference<>();
+            CountDownLatch done = new CountDownLatch(1);
+            p.legacy.runTaskAsynchronously(p, () -> {
+                th.set(Thread.currentThread());
+                done.countDown();
+            });
+            server.tick();
+            assertTrue(done.await(5, TimeUnit.SECONDS));
+            long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (th.get().getName().contains(p.name()) && System.nanoTime() < until) Thread.sleep(10);
+            assertTrue(th.get().getName().matches("Craft Scheduler Thread - \\d+"), "끝나면 플러그인 이름이 빠진다: " + th.get().getName());
+            assertTrue(th.get().isDaemon(), "멈춘 작업이 JVM 종료를 붙잡지 않는다");
+        }
+    }
+
+    @Test
+    void virtualOptionRunsAsyncTasksOnTheServersVirtualThreads() throws Exception {
+        try (var server = FurnaceTestServer.builder().exposeCompatToNative(true).plugin(CompatTestPlugin.class)
+                .compatOption(LegacyScheduler.ASYNC_THREADS_OPTION, "virtual").start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            assertFalse(p.legacy.usesPlatformThreads());
+            AtomicReference<Thread> th = new AtomicReference<>();
+            CountDownLatch done = new CountDownLatch(1);
+            p.legacy.runTaskAsynchronously(p, () -> {
+                th.set(Thread.currentThread());
+                done.countDown();
+            });
+            server.tick();
+            assertTrue(done.await(5, TimeUnit.SECONDS));
+            assertTrue(th.get().isVirtual());
+        }
+    }
+
+    /** JDK 21 가상 스레드라면 synchronized 안에서 기다리는 작업이 운반 스레드(코어 수)를 다 붙잡을 수 있는 모양 — 플랫폼 풀은 전부 동시에 선다. */
+    @Test
+    void manyTasksBlockedInsideSynchronizedAllRunAtOnce() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            int n = Runtime.getRuntime().availableProcessors() * 2 + 8;
+            CountDownLatch started = new CountDownLatch(n), release = new CountDownLatch(1);
+            for (int i = 0; i < n; i++) {
+                Object lock = new Object();
+                p.legacy.runTaskAsynchronously(p, () -> {
+                    synchronized (lock) {
+                        started.countDown();
+                        try {
+                            release.await(10, TimeUnit.SECONDS);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                });
+            }
+            server.tick();
+            try {
+                assertTrue(started.await(10, TimeUnit.SECONDS), "코어 수보다 많은 작업이 synchronized 안에서 기다려도 모두 시작한다");
+            } finally {
+                release.countDown();
+            }
+        }
+    }
+
+    @Test
+    void cancelledTaskStillRunningCountsAsActiveWorkerUntilItEnds() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            CountDownLatch inside = new CountDownLatch(1), release = new CountDownLatch(1);
+            LegacyTask t = p.legacy.runTaskAsynchronously(p, () -> {
+                inside.countDown();
+                try {
+                    release.await(10, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            server.tick();
+            assertTrue(inside.await(5, TimeUnit.SECONDS));
+            t.cancel();
+            assertTrue(t.isCancelled());
+            assertEquals(1, p.legacy.activeWorkers().size(), "취소해도 몸통이 끝나기 전까지는 일꾼이다(Bukkit CraftAsyncTask.cancel0)");
+            assertTrue(p.legacy.isCurrentlyRunning(t.taskId()));
+            release.countDown();
+            assertTrue(p.legacy.awaitAsyncWorkers(5_000).isEmpty());
+            assertEquals(0, p.legacy.activeWorkers().size());
+            assertFalse(p.legacy.isCurrentlyRunning(t.taskId()));
+        }
+    }
+
+    @Test
+    void awaitAsyncWorkersWaitsForWorkersThatFinishWithinTheLimit() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            CountDownLatch inside = new CountDownLatch(1);
+            AtomicBoolean finished = new AtomicBoolean();
+            p.legacy.runTaskAsynchronously(p, () -> {
+                inside.countDown();
+                try {
+                    Thread.sleep(400);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                finished.set(true);
+            });
+            server.tick();
+            assertTrue(inside.await(5, TimeUnit.SECONDS));
+            assertTrue(p.legacy.awaitAsyncWorkers(5_000).isEmpty(), "제한 안에 끝나면 남은 일꾼이 없다");
+            assertTrue(finished.get(), "끝날 때까지 기다렸다");
+        }
+    }
+
+    @Test
+    void awaitAsyncWorkersNagsAboutWorkersThatOutliveTheLimit() throws Exception {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            CountDownLatch inside = new CountDownLatch(1), release = new CountDownLatch(1);
+            p.legacy.runTaskAsynchronously(p, () -> {
+                inside.countDown();
+                try {
+                    release.await(10, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            server.tick();
+            assertTrue(inside.await(5, TimeUnit.SECONDS));
+            List<java.util.logging.LogRecord> records = new CopyOnWriteArrayList<>();
+            var oldFilter = p.logger().getFilter();
+            p.logger().setFilter(r -> {   // 플러그인 로거는 핸들러 없이 서버 로그로 바로 보낸다 — 필터로 엿본다
+                records.add(r);
+                return true;
+            });
+            try {
+                long t0 = System.nanoTime();
+                var overdue = p.legacy.awaitAsyncWorkers(300);
+                long ms = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - t0);
+                assertEquals(1, overdue.size());
+                assertTrue(ms >= 280 && ms < 3_000, "한도만큼만 기다린다: " + ms + "ms");
+            } finally {
+                p.logger().setFilter(oldFilter);
+                release.countDown();
+            }
+            assertEquals(1, records.stream().filter(r -> r.getLevel() == Level.SEVERE
+                    && r.getMessage().startsWith("Nag author(s): ") && r.getMessage().contains("This plugin is not properly shutting down its async tasks")).count(),
+                    "records=" + records.stream().map(r -> r.getLevel() + ":" + r.getMessage()).toList());
+        }
+    }
+
+    @Test
+    void mainThreadExecutorRunsOnTheNextTickAsASyncTask() {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            Thread global = server.onGlobal(Thread::currentThread);
+            AtomicReference<Thread> ranOn = new AtomicReference<>();
+            AtomicReference<Boolean> primary = new AtomicReference<>();
+            Executor ex = p.legacy.mainThreadExecutor(p);
+            ex.execute(() -> {
+                ranOn.set(Thread.currentThread());
+                primary.set(PrimaryThread.isPrimary());
+            });
+            assertNull(ranOn.get(), "틱 전에는 돌지 않는다");
+            server.tick();
+            assertSame(global, ranOn.get());
+            assertTrue(primary.get());
+            assertThrows(IllegalArgumentException.class, () -> ex.execute(null));
+            assertThrows(IllegalArgumentException.class, () -> p.legacy.mainThreadExecutor(null));
         }
     }
 }

@@ -34,6 +34,12 @@ public final class CompatFormat implements PluginFormat {
     @Override
     public String id() { return "bukkit"; }
 
+    /** Paper 1.21.1 (Wait-for-Async-Tasks-during-shutdown): 끌 때 돌고 있는 비동기 작업을 최대 5초 기다리고, 남으면 "Nag author(s)" 로그. */
+    @Override
+    public void afterPluginsDisabled(org.domi.furnace.api.Furnace server) { Compat.awaitAsyncTasksAtShutdown(server, SHUTDOWN_ASYNC_WAIT_MILLIS); }
+
+    static final long SHUTDOWN_ASYNC_WAIT_MILLIS = 5_000;
+
     /** paper-plugin.yml 이 있으면 그것을 먼저 읽는다(Paper 와 같다). */
     @Override
     public List<String> descriptorNames() { return List.of("paper-plugin.yml", "plugin.yml"); }
