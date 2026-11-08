@@ -1,0 +1,109 @@
+// A02 감사 재현(커밋하지 않음): 네트워크 NBT 할당 한도(NbtAccounter 2 MiB)가 길이가 음수인 리스트 하나로 무력화되는지.
+// 바닐라 ListTag.load 는 Lists.newArrayListWithCapacity(음수)에서 IllegalArgumentException 으로 끝나지만,
+// Furnace NbtVals.readPayload 는 account(q, 4L * n) 로 남은 한도를 n 만큼 "늘린" 뒤 빈 리스트를 돌려준다.
+package org.domi.furnace.server.item;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import java.nio.charset.StandardCharsets;
+import org.domi.furnace.server.data.TagRegistries;
+import org.domi.furnace.server.net.io.Types;
+import org.domi.furnace.server.net.registry.RegistrySet;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+class A02NbtQuotaReproTest {
+
+    @BeforeAll
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+
+    private static void utf(ByteBuf b, String s) {
+        byte[] x = s.getBytes(StandardCharsets.UTF_8);
+        b.writeShort(x.length);
+        b.writeBytes(x);
+    }
+
+    /** 루트 compound { a: [](길이 negLen), b: int[claim] } — 실제 바이트는 30바이트 남짓. */
+    private static ByteBuf payload(boolean negativeList, byte arrayType, int claim) {
+        ByteBuf b = Unpooled.buffer();
+        b.writeByte(10);                      // 이름 없는 루트: TAG_COMPOUND
+        if (negativeList) {
+            b.writeByte(9); utf(b, "a");      // TAG_LIST "a"
+            b.writeByte(0);                   // 원소 종류 TAG_END (n<=0 이면 허용)
+            b.writeInt(Integer.MIN_VALUE);    // 길이 -2^31 → account(q, 4L*n) = -8 GiB → 한도 +8 GiB
+        }
+        b.writeByte(arrayType); utf(b, "b");  // TAG_INT_ARRAY / TAG_LONG_ARRAY "b"
+        b.writeInt(claim);                    // 주장하는 원소 수 — 본문은 보내지 않는다
+        b.writeByte(0);                       // TAG_END
+        return b;
+    }
+
+    @Test
+    void control_withoutNegativeList_quotaRejectsBeforeAllocation() {
+        CodecException e = assertThrows(CodecException.class, () -> NbtVals.readNetwork(payload(false, (byte) 11, 1_000_000)));
+        assertTrue(e.getMessage().contains("too big"), e.getMessage());
+    }
+
+    @Test
+    void negativeListLength_mustNotDisableQuota() {
+        // 바닐라: 음수 길이 리스트에서 바로 실패. 지금: 한도가 8 GiB 늘어 int[1_000_000](4 MB) 을 만든 뒤 바이트가 모자라 IndexOutOfBounds.
+        Throwable t = assertThrows(Throwable.class, () -> NbtVals.readNetwork(payload(true, (byte) 11, 1_000_000)));
+        assertInstanceOf(CodecException.class, t, "음수 길이 리스트가 한도를 풀어 배열을 할당했다: " + t);
+    }
+
+    @Test
+    void negativeListLength_allocatesGigabyteFromThirtyBytes() {
+        // 30바이트짜리 NBT 하나로 long[134_217_728] = 1 GiB 할당을 일으킨다(0 으로 채우는 시간까지 이벤트루프를 붙잡는다).
+        Runtime rt = Runtime.getRuntime();
+        ByteBuf p = payload(true, (byte) 12, 134_217_728);
+        System.out.println("A02 payload bytes = " + p.readableBytes());
+        long t0 = System.nanoTime();
+        Throwable t = assertThrows(Throwable.class, () -> NbtVals.readNetwork(p));
+        long ms = (System.nanoTime() - t0) / 1_000_000;
+        System.out.println("A02 result = " + t + " after " + ms + " ms, maxHeap=" + (rt.maxMemory() >> 20) + " MiB");
+        assertInstanceOf(CodecException.class, t, "1 GiB 배열 할당 시도 뒤 실패: " + t);
+    }
+
+    @Test
+    void reachableFromClientItemSlot() {
+        // 컨테이너 클릭(0x0E)·창작 칸(0x32)의 readSlot → ItemStackCodecs.readStack → custom_data(PCodec.COMPOUND) → NbtVals.readNetwork
+        int stone = ItemContext.id("minecraft:item", "minecraft:stone");
+        ByteBuf b = Unpooled.buffer();
+        Types.writeVarInt(b, 1);                                       // 개수
+        Types.writeVarInt(b, stone);                                   // 아이템
+        Types.writeVarInt(b, 1);                                       // 추가 컴포넌트 1
+        Types.writeVarInt(b, 0);                                       // 지운 컴포넌트 0
+        Types.writeVarInt(b, DataComponents.networkId(DataComponents.CUSTOM_DATA));
+        b.writeBytes(payload(true, (byte) 11, 1_000_000));
+        Throwable t = assertThrows(Throwable.class, () -> ItemStackCodecs.readStack(b));
+        System.out.println("A02 slot result = " + t);
+        assertInstanceOf(CodecException.class, t, "아이템 칸 디코드에서도 한도가 풀린다: " + t);
+    }
+
+    @Test
+    void concurrentClaimsExhaustHeap() throws Exception {
+        // 접속 4개가 동시에 1 GiB 짜리 주장을 보내는 상황(이벤트루프 스레드 4개): 시험 JVM 힙 3 GiB 에서 OutOfMemoryError 가 나는지.
+        int threads = 4;
+        java.util.concurrent.CyclicBarrier go = new java.util.concurrent.CyclicBarrier(threads);
+        java.util.List<String> results = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        java.util.List<Thread> ts = new java.util.ArrayList<>();
+        for (int i = 0; i < threads; i++) {
+            Thread t = new Thread(() -> {
+                try {
+                    go.await();
+                    NbtVals.readNetwork(payload(true, (byte) 12, 134_217_728));
+                    results.add("ok");
+                } catch (Throwable e) {
+                    results.add(e.getClass().getSimpleName());
+                }
+            });
+            ts.add(t);
+            t.start();
+        }
+        for (Thread t : ts) t.join();
+        System.out.println("A02 concurrent results = " + results);
+        assertFalse(results.contains("OutOfMemoryError"), "동시 주장 4개로 힙이 바닥났다: " + results);
+    }
+}
