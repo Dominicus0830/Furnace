@@ -201,6 +201,41 @@ class ChunkTicketsApiTest {
     }
 
     @Test
+    void limitDefaultsToConstantAndComesFromSettings() {
+        var log = org.slf4j.LoggerFactory.getLogger("Furnace");
+        java.util.Properties pr = new java.util.Properties();
+        assertEquals(ChunkTickets.MAX_CHUNKS_PER_OWNER, PluginSettings.from(pr, log).chunkTicketLimit(), "기본값은 지금 상수 16384");
+        assertEquals(PluginSettings.DEFAULT, PluginSettings.from(pr, log));
+        assertEquals(ChunkTickets.MAX_CHUNKS_PER_OWNER, host.chunkTicketsImpl().maxChunksPerOwner());
+        pr.setProperty("plugins.chunk-tickets.max-per-plugin", " 25 ");
+        assertEquals(25, PluginSettings.from(pr, log).chunkTicketLimit());
+        for (String bad : new String[] {"0", "-3", "abc", "", "999999999999"}) {
+            pr.setProperty("plugins.chunk-tickets.max-per-plugin", bad);
+            var e = assertThrows(IllegalArgumentException.class, () -> PluginSettings.from(pr, log), bad);
+            assertTrue(e.getMessage().contains("plugins.chunk-tickets.max-per-plugin"), "어느 키가 문제인지 알린다: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void configuredLimitIsEnforcedPerPlugin() throws Exception {
+        host.pluginsImpl().settings(PluginSettings.DEFAULT.withChunkTicketLimit(9));
+        assertEquals(9, host.chunkTicketsImpl().maxChunksPerOwner());
+        var tickets = host.chunkTickets();
+        var w = api();
+        var a = tickets.add(alpha, w, 40, 40, 1, false);   // 9 = 한도
+        var e = assertThrows(IllegalStateException.class, () -> tickets.add(alpha, w, 70, 70, 0, false));
+        assertTrue(e.getMessage().contains("plugins.chunk-tickets.max-per-plugin") && e.getMessage().contains("9"), e.getMessage());
+        tickets.add(beta, w, 60, 60, 1, false).release();   // 다른 플러그인은 따로 센다
+        assertThrows(IllegalStateException.class, () -> tickets.add(beta, w, 60, 60, 2, false), "25 청크 한 번에도 한도 밖");
+        a.release();
+        // 한도를 올리면 바로 적용된다
+        host.pluginsImpl().settings(PluginSettings.DEFAULT.withChunkTicketLimit(25));
+        var big = tickets.add(alpha, w, 40, 40, 2, false);   // 25
+        assertTrue(big.isActive());
+        big.release();
+    }
+
+    @Test
     void validation() {
         var tickets = host.chunkTickets();
         var w = api();
