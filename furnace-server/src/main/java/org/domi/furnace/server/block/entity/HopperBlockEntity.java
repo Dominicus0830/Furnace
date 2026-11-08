@@ -704,27 +704,40 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
         @Override public boolean isEmpty() { return a.isEmpty() && b.isEmpty(); }
     }
 
-    /** 용기 엔티티(상자·깔때기 수레, 상자 배). setChanged 는 없다. */
+    /**
+     * 용기 엔티티(상자·깔때기 수레, 상자 배). setChanged 는 없다.
+     * 열지 않은 전리품 표는 칸에 닿을 때(get·setItem·put·removeItem) 푼다 — 바닐라 ContainerEntity 의 getChestVehicleItem 등이
+     * unpackChestVehicleLootTable(null) 을 부르는 시점. 칸 수(getContainerSize)·isEmpty(isChestVehicleEmpty)는 풀지 않는다.
+     */
     static final class EntityInv implements Inv {
+        private final ContainerEntity entity;
         private final ItemStack[] items;
         private final String type;
 
         EntityInv(ContainerEntity e) {
-            e.unpackLootTable();   // 깔때기가 열지 않은 상자 수레에 닿으면 표를 푼다(getItem → unpackChestVehicleLootTable(null))
+            this.entity = e;
             this.items = e.chestVehicleItems();
             String t = e instanceof Entity en ? en.typeName() : "container";
             this.type = t.indexOf(':') < 0 ? "minecraft:" + t : t;
+        }
+
+        private ItemStack[] touch() {
+            entity.unpackLootTable();
+            return items;
         }
 
         @Override public String typeKey() { return type; }
 
         @Override public int size() { return items.length; }
 
-        @Override public ItemStack get(int i) { return items[i] == null ? ItemStack.EMPTY : items[i]; }
+        @Override public ItemStack get(int i) {
+            ItemStack s = touch()[i];
+            return s == null ? ItemStack.EMPTY : s;
+        }
 
-        @Override public void setItem(int i, ItemStack s) { items[i] = s; }
+        @Override public void setItem(int i, ItemStack s) { touch()[i] = s; }
 
-        @Override public void put(int i, ItemStack s) { items[i] = s; }
+        @Override public void put(int i, ItemStack s) { touch()[i] = s; }
 
         @Override
         public ItemStack removeItem(int i, int n) {
@@ -733,6 +746,13 @@ public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
             int k = Math.min(n, cur.count());
             items[i] = cur.withCount(cur.count() - k);
             return cur.withCount(k);
+        }
+
+        /** isChestVehicleEmpty: 표를 풀지 않고 지금 칸만 본다. */
+        @Override
+        public boolean isEmpty() {
+            for (ItemStack s : items) if (s != null && !s.isEmpty()) return false;
+            return true;
         }
 
         @Override public void setChanged() { }

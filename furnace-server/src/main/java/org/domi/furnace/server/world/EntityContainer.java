@@ -31,7 +31,14 @@ public final class EntityContainer implements Container {
         return entity.chestVehicleItems();
     }
 
-    @Override public int size() { return items().length; }
+    /** getContainerSize: 표를 풀지 않는다. */
+    @Override public int size() { return entity.chestVehicleItems().length; }
+
+    /** isChestVehicleEmpty: 표를 풀지 않고 지금 칸만 본다. */
+    @Override public boolean isEmpty() {
+        for (ItemStack s : entity.chestVehicleItems()) if (s != null && !s.isEmpty()) return false;
+        return true;
+    }
 
     @Override public ItemStack get(int i) {
         ItemStack[] it = items();
