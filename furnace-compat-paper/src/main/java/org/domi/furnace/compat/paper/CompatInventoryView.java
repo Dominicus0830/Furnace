@@ -127,7 +127,9 @@ public final class CompatInventoryView implements InventoryView {
     public String getTitle() {
         if (!(top instanceof CompatMenuInventory m)) return title;
         org.domi.furnace.api.text.Text shown = player.furnaceHandle().menuTitle(m.menu());
-        return shown == null || shown == m.menu().title() ? m.title() : Compat.legacy(shown);
+        if (shown == null || shown == m.menu().title()) return m.title();
+        String raw = m.retitledRaw(player.getUniqueId(), shown);
+        return raw != null ? raw : Compat.legacy(shown);
     }
 
     @Override
@@ -140,8 +142,10 @@ public final class CompatInventoryView implements InventoryView {
     @Override
     public void setTitle(String title) {
         if (title == null) throw new IllegalArgumentException("Title cannot be null");
-        if (top instanceof CompatMenuInventory) {
-            player.furnaceHandle().retitleMenu(Compat.text(title));
+        if (top instanceof CompatMenuInventory m) {
+            org.domi.furnace.api.text.Text t = Compat.text(title);
+            m.retitled(player.getUniqueId(), t, title);   // getTitle 이 서식 문자열을 그대로 돌려주게(Text 를 거치면 §r 이 붙는 등 달라진다)
+            player.furnaceHandle().retitleMenu(t);
             return;
         }
         throw new UnsupportedFeature("InventoryView#setTitle", "플러그인이 만든 인벤토리(createInventory)의 창만 제목을 바꿀 수 있다");

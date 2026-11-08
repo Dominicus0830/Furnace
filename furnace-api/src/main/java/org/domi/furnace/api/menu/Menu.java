@@ -77,6 +77,7 @@ public final class Menu {
      * 제목을 바꾼다. 열려 있는 화면에는 같은 창 번호로 화면을 다시 열어(open_screen) 제목을 갈아 끼우고 내용·커서를 다시 보낸다 —
      * 클라이언트에서 화면이 한 번 다시 그려지지만 창은 닫히지 않는다(Paper InventoryView.setTitle 과 같은 방식).
      * 보는 사람 모두와 다음에 여는 사람에게 적용된다 — 한 사람 창만 바꾸려면 Player#retitleMenu.
+     * 단 retitleMenu 로 따로 제목을 준 사람의 창은 그 창이 닫힐 때까지 그 값이 이긴다.
      */
     public Menu setTitle(Text title) {
         Objects.requireNonNull(title, "title");

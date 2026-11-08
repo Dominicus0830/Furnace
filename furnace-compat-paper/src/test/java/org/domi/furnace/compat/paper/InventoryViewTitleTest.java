@@ -51,6 +51,7 @@ class InventoryViewTitleTest {
                         switch (args.length == 0 ? "open" : args[0]) {
                             case "open" -> log("opened." + p.getName() + "=" + p.openInventory(inv).getTitle());
                             case "title" -> p.getOpenInventory().setTitle(args[1]);
+                            case "fancy" -> p.getOpenInventory().setTitle("\u00a7lBold\u00a7aGreen");
                             case "view" -> log("view." + p.getName() + "=" + p.getOpenInventory().getTitle() + "," + p.getOpenInventory().getOriginalTitle());
                             case "close" -> p.closeInventory();
                             case "null" -> {
@@ -106,6 +107,10 @@ class InventoryViewTitleTest {
             run(server, steve, "menu");
             if (!log.contains("opened.Steve=Shop") || log.lastIndexOf("opened.Steve=Shop") < log.indexOf("view.Steve=Page2,Shop"))
                 diffs.append("[다시 연 창이 createInventory 제목이 아님] ");
+
+            run(server, steve, "menu fancy");
+            run(server, steve, "menu view");
+            if (!log.contains("view.Steve=§lBold§aGreen,Shop")) diffs.append("[getTitle 이 setTitle 문자열과 다름] ");
 
             run(server, steve, "menu null");
             if (!log.contains("null=Title cannot be null")) diffs.append("[null 을 받아들임] ");

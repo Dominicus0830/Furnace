@@ -162,6 +162,13 @@ class MenuTitleSoundParityTest {
         // 높이는 바닐라 /playsound 처럼 0~2(0.5 밑은 클라이언트가 올린다)
         assertEquals(0.0F, Sound.sound("block.note_block.harp", Sound.Source.RECORD, 1, 0).pitch());
         assertThrows(IllegalArgumentException.class, () -> Sound.sound("a", Sound.Source.MASTER, 1, -0.1F));
+        // 길이 상한: 클라이언트는 readUtf(32767) — 생략한 minecraft: 를 붙인 길이로 잰다
+        String fits = "a".repeat(32767 - "minecraft:".length());
+        assertTrue(Sound.isValidKey(fits));
+        assertFalse(Sound.isValidKey(fits + "a"));
+        assertThrows(IllegalArgumentException.class, () -> Sound.sound("a".repeat(40000), Sound.Source.MASTER));
+        assertThrows(IllegalArgumentException.class, () -> handle.stopSound("a".repeat(40000)));
+        assertEquals(List.of(), drain());
     }
 
     /** retitleMenu 는 그 사람 창만 바꾸고, 닫으면 사라진다. Menu 제목은 그대로. */
