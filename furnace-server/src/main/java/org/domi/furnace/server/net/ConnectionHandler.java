@@ -1253,7 +1253,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         });
         var vitals = p.vitals();
         if (coreJ != null) vitals.env(coreJ.vitalsEnv());
-        vitals.deathListener((keepInventory, drops, originals) -> ctx.channel().eventLoop().execute(() -> onPlayerDied(keepInventory, drops, originals)));
+        vitals.deathListener((keepInventory, drops, originals, keep) -> ctx.channel().eventLoop().execute(() -> onPlayerDied(keepInventory, drops, originals, keep)));
         if (saved != null && saved.root() != null) {
             p.loadAttributes(saved.root());   // 바닐라 순서: attributes → active_effects → Health
             vitals.load(saved.root());
@@ -3222,11 +3222,48 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     /**
+     * CraftInventory.addItem(플레이어 인벤토리): 주 인벤토리 0..35 에서 같은 아이템이 덜 찬 첫 칸부터 채우고, 없으면 첫 빈 칸에 최대 묶음씩 넣는다.
+     * 자리가 없으면 남은 것은 버린다(Paper processKeep 은 addItem 의 남은 것을 쓰지 않는다).
+     */
+    private void addLikeBukkit(ItemStack stack) {
+        int left = stack.count();
+        int max = Math.min(org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(stack), 99);
+        while (left > 0) {
+            int partial = -1, empty = -1;
+            for (int i = 0; i < 36; i++) {
+                ItemStack cur = inv.get(org.domi.furnace.server.entity.PlayerInventory.windowSlot(i));
+                if (cur.isEmpty()) {
+                    if (empty < 0) empty = i;
+                } else if (cur.count() < Math.min(org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(cur), 99) && cur.sameItemSameComponents(stack)) {
+                    partial = i;
+                    break;
+                }
+            }
+            if (partial >= 0) {
+                int ws = org.domi.furnace.server.entity.PlayerInventory.windowSlot(partial);
+                ItemStack cur = inv.get(ws);
+                int room = Math.min(org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(cur), 99) - cur.count();
+                int put = Math.min(room, left);
+                inv.set(ws, cur.withCount(cur.count() + put));
+                left -= put;
+            } else if (empty >= 0) {
+                int put = Math.min(max, left);
+                inv.set(org.domi.furnace.server.entity.PlayerInventory.windowSlot(empty), stack.withCount(put));
+                left -= put;
+            } else {
+                return;
+            }
+        }
+    }
+
+    /**
      * 죽었을 때(소유 연결 이벤트 루프): 열린 창을 닫고, 떨어뜨릴 목록(PlayerDeathEvent 가 바꿀 수 있다 — 바닐라 기본은 인벤토리 전부)을 던지고,
      * keepInventory 가 아니면 인벤토리를 비운다. 목록과 keepInventory 는 독립이다(CraftBukkit/Paper 와 같다 — keepInventory 여도 목록에 남은 아이템은 떨어진다).
+     * 비울 때 itemsToKeep(Paper getItemsToKeep)와 같은 값의 칸은 남기고, 맞는 칸이 없던 남은 아이템은 Bukkit addItem 처럼 새로 넣는다(Paper processKeep).
      * 던지는 순서·방식은 Inventory.dropAll 과 같고(아무 쪽으로, 던진 이의 소유권 없음) Paper 처럼 PlayerDropItemEvent 는 부르지 않는다.
      */
-    private void onPlayerDied(boolean keepInventory, java.util.List<ItemStack> drops, java.util.List<ItemStack> originals) {
+    private void onPlayerDied(boolean keepInventory, java.util.List<ItemStack> drops, java.util.List<ItemStack> originals,
+                              java.util.List<ItemStack> itemsToKeep) {
         Player p = player;
         if (p == null) return;
         synchronized (p.menuLock()) {
@@ -3236,22 +3273,29 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         java.util.Set<ItemStack> original = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         if (originals != null) original.addAll(originals);
         java.util.Set<ItemStack> present = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
-        java.util.List<ItemStack> extra = new java.util.ArrayList<>();   // 그 사이 버리기로 쪼개져 남은 아이템(새 스택) — 비우면 사라지므로 함께 던진다
         for (int i = 0; i <= 40; i++) {
             ItemStack cur = inv.get(org.domi.furnace.server.entity.PlayerInventory.windowSlot(i));
-            if (cur.isEmpty()) continue;
-            present.add(cur);
-            if (!keepInventory && !original.contains(cur)
-                    && org.domi.furnace.server.item.ItemTools.enchantmentLevel(cur, "minecraft:vanishing_curse") <= 0) extra.add(cur);
+            if (!cur.isEmpty()) present.add(cur);
         }
         java.util.List<ItemStack> toDrop = new java.util.ArrayList<>();
         if (drops != null) {
             // 원래 스택인데 그 사이 인벤토리에서 나갔으면(이미 바닥·상자로 갔다) 다시 던지지 않는다
             for (ItemStack d : drops) if (!original.contains(d) || present.contains(d)) toDrop.add(d);
         }
-        toDrop.addAll(extra);
         if (!keepInventory) {
-            for (int i = 0; i <= 40; i++) inv.set(org.domi.furnace.server.entity.PlayerInventory.windowSlot(i), ItemStack.EMPTY);
+            // Paper processKeep: 칸마다(주 인벤토리 → 갑옷 → 왼손) 소멸 저주·남길 목록이 빔·빈 칸이면 비우고, 아니면 남길 목록의 같은 값을 하나 지우고 남긴다.
+            java.util.List<ItemStack> keep = new java.util.ArrayList<>(itemsToKeep == null ? java.util.List.of() : itemsToKeep);
+            for (int i = 0; i <= 40; i++) {
+                int ws = org.domi.furnace.server.entity.PlayerInventory.windowSlot(i);
+                ItemStack cur = inv.get(ws);
+                if (cur.isEmpty()) continue;
+                boolean vanishing = org.domi.furnace.server.item.ItemTools.enchantmentLevel(cur, "minecraft:vanishing_curse") > 0;
+                if (!vanishing && !keep.isEmpty() && keep.remove(cur)) continue;   // 값(종류·개수·컴포넌트)이 같은 첫 항목 — Bukkit ItemStack.equals
+                // 그 사이 버리기로 쪼개져 남은 아이템(죽는 순간 목록에 없던 새 스택)은 비우면 사라지므로 함께 던진다
+                if (!vanishing && !original.contains(cur)) toDrop.add(cur);
+                inv.set(ws, ItemStack.EMPTY);
+            }
+            for (ItemStack k : keep) addLikeBukkit(k);   // 맞는 칸이 없던 남길 아이템(플러그인이 새로 준 것 등)
         }
         if (!toDrop.isEmpty()) {
             world.runAt(p.x(), p.z(), region -> { for (ItemStack s : toDrop) region.playerDrop(p, s, true, false, false); });

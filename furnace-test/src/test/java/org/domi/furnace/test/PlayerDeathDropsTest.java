@@ -247,4 +247,88 @@ class PlayerDeathDropsTest {
             assertEquals(Map.of("minecraft:emerald", 2), floor(s));
         }
     }
+
+    /** 칸 번호(Inventory 번호) → 종류x개수. */
+    private static String slot(Setup s, int i) {
+        var p = s.server.internals().playerByName("Dana");
+        var st = p.inventory().get(org.domi.furnace.server.entity.PlayerInventory.windowSlot(i));
+        return st.isEmpty() ? "" : s.server.internals().world().itemRegistry().nameOf(st.itemId()) + "x" + st.count();
+    }
+
+    @Test
+    void itemsToKeepStaysInItsSlotAndUnmatchedOnesAreAdded() {
+        // Paper getItemsToKeep(소울바운드 예): drops 에서 빼서 itemsToKeep 에 넣은 아이템은 그 칸에 남고, 새로 준 아이템은 빈 칸에 들어간다
+        try (var server = server(x -> {}, e -> {
+            var dirt = e.drops().stream().filter(d -> d.type().equals("minecraft:dirt")).findFirst().orElseThrow();
+            e.drops().remove(dirt);
+            e.itemsToKeep().add(dirt);
+            e.itemsToKeep().add(new ItemStack("minecraft:paper", 1));   // 죽은 자리 쪽지
+            e.itemsToKeep().add(new ItemStack("minecraft:stone", 1));   // 개수가 다르면 칸과 맞지 않는다 → 새로 넣는다
+        })) {
+            var s = join(server);
+            die(s);
+            assertEquals(Map.of("minecraft:stone", 2, "minecraft:iron_helmet", 1, "minecraft:shield", 1), floor(s));
+            assertEquals("minecraft:dirtx4", slot(s, 0), "같은 칸에 남는다");
+            assertEquals("minecraft:paperx1", slot(s, 1), "맞는 칸이 없던 것은 첫 빈 칸(주 인벤토리 0..35)에");
+            assertEquals("minecraft:stonex1", slot(s, 2));
+            assertEquals(Map.of("minecraft:dirt", 4, "minecraft:paper", 1, "minecraft:stone", 1), invCounts(s), "나머지(돌 2·투구·방패·소멸 저주 칼)는 비운다");
+        }
+    }
+
+    @Test
+    void itemsToKeepAddsToPartialStackFirstAndIsIgnoredWithKeepInventory() {
+        try (var server = server(x -> {}, e -> {
+            var dirt = e.drops().stream().filter(d -> d.type().equals("minecraft:dirt")).findFirst().orElseThrow();
+            e.drops().remove(dirt);
+            e.itemsToKeep().add(dirt);
+            e.itemsToKeep().add(new ItemStack("minecraft:dirt", 3));   // 남긴 흙 4 칸에 먼저 채운다(Bukkit addItem)
+        })) {
+            var s = join(server);
+            die(s);
+            assertEquals("minecraft:dirtx7", slot(s, 0));
+            assertEquals(Map.of("minecraft:dirt", 7), invCounts(s));
+        }
+        try (var server = server(x -> {}, e -> {
+            e.keepInventory(true);
+            e.drops().clear();
+            e.itemsToKeep().add(new ItemStack("minecraft:paper", 1));
+        })) {
+            var s = join(server);
+            die(s);
+            assertEquals(5, invCounts(s).size(), "keepInventory 면 itemsToKeep 는 보지 않는다(Paper: 비우지 않을 때는 processKeep 이 없다)");
+            assertTrue(!invCounts(s).containsKey("minecraft:paper"));
+        }
+    }
+
+    @Test
+    void cancelledDeathKeepsPlayerAliveWithInventoryAndNoDrops() {
+        try (var server = server(x -> {}, e -> {
+            e.setCancelled(true);
+            e.reviveHealth(5f);
+        })) {
+            var s = join(server);
+            server.execute("xp set Dana 5 levels");
+            server.tick(2);
+            die(s);
+            var p = server.internals().playerByName("Dana");
+            assertTrue(!p.vitals().isDeadOrDying(), "취소 → 죽지 않는다");
+            assertEquals(5f, p.vitals().health(), "reviveHealth");
+            assertEquals(Map.of(), floor(s), "드롭 없음");
+            assertEquals(0, orbs(s), "경험치 구슬 없음");
+            assertEquals(5, invCounts(s).size(), "인벤토리 그대로(소멸 저주 칼 포함)");
+            assertEquals(5, p.vitals().xpLevel());
+        }
+    }
+
+    @Test
+    void shouldDropExperienceFalseDropsNoOrbs() {
+        try (var server = server(x -> {}, e -> e.shouldDropExperience(false))) {
+            var s = join(server);
+            server.execute("xp set Dana 5 levels");
+            server.tick(2);
+            die(s);
+            assertEquals(0, orbs(s));
+            assertEquals(4, floor(s).size(), "아이템은 그대로 떨어진다");
+        }
+    }
 }

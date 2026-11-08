@@ -237,6 +237,78 @@ class EntityWorldApiTest {
         assertTrue(log.contains("death:minecraft:cow"), log.toString());
     }
 
+    /**
+     * 몹 EntityDeathEvent(Paper 1.21.1): 죽을 때 나올 아이템(장비·안장)과 경험치가 실리고, 바꾼 목록대로 떨어진다.
+     * 취소하면 죽지 않고 체력이 reviveHealth 가 되며 아이템이 하나도 안 나오고 장비·안장이 그대로 남는다.
+     */
+    @Test
+    void entityDeathEventCarriesDropsAndCancelKeepsMobAliveWithGear() throws Exception {
+        var bus = host.eventsImpl();
+        List<String> log = new ArrayList<>();
+        boolean[] cancel = {true};
+        bus.subscribe(plugin, EntityDeathEvent.class, e -> {
+            var names = new ArrayList<String>();
+            for (var d : e.drops()) names.add(d.type() + "x" + d.amount());
+            log.add(names + " exp=" + e.droppedExp() + " revive=" + e.reviveHealth());
+            if (cancel[0]) {
+                assertThrows(IllegalArgumentException.class, () -> e.reviveHealth(0f), "0 이하는 Paper 처럼 거부");
+                e.setCancelled(true);
+                e.reviveHealth(4f);
+            } else {
+                e.drops().removeIf(d -> d.type().equals("minecraft:saddle"));
+                e.drops().add(new org.domi.furnace.api.item.ItemStack("minecraft:gold_ingot", 3));
+                e.droppedExp(7);
+            }
+        });
+        var helmet = new org.domi.furnace.server.entity.ItemStack(ItemContext.id("minecraft:item", "minecraft:diamond_helmet"), 1);
+        Object[] out = core.world().submitAtChunk(C00, r -> {
+            var level = r.level();
+            var pig = new org.domi.furnace.server.entity.Pig(level, level.nextEntityId());
+            pig.moveTo(8, -50, 8, 0, 0);
+            level.addFreshEntity(pig);
+            pig.setSaddled(true);
+            pig.setItemSlotAndDropWhenKilled(org.domi.furnace.server.entity.EquipmentSlot.HEAD, helmet);
+            pig.kill();
+            var box = new org.domi.furnace.server.entity.AABB(-8, -70, -8, 24, -30, 24);
+            Object[] o = new Object[8];
+            o[0] = !pig.isDeadOrDying() && !pig.isRemoved();
+            o[1] = pig.health();
+            o[2] = level.getEntitiesOfClass(ItemEntity.class, box, x -> true).size();
+            o[3] = pig.getItemBySlot(org.domi.furnace.server.entity.EquipmentSlot.HEAD).equals(helmet) && pig.isSaddled();
+            cancel[0] = false;
+            var pig2 = new org.domi.furnace.server.entity.Pig(level, level.nextEntityId());
+            pig2.moveTo(8, -50, 8, 0, 0);
+            level.addFreshEntity(pig2);
+            pig2.setSaddled(true);
+            pig2.setItemSlotAndDropWhenKilled(org.domi.furnace.server.entity.EquipmentSlot.HEAD, helmet);
+            pig2.kill();
+            var names = new java.util.TreeMap<String, Integer>();
+            for (var ie : level.getEntitiesOfClass(ItemEntity.class, box, x -> true)) {
+                names.merge(core.world().itemRegistry().nameOf(ie.getItem().itemId()), ie.getItem().count(), Integer::sum);
+            }
+            o[4] = names;
+            o[5] = pig2.isDeadOrDying();
+            o[6] = level.getEntitiesOfClass(org.domi.furnace.server.entity.ExperienceOrb.class, box, x -> true).stream()
+                    .mapToInt(x -> x.value() * Math.max(1, x.count())).sum();
+            o[7] = pig2.getItemBySlot(org.domi.furnace.server.entity.EquipmentSlot.HEAD).isEmpty();
+            return o;
+        }).get(30, TimeUnit.SECONDS);
+        assertEquals(true, out[0], "취소 → 살아 있다");
+        assertEquals(4f, out[1], "reviveHealth");
+        assertEquals(0, out[2], "취소 → 드롭 없음");
+        assertEquals(true, out[3], "취소 → 투구·안장 그대로");
+        assertEquals(2, log.size(), log.toString());
+        assertTrue(log.get(0).contains("minecraft:diamond_helmetx1") && log.get(0).contains("minecraft:saddlex1"), log.toString());
+        assertTrue(log.get(0).endsWith("exp=0 revive=10.0"), "플레이어가 잡지 않았으면 경험치 0, 되살릴 체력 기본 = 최대 체력: " + log);
+        @SuppressWarnings("unchecked") var floor = (Map<String, Integer>) out[4];
+        assertEquals(1, floor.get("minecraft:diamond_helmet"), floor.toString());
+        assertEquals(3, floor.get("minecraft:gold_ingot"), floor.toString());
+        assertNull(floor.get("minecraft:saddle"), "목록에서 뺀 안장은 안 나온다: " + floor);
+        assertEquals(true, out[5]);
+        assertEquals(7, out[6], "droppedExp(7) — 플레이어가 잡지 않아도 플러그인이 정한 양(CraftBukkit expToDrop)");
+        assertEquals(true, out[7], "취소하지 않으면 떨군 투구 칸은 비운다");
+    }
+
     /** 피해 계산 단계 이벤트: 플러그인 핸들·원인이 실리고, 바꾼 단계가 체력에 반영된다. 구독을 풀면 바닐라 계산. */
     @Test
     void damageCalculateEventExposesStagesAndAppliesChanges() throws Exception {

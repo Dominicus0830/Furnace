@@ -53,6 +53,7 @@
 | `EntitySpawnEvent` | `CLIENT_PREDICTED` | 플레이어가 아이템으로 만든 경우(던지기·배·수레·거치대·액자·불꽃·수정·엔더의 눈·활·쇠뇌·삼지창·낚싯대): 손 칸 또는 전체 인벤토리 | 엔티티, 아이템 소모(활·쇠뇌는 뽑은 탄약과 내구도, 쇠뇌는 장전 상태), 낚시찌 연결 |
 | `EntityBreedEvent` | `SERVER_DRIVEN` | - | 새끼, 사랑 상태 |
 | `EntityDamageEvent` | `SERVER_DRIVEN` | - | 체력, 피격 효과 |
+| `EntityDeathEvent` | `SERVER_DRIVEN` | - | 죽음(체력은 reviveHealth), 드롭·경험치·사망 소리 없음, 장비 그대로 |
 | `EntityExplodeEvent` | `SERVER_DRIVEN` | - | 블록, 불, 폭발 패킷 |
 | `EntityTameEvent` | `SERVER_DRIVEN` | - | 길들임 |
 | `EntityTargetEvent` | `SERVER_DRIVEN` | - | 공격 대상 |
@@ -64,6 +65,7 @@
 | `FurnaceSmeltEvent` | `SERVER_DRIVEN` | - | 재료, 결과 |
 | `PlayerInteractEvent` | `CLIENT_PREDICTED` | 허공 우클릭: 그 손 칸. 블록 우클릭: 손 칸 + 눌린 블록·면 너머 블록(+ 블록 엔티티). 왼쪽 클릭 블록: 그 블록(+ 블록 엔티티) | 모든 상호작용 |
 | `PlayerInteractEntityEvent` | `CLIENT_PREDICTED` | 그 손 칸 | 모든 상호작용 |
+| `PlayerDeathEvent` | `SERVER_DRIVEN` | - (체력 패킷은 틱 끝에 한 번만 나가 클라이언트는 0 을 보지 않는다) | 죽음(체력이 0 이하면 reviveHealth), 사망 메시지·사망 화면·드롭·통계 없음 |
 | `PlayerDropItemEvent` | `CLIENT_PREDICTED` | 전체 인벤토리 + 커서. 아이템은 든 칸으로 돌아온다 | 아이템 엔티티 없음, 개수 |
 | `PlayerItemHeldEvent` | `CLIENT_PREDICTED` | 선택한 단축 칸 | 선택 칸 |
 | `PlayerItemConsumeEvent` | `CLIENT_PREDICTED` | 먹던 칸 | 허기, 효과, 아이템 개수 |

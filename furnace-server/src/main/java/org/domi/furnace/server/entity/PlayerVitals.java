@@ -57,9 +57,10 @@ public final class PlayerVitals {
 
         /**
          * 사망 직전(플러그인 PlayerDeathEvent) — 메시지(null = 알리지 않음)·떨어뜨릴 아이템·경험치·인벤토리/경험치 유지를 바꿀 수 있다.
-         * drops 는 죽는 순간 인벤토리에서 모은 목록(소멸 저주 제외), droppedExp 는 바닐라 기본 경험치량이다.
+         * drops 는 죽는 순간 인벤토리에서 모은 목록(소멸 저주 제외), droppedExp 는 바닐라 기본 경험치량, maxHealth 는 취소 때 되살릴 체력의 기본값이다.
+         * 결과가 cancelled 면 죽지 않는다.
          */
-        default DeathOutcome death(Player player, Text message, boolean keepInventory, List<ItemStack> drops, int droppedExp) {
+        default DeathOutcome death(Player player, Text message, boolean keepInventory, List<ItemStack> drops, int droppedExp, float maxHealth) {
             return DeathOutcome.unchanged(message, keepInventory, drops, droppedExp);
         }
 
@@ -86,14 +87,20 @@ public final class PlayerVitals {
     }
 
     /**
-     * 사망 처리 결과. drops 는 이 목록대로 던지고(keepInventory 와 무관), keepInventory 가 false 면 인벤토리를 비운다.
-     * newExp·newLevel·newTotalExp 는 keepLevel 이 false 일 때 리스폰 경험치(바닐라 기본은 전부 0).
+     * 사망 처리 결과. drops 는 이 목록대로 던지고(keepInventory 와 무관), keepInventory 가 false 면 인벤토리를 비우되 itemsToKeep 와 같은 칸은 남긴다.
+     * newExp·newLevel·newTotalExp 는 keepLevel 이 false 일 때 리스폰 경험치(바닐라 기본은 전부 0). dropExperience 가 false 면 구슬이 없다.
+     * cancelled 면 죽지 않는다(체력이 0 이하면 reviveHealth 로) — 나머지 값은 보지 않는다.
      */
     public record DeathOutcome(Text message, boolean keepInventory, boolean keepLevel, List<ItemStack> drops, int droppedExp,
-                               int newExp, int newLevel, int newTotalExp) {
+                               int newExp, int newLevel, int newTotalExp, List<ItemStack> itemsToKeep, boolean dropExperience,
+                               boolean cancelled, float reviveHealth) {
+        public DeathOutcome {
+            if (itemsToKeep == null) itemsToKeep = List.of();
+        }
+
         /** 플러그인이 아무것도 바꾸지 않은 기본 결과: keepLevel 은 keepInventory 와 같다. */
         public static DeathOutcome unchanged(Text message, boolean keepInventory, List<ItemStack> drops, int droppedExp) {
-            return new DeathOutcome(message, keepInventory, keepInventory, drops, droppedExp, 0, 0, 0);
+            return new DeathOutcome(message, keepInventory, keepInventory, drops, droppedExp, 0, 0, 0, List.of(), true, false, 0f);
         }
     }
 
@@ -103,8 +110,9 @@ public final class PlayerVitals {
          * @param drops     이벤트가 정한 떨어뜨릴 목록
          * @param originals 죽는 순간 인벤토리에서 뜬 스택(소멸 저주 제외) — 목록의 원래 스택은 이 객체 그대로다. 목록을 뜬 뒤 이벤트 루프가 처리한
          *                  패킷(버리기·창 클릭)이 인벤토리에서 꺼낸 아이템이 두 번 나오지 않게, 연결 쪽이 지금 인벤토리와 신원으로 맞춰 본다.
+         * @param itemsToKeep keepInventory 가 false 일 때 비우지 않고 남길 아이템(Paper getItemsToKeep — 값으로 칸과 맞춘다, 남으면 새로 넣는다)
          */
-        void onDeath(boolean keepInventory, List<ItemStack> drops, List<ItemStack> originals);
+        void onDeath(boolean keepInventory, List<ItemStack> drops, List<ItemStack> originals, List<ItemStack> itemsToKeep);
     }
 
     /** 틱마다 region 이 블록을 보고 계산해 넘기는 주변 상태. */
@@ -871,35 +879,48 @@ public final class PlayerVitals {
         return inWater ? "water" : null;
     }
 
-    /** 바닐라 ServerPlayer.die: 사망 메시지·사망 화면, 인벤토리 처리, 엔티티 이벤트 3, 마지막 사망 위치. */
+    /**
+     * 바닐라 ServerPlayer.die: 사망 메시지·사망 화면, 인벤토리 처리, 엔티티 이벤트 3, 마지막 사망 위치.
+     * Paper 처럼 PlayerDeathEvent 를 맨 앞(바닐라 첫 줄 gameEvent(ENTITY_DIE) 보다 먼저)에 묻고, 취소되면 아무것도 하지 않고 되살린다.
+     */
     private void die(DamageType type, Rider causing, Rider direct) {
-        // 바닐라 ServerPlayer.die 첫 줄: gameEvent(ENTITY_DIE). 스컬크 촉매가 듣고 경험치를 가져갈 수 있다.
-        // 주인 스레드가 아니면 두 작업이 다음 주인 틱으로 밀리므로, 죽은 순간의 위치·레벨·경험치량·피해 정보는 지금 떠서 넘긴다(그 사이 리스폰해도 안전).
+        // 주인 스레드가 아니면 밀린 작업(entity_die·구슬)이 다음 주인 틱에 돌므로, 죽은 순간의 위치·레벨·경험치량·피해 정보는 지금 떠서 넘긴다(그 사이 리스폰해도 안전).
         final Death death = new Death(type.key(), causing, direct, baseExperienceReward(), player.currentLevel, player.x(), player.y(), player.z());
+        boolean showMessages = env.gameRule("showDeathMessages");
+        Text name = player.displayName();
+        Text message;
+        boolean spectator;
+        float maxHealth;
+        synchronized (this) {
+            Targetable credit = player.getKillCredit();
+            message = showMessages ? combat.getDeathMessage(name, credit == null ? null : credit.displayName()) : null;
+            spectator = gameMode == GameMode.SPECTATOR;
+            maxHealth = maxHealthLocked();
+        }
+        // CraftBukkit/Paper ServerPlayer.die: keepInventory 는 게임룰 또는 관전자. 그렇지 않으면 인벤토리 전체가 떨어뜨릴 목록으로 들어간다.
+        boolean keepInventory = env.gameRule("keepInventory") || spectator;
+        List<ItemStack> loot = keepInventory ? new ArrayList<>() : collectInventoryLoot();
+        DeathOutcome outcome = env.death(player, message, keepInventory, loot, death.experience, maxHealth);
+        if (outcome.cancelled()) {
+            // Paper: 처리기가 이미 체력을 올렸으면 그대로, 아니면 reviveHealth. 사망 메시지·사망 화면·드롭·통계·entity_die 모두 없다.
+            // 체력 패킷은 틱 끝에 한 번 나가므로 클라이언트는 0 을 보지 않는다(Paper 가 체력 패킷을 미뤄 두는 것과 같은 결과).
+            synchronized (this) {
+                if (health <= 0.0f) setHealthRaw(outcome.reviveHealth());
+            }
+            return;
+        }
         this.death = death;
+        // 바닐라 ServerPlayer.die 첫 줄: gameEvent(ENTITY_DIE) — Paper 는 취소 검사 뒤로 옮겼다. 스컬크 촉매가 듣고 경험치를 가져갈 수 있다.
         onOwnerThread(() -> {
             if (death.level != null) death.level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DIE,
                     new Vec3(death.x, death.y, death.z), org.domi.furnace.server.world.gameevent.GameEventContext.of(player));
         });
         onOwnerThread(player::clearFire);   // Player.die / ServerPlayer.die: clearFire + 불 플래그 끔
-        boolean showMessages = env.gameRule("showDeathMessages");
-        Text name = player.displayName();
-        Text message;
-        boolean spectator;
+        death.experience = outcome.dropExperience() ? outcome.droppedExp() : 0;   // 플러그인이 바꾼 경험치량(바닐라 expToDrop), shouldDropExperience=false 면 없음
         synchronized (this) {
-            Targetable credit = player.getKillCredit();
-            message = showMessages ? combat.getDeathMessage(name, credit == null ? null : credit.displayName()) : null;
-            spectator = gameMode == GameMode.SPECTATOR;
             combat.recheckStatus(tickCount, false);
             lastDeathDimension = "minecraft:overworld";
             lastDeathPos = new int[]{(int) Math.floor(player.x()), (int) Math.floor(player.y()), (int) Math.floor(player.z())};
-        }
-        // CraftBukkit/Paper ServerPlayer.die: keepInventory 는 게임룰 또는 관전자. 그렇지 않으면 인벤토리 전체가 떨어뜨릴 목록으로 들어간다.
-        boolean keepInventory = env.gameRule("keepInventory") || spectator;
-        List<ItemStack> loot = keepInventory ? new ArrayList<>() : collectInventoryLoot();
-        DeathOutcome outcome = env.death(player, message, keepInventory, loot, death.experience);
-        death.experience = outcome.droppedExp();   // 플러그인이 바꾼 경험치량(바닐라 expToDrop)
-        synchronized (this) {
             keepLevelOnRespawn = outcome.keepLevel();
             newExp = outcome.newExp();
             newLevel = outcome.newLevel();
@@ -913,7 +934,7 @@ public final class PlayerVitals {
         }
         player.removeEntitiesOnShoulder();   // ServerPlayer.die: 어깨의 몹을 내려놓는다
         DeathListener l = deathListener;
-        if (l != null) l.onDeath(outcome.keepInventory(), outcome.drops(), loot);
+        if (l != null) l.onDeath(outcome.keepInventory(), outcome.drops(), loot, outcome.itemsToKeep());
         onOwnerThread(() -> dropDeathExperience(death));   // dropAllDeathLoot 의 dropExperience(전리품 다음). 관전자는 기본 0 이라 구슬이 없다.
         var board = player.scoreboard();   // 바닐라 ServerPlayer.die: deathCount 기준 +1
         if (board != null) board.incrementCriteria(player, org.domi.furnace.server.scores.ObjectiveCriteria.DEATH_COUNT);

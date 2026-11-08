@@ -46,7 +46,19 @@ public interface GameEvents {
             org.domi.furnace.server.entity.Rider causing, org.domi.furnace.server.entity.Rider direct, float base, float absorption,
             org.domi.furnace.api.event.entity.DamageRules rules) { return null; }
 
-    default void entityDeath(LivingEntity e) {}
+    /** 몹 사망 이벤트(EntityDeathEvent) 구독자가 있는가 — 거짓이면 LivingEntity.die 는 바닐라 순서 그대로 드롭을 바로 던진다(비용 0). */
+    default boolean wantsEntityDeath() { return false; }
+
+    /**
+     * 몹 사망 이벤트 결과. drops 의 원래 항목은 넘긴 스택 객체 그대로다(부른 쪽이 신원으로 이미 만든 아이템 엔티티와 짝짓는다).
+     * cancelled 면 죽지 않고 체력을 reviveHealth 로 둔다.
+     */
+    record EntityDeathOutcome(boolean cancelled, float reviveHealth, java.util.List<ItemStack> drops, int droppedExp) {}
+
+    /** 몹 사망 이벤트. wantsEntityDeath 가 참일 때 소유 region 스레드에서 die 가 부른다. drops 는 나올 아이템, droppedExp 는 낼 경험치. */
+    default EntityDeathOutcome entityDeath(LivingEntity e, java.util.List<ItemStack> drops, int droppedExp) {
+        return new EntityDeathOutcome(false, 0f, drops, droppedExp);
+    }
 
     /** false 면 넣지 않는다. */
     default boolean entitySpawn(Entity e) { return true; }

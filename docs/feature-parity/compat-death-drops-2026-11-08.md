@@ -18,6 +18,8 @@ Furnace API `PlayerDeathEvent`: `drops()`(바꿀 수 있는 목록), `droppedExp
 
 ## Paper 1.21.1 과 아직 다른 점
 
+1~3 번은 PR #166 에서 채웠다(`compat-death-cancel-keep-2026-11-08.md`).
+
 1. 사망 취소(`PlayerDeathEvent#setCancelled(true)`)는 `UnsupportedFeature` 다. 몹 `EntityDeathEvent` 의 드롭·경험치·취소도 아직 없다(몹 전리품 후속).
 2. Paper 전용 `getItemsToKeep()`·`shouldDropExperience`·`getReviveHealth`·사망 소리 설정은 없다.
 3. `ENTITY_DIE` 게임 이벤트(스컬크 촉매)는 Paper 의 취소 가능 사망 패치처럼 이벤트 뒤가 아니라 이벤트 전에 불린다(취소가 없어 관측 차이는 없다).
