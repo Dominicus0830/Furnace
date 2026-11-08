@@ -239,9 +239,14 @@ public final class Compat {
     /** § 서식 문자열 → Text(null 이면 null). */
     public static Text text(String legacy) { return legacy == null ? null : LEGACY.deserialize(legacy); }
 
-    // Paper 1.21.1·Spigot: sendMessage(String)·broadcastMessage 는 CraftChatMessage.fromString 을 써서 글 속 주소(https://… 또는 example.com)를 클릭하면 열리는 링크로 만든다.
-    private static final LegacyTextSerializer LEGACY_LINKS = LegacyTextSerializer.builder().character('§').hexColors().useUnusualXRepeatedCharacterHexFormat().extractUrls().build();
+    // Paper 1.21.1: CraftPlayer.sendMessage(String) 는 CraftChatMessage.fromString 을 써서 글 속 주소를 클릭하면 열리는 링크로 만든다.
+    // CraftBukkit 고유 패턴: 대소문자 무시, 끝의 문장부호(. ? ! , ; :)는 링크에서 뺀다, 포트·경로·쿼리는 공백/줄바꿈/§ 전까지, 스킴이 없으면 http:// 를 붙인다.
+    // (Paper 의 broadcastMessage 는 legacySection().deserialize 라 링크가 없다 — Spigot 만 링크. 그래서 broadcast 는 text() 를 쓴다.)
+    private static final java.util.regex.Pattern CRAFT_URL = java.util.regex.Pattern.compile(
+            "(?:(https?)://)?[-\\w_.]{2,}\\.[a-z]{2,4}.*?(?=[.?!,;:]?(?:[§ \\n]|$))", java.util.regex.Pattern.CASE_INSENSITIVE);
+    private static final LegacyTextSerializer LEGACY_LINKS = LegacyTextSerializer.builder().character('§').hexColors().useUnusualXRepeatedCharacterHexFormat()
+            .extractUrls(CRAFT_URL, org.domi.furnace.api.text.Style.empty()).urlScheme("http://").build();
 
-    /** 플레이어에게 보이는 문자열 메시지 → Text: {@link #text} 와 같고 글 속 주소가 클릭 링크(OPEN_URL)가 된다(null 이면 null). */
+    /** 플레이어에게 보이는 문자열 메시지(sendMessage) → Text: {@link #text} 와 같고 글 속 주소가 클릭 링크(OPEN_URL)가 된다(null 이면 null). */
     public static Text message(String legacy) { return legacy == null ? null : LEGACY_LINKS.deserialize(legacy); }
 }

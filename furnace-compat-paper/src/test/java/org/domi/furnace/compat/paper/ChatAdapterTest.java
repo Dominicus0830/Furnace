@@ -3,6 +3,7 @@ package org.domi.furnace.compat.paper;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
@@ -247,7 +248,7 @@ class ChatAdapterTest {
     }
 
     @Test
-    void sendMessageAndBroadcastTurnAddressesIntoOpenUrlLinks() throws Exception {
+    void sendMessageTurnsAddressesIntoOpenUrlLinksButBroadcastDoesNot() throws Exception {
         try (FurnaceTestServer server = FurnaceTestServer.builder().failFast(false).pluginJar(recorderJar()).start()) {
             TestPlayer dana = server.join("Dana");
             server.tick(2);
@@ -264,10 +265,20 @@ class ChatAdapterTest {
             p.sendMessage("see example.com/page");
             ClickEvent bare = firstClick(dana.awaitMessage(m -> m.contains("example.com")));
             assertNotNull(bare, "스킴 없는 주소도 링크: " + dana.messages());
-            assertTrue(bare.value().endsWith("example.com/page"), bare.value());
+            assertEquals("http://example.com/page", bare.value(), "CraftChatMessage: 스킴이 없으면 http://");
+            // CraftChatMessage 패턴: 끝 문장부호는 링크에서 빠지고, 포트·쿼리는 들어가고, 대소문자는 가리지 않는다
+            dana.clearMessages();
+            p.sendMessage("read https://furnace.dev/docs.");
+            assertEquals("https://furnace.dev/docs", firstClick(dana.awaitMessage(m -> m.contains("furnace.dev"))).value());
+            dana.clearMessages();
+            p.sendMessage("map https://map.example.com:8123/?world=w here");
+            assertEquals("https://map.example.com:8123/?world=w", firstClick(dana.awaitMessage(m -> m.contains("map.example"))).value());
+            dana.clearMessages();
+            p.sendMessage("go Example.COM now");
+            assertEquals("http://Example.COM", firstClick(dana.awaitMessage(m -> m.contains("Example.COM"))).value());
             dana.clearMessages();
             org.bukkit.Bukkit.broadcastMessage("visit https://furnace.dev/docs");
-            assertEquals("https://furnace.dev/docs", firstClick(dana.awaitMessage(m -> m.contains("furnace.dev"))).value());
+            assertNull(firstClick(dana.awaitMessage(m -> m.contains("furnace.dev"))), "Paper 의 broadcastMessage 는 legacySection().deserialize 라 링크가 없다(Spigot 만 링크)");
             dana.clearMessages();
             p.sendMessage("no link here, just words.");
             assertTrue(firstClick(dana.awaitMessage(m -> m.contains("no link here"))) == null, "주소 아닌 글에는 링크가 없다");
