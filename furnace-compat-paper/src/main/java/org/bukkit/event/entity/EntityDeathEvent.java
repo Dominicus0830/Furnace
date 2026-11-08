@@ -7,8 +7,8 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.inventory.ItemStack;
 
 /**
- * 생물이 죽었다(플레이어는 하위 클래스 PlayerDeathEvent — 거기서는 드롭·경험치를 지원한다). 몹 사망 이벤트는 아직 떨어뜨릴 아이템·경험치를 싣지 않고 취소할 수 없어 —
- * 몹의 getDrops·getDroppedExp·setDroppedExp·setCancelled(true) 는 UnsupportedFeature 다(지어내지 않는다).
+ * 생물이 죽었다(플레이어는 하위 클래스 PlayerDeathEvent). 떨어뜨릴 아이템·경험치·취소·되살릴 체력은 Furnace 사망 이벤트에 잇는다(바꾸면 반영된다 — Paper 1.21.1 과 같다).
+ * 취소하면 죽지 않고 체력이 getReviveHealth 가 된다. Paper 의 사망 소리 설정(shouldPlayDeathSound·setDeathSound 등)은 아직 없다.
  */
 public class EntityDeathEvent extends EntityEvent implements Cancellable {
 
@@ -17,6 +17,7 @@ public class EntityDeathEvent extends EntityEvent implements Cancellable {
     private final List<ItemStack> drops;
     private int dropExp;
     private boolean cancelled;
+    private double reviveHealth;
 
     public EntityDeathEvent(LivingEntity entity, List<ItemStack> drops) { this(entity, drops, 0); }
 
@@ -43,6 +44,21 @@ public class EntityDeathEvent extends EntityEvent implements Cancellable {
         if (drops == null) throw unknown("getDrops");
         return drops;
     }
+
+    /** Paper: 취소했을 때 되살릴 체력(서버가 부른 이벤트는 기본이 최대 체력). */
+    public double getReviveHealth() { return reviveHealth; }
+
+    /** Paper: 0 초과(최대 체력이 0 이 아닐 때) 최대 체력 이하여야 한다. */
+    public void setReviveHealth(double reviveHealth) {
+        double max = getEntity().getMaxHealth();
+        if ((max != 0 && reviveHealth <= 0) || reviveHealth > max) {
+            throw new IllegalArgumentException("Health must be between 0 (exclusive) and " + max + " (inclusive), but was " + reviveHealth);
+        }
+        this.reviveHealth = reviveHealth;
+    }
+
+    /** 호환 계층 전용: 검사 없이 Furnace 값을 옮긴다. */
+    public void initReviveHealth(double reviveHealth) { this.reviveHealth = reviveHealth; }
 
     /** Paper: 취소하면 죽지 않는다. */
     @Override

@@ -230,6 +230,9 @@ final class Mappings {
                     b.setNewExp(f.newExp());
                     b.setNewLevel(f.newLevel());
                     b.setNewTotalExp(f.newTotalExp());
+                    b.getItemsToKeep().addAll(bukkitDrops(f.itemsToKeep()));
+                    b.setShouldDropExperience(f.shouldDropExperience());
+                    b.initReviveHealth(f.reviveHealth());
                     return b;
                 },
                 (f, b) -> {
@@ -246,6 +249,13 @@ final class Mappings {
                     if (pd.getNewExp() != f.newExp()) f.newExp(pd.getNewExp());
                     if (pd.getNewLevel() != f.newLevel()) f.newLevel(pd.getNewLevel());
                     if (pd.getNewTotalExp() != f.newTotalExp()) f.newTotalExp(pd.getNewTotalExp());
+                    var keep = furnaceDrops(pd.getItemsToKeep());
+                    if (!keep.equals(f.itemsToKeep())) {
+                        f.itemsToKeep().clear();
+                        f.itemsToKeep().addAll(keep);
+                    }
+                    if (pd.shouldDropExperience() != f.shouldDropExperience()) f.shouldDropExperience(pd.shouldDropExperience());
+                    if ((float) pd.getReviveHealth() != f.reviveHealth()) f.reviveHealth((float) pd.getReviveHealth());
                 }, (f, b) -> {
                     var pd = (org.bukkit.event.entity.PlayerDeathEvent) b;
                     String cur = Compat.legacy(f.deathMessage());
@@ -260,12 +270,37 @@ final class Mappings {
                     if (pd.getNewExp() != f.newExp()) pd.setNewExp(f.newExp());
                     if (pd.getNewLevel() != f.newLevel()) pd.setNewLevel(f.newLevel());
                     if (pd.getNewTotalExp() != f.newTotalExp()) pd.setNewTotalExp(f.newTotalExp());
+                    if (!furnaceDrops(pd.getItemsToKeep()).equals(f.itemsToKeep())) {
+                        pd.getItemsToKeep().clear();
+                        pd.getItemsToKeep().addAll(bukkitDrops(f.itemsToKeep()));
+                    }
+                    if (pd.shouldDropExperience() != f.shouldDropExperience()) pd.setShouldDropExperience(f.shouldDropExperience());
+                    if ((float) pd.getReviveHealth() != f.reviveHealth()) pd.initReviveHealth(f.reviveHealth());
                 });
         EventBridge.reg(org.domi.furnace.api.event.entity.EntityDeathEvent.class, org.bukkit.event.entity.EntityDeathEvent.class,
                 f -> {
                     if (f.entity() instanceof org.domi.furnace.api.entity.Player) return null;   // 플레이어는 위 짝
-                    return Compat.entity(f.entity()) instanceof org.bukkit.entity.LivingEntity le ? new org.bukkit.event.entity.EntityDeathEvent(le, null, 0) : null;
-                }, (f, b) -> {});
+                    if (!(Compat.entity(f.entity()) instanceof org.bukkit.entity.LivingEntity le)) return null;
+                    var b = new org.bukkit.event.entity.EntityDeathEvent(le, bukkitDrops(f.drops()), f.droppedExp());
+                    b.initReviveHealth(f.reviveHealth());
+                    return b;
+                },
+                (f, b) -> {   // Bukkit 처리기가 바꾼 드롭·경험치·되살릴 체력을 Furnace 이벤트로(취소는 다리가 옮긴다)
+                    var now = furnaceDrops(b.getDrops());
+                    if (!now.equals(f.drops())) {
+                        f.drops().clear();
+                        f.drops().addAll(now);
+                    }
+                    if (b.getDroppedExp() != f.droppedExp()) f.droppedExp(b.getDroppedExp());
+                    if ((float) b.getReviveHealth() != f.reviveHealth()) f.reviveHealth((float) b.getReviveHealth());
+                }, (f, b) -> {   // 앞선 Furnace 처리기가 바꾼 값을 Bukkit 이벤트에 맞춘다
+                    if (!furnaceDrops(b.getDrops()).equals(f.drops())) {
+                        b.getDrops().clear();
+                        b.getDrops().addAll(bukkitDrops(f.drops()));
+                    }
+                    if (b.getDroppedExp() != f.droppedExp()) b.setDroppedExp(f.droppedExp());
+                    if ((float) b.getReviveHealth() != f.reviveHealth()) b.initReviveHealth(f.reviveHealth());
+                });
     }
 
     /** Furnace 드롭 목록 → Bukkit 이 바꿀 수 있는 새 목록(Paper 의 getDrops 처럼 넣고 빼고 개수를 바꿀 수 있고, 이벤트 뒤 변환해 되돌려 쓴다). */

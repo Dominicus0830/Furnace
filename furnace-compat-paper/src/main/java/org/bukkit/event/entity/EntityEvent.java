@@ -10,4 +10,7 @@ public abstract class EntityEvent extends Event {
     public EntityEvent(Entity what) { this.entity = what; }
 
     public Entity getEntity() { return entity; }
+
+    /** Bukkit: 엔티티 종류(getEntity().getType()). */
+    public org.bukkit.entity.EntityType getEntityType() { return entity.getType(); }
 }

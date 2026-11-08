@@ -136,9 +136,14 @@ public final class PluginGameEvents implements GameEvents {
     }
 
     @Override
-    public void entityDeath(LivingEntity e) {
-        if (!bus().hasSubscribers(EntityDeathEvent.class)) return;
-        bus().call(new EntityDeathEvent((org.domi.furnace.api.entity.LivingEntity) EntityHandle.of(host, e)));
+    public boolean wantsEntityDeath() { return bus().hasSubscribers(EntityDeathEvent.class); }
+
+    @Override
+    public EntityDeathOutcome entityDeath(LivingEntity e, java.util.List<ItemStack> drops, int droppedExp) {
+        var conv = new ApiDrops(drops, items());
+        var ev = bus().call(new EntityDeathEvent((org.domi.furnace.api.entity.LivingEntity) EntityHandle.of(host, e), conv.api(), droppedExp, e.maxHealth()));
+        if (ev.isCancelled()) return new EntityDeathOutcome(true, ev.reviveHealth(), java.util.List.of(), 0);
+        return new EntityDeathOutcome(false, ev.reviveHealth(), conv.back(ev.drops(), "EntityDeathEvent"), ev.droppedExp());
     }
 
     @Override

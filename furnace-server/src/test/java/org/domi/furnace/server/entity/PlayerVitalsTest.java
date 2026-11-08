@@ -37,6 +37,12 @@ class PlayerVitalsTest {
         public void broadcastToTrackers(int entityId, Packet packet) { trackerPackets.add(packet); }
         org.domi.furnace.server.plugin.GameEvents events = org.domi.furnace.server.plugin.GameEvents.NONE;
         public org.domi.furnace.server.plugin.GameEvents gameEvents() { return events; }
+        /** 플러그인 PlayerDeathEvent 취소 흉내(되살릴 체력). null 이면 취소하지 않는다. */
+        Float cancelDeathWith;
+        public PlayerVitals.DeathOutcome death(Player player, Text message, boolean keepInventory, List<ItemStack> drops, int droppedExp, float maxHealth) {
+            if (cancelDeathWith == null) return PlayerVitals.DeathOutcome.unchanged(message, keepInventory, drops, droppedExp);
+            return new PlayerVitals.DeathOutcome(message, keepInventory, keepInventory, drops, droppedExp, 0, 0, 0, List.of(), true, true, cancelDeathWith);
+        }
     }
 
     private final EmbeddedChannel channel = new ConcurrentEmbeddedChannel();
@@ -219,6 +225,38 @@ class PlayerVitalsTest {
         assertEquals(1, env.broadcasts.size());
         assertEquals("death.attack.genericKill", env.broadcasts.get(0).translationKey());
         assertFalse(v.hurt(DamageType.GENERIC_KILL, 1), "이미 죽었으면 피해 없음");
+    }
+
+    /**
+     * PlayerDeathEvent 취소(Paper Improve-death-events): 체력이 reviveHealth 로 돌아오고 사망 메시지·사망 화면(PlayerCombatKill)·
+     * 엔티티 이벤트 3·드롭 처리·마지막 사망 위치·사망 기록이 하나도 없다. 그 뒤 다시 죽이면 평소처럼 죽는다.
+     */
+    @Test
+    void cancelledDeathRevivesWithoutAnyDeathEffects() {
+        java.util.List<List<ItemStack>> deaths = new ArrayList<>();
+        v.deathListener((keep, drops, originals, itemsToKeep) -> deaths.add(drops));
+        v.giveExperienceLevels(5);
+        env.cancelDeathWith = 6.0f;
+        v.kill();
+        assertFalse(v.isDeadOrDying(), "취소 → 죽지 않는다");
+        assertEquals(6.0f, v.health(), "reviveHealth");
+        assertTrue(env.broadcasts.isEmpty(), "사망 메시지 없음");
+        assertTrue(deaths.isEmpty(), "드롭·인벤토리 처리 없음");
+        assertNull(v.death(), "사망 기록 없음(스컬크 촉매가 볼 것 없음)");
+        assertNull(v.lastDeathPos(), "마지막 사망 위치 없음");
+        assertTrue(env.trackerPackets.stream().noneMatch(p -> p instanceof org.domi.furnace.server.net.protocol.play.EntityEvent e && e.event() == 3),
+                "엔티티 이벤트 3(죽는 모습) 없음");
+        channel.runPendingTasks();
+        assertFalse(drain().contains(org.domi.furnace.server.net.protocol.play.PlayerCombatKill.ID), "사망 화면(PlayerCombatKill) 없음");
+        for (int i = 0; i < 25; i++) v.tick(DRY);
+        assertFalse(v.removedAfterDeath(), "죽은 몸 제거 없음");
+        assertEquals(5, v.xpLevel(), "경험치 그대로");
+
+        env.cancelDeathWith = null;
+        v.kill();
+        assertTrue(v.isDeadOrDying(), "취소하지 않으면 평소처럼 죽는다");
+        assertEquals(1, deaths.size());
+        assertEquals(1, env.broadcasts.size());
     }
 
     @Test

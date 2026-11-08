@@ -189,7 +189,7 @@ public abstract class Mob extends LivingEntity implements Leashable {
                     stack = org.domi.furnace.server.item.ItemTools.withDamage(stack, max - random.nextInt(1 + random.nextInt(Math.max(max - 3, 1))));
                 }
                 spawnAtLocation(stack);
-                setItemSlot(slot, ItemStack.EMPTY);
+                afterDeathDrop(() -> setItemSlot(slot, ItemStack.EMPTY));   // 사망 이벤트가 취소되면 장비는 그대로(Paper)
             }
         }
     }

@@ -59,6 +59,7 @@ class CancelContractTest {
                 STAGE3 + "projectileAndItemSpawnAreSubEventsOfEntitySpawn"));
         TABLE.put("EntityBreedEvent", new Entry(Kind.SERVER_DRIVEN, STAGE3 + "breedCancelKeepsParentsInLoveAndNoChild"));
         TABLE.put("EntityDamageEvent", new Entry(Kind.SERVER_DRIVEN, WORLD + "spawnDamageDeathEventsAndCancellation"));
+        TABLE.put("EntityDeathEvent", new Entry(Kind.SERVER_DRIVEN, WORLD + "entityDeathEventCarriesDropsAndCancelKeepsMobAliveWithGear"));
         TABLE.put("EntityExplodeEvent", new Entry(Kind.SERVER_DRIVEN, STAGE3 + "entityExplodeCanEditListAndCancel"));
         TABLE.put("EntityTameEvent", new Entry(Kind.SERVER_DRIVEN, STAGE3 + "tameCancelKeepsWolfWild"));
         TABLE.put("EntityTargetEvent", new Entry(Kind.SERVER_DRIVEN, STAGE3 + "targetEventFiresOnChangeOnlyAndCancelKeepsOldTarget"));
@@ -73,6 +74,7 @@ class CancelContractTest {
         TABLE.put("PlayerInteractEvent", new Entry(Kind.CLIENT_PREDICTED, E2E + "interactAirCancelResendsHand", E2E + "interactBlockCancelResendsHandAndBothBlocks",
                 E2E + "leftClickBlockCancelResendsBlock"));
         TABLE.put("PlayerInteractEntityEvent", new Entry(Kind.CLIENT_PREDICTED, E2E + "interactEntityCancelResendsHandAndDoesNothing"));
+        TABLE.put("PlayerDeathEvent", new Entry(Kind.SERVER_DRIVEN, "entity.PlayerVitalsTest#cancelledDeathRevivesWithoutAnyDeathEffects"));
         TABLE.put("PlayerDropItemEvent", new Entry(Kind.CLIENT_PREDICTED, E2E + "dropOneCancelReturnsToHeldSlotAndResendsInventory",
                 E2E + "dropAllCancelReturnsWholeStackToHeldSlot", WORLD + "playerMoveDropAndPickupEventsCanCancel"));
         TABLE.put("PlayerItemHeldEvent", new Entry(Kind.CLIENT_PREDICTED, E2E + "itemHeldCancelResendsSelectedSlot"));

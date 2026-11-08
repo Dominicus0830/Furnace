@@ -292,8 +292,14 @@ public abstract class LivingEntity extends Entity implements Targetable {
         lastDamageStamp = level.gameTime();
         if (isDeadOrDying()) {
             if (!checkTotemDeathProtection(source)) {
-                if (fresh) makeSound(getDeathSound());
+                if (fresh) {
+                    // 몹 사망 이벤트를 들으면 Paper 처럼 소리는 취소 여부를 본 뒤 낸다(음 높이 난수는 바닐라 자리에서 뽑는다)
+                    String ds = getDeathSound();
+                    if (ds != null && level.gameEvents().wantsEntityDeath()) pendingDeathSound = new Object[] {ds, getSoundVolume(), getVoicePitch()};
+                    else makeSound(ds);
+                }
                 die(source);
+                pendingDeathSound = null;
             }
         } else if (fresh) {
             playHurtSound(source);
@@ -822,36 +828,126 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     public void die(Damage source) {
         if (isRemoved() || dead) return;
+        var ge = level.gameEvents();
+        if (ge.wantsEntityDeath()) {
+            dieWithEvent(source, ge);
+            return;
+        }
         // getKillCredit().awardKillScore(this, deathScore, source): lastHurtByPlayer, 없으면 lastHurtByMob
-        Targetable credit = lastHurtByPlayer != null ? lastHurtByPlayer : lastHurtByMob;
-        if (credit != null) {
-            Rider causing = damageSourceEntity() instanceof Rider r ? r : null;
-            Rider direct = pendingDirect != null ? pendingDirect : pendingDirectId == -2 ? null : causing;
-            KillCredit.award(credit, this, KillCredit.source(source.type(), causing, direct));
-        }
+        awardKillCredit(source);
         dead = true;
-        level.gameEvents().entityDeath(this);   // 플러그인 EntityDeathEvent
         // damageSource.getEntity().killedEntity: false 면 드롭 없음(좀비가 주민을 감염시킴). Player.killedEntity 는 killed:<종류> 통계 후 true.
-        if (damageSourceEntity() instanceof Player pk) {
-            String stat = "minecraft:killed:" + type.name();
-            pk.runOnOwner(() -> pk.awardStat(stat, 1));
-        }
-        boolean drops = !(damageSourceEntity() instanceof Mob killer) || killer.killedEntity(this);
-        if (drops) {
+        if (killedBySource()) {
             gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DIE);   // 스컬크 촉매가 여기서 경험치를 가져간다
             dropAllDeathLoot(source);
         }
         if (tracker != null) tracker.broadcast(new EntityEvent(id(), (byte) 3));
     }
 
+    private void awardKillCredit(Damage source) {
+        Targetable credit = lastHurtByPlayer != null ? lastHurtByPlayer : lastHurtByMob;
+        if (credit != null) {
+            Rider causing = damageSourceEntity() instanceof Rider r ? r : null;
+            Rider direct = pendingDirect != null ? pendingDirect : pendingDirectId == -2 ? null : causing;
+            KillCredit.award(credit, this, KillCredit.source(source.type(), causing, direct));
+        }
+    }
+
+    /** killed:<종류> 통계 + damageSource.getEntity().killedEntity — false 면 전리품이 없다. */
+    private boolean killedBySource() {
+        if (damageSourceEntity() instanceof Player pk) {
+            String stat = "minecraft:killed:" + type.name();
+            pk.runOnOwner(() -> pk.awardStat(stat, 1));
+        }
+        return !(damageSourceEntity() instanceof Mob killer) || killer.killedEntity(this);
+    }
+
+    /**
+     * 플러그인 EntityDeathEvent 를 들을 때의 죽음(Paper 의 취소 가능한 사망과 같은 결과):
+     * 전리품 표·특수 전리품·장비 드롭을 바닐라 순서대로 굴려 아이템 엔티티를 만들되 아직 넣지 않고(난수 순서는 바닐라 그대로),
+     * 몹 장비 칸·상자 같은 몸 상태 정리는 미뤄 둔 채 이벤트를 부른다. 취소되면 미룬 정리를 버리고 체력을 reviveHealth 로 되돌린다
+     * (드롭·경험치·사망 소리·엔티티 이벤트 3 없음). 아니면 소리 → 점수 → entity_die → 이벤트 목록대로 드롭 → 경험치.
+     * 플러그인이 손대지 않은 아이템은 미리 만든 아이템 엔티티를 그대로 넣고, 바뀌거나 새로 넣은 아이템은 몸 위치에 새로 만든다.
+     */
+    private void dieWithEvent(Damage source, org.domi.furnace.server.plugin.GameEvents ge) {
+        Object[] sound = pendingDeathSound;
+        pendingDeathSound = null;
+        dead = true;
+        java.util.List<ItemEntity> captured = new java.util.ArrayList<>();
+        java.util.List<Runnable> afterDeath = new java.util.ArrayList<>();
+        deathCapture = captured;
+        deathCleanup = afterDeath;
+        try {
+            dropDeathItems(source);
+        } finally {
+            deathCapture = null;
+            deathCleanup = null;
+        }
+        // CraftBukkit getExpReward: dropExperience 의 조건을 미리 본 값(바닐라와 같은 자리에서 굴린다)
+        int exp = experienceDropAllowed() ? getExperienceReward() : 0;
+        java.util.List<ItemStack> stacks = new java.util.ArrayList<>(captured.size());
+        java.util.IdentityHashMap<ItemStack, java.util.ArrayDeque<ItemEntity>> byStack = new java.util.IdentityHashMap<>();
+        for (ItemEntity ie : captured) {
+            ItemStack st = ie.getItem();
+            stacks.add(st);
+            byStack.computeIfAbsent(st, k -> new java.util.ArrayDeque<>()).add(ie);
+        }
+        var out = ge.entityDeath(this, stacks, exp);
+        if (out.cancelled()) {
+            dead = false;
+            setHealth(out.reviveHealth());
+            return;
+        }
+        for (Runnable r : afterDeath) r.run();
+        if (sound != null) playSound((String) sound[0], (Float) sound[1], (Float) sound[2]);
+        awardKillCredit(source);
+        if (killedBySource()) {
+            gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DIE);   // 스컬크 촉매가 여기서 경험치를 가져간다
+            for (ItemStack st : out.drops()) {
+                var q = byStack.get(st);
+                ItemEntity ie = q == null ? null : q.poll();
+                if (ie != null) {
+                    level.addFreshEntity(ie);
+                } else {
+                    var fresh = new ItemEntity(level, level.nextEntityId(), x(), y(), z(), st);   // CraftWorld.dropItem(몸 위치)
+                    fresh.setDefaultPickUpDelay();
+                    level.addFreshEntity(fresh);
+                }
+            }
+            if (!wasExperienceConsumed() && out.droppedExp() > 0) ExperienceOrb.award(level, x(), y(), z(), out.droppedExp());
+        }
+        if (tracker != null) tracker.broadcast(new EntityEvent(id(), (byte) 3));
+    }
+
+    /** 사망 이벤트를 부르기 전 드롭을 모으는 중이면 그 목록(아니면 null) — spawnAtLocation 이 아이템 엔티티를 넣지 않고 여기에 둔다. */
+    private java.util.List<ItemEntity> deathCapture;
+    /** 드롭을 모으는 동안 미룬 몸 상태 정리(장비 칸 비우기 등) — 이벤트가 취소되지 않았을 때만 돈다. */
+    private java.util.List<Runnable> deathCleanup;
+    /** hurt 가 뽑아 둔 사망 소리(이름, 크기, 높이) — 이벤트가 취소되지 않았을 때 낸다. */
+    private Object[] pendingDeathSound;
+
+    /**
+     * 장비 칸 비우기처럼 죽을 때 드롭과 함께 하는 몸 상태 정리. 사망 이벤트를 위해 드롭을 모으는 중이면 이벤트 뒤로 미루고(취소되면 하지 않는다 —
+     * Paper clearedEquipmentSlots·postDeathDropItems), 아니면 바로 한다.
+     */
+    protected final void afterDeathDrop(Runnable r) {
+        if (deathCleanup != null) deathCleanup.add(r);
+        else r.run();
+    }
+
     protected void dropAllDeathLoot(Damage source) {
+        dropDeathItems(source);
+        dropExperience();
+    }
+
+    /** dropAllDeathLoot 의 아이템 부분: 전리품 표·특수 전리품(doMobLoot 일 때) → 장비(안장·상자·주머니). */
+    private void dropDeathItems(Damage source) {
         boolean byPlayer = lastHurtByPlayerTime > 0;
         if (shouldDropLoot() && level.gameRule("doMobLoot")) {
             dropFromLootTable(source, byPlayer);
             dropCustomDeathLoot(source, byPlayer);
         }
         dropEquipment();
-        dropExperience();
     }
 
     protected boolean shouldDropLoot() { return true; }
@@ -871,9 +967,13 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     /** 경험치: 마지막으로 플레이어에게 맞았고 mob loot 규칙이 켜져 있으면 구슬로 낸다. */
     protected void dropExperience() {
-        if (!wasExperienceConsumed() && (isAlwaysExperienceDropper() || lastHurtByPlayerTime > 0 && shouldDropExperience() && level.gameRule("doMobLoot"))) {
+        if (!wasExperienceConsumed() && experienceDropAllowed()) {
             ExperienceOrb.award(level, x(), y(), z(), getExperienceReward());
         }
+    }
+
+    private boolean experienceDropAllowed() {
+        return isAlwaysExperienceDropper() || lastHurtByPlayerTime > 0 && shouldDropExperience() && level.gameRule("doMobLoot");
     }
 
     /** skipDropExperience: 스컬크 촉매가 경험치를 가져갔다. */
@@ -897,19 +997,17 @@ public abstract class LivingEntity extends Entity implements Targetable {
     protected int getExperienceReward() { return 0; }
 
     /** spawnAtLocation(stack): 몸 위치에 아이템 엔티티(줍기 지연 10). */
-    public ItemEntity spawnAtLocation(ItemStack stack) {
-        if (stack.isEmpty()) return null;
-        var ie = new ItemEntity(level, level.nextEntityId(), x(), y(), z(), stack);
-        ie.setDefaultPickUpDelay();
-        level.addFreshEntity(ie);
-        return ie;
-    }
+    public ItemEntity spawnAtLocation(ItemStack stack) { return spawnAtLocation(stack, 0.0F); }
 
     /** spawnAtLocation(stack, yOffset): 몸 위치 + yOffset 에 아이템 엔티티. */
     public ItemEntity spawnAtLocation(ItemStack stack, float yOffset) {
         if (stack.isEmpty()) return null;
         var ie = new ItemEntity(level, level.nextEntityId(), x(), y() + yOffset, z(), stack);
         ie.setDefaultPickUpDelay();
+        if (deathCapture != null) {   // 사망 이벤트 앞: 만들기만 하고(난수는 지금 굴린다) 넣기는 이벤트 뒤에
+            deathCapture.add(ie);
+            return ie;
+        }
         level.addFreshEntity(ie);
         return ie;
     }

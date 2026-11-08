@@ -44,7 +44,7 @@ public abstract class AbstractChestedHorse extends AbstractHorse {
         super.dropEquipment();
         if (hasChest()) {
             spawnAtLocation(new ItemStack(ItemContext.id("minecraft:item", "chest"), 1));
-            setChest(false);
+            afterDeathDrop(() -> setChest(false));   // 사망 이벤트가 취소되면 상자는 그대로(Paper postDeathDropItems)
         }
     }
 
