@@ -1215,7 +1215,8 @@ public final class Region {
         }
         if (level != null) {   // 바닐라 ServerLevel.tick: 블록·유체 예약 틱 → 청크 틱(무작위 틱) → 청크 변경 방송 → 블록 이벤트 → 엔티티
             int n = frozen ? 0 : collectTickingChunks();
-            level.tickBlocks(tickingChunks, n, frozen ? 0 : spawnChunkCount, this::blockEntityTicking, pl -> players.containsKey(pl.entityId()), frozen);
+            level.tickBlocks(tickingChunks, n, frozen ? 0 : spawnChunkCount, frozen || n == 0 ? 0 : naturalSpawnChunkCount(), this::randomTicking,
+                    this::blockEntityTicking, pl -> players.containsKey(pl.entityId()), frozen);
             lap(0);
             level.runLightUpdates();
             lap(1);
@@ -1546,34 +1547,144 @@ public final class Region {
     private long[] tickingChunks = new long[64];
 
     /**
-     * 무작위 틱 받을 청크: 이 region 이 가진 로드된 청크 중, 관전자가 아닌 플레이어가 시뮬레이션 거리 안(체비셰프 ≤ min(거리, 11) − 1,
-     * 자연 스폰 범위 8 청크 안)이고 청크 가운데에서 128 블록 안(anyPlayerCloseEnoughForSpawning)인 것. 순서는 레벨이 섞는다.
+     * 청크 틱(스폰·무작위 틱) 대상 — 바닐라 ServerChunkCache.tickChunks(aqs.t): 이 region 이 가진 로드된 청크 중
+     * isNaturalSpawningAllowed(엔티티 틱 단계 — naturalSpawningAllowed, 서버 시야 거리 안이라 시뮬레이션 거리와 무관)이고
+     * anyPlayerCloseEnoughForSpawning(관전자가 아닌 플레이어가 자연 스폰 범위 8 청크 안이고 청크 가운데에서 128 블록 안)인 것.
+     * 이 청크들은 inhabitedTime 이 늘고 스폰을 받는다. 무작위 틱은 그중 shouldTickBlocksAt(randomTicking — 시뮬레이션 거리 + 1)만.
+     * 순서는 레벨이 섞는다. (예전에는 체비셰프 min(sim − 1, 8) 하나로 둘 다 정해 시뮬레이션 거리 8 이하에서 바닐라보다 좁았다.)
      */
     private int collectTickingChunks() {
         spawnChunkCount = 0;
         if (players.isEmpty()) return 0;
         org.domi.furnace.server.block.BlockBehaviors.ofBlock(0);   // 무작위 틱 표를 섹션에 건다
-        int sim = Math.clamp(world.levelServices().simulationDistance(), 2, 11) - 1;
-        int range = Math.min(sim, 8);
         int n = 0;
-        if (!players.isEmpty()) {
-            for (long key : present.snapshot()) {
-                int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
-                if (!closeToPlayer(cx, cz, range)) continue;
-                ChunkColumn col = ownedChunk(cx, cz);
-                if (col == null) continue;
-                col.inhabitedTime(col.inhabitedTime() + 1);   // LevelChunk.incrementInhabitedTime(1)
-                if (n == tickingChunks.length) tickingChunks = java.util.Arrays.copyOf(tickingChunks, n * 2);
-                tickingChunks[n++] = key;
-            }
+        for (long key : present.snapshot()) {
+            int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
+            if (!closeToPlayer(cx, cz, NATURAL_SPAWN_RANGE)) continue;
+            ChunkColumn col = ownedChunk(cx, cz);
+            if (col == null || !naturalSpawningAllowed(cx, cz)) continue;
+            col.inhabitedTime(col.inhabitedTime() + 1);   // LevelChunk.incrementInhabitedTime(1)
+            if (n == tickingChunks.length) tickingChunks = java.util.Arrays.copyOf(tickingChunks, n * 2);
+            tickingChunks[n++] = key;
         }
-        // 바닐라 ServerChunkCache.tickChunks: 무작위 틱·스폰·inhabitedTime 은 anyPlayerCloseEnoughForSpawning 청크만 — 강제 로드 청크도 예외 없다
+        // 바닐라: 무작위 틱·스폰·inhabitedTime 은 anyPlayerCloseEnoughForSpawning 청크만 — 강제 로드 청크도 예외 없다
         spawnChunkCount = n;
         return n;
     }
 
+    /**
+     * ServerLevel.isNaturalSpawningAllowed(ChunkPos/BlockPos) = PersistentEntitySectionManager.canPositionTick: ChunkHolder 가 ENTITY_TICKING
+     * (티켓 레벨 ≤ 31). 플레이어 시야 티켓(DistanceManager.PlayerTicketTracker, 레벨 aqk.b = 31)이 서버 시야 거리 안(체비셰프) 청크 전부에 붙어
+     * 시뮬레이션 거리와 무관하다. 관전자는 spectatorsGenerateChunks 일 때만 티켓을 단다(skipPlayer). 강제 로드·포털·플러그인 티켓도 엔티티 틱이다.
+     */
+    boolean naturalSpawningAllowed(int cx, int cz) {
+        var forced = world.forcedChunksOrNull();
+        if (forced != null && forced.size() > 0 && forced.contains(cx, cz)) return true;
+        if (world.entityTicketed(cx, cz) || world.pluginTicking(cx, cz)) return true;
+        int view = world.viewDistance();
+        boolean spectators = world.levelServices().gameRule("spectatorsGenerateChunks");
+        for (Player p : players.values()) {
+            if (!spectators && p.gameMode() == GameMode.SPECTATOR) continue;
+            int pcx = (int) Math.floor(p.x()) >> 4, pcz = (int) Math.floor(p.z()) >> 4;
+            if (Math.max(Math.abs(pcx - cx), Math.abs(pcz - cz)) <= view) return true;
+        }
+        return false;
+    }
+
+    /**
+     * ServerLevel.shouldTickBlocksAt(long) = DistanceManager.inBlockTickingRange: TickingTracker 레벨 < 33. 플레이어 티켓 레벨이 31 − 시뮬레이션 거리라
+     * 체비셰프 ≤ 시뮬레이션 거리 + 1(관전자는 spectatorsGenerateChunks 일 때만). 강제 로드·포털·플러그인 티켓 청크도.
+     */
+    boolean randomTicking(long key) {
+        int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
+        var forced = world.forcedChunksOrNull();
+        if (forced != null && forced.size() > 0 && forced.contains(cx, cz)) return true;
+        if (world.entityTicketed(cx, cz) || world.pluginTicking(cx, cz)) return true;
+        int range = Math.max(world.levelServices().simulationDistance(), 2) + 1;
+        boolean spectators = world.levelServices().gameRule("spectatorsGenerateChunks");
+        for (Player p : players.values()) {
+            if (!spectators && p.gameMode() == GameMode.SPECTATOR) continue;
+            int pcx = (int) Math.floor(p.x()) >> 4, pcz = (int) Math.floor(p.z()) >> 4;
+            if (Math.max(Math.abs(pcx - cx), Math.abs(pcz - cz)) <= range) return true;
+        }
+        return false;
+    }
+
     /** collectTickingChunks 가 모은 앞쪽 몇 칸이 자연 스폰 대상(플레이어 근처)인가. 뒤는 강제 로드 청크. */
     private int spawnChunkCount;
+
+    /** 자연 스폰 상한 범위(바닐라 DistanceManager.naturalSpawnChunkCounter = FixedPlayerDistanceChunkTracker(8)): 체비셰프 8, 17×17. */
+    static final int NATURAL_SPAWN_RANGE = 8;
+    private long[] spawnCountKeys = new long[8], spawnCountCachedKeys = new long[0];
+    private int spawnCountCached;
+
+    /**
+     * 자연 스폰 전역 상한의 청크 수(바닐라 DistanceManager.getNaturalSpawnChunkCount, A10-01): 이 region 플레이어 청크 둘레 체비셰프 8 칸의
+     * 합집합 크기. 청크가 올라와 있는지·시뮬레이션 거리·128 블록 원과 무관하다(혼자면 늘 289 → 몬스터 상한 70). 관전자는
+     * spectatorsGenerateChunks 가 켜져 있을 때만 센다(ChunkMap.skipPlayer). 플레이어 청크 집합이 그대로면 지난 값을 쓴다.
+     * 바닐라는 차원 전체 합집합이다 — region 은 서로 떨어져 있어 각 region 합의 합과 같다(region 끼리 범위가 겹치는 짧은 때만 다르다).
+     */
+    int naturalSpawnChunkCount() {
+        if (players.isEmpty()) return 0;
+        boolean spectators = world.levelServices().gameRule("spectatorsGenerateChunks");
+        if (spawnCountKeys.length < players.size()) spawnCountKeys = new long[players.size() * 2];
+        long[] keys = spawnCountKeys;
+        int k = 0;
+        for (Player p : players.values()) {
+            if (!spectators && p.gameMode() == GameMode.SPECTATOR) continue;
+            keys[k++] = Regionizer.chunkKey((int) Math.floor(p.x()) >> 4, (int) Math.floor(p.z()) >> 4);
+        }
+        if (k <= 1) return k == 0 ? 0 : (2 * NATURAL_SPAWN_RANGE + 1) * (2 * NATURAL_SPAWN_RANGE + 1);
+        java.util.Arrays.sort(keys, 0, k);
+        int d = 1;
+        for (int i = 1; i < k; i++) if (keys[i] != keys[d - 1]) keys[d++] = keys[i];
+        if (d == 1) return (2 * NATURAL_SPAWN_RANGE + 1) * (2 * NATURAL_SPAWN_RANGE + 1);
+        if (java.util.Arrays.equals(keys, 0, d, spawnCountCachedKeys, 0, spawnCountCachedKeys.length)) return spawnCountCached;
+        spawnCountCachedKeys = java.util.Arrays.copyOf(keys, d);
+        int[] xs = new int[d], zs = new int[d];
+        for (int i = 0; i < d; i++) {
+            xs[i] = Regionizer.chunkX(keys[i]);
+            zs[i] = Regionizer.chunkZ(keys[i]);
+        }
+        return spawnCountCached = unionOfSquares(xs, zs, d, NATURAL_SPAWN_RANGE);
+    }
+
+    /** 칸 (xs[i], zs[i]) 둘레 체비셰프 r 정사각형 n 개의 합집합 칸 수. 열(x)마다 겹치는 z 구간을 합친다. */
+    static int unionOfSquares(int[] xs, int[] zs, int n, int r) {
+        Integer[] byZ = new Integer[n];
+        for (int i = 0; i < n; i++) byZ[i] = i;
+        java.util.Arrays.sort(byZ, (a, b) -> Integer.compare(zs[a], zs[b]));
+        int[] sx = java.util.Arrays.copyOf(xs, n);
+        java.util.Arrays.sort(sx);
+        int total = 0;
+        int from = sx[0] - r, to = sx[0] + r;
+        for (int j = 1; j <= n; j++) {
+            if (j < n && sx[j] - r <= to + 1) {
+                to = Math.max(to, sx[j] + r);
+                continue;
+            }
+            for (int x = from; x <= to; x++) {   // 이 열을 덮는 정사각형들의 z 구간(z 순)을 합친다
+                long runStart = Long.MIN_VALUE, runEnd = Long.MIN_VALUE;
+                for (Integer i : byZ) {
+                    if (Math.abs(xs[i] - x) > r) continue;
+                    long s = (long) zs[i] - r, e = (long) zs[i] + r;
+                    if (runStart == Long.MIN_VALUE || s > runEnd + 1) {
+                        if (runStart != Long.MIN_VALUE) total += (int) (runEnd - runStart + 1);
+                        runStart = s;
+                        runEnd = e;
+                    } else if (e > runEnd) {
+                        runEnd = e;
+                    }
+                }
+                if (runStart != Long.MIN_VALUE) total += (int) (runEnd - runStart + 1);
+            }
+            if (j < n) {
+                from = sx[j] - r;
+                to = sx[j] + r;
+            }
+        }
+        return total;
+    }
 
     /**
      * 그 청크가 블록 엔티티 틱을 받는가 — 바닐라 LevelChunk.isTicking: 엔티티 틱 단계(플레이어 표가 시뮬레이션 거리 - 1 안,

@@ -44,6 +44,12 @@ public final class RegionLevel extends ChunkLevel {
     @Override
     public boolean isOwnerThread() { return region.isOwnerThread(); }
 
+    /** 엔티티 틱 청크(바닐라 canPositionTick): 이 region 이 가진 로드된 청크이고 서버 시야 거리·엔티티 틱 티켓 안(Region.naturalSpawningAllowed). */
+    @Override
+    public boolean isNaturalSpawningAllowed(int chunkX, int chunkZ) {
+        return chunk(chunkX, chunkZ) != null && region.naturalSpawningAllowed(chunkX, chunkZ);
+    }
+
     @Override
     protected ChunkColumn chunk(int chunkX, int chunkZ) {
         int i = (chunkX * 0x9E3779B9 + chunkZ) * 0x85EBCA6B >>> 22;   // 상위 10비트(CACHE = 1024)
@@ -238,26 +244,23 @@ public final class RegionLevel extends ChunkLevel {
      * 레벨 틱(바닐라 ServerLevel.tick 의 블록 부분): 예약 틱 → 청크 틱(무작위 틱·날씨 — 섞은 순서로) → 변경 방송 → 블록 이벤트.
      * tickingChunks 는 무작위 틱을 받을 청크 키(Regionizer.chunkKey).
      */
-    private final org.domi.furnace.server.entity.spawn.PhantomSpawner phantomSpawner = new org.domi.furnace.server.entity.spawn.PhantomSpawner();
-    private final org.domi.furnace.server.entity.spawn.PatrolSpawner patrolSpawner = new org.domi.furnace.server.entity.spawn.PatrolSpawner();
-    private final org.domi.furnace.server.entity.spawn.CatSpawner catSpawner = new org.domi.furnace.server.entity.spawn.CatSpawner();
-
     /**
      * ServerLevel.tickCustomSpawners. 바닐라 MinecraftServer.createLevels 는 특수 스포너 다섯(팬텀 → 순찰 → 고양이 → 포위 → 상인,
      * 이 순서로 돈다)을 오버월드에만 주고 다른 차원에는 빈 목록을 준다 — 네더·엔드에서는 아무것도 돌지 않고 레벨 난수도 쓰지 않는다.
-     * 포위·상인은 차원에 하나만 두고 전역 틱이 돌린다(DimensionSpawners) — 여기서는 포위를 정할 플레이어 후보만 알린다.
+     * 다섯 모두 차원에 하나만 두고 전역 틱이 돌린다(DimensionSpawners) — 여기서는 포위를 정할 플레이어 후보만 알린다.
      */
-    void tickCustomSpawners(java.util.List<Player> here, boolean spawnMonsters, boolean spawnAnimals) {
-        if (!"minecraft:overworld".equals(dimension())) return;
-        phantomSpawner.tick(this, here, spawnMonsters);
-        patrolSpawner.tick(this, here, spawnMonsters);
-        catSpawner.tick(this, here, spawnAnimals);
-        var dim = world.dimensionSpawners();
+    void tickCustomSpawners(java.util.List<Player> here) {
+        var dim = world.dimensionSpawners();   // 오버월드가 아니면 null
         if (dim != null) dim.report(this, here);
     }
 
-    /** @param spawnCount 앞쪽 몇 청크가 자연 스폰 대상(플레이어 근처)인가. 나머지(count 까지)는 /forceload 청크라 무작위 틱만 받는다. */
-    void tickBlocks(long[] tickingChunks, int count, int spawnCount, java.util.function.LongPredicate blockEntityTicking,
+    /**
+     * @param spawnCount 앞쪽 몇 청크가 자연 스폰 대상(플레이어 근처)인가. 나머지(count 까지)는 /forceload 청크라 무작위 틱만 받는다.
+     * @param capChunkCount 전역 상한의 청크 수(바닐라 getNaturalSpawnChunkCount — Region.naturalSpawnChunkCount)
+     * @param randomTicking 그 청크가 무작위 틱을 받는가(바닐라 shouldTickBlocksAt)
+     */
+    void tickBlocks(long[] tickingChunks, int count, int spawnCount, int capChunkCount, java.util.function.LongPredicate randomTicking,
+                    java.util.function.LongPredicate blockEntityTicking,
                     java.util.function.Predicate<Player> inRegion, boolean frozen) {
         clearChunkCache();   // 틱 사이에 합치기·나누기가 있었을 수 있다
         if (!frozen) {   // /tick freeze: 예약 틱·습격·청크 틱·스폰은 멈춘다(count 도 0 으로 온다)
@@ -271,7 +274,7 @@ public final class RegionLevel extends ChunkLevel {
             boolean spawnMonsters = spawnMonstersAllowed() && difficulty() != 0, spawnAnimals = spawnAnimalsAllowed();
             org.domi.furnace.server.entity.spawn.NaturalSpawner.SpawnState spawnState = null;
             if (spawnCount > 0 && gameRule("doMobSpawning") && (spawnMonsters || spawnAnimals)) {
-                spawnState = org.domi.furnace.server.entity.spawn.NaturalSpawner.createState(spawnCount, entities().tickSnapshot(), this, world.spawnPolicy());
+                spawnState = org.domi.furnace.server.entity.spawn.NaturalSpawner.createState(capChunkCount, entities().tickSnapshot(), this, world.spawnPolicy());
             }
             boolean spawnPassives = gameTime() % 400L == 0L;
             for (int i = 0; i < count; i++) {
@@ -280,13 +283,13 @@ public final class RegionLevel extends ChunkLevel {
                 if (spawnState != null && i < spawnCount && withinBorder(new org.domi.furnace.server.block.Pos(cx * 16 + 8, 64, cz * 16 + 8))) {
                     org.domi.furnace.server.entity.spawn.NaturalSpawner.spawnForChunk(this, cx, cz, spawnState, spawnAnimals, spawnMonsters, spawnPassives);
                 }
-                tickChunk(cx, cz, speed);
+                if (randomTicking.test(k)) tickChunk(cx, cz, speed);   // ServerLevel.shouldTickBlocksAt
             }
             // ServerLevel.tickCustomSpawners: 청크 스폰·틱 뒤 팬텀 등 특수 스포너(doMobSpawning 일 때)
             if (spawnCount > 0 && gameRule("doMobSpawning")) {
                 java.util.List<Player> here = new java.util.ArrayList<>();
                 services().forEachPlayer(pl -> { if (inRegion.test(pl)) here.add(pl); });
-                tickCustomSpawners(here, spawnMonsters, spawnAnimals);
+                tickCustomSpawners(here);
             }
         }
         broadcastChanges();

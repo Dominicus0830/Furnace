@@ -1,6 +1,7 @@
 // 바닐라 PatrolSpawner(CustomSpawner): 5일째부터 낮에 10~11분마다 1/5 확률로 플레이어 24~47칸 밖에 약탈자 순찰대(지도자 + 대원)를 낸다.
 // 바닐라 ServerLevel.isCloseToVillage(플레이어 위치, 2): 마을 POI 섹션 거리 2 이내면 내지 않는다(기본 생성자가 level 의 POI 로 판정).
-// 차이: 바닐라 level.players() 는 차원 전체 플레이어, 여기서는 이 region 의 플레이어. nextTick 도 region 마다 따로 간다.
+// 서버에서는 차원에 하나(DimensionSpawners)가 전역 틱에서 타이머를 돌리고 차원 전체 플레이어 중 한 명을 고른 뒤, 그 둘레 일은 그 플레이어의
+// region 스레드로 넘긴다(A10-05 — 예전엔 region 마다 따로 돌아 플레이어가 region 수만큼 더 뽑혔다).
 package org.domi.furnace.server.entity.spawn;
 
 import java.util.List;
@@ -26,20 +27,39 @@ public final class PatrolSpawner {
 
     public int nextTick() { return nextTick; }
 
-    /** 낸 순찰대 크기(바닐라 반환값 n: 시도한 칸 수). players: 이 레벨(region)의 플레이어. */
+    /** 한 레벨에서 그 자리에서: 낸 순찰대 크기(바닐라 반환값 n: 시도한 칸 수). players: 바닐라 level.players(). */
     public int tick(ChunkLevel level, List<Player> players, boolean spawnEnemies) {
-        if (!spawnEnemies) return 0;
-        if (!level.gameRule("doPatrolSpawning")) return 0;
-        RandomSource random = level.random();
+        int[] n = {0};
+        tick(CustomSpawnerHost.of(level, players), spawnEnemies, c -> n[0] = c);
+        return n[0];
+    }
+
+    /**
+     * 바닐라 PatrolSpawner.tick: 타이머·날짜·낮·1/5·플레이어 고르기는 host 에서, 그 플레이어 둘레 판정·스폰은 그 플레이어의 레벨에서.
+     * done: 순찰대를 굴린 뒤(그 레벨 스레드) 시도한 칸 수 — null 이면 알리지 않는다.
+     */
+    public void tick(CustomSpawnerHost host, boolean spawnEnemies, java.util.function.IntConsumer done) {
+        if (!spawnEnemies) return;
+        if (!host.gameRule("doPatrolSpawning")) return;
+        RandomSource random = host.random();
         nextTick--;
-        if (nextTick > 0) return 0;
+        if (nextTick > 0) return;
         nextTick += 12000 + random.nextInt(1200);
-        long day = level.dayTime() / 24000L;
-        if (day < 5L || !level.isDay()) return 0;
-        if (random.nextInt(5) != 0) return 0;
+        long day = host.dayTime() / 24000L;
+        if (day < 5L || !host.isDay()) return;
+        if (random.nextInt(5) != 0) return;
+        List<Player> players = host.players();
         int n = players.size();
-        if (n < 1) return 0;
+        if (n < 1) return;
         Player player = players.get(random.nextInt(n));
+        host.atPlayer(player, (level, r) -> {
+            int c = spawnAround(level, player, r);
+            if (done != null) done.accept(c);
+        });
+    }
+
+    /** 고른 플레이어 둘레(바닐라 tick 의 나머지 — 관전자 검사부터). */
+    private int spawnAround(ChunkLevel level, Player player, RandomSource random) {
         if (player.gameMode() == GameMode.SPECTATOR) return 0;
         if (closeToVillage != null ? closeToVillage.test(player.blockPosition()) : level.isCloseToVillage(player.blockPosition(), 2)) return 0;
         int dx = (24 + random.nextInt(24)) * (random.nextBoolean() ? -1 : 1);
