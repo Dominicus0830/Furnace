@@ -155,7 +155,8 @@ public class FallingBlockEntity extends Entity {
     @Override
     protected void afterChangedDimension(String from, String to) {
         boolean end = "minecraft:the_end".equals(from) || "minecraft:the_end".equals(to);
-        forceTickAfterTeleportToDuplicate = end && to != null && !from.equals(to);
+        forceTickAfterTeleportToDuplicate = end && to != null && !from.equals(to)
+                && org.domi.furnace.server.config.OperatorOptions.current().gravityBlockPortalDupe();   // gravity-block-portal-dupe=false 면 복제를 막는다
     }
 
     /**
