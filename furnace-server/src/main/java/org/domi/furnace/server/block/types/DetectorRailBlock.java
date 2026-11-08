@@ -92,7 +92,11 @@ public class DetectorRailBlock extends BaseRailBlock {
             if (!cmd.isEmpty()) return cmd.get(0).successCount();
             // CONTAINER_ENTITY_SELECTOR: 용기이고 살아 있다
             var c = carts(level, pos, org.domi.furnace.server.entity.AbstractMinecartContainer.class, e -> e.isAlive());
-            if (!c.isEmpty()) return c.get(0).redstoneSignal();
+            if (!c.isEmpty()) {
+                var cart = c.get(0);
+                cart.unpackLootTable();   // getRedstoneSignalFromContainer 의 getItem 이 열지 않은 전리품 표를 먼저 푼다
+                return cart.redstoneSignal();
+            }
         }
         return 0;
     }

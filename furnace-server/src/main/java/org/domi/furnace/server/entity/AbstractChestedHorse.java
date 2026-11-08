@@ -39,6 +39,26 @@ public abstract class AbstractChestedHorse extends AbstractHorse {
     @Override
     public int inventoryColumns() { return hasChest() ? 5 : 0; }
 
+    /**
+     * getSlot(499)(horse.chest)의 set: 빈 스택이면 상자를 떼고, 상자면 단다 — 바뀌면 인벤토리를 다시 만든다(줄어든 칸의 물건은 바닐라처럼 사라진다).
+     * 그 밖의 아이템은 거절(false). 엔티티의 region 스레드에서.
+     */
+    public boolean setChestFromSlot(ItemStack s) {
+        if (s.isEmpty()) {
+            if (hasChest()) {
+                setChest(false);
+                createInventory();
+            }
+            return true;
+        }
+        if (!ItemTools.itemName(s).equals("minecraft:chest")) return false;
+        if (!hasChest()) {
+            setChest(true);
+            createInventory();
+        }
+        return true;
+    }
+
     @Override
     protected void dropEquipment() {
         super.dropEquipment();
