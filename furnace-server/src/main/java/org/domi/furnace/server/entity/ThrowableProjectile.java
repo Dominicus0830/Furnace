@@ -19,7 +19,12 @@ public abstract class ThrowableProjectile extends Projectile {
                 new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", defaultItem().replace("minecraft:", "")), 1));
     }
 
-    public void setItem(ItemStack stack) { entityData.set(DATA_ITEM_STACK, stack.withCount(1)); }
+    /** ThrowableItemProjectile.setItem: 빈 스택이면 기본 아이템, 아니면 1개로 줄인다. */
+    public void setItem(ItemStack stack) {
+        entityData.set(DATA_ITEM_STACK, stack.isEmpty()
+                ? new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", defaultItem().replace("minecraft:", "")), 1)
+                : stack.withCount(1));
+    }
 
     public ItemStack getItem() { return (ItemStack) entityData.get(DATA_ITEM_STACK); }
 

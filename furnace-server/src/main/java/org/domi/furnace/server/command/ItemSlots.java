@@ -3,7 +3,7 @@
 // 생물(LivingEntity.getSlot): 98 주손, 99 보조손, 100..103 방어구, 105 몸. 마을 주민·방랑 상인(AbstractVillager.getSlot): 300..307 가방.
 // 용기 엔티티(상자 배·상자/깔때기 수레, ContainerEntity.getChestVehicleSlot): 0..칸 수-1 — 읽고 쓸 때 열지 않은 전리품 표를 먼저 푼다.
 // 말(AbstractHorse.getSlot): 400 안장(빈 것·안장만), 500.. 인벤토리 1.., 상자 단 말(AbstractChestedHorse): 499 상자. 그 밖은 장비.
-// 차이: 약탈자 가방(300..)·아이템 엔티티·아이템 액자·아이템 디스플레이·화살·던진 아이템의 contents(0) 칸은 아직 없다(SlotAccess.NULL 취급).
+// 약탈자 가방 300..304, 아이템 엔티티·액자·디스플레이·화살·던진 아이템은 contents(0) 한 칸.
 // 스레드: 플레이어 칸은 menuLock 안에서, 생물 칸은 그 엔티티를 가진 region 스레드에서 쓴다.
 package org.domi.furnace.server.command;
 
@@ -41,6 +41,27 @@ public final class ItemSlots {
                 };
             }
         }
+        if (r instanceof org.domi.furnace.server.entity.Pillager pl) {
+            int i = slot - 300;
+            if (i >= 0 && i < pl.inventorySize()) {   // SlotAccess.forContainer(inventory, i)
+                return new SlotAccess() {
+                    public ItemStack get() { return pl.inventoryItem(i); }
+
+                    public boolean set(ItemStack s) {
+                        pl.setInventoryItem(i, s);
+                        return true;
+                    }
+                };
+            }
+        }
+        // 아이템 엔티티·아이템 액자·아이템 디스플레이·화살·던진 아이템: 칸 0(contents)만 SlotAccess.of(getItem, setItem)
+        if (slot == 0) {
+            if (r instanceof org.domi.furnace.server.entity.ItemEntity e) return item(e::getItem, e::setItem);
+            if (r instanceof org.domi.furnace.server.entity.ItemFrame f) return item(f::getItem, f::setItem);
+            if (r instanceof org.domi.furnace.server.entity.Display.ItemDisplay d) return item(d::getItem, d::setItem);
+            if (r instanceof org.domi.furnace.server.entity.AbstractArrow a) return item(a::pickupItemStack, a::setPickupItemStack);
+            if (r instanceof org.domi.furnace.server.entity.ThrowableProjectile t) return item(t::getItem, t::setItem);
+        }
         if (r instanceof org.domi.furnace.server.entity.ContainerEntity ce) {
             var c = new org.domi.furnace.server.world.EntityContainer(ce);
             if (slot < 0 || slot >= ce.chestVehicleItems().length) return null;
@@ -70,6 +91,18 @@ public final class ItemSlots {
             };
         }
         return null;
+    }
+
+    /** SlotAccess.of(getter, setter). */
+    private static SlotAccess item(java.util.function.Supplier<ItemStack> g, java.util.function.Consumer<ItemStack> st) {
+        return new SlotAccess() {
+            public ItemStack get() { return g.get(); }
+
+            public boolean set(ItemStack s) {
+                st.accept(s);
+                return true;
+            }
+        };
     }
 
     /** AbstractHorse·AbstractChestedHorse.getSlot: 400 안장, 499 상자(상자 단 말만), 500+i 인벤토리 i+1. 아니면 null(장비로 넘어간다). */
