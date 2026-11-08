@@ -203,6 +203,19 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
                     name.length() <= 2 && !name.equals("<init>"));
         }
 
+        private void methodType(String desc) {
+            Type mt = Type.getMethodType(desc);
+            for (Type t : mt.getArgumentTypes()) if (t.getSort() == Type.OBJECT || t.getSort() == Type.ARRAY) cls(t.getInternalName());
+            Type r = mt.getReturnType();
+            if (r.getSort() == Type.OBJECT || r.getSort() == Type.ARRAY) cls(r.getInternalName());
+        }
+
+        private void handle(Handle h) {
+            boolean field = h.getTag() <= Opcodes.H_PUTSTATIC;
+            member(h.getOwner(), h.getName(), h.getDesc(), field);
+            if (!field) methodType(h.getDesc());
+        }
+
         private void miss(String owner, String label, boolean obf) {
             if (NmsGrades.isGradeC(owner)) counts[1]++;
             else counts[2]++;
@@ -217,7 +230,16 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
                 counts[4]++;
                 return;
             }
-            if (superName != null) cls(superName);
+            // 있는 NMS 클래스라도 상속은 정의 때 거부된다(NmsLinker.visit 와 같은 판정) — 등급 C 로 센다
+            if (superName != null && superName.startsWith("net/minecraft/") && !own.contains(superName) && !otherVersion(superName)
+                    && index.hasClass(superName)) {
+                if (seen.add("S " + name)) {
+                    counts[1]++;
+                    missing.add("상속 " + NmsLinker.dots(name) + " → " + NmsLinker.dots(superName));
+                }
+            } else if (superName != null) {
+                cls(superName);
+            }
             if (interfaces != null) for (String i : interfaces) cls(i);
         }
 
@@ -236,6 +258,8 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
                 @Override
                 public void visitLdcInsn(Object value) {
                     if (value instanceof Type t && (t.getSort() == Type.OBJECT || t.getSort() == Type.ARRAY)) cls(t.getInternalName());
+                    else if (value instanceof Type t && t.getSort() == Type.METHOD) methodType(t.getDescriptor());
+                    else if (value instanceof Handle h) handle(h);
                 }
 
                 @Override
@@ -243,8 +267,11 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
 
                 @Override
                 public void visitInvokeDynamicInsn(String n, String d, Handle bsm, Object... args) {
+                    methodType(d);
                     for (Object a : args) {
-                        if (a instanceof Handle h) member(h.getOwner(), h.getName(), h.getDesc(), h.getTag() <= Opcodes.H_PUTSTATIC);
+                        if (a instanceof Handle h) handle(h);
+                        else if (a instanceof Type t && t.getSort() == Type.METHOD) methodType(t.getDescriptor());
+                        else if (a instanceof Type t && (t.getSort() == Type.OBJECT || t.getSort() == Type.ARRAY)) cls(t.getInternalName());
                     }
                 }
             };

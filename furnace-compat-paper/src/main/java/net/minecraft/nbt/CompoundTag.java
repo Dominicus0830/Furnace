@@ -92,9 +92,31 @@ public class CompoundTag implements Tag {
     public boolean hasUUID(String key) { return tags.get(key) instanceof IntArrayTag a && a.getAsIntArray().length == 4; }
 
     /** int 4개 배열이 아니면 바닐라처럼 IllegalArgumentException. */
+    /** 바닐라 TagType.getName() — 1.21.1 jar 의 각 TagType 익명 클래스 상수로 확인. */
+    static String typeName(byte id) {
+        return switch (id) {
+            case TAG_END -> "END";
+            case TAG_BYTE -> "BYTE";
+            case TAG_SHORT -> "SHORT";
+            case TAG_INT -> "INT";
+            case TAG_LONG -> "LONG";
+            case TAG_FLOAT -> "FLOAT";
+            case TAG_DOUBLE -> "DOUBLE";
+            case TAG_BYTE_ARRAY -> "BYTE[]";
+            case TAG_STRING -> "STRING";
+            case TAG_LIST -> "LIST";
+            case TAG_COMPOUND -> "COMPOUND";
+            case TAG_INT_ARRAY -> "INT[]";
+            case TAG_LONG_ARRAY -> "LONG[]";
+            default -> "UNKNOWN_" + id;
+        };
+    }
+
     public UUID getUUID(String key) {
         Tag t = tags.get(key);
-        if (!(t instanceof IntArrayTag a)) throw new IllegalArgumentException("Expected UUID-Tag to be of type " + IntArrayTag.class.getSimpleName() + ", but found " + (t == null ? "null" : t.getClass().getSimpleName()) + ".");
+        // 바닐라 NbtUtils.loadUUID: 키가 없으면 NPE(tag.getType()), 종류 이름은 TagType.getName()("INT[]" 등) — 1.21.1 jar uq 로 확인
+        if (t == null) throw new NullPointerException();
+        if (!(t instanceof IntArrayTag a)) throw new IllegalArgumentException("Expected UUID-Tag to be of type INT[], but found " + typeName(t.getId()) + ".");
         int[] v = a.getAsIntArray();
         if (v.length != 4) throw new IllegalArgumentException("Expected UUID-Array to be of length 4, but found " + v.length + ".");
         return new UUID((long) v[0] << 32 | (long) v[1] & 4294967295L, (long) v[2] << 32 | (long) v[3] & 4294967295L);

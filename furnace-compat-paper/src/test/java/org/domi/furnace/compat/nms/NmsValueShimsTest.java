@@ -135,6 +135,9 @@ class NmsValueShimsTest {
         assertEquals("", t.getString("n"), "문자열 아닌 값의 getString 은 빈 문자열");
         assertTrue(t.getBoolean("b"));
         assertEquals(id, t.getUUID("id"));
+        var bad = assertThrows(IllegalArgumentException.class, () -> t.getUUID("n"));
+        assertEquals("Expected UUID-Tag to be of type INT[], but found INT.", bad.getMessage(), "바닐라 NbtUtils.loadUUID 문구(TagType 이름)");
+        assertThrows(NullPointerException.class, () -> t.getUUID("missing"), "바닐라처럼 없는 키는 NPE");
         assertEquals(2, t.getList("l", Tag.TAG_STRING).size());
         assertEquals(0, t.getList("l", Tag.TAG_INT).size(), "다른 원소 종류로 읽으면 빈 목록");
         assertEquals(1.5, t.getCompound("c").getDouble("d"));

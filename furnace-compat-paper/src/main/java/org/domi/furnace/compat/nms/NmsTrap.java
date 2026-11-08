@@ -6,8 +6,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 변환된 플러그인 바이트코드가 shim 에 없는 NMS 심볼 자리에서 부르는 덫(설계 H5 5.1). 그 호출이 <b>실행될 때만</b> 던지므로
- * 그 기능을 안 쓰는 플러그인은 멀쩡히 돈다. 같은 (플러그인, 대상)은 첫 번째만 WARN, 나머지는 DEBUG.
+ * 변환된 플러그인 바이트코드가 shim 에 없는 NMS 심볼 자리에서 부르는 덫(설계 H5 5.1, H7a). 그 호출이 <b>실행될 때만</b> 던지므로
+ * 그 기능을 안 쓰는 플러그인은 멀쩡히 돈다. 던지는 것은 JVM 이 냈을 링크 오류의 하위({@link UnsupportedNmsLink}) — 기능 감지가 깨지지 않는다.
+ * 같은 (플러그인, 대상)은 첫 번째만 WARN, 나머지는 DEBUG.
  */
 public final class NmsTrap {
 
@@ -23,15 +24,28 @@ public final class NmsTrap {
      * @param site   호출 위치(클래스#메서드:줄)
      * @param target 대상 심볼(점 이름, 예: net.minecraft.world.level.chunk.LevelChunk#getFluidState(..))
      * @param why    이유·대체(등급 문구)
+     * @param kind   {@link UnsupportedNmsLink#CLASS}·{@code METHOD}·{@code FIELD}
      */
-    public static void call(String plugin, String site, String target, String why) {
-        UnsupportedNmsCall e = new UnsupportedNmsCall(target, why + " (플러그인=" + plugin + ", 호출 위치=" + site + ")");
+    public static void call(String plugin, String site, String target, String why, int kind) {
+        Error e = UnsupportedNmsLink.of(kind, target,
+                "Furnace NMS shim 에 없다: " + target + " — " + why + " (플러그인=" + plugin + ", 호출 위치=" + site + ")");
         if (WARNED.add(plugin + '\0' + target)) {
             LOG.warn("미지원 NMS 호출: 플러그인={}, 호출 위치={}, 대상={} — {} (같은 대상의 다음 호출은 DEBUG)", plugin, site, target, why);
         } else {
             LOG.debug("미지원 NMS 호출: 플러그인={}, 호출 위치={}, 대상={}", plugin, site, target);
         }
         throw e;
+    }
+
+    /** 없는 클래스로의 {@code checkcast}: JVM 처럼 null 은 클래스를 찾지 않고 통과한다(호출 뒤에 aconst_null 이 결과 자리를 채운다). */
+    public static void castNull(Object value, String plugin, String site, String target, String why) {
+        if (value != null) call(plugin, site, target, why, UnsupportedNmsLink.CLASS);
+    }
+
+    /** 없는 클래스로의 {@code instanceof}: JVM 처럼 null 은 false(0), 아니면 덫. */
+    public static int instanceOfNull(Object value, String plugin, String site, String target, String why) {
+        if (value != null) call(plugin, site, target, why, UnsupportedNmsLink.CLASS);
+        return 0;
     }
 
     /** 시험용: 경고 기록을 지운다. */

@@ -25,7 +25,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * H7a: shim 에 없는 NMS 심볼을 가리키는 바이트코드가 클래스 정의·검증을 통과하고, 그 명령이 <b>실행될 때만</b> 그 자리에서
- * {@link UnsupportedNmsCall} 을 던지는지. 플러그인 코드는 시험 안에서 실제 NMS 모양 스텁에 대고 컴파일하고, 스텁은 jar 에서 뺀다
+ * JVM 과 같은 종류의 링크 오류({@link UnsupportedNmsLink}: NoSuchMethodError·NoSuchFieldError·NoClassDefFoundError 하위)를 던지는지. 플러그인 코드는 시험 안에서 실제 NMS 모양 스텁에 대고 컴파일하고, 스텁은 jar 에서 뺀다
  * (실제 Paper 용 플러그인 jar 와 같은 모양 — 서버에 그 심볼이 없다). 변환기를 빼면 같은 코드가 NoSuchMethodError·NoClassDefFoundError 다.
  */
 class NmsLinkerTest {
@@ -90,6 +90,9 @@ class NmsLinkerTest {
                 public static Object presentStaticField() { return net.minecraft.world.item.ItemStack.EMPTY; }
                 public static Object[] missingArray() { return new LevelChunk[3]; }
                 public static String untouched() { return "ok"; }
+                public static long detect(ServerLevel l) { try { return l.mixed(1L, 2.0, 3); } catch (NoSuchMethodError e) { return -1L; } }
+                public static long detectLinkage(ServerLevel l) { try { return l.instanceCounter; } catch (LinkageError e) { return -2L; } }
+                public static Object missingLambdaType() { java.util.function.Function<LevelChunk, String> f = z -> "x"; return f; }
             }
             """;
 
@@ -186,9 +189,10 @@ class NmsLinkerTest {
         throw new AssertionError("no method " + name);
     }
 
-    private static UnsupportedNmsCall trapped(Class<?> c, String name, Object... args) {
+    private static Error trapped(Class<?> c, String name, Object... args) {
         Throwable t = assertThrows(Throwable.class, () -> call(c, name, args));
-        return assertInstanceOf(UnsupportedNmsCall.class, t, () -> name + " 이 덫 대신 " + t + " 를 던졌다");
+        assertInstanceOf(UnsupportedNmsLink.class, t, () -> name + " 이 덫 대신 " + t + " 를 던졌다");
+        return (Error) t;
     }
 
     private static net.minecraft.server.level.ServerLevel level() { return null; }
@@ -204,28 +208,46 @@ class NmsLinkerTest {
     @Test
     void missingMembersThrowAtTheCallSiteWithPluginSiteAndTarget() throws Throwable {
         Class<?> c = user(true);
-        UnsupportedNmsCall e = trapped(c, "missingMethod", level());
+        Error e = trapped(c, "missingMethod", level());
+        assertInstanceOf(NoSuchMethodError.class, e, "JVM 과 같은 종류");
         assertTrue(e.getMessage().contains("net.minecraft.server.level.ServerLevel#getChunkAt(BlockPos)"), e.getMessage());
         assertTrue(e.getMessage().contains("플러그인=Linky"), e.getMessage());
         assertTrue(e.getMessage().contains("호출 위치=linky.User#missingMethod:7"), e.getMessage());
         // 2칸 인자(long·double)와 2칸 반환값도 스택이 맞는다(검증 통과)
         assertTrue(trapped(c, "missingWide", level()).getMessage().contains("#mixed(long, double, int)"));
-        assertTrue(trapped(c, "missingStaticField").getMessage().contains("MinecraftServer#currentTick"));
+        Error f = trapped(c, "missingStaticField");
+        assertInstanceOf(NoSuchFieldError.class, f);
+        assertTrue(f.getMessage().contains("MinecraftServer#currentTick"));
         trapped(c, "missingPutStatic");
         trapped(c, "missingField", level());
         trapped(c, "missingPutField", level());
     }
 
     @Test
+    void featureDetectionByCatchingLinkageErrorsStillTakesTheFallback() throws Throwable {
+        // 여러 버전 플러그인: try { 새 메서드 } catch (NoSuchMethodError) { 옛 경로 } — 변환 없을 때(JVM)와 같은 결과
+        assertEquals(-1L, call(user(false), "detect", level()));
+        assertEquals(-1L, call(user(true), "detect", level()));
+        assertEquals(-2L, call(user(true), "detectLinkage", level()));
+    }
+
+    @Test
     void missingClassesAndConstructorsThrowWhenReached() throws Throwable {
         Class<?> c = user(true);
-        UnsupportedNmsCall chunk = trapped(c, "missingClassNew");
+        Error chunk = trapped(c, "missingClassNew");
+        assertInstanceOf(NoClassDefFoundError.class, chunk);
         assertTrue(chunk.getMessage().contains("net.minecraft.world.level.chunk.LevelChunk"), chunk.getMessage());
         assertTrue(chunk.getMessage().contains("등급 C"), "청크 내부는 등급 C 이유를 단다: " + chunk.getMessage());
         // 있는 클래스의 없는 생성자 — 인자 계산 중 분기(미초기화 값이 프레임에 걸린다)가 있어도 검증을 통과한다
-        assertTrue(trapped(c, "missingCtor", true).getMessage().contains("ItemStack#<init>(String)"));
+        Error ctor = trapped(c, "missingCtor", true);
+        assertInstanceOf(NoSuchMethodError.class, ctor);
+        assertTrue(ctor.getMessage().contains("ItemStack#<init>(String)"));
         trapped(c, "missingInstanceof", "x");
-        trapped(c, "missingCast", (Object) null);
+        trapped(c, "missingCast", "x");
+        // JVM 처럼 null 은 없는 클래스를 찾지 않고 통과한다
+        assertNull(call(c, "missingCast", (Object) null));
+        assertEquals(false, call(c, "missingInstanceof", (Object) null));
+        assertNull(call(user(false), "missingCast", (Object) null), "변환 없을 때도 같다");
         trapped(c, "missingLdc");
         trapped(c, "missingArray");
     }
@@ -236,9 +258,12 @@ class NmsLinkerTest {
         // 람다 본문은 만들 때가 아니라 부를 때 덫에 걸린다
         Object s = call(c, "missingMethodRef", level());
         assertInstanceOf(java.util.function.Supplier.class, s);
-        assertThrows(UnsupportedNmsCall.class, ((java.util.function.Supplier<?>) s)::get);
+        assertThrows(NoSuchMethodError.class, ((java.util.function.Supplier<?>) s)::get);
         // 없는 메서드를 가리키는 메서드 참조(invokedynamic 핸들)는 그 자리에서
         trapped(c, "missingUnboundRef");
+        // 람다 서술자에 없는 클래스(instantiatedMethodType) — JVM 은 링크 때 NoClassDefFoundError
+        assertInstanceOf(NoClassDefFoundError.class, trapped(c, "missingLambdaType"));
+        assertThrows(NoClassDefFoundError.class, () -> call(user(false), "missingLambdaType"));
     }
 
     @Test
@@ -289,6 +314,17 @@ class NmsLinkerTest {
         assertEquals(r.present() + r.gradeC() + r.unknown(), r.symbols());
         assertEquals(List.copyOf(new java.util.TreeSet<>(r.missing())), r.missing(), "정렬");
         assertNull(r.ownClasses().stream().filter(n -> n.startsWith("net/")).findFirst().orElse(null), "스텁은 jar 에 없다");
+    }
+
+    @Test
+    void reportCountsNmsSubclassingAsGradeCSoStrictRefusesBeforeLoading() throws IOException {
+        Path jar = JarCompiler.jar(tmp.resolve("sub.jar"), "name: S\nversion: '1'\nmain: linky.MyEntity\n",
+                Map.of("linky.MyEntity", SUB), Set.of("net.minecraft."));
+        NmsCompatReport r = NmsCompatReport.scan("S", jar, NmsSymbols.RUNTIME);
+        assertTrue(r.missing().contains("상속 linky.MyEntity → net.minecraft.world.entity.LivingEntity"), r.missing().toString());
+        assertEquals(1, r.gradeC());
+        assertThrows(UnsupportedNmsCall.class, () -> NmsClassTransformer.forJar("S", jar, new NmsClassTransformer.Options(true, false)),
+                "strict 는 정의 거부될 클래스가 있는 jar 를 로드 전에 거절한다");
     }
 
     @Test

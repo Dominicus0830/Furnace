@@ -30,6 +30,8 @@ import org.objectweb.asm.tree.TypeInsnNode;
 
 /**
  * shim 에 없는 NMS·CraftBukkit 심볼을 가리키는 명령을 그 자리의 {@link NmsTrap#call} 로 바꾼다(설계 H5 5.1, H7a).
+ * 덫은 JVM 이 냈을 링크 오류 종류({@link UnsupportedNmsLink})를 던진다. 없는 클래스로의 {@code checkcast}·{@code instanceof} 는
+ * JVM 처럼 값이 null 이면 통과한다({@link NmsTrap#castNull}·{@link NmsTrap#instanceOfNull} — 분기가 없어 프레임은 그대로다).
  *
  * <p>바꾸는 법: 원래 명령이 스택에서 꺼낼 값(인자·받는 객체)을 pop 으로 비우고, 덫을 부른 뒤, 원래 명령이 남길 값 자리에 기본값
  * (null·0)을 넣는다. 그래서 그 지점 뒤의 스택 모양이 원래와 같고 스택 맵 프레임을 다시 계산할 필요가 없다(덫이 늘 던지므로 기본값은
@@ -78,11 +80,22 @@ final class NmsLinker extends ClassVisitor {
         super.visit(version, access, name, signature, superName, interfaces);
     }
 
+    private static final java.util.Set<String> REFUSAL_WARNED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     private UnsupportedNmsCall refusal(String cls, String parent, String why) {
         String target = "상속 " + dots(cls) + " → " + dots(parent);
-        org.slf4j.LoggerFactory.getLogger("Furnace").warn("플러그인 {}: 클래스 {} 를 정의하지 않는다 — {} 를 상속한다: {}", plugin, dots(cls), dots(parent), why);
+        // 정의 거부는 LinkageError 가 아니라 JVM 이 실패를 기억하지 않는다 — 다시 가리킬 때마다 오므로 WARN 은 (플러그인, 클래스)당 한 번
+        var log = org.slf4j.LoggerFactory.getLogger("Furnace");
+        if (REFUSAL_WARNED.add(plugin + '\0' + cls)) {
+            log.warn("플러그인 {}: 클래스 {} 를 정의하지 않는다 — {} 를 상속한다: {}", plugin, dots(cls), dots(parent), why);
+        } else {
+            log.debug("플러그인 {}: 클래스 {} 정의 거부(다시)", plugin, dots(cls));
+        }
         return new UnsupportedNmsCall(target, why + " (플러그인=" + plugin + ")");
     }
+
+    /** 시험용. */
+    static void resetRefusalWarnings() { REFUSAL_WARNED.clear(); }
 
     @Override
     public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
@@ -124,8 +137,12 @@ final class NmsLinker extends ClassVisitor {
                     if (!missingClass(t.desc)) break;
                     String target = dots(NmsSymbols.element(t.desc));
                     String why = NmsGrades.reason(t.desc);
-                    Type pushes = t.getOpcode() == Opcodes.INSTANCEOF ? Type.INT_TYPE : Type.getObjectType("java/lang/Object");
-                    edits.add(() -> replace(code, at, popsFor(t.getOpcode()), site, target, why, pushes));
+                    switch (t.getOpcode()) {
+                        case Opcodes.CHECKCAST -> edits.add(() -> nullPass(code, at, site, target, why, false));
+                        case Opcodes.INSTANCEOF -> edits.add(() -> nullPass(code, at, site, target, why, true));
+                        default -> edits.add(() -> replace(code, at, List.of(Type.INT_TYPE), site, target, why, CLASS,
+                                Type.getObjectType("java/lang/Object")));   // ANEWARRAY: 개수 하나
+                    }
                     any = true;
                 }
                 case MethodInsnNode m -> {
@@ -136,7 +153,7 @@ final class NmsLinker extends ClassVisitor {
                         }
                         if (matched != null) pendingNew.removeFirstOccurrence(matched);
                     }
-                    String target = missingMethod(m.owner, m.name, m.desc);
+                    Miss target = missingMethod(m.owner, m.name, m.desc);
                     if (target == null) break;
                     if (m.getOpcode() == Opcodes.INVOKESPECIAL && m.name.equals("<init>")) {
                         if (matched == null) break;   // 상위 생성자 호출 — NMS 상속은 visit 에서 이미 막았다
@@ -146,11 +163,11 @@ final class NmsLinker extends ClassVisitor {
                     if (m.getOpcode() != Opcodes.INVOKESTATIC) pops.addFirst(Type.getObjectType("java/lang/Object"));
                     Type ret = m.name.equals("<init>") ? Type.VOID_TYPE : Type.getReturnType(m.desc);
                     String why = NmsGrades.reason(m.owner);
-                    edits.add(() -> replace(code, at, pops, site, target, why, ret));
+                    edits.add(() -> replace(code, at, pops, site, target.target(), why, target.kind(), ret));
                     any = true;
                 }
                 case FieldInsnNode f -> {
-                    String target = missingField(f.owner, f.name, f.desc);
+                    Miss target = missingField(f.owner, f.name, f.desc);
                     if (target == null) break;
                     Type ft = Type.getType(f.desc);
                     List<Type> pops = new ArrayList<>();
@@ -163,14 +180,28 @@ final class NmsLinker extends ClassVisitor {
                     }
                     String why = NmsGrades.reason(f.owner);
                     Type r = ret;
-                    edits.add(() -> replace(code, at, pops, site, target, why, r));
+                    edits.add(() -> replace(code, at, pops, site, target.target(), why, target.kind(), r));
                     any = true;
                 }
                 case LdcInsnNode l when l.cst instanceof Type ty && (ty.getSort() == Type.OBJECT || ty.getSort() == Type.ARRAY) -> {
                     if (!missingClass(ty.getInternalName())) break;
                     String target = dots(NmsSymbols.element(ty.getInternalName()));
                     String why = NmsGrades.reason(ty.getInternalName());
-                    edits.add(() -> replace(code, at, List.of(), site, target, why, Type.getObjectType("java/lang/Class")));
+                    edits.add(() -> replace(code, at, List.of(), site, target, why, CLASS, Type.getObjectType("java/lang/Class")));
+                    any = true;
+                }
+                case LdcInsnNode l when l.cst instanceof Type ty && ty.getSort() == Type.METHOD -> {
+                    Miss miss = missingInMethodType(ty.getDescriptor());
+                    if (miss == null) break;
+                    edits.add(() -> replace(code, at, List.of(), site, miss.target(), NmsGrades.reason(miss.owner()), CLASS,
+                            Type.getObjectType("java/lang/invoke/MethodType")));
+                    any = true;
+                }
+                case LdcInsnNode l when l.cst instanceof Handle h -> {
+                    Miss miss = missingInHandle(h);
+                    if (miss == null) break;
+                    edits.add(() -> replace(code, at, List.of(), site, miss.target(), NmsGrades.reason(miss.owner()), miss.kind(),
+                            Type.getObjectType("java/lang/invoke/MethodHandle")));
                     any = true;
                 }
                 case MultiANewArrayInsnNode a -> {
@@ -179,27 +210,25 @@ final class NmsLinker extends ClassVisitor {
                     for (int i = 0; i < a.dims; i++) pops.add(Type.INT_TYPE);
                     String target = dots(NmsSymbols.element(a.desc));
                     String why = NmsGrades.reason(a.desc);
-                    edits.add(() -> replace(code, at, pops, site, target, why, Type.getObjectType("java/lang/Object")));
+                    edits.add(() -> replace(code, at, pops, site, target, why, CLASS, Type.getObjectType("java/lang/Object")));
                     any = true;
                 }
                 case InvokeDynamicInsnNode d -> {
-                    String target = null;
-                    String why = null;
+                    // 호출 자리 서술자·부트스트랩 인자(메서드 핸들·MethodType)가 가리키는 없는 클래스·멤버 — JVM 은 링크 때 그것들을 해석한다
+                    Miss miss = missingInMethodType(d.desc);
                     for (Object arg : d.bsmArgs) {
-                        if (!(arg instanceof Handle h)) continue;
-                        String t = h.getTag() <= Opcodes.H_PUTSTATIC ? missingField(h.getOwner(), h.getName(), h.getDesc())
-                                : missingMethod(h.getOwner(), h.getName(), h.getDesc());
-                        if (t != null) {
-                            target = t;
-                            why = NmsGrades.reason(h.getOwner());
-                            break;
+                        if (miss != null) break;
+                        if (arg instanceof Handle h) miss = missingInHandle(h);
+                        else if (arg instanceof Type ty && ty.getSort() == Type.METHOD) miss = missingInMethodType(ty.getDescriptor());
+                        else if (arg instanceof Type ty && (ty.getSort() == Type.OBJECT || ty.getSort() == Type.ARRAY) && missingClass(ty.getInternalName())) {
+                            miss = new Miss(dots(NmsSymbols.element(ty.getInternalName())), CLASS, ty.getInternalName());
                         }
                     }
-                    if (target == null) break;
+                    if (miss == null) break;
                     List<Type> pops = List.of(Type.getArgumentTypes(d.desc));
                     Type ret = Type.getReturnType(d.desc);
-                    String tg = target, w = why;
-                    edits.add(() -> replace(code, at, pops, site, tg, w, ret));
+                    Miss m = miss;
+                    edits.add(() -> replace(code, at, pops, site, m.target(), NmsGrades.reason(m.owner()), m.kind(), ret));
                     any = true;
                 }
                 default -> { }
@@ -215,7 +244,7 @@ final class NmsLinker extends ClassVisitor {
                 if (p instanceof LabelNode l) nulled.add(l);
             }
             InsnList rep = new InsnList();
-            if (e.getValue()) emitTrap(rep, siteOfNew + lineOf(n), dots(n.desc), NmsGrades.reason(n.desc));
+            if (e.getValue()) emitTrap(rep, siteOfNew + lineOf(n), dots(n.desc), NmsGrades.reason(n.desc), CLASS);
             rep.add(new InsnNode(Opcodes.ACONST_NULL));
             code.insertBefore(n, rep);
             code.remove(n);
@@ -246,18 +275,33 @@ final class NmsLinker extends ClassVisitor {
         }
     }
 
-    private static List<Type> popsFor(int opcode) {
-        return switch (opcode) {
-            case Opcodes.ANEWARRAY -> List.of(Type.INT_TYPE);
-            default -> List.of(Type.getObjectType("java/lang/Object"));   // CHECKCAST·INSTANCEOF: 객체 하나
-        };
+    private static final int CLASS = UnsupportedNmsLink.CLASS;
+
+    /** 없는 클래스 판정 결과: 대상 이름, 덫 종류({@link UnsupportedNmsLink}), 이유를 고를 소유 클래스. */
+    private record Miss(String target, int kind, String owner) {}
+
+    /**
+     * checkcast·instanceof 를 [값 그대로 두고 문자열 4개, 정적 호출] 로 바꾼다. checkcast 는 뒤에 aconst_null(결과 자리), instanceof 는
+     * 호출이 int 를 돌려준다. 분기가 없어 스택 맵 프레임을 고칠 필요가 없다.
+     */
+    private void nullPass(InsnList code, AbstractInsnNode at, String site, String target, String why, boolean instanceOf) {
+        InsnList rep = new InsnList();
+        rep.add(new LdcInsnNode(plugin));
+        rep.add(new LdcInsnNode(site));
+        rep.add(new LdcInsnNode(target));
+        rep.add(new LdcInsnNode(why));
+        String d = "(Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)" + (instanceOf ? "I" : "V");
+        rep.add(new MethodInsnNode(Opcodes.INVOKESTATIC, Type.getInternalName(NmsTrap.class), instanceOf ? "instanceOfNull" : "castNull", d, false));
+        if (!instanceOf) rep.add(new InsnNode(Opcodes.ACONST_NULL));
+        code.insertBefore(at, rep);
+        code.remove(at);
     }
 
     /** at 을 [pops 비우기, 덫, 기본값 넣기] 로 바꾼다. pops 는 스택 아래→위 순서. */
-    private void replace(InsnList code, AbstractInsnNode at, List<Type> pops, String site, String target, String why, Type push) {
+    private void replace(InsnList code, AbstractInsnNode at, List<Type> pops, String site, String target, String why, int kind, Type push) {
         InsnList rep = new InsnList();
         for (int i = pops.size() - 1; i >= 0; i--) rep.add(new InsnNode(pops.get(i).getSize() == 2 ? Opcodes.POP2 : Opcodes.POP));
-        emitTrap(rep, site, target, why);
+        emitTrap(rep, site, target, why, kind);
         switch (push.getSort()) {
             case Type.VOID -> { }
             case Type.BOOLEAN, Type.CHAR, Type.BYTE, Type.SHORT, Type.INT -> rep.add(new InsnNode(Opcodes.ICONST_0));
@@ -270,13 +314,14 @@ final class NmsLinker extends ClassVisitor {
         code.remove(at);
     }
 
-    private void emitTrap(InsnList rep, String site, String target, String why) {
+    private void emitTrap(InsnList rep, String site, String target, String why, int kind) {
         rep.add(new LdcInsnNode(plugin));
         rep.add(new LdcInsnNode(site));
         rep.add(new LdcInsnNode(target));
         rep.add(new LdcInsnNode(why));
+        rep.add(new InsnNode(Opcodes.ICONST_0 + kind));
         rep.add(new MethodInsnNode(Opcodes.INVOKESTATIC, Type.getInternalName(NmsTrap.class), "call",
-                "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V", false));
+                "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V", false));
     }
 
     // ------------------------------------------------------------------ 판정
@@ -290,21 +335,49 @@ final class NmsLinker extends ClassVisitor {
         return judged(internalName) && !symbols.hasClass(internalName);
     }
 
-    /** 없으면 대상 이름, 있으면(또는 판정 대상 아님) null. */
-    private String missingMethod(String owner, String name, String desc) {
+    /** 없으면 판정 결과, 있으면(또는 판정 대상 아님) null. 소유 클래스가 없으면 JVM 처럼 클래스 없음 종류. */
+    private Miss missingMethod(String owner, String name, String desc) {
         if (!judged(owner)) return null;
-        if (!symbols.hasClass(owner)) return dots(NmsSymbols.element(owner));
+        if (!symbols.hasClass(owner)) return new Miss(dots(NmsSymbols.element(owner)), CLASS, owner);
         if (symbols.hasMethod(owner, name, desc)) return null;
         StringJoiner args = new StringJoiner(", ", "(", ")");
         for (Type t : Type.getArgumentTypes(desc)) args.add(simple(t.getClassName()));
-        return dots(owner) + "#" + name + args;
+        return new Miss(dots(owner) + "#" + name + args, UnsupportedNmsLink.METHOD, owner);
     }
 
-    private String missingField(String owner, String name, String desc) {
+    private Miss missingField(String owner, String name, String desc) {
         if (!judged(owner)) return null;
-        if (!symbols.hasClass(owner)) return dots(NmsSymbols.element(owner));
+        if (!symbols.hasClass(owner)) return new Miss(dots(NmsSymbols.element(owner)), CLASS, owner);
         if (symbols.hasField(owner, name, desc)) return null;
-        return dots(owner) + "#" + name + " : " + simple(Type.getType(desc).getClassName());
+        return new Miss(dots(owner) + "#" + name + " : " + simple(Type.getType(desc).getClassName()), UnsupportedNmsLink.FIELD, owner);
+    }
+
+    /** 메서드 서술자의 인자·반환형 중 없는 클래스. */
+    private Miss missingInMethodType(String methodDesc) {
+        Type mt = Type.getMethodType(methodDesc);
+        List<Type> types = new ArrayList<>(List.of(mt.getArgumentTypes()));
+        types.add(mt.getReturnType());
+        for (Type t : types) {
+            if ((t.getSort() == Type.OBJECT || t.getSort() == Type.ARRAY) && missingClass(t.getInternalName())) {
+                return new Miss(dots(NmsSymbols.element(t.getInternalName())), CLASS, t.getInternalName());
+            }
+        }
+        return null;
+    }
+
+    /** 메서드 핸들 상수: 멤버가 없거나, 그 서술자에 없는 클래스가 있으면. */
+    private Miss missingInHandle(Handle h) {
+        Miss m = h.getTag() <= Opcodes.H_PUTSTATIC ? missingField(h.getOwner(), h.getName(), h.getDesc())
+                : missingMethod(h.getOwner(), h.getName(), h.getDesc());
+        if (m != null) return m;
+        if (h.getTag() <= Opcodes.H_PUTSTATIC) {
+            Type ft = Type.getType(h.getDesc());
+            if ((ft.getSort() == Type.OBJECT || ft.getSort() == Type.ARRAY) && missingClass(ft.getInternalName())) {
+                return new Miss(dots(NmsSymbols.element(ft.getInternalName())), CLASS, ft.getInternalName());
+            }
+            return null;
+        }
+        return missingInMethodType(h.getDesc());
     }
 
     private static String simple(String className) {

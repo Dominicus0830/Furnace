@@ -30,7 +30,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.LoggerFactory;
 
 /**
- * H7: 실제 플러그인 클래스로더를 거쳐 — 미지원 NMS 호출이 그 호출 위치에서만 UnsupportedNmsCall 이 되고 나머지는 도는지, 로드 보고·strict·
+ * H7: 실제 플러그인 클래스로더를 거쳐 — 미지원 NMS 호출이 그 호출 위치에서만 링크 오류(UnsupportedNmsLink)가 되고 나머지는 도는지, 로드 보고·strict·
  * version-package 옵션, NMS 클래스 상속 거부, {@code player.connection.send(packet)} 와 데이터 컴포넌트 shim.
  */
 class NmsH7PluginTest {
@@ -157,7 +157,8 @@ class NmsH7PluginTest {
         try (FurnaceTestServer server = start(FurnaceTestServer.builder())) {
             assertEquals(Boolean.TRUE, NmsProbe.get("enabled"), "미지원 호출이 있어도 플러그인은 켜진다");
             Object missing = NmsProbe.get("missing.static");
-            assertTrue(missing instanceof UnsupportedNmsCall u && u.getMessage().contains("ServerLevel#nopeStatic"), String.valueOf(missing));
+            assertTrue(missing instanceof NoSuchMethodError u && u instanceof org.domi.furnace.compat.nms.UnsupportedNmsLink
+                    && u.getMessage().contains("ServerLevel#nopeStatic"), "JVM 과 같은 종류의 링크 오류: " + missing);
             assertTrue(NmsProbe.get("reflect.class") instanceof ClassNotFoundException, String.valueOf(NmsProbe.get("reflect.class")));
             assertTrue(NmsProbe.get("reflect.field") instanceof NoSuchFieldException, "리플렉션 실패는 원래 예외 그대로");
             assertEquals("org.bukkit.craftbukkit.CraftServer", NmsProbe.get("server.class"));
