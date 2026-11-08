@@ -163,19 +163,25 @@ public final class CraftServer implements Server {
 
     /**
      * 옛 방식 명령이면 Bukkit 처럼 지금 스레드가 주 스레드일 때 바로 실행해 알리고(예외는 CommandException), 아니면 Furnace 명령 큐에 넣는다.
-     * 큐에 넣은 명령은 결과를 알 수 없어 트리에 있는 이름이면 true 다. 트리 루트에 없는 이름(없는 명령)이면 Paper·Spigot 처럼 false 를 돌려주고,
-     * 보낸 사람에게는 바닐라의 "알 수 없는 명령" 오류 문장이 간다(Paper 1.21.1: Brigadier 파싱 실패 문장).
+     * 바닐라·Furnace 명령은 Paper 1.21.1 의 VanillaCommandWrapper 처럼 "이름 + 빈 칸 하나로 이은 인자" 로 다시 만들어 보낸다(빈 칸 규칙 통일, 이름 소문자).
+     * 트리에 있는 이름이면 true, 없는 이름이면 false 이고 보낸 사람에게는 바닐라 오류 문장이 간다.
+     * 앞의 '/' 는 떼지 않는다(Paper 와 같다): "/say hi" 는 없는 이름이라 false, 플러그인이 "/wand" 로 등록한 명령(WorldEdit 의 //wand)은 돈다.
      */
     @Override
     public boolean dispatchCommand(CommandSender sender, String commandLine) {
-        String line = commandLine.startsWith("/") ? commandLine.substring(1) : commandLine;
-        if (Compat.commandMap().dispatch(sender, line)) return true;
-        String[] tokens = org.domi.furnace.compat.command.LegacyCommands.splitLine(line);
+        if (Compat.commandMap().dispatch(sender, commandLine)) return true;
+        String[] tokens = org.domi.furnace.compat.command.LegacyCommands.splitLine(commandLine);
         if (tokens.length == 0) return false;
         var commands = f().commands();
-        boolean known = commands.hasCommand(tokens[0]) || commands.hasCommand(tokens[0].toLowerCase(java.util.Locale.ROOT));
-        f().dispatchCommand(Compat.furnaceSender(sender), line.stripLeading());   // 앞 빈 칸은 Paper 의 지도 길처럼 무시한다
-        return known;
+        String name = commands.hasCommand(tokens[0]) ? tokens[0] : tokens[0].toLowerCase(java.util.Locale.ROOT);
+        if (!commands.hasCommand(name)) {
+            // 없는 이름: 바닐라 오류 문장만 나오게 보낸다. 서버 쪽은 앞 '/' 를 하나 떼므로 하나 더 붙여 원래 줄이 그대로 파싱되게 한다
+            f().dispatchCommand(Compat.furnaceSender(sender), "/" + commandLine.stripLeading());
+            return false;
+        }
+        String line = tokens.length == 1 ? name : name + " " + String.join(" ", java.util.Arrays.copyOfRange(tokens, 1, tokens.length));
+        f().dispatchCommand(Compat.furnaceSender(sender), line);
+        return true;
     }
 
     @Override

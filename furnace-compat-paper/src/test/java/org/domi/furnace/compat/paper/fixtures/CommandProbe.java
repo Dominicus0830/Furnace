@@ -11,6 +11,8 @@ public final class CommandProbe {
     public static volatile boolean cancelSign;
     /** 비어 있지 않으면 표지판 명령 이벤트의 메시지를 이걸로 바꾼다. */
     public static volatile String rewriteSign;
+    /** 채팅으로 친 명령을 PlayerCommandPreprocessEvent 에서 취소할지. */
+    public static volatile boolean cancelChat;
 
     private CommandProbe() {}
 
@@ -18,5 +20,6 @@ public final class CommandProbe {
         LOG.clear();
         cancelSign = false;
         rewriteSign = null;
+        cancelChat = false;
     }
 }

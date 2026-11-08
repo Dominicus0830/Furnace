@@ -51,11 +51,18 @@ class CommandParityTest {
                             return true;
                         }
                     });
+                    getServer().getCommandMap().register("parity", new Command("/wand") {
+                        @Override public boolean execute(CommandSender s, String l, String[] a) {
+                            CommandProbe.LOG.add("wand:" + l + "|" + String.join("|", a));
+                            return true;
+                        }
+                    });
                     getServer().getPluginManager().registerEvents(this, this);
                 }
                 @EventHandler(priority = EventPriority.LOW)
                 public void onAnyCommand(PlayerCommandPreprocessEvent e) {
                     CommandProbe.LOG.add("pre:" + e.getClass().getSimpleName() + "|" + e.getMessage());
+                    if (CommandProbe.cancelChat && !(e instanceof PlayerSignCommandPreprocessEvent)) e.setCancelled(true);
                 }
                 @EventHandler(priority = EventPriority.NORMAL)
                 public void onSign(PlayerSignCommandPreprocessEvent e) {
@@ -106,7 +113,6 @@ class CommandParityTest {
         try (FurnaceTestServer server = start()) {
             assertTrue(server.onGlobal(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "echo x")), "옛 명령");
             assertTrue(server.onGlobal(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "say hi")), "바닐라 명령(큐에 접수)");
-            assertTrue(server.onGlobal(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "/say hi")), "앞 / 는 뗀다");
 
             int from = server.consoleMessages().size();
             assertFalse(server.onGlobal(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "no-such-command x")), "없는 명령");
@@ -118,6 +124,59 @@ class CommandParityTest {
             // 다른 스레드(시험 스레드)에서 불러도 같다 — 이름 검사는 스레드와 상관없다
             assertTrue(Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "say again"));
             assertFalse(Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "also-not-a-command"));
+        }
+    }
+
+    @Test
+    void leadingSlashIsNotStrippedLikePaper() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            int from = server.consoleMessages().size();
+            assertFalse(server.onGlobal(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "/say hi")), "Paper: '/say' 라는 이름은 없다");
+            server.tick();
+            var after = server.consoleMessages().subList(from, server.consoleMessages().size());
+            assertTrue(after.stream().anyMatch(t -> t.plainText().contains("Unknown or incomplete command")), after.toString());
+            assertFalse(after.stream().anyMatch(t -> t.plainText().startsWith("[Server]")), "say 는 돌지 않았다: " + after);
+            // 플러그인이 "/wand"(WorldEdit 의 //wand) 로 등록한 명령은 돈다
+            assertTrue(server.onGlobal(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "/wand a")));
+            assertEquals(List.of("wand:/wand|a"), CommandProbe.LOG);
+        }
+    }
+
+    /** Paper 1.21.1 의 VanillaCommandWrapper 처럼 바닐라 명령도 이름은 소문자, 인자는 빈 칸 하나로 이어 실행된다. */
+    @Test
+    void vanillaCommandsGetTheSameNormalizedLineAsPaper() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            int from = server.consoleMessages().size();
+            assertTrue(server.onGlobal(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "SAY upper")));
+            assertTrue(server.onGlobal(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "say  a   b ")));
+            assertTrue(server.onGlobal(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "time query daytime ")));
+            assertTrue(server.onGlobal(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "time  query   daytime")));
+            server.tick(2);
+            var after = server.consoleMessages().subList(from, server.consoleMessages().size()).stream().map(t -> t.plainText()).toList();
+            assertTrue(after.stream().noneMatch(s -> s.contains("Unknown or incomplete") || s.contains("Incorrect argument")), "오류 없이 돌았다: " + after);
+            assertTrue(after.stream().anyMatch(s -> s.endsWith("upper")), after.toString());
+            assertTrue(after.stream().anyMatch(s -> s.endsWith("a b")), "빈 칸이 하나로: " + after);
+            assertEquals(2, after.stream().filter(s -> s.startsWith("The time is")).count(), after.toString());
+        }
+    }
+
+    // ------------------------------------------------------------------ 채팅 명령 기록
+
+    @Test
+    void chatCommandIsLoggedBeforeTheEventEvenWhenCancelled() throws Exception {
+        Logger logger = (Logger) LoggerFactory.getLogger(org.domi.furnace.server.net.ConnectionHandler.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try (FurnaceTestServer server = start()) {
+            var alice = server.join("Alice");
+            server.tick(2);
+            CommandProbe.cancelChat = true;
+            alice.command("echo x");
+            assertEquals(List.of("pre:PlayerCommandPreprocessEvent|/echo x"), CommandProbe.LOG, "취소돼 명령은 안 돈다");
+            assertTrue(appender.list.stream().anyMatch(e -> e.getFormattedMessage().equals("Alice issued server command: /echo x")), appender.list.toString());
+        } finally {
+            logger.detachAppender(appender);
         }
     }
 
