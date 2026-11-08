@@ -10,7 +10,7 @@ import org.domi.furnace.api.item.ItemComponents;
  * 아이템 스택 shim(Mojang 이름, H6 최소 표면). 바닐라처럼 <b>가변</b>이고 equals 는 객체 정체성이다(바닐라도 equals 를 덮지 않는다).
  * 종류·개수·데이터 컴포넌트(Furnace 아이템의 SNBT 패치)를 들고, {@code CraftItemStack.asNMSCopy/asBukkitCopy/asCraftMirror} 로 Bukkit 스택과 오간다.
  * 비었나·개수·같은 종류·같은 컴포넌트·복사·나누기는 바닐라 1.21.1 바이트코드와 같은 규칙이다. 컴포넌트를 타입으로 읽고 쓰는
- * {@code get(DataComponentType)}·{@code set} 은 H7(값 shim)이 더한다.
+ * {@code get(DataComponentType)}·{@code set}·{@code remove} 는 {@link net.minecraft.core.component.DataComponents} 에 있는 종류만 된다(H7b).
  */
 public final class ItemStack {
 
@@ -136,6 +136,61 @@ public final class ItemStack {
     public int getDamageValue() {
         var v = componentView();
         return v == null ? 0 : Math.min(Math.max(v.damage(), 0), getMaxDamage());
+    }
+
+    // ------------------------------------------------------------------ 데이터 컴포넌트(H7b, DataComponents 에 있는 종류만)
+
+    private static net.minecraft.core.component.DataComponents.Type<?, ?> type(net.minecraft.core.component.DataComponentType<?> t) {
+        if (t instanceof net.minecraft.core.component.DataComponents.Type<?, ?> k) return k;
+        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("DataComponentType " + t, "shim 이 값 변환을 가진 종류가 아니다(DataComponents 의 상수만 된다)");
+    }
+
+    /** 종류 기본값 위에 패치를 얹은 값(바닐라 get — EMPTY 는 늘 null). */
+    @SuppressWarnings("unchecked")
+    public <T> T get(net.minecraft.core.component.DataComponentType<? extends T> t) {
+        var k = (net.minecraft.core.component.DataComponents.Type<Object, T>) type(t);
+        var v = componentView();
+        return v == null ? null : k.toNms(v.get(k.furnace()));
+    }
+
+    public <T> T getOrDefault(net.minecraft.core.component.DataComponentType<? extends T> t, T fallback) {
+        T v = get(t);
+        return v != null ? v : fallback;
+    }
+
+    public boolean has(net.minecraft.core.component.DataComponentType<?> t) { return get(t) != null; }
+
+    /** 값을 넣고 이전 값을 돌려준다(null 을 넣으면 지운다 — 바닐라 PatchedDataComponentMap.set 과 같다). */
+    @SuppressWarnings("unchecked")
+    public <T> T set(net.minecraft.core.component.DataComponentType<? super T> t, T value) {
+        if (this == EMPTY) throw new IllegalStateException("ItemStack.EMPTY 는 바꿀 수 없다");
+        var k = (net.minecraft.core.component.DataComponents.Type<Object, Object>) type(t);
+        T old = (T) get((net.minecraft.core.component.DataComponentType<Object>) t);
+        var v = componentView();
+        var next = value == null ? v.without(k.furnace()) : v.with(k.furnace(), k.toFurnace(value));
+        this.components = next.components();
+        this.removed = next.removedComponents();
+        return old;
+    }
+
+    /** 지우고 이전 값을 돌려준다. */
+    public <T> T remove(net.minecraft.core.component.DataComponentType<? extends T> t) {
+        if (this == EMPTY) throw new IllegalStateException("ItemStack.EMPTY 는 바꿀 수 없다");
+        @SuppressWarnings("unchecked") var k = (net.minecraft.core.component.DataComponents.Type<Object, T>) type(t);
+        T old = get(t);
+        var next = componentView().without(k.furnace());
+        this.components = next.components();
+        this.removed = next.removedComponents();
+        return old;
+    }
+
+    /** 바닐라 getHoverName: 사용자 이름이 있으면 그것, 아니면 아이템 이름(item_name). */
+    public net.minecraft.network.chat.Component getHoverName() {
+        var custom = get(net.minecraft.core.component.DataComponents.CUSTOM_NAME);
+        if (custom != null) return custom;
+        var name = get(net.minecraft.core.component.DataComponents.ITEM_NAME);
+        if (name != null) return name;
+        return net.minecraft.network.chat.Component.translatable(getItem().getDescriptionId());
     }
 
     /** 같은 종류인가(바닐라 isSameItem). */

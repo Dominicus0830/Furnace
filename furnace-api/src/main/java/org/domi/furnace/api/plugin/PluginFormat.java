@@ -38,4 +38,14 @@ public interface PluginFormat {
      * @param jar         플러그인 jar(개발 모드에서는 사본)
      */
     default ClassTransformer transformer(PluginDescription description, java.nio.file.Path jar) { return null; }
+
+    /**
+     * {@link #transformer(PluginDescription, java.nio.file.Path)} 에 서버 설정을 더한 것. 서버는 이것을 부른다(기본은 설정 없이 위 메서드).
+     * 이 메서드가 던지는 {@link RuntimeException} 은 그 플러그인을 불러오지 못한 것으로 친다(예: 엄격 모드에서 지원하지 않는 호출이 있다).
+     *
+     * @param settings 서버 설정 {@code furnace.properties} 중 {@code plugins.compat.} 로 시작하는 키와 값(접두어 포함, 바꿀 수 없는 보기)
+     */
+    default ClassTransformer transformer(PluginDescription description, java.nio.file.Path jar, java.util.Map<String, String> settings) {
+        return transformer(description, jar);
+    }
 }

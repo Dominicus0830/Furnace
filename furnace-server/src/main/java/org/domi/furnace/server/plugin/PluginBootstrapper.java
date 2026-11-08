@@ -400,7 +400,7 @@ public final class PluginBootstrapper {
         PluginManagerImpl.PluginClassLoader loader;
         try {
             Path jar = settings.devMode() ? HotReload.shadowCopy(dir, c.file()) : c.file();
-            org.domi.furnace.api.plugin.ClassTransformer transformer = c.format() != null && settings.compatNms() ? c.format().transformer(d, jar) : null;
+            org.domi.furnace.api.plugin.ClassTransformer transformer = c.format() != null && settings.compatNms() ? c.format().transformer(d, jar, settings.compatOptions()) : null;
             ClassLoader parent = c.format() != null ? sharedLibrariesFor(c) : null;
             loader = new PluginManagerImpl.PluginClassLoader(jar, this, settings.devMode(), libraries, transformer, parent,
                     c.format() == null && !settings.exposeCompatToNative());

@@ -51,7 +51,7 @@ public class Entity {
      * 패킷으로만 보이는 가짜 엔티티라면 Furnace 패킷 API 의 {@code nextEntityId()} 로 번호를 받는다(docs/api/packets.md).
      */
     public int getId() {
-        throw new UnsupportedNmsCall("Entity#getId", "네트워크 엔티티 id 는 아직 플러그인에 내보내지 않는다(H7 패킷 묶음에서 다룬다)");
+        throw new UnsupportedNmsCall("Entity#getId", "네트워크 엔티티 id 는 플러그인에 내보내지 않는다 — 패킷으로만 보이는 가짜 엔티티는 Furnace 패킷 API 의 nextEntityId() 로 번호를 받는다");
     }
 
     @Override

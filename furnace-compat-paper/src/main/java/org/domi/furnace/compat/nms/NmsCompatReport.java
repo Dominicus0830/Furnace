@@ -1,0 +1,280 @@
+package org.domi.furnace.compat.nms;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.Handle;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
+import org.objectweb.asm.commons.ClassRemapper;
+import org.objectweb.asm.commons.Remapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * 플러그인 jar 를 처음 열 때 한 번 남기는 NMS 호환 보고(설계 H5 5.3, H7a). 상수 풀이 NMS·CraftBukkit 이름을 담은 클래스만 읽어
+ * 바이트코드가 가리키는 심볼(클래스·필드·메서드)을 세고, 이 서버의 shim 에 있는지·등급 C 인지·아직 없는지로 나눈다.
+ * 리플렉션 문자열로만 닿는 이름은 세지 않는다(실행 때 다리가 경고한다).
+ *
+ * @param plugin    플러그인 이름
+ * @param namespace 이름 체계 판정(매니페스트 {@code paperweight-mappings-namespace})
+ * @param symbols   센 심볼 수(서로 다른 것)
+ * @param present   shim 에 있는 것
+ * @param gradeC    등급 C(만들 수 없는 표면)
+ * @param unknown   아직 shim 이 없는 것
+ * @param obfuscatedLooking 없는 것 중 이름이 1~2글자인 멤버(Spigot 난독화 이름으로 보이는 것)
+ * @param missing   없는 심볼 이름(정렬, 전부)
+ * @param ownClasses 이 jar 의 클래스(내부 이름) — 변환기가 플러그인 자기 클래스를 판정하지 않게
+ * @param otherVersionClasses 다른 버전용 모듈로 보이는 클래스 수 — 세지 않았다({@link #otherVersion(String)})
+ * @param otherVersionSymbols 다른 버전 이름({@code org.bukkit.craftbukkit.v1_20_R3}, {@code net.minecraft.server.v1_8_R3})을 가리킨 심볼 수 — 세지 않았다
+ */
+public record NmsCompatReport(String plugin, String namespace, int symbols, int present, int gradeC, int unknown,
+                              int obfuscatedLooking, List<String> missing, Set<String> ownClasses,
+                              int otherVersionClasses, int otherVersionSymbols) {
+
+    private static final Logger LOG = LoggerFactory.getLogger("Furnace");
+    private static final byte[][] NEEDLES = {
+            "net/minecraft/".getBytes(StandardCharsets.UTF_8),
+            "org/bukkit/craftbukkit/".getBytes(StandardCharsets.UTF_8),
+    };
+
+    /**
+     * 클래스 이름에 다른 Minecraft 버전 표지가 있는가(여러 버전을 싣는 라이브러리의 버전 모듈: {@code nms/v1_20_1}, {@code NMS_1_20_R3},
+     * {@code Wrapper1_8_R3}, {@code v1_21_2_3}). 그런 모듈은 서버 버전을 보고 고르므로 1.21.1 에서는 올리지 않는다 — 보고·strict 에서 뺀다.
+     * 1.21.1 표지({@code 1_21_R1}, {@code 1_21_1}, 범위 {@code 1_21_0_1})나 부 버전 없는 {@code 1_21} 은 다른 버전이 아니다.
+     */
+    static boolean otherVersion(String internalName) {
+        java.util.regex.Matcher m = VERSION_TOKEN.matcher(internalName);
+        boolean other = false;
+        while (m.find()) {
+            int minor = Integer.parseInt(m.group(1));
+            if (minor != 21) {
+                other = true;
+                continue;
+            }
+            if (m.group(2) != null) {                      // _R<n>: 1.21/1.21.1 은 R1
+                if (!m.group(2).equals("1")) other = true;
+                else return false;
+                continue;
+            }
+            if (m.group(3) == null) return false;           // 1_21 — 부 버전 없음(현재로 친다)
+            String[] parts = m.group(3).substring(1).split("_");
+            int lo = Integer.parseInt(parts[0]);
+            int hi = Integer.parseInt(parts[parts.length - 1]);
+            if (lo <= 1 && 1 <= hi) return false;
+            other = true;
+        }
+        return other;
+    }
+
+    private static final java.util.regex.Pattern VERSION_TOKEN =
+            java.util.regex.Pattern.compile("(?<![0-9])1_(\\d{1,2})(?:_R(\\d+)|((?:_\\d{1,2})+))?(?![0-9])");
+
+    /** 미지원(등급 C + 아직 없음) 심볼 수. */
+    public int unsupported() { return gradeC + unknown; }
+
+    /** jar 를 훑는다. 읽지 못하는 클래스는 건너뛴다(그 클래스는 정의 때 변환기가 원래 바이트로 올린다). */
+    public static NmsCompatReport scan(String plugin, Path jar, NmsSymbols index) throws IOException {
+        Set<String> own = new HashSet<>();
+        List<byte[]> candidates = new ArrayList<>();
+        String namespace;
+        try (JarFile jf = new JarFile(jar.toFile(), false, java.util.zip.ZipFile.OPEN_READ, Runtime.version())) {
+            var man = jf.getManifest();
+            String ns = man == null ? null : man.getMainAttributes().getValue("paperweight-mappings-namespace");
+            namespace = ns == null ? "Spigot(가정 — 매니페스트에 paperweight-mappings-namespace 없음)" : ns.equalsIgnoreCase("mojang") ? "Mojang" : ns.equalsIgnoreCase("spigot") ? "Spigot" : ns;
+            Enumeration<JarEntry> en = jf.entries();
+            while (en.hasMoreElements()) {
+                JarEntry e = en.nextElement();
+                String n = e.getName();
+                if (!n.endsWith(".class") || n.equals("module-info.class") || n.endsWith("/module-info.class")) continue;
+                if (n.startsWith("META-INF/versions/")) {
+                    int s = n.indexOf('/', "META-INF/versions/".length());
+                    if (s < 0) continue;
+                    n = n.substring(s + 1);
+                }
+                own.add(n.substring(0, n.length() - ".class".length()));
+                try (InputStream in = jf.getInputStream(e)) {
+                    byte[] b = in.readAllBytes();
+                    if (NmsClassTransformer.contains(b, NEEDLES)) candidates.add(b);
+                }
+            }
+        }
+        Set<String> seen = new HashSet<>();
+        TreeSet<String> missing = new TreeSet<>();
+        int[] counts = new int[6];   // present, gradeC, unknown, obf, 다른 버전 클래스, 다른 버전 심볼
+        Remapper suffix = new Remapper() {
+            @Override
+            public String map(String internalName) { return CraftNames.canonicalInternal(internalName); }
+        };
+        for (byte[] b : candidates) {
+            try {
+                new ClassReader(b).accept(new ClassRemapper(new Collector(index, own, seen, missing, counts), suffix),
+                        ClassReader.SKIP_FRAMES | ClassReader.SKIP_DEBUG);
+            } catch (RuntimeException ignored) {
+                // 읽지 못하는 클래스 — 보고에서 뺀다
+            }
+        }
+        int total = counts[0] + counts[1] + counts[2];
+        return new NmsCompatReport(plugin, namespace, total, counts[0], counts[1], counts[2], counts[3], List.copyOf(missing), Set.copyOf(own),
+                counts[4], counts[5]);
+    }
+
+    /** 로드 로그. NMS 에 닿지 않는 jar 는 아무것도 남기지 않는다. */
+    public void log() {
+        if (symbols == 0 && otherVersionClasses == 0 && otherVersionSymbols == 0) return;
+        String hint = obfuscatedLooking > 0
+                ? " Spigot 난독화 이름으로 보이는 멤버 " + obfuscatedLooking + "개 — Spigot→Mojang 변환표(H7d)가 없어 그 호출은 실패한다."
+                : "";
+        String other = otherVersionClasses + otherVersionSymbols > 0
+                ? " 다른 버전용 모듈 클래스 " + otherVersionClasses + "개·다른 버전 이름 " + otherVersionSymbols + "개는 1.21.1 에서 쓰이지 않아 세지 않았다."
+                : "";
+        LOG.info("플러그인 {}: NMS·CraftBukkit 심볼 {}개 중 shim 있음 {}, 등급 C {}, 아직 없음 {}. 이름 체계={}.{}{}",
+                plugin, symbols, present, gradeC, unknown, namespace, hint, other);
+        if (!missing.isEmpty()) {
+            List<String> head = missing.subList(0, Math.min(20, missing.size()));
+            LOG.warn("플러그인 {}: 미지원 NMS 심볼 {}개(처음 {}개): {} — 그 호출이 실행될 때만 UnsupportedNmsCall 을 던진다(나머지 기능은 돈다)",
+                    plugin, missing.size(), head.size(), head);
+        }
+    }
+
+    // ------------------------------------------------------------------ 수집
+
+    private static final class Collector extends ClassVisitor {
+        private final NmsSymbols index;
+        private final Set<String> own;
+        private final Set<String> seen;
+        private final Set<String> missing;
+        private final int[] counts;
+
+        private boolean skip;   // 다른 버전용 모듈 클래스
+
+        Collector(NmsSymbols index, Set<String> own, Set<String> seen, Set<String> missing, int[] counts) {
+            super(Opcodes.ASM9);
+            this.index = index;
+            this.own = own;
+            this.seen = seen;
+            this.missing = missing;
+            this.counts = counts;
+        }
+
+        private boolean judged(String owner) {
+            if (skip) return false;
+            String e = NmsSymbols.element(owner);
+            if (e == null || !NmsSymbols.isNms(e) || own.contains(e)) return false;
+            if (otherVersion(e)) {   // 다른 버전 접미사 이름(v1_21_R1 은 CraftNames 가 이미 풀었다)
+                if (seen.add("V " + e)) counts[5]++;
+                return false;
+            }
+            return true;
+        }
+
+        private void cls(String internalName) {
+            if (!judged(internalName)) return;
+            String e = NmsSymbols.element(internalName);
+            if (!seen.add("C " + e)) return;
+            if (index.hasClass(e)) counts[0]++;
+            else miss(e, NmsLinker.dots(e), false);
+        }
+
+        private void member(String owner, String name, String desc, boolean field) {
+            if (!judged(owner)) return;
+            String e = NmsSymbols.element(owner);
+            if (!index.hasClass(e)) {
+                cls(e);
+                return;
+            }
+            if (owner.charAt(0) == '[') return;   // 배열의 clone 등
+            if (!seen.add((field ? "F " : "M ") + owner + "#" + name + desc)) return;
+            boolean ok = field ? index.hasField(owner, name, desc) : index.hasMethod(owner, name, desc);
+            if (ok) counts[0]++;
+            else miss(owner, NmsLinker.dots(owner) + "#" + name + (field ? "" : "(" + Type.getArgumentTypes(desc).length + ")"),
+                    name.length() <= 2 && !name.equals("<init>"));
+        }
+
+        private void methodType(String desc) {
+            Type mt = Type.getMethodType(desc);
+            for (Type t : mt.getArgumentTypes()) if (t.getSort() == Type.OBJECT || t.getSort() == Type.ARRAY) cls(t.getInternalName());
+            Type r = mt.getReturnType();
+            if (r.getSort() == Type.OBJECT || r.getSort() == Type.ARRAY) cls(r.getInternalName());
+        }
+
+        private void handle(Handle h) {
+            boolean field = h.getTag() <= Opcodes.H_PUTSTATIC;
+            member(h.getOwner(), h.getName(), h.getDesc(), field);
+            if (!field) methodType(h.getDesc());
+        }
+
+        private void miss(String owner, String label, boolean obf) {
+            if (NmsGrades.isGradeC(owner)) counts[1]++;
+            else counts[2]++;
+            if (obf) counts[3]++;
+            missing.add(label);
+        }
+
+        @Override
+        public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
+            skip = otherVersion(name);
+            if (skip) {
+                counts[4]++;
+                return;
+            }
+            // 있는 NMS 클래스라도 상속은 정의 때 거부된다(NmsLinker.visit 와 같은 판정) — 등급 C 로 센다
+            if (superName != null && superName.startsWith("net/minecraft/") && !own.contains(superName) && !otherVersion(superName)
+                    && index.hasClass(superName)) {
+                if (seen.add("S " + name)) {
+                    counts[1]++;
+                    missing.add("상속 " + NmsLinker.dots(name) + " → " + NmsLinker.dots(superName));
+                }
+            } else if (superName != null) {
+                cls(superName);
+            }
+            if (interfaces != null) for (String i : interfaces) cls(i);
+        }
+
+        @Override
+        public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
+            return new MethodVisitor(Opcodes.ASM9) {
+                @Override
+                public void visitTypeInsn(int opcode, String type) { cls(type); }
+
+                @Override
+                public void visitFieldInsn(int opcode, String owner, String n, String d) { member(owner, n, d, true); }
+
+                @Override
+                public void visitMethodInsn(int opcode, String owner, String n, String d, boolean itf) { member(owner, n, d, false); }
+
+                @Override
+                public void visitLdcInsn(Object value) {
+                    if (value instanceof Type t && (t.getSort() == Type.OBJECT || t.getSort() == Type.ARRAY)) cls(t.getInternalName());
+                    else if (value instanceof Type t && t.getSort() == Type.METHOD) methodType(t.getDescriptor());
+                    else if (value instanceof Handle h) handle(h);
+                }
+
+                @Override
+                public void visitMultiANewArrayInsn(String d, int dims) { cls(Type.getType(d).getInternalName()); }
+
+                @Override
+                public void visitInvokeDynamicInsn(String n, String d, Handle bsm, Object... args) {
+                    methodType(d);
+                    for (Object a : args) {
+                        if (a instanceof Handle h) handle(h);
+                        else if (a instanceof Type t && t.getSort() == Type.METHOD) methodType(t.getDescriptor());
+                        else if (a instanceof Type t && (t.getSort() == Type.OBJECT || t.getSort() == Type.ARRAY)) cls(t.getInternalName());
+                    }
+                }
+            };
+        }
+    }
+}
