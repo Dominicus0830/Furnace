@@ -227,6 +227,12 @@ public final class PluginManagerImpl implements PluginManager {
         failFastCheck("켜기");
     }
 
+    @Override
+    public void enable(FurnacePlugin p) {
+        Loaded l = find(p);
+        if (l != null) enable(l);
+    }
+
     private void enable(Loaded l) {
         FurnacePlugin p = l.plugin();
         if (p.isEnabled()) return;
@@ -301,7 +307,8 @@ public final class PluginManagerImpl implements PluginManager {
         } catch (RuntimeException e) {
             log.warn("{} 의 청크 티켓 정리 실패", l.description().name(), e);
         }
-        for (Permission perm : l.description().permissions()) host.permissionsImpl().unregister(perm.name());
+        // 설명 파일의 그 노드가 아직 올라 있을 때만 지운다 — 다른 플러그인이 같은 이름을 갈아 끼웠으면 그것은 남긴다
+        for (Permission perm : l.description().permissions()) host.permissionsImpl().unregister(perm);
         PluginBootstrapper b = boot;
         if (b != null) b.forget(l.description().name());   // 플러그인 레지스트리 몫·수명주기 훅
     }
@@ -314,6 +321,8 @@ public final class PluginManagerImpl implements PluginManager {
         synchronized (reloadLock) {
             for (Loaded l : plugins) closeQuietly(l.loader());
             plugins.clear();
+            PluginBootstrapper b = boot;
+            if (b != null) b.closeSharedLibraries();
             if (settings.devMode()) HotReload.clearShadowDir(dir);
         }
     }
@@ -556,7 +565,26 @@ public final class PluginManagerImpl implements PluginManager {
         /** transformer: 플러그인 형식이 준 바이트 변환기(없으면 null) — 플러그인 jar 의 클래스에만 쓴다(libraries jar 는 그대로). */
         PluginClassLoader(Path jar, PluginBootstrapper group, boolean shadowCopy, List<Path> libraries,
                           org.domi.furnace.api.plugin.ClassTransformer transformer) throws MalformedURLException {
-            super(urls(jar, libraries), PluginHost.class.getClassLoader());
+            this(jar, group, shadowCopy, libraries, transformer, null);
+        }
+
+        /**
+         * parent: 부모 로더(null 이면 서버 클래스로더). 호환 플러그인은 서버 제공 라이브러리 공유 로더(SharedLibraryLoader — 그 부모가 서버 클래스로더)를
+         * 부모로 받아, Paper 처럼 모든 호환 플러그인이 같은 Guava·Adventure 클래스를 본다.
+         */
+        PluginClassLoader(Path jar, PluginBootstrapper group, boolean shadowCopy, List<Path> libraries,
+                          org.domi.furnace.api.plugin.ClassTransformer transformer, ClassLoader parent) throws MalformedURLException {
+            this(jar, group, shadowCopy, libraries, transformer, parent, false);
+        }
+
+        /**
+         * hideCompat: true 면 호환 모듈 클래스(org.bukkit.* 등 — {@link CompatPackages})를 부모(서버 jar)에서 찾지 않는다. Furnace 네이티브 플러그인용:
+         * 서버 jar 에 호환 모듈이 함께 실려 있어도 네이티브 플러그인에게는 보이지 않아 Furnace API 만 쓰게 되고, 자기 jar 에 같은 이름의 클래스(다른 버전 ASM 등)를 넣어도 서버 것에 가려지지 않는다.
+         */
+        PluginClassLoader(Path jar, PluginBootstrapper group, boolean shadowCopy, List<Path> libraries,
+                          org.domi.furnace.api.plugin.ClassTransformer transformer, ClassLoader parent, boolean hideCompat) throws MalformedURLException {
+            super(urls(jar, libraries), parent != null ? parent : PluginHost.class.getClassLoader());
+            this.hideCompat = hideCompat;
             this.group = group;
             this.shadow = shadowCopy ? jar : null;
             this.transformer = transformer;
@@ -564,6 +592,7 @@ public final class PluginManagerImpl implements PluginManager {
             this.jarUrl = jar.toUri().toURL();
         }
 
+        private final boolean hideCompat;
         private final org.domi.furnace.api.plugin.ClassTransformer transformer;
         private final Path jarPath;
         private final URL jarUrl;
@@ -659,6 +688,20 @@ public final class PluginManagerImpl implements PluginManager {
         Set<String> borrowed() { return borrowed; }
 
         Path shadow() { return shadow; }
+
+        @Override
+        protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+            if (hideCompat && CompatPackages.isCompat(name)) {
+                // 부모(서버 jar)는 건너뛴다: 자기 jar → 다른 플러그인 jar 에서만 찾는다
+                synchronized (getClassLoadingLock(name)) {
+                    Class<?> c = findLoadedClass(name);
+                    if (c == null) c = findClass(name);
+                    if (resolve) resolveClass(c);
+                    return c;
+                }
+            }
+            return super.loadClass(name, resolve);
+        }
 
         @Override
         protected Class<?> findClass(String name) throws ClassNotFoundException {

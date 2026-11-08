@@ -20,7 +20,6 @@ import org.domi.furnace.api.Furnace;
 import org.domi.furnace.compat.paper.Compat;
 import org.domi.furnace.compat.paper.CompatBlockData;
 import org.domi.furnace.compat.paper.CompatConsole;
-import org.domi.furnace.compat.paper.CompatPluginManager;
 import org.domi.furnace.compat.paper.CompatScheduler;
 import org.domi.furnace.compat.paper.UnsupportedFeature;
 
@@ -80,7 +79,7 @@ public final class CraftServer implements Server {
     public Logger getLogger() { return LOG; }
 
     @Override
-    public PluginManager getPluginManager() { return CompatPluginManager.INSTANCE; }
+    public PluginManager getPluginManager() { return Compat.pluginManager(); }
 
     @Override
     public Collection<? extends Player> getOnlinePlayers() {
@@ -141,8 +140,22 @@ public final class CraftServer implements Server {
 
     @Override
     public int broadcastMessage(String message) {
-        f().broadcast(Compat.text(message));
+        f().broadcast(Compat.text(message));   // Paper: legacySection().deserialize — 주소 링크 없음
         return f().onlinePlayers().size();
+    }
+
+    /**
+     * CraftBukkit 처럼 그 권한을 구독한 대상(=값이 정해진 대상) 가운데 권한이 참인 발신자에게만 보낸다 — 그래서 등록되지 않은 권한이면
+     * OP·콘솔도 받지 않는다(Bukkit 과 같다). Paper 의 BroadcastMessageEvent 는 아직 없다.
+     */
+    @Override
+    public int broadcast(String message, String permission) {
+        java.util.Set<CommandSender> recipients = new java.util.LinkedHashSet<>();
+        for (org.bukkit.permissions.Permissible p : getPluginManager().getPermissionSubscriptions(permission)) {
+            if (p instanceof CommandSender s && p.hasPermission(permission)) recipients.add(s);
+        }
+        for (CommandSender s : recipients) s.sendMessage(message);
+        return recipients.size();
     }
 
     @Override
@@ -161,6 +174,24 @@ public final class CraftServer implements Server {
 
     @Override
     public ServicesManager getServicesManager() { return Compat.services(); }
+
+    @Override
+    public org.bukkit.plugin.messaging.Messenger getMessenger() { return Compat.messenger(); }
+
+    /** 모든 접속자에게(각자 그 채널을 알린 클라이언트에만 간다 — CraftServer 와 같다). */
+    @Override
+    public void sendPluginMessage(org.bukkit.plugin.Plugin source, String channel, byte[] message) {
+        org.bukkit.plugin.messaging.StandardMessenger.validatePluginMessage(getMessenger(), source, channel, message);
+        for (Player player : getOnlinePlayers()) player.sendPluginMessage(source, channel, message);
+    }
+
+    /** 접속자들이 알린 채널의 합. */
+    @Override
+    public java.util.Set<String> getListeningPluginChannels() {
+        java.util.Set<String> result = new java.util.HashSet<>();
+        for (Player player : getOnlinePlayers()) result.addAll(player.getListeningPluginChannels());
+        return result;
+    }
 
     @Override
     public boolean isPrimaryThread() { return org.domi.furnace.compat.thread.PrimaryThread.isPrimary(); }

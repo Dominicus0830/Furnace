@@ -44,10 +44,18 @@ public final class CompatCommands {
     }
 
     /** 명령을 트리에 올린다. 별칭 중 쓸 수 없는 것(빈 문자열·공백·':' 포함)은 활성 별칭에서 뺀다. */
-    public static Attached attach(Command command, String label) {
+    public static Attached attach(Command command, String label) { return attach(command, label, true); }
+
+    /** 명령을 이름 하나로만 트리에 올린다(별칭 없이 — Bukkit 에서 knownCommands 에 아직 없는 명령을 직접 넣는 것). */
+    public static Attached attachName(Command command, String label) { return attach(command, label, false); }
+
+    /** 이미 올라간 명령에 이름 하나를 더 붙인다. 새로 올라간 이름들(이름, "플러그인:이름")을 돌려준다. */
+    public static Collection<String> attachExtraName(Attached a, String name) { return Compat.commands().registerName(a.core, name); }
+
+    private static Attached attach(Command command, String label, boolean withAliases) {
         BukkitPluginAdapter owner = ownerOf(command);
         List<String> aliases = new ArrayList<>();
-        for (java.util.Iterator<String> it = command.getAliases().iterator(); it.hasNext(); ) {
+        if (withAliases) for (java.util.Iterator<String> it = command.getAliases().iterator(); it.hasNext(); ) {
             String a = it.next();
             String n = a == null ? "" : a.toLowerCase(Locale.ROOT).trim();
             if (n.isEmpty() || n.indexOf(' ') >= 0 || n.indexOf(':') >= 0) {
@@ -78,6 +86,9 @@ public final class CompatCommands {
         Collection<String> names = Compat.commands().register(owner, core);
         return new Attached(owner, core, names);
     }
+
+    /** 그 명령 주인 플러그인의 로거. */
+    public static java.util.logging.Logger ownerLogger(Command command) { return ownerOf(command).logger(); }
 
     /** 이 명령이 올라갈 때 붙는 이름 접두어(소유 플러그인 이름). */
     public static String namespaceOf(Command command) { return ownerOf(command).name().toLowerCase(Locale.ROOT).replace(' ', '_'); }

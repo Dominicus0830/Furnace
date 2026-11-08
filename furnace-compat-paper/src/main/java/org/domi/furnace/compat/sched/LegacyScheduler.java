@@ -136,6 +136,32 @@ public final class LegacyScheduler {
             if (t != null && !t.cancelUnclaimed()) return false;
             return super.cancel(mayInterrupt);
         }
+
+        // 다른 스레드(region 스레드의 옛 리스너 등)가 막고 기다리는 동안 GlobalWait 표시 — 전역이 그 region 을 빌리려 하면 서로 기다리지 않고 곧바로 포기한다
+        @Override
+        public T get() throws InterruptedException, java.util.concurrent.ExecutionException {
+            if (isDone()) return super.get();
+            try (var m = org.domi.furnace.api.concurrent.GlobalWait.begin()) {
+                return super.get();
+            }
+        }
+
+        @Override
+        public T get(long timeout, java.util.concurrent.TimeUnit unit)
+                throws InterruptedException, java.util.concurrent.ExecutionException, java.util.concurrent.TimeoutException {
+            if (isDone()) return super.get(timeout, unit);
+            try (var m = org.domi.furnace.api.concurrent.GlobalWait.begin()) {
+                return super.get(timeout, unit);
+            }
+        }
+
+        @Override
+        public T join() {
+            if (isDone()) return super.join();
+            try (var m = org.domi.furnace.api.concurrent.GlobalWait.begin()) {
+                return super.join();
+            }
+        }
     }
 
     // ---- 조회·취소
@@ -205,6 +231,18 @@ public final class LegacyScheduler {
     private void heartbeat() {
         long now = ++tick;
         List<Task> again = new ArrayList<>();
+        // 한 박동의 동기 작업 전체를 한 표시 구간으로 — 작업이 빌린 region 은 이번 비움이 끝날 때 한꺼번에 돌려준다(작업마다 넘겨주고 받지 않는다)
+        try (PrimaryThread.Scope ignored = PrimaryThread.enter()) {
+            drain(now, again);
+        }
+        if (!again.isEmpty()) {
+            synchronized (queue) {
+                for (Task t : again) if (!t.cancelled) queue.add(t);
+            }
+        }
+    }
+
+    private void drain(long now, List<Task> again) {
         while (true) {
             Task t;
             synchronized (queue) {
@@ -217,11 +255,6 @@ public final class LegacyScheduler {
             if (t.period > 0 && !t.cancelled) {
                 t.nextRun = now + t.period;
                 again.add(t);
-            }
-        }
-        if (!again.isEmpty()) {
-            synchronized (queue) {
-                for (Task t : again) if (!t.cancelled) queue.add(t);
             }
         }
     }

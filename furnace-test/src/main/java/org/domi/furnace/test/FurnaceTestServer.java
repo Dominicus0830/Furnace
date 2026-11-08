@@ -104,7 +104,8 @@ public final class FurnaceTestServer implements AutoCloseable {
             this.global = (GlobalThread) sched.global();
             global.useManualClock();
             // 플러그인 부트스트랩: 레지스트리·월드보다 먼저(FurnaceMain 과 같은 자리). 시험에서는 실패를 숨기지 않는다(fail-fast).
-            PluginSettings pluginSettings = new PluginSettings(b.failFast, null, java.util.Map.of()).withCompatNms(b.compatNms)
+            PluginSettings pluginSettings = new PluginSettings(b.failFast, null, java.util.Map.of()).withCompatNms(b.compatNms).withLibraries(b.libraries)
+                    .withExposeCompatToNative(b.exposeCompatToNative)
                     .withCompatOptions(java.util.Map.of("plugins.compat.nms.strict", String.valueOf(b.compatNmsStrict),
                             "plugins.compat.nms.version-package", b.compatNmsVersionPackage));
             PluginBootstrapper boot = PluginBootstrapper.bootstrap(pluginsDir, pluginSettings);
@@ -299,10 +300,13 @@ public final class FurnaceTestServer implements AutoCloseable {
      * 접속 처리가 끝나 서버 접속자 목록에 들 때까지 기다린다(틱은 내지 않는다). 기본은 op 가 아니다 — 명령·채팅을 짧은 사이에 10번 넘게
      * 보내면 바닐라 스팸 감지(벽시계)에 쫓겨나니, 그런 시험은 먼저 execute("op 이름") 를 부른다.
      */
-    public TestPlayer join(String name) {
+    public TestPlayer join(String name) { return join(name, new String[0]); }
+
+    /** {@link #join(String)} 과 같고, 구성 단계에서 그 채널들을 minecraft:register 로 알린다(모드 클라이언트·프록시처럼). */
+    public TestPlayer join(String name, String... configChannels) {
         checkOpen();
         ensureNetwork();
-        TestPlayer p = TestPlayer.connect(this, port, name);
+        TestPlayer p = TestPlayer.connect(this, port, name, configChannels);
         players.add(p);
         return p;
     }
@@ -445,6 +449,10 @@ public final class FurnaceTestServer implements AutoCloseable {
         private boolean compatNms = true;
         private boolean compatNmsStrict = false;
         private String compatNmsVersionPackage = "plain";
+        private boolean exposeCompatToNative = false;
+        /** 시험은 기본으로 네트워크에 나가지 않는다 — 호환 플러그인용 서버 제공 라이브러리·plugin.yml libraries 도 끈다. */
+        private org.domi.furnace.server.plugin.library.LibrarySettings libraries = org.domi.furnace.server.plugin.library.LibrarySettings.DEFAULT
+                .withCompat(org.domi.furnace.server.plugin.library.LibrarySettings.CompatMode.OFF).withCompatDeclared(false);
         private long timeoutMillis = DEFAULT_TIMEOUT_MILLIS;
         private String serverProperties = "";
         private Path directory;
@@ -512,6 +520,18 @@ public final class FurnaceTestServer implements AutoCloseable {
 
         /** 플러그인이 읽는 CraftBukkit 패키지 이름: plain(기본, Paper) 또는 versioned(Spigot, v1_21_R1) — plugins.compat.nms.version-package. */
         public Builder compatNmsVersionPackage(String v) { this.compatNmsVersionPackage = java.util.Objects.requireNonNull(v); return this; }
+
+        /**
+         * true 면 Furnace 네이티브 플러그인의 클래스로더에도 호환 클래스(org.bukkit.*·호환 코어)가 보인다. 기본은 숨김(서버와 같다) —
+         * 호환 코어를 네이티브 시험 플러그인으로 직접 부리는 호환 모듈 시험만 켠다.
+         */
+        public Builder exposeCompatToNative(boolean v) { this.exposeCompatToNative = v; return this; }
+
+        /**
+         * 라이브러리 내려받기 설정(furnace.properties plugins.libraries.*·plugins.compat.libraries*). 기본은 모두 꺼짐 — 시험이 네트워크에 기대지 않게
+         * 실제 서버의 기본(plugins.compat.libraries=needed, declared=true)과 다르다. Paper 플러그인이 Guava 등을 쓰면 캐시를 채우고 offline 으로 켜라.
+         */
+        public Builder libraries(org.domi.furnace.server.plugin.library.LibrarySettings v) { this.libraries = java.util.Objects.requireNonNull(v); return this; }
 
         /** 틱·future 기다림 한도. */
         public Builder timeout(long millis) { this.timeoutMillis = Math.max(1, millis); return this; }

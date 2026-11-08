@@ -64,6 +64,8 @@ public final class Bukkit {
 
     public static int broadcastMessage(String message) { return s().broadcastMessage(message); }
 
+    public static int broadcast(String message, String permission) { return s().broadcast(message, permission); }
+
     public static ConsoleCommandSender getConsoleSender() { return s().getConsoleSender(); }
 
     public static boolean dispatchCommand(CommandSender sender, String commandLine) { return s().dispatchCommand(sender, commandLine); }
@@ -77,6 +79,8 @@ public final class Bukkit {
     public static BukkitScheduler getScheduler() { return s().getScheduler(); }
 
     public static ServicesManager getServicesManager() { return s().getServicesManager(); }
+
+    public static org.bukkit.plugin.messaging.Messenger getMessenger() { return s().getMessenger(); }
 
     public static boolean isPrimaryThread() { return s().isPrimaryThread(); }
 

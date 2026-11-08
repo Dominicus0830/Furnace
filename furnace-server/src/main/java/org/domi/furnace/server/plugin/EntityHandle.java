@@ -232,6 +232,8 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         if (!(tasks.owner() instanceof Entity e) || e.isRemoved()) return false;
         World w = host.core().world(e.dimensionKey());
         ChunkPos cp = ChunkPos.ofBlock(e.x(), e.z());
+        // 전역 빌림 구간이면 그 엔티티의 region 을 빌린다 — 기다리는 사이 경계를 넘었으면 옮겨 간 region 을(위치는 빌린 뒤 다시 읽는다)
+        if (org.domi.furnace.server.world.RegionBorrow.claimEntity(e)) cp = ChunkPos.ofBlock(e.x(), e.z());
         Region r = w == null ? null : w.regionizer().ownerOf(cp.x(), cp.z());
         if (r == null || !r.isOwnerThread() || r.level() == null || r.level().entities().get(e.uuid()) != e) {
             throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("엔티티 " + type() + " 를 가진 region 스레드가 아니다(현재 "
@@ -344,7 +346,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         public Optional<org.domi.furnace.api.entity.ai.MobAi> aiNow() {
             // 엔티티를 따라가는 대기열이 지금의 몹을 쥐고 있다 — 스폰 이벤트처럼 아직 레벨 목록에 오르기 전에도 찾는다
             if (!(tasks().owner() instanceof org.domi.furnace.server.entity.Mob m)) return Optional.empty();
-            if (!m.level().isOwnerThread()) {
+            if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(m) && !m.level().isOwnerThread()) {
                 throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("aiNow() 는 그 몹을 가진 region 스레드에서만 부를 수 있다 (현재 "
                         + Thread.currentThread().getName() + ") — editAi 를 쓴다");
             }

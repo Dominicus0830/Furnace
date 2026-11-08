@@ -2,7 +2,6 @@ package org.domi.furnace.compat.paper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -84,6 +83,8 @@ class EventBridgeTest {
             Location to = new Location(w, 5, 64, 6);
             var recorder = server.plugin("Recorder");
             Map<Class<?>, Supplier<org.domi.furnace.api.event.Event>> fire = new java.util.LinkedHashMap<>();
+            fire.put(org.bukkit.event.player.PlayerChannelEvent.class, () -> new org.domi.furnace.api.event.player.PlayerChannelEvent(p, "mod:a",
+                    org.domi.furnace.api.event.player.PlayerChannelEvent.Action.REGISTER));
             fire.put(org.bukkit.event.player.PlayerJoinEvent.class, () -> new org.domi.furnace.api.event.player.PlayerJoinEvent(p, Text.text("hi")));
             fire.put(org.bukkit.event.player.PlayerQuitEvent.class, () -> new org.domi.furnace.api.event.player.PlayerQuitEvent(p, Text.text("bye")));
             fire.put(org.bukkit.event.player.PlayerKickEvent.class, () -> new org.domi.furnace.api.event.player.PlayerKickEvent(p, Text.text("no")));
@@ -237,8 +238,8 @@ class EventBridgeTest {
             RecorderPlugin.SEEN.clear();
             server.api().events().call(new org.domi.furnace.api.event.player.AsyncChatEvent(p, "x", Text.text("x")));
             var chat = (org.bukkit.event.player.AsyncPlayerChatEvent) only(org.bukkit.event.player.AsyncPlayerChatEvent.class);
-            assertThrows(UnsupportedFeature.class, () -> chat.getRecipients().clear());
-            assertInstanceOf(UnsupportedOperationException.class, assertThrows(UnsupportedFeature.class, () -> chat.getRecipients().add(null)));
+            assertEquals(1, chat.getRecipients().size(), "받는 사람은 그 시점의 접속자 전원이다");
+            chat.getRecipients().clear();   // 받는 사람은 바꿀 수 있다 — ChatAdapterTest
         }
     }
 

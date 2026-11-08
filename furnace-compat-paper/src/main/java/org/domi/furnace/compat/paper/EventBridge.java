@@ -1,6 +1,6 @@
 // Furnace 이벤트 → Bukkit 이벤트 다리.
 //
-// Bukkit 처리기가 등록되면(CompatPluginManager.registerEvent) 그 Bukkit 이벤트에 대응하는 Furnace 이벤트를 (플러그인, 우선순위) 마다 한 번씩
+// Bukkit 처리기가 등록되면(SimplePluginManager.registerEvent) 그 Bukkit 이벤트에 대응하는 Furnace 이벤트를 (플러그인, 우선순위) 마다 한 번씩
 // Furnace 이벤트 버스에 구독한다. 구독은 그 플러그인의 것이라 코어가 플러그인을 끌 때 알아서 지우고, 프로파일러·MONITOR 검사도 그 플러그인으로 잡힌다.
 // Furnace 이벤트 하나에 Bukkit 이벤트 객체는 하나만 만들어 플러그인·우선순위가 다른 구독들이 나눠 쓴다(약한 참조 — 이벤트가 끝나면 사라진다).
 // 우선순위 순서는 Furnace 버스가 지킨다: 같은 이벤트를 Furnace 플러그인이 같은 우선순위로 구독했다면 등록 순이다.
@@ -84,7 +84,7 @@ public final class EventBridge {
     public static java.util.Set<Class<?>> bridgedEvents() { return java.util.Set.copyOf(BY_BUKKIT.keySet()); }
 
     /** owner 가 이 Bukkit 이벤트를 이 우선순위로 받도록 Furnace 버스에 구독한다(한 번만). */
-    static void ensure(BukkitPluginAdapter owner, Class<? extends org.bukkit.event.Event> owning, org.bukkit.event.EventPriority priority) {
+    public static void ensure(BukkitPluginAdapter owner, Class<? extends org.bukkit.event.Event> owning, org.bukkit.event.EventPriority priority) {
         Mapping<?, ?> m = BY_BUKKIT.get(owning);
         if (m == null) return;   // 플러그인 자기 이벤트 — callEvent 로만 불린다
         if (!owner.markBridged(owning.getName() + "@" + priority.name())) return;
@@ -107,14 +107,17 @@ public final class EventBridge {
         if (fc != null && bc != null && bc.isCancelled() != fc.isCancelled()) bc.setCancelled(fc.isCancelled());   // 앞선 Furnace 처리기의 결과를 먼저 보인다
         var jp = owner.javaPlugin();
         boolean ran = false;
-        for (RegisteredListener rl : b.getHandlers().getRegisteredListeners()) {
-            if (rl.getPlugin() != jp || rl.getPriority() != priority) continue;
-            ran = true;
-            try {
-                rl.callEvent(b);
-            } catch (Throwable t) {
-                Throwable cause = t instanceof EventException ee && ee.getCause() != null ? ee.getCause() : t;
-                owner.logger().log(Level.SEVERE, "Could not pass event " + b.getEventName() + " to " + owner.bukkitDescription().getFullName(), cause);
+        // 전역 스레드에서 오는 이벤트(명령 등)는 Bukkit 에서 주 스레드 이벤트다 — 리스너가 블록·엔티티를 만지면 region 을 빌린다(다른 스레드는 빈 손잡이)
+        try (var access = Furnace.server().scheduler().global().openRegionAccess()) {
+            for (RegisteredListener rl : b.getHandlers().getRegisteredListeners()) {
+                if (rl.getPlugin() != jp || rl.getPriority() != priority) continue;
+                ran = true;
+                try {
+                    rl.callEvent(b);
+                } catch (Throwable t) {
+                    Throwable cause = t instanceof EventException ee && ee.getCause() != null ? ee.getCause() : t;
+                    owner.logger().log(Level.SEVERE, "Could not pass event " + b.getEventName() + " to " + owner.bukkitDescription().getFullName(), cause);
+                }
             }
         }
         if (!ran) return;

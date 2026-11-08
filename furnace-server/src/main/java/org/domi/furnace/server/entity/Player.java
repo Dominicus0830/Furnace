@@ -1559,6 +1559,33 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
                 .insertion(name);
     }
 
+    // 플러그인이 정한 표시 이름(Paper·Spigot setDisplayName) — 채팅 "<이름>" 에 쓴다. 접속을 끊으면 이 객체와 함께 사라진다.
+    private volatile org.domi.furnace.api.text.Text customDisplayName;
+
+    public org.domi.furnace.api.text.Text customDisplayName() { return customDisplayName; }
+
+    public void customDisplayName(org.domi.furnace.api.text.Text name) { customDisplayName = name; }
+
+    /** 채팅·말하기에 쓰는 이름: 플러그인이 정했으면 그것, 아니면 바닐라 getDisplayName. */
+    public org.domi.furnace.api.text.Text chatDisplayName() {
+        org.domi.furnace.api.text.Text c = customDisplayName;
+        return c != null ? c : displayName();
+    }
+
+    // 플러그인 PlayerKickEvent 가 정한 퇴장 알림(없으면 평소대로). 끊긴 뒤 퇴장 처리에서 한 번 쓴다.
+    private volatile boolean kickLeaveSet;
+    private volatile org.domi.furnace.api.text.Text kickLeaveMessage;
+
+    public void kickLeaveMessage(org.domi.furnace.api.text.Text message) {
+        kickLeaveMessage = message;
+        kickLeaveSet = true;
+    }
+
+    public boolean hasKickLeaveMessage() { return kickLeaveSet; }
+
+    /** 정한 퇴장 알림, null 이면 알림 없음(hasKickLeaveMessage 가 참일 때만 뜻이 있다). */
+    public org.domi.furnace.api.text.Text kickLeaveMessage() { return kickLeaveMessage; }
+
     // 리스폰할 때마다 증가 — 관찰자가 값이 바뀐 것을 보고 엔티티를 지웠다 다시 스폰한다(바닐라: 리스폰 = 새 ServerPlayer).
     private volatile int spawnGeneration;
 

@@ -19,6 +19,15 @@ public interface Player extends CommandSender, LivingEntity {
     /** 바닐라 Player.getDisplayName: 이름 + "/tell 이름" 제안 클릭 + 삽입. */
     Text displayName();
 
+    /**
+     * 플러그인이 정한 표시 이름(없으면 null). 정해 두면 채팅의 "&lt;이름&gt;" 이 팀 서식 이름 대신 이것으로 나간다(Paper·Spigot 의 setDisplayName).
+     * 접속을 끊으면 사라진다.
+     */
+    default Text customDisplayName() { return null; }
+
+    /** {@link #customDisplayName()} 을 정한다(null = 되돌림). */
+    default void customDisplayName(Text name) { throw new UnsupportedOperationException("customDisplayName"); }
+
     boolean isOnline();
 
     /** 마지막으로 알려진 위치. */

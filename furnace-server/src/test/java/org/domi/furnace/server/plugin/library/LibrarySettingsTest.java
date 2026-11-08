@@ -49,4 +49,20 @@ class LibrarySettingsTest {
         assertFalse(ps.libraries().enabled());
         assertTrue(ps.withLibraries(ps.libraries().withEnabled(true)).libraries().enabled());
     }
+
+    @Test
+    void compatKeysDefaultToNeededAndAreRead() throws Exception {
+        LibrarySettings d = read("");
+        assertEquals(LibrarySettings.CompatMode.NEEDED, d.compat());
+        assertTrue(d.compatMojang());
+        assertTrue(d.compatDeclared());
+        LibrarySettings s = read("plugins.compat.libraries=ALL\nplugins.compat.libraries.mojang=false\nplugins.compat.libraries.declared=false\n");
+        assertEquals(LibrarySettings.CompatMode.ALL, s.compat());
+        assertFalse(s.compatMojang());
+        assertFalse(s.compatDeclared());
+        assertEquals(LibrarySettings.CompatMode.OFF, read("plugins.compat.libraries=off\n").compat());
+        assertEquals(LibrarySettings.CompatMode.NEEDED, read("plugins.compat.libraries=sometimes\n").compat(), "모르는 값은 기본값");
+        assertTrue(d.anyDownload());
+        assertFalse(d.withCompat(LibrarySettings.CompatMode.OFF).withCompatDeclared(false).anyDownload());
+    }
 }

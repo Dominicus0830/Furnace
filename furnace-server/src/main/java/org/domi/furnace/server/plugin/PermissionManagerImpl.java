@@ -24,6 +24,17 @@ public final class PermissionManagerImpl implements PermissionManager {
         version.incrementAndGet();
     }
 
+    /** 그 노드(같은 값)가 올라 있을 때만 지운다. */
+    void unregister(Permission permission) {
+        if (permissions.remove(permission.name(), permission)) version.incrementAndGet();
+    }
+
+    @Override
+    public void replace(Permission permission) {
+        permissions.put(permission.name(), permission);
+        version.incrementAndGet();
+    }
+
     @Override
     public void unregister(String name) {
         if (permissions.remove(name.toLowerCase(Locale.ROOT)) != null) version.incrementAndGet();

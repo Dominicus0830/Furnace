@@ -541,26 +541,31 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             msg = msg.withUnsignedContent(msg.decoratedContent()); // 채팅 꾸밈(decorator)은 없다
             var events = core.events();
             org.domi.furnace.api.event.player.ChatRenderer renderer = null;
+            java.util.Set<java.util.UUID> recipients = null;
             if (events.hasSubscribers(org.domi.furnace.api.event.player.AsyncChatEvent.class)) {
                 Text original = msg.decoratedContent();
                 var ev = events.call(new org.domi.furnace.api.event.player.AsyncChatEvent(core.plugins().player(p), message, original,
-                        msg.signature() == null ? null : msg.signature().bytes()));
+                        msg.signature() == null ? null : msg.signature().bytes(), () -> core.plugins().onlinePlayers()));
                 if (ev.isCancelled()) {
                     detectRateSpam();
                     return;
                 }
                 if (!ev.message().equals(original)) msg = msg.withUnsignedContent(ev.message());
                 renderer = ev.renderer();
+                if (ev.recipientsTouched()) {   // 플러그인이 받는 사람을 만졌다 — 남은 사람에게만 보낸다
+                    recipients = new java.util.HashSet<>();
+                    for (var r : ev.recipients()) recipients.add(r.uniqueId());
+                }
             }
-            var bound = org.domi.furnace.server.chat.ChatType.CHAT.bind(
-                    org.domi.furnace.server.command.CommandSource.player(core, p).getDisplayName());
+            // 이름은 플러그인이 setDisplayName 으로 정했으면 그것, 아니면 바닐라 getDisplayName(팀 서식)
+            var bound = org.domi.furnace.server.chat.ChatType.CHAT.bind(p.chatDisplayName());
             if (renderer != null) {
-                core.broadcastRenderedChat(p, bound.name(), msg.decoratedContent(), renderer);
+                core.broadcastRenderedChat(p, bound.name(), msg.decoratedContent(), renderer, recipients);
                 detectRateSpam();
                 return;
             }
-            if (org.domi.furnace.server.config.OperatorOptions.current().unsignedChatAsSystem()) core.broadcastChatAsSystem(msg, bound);
-            else core.broadcastChatMessage(msg, p, bound);
+            if (org.domi.furnace.server.config.OperatorOptions.current().unsignedChatAsSystem()) core.broadcastChatAsSystem(msg, bound, recipients);
+            else core.broadcastChatMessage(msg, p, bound, recipients);
             detectRateSpam();
         });
     }
@@ -1464,6 +1469,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         scheduleSpawnGateRelease();
         if (login.core != null) login.core.scoreboard().sendTo(p);   // 바닐라 placeNewPlayer: updateEntireScoreboard 뒤 접속 알림
         if (login.core != null) login.core.plugins().sendRegisteredChannels(p);   // CraftBukkit sendSupportedChannels: 서버 플러그인이 받는 채널을 알린다
+        // CraftBukkit 은 구성 단계의 REGISTER 마다 PlayerRegisterChannelEvent 를 부른다 — 그때 알린 채널을 접속 알림 직전에 한꺼번에
+        if (login.core != null) fireChannelEvents(p, java.util.List.copyOf(pluginChannels.snapshot()), org.domi.furnace.api.event.player.PlayerChannelEvent.Action.REGISTER);
         if (login.core != null) announceJoin(login.core, p);
         if (login.core != null) login.core.customBossEvents().onPlayerConnect(p);
     }
@@ -2205,8 +2212,20 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             if (channel.equals(PluginChannels.REGISTER) || channel.equals(PluginChannels.UNREGISTER)) {
                 byte[] data = new byte[n];
                 frame.readBytes(data);
-                if (channel.equals(PluginChannels.REGISTER)) pluginChannels.register(data);
-                else pluginChannels.unregister(data);
+                boolean reg = channel.equals(PluginChannels.REGISTER);
+                java.util.List<String> changed;
+                try {
+                    changed = reg ? pluginChannels.add(data) : pluginChannels.remove(data);
+                } catch (PluginChannels.InvalidChannelException e) {
+                    // Paper: addChannel/removeChannel 예외 → "Invalid payload REGISTER!"/"UNREGISTER!" 로 연결 종료
+                    log.debug("잘못된 {} 본문: {}", channel, e.getMessage());
+                    ChannelHandlerContext cx = ctx;
+                    if (cx != null) kick(cx, reg ? "Invalid payload REGISTER!" : "Invalid payload UNREGISTER!");
+                    return;
+                }
+                // play 단계면 바로 알린다. 구성 단계(Player 가 아직 없다)에서 알린 채널은 play 진입 때 한꺼번에(announceChannels)
+                if (inPlay) fireChannelEvents(player, changed, reg ? org.domi.furnace.api.event.player.PlayerChannelEvent.Action.REGISTER
+                        : org.domi.furnace.api.event.player.PlayerChannelEvent.Action.UNREGISTER);
                 return;
             }
             if (!inPlay) return;
@@ -2219,6 +2238,14 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         } catch (Exception e) {
             log.debug("custom_payload 파싱 실패", e);
         }
+    }
+
+    /** 채널마다 PlayerChannelEvent 하나(Bukkit addChannel·removeChannel 처럼 실제로 바뀐 채널만). 연결 스레드. */
+    private void fireChannelEvents(Player p, java.util.List<String> channels, org.domi.furnace.api.event.player.PlayerChannelEvent.Action action) {
+        org.domi.furnace.server.ServerCore c = login.core;
+        if (p == null || c == null || channels.isEmpty() || !c.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerChannelEvent.class)) return;
+        org.domi.furnace.api.entity.Player handle = c.plugins().player(p);
+        for (String ch : channels) c.events().call(new org.domi.furnace.api.event.player.PlayerChannelEvent(handle, ch, action));
     }
 
     private volatile String clientBrand;
@@ -4033,7 +4060,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 // 바닐라 onDisconnect → removePlayerFromWorld: "이름 lost connection: 사유" 로그, 노란 퇴장 알림.
                 Text why = kickReason != null ? kickReason : p.kickReason() != null ? p.kickReason() : Text.translatable("disconnect.disconnected");
                 log.info("{} lost connection: {}", p.name(), why.getString());
-                Text msg = Text.translatable("multiplayer.player.left", p.displayName()).color(org.domi.furnace.api.text.NamedTextColor.YELLOW);
+                Text msg = p.hasKickLeaveMessage() ? p.kickLeaveMessage()   // 플러그인 PlayerKickEvent#leaveMessage
+                        : Text.translatable("multiplayer.player.left", p.displayName()).color(org.domi.furnace.api.text.NamedTextColor.YELLOW);
                 if (core.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerQuitEvent.class)) {
                     msg = core.events().call(new org.domi.furnace.api.event.player.PlayerQuitEvent(core.plugins().player(p), msg, quit)).quitMessage();
                 }

@@ -31,6 +31,7 @@ public final class LegacyTextSerializer {
     private final boolean unusualX;
     private final Pattern urlPattern;   // null 이면 주소 추출 안 함
     private final Style urlStyle;
+    private final String urlScheme;   // 스킴 없는 주소 앞에 붙일 것(기본 "https://")
     private final Locale locale;
 
     private LegacyTextSerializer(Builder b) {
@@ -40,6 +41,7 @@ public final class LegacyTextSerializer {
         this.unusualX = b.unusualX;
         this.urlPattern = b.urlPattern;
         this.urlStyle = b.urlStyle;
+        this.urlScheme = b.urlScheme;
         this.locale = b.locale;
     }
 
@@ -117,7 +119,7 @@ public final class LegacyTextSerializer {
         while (m.find()) {
             if (m.start() > last) parts.add(Text.text(s.substring(last, m.start()), style));
             String link = m.group();
-            String url = m.groupCount() >= 1 && m.group(1) == null ? "https://" + link : link;
+            String url = m.groupCount() >= 1 && m.group(1) == null ? urlScheme + link : link;
             Style linkStyle = style.merge(urlStyle).clickEvent(ClickEvent.openUrl(url));
             parts.add(Text.text(link, linkStyle));
             last = m.end();
@@ -221,6 +223,7 @@ public final class LegacyTextSerializer {
         private boolean unusualX;
         private Pattern urlPattern;
         private Style urlStyle = Style.empty();
+        private String urlScheme = "https://";
         private Locale locale = Translators.SERVER_LOCALE;
 
         Builder() {}
@@ -251,6 +254,12 @@ public final class LegacyTextSerializer {
         public Builder extractUrls(Pattern pattern, Style style) {
             urlPattern = pattern;
             urlStyle = style == null ? Style.empty() : style;
+            return this;
+        }
+
+        /** 스킴 없는 주소의 클릭 값 앞에 붙일 것(기본 "https://", CraftBukkit 은 "http://"). */
+        public Builder urlScheme(String scheme) {
+            urlScheme = java.util.Objects.requireNonNull(scheme, "scheme");
             return this;
         }
 

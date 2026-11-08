@@ -10,7 +10,7 @@
 //   plugins.compat.nms.enabled=true  호환 플러그인 클래스를 올릴 때 NMS·CraftBukkit 이름 변환(버전 접미사 v1_21_R1 풀기 등)을 한다 — false 면 바이트 그대로 올린다
 //   plugins.compat.nms.strict=false   미지원 NMS 심볼이 있는 플러그인은 불러오지 않는다(기본: 그 호출만 실패)
 //   plugins.compat.nms.version-package=plain  플러그인이 읽는 CraftBukkit 패키지 이름(plain = Paper 처럼 접미사 없음, versioned = Spigot 처럼 v1_21_R1)
-//   bukkit·nms.enabled 를 뺀 plugins.compat.* 키는 compatOptions 로 플러그인 형식(PluginFormat#transformer)에 그대로 넘긴다
+//   bukkit·nms.enabled·libraries* 를 뺀 plugins.compat.* 키는 compatOptions 로 플러그인 형식(PluginFormat#transformer)에 그대로 넘긴다
 package org.domi.furnace.server.plugin;
 
 import java.io.IOException;
@@ -28,7 +28,7 @@ import org.slf4j.LoggerFactory;
 
 public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels, boolean devMode, boolean autoReload,
                              LibrarySettings libraries, boolean compat, boolean compatNms, Map<String, String> compatOptions,
-                             int chunkTicketLimit) {
+                             int chunkTicketLimit, boolean exposeCompatToNative) {
 
     /** plugins.compat.nms.* 기본값(빈 설정 파일을 읽은 것과 같다). */
     public static final Map<String, String> DEFAULT_COMPAT_OPTIONS =
@@ -71,22 +71,34 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
                 org.domi.furnace.api.world.ChunkTickets.MAX_CHUNKS_PER_OWNER);
     }
 
-    /** 호환 형식 설정은 기본값. */
+    /** 호환 형식 설정은 기본값, 네이티브 플러그인 클래스로더에 호환 클래스를 숨김(기본). */
     public PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels, boolean devMode, boolean autoReload,
                           LibrarySettings libraries, boolean compat, boolean compatNms, int chunkTicketLimit) {
-        this(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, DEFAULT_COMPAT_OPTIONS, chunkTicketLimit);
+        this(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, DEFAULT_COMPAT_OPTIONS, chunkTicketLimit, false);
     }
 
-    public PluginSettings withLibraries(LibrarySettings l) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, l, compat, compatNms, compatOptions, chunkTicketLimit); }
+    /** 네이티브 플러그인 클래스로더에 호환 클래스를 숨김(기본). */
+    public PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels, boolean devMode, boolean autoReload,
+                          LibrarySettings libraries, boolean compat, boolean compatNms, Map<String, String> compatOptions, int chunkTicketLimit) {
+        this(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, compatOptions, chunkTicketLimit, false);
+    }
 
-    public PluginSettings withCompat(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, on, compatNms, compatOptions, chunkTicketLimit); }
+    /**
+     * 시험용 문: true 면 Furnace 네이티브 플러그인에도 호환 클래스(org.bukkit.*·호환 코어 등)가 보인다. 서버 설정(furnace.properties)에는 없다 —
+     * 지향점은 네이티브 플러그인이 Furnace API 만 쓰는 것이다. 호환 코어를 네이티브 시험 플러그인으로 직접 부리는 호환 모듈 시험만 켠다.
+     */
+    public PluginSettings withExposeCompatToNative(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, compatOptions, chunkTicketLimit, on); }
 
-    public PluginSettings withCompatNms(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, on, compatOptions, chunkTicketLimit); }
+    public PluginSettings withLibraries(LibrarySettings l) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, l, compat, compatNms, compatOptions, chunkTicketLimit, exposeCompatToNative); }
+
+    public PluginSettings withCompat(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, on, compatNms, compatOptions, chunkTicketLimit, exposeCompatToNative); }
+
+    public PluginSettings withCompatNms(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, on, compatOptions, chunkTicketLimit, exposeCompatToNative); }
 
     /** plugins.compat.* 설정(접두어 포함 키)을 바꾼 사본 — 시험 서버가 쓴다. */
-    public PluginSettings withCompatOptions(Map<String, String> o) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, o, chunkTicketLimit); }
+    public PluginSettings withCompatOptions(Map<String, String> o) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, o, chunkTicketLimit, exposeCompatToNative); }
 
-    public PluginSettings withChunkTicketLimit(int n) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, compatOptions, n); }
+    public PluginSettings withChunkTicketLimit(int n) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, compatOptions, n, exposeCompatToNative); }
 
     public PluginSettings {
         Map<String, Level> m = new HashMap<>();
@@ -132,8 +144,9 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         boolean nms = org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.compat.nms.enabled", true);
         Map<String, String> compatOptions = new HashMap<>();
         for (String k : p.stringPropertyNames()) {
-            // bukkit·nms.enabled 는 위에서 필드로 읽었다
-            if (k.startsWith("plugins.compat.") && !k.equals("plugins.compat.bukkit") && !k.equals("plugins.compat.nms.enabled")) {
+            // bukkit·nms.enabled 는 위에서 필드로, plugins.compat.libraries* 는 LibrarySettings 가 읽는다. 빈 값은 안 쓴 것과 같다
+            if (k.startsWith("plugins.compat.") && !k.equals("plugins.compat.bukkit") && !k.equals("plugins.compat.nms.enabled")
+                    && !LibrarySettings.KEYS.contains(k) && !p.getProperty(k).isBlank()) {
                 compatOptions.put(k, p.getProperty(k).strip());
             }
         }

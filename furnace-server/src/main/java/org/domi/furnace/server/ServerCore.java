@@ -1709,9 +1709,15 @@ public final class ServerCore {
     /** 바닐라 PlayerList.broadcastChatMessage — 서명 신뢰 여부로 로그 태그를 정하고 모든 플레이어에게 보낸다. */
     public void broadcastChatMessage(org.domi.furnace.server.chat.PlayerChatMessage message, Player sender,
                                      org.domi.furnace.server.chat.ChatType.Bound bound) {
+        broadcastChatMessage(message, sender, bound, null);
+    }
+
+    /** recipients 가 null 이 아니면 그 UUID 의 플레이어에게만 보낸다(플러그인이 받는 사람을 걸렀을 때). 콘솔 로그는 늘 남는다. */
+    public void broadcastChatMessage(org.domi.furnace.server.chat.PlayerChatMessage message, Player sender,
+                                     org.domi.furnace.server.chat.ChatType.Bound bound, java.util.Set<UUID> recipients) {
         boolean trusted = message.hasSignature() && !message.hasExpiredServer(java.time.Instant.now());
         logChatMessage(message.decoratedContent(), bound, trusted ? null : "Not Secure");
-        for (Player p : players()) sendChatMessage(p, message, false, bound);
+        for (Player p : players()) if (recipients == null || recipients.contains(p.uuid())) sendChatMessage(p, message, false, bound);
     }
 
     /**
@@ -1719,9 +1725,17 @@ public final class ServerCore {
      */
     public void broadcastChatAsSystem(org.domi.furnace.server.chat.PlayerChatMessage message,
                                       org.domi.furnace.server.chat.ChatType.Bound bound) {
+        broadcastChatAsSystem(message, bound, null);
+    }
+
+    public void broadcastChatAsSystem(org.domi.furnace.server.chat.PlayerChatMessage message,
+                                      org.domi.furnace.server.chat.ChatType.Bound bound, java.util.Set<UUID> recipients) {
         logChatMessage(message.decoratedContent(), bound, null);
         Text line = bound.decorate(message.decoratedContent());
-        for (Player p : players()) if (p.chat().acceptsChatMessages()) p.sendSystemMessage(line, false);
+        for (Player p : players()) {
+            if (recipients != null && !recipients.contains(p.uuid())) continue;
+            if (p.chat().acceptsChatMessages()) p.sendSystemMessage(line, false);
+        }
     }
 
     /**
@@ -1729,6 +1743,11 @@ public final class ServerCore {
      * 콘솔 로그에는 콘솔을 받는 사람으로 한 번 렌더한다. 렌더러가 예외를 던지면 그 사람에게는 바닐라 서식으로 보낸다.
      */
     public void broadcastRenderedChat(Player sender, Text senderName, Text content, org.domi.furnace.api.event.player.ChatRenderer renderer) {
+        broadcastRenderedChat(sender, senderName, content, renderer, null);
+    }
+
+    public void broadcastRenderedChat(Player sender, Text senderName, Text content, org.domi.furnace.api.event.player.ChatRenderer renderer,
+                                      java.util.Set<UUID> recipients) {
         var host = plugins();
         var source = host.player(sender);
         Text consoleLine;
@@ -1741,6 +1760,7 @@ public final class ServerCore {
         log.info("{}", consoleLine.getString());
         for (var l : consoleListeners) l.accept(consoleLine);
         for (Player p : players()) {
+            if (recipients != null && !recipients.contains(p.uuid())) continue;
             if (!p.chat().acceptsChatMessages()) continue;
             Text line;
             try {
