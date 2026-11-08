@@ -105,6 +105,22 @@ public final class Compat {
         return s;
     }
 
+    /**
+     * 서버 종료 중 플러그인이 모두 꺼진 뒤: 옛 Bukkit 비동기 작업이 끝나기를 최대 {@code maxMillis} 기다리고(Paper Wait-for-Async-Tasks-during-shutdown),
+     * 비동기 풀을 닫는다. 옛 스케줄러를 쓴 적이 없으면(아직 안 만들었으면) 아무것도 안 한다.
+     */
+    public static void awaitAsyncTasksAtShutdown(Furnace server, long maxMillis) {
+        State s = state;
+        if (s == null || s.furnace != server) return;
+        LegacyScheduler sc = s.scheduler;
+        if (sc == null) return;
+        try {
+            sc.awaitAsyncWorkers(maxMillis);
+        } finally {
+            s.close();
+        }
+    }
+
     /** 호환 모듈 전용 — 지금 떠 있는 Furnace 서버. */
     public static Furnace furnace() { return state().furnace; }
 

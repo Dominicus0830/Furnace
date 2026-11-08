@@ -38,4 +38,11 @@ public interface PluginFormat {
      * @param jar         플러그인 jar(개발 모드에서는 사본)
      */
     default ClassTransformer transformer(PluginDescription description, java.nio.file.Path jar) { return null; }
+
+    /**
+     * 서버 종료 중 모든 플러그인의 onDisable 이 끝난 직후에 한 번 불린다(리로드·플러그인 하나 끄기에서는 안 불린다). 어댑터가 자기 형식의
+     * 플러그인이 남긴 일(예: Bukkit 비동기 작업)을 마무리할 시간을 주는 자리 — 오래 붙잡지 말 것(종료가 그만큼 늦어진다).
+     * 어댑터를 아직 만들지 않았으면(그 형식의 플러그인이 없었으면) 불리지 않는다.
+     */
+    default void afterPluginsDisabled(org.domi.furnace.api.Furnace server) {}
 }

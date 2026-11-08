@@ -264,6 +264,8 @@ public final class PluginManagerImpl implements PluginManager {
         List<Loaded> rev = new ArrayList<>(plugins);
         java.util.Collections.reverse(rev);
         for (Loaded l : rev) disable(l.plugin());
+        PluginBootstrapper b = boot;
+        if (b != null) b.afterAllDisabled(host);   // 형식 어댑터가 남은 일(Bukkit 비동기 작업 등)을 마무리할 시간
     }
 
     @Override

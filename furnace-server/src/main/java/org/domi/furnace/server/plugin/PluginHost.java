@@ -425,6 +425,11 @@ public final class PluginHost implements Furnace {
     public ExecutorService asyncExecutor() { return profiledAsync; }
 
     @Override
+    public String compatOption(String key) {
+        return key != null && key.startsWith("plugins.compat.") ? pluginsImpl().settings().compatOption(key) : null;
+    }
+
+    @Override
     public EventBus events() { return events; }
 
     @Override

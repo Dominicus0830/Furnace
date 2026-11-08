@@ -38,7 +38,7 @@ API 는 버전 중립이다: 내부 패킷 타입을 드러내지 않고, 단계
 | 단계 | 하는 일 | 이때 살아 있는 것 |
 |---|---|---|
 | 1. `SHUTDOWN_EVENT` | `Furnace.isStopping()` 이 true 가 되고 `ServerShutdownEvent` 한 번 | 전부 |
-| 2. `DISABLE_PLUGINS` | 켠 순서의 반대로 `onDisable`. 끝나면 그 플러그인의 이벤트·명령·작업이 정리된다 | 접속자·네트워크·region·스케줄러 |
+| 2. `DISABLE_PLUGINS` | 켠 순서의 반대로 `onDisable`. 끝나면 그 플러그인의 이벤트·명령·작업이 정리된다. 모두 끝난 뒤 형식 어댑터가 `PluginFormat.afterPluginsDisabled` 로 한 번 마무리한다(Bukkit 어댑터: 돌고 있는 비동기 작업을 최대 5초 기다리고 남으면 로그) | 접속자·네트워크·region·스케줄러 |
 | 3. `CLOSE_REMOTE_SERVICES` | RCON·Query·워치독 | 접속자·region |
 | 4. `STOP_NETWORK` | 새 접속 막기, 접속자 내보내기(`multiplayer.disconnect.server_shutdown`) | region |
 | 5. `FLUSH_WORLDS` | region 스레드에서 dirty 청크·플레이어 저장, 플레이어 데이터 실행기 비우기 | region |

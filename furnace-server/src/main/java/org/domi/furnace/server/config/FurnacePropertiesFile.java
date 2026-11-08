@@ -126,6 +126,7 @@ public final class FurnacePropertiesFile {
                 opt("plugins.compat.bukkit", true, "Bukkit·Paper 플러그인(plugin.yml) 호환 어댑터. 끄면 plugins/bukkit-plugins/ 와 plugin.yml jar 를 읽지 않는다."),
                 opt("plugins.compat.nms.enabled", true, "Bukkit 호환 플러그인의 NMS·CraftBukkit 이름 변환(CraftBukkit 버전 접미사 v1_21_R1 을 접미사 없는 이름으로). 끄면 그런 이름을 쓰는 플러그인은 그 자리에서 실패한다."),
                 opt("plugins.chunk-tickets.max-per-plugin", org.domi.furnace.api.world.ChunkTickets.MAX_CHUNKS_PER_OWNER, "플러그인 하나가 청크 티켓(chunkTickets API)으로 붙잡을 수 있는 청크 수 상한(겹침 포함, 1 이상). 넘으면 add 가 거부된다."),
+                opt("plugins.compat.scheduler.async-threads", "platform", "Bukkit 비동기 작업(runTaskAsynchronously 등)을 도는 스레드. platform: 이름 붙은 플랫폼 스레드 풀(Paper 와 같은 모양 — 코어 4, 늘어나면 무제한, 30초 놀면 정리). virtual: 가상 스레드(JDK 21 에서는 synchronized 안에서 소켓·파일을 기다리는 옛 DB 드라이버가 운반 스레드를 붙잡을 수 있다)."),
                 opt("plugins.compat.libraries", "needed", "Paper 가 싣는 라이브러리(Guava·Adventure·SnakeYAML·Brigadier 등)를 Furnace jar 에 넣지 않고 필요할 때 받는다. needed: 호환 플러그인 클래스가 쓰는 것만, all: 호환 플러그인이 있으면 전부, off: 받지 않는다(그것을 쓰는 플러그인은 실패)."),
                 opt("plugins.compat.libraries.mojang", true, "Brigadier·authlib·DataFixerUpper 는 Mojang 저장소(libraries.minecraft.net)에서 받는다. false 면 그 셋은 빼고 경고."),
                 opt("plugins.compat.libraries.declared", true, "호환 플러그인 plugin.yml 의 libraries 를 Paper·Spigot 처럼 받는다(plugins.libraries.enabled 와 별개)."),
