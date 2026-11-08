@@ -81,8 +81,11 @@
 | `plugins.compat.bukkit` | ON/OFF | true | true\|false | Bukkit·Paper 플러그인(plugin.yml) 호환 어댑터 — 끄면 plugin.yml jar 를 읽지 않는다(호환 모듈이 있을 때) |  |
 | `plugins.compat.nms.enabled` | ON/OFF | true | true\|false | Bukkit 호환 플러그인을 올릴 때 NMS·CraftBukkit 이름 변환(CraftBukkit 버전 접미사 v1_21_R1 풀기)을 한다 — 끄면 그런 플러그인은 그 이름에서 실패한다 |  |
 | `plugins.chunk-tickets.max-per-plugin` | 수 | 16384 | 1~100000000 | 플러그인 하나가 청크 티켓으로 붙잡을 수 있는 청크 수 상한(겹침 포함) |  |
+| `plugins.compat.libraries` | 글자 | needed | needed\|all\|off | Paper 가 싣는 라이브러리(Guava·Adventure·SnakeYAML·Brigadier 등)를 호환 플러그인 클래스가 쓸 때만(needed)·호환 플러그인이 있으면 전부(all) 받아 공유 로더에 붙인다(H4 묶음 B, `docs/api/plugin-libraries.md`) | 잘못된 값은 경고 후 needed |
+| `plugins.compat.libraries.mojang` | ON/OFF | true | true\|false | Brigadier·authlib·DataFixerUpper 를 Mojang 저장소에서 받는다 | off 인데 적혀 있으면 경고 |
+| `plugins.compat.libraries.declared` | ON/OFF | true | true\|false | 호환 플러그인 plugin.yml 의 libraries 를 Paper·Spigot 처럼 받는다 |  |
 | `plugins.libraries.enabled` | ON/OFF | false | true\|false | 플러그인 설명 파일의 libraries 를 Maven Central 에서 받아 붙인다 | 켜면 안내 |
-| `plugins.libraries.offline` | ON/OFF | false | true\|false | 캐시에 있는 라이브러리만 쓴다 | enabled=false 인데 적혀 있으면 경고 |
+| `plugins.libraries.offline` | ON/OFF | false | true\|false | 캐시에 있는 라이브러리만 쓴다(Furnace·호환 플러그인 내려받기 모두) | 내려받기가 모두 꺼졌는데 적혀 있으면 경고 |
 | `plugins.libraries.transitive` | ON/OFF | true | true\|false | 라이브러리의 compile/runtime 의존까지 받는다 | 위와 같음 |
 | `plugins.libraries.require-checksum` | ON/OFF | false | true\|false | 체크섬 기록이 없는 jar 는 받지 않는다 | 위와 같음 |
 | `plugins.libraries.cache` | 경로 | (없음) | - | 받은 라이브러리 폴더(비면 plugins/.libraries) |  |

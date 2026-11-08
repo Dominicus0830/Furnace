@@ -104,7 +104,7 @@ public final class FurnaceTestServer implements AutoCloseable {
             this.global = (GlobalThread) sched.global();
             global.useManualClock();
             // 플러그인 부트스트랩: 레지스트리·월드보다 먼저(FurnaceMain 과 같은 자리). 시험에서는 실패를 숨기지 않는다(fail-fast).
-            PluginSettings pluginSettings = new PluginSettings(b.failFast, null, java.util.Map.of()).withCompatNms(b.compatNms);
+            PluginSettings pluginSettings = new PluginSettings(b.failFast, null, java.util.Map.of()).withCompatNms(b.compatNms).withLibraries(b.libraries);
             PluginBootstrapper boot = PluginBootstrapper.bootstrap(pluginsDir, pluginSettings);
             BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
             ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
@@ -441,6 +441,9 @@ public final class FurnaceTestServer implements AutoCloseable {
         private int maxPlayers = 20;
         private boolean failFast = true;
         private boolean compatNms = true;
+        /** 시험은 기본으로 네트워크에 나가지 않는다 — 호환 플러그인용 서버 제공 라이브러리·plugin.yml libraries 도 끈다. */
+        private org.domi.furnace.server.plugin.library.LibrarySettings libraries = org.domi.furnace.server.plugin.library.LibrarySettings.DEFAULT
+                .withCompat(org.domi.furnace.server.plugin.library.LibrarySettings.CompatMode.OFF).withCompatDeclared(false);
         private long timeoutMillis = DEFAULT_TIMEOUT_MILLIS;
         private String serverProperties = "";
         private Path directory;
@@ -502,6 +505,12 @@ public final class FurnaceTestServer implements AutoCloseable {
 
         /** Bukkit 호환 플러그인의 NMS·CraftBukkit 이름 변환(furnace.properties plugins.compat.nms.enabled, 기본 참). */
         public Builder compatNms(boolean v) { this.compatNms = v; return this; }
+
+        /**
+         * 라이브러리 내려받기 설정(furnace.properties plugins.libraries.*·plugins.compat.libraries*). 기본은 모두 꺼짐 — 시험이 네트워크에 기대지 않게
+         * 실제 서버의 기본(plugins.compat.libraries=needed, declared=true)과 다르다. Paper 플러그인이 Guava 등을 쓰면 캐시를 채우고 offline 으로 켜라.
+         */
+        public Builder libraries(org.domi.furnace.server.plugin.library.LibrarySettings v) { this.libraries = java.util.Objects.requireNonNull(v); return this; }
 
         /** 틱·future 기다림 한도. */
         public Builder timeout(long millis) { this.timeoutMillis = Math.max(1, millis); return this; }
