@@ -898,9 +898,9 @@ public abstract class LivingEntity extends Entity implements Targetable {
             setHealth(out.reviveHealth());
             return;
         }
-        for (Runnable r : afterDeath) r.run();
         if (sound != null) playSound((String) sound[0], (Float) sound[1], (Float) sound[2]);
-        awardKillCredit(source);
+        awardKillCredit(source);   // 장비를 비우기 전(바닐라·Paper 순서) — player_killed_entity 조건이 떨군 장비를 본다
+        for (Runnable r : afterDeath) r.run();
         if (killedBySource()) {
             gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DIE);   // 스컬크 촉매가 여기서 경험치를 가져간다
             for (ItemStack st : out.drops()) {

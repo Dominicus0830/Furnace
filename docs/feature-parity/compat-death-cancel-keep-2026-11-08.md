@@ -38,8 +38,12 @@ PR #164(플레이어 사망 드롭) 후속. `compat-death-drops-2026-11-08.md` �
    또 Paper 는 `killedEntity`(좀비가 주민을 감염) 결과와 무관하게 드롭하지만 Furnace 는 바닐라처럼 감염되면 드롭하지 않는다.
 4. 이벤트를 들을 때 스컬크 촉매가 근처에 있으면 촉매의 꽃 피는 소리 난수와 아이템 엔티티 속도 난수의 순서가 바닐라와 바뀐다(아이템을 먼저 만든다). Paper 도 순서가 바뀐다.
 5. 개수만 바뀐 아이템(같은 종류)은 Paper 가 원래 떨굼 방식(높이 보정 등)을 쓰지만 Furnace 는 새 엔티티를 몸 위치에 만든다(몹 사망 드롭은 높이 보정이 0 이라 차이는 엔티티 추가 속성뿐).
-6. 알레이 손·주머니, 피글린 주머니처럼 전리품을 모으며 이미 비운 것은 취소해도 돌아오지 않는다(Paper 도 같다).
-7. 플레이어 사망이 소유 스레드가 아닌 곳(명령 스레드의 `/kill` 등)에서 취소될 때, 그 사이 소유 틱이 체력 0 을 클라이언트에 보낼 수 있는 아주 좁은 틈이 있다.
+6. 알레이 손·주머니, 피글린 주머니처럼 전리품을 모으며 이미 비운 것과 충전 크리퍼의 머리 떨굼 횟수는 취소해도 돌아오지 않는다(Paper 도 같다).
+7. 소멸 저주 아이템을 `itemsToKeep` 에 넣으면 칸은 비우되 목록에서 지워지지 않아 남은 항목으로 다시 넣어진다(Paper processKeep 과 같다).
+8. 이벤트를 들을 때 좀비가 주민을 감염시키면(`killedEntity` 가 false) 전리품 난수를 이미 굴린 뒤라 바닐라와 난수 소비가 다르다(감염된 주민은 사라지므로 관측 차이는 거의 없다).
+9. `reviveHealth` 검사는 이벤트를 만들 때의 최대 체력 기준이다(Paper 는 부르는 순간의 속성값). 처리기가 최대 체력을 올린 뒤 그보다 큰 값을 주면 거부된다.
+10. 처치 점수(`player_killed_entity` 등)는 미룬 장비 정리보다 먼저 돈다 — 조건이 떨군 장비를 본다(바닐라·Paper 순서, PR #166 검토에서 고침, 시험 `MobDeathKillCreditOrderTest`).
+11. 플레이어 사망이 소유 스레드가 아닌 곳(명령 스레드의 `/kill` 등)에서 취소될 때, 그 사이 소유 틱이 체력 0 을 클라이언트에 보낼 수 있는 아주 좁은 틈이 있다.
 
 ## 시험
 
@@ -47,4 +51,5 @@ PR #164(플레이어 사망 드롭) 후속. `compat-death-drops-2026-11-08.md` �
 - `furnace-server` `EntityWorldApiTest#entityDeathEventCarriesDropsAndCancelKeepsMobAliveWithGear`: 돼지의 투구·안장이 목록에 실리고, 취소하면 살아서 장비 그대로, 아니면 바꾼 목록·경험치대로.
 - `furnace-test` `PlayerDeathDropsTest`: itemsToKeep 칸 유지·새 아이템 추가·덜 찬 칸 먼저·keepInventory 면 무시, 취소, shouldDropExperience.
 - `furnace-compat-paper` `BukkitDeathDropsTest`: 진짜 Bukkit 플러그인 jar 로 취소·setReviveHealth·소울바운드식 getItemsToKeep·몹 getDrops 편집·몹 취소.
+- `furnace-test` `MobDeathKillCreditOrderTest`(습격 대장 처치 점수가 깃발을 본다), `PlayerDeathKeepCountTest`(같은 값 두 칸 중 하나만 남기기, 취소 뒤 재사망) — 독립 검토 재현 시험.
 - 계약 표(`docs/api/event-cancel-contract.md`, `CancelContractTest`)에 두 이벤트를 `SERVER_DRIVEN` 으로 올렸다.
