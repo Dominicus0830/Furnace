@@ -99,7 +99,12 @@ public final class PlayerVitals {
 
     /** 죽을 때 소유 연결이 할 일(드롭 던지기·인벤토리 비우기 등). netty 이벤트 루프로 넘겨 실행된다. */
     public interface DeathListener {
-        void onDeath(boolean keepInventory, List<ItemStack> drops);
+        /**
+         * @param drops     이벤트가 정한 떨어뜨릴 목록
+         * @param originals 죽는 순간 인벤토리에서 뜬 스택(소멸 저주 제외) — 목록의 원래 스택은 이 객체 그대로다. 목록을 뜬 뒤 이벤트 루프가 처리한
+         *                  패킷(버리기·창 클릭)이 인벤토리에서 꺼낸 아이템이 두 번 나오지 않게, 연결 쪽이 지금 인벤토리와 신원으로 맞춰 본다.
+         */
+        void onDeath(boolean keepInventory, List<ItemStack> drops, List<ItemStack> originals);
     }
 
     /** 틱마다 region 이 블록을 보고 계산해 넘기는 주변 상태. */
@@ -908,7 +913,7 @@ public final class PlayerVitals {
         }
         player.removeEntitiesOnShoulder();   // ServerPlayer.die: 어깨의 몹을 내려놓는다
         DeathListener l = deathListener;
-        if (l != null) l.onDeath(outcome.keepInventory(), outcome.drops());
+        if (l != null) l.onDeath(outcome.keepInventory(), outcome.drops(), loot);
         onOwnerThread(() -> dropDeathExperience(death));   // dropAllDeathLoot 의 dropExperience(전리품 다음). 관전자는 기본 0 이라 구슬이 없다.
         var board = player.scoreboard();   // 바닐라 ServerPlayer.die: deathCount 기준 +1
         if (board != null) board.incrementCriteria(player, org.domi.furnace.server.scores.ObjectiveCriteria.DEATH_COUNT);
@@ -937,8 +942,9 @@ public final class PlayerVitals {
         List<ItemStack> loot = new ArrayList<>();
         PlayerInventory inv = player.inventory();
         if (inv == null) return loot;
+        ItemStack[] snap = inv.snapshot();   // 한 번에 뜬다 — 칸마다 읽으면 그 사이 옮겨진 아이템이 두 번 잡힐 수 있다
         for (int i = 0; i <= 40; i++) {
-            ItemStack s = inv.get(PlayerInventory.windowSlot(i));
+            ItemStack s = snap[PlayerInventory.windowSlot(i)];
             if (s == null || s.isEmpty()) continue;
             if (org.domi.furnace.server.item.ItemTools.enchantmentLevel(s, "minecraft:vanishing_curse") > 0) continue;
             loot.add(s);
@@ -1489,7 +1495,7 @@ public final class PlayerVitals {
      */
     public synchronized void respawn() {
         respawnEpoch++;
-        boolean keepXp = keepLevelOnRespawn || gameMode == GameMode.SPECTATOR;
+        boolean keepXp = keepLevelOnRespawn;   // Paper ServerPlayer.reset 은 keepLevel 만 본다(관전자는 죽을 때 keepLevel=true 로 미리 채워진다)
         keepLevelOnRespawn = false;
         // death 기록은 지우지 않는다: 주인 스레드로 밀린 entity_die·구슬 작업이 리스폰 뒤에 돌 수 있다. 다음 사망이 새 기록으로 덮는다.
         effects.clear();
