@@ -1,0 +1,95 @@
+// A05 강제 종료 시험(통과 기대 — 확인용): 자식 JVM 이 RegionFileStore 로 청크를 쉬지 않고 덮어쓰는 동안 SIGKILL(destroyForcibly) 하고,
+// 다시 열어 모든 청크가 "어느 한 판의 온전한 내용" 으로 읽히는지 본다. 크기를 바꿔 가며 써서 섹터 재할당·외부 .mcc(1MB 넘는 청크)
+// 전환도 탄다. 같은 파일로 5번 되풀이(죽은 파일을 다시 열고 이어 쓰기).
+package org.domi.furnace.server.world.anvil;
+
+import static org.junit.jupiter.api.Assertions.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
+import org.domi.furnace.server.net.io.nbt.NbtCompound;
+import org.domi.furnace.server.net.io.nbt.NbtIo;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+class A05KillDuringWriteTest {
+
+    static final int CHUNKS = 48;   // 같은 파일 r.0.0 안
+
+    /** v 판 청크 내용: {v, n, pad:[n 바이트, 모두 (v+cx*7+cz*13)&0xFF]}. 판마다 크기가 달라 섹터 수가 바뀐다. */
+    static NbtCompound content(int cx, int cz, int v) {
+        java.util.Random r = new java.util.Random(v * 31L + cx * 1009L + cz);
+        int n = r.nextInt(10) == 0 ? 1_200_000 + r.nextInt(300_000) : 200 + r.nextInt(60_000);   // 가끔 외부 .mcc
+        byte[] pad = new byte[n];
+        // 압축이 너무 잘 되지 않게 판·좌표로 씨앗을 둔 무작위 바이트(외부 전환이 실제로 일어나게)
+        new java.util.Random(v ^ (cx * 7L + cz * 13L)).nextBytes(pad);
+        NbtCompound c = new NbtCompound();
+        c.putInt("v", v);
+        c.putInt("cx", cx);
+        c.putInt("cz", cz);
+        c.putByteArray("pad", pad);
+        return c;
+    }
+
+    /** 자식 JVM: args[0]=월드 폴더, args[1]=시작 판. 무한히 덮어쓴다. */
+    public static void main(String[] args) throws Exception {
+        Path dir = Path.of(args[0]);
+        int v = Integer.parseInt(args[1]);
+        RegionFileStore store = new RegionFileStore(dir);
+        System.out.println("READY");
+        System.out.flush();
+        while (true) {
+            v++;
+            for (int i = 0; i < CHUNKS; i++) {
+                int cx = i % 8, cz = i / 8;
+                store.writeChunk(cx, cz, NbtIo.toBytes(content(cx, cz, v), ""));
+            }
+        }
+    }
+
+    @Test
+    void sigkillDuringWrites_everyChunkIsAWholeVersion(@TempDir Path dir) throws Exception {
+        String java = Path.of(System.getProperty("java.home"), "bin", "java").toString();
+        String cp = System.getProperty("java.class.path");
+        int start = 0;
+        int totalChecked = 0, totalExternal = 0;
+        for (int round = 0; round < 5; round++) {
+            Process p = new ProcessBuilder(java, "-cp", cp, A05KillDuringWriteTest.class.getName(), dir.toString(), Integer.toString(start))
+                    .redirectErrorStream(true).start();
+            var out = new java.io.BufferedReader(new java.io.InputStreamReader(p.getInputStream()));
+            String line;
+            while ((line = out.readLine()) != null && !line.equals("READY")) { }   // JAVA_TOOL_OPTIONS 안내 줄 등은 건너뛴다
+            assertEquals("READY", line);
+            Thread.sleep(700 + round * 350L);
+            p.destroyForcibly();   // SIGKILL
+            assertTrue(p.waitFor(30, TimeUnit.SECONDS));
+            // 다시 열어 검사
+            RegionFileStore store = new RegionFileStore(dir);
+            int maxV = start;
+            for (int i = 0; i < CHUNKS; i++) {
+                int cx = i % 8, cz = i / 8;
+                byte[] b = store.readChunk(cx, cz);
+                if (b == null) {
+                    assertEquals(0, round, "한 번이라도 쓴 청크가 사라졌다: " + cx + "," + cz + " (회차 " + round + ")");
+                    continue;   // 첫 회차에서 아직 한 번도 못 쓴 청크
+                }
+                NbtCompound c = NbtIo.read(b);
+                int v = c.getInt("v");
+                assertEquals(cx, c.getInt("cx"));
+                assertEquals(cz, c.getInt("cz"));
+                NbtCompound want = content(cx, cz, v);
+                assertArrayEquals(want.getByteArray("pad"), c.getByteArray("pad"), "청크 " + cx + "," + cz + " 판 " + v + " 내용이 찢어졌다");
+                if (want.getByteArray("pad").length > 1_000_000) totalExternal++;
+                maxV = Math.max(maxV, v);
+                totalChecked++;
+            }
+            store.closeAll();
+            long tmp;
+            try (var s = Files.list(dir.resolve("region"))) { tmp = s.filter(f -> f.getFileName().toString().endsWith(".tmp")).count(); }
+            System.out.println("[A05-kill] 회차 " + round + ": 최고 판 " + maxV + ", 남은 .mcc.tmp " + tmp
+                    + ", 파일 길이 " + Files.size(dir.resolve("region/r.0.0.mca")) + "B (4096 배수 " + (Files.size(dir.resolve("region/r.0.0.mca")) % 4096 == 0) + ")");
+            start = maxV + 1000;   // 다음 회차는 새 판 번호로
+        }
+        System.out.println("[A05-kill] 검사한 청크 " + totalChecked + "개, 그중 외부(.mcc) 판 " + totalExternal + "개 — 모두 온전");
+    }
+}
