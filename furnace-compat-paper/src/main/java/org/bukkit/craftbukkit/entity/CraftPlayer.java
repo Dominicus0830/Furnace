@@ -55,7 +55,13 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
     public String getName() { return handle.name(); }
 
     @Override
-    public String getDisplayName() { return Compat.legacy(handle.displayName()); }
+    public String getDisplayName() {
+        org.domi.furnace.api.text.Text custom = handle.customDisplayName();
+        return custom != null ? Compat.legacy(custom) : handle.name();
+    }
+
+    @Override
+    public void setDisplayName(String name) { handle.customDisplayName(name == null ? null : Compat.text(name)); }
 
     @Override
     public boolean isOnline() { return handle.isOnline(); }
@@ -130,7 +136,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
     // ---- CommandSender / Permissible
 
     @Override
-    public void sendMessage(String message) { handle.sendMessage(Compat.text(message)); }
+    public void sendMessage(String message) { handle.sendMessage(Compat.message(message)); }
 
     @Override
     public void sendMessage(String... messages) {

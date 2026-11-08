@@ -344,7 +344,9 @@ public final class PluginGameEvents implements GameEvents {
     public org.domi.furnace.api.text.Text playerKick(Player p, org.domi.furnace.api.text.Text reason) {
         if (!bus().hasSubscribers(PlayerKickEvent.class)) return reason;
         var ev = bus().call(new PlayerKickEvent(host.player(p), reason));
-        return ev.isCancelled() ? null : ev.reason();
+        if (ev.isCancelled()) return null;
+        if (ev.hasLeaveMessage()) p.kickLeaveMessage(ev.leaveMessage());   // 퇴장 처리에서 PlayerQuitEvent 의 처음 메시지로 쓴다
+        return ev.reason();
     }
 
     @Override

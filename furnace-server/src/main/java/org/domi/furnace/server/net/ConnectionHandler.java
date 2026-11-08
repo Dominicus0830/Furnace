@@ -541,26 +541,31 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             msg = msg.withUnsignedContent(msg.decoratedContent()); // 채팅 꾸밈(decorator)은 없다
             var events = core.events();
             org.domi.furnace.api.event.player.ChatRenderer renderer = null;
+            java.util.Set<java.util.UUID> recipients = null;
             if (events.hasSubscribers(org.domi.furnace.api.event.player.AsyncChatEvent.class)) {
                 Text original = msg.decoratedContent();
                 var ev = events.call(new org.domi.furnace.api.event.player.AsyncChatEvent(core.plugins().player(p), message, original,
-                        msg.signature() == null ? null : msg.signature().bytes()));
+                        msg.signature() == null ? null : msg.signature().bytes(), () -> core.plugins().onlinePlayers()));
                 if (ev.isCancelled()) {
                     detectRateSpam();
                     return;
                 }
                 if (!ev.message().equals(original)) msg = msg.withUnsignedContent(ev.message());
                 renderer = ev.renderer();
+                if (ev.recipientsTouched()) {   // 플러그인이 받는 사람을 만졌다 — 남은 사람에게만 보낸다
+                    recipients = new java.util.HashSet<>();
+                    for (var r : ev.recipients()) recipients.add(r.uniqueId());
+                }
             }
-            var bound = org.domi.furnace.server.chat.ChatType.CHAT.bind(
-                    org.domi.furnace.server.command.CommandSource.player(core, p).getDisplayName());
+            // 이름은 플러그인이 setDisplayName 으로 정했으면 그것, 아니면 바닐라 getDisplayName(팀 서식)
+            var bound = org.domi.furnace.server.chat.ChatType.CHAT.bind(p.chatDisplayName());
             if (renderer != null) {
-                core.broadcastRenderedChat(p, bound.name(), msg.decoratedContent(), renderer);
+                core.broadcastRenderedChat(p, bound.name(), msg.decoratedContent(), renderer, recipients);
                 detectRateSpam();
                 return;
             }
-            if (org.domi.furnace.server.config.OperatorOptions.current().unsignedChatAsSystem()) core.broadcastChatAsSystem(msg, bound);
-            else core.broadcastChatMessage(msg, p, bound);
+            if (org.domi.furnace.server.config.OperatorOptions.current().unsignedChatAsSystem()) core.broadcastChatAsSystem(msg, bound, recipients);
+            else core.broadcastChatMessage(msg, p, bound, recipients);
             detectRateSpam();
         });
     }
@@ -4055,7 +4060,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 // 바닐라 onDisconnect → removePlayerFromWorld: "이름 lost connection: 사유" 로그, 노란 퇴장 알림.
                 Text why = kickReason != null ? kickReason : p.kickReason() != null ? p.kickReason() : Text.translatable("disconnect.disconnected");
                 log.info("{} lost connection: {}", p.name(), why.getString());
-                Text msg = Text.translatable("multiplayer.player.left", p.displayName()).color(org.domi.furnace.api.text.NamedTextColor.YELLOW);
+                Text msg = p.hasKickLeaveMessage() ? p.kickLeaveMessage()   // 플러그인 PlayerKickEvent#leaveMessage
+                        : Text.translatable("multiplayer.player.left", p.displayName()).color(org.domi.furnace.api.text.NamedTextColor.YELLOW);
                 if (core.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerQuitEvent.class)) {
                     msg = core.events().call(new org.domi.furnace.api.event.player.PlayerQuitEvent(core.plugins().player(p), msg, quit)).quitMessage();
                 }

@@ -45,7 +45,7 @@
 
 ## 지원하지 않는 것과 실패 방식
 
-Furnace 이벤트가 알리지 않는 값은 지어내지 않는다. 읽기는 정직한 기본값(예: 순간이동 원인 `UNKNOWN`), 쓰기는 `UnsupportedFeature`(= `UnsupportedOperationException`)로 무엇이 없는지 말하며 던진다. 예: `PlayerMoveEvent#setTo`, `AsyncPlayerChatEvent#getRecipients()` 바꾸기(받는 사람마다 다른 서식은 `AsyncChatEvent#renderer` 가 대신한다).
+Furnace 이벤트가 알리지 않는 값은 지어내지 않는다. 읽기는 정직한 기본값(예: 순간이동 원인 `UNKNOWN`), 쓰기는 `UnsupportedFeature`(= `UnsupportedOperationException`)로 무엇이 없는지 말하며 던진다. 예: `PlayerMoveEvent#setTo`. (`AsyncPlayerChatEvent#getRecipients()` 는 바꿀 수 있다 — P3, `docs/feature-parity/context-notes/2026-11-08-p3-chat.md`.)
 
 아직 없는 `org.bukkit` 영역: 엔티티 종류별 하위 인터페이스, 커스텀 `Inventory` 생성(`createInventory`; 서버에 메뉴 API 연결 전이라 `UnsupportedFeature`), 나머지 수백 개 이벤트, `Bukkit.getOnlinePlayers` 이외의 대부분의 서버 보조(권한은 `PluginManager` 의 노드 API·구독·`Bukkit.broadcast(메시지, 권한)` 까지 — 첨부 `addAttachment` 는 아직 없다). 없는 클래스를 부르면 플러그인 쪽에서 `NoClassDefFoundError` 가 나 그 플러그인만 실패한다.
 

@@ -4,9 +4,7 @@
 package org.domi.furnace.compat.paper;
 
 import java.util.AbstractSet;
-import java.util.Collection;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -61,16 +59,22 @@ final class Mappings {
                 (f, b) -> pushText(b.getQuitMessage(), f.quitMessage(), t -> f.quitMessage(t)),
                 (f, b) -> pullText(f.quitMessage(), b.getQuitMessage(), b::setQuitMessage));
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerKickEvent.class, org.bukkit.event.player.PlayerKickEvent.class,
-                f -> new org.bukkit.event.player.PlayerKickEvent(p(f.player()), Compat.legacy(f.reason()), "§e" + f.player().name() + " left the game"),
-                (f, b) -> pushText(b.getReason(), f.reason(), t -> f.setReason(t == null ? Text.empty() : t)),
+                f -> new org.bukkit.event.player.PlayerKickEvent(p(f.player()), Compat.legacy(f.reason()), defaultLeaveMessage(f.player())),
+                (f, b) -> {
+                    pushText(b.getReason(), f.reason(), t -> f.setReason(t == null ? Text.empty() : t));
+                    // Paper 1.21.1: Fix-kick-event-leave-message-not-being-sent — 바뀐 퇴장 문구는 이어지는 PlayerQuitEvent 의 처음 메시지가 된다(null·빈 문자열 = 알림 없음)
+                    String lm = b.getLeaveMessage();
+                    if (!Objects.equals(lm, defaultLeaveMessage(f.player()))) f.leaveMessage(lm == null || lm.isEmpty() ? null : Compat.text(lm));
+                },
                 (f, b) -> pullText(f.reason(), b.getReason(), b::setReason));
         EventBridge.reg(org.domi.furnace.api.event.player.AsyncChatEvent.class, org.bukkit.event.player.AsyncPlayerChatEvent.class,
-                f -> new org.bukkit.event.player.AsyncPlayerChatEvent(f.isAsync(), p(f.player()), Compat.legacy(f.message()), new ReadOnlyPlayers(onlinePlayers())),
+                // Paper 1.21.1: Adventure 패치 ChatProcessor — 받는 사람 집합은 바꿀 수 있고(viewersFromLegacy) 서식의 %1$s 는 Player#getDisplayName()
+                f -> new org.bukkit.event.player.AsyncPlayerChatEvent(f.isAsync(), p(f.player()), Compat.legacy(f.message()), new MappedPlayers(f::recipients)),
                 (f, b) -> {
                     pushText(b.getMessage(), f.message(), t -> f.message(t == null ? Text.empty() : t));
                     String fmt = b.getFormat();
                     if (!Objects.equals(fmt, FORMAT_BASE.get(b))) {
-                        f.renderer((source, name, message, viewer) -> Compat.text(String.format(fmt, Compat.legacy(name), Compat.legacy(message))));
+                        f.renderer((source, name, message, viewer) -> Compat.text(String.format(fmt, p(source).getDisplayName(), Compat.legacy(message))));
                     }
                 }, (f, b) -> {
                     pullText(f.message(), b.getMessage(), b::setMessage);
@@ -172,12 +176,6 @@ final class Mappings {
         return p instanceof BukkitPluginAdapter a ? a.javaPlugin() : null;   // Furnace 고유 플러그인의 켜짐·꺼짐은 Bukkit 에 알리지 않는다
     }
 
-    private static Set<Player> onlinePlayers() {
-        Set<Player> out = new LinkedHashSet<>();
-        for (var pl : Furnace.server().onlinePlayers()) out.add(Compat.player(pl));
-        return out;
-    }
-
     /** Furnace vanilla 피해 종류(minecraft:fall 등) → Bukkit DamageCause. 모르는 것은 CUSTOM. */
     static DamageCause cause(String type) {
         String k = type == null ? "" : type.substring(type.indexOf(':') + 1);
@@ -214,45 +212,52 @@ final class Mappings {
         };
     }
 
-    /** 받는 사람 집합 — 읽기만 된다(바꾸려 하면 UnsupportedFeature). */
-    private static final class ReadOnlyPlayers extends AbstractSet<Player> {
-        private final Set<Player> inner;
+    /** PlayerKickEvent#getLeaveMessage 의 기본값("§e이름 left the game"). */
+    private static String defaultLeaveMessage(org.domi.furnace.api.entity.Player player) { return "§e" + player.name() + " left the game"; }
 
-        ReadOnlyPlayers(Set<Player> inner) { this.inner = inner; }
+    /**
+     * 채팅 받는 사람 — Furnace 이벤트의 받는 사람 집합(UUID 로 구분)을 Bukkit Player 로 보이는 변경 가능한 뷰. 처음 만질 때 Furnace 쪽 집합을 만든다.
+     * 빼면 그 사람은 채팅을 받지 않고, 더하면 받는다(접속 중인 Player 만).
+     */
+    private static final class MappedPlayers extends AbstractSet<Player> {
+        private final java.util.function.Supplier<Set<org.domi.furnace.api.entity.Player>> source;
+
+        MappedPlayers(java.util.function.Supplier<Set<org.domi.furnace.api.entity.Player>> source) { this.source = source; }
 
         @Override
         public Iterator<Player> iterator() {
-            Iterator<Player> it = inner.iterator();
+            Iterator<org.domi.furnace.api.entity.Player> it = source.get().iterator();
             return new Iterator<>() {
                 @Override
                 public boolean hasNext() { return it.hasNext(); }
 
                 @Override
-                public Player next() { return it.next(); }
+                public Player next() { return Compat.player(it.next()); }
 
                 @Override
-                public void remove() { throw denied(); }
+                public void remove() { it.remove(); }
             };
         }
 
         @Override
-        public int size() { return inner.size(); }
+        public int size() { return source.get().size(); }
 
         @Override
-        public boolean add(Player p) { throw denied(); }
+        public boolean contains(Object o) { return o instanceof org.bukkit.craftbukkit.entity.CraftPlayer c && source.get().contains(c.furnaceHandle()); }
 
         @Override
-        public boolean addAll(Collection<? extends Player> c) { throw denied(); }
+        public boolean add(Player p) { return source.get().add(handle(p)); }
 
         @Override
-        public boolean remove(Object o) { throw denied(); }
+        public boolean remove(Object o) { return o instanceof org.bukkit.craftbukkit.entity.CraftPlayer c && source.get().remove(c.furnaceHandle()); }
 
         @Override
-        public void clear() { throw denied(); }
+        public void clear() { source.get().clear(); }
 
-        private static UnsupportedFeature denied() {
-            return new UnsupportedFeature("AsyncPlayerChatEvent#getRecipients 바꾸기",
-                    "Furnace 채팅 이벤트는 받는 사람을 걸러 내는 칸이 없다 — 받는 사람마다 다른 서식은 AsyncChatEvent#renderer 를 쓴다");
+        private static org.domi.furnace.api.entity.Player handle(Player p) {
+            Objects.requireNonNull(p, "player");
+            if (p instanceof org.bukkit.craftbukkit.entity.CraftPlayer c) return c.furnaceHandle();
+            throw new IllegalArgumentException("Furnace 가 모르는 Player 구현이다: " + p.getClass().getName());
         }
     }
 }

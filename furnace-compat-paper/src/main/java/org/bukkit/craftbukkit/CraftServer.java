@@ -140,7 +140,7 @@ public final class CraftServer implements Server {
 
     @Override
     public int broadcastMessage(String message) {
-        f().broadcast(Compat.text(message));
+        f().broadcast(Compat.text(message));   // Paper: legacySection().deserialize — 주소 링크 없음
         return f().onlinePlayers().size();
     }
 
