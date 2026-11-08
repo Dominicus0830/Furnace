@@ -113,13 +113,13 @@ public class SignBlockEntity extends BlockEntity {
     /** canExecuteClickCommands: 밀랍 칠이고 그 면에 클릭 명령이 있다. */
     public boolean canExecuteClickCommands(boolean front, boolean filtering) { return isWaxed && text(front).hasAnyClickCommands(filtering); }
 
-    /** executeClickCommandsIfPresent: 줄마다 run_command 클릭이면 명령을 실행한다. 하나라도 있었으면 true. */
+    /** executeClickCommandsIfPresent: 줄마다 run_command 클릭이면 명령을 실행한다. 하나라도 있었으면 true(플러그인이 취소한 줄을 만나면 거기서 false). */
     public boolean executeClickCommandsIfPresent(BlockActor player, BlockLevel lv, boolean front, boolean filtering) {
         boolean any = false;
         for (Text t : text(front).messages(filtering)) {
             ClickEvent e = t.clickEvent();
             if (e != null && e.action() == ClickEvent.Action.RUN_COMMAND) {
-                lv.runSignCommand(player, pos, e.value());
+                if (!lv.runSignCommand(player, pos, front, e.value())) return false;   // Paper: 이벤트가 취소되면 남은 줄은 보지 않고 false
                 any = true;
             }
         }

@@ -194,6 +194,21 @@ public final class PluginBootstrapper {
         dataRegistries.removeOwner(name);   // 태그 더하기만 빠진다 — 레지스트리 항목은 다음 시작까지 남는다
     }
 
+    /**
+     * 서버 종료 중 모든 플러그인이 꺼졌다 — 이미 만들어 둔 형식 어댑터에게 알린다(안 만들었다면 그 형식의 플러그인이 없었으니 클래스도 올리지 않는다).
+     * 어댑터 하나가 던져도 나머지와 종료는 계속된다.
+     */
+    void afterAllDisabled(org.domi.furnace.api.Furnace server) {
+        if (!formats.loaded()) return;
+        for (PluginFormat f : formats.get()) {
+            try {
+                f.afterPluginsDisabled(server);
+            } catch (Throwable t) {
+                log.warn("플러그인 형식 '{}' 의 종료 마무리 실패", f.id(), t);
+            }
+        }
+    }
+
     /** 불러오기에 실패한 플러그인을 뺀다(정리 + 클래스로더 닫기). */
     void drop(Prepared p) {
         forget(p.description().name());

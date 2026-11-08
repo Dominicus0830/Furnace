@@ -73,7 +73,7 @@ public final class PlayerFire {
         int x0 = Entity.floor(box.minX()), y0 = Entity.floor(box.minY()), z0 = Entity.floor(box.minZ());
         int x1 = Entity.floor(box.maxX()), y1 = Entity.floor(box.maxY()), z1 = Entity.floor(box.maxZ());
         if (!level.hasChunksAt(x0, z0, x1, z1)) return;   // getBlockStatesIfLoaded: 안 올라온 곳이 있으면 건드리지 않는다
-        boolean fireOrLava = false, powderSnow = false;
+        boolean fireOrLava = false, powderSnow = p.takeInPowderSnow();   // entityInside 가 눈을 부쉈어도 이번 move 에서 들었던 것으로 센다
         for (int bx = x0; bx <= x1; bx++) for (int by = y0; by <= y1; by++) for (int bz = z0; bz <= z1; bz++) {
             int s = level.getBlockState(new Pos(bx, by, bz));
             if (B.isTag(s, "minecraft:fire") || B.is(s, LAVA)) fireOrLava = true;

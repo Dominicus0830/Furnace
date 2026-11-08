@@ -261,6 +261,9 @@ final class CommandRegistryImpl implements CommandRegistry {
     }
 
     @Override
+    public boolean hasCommand(String name) { return dispatcher().getRoot().getChild(name) != null; }
+
+    @Override
     public synchronized void unregisterAll(FurnacePlugin plugin) {
         Set<String> names = owned.remove(plugin);
         if (names == null || names.isEmpty()) return;

@@ -82,14 +82,6 @@ public final class FurnaceTestServer implements AutoCloseable {
 
     // ------------------------------------------------------------------ 만들기
 
-    private static java.util.Map<String, String> compatOptions(Builder b) {
-        java.util.Map<String, String> m = new java.util.HashMap<>(PluginSettings.DEFAULT_COMPAT_OPTIONS);
-        m.put("plugins.compat.nms.strict", String.valueOf(b.compatNmsStrict));
-        m.put("plugins.compat.nms.version-package", b.compatNmsVersionPackage);
-        m.putAll(b.compatExtra);
-        return m;
-    }
-
     public static Builder builder() { return new Builder(); }
 
     /** 기본 설정(평지, 플러그인 없음)으로 띄운다. */
@@ -113,8 +105,7 @@ public final class FurnaceTestServer implements AutoCloseable {
             global.useManualClock();
             // 플러그인 부트스트랩: 레지스트리·월드보다 먼저(FurnaceMain 과 같은 자리). 시험에서는 실패를 숨기지 않는다(fail-fast).
             PluginSettings pluginSettings = new PluginSettings(b.failFast, null, java.util.Map.of()).withCompatNms(b.compatNms).withLibraries(b.libraries)
-                    .withExposeCompatToNative(b.exposeCompatToNative)
-                    .withCompatOptions(compatOptions(b));
+                    .withExposeCompatToNative(b.exposeCompatToNative).withCompatOptions(b.compatOptions);
             PluginBootstrapper boot = PluginBootstrapper.bootstrap(pluginsDir, pluginSettings);
             BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
             ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
@@ -455,12 +446,10 @@ public final class FurnaceTestServer implements AutoCloseable {
         private boolean failFast = true;
         private boolean compatNms = true;
         private boolean exposeCompatToNative = false;
+        private final java.util.Map<String, String> compatOptions = new java.util.HashMap<>();
         /** 시험은 기본으로 네트워크에 나가지 않는다 — 호환 플러그인용 서버 제공 라이브러리·plugin.yml libraries 도 끈다. */
         private org.domi.furnace.server.plugin.library.LibrarySettings libraries = org.domi.furnace.server.plugin.library.LibrarySettings.DEFAULT
                 .withCompat(org.domi.furnace.server.plugin.library.LibrarySettings.CompatMode.OFF).withCompatDeclared(false);
-        private boolean compatNmsStrict = false;
-        private final java.util.Map<String, String> compatExtra = new java.util.HashMap<>();
-        private String compatNmsVersionPackage = "plain";
         private long timeoutMillis = DEFAULT_TIMEOUT_MILLIS;
         private String serverProperties = "";
         private Path directory;
@@ -523,29 +512,26 @@ public final class FurnaceTestServer implements AutoCloseable {
         /** Bukkit 호환 플러그인의 NMS·CraftBukkit 이름 변환(furnace.properties plugins.compat.nms.enabled, 기본 참). */
         public Builder compatNms(boolean v) { this.compatNms = v; return this; }
 
+        /** 미지원 NMS 심볼이 있는 호환 플러그인은 불러오지 않는다(plugins.compat.nms.strict, 기본 거짓). */
+        public Builder compatNmsStrict(boolean v) { return compatOption("plugins.compat.nms.strict", String.valueOf(v)); }
+
+        /** 플러그인이 읽는 CraftBukkit 패키지 이름: plain(기본, Paper) 또는 versioned(Spigot, v1_21_R1) — plugins.compat.nms.version-package. */
+        public Builder compatNmsVersionPackage(String v) { return compatOption("plugins.compat.nms.version-package", java.util.Objects.requireNonNull(v)); }
+
         /**
          * true 면 Furnace 네이티브 플러그인의 클래스로더에도 호환 클래스(org.bukkit.*·호환 코어)가 보인다. 기본은 숨김(서버와 같다) —
          * 호환 코어를 네이티브 시험 플러그인으로 직접 부리는 호환 모듈 시험만 켠다.
          */
         public Builder exposeCompatToNative(boolean v) { this.exposeCompatToNative = v; return this; }
 
+        /** 호환 어댑터가 읽는 서버 설정(furnace.properties 의 plugins.compat.* 키, 예: plugins.compat.scheduler.async-threads=virtual). */
+        public Builder compatOption(String key, String value) { this.compatOptions.put(key, value); return this; }
+
         /**
          * 라이브러리 내려받기 설정(furnace.properties plugins.libraries.*·plugins.compat.libraries*). 기본은 모두 꺼짐 — 시험이 네트워크에 기대지 않게
          * 실제 서버의 기본(plugins.compat.libraries=needed, declared=true)과 다르다. Paper 플러그인이 Guava 등을 쓰면 캐시를 채우고 offline 으로 켜라.
          */
         public Builder libraries(org.domi.furnace.server.plugin.library.LibrarySettings v) { this.libraries = java.util.Objects.requireNonNull(v); return this; }
-        /** 그 밖의 plugins.compat.* 설정 한 줄(접두어 포함 키, 예: plugins.compat.nms.spigot-mappings=files). */
-        public Builder compatOption(String key, String value) {
-            if (!key.startsWith("plugins.compat.")) throw new IllegalArgumentException("plugins.compat.* 키만: " + key);
-            compatExtra.put(key, java.util.Objects.requireNonNull(value));
-            return this;
-        }
-
-        /** 미지원 NMS 심볼이 있는 호환 플러그인은 불러오지 않는다(plugins.compat.nms.strict, 기본 거짓). */
-        public Builder compatNmsStrict(boolean v) { this.compatNmsStrict = v; return this; }
-
-        /** 플러그인이 읽는 CraftBukkit 패키지 이름: plain(기본, Paper) 또는 versioned(Spigot, v1_21_R1) — plugins.compat.nms.version-package. */
-        public Builder compatNmsVersionPackage(String v) { this.compatNmsVersionPackage = java.util.Objects.requireNonNull(v); return this; }
 
         /** 틱·future 기다림 한도. */
         public Builder timeout(long millis) { this.timeoutMillis = Math.max(1, millis); return this; }

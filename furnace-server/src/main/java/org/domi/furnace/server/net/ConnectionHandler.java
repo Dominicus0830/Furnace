@@ -618,12 +618,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         org.domi.furnace.server.ServerCore core = login.core;
         if (p == null || core == null) return;
         tryHandleChat(rawCommand, () -> {
+            log.info("{} issued server command: /{}", p.name(), rawCommand);   // Paper: 이벤트 전에 원문으로 남긴다(취소돼도 남음)
             String command = preprocessCommand(core, p, rawCommand);
             if (command == null) {
                 detectRateSpam();
                 return;
             }
-            log.info("{} issued server command: /{}", p.name(), command);
             var source = org.domi.furnace.server.command.CommandSource.player(core, p);
             var parse = core.commands().getDispatcher().parse(command, source);
             if (core.enforceSecureProfile() && org.domi.furnace.server.command.SignableCommand.hasSignableArguments(parse)) {
@@ -652,6 +652,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var lastSeen = unpackAndApplyLastSeen(update);
         if (lastSeen.isEmpty()) return;
         tryHandleChat(command, () -> {
+            log.info("{} issued server command: /{}", p.name(), command);   // Paper: 이벤트 전에 원문으로 남긴다(취소돼도 남음)
             String changed = preprocessCommand(core, p, command);
             var source = org.domi.furnace.server.command.CommandSource.player(core, p);
             var parse = core.commands().getDispatcher().parse(command, source);
@@ -668,7 +669,6 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 detectRateSpam();
                 return;
             }
-            log.info("{} issued server command: /{}", p.name(), changed);
             if (!changed.equals(command)) {
                 core.commands().performPrefixedCommand(source, changed);
             } else {
@@ -2569,6 +2569,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         } else if (action == 0 && e instanceof org.domi.furnace.server.entity.Mob nameMob
                 && org.domi.furnace.server.entity.ItemEffects.nameTag(p, hand, p.inventory().get(hand == 0 ? p.inventory().heldWindowSlot() : 45), nameMob)) {
             // Mob.checkAndHandleImportantInteractions: 이름표가 끈·mobInteract 보다 먼저
+        } else if (action == 0 && e instanceof org.domi.furnace.server.entity.Mob eggMob
+                && org.domi.furnace.server.entity.ItemEffects.spawnEggOffspring(p, hand, p.inventory().get(hand == 0 ? p.inventory().heldWindowSlot() : 45), eggMob)) {
+            // 같은 checkAndHandleImportantInteractions 의 스폰 알: 이름표 다음, 끈·mobInteract 보다 먼저 같은 종류 새끼를 낳는다
+            interactedWith(p, heldBefore, e);
         } else if (action == 0 && e instanceof org.domi.furnace.server.entity.Leashable leashMob
                 && leashMob.interactLeash(p, hand, heldBefore)) {
             // Entity.interact 의 끈 맺기·풀기(mobInteract 보다 먼저)

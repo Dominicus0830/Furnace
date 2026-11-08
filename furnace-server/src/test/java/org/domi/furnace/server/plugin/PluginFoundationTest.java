@@ -330,17 +330,19 @@ class PluginFoundationTest {
     void compatNmsOptionsAreValidatedAndPassedThrough() {
         var log = org.slf4j.LoggerFactory.getLogger("Furnace");
         PluginSettings d = PluginSettings.from(new Properties(), log);
-        assertEquals("false", d.compatOptions().get("plugins.compat.nms.strict"));
-        assertEquals("plain", d.compatOptions().get("plugins.compat.nms.version-package"));
+        assertNull(d.compatOption("plugins.compat.nms.strict"), "안 적으면 빠진다(어댑터 기본값 false)");
+        assertNull(d.compatOption("plugins.compat.nms.version-package"));
         assertEquals(PluginSettings.DEFAULT, d, "빈 설정 = 기본값");
         Properties pr = new Properties();
         pr.setProperty("plugins.compat.nms.strict", "true");
         pr.setProperty("plugins.compat.nms.version-package", "Versioned");
-        pr.setProperty("plugins.compat.extra", " x ");
         PluginSettings s = PluginSettings.from(pr, log);
-        assertEquals("true", s.compatOptions().get("plugins.compat.nms.strict"));
-        assertEquals("versioned", s.compatOptions().get("plugins.compat.nms.version-package"));
-        assertEquals("x", s.compatOptions().get("plugins.compat.extra"), "그 밖의 plugins.compat.* 는 그대로 넘긴다");
+        assertEquals("true", s.compatOption("plugins.compat.nms.strict"));
+        assertEquals("versioned", s.compatOption("plugins.compat.nms.version-package"));
+        Properties same = new Properties();
+        same.setProperty("plugins.compat.nms.strict", "false");
+        same.setProperty("plugins.compat.nms.version-package", "plain");
+        assertEquals(PluginSettings.DEFAULT, PluginSettings.from(same, log), "기본값과 같게 적은 것은 안 적은 것과 같다");
         Properties bad = new Properties();
         bad.setProperty("plugins.compat.nms.version-package", "spigot");
         assertThrows(IllegalArgumentException.class, () -> PluginSettings.from(bad, log), "잘못된 값은 기동을 멈춘다");
@@ -348,7 +350,7 @@ class PluginFoundationTest {
         badBool.setProperty("plugins.compat.nms.strict", "yes");
         assertThrows(IllegalArgumentException.class, () -> PluginSettings.from(badBool, log));
         // H7d: Spigot 이름 대응표 — 기본 off, download|files 만, files 는 경로가 있어야 한다
-        assertEquals("off", d.compatOptions().get("plugins.compat.nms.spigot-mappings"));
+        assertEquals(null, d.compatOptions().get("plugins.compat.nms.spigot-mappings"), "안 적으면 off(맵에서 빠진다)");
         Properties dl = new Properties();
         dl.setProperty("plugins.compat.nms.spigot-mappings", "Download");
         assertEquals("download", PluginSettings.from(dl, log).compatOptions().get("plugins.compat.nms.spigot-mappings"));

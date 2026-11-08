@@ -29,6 +29,8 @@ public final class Commands {
 
     private static final Logger log = LoggerFactory.getLogger(Commands.class);
     public static final int LEVEL_ALL = 0, LEVEL_MODERATORS = 1, LEVEL_GAMEMASTERS = 2, LEVEL_ADMINS = 3, LEVEL_OWNERS = 4;
+    /** 바닐라 명령마다 붙는 이름공간 별칭의 접두(Paper 와 같다: minecraft:give). */
+    public static final String VANILLA_NAMESPACE_PREFIX = "minecraft:";
     /** 자동완성 응답 후보 상한(바닐라 1000). */
     private static final int MAX_SUGGESTIONS = 1000;
 
@@ -175,19 +177,33 @@ public final class Commands {
 
     /** 플레이어가 쓸 수 있는 노드만 담은 명령 트리를 보낸다. */
     public void sendCommands(Player player) {
-        player.send(CommandTreePacket.forSource(dispatcher.getRoot(), CommandSource.player(server, player)));
+        player.send(CommandTreePacket.forSource(dispatcher.getRoot(), CommandSource.player(server, player), sendNamespaced()));
     }
 
     public CommandTreePacket treeFor(CommandSource source) {
-        return CommandTreePacket.forSource(dispatcher.getRoot(), source);
+        return CommandTreePacket.forSource(dispatcher.getRoot(), source, sendNamespaced());
     }
+
+    private static boolean sendNamespaced() { return org.domi.furnace.server.config.OperatorOptions.current().sendNamespacedCommands(); }
 
     /** 클라이언트 자동완성 요청(바닐라 handleCustomCommandSuggestions). */
     public CompletableFuture<Suggestions> suggestions(CommandSource source, String text) {
+        return suggestions(source, text, source.getPlayer() != null);
+    }
+
+    /** forClient: 접속자 패킷 응답이면 true — send-namespaced=false 일 때만 이름공간 명령을 거른다(콘솔 자동완성은 거르지 않는다, Paper 와 같다). */
+    public CompletableFuture<Suggestions> suggestions(CommandSource source, String text, boolean forClient) {
         StringReader reader = new StringReader(text);
         if (reader.canRead() && reader.peek() == '/') reader.skip();
         ParseResults<CommandSource> parse = dispatcher.parse(reader, source);
-        return dispatcher.getCompletionSuggestions(parse).thenApply(s -> s.getList().size() <= MAX_SUGGESTIONS ? s
-                : new Suggestions(s.getRange(), List.copyOf(s.getList().subList(0, MAX_SUGGESTIONS))));
+        return dispatcher.getCompletionSuggestions(parse).thenApply(s0 -> {
+            Suggestions s = s0;
+            // send-namespaced=false: 명령 이름 자리(첫 낱말)의 자동완성에서도 이름공간 명령을 뺀다(Paper)
+            if (forClient && !sendNamespaced() && s.getRange().getStart() <= 1) {
+                s = new Suggestions(s.getRange(), s.getList().stream().filter(x -> x.getText().indexOf(':') < 0).toList());
+            }
+            return s.getList().size() <= MAX_SUGGESTIONS ? s
+                    : new Suggestions(s.getRange(), List.copyOf(s.getList().subList(0, MAX_SUGGESTIONS)));
+        });
     }
 }

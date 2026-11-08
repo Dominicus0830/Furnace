@@ -34,6 +34,17 @@ public final class CompatFormat implements PluginFormat {
     @Override
     public String id() { return "bukkit"; }
 
+    /** Paper 1.21.1 (Wait-for-Async-Tasks-during-shutdown): 끌 때 돌고 있는 비동기 작업을 최대 5초 기다리고, 남으면 "Nag author(s)" 로그. */
+    @Override
+    public void afterPluginsDisabled(org.domi.furnace.api.Furnace server) {
+        // Bukkit 플러그인을 하나라도 만든 서버만 — 설명 파일 없는 jar 때문에 어댑터만 올라온 서버는 Compat(과 따라오는 Craft* 클래스)를 올리지 않는다
+        if (createdPlugin) Compat.awaitAsyncTasksAtShutdown(server, SHUTDOWN_ASYNC_WAIT_MILLIS);
+    }
+
+    private volatile boolean createdPlugin;
+
+    static final long SHUTDOWN_ASYNC_WAIT_MILLIS = 5_000;
+
     /** paper-plugin.yml 이 있으면 그것을 먼저 읽는다(Paper 와 같다). */
     @Override
     public List<String> descriptorNames() { return List.of("paper-plugin.yml", "plugin.yml"); }
@@ -170,6 +181,7 @@ public final class CompatFormat implements PluginFormat {
         if (!JavaPlugin.class.isAssignableFrom(main)) {
             throw new IllegalArgumentException("main 클래스가 org.bukkit.plugin.java.JavaPlugin 을 상속하지 않는다: " + main.getName());
         }
+        createdPlugin = true;
         Bukkit.setServer(org.bukkit.craftbukkit.CraftServer.INSTANCE);
         PluginDescription d = context.description();
         PluginDescriptionFile pdf = descriptors.get(key(d.name(), d.main()));

@@ -30,6 +30,14 @@ class PluginFormatSpiTest {
     /** "name=…\nversion=…\nmain=…\napi=…" 한 줄씩인 가짜 형식. */
     static final class FakeFormat implements PluginFormat {
         final List<String> created = new ArrayList<>();
+        final List<String> events = new ArrayList<>();
+        boolean throwAfterDisabled;
+
+        @Override
+        public void afterPluginsDisabled(org.domi.furnace.api.Furnace server) {
+            events.add("after");
+            if (throwAfterDisabled) throw new IllegalStateException("마무리 실패");
+        }
 
         @Override public String id() { return "fake"; }
 
@@ -129,5 +137,44 @@ class PluginFormatSpiTest {
         PluginSystemTest.jar(dir.resolve("a.jar"), "fake.cfg", "name=Alpha\nmain=org.domi.furnace.server.plugin.TestPlugins$Alpha\n", TestPlugins.Alpha.class);
         load(dir, List.of(new FakeFormat()));
         assertEquals(List.of("Alpha"), host.plugins().plugins().stream().map(FurnacePlugin::name).toList());
+    }
+
+    @Test
+    void afterPluginsDisabledRunsOnceAfterEveryPluginIsDisabledAndAFailureDoesNotStopShutdown() throws Exception {
+        Path dir = tmp.resolve("plugins");
+        PluginSystemTest.jar(dir.resolve("a.jar"), "fake.cfg", "name=Alpha\nmain=org.domi.furnace.server.plugin.TestPlugins$Alpha\n", TestPlugins.Alpha.class);
+        FakeFormat first = new FakeFormat(), second = new FakeFormat();
+        first.throwAfterDisabled = true;   // 하나가 던져도 다음 형식과 종료는 계속된다
+        load(dir, List.of(first, second));
+        TestPlugins.LOG.clear();
+        assertTrue(first.events.isEmpty() && second.events.isEmpty(), "켜는 동안·플러그인 하나를 끌 때는 안 불린다");
+        host.pluginsImpl().disable(host.plugins().plugins().iterator().next());
+        assertTrue(first.events.isEmpty(), "플러그인 하나 끄기(리로드 등)에서는 안 불린다");
+        host.pluginsImpl().disableAll();
+        assertEquals(List.of("after"), first.events);
+        assertEquals(List.of("after"), second.events);
+    }
+
+    @Test
+    void compatOptionsAreReadOnlyForPluginsCompatKeysAndStrict() {
+        java.util.Properties pr = new java.util.Properties();
+        org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger("test");
+        assertEquals(null, PluginSettings.from(pr, log).compatOption(PluginSettings.ASYNC_THREADS_KEY), "안 적으면 어댑터의 기본값(platform)");
+        pr.setProperty(PluginSettings.ASYNC_THREADS_KEY, " Virtual ");
+        assertEquals("virtual", PluginSettings.from(pr, log).compatOption(PluginSettings.ASYNC_THREADS_KEY));
+        pr.setProperty(PluginSettings.ASYNC_THREADS_KEY, "platform");
+        assertEquals(PluginSettings.DEFAULT, PluginSettings.from(pr, log), "기본값과 같게 적은 것은 안 적은 것과 같다");
+        pr.setProperty(PluginSettings.ASYNC_THREADS_KEY, "fiber");
+        IllegalArgumentException e = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> PluginSettings.from(pr, log));
+        assertTrue(e.getMessage().contains(PluginSettings.ASYNC_THREADS_KEY) && e.getMessage().contains("fiber"), e.getMessage());
+
+        // 서버 쪽 문: plugins.compat. 로 시작하는 키만 보인다
+        pr.setProperty(PluginSettings.ASYNC_THREADS_KEY, "virtual");
+        pr.setProperty("rcon.password", "secret");
+        host = new PluginHost(core, tmp.resolve("plugins"));
+        host.pluginsImpl().settings(PluginSettings.from(pr, log));
+        assertEquals("virtual", host.compatOption(PluginSettings.ASYNC_THREADS_KEY));
+        assertEquals(null, host.compatOption("rcon.password"));
+        assertEquals(null, host.compatOption(null));
     }
 }

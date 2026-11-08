@@ -28,7 +28,7 @@
 | `PlayerJoinEvent` / `PlayerQuitEvent` | 같은 이름 | 입·퇴장 메시지 |
 | `PlayerKickEvent` | `PlayerKickEvent` | 사유, 취소 |
 | `AsyncPlayerChatEvent` | `AsyncChatEvent` | 메시지, 서식(`setFormat`), 취소 |
-| `PlayerMoveEvent` / `PlayerTeleportEvent` | 같은 이름 | 취소 |
+| `PlayerMoveEvent` / `PlayerTeleportEvent` | 같은 이름 | 취소. `PlayerMoveEvent` 는 CraftBukkit 간격(거리² > 1/256 또는 회전 합 > 10°, 시선만 돌려도 발화)으로 온다 |
 | `PlayerRespawnEvent` | 같은 이름 | 부활 위치 |
 | `PlayerChangedWorldEvent`, `PlayerGameModeChangeEvent`, `PlayerToggleSneak/Sprint/FlightEvent` | 같은 이름 | 취소 |
 | `PlayerCommandPreprocessEvent` | 같은 이름 | 명령 문자열, 취소 |
@@ -64,6 +64,10 @@ Furnace 이벤트가 알리지 않는 값은 지어내지 않는다. 읽기는 �
 - 생성 파일(`Material`·`EntityType`·`Enchantment`)은 `tools/compat/gen-bukkit-material.py`·`gen-bukkit-registries.py` 로 다시 만든다.
 - 시험: `InventoryAdapterTest`·`BlockEntityWorldAdapterTest`·`KitPluginTest`(키트 플러그인 jar)·`RegistryValueTypesTest`.
 
+## Bukkit 비동기 작업의 스레드 (Paper 와 같은 풀)
+
+`runTaskAsynchronously` 등 옛 비동기 작업은 이름 붙은 **플랫폼 스레드 풀**에서 돈다(Paper 1.21.1 `CraftAsyncScheduler` 모양: 코어 4·최대 무제한·30초 놀면 정리·대기열 없음). 스레드 이름은 `Craft Scheduler Thread - N`, 작업이 도는 동안 `… - 플러그인이름`. 서버 옵션 `plugins.compat.scheduler.async-threads=virtual` 이면 서버의 가상 스레드 실행기를 쓴다. 가상 스레드는 JDK 21 에서 `synchronized` 안에서 소켓·파일을 기다리면 운반 스레드를 붙잡는다(옛 JDBC 드라이버·풀 라이브러리가 그런 모양이라 몇 개만 겹쳐도 모든 비동기 작업이 멈출 수 있다). 서버를 끌 때는 모든 `onDisable` 이 끝난 뒤 돌고 있는 비동기 일꾼을 최대 5초 기다리고, 남은 플러그인마다 `Nag author(s)…` 오류를 남긴다(Paper `Wait-for-Async-Tasks-during-shutdown`). `BukkitScheduler#getMainThreadExecutor(Plugin)`(Paper API)도 있다. 설계·남은 차이: `docs/feature-parity/context-notes/2026-11-08-p2.md`. 시험: `LegacySchedulerTest`, `AsyncSchedulerShutdownTest`.
+
 ## JavaPlugin 의 명령·스케줄러·서비스 (H4 다음 묶음 A)
 
 `JavaPlugin#getCommand`(plugin.yml 의 `commands:` → `PluginCommand`, 기본 실행기는 플러그인 본체)·`getProvidingPlugin`·`getPlugin(Class)`, `Command`·`CommandMap`/`SimpleCommandMap`(명령 트리에 이어짐, `getKnownCommands()` 에서 지우면 트리에서도 빠짐), `BukkitScheduler`·`BukkitRunnable`·`BukkitTask`, `ServicesManager`, `Bukkit.getScheduler/getServicesManager/isPrimaryThread/getCommandMap/getPluginCommand`. 설계·Bukkit 과 다른 점 10가지: `docs/feature-parity/compat-javaplugin-wiring-2026-11-07.md`. 시험: `JavaPluginWiringTest`(시험 안에서 컴파일한 플러그인 jar).
@@ -82,7 +86,7 @@ Bukkit 은 메인 스레드 하나를 가정한다. 이 1차는 Furnace 이벤�
 ## 알아 둘 점
 
 - `plugins.compat.bukkit` 이 기본 켜짐이라 예전에 경고 후 건너뛰던 Bukkit jar 가 이제 로드를 시도한다. 아직 없는 API 를 쓰는 플러그인은 로드에 실패해 `failures` 에 들어가므로, `plugins.fail-fast=true` 인 서버는 부팅이 멈출 수 있다(그럴 때는 `plugins.compat.bukkit=false`).
-- 읽기 기본값이 있는 곳(정직한 기본값): `PlayerKickEvent#getLeaveMessage`(영어 고정 "<이름> left the game"; Furnace 킥 이벤트에 없는 값), `CraftPlayer#getLocale`(없으면 `en_us`), `CraftEntity#teleport` 는 비동기 텔레포트의 결과를 기다리지 않고 `true`, `isDead` 는 `!isValid()`(언로드된 엔티티도 죽음으로 본다). `paper-plugin.yml` 의 `load: OMIT` 인 `required: true` 의존은 순서도 강제된다(Paper 는 순서 없음).
+- 읽기 기본값이 있는 곳(정직한 기본값): `PlayerKickEvent#getLeaveMessage`(영어 고정 "<이름> left the game"; Furnace 킥 이벤트에 없는 값), `CraftPlayer#getLocale`(없으면 `en_us`), `CraftEntity#teleport` 는 Paper 처럼 진짜 결과(승객·사라짐·`PlayerTeleportEvent` 취소·다른 region/차원이면 `false`, 탈것은 먼저 내림) — 소유 스레드가 아닐 때만 맡기고 `true`(P4), `isDead` 는 `!isValid()`(언로드된 엔티티도 죽음으로 본다). `paper-plugin.yml` 의 `load: OMIT` 인 `required: true` 의존은 순서도 강제된다(Paper 는 순서 없음).
 - 이벤트 값 되돌려 쓰기: 처리기 전달 직전에 Furnace 의 현재 값을 Bukkit 이벤트에 맞추고(그래서 사이에 낀 Furnace 처리기의 변경이 보인다), 전달 뒤 달라진 값만 Furnace 에 쓴다.
 
 ## H4: 실제 플러그인으로 잰 호환 정도

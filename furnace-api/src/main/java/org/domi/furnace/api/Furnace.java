@@ -125,6 +125,13 @@ public interface Furnace {
     /** 블로킹 작업용 실행기(가상 스레드). */
     Executor asyncExecutor();
 
+    /**
+     * <b>호환 어댑터 전용</b>(Bukkit·Paper 어댑터가 서버 설정을 받는 통로) — 플러그인이 기대지 말 것, 예고 없이 바뀐다.
+     * 서버가 어댑터에게 넘기기로 한 {@code plugins.compat.*} 키의 값만 준다(지금은 {@code plugins.compat.scheduler.async-threads} 하나, 소문자로 다듬은 값).
+     * 안 적었거나 기본값과 같게 적었거나 다른 키면 null(= 어댑터의 기본값).
+     */
+    default String compatOption(String key) { return null; }
+
     /** 플러그인별 시간 프로파일러(/timings). 서버가 주지 않으면 아무것도 재지 않는 것. */
     default org.domi.furnace.api.profiler.PluginProfiler profiler() { return org.domi.furnace.api.profiler.PluginProfiler.NONE; }
 

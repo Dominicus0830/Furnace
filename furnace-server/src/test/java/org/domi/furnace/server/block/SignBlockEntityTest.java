@@ -33,6 +33,18 @@ class SignBlockEntityTest {
         @Override public void playSound(BlockActor except, Pos pos, String sound, String source, float volume, float pitch) { sounds.add(new Object[] {sound, source}); }
         @Override public void levelEvent(BlockActor except, int type, Pos pos, int data) { levelEvents.add(new int[] {type, data}); }
         @Override public void runSignCommand(BlockActor player, Pos pos, String command) { commands.add(command); }
+        /** 면을 아는 쪽을 가로채는 시험용: 이 값이 false 면 플러그인이 취소한 것처럼 돌려준다. */
+        boolean allow = true;
+        final List<String> sides = new ArrayList<>();
+        boolean sideAware;
+        @Override public boolean runSignCommand(BlockActor player, Pos pos, boolean front, String command) {
+            if (!sideAware) {
+                runSignCommand(player, pos, command);
+                return true;
+            }
+            sides.add((front ? "front:" : "back:") + command);
+            return allow;
+        }
     }
 
     static final class Act implements BlockActor {
@@ -226,6 +238,23 @@ class SignBlockEntityTest {
         assertTrue(be.canExecuteClickCommands(true, false));
         // 뒷면은 명령 없음
         assertFalse(be.canExecuteClickCommands(false, false));
+    }
+
+    @Test
+    void cancelledClickCommandStopsAtTheLineAndReportsNothingRan() {
+        int[] st = new int[1];
+        Lvl level = placed(st);
+        level.sideAware = true;
+        var be = (SignBlockEntity) level.getBlockEntity(POS);
+        be.updateText(t -> t.setMessage(0, Text.text("a").clickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "first"))), false, level);
+        be.updateText(t -> t.setMessage(1, Text.text("b").clickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "second"))), false, level);
+        Act a = new Act();
+        assertTrue(be.executeClickCommandsIfPresent(a, level, false, false));
+        assertEquals(List.of("back:first", "back:second"), level.sides, "면이 레벨까지 전해진다");
+        level.sides.clear();
+        level.allow = false;   // 플러그인이 PlayerSignCommandPreprocessEvent 를 취소했다
+        assertFalse(be.executeClickCommandsIfPresent(a, level, false, false), "Paper: 취소되면 false 로 끝난다");
+        assertEquals(List.of("back:first"), level.sides, "첫 줄에서 멈추고 나머지 줄은 보지 않는다");
     }
 
     @Test

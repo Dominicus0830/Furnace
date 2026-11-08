@@ -99,6 +99,17 @@ public final class CompatScheduler implements BukkitScheduler {
     @Override
     public boolean isQueued(int taskId) { return core().isQueued(taskId); }
 
+    /** Paper 1.21.1 (Add-getMainThreadExecutor-to-BukkitScheduler): 실행하면 runTask 로 다음 틱에 돈다. */
+    @Override
+    public java.util.concurrent.Executor getMainThreadExecutor(Plugin plugin) {
+        if (plugin == null) throw new IllegalArgumentException("Plugin cannot be null");
+        FurnacePlugin fp = owner(plugin);
+        return command -> guard(() -> {   // 꺼진 플러그인이면 Bukkit 처럼 IllegalPluginAccessException
+            core().mainThreadExecutor(fp).execute(command);
+            return null;
+        });
+    }
+
     @Override
     public List<BukkitWorker> getActiveWorkers() {
         List<BukkitWorker> out = new ArrayList<>();

@@ -90,5 +90,24 @@ final class BuiltinCommands {
         ServerCommands.registerStop(d);
         org.domi.furnace.server.command.builtin.TransferCommand.register(d);
         PlayerListCommands.registerWhitelist(d);
+        registerNamespacedAliases(d);
+    }
+
+    /**
+     * 바닐라 루트 명령마다 "minecraft:이름" 별칭을 만든다(Paper 1.21.1 Commands 생성자와 같다). 별칭은 리다이렉트 대상이 되는
+     * 명령 노드(별칭의 별칭 tp→teleport 는 끝까지 따라간 teleport)를 가리키고, 실행·권한 조건은 그 노드의 것을 그대로 쓴다.
+     * 같은 노드를 가리키므로 게임 규칙처럼 나중에 대상 노드의 자식이 바뀌어도 별칭이 따라간다.
+     * 바닐라 명령만 대상이다 — 플러그인·Furnace 전용 명령은 "플러그인:이름" 을 따로 갖는다.
+     */
+    private static void registerNamespacedAliases(CommandDispatcher<CommandSource> d) {
+        for (var node : new java.util.ArrayList<>(d.getRoot().getChildren())) {
+            var target = node;
+            while (target.getRedirect() != null) target = target.getRedirect();
+            if (target == d.getRoot()) continue;   // 루트로 가는 리다이렉트는 없지만 방어
+            d.register(org.domi.furnace.server.command.brigadier.LiteralArgumentBuilder.<CommandSource>literal(Commands.VANILLA_NAMESPACE_PREFIX + node.getName())
+                    .executes(target.getCommand())
+                    .requires(target.getRequirement())
+                    .redirect(target));
+        }
     }
 }
