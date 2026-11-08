@@ -109,7 +109,8 @@ public final class MobEffect {
 
     public boolean isBeneficial() { return category == Category.BENEFICIAL; }
 
-    public boolean isInstantaneous() { return kind == Kind.INSTANT_HEALTH || kind == Kind.INSTANT_DAMAGE; }
+    /** 바닐라 InstantenousMobEffect 를 잇는 효과: 즉시 치유·즉시 피해와 포화(SaturationMobEffect). 1.21.1 바이트코드로 확인. */
+    public boolean isInstantaneous() { return kind == Kind.INSTANT_HEALTH || kind == Kind.INSTANT_DAMAGE || kind == Kind.SATURATION; }
 
     /** 레지스트리 번호(update_mob_effect·remove_mob_effect 에 실린다). */
     public int registryId() {
