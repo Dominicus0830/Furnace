@@ -100,6 +100,7 @@ public final class InternalsImpl implements Internals {
     public <H> H entityNow(Entity entity, Class<H> type) {
         if (entity instanceof PlayerHandle ph) {
             Player p = ph.handle();
+            org.domi.furnace.server.world.RegionBorrow.claim(() -> p.ownerRegion);   // 전역 빌림 구간이면 그 플레이어의 region 을 빌린다
             Region r = p.ownerRegion;
             if (r == null || !r.ownsPlayer(p)) throw notOwner("플레이어 " + p.name());
             return cast(p, type, "플레이어 " + p.name());
@@ -124,6 +125,7 @@ public final class InternalsImpl implements Internals {
         World w = host.core().world(e.dimensionKey());
         if (w == null) return false;
         ChunkPos cp = ChunkPos.ofBlock(e.x(), e.z());
+        org.domi.furnace.server.world.RegionBorrow.claimChunk(w, cp.x(), cp.z());   // 전역 빌림 구간이면 그 region 을 빌린다
         Region r = w.regionizer().ownerOf(cp.x(), cp.z());
         return r != null && r.isOwnerThread() && r.level() != null && r.level().entities().get(e.uuid()) == e;
     }
@@ -157,6 +159,7 @@ public final class InternalsImpl implements Internals {
     public <H> H levelNow(org.domi.furnace.api.world.World world, BlockPos pos, Class<H> type) {
         World w = worldHandle(world).handle();
         ChunkPos cp = new ChunkPos(pos.chunkX(), pos.chunkZ());
+        org.domi.furnace.server.world.RegionBorrow.claimChunk(w, cp.x(), cp.z());   // 전역 빌림 구간이면 그 region 을 빌린다
         Region r = w.regionizer().ownerOf(cp.x(), cp.z());
         if (r == null || !r.isOwnerThread()) {
             throw new ThreadOwnershipException("칸 " + pos + " 를 가진 region 스레드가 아니다(현재 " + Thread.currentThread().getName() + ") — withLevel 을 쓴다");

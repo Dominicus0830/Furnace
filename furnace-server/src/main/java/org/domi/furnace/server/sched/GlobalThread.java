@@ -46,6 +46,10 @@ public final class GlobalThread implements GlobalScheduler, ThreadOwner, AutoClo
         return Thread.currentThread() == thread;
     }
 
+    /** 전역 스레드에서 region 빌림 구간(RegionBorrow)을 연다. 전역 스레드가 아니면 빈 손잡이(어느 서버의 전역이든 — 빌림은 region 의 차원이 맡는다). */
+    @Override
+    public RegionAccess openRegionAccess() { return org.domi.furnace.server.world.RegionBorrow.open(); }
+
     /** 관측: 실행을 기다리는 작업 수(지연 작업은 때가 돼 큐에 들어온 뒤부터 센다). */
     public int queueLength() { return exec.getQueue().size(); }
 

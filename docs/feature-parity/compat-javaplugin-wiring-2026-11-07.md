@@ -31,7 +31,7 @@ H2 코어(`org.domi.furnace.compat.command·sched`)는 그대로 쓰고, 그 위
 3. **권한 없는 사람은 트리에서 명령이 숨는다**(H2 알려진 차이 1 그대로). 직접 `PluginCommand#execute` 를 부르면 Bukkit 의 거절 문장이 나간다.
 4. **`Bukkit.dispatchCommand`** 는 옛 명령이면 주 스레드에서 바로 실행하고 실행기가 false 여도 "처리됨" true 를 돌려준다(Bukkit `SimpleCommandMap#dispatch` 와 같음; H2 의 `LegacyCommands#dispatch` 는 false). 주 스레드가 아니면 전역으로 넘기고 접수 true. 주 스레드에서 터진 예외는 호출자에게 `CommandException`.
 5. **`Command.broadcastCommandMessage`** 는 `UnsupportedFeature`(권한 구독자 목록이 없다). `BlockCommandSender` 는 형만 있고 명령 블록 발신자는 아직 그 형으로 오지 않는다.
-6. **동기 작업은 전역 스레드에서 돈다.** 블록·엔티티 같은 region 상태를 동기 작업에서 읽으면 `ThreadOwnershipException`(H3 규칙). 옛 플러그인이 "메인 스레드 = 모든 월드 접근 가능"으로 짠 코드는 region 스케줄러(Paper 스케줄러 묶음 H)나 소유 스레드 전환이 있어야 돈다. `user-todo` 결정 항목.
+6. **동기 작업은 전역 스레드에서 돈다.** ~~블록·엔티티 같은 region 상태를 동기 작업에서 읽으면 `ThreadOwnershipException`.~~ 2026-11-08 부터는 동기 작업·옛 명령이 만진 region 만 틱 사이에 빌려 와 곧바로 읽고 쓴다 — `compat-legacy-sync-region-access-2026-11-08.md`.
 7. **`BukkitTask` 의 같음은 예약 번호**(Bukkit 은 객체 동일성). `getPendingTasks` 가 새 핸들을 줘도 `equals` 는 맞다.
 8. 서비스 이벤트·`PluginCommand` 의 `getPlugin` 은 Furnace 이벤트 버스와 이어져 있지 않다(Bukkit 안에서만).
 9. `getProvidingPlugin` 은 서버가 그 플러그인을 목록에서 버린 뒤(약한 참조가 풀린 뒤)에는 `IllegalArgumentException`.

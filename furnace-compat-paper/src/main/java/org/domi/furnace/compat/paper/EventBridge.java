@@ -107,14 +107,17 @@ public final class EventBridge {
         if (fc != null && bc != null && bc.isCancelled() != fc.isCancelled()) bc.setCancelled(fc.isCancelled());   // 앞선 Furnace 처리기의 결과를 먼저 보인다
         var jp = owner.javaPlugin();
         boolean ran = false;
-        for (RegisteredListener rl : b.getHandlers().getRegisteredListeners()) {
-            if (rl.getPlugin() != jp || rl.getPriority() != priority) continue;
-            ran = true;
-            try {
-                rl.callEvent(b);
-            } catch (Throwable t) {
-                Throwable cause = t instanceof EventException ee && ee.getCause() != null ? ee.getCause() : t;
-                owner.logger().log(Level.SEVERE, "Could not pass event " + b.getEventName() + " to " + owner.bukkitDescription().getFullName(), cause);
+        // 전역 스레드에서 오는 이벤트(명령 등)는 Bukkit 에서 주 스레드 이벤트다 — 리스너가 블록·엔티티를 만지면 region 을 빌린다(다른 스레드는 빈 손잡이)
+        try (var access = Furnace.server().scheduler().global().openRegionAccess()) {
+            for (RegisteredListener rl : b.getHandlers().getRegisteredListeners()) {
+                if (rl.getPlugin() != jp || rl.getPriority() != priority) continue;
+                ran = true;
+                try {
+                    rl.callEvent(b);
+                } catch (Throwable t) {
+                    Throwable cause = t instanceof EventException ee && ee.getCause() != null ? ee.getCause() : t;
+                    owner.logger().log(Level.SEVERE, "Could not pass event " + b.getEventName() + " to " + owner.bukkitDescription().getFullName(), cause);
+                }
             }
         }
         if (!ran) return;

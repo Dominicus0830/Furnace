@@ -40,7 +40,7 @@ final class MobAiImpl implements MobAi {
     }
 
     private void check() {
-        if (!mob.level().isOwnerThread()) {
+        if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(mob) && !mob.level().isOwnerThread()) {
             throw new ThreadOwnershipException("MobAi(" + mob.uuid() + ") 는 그 몹을 가진 region 스레드에서만 쓸 수 있다 (현재 "
                     + Thread.currentThread().getName() + ") — Mob.editAi 를 쓴다");
         }

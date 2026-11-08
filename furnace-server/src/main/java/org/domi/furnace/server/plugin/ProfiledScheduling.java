@@ -181,6 +181,9 @@ public final class ProfiledScheduling {
 
     static final class Global extends Scheduler implements GlobalScheduler {
         Global(ProfiledScheduling p, GlobalScheduler d) { super(p, d); }
+
+        @Override
+        public RegionAccess openRegionAccess() { return ((GlobalScheduler) d).openRegionAccess(); }
     }
 
     // ------------------------------------------------------------------ 비동기 실행기

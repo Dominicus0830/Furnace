@@ -205,6 +205,18 @@ public final class LegacyScheduler {
     private void heartbeat() {
         long now = ++tick;
         List<Task> again = new ArrayList<>();
+        // 한 박동의 동기 작업 전체를 한 표시 구간으로 — 작업이 빌린 region 은 이번 비움이 끝날 때 한꺼번에 돌려준다(작업마다 넘겨주고 받지 않는다)
+        try (PrimaryThread.Scope ignored = PrimaryThread.enter()) {
+            drain(now, again);
+        }
+        if (!again.isEmpty()) {
+            synchronized (queue) {
+                for (Task t : again) if (!t.cancelled) queue.add(t);
+            }
+        }
+    }
+
+    private void drain(long now, List<Task> again) {
         while (true) {
             Task t;
             synchronized (queue) {
@@ -217,11 +229,6 @@ public final class LegacyScheduler {
             if (t.period > 0 && !t.cancelled) {
                 t.nextRun = now + t.period;
                 again.add(t);
-            }
-        }
-        if (!again.isEmpty()) {
-            synchronized (queue) {
-                for (Task t : again) if (!t.cancelled) queue.add(t);
             }
         }
     }

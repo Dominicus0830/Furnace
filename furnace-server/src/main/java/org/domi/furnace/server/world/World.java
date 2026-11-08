@@ -393,10 +393,10 @@ public final class World {
             return f;
         }
 
+        /** 그 청크를 가진 region 의 스레드인가. 전역 스레드의 빌림 구간(RegionBorrow) 안이면 그 region 을 빌려서라도 참으로 만든다. */
         @Override
         public boolean isOwnerThread() {
-            Region r = regionizer.ownerOf(cp.x(), cp.z());
-            return r != null && r.isOwnerThread();
+            return RegionBorrow.claimChunk(World.this, cp.x(), cp.z());
         }
 
         @Override

@@ -38,6 +38,9 @@ public final class Regionizer {
     private volatile long tickNanos;
 
     final ReentrantLock lock = new ReentrantLock();
+    /** 빌림(RegionBorrow): region 이 틱을 마치거나 흡수될 때 기다리는 빌리는 스레드를 깨운다. borrowWaiters 는 잠금 안. */
+    private final java.util.concurrent.locks.Condition borrowable = lock.newCondition();
+    private int borrowWaiters;
     /** 구역 키 → 구역. 쓰기는 잠금 안, 읽기(주인 조회)는 어디서나. */
     private final ConcurrentHashMap<Long, Section> sections = new ConcurrentHashMap<>();
     /** 살아 있는 region(잠금 안). */
@@ -429,7 +432,7 @@ public final class Regionizer {
         try {
             if (closed) return null;
             for (Region r : queue) {
-                if (!r.drainPass || !r.queued || r.ticking || !r.alive || r.yielded) continue;
+                if (!r.drainPass || !r.queued || r.ticking || !r.alive || r.yielded || r.borrowWanted > 0) continue;
                 queue.remove(r);
                 r.queued = false;
                 r.ticking = true;
@@ -466,6 +469,7 @@ public final class Regionizer {
         } catch (Throwable t) {
             log.error("[REGION] region #{} drain 뒤 정리 실패", r.id, t);
         } finally {
+            if (borrowWaiters > 0) borrowable.signalAll();
             lock.unlock();
         }
     }
@@ -596,7 +600,8 @@ public final class Regionizer {
                     publishHead();
                     return null;
                 }
-                if (!head.alive || head.yielded || head.ticking || !head.queued) {
+                // 빌리려고 기다리는 region 도 꺼내지 않는다(빌린 스레드가 쥐거나, 그만두면 unwant 가 다시 넣는다)
+                if (!head.alive || head.yielded || head.ticking || !head.queued || head.borrowWanted > 0) {
                     queue.poll();
                     head.queued = false;
                     continue;
@@ -677,6 +682,7 @@ public final class Regionizer {
         } catch (Throwable t) {
             log.error("[REGION] region #{} 틱 뒤 정리 실패", r.id, t);
         } finally {
+            if (borrowWaiters > 0) borrowable.signalAll();
             lock.unlock();
         }
     }
@@ -984,6 +990,112 @@ public final class Regionizer {
         r.alive = false;
         regions.remove(r);
         reroute(r);
+    }
+
+    // ------------------------------------------------------------------ 빌림(RegionBorrow — 전역 스레드의 옛 "주 스레드" 코드)
+
+    /**
+     * 빌리기(전역 스레드, 잠금 밖에서 부른다): r(합쳐졌으면 흡수한 쪽)이 틱 사이가 되기를 기다려 이 스레드가 쥔다 — 워커가 틱을 꺼낼 때처럼
+     * ticking·tickThread 를 세우고 대기열에서 뺀다. 기다리는 동안 워커는 그 region 의 새 틱을 꺼내지 않는다(틱을 마친 그 자리에서 넘겨받는다).
+     * 쥔 region 을, 못 쥐면(죽음·닫힘·한도 초과·인터럽트) null.
+     */
+    Region borrow(Region r, long waitNanos) {
+        if (lock.isHeldByCurrentThread()) return null;   // 잠금을 쥔 채 기다리면 틱을 마치는 워커가 잠금을 못 잡는다
+        Thread me = Thread.currentThread();
+        long deadline = System.nanoTime() + waitNanos;
+        Region wanted = null;
+        lock.lock();
+        borrowWaiters++;
+        try {
+            while (true) {
+                Region cur = resolve(r);
+                if (closed || cur == null || !cur.alive) return null;
+                if (cur.tickThread == me) return cur;   // 이미 쥐었다
+                if (cur != wanted) {
+                    if (wanted != null) unwant(wanted);
+                    wanted = cur;
+                    cur.borrowWanted++;
+                }
+                if (!cur.ticking && !cur.yielded) {
+                    cur.borrowWanted--;
+                    wanted = null;
+                    if (cur.queued) {
+                        queue.remove(cur);
+                        cur.queued = false;
+                        publishHead();
+                    }
+                    cur.ticking = true;
+                    cur.borrowed = true;
+                    cur.tickThread = me;
+                    if (cur.level() != null) cur.level().chunkUnloaded();   // 지난 틱 뒤 합치기·나누기가 있었을 수 있다(drain 차례와 같다)
+                    return cur;
+                }
+                // 이 스레드가 쥔 region 에 양보하고 기다리는 중이면 쥔 쪽이 지금 흡수한다(쥔 region 은 틱 사이다) — 아니면 돌려줄 때까지 서로 기다린다
+                if (cur.yielded && absorbIntoBorrowed(me)) continue;
+                long left = deadline - System.nanoTime();
+                if (left <= 0) return null;
+                try {
+                    borrowable.awaitNanos(Math.min(left, 1_000_000L));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return null;
+                }
+            }
+        } finally {
+            if (wanted != null) unwant(wanted);
+            borrowWaiters--;
+            lock.unlock();
+        }
+    }
+
+    /** 빌리기를 그만둔다(잠금 안): 기다리는 동안 워커가 지운 대기열 자리를 되살린다. */
+    private void unwant(Region r) {
+        if (--r.borrowWanted == 0 && !r.ticking) schedule(r);
+    }
+
+    /**
+     * me 가 빌려 쥔 region 들이, 그쪽에 양보하고 기다리는 쉬는 병합 상대를 흡수한다(잠금 안). 쥔 region 은 틱 사이라 흡수해도 된다.
+     * resolveMerges 와 달리 틱 중인 상대에게 쥔 region 이 양보하지는 않는다(쥔 채로 양보하면 돌려줄 때 대기열에 못 돌아온다). 하나라도 흡수했으면 참.
+     */
+    private boolean absorbIntoBorrowed(Thread me) {
+        boolean any = false;
+        for (Region h : new ArrayList<>(regions)) {
+            if (!h.borrowed || h.tickThread != me || !h.alive || h.pendingMerges.isEmpty()) continue;
+            for (Region p : new ArrayList<>(h.pendingMerges)) {
+                Region o = resolve(p);
+                if (o == null || o == h || !o.alive) {
+                    h.pendingMerges.remove(p);
+                    continue;
+                }
+                if (o.ticking || !sprintCompatible(h, o) || !manualCompatible(h, o)) continue;
+                h.pendingMerges.remove(p);
+                absorb(h, o);
+                any = true;
+            }
+        }
+        return any;
+    }
+
+    /**
+     * 빌린 region 을 돌려준다(빌린 스레드, 잠금 밖에서): 쉬는 상태로 되돌리고, 그 사이 양보하고 기다린 병합 상대를 흡수하고, 대기열에 다시 넣는다.
+     * 틱을 돌지 않았으므로 다음 틱 시각은 그대로다(늦었으면 곧바로 돈다).
+     */
+    void giveBack(Region r) {
+        lock.lock();
+        try {
+            if (!r.borrowed || r.tickThread != Thread.currentThread()) return;
+            r.borrowed = false;
+            r.ticking = false;
+            r.tickThread = null;
+            resolveMerges(r);
+            if (r.alive && !r.yielded) schedule(r);
+            if (Region.URGENT_WAITERS.get() > 0 && r.alive && r.hasUrgentTask()) urgentArrived(r);
+        } catch (Throwable t) {
+            log.error("[REGION] region #{} 빌림 반납 실패", r.id, t);
+        } finally {
+            if (borrowWaiters > 0) borrowable.signalAll();
+            lock.unlock();
+        }
     }
 
     // ------------------------------------------------------------------ 상태
