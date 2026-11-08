@@ -1,0 +1,29 @@
+// A09-01 재현: 신호기 빛줄기를 막는 블록 판정(B.lightBlockedAbove 근사)이 바닐라 getLightBlock >= 15 와 같은지 모든 블록 상태로 대조한다.
+package org.domi.furnace.server.audit;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.util.Map;
+import java.util.TreeMap;
+import org.domi.furnace.server.block.B;
+import org.domi.furnace.server.light.LightTables;
+import org.junit.jupiter.api.Test;
+
+class A09BeaconBeamReproTest {
+
+    /** 바닐라 BeaconBlockEntity.tick: 빛줄기 구간이 있을 때 getLightBlock >= 15 이고 기반암이 아니면 빛줄기를 끊는다. Furnace 는 lightBlockedAbove 로 근사한다. */
+    @Test
+    void beamBlockerApproximationMatchesVanillaLightBlock() {
+        int n = B.BLOCKS.stateCount();
+        Map<String, String> diffs = new TreeMap<>();
+        for (int s = 0; s < n; s++) {
+            String name = B.BLOCKS.nameOfState(s);
+            if (name.equals("minecraft:bedrock")) continue;
+            boolean vanilla = LightTables.lightBlock(s) >= 15;
+            boolean furnace = B.lightBlockedAbove(s);
+            if (vanilla != furnace) diffs.putIfAbsent(name, "바닐라=" + vanilla + " Furnace=" + furnace);
+        }
+        System.out.println("A09 beacon 차이 블록 " + diffs.size() + "종: " + diffs);
+        assertTrue(diffs.isEmpty(), "신호기 빛줄기 차단 판정이 바닐라와 다른 블록: " + diffs);
+    }
+}
