@@ -11,3 +11,6 @@ PR #153 의 후속. Paper 1.21.1 은 바닐라 명령마다 `minecraft:<이름>`
 - **시험.** `NamespacedCommandsTest`(server: 모든 바닐라 루트에 별칭·리다이렉트·권한 객체 동일, 실행, 권한별 트리, 자동완성, /help, send-namespaced 끄기), `VanillaCommandTreeTest`(별칭 건너뛰기), `CommandParityTest.minecraftPrefixedVanillaCommandsDispatchLikePaper`(compat).
 
 - **알려진 작은 차이(독립 검토).** ① Paper(Spigot) 거르기는 모든 단계의 `:` 든 자식을 빼지만 Furnace 는 루트만 뺀다(플러그인 하위 리터럴에 `:` 가 있을 때만 다름). ② 이름이 `minecraft` 인 플러그인의 명령 등록 경고 문구가 실제와 다를 수 있다(Bukkit 의 예약 이름 규칙은 원문 미확인) — 후속.
+
+- **후속 처리(command-parity follow-ups).** ① send-namespaced=false 가 이제 Spigot `fillUsableCommands` 처럼 **모든 단계**의 ':' 든 자식(하위 리터럴 포함)을 클라이언트 트리에서 뺀다(`CommandTreePacket.collect`). ② 이름이 `minecraft` 인 플러그인은 `minecraft:이름` 이 바닐라 별칭과 겹쳐 둘 다 등록되지 않으므로, 그 경우 경고가 "'이름' 과(와) 'minecraft:이름' 이(가) 둘 다 이미 있어 등록하지 않는다" 로 나온다(예전엔 'minecraft:이름 로만 등록한다' 로 거짓이었다). Bukkit 예약 이름 규칙 자체는 원문을 보지 않았다. ③ `PlayerSignCommandPreprocessEvent.getSign()` 은 **건너뜀** — 호환 층에 Bukkit `BlockState`/`Sign` 이 없어(`Block.java` 주석: BlockState 아직 없음) 싸게 추가할 수 없다. 면은 `getSide()` 로 알 수 있다. 시험: `PluginCommandNamespaceTest`.
+

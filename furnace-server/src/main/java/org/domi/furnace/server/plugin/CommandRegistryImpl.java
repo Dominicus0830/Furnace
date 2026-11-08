@@ -78,15 +78,19 @@ final class CommandRegistryImpl implements CommandRegistry {
         Set<String> registered = new LinkedHashSet<>();
         for (String n : names) {
             String ns = namespace + ":" + n;
-            if (dispatcher().getRoot().getChild(ns) == null) {
+            boolean nsFree = dispatcher().getRoot().getChild(ns) == null;
+            if (nsFree) {
                 dispatcher().register(build.apply(n, ns));
                 registered.add(ns);
             }
             if (dispatcher().getRoot().getChild(n) == null) {
                 dispatcher().register(build.apply(n, n));
                 registered.add(n);
-            } else {
+            } else if (nsFree) {
                 log.warn("[{}] 명령 '{}' 은(는) 이미 있어 '{}' 로만 등록한다", plugin.name(), n, ns);
+            } else {
+                // 플러그인 이름이 minecraft 이면 '플러그인:이름' 이 바닐라 별칭(minecraft:give)과 겹쳐 둘 다 못 쓴다
+                log.warn("[{}] 명령 '{}' 과(와) '{}' 이(가) 둘 다 이미 있어 등록하지 않는다", plugin.name(), n, ns);
             }
         }
         owned.computeIfAbsent(plugin, k -> ConcurrentHashMap.newKeySet()).addAll(registered);
