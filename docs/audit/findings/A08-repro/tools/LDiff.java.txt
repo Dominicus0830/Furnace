@@ -1,0 +1,26 @@
+import java.util.*;
+import org.domi.furnace.server.block.*;
+import org.domi.furnace.server.light.LightTables;
+public class LDiff {
+  public static void main(String[] a) throws Exception {
+    org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+    Blocks b = Blocks.get();
+    int grass = b.defaultState("minecraft:grass_block");
+    Map<String,List<String>> grassDiff = new TreeMap<>(), beaconDiff = new TreeMap<>();
+    for (int s = 0; s < b.stateCount(); s++) {
+      boolean furnace = B.lightBlockedAbove(s);
+      // vanilla canBeGrass blocked
+      int lb = LightTables.lightBlock(s);
+      int into = LightTables.lightBlockInto(grass, s, 1 /*UP*/, lb);
+      boolean vanillaGrass = into >= 15;
+      boolean vanillaBeacon = lb >= 15;
+      String nm = b.nameOfState(s);
+      if (furnace != vanillaGrass) grassDiff.computeIfAbsent(nm + " furnace=" + furnace + " vanilla=" + vanillaGrass, k -> new ArrayList<>()).add(b.describe(s));
+      if (furnace != vanillaBeacon) beaconDiff.computeIfAbsent(nm + " furnace=" + furnace + " vanilla=" + vanillaBeacon, k -> new ArrayList<>()).add(b.describe(s));
+    }
+    System.out.println("== grass/nylium canBeGrass differences (blocks):");
+    for (var e : grassDiff.entrySet()) System.out.println(e.getKey() + " states=" + e.getValue().size() + " e.g. " + e.getValue().get(0));
+    System.out.println("== beacon differences (blocks):");
+    for (var e : beaconDiff.entrySet()) System.out.println(e.getKey() + " states=" + e.getValue().size() + " e.g. " + e.getValue().get(0));
+  }
+}
