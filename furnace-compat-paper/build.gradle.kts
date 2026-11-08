@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Bukkit·Paper 플러그인 호환 계층(H 묶음).
 // H1: org.bukkit.* 의 호환 API 일부(공개 이름·서명을 따라 새로 쓴 것)와, 서버가 ServiceLoader(PluginFormat)로 불러
 //     plugin.yml jar 를 Furnace 플러그인으로 돌리는 껍데기 (docs/api/compat-paper.md).

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // 헤드리스 시험 서버(B7): 플러그인 개발자가 JUnit 시험에서 실제 Furnace 서버를 메모리 월드·결정적 틱으로 띄운다.
 //   testImplementation("org.domi.furnace:furnace-test:<버전>")
 // 로컬 배포: ./gradlew -PskipOracle=true publishToMavenLocal  (docs/api/testing.md)
