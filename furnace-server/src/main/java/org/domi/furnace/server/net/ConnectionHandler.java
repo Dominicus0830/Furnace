@@ -2460,13 +2460,19 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 플러그인 Menu 화면 열기: 열린 창을 닫고 → 번호를 올리고 → 메뉴 → InventoryOpenEvent(취소되면 그만) → open_screen. */
     private void openPluginMenu(Player p, org.domi.furnace.server.plugin.MenuSession session) {
-        if (player != p || p.isDisconnected()) return;
+        if (player != p || p.isDisconnected()) {
+            session.openFailed();
+            return;
+        }
         synchronized (p.menuLock()) {
             if (p.hasOpenContainer()) closeContainer(p);
             int containerId = p.nextContainerCounter();
             var menu = session.createMenu(containerId, p.inventoryMenu().inventoryContainer(), menus);
-            if (login.core != null && !login.core.gameEvents().inventoryOpen(p, menu)) return;
-            send(ctx, new OpenScreen(containerId, menuTypeId(menu), p.localize(session.title())));
+            if (login.core != null && !login.core.gameEvents().inventoryOpen(p, menu)) {
+                session.openFailed();
+                return;
+            }
+            send(ctx, new OpenScreen(containerId, menuTypeId(menu), p.localize(session.titleForOpen())));
             menu.addSlotListener(menus);
             p.setContainerMenu(menu);
             menu.setSynchronizer(menus);

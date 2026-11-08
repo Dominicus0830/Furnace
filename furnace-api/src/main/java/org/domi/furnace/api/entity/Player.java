@@ -116,6 +116,18 @@ public interface Player extends CommandSender, LivingEntity {
     /** 지금 보고 있는 메뉴, 없으면 null. */
     default org.domi.furnace.api.menu.Menu currentMenu() { return null; }
 
+    /**
+     * 이 사람에게 열린(또는 openMenu 로 여는 중인) 메뉴 창의 제목만 바꾼다 — Menu 의 제목과 같은 메뉴를 보는 다른 사람은 그대로이고,
+     * 창을 닫으면 사라진다(다시 열면 Menu 제목). Paper InventoryView#setTitle 과 같다. 바꾼 동안에는 Menu#setTitle 보다 이 값이 이긴다.
+     * 열린 메뉴가 없으면 아무것도 하지 않는다. 어느 스레드에서든.
+     */
+    default void retitleMenu(org.domi.furnace.api.text.Text title) {}
+
+    /** 이 사람이 menu 를 열고 있으면(여는 중 포함) 그 사람 화면의 제목(retitleMenu 값, 없으면 Menu 제목), 아니면 null. */
+    default org.domi.furnace.api.text.Text menuTitle(org.domi.furnace.api.menu.Menu menu) {
+        return menu != null && menu == currentMenu() ? menu.title() : null;
+    }
+
     /** 열려 있는 화면(상자·제작대·메뉴 등 어떤 창이든)을 닫는다 — 플레이어 인벤토리만 보이는 상태로. 연결 스레드에서 이뤄진다. */
     default void closeContainer() {}
 

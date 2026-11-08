@@ -180,6 +180,8 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
 
     @Override
     public void stopSound(org.domi.furnace.api.audience.Sound.Source source, String key) {
+        // 바닐라 클라이언트는 stop_sound 의 이름을 ResourceLocation 으로 읽다 실패하면 접속을 끊는다 — playSound 와 같은 규칙으로 막는다
+        if (key != null && !org.domi.furnace.api.audience.Sound.isValidKey(key)) throw new IllegalArgumentException("잘못된 소리 이름: " + key);
         p.send(new org.domi.furnace.server.net.protocol.play.StopSound(source == null ? -1 : source.ordinal(), key == null ? null : soundKey(key)));
     }
 
@@ -229,7 +231,30 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         if (p.isDisconnected()) return;
         var session = new MenuSession(this, menu, host);   // 모르는 아이템이면 여기서 IllegalArgumentException
         var ih = p.inventoryHost();
-        if (ih != null) ih.openPluginMenu(session);
+        if (ih == null) return;
+        lastSession = session;
+        ih.openPluginMenu(session);
+    }
+
+    /** 마지막으로 연(또는 여는 중인) 메뉴 — 닫혔거나 열리지 못했으면 ended. */
+    private volatile MenuSession lastSession;
+
+    private MenuSession liveSession() {
+        MenuSession s = lastSession;
+        return s == null || s.ended() ? null : s;
+    }
+
+    @Override
+    public void retitleMenu(org.domi.furnace.api.text.Text title) {
+        java.util.Objects.requireNonNull(title, "title");
+        MenuSession s = liveSession();
+        if (s != null) s.setViewerTitle(title);
+    }
+
+    @Override
+    public org.domi.furnace.api.text.Text menuTitle(org.domi.furnace.api.menu.Menu menu) {
+        MenuSession s = liveSession();
+        return s != null && s.api() == menu ? s.title() : null;
     }
 
     @Override

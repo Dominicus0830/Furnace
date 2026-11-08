@@ -83,7 +83,7 @@ public final class CompatMenuInventory extends CompatInventory {
     /** HumanEntity#getOpenInventory. */
     public static org.bukkit.inventory.InventoryView openView(org.bukkit.craftbukkit.entity.CraftPlayer p) { return CompatInventories.openView(p); }
 
-    /** createInventory 의 제목(§ 서식 문자열). 플러그인이 InventoryView#setTitle 로 바꿨으면 메뉴 제목이 바뀐다. */
+    /** createInventory 의 제목(§ 서식 문자열). InventoryView#setTitle 은 그 창만 바꾸고 이 값·메뉴 제목은 그대로다(Paper 와 같다). */
     String title() { return title; }
 
     @Override

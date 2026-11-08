@@ -26,7 +26,7 @@ public interface Audience {
     /** 월드의 한 지점에서 나는 것처럼 들려준다(그 사람에게만 — 멀면 크기에 따라 작게 들린다). */
     default void playSound(Sound sound, double x, double y, double z) {}
 
-    /** 소리를 멈춘다. source·key 중 null 인 쪽은 가리지 않는다(둘 다 null 이면 모든 소리). */
+    /** 소리를 멈춘다. source·key 중 null 인 쪽은 가리지 않는다(둘 다 null 이면 모든 소리). key 가 리소스 id 가 아니면 IllegalArgumentException. */
     default void stopSound(Sound.Source source, String key) {}
 
     default void stopSound(String key) { stopSound(null, key); }

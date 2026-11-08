@@ -29,6 +29,12 @@ public final class MenuSession implements Menu.Listener {
     private final SimpleContainer container;
     private AbstractContainerMenu menu;   // 연결 스레드(menuLock)에서만
     private boolean attached;
+    /** Player#retitleMenu 로 이 사람 창에만 준 제목(null 이면 Menu 제목을 따른다). Paper InventoryView#setTitle 처럼 창이 닫히면 사라진다. */
+    private volatile Text viewerTitle;
+    /** 연결 스레드(menuLock)에서만: 이 사람 화면에 마지막으로 보낸 제목(open_screen). */
+    private Text shownTitle;
+    /** 닫혔거나 열리지 못했다 — 더는 이 사람 창이 아니다. */
+    private volatile boolean ended;
 
     /** 모르는 아이템이 있으면 IllegalArgumentException. */
     MenuSession(PlayerHandle player, Menu api, PluginHost host) {
@@ -41,7 +47,29 @@ public final class MenuSession implements Menu.Listener {
 
     public Menu api() { return api; }
 
-    public Text title() { return api.title(); }
+    /** 이 사람 화면에 보일 제목: retitleMenu 로 준 것, 없으면 Menu 제목. */
+    public Text title() {
+        Text t = viewerTitle;
+        return t != null ? t : api.title();
+    }
+
+    /** 연결 스레드에서 menuLock 을 쥔 채: open_screen 에 실을 제목. 보낸 값으로 기억해 둔다(그 뒤 바뀐 것은 opened() 가 다시 보낸다). */
+    public Text titleForOpen() {
+        shownTitle = title();
+        return shownTitle;
+    }
+
+    /** 연결 스레드에서: 열기가 취소됐다(InventoryOpenEvent 취소·접속 끊김). */
+    public void openFailed() { ended = true; }
+
+    /** 닫혔거나 열리지 못했다. */
+    boolean ended() { return ended; }
+
+    /** 이 사람 창의 제목만 바꾼다(Menu·다른 보는 사람은 그대로). 어느 스레드에서든. */
+    void setViewerTitle(Text title) {
+        viewerTitle = title;
+        scheduleTitleSync();
+    }
 
     PlayerHandle player() { return player; }
 
@@ -76,11 +104,13 @@ public final class MenuSession implements Menu.Listener {
         } catch (RuntimeException e) {
             log.warn("메뉴 새로고침 실패: {}", e.toString());
         }
+        syncTitle();     // open_screen 을 보낸 뒤 리스너가 붙기 전에 바뀐 제목
         api.viewerOpened(player);
     }
 
     /** 연결 스레드에서, 화면이 닫힐 때(InventoryCloseEvent 와 같은 자리). */
     public void closed() {
+        ended = true;
         if (!attached) return;
         attached = false;
         api.removeListener(this);
@@ -130,14 +160,30 @@ public final class MenuSession implements Menu.Listener {
         });
     }
 
+    /**
+     * 알림에 실린 제목은 쓰지 않는다 — 두 스레드가 거의 함께 setTitle 하면 알림이 거꾸로 올 수 있어, 연결 스레드에서 그때의 제목을 다시 읽어
+     * 화면과 다를 때만 보낸다.
+     */
     @Override
-    public void titleChanged(Menu m, Text title) {
+    public void titleChanged(Menu m, Text title) { scheduleTitleSync(); }
+
+    private void scheduleTitleSync() {
         var host0 = player.handle().inventoryHost();
         if (host0 == null) return;
         host0.execute(() -> {
-            if (menu == null) return;
-            host0.retitlePluginMenu(this, title);
+            synchronized (player.handle().menuLock()) { syncTitle(); }
         });
+    }
+
+    /** 연결 스레드에서 menuLock 을 쥔 채: 보일 제목이 화면과 다르면 같은 창 번호로 다시 연다. */
+    private void syncTitle() {
+        if (menu == null || shownTitle == null) return;
+        Text now = title();
+        if (now.equals(shownTitle)) return;
+        var host0 = player.handle().inventoryHost();
+        if (host0 == null) return;
+        shownTitle = now;
+        host0.retitlePluginMenu(this, now);
     }
 
     /** 클릭을 메뉴 처리기에 전한다. 허용하면 true. */
