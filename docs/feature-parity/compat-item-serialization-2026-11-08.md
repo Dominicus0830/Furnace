@@ -20,6 +20,8 @@ helper 5.6.14 의 `InventorySerialization.encodeItemStackToString`·`decodeItemS
 - **아이템 종류를 모르는 메타.** `ItemMeta` 만 따로 되읽을 때는 임시 종류(stone) 위에 만들고, `ItemStack#setItemMeta` 가 실제 종류에 옮긴다. 아이템 기본값과 같은 값을 직접 붙인 컴포넌트(예: 곡괭이에 `max_stack_size=64`)가 임시 종류의 기본값과 같다고 지워지지 않게 정수·희귀도는 날 SNBT 로 넣는다(시험 있음). 그래서 `CompatItemMeta#equals` 는 종류를 비교하지 않는다(Bukkit 메타도 그렇다).
 - **설정에는 사본을 저장한다.** `ConfigSection` 이 값을 일반 맵으로 들고 있어서 `set` 때 맵으로 바꾼다.
 
+- **원문을 옮기지 않는다(결정 7 GPLv3 미정).** `ConfigurationSerialization`·`BukkitObjectInputStream`·`BukkitObjectOutputStream` 은 공개·protected 서명과 예외·로그 문구, 되읽기 순서(deserialize → valueOf → 생성자)만 Bukkit 에 맞추고 몸통은 새로 썼다(독립 검토가 처음 판이 원문과 문장 단위로 같다고 짚어 다시 씀).
+
 ## Paper 1.21.1 과 관측되는 차이
 
 1. **`meta-type` 은 항상 `UNSPECIFIC`.** Paper 는 아이템에 따라 `ARMOR`·`COLORABLE_ARMOR`·`POTION`·`SKULL`·`TILE_ENTITY`·`ENCHANTED` 등을 쓰고 종류별 키(`potion-type`, `skull-owner`, `color`, `pages` …)를 쓴다. 우리는 해당 컴포넌트를 `unhandled` 에 넣는다. 읽을 때는 Paper 의 meta-type 이름을 모두 받아들이지만 종류별 키는 무시한다(Paper 가 쓴 포션·머리·책 메타의 그 데이터는 잃는다). 모르는 meta-type 은 `IllegalArgumentException`, 없으면 `NoSuchElementException`(Paper 와 같다).
@@ -27,7 +29,7 @@ helper 5.6.14 의 `InventorySerialization.encodeItemStackToString`·`decodeItemS
 3. **JSON 글 모양이 다를 수 있다.** `display-name`·`item-name`·`lore` 는 JSON 문자열이지만 `Text#toJson` 이 만든 모양이다. `setDisplayName("§6x")` 한 이름의 JSON 구조가 CraftChatMessage 의 것(`{"extra":[...],"text":""}` 꼴)과 글자 단위로 같지 않을 수 있다. 읽을 때는 JSON·§ 서식 둘 다 받는다. 두 서버가 같은 글을 보여 주는지는 확인하지 못했다(가정).
 4. **키 순서는 근사.** 순서는 Paper 1.21.4 소스를 따라 두었지만 1.21.1 CraftBukkit 원본은 읽지 못했다. 1.21.4 에서 가져온 키 이름(`fire-resistant`·`hide-tool-tip`·`max-stack-size`·`rarity`·`max-damage`·`enchantment-glint-override`)이 1.21.1 에서도 같은지는 **가정**이다. 1.21.2 이후 키(`tooltip-style`·`item-model`·`glider`·`damage-resistant`·`enchantable`·`tool`·`use-cooldown`·`equippable` 등)는 쓰지도 읽지도 않는다.
 5. **`PublicBukkitValues` SNBT 서식.** Paper 는 `SnbtPrinterTagVisitor` 서식, 우리는 한 줄 `Tag.toString` 서식(`Snbt.write`)이다. 둘 다 서로 읽는다. 옛(1.20.5 이전) 맵 서식 `PublicBukkitValues` 는 읽지 못하고 `IllegalArgumentException` 이다.
-6. **옛 형식 변환 없음.** `v` 가 없거나 3955 보다 낮은 맵(Spigot 1.13 이전·옛 데이터 버전)의 Material 이름 변환·DataFixer 가 없다. 지금 이름의 `Material.getMaterial` 로 읽고, 없는 이름은 `IllegalArgumentException` 이다(Paper 는 변환 후 그래도 못 찾으면 실패).
+6. **옛 형식 변환 없음.** `v` 가 없거나 3955 보다 낮은 맵(Spigot 1.13 이전·옛 데이터 버전)의 Material 이름 변환·DataFixer 가 없다. 지금 이름의 `Material.getMaterial` 로 읽고, 없는 이름은 `IllegalArgumentException` 이다(Paper 는 변환 후 그래도 못 찾으면 실패). 또 Paper 는 `v < 3837`(1.20.5 전) 맵에 `HIDE_ADDITIONAL_TOOLTIP` 이 있으면 `HIDE_STORED_ENCHANTS` 를 더하고, `enchantments` 키가 있으면 `meta` 를 무시한다 — Furnace 는 둘 다 하지 않는다(독립 검토).
 7. **`Wrapper` 의 맵이 `LinkedHashMap`.** 위 설계 결정. Paper 스트림을 읽으려면 Guava 가 보여야 한다.
 8. **알아보는 마법 부여 한정.** 읽을 때 `Enchantment` 상수(1.21.1 바닐라 목록)에 없는 키(데이터 팩 마법)와 레벨 1~255 밖의 값은 건너뛴다.
 9. **Material 로 나타낼 수 없는 아이템은 `serialize()` 가 `UnsupportedFeature`.** `getType()` 이 던지기 때문이다.

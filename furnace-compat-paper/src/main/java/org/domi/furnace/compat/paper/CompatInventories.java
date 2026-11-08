@@ -106,12 +106,13 @@ final class CompatInventories {
 
     static ClickType click(String type, int slot, int button) {
         return switch (type) {
-            case "pickup" -> slot == OUTSIDE ? (button == 0 ? ClickType.WINDOW_BORDER_LEFT : ClickType.WINDOW_BORDER_RIGHT)
-                    : button == 0 ? ClickType.LEFT : button == 1 ? ClickType.RIGHT : ClickType.UNKNOWN;
+            // CraftBukkit 은 창 밖(-999)도 LEFT/RIGHT 다(WINDOW_BORDER_* 를 내는 곳이 없다) — 창 밖인지는 InventoryAction(DROP_*_CURSOR)으로 갈린다
+            case "pickup" -> button == 0 ? ClickType.LEFT : button == 1 ? ClickType.RIGHT : ClickType.UNKNOWN;
             case "quick_move" -> button == 0 ? ClickType.SHIFT_LEFT : button == 1 ? ClickType.SHIFT_RIGHT : ClickType.UNKNOWN;
             case "swap" -> button >= 0 && button < 9 ? ClickType.NUMBER_KEY : button == 40 ? ClickType.SWAP_OFFHAND : ClickType.UNKNOWN;
-            case "clone" -> ClickType.MIDDLE;
-            case "throw" -> slot == OUTSIDE ? (button == 0 ? ClickType.WINDOW_BORDER_LEFT : ClickType.WINDOW_BORDER_RIGHT)
+            case "clone" -> button == 0 || button == 2 ? ClickType.MIDDLE : ClickType.UNKNOWN;
+            // 칸이 아닌 곳(음수)의 버리기는 CraftBukkit 이 LEFT(버튼 1 이면 RIGHT)·NOTHING 으로 둔다
+            case "throw" -> slot < 0 ? (button == 1 ? ClickType.RIGHT : ClickType.LEFT)
                     : button == 0 ? ClickType.DROP : button == 1 ? ClickType.CONTROL_DROP : ClickType.UNKNOWN;
             case "pickup_all" -> ClickType.DOUBLE_CLICK;
             default -> ClickType.UNKNOWN;
@@ -120,9 +121,10 @@ final class CompatInventories {
 
     /**
      * CraftBukkit 의 InventoryAction 고르기. current = 클릭한 칸(창 밖이면 EMPTY), cursor = 커서, hotbar = SWAP 의 그 핫바·왼손 칸 아이템,
-     * creative = 창조 모드(CLONE 은 창조에서만 복제).
+     * creative = 창조 모드(CLONE 은 창조에서만 복제), cursorTypeInView = 창(위·아래)에 커서와 같은 종류가 있는가(PICKUP_ALL 만 쓴다).
      */
-    static InventoryAction action(String type, int slot, int button, ItemStack current, ItemStack cursor, ItemStack hotbar, boolean creative) {
+    static InventoryAction action(String type, int slot, int button, ItemStack current, ItemStack cursor, ItemStack hotbar, boolean creative,
+            boolean cursorTypeInView) {
         switch (type) {
             case "pickup" -> {
                 if (button != 0 && button != 1) return InventoryAction.UNKNOWN;
@@ -159,6 +161,7 @@ final class CompatInventories {
                 return InventoryAction.NOTHING;
             }
             case "clone" -> {
+                if (button != 0 && button != 2) return InventoryAction.UNKNOWN;
                 if (slot < 0 || current.isEmpty() || !cursor.isEmpty() || !creative) return InventoryAction.NOTHING;
                 return InventoryAction.CLONE_STACK;
             }
@@ -167,7 +170,7 @@ final class CompatInventories {
                 return button == 0 ? InventoryAction.DROP_ONE_SLOT : button == 1 ? InventoryAction.DROP_ALL_SLOT : InventoryAction.NOTHING;
             }
             case "pickup_all" -> {
-                return slot >= 0 && !cursor.isEmpty() ? InventoryAction.COLLECT_TO_CURSOR : InventoryAction.NOTHING;
+                return slot >= 0 && !cursor.isEmpty() && cursorTypeInView ? InventoryAction.COLLECT_TO_CURSOR : InventoryAction.NOTHING;
             }
             default -> {
                 return InventoryAction.UNKNOWN;
@@ -201,7 +204,7 @@ final class CompatInventories {
 
     /**
      * quick_craft 한 단계를 기록한다(바닐라 AbstractContainerMenu#doClick 의 단계 규칙). 마지막 단계에서 둘 이상의 칸이 모였으면 그 결과,
-     * 아니면 null(한 칸이면 바닐라는 보통 클릭으로 바꾼다 — 그때도 Bukkit 이벤트는 없다).
+     * 아니면 null(한 칸이면 서버가 Paper 처럼 그 칸 PICKUP 클릭으로 다시 처리해 InventoryClickEvent 가 난다).
      */
     static DragResult dragStep(UUID player, int slot, int button, InventorySnapshot snap, ItemStack cursor, boolean creative) {
         int stage = button & 3;

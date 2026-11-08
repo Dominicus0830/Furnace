@@ -242,6 +242,21 @@ public abstract class AbstractContainerMenu {
         quickcraftSlots.clear();
     }
 
+    /**
+     * 이 QUICK_CRAFT 클릭(button)이 끝 단계이고 모인 칸이 하나뿐이라 바닐라가 그 칸 PICKUP 으로 바꿔 처리할 것이면 그 칸 번호, 아니면 -1.
+     * Paper 는 그 클릭을 PICKUP 클릭으로 처음부터 다시 처리해 플러그인 InventoryClickEvent 를 낸다(1.21.1 drag 수정) — 서버가 같은 일을 하려고 읽는다.
+     */
+    public int singleSlotQuickCraftEnd(int button) {
+        if (quickcraftStatus != 1 || getQuickcraftHeader(button) != 2 || carried.isEmpty() || quickcraftSlots.size() != 1) return -1;
+        return quickcraftSlots.iterator().next().index;
+    }
+
+    /** 진행 중인 끌어 나누기의 종류(0 고르게, 1 하나씩, 2 가득). */
+    public int quickcraftType() { return quickcraftType; }
+
+    /** 진행 중인 끌어 나누기를 버린다(바닐라 resetQuickCraft). */
+    public void abortQuickCraft() { resetQuickCraft(); }
+
     public static boolean canItemQuickReplace(Slot slot, ItemStack stack, boolean ignoreSize) {
         boolean empty = slot == null || !slot.hasItem();
         if (!empty && Stacks.isSameItemSameComponents(stack, slot.getItem())) {

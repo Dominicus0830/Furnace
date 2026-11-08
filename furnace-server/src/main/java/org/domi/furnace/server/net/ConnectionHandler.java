@@ -2732,6 +2732,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 log.debug("Player {} interacted with invalid menu {}", p.name(), menu);
             } else if (!menu.isValidSlotIndex(slotNum)) {
                 log.debug("Player {} clicked invalid slot index: {}, available slots: {}", p.name(), slotNum, menu.slots.size());
+            } else if (type == org.domi.furnace.server.menu.ClickType.QUICK_CRAFT && menu.singleSlotQuickCraftEnd(button) >= 0) {
+                // 한 칸 끌기: 바닐라는 그 칸 PICKUP 으로 바꾼다. Paper 처럼 PICKUP 클릭으로 다시 처리해 플러그인이 그 클릭을 보고 막을 수 있게 한다
+                int only = menu.singleSlotQuickCraftEnd(button);
+                int pickupButton = menu.quickcraftType();
+                menu.abortQuickCraft();
+                applyContainerClick(p, menu, stateId, only, pickupButton, org.domi.furnace.server.menu.ClickType.PICKUP, changed, carried);
             } else if (login.core != null && !login.core.gameEvents().inventoryClick(p, menu, slotNum, button, type)) {   // 플러그인 InventoryClickEvent 취소: 적용하지 않고 전체 재전송
                 menu.sendAllDataToRemote();
             } else {

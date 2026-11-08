@@ -7,8 +7,8 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.inventory.ItemStack;
 
 /**
- * 생물이 죽었다. Furnace 는 플레이어 사망만 이 계층에 잇고(PlayerDeathEvent), 떨어뜨릴 아이템·경험치·취소는 알리지 않는다 —
- * 그 값은 UnsupportedFeature 다(지어내지 않는다).
+ * 생물이 죽었다(플레이어는 하위 클래스 PlayerDeathEvent). Furnace 사망 이벤트는 떨어뜨릴 아이템·경험치를 싣지 않고 취소할 수 없어 —
+ * getDrops·getDroppedExp·setDroppedExp·setCancelled(true) 는 플레이어·몹 모두 UnsupportedFeature 다(지어내지 않는다).
  */
 public class EntityDeathEvent extends EntityEvent implements Cancellable {
 

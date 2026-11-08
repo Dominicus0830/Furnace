@@ -176,6 +176,12 @@ final class Mappings {
                 f -> new org.bukkit.event.server.ServerLoadEvent(org.bukkit.event.server.ServerLoadEvent.LoadType.STARTUP), (f, b) -> {});
     }
 
+    /** 창 칸 가운데 그 아이템과 같은 종류가 있는가(CraftBukkit 이 두 인벤토리의 contains(Material) 로 보는 것 — 갑옷·왼손 칸은 창에 없어 보지 않는다). */
+    private static boolean sameTypeIn(org.domi.furnace.api.inventory.InventorySnapshot snap, org.domi.furnace.api.item.ItemStack item) {
+        for (var s : snap.contents()) if (!s.isEmpty() && s.type().equals(item.type())) return true;
+        return false;
+    }
+
     private static void registerInventory() {
         // 클릭: 끌어 나누기(quick_craft)는 InventoryDragEvent 로, 제작 결과 칸 꺼내기(Furnace CraftItemEvent)는 Bukkit 에서 CraftItemEvent 자기
         // 처리기 목록으로 가므로 InventoryClickEvent 처리기에는 오지 않는다(Bukkit 과 같다 — CraftItemEvent 는 아직 없다)
@@ -192,7 +198,7 @@ final class Mappings {
                     }
                     boolean creative = f.player().gameMode() == org.domi.furnace.api.entity.GameMode.CREATIVE;
                     var action = CompatInventories.action(f.clickType(), raw, f.button(), raw >= 0 ? f.current() : org.domi.furnace.api.item.ItemStack.EMPTY,
-                            f.cursor(), hotbar, creative);
+                            f.cursor(), hotbar, creative, f.clickType().equals("pickup_all") && sameTypeIn(f.inventory(), f.cursor()));
                     var st = raw < 0 || raw >= view.countSlots() ? org.bukkit.event.inventory.InventoryType.SlotType.OUTSIDE : view.getSlotType(raw);
                     return ct == org.bukkit.event.inventory.ClickType.NUMBER_KEY || ct == org.bukkit.event.inventory.ClickType.SWAP_OFFHAND
                             ? new org.bukkit.event.inventory.InventoryClickEvent(view, st, raw, ct, action, f.button())

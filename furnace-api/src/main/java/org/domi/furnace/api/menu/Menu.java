@@ -47,7 +47,11 @@ public final class Menu {
     private volatile Consumer<MenuClick> anyClick;
     private volatile Consumer<Player> openHandler, closeHandler;
     private volatile boolean storage;
-    private final Object storageLock = new Object();
+    /**
+     * 모든 보관함 메뉴가 함께 쓰는 잠금 하나. 메뉴마다 두면 A 의 클릭 처리기가 B 에 쓰고 B 의 처리기가 A 에 쓸 때(이어진 두 창) 연결 스레드끼리
+     * 교착한다. 보관함 클릭·칸 쓰기는 짧아 하나로 줄 세워도 된다(Paper 는 주 스레드 하나로 같은 순서를 만든다).
+     */
+    private static final Object STORAGE_LOCK = new Object();
     private final Set<Player> viewers = new LinkedHashSet<>();
     private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
 
@@ -105,7 +109,7 @@ public final class Menu {
         check(slot);
         Objects.requireNonNull(item, "item");
         if (storage) {
-            synchronized (storageLock) { return set0(slot, item); }   // 보는 사람의 클릭과 한 줄로
+            synchronized (STORAGE_LOCK) { return set0(slot, item); }   // 보는 사람의 클릭과 한 줄로
         }
         return set0(slot, item);
     }
@@ -184,8 +188,8 @@ public final class Menu {
 
     public boolean isStorage() { return storage; }
 
-    /** 서버 구현 전용: 보관함 메뉴의 클릭 하나를 처리하는 동안 쥐는 잠금(칸 쓰기도 이 잠금 안에서 한다). */
-    public Object storageLock() { return storageLock; }
+    /** 서버 구현 전용: 보관함 메뉴의 클릭 하나를 처리하는 동안 쥐는 잠금(칸 쓰기도 이 잠금 안에서 한다). 모든 보관함 메뉴가 같은 잠금이다. */
+    public Object storageLock() { return STORAGE_LOCK; }
 
     // ------------------------------------------------------------------ 열기·닫기 처리기
 

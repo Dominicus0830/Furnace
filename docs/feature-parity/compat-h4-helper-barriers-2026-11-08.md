@@ -36,7 +36,7 @@ helper 의 스코어보드는 ProtocolLib 이 있어야 해서(`PacketScoreboard
 | `HumanEntity#openInventory(Inventory)` · `closeInventory()` · `getOpenInventory()` | 플러그인이 만든 인벤토리만 열 수 있다 |
 | `Inventory#getViewers()` | 만든 인벤토리는 지금 보는 사람, 나머지는 빈 목록 |
 | `InventoryView` | `getTopInventory`·`getBottomInventory`·`getType`·`getItem/setItem`·`convertSlot`·`getSlotType`·`countSlots`·`getTitle`·`getOriginalTitle`·`setTitle`·`close` (CraftBukkit 칸 번호 규칙) |
-| `InventoryClickEvent` · `InventoryDragEvent` · `InventoryOpenEvent` · `InventoryCloseEvent` | Furnace 인벤토리 이벤트에서 다리. `ClickType`·`InventoryAction` 은 CraftBukkit `handleContainerClick` 의 고르기 규칙, 끌어 나누기는 바닐라 `AbstractContainerMenu` 의 quick_craft 단계(둘 이상 칸일 때만 drag 이벤트, CraftBukkit 처럼 quick_craft 는 click 이벤트를 내지 않는다) |
+| `InventoryClickEvent` · `InventoryDragEvent` · `InventoryOpenEvent` · `InventoryCloseEvent` | Furnace 인벤토리 이벤트에서 다리. `ClickType`·`InventoryAction` 은 CraftBukkit `handleContainerClick` 의 고르기 규칙(창 밖 클릭도 LEFT/RIGHT), 끌어 나누기는 바닐라 `AbstractContainerMenu` 의 quick_craft 단계(둘 이상 칸일 때 끝에서 drag 이벤트 하나, quick_craft 단계는 click 이벤트를 내지 않는다). **한 칸 끌기**는 바닐라가 그 칸 PICKUP 으로 바꾸는데, 서버가 Paper 1.21.1(drag 수정 패치)처럼 그 클릭을 PICKUP 클릭으로 처음부터 다시 처리해 `InventoryClickEvent`(LEFT/RIGHT)가 나고 취소된다 |
 | `InventoryType`(+`SlotType`)·`ClickType`·`InventoryAction`·`DragType`·`InventoryInteractEvent` | Paper 1.21.1 상수 |
 
 ### 보스바 — `Bukkit.createBossBar`
@@ -65,27 +65,30 @@ Furnace `PlayerDeathEvent` → Bukkit `PlayerDeathEvent`(Bukkit 에서 `EntityDe
 
 - `InventoryEvent#menu()`(클릭·열기·닫기 이벤트): 그 창이 플러그인 메뉴면 그 `Menu`.
 - `Menu#storage(true)`·`isStorage()`: **보관함 메뉴.** 보통 메뉴는 보는 사람마다 사본이라 칸을 옮기는 클릭을 허용하면 사람마다 결과가 갈린다(복사 위험).
-  보관함 메뉴는 클릭을 메뉴 하나당 자물쇠로 줄 세우고, 클릭 직전에 메뉴 내용으로 맞춘 뒤 클릭으로 바뀐 칸만 메뉴에 되쓴다 — 모두가 같은 칸을 쓴다(Bukkit 가상 인벤토리와 같다).
+  보관함 메뉴는 클릭을 **모든 보관함 메뉴가 함께 쓰는 자물쇠 하나**로 줄 세우고(메뉴마다 두면 서로 상대 인벤토리에 쓰는 두 메뉴의 클릭이 연결 스레드끼리 교착한다 — 독립 검토 재현), 클릭 직전에 메뉴 내용으로 맞춘 뒤 클릭으로 바뀐 칸만 메뉴에 되쓴다 — 모두가 같은 칸을 쓴다(Bukkit 가상 인벤토리와 같다).
 - `Player#closeContainer()`(어떤 창이든 닫기), `Player#openContainerType()`(지금 열린 창 종류 키).
 
 ## Paper 1.21.1 과 다른 점 (관측 가능한 것)
 
 1. `openInventory` 는 연결 스레드에서 이뤄져 `InventoryOpenEvent` 가 취소돼도 창 객체를 돌려준다(Paper 는 null). 연 직후 같은 틱에 `getOpenInventory()` 는 아직 이전 창일 수 있다.
+   클릭 처리기 안에서 부른 `closeInventory`·`openInventory` 도 클릭 뒤에 이뤄져, 취소하지 않은 그 클릭은 먼저 적용된다(Paper 는 처리기가 창을 바꾸면 클릭을 적용하지 않고 화면을 다시 보낸다 — 창을 넘기는 메뉴는 클릭을 취소할 것).
 2. 클릭 처리기 안에서 `Inventory#setItem` 으로 바꾼 칸은 클릭이 끝난 뒤에 적용된다(Paper 는 곧바로). 취소하지 않은 클릭이 같은 칸을 바꾸면 클릭 결과가 이긴다.
 3. `InventoryCloseEvent` 가 불릴 때 닫는 사람은 이미 `getViewers()` 에서 빠져 있다(Paper 는 아직 들어 있다). `getReason()` 은 늘 `UNKNOWN`.
 4. 플러그인 인벤토리가 아닌 창(상자·화로 블록 등)의 위쪽 칸은 이벤트 순간의 읽기 전용 사본이다. 쓰기는 `UnsupportedFeature`, `getHolder()` 는 null, 상자 모양 창의 종류는 모두 `CHEST`, 제목은 기본 제목. 이벤트 밖 `getOpenInventory()` 로는 내용을 읽을 수 없다.
 5. 블록·엔티티 보관함을 `openInventory` 로 여는 것은 `UnsupportedFeature`. `Inventory#getViewers()` 는 플러그인 인벤토리만 안다.
-6. `InventoryView#setCursor`·`InventoryDragEvent#setCursor` 는 `UnsupportedFeature`(Furnace 이벤트가 커서를 되쓰지 않는다). `getCursor` 는 열기 이벤트에서 빈 스택, 닫기 이벤트에서 `UnsupportedFeature`.
-7. 끌어 나누기에서 칸이 그 아이템을 받을 수 있는지(`mayPlace`)는 Furnace 이벤트가 알리지 않아 "비었거나 같은 아이템"으로 본다(갑옷 칸 등에서 Paper 보다 칸이 많을 수 있다).
+6. `InventoryView#setCursor`·`InventoryDragEvent#setCursor` 는 `UnsupportedFeature`(Furnace 이벤트가 커서를 되쓰지 않는다). `getCursor` 는 열기 이벤트에서 빈 스택, 닫기 이벤트와 이벤트 밖 `getOpenInventory()` 에서 `UnsupportedFeature`.
+7. 칸이 그 아이템을 받거나 내줄 수 있는지(`mayPlace`·`mayPickup`)는 Furnace 이벤트가 알리지 않아 "비었거나 같은 아이템"으로 본다 — 끌어 나누기의 칸 목록과 클릭의 `InventoryAction`(갑옷 칸·결과 칸 등)이 Paper 와 다를 수 있다. `COLLECT_TO_CURSOR` 는 창에 보이는 칸만 보고 정한다(Paper 는 갑옷·왼손 칸도 본다). 끌어 나누기 도중 다른 종류 클릭의 action 은 Paper 의 `NOTHING` 대신 보통 규칙을 따른다.
 8. 제작 결과 칸 꺼내기(Bukkit `CraftItemEvent`)는 다리가 없다 — 그 클릭은 `InventoryClickEvent` 도 내지 않는다.
-9. 몹 `EntityDeathEvent` 의 `getDrops`·`getDroppedExp`·`setDroppedExp`·취소는 `UnsupportedFeature`(Furnace 이벤트가 알리지 않음). `PlayerDeathEvent` 의 새 경험치·레벨 메서드도 같다.
+9. `EntityDeathEvent`·`PlayerDeathEvent` 모두 `getDrops`·`getDroppedExp`·`setDroppedExp`·취소가 `UnsupportedFeature`(Furnace 사망 이벤트가 싣지 않음). 흔한 `setKeepInventory(true); getDrops().clear();` 는 keepInventory 는 되지만 그 줄에서 던진다 — 후속으로 Furnace 사망 이벤트에 떨어뜨릴 목록을 실어야 한다. `PlayerDeathEvent` 의 새 경험치·레벨 메서드도 같다.
 10. 보스바 보는 사람 목록은 접속이 끊겨도 저절로 비지 않는다(Paper 와 같다). 다시 접속한 플레이어는 새 객체라 다시 `addPlayer` 해야 한다.
 11. `ItemFlag` 옛 이름 바꾸기는 NMS 변환기가 켜져 있을 때(`plugins.compat.nms.enabled`, 기본 켜짐)만 된다. `HIDE_STORED_ENCHANTS` 는 아이템 컴포넌트로 옮겨지지 않는다.
 12. `KeyedBossBar`(`createBossBar(NamespacedKey, …)`·`getBossBars`)는 없다.
+13. 관전자의 창 클릭은 Paper 처럼 취소된 `InventoryClickEvent` 를 내지 않고, 이벤트 없이 화면만 다시 보낸다.
 
 ## 시험
 
 - `BukkitMenuPluginTest`: 진짜 플러그인 jar 가 만든 인벤토리를 열고, 클라이언트 클릭(취소·허용)·플레이어 칸 클릭·끌어 나누기·플러그인이 닫기를 거친다. 보스바·죽음 메시지 되쓰기.
+- `StorageMenuSafetyTest`(독립 검토 재현 시험): 모든 클릭·끌기를 막는 GUI 에 한 칸 끌기로 아이템을 넣을 수 없고(PICKUP 클릭 이벤트로 취소), 서로 상대 인벤토리에 쓰는 두 메뉴의 동시 클릭이 교착하지 않는다.
 - `ApiRenamePluginTest`: 옛 이름 `HIDE_POTION_EFFECTS` 로 컴파일된 jar 가 Paper 처럼 새 상수를 받는다(`valueOf` 포함).
 - `PluginUiApiTest#storageMenuWritesClickResultsBackToTheMenu`: 보관함 메뉴는 클릭 결과가 메뉴로 돌아가고 보통 메뉴는 그대로.
 - `EventBridgeTest`: 새 다리 다섯(클릭·끌기·열기·닫기·죽음)이 처리기에 닿는다. `InventoryAdapterTest#virtualInventoriesFollowPaperRules`.

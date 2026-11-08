@@ -1,3 +1,4 @@
+// Bukkit BukkitObjectOutputStream — 서명만 Bukkit 에 맞추고 몸통은 Furnace 가 새로 썼다.
 package org.bukkit.util.io;
 
 import java.io.IOException;
@@ -14,19 +15,17 @@ public class BukkitObjectOutputStream extends ObjectOutputStream {
 
     protected BukkitObjectOutputStream() throws IOException, SecurityException {
         super();
-        super.enableReplaceObject(true);
+        enableReplaceObject(true);
     }
 
     public BukkitObjectOutputStream(OutputStream out) throws IOException {
         super(out);
-        super.enableReplaceObject(true);
+        enableReplaceObject(true);
     }
 
     @Override
     protected Object replaceObject(Object obj) throws IOException {
-        if (!(obj instanceof Serializable) && (obj instanceof ConfigurationSerializable)) {
-            obj = Wrapper.newWrapper((ConfigurationSerializable) obj);
-        }
-        return super.replaceObject(obj);
+        Object out = obj instanceof ConfigurationSerializable cs && !(obj instanceof Serializable) ? Wrapper.newWrapper(cs) : obj;
+        return super.replaceObject(out);
     }
 }
