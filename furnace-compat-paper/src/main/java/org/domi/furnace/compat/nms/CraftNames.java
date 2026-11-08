@@ -38,14 +38,30 @@ public final class CraftNames {
         return PLAIN_INTERNAL + internalName.substring(VERSIONED_INTERNAL.length());
     }
 
+    /**
+     * 접미사 없는 CraftBukkit 이름에 이 서버 버전 접미사를 붙인다(옵션 {@code version-package=versioned} 의 이름 읽기).
+     * 패키지 이름({@code org.bukkit.craftbukkit})·클래스 이름·배열 이름 모두. CraftBukkit 이 아니거나 이미 붙었으면 그대로.
+     */
+    public static String versioned(String name) {
+        if (name == null) return null;
+        if (name.equals("org.bukkit.craftbukkit")) return VERSIONED.substring(0, VERSIONED.length() - 1);
+        int i = name.indexOf(PLAIN);
+        if (i < 0 || name.startsWith(VERSION + ".", i + PLAIN.length())) return name;
+        return name.substring(0, i) + VERSIONED + name.substring(i + PLAIN.length());
+    }
+
     // ------------------------------------------------------------------ 리플렉션 다리 (변환된 플러그인 바이트코드가 부른다)
 
     /** {@code Class.forName(name)} 대신 — 부른 클래스의 로더로 찾고 초기화한다(원래와 같다). 없으면 원래 이름으로 ClassNotFoundException. */
-    public static Class<?> forName(String name, Class<?> caller) throws ClassNotFoundException {
+    public static Class<?> forName(String name, Class<?> caller) throws ClassNotFoundException { return forName(name, caller, null); }
+
+    /** 위와 같고, 없는 NMS 이름이면 플러그인 이름으로 한 번 경고한다(H7a). */
+    public static Class<?> forName(String name, Class<?> caller, String plugin) throws ClassNotFoundException {
         String n = canonical(name);
         try {
             return Class.forName(n, true, caller.getClassLoader());
         } catch (ClassNotFoundException e) {
+            NmsReflect.classMissing(plugin, name);
             if (n == name) throw e;
             throw new ClassNotFoundException(name, e);
         }
@@ -53,21 +69,29 @@ public final class CraftNames {
 
     /** {@code Class.forName(name, initialize, loader)} 대신. */
     public static Class<?> forName(String name, boolean initialize, ClassLoader loader) throws ClassNotFoundException {
+        return forName(name, initialize, loader, null);
+    }
+
+    public static Class<?> forName(String name, boolean initialize, ClassLoader loader, String plugin) throws ClassNotFoundException {
         String n = canonical(name);
         try {
             return Class.forName(n, initialize, loader);
         } catch (ClassNotFoundException e) {
+            NmsReflect.classMissing(plugin, name);
             if (n == name) throw e;
             throw new ClassNotFoundException(name, e);
         }
     }
 
     /** {@code loader.loadClass(name)} 대신(loader 가 null 이면 원래처럼 NullPointerException). */
-    public static Class<?> loadClass(ClassLoader loader, String name) throws ClassNotFoundException {
+    public static Class<?> loadClass(ClassLoader loader, String name) throws ClassNotFoundException { return loadClass(loader, name, null); }
+
+    public static Class<?> loadClass(ClassLoader loader, String name, String plugin) throws ClassNotFoundException {
         String n = canonical(name);
         try {
             return loader.loadClass(n);
         } catch (ClassNotFoundException e) {
+            NmsReflect.classMissing(plugin, name);
             if (n == name) throw e;
             throw new ClassNotFoundException(name, e);
         }
@@ -75,10 +99,15 @@ public final class CraftNames {
 
     /** {@code lookup.findClass(name)} 대신. */
     public static Class<?> findClass(MethodHandles.Lookup lookup, String name) throws ClassNotFoundException, IllegalAccessException {
+        return findClass(lookup, name, null);
+    }
+
+    public static Class<?> findClass(MethodHandles.Lookup lookup, String name, String plugin) throws ClassNotFoundException, IllegalAccessException {
         String n = canonical(name);
         try {
             return lookup.findClass(n);
         } catch (ClassNotFoundException e) {
+            NmsReflect.classMissing(plugin, name);
             if (n == name) throw e;
             throw new ClassNotFoundException(name, e);
         }

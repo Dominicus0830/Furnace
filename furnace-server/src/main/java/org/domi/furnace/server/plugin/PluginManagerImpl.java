@@ -634,6 +634,8 @@ public final class PluginManagerImpl implements PluginManager {
             try {
                 byte[] t = transformer.transform(name, raw);
                 if (t != null) bytes = t;
+            } catch (UnsupportedOperationException refused) {
+                throw refused;   // 이 서버에서 정의할 수 없는 클래스(ClassTransformer 계약) — 원래 바이트로 올리지 않는다
             } catch (RuntimeException e) {
                 // 변환기가 못 읽는 클래스(이상한 바이트코드)는 원래 바이트로 — 그 클래스가 변환이 필요한 이름을 쓰면 그 자리에서 실패한다
                 if (!transformWarned) {

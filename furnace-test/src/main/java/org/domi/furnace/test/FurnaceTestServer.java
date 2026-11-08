@@ -512,6 +512,12 @@ public final class FurnaceTestServer implements AutoCloseable {
         /** Bukkit 호환 플러그인의 NMS·CraftBukkit 이름 변환(furnace.properties plugins.compat.nms.enabled, 기본 참). */
         public Builder compatNms(boolean v) { this.compatNms = v; return this; }
 
+        /** 미지원 NMS 심볼이 있는 호환 플러그인은 불러오지 않는다(plugins.compat.nms.strict, 기본 거짓). */
+        public Builder compatNmsStrict(boolean v) { return compatOption("plugins.compat.nms.strict", String.valueOf(v)); }
+
+        /** 플러그인이 읽는 CraftBukkit 패키지 이름: plain(기본, Paper) 또는 versioned(Spigot, v1_21_R1) — plugins.compat.nms.version-package. */
+        public Builder compatNmsVersionPackage(String v) { return compatOption("plugins.compat.nms.version-package", java.util.Objects.requireNonNull(v)); }
+
         /**
          * true 면 Furnace 네이티브 플러그인의 클래스로더에도 호환 클래스(org.bukkit.*·호환 코어)가 보인다. 기본은 숨김(서버와 같다) —
          * 호환 코어를 네이티브 시험 플러그인으로 직접 부리는 호환 모듈 시험만 켠다.

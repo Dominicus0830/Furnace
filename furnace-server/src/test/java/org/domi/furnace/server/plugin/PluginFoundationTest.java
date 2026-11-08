@@ -326,6 +326,31 @@ class PluginFoundationTest {
         assertFalse(PluginSettings.DEFAULT.failFast());
     }
 
+    @Test
+    void compatNmsOptionsAreValidatedAndPassedThrough() {
+        var log = org.slf4j.LoggerFactory.getLogger("Furnace");
+        PluginSettings d = PluginSettings.from(new Properties(), log);
+        assertNull(d.compatOption("plugins.compat.nms.strict"), "안 적으면 빠진다(어댑터 기본값 false)");
+        assertNull(d.compatOption("plugins.compat.nms.version-package"));
+        assertEquals(PluginSettings.DEFAULT, d, "빈 설정 = 기본값");
+        Properties pr = new Properties();
+        pr.setProperty("plugins.compat.nms.strict", "true");
+        pr.setProperty("plugins.compat.nms.version-package", "Versioned");
+        PluginSettings s = PluginSettings.from(pr, log);
+        assertEquals("true", s.compatOption("plugins.compat.nms.strict"));
+        assertEquals("versioned", s.compatOption("plugins.compat.nms.version-package"));
+        Properties same = new Properties();
+        same.setProperty("plugins.compat.nms.strict", "false");
+        same.setProperty("plugins.compat.nms.version-package", "plain");
+        assertEquals(PluginSettings.DEFAULT, PluginSettings.from(same, log), "기본값과 같게 적은 것은 안 적은 것과 같다");
+        Properties bad = new Properties();
+        bad.setProperty("plugins.compat.nms.version-package", "spigot");
+        assertThrows(IllegalArgumentException.class, () -> PluginSettings.from(bad, log), "잘못된 값은 기동을 멈춘다");
+        Properties badBool = new Properties();
+        badBool.setProperty("plugins.compat.nms.strict", "yes");
+        assertThrows(IllegalArgumentException.class, () -> PluginSettings.from(badBool, log));
+    }
+
     // ---- 조기 콘솔 ----
 
     @Test

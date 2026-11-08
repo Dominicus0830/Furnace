@@ -139,7 +139,19 @@ public final class CompatFormat implements PluginFormat {
     /** NMS·CraftBukkit 이름 변환(H6): CraftBukkit 버전 접미사 풀기와 리플렉션 이름 다리. 서버는 plugins.compat.nms.enabled=false 면 묻지 않는다. */
     @Override
     public org.domi.furnace.api.plugin.ClassTransformer transformer(PluginDescription description, java.nio.file.Path jar) {
-        return new org.domi.furnace.compat.nms.NmsClassTransformer(description.name());
+        return transformer(description, jar, Map.of());
+    }
+
+    /**
+     * H7a: 위에 더해 jar 를 한 번 훑어 NMS 호환 보고를 남기고, shim 에 없는 심볼 호출을 그 자리의 UnsupportedNmsCall 로 바꾼다.
+     * {@code plugins.compat.nms.strict=true} 이고 미지원 심볼이 있으면 던진다(플러그인을 불러오지 않는다).
+     */
+    @Override
+    public org.domi.furnace.api.plugin.ClassTransformer transformer(PluginDescription description, java.nio.file.Path jar, Map<String, String> settings) {
+        var options = new org.domi.furnace.compat.nms.NmsClassTransformer.Options(
+                Boolean.parseBoolean(settings.getOrDefault("plugins.compat.nms.strict", "false")),
+                "versioned".equalsIgnoreCase(settings.getOrDefault("plugins.compat.nms.version-package", "plain")));
+        return org.domi.furnace.compat.nms.NmsClassTransformer.forJar(description.name(), jar, options);
     }
 
     @Override

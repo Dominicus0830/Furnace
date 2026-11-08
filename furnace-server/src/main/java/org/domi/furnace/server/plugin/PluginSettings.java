@@ -9,6 +9,9 @@
 //   plugins.chunk-tickets.max-per-plugin=16384  플러그인 하나가 청크 티켓으로 붙잡을 수 있는 청크 수(겹침 포함, 1 이상)
 //   plugins.compat.scheduler.async-threads=platform  Bukkit 비동기 작업(runTaskAsynchronously 등)을 이름 붙은 플랫폼 스레드 풀(Paper 모양)에서 돌린다 — virtual 이면 가상 스레드
 //   plugins.compat.nms.enabled=true  호환 플러그인 클래스를 올릴 때 NMS·CraftBukkit 이름 변환(버전 접미사 v1_21_R1 풀기 등)을 한다 — false 면 바이트 그대로 올린다
+//   plugins.compat.nms.strict=false   미지원 NMS 심볼이 있는 플러그인은 불러오지 않는다(기본: 그 호출만 실패)
+//   plugins.compat.nms.version-package=plain  플러그인이 읽는 CraftBukkit 패키지 이름(plain = Paper 처럼 접미사 없음, versioned = Spigot 처럼 v1_21_R1)
+//   scheduler.async-threads·nms.strict·nms.version-package 는 검사해 compatOptions 로(기본값과 같으면 빠진다) — 호환 어댑터·PluginFormat#transformer 가 읽는다
 package org.domi.furnace.server.plugin;
 
 import java.io.IOException;
@@ -127,8 +130,24 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
             }
             if (!t.equals("platform")) out.put(ASYNC_THREADS_KEY, t);   // 기본값과 같게 적은 것은 안 적은 것과 같다(DEFAULT 와 같은 설정)
         }
+        // H7: NMS 변환 옵션(PluginFormat#transformer 의 settings 로도 넘어간다)
+        if (org.domi.furnace.server.config.OptionKeys.strictBool(p, NMS_STRICT_KEY, false)) out.put(NMS_STRICT_KEY, "true");
+        String vp = p.getProperty(NMS_VERSION_PACKAGE_KEY);
+        if (vp != null) {
+            String v = vp.strip().toLowerCase(Locale.ROOT);
+            if (!v.equals("plain") && !v.equals("versioned")) {
+                throw new IllegalArgumentException("설정 '" + NMS_VERSION_PACKAGE_KEY + "' 값 '" + vp.strip() + "' 이(가) 잘못됐습니다: plain 또는 versioned");
+            }
+            if (!v.equals("plain")) out.put(NMS_VERSION_PACKAGE_KEY, v);
+        }
         return out;
     }
+
+    /** 미지원 NMS 심볼이 있는 호환 플러그인을 불러오지 않는다(기본 false). */
+    public static final String NMS_STRICT_KEY = "plugins.compat.nms.strict";
+
+    /** 플러그인이 읽는 CraftBukkit 패키지 이름: plain(기본) | versioned. */
+    public static final String NMS_VERSION_PACKAGE_KEY = "plugins.compat.nms.version-package";
 
     /** Bukkit 비동기 작업을 돌릴 스레드: platform(기본, 이름 붙은 플랫폼 스레드 풀) | virtual(가상 스레드). */
     public static final String ASYNC_THREADS_KEY = "plugins.compat.scheduler.async-threads";
