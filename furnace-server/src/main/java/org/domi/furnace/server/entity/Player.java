@@ -1841,10 +1841,52 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     /** connection.teleport(x, y, z, yRot, xRot): 회전까지 정해 보정 텔레포트. */
     public void teleportTo(double x, double y, double z, float yaw, float pitch) {
-        if (!vitals().env().gameEvents().playerTeleport(this, x, y, z)) return;   // 플러그인 PlayerTeleportEvent 취소
+        if (!vitals().env().gameEvents().playerTeleport(this, x, y, z, yaw, pitch)) return;   // 플러그인 PlayerTeleportEvent 취소
         if (wakeThen(() -> correctTo(x, y, z, yaw, pitch))) return;
         correctTo(x, y, z, yaw, pitch);
     }
+
+    /**
+     * 플러그인 teleport 의 결과 규칙(Paper CraftPlayer#teleport): 연결이 없거나 끊겼거나 죽었으면, PlayerTeleportEvent 가 취소됐으면 false —
+     * 아무것도 바뀌지 않는다. 그 밖에는 탈것을 타고 있으면 먼저 내리고(깨어 있어야 하니 자던 중이면 깨운 뒤) 보정 텔레포트를 보내
+     * true. 결과는 이벤트가 정하므로 어느 스레드에서나 부를 수 있고, 내리기·깨우기는 소유 region 스레드로 넘어간다.
+     */
+    public boolean pluginTeleport(double x, double y, double z, float yaw, float pitch) {
+        if (isDisconnected() || !hasTeleporter() || vitals().health() <= 0.0F) return false;   // 죽은 플레이어는 이벤트 없이 false(CraftPlayer#teleport)
+        if (!vitals().env().gameEvents().playerTeleport(this, x, y, z, yaw, pitch)) return false;
+        Runnable go = () -> {
+            if (vehicle != null) stopRiding();
+            correctTo(x, y, z, yaw, pitch);
+        };
+        if (vehicle != null) runOnOwner(go);
+        else if (!wakeThen(go)) go.run();
+        return true;
+    }
+
+    // PlayerMoveEvent 용 "마지막으로 알린 자리"(CraftBukkit lastPosX·lastYaw 등) — 소유 region 스레드 전용(Region.processMoves).
+    private boolean moveEventBaseSet;
+    private double moveEventX, moveEventY, moveEventZ;
+    private float moveEventYaw, moveEventPitch;
+
+    /** 이동 이벤트의 기준이 있는가(텔레포트·접속 직후에는 없다 — 다음 이동 패킷이 그 자리를 기준으로 잡는다). */
+    public boolean moveEventBaseSet() { return moveEventBaseSet; }
+
+    public double moveEventX() { return moveEventX; }
+    public double moveEventY() { return moveEventY; }
+    public double moveEventZ() { return moveEventZ; }
+    public float moveEventYaw() { return moveEventYaw; }
+    public float moveEventPitch() { return moveEventPitch; }
+
+    public void moveEventBase(double x, double y, double z, float yaw, float pitch) {
+        moveEventBaseSet = true;
+        moveEventX = x;
+        moveEventY = y;
+        moveEventZ = z;
+        moveEventYaw = yaw;
+        moveEventPitch = pitch;
+    }
+
+    public void clearMoveEventBase() { moveEventBaseSet = false; }
 
     /** 서버 보정 텔레포트(이동 검증 되돌림 등) — 플러그인 이벤트를 거치지 않는다(취소되면 클라이언트와 위치가 영구히 어긋난다). */
     public void correctTo(double x, double y, double z, float yaw, float pitch) {

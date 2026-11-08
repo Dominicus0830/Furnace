@@ -63,7 +63,7 @@ Bukkit 은 "메인 스레드 한 개"를 가정하지만 Furnace 는 region 스�
 | `EntityDamageCalculateEvent` | X | 맞는 엔티티의 region | `LivingEntity.actuallyHurt`·`PlayerVitals.actuallyHurt` (체력을 깎기 직전, 피해 > 0 이고 구독자가 있을 때만). 방어력→저항→보호 인챈트→엔티티 고유(마녀)→흡수 체력 단계별로 input/output/줄인 양을 읽고, 줄이는 양·적용 여부·시작 값(base)을 바꾼다. 기본은 바닐라와 비트 단위로 같다. 상세는 아래 4.1 |
 | `EntityDeathEvent` | X | 죽는 엔티티의 region | `LivingEntity.die` 의 `dead = true` 직후 |
 | `EntitySpawnEvent` | O | 넣는 레벨의 region | `ChunkLevel.addFreshEntity` — 목록에 넣은 **뒤** 발화하고 취소하면 목록에서 빼고 레벨을 원래대로(추적 시작 전). 승객 묶음(`addFreshEntityWithPassengers`)은 하나라도 취소하면 전부 넣지 않는다(전부 아니면 전무). 청크 로드로 되살린 엔티티는 제외 |
-| `PlayerMoveEvent` | O | 플레이어의 region | `Region.processMoves` 검증 통과 직후 (취소 = 서버 위치를 이전 자리로 되돌리고 검증 거부와 같은 방식으로 보정 텔레포트 `Player.correctTo` — `PlayerTeleportEvent` 를 거치지 않는다) |
+| `PlayerMoveEvent` | O | 플레이어의 region | `Region.processMoves` 검증 통과 직후, CraftBukkit/Paper 간격으로만: 마지막으로 알린 자리에서 거리² > 1/256 이거나 \|Δyaw\|+\|Δpitch\| > 10° (시선만 돌려도 발화, 작은 떨림은 무시, 텔레포트 뒤에는 도착 자리부터 다시 센다). 취소 = 서버 위치·시선을 알린 자리로 되돌리고 검증 거부와 같은 방식으로 보정 텔레포트 `Player.correctTo` — `PlayerTeleportEvent` 를 거치지 않는다 |
 | `PlayerTeleportEvent` | O | 호출한 스레드 | `Player.teleportTo` (같은 차원). 차원 이동은 다음 단계 |
 | `PlayerInteractEvent` | O | 클릭한 칸의 region | `handleUseItemOn`(RIGHT_CLICK_BLOCK), `Region.handleUseItem`(RIGHT_CLICK_AIR). 구독자가 없으면 블록 상태 조회도 하지 않는다. 취소하면 클라이언트 예측을 되돌린다: 블록/이웃 상태 재전송(기존 sendBlockState) + 손 슬롯 `ContainerSetSlot` 재전송 |
 | `PlayerDropItemEvent` | O | 플레이어의 region | `Region.playerDrop` 시작 (취소 = 인벤토리로 돌려줌) |
@@ -176,7 +176,7 @@ ApiConvert              : 서버 ItemStack ↔ API ItemStack, 서버 Player → 
 `Action.isLeftClick()/isRightClick()` 편의를 더했다.
 
 ### 8.6 7장 "다음 단계" 처리 상태
-1 EntityScheduler — **완료**(8.1). 2 엔티티 조회·스폰 — **스폰·주변·청크별 조회 완료**, UUID 전역 조회·AI/속성/효과/탑승은 남음. 3 `damage()/heal()/getEquipment()`·`Mob`·`Item` 타입 — 남음. 4 블록·엔티티 컨테이너 Inventory — **완료**(8.4), `InventoryView/Holder`·클릭 후 결과 수정은 남음. 5 최종 피해·`DamageCause` 하위 이벤트 — 남음. 6 텔레포트 원인·차원 — 남음. 7 `InventoryOpenEvent` 경로 확장 — 남음. 8 LEFT_CLICK·`PlayerInteractEntityEvent` — **완료**(8.5). 9 `PersistentDataContainer`·`Chunk` — **완료**(8.2·8.3), `ChunkLoadEvent.isNewChunk` 는 남음. 10·11 — 남음. 그 밖에 `PlayerMoveEvent` 회전만 바뀐 이동은 여전히 발화하지 않는다.
+1 EntityScheduler — **완료**(8.1). 2 엔티티 조회·스폰 — **스폰·주변·청크별 조회 완료**, UUID 전역 조회·AI/속성/효과/탑승은 남음. 3 `damage()/heal()/getEquipment()`·`Mob`·`Item` 타입 — 남음. 4 블록·엔티티 컨테이너 Inventory — **완료**(8.4), `InventoryView/Holder`·클릭 후 결과 수정은 남음. 5 최종 피해·`DamageCause` 하위 이벤트 — 남음. 6 텔레포트 원인·차원 — 남음. 7 `InventoryOpenEvent` 경로 확장 — 남음. 8 LEFT_CLICK·`PlayerInteractEntityEvent` — **완료**(8.5). 9 `PersistentDataContainer`·`Chunk` — **완료**(8.2·8.3), `ChunkLoadEvent.isNewChunk` 는 남음. 10·11 — 남음. 그 밖에 `PlayerMoveEvent` 의 회전만 바뀐 이동은 이제 CraftBukkit 규칙(아래 표)대로 발화한다.
 
 
 ## 9. NBT 데이터 API·내부 접근 다리 (2026-11-06)

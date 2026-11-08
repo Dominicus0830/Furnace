@@ -58,6 +58,9 @@ public interface GameEvents {
     /** false 면 옮기지 않는다. 호출한 스레드에서. */
     default boolean playerTeleport(Player p, double x, double y, double z) { return true; }
 
+    /** 회전까지 정한 텔레포트(플러그인 teleport) — 이벤트의 도착 회전이 요청한 값이 되게 한다. 기본은 회전 없는 판으로 모은다. */
+    default boolean playerTeleport(Player p, double x, double y, double z, float yaw, float pitch) { return playerTeleport(p, x, y, z); }
+
     /** blockPos 가 null 이면 공중 클릭. false 면 취소. */
     default boolean playerInteract(Player p, int hand, int[] blockPos, int blockState, int face, ItemStack inHand) { return true; }
 

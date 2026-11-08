@@ -176,10 +176,15 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public boolean playerTeleport(Player p, double x, double y, double z) {
+        return playerTeleport(p, x, y, z, p.yaw(), p.pitch());
+    }
+
+    @Override
+    public boolean playerTeleport(Player p, double x, double y, double z, float yaw, float pitch) {
         if (!bus().hasSubscribers(PlayerTeleportEvent.class)) return true;
         String w = p.dimension();
         return !bus().call(new PlayerTeleportEvent(host.player(p), new Location(w, p.x(), p.y(), p.z(), p.yaw(), p.pitch()),
-                new Location(w, x, y, z, p.yaw(), p.pitch()))).isCancelled();
+                new Location(w, x, y, z, yaw, pitch))).isCancelled();
     }
 
     @Override
