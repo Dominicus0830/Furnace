@@ -34,6 +34,12 @@ public final class LivePluginProbe {
      * 캐시를 채워 두고 {@code LibrarySettings.DEFAULT.withOffline(true).withCache(폴더)} 를 넘긴다.
      */
     public static Result run(Path jar, String pluginName, int ticks, Path serverDir, org.domi.furnace.server.plugin.library.LibrarySettings libraries) {
+        return run(jar, pluginName, ticks, serverDir, libraries, List.of());
+    }
+
+    /** commands: 켠 뒤 콘솔로 실행해 볼 명령들(개발용 liveProbe -Pcommands). 출력은 표준 출력으로. */
+    public static Result run(Path jar, String pluginName, int ticks, Path serverDir, org.domi.furnace.server.plugin.library.LibrarySettings libraries,
+                             List<String> commands) {
         Logger root = (Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
@@ -52,6 +58,11 @@ public final class LivePluginProbe {
                     survived++;
                 }
                 if (status == Status.ENABLED && !p.isEnabled()) status = Status.ENABLED_THEN_CRASHED;
+                for (String c : commands) {
+                    System.out.println("> /" + c);
+                    for (String line : server.execute(c).lines()) System.out.println("  " + line);
+                    server.tick();
+                }
             }
         } finally {
             root.detachAppender(appender);

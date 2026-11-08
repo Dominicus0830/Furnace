@@ -31,16 +31,16 @@
 | `cloud-bukkit-2.0.1.jar` | 라이브러리 | 111 | 93 | 5 | 94.6% |
 | `cloud-paper-2.0.1.jar` | 라이브러리 | 38 | 103 | 67 | 35.0% |
 | `commandapi-bukkit-core-12.1.0.jar` | 라이브러리 | 155 | 147 | 38 | 74.1% |
-| `commandapi-bukkit-plugin-10.1.2.jar` | 플러그인 | 308 | 272 | 94 | 65.4% |
+| `commandapi-bukkit-plugin-10.1.2.jar` | 플러그인 | 308 | 272 | 91 | 66.5% |
 | `commodore-2.2.jar` | 라이브러리 | 12 | 26 | 8 | 69.2% |
 | `fastboard-2.2.2.jar` | 라이브러리 | 8 | 13 | 0 | 100.0% |
-| `helper-5.6.14.jar` | 플러그인 | 1197 | 441 | 176 | 60.1% |
+| `helper-5.6.14.jar` | 플러그인 | 1197 | 441 | 175 | 60.3% |
 
 ## 2. 종류별 요구와 빠짐 (전체 jar 합집합)
 
 | 종류 | 요구 클래스 | 없는 클래스 | 요구 멤버(있는 클래스 기준) | 없는 멤버 | 없는 클래스의 멤버 호출 |
 |---|---:|---:|---:|---:|---:|
-| Bukkit API | 291 | 203 | 671 | 166 | 713 |
+| Bukkit API | 291 | 201 | 672 | 165 | 712 |
 | Paper API | 25 | 25 | 0 | 0 | 49 |
 | Spigot·BungeeChat | 6 | 6 | 0 | 0 | 19 |
 | CraftBukkit | 358 | 356 | 2 | 0 | 427 |
@@ -50,7 +50,7 @@
 
 ## 3. 없는 Bukkit 계열 클래스 순위 (요구하는 jar 수 → 멤버 호출 수)
 
-전체 234개 중 위 80개. 이 순서가 다음 묶음의 우선순위 후보다.
+전체 232개 중 위 80개. 이 순서가 다음 묶음의 우선순위 후보다.
 
 | 클래스 | jar 수 | 멤버 호출(합) |
 |---|---:|---:|
@@ -181,15 +181,13 @@
 | `org.bukkit.enchantments` | 1 | 1 |
 | `org.bukkit.help` | 1 | 1 |
 | `org.bukkit.metadata` | 1 | 1 |
-| `org.bukkit.permissions` | 1 | 1 |
 | `org.bukkit.util` | 2 | 1 |
 | `org.bukkit.advancement` | 1 | 0 |
 | `org.bukkit.loot` | 1 | 0 |
-| `org.bukkit.plugin` | 1 | 0 |
 
 ## 4. 클래스는 있는데 없는 멤버 순위
 
-전체 270개 중 위 120개 (요구하는 jar 수 순).
+전체 269개 중 위 120개 (요구하는 jar 수 순).
 
 | 멤버 | jar 수 |
 |---|---:|
@@ -437,7 +435,7 @@
 
 ### `commandapi-bukkit-plugin-10.1.2.jar`
 
-없는 클래스 33개: `DisplaySlot`(7), `GlobalRegionScheduler`(4), `ProxiedCommandSender`(4), `Axis`(3), `Color`(3), `ComponentSerializer`(2), `Registry`(2), `RemoteConsoleCommandSender`(2), `Scoreboard`(2), `AsyncScheduler`(1), `TextComponent`(1), `FluidCollisionMode`(1), `Particle`(1), `Particle$DustOptions`(1), `Particle$DustTransition`(1), `Particle$Trail`(1), `Sound`(1), `Vibration`(1), `Vibration$Destination$BlockDestination`(1), `Biome`(1), `HelpTopic`(1), `Recipe`(1), `Permission`(1), `PotionEffectType`(1), `Objective`(1), `ScoreboardManager`(1), `Team`(1), `PluginMeta`, `BaseComponent`, `Vibration$Destination` …
+없는 클래스 32개: `DisplaySlot`(7), `GlobalRegionScheduler`(4), `ProxiedCommandSender`(4), `Axis`(3), `Color`(3), `ComponentSerializer`(2), `Registry`(2), `RemoteConsoleCommandSender`(2), `Scoreboard`(2), `AsyncScheduler`(1), `TextComponent`(1), `FluidCollisionMode`(1), `Particle`(1), `Particle$DustOptions`(1), `Particle$DustTransition`(1), `Particle$Trail`(1), `Sound`(1), `Vibration`(1), `Vibration$Destination$BlockDestination`(1), `Biome`(1), `HelpTopic`(1), `Recipe`(1), `PotionEffectType`(1), `Objective`(1), `ScoreboardManager`(1), `Team`(1), `PluginMeta`, `BaseComponent`, `Vibration$Destination`, `Advancement` …
 
 ### `commodore-2.2.jar`
 
@@ -449,5 +447,5 @@
 
 ### `helper-5.6.14.jar`
 
-없는 클래스 35개: `ArmorStand`(18), `BossBar`(14), `BarColor`(9), `Pig`(9), `BarStyle`(7), `InventoryClickEvent`(5), `DisplaySlot`(5), `BukkitObjectInputStream`(4), `BukkitObjectOutputStream`(4), `EntityDamageByEntityEvent`(3), `AsyncPlayerPreLoginEvent`(3), `PlayerInteractEntityEvent`(3), `BaseComponent`(2), `ConfigurationSerialization`(2), `Player$Spigot`(2), `PigZapEvent`(2), `ClickType`(2), `InventoryCloseEvent`(2), `InventoryDragEvent`(2), `InventoryOpenEvent`(2), `AsyncPlayerPreLoginEvent$Result`(2), `PlayerFishEvent`(2), `ChatMessageType`(1), `ComponentSerializer`(1), `CreatureSpawnEvent$SpawnReason`(1), `PlayerDeathEvent`(1), `PlayerLoginEvent`(1), `PlayerLoginEvent$Result`(1), `LeatherArmorMeta`(1), `FixedMetadataValue`(1) …
+없는 클래스 34개: `ArmorStand`(18), `BossBar`(14), `BarColor`(9), `Pig`(9), `BarStyle`(7), `InventoryClickEvent`(5), `DisplaySlot`(5), `BukkitObjectInputStream`(4), `BukkitObjectOutputStream`(4), `EntityDamageByEntityEvent`(3), `AsyncPlayerPreLoginEvent`(3), `PlayerInteractEntityEvent`(3), `BaseComponent`(2), `ConfigurationSerialization`(2), `Player$Spigot`(2), `PigZapEvent`(2), `ClickType`(2), `InventoryCloseEvent`(2), `InventoryDragEvent`(2), `InventoryOpenEvent`(2), `AsyncPlayerPreLoginEvent$Result`(2), `PlayerFishEvent`(2), `ChatMessageType`(1), `ComponentSerializer`(1), `CreatureSpawnEvent$SpawnReason`(1), `PlayerDeathEvent`(1), `PlayerLoginEvent`(1), `PlayerLoginEvent$Result`(1), `LeatherArmorMeta`(1), `FixedMetadataValue`(1) …
 

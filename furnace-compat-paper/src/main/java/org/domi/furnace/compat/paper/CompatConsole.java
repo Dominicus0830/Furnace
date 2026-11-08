@@ -31,8 +31,8 @@ public final class CompatConsole implements ConsoleCommandSender {
     public void setOp(boolean value) { throw new UnsupportedOperationException("콘솔의 OP 는 바꿀 수 없다"); }
 
     @Override
-    public boolean isPermissionSet(String name) { return true; }
+    public boolean isPermissionSet(String name) { return Compat.furnace().console().isPermissionSet(name); }
 
     @Override
-    public boolean hasPermission(String name) { return true; }
+    public boolean hasPermission(String name) { return Compat.furnace().console().hasPermission(name); }
 }

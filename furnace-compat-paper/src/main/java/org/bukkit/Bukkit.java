@@ -64,6 +64,8 @@ public final class Bukkit {
 
     public static int broadcastMessage(String message) { return s().broadcastMessage(message); }
 
+    public static int broadcast(String message, String permission) { return s().broadcast(message, permission); }
+
     public static ConsoleCommandSender getConsoleSender() { return s().getConsoleSender(); }
 
     public static boolean dispatchCommand(CommandSender sender, String commandLine) { return s().dispatchCommand(sender, commandLine); }

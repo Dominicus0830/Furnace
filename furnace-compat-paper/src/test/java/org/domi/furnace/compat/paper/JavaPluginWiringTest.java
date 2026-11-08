@@ -256,7 +256,10 @@ class JavaPluginWiringTest {
             assertFalse(server.execute("ec x").success());
             assertEquals(List.of("echo yo"), lines(server, "echo yo"), "다른 이름은 그대로");
 
-            assertThrows(UnsupportedOperationException.class, () -> map.getKnownCommands().put("zzz", echo), "넣기는 register 로만");
+            assertNull(map.getKnownCommands().put("zzz", echo), "넣으면 그 이름이 트리에 붙는다(Paper 처럼 — helper 가 별칭을 이렇게 올린다)");
+            assertSame(echo, map.getCommand("zzz"));
+            assertEquals(List.of("echo zz"), lines(server, "zzz zz"));
+            assertSame(echo, map.getKnownCommands().put("zzz", echo), "같은 것을 다시 넣으면 그대로");
             map.getKnownCommands().values().removeIf(c -> c == echo);   // 플러그인이 흔히 하는 해제 방식
             assertNull(map.getCommand("echo"));
             assertNull(map.getCommand("wiring:echo"));

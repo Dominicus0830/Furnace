@@ -114,6 +114,20 @@ public final class LegacyCommands {
         return done;
     }
 
+    /**
+     * 이미 트리에 있는 명령에 이름 하나를 더 붙인다(Bukkit 에서 knownCommands 에 직접 넣는 것). "플러그인:이름" 형태도 같이 생긴다.
+     * @return 새로 올라간 이름들(이미 있던 이름은 빠진다)
+     */
+    public Collection<String> registerName(LegacyCommand cmd, String name) {
+        Collection<String> live = registered.get(cmd);
+        if (live == null) throw new IllegalStateException("트리에 올라가 있지 않은 명령: " + cmd);
+        Collection<String> done = server.commands().register(cmd.plugin(), name, cmd.description(), List.of(), new Adapter(cmd));
+        live.addAll(done);
+        Map<String, LegacyCommand> names = byPlugin.get(cmd.plugin());
+        if (names != null) names.putIfAbsent(name, cmd);
+        return done;
+    }
+
     /** 명령을 트리에서 뺀다(이름·별칭·네임스페이스 형태 모두). */
     public boolean unregister(LegacyCommand cmd) {
         Collection<String> reg = registered.remove(cmd);
