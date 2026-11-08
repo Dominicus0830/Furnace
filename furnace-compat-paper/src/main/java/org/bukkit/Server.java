@@ -93,12 +93,17 @@ public interface Server extends org.bukkit.plugin.messaging.PluginMessageRecipie
     org.bukkit.block.data.BlockData createBlockData(Material material, String data);
 
     /**
-     * 가상 인벤토리(메뉴)는 아직 없다 — UnsupportedFeature. 클릭 이벤트·열기·닫기를 함께 옮겨야 해서 Furnace 의 메뉴 프레임워크
-     * (org.domi.furnace.api.menu.Menu)로 옮기는 것이 맞다.
+     * 플러그인 인벤토리(창으로 열 수 있는 가상 보관함). Furnace 보관함 메뉴(org.domi.furnace.api.menu.Menu#storage) 위에 있다.
+     * 크기는 9..54 의 9 배수. 종류로 만들 때는 상자·발사기·깔때기 모양만 된다(나머지는 UnsupportedFeature).
      */
     Inventory createInventory(InventoryHolder owner, int size);
 
     Inventory createInventory(InventoryHolder owner, int size, String title);
 
     Inventory createInventory(InventoryHolder owner, InventoryType type);
+
+    Inventory createInventory(InventoryHolder owner, InventoryType type, String title);
+
+    /** 보스 막대(처음엔 보이고 보는 사람이 없다). Furnace 보스 막대(org.domi.furnace.api.bossbar.BossBar) 위에 있다. */
+    org.bukkit.boss.BossBar createBossBar(String title, org.bukkit.boss.BarColor color, org.bukkit.boss.BarStyle style, org.bukkit.boss.BarFlag... flags);
 }

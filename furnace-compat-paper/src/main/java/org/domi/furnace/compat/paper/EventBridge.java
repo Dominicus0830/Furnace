@@ -54,7 +54,8 @@ public final class EventBridge {
         }
     }
 
-    private static final Map<Class<?>, Mapping<?, ?>> BY_BUKKIT = new HashMap<>();
+    /** Bukkit 처리기 목록 클래스 → 짝들(Furnace 이벤트 여럿이 한 Bukkit 이벤트로 올 수 있다 — 예: 몹 사망·플레이어 사망 → EntityDeathEvent 목록). */
+    private static final Map<Class<?>, java.util.List<Mapping<?, ?>>> BY_BUKKIT = new HashMap<>();
 
     static {
         Mappings.registerAll();
@@ -65,7 +66,7 @@ public final class EventBridge {
     /** 값을 되돌려 쓰지 않는 이벤트(취소 상태만 오간다). */
     static <F extends org.domi.furnace.api.event.Event, B extends org.bukkit.event.Event> void reg(Class<F> furnace, Class<B> bukkit,
                                                                                                     Function<F, B> create, BiConsumer<F, B> push) {
-        BY_BUKKIT.put(bukkit, new Mapping<>(bukkit, furnace, create, push, (f, b) -> {}));
+        add(new Mapping<>(bukkit, furnace, create, push, (f, b) -> {}));
     }
 
     /**
@@ -74,7 +75,11 @@ public final class EventBridge {
      */
     static <F extends org.domi.furnace.api.event.Event, B extends org.bukkit.event.Event> void reg(Class<F> furnace, Class<B> bukkit,
                                                                                                     Function<F, B> create, BiConsumer<F, B> push, BiConsumer<F, B> pull) {
-        BY_BUKKIT.put(bukkit, new Mapping<>(bukkit, furnace, create, push, pull));
+        add(new Mapping<>(bukkit, furnace, create, push, pull));
+    }
+
+    private static void add(Mapping<?, ?> m) {
+        BY_BUKKIT.computeIfAbsent(m.bukkit, k -> new java.util.ArrayList<>(1)).add(m);
     }
 
     /** 이 Bukkit 이벤트를 받을 수 있는가(Furnace 이벤트와 이어졌는가). 플러그인이 직접 만든 이벤트는 false. */
@@ -85,10 +90,12 @@ public final class EventBridge {
 
     /** owner 가 이 Bukkit 이벤트를 이 우선순위로 받도록 Furnace 버스에 구독한다(한 번만). */
     public static void ensure(BukkitPluginAdapter owner, Class<? extends org.bukkit.event.Event> owning, org.bukkit.event.EventPriority priority) {
-        Mapping<?, ?> m = BY_BUKKIT.get(owning);
-        if (m == null) return;   // 플러그인 자기 이벤트 — callEvent 로만 불린다
-        if (!owner.markBridged(owning.getName() + "@" + priority.name())) return;
-        subscribe(owner, m, priority);
+        var ms = BY_BUKKIT.get(owning);
+        if (ms == null) return;   // 플러그인 자기 이벤트 — callEvent 로만 불린다
+        for (Mapping<?, ?> m : ms) {
+            if (!owner.markBridged(owning.getName() + "<" + m.furnace.getName() + "@" + priority.name())) continue;
+            subscribe(owner, m, priority);
+        }
     }
 
     private static <F extends org.domi.furnace.api.event.Event, B extends org.bukkit.event.Event> void subscribe(BukkitPluginAdapter owner, Mapping<F, B> m,

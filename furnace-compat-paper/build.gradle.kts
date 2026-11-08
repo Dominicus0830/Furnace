@@ -126,6 +126,16 @@ tasks.register<JavaExec>("liveProbe") {
     jvmArgumentProviders.add(RealWorldJars(realWorld + extraJars))
 }
 
+// 개발용: helper 를 쓰는 플러그인을 흉내 내 helper 기능마다 된다/안 된다를 잰다(-PlibraryCache=<폴더> 필요 — helper 는 Guava 를 쓴다)
+tasks.register<JavaExec>("helperProbe") {
+    group = "verification"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("org.domi.furnace.compat.realworld.HelperUsageProbe")
+    jvmArgs("-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8")
+    args(providers.gradleProperty("libraryCache").orElse("").get())
+    jvmArgumentProviders.add(RealWorldJars(realWorld))
+}
+
 // H5: NMS·CraftBukkit 호출 빈도 표(docs/feature-parity/compat-h5-nms-calls-2026-11-07.md)를 다시 만든다.
 // 표본 = realWorld 13개 + nmsSurvey. 추가 jar(-PextraJars)를 주면 저장소 문서는 건드리지 않고 build/compat-h5-extra-report.md 에 쓴다.
 tasks.register<JavaExec>("nmsReport") {

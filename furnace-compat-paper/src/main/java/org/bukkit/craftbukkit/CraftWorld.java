@@ -82,6 +82,57 @@ public final class CraftWorld implements World {
         return Compat.entity(e);
     }
 
+    /** Bukkit 형 → 종류 키. Compat 이 그 형으로 감싸는 종류만. */
+    private static String spawnKey(Class<?> clazz) {
+        if (clazz == org.bukkit.entity.ArmorStand.class) return "minecraft:armor_stand";
+        if (clazz == org.bukkit.entity.Pig.class) return "minecraft:pig";
+        return null;
+    }
+
+    @Override
+    public <T extends org.bukkit.entity.Entity> T spawn(org.bukkit.Location location, Class<T> clazz) { return spawn(location, clazz, null); }
+
+    @Override
+    public <T extends org.bukkit.entity.Entity> T spawn(org.bukkit.Location location, Class<T> clazz, java.util.function.Consumer<? super T> function) {
+        if (location == null) throw new IllegalArgumentException("Location cannot be null");
+        if (clazz == null) throw new IllegalArgumentException("Entity class cannot be null");
+        String key = spawnKey(clazz);
+        if (key == null) {
+            if (!clazz.isInterface() || clazz.getPackageName().equals("org.bukkit.entity") && isAbstractKind(clazz)) {
+                throw new IllegalArgumentException("Cannot spawn an entity for " + clazz.getName());
+            }
+            throw new UnsupportedFeature("World#spawn(" + clazz.getSimpleName() + ")", "이 Bukkit 엔티티 형으로 감싸는 어댑터가 아직 없다(ArmorStand·Pig 만)");
+        }
+        org.domi.furnace.api.entity.Entity e = handle.spawnEntityNow(key, Compat.location(location));
+        if (e == null) throw new IllegalStateException("엔티티 스폰이 취소됐다(스폰 이벤트를 취소한 플러그인이 있다): " + clazz.getSimpleName());
+        T out = clazz.cast(Compat.entity(e));
+        if (function != null) function.accept(out);
+        return out;
+    }
+
+    /** 종류가 하나로 정해지지 않는 Bukkit 형(Paper 도 소환하지 못한다). */
+    private static boolean isAbstractKind(Class<?> c) {
+        return c == org.bukkit.entity.Entity.class || c == org.bukkit.entity.LivingEntity.class || c == org.bukkit.entity.Mob.class
+                || c == org.bukkit.entity.Creature.class || c == org.bukkit.entity.Ageable.class || c == org.bukkit.entity.Breedable.class
+                || c == org.bukkit.entity.Animals.class || c == org.bukkit.entity.Steerable.class || c == org.bukkit.entity.Vehicle.class
+                || c == org.bukkit.entity.Enemy.class || c == org.bukkit.entity.Monster.class || c == org.bukkit.entity.HumanEntity.class
+                || c == org.bukkit.entity.Player.class;
+    }
+
+    // ---- 메타데이터(월드 UID 로)
+
+    @Override
+    public void setMetadata(String metadataKey, org.bukkit.metadata.MetadataValue newMetadataValue) { Compat.worldMetadata().setMetadata(this, metadataKey, newMetadataValue); }
+
+    @Override
+    public java.util.List<org.bukkit.metadata.MetadataValue> getMetadata(String metadataKey) { return Compat.worldMetadata().getMetadata(this, metadataKey); }
+
+    @Override
+    public boolean hasMetadata(String metadataKey) { return Compat.worldMetadata().hasMetadata(this, metadataKey); }
+
+    @Override
+    public void removeMetadata(String metadataKey, org.bukkit.plugin.Plugin owningPlugin) { Compat.worldMetadata().removeMetadata(this, metadataKey, owningPlugin); }
+
     @Override
     public java.util.Collection<org.bukkit.entity.Entity> getNearbyEntities(org.bukkit.Location loc, double x, double y, double z) {
         org.domi.furnace.api.world.Location c = Compat.location(loc);

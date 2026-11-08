@@ -110,13 +110,29 @@ class EventBridgeTest {
             fire.put(org.bukkit.event.world.WorldUnloadEvent.class, () -> new org.domi.furnace.api.event.world.WorldUnloadEvent(w, "world", false));
             fire.put(org.bukkit.event.world.ChunkLoadEvent.class, () -> new org.domi.furnace.api.event.world.ChunkLoadEvent(w, 3, 4));
             fire.put(org.bukkit.event.world.ChunkUnloadEvent.class, () -> new org.domi.furnace.api.event.world.ChunkUnloadEvent(w, 3, 4));
+            var chest = new org.domi.furnace.api.inventory.InventorySnapshot("minecraft:generic_9x3", java.util.Collections.nCopies(63, org.domi.furnace.api.item.ItemStack.EMPTY));
+            var stone = org.domi.furnace.api.item.ItemStack.of("minecraft:stone").withAmount(4);
+            fire.put(org.bukkit.event.inventory.InventoryClickEvent.class, () -> new org.domi.furnace.api.event.inventory.InventoryClickEvent(p, chest, 3, 0, "pickup", org.domi.furnace.api.item.ItemStack.EMPTY));
+            fire.put(org.bukkit.event.inventory.InventoryOpenEvent.class, () -> new org.domi.furnace.api.event.inventory.InventoryOpenEvent(p, chest));
+            fire.put(org.bukkit.event.inventory.InventoryCloseEvent.class, () -> new org.domi.furnace.api.event.inventory.InventoryCloseEvent(p, chest));
+            fire.put(org.bukkit.event.entity.EntityDeathEvent.class, () -> new org.domi.furnace.api.event.player.PlayerDeathEvent(p, Text.text("Dana died"), false));
+            // 끌어 나누기는 시작·칸·칸·끝 네 번의 quick_craft 클릭이 모여 Bukkit 이벤트 하나가 된다
+            Map<Class<?>, List<org.domi.furnace.api.event.Event>> sequences = Map.of(org.bukkit.event.inventory.InventoryDragEvent.class, List.of(
+                    new org.domi.furnace.api.event.inventory.InventoryClickEvent(p, chest, -999, 0, "quick_craft", stone),
+                    new org.domi.furnace.api.event.inventory.InventoryClickEvent(p, chest, 1, 1, "quick_craft", stone),
+                    new org.domi.furnace.api.event.inventory.InventoryClickEvent(p, chest, 2, 1, "quick_craft", stone),
+                    new org.domi.furnace.api.event.inventory.InventoryClickEvent(p, chest, -999, 2, "quick_craft", stone)));
+            fire.put(org.bukkit.event.inventory.InventoryDragEvent.class, null);
+            fire.put(org.bukkit.event.player.PlayerInteractEntityEvent.class,
+                    () -> new org.domi.furnace.api.event.player.PlayerInteractEntityEvent(p, p, org.domi.furnace.api.item.ItemStack.EMPTY, true));
 
             // 시험이 빠뜨린 짝이 없는지: 다리가 아는 이벤트 = 이 시험이 발행한 이벤트
             assertEquals(EventBridge.bridgedEvents(), new HashSet<Class<?>>(fire.keySet()));
 
             for (var en : fire.entrySet()) {
                 RecorderPlugin.SEEN.clear();
-                bus.call(en.getValue().get());
+                if (en.getValue() == null) sequences.get(en.getKey()).forEach(bus::call);
+                else bus.call(en.getValue().get());
                 assertEquals(1, seen((Class<? extends Event>) en.getKey()).size(), en.getKey().getSimpleName() + " 이 처리기에 오지 않았다");
             }
         }

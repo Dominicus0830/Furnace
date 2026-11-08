@@ -99,4 +99,8 @@ public final class Bukkit {
     public static org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, int size, String title) { return s().createInventory(owner, size, title); }
 
     public static org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, org.bukkit.event.inventory.InventoryType type) { return s().createInventory(owner, type); }
+
+    public static org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, org.bukkit.event.inventory.InventoryType type, String title) { return s().createInventory(owner, type, title); }
+
+    public static org.bukkit.boss.BossBar createBossBar(String title, org.bukkit.boss.BarColor color, org.bukkit.boss.BarStyle style, org.bukkit.boss.BarFlag... flags) { return s().createBossBar(title, color, style, flags); }
 }

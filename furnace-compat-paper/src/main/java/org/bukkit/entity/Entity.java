@@ -6,10 +6,14 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import java.util.List;
 import org.bukkit.command.CommandSender;
+import org.bukkit.metadata.Metadatable;
 import org.bukkit.persistence.PersistentDataHolder;
 
-/** 엔티티. 위치·상태는 이벤트가 만든 시점의 값일 수 있다(Furnace 엔티티 핸들 규칙). */
-public interface Entity extends CommandSender, PersistentDataHolder {
+/**
+ * 엔티티. 위치는 이벤트가 만든 시점의 값일 수 있다(Furnace 엔티티 핸들 규칙). 이름·플래그·탑승은 엔티티를 가진 region 스레드에서
+ * 지금 값을 읽고 쓴다 — 다른 스레드에서는 읽기가 ThreadOwnershipException, 쓰기는 소유 스레드로 예약된다.
+ */
+public interface Entity extends Metadatable, CommandSender, PersistentDataHolder {
 
     UUID getUniqueId();
 
@@ -50,6 +54,56 @@ public interface Entity extends CommandSender, PersistentDataHolder {
 
     void remove();
 
-    /** 이름 바꾸기는 API 가 아직 없다 — UnsupportedFeature. */
+    /** 이름을 바꾼다(§ 서식, null 이면 지운다, 256자에서 자른다 — Paper 와 같다). */
     void setCustomName(String name);
+
+    boolean isCustomNameVisible();
+
+    void setCustomNameVisible(boolean flag);
+
+    boolean hasGravity();
+
+    void setGravity(boolean gravity);
+
+    boolean isInvulnerable();
+
+    void setInvulnerable(boolean flag);
+
+    boolean isSilent();
+
+    void setSilent(boolean flag);
+
+    /** 발광(NBT Glowing 태그 또는 발광 효과). */
+    boolean isGlowing();
+
+    /** 발광 태그를 바꾼다(발광 효과는 그대로). */
+    void setGlowing(boolean flag);
+
+    // ---- 탑승
+
+    /** 승객(타는 순서). 소유 스레드에서만. */
+    List<Entity> getPassengers();
+
+    /**
+     * passenger 를 태운다(Paper: startRiding(force=true) — 승객 수 제한을 보지 않는다). 탔으면 true. 승객은 같은 region 에 있어야 한다.
+     * 소유 스레드에서만(결과가 필요하다).
+     */
+    boolean addPassenger(Entity passenger);
+
+    /** passenger 를 내린다. Paper 처럼 늘 true. */
+    boolean removePassenger(Entity passenger);
+
+    /** 승객이 없는가. */
+    boolean isEmpty();
+
+    /** 승객을 모두 내린다. 승객이 있었으면 true. */
+    boolean eject();
+
+    /** 탄 탈것(없으면 null). */
+    Entity getVehicle();
+
+    boolean isInsideVehicle();
+
+    /** 탈것에서 내린다. 타고 있었으면 true. */
+    boolean leaveVehicle();
 }

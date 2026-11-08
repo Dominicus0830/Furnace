@@ -4,12 +4,14 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import org.bukkit.Material;
+import org.bukkit.configuration.serialization.ConfigurationSerializable;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.domi.furnace.api.item.ItemComponents;
 import org.domi.furnace.api.item.ItemEnchantments;
 import org.domi.furnace.compat.paper.CompatItemMeta;
 import org.domi.furnace.compat.paper.CompatItems;
+import org.domi.furnace.compat.paper.ItemMetaSerialization;
 import org.domi.furnace.compat.paper.ItemSlot;
 
 /**
@@ -17,7 +19,7 @@ import org.domi.furnace.compat.paper.ItemSlot;
  * 바꾸면 칸에 곧바로 반영된다(Bukkit 과 같다). 종류·개수·내구도·메타(이름·설명·마법 부여·영속 데이터)를 다룬다.
  * Material 로 나타낼 수 없는 아이템(데이터 팩·플러그인 아이템)의 getType 은 UnsupportedFeature 다.
  */
-public class ItemStack implements Cloneable {
+public class ItemStack implements Cloneable, ConfigurationSerializable {
 
     private final ItemSlot slot;
 
@@ -134,6 +136,47 @@ public class ItemStack implements Cloneable {
         int old = cur == null ? 0 : cur.level(ench.getKey().toString());
         if (old > 0) slot.set(slot.get().with(ItemComponents.ENCHANTMENTS, cur.without(ench.getKey().toString())));
         return old;
+    }
+
+    // ------------------------------------------------------------------ 직렬화
+
+    /**
+     * 설정·객체 스트림용 맵(Paper 1.21.1 과 같은 모양): v(데이터 버전 3955), type(Material 이름), amount(1 이 아닐 때만), meta(내용이 있을 때만).
+     * ConfigurationSerialization 이 {@code ==: org.bukkit.inventory.ItemStack} 와 함께 저장한다.
+     */
+    @Override
+    public Map<String, Object> serialize() {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("v", ItemMetaSerialization.DATA_VERSION);
+        result.put("type", getType().name());
+        if (getAmount() != 1) result.put("amount", getAmount());
+        ItemMeta meta = getItemMeta();
+        if (meta instanceof CompatItemMeta cm && cm.serialize().size() > 1) result.put("meta", meta);
+        return result;
+    }
+
+    /**
+     * {@link #serialize} 의 맵에서 되읽는다(ConfigurationSerialization 이 부른다). 옛 {@code damage}·{@code enchantments} 키도 받는다.
+     * v 가 없는 맵(Spigot 1.13 이전 형식)도 지금 이름의 Material 로 읽는다 — 옛 Material 이름 변환표는 없다.
+     */
+    public static ItemStack deserialize(Map<String, Object> args) {
+        short damage = args.containsKey("damage") ? ((Number) args.get("damage")).shortValue() : 0;
+        String typeName = (String) args.get("type");
+        Material type = Material.getMaterial(typeName);
+        if (type == null) throw new IllegalArgumentException("Material cannot be null (type=" + typeName + ")");
+        int amount = args.containsKey("amount") ? ((Number) args.get("amount")).intValue() : 1;
+
+        ItemStack result = new ItemStack(type, amount);
+        if (damage != 0) result.setDurability(damage);
+
+        if (args.get("enchantments") instanceof Map<?, ?> raw) { // 옛 형식(deprecated)
+            for (var entry : raw.entrySet()) {
+                Enchantment ench = Enchantment.fromKey(entry.getKey().toString());
+                if (ench != null && entry.getValue() instanceof Number level) result.addUnsafeEnchantment(ench, level.intValue());
+            }
+        }
+        if (args.get("meta") instanceof ItemMeta meta) result.setItemMeta(meta);
+        return result;
     }
 
     // ------------------------------------------------------------------ 같음

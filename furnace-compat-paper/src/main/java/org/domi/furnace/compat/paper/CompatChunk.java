@@ -27,6 +27,12 @@ public final class CompatChunk implements Chunk {
     public boolean isLoaded() { return Compat.furnace().world(dimension).isChunkLoaded(x, z); }
 
     @Override
+    public boolean load(boolean generate) { return isLoaded(); }
+
+    @Override
+    public boolean load() { return load(true); }
+
+    @Override
     public boolean equals(Object o) { return o instanceof CompatChunk c && c.x == x && c.z == z && c.dimension.equals(dimension); }
 
     @Override

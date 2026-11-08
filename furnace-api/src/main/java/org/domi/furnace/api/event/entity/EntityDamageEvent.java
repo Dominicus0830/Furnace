@@ -11,6 +11,8 @@ public final class EntityDamageEvent extends EntityEvent implements Cancellable,
     private float damage;
     private boolean cancelled;
     private org.domi.furnace.api.event.cause.CauseChain causeChain = org.domi.furnace.api.event.cause.CauseChain.NONE;
+    private Entity directEntity;
+    private Entity causingEntity;
 
     @Override
     public boolean isCancelled() { return cancelled; }
@@ -28,6 +30,23 @@ public final class EntityDamageEvent extends EntityEvent implements Cancellable,
         this(entity, cause, damage);
         if (causeChain != null) this.causeChain = causeChain;
     }
+
+    /**
+     * @param directEntity  직접 맞힌 엔티티(화살·TNT·때린 몹·플레이어 — 바닐라 DamageSource.getDirectEntity), 없으면 null
+     * @param causingEntity 그 피해의 주인(화살을 쏜 쪽·TNT 를 켠 쪽 — 바닐라 DamageSource.getEntity), 없으면 null
+     */
+    public EntityDamageEvent(Entity entity, String cause, float damage, org.domi.furnace.api.event.cause.CauseChain causeChain,
+                             Entity directEntity, Entity causingEntity) {
+        this(entity, cause, damage, causeChain);
+        this.directEntity = directEntity;
+        this.causingEntity = causingEntity;
+    }
+
+    /** 직접 맞힌 엔티티의 이벤트 시점 스냅샷(화살·TNT·때린 몹·플레이어). 환경 피해·블록 피해면 null. */
+    public Entity directEntity() { return directEntity; }
+
+    /** 피해의 주인(쏜 쪽·켠 쪽)의 이벤트 시점 스냅샷. 근접 공격이면 directEntity 와 같은 엔티티, 모르면 null. */
+    public Entity causingEntity() { return causingEntity; }
 
     /**
      * 누가·무엇이 피해를 줬나: 맨 앞이 직접 맞힌 것(action damage — 화살·TNT·때린 몹), 그 뒤가 그것의 원인(쏜 쪽·켠 플레이어).

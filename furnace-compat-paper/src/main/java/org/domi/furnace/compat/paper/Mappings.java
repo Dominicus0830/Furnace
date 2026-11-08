@@ -1,4 +1,4 @@
-// Bukkit 이벤트 ↔ Furnace 이벤트 짝(1차 24종). 새 짝을 더할 때는 Bukkit 이벤트 클래스를 org.bukkit.event 아래에 두고 여기에 reg 한 줄을 더한다.
+// Bukkit 이벤트 ↔ Furnace 이벤트 짝(1차 24종 + 인벤토리 창·사망). 새 짝을 더할 때는 Bukkit 이벤트 클래스를 org.bukkit.event 아래에 두고 여기에 reg 한 줄을 더한다.
 // 원칙: Furnace 이벤트가 알리지 않는 값은 지어내지 않는다 — 읽기는 정직한 기본값(예: TeleportCause.UNKNOWN) 또는 UnsupportedFeature,
 // 쓰기는 UnsupportedFeature. 처리기가 바꾼 값은 Furnace 이벤트에 되돌려 쓴다(바뀌지 않았으면 손대지 않아 서식이 깎이지 않는다).
 package org.domi.furnace.compat.paper;
@@ -23,6 +23,8 @@ final class Mappings {
         registerPlayer();
         registerWorld();
         registerOther();
+        registerInventory();
+        registerEntityInteract();
     }
 
     private static final java.util.Map<Object, String> FORMAT_BASE = java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
@@ -147,13 +149,6 @@ final class Mappings {
     }
 
     private static void registerOther() {
-        EventBridge.reg(org.domi.furnace.api.event.entity.EntityDamageEvent.class, org.bukkit.event.entity.EntityDamageEvent.class,
-                f -> new org.bukkit.event.entity.EntityDamageEvent(Compat.entity(f.entity()), cause(f.cause()), f.damage()),
-                (f, b) -> {
-                    if ((float) b.getDamage() != f.damage()) f.setDamage((float) b.getDamage());
-                }, (f, b) -> {
-                    if ((float) b.getDamage() != f.damage()) b.setDamage(f.damage());
-                });
         EventBridge.reg(org.domi.furnace.api.event.server.PluginEnableEvent.class, org.bukkit.event.server.PluginEnableEvent.class,
                 f -> {
                     Plugin pl = bukkitPlugin(f.plugin());
@@ -173,6 +168,80 @@ final class Mappings {
                 });
         EventBridge.reg(org.domi.furnace.api.event.server.ServerLoadEvent.class, org.bukkit.event.server.ServerLoadEvent.class,
                 f -> new org.bukkit.event.server.ServerLoadEvent(org.bukkit.event.server.ServerLoadEvent.LoadType.STARTUP), (f, b) -> {});
+    }
+
+    /**
+     * 위쪽·아래쪽 인벤토리에 그 아이템과 같은 종류가 있는가 — CraftBukkit 이 두 인벤토리의 contains(Material) 로 보는 것. contains 는
+     * getStorageContents 만 보므로 플레이어 인벤토리 창(minecraft:player)에서는 제작 칸(0..4)·갑옷(5..8)·왼손(45)을 빼고 주 36칸(9..44)만 본다.
+     */
+    private static boolean sameTypeIn(org.domi.furnace.api.inventory.InventorySnapshot snap, org.domi.furnace.api.item.ItemStack item) {
+        var c = snap.contents();
+        boolean playerWindow = snap.type().equals("minecraft:player");
+        int from = playerWindow ? 9 : 0, to = playerWindow ? Math.min(45, c.size()) : c.size();
+        for (int i = from; i < to; i++) if (!c.get(i).isEmpty() && c.get(i).type().equals(item.type())) return true;
+        return false;
+    }
+
+    private static void registerInventory() {
+        // 클릭: 끌어 나누기(quick_craft)는 InventoryDragEvent 로, 제작 결과 칸 꺼내기(Furnace CraftItemEvent)는 Bukkit 에서 CraftItemEvent 자기
+        // 처리기 목록으로 가므로 InventoryClickEvent 처리기에는 오지 않는다(Bukkit 과 같다 — CraftItemEvent 는 아직 없다)
+        EventBridge.reg(org.domi.furnace.api.event.inventory.InventoryClickEvent.class, org.bukkit.event.inventory.InventoryClickEvent.class,
+                f -> {
+                    if (f instanceof org.domi.furnace.api.event.inventory.CraftItemEvent || CompatInventories.isDrag(f.clickType())) return null;
+                    CompatInventoryView view = CompatInventories.view(f.player(), f.inventory(), f.menu(), f.cursor());
+                    int raw = f.slot();
+                    var ct = CompatInventories.click(f.clickType(), raw, f.button());
+                    org.domi.furnace.api.item.ItemStack hotbar = org.domi.furnace.api.item.ItemStack.EMPTY;
+                    if (f.clickType().equals("swap")) {
+                        int hr = CompatInventories.hotbarRaw(f.inventory().type(), f.inventory().size(), f.button());
+                        hotbar = hr >= 0 ? f.inventory().get(hr) : CompatItems.toFurnace(view.getBottomInventory().getItem(40));
+                    }
+                    boolean creative = f.player().gameMode() == org.domi.furnace.api.entity.GameMode.CREATIVE;
+                    var action = CompatInventories.action(f.clickType(), raw, f.button(), raw >= 0 ? f.current() : org.domi.furnace.api.item.ItemStack.EMPTY,
+                            f.cursor(), hotbar, creative, f.clickType().equals("pickup_all") && sameTypeIn(f.inventory(), f.cursor()));
+                    var st = raw < 0 || raw >= view.countSlots() ? org.bukkit.event.inventory.InventoryType.SlotType.OUTSIDE : view.getSlotType(raw);
+                    return ct == org.bukkit.event.inventory.ClickType.NUMBER_KEY || ct == org.bukkit.event.inventory.ClickType.SWAP_OFFHAND
+                            ? new org.bukkit.event.inventory.InventoryClickEvent(view, st, raw, ct, action, f.button())
+                            : new org.bukkit.event.inventory.InventoryClickEvent(view, st, raw, ct, action);
+                }, (f, b) -> {});
+        EventBridge.reg(org.domi.furnace.api.event.inventory.InventoryClickEvent.class, org.bukkit.event.inventory.InventoryDragEvent.class,
+                f -> {
+                    if (!CompatInventories.isDrag(f.clickType())) return null;
+                    boolean creative = f.player().gameMode() == org.domi.furnace.api.entity.GameMode.CREATIVE;
+                    var r = CompatInventories.dragStep(f.player().uniqueId(), f.slot(), f.button(), f.inventory(), f.cursor(), creative);
+                    if (r == null) return null;
+                    CompatInventoryView view = CompatInventories.view(f.player(), f.inventory(), f.menu(), r.oldCursor());
+                    java.util.Map<Integer, org.bukkit.inventory.ItemStack> placed = new java.util.LinkedHashMap<>();
+                    for (var e : r.placed().entrySet()) placed.put(e.getKey(), CompatItems.copyOf(e.getValue()));
+                    return new org.bukkit.event.inventory.InventoryDragEvent(view, r.newCursor().isEmpty() ? null : CompatItems.copyOf(r.newCursor()),
+                            CompatItems.copyOf(r.oldCursor()), r.kind() == 1, placed);
+                }, (f, b) -> {});
+        EventBridge.reg(org.domi.furnace.api.event.inventory.InventoryOpenEvent.class, org.bukkit.event.inventory.InventoryOpenEvent.class,
+                f -> new org.bukkit.event.inventory.InventoryOpenEvent(CompatInventories.view(f.player(), f.inventory(), f.menu(),
+                        org.domi.furnace.api.item.ItemStack.EMPTY)), (f, b) -> {});
+        EventBridge.reg(org.domi.furnace.api.event.inventory.InventoryCloseEvent.class, org.bukkit.event.inventory.InventoryCloseEvent.class,
+                f -> new org.bukkit.event.inventory.InventoryCloseEvent(CompatInventories.view(f.player(), f.inventory(), f.menu(), null)), (f, b) -> {});
+
+        // 사망: 플레이어는 Furnace PlayerDeathEvent(메시지·유지 여부를 되돌려 쓴다), 몹은 Furnace EntityDeathEvent. Bukkit 은 둘 다 EntityDeathEvent 목록이다.
+        EventBridge.reg(org.domi.furnace.api.event.player.PlayerDeathEvent.class, org.bukkit.event.entity.EntityDeathEvent.class,
+                f -> new org.bukkit.event.entity.PlayerDeathEvent(p(f.player()), Compat.legacy(f.deathMessage()), f.keepInventory(), f.keepLevel()),
+                (f, b) -> {
+                    var pd = (org.bukkit.event.entity.PlayerDeathEvent) b;
+                    if (!Objects.equals(pd.getDeathMessage(), Compat.legacy(f.deathMessage()))) f.deathMessage(Compat.text(pd.getDeathMessage()));
+                    if (pd.getKeepInventory() != f.keepInventory()) f.keepInventory(pd.getKeepInventory());
+                    if (pd.getKeepLevel() != f.keepLevel()) f.keepLevel(pd.getKeepLevel());
+                }, (f, b) -> {
+                    var pd = (org.bukkit.event.entity.PlayerDeathEvent) b;
+                    String cur = Compat.legacy(f.deathMessage());
+                    if (!Objects.equals(cur, pd.getDeathMessage())) pd.setDeathMessage(cur);
+                    if (pd.getKeepInventory() != f.keepInventory()) pd.setKeepInventory(f.keepInventory());
+                    if (pd.getKeepLevel() != f.keepLevel()) pd.setKeepLevel(f.keepLevel());
+                });
+        EventBridge.reg(org.domi.furnace.api.event.entity.EntityDeathEvent.class, org.bukkit.event.entity.EntityDeathEvent.class,
+                f -> {
+                    if (f.entity() instanceof org.domi.furnace.api.entity.Player) return null;   // 플레이어는 위 짝
+                    return Compat.entity(f.entity()) instanceof org.bukkit.entity.LivingEntity le ? new org.bukkit.event.entity.EntityDeathEvent(le, null, 0) : null;
+                }, (f, b) -> {});
     }
 
     private static Plugin bukkitPlugin(org.domi.furnace.api.plugin.FurnacePlugin p) {
@@ -262,5 +331,37 @@ final class Mappings {
             if (p instanceof org.bukkit.craftbukkit.entity.CraftPlayer c) return c.furnaceHandle();
             throw new IllegalArgumentException("Furnace 가 모르는 Player 구현이다: " + p.getClass().getName());
         }
+    }
+
+    // ------------------------------------------------------------------ 엔티티 피해·상호작용(홀로그램 묶음)
+
+    private static void registerEntityInteract() {
+        // EntityDamageByEntityEvent 는 EntityDamageEvent 의 처리기 목록을 나눠 쓴다(Bukkit) — 짝도 하나이고, 때린 엔티티가 있으면 하위 이벤트를 만든다.
+        // damager 는 Paper 처럼 직접 맞힌 엔티티(화살·TNT·때린 몹), Furnace 가 직접 엔티티 없이 주인만 알리면 주인.
+        EventBridge.reg(org.domi.furnace.api.event.entity.EntityDamageEvent.class, org.bukkit.event.entity.EntityDamageEvent.class,
+                f -> {
+                    var target = Compat.entity(f.entity());
+                    var source = f.directEntity() != null ? f.directEntity() : f.causingEntity();
+                    if (source == null) return new org.bukkit.event.entity.EntityDamageEvent(target, cause(f.cause()), f.damage());
+                    return new org.bukkit.event.entity.EntityDamageByEntityEvent(Compat.entity(source), target, byEntityCause(f.cause(), source), f.damage());
+                },
+                (f, b) -> {
+                    if ((float) b.getDamage() != f.damage()) f.setDamage((float) b.getDamage());
+                }, (f, b) -> {
+                    if ((float) b.getDamage() != f.damage()) b.setDamage(f.damage());
+                });
+        EventBridge.reg(org.domi.furnace.api.event.player.PlayerInteractEntityEvent.class, org.bukkit.event.player.PlayerInteractEntityEvent.class,
+                f -> new org.bukkit.event.player.PlayerInteractEntityEvent(p(f.player()), Compat.entity(f.target()),
+                        f.isMainHand() ? org.bukkit.inventory.EquipmentSlot.HAND : org.bukkit.inventory.EquipmentSlot.OFF_HAND),
+                (f, b) -> {});
+    }
+
+    /** 때린 엔티티가 있는 피해의 DamageCause — Paper 처럼 폭발은 점화된 TNT 면 BLOCK_EXPLOSION, 다른 엔티티면 ENTITY_EXPLOSION. 그 밖은 피해 종류 키로. */
+    static DamageCause byEntityCause(String type, org.domi.furnace.api.entity.Entity damager) {
+        String k = type == null ? "" : type.substring(type.indexOf(':') + 1);
+        if (k.equals("explosion") || k.equals("player_explosion")) {
+            return "minecraft:tnt".equals(damager.type()) ? DamageCause.BLOCK_EXPLOSION : DamageCause.ENTITY_EXPLOSION;
+        }
+        return cause(type);
     }
 }

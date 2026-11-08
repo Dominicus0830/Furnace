@@ -243,6 +243,22 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     }
 
     @Override
+    public void closeContainer() {
+        var ih = p.inventoryHost();
+        if (ih == null) return;
+        ih.execute(() -> {
+            var m = p.containerMenu();
+            if (m != null) ih.closeContainer(m);
+        });
+    }
+
+    @Override
+    public String openContainerType() {
+        var m = p.containerMenu();
+        return m == null || m == p.inventoryMenu() ? null : ApiConvert.menuType(m);
+    }
+
+    @Override
     public org.domi.furnace.api.menu.Menu currentMenu() {
         var m = p.containerMenu();
         return m != null && m.pluginOwner() instanceof MenuSession ms && ms.player() == this ? ms.api() : null;

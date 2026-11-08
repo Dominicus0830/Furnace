@@ -3,6 +3,7 @@ package org.bukkit.configuration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.bukkit.configuration.serialization.ConfigurationSerializable;
 
 /** 설정 트리의 한 구역. 경로는 '.' 로 이어 쓴다. */
 public interface ConfigurationSection {
@@ -87,6 +88,18 @@ public interface ConfigurationSection {
 
     <T> T getObject(String path, Class<T> clazz, T def);
 
+    /** 값을 ConfigurationSerializable 로 읽는다(저장된 {@code ==} 맵을 되읽은 것). 종류가 다르거나 없으면 null. */
+    <T extends ConfigurationSerializable> T getSerializable(String path, Class<T> clazz);
+
+    <T extends ConfigurationSerializable> T getSerializable(String path, Class<T> clazz, T def);
+
+    org.bukkit.inventory.ItemStack getItemStack(String path);
+
+    org.bukkit.inventory.ItemStack getItemStack(String path, org.bukkit.inventory.ItemStack def);
+
+    boolean isItemStack(String path);
+
+    /** ConfigurationSerializable 로 저장된 값은 구역이 아니라 객체다 — 그 경로는 null. */
     ConfigurationSection getConfigurationSection(String path);
 
     boolean isConfigurationSection(String path);

@@ -36,6 +36,11 @@ public final class Compat {
         final ConcurrentHashMap<UUID, CraftPlayer> players = new ConcurrentHashMap<>();
         /** 플레이어가 아닌 엔티티(H6: 같은 엔티티는 같은 CraftEntity → 같은 getHandle()). 아무도 안 들고 있으면 놓는다. */
         final ConcurrentHashMap<UUID, WeakReference<CraftEntity>> entities = new ConcurrentHashMap<>();
+        /** Bukkit 메타데이터(메모리에만, 서버마다 따로 — Paper 처럼 엔티티는 UUID·플레이어는 이름·월드는 UID·블록은 칸으로 가른다). */
+        final org.bukkit.craftbukkit.metadata.EntityMetadataStore entityMetadata = new org.bukkit.craftbukkit.metadata.EntityMetadataStore();
+        final org.bukkit.craftbukkit.metadata.PlayerMetadataStore playerMetadata = new org.bukkit.craftbukkit.metadata.PlayerMetadataStore();
+        final org.bukkit.craftbukkit.metadata.WorldMetadataStore worldMetadata = new org.bukkit.craftbukkit.metadata.WorldMetadataStore();
+        final org.bukkit.craftbukkit.metadata.BlockMetadataStore blockMetadata = new org.bukkit.craftbukkit.metadata.BlockMetadataStore();
         // 옛 스케줄러·명령·서비스는 쓰는 플러그인이 있을 때 처음 만든다(박동 하나를 전역에 걸기 때문)
         private volatile LegacyScheduler scheduler;
         private volatile LegacyCommands commands;
@@ -155,6 +160,18 @@ public final class Compat {
     /** 지금 서버의 플러그인 메신저. */
     public static CompatMessenger messenger() { return state().messenger(); }
 
+    /** 지금 서버의 엔티티 메타데이터(CraftServer#getEntityMetadata). */
+    public static org.bukkit.craftbukkit.metadata.EntityMetadataStore entityMetadata() { return state().entityMetadata; }
+
+    /** 지금 서버의 플레이어 메타데이터(CraftServer#getPlayerMetadata). */
+    public static org.bukkit.craftbukkit.metadata.PlayerMetadataStore playerMetadata() { return state().playerMetadata; }
+
+    /** 지금 서버의 월드 메타데이터(CraftServer#getWorldMetadata). */
+    public static org.bukkit.craftbukkit.metadata.WorldMetadataStore worldMetadata() { return state().worldMetadata; }
+
+    /** 지금 서버의 블록 메타데이터(CraftWorld#getBlockMetadata 를 월드 UID 로 합친 것). */
+    public static org.bukkit.craftbukkit.metadata.BlockMetadataStore blockMetadata() { return state().blockMetadata; }
+
     // ------------------------------------------------------------------ 월드
 
     /** 차원 키(minecraft:overworld)로. 없으면 null. */
@@ -229,10 +246,10 @@ public final class Compat {
         if (e == null) return null;
         if (e instanceof org.domi.furnace.api.entity.Player p) return player(p);
         State s = state();
-        boolean living = e instanceof org.domi.furnace.api.entity.LivingEntity;
+        Class<? extends CraftEntity> kind = craftClass(e);
         WeakReference<CraftEntity> ref = s.entities.get(e.uniqueId());
         CraftEntity c = ref == null ? null : ref.get();
-        if (c != null && (c instanceof CraftLivingEntity) == living) {
+        if (c != null && c.getClass() == kind) {
             c.furnaceHandle(e);   // 같은 엔티티의 새 스냅샷(옛 것이면 버린다)
             return c;
         }
@@ -241,15 +258,33 @@ public final class Compat {
         CraftEntity[] out = new CraftEntity[1];
         s.entities.compute(e.uniqueId(), (k, r) -> {
             CraftEntity cur = r == null ? null : r.get();
-            if (cur != null && (cur instanceof CraftLivingEntity) == living) {
+            if (cur != null && cur.getClass() == kind) {
                 cur.furnaceHandle(e);
                 out[0] = cur;
                 return r;
             }
-            out[0] = living ? new CraftLivingEntity((org.domi.furnace.api.entity.LivingEntity) e) : new CraftEntity(e);
+            out[0] = newCraft(kind, e);
             return new WeakReference<>(out[0]);
         });
         return out[0];
+    }
+
+    /** 이 핸들을 감쌀 CraftEntity 종류 — Bukkit 이 따로 형을 두는 종류(갑옷 거치대·돼지)는 그 형, 나머지는 살아 있는지로. */
+    private static Class<? extends CraftEntity> craftClass(org.domi.furnace.api.entity.Entity e) {
+        if (!(e instanceof org.domi.furnace.api.entity.LivingEntity)) return CraftEntity.class;
+        return switch (e.type()) {
+            case "minecraft:armor_stand" -> org.bukkit.craftbukkit.entity.CraftArmorStand.class;
+            case "minecraft:pig" -> e instanceof org.domi.furnace.api.entity.Mob ? org.bukkit.craftbukkit.entity.CraftPig.class : CraftLivingEntity.class;
+            default -> CraftLivingEntity.class;
+        };
+    }
+
+    private static CraftEntity newCraft(Class<? extends CraftEntity> kind, org.domi.furnace.api.entity.Entity e) {
+        if (kind == CraftEntity.class) return new CraftEntity(e);
+        var living = (org.domi.furnace.api.entity.LivingEntity) e;
+        if (kind == org.bukkit.craftbukkit.entity.CraftArmorStand.class) return new org.bukkit.craftbukkit.entity.CraftArmorStand(living);
+        if (kind == org.bukkit.craftbukkit.entity.CraftPig.class) return new org.bukkit.craftbukkit.entity.CraftPig((org.domi.furnace.api.entity.Mob) e);
+        return new CraftLivingEntity(living);
     }
 
     public static org.bukkit.command.CommandSender sender(org.domi.furnace.api.command.CommandSender s) {

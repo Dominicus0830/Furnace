@@ -200,6 +200,7 @@ class InventoryAdapterTest {
             public Boolean getEnchantmentGlintOverride() { return null; }
             public void setEnchantmentGlintOverride(Boolean o) {}
             public PersistentDataContainer getPersistentDataContainer() { return null; }
+            public java.util.Map<String, Object> serialize() { return java.util.Map.of(); }
             public ItemMeta clone() { return this; }
         }));
     }
@@ -562,10 +563,18 @@ class InventoryAdapterTest {
     }
 
     @Test
-    void virtualInventoriesAreHonestlyUnsupported() {
-        assertThrows(UnsupportedFeature.class, () -> Bukkit.createInventory(null, 27));
-        assertThrows(UnsupportedFeature.class, () -> Bukkit.createInventory(null, 27, "Menu"));
-        assertThrows(UnsupportedFeature.class, () -> Bukkit.createInventory(null, InventoryType.HOPPER));
+    void virtualInventoriesFollowPaperRules() {
+        var chest = Bukkit.createInventory(null, 27);
+        assertEquals(27, chest.getSize());
+        assertEquals(InventoryType.CHEST, chest.getType());
+        chest.setItem(4, new ItemStack(Material.DIAMOND, 2));
+        assertEquals(2, chest.getItem(4).getAmount(), "만든 인벤토리는 어느 스레드에서나 곧바로 읽고 쓴다");
+        assertEquals(5, Bukkit.createInventory(null, InventoryType.HOPPER).getSize());
+        assertEquals(9, Bukkit.createInventory(null, InventoryType.DROPPER, "D").getSize());
+        assertThrows(IllegalArgumentException.class, () -> Bukkit.createInventory(null, 10));
+        assertThrows(IllegalArgumentException.class, () -> Bukkit.createInventory(null, 63));
+        assertThrows(IllegalArgumentException.class, () -> Bukkit.createInventory(null, InventoryType.CRAFTING), "만들 수 없는 종류");
+        assertThrows(UnsupportedFeature.class, () -> Bukkit.createInventory(null, InventoryType.ANVIL), "Furnace 메뉴 모양이 아직 없는 종류");
     }
 
     @Test

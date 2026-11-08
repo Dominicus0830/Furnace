@@ -101,7 +101,7 @@ public final class PluginGameEvents implements GameEvents {
                               org.domi.furnace.server.entity.Rider direct) {
         if (!bus().hasSubscribers(EntityDamageEvent.class)) return amount;
         var ev = bus().call(new EntityDamageEvent(EntityHandle.of(host, e), cause.indexOf(':') < 0 ? "minecraft:" + cause : cause, amount,
-                Causes.damage(causing, direct)));
+                Causes.damage(causing, direct), riderHandle(direct), riderHandle(causing)));
         return ev.isCancelled() ? -1f : ev.damage();
     }
 
@@ -110,7 +110,7 @@ public final class PluginGameEvents implements GameEvents {
                               org.domi.furnace.server.entity.Rider direct) {
         if (!bus().hasSubscribers(EntityDamageEvent.class)) return amount;
         var ev = bus().call(new EntityDamageEvent(host.player(p), cause.indexOf(':') < 0 ? "minecraft:" + cause : cause, amount,
-                Causes.damage(causing, direct)));
+                Causes.damage(causing, direct), riderHandle(direct), riderHandle(causing)));
         return ev.isCancelled() ? -1f : ev.damage();
     }
 
@@ -241,7 +241,7 @@ public final class PluginGameEvents implements GameEvents {
         if (!bus().hasSubscribers(InventoryClickEvent.class)) return true;
         var cursor = ApiConvert.item(menu.getCarried(), items());
         return !bus().call(new InventoryClickEvent(host.player(p), ApiConvert.snapshot(menu, items()), slot, button,
-                type.name().toLowerCase(java.util.Locale.ROOT), cursor)).isCancelled();
+                type.name().toLowerCase(java.util.Locale.ROOT), cursor, pluginMenu(menu))).isCancelled();
     }
 
     /** 작업대·인벤토리 2×2 결과 칸에서 꺼내는 클릭이면 레시피 id(모르면 ""), 아니면 null. */
@@ -257,14 +257,19 @@ public final class PluginGameEvents implements GameEvents {
     @Override
     public boolean inventoryOpen(Player p, AbstractContainerMenu menu) {
         if (!bus().hasSubscribers(InventoryOpenEvent.class)) return true;
-        return !bus().call(new InventoryOpenEvent(host.player(p), ApiConvert.snapshot(menu, items()))).isCancelled();
+        return !bus().call(new InventoryOpenEvent(host.player(p), ApiConvert.snapshot(menu, items()), pluginMenu(menu))).isCancelled();
     }
 
     @Override
     public void inventoryClose(Player p, AbstractContainerMenu menu) {
         if (menu.pluginOwner() instanceof MenuSession ms) ms.closed();
         if (!bus().hasSubscribers(InventoryCloseEvent.class)) return;
-        bus().call(new InventoryCloseEvent(host.player(p), ApiConvert.snapshot(menu, items())));
+        bus().call(new InventoryCloseEvent(host.player(p), ApiConvert.snapshot(menu, items()), pluginMenu(menu)));
+    }
+
+    /** 플러그인 메뉴(Player#openMenu) 창이면 그 메뉴. */
+    private static org.domi.furnace.api.menu.Menu pluginMenu(AbstractContainerMenu menu) {
+        return menu.pluginOwner() instanceof MenuSession ms ? ms.api() : null;
     }
 
     @Override
