@@ -40,6 +40,16 @@ public class Arrow extends AbstractArrow {
         entityData.set(DATA_EFFECT_COLOR, color);
     }
 
+    /** Arrow.setPickupItemStack: 줍는 아이템을 바꾸면 효과·색을 새 스택의 potion_contents 로 다시 정한다(일반 화살이면 색 -1). */
+    @Override
+    public void setPickupItemStack(ItemStack stack) {
+        super.setPickupItemStack(stack);
+        effects.clear();
+        custom.clear();
+        entityData.set(DATA_EFFECT_COLOR, -1);
+        setPotionFromItem(getPickupItem());
+    }
+
     @Override
     protected void doPostHurtEffects(LivingEntity target) {
         super.doPostHurtEffects(target);

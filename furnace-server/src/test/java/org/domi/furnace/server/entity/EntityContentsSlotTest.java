@@ -77,4 +77,29 @@ class EntityContentsSlotTest {
         assertTrue(s.set(ItemStack.EMPTY));
         assertEquals(item("minecraft:snowball", 1).itemId(), sb.getItem().itemId(), "빈 스택이면 기본 아이템");
     }
+
+    private static ItemStack tipped(String potion) {
+        return org.domi.furnace.server.item.ItemTools.with(ContainerEntityParityTest.item("minecraft:tipped_arrow", 1),
+                "minecraft:potion_contents", java.util.Map.of("potion", potion));
+    }
+
+    /** 바닐라 AbstractArrow.getSlot(0) setter = Arrow.setPickupItemStack → updateColor(K) : 색 데이터가 새 스택의 물약 색으로 바뀐다. */
+    @Test
+    void arrowContentsTippedUpdatesColor() {
+        var level = new ContainerEntityParityTest.Lvl();
+        var a = new Arrow(level, level.nextEntityId());
+        assertEquals(-1, (int) (Integer) a.entityData().get(Arrow.DATA_EFFECT_COLOR));
+        ItemSlots.of(a, 0).set(tipped("minecraft:poison"));
+        assertNotEquals(-1, (int) (Integer) a.entityData().get(Arrow.DATA_EFFECT_COLOR), "바닐라는 색을 물약 색으로 갱신");
+    }
+
+    @Test
+    void arrowContentsBackToPlainResetsColor() {
+        var level = new ContainerEntityParityTest.Lvl();
+        var a = new Arrow(level, level.nextEntityId());
+        a.setPotionFromItem(tipped("minecraft:poison"));
+        assertNotEquals(-1, (int) (Integer) a.entityData().get(Arrow.DATA_EFFECT_COLOR));
+        ItemSlots.of(a, 0).set(ContainerEntityParityTest.item("minecraft:arrow", 1));
+        assertEquals(-1, (int) (Integer) a.entityData().get(Arrow.DATA_EFFECT_COLOR), "바닐라는 일반 화살로 바꾸면 색이 -1");
+    }
 }
