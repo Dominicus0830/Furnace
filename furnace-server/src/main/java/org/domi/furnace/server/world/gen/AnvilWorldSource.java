@@ -39,6 +39,8 @@ public final class AnvilWorldSource implements WorldSource {
 
     /** 동기 로드. 읽기만 ioLane 에서 하고(같은 파일의 앞선 저장 뒤에 줄 선다) 그 결과를 기다려 이 스레드에서 디코드·생성한다. */
     public ChunkColumn generate(int chunkX, int chunkZ, Executor ioLane) {
+        NewerDataVersionException refused = refusedNewer.get(chunkKey(chunkX, chunkZ));
+        if (refused != null) throw refused;
         Read read;
         try {
             read = CompletableFuture.supplyAsync(() -> readPayload(chunkX, chunkZ), ioLane).join();
@@ -82,6 +84,7 @@ public final class AnvilWorldSource implements WorldSource {
             nbtBytes = payload.decompress();
             return decodeChunk(nbtBytes);
         } catch (NewerDataVersionException e) {
+            refusedNewer.put(chunkKey(chunkX, chunkZ), e);
             throw e;
         } catch (IOException | RuntimeException e) {
             corrupt(chunkX, chunkZ, e, payload, nbtBytes);
@@ -128,6 +131,11 @@ public final class AnvilWorldSource implements WorldSource {
 
     private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(AnvilWorldSource.class);
 
+    /** 거부한 새 판 청크 — 서버가 도는 동안 다시 읽지 않는다(파일을 바꿨으면 다시 켠다). */
+    private final java.util.concurrent.ConcurrentHashMap<Long, NewerDataVersionException> refusedNewer = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static long chunkKey(int chunkX, int chunkZ) { return ((long) chunkX << 32) | (chunkZ & 0xFFFFFFFFL); }
+
     public CompletableFuture<ChunkColumn> loadChunkAsync(int chunkX, int chunkZ, Executor ioExecutor, Executor genExecutor) {
         return loadChunkAsync(chunkX, chunkZ, ioExecutor, ioExecutor, genExecutor);
     }
@@ -139,6 +147,8 @@ public final class AnvilWorldSource implements WorldSource {
      */
     public CompletableFuture<ChunkColumn> loadChunkAsync(int chunkX, int chunkZ, Executor ioExecutor, Executor decodeExecutor,
                                                          Executor genExecutor) {
+        NewerDataVersionException refused = refusedNewer.get(chunkKey(chunkX, chunkZ));
+        if (refused != null) return CompletableFuture.failedFuture(refused);   // 시야 미리 불러오기가 틱마다 다시 걸어도 다시 읽지 않는다
         return CompletableFuture.supplyAsync(() -> readPayload(chunkX, chunkZ), ioExecutor).thenCompose(read -> {
             CompletableFuture<ChunkColumn> decoded = read.payload() == null && read.failure() == null
                     ? CompletableFuture.completedFuture(null)

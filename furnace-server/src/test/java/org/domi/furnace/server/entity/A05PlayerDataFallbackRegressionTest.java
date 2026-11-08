@@ -91,6 +91,22 @@ class A05PlayerDataFallbackRegressionTest {
     }
 
     @Test
+    void secondCorruption_doesNotOverwriteTheFirstQuarantinedCopy() throws Exception {
+        UUID id = UUID.randomUUID();
+        twoSaves(id);
+        Files.write(dat(id), new byte[] {1, 1, 1});
+        assertNotNull(PlayerData.load(world, id));
+        PlayerData.save(world, id, 300, 64, 0, 0f, 0f, true, slots());
+        Files.write(dat(id), new byte[] {2, 2, 2});
+        assertNotNull(PlayerData.load(world, id));
+        try (var files = Files.list(world.resolve("playerdata"))) {
+            var corrupt = files.map(f -> f.getFileName().toString()).filter(n -> n.startsWith(id + ".dat.corrupt")).sorted().toList();
+            assertEquals(2, corrupt.size(), corrupt.toString());
+            assertArrayEquals(new byte[] {1, 1, 1}, Files.readAllBytes(world.resolve("playerdata").resolve(id + ".dat.corrupt")));
+        }
+    }
+
+    @Test
     void onlyDatOld_countsAsKnownPlayer() throws Exception {
         UUID id = UUID.randomUUID();
         twoSaves(id);

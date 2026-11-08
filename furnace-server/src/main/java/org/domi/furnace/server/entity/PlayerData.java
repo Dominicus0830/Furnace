@@ -120,7 +120,12 @@ public final class PlayerData {
 
     private static void quarantine(Path f) {
         try {
-            Files.move(f, f.resolveSibling(f.getFileName() + ".corrupt"), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            Path to = f.resolveSibling(f.getFileName() + ".corrupt");
+            if (Files.exists(to)) {   // 앞선 격리본을 덮지 않는다(바닐라는 <uuid>_corrupted_<시각>.dat)
+                to = f.resolveSibling(f.getFileName() + ".corrupt-" + java.time.LocalDateTime.now()
+                        .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS")));
+            }
+            Files.move(f, to, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException moveFail) {
             LOG.warn("손상된 playerdata 백업 실패 {}", f, moveFail);
         }

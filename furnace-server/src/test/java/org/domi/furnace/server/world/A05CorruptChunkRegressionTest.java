@@ -190,6 +190,9 @@ class A05CorruptChunkRegressionTest {
             assertNotNull(t, "새 판 청크 거부 사유: " + first[1]);
             assertFalse(w.isChunkLoaded(0, 0));
             assertThrows(org.domi.furnace.server.world.anvil.NewerDataVersionException.class, () -> src.generate(0, 0));
+            // 거부한 청크는 다시 요청해도 같은 거부(R2: 서버가 도는 동안 다시 읽지 않는다)
+            Object[] again = load(w, sched);
+            assertNull(again[0]);
             assertArrayEquals(bytes, store.readChunk(0, 0), "디스크의 새 판 청크는 그대로");
             assertFalse(java.nio.file.Files.exists(dir.resolve("region_corrupt")), "깨진 청크로 다루지 않는다");
         } finally {
