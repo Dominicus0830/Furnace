@@ -36,6 +36,8 @@ public abstract class ChunkLevel implements BlockLevel {
     private int randValue = new java.util.Random().nextInt();
     /** 지역 틱 시계(예약 틱 기준 — Folia 의 redstoneTime 처럼 region 마다 따로 간다. 월드 시간은 gameTime()). */
     private long levelTime;
+    /** 레드스톤 횃불 과열 기록(바닐라 정적 RECENT_TOGGLES 대신 레벨마다 — region 스레드끼리 겹치지 않고 합치기·나누기 때 옮긴다). */
+    private final RedstoneTorchToggles torchToggles = new RedstoneTorchToggles();
     /** ServerLevel.handlingTick — 예약 틱을 돌리는 동안 참. */
     private boolean handlingTick;
     /** 방송할 변경: 구역 키(청크 x,z,구역 y) → 구역 안 칸 번호 집합(바닐라 ChunkHolder.changedBlocksPerSection). */
@@ -178,8 +180,8 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     /**
-     * tickBlockEntities: 지워진 것은 빼고, 틱 받는 청크에 있고 칸의 상태가 그 종류에 맞는 것만 tick.
-     * ticking 은 그 칸의 청크가 이번 틱에 블록 엔티티 틱을 받는가.
+     * tickBlockEntities: 지워진 것은 빼고, 틱 받는 청크에 있고 보더 안이며 칸의 상태가 그 종류에 맞는 것만 tick.
+     * ticking 은 그 칸의 청크가 이번 틱에 블록 틱을 받는가(바닐라 shouldTickBlocksAt + LevelChunk.isTicking 의 청크 부분).
      */
     public void tickBlockEntities(java.util.function.LongPredicate ticking) {
         tickingBlockEntities = true;
@@ -191,6 +193,7 @@ public abstract class ChunkLevel implements BlockLevel {
         // 청크별 "블록 엔티티 틱을 받는가" 판정을 이번 호출 안에서 기억한다(X1): 깔때기 수천 개가 같은 청크에 있어도 판정(강제 로드·티켓·플레이어 거리)은 청크당 한 번.
         // 바닐라의 청크 틱 단계도 청크 맵 틱에서만 바뀌어, 블록 엔티티를 도는 동안에는 고정이다.
         java.util.Arrays.fill(tickMemoUsed, false);
+        double[] border = null;
         for (int i = 0; i < blockEntityTickers.size(); i++) {
             BlockEntity be = blockEntityTickers.get(i);
             if (be.isRemoved()) continue;
@@ -207,6 +210,10 @@ public abstract class ChunkLevel implements BlockLevel {
                 tickMemoVal[slot] = chunkTicks;
             }
             if (!chunkTicks) continue;
+            // LevelChunk.isTicking 의 보더 판정(WorldBorder.isWithinBounds(BlockPos)). 보더는 틱 사이에만 움직이므로 이 호출 처음 값으로 본다
+            // (보더 객체 잠금을 블록 엔티티마다 잡지 않게).
+            if (border == null) border = borderBounds();
+            if (p.x() < border[0] || p.x() >= border[2] || p.z() < border[1] || p.z() >= border[3]) continue;
             int s = getBlockState(p);
             if (be.isValid(s)) be.tick(this);
         }
@@ -488,15 +495,21 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public boolean willTickThisTick(Pos pos, int block) { return blockTicks.willTickThisTick(pos, block); }
 
-    /** 레벨 틱의 블록 틱 → 유체 틱(바닐라 ServerLevel.tick 순서). 지역 시계를 한 틱 진행한다. */
-    public void runScheduledTicks() {
+    /** 레벨 틱의 블록 틱 → 유체 틱(바닐라 ServerLevel.tick 순서). 지역 시계를 한 틱 진행한다. 모든 청크가 틱 범위다. */
+    public void runScheduledTicks() { runScheduledTicks(null); }
+
+    /**
+     * chunkTicking(청크 키 (x << 32 | z), null 이면 모두)이 참인 청크의 예약만 돌린다 — 바닐라 LevelTicks 의 술어
+     * ServerLevel.isPositionTickingWithEntitiesLoaded. 범위 밖 청크의 예약은 남아 있다가 범위에 들면 돈다.
+     */
+    public void runScheduledTicks(java.util.function.LongPredicate chunkTicking) {
         long now = ++levelTime;
         handlingTick = true;
-        blockTicks.tick(now, 65536, (pos, type) -> {
+        blockTicks.tick(now, 65536, chunkTicking, (pos, type) -> {
             int s = getBlockState(pos);
             if (blocks.blockOf(s) == type) BlockBehaviors.of(s).tick(s, this, pos, random);
         });
-        fluidTicks.tick(now, 65536, (pos, type) -> {
+        fluidTicks.tick(now, 65536, chunkTicking, (pos, type) -> {
             int f = getFluidState(pos);
             if (Fluids.type(f) == type) FluidTicker.tick(this, pos, f);
         });
@@ -647,6 +660,9 @@ public abstract class ChunkLevel implements BlockLevel {
 
     public long levelTime() { return levelTime; }
 
+    @Override
+    public RedstoneTorchToggles redstoneTorchToggles() { return torchToggles; }
+
     // ------------------------------------------------------------------ region 합치기·나누기
 
     /** 다른 레벨의 자료를 모두 흡수한다(그 레벨은 버려진다). 예약 틱은 두 지역 시계 차이만큼 보정한다. */
@@ -666,6 +682,7 @@ public abstract class ChunkLevel implements BlockLevel {
         for (Entity e : other.entities.all()) e.setLevel(this);
         entities.absorb(other.entities);
         raids.absorb(other.raids, this);
+        torchToggles.absorb(other.torchToggles);
     }
 
     /** 청크 조건(청크 x, z)에 맞는 자료를 target 으로 옮긴다. target 은 이 레벨의 시계를 이어받는다. */
@@ -700,6 +717,7 @@ public abstract class ChunkLevel implements BlockLevel {
         }
         for (Entity e : entities.splitTo(target.entities, inTarget::test)) e.setLevel(target);
         raids.splitTo(target.raids, target, inTarget);
+        torchToggles.splitTo(target.torchToggles, byPos);
         var bit = blockEvents.iterator();
         while (bit.hasNext()) {
             BlockEventData ev = bit.next();
@@ -930,12 +948,27 @@ public abstract class ChunkLevel implements BlockLevel {
         blockEvents.add(new BlockEventData(pos.x(), pos.y(), pos.z(), block, type, data));
     }
 
-    /** 틱 끝 블록 이벤트 처리(바닐라 runBlockEvents): 블록이 그대로면 triggerEvent, 참이면 64칸 안에 방송. */
-    public void runBlockEvents() {
+    /** 틱 끝 블록 이벤트 처리(바닐라 runBlockEvents): 블록이 그대로면 triggerEvent, 참이면 64칸 안에 방송. 모든 청크가 틱 범위다. */
+    public void runBlockEvents() { runBlockEvents(null); }
+
+    private final java.util.ArrayList<BlockEventData> blockEventsToReschedule = new java.util.ArrayList<>();
+    private final ChunkPredicateMemo blockEventMemo = new ChunkPredicateMemo();
+
+    /**
+     * 바닐라 ServerLevel.runBlockEvents: shouldTickBlocksAt 이 거짓인 칸의 이벤트는 처리하지 않고 모아 두었다가 끝에 큐로 되돌린다(다음 틱에 다시 본다).
+     * chunkTicking 은 청크 키 (x << 32 | z), null 이면 모든 청크.
+     */
+    public void runBlockEvents(java.util.function.LongPredicate chunkTicking) {
+        java.util.function.LongPredicate ticking = chunkTicking == null ? null : blockEventMemo.reset(chunkTicking);
+        blockEventsToReschedule.clear();
         while (!blockEvents.isEmpty()) {
             var first = blockEvents.iterator();
             BlockEventData e = first.next();
             first.remove();
+            if (ticking != null && !ticking.test(ChunkPredicateMemo.chunkKey(e.x() >> 4, e.z() >> 4))) {
+                blockEventsToReschedule.add(e);
+                continue;
+            }
             Pos pos = new Pos(e.x(), e.y(), e.z());
             int s = getBlockState(pos);
             if (blocks.blockOf(s) != e.block()) continue;
@@ -946,6 +979,10 @@ public abstract class ChunkLevel implements BlockLevel {
                     if (dx * dx + dy * dy + dz * dz < 64.0 * 64.0) p.send(pkt);
                 });
             }
+        }
+        if (!blockEventsToReschedule.isEmpty()) {
+            blockEvents.addAll(blockEventsToReschedule);
+            blockEventsToReschedule.clear();
         }
     }
 

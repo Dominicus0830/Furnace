@@ -1206,7 +1206,8 @@ public final class Region {
         }
         if (level != null) {   // 바닐라 ServerLevel.tick: 블록·유체 예약 틱 → 청크 틱(무작위 틱) → 청크 변경 방송 → 블록 이벤트 → 엔티티
             int n = frozen ? 0 : collectTickingChunks();
-            level.tickBlocks(tickingChunks, n, frozen ? 0 : spawnChunkCount, this::blockEntityTicking, pl -> players.containsKey(pl.entityId()), frozen);
+            level.tickBlocks(tickingChunks, n, frozen ? 0 : spawnChunkCount, this::blockTicking,
+                    k -> level.chunkCached((int) (k >> 32), (int) k) != null && entityTicking(k), pl -> players.containsKey(pl.entityId()), frozen);
             lap(0);
             level.runLightUpdates();
             lap(1);
@@ -1567,10 +1568,43 @@ public final class Region {
     private int spawnChunkCount;
 
     /**
-     * 그 청크가 블록 엔티티 틱을 받는가 — 바닐라 LevelChunk.isTicking: 엔티티 틱 단계(플레이어 표가 시뮬레이션 거리 - 1 안,
-     * 체비셰프)인 청크. 키는 (x << 32 | z).
+     * 그 청크가 블록 틱(예약 틱·유체 틱·블록 이벤트·블록 엔티티)을 받는가. 키는 (x << 32 | z). 바닐라 1.21.1:
+     * 예약 틱은 ServerLevel.isPositionTickingWithEntitiesLoaded(엔티티 로드됨 && ServerChunkCache.isPositionTicking), 블록 이벤트·블록 엔티티는
+     * shouldTickBlocksAt(TickingTracker 레벨 ≤ 32)과 LevelChunk.isTicking(청크 단계 BLOCK_TICKING 이상 && 엔티티 로드됨, 보더는 레벨이 본다).
+     * <ul>
+     * <li>플레이어: TickingTracker 표 레벨 max(0, 31 − 시뮬레이션 거리)에서 청크마다 +1 → 체비셰프 ≤ min(sim, 31) + 1. 청크 단계는 시야 거리(2~32)
+     *     안 청크에 건 레벨 31 플레이어 티켓에서 +1 → 체비셰프 ≤ 시야 + 1. 두 조건 모두 가장 가까운 플레이어로 정해지므로 둘 중 작은 쪽.</li>
+     * <li>/forceload·플러그인 ticking 티켓(레벨 31): 그 청크와 둘레 1칸.</li>
+     * <li>포털·드래곤·순간 이동 뒤 티켓(레벨 33 − 거리): 거리 − 1 안({@link World#blockTicketed}).</li>
+     * </ul>
+     * 엔티티 틱({@link #entityTicking})과는 범위가 다르다.
      */
-    private boolean blockEntityTicking(long key) {
+    private boolean blockTicking(long key) {
+        int cx = (int) (key >> 32), cz = (int) key;
+        ChunkColumn col = level != null ? level.chunkCached(cx, cz) : ownedChunk(cx, cz);
+        if (col == null || !col.entitiesLoaded()) return false;
+        var forced = world.forcedChunksOrNull();
+        boolean anyForced = forced != null && forced.size() > 0;
+        for (int dz = -1; dz <= 1; dz++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                if (anyForced && forced.contains(cx + dx, cz + dz) || world.pluginTicking(cx + dx, cz + dz)) return true;
+            }
+        }
+        if (world.blockTicketed(cx, cz)) return true;
+        int sim = world.levelServices().simulationDistance();
+        int range = Math.min(32 - Math.max(0, 31 - sim), Math.clamp(world.viewDistance(), 2, 32) + 1);
+        for (Player p : players.values()) {
+            int pcx = (int) Math.floor(p.x()) >> 4, pcz = (int) Math.floor(p.z()) >> 4;
+            if (Math.max(Math.abs(pcx - cx), Math.abs(pcz - cz)) <= range) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 그 청크가 엔티티 틱을 받는가 — 엔티티 틱 단계(플레이어 표가 시뮬레이션 거리 - 1 안, 체비셰프)인 청크. 키는 (x << 32 | z).
+     * (바닐라 엔티티 틱은 TickingTracker 레벨 ≤ 31 = 체비셰프 ≤ sim 이다 — A07-07, 몹 쪽 점검이 맞춘다.)
+     */
+    private boolean entityTicking(long key) {
         int cx = (int) (key >> 32), cz = (int) key;
         var forced = world.forcedChunksOrNull();
         if (forced != null && forced.size() > 0 && forced.contains(cx, cz)) return true;   // /forceload: 엔티티 틱 레벨 티켓
@@ -1591,7 +1625,7 @@ public final class Region {
     public boolean isEntityTickingLoaded(int cx, int cz) {
         world.assertOwns(this);
         ChunkColumn col = ownedChunk(cx, cz);
-        return col != null && col.entitiesLoaded() && blockEntityTicking(((long) cx << 32) | (cz & 0xFFFFFFFFL));
+        return col != null && col.entitiesLoaded() && entityTicking(((long) cx << 32) | (cz & 0xFFFFFFFFL));
     }
 
     private boolean closeToPlayer(int cx, int cz, int chunkRange) {
