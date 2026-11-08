@@ -1184,6 +1184,15 @@ public abstract class LivingEntity extends Entity implements Targetable {
                 var inst = a == null ? null : attributes().get(a);
                 if (inst != null) inst.removeModifier(e.id());
             }
+            // ItemStack.forEachModifier 의 인챈트 속성 효과(화염 보호의 burning_time 등) — 몹 장비에도 걸린다
+            EnchantAttributes.forEachModifier(last, slot, (a, m) -> {
+                var inst = attributes().get(a);
+                if (inst != null) inst.removeModifier(m.id());
+            });
+            EnchantAttributes.forEachModifier(cur, slot, (a, m) -> {
+                var inst = attributes().get(a);
+                if (inst != null) inst.addOrReplaceModifier(m);
+            });
             for (var e : org.domi.furnace.server.item.ItemTools.attributeEntries(cur)) {
                 if (!org.domi.furnace.server.item.ItemTools.slotGroupMatches(e.slot(), slot.slotName())) continue;
                 Attribute a = Attribute.byName(e.type());

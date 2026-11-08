@@ -37,6 +37,11 @@ final class EnchantAttributes {
             new Eff("minecraft:fire_protection", Attribute.BURNING_TIME, EquipmentSlot.LEGS, AttributeModifier.ADD_MULTIPLIED_BASE, l -> linear(-0.15F, -0.15F, l)),
             new Eff("minecraft:fire_protection", Attribute.BURNING_TIME, EquipmentSlot.FEET, AttributeModifier.ADD_MULTIPLIED_BASE, l -> linear(-0.15F, -0.15F, l)),
             // 민첩한 웅크리기: linear(0.15,+0.15) → sneaking_speed
+            // 폭발 보호: linear(0.15,+0.15) add_value → explosion_knockback_resistance
+            new Eff("minecraft:blast_protection", Attribute.EXPLOSION_KNOCKBACK_RESISTANCE, EquipmentSlot.HEAD, AttributeModifier.ADD_VALUE, l -> linear(0.15F, 0.15F, l)),
+            new Eff("minecraft:blast_protection", Attribute.EXPLOSION_KNOCKBACK_RESISTANCE, EquipmentSlot.CHEST, AttributeModifier.ADD_VALUE, l -> linear(0.15F, 0.15F, l)),
+            new Eff("minecraft:blast_protection", Attribute.EXPLOSION_KNOCKBACK_RESISTANCE, EquipmentSlot.LEGS, AttributeModifier.ADD_VALUE, l -> linear(0.15F, 0.15F, l)),
+            new Eff("minecraft:blast_protection", Attribute.EXPLOSION_KNOCKBACK_RESISTANCE, EquipmentSlot.FEET, AttributeModifier.ADD_VALUE, l -> linear(0.15F, 0.15F, l)),
             new Eff("minecraft:swift_sneak", Attribute.SNEAKING_SPEED, EquipmentSlot.LEGS, AttributeModifier.ADD_VALUE, l -> linear(0.15F, 0.15F, l)));
 
     /** 그 칸의 그 아이템이 그 속성에 다는 인챈트 수정자. */
@@ -50,5 +55,16 @@ final class EnchantAttributes {
             out.add(new AttributeModifier(id, e.amount.at(l), e.op));
         }
         return out;
+    }
+
+    /** 그 칸의 그 아이템이 다는 인챈트 수정자 전부(속성별) — 몹 장비 교체 때 달고 떼는 데 쓴다. */
+    static void forEachModifier(ItemStack stack, EquipmentSlot slot, java.util.function.BiConsumer<Attribute, AttributeModifier> sink) {
+        for (Eff e : EFFECTS) {
+            if (e.slot != slot) continue;
+            int l = ItemTools.enchantmentLevel(stack, e.enchant);
+            if (l <= 0) continue;
+            String id = "minecraft:enchantment." + e.enchant.substring("minecraft:".length()) + "/" + slot.slotName();
+            sink.accept(e.attr, new AttributeModifier(id, e.amount.at(l), e.op));
+        }
     }
 }

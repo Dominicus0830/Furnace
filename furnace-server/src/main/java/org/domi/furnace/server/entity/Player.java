@@ -395,6 +395,14 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     private volatile int remainingFireTicks = -FIRE_IMMUNE_TICKS;
 
+    /** Entity.isInPowderSnow 대응: 이번 move 의 checkInsideBlocks 에서 가루눈에 들었다(afterMove 가 읽고 지운다). */
+    private volatile boolean inPowderSnowThisMove;
+
+    public void markInPowderSnow() { inPowderSnowThisMove = true; }
+
+    /** 읽고 지운다. */
+    public boolean takeInPowderSnow() { boolean v = inPowderSnowThisMove; inPowderSnowThisMove = false; return v; }
+
     /** isOnFire: 플레이어는 불에 면역인 종류가 아니다. */
     public boolean isOnFire() { return remainingFireTicks > 0; }
 
