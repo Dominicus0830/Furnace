@@ -161,6 +161,45 @@ class RconAuthDeadlineTest {
         }
     }
 
+    /**
+     * 많은 주소로 빠르게 연결을 돌리는 공격 중 관리자의 갓 들어온 연결(로그인 전)이 거듭 밀려나도, 그 IP 의 유일한 미인증 연결이고 오래되지 않았으면
+     * 실패로 세지 않는다 — 공격이 멈춘 뒤 관리자 IP 가 차단되어 있으면 안 된다(PR #176 검토 R1).
+     */
+    @Test
+    void evictedFreshAdminConnectionsDoNotBlockAdminIp() throws Exception {
+        try (Socket probe = new Socket()) {
+            probe.bind(new InetSocketAddress(InetAddress.getByName("127.0.0.2"), 0));
+        } catch (IOException e) {
+            Assumptions.abort("127.0.0.2 에 바인드할 수 없는 환경: " + e);
+        }
+        RconServer server = server(InetAddress.getByName("0.0.0.0"));
+        List<Socket> held = new ArrayList<>();
+        int attacker = 10;
+        try {
+            for (int round = 0; round < RconServer.MAX_FAILS_PER_IP; round++) {
+                Socket admin = connectFrom("127.0.0.1", server.port());   // 수락됨, 로그인 패킷은 아직
+                held.add(admin);
+                Thread.sleep(20);
+                for (int k = 0; k < RconServer.MAX_CLIENTS; k++) {       // 그 사이 다른 주소 16개
+                    held.add(connectFrom("127.0.0." + (attacker++), server.port()));
+                    Thread.sleep(3);
+                }
+                assertEquals(-1, admin.getInputStream().read(), "관리자 연결이 밀려나야 함 (round " + round + ")");
+            }
+            for (Socket s : held) s.close();
+            held.clear();
+            long end = System.nanoTime() + 5_000_000_000L;
+            while (server.clientCount() != 0 && System.nanoTime() < end) Thread.sleep(5);
+            try (Socket admin = connectFrom("127.0.0.1", server.port())) {
+                send(admin.getOutputStream(), 1, 3, "secret");
+                assertEquals(1, readId(admin.getInputStream()), "공격이 멈춘 뒤 관리자 IP 가 막혀 있다");
+            }
+        } finally {
+            for (Socket s : held) s.close();
+            server.close();
+        }
+    }
+
     /** 자리가 모두 인증된 연결이면 밀어낼 것이 없어 새 연결을 거절한다(예전 동작). */
     @Test
     void fullOfAuthenticatedClientsStillRefuses() throws Exception {

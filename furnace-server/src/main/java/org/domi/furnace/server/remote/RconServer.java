@@ -175,15 +175,27 @@ public final class RconServer implements AutoCloseable {
      * 계속 밀어내며 자리를 돌리는 주소는 IP 차단에 걸린다. 같은 IP 의 상한·IP 차단 검사는 이보다 먼저다.
      */
     private boolean evictOldestUnauthenticated() {
-        Client oldest = null;
-        for (Client c : clients) {
-            if (c.state.get() == PENDING && (oldest == null || c.acceptedAt < oldest.acceptedAt)) oldest = c;
+        while (true) {
+            Client oldest = null;
+            for (Client c : clients) {
+                if (c.state.get() == PENDING && (oldest == null || c.acceptedAt < oldest.acceptedAt)) oldest = c;
+            }
+            if (oldest == null) return false;
+            if (!oldest.state.compareAndSet(PENDING, EVICTED)) continue;   // 방금 인증했다 — 다음 후보
+            clients.remove(oldest);
+            // 자리를 여럿 붙잡은 IP 이거나 오래 묵은 연결만 실패로 센다 — 로그인 직전에 밀려난 관리자의 연결 하나는 세지 않는다.
+            if (pendingFrom(oldest.ip) >= 1 || System.nanoTime() - oldest.acceptedAt >= EVICT_CHARGE_AGE_NANOS) noteIpFail(oldest.ip);
+            oldest.close();
+            return true;
         }
-        if (oldest == null || !oldest.state.compareAndSet(PENDING, EVICTED)) return false;
-        clients.remove(oldest);
-        noteIpFail(oldest.ip);
-        oldest.close();
-        return true;
+    }
+
+    private static final long EVICT_CHARGE_AGE_NANOS = 5_000_000_000L;
+
+    private int pendingFrom(String ip) {
+        int n = 0;
+        for (Client c : clients) if (c.ip.equals(ip) && c.state.get() == PENDING) n++;
+        return n;
     }
 
     @Override
@@ -253,6 +265,7 @@ public final class RconServer implements AutoCloseable {
             } catch (RuntimeException e) {
                 log.error("Exception whilst parsing RCON input", e);
             } finally {
+                state.compareAndSet(PENDING, EVICTED);   // 끝난 연결은 밀어내기·실패 계산 후보가 아니다
                 log.info("Thread {} shutting down", thread.getName());
             }
         }
