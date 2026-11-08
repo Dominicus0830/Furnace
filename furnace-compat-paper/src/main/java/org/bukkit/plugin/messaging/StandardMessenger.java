@@ -102,7 +102,7 @@ public class StandardMessenger implements Messenger {
     @Override
     public boolean isReservedChannel(String channel) {
         channel = validateAndCorrectChannel(channel);
-        return channel.contains("minecraft") && !channel.equals("minecraft:brand");
+        return channel.equals("minecraft:register") || channel.equals("minecraft:unregister");   // Paper 규칙(Spigot 은 "minecraft" 를 담으면 모두)
     }
 
     @Override
@@ -285,7 +285,7 @@ public class StandardMessenger implements Messenger {
     /**
      * 채널 이름을 검사하고 옛 BungeeCord 이름을 바로잡는다. "BungeeCord" → "bungeecord:main", 거꾸로 "bungeecord:main" → "BungeeCord"
      * (등록은 새 이름으로 하고, 받은 메시지는 옛 이름으로 리스너에 넘기기 위해서다 — 그래서 같은 값에 두 번 부르면 되돌아온다).
-     * ':' 가 없거나 대문자가 있으면 IllegalArgumentException, 64자를 넘으면 {@link ChannelNameTooLongException}.
+     * ':' 가 없거나 대문자가 있으면 IllegalArgumentException, {@link Messenger#MAX_CHANNEL_SIZE} 를 넘으면 {@link ChannelNameTooLongException}.
      */
     public static String validateAndCorrectChannel(String channel) {
         if (channel == null) throw new IllegalArgumentException("Channel cannot be null");

@@ -13,10 +13,13 @@ public interface Messenger {
     /** 플러그인 메시지 본문의 최대 바이트 수. */
     int MAX_MESSAGE_SIZE = 1048576;
 
-    /** 채널 이름의 최대 글자 수. */
-    int MAX_CHANNEL_SIZE = 64;
+    /**
+     * 채널 이름의 최대 글자 수. Paper 처럼 시스템 속성 {@code paper.maxCustomChannelName}, 기본 32767(Spigot 은 64).
+     * 컴파일 상수가 아니라 플러그인은 실행 때 이 값을 읽는다.
+     */
+    int MAX_CHANNEL_SIZE = Integer.getInteger("paper.maxCustomChannelName", Short.MAX_VALUE);
 
-    /** 플러그인이 쓸 수 없는 채널인가("minecraft" 를 담은 이름, minecraft:brand 는 예외). */
+    /** 플러그인이 쓸 수 없는 채널인가(Paper: minecraft:register·minecraft:unregister 만). */
     boolean isReservedChannel(String channel);
 
     void registerOutgoingPluginChannel(Plugin plugin, String channel);

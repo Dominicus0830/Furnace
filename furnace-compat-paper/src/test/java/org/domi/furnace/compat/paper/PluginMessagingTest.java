@@ -97,12 +97,18 @@ class PluginMessagingTest {
         assertEquals("my:chan", StandardMessenger.validateAndCorrectChannel("my:chan"));
         assertThrows(IllegalArgumentException.class, () -> StandardMessenger.validateAndCorrectChannel("nocolon"));
         assertThrows(IllegalArgumentException.class, () -> StandardMessenger.validateAndCorrectChannel("My:Chan"));
-        assertThrows(ChannelNameTooLongException.class, () -> StandardMessenger.validateAndCorrectChannel("a:" + "b".repeat(63)));
-        assertEquals(64, Messenger.MAX_CHANNEL_SIZE);
+        // Paper: 길이 한도는 paper.maxCustomChannelName(기본 Short.MAX_VALUE) — Spigot 의 64 가 아니다
+        assertEquals(Short.MAX_VALUE, Messenger.MAX_CHANNEL_SIZE);
+        String seventy = "mod:" + "x".repeat(70);
+        assertEquals(seventy, StandardMessenger.validateAndCorrectChannel(seventy));
+        assertThrows(ChannelNameTooLongException.class, () -> StandardMessenger.validateAndCorrectChannel("a:" + "b".repeat(Short.MAX_VALUE)));
         assertEquals(1048576, Messenger.MAX_MESSAGE_SIZE);
+        // Paper: minecraft:register·minecraft:unregister 만 예약(Spigot 은 "minecraft" 를 담으면 모두)
         StandardMessenger m = new StandardMessenger();
         assertTrue(m.isReservedChannel("minecraft:register"));
-        assertTrue(m.isReservedChannel("myminecraft:x"));
+        assertTrue(m.isReservedChannel("minecraft:unregister"));
+        assertFalse(m.isReservedChannel("minecraft:custom"));
+        assertFalse(m.isReservedChannel("myminecraft:x"));
         assertFalse(m.isReservedChannel("minecraft:brand"));
         assertFalse(m.isReservedChannel("BungeeCord"));
     }
@@ -121,9 +127,10 @@ class PluginMessagingTest {
 
             assertThrows(ChannelNotRegisteredException.class, () -> dana.sendPluginMessage(pl, "test:out", hello));
             assertThrows(ReservedChannelException.class, () -> messenger.registerOutgoingPluginChannel(pl, "minecraft:register"));
+            messenger.registerOutgoingPluginChannel(pl, "minecraft:custom");   // Paper 는 예약으로 보지 않는다
             messenger.registerOutgoingPluginChannel(pl, "test:out");
             assertTrue(messenger.isOutgoingChannelRegistered(pl, "test:out"));
-            assertEquals(Set.of("test:out"), messenger.getOutgoingChannels(pl));
+            assertEquals(Set.of("minecraft:custom", "test:out"), messenger.getOutgoingChannels(pl));
             assertThrows(MessageTooLargeException.class, () -> dana.sendPluginMessage(pl, "test:out", new byte[Messenger.MAX_MESSAGE_SIZE + 1]));
 
             // 클라이언트가 알리지 않은 채널로는 보내지 않는다(CraftPlayer 와 같다)
@@ -233,6 +240,46 @@ class PluginMessagingTest {
             tp.sendPluginMessage("bungeecord:main", "PlayerCount".getBytes(StandardCharsets.UTF_8));
             assertEquals(List.of("BungeeCord PlayerCount"), got, "리스너는 옛 이름 BungeeCord 로 받는다");
         }
+    }
+
+    /** 검토(PR #146) 재현 C: 64자 넘는 채널도 Paper 처럼 등록·알림 이벤트·전달이 된다. */
+    @Test
+    void channelsLongerThanSpigotsLimitWorkLikePaper() throws Exception {
+        String longName = "mod:" + "x".repeat(70);
+        try (FurnaceTestServer server = FurnaceTestServer.builder().failFast(false).pluginJar(messagingJar()).start()) {
+            JavaPlugin pl = plugin(server, "Messaging");
+            List<String> got = new CopyOnWriteArrayList<>();
+            Bukkit.getMessenger().registerIncomingPluginChannel(pl, longName, (c, p, d) -> got.add(c));
+            TestPlayer tp = server.join("Long");
+            tp.registerChannels(longName);
+            tp.sendPluginMessage(longName, new byte[]{1});
+            Player p = Bukkit.getPlayerExact("Long");
+            assertTrue(p.getListeningPluginChannels().contains(longName));
+            assertEquals(List.of("Long " + longName), MessagingPlugin.REGISTERED);
+            assertEquals(List.of(longName), got);
+        }
+    }
+
+    /** 검토(PR #146) 재현 D: 등록 동등성은 equals 로 본다 — equals 를 덮은 리스너는 다른 인스턴스로도 풀린다(Bukkit 과 같다). */
+    @Test
+    void registrationEqualityUsesEquals() throws Exception {
+        try (FurnaceTestServer server = FurnaceTestServer.builder().failFast(false).pluginJar(messagingJar()).start()) {
+            JavaPlugin pl = plugin(server, "Messaging");
+            Messenger m = Bukkit.getMessenger();
+            m.registerIncomingPluginChannel(pl, "test:eq", new EqListener());
+            assertThrows(IllegalArgumentException.class, () -> m.registerIncomingPluginChannel(pl, "test:eq", new EqListener()), "equals 로 같은 등록");
+            m.unregisterIncomingPluginChannel(pl, "test:eq", new EqListener());
+            assertFalse(m.isIncomingChannelRegistered(pl, "test:eq"));
+            assertTrue(server.api().pluginChannels().isEmpty());
+        }
+    }
+
+    static final class EqListener implements PluginMessageListener {
+        @Override public void onPluginMessageReceived(String channel, Player player, byte[] message) {}
+
+        @Override public boolean equals(Object o) { return o instanceof EqListener; }
+
+        @Override public int hashCode() { return 1; }
     }
 
     @Test

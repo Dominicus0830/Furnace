@@ -42,7 +42,7 @@ final class Mappings {
     }
 
     private static void registerPlayer() {
-        // 두 Bukkit 하위 이벤트가 PlayerChannelEvent 의 처리기 목록을 나눠 쓰므로 짝도 하나다. Bukkit 이 받지 않는 64자 초과 이름은 건너뛴다.
+        // 두 Bukkit 하위 이벤트가 PlayerChannelEvent 의 처리기 목록을 나눠 쓰므로 짝도 하나다. Bukkit 이 받지 않는 이름(MAX_CHANNEL_SIZE 초과)은 건너뛴다.
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerChannelEvent.class, org.bukkit.event.player.PlayerChannelEvent.class,
                 f -> {
                     String name = CompatMessenger.bukkitName(f.channel());

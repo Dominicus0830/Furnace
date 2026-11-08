@@ -1,6 +1,6 @@
 package org.bukkit.plugin.messaging;
 
-/** 채널 이름이 {@link Messenger#MAX_CHANNEL_SIZE} 글자를 넘는다. */
+/** 채널 이름이 {@link Messenger#MAX_CHANNEL_SIZE} 글자를 넘는다(Paper 기본 32767). */
 public class ChannelNameTooLongException extends RuntimeException {
 
     public ChannelNameTooLongException() {

@@ -111,12 +111,12 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
     public void sendPluginMessage(org.bukkit.plugin.Plugin source, String channel, byte[] message) {
         org.bukkit.plugin.messaging.StandardMessenger.validatePluginMessage(Compat.messenger(), source, channel, message);
         if (!handle.isOnline()) return;
-        if (getListeningPluginChannels().contains(channel)) {
-            handle.sendPluginMessage(org.bukkit.plugin.messaging.StandardMessenger.validateAndCorrectChannel(channel), message);
-        }
+        // 선 이름("bungeecord:main")으로 바꿔 찾는다 — getListeningPluginChannels().contains(channel) 과 같은 결과, 집합을 만들지 않는다
+        String wire = org.bukkit.plugin.messaging.StandardMessenger.validateAndCorrectChannel(channel);
+        if (handle.listeningPluginChannels().contains(wire)) handle.sendPluginMessage(wire, message);
     }
 
-    /** 클라이언트가 minecraft:register 로 알린 채널(Bukkit 이름 — "bungeecord:main" 은 "BungeeCord", Bukkit 이 받지 않는 64자 초과 이름은 뺀다). */
+    /** 클라이언트가 minecraft:register 로 알린 채널(Bukkit 이름 — "bungeecord:main" 은 "BungeeCord", Bukkit 이 받지 않는 이름은 뺀다). */
     @Override
     public java.util.Set<String> getListeningPluginChannels() {
         java.util.Set<String> out = new java.util.HashSet<>();

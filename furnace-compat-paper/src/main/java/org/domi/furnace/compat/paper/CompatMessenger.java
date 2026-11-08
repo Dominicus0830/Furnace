@@ -33,14 +33,16 @@ public final class CompatMessenger extends StandardMessenger {
 
     // ------------------------------------------------------------------ 등록
 
+    // 등록·해제와 Furnace 쪽 알림을 한 잠금으로 묶는다 — 같은 채널을 두 스레드가 동시에 등록·해제해도 두 표가 엇갈리지 않게
+
     @Override
-    public void registerOutgoingPluginChannel(Plugin plugin, String channel) {
+    public synchronized void registerOutgoingPluginChannel(Plugin plugin, String channel) {
         super.registerOutgoingPluginChannel(plugin, channel);
         hook(plugin);
     }
 
     @Override
-    public PluginMessageListenerRegistration registerIncomingPluginChannel(Plugin plugin, String channel, PluginMessageListener listener) {
+    public synchronized PluginMessageListenerRegistration registerIncomingPluginChannel(Plugin plugin, String channel, PluginMessageListener listener) {
         PluginMessageListenerRegistration r = super.registerIncomingPluginChannel(plugin, channel, listener);
         BukkitPluginAdapter a = hook(plugin);
         if (a != null) {
@@ -51,21 +53,21 @@ public final class CompatMessenger extends StandardMessenger {
     }
 
     @Override
-    public void unregisterIncomingPluginChannel(Plugin plugin, String channel, PluginMessageListener listener) {
+    public synchronized void unregisterIncomingPluginChannel(Plugin plugin, String channel, PluginMessageListener listener) {
         Set<String> before = plugin == null ? Set.of() : getIncomingChannels(plugin);
         super.unregisterIncomingPluginChannel(plugin, channel, listener);
         withdraw(plugin, before);
     }
 
     @Override
-    public void unregisterIncomingPluginChannel(Plugin plugin, String channel) {
+    public synchronized void unregisterIncomingPluginChannel(Plugin plugin, String channel) {
         Set<String> before = plugin == null ? Set.of() : getIncomingChannels(plugin);
         super.unregisterIncomingPluginChannel(plugin, channel);
         withdraw(plugin, before);
     }
 
     @Override
-    public void unregisterIncomingPluginChannel(Plugin plugin) {
+    public synchronized void unregisterIncomingPluginChannel(Plugin plugin) {
         Set<String> before = plugin == null ? Set.of() : getIncomingChannels(plugin);
         super.unregisterIncomingPluginChannel(plugin);
         withdraw(plugin, before);
@@ -119,7 +121,7 @@ public final class CompatMessenger extends StandardMessenger {
             channel = validateAndCorrectChannel(e.channel());   // 리스너가 받는 이름("bungeecord:main" → "BungeeCord")
             if (getIncomingChannelRegistrations(jp, channel).isEmpty()) return;
         } catch (RuntimeException invalid) {
-            return;   // Bukkit 이 받지 않는 이름(64자 초과) — CraftBukkit 은 여기서 접속을 끊는다(문서의 다른 점)
+            return;   // Bukkit 이 받지 않는 이름(MAX_CHANNEL_SIZE 초과 — Paper 기본 32767 이라 선에서는 나오지 않는다)
         }
         byte[] data = e.data();
         org.domi.furnace.api.entity.Player fp = e.player();
@@ -132,7 +134,7 @@ public final class CompatMessenger extends StandardMessenger {
         });
     }
 
-    /** 보낼 때 클라이언트 쪽 이름 → Bukkit 이 보이는 이름. 64자를 넘는 등 Bukkit 이 받지 않는 이름은 null. */
+    /** 클라이언트 쪽 이름 → Bukkit 이 보이는 이름. Bukkit 이 받지 않는 이름(MAX_CHANNEL_SIZE 초과)은 null. */
     public static String bukkitName(String wire) {
         try {
             return validateAndCorrectChannel(wire);

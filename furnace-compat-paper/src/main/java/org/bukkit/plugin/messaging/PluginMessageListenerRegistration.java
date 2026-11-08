@@ -3,7 +3,7 @@ package org.bukkit.plugin.messaging;
 import java.util.Objects;
 import org.bukkit.plugin.Plugin;
 
-/** 받는 채널 등록 하나(메신저·플러그인·채널·리스너가 같으면 같은 등록). */
+/** 받는 채널 등록 하나(메신저·플러그인·채널·리스너가 equals 로 같으면 같은 등록 — Bukkit 과 같다). */
 public final class PluginMessageListenerRegistration {
 
     private final Messenger messenger;
@@ -35,9 +35,9 @@ public final class PluginMessageListenerRegistration {
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (!(obj instanceof PluginMessageListenerRegistration o)) return false;
-        return messenger == o.messenger && plugin == o.plugin && channel.equals(o.channel) && listener == o.listener;
+        return messenger.equals(o.messenger) && plugin.equals(o.plugin) && channel.equals(o.channel) && listener.equals(o.listener);
     }
 
     @Override
-    public int hashCode() { return Objects.hash(System.identityHashCode(messenger), System.identityHashCode(plugin), channel, System.identityHashCode(listener)); }
+    public int hashCode() { return Objects.hash(messenger, plugin, channel, listener); }
 }
