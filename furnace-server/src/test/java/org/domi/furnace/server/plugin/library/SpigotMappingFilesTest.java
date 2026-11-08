@@ -92,6 +92,10 @@ class SpigotMappingFilesTest {
                 + "\"classMappings\":\"c.csrg\",\"memberMappings\":\"m.csrg\"}").getBytes(StandardCharsets.UTF_8));
         var e = assertThrows(LibraryResolver.LibraryException.class, () -> files(online()).ensure());
         assertTrue(e.getMessage().contains("1.21.1 서버 매핑"), e.getMessage());
+        // mappingsUrl 이 빠져 있어도 어느 Mojang 매핑용인지 모르므로 거부(검토 3)
+        repo.put(RAW + "info.json?at=" + COMMIT, "{\"classMappings\":\"c.csrg\",\"memberMappings\":\"m.csrg\"}".getBytes(StandardCharsets.UTF_8));
+        e = assertThrows(LibraryResolver.LibraryException.class, () -> files(online()).ensure());
+        assertTrue(e.getMessage().contains("1.21.1 서버 매핑"), e.getMessage());
     }
 
     @Test

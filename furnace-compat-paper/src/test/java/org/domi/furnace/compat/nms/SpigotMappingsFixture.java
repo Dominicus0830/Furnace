@@ -49,6 +49,9 @@ public final class SpigotMappingsFixture {
                 1:5:void tick() -> l
             net.minecraft.world.level.Level -> dcw:
                 1:1:void doThing() -> p
+                1:1:boolean isDebug() -> w
+            net.minecraft.server.MinecraftServer -> net.minecraft.server.MinecraftServer:
+                1:1:boolean isRunning() -> w
             net.minecraft.server.level.ServerLevel -> aqu:
                 1:1:void otherThing() -> p
             """;
@@ -76,6 +79,7 @@ public final class SpigotMappingsFixture {
             # BuildData 멤버 매핑(가짜)
             net/minecraft/core/BaseBlockPosition v ()I getY
             net/minecraft/world/entity/Entity af ticksLived
+            net/minecraft/core/BaseBlockPosition c (III)Lnet/minecraft/core/BaseBlockPosition; offsetSpigot
             """;
 
     public static SpigotMappings parse() throws IOException {

@@ -360,6 +360,14 @@ class PluginFoundationTest {
         Properties filesNoPath = new Properties();
         filesNoPath.setProperty("plugins.compat.nms.spigot-mappings", "files");
         assertThrows(IllegalArgumentException.class, () -> PluginSettings.from(filesNoPath, log), "files 는 경로 세 개가 있어야 한다");
+        Properties filesTwo = new Properties();
+        filesTwo.setProperty("plugins.compat.nms.spigot-mappings", "files");
+        filesTwo.setProperty("plugins.compat.nms.spigot-mappings.files", "a" + java.io.File.pathSeparator + "b");
+        assertThrows(IllegalArgumentException.class, () -> PluginSettings.from(filesTwo, log), "경로가 두 개뿐이면 기동 때 거부");
+        Properties filesThree = new Properties();
+        filesThree.setProperty("plugins.compat.nms.spigot-mappings", "files");
+        filesThree.setProperty("plugins.compat.nms.spigot-mappings.files", String.join(java.io.File.pathSeparator, "a", "b", "c"));
+        assertEquals("files", PluginSettings.from(filesThree, log).compatOptions().get("plugins.compat.nms.spigot-mappings"));
     }
 
     // ---- 조기 콘솔 ----

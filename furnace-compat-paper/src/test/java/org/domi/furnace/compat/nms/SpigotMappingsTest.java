@@ -43,6 +43,20 @@ class SpigotMappingsTest {
     }
 
     @Test
+    void memberLinesUseSpigotClassNamesInDescriptors() throws IOException {
+        SpigotMappings m = SpigotMappingsFixture.parse();
+        // 실제 members.csrg 처럼 서술자에 Spigot 클래스 이름(BaseBlockPosition)이 들어간 줄(검토 1)
+        assertEquals("offset", m.mapMethod("net/minecraft/core/BaseBlockPosition", "offsetSpigot", "(III)Lnet/minecraft/core/BaseBlockPosition;", NO_SUPERS));
+    }
+
+    @Test
+    void unobfuscatedOwnersAreFoundWithoutAClassLine() throws IOException {
+        SpigotMappings m = SpigotMappingsFixture.parse();
+        // MinecraftServer 처럼 클래스 이름이 난독화되지 않아 cl.csrg 에 없는 주인(검토 2). w()Z 는 Level 에도 있어 클래스 사이 찾기로는 못 정한다
+        assertEquals("isRunning", m.mapMethod("net/minecraft/server/MinecraftServer", "w", "()Z", NO_SUPERS));
+    }
+
+    @Test
     void inheritedMembersFollowTheGivenSupertypes() throws IOException {
         SpigotMappings m = SpigotMappingsFixture.parse();
         Function<String, List<String>> supers = Map.of("aub", List.of("atu"), "jh", List.of("kb"), "aqv", List.of("cmx"), "cmx", List.of("btn"),

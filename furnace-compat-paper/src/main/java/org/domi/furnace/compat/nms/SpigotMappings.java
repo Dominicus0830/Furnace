@@ -73,20 +73,31 @@ public final class SpigotMappings {
 
     // ------------------------------------------------------------------ 읽기
 
+    /** 마지막으로 읽기에 실패한 파일 묶음(키)과 그 오류 — 같은 깨진 파일을 플러그인마다 다시 읽지 않는다. */
+    private static String failedKey;
+    private static IOException failedError;
+
     /**
-     * 세 파일을 읽는다(같은 파일·같은 수정 시각이면 한 번만 읽어 모든 플러그인이 같이 쓴다).
+     * 세 파일을 읽는다(같은 파일·같은 수정 시각이면 한 번만 읽어 모든 플러그인이 같이 쓴다. 실패도 기억한다). 동시에 불려도 한 번만 읽는다.
      */
-    public static SpigotMappings load(Path mojang, Path spigotClasses, Path spigotMembers) throws IOException {
+    public static synchronized SpigotMappings load(Path mojang, Path spigotClasses, Path spigotMembers) throws IOException {
         String key = mojang.toAbsolutePath() + "|" + Files.getLastModifiedTime(mojang) + "|" + spigotClasses.toAbsolutePath() + "|"
                 + Files.getLastModifiedTime(spigotClasses) + "|" + spigotMembers.toAbsolutePath() + "|" + Files.getLastModifiedTime(spigotMembers);
         SpigotMappings cached = LOADED.get(key);
         if (cached != null) return cached;
+        if (key.equals(failedKey)) throw new IOException("앞서 읽지 못한 대응표(" + failedError.getMessage() + ")", failedError);
         SpigotMappings m;
         try (Reader a = Files.newBufferedReader(mojang, StandardCharsets.UTF_8);
              Reader b = Files.newBufferedReader(spigotClasses, StandardCharsets.UTF_8);
              Reader c = Files.newBufferedReader(spigotMembers, StandardCharsets.UTF_8)) {
             m = parse(a, b, c);
+        } catch (IOException | RuntimeException e) {
+            failedKey = key;
+            failedError = e instanceof IOException io ? io : new IOException(e.toString(), e);
+            throw failedError;
         }
+        failedKey = null;
+        failedError = null;
         LOADED.clear();   // 파일이 바뀌었으면 옛 표는 버린다
         LOADED.put(key, m);
         return m;
@@ -207,7 +218,7 @@ public final class SpigotMappings {
                 String desc = fieldDescOf(owner, t[1]);
                 if (desc != null) spigotMembersAnywhere.computeIfAbsent(t[2] + " " + desc, k -> new HashSet<>()).add(t[1]);
             } else {
-                String desc = obfDesc(t[2]);
+                String desc = obfDescFromSpigot(t[2]);   // 멤버 줄 서술자는 Spigot 클래스 이름이다
                 spigotMembers.put(owner + " " + t[3] + desc, t[1]);
                 spigotMembersByArgs.merge(owner + " " + t[3] + desc.substring(0, desc.indexOf(')') + 1), t[1], (x, y) -> x.equals(y) ? x : "");
                 spigotMembersAnywhere.computeIfAbsent(t[3] + desc, k -> new HashSet<>()).add(t[1]);
@@ -355,6 +366,8 @@ public final class SpigotMappings {
         if (e == null) return null;
         String obf = mapClassObf(e);
         if (obf != null && obfToMojang.containsKey(obf)) return obf;
+        // 클래스 표에 없지만 ProGuard 에 그 이름 그대로 있는 클래스(난독화 안 된 MinecraftServer 등)
+        if (obf == null && obfToMojang.containsKey(e)) return e;
         return null;
     }
 

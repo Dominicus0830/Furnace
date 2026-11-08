@@ -150,8 +150,8 @@ public final class SpigotMappingFiles {
         }
         JsonObject info = json(raw("info.json", commit), "BuildData info.json");
         String mappingsUrl = string(info, "mappingsUrl");
-        if (mappingsUrl != null && !mappingsUrl.contains(mojangSha1)) {
-            throw new LibraryResolver.LibraryException("BuildData " + commit + " 가 가리키는 Mojang 매핑(" + mappingsUrl + ")이 1.21.1 서버 매핑(sha1 " + mojangSha1
+        if (mappingsUrl == null || !mappingsUrl.contains(mojangSha1)) {
+            throw new LibraryResolver.LibraryException("BuildData " + commit + " 가 가리키는 Mojang 매핑(" + (mappingsUrl == null ? "적혀 있지 않음" : mappingsUrl) + ")이 1.21.1 서버 매핑(sha1 " + mojangSha1
                     + ")이 아니다 — 쓰지 않는다");
         }
         String clName = fileName(info, "classMappings");

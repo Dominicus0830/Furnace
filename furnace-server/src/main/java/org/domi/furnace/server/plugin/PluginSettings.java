@@ -150,7 +150,7 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
             if (!v.equals("off") && !v.equals("download") && !v.equals("files")) {
                 throw new IllegalArgumentException("설정 '" + SPIGOT_MAPPINGS_KEY + "' 값 '" + sm.strip() + "' 이(가) 잘못됐습니다: off, download 또는 files");
             }
-            if (v.equals("files") && files.isEmpty()) {
+            if (v.equals("files") && (files.isEmpty() || files.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator), -1).length != 3)) {
                 throw new IllegalArgumentException("설정 '" + SPIGOT_MAPPINGS_KEY + "=files' 는 '" + SPIGOT_MAPPING_FILES_KEY + "' 에 파일 세 개"
                         + "(Mojang server.txt, Spigot 클래스 csrg, Spigot 멤버 csrg)를 경로 구분자 '" + java.io.File.pathSeparator + "' 로 이어 적어야 합니다");
             }
