@@ -89,4 +89,24 @@ class ClientChannelRegisterFlowTest {
         assertEquals(Set.of("mod:b", "mod:c"), p.pluginChannels().snapshot());
         ch.close();
     }
+
+    @Test
+    void invalidRegisterBodyDisconnectsLikePaper() throws Exception {
+        sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        io = org.domi.furnace.server.TestServers.ioPool();
+        World world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2, reg.directBits(), 7, io);
+        world.configurePersistence(Integer.MAX_VALUE, 100);
+        world.worldDir(tmp);
+        handler = new ConnectionHandler("t", -1, sched, world, new EntityIdAllocator());
+        EmbeddedChannel ch = new EmbeddedChannel(handler);
+        ch.writeInbound(frame(0x00, b -> { Types.writeVarInt(b, 767); Types.writeString(b, "localhost");
+            b.writeShort(25565); Types.writeVarInt(b, 2); }));
+        ch.writeInbound(frame(0x00, b -> { Types.writeString(b, "Tester"); Types.writeUuid(b, new UUID(0, 0)); }));
+        ch.writeInbound(frame(0x03, null));   // → 구성
+        ch.writeInbound(payload(0x02, PluginChannels.REGISTER, "mod:ok\0NoColon".getBytes(StandardCharsets.UTF_8)));
+        ch.runPendingTasks();
+        ch.runScheduledPendingTasks();
+        assertFalse(ch.isOpen(), "':' 없는 채널을 등록하면 Paper 처럼 연결이 끊긴다");
+    }
 }
