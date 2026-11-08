@@ -95,8 +95,20 @@ public final class NbtVals {
     }
 
     private static void account(long[] q, long bytes) {
+        // 음수가 들어오면 남은 한도가 "늘어나" 이어지는 배열 태그가 거대 할당을 통과한다(A02-01) — 길이는 아래 length() 가 먼저 거른다.
+        if (bytes < 0) throw new CodecException("Tried to read NBT tag with negative size: " + bytes);
         q[0] -= bytes;
         if (q[0] < 0) throw new CodecException("Tried to read NBT tag that was too big; tried to allocate: " + bytes + " bytes");
+    }
+
+    /**
+     * 리스트·배열 길이. 바닐라는 음수 길이에서 할당 없이 실패한다(ListTag: Lists.newArrayListWithCapacity(음수) → IllegalArgumentException,
+     * 배열: new T[음수] → NegativeArraySizeException) — 같은 바이트에서 같은 결과(디코드 실패·연결 종료)가 되도록 한도 계산 전에 거절한다.
+     */
+    private static int length(ByteBuf in) {
+        int n = in.readInt();
+        if (n < 0) throw new CodecException("Tried to read NBT tag with negative length: " + n);
+        return n;
     }
 
     private static Object readPayload(ByteBuf in, byte type, long[] q, int depth) {
@@ -110,7 +122,7 @@ public final class NbtVals {
             case NbtIo.TAG_DOUBLE -> { account(q, 16); return in.readDouble(); }
             case NbtIo.TAG_BYTE_ARRAY -> {
                 account(q, 24);
-                int n = in.readInt();
+                int n = length(in);
                 account(q, n);
                 byte[] a = new byte[n];
                 in.readBytes(a);
@@ -120,7 +132,7 @@ public final class NbtVals {
             case NbtIo.TAG_LIST -> {
                 account(q, 37);
                 byte et = in.readByte();
-                int n = in.readInt();
+                int n = length(in);
                 if (et == NbtIo.TAG_END && n > 0) throw new CodecException("Missing type on ListTag");
                 account(q, 4L * n);
                 NbtList l = new NbtList(et);
@@ -142,7 +154,7 @@ public final class NbtVals {
             }
             case NbtIo.TAG_INT_ARRAY -> {
                 account(q, 24);
-                int n = in.readInt();
+                int n = length(in);
                 account(q, 4L * n);
                 int[] a = new int[n];
                 for (int i = 0; i < n; i++) a[i] = in.readInt();
@@ -150,7 +162,7 @@ public final class NbtVals {
             }
             case NbtIo.TAG_LONG_ARRAY -> {
                 account(q, 24);
-                int n = in.readInt();
+                int n = length(in);
                 account(q, 8L * n);
                 long[] a = new long[n];
                 for (int i = 0; i < n; i++) a[i] = in.readLong();

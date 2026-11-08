@@ -23,10 +23,17 @@ final class ProxyProtocolHandler extends ChannelInboundHandlerAdapter {
 
     private final ConnectionLimits limits;
     private final AtomicBoolean warned;
+    /** server.properties log-ips — false 면 거부 로그에서 주소를 가린다. */
+    private final boolean logIps;
 
     ProxyProtocolHandler(ConnectionLimits limits, AtomicBoolean warned) {
+        this(limits, warned, true);
+    }
+
+    ProxyProtocolHandler(ConnectionLimits limits, AtomicBoolean warned, boolean logIps) {
         this.limits = limits;
         this.warned = warned;
+        this.logIps = logIps;
     }
 
     /**
@@ -70,7 +77,8 @@ final class ProxyProtocolHandler extends ChannelInboundHandlerAdapter {
         try {
             InetAddress peer = ctx.channel().remoteAddress() instanceof InetSocketAddress isa ? isa.getAddress() : null;
             if (!limits.proxyTrusts(peer)) {
-                log.warn("신뢰하지 않는 주소 {} 가 PROXY 헤더를 보내 거부했다 (proxy-protocol.trusted 확인)", peer);
+                log.warn("신뢰하지 않는 주소 {} 가 PROXY 헤더를 보내 거부했다 (proxy-protocol.trusted 확인)",
+                        ConnectionHandler.loggableAddress(logIps, peer));
                 ctx.close();
                 return;
             }

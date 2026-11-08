@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
 
 class ConnectionDefenseTest {
 
-    private static ConnectionLimits limits(String... kv) {
+    static ConnectionLimits limits(String... kv) {
         Properties p = new Properties();
         for (int i = 0; i < kv.length; i += 2) p.setProperty(kv[i], kv[i + 1]);
         return ConnectionLimits.fromProperties(p, m -> {});
@@ -162,6 +162,10 @@ class ConnectionDefenseTest {
     }
 
     private static EmbeddedChannel proxyChannel(ConnectionLimits l, InetAddress peer, java.util.List<Object> sink) {
+        return proxyChannel(l, peer, sink, true);
+    }
+
+    static EmbeddedChannel proxyChannel(ConnectionLimits l, InetAddress peer, java.util.List<Object> sink, boolean logIps) {
         EmbeddedChannel ch = new EmbeddedChannel() {
             @Override
             protected SocketAddress remoteAddress0() {
@@ -171,7 +175,7 @@ class ConnectionDefenseTest {
         AtomicBoolean warned = new AtomicBoolean();
         ch.pipeline().addLast("haproxySniffer", new ProxyProtocolHandler.Sniffer(warned))
                 .addLast("haproxyDecoder", new HAProxyMessageDecoder())
-                .addLast("haproxyHandler", new ProxyProtocolHandler(l, warned))
+                .addLast("haproxyHandler", new ProxyProtocolHandler(l, warned, logIps))
                 .addLast("sink", new ChannelInboundHandlerAdapter() {
                     @Override
                     public void channelRead(ChannelHandlerContext ctx, Object msg) {
