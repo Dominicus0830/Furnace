@@ -1,4 +1,7 @@
 // 디스크(.mca) 우선 로드, 없으면 base WorldSource로 생성하는 WorldSource. 로드 청크는 clean, 새로 생성한 청크는 dirty(저장 대상).
+// 깨진 청크(읽기·압축 풀기·NBT·디코드 실패)는 바닐라 ChunkMap.handleChunkLoadFailure 처럼 로그 후 새로 생성한다(A05-01) — 덮어쓰기 전에
+// 원본 바이트를 <region>_corrupt/ 에 남긴다(바닐라 밖 친절). 이 서버보다 새 판(DataVersion)으로 저장된 청크는 새로 생성하지 않고 거부한다
+// (Paper "Do not let the server load chunks from newer versions" — 모르는 블록이 공기로 지워지지 않게, A05-03).
 package org.domi.furnace.server.world.gen;
 
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
@@ -7,8 +10,10 @@ import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.anvil.AnvilChunkCodec;
 import org.domi.furnace.server.world.anvil.RegionFileStore;
+import org.domi.furnace.server.world.anvil.NewerDataVersionException;
+import org.domi.furnace.server.world.anvil.RegionFile;
 import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -29,49 +34,99 @@ public final class AnvilWorldSource implements WorldSource {
 
     @Override
     public ChunkColumn generate(int chunkX, int chunkZ) {
-        try {
-            return withPoi(chunkX, chunkZ, fromBytesOrGenerate(chunkX, chunkZ, store.readChunk(chunkX, chunkZ)));
-        } catch (IOException e) {
-            throw new UncheckedIOException("청크 로드 실패 " + chunkX + "," + chunkZ, e);
-        }
+        return generate(chunkX, chunkZ, Runnable::run);
     }
 
     /** 동기 로드. 읽기만 ioLane 에서 하고(같은 파일의 앞선 저장 뒤에 줄 선다) 그 결과를 기다려 이 스레드에서 디코드·생성한다. */
     public ChunkColumn generate(int chunkX, int chunkZ, Executor ioLane) {
-        byte[] bytes;
+        Read read;
         try {
-            bytes = CompletableFuture.supplyAsync(() -> {
-                try {
-                    return store.readChunk(chunkX, chunkZ);
-                } catch (IOException e) {
-                    throw new UncheckedIOException("청크 로드 실패 " + chunkX + "," + chunkZ, e);
-                }
-            }, ioLane).join();
+            read = CompletableFuture.supplyAsync(() -> readPayload(chunkX, chunkZ), ioLane).join();
         } catch (java.util.concurrent.CompletionException e) {
             if (e.getCause() instanceof RuntimeException re) throw re;
+            if (e.getCause() instanceof Error err) throw err;
             throw e;
         }
+        ChunkColumn col = decode(chunkX, chunkZ, read);
+        if (col != null) return withPoi(chunkX, chunkZ, col);
+        col = generateFallback(chunkX, chunkZ);
+        col.markDirty();   // 바닐라처럼 새로 생성한 청크도 디스크에 남긴다(깨진 청크면 다음 저장이 덮는다)
+        return col;
+    }
+
+    /** 레인에서 읽은 압축 본문. 읽기 자체가 실패했으면 failure(본문 없음). */
+    private record Read(RegionFile.Payload payload, Exception failure) {}
+
+    /** 레인에서: 압축 본문만 읽는다. 실패는 던지지 않고 담아 넘긴다(디코드 쪽이 깨진 청크로 다룬다). */
+    private Read readPayload(int chunkX, int chunkZ) {
         try {
-            return withPoi(chunkX, chunkZ, fromBytesOrGenerate(chunkX, chunkZ, bytes));
-        } catch (IOException e) {
-            throw new UncheckedIOException("청크 로드 실패 " + chunkX + "," + chunkZ, e);
+            return new Read(store.readPayload(chunkX, chunkZ), null);
+        } catch (IOException | RuntimeException e) {
+            return new Read(null, e);
         }
     }
 
-    private ChunkColumn fromBytesOrGenerate(int chunkX, int chunkZ, byte[] nbtBytes) throws IOException {
-        if (nbtBytes != null) {
-            NbtCompound nbt = NbtIo.read(nbtBytes);
-            ChunkColumn col = codec.fromNbt(nbt);
-            if (col != null) {
-                col.clearDirty();
-                return col;
-            }
-            // 완성되지 않은 청크(바닐라 월드 가장자리의 proto 청크) — 새로 생성한다.
+    /**
+     * 압축 풀기·NBT·디코드. 디스크에 없거나 완성되지 않은 청크(바닐라 월드 가장자리 proto 청크)·깨진 청크면 null — 부르는 쪽이 새로 생성한다.
+     * 깨진 청크는 바닐라 handleChunkLoadFailure 처럼 로그를 남기고(원본 바이트는 백업) 새로 생성으로 넘긴다. Error 와 새 판 청크는 던진다.
+     */
+    private ChunkColumn decode(int chunkX, int chunkZ, Read read) {
+        if (read.failure() != null) {
+            corrupt(chunkX, chunkZ, read.failure(), null, null);
+            return null;
         }
-        ChunkColumn col = generateFallback(chunkX, chunkZ);
-        col.markDirty();   // 바닐라처럼 새로 생성한 청크도 디스크에 남긴다
-        return col;
+        RegionFile.Payload payload = read.payload();
+        if (payload == null) return null;
+        byte[] nbtBytes = null;
+        try {
+            nbtBytes = payload.decompress();
+            return decodeChunk(nbtBytes);
+        } catch (NewerDataVersionException e) {
+            throw e;
+        } catch (IOException | RuntimeException e) {
+            corrupt(chunkX, chunkZ, e, payload, nbtBytes);
+            return null;
+        }
     }
+
+    /** 바닐라 MinecraftServer.reportChunkLoadFailure 문구로 남기고, 덮어쓰이기 전에 원본을 백업한다. */
+    private void corrupt(int chunkX, int chunkZ, Exception cause, RegionFile.Payload payload, byte[] nbtBytes) {
+        Path backup = backupCorrupt(chunkX, chunkZ, payload, nbtBytes);
+        LOG.error("Failed to load chunk {},{} — 깨진 청크라 새로 생성한다(다음 저장에서 덮인다). 원본: {}",
+                chunkX, chunkZ, backup != null ? backup : "(백업할 본문 없음)", cause);
+    }
+
+    /**
+     * 원본을 {@code <region 폴더>_corrupt/c.X.Z-<시각>.nbt}(압축 푼 NBT) 또는 {@code .bin}(압축 종류 1바이트 + 압축 본문, region 섹터의 길이 뒤와 같다)로 남긴다.
+     * 실패해도 새로 생성은 계속한다.
+     */
+    private Path backupCorrupt(int chunkX, int chunkZ, RegionFile.Payload payload, byte[] nbtBytes) {
+        if (payload == null && nbtBytes == null) return null;
+        try {
+            Path regionDir = store.regionDir();
+            Path dir = regionDir.resolveSibling(regionDir.getFileName() + "_corrupt");
+            Files.createDirectories(dir);
+            String stamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss-SSS"));
+            String base = "c." + chunkX + "." + chunkZ + "-" + stamp;
+            if (nbtBytes != null) {
+                Path f = dir.resolve(base + ".nbt");
+                Files.write(f, nbtBytes);
+                return f;
+            }
+            Path f = dir.resolve(base + ".bin");
+            byte[] data = payload.data();
+            byte[] out = new byte[data.length + 1];
+            out[0] = (byte) payload.type();
+            System.arraycopy(data, 0, out, 1, data.length);
+            Files.write(f, out);
+            return f;
+        } catch (IOException | RuntimeException e) {
+            LOG.warn("깨진 청크 {},{} 원본 백업 실패", chunkX, chunkZ, e);
+            return null;
+        }
+    }
+
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(AnvilWorldSource.class);
 
     public CompletableFuture<ChunkColumn> loadChunkAsync(int chunkX, int chunkZ, Executor ioExecutor, Executor genExecutor) {
         return loadChunkAsync(chunkX, chunkZ, ioExecutor, ioExecutor, genExecutor);
@@ -84,23 +139,10 @@ public final class AnvilWorldSource implements WorldSource {
      */
     public CompletableFuture<ChunkColumn> loadChunkAsync(int chunkX, int chunkZ, Executor ioExecutor, Executor decodeExecutor,
                                                          Executor genExecutor) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return store.readPayload(chunkX, chunkZ);
-            } catch (IOException e) {
-                throw new UncheckedIOException("청크 로드 실패 " + chunkX + "," + chunkZ, e);
-            }
-        }, ioExecutor).thenCompose(payload -> {
-            CompletableFuture<ChunkColumn> decoded = payload == null ? CompletableFuture.completedFuture(null)
-                    : CompletableFuture.supplyAsync(() -> {
-                        byte[] nbtBytes;
-                        try {
-                            nbtBytes = payload.decompress();
-                        } catch (IOException e) {
-                            throw new UncheckedIOException("청크 로드 실패 " + chunkX + "," + chunkZ, e);
-                        }
-                        return decodeChunk(nbtBytes);
-                    }, decodeExecutor);
+        return CompletableFuture.supplyAsync(() -> readPayload(chunkX, chunkZ), ioExecutor).thenCompose(read -> {
+            CompletableFuture<ChunkColumn> decoded = read.payload() == null && read.failure() == null
+                    ? CompletableFuture.completedFuture(null)
+                    : CompletableFuture.supplyAsync(() -> decode(chunkX, chunkZ, read), decodeExecutor);
             return decoded.thenCompose(col -> {
                 if (col != null) return CompletableFuture.supplyAsync(() -> withPoi(chunkX, chunkZ, col), ioExecutor);
                 return CompletableFuture.supplyAsync(() -> {
@@ -121,15 +163,12 @@ public final class AnvilWorldSource implements WorldSource {
         return base.generate(chunkX, chunkZ);
     }
 
-    private ChunkColumn decodeChunk(byte[] nbtBytes) {
-        try {
-            NbtCompound nbt = NbtIo.read(nbtBytes);
-            ChunkColumn col = codec.fromNbt(nbt);
-            if (col != null) col.clearDirty();
-            return col;
-        } catch (IOException e) {
-            throw new UncheckedIOException("청크 디코드 실패", e);
-        }
+    private ChunkColumn decodeChunk(byte[] nbtBytes) throws IOException {
+        NbtCompound nbt = NbtIo.read(nbtBytes);
+        NewerDataVersionException.check(nbt);
+        ChunkColumn col = codec.fromNbt(nbt);
+        if (col != null) col.clearDirty();
+        return col;
     }
 
     public RegionFileStore store() { return store; }

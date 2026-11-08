@@ -454,7 +454,16 @@ public final class Region {
     private void finishLoad(ChunkPos cp, long key, ChunkColumn col, Throwable err, CompletableFuture<ChunkColumn> f) {
         world.removeLoading(key, f);
         if (err != null) {
-            org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 로드 실패 {} — 다음 요청에서 재시도", cp, err);
+            Throwable root = err;
+            while (root instanceof java.util.concurrent.CompletionException && root.getCause() != null) root = root.getCause();
+            if (root instanceof org.domi.furnace.server.world.anvil.NewerDataVersionException newer) {
+                // 새 판 청크는 올리지도 덮지도 않는다(A05-03). 시야 미리 불러오기가 틱마다 다시 걸므로 청크마다 한 번만 크게 남긴다.
+                if (world.warnNewerChunkOnce(key)) {
+                    org.slf4j.LoggerFactory.getLogger(Region.class).error("[CHUNK] {} 를 올리지 않는다: {}", cp, newer.getMessage());
+                }
+            } else {
+                org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 로드 실패 {} — 다음 요청에서 재시도", cp, err);
+            }
             rz().release(this, cp.x(), cp.z());
             f.completeExceptionally(err);
             return;
