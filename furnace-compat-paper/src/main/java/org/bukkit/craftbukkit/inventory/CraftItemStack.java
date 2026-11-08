@@ -3,6 +3,7 @@ package org.bukkit.craftbukkit.inventory;
 import java.util.Objects;
 import net.minecraft.world.item.Item;
 import org.bukkit.Material;
+import org.bukkit.configuration.serialization.DelegateDeserialization;
 import org.bukkit.inventory.ItemStack;
 import org.domi.furnace.compat.paper.CompatItems;
 import org.domi.furnace.compat.paper.ItemSlot;
@@ -14,6 +15,7 @@ import org.domi.furnace.compat.paper.ItemSlot;
  * 정적 다리 {@link #asNMSCopy}·{@link #asBukkitCopy}·{@link #asCraftMirror}·{@link #asCraftCopy}·{@link #asNewCraftStack} 는 CraftBukkit 과 같은 규칙이다.
  * 라이브러리가 리플렉션으로 읽고 쓰는 필드 {@code handle} 도 같은 이름·타입이다.
  */
+@DelegateDeserialization(ItemStack.class)
 public final class CraftItemStack extends ItemStack {
 
     /** CraftBukkit 과 같은 이름의 필드(리플렉션으로 읽고 쓰는 라이브러리가 있다). 비었으면 null — ItemStack.EMPTY 를 들지 않는다. */

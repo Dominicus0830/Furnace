@@ -200,6 +200,7 @@ class InventoryAdapterTest {
             public Boolean getEnchantmentGlintOverride() { return null; }
             public void setEnchantmentGlintOverride(Boolean o) {}
             public PersistentDataContainer getPersistentDataContainer() { return null; }
+            public java.util.Map<String, Object> serialize() { return java.util.Map.of(); }
             public ItemMeta clone() { return this; }
         }));
     }

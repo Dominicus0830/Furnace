@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.bukkit.configuration.serialization.ConfigurationSerializable;
+import org.bukkit.configuration.serialization.ConfigurationSerialization;
+import org.bukkit.inventory.ItemStack;
 import org.domi.furnace.api.config.ConfigSection;
 
 /**
@@ -38,28 +40,65 @@ public class MemorySection implements ConfigurationSection {
     private ConfigurationSection wrap(ConfigSection s) { return new MemorySection(s, this, root); }
 
     private Object out(Object v) {
-        if (v instanceof ConfigSection s) return wrap(s);
+        if (v instanceof ConfigSection s) return isSerialized(s) ? revive(s.toMap()) : wrap(s);
         if (v instanceof List<?> l) {
             boolean convert = false;
             for (Object o : l) if (o instanceof ConfigSection) { convert = true; break; }
             if (!convert) return v;
             List<Object> r = new ArrayList<>(l.size());
-            for (Object o : l) r.add(o instanceof ConfigSection s ? s.toMap() : o);
+            for (Object o : l) r.add(o instanceof ConfigSection s ? revive(s.toMap()) : o);
             return r;
         }
         return v;
     }
 
+    /** 별칭(==)이 등록된 ConfigurationSerializable 로 저장된 구역인가 — Bukkit 에서는 구역이 아니라 객체다. */
+    private static boolean isSerialized(ConfigSection s) {
+        return s.get(ConfigurationSerialization.SERIALIZED_TYPE_KEY) instanceof String alias && ConfigurationSerialization.getClassByAlias(alias) != null;
+    }
+
+    /**
+     * 맵 → 값: 안쪽 맵·리스트부터 되읽고, 별칭이 등록된 {@code ==} 맵은 ConfigurationSerializable 로 되읽는다(Bukkit 의 YAML 읽기와 같은 순서).
+     * 되읽지 못하면(별칭을 모르거나 되읽기가 null) 맵 그대로 둔다.
+     */
+    private static Object revive(Object v) {
+        if (v instanceof Map<?, ?> m) {
+            Map<String, Object> plain = new LinkedHashMap<>();
+            for (var e : m.entrySet()) plain.put(String.valueOf(e.getKey()), revive(e.getValue()));
+            if (plain.get(ConfigurationSerialization.SERIALIZED_TYPE_KEY) instanceof String alias && ConfigurationSerialization.getClassByAlias(alias) != null) {
+                ConfigurationSerializable obj = ConfigurationSerialization.deserializeObject(plain);
+                if (obj != null) return obj;
+            }
+            return plain;
+        }
+        if (v instanceof List<?> l) {
+            List<Object> out = new ArrayList<>(l.size());
+            for (Object o : l) out.add(revive(o));
+            return out;
+        }
+        return v;
+    }
+
+    /** 값 → 저장할 꼴: ConfigurationSerializable 은 {@code ==} 별칭이 맨 앞인 맵으로(안쪽도 같게), 집합은 리스트로. */
     private static Object in(Object v) {
         if (v instanceof MemorySection m) return m.delegate;
         if (v instanceof ConfigurationSection s) return s.getValues(false);
         if (v instanceof ConfigurationSerializable c) {
             Map<String, Object> m = new LinkedHashMap<>();
-            m.put("==", c.getClass().getName());
-            m.putAll(c.serialize());
+            m.put(ConfigurationSerialization.SERIALIZED_TYPE_KEY, ConfigurationSerialization.getAlias(c.getClass()));
+            for (var e : c.serialize().entrySet()) m.put(e.getKey(), in(e.getValue()));
             return m;
         }
-        if (v instanceof Set<?> set) return new ArrayList<>(set);
+        if (v instanceof Map<?, ?> map) {
+            Map<Object, Object> out = new LinkedHashMap<>();
+            for (var e : map.entrySet()) out.put(e.getKey(), in(e.getValue()));
+            return out;
+        }
+        if (v instanceof Iterable<?> it && !(v instanceof ConfigSection)) {
+            List<Object> out = new ArrayList<>();
+            for (Object o : it) out.add(in(o));
+            return out;
+        }
         return v;
     }
 
@@ -268,11 +307,28 @@ public class MemorySection implements ConfigurationSection {
 
     @Override
     public ConfigurationSection getConfigurationSection(String path) {
-        return delegate.get(path) instanceof ConfigSection s ? wrap(s) : null;
+        return delegate.get(path) instanceof ConfigSection s && !isSerialized(s) ? wrap(s) : null;
     }
 
     @Override
-    public boolean isConfigurationSection(String path) { return delegate.get(path) instanceof ConfigSection; }
+    public boolean isConfigurationSection(String path) { return delegate.get(path) instanceof ConfigSection s && !isSerialized(s); }
+
+    // ------------------------------------------------------------------ 직렬화 객체
+
+    @Override
+    public <T extends ConfigurationSerializable> T getSerializable(String path, Class<T> clazz) { return getObject(path, clazz); }
+
+    @Override
+    public <T extends ConfigurationSerializable> T getSerializable(String path, Class<T> clazz, T def) { return getObject(path, clazz, def); }
+
+    @Override
+    public ItemStack getItemStack(String path) { return getSerializable(path, ItemStack.class); }
+
+    @Override
+    public ItemStack getItemStack(String path, ItemStack def) { return getSerializable(path, ItemStack.class, def); }
+
+    @Override
+    public boolean isItemStack(String path) { return get(path) instanceof ItemStack; }
 
     @Override
     public ConfigurationSection getDefaultSection() {

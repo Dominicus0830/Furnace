@@ -3,6 +3,7 @@ package org.bukkit.inventory.meta;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.bukkit.configuration.serialization.ConfigurationSerializable;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.persistence.PersistentDataHolder;
@@ -11,8 +12,9 @@ import org.bukkit.persistence.PersistentDataHolder;
  * 아이템 데이터(이름·설명·마법 부여·표시 항목·영속 데이터). Bukkit 처럼 사본이다 — ItemStack#getItemMeta 가 사본을 주고,
  * 바꾼 뒤 ItemStack#setItemMeta 로 돌려놓아야 아이템에 반영된다.
  * 이름·설명은 § 서식 문자열이다. 이름·설명이 없으면 get 은 null 을 돌려준다.
+ * ConfigurationSerializable 이라 설정 파일·객체 스트림에 저장된다(별칭 "ItemMeta", 맵 모양은 Paper 1.21.1 을 따른다).
  */
-public interface ItemMeta extends Cloneable, PersistentDataHolder {
+public interface ItemMeta extends Cloneable, ConfigurationSerializable, PersistentDataHolder {
 
     boolean hasDisplayName();
 

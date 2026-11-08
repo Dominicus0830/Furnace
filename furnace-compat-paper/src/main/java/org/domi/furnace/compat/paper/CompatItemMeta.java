@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.bukkit.configuration.serialization.DelegateDeserialization;
+import org.bukkit.craftbukkit.inventory.SerializableMeta;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.meta.Damageable;
@@ -22,6 +24,8 @@ import org.domi.furnace.api.item.ItemStack;
 import org.domi.furnace.api.item.Unbreakable;
 import org.domi.furnace.api.text.Text;
 
+// Paper 의 CraftMetaItem 처럼 {@code ==: ItemMeta} 로 저장되고 SerializableMeta 가 되읽는다(ItemMetaSerialization)
+@DelegateDeserialization(SerializableMeta.class)
 public final class CompatItemMeta implements ItemMeta, Damageable, Repairable {
 
     private ItemStack work;
@@ -292,6 +296,20 @@ public final class CompatItemMeta implements ItemMeta, Damageable, Repairable {
     @Override
     public void setRepairCost(int cost) { work = work.with(ItemComponents.REPAIR_COST, cost); }
 
+    // ------------------------------------------------------------------ 직렬화
+
+    @Override
+    public Map<String, Object> serialize() { return ItemMetaSerialization.serialize(this); }
+
+    /** 직렬화 전용: 지금 컴포넌트(영속 데이터의 바뀐 것은 아직 안 들어 있다). */
+    ItemStack work() { return work; }
+
+    /** 직렬화 전용: 살아 있는 표시 항목 집합(읽을 때 채운다). */
+    EnumSet<ItemFlag> flagSet() { return flags; }
+
+    /** 직렬화 전용: 영속 데이터의 바뀐 것까지 반영한 컴포넌트. */
+    ItemStack effective() { return pdc.dirty() ? work.withPersistentData(pdc::applyTo) : work; }
+
     // ------------------------------------------------------------------ 영속 데이터·같음·사본
 
     @Override
@@ -302,7 +320,9 @@ public final class CompatItemMeta implements ItemMeta, Damageable, Repairable {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof CompatItemMeta m && m.work.isSimilar(work) && m.flags.equals(flags) && m.pdc.equals(pdc);
+        // 종류는 보지 않는다(Bukkit 메타도 그렇다): 설정·스트림에서 되읽은 메타는 아직 어느 아이템 종류에도 붙지 않았다
+        return o instanceof CompatItemMeta m && m.work.components().equals(work.components()) && m.work.removedComponents().equals(work.removedComponents())
+                && m.flags.equals(flags) && m.pdc.equals(pdc);
     }
 
     @Override
