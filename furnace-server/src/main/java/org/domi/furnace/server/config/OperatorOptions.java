@@ -16,14 +16,23 @@ import java.util.function.Consumer;
  *   잘못된 마크업은 경고 후 글자 그대로 보낸다.
  * gravityBlockPortalDupe: true(바닐라)면 엔드 포털로 넘어간 중력 블록(모래·자갈·모루 …)의 옛 엔티티가 그 틱에 마저 돌아 제자리에도 블록을 놓는다(복제).
  *   false 면 넘어간 뒤 옛 엔티티는 더 돌지 않아 복제되지 않는다. 기본 true.
+ * sendNamespacedCommands: true(기본, Paper 와 같다)면 바닐라 명령의 "minecraft:이름" 별칭을 접속자에게 보내 자동완성에 보인다.
+ *   false 면 클라이언트 명령 트리와 명령 이름 자동완성에서 빼지만(Paper spigot.yml commands.send-namespaced) 서버에서는 여전히 실행된다.
  * confirmInterrupt: true 면 콘솔 Ctrl+C(SIGINT) 를 한 번 누르면 안내만 하고, interruptConfirmSeconds 안에 한 번 더 눌러야 종료한다. 기본 false(바로 저장 후 종료).
  */
 public record OperatorOptions(boolean strictChatOrder, boolean unsignedChatAsSystem, String serverBrand,
                               boolean announceSleepStatus, boolean confirmInterrupt, int interruptConfirmSeconds,
-                              String motdFormat, boolean gravityBlockPortalDupe) {
+                              String motdFormat, boolean gravityBlockPortalDupe, boolean sendNamespacedCommands) {
+
+    /** sendNamespacedCommands 를 기본(true)으로 두는 짧은 생성자. */
+    public OperatorOptions(boolean strictChatOrder, boolean unsignedChatAsSystem, String serverBrand, boolean announceSleepStatus,
+                           boolean confirmInterrupt, int interruptConfirmSeconds, String motdFormat, boolean gravityBlockPortalDupe) {
+        this(strictChatOrder, unsignedChatAsSystem, serverBrand, announceSleepStatus, confirmInterrupt, interruptConfirmSeconds, motdFormat,
+                gravityBlockPortalDupe, true);
+    }
 
     public static final String DEFAULT_BRAND = "Furnace";
-    public static final OperatorOptions DEFAULT = new OperatorOptions(true, false, DEFAULT_BRAND, true, false, 5, "plain", true);
+    public static final OperatorOptions DEFAULT = new OperatorOptions(true, false, DEFAULT_BRAND, true, false, 5, "plain", true, true);
 
     private static volatile OperatorOptions current = DEFAULT;
 
@@ -65,8 +74,9 @@ public record OperatorOptions(boolean strictChatOrder, boolean unsignedChatAsSys
             throw new IllegalArgumentException("설정 'motd-format' 값 '" + motdFormat + "' 이(가) 잘못됐습니다: plain, legacy, markup 중 하나");
         }
         boolean gravityDupe = bool(props, "gravity-block-portal-dupe", DEFAULT.gravityBlockPortalDupe);
+        boolean sendNamespaced = bool(props, "commands.send-namespaced", DEFAULT.sendNamespacedCommands);
         if (asSystem) warn.accept("chat.unsigned-as-system=true: 채팅이 서명 없는 시스템 메시지로 나갑니다(채팅 신고 불가, 채팅 서명 검증 없음)");
-        return new OperatorOptions(strict, asSystem, brand, announce, confirm, seconds, motdFormat, gravityDupe);
+        return new OperatorOptions(strict, asSystem, brand, announce, confirm, seconds, motdFormat, gravityDupe, sendNamespaced);
     }
 
     private static boolean bool(Properties props, String key, boolean def) {

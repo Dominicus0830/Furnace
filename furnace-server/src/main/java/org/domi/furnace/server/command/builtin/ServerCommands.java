@@ -35,6 +35,8 @@ public final class ServerCommands {
         d.register(literal("help")
                 .executes(c -> {
                     Map<CommandNode<CommandSource>, String> map = d.getSmartUsage(d.getRoot(), c.getSource());
+                    // 바닐라 명령의 minecraft:이름 별칭은 목록에 따로 싣지 않는다(Paper 의 /help 도 이름당 한 줄)
+                    map.keySet().removeIf(n -> n.getName().startsWith(org.domi.furnace.server.command.Commands.VANILLA_NAMESPACE_PREFIX));
                     for (String s : map.values()) c.getSource().sendSuccess(() -> Text.text("/" + s), false);
                     return map.size();
                 })
