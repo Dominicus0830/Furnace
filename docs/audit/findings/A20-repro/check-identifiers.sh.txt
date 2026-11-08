@@ -1,0 +1,5 @@
+#!/bin/bash
+while read t; do
+  last=${t##*.}
+  if ! grep -rqw --include=*.java --include=*.kt --exclude-dir=LLM-Wiki --exclude-dir=graphify-out "$last" furnace-api/src furnace-server/src furnace-compat-paper/src furnace-test/src furnace-plugin-test/src worldgen-oracle/src 2>/dev/null; then echo "MISSING $t"; fi
+done < "$1"

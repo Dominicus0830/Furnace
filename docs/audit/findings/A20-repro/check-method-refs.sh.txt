@@ -1,0 +1,8 @@
+#!/bin/bash
+# 사용법: 저장소 루트에서 grep 으로 뽑은 목록을 넘긴다. 문서의 `이름(` 꼴 참조가 소스 어딘가에 있는지만 본다(이름 수준 확인).
+# 1) docs/api/*.md docs/policy/*.md README.md CLAUDE.md AGENTS.md 에서 백틱 안의 식별자 추출
+# 2) 마지막 이름 조각이 furnace-*/src 에 단어로 있는지 확인
+grep -ohE '`[a-zA-Z_][A-Za-z0-9_.]*\(' docs/api/*.md docs/policy/*.md README.md CLAUDE.md AGENTS.md | tr -d '`(' | sort -u | while read t; do
+  last=${t##*.}
+  grep -rqw --include=*.java --exclude-dir=LLM-Wiki --exclude-dir=graphify-out "$last" furnace-api/src furnace-server/src furnace-compat-paper/src furnace-test/src furnace-plugin-test/src || echo "MISSING $t"
+done

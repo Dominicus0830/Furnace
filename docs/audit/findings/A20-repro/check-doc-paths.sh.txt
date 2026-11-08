@@ -1,0 +1,5 @@
+#!/bin/bash
+# 문서 안 백틱 파일 경로가 git 에 있는지 확인(`.../` 생략 표기는 제외해 읽는다)
+grep -ohE '`[A-Za-z0-9_./-]+\.(md|java|kts|sh|py|txt|properties|yml|yaml|json|gradle|bat)`' docs/api/*.md docs/policy/*.md docs/user-todo/README.md docs/user-todo.md docs/handoff/2026-10-31-session-handoff.md README.md CLAUDE.md AGENTS.md docs/ci.md | tr -d '`' | sort -u | while read p; do
+  git ls-files | grep -qxF "$p" || git ls-files | grep -q "/$p$" || echo "NOFILE $p"
+done
