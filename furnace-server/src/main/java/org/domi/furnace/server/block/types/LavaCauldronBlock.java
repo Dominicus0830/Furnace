@@ -20,6 +20,11 @@ public class LavaCauldronBlock extends AbstractCauldronBlock {
         if (isEntityInsideContent(state, pos, entity)) entity.lavaHurt();
     }
 
+    /** entityInside 의 플레이어 쪽: 내용물에 든 플레이어는 용암에 닿는다. */
+    public void entityInsidePlayer(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Player p) {
+        if (isInsideContent(state, pos, p.y(), p.y() + p.bbHeight())) org.domi.furnace.server.entity.PlayerFire.lavaHurt(p, level instanceof org.domi.furnace.server.block.ChunkLevel cl ? cl : null);
+    }
+
     @Override
     public int getAnalogOutputSignal(int state, BlockLevel level, Pos pos) { return 3; }
 }

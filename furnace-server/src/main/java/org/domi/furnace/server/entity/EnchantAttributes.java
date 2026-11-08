@@ -51,4 +51,15 @@ final class EnchantAttributes {
         }
         return out;
     }
+
+    /** 그 칸의 그 아이템이 다는 인챈트 수정자 전부(속성별) — 몹 장비 교체 때 달고 떼는 데 쓴다. */
+    static void forEachModifier(ItemStack stack, EquipmentSlot slot, java.util.function.BiConsumer<Attribute, AttributeModifier> sink) {
+        for (Eff e : EFFECTS) {
+            if (e.slot != slot) continue;
+            int l = ItemTools.enchantmentLevel(stack, e.enchant);
+            if (l <= 0) continue;
+            String id = "minecraft:enchantment." + e.enchant.substring("minecraft:".length()) + "/" + slot.slotName();
+            sink.accept(e.attr, new AttributeModifier(id, e.amount.at(l), e.op));
+        }
+    }
 }

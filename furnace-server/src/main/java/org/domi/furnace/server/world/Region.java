@@ -2030,14 +2030,17 @@ public final class Region {
         for (int bx = x0; bx <= x1; bx++) for (int by = y0; by <= y1; by++) for (int bz = z0; bz <= z1; bz++) {
             int s = level.getBlockState(new org.domi.furnace.server.block.Pos(bx, by, bz));
             var beh = org.domi.furnace.server.block.B.behavior(s);
-            if (travelOnly) {   // 이동 패킷 없는 틱의 서버 쪽 move: 불 블록만 본다(모닥불·열매 덤불·흘림잎·진행 과제는 패킷 이동에서만 — 가정)
+            if (travelOnly) {   // 이동 패킷 없는 틱의 서버 쪽 move: 불 블록·가마솥·가루눈만 본다(모닥불·열매 덤불·흘림잎·진행 과제는 패킷 이동에서만 — 가정)
                 if (beh instanceof org.domi.furnace.server.block.types.BaseFireBlock fb) org.domi.furnace.server.entity.PlayerFire.fireInside(p, fb.fireDamage());
+                else insideCauldronOrSnow(p, beh, s, bx, by, bz);
                 continue;
             }
             if (beh instanceof org.domi.furnace.server.block.types.CampfireBlock cf) {
                 cf.entityInsidePlayer(s, p.vitals());
             } else if (beh instanceof org.domi.furnace.server.block.types.BaseFireBlock fb) {
                 org.domi.furnace.server.entity.PlayerFire.fireInside(p, fb.fireDamage());
+            } else if (insideCauldronOrSnow(p, beh, s, bx, by, bz)) {
+                // 용암·물·가루눈 가마솥, 가루눈
             } else if (beh instanceof org.domi.furnace.server.block.types.BigDripleafBlock bd) {
                 bd.entityInsideAt(s, level, new org.domi.furnace.server.block.Pos(bx, by, bz), p.onGround(), p.y());
             } else if (beh instanceof org.domi.furnace.server.block.types.SweetBerryBushBlock
@@ -2052,6 +2055,32 @@ public final class Region {
                 adv.trigger("minecraft:slide_down_block", org.domi.furnace.server.loot.LootBlockState.of(world.blockRegistry(), s));
             }
         }
+    }
+
+    /**
+     * 용암 가마솥(lavaHurt)·층 가마솥(불 끄기·한 단계 줄임)·가루눈(불붙은 플레이어가 녹임)의 entityInside 플레이어 쪽. 해당 블록이면 참.
+     * mayInteract 는 스폰 보호 밖 + 월드 보더 안(Level.mayInteract).
+     */
+    private boolean insideCauldronOrSnow(Player p, org.domi.furnace.server.block.BlockBehavior beh, int s, int bx, int by, int bz) {
+        var pos = new org.domi.furnace.server.block.Pos(bx, by, bz);
+        if (beh instanceof org.domi.furnace.server.block.types.LavaCauldronBlock lc) {
+            lc.entityInsidePlayer(s, level, pos, p);
+            return true;
+        }
+        if (beh instanceof org.domi.furnace.server.block.types.LayeredCauldronBlock lay) {
+            if (p.isOnFire()) lay.entityInsidePlayer(s, level, pos, p, playerMayInteract(p, bx, bz));
+            return true;
+        }
+        if (beh instanceof org.domi.furnace.server.block.types.PowderSnowBlock ps) {
+            if (p.isOnFire()) ps.entityInsidePlayer(level, pos, p, playerMayInteract(p, bx, bz));
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean playerMayInteract(Player p, int x, int z) {
+        var host = p.inventoryHost();
+        return host == null || host.mayInteract(x, z);
     }
 
     // ------------------------------------------------------------------ 포털·차원 이동(플레이어)

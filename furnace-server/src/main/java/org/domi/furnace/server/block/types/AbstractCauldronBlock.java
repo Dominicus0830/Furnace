@@ -25,7 +25,12 @@ public abstract class AbstractCauldronBlock extends BlockBehavior {
 
     /** isEntityInsideContent: 엔티티 발이 내용물 높이 아래이고 몸통 위가 바닥(0.25)보다 높은가. */
     protected boolean isEntityInsideContent(int state, Pos pos, org.domi.furnace.server.entity.Entity entity) {
-        return entity.y() < pos.y() + getContentHeight(state) && entity.boundingBox().maxY() > pos.y() + 0.25;
+        return isInsideContent(state, pos, entity.y(), entity.boundingBox().maxY());
+    }
+
+    /** isEntityInsideContent 의 좌표 꼴(플레이어는 Entity 가 아니라서). */
+    public boolean isInsideContent(int state, Pos pos, double feetY, double topY) {
+        return feetY < pos.y() + getContentHeight(state) && topY > pos.y() + 0.25;
     }
 
     @Override

@@ -17,6 +17,16 @@ class LandMobTest {
                 org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
     }
 
+    /** 확률 시험의 난수 시드(한 곳). 몹 난수는 서버에서는 시드 없이(nanoTime) 만들어지지만 시험에서는 고정해 흔들림을 없앤다. */
+    static long seedBase = 20261108L;
+
+    /** 레벨 난수와 각 몹의 난수를 seedBase 에서 파생한 값으로 고정한다(서버 동작은 그대로, 시험만 재현 가능). */
+    private static void seed(SkeletonCombatTest.ArenaLevel level, Entity... entities) {
+        ((org.domi.furnace.server.block.LegacyRandomSource) level.random()).setSeed(seedBase);
+        long s = seedBase;
+        for (Entity e : entities) ((org.domi.furnace.server.block.LegacyRandomSource) e.random()).setSeed(++s * 0x9E3779B97F4A7C15L);
+    }
+
     private static void tick(SkeletonCombatTest.ArenaLevel level, int n) {
         for (int t = 0; t < n; t++) {
             level.time++;
@@ -280,6 +290,7 @@ class LandMobTest {
         villager.moveTo(5.5, -60, 0.5, 0, 0);
         level.addFreshEntity(villager);
         shulker.setTarget(villager);
+        seed(level, shulker, villager);
         boolean bullet = false, levitating = false;
         for (int t = 0; t < 200; t++) {
             // 주민 브레인이 돌아다니면 탄이 빗나가고 목표를 잃어(약 1~2%) 제자리에 묶고 목표를 유지한다
@@ -361,6 +372,7 @@ class LandMobTest {
         slime.moveTo(4.5, -60, 0.5, 0, 0);
         slime.setNoAi(true);
         level.addFreshEntity(slime);
+        seed(level, frog, slime);
         for (int t = 0; t < 600; t++) {
             tick(level, 1);
         }
@@ -409,6 +421,7 @@ class LandMobTest {
         cow.moveTo(5.5, -60, 0.5, 0, 0);
         cow.setNoAi(true);
         level.addFreshEntity(cow);
+        seed(level, goat, cow);
         tick(level, 5);
         goat.goatBrain().eraseMemory(org.domi.furnace.server.entity.ai.brain.MemoryModuleType.RAM_COOLDOWN_TICKS);
         goat.goatBrain().setMemory(org.domi.furnace.server.entity.ai.brain.MemoryModuleType.RAM_TARGET, new double[] {5.5, -60, 0.5});

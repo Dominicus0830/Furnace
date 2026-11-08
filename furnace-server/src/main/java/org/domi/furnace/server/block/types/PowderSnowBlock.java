@@ -53,6 +53,14 @@ public class PowderSnowBlock extends BlockBehavior {
         entity.setSharedFlagOnFire(false);
     }
 
+    /**
+     * entityInside 의 플레이어 쪽: 불붙은 플레이어는 mobGriefing 이 꺼져 있어도 가루눈을 녹인다(`|| entity instanceof Player`), 만질 수 있을 때만.
+     * 끼임 속도(makeStuckInBlock)는 클라이언트가 계산한다.
+     */
+    public void entityInsidePlayer(BlockLevel level, Pos pos, org.domi.furnace.server.entity.Player p, boolean mayInteract) {
+        if (p.isOnFire() && mayInteract) level.destroyBlock(pos, false);
+    }
+
     /** getVisualShape: 빈 모양. */
     @Override
     public Shape getVisualShape(int state, BlockLevel level, Pos pos, BlockActor entity) { return Shape.EMPTY; }

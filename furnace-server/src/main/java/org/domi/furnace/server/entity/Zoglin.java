@@ -129,6 +129,8 @@ public class Zoglin extends Monster implements HoglinBase {
 
     @Override public boolean isBaby() { return (Boolean) entityData.get(DATA_BABY); }
 
+    @Override protected void setBabyForConversion(boolean baby) { setBaby(baby); }
+
     public void setBaby(boolean baby) {
         entityData.set(DATA_BABY, baby);
         if (baby) attributes().get(Attribute.ATTACK_DAMAGE).setBaseValue(0.5);

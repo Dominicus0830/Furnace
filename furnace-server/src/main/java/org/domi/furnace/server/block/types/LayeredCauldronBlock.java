@@ -38,6 +38,14 @@ public class LayeredCauldronBlock extends AbstractCauldronBlock {
         }
     }
 
+    /** entityInside 의 플레이어 쪽: 불붙은 플레이어가 내용물에 들어오면 불을 끄고, 만질 수 있으면(mayInteract) 한 단계 줄인다. */
+    public void entityInsidePlayer(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Player p, boolean mayInteract) {
+        if (p.isOnFire() && isInsideContent(state, pos, p.y(), p.y() + p.bbHeight())) {
+            p.clearFire();
+            if (mayInteract) handleEntityOnFireInside(state, level, pos);
+        }
+    }
+
     /** handleEntityOnFireInside: 가루눈 가마솥이면 같은 높이의 물 가마솥으로, 아니면 한 단계 줄인다. */
     protected void handleEntityOnFireInside(int state, BlockLevel level, Pos pos) {
         if (precipitation.equals("snow")) {
