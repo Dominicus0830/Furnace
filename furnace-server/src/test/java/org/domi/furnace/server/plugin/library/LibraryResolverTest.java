@@ -49,7 +49,7 @@ class LibraryResolverTest {
         return new LibraryResolver(s, cache, URI.create(REPO), (uri, max) -> {
             requests.add(uri.toString());
             byte[] b = remote.get(uri.toString());
-            if (b != null && b.length > max) throw new IOException("크기 상한");
+            if (b != null && b.length > max) throw new LibraryResolver.HttpStatusException("크기 상한");
             return b;
         }, LOG);
     }
@@ -537,5 +537,36 @@ class LibraryResolverTest {
                 "저장소에 없으면(404) 실패");
         assertEquals(URI.create(MOJANG_REPO + "org/test/none/1.0/none-1.0.jar"),
                 r.sourceOf(new ServerLibraries.Artifact("org.test:none:1.0", pin, ServerLibraries.Repo.MOJANG)));
+    }
+
+    @Test
+    void anUnreachableHostIsNotRetriedForTheRestOfTheStart() throws Exception {
+        byte[] good = jarBytes("good");
+        String pin = hex("SHA-256", good);
+        LibraryResolver r = new LibraryResolver(LibrarySettings.DEFAULT, cache, URI.create(REPO), URI.create(MOJANG_REPO), (uri, max) -> {
+            requests.add(uri.toString());
+            if (uri.toString().startsWith(MOJANG_REPO)) throw new java.net.ConnectException("연결 거부");
+            return good;
+        }, LOG);
+        LibraryException first = assertThrows(LibraryException.class,
+                () -> r.ensurePinned(new ServerLibraries.Artifact("com.mojang:a:1.0", pin, ServerLibraries.Repo.MOJANG)));
+        assertFalse(first instanceof LibraryResolver.Unreachable, "처음 실패는 진짜 이유를 보인다");
+        assertThrows(LibraryResolver.Unreachable.class,
+                () -> r.ensurePinned(new ServerLibraries.Artifact("com.mojang:b:1.0", pin, ServerLibraries.Repo.MOJANG)));
+        assertEquals(1, requests.stream().filter(u -> u.startsWith(MOJANG_REPO)).count(), "같은 호스트는 다시 묻지 않는다(제한 시간을 묶음마다 기다리지 않는다)");
+        assertNotNull(r.ensurePinned(new ServerLibraries.Artifact("org.test:c:1.0", pin, ServerLibraries.Repo.CENTRAL)), "다른 저장소는 그대로 받는다");
+    }
+
+    @Test
+    void anHttpErrorDoesNotMarkTheHostDown() throws Exception {
+        byte[] good = jarBytes("good");
+        String pin = hex("SHA-256", good);
+        LibraryResolver r = new LibraryResolver(LibrarySettings.DEFAULT, cache, URI.create(REPO), URI.create(MOJANG_REPO), (uri, max) -> {
+            requests.add(uri.toString());
+            if (uri.toString().contains("/big/")) throw new LibraryResolver.HttpStatusException("크기 상한");
+            return good;
+        }, LOG);
+        assertThrows(LibraryException.class, () -> r.ensurePinned(new ServerLibraries.Artifact("org.test:big:1.0", pin, ServerLibraries.Repo.CENTRAL)));
+        assertNotNull(r.ensurePinned(new ServerLibraries.Artifact("org.test:ok:1.0", pin, ServerLibraries.Repo.CENTRAL)));
     }
 }

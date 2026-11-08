@@ -71,7 +71,7 @@ Paper 는 Guava·Adventure·SnakeYAML·Brigadier 같은 라이브러리를 서�
 | guava | guava 32.1.2-jre, failureaccess 1.0.1 | Central | `com/google/common/`, `com/google/thirdparty/` |
 | adventure | adventure-api·key·text-minimessage·text-serializer-json/gson/legacy/plain/ansi·text-logger-slf4j 4.17.0, examination-api/string 1.3.0, option 1.0.0, ansi 1.0.3 | Central | `net/kyori/adventure/`, `net/kyori/examination/` |
 | snakeyaml | snakeyaml 2.2 | Central | `org/yaml/snakeyaml/` |
-| bungeecord-chat | bungeecord-chat 1.20-R0.2 | Central | `net/md_5/bungee/api/chat/`, `net/md_5/bungee/chat/` |
+| bungeecord-chat | bungeecord-chat 1.20-R0.2 (+ guava) | Central | `net/md_5/bungee/api/`(ChatColor 포함), `net/md_5/bungee/chat/` |
 | json-simple | json-simple 1.1.1 | Central | `org/json/simple/` |
 | joml | joml 1.10.5 | Central | `org/joml/` |
 | fastutil | fastutil 8.5.12 (23 MB) | Central | `it/unimi/dsi/fastutil/` |
@@ -95,7 +95,10 @@ Paper 는 Guava·Adventure·SnakeYAML·Brigadier 같은 라이브러리를 서�
 
 - 받지 못한 묶음(오프라인·캐시 없음·404·sha256 불일치·Mojang 금지)은 **경고 한 줄만 남기고 플러그인은 그대로 올린다.** 그 클래스를 쓰는 순간 `NoClassDefFoundError` 가 나고 서버는 평소처럼 그 플러그인의 오류를 남긴다(옆 플러그인은 영향 없음). 경고에는 받을 주소, 캐시 경로, sha256 이 들어 있다.
 - 인터넷이 없는 서버: 다른 곳에서 받은 jar 를 경고에 나온 경로(`plugins/.libraries/<그룹 경로>/<아티팩트>/<버전>/<아티팩트>-<버전>.jar`)에 두고 `plugins.libraries.offline=true` 로 켠다. 고정 sha256 과 같으면 그대로 쓴다. Mojang 라이브러리 셋은 바닐라 1.21.1 서버 jar 안 `META-INF/libraries/com/mojang/...` 에 있는 jar 와 바이트가 같다.
+- 응답 없는 네트워크: 한 저장소 호스트에 연결(전송)이 한 번 실패하면 그 시작 동안 같은 호스트의 남은 받기는 시도하지 않고 묶음 목록을 한 번에 경고한다(묶음마다 `timeout-seconds` 를 기다리지 않게). HTTP 오류·404·sha256 불일치는 호스트를 막지 않는다. Furnace 플러그인 `libraries` 받기도 같은 규칙이다.
 - `off` 면 시작할 때 한 번 경고한다.
+- 개발 모드 핫 리로드에서 새 묶음이 필요해지면 받는 동안 전역 스레드가 기다린다(개발 모드에서만).
+- 한계: log4j 묶음은 `log4j-api` 와 slf4j 다리만 준다. `org.apache.logging.log4j.core.*`(예: 콘솔 비밀번호 필터를 다는 플러그인)는 없어서 그 경로는 `NoClassDefFoundError` 다 — Furnace 로그는 logback 이라 core 를 넣어도 그런 필터는 동작하지 않는다.
 
 ### 시험 서버
 

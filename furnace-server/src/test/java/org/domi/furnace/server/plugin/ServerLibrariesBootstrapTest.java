@@ -234,6 +234,8 @@ class ServerLibrariesBootstrapTest {
         }
         assertEquals(List.of("guava", "commons-lang3", "commons-io", "authlib"),
                 d.closure(List.of("authlib")).stream().map(ServerLibraries.Group::id).toList());
+        // BungeeChat 의 ChatColor·ComponentBuilder 는 Guava Preconditions 를 쓴다(검토 지적)
+        assertEquals(List.of("guava", "bungeecord-chat"), d.closure(List.of("bungeecord-chat")).stream().map(ServerLibraries.Group::id).toList());
         assertEquals(List.of("brigadier", "authlib", "datafixerupper"),
                 d.groups().stream().filter(ServerLibraries.Group::mojang).map(ServerLibraries.Group::id).toList());
         assertEquals(URI.create("https://libraries.minecraft.net/"), ServerLibraries.MOJANG);
@@ -246,5 +248,14 @@ class ServerLibrariesBootstrapTest {
         }
         Map<String, Boolean> onServer = Map.of("com.google.gson.Gson", true, "org.slf4j.Logger", true);
         onServer.forEach((cls, v) -> assertDoesNotThrow(() -> Class.forName(cls, false, PluginHost.class.getClassLoader())));
+    }
+
+    @Test
+    void bungeeChatColorAloneNeedsBungeeChatAndGuava() throws Exception {
+        Path jar = tmp.resolve("color.jar");
+        pluginJar(jar, "fake.cfg", ALPHA, "net/md_5/bungee/api/ChatColor");
+        java.util.Set<String> found = ServerLibraries.DEFAULT.scan(jar, java.util.Set.of());
+        assertEquals(java.util.Set.of("bungeecord-chat"), found, "헥스 색(ChatColor)만 써도 BungeeChat 이 필요하다");
+        assertEquals(List.of("guava", "bungeecord-chat"), ServerLibraries.DEFAULT.closure(found).stream().map(ServerLibraries.Group::id).toList());
     }
 }

@@ -34,6 +34,12 @@ H4 측정에서 실제 Paper 플러그인이 Adventure 80개·Guava 67개·Briga
 
 `org.bukkit.*`·Paper API 클래스는 Furnace 가 H1~H7 에서 새로 쓴 호환 계층(`furnace-compat-paper`)이 구현한다 — 진짜 paper-api jar 는 인터페이스 묶음이라 CraftBukkit 구현 없이는 돌지 않고, 우리 클래스와 이름이 겹쳐 함께 둘 수 없다(그리고 `repo.papermc.io` 는 이 컨테이너에서 막혀 있다). 그래서 "받는" 대상이 아니라 우리 jar 의 일부다. 크기는 호환 jar 0.39 MB + ASM 약 0.2 MB 로 서버 fat jar(21.7 MB)의 3% 정도라, 따로 떼어 받게 하는 이득이 작다. 사용자 확인 항목으로 남겼다.
 
+## 독립 검토 반영 (furnace/reviews/h4b-pr145-review.md)
+
+- BungeeChat 표지를 `net/md_5/bungee/api/` 로 넓혔다(`ChatColor` 만 쓰는 헥스 색 플러그인), Guava 를 요구 묶음으로(ChatColor·ComponentBuilder 가 `Preconditions` 를 씀).
+- 응답 없는 네트워크: 연결이 한 번 실패한 저장소 호스트는 그 시작 동안 다시 시도하지 않는다(전에는 all 모드에서 13번 × 30초). HTTP 오류는 호스트를 막지 않는다.
+- 설명서에 log4j-core 없음·개발 모드 핫 리로드가 받는 동안 전역 스레드를 기다리게 함을 적었다. `closeSharedLibraries` 가 시도 기록도 비운다.
+
 ## 한계
 
 - 표지 훑기는 jar-in-jar(플러그인 jar 안의 jar 를 스스로 여는 경우)를 못 본다 → `all` 로.

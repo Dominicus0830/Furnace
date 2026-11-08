@@ -87,7 +87,8 @@ public final class ServerLibraries {
                     List.of("org/yaml/snakeyaml/"), List.of()),
             new Group("bungeecord-chat", "BungeeCord Chat(Spigot 채팅 컴포넌트)", List.of(
                     new Artifact("net.md-5:bungeecord-chat:1.20-R0.2", "5ea54c6a429331cc535f0bf912ce2aa1853b2f35e68e35d1ff3ef5e226e90596", C)),
-                    List.of("net/md_5/bungee/api/chat/", "net/md_5/bungee/chat/"), List.of()),
+                    // net.md_5.bungee.api.ChatColor(헥스 색) 만 쓰는 플러그인도 많다 — api/ 전체를 표지로. ChatColor·ComponentBuilder 등이 Guava Preconditions 를 쓴다
+                    List.of("net/md_5/bungee/api/", "net/md_5/bungee/chat/"), List.of("guava")),
             new Group("json-simple", "json-simple", List.of(
                     new Artifact("com.googlecode.json-simple:json-simple:1.1.1", "4e69696892b88b41c55d49ab2fdcc21eead92bf54acc588c0050596c3b75199c", C)),
                     List.of("org/json/simple/"), List.of()),
@@ -149,7 +150,7 @@ public final class ServerLibraries {
 
     /**
      * 플러그인 jar 의 클래스 파일에 표지가 보이는 묶음 이름(목록 순서). 상수 풀의 클래스 이름(슬래시)과 리플렉션 문자열(점) 모두 센다.
-     * 이미 서버에 있는 것으로 아는 묶음(skip)은 보지 않는다. 다른 플러그인 jar 안에 jar 가 든 경우(jar-in-jar)는 못 본다 — 그때는 all 모드를 쓴다.
+     * skip 에 든 묶음(부트스트래퍼가 이미 준비를 시도한 것)은 다시 보지 않는다. 다른 플러그인 jar 안에 jar 가 든 경우(jar-in-jar)는 못 본다 — 그때는 all 모드를 쓴다.
      */
     public Set<String> scan(Path jar, Set<String> skip) throws IOException {
         List<Group> todo = new ArrayList<>();

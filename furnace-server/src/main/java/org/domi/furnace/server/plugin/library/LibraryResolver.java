@@ -60,6 +60,19 @@ public final class LibraryResolver {
         NotFound(String message) { super(message); }
     }
 
+    /** 이번 시작에서 이미 연결이 안 된 저장소라 다시 시도하지 않았다(응답 없는 네트워크에서 묶음마다 제한 시간을 기다리지 않게). */
+    public static final class Unreachable extends LibraryException {
+        Unreachable(String message) { super(message); }
+    }
+
+    /** HTTP 응답은 왔지만 쓸 수 없다(상태 코드·크기 상한) — 저장소에 닿기는 했다. */
+    static final class HttpStatusException extends IOException {
+        HttpStatusException(String message) { super(message); }
+    }
+
+    /** 이번 시작에서 연결(전송)에 실패한 저장소 호스트 → 그 이유. 같은 호스트는 다시 시도하지 않는다. */
+    private final Map<String, String> unreachable = new java.util.concurrent.ConcurrentHashMap<>();
+
     private final LibrarySettings settings;
     private final Path cache;
     private final URI repo;
@@ -165,6 +178,9 @@ public final class LibraryResolver {
     /** 서버 제공 라이브러리 jar 가 놓일 캐시 경로(오프라인 서버에 손으로 둘 자리 안내용). */
     public Path cachedPath(ServerLibraries.Artifact a) { return fileOf(a.library(), "jar"); }
 
+    /** 캐시 폴더(Maven 저장소 모양). */
+    public Path cacheRoot() { return cache; }
+
     /** 그 jar 를 받는 주소(안내용). */
     public URI sourceOf(ServerLibraries.Artifact a) {
         return (a.repo() == ServerLibraries.Repo.MOJANG ? mojangRepo : repo).resolve(relative(a.library(), "jar"));
@@ -235,10 +251,17 @@ public final class LibraryResolver {
     }
 
     private byte[] fetch(URI uri, long max, String what) throws LibraryException {
+        String host = String.valueOf(uri.getHost());
+        String down = unreachable.get(host);
+        if (down != null) throw new Unreachable(host + " 에 이번 시작에서 이미 닿지 못해(" + down + ") 건너뛴다");
         try {
             return fetcher.get(uri, max);
-        } catch (IOException e) {
+        } catch (HttpStatusException e) {
             throw new LibraryException(what + " 를 받지 못했다: " + e.getMessage(), e);
+        } catch (IOException e) {
+            // 연결·제한 시간·이름 풀이 실패 — 같은 호스트의 남은 받기는 이번 시작에서 건너뛴다
+            unreachable.putIfAbsent(host, String.valueOf(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
+            throw new LibraryException(what + " 를 받지 못했다: " + e, e);
         }
     }
 
@@ -545,14 +568,14 @@ public final class LibraryResolver {
                         int code = r.statusCode();
                         if (code == 404) return null;
                         if (code == 429 || code >= 500) {
-                            last = new IOException("HTTP " + code + " (" + uri + ")");
+                            last = new HttpStatusException("HTTP " + code + " (" + uri + ")");
                             continue;
                         }
-                        if (code != 200) throw new IOException("HTTP " + code + " (" + uri + ")");
+                        if (code != 200) throw new HttpStatusException("HTTP " + code + " (" + uri + ")");
                         long len = r.headers().firstValueAsLong("Content-Length").orElse(-1);
-                        if (len > maxBytes) throw new IOException("크기 상한(" + maxBytes + "바이트)을 넘는다: " + uri);
+                        if (len > maxBytes) throw new HttpStatusException("크기 상한(" + maxBytes + "바이트)을 넘는다: " + uri);
                         byte[] data = in.readNBytes((int) Math.min(maxBytes + 1, Integer.MAX_VALUE - 8));
-                        if (data.length > maxBytes) throw new IOException("크기 상한(" + maxBytes + "바이트)을 넘는다: " + uri);
+                        if (data.length > maxBytes) throw new HttpStatusException("크기 상한(" + maxBytes + "바이트)을 넘는다: " + uri);
                         return data;
                     }
                 } catch (InterruptedException e) {

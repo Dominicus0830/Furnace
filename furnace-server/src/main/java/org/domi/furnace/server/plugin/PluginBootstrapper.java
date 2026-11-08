@@ -519,6 +519,7 @@ public final class PluginBootstrapper {
         if (todo.isEmpty()) return sharedLoader;
         log.info("Paper/Bukkit 플러그인을 위해 서버 제공 라이브러리 {} 을(를) 준비한다(처음 {} 이 요구, plugins.compat.libraries={})",
                 todo.stream().map(ServerLibraries.Group::id).toList(), c.description().fullName(), ls.compat().name().toLowerCase(Locale.ROOT));
+        List<String> unreachable = new ArrayList<>();
         for (ServerLibraries.Group g : todo) {
             sharedTried.add(g.id());
             if (g.mojang() && !ls.compatMojang()) {
@@ -529,14 +530,22 @@ public final class PluginBootstrapper {
             List<Path> jars = new ArrayList<>();
             ServerLibraries.Artifact failed = null;
             String reason = null;
+            boolean skipped = false;
             for (ServerLibraries.Artifact a : g.artifacts()) {
                 try {
                     jars.add(resolver().ensurePinned(a));
+                } catch (LibraryResolver.Unreachable e) {
+                    skipped = true;
+                    break;
                 } catch (LibraryResolver.LibraryException e) {
                     failed = a;
                     reason = e.getMessage();
                     break;
                 }
+            }
+            if (skipped) {
+                unreachable.add(g.id());
+                continue;
             }
             if (failed != null) {
                 LibraryResolver r = resolver();
@@ -547,6 +556,10 @@ public final class PluginBootstrapper {
             }
             for (Path j : jars) sharedLoader.add(j);
             sharedReady.add(g.id());
+        }
+        if (!unreachable.isEmpty()) {
+            log.warn("저장소에 이번 시작에서 이미 닿지 못해 서버 제공 라이브러리 {} 도 받지 않았다(묶음마다 제한 시간을 기다리지 않는다) — "
+                    + "인터넷이 없는 서버라면 jar 를 {} 아래에 두고 plugins.libraries.offline=true 로 켜라", unreachable, resolver().cacheRoot());
         }
         return sharedLoader;
     }
@@ -560,6 +573,8 @@ public final class PluginBootstrapper {
             log.debug("서버 제공 라이브러리 로더를 닫지 못했다", e);
         }
         sharedLoader = null;
+        sharedTried.clear();   // 같은 부트스트래퍼를 다시 쓰면 새 로더에 다시 붙인다
+        sharedReady.clear();
     }
 
     /**
