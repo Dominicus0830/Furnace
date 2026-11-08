@@ -45,7 +45,7 @@
 - 차원 잠금을 쥔 채로는 빌리지 않는다(틱을 마치는 워커가 그 잠금을 잡아야 한다).
 - 빌리려고 기다리는 동안 워커는 그 region 의 새 틱을 꺼내지 않는다(`borrowWanted`) — 늦은 region 이 마치자마자 다음 틱을 잡아 빌리는 쪽이 굶는 일을 막는다.
 - 안전판:
-  - 한 구간의 기다림은 모두 합쳐 **1초**(`-Dfurnace.regionBorrowWaitMillis`)를 넘지 않는다. 넘으면 빌리지 않고 예전처럼 `ThreadOwnershipException` 과 경고 한 줄(기다린 region 스레드가 서 있는 첫 프레임 포함). 한도를 다 쓴 뒤에도 쉬는 region 은 곧바로 쥔다.
+  - 한 구간의 기다림은 모두 합쳐 **1초**(`-Dfurnace.regionBorrowWaitMillis`)를 넘지 않는다. 넘으면 빌리지 않고 예전처럼 `ThreadOwnershipException` 과 경고 한 줄(기다린 region 스레드가 서 있는 첫 프레임 포함). 한도를 다 쓴 뒤에도 쉬는 region 은 곧바로 쥔다. 같은 원인 경고는 5초에 한 번만 찍고 생략한 수를 다음 경고에 붙인다(한도를 다 쓴 구간이 박동마다 경고를 쏟지 않게).
   - 한 구간에서 못 빌린 region 은 **다시 기다리지 않는다**(멈춘 region 의 칸 100개를 읽어도 한 번만 기다린다).
   - 닫지 않은 구간(`openRegionAccess()` 를 try 밖에서 열거나 다른 스레드에서 닫음)은 그 **전역 작업이 끝날 때** 서버가 경고와 함께 닫고 빌린 region 을 돌려준다(`GlobalThread.afterExecute`). 그래서 region 이 영영 멈추거나 뒤의 무관한 전역 작업이 빌리는 일이 없다. 호환 `PrimaryThread` 도 다음 표시 때 그 상태를 버리고 새로 시작한다.
 

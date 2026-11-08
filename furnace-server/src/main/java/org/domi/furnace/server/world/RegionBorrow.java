@@ -107,6 +107,31 @@ public final class RegionBorrow {
     /** 관측: (빌린 횟수, 기다린 시간 합 ns, 못 빌린 횟수 — 한도 초과·서로 기다림). */
     public static long[] stats() { return new long[] {BORROWS.get(), WAIT_SUM.get(), TIMEOUTS.get()}; }
 
+    /** 같은 원인 경고는 WARN_EVERY 에 한 번만 — 한도를 다 쓴 구간이 박동마다 region 마다 경고를 쏟지 않게. 건너뛴 수는 다음 경고에 붙인다. */
+    static final long WARN_EVERY_NANOS = 5_000_000_000L;
+    private static final java.util.concurrent.ConcurrentHashMap<String, long[]> LAST_WARN = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static void warnThrottled(Region r, String why) {
+        // 원인 문구에서 바뀌는 숫자(region 번호·시간)는 빼고 묶는다
+        String key = why.replaceAll("[0-9]+", "#");
+        long now = System.nanoTime();
+        long[] st = LAST_WARN.computeIfAbsent(key, k -> new long[] {now - WARN_EVERY_NANOS, 0});
+        long skipped;
+        synchronized (st) {
+            if (now - st[0] < WARN_EVERY_NANOS) {
+                st[1]++;
+                return;
+            }
+            st[0] = now;
+            skipped = st[1];
+            st[1] = 0;
+        }
+        if (LAST_WARN.size() > 64) LAST_WARN.clear();   // 원인 문구가 끝없이 늘지 않게(스택 맨 위 프레임 등)
+        var log = org.slf4j.LoggerFactory.getLogger(RegionBorrow.class);
+        if (skipped == 0) log.warn("[BORROW] region #{} 을 빌리지 못했다 — {}", r.id(), why);
+        else log.warn("[BORROW] region #{} 을 빌리지 못했다 — {} (같은 원인 {}건 생략)", r.id(), why, skipped);
+    }
+
     private static Scope scope() {
         if (OPEN.get() == 0) return null;
         return CURRENT.get();
@@ -139,7 +164,7 @@ public final class RegionBorrow {
                 if (budget == 0 && why[0] != null) why[0] = "이번 구간의 기다림 한도(" + WAIT_NANOS / 1_000_000L + "ms)를 이미 다 썼다";
                 if (why[0] != null) {
                     TIMEOUTS.incrementAndGet();
-                    org.slf4j.LoggerFactory.getLogger(RegionBorrow.class).warn("[BORROW] region #{} 을 빌리지 못했다 — {}", r.id(), why[0]);
+                    warnThrottled(r, why[0]);
                 }
                 return null;
             }
