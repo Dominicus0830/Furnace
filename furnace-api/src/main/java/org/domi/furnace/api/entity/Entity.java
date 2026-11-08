@@ -65,8 +65,18 @@ public interface Entity {
     /** 소유 region 에서 최신 상태를 읽은 새 핸들. 엔티티가 그 region 을 떠났거나 사라졌으면 null 로 완료된다. */
     CompletableFuture<? extends Entity> refresh();
 
-    /** 같은 차원 안에서만 옮긴다(소유 region 에서 실행). 옮겼으면 true, 사라졌거나 다른 차원이면 false. */
+    /**
+     * 같은 차원 안에서만 옮긴다(소유 region 에서 실행). 옮겼으면 true. 사라졌거나, 승객이 타고 있거나, 다른 차원·다른 region 으로의
+     * 이동이거나, 플레이어의 PlayerTeleportEvent 가 취소됐으면 false. 탈것을 타고 있으면 먼저 내린다(Paper 의 Entity#teleport 와 같다).
+     */
     CompletableFuture<Boolean> teleport(Location to);
+
+    /**
+     * {@link #teleport} 의 동기판 — 엔티티를 가진 region 스레드에서 곧바로 옮기고 진짜 결과를 돌려준다(Bukkit/Paper 의 Entity#teleport 가
+     * 주 스레드에서 즉시 결과를 주는 것과 같다). 소유 스레드가 아니면 ThreadOwnershipException. 플레이어는 연결이 보정 텔레포트를 보내는
+     * 스레드 안전 경로라 어느 스레드에서나 부를 수 있고, 탈것에서 내리는 일만 소유 스레드로 넘어간다.
+     */
+    default boolean teleportNow(Location to) { throw new UnsupportedOperationException("teleportNow"); }
 
     /** 엔티티를 지운다(플레이어는 UnsupportedOperationException 으로 완료). 이미 없으면 false. */
     CompletableFuture<Boolean> remove();

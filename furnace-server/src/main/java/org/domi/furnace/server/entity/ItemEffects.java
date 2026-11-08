@@ -146,4 +146,46 @@ public final class ItemEffects {
         target.level().gameEvent(GameEvent.ENTITY_INTERACT, new Vec3(target.x(), target.y(), target.z()), GameEventContext.of(p));
         return true;
     }
+
+    /**
+     * Mob.checkAndHandleImportantInteractions 의 스폰 알(SpawnEggItem.spawnOffspringFromSpawnEgg): 든 알의 종류(entity_data 의 id, 없으면 알의 기본 종류)가
+     * 이 몹과 같으면 같은 종류의 새끼를 이 몹 자리에 낳는다. AgeableMob 은 getBreedOffspring, 그 밖은 같은 종류를 새로 만들어 아기로 바꾼다
+     * (아기가 될 수 없는 종류면 아무것도 안 한다). 알의 이름(custom_name)이 새끼 이름이 되고 알이 하나 줄어든다(크리에이티브 제외).
+     * 알이 아니거나 종류가 다르거나 새끼가 안 만들어지면 넘긴다(false). 알 종류 판정과 달리 Fox 는 새끼가 주인을 믿는다.
+     */
+    public static boolean spawnEggOffspring(Player p, int hand, ItemStack held, Mob target) {
+        if (held.isEmpty() || !target.isAlive()) return false;
+        String name = ItemTools.itemName(held);
+        if (!name.endsWith("_spawn_egg")) return false;
+        String eggType = EntityStackConfig.eggType(held, "minecraft:" + name.substring("minecraft:".length(), name.length() - "_spawn_egg".length()));
+        if (!eggType.equals(target.typeName())) return false;
+        ChunkLevel level = target.level();
+        Mob baby;
+        if (target instanceof AgeableMob am) {
+            AgeableMob child = am.getBreedOffspring(level, am);
+            if (child != null) child.setBaby(true);
+            baby = child;
+        } else {
+            Entity created = Entities.create(level, eggType);
+            baby = created instanceof Mob m ? m : null;
+            if (baby != null) baby.setBabyForConversion(true);
+        }
+        if (baby == null || !baby.isBaby()) return false;
+        baby.moveTo(target.x(), target.y(), target.z(), 0.0F, 0.0F);
+        level.addFreshEntityWithPassengers(baby.spawnReason("SPAWNER_EGG"));
+        if (ItemTools.component(held, "minecraft:custom_name") instanceof String json) {
+            try {
+                baby.setCustomName(org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize(json));
+            } catch (RuntimeException ignored) {
+                // 읽을 수 없는 이름은 컴포넌트 자체가 만들어질 수 없다
+            }
+        }
+        if (!p.vitals().isCreative()) {
+            var inv = p.inventory();
+            inv.set(hand == 0 ? inv.heldWindowSlot() : 45, held.withCount(held.count() - 1));
+        }
+        if (target instanceof Fox && baby instanceof Fox bf) bf.addTrustedUuid(p.uuid());   // Fox.onOffspringSpawnedFromEgg: 새끼가 주인을 믿는다
+        target.level().gameEvent(GameEvent.ENTITY_INTERACT, new Vec3(target.x(), target.y(), target.z()), GameEventContext.of(p));   // Mob.interact: 소비한 상호작용
+        return true;
+    }
 }

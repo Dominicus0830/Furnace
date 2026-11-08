@@ -43,9 +43,16 @@ public interface PluginFormat {
      * {@link #transformer(PluginDescription, java.nio.file.Path)} 에 서버 설정을 더한 것. 서버는 이것을 부른다(기본은 설정 없이 위 메서드).
      * 이 메서드가 던지는 {@link RuntimeException} 은 그 플러그인을 불러오지 못한 것으로 친다(예: 엄격 모드에서 지원하지 않는 호출이 있다).
      *
-     * @param settings 서버 설정 {@code furnace.properties} 중 {@code plugins.compat.} 로 시작하는 키와 값(접두어 포함, 바꿀 수 없는 보기)
+     * @param settings 서버가 검사한 {@code plugins.compat.*} 설정(접두어 포함 키, 기본값과 같은 키는 빠진다, 바꿀 수 없는 보기)
      */
     default ClassTransformer transformer(PluginDescription description, java.nio.file.Path jar, java.util.Map<String, String> settings) {
         return transformer(description, jar);
     }
+
+    /**
+     * 서버 종료 중 모든 플러그인의 onDisable 이 끝난 직후에 한 번 불린다(리로드·플러그인 하나 끄기에서는 안 불린다). 어댑터가 자기 형식의
+     * 플러그인이 남긴 일(예: Bukkit 비동기 작업)을 마무리할 시간을 주는 자리 — 오래 붙잡지 말 것(종료가 그만큼 늦어진다).
+     * 어댑터를 아직 만들지 않았으면(그 형식의 플러그인이 없었으면) 불리지 않는다.
+     */
+    default void afterPluginsDisabled(org.domi.furnace.api.Furnace server) {}
 }

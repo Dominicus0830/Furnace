@@ -1200,9 +1200,8 @@ public final class ServerCore {
         public boolean pvp() { return settings.get().pvp; }
         public org.domi.furnace.server.scores.Scoreboard scoreboard() { return scoreboard; }
         public boolean worldAdventure() { return levelData.gameType == org.domi.furnace.server.world.GameMode.ADVENTURE; }
-        public void runSignCommand(Player player, int x, int y, int z, String command) {
-            scheduler().global().execute(() -> commands().performPrefixedCommand(
-                    org.domi.furnace.server.command.CommandSource.sign(ServerCore.this, player, x, y, z), command));
+        public boolean runSignCommand(Player player, int x, int y, int z, boolean front, String command) {
+            return signCommand(world, player, x, y, z, front, command);
         }
         public boolean commandBlockEnabled() { return ServerCore.this.commandBlockEnabled(); }
         public void resolveSignLines(org.domi.furnace.server.block.BlockLevel level, int x, int y, int z, java.util.List<org.domi.furnace.api.text.Text> lines,
@@ -1393,6 +1392,9 @@ public final class ServerCore {
         private boolean sky() { return w.dimensionType().hasSkyLight(); }
 
         @Override public String dimension() { return w.dimension(); }
+        @Override public boolean runSignCommand(Player player, int x, int y, int z, boolean front, String command) {
+            return signCommand(w, player, x, y, z, front, command);
+        }
         @Override public void resolveSignLines(org.domi.furnace.server.block.BlockLevel level, int x, int y, int z, java.util.List<org.domi.furnace.api.text.Text> lines,
                                                java.util.function.BiConsumer<org.domi.furnace.server.block.BlockLevel, java.util.List<org.domi.furnace.api.text.Text>> apply) {
             ServerCore.this.resolveSignLines(w, level, x, y, z, lines, apply);
@@ -1440,6 +1442,29 @@ public final class ServerCore {
         @Override public java.util.List<ItemStack> chestLoot(String lootTable, long seed, double x, double y, double z, Object player, float luck) {
             return ServerCore.this.chestLoot(lw, lootTable, seed, x, y, z, player, luck);
         }
+    }
+
+    /**
+     * 표지판 run_command 클릭(SignBlockEntity.executeClickCommandsIfPresent) — Paper 1.21.1 처럼 앞에 '/' 를 붙여 콘솔에 "issued server command" 를 남기고
+     * PlayerSignCommandPreprocessEvent(PlayerCommandPreprocessEvent 하위)를 부른다. 취소되면 돌리지 않고 false, 아니면 (바뀐) 명령을 표지판 소스(권한 2)로
+     * 전역 스레드에서 돌린다 — 실행 권한은 바닐라 그대로다. 표지판의 region 스레드에서 불린다.
+     */
+    boolean signCommand(World w, Player player, int x, int y, int z, boolean front, String command) {
+        String message = command.startsWith("/") ? command : "/" + command;
+        if (player != null) {
+            log.info("{} issued server command: {}", player.name(), message);
+            var events = pluginHost == null ? null : events();
+            if (events != null && events.hasSubscribers(org.domi.furnace.api.event.player.PlayerSignCommandPreprocessEvent.class)) {
+                var ev = events.call(new org.domi.furnace.api.event.player.PlayerSignCommandPreprocessEvent(pluginHost.player(player), message,
+                        w.dimension(), new org.domi.furnace.api.world.BlockPos(x, y, z), front));
+                if (ev.isCancelled()) return false;
+                message = ev.message();
+            }
+        }
+        String run = message;
+        scheduler().global().execute(() -> commands().performPrefixedCommand(
+                org.domi.furnace.server.command.CommandSource.sign(ServerCore.this, player, x, y, z), run));
+        return true;
     }
 
     /**

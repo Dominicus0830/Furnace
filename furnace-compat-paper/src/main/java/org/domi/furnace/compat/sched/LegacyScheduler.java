@@ -7,7 +7,13 @@
 //    그래서 모든 옛 작업이 한 박자를 공유하고, 같은 틱 안의 순서가 Bukkit 과 같으며(반복 작업은 처음 만든 순서를 지킨다),
 //    작업 안에서 runTask 를 하면 같은 틱에 이어서 돈다. 반복 작업의 다음 회차는 이번 비움이 끝난 뒤 들어간다.
 //    운영 서버에서 박동의 간격은 서버의 전역 지연(벽시계 50ms, 느리면 밀림)을 따르고, 시험 서버에서는 tick() 한 번이 한 박동이다.
-//  - 비동기 작업은 박동에서 "도착"한 뒤 asyncExecutor(가상 스레드)로 넘어간다(Bukkit 도 틱 대기열이 먼저 돌고 풀로 넘긴다).
+//  - 비동기 작업은 박동에서 "도착"한 뒤 비동기 풀로 넘어간다(Bukkit 도 틱 대기열이 먼저 돌고 풀로 넘긴다).
+//    풀은 Paper 1.21.1 CraftAsyncScheduler 와 같은 모양이다: 코어 4·최대 무제한·30초 놀면 정리·대기열 없음(SynchronousQueue), 스레드 이름
+//    "Craft Scheduler Thread - N", 작업이 도는 동안은 "… - 플러그인이름"(Name-craft-scheduler-threads-according-to-the-plugin).
+//    JDK 21 의 가상 스레드는 synchronized 안에서 소켓·파일을 기다리면 운반 스레드를 붙잡으므로(옛 JDBC·풀 라이브러리가 그렇다)
+//    기본은 플랫폼 스레드 풀이고, 서버 옵션 plugins.compat.scheduler.async-threads=virtual 이면 서버의 가상 스레드 실행기를 쓴다.
+//  - 취소된 비동기 작업도 몸통이 끝나기 전까지는 "일하는 중"이다(CraftAsyncTask.cancel0 는 일꾼이 있으면 runners 에서 안 뺀다) —
+//    getActiveWorkers·isCurrentlyRunning 이 그렇게 보고, 종료 때 {@link #awaitAsyncWorkers} 가 이것을 기다린다.
 //  - 인자 규칙은 CraftScheduler 와 같다: 지연 < 0 은 0, 주기 0 은 1, 주기 < -1 은 -1(반복 없음). 지연 0 과 1 은 둘 다 다음 틱.
 //  - 작업이 예외를 던져도 반복은 이어지고(로그 한 줄), 플러그인이 꺼지면 그 플러그인의 작업은 모두 취소된다.
 package org.domi.furnace.compat.sched;
@@ -22,8 +28,12 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
@@ -39,9 +49,24 @@ public final class LegacyScheduler {
     /** CraftTask.NO_REPEATING. */
     private static final long NO_REPEATING = -1L;
 
+    /** 서버 옵션 키: platform(기본) | virtual. */
+    public static final String ASYNC_THREADS_OPTION = "plugins.compat.scheduler.async-threads";
+    /** Paper 의 CraftAsyncScheduler 풀 크기(코어 스레드 수). */
+    static final int POOL_CORE_THREADS = 4;
+    static final long POOL_KEEP_ALIVE_SECONDS = 30;
+
+    /** 서버 로그(플러그인 접두 없음). */
+    private static final org.slf4j.Logger SERVER_LOG = org.slf4j.LoggerFactory.getLogger("Furnace");
+
     private final Furnace server;
+    /** 비동기 작업을 돌릴 곳. */
+    private final Executor asyncPool;
+    /** 우리가 만든 플랫폼 풀(virtual 이면 null — 서버 실행기는 서버가 닫는다). */
+    private final ThreadPoolExecutor ownedPool;
     private final AtomicInteger ids = new AtomicInteger();
     private final Map<Integer, Task> tasks = new ConcurrentHashMap<>();
+    /** 몸통이 도는 중인 비동기 작업(취소됐어도 끝나기 전까지 남는다). */
+    private final Map<Integer, Task> asyncRunning = new ConcurrentHashMap<>();
     private final PluginTaskBook<Task> book = new PluginTaskBook<>(Task::cancel);
     /** 대기열: (다음 실행 틱, 번호) 순. queue 의 모니터로 보호한다. */
     private final PriorityQueue<Task> queue = new PriorityQueue<>(
@@ -52,12 +77,40 @@ public final class LegacyScheduler {
 
     public LegacyScheduler(Furnace server) {
         this.server = server;
+        if ("virtual".equalsIgnoreCase(server.compatOption(ASYNC_THREADS_OPTION))) {
+            this.ownedPool = null;
+            this.asyncPool = server.asyncExecutor();
+        } else {
+            this.ownedPool = newPlatformPool();
+            this.asyncPool = ownedPool;
+        }
         this.heartbeat = server.scheduler().global().runAtFixedRate(this::heartbeat, 1, 1);
     }
 
-    /** 박동을 멈추고 남은 작업을 모두 취소한다(서버 쪽 소유자가 닫을 때). */
+    /**
+     * Paper 의 CraftAsyncScheduler 풀: 코어 4(놀면 정리), 최대 무제한, 대기열 없음 — 일이 들어올 때 놀고 있는 스레드가 없으면 새 스레드를 연다.
+     * 스레드는 데몬이다(Paper 는 아니지만 Furnace 는 멈춘 작업이 JVM 종료를 붙잡지 않게 한다 — 종료 때는 5초만 기다리고 닉 로그를 남긴다).
+     */
+    private static ThreadPoolExecutor newPlatformPool() {
+        AtomicInteger n = new AtomicInteger();
+        ThreadPoolExecutor ex = new ThreadPoolExecutor(POOL_CORE_THREADS, Integer.MAX_VALUE, POOL_KEEP_ALIVE_SECONDS, TimeUnit.SECONDS,
+                new SynchronousQueue<>(), r -> {
+                    Thread t = new Thread(r, "Craft Scheduler Thread - " + n.getAndIncrement());   // Guava %d 처럼 0부터
+                    t.setDaemon(true);
+                    return t;
+                });
+        ex.allowCoreThreadTimeOut(true);
+        ex.prestartAllCoreThreads();
+        return ex;
+    }
+
+    /** 비동기 작업이 도는 스레드 풀이 플랫폼 스레드 풀인가(시험·진단용). */
+    public boolean usesPlatformThreads() { return ownedPool != null; }
+
+    /** 박동을 멈추고 남은 작업을 모두 취소한다(서버 쪽 소유자가 닫을 때). 돌고 있는 비동기 작업은 끝까지 간다(인터럽트 없음). */
     public void close() {
         heartbeat.cancel();
+        if (ownedPool != null) ownedPool.shutdown();
         List<Task> all;
         synchronized (queue) {
             all = new ArrayList<>(tasks.values());
@@ -177,6 +230,7 @@ public final class LegacyScheduler {
     /** 지금 실행 중인가(반복 작업은 한 번 도는 동안만 true). */
     public boolean isCurrentlyRunning(int taskId) {
         Task t = tasks.get(taskId);
+        if (t == null) t = asyncRunning.get(taskId);   // 취소됐어도 몸통이 아직 도는 비동기 작업
         return t != null && t.running.get() > 0;
     }
 
@@ -197,12 +251,53 @@ public final class LegacyScheduler {
     /** 지금 비동기로 도는 작업과 그 스레드(회차가 겹치면 회차마다 하나). */
     public List<Worker> activeWorkers() {
         List<Worker> out = new ArrayList<>();
-        for (Task t : tasks.values()) {
-            if (t.sync) continue;
+        for (Task t : asyncRunning.values()) {   // 취소됐어도 몸통이 끝나기 전까지는 일꾼이다(CraftAsyncTask.cancel0)
             for (Thread th : t.asyncThreads) out.add(new Worker(t.id, t.plugin, th));
         }
         out.sort(Comparator.comparingInt(Worker::taskId));
         return out;
+    }
+
+    /**
+     * 종료 때 비동기 일꾼이 끝나기를 기다린다(Paper Wait-for-Async-Tasks-during-shutdown): 100ms 마다 보고 최대 {@code maxMillis}.
+     * 끝나지 않은 일꾼마다 "Nag author(s)" 오류를 서버 로그에 남기고(Paper 는 서버 로거 — 플러그인 접두 없음) 돌려준다.
+     * 이 호출은 플러그인이 모두 꺼진 뒤에 부른다.
+     *
+     * @return 시간이 지나도 끝나지 않은 일꾼
+     */
+    public List<Worker> awaitAsyncWorkers(long maxMillis) {
+        return awaitAsyncWorkers(maxMillis, msg -> SERVER_LOG.error(msg));
+    }
+
+    /** @param nag 남은 일꾼마다 한 줄씩 받는 곳(시험이 엿볼 수 있게) */
+    public List<Worker> awaitAsyncWorkers(long maxMillis, java.util.function.Consumer<String> nag) {
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(maxMillis);
+        while (!activeWorkers().isEmpty() && System.nanoTime() < deadline) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                // Paper 처럼 삼키고 마감까지 계속 센다. 표시를 다시 세우지 않는다 — 같은 종료 스레드의 뒤 단계(저장 대기)가 바로 중단되지 않게
+            }
+        }
+        List<Worker> overdue = activeWorkers();
+        for (Worker w : overdue) {
+            FurnacePlugin plugin = w.owner();
+            nag.accept(String.format(
+                    "Nag author(s): '%s' of '%s' about the following: %s",
+                    plugin.description().authors(), plugin.description().fullName(),
+                    "This plugin is not properly shutting down its async tasks when it is being shut down. "
+                            + "This task may throw errors during the final shutdown logs and might not complete before process dies."));
+        }
+        return overdue;
+    }
+
+    /** Paper BukkitScheduler.getMainThreadExecutor: 실행하면 다음 틱에 주(전역) 스레드에서 돈다. */
+    public Executor mainThreadExecutor(FurnacePlugin plugin) {
+        if (plugin == null) throw new IllegalArgumentException("Plugin cannot be null");
+        return command -> {
+            if (command == null) throw new IllegalArgumentException("Command cannot be null");
+            runTask(plugin, command);
+        };
     }
 
     /** Bukkit BukkitWorker. */
@@ -293,7 +388,7 @@ public final class LegacyScheduler {
                 if (period <= 0) retire();
             } else {
                 try {
-                    server.asyncExecutor().execute(this::executeAsync);
+                    asyncPool.execute(this::executeAsync);
                 } catch (RejectedExecutionException e) {
                     cancel();
                 }
@@ -302,11 +397,37 @@ public final class LegacyScheduler {
 
         private void executeAsync() {
             Thread me = Thread.currentThread();
-            asyncThreads.add(me);
+            // Paper: 일하는 동안 스레드 이름에 플러그인 이름을 붙인다 — 스레드 덤프에서 어느 플러그인인지 보인다
+            String nameBefore = me.getName();
+            try {
+                me.setName(nameBefore + " - " + plugin.name());
+            } catch (SecurityException ignored) {
+                // 이름을 못 바꿔도 일은 한다
+            }
+            // 일꾼 등록·해제는 한 모니터 안에서 한다(Paper 의 synchronized(workers)): 겹치는 회차가 "비었다" 확인과 목록 제거 사이에 끼어들어
+            // 도는 중인 회차가 일꾼 목록에서 빠지는 일이 없다. 이미 취소됐으면 일꾼으로 넣지 않는다(CANCEL 을 잠금 안에서 먼저 본다).
+            boolean worker;
+            synchronized (asyncThreads) {
+                worker = !cancelled;
+                if (worker) {
+                    asyncThreads.add(me);
+                    asyncRunning.put(id, this);
+                }
+            }
             try {
                 execute();
             } finally {
-                asyncThreads.remove(me);
+                if (worker) {
+                    synchronized (asyncThreads) {
+                        asyncThreads.remove(me);
+                        if (asyncThreads.isEmpty()) asyncRunning.remove(id, this);
+                    }
+                }
+                try {
+                    me.setName(nameBefore);
+                } catch (SecurityException ignored) {
+                    // 위와 같다
+                }
                 if (period <= 0) retire();
             }
         }

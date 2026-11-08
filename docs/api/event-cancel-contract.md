@@ -68,7 +68,7 @@
 | `PlayerItemHeldEvent` | `CLIENT_PREDICTED` | 선택한 단축 칸 | 선택 칸 |
 | `PlayerItemConsumeEvent` | `CLIENT_PREDICTED` | 먹던 칸 | 허기, 효과, 아이템 개수 |
 | `PlayerToggleFlightEvent` | `CLIENT_PREDICTED` | 능력 패킷 | 비행 상태 |
-| `PlayerMoveEvent` | `CLIENT_PREDICTED` | 보정 텔레포트(이전 위치) | 서버 위치 |
+| `PlayerMoveEvent` | `CLIENT_PREDICTED` | 보정 텔레포트(마지막으로 알린 자리·시선) | 서버 위치 |
 | `PlayerToggleSneakEvent` | `CLIENT_INPUT` | 없음(되돌릴 방법이 없다) | 서버의 웅크림 상태 |
 | `PlayerToggleSprintEvent` | `CLIENT_INPUT` | 없음(되돌릴 방법이 없다) | 서버의 달리기 상태 |
 | `PlayerSwapHandItemsEvent` | `SERVER_DRIVEN` | - | 두 손(클라이언트는 손 바꾸기를 먼저 보이지 않는다) |

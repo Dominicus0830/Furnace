@@ -3,7 +3,8 @@
 // 스레드: 옛 플러그인은 명령이 주 스레드에서 돈다고 믿는다. 서버의 명령 큐는 이미 전역 스레드에서 BasicCommand.execute 를 부르므로
 // 실행은 그대로 전역에서 돌고(PrimaryThread 표시), 자동완성은 연결 스레드에서 불리므로 전역으로 넘겨 결과를 기다린다(시간 제한, 넘으면 빈 목록).
 // 이름: 서버 명령 등록소가 "이름"·별칭·"플러그인:이름"을 붙이고 겹치면 네임스페이스 형태만 남긴다(Bukkit·Paper 와 같다).
-// 알려진 차이: 서버가 트리에서 권한 없는 사람에게 명령을 숨기므로 권한 없이 치면 Bukkit 의 거절 문장 대신 "알 수 없는 명령"이 나온다.
+// 권한 없이 치면: 서버가 트리에서 권한 없는 사람에게 명령을 숨기므로 "알 수 없는 명령"이 나온다 — Paper 1.21.1 과 같다(명령 노드의 요구 조건이 testPermissionSilent).
+// Spigot 은 Bukkit 의 거절 문장을 보인다. 플러그인이 Bukkit.dispatchCommand 로 부르면 두 서버 모두 거절 문장이 나오고 Furnace 도 같다.
 package org.domi.furnace.compat.command;
 
 import java.util.ArrayList;
@@ -158,17 +159,36 @@ public final class LegacyCommands {
      */
     public boolean dispatch(CommandSender sender, String commandLine) {
         String line = commandLine.startsWith("/") ? commandLine.substring(1) : commandLine;
-        int sp = line.indexOf(' ');
-        String label = sp < 0 ? line : line.substring(0, sp);
+        String[] tokens = splitLine(line);   // Paper: fix-empty-array-elements-in-command-arguments — 앞·가운데·끝의 빈 칸을 모두 버린다
+        if (tokens.length == 0) return false;
+        String label = tokens[0];
         LegacyCommand cmd = find(label);
         if (cmd == null) return server.dispatchCommand(sender, line);
-        String[] args = sp < 0 ? new String[0] : execArgs(line.substring(sp + 1).split(" ", -1));
+        String[] args = java.util.Arrays.copyOfRange(tokens, 1, tokens.length);
         String lower = label.toLowerCase(Locale.ROOT);   // SimpleCommandMap.dispatch 처럼 소문자로 넘긴다
         if (!PrimaryThread.isPrimary()) {
             server.scheduler().global().execute(() -> runNow(cmd, sender, lower, args));
             return true;
         }
         return runNow(cmd, sender, lower, args);
+    }
+
+    /**
+     * 명령 줄을 빈 칸(' ')으로 나눈다. 연속된 빈 칸과 앞·끝의 빈 칸은 빈 인자를 만들지 않는다(Paper 1.21.1 의 StringUtils.split(line, ' ') —
+     * 플레이어가 친 명령과 Bukkit.dispatchCommand·콘솔·명령 블록이 같은 인자를 받는다. Spigot 의 String.split(" ") 은 가운데 빈 칸이 빈 인자가 된다).
+     */
+    public static String[] splitLine(String line) {
+        List<String> out = new ArrayList<>();
+        int start = -1;
+        for (int i = 0; i < line.length(); i++) {
+            if (line.charAt(i) == ' ') {
+                if (start >= 0) { out.add(line.substring(start, i)); start = -1; }
+            } else if (start < 0) {
+                start = i;
+            }
+        }
+        if (start >= 0) out.add(line.substring(start));
+        return out.toArray(new String[0]);
     }
 
     /** 실행 인자는 빈 칸을 버린다(Paper 의 StringUtils.split(' ') 와 같다 — "a  b " 는 [a, b]). 자동완성은 끝의 빈 칸을 지키려고 이 함수를 쓰지 않는다. */

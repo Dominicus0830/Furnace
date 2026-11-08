@@ -74,6 +74,9 @@ public abstract class AgeableMob extends PathfinderMob {
     public void setBaby(boolean baby) { setAge(baby ? BABY_START_AGE : 0); }
 
     @Override
+    protected void setBabyForConversion(boolean baby) { setBaby(baby); }
+
+    @Override
     protected void aiStep() {
         super.aiStep();
         if (isAlive()) {

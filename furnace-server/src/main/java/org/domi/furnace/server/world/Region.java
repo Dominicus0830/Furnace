@@ -1358,6 +1358,43 @@ public final class Region {
     /** 이 region 이 그 플레이어를 가졌는가(region 스레드에서). */
     public boolean hasPlayer(Player p) { return players.containsKey(p.entityId()); }
 
+    /** CraftBukkit PlayerMoveEvent 의 간격: 거리² 문턱(1/256 칸²)과 회전 합 문턱(10°). */
+    private static final float MOVE_EVENT_DISTANCE_SQR = 1.0F / 256.0F;
+    private static final float MOVE_EVENT_ROTATION = 10.0F;
+
+    /**
+     * 위치 패킷 하나를 받아들인 뒤의 PlayerMoveEvent(CraftBukkit ServerGamePacketListenerImpl.handleMovePlayer 의 규칙): 마지막으로 알린 자리에서
+     * 거리² &gt; 1/256 이거나 |Δyaw| + |Δpitch| &gt; 10° 일 때만 부른다 — 시선만 크게 돌려도 불리고 작은 떨림은 불리지 않는다. 기준(from)은
+     * 알린 자리이고 문턱 아래 움직임은 기준을 옮기지 않는다(쌓여서 문턱을 넘으면 그때 부른다). 죽은·자는 플레이어는 부르지 않는다(isImmobile).
+     * 취소되면 서버 위치를 기준 자리로 되돌리고 보정 텔레포트(검증 거부와 같은 방식, 이벤트 우회, 시선도 기준 시선으로). 취소되지 않았으면 true.
+     */
+    private boolean movedEvent(Player p, Player.MoveSample prev, Player.MoveSample m, org.domi.furnace.server.entity.PlayerMoveValidator.Check packet) {
+        boolean raw = packet != null && packet.hasRot();   // 회전이 든 패킷은 원값, 아니면 서버의 지금 시선
+        float toYaw = raw ? packet.yaw() : p.yaw(), toPitch = raw ? packet.pitch() : p.pitch();
+        if (!p.moveEventBaseSet()) {   // 접속·텔레포트 직후 첫 패킷: 이 자리가 기준(CraftBukkit lastPosX = 도착 자리) — 이 패킷은 부르지 않는다
+            if (prev == null) { p.moveEventBase(m.x(), m.y(), m.z(), toYaw, toPitch); return true; }
+            p.moveEventBase(prev.x(), prev.y(), prev.z(), toYaw, toPitch);
+        }
+        double dx = p.moveEventX() - m.x(), dy = p.moveEventY() - m.y(), dz = p.moveEventZ() - m.z();
+        double distSqr = dx * dx + dy * dy + dz * dz;
+        float angle = Math.abs(p.moveEventYaw() - toYaw) + Math.abs(p.moveEventPitch() - toPitch);
+        if (!(distSqr > MOVE_EVENT_DISTANCE_SQR || angle > MOVE_EVENT_ROTATION)) return true;
+        if (p.isSleeping() || p.vitals().health() <= 0.0F) return true;
+        double fx = p.moveEventX(), fy = p.moveEventY(), fz = p.moveEventZ();
+        float fyaw = p.moveEventYaw(), fpitch = p.moveEventPitch();
+        p.moveEventBase(m.x(), m.y(), m.z(), toYaw, toPitch);
+        if (world.levelServices().gameEvents().playerMove(p, fx, fy, fz, fyaw, fpitch, m.x(), m.y(), m.z(), toYaw, toPitch)) return true;
+        // 플러그인 PlayerMoveEvent 취소: 검증기가 이미 옮긴 서버 위치를 기준 자리로 되돌리고 보정 텔레포트
+        p.moveEventBase(fx, fy, fz, fyaw, fpitch);
+        p.applyMove(fx, fy, fz, org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(fyaw), org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(fpitch), prev != null ? prev.onGround() : p.onGround());
+        p.moveAnchor(new Player.MoveSample(fx, fy, fz, prev != null ? prev.onGround() : p.onGround(), false));
+        if (p.hasTeleporter()) {
+            p.moveRejectHold = true;
+            p.correctTo(fx, fy, fz, fyaw, fpitch);
+        }
+        return false;
+    }
+
     private boolean processMoves(Player p) {
         PlayerProbe probe = world.probe();
         Player.MoveSample m;
@@ -1365,10 +1402,12 @@ public final class Region {
         p.validatesMoves = true;   // 이 region 이 검증한다 — 연결은 위치를 발행하지 않고 검증 대기열에 넣는다
         while ((m = p.pollMove()) != null) {
             any = true;
+            org.domi.furnace.server.entity.PlayerMoveValidator.Check packet = m.check();   // 패킷의 감기지 않은 시선 — CraftBukkit 은 to.setYaw(packet.yRot) 원값끼리 비교한다
             if (m.teleport()) {
                 // 서버가 정한 자리: 뒤따르는 검증 패킷의 기준이 되도록 위치를 먼저 맞춘다(회전은 곧 드레인이 맞춘다)
                 p.applyMove(m.x(), m.y(), m.z(), p.yaw(), p.pitch(), p.onGround());
                 org.domi.furnace.server.entity.PlayerMoveValidator.teleported(p, m.x(), m.y(), m.z());
+                p.clearMoveEventBase();   // CraftBukkit teleport: lastPos 를 도착 자리로 — 다음 이동 패킷이 그 자리(와 그때 시선)를 기준으로 잡는다
             } else if (m.check() != null) {
                 // 바닐라 handleMovePlayer 검증: 되돌렸으면 이 패킷은 없던 것(위치·소모 계산 없음)
                 if (p.moveRejectHold) continue;
@@ -1384,16 +1423,7 @@ public final class Region {
                 m = new Player.MoveSample(p.x(), p.y(), p.z(), m.onGround(), false);
             }
             Player.MoveSample prev = p.moveAnchor();
-            if (!m.teleport() && prev != null && (m.x() != prev.x() || m.y() != prev.y() || m.z() != prev.z())
-                    && !world.levelServices().gameEvents().playerMove(p, prev.x(), prev.y(), prev.z(), p.yaw(), p.pitch(), m.x(), m.y(), m.z(), p.yaw(), p.pitch())) {
-                // 플러그인 PlayerMoveEvent 취소: 검증기가 이미 옮긴 서버 위치를 되돌리고 보정 텔레포트(검증 거부와 같은 방식, 이벤트 우회)
-                p.applyMove(prev.x(), prev.y(), prev.z(), p.yaw(), p.pitch(), prev.onGround());
-                if (p.hasTeleporter()) {
-                    p.moveRejectHold = true;
-                    p.correctTo(prev.x(), prev.y(), prev.z(), p.yaw(), p.pitch());
-                }
-                continue;
-            }
+            if (!m.teleport() && !movedEvent(p, prev, m, packet)) continue;
             p.moveAnchor(m);
             if (m.teleport() || prev == null || probe == null) continue;
             boolean sneaking = p.sneaking();
@@ -2024,20 +2054,24 @@ public final class Region {
         int y0 = (int) Math.floor(p.y() + 1.0E-7), y1 = (int) Math.floor(p.y() + h - 1.0E-7);
         int z0 = (int) Math.floor(p.z() - 0.3 + 1.0E-7), z1 = (int) Math.floor(p.z() + 0.3 - 1.0E-7);
         if (!level.hasChunksAt(x0, z0, x1, z1)) return;
+        p.takeInPowderSnow();   // move 마다 isInPowderSnow 를 거짓으로 시작한다(떠난 뒤 낡은 표시가 불을 끄지 않게)
         var adv = p.advancements();
         boolean enterBlock = adv != null && adv.hasListeners("minecraft:enter_block");
         boolean slide = adv != null && adv.hasListeners("minecraft:slide_down_block");
         for (int bx = x0; bx <= x1; bx++) for (int by = y0; by <= y1; by++) for (int bz = z0; bz <= z1; bz++) {
             int s = level.getBlockState(new org.domi.furnace.server.block.Pos(bx, by, bz));
             var beh = org.domi.furnace.server.block.B.behavior(s);
-            if (travelOnly) {   // 이동 패킷 없는 틱의 서버 쪽 move: 불 블록만 본다(모닥불·열매 덤불·흘림잎·진행 과제는 패킷 이동에서만 — 가정)
+            if (travelOnly) {   // 이동 패킷 없는 틱의 서버 쪽 move: 불 블록·가마솥·가루눈만 본다(모닥불·열매 덤불·흘림잎·진행 과제는 패킷 이동에서만 — 가정)
                 if (beh instanceof org.domi.furnace.server.block.types.BaseFireBlock fb) org.domi.furnace.server.entity.PlayerFire.fireInside(p, fb.fireDamage());
+                else insideCauldronOrSnow(p, beh, s, bx, by, bz);
                 continue;
             }
             if (beh instanceof org.domi.furnace.server.block.types.CampfireBlock cf) {
                 cf.entityInsidePlayer(s, p.vitals());
             } else if (beh instanceof org.domi.furnace.server.block.types.BaseFireBlock fb) {
                 org.domi.furnace.server.entity.PlayerFire.fireInside(p, fb.fireDamage());
+            } else if (insideCauldronOrSnow(p, beh, s, bx, by, bz)) {
+                // 용암·물·가루눈 가마솥, 가루눈
             } else if (beh instanceof org.domi.furnace.server.block.types.BigDripleafBlock bd) {
                 bd.entityInsideAt(s, level, new org.domi.furnace.server.block.Pos(bx, by, bz), p.onGround(), p.y());
             } else if (beh instanceof org.domi.furnace.server.block.types.SweetBerryBushBlock
@@ -2052,6 +2086,32 @@ public final class Region {
                 adv.trigger("minecraft:slide_down_block", org.domi.furnace.server.loot.LootBlockState.of(world.blockRegistry(), s));
             }
         }
+    }
+
+    /**
+     * 용암 가마솥(lavaHurt)·층 가마솥(불 끄기·한 단계 줄임)·가루눈(불붙은 플레이어가 녹임)의 entityInside 플레이어 쪽. 해당 블록이면 참.
+     * mayInteract 는 스폰 보호 밖 + 월드 보더 안(Level.mayInteract).
+     */
+    private boolean insideCauldronOrSnow(Player p, org.domi.furnace.server.block.BlockBehavior beh, int s, int bx, int by, int bz) {
+        var pos = new org.domi.furnace.server.block.Pos(bx, by, bz);
+        if (beh instanceof org.domi.furnace.server.block.types.LavaCauldronBlock lc) {
+            lc.entityInsidePlayer(s, level, pos, p);
+            return true;
+        }
+        if (beh instanceof org.domi.furnace.server.block.types.LayeredCauldronBlock lay) {
+            if (p.isOnFire()) lay.entityInsidePlayer(s, level, pos, p, playerMayInteract(p, bx, bz));
+            return true;
+        }
+        if (beh instanceof org.domi.furnace.server.block.types.PowderSnowBlock ps) {
+            ps.entityInsidePlayer(level, pos, p, playerMayInteract(p, bx, bz));
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean playerMayInteract(Player p, int x, int z) {
+        var host = p.inventoryHost();
+        return host == null || host.mayInteract(x, z);
     }
 
     // ------------------------------------------------------------------ 포털·차원 이동(플레이어)
