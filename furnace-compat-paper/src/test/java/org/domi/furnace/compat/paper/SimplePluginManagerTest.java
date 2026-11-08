@@ -396,6 +396,9 @@ class SimplePluginManagerTest {
             assertEquals(1, Bukkit.broadcast("hello-admin", "spm.admin"), "콘솔만");
             assertEquals(0, Bukkit.broadcast("hello-none", "no.such.node"), "등록되지 않은 권한이면 OP·콘솔도 받지 않는다(Bukkit 과 같다)");
             server.tick();
+            // 봇이 받기까지 시간이 걸린다 — 마지막 표시 메시지가 올 때까지 기다린 뒤 본다(같은 연결이라 순서가 지켜진다)
+            dana.sendMessage("spm-broadcast-end");
+            tp.awaitMessage(m -> m.contains("spm-broadcast-end"));
             assertTrue(got(tp, "hello-use"));
             assertFalse(got(tp, "hello-admin"));
             assertFalse(got(tp, "hello-none"));
