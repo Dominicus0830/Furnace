@@ -104,7 +104,7 @@ public final class FurnaceTestServer implements AutoCloseable {
             this.global = (GlobalThread) sched.global();
             global.useManualClock();
             // 플러그인 부트스트랩: 레지스트리·월드보다 먼저(FurnaceMain 과 같은 자리). 시험에서는 실패를 숨기지 않는다(fail-fast).
-            PluginSettings pluginSettings = new PluginSettings(b.failFast, null, java.util.Map.of()).withCompatNms(b.compatNms).withLibraries(b.libraries)
+            PluginSettings pluginSettings = new PluginSettings(b.failFast, null, java.util.Map.of(), b.devMode, false).withCompatNms(b.compatNms).withLibraries(b.libraries)
                     .withExposeCompatToNative(b.exposeCompatToNative).withCompatOptions(b.compatOptions);
             PluginBootstrapper boot = PluginBootstrapper.bootstrap(pluginsDir, pluginSettings);
             BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
@@ -446,6 +446,7 @@ public final class FurnaceTestServer implements AutoCloseable {
         private boolean failFast = true;
         private boolean compatNms = true;
         private boolean exposeCompatToNative = false;
+        private boolean devMode = false;
         private final java.util.Map<String, String> compatOptions = new java.util.HashMap<>();
         /** 시험은 기본으로 네트워크에 나가지 않는다 — 호환 플러그인용 서버 제공 라이브러리·plugin.yml libraries 도 끈다. */
         private org.domi.furnace.server.plugin.library.LibrarySettings libraries = org.domi.furnace.server.plugin.library.LibrarySettings.DEFAULT
@@ -462,6 +463,12 @@ public final class FurnaceTestServer implements AutoCloseable {
          */
         public Builder plugin(Class<? extends FurnacePlugin> main) {
             classpathPlugins.add(Objects.requireNonNull(main, "main"));
+            return this;
+        }
+
+        /** 개발 모드(plugins.dev-mode): 핫 리로드를 쓸 수 있다(jar 감시는 켜지 않는다). */
+        public Builder devMode(boolean on) {
+            this.devMode = on;
             return this;
         }
 

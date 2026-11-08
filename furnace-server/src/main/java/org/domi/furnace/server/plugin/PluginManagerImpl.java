@@ -336,6 +336,8 @@ public final class PluginManagerImpl implements PluginManager {
     private volatile HotReload.Watcher watcher;
     /** 옛 클래스로더를 닫기까지 기다리는 틱(그 사이 다른 스레드에서 끝나 가는 옛 작업이 클래스를 마저 읽게). 시험은 0. */
     volatile long retireDelayTicks = 100;
+    /** 리로드 때 끈 플러그인의 비동기 일을 기다리는 가장 긴 시간(ms) — Paper CraftServer.reload 와 같은 50ms×50 = 2.5초(종료는 5초). 시험은 줄인다. */
+    volatile long asyncWaitMillis = 2_500;
     /** 옛 클래스로더가 회수됐는지 볼 때까지의 시간(ms, 음수면 보지 않는다). */
     volatile long leakCheckMillis = 15_000;
 
@@ -415,6 +417,8 @@ public final class PluginManagerImpl implements PluginManager {
                 PluginBootstrapper.Prepared prep = b.find(l.description().name());
                 if (prep != null && prep.loader() == l.loader()) b.detach(prep);
             }
+            // 2b. 끈 플러그인의 남은 비동기 일(Bukkit 비동기 작업 등)이 끝나기를 기다린다 — 서버 종료와 같은 규칙(최대 asyncWaitMillis=Paper reload 의 2.5초, 남으면 Nag)
+            if (!rev.isEmpty()) b.awaitPluginTasks(host, rev.stream().map(Loaded::plugin).toList(), asyncWaitMillis);
             // 3. 다시 읽기(켠 순서). 대상 jar 가 없어졌으면 대상은 내리기만 한다
             List<String> back = new ArrayList<>();
             for (String n : names) {

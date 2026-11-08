@@ -8,6 +8,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -28,6 +30,10 @@ public final class PaperSchedulers implements AutoCloseable {
     private final Furnace server;
     private final PluginTaskBook<Handle> book = new PluginTaskBook<>(Handle::cancel);
     private final ScheduledExecutorService timer;
+    /** 비동기 작업이 도는 곳(Paper FoliaAsyncScheduler.executors). virtual 옵션이면 서버의 가상 스레드 실행기, 아니면 아래 우리 풀. */
+    private final Executor asyncPool;
+    /** 우리가 만든 플랫폼 풀(virtual 이면 null — 서버 실행기는 서버가 닫는다). */
+    private final ThreadPoolExecutor ownedPool;
     private final Global global = new Global();
     private final Region region = new Region();
     private final Async async = new Async();
@@ -35,12 +41,46 @@ public final class PaperSchedulers implements AutoCloseable {
 
     public PaperSchedulers(Furnace server) {
         this.server = server;
+        // Paper FoliaAsyncScheduler: 시간 재는 스레드 하나(이름·우선순위가 Paper 와 같다)
         this.timer = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "Furnace-Compat-AsyncTimer");
+            Thread t = new Thread(r, "Folia Async Scheduler Thread Timer");
             t.setDaemon(true);
+            t.setPriority(Thread.NORM_PRIORITY + 1);
+            t.setUncaughtExceptionHandler(PaperSchedulers::logUncaught);
             return t;
         });
+        if ("virtual".equalsIgnoreCase(server.compatOption(LegacyScheduler.ASYNC_THREADS_OPTION))) {
+            this.ownedPool = null;
+            this.asyncPool = server.asyncExecutor();
+        } else {
+            this.ownedPool = newPlatformPool();
+            this.asyncPool = ownedPool;
+        }
     }
+
+    /**
+     * Paper 1.21.1 FoliaAsyncScheduler.executors: 코어 max(4, 프로세서/2), 최대 무제한, 30초, 대기열 없음(일이 들어올 때 놀고 있는 스레드가 없으면 새 스레드),
+     * 이름 "Folia Async Scheduler Thread #N"(0부터), 우선순위 NORM-1. 코어 스레드가 놀아도 안 정리하고 미리 띄우지도 않는다(Paper 와 같다).
+     * Paper 는 비데몬이지만 Furnace 는 멈춘 작업이 JVM 종료를 붙잡지 않게 데몬으로 한다. Bukkit 의 BukkitScheduler 풀(LegacyScheduler)과는 별개다(Paper 도 별개).
+     */
+    private static ThreadPoolExecutor newPlatformPool() {
+        java.util.concurrent.atomic.AtomicInteger n = new java.util.concurrent.atomic.AtomicInteger();
+        return new ThreadPoolExecutor(Math.max(4, Runtime.getRuntime().availableProcessors() / 2), Integer.MAX_VALUE, 30L, TimeUnit.SECONDS,
+                new SynchronousQueue<>(), r -> {
+                    Thread t = new Thread(r, "Folia Async Scheduler Thread #" + n.getAndIncrement());
+                    t.setDaemon(true);
+                    t.setPriority(Thread.NORM_PRIORITY - 1);
+                    t.setUncaughtExceptionHandler(PaperSchedulers::logUncaught);
+                    return t;
+                });
+    }
+
+    private static void logUncaught(Thread thread, Throwable thr) {
+        org.slf4j.LoggerFactory.getLogger("Furnace").error("Uncaught exception in thread: " + thread.getName(), thr);
+    }
+
+    /** 비동기 작업이 도는 스레드 풀이 플랫폼 스레드 풀인가(시험·진단용). */
+    public boolean usesPlatformThreads() { return ownedPool != null; }
 
     public Global global() { return global; }
 
@@ -54,7 +94,10 @@ public final class PaperSchedulers implements AutoCloseable {
     public void cancelTasks(FurnacePlugin plugin) { book.cancelAll(plugin); }
 
     @Override
-    public void close() { timer.shutdownNow(); }
+    public void close() {
+        timer.shutdownNow();
+        if (ownedPool != null) ownedPool.shutdown();   // 도는 작업은 끝까지 간다(인터럽트 없음)
+    }
 
     // ---- 전역
 
@@ -192,7 +235,7 @@ public final class PaperSchedulers implements AutoCloseable {
 
     // ---- 비동기
 
-    /** Paper AsyncScheduler: 벽시계 시간 단위, 작업은 asyncExecutor(가상 스레드)에서 돈다. */
+    /** Paper AsyncScheduler: 벽시계 시간 단위, 작업은 Paper 모양의 플랫폼 풀(plugins.compat.scheduler.async-threads=virtual 이면 서버의 가상 스레드)에서 돈다. */
     public final class Async {
         private Async() {}
 
@@ -238,7 +281,7 @@ public final class PaperSchedulers implements AutoCloseable {
             long delay = Math.max(0, target - System.nanoTime());
             try {
                 current.set(timer.schedule(() -> {
-                    Executor ex = server.asyncExecutor();
+                    Executor ex = asyncPool;
                     try {
                         ex.execute(() -> {
                             h.run();
@@ -256,7 +299,7 @@ public final class PaperSchedulers implements AutoCloseable {
         public void cancelTasks(FurnacePlugin plugin) { PaperSchedulers.this.cancelTasks(plugin); }
 
         private void execute(Handle h) {
-            Executor ex = server.asyncExecutor();
+            Executor ex = asyncPool;
             try {
                 ex.execute(h::run);
             } catch (RejectedExecutionException e) {

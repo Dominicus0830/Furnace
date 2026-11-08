@@ -55,4 +55,13 @@ public interface PluginFormat {
      * 어댑터를 아직 만들지 않았으면(그 형식의 플러그인이 없었으면) 불리지 않는다.
      */
     default void afterPluginsDisabled(org.domi.furnace.api.Furnace server) {}
+
+    /**
+     * 개발 모드 핫 리로드에서 플러그인 몇 개를 끈 직후, 다시 읽기 전에 불린다. 어댑터가 그 플러그인들이 남긴 일(예: Bukkit 비동기 작업)이 끝나기를
+     * 최대 {@code maxMillis} 기다리는 자리다 — 서버 종료의 {@link #afterPluginsDisabled} 와 같은 규칙을 리로드에도 적용한다.
+     * 전역 스레드에서 불리므로 오래 붙잡지 말 것. 어댑터를 아직 만들지 않았으면 불리지 않는다.
+     *
+     * @param plugins 방금 끈(그리고 곧 다시 읽을) 플러그인
+     */
+    default void awaitPluginTasks(org.domi.furnace.api.Furnace server, java.util.Collection<FurnacePlugin> plugins, long maxMillis) {}
 }
