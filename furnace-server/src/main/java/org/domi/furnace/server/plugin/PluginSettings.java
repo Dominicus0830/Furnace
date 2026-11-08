@@ -11,7 +11,9 @@
 //   plugins.compat.nms.enabled=true  호환 플러그인 클래스를 올릴 때 NMS·CraftBukkit 이름 변환(버전 접미사 v1_21_R1 풀기 등)을 한다 — false 면 바이트 그대로 올린다
 //   plugins.compat.nms.strict=false   미지원 NMS 심볼이 있는 플러그인은 불러오지 않는다(기본: 그 호출만 실패)
 //   plugins.compat.nms.version-package=plain  플러그인이 읽는 CraftBukkit 패키지 이름(plain = Paper 처럼 접미사 없음, versioned = Spigot 처럼 v1_21_R1)
-//   scheduler.async-threads·nms.strict·nms.version-package 는 검사해 compatOptions 로(기본값과 같으면 빠진다) — 호환 어댑터·PluginFormat#transformer 가 읽는다
+//   plugins.compat.nms.spigot-mappings=off    download 면 Spigot 이름 NMS 플러그인이 있을 때만 Mojang·Spigot 매핑을 받아 Spigot → Mojang 이름으로 바꿔 올린다(H7d).
+//                                             files 면 받지 않고 plugins.compat.nms.spigot-mappings.files 의 세 파일(server.txt, 클래스 csrg, 멤버 csrg)을 쓴다
+//   scheduler.async-threads·nms.strict·nms.version-package·nms.spigot-mappings(.files) 는 검사해 compatOptions 로(기본값과 같으면 빠진다) — 호환 어댑터·PluginFormat#transformer 가 읽는다
 package org.domi.furnace.server.plugin;
 
 import java.io.IOException;
@@ -140,8 +142,29 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
             }
             if (!v.equals("plain")) out.put(NMS_VERSION_PACKAGE_KEY, v);
         }
+        // H7d: Spigot 이름 대응표(off 기본 — 안 적은 것과 같으면 빠진다)
+        String sm = p.getProperty(SPIGOT_MAPPINGS_KEY);
+        String files = p.getProperty(SPIGOT_MAPPING_FILES_KEY, "").strip();
+        if (sm != null) {
+            String v = sm.strip().toLowerCase(Locale.ROOT);
+            if (!v.equals("off") && !v.equals("download") && !v.equals("files")) {
+                throw new IllegalArgumentException("설정 '" + SPIGOT_MAPPINGS_KEY + "' 값 '" + sm.strip() + "' 이(가) 잘못됐습니다: off, download 또는 files");
+            }
+            if (v.equals("files") && (files.isEmpty() || files.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator), -1).length != 3)) {
+                throw new IllegalArgumentException("설정 '" + SPIGOT_MAPPINGS_KEY + "=files' 는 '" + SPIGOT_MAPPING_FILES_KEY + "' 에 파일 세 개"
+                        + "(Mojang server.txt, Spigot 클래스 csrg, Spigot 멤버 csrg)를 경로 구분자 '" + java.io.File.pathSeparator + "' 로 이어 적어야 합니다");
+            }
+            if (!v.equals("off")) out.put(SPIGOT_MAPPINGS_KEY, v);
+            if (v.equals("files")) out.put(SPIGOT_MAPPING_FILES_KEY, files);
+        }
         return out;
     }
+
+    /** Spigot 이름 NMS 플러그인의 대응표: off(기본) | download | files (H7d). */
+    public static final String SPIGOT_MAPPINGS_KEY = "plugins.compat.nms.spigot-mappings";
+
+    /** files 모드의 세 파일(Mojang server.txt, Spigot 클래스 csrg, 멤버 csrg)을 경로 구분자로 이은 값. */
+    public static final String SPIGOT_MAPPING_FILES_KEY = "plugins.compat.nms.spigot-mappings.files";
 
     /** 미지원 NMS 심볼이 있는 호환 플러그인을 불러오지 않는다(기본 false). */
     public static final String NMS_STRICT_KEY = "plugins.compat.nms.strict";

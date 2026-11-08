@@ -52,12 +52,31 @@ public final class CraftNames {
 
     // ------------------------------------------------------------------ 리플렉션 다리 (변환된 플러그인 바이트코드가 부른다)
 
+    /**
+     * 리플렉션으로 찾는 이름: 접미사를 풀고, 그 플러그인이 Spigot 이름 대응표를 쓰면(H7d) Spigot NMS 클래스 이름을 Mojang 이름으로 바꾼다
+     * (Paper 가 Spigot 이름 플러그인의 리플렉션 문자열을 바꾸는 것과 같다). 배열 이름({@code [Lnet.minecraft…;})도.
+     */
+    static String resolve(String name, String plugin) {
+        String n = canonical(name);
+        if (n == null || plugin == null || !n.contains("net.minecraft.")) return n;
+        SpigotMappings m = SpigotMappings.forPlugin(plugin);
+        if (m == null) return n;
+        if (n.startsWith("[")) {
+            int l = n.indexOf('L');
+            if (l < 0 || !n.endsWith(";")) return n;
+            String mapped = m.mapClassName(n.substring(l + 1, n.length() - 1));
+            return mapped == null ? n : n.substring(0, l + 1) + mapped + ";";
+        }
+        String mapped = m.mapClassName(n);
+        return mapped == null ? n : mapped;
+    }
+
     /** {@code Class.forName(name)} 대신 — 부른 클래스의 로더로 찾고 초기화한다(원래와 같다). 없으면 원래 이름으로 ClassNotFoundException. */
     public static Class<?> forName(String name, Class<?> caller) throws ClassNotFoundException { return forName(name, caller, null); }
 
     /** 위와 같고, 없는 NMS 이름이면 플러그인 이름으로 한 번 경고한다(H7a). */
     public static Class<?> forName(String name, Class<?> caller, String plugin) throws ClassNotFoundException {
-        String n = canonical(name);
+        String n = resolve(name, plugin);
         try {
             return Class.forName(n, true, caller.getClassLoader());
         } catch (ClassNotFoundException e) {
@@ -73,7 +92,7 @@ public final class CraftNames {
     }
 
     public static Class<?> forName(String name, boolean initialize, ClassLoader loader, String plugin) throws ClassNotFoundException {
-        String n = canonical(name);
+        String n = resolve(name, plugin);
         try {
             return Class.forName(n, initialize, loader);
         } catch (ClassNotFoundException e) {
@@ -87,7 +106,7 @@ public final class CraftNames {
     public static Class<?> loadClass(ClassLoader loader, String name) throws ClassNotFoundException { return loadClass(loader, name, null); }
 
     public static Class<?> loadClass(ClassLoader loader, String name, String plugin) throws ClassNotFoundException {
-        String n = canonical(name);
+        String n = resolve(name, plugin);
         try {
             return loader.loadClass(n);
         } catch (ClassNotFoundException e) {
@@ -103,7 +122,7 @@ public final class CraftNames {
     }
 
     public static Class<?> findClass(MethodHandles.Lookup lookup, String name, String plugin) throws ClassNotFoundException, IllegalAccessException {
-        String n = canonical(name);
+        String n = resolve(name, plugin);
         try {
             return lookup.findClass(n);
         } catch (ClassNotFoundException e) {

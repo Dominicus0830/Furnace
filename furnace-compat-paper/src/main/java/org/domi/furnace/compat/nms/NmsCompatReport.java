@@ -39,10 +39,12 @@ import org.slf4j.LoggerFactory;
  * @param ownClasses 이 jar 의 클래스(내부 이름) — 변환기가 플러그인 자기 클래스를 판정하지 않게
  * @param otherVersionClasses 다른 버전용 모듈로 보이는 클래스 수 — 세지 않았다({@link #otherVersion(String)})
  * @param otherVersionSymbols 다른 버전 이름({@code org.bukkit.craftbukkit.v1_20_R3}, {@code net.minecraft.server.v1_8_R3})을 가리킨 심볼 수 — 세지 않았다
+ * @param spigotNamed 매니페스트로 보아 Spigot 이름 jar 인가(속성이 없거나 {@code spigot}) — Paper 와 같은 판정
+ * @param spigotMapped Spigot 이름 대응표(H7d)로 바꾼 뒤의 이름으로 셌다(대응표가 있고 Spigot 이름 jar 일 때)
  */
 public record NmsCompatReport(String plugin, String namespace, int symbols, int present, int gradeC, int unknown,
                               int obfuscatedLooking, List<String> missing, Set<String> ownClasses,
-                              int otherVersionClasses, int otherVersionSymbols) {
+                              int otherVersionClasses, int otherVersionSymbols, boolean spigotNamed, boolean spigotMapped) {
 
     private static final Logger LOG = LoggerFactory.getLogger("Furnace");
     private static final byte[][] NEEDLES = {
@@ -85,14 +87,22 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
     /** 미지원(등급 C + 아직 없음) 심볼 수. */
     public int unsupported() { return gradeC + unknown; }
 
-    /** jar 를 훑는다. 읽지 못하는 클래스는 건너뛴다(그 클래스는 정의 때 변환기가 원래 바이트로 올린다). */
-    public static NmsCompatReport scan(String plugin, Path jar, NmsSymbols index) throws IOException {
+    /** jar 를 훑는다(Spigot 이름 대응표 없이). */
+    public static NmsCompatReport scan(String plugin, Path jar, NmsSymbols index) throws IOException { return scan(plugin, jar, index, null); }
+
+    /**
+     * jar 를 훑는다. 읽지 못하는 클래스는 건너뛴다(그 클래스는 정의 때 변환기가 원래 바이트로 올린다). {@code spigot} 이 있고 jar 가 Spigot 이름이면
+     * 변환기와 같은 이름 바꾸기를 먼저 건 뒤 센다.
+     */
+    public static NmsCompatReport scan(String plugin, Path jar, NmsSymbols index, SpigotMappings spigot) throws IOException {
         Set<String> own = new HashSet<>();
         List<byte[]> candidates = new ArrayList<>();
         String namespace;
+        boolean spigotNamed;
         try (JarFile jf = new JarFile(jar.toFile(), false, java.util.zip.ZipFile.OPEN_READ, Runtime.version())) {
             var man = jf.getManifest();
             String ns = man == null ? null : man.getMainAttributes().getValue("paperweight-mappings-namespace");
+            spigotNamed = ns == null || ns.equalsIgnoreCase("spigot");
             namespace = ns == null ? "Spigot(가정 — 매니페스트에 paperweight-mappings-namespace 없음)" : ns.equalsIgnoreCase("mojang") ? "Mojang" : ns.equalsIgnoreCase("spigot") ? "Spigot" : ns;
             Enumeration<JarEntry> en = jf.entries();
             while (en.hasMoreElements()) {
@@ -114,9 +124,24 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
         Set<String> seen = new HashSet<>();
         TreeSet<String> missing = new TreeSet<>();
         int[] counts = new int[6];   // present, gradeC, unknown, obf, 다른 버전 클래스, 다른 버전 심볼
-        Remapper suffix = new Remapper() {
+        SpigotRemapper sp = spigot != null && spigotNamed ? new SpigotRemapper(spigot, index, own) : null;
+        Remapper suffix = sp == null ? new Remapper() {
             @Override
             public String map(String internalName) { return CraftNames.canonicalInternal(internalName); }
+        } : new Remapper() {
+            @Override
+            public String map(String internalName) { return CraftNames.canonicalInternal(sp.map(internalName)); }
+
+            @Override
+            public String mapMethodName(String owner, String name, String descriptor) { return sp.mapMethodName(owner, name, descriptor); }
+
+            @Override
+            public String mapFieldName(String owner, String name, String descriptor) { return sp.mapFieldName(owner, name, descriptor); }
+
+            @Override
+            public String mapInvokeDynamicMethodName(String name, String descriptor) {
+                return sp.mapInvokeDynamicMethodName(name, descriptor);
+            }
         };
         for (byte[] b : candidates) {
             try {
@@ -128,14 +153,21 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
         }
         int total = counts[0] + counts[1] + counts[2];
         return new NmsCompatReport(plugin, namespace, total, counts[0], counts[1], counts[2], counts[3], List.copyOf(missing), Set.copyOf(own),
-                counts[4], counts[5]);
+                counts[4], counts[5], spigotNamed, sp != null);
     }
 
     /** 로드 로그. NMS 에 닿지 않는 jar 는 아무것도 남기지 않는다. */
     public void log() {
         if (symbols == 0 && otherVersionClasses == 0 && otherVersionSymbols == 0) return;
-        String hint = obfuscatedLooking > 0
-                ? " Spigot 난독화 이름으로 보이는 멤버 " + obfuscatedLooking + "개 — Spigot→Mojang 변환표(H7d)가 없어 그 호출은 실패한다."
+        String hint = spigotMapped
+                ? " Spigot 이름 → Mojang 이름 대응표로 바꿔 올린다(plugins.compat.nms.spigot-mappings)." + (obfuscatedLooking > 0
+                        ? " 대응표로도 풀리지 않은 난독화 이름 멤버 " + obfuscatedLooking + "개는 그 호출이 실패한다." : "")
+                : spigotNamed && missing.stream().anyMatch(n -> n.startsWith("net.minecraft."))
+                ? " Spigot 이름 jar 로 보인다" + (obfuscatedLooking > 0 ? "(난독화 이름 멤버 " + obfuscatedLooking + "개)" : "")
+                        + " — Spigot→Mojang 대응표가 없어 shim 에 없는 그 이름의 호출은 실패한다. furnace.properties 에 plugins.compat.nms.spigot-mappings=download 를"
+                        + " 쓰면 처음 한 번 Mojang·Spigot 매핑을 받아 바꿔 올린다."
+                : obfuscatedLooking > 0
+                ? " 난독화 이름으로 보이는 멤버 " + obfuscatedLooking + "개는 그 호출이 실패한다."
                 : "";
         String other = otherVersionClasses + otherVersionSymbols > 0
                 ? " 다른 버전용 모듈 클래스 " + otherVersionClasses + "개·다른 버전 이름 " + otherVersionSymbols + "개는 1.21.1 에서 쓰이지 않아 세지 않았다."

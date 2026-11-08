@@ -31,7 +31,10 @@ import org.slf4j.LoggerFactory;
  *   <li>옵션 {@code version-package=versioned} 이면 {@code Class#getName}·{@code getPackageName}·{@code Package#getName} → 접미사를 붙여 읽는 다리.</li>
  * </ol>
  * 바꿀 것이 없는 클래스는 null(원래 바이트)이다. 덫·다리는 분기·지역 변수와 프레임 지점의 스택 모양을 바꾸지 않으므로 스택 맵 프레임은 그대로
- * 옮기고 최대 스택만 다시 센다(COMPUTE_FRAMES 의 공통 상위 클래스 계산이 클래스를 로딩하는 문제를 피한다). Spigot 난독화 이름 변환(H7d)은 하지 않는다.
+ * 옮기고 최대 스택만 다시 센다(COMPUTE_FRAMES 의 공통 상위 클래스 계산이 클래스를 로딩하는 문제를 피한다).
+ *
+ * <p>Spigot 이름 대응표({@link Options#spigot()}, H7d)가 있고 jar 가 Spigot 이름이면 1번 앞에 Spigot → Mojang 이름 바꾸기를 같은 걸음에 건다
+ * ({@link SpigotRemapper}) — 덫 판정은 바뀐 Mojang 이름으로 한다. 리플렉션 다리도 그 플러그인의 Spigot 문자열 이름을 바꿔 찾는다.
  */
 public final class NmsClassTransformer implements ClassTransformer {
 
@@ -45,9 +48,14 @@ public final class NmsClassTransformer implements ClassTransformer {
      *
      * @param strict           {@code plugins.compat.nms.strict} — 미지원 NMS 심볼이 하나라도 있으면 플러그인 로드를 거절한다
      * @param versionedPackage {@code plugins.compat.nms.version-package=versioned} — 플러그인이 읽는 CraftBukkit 이름에 버전 접미사를 붙인다
+     * @param spigot           Spigot 이름 → Mojang 이름 대응표(H7d, {@code plugins.compat.nms.spigot-mappings}). null 이면 바꾸지 않는다.
+     *                         있어도 매니페스트가 Mojang 이름이라고 밝힌 jar 에는 쓰지 않는다
      */
-    public record Options(boolean strict, boolean versionedPackage) {
-        public static final Options DEFAULT = new Options(false, false);
+    public record Options(boolean strict, boolean versionedPackage, SpigotMappings spigot) {
+        public static final Options DEFAULT = new Options(false, false, null);
+
+        /** Spigot 이름 대응표 없이. */
+        public Options(boolean strict, boolean versionedPackage) { this(strict, versionedPackage, null); }
     }
 
     /** 이 바이트 조각이 하나도 없으면 바꿀 것이 없다(상수 풀의 UTF-8 이름을 바로 훑는다). */
@@ -61,6 +69,8 @@ public final class NmsClassTransformer implements ClassTransformer {
     private final Set<String> own;
     private final Options options;
     private final NmsSymbols symbols;
+    /** 이 플러그인에 거는 Spigot 이름 바꾸기(null = 없음). */
+    private final SpigotRemapper spigot;
     private final AtomicBoolean announced = new AtomicBoolean();
 
     /** @param plugin 로그에 쓰는 플러그인 이름 */
@@ -74,6 +84,7 @@ public final class NmsClassTransformer implements ClassTransformer {
         this.own = own;
         this.options = options;
         this.symbols = symbols;
+        this.spigot = options.spigot() == null ? null : new SpigotRemapper(options.spigot(), symbols, own);
     }
 
     /**
@@ -82,11 +93,15 @@ public final class NmsClassTransformer implements ClassTransformer {
     public static NmsClassTransformer forJar(String plugin, Path jar, Options options) {
         NmsCompatReport report;
         try {
-            report = NmsCompatReport.scan(plugin, jar, NmsSymbols.RUNTIME);
+            report = NmsCompatReport.scan(plugin, jar, NmsSymbols.RUNTIME, options.spigot());
         } catch (IOException e) {
             LOG.warn("플러그인 {}: NMS 호환 보고를 만들지 못했다({}) — 변환은 그대로 한다", plugin, e.toString());
-            return new NmsClassTransformer(plugin, Set.of(), options, NmsSymbols.RUNTIME);
+            SpigotMappings.register(plugin, null);
+            return new NmsClassTransformer(plugin, Set.of(), new Options(options.strict(), options.versionedPackage()), NmsSymbols.RUNTIME);
         }
+        // 매니페스트가 Mojang 이름이라고 밝힌 jar 는 바꾸지 않는다(Paper 와 같다)
+        if (options.spigot() != null && !report.spigotMapped()) options = new Options(options.strict(), options.versionedPackage());
+        SpigotMappings.register(plugin, options.spigot());
         report.log();
         if (options.strict() && report.unsupported() > 0) {
             throw new UnsupportedNmsCall("플러그인 " + plugin + " 로드",
@@ -103,19 +118,49 @@ public final class NmsClassTransformer implements ClassTransformer {
         boolean members = contains(bytes, NMS_HINTS);
         ClassReader reader = new ClassReader(bytes);
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
-        boolean[] changed = new boolean[3];   // [0] 접미사 이름을 바꿨다, [1] 리플렉션·이름 읽기 호출을 바꿨다, [2] 덫을 넣었다
+        boolean[] changed = new boolean[4];   // [0] 접미사 이름을 바꿨다, [1] 리플렉션·이름 읽기 호출을 바꿨다, [2] 덫을 넣었다, [3] Spigot 이름을 바꿨다
+        SpigotRemapper sp = spigot;
         Remapper remapper = new Remapper() {
             @Override
             public String map(String internalName) {
-                String c = CraftNames.canonicalInternal(internalName);
-                if (c != internalName) changed[0] = true;
+                String n = internalName;
+                if (sp != null) {
+                    n = sp.map(internalName);
+                    if (!n.equals(internalName)) changed[3] = true;
+                }
+                String c = CraftNames.canonicalInternal(n);
+                if (c != n) changed[0] = true;
                 return c;
+            }
+
+            @Override
+            public String mapMethodName(String owner, String name, String descriptor) {
+                if (sp == null) return name;
+                String n = sp.mapMethodName(owner, name, descriptor);
+                if (!n.equals(name)) changed[3] = true;
+                return n;
+            }
+
+            @Override
+            public String mapFieldName(String owner, String name, String descriptor) {
+                if (sp == null) return name;
+                String n = sp.mapFieldName(owner, name, descriptor);
+                if (!n.equals(name)) changed[3] = true;
+                return n;
+            }
+
+            @Override
+            public String mapInvokeDynamicMethodName(String name, String descriptor) {
+                if (sp == null) return name;
+                String n = sp.mapInvokeDynamicMethodName(name, descriptor);
+                if (!n.equals(name)) changed[3] = true;
+                return n;
             }
         };
         ClassVisitor chain = new ReflectionRewriter(writer, changed, plugin, members, names);
         chain = new NmsLinker(chain, symbols, plugin, own, changed, 2);
         reader.accept(new ClassRemapper(chain, remapper), 0);
-        if (!changed[0] && !changed[1] && !changed[2]) return null;
+        if (!changed[0] && !changed[1] && !changed[2] && !changed[3]) return null;
         if (changed[0] && announced.compareAndSet(false, true)) {
             LOG.info("플러그인 {}: CraftBukkit 버전 접미사 이름({}) 을 이 서버의 접미사 없는 이름으로 바꿔 올린다", plugin, CraftNames.VERSION);
         }
