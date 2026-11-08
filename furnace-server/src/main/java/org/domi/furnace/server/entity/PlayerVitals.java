@@ -4,6 +4,8 @@
 // 블록을 봐야 하는 판정(물·사다리·착지 블록)은 소유 region 이 계산해 인자로 넘긴다.
 package org.domi.furnace.server.entity;
 
+import java.util.ArrayList;
+import java.util.List;
 import org.domi.furnace.server.entity.damage.CombatRules;
 import org.domi.furnace.server.entity.damage.CombatTracker;
 import org.domi.furnace.server.entity.damage.DamageSource;
@@ -53,9 +55,12 @@ public final class PlayerVitals {
         /** 이 엔티티를 추적(화면에 보고) 중인 다른 플레이어에게 패킷. */
         void broadcastToTrackers(int entityId, Packet packet);
 
-        /** 사망 직전(플러그인 PlayerDeathEvent) — 메시지(null = 알리지 않음)·인벤토리·경험치 유지를 바꿀 수 있다. */
-        default DeathOutcome death(Player player, Text message, boolean keepInventory) {
-            return new DeathOutcome(message, keepInventory, keepInventory);
+        /**
+         * 사망 직전(플러그인 PlayerDeathEvent) — 메시지(null = 알리지 않음)·떨어뜨릴 아이템·경험치·인벤토리/경험치 유지를 바꿀 수 있다.
+         * drops 는 죽는 순간 인벤토리에서 모은 목록(소멸 저주 제외), droppedExp 는 바닐라 기본 경험치량이다.
+         */
+        default DeathOutcome death(Player player, Text message, boolean keepInventory, List<ItemStack> drops, int droppedExp) {
+            return DeathOutcome.unchanged(message, keepInventory, drops, droppedExp);
         }
 
         /** 플러그인 이벤트 입구(피해·텔레포트). 기본은 아무것도 안 한다. */
@@ -80,12 +85,21 @@ public final class PlayerVitals {
         };
     }
 
-    /** 사망 처리 결과. */
-    public record DeathOutcome(Text message, boolean keepInventory, boolean keepLevel) {}
+    /**
+     * 사망 처리 결과. drops 는 이 목록대로 던지고(keepInventory 와 무관), keepInventory 가 false 면 인벤토리를 비운다.
+     * newExp·newLevel·newTotalExp 는 keepLevel 이 false 일 때 리스폰 경험치(바닐라 기본은 전부 0).
+     */
+    public record DeathOutcome(Text message, boolean keepInventory, boolean keepLevel, List<ItemStack> drops, int droppedExp,
+                               int newExp, int newLevel, int newTotalExp) {
+        /** 플러그인이 아무것도 바꾸지 않은 기본 결과: keepLevel 은 keepInventory 와 같다. */
+        public static DeathOutcome unchanged(Text message, boolean keepInventory, List<ItemStack> drops, int droppedExp) {
+            return new DeathOutcome(message, keepInventory, keepInventory, drops, droppedExp, 0, 0, 0);
+        }
+    }
 
-    /** 죽을 때 소유 연결이 할 일(인벤토리 비우기 등). netty 이벤트 루프로 넘겨 실행된다. */
+    /** 죽을 때 소유 연결이 할 일(드롭 던지기·인벤토리 비우기 등). netty 이벤트 루프로 넘겨 실행된다. */
     public interface DeathListener {
-        void onDeath(boolean keepInventory);
+        void onDeath(boolean keepInventory, List<ItemStack> drops);
     }
 
     /** 틱마다 region 이 블록을 보고 계산해 넘기는 주변 상태. */
@@ -864,7 +878,6 @@ public final class PlayerVitals {
         });
         onOwnerThread(player::clearFire);   // Player.die / ServerPlayer.die: clearFire + 불 플래그 끔
         boolean showMessages = env.gameRule("showDeathMessages");
-        boolean keepInventory = env.gameRule("keepInventory");
         Text name = player.displayName();
         Text message;
         boolean spectator;
@@ -876,9 +889,16 @@ public final class PlayerVitals {
             lastDeathDimension = "minecraft:overworld";
             lastDeathPos = new int[]{(int) Math.floor(player.x()), (int) Math.floor(player.y()), (int) Math.floor(player.z())};
         }
-        DeathOutcome outcome = env.death(player, message, keepInventory);
+        // CraftBukkit/Paper ServerPlayer.die: keepInventory 는 게임룰 또는 관전자. 그렇지 않으면 인벤토리 전체가 떨어뜨릴 목록으로 들어간다.
+        boolean keepInventory = env.gameRule("keepInventory") || spectator;
+        List<ItemStack> loot = keepInventory ? new ArrayList<>() : collectInventoryLoot();
+        DeathOutcome outcome = env.death(player, message, keepInventory, loot, death.experience);
+        death.experience = outcome.droppedExp();   // 플러그인이 바꾼 경험치량(바닐라 expToDrop)
         synchronized (this) {
             keepLevelOnRespawn = outcome.keepLevel();
+            newExp = outcome.newExp();
+            newLevel = outcome.newLevel();
+            newTotalExp = outcome.newTotalExp();
         }
         if (outcome.message() != null) {
             player.send(new PlayerCombatKill(player.entityId(), player.localize(outcome.message())));
@@ -888,8 +908,8 @@ public final class PlayerVitals {
         }
         player.removeEntitiesOnShoulder();   // ServerPlayer.die: 어깨의 몹을 내려놓는다
         DeathListener l = deathListener;
-        if (l != null && !spectator) l.onDeath(outcome.keepInventory());
-        if (!spectator) onOwnerThread(() -> dropDeathExperience(death));   // dropAllDeathLoot 의 dropExperience(전리품 다음)
+        if (l != null) l.onDeath(outcome.keepInventory(), outcome.drops());
+        onOwnerThread(() -> dropDeathExperience(death));   // dropAllDeathLoot 의 dropExperience(전리품 다음). 관전자는 기본 0 이라 구슬이 없다.
         var board = player.scoreboard();   // 바닐라 ServerPlayer.die: deathCount 기준 +1
         if (board != null) board.incrementCriteria(player, org.domi.furnace.server.scores.ObjectiveCriteria.DEATH_COUNT);
         Targetable killer = player.getKillCredit();
@@ -907,6 +927,24 @@ public final class PlayerVitals {
     }
 
     private boolean keepLevelOnRespawn;
+    private int newExp, newLevel, newTotalExp;
+
+    /**
+     * Inventory.getContents 순서(주 인벤토리 → 갑옷 발·다리·가슴·머리 → 왼손)의 비어 있지 않은 칸 — 소멸 저주 아이템(PREVENT_EQUIPMENT_DROP)은 뺀다.
+     * 인벤토리를 건드리지는 않는다(비우는 건 이벤트 뒤 keepInventory 가 false 일 때 소유 연결이 한다).
+     */
+    private List<ItemStack> collectInventoryLoot() {
+        List<ItemStack> loot = new ArrayList<>();
+        PlayerInventory inv = player.inventory();
+        if (inv == null) return loot;
+        for (int i = 0; i <= 40; i++) {
+            ItemStack s = inv.get(PlayerInventory.windowSlot(i));
+            if (s == null || s.isEmpty()) continue;
+            if (org.domi.furnace.server.item.ItemTools.enchantmentLevel(s, "minecraft:vanishing_curse") > 0) continue;
+            loot.add(s);
+        }
+        return loot;
+    }
 
     // ------------------------------------------------------------------ 사망 경험치(바닐라 Player.getBaseExperienceReward·dropExperience)
 
@@ -914,7 +952,7 @@ public final class PlayerVitals {
     public static final class Death {
         private final String type;
         private final Rider causing, direct;
-        private final int experience;
+        private volatile int experience;
         private final org.domi.furnace.server.block.ChunkLevel level;
         private final double x, y, z;
         private volatile boolean consumed;
@@ -1476,11 +1514,16 @@ public final class PlayerVitals {
         abilities.walkingSpeed = 0.1f;
         abilities.applyGameMode(gameMode);
         if (!keepXp) {
-            xpLevel = 0;
-            xpTotal = 0;
+            // Paper ServerPlayer.reset: 레벨·총량은 PlayerDeathEvent 의 newLevel·newTotalExp(기본 0), 진행도 0, 그 뒤 newExp 만큼 더한다.
+            xpLevel = Math.max(0, newLevel);
+            xpTotal = Math.max(0, newTotalExp);
             xpProgress = 0;
             score = 0;
+            if (newExp != 0) giveExperiencePoints(newExp);
         }
+        newExp = 0;
+        newLevel = 0;
+        newTotalExp = 0;
         lastSentHealth = -1.0e8f;
         lastSentFood = -99999999;
         lastFoodSaturationZero = true;

@@ -1168,13 +1168,39 @@ public final class ServerCore {
         }
         public void broadcastAll(org.domi.furnace.server.net.protocol.Packet packet) { for (Player p : players()) p.send(packet); }
         public void broadcastToTrackers(int entityId, org.domi.furnace.server.net.protocol.Packet packet) { world.broadcastToTrackers(entityId, packet); }
-        public org.domi.furnace.server.entity.PlayerVitals.DeathOutcome death(Player player, Text message, boolean keepInventory) {
+        public org.domi.furnace.server.entity.PlayerVitals.DeathOutcome death(Player player, Text message, boolean keepInventory,
+                                                                              java.util.List<org.domi.furnace.server.entity.ItemStack> drops, int droppedExp) {
             var events = events();
             if (!events.hasSubscribers(org.domi.furnace.api.event.player.PlayerDeathEvent.class)) {
-                return new org.domi.furnace.server.entity.PlayerVitals.DeathOutcome(message, keepInventory, keepInventory);
+                return org.domi.furnace.server.entity.PlayerVitals.DeathOutcome.unchanged(message, keepInventory, drops, droppedExp);
             }
-            var ev = events.call(new org.domi.furnace.api.event.player.PlayerDeathEvent(pluginHost.player(player), message, keepInventory));
-            return new org.domi.furnace.server.entity.PlayerVitals.DeathOutcome(ev.deathMessage(), ev.keepInventory(), ev.keepLevel());
+            var items = world.itemRegistry();
+            var apiDrops = new java.util.ArrayList<org.domi.furnace.api.item.ItemStack>(drops.size());
+            // 플러그인이 건드리지 않은 아이템은 변환 없이 원래 스택으로 되돌려 쓴다(API 값으로 한 번 갔다 오면 달라질 수 있는 컴포넌트 보호)
+            var originals = new java.util.HashMap<org.domi.furnace.api.item.ItemStack, java.util.ArrayDeque<org.domi.furnace.server.entity.ItemStack>>();
+            for (var s : drops) {
+                var a = org.domi.furnace.server.plugin.ApiConvert.item(s, items);
+                apiDrops.add(a);
+                originals.computeIfAbsent(a, k -> new java.util.ArrayDeque<>()).add(s);
+            }
+            var ev = events.call(new org.domi.furnace.api.event.player.PlayerDeathEvent(pluginHost.player(player), message, keepInventory, apiDrops, droppedExp));
+            var finalDrops = new java.util.ArrayList<org.domi.furnace.server.entity.ItemStack>(ev.drops().size());
+            for (var a : ev.drops()) {
+                if (a == null || a.isEmpty()) continue;
+                var queue = originals.get(a);
+                if (queue != null && !queue.isEmpty()) {
+                    finalDrops.add(queue.poll());
+                    continue;
+                }
+                try {
+                    var s = org.domi.furnace.server.plugin.ApiConvert.item(a, items);
+                    if (!s.isEmpty()) finalDrops.add(s);
+                } catch (IllegalArgumentException ex) {
+                    log.warn("PlayerDeathEvent 드롭 목록의 아이템을 버린다(알 수 없는 아이템·컴포넌트): {} — {}", a.type(), ex.getMessage());
+                }
+            }
+            return new org.domi.furnace.server.entity.PlayerVitals.DeathOutcome(ev.deathMessage(), ev.keepInventory(), ev.keepLevel(),
+                    finalDrops, ev.droppedExp(), ev.newExp(), ev.newLevel(), ev.newTotalExp());
         }
         public boolean allowGameModeChange(Player player, org.domi.furnace.server.world.GameMode mode) {
             var events = events();
