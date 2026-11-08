@@ -157,4 +157,25 @@ class LegacySyncRegionAccessTest {
         }
         assertInstanceOf(ThreadOwnershipException.class, async.get());
     }
+
+    @Test
+    void waitingOnCallSyncMethodIsMarkedSoTheGlobalNeverWaitsBack() throws Exception {
+        Future<Material> f = p.legacy.callSyncMethod(p, () -> block(6, 0, 0).getType());
+        AtomicReference<Object> got = new AtomicReference<>();
+        Thread waiter = new Thread(() -> {
+            try {
+                got.set(f.get(10, TimeUnit.SECONDS));
+            } catch (Exception e) {
+                got.set(e);
+            }
+        }, "listener-like");
+        waiter.start();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (!org.domi.furnace.api.concurrent.GlobalWait.isWaiting(waiter) && System.nanoTime() < deadline) Thread.sleep(2);
+        assertTrue(org.domi.furnace.api.concurrent.GlobalWait.isWaiting(waiter), "막고 기다리는 스레드에 표시가 달린다(전역이 그 스레드의 region 을 기다리지 않게)");
+        server.tick();
+        waiter.join(5000);
+        assertEquals(Material.AIR, got.get());
+        assertFalse(org.domi.furnace.api.concurrent.GlobalWait.isWaiting(waiter), "다 기다리면 표시를 뗀다");
+    }
 }

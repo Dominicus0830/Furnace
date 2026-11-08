@@ -232,7 +232,8 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         if (!(tasks.owner() instanceof Entity e) || e.isRemoved()) return false;
         World w = host.core().world(e.dimensionKey());
         ChunkPos cp = ChunkPos.ofBlock(e.x(), e.z());
-        org.domi.furnace.server.world.RegionBorrow.claimChunk(w, cp.x(), cp.z());   // 전역 빌림 구간이면 그 region 을 빌린다
+        // 전역 빌림 구간이면 그 엔티티의 region 을 빌린다 — 기다리는 사이 경계를 넘었으면 옮겨 간 region 을(위치는 빌린 뒤 다시 읽는다)
+        if (org.domi.furnace.server.world.RegionBorrow.claimEntity(e)) cp = ChunkPos.ofBlock(e.x(), e.z());
         Region r = w == null ? null : w.regionizer().ownerOf(cp.x(), cp.z());
         if (r == null || !r.isOwnerThread() || r.level() == null || r.level().entities().get(e.uuid()) != e) {
             throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("엔티티 " + type() + " 를 가진 region 스레드가 아니다(현재 "

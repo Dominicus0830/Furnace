@@ -997,12 +997,15 @@ public final class Regionizer {
     /**
      * 빌리기(전역 스레드, 잠금 밖에서 부른다): r(합쳐졌으면 흡수한 쪽)이 틱 사이가 되기를 기다려 이 스레드가 쥔다 — 워커가 틱을 꺼낼 때처럼
      * ticking·tickThread 를 세우고 대기열에서 뺀다. 기다리는 동안 워커는 그 region 의 새 틱을 꺼내지 않는다(틱을 마친 그 자리에서 넘겨받는다).
-     * 쥔 region 을, 못 쥐면(죽음·닫힘·한도 초과·인터럽트) null.
+     * 쥔 region 을, 못 쥐면(죽음·닫힘·한도 초과·인터럽트·서로 기다림) null — 서로 기다림·한도 초과면 why[0] 에 까닭을 적는다.
+     * 그 region 스레드가 이 스레드를 기다리는 중이면(전역 결과를 막고 기다림 = GlobalWait, 이 스레드가 쥔 잠금을 기다림) 한도까지 기다리지 않고 곧바로 포기한다.
      */
-    Region borrow(Region r, long waitNanos) {
+    Region borrow(Region r, long waitNanos, String[] why) {
         if (lock.isHeldByCurrentThread()) return null;   // 잠금을 쥔 채 기다리면 틱을 마치는 워커가 잠금을 못 잡는다
         Thread me = Thread.currentThread();
-        long deadline = System.nanoTime() + waitNanos;
+        long start = System.nanoTime();
+        long deadline = start + waitNanos;
+        long nextLockCheck = start + LOCK_CHECK_NANOS;
         Region wanted = null;
         lock.lock();
         borrowWaiters++;
@@ -1032,8 +1035,24 @@ public final class Regionizer {
                 }
                 // 이 스레드가 쥔 region 에 양보하고 기다리는 중이면 쥔 쪽이 지금 흡수한다(쥔 region 은 틱 사이다) — 아니면 돌려줄 때까지 서로 기다린다
                 if (cur.yielded && absorbIntoBorrowed(me)) continue;
-                long left = deadline - System.nanoTime();
-                if (left <= 0) return null;
+                Thread other = cur.tickThread;
+                if (other != null && org.domi.furnace.api.concurrent.GlobalWait.isWaiting(other)) {
+                    why[0] = "그 region 스레드(" + other.getName() + ")가 전역 스레드의 결과를 막고 기다린다(서로 기다림)";
+                    return null;
+                }
+                long now = System.nanoTime();
+                if (other != null && now - nextLockCheck >= 0) {   // 잠금 주인 확인은 비싸서 가끔만
+                    nextLockCheck = now + LOCK_CHECK_NANOS;
+                    if (waitsOnLockOf(other, me)) {
+                        why[0] = "그 region 스레드(" + other.getName() + ")가 이 스레드가 쥔 잠금을 기다린다(서로 기다림)";
+                        return null;
+                    }
+                }
+                long left = deadline - now;
+                if (left <= 0) {
+                    why[0] = (waitNanos / 1_000_000L) + "ms 안에 틱이 끝나지 않았다" + (other == null ? "" : " — " + other.getName() + " 위치 " + topFrame(other));
+                    return null;
+                }
                 try {
                     borrowable.awaitNanos(Math.min(left, 1_000_000L));
                 } catch (InterruptedException e) {
@@ -1048,6 +1067,25 @@ public final class Regionizer {
         }
     }
 
+    /** 빌리러 기다리는 동안 잠금 주인을 확인하는 간격. */
+    private static final long LOCK_CHECK_NANOS = 10_000_000L;
+
+    /** t 가 owner 가 쥔 모니터·잠금(AQS)을 기다리는 중인가. */
+    private static boolean waitsOnLockOf(Thread t, Thread owner) {
+        try {
+            var info = java.lang.management.ManagementFactory.getThreadMXBean().getThreadInfo(t.threadId());
+            return info != null && info.getLockOwnerId() == owner.threadId();
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /** 경고용: t 가 지금 서 있는 첫 프레임. */
+    private static String topFrame(Thread t) {
+        StackTraceElement[] st = t.getStackTrace();
+        return st.length == 0 ? "?" : st[0].toString();
+    }
+
     /** 빌리기를 그만둔다(잠금 안): 기다리는 동안 워커가 지운 대기열 자리를 되살린다. */
     private void unwant(Region r) {
         if (--r.borrowWanted == 0 && !r.ticking) schedule(r);
@@ -1055,6 +1093,7 @@ public final class Regionizer {
 
     /**
      * me 가 빌려 쥔 region 들이, 그쪽에 양보하고 기다리는 쉬는 병합 상대를 흡수한다(잠금 안). 쥔 region 은 틱 사이라 흡수해도 된다.
+     * 그래서 구간 도중에 쥔 region 이 커질 수 있다(엔티티·플레이어 목록이 늘어난다 — Region.mine 의 "틱 중에도 더해질 수는 있다"와 같다).
      * resolveMerges 와 달리 틱 중인 상대에게 쥔 region 이 양보하지는 않는다(쥔 채로 양보하면 돌려줄 때 대기열에 못 돌아온다). 하나라도 흡수했으면 참.
      */
     private boolean absorbIntoBorrowed(Thread me) {

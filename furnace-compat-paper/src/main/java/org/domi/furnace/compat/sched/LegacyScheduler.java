@@ -136,6 +136,32 @@ public final class LegacyScheduler {
             if (t != null && !t.cancelUnclaimed()) return false;
             return super.cancel(mayInterrupt);
         }
+
+        // 다른 스레드(region 스레드의 옛 리스너 등)가 막고 기다리는 동안 GlobalWait 표시 — 전역이 그 region 을 빌리려 하면 서로 기다리지 않고 곧바로 포기한다
+        @Override
+        public T get() throws InterruptedException, java.util.concurrent.ExecutionException {
+            if (isDone()) return super.get();
+            try (var m = org.domi.furnace.api.concurrent.GlobalWait.begin()) {
+                return super.get();
+            }
+        }
+
+        @Override
+        public T get(long timeout, java.util.concurrent.TimeUnit unit)
+                throws InterruptedException, java.util.concurrent.ExecutionException, java.util.concurrent.TimeoutException {
+            if (isDone()) return super.get(timeout, unit);
+            try (var m = org.domi.furnace.api.concurrent.GlobalWait.begin()) {
+                return super.get(timeout, unit);
+            }
+        }
+
+        @Override
+        public T join() {
+            if (isDone()) return super.join();
+            try (var m = org.domi.furnace.api.concurrent.GlobalWait.begin()) {
+                return super.join();
+            }
+        }
     }
 
     // ---- 조회·취소

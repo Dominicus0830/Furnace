@@ -19,7 +19,13 @@ public final class PrimaryThread {
 
     /** 이 스레드를 "주 스레드"로 표시한다. try-with-resources 로 닫는다(겹쳐 들어와도 된다). */
     public static Scope enter() {
-        if (DEPTH.get()[0]++ == 0) {
+        int[] d = DEPTH.get();
+        GlobalScheduler.RegionAccess held = ACCESS.get();
+        if (d[0] > 0 && held != null && !held.isOpen()) {   // 닫지 않은 표시가 남았고 서버가 그 구간을 이미 닫았다 — 새로 시작한다
+            d[0] = 0;
+            ACCESS.remove();
+        }
+        if (d[0]++ == 0) {
             GlobalScheduler.RegionAccess a = openAccess();
             if (a != GlobalScheduler.RegionAccess.NONE) ACCESS.set(a);
         }
