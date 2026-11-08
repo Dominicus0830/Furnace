@@ -41,6 +41,7 @@ public final class Compat {
         private volatile LegacyCommands commands;
         private volatile SimpleCommandMap commandMap;
         private volatile SimpleServicesManager services;
+        private volatile CompatMessenger messenger;
 
         State(Furnace furnace) { this.furnace = furnace; }
 
@@ -62,6 +63,11 @@ public final class Compat {
         synchronized SimpleServicesManager services() {
             if (services == null) services = new SimpleServicesManager();
             return services;
+        }
+
+        synchronized CompatMessenger messenger() {
+            if (messenger == null) messenger = new CompatMessenger(furnace);
+            return messenger;
         }
 
         void close() {
@@ -105,6 +111,9 @@ public final class Compat {
 
     /** 지금 서버의 서비스 지도. */
     public static SimpleServicesManager services() { return state().services(); }
+
+    /** 지금 서버의 플러그인 메신저. */
+    public static CompatMessenger messenger() { return state().messenger(); }
 
     // ------------------------------------------------------------------ 월드
 

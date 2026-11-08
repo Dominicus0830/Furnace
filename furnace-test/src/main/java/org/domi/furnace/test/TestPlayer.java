@@ -42,6 +42,9 @@ public final class TestPlayer implements AutoCloseable {
     private UUID uuid;
     private final List<Text> messages = new CopyOnWriteArrayList<>();
     private final List<Text> actionBars = new CopyOnWriteArrayList<>();
+    private final List<org.domi.furnace.api.packet.clientbound.ClientboundCustomPayloadPacket> pluginMessages = new CopyOnWriteArrayList<>();
+    /** 구성 단계에서 minecraft:register 로 알릴 채널(모드 클라이언트처럼). */
+    private final String[] configChannels;
     private final AtomicLong syncSent = new AtomicLong();
     private final AtomicLong syncSeen = new AtomicLong();
     private final List<EventSubscription> subs = new CopyOnWriteArrayList<>();
@@ -49,21 +52,22 @@ public final class TestPlayer implements AutoCloseable {
     private volatile String disconnectReason;
     private Thread reader;
 
-    private TestPlayer(FurnaceTestServer server, String name, Socket socket) throws IOException {
+    private TestPlayer(FurnaceTestServer server, String name, Socket socket, String[] configChannels) throws IOException {
         this.server = server;
         this.name = name;
+        this.configChannels = configChannels.clone();
         this.socket = socket;
         this.out = socket.getOutputStream();
         this.in = new DataInputStream(socket.getInputStream());
     }
 
-    static TestPlayer connect(FurnaceTestServer server, int port, String name) {
+    static TestPlayer connect(FurnaceTestServer server, int port, String name, String... configChannels) {
         TestPlayer p = null;
         Socket s = new Socket();
         try {
             s.connect(new InetSocketAddress("127.0.0.1", port), 5000);
             s.setSoTimeout((int) Math.min(Integer.MAX_VALUE, server.timeoutMillis()));
-            p = new TestPlayer(server, name, s);
+            p = new TestPlayer(server, name, s, configChannels);
             p.subscribe();
             p.login();
             p.awaitOnline();
@@ -88,6 +92,9 @@ public final class TestPlayer implements AutoCloseable {
         subs.add(packets.listenInternal(PacketTypes.Clientbound.SET_ACTION_BAR_TEXT, EventPriority.MONITOR, e -> {
             if (isMe(e.player())) actionBars.add(e.packet().text());
         }));
+        subs.add(packets.listenInternal(PacketTypes.Clientbound.CUSTOM_PAYLOAD, EventPriority.MONITOR, e -> {
+            if (isMe(e.player())) pluginMessages.add(e.packet());
+        }));
         subs.add(packets.listenInternal(PacketTypes.Serverbound.CUSTOM_PAYLOAD, EventPriority.LOWEST, e -> {
             if (!SYNC_CHANNEL.equals(e.packet().channel()) || !isMe(e.player())) return;
             e.setCancelled(true);
@@ -111,6 +118,13 @@ public final class TestPlayer implements AutoCloseable {
         ByteBuf success = await(0x02, 0x00);   // login success (0x00 = 로그인 단계 끊기)
         uuid = Types.readUuid(success);
         write(0x03, null);                       // login acknowledged → 구성
+        if (configChannels.length > 0) {         // custom_payload(구성): minecraft:register
+            byte[] names = String.join("\0", configChannels).getBytes(StandardCharsets.UTF_8);
+            write(0x02, b -> {
+                Types.writeString(b, "minecraft:register");
+                b.writeBytes(names);
+            });
+        }
         write(0x07, b -> Types.writeVarInt(b, 0));   // known packs: 없음
         await(0x03, 0x02);                       // finish configuration (0x02 = 구성 단계 끊기)
         write(0x03, null);                       // ack → 플레이
@@ -199,6 +213,26 @@ public final class TestPlayer implements AutoCloseable {
         return this;
     }
 
+    /** 플러그인 채널로 보낸다(play custom_payload). 서버가 처리한 뒤 돌아온다(전역 스레드로 넘긴 일까지). */
+    public TestPlayer sendPluginMessage(String channel, byte[] data) {
+        send(0x12, b -> {
+            Types.writeString(b, channel);
+            b.writeBytes(data);
+        });
+        sync();
+        return this;
+    }
+
+    /** minecraft:register 로 채널을 알린다(play 단계). */
+    public TestPlayer registerChannels(String... channels) {
+        return sendPluginMessage("minecraft:register", String.join("\0", channels).getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** minecraft:unregister 로 채널을 거둔다. */
+    public TestPlayer unregisterChannels(String... channels) {
+        return sendPluginMessage("minecraft:unregister", String.join("\0", channels).getBytes(StandardCharsets.UTF_8));
+    }
+
     /** 원시 serverbound play 패킷(id + 본문). 다른 방법이 없을 때만. */
     public TestPlayer sendPacket(int id, Consumer<ByteBuf> body) {
         send(id, body);
@@ -275,6 +309,11 @@ public final class TestPlayer implements AutoCloseable {
 
     /** 받은 액션바 글. */
     public List<Text> actionBars() { return List.copyOf(actionBars); }
+
+    /** 서버가 이 플레이어에게 보낸 플러그인 채널 메시지(minecraft:register 포함, 받은 순서). */
+    public List<org.domi.furnace.api.packet.clientbound.ClientboundCustomPayloadPacket> pluginMessages() { return List.copyOf(pluginMessages); }
+
+    public void clearPluginMessages() { pluginMessages.clear(); }
 
     /** 모은 메시지를 비운다. */
     public void clearMessages() {

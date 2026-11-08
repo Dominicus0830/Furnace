@@ -16,7 +16,7 @@ import org.bukkit.plugin.ServicesManager;
 import org.bukkit.scheduler.BukkitScheduler;
 
 /** 서버. 호환 범위는 docs/api/compat-paper.md. */
-public interface Server {
+public interface Server extends org.bukkit.plugin.messaging.PluginMessageRecipient {
 
     String getName();
 
@@ -68,6 +68,9 @@ public interface Server {
 
     /** 플러그인끼리 서비스를 주고받는 곳. */
     ServicesManager getServicesManager();
+
+    /** 플러그인 채널 메신저(서버마다 하나). */
+    org.bukkit.plugin.messaging.Messenger getMessenger();
 
     /** 지금 스레드가 "주 스레드"인가: 전역 스레드이거나, 호환 계층이 옛 코드를 돌리려고 표시한 스레드. */
     boolean isPrimaryThread();

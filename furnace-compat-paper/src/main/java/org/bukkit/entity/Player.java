@@ -4,7 +4,7 @@ import java.net.InetSocketAddress;
 import org.bukkit.OfflinePlayer;
 
 /** 접속 중인 플레이어. 인벤토리·스코어보드·소리 같은 것은 H3. */
-public interface Player extends HumanEntity, OfflinePlayer {
+public interface Player extends HumanEntity, OfflinePlayer, org.bukkit.plugin.messaging.PluginMessageRecipient {
 
     String getDisplayName();
 

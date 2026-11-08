@@ -21,7 +21,7 @@
 
 우선순위(LOWEST~MONITOR), `ignoreCancelled`, 취소 전달은 Furnace 버스가 지킨다. 같은 우선순위의 Furnace 고유 플러그인과는 등록 순이다.
 
-## 지원하는 이벤트 (24)
+## 지원하는 이벤트 (25)
 
 | Bukkit | Furnace | 되돌려 쓰는 값 |
 |---|---|---|
@@ -39,6 +39,7 @@
 | `ServerCommandEvent` | 같은 이름 | 명령 문자열, 취소 |
 | `ServerLoadEvent` | 같은 이름 | — |
 | `WorldLoadEvent`, `WorldUnloadEvent`, `ChunkLoadEvent`, `ChunkUnloadEvent` | 같은 이름 | 월드 내림 취소(`WorldUnloadEvent` 만) |
+| `PlayerRegisterChannelEvent` / `PlayerUnregisterChannelEvent` (처리기 목록은 `PlayerChannelEvent`) | `PlayerChannelEvent` | — (연결 스레드) |
 
 플러그인이 만든 자기 이벤트는 `PluginManager#callEvent` 로 그대로 돈다(Furnace 이벤트와 이어지지 않는 순수 Bukkit 이벤트).
 
@@ -67,6 +68,10 @@ Furnace 이벤트가 알리지 않는 값은 지어내지 않는다. 읽기는 �
 
 `JavaPlugin#getCommand`(plugin.yml 의 `commands:` → `PluginCommand`, 기본 실행기는 플러그인 본체)·`getProvidingPlugin`·`getPlugin(Class)`, `Command`·`CommandMap`/`SimpleCommandMap`(명령 트리에 이어짐, `getKnownCommands()` 에서 지우면 트리에서도 빠짐), `BukkitScheduler`·`BukkitRunnable`·`BukkitTask`, `ServicesManager`, `Bukkit.getScheduler/getServicesManager/isPrimaryThread/getCommandMap/getPluginCommand`. 설계·Bukkit 과 다른 점 10가지: `docs/feature-parity/compat-javaplugin-wiring-2026-11-07.md`. 시험: `JavaPluginWiringTest`(시험 안에서 컴파일한 플러그인 jar).
 
+## 플러그인 메시징 (H4 묶음 E)
+
+`Bukkit.getMessenger()`(`Messenger`/`StandardMessenger`), `PluginMessageListener`, `Player`·`Server` 의 `sendPluginMessage`·`getListeningPluginChannels`, `"BungeeCord"` ↔ `bungeecord:main` 이름 바꿈, 채널 등록 이벤트. 받은 메시지 리스너는 전역 스레드("주 스레드")에서 돌고, 보내기는 클라이언트가 그 채널을 알렸을 때만 나간다(Bukkit 과 같다). 설계·Bukkit 과 다른 점: `docs/feature-parity/compat-h4e-messaging-2026-11-08.md`. 시험: `PluginMessagingTest`.
+
 ## 스레드 (H2 가 H1 에 넘긴 D1·D2 에 대한 결정)
 
 Bukkit 은 메인 스레드 하나를 가정한다. 이 1차는 Furnace 이벤트가 불리는 스레드(region·global·채팅은 비동기) 그대로 Bukkit 처리기를 부른다. `Block#getType` 같은 월드 읽기는 소유 region 스레드에서만 안전하다.
@@ -82,11 +87,11 @@ Bukkit 은 메인 스레드 하나를 가정한다. 이 1차는 Furnace 이벤�
 
 ## H4: 실제 플러그인으로 잰 호환 정도
 
-실제 Bukkit·Paper API 로 컴파일된 jar(Central 의 실제 플러그인 helper·CommandAPI 와 흔한 플러그인 라이브러리 11종)를 바이트코드로 대조하고 plugin.yml jar 는 헤드리스 서버에 올려 잰 표·우선순위·한계는 `docs/feature-parity/compat-h4-2026-11-07.md`, 생성 대조표는 `docs/feature-parity/compat-h4-coverage-2026-11-07.md`. H4 측정 때 helper·CommandAPI 둘 다 켜지지 못했다(첫 장애물: `JavaPlugin.getProvidingPlugin`, Brigadier 클래스 없음). A 묶음 뒤 helper 의 첫 장애물은 Guava(`com.google.common.base.Supplier`, 서버 제공 라이브러리 B — 사용자 결정), CommandAPI 는 그대로 Brigadier. B 묶음(2026-11-08)부터 Paper 가 싣는 라이브러리(Guava·Adventure·SnakeYAML·Brigadier 등)는 호환 플러그인이 쓸 때만 받아 공유 로더에 붙인다(`docs/api/plugin-libraries.md`) — 그 뒤 둘 다 `PluginMessageListener`(묶음 E)에서 멈춘다. 호환 API 를 더하는 묶음은 `./gradlew -PskipOracle=true :furnace-compat-paper:compatReport` 로 대조표와 기준표(`realworld-baseline.properties`)를 새로 쓴다 — 기준표 시험(`RealWorldCompatTest`)이 후퇴를 막는다.
+실제 Bukkit·Paper API 로 컴파일된 jar(Central 의 실제 플러그인 helper·CommandAPI 와 흔한 플러그인 라이브러리 11종)를 바이트코드로 대조하고 plugin.yml jar 는 헤드리스 서버에 올려 잰 표·우선순위·한계는 `docs/feature-parity/compat-h4-2026-11-07.md`, 생성 대조표는 `docs/feature-parity/compat-h4-coverage-2026-11-07.md`. H4 측정 때 helper·CommandAPI 둘 다 켜지지 못했다(첫 장애물: `JavaPlugin.getProvidingPlugin`, Brigadier 클래스 없음). A 묶음 뒤 helper 의 첫 장애물은 Guava(`com.google.common.base.Supplier`, 서버 제공 라이브러리 B — 사용자 결정), CommandAPI 는 그대로 Brigadier. B 묶음(2026-11-08)부터 Paper 가 싣는 라이브러리(Guava·Adventure·SnakeYAML·Brigadier 등)는 호환 플러그인이 쓸 때만 받아 공유 로더에 붙인다(`docs/api/plugin-libraries.md`) — 그 뒤 둘 다 `PluginMessageListener`(묶음 E)에서 멈췄고, E 묶음(2026-11-08) 뒤 helper 는 `SimplePluginManager`, CommandAPI 는 Spigot 이름 NMS(H7d)에서 멈춘다. 호환 API 를 더하는 묶음은 `./gradlew -PskipOracle=true :furnace-compat-paper:compatReport` 로 대조표와 기준표(`realworld-baseline.properties`)를 새로 쓴다 — 기준표 시험(`RealWorldCompatTest`)이 후퇴를 막는다.
 
 ## 시험
 
-`./gradlew -PskipOracle=true :furnace-compat-paper:test` — 헤드리스 서버(`furnace-test`)에 시험용 `plugin.yml` jar 를 올려 로드 순서·설정·이벤트 24종 전달·쓰기 되돌림·우선순위·취소·미지원 오류를 확인한다. 서버 쪽 SPI 는 `PluginFormatSpiTest`.
+`./gradlew -PskipOracle=true :furnace-compat-paper:test` — 헤드리스 서버(`furnace-test`)에 시험용 `plugin.yml` jar 를 올려 로드 순서·설정·이벤트 25종 전달·쓰기 되돌림·우선순위·취소·미지원 오류를 확인한다. 서버 쪽 SPI 는 `PluginFormatSpiTest`.
 
 ## 법적 메모
 

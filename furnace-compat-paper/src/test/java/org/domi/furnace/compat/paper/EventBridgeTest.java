@@ -84,6 +84,8 @@ class EventBridgeTest {
             Location to = new Location(w, 5, 64, 6);
             var recorder = server.plugin("Recorder");
             Map<Class<?>, Supplier<org.domi.furnace.api.event.Event>> fire = new java.util.LinkedHashMap<>();
+            fire.put(org.bukkit.event.player.PlayerChannelEvent.class, () -> new org.domi.furnace.api.event.player.PlayerChannelEvent(p, "mod:a",
+                    org.domi.furnace.api.event.player.PlayerChannelEvent.Action.REGISTER));
             fire.put(org.bukkit.event.player.PlayerJoinEvent.class, () -> new org.domi.furnace.api.event.player.PlayerJoinEvent(p, Text.text("hi")));
             fire.put(org.bukkit.event.player.PlayerQuitEvent.class, () -> new org.domi.furnace.api.event.player.PlayerQuitEvent(p, Text.text("bye")));
             fire.put(org.bukkit.event.player.PlayerKickEvent.class, () -> new org.domi.furnace.api.event.player.PlayerKickEvent(p, Text.text("no")));

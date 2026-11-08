@@ -1464,6 +1464,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         scheduleSpawnGateRelease();
         if (login.core != null) login.core.scoreboard().sendTo(p);   // 바닐라 placeNewPlayer: updateEntireScoreboard 뒤 접속 알림
         if (login.core != null) login.core.plugins().sendRegisteredChannels(p);   // CraftBukkit sendSupportedChannels: 서버 플러그인이 받는 채널을 알린다
+        // CraftBukkit 은 구성 단계의 REGISTER 마다 PlayerRegisterChannelEvent 를 부른다 — 그때 알린 채널을 접속 알림 직전에 한꺼번에
+        if (login.core != null) fireChannelEvents(p, java.util.List.copyOf(pluginChannels.snapshot()), org.domi.furnace.api.event.player.PlayerChannelEvent.Action.REGISTER);
         if (login.core != null) announceJoin(login.core, p);
         if (login.core != null) login.core.customBossEvents().onPlayerConnect(p);
     }
@@ -2205,8 +2207,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             if (channel.equals(PluginChannels.REGISTER) || channel.equals(PluginChannels.UNREGISTER)) {
                 byte[] data = new byte[n];
                 frame.readBytes(data);
-                if (channel.equals(PluginChannels.REGISTER)) pluginChannels.register(data);
-                else pluginChannels.unregister(data);
+                boolean reg = channel.equals(PluginChannels.REGISTER);
+                java.util.List<String> changed = reg ? pluginChannels.add(data) : pluginChannels.remove(data);
+                // play 단계면 바로 알린다. 구성 단계(Player 가 아직 없다)에서 알린 채널은 play 진입 때 한꺼번에(announceChannels)
+                if (inPlay) fireChannelEvents(player, changed, reg ? org.domi.furnace.api.event.player.PlayerChannelEvent.Action.REGISTER
+                        : org.domi.furnace.api.event.player.PlayerChannelEvent.Action.UNREGISTER);
                 return;
             }
             if (!inPlay) return;
@@ -2219,6 +2224,14 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         } catch (Exception e) {
             log.debug("custom_payload 파싱 실패", e);
         }
+    }
+
+    /** 채널마다 PlayerChannelEvent 하나(Bukkit addChannel·removeChannel 처럼 실제로 바뀐 채널만). 연결 스레드. */
+    private void fireChannelEvents(Player p, java.util.List<String> channels, org.domi.furnace.api.event.player.PlayerChannelEvent.Action action) {
+        org.domi.furnace.server.ServerCore c = login.core;
+        if (p == null || c == null || channels.isEmpty() || !c.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerChannelEvent.class)) return;
+        org.domi.furnace.api.entity.Player handle = c.plugins().player(p);
+        for (String ch : channels) c.events().call(new org.domi.furnace.api.event.player.PlayerChannelEvent(handle, ch, action));
     }
 
     private volatile String clientBrand;

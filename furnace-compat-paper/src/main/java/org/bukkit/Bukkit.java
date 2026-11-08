@@ -78,6 +78,8 @@ public final class Bukkit {
 
     public static ServicesManager getServicesManager() { return s().getServicesManager(); }
 
+    public static org.bukkit.plugin.messaging.Messenger getMessenger() { return s().getMessenger(); }
+
     public static boolean isPrimaryThread() { return s().isPrimaryThread(); }
 
     public static org.bukkit.command.CommandMap getCommandMap() { return s().getCommandMap(); }
