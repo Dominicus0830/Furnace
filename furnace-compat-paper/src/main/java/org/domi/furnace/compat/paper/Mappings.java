@@ -222,26 +222,67 @@ final class Mappings {
         EventBridge.reg(org.domi.furnace.api.event.inventory.InventoryCloseEvent.class, org.bukkit.event.inventory.InventoryCloseEvent.class,
                 f -> new org.bukkit.event.inventory.InventoryCloseEvent(CompatInventories.view(f.player(), f.inventory(), f.menu(), null)), (f, b) -> {});
 
-        // 사망: 플레이어는 Furnace PlayerDeathEvent(메시지·유지 여부를 되돌려 쓴다), 몹은 Furnace EntityDeathEvent. Bukkit 은 둘 다 EntityDeathEvent 목록이다.
+        // 사망: 플레이어는 Furnace PlayerDeathEvent(메시지·유지 여부·드롭·경험치를 되돌려 쓴다), 몹은 Furnace EntityDeathEvent. Bukkit 은 둘 다 EntityDeathEvent 목록이다.
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerDeathEvent.class, org.bukkit.event.entity.EntityDeathEvent.class,
-                f -> new org.bukkit.event.entity.PlayerDeathEvent(p(f.player()), Compat.legacy(f.deathMessage()), f.keepInventory(), f.keepLevel()),
+                f -> {
+                    var b = new org.bukkit.event.entity.PlayerDeathEvent(p(f.player()), bukkitDrops(f.drops()), f.droppedExp(), Compat.legacy(f.deathMessage()),
+                            f.keepInventory(), f.keepLevel());
+                    b.setNewExp(f.newExp());
+                    b.setNewLevel(f.newLevel());
+                    b.setNewTotalExp(f.newTotalExp());
+                    return b;
+                },
                 (f, b) -> {
                     var pd = (org.bukkit.event.entity.PlayerDeathEvent) b;
                     if (!Objects.equals(pd.getDeathMessage(), Compat.legacy(f.deathMessage()))) f.deathMessage(Compat.text(pd.getDeathMessage()));
                     if (pd.getKeepInventory() != f.keepInventory()) f.keepInventory(pd.getKeepInventory());
                     if (pd.getKeepLevel() != f.keepLevel()) f.keepLevel(pd.getKeepLevel());
+                    var now = furnaceDrops(pd.getDrops());
+                    if (!now.equals(f.drops())) {
+                        f.drops().clear();
+                        f.drops().addAll(now);
+                    }
+                    if (pd.getDroppedExp() != f.droppedExp()) f.droppedExp(pd.getDroppedExp());
+                    if (pd.getNewExp() != f.newExp()) f.newExp(pd.getNewExp());
+                    if (pd.getNewLevel() != f.newLevel()) f.newLevel(pd.getNewLevel());
+                    if (pd.getNewTotalExp() != f.newTotalExp()) f.newTotalExp(pd.getNewTotalExp());
                 }, (f, b) -> {
                     var pd = (org.bukkit.event.entity.PlayerDeathEvent) b;
                     String cur = Compat.legacy(f.deathMessage());
                     if (!Objects.equals(cur, pd.getDeathMessage())) pd.setDeathMessage(cur);
                     if (pd.getKeepInventory() != f.keepInventory()) pd.setKeepInventory(f.keepInventory());
                     if (pd.getKeepLevel() != f.keepLevel()) pd.setKeepLevel(f.keepLevel());
+                    if (!furnaceDrops(pd.getDrops()).equals(f.drops())) {   // 앞선 Furnace 처리기가 목록을 바꿨다 — 같은 목록으로 맞춘다
+                        pd.getDrops().clear();
+                        pd.getDrops().addAll(bukkitDrops(f.drops()));
+                    }
+                    if (pd.getDroppedExp() != f.droppedExp()) pd.setDroppedExp(f.droppedExp());
+                    if (pd.getNewExp() != f.newExp()) pd.setNewExp(f.newExp());
+                    if (pd.getNewLevel() != f.newLevel()) pd.setNewLevel(f.newLevel());
+                    if (pd.getNewTotalExp() != f.newTotalExp()) pd.setNewTotalExp(f.newTotalExp());
                 });
         EventBridge.reg(org.domi.furnace.api.event.entity.EntityDeathEvent.class, org.bukkit.event.entity.EntityDeathEvent.class,
                 f -> {
                     if (f.entity() instanceof org.domi.furnace.api.entity.Player) return null;   // 플레이어는 위 짝
                     return Compat.entity(f.entity()) instanceof org.bukkit.entity.LivingEntity le ? new org.bukkit.event.entity.EntityDeathEvent(le, null, 0) : null;
                 }, (f, b) -> {});
+    }
+
+    /** Furnace 드롭 목록 → Bukkit 이 바꿀 수 있는 새 목록(Paper 의 getDrops 처럼 넣고 빼고 개수를 바꿀 수 있고, 이벤트 뒤 변환해 되돌려 쓴다). */
+    private static java.util.List<org.bukkit.inventory.ItemStack> bukkitDrops(java.util.List<org.domi.furnace.api.item.ItemStack> drops) {
+        var out = new java.util.ArrayList<org.bukkit.inventory.ItemStack>(drops.size());
+        for (var d : drops) out.add(CompatItems.copyOf(d));
+        return out;
+    }
+
+    /** Bukkit 드롭 목록 → Furnace 값(null·공기·개수 0 이하는 빠진다 — Paper 도 그런 칸은 던지지 않는다). */
+    private static java.util.List<org.domi.furnace.api.item.ItemStack> furnaceDrops(java.util.List<org.bukkit.inventory.ItemStack> drops) {
+        var out = new java.util.ArrayList<org.domi.furnace.api.item.ItemStack>(drops.size());
+        for (var d : drops) {
+            var f = CompatItems.toFurnace(d);
+            if (!f.isEmpty()) out.add(f);
+        }
+        return out;
     }
 
     private static Plugin bukkitPlugin(org.domi.furnace.api.plugin.FurnacePlugin p) {

@@ -1253,7 +1253,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         });
         var vitals = p.vitals();
         if (coreJ != null) vitals.env(coreJ.vitalsEnv());
-        vitals.deathListener(keepInventory -> ctx.channel().eventLoop().execute(() -> onPlayerDied(keepInventory)));
+        vitals.deathListener((keepInventory, drops, originals) -> ctx.channel().eventLoop().execute(() -> onPlayerDied(keepInventory, drops, originals)));
         if (saved != null && saved.root() != null) {
             p.loadAttributes(saved.root());   // 바닐라 순서: attributes → active_effects → Health
             vitals.load(saved.root());
@@ -3218,25 +3218,40 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (msg != null) core.broadcastSystemMessage(msg, false);
     }
 
-    /** 죽었을 때(소유 연결 이벤트 루프): keepInventory 가 아니면 인벤토리를 비운다(바닐라 dropAll — 아이템 엔티티는 3단계). */
-    private void onPlayerDied(boolean keepInventory) {
+    /**
+     * 죽었을 때(소유 연결 이벤트 루프): 열린 창을 닫고, 떨어뜨릴 목록(PlayerDeathEvent 가 바꿀 수 있다 — 바닐라 기본은 인벤토리 전부)을 던지고,
+     * keepInventory 가 아니면 인벤토리를 비운다. 목록과 keepInventory 는 독립이다(CraftBukkit/Paper 와 같다 — keepInventory 여도 목록에 남은 아이템은 떨어진다).
+     * 던지는 순서·방식은 Inventory.dropAll 과 같고(아무 쪽으로, 던진 이의 소유권 없음) Paper 처럼 PlayerDropItemEvent 는 부르지 않는다.
+     */
+    private void onPlayerDied(boolean keepInventory, java.util.List<ItemStack> drops, java.util.List<ItemStack> originals) {
         Player p = player;
         if (p == null) return;
         synchronized (p.menuLock()) {
             if (p.hasOpenContainer()) closeContainer(p);
         }
+        // 이벤트 루프는 패킷(버리기·창 클릭)과 같은 스레드라 여기서 본 인벤토리는 정확하다. 죽는 순간 뜬 목록과 맞춰 그 사이 일어난 일을 바로잡는다.
+        java.util.Set<ItemStack> original = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        if (originals != null) original.addAll(originals);
+        java.util.Set<ItemStack> present = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        java.util.List<ItemStack> extra = new java.util.ArrayList<>();   // 그 사이 버리기로 쪼개져 남은 아이템(새 스택) — 비우면 사라지므로 함께 던진다
+        for (int i = 0; i <= 40; i++) {
+            ItemStack cur = inv.get(org.domi.furnace.server.entity.PlayerInventory.windowSlot(i));
+            if (cur.isEmpty()) continue;
+            present.add(cur);
+            if (!keepInventory && !original.contains(cur)
+                    && org.domi.furnace.server.item.ItemTools.enchantmentLevel(cur, "minecraft:vanishing_curse") <= 0) extra.add(cur);
+        }
+        java.util.List<ItemStack> toDrop = new java.util.ArrayList<>();
+        if (drops != null) {
+            // 원래 스택인데 그 사이 인벤토리에서 나갔으면(이미 바닥·상자로 갔다) 다시 던지지 않는다
+            for (ItemStack d : drops) if (!original.contains(d) || present.contains(d)) toDrop.add(d);
+        }
+        toDrop.addAll(extra);
         if (!keepInventory) {
-            // Inventory.dropAll(소멸 저주는 먼저 지운다): 주 인벤토리 → 갑옷(발·다리·가슴·머리) → 왼손 순으로 아무 쪽으로 던진다
-            java.util.List<ItemStack> drops = new java.util.ArrayList<>();
-            for (int i = 0; i <= 40; i++) {
-                int ws = org.domi.furnace.server.entity.PlayerInventory.windowSlot(i);
-                ItemStack s = inv.get(ws);
-                if (s.isEmpty()) continue;
-                inv.set(ws, ItemStack.EMPTY);
-                if (org.domi.furnace.server.item.ItemTools.enchantmentLevel(s, "minecraft:vanishing_curse") > 0) continue;
-                drops.add(s);
-            }
-            if (!drops.isEmpty()) world.runAt(p.x(), p.z(), region -> { for (ItemStack s : drops) region.playerDrop(p, s, true, false); });
+            for (int i = 0; i <= 40; i++) inv.set(org.domi.furnace.server.entity.PlayerInventory.windowSlot(i), ItemStack.EMPTY);
+        }
+        if (!toDrop.isEmpty()) {
+            world.runAt(p.x(), p.z(), region -> { for (ItemStack s : toDrop) region.playerDrop(p, s, true, false, false); });
         }
     }
 

@@ -79,7 +79,7 @@ Furnace `PlayerDeathEvent` → Bukkit `PlayerDeathEvent`(Bukkit 에서 `EntityDe
 6. `InventoryView#setCursor`·`InventoryDragEvent#setCursor` 는 `UnsupportedFeature`(Furnace 이벤트가 커서를 되쓰지 않는다). `getCursor` 는 열기 이벤트에서 빈 스택, 닫기 이벤트와 이벤트 밖 `getOpenInventory()` 에서 `UnsupportedFeature`.
 7. 칸이 그 아이템을 받거나 내줄 수 있는지(`mayPlace`·`mayPickup`)는 Furnace 이벤트가 알리지 않아 "비었거나 같은 아이템"으로 본다 — 끌어 나누기의 칸 목록과 클릭의 `InventoryAction`(갑옷 칸·결과 칸 등)이 Paper 와 다를 수 있다. `COLLECT_TO_CURSOR` 는 Paper 처럼 위쪽 칸과 플레이어 주 36칸(`getStorageContents`)만 보고 정한다(플레이어 인벤토리 창의 제작·갑옷·왼손 칸은 보지 않는다). 끌어 나누기 도중 다른 종류 클릭의 action 은 Paper 의 `NOTHING` 대신 보통 규칙을 따른다.
 8. 제작 결과 칸 꺼내기(Bukkit `CraftItemEvent`)는 다리가 없다 — 그 클릭은 `InventoryClickEvent` 도 내지 않는다.
-9. `EntityDeathEvent`·`PlayerDeathEvent` 모두 `getDrops`·`getDroppedExp`·`setDroppedExp`·취소가 `UnsupportedFeature`(Furnace 사망 이벤트가 싣지 않음). 흔한 `setKeepInventory(true); getDrops().clear();` 는 keepInventory 는 되지만 그 줄에서 던진다 — 후속으로 Furnace 사망 이벤트에 떨어뜨릴 목록을 실어야 한다. `PlayerDeathEvent` 의 새 경험치·레벨 메서드도 같다.
+9. 몹 `EntityDeathEvent` 의 `getDrops`·`getDroppedExp`·`setDroppedExp`·취소는 아직 `UnsupportedFeature`(몹 사망 이벤트가 전리품을 싣지 않음). 플레이어 `PlayerDeathEvent` 의 드롭·경험치·유지·새 경험치는 후속 작업으로 지원한다 — `docs/feature-parity/compat-death-drops-2026-11-08.md`.
 10. 보스바 보는 사람 목록은 접속이 끊겨도 저절로 비지 않는다(Paper 와 같다). 다시 접속한 플레이어는 새 객체라 다시 `addPlayer` 해야 한다.
 11. `ItemFlag` 옛 이름 바꾸기는 NMS 변환기가 켜져 있을 때(`plugins.compat.nms.enabled`, 기본 켜짐)만 된다. `HIDE_STORED_ENCHANTS` 는 아이템 컴포넌트로 옮겨지지 않는다.
 12. `KeyedBossBar`(`createBossBar(NamespacedKey, …)`·`getBossBars`)는 없다.
