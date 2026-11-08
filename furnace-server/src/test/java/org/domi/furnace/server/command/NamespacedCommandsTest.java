@@ -49,8 +49,9 @@ class NamespacedCommandsTest {
                 d.confirmInterrupt(), d.interruptConfirmSeconds(), d.motdFormat(), d.gravityBlockPortalDupe(), on));
     }
 
+    /** 접속자가 보낸 자동완성 요청처럼(send-namespaced 거르기 대상). */
     private List<String> suggest(String text) throws Exception {
-        return core.commands().suggestions(CommandSource.console(core), text).get().getList().stream().map(s -> s.getText()).toList();
+        return core.commands().suggestions(CommandSource.console(core), text, true).get().getList().stream().map(s -> s.getText()).toList();
     }
 
     private static CommandNode<CommandSource> flatten(CommandNode<CommandSource> n) {
@@ -163,6 +164,9 @@ class NamespacedCommandsTest {
         assertEquals(suggest("/gamemode "), suggest("/minecraft:gamemode "));
         // 실행은 된다
         assertEquals(List.of("Set the time to 1000"), run("minecraft:time set day"));
+        // 콘솔 자동완성은 거르지 않는다(Paper 는 플레이어 패킷 응답에서만 거른다)
+        assertTrue(core.commands().suggestions(CommandSource.console(core), "minecraft:gi").get().getList().stream()
+                .anyMatch(x -> x.getText().equals("minecraft:give")));
         // 켜면 다시 보인다
         sendNamespaced(true);
         assertTrue(rootNames(4).contains("minecraft:give"));

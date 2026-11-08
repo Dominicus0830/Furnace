@@ -188,13 +188,18 @@ public final class Commands {
 
     /** 클라이언트 자동완성 요청(바닐라 handleCustomCommandSuggestions). */
     public CompletableFuture<Suggestions> suggestions(CommandSource source, String text) {
+        return suggestions(source, text, source.getPlayer() != null);
+    }
+
+    /** forClient: 접속자 패킷 응답이면 true — send-namespaced=false 일 때만 이름공간 명령을 거른다(콘솔 자동완성은 거르지 않는다, Paper 와 같다). */
+    public CompletableFuture<Suggestions> suggestions(CommandSource source, String text, boolean forClient) {
         StringReader reader = new StringReader(text);
         if (reader.canRead() && reader.peek() == '/') reader.skip();
         ParseResults<CommandSource> parse = dispatcher.parse(reader, source);
         return dispatcher.getCompletionSuggestions(parse).thenApply(s0 -> {
             Suggestions s = s0;
             // send-namespaced=false: 명령 이름 자리(첫 낱말)의 자동완성에서도 이름공간 명령을 뺀다(Paper)
-            if (!sendNamespaced() && s.getRange().getStart() <= 1) {
+            if (forClient && !sendNamespaced() && s.getRange().getStart() <= 1) {
                 s = new Suggestions(s.getRange(), s.getList().stream().filter(x -> x.getText().indexOf(':') < 0).toList());
             }
             return s.getList().size() <= MAX_SUGGESTIONS ? s
