@@ -234,6 +234,11 @@ public class SimpleCommandMap implements CommandMap {
             added = CompatCommands.attachExtraName(at, bare);
         }
         for (String n : added) names.putIfAbsent(n, command);
+        if (colon < 0 && !added.contains(bare) && names.get(bare) != command) {
+            // Paper 는 그 키를 덮어쓴다. Furnace 트리는 바닐라·다른 플러그인 이름을 덮지 않는다(접두어 형태만)
+            CompatCommands.ownerLogger(command).warning("knownCommands.put(\"" + key + "\") — '" + bare
+                    + "' 은(는) 이미 바닐라·다른 플러그인 명령이라 덮어쓰지 않고 '" + ns + ":" + bare + "' 로만 붙였다(Paper 는 덮어쓴다)");
+        }
         return current;
     }
 

@@ -44,12 +44,14 @@ Furnace API 에는 둘을 더했다: `PluginManager#enable(FurnacePlugin)`(불�
 3. **권한 지도 바꿔치기(LuckPerms 식 주입)는 Furnace 계산에 닿지 않는다.** 필드를 다른 지도로 바꾸면 Bukkit API 로는 보이지만 `hasPermission` 계산은 Furnace 등록소·첨부로 한다. `defaultPerms` 는 읽기 전용 뷰.
 4. **같은 이름의 다른 `Permission` 객체로 `recalculatePermissionDefaults`** 를 부르면 무시한다. Paper 는 그 객체의 기본값을 기본값 묶음에 더해 버린다(등록된 것과 둘 다 남는다).
 5. `removePermission` 은 기본값 묶음에서도 빠진다(Paper 는 묶음에 남기는 버릇이 있다). `getDefaultPermissions` 순서는 등록소 순서(Paper 는 넣은 순).
-6. **plugin.yml 권한은 플러그인이 꺼지면 빠진다**(이 묶음 전부터의 Furnace 동작). Paper 는 남긴다. 실행 중 `addPermission` 한 것은 Paper 처럼 남는다.
+6. **plugin.yml 권한은 플러그인이 꺼지면 빠진다**(이 묶음 전부터의 Furnace 동작). Paper 는 남긴다. 실행 중 `addPermission` 한 것은 Paper 처럼 남는다. 귀결: 끄고 다시 켜면 그 노드는 새 Bukkit 객체로 보이고, 끄기 전에 받아 둔 옛 객체를 고쳐도(`setDefault` 등) 무시된다. 다른 플러그인이 같은 이름을 `removePermission`+`addPermission` 으로 갈아 끼웠으면 그 노드는 남긴다(설명 파일의 그 노드일 때만 지운다).
 7. 구독 결과에 들어가는 것은 접속한 플레이어·콘솔·직접 구독한 대상뿐이다. Bukkit 은 권한을 계산한 다른 대상(명령 블록 발신자 등)도 들어간다.
 8. `broadcast(message, permission)` 은 Paper 의 `BroadcastMessageEvent` 를 아직 내지 않는다.
 9. `getPlugins()` 는 Bukkit 플러그인만(Furnace 플러그인은 Bukkit `Plugin` 이 아니다). `isPluginEnabled(String)` 은 Furnace 플러그인 이름에도 답한다(이전과 같다).
 10. **꺼진 플러그인을 다시 켜는 것이 된다.** Paper 는 끌 때 클래스로더를 닫아, 다시 켜면 아직 안 올린 클래스에서 실패할 수 있다.
-11. `knownCommands.put("플러그인:이름", c)` 는 Furnace 명령 트리가 이름과 접두어 형태를 함께 붙이므로 `이름` 도 생긴다(그 이름을 바닐라·다른 플러그인이 잡고 있으면 접두어 형태만). 다른 플러그인 접두어는 `UnsupportedFeature`.
+11. `knownCommands.put("플러그인:이름", c)` 는 Furnace 명령 트리가 이름과 접두어 형태를 함께 붙이므로 `이름` 도 생긴다. **맨 이름 키(`put("give", c)`)도 그 이름을 바닐라·다른 플러그인이 잡고 있으면 덮어쓰지 않고 접두어 형태(`플러그인:give`)만 붙이고 플러그인 로그에 경고를 남긴다** — Paper 의 `BukkitBrigForwardingMap.put` 은 덮어쓴다. 다른 플러그인 접두어는 `UnsupportedFeature`. 이름 하나를 넣을 때마다 접속자 명령 트리를 다시 보낸다.
+12. 처리기 예외 뒤 Paper 의 `ServerExceptionEvent` 재발화와 `AuthorNagException` 의 "Nag author(s)" 한 번 경고는 없다(해당 클래스가 아직 없다). 로그 메시지는 Paper 와 같다.
+13. Furnace API `PluginManager#enable` 로 **Furnace 플러그인**을 다시 켜면 `onEnable`·설명 파일 권한·명령만 돌아온다. 부트스트랩·`onLoad` 의 등록(수명주기 처리기·레지스트리 정의·월드젠 훅)은 끌 때 지워져 되살아나지 않는다(javadoc 에 적음). Bukkit 플러그인은 그 등록소를 쓰지 않아 해당 없다.
 
 ## 측정 (2026-11-08, `liveProbe -PlibraryCache`)
 
@@ -62,9 +64,11 @@ Furnace API 에는 둘을 더했다: `PluginManager#enable(FurnacePlugin)`(불�
 
 - 개발용 `liveProbe` 에 `-Pcommands="helper;help helper"` 를 더했다 — 켠 뒤 그 명령들을 콘솔로 실행해 출력을 보인다.
 
+독립 검토(`furnace/reviews/spm-pr148-review.md`, Paper 1.21.1 원문 대조)에서 막는 결함은 없었고, 지적 F1~F3·F5·F7 을 반영했다(위 6·11·13번, 노드 동일성 지우기, `Permission` 의 서버 밖 처리, `replace` javadoc). F6(플레이어 아닌 엔티티의 문자열·객체 권한 답이 다름)은 이 묶음 전부터의 것이라 후속 후보.
+
 ## 시험
 
 `SimplePluginManagerTest`(헤드리스 서버, 시험 안에서 컴파일한 진짜 jar 둘):
 helper 의 리플렉션 경로 그대로(생성자·`commandMap`·`knownCommands.put` 별칭 → 실행), 다른 접두어 거절, 없는 이벤트 클래스 리스너 건너뛰기, 찾기(대소문자·provides),
-`onEnable` 안에서 자기 끄기 → `enablePlugin` 으로 다시 켜기(명령 다시 올림), 비동기 이벤트 스레드 검사, plugin.yml 권한 객체·기본값 묶음·`permissions` 필드,
+`onEnable` 안에서 자기 끄기 → `enablePlugin` 으로 다시 켜기(명령 다시 올림), 바닐라 이름 `put` 은 접두어 형태만, 갈아 끼운 plugin.yml 노드는 끌 때 남김, 비동기 이벤트 스레드 검사, plugin.yml 권한 객체·기본값 묶음·`permissions` 필드,
 실행 중 권한 추가·자식 고치기·`setDefault`·`addParent`·지우기가 Furnace 등록소와 플레이어 권한에 반영, `hasPermission(Permission)`, 구독·권한 방송 수.

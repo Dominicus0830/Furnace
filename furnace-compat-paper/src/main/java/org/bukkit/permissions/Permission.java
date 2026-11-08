@@ -73,7 +73,7 @@ public class Permission {
     /** 기본값 묶음을 다시 계산하고 구독한 대상의 권한을 다시 계산한다. */
     public void recalculatePermissibles() {
         PluginManager pm = pluginManager();
-        if (pm == null) return;   // 서버가 아직 없다(설명 파일을 읽는 중 등)
+        if (pm == null) return;   // 서버 밖에서 만든 객체
         Set<Permissible> perms = pm.getPermissionSubscriptions(name);
         pm.recalculatePermissionDefaults(this);
         for (Permissible p : perms) p.recalculatePermissions();
@@ -97,9 +97,15 @@ public class Permission {
         perm.recalculatePermissibles();
     }
 
+    /** 서버 밖(도구·단위 시험)에서 만든 권한 객체는 계산할 대상이 없다 — null. */
     private static PluginManager pluginManager() {
         Server s = Bukkit.getServer();
-        return s == null ? null : s.getPluginManager();
+        if (s == null) return null;
+        try {
+            return s.getPluginManager();
+        } catch (IllegalStateException noFurnace) {   // Furnace 서버가 아직(또는 이미) 없다
+            return null;
+        }
     }
 
     // ------------------------------------------------------------------ plugin.yml 의 permissions: 읽기 (Bukkit 과 같은 규칙)

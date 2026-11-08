@@ -307,7 +307,8 @@ public final class PluginManagerImpl implements PluginManager {
         } catch (RuntimeException e) {
             log.warn("{} 의 청크 티켓 정리 실패", l.description().name(), e);
         }
-        for (Permission perm : l.description().permissions()) host.permissionsImpl().unregister(perm.name());
+        // 설명 파일의 그 노드가 아직 올라 있을 때만 지운다 — 다른 플러그인이 같은 이름을 갈아 끼웠으면 그것은 남긴다
+        for (Permission perm : l.description().permissions()) host.permissionsImpl().unregister(perm);
         PluginBootstrapper b = boot;
         if (b != null) b.forget(l.description().name());   // 플러그인 레지스트리 몫·수명주기 훅
     }

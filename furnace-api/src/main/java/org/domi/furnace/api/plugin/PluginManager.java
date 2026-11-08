@@ -18,6 +18,8 @@ public interface PluginManager {
     /**
      * 불러왔지만 꺼져 있는 플러그인을 켠다(아직 켜지 않았거나 {@link #disable} 로 끈 것). 이미 켜져 있거나 이 서버가 불러온 플러그인이 아니면
      * 아무 일도 없다. 켜기에 실패하면 서버 로그에 남기고 다시 끈다(시작 때와 같다).
+     * <p>다시 켤 때 돌아오는 것은 {@code onEnable} 과 설명 파일의 권한·명령뿐이다. 부트스트랩·{@code onLoad} 에서 한 등록
+     * (수명주기 처리기·플러그인 레지스트리 정의·월드젠 훅)은 끌 때 지워져 되살아나지 않는다 — 그런 플러그인은 서버를 다시 켜거나 개발 모드의 {@link #reload} 를 쓴다.
      */
     default void enable(FurnacePlugin plugin) { throw new UnsupportedOperationException("이 서버는 플러그인을 다시 켜지 못한다"); }
 

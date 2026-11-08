@@ -87,6 +87,9 @@ public final class CompatCommands {
         return new Attached(owner, core, names);
     }
 
+    /** 그 명령 주인 플러그인의 로거. */
+    public static java.util.logging.Logger ownerLogger(Command command) { return ownerOf(command).logger(); }
+
     /** 이 명령이 올라갈 때 붙는 이름 접두어(소유 플러그인 이름). */
     public static String namespaceOf(Command command) { return ownerOf(command).name().toLowerCase(Locale.ROOT).replace(' ', '_'); }
 

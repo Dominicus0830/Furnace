@@ -199,6 +199,17 @@ class SimplePluginManagerTest {
     }
 
     @Test
+    void knownCommandsPutOfAVanillaNameOnlyAddsThePrefixedForm() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            var map = Bukkit.getCommandMap();
+            var c = map.getCommand("hcmd");
+            assertNull(map.getKnownCommands().put("give", c));
+            assertSame(c, map.getCommand("spm:give"), "접두어 형태는 붙는다");
+            assertNull(map.getCommand("give"), "바닐라 /give 는 덮지 않는다(Paper 는 덮는다 — 문서의 다른 점)");
+        }
+    }
+
+    @Test
     void listenerWithMissingEventClassIsSkippedLikePaperAndThePluginStaysEnabled() throws Exception {
         try (FurnaceTestServer server = start()) {
             assertNull(WiringProbe.failure, () -> "registerEvents 가 던졌다: " + WiringProbe.failure);
@@ -335,6 +346,19 @@ class SimplePluginManagerTest {
             assertNull(pm.getPermission("spm.runtime"));
             assertNull(server.api().permissions().permission("spm.runtime"));
             assertFalse(dana.hasPermission("spm.runtime"));
+        }
+    }
+
+    @Test
+    void disablingKeepsAPluginYmlNodeThatAnotherPluginReplaced() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            PluginManager pm = Bukkit.getPluginManager();
+            pm.removePermission("spm.admin");
+            Permission mine = new Permission("spm.admin", PermissionDefault.TRUE);
+            pm.addPermission(mine);
+            pm.disablePlugin(WiringProbe.plugin);
+            assertSame(mine, pm.getPermission("spm.admin"), "갈아 끼운 노드는 원래 plugin.yml 주인이 꺼져도 남는다");
+            assertNull(pm.getPermission("spm.use"), "주인이 올린 그대로의 노드는 빠진다(Furnace 동작)");
         }
     }
 
