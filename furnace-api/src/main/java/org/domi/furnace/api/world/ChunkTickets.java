@@ -14,7 +14,7 @@ public interface ChunkTickets {
     /** 한 티켓의 반경 상한(청크) — 33x33. */
     int MAX_RADIUS = 16;
 
-    /** 플러그인 하나가 걸어 둘 수 있는 청크 수(겹침 포함) 상한. 넘으면 add 가 IllegalStateException. */
+    /** 플러그인 하나가 걸어 둘 수 있는 청크 수(겹침 포함) 기본 상한 — 서버가 furnace.properties 의 plugins.chunk-tickets.max-per-plugin 으로 바꿀 수 있다. 넘으면 add 가 IllegalStateException. */
     int MAX_CHUNKS_PER_OWNER = 16384;
 
     /**

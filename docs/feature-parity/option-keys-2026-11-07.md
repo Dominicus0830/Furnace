@@ -79,6 +79,7 @@
 | `backup.hold-timeout-seconds` | 수 | 10 | 1~600 | 백업 기준점에서 저장을 기다리는 최대 초 |  |
 | `plugins.compat.bukkit` | ON/OFF | true | true\|false | Bukkit·Paper 플러그인(plugin.yml) 호환 어댑터 — 끄면 plugin.yml jar 를 읽지 않는다(호환 모듈이 있을 때) |  |
 | `plugins.compat.nms.enabled` | ON/OFF | true | true\|false | Bukkit 호환 플러그인을 올릴 때 NMS·CraftBukkit 이름 변환(CraftBukkit 버전 접미사 v1_21_R1 풀기)을 한다 — 끄면 그런 플러그인은 그 이름에서 실패한다 |  |
+| `plugins.chunk-tickets.max-per-plugin` | 수 | 16384 | 1~100000000 | 플러그인 하나가 청크 티켓으로 붙잡을 수 있는 청크 수 상한(겹침 포함) |  |
 | `plugins.libraries.enabled` | ON/OFF | false | true\|false | 플러그인 설명 파일의 libraries 를 Maven Central 에서 받아 붙인다 | 켜면 안내 |
 | `plugins.libraries.offline` | ON/OFF | false | true\|false | 캐시에 있는 라이브러리만 쓴다 | enabled=false 인데 적혀 있으면 경고 |
 | `plugins.libraries.transitive` | ON/OFF | true | true\|false | 라이브러리의 compile/runtime 의존까지 받는다 | 위와 같음 |
