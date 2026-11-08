@@ -158,6 +158,8 @@ public abstract class Display extends Entity {
             entityData.define(DATA_ITEM_DISPLAY, SetEntityData.SERIALIZER_BYTE, (byte) 0);
         }
 
+        public ItemStack getItem() { return (ItemStack) entityData.get(DATA_ITEM); }
+
         public void setItem(ItemStack s) { entityData.set(DATA_ITEM, s); }
 
         @Override

@@ -16,6 +16,16 @@ public class Pillager extends AbstractIllager implements CrossbowAttackMob {
     public static final int DATA_CHARGING_STATE = 17;
     private final ItemStack[] inventory = new ItemStack[5];
 
+    public int inventorySize() { return inventory.length; }
+
+    public ItemStack inventoryItem(int i) { return inventory[i]; }
+
+    /** SimpleContainer.setItem: 넣은 뒤 min(99, 아이템 최대)로 자른다(/item 가방 칸 300..304). */
+    public void setInventoryItem(int i, ItemStack s) {
+        int max = Math.min(99, org.domi.furnace.server.menu.Stacks.maxStack(s));
+        inventory[i] = !s.isEmpty() && s.count() > max ? s.withCount(max) : s;
+    }
+
     public Pillager(ChunkLevel level, int id) {
         super(EntityType.PILLAGER, level, id);
         java.util.Arrays.fill(inventory, ItemStack.EMPTY);

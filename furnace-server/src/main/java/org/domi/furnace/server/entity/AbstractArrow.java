@@ -410,6 +410,12 @@ public abstract class AbstractArrow extends Projectile {
     protected abstract ItemStack getDefaultPickupItem();
 
     /** 바닐라는 pickupItemStack.copy(). ItemStack 이 불변 record(ComponentPatch 도 불변)라 그대로 돌려줘도 같다. */
+    /** /item replace entity ... contents(0) 의 읽기: 바닐라 getPickupItem. */
+    public ItemStack pickupItemStack() { return getPickupItem(); }
+
+    /** 바닐라 setPickupItemStack(/item 칸 0 의 쓰기): 빈 스택이면 기본 줍는 아이템으로 되돌린다(getPickupItem 이 빈 값을 기본으로 읽는다). */
+    public void setPickupItemStack(ItemStack stack) { pickupItem = stack; }
+
     protected ItemStack getPickupItem() { return pickupItem.isEmpty() ? getDefaultPickupItem() : pickupItem; }
 
     @Override
