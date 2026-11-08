@@ -134,6 +134,9 @@ public class Zoglin extends Monster implements HoglinBase {
     public void setBaby(boolean baby) {
         entityData.set(DATA_BABY, baby);
         if (baby) attributes().get(Attribute.ATTACK_DAMAGE).setBaseValue(0.5);
+        float k = baby ? 0.5F : 1.0F;   // Zoglin.getDefaultDimensions: 아기는 0.5 배
+        EntityType t = type();
+        setDimensions(t.width() * k, t.height() * k, t.eyeHeight() * k);
     }
 
     @Override

@@ -55,6 +55,16 @@ class SmallParityGapsTest {
         assertEquals(1.0, z.attributeValue(Attribute.BURNING_TIME), 1e-6, "벗으면 수정자가 떨어진다");
     }
 
+    @Test
+    void blastProtectionAddsExplosionKnockbackResistanceToMobArmor() {
+        var level = new BlockPlacementTest.TestLevel();
+        var z = new Zombie(level, level.nextEntityId());
+        var chest = ItemTools.with(item("minecraft:iron_chestplate"), "minecraft:enchantments", Map.of("levels", Map.of("minecraft:blast_protection", 2)));
+        z.setItemSlot(EquipmentSlot.CHEST, chest);
+        z.detectEquipmentUpdates();
+        assertEquals(0.3, z.attributeValue(Attribute.EXPLOSION_KNOCKBACK_RESISTANCE), 1e-6, "linear(0.15, +0.15) 레벨 2 = 0.30");
+    }
+
     // ------------------------------------------------------------------ 스폰 알 새끼
 
     private static Mob put(BlockPlacementTest.TestLevel level, Mob m, double x) {
@@ -156,6 +166,7 @@ class SmallParityGapsTest {
         hoglin.setBaby(true);
         var zoglin = hoglin.convertTo(new Zoglin(level, level.nextEntityId()), true, "PIGLIN_ZOMBIFIED");
         assertTrue(zoglin.isBaby());
+        assertEquals(zoglin.type().height() * 0.5F, zoglin.bbHeight(), 1e-4, "아기 조글린 상자는 0.5 배");
     }
 
     @Test

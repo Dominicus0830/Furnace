@@ -93,6 +93,7 @@ class RegionPlayerCauldronTest {
         g.p().setRemainingFireTicks(100);
         g.tick(2);
         assertEquals(g.reg().defaultStateId("minecraft:air"), g.state(8, -60, 8), "불붙은 플레이어가 가루눈을 녹인다");
+        assertFalse(g.p().isOnFire(), "가루눈에 들었으니 Entity.move 끝에서 불도 꺼진다");
         g.close();
     }
 

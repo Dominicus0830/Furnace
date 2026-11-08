@@ -58,6 +58,7 @@ public class PowderSnowBlock extends BlockBehavior {
      * 끼임 속도(makeStuckInBlock)는 클라이언트가 계산한다.
      */
     public void entityInsidePlayer(BlockLevel level, Pos pos, org.domi.furnace.server.entity.Player p, boolean mayInteract) {
+        p.markInPowderSnow();   // setIsInPowderSnow(true): 불붙었든 아니든, 눈을 부순 뒤에도 Entity.move 끝의 불 끄기가 본다
         if (p.isOnFire() && mayInteract) level.destroyBlock(pos, false);
     }
 

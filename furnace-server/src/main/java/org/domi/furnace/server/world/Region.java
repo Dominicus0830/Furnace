@@ -2024,6 +2024,7 @@ public final class Region {
         int y0 = (int) Math.floor(p.y() + 1.0E-7), y1 = (int) Math.floor(p.y() + h - 1.0E-7);
         int z0 = (int) Math.floor(p.z() - 0.3 + 1.0E-7), z1 = (int) Math.floor(p.z() + 0.3 - 1.0E-7);
         if (!level.hasChunksAt(x0, z0, x1, z1)) return;
+        p.takeInPowderSnow();   // move 마다 isInPowderSnow 를 거짓으로 시작한다(떠난 뒤 낡은 표시가 불을 끄지 않게)
         var adv = p.advancements();
         boolean enterBlock = adv != null && adv.hasListeners("minecraft:enter_block");
         boolean slide = adv != null && adv.hasListeners("minecraft:slide_down_block");
@@ -2072,7 +2073,7 @@ public final class Region {
             return true;
         }
         if (beh instanceof org.domi.furnace.server.block.types.PowderSnowBlock ps) {
-            if (p.isOnFire()) ps.entityInsidePlayer(level, pos, p, playerMayInteract(p, bx, bz));
+            ps.entityInsidePlayer(level, pos, p, playerMayInteract(p, bx, bz));
             return true;
         }
         return false;

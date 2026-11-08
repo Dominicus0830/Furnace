@@ -37,6 +37,11 @@ final class EnchantAttributes {
             new Eff("minecraft:fire_protection", Attribute.BURNING_TIME, EquipmentSlot.LEGS, AttributeModifier.ADD_MULTIPLIED_BASE, l -> linear(-0.15F, -0.15F, l)),
             new Eff("minecraft:fire_protection", Attribute.BURNING_TIME, EquipmentSlot.FEET, AttributeModifier.ADD_MULTIPLIED_BASE, l -> linear(-0.15F, -0.15F, l)),
             // 민첩한 웅크리기: linear(0.15,+0.15) → sneaking_speed
+            // 폭발 보호: linear(0.15,+0.15) add_value → explosion_knockback_resistance
+            new Eff("minecraft:blast_protection", Attribute.EXPLOSION_KNOCKBACK_RESISTANCE, EquipmentSlot.HEAD, AttributeModifier.ADD_VALUE, l -> linear(0.15F, 0.15F, l)),
+            new Eff("minecraft:blast_protection", Attribute.EXPLOSION_KNOCKBACK_RESISTANCE, EquipmentSlot.CHEST, AttributeModifier.ADD_VALUE, l -> linear(0.15F, 0.15F, l)),
+            new Eff("minecraft:blast_protection", Attribute.EXPLOSION_KNOCKBACK_RESISTANCE, EquipmentSlot.LEGS, AttributeModifier.ADD_VALUE, l -> linear(0.15F, 0.15F, l)),
+            new Eff("minecraft:blast_protection", Attribute.EXPLOSION_KNOCKBACK_RESISTANCE, EquipmentSlot.FEET, AttributeModifier.ADD_VALUE, l -> linear(0.15F, 0.15F, l)),
             new Eff("minecraft:swift_sneak", Attribute.SNEAKING_SPEED, EquipmentSlot.LEGS, AttributeModifier.ADD_VALUE, l -> linear(0.15F, 0.15F, l)));
 
     /** 그 칸의 그 아이템이 그 속성에 다는 인챈트 수정자. */

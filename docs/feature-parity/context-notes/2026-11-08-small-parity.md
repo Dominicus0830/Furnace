@@ -9,3 +9,5 @@
 - **고침(덤): 변환 때 아기 유지.** `Mob.convertTo` 의 `setBabyForConversion` 이 `AgeableMob`·`Zoglin` 에 없어 아기 호글린→조글린, 아기 좀비 주민→주민(치료)이 어른이 됐다. 바닐라 `convertTo` 는 `target.setBaby(isBaby())` 라 아기를 유지한다.
 - **시험 안정화(`LandMobTest`)**: 몹·레벨 난수가 시드 없이(`nanoTime`) 만들어져 `frogBrain…`·`goatRams…`·`shulkerShoots…` 가 약 1%(시드 300개 중 5개) 확률로 흔들렸다. 서버 코드는 그대로 두고 시험이 `LegacyRandomSource.setSeed` 로 레벨·몹 난수를 고정한다(`LandMobTest.seed`, 시드 기본 20261108). AI 소비 난수가 바뀌어 이 시험들이 깨지면 `seedBase` 를 바꿔 본다.
 - 시험: `SmallParityGapsTest`(화염 보호 몹 갑옷, 스폰 알 새끼 6종, 변환 아기 2종), `RegionPlayerCauldronTest`(용암·물 가마솥·가루눈 6종, 수정 전 3건 실패 확인).
+- **독립 검토 반영(PR #154)**: (A) 가루눈 entityInside 가 눈을 부수면 `PlayerFire.afterMove` 의 블록 재탐색이 눈을 못 봐 불이 안 꺼졌다 → `Player.markInPowderSnow`(바닐라 `setIsInPowderSnow(true)`, 불붙었든 아니든 항상)를 afterMove 가 읽고 지우며, move 마다 `checkInsideBlocksPlayer` 시작에서 리셋한다. (B) 아기 조글린 상자 0.5 배(`Zoglin.setBaby` 가 `setDimensions`). (C) `EnchantAttributes` 에 폭발 보호(`explosion_knockback_resistance`, linear(0.15,+0.15)) 추가.
+
