@@ -98,18 +98,9 @@ public final class EffectCommand {
 
     /** 대상의 주인 스레드에서 효과를 건다. 살아 있지 않은 엔티티면 false. */
     private static boolean applyGive(Rider r, MobEffect e, int duration, int amplifier, boolean particles) {
-        if (r instanceof Player p) {
-            if (e.isInstantaneous()) {
-                p.vitals().applyInstantaneousEffect(e, amplifier, 1.0);
-                return true;
-            }
-            return p.vitals().addEffect(new MobEffectInstance(e, duration, amplifier, false, particles));
-        }
+        // 바닐라는 즉시 효과도 MobEffectInstance 로 addEffect 해 남은 틱마다 applyEffectTick 한다(기본 지속시간 1틱).
+        if (r instanceof Player p) return p.vitals().addEffect(new MobEffectInstance(e, duration, amplifier, false, particles));
         if (!(r instanceof LivingEntity le)) return false;
-        if (e.isInstantaneous()) {
-            e.applyInstantenousEffect(le.effectHost(), amplifier, 1.0);
-            return true;
-        }
         return le.addEffect(new MobEffectInstance(e, duration, amplifier, false, particles));
     }
 

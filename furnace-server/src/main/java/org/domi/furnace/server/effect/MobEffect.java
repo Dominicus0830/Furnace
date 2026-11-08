@@ -183,7 +183,9 @@ public final class MobEffect {
                 int i = 40 >> amplifier;
                 yield i > 0 ? duration % i == 0 : true;
             }
-            case HUNGER, SATURATION, ABSORPTION -> true;
+            case HUNGER, ABSORPTION -> true;
+            // 바닐라 InstantenousMobEffect: 남은 지속시간이 1 이상인 틱마다 적용(/effect give 는 지속시간만큼 매 틱 건다)
+            case SATURATION, INSTANT_HEALTH, INSTANT_DAMAGE -> duration >= 1;
             default -> false;
         };
     }

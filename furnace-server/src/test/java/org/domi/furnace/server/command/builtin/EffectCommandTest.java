@@ -116,20 +116,51 @@ class EffectCommandTest {
         assertEquals(0, run(src, "effect clear @e[type=cow]"));
     }
 
-    /** 포화는 즉시 효과: 기본 /effect give 는 음식 +1 만 주고 효과 목록에 남지 않는다. */
+    private static final org.domi.furnace.server.entity.PlayerVitals.Surroundings DRY =
+            new org.domi.furnace.server.entity.PlayerVitals.Surroundings(true, false, false, false, null, false, -64);
+
+    /** 포화는 즉시 효과지만 바닐라 /effect give 는 지속시간(틱)만큼 매 틱 적용한다. 기본은 1틱. */
     @Test
-    void saturationGivenToPlayerIsInstantAndNotListed() throws Exception {
+    void saturationGivenToPlayerIsAppliedEveryTickForItsDuration() throws Exception {
         var ch = new EmbeddedChannel();
         var p = new Player(10, UUID.randomUUID(), "Steve", ch);
         p.applyMove(0, -60, 0, 0, 0, true);
         var src = CommandSource.player(core, p).withPermission(2);
         p.vitals().setFoodLevel(5);
         assertEquals(1, run(src, "effect give @s minecraft:saturation"));
+        assertEquals(5, p.vitals().foodLevel(), "걸 때는 적용하지 않고 다음 틱에 적용");
+        p.vitals().tick(DRY);
         assertEquals(6, p.vitals().foodLevel());
-        assertFalse(p.vitals().hasEffect(MobEffect.SATURATION));
-        assertEquals(1, run(src, "effect give @s minecraft:saturation 30 2"));
+        assertFalse(p.vitals().hasEffect(MobEffect.SATURATION), "1틱이 지나면 사라진다");
+        assertEquals(1, run(src, "effect give @s minecraft:saturation 3 2"));
+        p.vitals().tick(DRY);
         assertEquals(9, p.vitals().foodLevel());
+        assertTrue(p.vitals().hasEffect(MobEffect.SATURATION));
+        p.vitals().tick(DRY);
+        assertEquals(12, p.vitals().foodLevel());
+        p.vitals().tick(DRY);
+        assertEquals(15, p.vitals().foodLevel());
+        p.vitals().tick(DRY);
+        assertEquals(15, p.vitals().foodLevel(), "3틱만 적용");
         assertFalse(p.vitals().hasEffect(MobEffect.SATURATION));
+    }
+
+    @Test
+    void instantHealthGivenToPlayerHealsEveryTick() throws Exception {
+        var ch = new EmbeddedChannel();
+        var p = new Player(11, UUID.randomUUID(), "Alex", ch);
+        p.applyMove(0, -60, 0, 0, 0, true);
+        var src = CommandSource.player(core, p).withPermission(2);
+        p.vitals().setHealth(2f);
+        assertEquals(1, run(src, "effect give @s minecraft:instant_health 3 0"));
+        p.vitals().tick(DRY);
+        assertEquals(6f, p.vitals().health(), 0.01f);
+        p.vitals().tick(DRY);
+        assertEquals(10f, p.vitals().health(), 0.01f);
+        p.vitals().tick(DRY);
+        assertEquals(14f, p.vitals().health(), 0.01f);
+        p.vitals().tick(DRY);
+        assertEquals(14f, p.vitals().health(), 0.01f);
     }
 
     @Test
@@ -150,6 +181,14 @@ class EffectCommandTest {
         assertEquals(0, run(src, "effect give @e[type=item] minecraft:speed"));
     }
 
+    /** 시험 서버는 스스로 틱을 돌리지 않으므로, 몹이 속한 region 에서 한 틱 돌린 뒤 체력을 확인한다. */
+    private void tickAndExpectHealth(LivingEntity e, float expected) throws InterruptedException {
+        var done = new CountDownLatch(1);
+        core.world().runAt(e.x(), e.z(), r -> { e.tick(); done.countDown(); });
+        assertTrue(done.await(10, TimeUnit.SECONDS));
+        assertEquals(expected, e.health(), 0.01f);
+    }
+
     @Test
     void instantEffectsHarmMobs_andUndeadAreInverted() throws Exception {
         Cow c = spawn(l -> new Cow(l, l.nextEntityId()), 0.5);
@@ -157,12 +196,12 @@ class EffectCommandTest {
         var src = CommandSource.console(core);
         float cow = c.health(), zombie = z.health();
         assertEquals(1, run(src, "effect give @e[type=cow] minecraft:instant_damage 1 0"));
-        assertEquals(cow - 6, c.health(), 0.01f);
+        tickAndExpectHealth(c, cow - 6);
         assertEquals(1, run(src, "effect give @e[type=zombie] minecraft:instant_health 1 0"));
-        assertEquals(zombie - 6, z.health(), 0.01f, "언데드는 치유가 피해(6 << 단계)로");
+        tickAndExpectHealth(z, zombie - 6);   // 언데드는 치유가 피해(6 << 단계)로
         float z2 = z.health();
         assertEquals(1, run(src, "effect give @e[type=zombie] minecraft:instant_damage 1 0"));
-        assertEquals(Math.min(z.maxHealth(), z2 + 4), z.health(), 0.01f, "언데드는 피해가 치유(4 << 단계)로");
+        tickAndExpectHealth(z, Math.min(z.maxHealth(), z2 + 4));   // 언데드는 피해가 치유(4 << 단계)로
     }
 
     @Test
