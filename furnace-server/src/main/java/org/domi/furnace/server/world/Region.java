@@ -92,6 +92,9 @@ public final class Region {
     volatile Thread urgentWaiter;
     /** Regionizer 잠금 안: 이번 차례는 급한 작업만(drain) — 끝나면 savedNextTickNanos 로 돌아간다. */
     boolean drainPass;
+    /** 빌림(RegionBorrow): 이 region 을 빌리려고 기다리는 스레드 수(있으면 워커가 새 틱을 꺼내지 않는다), 지금 빌려 간 상태인가. Regionizer 잠금 안. */
+    int borrowWanted;
+    boolean borrowed;
     long savedNextTickNanos;
     /** 이번 틱에 기다린 시간(ns, 이 region 스레드만). */
     private long urgentWaitUsed;
@@ -112,6 +115,8 @@ public final class Region {
     }
 
     public int id() { return id; }
+
+    World world() { return world; }
 
     public Map<Integer, Player> players() { return players; }
 
