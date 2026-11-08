@@ -25,6 +25,7 @@ class OperatorOptionsTest {
         assertTrue(d.strictChatOrder());
         assertFalse(d.unsignedChatAsSystem());
         assertTrue(d.announceSleepStatus());
+        assertTrue(d.gravityBlockPortalDupe(), "기본은 바닐라(복제 유지)");
         assertFalse(d.confirmInterrupt());
         assertEquals("Furnace", d.serverBrand());
     }
@@ -40,6 +41,8 @@ class OperatorOptionsTest {
         assertFalse(o.announceSleepStatus());
         assertTrue(o.confirmInterrupt());
         assertEquals(8, o.interruptConfirmSeconds());
+        assertFalse(parse(new ArrayList<>(), "gravity-block-portal-dupe", "false").gravityBlockPortalDupe());
+        assertThrows(IllegalArgumentException.class, () -> parse(new ArrayList<>(), "gravity-block-portal-dupe", "no"));
         assertEquals(1, warns.size(), "채팅 신고 불가는 경고한다");
     }
 

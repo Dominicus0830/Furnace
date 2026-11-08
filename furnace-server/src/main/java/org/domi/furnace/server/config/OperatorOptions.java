@@ -14,14 +14,16 @@ import java.util.function.Consumer;
  * announceSleepStatus: false 면 자는 사람 수("x/y 명 자는 중")·"밤을 건너뛰는 중" 액션바를 보내지 않는다. 기본 true(바닐라).
  * motdFormat: server.properties 의 motd 를 어떻게 읽을지. plain(기본, 바닐라 — 글자 그대로, § 코드는 클라이언트가 해석) | legacy(& 색 코드·&#RRGGBB) | markup(MiniMessage 식 태그: <gradient:red:blue>…</gradient>).
  *   잘못된 마크업은 경고 후 글자 그대로 보낸다.
+ * gravityBlockPortalDupe: true(바닐라)면 엔드 포털로 넘어간 중력 블록(모래·자갈·모루 …)의 옛 엔티티가 그 틱에 마저 돌아 제자리에도 블록을 놓는다(복제).
+ *   false 면 넘어간 뒤 옛 엔티티는 더 돌지 않아 복제되지 않는다. 기본 true.
  * confirmInterrupt: true 면 콘솔 Ctrl+C(SIGINT) 를 한 번 누르면 안내만 하고, interruptConfirmSeconds 안에 한 번 더 눌러야 종료한다. 기본 false(바로 저장 후 종료).
  */
 public record OperatorOptions(boolean strictChatOrder, boolean unsignedChatAsSystem, String serverBrand,
                               boolean announceSleepStatus, boolean confirmInterrupt, int interruptConfirmSeconds,
-                              String motdFormat) {
+                              String motdFormat, boolean gravityBlockPortalDupe) {
 
     public static final String DEFAULT_BRAND = "Furnace";
-    public static final OperatorOptions DEFAULT = new OperatorOptions(true, false, DEFAULT_BRAND, true, false, 5, "plain");
+    public static final OperatorOptions DEFAULT = new OperatorOptions(true, false, DEFAULT_BRAND, true, false, 5, "plain", true);
 
     private static volatile OperatorOptions current = DEFAULT;
 
@@ -62,8 +64,9 @@ public record OperatorOptions(boolean strictChatOrder, boolean unsignedChatAsSys
         if (!motdFormat.equals("plain") && !motdFormat.equals("legacy") && !motdFormat.equals("markup")) {
             throw new IllegalArgumentException("설정 'motd-format' 값 '" + motdFormat + "' 이(가) 잘못됐습니다: plain, legacy, markup 중 하나");
         }
+        boolean gravityDupe = bool(props, "gravity-block-portal-dupe", DEFAULT.gravityBlockPortalDupe);
         if (asSystem) warn.accept("chat.unsigned-as-system=true: 채팅이 서명 없는 시스템 메시지로 나갑니다(채팅 신고 불가, 채팅 서명 검증 없음)");
-        return new OperatorOptions(strict, asSystem, brand, announce, confirm, seconds, motdFormat);
+        return new OperatorOptions(strict, asSystem, brand, announce, confirm, seconds, motdFormat, gravityDupe);
     }
 
     private static boolean bool(Properties props, String key, boolean def) {

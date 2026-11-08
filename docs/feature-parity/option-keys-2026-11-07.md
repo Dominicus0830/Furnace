@@ -37,6 +37,7 @@
 | `chat.unsigned-as-system` | ON/OFF | false | true|false | 채팅을 서명 없는 시스템 메시지로 보낸다(채팅 신고 불가) | true 면 경고 |
 | `server-brand` | 글자 | Furnace | - | F3 서버 브랜드와 level.dat ServerBrands |  |
 | `announce-sleep-status` | ON/OFF | true | true|false | 자는 사람 수·밤 건너뛰기 액션바 |  |
+| `gravity-block-portal-dupe` | ON/OFF | true | true|false | 엔드 포털로 넘어간 중력 블록(모래·자갈 등)이 제자리에도 놓이는 바닐라 복제 현상. false 면 복제되지 않는다(바닐라와 달라짐) |  |
 | `motd-format` | plain|legacy|markup | plain | plain|legacy|markup | server.properties motd 해석 방식(plain=바닐라) |  |
 | `confirm-interrupt` | ON/OFF | false | true|false | 콘솔 Ctrl+C 를 두 번 눌러야 종료 |  |
 | `confirm-interrupt-seconds` | 수 | 5 | 1~60 | 두 번째 Ctrl+C 를 기다리는 초 |  |

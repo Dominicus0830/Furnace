@@ -69,6 +69,7 @@ public final class FurnacePropertiesFile {
                 opt("chat.unsigned-as-system", o.unsignedChatAsSystem(), "true 면 채팅을 서명 없는 시스템 메시지로 보낸다(채팅 신고 불가)."),
                 opt("server-brand", o.serverBrand(), "F3 화면에 보이는 서버 브랜드."),
                 opt("announce-sleep-status", o.announceSleepStatus(), "false 면 자는 사람 수 액션바를 보내지 않는다(기본 true = 바닐라)."),
+                opt("gravity-block-portal-dupe", o.gravityBlockPortalDupe(), "true(기본 = 바닐라) 면 엔드 포털로 넘어간 모래·자갈 같은 중력 블록이 제자리에도 놓여 복제된다. false 면 복제되지 않는다."),
                 opt("motd-format", o.motdFormat(), "server.properties 의 motd 해석: plain(기본, 바닐라) | legacy(& 색 코드) | markup(<gradient:red:blue>…</gradient> 같은 태그)."),
                 opt("confirm-interrupt", o.confirmInterrupt(), "true 면 콘솔 Ctrl+C 를 한 번 더 눌러야 종료한다."),
                 opt("confirm-interrupt-seconds", o.interruptConfirmSeconds(), "Ctrl+C 두 번째 입력을 기다리는 시간(1~60초).")

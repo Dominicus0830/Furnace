@@ -66,6 +66,7 @@ class OptionKeysTest {
         assertEquals(Boolean.toString(o.unsignedChatAsSystem()), t.get("chat.unsigned-as-system").def());
         assertEquals(o.serverBrand(), t.get("server-brand").def());
         assertEquals(Boolean.toString(o.announceSleepStatus()), t.get("announce-sleep-status").def());
+        assertEquals(Boolean.toString(o.gravityBlockPortalDupe()), t.get("gravity-block-portal-dupe").def());
         assertEquals(Boolean.toString(o.confirmInterrupt()), t.get("confirm-interrupt").def());
         assertEquals(Integer.toString(o.interruptConfirmSeconds()), t.get("confirm-interrupt-seconds").def());
         ConnectionLimits d = ConnectionLimits.DEFAULT;
