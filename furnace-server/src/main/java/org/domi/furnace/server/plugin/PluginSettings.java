@@ -147,7 +147,9 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         Map<String, String> compatOptions = new HashMap<>();
         for (String k : p.stringPropertyNames()) {
             // bukkit·nms.enabled 는 위에서 필드로 읽었다
-            if (k.startsWith("plugins.compat.") && !k.equals("plugins.compat.bukkit") && !k.equals("plugins.compat.nms.enabled")) {
+            // 라이브러리 키(plugins.compat.libraries*)는 LibrarySettings 가 읽는다. 빈 값은 적지 않은 것과 같다(만든 설정 파일의 빈 키)
+            if (k.startsWith("plugins.compat.") && !k.equals("plugins.compat.bukkit") && !k.equals("plugins.compat.nms.enabled")
+                    && !LibrarySettings.KEYS.contains(k) && !p.getProperty(k).isBlank()) {
                 compatOptions.put(k, p.getProperty(k).strip());
             }
         }

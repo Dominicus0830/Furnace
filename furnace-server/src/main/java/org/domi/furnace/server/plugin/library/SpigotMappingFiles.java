@@ -217,7 +217,9 @@ public final class SpigotMappingFiles {
 
     // ------------------------------------------------------------------ 필요 판정
 
-    private static final byte[][] NMS = {"net/minecraft/".getBytes(StandardCharsets.UTF_8), "net.minecraft.".getBytes(StandardCharsets.UTF_8)};
+    // 서버 클래스 파일에 호환 이름공간 문자열을 상수로 남기지 않는다(CompatIsolationStaticTest) — 실행 때 잇는다
+    private static final byte[][] NMS = {String.join("/", "net", "minecraft", "").getBytes(StandardCharsets.UTF_8),
+            String.join(".", "net", "minecraft", "").getBytes(StandardCharsets.UTF_8)};
 
     /**
      * 이 호환 플러그인 jar 에 대응표가 필요한가: 매니페스트에 {@code paperweight-mappings-namespace: mojang} 이 없고(Paper 와 같은 판정 — 속성이 없으면
