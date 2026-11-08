@@ -41,7 +41,7 @@ class LegacySyncRegionAccessTest {
 
     @BeforeAll
     void start() {
-        server = FurnaceTestServer.builder().plugin(CompatTestPlugin.class).failFast(false).start();
+        server = FurnaceTestServer.builder().exposeCompatToNative(true).plugin(CompatTestPlugin.class).failFast(false).start();
         Bukkit.setServer(org.bukkit.craftbukkit.CraftServer.INSTANCE);
         p = server.plugin(CompatTestPlugin.class);
         tp = server.join("Mira");

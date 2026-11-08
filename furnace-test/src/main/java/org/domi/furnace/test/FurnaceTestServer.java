@@ -104,7 +104,8 @@ public final class FurnaceTestServer implements AutoCloseable {
             this.global = (GlobalThread) sched.global();
             global.useManualClock();
             // 플러그인 부트스트랩: 레지스트리·월드보다 먼저(FurnaceMain 과 같은 자리). 시험에서는 실패를 숨기지 않는다(fail-fast).
-            PluginSettings pluginSettings = new PluginSettings(b.failFast, null, java.util.Map.of()).withCompatNms(b.compatNms).withLibraries(b.libraries);
+            PluginSettings pluginSettings = new PluginSettings(b.failFast, null, java.util.Map.of()).withCompatNms(b.compatNms).withLibraries(b.libraries)
+                    .withExposeCompatToNative(b.exposeCompatToNative);
             PluginBootstrapper boot = PluginBootstrapper.bootstrap(pluginsDir, pluginSettings);
             BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
             ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
@@ -444,6 +445,7 @@ public final class FurnaceTestServer implements AutoCloseable {
         private int maxPlayers = 20;
         private boolean failFast = true;
         private boolean compatNms = true;
+        private boolean exposeCompatToNative = false;
         /** 시험은 기본으로 네트워크에 나가지 않는다 — 호환 플러그인용 서버 제공 라이브러리·plugin.yml libraries 도 끈다. */
         private org.domi.furnace.server.plugin.library.LibrarySettings libraries = org.domi.furnace.server.plugin.library.LibrarySettings.DEFAULT
                 .withCompat(org.domi.furnace.server.plugin.library.LibrarySettings.CompatMode.OFF).withCompatDeclared(false);
@@ -508,6 +510,12 @@ public final class FurnaceTestServer implements AutoCloseable {
 
         /** Bukkit 호환 플러그인의 NMS·CraftBukkit 이름 변환(furnace.properties plugins.compat.nms.enabled, 기본 참). */
         public Builder compatNms(boolean v) { this.compatNms = v; return this; }
+
+        /**
+         * true 면 Furnace 네이티브 플러그인의 클래스로더에도 호환 클래스(org.bukkit.*·호환 코어)가 보인다. 기본은 숨김(서버와 같다) —
+         * 호환 코어를 네이티브 시험 플러그인으로 직접 부리는 호환 모듈 시험만 켠다.
+         */
+        public Builder exposeCompatToNative(boolean v) { this.exposeCompatToNative = v; return this; }
 
         /**
          * 라이브러리 내려받기 설정(furnace.properties plugins.libraries.*·plugins.compat.libraries*). 기본은 모두 꺼짐 — 시험이 네트워크에 기대지 않게

@@ -51,8 +51,11 @@ public final class PluginBootstrapper {
 
     private final Path dir;
     private final PluginSettings settings;
-    /** 다른 서버 소프트웨어 플러그인 형식 어댑터(예: Bukkit plugin.yml). 호환 모듈이 없으면 비어 있다. */
-    private final List<PluginFormat> formats;
+    /**
+     * 다른 서버 소프트웨어 플러그인 형식 어댑터(예: Bukkit plugin.yml). 호환 모듈이 없으면 비어 있다.
+     * 어댑터는 Furnace 설명 파일이 없는 jar 를 처음 만날 때까지 만들지 않는다 — Bukkit·Paper 플러그인이 없으면 호환 모듈 클래스는 올라오지 않는다.
+     */
+    private final PluginFormats formats;
     /** 찾기·부트스트랩에서 실패한 플러그인(또는 jar) 이름 — plugins.fail-fast 의 근거. */
     private final List<String> failures = new CopyOnWriteArrayList<>();
     private final PluginRegistryStore registries = new PluginRegistryStore();
@@ -73,10 +76,10 @@ public final class PluginBootstrapper {
     /** 호환 플러그인용 서버 제공 라이브러리 목록(시험은 바꿔 넣는다). */
     private final ServerLibraries serverLibraries;
 
-    private PluginBootstrapper(Path dir, PluginSettings settings, List<PluginFormat> formats, ServerLibraries serverLibraries) {
+    private PluginBootstrapper(Path dir, PluginSettings settings, PluginFormats formats, ServerLibraries serverLibraries) {
         this.dir = dir;
         this.settings = settings;
-        this.formats = List.copyOf(formats);
+        this.formats = formats;
         this.serverLibraries = serverLibraries;
     }
 
@@ -84,34 +87,24 @@ public final class PluginBootstrapper {
     public static PluginBootstrapper bootstrap(Path dir) { return bootstrap(dir, PluginSettings.DEFAULT); }
 
     public static PluginBootstrapper bootstrap(Path dir, PluginSettings settings) {
-        return bootstrap(dir, settings, settings.compat() ? loadFormats() : List.of());
+        return bootstrap(dir, settings, settings.compat() ? PluginFormats.discover(PluginBootstrapper.class.getClassLoader()) : PluginFormats.none(), ServerLibraries.DEFAULT);
     }
 
     /** 형식 어댑터를 직접 정해 시작한다(시험용). */
     public static PluginBootstrapper bootstrap(Path dir, PluginSettings settings, List<PluginFormat> formats) {
-        return bootstrap(dir, settings, formats, ServerLibraries.DEFAULT);
+        return bootstrap(dir, settings, PluginFormats.of(formats), ServerLibraries.DEFAULT);
     }
 
     /** 시험용: 서버 제공 라이브러리 목록을 바꿔 넣는다. */
     static PluginBootstrapper bootstrap(Path dir, PluginSettings settings, List<PluginFormat> formats, ServerLibraries serverLibraries) {
+        return bootstrap(dir, settings, PluginFormats.of(formats), serverLibraries);
+    }
+
+    /** 시험용: 어댑터 손잡이를 직접 넣는다(불러오기 시점 확인). */
+    static PluginBootstrapper bootstrap(Path dir, PluginSettings settings, PluginFormats formats, ServerLibraries serverLibraries) {
         PluginBootstrapper b = new PluginBootstrapper(dir, settings, formats, serverLibraries);
         b.run();
         return b;
-    }
-
-    /** 클래스패스의 호환 모듈이 ServiceLoader 로 알린 형식 어댑터. 하나가 깨져도 나머지는 쓴다. */
-    static List<PluginFormat> loadFormats() {
-        List<PluginFormat> out = new ArrayList<>();
-        var it = java.util.ServiceLoader.load(PluginFormat.class, PluginBootstrapper.class.getClassLoader()).iterator();
-        while (true) {
-            try {
-                if (!it.hasNext()) break;
-                out.add(it.next());
-            } catch (java.util.ServiceConfigurationError e) {
-                log.error("플러그인 형식 어댑터를 불러오지 못했다", e);
-            }
-        }
-        return out;
     }
 
     /** 찾기·부트스트랩에서 실패한 이름들. */
@@ -212,6 +205,10 @@ public final class PluginBootstrapper {
     /** 설명 파일을 읽은 후보. */
     record Candidate(Path file, PluginDescription description, PluginFormat format) {}
 
+    /** 읽지 않고 건너뛴 jar 표시(실패로 세지 않는다) — 호환 어댑터를 만들 수 없을 때의 bukkit-plugins/ jar. */
+    private static final Candidate SKIPPED = new Candidate(null, null, null);
+    private boolean brokenAdapterWarned;
+
     private void run() {
         try {
             Files.createDirectories(dir);
@@ -225,7 +222,7 @@ public final class PluginBootstrapper {
             HotReload.clearShadowDir(dir);
         }
         long bukkit = countJars(dir.resolve(BUKKIT_FOLDER));
-        if (bukkit > 0 && formats.isEmpty()) {
+        if (bukkit > 0 && !formats.available()) {
             log.warn("plugins/{}/ 에 Paper/Bukkit 플러그인 {}개가 있다 — 호환 어댑터가 {} 불러오지 않는다", BUKKIT_FOLDER, bukkit,
                     settings.compat() ? "클래스패스에 없어" : "꺼져(plugins.compat.bukkit=false) 있어");
         }
@@ -239,6 +236,7 @@ public final class PluginBootstrapper {
                 failures.add(jar.getFileName().toString());
                 continue;
             }
+            if (c == SKIPPED) continue;
             if (c == null) {
                 failures.add(jar.getFileName().toString());
                 continue;
@@ -272,7 +270,7 @@ public final class PluginBootstrapper {
     /** 찾을 jar: plugins/ 의 jar, 형식 어댑터가 있으면 plugins/bukkit-plugins/ 의 jar 도(이름 순). */
     private List<Path> scanJars() {
         List<Path> out = new ArrayList<>(jars(dir));
-        if (!formats.isEmpty()) out.addAll(jars(dir.resolve(BUKKIT_FOLDER)));
+        if (formats.available()) out.addAll(jars(dir.resolve(BUKKIT_FOLDER)));
         return out;
     }
 
@@ -288,7 +286,7 @@ public final class PluginBootstrapper {
                     return new Candidate(jar, PluginDescription.read(s), null);
                 }
             }
-            for (PluginFormat format : formats) {
+            for (PluginFormat format : formats.get()) {   // 처음 여기까지 온 jar(Furnace 설명 파일 없음)에서야 어댑터를 만든다
                 for (String n : format.descriptorNames()) {
                     var entry = jf.getEntry(n);
                     if (entry == null) continue;
@@ -302,6 +300,16 @@ public final class PluginBootstrapper {
                 }
             }
             if (quiet) return null;
+            if (formats.get().isEmpty() && jar.getParent() != null && jar.getParent().getFileName() != null
+                    && jar.getParent().getFileName().toString().equals(BUKKIT_FOLDER)
+                    && (jf.getEntry("plugin.yml") != null || jf.getEntry("paper-plugin.yml") != null)) {
+                // 호환 모듈 자원은 있는데 어댑터를 만들 수 없다(깨진 호환 모듈). 어댑터가 아예 없을 때와 같이 경고만 하고 실패로 세지 않는다.
+                if (!brokenAdapterWarned) {
+                    brokenAdapterWarned = true;
+                    log.warn("plugins/{}/ 에 Paper/Bukkit 플러그인이 있지만 호환 어댑터를 만들지 못해(클래스패스의 호환 모듈이 깨졌다) 불러오지 않는다", BUKKIT_FOLDER);
+                }
+                return SKIPPED;
+            }
             if (jf.getEntry("plugin.yml") != null || jf.getEntry("paper-plugin.yml") != null) {
                 log.error("Could not load '{}' in folder '{}': Paper/Bukkit 플러그인이다 — plugins/{}/ 에 넣어야 한다",
                         dir.relativize(jar), dir.getFileName(), BUKKIT_FOLDER);
@@ -394,7 +402,8 @@ public final class PluginBootstrapper {
             Path jar = settings.devMode() ? HotReload.shadowCopy(dir, c.file()) : c.file();
             org.domi.furnace.api.plugin.ClassTransformer transformer = c.format() != null && settings.compatNms() ? c.format().transformer(d, jar) : null;
             ClassLoader parent = c.format() != null ? sharedLibrariesFor(c) : null;
-            loader = new PluginManagerImpl.PluginClassLoader(jar, this, settings.devMode(), libraries, transformer, parent);
+            loader = new PluginManagerImpl.PluginClassLoader(jar, this, settings.devMode(), libraries, transformer, parent,
+                    c.format() == null && !settings.exposeCompatToNative());
         } catch (IOException | RuntimeException e) {
             log.error("Could not load '{}' in folder '{}'", dir.relativize(c.file()), dir.getFileName(), e);
             failures.add(d.name());
