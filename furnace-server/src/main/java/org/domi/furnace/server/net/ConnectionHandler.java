@@ -618,12 +618,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         org.domi.furnace.server.ServerCore core = login.core;
         if (p == null || core == null) return;
         tryHandleChat(rawCommand, () -> {
+            log.info("{} issued server command: /{}", p.name(), rawCommand);   // Paper: 이벤트 전에 원문으로 남긴다(취소돼도 남음)
             String command = preprocessCommand(core, p, rawCommand);
             if (command == null) {
                 detectRateSpam();
                 return;
             }
-            log.info("{} issued server command: /{}", p.name(), command);
             var source = org.domi.furnace.server.command.CommandSource.player(core, p);
             var parse = core.commands().getDispatcher().parse(command, source);
             if (core.enforceSecureProfile() && org.domi.furnace.server.command.SignableCommand.hasSignableArguments(parse)) {
@@ -652,6 +652,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var lastSeen = unpackAndApplyLastSeen(update);
         if (lastSeen.isEmpty()) return;
         tryHandleChat(command, () -> {
+            log.info("{} issued server command: /{}", p.name(), command);   // Paper: 이벤트 전에 원문으로 남긴다(취소돼도 남음)
             String changed = preprocessCommand(core, p, command);
             var source = org.domi.furnace.server.command.CommandSource.player(core, p);
             var parse = core.commands().getDispatcher().parse(command, source);
@@ -668,7 +669,6 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 detectRateSpam();
                 return;
             }
-            log.info("{} issued server command: /{}", p.name(), changed);
             if (!changed.equals(command)) {
                 core.commands().performPrefixedCommand(source, changed);
             } else {

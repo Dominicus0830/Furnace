@@ -107,7 +107,10 @@ final class Mappings {
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerToggleFlightEvent.class, org.bukkit.event.player.PlayerToggleFlightEvent.class,
                 f -> new org.bukkit.event.player.PlayerToggleFlightEvent(p(f.player()), f.isFlying()), (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerCommandPreprocessEvent.class, org.bukkit.event.player.PlayerCommandPreprocessEvent.class,
-                f -> new org.bukkit.event.player.PlayerCommandPreprocessEvent(p(f.player()), f.message()),
+                f -> f instanceof org.domi.furnace.api.event.player.PlayerSignCommandPreprocessEvent sign   // 표지판 클릭 명령 — Paper 처럼 같은 처리기에 하위 이벤트로 온다
+                        ? new io.papermc.paper.event.player.PlayerSignCommandPreprocessEvent(p(f.player()), f.message(),
+                                sign.front() ? org.bukkit.block.sign.Side.FRONT : org.bukkit.block.sign.Side.BACK)
+                        : new org.bukkit.event.player.PlayerCommandPreprocessEvent(p(f.player()), f.message()),
                 (f, b) -> {
                     if (!b.getMessage().equals(f.message())) f.message(b.getMessage());
                 }, (f, b) -> {

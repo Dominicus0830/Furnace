@@ -289,7 +289,7 @@ class JavaPluginWiringTest {
             assertTrue(inline);
             assertEquals("cmd:wire|wire|q|CONSOLE|primary=true", WiringProbe.LOG.get(0));
             WiringProbe.LOG.clear();
-            assertTrue(Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "/wire z"), "주 스레드가 아니면 접수만");
+            assertTrue(Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "wire z"), "주 스레드가 아니면 접수만");
             server.tick(2);
             assertEquals(List.of("cmd:wire|wire|z|CONSOLE|primary=true"), WiringProbe.LOG);
             assertThrows(CommandException.class, () -> server.onGlobal(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "plain")),

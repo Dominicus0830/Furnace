@@ -16,6 +16,7 @@ import org.bukkit.Location;
 import org.bukkit.Server;
 import org.bukkit.entity.Player;
 import org.domi.furnace.api.Furnace;
+import org.domi.furnace.compat.command.LegacyCommands;
 import org.domi.furnace.compat.paper.CompatCommands;
 import org.domi.furnace.compat.paper.UnsupportedFeature;
 import org.domi.furnace.compat.thread.PrimaryThread;
@@ -128,7 +129,9 @@ public class SimpleCommandMap implements CommandMap {
 
     @Override
     public boolean dispatch(CommandSender sender, String commandLine) throws CommandException {
-        String[] args = commandLine.split(" ");   // Bukkit 의 PATTERN_ON_SPACE.split: 끝의 빈 칸은 버리고 가운데 빈 칸은 빈 인자로 둔다
+        // Paper 1.21.1: fix-empty-array-elements-in-command-arguments — StringUtils.split(commandLine, ' '). 빈 칸을 모두 버린다
+        // (Spigot 은 String.split(" ") 라서 가운데 빈 칸이 빈 인자가 된다). 플레이어가 친 명령(LegacyCommands.execArgs)과 같은 규칙이다.
+        String[] args = LegacyCommands.splitLine(commandLine);
         if (args.length == 0) return false;
         String sentCommandLabel = args[0].toLowerCase(Locale.ROOT);
         Command target = getCommand(sentCommandLabel);

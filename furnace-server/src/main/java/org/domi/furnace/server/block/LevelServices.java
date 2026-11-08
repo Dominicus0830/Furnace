@@ -209,6 +209,12 @@ public interface LevelServices {
     /** 표지판 클릭 명령(BlockLevel.runSignCommand). player 는 Player(없으면 null). */
     default void runSignCommand(Player player, int x, int y, int z, String command) {}
 
+    /** 면을 아는 표지판 클릭 명령. 플러그인이 취소했으면 false. 기본은 면 없는 쪽으로 넘기고 true. */
+    default boolean runSignCommand(Player player, int x, int y, int z, boolean front, String command) {
+        runSignCommand(player, x, y, z, command);
+        return true;
+    }
+
     /** 표지판 글 풀기(BlockLevel.resolveSignLines). 서버 없는 레벨은 그대로 level 에서 바로. */
     default void resolveSignLines(BlockLevel level, int x, int y, int z, java.util.List<org.domi.furnace.api.text.Text> lines,
                                   java.util.function.BiConsumer<BlockLevel, java.util.List<org.domi.furnace.api.text.Text>> apply) {
@@ -322,6 +328,7 @@ public interface LevelServices {
         public boolean spawnAnimals() { return d.spawnAnimals(); }
         public boolean spawnNpcs() { return d.spawnNpcs(); }
         public void runSignCommand(Player player, int x, int y, int z, String command) { d.runSignCommand(player, x, y, z, command); }
+        public boolean runSignCommand(Player player, int x, int y, int z, boolean front, String command) { return d.runSignCommand(player, x, y, z, front, command); }
         public void resolveSignLines(BlockLevel level, int x, int y, int z, java.util.List<org.domi.furnace.api.text.Text> lines,
                                      java.util.function.BiConsumer<BlockLevel, java.util.List<org.domi.furnace.api.text.Text>> apply) {
             d.resolveSignLines(level, x, y, z, lines, apply);

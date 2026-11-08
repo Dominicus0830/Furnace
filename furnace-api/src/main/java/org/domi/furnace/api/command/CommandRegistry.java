@@ -25,6 +25,12 @@ public interface CommandRegistry {
      */
     boolean dispatch(CommandSender sender, String commandLine);
 
+    /**
+     * 명령 트리의 루트에 그 이름의 명령이 있는가(바닐라·플러그인·"플러그인:이름" 모두, 대소문자 구분). 어느 스레드에서 불러도 된다.
+     * 없는 이름을 {@link #dispatch} 하면 바닐라 오류 문장만 나온다 — Bukkit.dispatchCommand 가 false 를 돌려줄지 가릴 때 쓴다.
+     */
+    boolean hasCommand(String name);
+
     void unregisterAll(FurnacePlugin plugin);
 
     /**
