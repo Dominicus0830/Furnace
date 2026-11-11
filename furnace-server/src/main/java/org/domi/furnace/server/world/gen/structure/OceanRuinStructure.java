@@ -107,11 +107,37 @@ public final class OceanRuinStructure extends StructureType {
     }
 
     static final class Piece extends TemplatePiece {
+
+        @Override
+
+        public String pieceType() { return "orp"; }
+
+
+        @Override
+
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+
+            super.saveAdditional(t);
+
+            t.putString("Rot", rotationName(settings.rotation));
+
+            t.putFloat("Integrity", integrity);
+
+            t.putString("BiomeType", cold ? "COLD" : "WARM");
+
+            t.putBoolean("IsLarge", large);
+
+        }
+
         private final boolean large;
+        private final float integrity;
+        private final boolean cold;
 
         Piece(StructureEngine e, String name, int x, int y, int z, int rotation, float integrity, boolean cold, boolean large) {
             super(name, e.template(name), settings(e, rotation, integrity, cold), x, y, z);
             this.large = large;
+            this.integrity = integrity;
+            this.cold = cold;
         }
 
         private static PlaceSettings settings(StructureEngine e, int rotation, float integrity, boolean cold) {

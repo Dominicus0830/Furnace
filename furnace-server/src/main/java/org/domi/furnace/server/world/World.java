@@ -435,6 +435,8 @@ public final class World {
             if (storage != null) storage.saveIfDirty();
             var forced = forcedChunks;
             if (forced != null) forced.saveIfDirty();
+            var gen = org.domi.furnace.server.world.gen.NoiseWorldSource.of(worldSource);
+            if (gen != null) gen.structureEngine().references().saveIfDirty();   // 탐험 지도 references(A06-06)
             return null;
         }));
         return fs;

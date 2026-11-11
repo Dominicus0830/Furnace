@@ -24,6 +24,8 @@ class ChunkStructuresTest {
 
     static final class Box extends StructurePiece {
         Box(int x0, int y0, int z0, int x1, int y1, int z1) { super(new BoundingBox(x0, y0, z0, x1, y1, z1), Direction.NORTH); }
+
+        @Override public String pieceType() { return "btp"; }
     }
 
     private static StructureStart start(String id, int cx, int cz, String adaptation, StructurePiece... pieces) {

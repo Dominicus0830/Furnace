@@ -131,6 +131,42 @@ public final class RuinedPortalStructure extends StructureType {
     }
 
     static final class Piece extends TemplatePiece {
+
+        @Override
+
+        public String pieceType() { return "rupo"; }
+
+
+        @Override
+
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+
+            super.saveAdditional(t);
+
+            t.putString("Rotation", rotationName(settings.rotation));
+
+            t.putString("Mirror", mirrorName(settings.mirror));
+
+            t.putString("VerticalPlacement", vp.name().toLowerCase(java.util.Locale.ROOT));
+
+            var pr = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+
+            pr.putBoolean("cold", props.cold);
+
+            pr.putFloat("mossiness", props.mossiness);
+
+            pr.putBoolean("air_pocket", props.airPocket);
+
+            pr.putBoolean("overgrown", props.overgrown);
+
+            pr.putBoolean("vines", props.vines);
+
+            pr.putBoolean("replace_with_blackstone", props.replaceWithBlackstone);
+
+            t.putCompound("Properties", pr);
+
+        }
+
         private final VP vp;
         private final Props props;
 

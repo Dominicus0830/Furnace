@@ -18,6 +18,13 @@ public final class BuriedTreasureStructure extends StructureType {
         }
 
         @Override
+        public String pieceType() { return "btp"; }
+
+        /** 바닐라 BuriedTreasurePiece 는 방향을 정하지 않는다(O = -1). */
+        @Override
+        protected Direction savedOrientation() { return null; }
+
+        @Override
         public void postProcess(PostCtx c) {
             int h = c.view.getWgOceanFloorHeight(boundingBox.minX(), boundingBox.minZ());
             int x = boundingBox.minX(), y = h, z = boundingBox.minZ();

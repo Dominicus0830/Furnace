@@ -56,6 +56,7 @@ public final class ChunkStructures {
     private final Map<String, long[]> references;    // 구조물 id → 시작 청크(ChunkPos.asLong), 넣은 순서
     private final NbtCompound raw;                   // 불러온 원본(있으면 그대로 다시 쓴다)
     private volatile Ref[] resolved;                 // 참조 시작점 기하(이 청크에 걸치는 조각만). null = 아직 못 풀었다
+    private volatile StructureReferences store;      // 시작점 references 값(탐험 지도) — 저장할 때 쓴다
 
     private ChunkStructures(List<StructureStart> liveStarts, Ref[] ownRefs, Map<String, long[]> references, NbtCompound raw, Ref[] resolved) {
         this.liveStarts = liveStarts;
@@ -115,6 +116,24 @@ public final class ChunkStructures {
         return out;
     }
 
+    /**
+     * 차원의 references 저장소에 잇는다(생성 직후·불러온 직후). 불러온 청크면 그 NBT 의 시작점 값을 저장소에 들인다.
+     * 이 청크가 시작점인 것이 없으면 아무것도 하지 않는다(EMPTY 공유 객체도 그대로).
+     */
+    public ChunkStructures attach(StructureReferences refs) {
+        if (refs == null || ownRefs.length == 0) return this;
+        this.store = refs;
+        if (raw != null && raw.tags().get("starts") instanceof NbtCompound starts) {
+            for (var e : starts.tags().entrySet()) {
+                if (e.getValue() instanceof NbtCompound st && !"INVALID".equals(st.tags().get("id"))
+                        && st.tags().get("references") instanceof Number n && n.intValue() > 0) {
+                    refs.seed(e.getKey(), st.getIntOr0("ChunkX"), st.getIntOr0("ChunkZ"), n.intValue());
+                }
+            }
+        }
+        return this;
+    }
+
     /** 이 청크가 시작점인 구조물들의 기하. */
     public Ref[] ownStarts() { return ownRefs; }
 
@@ -148,23 +167,36 @@ public final class ChunkStructures {
 
     /** 바닐라 SerializableChunkData 의 `structures` 컴파운드: {starts: {id: start}, References: {id: long[]}}. */
     public NbtCompound toNbt() {
-        if (raw != null) return raw.copy();
+        StructureReferences known = store;
+        if (raw != null) {
+            NbtCompound out = raw.copy();
+            // 불러온 뒤 탐험 지도가 올린 references 를 시작점 NBT 에 반영한다
+            if (known != null && out.tags().get("starts") instanceof NbtCompound starts) {
+                for (var e : starts.tags().entrySet()) {
+                    if (!(e.getValue() instanceof NbtCompound st) || "INVALID".equals(st.tags().get("id"))) continue;
+                    int k = known.knownOrMinus(e.getKey(), st.getIntOr0("ChunkX"), st.getIntOr0("ChunkZ"));
+                    if (k > st.getIntOr0("references")) st.putInt("references", k);
+                }
+            }
+            return out;
+        }
         NbtCompound root = new NbtCompound();
         NbtCompound starts = new NbtCompound();
         for (StructureStart s : liveStarts) {
+            // 바닐라 StructureStart.createTag: 조각이 없으면(isValid 거짓) id 만 INVALID
             NbtCompound st = new NbtCompound();
+            if (s.pieces().isEmpty()) {
+                st.putString("id", "INVALID");
+                starts.putCompound(s.structureId(), st);
+                continue;
+            }
             st.putString("id", s.structureId());
             st.putInt("ChunkX", s.chunkX());
             st.putInt("ChunkZ", s.chunkZ());
-            st.putInt("references", 0);
+            st.putInt("references", known == null ? 0 : Math.max(0, known.knownOrMinus(s.structureId(), s.chunkX(), s.chunkZ())));
+            // 바닐라 PiecesContainer.save: 조각마다 StructurePiece.createTag(id·BB·O·GD·조각별 필드)
             NbtList children = new NbtList(NbtIo.TAG_COMPOUND);
-            for (StructurePiece p : s.pieces()) {
-                BoundingBox b = p.boundingBox();
-                NbtCompound c = new NbtCompound();
-                c.putString("id", "furnace:piece");   // 조각 상세는 아직 직렬화하지 않는다(상자만)
-                c.putIntArray("BB", new int[]{b.minX(), b.minY(), b.minZ(), b.maxX(), b.maxY(), b.maxZ()});
-                children.add(c);
-            }
+            for (StructurePiece p : s.pieces()) children.add(p.save());
             st.putList("Children", children);
             starts.putCompound(s.structureId(), st);
         }

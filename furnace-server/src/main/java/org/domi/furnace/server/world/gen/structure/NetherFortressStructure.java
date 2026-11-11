@@ -222,7 +222,6 @@ public final class NetherFortressStructure extends StructureType {
     // ------------------------------------------------------------------ 공통 기반 (바닐라 NetherBridgePiece)
 
     abstract static class Piece extends StructurePiece {
-        final int genDepth;
 
         protected Piece(int genDepth, BoundingBox box, Direction dir) {
             super(box, dir);
@@ -275,6 +274,9 @@ public final class NetherFortressStructure extends StructureType {
 
     /** NeBCr — 다리 교차로(19x10x19). 시작 조각도 이것을 상속한다. */
     static class BridgeCrossing extends Piece {
+        @Override
+        public String pieceType() { return "nebcr"; }
+
         BridgeCrossing(int genDepth, BoundingBox box, Direction dir) {
             super(genDepth, box, dir);
         }
@@ -341,6 +343,14 @@ public final class NetherFortressStructure extends StructureType {
 
     /** NeBEF — 다리 끝 마개(5x10x8). 자체 시드로 들쭉날쭉한 단면을 만든다. */
     static class BridgeEndFiller extends Piece {
+        @Override
+        public String pieceType() { return "nebef"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            t.putInt("Seed", selfSeed);
+        }
+
         private final int selfSeed;
 
         BridgeEndFiller(int genDepth, LegacyRandom r, BoundingBox box, Direction dir) {
@@ -388,6 +398,9 @@ public final class NetherFortressStructure extends StructureType {
 
     /** NeBS — 직선 다리(5x10x19). */
     static class BridgeStraight extends Piece {
+        @Override
+        public String pieceType() { return "nebs"; }
+
         BridgeStraight(int genDepth, BoundingBox box, Direction dir) {
             super(genDepth, box, dir);
         }
@@ -439,6 +452,9 @@ public final class NetherFortressStructure extends StructureType {
 
     /** NeCCS — 성채 계단 복도(5x14x10). */
     static class CastleCorridorStairs extends Piece {
+        @Override
+        public String pieceType() { return "neccs"; }
+
         CastleCorridorStairs(int genDepth, BoundingBox box, Direction dir) {
             super(genDepth, box, dir);
         }
@@ -489,6 +505,9 @@ public final class NetherFortressStructure extends StructureType {
 
     /** NeCTB — 성채 T자 발코니 복도(9x7x9). */
     static class CastleCorridorTBalcony extends Piece {
+        @Override
+        public String pieceType() { return "nectb"; }
+
         CastleCorridorTBalcony(int genDepth, BoundingBox box, Direction dir) {
             super(genDepth, box, dir);
         }
@@ -549,6 +568,9 @@ public final class NetherFortressStructure extends StructureType {
 
     /** NeCE — 성채 입구(13x14x13, 중앙 용암 우물). */
     static class CastleEntrance extends Piece {
+        @Override
+        public String pieceType() { return "nece"; }
+
         CastleEntrance(int genDepth, BoundingBox box, Direction dir) {
             super(genDepth, box, dir);
         }
@@ -646,6 +668,9 @@ public final class NetherFortressStructure extends StructureType {
 
     /** NeSCSC — 성채 작은 복도 십자(5x7x5). */
     static class CastleSmallCorridorCrossing extends Piece {
+        @Override
+        public String pieceType() { return "nescsc"; }
+
         CastleSmallCorridorCrossing(int genDepth, BoundingBox box, Direction dir) {
             super(genDepth, box, dir);
         }
@@ -685,6 +710,14 @@ public final class NetherFortressStructure extends StructureType {
 
     /** NeSCLT — 성채 작은 복도 왼쪽 꺾임(5x7x5, 1/3 확률로 상자). */
     static class CastleSmallCorridorLeftTurn extends Piece {
+        @Override
+        public String pieceType() { return "nesclt"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            t.putBoolean("Chest", isNeedingChest);
+        }
+
         private boolean isNeedingChest;
 
         CastleSmallCorridorLeftTurn(int genDepth, LegacyRandom r, BoundingBox box, Direction dir) {
@@ -735,6 +768,9 @@ public final class NetherFortressStructure extends StructureType {
 
     /** NeSC — 성채 작은 복도(5x7x5). */
     static class CastleSmallCorridor extends Piece {
+        @Override
+        public String pieceType() { return "nesc"; }
+
         CastleSmallCorridor(int genDepth, BoundingBox box, Direction dir) {
             super(genDepth, box, dir);
         }
@@ -775,6 +811,14 @@ public final class NetherFortressStructure extends StructureType {
 
     /** NeSCRT — 성채 작은 복도 오른쪽 꺾임(5x7x5, 1/3 확률로 상자). */
     static class CastleSmallCorridorRightTurn extends Piece {
+        @Override
+        public String pieceType() { return "nescrt"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            t.putBoolean("Chest", isNeedingChest);
+        }
+
         private boolean isNeedingChest;
 
         CastleSmallCorridorRightTurn(int genDepth, LegacyRandom r, BoundingBox box, Direction dir) {
@@ -825,6 +869,9 @@ public final class NetherFortressStructure extends StructureType {
 
     /** NeCSR — 성채 줄기방(13x14x13, 영혼 모래 + 네더 와트). */
     static class CastleStalkRoom extends Piece {
+        @Override
+        public String pieceType() { return "necsr"; }
+
         CastleStalkRoom(int genDepth, BoundingBox box, Direction dir) {
             super(genDepth, box, dir);
         }
@@ -960,6 +1007,14 @@ public final class NetherFortressStructure extends StructureType {
 
     /** NeMT — 몬스터 왕좌(7x8x9, 블레이즈 스포너). */
     static class MonsterThrone extends Piece {
+        @Override
+        public String pieceType() { return "nemt"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            t.putBoolean("Mob", hasPlacedSpawner);
+        }
+
         private boolean hasPlacedSpawner;
 
         MonsterThrone(int genDepth, BoundingBox box, Direction dir) {
@@ -1049,6 +1104,9 @@ public final class NetherFortressStructure extends StructureType {
 
     /** NeRC — 방 교차로(7x9x7). */
     static class RoomCrossing extends Piece {
+        @Override
+        public String pieceType() { return "nerc"; }
+
         RoomCrossing(int genDepth, BoundingBox box, Direction dir) {
             super(genDepth, box, dir);
         }
@@ -1101,6 +1159,9 @@ public final class NetherFortressStructure extends StructureType {
 
     /** NeSR — 계단방(7x11x7). */
     static class StairsRoom extends Piece {
+        @Override
+        public String pieceType() { return "nesr"; }
+
         StairsRoom(int genDepth, BoundingBox box, Direction dir) {
             super(genDepth, box, dir);
         }
@@ -1152,6 +1213,9 @@ public final class NetherFortressStructure extends StructureType {
 
     /** NeStart — 시작 조각(다리 교차로) + 조각 가중치 상태. */
     static final class StartPiece extends BridgeCrossing {
+        @Override
+        public String pieceType() { return "nestart"; }
+
         PieceWeight previousPiece;
         final List<PieceWeight> bridgePieces = newBridgeSet();
         final List<PieceWeight> castlePieces = newCastleSet();

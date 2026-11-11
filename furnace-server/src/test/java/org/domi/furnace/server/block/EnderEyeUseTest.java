@@ -27,7 +27,7 @@ class EnderEyeUseTest {
 
     /** 구조물 조회를 흉내 내는 지도 지원. */
     record FakeMaps(int[] result, List<String> asked) implements ExplorerMaps.Backend {
-        public int[] findNearestMapStructure(String tag, int x, int y, int z, int r) { return null; }
+        public int[] findNearestMapStructure(String tag, int x, int y, int z, int r, boolean skip) { return null; }
 
         @Override
         public int[] findNearestStructurePos(String tag, int x, int y, int z, int r) {

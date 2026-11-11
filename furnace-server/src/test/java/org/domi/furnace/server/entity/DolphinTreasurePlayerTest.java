@@ -33,7 +33,7 @@ class DolphinTreasurePlayerTest {
 
     private static ExplorerMaps.Backend backend(int[] result, String[] tagOut) {
         return new ExplorerMaps.Backend() {
-            public int[] findNearestMapStructure(String t, int x, int y, int z, int r) { return result == null ? null : new int[] {result[0], result[2]}; }
+            public int[] findNearestMapStructure(String t, int x, int y, int z, int r, boolean skip) { return result == null ? null : new int[] {result[0], result[2]}; }
             public int[] findNearestStructurePos(String t, int x, int y, int z, int r) { tagOut[0] = t + "@" + r; return result; }
             public boolean waterOnMapOutlines(int bx, int bz) { return false; }
             public String dimension() { return "minecraft:overworld"; }

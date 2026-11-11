@@ -35,6 +35,34 @@ public abstract class TemplatePiece extends StructurePiece {
 
     public String templateName() { return templateName; }
 
+    /** 바닐라 TemplateStructurePiece: TPX·TPY·TPZ(템플릿 위치), Template(템플릿 id). */
+    @Override
+    protected void saveAdditional(NbtCompound t) {
+        t.putInt("TPX", tx);
+        t.putInt("TPY", ty);
+        t.putInt("TPZ", tz);
+        t.putString("Template", templateName.indexOf(':') < 0 ? "minecraft:" + templateName : templateName);
+    }
+
+    /** 바닐라 Rotation 이름(Enum.name — 저장 키 Rot/rotation 이 valueOf 로 읽는다). */
+    static String rotationName(int r) {
+        return switch (r) {
+            case BlockStateTable.ROT_CW90 -> "CLOCKWISE_90";
+            case BlockStateTable.ROT_CW180 -> "CLOCKWISE_180";
+            case BlockStateTable.ROT_CCW90 -> "COUNTERCLOCKWISE_90";
+            default -> "NONE";
+        };
+    }
+
+    /** 바닐라 Mirror 이름(Enum.name). */
+    static String mirrorName(int m) {
+        return switch (m) {
+            case BlockStateTable.LEFT_RIGHT -> "LEFT_RIGHT";
+            case BlockStateTable.FRONT_BACK -> "FRONT_BACK";
+            default -> "NONE";
+        };
+    }
+
     public StructureTemplate template() { return template; }
 
     public PlaceSettings settings() { return settings; }

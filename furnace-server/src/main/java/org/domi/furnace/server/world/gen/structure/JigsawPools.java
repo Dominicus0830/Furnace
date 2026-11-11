@@ -79,7 +79,9 @@ public final class JigsawPools {
                 List<Processor> procs = parseProcessors(o.get("processors"));
                 Boolean liquid = null;
                 if (o.has("override_liquid_settings")) liquid = "apply_waterlogging".equals(o.get("override_liquid_settings").getAsString());
-                return new Single(o.get("location").getAsString(), procs, projection, liquid, type.equals("minecraft:legacy_single_pool_element"));
+                Single s = new Single(o.get("location").getAsString(), procs, projection, liquid, type.equals("minecraft:legacy_single_pool_element"));
+                s.processorsJson = o.get("processors");
+                return s;
             }
             case "minecraft:feature_pool_element":
                 return new Feature(o.get("feature").getAsString(), projection);
@@ -232,7 +234,18 @@ public final class JigsawPools {
         public abstract boolean place(PostCtx c, int x, int y, int z, int rotation, BoundingBox box, boolean keepLiquids, boolean keepJigsaws);
 
         public int groundLevelDelta() { return 1; }
+
+        /**
+         * 바닐라 StructurePoolElement.CODEC(ekz.f, element_type 로 나눔) 인코딩 — 직소 조각 저장의 pool_element.
+         * projection: 목록 요소 안에서는 바닐라 ListPoolElement 가 안쪽 요소의 projection 을 목록의 것으로 바꾼다(setProjectionOnEachElement).
+         */
+        public abstract org.domi.furnace.server.net.io.nbt.NbtCompound encode(String projection);
+
+        String projection() { return projection; }
     }
+
+    /** ResourceLocation.toString: 이름공간이 없으면 minecraft. */
+    static String rl(String id) { return id.indexOf(':') < 0 ? "minecraft:" + id : id; }
 
     public static final Element EMPTY = new Element("terrain_matching") {
         @Override
@@ -247,6 +260,13 @@ public final class JigsawPools {
         public boolean place(PostCtx c, int x, int y, int z, int rotation, BoundingBox box, boolean keepLiquids, boolean keepJigsaws) { return true; }
 
         @Override
+        public org.domi.furnace.server.net.io.nbt.NbtCompound encode(String projection) {
+            org.domi.furnace.server.net.io.nbt.NbtCompound t = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+            t.putString("element_type", "minecraft:empty_pool_element");
+            return t;
+        }
+
+        @Override
         public String toString() { return "Empty"; }
     };
 
@@ -255,6 +275,8 @@ public final class JigsawPools {
         final List<Processor> processors;
         final Boolean overrideLiquid;
         final boolean legacy;
+        /** 원본 JSON 의 processors(목록 id 문자열 또는 인라인 {processors:[…]}) — 저장 때 그대로 인코딩한다. */
+        com.google.gson.JsonElement processorsJson;
 
         Single(String location, List<Processor> processors, String projection, Boolean overrideLiquid, boolean legacy) {
             super(projection);
@@ -336,6 +358,21 @@ public final class JigsawPools {
             return TemplatePlacer.placeInWorld(t, c.view, c.shapes(), c.table(), c.processorCtx(), x, y, z, c.pivotX, c.pivotY, c.pivotZ, st, c.random, 18);
         }
 
+        /** SinglePoolElement 코덱: location, processors(Holder — 레지스트리 항목이면 id, 아니면 인라인), projection, override_liquid_settings(있을 때만). */
+        @Override
+        public org.domi.furnace.server.net.io.nbt.NbtCompound encode(String projection) {
+            org.domi.furnace.server.net.io.nbt.NbtCompound t = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+            t.putString("element_type", legacy ? "minecraft:legacy_single_pool_element" : "minecraft:single_pool_element");
+            t.putString("location", rl(location));
+            com.google.gson.JsonElement pj = processorsJson;
+            if (pj == null) t.putString("processors", "minecraft:empty");
+            else if (pj.isJsonPrimitive()) t.putString("processors", rl(pj.getAsString()));
+            else t.put("processors", org.domi.furnace.server.data.JsonNbt.convert(pj));
+            t.putString("projection", projection);
+            if (overrideLiquid != null) t.putString("override_liquid_settings", overrideLiquid ? "apply_waterlogging" : "ignore_waterlogging");
+            return t;
+        }
+
         @Override
         public String toString() { return (legacy ? "LegacySingle[" : "Single[") + location + "]"; }
     }
@@ -372,6 +409,15 @@ public final class JigsawPools {
         }
 
         @Override
+        public org.domi.furnace.server.net.io.nbt.NbtCompound encode(String projection) {
+            org.domi.furnace.server.net.io.nbt.NbtCompound t = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+            t.putString("element_type", "minecraft:feature_pool_element");
+            t.putString("feature", rl(feature));
+            t.putString("projection", projection);
+            return t;
+        }
+
+        @Override
         public String toString() { return "Feature[" + feature + "]"; }
     }
 
@@ -405,6 +451,17 @@ public final class JigsawPools {
         public boolean place(PostCtx c, int x, int y, int z, int rotation, BoundingBox box, boolean keepLiquids, boolean keepJigsaws) {
             for (Element el : elements) if (!el.place(c, x, y, z, rotation, box, keepLiquids, keepJigsaws)) return false;
             return true;
+        }
+
+        @Override
+        public org.domi.furnace.server.net.io.nbt.NbtCompound encode(String projection) {
+            org.domi.furnace.server.net.io.nbt.NbtCompound t = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+            t.putString("element_type", "minecraft:list_pool_element");
+            var list = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
+            for (Element el : elements) list.add(el.encode(projection));
+            t.putList("elements", list);
+            t.putString("projection", projection);
+            return t;
         }
     }
 

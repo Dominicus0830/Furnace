@@ -36,9 +36,11 @@ class ExplorerMapTradeTest {
         String lastTag;
         int[] origin;
         boolean found = true;
+        Boolean skip;
 
-        public int[] findNearestMapStructure(String tag, int x, int y, int z, int radius) {
+        public int[] findNearestMapStructure(String tag, int x, int y, int z, int radius, boolean skip) {
             lastTag = tag;
+            this.skip = skip;
             origin = new int[] {x, y, z, radius};
             return found ? new int[] {1000, 2000} : null;
         }
@@ -56,6 +58,7 @@ class ExplorerMapTradeTest {
         assertNotNull(offer);
         assertEquals("minecraft:on_ocean_explorer_maps", backend.lastTag);
         assertArrayEquals(new int[] {10, 70, -20, 100}, backend.origin);
+        assertEquals(Boolean.TRUE, backend.skip, "TreasureMapForEmeralds 는 skipKnownStructures=true");
         assertEquals("minecraft:emerald", offer.baseCostA().item());
         assertEquals(13, offer.baseCostA().count());
         assertEquals("minecraft:compass", offer.costB().orElseThrow().item());
