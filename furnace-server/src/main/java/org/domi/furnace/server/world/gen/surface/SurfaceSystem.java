@@ -180,16 +180,7 @@ public final class SurfaceSystem {
         ctx.randomFactory = randomFactory;
         ctx.worldgenData  = worldgenData;
         ctx.surfaceYGrid  = surfaceYGrid;
-        ctx.biomeCache = new HashMap<>();
-        ctx.chunkBiomeIds = biomeIds;
-        ctx.chunkQuartX0 = chunkX * 4;
-        ctx.chunkQuartZ0 = chunkZ * 4;
-        // biomeManagerQuart 는 블록 y-2 의 quart 와 그 위 하나를 고른다 — 생성 높이 quart 범위 한 칸 아래·위까지 배열로 덮는다
-        ctx.haloQuartY0 = (minY >> 2) - 1;
-        ctx.haloQuartYCount = ((maxY >> 2) + 1) - ctx.haloQuartY0 + 1;
-        ctx.haloBiomes = new int[6 * 6 * ctx.haloQuartYCount];
-        java.util.Arrays.fill(ctx.haloBiomes, Integer.MIN_VALUE);
-        if (zoomTable && biomeIds != null) initZoomTable(ctx, biomeIds);
+        initBiomeContext(ctx, biomeIds, chunkX, chunkZ, zoomTable);
         initCompiledCaches(ctx);
 
         for (int lz = 0; lz < 16; lz++) {
@@ -678,32 +669,20 @@ public final class SurfaceSystem {
             int v = biomeAtBlockTable(blockX, blockY, blockZ, ctx);
             if (v != Integer.MIN_VALUE) return v;
         }
-        Map<Long, Integer> cache = ctx.biomeCache;
         QuartKey q = biomeManagerQuart(blockX, blockY, blockZ);
-        int[] chunkBiomes = ctx.chunkBiomeIds;
-        if (chunkBiomes != null) {
-            int rx = q.x() - ctx.chunkQuartX0;
-            int rz = q.z() - ctx.chunkQuartZ0;
-            int ry = q.y() - (settings.minY() >> 2);
-            if (rx >= 0 && rx < 4 && rz >= 0 && rz < 4 && ry >= 0 && ry < settings.height() >> 2) {
-                return chunkBiomes[(ry * 4 + rz) * 4 + rx];
-            }
-        }
         int[] halo = ctx.haloBiomes;
         if (halo != null) {
+            // buildSurface: 바닐라 WorldGenRegion 바이옴(이웃 청크 저장 바이옴, y 자르기)
             int hx = q.x() - (ctx.chunkQuartX0 - 1);
             int hz = q.z() - (ctx.chunkQuartZ0 - 1);
             int hy = q.y() - ctx.haloQuartY0;
             if (hx >= 0 && hx < 6 && hz >= 0 && hz < 6 && hy >= 0 && hy < ctx.haloQuartYCount) {
-                int hi = (hy * 6 + hz) * 6 + hx;
-                int v = halo[hi];
-                if (v == Integer.MIN_VALUE) {
-                    v = biomeSampler.sampleQuart(q.x(), q.y(), q.z(), router);
-                    halo[hi] = v;
-                }
-                return v;
+                return zoomBiome(ctx, (hy * 6 + hz) * 6 + hx, q.x(), q.y(), q.z());
             }
+            return storedBiome(ctx, q.x(), q.y(), q.z());
         }
+        // carver 의 topMaterial: 바닐라도 biomeSource 를 바로 읽는다(BiomeManager.withDifferentSource) — 자르지 않는다
+        Map<Long, Integer> cache = ctx.biomeCache;
         long key = packQuart(q.x(), q.y(), q.z());
         Integer cached = cache.get(key);
         if (cached != null) return cached;
@@ -712,39 +691,124 @@ public final class SurfaceSystem {
         return biomeId;
     }
 
+    // ------------------------------------------------------------------ 표면 규칙의 꼭짓점 바이옴 출처
+    //
+    // 바닐라 buildSurface 는 WorldGenRegion 의 BiomeManager 를 쓴다. ChunkPyramid SURFACE 단계가 반경 1 이웃을 BIOMES 이상으로 요구하므로
+    // 꼭짓점 quart 의 바이옴은 그 quart 가 속한 청크(자기 또는 이웃)에 **저장된** 바이옴이고, ChunkAccess.getNoiseBiome 이 quart y 를
+    // 차원 높이 범위로 자른다. Furnace 의 저장 바이옴 = BiomeSampler.sampleChunk 결과(직전 결과 R-트리 힌트 순서).
+    // 이웃 배열이 캐시에 있으면 그대로 읽고, 없으면 그 quart 만 검색한다 — 기후 값은 sampleChunk 와 같고(fillTarget = 직접 계산) 힌트는 거리 동률일
+    // 때만 답을 바꾸므로, 동률이 없으면 같은 답이다. 동률이면 그 이웃 청크의 sampleChunk 를 통째로 만든다(드물다).
+
+    /** 청크 저장 바이옴 공급자(NoiseWorldSource 가 건다). 배열은 sampleChunk 결과, 인덱스 ((qy-차원 최저 quart)*4+qz)*4+qx, 읽기 전용. */
+    public interface ChunkBiomes {
+        /** 이미 만든 그 청크의 바이옴 배열, 없으면 null. */
+        int[] cached(int chunkX, int chunkZ);
+        /** 그 청크의 바이옴 배열을 만든다(동률일 때만 부른다). */
+        int[] compute(int chunkX, int chunkZ);
+    }
+
+    private volatile ChunkBiomes chunkBiomes;
+    private volatile int dimMinQuartY;
+    private volatile int dimQuartYCount;
+
+    /** 차원 높이(바이옴 배열 범위)와 이웃 청크 바이옴 공급자를 건다. 걸지 않으면 노이즈 생성 높이를 차원으로 본다. */
+    public void attachChunkBiomes(ChunkBiomes source, int dimensionMinY, int dimensionHeight) {
+        this.dimMinQuartY = dimensionMinY >> 2;
+        this.dimQuartYCount = dimensionHeight >> 2;
+        this.chunkBiomes = source;
+    }
+
+    /** buildSurface 용 바이옴 문맥: 꼭짓점 표(6×6×높이)를 만들고, 바이옴 배열을 아는 청크(자기·캐시된 이웃)의 칸은 미리 채운다. */
+    private void initBiomeContext(SurfaceContext ctx, int[] biomeIds, int chunkX, int chunkZ, boolean table) {
+        int minY = settings.minY(), maxY = minY + settings.height() - 1;
+        ctx.biomeCache = new HashMap<>();
+        ctx.chunkBiomeIds = biomeIds;
+        ctx.chunkQuartX0 = chunkX * 4;
+        ctx.chunkQuartZ0 = chunkZ * 4;
+        // biomeManagerQuart 는 블록 y-2 의 quart 와 그 위 하나를 고른다 — 생성 높이 quart 범위 한 칸 아래·위까지 덮는다
+        ctx.haloQuartY0 = (minY >> 2) - 1;
+        ctx.haloQuartYCount = ((maxY >> 2) + 1) - ctx.haloQuartY0 + 1;
+        int[] halo = new int[6 * 6 * ctx.haloQuartYCount];
+        java.util.Arrays.fill(halo, Integer.MIN_VALUE);
+        ctx.haloBiomes = halo;
+        int dq0 = dimQuartY0(), dqN = dimQuartYs();
+        int[][] arrays = new int[9][];
+        ChunkBiomes cb = chunkBiomes;
+        for (int dz = -1; dz <= 1; dz++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                int[] a = dx == 0 && dz == 0 ? biomeIds : cb != null ? cb.cached(chunkX + dx, chunkZ + dz) : null;
+                arrays[(dz + 1) * 3 + dx + 1] = a != null && a.length == dqN * 16 ? a : null;
+            }
+        }
+        ctx.neighborBiomes = arrays;
+        // 아는 배열에서 미리 채운다(모든 꼭짓점이 알려져 있으면 같은 바이옴 생략이 더 자주 걸린다)
+        for (int hz = 0; hz < 6; hz++) {
+            int qz = ctx.chunkQuartZ0 - 1 + hz;
+            for (int hx = 0; hx < 6; hx++) {
+                int qx = ctx.chunkQuartX0 - 1 + hx;
+                int[] a = arrays[((qz >> 2) - chunkZ + 1) * 3 + (qx >> 2) - chunkX + 1];
+                if (a == null) continue;
+                for (int hy = 0; hy < ctx.haloQuartYCount; hy++) {
+                    int qyc = Math.max(dq0, Math.min(dq0 + dqN - 1, ctx.haloQuartY0 + hy));
+                    halo[(hy * 6 + hz) * 6 + hx] = a[((qyc - dq0) * 4 + (qz & 3)) * 4 + (qx & 3)];
+                }
+            }
+        }
+        if (table) {
+            double[] f = new double[halo.length * 3];
+            java.util.Arrays.fill(f, Double.NaN);
+            ctx.zoomFiddles = f;
+        }
+    }
+
+    private int dimQuartY0() { return dimQuartYCount > 0 ? dimMinQuartY : settings.minY() >> 2; }
+
+    private int dimQuartYs() { return dimQuartYCount > 0 ? dimQuartYCount : settings.height() >> 2; }
+
+    /** 꼭짓점 표 칸 hi(= quart qx,qy,qz)의 바이옴 — 모르면 구해서 메모. */
+    private int zoomBiome(SurfaceContext ctx, int hi, int qx, int qy, int qz) {
+        int v = ctx.haloBiomes[hi];
+        if (v == Integer.MIN_VALUE) {
+            v = storedBiome(ctx, qx, qy, qz);
+            ctx.haloBiomes[hi] = v;
+        }
+        return v;
+    }
+
+    /** 바닐라 WorldGenRegion.getNoiseBiome(qx, qy, qz): quart 가 속한 청크의 저장 바이옴, y 는 차원 범위로 자른다. */
+    private int storedBiome(SurfaceContext ctx, int qx, int qy, int qz) {
+        int dq0 = dimQuartY0(), dqN = dimQuartYs();
+        int qyc = Math.max(dq0, Math.min(dq0 + dqN - 1, qy));
+        int ncx = qx >> 2, ncz = qz >> 2;
+        int dx = ncx - (ctx.chunkQuartX0 >> 2), dz = ncz - (ctx.chunkQuartZ0 >> 2);
+        int ni = dx >= -1 && dx <= 1 && dz >= -1 && dz <= 1 ? (dz + 1) * 3 + dx + 1 : -1;
+        int idx = ((qyc - dq0) * 4 + (qz & 3)) * 4 + (qx & 3);
+        int[] a = ni >= 0 && ctx.neighborBiomes != null ? ctx.neighborBiomes[ni] : null;
+        if (a != null) return a[idx];
+        int v = biomeSampler.sampleQuartUnique(qx, qyc, qz, router);
+        if (v != Integer.MIN_VALUE) return v;
+        // 거리 동률 — 그 청크 sampleChunk 의 힌트 순서가 답을 정한다
+        ChunkBiomes cb = chunkBiomes;
+        if (cb == null) return biomeSampler.sampleQuart(qx, qyc, qz, router);
+        a = cb.compute(ncx, ncz);
+        if (ni >= 0 && ctx.neighborBiomes != null) ctx.neighborBiomes[ni] = a;
+        return a[idx];
+    }
+
     // ------------------------------------------------------------------ 바이옴 확대(지터) 표
     //
     // 바닐라 BiomeManager.getBiome 은 블록마다 둘레 quart 꼭짓점 8개의 지터 거리(꼭짓점마다 LCG 9번)를 다시 구한다.
     // 표면 규칙은 거의 모든 돌 블록에서 바이옴을 물으므로(네더는 새 청크 CPU 의 약 60%) 청크 단위로 두 가지를 메모한다.
     //  1) 꼭짓점 8개의 바이옴이 모두 같으면 어느 꼭짓점이 이기든 답이 같다 — 거리 계산을 건너뛴다.
     //  2) 꼭짓점 지터(fiddle 3개)는 시드·quart 좌표만의 함수다 — 꼭짓점마다 한 번만 구한다(같은 식, 같은 덧셈 순서).
-    // 꼭짓점 바이옴은 haloBiomes 한 표(6×6×높이)에 둔다: 청크 안쪽 높이 범위는 sampleChunk 결과(기존과 같은 값), 나머지는 sampleQuart.
-    // -Dfurnace.surface.zoomTable=false 면 예전 경로(블록마다 지터 계산)를 쓴다(대조용).
+    // 꼭짓점 바이옴은 haloBiomes 한 표(6×6×높이)에 둔다(출처는 위 storedBiome).
+    // -Dfurnace.surface.zoomTable=false 면 블록마다 지터를 계산한다(대조용, 꼭짓점 바이옴 출처는 같다).
 
     private final boolean zoomTable;
     /** 꼭짓점 번호 i(바닐라 순서: x=4, y=2, z=1 비트) → haloBiomes 안 상대 위치. x +1, z +6, y +36. */
     private static final int[] ZOOM_OFFSET = {0, 6, 36, 42, 1, 7, 37, 43};
 
-    /** buildSurface 용 꼭짓점 표를 만든다 — 안쪽 quart 는 청크 바이옴 배열을 그대로 옮긴다. */
-    private void initZoomTable(SurfaceContext ctx, int[] chunkBiomes) {
-        int[] halo = ctx.haloBiomes;
-        int yOff = (settings.minY() >> 2) - ctx.haloQuartY0;
-        int qyCount = settings.height() >> 2;
-        for (int ry = 0; ry < qyCount; ry++) {
-            int hy = ry + yOff;
-            if (hy < 0 || hy >= ctx.haloQuartYCount) continue;
-            for (int rz = 0; rz < 4; rz++) {
-                for (int rx = 0; rx < 4; rx++) {
-                    halo[(hy * 6 + rz + 1) * 6 + rx + 1] = chunkBiomes[(ry * 4 + rz) * 4 + rx];
-                }
-            }
-        }
-        double[] f = new double[halo.length * 3];
-        java.util.Arrays.fill(f, Double.NaN);
-        ctx.zoomFiddles = f;
-    }
-
-    /** 표 범위 안이면 바닐라 getBiome 과 같은 답, 밖이면 Integer.MIN_VALUE(예전 경로로). */
+    /** 표 범위 안이면 바닐라 getBiome 과 같은 답, 밖이면 Integer.MIN_VALUE(일반 경로로). */
     private int biomeAtBlockTable(int blockX, int blockY, int blockZ, SurfaceContext ctx) {
         int x = blockX - 2;
         int y = blockY - 2;
@@ -786,32 +850,18 @@ public final class SurfaceSystem {
                 bestDistance = distance;
             }
         }
-        int bi = i0 + ZOOM_OFFSET[best];
-        int r = b[bi];
-        if (r == Integer.MIN_VALUE) {
-            r = biomeSampler.sampleQuart((best & 4) == 0 ? qx : qx + 1, (best & 2) == 0 ? qy : qy + 1,
-                (best & 1) == 0 ? qz : qz + 1, router);
-            b[bi] = r;
-        }
-        return r;
+        return zoomBiome(ctx, i0 + ZOOM_OFFSET[best], (best & 4) == 0 ? qx : qx + 1, (best & 2) == 0 ? qy : qy + 1,
+            (best & 1) == 0 ? qz : qz + 1);
     }
 
     /**
      * 시험용: buildSurface 와 같은 문맥으로 청크 안 모든 블록(생성 높이)의 표면 규칙 바이옴을 [y][z][x] 순으로 돌려준다.
-     * table=false 면 꼭짓점 표 없이 블록마다 지터를 계산하는 예전 경로(바닐라 getBiome 그대로)를 쓴다.
+     * table=false 면 꼭짓점 표 없이 블록마다 지터를 계산한다(꼭짓점 바이옴 출처는 같다).
      */
     int[] blockBiomesForTest(int[] biomeIds, int chunkX, int chunkZ, boolean table) {
         int minY = settings.minY(), maxY = minY + settings.height() - 1;
         SurfaceContext ctx = new SurfaceContext();
-        ctx.biomeCache = new HashMap<>();
-        ctx.chunkBiomeIds = biomeIds;
-        ctx.chunkQuartX0 = chunkX * 4;
-        ctx.chunkQuartZ0 = chunkZ * 4;
-        ctx.haloQuartY0 = (minY >> 2) - 1;
-        ctx.haloQuartYCount = ((maxY >> 2) + 1) - ctx.haloQuartY0 + 1;
-        ctx.haloBiomes = new int[6 * 6 * ctx.haloQuartYCount];
-        java.util.Arrays.fill(ctx.haloBiomes, Integer.MIN_VALUE);
-        if (table) initZoomTable(ctx, biomeIds);
+        initBiomeContext(ctx, biomeIds, chunkX, chunkZ, table);
         int[] out = new int[(maxY - minY + 1) * 256];
         int i = 0;
         for (int y = minY; y <= maxY; y++)
