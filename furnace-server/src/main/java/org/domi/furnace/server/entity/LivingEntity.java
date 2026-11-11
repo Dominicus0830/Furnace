@@ -714,13 +714,19 @@ public abstract class LivingEntity extends Entity implements Targetable {
             var calc = damageEvents.entityDamageCalc(this, source.type(), causing, direct, amount, absorptionAmount, new StageRules(source));
             float beforeAbsorb = calc.input(org.domi.furnace.api.event.entity.DamageStage.ABSORPTION);
             afterAbsorb = calc.output(org.domi.furnace.api.event.entity.DamageStage.ABSORPTION);
+            if (calc.applies(org.domi.furnace.api.event.entity.DamageStage.RESISTANCE)) {
+                awardDealtStat("minecraft:damage_dealt_resisted", calc.input(org.domi.furnace.api.event.entity.DamageStage.RESISTANCE)
+                        - calc.output(org.domi.furnace.api.event.entity.DamageStage.RESISTANCE));
+            }
             absorptionAmount = Math.max(absorptionAmount - (beforeAbsorb - afterAbsorb), 0.0F);
+            awardDealtStat("minecraft:damage_dealt_absorbed", beforeAbsorb - afterAbsorb);
         } else {
             amount = getDamageAfterArmorAbsorb(source, amount);
             amount = getDamageAfterMagicAbsorb(source, amount);
             // btn.f: 흡수 체력을 먼저 깎고 남은 값이 0 이 아닐 때만 체력·전투 기록·ENTITY_DAMAGE
             afterAbsorb = Math.max(amount - absorptionAmount, 0.0F);
             absorptionAmount = Math.max(absorptionAmount - (amount - afterAbsorb), 0.0F);
+            awardDealtStat("minecraft:damage_dealt_absorbed", amount - afterAbsorb);
         }
         if (afterAbsorb != 0.0F) {
             // alive 는 피해 전 isAlive()(바닐라와 같다). 낙하 위치는 CombatTracker.recordDamage 처럼 맞은 순간의 것
@@ -729,6 +735,14 @@ public abstract class LivingEntity extends Entity implements Targetable {
             setHealth(health() - afterAbsorb);
             gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DAMAGE);   // btn:1542
         }
+    }
+
+    /** 바닐라 LivingEntity: 원인 엔티티가 플레이어면 그가 입힌 흡수·저항 양을 Math.round(값 * 10) 으로(0 보다 크고 3.4028235E37 보다 작을 때). */
+    private void awardDealtStat(String stat, float amount) {
+        if (!(hurtAttacker instanceof Player p) || !(amount > 0.0F && amount < 3.4028235E37F)) return;
+        int n = Math.round(amount * 10.0F);
+        if (p.onOwnerThread()) p.awardStat(stat, n);   // 다른 region 의 플레이어면 그 스레드에서
+        else p.runOnOwner(() -> p.awardStat(stat, n));
     }
 
     /** 피해 계산 단계 이벤트에 넘기는 바닐라 식 — 이 엔티티의 지금 속성·효과·장비로 계산한다. */
@@ -787,7 +801,9 @@ public abstract class LivingEntity extends Entity implements Targetable {
         if (DamageType.keyHasTag(source.type(), "bypasses_effects")) return amount;
         var res = getEffect(org.domi.furnace.server.effect.MobEffect.RESISTANCE);
         if (res != null && !DamageType.keyHasTag(source.type(), "bypasses_resistance")) {
+            float before = amount;
             amount = org.domi.furnace.server.entity.damage.CombatRules.afterResistance(amount, res.amplifier());
+            awardDealtStat("minecraft:damage_dealt_resisted", before - amount);
         }
         if (amount <= 0.0F) return 0.0F;
         if (DamageType.keyHasTag(source.type(), "bypasses_enchantments")) return amount;

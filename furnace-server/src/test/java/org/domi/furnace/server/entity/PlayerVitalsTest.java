@@ -85,7 +85,7 @@ class PlayerVitalsTest {
         bed.loadGameTypes(null, GameMode.SURVIVAL, false);
         for (int i = 0; i < 10; i++) bed.onMove(0, -1, 0, i == 0, false, false, false, false, false, null, "minecraft:air", false);
         bed.onMove(0, 0, 0, false, true, false, false, false, false, null, "minecraft:red_bed", false);
-        assertEquals(16.0f, bed.health(), "침대 0.5배: ceil(3.5) = 4");
+        assertEquals(18.0f, bed.health(), "침대: 거리 절반(10 → 5), ceil(5 - 3) = 2 — BedBlock.fallOn 은 배수가 아니라 거리를 줄인다");
     }
 
     @Test

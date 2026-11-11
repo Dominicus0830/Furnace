@@ -742,6 +742,7 @@ public final class PlayerVitals {
             }
             died = health <= 0.0f;
         }
+        flushStats();
         lastHurtFresh = newHurt;
         lastHurtBlocked = blocked;
         if (newHurt && !type.noImpact() && (!blocked || amount > 0.0f)) player.markHurt();   // 완전히 막으면 markHurt 없음 → 속도 패킷 0건
@@ -786,7 +787,12 @@ public final class PlayerVitals {
             var calc = damageEvents.playerDamageCalc(player, type.key(), causing, direct, amount, absorption, new StageRules(type, direct));
             float beforeAbsorb = calc.input(org.domi.furnace.api.event.entity.DamageStage.ABSORPTION);
             afterAbsorb = calc.output(org.domi.furnace.api.event.entity.DamageStage.ABSORPTION);
+            if (calc.applies(org.domi.furnace.api.event.entity.DamageStage.RESISTANCE)) {   // 저항 효과가 줄인 양(getDamageAfterMagicAbsorb)
+                queueDamageStat("minecraft:damage_resisted", calc.input(org.domi.furnace.api.event.entity.DamageStage.RESISTANCE)
+                        - calc.output(org.domi.furnace.api.event.entity.DamageStage.RESISTANCE));
+            }
             setAbsorptionLocked(absorption - (beforeAbsorb - afterAbsorb));
+            queueDamageStat("minecraft:damage_absorbed", beforeAbsorb - afterAbsorb);
         } else {
             if (!type.bypassesArmor()) {   // CombatRules.getDamageAfterAbsorb
                 float armor = player.armorValue(), toughness = player.armorToughness();
@@ -795,12 +801,14 @@ public final class PlayerVitals {
             amount = getDamageAfterMagicAbsorb(type, amount);
             afterAbsorb = Math.max(amount - absorption, 0.0f);
             setAbsorptionLocked(absorption - (amount - afterAbsorb));
+            queueDamageStat("minecraft:damage_absorbed", amount - afterAbsorb);   // Player.actuallyHurt: 흡수 체력이 막은 양
         }
         if (afterAbsorb != 0.0f) {
             if (!abilities.invulnerable) food.addExhaustion(type.exhaustion());
             combat.recordDamage(type, afterAbsorb, fallLocation(), fallDistance, tickCount, health > 0, DamageSource.nameOf(causing), DamageSource.nameOf(direct),
                     causing instanceof Player || causing instanceof LivingEntity);
             setHealthRaw(health - afterAbsorb);
+            if (afterAbsorb < 3.4028235E37F) queueStat("minecraft:damage_taken", Math.round(afterAbsorb * 10.0f));
             var lv = player.currentLevel;   // 바닐라 Player.actuallyHurt 끝의 gameEvent(ENTITY_DAMAGE)
             if (lv != null) lv.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_DAMAGE,
                     new Vec3(player.x(), player.y(), player.z()), org.domi.furnace.server.world.gameevent.GameEventContext.of(player));
@@ -848,7 +856,11 @@ public final class PlayerVitals {
     private float getDamageAfterMagicAbsorb(DamageType type, float amount) {
         if (type.bypassesEffects()) return amount;
         MobEffectInstance resistance = effects.get(MobEffect.RESISTANCE);
-        if (resistance != null && !type.bypassesResistance()) amount = CombatRules.afterResistance(amount, resistance.amplifier());
+        if (resistance != null && !type.bypassesResistance()) {
+            float before = amount;
+            amount = CombatRules.afterResistance(amount, resistance.amplifier());
+            queueDamageStat("minecraft:damage_resisted", before - amount);   // ServerPlayer 가 맞으면 본인에게
+        }
         if (amount <= 0.0f) return 0.0f;
         if (type.bypassesEnchantments()) return amount;
         PlayerInventory inv = player.inventory();
@@ -1116,12 +1128,16 @@ public final class PlayerVitals {
             landedFallDistance = 0.0f;
             fallDamageType = DamageType.FALL;
             landed = false;
-            if (wasOnGround && !onGround && dy > 0.0) causeFoodExhaustionLocked(sprinting ? 0.2f : 0.05f);   // jumpFromGround
+            if (wasOnGround && !onGround && dy > 0.0) {   // jumpFromGround: jump 통계 → 허기 소모
+                queueStat("minecraft:jump", 1);
+                causeFoodExhaustionLocked(sprinting ? 0.2f : 0.05f);
+            }
             if (waterOnPath && fallDistance != 0.0f && dx * dx + dy * dy + dz * dz >= 1.0) fallDistance = 0.0f;
             if (landingBlock != null) fallDamage = checkFallDamage(dy, onGround, inWaterNow, landingBlock, sneaking);
             fallType = fallDamageType;
         }
         // 바닐라 fallOn → causeFallDamage → hurt 는 낙하 거리를 초기화하기 전에 일어난다(전투 기록이 낙하 거리를 본다).
+        flushStats();   // jump·fall_one_cm 은 피해(damage_taken)보다 먼저
         if (fallDamage > 0) hurt(fallType, fallDamage);
         synchronized (this) {
             if (landingBlock != null && onGround) {
@@ -1132,28 +1148,105 @@ public final class PlayerVitals {
             if (dy > 0.0) fallDistance = 0.0f;
             checkMovementStatistics(dx, dy, dz, onGround, sprinting, sneaking, inWaterNow, eyeInWater, climbable);
         }
+        flushStats();
+    }
+
+    // ------------------------------------------------------------------ 통계(잠금 안에서 모았다가 밖에서 올린다)
+
+    private final java.util.ArrayList<Object[]> pendingStats = new java.util.ArrayList<>(2);
+
+    /** 잠금 안에서 올릴 통계를 모은다(awardStat 은 점수판까지 건드리므로 잠금 밖에서 올린다). */
+    private void queueStat(String stat, int amount) { pendingStats.add(new Object[] {stat, amount}); }
+
+    /** 모은 통계를 순서대로 올린다(잠금 밖). */
+    private void flushStats() {
+        Object[][] out;
+        synchronized (this) {
+            if (pendingStats.isEmpty()) return;
+            out = pendingStats.toArray(new Object[0][]);
+            pendingStats.clear();
+        }
+        for (Object[] o : out) player.awardStat((String) o[0], (Integer) o[1]);
+    }
+
+    /** 바닐라의 "0 보다 크고 3.4028235E37 보다 작을 때만 올리는" 피해 통계: Math.round(값 * 10). */
+    private void queueDamageStat(String stat, float amount) {
+        if (amount > 0.0f && amount < 3.4028235E37F) queueStat(stat, Math.round(amount * 10.0f));
     }
 
     private void causeFoodExhaustionLocked(float amount) {
         if (!abilities.invulnerable) food.addExhaustion(amount);
     }
 
-    /** 바닐라 ServerPlayer.checkMovementStatistics 의 허기 소모 부분(수영 자세 판정은 아직 없어 물속 이동으로 본다). */
+    /**
+     * 바닐라 ServerPlayer.checkMovementStatistics(aqv.b): 탈것을 타고 있으면 아무것도 안 하고, 아니면 한 분기만 탄다 —
+     * 헤엄 → 눈이 물속 → 물 안 → 오르는 중 → 땅 위 → 겉날개 → 그 밖(공중). 분기마다 통계와 허기 소모를 함께 낸다.
+     * 거리는 3차원이면 sqrt(dx²+dy²+dz²), 수평이면 sqrt(dx²+dz²) 를 float 으로 곱한 뒤 Math.round(float).
+     */
     private void checkMovementStatistics(double dx, double dy, double dz, boolean onGround, boolean sprinting, boolean sneaking,
                                          boolean inWaterNow, boolean eyeInWater, String climbable) {
+        if (player.vehicle() != null) return;
         if (dx == 0.0 && dy == 0.0 && dz == 0.0) return;
-        if (eyeInWater) {
-            int cm = Math.round((float) Math.sqrt(dx * dx + dy * dy + dz * dz) * 100.0f);
-            if (cm > 0) causeFoodExhaustionLocked(0.01f * cm * 0.01f);
+        if (gameMode == GameMode.SPECTATOR) climbable = null;   // LivingEntity.onClimbable: 관전자는 항상 false
+        int cm3 = Math.round((float) Math.sqrt(dx * dx + dy * dy + dz * dz) * 100.0f);
+        int cmH = Math.round((float) Math.sqrt(dx * dx + dz * dz) * 100.0f);
+        if (player.swimming) {
+            if (cm3 > 0) {
+                queueStat("minecraft:swim_one_cm", cm3);
+                causeFoodExhaustionLocked(0.01f * cm3 * 0.01f);
+            }
+        } else if (eyeInWater) {
+            if (cm3 > 0) {
+                queueStat("minecraft:walk_under_water_one_cm", cm3);
+                causeFoodExhaustionLocked(0.01f * cm3 * 0.01f);
+            }
         } else if (inWaterNow) {
-            int cm = Math.round((float) Math.sqrt(dx * dx + dz * dz) * 100.0f);
-            if (cm > 0) causeFoodExhaustionLocked(0.01f * cm * 0.01f);
+            if (cmH > 0) {
+                queueStat("minecraft:walk_on_water_one_cm", cmH);
+                causeFoodExhaustionLocked(0.01f * cmH * 0.01f);
+            }
         } else if (climbable != null) {
-            // 오르기: 통계만, 소모 없음
+            if (dy > 0.0) queueStat("minecraft:climb_one_cm", (int) Math.round(dy * 100.0));   // 오르기: 위로만, 소모 없음
         } else if (onGround) {
-            int cm = Math.round((float) Math.sqrt(dx * dx + dz * dz) * 100.0f);
-            if (cm > 0) causeFoodExhaustionLocked((sprinting ? 0.1f : 0.0f) * cm * 0.01f);
+            if (cmH > 0) {
+                if (sprinting) {
+                    queueStat("minecraft:sprint_one_cm", cmH);
+                    causeFoodExhaustionLocked(0.1f * cmH * 0.01f);
+                } else if (isCrouching(sneaking)) {
+                    queueStat("minecraft:crouch_one_cm", cmH);
+                    causeFoodExhaustionLocked(0.0f * cmH * 0.01f);
+                } else {
+                    queueStat("minecraft:walk_one_cm", cmH);
+                    causeFoodExhaustionLocked(0.0f * cmH * 0.01f);
+                }
+            }
+        } else if (player.isFallFlying()) {
+            queueStat("minecraft:aviate_one_cm", cm3);
+        } else if (cmH > 25) {
+            queueStat("minecraft:fly_one_cm", cmH);
         }
+    }
+
+    /** Entity.isCrouching = 자세가 웅크림: 날고 있거나 겉날개·수영·기어가기 자세가 아닌 웅크림(서 있을 틈이 없어 눌린 경우 포함). */
+    private boolean isCrouching(boolean sneaking) {
+        if (player.isFallFlying() || player.isSwimPose()) return false;
+        return sneaking && !abilities.flying || player.forcedCrouch;
+    }
+
+    /**
+     * 바닐라 ServerPlayer.rideTick → checkRidingStatistics(aqv.q): 탈것을 타고 있으면 한 틱 사이 내 위치 변화(3차원)를
+     * 탈것 종류의 통계로 올린다(수레·배·돼지·말류·스트라이더). 소유 region 스레드가 rideTick 전후 위치로 부른다.
+     */
+    public void checkRidingStatistics(double dx, double dy, double dz) {
+        Entity v = player.vehicle();
+        if (v == null || dx == 0.0 && dy == 0.0 && dz == 0.0) return;
+        int cm = Math.round((float) Math.sqrt(dx * dx + dy * dy + dz * dz) * 100.0f);
+        String stat = v instanceof AbstractMinecart ? "minecraft:minecart_one_cm"
+                : v instanceof Boat ? "minecraft:boat_one_cm"
+                : v instanceof Pig ? "minecraft:pig_one_cm"
+                : v instanceof AbstractHorse ? "minecraft:horse_one_cm"
+                : v instanceof Strider ? "minecraft:strider_one_cm" : null;
+        if (stat != null) player.awardStat(stat, cm);
     }
 
     /**
@@ -1187,6 +1280,10 @@ public final class PlayerVitals {
     /** 블록별 Block.fallOn → Player/LivingEntity.causeFallDamage. 비행 가능하면 피해 없음. */
     private float fallOn(String block, float distance, boolean sneaking) {
         float multiplier = fallMultiplier(block, sneaking);
+        if (block != null && block.endsWith("_bed")) {   // BedBlock.fallOn: super.fallOn(거리 * 0.5F) — 배수가 아니라 거리를 반으로
+            distance *= 0.5F;
+            multiplier = 1.0F;
+        }
         if (landingStalagmite && "minecraft:pointed_dripstone".equals(block)) {   // PointedDripstoneBlock.fallOn: 석순 끝은 거리 + 2, 배수 2
             distance += 2.0F;
             multiplier = 2.0F;
@@ -1199,6 +1296,8 @@ public final class PlayerVitals {
     /** Player/ServerPlayer.causeFallDamage + LivingEntity.calculateFallDamage: 비행 가능이면 0, 충격 높이 규칙, 점프 강화로 안전 거리가 는다. */
     private float fallDamage(float distance, float multiplier) {
         if (abilities.mayfly) return 0;
+        // Player.causeFallDamage: 충격 높이 규칙보다 먼저, 잘리지 않은 낙하 거리로(비행 가능이면 안 오른다)
+        if (distance >= 2.0f) queueStat("minecraft:fall_one_cm", (int) Math.round((double) distance * 100.0));
         boolean impulse = false;
         if (ignoreFallFromImpulse && impulsePos != null) {   // ServerPlayer.causeFallDamage: 충격 높이보다 위에서 내려앉으면 면제, 아니면 그 높이까지만 센다
             double top = impulsePos[1];
@@ -1223,6 +1322,7 @@ public final class PlayerVitals {
     public float causePassengerFallDamage(float distance, float multiplier, String damageKey) {
         float dmg;
         synchronized (this) { dmg = fallDamage(distance, multiplier); }
+        flushStats();
         if (dmg > 0) hurt(DamageType.byKey(damageKey), dmg);
         return Math.max(dmg, 0);
     }
@@ -1233,7 +1333,6 @@ public final class PlayerVitals {
         if (block.equals("minecraft:hay_block") || block.equals("minecraft:honey_block")) return 0.2f;
         if (block.equals("minecraft:slime_block")) return sneaking ? 1.0f : 0.0f;
         if (block.equals("minecraft:powder_snow")) return -1;
-        if (block.endsWith("_bed")) return 0.5f;
         return 1.0f;
     }
 
