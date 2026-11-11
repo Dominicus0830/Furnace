@@ -104,13 +104,13 @@ final class CommandRegistryImpl implements CommandRegistry {
         Timing exec = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label);
         Timing tab = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label + " (자동완성)");
         LiteralArgumentBuilder<CommandSource> b = literal(name);
-        fill(b, spec, exec, tab);
+        fill(plugin, b, spec, exec, tab);
         return b;
     }
 
-    private void fill(org.domi.furnace.server.command.brigadier.ArgumentBuilder<CommandSource, ?> b, CommandBuilder spec, Timing exec, Timing tab) {
+    private void fill(FurnacePlugin plugin, org.domi.furnace.server.command.brigadier.ArgumentBuilder<CommandSource, ?> b, CommandBuilder spec, Timing exec, Timing tab) {
         if (spec.requirement() != null) b.requires(src -> spec.requirement().test(host.sender(src)));
-        if (spec.executor() != null) b.executes(ctx -> runTree(spec.executor(), exec, ctx));
+        if (spec.executor() != null) b.executes(ctx -> runTree(plugin, spec.executor(), exec, ctx));
         for (CommandBuilder child : spec.children()) {
             org.domi.furnace.server.command.brigadier.ArgumentBuilder<CommandSource, ?> cb;
             if (child.isLiteral()) {
@@ -120,6 +120,7 @@ final class CommandRegistryImpl implements CommandRegistry {
                 if (child.suggester() != null) {
                     CommandBuilder.Suggester sg = child.suggester();
                     rb.suggests((ctx, sb) -> {
+                        if (!plugin.isEnabled()) return sb.buildFuture();
                         long t0 = tab.start();
                         try {
                             for (String c : sg.suggest(host.sender(ctx.getSource()), sb.getRemaining())) {
@@ -135,7 +136,7 @@ final class CommandRegistryImpl implements CommandRegistry {
                 }
                 cb = rb;
             }
-            fill(cb, child, exec, tab);
+            fill(plugin, cb, child, exec, tab);
             b.then(cb);
         }
     }
@@ -153,8 +154,9 @@ final class CommandRegistryImpl implements CommandRegistry {
         };
     }
 
-    private int runTree(CommandBuilder.Executor ex, Timing timing, CommandContext<CommandSource> ctx) {
+    private int runTree(FurnacePlugin plugin, CommandBuilder.Executor ex, Timing timing, CommandContext<CommandSource> ctx) {
         CommandSender sender = host.sender(ctx.getSource());
+        if (refuseDisabled(plugin, ctx, sender)) return 0;
         CommandBuilder.Context c = new CommandBuilder.Context() {
             public CommandSender sender() { return sender; }
             public String input() { return ctx.getInput(); }
@@ -173,6 +175,24 @@ final class CommandRegistryImpl implements CommandRegistry {
         } finally {
             timing.stop(t0);
         }
+    }
+
+    /**
+     * 꺼진 플러그인의 명령은 돌리지 않는다(A14-08) — Bukkit PluginCommand.execute 의 CommandException 과 같은 문구를 로그에 남기고,
+     * 보낸 쪽에는 명령 예외 때와 같은 실패 문구를 보낸다. 보통은 꺼질 때 명령이 내려가므로 내리기 전 틈에서만 걸린다.
+     */
+    private static boolean refuseDisabled(FurnacePlugin plugin, CommandContext<CommandSource> ctx, CommandSender sender) {
+        if (plugin.isEnabled()) return false;
+        String label = ctx.getInput().split(" ", 2)[0];
+        String who;
+        try {
+            who = plugin.description().fullName();
+        } catch (RuntimeException e) {
+            who = plugin.getClass().getName();
+        }
+        log.error("Cannot execute command '{}' in plugin {} - plugin is disabled.", label, who);
+        sender.sendMessage(Text.translatable("command.failed").color(org.domi.furnace.api.text.NamedTextColor.RED));
+        return true;
     }
 
     @Override
@@ -214,15 +234,16 @@ final class CommandRegistryImpl implements CommandRegistry {
         Timing tab = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label + " (자동완성)");
         return literal(name)
                 .requires(src -> cmd.canUse(host.sender(src)))
-                .executes(ctx -> run(cmd, name, exec, ctx, new String[0]))
+                .executes(ctx -> run(plugin, cmd, name, exec, ctx, new String[0]))
                 .then(argument("args", Arguments.greedyString())
-                        .suggests((ctx, b) -> suggest(cmd, name, tab, ctx, b))
-                        .executes(ctx -> run(cmd, name, exec, ctx, ctx.getArgument("args", String.class).split(" ", -1))));
+                        .suggests((ctx, b) -> plugin.isEnabled() ? suggest(cmd, name, tab, ctx, b) : b.buildFuture())
+                        .executes(ctx -> run(plugin, cmd, name, exec, ctx, ctx.getArgument("args", String.class).split(" ", -1))));
     }
 
     /** label 은 트리에 붙은 이름(사용자가 친 이름 — 별칭이나 "플러그인:이름" 일 수 있다). */
-    private int run(BasicCommand cmd, String label, Timing timing, CommandContext<CommandSource> ctx, String[] args) {
+    private int run(FurnacePlugin plugin, BasicCommand cmd, String label, Timing timing, CommandContext<CommandSource> ctx, String[] args) {
         CommandSender sender = host.sender(ctx.getSource());
+        if (refuseDisabled(plugin, ctx, sender)) return 0;
         long t0 = timing.start();
         try {
             cmd.execute(sender, label, args);

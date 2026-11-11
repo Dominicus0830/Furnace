@@ -569,6 +569,8 @@ public final class FurnaceMain {
         console.attach(core);
         InterruptConfirm.installIfEnabled(org.domi.furnace.server.config.OperatorOptions.current());
         // 전역 틱: 시간·날씨(바닐라 ServerLevel.tick 의 전역 부분). 고정 박자 — /tps 의 전역 값이 이 박동이다.
+        // 전역 지연 작업(플러그인 runLater·Bukkit 스케줄러·자동 저장)은 이 박동이 낸 서버 틱으로 센다 — 건너뛴 틱은 스케줄러도 건너뛴다(A14-04)
+        ((org.domi.furnace.server.sched.GlobalThread) scheduler.global()).driveByServerTicks();
         new FixedRateBeat(scheduler, core::scheduledTick, 50_000_000L).start();
 
         startRemoteServices(core, props, config, rconLimits, remoteServices);
@@ -780,8 +782,8 @@ public final class FurnaceMain {
 
         private void schedule() {
             long delay = Math.max(0L, next - System.nanoTime());
-            java.util.concurrent.CompletableFuture.runAsync(this, java.util.concurrent.CompletableFuture.delayedExecutor(
-                    delay, java.util.concurrent.TimeUnit.NANOSECONDS, r -> scheduler.global().execute(r)));
+            // 전역 스레드 자신의 예약으로(벽시계) — JDK 지연 실행기 스레드를 쓰지 않는다(A14-09)
+            ((org.domi.furnace.server.sched.GlobalThread) scheduler.global()).executeAfterNanos(this, delay);
         }
     }
 
