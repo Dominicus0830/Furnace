@@ -26,6 +26,9 @@ import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.ComponentType;
 import org.domi.furnace.server.item.DataComponents;
 import org.domi.furnace.server.item.ItemContext;
+import org.domi.furnace.server.item.ItemPredicates;
+import org.domi.furnace.server.item.ItemView;
+import org.domi.furnace.server.item.RegistryView;
 import org.domi.furnace.server.item.Val;
 
 public final class ItemPredicateArgument implements ArgumentType<ItemPredicateArgument.Result> {
@@ -41,11 +44,8 @@ public final class ItemPredicateArgument implements ArgumentType<ItemPredicateAr
     public static final Dynamic2CommandExceptionType ERROR_MALFORMED_PREDICATE =
             new Dynamic2CommandExceptionType((t, e) -> Text.translatable("arguments.item.predicate.malformed", t, e));
 
-    /** 바닐라 item_sub_predicate_type 레지스트리(1.21.1). count 는 따로 넣은 가짜 종류다. */
-    private static final List<String> SUB_PREDICATES = List.of("minecraft:damage", "minecraft:enchantments", "minecraft:stored_enchantments",
-            "minecraft:potion_contents", "minecraft:custom_data", "minecraft:container", "minecraft:bundle_contents",
-            "minecraft:firework_explosion", "minecraft:fireworks", "minecraft:writable_book_content", "minecraft:written_book_content",
-            "minecraft:attribute_modifiers", "minecraft:trim", "minecraft:jukebox_playable");
+    /** 바닐라 item_sub_predicate_type 레지스트리(1.21.1). count 는 명령 인자만 따로 받는 가짜 종류다. */
+    private static final List<String> SUB_PREDICATES = ItemPredicates.SUB_PREDICATE_TYPES;
 
     public interface Result extends Predicate<ItemStack> {}
 
@@ -189,34 +189,22 @@ public final class ItemPredicateArgument implements ArgumentType<ItemPredicateAr
         return s -> ItemArgument.componentValue(s, t.name()) != null;
     }
 
-    /** 하위 술어: count 와 damage 만 구현. 나머지 종류는 형식 오류로 막는다(가정 — 아직 술어 코덱이 없다). */
+    /** 하위 술어: count(명령 전용 가짜 종류)는 여기서, 레지스트리 14종은 공용 코덱(ItemPredicates)으로. */
     private static Predicate<ItemStack> subPredicate(StringReader reader, String name, Object tag) throws CommandSyntaxException {
-        switch (name) {
-            case "minecraft:count" -> {
-                Ints b = ints(reader, name, tag, false);
-                return s -> b.matches(s.count());
-            }
-            case "minecraft:damage" -> {
-                Map<String, Object> m;
-                try {
-                    m = Val.map(tag);
-                } catch (RuntimeException e) {
-                    throw ERROR_MALFORMED_PREDICATE.createWithContext(reader, name, String.valueOf(e.getMessage()));
-                }
-                Ints durability = m.containsKey("durability") ? ints(reader, name, m.get("durability"), false) : Ints.ANY;
-                Ints damage = m.containsKey("damage") ? ints(reader, name, m.get("damage"), false) : Ints.ANY;
-                return s -> {
-                    if (!(ItemArgument.componentValue(s, "minecraft:damage") instanceof Number d)) return false;
-                    Object max = ItemArgument.componentValue(s, "minecraft:max_damage");
-                    int md = max instanceof Number n ? n.intValue() : 0;
-                    return durability.matches(md - d.intValue()) && damage.matches(d.intValue());
-                };
-            }
-            default -> throw ERROR_MALFORMED_PREDICATE.createWithContext(reader, name, "Not supported yet");
+        if (name.equals("minecraft:count")) {
+            Ints b = ints(reader, name, tag, false);
+            return s -> b.matches(s.count());
         }
+        ItemPredicates.Test t;
+        try {
+            t = ItemPredicates.sub(name, tag, RegistryView.SERVER);
+        } catch (RuntimeException e) {
+            throw ERROR_MALFORMED_PREDICATE.createWithContext(reader, name, String.valueOf(e.getMessage()));
+        }
+        return s -> t.test(ItemView.of(s));
     }
 
-    /** MinMaxBounds.Ints.CODEC: 정수 하나, 또는 {min?, max?}. */
+    /** MinMaxBounds.Ints.CODEC: 정수 하나, 또는 {min?, max?}. 1.21.1 코덱은 min > max 를 거절하지 않는다(dh 바이트코드). */
     record Ints(Integer min, Integer max) {
         static final Ints ANY = new Ints(null, null);
 
@@ -229,7 +217,6 @@ public final class ItemPredicateArgument implements ArgumentType<ItemPredicateAr
             Map<String, Object> m = Val.map(tag);
             Integer min = m.containsKey("min") ? Val.number(m.get("min")).intValue() : null;
             Integer max = m.containsKey("max") ? Val.number(m.get("max")).intValue() : null;
-            if (min != null && max != null && min > max) throw new IllegalArgumentException("Swapped values inside range: " + min + " > " + max);
             return new Ints(min, max);
         } catch (RuntimeException e) {
             throw (component ? ERROR_MALFORMED_COMPONENT : ERROR_MALFORMED_PREDICATE).createWithContext(reader, name, String.valueOf(e.getMessage()));
