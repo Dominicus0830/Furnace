@@ -128,3 +128,14 @@ A 를 추천한다. 순서는 다음과 같다.
   - 로그인 뒤에 서버 속성이 바뀌어도 이미 만든 프로필은 그대로다(지금 서버는 로그인 때만 정한다).
   - Bukkit `org.bukkit.profile.PlayerProfile`·Paper `PlayerProfile` 과의 변환은 그 API 를 호환 계층에 넣을 때(H 묶음) 함께 한다.
   - 가짜 플레이어 생성자(`new ServerPlayer(server, level, GameProfile, ClientInformation)`)는 N4a.
+
+### PR #231 독립 검토 반영 (`furnace/reviews/pr231-nlib2-review.md`)
+
+결론은 조건부 승인이었다. 코드 결함은 없었고, 병합 조건은 문서 하나였다.
+
+- **R1:** Mojang 저장소에 닿지 못하는 서버에서는 흔한 반사(`CraftPlayer.getMethod("getHandle")` 등)가 이제 실패한다. 검토자가 fat jar 기동으로 직접 재현했다. user-todo `2026-11-11-nlib-authlib.md` 를 알림에서 결정 항목으로 바꿨다. 추천은 내려받기 유지다.
+- **N3:** `CompatLinkTest` 의 전용 로더는 이제 jar 이름 접두가 아니라 `ServerLibraries` 표지 패키지를 `loadClass` 에서 막는다. N-lib-3 에서 fastutil 같은 묶음이 따라와도 목록을 따로 고칠 필요가 없다.
+- **N4:** `CompatLinkTest.compatCoreIsOnlyAuthlib` 를 넣었다. 호환 클래스를 jar 로 묶어 서버와 같은 훑기를 돌리고, 결과가 `[authlib]` 인지 본다.
+- **N5:** `docs/api/compat-paper.md` 에 "스킨 바꾸기는 아직 반영되지 않는다" 를 적었다.
+- **N6:** `tools/compat/local-mojang-repo/` 를 넣었다. 번들러 jar 에서 sha256 을 맞춰 꺼내는 스크립트와 init 스크립트, 사용법이 들어 있다. 출력은 저장소 밖에만 둔다.
+- **N7:** 빌드 저장소를 `exclusiveContent` 로 묶었다. 이제 `com.mojang` 은 Mojang 저장소에서만 찾는다.

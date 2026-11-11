@@ -135,6 +135,12 @@ Bukkit 은 메인 스레드 하나를 가정한다. 이 1차는 Furnace 이벤�
 - **증거:** `CompatIsolationTest` 가 별도 JVM 을 `-Xlog:class+load` 로 띄워 서버 기동·접속·명령·종료 동안 올라온 클래스에 `org.bukkit.`·`org.domi.furnace.compat.`·`org.objectweb.asm.` 등이 없음을 센다(대조군: Bukkit 플러그인을 넣으면 `CompatFormat` 이 올라온다). `PluginFormatsLazyTest` 는 어댑터 생성 횟수를 센다.
 - **네이티브 플러그인에는 호환 클래스가 보이지 않는다(도미니코 결정 2026-11-08):** 지향점은 Furnace 네이티브 플러그인이 Furnace API 만 쓰는 것이다. 서버 `fatJar` 에 호환 모듈이 함께 실려 있어도, `furnace-plugin.*` 로 읽은 네이티브 플러그인의 클래스로더는 `org.bukkit.`·`io.papermc.`·`com.destroystokyo.`·`org.domi.furnace.compat.`·`org.objectweb.asm.`·`net.minecraft.` 이름을 서버 jar(부모)에서 찾지 않는다(`CompatPackages`, `PluginClassLoader.loadClass`). 네이티브 플러그인이 같은 이름의 클래스를 자기 jar 에 넣으면(다른 버전 ASM 등) 이제 서버 사본에 가려지지 않고 자기 것이 올라온다. Bukkit·Paper 플러그인 쪽 로더는 그대로 본다. `NativeCompatHidingTest` 가 확인한다. 시험 전용 문 `PluginSettings.withExposeCompatToNative(true)`(`FurnaceTestServer.Builder.exposeCompatToNative`)는 호환 코어를 네이티브 시험 플러그인으로 직접 부리는 호환 모듈 시험(`CompatTestPlugin`)만 켠다 — `furnace.properties` 에는 없다.
 
+## 플레이어 프로필(authlib, N-lib-2)
+
+`CraftPlayer.getProfile()`·`getHandle().getGameProfile()` 은 접속 때 받은 UUID·이름·속성(스킨 textures)으로 만든 authlib `GameProfile` 을 준다(플레이어마다 같은 객체). Bukkit 플러그인이 있으면 서버가 authlib 묶음을 받아 공유 로더에 붙인다(Mojang 저장소, `plugins.compat.libraries.mojang`).
+- **아직 안 되는 것:** 플러그인이 그 프로필의 속성을 바꿔도(스킨 바꾸기 플러그인) 탭 목록·다른 플레이어가 보는 스킨에는 반영되지 않는다. 오류도 로그도 없이 무시되므로 스킨 바꾸기 플러그인은 아직 동작하지 않는다고 보면 된다.
+- authlib 을 받지 못한 서버에서는 `getProfile()` 호출과 `CraftPlayer` 를 반사로 훑는 호출(`getMethod("getHandle")` 등)이 `NoClassDefFoundError` 로 실패한다(`docs/user-todo/entries/2026-11-11-nlib-authlib.md`).
+
 ## 법적 메모
 
 `org.bukkit` 클래스의 공개 이름·서명은 호환을 위해 필요한 만큼만 새로 썼다(Bukkit 소스를 복사하지 않았다). `furnace-compat-paper` 는 GPL-3.0-only (확정, `docs/policy/licensing.md`). 이 문서는 법률 자문이 아니다.

@@ -11,8 +11,10 @@ plugins {
 repositories {
     mavenCentral()
     // N-lib-2: authlib 은 Central 에 없다(Mojang 저장소에만). 컴파일·시험에만 쓰고 배포 jar 에 싣지 않는다 — 서버가 바닐라 libraries.list 의 sha256 으로 받는다(H4b).
-    maven("https://libraries.minecraft.net") {
-        content { includeGroup("com.mojang") }
+    // exclusiveContent: com.mojang 은 이 저장소에서만 찾는다(Central 헛조회 없음). 저장소에 닿지 않는 곳은 tools/compat/local-mojang-repo/README.md.
+    exclusiveContent {
+        forRepository { maven("https://libraries.minecraft.net") }
+        filter { includeGroup("com.mojang") }
     }
 }
 
