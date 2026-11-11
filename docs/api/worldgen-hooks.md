@@ -54,7 +54,7 @@ final class IslandHooks implements ChunkGenerationHooks {
 - **결정성**: 같은 청크에 대해 여러 번 불릴 수 있다(스폰 찾기·청크 재생성). 결과는 (시드, 청크 좌표)만의 함수여야 한다 — 아니면 청크 경계가 어긋난다.
 - **구조물 배치 높이는 바닐라 노이즈로 판정한다.** 바닐라 `getBaseHeight`·`getBaseColumn`(마을·폐허 포털·네더 화석 등의 높이·바닥 찾기)은
   노이즈 단계만으로 계산하고 `NOISE`·`SURFACE` 훅을 보지 않는다. 그래서 플러그인이 지형을 크게 바꾸면 구조물이 바닐라 지형 높이에 놓인다
-  (떠 있거나 묻힐 수 있다). CraftBukkit `CustomChunkGenerator` 도 플러그인이 `getBaseHeight` 를 따로 구현하지 않으면 바닐라 높이를 쓴다(기억, 소스 미확인).
+  (떠 있거나 묻힐 수 있다). CraftBukkit `CustomChunkGenerator` 도 플러그인이 `getBaseHeight` 를 구현하지 않으면(`UnsupportedOperationException`) 바닐라 높이를 쓰고, `getBaseColumn` 은 늘 바닐라에 맡긴다(Paper 1.21.1 원문으로 확인, PR #232 검토).
   플러그인 지형 높이를 구조물에 반영하는 훅은 아직 없다(`docs/user-todo/entries/2026-11-11-worldgen-hooks-base-height.md`).
 - **예외**: 훅이 던지면(`RuntimeException`, 핫 언로드 중의 `NoClassDefFoundError` 같은 `LinkageError`) 기록하고(처음 10번, 그 뒤 1000번마다) 그 훅만 건너뛴다. 청크는 계속 만든다.
 - **플러그인이 꺼지면**: 저장소에서 그 키가 빠지고 그 월드의 새 청크는 바닐라로 만든다(Paper 에서 생성기 플러그인이 빠졌을 때와 같다). 이미 만든 청크는 그대로다. 훅이 바뀌거나 빠지면 다음 청크 생성 때 훅 결과가 든 캐시(지형·높이·구조물 시작점)를 비운다 — 그때 이미 만들던 청크와 장식을 기다리던 청크는 옛 훅 결과일 수 있다. 월드는 키만 쥐므로(캐시 무효화 표식도 약한 참조) 플러그인 클래스를 붙들지 않는다(핫 리로드 때 새지 않는다). 핫 리로드로 다시 켜면 그 플러그인의 `WORLD_GENERATION` 처리기만 다시 돌아 같은 키의 훅이 바뀐다.

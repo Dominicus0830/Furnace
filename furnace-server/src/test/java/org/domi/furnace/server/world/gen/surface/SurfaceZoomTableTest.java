@@ -94,7 +94,8 @@ class SurfaceZoomTableTest {
                 int qyc = Math.max(dq0, Math.min(dqMax, qy));
                 return a[((qyc - dq0) * 4 + (qz & 3)) * 4 + (qx & 3)];
             };
-            // 위치들이 서로 이웃하지 않으므로 생성기 하나에서 이웃 캐시는 "빔" 상태로 남는다(동률 계산분 빼고)
+            // cold·cold2 는 이웃을 미리 만들지 않는다. 다만 앞 위치에서 만든 청크가 캐시에 남으므로((5,1)·(6,2) 는 대각 이웃) 완전히 빈 상태는 아니다.
+            // 결과는 캐시 상태와 무관해야 하므로 어느 쪽이든 같아야 한다.
             NoiseWorldSource cold = c.src.get(), cold2 = c.src.get(), warm = c.src.get();
             for (int[] ch : CHUNKS) {
                 for (int d = 0; d < 2; d++) {
