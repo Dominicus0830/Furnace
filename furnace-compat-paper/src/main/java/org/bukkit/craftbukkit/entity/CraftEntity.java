@@ -92,6 +92,9 @@ public class CraftEntity implements Entity {
     public String getTypeKey() { return handle.type(); }
 
     @Override
+    public io.papermc.paper.threadedregions.scheduler.EntityScheduler getScheduler() { return org.domi.furnace.compat.paper.CompatPaperSchedulers.entity(this); }
+
+    @Override
     public CompletableFuture<Boolean> teleportAsync(Location location) { return handle.teleport(Compat.location(location)); }
 
     /**
