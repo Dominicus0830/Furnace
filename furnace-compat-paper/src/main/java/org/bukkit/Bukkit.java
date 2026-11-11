@@ -42,6 +42,9 @@ public final class Bukkit {
 
     public static String getMinecraftVersion() { return s().getMinecraftVersion(); }
 
+    @Deprecated
+    public static UnsafeValues getUnsafe() { return s().getUnsafe(); }
+
     public static Logger getLogger() { return s().getLogger(); }
 
     public static PluginManager getPluginManager() { return s().getPluginManager(); }
@@ -55,6 +58,15 @@ public final class Bukkit {
     public static Player getPlayer(String name) { return s().getPlayer(name); }
 
     public static Player getPlayer(UUID id) { return s().getPlayer(id); }
+
+    public static OfflinePlayer getOfflinePlayer(UUID id) { return s().getOfflinePlayer(id); }
+
+    @Deprecated
+    public static OfflinePlayer getOfflinePlayer(String name) { return s().getOfflinePlayer(name); }
+
+    public static java.util.Set<OfflinePlayer> getOperators() { return s().getOperators(); }
+
+    public static boolean getOnlineMode() { return s().getOnlineMode(); }
 
     public static List<World> getWorlds() { return s().getWorlds(); }
 

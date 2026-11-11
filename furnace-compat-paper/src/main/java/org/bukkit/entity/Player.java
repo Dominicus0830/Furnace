@@ -35,6 +35,12 @@ public interface Player extends HumanEntity, OfflinePlayer, org.bukkit.plugin.me
 
     String getLocale();
 
+    /** 클라이언트 언어(Paper). 클라이언트가 아직 알리지 않았으면 en_US. */
+    java.util.Locale locale();
+
+    /** 이 플레이어의 명령 트리를 다시 보낸다(권한이 바뀐 뒤). */
+    void updateCommands();
+
     /**
      * 클라이언트가 인벤토리를 서버 값에 맞추게 한다. Furnace 는 서버 쪽 변경을 다음 틱 창 갱신에서 자동으로 보내므로 따로 할 일이 없다
      * (그래서 아무 일도 하지 않는다).

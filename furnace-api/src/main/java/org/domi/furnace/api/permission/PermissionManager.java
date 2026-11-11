@@ -19,4 +19,13 @@ public interface PermissionManager {
     Permission permission(String name);
 
     Collection<Permission> permissions();
+
+    /**
+     * 판정 공급자를 둔다(null 이면 뗀다). 하나만 — 새로 두면 이전 것을 바꾼다. 이 기본 구현은 지원하지 않는다(서버 구현이 지원한다).
+     * Bukkit 호환 계층이 LuckPerms 같은 권한 플러그인의 판정을 Furnace 쪽 확인에도 돌려 주려고 쓴다.
+     */
+    default void setOverride(PermissionOverride override) { throw new UnsupportedOperationException("이 권한 등록소는 판정 공급자를 받지 않는다"); }
+
+    /** 지금 둔 판정 공급자, 없으면 null. */
+    default PermissionOverride override() { return null; }
 }

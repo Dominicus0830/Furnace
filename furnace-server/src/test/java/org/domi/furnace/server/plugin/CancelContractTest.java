@@ -114,6 +114,7 @@ class CancelContractTest {
         TABLE.put("FunctionExecuteEvent", new Entry(Kind.SERVER_DRIVEN, "command.exec.FunctionHookTest#cancellingExecuteSkipsWholeFunctionBodyOnly"));
         TABLE.put("FunctionCommandEvent", new Entry(Kind.SERVER_DRIVEN, "command.exec.FunctionHookTest#commandEventSeesEachLineAndCanCancelOne"));
         TABLE.put("ServerCommandEvent", new Entry(Kind.SERVER_DRIVEN, "plugin.PluginSystemTest#eventBusOrdersByPriorityAndHonorsCancellation"));
+        TABLE.put("RemoteServerCommandEvent", new Entry(Kind.SERVER_DRIVEN, "remote.RconCoreTest#remoteServerCommandEventCanRewriteOrCancel"));
     }
 
     /** API 모듈에서 Cancellable 을 직접 구현한 이벤트 클래스(하위 클래스는 부모 항목을 따른다). */

@@ -190,6 +190,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             kick(ctx, Text.text("Too many packets"), org.domi.furnace.api.net.QuitReason.ERRONEOUS_STATE);
             return;
         }
+        if (state == ConnectionState.PLAY && player == null && pendingPlayFrames == null && kickReason != null) return;   // 생성 거부로 닫는 중 — 플레이어 없는 플레이 패킷은 버린다
         if (pendingPlayFrames != null) {   // 플레이어 데이터 읽는 중 — 들어온 순서대로 보관
             pendingPlayFrames.add(new Object[]{packetId, frame.retain()});
             return;
@@ -1120,7 +1121,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             if (fail != null) { exceptionCaught(ctx, fail); return; }   // 예전엔 channelRead0 예외 → exceptionCaught
             try {
                 onEnterPlay(ctx, saved);
-                while (queued != null && !queued.isEmpty() && ctx.channel().isActive()) {
+                while (queued != null && !queued.isEmpty() && ctx.channel().isActive() && kickReason == null) {   // 생성 거부로 끊는 중이면 재생하지 않는다
                     Object[] q = queued.poll();
                     ByteBuf frame = (ByteBuf) q[1];
                     try {
@@ -1270,7 +1271,15 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         p.remoteAddress(clientAddress(ctx));
         // 플러그인 PlayerCreateEvent: Player 가 생긴 직후·플레이 패킷(login·권한·명령 트리) 전 — 여기서 붙인 권한이 첫 명령 트리부터 반영된다.
         if (coreJ != null && coreJ.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerCreateEvent.class)) {
-            coreJ.events().call(new org.domi.furnace.api.event.player.PlayerCreateEvent(coreJ.plugins().player(p), info));
+            var created = coreJ.events().call(new org.domi.furnace.api.event.player.PlayerCreateEvent(coreJ.plugins().player(p), info));
+            if (!created.isAllowed()) {
+                // 거부: 월드에 넣기 전이라(this.player 가 비어 있다) 퇴장 처리·저장 없이 끊는다
+                log.info("Disconnecting {} ({}): {}", playerName, loggableAddress(ctx), created.kickMessage().getString());
+                if (p.apiHandle() instanceof org.domi.furnace.server.plugin.PlayerHandle ph) ph.dispose();
+                this.joining = null;
+                kick(ctx, created.kickMessage());
+                return;
+            }
         }
         // 첫 위치: 저장된 자리, 없으면 흩뿌린 월드 스폰(새 플레이어 — 회전 0, ServerPlayer 생성자), 그것도 없으면 월드 기본 스폰.
         SpawnPoint fallbackSpawn = world.defaultSpawn();

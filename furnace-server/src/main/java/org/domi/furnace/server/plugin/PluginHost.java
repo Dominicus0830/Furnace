@@ -408,6 +408,11 @@ public final class PluginHost implements Furnace {
     @Override
     public CommandSender console() { return console; }
 
+    /** RCON 명령 하나의 발신자 — 보낸 메시지는 out 으로(그 요청의 응답 버퍼). */
+    public org.domi.furnace.api.command.RemoteConsoleSender rconSender(java.util.function.Consumer<org.domi.furnace.api.text.Text> out) {
+        return new RconSender(permissions, out);
+    }
+
     @Override
     public void broadcast(Text message) { core.broadcastSystemMessage(message, false); }
 
@@ -423,6 +428,12 @@ public final class PluginHost implements Furnace {
 
     @Override
     public ExecutorService asyncExecutor() { return profiledAsync; }
+
+    @Override
+    public boolean onlineMode() {
+        var s = core.settings();
+        return s != null && s.get().onlineMode;   // server.properties 가 없는 시험 서버는 오프라인 접속만 받는다
+    }
 
     @Override
     public String compatOption(String key) {
