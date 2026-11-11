@@ -40,6 +40,24 @@ public final class ProfiledScheduling {
 
     FurnacePlugin ownerOf(Object task) { return task == null ? null : owner.apply(task.getClass()); }
 
+    /**
+     * 플러그인 한 번의 "켜짐" 동안 유효한 표. 감싼 작업은 만들 때의 표를 쥐고, 플러그인이 꺼지면(retire) 그 표가 죽는다 —
+     * 같은 플러그인 객체를 껐다 다시 켜도 꺼지기 전에 건 작업은 되살아나지 않는다(Paper 는 disablePlugin 때 취소한다).
+     */
+    private static final class Epoch {
+        volatile boolean dead;
+    }
+
+    private final java.util.concurrent.ConcurrentHashMap<FurnacePlugin, Epoch> epochs = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private Epoch epochOf(FurnacePlugin p) { return epochs.computeIfAbsent(p, k -> new Epoch()); }
+
+    /** 플러그인이 꺼질 때(PluginManagerImpl.disable): 그때까지 감싼 작업을 모두 죽은 것으로 한다. */
+    void retire(FurnacePlugin p) {
+        Epoch e = epochs.remove(p);
+        if (e != null) e.dead = true;
+    }
+
     // ------------------------------------------------------------------ 작업
 
     /** 플러그인 작업이면 재는 작업으로 감싼다(소유 플러그인이 꺼졌으면 돌지 않는다). */
@@ -66,7 +84,7 @@ public final class ProfiledScheduling {
         if (p == null) return task;
         Lazy lazy = new Lazy(this, p, kind, taskName(task));
         return () -> {
-            if (kind == Kind.TASK && !p.isEnabled()) throw new java.util.concurrent.CancellationException("플러그인이 꺼짐: " + p.name());
+            if (lazy.dead()) throw new java.util.concurrent.CancellationException("플러그인이 꺼짐: " + p.name());
             Timing t = lazy.timing();
             long t0 = t.start();
             try {
@@ -82,7 +100,7 @@ public final class ProfiledScheduling {
         if (p == null) return task;
         Lazy lazy = new Lazy(this, p, kind, taskName(task));
         return () -> {
-            if (kind == Kind.TASK && !p.isEnabled()) throw new java.util.concurrent.CancellationException("플러그인이 꺼짐: " + p.name());
+            if (lazy.dead()) throw new java.util.concurrent.CancellationException("플러그인이 꺼짐: " + p.name());
             Timing t = lazy.timing();
             long t0 = t.start();
             try {
@@ -106,6 +124,8 @@ public final class ProfiledScheduling {
         private final FurnacePlugin plugin;
         private final Kind kind;
         private final String name;
+        /** TASK 만: 만들 때의 켜짐 표(ASYNC 는 꺼진 뒤에도 돈다 — onDisable 에서 넘긴 저장을 잃지 않게). */
+        private final Epoch epoch;
         private volatile Timing timing;
 
         Lazy(ProfiledScheduling s, FurnacePlugin plugin, Kind kind, String name) {
@@ -113,7 +133,11 @@ public final class ProfiledScheduling {
             this.plugin = plugin;
             this.kind = kind;
             this.name = name;
+            this.epoch = kind == Kind.TASK ? s.epochOf(plugin) : null;
         }
+
+        /** 이 작업을 더는 돌리지 않는가: 소유 플러그인이 꺼졌거나, 만든 뒤 한 번이라도 꺼졌다 켜졌다. */
+        boolean dead() { return epoch != null && (epoch.dead || !plugin.isEnabled()); }
 
         Timing timing() {
             Timing t = timing;
@@ -138,10 +162,9 @@ public final class ProfiledScheduling {
         @Override
         public void run() {
             Runnable task = this.task;
-            if (task == null) return;
-            if (lazy.kind == Kind.TASK && !lazy.plugin.isEnabled()) {
+            if (task == null || lazy.dead()) {
                 this.task = null;
-                Runnable s = stop;
+                Runnable s = stop;   // 손잡이를 알기 전에 꺼짐을 봤어도 다음 차례에 취소한다
                 if (s != null) s.run();
                 return;
             }

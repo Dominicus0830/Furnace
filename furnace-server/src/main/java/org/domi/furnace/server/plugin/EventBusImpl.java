@@ -262,7 +262,8 @@ public final class EventBusImpl implements EventBus {
         }
         boolean before = c.isCancelled();
         invoke(h, event);
-        if (c.isCancelled() != before && monitorWarned.add(h)) {
+        // 꺼진 뒤(unregisterAll 뒤 돌던 발화)에는 기록하지 않는다 — 경고 집합이 옛 처리기를 다시 쥐지 않게
+        if (c.isCancelled() != before && h.plugin().isEnabled() && monitorWarned.add(h)) {
             log.warn("[{}] MONITOR 처리기 {} 가 {} 의 취소 상태를 바꿨다 — MONITOR 는 결과를 바꾸지 말고 관찰만 해야 한다", h.plugin().name(), h.where(), event.eventName());
         }
     }
@@ -297,7 +298,7 @@ public final class EventBusImpl implements EventBus {
             h.timing().stop(token);
             if (stats == null) continue;
             long dt = System.nanoTime() - t0;
-            stats.listener(h, dt);
+            if (h.plugin().isEnabled()) stats.listener(h, dt);
             if (dt > slowNs) { slowNs = dt; slow = h; }
         }
         if (stats == null) return event;

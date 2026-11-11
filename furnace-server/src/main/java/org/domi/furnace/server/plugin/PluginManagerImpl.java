@@ -218,20 +218,30 @@ public final class PluginManagerImpl implements PluginManager {
 
         public org.domi.furnace.api.registry.PluginRegistries registries() { return registries; }
 
+        /** 관리자가 이 플러그인에 건 1회 토큰을 쓴다 — setEnabled 머리에서 한 번만 참이다(onEnable 안에서 부른 setEnabled(false) 는 거짓). */
         @Override
-        public boolean lifecycleCall() { return LIFECYCLE.get(); }
+        public boolean lifecycleCall() {
+            FurnacePlugin t = LIFECYCLE.get();
+            if (t == null || t.description() != d) return false;
+            LIFECYCLE.remove();
+            return true;
+        }
     }
 
-    /** 지금 스레드가 관리자 안에서 setEnabled 를 부르는 중인가(그 밖의 setEnabled 는 관리자로 넘긴다 — A14-08). */
-    private static final ThreadLocal<Boolean> LIFECYCLE = ThreadLocal.withInitial(() -> false);
+    /**
+     * 관리자가 지금 setEnabled 를 부르려는 플러그인(1회 토큰). 그 밖의 setEnabled(플러그인 자신·다른 플러그인, onEnable 안의 setEnabled(false)
+     * 포함)는 관리자 enable/disable 로 넘어가 자동 정리까지 돈다(A14-08).
+     */
+    private static final ThreadLocal<FurnacePlugin> LIFECYCLE = new ThreadLocal<>();
 
     private static void setEnabledByManager(FurnacePlugin p, boolean v) {
-        boolean was = LIFECYCLE.get();
-        LIFECYCLE.set(true);
+        FurnacePlugin was = LIFECYCLE.get();
+        LIFECYCLE.set(p);
         try {
             p.setEnabled(v);
         } finally {
-            LIFECYCLE.set(was);
+            if (was == null) LIFECYCLE.remove();
+            else LIFECYCLE.set(was);
         }
     }
 
@@ -301,6 +311,7 @@ public final class PluginManagerImpl implements PluginManager {
                 timing.stop(t0);
             }
         }
+        host.profiled().retire(p);   // 어느 스케줄러로 건 작업이든 꺼지기 전에 건 것은 다시 켜도 돌지 않는다
         host.eventsImpl().unregisterAll(p);
         host.commandsImpl().unregisterAll(p);
         host.removeAttachments(p);
