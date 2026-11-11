@@ -108,9 +108,10 @@ public final class ItemUse {
             case "minecraft:goat_horn": return goatHornUse(level, player, hand, stack);
             case "minecraft:bundle": return bundleUse(level, player, stack);
             case "minecraft:writable_book", "minecraft:written_book": {   // WritableBookItem/WrittenBookItem.use: openItemGui(서버는 서명된 책만 open_book) + 사용 통계, CONSUME
-                if (n.equals("minecraft:written_book")) player.openBook(hand);   // 미구현: resolveBookComponents(선택자·점수 컴포넌트 해석)
+                ItemStack shown = stack;
+                if (n.equals("minecraft:written_book")) shown = openWrittenBook(level, player, hand, stack);
                 player.awardStat("minecraft:used:" + n);
-                return Holder.success(stack);
+                return Holder.success(shown);
             }
             default: break;
         }
@@ -122,6 +123,85 @@ public final class ItemUse {
         if (slot >= 0) return equip(level, player, hand, stack, slot, n);
         // 먹기·활·쇠뇌·삼지창·방패·망원경은 Consuming 이, 낚싯대는 낚시 쪽이 맡는다.
         return Holder.pass(stack);
+    }
+
+
+    /** 서명된 책 한 쪽(또는 거르기 전·후 둘)의 JSON 글자리. */
+    private record BookText(int page, String key, Text text, java.util.concurrent.CompletableFuture<Text> done) {}
+
+    /**
+     * ServerPlayer.openItemGui(서명된 책): WrittenBookItem.resolveBookComponents 로 쪽의 선택자·점수·NBT 글을 값으로 풀어 책에 쓴 뒤(resolved=true)
+     * open_book 을 보낸다. 쪽 하나가 풀린 글이 32767 자를 넘으면 쪽은 그대로 두고 resolved 만 켠다. 쪽 풀기가 예외면 그 쪽은 원래 글.
+     * 이미 resolved 면 그대로 연다. 풀린 책을 돌려주면 손에 들린 스택이 그것으로 바뀐다. 다른 region 의 엔티티를 읽는 선택자 때문에 바로
+     * 풀리지 않으면 지금은 열지 않고, 풀린 뒤 주인 스레드에서 손의 책이 그대로일 때만 바꿔 연다(바닐라는 동기).
+     */
+    @SuppressWarnings("unchecked")
+    private static ItemStack openWrittenBook(BlockLevel level, BlockActor player, int hand, ItemStack stack) {
+        Object comp = ItemTools.component(stack, "minecraft:written_book_content");
+        if (!(level instanceof ChunkLevel cl) || !(comp instanceof Map<?, ?> content) || Boolean.TRUE.equals(content.get("resolved"))
+                || !(content.get("pages") instanceof java.util.List<?> pages)) {
+            player.openBook(hand);
+            return stack;
+        }
+        java.util.List<BookText> texts = new java.util.ArrayList<>();
+        for (int i = 0; i < pages.size(); i++) {
+            Object pg = pages.get(i);
+            if (pg instanceof String js) addBookText(cl, player, texts, i, null, js);
+            else if (pg instanceof Map<?, ?> pm) {
+                if (pm.get("raw") instanceof String js) addBookText(cl, player, texts, i, "raw", js);
+                if (pm.get("filtered") instanceof String js) addBookText(cl, player, texts, i, "filtered", js);
+            }
+        }
+        var all = java.util.concurrent.CompletableFuture.allOf(texts.stream().map(BookText::done).toArray(java.util.concurrent.CompletableFuture[]::new));
+        if (all.isDone()) {
+            ItemStack out = resolvedBook(stack, (Map<String, Object>) content, pages, texts);
+            player.setItemInHand(hand, out);   // 칸 갱신이 먼저 가야 하므로 open_book 은 PlayerActor 가 보류했다가 flushOpenBook 에서
+            player.openBook(hand);
+            return out;
+        }
+        if (player.handle() instanceof org.domi.furnace.server.entity.Player p) {
+            all.whenComplete((v, e) -> p.runOnOwner(() -> p.finishBookOpen(hand, stack, resolvedBook(stack, (Map<String, Object>) content, pages, texts))));
+        }
+        return stack;
+    }
+
+    private static void addBookText(ChunkLevel cl, BlockActor player, java.util.List<BookText> texts, int page, String key, String json) {
+        Text t;
+        try {
+            t = org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize(json);
+        } catch (RuntimeException e) {
+            texts.add(new BookText(page, key, null, java.util.concurrent.CompletableFuture.completedFuture(null)));
+            return;
+        }
+        java.util.concurrent.CompletableFuture<Text> f;
+        try {
+            f = cl.resolveBookText(player.handle(), t);
+        } catch (RuntimeException e) {
+            f = java.util.concurrent.CompletableFuture.failedFuture(e);
+        }
+        texts.add(new BookText(page, key, t, f.exceptionally(e -> t)));   // 쪽 풀기 예외 → 원래 글
+    }
+
+    /** WrittenBookContent.resolve: 풀린 쪽으로 바꾼 책. 쪽 하나가 32767 자를 넘으면 쪽은 그대로, resolved 만 켠다. */
+    private static ItemStack resolvedBook(ItemStack stack, Map<String, Object> content, java.util.List<?> pages, java.util.List<BookText> texts) {
+        java.util.List<Object> newPages = new java.util.ArrayList<>(pages);
+        java.util.Map<Integer, Map<String, Object>> maps = new java.util.HashMap<>();
+        boolean tooLong = false;
+        for (BookText bt : texts) {
+            Text r = bt.done().join();
+            if (r == null) continue;   // 읽히지 않는 JSON 은 그대로 둔다
+            String json = r.toJson();
+            if (json.length() > 32767) { tooLong = true; break; }
+            if (bt.key() == null) newPages.set(bt.page(), json);
+            else maps.computeIfAbsent(bt.page(), k -> new java.util.LinkedHashMap<>((Map<String, Object>) pages.get(k))).put(bt.key(), json);
+        }
+        Map<String, Object> out = new java.util.LinkedHashMap<>(content);
+        if (!tooLong) {
+            for (var en : maps.entrySet()) newPages.set(en.getKey(), en.getValue());
+            out.put("pages", newPages);
+        }
+        out.put("resolved", true);
+        return ItemTools.with(stack, "minecraft:written_book_content", out);
     }
 
     // ------------------------------------------------------------------ 가방(BundleItem.use)

@@ -25,6 +25,12 @@ public interface GameRegistries {
 
     default boolean contains(String registry, String key) { return entries(registry).contains(key); }
 
+    /**
+     * 내장 레지스트리(데이터 팩이 바꾸지 않는 것: minecraft:block·minecraft:item·minecraft:entity_type 등)의 항목 id, 바닐라 1.21.1 번호 순.
+     * 모르는 레지스트리·동기화 레지스트리면 빈 목록. 번호는 버전마다 바뀌므로 저장하지 말 것(NMS 호환용).
+     */
+    default List<String> builtIn(String registry) { throw new UnsupportedOperationException("builtIn"); }
+
     /** 항목을 낸 곳: "vanilla", 데이터 팩 id(예: "file/mypack"), "plugin:<이름>". 없거나 내장 목록이면 empty. */
     java.util.Optional<String> source(String registry, String key);
 

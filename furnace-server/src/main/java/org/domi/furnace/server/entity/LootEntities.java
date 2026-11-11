@@ -106,6 +106,7 @@ public final class LootEntities {
         public boolean isSprinting() { return p.sprinting(); }
         public boolean isSwimming() { return p.swimming; }
         public boolean onGround() { return p.onGround(); }
+        public float luck() { return (float) PlayerAttributes.value(p, org.domi.furnace.server.attribute.Attribute.LUCK); }
         public LootStack equipment(String slot) {
             EquipmentSlot es = equipmentSlot(slot);
             return es == null ? LootStack.empty() : ServerCore.lootStackOf(p.equipment(es));

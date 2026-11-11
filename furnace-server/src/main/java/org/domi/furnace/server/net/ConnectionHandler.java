@@ -2162,6 +2162,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 float cpt = frame.readFloat();
                 Player p = player;
                 if (p != null) p.chunkSendRate().onBatchReceived(cpt);
+                if (org.domi.furnace.server.world.ChunkTrace.ON) org.domi.furnace.server.world.ChunkTrace.value("client.want", Math.round(cpt * 100));
             }
             case 0x2B -> readPackResponse(ctx, frame); // resource_pack(play): 필수 팩 거절만 쫓아낸다
             case 0x12 -> handleCustomPayload(frame, true); // custom_payload
