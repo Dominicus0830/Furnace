@@ -86,6 +86,35 @@ class PlayerPredicateTest {
     }
 
     @Test
+    void unknownFlagValueIsNeverRead() {
+        // 바닐라 코덱은 모르는 플래그 키를 아예 보지 않는다 — 값이 불리언이 아니어도 파일은 읽힌다
+        assertTrue(entity("{\"flags\":{\"is_glowing\":{}}}", at(0, "minecraft:pig")));
+    }
+
+    @Test
+    void unknownTypeSpecificTypeIsRejectedAndAllNineteenAreKnown() {
+        assertThrows(LootParseException.class, () -> EntityPredicate.parse(JsonParser.parseString("{\"type_specific\":{\"type\":\"minecraft:plaeyr\"}}"), ItemFunctionsTest.regs));
+        for (String t : new String[] {"lightning", "fishing_hook", "player", "slime", "raider", "axolotl", "boat", "fox", "mooshroom", "rabbit", "horse",
+                "llama", "villager", "parrot", "tropical_fish", "painting", "cat", "frog", "wolf"}) {
+            EntityPredicate.parse(JsonParser.parseString("{\"type_specific\":{\"type\":\"minecraft:" + t + "\"}}"), ItemFunctionsTest.regs);
+        }
+    }
+
+    @Test
+    void advancementPlayerConditionsDoNotTurnOnTheSnapshotLookingAt() {
+        boolean before = EntityPredicate.lookingAtUsed;
+        try {
+            EntityPredicate.lookingAtUsed = false;
+            EntityPredicate.liveViewOnly(() -> EntityPredicate.parse(JsonParser.parseString(PARROT), ItemFunctionsTest.regs));
+            assertFalse(EntityPredicate.lookingAtUsed, "발전 과제 player 조건은 살아 있는 보기로 평가한다");
+            EntityPredicate.parse(JsonParser.parseString(PARROT), ItemFunctionsTest.regs);
+            assertTrue(EntityPredicate.lookingAtUsed, "그 밖(전리품·술어 파일)의 looking_at 은 켠다");
+        } finally {
+            EntityPredicate.lookingAtUsed = before;
+        }
+    }
+
+    @Test
     void isFlyingFlagFollowsTheEntity() {
         LootEntity flying = new LootEntity() {
             public String type() { return "minecraft:player"; }

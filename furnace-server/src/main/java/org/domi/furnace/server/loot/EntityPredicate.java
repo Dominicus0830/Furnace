@@ -28,8 +28,32 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
     /** nbt 조건이 하나라도 읽혔나(떠 두는 쪽이 NBT 를 미리 복사할지 정하는 용도). */
     public static volatile boolean nbtUsed;
 
-    /** player looking_at 조건이 하나라도 읽혔나(시선 검사는 비싸서 쓰일 때만 미리 떠 둔다). */
+    /**
+     * player looking_at 조건이 스냅샷 경로(처치·피해·execute 문맥)에서 쓰일 수 있게 읽혔나(시선 검사는 비싸서 그때만 떠 둔다).
+     * 발전 과제 player 조건은 소유 스레드의 살아 있는 보기로 평가하므로 {@link #liveViewOnly} 로 읽을 때는 켜지 않는다
+     * (바닐라 망원경 발전 과제 3종 때문에 늘 켜져 있는 것을 막는다).
+     */
     public static volatile boolean lookingAtUsed;
+
+    /** 이 스레드가 읽는 조건은 살아 있는 보기로만 평가된다(발전 과제 player 조건). */
+    private static final ThreadLocal<Boolean> LIVE_VIEW_ONLY = ThreadLocal.withInitial(() -> false);
+
+    /** 발전 과제 player 조건 읽기를 감싼다: 그 안의 looking_at 은 lookingAtUsed 를 켜지 않는다. */
+    public static <T> T liveViewOnly(java.util.function.Supplier<T> parse) {
+        boolean before = LIVE_VIEW_ONLY.get();
+        LIVE_VIEW_ONLY.set(true);
+        try {
+            return parse.get();
+        } finally {
+            LIVE_VIEW_ONLY.set(before);
+        }
+    }
+
+    /** 바닐라 EntitySubPredicates 19종(type_specific.type 은 이 레지스트리 키여야 한다). */
+    private static final Set<String> SUB_PREDICATES = Set.of("minecraft:lightning", "minecraft:fishing_hook", "minecraft:player", "minecraft:slime",
+            "minecraft:raider", "minecraft:axolotl", "minecraft:boat", "minecraft:fox", "minecraft:mooshroom", "minecraft:rabbit", "minecraft:horse",
+            "minecraft:llama", "minecraft:villager", "minecraft:parrot", "minecraft:tropical_fish", "minecraft:painting", "minecraft:cat",
+            "minecraft:frog", "minecraft:wolf");
 
     /** type_specific 변종 조건이 하나라도 읽혔나(변종은 저장 NBT 를 거치므로 쓰일 때만 미리 읽는다). */
     public static volatile boolean variantUsed;
@@ -67,8 +91,7 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
                 case "type" -> type = HolderSet.parse("minecraft:entity_type", f.getValue(), regs);
                 case "flags" -> {
                     for (var x : f.getValue().getAsJsonObject().entrySet()) {
-                        boolean v = x.getValue().getAsBoolean();
-                        if (FLAGS.contains(x.getKey())) flags.put(x.getKey(), v);   // 모르는 플래그는 바닐라 코덱이 무시한다
+                        if (FLAGS.contains(x.getKey())) flags.put(x.getKey(), x.getValue().getAsBoolean());   // 모르는 플래그는 값도 안 본다(바닐라 코덱이 무시)
                     }
                 }
                 case "equipment" -> {
@@ -79,12 +102,14 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
                 }
                 case "type_specific" -> {
                     typeSpecific = f.getValue().getAsJsonObject();
+                    String subType = LootJson.id(typeSpecific, "type");
+                    if (!SUB_PREDICATES.contains(subType)) throw new LootParseException("모르는 type_specific 종류: " + subType);   // dispatch 코덱 오류
                     if (typeSpecific.has("variant")) variantUsed = true;
                     if (typeSpecific.has("entity_struck")) struck = parse(typeSpecific.get("entity_struck"), regs);
                     if (typeSpecific.has("stats")) stats = parseStats(typeSpecific.get("stats"));
                     if (typeSpecific.has("looking_at")) {
                         lookingAt = parse(typeSpecific.get("looking_at"), regs);
-                        lookingAtUsed = true;
+                        if (!LIVE_VIEW_ONLY.get()) lookingAtUsed = true;
                     }
                 }
                 case "location" -> location = LocationPredicate.parse(f.getValue(), regs);

@@ -170,7 +170,7 @@ public final class LootEntities {
          */
         private LootEntity lookingAt() {
             var level = p.currentLevel;
-            if (level == null) return null;
+            if (level == null || !p.onOwnerThread()) return null;   // 남의 region 엔티티 저장소는 훑지 않는다
             double ex = p.x(), ey = p.eyeY(), ez = p.z();
             double[] v = org.domi.furnace.server.block.Clip.viewVector(p.pitch(), p.yaw());
             double tx = ex + v[0] * 100.0, ty = ey + v[1] * 100.0, tz = ez + v[2] * 100.0;

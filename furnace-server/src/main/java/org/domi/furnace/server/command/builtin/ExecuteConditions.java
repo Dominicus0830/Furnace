@@ -365,7 +365,8 @@ final class ExecuteConditions {
         for (String slot : EQUIPMENT_SLOTS) eq.put(slot, live.equipment(slot));
         boolean flying = live.isFlying();
         // 시선 끝의 엔티티(looking_at)는 레이캐스트라 조건이 쓰일 때만, 소유 스레드에서 떠 둔다
-        Object lookedAt = org.domi.furnace.server.loot.EntityPredicate.lookingAtUsed && live.isPlayer() ? live.typeSpecific("looking_at") : null;
+        Object lookedAt = org.domi.furnace.server.loot.EntityPredicate.lookingAtUsed && live.isPlayer()
+                && live.typeSpecific("looking_at") instanceof LootEntity hit ? org.domi.furnace.server.entity.KillCredit.snapshot(hit) : null;
         return new LootEntity() {
             public String type() { return type; }
             public boolean isOnFire() { return fire; }

@@ -111,6 +111,26 @@ class PlayerLookingAtStatsTest {
     }
 
     @Test
+    void snapshotComputesLookingAtOnceAndKeepsAFrozenCopy() {
+        var level = new DimensionTestLevel("minecraft:the_end");
+        var p = player(level, 0.5, 100, 0.5, 0, 0);
+        var zombie = put(level, new Zombie(level, level.nextEntityId()), 0.5, 100, 5.5);
+        boolean before = org.domi.furnace.server.loot.EntityPredicate.lookingAtUsed;
+        org.domi.furnace.server.loot.EntityPredicate.lookingAtUsed = true;
+        try {
+            var snap = KillCredit.snapshot(LootEntities.of(p));
+            zombie.moveTo(0.5, 100, 9.5, 0, 0);   // 스냅샷을 처음 묻기 전에 움직여도, 처음 물을 때 한 번 센 값을 계속 돌려준다
+            var first = (LootEntity) snap.typeSpecific("looking_at");
+            assertEquals(9.5, first.position()[2], 1.0E-9);
+            zombie.moveTo(0.5, 100, 6.5, 0, 0);
+            assertSame(first, snap.typeSpecific("looking_at"), "한 번만 센다");
+            assertEquals(9.5, ((LootEntity) snap.typeSpecific("looking_at")).position()[2], 1.0E-9, "떠 둔 사본이라 살아 있는 엔티티를 안 따라간다");
+        } finally {
+            org.domi.furnace.server.loot.EntityPredicate.lookingAtUsed = before;
+        }
+    }
+
+    @Test
     void statValueReadsTheRealCounterAndDefaultsToZero() {
         var level = new DimensionTestLevel("minecraft:the_end");
         var p = player(level, 0.5, 100, 0.5, 0, 0);
