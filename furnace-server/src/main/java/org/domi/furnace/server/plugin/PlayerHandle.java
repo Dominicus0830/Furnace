@@ -56,6 +56,14 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     public UUID uniqueId() { return p.uuid(); }
 
     @Override
+    public java.util.List<org.domi.furnace.api.entity.ProfileProperty> profileProperties() {
+        var src = p.profileProperties();
+        var out = new java.util.ArrayList<org.domi.furnace.api.entity.ProfileProperty>(src.size());
+        for (var pr : src) out.add(new org.domi.furnace.api.entity.ProfileProperty(pr.name(), pr.value(), pr.signature()));
+        return java.util.List.copyOf(out);
+    }
+
+    @Override
     public Text displayName() { return p.displayName(); }
 
     @Override
