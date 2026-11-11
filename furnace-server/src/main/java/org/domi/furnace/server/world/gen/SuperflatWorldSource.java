@@ -1,5 +1,6 @@
-// 평지 생성(바닐라 FlatLevelSource): 설정의 층을 아래(월드 최저 높이)부터 쌓는다. 기본은 bedrock/dirt×2/grass_block, 평원.
-// 구조물(structure_overrides)·지형지물·호수는 아직 만들지 않는다.
+// 단순 평지 생성: 설정의 층을 아래(월드 최저 높이)부터 쌓기만 한다. 기본은 bedrock/dirt×2/grass_block, 평원.
+// 서버의 level-type=flat 은 바닐라 FlatLevelSource 처럼 장식까지 하는 NoiseWorldSource.flat 을 쓴다. 이 클래스는 시험 월드·
+// 플러그인 추가 월드(높이가 다른 차원 타입)용으로 남아 있고, 구조물·지형지물·호수를 만들지 않는다.
 package org.domi.furnace.server.world.gen;
 
 import com.google.gson.JsonArray;
@@ -67,6 +68,24 @@ public final class SuperflatWorldSource implements WorldSource {
             out.add(new Layer(l.getString("block"), ((Number) l.tags().get("height")).intValue()));
         }
         return out;
+    }
+
+    /**
+     * level.dat 평지 settings → 평지 생성기 설정(바닐라 FlatLevelGeneratorSettings 코덱: lakes·features 없으면 거짓, biome 없으면 plains,
+     * structure_overrides 가 없으면 null = 레지스트리의 모든 구조물 세트).
+     */
+    public static NoiseWorldSource.FlatSpec flatSpecOf(NbtCompound settings) {
+        String biome = settings != null && settings.tags().get("biome") instanceof String b ? b : "minecraft:plains";
+        boolean features = settings != null && settings.contains("features") && settings.getBoolean("features");
+        boolean lakes = settings != null && settings.contains("lakes") && settings.getBoolean("lakes");
+        List<String> overrides = null;
+        if (settings != null && settings.contains("structure_overrides")) {
+            Object so = settings.tags().get("structure_overrides");
+            overrides = new ArrayList<>();
+            if (so instanceof String one) overrides.add(one);
+            else for (Object o : settings.getList("structure_overrides").items()) if (o instanceof String id) overrides.add(id);
+        }
+        return new NoiseWorldSource.FlatSpec(layersOf(settings), biome, features, lakes, overrides);
     }
 
     /** 바닐라 FlatLevelGeneratorSettings 기본값(JSON generator-settings 가 있으면 그 층·바이옴)을 level.dat 꼴 compound 로. */
