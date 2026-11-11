@@ -104,6 +104,9 @@ public final class LiveGrid {
             int ox = (centerX + (i % size) - radius) * 16, oz = (centerZ + (i / size) - radius) * 16;
             cp.forEachGeneratedBlockEntity((lx, y, lz, nbt) -> adoptBlockEntity(l, ox + lx, y, oz + lz, nbt));
             for (NbtCompound e : cp.generatedEntities()) spawn(e);
+            // 실제 레벨에서는 바닐라 level.scheduleTick(pos, 유체, 지연) 이 바로 예약된다(샘·구조물 조각의 물·용암, 침수)
+            for (int[] t : cp.generatedFluidTicks()) level.scheduleFluidTick(new Pos(ox + t[0], t[1], oz + t[2]), t[3], t[4]);
+            cp.clearGeneratedFluidTicks();
         }
         return changed;
     }

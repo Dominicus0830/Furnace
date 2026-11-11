@@ -208,6 +208,33 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         col.markPosForPostprocessing(worldX - cx * 16, worldY, worldZ - cz * 16);
     }
 
+    /**
+     * 바닐라 level.scheduleTick(pos, fluid, delay) — 생성 중(WorldGenRegion)에는 그 칸 청크의 ProtoChunkTicks 에 지연 0 으로 남고
+     * (ProtoChunkTicks.schedule 이 지연을 버린다) 청크가 레벨에 붙을 때 예약 틱이 된다. /place 같은 실제 월드 격자에서는 지연을 그대로 둔다.
+     * fluidType = Fluids.T_*(0 이면 무시).
+     */
+    public void scheduleFluidTick(int worldX, int worldY, int worldZ, int fluidType, int delay) {
+        if (fluidType == 0 || !inWorldY(worldY)) return;
+        int d = live ? delay : 0;
+        if (gridCols != null) {
+            int nx = Math.floorDiv(worldX, 16);
+            int nz = Math.floorDiv(worldZ, 16);
+            if (!inWriteRange(nx, nz) || cell(nx, nz) == null) return;
+            cell(nx, nz).scheduleGeneratedFluidTick(worldX - nx * 16, worldY, worldZ - nz * 16, fluidType, d);
+            return;
+        }
+        if (!inCenterChunk(worldX, worldZ)) return;
+        col.scheduleGeneratedFluidTick(worldX - cx * 16, worldY, worldZ - cz * 16, fluidType, d);
+    }
+
+    /** 그 칸 블록 상태의 유체 종류(Fluids.T_*, 없으면 0) — 바닐라 BlockState.getFluidState().getType(). */
+    public static int fluidTypeOf(int state) { return FluidKinds.shared().of(state).fluidType(); }
+
+    /** 바닐라 level.getFluidState(pos) 가 비어 있지 않으면 scheduleTick(pos, 그 유체, delay). */
+    public void scheduleFluidTickIfFluid(int worldX, int worldY, int worldZ, int delay) {
+        scheduleFluidTick(worldX, worldY, worldZ, fluidTypeOf(getBlock(worldX, worldY, worldZ)), delay);
+    }
+
     /** putGeneratedBlockEntity로 남겨 둔 NBT 조회(없으면 null). */
     public org.domi.furnace.server.net.io.nbt.NbtCompound generatedBlockEntity(int worldX, int worldY, int worldZ) {
         if (gridCols != null) {

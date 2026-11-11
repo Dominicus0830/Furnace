@@ -12,6 +12,20 @@ public final class FluidKinds {
 
     private final byte[] kinds;
 
+    private static volatile FluidKinds shared;
+
+    /** 기본 블록 레지스트리(blocks/1.21.1.txt — 서버 전체가 같은 상태 번호)의 표. */
+    public static FluidKinds shared() {
+        FluidKinds k = shared;
+        if (k == null) {
+            synchronized (FluidKinds.class) {
+                k = shared;
+                if (k == null) shared = k = new FluidKinds(BlockRegistry.load("blocks/1.21.1.txt"));
+            }
+        }
+        return k;
+    }
+
     public FluidKinds(BlockRegistry registry) {
         int n = registry.totalStateCount();
         kinds = new byte[n];

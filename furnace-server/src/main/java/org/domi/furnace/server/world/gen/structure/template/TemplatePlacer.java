@@ -53,7 +53,8 @@ public final class TemplatePlacer {
             int x = info.x(), y = info.y(), z = info.z();
             if (!st.inBox(x, y, z)) continue;
             int before = view.getBlock(x, y, z);
-            int fluid = st.keepLiquids ? fluidOf(table, before) : 0;   // 0 없음, 1 물 source, 2 물 흐름
+            // 바닐라: shouldApplyWaterlogging 이면 놓기 전 칸의 유체(없으면 -1 = null)
+            int prevFluid = st.keepLiquids ? org.domi.furnace.server.world.gen.feature.FeatureWorldView.fluidTypeOf(before) : -1;
             int state = table.transform(info.state(), st.mirror, st.rotation);
             if (!view.trySetBlock(x, y, z, state)) continue;
             minX = Math.min(minX, x); minY = Math.min(minY, y); minZ = Math.min(minZ, z);
@@ -65,15 +66,12 @@ public final class TemplatePlacer {
                 nbt.putInt("x", x); nbt.putInt("y", y); nbt.putInt("z", z);
                 view.putGeneratedBlockEntity(x, y, z, nbt);
             }
-            if (st.keepLiquids) {
-                if (fluidOf(table, state) == 1) {
+            if (prevFluid >= 0) {
+                if (isSourceFluid(org.domi.furnace.server.world.gen.feature.FeatureWorldView.fluidTypeOf(state))) {
                     sources.add(new int[]{x, y, z});
                 } else if (table.has(state, "waterlogged")) {
-                    // LiquidBlockContainer.placeLiquid — 물일 때만 침수
-                    if (fluid != 0 && !"true".equals(table.prop(state, "waterlogged"))) {
-                        view.setBlock(x, y, z, table.with(state, "waterlogged", true));
-                    }
-                    if (fluid != 1) flowing.add(new int[]{x, y, z});   // 바닐라: 이전 유체가 source 가 아니면(빈 유체 포함) 전파 후보
+                    placeLiquid(view, table, x, y, z, state, prevFluid);
+                    if (!isSourceFluid(prevFluid)) flowing.add(new int[]{x, y, z});   // 바닐라: 이전 유체가 source 가 아니면(빈 유체 포함) 전파 후보
                 }
             }
         }
@@ -86,18 +84,19 @@ public final class TemplatePlacer {
             Iterator<int[]> it = flowing.iterator();
             while (it.hasNext()) {
                 int[] p = it.next();
-                int f = fluidOf(table, view.getBlock(p[0], p[1], p[2]));
-                for (int i = 0; i < dirs.length && f != 1; i++) {
+                // 바닐라: 그 칸 유체가 source 가 될 때까지 위·북·동·남·서 이웃의 source(용암 포함, 이번에 놓은 source 제외)를 본다
+                int f = org.domi.furnace.server.world.gen.feature.FeatureWorldView.fluidTypeOf(view.getBlock(p[0], p[1], p[2]));
+                for (int i = 0; i < dirs.length && !isSourceFluid(f); i++) {
                     int nx = p[0] + dirs[i][0], ny = p[1] + dirs[i][1], nz = p[2] + dirs[i][2];
-                    int f2 = fluidOf(table, view.getBlock(nx, ny, nz));
+                    int f2 = org.domi.furnace.server.world.gen.feature.FeatureWorldView.fluidTypeOf(view.getBlock(nx, ny, nz));
                     boolean inSources = false;
                     for (int[] s : sources) if (s[0] == nx && s[1] == ny && s[2] == nz) { inSources = true; break; }
-                    if (f2 == 1 && !inSources) f = f2;
+                    if (isSourceFluid(f2) && !inSources) f = f2;
                 }
-                if (f == 1) {
+                if (isSourceFluid(f)) {
                     int s = view.getBlock(p[0], p[1], p[2]);
                     if (table.has(s, "waterlogged")) {
-                        if (!"true".equals(table.prop(s, "waterlogged"))) view.setBlock(p[0], p[1], p[2], table.with(s, "waterlogged", true));
+                        placeLiquid(view, table, p[0], p[1], p[2], s, f);
                         again = true;
                         it.remove();
                     }
@@ -203,12 +202,18 @@ public final class TemplatePlacer {
         return out;
     }
 
-    /** 물 유체 종류: 1 = source(물 블록 level=0 또는 waterlogged), 2 = 흐르는 물, 0 = 없음. 용암은 이 용도에선 무시. */
-    static int fluidOf(BlockStateTable table, int state) {
-        String name = table.name(state);
-        if (name.equals("minecraft:water")) return "0".equals(table.prop(state, "level")) ? 1 : 2;
-        if ("true".equals(table.prop(state, "waterlogged"))) return 1;
-        return 0;
+    private static boolean isSourceFluid(int fluidType) {
+        return fluidType == org.domi.furnace.server.block.Fluids.T_WATER || fluidType == org.domi.furnace.server.block.Fluids.T_LAVA;
+    }
+
+    /**
+     * 바닐라 SimpleWaterloggedBlock.placeLiquid: 아직 침수되지 않았고 유체가 물 source(Fluids.WATER — 흐르는 물은 아님)일 때만
+     * 침수시키고 scheduleTick(pos, 물, 물 틱 지연 5)을 건다(생성 중에는 ProtoChunkTicks 라 지연 0, A06-03).
+     */
+    private static void placeLiquid(FeatureWorldView view, BlockStateTable table, int x, int y, int z, int state, int fluidType) {
+        if ("true".equals(table.prop(state, "waterlogged")) || fluidType != org.domi.furnace.server.block.Fluids.T_WATER) return;
+        view.setBlock(x, y, z, table.with(state, "waterlogged", true));
+        view.scheduleFluidTick(x, y, z, org.domi.furnace.server.block.Fluids.T_WATER, 5);
     }
 
     static List<BlockInfo> processBlockInfos(Processor.Ctx ctx, int offX, int offY, int offZ, int pivX, int pivY, int pivZ,

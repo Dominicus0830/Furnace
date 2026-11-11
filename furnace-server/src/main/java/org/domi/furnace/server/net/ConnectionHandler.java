@@ -1260,7 +1260,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 // createMenu: 전리품 표가 있으면 관전자는 못 열고, 아니면 연 플레이어로 표를 푼다(엔티티 region 에서)
                 boolean blocked = entity.lootTable() != null && p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR;
                 org.domi.furnace.server.ServerCore c = login.core;
-                if (!blocked && c != null) c.unpackLoot(entity, p);
+                if (!blocked && c != null) c.unpackLoot(entityWorld(entity), entity, p);
                 Text title = entity.containerTitle();   // 이름·팀은 엔티티 region 에서 읽는다
                 boolean hopper = entity instanceof org.domi.furnace.server.entity.MinecartHopper;
                 ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openEntityContainer(p, entity, blocked, title, hopper));
@@ -4997,6 +4997,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
     }
 
+    /** 엔티티 용기가 있는 월드(전리품의 탐험 지도·바이옴 조건용). region 레벨이 아니면 null → 주 월드. */
+    private static World entityWorld(org.domi.furnace.server.entity.ContainerEntity entity) {
+        return entity.asEntity().level() instanceof org.domi.furnace.server.world.RegionLevel rl ? rl.world() : null;
+    }
+
     /** region 스레드: 그 칸 용기와 짝(더블 상자)을 찾고 전리품을 풀어 OpenSpec 을 만든다(막혔거나 용기가 없으면 null). */
     private OpenSpec resolveOpenSpec(org.domi.furnace.server.world.Region region, Player p, org.domi.furnace.server.block.Pos pos) {
         var level = region.level();
@@ -5035,7 +5040,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var core = login.core;
         for (var c : second == null ? java.util.List.of(first) : java.util.List.of(first, second)) {
             if (c.lootTable != null && core != null) {
-                core.unpackLoot(c, p);   // 바닐라 startOpen → unpackLootTable(player)
+                core.unpackLoot(region.level().world(), c, p);   // 바닐라 startOpen → unpackLootTable(player)
                 region.markBlockEntityChanged(c);
             }
         }

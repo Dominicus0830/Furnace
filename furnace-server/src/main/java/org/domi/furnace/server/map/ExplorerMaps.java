@@ -12,7 +12,7 @@ public final class ExplorerMaps {
     public interface Backend {
         /**
          * ServerLevel.findNearestMapStructure(tag, pos, radius, skipKnownStructures=true) 의 대응: 가장 가까운 구조물의 {x, z}(없으면 null).
-         * TODO(지도): skipKnownStructures(이미 지도가 가리킨 구조물 건너뛰기 — 시작점 references)는 구조물 시작점 저장이 없어 못 한다.
+         * TODO(지도, A06-06): skipKnownStructures(이미 지도가 가리킨 구조물 건너뛰기)는 구조물 시작점의 references 를 청크에 저장하지 않아 못 한다.
          */
         int[] findNearestMapStructure(String structureTag, int x, int y, int z, int searchRadius);
 

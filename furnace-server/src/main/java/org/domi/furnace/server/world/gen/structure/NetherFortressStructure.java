@@ -637,7 +637,10 @@ public final class NetherFortressStructure extends StructureType {
             box(c, bb, 6, 1, 6, 6, 4, 6, air);
             placeBlock(c, nb, 6, 0, 6, bb);
             placeBlock(c, s.LAVA, 6, 5, 6, bb);
-            // 바닐라는 여기서 level.scheduleTick(pos, Fluids.LAVA, 0) 을 건다 — 유체 틱은 서버 틱 영역이라 생성 단계 블록에는 영향이 없다.
+            // 바닐라: getWorldPos(6, 5, 6) 이 상자 안이면 scheduleTick(pos, Fluids.LAVA, 0) — 틱 범위에 들어오면 용암이 흐른다(A06-03).
+            // placeBlock 이 이미 같은 칸·종류를 걸었으면 생성 틱 목록이 겹치지 않게 하나로 둔다(ProtoChunkTicks 와 같다).
+            int lx = getWorldX(6, 6), ly = getWorldY(5), lz = getWorldZ(6, 6);
+            if (bb.isInside(lx, ly, lz)) c.view.scheduleFluidTick(lx, ly, lz, org.domi.furnace.server.block.Fluids.T_LAVA, 0);
         }
     }
 
