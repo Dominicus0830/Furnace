@@ -83,6 +83,13 @@ jobs:
             /tmp/shard-run.log
           if-no-files-found: ignore
           retention-days: 7
+      # 서버 시험 단계는 continue-on-error 라 단계 제한시간으로 끝나도 작업이 초록이 될 수 있다(outcome 이 failure 가 아닌 값으로 남는 경우 포함).
+      # 서버 시험이 성공하지 못했는데 재시도도 성공하지 못했으면 여기서 확실히 실패시킨다(보고서는 위에서 이미 올렸다).
+      - name: 서버 시험 판정
+        if: always() && steps.server-test.outcome != 'success' && steps.retry.outcome != 'success'
+        run: |
+          echo "::error::서버 테스트 조각 ${{ matrix.shard }} 가 성공하지 못했습니다(server-test=${{ steps.server-test.outcome }}, retry=${{ steps.retry.outcome }})."
+          exit 1
 
   light:
     runs-on: ubuntu-latest

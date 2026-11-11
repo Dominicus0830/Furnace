@@ -25,9 +25,12 @@ if ! grep -q "There were failing tests" "$log" || grep -q "finished with non-zer
 fi
 
 # 시험 기본 제한시간(junit-platform.properties)을 넘겨 실패한 시험이 있으면 재시도하지 않는다.
-if grep -qE "java\.util\.concurrent\.TimeoutException: .* timed out after" "$dir"/TEST-*.xml 2>/dev/null; then
+# <failure>·<error> 요소의 type 속성만 본다 — <system-out> 에 같은 문구가 찍힌 일반 실패(흔들린 시험)까지 막으면 안 된다.
+timeout_re='<(failure|error) [^>]*type="java\.util\.concurrent\.TimeoutException"'
+if grep -qE "$timeout_re" "$dir"/TEST-*.xml 2>/dev/null; then
   echo "::error title=재시도 안 함::시험 기본 제한시간을 넘긴 시험이 있습니다(멈춘 시험으로 보고 재시도하지 않습니다):"
-  grep -hoE "java\.util\.concurrent\.TimeoutException: [^\"<]* timed out after [^\"<]*" "$dir"/TEST-*.xml | sort -u | sed 's/^/  /'
+  # Gradle XML 은 message 속성이 type 앞에 온다
+  grep -hoE '<(failure|error) message="[^"]*" type="java\.util\.concurrent\.TimeoutException"' "$dir"/TEST-*.xml 2>/dev/null | sed -E 's/.* message="([^"]*)".*/  \1/' | sort -u
   exit 1
 fi
 

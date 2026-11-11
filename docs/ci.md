@@ -33,8 +33,10 @@
 - 시험 한 개(`@BeforeAll` 같은 준비·정리 메서드 포함)의 기본 제한시간은 **5분**이다: 각 모듈 `src/test/resources/junit-platform.properties` 의 `junit.jupiter.execution.timeout.default=5m`.
   `thread.mode.default=SEPARATE_THREAD` 라 인터럽트로 안 멈추는 무한 반복도 5분에 실패로 끝난다(로컬 실측: 바쁜 루프 시험이 `TimeoutException: busy() timed out after 5 minutes` 로 실패하고 시험 JVM 이 정상 종료).
 - 근거: 서버 시험 3854개 전체 실측(4코어 컨테이너, 2026-11-11)에서 한 시험 최장 67초(`TreeFeatureScanTest`), 한 클래스 최장 124초(`GeneratedChunkSaveTest`). 5분은 최장의 4배 남짓이다. 더 오래 걸려야 하는 시험은 그 시험에 `@Timeout` 을 붙인다(메서드의 `@Timeout` 이 기본값보다 우선).
+- **주의(SEPARATE_THREAD)**: 준비(`@BeforeEach`)·시험·정리 메서드가 각각 다른 `junit-timeout-thread` 에서 돈다. `ThreadLocal` 에 넣은 값을 시험 메서드에서 읽거나 호출 스레드 이름·정체에 기대는 시험은 깨진다(현재 시험 3859개는 영향 없음 — 전체 실행으로 확인). 그런 시험은 값을 인스턴스 필드로 옮기거나 같은 메서드 안에서 처리한다.
 - 제한시간 초과는 **재시도하지 않는다**(멈춘 시험이라 다시 돌려도 5분을 더 쓸 뿐이다).
 - CI 단계 제한: 서버 시험 단계 `timeout-minutes: 20`(정상 조각 5~8분), 작업 제한 35분은 그대로. 단계 제한으로 끝나도 보고서·실행 로그(`shard-run.log`)가 올라간다(`always()`).
+  단계가 `continue-on-error` 라 `outcome` 이 `failure` 가 아닌 값으로 남아도 "서버 시험 판정" 단계가 조각을 실패로 끝낸다(서버 시험도 재시도도 성공이 아니면).
   **작업 제한(35분)으로 취소된 경우에 `always()` 단계가 도는지는 실제 취소 실행으로 확인하지 못했다**(GitHub 문서 기준). 그래서 단계 제한을 먼저 둔다.
 
 ## 재시도 정책 (2026-11-11, A19-02)
