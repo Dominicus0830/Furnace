@@ -13,6 +13,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.domi.furnace.api.world.BlockData;
 import org.domi.furnace.api.world.BlockType;
 import org.domi.furnace.api.world.BlockTypes;
+import org.domi.furnace.api.world.FluidData;
+import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.world.BlockRegistry;
 
 public final class BlockTypesImpl implements BlockTypes {
@@ -52,6 +54,20 @@ public final class BlockTypesImpl implements BlockTypes {
 
     @Override
     public int stateCount() { return registry.totalStateCount(); }
+
+    @Override
+    public FluidData fluid(int stateId) {
+        if (stateId < 0 || stateId >= registry.totalStateCount() || registry.canonicalKeyOf(stateId) == null) return FluidData.EMPTY;
+        int f = org.domi.furnace.server.block.BlockBehaviors.of(stateId).getFluidState(stateId);
+        String type = switch (Fluids.type(f)) {
+            case Fluids.T_FLOWING_WATER -> "minecraft:flowing_water";
+            case Fluids.T_WATER -> "minecraft:water";
+            case Fluids.T_FLOWING_LAVA -> "minecraft:flowing_lava";
+            case Fluids.T_LAVA -> "minecraft:lava";
+            default -> null;
+        };
+        return type == null ? FluidData.EMPTY : new FluidData(type, Fluids.amount(f), Fluids.falling(f));
+    }
 
     private BlockType build(String id) {
         BlockData def = ApiConvert.block(registry.defaultStateId(id), registry);
