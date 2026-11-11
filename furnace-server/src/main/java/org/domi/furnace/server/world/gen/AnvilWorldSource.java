@@ -161,7 +161,7 @@ public final class AnvilWorldSource implements WorldSource {
                     ChunkColumn gen = generateFallback(chunkX, chunkZ);
                     gen.markDirty();
                     // 노이즈 생성기만 청크 생성 때 동물을 놓는다(NoiseBasedChunkGenerator.spawnOriginalMobs — 평지 생성기는 없다)
-                    if (base instanceof NoiseWorldSource) gen.freshlyGenerated(true);
+                    if (base instanceof NoiseWorldSource n && !n.isFlat()) gen.freshlyGenerated(true);
                     return gen;
                 }, genExecutor);
             });

@@ -141,7 +141,12 @@ public final class LocateCommand {
         var timedOut = new java.util.concurrent.atomic.AtomicBoolean();
         var cancel = canceller(source, timedOut);
         java.util.concurrent.CompletableFuture<String[]> found;
-        if (ws instanceof NoiseWorldSource gen) {
+        if (ws instanceof NoiseWorldSource gen && gen.isFlat()) {
+            // FixedBiomeSource: 그 바이옴이면 제자리(평지 생성기)
+            String bname = gen.biomeName(gen.flatBiomeId());
+            found = java.util.concurrent.CompletableFuture.completedFuture(
+                pred.test(bname) ? new String[] {bname, "" + ox, "" + oy, "" + oz} : null);
+        } else if (ws instanceof NoiseWorldSource gen) {
             found = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
                 var f = org.domi.furnace.server.world.gen.BiomeLocator.findClosestBiome3d(ox, oy, oz, MAX_BIOME_SEARCH_RADIUS,
                     BIOME_SAMPLE_RESOLUTION_HORIZONTAL, BIOME_SAMPLE_RESOLUTION_VERTICAL, gen.possibleBiomeIds(),
