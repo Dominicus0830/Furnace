@@ -1,0 +1,157 @@
+// A07 재현(서버 모듈): 레드스톤 횃불 과열 기록, 불러온 예약 틱의 순번.
+package org.domi.furnace.server.block;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
+import org.domi.furnace.server.data.TagRegistries;
+import org.domi.furnace.server.item.ItemContext;
+import org.domi.furnace.server.net.io.nbt.NbtCompound;
+import org.domi.furnace.server.net.io.nbt.NbtIo;
+import org.domi.furnace.server.net.io.nbt.NbtList;
+import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.registry.RegistrySet;
+import org.domi.furnace.server.world.BlockRegistry;
+import org.domi.furnace.server.world.ChunkColumn;
+import org.domi.furnace.server.world.gen.SuperflatWorldSource;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+class A07ReproTest {
+
+    @BeforeAll
+    static void install() {
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+    }
+
+    static final Blocks BL = Blocks.get();
+    static final int TORCH = BL.block("minecraft:redstone_torch");
+    static final int RB = BL.defaultState(BL.block("minecraft:redstone_block"));
+    static final int LIT = B.prop("lit").with(BL.defaultState(TORCH), true);
+
+    /** 청크 (0,0) 하나를 바깥에서 받는 가벼운 레벨(레벨 객체를 많이 만들 때 — region 이 합쳐지고 나뉠 때 새 RegionLevel 이 생기는 것과 같다). */
+    static final class OneChunkLevel extends ChunkLevel {
+        final ChunkColumn col;
+        OneChunkLevel(ChunkColumn col) { super(1000000); this.col = col; }
+        @Override protected ChunkColumn chunk(int x, int z) { return x == 0 && z == 0 ? col : null; }
+        @Override protected void markDirty(int x, int z) {}
+        @Override protected void broadcastToChunk(int x, int z, Packet p) {}
+        @Override protected LevelServices services() { return LevelServices.DEFAULT; }
+    }
+
+    /** 레드스톤 블록 위 켜진 횃불을 한 번 꺼지게(예약 틱 실행과 같은 길) 한다 — 과열 기록에 한 줄 더한다. */
+    private static void toggleOff(ChunkLevel level, Pos torch) {
+        level.setBlock(torch.below(), RB, 2);
+        level.setBlock(torch, LIT, 2);
+        BlockBehaviors.of(LIT).tick(LIT, level, torch, RandomSource.create(1L));
+        assertEquals("minecraft:redstone_torch[lit=false]", BL.describe(level.getBlockState(torch)));
+    }
+
+    /**
+     * A07-03(가): 바닐라 RECENT_TOGGLES 는 레벨(차원) 하나에 기록 하나다. Furnace 는 RegionLevel 객체를 키로 쓰므로 region 이 합쳐지면(흡수된 레벨은 버려진다)
+     * 그 횃불의 최근 꺼짐 기록이 사라진다. 바닐라: 60틱 안에 8번째 꺼짐에서 타 버림(1502 레벨 이벤트 + 160틱 예약). Furnace: 기록이 1개라 타지 않는다.
+     */
+    @Test
+    void torchBurnoutHistoryIsLostWhenRegionLevelsMerge() {
+        var a = new BlockPlacementTest.TestLevel();
+        var b = new BlockPlacementTest.TestLevel();
+        Pos torch = new Pos(3, -60, 3);
+        for (int i = 0; i < 7; i++) toggleOff(b, torch);   // region B 에서 7번
+        a.absorb(b);                                        // region 합치기: B 의 자료를 A 가 흡수(B 레벨은 버려진다)
+        toggleOff(a, torch);                                // 같은 칸, 8번째 꺼짐 → 바닐라는 여기서 타 버린다
+        a.setBlock(torch.below(), BL.defaultState(BL.block("minecraft:stone")), 3);   // 받침 신호를 끊는다
+        for (int t = 0; t < 4; t++) a.runScheduledTicks();
+        assertEquals("minecraft:redstone_torch[lit=false]", BL.describe(a.getBlockState(torch)),
+                "바닐라: 60틱 안에 8번 꺼져 타 버린 횃불은 신호가 끊겨도 다시 켜지지 않는다(같은 차원이면 region 이 합쳐져도)");
+    }
+
+    /** 대조(통과): 레벨이 하나면 8번째 꺼짐에서 타 버려 신호가 끊겨도 꺼진 채로 있다 — 위 시험의 기대값이 바닐라 규칙임을 보인다. */
+    @Test
+    void torchBurnoutControlSingleLevel() {
+        var a = new BlockPlacementTest.TestLevel();
+        Pos torch = new Pos(3, -60, 3);
+        for (int i = 0; i < 8; i++) toggleOff(a, torch);
+        a.setBlock(torch.below(), BL.defaultState(BL.block("minecraft:stone")), 3);
+        for (int t = 0; t < 4; t++) a.runScheduledTicks();
+        assertEquals("minecraft:redstone_torch[lit=false]", BL.describe(a.getBlockState(torch)));
+    }
+
+    /**
+     * A07-03(나): RECENT_TOGGLES 는 잠금 없는 static WeakHashMap 인데 region 스레드 여럿이 동시에 쓴다(computeIfAbsent·get, get 도 오래된 항목을 지우며 표를 고친다).
+     * 레벨 객체를 많이 만들며 동시에 횃불을 끄면 넣은 기록이 사라지거나(크기 재조정 경합) 예외가 난다.
+     */
+    @Test
+    void recentTogglesMapIsNotThreadSafe() throws Exception {
+        var gen = new SuperflatWorldSource(BlockRegistry.load("blocks/1.21.1.txt"), 0);
+        int threads = 8, perThread = 3000;
+        List<List<ChunkLevel>> made = new ArrayList<>();
+        AtomicReference<Throwable> err = new AtomicReference<>();
+        CountDownLatch go = new CountDownLatch(1);
+        List<Thread> ts = new ArrayList<>();
+        for (int t = 0; t < threads; t++) {
+            List<ChunkLevel> mine = new ArrayList<>();
+            made.add(mine);
+            ChunkColumn col = gen.generate(0, 0);   // 스레드마다 자기 청크(청크 쓰기 경합은 빼고 기록 표만 겹치게)
+            Thread th = new Thread(() -> {
+                try {
+                    go.await();
+                    for (int i = 0; i < perThread; i++) {
+                        var l = new OneChunkLevel(col);
+                        mine.add(l);
+                        toggleOff(l, new Pos(3, -60, 3));
+                    }
+                } catch (Throwable e) {
+                    err.compareAndSet(null, e);
+                }
+            });
+            th.setDaemon(true);   // WeakHashMap 사슬이 고리가 되면 get 이 영원히 돈다 — 시험 JVM 이 끝날 수 있게
+            ts.add(th);
+            th.start();
+        }
+        go.countDown();
+        int stuck = 0;
+        for (Thread th : ts) {
+            th.join(30_000);
+            if (th.isAlive()) stuck++;
+        }
+        assertEquals(0, stuck, "30초 안에 끝나지 않은 스레드 수(WeakHashMap.get 무한 반복 — region 스레드가 멈춘다)");
+        var f = org.domi.furnace.server.block.types.RedstoneTorchBlock.class.getDeclaredField("RECENT_TOGGLES");
+        f.setAccessible(true);
+        @SuppressWarnings("unchecked") Map<BlockLevel, List<?>> map = (Map<BlockLevel, List<?>>) f.get(null);
+        int lost = 0;
+        for (var list : made) for (ChunkLevel l : list) { var rec = map.get(l); if (rec == null || rec.size() != 1) lost++; }
+        assertNull(err.get(), "동시 접근 중 예외: " + err.get());
+        assertEquals(0, lost, "레벨 " + threads * perThread + "개 중 과열 기록이 사라진(또는 섞인) 레벨 수");
+    }
+
+    /**
+     * A07-04: 청크를 불러올 때 저장된 예약 틱의 순번. 바닐라 LevelChunkTicks.unpack 은 순번을 -n..-1 로 주어, 같은 실행 시각·우선순위의
+     * 이미 걸린 예약보다 먼저 돈다. Furnace 는 subTickCount++(양수, 뒤) 라 나중에 돈다.
+     */
+    @Test
+    void loadedScheduledTicksRunBeforeSameTickLiveOnes() {
+        var level = new BlockPlacementTest.TestLevel();
+        int rep = BL.block("minecraft:repeater");
+        Pos live = new Pos(1, -60, 1), loaded = new Pos(17, -60, 1);
+        level.scheduleTick(live, rep, 2, 0);   // 이 세션에서 건 예약(순번 0 이상)
+        NbtCompound root = new NbtCompound();
+        NbtList bt = new NbtList(NbtIo.TAG_COMPOUND);
+        NbtCompound e = new NbtCompound();
+        e.putString("i", "minecraft:repeater");
+        e.putInt("x", loaded.x());
+        e.putInt("y", loaded.y());
+        e.putInt("z", loaded.z());
+        e.putInt("t", 2);
+        e.putInt("p", 0);
+        bt.add(e);
+        root.putList("block_ticks", bt);
+        level.loadChunkTicks(root);   // 옆 청크가 디스크에서 올라온다(같은 실행 시각·우선순위)
+        List<Pos> order = new ArrayList<>();
+        level.blockTicks().tick(level.levelTime() + 2, 65536, (p, type) -> order.add(p));
+        assertEquals(List.of(loaded, live), order, "바닐라: 불러온 예약(순번 음수)이 먼저");
+    }
+}

@@ -148,12 +148,12 @@ public final class NetworkServer {
                             // PROXY 헤더는 연결의 첫 바이트들 — 다른 어떤 핸들러보다 앞에서 읽는다.
                             ch.pipeline().addLast("haproxySniffer", new ProxyProtocolHandler.Sniffer(proxyWarned))
                                     .addLast("haproxyDecoder", new io.netty.handler.codec.haproxy.HAProxyMessageDecoder())
-                                    .addLast("haproxyHandler", new ProxyProtocolHandler(limits, proxyWarned));
+                                    .addLast("haproxyHandler", new ProxyProtocolHandler(limits, proxyWarned, loginContext.logIps));
                         }
                         ch.pipeline()
                                 .addLast("readTimeout", new io.netty.handler.timeout.ReadTimeoutHandler(
                                         readTimeoutSeconds > 0 ? readTimeoutSeconds : limits.readTimeoutSeconds()))
-                                .addLast("writabilityGuard", new WritabilityGuard())
+                                .addLast("writabilityGuard", new WritabilityGuard(loginContext.logIps))
                                 .addLast("frameDecoder", new FrameDecoder())
                                 .addLast("frameEncoder", new FrameEncoder())
                                 .addLast("handler",

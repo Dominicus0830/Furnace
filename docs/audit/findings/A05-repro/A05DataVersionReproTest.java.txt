@@ -1,0 +1,185 @@
+// A05-03·A05-04 재현: 청크·플레이어 데이터의 DataVersion 을 보지 않는다.
+// - 옛 판(1.20.4 이하) 데이터: 바닐라는 DataFixer 로 올린 뒤 읽는다(ChunkMap.upgradeChunkTag, PlayerDataStorage 의 DataFixTypes.PLAYER,
+//   Paper 는 같은 자리에서 MCDataConverter). Furnace 는 그대로 읽어 1.20.5 아이템 형식(Count:byte, tag)·이름 바뀐 블록(grass)·1.18 이전
+//   "Level" 감싼 청크를 잃는다.
+// - 새 판(1.21.2+) 월드: 바닐라 1.21.1 Main 은 "This world was created by an incompatible version." 로 열지 않는다. Furnace 는 열고 모르는
+//   블록을 공기로 읽어 다음 저장에서 지운다.
+// 각 시험은 바닐라 기대를 단언한다 — 기준 커밋에서 실패하는 것이 재현이다.
+package org.domi.furnace.server.world.anvil;
+
+import static org.junit.jupiter.api.Assertions.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.UUID;
+import org.domi.furnace.server.entity.ItemStack;
+import org.domi.furnace.server.entity.PlayerData;
+import org.domi.furnace.server.net.io.nbt.NbtCompound;
+import org.domi.furnace.server.net.io.nbt.NbtIo;
+import org.domi.furnace.server.net.io.nbt.NbtList;
+import org.domi.furnace.server.world.BlockRegistry;
+import org.domi.furnace.server.world.ChestBlockEntity;
+import org.domi.furnace.server.world.ChunkColumn;
+import org.domi.furnace.server.world.ItemRegistry;
+import org.domi.furnace.server.world.storage.LevelStorage;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+class A05DataVersionReproTest {
+
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
+    private static final ItemRegistry ITEMS = ItemRegistry.load("items/1.21.1.txt");
+
+    private static NbtCompound named(String name) {
+        NbtCompound c = new NbtCompound();
+        c.putString("Name", name);
+        return c;
+    }
+
+    /** 1.18+ 꼴 청크: 섹션 Y=0 하나를 block 하나로 채운다. */
+    private static NbtCompound chunk(int dataVersion, NbtCompound paletteEntry) {
+        NbtCompound root = new NbtCompound();
+        root.putInt("DataVersion", dataVersion);
+        root.putInt("xPos", 0);
+        root.putInt("zPos", 0);
+        root.putInt("yPos", -4);
+        root.putString("Status", "minecraft:full");
+        NbtList sections = new NbtList(NbtIo.TAG_COMPOUND);
+        NbtCompound s = new NbtCompound();
+        s.putByte("Y", (byte) 0);
+        NbtCompound bs = new NbtCompound();
+        NbtList pal = new NbtList(NbtIo.TAG_COMPOUND);
+        pal.add(paletteEntry);
+        bs.putList("palette", pal);
+        s.putCompound("block_states", bs);
+        sections.add(s);
+        root.putList("sections", sections);
+        return root;
+    }
+
+    @Test
+    void chunk_1_20_4_chestItemCountSurvives() {
+        // 1.20.4(DataVersion 3700) 상자: Items[{Slot:0b, id, Count:64b}] — 1.20.5 에서 count:int 로 바뀌었다(바닐라 ItemStackComponentizationFix)
+        NbtCompound chestState = named("minecraft:chest");
+        NbtCompound props = new NbtCompound();
+        props.putString("facing", "north"); props.putString("type", "single"); props.putString("waterlogged", "false");
+        chestState.putCompound("Properties", props);
+        NbtCompound root = chunk(3700, chestState);
+        NbtCompound be = new NbtCompound();
+        be.putString("id", "minecraft:chest");
+        be.putInt("x", 0); be.putInt("y", 0); be.putInt("z", 0);
+        NbtList items = new NbtList(NbtIo.TAG_COMPOUND);
+        NbtCompound it = new NbtCompound();
+        it.putByte("Slot", (byte) 0);
+        it.putString("id", "minecraft:diamond");
+        it.putByte("Count", (byte) 64);
+        items.add(it);
+        be.putList("Items", items);
+        NbtList bes = new NbtList(NbtIo.TAG_COMPOUND);
+        bes.add(be);
+        root.putList("block_entities", bes);
+
+        ChunkColumn col = new AnvilChunkCodec(REG, 0, ITEMS).fromNbt(root);
+        ChestBlockEntity chest = col.chestAt(0, 0, 0);
+        assertNotNull(chest, "상자 블록 엔티티");
+        int count = chest.items[0].count();
+        System.out.println("[A05-04] 1.20.4 상자의 다이아몬드 64개 → " + count + "개");
+        assertEquals(64, count, "바닐라는 Count:64b 를 count:64 로 올린다 — Furnace 는 count 키가 없으면 1개로 읽는다");
+    }
+
+    @Test
+    void chunk_1_20_1_grassBecomesShortGrass() {
+        // 1.20.3 에서 minecraft:grass → minecraft:short_grass(바닐라 이름 바꾸기 픽서). 1.20.1 = DataVersion 3465
+        ChunkColumn col = new AnvilChunkCodec(REG, 0, ITEMS).fromNbt(chunk(3465, named("minecraft:grass")));
+        String name = REG.nameOf(col.getBlock(0, 0, 0));
+        System.out.println("[A05-04] 1.20.1 청크의 minecraft:grass → " + name);
+        assertEquals("minecraft:short_grass", name, "바닐라는 short_grass 로 올린다 — Furnace 는 모르는 이름이라 공기");
+    }
+
+    @Test
+    void chunk_1_16_levelWrapperIsNotReadAsEmpty() {
+        // 1.18 이전 청크는 {DataVersion, Level:{xPos, zPos, Status, Sections:[{Y, Palette, BlockStates}]}} — 바닐라는 픽서로 1.18 꼴로 올린다
+        NbtCompound level = new NbtCompound();
+        level.putInt("xPos", 0);
+        level.putInt("zPos", 0);
+        level.putString("Status", "full");
+        NbtList sections = new NbtList(NbtIo.TAG_COMPOUND);
+        NbtCompound s = new NbtCompound();
+        s.putByte("Y", (byte) 0);
+        NbtList pal = new NbtList(NbtIo.TAG_COMPOUND);
+        pal.add(named("minecraft:stone"));
+        s.putList("Palette", pal);
+        s.putLongArray("BlockStates", new long[256]);
+        sections.add(s);
+        level.putList("Sections", sections);
+        NbtCompound root = new NbtCompound();
+        root.putInt("DataVersion", 2586);   // 1.16.5
+        root.putCompound("Level", level);
+        ChunkColumn col = new AnvilChunkCodec(REG, 0, ITEMS).fromNbt(root);
+        String name = col == null ? "(null — 새로 생성)" : REG.nameOf(col.getBlock(0, 0, 0));
+        System.out.println("[A05-04] 1.16.5 청크 (0,0,0) stone → " + name + (col != null && !col.dirty() ? " (깨끗한 청크로 올라감)" : ""));
+        assertNotNull(col);
+        assertEquals("minecraft:stone", name, "바닐라는 1.16 청크를 올려 읽는다 — Furnace 는 Level 을 모르는 최상위 키로 두고 빈(공기) 청크로 읽는다");
+    }
+
+    @Test
+    void player_1_20_4_inventoryCountSurvives(@TempDir Path world) throws Exception {
+        PlayerData.itemRegistry(ITEMS);
+        UUID id = UUID.randomUUID();
+        NbtCompound root = new NbtCompound();
+        root.putInt("DataVersion", 3700);
+        NbtList pos = new NbtList(NbtIo.TAG_DOUBLE); pos.add(0.5); pos.add(64.0); pos.add(0.5);
+        root.putList("Pos", pos);
+        NbtList rot = new NbtList(NbtIo.TAG_FLOAT); rot.add(0f); rot.add(0f);
+        root.putList("Rotation", rot);
+        NbtList inv = new NbtList(NbtIo.TAG_COMPOUND);
+        NbtCompound e = new NbtCompound();
+        e.putByte("Slot", (byte) 0);
+        e.putString("id", "minecraft:diamond");
+        e.putByte("Count", (byte) 64);
+        inv.add(e);
+        root.putList("Inventory", inv);
+        Path f = world.resolve("playerdata").resolve(id + ".dat");
+        Files.createDirectories(f.getParent());
+        try (var os = Files.newOutputStream(f)) { NbtIo.writeGzip(os, root, ""); }
+        PlayerData.Snapshot s = PlayerData.load(world, id);
+        assertNotNull(s);
+        ItemStack hot0 = s.slots()[PlayerData.vanillaToWindowSlot(0)];
+        System.out.println("[A05-04] 1.20.4 플레이어 핫바 0 다이아몬드 64개 → " + (hot0 == null ? 0 : hot0.count()) + "개");
+        assertEquals(64, hot0 == null ? 0 : hot0.count(), "바닐라는 DataFixTypes.PLAYER 로 올린다 — Furnace 는 1개로 읽는다");
+    }
+
+    @Test
+    void newerWorld_isRefusedOrKeepsUnknownBlocks(@TempDir Path dir) throws Exception {
+        // 1.21.4(DataVersion 4189) 의 창백한 참나무 통나무 — 1.21.1 레지스트리에 없다
+        NbtCompound root = chunk(4189, named("minecraft:pale_oak_log"));
+        AnvilChunkCodec codec = new AnvilChunkCodec(REG, 0, ITEMS);
+        ChunkColumn col = codec.fromNbt(root);
+        NbtCompound saved = codec.toNbt(col, 0, 0);
+        String savedName = ((NbtCompound) ((NbtCompound) ((NbtCompound) saved.getList("sections").get(4)).getCompound("block_states"))
+                .getList("palette").get(0)).getString("Name");
+        System.out.println("[A05-03] 1.21.4 청크를 읽고 다시 쓰면 섹션 Y=0 팔레트: " + savedName);
+
+        // 바닐라 1.21.1 Main: level.dat 의 판이 더 새것이면 "This world was created by an incompatible version." 로 기동하지 않는다
+        NbtCompound data = new NbtCompound();
+        data.putInt("DataVersion", 4189);
+        NbtCompound version = new NbtCompound();
+        version.putInt("Id", 4189);
+        version.putString("Name", "1.21.4");
+        data.putCompound("Version", version);
+        data.putString("LevelName", "world");
+        NbtCompound file = new NbtCompound();
+        file.putCompound("Data", data);
+        try (var os = Files.newOutputStream(dir.resolve("level.dat"))) { NbtIo.writeGzip(os, file, ""); }
+        boolean refused;
+        try (LevelStorage ls = LevelStorage.open(dir)) {
+            ls.loadLevelData();
+            refused = false;
+        } catch (Exception e) {
+            refused = true;
+            System.out.println("[A05-03] level.dat 거부: " + e);
+        }
+        System.out.println("[A05-03] 1.21.4 level.dat 을 연다: " + (refused ? "거부" : "그대로 연다"));
+        assertTrue(refused || "minecraft:pale_oak_log".equals(savedName),
+                "바닐라는 새 판 월드를 열지 않는다 — Furnace 는 열고, 모르는 블록을 공기(" + savedName + ")로 다시 써 영구히 지운다");
+    }
+}

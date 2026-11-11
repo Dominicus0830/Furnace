@@ -9,7 +9,7 @@ Furnace 는 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(J
 
 ## 규칙 (요약, 상세는 인수인계 문서 3장)
 - 사용자에게는 한국어로 말한다. 커밋 메시지와 코드 주석도 한국어, 간결하게.
-- 커밋 전에 `ORG_GRADLE_PROJECT_skipOracle=true ./gradlew --offline :furnace-api:test :furnace-server:test` 가 통과해야 한다(CI 도 같은 두 모듈을 돌린다). 백그라운드로 돌리고 로그를 기다린다. gradle 은 동시에 두 개 돌리지 않는다.
+- 커밋 전에 `ORG_GRADLE_PROJECT_skipOracle=true ./gradlew --offline :furnace-api:test :furnace-server:test` 가 통과해야 한다(CI 는 이 외에 샘플 플러그인 컴파일·호환 계층·fatJar 도 돌린다 — `docs/ci.md`). 백그라운드로 돌리고 로그를 기다린다. gradle 은 동시에 두 개 돌리지 않는다.
 - 작업 브랜치는 세션에 지정된 브랜치만 쓴다. PR 은 사용자가 요청할 때만 만든다. 푸시 출력은 숨기지 않고 그대로 보여 준다.
 - 병렬 워커로 일할 때는 인수인계서 6장을 따른다: 워커는 격리 worktree 에서 일하고 푸시하지 않으며, 독립 검토는 읽기 전용(`git show`/`git diff`)으로 하고, 병합은 하나씩 `git branch --show-current` 로 브랜치를 확인한 뒤 컴파일과 전체 시험을 거친다.
 - 포팅은 직접 한다(포팅 서브에이전트 금지). 바닐라 코드는 난수 호출 순서까지 그대로 이식한다.

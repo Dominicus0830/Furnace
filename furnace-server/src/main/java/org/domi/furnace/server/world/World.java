@@ -295,6 +295,11 @@ public final class World {
 
     void removeLoading(long key, CompletableFuture<ChunkColumn> f) { loading.remove(mapKey(key), f); }
 
+    /** 새 판(DataVersion) 청크를 이미 알렸는가 — 처음이면 true(A05-03, 로그 한 번만). */
+    private final java.util.Set<Long> newerChunksWarned = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    boolean warnNewerChunkOnce(long key) { return newerChunksWarned.add(key); }
+
     /** 로드된 청크 수(테스트·모니터링). */
     public int loadedChunkCount() { return chunks.size(); }
 

@@ -1,0 +1,57 @@
+// A11-05(A07-07 재확인) 재현: 엔티티가 틱하는 범위. 바닐라 1.21.1 바이트코드:
+//  - 플레이어 시뮬레이션 티켓 레벨 = max(0, 31 - sim)(aqk.g), 청크 레벨 = 티켓 + 체비셰프 거리.
+//  - 엔티티 틱(ENTITY_TICKING)은 레벨 ≤ 31 → 체비셰프 거리 ≤ sim, 블록 틱(BLOCK_TICKING, aqa.a: 32)은 거리 ≤ sim + 1.
+// Furnace 는 엔티티 틱에 블록 엔티티와 같은 판정(Region.blockEntityTicking = max(sim,2) - 1)을 써서 거리 sim 의 엔티티가 멈춘다.
+// 장면: 시뮬레이션 거리 4. 청크 거리 d 마다 갑옷 거치대(AI 없음)를 세우고 10틱 뒤 tickCount 를 본다.
+package org.domi.furnace.test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+import org.domi.furnace.server.entity.ArmorStand;
+import org.domi.furnace.server.world.ChunkPos;
+import org.junit.jupiter.api.Test;
+
+class A11EntityTickRangeReproTest {
+
+    private static final int[] DISTANCES = {2, 3, 4, 5, 6};
+
+    @Test
+    void entitiesTickWithinChebyshevSimulationDistance() {
+        try (var server = FurnaceTestServer.builder().viewDistance(10).serverProperty("simulation-distance", "4").start()) {
+            TestPlayer tp = server.join("Dana");
+            server.tick(5);
+            tp.sync();
+            server.execute("tp Dana 8.5 -60 8.5");
+            server.tick(5);
+            tp.sync();
+            server.tick(5);
+            var p = server.internals().playerByName("Dana");
+            int pcx = (int) Math.floor(p.x()) >> 4, pcz = (int) Math.floor(p.z()) >> 4, y = (int) Math.floor(p.y());
+            Map<Integer, Integer> ids = new LinkedHashMap<>();
+            for (int d : DISTANCES) {
+                int cx = pcx + d;
+                server.loadChunk(cx, pcz);
+                double x = cx * 16 + 8.5, z = pcz * 16 + 8.5;
+                ids.put(d, server.await(server.internals().world().submitAtChunk(new ChunkPos(cx, pcz), r -> {
+                    var l = r.level();
+                    var stand = new ArmorStand(l, l.nextEntityId());
+                    stand.moveTo(x, y, z, 0, 0);
+                    l.addFreshEntity(stand);
+                    return stand.id();
+                })));
+            }
+            server.tick(10);
+            Map<Integer, Boolean> got = new LinkedHashMap<>(), want = new LinkedHashMap<>();
+            for (int d : DISTANCES) {
+                int cx = pcx + d;
+                int id = ids.get(d);
+                int ticks = server.await(server.internals().world().submitAtChunk(new ChunkPos(cx, pcz), r -> r.level().entities().get(id).tickCount));
+                got.put(d, ticks > 0);
+                want.put(d, d <= 4);   // 바닐라: 체비셰프 ≤ sim
+            }
+            assertEquals(want, got, "시뮬레이션 거리 4 에서 청크 거리별 엔티티 틱 여부");
+        }
+    }
+}

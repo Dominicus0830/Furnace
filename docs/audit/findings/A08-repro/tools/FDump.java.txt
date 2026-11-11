@@ -1,0 +1,23 @@
+import java.lang.reflect.*;
+import java.util.*;
+import org.domi.furnace.server.block.*;
+public class FDump {
+  public static void main(String[] a) throws Exception {
+    org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt"))); Blocks b = Blocks.get();
+    String[] hooks = {"canSurvive","updateShape","neighborChanged","onPlace","onRemove","playerWillDestroy","playerDestroy","handlePrecipitation","spawnAfterBreak","tick","randomTick","isRandomlyTicking","useItemOn","useWithoutItem","attack","triggerEvent","getFluidState","isSignalSource","getSignal","getDirectSignal","getAnalogOutputSignal","entityInside","stepOn","fallOn","updateEntityAfterFallOn","getEntityCollisionShape","getCollisionShape","getShape","onExplosionHit","onProjectileHit","getStateForPlacement","canBeReplaced","setPlacedBy","getDestroyProgress","onLand","isLiquidContainer","canPlaceLiquid","placeLiquid","newBlockEntity","getDrops","wasExploded"};
+    for (int i = 0; i < b.blockCount(); i++) {
+      BlockBehavior bh = BlockBehaviors.ofBlock(i);
+      Set<String> ov = new TreeSet<>();
+      for (String h : hooks) {
+        Class<?> c = bh.getClass();
+        while (c != BlockBehavior.class && c != null) {
+          boolean found = false;
+          for (Method m : c.getDeclaredMethods()) if (m.getName().equals(h)) { found = true; break; }
+          if (found) { ov.add(h); break; }
+          c = c.getSuperclass();
+        }
+      }
+      System.out.println(b.name(i) + "\t" + b.type(i) + "\t" + bh.getClass().getSimpleName() + "\t" + String.join(",", ov));
+    }
+  }
+}
