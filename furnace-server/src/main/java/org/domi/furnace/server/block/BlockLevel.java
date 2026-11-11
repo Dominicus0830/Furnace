@@ -380,6 +380,15 @@ public interface BlockLevel {
     }
 
     /**
+     * 독서대의 setBook/load: 서명된 책 쪽의 선택자·점수·NBT 글을 독서대 소스(플레이어 없음·권한 2·칸 가운데)로 푼다(WrittenBookItem.resolveBookComponents).
+     * 서버가 없는 레벨은 그대로. 결과는 apply(그 칸의 주인 레벨, 풀린 책)로 — 다른 region 의 엔티티를 찾지 않으면 그 자리에서, 찾으면 끝난 뒤 주인 스레드에서.
+     */
+    default void resolveLecternBook(Pos pos, org.domi.furnace.server.entity.ItemStack book,
+                                    java.util.function.BiConsumer<BlockLevel, org.domi.furnace.server.entity.ItemStack> apply) {
+        apply.accept(this, book);
+    }
+
+    /**
      * 그 칸을 소유한 region 스레드에서 task 를 돌린다(이미 그 스레드면 바로, 아니면 큐로). 주인 region 이 없으면(청크 내려감) 버린다.
      * task 에는 그때 그 칸을 다루는 레벨이 온다(region 이 합쳐지면 처음 레벨과 다를 수 있다). 기본 구현은 바로 실행(시험·단독 레벨).
      */

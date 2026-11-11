@@ -239,6 +239,12 @@ public interface LevelServices {
         apply.accept(level, lines);
     }
 
+    /** 독서대가 서명된 책을 풀기(LecternBlockEntity.resolveBook). 서버 없는 레벨은 그대로. 결과는 apply(그 칸의 주인 레벨, 풀린 책)로. */
+    default void resolveLecternBook(BlockLevel level, int x, int y, int z, org.domi.furnace.server.entity.ItemStack book,
+                                    java.util.function.BiConsumer<BlockLevel, org.domi.furnace.server.entity.ItemStack> apply) {
+        apply.accept(level, book);
+    }
+
     /** server.properties enable-command-block(MinecraftServer.isCommandBlockEnabled). 서버 없는 레벨은 꺼짐(바닐라 기본값). */
     default boolean commandBlockEnabled() { return false; }
 
@@ -351,6 +357,10 @@ public interface LevelServices {
         public void resolveSignLines(BlockLevel level, int x, int y, int z, java.util.List<org.domi.furnace.api.text.Text> lines,
                                      java.util.function.BiConsumer<BlockLevel, java.util.List<org.domi.furnace.api.text.Text>> apply) {
             d.resolveSignLines(level, x, y, z, lines, apply);
+        }
+        public void resolveLecternBook(BlockLevel level, int x, int y, int z, org.domi.furnace.server.entity.ItemStack book,
+                                       java.util.function.BiConsumer<BlockLevel, org.domi.furnace.server.entity.ItemStack> apply) {
+            d.resolveLecternBook(level, x, y, z, book, apply);
         }
         public boolean commandBlockEnabled() { return d.commandBlockEnabled(); }
         public void runBlockCommand(BlockCommandSink sink, String command, java.util.function.IntConsumer done) { d.runBlockCommand(sink, command, done); }

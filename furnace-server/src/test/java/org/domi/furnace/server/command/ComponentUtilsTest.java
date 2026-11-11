@@ -62,6 +62,20 @@ class ComponentUtilsTest {
     }
 
     @Test
+    void lecternSourceIsNamedLecternAtBlockCentre() {
+        CommandSource s = CommandSource.lectern(core, core.world(), 4, 70, -2);
+        assertEquals("Lectern", s.getTextName());
+        assertEquals("Lectern", s.getDisplayName().getString());
+        assertTrue(s.hasPermission(2));
+        assertFalse(s.hasPermission(3));
+        assertEquals(4.5, s.x());
+        assertEquals(70.5, s.y());
+        assertEquals(-1.5, s.z());
+        assertNull(s.entity());
+        assertSame(core.world(), s.level());
+    }
+
+    @Test
     void scoreResolvesToStylelessNumberOrEmpty() throws Exception {
         var board = core.scoreboard();
         var pts = board.addObjective("pts", ObjectiveCriteria.DUMMY, Text.text("pts"), ObjectiveCriteria.RenderType.INTEGER, false, null);
