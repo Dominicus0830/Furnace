@@ -88,19 +88,19 @@ public final class NbtIo {
         byte type = in.readByte();
         if (type != TAG_COMPOUND) throw new java.io.IOException("루트가 compound 아님: " + type);
         in.readUTF(); // 루트 이름 버림
-        return readCompoundPayload(in);
+        return readCompoundPayload(in, 0);
     }
 
     /** 스트림에서 이름 없는 루트(네트워크 NBT: [type][payload]) 하나를 읽는다 — 그 태그의 바이트만큼만 읽는다. */
     public static Object readUnnamed(java.io.DataInput in) throws java.io.IOException {
-        return readPayload(in, in.readByte());
+        return readPayload(in, in.readByte(), 0);
     }
 
     /** 이름 없는 루트(플레이 단계 네트워크 NBT: [type][payload]) 하나 — 어떤 태그든 값 객체로. */
     public static Object readUnnamed(byte[] bytes) {
         try {
             java.io.DataInputStream in = new java.io.DataInputStream(new java.io.ByteArrayInputStream(bytes));
-            return readPayload(in, in.readByte());
+            return readPayload(in, in.readByte(), 0);
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException(e);
         }
@@ -112,18 +112,27 @@ public final class NbtIo {
         }
     }
 
-    private static NbtCompound readCompoundPayload(java.io.DataInput in) throws java.io.IOException {
+    /** 바닐라 NbtAccounter 의 최대 깊이. 디스크·스트림 읽기가 이보다 깊은 compound·list 중첩을 만나면 StackOverflowError 대신 거부한다. */
+    public static final int MAX_DEPTH = 512;
+
+    /** 바닐라 NbtAccounter.pushDepth: 이미 MAX_DEPTH 겹이면 다음 겹에서 던진다. */
+    private static void pushDepth(int depth) throws java.io.IOException {
+        if (depth >= MAX_DEPTH) throw new java.io.IOException("Tried to read NBT tag with too high complexity, depth > " + MAX_DEPTH);
+    }
+
+    private static NbtCompound readCompoundPayload(java.io.DataInput in, int depth) throws java.io.IOException {
+        pushDepth(depth);
         NbtCompound c = new NbtCompound();
         while (true) {
             byte type = in.readByte();
             if (type == TAG_END) break;
             String name = in.readUTF();
-            c.put(name, readPayload(in, type));
+            c.put(name, readPayload(in, type, depth + 1));
         }
         return c;
     }
 
-    private static Object readPayload(java.io.DataInput in, byte type) throws java.io.IOException {
+    private static Object readPayload(java.io.DataInput in, byte type, int depth) throws java.io.IOException {
         return switch (type) {
             case TAG_BYTE -> in.readByte();
             case TAG_SHORT -> in.readShort();
@@ -136,13 +145,14 @@ public final class NbtIo {
             case TAG_INT_ARRAY -> { int n = in.readInt(); int[] a = new int[n]; for (int i = 0; i < n; i++) a[i] = in.readInt(); yield a; }
             case TAG_LONG_ARRAY -> { int n = in.readInt(); long[] a = new long[n]; for (int i = 0; i < n; i++) a[i] = in.readLong(); yield a; }
             case TAG_LIST -> {
+                pushDepth(depth);
                 byte et = in.readByte();
                 int n = in.readInt();
                 NbtList l = new NbtList(et);
-                for (int i = 0; i < n; i++) l.add(readPayload(in, et));
+                for (int i = 0; i < n; i++) l.add(readPayload(in, et, depth + 1));
                 yield l;
             }
-            case TAG_COMPOUND -> readCompoundPayload(in);
+            case TAG_COMPOUND -> readCompoundPayload(in, depth);
             default -> throw new java.io.IOException("미지원 태그: " + type);
         };
     }
@@ -167,7 +177,7 @@ public final class NbtIo {
         byte type = in.b();
         if (type != TAG_COMPOUND) throw new java.io.IOException("루트가 compound 아님: " + type);
         in.utf();
-        return in.compound();
+        return in.compound(0);
     }
 
     private static final class Out {
@@ -287,18 +297,19 @@ public final class NbtIo {
             return v;
         }
 
-        NbtCompound compound() throws java.io.IOException {
+        NbtCompound compound(int depth) throws java.io.IOException {
+            pushDepth(depth);
             NbtCompound c = new NbtCompound();
             while (true) {
                 byte type = b();
                 if (type == TAG_END) break;
                 String name = utf();
-                c.put(name, payload(type));
+                c.put(name, payload(type, depth + 1));
             }
             return c;
         }
 
-        Object payload(byte type) throws java.io.IOException {
+        Object payload(byte type, int depth) throws java.io.IOException {
             return switch (type) {
                 case TAG_BYTE -> b();
                 case TAG_SHORT -> s();
@@ -333,13 +344,14 @@ public final class NbtIo {
                     yield out;
                 }
                 case TAG_LIST -> {
+                    pushDepth(depth);
                     byte et = b();
                     int k = i();
                     NbtList list = new NbtList(et);
-                    for (int j = 0; j < k; j++) list.add(payload(et));
+                    for (int j = 0; j < k; j++) list.add(payload(et, depth + 1));
                     yield list;
                 }
-                case TAG_COMPOUND -> compound();
+                case TAG_COMPOUND -> compound(depth);
                 default -> throw new java.io.IOException("미지원 태그: " + type);
             };
         }

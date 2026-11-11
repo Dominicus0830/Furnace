@@ -221,4 +221,64 @@ class A05CorruptChunkRegressionTest {
             store.closeAll();
         }
     }
+
+    // ---- A05-04: 옛 판 청크는 올리지도, 새로 생성해 덮지도 않는다 ----
+
+    @Test
+    void olderDataVersionChunk_isNotRegeneratedNorOverwritten(@TempDir Path dir) throws Exception {
+        AnvilChunkCodec codec = new AnvilChunkCodec(REG, 0);
+        NbtCompound root = codec.toNbt(new SuperflatWorldSource(REG, 0).generate(0, 0), 0, 0);
+        root.putInt("DataVersion", 3700);   // 1.20.4
+        byte[] bytes = NbtIo.toBytes(root, "");
+        RegionFileStore store = new RegionFileStore(dir);
+        store.writeChunk(0, 0, bytes);
+        store.closeAll();
+        store = new RegionFileStore(dir);
+        AnvilWorldSource src = new AnvilWorldSource(dir, store, codec, new SuperflatWorldSource(REG, 0));
+        try {
+            assertThrows(org.domi.furnace.server.world.anvil.OlderDataVersionException.class, () -> src.generate(0, 0));
+            assertThrows(org.domi.furnace.server.world.anvil.OlderDataVersionException.class, () -> src.generate(0, 0));   // 거부 기억
+            assertArrayEquals(bytes, store.readChunk(0, 0), "디스크의 옛 판 청크는 그대로");
+            assertFalse(java.nio.file.Files.exists(dir.resolve("region_corrupt")), "깨진 청크로 다루지 않는다");
+        } finally {
+            store.closeAll();
+        }
+    }
+
+    @Test
+    void olderDataVersionChunk_opensWithOverride(@TempDir Path dir) throws Exception {
+        AnvilChunkCodec codec = new AnvilChunkCodec(REG, 0);
+        NbtCompound root = codec.toNbt(new SuperflatWorldSource(REG, 0).generate(0, 0), 0, 0);
+        root.putInt("DataVersion", 3700);
+        RegionFileStore store = new RegionFileStore(dir);
+        store.writeChunk(0, 0, NbtIo.toBytes(root, ""));
+        AnvilWorldSource src = new AnvilWorldSource(dir, store, codec, new SuperflatWorldSource(REG, 0));
+        String prop = org.domi.furnace.server.world.anvil.OlderDataVersionException.IGNORE_PROPERTY;
+        System.setProperty(prop, "true");
+        try {
+            assertNotNull(src.generate(0, 0));
+        } finally {
+            System.clearProperty(prop);
+            store.closeAll();
+        }
+    }
+
+    @Test
+    void chunkBoundary_3944Refused_3945Loads(@TempDir Path dir) throws Exception {
+        AnvilChunkCodec codec = new AnvilChunkCodec(REG, 0);
+        RegionFileStore store = new RegionFileStore(dir);
+        AnvilWorldSource src = new AnvilWorldSource(dir, store, codec, new SuperflatWorldSource(REG, 0));
+        try {
+            NbtCompound old = codec.toNbt(new SuperflatWorldSource(REG, 0).generate(0, 0), 0, 0);
+            old.putInt("DataVersion", 3944);
+            store.writeChunk(0, 0, NbtIo.toBytes(old, ""));
+            NbtCompound ok = codec.toNbt(new SuperflatWorldSource(REG, 0).generate(1, 0), 1, 0);
+            ok.putInt("DataVersion", 3945);
+            store.writeChunk(1, 0, NbtIo.toBytes(ok, ""));
+            assertThrows(org.domi.furnace.server.world.anvil.OlderDataVersionException.class, () -> src.generate(0, 0));
+            assertNotNull(src.generate(1, 0));
+        } finally {
+            store.closeAll();
+        }
+    }
 }

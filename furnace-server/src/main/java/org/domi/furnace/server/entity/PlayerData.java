@@ -96,7 +96,9 @@ public final class PlayerData {
         Exception failure = null;
         if (Files.exists(dat)) {
             try {
-                return parse.apply(readGzipFile(dat));
+                return parse.apply(checkedVersion(readGzipFile(dat), id));
+            } catch (org.domi.furnace.server.world.anvil.UnsupportedDataVersionException e) {
+                throw e;   // 깨진 파일이 아니다 — 격리하지도 .dat_old 로 대체하지도 않는다
             } catch (IOException | RuntimeException e) {
                 failure = e;
                 LOG.warn("playerdata 읽기 실패 {} — {}.dat_old 로 되살려 본다", dat, id, e);
@@ -105,9 +107,11 @@ public final class PlayerData {
         }
         if (Files.exists(old)) {
             try {
-                T t = parse.apply(readGzipFile(old));
+                T t = parse.apply(checkedVersion(readGzipFile(old), id));
                 LOG.warn("playerdata {} 를 이전 저장본 {} 에서 읽었다", id, old.getFileName());
                 return t;
+            } catch (org.domi.furnace.server.world.anvil.UnsupportedDataVersionException e) {
+                throw e;
             } catch (IOException | RuntimeException e) {
                 LOG.warn("playerdata 이전 저장본 읽기 실패 {}", old, e);
                 if (quarantine) quarantine(old);
@@ -116,6 +120,17 @@ public final class PlayerData {
         }
         if (failure != null) throw new UnreadablePlayerData(failure);
         return null;
+    }
+
+    /** 이 서버보다 옛/새 판으로 저장된 플레이어 파일은 열지 않는다(A05-03·04 — 접속이 거부되고 파일은 그대로 남는다). */
+    private static NbtCompound checkedVersion(NbtCompound root, UUID id) {
+        String what = "playerdata " + id;
+        org.domi.furnace.server.world.anvil.OlderDataVersionException.check(root, what);
+        if (root.tags().get("DataVersion") instanceof Number n && n.intValue() > DATA_VERSION
+                && !org.domi.furnace.server.world.anvil.NewerDataVersionException.ignored()) {
+            throw new org.domi.furnace.server.world.anvil.NewerDataVersionException(what, n.intValue());
+        }
+        return root;
     }
 
     private static void quarantine(Path f) {
