@@ -1,6 +1,6 @@
 // playerdata/<uuid>.dat (gzip NBT) read/write — 바닐라 플레이어 NBT 형식(Pos·Rotation·UUID·Inventory{Slot:byte,id,count}).
 // 저장 시 기존 파일을 바탕으로 서버가 아는 필드만 덮어써서 아직 다루지 않는 바닐라 필드(체력·허기·경험치 등)를 보존하고,
-// 바닐라 PlayerDataStorage 처럼 이전 파일을 <uuid>.dat_old 로 남긴다.
+// 바닐라 PlayerDataStorage 처럼 이전 파일을 <uuid>.dat_old 로 남기고, <uuid>.dat 이 없거나 깨졌으면 <uuid>.dat_old 를 읽는다(A05-02).
 package org.domi.furnace.server.entity;
 
 import java.io.IOException;
@@ -121,6 +121,76 @@ public final class PlayerData {
         return worldDir.resolve("playerdata").resolve(id + ".dat");
     }
 
+    private static Path oldFile(Path worldDir, UUID id) {
+        return worldDir.resolve("playerdata").resolve(id + ".dat_old");
+    }
+
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(PlayerData.class);
+
+    /** .dat 과 .dat_old 를 모두 읽지 못했다(둘 중 하나는 있었다). */
+    private static final class UnreadablePlayerData extends Exception {
+        UnreadablePlayerData(Throwable cause) { super(cause); }
+    }
+
+    private static NbtCompound readGzipFile(Path f) throws IOException {
+        try (var is = Files.newInputStream(f)) {
+            return NbtIo.readGzip(is);
+        }
+    }
+
+    /**
+     * 바닐라 PlayerDataStorage.load(1.21.1 eri.b): {@code <uuid>.dat} 을 읽고, 없거나 깨졌으면 {@code <uuid>.dat_old}.
+     * 저장({@link #write})은 ".dat → .dat_old" 다음 "임시 → .dat" 이라 그 사이에 꺼지면 최신본은 .dat_old 에만 있다.
+     *
+     * <p>quarantine 이면 읽지 못한 파일을 {@code .corrupt} 로 옮겨 둔다 — 그대로 두면 다음 저장이 깨진 .dat 을 .dat_old 로 돌려
+     * 마지막 좋은 사본을 덮는다(바닐라는 깨진 파일을 날짜 붙여 복사해 두고 같은 틈이 있다; 원본 바이트는 어느 쪽이든 남는다).
+     * 호출자가 {@link #lock} 을 쥔다.
+     *
+     * @param parse 뿌리를 원하는 값으로 바꾼다. 형식이 틀리면 RuntimeException — 깨진 파일과 같이 다룬다.
+     * @return 둘 다 없으면 null
+     * @throws UnreadablePlayerData 하나라도 있었는데 어느 것도 읽지 못했다
+     */
+    private static <T> T readWithFallback(Path worldDir, UUID id, boolean quarantine,
+                                          java.util.function.Function<NbtCompound, T> parse) throws UnreadablePlayerData {
+        Path dat = file(worldDir, id), old = oldFile(worldDir, id);
+        Exception failure = null;
+        if (Files.exists(dat)) {
+            try {
+                return parse.apply(readGzipFile(dat));
+            } catch (IOException | RuntimeException e) {
+                failure = e;
+                LOG.warn("playerdata 읽기 실패 {} — {}.dat_old 로 되살려 본다", dat, id, e);
+                if (quarantine) quarantine(dat);
+            }
+        }
+        if (Files.exists(old)) {
+            try {
+                T t = parse.apply(readGzipFile(old));
+                LOG.warn("playerdata {} 를 이전 저장본 {} 에서 읽었다", id, old.getFileName());
+                return t;
+            } catch (IOException | RuntimeException e) {
+                LOG.warn("playerdata 이전 저장본 읽기 실패 {}", old, e);
+                if (quarantine) quarantine(old);
+                if (failure == null) failure = e; else failure.addSuppressed(e);
+            }
+        }
+        if (failure != null) throw new UnreadablePlayerData(failure);
+        return null;
+    }
+
+    private static void quarantine(Path f) {
+        try {
+            Path to = f.resolveSibling(f.getFileName() + ".corrupt");
+            if (Files.exists(to)) {   // 앞선 격리본을 덮지 않는다(바닐라는 <uuid>_corrupted_<시각>.dat)
+                to = f.resolveSibling(f.getFileName() + ".corrupt-" + java.time.LocalDateTime.now()
+                        .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS")));
+            }
+            Files.move(f, to, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException moveFail) {
+            LOG.warn("손상된 playerdata 백업 실패 {}", f, moveFail);
+        }
+    }
+
     private static final java.util.concurrent.atomic.AtomicLong SEQ = new java.util.concurrent.atomic.AtomicLong();
     private static final java.util.concurrent.ConcurrentHashMap<UUID, Long> LAST_SEQ = new java.util.concurrent.ConcurrentHashMap<>();
     private static final java.util.concurrent.ConcurrentHashMap<UUID, Object> LOCKS = new java.util.concurrent.ConcurrentHashMap<>();
@@ -159,7 +229,7 @@ public final class PlayerData {
     public static void save(Path worldDir, UUID id, double x, double y, double z,
                             float yaw, float pitch, boolean onGround, ItemStack[] slots, NbtCompound extra) {
         synchronized (lock(id)) {
-            NbtCompound root = readExisting(file(worldDir, id));
+            NbtCompound root = readExisting(worldDir, id);
             if (extra != null) {
                 for (String k : VITALS_KEYS) root.tags().remove(k);   // 없어진 선택 필드(이전 게임 모드·스폰 지점 등)를 지운다
                 root.tags().putAll(extra.tags());
@@ -175,9 +245,8 @@ public final class PlayerData {
      */
     public static void saveRootVehicle(Path worldDir, UUID id, NbtCompound rootVehicle) {
         synchronized (lock(id)) {
-            Path f = file(worldDir, id);
-            if (rootVehicle == null && !Files.exists(f)) return;
-            NbtCompound root = readExisting(f);
+            if (rootVehicle == null && !exists(worldDir, id)) return;
+            NbtCompound root = readExisting(worldDir, id);
             if (rootVehicle == null) {
                 if (root.tags().remove(PlayerVehicleSave.KEY) == null) return;
             } else {
@@ -187,22 +256,23 @@ public final class PlayerData {
         }
     }
 
-    /** 플레이어 데이터 파일이 있는가(플러그인 OfflinePlayer.hasPlayedBefore). */
+    /** 플레이어 데이터 파일이 있는가(플러그인 OfflinePlayer.hasPlayedBefore). .dat_old 만 남아도 load 가 그것을 읽으므로 있다. */
     public static boolean exists(Path worldDir, UUID id) {
-        return Files.exists(file(worldDir, id));
+        return Files.exists(file(worldDir, id)) || Files.exists(oldFile(worldDir, id));
     }
 
-    /** playerdata 에 파일이 있는 UUID 모두(디렉터리 읽기). */
+    /** playerdata 에 파일이 있는 UUID 모두(디렉터리 읽기). .dat_old 만 남은 플레이어도 넣는다({@link #exists} 와 같은 기준). */
     public static java.util.List<UUID> knownIds(Path worldDir) {
         Path dir = worldDir.resolve("playerdata");
-        java.util.List<UUID> out = new java.util.ArrayList<>();
-        if (!Files.isDirectory(dir)) return out;
+        java.util.Set<UUID> out = new java.util.LinkedHashSet<>();
+        if (!Files.isDirectory(dir)) return new java.util.ArrayList<>();
         try (var stream = Files.list(dir)) {
             stream.forEach(f -> {
                 String n = f.getFileName().toString();
-                if (!n.endsWith(".dat")) return;
+                int cut = n.endsWith(".dat") ? 4 : n.endsWith(".dat_old") ? 8 : -1;
+                if (cut < 0) return;
                 try {
-                    out.add(UUID.fromString(n.substring(0, n.length() - 4)));
+                    out.add(UUID.fromString(n.substring(0, n.length() - cut)));
                 } catch (IllegalArgumentException ignored) {
                     // 다른 파일(임시·백업)
                 }
@@ -210,18 +280,20 @@ public final class PlayerData {
         } catch (IOException e) {
             throw new UncheckedIOException("playerdata 목록 읽기 실패", e);
         }
-        return out;
+        return new java.util.ArrayList<>(out);
     }
 
-    /** 파일의 NBT 전체(없으면 null). load 와 달리 손상 파일을 옮기지 않고 예외를 그대로 던진다. */
+    /**
+     * 파일의 NBT 전체(없으면 null). .dat 이 없거나 깨졌으면 .dat_old(load 와 같은 기준). load 와 달리 손상 파일을 옮기지 않고,
+     * 둘 다 읽지 못하면 예외를 던진다.
+     */
     public static NbtCompound readRoot(Path worldDir, UUID id) {
         synchronized (lock(id)) {
-            Path f = file(worldDir, id);
-            if (!Files.exists(f)) return null;
-            try (var is = Files.newInputStream(f)) {
-                return NbtIo.readGzip(is);
-            } catch (IOException e) {
-                throw new UncheckedIOException("playerdata 읽기 실패 " + id, e);
+            try {
+                return readWithFallback(worldDir, id, false, r -> r);
+            } catch (UnreadablePlayerData e) {
+                throw new UncheckedIOException("playerdata 읽기 실패 " + id,
+                        e.getCause() instanceof IOException io ? io : new IOException(e.getCause()));
             }
         }
     }
@@ -237,15 +309,16 @@ public final class PlayerData {
     public static EditResult editBukkitValues(Path worldDir, UUID id, java.util.function.BooleanSupplier stillOffline,
                                               java.util.function.Consumer<NbtCompound> edit) {
         synchronized (lock(id)) {
-            Path f = file(worldDir, id);
-            if (!Files.exists(f)) return EditResult.MISSING;
+            if (!exists(worldDir, id)) return EditResult.MISSING;
             if (!stillOffline.getAsBoolean()) return EditResult.ONLINE;
             NbtCompound root;
-            try (var is = Files.newInputStream(f)) {
-                root = NbtIo.readGzip(is);
-            } catch (IOException e) {
-                throw new UncheckedIOException("playerdata 읽기 실패 " + id, e);
+            try {
+                root = readWithFallback(worldDir, id, true, r -> r);
+            } catch (UnreadablePlayerData e) {
+                throw new UncheckedIOException("playerdata 읽기 실패 " + id,
+                        e.getCause() instanceof IOException io ? io : new IOException(e.getCause()));
             }
+            if (root == null) return EditResult.MISSING;
             NbtCompound values = root.tags().get("BukkitValues") instanceof NbtCompound c ? c : new NbtCompound();
             edit.accept(values);
             if (values.tags().isEmpty()) root.tags().remove("BukkitValues");
@@ -259,11 +332,15 @@ public final class PlayerData {
     private static final String[] VITALS_KEYS = {"previousPlayerGameType", "SpawnX", "SpawnY", "SpawnZ", "SpawnForced",
             "SpawnAngle", "SpawnDimension", "LastDeathLocation", "raid_omen_position", "Tags", "BukkitValues"};
 
-    private static NbtCompound readExisting(Path f) {
-        if (!Files.exists(f)) return new NbtCompound();
-        try (var is = Files.newInputStream(f)) {
-            return NbtIo.readGzip(is);
-        } catch (IOException | RuntimeException e) {
+    /**
+     * 저장의 바탕(모르는 필드를 보존). .dat 이 없거나 깨졌으면 .dat_old — 저장 이동 사이에 꺼진 뒤에도 이어 쓴다.
+     * 깨진 파일은 .corrupt 로 옮겨, 이어지는 {@link #write} 가 그것을 .dat_old 로 돌려 마지막 좋은 사본을 덮지 않게 한다.
+     */
+    private static NbtCompound readExisting(Path worldDir, UUID id) {
+        try {
+            NbtCompound root = readWithFallback(worldDir, id, true, r -> r);
+            return root != null ? root : new NbtCompound();
+        } catch (UnreadablePlayerData e) {
             return new NbtCompound();
         }
     }
@@ -316,34 +393,31 @@ public final class PlayerData {
     }
 
     /**
-     * 위치/인벤토리 로드. 파일이 없으면 null. 손상됐거나 알 수 없는 형식이면 경고 후 원본을 `.corrupt`로 보존하고 null
-     * (바닐라 PlayerDataStorage처럼 새 플레이어로 시작 — 예전엔 예외로 접속이 영구히 막혔다).
+     * 위치/인벤토리 로드. 바닐라 PlayerDataStorage 처럼 {@code <uuid>.dat} 이 없거나 깨졌으면 {@code <uuid>.dat_old} 를 읽는다.
+     * 둘 다 없으면 null. 읽지 못한 파일은 경고 후 `.corrupt` 로 보존하고, 둘 다 못 읽으면 null(새 플레이어로 시작 — 예전엔 예외로
+     * 접속이 영구히 막혔다).
      */
     public static Snapshot load(Path worldDir, UUID id) {
-        Path f = file(worldDir, id);
         synchronized (lock(id)) {
-        if (!Files.exists(f)) return null;
-        try (var is = Files.newInputStream(f)) {
-            NbtCompound root = NbtIo.readGzip(is);
-            NbtList pos = root.getList("Pos");
-            NbtList rot = root.getList("Rotation");
-            return new Snapshot(
-                    (Double) pos.get(0), (Double) pos.get(1), (Double) pos.get(2),
-                    (Float) rot.get(0), (Float) rot.get(1),
-                    root.contains("OnGround") && root.getByte("OnGround") != 0,
-                    readInventory(root),
-                    root
-            );
-        } catch (IOException | RuntimeException e) {
-            org.slf4j.LoggerFactory.getLogger(PlayerData.class).warn("playerdata 읽기 실패 {} — 새 플레이어로 시작하고 원본은 .corrupt로 보존", id, e);
             try {
-                Files.move(f, f.resolveSibling(f.getFileName() + ".corrupt"), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-            } catch (IOException moveFail) {
-                org.slf4j.LoggerFactory.getLogger(PlayerData.class).warn("손상된 playerdata 백업 실패 {}", id, moveFail);
+                return readWithFallback(worldDir, id, true, PlayerData::snapshotOf);
+            } catch (UnreadablePlayerData e) {
+                LOG.warn("playerdata {} 를 .dat·.dat_old 어느 쪽에서도 읽지 못했다 — 새 플레이어로 시작한다(원본은 .corrupt)", id);
+                return null;
             }
-            return null;
         }
-        }
+    }
+
+    private static Snapshot snapshotOf(NbtCompound root) {
+        NbtList pos = root.getList("Pos");
+        NbtList rot = root.getList("Rotation");
+        return new Snapshot(
+                (Double) pos.get(0), (Double) pos.get(1), (Double) pos.get(2),
+                (Float) rot.get(0), (Float) rot.get(1),
+                root.contains("OnGround") && root.getByte("OnGround") != 0,
+                readInventory(root),
+                root
+        );
     }
 
     /** 바닐라 Entity UUID 저장 형식(int[4], 상위 비트부터). */

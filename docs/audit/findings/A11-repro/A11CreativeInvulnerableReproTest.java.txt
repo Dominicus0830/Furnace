@@ -1,0 +1,60 @@
+// A11-07 재현: 바닐라 Entity.isInvulnerableTo(bsr.b)는 invulnerable 플래그를 "피해 원인의 직접 엔티티가 창조 모드 플레이어(DamageSource.isCreativePlayer = brk.h)"일 때 무시한다.
+// 맵 제작자가 Invulnerable:1b 몹·거치대를 창조 모드로 쳐서 지우는 흔한 경로. Furnace Entity.isInvulnerableTo 는 원인을 보지 못해 늘 막는다.
+package org.domi.furnace.server.entity;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.util.UUID;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
+import org.domi.furnace.server.world.GameMode;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+class A11CreativeInvulnerableReproTest {
+
+    @BeforeAll
+    static void install() {
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+    }
+
+    private static final PlayerVitals.Surroundings DRY = new PlayerVitals.Surroundings(true, false, false, false, null, false, -64);
+
+    private static Player player(GameMode mode) {
+        var p = new Player(1, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
+        p.vitals().env(new PlayerVitalsTest.TestEnv());
+        p.vitals().loadGameTypes(null, mode, false);
+        p.applyMove(0.5, -60, 0.5, -90, 0, true);
+        p.applyMove(0.5, -60, 0.5, -90, 0, true);
+        for (int i = 0; i < 100; i++) p.vitals().tick(DRY);
+        return p;
+    }
+
+    private static float hitInvulnerableCow(GameMode mode) {
+        var level = new ZombieCombatTest.ArenaLevel();
+        var p = player(mode);
+        var cow = new Cow(level, level.nextEntityId());
+        cow.moveTo(1.5, -60, 0.5, 0, 0);
+        cow.setInvulnerable(true);
+        level.addFreshEntity(cow);
+        p.tickAttackStrength();
+        p.attackStrengthTicker = 200;
+        var world = new PlayerMelee.World() {
+            public org.domi.furnace.server.block.ChunkLevel level() { return level; }
+            public Iterable<Player> players() { return java.util.List.of(p); }
+        };
+        float before = cow.health();
+        PlayerMelee.attack(world, p, cow);
+        return before - cow.health();
+    }
+
+    @Test
+    void survivalPlayerCannotHurtInvulnerableMob() {
+        assertEquals(0.0F, hitInvulnerableCow(GameMode.SURVIVAL), 0.0F);
+    }
+
+    @Test
+    void creativePlayerHurtsInvulnerableMob() {
+        assertTrue(hitInvulnerableCow(GameMode.CREATIVE) > 0.0F, "바닐라: 창조 모드 직접 공격은 invulnerable 을 무시한다");
+    }
+}

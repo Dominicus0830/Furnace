@@ -864,9 +864,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 로그에 쓰는 접속 주소(log-ips=false 면 가린다, 바닐라 Connection.getLoggableAddress). */
     private String loggableAddress(ChannelHandlerContext ctx) {
-        if (!login.logIps) return "<ip address withheld>";
-        java.net.SocketAddress a = clientAddress(ctx);
-        return a == null ? "local" : a.toString();
+        return loggableAddress(login.logIps, clientAddress(ctx));
+    }
+
+    /** 접속 로그 주소 하나 — 같은 규칙을 파이프라인 앞쪽 핸들러(WritabilityGuard·ProxyProtocolHandler)도 쓴다. */
+    static String loggableAddress(boolean logIps, Object address) {
+        if (!logIps) return "<ip address withheld>";
+        return address == null ? "local" : address.toString();
     }
 
     /** 사유를 로그에 남기고(로그인 단계는 바닐라 "Disconnecting {}: {}") 단계에 맞는 Disconnect 로 끊는다. */

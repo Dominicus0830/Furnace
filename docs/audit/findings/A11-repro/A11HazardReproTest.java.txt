@@ -1,0 +1,223 @@
+// A11 재현 묶음 1: 위험 요소·효과·피해 식(냉각·화염 저항·낙하 면역·익사·효과 순서·몹 무기 마법 …). 기준 커밋 eab009d9 에서 모두 실패하는 것이 재현이다.
+// 바닐라 1.21.1 바이트코드 근거는 보고서 docs/audit/findings/A11-entity-physics-combat.md 에 있다.
+package org.domi.furnace.server.entity;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.util.UUID;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
+import org.domi.furnace.server.block.B;
+import org.domi.furnace.server.block.Pos;
+import org.domi.furnace.server.effect.MobEffect;
+import org.domi.furnace.server.effect.MobEffectInstance;
+import org.domi.furnace.server.world.GameMode;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+class A11HazardReproTest {
+
+    @BeforeAll
+    static void install() {
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+    }
+
+    private static void tick(SkeletonCombatTest.ArenaLevel level, int n) {
+        for (int t = 0; t < n; t++) {
+            level.time++;
+            for (Entity e : level.entities().tickSnapshot()) {
+                e.setOldPosAndRot();
+                e.tickCount++;
+                e.tick();
+            }
+        }
+    }
+
+    private static final PlayerVitals.Surroundings DRY = new PlayerVitals.Surroundings(true, false, false, false, null, false, -64);
+
+    private static Player survivalPlayer() {
+        var p = new Player(7, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
+        p.vitals().env(new PlayerVitalsTest.TestEnv());
+        p.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);
+        p.applyMove(0.5, -60, 0.5, 0, 0, true);
+        for (int i = 0; i < 100; i++) p.vitals().tick(DRY);
+        return p;
+    }
+
+    /**
+     * A11-01: 바닐라 LivingEntity.aiStep 의 "freezing" 구간(btn.m_ 오프셋 678~): 가루눈 안(isInPowderSnow)이고 얼 수 있으면(freeze_immune_entity_types 가 아님)
+     * 틱마다 ticksFrozen = min(140, +1), 아니면 max(0, -2). Furnace 에는 얼음 틱 증가가 없어 NBT TicksFrozen 이 늘 0 이다.
+     */
+    @Test
+    void mobInPowderSnowAccumulatesTicksFrozen() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 18000;
+        level.setBlock(new Pos(0, -60, 0), B.defaultState(B.id("powder_snow")), 3);
+        var cow = new Cow(level, level.nextEntityId());
+        cow.moveTo(0.5, -60, 0.5, 0, 0);
+        cow.setOnGround(true);
+        cow.setNoAi(true);   // 제자리에 둔다(소가 걸어 나가지 않게)
+        level.addFreshEntity(cow);
+        tick(level, 100);
+        assertTrue(cow.isInPowderSnow(), "가루눈 속에 있다");
+        assertEquals(100, cow.save().getIntOr0("TicksFrozen"), "바닐라: 100틱 동안 매 틱 +1");
+    }
+
+    /** A11-06: LivingEntity.hurt 는 IS_FIRE 피해에 화염 저항 효과가 있으면 false 를 돌려준다(btn.a(brk,F) 앞부분 hasEffect(bsb.l)). 플레이어 경로는 이미 맞다. */
+    @Test
+    void fireResistanceMobIgnoresFireDamage() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        var z = new Zombie(level, level.nextEntityId());
+        z.moveTo(0.5, -60, 0.5, 0, 0);
+        level.addFreshEntity(z);
+        z.addEffect(new MobEffectInstance(MobEffect.FIRE_RESISTANCE, 1000, 0));
+        float before = z.health();
+        assertFalse(z.hurt(new Entity.Damage("on_fire", true, false, false), 1.0F), "바닐라: 화염 저항이면 hurt == false");
+        assertEquals(before, z.health(), 0.0F);
+    }
+
+    /**
+     * A11-03: LivingEntity.calculateFallDamage(btn.e(FF)I)는 맨 앞에서 type.is(fall_damage_immune) 이면 0 을 돌려준다(awi.o). Furnace 는 Entity.causeFallDamage 의
+     * 태그 검사만 있고 LivingEntity 가 그 결과를 무시하고 직접 피해를 계산해서 철 골렘·눈 골렘·고양이·닭·블레이즈·위더 …가 10칸 낙하에 다친다.
+     */
+    @Test
+    void fallDamageImmuneTypesTakeNoFallDamage() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        StringBuilder bad = new StringBuilder();
+        for (int id : EntityTypeTags.ids("minecraft:fall_damage_immune")) {
+            String name = org.domi.furnace.server.item.ItemContext.name("minecraft:entity_type", id);
+            Entity e = Entities.create(level, name);
+            if (!(e instanceof LivingEntity le)) continue;
+            le.moveTo(0.5, -60, 0.5, 0, 0);
+            level.addFreshEntity(le);
+            float h0 = le.health();
+            le.causeFallDamage(10.0F, 1.0F, Entity.Damage.FALL);
+            if (le.health() != h0) bad.append(name).append(' ').append(h0).append("->").append(le.health()).append("; ");
+        }
+        assertEquals("", bad.toString(), "fall_damage_immune 인데 낙하 피해를 받은 종류");
+    }
+
+    /**
+     * A11-04: 바닐라 MobEffectUtil.hasWaterBreathing(bsa.c) = 물숨쉬기(bsb.m) 또는 전도체의 힘(bsb.C). Furnace 플레이어·몹은 물숨쉬기만 본다.
+     * 몹 쪽은 LivingEntity.baseTick, 플레이어 쪽은 PlayerVitals.tick 이다.
+     */
+    @Test
+    void conduitPowerStopsDrowning() {
+        var p = survivalPlayer();
+        p.vitals().addEffect(new MobEffectInstance(MobEffect.CONDUIT_POWER, 2000, 0, true, true));
+        var underwater = new PlayerVitals.Surroundings(true, true, true, false, null, false, -64);
+        for (int i = 0; i < 400; i++) p.vitals().tick(underwater);
+        assertEquals(20.0F, p.vitals().health(), 0.0F, "전도체의 힘 아래에서는 익사하지 않는다");
+    }
+
+    /** A11-09: 바닐라는 눈이 물속이어도 물숨쉬기·무적 능력(크리에이티브)이면 else if (공기 < 최대) 공기를 올린다. Furnace 플레이어는 물속에 있는 동안 공기를 채우지 못한다. */
+    @Test
+    void waterBreathingPlayerRefillsAirUnderwater() {
+        var p = survivalPlayer();
+        var underwater = new PlayerVitals.Surroundings(true, true, true, false, null, false, -64);
+        for (int i = 0; i < 100; i++) p.vitals().tick(underwater);   // 공기 소모
+        int low = p.vitals().air();
+        assertTrue(low < 300);
+        p.vitals().addEffect(new MobEffectInstance(MobEffect.WATER_BREATHING, 2000, 0, true, true));
+        for (int i = 0; i < 20; i++) p.vitals().tick(underwater);
+        assertEquals(280, p.vitals().air(), "물숨쉬기 중 물속에서도 공기가 틱당 4 씩 차올라 20틱이면 200 + 80");
+    }
+
+    /**
+     * A11-10: 바닐라 LivingEntity.aiStep(btn.m_ 오프셋 591~611)은 슬로 폴링·부양 효과가 있으면 매 틱 resetFallDistance() 를 부른다(몹 포함).
+     * Furnace 는 플레이어(PlayerVitals.tick)에만 있고 LivingEntity 에는 없어서, 낙하 완화를 건 몹이 착지하면 전체 거리의 피해를 입는다.
+     */
+    @Test
+    void slowFallingMobTakesNoFallDamage() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 18000;
+        var cow = new Cow(level, level.nextEntityId());
+        cow.moveTo(0.5, -30, 0.5, 0, 0);
+        level.addFreshEntity(cow);
+        cow.addEffect(new MobEffectInstance(MobEffect.SLOW_FALLING, 5000, 0));
+        tick(level, 400);
+        assertTrue(cow.onGround(), "착지했다 y=" + cow.y());
+        assertEquals(cow.maxHealth(), cow.health(), 0.0F, "슬로 폴링 중 착지는 피해 없음");
+    }
+
+    /**
+     * A11-11: baseTick 안 순서. 바닐라(btn.aw): hurtTime-- → invulnerableTime-- → 사망 틱 → 마지막으로 때린 쪽 기록 → tickEffects(eo, 오프셋 765).
+     * Furnace 는 super.baseTick() 직후에 tickEffects 를 부르고 무적 시간은 그 뒤에 줄인다. 그래서 같은 틱에 지속 피해(위더 V = 매 틱)가 무적 시간을
+     * 한 틱 늦게 본다: 맞은 뒤 10번째 틱(바닐라: 줄인 값이 10 → 새 피해) 대신 11번째 틱에 첫 효과 피해가 들어간다.
+     */
+    @Test
+    void effectDamageSeesInvulnerabilityAfterDecrement() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 18000;
+        var cow = new Cow(level, level.nextEntityId());
+        cow.moveTo(0.5, -60, 0.5, 0, 0);
+        level.addFreshEntity(cow);
+        assertTrue(cow.hurt(new Entity.Damage("generic", false, false, true == false), 4.0F));
+        cow.addEffect(new MobEffectInstance(MobEffect.WITHER, 1000, 5));   // 40 >> 5 = 1: 매 틱
+        float afterHit = cow.health();
+        tick(level, 10);
+        assertEquals(afterHit - 1.0F, cow.health(), 0.0F, "바닐라: 10틱째에 첫 위더 피해 1");
+    }
+
+    /**
+     * A11-12: 플레이어 낙하 피해는 SAFE_FALL_DISTANCE 상수 3 과 점프 강화 효과로만 계산한다. 바닐라(btn.e(FF)I)는 속성 generic.safe_fall_distance·
+     * generic.fall_damage_multiplier 를 읽는다(명령 /attribute, 아이템 수정자, 플러그인). 몹은 이미 속성을 읽는다.
+     */
+    @Test
+    void playerFallDamageReadsSafeFallDistanceAttribute() {
+        var p = survivalPlayer();
+        p.attributes().get(org.domi.furnace.server.attribute.Attribute.SAFE_FALL_DISTANCE).setBaseValue(10.0);
+        float before = p.vitals().health();
+        p.vitals().causePassengerFallDamage(8.0F, 1.0F, "minecraft:fall");
+        assertEquals(before, p.vitals().health(), 0.0F, "안전 거리 10 이면 8칸 낙하는 피해 없음");
+    }
+
+    /**
+     * A11-08: 바닐라 Mob.doHurtTarget(1.21.1)은 EnchantmentHelper.modifyDamage(getWeaponItem(), …) 로 무기 마법 부여(날카로움·강타·해충 강타)를 피해에 더하고,
+     * getKnockback 은 modifyKnockback(밀치기), 맞힌 뒤 doPostAttackEffects 는 화염 속성(불 붙이기)을 적용한다. Furnace Mob.doHurtTarget 에는
+     * TODO(인챈트 효과·무기 후처리) 가 남아 있어 마법 부여된 무기를 든 몹도 공격력 속성만큼만 때린다(몹은 스폰 때 마법 부여 장비를 받는다: MobSpawnEnchantTest).
+     */
+    @Test
+    void mobWeaponSharpnessAddsDamage() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 18000;
+        var plain = new Zombie(level, level.nextEntityId());
+        plain.moveTo(0.5, -60, 0.5, 0, 0);
+        plain.setItemSlot(EquipmentSlot.MAINHAND, org.domi.furnace.server.item.EnchantTools.update(Mob.stackOf("minecraft:iron_sword"), m -> { }));
+        var sharp = new Zombie(level, level.nextEntityId());
+        sharp.moveTo(0.5, -60, 3.5, 0, 0);
+        sharp.setItemSlot(EquipmentSlot.MAINHAND, org.domi.furnace.server.item.EnchantTools.update(Mob.stackOf("minecraft:iron_sword"), m -> m.put("minecraft:sharpness", 5)));
+        level.addFreshEntity(plain);
+        level.addFreshEntity(sharp);
+        tick(level, 2);   // detectEquipmentUpdates 가 칼의 공격력 수정자를 건다
+        float[] dealt = new float[2];
+        for (int i = 0; i < 2; i++) {
+            var cow = new Cow(level, level.nextEntityId());
+            cow.moveTo(10.5 + 3 * i, -60, 0.5, 0, 0);
+            cow.setNoAi(true);
+            level.addFreshEntity(cow);
+            float before = cow.health();
+            (i == 0 ? plain : sharp).doHurtTarget(cow);
+            dealt[i] = before - cow.health();
+        }
+        // 바닐라: 날카로움 V = 1 + 0.5 × (5 - 1) = +3
+        assertEquals(dealt[0] + 3.0F, dealt[1], 1.0E-4F, "날카로움 5 칼을 든 몹은 3 더 때린다 (일반 " + dealt[0] + ", 날카로움 " + dealt[1] + ")");
+    }
+
+    /**
+     * A11-13: 바닐라 LivingEntity.hurt 의 무적 시간 우회 판정은 damage_type 태그 bypasses_cooldown(awg.e, 바닐라 1.21.1 데이터에는 이 태그 파일이 없어 늘 거짓)이다.
+     * Furnace LivingEntity.hurtByInner 는 bypasses_invulnerability(out_of_world·generic_kill)로 판정해서 월드 밖에 떨어진 몹이 무적 시간 없이 틱마다 4 를 입는다.
+     * 플레이어(PlayerVitals.hurt)는 무적 시간을 태그와 무관하게 적용해 이미 바닐라와 같다.
+     */
+    @Test
+    void outOfWorldDamageObeysInvulnerabilityFrames() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        var cow = new Cow(level, level.nextEntityId());
+        cow.moveTo(0.5, -60, 0.5, 0, 0);
+        level.addFreshEntity(cow);
+        float h0 = cow.health();
+        cow.hurt(Entity.Damage.OUT_OF_WORLD, 4.0F);
+        cow.hurt(Entity.Damage.OUT_OF_WORLD, 4.0F);   // 같은 틱 두 번째: 바닐라는 amount(4) <= lastHurt(4) 라 무시
+        assertEquals(h0 - 4.0F, cow.health(), 0.0F, "무적 시간 안의 같은 피해는 한 번만");
+    }
+}

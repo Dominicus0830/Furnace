@@ -98,7 +98,12 @@ public final class RegionFileStore {
             if (h != null) h.run();
             result = op.run(rf);
         }
-        drainClosed();
+        try {
+            drainClosed();
+        } catch (IOException e) {
+            // 내보낸 다른 파일 닫기 실패는 이 작업의 실패가 아니다 — 읽기를 "깨진 청크"로 보이게 하면 멀쩡한 청크를 새로 생성해 덮는다
+            org.slf4j.LoggerFactory.getLogger(RegionFileStore.class).warn("[REGION] 내보낸 region 파일 닫기 실패", e);
+        }
         return result;
     }
 

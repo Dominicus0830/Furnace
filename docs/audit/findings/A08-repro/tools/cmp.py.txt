@@ -1,0 +1,70 @@
+import json,pickle,collections
+v=json.load(open('vblocks.json'));info=pickle.load(open('classinfo.pkl','rb'))
+H={
+ 'updateShape':[('a','(Ldtc;Lji;Ldtc;Ldcx;Ljd;Ljd;)Ldtc;')],
+ 'neighborChanged':[('a','(Ldtc;Ldcw;Ljd;Ldfy;Ljd;Z)V')],
+ 'onPlace':[('b','(Ldtc;Ldcw;Ljd;Ldtc;Z)V')],
+ 'onRemove':[('a','(Ldtc;Ldcw;Ljd;Ldtc;Z)V')],
+ 'onExplosionHit':[('a','(Ldtc;Ldcw;Ljd;Ldco;Ljava/util/function/BiConsumer;)V')],
+ 'useWithoutItem':[('a','(Ldtc;Ldcw;Ljd;Lcmx;Lewy;)Lbqr;')],
+ 'useItemOn':[('a','(Lcuq;Ldtc;Ldcw;Ljd;Lcmx;Lbqq;Lewy;)Lbqt;')],
+ 'triggerEvent':[('a','(Ldtc;Ldcw;Ljd;II)Z')],
+ 'isSignalSource':[('e_','(Ldtc;)Z')],
+ 'getFluidState':[('b_','(Ldtc;)Lepe;')],
+ 'canSurvive':[('a','(Ldtc;Ldcz;Ljd;)Z')],
+ 'getAnalogOutputSignal':[('a','(Ldtc;Ldcw;Ljd;)I')],
+ 'getShape':[('a','(Ldtc;Ldcc;Ljd;Lexh;)Lexv;')],
+ 'getCollisionShape':[('b','(Ldtc;Ldcc;Ljd;Lexh;)Lexv;')],
+ 'tick':[('a','(Ldtc;Laqu;Ljd;Layw;)V')],
+ 'randomTick':[('b','(Ldtc;Laqu;Ljd;Layw;)V')],
+ 'spawnAfterBreak':[('a','(Ldtc;Laqu;Ljd;Lcuq;Z)V')],
+ 'attack':[('a_','(Ldtc;Ldcw;Ljd;Lcmx;)V')],
+ 'getSignal':[('a','(Ldtc;Ldcc;Ljd;Lji;)I')],
+ 'getDirectSignal':[('b','(Ldtc;Ldcc;Ljd;Lji;)I')],
+ 'entityInside':[('a','(Ldtc;Ldcw;Ljd;Lbsr;)V')],
+ 'onProjectileHit':[('a','(Ldcw;Ldtc;Lewy;Lcnp;)V')],
+ 'isRandomlyTicking':[('d_','(Ldtc;)Z')],
+ 'stepOn':[('a','(Ldcw;Ljd;Ldtc;Lbsr;)V')],
+ 'fallOn':[('a','(Ldcw;Ldtc;Ljd;Lbsr;F)V')],
+ 'updateEntityAfterFallOn':[('a','(Ldcc;Lbsr;)V')],
+ 'setPlacedBy':[('a','(Ldcw;Ljd;Ldtc;Lbtn;Lcuq;)V')],
+ 'playerDestroy':[('a','(Ldcw;Lcmx;Ljd;Ldtc;Ldqh;Lcuq;)V')],
+ 'playerWillDestroy':[('a','(Ldcw;Ljd;Ldtc;Lcmx;)Ldtc;')],
+ 'getStateForPlacement':[('a','(Lcyd;)Ldtc;')],
+ 'handlePrecipitation':[('a','(Ldtc;Ldcw;Ljd;Lddw$c;)V')],
+ 'wasExploded':[('a','(Ldcw;Ljd;Ldco;)V')],
+ 'canBeReplaced':[('a','(Ldtc;Lcyd;)Z'),('a','(Ldtc;Lepd;)Z')],
+ 'getDestroyProgress':[('a','(Ldtc;Lcmx;Ldcc;Ljd;)F')],
+}
+def chain(c):
+    out=[]
+    while c and c in info:
+        out.append(c); c=info[c]['super']
+    return out
+vh={}
+for b in v:
+    cls=b['cls']; ov=set()
+    for c in chain(cls):
+        if c in ('dtb','dfy'): continue
+        for h,sigs in H.items():
+            for s in sigs:
+                if s in info[c]['methods']: ov.add(h)
+    vh['minecraft:'+b['name']]=(cls,ov,[c for c in chain(cls)])
+pickle.dump(vh,open('vh.pkl','wb'))
+# Furnace
+fur={}
+for l in open('../fdump.tsv'):
+    p=l.rstrip('\n').split('\t')
+    fur[p[0]]=(p[1],p[2],set(x for x in p[3].split(',') if x))
+names_v=set(vh); names_f=set(fur)
+print('only vanilla',sorted(names_v-names_f)[:20],len(names_v-names_f)); print('only furnace',sorted(names_f-names_v)[:30],len(names_f-names_v))
+missing=collections.defaultdict(list); extra=collections.defaultdict(list)
+for n in sorted(names_v&names_f):
+    cls,ov,ch=vh[n]; t,fc,fo=fur[n]
+    for h in H:
+        if h in ov and h not in fo: missing[h].append(n)
+        if h not in ov and h in fo: extra[h].append(n)
+import sys
+for h in H:
+    print('==',h,'vanilla-only:',len(missing[h]),'furnace-only:',len(extra[h]))
+json.dump({'missing':missing,'extra':extra},open('diff.json','w'))

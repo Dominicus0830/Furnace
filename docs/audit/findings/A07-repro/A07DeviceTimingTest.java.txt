@@ -1,0 +1,103 @@
+// A07 장치 타이밍 확인(통과해야 하는 대조): 바닐라 1.21.1 바이트코드로 센 틱 수와 Furnace 가 같은가.
+// 한 틱 = 예약 틱(지역 시계 +1 후 실행) → 블록 이벤트 → 블록 엔티티. 블록은 틱 사이(플레이어 패킷 처리 자리)에 놓는다.
+package org.domi.furnace.server.block;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.util.ArrayList;
+import java.util.List;
+import org.domi.furnace.server.data.TagRegistries;
+import org.domi.furnace.server.item.ItemContext;
+import org.domi.furnace.server.net.registry.RegistrySet;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+class A07DeviceTimingTest {
+
+    @BeforeAll
+    static void install() {
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+    }
+
+    static final Blocks BL = Blocks.get();
+
+    private static void step(BlockPlacementTest.TestLevel level) {
+        level.runScheduledTicks();
+        level.runBlockEvents();
+        level.tickBlockEntities(k -> true);
+    }
+
+    private static int st(String name) { return BL.defaultState(BL.block("minecraft:" + name)); }
+
+    private static String at(BlockPlacementTest.TestLevel l, Pos p) { return BL.describe(l.getBlockState(p)).replace("minecraft:", ""); }
+
+    /** 중계기 delay d: 입력이 켜지고 2d 틱째에 켜진다(DiodeBlock.checkTickOnNeighbor → scheduleTick(getDelay = 2d)). */
+    @Test
+    void repeaterDelays() {
+        for (int d = 1; d <= 4; d++) {
+            var l = new BlockPlacementTest.TestLevel();
+            Pos r = new Pos(0, -60, 0);
+            int rep = B.prop("delay").withInt(B.prop("facing").with(st("repeater"), "north"), d);
+            l.setBlock(r, rep, 3);
+            l.setBlock(r.north(), st("redstone_block"), 3);
+            List<Boolean> on = new ArrayList<>();
+            for (int t = 1; t <= 2 * d + 1; t++) { step(l); on.add(B.prop("powered").is(l.getBlockState(r))); }
+            for (int t = 1; t <= 2 * d + 1; t++) assertEquals(t >= 2 * d, on.get(t - 1), "delay " + d + " 틱 " + t);
+        }
+    }
+
+    /** 횃불: 받침이 켜지면 2틱째에 꺼진다. 60틱 안에 8번째 꺼짐에서 타 버려(1502) 160틱 예약을 건다. */
+    @Test
+    void torchInvertsAfterTwoTicksAndBurnsOutOnEighthToggle() {
+        var l = new BlockPlacementTest.TestLevel();
+        Pos base = new Pos(4, -60, 4), torch = base.above();
+        l.setBlock(base, st("stone"), 3);
+        l.setBlock(torch, st("redstone_torch"), 3);
+        l.setBlock(base, st("redstone_block"), 3);   // 받침이 신호를 받는다
+        step(l);
+        assertEquals("redstone_torch[lit=true]", at(l, torch), "1틱째는 아직");
+        step(l);
+        assertEquals("redstone_torch[lit=false]", at(l, torch), "2틱째 꺼짐");
+        int torchBlock = BL.block("minecraft:redstone_torch");
+        for (int i = 2; i <= 8; i++) {
+            l.setBlock(torch, B.prop("lit").with(st("redstone_torch"), true), 2);
+            l.neighborChanged(torch, BL.block("minecraft:redstone_block"), base);
+            step(l);
+            step(l);
+            assertEquals("redstone_torch[lit=false]", at(l, torch), i + "번째 꺼짐");
+            assertEquals(i == 8, l.hasScheduledTick(torch, torchBlock), i + "번째: 타 버림 예약(160틱)은 8번째에서만");
+        }
+    }
+
+    /** 관측기: 앞 칸이 바뀌면 2틱째 켜지고 4틱째 꺼진다(startSignal 2 → tick 켜며 다시 2). */
+    @Test
+    void observerPulseIsTwoTicksAfterTwoTickDelay() {
+        var l = new BlockPlacementTest.TestLevel();
+        Pos o = new Pos(8, -60, 8);
+        l.setBlock(o, B.prop("facing").with(st("observer"), "up"), 3);
+        l.setBlock(o.above(), st("stone"), 3);
+        List<Boolean> on = new ArrayList<>();
+        for (int t = 1; t <= 5; t++) { step(l); on.add(B.prop("powered").is(l.getBlockState(o))); }
+        assertEquals(List.of(false, true, true, false, false), on);
+    }
+
+    /** 비교기 빼기 모드: 뒤 15(레드스톤 블록) − 옆 15(레드스톤 블록) = 0, 바뀐 출력은 2틱째. 비교 모드로 돌리면 그 자리에서(틱 없이) 15. */
+    @Test
+    void comparatorSubtractMode() {
+        var l = new BlockPlacementTest.TestLevel();
+        Pos c = new Pos(12, -60, 0);
+        int comp = B.prop("mode").with(B.prop("facing").with(st("comparator"), "north"), "subtract");
+        l.setBlock(c, comp, 3);
+        l.setBlock(c.north(), st("redstone_block"), 3);
+        step(l);
+        step(l);
+        var be = (org.domi.furnace.server.block.entity.ComparatorBlockEntity) l.getBlockEntity(c);
+        assertEquals(15, be.getOutputSignal());
+        l.setBlock(c.east(), st("redstone_block"), 3);   // 옆 입력 15
+        step(l);
+        assertEquals(15, be.getOutputSignal(), "1틱째는 아직");
+        step(l);
+        assertEquals(0, be.getOutputSignal(), "15 − 15");
+        assertEquals("comparator[facing=north,mode=subtract,powered=false]", at(l, c));
+    }
+}
