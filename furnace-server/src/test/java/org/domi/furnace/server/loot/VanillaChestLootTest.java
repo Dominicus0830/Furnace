@@ -1,5 +1,6 @@
 // 바닐라 1.21.1 서버에서 뽑은 정답지(chest{LootTable,LootTableSeed} 를 연 결과 280건)와 Furnace 전리품 평가 결과가
-// 칸·아이템·개수·컴포넌트까지 같은지. 보물 지도(exploration_map)는 구조물 검색이 아직 없어 아이템 칸만 확인한다.
+// 칸·아이템·개수·컴포넌트까지 같은지. 이 시험은 월드 없이(NO_WORLD) 표만 평가하므로 보물 지도(exploration_map)는 칸만 확인한다
+// (지도 내용 — 가리키는 구조물·장식 — 은 map/ExplorationMapLootTest).
 package org.domi.furnace.server.loot;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -67,7 +68,7 @@ public class VanillaChestLootTest {
                 for (int i = 0; i < chest.length; i++) {
                     if (chest[i] != null && !chest[i].isEmpty()) actual.put(i, describe(chest[i].item(), chest[i].count(), chest[i].encodedPatch()));
                 }
-                // 보물 지도: 바닐라는 filled_map(구조물 위치·지도 id), 우리는 아직 빈 map 으로 남는다
+                // 보물 지도: 바닐라는 filled_map(구조물 위치·지도 id), 월드 없는 이 평가에서는 구조물을 못 찾아 빈 map 으로 남는다
                 expected.replaceAll((slot, d) -> d.startsWith("minecraft:filled_map ") ? "MAP" : d);
                 actual.replaceAll((slot, d) -> d.startsWith("minecraft:map ") && "MAP".equals(expected.get(slot)) ? "MAP" : d);
                 cases++;

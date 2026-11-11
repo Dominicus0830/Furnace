@@ -117,8 +117,17 @@ public final class NoiseBasedAquifer implements Aquifer {
         Arrays.fill(this.maxLevelCache, Integer.MIN_VALUE);
     }
 
+    @Override
     public boolean shouldScheduleFluidUpdate() {
         return this.shouldScheduleFluidUpdate;
+    }
+
+    /**
+     * 바닐라는 고체 칸(density > 0)에도 computeSubstance 를 불러 이 표시를 끈다. Furnace 노이즈 채우기는 고체 칸에서 부르지 않으므로
+     * 채우기가 끝났을 때 마지막 칸이 고체였으면 이것으로 바닐라와 같은 상태를 만든다(카버의 용암 칸이 이 값을 그대로 읽는다).
+     */
+    public void solidVisited() {
+        this.shouldScheduleFluidUpdate = false;
     }
 
     @Override

@@ -99,6 +99,7 @@ public final class ChunkColumn {
         c.dirty = dirty;
         c.wgHeightmapsFrozen = wgHeightmapsFrozen;
         c.structures = structures;
+        copyGenerationMarksTo(c);
         return c;
     }
 
@@ -117,6 +118,7 @@ public final class ChunkColumn {
         c.dirty = dirty;
         c.wgHeightmapsFrozen = wgHeightmapsFrozen;
         c.structures = structures;
+        copyGenerationMarksTo(c);
         return c;
     }
 
@@ -174,6 +176,37 @@ public final class ChunkColumn {
     }
 
     public void clearPostProcessMarks() { postProcessMarks = null; }
+
+    // 바닐라 ProtoChunk 의 유체 예약 틱(ProtoChunkTicks — 칸·종류로 중복 없이, 예약 순서). 생성 중에는 지연을 0 으로 저장한다
+    // (ProtoChunkTicks.schedule 이 SavedTick(…, 0, 우선순위) 로 바꾼다). /place 같은 실제 월드 격자에서는 지연을 그대로 둔다.
+    // 키 = 종류 << 48 | lx << 40 | lz << 32 | y, 값 = 지연.
+    private java.util.LinkedHashMap<Long, Integer> generatedFluidTicks;
+
+    /** 생성 중 유체 예약 틱(로컬 x, z + 월드 y, 종류 = Fluids.T_*). 같은 칸·종류가 이미 있으면 무시한다. */
+    public void scheduleGeneratedFluidTick(int lx, int y, int lz, int fluidType, int delay) {
+        if (generatedFluidTicks == null) generatedFluidTicks = new java.util.LinkedHashMap<>();
+        generatedFluidTicks.putIfAbsent(((long) fluidType << 48) | ((long) lx << 40) | ((long) lz << 32) | (y & 0xFFFFFFFFL), delay);
+    }
+
+    /** 생성 중 유체 예약 틱 {lx, y, lz, 종류, 지연} 목록(예약 순서). */
+    public java.util.List<int[]> generatedFluidTicks() {
+        java.util.List<int[]> out = new java.util.ArrayList<>();
+        if (generatedFluidTicks != null) {
+            for (var e : generatedFluidTicks.entrySet()) {
+                long k = e.getKey();
+                out.add(new int[]{(int) (k >> 40) & 0xFF, (int) k, (int) (k >> 32) & 0xFF, (int) (k >> 48) & 0xFF, e.getValue()});
+            }
+        }
+        return out;
+    }
+
+    public void clearGeneratedFluidTicks() { generatedFluidTicks = null; }
+
+    /** 복사본에 후처리 표시·생성 유체 틱을 함께 넘긴다(노이즈·카버 단계 표시가 pristine 복사에서 빠지지 않게). */
+    private void copyGenerationMarksTo(ChunkColumn c) {
+        if (postProcessMarks != null) c.postProcessMarks = new java.util.LinkedHashSet<>(postProcessMarks);
+        if (generatedFluidTicks != null) c.generatedFluidTicks = new java.util.LinkedHashMap<>(generatedFluidTicks);
+    }
 
     // 월드젠 중 구조물 등이 스폰한 엔티티(NBT: id, Pos, Rotation …) — 청크 로드/저장 쪽에서 소비한다.
     private java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> generatedEntities;
