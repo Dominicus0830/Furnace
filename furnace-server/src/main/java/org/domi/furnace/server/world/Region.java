@@ -279,6 +279,21 @@ public final class Region {
         evictGrace.putAll(o.evictGrace);
         o.evictGrace.clear();
         if (o.level != null) level().absorbFrom(o.level);
+        mergeStepsFrom(o);
+    }
+
+    /**
+     * /tick step 남은 걸음 합치기(A03-03): 바닐라는 서버 틱 하나로 세어 step 동안 올라와 있는 모든 엔티티가 남은 걸음을 다 받는다. 예전엔
+     * 흡수하는 쪽 값만 남아, step 도중 생긴 새 region(걸음 0)이 원래 region 을 흡수하면 원래 엔티티가 남은 걸음을 잃고 멈췄다.
+     * 둘 중 많이 남은 쪽을 쓴다(아직 이번 세대를 보지 않은 region 은 요청 걸음 전부가 남은 셈). 같은 박자로 도는 region 끼리 차이는 한 걸음 안팎이다.
+     */
+    private void mergeStepsFrom(Region o) {
+        TickState ts = world.tickState();
+        int g = ts.generation();
+        int mine = stepGeneration == g ? stepsLeft : ts.requestedSteps();
+        int theirs = o.stepGeneration == g ? o.stepsLeft : ts.requestedSteps();
+        stepGeneration = g;
+        stepsLeft = Math.max(mine, theirs);
     }
 
     /** targetOf(청크 키) 가 null 이면 이 region 에 남는다. */

@@ -190,6 +190,20 @@ public final class SharedScheduler implements AutoCloseable {
         Regionizer best;
         long due;
         int maxRunning;
+        /** 서버 전체 도는 틱 수 상한(쉬는 차원 몫을 남길 때 T−1, 아니면 없음) — tryTake 가 {@link #busy} 로 원자적으로 잡는다. */
+        int globalMax;
+    }
+
+    /** 모든 차원에서 지금 도는 틱(drain 차례 포함) 수. Regionizer 가 꺼낼 때 올리고 끝낼 때 내린다. */
+    final java.util.concurrent.atomic.AtomicInteger busy = new java.util.concurrent.atomic.AtomicInteger();
+
+    /** 도는 틱 수가 globalMax 보다 적으면 하나 올리고 참(원자적 — 선택기의 잠금 없는 판단이 두 워커에서 겹쳐도 넘지 않게). */
+    boolean reserveSlot(int globalMax) {
+        while (true) {
+            int b = busy.get();
+            if (b >= globalMax) return false;
+            if (busy.compareAndSet(b, b + 1)) return true;
+        }
     }
 
     private static final ThreadLocal<Pick> PICK = ThreadLocal.withInitial(Pick::new);
@@ -203,6 +217,7 @@ public final class SharedScheduler implements AutoCloseable {
         out.best = null;
         out.due = Long.MAX_VALUE;
         out.maxRunning = Integer.MAX_VALUE;
+        out.globalMax = Integer.MAX_VALUE;
         Regionizer[] ds = snapshot;
         int n = ds.length;
         if (n == 0) return out;
@@ -214,29 +229,49 @@ public final class SharedScheduler implements AutoCloseable {
         }
         // 상한은 다른 차원에 "할 일이 있으면"(큐가 비지 않았으면) 건다 — "지금 때가 됐을 때만" 걸면, 무거운 차원이 가벼운 차원의
         // 틱 사이에 마지막 워커까지 긴 틱(40~80ms)으로 채워 가벼운 차원이 그만큼 늦는다(2026-11-07 과부하 벤치 asym).
-        int pendingCount = 0;
-        for (Regionizer o : ds) if (o.headDue() != Long.MAX_VALUE) pendingCount++;
+        // 서버 전체 몫(A03-04): 틱을 돌리는 차원끼리 함께 쓰는 워커를 합쳐 T−1 개로 묶는다(아래 reserve).
+        // 차원마다 T−1 상한만 두면 무거운 차원 둘이 워커 T 개를 다 채워 셋째(가벼운) 차원이 매 틱 늦었다(60ms 틱 → 약 16.7 TPS).
+        int pendingCount = 0, totalActive = 0;
+        long min1 = Long.MAX_VALUE, min2 = Long.MAX_VALUE;   // 할 일이 있는 차원의 평균 틱 시간 가장 작은 둘
+        for (Regionizer o : ds) {
+            totalActive += o.activeTicks();
+            if (o.headDue() != Long.MAX_VALUE) {
+                pendingCount++;
+                long a = o.avgTickNanos();
+                if (a < min1) { min2 = min1; min1 = a; }
+                else if (a < min2) min2 = a;
+            }
+        }
         int start = Math.floorMod(rr.getAndIncrement(), n);
         int bestClass = 3;
-        boolean bestOthersPending = false;
+        int bestMax = Integer.MAX_VALUE, bestGlobal = Integer.MAX_VALUE;
         for (int k = 0; k < n; k++) {
             Regionizer rz = ds[(start + k) % n];
             long d = rz.headDue();
             if (d == Long.MAX_VALUE) continue;                       // N4: MAX 먼저 거른다
             boolean due = now - d >= 0;
             boolean othersPending = pendingCount > 1;   // 자기 자신(d != MAX)을 빼고도 할 일이 있는 차원이 있다
+            int active = rz.activeTicks();
+            // 나보다 틱이 훨씬 가벼운(평균 절반 미만) 차원에 할 일이 있으면, 무거운 쪽은 워커를 서버 전체 합 T−1 개까지만 쓴다 — 마지막 하나는
+            // 가벼운 차원의 다음 틱 몫이다. 무거운 차원이 둘이면 둘이 합쳐 T−1, 가벼운 차원은 언제나 남은 하나를 받는다. 비슷한 차원끼리는 걸지 않는다.
+            long avg = rz.avgTickNanos(), lightest = avg == min1 ? min2 : min1;
+            boolean reserve = othersPending && workers.length > 1 && lightest != Long.MAX_VALUE && lightest < avg / 2;
+            int max = othersPending ? perDimCap : Integer.MAX_VALUE;
+            if (reserve) max = Math.min(max, active + Math.max(0, workers.length - 1 - totalActive));
             int cls;
-            if (othersPending && rz.activeTicks() >= perDimCap) cls = 2;
+            if (othersPending && active >= max) cls = 2;
             else if (due && now - d >= starveTicks * rz.tickNanos()) cls = 0;
             else cls = 1;
             if (cls < bestClass || (cls == bestClass && d - out.due < -TIE_NANOS)) {
                 bestClass = cls;
                 out.best = rz;
                 out.due = d;
-                bestOthersPending = othersPending;
+                bestMax = max;
+                bestGlobal = reserve ? workers.length - 1 : Integer.MAX_VALUE;
             }
         }
-        out.maxRunning = bestOthersPending ? perDimCap : Integer.MAX_VALUE;
+        out.maxRunning = bestMax;
+        out.globalMax = bestGlobal;
         return out;
     }
 
@@ -336,7 +371,7 @@ public final class SharedScheduler implements AutoCloseable {
                     sleep(now + Math.min(wait, PARK_MAX), spinMargin);   // 머리보다 spinMargin 일찍 깬다
                     continue;
                 }
-                Region r = best.tryTake(now, pick.maxRunning);
+                Region r = best.tryTake(now, pick.maxRunning, pick.globalMax);
                 if (r == null) {                            // 낡은 머리/닫힘/상한 → 다시 고른다
                     takeMisses.increment();
                     continue;

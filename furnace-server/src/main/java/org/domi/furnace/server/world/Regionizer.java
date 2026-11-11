@@ -138,6 +138,11 @@ public final class Regionizer {
     /** 지금 이 차원에서 틱 중인 region 수(잠금 없음). */
     int activeTicks() { return activeTicks.get(); }
 
+    /** 이 차원 region 틱 시간의 지수 이동 평균(ns, 힌트). 공유 풀 선택기가 가벼운 차원 몫의 워커를 남길 때 본다. */
+    private volatile long avgTickNanos;
+
+    long avgTickNanos() { return avgTickNanos; }
+
     /** 시험 전용: 머리 마감을 직접 발행한다(깨우기 경합 재현). 프로덕션은 부르지 않는다. */
     void setHeadDueForTest(long due) { headDue = due; }
 
@@ -476,6 +481,7 @@ public final class Regionizer {
                 r.tickThread = Thread.currentThread();
                 running.put(r, System.nanoTime());
                 activeTicks.incrementAndGet();
+                pool.busy.incrementAndGet();
                 publishHead();
                 return r;
             }
@@ -498,6 +504,7 @@ public final class Regionizer {
             r.tickThread = null;
             running.remove(r);
             activeTicks.decrementAndGet();
+            pool.busy.decrementAndGet();
             r.drainPass = false;
             PENDING_DRAINS.decrementAndGet();
             r.nextTickNanos = r.savedNextTickNanos;
@@ -624,10 +631,13 @@ public final class Regionizer {
      * 꺼내기(워커, 잠금 안): 머리의 낡은 항목(죽음·양보·틱 중·큐 밖)을 지우고, 때가 된 머리를 RUNNING 으로 꺼낸다.
      * 머리가 없거나 아직 때가 아니거나 닫혔으면 null(워커가 다시 고른다).
      */
-    Region tryTake(long now) { return tryTake(now, Integer.MAX_VALUE); }
+    Region tryTake(long now) { return tryTake(now, Integer.MAX_VALUE, Integer.MAX_VALUE); }
 
-    /** maxRunning: 이 차원에서 동시에 도는 region 수 상한(§4.1 N3 — 선택기가 정하고 여기서 잠금 안에서 다시 확인한다). */
-    Region tryTake(long now, int maxRunning) {
+    /**
+     * maxRunning: 이 차원에서 동시에 도는 region 수 상한(§4.1 N3 — 선택기가 정하고 여기서 잠금 안에서 다시 확인한다).
+     * globalMax: 풀 전체 도는 틱 수 상한(A03-04 — 쉬는 차원 몫의 워커를 남긴다). 풀 카운터를 원자적으로 잡는다.
+     */
+    Region tryTake(long now, int maxRunning, int globalMax) {
         lock.lock();
         try {
             if (closed) return null;
@@ -648,7 +658,7 @@ public final class Regionizer {
                     publishHead();
                     return null;
                 }
-                if (activeTicks.get() >= maxRunning) {   // 상한: 다른 차원 몫으로 남긴다
+                if (activeTicks.get() >= maxRunning || !pool.reserveSlot(globalMax)) {   // 상한: 다른 차원 몫으로 남긴다
                     publishHead();
                     return null;
                 }
@@ -681,8 +691,11 @@ public final class Regionizer {
             // 수동 시계: 목표에 닿은 region 은 작업 큐만 비운다(manualPass 는 tryTake 가 잠금 안에서 정했다)
             boolean hold = manualClock && !r.manualPass;
             boolean game = gameTicks && !hold;
-            long tickStart = game ? System.nanoTime() : 0L;
+            long tickStart = System.nanoTime();
             r.runTick(gameTicks, hold);
+            long ran = System.nanoTime() - tickStart;
+            long avg = avgTickNanos;
+            avgTickNanos = avg + (ran - avg) / 8;   // 공유 풀 선택기 힌트(A03-04, 작업 큐 포함 차례 전체) — 경합으로 표본 하나쯤 빠져도 된다
             if (game && r.lastRunTicked) {
                 long took = System.nanoTime() - tickStart;
                 world.tickState().record(took);   // /tick query 의 틱 시간 표본
@@ -713,6 +726,7 @@ public final class Regionizer {
             r.tickThread = null;
             running.remove(r);
             activeTicks.decrementAndGet();
+            pool.busy.decrementAndGet();
             afterTick(r);
             // 틱 중에 들어온 급한 작업(다른 region 의 명령 블록이 기다린다)은 다음 틱까지 미루지 않는다
             if (Region.URGENT_WAITERS.get() > 0 && r.alive && r.hasUrgentTask()) urgentArrived(r);
