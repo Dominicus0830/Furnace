@@ -41,8 +41,8 @@ shim 은 `furnace-api` 의 블록 종류 표만 본다. 상태 표는 처음 쓸
 
 - **가정:** `Blocks` 필드 이름 = 등록 이름 경로의 대문자. 매핑 파일로 확인하지 못했다(필드 이름은 난독화 jar 에 없다). 시험은 이름 → 경로 규칙과 순서만 확인한다.
 - 블록 **동작**(모양·단단함·설치·틱·상호작용)은 서버 안에 있어 두지 않았다 — 없는 멤버는 H7 링커가 호출 위치에서 `UnsupportedNmsLink` 로 알린다.
-- N0 3부로 남은 것: `TagKey`·`HolderSet`·태그(`BlockState.is(TagKey)`), `FluidState`·`Fluids`, `BlockStateProperties`(받은 플러그인 소스 10개 중 쓰는 곳이 1곳뿐이라 뒤로). N-lib(authlib·DFU)는 결정 5 내려받기 틀 위에서 따로.
-- `Blocks`·`Items` 는 `tools/compat/gen-nms-constants.py` 로 다시 만든다(입력: 이미 커밋된 `registries/builtin-1.21.1.txt`).
+- 남은 것: `FluidState`·`Fluids`·`FluidTags`(소스에서 `FluidTags.WATER` 36곳), `BlockStateProperties`(받은 플러그인 소스 10개 중 쓰는 곳이 1곳뿐이라 뒤로). N-lib(authlib·DFU)는 결정 5 내려받기 틀 위에서 따로.
+- `Blocks`·`Items`·`BlockTags`·`ItemTags` 는 `tools/compat/gen-nms-constants.py` 로 다시 만든다(입력: 이미 커밋된 `registries/builtin-1.21.1.txt`).
 
 ## N0 2부 (2026-11-11)
 
@@ -60,3 +60,21 @@ shim 은 `furnace-api` 의 블록 종류 표만 본다. 상태 표는 처음 쓸
 **가정:** `Items` 필드 이름 = 등록 이름 경로 대문자(Blocks 와 같은 이유로 확인 못 함).
 
 시험: compat `NmsItemsSectionTest` 3개, server `GameRegistriesBuiltInTest` 1개.
+
+## N0 3부 — 태그 (2026-11-11)
+
+소스에서 `.getTag(` 185곳, `.is(BlockTags…)` 47곳, `getTagNames` 14곳. 태그 내용은 데이터 팩 리로드로 바뀌므로 shim 이 들고 있지 않고 물을 때마다 서버에 묻는다.
+
+| 클래스 | 내용 |
+|---|---|
+| API `GameRegistries.tags`·`tag`·`isTagged` | 지금 걸린 태그(데이터 팩 관리자가 건 것, 없으면 바닐라 1.21.1 태그 — 서버의 다른 태그 사용처와 같은 바탕). 태그 안 태그는 풀린 상태, 클라에 태그를 보내는 레지스트리만 |
+| `TagKey` | record, `create` intern, `isFor`(레지스트리 키 동일 객체)·`cast`, toString `TagKey[minecraft:block / minecraft:logs]`(바닐라 `awu`) |
+| `HolderSet`(`Direct`·`Named`·`ListBacked`) | `Named.contains` = `holder.is(key)`, toString `NamedSet(TagKey[…])[[…]]`·`DirectSet[[…]]`(바닐라 `jq$c`·`jq$a` 문자열 상수 — 목록 toString 이 들어가 괄호가 두 겹) |
+| `Registry.getTag`·`getTagOrEmpty`·`getOrCreateTag`·`getTagNames` | 같은 TagKey 면 같은 묶음 객체, 없는 태그·다른 레지스트리 태그는 empty, `getOrCreateTag` 는 빈 묶음 |
+| `Holder.is(TagKey)`·`tags()` | 직접 손잡이는 태그 없음(바닐라와 같음) |
+| `BlockState.is(TagKey)`·`is(TagKey, Predicate)`·`getTags`, `ItemStack.is(TagKey/Holder/HolderSet)`·`getItemHolder`·`getTags` | 바닐라처럼 레지스트리 손잡이에 위임 |
+| `BlockTags`(184)·`ItemTags`(147) | 바닐라 데이터의 태그 수와 바닐라 클래스(`awe`·`awn`)의 TagKey 필드 수가 같다. **가정:** 필드 이름 = 경로 대문자, `mineable/x` → `MINEABLE_WITH_X`, `enchantable/x` → `X_ENCHANTABLE` |
+
+`DataFixerUpper` 가 필요한 `getTags()`(Pair 스트림)·`HolderSet.unwrap()`(Either)은 없다(없는 멤버 — 호출 위치에서 실패).
+
+시험: compat `NmsTagsTest` 3개, server `GameRegistriesBuiltInTest.tagsResolveNestedEntries`.

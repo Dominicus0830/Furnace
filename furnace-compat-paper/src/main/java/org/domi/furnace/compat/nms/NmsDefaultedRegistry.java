@@ -152,6 +152,29 @@ public final class NmsDefaultedRegistry<T> implements DefaultedRegistry<T> {
     @Override
     public Iterator<T> iterator() { return byId.stream().map(Holder.Reference::value).iterator(); }
 
+    private final java.util.concurrent.ConcurrentHashMap<net.minecraft.tags.TagKey<T>, net.minecraft.core.HolderSet.Named<T>> named = new java.util.concurrent.ConcurrentHashMap<>();
+
+    @Override
+    public Optional<net.minecraft.core.HolderSet.Named<T>> getTag(net.minecraft.tags.TagKey<T> tag) {
+        if (tag == null || !tag.isFor(key) || !NmsTags.exists(key, tag)) return Optional.empty();
+        return Optional.of(getOrCreateTag(tag));
+    }
+
+    @Override
+    public net.minecraft.core.HolderSet.Named<T> getOrCreateTag(net.minecraft.tags.TagKey<T> tag) {
+        return named.computeIfAbsent(tag, t -> new net.minecraft.core.HolderSet.Named<>(t, () -> {
+            List<Holder<T>> out = new ArrayList<>();
+            if (t.isFor(key)) for (String id : NmsTags.entries(key, t)) {
+                Holder.Reference<T> h = byLocation.get(ResourceLocation.parse(id));
+                if (h != null) out.add(h);
+            }
+            return List.copyOf(out);
+        }));
+    }
+
+    @Override
+    public Stream<net.minecraft.tags.TagKey<T>> getTagNames() { return NmsTags.names(key); }
+
     @Override
     public String toString() { return "Registry[" + key + " (Stable)]"; }
 }

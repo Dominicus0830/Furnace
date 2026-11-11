@@ -66,4 +66,16 @@ public interface Registry<T> extends IdMap<T> {
     }
 
     Stream<Holder.Reference<T>> holders();
+
+    /** 정의된 태그면 그 묶음(같은 TagKey 면 같은 객체), 없거나 다른 레지스트리의 태그면 empty. */
+    Optional<HolderSet.Named<T>> getTag(net.minecraft.tags.TagKey<T> tag);
+
+    default Iterable<Holder<T>> getTagOrEmpty(net.minecraft.tags.TagKey<T> tag) {
+        return getTag(tag).<Iterable<Holder<T>>>map(n -> n).orElse(java.util.List.of());
+    }
+
+    /** 바닐라처럼 없는 태그면 빈 묶음을 만든다(다음 리로드에 생기면 내용이 찬다). */
+    HolderSet.Named<T> getOrCreateTag(net.minecraft.tags.TagKey<T> tag);
+
+    Stream<net.minecraft.tags.TagKey<T>> getTagNames();
 }

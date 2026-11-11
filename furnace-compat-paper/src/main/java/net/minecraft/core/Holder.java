@@ -2,12 +2,14 @@ package net.minecraft.core;
 
 import java.util.Optional;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 
 /**
- * 레지스트리 값 손잡이(Mojang 이름 shim, N0). 태그({@code is(TagKey)}·{@code tags()})·{@code unwrap()}(Either)·{@code canSerializeIn} 은
- * 태그·DataFixerUpper shim 이 없어 두지 않았다. toString 꼴 {@code Reference{ResourceKey[…]=…}}·{@code Direct{…}} 은 바닐라와 같다.
+ * 레지스트리 값 손잡이(Mojang 이름 shim, N0). 태그({@code is(TagKey)}·{@code tags()})는 지금 걸린 태그(데이터 팩 리로드 뒤 값)를 서버에 묻는다.
+ * {@code unwrap()}(Either)·{@code canSerializeIn} 은 DataFixerUpper shim 이 없어 두지 않았다. toString 꼴 {@code Reference{ResourceKey[…]=…}}·{@code Direct{…}} 은 바닐라와 같다.
  */
 public interface Holder<T> {
 
@@ -22,6 +24,10 @@ public interface Holder<T> {
     boolean is(Predicate<ResourceKey<T>> predicate);
 
     boolean is(Holder<T> other);
+
+    boolean is(TagKey<T> tag);
+
+    Stream<TagKey<T>> tags();
 
     Optional<ResourceKey<T>> unwrapKey();
 
@@ -49,6 +55,12 @@ public interface Holder<T> {
 
         @Override
         public boolean is(Holder<T> other) { return value.equals(other.value()); }
+
+        @Override
+        public boolean is(TagKey<T> tag) { return false; }
+
+        @Override
+        public Stream<TagKey<T>> tags() { return Stream.of(); }
 
         @Override
         public Optional<ResourceKey<T>> unwrapKey() { return Optional.empty(); }
@@ -91,6 +103,12 @@ public interface Holder<T> {
 
         @Override
         public boolean is(Holder<T> other) { return other.is(key); }
+
+        @Override
+        public boolean is(TagKey<T> tag) { return org.domi.furnace.compat.nms.NmsTags.isTagged(key, tag); }
+
+        @Override
+        public Stream<TagKey<T>> tags() { return org.domi.furnace.compat.nms.NmsTags.tagsOf(key); }
 
         @Override
         public Optional<ResourceKey<T>> unwrapKey() { return Optional.of(key); }
