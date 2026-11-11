@@ -257,16 +257,22 @@ public final class RegionLevel extends ChunkLevel {
     /**
      * @param spawnCount 앞쪽 몇 청크가 자연 스폰 대상(플레이어 근처)인가. 나머지(count 까지)는 /forceload 청크라 무작위 틱만 받는다.
      * @param capChunkCount 전역 상한의 청크 수(바닐라 getNaturalSpawnChunkCount — Region.naturalSpawnChunkCount)
-     * @param randomTicking 그 청크가 무작위 틱을 받는가(바닐라 shouldTickBlocksAt)
+     * @param randomTicking 그 청크(키 Regionizer.chunkKey)가 무작위 틱을 받는가(바닐라 shouldTickBlocksAt)
+     * @param blockTicking 청크(키 x << 32 | z)가 블록 틱을 받는가 — 바닐라 블록 틱 범위(TickingTracker 레벨 ≤ 32)이면서 청크가 BLOCK_TICKING
+     *                     단계이고 엔티티가 불러와졌다. 예약 틱·블록 엔티티가 이 판정을 따른다.
+     * @param blockEventTicking 청크가 블록 이벤트를 처리하는가 — 바닐라 shouldTickBlocksAt(TickingTracker 레벨 ≤ 32 만, 청크 단계·엔티티 로드는 보지 않는다).
      * @param entitySectionTicking 그 청크의 엔티티 섹션이 ENTITY_TICKING(시야 거리)인가 — 엔티티 버리기·사라짐 검사
      * @param entityTicking 그 청크의 엔티티가 tick 을 받는가(inEntityTickingRange — 시뮬레이션 거리) — 엔티티 tick·추적
      */
     void tickBlocks(long[] tickingChunks, int count, int spawnCount, int capChunkCount, java.util.function.LongPredicate randomTicking,
-                    java.util.function.LongPredicate blockEntityTicking, java.util.function.LongPredicate entitySectionTicking,
+                    java.util.function.LongPredicate blockTicking, java.util.function.LongPredicate blockEventTicking,
+                    java.util.function.LongPredicate entitySectionTicking,
                     java.util.function.LongPredicate entityTicking, java.util.function.Predicate<Player> inRegion, boolean frozen) {
         clearChunkCache();   // 틱 사이에 합치기·나누기가 있었을 수 있다
+        // 예약 틱(·아래 블록 이벤트): 이 region 이 갖지 않은(내려간) 청크의 것은 예전처럼 그대로 돌려 버린다(블록이 달라 아무 일도 없다) — 남겨 두면 쌓이기만 한다.
+        java.util.function.LongPredicate runHere = k -> chunk((int) (k >> 32), (int) k) == null || blockTicking.test(k);
         if (!frozen) {   // /tick freeze: 예약 틱·습격·청크 틱·스폰은 멈춘다(count 도 0 으로 온다)
-            runScheduledTicks();
+            runScheduledTicks(runHere);
             raids().tick();   // 바닐라 ServerLevel.tick: 예약 틱 → 습격 → 청크(스폰·무작위 틱)
         }
         if (count > 0) {
@@ -299,11 +305,11 @@ public final class RegionLevel extends ChunkLevel {
         java.util.function.LongPredicate entityTick = k -> chunk((int) (k >> 32), (int) k) != null && entityTicking.test(k);
         java.util.function.LongPredicate entitySection = k -> chunk((int) (k >> 32), (int) k) != null && entitySectionTicking.test(k);
         trackEntities(entityTick, inRegion);   // 바닐라 ChunkMap.tick — 청크 틱 끝 방송 뒤
-        runBlockEvents();
+        runBlockEvents(k -> chunk((int) (k >> 32), (int) k) == null || blockEventTicking.test(k));
         runEntityTasks();   // 플러그인 EntityScheduler — /tick freeze 중에도 돈다(플러그인 논리는 게임 틱 정지와 무관)
         if (frozen) return;   // 정지 중에는 엔티티·블록 엔티티·드래곤 전투를 틱하지 않는다
         world.tickDragonFight(region, this);   // 바닐라 ServerLevel.tick: 엔티티 틱 바로 앞
         tickEntities(entitySection, entityTick);
-        tickBlockEntities(blockEntityTicking);
+        tickBlockEntities(blockTicking);
     }
 }
