@@ -5,7 +5,7 @@
 //   block·block_marker·falling_dust·dust_pillar{block_state:"id" | {Name,Properties}} / item{item:"id" | {id,components}}
 //   entity_effect{color:정수 ARGB | [r,g,b,a]} / sculk_charge{roll} / shriek{delay}
 //   vibration{destination:{type:"block",pos:[x,y,z]}, arrival_in_ticks}
-// 미지원: item 의 비어 있지 않은 components, vibration 의 entity 소스(엔티티 UUID 조회 필요) — 오류로 거절한다.
+// 미지원: vibration 의 entity 소스(엔티티 UUID 조회 필요) — 오류로 거절한다. item 의 components 는 저장 형식 코덱(ItemNbt)으로 읽는다.
 package org.domi.furnace.server.command.arguments;
 
 import java.util.List;
@@ -196,17 +196,24 @@ public final class ParticleArgument implements ArgumentType<ParticleOptions> {
     /** 아이템 코덱: 문자열 아이템 id 또는 {id, components}. 개수는 1. 빈 스택(air)은 바닐라처럼 허용하지 않는다. */
     private static ItemStack itemStack(Object o) throws Bad {
         String id;
+        NbtCompound comps = null;
         if (o instanceof String s) id = s;
         else if (o instanceof NbtCompound c) {
             if (!(c.tags().get("id") instanceof String s)) throw new Bad("No key id in MapLike[" + c.tags().keySet() + "]");
             id = s;
-            if (c.tags().get("components") instanceof NbtCompound cc && !cc.tags().isEmpty()) throw new Bad("item components are not supported");
+            comps = c;
         } else throw new Bad("Not an item: " + o);
         String full = id.indexOf(':') < 0 ? "minecraft:" + id : id;
         Integer iid = ItemContext.installed() ? ItemContext.id("minecraft:item", full) : null;
         if (iid == null) throw new Bad("Unknown registry key in minecraft:item: " + full);
         if (full.equals("minecraft:air")) throw new Bad("Empty ItemStack not allowed");
-        return new ItemStack(iid, 1);
+        Object raw = comps == null ? null : comps.tags().get(org.domi.furnace.server.item.ItemNbt.KEY);
+        if (raw == null) return new ItemStack(iid, 1);
+        try {   // DataComponentPatch.CODEC: 맵이 아니거나 모르는·틀린 컴포넌트면 코덱 오류(로그 없이 명령 오류로)
+            return new ItemStack(iid, 1, org.domi.furnace.server.item.ComponentPatch.fromCodec(raw).normalizedFor(full));
+        } catch (org.domi.furnace.server.item.CodecException e) {
+            throw new Bad(e.getMessage());
+        }
     }
 
     /** ARGB.color(colorFromFloat(a), r, g, b): 채널은 floor(값×255), 마스크 없이 이어 붙인다(바닐라 그대로). */

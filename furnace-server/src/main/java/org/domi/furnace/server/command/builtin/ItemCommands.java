@@ -297,7 +297,17 @@ public final class ItemCommands {
     /** Enchantment.getFullname: 설명(저주는 빨강, 아니면 회색) + 레벨(최대 레벨이 1 인 레벨 1 은 생략). */
     public static Text fullName(Enchantment e, int level) {
         String[] ns = e.id().split(":", 2);
-        Text t = Text.translatable("enchantment." + ns[0] + "." + ns[1]);   // 가정: 데이터 팩 description 이 바닐라 기본 번역 키
+        Text t = null;
+        var dyn = org.domi.furnace.server.data.DynamicRegistries.current();
+        var def = dyn == null ? null : dyn.definition("minecraft:enchantment", e.id());
+        if (def != null && def.has("description")) {   // 바닐라 1.21: 데이터 팩 인챈트의 description 텍스트
+            try {
+                t = org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize(def.get("description").toString());
+            } catch (RuntimeException ex) {
+                t = null;
+            }
+        }
+        if (t == null) t = Text.translatable("enchantment." + ns[0] + "." + ns[1]);   // 정의가 없으면 바닐라 기본 번역 키
         t = t.colorIfAbsent(EnchantTools.isCurse(e.id()) ? NamedTextColor.RED : NamedTextColor.GRAY);
         if (level != 1 || e.maxLevel() != 1) t = t.append(Text.space()).append(Text.translatable("enchantment.level." + level));
         return t;

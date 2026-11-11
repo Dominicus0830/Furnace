@@ -66,7 +66,7 @@ public final class BlockCommands {
                     level.destroyBlock(pos, true);
                     place = !B.isAir(input.state()) || !level.isEmptyBlock(pos);
                 } else {
-                    CloneCommand.tryClear(level.getBlockEntity(pos));   // Clearable.tryClear — 바꿀 때 내용물을 쏟지 않게
+                    CloneCommand.tryClear(level.getBlockEntity(pos), level);   // Clearable.tryClear — 바꿀 때 내용물을 쏟지 않게
                     place = true;
                 }
                 if (place && !place(level, pos, input, 2)) throw SETBLOCK_FAILED.create();
@@ -135,7 +135,7 @@ public final class BlockCommands {
                         }
                     };
                     if (what == null) continue;
-                    CloneCommand.tryClear(level.getBlockEntity(pos));
+                    CloneCommand.tryClear(level.getBlockEntity(pos), level);
                     if (place(level, pos, what, 2)) {
                         changed.add(pos);
                         count++;

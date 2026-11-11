@@ -157,7 +157,7 @@ public final class CloneCommand {
         int barrier = B.defaultState("minecraft:barrier"), air = B.defaultState("minecraft:air");
         if (mode == Mode.MOVE) {
             for (Pos p : toClear) {
-                tryClear(level.getBlockEntity(p));
+                tryClear(level.getBlockEntity(p), level);
                 level.setBlock(p, barrier, 2);
             }
             for (Pos p : toClear) level.setBlock(p, air, 3);
@@ -168,7 +168,7 @@ public final class CloneCommand {
         List<Entry> reversed = new ArrayList<>(all);
         Collections.reverse(reversed);
         for (Entry en : reversed) {
-            tryClear(level.getBlockEntity(en.pos));
+            tryClear(level.getBlockEntity(en.pos), level);
             level.setBlock(en.pos, barrier, 2);
         }
         int count = 0;
@@ -197,8 +197,10 @@ public final class CloneCommand {
         return true;
     }
 
-    /** 바닐라 Clearable.tryClear: 블록을 바꾸기 전에 담긴 내용물을 비운다(쏟지 않게). 주크박스·독서대는 아직 빠졌다. */
-    static void tryClear(Object be) {
+    /** 바닐라 Clearable.tryClear: 블록을 바꾸기 전에 담긴 내용물을 비운다(쏟지 않게). */
+    static void tryClear(Object be, BlockLevel level) {
+        if (be instanceof org.domi.furnace.server.block.entity.JukeboxBlockEntity j) { j.clearContent(level); return; }
+        if (be instanceof org.domi.furnace.server.block.entity.LecternBlockEntity l) { l.clearContent(level); return; }
         if (be instanceof ContainerBlockEntity c) java.util.Arrays.fill(c.items, org.domi.furnace.server.entity.ItemStack.EMPTY);
         else if (be instanceof ChiseledBookShelfBlockEntity c) c.clearContent();
     }

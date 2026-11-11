@@ -43,6 +43,7 @@ public final class EntitySelectorParser {
     private String playerName;
     private UUID entityUUID;
     private boolean usesSelectors;
+    private boolean typeLimitedInversely;
     private boolean limited, sorted, typeLimited, nameSet, gamemodeSet, levelSet, advancementsSet;
     private final List<Predicate<Rider>> predicates = new ArrayList<>();
     /** 점수판이 필요한 조건(team=·scores=) — 해석할 때 서버 점수판을 받는다. */
@@ -242,6 +243,8 @@ public final class EntitySelectorParser {
                 if (typeLimited) inapplicable(name, optionStart);
                 int start = reader.getCursor();
                 boolean invert = shouldInvertValue();
+                if (typeLimitedInversely && !invert) inapplicable(name, start);   // 바닐라: type=!x 다음 양성 type 은 거절
+                if (invert) typeLimitedInversely = true;
                 if (reader.canRead() && reader.peek() == '#') {
                     reader.skip();
                     String tag = readResourceLocation();

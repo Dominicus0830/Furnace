@@ -19,6 +19,7 @@ public final class BlockPosArgument implements ArgumentType<BlockPosArgument.Coo
 
     private static final List<String> EXAMPLES = List.of("0 0 0", "~ ~ ~", "^ ^ ^", "^1 ^ ^-5", "~0.5 ~1 ~-5");
     public static final SimpleCommandExceptionType ERROR_NOT_LOADED = new SimpleCommandExceptionType(Text.translatable("argument.pos.unloaded"));
+    public static final SimpleCommandExceptionType ERROR_SPAWN_OUT_OF_BOUNDS = new SimpleCommandExceptionType(Text.translatable("argument.pos.outofbounds"));
     public static final SimpleCommandExceptionType ERROR_OUT_OF_WORLD = new SimpleCommandExceptionType(Text.translatable("argument.pos.outofworld"));
     public static final SimpleCommandExceptionType ERROR_OUT_OF_BOUNDS = new SimpleCommandExceptionType(Text.translatable("build.tooHigh"));
     /** Vec3Argument.ERROR_NOT_COMPLETE / ERROR_MIXED_TYPE. */
@@ -90,12 +91,12 @@ public final class BlockPosArgument implements ArgumentType<BlockPosArgument.Coo
         return new int[]{(int) Math.floor(p[0]), (int) Math.floor(p[1]), (int) Math.floor(p[2])};
     }
 
-    /** 바닐라 getSpawnablePos: Level.isInSpawnableBounds 밖이면 "argument.pos.outofworld". */
+    /** 바닐라 getSpawnablePos: Level.isInSpawnableBounds 밖이면 "argument.pos.outofbounds". */
     public static int[] getSpawnablePos(CommandContext<CommandSource> ctx, String name) throws CommandSyntaxException {
         int[] p = getBlockPos(ctx, name);
         boolean y = p[1] >= -20000000 && p[1] < 20000000;
         boolean xz = p[0] >= -30000000 && p[2] >= -30000000 && p[0] < 30000000 && p[2] < 30000000;
-        if (!y || !xz) throw ERROR_OUT_OF_WORLD.create();
+        if (!y || !xz) throw ERROR_SPAWN_OUT_OF_BOUNDS.create();
         return p;
     }
 
