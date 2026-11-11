@@ -434,6 +434,7 @@ public final class FurnaceMain {
             // 바닐라 saveEverything: 플레이어(PlayerList.saveAll) → 청크 → level.dat. 플레이어 기록은 전용 실행기에서 — 끝날 때까지 기다린다
             java.util.List<java.util.concurrent.CompletableFuture<Void>> players = new java.util.ArrayList<>();
             for (var p : core.players()) players.add(p.requestSave());
+            players.add(org.domi.furnace.server.entity.PlayerData.pendingSaves());   // 방금 나가 인벤토리 줄에서 기다리는 퇴장 저장(A04)
             for (World w : dimensions.all()) {
                 try {
                     int left = w.flushAllDrained(java.util.concurrent.TimeUnit.SECONDS.toNanos(60));
@@ -588,6 +589,7 @@ public final class FurnaceMain {
             @Override public java.util.List<java.util.concurrent.CompletableFuture<Void>> requestPlayerSaves() {
                 java.util.List<java.util.concurrent.CompletableFuture<Void>> out = new java.util.ArrayList<>();
                 for (var p : core.players()) out.add(p.requestSave());
+                out.add(org.domi.furnace.server.entity.PlayerData.pendingSaves());   // 잡힌 퇴장 저장(A04)
                 return out;
             }
             @Override public void saveLevelData() {

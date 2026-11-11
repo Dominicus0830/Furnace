@@ -104,11 +104,15 @@ public final class PlayerData {
         return true;
     }
 
+    /** 지금 잡힌 퇴장 저장 자리가 모두 풀리면(저장이 IO 에 들어가면) 완료된다 — save-all·백업이 방금 나간 플레이어 저장을 빠뜨리지 않게. */
+    public static java.util.concurrent.CompletableFuture<Void> pendingSaves() {
+        return java.util.concurrent.CompletableFuture.allOf(PENDING_SAVES.values().toArray(new java.util.concurrent.CompletableFuture<?>[0]));
+    }
+
     /** 잡힌 퇴장 저장이 모두 io() 에 들어갈 때까지 기다린다(서버 종료: awaitIo 앞에서). 시간 안에 끝나면 true. */
     public static boolean awaitPendingSaves(long timeout, java.util.concurrent.TimeUnit unit) throws InterruptedException {
-        var all = PENDING_SAVES.values().toArray(new java.util.concurrent.CompletableFuture<?>[0]);
         try {
-            java.util.concurrent.CompletableFuture.allOf(all).get(timeout, unit);
+            pendingSaves().get(timeout, unit);
             return true;
         } catch (java.util.concurrent.TimeoutException e) {
             return false;

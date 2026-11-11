@@ -1775,7 +1775,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 String recipe = Types.readString(frame, 32767);
                 boolean shift = frame.readBoolean();
                 Player p = player;
-                if (p != null) onLine(p, r -> handlePlaceRecipe(r, p, containerId, recipe, shift));   // 열린 창은 인벤토리 줄에서 확인한다(A04)
+                if (p != null) onLineAwait(p, r -> handlePlaceRecipe(r, p, containerId, recipe, shift));   // 열린 창은 인벤토리 줄에서 확인한다(A04)
             }
             case 0x23 -> { // player_abilities(serverbound): 비행 시작/끝 — 비행 가능할 때만 반영
                 byte flags = frame.readByte();
@@ -2085,14 +2085,14 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (!validClick) break; // 음수 개수·알 수 없는 아이템 등 비정상 — 패킷 폐기
                 Player p = player;
                 // 열린 창 확인부터 인벤토리 줄에서(A04): 앞서 받은 닫기·설치·버리기가 반영된 뒤의 창·인벤토리로 클릭을 처리한다
-                if (p != null) onLine(p, r -> handleContainerClick(r, p, containerId, stateId, slotNum, button, clickType, changed, newCarried));
+                if (p != null) onLineAwait(p, r -> handleContainerClick(r, p, containerId, stateId, slotNum, button, clickType, changed, newCarried));
             }
             case 0x0D -> { // Container Button Click: containerId, buttonId (VarInt 둘)
                 touchLastAction();
                 int containerId = Types.readVarInt(frame);
                 int buttonId = Types.readVarInt(frame);
                 Player p = player;
-                if (p != null) onLine(p, r -> handleContainerButtonClick(r, p, containerId, buttonId));   // 인벤토리 줄(A04)
+                if (p != null) onLineAwait(p, r -> handleContainerButtonClick(r, p, containerId, buttonId));   // 인벤토리 줄(A04)
             }
             case 0x10 -> { // container_slot_state_changed: VarInt slotId, VarInt containerId, Boolean newState(true = 풀림)
                 int slotId = Types.readVarInt(frame);
@@ -2104,7 +2104,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 0x0F -> { // Container Close(serverbound): VarInt containerId — 바닐라는 번호를 보지 않고 열린 창을 닫는다(doCloseContainer)
                 Types.readVarInt(frame);
                 Player p = player;
-                if (p != null) onLine(p, r -> { if (p.containerMenu() != null) handleContainerClose(r, p); });   // 커서·제작 격자를 인벤토리로 — 인벤토리 줄(A04)
+                if (p != null) onLineAwait(p, r -> p.containerMenu() != null ? handleContainerClose(r, p) : null);   // 커서·제작 격자를 인벤토리로 — 인벤토리 줄(A04)
             }
             case 0x01 -> { // block_entity_tag_query: VarInt 처리 번호, 위치 — op(2)만
                 int tx = Types.readVarInt(frame);
@@ -2379,11 +2379,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
      * 바뀐 칸·커서는 "클라이언트가 이미 아는 값"으로만 받아들여 서버 결과와 같으면 추가 패킷이 나가지 않게 한다. stateId 가 다르면 전체를 다시 보낸다.
      * 블록에 매인 창(상자)은 그 블록을 가진 region 스레드에서 처리한다 — 같은 상자에 대한 클릭·닫기가 그 region 큐에서 차례로 돈다.
      */
-    private void handleContainerClick(org.domi.furnace.server.world.Region here, Player p, int containerId, int stateId, int slotNum, int button,
+    private java.util.concurrent.CompletableFuture<?> handleContainerClick(org.domi.furnace.server.world.Region here, Player p, int containerId, int stateId, int slotNum, int button,
             org.domi.furnace.server.menu.ClickType type, java.util.Map<Integer, ItemStack> changed, ItemStack carried) {
         var menu = p.containerMenu();
-        if (menu == null || menu.containerId != containerId) return;   // 바닐라: 열린 창과 다르면 무시
-        if (p.vitals().isDeadOrDying()) return;   // 죽은 플레이어의 창 클릭은 무시(Paper isImmobile) — 사망 드롭 목록을 떠 간 뒤 아이템이 빠져나가지 않게
+        if (menu == null || menu.containerId != containerId) return null;   // 바닐라: 열린 창과 다르면 무시
+        if (p.vitals().isDeadOrDying()) return null;   // 죽은 플레이어의 창 클릭은 무시(Paper isImmobile) — 사망 드롭 목록을 떠 간 뒤 아이템이 빠져나가지 않게
         Runnable body = () -> applyContainerClick(p, menu, stateId, slotNum, button, type, changed, carried);
         int[] bp = menu.containerBlockPos();
         if (bp == null) {   // 블록 없는 창(인벤토리 창·플러그인 창·거래 등): 인벤토리 줄(지금 스레드)에서 바로
@@ -2392,22 +2392,22 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (menu.pluginOwner() instanceof org.domi.furnace.server.plugin.MenuSession ms && ms.api().isStorage()) ms.runStorageClick(body);
                 else body.run();
             }
-        } else {
-            runOnMenuBlock(here, p, menu, bp, body);
+            return null;
         }
+        return runOnMenuBlock(here, p, menu, bp, body);
     }
 
     /** 바닐라 handlePlaceRecipe: 레시피 북이 열린 창의 격자를 채운다(스펙테이터는 안 된다). */
-    private void handlePlaceRecipe(org.domi.furnace.server.world.Region here, Player p, int containerId, String recipeId, boolean shift) {
-        if (p.vitals().isDeadOrDying()) return;   // 죽은 플레이어의 창 조작은 무시
+    private java.util.concurrent.CompletableFuture<?> handlePlaceRecipe(org.domi.furnace.server.world.Region here, Player p, int containerId, String recipeId, boolean shift) {
+        if (p.vitals().isDeadOrDying()) return null;   // 죽은 플레이어의 창 조작은 무시
         var rm = menus.recipes();
-        if (rm == null) return;
+        if (rm == null) return null;
         org.domi.furnace.server.data.ResourceId rid = org.domi.furnace.server.data.ResourceId.tryParse(recipeId);
-        if (rid == null) return;
+        if (rid == null) return null;
         var entry = rm.craftingEntry(rid);
-        if (entry == null) return;
+        if (entry == null) return null;
         var menu = p.containerMenu();
-        if (menu == null || menu.containerId != containerId || !(menu instanceof org.domi.furnace.server.menu.RecipeBookMenu rbm)) return;
+        if (menu == null || menu.containerId != containerId || !(menu instanceof org.domi.furnace.server.menu.RecipeBookMenu rbm)) return null;
         int[] bp = menu.containerBlockPos();
         Runnable body = () -> {
             if (p.containerMenu() != menu || p.vitals().isDeadOrDying()) return;   // 큐에서 기다리는 사이 닫혔거나 죽었다
@@ -2424,9 +2424,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         };
         if (bp == null) {
             synchronized (p.menuLock()) { body.run(); }   // 인벤토리 줄(지금 스레드)
-        } else {
-            runOnMenuBlock(here, p, menu, bp, body);
+            return null;
         }
+        return runOnMenuBlock(here, p, menu, bp, body);
     }
 
     /** 바닐라 handleSelectTrade: 열린 창이 상인 거래이면 고른 거래의 재료를 지불 칸으로 옮겨 준다. */
@@ -2737,9 +2737,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     /** 바닐라 handleContainerButtonClick: 열린 창이 맞고 관전자가 아니며 유효하면 clickMenuButton, 바뀌었으면 broadcastChanges. */
-    private void handleContainerButtonClick(org.domi.furnace.server.world.Region here, Player p, int containerId, int buttonId) {
+    private java.util.concurrent.CompletableFuture<?> handleContainerButtonClick(org.domi.furnace.server.world.Region here, Player p, int containerId, int buttonId) {
         var menu = p.containerMenu();
-        if (menu == null || menu.containerId != containerId) return;
+        if (menu == null || menu.containerId != containerId) return null;
         Runnable body = () -> {
             if (p.containerMenu() != menu) return;
             if (p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR || p.vitals().isDeadOrDying()) return;
@@ -2752,9 +2752,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         int[] bp = menu.containerBlockPos();
         if (bp == null) {
             synchronized (p.menuLock()) { body.run(); }   // 인벤토리 줄(지금 스레드)
-        } else {
-            runOnMenuBlock(here, p, menu, bp, body);
+            return null;
         }
+        return runOnMenuBlock(here, p, menu, bp, body);
     }
 
     private void applyContainerClick(Player p, org.domi.furnace.server.menu.AbstractContainerMenu menu, int stateId, int slotNum, int button,
@@ -2795,15 +2795,15 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /**
      * 인벤토리 줄에서 확인한 블록 창 작업: 그 블록 칸의 주인이 지금 region 이면 바로 돌려 줄의 순서를 지키고(같은 region 이 보통이다),
-     * 아니면 그 블록의 region 으로 넘긴다.
+     * 아니면 그 블록의 region 으로 넘기고 그 Future 를 돌려준다 — 줄은 use_item_on 처럼 끝날 때까지 멈춘다(뒤 패킷이 앞지르지 않게).
      */
-    private void runOnMenuBlock(org.domi.furnace.server.world.Region here, Player p,
+    private java.util.concurrent.CompletableFuture<?> runOnMenuBlock(org.domi.furnace.server.world.Region here, Player p,
             org.domi.furnace.server.menu.AbstractContainerMenu menu, int[] bp, Runnable body) {
         if (here != null && here.isOwnerThread() && world.regionizer().ownerOf(bp[0] >> 4, bp[2] >> 4) == here) {
             runOnBlockRegion(here, p, menu, bp, body);
-        } else {
-            world.runAt(bp[0], bp[2], region -> runOnBlockRegion(region, p, menu, bp, body));
+            return null;
         }
+        return forwardToBlockRegion(bp[0], bp[2], region -> runOnBlockRegion(region, p, menu, bp, body));
     }
 
     /** 블록에 매인 창의 작업을 그 블록의 region 스레드에서 돌린다 — 청크가 내려갔거나 창이 바뀌었으면 body 를 돌리지 않는다. */
@@ -2989,7 +2989,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     /** 바닐라 handleContainerClose → ServerPlayer.doCloseContainer. */
-    private void handleContainerClose(org.domi.furnace.server.world.Region here, Player p) {
+    private java.util.concurrent.CompletableFuture<?> handleContainerClose(org.domi.furnace.server.world.Region here, Player p) {
         var menu = p.containerMenu();
         int[] bp = menu.containerBlockPos();
         Runnable close = () -> {
@@ -2997,9 +2997,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         };
         if (bp == null) {
             synchronized (p.menuLock()) { close.run(); }   // 인벤토리 줄(지금 스레드)
-        } else {
-            runOnMenuBlock(here, p, menu, bp, close);
+            return null;
         }
+        return runOnMenuBlock(here, p, menu, bp, close);
     }
 
     /** ServerPlayer.doCloseContainer: 창의 removed(커서·제작 격자 돌려주기) → 동기 상태를 인벤토리 창에 넘기고 인벤토리 창으로 돌아간다. */
@@ -3425,7 +3425,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 java.util.concurrent.CompletableFuture<?> wait = null;
                 try {
                     wait = t.run(region);
-                } catch (RuntimeException e) {
+                } catch (Throwable e) {   // Error 도 잡는다 — 놓치면 scheduled 가 참으로 남아 이 연결의 줄이 영원히 멈춘다
                     log.warn("인벤토리 줄 작업 실패({})", owner == null ? "?" : owner.name(), e);
                 }
                 if (wait != null && !wait.isDone()) {
@@ -3449,6 +3449,28 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             if (!p.isDisconnected()) task.accept(region);
             return null;
         });
+    }
+
+    /** onLine 과 같되, 작업이 다른 region 으로 넘긴 일의 Future 를 돌려주면 그 끝까지 줄을 멈춘다(블록 창 작업). */
+    private void onLineAwait(Player p, java.util.function.Function<org.domi.furnace.server.world.Region, java.util.concurrent.CompletableFuture<?>> task) {
+        inventoryLine.submit(p, region -> p.isDisconnected() ? null : task.apply(region));
+    }
+
+    /** 블록 (bx, bz) 의 region 으로 넘기고, 그 작업이 끝나면 완료되는 Future 를 돌려준다(내린 월드면 null — 줄을 멈추지 않는다). */
+    private java.util.concurrent.CompletableFuture<Void> forwardToBlockRegion(int bx, int bz, java.util.function.Consumer<org.domi.furnace.server.world.Region> task) {
+        java.util.concurrent.CompletableFuture<Void> done = new java.util.concurrent.CompletableFuture<>();
+        try {
+            world.runAt(bx, bz, region -> {
+                try {
+                    task.accept(region);
+                } finally {
+                    done.complete(null);
+                }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            return null;
+        }
+        return done;
     }
 
     /** 플러그인 이벤트 입구(코어가 없는 시험 연결은 NONE). */
@@ -4212,19 +4234,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 use.accept(here);
                 return null;
             }
-            java.util.concurrent.CompletableFuture<Void> done = new java.util.concurrent.CompletableFuture<>();
-            try {
-                w.runAt(bp[0], bp[2], region -> {
-                    try {
-                        use.accept(region);
-                    } finally {
-                        done.complete(null);
-                    }
-                });
-            } catch (java.util.concurrent.RejectedExecutionException e) {
-                return null;
-            }
-            return done;
+            return forwardToBlockRegion(bp[0], bp[2], use);
         });
     }
 

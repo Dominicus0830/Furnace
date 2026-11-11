@@ -525,4 +525,97 @@ class A04InventoryLineTest {
             Types.writeVarInt(b, 0);
         }));
     }
+
+    // ------------------------------------------------------------------ PR #199 독립 검토(R1·R3)
+
+    private void submitRaw(java.lang.reflect.InvocationHandler h) throws Exception {
+        Object line = field("inventoryLine");
+        Class<?> taskType = Class.forName("org.domi.furnace.server.net.ConnectionHandler$LineTask");
+        Object task = java.lang.reflect.Proxy.newProxyInstance(taskType.getClassLoader(), new Class<?>[]{taskType}, h);
+        var m = line.getClass().getDeclaredMethod("submit", Player.class, taskType);
+        m.setAccessible(true);
+        m.invoke(line, p, task);
+    }
+
+    /**
+     * PR #199 검토 R1: 줄 작업 하나가 Error(AssertionError·NoSuchMethodError 등)를 던져도 줄은 이어진다 —
+     * 놓치면 scheduled 가 참으로 남아 뒤 버리기·창 클릭·설치가 모두 무시되고 퇴장 저장은 5초 대체 길로만 뜬다.
+     */
+    @Test
+    void errorInOneLineTaskMustNotKillTheLine() throws Exception {
+        submitRaw((proxy, m, a) -> {
+            if (m.getName().equals("run")) throw new NoSuchMethodError("검토: 줄 작업 안의 Error");
+            return m.invoke(this, a);
+        });
+        at(r -> null);
+        p.inventory().set(HOT0, B.stack("minecraft:stone", 64));
+        playerAction(3);   // Ctrl+Q
+        at(r -> null);
+        tick(1);
+        drain();
+        assertEquals(64, floorCount("minecraft:stone"), "Error 하나 뒤에도 다음 버리기는 돌아야 한다");
+    }
+
+    /** 검토 R1: Error 뒤에도 퇴장 저장은 줄에서 바로 뜬다(5초 대체 저장·같은 UUID 다시 접속 대기 없이). */
+    @Test
+    void quitSaveAfterLineErrorShouldNotWaitForFallback() throws Exception {
+        submitRaw((proxy, m, a) -> {
+            if (m.getName().equals("run")) throw new NoSuchMethodError("검토: 줄 작업 안의 Error");
+            return m.invoke(this, a);
+        });
+        at(r -> null);
+        ch.close();
+        at(r -> null);
+        Thread.sleep(500);
+        assertFalse(PlayerData.hasPendingSave(core.world().worldDir(), p.uuid()), "퇴장 저장이 줄에서 뜨지 못하고 5초 대체 저장을 기다린다");
+    }
+
+    private static final ChunkPos FAR = new ChunkPos(400, 400);
+
+    /** 먼 청크에 다른 region 을 만든다(이 시험 서버는 region 작업 스레드가 하나라 두 region 이 번갈아 돈다). */
+    private void makeFarRegion() throws Exception {
+        core.world().submitAtChunk(FAR, r -> r.chunkAtBlocking(FAR)).get(30, TimeUnit.SECONDS);
+        var rz = core.world().regionizer();
+        assertNotNull(rz.ownerOf(FAR.x(), FAR.z()));
+        assertNotSame(rz.ownerOf(FAR.x(), FAR.z()), rz.ownerOf(p.chunkPos().x(), p.chunkPos().z()), "먼 청크는 다른 region 이어야 한다");
+    }
+
+    /**
+     * 검토 R3: 다른 region 칸에 대한 use_item_on 은 줄을 멈추고(작업 스레드가 하나라 넘긴 작업은 이 차례 안에 끝날 수 없다),
+     * 그 region 이 끝내면 줄이 다시 예약돼 뒤에 받은 버리기가 돈다.
+     */
+    @Test
+    void crossRegionUseItemOnPausesThenResumesLine() throws Exception {
+        makeFarRegion();
+        p.inventory().set(HOT0, B.stack("minecraft:stone", 64));
+        CountDownLatch release = holdRegion();
+        useItemOn(0, FAR.x() * 16 + 8, GY, FAR.z() * 16 + 8, 1, 9);
+        playerAction(3);
+        release.countDown();
+        long dl = System.nanoTime() + 4_000_000_000L;
+        while (System.nanoTime() < dl && floorCount("minecraft:stone") != 64) Thread.sleep(20);
+        assertEquals(64, floorCount("minecraft:stone"), "먼 region 이 끝낸 뒤 줄이 이어져야 한다");
+        assertEquals(0, invCount("minecraft:stone"));
+    }
+
+    /**
+     * 검토 R3: 다른 region 으로 넘긴 설치가 걸려 있을 때 끊겨도 퇴장 저장은 5초 대체 길 없이 뜨고, 저장과 바닥의 합이 맞는다
+     * (버리기가 끊김보다 먼저 돌았으면 바닥 64·저장 0, 아니면 바닥 0·저장 64).
+     */
+    @Test
+    void disconnectAroundCrossRegionUseKeepsSaveConsistent() throws Exception {
+        makeFarRegion();
+        p.inventory().set(HOT0, B.stack("minecraft:stone", 64));
+        useItemOn(0, FAR.x() * 16 + 8, GY, FAR.z() * 16 + 8, 1, 9);
+        playerAction(3);
+        ch.close();
+        long dl = System.nanoTime() + 3_000_000_000L;
+        while (System.nanoTime() < dl && PlayerData.hasPendingSave(core.world().worldDir(), p.uuid())) Thread.sleep(20);
+        assertFalse(PlayerData.hasPendingSave(core.world().worldDir(), p.uuid()), "5초 대체 저장을 기다리지 않고 줄에서 저장해야 한다");
+        assertTrue(PlayerData.awaitIo(10, TimeUnit.SECONDS));
+        var snap = savedSnapshot();
+        int saved = 0;
+        for (ItemStack s : snap.slots()) if (s != null && !s.isEmpty() && s.itemId() == B.stack("minecraft:stone", 1).itemId()) saved += s.count();
+        assertEquals(64, saved + floorCount("minecraft:stone"), "저장 " + saved + " + 바닥");
+    }
 }
