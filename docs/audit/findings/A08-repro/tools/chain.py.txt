@@ -1,0 +1,34 @@
+import json,subprocess,re,os
+D='tools/vanilla-data/server-1.21.1/'
+v=json.load(open('vblocks.json'))
+need=set(b['cls'] for b in v if b['cls'])
+info={}
+def load(classes):
+    classes=[c for c in classes if c not in info]
+    for i in range(0,len(classes),60):
+        batch=classes[i:i+60]
+        out=subprocess.run(['javap','-p','-s']+[D+c+'.class' for c in batch],capture_output=True,text=True).stdout
+        cur=None
+        for line in out.split('\n'):
+            m=re.match(r'^(?:public |abstract |final |protected )*(?:class|interface) (\S+?)(?: extends (\S+))?(?: implements .*)?(?:<.*)? \{$',line)
+            m2=re.match(r'^(?:public |abstract |final |protected |static )*(?:class|interface|enum) ([\w$]+)(?:<[^{]*>)?(?: extends ([\w$.<>, ?]+?))?(?: implements [^{]*)? \{$',line)
+            if m2:
+                cur=m2.group(1); sup=m2.group(2) or ''
+                sup=re.sub(r'<.*','',sup).strip()
+                info[cur]={'super':sup,'methods':set()}
+                pending=None
+                continue
+            if cur is None: continue
+            mm=re.match(r'^  (?:public |protected |private |static |final |abstract |synchronized )*(?:<[^>]*> )?[\w.$<>\[\], ?]+? ([\w$]+)\(.*\);$',line)
+            if mm: pending=mm.group(1); continue
+            dm=re.match(r'^    descriptor: (\(.*)$',line)
+            if dm and pending: info[cur]['methods'].add((pending,dm.group(1))); pending=None
+load(list(need))
+while True:
+    sups=set(i['super'] for i in info.values() if i['super'] and len(i['super'])<=8 and i['super'] not in info and os.path.exists(D+i['super']+'.class'))
+    if not sups: break
+    load(list(sups))
+import pickle
+pickle.dump(info,open('classinfo.pkl','wb'))
+print(len(info))
+print(info['dnz']['super'], info['dfy']['super'])

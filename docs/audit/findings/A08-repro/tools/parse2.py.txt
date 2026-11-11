@@ -1,0 +1,50 @@
+import re,json
+lines=open('blocks_clinit.txt').read().split('\n')
+# helper methods
+helpers={}
+cur=None
+for i,l in enumerate(lines):
+    m=re.match(r'^  (?:private |public |protected )?static (?:\w+ )?dfy (\w+)\((.*)\);$',l)
+    if m:
+        ps=[p.strip() for p in m.group(2).split(',') if p.strip()]
+        def conv(p):
+            if p=='boolean': return 'Z'
+            if p=='int': return 'I'
+            if p=='float': return 'F'
+            return 'L'+p.replace('.','/')+';'
+        cur=(m.group(1),''.join(conv(p) for p in ps)); helpers[cur]={'new':None,'calls':[]}; continue
+    if re.match(r'^  \S',l) and not m: cur=None if not l.startswith('    ') else cur
+    if cur:
+        mm=re.search(r'new\s+#\d+\s+// class (\S+)',l)
+        if mm and helpers[cur]['new'] is None: helpers[cur]['new']=mm.group(1)
+        mm=re.search(r'invokestatic .*Method (\w+):\((.*)\)Ldfy;',l)
+        if mm: helpers[cur]['calls'].append((mm.group(1),mm.group(2)))
+def res(k,seen=()):
+    h=helpers.get(k)
+    if not h: return None
+    if h['new']: return h['new']
+    for c in h['calls']:
+        if c in seen: continue
+        r=res(c,seen+(k,))
+        if r: return r
+    return None
+# per-block parse again recording last helper call
+start=[i for i,l in enumerate(lines) if 'static {}' in l][0]
+res_list=[];cur=None
+for l in lines[start:]:
+    m=re.search(r'ldc(_w)?\s+#\d+\s+// String (\S+)$',l)
+    if m and cur is None: cur={'name':m.group(2),'cls':None,'props':[],'helper':None}; continue
+    if cur is not None:
+        m=re.search(r'new\s+#\d+\s+// class (\S+)',l)
+        if m and cur['cls'] is None: cur['cls']=m.group(1)
+        m=re.search(r'Method (dtb\$d\.\w+):',l)
+        if m: cur['props'].append(m.group(1))
+        m=re.search(r'invokestatic .*Method (\w+):\((.*)\)Ldfy;',l)
+        if m and not (m.group(1)=='a' and m.group(2)=='Ljava/lang/String;Ldfy;'): cur['helper']=(m.group(1),m.group(2))
+        if 'Method a:(Ljava/lang/String;Ldfy;)Ldfy;' in l:
+            if cur['cls'] is None and cur['helper']:
+                cur['cls']=res(tuple(cur['helper']))
+            res_list.append(cur);cur=None
+none=[b['name'] for b in res_list if not b['cls']]
+print(len(res_list),len(none),none[:30])
+json.dump(res_list,open('vblocks.json','w'))
