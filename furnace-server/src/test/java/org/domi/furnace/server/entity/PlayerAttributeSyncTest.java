@@ -199,4 +199,25 @@ class PlayerAttributeSyncTest {
         assertEquals(n + 1, sent(env).size());
         assertEquals(p.attributes().syncable().size(), last(env).attributes().size());
     }
+
+    /** PlayerAttributes.value(Player, …)(전리품 luck 등이 쓴다)가 /attribute 로 바꾼 기본값·수정자를 합친다(바닐라 AttributeInstance.getValue). */
+    @Test
+    void playerValueIncludesAttributeCommandBaseAndModifiers() {
+        var env = new PlayerVitalsTest.TestEnv();
+        var p = player(env);
+        assertEquals(0.0, PlayerAttributes.value(p, Attribute.LUCK));
+        p.attributes().get(Attribute.LUCK).setBaseValue(2.0);   // /attribute @s minecraft:generic.luck base set 2
+        assertEquals(2.0, PlayerAttributes.value(p, Attribute.LUCK));
+        p.attributes().get(Attribute.LUCK).addOrReplaceModifier(new AttributeModifier("test:manual", 1.0, AttributeModifier.ADD_VALUE));
+        assertEquals(3.0, PlayerAttributes.value(p, Attribute.LUCK), "동기 전에도 바로");
+        p.vitals().addEffect(new MobEffectInstance(MobEffect.LUCK, 600, 0));   // +1
+        assertEquals(4.0, PlayerAttributes.value(p, Attribute.LUCK));
+        p.syncAttributes();   // 효과 수정자가 맵에 들어가도 두 번 세지 않는다
+        assertEquals(4.0, PlayerAttributes.value(p, Attribute.LUCK));
+        assertEquals(p.attributes().value(Attribute.LUCK), PlayerAttributes.value(p, Attribute.LUCK));
+        p.vitals().removeEffect(MobEffect.LUCK);   // 동기 전: 맵에는 낡은 효과 수정자가 남았지만 세지 않는다
+        assertEquals(3.0, PlayerAttributes.value(p, Attribute.LUCK));
+        // 플레이어 기본 이동 속도는 여전히 0.1F
+        assertEquals((double) 0.1F, PlayerAttributes.value(p, Attribute.MOVEMENT_SPEED));
+    }
 }

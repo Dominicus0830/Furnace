@@ -138,34 +138,53 @@ public final class ItemUse {
     @SuppressWarnings("unchecked")
     private static ItemStack openWrittenBook(BlockLevel level, BlockActor player, int hand, ItemStack stack) {
         Object comp = ItemTools.component(stack, "minecraft:written_book_content");
-        if (!(level instanceof ChunkLevel cl) || !(comp instanceof Map<?, ?> content) || Boolean.TRUE.equals(content.get("resolved"))
-                || !(content.get("pages") instanceof java.util.List<?> pages)) {
+        if (!(level instanceof ChunkLevel cl) || !needsResolve(comp)) {
             player.openBook(hand);
             return stack;
         }
-        java.util.List<BookText> texts = new java.util.ArrayList<>();
-        for (int i = 0; i < pages.size(); i++) {
-            Object pg = pages.get(i);
-            if (pg instanceof String js) addBookText(cl, player, texts, i, null, js);
-            else if (pg instanceof Map<?, ?> pm) {
-                if (pm.get("raw") instanceof String js) addBookText(cl, player, texts, i, "raw", js);
-                if (pm.get("filtered") instanceof String js) addBookText(cl, player, texts, i, "filtered", js);
-            }
-        }
-        var all = java.util.concurrent.CompletableFuture.allOf(texts.stream().map(BookText::done).toArray(java.util.concurrent.CompletableFuture[]::new));
-        if (all.isDone()) {
-            ItemStack out = resolvedBook(stack, (Map<String, Object>) content, pages, texts);
+        var f = resolveBookStack(stack, t -> cl.resolveBookText(player.handle(), t));
+        if (f.isDone()) {
+            ItemStack out = f.join();
             player.setItemInHand(hand, out);   // 칸 갱신이 먼저 가야 하므로 open_book 은 PlayerActor 가 보류했다가 flushOpenBook 에서
             player.openBook(hand);
             return out;
         }
         if (player.handle() instanceof org.domi.furnace.server.entity.Player p) {
-            all.whenComplete((v, e) -> p.runOnOwner(() -> p.finishBookOpen(hand, stack, resolvedBook(stack, (Map<String, Object>) content, pages, texts))));
+            f.whenComplete((out, e) -> { if (out != null) p.runOnOwner(() -> p.finishBookOpen(hand, stack, out)); });
         }
         return stack;
     }
 
-    private static void addBookText(ChunkLevel cl, BlockActor player, java.util.List<BookText> texts, int page, String key, String json) {
+    private static boolean needsResolve(Object comp) {
+        return comp instanceof Map<?, ?> content && !Boolean.TRUE.equals(content.get("resolved")) && content.get("pages") instanceof java.util.List<?>;
+    }
+
+    /**
+     * WrittenBookItem.resolveBookComponents: 쪽마다 resolver(소스가 다른 곳에서 정한다 — 플레이어 책 열기·독서대)로 글을 풀어 resolved 를 켠 책을 돌려준다.
+     * 이미 풀렸거나 서명된 책 내용이 없으면 같은 스택. 다른 region 의 엔티티를 찾는 선택자가 있으면 끝나지 않은 future.
+     */
+    @SuppressWarnings("unchecked")
+    public static java.util.concurrent.CompletableFuture<ItemStack> resolveBookStack(ItemStack stack,
+            java.util.function.Function<Text, java.util.concurrent.CompletableFuture<Text>> resolver) {
+        Object comp = ItemTools.component(stack, "minecraft:written_book_content");
+        if (!needsResolve(comp)) return java.util.concurrent.CompletableFuture.completedFuture(stack);
+        Map<?, ?> content = (Map<?, ?>) comp;
+        java.util.List<?> pages = (java.util.List<?>) content.get("pages");
+        java.util.List<BookText> texts = new java.util.ArrayList<>();
+        for (int i = 0; i < pages.size(); i++) {
+            Object pg = pages.get(i);
+            if (pg instanceof String js) addBookText(resolver, texts, i, null, js);
+            else if (pg instanceof Map<?, ?> pm) {
+                if (pm.get("raw") instanceof String js) addBookText(resolver, texts, i, "raw", js);
+                if (pm.get("filtered") instanceof String js) addBookText(resolver, texts, i, "filtered", js);
+            }
+        }
+        var all = java.util.concurrent.CompletableFuture.allOf(texts.stream().map(BookText::done).toArray(java.util.concurrent.CompletableFuture[]::new));
+        return all.thenApply(v -> resolvedBook(stack, (Map<String, Object>) content, pages, texts));
+    }
+
+    private static void addBookText(java.util.function.Function<Text, java.util.concurrent.CompletableFuture<Text>> resolver,
+            java.util.List<BookText> texts, int page, String key, String json) {
         Text t;
         try {
             t = org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize(json);
@@ -175,7 +194,7 @@ public final class ItemUse {
         }
         java.util.concurrent.CompletableFuture<Text> f;
         try {
-            f = cl.resolveBookText(player.handle(), t);
+            f = resolver.apply(t);
         } catch (RuntimeException e) {
             f = java.util.concurrent.CompletableFuture.failedFuture(e);
         }

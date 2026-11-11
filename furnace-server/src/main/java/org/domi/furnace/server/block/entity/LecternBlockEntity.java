@@ -42,8 +42,27 @@ public class LecternBlockEntity extends BlockEntity {
         book = b == null ? ItemStack.EMPTY : b;
         page = 0;
         pageCount = pageCountOf(book);
+        resolveBook(level);
         if (level != null) setChanged(level);
     }
+
+    /**
+     * 바닐라 resolveBook: 서명된 책이면 쪽의 선택자·점수·NBT 글을 값으로 풀어 책에 쓴다(독서대 소스, 플레이어 없음). 레벨이 있을 때만 —
+     * 청크를 읽을 때는 레벨이 없어 풀리지 않는다. 늦게 끝나면(다른 region 의 엔티티) 그새 책이 바뀌지 않았을 때만 바꾼다.
+     */
+    private void resolveBook(BlockLevel level) {
+        if (level == null || book.isEmpty()) return;
+        ItemStack original = book;
+        boolean[] sync = {true};
+        level.resolveLecternBook(pos, original, (lv, out) -> {
+            if (lv.getBlockEntity(pos) != this || book != original) return;
+            book = out;
+            if (!sync[0]) setChanged(lv);
+        });
+        sync[0] = false;
+    }
+
+    @Override public void afterLoad(BlockLevel level) { resolveBook(level); }
 
     /** 바닐라 setPage: 범위로 잘라 넣고, 바뀌었으면 저장 표시 + 비교기/레드스톤에 쪽 넘김 신호. */
     public void setPage(int newPage, BlockLevel level) {

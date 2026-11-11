@@ -1400,6 +1400,24 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         vitals.broadcastToTrackers(pkt);
     }
 
+    /**
+     * /attribute 가 맵에 직접 단 기본값과 수정자(장비·효과·달리기·위치 효과 수정자는 제외). PlayerAttributes.value 가 이것을 합쳐 쓴다.
+     * 소유 region 스레드 전용(managedModifiers 가 그 스레드 것이다).
+     */
+    public double attributeBase(org.domi.furnace.server.attribute.Attribute attr) {
+        var inst = attributes().get(attr);
+        return inst == null ? PlayerAttributes.base(attr) : inst.baseValue();
+    }
+
+    public java.util.List<org.domi.furnace.server.attribute.AttributeModifier> userModifiers(org.domi.furnace.server.attribute.Attribute attr) {
+        var inst = attributes().get(attr);
+        if (inst == null) return java.util.List.of();
+        var managed = managedModifiers.get(attr);
+        java.util.List<org.domi.furnace.server.attribute.AttributeModifier> out = new java.util.ArrayList<>();
+        for (var m : inst.modifiers().values()) if (managed == null || !managed.contains(m.id())) out.add(m);
+        return out;
+    }
+
     /** 속성마다 원하는 수정자(PlayerAttributes.modifiers)와 맵을 맞춘다. 같은 수정자는 그대로 둬 바뀜 표시가 서지 않는다. */
     private void reconcileModifiers(org.domi.furnace.server.attribute.AttributeMap map, java.util.List<org.domi.furnace.server.effect.MobEffectInstance> effects, boolean sprint) {
         for (var inst : map.all()) {

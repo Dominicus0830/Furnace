@@ -1197,6 +1197,11 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     @Override
+    public void resolveLecternBook(Pos pos, ItemStack book, java.util.function.BiConsumer<BlockLevel, ItemStack> apply) {
+        services().resolveLecternBook(this, pos.x(), pos.y(), pos.z(), book, apply);
+    }
+
+    @Override
     public void resolveSignLines(Pos pos, java.util.List<org.domi.furnace.api.text.Text> lines,
                                  java.util.function.BiConsumer<BlockLevel, java.util.List<org.domi.furnace.api.text.Text>> apply) {
         services().resolveSignLines(this, pos.x(), pos.y(), pos.z(), lines, apply);
