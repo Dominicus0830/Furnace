@@ -113,7 +113,7 @@ val compatBundle by configurations.creating {
 dependencies { compatBundle(project(":furnace-compat-paper")) }
 // 호환 모듈 jar 와 그 런타임 의존(ASM) — furnace-api 는 서버 로더에 이미 있으므로 빼고, 호환 모듈 자신은 넣는다.
 fun compatJars() = compatBundle.filter { it.name.endsWith(".jar") && (!it.name.startsWith("furnace-") || it.name.startsWith("furnace-compat")) }
-// 호환 jar 이름 색인(N-lib-1) — 서버는 이 자원이 있으면 jar 를 꺼내 서버 제공 라이브러리 로더 아래의 자기 로더에 올린다(CompatJars).
+// 호환 jar 이름 색인(N-lib-1) — 서버는 이 자원이 있으면 jar 를 꺼내 서버 제공 라이브러리 로더의 첫 항목으로 붙인다(CompatJars).
 val compatIndex = tasks.register("compatIndex") {
     dependsOn(":furnace-compat-paper:jar")
     dependsOn(compatBundle)
@@ -150,17 +150,22 @@ val fatJar = tasks.register<Jar>("fatJar") {
     from(layout.buildDirectory.dir("compat-index"))
     // 서명 파일이 남으면 합친 jar 가 SecurityException 으로 실행되지 않는다
     exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "META-INF/MANIFEST.MF", "module-info.class")
-    // 최상위에 호환 클래스가 하나도 없어야 한다(N-lib-1): 있으면 서버 로더와 공유 로더에 같은 클래스가 둘 정의된다. 접두는 서버 CompatPackages 와 같다.
+    // 최상위에 호환 클래스가 하나도 없어야 한다(N-lib-1): 있으면 서버 로더와 공유 로더에 같은 클래스가 둘 정의된다.
+    // 접두 목록 대신 내포 jar 의 클래스 이름 자체와 견준다(새 패키지가 생겨도 저절로 잡힌다). 최상위 PluginFormat 서비스 자원도 없어야 한다(실행 때 시작 거부).
     doLast {
-        val prefixes = listOf("org/bukkit/", "io/papermc/", "com/destroystokyo/", "org/domi/furnace/compat/", "org/objectweb/asm/", "net/minecraft/")
+        val top = mutableSetOf<String>()
+        ZipFile(archiveFile.get().asFile).use { z: ZipFile -> for (e in z.entries()) top.add(e.name) }
         val bad = mutableListOf<String>()
-        ZipFile(archiveFile.get().asFile).use { z: ZipFile ->
-            for (e in z.entries()) {
-                val n: String = e.name
-                if (prefixes.any { p: String -> n.startsWith(p) }) bad.add(n)
+        for (jar in compatJars().files) {
+            ZipFile(jar).use { z: ZipFile ->
+                for (e in z.entries()) {
+                    val n: String = e.name
+                    if (n.endsWith(".class") && n != "module-info.class" && !n.startsWith("META-INF/") && n in top) bad.add(n)
+                }
             }
         }
-        if (bad.isNotEmpty()) throw GradleException("fat jar 최상위에 호환 클래스가 있다(N-lib-1): ${bad.take(5)} 외 ${bad.size}개")
+        if ("META-INF/services/org.domi.furnace.api.plugin.PluginFormat" in top) bad.add("META-INF/services/org.domi.furnace.api.plugin.PluginFormat")
+        if (bad.isNotEmpty()) throw GradleException("fat jar 최상위에 호환 모듈 항목이 있다(N-lib-1): ${bad.take(5)} 외 ${bad.size}개")
     }
 }
 tasks.named("assemble") { dependsOn(fatJar) }

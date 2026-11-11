@@ -1,5 +1,5 @@
 // N-lib-1: 서버 jar 에 통째로 실린 호환 모듈 jar 를 꺼내 서버 제공 라이브러리 로더 아래의 자기 로더에 올린다.
-// 로더 순서: 호환 플러그인 로더 → 호환 모듈 로더(furnace-compat) → 공유 로더(furnace-server-libraries) → 서버 로더.
+// 로더 순서: 호환 플러그인 로더 → 공유 로더(furnace-server-libraries, 첫 항목이 호환 jar) → 서버 로더.
 package org.domi.furnace.server.plugin;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -80,7 +80,31 @@ class CompatJarsTest {
         source.close();
         Path changed = CompatJars.find(serverJar("compat.jar\n", "b-다른-내용\n")).extract(out).get(0);
         assertNotEquals(first, changed, "판이 바뀌면 새 파일(열린 옛 파일을 덮어쓰지 않는다)");
-        assertTrue(Files.exists(first));
+        assertFalse(Files.exists(first), "옛 판은 지운다");
+        Files.write(changed, new byte[] {1, 2, 3});   // 깨진 파일(내용 해시가 이름과 다름)
+        CompatJars.find(source).extract(out);
+        assertEquals(CompatJars.find(source).extract(out).get(0), changed);
+        assertNotEquals(3L, Files.size(changed), "깨진 파일은 다시 쓴다");
+    }
+
+    @Test
+    void extractFailureIsRememberedNotHiddenBehindAnEmptyLoader() throws Exception {
+        ClassLoader src = serverJar("compat.jar\n", PluginFormatsLazyTest.CountingFormat.class.getName() + "\n");
+        Path dir = tmp.resolve("plugins-broken");
+        Files.createDirectories(dir.resolve(".libraries"));
+        Files.writeString(dir.resolve(".libraries/compat"), "폴더 자리에 파일");
+        PluginSystemTest.jar(dir.resolve(PluginBootstrapper.BUKKIT_FOLDER).resolve("b.jar"), "fake.cfg",
+                "name=Beta\nmain=org.domi.furnace.server.plugin.TestPlugins$Beta\n", TestPlugins.Beta.class);
+        PluginSystemTest.jar(dir.resolve(PluginBootstrapper.BUKKIT_FOLDER).resolve("c.jar"), "fake.cfg",
+                "name=Gamma\nmain=org.domi.furnace.server.plugin.TestPlugins$Alpha\n", TestPlugins.Alpha.class);
+        try {
+            boot = PluginBootstrapper.bootstrap(dir, PluginSettings.DEFAULT, src);
+        } catch (RuntimeException e) {
+            return;   // 시작이 멈추는 것도 받아들인다 — 빈 로더로 조용히 넘어가지만 않으면 된다
+        }
+        assertNull(boot.compatJarFiles(), "꺼내지 못했으면 호환 jar 없는 로더를 쓰지 않는다");
+        assertNull(boot.sharedLibraryLoader());
+        assertEquals(List.of(), boot.prepared().stream().map(p -> p.description().name()).toList());
     }
 
     @Test

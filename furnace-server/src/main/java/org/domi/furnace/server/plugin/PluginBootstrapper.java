@@ -535,6 +535,8 @@ public final class PluginBootstrapper {
     private CompatJars compatJars;
     /** 꺼내 공유 로더 첫 항목으로 붙인 호환 jar(아직이면 null). */
     private List<Path> compatJarFiles;
+    /** 호환 jar 를 꺼내거나 올리다 실패한 원인(다시 부르면 같은 것을 던진다). */
+    private IllegalStateException compatFailure;
     /** 호환 계층 자신이 서명·상위 타입에 쓰는 라이브러리 묶음 — 호환 jar 를 표지로 훑어 얻는다. Bukkit 플러그인이 있으면 늘 준비한다. */
     private Set<String> compatCore = Set.of();
 
@@ -545,28 +547,38 @@ public final class PluginBootstrapper {
      */
     private synchronized SharedLibraryLoader sharedLoader() {
         if (sharedLoader != null) return sharedLoader;
-        sharedLoader = new SharedLibraryLoader(PluginHost.class.getClassLoader());
+        if (compatFailure != null) throw compatFailure;   // 한 번 실패했으면 같은 원인으로 다시 던진다(호환 jar 없는 로더를 돌려주지 않는다)
+        SharedLibraryLoader loader = new SharedLibraryLoader(PluginHost.class.getClassLoader());
         if (compatJars != null) {
-            LibrarySettings ls = settings.libraries();
-            Path cache = ls.cache() != null ? ls.cache() : dir.resolve(LibrarySettings.DEFAULT_CACHE_DIR);
-            try {
-                compatJarFiles = compatJars.extract(cache.resolve("compat"));
-            } catch (IOException e) {
-                throw new java.io.UncheckedIOException("호환 모듈 jar 를 꺼내지 못했다", e);
-            }
+            List<Path> files;
             Set<String> core = new java.util.TreeSet<>();
-            for (Path j : compatJarFiles) {
-                sharedLoader.add(j);
-                try {
+            try {
+                LibrarySettings ls = settings.libraries();
+                Path cache = ls.cache() != null ? ls.cache() : dir.resolve(LibrarySettings.DEFAULT_CACHE_DIR);
+                files = compatJars.extract(cache.resolve("compat"));
+                for (Path j : files) {
+                    loader.add(j);
                     core.addAll(serverLibraries.scan(j, Set.of()));
-                } catch (IOException e) {
-                    throw new java.io.UncheckedIOException("호환 모듈 jar 를 훑지 못했다: " + j, e);
                 }
+            } catch (IOException | RuntimeException e) {
+                closeQuietly(loader);
+                compatFailure = new IllegalStateException("Bukkit·Paper 호환 모듈 jar 를 꺼내 올리지 못했다", e);
+                throw compatFailure;
             }
+            compatJarFiles = files;
             compatCore = Set.copyOf(core);
             log.info("Bukkit·Paper 호환 모듈 {} 을(를) 서버 제공 라이브러리 로더에 올린다(호환 계층이 기대는 묶음: {})", compatJars.names(), compatCore);
         }
+        sharedLoader = loader;   // 다 만든 뒤에야 필드에 넣는다
         return sharedLoader;
+    }
+
+    private static void closeQuietly(SharedLibraryLoader loader) {
+        try {
+            loader.close();
+        } catch (IOException ignored) {
+            // 닫기 실패는 원인 보고를 가리지 않는다
+        }
     }
 
     /** 준비를 시도한 묶음(성공·실패 모두 — 실패를 플러그인마다 다시 시도해 경고를 되풀이하지 않는다). */
@@ -724,7 +736,7 @@ public final class PluginBootstrapper {
         return copy;
     }
 
-    /** 서버 종료 — 공유 로더를 닫는다(호환 플러그인 로더를 다 닫은 뒤). 호환 jar 가 붙어 있으면 이미 만든 어댑터가 그 로더를 쓰므로 끝까지 둔다. */
+    /** 서버 종료 — 공유 로더를 닫는다(호환 플러그인 로더를 다 닫은 뒤). 호환 jar 가 붙어 있으면 호환 계층 클래스 자체가 그 로더에 있으므로 끝까지 둔다. */
     synchronized void closeSharedLibraries() {
         if (compatJarFiles != null) return;
         if (sharedLoader == null) return;
