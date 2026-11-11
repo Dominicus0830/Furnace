@@ -6,7 +6,7 @@ import net.minecraft.world.level.block.Block;
 
 /**
  * 바닐라 블록 태그 이름 상수(Mojang 이름 shim, N0). 바닐라 1.21.1 데이터의 블록 태그 184개(바닐라 클래스의 TagKey 필드 수와 같다).
- * 필드 이름은 경로 대문자이고 mineable/x → MINEABLE_WITH_X, enchantable/x → X_ENCHANTABLE 이다(가정: 필드 이름은 난독화 jar 에 없어 확인하지 못했다).
+ * 필드 이름은 경로 대문자이고 mineable/x → MINEABLE_WITH_X, enchantable/x → X_ENCHANTABLE, 규칙 밖 이름 둘은 생성기 FIELD_EXCEPTIONS(가정: 필드 이름은 난독화 jar 에 없어 확인하지 못했다).
  * 내용은 지금 걸린 태그(데이터 팩 리로드 뒤 값)다. 생성: tools/compat/gen-nms-constants.py — 직접 고치지 말 것.
  */
 public final class BlockTags {
@@ -71,7 +71,7 @@ public final class BlockTags {
     public static final TagKey<Block> DOORS = create("doors");
     public static final TagKey<Block> DRAGON_IMMUNE = create("dragon_immune");
     public static final TagKey<Block> DRAGON_TRANSPARENT = create("dragon_transparent");
-    public static final TagKey<Block> DRIPSTONE_REPLACEABLE_BLOCKS = create("dripstone_replaceable_blocks");
+    public static final TagKey<Block> DRIPSTONE_REPLACEABLE = create("dripstone_replaceable_blocks");
     public static final TagKey<Block> EMERALD_ORES = create("emerald_ores");
     public static final TagKey<Block> ENCHANTMENT_POWER_PROVIDER = create("enchantment_power_provider");
     public static final TagKey<Block> ENCHANTMENT_POWER_TRANSMITTER = create("enchantment_power_transmitter");

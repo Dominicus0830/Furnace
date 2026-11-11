@@ -78,3 +78,9 @@ shim 은 `furnace-api` 의 블록 종류 표만 본다. 상태 표는 처음 쓸
 `DataFixerUpper` 가 필요한 `getTags()`(Pair 스트림)·`HolderSet.unwrap()`(Either)은 없다(없는 멤버 — 호출 위치에서 실패).
 
 시험: compat `NmsTagsTest` 3개, server `GameRegistriesBuiltInTest.tagsResolveNestedEntries`.
+
+독립 검토(PR #223, `furnace/reviews/pr223-n0c-review.md`)는 태그 풀기를 바닐라 jar 의 태그 JSON 과 대조해 블록 184·아이템 147·유체 2·엔티티 종류 34·게임 이벤트 5개의 항목과 순서가 같다고 확인했다. 반영:
+- R1: 규칙 밖 필드 이름 `BlockTags.DRIPSTONE_REPLACEABLE`(dripstone_replaceable_blocks)·`ItemTags.NOTE_BLOCK_TOP_INSTRUMENTS`(noteblock_top_instruments) — 검토자 기억과 Paper Tag.java 방증(가정).
+- R2: `HolderSet.Direct` equals·hashCode(내용 목록), `HolderSet.empty()` 상수 하나.
+- R3: `getOrCreateTag` 로 만든 묶음이 그 뒤 `getTag`·`getTagNames` 에 나온다(바닐라 MappedRegistry 태그 지도).
+- 성능: 서버는 태그 표마다 이름 목록·번호 BitSet 을 한 번 만들고(리로드로 표가 바뀌면 다시), 같은 표면 같은 목록 객체를 준다. shim 묶음은 그 목록 객체가 바뀔 때만 손잡이 목록을 다시 만든다.

@@ -26,7 +26,9 @@ public interface HolderSet<T> extends Iterable<Holder<T>> {
 
     Optional<TagKey<T>> unwrapKey();
 
-    static <T> HolderSet<T> empty() { return new Direct<>(List.of()); }
+    /** 바닐라처럼 상수 하나. */
+    @SuppressWarnings("unchecked")
+    static <T> HolderSet<T> empty() { return (HolderSet<T>) Direct.EMPTY; }
 
     @SafeVarargs
     static <T> Direct<T> direct(Holder<T>... holders) { return new Direct<>(List.of(holders)); }
@@ -52,6 +54,8 @@ public interface HolderSet<T> extends Iterable<Holder<T>> {
 
     final class Direct<T> extends ListBacked<T> {
 
+        static final Direct<Object> EMPTY = new Direct<>(List.of());
+
         private final List<Holder<T>> contents;
         private Set<Holder<T>> contentsSet;
 
@@ -71,6 +75,13 @@ public interface HolderSet<T> extends Iterable<Holder<T>> {
 
         @Override
         public String toString() { return "DirectSet[" + contents + "]"; }
+
+        /** 바닐라 jq$a: 상대도 직접 묶음이고 내용 목록이 같으면 같다. */
+        @Override
+        public boolean equals(Object o) { return this == o || o instanceof Direct<?> d && contents.equals(d.contents); }
+
+        @Override
+        public int hashCode() { return contents.hashCode(); }
     }
 
     /** 태그 묶음. {@code contains} 는 바닐라처럼 {@code holder.is(key)}. */

@@ -47,7 +47,16 @@ TAG_TARGETS = [
 ]
 
 
+# 규칙 밖 이름(PR #223 검토: 검토자 기억과 Paper Tag.java 방증, jar 로는 확인 못 함).
+FIELD_EXCEPTIONS = {
+    'dripstone_replaceable_blocks': 'DRIPSTONE_REPLACEABLE',
+    'noteblock_top_instruments': 'NOTE_BLOCK_TOP_INSTRUMENTS',
+}
+
+
 def field(path):
+    if path in FIELD_EXCEPTIONS:
+        return FIELD_EXCEPTIONS[path]
     if path.startswith('mineable/'):
         return 'MINEABLE_WITH_' + path.split('/', 1)[1].upper()
     if path.startswith('enchantable/'):
@@ -71,7 +80,7 @@ for reg, cls, typ, imp, key, desc in TAG_TARGETS:
         f'import {imp};', '',
         '/**',
         f' * 바닐라 {desc} 태그 이름 상수(Mojang 이름 shim, N0). 바닐라 1.21.1 데이터의 {desc} 태그 {len(tags)}개(바닐라 클래스의 TagKey 필드 수와 같다).',
-        ' * 필드 이름은 경로 대문자이고 mineable/x → MINEABLE_WITH_X, enchantable/x → X_ENCHANTABLE 이다(가정: 필드 이름은 난독화 jar 에 없어 확인하지 못했다).',
+        ' * 필드 이름은 경로 대문자이고 mineable/x → MINEABLE_WITH_X, enchantable/x → X_ENCHANTABLE, 규칙 밖 이름 둘은 생성기 FIELD_EXCEPTIONS(가정: 필드 이름은 난독화 jar 에 없어 확인하지 못했다).',
         ' * 내용은 지금 걸린 태그(데이터 팩 리로드 뒤 값)다. 생성: tools/compat/gen-nms-constants.py — 직접 고치지 말 것.',
         ' */',
         f'public final class {cls} {{', '', f'    private {cls}() {{}}', '',

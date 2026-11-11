@@ -46,6 +46,8 @@ class NmsTagsTest {
         assertTrue(BlockTags.LOGS.cast(Registries.ITEM).isEmpty());
         assertEquals(ResourceLocation.withDefaultNamespace("mineable/pickaxe"), BlockTags.MINEABLE_WITH_PICKAXE.location());
         assertEquals(ResourceLocation.withDefaultNamespace("enchantable/sword"), ItemTags.SWORD_ENCHANTABLE.location());
+        assertEquals(ResourceLocation.withDefaultNamespace("dripstone_replaceable_blocks"), BlockTags.DRIPSTONE_REPLACEABLE.location(), "규칙 밖 이름(R1)");
+        assertEquals(ResourceLocation.withDefaultNamespace("noteblock_top_instruments"), ItemTags.NOTE_BLOCK_TOP_INSTRUMENTS.location());
     }
 
     @Test
@@ -86,12 +88,16 @@ class NmsTagsTest {
         TagKey<Block> none = TagKey.create(Registries.BLOCK, ResourceLocation.withDefaultNamespace("no_such_tag"));
         assertTrue(reg.getTag(none).isEmpty());
         assertFalse(reg.getTagOrEmpty(none).iterator().hasNext());
-        assertEquals(0, reg.getOrCreateTag(none).size(), "바닐라처럼 없는 태그는 빈 묶음으로 만든다");
+        HolderSet.Named<Block> created = reg.getOrCreateTag(none);
+        assertEquals(0, created.size(), "바닐라처럼 없는 태그는 빈 묶음으로 만든다");
+        assertSame(created, reg.getTag(none).orElseThrow(), "바닐라: 만든 묶음은 태그 지도에 들어가 getTag 가 준다(PR #223 검토 R3)");
         @SuppressWarnings({"unchecked", "rawtypes"})
         TagKey<Block> itemTag = (TagKey) ItemTags.SWORDS;
         assertTrue(reg.getTag(itemTag).isEmpty(), "다른 레지스트리의 태그");
         assertTrue(reg.getTagNames().anyMatch(t -> t == BlockTags.LOGS));
-        assertEquals(184, reg.getTagNames().count());
+        assertEquals(185, reg.getTagNames().count(), "바닐라 블록 태그 184 + 위에서 만든 빈 묶음");
+        assertTrue(reg.getTagNames().anyMatch(t -> t == none));
+        assertSame(want, server.api().gameRegistries().tag("minecraft:block", "minecraft:logs").orElseThrow(), "같은 태그 표면 같은 목록 객체(shim 캐시의 바탕)");
         assertTrue(BuiltInRegistries.ITEM.getTag(ItemTags.SWORDS).orElseThrow().contains(Items.DIAMOND_SWORD.builtInRegistryHolder()));
 
         HolderSet<Block> direct = HolderSet.direct(Blocks.STONE.builtInRegistryHolder());
@@ -99,5 +105,9 @@ class NmsTagsTest {
         assertTrue(direct.unwrapKey().isEmpty());
         assertEquals("DirectSet[[Reference{ResourceKey[minecraft:block / minecraft:stone]=Block{minecraft:stone}}]]", direct.toString());
         assertEquals(0, HolderSet.empty().size());
+        assertSame(HolderSet.empty(), HolderSet.empty(), "바닐라: 상수 하나");
+        assertEquals(direct, HolderSet.direct(Blocks.STONE.builtInRegistryHolder()), "바닐라 jq$a: 내용 목록으로 비교(R2)");
+        assertEquals(direct.hashCode(), HolderSet.direct(Blocks.STONE.builtInRegistryHolder()).hashCode());
+        assertFalse(direct.equals(HolderSet.direct(Blocks.DIRT.builtInRegistryHolder())));
     }
 }

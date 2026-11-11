@@ -20,33 +20,65 @@ final class GameRegistriesImpl implements GameRegistries {
 
     @Override
     public Set<String> tags(String registry) {
-        var t = currentTags();
-        return t == null ? Set.of() : java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(t.tagsOf(normalize(registry)).keySet()));
+        var byTag = TagView.current().names.get(normalize(registry));
+        return byTag == null ? Set.of() : byTag.keySet();
     }
 
     @Override
     public Optional<List<String>> tag(String registry, String tag) {
-        var t = currentTags();
-        String reg = normalize(registry);
-        int[] ids = t == null ? null : t.ids(reg, normalize(tag));
-        if (ids == null) return Optional.empty();
-        List<String> names = names(reg);
-        List<String> out = new java.util.ArrayList<>(ids.length);
-        for (int id : ids) if (id >= 0 && id < names.size()) out.add(names.get(id));
-        return Optional.of(List.copyOf(out));
+        var byTag = TagView.current().names.get(normalize(registry));
+        return Optional.ofNullable(byTag == null ? null : byTag.get(normalize(tag)));
     }
 
     @Override
     public boolean isTagged(String registry, String tag, String entry) {
-        var t = currentTags();
-        if (t == null) return false;
         String reg = normalize(registry);
-        int[] ids = t.ids(reg, normalize(tag));
-        if (ids == null) return false;
+        var byTag = TagView.current().members.get(reg);
+        if (byTag == null) return false;
+        var members = byTag.get(normalize(tag));
+        if (members == null) return false;
         int id = idOf(reg, normalize(entry));
-        if (id < 0) return false;
-        for (int v : ids) if (v == id) return true;
-        return false;
+        return id >= 0 && members.get(id);
+    }
+
+    /**
+     * 태그 표 하나에서 한 번 만든 보기: 레지스트리 → 태그 → 항목 이름 목록(같은 표면 같은 목록 객체 — 호환 shim 이 이것으로 다시 만들지 판단)과 번호 집합.
+     * 데이터 팩 리로드로 표가 바뀌면 다음 물음에서 다시 만든다.
+     */
+    private static final class TagView {
+        private static volatile TagView last;
+
+        final org.domi.furnace.server.net.registry.TagSet set;
+        final java.util.Map<String, java.util.Map<String, List<String>>> names = new java.util.HashMap<>();
+        final java.util.Map<String, java.util.Map<String, java.util.BitSet>> members = new java.util.HashMap<>();
+
+        private TagView(org.domi.furnace.server.net.registry.TagSet set) {
+            this.set = set;
+            for (String reg : set.registries()) {
+                List<String> entryNames = names(reg);
+                var n = new java.util.LinkedHashMap<String, List<String>>();
+                var m = new java.util.HashMap<String, java.util.BitSet>();
+                for (var e : set.tagsOf(reg).entrySet()) {
+                    List<String> out = new java.util.ArrayList<>(e.getValue().length);
+                    java.util.BitSet bits = new java.util.BitSet();
+                    for (int id : e.getValue()) {
+                        if (id >= 0 && id < entryNames.size()) out.add(entryNames.get(id));
+                        if (id >= 0) bits.set(id);
+                    }
+                    n.put(e.getKey(), List.copyOf(out));
+                    m.put(e.getKey(), bits);
+                }
+                names.put(reg, java.util.Collections.unmodifiableMap(n));
+                members.put(reg, m);
+            }
+        }
+
+        static TagView current() {
+            var t = currentTags();
+            TagView v = last;
+            if (v == null || v.set != t) last = v = new TagView(t);
+            return v;
+        }
     }
 
     /** 데이터 팩 관리자가 건 태그, 없으면(시험 서버처럼 데이터 팩을 안 거는 경우) 바닐라 1.21.1 태그 — 다른 서버 부품(ItemTags·EntityTypeTags)과 같은 바탕. */
