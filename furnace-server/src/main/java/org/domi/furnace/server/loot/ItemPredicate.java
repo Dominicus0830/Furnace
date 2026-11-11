@@ -6,6 +6,7 @@ import com.google.gson.JsonElement;
 import org.domi.furnace.server.item.CodecException;
 import org.domi.furnace.server.item.DataComponents;
 import org.domi.furnace.server.item.ItemPredicates;
+import org.domi.furnace.server.item.ItemPrototypes;
 import org.domi.furnace.server.item.ItemView;
 import org.domi.furnace.server.item.RegistryView;
 
@@ -34,21 +35,24 @@ public final class ItemPredicate {
         };
     }
 
-    /** 전리품 스택을 술어가 보는 꼴로: 컴포넌트 값은 그 종류의 코덱으로 정규화(못 하면 그대로). */
+    /** 전리품 스택을 술어가 보는 꼴로: 패치 값은 그 종류의 코덱으로 정규화(못 하면 없는 것으로). */
     static ItemView view(LootStack s) {
         if (s.isEmpty()) return ItemView.EMPTY;
         return new ItemView() {
             public String item() { return s.item(); }
             public int count() { return s.count(); }
             public Object get(String component) {
-                Object v = s.get(component);
+                // 패치에 없으면 이미 정규화해 둔 아이템 기본값(ItemPrototypes — LootStack 기본값과 같은 원본)
+                if (!s.patch().containsKey(component)) return ItemPrototypes.defaultValue(s.item(), component);
+                Object v = s.patch().get(component);
                 if (v == null) return null;
                 var t = DataComponents.byName(component);
                 if (t == null || t.isTransient()) return v;
                 try {
                     return t.normalize(v);
                 } catch (CodecException e) {
-                    return v;
+                    // 검증 없이 들어온 잘못된 값(set_components 원값 등): 판정 중 예외를 내지 않도록 없는 것으로 본다
+                    return null;
                 }
             }
         };

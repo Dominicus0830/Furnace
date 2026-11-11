@@ -36,7 +36,12 @@ public final class ItemPredicates {
         List<Test> comps = m.get("components") != null ? components(m.get("components")) : List.of();
         List<Test> subs = new ArrayList<>();
         if (m.get("predicates") != null) {
-            for (var e : Val.map(m.get("predicates")).entrySet()) subs.add(sub(e.getKey(), e.getValue(), regs));
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            for (var e : Val.map(m.get("predicates")).entrySet()) {
+                // DispatchedMapCodec: "damage" 와 "minecraft:damage" 를 같이 쓰면 같은 키 두 번
+                if (!seen.add(resourceLocation(e.getKey()))) throw duplicate(e.getKey());
+                subs.add(sub(e.getKey(), e.getValue(), regs));
+            }
         }
         List<Test> fixedSubs = List.copyOf(subs);
         return s -> {
@@ -51,8 +56,10 @@ public final class ItemPredicates {
     /** DataComponentPredicate: 컴포넌트마다 값이 같아야 한다(Objects.equals — 없는 컴포넌트는 null). */
     private static List<Test> components(Object in) {
         List<Test> out = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
         for (var e : Val.map(in).entrySet()) {
             String id = resourceLocation(e.getKey());
+            if (!seen.add(id)) throw duplicate(e.getKey());
             ComponentType t = DataComponents.byName(id);
             if (t == null) throw new CodecException("Unknown registry key in ResourceKey[minecraft:root / minecraft:data_component_type]: " + id);
             if (t.isTransient()) throw new CodecException("Encountered transient component " + id);
@@ -77,6 +84,8 @@ public final class ItemPredicates {
     }
 
     // ------------------------------------------------------------------ 하위 술어(ItemSubPredicates)
+
+    private static CodecException duplicate(String key) { return new CodecException("Duplicate entry for key: '" + key + "'"); }
 
     /** 하위 술어 하나. 종류 이름은 네임스페이스 없이 와도 된다. 모르는 종류·잘못된 값은 CodecException. */
     public static Test sub(String type, Object value, RegistryView regs) {
@@ -267,7 +276,30 @@ public final class ItemPredicates {
 
     /** 텍스트 컴포넌트(트리 꼴) → 쓴 책 쪽의 정규 문자열(FlatText). 같은 텍스트면 같은 문자열 — Component.equals 대응. */
     private static String textKey(Object tree) {
-        return FlatText.canonical(Codecs.toJsonString(tree));
+        return FlatText.canonical(Codecs.toJsonString(styleBooleans(tree)));
+    }
+
+    private static final java.util.Set<String> STYLE_BOOLEANS = java.util.Set.of("bold", "italic", "underlined", "strikethrough", "obfuscated", "interpret");
+
+    /**
+     * NBT 꼴 텍스트(명령 SNBT)의 스타일 불리언은 바이트(bold:true = 1b)다. 바닐라 NbtOps 의 Codec.BOOL 은 수를 != 0 으로 읽으므로
+     * JSON 으로 옮기기 전에 그 키들의 수 값을 불리언으로 바꾼다(그대로 두면 JSON 수가 되어 스타일이 버려진다).
+     */
+    private static Object styleBooleans(Object v) {
+        if (Val.isMap(v)) {
+            Map<String, Object> out = new java.util.LinkedHashMap<>();
+            for (var e : Val.map(v).entrySet()) {
+                Object x = e.getValue();
+                out.put(e.getKey(), STYLE_BOOLEANS.contains(e.getKey()) && x instanceof Number n ? (Object) (n.doubleValue() != 0) : styleBooleans(x));
+            }
+            return out;
+        }
+        if (Val.isList(v) && !(v instanceof int[] || v instanceof byte[] || v instanceof long[])) {
+            List<Object> out = new ArrayList<>();
+            for (Object x : Val.list(v)) out.add(styleBooleans(x));
+            return out;
+        }
+        return v;
     }
 
     private static final List<String> OPERATIONS = List.of("add_value", "add_multiplied_base", "add_multiplied_total");
