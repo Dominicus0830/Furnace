@@ -1254,6 +1254,7 @@ public final class Region {
 
     public void tick() {
         world.assertOwns(this);
+        syncBodiesLeft = MAX_SYNC_BODIES_PER_TICK;
         if (Regionizer.STATS) lapT = System.nanoTime();
         // /tick freeze: 정지 중이면 월드 진행만 건너뛴다(플레이어 처리·변경 방송은 계속). /tick step 은 정지 중에도 N 번 진행한다.
         TickState tickState = world.tickState();
@@ -2849,6 +2850,11 @@ public final class Region {
         sendBatch(p, batch, false);
     }
 
+    /** 매 틱 바뀌는 청크를 region 스레드에서 바로 직렬화하는 틱당 상한(이 region 의 모든 플레이어 합). 넘으면 다음 틱으로 미룬다. */
+    static final int MAX_SYNC_BODIES_PER_TICK = 4;
+    /** 이번 틱에 남은 바로 직렬화 수. tick() 이 채운다. */
+    private int syncBodiesLeft = MAX_SYNC_BODIES_PER_TICK;
+
     /** auto 전송의 틱당 상한 — 바닐라 PlayerChunkSender 의 클라이언트 속도 상한(64)과 같다. 첫 응답 전에도 이만큼까지. */
     static final int AUTO_MAX_CHUNKS_PER_TICK = (int) ChunkSendRate.MAX_CHUNKS_PER_TICK;
     /** auto 전송이 한 틱에 대기열에서 훑는 최대 수 — 시야 32(4225청크)에서도 틱 비용을 묶는다. 가까운 것부터 훑는다. */
@@ -2866,8 +2872,10 @@ public final class Region {
         int adaptive = p.chunkSendRate().nextBudget();   // 미확인 배치가 한도면 0 — 그래도 생성 요청은 계속 건다
         int budget = batchOpen ? 0 : Math.min(Math.max(adaptive, 0), AUTO_MAX_CHUNKS_PER_TICK);
         int genSlots = world.maxChunkSendsInFlight() - p.chunkPrefetches().size();
-        // 본문 미리 직렬화 상한(이 틱에 "준비 안 됨"으로 센 청크 수, 진행 중 포함) — 곧 보낼 가까운 청크만 앞서 만든다
-        int bodySlots = AUTO_MAX_CHUNKS_PER_TICK;
+        // 본문 미리 직렬화 창: 이번 배치 다음으로 볼 로드된 청크 수. 클라이언트 속도의 2배쯤 앞만 만든다(느린 클라이언트에 64개씩
+        // 미리 만들면 매 틱 바뀌는 청크가 끝없이 다시 직렬화된다). 첫 응답 전에는 auto 상한.
+        float rate = p.chunkSendRate().clientReported() ? p.chunkSendRate().desiredChunksPerTick() : AUTO_MAX_CHUNKS_PER_TICK;
+        int bodySlots = Math.clamp(2L * (long) Math.ceil(Math.max(budget, rate)), 2, AUTO_MAX_CHUNKS_PER_TICK);
         List<ChunkPos> batch = new ArrayList<>(Math.min(budget, p.pendingChunks().size()));
         int scanned = 0;
         // 바닐라 ChunkMap.skipPlayer: 청크를 만들지 않는 관전자는 미리 불러오기(생성·디스크 로드)를 걸지 않고 이미 로드된 것만 받는다
@@ -2880,12 +2888,14 @@ public final class Region {
                 if (!room && bodySlots <= 0) continue;
                 // 바닐라 PlayerChunkSender 처럼 배치는 한 틱 안에 Start → 청크 → Finished 로 끝나야 한다(클라이언트가 그 시간으로 속도를 정한다).
                 // 본문이 아직 없으면 직렬화만 걸어 두고 다음 틱에 보낸다. 다른 region 청크는 예전처럼 배치 안에서 기다린다(드묾).
-                boolean ready = !mine(Regionizer.chunkKey(cp.x(), cp.z())) || world.chunkBodyReadyOrPrefetch(cp, room);
-                if (!ready) {
-                    bodySlots--;
-                } else if (room) {
+                int body = mine(Regionizer.chunkKey(cp.x(), cp.z()))
+                        ? world.chunkBodyReadyOrPrefetch(cp, room, syncBodiesLeft > 0) : World.BODY_READY;
+                if (body == World.BODY_SYNC) syncBodiesLeft--;
+                if (room && body != World.BODY_PENDING) {
                     batch.add(cp);
                     it.remove();
+                } else {
+                    bodySlots--;   // 창은 배치 다음의 로드된 청크 수 — 준비된 것도 센다(예산 0 인 틱에 대기열 끝까지 훑지 않게)
                 }
             } else if (!loadedOnly && genSlots > 0 && p.chunkPrefetches().add(cp)) {
                 genSlots--;

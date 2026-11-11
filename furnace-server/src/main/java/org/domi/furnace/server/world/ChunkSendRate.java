@@ -45,5 +45,8 @@ public final class ChunkSendRate {
 
     public synchronized float desiredChunksPerTick() { return desiredChunksPerTick; }
 
+    /** 클라이언트가 chunk_batch_received 로 속도를 한 번이라도 알려 왔나. */
+    public synchronized boolean clientReported() { return clientReported; }
+
     public synchronized int unacknowledgedBatches() { return unacknowledgedBatches; }
 }

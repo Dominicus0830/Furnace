@@ -167,7 +167,7 @@ class ChunkSendAutoTest {
         }
     }
 
-    /** 매 틱 바뀌는 청크(화로·레드스톤)는 본문이 캐시에 못 들어가도 결국 보내야 한다 — 그 자리에서 직렬화한다. */
+    /** 매 틱 블록이 바뀌는 청크(레드스톤)는 본문이 캐시에 못 들어가도 결국 보내야 한다 — 그 자리에서 직렬화한다. */
     @Test
     void chunkChangedEveryTick_isStillSent() throws Exception {
         world(true);
@@ -188,6 +188,36 @@ class ChunkSendAutoTest {
         }
         assertEquals(total, sent, "매 틱 바뀌는 청크도 와야 한다");
         assertFalse(p.pendingChunks().contains(new ChunkPos(0, 0)));
+    }
+
+    /** 시야 안 청크가 모두 매 틱 바뀌어도(레드스톤 장치가 많은 곳) region 스레드 바로 직렬화는 한 틱에 상한까지만 — 그래도 모두 온다. */
+    @Test
+    void everyChunkChangingEachTick_syncSerializationIsCappedPerTick() throws Exception {
+        world(true);
+        for (int x = -VD; x <= VD; x++)
+            for (int z = -VD; z <= VD; z++) w.awaitChunk(new ChunkPos(x, z));
+        Thread[] regionThread = new Thread[1];
+        sched.region(rp).execute(() -> regionThread[0] = Thread.currentThread()).get();
+        java.util.concurrent.atomic.AtomicInteger onRegion = new java.util.concurrent.atomic.AtomicInteger();
+        w.serializeFaultHook = () -> { if (Thread.currentThread() == regionThread[0]) onRegion.incrementAndGet(); };
+        EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
+        join(ch);
+        List<int[]> batches = new ArrayList<>();
+        int[] open = {0};
+        int total = (2 * VD + 1) * (2 * VD + 1), sent = 0, maxSyncInTick = 0;
+        for (int i = 0; i < 200 && sent < total; i++) {
+            sched.region(rp).execute(() -> {
+                for (int x = -VD; x <= VD; x++) for (int z = -VD; z <= VD; z++) w.loadedChunk(x, z).markDirty();
+            }).get();
+            int before = onRegion.get();
+            tick();
+            maxSyncInTick = Math.max(maxSyncInTick, onRegion.get() - before);
+            Thread.sleep(5);
+            drain(ch, batches, open);
+            sent = batches.stream().mapToInt(b -> b[1]).sum();
+        }
+        assertEquals(total, sent, "매 틱 바뀌는 청크도 모두 와야 한다");
+        assertTrue(maxSyncInTick <= Region.MAX_SYNC_BODIES_PER_TICK, "한 틱 바로 직렬화 " + maxSyncInTick);
     }
 
     @Test
