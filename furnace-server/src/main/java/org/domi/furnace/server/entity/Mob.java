@@ -760,17 +760,25 @@ public abstract class Mob extends LivingEntity implements Leashable {
         return getAttackBoundingBox().inflate(MELEE_REACH, 0.0, MELEE_REACH).intersects(t.boundingBox());
     }
 
-    /** Mob.doHurtTarget: 공격력 속성만큼 때리고, 맞으면 밀치기(attack_knockback)·되받는 감속·마지막으로 때린 대상 기록. TODO(인챈트 효과·무기 후처리). */
+    /**
+     * Mob.doHurtTarget(btp.D): 공격력 속성 + 주 손 무기의 마법 부여 피해(날카로움·강타·살충·찌르기, dae.a modifyDamage)로 때리고, 맞으면
+     * 밀치기(attack_knockback + 밀치기 마법, getKnockback)·되받는 감속·공격 후 효과(맞은 쪽 가시, 무기의 화염·살충)·마지막으로 때린 대상 기록.
+     * 돌풍(wind_burst)의 공격 후 반동은 플레이어 경로만 있다.
+     */
     public boolean doHurtTarget(Targetable t) {
+        ItemStack weapon = getItemBySlot(EquipmentSlot.MAINHAND);
         float damage = (float) attributeValue(Attribute.ATTACK_DAMAGE);
-        boolean hurt = t.hurtByMob(new Damage("mob_attack", false, false, false).withWeapon(getItemBySlot(EquipmentSlot.MAINHAND)), damage, this);
+        damage += PlayerMelee.enchantDamageBonus(weapon, t);
+        boolean hurt = t.hurtByMob(new Damage("mob_attack", false, false, false).withWeapon(weapon), damage, this);
         if (hurt) {
-            float kb = (float) attributeValue(Attribute.ATTACK_KNOCKBACK);
+            float kb = (float) attributeValue(Attribute.ATTACK_KNOCKBACK) + ItemTools.enchantmentLevel(weapon, "minecraft:knockback");
             if (kb > 0.0F) {
                 t.knockback(kb * 0.5F, org.domi.furnace.server.entity.ai.control.Mth.sin(yRot() * (float) (Math.PI / 180.0)), -org.domi.furnace.server.entity.ai.control.Mth.cos(yRot() * (float) (Math.PI / 180.0)));
                 setDeltaMovement(vx() * 0.6, vy(), vz() * 0.6);
             }
             EnchantEffects.thorns(level, t, this);   // doPostAttackEffects: 맞은 쪽 장비의 가시
+            PlayerMelee.igniteByWeapon(t, weapon);
+            PlayerMelee.baneSlowness(t, weapon);
             setLastHurtMob(t);
             doPostHurtEffects(t);
         }

@@ -88,6 +88,8 @@
 
 ### A11-05 [중간] 엔티티 틱 범위가 바닐라보다 한 칸 좁다 (A07-07 재확인)
 
+> **상태(2026-11-11):** 엔티티 쪽은 PR #182 가 이미 고쳤다(`world/EntityTickRangeTest`). 블록 엔티티 `sim − 1` 은 A07-02 로 남아 있다.
+
 - 바닐라: 플레이어 시뮬레이션 티켓 레벨 = `max(0, 31 − sim)`(`aqk.g()`, `sim` 은 `aqs` 생성자가 `aqk.b(int)` 에 그대로 넘긴다). 청크 레벨 = 티켓 + 체비셰프 거리. `ENTITY_TICKING` 은 레벨 ≤ 31(`aqa.a(aql.d)`), `BLOCK_TICKING` 은 ≤ 32. → **엔티티는 체비셰프 거리 ≤ sim, 블록(블록 엔티티·예약 틱·블록 이벤트)은 ≤ sim + 1**. (1차 점검 `first-wave-check.md` 의 같은 결론. 코디네이터 메모의 "엔티티가 sim+1" 은 블록 쪽 값이다.)
 - Furnace: 엔티티 틱 판정이 블록 엔티티 판정과 같은 함수다 — `RegionLevel.java:294` 의 `entityTicking = … blockEntityTicking.test(k)` ← `Region.blockEntityTicking`(`Region.java:1573`)의 `range = max(sim, 2) − 1`. 즉 **엔티티 ≤ sim − 1**, 바닐라보다 한 칸 좁다(블록은 ≤ sim + 1 이어야 하니 두 칸 좁다 — A07-02).
 - 관측: 시뮬레이션 거리 4 에서 플레이어로부터 청크 4 칸 떨어진 몹·아이템·탈것이 멈춘다(바닐라는 돈다). 낮은 시뮬레이션 거리(서버가 흔히 쓰는 설정)일수록 비율이 크다. 가장자리 몹이 갑자기 얼어붙고 AI·낙하·불·효과 틱이 멈춘다.
@@ -96,6 +98,8 @@
 
 ### A11-06 [중간] 화염 저항 효과를 가진 몹이 불·용암 피해를 그대로 입는다
 
+> **상태(2026-11-11):** 수정됨(`entity/A11MediumLowTest.fireResistanceMobIgnoresFireDamage`).
+
 - 바닐라: `LivingEntity.hurt`(`btn.a(brk,F)`) 앞부분에서 `is_fire`(`awg.i`) 피해이고 `hasEffect(FIRE_RESISTANCE)` 면 `false` 를 돌려준다(피해 없음, 표시·소리 없음). 플레이어 경로(`PlayerVitals.isInvulnerableTo`)는 이미 같다.
 - Furnace: `LivingEntity.hurtByInner` 에도 `Entity.isInvulnerableTo` 에도 화염 저항 검사가 없다(`FIRE_RESISTANCE` 사용처는 토템 부여·마녀 마시기·플레이어 경로뿐). 화염 저항 물약을 마신 좀비·말·주민이 용암 속에서 4 피해와 불 피해를 계속 입는다. 화염 저항 마녀의 불 방어 이득 등 몹 쪽 사용 장면이 전부 무의미하다.
 - 재현: `A11HazardReproTest.fireResistanceMobIgnoresFireDamage`(`hurt` 가 true, 체력 20 → 19).
@@ -103,12 +107,16 @@
 
 ### A11-07 [중간] 창조 모드 플레이어의 직접 공격이 `Invulnerable` 몹을 못 뚫는다
 
+> **상태(2026-11-11):** 수정됨 — `Entity.Damage.creativeSource`(`entity/A11MediumLowTest.creativePlayerHurtsInvulnerableMob`).
+
 - 바닐라: `Entity.isInvulnerableTo`(`bsr.b`)의 `invulnerable` 항은 `!source.is(bypasses_invulnerability) && !source.isCreativePlayer()` 일 때만 참이다(`brk.h()` = 직접 엔티티가 `abilities.instabuild` 인 플레이어). 맵 제작자가 `Invulnerable:1b` 몹·거치대를 창조 모드로 쳐서 지우는 흔한 경로.
 - Furnace: `Entity.isInvulnerableTo(Damage)`(`Entity.java:824`)는 피해 원인을 보지 않는다. 같은 호출이 `PlayerMelee` 에서 `new Damage("player_attack", …)` 로 오므로 창조 모드여도 막힌다. 생존 모드가 막히는 것은 맞다.
 - 재현: `A11CreativeInvulnerableReproTest.creativePlayerHurtsInvulnerableMob`(생존은 통과해 대조).
 - 제안: `Damage` 에 "직접 원인이 창조 모드 플레이어" 칸을 하나 더하거나(`withCreativeSource`), `hurtBy(…attacker…)` 경로에서 `attacker`(직접 원인)를 `isInvulnerableTo` 에 넘긴다. 투사체의 직접 엔티티는 플레이어가 아니므로 화살은 여전히 막힌다(바닐라와 같음). **모델: Sonnet medium**, 크기: 작음.
 
 ### A11-08 [중간] 몹이 든 무기의 마법 부여(날카로움·밀치기·화염)가 반영되지 않는다
+
+> **상태(2026-11-11):** 수정됨 — 피해·밀치기·불 붙이기·살충 느림(`mobWeaponSharpnessAddsDamage`·`mobWeaponFireAspectIgnitesTarget`). 돌풍 반동은 몹에 없음.
 
 - 바닐라 `Mob.doHurtTarget`(1.21.1): `EnchantmentHelper.modifyDamage(level, getWeaponItem(), target, source, f)` 로 날카로움·강타·해충 강타 등을 더하고, `getKnockback` 이 `modifyKnockback`(밀치기 마법) 을 더하며, 맞춘 뒤 `doPostAttackEffects`(화염 속성 점화 …)를 부른다. 몹은 스폰 때 마법 부여 무기를 받는다(`MobSpawnEnchantTest` 로 구현됨).
 - Furnace `Mob.doHurtTarget`(`Mob.java:763`): 주석에 `TODO(인챈트 효과·무기 후처리)` 가 그대로 있다. 공격력 속성(+ 무기 속성 수정자)만 쓴다. 가시는 `EnchantEffects.thorns` 로 구현돼 있다.
@@ -126,11 +134,15 @@
 
 ### A11-10 [낮음] 슬로 폴링·부양 효과가 몹의 낙하 거리를 지우지 않는다
 
+> **상태(2026-11-11):** 수정됨(`slowFallingMobTakesNoFallDamage`).
+
 - 바닐라 `btn.m_`(aiStep) 오프셋 591~611: 효과 `SLOW_FALLING`(`bsb.B`) 또는 `LEVITATION`(`bsb.y`)이 있으면 **매 틱 `resetFallDistance()`**(생물 전체). Furnace 는 `PlayerVitals.tick` 에만 있다(`PlayerVitals.java:1245`). 슬로 폴링을 받은 몹(`/effect give`·화살·물약)이 천천히 내려와도 착지에서 전체 거리의 낙하 피해를 입는다(재현 시험은 31칸 낙하 후 체력 10 → 0).
 - 재현: `A11HazardReproTest.slowFallingMobTakesNoFallDamage`.
 - 제안: `LivingEntity.aiStep` 에 두 줄. **모델: Sonnet low**.
 
 ### A11-11 [낮음] `baseTick` 안에서 효과 틱이 무적 시간 감소보다 먼저 돈다
+
+> **상태(2026-11-11):** 수정됨(`effectDamageSeesInvulnerabilityAfterDecrement`).
 
 - 바닐라 `btn.aw` 순서: …익사·질식 → `hurtTime--` → `invulnerableTime--` → 사망 틱 → 마지막으로 때린 쪽 기록 갱신 → **`tickEffects`(`btn.eo`, 오프셋 765)**. Furnace `LivingEntity.baseTick`(`LivingEntity.java:1065`)은 `super.baseTick()` 바로 뒤에 `tickEffects()` 를 부르고 무적 시간 감소는 그 뒤다. 그래서 효과가 입히는 피해(독·위더)가 **무적 시간을 한 틱 늦게 본다**: 맞은 뒤 10번째 틱에 들어가야 할 위더 피해가 11번째 틱에 들어간다. 효과 피해 한 번이 한 틱씩 밀리므로 관측 차이는 작지만 같은 틱에 여러 소스가 겹칠 때 체력 값 순서가 달라진다. 플레이어(`PlayerVitals.tick`)는 순서가 맞다.
 - 재현: `A11HazardReproTest.effectDamageSeesInvulnerabilityAfterDecrement`(위더 V, 기대 체력 5.0, 실제 6.0).
@@ -138,11 +150,15 @@
 
 ### A11-12 [낮음] 플레이어 낙하 피해가 `safe_fall_distance`·`fall_damage_multiplier` 속성을 읽지 않는다
 
+> **상태(2026-11-11):** 수정됨(`playerFallDamageReadsFallAttributes`·`playerJumpBoostStillRaisesSafeFallDistance`).
+
 - 바닐라 `calculateFallDamage` 는 속성 `generic.safe_fall_distance`(기본 3)·`generic.fall_damage_multiplier`(기본 1)를 읽는다. 몹(`LivingEntity.java:1037`)은 이미 읽는다. 플레이어 `PlayerVitals.fallDamage`(`PlayerVitals.java:1163`)는 상수 `SAFE_FALL_DISTANCE = 3.0f` 와 점프 강화 효과만 쓴다. 점프 강화는 바닐라에서 같은 속성에 수정자를 거는 방식이라 결과가 맞지만, **`/attribute`·아이템 수정자·데이터 팩·플러그인이 속성을 바꾸면 플레이어에게만 안 먹는다.**
 - 재현: `A11HazardReproTest.playerFallDamageReadsSafeFallDistanceAttribute`(안전 거리 10 으로 올리고 8칸 낙하 → 기대 피해 0, 실제 5).
 - 제안: `fallDamage` 가 `player.attributes()` 의 두 속성을 쓰게 한다(점프 강화 항은 속성 수정자로 옮기거나 중복되지 않게). **모델: Sonnet medium**.
 
 ### A11-13 [낮음] 몹의 무적 시간 우회 판정이 `bypasses_invulnerability` 로 되어 있다
+
+> **상태(2026-11-11):** 수정됨(`outOfWorldDamageObeysInvulnerabilityFrames`).
 
 - 바닐라 `LivingEntity.hurt` 의 `invulnerableTime > 10` 우회는 태그 **`bypasses_cooldown`**(`awg.e`)이다. 바닐라 1.21.1 데이터에는 이 태그 파일이 없어 늘 거짓이다(데이터 팩이 채울 수 있게 만든 훅).
 - Furnace `LivingEntity.java:247` 은 `source.bypassesInvulnerability()`(`out_of_world`·`generic_kill`)를 쓴다. 그래서 월드 밖으로 떨어진 몹이 무적 시간 없이 **매 틱 4 피해**를 입는다(바닐라는 `amount ≤ lastHurt` 이므로 약 10틱마다 한 번). 플레이어는 이미 바닐라와 같다. `/kill` 은 `Float.MAX_VALUE` 라 어느 쪽이든 죽는다.
@@ -150,6 +166,8 @@
 - 제안: 우회 판정 태그를 `bypasses_cooldown`(비어 있음)으로 바꾸고, 태그 조회가 데이터 팩 태그를 반영하는지 확인. **모델: Haiku low**(한 줄) 또는 A11-03 PR 에 편승.
 
 ### A11-14 [낮음] 플레이어 이동 검증이 `step_height` 속성을 읽지 않는다
+
+> **상태(2026-11-11):** 수정됨(`playerMoveReadsStepHeightAttribute`).
 
 - 바닐라 서버의 `move(PLAYER, …)`(`handleMovePlayer`)는 플레이어의 `generic.step_height` 속성(기본 0.6)을 쓴다. `PlayerMoveValidator.move`(`PlayerMoveValidator.java:238`)는 `float step = 0.6F; // 수정자 없음` 상수. `/attribute @s minecraft:generic.step_height base set 1` 이나 아이템 수정자로 높은 단차를 오르는 플레이어는 클라이언트가 올라간 자리를 서버가 "moved wrongly"(0.0625 초과)로 되돌린다. 지도 제작자가 쓰는 `step_height` 보너스에서 오탐이 난다. 속성이 기본값인 일반 플레이는 영향 없음.
 - 재현 시험은 없다(Region 시험 틀에서 속성 + 단차 지형이 필요 — 후속). 코드 대 바이트코드 비교로 확인.

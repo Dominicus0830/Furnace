@@ -41,13 +41,28 @@ public abstract non-sealed class Entity implements Rider {
     }
 
     /** 엔티티가 받는 피해의 종류(바닐라 DamageSource 중 엔티티 동작이 보는 성질만). */
-    public record Damage(String type, boolean fire, boolean explosion, boolean bypassesInvulnerability, ItemStack weapon) {
+    public record Damage(String type, boolean fire, boolean explosion, boolean bypassesInvulnerability, ItemStack weapon, boolean creativeSource) {
         public Damage(String type, boolean fire, boolean explosion, boolean bypassesInvulnerability) {
-            this(type, fire, explosion, bypassesInvulnerability, null);
+            this(type, fire, explosion, bypassesInvulnerability, null, false);
+        }
+
+        public Damage(String type, boolean fire, boolean explosion, boolean bypassesInvulnerability, ItemStack weapon) {
+            this(type, fire, explosion, bypassesInvulnerability, weapon, false);
         }
 
         /** DamageSource.getWeaponItem: 직접 때린 쪽의 주 손 무기(관통 등 방어력 보정이 본다). */
-        public Damage withWeapon(ItemStack w) { return new Damage(type, fire, explosion, bypassesInvulnerability, w); }
+        public Damage withWeapon(ItemStack w) { return new Damage(type, fire, explosion, bypassesInvulnerability, w, creativeSource); }
+
+        /**
+         * DamageSource.isCreativePlayer(brk.h): 직접 엔티티가 abilities.instabuild 인 플레이어다(맨손·무기 직접 공격. 화살 등 투사체는 아니다).
+         * Entity.isInvulnerableTo 의 Invulnerable 항을 뚫는다.
+         */
+        public Damage withCreativeSource(boolean creative) { return creative == creativeSource ? this : new Damage(type, fire, explosion, bypassesInvulnerability, weapon, creative); }
+
+        /** 플레이어가 직접 때리는 player_attack(바닐라 playerAttack(player)). */
+        public static Damage playerAttack(Player p) {
+            return new Damage("player_attack", false, false, false).withCreativeSource(p != null && p.vitals().instabuild());
+        }
 
         public static final Damage IN_FIRE = new Damage("in_fire", true, false, false);
         public static final Damage ON_FIRE = new Damage("on_fire", true, false, false);
@@ -838,9 +853,9 @@ public abstract non-sealed class Entity implements Rider {
         return !isInvulnerableTo(source) && false;
     }
 
-    /** Entity.isInvulnerableTo(bsr.b): 빠졌거나, 무적(우회 태그 아님)이거나, 불 피해에 불 면역이거나, 낙하(#is_fall) 피해에 #fall_damage_immune 종류. */
+    /** Entity.isInvulnerableTo(bsr.b): 빠졌거나, 무적(우회 태그·창조 모드 플레이어의 직접 공격이 아님)이거나, 불 피해에 불 면역이거나, 낙하(#is_fall) 피해에 #fall_damage_immune 종류. */
     public boolean isInvulnerableTo(Damage source) {
-        return isRemoved() || invulnerable && !source.bypassesInvulnerability() || source.fire() && fireImmune()
+        return isRemoved() || invulnerable && !source.bypassesInvulnerability() && !source.creativeSource() || source.fire() && fireImmune()
                 || typeInTag("minecraft:fall_damage_immune") && org.domi.furnace.server.entity.damage.DamageType.keyHasTag(source.type(), "is_fall");
     }
 

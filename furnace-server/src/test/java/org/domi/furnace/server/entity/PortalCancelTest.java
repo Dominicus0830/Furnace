@@ -53,7 +53,7 @@ class PortalCancelTest {
         over.setBlock(new Pos(16, -60, 0), portalX(), 18);
         over.setBlock(new Pos(16, -59, 0), portalX(), 18);
         Pig pig = new Pig(over, over.nextEntityId());
-        pig.setNoAi(true);
+        pig.goalSelector().removeAllGoals(g -> true);   // 걸어 다니지 않게(목표를 비운다 — 바닐라 NoAI 몹은 move 하지 않아 포털에 들어가지 못한다)
         pig.moveTo(16.5, -60.0, 0.5, 30.0F, 0.0F);
         over.addFreshEntity(pig);
         over.tickEntities(3);
