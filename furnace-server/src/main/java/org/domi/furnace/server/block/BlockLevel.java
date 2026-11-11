@@ -271,6 +271,9 @@ public interface BlockLevel {
 
     RandomSource random();
 
+    /** 레드스톤 횃불 과열 기록(바닐라 RedstoneTorchBlock.RECENT_TOGGLES 의 이 레벨 몫). 이 레벨을 가진 스레드만 쓴다. */
+    RedstoneTorchToggles redstoneTorchToggles();
+
     long gameTime();
 
     long dayTime();

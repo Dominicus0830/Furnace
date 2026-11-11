@@ -28,7 +28,7 @@ dependencies {
 
     testImplementation(platform("org.junit:junit-bom:6.0.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation("org.junit.platform:junit-platform-launcher")   // NoRetryFailureListener(TestExecutionListener)가 컴파일에 쓴다
 }
 
 application {
@@ -51,6 +51,10 @@ tasks.test {
     // 20ms 로는 CI 처럼 바쁜 러너에서 다른 region 왕복이 늦어 CommandBlockOneTickTest 가 자주 실패했다(2026-11-05~07 집계 24건, 서버 동작 문제가 아니라 시험 시간 예산 문제).
     // 시험은 "그 틱 안에 끝난다"는 동작을 보는 것이라 예산 크기에는 기대지 않는다. 직접 정한 값(-Dfurnace.commandBlockWaitMicros=…)이 있으면 아래 반복문이 덮어쓴다.
     systemProperty("furnace.commandBlockWaitMicros", "500000")
+    // @NoRetry 시험이 실패하면 NoRetryFailureListener 가 여기에 적는다. CI 의 재시도 단계가 읽는다(.github/workflows/ci.yml). 시작 전에 지운다.
+    val noRetryReport = layout.buildDirectory.file("no-retry-failures.txt").get().asFile
+    systemProperty("furnace.noRetryReport", noRetryReport.absolutePath)
+    doFirst { noRetryReport.delete() }
     System.getProperties().forEach { k, v ->
         if (k.toString().startsWith("furnace.")) systemProperty(k.toString(), v.toString())
     }
