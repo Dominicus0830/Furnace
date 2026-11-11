@@ -3,6 +3,7 @@ plugins {
     id("java")
     id("application")
     id("maven-publish")
+    id("jacoco")
 }
 
 repositories { mavenCentral() }
@@ -70,6 +71,29 @@ tasks.test {
         include(Spec<FileTreeElement> { el ->
             el.isDirectory || Math.floorMod((el.path.substringBefore('$').removeSuffix(".class") + shardSalt).hashCode(), total) == index - 1
         })
+    }
+}
+
+// 줄·가지 커버리지(JaCoCo, 보고용 — 게이트 아님). 평소 시험은 에이전트 없이 돌고(느려짐·시간 민감 시험 영향 방지), -Pcoverage 를 주면 켠다:
+//   ./gradlew -PskipOracle=true -Pcoverage :furnace-server:test :furnace-server:jacocoTestReport
+// CI 는 기준 브랜치 push 실행의 서버 시험 조각마다 test.exec 를 올리고, 합치는 작업(coverage)이 jacocoCoverageReport 로 표 하나를 만든다(docs/ci.md).
+tasks.test {
+    extensions.configure<JacocoTaskExtension> { isEnabled = findProperty("coverage") != null }
+}
+tasks.jacocoTestReport {
+    reports { xml.required = true; html.required = true }
+}
+// 조각마다 받은 .exec 파일(build/coverage-in/**.exec)을 합쳐 하나의 보고서로 만든다.
+tasks.register<JacocoReport>("jacocoCoverageReport") {
+    group = "verification"
+    description = "build/coverage-in 아래의 모든 .exec 를 합친 서버 커버리지 보고서(xml·html)"
+    executionData(fileTree(layout.buildDirectory.dir("coverage-in")) { include("**/*.exec") })
+    sourceSets(sourceSets.main.get())
+    reports {
+        xml.required = true
+        html.required = true
+        xml.outputLocation = layout.buildDirectory.file("reports/coverage/jacoco.xml")
+        html.outputLocation = layout.buildDirectory.dir("reports/coverage/html")
     }
 }
 
