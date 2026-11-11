@@ -394,10 +394,17 @@ public final class Regionizer {
         }
     }
 
-    /** 죽은 region 의 남은 작업을 넣은 순서대로 지금 주인에게(쓰기 잠금 안 — 그 사이 생산자는 기다린다). */
-    private void reroute(Region dead) {
+    /**
+     * 죽은 region 의 남은 작업을 넣은 순서대로 지금 주인에게(쓰기 잠금 안 — 그 사이 생산자는 기다린다). region 단위 작업은 into(흡수한 쪽)가
+     * 있으면 그쪽에서 돈다 — 청크 키로 보내면 그 키 구역이 나뉘어 간 다른 region 에서 두 번 돌고 흡수한 쪽 몫은 빠진다.
+     * 쓰기 잠금 안에서는 같은 차원에만 보낸다(다른 차원 Regionizer 로 enqueue 하면 잠금 순서가 깨진다).
+     */
+    private void reroute(Region dead, Region into) {
         Region.Task t;
-        while ((t = dead.inbox.poll()) != null) enqueue(t.chunkKey(), t.run(), t.urgent());
+        while ((t = dead.inbox.poll()) != null) {
+            if (into != null && t.run() instanceof RegionWide) into.inbox.add(t);
+            else enqueue(t.chunkKey(), t.run(), t.urgent());
+        }
     }
 
     // ------------------------------------------------------------------ 명령 블록 기다림(전역 스레드가 보낸 작업을 빨리 돌리기)
@@ -894,6 +901,9 @@ public final class Regionizer {
     private void absorb(Region r, Region o) {
         // 주인 바꾸기와 o 큐 옮기기를 생산자에게 한 번에 보이게(쓰기 잠금): 바뀐 주인을 본 새 작업은 옮겨진 옛 작업 뒤에 선다.
         // r 큐에는 r 구역 작업만 있으므로(같은 불변식) o 작업을 그 뒤에 붙여도 청크마다 순서는 그대로다.
+        // 데이터 옮기기는 쓰기 잠금 밖에서(생산자는 o 큐에만 넣는다 — 아래에서 함께 옮긴다). 그동안 넷티 스레드 작업 넣기가 멈추지 않게.
+        r.absorbData(o);
+        r.adoptSprintFrom(o);   // 참여하지 않던 쪽이 흡수하면 참여 쪽 sprint 상태를 이어받는다
         var wl = route.writeLock();
         wl.lock();
         try {
@@ -909,9 +919,7 @@ public final class Regionizer {
             o.sections.clear();
             for (Region p : o.pendingMerges) if (resolve(p) != r) r.pendingMerges.add(p);
             o.pendingMerges.clear();
-            r.absorbData(o);
-            r.adoptSprintFrom(o);   // 참여하지 않던 쪽이 흡수하면 참여 쪽 sprint 상태를 이어받는다
-            reroute(o);
+            reroute(o, r);
         } finally {
             wl.unlock();
         }
@@ -1056,7 +1064,7 @@ public final class Regionizer {
         try {
             r.alive = false;
             regions.remove(r);
-            reroute(r);
+            reroute(r, null);
         } finally {
             wl.unlock();
         }

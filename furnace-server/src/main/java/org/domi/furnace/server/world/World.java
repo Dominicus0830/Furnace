@@ -207,6 +207,11 @@ public final class World {
     /** 이 월드로 오는 중인 차원 이동 수(목적 청크 준비 중). */
     public int incomingTravels() { return incoming.get(); }
 
+    /** 이 월드에서 떠나 아직 도착(또는 되돌림 작업 넣기)하지 않은 엔티티 이동 수 — 같은 레벨 관문 이동도 센다. */
+    private final java.util.concurrent.atomic.AtomicInteger outgoing = new java.util.concurrent.atomic.AtomicInteger();
+
+    public int outgoingTravels() { return outgoing.get(); }
+
     /** 로드 중인 청크 수(생성·읽기 진행 중). */
     public int pendingChunkLoads() { return loading.size(); }
 
@@ -581,10 +586,10 @@ public final class World {
         if (quiesceGlobal != null) quiet.add(quiesceGlobal.get());
         for (World w : worlds) quiet.add(w.quiesce());
         boolean ok = awaitQuietly(quiet, deadlineNanos, "종료 틱 멈춤");
-        // 붙잡기 전 마지막 틱에 떠난 이동: 목적 청크를 읽는 중이면 도착 작업이 아직 없다 — 다 도착할 때까지
+        // 붙잡기 전 마지막 틱에 떠난 이동(차원·같은 레벨 관문): 목적 청크를 읽거나 출구를 만드는 중이면 도착 작업이 아직 없다 — 다 도착할 때까지
         while (true) {
             int flying = 0;
-            for (World w : worlds) flying += w.incomingTravels();
+            for (World w : worlds) flying += w.incomingTravels() + w.outgoingTravels();
             if (flying == 0) break;
             if (System.nanoTime() - deadlineNanos >= 0) {
                 org.slf4j.LoggerFactory.getLogger(World.class).error("[STOP] 차원 이동 {}건이 마감 안에 도착하지 않았다", flying);
@@ -1572,6 +1577,12 @@ public final class World {
 
         @Override
         public boolean frozen() { return travelFrozen; }
+
+        @Override
+        public void departing() { outgoing.incrementAndGet(); }
+
+        @Override
+        public void settled() { outgoing.decrementAndGet(); }
 
         @Override
         public void travel(org.domi.furnace.server.entity.PortalTravel plan,

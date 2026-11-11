@@ -183,6 +183,33 @@ class ShutdownConsistentCutTest {
         }
     }
 
+    /**
+     * 같은 레벨 관문 이동(출구를 찾거나 만드는 중)은 목적 월드 incoming 에 잡히지 않는다 — 원천 월드가 떠난 이동을 세고(departing·settled),
+     * 기준점은 그것까지 끝나기를 기다린다(검토 지적: 예전엔 그 사이 저장해 도착한 엔티티가 사라질 수 있었다).
+     */
+    @Test
+    void cutWaitsForOutgoingMovesIncludingSameLevel() throws Exception {
+        Pair p = open(true);
+        try {
+            var travel = on(p.over(), CP, r -> r.level().dimensionTravel());
+            on(p.over(), CP, r -> { travel.departing(); return null; });   // 관문에 들어가 떠난 엔티티 대역
+            assertEquals(1, p.over().outgoingTravels());
+            var cut = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                try {
+                    return World.holdForShutdown(List.of(p.over(), p.nether()), null, null, System.nanoTime() + TimeUnit.SECONDS.toNanos(20));
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            Thread.sleep(300);
+            assertFalse(cut.isDone(), "떠난 이동이 남았는데 기준점이 끝났다");
+            travel.settled();   // 도착
+            assertTrue(cut.get(10, TimeUnit.SECONDS));
+        } finally {
+            p.close();
+        }
+    }
+
     /** 기준점을 잡을 때 목적 청크를 읽느라 날아가는 중인 이동은 도착한 뒤 저장된다(소실 없음), 떠난 차원에도 남지 않는다(복제 없음). */
     @Test
     void travelInFlightAtCutArrivesBeforeSave() throws Exception {

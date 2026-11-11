@@ -491,7 +491,8 @@ public final class FurnaceMain {
                     // 건너가 복제(먼저 저장된 차원에서 나감)되거나 소실(나중 차원에서 들어옴)되지 않게. 백업 기준점과 같다. 종료라 놓지 않는다.
                     try {
                         if (!World.holdForShutdown(dimensions.all(), () -> core.holdGlobalTicks(true), core::quiesceGlobal,
-                                System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(20))) {
+                                // 짧게: 워치독 종료(멈춘 스레드가 답하지 않는다)는 exit 10초 뒤 halt 한다 — 기준점이 저장 시간을 다 먹지 않게
+                                System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(3))) {
                             log.error("[STOP] 저장 기준점(틱 멈춤)이 마감 안에 끝나지 않았다 — 그대로 저장한다");
                         }
                     } catch (InterruptedException e) {

@@ -578,7 +578,15 @@ public abstract non-sealed class Entity implements Rider {
             return;
         }
         final double ox = x, oz = z;
-        final CarriedEntity self = depart(travel, targetDimension, carryPassengers);
+        // 떠나서 도착(또는 되돌림 작업 넣기)까지 원천 월드가 센다 — 종료 저장 기준점이 차원·관문 이동 모두 끝나기를 기다린다
+        travel.departing();
+        final CarriedEntity self;
+        try {
+            self = depart(travel, targetDimension, carryPassengers);
+        } catch (RuntimeException ex) {
+            travel.settled();
+            throw ex;
+        }
         final java.util.concurrent.atomic.AtomicBoolean called = new java.util.concurrent.atomic.AtomicBoolean();
         try {
             route.accept((target, t) -> {
@@ -590,6 +598,7 @@ public abstract non-sealed class Entity implements Rider {
                         arrive(target, t, travel, self, place);
                     }
                 } finally {
+                    travel.settled();
                     if (done != null) done.run();
                 }
             });
@@ -599,6 +608,7 @@ public abstract non-sealed class Entity implements Rider {
                 try {
                     travel.runAtSource(floor(ox), floor(oz), src -> restore(src, self, travel));
                 } finally {
+                    travel.settled();
                     if (done != null) done.run();
                 }
             }
