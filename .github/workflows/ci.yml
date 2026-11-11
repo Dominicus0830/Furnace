@@ -12,7 +12,7 @@ name: CI
 on:
   push:
     branches:
-      - claude/quirky-wright-lra834   # 기준 브랜치가 바뀌면 이 이름과 아래 BASE_BRANCH 둘 다 바꾼다
+      - claude/quirky-wright-lra834   # 기준 브랜치가 바뀌면 이 이름과 아래 BASE_BRANCH, 그리고 coverage-tests·coverage 작업의 if(하드코딩) 모두 바꾼다
       - main
   pull_request:
 
