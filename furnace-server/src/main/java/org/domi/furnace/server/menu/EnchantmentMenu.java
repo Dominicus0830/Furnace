@@ -78,7 +78,7 @@ public class EnchantmentMenu extends AbstractContainerMenu {
     private List<Enchantments.TableEnchant> getEnchantmentList(ItemStack stack, int slot, int cost) {
         var regs = owner.lootRegistries();
         if (regs == null) return new ArrayList<>();
-        random.setSeed((long) enchantmentSeed.get() + slot);
+        random.setSeed((long) (enchantmentSeed.get() + slot));
         List<Enchantments.TableEnchant> list = Enchantments.selectForTable(new LegacyNoiseRandom(random), ItemTools.itemName(stack), cost, regs);
         if ("minecraft:book".equals(ItemTools.itemName(stack)) && list.size() > 1) list.remove(random.nextInt(list.size()));
         return list;
@@ -172,7 +172,7 @@ public class EnchantmentMenu extends AbstractContainerMenu {
             }
             enchantSlots.set(0, target);
             player.awardStat("minecraft:enchant_item", 1);
-            if (!player.isCreative() || !lapis.isEmpty()) {
+            if (!player.isCreative()) {
                 ItemStack rest = lapis.withCount(lapis.count() - cost);
                 enchantSlots.set(1, rest.isEmpty() ? ItemStack.EMPTY : rest);
             }

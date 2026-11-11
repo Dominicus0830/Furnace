@@ -4766,7 +4766,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private OpenSpec resolveOpenSpec(org.domi.furnace.server.world.Region region, Player p, org.domi.furnace.server.block.Pos pos) {
         var level = region.level();
         if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.EnderChestBlockEntity ender) {
-            if (org.domi.furnace.server.block.types.ChestBlock.isChestBlockedAt(level, pos)) return null;
+            if (org.domi.furnace.server.block.types.ChestBlock.isBlockedChestByBlock(level, pos)) return null;
             return new OpenSpec(null, null, ender, Text.translatable("container.enderchest"), null, null);
         }
         if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.BeaconBlockEntity beacon) {
