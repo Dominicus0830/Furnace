@@ -550,7 +550,10 @@ public final class ServerCore {
         var occupied = new org.domi.furnace.server.loot.LootStack("minecraft:stone", 1);
         for (int i = 0; i < slots.length; i++) if (items[i] != null && !items[i].isEmpty()) slots[i] = occupied;
         var params = new org.domi.furnace.server.loot.LootParams().with(org.domi.furnace.server.loot.LootParams.ORIGIN, origin);
-        if (opener != null) params.with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, () -> "minecraft:player");
+        if (opener != null) {
+            params.with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, () -> "minecraft:player");
+            params.luck(lootEntity(opener).luck());   // 바닐라 unpackLootTable: withLuck(player.getLuck())
+        }
         table.fill(slots, loot, lootWorldOf(w), params, seed);
         for (int i = 0; i < slots.length; i++) {
             if (slots[i] != null && slots[i] != occupied) items[i] = dp.network().toItemStack(slots[i]);
@@ -717,6 +720,13 @@ public final class ServerCore {
     public String runRconCommand(String command) throws Exception {
         var spawn = world.defaultSpawn();
         var sink = new org.domi.furnace.server.remote.RconConsole(() -> settings.get().broadcastRconToOps, spawn.x(), spawn.y(), spawn.z());
+        var events = events();
+        if (events.hasSubscribers(org.domi.furnace.api.event.server.RemoteServerCommandEvent.class)) {
+            // Paper DedicatedServer.runCommand: RemoteServerCommandEvent → 취소면 빈 응답, 아니면 바뀐 명령을 실행
+            var ev = events.call(new org.domi.furnace.api.event.server.RemoteServerCommandEvent(pluginHost.rconSender(sink::sendSystemMessage), command));
+            if (ev.isCancelled()) return "";
+            command = ev.command();
+        }
         commands.performPrefixedCommandAsync(org.domi.furnace.server.command.CommandSource.rcon(this, sink), command)
                 .get(5, java.util.concurrent.TimeUnit.MINUTES);
         return sink.takeOutput();
@@ -1337,6 +1347,9 @@ public final class ServerCore {
         public java.util.List<ItemStack> giftLoot(String lootTable, org.domi.furnace.server.loot.LootEntity self, double x, double y, double z) {
             return ServerCore.this.giftLoot(lootWorld, lootTable, self, x, y, z);
         }
+        public java.util.concurrent.CompletableFuture<org.domi.furnace.api.text.Text> resolveBookText(Object player, org.domi.furnace.api.text.Text text) {
+            return ServerCore.this.resolveBookText(player, text);
+        }
         public java.util.List<ItemStack> lootItems(String lootTable, double[] origin, org.domi.furnace.server.loot.LootEntity thisEntity, float luck,
                 long seed, org.domi.furnace.server.block.RandomSource random) {
             return ServerCore.this.lootItems(lootWorld, lootTable, origin, thisEntity, luck, seed, random);
@@ -1525,6 +1538,9 @@ public final class ServerCore {
         @Override public java.util.List<ItemStack> giftLoot(String lootTable, org.domi.furnace.server.loot.LootEntity self, double x, double y, double z) {
             return ServerCore.this.giftLoot(lw, lootTable, self, x, y, z);
         }
+        @Override public java.util.concurrent.CompletableFuture<org.domi.furnace.api.text.Text> resolveBookText(Object player, org.domi.furnace.api.text.Text text) {
+            return ServerCore.this.resolveBookText(player, text);
+        }
         @Override public java.util.List<ItemStack> lootItems(String lootTable, double[] origin, org.domi.furnace.server.loot.LootEntity thisEntity,
                 float luck, long seed, org.domi.furnace.server.block.RandomSource random) {
             return ServerCore.this.lootItems(lw, lootTable, origin, thisEntity, luck, seed, random);
@@ -1645,7 +1661,10 @@ public final class ServerCore {
                 })
                 .with(org.domi.furnace.server.loot.LootParams.ATTACKING_ENTITY, attackerEntity)
                 .with(org.domi.furnace.server.loot.LootParams.DIRECT_ATTACKING_ENTITY, attackerEntity);
-        if (lastPlayer != null) params.with(org.domi.furnace.server.loot.LootParams.LAST_DAMAGE_PLAYER, lootEntity(lastPlayer));   // TODO(행운): 플레이어 luck 속성
+        if (lastPlayer != null) {   // 바닐라 LivingEntity.dropFromLootTable: killedByPlayer 면 withLuck(lastHurtByPlayer.getLuck())
+            var lastEntity = lootEntity(lastPlayer);
+            params.with(org.domi.furnace.server.loot.LootParams.LAST_DAMAGE_PLAYER, lastEntity).luck(lastEntity.luck());
+        }
         var ctx = table.context(loot, lootWorld, params, seed);
         java.util.List<ItemStack> out = new java.util.ArrayList<>();
         for (var st : table.getRandomItems(ctx)) {
@@ -1691,6 +1710,16 @@ public final class ServerCore {
             out.add(is == null ? ItemStack.EMPTY : is);
         }
         return out;
+    }
+
+    /** 바닐라 ComponentUtils.updateForEntity(createCommandSourceStack, 쪽, player, 0) — 서명된 책을 펼칠 때 쪽마다. */
+    java.util.concurrent.CompletableFuture<org.domi.furnace.api.text.Text> resolveBookText(Object player, org.domi.furnace.api.text.Text text) {
+        if (!(player instanceof Player p)) return java.util.concurrent.CompletableFuture.completedFuture(text);
+        try {
+            return org.domi.furnace.server.command.ComponentUtils.resolve(org.domi.furnace.server.command.CommandSource.player(this, p), text, p);
+        } catch (RuntimeException e) {
+            return java.util.concurrent.CompletableFuture.failedFuture(e);
+        }
     }
 
     /** 바닐라 GiveGiftToHero.getItemToThrow: 표를 GIFT 문맥(origin, this_entity)으로 평가. */

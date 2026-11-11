@@ -51,7 +51,10 @@ public final class Compat {
         @SuppressWarnings("removal")
         private volatile org.bukkit.plugin.SimplePluginManager pluginManager;
 
-        State(Furnace furnace) { this.furnace = furnace; }
+        State(Furnace furnace) {
+            this.furnace = furnace;
+            installPermissionOverride(furnace, this);
+        }
 
         synchronized LegacyScheduler scheduler() {
             if (scheduler == null) scheduler = new LegacyScheduler(furnace);
@@ -257,9 +260,81 @@ public final class Compat {
         State s = state();
         CraftPlayer c = s.players.get(p.uniqueId());
         if (c != null && c.furnaceHandle() == p) return c;
-        if (s.players.size() > PRUNE_AT) s.players.values().removeIf(x -> !x.furnaceHandle().isOnline());
+        if (s.players.size() > PRUNE_AT) s.players.values().removeIf(x -> {
+            if (x.furnaceHandle().isOnline()) return false;
+            x.retire();
+            return true;
+        });
         // 처음 감싸기·핸들 교체를 원자적으로 — 두 스레드가 동시에 와도 같은 CraftPlayer 를 받는다
-        return s.players.compute(p.uniqueId(), (k, cur) -> cur != null && cur.furnaceHandle() == p ? cur : new CraftPlayer(p));
+        return s.players.compute(p.uniqueId(), (k, cur) -> {
+            if (cur != null && cur.furnaceHandle() == p) return cur;
+            if (cur != null) cur.retire();   // 옛 접속의 권한 구독·거울을 걷은 뒤 새 객체를 만든다
+            return new CraftPlayer(p);
+        });
+    }
+
+    /** 로그인이 거부된 접속의 CraftPlayer 를 표에서 꺼내 권한 구독·거울을 걷는다(그 접속 것일 때만 — 같은 UUID 의 다른 접속은 두고). */
+    static void forgetDenied(org.domi.furnace.api.entity.Player p) {
+        State s = state;
+        if (s == null || p == null) return;
+        s.players.computeIfPresent(p.uniqueId(), (k, cur) -> {
+            if (cur.furnaceHandle() != p) return cur;
+            cur.retire();
+            return null;
+        });
+    }
+
+    /**
+     * 이미 감싼 CraftPlayer 만 준다(새로 만들지 않는다) — 권한 판정 경로에서 부르므로 CraftPlayer 생성(권한 계산)으로 되돌아가지 않게.
+     * 접속이 바뀐(핸들이 다른) 옛 객체는 null.
+     */
+    static CraftPlayer existingPlayer(org.domi.furnace.api.entity.Player p) {
+        State s = state;
+        if (s == null) return null;
+        CraftPlayer c = s.players.get(p.uniqueId());
+        return c != null && c.furnaceHandle() == p ? c : null;
+    }
+
+    /**
+     * 권한 플러그인(LuckPerms 등)이 {@code CraftHumanEntity.perm} 을 자기 PermissibleBase 하위 클래스로 바꿔 끼웠으면, Furnace 의 권한 판정
+     * (Furnace 플러그인·Furnace 명령이 묻는 것)도 그 객체에 맡긴다 — Bukkit 서버에서 모든 hasPermission 이 그 객체로 가는 것과 같게.
+     * 바꿔 끼우지 않았으면(정확히 PermissibleBase) 맡지 않는다. 그때는 Bukkit PermissibleBase 가 거꾸로 Furnace 판정에 묻는다.
+     */
+    private static void installPermissionOverride(Furnace furnace, State owner) {
+        org.domi.furnace.api.permission.PermissionManager pm;
+        try {
+            pm = furnace.permissions();
+            pm.setOverride(new org.domi.furnace.api.permission.PermissionOverride() {
+                /** 안전망: 끼운 객체가 어떤 길로든 다시 Furnace 판정에 묻으면 그 안쪽은 맡지 않는다(재귀 고리 끊기, PR #210 검토 R1). */
+                private final ThreadLocal<Boolean> inside = new ThreadLocal<>();
+
+                @Override
+                public Boolean hasPermission(org.domi.furnace.api.permission.Permissible subject, String node) {
+                    org.bukkit.permissions.PermissibleBase pb = injected(subject);
+                    if (pb == null) return null;
+                    inside.set(Boolean.TRUE);
+                    try { return pb.hasPermission(node); } finally { inside.remove(); }
+                }
+
+                @Override
+                public Boolean isPermissionSet(org.domi.furnace.api.permission.Permissible subject, String node) {
+                    org.bukkit.permissions.PermissibleBase pb = injected(subject);
+                    if (pb == null) return null;
+                    inside.set(Boolean.TRUE);
+                    try { return pb.isPermissionSet(node); } finally { inside.remove(); }
+                }
+
+                private org.bukkit.permissions.PermissibleBase injected(org.domi.furnace.api.permission.Permissible subject) {
+                    if (inside.get() != null || state != owner || !(subject instanceof org.domi.furnace.api.entity.Player p)) return null;
+                    CraftPlayer c = existingPlayer(p);
+                    if (c == null) return null;
+                    org.bukkit.permissions.PermissibleBase pb = c.permissible();
+                    return pb == null || pb.getClass() == org.bukkit.permissions.PermissibleBase.class ? null : pb;
+                }
+            });
+        } catch (UnsupportedOperationException e) {
+            // 권한 판정을 넘겨받지 못하는 서버(시험용 가짜 등) — Bukkit 쪽 PermissibleBase 만 바뀐다
+        }
     }
 
     public static org.bukkit.entity.Entity entity(org.domi.furnace.api.entity.Entity e) {
@@ -311,6 +386,7 @@ public final class Compat {
         if (s == null) return null;
         if (s instanceof org.domi.furnace.api.entity.Player p) return player(p);
         if (s == state().furnace.console()) return CompatConsole.INSTANCE;
+        if (s instanceof org.domi.furnace.api.command.RemoteConsoleSender r) return new CompatRemoteSender(r);
         return new CompatSender(s);
     }
 

@@ -65,7 +65,7 @@ public final class VehicleMoves {
             p.send(MoveVehicle.of(v));
             return Result.REJECTED;
         }
-        // TODO(통계): checkMovementStatistics
+        // 바닐라 handleMoveVehicle 의 checkMovementStatistics 는 탄 플레이어(passenger)라 아무것도 안 한다 — 탑승 거리 통계는 Player.rideTick 에서
         // clientVehicleIsFloating: 내려앉는 중이 아니고(요청 dy ≥ -0.03125), 이동 전에 바닥에 닿아 있지 않았고, 비행 허용이 아니고, 탈것에 중력이 있고, 주변에 블록이 없다
         p.clientVehicleIsFloating = requestedDy >= -0.03125 && !wasOnGroundBelow && !v.level().flightAllowed() && !v.isNoGravity()
                 && PlayerMoveValidator.noBlocksAround(v.level(), v.boundingBox());

@@ -8,7 +8,7 @@ import org.domi.furnace.compat.paper.Compat;
 import org.domi.furnace.compat.paper.CompatPlayerInventory;
 
 /** Furnace 플레이어 위의 Bukkit Player. 접속이 끊긴 뒤에도 객체는 남지만 isOnline() 이 false 다. */
-public class CraftPlayer extends CraftHumanEntity implements Player {
+public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.furnace.compat.paper.FurnacePermissibleSource {
 
     private final org.domi.furnace.api.entity.Player handle;
 
@@ -112,6 +112,14 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
     public String getLocale() { return handle.locale() == null ? "en_us" : handle.locale().toString().toLowerCase(Locale.ROOT); }
 
     @Override
+    public Locale locale() { return handle.locale() == null ? Locale.US : handle.locale(); }   // Paper ServerPlayer.adventure$locale 기본값 Locale.US
+
+    @Override
+    public void updateCommands() {
+        if (handle.isOnline()) Compat.furnace().commands().updateCommands(handle);   // CraftBukkit: 접속 전(연결이 없을 때)이면 아무것도 안 한다
+    }
+
+    @Override
     public GameMode getGameMode() { return GameMode.valueOf(handle.gameMode().name()); }
 
     @Override
@@ -155,17 +163,45 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
         for (String m : messages) sendMessage(m);
     }
 
-    @Override
-    public boolean isOp() { return handle.isOp(); }
+    /** 상위 생성자(권한 계산 객체 생성) 도중에도 쓸 수 있는 핸들 — {@code handle} 필드는 그때 아직 비어 있다. */
+    private org.domi.furnace.api.entity.Player player() { return (org.domi.furnace.api.entity.Player) super.furnaceHandle(); }
 
     @Override
-    public void setOp(boolean value) { Compat.furnace().offlinePlayer(handle.uniqueId()).setOpLevel(value ? 4 : 0); }
+    public org.domi.furnace.api.permission.Permissible furnacePermissible() { return player(); }
 
     @Override
-    public boolean isPermissionSet(String name) { return handle.isPermissionSet(name); }
+    public boolean isOp() { return player().isOp(); }
+
+    /** CraftBukkit 처럼 값이 같으면 아무것도 안 하고, 바꾼 뒤 권한을 다시 계산한다. */
+    @Override
+    public void setOp(boolean value) {
+        if (value == isOp()) return;
+        Compat.furnace().offlinePlayer(handle.uniqueId()).setOpLevel(value ? 4 : 0);
+        perm.recalculatePermissions();
+    }
+
+    /**
+     * CraftBukkit 처럼: OfflinePlayer 와는 UUID 로, 다른 CraftPlayer 와는 같은 접속(엔티티)이어야 같다 — 재접속한 새 객체는 옛 객체와 다르다
+     * (권한 구독 WeakHashMap 이 옛 객체를 키로 붙들어 새 객체가 빠지는 일을 막는다). 해시는 CraftOfflinePlayer 와 같은 식.
+     */
+    @Override
+    public boolean equals(Object o) {
+        if (!(o instanceof org.bukkit.OfflinePlayer other) || other.getUniqueId() == null) return false;
+        if (!getUniqueId().equals(other.getUniqueId())) return false;
+        return !(o instanceof CraftPlayer cp) || cp.player() == player();
+    }
 
     @Override
-    public boolean hasPermission(String name) { return handle.hasPermission(name); }
+    public int hashCode() { return 97 * 5 + getUniqueId().hashCode(); }
+
+    /** 호환 모듈 전용 — 이 접속의 객체를 더 쓰지 않는다(재접속으로 바뀜): Bukkit 권한 계산·구독·Furnace 거울을 걷는다(CraftBukkit disconnect 의 perm.clearPermissions). */
+    public void retire() {
+        try {
+            perm.clearPermissions();
+        } catch (RuntimeException ignored) {
+            // 권한 플러그인이 바꿔 끼운 객체가 던져도 새 접속을 막지 않는다
+        }
+    }
 
     @Override
     public String toString() { return "CraftPlayer{name=" + handle.name() + "}"; }

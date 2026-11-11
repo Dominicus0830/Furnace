@@ -487,6 +487,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     /** Player.rideTick(탈것 틱 뒤): 웅크리면(wantsToStopRiding) 내리고 웅크림을 푼다. 아니면 낙하 거리를 지우고 탈것이 자리를 잡아 준다. */
     public void rideTick() {
+        double ox = x, oy = y, oz = z;   // ServerPlayer.rideTick: 전후 위치 차로 탑승 거리 통계
         if (sneaking && vehicle != null) {
             stopRiding();
             sneaking = false;
@@ -494,6 +495,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         }
         vitals.resetFallDistance();
         if (vehicle != null) vehicle.positionRider(this);
+        vitals.checkRidingStatistics(x - ox, y - oy, z - oz);
     }
 
     /** ServerPlayer.setPlayerInput: 탄 동안만 ±1 안의 값을 받고 점프·웅크림을 정한다(IO 스레드). */
@@ -1575,6 +1577,19 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         var r = ownerRegion;
         if (r != null && ownerTasks.isEmpty() && r.ownsPlayer(this)) task.run();
         else ownerTasks.add(task);
+    }
+
+    /**
+     * 서명된 책 쪽 풀기가 바로 끝나지 않았을 때의 뒷부분(주인 스레드): 그 손에 아직 같은 책이 있으면 풀린 책으로 바꿔 알리고 open_book 을 보낸다.
+     */
+    public void finishBookOpen(int hand, ItemStack original, ItemStack resolved) {
+        var inv = inventory();
+        int ws = hand == 0 ? inv.heldWindowSlot() : 45;
+        if (inv.get(ws) != original) return;   // replace 와 같은 기준(같은 객체)
+        var host = inventoryHost();
+        if (host != null) host.replace(ws, original, resolved);
+        synchronized (menuLock()) { var m = containerMenu(); if (m != null) m.broadcastChanges(); }   // 칸 갱신 → open_book
+        send(new org.domi.furnace.server.net.protocol.play.OpenBook(hand));
     }
 
     /**

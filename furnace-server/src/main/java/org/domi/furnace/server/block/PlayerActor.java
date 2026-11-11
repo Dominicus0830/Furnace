@@ -68,7 +68,23 @@ public class PlayerActor implements BlockActor {
     @Override public boolean isOnCooldown(int itemId) { return player.isOnCooldown(itemId); }
     @Override public void addCooldown(int itemId, int ticks) { player.addCooldown(itemId, ticks); }
     @Override public double[] knownMovement() { return player.knownMovement(); }
-    @Override public void openBook(int hand) { player.send(new org.domi.furnace.server.net.protocol.play.OpenBook(hand)); }
+    /** open_book 은 손의 책이 바뀌었으면(쪽이 풀렸으면) 칸 갱신이 간 뒤에 보낸다 — {@link #flushOpenBook}. */
+    private int pendingOpenBook = -1;
+
+    @Override public void openBook(int hand) {
+        if (changed[hand]) pendingOpenBook = hand;
+        else player.send(new org.domi.furnace.server.net.protocol.play.OpenBook(hand));
+    }
+
+    /** 보류한 open_book 을 보낸다(호출자가 바뀐 손을 인벤토리에 써 넣은 뒤). */
+    public boolean hasPendingOpenBook() { return pendingOpenBook >= 0; }
+
+    public void flushOpenBook() {
+        if (pendingOpenBook < 0) return;
+        int hand = pendingOpenBook;
+        pendingOpenBook = -1;
+        player.send(new org.domi.furnace.server.net.protocol.play.OpenBook(hand));
+    }
     @Override public void startUsingItem(int hand, int ticks) {
         player.startUsingItem(hand, ticks);
     }

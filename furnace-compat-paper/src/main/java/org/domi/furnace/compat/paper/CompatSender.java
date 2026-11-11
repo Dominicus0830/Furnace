@@ -4,7 +4,7 @@ import org.bukkit.Server;
 import org.bukkit.command.CommandSender;
 
 /** 플레이어·콘솔이 아닌 Furnace 발신자(명령 블록 등). */
-final class CompatSender implements CommandSender {
+class CompatSender implements CommandSender {
 
     private final org.domi.furnace.api.command.CommandSender handle;
 
