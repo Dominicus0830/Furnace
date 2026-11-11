@@ -66,17 +66,38 @@ public class CraftEntity implements Entity {
     @Override
     public UUID getUniqueId() { return handle.uniqueId(); }
 
-    @Override
-    public Location getLocation() { return Compat.location(handle.location()); }
+    /**
+     * 지금 위치. 소유 스레드(이벤트 처리기·entityScheduler 작업·옛 동기 작업의 빌림 구간)면 엔티티의 지금 값을 읽는다 — CraftBukkit 의 NMS 엔티티는
+     * 살아 있는 객체라 {@code teleport} 직후 {@code getLocation} 이 바뀐 값을 준다. 소유 스레드가 아니거나 상태 손잡이가 없는 플레이어면 핸들 시점 값
+     * (플레이어 핸들은 그 자체가 지금 값이다). 사라진 엔티티는 마지막 값.
+     */
+    private org.domi.furnace.api.world.Location liveLocation() {
+        org.domi.furnace.api.world.Location snapshot = handle.location();
+        try {
+            return EntityStates.read(handle, EntityState.class, EntityState::location, snapshot, "Entity#getLocation");
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature notNow) {
+            return snapshot;
+        }
+    }
 
     @Override
-    public World getWorld() { return Compat.world(handle.location().world()); }
+    public Location getLocation() { return Compat.location(liveLocation()); }
 
     @Override
-    public boolean isValid() { return handle.isValid(); }
+    public World getWorld() { return Compat.world(liveLocation().world()); }
+
+    /** 소유 스레드면 지금 값(remove 직후 곧바로 false), 아니면 핸들 시점 값. */
+    @Override
+    public boolean isValid() {
+        try {
+            return EntityStates.read(handle, EntityState.class, EntityState::isValid, false, "Entity#isValid");
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature notNow) {
+            return handle.isValid();
+        }
+    }
 
     @Override
-    public boolean isDead() { return !handle.isValid(); }
+    public boolean isDead() { return !isValid(); }
 
     /** 소유 스레드면 지금 이름, 아니면(또는 상태 손잡이가 없는 플레이어면) 핸들 시점 이름. */
     @Override
@@ -129,7 +150,7 @@ public class CraftEntity implements Entity {
 
     @Override
     public java.util.List<org.bukkit.entity.Entity> getNearbyEntities(double x, double y, double z) {
-        var loc = handle.location();
+        var loc = liveLocation();
         double r = Math.sqrt(x * x + y * y + z * z);
         var found = handle.world().nearbyEntitiesNow(loc, r);
         java.util.List<org.bukkit.entity.Entity> out = new java.util.ArrayList<>();
@@ -260,7 +281,14 @@ public class CraftEntity implements Entity {
     public org.bukkit.persistence.PersistentDataContainer getPersistentDataContainer() { return new EntityPdc(handle); }
 
     @Override
-    public void remove() { handle.remove(); }
+    public void remove() {
+        // 소유 스레드면 곧바로 지운다(Paper 처럼 바로 뒤의 isValid 가 false), 아니면 소유 스레드로 예약. 플레이어는 상태 손잡이가 없어 핸들 경로
+        try {
+            EntityStates.write(handle, EntityState.class, EntityState::remove, "Entity#remove");
+        } catch (UnsupportedFeature noState) {
+            handle.remove();
+        }
+    }
 
     // ---- CommandSender / Permissible: 플레이어가 아닌 엔티티는 메시지를 받지 않고 권한이 없다(Bukkit 과 같다)
 
