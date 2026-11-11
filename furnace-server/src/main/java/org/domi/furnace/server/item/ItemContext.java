@@ -47,6 +47,9 @@ public final class ItemContext {
     /** 데이터 팩 리로드마다 지금 태그(아이템·블록 등)를 건다. */
     public static void installTags(org.domi.furnace.server.net.registry.TagSet t) { tags = t; }
 
+    /** 지금 걸린 태그(아직 안 걸렸으면 null). */
+    public static org.domi.furnace.server.net.registry.TagSet tagSet() { return tags; }
+
     /** 그 레지스트리 태그에 id 가 들어 있는가(태그가 없거나 아직 안 걸렸으면 거짓). */
     public static boolean isInTag(String registry, String tag, int id) {
         var t = tags;

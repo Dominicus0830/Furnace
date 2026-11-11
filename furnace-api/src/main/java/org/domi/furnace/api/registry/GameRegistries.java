@@ -31,6 +31,18 @@ public interface GameRegistries {
      */
     default List<String> builtIn(String registry) { throw new UnsupportedOperationException("builtIn"); }
 
+    /**
+     * 지금 걸린 태그 id(데이터 팩 리로드 뒤 값, 예: minecraft:logs). 클라에 태그를 보내는 레지스트리(블록·아이템·유체·엔티티 종류·바이옴·게임 이벤트 등)만
+     * 다룬다 — 그 밖의 레지스트리면 빈 집합.
+     */
+    default Set<String> tags(String registry) { throw new UnsupportedOperationException("tags"); }
+
+    /** 태그의 항목 id(태그 안의 태그는 풀어서, 태그 파일 순). 없는 태그면 empty. */
+    default java.util.Optional<List<String>> tag(String registry, String tag) { throw new UnsupportedOperationException("tag"); }
+
+    /** entry 가 태그에 들어 있는가. 없는 태그·모르는 항목이면 거짓. 블록마다 불러도 되게 가볍다. */
+    default boolean isTagged(String registry, String tag, String entry) { throw new UnsupportedOperationException("isTagged"); }
+
     /** 항목을 낸 곳: "vanilla", 데이터 팩 id(예: "file/mypack"), "plugin:<이름>". 없거나 내장 목록이면 empty. */
     java.util.Optional<String> source(String registry, String key);
 

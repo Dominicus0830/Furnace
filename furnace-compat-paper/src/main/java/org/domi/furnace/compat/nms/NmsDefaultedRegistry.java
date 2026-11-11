@@ -152,6 +152,57 @@ public final class NmsDefaultedRegistry<T> implements DefaultedRegistry<T> {
     @Override
     public Iterator<T> iterator() { return byId.stream().map(Holder.Reference::value).iterator(); }
 
+    private final java.util.concurrent.ConcurrentHashMap<net.minecraft.tags.TagKey<T>, net.minecraft.core.HolderSet.Named<T>> named = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * 바닐라 MappedRegistry 처럼 서버에 있는 태그이거나 이미 만든 묶음(getOrCreateTag)이면 그 묶음. 묶음은 TagKey 마다 하나다 —
+     * 리로드로 태그가 사라져도 지도에 남아 빈 묶음이 된다(바닐라 bindTags 와 같다).
+     */
+    @Override
+    public Optional<net.minecraft.core.HolderSet.Named<T>> getTag(net.minecraft.tags.TagKey<T> tag) {
+        if (tag == null || !tag.isFor(key)) return Optional.empty();
+        if (!named.containsKey(tag) && !NmsTags.exists(key, tag)) return Optional.empty();
+        return Optional.of(getOrCreateTag(tag));
+    }
+
+    @Override
+    public net.minecraft.core.HolderSet.Named<T> getOrCreateTag(net.minecraft.tags.TagKey<T> tag) {
+        return named.computeIfAbsent(tag, t -> new net.minecraft.core.HolderSet.Named<>(t, new TagContents(t)));
+    }
+
+    /** 서버 태그 목록이 바뀔 때만(서버는 같은 태그 표에서 같은 목록 객체를 준다) 손잡이 목록을 다시 만든다. */
+    private final class TagContents implements java.util.function.Supplier<List<Holder<T>>> {
+        private final net.minecraft.tags.TagKey<T> tag;
+        private volatile Object[] cache = {null, List.of()};
+
+        TagContents(net.minecraft.tags.TagKey<T> tag) { this.tag = tag; }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public List<Holder<T>> get() {
+            List<String> ids = NmsTags.entries(key, tag);
+            Object[] c = cache;
+            if (c[0] == ids) return (List<Holder<T>>) c[1];
+            List<Holder<T>> out = new ArrayList<>(ids.size());
+            for (String id : ids) {
+                Holder.Reference<T> h = byLocation.get(ResourceLocation.parse(id));
+                if (h != null) out.add(h);
+            }
+            List<Holder<T>> result = List.copyOf(out);
+            cache = new Object[] {ids, result};
+            return result;
+        }
+    }
+
+    /** 서버의 태그 이름 뒤에 여기서 만든 빈 묶음의 이름(바닐라처럼 getOrCreateTag 로 만든 것도 나온다). */
+    @Override
+    public Stream<net.minecraft.tags.TagKey<T>> getTagNames() {
+        java.util.LinkedHashSet<net.minecraft.tags.TagKey<T>> all = new java.util.LinkedHashSet<>();
+        NmsTags.names(key).forEach(all::add);
+        all.addAll(named.keySet());
+        return all.stream();
+    }
+
     @Override
     public String toString() { return "Registry[" + key + " (Stable)]"; }
 }

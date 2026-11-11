@@ -37,6 +37,13 @@ public abstract class BlockBehaviour {
 
         public boolean is(Holder<Block> block) { return block.value() == owner; }
 
+        /** 바닐라: 블록의 레지스트리 손잡이가 태그에 들었는가(지금 걸린 태그). */
+        public boolean is(net.minecraft.tags.TagKey<Block> tag) { return owner.builtInRegistryHolder().is(tag); }
+
+        public boolean is(net.minecraft.tags.TagKey<Block> tag, java.util.function.Predicate<BlockStateBase> predicate) { return is(tag) && predicate.test(this); }
+
+        public java.util.stream.Stream<net.minecraft.tags.TagKey<Block>> getTags() { return owner.builtInRegistryHolder().tags(); }
+
         /** 바닐라 isAir: air·cave_air·void_air. */
         public boolean isAir() { return owner.furnaceIsAir(); }
     }
