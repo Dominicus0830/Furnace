@@ -100,7 +100,7 @@ public final class RuinedPortalStructure extends StructureType {
     private static int findBetween(LegacyRandom r, int a, int b) { return a < b ? randomBetween(r, a, b) : b; }
 
     private int findSuitableY(GenContext c, LegacyRandom random, VP vp, boolean airPocket, int surfaceY, int ySpan, int[] bb) {
-        int minY15 = c.terrain.minY() + 15;
+        int minY15 = c.terrain.levelMinY() + 15;   // 바닐라 findSuitableY: heightAccessor.getMinBuildHeight() + 15
         int y;
         if (vp == VP.IN_NETHER) {
             if (airPocket) y = randomBetween(random, 32, 100);

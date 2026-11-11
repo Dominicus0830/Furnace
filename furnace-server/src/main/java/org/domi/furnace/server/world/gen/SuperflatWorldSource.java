@@ -1,5 +1,5 @@
 // 단순 평지 생성: 설정의 층을 아래(월드 최저 높이)부터 쌓기만 한다. 기본은 bedrock/dirt×2/grass_block, 평원.
-// 서버의 level-type=flat 은 바닐라 FlatLevelSource 처럼 장식까지 하는 NoiseWorldSource.flat 을 쓴다. 이 클래스는 시험 월드·
+// 서버의 level-type=flat 은 바닐라 FlatLevelSource 처럼 장식·구조물까지 하는 NoiseWorldSource.flat 을 쓴다. 이 클래스는 시험 월드·
 // 플러그인 추가 월드(높이가 다른 차원 타입)용으로 남아 있고, 구조물·지형지물·호수를 만들지 않는다.
 package org.domi.furnace.server.world.gen;
 
@@ -88,32 +88,48 @@ public final class SuperflatWorldSource implements WorldSource {
         return new NoiseWorldSource.FlatSpec(layersOf(settings), biome, features, lakes, overrides);
     }
 
-    /** 바닐라 FlatLevelGeneratorSettings 기본값(JSON generator-settings 가 있으면 그 층·바이옴)을 level.dat 꼴 compound 로. */
+    /**
+     * server.properties generator-settings(JSON) → level.dat 평지 settings. 바닐라 DedicatedServerProperties: FlatLevelGeneratorSettings
+     * 코덱으로 읽어 실패하면(필수 layers 없음·높이 합 초과) 기본 프리셋(기반암·흙 2·잔디, 평원, 요새·마을, 지형지물·호수 꺼짐).
+     * 읽히면 lakes·features 없으면 거짓, biome 없으면 평원, structure_overrides 가 없으면 필드도 없다(= 레지스트리의 모든 구조물 세트).
+     */
     public static NbtCompound settingsNbt(JsonObject generatorSettings) {
+        boolean parsed = generatorSettings != null && generatorSettings.has("layers") && generatorSettings.get("layers").isJsonArray();
+        if (parsed) {
+            int total = 0;
+            for (JsonElement e : generatorSettings.getAsJsonArray("layers")) total += e.getAsJsonObject().get("height").getAsInt();
+            if (total > 4064) parsed = false;   // dwy.c(DimensionType.Y_SIZE) 초과면 코덱 오류
+        }
         NbtCompound s = new NbtCompound();
+        if (!parsed) {
+            s.putString("biome", "minecraft:plains");
+            s.putBoolean("features", false);
+            s.putBoolean("lakes", false);
+            NbtList layers = new NbtList(NbtIo.TAG_COMPOUND);
+            for (Layer l : DEFAULT_LAYERS) layers.add(layer(l.block(), l.height()));
+            s.putList("layers", layers);
+            NbtList overrides = new NbtList(NbtIo.TAG_STRING);
+            overrides.add("minecraft:strongholds");
+            overrides.add("minecraft:villages");
+            s.putList("structure_overrides", overrides);
+            return s;
+        }
         s.putString("biome", generatorSettings.has("biome") ? generatorSettings.get("biome").getAsString() : "minecraft:plains");
         s.putBoolean("features", generatorSettings.has("features") && generatorSettings.get("features").getAsBoolean());
         s.putBoolean("lakes", generatorSettings.has("lakes") && generatorSettings.get("lakes").getAsBoolean());
         NbtList layers = new NbtList(NbtIo.TAG_COMPOUND);
-        if (generatorSettings.has("layers")) {
-            for (JsonElement e : generatorSettings.getAsJsonArray("layers")) {
-                JsonObject o = e.getAsJsonObject();
-                layers.add(layer(o.get("block").getAsString(), o.get("height").getAsInt()));
-            }
-        } else {
-            for (Layer l : DEFAULT_LAYERS) layers.add(layer(l.block(), l.height()));
+        for (JsonElement e : generatorSettings.getAsJsonArray("layers")) {
+            JsonObject o = e.getAsJsonObject();
+            layers.add(layer(o.get("block").getAsString(), o.get("height").getAsInt()));
         }
         s.putList("layers", layers);
-        NbtList overrides = new NbtList(NbtIo.TAG_STRING);
         if (generatorSettings.has("structure_overrides")) {
+            NbtList overrides = new NbtList(NbtIo.TAG_STRING);
             JsonElement so = generatorSettings.get("structure_overrides");
             if (so.isJsonArray()) for (JsonElement e : (JsonArray) so) overrides.add(e.getAsString());
             else overrides.add(so.getAsString());
-        } else {
-            overrides.add("minecraft:strongholds");
-            overrides.add("minecraft:villages");
+            s.putList("structure_overrides", overrides);
         }
-        s.putList("structure_overrides", overrides);
         return s;
     }
 

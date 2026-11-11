@@ -127,7 +127,8 @@ public final class JigsawStructure extends StructureType {
             List<JigsawPiece> pieces = new ArrayList<>();
             pieces.add(startPiece);
             if (maxDepth > 0) {
-                int minBuild = c.terrain.minY(), maxBuild = c.terrain.minY() + c.terrain.genDepth();
+                // 바닐라 JigsawPlacement.addPieces: 차원 높이(LevelHeightAccessor) 기준 — 생성기 minY 가 아니다(평지 0, 네더 노이즈 높이 128)
+                int minBuild = c.terrain.levelMinY(), maxBuild = c.terrain.levelMaxY();
                 int[] outer = {cx - maxDistanceFromCenter, Math.max(stubY - maxDistanceFromCenter, minBuild + paddingBottom), cz - maxDistanceFromCenter,
                     cx + maxDistanceFromCenter + 1, Math.min(stubY + maxDistanceFromCenter + 1, maxBuild - paddingTop), cz + maxDistanceFromCenter + 1};
                 FreeSpace free = new FreeSpace(outer);

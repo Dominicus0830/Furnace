@@ -227,6 +227,14 @@ public final class StructureEngine {
     /** BiomeSource.findBiomeHorizontal(x, y, z, radius, 1, predicate, random, findClosest=false) → {blockX, blockZ} 또는 null. */
     private static int[] findBiomeHorizontal(TerrainAccess t, int x, int y, int z, int radius, Set<String> biomes,
                                              org.domi.furnace.server.world.gen.carver.LegacyRandom random) {
+        String fixed = t.fixedBiome();
+        if (fixed != null) {
+            // FixedBiomeSource.findBiomeHorizontal(findClosest=false): 맞으면 반경 안 무작위 블록(x 먼저, 그다음 z)
+            if (!biomes.contains(fixed)) return null;
+            int bx = x - radius + random.nextInt(radius * 2 + 1);
+            int bz = z - radius + random.nextInt(radius * 2 + 1);
+            return new int[]{bx, bz};
+        }
         int qx = x >> 2, qz = z >> 2, qr = radius >> 2, qy = y >> 2;
         int[] result = null;
         int found = 0;

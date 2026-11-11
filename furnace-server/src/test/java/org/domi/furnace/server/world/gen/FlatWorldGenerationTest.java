@@ -16,7 +16,8 @@ class FlatWorldGenerationTest {
     private static final RegistrySet REGS = RegistrySet.load("registries/1.21.1.txt");
 
     private static NoiseWorldSource flat(List<SuperflatWorldSource.Layer> layers, String biome, boolean features, boolean lakes) {
-        return NoiseWorldSource.flat(1234L, REG, REGS, new NoiseWorldSource.FlatSpec(layers, biome, features, lakes, null));
+        // 구조물 없이(structure_overrides 빈 목록) 층·지형지물만 본다
+        return NoiseWorldSource.flat(1234L, REG, REGS, new NoiseWorldSource.FlatSpec(layers, biome, features, lakes, List.of()));
     }
 
     private static int state(String name) { return REG.defaultStateId(name); }
