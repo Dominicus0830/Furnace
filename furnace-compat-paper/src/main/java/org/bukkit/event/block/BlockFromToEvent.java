@@ -30,13 +30,10 @@ public class BlockFromToEvent extends BlockEvent implements Cancellable {
         this.face = face;
     }
 
-    public BlockFromToEvent(Block block, Block toBlock) { this(block, toBlock, BlockFace.SELF); }
-
-    /** Paper 와 같은 모양: 흐름 방향과 도착 칸을 함께 안다. */
-    public BlockFromToEvent(Block block, Block toBlock, BlockFace face) {
+    public BlockFromToEvent(Block block, Block toBlock) {
         super(block);
         this.to = toBlock;
-        this.face = face;
+        this.face = BlockFace.SELF;
     }
 
     public BlockFace getFace() { return face; }

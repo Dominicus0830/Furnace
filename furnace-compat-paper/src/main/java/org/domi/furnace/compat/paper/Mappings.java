@@ -441,14 +441,19 @@ final class Mappings {
 
     /**
      * PlayerInteractEvent 의 두 결과(블록 쓰기·아이템 쓰기)를 Furnace 의 취소 하나로 합친다. CraftBukkit 이 결과를 쓰는 방식을 따른다:
-     * 공기 클릭은 블록이 없어 아이템 쓰기만 본다(블록 쓰기는 처음부터 DENY 다), 왼쪽 블록 클릭은 블록 쓰기(DENY 면 캐기 시작을 막는다)만 본다,
+     * 공기 클릭은 블록이 없어 아이템 쓰기만 본다(블록 쓰기는 처음부터 DENY 다), 왼쪽 블록 클릭은 블록 쓰기 DENY 거나 창조 모드가 아닌데
+     * 아이템 쓰기 DENY 면 막는다(캐기 시작), PHYSICAL 은 블록 쓰기만 본다,
      * 오른쪽 블록 클릭은 둘 중 하나라도 DENY 면 막는다 — Furnace 는 "블록만 막고 아이템은 쓰기"를 나눠 하지 못해 더 막는 쪽을 골랐다(보호 플러그인이 새지 않게).
      */
     static boolean interactCancelled(org.bukkit.event.player.PlayerInteractEvent b) {
         var deny = org.bukkit.event.Event.Result.DENY;
         return switch (b.getAction()) {
-            case LEFT_CLICK_AIR, RIGHT_CLICK_AIR, PHYSICAL -> b.useItemInHand() == deny;
-            case LEFT_CLICK_BLOCK -> b.useInteractedBlock() == deny;
+            case LEFT_CLICK_AIR, RIGHT_CLICK_AIR -> b.useItemInHand() == deny;
+            // CraftBukkit 은 PHYSICAL(밭 밟기·발판)에서 isCancelled() = 블록 쓰기 DENY 만 본다
+            case PHYSICAL -> b.useInteractedBlock() == deny;
+            // CraftBukkit 캐기 시작: 블록 DENY 면 멈춤 → 창조 모드는 즉시 부숨 → 아이템 DENY 면 멈춤
+            case LEFT_CLICK_BLOCK -> b.useInteractedBlock() == deny
+                    || (b.useItemInHand() == deny && (b.getPlayer() == null || b.getPlayer().getGameMode() != org.bukkit.GameMode.CREATIVE));
             case RIGHT_CLICK_BLOCK -> b.useInteractedBlock() == deny || b.useItemInHand() == deny;
         };
     }
@@ -483,7 +488,10 @@ final class Mappings {
                 f -> new org.bukkit.event.block.BlockPhysicsEvent(Compat.block(f.world(), f.pos()), CompatBlockData.of(f.block()),
                         Compat.block(f.world(), f.sourcePos())), (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.block.BlockFromToEvent.class, org.bukkit.event.block.BlockFromToEvent.class,
-                f -> new org.bukkit.event.block.BlockFromToEvent(Compat.block(f.world(), f.pos()), Compat.block(f.world(), f.toPos()), face(f.face())),
+                // CraftBukkit 흐름처럼 (출발 칸, 방향) — 도착 칸은 출발 칸의 그 방향 이웃이다. 방향이 없으면 (출발, 도착) 꼴(면 SELF)
+                f -> f.face() == null
+                        ? new org.bukkit.event.block.BlockFromToEvent(Compat.block(f.world(), f.pos()), Compat.block(f.world(), f.toPos()))
+                        : new org.bukkit.event.block.BlockFromToEvent(Compat.block(f.world(), f.pos()), face(f.face())),
                 (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.block.BlockBurnEvent.class, org.bukkit.event.block.BlockBurnEvent.class,
                 f -> new org.bukkit.event.block.BlockBurnEvent(Compat.block(f.world(), f.pos()),

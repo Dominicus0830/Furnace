@@ -7,7 +7,7 @@ package io.papermc.paper.configuration;
  * {@code com.destroystokyo.paper.PaperConfig})가 있는지로 판별한다 — PaperLib {@code isPaper()}, FastAsyncWorldEdit
  * {@code PaperSupport}. 없으면 Paper 용 jar 가 "Spigot 서버에서 Paper jar 를 돌린다"며 onLoad 에서 멈춘다.
  * Furnace 호환 계층은 Paper API(teleportAsync·비동기 스케줄러 등)를 목표로 하므로 Paper 로 판별되는 쪽이 맞다.
- * 상수 값은 Paper 원문을 대조하지 못한 기억 기반이다(가정).
+ * 상수 세 개의 값은 Paper 원문과 대조해 같다(2026-11-11 독립 검토, 1.21.4 가지 기준).
  */
 public final class Configuration {
 
@@ -17,6 +17,10 @@ public final class Configuration {
     /** 옛 paper.yml 의 판 번호 키. */
     @Deprecated
     public static final String LEGACY_CONFIG_VERSION_FIELD = "config-version";
+
+    /** 옛 paper.yml 의 마지막 판 번호. */
+    @Deprecated
+    public static final int FINAL_LEGACY_VERSION = 27;
 
     private Configuration() {}
 }

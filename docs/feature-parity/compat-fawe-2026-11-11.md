@@ -46,6 +46,16 @@ FAWE 는 `load: STARTUP` 이다. Paper 는 STARTUP 플러그인을 월드를 불
 
 `compatReport -PextraJars=…` 로 잰 FAWE 의 Bukkit 계열 요구 500개 중 없는 것 141개(충족 71.8%). 없는 클래스 37개 — 많이 부르는 순: `TreeType`, `block.Biome`, `AsyncTabCompleteEvent`(다른 스레드), `Effect`, `Registry`, `PermissionAttachment`, `Tag`, `Player.Spigot`, `PermissionAttachmentInfo`, `Datapack`·`DatapackManager`, `UnsafeValues`(다른 스레드), `WorldCreator`, `Chest`, `Tameable`, `BiomeProvider`, `PermissibleBase`, `TileState`, 엔티티 하위 타입 여럿. 대부분은 해당 명령(나무 심기 `//forest`, 바이옴 `//setbiome`, 권한 첨부 등)을 부를 때만 `NoClassDefFoundError`/`NoSuchMethodError` 로 드러나고 켜지기는 막지 않는다. 바이옴·태그·레지스트리는 H4 묶음 C(값 타입)와 겹친다.
 
-## 4. 시험
+### 3-4. Paper 로 판별되며 생긴 경로 (독립 검토 R3)
+
+`Configuration` 클래스가 생겨 PaperLib 계열 플러그인이 Paper 전용 메서드를 부른다. 원인 인자 텔레포트 두 꼴(`teleportAsync`·`teleport(Location, TeleportCause)`)은 이 PR 에서 더했다(원인은 버려짐). `World.getChunkAtAsync(int, int[, boolean[, boolean]])` 와 `Block.getState(boolean)` 은 아직 없다 — 앞의 것은 청크를 정말 불러와야 해서 플러그인 청크 티켓(주인 플러그인·`gen=false`·완료 스레드)을 정하는 다음 작업으로 둔다.
+
+## 4. 독립 검토 반영 (2026-11-11)
+
+- R1: 왼쪽 블록 클릭은 창조 모드가 아니면 아이템 쓰기 DENY 로도 막는다(CraftBukkit `handleBlockBreakAction` 순서). N1: PHYSICAL 은 블록 쓰기만 본다.
+- R2: `ItemSpawnEvent` 가 `EntitySpawnEvent` 처리기 목록을 같이 쓰고 폐기 예정 `(Item, Location)` 생성자를 가진다.
+- N3: Paper 에 없는 `BlockFromToEvent(Block, Block, BlockFace)` 공개 생성자를 뺐다. N5: `FINAL_LEGACY_VERSION = 27`. N2: 오른쪽 블록 클릭 조합 표를 `docs/api/compat-paper.md` 에.
+
+## 5. 시험
 
 `InteractAndBlockEventsTest`(Paper 판별, 공기 클릭 모양, 두 결과 → 취소 합치기, 블록·화로 값 되돌려 쓰기, 안 알리는 이벤트 목록), `EventBridgeTest`(이어진 35종이 처리기에 닿는지).

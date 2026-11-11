@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
@@ -112,8 +113,12 @@ class InteractAndBlockEventsTest {
             // 아이템만 막아도 오른쪽 블록 클릭은 막는다(Furnace 는 둘을 나눠 하지 못해 더 막는 쪽)
             RecorderPlugin.ACTIONS.put("PlayerInteractEvent", e -> ((org.bukkit.event.player.PlayerInteractEvent) e).setUseItemInHand(Result.DENY));
             assertTrue(bus.call(click(p, PlayerInteractEvent.Action.RIGHT_CLICK_BLOCK, stick)).isCancelled());
-            // 왼쪽 블록 클릭은 블록 쓰기만 본다
+            // 왼쪽 블록 클릭: CraftBukkit 은 생존·모험 모드에서 아이템 DENY 로도 캐기 시작을 막고, 창조 모드는 그 검사 전에 부순다
+            p.setGameMode(org.domi.furnace.api.entity.GameMode.SURVIVAL);
+            assertTrue(bus.call(click(p, PlayerInteractEvent.Action.LEFT_CLICK_BLOCK, stick)).isCancelled());
+            p.setGameMode(org.domi.furnace.api.entity.GameMode.CREATIVE);
             assertFalse(bus.call(click(p, PlayerInteractEvent.Action.LEFT_CLICK_BLOCK, stick)).isCancelled());
+            p.setGameMode(org.domi.furnace.api.entity.GameMode.SURVIVAL);
             // 공기 클릭은 아이템 쓰기만 본다
             assertTrue(bus.call(click(p, PlayerInteractEvent.Action.RIGHT_CLICK_AIR, stick)).isCancelled());
 
@@ -181,6 +186,9 @@ class InteractAndBlockEventsTest {
             assertTrue(EventBridge.isKnownButNotFired(c), n);
             assertFalse(EventBridge.isBridged(c), n);
         }
+        // ItemSpawnEvent 는 Bukkit 처럼 EntitySpawnEvent 의 처리기 목록을 같이 쓴다(그래서 등록 시 "안 알림" 경고도 받는다)
+        assertThrows(NoSuchMethodException.class, () -> org.bukkit.event.entity.ItemSpawnEvent.class.getDeclaredMethod("getHandlerList"));
+        assertTrue(EventBridge.isKnownButNotFired(org.bukkit.event.entity.EntitySpawnEvent.class));
         // 다리가 있는 이벤트는 "안 알림" 목록에 없어야 한다
         for (Class<?> c : EventBridge.bridgedEvents()) assertFalse(EventBridge.isKnownButNotFired(c.asSubclass(org.bukkit.event.Event.class)), c.getName());
     }
