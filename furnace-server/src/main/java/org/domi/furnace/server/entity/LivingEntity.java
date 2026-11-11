@@ -651,7 +651,21 @@ public abstract class LivingEntity extends Entity implements Targetable {
      */
     public void dieFromApi() {
         setHealth(0f);
-        die(Damage.GENERIC);
+        // 바닐라 generic 피해는 원인 엔티티가 없다 — 마지막으로 때린 쪽(lastDamageAttacker)·진행 중인 피해의 직접 원인이 die 안의 killedEntity(감염·killed 통계)로 새지 않게 잠깐 비운다.
+        // 피해 이벤트 처리기 안에서 불리면 바깥 hurt 가 이어지므로 die 뒤 되돌린다.
+        Targetable attacker = lastDamageAttacker;
+        Entity direct = pendingDirect;
+        int directId = pendingDirectId;
+        lastDamageAttacker = null;
+        pendingDirect = null;
+        pendingDirectId = -2;
+        try {
+            die(Damage.GENERIC);
+        } finally {
+            lastDamageAttacker = attacker;
+            pendingDirect = direct;
+            pendingDirectId = directId;
+        }
     }
 
     // ------------------------------------------------------------------ Targetable
