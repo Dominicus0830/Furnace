@@ -397,20 +397,13 @@ public final class StrongholdStructure extends StructureType {
     // ------------------------------------------------------------------ 조각들
 
     static class ChestCorridor extends Piece {
-
         @Override
-
         public String pieceType() { return "shcc"; }
 
-
         @Override
-
         protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
-
             super.saveAdditional(t);
-
             t.putBoolean("Chest", hasPlacedChest);
-
         }
 
         private boolean hasPlacedChest;
@@ -452,20 +445,13 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class FillerCorridor extends Piece {
-
         @Override
-
         public String pieceType() { return "shfc"; }
 
-
         @Override
-
         protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
-
             super.saveAdditional(t);
-
             t.putInt("Steps", steps);
-
         }
 
         private final int steps;
@@ -518,26 +504,16 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class FiveCrossing extends Piece {
-
         @Override
-
         public String pieceType() { return "sh5c"; }
 
-
         @Override
-
         protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
-
             super.saveAdditional(t);
-
             t.putBoolean("leftLow", leftLow);
-
             t.putBoolean("leftHigh", leftHigh);
-
             t.putBoolean("rightLow", rightLow);
-
             t.putBoolean("rightHigh", rightHigh);
-
         }
 
         private final boolean leftLow, leftHigh, rightLow, rightHigh;
@@ -603,9 +579,7 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class LeftTurn extends Piece {
-
         @Override
-
         public String pieceType() { return "shlt"; }
 
         LeftTurn(int genDepth, LegacyRandom r, BoundingBox box, Direction dir) {
@@ -636,9 +610,7 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class RightTurn extends Piece {
-
         @Override
-
         public String pieceType() { return "shrt"; }
 
         RightTurn(int genDepth, LegacyRandom r, BoundingBox box, Direction dir) {
@@ -669,20 +641,13 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class Library extends Piece {
-
         @Override
-
         public String pieceType() { return "shli"; }
 
-
         @Override
-
         protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
-
             super.saveAdditional(t);
-
             t.putBoolean("Tall", isTall);
-
         }
 
         private final boolean isTall;
@@ -792,20 +757,13 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class PortalRoom extends Piece {
-
         @Override
-
         public String pieceType() { return "shpr"; }
 
-
         @Override
-
         protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
-
             super.saveAdditional(t);
-
             t.putBoolean("Mob", hasPlacedSpawner);
-
         }
 
         private boolean hasPlacedSpawner;
@@ -926,9 +884,7 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class PrisonHall extends Piece {
-
         @Override
-
         public String pieceType() { return "shph"; }
 
         PrisonHall(int genDepth, LegacyRandom r, BoundingBox box, Direction dir) {
@@ -978,20 +934,13 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class RoomCrossing extends Piece {
-
         @Override
-
         public String pieceType() { return "shrc"; }
 
-
         @Override
-
         protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
-
             super.saveAdditional(t);
-
             t.putInt("Type", type);
-
         }
 
         private final int type;
@@ -1101,20 +1050,13 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class StairsDown extends Piece {
-
         @Override
-
         public String pieceType() { return "shsd"; }
 
-
         @Override
-
         protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
-
             super.saveAdditional(t);
-
             t.putBoolean("Source", isSource);
-
         }
 
         private final boolean isSource;
@@ -1174,22 +1116,14 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class Straight extends Piece {
-
         @Override
-
         public String pieceType() { return "shs"; }
 
-
         @Override
-
         protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
-
             super.saveAdditional(t);
-
             t.putBoolean("Left", leftChild);
-
             t.putBoolean("Right", rightChild);
-
         }
 
         private final boolean leftChild, rightChild;
@@ -1231,9 +1165,7 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class StraightStairsDown extends Piece {
-
         @Override
-
         public String pieceType() { return "shssd"; }
 
         StraightStairsDown(int genDepth, LegacyRandom r, BoundingBox box, Direction dir) {

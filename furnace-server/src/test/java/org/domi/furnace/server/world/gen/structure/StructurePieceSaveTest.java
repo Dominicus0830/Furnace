@@ -112,7 +112,13 @@ class StructurePieceSaveTest {
             }
         }
         if (KEYS.get(type).contains("Template")) {
-            assertTrue(t.getString("Template").contains(":"), structure + " Template " + t.getString("Template"));
+            // 엔드 도시·저택은 짧은 이름(읽을 때 폴더를 붙인다 — ':' 가 있으면 바닐라가 조각을 버린다), 나머지는 전체 id
+            String tpl = t.getString("Template");
+            if (type.equals("ecp") || type.equals("wmp")) {
+                assertFalse(tpl.contains(":") || tpl.contains("/") || tpl.isEmpty(), structure + " Template " + tpl);
+            } else {
+                assertTrue(tpl.contains(":"), structure + " Template " + tpl);
+            }
             assertEquals(2, t.getInt("O"), "TemplateStructurePiece 는 NORTH");
         }
     }

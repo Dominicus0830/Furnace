@@ -9,28 +9,17 @@ import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
 import java.util.Map;
 
 public final class DesertPyramidPiece extends StructurePiece {
-
     @Override
-
     public String pieceType() { return "tedp"; }
 
-
     @Override
-
     protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
-
         // ScatteredFeaturePiece 필드
-
         t.putInt("Width", WIDTH);
-
         t.putInt("Height", HEIGHT);
-
         t.putInt("Depth", DEPTH);
-
         t.putInt("HPos", heightPosition);
-
         for (int i = 0; i < 4; i++) t.putBoolean("hasPlacedChest" + i, hasPlacedChest[i]);
-
     }
 
 

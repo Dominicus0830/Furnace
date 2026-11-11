@@ -42,6 +42,7 @@ public final class EndCityStructure extends StructureType {
         @Override
         protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
             super.saveAdditional(t);
+            t.putString("Template", shortTemplateName("end_city"));   // 바닐라 EndCityPiece: "base_floor" 처럼 짧은 이름
             t.putString("Rot", rotationName(settings.rotation));
             t.putBoolean("OW", overwrite);
         }

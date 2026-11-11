@@ -234,9 +234,7 @@ public final class OceanMonumentStructure extends StructureType {
     // ------------------------------------------------------------------ 본체 (바닐라 MonumentBuilding)
 
     static final class Building extends MonumentPiece {
-
         @Override
-
         public String pieceType() { return "omb"; }
 
         private RoomDef sourceRoom;
@@ -834,11 +832,8 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class EntryRoom extends MonumentPiece {
-
         @Override
-
         public String pieceType() { return "omentry"; }
-
 
         EntryRoom(Direction d, RoomDef r) {
             super(d, r, 1, 1, 1);
@@ -873,11 +868,8 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class CoreRoom extends MonumentPiece {
-
         @Override
-
         public String pieceType() { return "omcr"; }
-
 
         CoreRoom(Direction d, RoomDef r) {
             super(d, r, 2, 2, 2);
@@ -956,11 +948,8 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class DoubleXRoom extends MonumentPiece {
-
         @Override
-
         public String pieceType() { return "omdxr"; }
-
 
         DoubleXRoom(Direction d, RoomDef r) {
             super(d, r, 2, 1, 1);
@@ -1030,11 +1019,8 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class DoubleXYRoom extends MonumentPiece {
-
         @Override
-
         public String pieceType() { return "omdxyr"; }
-
 
         DoubleXYRoom(Direction d, RoomDef r) {
             super(d, r, 2, 2, 1);
@@ -1148,11 +1134,8 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class DoubleYRoom extends MonumentPiece {
-
         @Override
-
         public String pieceType() { return "omdyr"; }
-
 
         DoubleYRoom(Direction d, RoomDef r) {
             super(d, r, 1, 2, 1);
@@ -1233,11 +1216,8 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class DoubleYZRoom extends MonumentPiece {
-
         @Override
-
         public String pieceType() { return "omdyzr"; }
-
 
         DoubleYZRoom(Direction d, RoomDef r) {
             super(d, r, 1, 2, 2);
@@ -1349,11 +1329,8 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class DoubleZRoom extends MonumentPiece {
-
         @Override
-
         public String pieceType() { return "omdzr"; }
-
 
         DoubleZRoom(Direction d, RoomDef r) {
             super(d, r, 1, 1, 2);
@@ -1442,9 +1419,7 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class SimpleRoom extends MonumentPiece {
-
         @Override
-
         public String pieceType() { return "omsimple"; }
 
         private final int design;
@@ -1611,11 +1586,8 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class SimpleTopRoom extends MonumentPiece {
-
         @Override
-
         public String pieceType() { return "omsimplet"; }
-
 
         SimpleTopRoom(Direction d, RoomDef r) {
             super(d, r, 1, 1, 1);
@@ -1667,11 +1639,8 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class Penthouse extends MonumentPiece {
-
         @Override
-
         public String pieceType() { return "ompenthouse"; }
-
 
         Penthouse(Direction d, BoundingBox box) {
             super(d, box);
@@ -1727,9 +1696,7 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class WingRoom extends MonumentPiece {
-
         @Override
-
         public String pieceType() { return "omwr"; }
 
         private final int design;

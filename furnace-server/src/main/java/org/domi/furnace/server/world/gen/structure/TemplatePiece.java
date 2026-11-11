@@ -44,6 +44,15 @@ public abstract class TemplatePiece extends StructurePiece {
         t.putString("Template", templateName.indexOf(':') < 0 ? "minecraft:" + templateName : templateName);
     }
 
+    /**
+     * 엔드 도시(EndCityPiece)·저택(WoodlandMansionPiece)은 Template 에 폴더 뒤 짧은 이름만 쓰고, 읽을 때 "end_city/"·"woodland_mansion/" 를
+     * 앞에 붙여 ResourceLocation 을 만든다(':' 가 들어가면 읽기 실패로 조각 전부를 버린다). 템플릿 이름이 그 접두사로 시작하면 떼어 낸다.
+     */
+    protected final String shortTemplateName(String folder) {
+        String p = "minecraft:" + folder + "/";
+        return templateName.startsWith(p) ? templateName.substring(p.length()) : templateName;
+    }
+
     /** 바닐라 Rotation 이름(Enum.name — 저장 키 Rot/rotation 이 valueOf 로 읽는다). */
     static String rotationName(int r) {
         return switch (r) {
