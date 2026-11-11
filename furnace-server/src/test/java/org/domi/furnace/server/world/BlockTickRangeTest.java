@@ -49,7 +49,9 @@ class BlockTickRangeTest {
         if (sched != null) sched.close();
     }
 
-    private void world(int viewDistance, int simulationDistance) {
+    private void world(int viewDistance, int simulationDistance) { world(viewDistance, simulationDistance, true); }
+
+    private void world(int viewDistance, int simulationDistance, boolean spectatorsGenerateChunks) {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         io = Executors.newSingleThreadExecutor();
@@ -61,6 +63,11 @@ class BlockTickRangeTest {
         w.levelServices(new LevelServices.Delegating(base) {
             @Override
             public int simulationDistance() { return simulationDistance; }
+
+            @Override
+            public boolean gameRule(String name) {
+                return "spectatorsGenerateChunks".equals(name) ? spectatorsGenerateChunks : super.gameRule(name);
+            }
         });
     }
 
@@ -137,7 +144,11 @@ class BlockTickRangeTest {
         assertEquals(EXTENDED, device(8));
     }
 
-    /** 시야 거리가 시뮬레이션 거리보다 작으면 청크 단계(시야 + 1 까지 BLOCK_TICKING)가 범위를 정한다: 시야 3, sim 10 → 거리 ≤ 4. */
+    /**
+     * 시야 거리가 시뮬레이션 거리보다 작으면 청크 단계(시야 + 1 까지 BLOCK_TICKING)가 예약 틱·블록 엔티티 범위를 정한다: 시야 3, sim 10 → 거리 ≤ 4.
+     * 블록 이벤트는 바닐라 shouldTickBlocksAt(TickingTracker 만, ≤ sim + 1)만 보므로 거리 5 에서도 돈다 — 피스톤 이벤트는 돌고 움직이는 피스톤
+     * 블록 엔티티는 돌지 않아 moving_piston 에 머문다(바닐라에서 시야 + 2 청크가 FULL 단계로 올라와 있을 때와 같다). 중계기(예약 틱)는 꺼진 채.
+     */
     @Test
     void viewDistanceCapsBlockTickingRange() throws Exception {
         world(3, 10);
@@ -147,7 +158,28 @@ class BlockTickRangeTest {
         ticks(10);
         assertEquals(EXTENDED, device(3));
         assertEquals(EXTENDED, device(4));
-        assertEquals(IDLE, device(5), "시야 3 이면 거리 5 청크는 바닐라에서 BLOCK_TICKING 단계가 아니다(올라와 있어도)");
+        assertEquals("piston[extended=true,facing=east] | moving_piston[facing=east,type=normal] | repeater[delay=1,facing=north,locked=false,powered=false]",
+                device(5), "시야 3 이면 거리 5 청크는 BLOCK_TICKING 단계가 아니다 — 블록 이벤트만 돈다");
+    }
+
+    /**
+     * 검토 R2: spectatorsGenerateChunks 가 꺼져 있으면 관전자는 티켓을 걸지 않는다(ChunkMap.skipPlayer) — 관전자 혼자면 둘레 블록 틱이 없다.
+     * 규칙이 켜져 있으면 보통 플레이어처럼 센다.
+     */
+    @Test
+    void spectatorsDoNotKeepBlocksTickingUnlessTheyGenerateChunks() throws Exception {
+        world(10, 10, false);
+        join(8.5, 8.5).vitals().setGameMode(GameMode.SPECTATOR);
+        placeDevice(1);
+        ticks(10);
+        assertEquals(IDLE, device(1));
+        close();
+
+        world(10, 10, true);
+        join(8.5, 8.5).vitals().setGameMode(GameMode.SPECTATOR);
+        placeDevice(1);
+        ticks(10);
+        assertEquals(EXTENDED, device(1));
     }
 
     /** /forceload 청크(레벨 31)는 그 청크와 둘레 1칸이 블록 틱 범위다(A07-08). 플레이어는 멀리. */

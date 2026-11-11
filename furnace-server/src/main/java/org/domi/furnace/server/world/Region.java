@@ -1206,7 +1206,7 @@ public final class Region {
         }
         if (level != null) {   // 바닐라 ServerLevel.tick: 블록·유체 예약 틱 → 청크 틱(무작위 틱) → 청크 변경 방송 → 블록 이벤트 → 엔티티
             int n = frozen ? 0 : collectTickingChunks();
-            level.tickBlocks(tickingChunks, n, frozen ? 0 : spawnChunkCount, this::blockTicking,
+            level.tickBlocks(tickingChunks, n, frozen ? 0 : spawnChunkCount, this::blockTicking, this::blockEventTicking,
                     k -> level.chunkCached((int) (k >> 32), (int) k) != null && entityTicking(k), pl -> players.containsKey(pl.entityId()), frozen);
             lap(0);
             level.runLightUpdates();
@@ -1576,6 +1576,7 @@ public final class Region {
      *     안 청크에 건 레벨 31 플레이어 티켓에서 +1 → 체비셰프 ≤ 시야 + 1. 두 조건 모두 가장 가까운 플레이어로 정해지므로 둘 중 작은 쪽.</li>
      * <li>/forceload·플러그인 ticking 티켓(레벨 31): 그 청크와 둘레 1칸.</li>
      * <li>포털·드래곤·순간 이동 뒤 티켓(레벨 33 − 거리): 거리 − 1 안({@link World#blockTicketed}).</li>
+     * <li>관전자는 spectatorsGenerateChunks 가 꺼져 있으면 세지 않는다(ChunkMap.skipPlayer — 티켓을 걸지 않는다).</li>
      * </ul>
      * 엔티티 틱({@link #entityTicking})과는 범위가 다르다.
      */
@@ -1583,6 +1584,19 @@ public final class Region {
         int cx = (int) (key >> 32), cz = (int) key;
         ChunkColumn col = level != null ? level.chunkCached(cx, cz) : ownedChunk(cx, cz);
         if (col == null || !col.entitiesLoaded()) return false;
+        return inBlockTickingRange(cx, cz, true);
+    }
+
+    /**
+     * 바닐라 shouldTickBlocksAt(DistanceManager.inBlockTickingRange: TickingTracker 레벨 ≤ 32). 블록 이벤트가 이것만 본다. 키는 (x << 32 | z).
+     */
+    private boolean blockEventTicking(long key) { return inBlockTickingRange((int) (key >> 32), (int) key, false); }
+
+    /**
+     * TickingTracker 레벨 ≤ 32 인가. withChunkStatus 면 플레이어 쪽은 청크 단계(시야 + 1 까지 BLOCK_TICKING)도 본다 — 티켓 쪽은 두 추적기에
+     * 같은 레벨로 들어가므로 따로 볼 것이 없다. 관전자는 spectatorsGenerateChunks 가 꺼져 있으면 티켓을 걸지 않는다(ChunkMap.skipPlayer).
+     */
+    private boolean inBlockTickingRange(int cx, int cz, boolean withChunkStatus) {
         var forced = world.forcedChunksOrNull();
         boolean anyForced = forced != null && forced.size() > 0;
         for (int dz = -1; dz <= 1; dz++) {
@@ -1591,9 +1605,13 @@ public final class Region {
             }
         }
         if (world.blockTicketed(cx, cz)) return true;
+        if (players.isEmpty()) return false;
         int sim = world.levelServices().simulationDistance();
-        int range = Math.min(32 - Math.max(0, 31 - sim), Math.clamp(world.viewDistance(), 2, 32) + 1);
+        int range = 32 - Math.max(0, 31 - sim);
+        if (withChunkStatus) range = Math.min(range, Math.clamp(world.viewDistance(), 2, 32) + 1);
+        boolean spectatorsTick = world.levelServices().gameRule("spectatorsGenerateChunks");
         for (Player p : players.values()) {
+            if (!spectatorsTick && p.gameMode() == GameMode.SPECTATOR) continue;
             int pcx = (int) Math.floor(p.x()) >> 4, pcz = (int) Math.floor(p.z()) >> 4;
             if (Math.max(Math.abs(pcx - cx), Math.abs(pcz - cz)) <= range) return true;
         }

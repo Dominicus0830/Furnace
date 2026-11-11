@@ -60,8 +60,11 @@ public final class BlockTicks {
         runThisTick.clear();
         java.util.function.LongPredicate ticking = chunkTicking == null ? null : memo.reset(chunkTicking);
         if (!parked.isEmpty()) unpark(ticking);
-        java.util.ArrayList<Scheduled> batch = new java.util.ArrayList<>();
-        while (!queue.isEmpty() && queue.peek().triggerTick <= gameTime && batch.size() < maxAllowed) {
+        // 이번 틱에 꺼낼 수 있는 것(실행 시각 ≤ gameTime, 범위 안)을 큐 순서(시각 → 우선순위 → 순번)로 꺼낸다.
+        // 큐가 시각 순이라 지난 예약이 있으면 맨 앞에 온다. 없으면 모두 이번 시각이라 큐 순서 = 바닐라 순서(아래)이므로 한도까지만 꺼낸다.
+        java.util.ArrayList<Scheduled> due = new java.util.ArrayList<>();
+        boolean overdue = false;
+        while (!queue.isEmpty() && queue.peek().triggerTick <= gameTime && (overdue || due.size() < maxAllowed)) {
             Scheduled s = queue.poll();
             if (ticking != null) {
                 long ck = ChunkPredicateMemo.chunkKeyOfPos(s.pos);
@@ -70,16 +73,58 @@ public final class BlockTicks {
                     continue;
                 }
             }
+            if (due.isEmpty() && s.triggerTick < gameTime) overdue = true;
+            due.add(s);
+        }
+        java.util.List<Scheduled> batch = overdue ? drainByContainer(due, maxAllowed) : due;
+        for (Scheduled s : batch) {
             Key k = new Key(s.pos, s.type);
             scheduled.remove(k);
             runThisTick.add(k);
-            batch.add(s);
         }
         for (Scheduled s : batch) {
             runThisTick.remove(new Key(s.pos, s.type));   // willTickThisTick 은 아직 돌지 않은 것만(바닐라 toRunThisTickSet)
             ticker.tick(Pos.of(s.pos), s.type);
         }
         runThisTick.clear();
+    }
+
+    /** 바닐라 ScheduledTick.INTRA_TICK_DRAIN_ORDER: 우선순위 → 순번(실행 시각은 보지 않는다). */
+    private static final java.util.Comparator<Scheduled> INTRA_TICK = (a, b) -> {
+        int c = Integer.compare(a.priority, b.priority);
+        return c != 0 ? c : Long.compare(a.subTickOrder, b.subTickOrder);
+    };
+
+    /**
+     * 지난 예약이 섞였을 때의 바닐라 LevelTicks 꺼내기(drainContainers·drainFromCurrentContainer): 청크(컨테이너) 안은 (시각, 우선순위, 순번),
+     * 청크 사이는 머리끼리 (우선순위, 순번)으로 고른다. 지금 청크의 다음 것이 다음 청크 머리보다 앞서는 동안 이어서 꺼내고, 한도에 닿으면 멈춘다.
+     * 꺼내지 못한 것은 큐로 되돌린다. due 는 큐 순서라 청크별 목록도 (시각, 우선순위, 순번) 순이다.
+     */
+    private java.util.List<Scheduled> drainByContainer(java.util.List<Scheduled> due, int maxAllowed) {
+        java.util.Map<Long, java.util.ArrayDeque<Scheduled>> byChunk = new java.util.HashMap<>();
+        for (Scheduled s : due) byChunk.computeIfAbsent(ChunkPredicateMemo.chunkKeyOfPos(s.pos), k -> new java.util.ArrayDeque<>()).add(s);
+        PriorityQueue<java.util.ArrayDeque<Scheduled>> containers = new PriorityQueue<>((a, b) -> INTRA_TICK.compare(a.peekFirst(), b.peekFirst()));
+        containers.addAll(byChunk.values());
+        java.util.List<Scheduled> batch = new java.util.ArrayList<>();
+        java.util.ArrayDeque<Scheduled> c;
+        while (batch.size() < maxAllowed && (c = containers.poll()) != null) {
+            batch.add(c.pollFirst());
+            if (batch.size() < maxAllowed) {
+                var next = containers.peek();
+                Scheduled nextHead = next != null ? next.peekFirst() : null;
+                while (batch.size() < maxAllowed) {
+                    Scheduled t = c.peekFirst();
+                    if (t == null || nextHead != null && INTRA_TICK.compare(t, nextHead) > 0) break;
+                    batch.add(c.pollFirst());
+                }
+            }
+            if (!c.isEmpty()) {
+                if (batch.size() < maxAllowed) containers.add(c);
+                else queue.addAll(c);
+            }
+        }
+        for (var rest : containers) queue.addAll(rest);
+        return batch;
     }
 
     /** 틱 범위에 든 청크(ticking 이 null 이면 모두)의 미뤄 둔 예약을 큐로 되돌린다. */

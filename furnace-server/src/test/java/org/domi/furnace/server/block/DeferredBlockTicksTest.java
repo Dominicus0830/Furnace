@@ -46,6 +46,55 @@ class DeferredBlockTicksTest {
         assertEquals(0, ticks.size());
     }
 
+    /**
+     * 검토 R1: 바닐라 LevelTicks 는 청크 안은 (시각, 우선순위, 순번), 청크 사이는 머리끼리 (우선순위, 순번)으로 고른다 — 미뤄 둔 지난 예약이
+     * 다른 청크의 이번 예약보다 무조건 먼저 돌지 않는다.
+     */
+    @Test
+    void overdueDeferredTickInterleavesByPriorityAcrossChunks() {
+        BlockTicks ticks = new BlockTicks();
+        Pos parkedPos = new Pos(33, 0, 1), nowPos = new Pos(1, 0, 1);
+        ticks.schedule(parkedPos, 7, 5, 0, 10);
+        ticks.schedule(nowPos, 7, 7, -3, 11);
+        List<Pos> ran = new ArrayList<>();
+        ticks.tick(5, 65536, ONLY_CHUNK_0_0, (p, t) -> ran.add(p));
+        ticks.tick(6, 65536, ONLY_CHUNK_0_0, (p, t) -> ran.add(p));
+        assertTrue(ran.isEmpty());
+        ticks.tick(7, 65536, k -> true, (p, t) -> ran.add(p));
+        assertEquals(List.of(nowPos, parkedPos), ran, "우선순위 −3 이 먼저");
+    }
+
+    @Test
+    void overdueDeferredTickInterleavesBySubTickOrderAcrossChunks() {
+        BlockTicks ticks = new BlockTicks();
+        Pos parkedPos = new Pos(33, 0, 1), nowPos = new Pos(1, 0, 1);
+        ticks.schedule(nowPos, 7, 7, 0, 1);
+        ticks.schedule(parkedPos, 7, 5, 0, 2);
+        List<Pos> ran = new ArrayList<>();
+        ticks.tick(5, 65536, ONLY_CHUNK_0_0, (p, t) -> ran.add(p));
+        ticks.tick(7, 65536, k -> true, (p, t) -> ran.add(p));
+        assertEquals(List.of(nowPos, parkedPos), ran, "같은 우선순위면 순번 1 이 먼저");
+    }
+
+    /** 청크 안은 시각 먼저: 지난 것(우선순위 낮음)이 같은 청크의 이번 것(우선순위 높음)보다 먼저. 한도에 닿으면 나머지는 남는다. */
+    @Test
+    void withinAChunkOverdueRunsFirstAndLimitHolds() {
+        BlockTicks ticks = new BlockTicks();
+        Pos a = new Pos(33, 0, 1), b = new Pos(34, 0, 1), c = new Pos(1, 0, 1);   // a·b 청크 (2,0), c 청크 (0,0)
+        ticks.schedule(a, 7, 5, 2, 0);
+        ticks.schedule(b, 7, 7, -3, 1);
+        ticks.schedule(c, 7, 7, -1, 2);
+        List<Pos> ran = new ArrayList<>();
+        ticks.tick(5, 65536, ONLY_CHUNK_0_0, (p, t) -> ran.add(p));
+        ticks.tick(7, 2, k -> true, (p, t) -> ran.add(p));
+        // 머리: 청크 (2,0) = a(우선순위 2), 청크 (0,0) = c(−1) → c 먼저, 그다음 a. 한도 2 라 b 는 다음 틱.
+        assertEquals(List.of(c, a), ran);
+        assertTrue(ticks.hasScheduledTick(b, 7));
+        ran.clear();
+        ticks.tick(8, 65536, k -> true, (p, t) -> ran.add(p));
+        assertEquals(List.of(b), ran);
+    }
+
     @Test
     void outOfRangeTicksDoNotCountTowardTheLimit() {
         BlockTicks ticks = new BlockTicks();

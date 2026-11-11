@@ -1286,9 +1286,22 @@ public final class World {
     private final ConcurrentHashMap<Long, Long> blockTickets = new ConcurrentHashMap<>();
 
     private void markBlockTicking(int cx, int cz, int radius, long until) {
+        sweepExpired(blockTickets, blockSweepAt);
         for (int dz = -radius; dz <= radius; dz++) {
             for (int dx = -radius; dx <= radius; dx++) blockTickets.merge(Regionizer.chunkKey(cx + dx, cz + dz), until, Math::max);
         }
+    }
+
+    /** 다음에 지난 항목을 쓸 크기. 조회될 때만 지우면 묻지 않는 청크(블록 엔티티·예약 없는 순간 이동 도착지)의 키가 쌓인다. */
+    private final java.util.concurrent.atomic.AtomicInteger blockSweepAt = new java.util.concurrent.atomic.AtomicInteger(256),
+            entitySweepAt = new java.util.concurrent.atomic.AtomicInteger(256);
+
+    /** 크기가 기준을 넘으면 지난 항목을 지우고 기준을 남은 크기의 두 배(최소 256)로 — 한 항목당 상수 비용. */
+    private void sweepExpired(ConcurrentHashMap<Long, Long> map, java.util.concurrent.atomic.AtomicInteger at) {
+        if (map.size() < at.get()) return;
+        long now = gameTime();
+        map.values().removeIf(v -> v < now);
+        at.set(Math.max(256, map.size() * 2));
     }
 
     /** 그 청크에 블록 틱 단계의 티켓이 살아 있는가(지난 것은 지운다). 강제 로드·플러그인 티켓은 따로 본다. */
@@ -1311,6 +1324,7 @@ public final class World {
     private final ConcurrentHashMap<Long, Long> entityTickets = new ConcurrentHashMap<>();
 
     private void markEntityTicking(int cx, int cz, int radius, long until) {
+        sweepExpired(entityTickets, entitySweepAt);
         for (int dz = -radius; dz <= radius; dz++) {
             for (int dx = -radius; dx <= radius; dx++) entityTickets.merge(Regionizer.chunkKey(cx + dx, cz + dz), until, Math::max);
         }
