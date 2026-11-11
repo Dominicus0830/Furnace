@@ -7,7 +7,7 @@ import org.bukkit.Material;
 
 /**
  * 아이템 종류 shim(Mojang 이름, H6 최소 표면). 같은 레지스트리 키는 같은 객체라 바닐라처럼 {@code ==} 로 비교할 수 있다.
- * 레지스트리에서 얻기({@code BuiltInRegistries.ITEM}·{@code Items.*})는 H7 이 더한다 — 지금은 {@link ItemStack#getItem()} 으로만 얻는다.
+ * 레지스트리({@code BuiltInRegistries.ITEM}·{@code Items.*}, N0)의 값도 이 객체다.
  */
 public class Item implements ItemLike {
 
@@ -32,6 +32,19 @@ public class Item implements ItemLike {
 
     @Override
     public Item asItem() { return this; }
+
+    /** 바닐라: null 이면 0, 아니면 레지스트리 번호(모르는 아이템은 공기의 번호). */
+    public static int getId(Item item) { return item == null ? 0 : net.minecraft.core.registries.BuiltInRegistries.ITEM.getId(item); }
+
+    /** 바닐라: 모르는 번호면 공기. */
+    public static Item byId(int id) { return net.minecraft.core.registries.BuiltInRegistries.ITEM.byId(id); }
+
+    /** 바닐라 Item.byBlock: 블록 아이템이 없으면 공기(벽 횃불 → 횃불). */
+    public static Item byBlock(net.minecraft.world.level.block.Block block) { return block.asItem(); }
+
+    public net.minecraft.core.Holder.Reference<Item> builtInRegistryHolder() {
+        return net.minecraft.core.registries.BuiltInRegistries.ITEM.getHolder(net.minecraft.resources.ResourceLocation.parse(key)).orElseThrow();
+    }
 
     /** 바닐라 규칙: item.&lt;이름공간&gt;.&lt;경로(/ 는 .)&gt;. */
     public String getDescriptionId() {
