@@ -1215,8 +1215,11 @@ public final class Region {
         }
         if (level != null) {   // 바닐라 ServerLevel.tick: 블록·유체 예약 틱 → 청크 틱(무작위 틱) → 청크 변경 방송 → 블록 이벤트 → 엔티티
             int n = frozen ? 0 : collectTickingChunks();
+            // 판정(바닐라 1.21.1): 무작위 틱 = TickingTracker ≤ 32(randomTicking), 블록 엔티티 = blockEntityTicking, 엔티티 섹션 = ChunkHolder
+            // ENTITY_TICKING(시야 거리 — 버리기·사라짐 검사), 엔티티 틱 = TickingTracker ≤ 31(시뮬레이션 거리 — 엔티티 tick·추적)
             level.tickBlocks(tickingChunks, n, frozen ? 0 : spawnChunkCount, frozen || n == 0 ? 0 : naturalSpawnChunkCount(), this::randomTicking,
-                    this::blockEntityTicking, pl -> players.containsKey(pl.entityId()), frozen);
+                    this::blockEntityTicking, k -> naturalSpawningAllowed(Regionizer.chunkX(k), Regionizer.chunkZ(k)), this::entityTicking,
+                    pl -> players.containsKey(pl.entityId()), frozen);
             lap(0);
             level.runLightUpdates();
             lap(1);
@@ -1581,26 +1584,15 @@ public final class Region {
         var forced = world.forcedChunksOrNull();
         if (forced != null && forced.size() > 0 && forced.contains(cx, cz)) return true;
         if (world.entityTicketed(cx, cz) || world.pluginTicking(cx, cz)) return true;
-        int view = world.viewDistance();
-        boolean spectators = world.levelServices().gameRule("spectatorsGenerateChunks");
-        for (Player p : players.values()) {
-            if (!spectators && p.gameMode() == GameMode.SPECTATOR) continue;
-            int pcx = (int) Math.floor(p.x()) >> 4, pcz = (int) Math.floor(p.z()) >> 4;
-            if (Math.max(Math.abs(pcx - cx), Math.abs(pcz - cz)) <= view) return true;
-        }
-        return false;
+        return ticketPlayerWithin(cx, cz, Math.clamp(world.viewDistance(), 2, 32));
     }
 
     /**
-     * ServerLevel.shouldTickBlocksAt(long) = DistanceManager.inBlockTickingRange: TickingTracker 레벨 < 33. 플레이어 티켓 레벨이 31 − 시뮬레이션 거리라
-     * 체비셰프 ≤ 시뮬레이션 거리 + 1(관전자는 spectatorsGenerateChunks 일 때만). 강제 로드·포털·플러그인 티켓 청크도.
+     * 티켓을 다는 플레이어(바닐라 DistanceManager.addPlayer — ChunkMap.skipPlayer 가 아닌: 관전자는 spectatorsGenerateChunks 일 때만) 중
+     * 그 청크에서 체비셰프 range 안인 사람이 있는가. 시야 티켓·TickingTracker·스폰 수 세기가 모두 이 플레이어 집합을 쓴다.
      */
-    boolean randomTicking(long key) {
-        int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
-        var forced = world.forcedChunksOrNull();
-        if (forced != null && forced.size() > 0 && forced.contains(cx, cz)) return true;
-        if (world.entityTicketed(cx, cz) || world.pluginTicking(cx, cz)) return true;
-        int range = Math.max(world.levelServices().simulationDistance(), 2) + 1;
+    private boolean ticketPlayerWithin(int cx, int cz, int range) {
+        if (players.isEmpty()) return false;
         boolean spectators = world.levelServices().gameRule("spectatorsGenerateChunks");
         for (Player p : players.values()) {
             if (!spectators && p.gameMode() == GameMode.SPECTATOR) continue;
@@ -1608,6 +1600,40 @@ public final class Region {
             if (Math.max(Math.abs(pcx - cx), Math.abs(pcz - cz)) <= range) return true;
         }
         return false;
+    }
+
+    /**
+     * 그 청크의 엔티티가 tick 을 받는가 — 바닐라 DistanceManager.inEntityTickingRange: TickingTracker 레벨 ≤ 31. 플레이어 티켓 레벨이
+     * max(0, 31 − sim)이라 체비셰프 ≤ min(sim, 31)(관전자는 spectatorsGenerateChunks 일 때만). 엔티티가 entityTickList 에 있으려면 섹션도
+     * ENTITY_TICKING(시야 거리 안)이어야 해서 시야 거리로도 자른다. 강제 로드·포털·드래곤·플러그인 티켓은 그 범위. 예전엔 ≤ sim − 1 이었다(A10 검토 R2).
+     * 사라짐 검사(checkDespawn)는 이 판정이 아니라 섹션 판정(naturalSpawningAllowed)을 따른다(ChunkLevel.tickEntities). 키는 (x << 32 | z).
+     */
+    boolean entityTicking(long key) {
+        int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
+        var forced = world.forcedChunksOrNull();
+        if (forced != null && forced.size() > 0 && forced.contains(cx, cz)) return true;   // /forceload: 엔티티 틱 레벨 티켓
+        if (world.entityTicketed(cx, cz) || world.pluginTicking(cx, cz)) return true;   // 포털·드래곤·플러그인 티켓
+        int sim = Math.max(world.levelServices().simulationDistance(), 2);
+        return ticketPlayerWithin(cx, cz, Math.min(31 - Math.max(0, 31 - sim), Math.clamp(world.viewDistance(), 2, 32)));
+    }
+
+    /**
+     * ServerLevel.shouldTickBlocksAt(long) = DistanceManager.inBlockTickingRange: TickingTracker 레벨 < 33. 플레이어 티켓 레벨이 31 − 시뮬레이션 거리라
+     * 체비셰프 ≤ 시뮬레이션 거리 + 1(관전자는 spectatorsGenerateChunks 일 때만). 강제 로드·플러그인 티켓은 그 청크와 둘레 1칸, 포털 티켓도.
+     */
+    boolean randomTicking(long key) {
+        int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
+        var forced = world.forcedChunksOrNull();
+        boolean anyForced = forced != null && forced.size() > 0;
+        for (int dz = -1; dz <= 1; dz++) {   // /forceload·플러그인 ticking 티켓(레벨 31)은 둘레 1칸까지 32 로 퍼진다(A10 검토 R3)
+            for (int dx = -1; dx <= 1; dx++) {
+                if (anyForced && forced.contains(cx + dx, cz + dz) || world.pluginTicking(cx + dx, cz + dz)) return true;
+            }
+        }
+        // 포털·드래곤 티켓: 엔티티 틱 범위로 본다(블록 틱 범위는 한 칸 더 넓다 — PR #183 의 blockTicketed 로 합칠 때 맞춘다)
+        if (world.entityTicketed(cx, cz)) return true;
+        int sim = Math.max(world.levelServices().simulationDistance(), 2);
+        return ticketPlayerWithin(cx, cz, 32 - Math.max(0, 31 - sim));
     }
 
     /** collectTickingChunks 가 모은 앞쪽 몇 칸이 자연 스폰 대상(플레이어 근처)인가. 뒤는 강제 로드 청크. */
@@ -1705,13 +1731,13 @@ public final class Region {
     }
 
     /**
-     * /execute if loaded 의 바닐라 조건: 청크가 FULL 이상이고 엔티티 틱 단계(ENTITY_TICKING)이며 엔티티가 불러와졌다(areEntitiesLoaded).
+     * /execute if loaded 의 바닐라 조건(amt): 청크가 FULL 이상이고 청크 단계가 ENTITY_TICKING(시야 티켓 — 시뮬레이션 거리와 무관)이며 엔티티가 불러와졌다(areEntitiesLoaded).
      * 이 region 이 가진 청크만 안다. 이 region 스레드에서만.
      */
     public boolean isEntityTickingLoaded(int cx, int cz) {
         world.assertOwns(this);
         ChunkColumn col = ownedChunk(cx, cz);
-        return col != null && col.entitiesLoaded() && blockEntityTicking(((long) cx << 32) | (cz & 0xFFFFFFFFL));
+        return col != null && col.entitiesLoaded() && naturalSpawningAllowed(cx, cz);   // 바닐라 amt: getFullStatus() == ENTITY_TICKING(시야 거리)
     }
 
     private boolean closeToPlayer(int cx, int cz, int chunkRange) {
