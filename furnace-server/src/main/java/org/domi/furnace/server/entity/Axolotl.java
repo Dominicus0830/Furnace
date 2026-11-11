@@ -51,6 +51,7 @@ public class Axolotl extends Animal implements Bucketable {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private Brain<Axolotl> makeBrain() {
         Brain<Axolotl> b = new Brain<>(java.util.List.of(MemoryModuleType.BREED_TARGET, MemoryModuleType.NEAREST_LIVING_ENTITIES, MemoryModuleType.NEAREST_VISIBLE_LIVING_ENTITIES,
+                MemoryModuleType.NEAREST_VISIBLE_PLAYER, MemoryModuleType.NEAREST_VISIBLE_ATTACKABLE_PLAYER,   // 바닐라 cgq 목록(센서가 없어 채워지지 않는다)
                 MemoryModuleType.WALK_TARGET, MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE, MemoryModuleType.PATH, MemoryModuleType.LOOK_TARGET, MemoryModuleType.HURT_BY,
                 MemoryModuleType.HURT_BY_ENTITY, MemoryModuleType.NEAREST_VISIBLE_ADULT, MemoryModuleType.PLAY_DEAD_TICKS, MemoryModuleType.NEAREST_ATTACKABLE,
                 MemoryModuleType.ATTACK_TARGET, MemoryModuleType.ATTACK_COOLING_DOWN, MemoryModuleType.TEMPTING_PLAYER, MemoryModuleType.TEMPTATION_COOLDOWN_TICKS,

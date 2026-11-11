@@ -1956,6 +1956,12 @@ public abstract class ChunkLevel implements BlockLevel {
         return col == null ? minBuildHeight() : col.motionBlockingNoLeavesBlockY(x & 15, z & 15) + 1;
     }
 
+    /**
+     * ServerLevel.isNaturalSpawningAllowed(BlockPos): 그 청크가 엔티티 틱(PersistentEntitySectionManager.canPositionTick)인가.
+     * 엔티티 틱 개념이 없는 레벨(시험)은 청크가 올라와 있으면 참. RegionLevel 이 시야 거리·티켓으로 덮어쓴다.
+     */
+    public boolean isNaturalSpawningAllowed(int chunkX, int chunkZ) { return chunk(chunkX, chunkZ) != null; }
+
     /** Level.getHeight(WORLD_SURFACE, x, z): 가장 높은 블록 바로 위 y(청크가 없으면 최저 높이). */
     public int getWorldSurfaceHeight(int x, int z) {
         ChunkColumn col = chunk(x >> 4, z >> 4);
@@ -2150,16 +2156,32 @@ public abstract class ChunkLevel implements BlockLevel {
      * 엔티티 틱(바닐라 ServerLevel.tick 의 entityTickList.forEach): 지워진 것은 건너뛰고, 엔티티 틱 청크(ticking — 청크 키
      * (x << 32 | z))에 있는 것만 setOldPosAndRot · tickCount++ · tick.
      */
-    public void tickEntities(java.util.function.LongPredicate ticking) {
+    public void tickEntities(java.util.function.LongPredicate ticking) { tickEntities(ticking, ticking); }
+
+    /**
+     * ServerLevel.tick 의 엔티티 람다(aqu.a(brc,bnf,bsr)): entityTickList(섹션이 ENTITY_TICKING — sectionTicking)의 엔티티마다
+     * 버리기(shouldDiscardEntity) → checkDespawn → inEntityTickingRange(ticking)일 때만 탈것 처리·tick. 그래서 시뮬레이션 거리 밖·시야 안의
+     * 얼어붙은 몹도 사라짐 검사는 받는다(A10 검토 R1). 키는 (x << 32 | z).
+     */
+    public void tickEntities(java.util.function.LongPredicate sectionTicking, java.util.function.LongPredicate ticking) {
         if (entities.isEmpty()) return;
         boolean animalsOk = spawnAnimalsAllowed(), npcsOk = spawnNpcsAllowed();
         for (Entity e : entities.tickSnapshot()) {
             if (e.isRemoved()) continue;
-            if (!ticking.test((long) e.chunkX() << 32 | e.chunkZ() & 0xFFFFFFFFL)) continue;
+            long key = (long) e.chunkX() << 32 | e.chunkZ() & 0xFFFFFFFFL;
+            if (!sectionTicking.test(key)) continue;
             if ((!animalsOk || !npcsOk) && shouldDiscardEntity(e, animalsOk, npcsOk)) {   // spawn-animals / spawn-npcs=false
                 e.discard();
                 continue;
             }
+            try {
+                e.checkDespawn();   // 바닐라도 범위 검사 앞에서 부르고, 지워져도 그 틱의 tick 은 그대로 간다
+            } catch (RuntimeException ex) {
+                org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error("[ENTITY] 사라짐 검사 실패 {} — 지운다", e, ex);
+                e.discard();
+                continue;
+            }
+            if (!ticking.test(key)) continue;
             Entity v = e.vehicle();
             if (v != null) {   // 탄 것은 탈것이 틱한다
                 if (!v.isRemoved() && v.hasPassenger(e)) continue;

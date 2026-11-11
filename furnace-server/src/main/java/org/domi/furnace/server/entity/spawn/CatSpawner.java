@@ -1,6 +1,7 @@
 // 바닐라 CatSpawner(CustomSpawner): 1200틱마다 무작위 플레이어 8~31칸 밖 한 칸에서, 마을(POI 섹션 거리 2)이면 집 POI 가 4개 넘고
 // 48칸 안 고양이가 5마리 미만일 때, 마녀 오두막 조각 안이면 16칸 안 고양이가 없을 때 고양이 한 마리를 낸다.
-// 차이: 바닐라 getRandomPlayer 는 차원 전체 플레이어, 여기서는 이 region 의 플레이어. nextTick 도 region 마다 따로 간다.
+// 서버에서는 차원에 하나(DimensionSpawners)가 전역 틱에서 타이머를 돌리고 차원 전체 산 플레이어 중 한 명을 고른 뒤(getRandomPlayer),
+// 그 둘레 일은 그 플레이어의 region 스레드로 넘긴다(A10-05).
 package org.domi.furnace.server.entity.spawn;
 
 import java.util.List;
@@ -23,16 +24,29 @@ public final class CatSpawner {
 
     public int nextTick() { return nextTick; }
 
-    /** 낸 고양이 수(0/1). spawnFriendlies: 동물 스폰 허용. */
+    /** 한 레벨에서 그 자리에서: 낸 고양이 수(0/1). spawnFriendlies: 동물 스폰 허용. players: 바닐라 level.players(). */
     public int tick(ChunkLevel level, List<Player> players, boolean spawnFriendlies) {
-        if (!spawnFriendlies || !level.gameRule("doMobSpawning")) return 0;
+        int[] n = {0};
+        tick(CustomSpawnerHost.of(level, players), spawnFriendlies, c -> n[0] = c);
+        return n[0];
+    }
+
+    /** 바닐라 CatSpawner.tick: 타이머·플레이어 고르기는 host 에서, 칸 판정·스폰은 그 플레이어의 레벨에서. done: 낸 수(null 가능). */
+    public void tick(CustomSpawnerHost host, boolean spawnFriendlies, java.util.function.IntConsumer done) {
+        if (!spawnFriendlies || !host.gameRule("doMobSpawning")) return;
         nextTick--;
-        if (nextTick > 0) return 0;
+        if (nextTick > 0) return;
         nextTick = TICK_DELAY;
-        List<Player> alive = players.stream().filter(p -> !p.vitals().isDeadOrDying()).toList();
-        if (alive.isEmpty()) return 0;
-        RandomSource random = level.random();
-        Player player = alive.get(random.nextInt(alive.size()));
+        List<Player> alive = host.players().stream().filter(p -> !p.vitals().isDeadOrDying()).toList();   // getPlayers(LivingEntity::isAlive)
+        if (alive.isEmpty()) return;
+        Player player = alive.get(host.random().nextInt(alive.size()));
+        host.atPlayer(player, (level, r) -> {
+            int c = spawnNear(level, player, r);
+            if (done != null) done.accept(c);
+        });
+    }
+
+    private int spawnNear(ChunkLevel level, Player player, RandomSource random) {
         int dx = (8 + random.nextInt(24)) * (random.nextBoolean() ? -1 : 1);
         int dz = (8 + random.nextInt(24)) * (random.nextBoolean() ? -1 : 1);
         Pos pos = player.blockPosition().offset(dx, 0, dz);

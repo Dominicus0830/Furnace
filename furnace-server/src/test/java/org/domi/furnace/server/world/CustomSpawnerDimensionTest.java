@@ -1,10 +1,9 @@
 // 특수 스포너(팬텀·순찰·고양이·포위·상인)는 바닐라 MinecraftServer.createLevels 처럼 오버월드에만 있다.
-// 네더 region 에서 tickCustomSpawners 를 돌려도 스포너 타이머가 그대로다(= 레벨 난수도 쓰지 않는다).
+// 차원에 하나뿐인 스포너(DimensionSpawners)는 오버월드에만 있고, 네더에는 없다(= 레벨 난수도 쓰지 않는다).
 package org.domi.furnace.server.world;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -33,26 +32,12 @@ class CustomSpawnerDimensionTest {
         if (sched != null) sched.close();
     }
 
-    private static int nextTick(RegionLevel level, String spawnerField) throws Exception {
-        Field f = RegionLevel.class.getDeclaredField(spawnerField);
-        f.setAccessible(true);
-        Object spawner = f.get(level);
-        Field t = spawner.getClass().getDeclaredField("nextTick");
-        t.setAccessible(true);
-        return t.getInt(spawner);
-    }
-
-    /** 한 번 돌린 뒤 [팬텀, 순찰, 고양이] 타이머. 플레이어가 없어도 셋 다 첫 호출에 타이머를 다시 건다(팬텀·순찰은 난수로). */
-    private static int[] tickOnce(World world) throws Exception {
-        return world.submitAtChunk(new ChunkPos(0, 0), r -> {
-            RegionLevel level = r.level();
-            level.tickCustomSpawners(List.of(), true, true);
-            try {
-                return new int[] {nextTick(level, "phantomSpawner"), nextTick(level, "patrolSpawner"), nextTick(level, "catSpawner")};
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }).get(10, TimeUnit.SECONDS);
+    /** 전역 틱 한 번(DimensionSpawners.tick) 뒤 [팬텀, 순찰, 고양이] 타이머. 플레이어가 없어도 셋 다 첫 호출에 타이머를 다시 건다(팬텀·순찰은 난수로). */
+    private static int[] tickOnce(World world) {
+        DimensionSpawners d = world.dimensionSpawners();
+        if (d == null) return null;
+        d.tick();
+        return new int[] {d.phantom().nextTick(), d.patrol().nextTick(), d.cat().nextTick()};
     }
 
     @Test
@@ -67,8 +52,12 @@ class CustomSpawnerDimensionTest {
         World nether = new World(TEST_NETHER, src, pool, sched, 1, 4, 1, 2, 2, reg.directBits(), 7, io, io);
         assertEquals("minecraft:the_nether", nether.dimension());
 
-        int[] n = tickOnce(nether);
-        assertArrayEquals(new int[] {0, 0, 0}, n, "네더에는 특수 스포너가 없다(바닐라 createLevels 는 빈 목록)");
+        assertNull(tickOnce(nether), "네더에는 특수 스포너가 없다(바닐라 createLevels 는 빈 목록)");
+        // region 틱 쪽은 포위 후보 알리기뿐이고 네더에서는 아무 일도 하지 않는다
+        nether.submitAtChunk(new ChunkPos(0, 0), r -> {
+            r.level().tickCustomSpawners(List.of());
+            return null;
+        }).get(10, TimeUnit.SECONDS);
 
         int[] o = tickOnce(over);
         assertTrue(o[0] >= 1199 && o[0] <= 2399, "오버월드 팬텀 타이머: 0 - 1 + (60 + r60) * 20 — " + o[0]);
