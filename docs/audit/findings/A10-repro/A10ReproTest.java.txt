@@ -1,0 +1,94 @@
+// A10 재현 묶음(기준 커밋 8f8b188f). 바닐라 1.21.1 바이트코드에서 읽은 기대값과 Furnace 결과를 비교한다.
+package org.domi.furnace.server.entity;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.util.List;
+import org.domi.furnace.server.block.B;
+import org.domi.furnace.server.block.BlockPlacementTest;
+import org.domi.furnace.server.block.Pos;
+import org.domi.furnace.server.entity.spawn.SpawnPlacements;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+class A10ReproTest {
+
+    @BeforeAll
+    static void install() {
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+    }
+
+    private static final BlockPlacementTest.TestLevel LEVEL = new BlockPlacementTest.TestLevel();
+
+    private static boolean validSpawnOn(String block, String type) {
+        var level = new BlockPlacementTest.TestLevel();
+        Pos below = new Pos(3, -61, 3);
+        level.setBlock(below, B.defaultState(B.id(block)), 3);
+        return SpawnPlacements.isValidSpawn(level.getBlockState(below), level, below, type);
+    }
+
+    /**
+     * A10-03: BlockState.isValidSpawn. 바닐라 Blocks(dga) 는 jack_o_lantern·redstone_lamp·carved_pumpkin·soul_sand·mud 만 always(dga.b),
+     * glowstone·sea_lantern·beacon·shroomlight·froglight 는 기본 술어(dtb$d.a: 윗면 단단 && 빛 < 14)라 빛 15 로 불가.
+     * copper_grate 는 never(dga.a), 나머지 구리 격자는 ofFullCopy(copper_grate)(dtb$d.a(dtb)) 로 never 를 물려받는다.
+     */
+    @Test
+    void lightBlocksAreNotValidSpawnInVanilla() {
+        for (String b : List.of("minecraft:glowstone", "minecraft:sea_lantern", "minecraft:beacon", "minecraft:shroomlight", "minecraft:ochre_froglight")) {
+            assertFalse(validSpawnOn(b, "minecraft:zombie"), b + ": 바닐라는 빛 15 라 스폰 불가");
+        }
+    }
+
+    @Test
+    void copperGratesAreNeverValidSpawn() {
+        for (String b : List.of("minecraft:copper_grate", "minecraft:exposed_copper_grate", "minecraft:waxed_oxidized_copper_grate")) {
+            assertFalse(validSpawnOn(b, "minecraft:zombie"), b + ": 바닐라 never");
+        }
+    }
+
+    @Test
+    void alwaysBlocksStayValid() {
+        for (String b : List.of("minecraft:jack_o_lantern", "minecraft:redstone_lamp", "minecraft:carved_pumpkin", "minecraft:soul_sand", "minecraft:mud")) {
+            assertTrue(validSpawnOn(b, "minecraft:zombie"), b + ": 바닐라 always");
+        }
+    }
+
+    /** A10-02: Cat.reassessTameGoals(cfh.gA) 는 avoidPlayersGoal 을 우선순위 4(iconst_4)로 넣는다 — Furnace 는 3. */
+    @Test
+    void catAvoidPlayersGoalPriorityIs4() {
+        Cat cat = new Cat(LEVEL, LEVEL.nextEntityId());
+        cat.setTame(false, false);
+        var t = MobGoalTableTest.table(cat.goalSelector);
+        assertTrue(t.contains("4 CatAvoidEntityGoal"), "바닐라 4 CatAvoidEntityGoal: " + t);
+    }
+
+    /** A10-04: WitherSkeleton.registerGoals(cku.B) 는 대상 3 NearestAttackableTargetGoal<AbstractPiglin(clm)> 를 super 앞에 넣는다. */
+    @Test
+    void witherSkeletonTargetsPiglins() {
+        var t = MobGoalTableTest.table(new WitherSkeleton(LEVEL, LEVEL.nextEntityId()).targetSelector);
+        assertEquals("3 NearestAttackableTargetGoal<AbstractPiglin>", t.isEmpty() ? "(없음)" : t.get(0), "바닐라 대상 목록 첫 줄: " + t);
+    }
+
+    /** A10-09: Silverfish(ckk)·Endermite(cju).registerGoals 는 1 ClimbOnTopOfPowderSnowGoal(cab) 을 넣는다(1차 감사 낮음, 아직 없음). */
+    @Test
+    void silverfishAndEndermiteClimbPowderSnow() {
+        for (Mob m : List.of(new Silverfish(LEVEL, LEVEL.nextEntityId()), new Endermite(LEVEL, LEVEL.nextEntityId()))) {
+            var t = MobGoalTableTest.table(m.goalSelector);
+            assertTrue(t.contains("1 ClimbOnTopOfPowderSnowGoal"), m.getClass().getSimpleName() + ": " + t);
+        }
+    }
+
+    /**
+     * A10-07: NaturalSpawner.getRandomPosWithin(ddh.a(dcw,dvi)) 의 위 끝은 LevelChunk.getHeight(WORLD_SURFACE)(duy.a: firstAvailable - 1) + 1
+     * = 맨 위 블록 + 1. Furnace 는 ChunkLevel.getWorldSurfaceHeight(이미 firstAvailable = 맨 위 블록 + 1) 에 또 1 을 더한다.
+     */
+    @Test
+    void spawnHeightUpperBoundIsTopBlockPlusOne() {
+        var level = new BlockPlacementTest.TestLevel();
+        Pos top = new Pos(3, 70, 3);
+        level.setBlock(top, B.defaultState(B.id("minecraft:stone")), 3);
+        int furnaceUpper = level.getWorldSurfaceHeight(3, 3) + 1;   // NaturalSpawner.spawnCategoryForChunk 의 top
+        assertEquals(top.y() + 1, furnaceUpper, "바닐라 위 끝 = 맨 위 블록 y + 1");
+    }
+}

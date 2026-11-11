@@ -1,0 +1,193 @@
+// A03 재현: 종료 순서(FurnaceMain ShutdownSequence FLUSH_WORLDS)는 차원마다 차례로 flushAllDrained 를 부르지만, 그 동안 region 게임 틱을
+// 붙잡지 않는다(백업 WorldBackup 은 holdTicks + quiesce 로 붙잡는다). 그래서
+//  (1) 마지막 저장 뒤에도 게임 틱이 계속 돈다(저장된 상태와 메모리 상태가 갈라진다),
+//  (2) 먼저 저장된 차원에서 나중 차원으로 건너간 엔티티는 두 차원 파일에 다 남고(복제), 반대로 건너간 엔티티는 어느 파일에도 없다(소실).
+// 이동은 실제 차원 이동 경로(Entity.teleportToDimension → World.travel → 목적 region 에서 arrive)를 쓴다. 바닐라는 서버 루프가 멈춘 뒤
+// saveAllChunks 를 하므로 저장 뒤 틱도, 저장 사이 이동도 없다.
+package org.domi.furnace.server.world;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import org.domi.furnace.api.sched.RegionPos;
+import org.domi.furnace.server.entity.Cow;
+import org.domi.furnace.server.entity.Entity;
+import org.domi.furnace.server.net.ChunkWorkerPool;
+import org.domi.furnace.server.net.registry.RegistrySet;
+import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
+import org.domi.furnace.server.world.anvil.AnvilChunkCodec;
+import org.domi.furnace.server.world.anvil.RegionFileStore;
+import org.domi.furnace.server.world.gen.AnvilWorldSource;
+import org.domi.furnace.server.world.gen.SuperflatWorldSource;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+class ReviewA03ShutdownTest {
+
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
+    private static final List<String> BIOMES = RegistrySet.load("registries/1.21.1.txt").entries("minecraft:worldgen/biome");
+    private static final int PLAINS = BIOMES.indexOf("minecraft:plains");
+    private static final ChunkPos CP = new ChunkPos(0, 0);
+
+    @TempDir Path tmp;
+
+    private static World world(DimensionType type, Path root, FurnaceSchedulerImpl sched, ExecutorService io) {
+        Path d = type.storageDir(root);
+        AnvilWorldSource src = new AnvilWorldSource(root, new RegionFileStore(d),
+                new AnvilChunkCodec(REG, ItemRegistry.load("items/1.21.1.txt"), BIOMES, PLAINS, ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT),
+                new SuperflatWorldSource(REG, PLAINS));
+        src.entityStore(new RegionFileStore(d, "entities"));
+        World w = new World(type, src, new ChunkWorkerPool(1), sched, 1, 4, 1, 2, 2, REG.directBits(), 7, io, io);
+        w.setRegistries(REG, ItemRegistry.load("items/1.21.1.txt"));
+        w.configurePersistence(1_000_000, 1_000_000);
+        w.worldDir(root);
+        return w;
+    }
+
+    private static <T> T on(World w, java.util.function.Function<Region, T> f) throws Exception {
+        return w.submitAtChunk(CP, f).get(10, TimeUnit.SECONDS);
+    }
+
+    private static UUID spawnCow(World w) throws Exception {
+        return on(w, r -> {
+            var lvl = r.level();
+            Cow c = new Cow(lvl, lvl.nextEntityId());
+            c.setNoAi(true);
+            c.setNoGravity(true);
+            c.moveTo(8.5, 100, 8.5, 0, 0);
+            lvl.addFreshEntity(c);
+            return c.uuid();
+        });
+    }
+
+    private static List<UUID> cows(World w) throws Exception {
+        w.awaitChunk(CP);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
+        while (!on(w, r -> w.loadedChunk(CP.x(), CP.z()).entitiesLoaded())) {
+            assertTrue(System.nanoTime() < deadline, "엔티티 묶음 읽기 대기 시간 초과");
+            Thread.sleep(10);
+        }
+        return on(w, r -> {
+            List<UUID> out = new ArrayList<>();
+            for (Entity e : r.level().entities().tickSnapshot()) if (e instanceof Cow && !e.isRemoved()) out.add(e.uuid());
+            return out;
+        });
+    }
+
+    /** 오버월드가 저장된 뒤·네더가 저장되기 전에 소 두 마리가 서로 반대쪽 차원으로 건너간다. */
+    @Test
+    void entityCrossingBetweenDimensionFlushesIsDuplicatedOrLost() throws Exception {
+        ExecutorService io = Executors.newSingleThreadExecutor();
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        World over = world(DimensionType.OVERWORLD, tmp, sched, io);
+        World nether = world(DimensionType.NETHER, tmp, sched, io);
+        Dimensions dims = new Dimensions();
+        dims.register(over);
+        dims.register(nether);
+        for (World w : List.of(over, nether)) {
+            w.setChunkForced(CP.x(), CP.z(), true);
+            w.awaitChunk(CP);
+            w.startTicking();
+        }
+        UUID overToNether = spawnCow(over);
+        UUID netherToOver = spawnCow(nether);
+
+        // (1) FLUSH_WORLDS: 오버월드부터 차례로
+        assertEquals(0, over.flushAllDrained(TimeUnit.SECONDS.toNanos(30)));
+        long ticksAtFlush = on(over, Region::tickCount);
+        Thread.sleep(300);
+        long ticksAfter = on(over, Region::tickCount);
+        System.out.println("A03-SHUTDOWN overworld region tickCount at flush=" + ticksAtFlush + " +300ms=" + ticksAfter);
+
+        // 오버월드 저장 뒤·네더 저장 전: 포털·명령 이동 대역(실제 차원 이동 경로)
+        CountDownLatch arrived = new CountDownLatch(2);
+        on(over, r -> {
+            for (Entity e : r.level().entities().tickSnapshot()) if (e.uuid().equals(overToNether))
+                assertTrue(e.teleportToDimension("minecraft:the_nether", 8.5, 100, 8.5, 0, 0, arrived::countDown));
+            return null;
+        });
+        on(nether, r -> {
+            for (Entity e : r.level().entities().tickSnapshot()) if (e.uuid().equals(netherToOver))
+                assertTrue(e.teleportToDimension("minecraft:overworld", 8.5, 100, 8.5, 0, 0, arrived::countDown));
+            return null;
+        });
+        assertTrue(arrived.await(10, TimeUnit.SECONDS), "두 이동이 도착해야 한다");
+        assertEquals(0, nether.flushAllDrained(TimeUnit.SECONDS.toNanos(30)));
+        // CLOSE_STORAGE: IO 를 비운다(region 은 STOP_SCHEDULER 까지 계속 돈다)
+        over.ioBarrier().get(30, TimeUnit.SECONDS);
+        nether.ioBarrier().get(30, TimeUnit.SECONDS);
+        sched.close();
+        io.shutdown();
+        io.awaitTermination(10, TimeUnit.SECONDS);
+
+        // 재시작: 디스크에서 다시 읽는다
+        ExecutorService io2 = Executors.newSingleThreadExecutor();
+        FurnaceSchedulerImpl sched2 = new FurnaceSchedulerImpl(50_000_000L, 1);
+        try {
+            World over2 = world(DimensionType.OVERWORLD, tmp, sched2, io2);
+            World nether2 = world(DimensionType.NETHER, tmp, sched2, io2);
+            List<UUID> inOver = cows(over2), inNether = cows(nether2);
+            List<UUID> all = new ArrayList<>(inOver);
+            all.addAll(inNether);
+            long a = all.stream().filter(overToNether::equals).count(), b = all.stream().filter(netherToOver::equals).count();
+            String summary = "A03-SHUTDOWN 재시작 뒤 오버월드 소 " + inOver.size() + "마리, 네더 소 " + inNether.size() + "마리 / 오버월드→네더 소 "
+                    + a + "마리(바닐라 1), 네더→오버월드 소 " + b + "마리(바닐라 1)";
+            System.out.println(summary);
+            assertTrue(ticksAfter > ticksAtFlush, "마지막 저장 뒤에도 게임 틱이 돈다: " + ticksAtFlush + " → " + ticksAfter);
+            assertEquals(1, a, "먼저 저장된 차원에서 건너간 엔티티가 복제됐다 — " + summary);
+            assertEquals(1, b, "나중 저장된 차원에서 건너간 엔티티가 사라졌다 — " + summary);
+        } finally {
+            sched2.close();
+            io2.shutdown();
+        }
+    }
+
+    /**
+     * 추가 월드 내리기(World.closeForUnload → Regionizer.close): 닫을 때 region 작업 큐에 남은 작업은 돌지도, 실패로 끝나지도 않는다 —
+     * submitAtChunk 의 future 를 기다리는 쪽(전역 스레드의 join 등)은 영원히 기다린다. 닫힌 뒤 새로 넣는 작업은 곧바로 실패한다(대조).
+     */
+    @Test
+    void tasksQueuedAtUnloadNeverComplete() throws Exception {
+        ExecutorService io = Executors.newSingleThreadExecutor();
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        try {
+            World w = world(DimensionType.OVERWORLD, tmp, sched, io);
+            CountDownLatch inTask = new CountDownLatch(1);
+            // 작업 큐를 다 비운 뒤(지연 작업 차례)에 300ms 붙잡는다 — 그 사이 넣은 작업은 다음 차례 큐에 남는다
+            var first = new java.util.concurrent.CompletableFuture<Integer>();
+            long key = Regionizer.chunkKey(CP.x(), CP.z());
+            w.runAtChunk(CP, r -> r.schedule(key, r2 -> {
+                inTask.countDown();
+                try { Thread.sleep(300); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                first.complete(1);
+            }, 0));
+            assertTrue(inTask.await(10, TimeUnit.SECONDS));
+            var queued = w.submitAtChunk(CP, r -> 2);   // 첫 작업이 도는 동안 큐에 들어간다
+            w.closeForUnload();                          // 저장은 끝났다고 놓고 닫는다(WorldManager 순서의 마지막 단계)
+            assertEquals(1, first.get(10, TimeUnit.SECONDS));
+            var after = w.submitAtChunk(CP, r -> 3);
+            assertTrue(after.isCompletedExceptionally(), "닫힌 뒤 넣은 작업은 곧바로 실패한다(대조)");
+            boolean done;
+            try {
+                queued.get(3, TimeUnit.SECONDS);
+                done = true;
+            } catch (java.util.concurrent.TimeoutException e) {
+                done = false;
+            } catch (java.util.concurrent.ExecutionException e) {
+                done = true;
+            }
+            System.out.println("A03-UNLOAD 닫을 때 큐에 있던 작업의 future 완료(성공·실패) 여부: " + done);
+            assertTrue(done, "닫을 때 큐에 남은 작업의 future 가 끝나지 않는다");
+        } finally {
+            sched.close();
+            io.shutdown();
+        }
+    }
+}

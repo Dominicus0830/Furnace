@@ -196,15 +196,44 @@ class QueryHandlerTest {
     }
 
     @Test
-    void challengeMapIsCapped() {
+    void challengeMapIsCappedByDroppingOldest() {
         QueryHandler h = handler();
         for (int i = 0; i < QueryHandler.MAX_CHALLENGES; i++) {
-            assertNotNull(h.handle(new InetSocketAddress("10.0.0.1", 1000 + i), handshakeReq(), 7));
+            assertNotNull(h.handle(new InetSocketAddress("10.0." + (i / 8) + "." + (i % 8), 1000), handshakeReq(), 7));
         }
-        assertNull(h.handle(new InetSocketAddress("10.0.0.2", 5), handshakeReq(), 7));   // 가득 차면 새 핸드셰이크 무시
-        assertNotNull(h.handle(new InetSocketAddress("10.0.0.1", 1000), handshakeReq(), 7));   // 기존 주소는 갱신 가능
+        assertEquals(QueryHandler.MAX_CHALLENGES, h.challengeCount());
+        assertNotNull(h.handle(new InetSocketAddress("10.9.9.9", 5), handshakeReq(), 7));   // 가득 차도 새 핸드셰이크를 받는다
+        assertEquals(QueryHandler.MAX_CHALLENGES, h.challengeCount());
+        assertNull(h.handle(new InetSocketAddress("10.0.0.0", 1000), statReq(token, false), 11));   // 가장 오래된 것이 지워졌다
+        assertNotNull(h.handle(new InetSocketAddress("10.0.0.1", 1000), statReq(token, false), 11));
+    }
+
+    @Test
+    void oneAddressCannotFillTableByVaryingPorts() {
+        // A02-03 재현: 한 IP 가 원본 포트 1~1024 로 핸드셰이크해도 그 IP 몫은 상한까지만, 다른 클라이언트의 질의는 막히지 않는다.
+        QueryHandler h = handler();
+        for (int port = 1; port <= QueryHandler.MAX_CHALLENGES; port++) {
+            assertNotNull(h.handle(new InetSocketAddress("203.0.113.7", port), handshakeReq(), 7));
+        }
+        assertEquals(QueryHandler.MAX_CHALLENGES_PER_IP, h.challengeCount());
+        now.addAndGet(29_000);
+        h.prune();
+        InetSocketAddress legit = new InetSocketAddress("198.51.100.20", 40000);
+        assertNotNull(h.handle(legit, handshakeReq(), 7));
+        assertNotNull(h.handle(legit, statReq(token, false), 11));
+        assertNotNull(h.handle(new InetSocketAddress("203.0.113.7", QueryHandler.MAX_CHALLENGES), statReq(token, false), 11));   // 그 IP 의 최근 것은 남는다
+        assertNull(h.handle(new InetSocketAddress("203.0.113.7", 1), statReq(token, false), 11));
+    }
+
+    @Test
+    void rehandshakeRefreshesWithoutGrowing() {
+        QueryHandler h = handler();
+        for (int i = 0; i < 3; i++) assertNotNull(h.handle(CLIENT, handshakeReq(), 7));
+        assertEquals(1, h.challengeCount());
         now.addAndGet(30_001);
         h.prune();
-        assertNotNull(h.handle(new InetSocketAddress("10.0.0.2", 5), handshakeReq(), 7));
+        assertEquals(0, h.challengeCount());
+        for (int p = 0; p < QueryHandler.MAX_CHALLENGES_PER_IP; p++) h.handle(new InetSocketAddress("10.1.1.1", 100 + p), handshakeReq(), 7);
+        assertEquals(QueryHandler.MAX_CHALLENGES_PER_IP, h.challengeCount());   // prune 뒤 IP 몫이 다시 비어 있다
     }
 }

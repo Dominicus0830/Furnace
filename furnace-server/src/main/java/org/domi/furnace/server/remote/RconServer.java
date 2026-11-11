@@ -41,7 +41,12 @@ public final class RconServer implements AutoCloseable {
     /** 기본값은 위 상수, furnace.properties 의 rcon.* 키로 바꾼다({@link RconLimits}). */
     private final RconLimits limits;
     private volatile int maxClientsPerIp;
+    /**
+     * 인증 전 제한 시간 — 수락한 때부터 재는 절대 마감이다(읽기마다 다시 세지 않는다). 그 안에 올바른 비밀번호를 보내지 않으면 끊고 IP 실패로 센다.
+     * 마지막 읽기 기준이면 인증 없이 20초마다 아무 패킷이나 보내 자리를 무기한 붙잡을 수 있었다(A02-02).
+     */
     public static final int AUTH_TIMEOUT_MILLIS = 30_000;
+    private volatile long authTimeoutMillis = AUTH_TIMEOUT_MILLIS;
     public static final int MAX_FAILS_PER_CONNECTION = RconLimits.DEFAULT_MAX_FAILS_PER_CONNECTION;
     public static final int MAX_FAILS_PER_IP = RconLimits.DEFAULT_MAX_FAILS_PER_IP;
     public static final long IP_WINDOW_MILLIS = 60_000L;
@@ -52,6 +57,9 @@ public final class RconServer implements AutoCloseable {
 
     /** 시험용: 인증 실패 뒤 지연(ms). */
     public void failDelayMillis(long ms) { this.failDelayMillis = ms; }
+
+    /** 시험용: 인증 전 절대 마감(ms). */
+    public void authTimeoutMillis(long ms) { this.authTimeoutMillis = ms; }
 
     /** 시험용: IP당 동시 연결 상한(시험은 모두 루프백 한 주소라 전체 상한 시험에서 올린다). */
     public void maxClientsPerIp(int n) { this.maxClientsPerIp = n; }
@@ -143,7 +151,8 @@ public final class RconServer implements AutoCloseable {
                 Socket s = server.accept();
                 clients.removeIf(x -> !x.thread.isAlive() && x.started);
                 String ip = s.getInetAddress().getHostAddress();
-                if (clients.size() >= limits.maxClients() || clientsFrom(ip) >= maxClientsPerIp || ipBlocked(ip)) {
+                if (clientsFrom(ip) >= maxClientsPerIp || ipBlocked(ip)
+                        || clients.size() >= limits.maxClients() && !evictOldestUnauthenticated()) {
                     try {
                         s.close();
                     } catch (IOException ignored) {
@@ -158,6 +167,35 @@ public final class RconServer implements AutoCloseable {
                 if (running) log.info("IO exception: ", e);
             }
         }
+    }
+
+    /**
+     * 전체 자리가 찼을 때 가장 오래된 미인증 연결을 닫아 자리를 낸다(수락 스레드에서만 부른다). 모두 인증된 연결이면 false — 새 연결을 거절한다.
+     * 거절만 하면 주소 몇 개가 미인증 연결로 자리를 채워 올바른 비밀번호의 관리자도 못 들어온다(A02-02). 밀려난 연결은 그 IP 의 실패로 세서,
+     * 계속 밀어내며 자리를 돌리는 주소는 IP 차단에 걸린다. 같은 IP 의 상한·IP 차단 검사는 이보다 먼저다.
+     */
+    private boolean evictOldestUnauthenticated() {
+        while (true) {
+            Client oldest = null;
+            for (Client c : clients) {
+                if (c.state.get() == PENDING && (oldest == null || c.acceptedAt < oldest.acceptedAt)) oldest = c;
+            }
+            if (oldest == null) return false;
+            if (!oldest.state.compareAndSet(PENDING, EVICTED)) continue;   // 방금 인증했다 — 다음 후보
+            clients.remove(oldest);
+            // 자리를 여럿 붙잡은 IP 이거나 오래 묵은 연결만 실패로 센다 — 로그인 직전에 밀려난 관리자의 연결 하나는 세지 않는다.
+            if (pendingFrom(oldest.ip) >= 1 || System.nanoTime() - oldest.acceptedAt >= EVICT_CHARGE_AGE_NANOS) noteIpFail(oldest.ip);
+            oldest.close();
+            return true;
+        }
+    }
+
+    private static final long EVICT_CHARGE_AGE_NANOS = 5_000_000_000L;
+
+    private int pendingFrom(String ip) {
+        int n = 0;
+        for (Client c : clients) if (c.ip.equals(ip) && c.state.get() == PENDING) n++;
+        return n;
     }
 
     @Override
@@ -177,10 +215,15 @@ public final class RconServer implements AutoCloseable {
         }
     }
 
+    private static final int PENDING = 0, AUTHED = 1, EVICTED = 2;
+
     private final class Client implements Runnable {
         final Socket socket;
         final String ip;
         final Thread thread;
+        final long acceptedAt = System.nanoTime();
+        /** PENDING(인증 전) → AUTHED, 또는 수락 스레드가 밀어내면 EVICTED. 인증과 밀어내기가 겹쳐도 한쪽만 이긴다. */
+        final java.util.concurrent.atomic.AtomicInteger state = new java.util.concurrent.atomic.AtomicInteger(PENDING);
         volatile boolean started;
         private boolean authed;
         private int fails;
@@ -200,8 +243,9 @@ public final class RconServer implements AutoCloseable {
         @Override
         public void run() {
             try (socket) {
-                socket.setSoTimeout(AUTH_TIMEOUT_MILLIS);   // 인증 전에는 30초 안에 말을 해야 한다
-                DataInputStream in = new DataInputStream(new java.io.BufferedInputStream(socket.getInputStream()));
+                // 인증 전에는 수락 후 30초 안에 로그인을 끝내야 한다 — 읽기 호출마다 남은 시간으로 제한 시간을 다시 건다.
+                long deadline = acceptedAt + java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(authTimeoutMillis);
+                DataInputStream in = new DataInputStream(new java.io.BufferedInputStream(new DeadlineInput(socket, deadline)));
                 OutputStream out = socket.getOutputStream();
                 while (running) {
                     int length = Integer.reverseBytes(in.readInt());
@@ -212,6 +256,8 @@ public final class RconServer implements AutoCloseable {
                     if (req == null) return;
                     handle(req, out);
                 }
+            } catch (java.net.SocketTimeoutException timeout) {
+                if (state.get() == PENDING) noteIpFail(ip);   // 인증 마감 초과 — 자리만 붙잡는 연결
             } catch (EOFException | SocketException ignored) {
                 // 정상 종료/연결 끊김
             } catch (IOException ignored) {
@@ -219,6 +265,7 @@ public final class RconServer implements AutoCloseable {
             } catch (RuntimeException e) {
                 log.error("Exception whilst parsing RCON input", e);
             } finally {
+                state.compareAndSet(PENDING, EVICTED);   // 끝난 연결은 밀어내기·실패 계산 후보가 아니다
                 log.info("Thread {} shutting down", thread.getName());
             }
         }
@@ -227,7 +274,8 @@ public final class RconServer implements AutoCloseable {
             switch (req.type()) {
                 case RconProtocol.TYPE_COMMAND -> {
                     if (!authed) {
-                        authFailed(out);
+                        authFailed(out);   // 바닐라와 같은 응답(-1). 응답이 비밀번호 실패와 같으니 실패로도 센다(A02-02)
+                        preAuthFail();
                         return;
                     }
                     String result;
@@ -242,8 +290,8 @@ public final class RconServer implements AutoCloseable {
                 case RconProtocol.TYPE_LOGIN -> {
                     if (!req.payload().isEmpty() && java.security.MessageDigest.isEqual(
                             req.payload().getBytes(java.nio.charset.StandardCharsets.UTF_8), password.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
+                        if (state.get() != AUTHED && !state.compareAndSet(PENDING, AUTHED)) throw new IOException("evicted");
                         authed = true;
-                        socket.setSoTimeout(0);
                         out.write(RconProtocol.encode(req.id(), RconProtocol.TYPE_AUTH_RESPONSE, ""));
                         out.flush();
                     } else {
@@ -263,13 +311,61 @@ public final class RconServer implements AutoCloseable {
                     for (byte[] p : RconProtocol.encodeResponse(req.id(),
                             String.format(Locale.ROOT, "Unknown request %s", Integer.toHexString(req.type())))) out.write(p);
                     out.flush();
+                    if (!authed) preAuthFail();
                 }
             }
+        }
+
+        /** 인증 전 로그인이 아닌 패킷: 연결당·IP당 실패로 센다(응답은 바닐라 그대로). 지연은 두지 않는다(비밀번호 추측이 아니다). */
+        private void preAuthFail() throws IOException {
+            noteIpFail(ip);
+            if (++fails >= limits.maxFailsPerConnection()) throw new IOException("too many unauthenticated requests");
         }
 
         private void authFailed(OutputStream out) throws IOException {
             out.write(RconProtocol.encode(RconProtocol.AUTH_FAILED_ID, RconProtocol.TYPE_AUTH_RESPONSE, ""));
             out.flush();
+        }
+
+        /** 인증 전에는 읽기마다 남은 시간을 소켓 제한 시간으로 건다(바이트를 조금씩 흘려도 마감은 그대로). 인증 뒤에는 제한 없음(바닐라). */
+        private final class DeadlineInput extends java.io.InputStream {
+            private final Socket s;
+            private final java.io.InputStream raw;
+            private final long deadline;
+            private int applied = -1;
+
+            DeadlineInput(Socket s, long deadline) throws IOException {
+                this.s = s;
+                this.raw = s.getInputStream();
+                this.deadline = deadline;
+            }
+
+            private void arm() throws IOException {
+                int want;
+                if (state.get() == AUTHED) {
+                    want = 0;
+                } else {
+                    long left = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
+                    if (left <= 0) throw new java.net.SocketTimeoutException("RCON authentication timed out");
+                    want = (int) Math.min(Integer.MAX_VALUE, left);
+                }
+                if (want != applied) {
+                    s.setSoTimeout(want);
+                    applied = want;
+                }
+            }
+
+            @Override
+            public int read() throws IOException {
+                arm();
+                return raw.read();
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                arm();
+                return raw.read(b, off, len);
+            }
         }
 
         void close() {

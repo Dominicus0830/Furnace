@@ -17,16 +17,27 @@ public final class WritabilityGuard extends ChannelInboundHandlerAdapter {
 
     private final long timeoutMillis;
     private final LongSupplier clockMillis;
+    /** server.properties log-ips — false 면 로그에서 주소를 가린다(바닐라 Connection.getLoggableAddress). */
+    private final boolean logIps;
     private long unwritableSince = -1;
     private ScheduledFuture<?> checkTask;
 
     public WritabilityGuard() {
-        this(DEFAULT_TIMEOUT_MILLIS, System::currentTimeMillis);
+        this(true);
+    }
+
+    public WritabilityGuard(boolean logIps) {
+        this(DEFAULT_TIMEOUT_MILLIS, System::currentTimeMillis, logIps);
     }
 
     public WritabilityGuard(long timeoutMillis, LongSupplier clockMillis) {
+        this(timeoutMillis, clockMillis, true);
+    }
+
+    public WritabilityGuard(long timeoutMillis, LongSupplier clockMillis, boolean logIps) {
         this.timeoutMillis = timeoutMillis;
         this.clockMillis = clockMillis;
+        this.logIps = logIps;
     }
 
     @Override
@@ -51,7 +62,8 @@ public final class WritabilityGuard extends ChannelInboundHandlerAdapter {
         if (elapsed < timeoutMillis) {
             return false;
         }
-        log.warn("느린 클라이언트 연결 종료: {}ms 동안 쓰기 불가 ({})", elapsed, ctx.channel().remoteAddress());
+        log.warn("느린 클라이언트 연결 종료: {}ms 동안 쓰기 불가 ({})", elapsed,
+                ConnectionHandler.loggableAddress(logIps, ctx.channel().remoteAddress()));
         cancelCheck();
         ctx.close();
         return true;
