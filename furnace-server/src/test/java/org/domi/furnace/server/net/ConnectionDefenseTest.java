@@ -49,16 +49,22 @@ class ConnectionDefenseTest {
         return f;
     }
 
+    /** 올바른 Client Information 본문(바닐라 여덟 필드) — 빈 본문은 이제 디코드 실패로 끊기므로 속도 제한 시험은 이것으로 흘린다. */
+    static void clientInfoBody(ByteBuf b) {
+        Types.writeString(b, "en_us"); b.writeByte(8); Types.writeVarInt(b, 0); b.writeBoolean(true);
+        b.writeByte(0x7F); Types.writeVarInt(b, 1); b.writeBoolean(false); b.writeBoolean(true);
+    }
+
     @Test
     void packetRate_isPerState_andAppliesBurst() {
         // 구성 단계만 버스트 3, 회복 초당 1 로 조인다
         Rig r = rig(limits("connection.configuration.packets-burst", "3", "connection.configuration.packets-per-second", "1"));
         r.handler.state(ConnectionState.CONFIGURATION);
         for (int i = 0; i < 3; i++) {
-            r.ch.writeInbound(frame(0x00, null));   // Client Information(빈 본문 — 파싱 실패는 무시)
+            r.ch.writeInbound(frame(0x00, ConnectionDefenseTest::clientInfoBody));   // Client Information
             assertTrue(r.ch.isOpen(), (i + 1) + "번째는 버스트 안");
         }
-        r.ch.writeInbound(frame(0x00, null));
+        r.ch.writeInbound(frame(0x00, ConnectionDefenseTest::clientInfoBody));
         assertFalse(r.ch.isOpen(), "4번째는 버스트 초과 — 끊긴다");
         r.ch.finishAndReleaseAll();
     }

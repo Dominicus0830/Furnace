@@ -264,6 +264,28 @@ public final class ServerCore {
 
         public org.domi.furnace.server.net.io.nbt.NbtCompound storageNbt(String storage) { return ServerCore.this.world.commandStorage().get(storage); }
 
+        /**
+         * 바닐라 ExplorationMapFunction.run 의 ServerLevel.findNearestMapStructure(태그, BlockPos.containing(origin), 반경, skip):
+         * 구조물 생성이 꺼졌거나 태그가 없으면 null. 그 월드 생성기로 찾는다(탐험 지도 거래와 같은 경로).
+         */
+        public int[] findNearestMapStructure(String structureTag, double[] origin, int radius, boolean skipExisting) {
+            var b = explorerMapBackend(world);
+            if (b == null) return null;
+            return b.findNearestMapStructure(structureTag, (int) Math.floor(origin[0]), (int) Math.floor(origin[1]), (int) Math.floor(origin[2]), radius);
+        }
+
+        /**
+         * 바닐라 ExplorationMapFunction.run: MapItem.create(level, x, z, zoom, true, true) → MapItem.renderBiomePreviewMap
+         * → MapItemSavedData.addTargetDecoration(map, pos, "+", 장식). 새 지도 한 장(이름 없음 — 이름은 뒤의 set_name 이 붙인다).
+         */
+        public org.domi.furnace.server.loot.LootStack createExplorationMap(int x, int z, int zoom, String decoration) {
+            var b = explorerMapBackend(world);
+            if (b == null) return null;
+            var type = org.domi.furnace.server.map.MapDecorationType.byName(decoration);
+            if (type == null) return null;
+            return lootStack(org.domi.furnace.server.map.ExplorerMaps.createAt(b, x, z, (byte) zoom, type));
+        }
+
         public String dimension() { return world.dimension(); }
         };
     }
@@ -321,18 +343,24 @@ public final class ServerCore {
     /** 전리품 조건이 보는 플레이어(바닐라 ADVANCEMENT_ENTITY 의 this_entity). */
     private static org.domi.furnace.server.loot.LootEntity lootEntity(Player p) { return org.domi.furnace.server.entity.LootEntities.of(p); }
 
-    private volatile org.domi.furnace.server.map.ExplorerMaps.Backend explorerBackend;
+    /** 월드별 탐험 지도 지원(생성기가 없는 월드는 넣지 않는다 — 매번 다시 본다). */
+    private final java.util.Map<World, org.domi.furnace.server.map.ExplorerMaps.Backend> explorerBackends = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** 오버월드의 탐험 지도 지원. */
+    private org.domi.furnace.server.map.ExplorerMaps.Backend explorerMapBackend() { return explorerMapBackend(world); }
 
     /**
-     * 탐험 지도 지원: 구조물 찾기(StructureLocator — 바닐라 findNearestMapStructure)와 지도 바탕용 바이옴(Level.getBiome — 확대 지터 포함, 생성기 바이옴).
-     * 월드 생성기가 없으면(평지·시험) null.
+     * 탐험 지도 지원: 구조물 찾기(StructureLocator — 바닐라 ServerLevel.findNearestMapStructure, 그 월드의 생성기)와
+     * 지도 바탕용 바이옴(Level.getBiome — 확대 지터 포함, 생성기 바이옴). 월드 생성기가 없으면(평지·시험) null.
      */
-    private org.domi.furnace.server.map.ExplorerMaps.Backend explorerMapBackend() {
-        var b = explorerBackend;
+    private org.domi.furnace.server.map.ExplorerMaps.Backend explorerMapBackend(World w) {
+        var b = explorerBackends.get(w);
         if (b != null) return b;
-        var gen = org.domi.furnace.server.world.gen.NoiseWorldSource.of(world.worldSource());
+        var gen = org.domi.furnace.server.world.gen.NoiseWorldSource.of(w.worldSource());
         if (gen == null) return null;
-        return explorerBackend = new org.domi.furnace.server.map.ExplorerMaps.Backend() {
+        long zoomSeed = biomeZoomSeed(w);
+        String dim = w.dimension();
+        b = new org.domi.furnace.server.map.ExplorerMaps.Backend() {
             private final java.util.Set<String> waterBiomes =
                     org.domi.furnace.server.world.gen.structure.StructureRegistry.biomeTag("minecraft:water_on_map_outlines");
 
@@ -353,12 +381,14 @@ public final class ServerCore {
             }
 
             public boolean waterOnMapOutlines(int bx, int bz) {
-                int[] q = org.domi.furnace.server.world.BiomeZoom.quart(biomeZoomSeed, bx, 0, bz);
+                int[] q = org.domi.furnace.server.world.BiomeZoom.quart(zoomSeed, bx, 0, bz);
                 return waterBiomes.contains(gen.biomeAt(q[0] << 2, q[1] << 2, q[2] << 2));
             }
 
-            public String dimension() { return "minecraft:overworld"; }
+            public String dimension() { return dim; }
         };
+        var prev = explorerBackends.putIfAbsent(w, b);
+        return prev != null ? prev : b;
     }
 
     /** 접속한 플레이어의 발전 과제 진행을 만든다(바닐라 PlayerList.getPlayerAdvancements). 데이터 팩이 없으면 null. */
@@ -531,6 +561,12 @@ public final class ServerCore {
 
     /** 전역 틱(scheduledTick) 소요 시간 분포 — /furnace 관측용. */
     private final org.domi.furnace.server.sched.TickTimeRing globalTickRing = new org.domi.furnace.server.sched.TickTimeRing(512);
+
+    /** F3 틱 시간 그래프 구독(OP 전용) — 전역 박동이 끝날 때마다 표본을 보낸다. */
+    private final org.domi.furnace.server.net.DebugSampleSubscribers debugSamples =
+            new org.domi.furnace.server.net.DebugSampleSubscribers(p -> lists().isOp(profileOf(p)));
+
+    public org.domi.furnace.server.net.DebugSampleSubscribers debugSamples() { return debugSamples; }
 
     public org.domi.furnace.server.sched.TickTimeRing.Stats globalTickTimes() { return globalTickRing.stats(); }
 
@@ -773,6 +809,8 @@ public final class ServerCore {
      * 전역 틱 반복(50ms 마다)이 부르는 진입점. /tick rate 는 한 번에 rate/20 틱씩 낸다(20 미만이면 몇 번 걸러서), /tick freeze 중에는
      * 시간·날씨·보더를 멈추고 /tick step 으로 요청한 만큼만 낸다.
      */
+    private long prevTickStart;   // 전역 스레드만(debug_sample 의 틱 간격)
+
     public void scheduledTick() {
         long t0 = System.nanoTime();
         globalBeat = t0;   // 워치독이 보는 전역 틱 박동
@@ -785,6 +823,9 @@ public final class ServerCore {
             long took = System.nanoTime() - t0;
             globalTickRing.record(took);
             globalTickWindows.record(t0, took);
+            long full = prevTickStart == 0 ? 50_000_000L : t0 - prevTickStart;
+            prevTickStart = t0;
+            try { debugSamples.tick(full, took); } catch (RuntimeException e) { log.debug("debug_sample 전송 실패", e); }
         }
     }
 
@@ -1328,6 +1369,7 @@ public final class ServerCore {
                     w.borderFollow(null);
                 }
                 pluginHost.worldDetached(w);
+                explorerBackends.remove(w);   // 내린 월드의 생성기를 붙잡지 않는다
             }
             @Override public org.domi.furnace.api.worldgen.DimensionTypeDefinition pluginDimensionType(String key) {
                 return pluginHost.pluginDimensionType(key);

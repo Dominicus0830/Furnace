@@ -25,6 +25,7 @@ class PlayerDataVanillaTest {
     void vanillaFormat_loadsPositionWithoutThrowing() throws Exception {
         UUID id = UUID.randomUUID();
         NbtCompound root = new NbtCompound();
+        root.putInt("DataVersion", 3955);
         NbtList pos = new NbtList(NbtIo.TAG_DOUBLE); pos.add(10.5); pos.add(70.0); pos.add(-3.25);
         root.putList("Pos", pos);
         NbtList rot = new NbtList(NbtIo.TAG_FLOAT); rot.add(90f); rot.add(15f);
@@ -59,7 +60,8 @@ class PlayerDataVanillaTest {
     @Test
     void missingPos_returnsNull() throws Exception {
         UUID id = UUID.randomUUID();
-        write(id, new NbtCompound());
+        NbtCompound r = new NbtCompound(); r.putInt("DataVersion", 3955);
+        write(id, r);
         assertNull(PlayerData.load(tmp, id));
     }
 }

@@ -1,6 +1,6 @@
 // 바닐라 SpawnPlacements: 종류별 배치 종류(땅·물·용암·제한 없음)와 자연 스폰 검사식(checkSpawnRules). 표는 바닐라 등록 순서 그대로.
 // 검사식 이름은 바닐라 정적 메서드(Monster.checkMonsterSpawnRules, Animal.checkAnimalSpawnRules …)를 따른다.
-// TODO: 블록별 isValidSpawn 예외는 이름 목록으로 근사한다(유리·트랩도어 불가, 발광 블록 허용 …).
+// 블록별 isValidSpawn 예외는 바닐라 Blocks(dga) 정적 초기화의 술어(never·always·나뭇잎·얼음·마그마)를 이름 목록으로 옮긴 것이다(A10-03, 1.21.1 바이트코드 대조).
 package org.domi.furnace.server.entity.spawn;
 
 import java.time.LocalDate;
@@ -72,9 +72,11 @@ public final class SpawnPlacements {
         for (int b = 0; b < bl.blockCount(); b++) {
             String n = bl.name(b);
             if (n.equals("minecraft:bedrock") || n.equals("minecraft:barrier") || n.equals("minecraft:glass") || n.equals("minecraft:tinted_glass")
-                    || n.endsWith("_stained_glass") || n.endsWith("_trapdoor") || n.equals("minecraft:scaffolding") || n.equals("minecraft:chorus_flower")) never.add(b);
-            if (n.equals("minecraft:glowstone") || n.equals("minecraft:sea_lantern") || n.equals("minecraft:jack_o_lantern") || n.equals("minecraft:carved_pumpkin")
-                    || n.equals("minecraft:redstone_lamp") || n.equals("minecraft:beacon") || n.equals("minecraft:shroomlight") || n.endsWith("_froglight")) always.add(b);
+                    || n.endsWith("_stained_glass") || n.endsWith("_trapdoor") || n.equals("minecraft:scaffolding") || n.equals("minecraft:chorus_flower")
+                    || n.endsWith("copper_grate")) never.add(b);   // 구리 격자 8종: copper_grate 가 never, 나머지는 ofFullCopy 로 물려받는다
+            // 바닐라 Blocks(dga) 의 always(dga.b) 는 이 다섯뿐이다. 발광석·바다 랜턴·신호기·버섯불·개구리불은 기본 술어(빛 < 14)라 불가
+            if (n.equals("minecraft:soul_sand") || n.equals("minecraft:carved_pumpkin") || n.equals("minecraft:jack_o_lantern")
+                    || n.equals("minecraft:redstone_lamp") || n.equals("minecraft:mud")) always.add(b);
         }
         NEVER = never;
         ALWAYS = always;

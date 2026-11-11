@@ -332,14 +332,11 @@ public class WitherBoss extends Monster implements RangedAttackMob {
         if (star != null) star.setExtendedLifetime();
     }
 
+    /** WitherBoss.checkDespawn: 평화로움이면 사라지고, 아니면 무행동 시간만 0 으로(거리로 사라지지 않는다). */
     @Override
-    public void tick() {
-        if (level.difficulty() == 0 && isAlive()) {   // checkDespawn: 평화로움이면 사라진다
-            discard();
-            return;
-        }
-        noActionTime = 0;
-        super.tick();
+    public void checkDespawn() {
+        if (level.difficulty() == 0 && shouldDespawnInPeaceful()) discard();
+        else noActionTime = 0;
     }
 
     @Override public boolean removeWhenFarAway(double distSqr) { return false; }

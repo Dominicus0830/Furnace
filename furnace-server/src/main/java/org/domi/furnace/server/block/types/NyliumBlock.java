@@ -4,6 +4,8 @@ package org.domi.furnace.server.block.types;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
+import org.domi.furnace.server.block.Dir;
+import org.domi.furnace.server.light.LightTables;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
@@ -13,11 +15,15 @@ public class NyliumBlock extends BlockBehavior implements BonemealableBlock {
 
     public NyliumBlock(int block) { super(block); }
 
-    private static boolean canBeNylium(BlockLevel level, Pos pos) { return !B.lightBlockedAbove(level.getBlockState(pos.above())); }
+    /** 바닐라 NyliumBlock.canBeNylium: LightEngine.getLightBlockInto(nylium, above, UP, above.getLightBlock) < 최대 빛(15). */
+    private static boolean canBeNylium(int state, BlockLevel level, Pos pos) {
+        int above = level.getBlockState(pos.above());
+        return LightTables.lightBlockInto(state, above, Dir.UP, LightTables.lightBlock(above)) < 15;
+    }
 
     @Override
     public void randomTick(int state, BlockLevel level, Pos pos, RandomSource random) {
-        if (!canBeNylium(level, pos)) level.setBlockAndUpdate(pos, B.defaultState(NETHERRACK));
+        if (!canBeNylium(state, level, pos)) level.setBlockAndUpdate(pos, B.defaultState(NETHERRACK));
     }
 
     @Override

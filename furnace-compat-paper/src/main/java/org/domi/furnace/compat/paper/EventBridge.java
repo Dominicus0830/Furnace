@@ -29,14 +29,24 @@ public final class EventBridge {
         private final BiConsumer<F, B> push;
         /** 전달 직전에 Furnace 이벤트의 현재 값을 Bukkit 이벤트로 옮긴다(앞선 처리기들이 바꾼 값을 보이고, 되돌려 쓰기가 낡은 값을 쓰지 않게). */
         private final BiConsumer<F, B> pull;
+        /** Bukkit 이벤트가 Furnace 의 "취소"로 보이는 값과 그 반대 방향. 보통은 Cancellable 그대로, PlayerInteractEvent 처럼 결과가 둘인 이벤트만 따로 정한다. */
+        private final java.util.function.Predicate<B> cancelOf;
+        private final BiConsumer<B, Boolean> showCancel;
         private final Map<F, Object> live = Collections.synchronizedMap(new WeakHashMap<>());
 
         Mapping(Class<B> bukkit, Class<F> furnace, Function<F, B> create, BiConsumer<F, B> push, BiConsumer<F, B> pull) {
+            this(bukkit, furnace, create, push, pull, b -> ((org.bukkit.event.Cancellable) b).isCancelled(), (b, c) -> ((org.bukkit.event.Cancellable) b).setCancelled(c));
+        }
+
+        Mapping(Class<B> bukkit, Class<F> furnace, Function<F, B> create, BiConsumer<F, B> push, BiConsumer<F, B> pull,
+                java.util.function.Predicate<B> cancelOf, BiConsumer<B, Boolean> showCancel) {
             this.bukkit = bukkit;
             this.furnace = furnace;
             this.create = create;
             this.push = push;
             this.pull = pull;
+            this.cancelOf = cancelOf;
+            this.showCancel = showCancel;
         }
 
         /** 이 Furnace 이벤트의 Bukkit 이벤트(처음 부르면 만든다). 건너뛰는 이벤트면 null. */
@@ -78,6 +88,30 @@ public final class EventBridge {
         add(new Mapping<>(bukkit, furnace, create, push, pull));
     }
 
+    /**
+     * 취소 규칙이 Bukkit Cancellable 의 isCancelled/setCancelled 와 다른 이벤트. cancelOf 는 Bukkit 이벤트 상태를 Furnace 의 취소 여부로 읽고,
+     * showCancel 은 Furnace 의 취소 여부를 Bukkit 이벤트에 보인다(전달 직전, 값이 다를 때만 부른다).
+     */
+    static <F extends org.domi.furnace.api.event.Event, B extends org.bukkit.event.Event> void reg(Class<F> furnace, Class<B> bukkit,
+                                                                                                    Function<F, B> create, BiConsumer<F, B> push, BiConsumer<F, B> pull,
+                                                                                                    java.util.function.Predicate<B> cancelOf, BiConsumer<B, Boolean> showCancel) {
+        add(new Mapping<>(bukkit, furnace, create, push, pull, cancelOf, showCancel));
+    }
+
+    /**
+     * 호환 계층에 클래스는 있지만 Furnace 서버가 아직 알리지 않는 Bukkit 서버 이벤트. 플러그인이 처리기를 달면 등록은 되고(그 리스너의 다른 처리기가
+     * 살도록) 처리기가 불리지 않는다는 경고를 플러그인·이벤트마다 한 번 남긴다 — 조용히 아무 일도 안 일어나는 것처럼 보이지 않게.
+     */
+    private static final java.util.Set<String> NOT_FIRED = java.util.Set.of(
+            "org.bukkit.event.block.BlockCanBuildEvent", "org.bukkit.event.block.BlockDamageEvent", "org.bukkit.event.block.BlockDispenseEvent",
+            "org.bukkit.event.block.BlockExpEvent", "org.bukkit.event.block.NotePlayEvent", "org.bukkit.event.block.SignChangeEvent",
+            "org.bukkit.event.block.BlockPlaceEvent", "org.bukkit.event.block.BlockFadeEvent", "org.bukkit.event.block.BlockGrowEvent",
+            "org.bukkit.event.block.BlockExplodeEvent", "org.bukkit.event.entity.EntityChangeBlockEvent", "org.bukkit.event.entity.EntitySpawnEvent",
+            "org.bukkit.event.player.PlayerCommandSendEvent", "org.bukkit.event.player.PlayerDropItemEvent", "org.bukkit.event.world.WorldInitEvent");
+
+    /** 서버가 아직 알리지 않는 Bukkit 이벤트인가(문서·시험용). */
+    public static boolean isKnownButNotFired(Class<? extends org.bukkit.event.Event> owning) { return NOT_FIRED.contains(owning.getName()); }
+
     private static void add(Mapping<?, ?> m) {
         BY_BUKKIT.computeIfAbsent(m.bukkit, k -> new java.util.ArrayList<>(1)).add(m);
     }
@@ -91,7 +125,13 @@ public final class EventBridge {
     /** owner 가 이 Bukkit 이벤트를 이 우선순위로 받도록 Furnace 버스에 구독한다(한 번만). */
     public static void ensure(BukkitPluginAdapter owner, Class<? extends org.bukkit.event.Event> owning, org.bukkit.event.EventPriority priority) {
         var ms = BY_BUKKIT.get(owning);
-        if (ms == null) return;   // 플러그인 자기 이벤트 — callEvent 로만 불린다
+        if (ms == null) {
+            if (NOT_FIRED.contains(owning.getName()) && owner.markBridged("unfired:" + owning.getName())) {
+                owner.logger().warning(owning.getSimpleName() + " 처리기를 등록했지만 Furnace 서버는 아직 이 이벤트를 알리지 않는다 — 그 처리기는 불리지 않는다"
+                        + " (지원 목록: docs/api/compat-paper.md)");
+            }
+            return;   // 플러그인 자기 이벤트 — callEvent 로만 불린다
+        }
         for (Mapping<?, ?> m : ms) {
             if (!owner.markBridged(owning.getName() + "<" + m.furnace.getName() + "@" + priority.name())) continue;
             subscribe(owner, m, priority);
@@ -111,7 +151,7 @@ public final class EventBridge {
         m.pull.accept(f, b);
         org.domi.furnace.api.event.Cancellable fc = f instanceof org.domi.furnace.api.event.Cancellable c ? c : null;
         org.bukkit.event.Cancellable bc = b instanceof org.bukkit.event.Cancellable c ? c : null;
-        if (fc != null && bc != null && bc.isCancelled() != fc.isCancelled()) bc.setCancelled(fc.isCancelled());   // 앞선 Furnace 처리기의 결과를 먼저 보인다
+        if (fc != null && bc != null && m.cancelOf.test(b) != fc.isCancelled()) m.showCancel.accept(b, fc.isCancelled());   // 앞선 Furnace 처리기의 결과를 먼저 보인다
         var jp = owner.javaPlugin();
         boolean ran = false;
         // 전역 스레드에서 오는 이벤트(명령 등)는 Bukkit 에서 주 스레드 이벤트다 — 리스너가 블록·엔티티를 만지면 region 을 빌린다(다른 스레드는 빈 손잡이)
@@ -129,6 +169,6 @@ public final class EventBridge {
         }
         if (!ran) return;
         m.push.accept(f, b);
-        if (fc != null && bc != null && bc.isCancelled() != fc.isCancelled()) fc.setCancelled(bc.isCancelled());
+        if (fc != null && bc != null && m.cancelOf.test(b) != fc.isCancelled()) fc.setCancelled(m.cancelOf.test(b));
     }
 }

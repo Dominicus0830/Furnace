@@ -154,6 +154,8 @@ public final class NetworkServer {
                                 .addLast("readTimeout", new io.netty.handler.timeout.ReadTimeoutHandler(
                                         readTimeoutSeconds > 0 ? readTimeoutSeconds : limits.readTimeoutSeconds()))
                                 .addLast("writabilityGuard", new WritabilityGuard(loginContext.logIps))
+                                .addLast("legacyPing", new LegacyPingHandler(loginContext.motd, loginContext.maxPlayers, "1.21.1",
+                                        () -> (int) world.onlinePlayers().stream().filter(p -> !p.isDisconnected()).count()))
                                 .addLast("frameDecoder", new FrameDecoder())
                                 .addLast("frameEncoder", new FrameEncoder())
                                 .addLast("handler",
@@ -183,7 +185,9 @@ public final class NetworkServer {
             if (h != null) h.kickForShutdown(); else c.close();
         }
         allChannels.newCloseFuture().awaitUninterruptibly(3000);
-        if (workerGroup != null) workerGroup.shutdownGracefully();
+        // 연결 이벤트 루프가 끝날 때까지 기다린다: 닫힌 연결의 channelInactive(퇴장 처리·저장 작업 넣기)는 close future 뒤에 돈다.
+        // 다음 단계(FLUSH_WORLDS 저장 기준점)가 그 작업보다 먼저 서지 않게(A03-01·A04).
+        if (workerGroup != null) workerGroup.shutdownGracefully(100, 5_000, java.util.concurrent.TimeUnit.MILLISECONDS).awaitUninterruptibly(6_000);
         if (bossGroup != null) bossGroup.shutdownGracefully();
         log.info("네트워크 서버 종료");
     }

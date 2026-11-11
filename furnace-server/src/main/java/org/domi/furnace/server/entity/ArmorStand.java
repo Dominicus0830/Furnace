@@ -17,6 +17,12 @@ import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public class ArmorStand extends LivingEntity {
 
+    private static final String[] FALL_SOUNDS = {"minecraft:entity.armor_stand.fall", "minecraft:entity.armor_stand.fall"};
+
+    @Override
+    public String[] fallSounds() { return FALL_SOUNDS; }
+
+
     /** ArmorStand.isAffectedByPotions = false. */
     @Override public boolean isAffectedByPotions() { return false; }
 

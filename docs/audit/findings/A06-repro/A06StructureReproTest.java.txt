@@ -1,0 +1,92 @@
+// A06 조사 재현 시험(기준 커밋에서 실패해야 바닐라 차이를 보인다). 기대값 근거는 docs/audit/findings/A06-worldgen-parity.md.
+package org.domi.furnace.server.audit;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import org.domi.furnace.server.net.io.nbt.NbtCompound;
+import org.domi.furnace.server.net.io.nbt.NbtList;
+import org.domi.furnace.server.net.registry.RegistrySet;
+import org.domi.furnace.server.world.BlockRegistry;
+import org.domi.furnace.server.world.ChunkColumn;
+import org.domi.furnace.server.world.ChunkPos;
+import org.domi.furnace.server.world.gen.NoiseWorldSource;
+import org.domi.furnace.server.world.gen.SuperflatWorldSource;
+import org.domi.furnace.server.world.gen.structure.ChunkStructures;
+import org.domi.furnace.server.world.gen.structure.FrequencyReductionMethod;
+import org.domi.furnace.server.world.gen.structure.RandomSpreadStructurePlacement;
+import org.domi.furnace.server.world.gen.structure.RandomSpreadType;
+import org.domi.furnace.server.world.gen.structure.StructureLocator;
+import org.domi.furnace.server.world.gen.structure.StructureRegistry;
+import org.domi.furnace.server.world.gen.structure.StructureStart;
+import org.junit.jupiter.api.Test;
+
+class A06StructureReproTest {
+
+    private static NoiseWorldSource overworld(long seed) {
+        return NoiseWorldSource.overworld(seed, BlockRegistry.load("blocks/1.21.1.txt"), RegistrySet.load("registries/1.21.1.txt"));
+    }
+
+    /** 바닐라 1.21.1 StructurePieceType 등록 이름(eki 정적 초기화, toLowerCase). */
+    private static final Set<String> VANILLA_PIECE_IDS = Set.of(
+        "mscorridor", "mscrossing", "msroom", "msstairs", "nebcr", "nebef", "nebs", "neccs", "nectb", "nece", "nescsc", "nesclt",
+        "nesc", "nescrt", "necsr", "nemt", "nerc", "nesr", "nestart", "shcc", "shfc", "shlt", "shli", "shpr", "shph", "shrt", "shrc",
+        "shsd", "shstart", "shs", "shssd", "tejp", "orp", "iglu", "rupo", "tesh", "tedp", "omb", "omcr", "omdxr", "omdxyr", "omdyr",
+        "omdyzr", "omdzr", "omentry", "ompenthouse", "omsimple", "omsimplet", "omwr", "ecp", "wmp", "btp", "shipwreck", "nefos", "jigsaw");
+
+    /** A06-01: 청크 NBT structures.starts.*.Children[].id 가 바닐라 조각 종류 이름이어야 한다(아니면 바닐라·Paper 가 시작점을 버린다). */
+    @Test
+    void savedStructurePiecesUseVanillaPieceTypeIds() {
+        NoiseWorldSource gen = overworld(0L);
+        StructureLocator.Found f = gen.structureLocator().findNearest(StructureRegistry.structureTag("minecraft:village"), 0, 70, 0, 100);
+        assertNotNull(f);
+        int cx = f.x() >> 4, cz = f.z() >> 4;
+        List<StructureStart> own = gen.structureStartsFresh(cx, cz);
+        assertFalse(own.isEmpty());
+        NbtCompound nbt = ChunkStructures.generated(cx, cz, own, List.of()).toNbt();
+        NbtCompound start = nbt.getCompound("starts").getCompound(f.structureId());
+        NbtList children = start.getList("Children");
+        assertTrue(children.size() > 0);
+        List<String> bad = new ArrayList<>();
+        for (Object o : children.items()) {
+            String id = ((NbtCompound) o).getString("id");
+            String path = id.startsWith("minecraft:") ? id.substring(10) : id;
+            if (!VANILLA_PIECE_IDS.contains(path)) bad.add(id);
+        }
+        assertTrue(bad.isEmpty(), "바닐라 StructurePieceType 에 없는 조각 id " + bad.size() + "/" + children.size() + "개: " + bad.get(0));
+    }
+
+    /** A06-04: generate-structures=false 면 바닐라 /locate 는 시작점이 없어 못 찾는다(ChunkStatusTasks 가 createStructures 를 건너뜀). */
+    @Test
+    void locateFindsNothingWhenStructuresDisabled() {
+        NoiseWorldSource gen = overworld(0L);
+        gen.structureEngine().setStructuresEnabled(false);
+        StructureLocator.Found f = gen.structureLocator().findNearest(StructureRegistry.structureTag("minecraft:village"), 0, 70, 0, 100);
+        assertNull(f, "구조물 생성이 꺼진 월드에서 바닐라는 찾지 못하는데 Furnace 는 " + f + " 를 돌려준다");
+    }
+
+    /**
+     * A06-05: 바닐라 기본 평지(level-type=flat, structure_overrides = strongholds·villages, 평원)는 마을 후보 청크마다 마을이 선다.
+     * 후보 청크 둘레 3×3 청크에서 층(기반암·흙·잔디) 위에 블록이 하나도 없으면 마을이 없는 것이다.
+     */
+    @Test
+    void defaultSuperflatGeneratesVillages() {
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        SuperflatWorldSource flat = new SuperflatWorldSource(reg, 0);
+        RandomSpreadStructurePlacement villages = new RandomSpreadStructurePlacement(34, 8, RandomSpreadType.LINEAR, 10387312,
+            FrequencyReductionMethod.DEFAULT, 1.0F);
+        ChunkPos c = villages.getPotentialStructureChunk(1234L, 0, 0);
+        int surface = flat.surfaceY();
+        int above = 0;
+        for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) {
+            ChunkColumn col = flat.generate(c.x() + dx, c.z() + dz);
+            for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) for (int y = surface; y < surface + 24; y++) {
+                if (col.getBlock(x, y, z) != 0) above++;
+            }
+        }
+        assertTrue(above > 0, "평지 마을 후보 청크 " + c + " 둘레에 층 위 블록이 없다(마을 없음)");
+    }
+}
