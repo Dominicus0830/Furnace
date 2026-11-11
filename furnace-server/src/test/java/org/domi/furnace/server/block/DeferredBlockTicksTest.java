@@ -95,6 +95,18 @@ class DeferredBlockTicksTest {
         assertEquals(List.of(b), ran);
     }
 
+    /**
+     * 바닐라 LevelTicks(eyq) 꺼내기를 바이트코드 그대로 옮긴 모델과 무작위 장면(청크 범위 들고 남, 한도, 실행 중 새 예약)으로 맞댄다.
+     * 고치기 전 단일 큐 구현은 2만 시드 중 19874 개가 어긋났다.
+     */
+    @Test
+    void matchesVanillaLevelTicksOrderOnRandomScenes() {
+        for (long seed = 0; seed < 3000; seed++) {
+            String m = BlockTicksVanillaOrderModel.firstMismatch(seed);
+            assertNull(m, m);
+        }
+    }
+
     @Test
     void outOfRangeTicksDoNotCountTowardTheLimit() {
         BlockTicks ticks = new BlockTicks();
