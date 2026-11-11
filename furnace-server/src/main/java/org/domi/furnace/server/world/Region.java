@@ -2159,11 +2159,11 @@ public final class Region {
             boolean sneaking = p.sneaking();
             double height = p.bbHeight();
             double eye = p.eyeY() - p.y();
-            // Entity.isInWall: 관전자(noPhysics)는 아니다. getBlockStateOnLegacy: 0.2 아래 칸(받침 블록 추적은 없다 — 가정: 발 바로 아래 칸)
+            // Entity.isInWall: 관전자(noPhysics)는 아니다. getBlockStateOnLegacy: 받침 블록 방식의 0.2 아래 칸(tryAddFrost)
             boolean inWall = level != null && p.gameMode() != GameMode.SPECTATOR
                     && org.domi.furnace.server.entity.LivingEntity.isInWall(level, x, p.eyeY(), z, p.bbWidth());
-            boolean groundNotAir = level != null && !org.domi.furnace.server.block.B.isAir(level.getBlockState(
-                    new org.domi.furnace.server.block.Pos((int) Math.floor(x), (int) Math.floor(y - 0.2F), (int) Math.floor(z))));
+            int legacy = probe.onPosLegacyState(blocks, x, y, z, p.onGround());
+            boolean groundNotAir = legacy >= 0 && !org.domi.furnace.server.block.B.isAir(legacy);
             s = new PlayerVitals.Surroundings(true, probe.inWater(blocks, x, y, z, height),
                     probe.eyeInWater(blocks, x, y, z, eye), probe.eyeInBubbleColumn(blocks, x, y, z, eye),
                     probe.climbable(blocks, x, y, z), probe.stuckInBlock(blocks, x, y, z, height), world.dimensionType().minY(),

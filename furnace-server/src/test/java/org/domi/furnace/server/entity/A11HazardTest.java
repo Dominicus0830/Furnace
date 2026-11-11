@@ -247,4 +247,22 @@ class A11HazardTest {
         tick(level, 20);
         assertEquals(mobLow, cow.getAirSupply(), "몹: 물속에서는 그대로");
     }
+
+    /**
+     * PR #200 검토 R1: load 는 TicksFrozen 을 자르지 않는다(bsr 오프셋 496). 가루눈 밖에서 −2 씩 줄어도 140 이상인 동안 40틱마다 canFreeze 를 보므로
+     * 가죽 장화를 신었으면 피해가 없다(가죽 검사를 가루눈 안에서만 하면 안 된다).
+     */
+    @Test
+    void leatherWearerOutsideSnowWithHighTicksFrozenTakesNoFreezeDamage() {
+        var p = survivalPlayer();
+        var tag = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        p.vitals().save(tag);
+        tag.putInt("TicksFrozen", 1000);
+        p.vitals().load(tag);
+        p.vitals().setFoodLevel(17);
+        p.inventory().set(8, Mob.stackOf("minecraft:leather_boots"));
+        for (int i = 0; i < 120; i++) p.vitals().tick(DRY);
+        assertTrue(p.vitals().ticksFrozen() >= 140, "아직 완전히 언 상태: " + p.vitals().ticksFrozen());
+        assertEquals(20.0F, p.vitals().health(), 0.0F, "가죽 장화면 canFreeze 거짓 — freeze 피해 없음");
+    }
 }

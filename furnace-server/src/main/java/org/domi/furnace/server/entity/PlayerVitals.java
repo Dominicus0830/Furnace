@@ -1222,10 +1222,12 @@ public final class PlayerVitals {
     public void tick(Surroundings s) {
         player.combatTick();
         java.util.List<Runnable> after = new java.util.ArrayList<>(2);
+        boolean freezeHurt;
         java.util.List<Packet> toSelf = new java.util.ArrayList<>(3);
         java.util.List<Packet> toTrackers = new java.util.ArrayList<>(2);
-        // 인벤토리는 이 잠금 밖에서 읽는다. 가루눈 밖이면 canFreeze 가 결과를 바꾸지 않는다(−2 가지, 140 이상이 될 수 없음 — 사망 중이면 hurt 가 막는다)
-        boolean freezeImmuneWear = s.inPowderSnow() && wearsFreezeImmune();
+        // 인벤토리는 이 잠금 밖에서 읽는다(PlayerInventory.get 은 자체 잠금, ItemStack 은 불변). 가루눈 밖이어도 TicksFrozen 이 140 을 넘게
+        // 읽혀 왔으면(바닐라 load 는 자르지 않는다) 40틱 피해 판정이 canFreeze 를 보므로 늘 검사한다.
+        boolean freezeImmuneWear = wearsFreezeImmune();
         synchronized (this) {
             tickCount++;
             if (impulseGrace > 0) impulseGrace--;
@@ -1268,7 +1270,7 @@ public final class PlayerVitals {
             if (hurtTime > 0) hurtTime--;
             if (alive) tickEffectsLocked(toSelf);
             if (effects.containsKey(MobEffect.SLOW_FALLING) || effects.containsKey(MobEffect.LEVITATION)) fallDistance = 0.0f;
-            tickFreezingLocked(s, after, freezeImmuneWear);   // aiStep: travel 바로 뒤
+            freezeHurt = tickFreezingLocked(s, freezeImmuneWear);   // aiStep: travel 바로 뒤
             if (health <= 0.0f) {
                 if (++deathTime >= 20 && !removedAfterDeath) {
                     removedAfterDeath = true;
@@ -1292,6 +1294,8 @@ public final class PlayerVitals {
             notifyEffectsChanged();
         }
         runPendingEffectHurts();
+        // 냉각 피해는 aiStep 이라 baseTick 끝의 효과 틱(btn.aw 765 eo) 피해보다 뒤다
+        if (freezeHurt) hurt(DamageType.byKey("freeze"), 1.0f);
         applyPendingStarve();
         final int epoch;
         int levelFrom = -1, levelTo = -1;
@@ -1316,7 +1320,8 @@ public final class PlayerVitals {
      * LivingEntity.aiStep 의 "freezing" 구간(btn.m_ 오프셋 678~807): 죽어 가지 않으면 가루눈 속이고 얼 수 있을 때 +1(최대 140), 아니면 −2(최소 0).
      * 얼음 속도 수정자(removeFrost → tryAddFrost)는 발밑(0.2 아래)이 공기가 아니고 얼음 틱이 있을 때 −0.05 × 언 비율. 40틱마다 완전히 얼었으면 freeze 1.
      */
-    private void tickFreezingLocked(Surroundings s, java.util.List<Runnable> after, boolean freezeImmuneWear) {
+    /** 냉각 피해(freeze 1)를 줄 틱이면 참 — 호출자가 효과 피해 뒤에 입힌다. */
+    private boolean tickFreezingLocked(Surroundings s, boolean freezeImmuneWear) {
         boolean canFreeze = gameMode != GameMode.SPECTATOR && !freezeImmuneWear;   // LivingEntity.canFreeze(플레이어 종류는 면역 태그에 없다)
         if (health > 0.0f) {
             if (s.inPowderSnow() && canFreeze) ticksFrozen = Math.min(Entity.TICKS_REQUIRED_TO_FREEZE, ticksFrozen + 1);
@@ -1329,7 +1334,7 @@ public final class PlayerVitals {
         } else {
             frostModifier = null;
         }
-        if (tickCount % 40 == 0 && ticksFrozen >= Entity.TICKS_REQUIRED_TO_FREEZE && canFreeze) after.add(() -> hurt(DamageType.byKey("freeze"), 1.0f));
+        return tickCount % 40 == 0 && ticksFrozen >= Entity.TICKS_REQUIRED_TO_FREEZE && canFreeze;
     }
 
     /** LivingEntity.canFreeze 의 방어구 항: 머리·몸통·다리·발에 #freeze_immune_wearables(가죽)를 하나라도 입었다. */
