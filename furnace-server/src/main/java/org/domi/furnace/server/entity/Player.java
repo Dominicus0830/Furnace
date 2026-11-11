@@ -903,12 +903,18 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
      * Player.hurtArmor → doHurtEquipment: 방어구(ArmorItem)마다 max(1, 피해/4) 내구도를 깎고 다 닳으면 부서진다(entity_event 49..52).
      * TODO(내구성 인챈트·불 저항 아이템).
      */
-    public void hurtArmor(float amount) {
+    public void hurtArmor(float amount) { hurtEquipment(amount, 0, 3); }
+
+    /** Player.hurtHelmet(cmx.c) → doHurtEquipment(HEAD): 투구만 깎는다(떨어지는 모루·블록·종유석 — #damages_helmet). */
+    public void hurtHelmet(float amount) { hurtEquipment(amount, 0, 0); }
+
+    /** doHurtEquipment: 방어구 칸 first..last(0 머리 .. 3 발) 중 방어구가 max(1, 피해/4) 내구도를 잃는다. */
+    private void hurtEquipment(float amount, int first, int last) {
         if (amount <= 0.0F) return;   // Inventory.hurtArmor: 피해 0(방패로 막음)이면 그대로
         amount /= 4.0F;
         if (amount < 1.0F) amount = 1.0F;
         int n = (int) amount;
-        for (int i = 0; i < 4; i++) {
+        for (int i = first; i <= last; i++) {
             int ws = 5 + i;
             ItemStack stack = inventory.get(ws);
             String name = stack.isEmpty() ? "" : org.domi.furnace.server.item.ItemTools.itemName(stack);
@@ -1449,6 +1455,25 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         java.util.List<org.domi.furnace.server.attribute.AttributeModifier> extra = new java.util.ArrayList<>();
         for (var m : hp.modifiers().values()) if (!fromEffects.contains(m.id())) extra.add(m);
         vitals.attributeInputs(hp.baseValue(), extra, map.value(org.domi.furnace.server.attribute.Attribute.OXYGEN_BONUS));
+        pushFallInputs(map, effects);
+    }
+
+    /** 낙하 피해 입력: generic.safe_fall_distance·generic.fall_damage_multiplier 의 기본값과 효과 밖 수정자(효과 몫은 PlayerVitals 가 지금 효과로 더한다). */
+    private void pushFallInputs(org.domi.furnace.server.attribute.AttributeMap map, java.util.List<org.domi.furnace.server.effect.MobEffectInstance> effects) {
+        var safe = org.domi.furnace.server.attribute.Attribute.SAFE_FALL_DISTANCE;
+        var mult = org.domi.furnace.server.attribute.Attribute.FALL_DAMAGE_MULTIPLIER;
+        var si = map.get(safe);
+        var mi = map.get(mult);
+        if (si == null || mi == null) return;
+        vitals.fallInputs(si.baseValue(), nonEffectModifiers(si, safe, effects), mi.baseValue(), nonEffectModifiers(mi, mult, effects));
+    }
+
+    private static java.util.List<org.domi.furnace.server.attribute.AttributeModifier> nonEffectModifiers(org.domi.furnace.server.attribute.AttributeInstance inst,
+            org.domi.furnace.server.attribute.Attribute attr, java.util.List<org.domi.furnace.server.effect.MobEffectInstance> effects) {
+        var fromEffects = PlayerAttributes.effectModifiers(attr, effects).keySet();
+        java.util.List<org.domi.furnace.server.attribute.AttributeModifier> extra = new java.util.ArrayList<>();
+        for (var m : inst.modifiers().values()) if (!fromEffects.contains(m.id())) extra.add(m);
+        return extra;
     }
 
     /** 다른 region 스레드가 페어링 때 읽는 불변 스냅샷(소유 스레드가 동기 직후 공개). */

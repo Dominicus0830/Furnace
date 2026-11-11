@@ -132,6 +132,7 @@ class TotemAndProtectionTest {
         assertNull(z.getEffect(MobEffect.REGENERATION), "언데드는 재생을 받지 않는다(canBeAffected)");
         assertEquals(1, z.getEffect(MobEffect.ABSORPTION).amplifier());
         assertEquals(800, z.getEffect(MobEffect.FIRE_RESISTANCE).duration());
+        z.invulnerableTime = 0;   // 무적 시간 창은 bypasses_cooldown 만 건너뛴다 — 창을 비운 뒤 두 번째 피해
         z.hurt(Entity.Damage.GENERIC_KILL, 1000f);
         assertTrue(z.isDeadOrDying());
     }

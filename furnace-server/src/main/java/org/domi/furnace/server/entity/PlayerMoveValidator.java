@@ -235,7 +235,7 @@ public final class PlayerMoveValidator {
         double px = p.x(), py = p.y(), pz = p.z();
         if (noPhysics) return new double[] {px + dx, py + dy, pz + dz, 0.0};
         AABB box = box(p);
-        float step = 0.6F;   // step_height 속성 기본값(플레이어에게 수정자 없음)
+        float step = (float) p.attributes().value(org.domi.furnace.server.attribute.Attribute.STEP_HEIGHT);   // maxUpStep = generic.step_height(기본 0.6, /attribute·수정자가 바꾼다)
         boolean onGround = p.onGround();
         double[] back = maybeBackOffFromEdge(level, p, box, onGround, step, dx, dy, dz);
         dx = back[0];
