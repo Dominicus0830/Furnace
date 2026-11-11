@@ -1187,6 +1187,7 @@ public final class PlayerVitals {
                                          boolean inWaterNow, boolean eyeInWater, String climbable) {
         if (player.vehicle() != null) return;
         if (dx == 0.0 && dy == 0.0 && dz == 0.0) return;
+        if (gameMode == GameMode.SPECTATOR) climbable = null;   // LivingEntity.onClimbable: 관전자는 항상 false
         int cm3 = Math.round((float) Math.sqrt(dx * dx + dy * dy + dz * dz) * 100.0f);
         int cmH = Math.round((float) Math.sqrt(dx * dx + dz * dz) * 100.0f);
         if (player.swimming) {
@@ -1279,6 +1280,10 @@ public final class PlayerVitals {
     /** 블록별 Block.fallOn → Player/LivingEntity.causeFallDamage. 비행 가능하면 피해 없음. */
     private float fallOn(String block, float distance, boolean sneaking) {
         float multiplier = fallMultiplier(block, sneaking);
+        if (block != null && block.endsWith("_bed")) {   // BedBlock.fallOn: super.fallOn(거리 * 0.5F) — 배수가 아니라 거리를 반으로
+            distance *= 0.5F;
+            multiplier = 1.0F;
+        }
         if (landingStalagmite && "minecraft:pointed_dripstone".equals(block)) {   // PointedDripstoneBlock.fallOn: 석순 끝은 거리 + 2, 배수 2
             distance += 2.0F;
             multiplier = 2.0F;
@@ -1328,7 +1333,6 @@ public final class PlayerVitals {
         if (block.equals("minecraft:hay_block") || block.equals("minecraft:honey_block")) return 0.2f;
         if (block.equals("minecraft:slime_block")) return sneaking ? 1.0f : 0.0f;
         if (block.equals("minecraft:powder_snow")) return -1;
-        if (block.endsWith("_bed")) return 0.5f;
         return 1.0f;
     }
 

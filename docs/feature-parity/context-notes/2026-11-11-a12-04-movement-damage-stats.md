@@ -11,3 +11,8 @@
 - 구현: 통계는 `PlayerVitals` 잠금 안에서 `queueStat` 으로 모았다가 잠금 밖 `flushStats` 에서 `awardStat`(점수판 통계 기준은 `awardStat` 이 이미 갱신). 다른 region 의 플레이어에게는 `runOnOwner`.
 - 가정: `Player.swimming`(Entity 수영 플래그)·`forcedCrouch` 가 바닐라 `isSwimming`·`isCrouching` 과 같다고 본다(수영 자세 갱신은 별개 작업).
 - 시험: `entity/MovementDamageStatsTest`(19개) — 재현 4개(A12 보고서) + 계단·사다리·공중 25·낙하 2 미만·겉날개·헤엄 우선순위·탑승 5종·점수판 연동·몹 대상.
+
+## 독립 검토 반영(PR #219)
+- R1 침대 착지: 바닐라 `BedBlock.fallOn` 은 `Block.fallOn(거리 * 0.5F)`(배수 1) — 낙하 피해·`fall_one_cm` 모두 거리 절반 기준. 기존 침대 0.5 배수 식이 틀려 `PlayerVitalsTest.landingBlockChangesMultiplier` 기대값을 18.0 으로 고쳤다.
+- R2 관전자는 `onClimbable` 이 항상 false → `climb_one_cm` 안 오름.
+- **후속(이번엔 안 고침, 가정):** R3 물 판정(바닐라 `isInWater`/`isEyeInFluid` 는 틱에서 갱신한 값인데 Region 이동 경로는 이동 뒤 위치로 다시 계산 — PR 전부터), R4 웅크림(바닐라는 `Player.tick` 의 자세 갱신 값이라 웅크림을 누른/뗀 틱의 패킷 하나가 반대로 셈 — 지금은 실시간 `sneaking`), N1 되돌려진(moved wrongly) 패킷에도 바닐라는 jump 통계를 줌.

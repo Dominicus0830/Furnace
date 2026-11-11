@@ -182,6 +182,21 @@ class MovementDamageStatsTest {
     }
 
     @Test
+    void bedLandingHalvesDistanceForStatAndDamage() {
+        player.vitals().onMove(0, -10, 0, false, false, false, false, false, false, null, "minecraft:air", false);
+        player.vitals().onMove(0, 0, 0, false, true, false, false, false, false, null, "minecraft:red_bed", false);
+        assertEquals(500, get("fall_one_cm"), "침대는 거리를 절반으로 넘긴다: 10 → 5");
+        assertEquals(20, get("damage_taken"), "ceil(5 - 3) = 2");
+    }
+
+    @Test
+    void spectatorOnLadderDoesNotClimb() {
+        Player spec = newPlayer(GameMode.SPECTATOR);
+        spec.vitals().onMove(0.0, 0.5, 0.0, false, false, false, false, false, false, "minecraft:ladder", "minecraft:stone", false);
+        assertEquals(0, spec.stats().get("minecraft:climb_one_cm"));
+    }
+
+    @Test
     void flyingPlayerFallsWithoutFallStat() {
         Player creative = newPlayer(GameMode.CREATIVE);
         creative.vitals().onMove(0, -6, 0, false, false, false, false, false, false, null, "minecraft:stone", false);
