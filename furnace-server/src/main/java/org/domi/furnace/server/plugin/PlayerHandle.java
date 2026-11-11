@@ -308,10 +308,16 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     public boolean isOp() { return core().lists().isOp(ServerCore.profileOf(p)); }
 
     @Override
-    public boolean hasPermission(String node) { return perms.hasPermission(node); }
+    public boolean hasPermission(String node) {
+        Boolean o = perms.manager().overrideHas(this, node);   // 권한 플러그인(판정 공급자)이 맡으면 그 값
+        return o != null ? o : perms.hasPermission(node);
+    }
 
     @Override
-    public boolean isPermissionSet(String node) { return perms.isPermissionSet(node); }
+    public boolean isPermissionSet(String node) {
+        Boolean o = perms.manager().overrideIsSet(this, node);
+        return o != null ? o : perms.isPermissionSet(node);
+    }
 
     @Override
     public PermissionAttachment addAttachment(FurnacePlugin plugin) { return perms.addAttachment(plugin); }

@@ -106,6 +106,11 @@ class EventBridgeTest {
             fire.put(org.bukkit.event.server.PluginDisableEvent.class, () -> new org.domi.furnace.api.event.server.PluginDisableEvent(recorder));
             fire.put(org.bukkit.event.server.ServerCommandEvent.class, () -> new org.domi.furnace.api.event.server.ServerCommandEvent(server.api().console(), "list"));
             fire.put(org.bukkit.event.server.ServerLoadEvent.class, org.domi.furnace.api.event.server.ServerLoadEvent::new);
+            // 접속·RCON(LuckPerms) — Bukkit PlayerLoginEvent 는 Player 가 처음 생기는 PlayerCreateEvent 에서
+            fire.put(org.bukkit.event.player.AsyncPlayerPreLoginEvent.class, () -> new org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent("Dana", p.uniqueId(), null));
+            fire.put(org.bukkit.event.player.PlayerLoginEvent.class, () -> new org.domi.furnace.api.event.player.PlayerCreateEvent(p, p.connection()));
+            fire.put(org.bukkit.event.server.RemoteServerCommandEvent.class, () -> new org.domi.furnace.api.event.server.RemoteServerCommandEvent(
+                    ((org.domi.furnace.server.plugin.PluginHost) server.api()).rconSender(t -> {}), "list"));
             fire.put(org.bukkit.event.world.WorldLoadEvent.class, () -> new org.domi.furnace.api.event.world.WorldLoadEvent(w, "world"));
             fire.put(org.bukkit.event.world.WorldUnloadEvent.class, () -> new org.domi.furnace.api.event.world.WorldUnloadEvent(w, "world", false));
             fire.put(org.bukkit.event.world.ChunkLoadEvent.class, () -> new org.domi.furnace.api.event.world.ChunkLoadEvent(w, 3, 4));

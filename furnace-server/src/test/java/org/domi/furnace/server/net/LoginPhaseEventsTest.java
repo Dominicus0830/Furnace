@@ -287,4 +287,50 @@ class LoginPhaseEventsTest {
         }
         assertNull(core.playerByName("Kicked"));
     }
+
+    @Test
+    void createDisallowDisconnectsBeforeJoinWithoutQuitOrSave() throws Exception {
+        List<String> log = new CopyOnWriteArrayList<>();
+        on(PlayerCreateEvent.class, e -> {
+            if (e.player().name().equals("Denied")) e.disallow(Text.text("not today"));
+        });
+        on(PlayerJoinEvent.class, e -> log.add("join:" + e.player().name()));
+        on(org.domi.furnace.api.event.player.PlayerQuitEvent.class, e -> log.add("quit:" + e.player().name()));
+        try (TestClient c = TestClient.open(port)) {
+            handshake(c, "localhost", 25565);
+            c.write(0x00, b -> { Types.writeString(b, "Denied"); Types.writeUuid(b, new UUID(0, 0)); });
+            c.await(0x02);
+            c.write(0x03, null);
+            c.write(0x07, b -> Types.writeVarInt(b, 0));
+            c.await(0x03);
+            c.write(0x03, null);
+            boolean got = false;
+            try {
+                while (true) {
+                    ByteBuf f = c.read();
+                    int id = Types.readVarInt(f);
+                    assertNotEquals(LoginPlay.ID, id, "거부된 플레이어에게 LoginPlay 를 보내면 안 된다");
+                    if (id == org.domi.furnace.server.net.protocol.play.Disconnect.ID) {
+                        byte[] rest = new byte[f.readableBytes()];
+                        f.readBytes(rest);
+                        if (new String(rest, StandardCharsets.UTF_8).contains("not today")) { got = true; break; }
+                    }
+                }
+            } catch (java.io.EOFException | java.net.SocketException closed) {
+                // 닫힘
+            }
+            assertTrue(got, "플레이 단계 끊기 패킷으로 사유를 보낸다");
+        }
+        Thread.sleep(300);
+        assertNull(core.playerByName("Denied"));
+        assertEquals(List.of(), log, "월드에 들어가지 않았으니 접속·퇴장 이벤트가 없다");
+        UUID offline = UUID.nameUUIDFromBytes("OfflinePlayer:Denied".getBytes(StandardCharsets.UTF_8));
+        java.nio.file.Path dir = core.world().worldDir();
+        if (dir != null) assertFalse(java.nio.file.Files.exists(dir.resolve("playerdata").resolve(offline + ".dat")), "저장하지 않는다");
+        try (TestClient c = TestClient.open(port)) {   // 다른 플레이어는 정상
+            handshake(c, "localhost", 25565);
+            login(c, "Allowed");
+            awaitPlayer("Allowed");
+        }
+    }
 }

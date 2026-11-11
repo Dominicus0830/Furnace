@@ -720,6 +720,13 @@ public final class ServerCore {
     public String runRconCommand(String command) throws Exception {
         var spawn = world.defaultSpawn();
         var sink = new org.domi.furnace.server.remote.RconConsole(() -> settings.get().broadcastRconToOps, spawn.x(), spawn.y(), spawn.z());
+        var events = events();
+        if (events.hasSubscribers(org.domi.furnace.api.event.server.RemoteServerCommandEvent.class)) {
+            // Paper DedicatedServer.runCommand: RemoteServerCommandEvent → 취소면 빈 응답, 아니면 바뀐 명령을 실행
+            var ev = events.call(new org.domi.furnace.api.event.server.RemoteServerCommandEvent(pluginHost.rconSender(sink::sendSystemMessage), command));
+            if (ev.isCancelled()) return "";
+            command = ev.command();
+        }
         commands.performPrefixedCommandAsync(org.domi.furnace.server.command.CommandSource.rcon(this, sink), command)
                 .get(5, java.util.concurrent.TimeUnit.MINUTES);
         return sink.takeOutput();
@@ -1303,6 +1310,10 @@ public final class ServerCore {
                                      java.util.function.BiConsumer<org.domi.furnace.server.block.BlockLevel, java.util.List<org.domi.furnace.api.text.Text>> apply) {
             ServerCore.this.resolveSignLines(world, level, x, y, z, lines, apply);
         }
+        public void resolveLecternBook(org.domi.furnace.server.block.BlockLevel level, int x, int y, int z, ItemStack book,
+                                       java.util.function.BiConsumer<org.domi.furnace.server.block.BlockLevel, ItemStack> apply) {
+            ServerCore.this.resolveLecternBook(world, level, x, y, z, book, apply);
+        }
         public void runBlockCommand(org.domi.furnace.server.block.BlockCommandSink sink, String command, java.util.function.IntConsumer done) {
             ServerCore.this.runBlockCommand(world, sink, command, done);
         }
@@ -1496,6 +1507,10 @@ public final class ServerCore {
                                                java.util.function.BiConsumer<org.domi.furnace.server.block.BlockLevel, java.util.List<org.domi.furnace.api.text.Text>> apply) {
             ServerCore.this.resolveSignLines(w, level, x, y, z, lines, apply);
         }
+        @Override public void resolveLecternBook(org.domi.furnace.server.block.BlockLevel level, int x, int y, int z, ItemStack book,
+                                                 java.util.function.BiConsumer<org.domi.furnace.server.block.BlockLevel, ItemStack> apply) {
+            ServerCore.this.resolveLecternBook(w, level, x, y, z, book, apply);
+        }
         @Override public void runBlockCommand(org.domi.furnace.server.block.BlockCommandSink sink, String command, java.util.function.IntConsumer done) {
             ServerCore.this.runBlockCommand(w, sink, command, done);
         }
@@ -1597,6 +1612,27 @@ public final class ServerCore {
             return;
         }
         all.whenComplete((v, e) -> w.runAtChunk(new org.domi.furnace.server.world.ChunkPos(x >> 4, z >> 4), r -> apply.accept(r.level(), out.get())));
+    }
+
+    /**
+     * LecternBlockEntity.resolveBook: 독서대 소스(플레이어 없음·"Lectern"·권한 2·칸 가운데)로 서명된 책 쪽의 글을 푼다. 푼 책은 apply 로(끝난 쪽이
+     * 다른 region 의 엔티티를 읽었으면 그 칸의 주인 region 에서).
+     */
+    void resolveLecternBook(World w, org.domi.furnace.server.block.BlockLevel level, int x, int y, int z, ItemStack book,
+                            java.util.function.BiConsumer<org.domi.furnace.server.block.BlockLevel, ItemStack> apply) {
+        var source = org.domi.furnace.server.command.CommandSource.lectern(this, w, x, y, z);
+        var f = org.domi.furnace.server.block.ItemUse.resolveBookStack(book, t -> {
+            try {
+                return org.domi.furnace.server.command.ComponentUtils.resolve(source, t, null);
+            } catch (RuntimeException e) {
+                return java.util.concurrent.CompletableFuture.failedFuture(e);
+            }
+        });
+        if (f.isDone()) {
+            apply.accept(level, f.join());
+            return;
+        }
+        f.whenComplete((out, e) -> { if (out != null) w.runAtChunk(new org.domi.furnace.server.world.ChunkPos(x >> 4, z >> 4), r -> apply.accept(r.level(), out)); });
     }
 
     /** 바닐라 BlockBehaviour.getDrops: 표가 비었으면 빈 목록, 아니면 random_sequence 난수로 평가하고 최대 스택으로 나눈다. */

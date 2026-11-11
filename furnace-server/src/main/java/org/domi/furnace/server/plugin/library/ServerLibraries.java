@@ -150,8 +150,40 @@ public final class ServerLibraries {
 
     /**
      * 플러그인 jar 의 클래스 파일에 표지가 보이는 묶음 이름(목록 순서). 상수 풀의 클래스 이름(슬래시)과 리플렉션 문자열(점) 모두 센다.
-     * skip 에 든 묶음(부트스트래퍼가 이미 준비를 시도한 것)은 다시 보지 않는다. 다른 플러그인 jar 안에 jar 가 든 경우(jar-in-jar)는 못 본다 — 그때는 all 모드를 쓴다.
+     * skip 에 든 묶음(부트스트래퍼가 이미 준비를 시도한 것)은 다시 보지 않는다. jar 안에 든 jar(LuckPerms 의 {@code luckperms-bukkit.jarinjar}
+     * 처럼 플러그인이 자기 로더로 여는 것, 이름이 .jar·.jarinjar)도 {@value #MAX_NESTED_DEPTH}단계까지 같이 훑는다 — 바깥 로더 클래스에는
+     * 표지가 없고 안쪽 클래스가 Paper 가 싣는 Guava 를 바로 쓴다.
      */
+    static final int MAX_NESTED_DEPTH = 2;
+
+    private static boolean isNestedJar(String name) { return name.endsWith(".jar") || name.endsWith(".jarinjar"); }
+
+    private static void scanNested(InputStream raw, List<Group> todo, List<String[]> needles, Set<String> found, int depth) throws IOException {
+        java.util.zip.ZipInputStream zin = new java.util.zip.ZipInputStream(raw);   // 바깥 스트림은 부른 쪽이 닫는다
+        java.util.zip.ZipEntry e;
+        while (found.size() < todo.size() && (e = zin.getNextEntry()) != null) {
+            if (e.isDirectory()) continue;
+            if (e.getName().endsWith(".class")) match(zin.readAllBytes(), todo, needles, found);
+            else if (depth < MAX_NESTED_DEPTH && isNestedJar(e.getName())) scanNested(new java.io.FilterInputStream(zin) {
+                @Override public void close() {}   // 안쪽 jar 를 다 읽어도 바깥 zip 스트림은 열어 둔다
+            }, todo, needles, found, depth + 1);
+        }
+    }
+
+    private static void match(byte[] classBytes, List<Group> todo, List<String[]> needles, Set<String> found) {
+        String text = new String(classBytes, StandardCharsets.ISO_8859_1);   // 바이트 그대로 — 이름은 ASCII 다
+        for (int i = 0; i < todo.size(); i++) {
+            Group g = todo.get(i);
+            if (found.contains(g.id())) continue;
+            for (String n : needles.get(i)) {
+                if (text.contains(n)) {
+                    found.add(g.id());
+                    break;
+                }
+            }
+        }
+    }
+
     public Set<String> scan(Path jar, Set<String> skip) throws IOException {
         List<Group> todo = new ArrayList<>();
         for (Group g : groups.values()) if (!skip.contains(g.id())) todo.add(g);
@@ -171,19 +203,15 @@ public final class ServerLibraries {
             var en = jf.entries();
             while (en.hasMoreElements() && found.size() < todo.size()) {
                 JarEntry e = en.nextElement();
-                if (e.isDirectory() || !e.getName().endsWith(".class")) continue;
-                String text;
-                try (InputStream in = jf.getInputStream(e)) {
-                    text = new String(in.readAllBytes(), StandardCharsets.ISO_8859_1);   // 바이트 그대로 — 이름은 ASCII 다
-                }
-                for (int i = 0; i < todo.size(); i++) {
-                    Group g = todo.get(i);
-                    if (found.contains(g.id())) continue;
-                    for (String n : needles.get(i)) {
-                        if (text.contains(n)) {
-                            found.add(g.id());
-                            break;
-                        }
+                if (e.isDirectory()) continue;
+                String name = e.getName();
+                if (name.endsWith(".class")) {
+                    try (InputStream in = jf.getInputStream(e)) {
+                        match(in.readAllBytes(), todo, needles, found);
+                    }
+                } else if (isNestedJar(name)) {
+                    try (InputStream in = jf.getInputStream(e)) {
+                        scanNested(in, todo, needles, found, 1);
                     }
                 }
             }

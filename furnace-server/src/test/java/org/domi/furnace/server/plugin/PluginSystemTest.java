@@ -276,6 +276,39 @@ class PluginSystemTest {
     }
 
     @Test
+    void permissionOverrideDecidesFirstAndNullFallsBack() throws Exception {
+        loadAll(Files.createDirectories(tmp.resolve("plugins")));
+        var console = host.console();
+        var rcon = host.rconSender(t -> {});
+        assertTrue(console.hasPermission("over.node"), "콘솔은 OP — 미등록 권한도 참");
+        java.util.List<String> asked = new java.util.concurrent.CopyOnWriteArrayList<>();
+        host.permissions().setOverride(new org.domi.furnace.api.permission.PermissionOverride() {
+            @Override
+            public Boolean hasPermission(org.domi.furnace.api.permission.Permissible subject, String node) {
+                asked.add(((org.domi.furnace.api.command.CommandSender) subject).name() + ":" + node);
+                return node.equals("over.node") ? Boolean.FALSE : null;
+            }
+
+            @Override
+            public Boolean isPermissionSet(org.domi.furnace.api.permission.Permissible subject, String node) {
+                return node.equals("over.node") ? Boolean.TRUE : null;
+            }
+        });
+        assertSame(host.permissions().override(), host.permissionsImpl().override());
+        assertFalse(console.hasPermission("over.node"), "판정 공급자가 먼저");
+        assertTrue(console.isPermissionSet("over.node"));
+        assertTrue(console.hasPermission("other.node"), "null 이면 기본 규칙");
+        assertFalse(console.isPermissionSet("other.node"));
+        assertFalse(rcon.hasPermission("over.node"), "RCON 발신자도 같은 공급자를 거친다");
+        assertEquals(List.of("Server:over.node", "Server:other.node", "Rcon:over.node"), asked);
+        host.permissions().setOverride(null);
+        assertTrue(console.hasPermission("over.node"));
+        assertEquals("Rcon", rcon.name());
+        assertTrue(rcon.isOp());
+        assertEquals(core.settings().get().onlineMode, host.onlineMode());
+    }
+
+    @Test
     void failingEnableDisablesPlugin() throws Exception {
         Path dir = tmp.resolve("plugins");
         jar(dir.resolve("x.jar"), "furnace-plugin.yml", "name: Broken\nversion: 1\nmain: org.domi.furnace.server.plugin.TestPlugins$Broken\n",

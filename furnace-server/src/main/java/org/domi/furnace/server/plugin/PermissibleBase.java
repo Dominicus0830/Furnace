@@ -26,6 +26,8 @@ public final class PermissibleBase {
         this.op = op;
     }
 
+    PermissionManagerImpl manager() { return manager; }
+
     private Map<String, Boolean> values() {
         boolean o = op.getAsBoolean();
         long r = manager.version(), a = attachmentVersion;

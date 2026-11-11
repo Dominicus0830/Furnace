@@ -186,6 +186,24 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         return create(Dimension.OVERWORLD, noiseSettings, seed, reg, registries, fixedBiome);
     }
 
+    /**
+     * 바닐라 FlatLevelGeneratorSettings: 층(아래부터), 바이옴, 지형지물(features)·호수(lakes) 켜짐, structure_overrides(null = 레지스트리 전부).
+     */
+    public record FlatSpec(List<SuperflatWorldSource.Layer> layers, String biome, boolean features, boolean lakes, List<String> structureOverrides) {}
+
+    /**
+     * 평지 생성기(바닐라 FlatLevelSource): 노이즈 대신 층을 쌓고 카버·표면 규칙이 없다. 바이옴은 FixedBiomeSource 하나.
+     * 지형지물은 adjustGenerationSettings 로 바꾼 그 바이옴 목록(호수·features·fill_layer)을 같은 장식 경로로 돌린다.
+     * 생성 문맥은 FlatLevelSource 값: getMinY 0, getGenDepth 384, getSeaLevel -63.
+     */
+    public static NoiseWorldSource flat(long seed, BlockRegistry reg, RegistrySet registries, FlatSpec spec) {
+        if (registries.indexOf("minecraft:worldgen/biome", spec.biome()) < 0) throw new IllegalArgumentException("모르는 바이옴: " + spec.biome());
+        return create(Dimension.OVERWORLD, "minecraft:overworld", seed, reg, registries, spec.biome(), spec);
+    }
+
+    /** FlatLevelSource 의 생성 문맥 값(ChunkGenerator.getMinY / getGenDepth / getSeaLevel). */
+    private static final int FLAT_MIN_Y = 0, FLAT_GEN_DEPTH = 384, FLAT_SEA_LEVEL = -63;
+
     /** 한 바이옴이 모든 기후 범위를 덮는 파라미터 목록(biome_parameters 형식) — FixedBiomeSource 와 같은 결과를 multi-noise 경로로 얻는다. */
     static JsonArray fixedBiomeParameters(String biome) {
         JsonObject e = new JsonObject();
@@ -219,6 +237,11 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     }
 
     private static NoiseWorldSource create(Dimension dim, String noiseSettingsId, long seed, BlockRegistry reg, RegistrySet registries, String fixedBiome) {
+        return create(dim, noiseSettingsId, seed, reg, registries, fixedBiome, null);
+    }
+
+    private static NoiseWorldSource create(Dimension dim, String noiseSettingsId, long seed, BlockRegistry reg, RegistrySet registries, String fixedBiome,
+                                           FlatSpec flat) {
         WorldgenData data = WorldgenData.load("worldgen/1.21.1");
         JsonObject settingsJson = data.noiseSettings(noiseSettingsId);
         NoiseSettings settings = NoiseSettings.fromJson(noiseSettingsId, settingsJson);
@@ -243,7 +266,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         SurfaceSystem surfaceSystem = SurfaceSystem.create(data, settings, reg, seed,
             registryBiomeNames, biomeSampler, router);
 
-        OverworldCarvers overworldCarvers = switch (dim) {
+        OverworldCarvers overworldCarvers = flat != null ? OverworldCarvers.none() : switch (dim) {
             case OVERWORLD -> OverworldCarvers.load();
             case NETHER -> OverworldCarvers.loadNether();
             case END -> OverworldCarvers.none();
@@ -252,25 +275,94 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         // registry 전체 순서를 쓰면 다른 차원 biome이 섞여 광석 index가 어긋난다.
         List<String> possible = possibleBiomeOrder(params, registries);
         // WorldGenerationContext: minGenY = max(차원 min, 생성기 min), genDepth = min(차원 높이, 노이즈 높이)
-        int genMinY = Math.max(dim.minY, settings.minY());
-        int genDepth = Math.min(dim.sectionCount * 16, settings.height());
-        FeaturePlacer featurePlacer = loadFeaturePlacer(data, possible, biomeEntries, reg, seed, genMinY, genDepth, settings.seaLevel(), router);
+        int genMinY = Math.max(dim.minY, flat != null ? FLAT_MIN_Y : settings.minY());
+        int genDepth = Math.min(dim.sectionCount * 16, flat != null ? FLAT_GEN_DEPTH : settings.height());
+        FlatLayers flatLayers = flat != null ? FlatLayers.of(flat, reg) : null;
+        FeaturePlacer featurePlacer = loadFeaturePlacer(data, possible, biomeEntries, reg, seed, genMinY, genDepth,
+                flat != null ? FLAT_SEA_LEVEL : settings.seaLevel(), router, flatLayers == null ? null : b -> flatLayers.generationSteps(data, b));
         StructurePlacementCatalog structurePlacementCatalog = StructurePlacementCatalog.load(data);
         List<SpawnTarget> spawnTargets = loadSpawnTargets(settingsJson);
         org.domi.furnace.server.world.gen.structure.StructureEngine structureEngine =
             new org.domi.furnace.server.world.gen.structure.StructureEngine(reg, seed, new java.util.HashSet<>(possible));
 
         structureEngine.setBiomeRegistryNames(registryBiomeNames);
+        // 평지 구조물(structure_overrides)은 아직 만들지 않는다 — 높이(getBaseHeight)·찾기 연결과 함께 다음 단계(A06-04 뒤쪽)
+        if (flat != null) structureEngine.setAllowedSets(java.util.Set.of());
         NoiseWorldSource source = new NoiseWorldSource(router, settings, biomeSampler, surfaceSystem,
                                     registryBiomeNames, stoneId, waterId, lavaId,
                                     seed, reg, biomeDirectBits, overworldCarvers,
                                     featurePlacer, structurePlacementCatalog, structureEngine, spawnTargets);
         source.worldgenData = data;
         source.dimension = dim;
+        source.flatLayers = flatLayers;
+        if (flatLayers != null) source.flatBiomeId = registries.indexOf("minecraft:worldgen/biome", flat.biome());
         return source;
     }
 
     private Dimension dimension = Dimension.OVERWORLD;
+    /** 평지 생성기의 층(null 이면 노이즈 생성기). */
+    private FlatLayers flatLayers;
+    private int flatBiomeId;
+
+    /** 평지 생성기(FlatLevelSource)인가. */
+    public boolean isFlat() { return flatLayers != null; }
+
+    /** 평지 바이옴의 레지스트리 id(평지가 아니면 -1). */
+    public int flatBiomeId() { return flatLayers != null ? flatBiomeId : -1; }
+
+    /** 평지: 맨 위 층 바로 위 y(스폰 기준 — 예전 SuperflatWorldSource.surfaceY 와 같다). */
+    public int flatSurfaceY() { return dimension.minY + Math.min(flatLayers.states().length, dimension.sectionCount * 16); }
+
+    /**
+     * 평지 층(FlatLevelGeneratorSettings.getLayers): 아래부터 펼친 상태. adjustGenerationSettings 가 MOTION_BLOCKING 이 아닌 층을
+     * null(여기서는 -1)로 지우고 fill_layer 지형지물로 옮긴다 — 바닐라는 이 목록을 그 자리에서 바꾸고 ChunkGenerator.validate 가
+     * 생성 전에 그것을 부른다(가정: 생성 전 validate). 그래서 노이즈 채우기는 지운 층을 건너뛴다.
+     */
+    record FlatLayers(FlatSpec spec, int[] states, int[] filled, boolean voidGen) {
+        static FlatLayers of(FlatSpec spec, BlockRegistry reg) {
+            // 월드 높이로 자르지 않는다: 바닐라 getLayers 는 층 전체(높이 합 최대 4064)이고 voidGen·fill_layer 도 그 목록으로 정한다.
+            // 채우기·높이 계산이 월드 높이에서 멈춘다.
+            java.util.List<Integer> col = new ArrayList<>();
+            for (SuperflatWorldSource.Layer l : spec.layers()) {
+                int st = reg.defaultStateId(l.block());
+                for (int i = 0; i < l.height(); i++) col.add(st);
+            }
+            int[] states = col.stream().mapToInt(Integer::intValue).toArray();
+            int air = reg.defaultStateId("minecraft:air");
+            boolean voidGen = true;   // 모든 층이 공기(Blocks.AIR)면 — 층이 없어도 참(allMatch)
+            for (int st : states) if (st != air) { voidGen = false; break; }
+            int[] filled = states.clone();
+            for (int i = 0; i < filled.length; i++) if (!org.domi.furnace.server.world.ChunkColumn.motionBlocking(filled[i])) filled[i] = -1;
+            return new FlatLayers(spec, states, filled, voidGen);
+        }
+
+        /** adjustGenerationSettings(바이옴): 평지 바이옴이 아니면 null(바이옴 JSON 그대로). */
+        List<List<Object>> generationSteps(WorldgenData data, String biome) {
+            if (!biome.equals(spec.biome())) return null;
+            List<List<Object>> steps = new ArrayList<>();
+            for (int i = 0; i < org.domi.furnace.server.world.gen.feature.BiomeFeatureData.STEP_COUNT; i++) steps.add(new ArrayList<>());
+            final int lakes = 1, undergroundStructures = 3, surfaceStructures = 4, topLayer = 10;
+            if (spec.lakes()) {
+                steps.get(lakes).add("minecraft:lake_lava_underground");
+                steps.get(lakes).add("minecraft:lake_lava_surface");
+            }
+            boolean place = (!voidGen || biome.equals("minecraft:the_void")) && spec.features();
+            if (place) {
+                JsonArray features = data.biome(biome).getAsJsonArray("features");
+                for (int i = 0; features != null && i < features.size(); i++) {
+                    if (i == undergroundStructures || i == surfaceStructures || (spec.lakes() && i == lakes)) continue;
+                    for (com.google.gson.JsonElement f : features.get(i).getAsJsonArray()) steps.get(i).add(f.getAsString());
+                }
+            }
+            for (int i = 0; i < states.length; i++) {
+                if (filled[i] < 0) {
+                    steps.get(topLayer).add(new org.domi.furnace.server.world.gen.feature.PlacedFeature(
+                            new org.domi.furnace.server.world.gen.feature.FillLayerFeature(i, states[i]), List.of()));
+                }
+            }
+            return steps;
+        }
+    }
 
     /** TheEndBiomeSource.possibleBiomes 순서(the_end, highlands, midlands, small islands, barrens) — 파라미터 목록 형식으로. */
     private static JsonArray endBiomeList() {
@@ -303,9 +395,10 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
     private static FeaturePlacer loadFeaturePlacer(
             WorldgenData data, List<String> possibleBiomes, List<String> registryOrder, BlockRegistry reg, long seed,
-            int genMinY, int genDepth, int seaLevel, NoiseRouter router) {
+            int genMinY, int genDepth, int seaLevel, NoiseRouter router,
+            java.util.function.Function<String, List<List<Object>>> stepsOf) {
         try {
-            BiomeFeatureData biomeFeatureData = BiomeFeatureData.load(data, possibleBiomes, registryOrder, reg, genMinY, genDepth, seaLevel);
+            BiomeFeatureData biomeFeatureData = BiomeFeatureData.load(data, possibleBiomes, registryOrder, reg, genMinY, genDepth, seaLevel, stepsOf);
             return new FeaturePlacer(seed, biomeFeatureData, FeatureSorter.build(biomeFeatureData), reg, router.random());
         } catch (IllegalArgumentException e) {
             if (e.getMessage() != null && e.getMessage().startsWith("Worldgen resource not found:")) {
@@ -506,6 +599,8 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
     /** 실제 월드 청크용: 주변 terrain_adaptation 구조물의 Beardifier 를 적용한 지형. 높이 질의용 generate() 는 바닐라처럼 beard 없음. */
     public Generated generateWorldChunk(int chunkX, int chunkZ) {
+        // FlatLevelSource.fillFromNoise 는 Beardifier 를 쓰지 않는다
+        if (flatLayers != null) return generateFlat(chunkX, chunkZ);
         return generateWithBiomes(chunkX, chunkZ, beardifierFor(chunkX, chunkZ));
     }
 
@@ -574,6 +669,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     public GenHooks generationHooks() { return genHooks; }
 
     private Generated generateWithBiomes(int chunkX, int chunkZ, org.domi.furnace.server.world.gen.structure.Beardifier beard) {
+        if (flatLayers != null) return generateFlat(chunkX, chunkZ);
         int minY      = settings.minY();       // -64
         int height    = settings.height();     // 384
         int seaLevel  = settings.seaLevel();   // 63
@@ -612,6 +708,29 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         return new Generated(col, biomeIds, nc, aquifer);
     }
 
+    /** FlatLevelSource.fillFromNoise: 남은(null 이 아닌) 층을 차원 최저 높이부터 채운다. 표면 규칙·대수층 없음. */
+    private Generated generateFlat(int chunkX, int chunkZ) {
+        int[] blockIds = new int[dimension.sectionCount * 4096];
+        GenHooks hooks = genHooks;
+        if (hooks == null || hooks.vanilla(org.domi.furnace.api.worldgen.GenerationStage.NOISE, chunkX, chunkZ)) {
+            int[] filled = flatLayers.filled();
+            for (int i = 0, n = Math.min(filled.length, dimension.sectionCount * 16); i < n; i++) {
+                if (filled[i] >= 0) java.util.Arrays.fill(blockIds, i * 256, i * 256 + 256, filled[i]);
+            }
+        }
+        int[] biomeIds = new int[dimension.sectionCount * 64];
+        java.util.Arrays.fill(biomeIds, flatBiomeId);
+        ChunkColumn col = new ChunkColumn(0, reg.directBits(), biomeDirectBits, dimension.minY, dimension.sectionCount);
+        col.loadGenerated(blockIds, biomeIds);
+        if (hooks != null) {
+            hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.NOISE, col, chunkX, chunkZ);
+            hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.SURFACE, col, chunkX, chunkZ);
+        }
+        col.rebuildHeightmapsAfterSurface();
+        col.clearDirty();
+        return new Generated(col, biomeIds);
+    }
+
     /** 청크 biome id 배열에 등장하는 biome 이름 집합 — FeaturePlacer의 neighborBiomes 구성 단위(청크당 한 번만 계산해 재사용). */
     public Set<String> biomeNamesOf(int[] biomeIds) {
         boolean[] seen = new boolean[registryBiomeNames.length];
@@ -630,6 +749,13 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     }
 
     private void applyCarvers(ChunkColumn col, int chunkX, int chunkZ, NoiseChunk nc, Aquifer reuse) {
+        if (flatLayers != null) {
+            // FlatLevelSource.applyCarvers 는 비어 있다
+            GenHooks hooks = genHooks;
+            if (hooks != null) hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.CARVERS, col, chunkX, chunkZ);
+            col.freezeWgHeightmaps();
+            return;
+        }
         CarvingMask mask = new CarvingMask(settings.minY(), settings.height());
         Aquifer aquifer = reuse != null ? reuse : settings.aquifersEnabled()
             ? new NoiseBasedAquifer(nc, chunkX, chunkZ, router, settings, router.aquiferRandom(), stoneId, waterId, lavaId)
@@ -772,19 +898,43 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     }
 
     // ---- TerrainAccess ----
-    @Override public int seaLevel() { return settings.seaLevel(); }
+    @Override public int seaLevel() { return flatLayers != null ? FLAT_SEA_LEVEL : settings.seaLevel(); }
 
-    @Override public int minY() { return settings.minY(); }
+    @Override public int minY() { return flatLayers != null ? FLAT_MIN_Y : settings.minY(); }
 
-    @Override public int genDepth() { return settings.height(); }
+    @Override public int genDepth() { return flatLayers != null ? FLAT_GEN_DEPTH : settings.height(); }
 
     @Override
     public int firstOccupiedHeight(int heightmap, int blockX, int blockZ) {
+        if (flatLayers != null) return flatBaseHeight(heightmap) - 1;
         return heightmap == HM_OCEAN_FLOOR_WG ? oceanFloorWgHeightAt(blockX, blockZ) : worldSurfaceHeightAt(blockX, blockZ);
+    }
+
+    /**
+     * FlatLevelSource.getBaseHeight: 남은(null 이 아닌) 층을 위에서부터 보며 그 heightmap 술어(WORLD_SURFACE_WG 공기 아님,
+     * OCEAN_FLOOR_WG blocksMotion)에 맞는 첫 층 바로 위. 없으면 차원 최저 높이. 열마다 같다.
+     * 바닐라는 층 번호 상한을 높이(384)가 아니라 getMaxBuildHeight(320)로 잡는다 — 그대로 따른다.
+     */
+    private int flatBaseHeight(int heightmap) {
+        int[] filled = flatLayers.filled();
+        int top = Math.min(filled.length, dimension.minY + dimension.sectionCount * 16);
+        for (int i = top - 1; i >= 0; i--) {
+            int st = filled[i];
+            if (st < 0) continue;
+            boolean hit = heightmap == HM_OCEAN_FLOOR_WG ? org.domi.furnace.server.world.BlockAttrs.get().blocksMotion(st) : !ChunkSection.isAir(st);
+            if (hit) return dimension.minY + i + 1;
+        }
+        return dimension.minY;
     }
 
     @Override
     public int baseBlock(int blockX, int blockY, int blockZ) {
+        if (flatLayers != null) {
+            // FlatLevelSource.getBaseColumn: 층(null 은 공기), 그 위는 공기
+            int i = blockY - dimension.minY;
+            int[] filled = flatLayers.filled();
+            return i >= 0 && i < filled.length && i < dimension.sectionCount * 16 && filled[i] >= 0 ? filled[i] : ChunkSection.AIR;
+        }
         int cx = Math.floorDiv(blockX, 16);
         int cz = Math.floorDiv(blockZ, 16);
         long key = chunkKey(cx, cz);
