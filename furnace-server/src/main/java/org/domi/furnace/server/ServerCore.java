@@ -562,6 +562,12 @@ public final class ServerCore {
     /** 전역 틱(scheduledTick) 소요 시간 분포 — /furnace 관측용. */
     private final org.domi.furnace.server.sched.TickTimeRing globalTickRing = new org.domi.furnace.server.sched.TickTimeRing(512);
 
+    /** F3 틱 시간 그래프 구독(OP 전용) — 전역 박동이 끝날 때마다 표본을 보낸다. */
+    private final org.domi.furnace.server.net.DebugSampleSubscribers debugSamples =
+            new org.domi.furnace.server.net.DebugSampleSubscribers(p -> lists().isOp(profileOf(p)));
+
+    public org.domi.furnace.server.net.DebugSampleSubscribers debugSamples() { return debugSamples; }
+
     public org.domi.furnace.server.sched.TickTimeRing.Stats globalTickTimes() { return globalTickRing.stats(); }
 
     /** 최근 전역 박동 n 개의 소요(ns)를 박동 번호 % n 자리에 담은 사본(JMX tickTimes). */
@@ -803,6 +809,8 @@ public final class ServerCore {
      * 전역 틱 반복(50ms 마다)이 부르는 진입점. /tick rate 는 한 번에 rate/20 틱씩 낸다(20 미만이면 몇 번 걸러서), /tick freeze 중에는
      * 시간·날씨·보더를 멈추고 /tick step 으로 요청한 만큼만 낸다.
      */
+    private long prevTickStart;   // 전역 스레드만(debug_sample 의 틱 간격)
+
     public void scheduledTick() {
         long t0 = System.nanoTime();
         globalBeat = t0;   // 워치독이 보는 전역 틱 박동
@@ -815,6 +823,9 @@ public final class ServerCore {
             long took = System.nanoTime() - t0;
             globalTickRing.record(took);
             globalTickWindows.record(t0, took);
+            long full = prevTickStart == 0 ? 50_000_000L : t0 - prevTickStart;
+            prevTickStart = t0;
+            try { debugSamples.tick(full, took); } catch (RuntimeException e) { log.debug("debug_sample 전송 실패", e); }
         }
     }
 

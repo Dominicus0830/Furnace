@@ -182,6 +182,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, ByteBuf frame) {
         this.ctx = ctx;
+        if (closing) return;   // 바닐라 setReadOnly: 끊기로 한 뒤 들어온 패킷은 처리하지 않는다
         int packetId = Types.readVarInt(frame);
         // 속도 제한은 모든 단계에 건다 — 로그인 전 단계에서 무제한으로 패킷을 처리하지 않게(바닐라 클라는 이 단계에 몇 개만 보낸다)
         if (rateWatch != null) rateWatch.onPacket();
@@ -905,7 +906,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     private void handleConfiguration(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
         switch (packetId) {
-            case 0x00 -> readClientInformation(frame); // Client Information: view distance 읽음
+            case 0x00 -> readClientInformation(ctx, frame); // Client Information: view distance 읽음
             case 0x01 -> handleCookieResponse(ctx, frame); // cookie_response: 플러그인이 requestCookie 로 요청한 것만 받는다
             case 0x02 -> handleCustomPayload(frame, false); // custom_payload: minecraft:brand 만 읽는다(바닐라는 나머지를 버린다)
             case 0x07 -> { // Serverbound Known Packs → 레지스트리 전송 후 종료
@@ -1007,27 +1008,43 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         finishConfigSent = true;
     }
 
-    /** ClientInformation 파싱 — locale 건너뛰고 view distance(byte) 읽음. config·play 양쪽서 호출. */
-    private void readClientInformation(ByteBuf frame) {
+    /**
+     * ClientInformation 파싱(config·play 양쪽) — 바닐라처럼 패킷 전체를 먼저 읽고(여덟 필드 모두, 열거형 범위 포함) 한 번에 적용한다.
+     * 잘렸거나 범위를 벗어난 패킷은 일부만 반영한 채 두지 않고 디코드 실패로 연결을 끊는다.
+     */
+    private void readClientInformation(ChannelHandlerContext ctx, ByteBuf frame) {
+        String locale;
+        int vd, chatMode, skinParts, mainArm;
+        boolean listing;
         try {
-            this.clientLocale = Types.readString(frame, 16);   // locale(en_us 등)
-            int vd = frame.readByte();                   // view distance (chunks)
-            this.clientViewDistance = Math.max(Config.MIN_VIEW_DISTANCE, Math.min(Config.MAX_VIEW_DISTANCE, vd));
-            Player p = this.player;
-            if (p != null) p.locale(clientLocale);
-            if (p != null) p.clientViewDistance(clientViewDistance);
-            if (p != null) p.viewDistance(effectiveViewDistance()); // 게임 중 렌더거리 변경 반영
-            this.chatVisibility = Types.readVarInt(frame); // chat mode: 0 전부, 1 시스템만, 2 숨김
-            if (p != null) p.chat().visibility(chatVisibility);
-            frame.readBoolean();                         // chat colors
-            this.clientSkinParts = frame.readUnsignedByte(); // displayed skin parts(겉옷·겉머리 등 비트)
-            this.clientMainArm = Types.readVarInt(frame);    // main hand: 0 왼손, 1 오른손
-            if (p != null) p.clientOptions(clientSkinParts, clientMainArm);
-            frame.readBoolean();                         // text filtering
-            this.clientAllowsListing = frame.readBoolean(); // 서버 목록(상태 응답 sample)에 이름 공개 허용
-            if (p != null) p.allowsListing(clientAllowsListing);
-        } catch (Exception e) {
-            log.debug("ClientInformation 파싱 실패", e);
+            locale = Types.readString(frame, 16);                 // locale(en_us 등)
+            vd = frame.readByte();                                // view distance (chunks)
+            chatMode = Types.readVarInt(frame);                   // chat mode: 0 전부, 1 시스템만, 2 숨김
+            if (chatMode < 0 || chatMode > 2) throw new IndexOutOfBoundsException("chat visibility " + chatMode);
+            frame.readBoolean();                                  // chat colors
+            skinParts = frame.readUnsignedByte();                 // displayed skin parts(겉옷·겉머리 등 비트)
+            mainArm = Types.readVarInt(frame);                    // main hand: 0 왼손, 1 오른손
+            if (mainArm < 0 || mainArm > 1) throw new IndexOutOfBoundsException("main hand " + mainArm);
+            frame.readBoolean();                                  // text filtering
+            listing = frame.readBoolean();                        // 서버 목록(상태 응답 sample)에 이름 공개 허용
+        } catch (RuntimeException e) {
+            protocolError(ctx, "Client Information", e);
+            return;
+        }
+        this.clientLocale = locale;
+        this.clientViewDistance = Math.max(Config.MIN_VIEW_DISTANCE, Math.min(Config.MAX_VIEW_DISTANCE, vd));
+        this.chatVisibility = chatMode;
+        this.clientSkinParts = skinParts;
+        this.clientMainArm = mainArm;
+        this.clientAllowsListing = listing;
+        Player p = this.player;
+        if (p != null) {
+            p.locale(clientLocale);
+            p.clientViewDistance(clientViewDistance);
+            p.viewDistance(effectiveViewDistance());   // 게임 중 렌더거리 변경 반영
+            p.chat().visibility(chatVisibility);
+            p.clientOptions(clientSkinParts, clientMainArm);
+            p.allowsListing(clientAllowsListing);
         }
     }
 
@@ -1623,7 +1640,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     correctionTpId = -1;   // 보정 완료 — 이후 위치 패킷 수락 재개
                 }
             }
-            case 0x0A -> readClientInformation(frame); // Client Information(play): 게임중 렌더거리 변경
+            case 0x0A -> readClientInformation(ctx, frame); // Client Information(play): 게임중 렌더거리 변경
             case 0x03 -> handleChatAck(Types.readVarInt(frame));                    // chat_ack
             case 0x04 -> handleChatCommand(Types.readString(frame, limits().commandLength()));          // chat_command
             case 0x05 -> handleSignedChatCommand(frame);                            // chat_command_signed
@@ -1659,12 +1676,24 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             }
             case 0x18 -> { // Keep Alive (serverbound)
                 long echoed = frame.readLong();
-                if (echoed == lastKeepAliveId) {
+                // 바닐라 handleKeepAlive: 기다리는 중이고 id 가 같을 때만 받는다 — 아니면(보낸 적 없는 id·이미 답한 id) 시간 초과로 끊는다.
+                if (awaitingKeepAlive.get() && echoed == lastKeepAliveId) {
                     awaitingKeepAlive.set(false);
                     Player lp = player;
                     if (lp != null) lp.recordLatency((int) Math.max(0, (System.nanoTime() - echoed) / 1_000_000L));
+                } else {
+                    kick(ctx, Text.translatable("disconnect.timeout"), org.domi.furnace.api.net.QuitReason.TIMED_OUT);
                 }
             }
+            case 0x13 -> { // debug_sample_subscription: VarInt 종류(TICK_TIME 하나뿐) — OP 만(바닐라: 아니면 조용히 무시)
+                int type = Types.readVarInt(frame);
+                if (type != 0) { protocolError(ctx, "Debug Sample Subscription", new IndexOutOfBoundsException("type " + type)); return; }
+                Player dp = player;
+                if (dp != null && login.core != null && login.core.lists().isOp(org.domi.furnace.server.ServerCore.profileOf(dp))) {
+                    login.core.debugSamples().subscribe(dp);
+                }
+            }
+            case 0x21 -> send(ctx, new org.domi.furnace.server.net.protocol.play.PlayPongResponse(frame.readLong()));   // ping_request → pong_response(바닐라: 주 스레드를 거치지 않고 바로)
             case 0x1A -> { // move_player_pos: Double x,y,z, Boolean onGround
                 double x = frame.readDouble(), y = frame.readDouble(), z = frame.readDouble();
                 boolean g = frame.readBoolean();
@@ -3207,6 +3236,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     private String previousName;
     private Text kickReason;   // 우리가 끊은 사유(퇴장 로그 "lost connection: 사유"용)
+    /** kick 이 사유를 보내기 시작했다(바닐라 handlingFault + setReadOnly). 이벤트 루프 전용. */
+    private boolean closing;
 
     /** 바닐라 접속 거부 사유 → PlayerLoginEvent 결과 종류. */
     private static org.domi.furnace.api.event.player.PlayerLoginEvent.Result loginResult(Text reason) {
@@ -4624,6 +4655,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 끊는 이유(QuitReason)를 함께 남기는 kick — 처음 남긴 이유가 이긴다(markQuit). */
     void kick(ChannelHandlerContext ctx, Text reason, org.domi.furnace.api.net.QuitReason why) {
+        if (closing) return;   // 이미 사유를 보내는 중(바닐라 Double fault 는 사유 없이 닫는다 — 여기선 첫 사유가 나가도록 둔다)
+        closing = true;
+        ctx.channel().config().setAutoRead(false);
         markQuit(why);
         kickReason = reason;
         Packet pkt = switch (state) {
@@ -4662,7 +4696,16 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             return;
         }
         log.warn("커넥션 오류, 종료: {}", cause.toString());
-        closeFlushed(ctx);
+        if (!ctx.channel().isActive()) { closeFlushed(ctx); return; }
+        // 바닐라 Connection.exceptionCaught: 그 밖의 예외는 "Internal Exception: …" 사유를 단계에 맞는 Disconnect 로 보내고 닫는다.
+        internalException(ctx, cause);
+    }
+
+    /** 바닐라 disconnect.genericReason("Internal Exception: " + 예외) 로 끊는다(상태·핸드셰이크 단계는 보낼 패킷이 없어 그냥 닫힌다). */
+    private void internalException(ChannelHandlerContext ctx, Throwable cause) {
+        Text reason = Text.translatable("disconnect.genericReason", "Internal Exception: " + cause);
+        if (state == ConnectionState.LOGIN) log.info("Disconnecting {}: {}", playerName != null ? playerName + " (" + loggableAddress(ctx) + ")" : loggableAddress(ctx), reason.getString());
+        kick(ctx, reason, org.domi.furnace.api.net.QuitReason.ERRONEOUS_STATE);
     }
 
     private static final int MAX_CLICK_CHANGED_SLOTS = 128;
@@ -4688,7 +4731,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     /** 바닐라처럼 패킷 디코드 실패는 연결을 끊는다(클라이언트 화면: 네트워크 프로토콜 오류). */
     private void protocolError(ChannelHandlerContext ctx, String packet, RuntimeException e) {
         log.warn("{} 패킷 디코드 실패, 연결 종료: {}", packet, e.toString());
-        closeFlushed(ctx);
+        internalException(ctx, e);
     }
 
     /** 용기를 열 때 region 스레드에서 정한 것: 주 블록 엔티티·(더블 상자의) 둘째·제목. */

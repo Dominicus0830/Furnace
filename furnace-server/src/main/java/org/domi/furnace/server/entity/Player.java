@@ -2167,10 +2167,9 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private volatile int latencyMs;
     /** 탭 목록에 표시되는 핑(ms). KeepAlive 왕복으로 갱신. */
     public int latencyMs() { return latencyMs; }
-    /** 바닐라와 같은 평활화: (이전*3 + 새값)/4. 첫 측정은 그대로. */
+    /** 바닐라와 같은 평활화: (이전*3 + 새값)/4 — 초기값 0 에서 시작하므로 첫 표본도 1/4 만 들어간다. */
     public void recordLatency(int sampleMs) {
-        int old = latencyMs;
-        latencyMs = old == 0 ? sampleMs : (old * 3 + sampleMs) / 4;
+        latencyMs = (latencyMs * 3 + sampleMs) / 4;
     }
 
     private final EnderChestInventory enderChest = new EnderChestInventory();
