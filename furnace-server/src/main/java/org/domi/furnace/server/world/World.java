@@ -1372,6 +1372,45 @@ public final class World {
             }
         }
         markEntityTicking(cx, cz, radius - 2, until);
+        markBlockTicking(cx, cz, radius - 1, until);
+    }
+
+    /**
+     * 티켓 레벨 33 − 거리 의 블록 틱 범위(TickingTracker 레벨 32 이하 — 예약 틱·블록 이벤트·블록 엔티티): 가운데에서 거리 − 1 청크 안.
+     * 포털(3)은 반경 2, 드래곤(9)은 반경 8, 순간 이동 뒤 티켓(1)은 그 청크만.
+     */
+    private final ConcurrentHashMap<Long, Long> blockTickets = new ConcurrentHashMap<>();
+
+    private void markBlockTicking(int cx, int cz, int radius, long until) {
+        sweepExpired(blockTickets, blockSweepAt);
+        for (int dz = -radius; dz <= radius; dz++) {
+            for (int dx = -radius; dx <= radius; dx++) blockTickets.merge(Regionizer.chunkKey(cx + dx, cz + dz), until, Math::max);
+        }
+    }
+
+    /** 다음에 지난 항목을 쓸 크기. 조회될 때만 지우면 묻지 않는 청크(블록 엔티티·예약 없는 순간 이동 도착지)의 키가 쌓인다. */
+    private final java.util.concurrent.atomic.AtomicInteger blockSweepAt = new java.util.concurrent.atomic.AtomicInteger(256),
+            entitySweepAt = new java.util.concurrent.atomic.AtomicInteger(256);
+
+    /** 크기가 기준을 넘으면 지난 항목을 지우고 기준을 남은 크기의 두 배(최소 256)로 — 한 항목당 상수 비용. */
+    private void sweepExpired(ConcurrentHashMap<Long, Long> map, java.util.concurrent.atomic.AtomicInteger at) {
+        if (map.size() < at.get()) return;
+        long now = gameTime();
+        map.values().removeIf(v -> v < now);
+        at.set(Math.max(256, map.size() * 2));
+    }
+
+    /** 그 청크에 블록 틱 단계의 티켓이 살아 있는가(지난 것은 지운다). 강제 로드·플러그인 티켓은 따로 본다. */
+    boolean blockTicketed(int cx, int cz) {
+        if (blockTickets.isEmpty()) return false;
+        long key = Regionizer.chunkKey(cx, cz);
+        Long until = blockTickets.get(key);
+        if (until == null) return false;
+        if (until < gameTime()) {
+            blockTickets.remove(key, until);
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -1381,6 +1420,7 @@ public final class World {
     private final ConcurrentHashMap<Long, Long> entityTickets = new ConcurrentHashMap<>();
 
     private void markEntityTicking(int cx, int cz, int radius, long until) {
+        sweepExpired(entityTickets, entitySweepAt);
         for (int dz = -radius; dz <= radius; dz++) {
             for (int dx = -radius; dx <= radius; dx++) entityTickets.merge(Regionizer.chunkKey(cx + dx, cz + dz), until, Math::max);
         }
@@ -1595,6 +1635,7 @@ public final class World {
         long until = gameTime() + 40;
         for (int dz = -9; dz <= 9; dz++) for (int dx = -9; dx <= 9; dx++) tickets.merge(Regionizer.chunkKey(dx, dz), until, Math::max);
         markEntityTicking(0, 0, 7, until);
+        markBlockTicking(0, 0, 8, until);
     }
 
     /** 저장용: 중앙 청크 주인 region 스레드에서 전투 상태를 떠 둔다(저장 스레드는 이 사본만 읽는다). */

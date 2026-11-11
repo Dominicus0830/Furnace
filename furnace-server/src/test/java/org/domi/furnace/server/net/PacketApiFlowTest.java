@@ -93,18 +93,23 @@ class PacketApiFlowTest {
         });
         ch.writeInbound(frame(0x2F, b -> b.writeShort(3)));
         ch.runPendingTasks();
+        world.submitAtChunk(p.chunkPos(), r -> null).get(10, java.util.concurrent.TimeUnit.SECONDS);   // 고른 칸은 인벤토리 줄(플레이어 region)에서 바뀐다(A04)
         assertEquals(3, inv.selected());
         ch.writeInbound(frame(0x2F, b -> b.writeShort(5)));
         ch.runPendingTasks();
+        world.submitAtChunk(p.chunkPos(), r -> null).get(10, java.util.concurrent.TimeUnit.SECONDS);   // 고른 칸은 인벤토리 줄(플레이어 region)에서 바뀐다(A04)
         assertEquals(6, inv.selected(), "리스너가 5 → 6 으로 바꿨다");
         ch.writeInbound(frame(0x2F, b -> b.writeShort(7)));
         ch.runPendingTasks();
+        world.submitAtChunk(p.chunkPos(), r -> null).get(10, java.util.concurrent.TimeUnit.SECONDS);   // 고른 칸은 인벤토리 줄(플레이어 region)에서 바뀐다(A04)
         assertEquals(6, inv.selected(), "취소된 패킷은 처리하지 않는다");
         host.packets().receive(host.player(p), new ServerboundSetCarriedItemPacket(2));
         ch.runPendingTasks();
+        world.submitAtChunk(p.chunkPos(), r -> null).get(10, java.util.concurrent.TimeUnit.SECONDS);   // 고른 칸은 인벤토리 줄(플레이어 region)에서 바뀐다(A04)
         assertEquals(2, inv.selected(), "receive 로 넣은 패킷은 진짜처럼 처리된다");
         host.packets().receiveSilently(host.player(p), new ServerboundSetCarriedItemPacket(7));
         ch.runPendingTasks();
+        world.submitAtChunk(p.chunkPos(), r -> null).get(10, java.util.concurrent.TimeUnit.SECONDS);   // 고른 칸은 인벤토리 줄(플레이어 region)에서 바뀐다(A04)
         assertEquals(7, inv.selected(), "조용히 넣으면 리스너를 거치지 않는다");
         assertEquals(List.of(3, 5, 7, -2), seen);
         ch.close();

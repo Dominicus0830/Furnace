@@ -1065,7 +1065,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (io != null) {
             pendingPlayFrames = new java.util.ArrayDeque<>();
             try {
-                io.execute(() -> {
+                Runnable read = () -> {
                     org.domi.furnace.server.entity.PlayerData.Snapshot saved = null;
                     Throwable fail = null;
                     try {
@@ -1118,6 +1118,18 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                         java.util.ArrayDeque<Object[]> q = pendingPlayFrames;
                         pendingPlayFrames = null;
                         releasePendingFrames(q);
+                    }
+                };
+                // 같은 UUID 의 퇴장 저장이 아직 플레이어 인벤토리 줄에서 떠지는 중이면 그 저장이 IO 에 들어간 뒤 읽는다(A04-02)
+                if (!org.domi.furnace.server.entity.PlayerData.hasPendingSave(dir, uuid)) {
+                    io.execute(read);   // 거부되면 아래 동기 경로
+                    return;
+                }
+                org.domi.furnace.server.entity.PlayerData.afterPendingSaves(dir, uuid, () -> {
+                    try {
+                        io.execute(read);
+                    } catch (java.util.concurrent.RejectedExecutionException closed) {
+                        read.run();   // 종료 중: 이 스레드에서 바로 읽는다(이어서 이벤트 루프로 넘긴다)
                     }
                 });
                 return;
@@ -1606,10 +1618,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 게이트 해제 fallback(6틱) — confirm+청크완료가 그전에 둘 다 안 갖춰지면 무조건 해제(위치 재확정 포함). */
     private void scheduleSpawnGateRelease() {
-        scheduler.global().executeDelayed(() -> {
+        // 벽시계 300ms(6틱 몫) — /tick rate 와 무관한 접속 처리라 서버 틱으로 세지 않는다
+        org.domi.furnace.server.sched.GlobalThread.executeAfterMillis(scheduler.global(), () -> {
             if (ctx == null || !ctx.channel().isActive()) return;
             ctx.channel().eventLoop().execute(this::releaseSpawnGate);
-        }, 6);
+        }, 300);
     }
 
     private void releaseSpawnGate() {
@@ -1656,7 +1669,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 for (int i = 0; i < count; i++) pages.add(Types.readString(frame, pageMax));
                 String title = frame.readBoolean() ? Types.readString(frame, 128) : null;
                 Player actor = player;
-                if (actor != null) handleEditBook(actor, slot, pages, title);
+                if (actor != null) onLine(actor, r -> handleEditBook(actor, slot, pages, title));   // 손의 책을 바꾼다 — 인벤토리 줄(A04)
             }
             case 0x16 -> { // use_entity(interact): 엔티티 번호, 0 상호작용·1 공격·2 위치 상호작용, [x,y,z], [손], 웅크리기
                 touchLastAction();
@@ -1671,7 +1684,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 int h = hand;
                 double hy = hitY;
                 if (actor != null && actor.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR) {
-                    world.runAt(actor.x(), actor.z(), region -> handleInteractEntity(region, actor, entityId, action, h, hy));
+                    onLine(actor, region -> handleInteractEntity(region, actor, entityId, action, h, hy));   // 손으로 먹이·이름표 — 인벤토리 줄(A04)
                 }
             }
             case 0x18 -> { // Keep Alive (serverbound)
@@ -1792,7 +1805,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 String recipe = Types.readString(frame, 32767);
                 boolean shift = frame.readBoolean();
                 Player p = player;
-                if (p != null) handlePlaceRecipe(p, containerId, recipe, shift);
+                if (p != null) onLineAwait(p, r -> handlePlaceRecipe(r, p, containerId, recipe, shift));   // 열린 창은 인벤토리 줄에서 확인한다(A04)
             }
             case 0x23 -> { // player_abilities(serverbound): 비행 시작/끝 — 비행 가능할 때만 반영
                 byte flags = frame.readByte();
@@ -1842,10 +1855,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 int seq = Types.readVarInt(frame); // 예측 sequence — block_update 후 ack로 회신
                 Player actor = player;
                 if (actor != null && status >= 0 && status <= 2) handleBlockBreak(actor, status, bp[0], bp[1], bp[2], face, seq);
-                if (actor != null && status == 5) world.runAt(actor.x(), actor.z(), r -> r.handleReleaseUsing(actor));   // 사용 끝(release)
-                if (actor != null && status == 6) actor.runOnOwner(() -> swapHands(actor));   // SWAP_ITEM_WITH_OFFHAND(F 키)
-                if (actor != null && (status == 3 || status == 4) && actor.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR) {
-                    dropFromSelected(status == 3);   // DROP_ALL_ITEMS · DROP_ITEM
+                if (actor != null && status == 5) onLine(actor, r -> r.handleReleaseUsing(actor));   // 사용 끝(release) — 화살을 쓴다, 인벤토리 줄(A04)
+                if (actor != null && status == 6) onLine(actor, r -> swapHands(actor));   // SWAP_ITEM_WITH_OFFHAND(F 키)
+                if (actor != null && (status == 3 || status == 4)) {   // DROP_ALL_ITEMS · DROP_ITEM
+                    boolean all = status == 3;
+                    onLine(actor, r -> {
+                        if (actor.gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR) dropFromSelected(r, actor, all);
+                    });
                 }
             }
             case 0x28 -> { // recipe_book_change_settings: 책 종류, 열림, 필터
@@ -1877,7 +1893,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 0x2D -> { // select_trade: 거래 번호(VarInt)
                 int tradeIndex = Types.readVarInt(frame);
                 Player p = player;
-                if (p != null) handleSelectTrade(p, tradeIndex);
+                if (p != null) onLine(p, r -> handleSelectTrade(p, tradeIndex));   // 인벤토리에서 지불 칸으로 옮긴다 — 인벤토리 줄(A04)
             }
             case 0x2E -> { // set_beacon: Optional<효과> 둘 (불리언 + VarInt 레지스트리 id)
                 String primary = frame.readBoolean() ? org.domi.furnace.server.item.ItemContext.name("minecraft:mob_effect", Types.readVarInt(frame)) : null;
@@ -1904,27 +1920,31 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     protocolError(ctx, "Pick Item", new IndexOutOfBoundsException(String.valueOf(slot)));
                     break;
                 }
-                inv.pickSlot(slot);
-                int sel = inv.selected();
-                send(ctx, new org.domi.furnace.server.net.protocol.play.ContainerSetSlot(-2, 0, sel, inv.get(inv.heldWindowSlot())));
-                send(ctx, new org.domi.furnace.server.net.protocol.play.ContainerSetSlot(-2, 0, slot, inv.get(org.domi.furnace.server.entity.PlayerInventory.windowSlot(slot))));
-                send(ctx, new SetHeldSlot(sel));
+                Player pp = player;
+                if (pp != null) onLine(pp, r -> {   // 칸을 옮기고 고른 칸을 바꾼다 — 인벤토리 줄에서 받은 순서대로(A04)
+                    inv.pickSlot(slot);
+                    int sel = inv.selected();
+                    pp.send(new org.domi.furnace.server.net.protocol.play.ContainerSetSlot(-2, 0, sel, inv.get(inv.heldWindowSlot())));
+                    pp.send(new org.domi.furnace.server.net.protocol.play.ContainerSetSlot(-2, 0, slot, inv.get(org.domi.furnace.server.entity.PlayerInventory.windowSlot(slot))));
+                    pp.send(new SetHeldSlot(sel));
+                });
             }
             case 0x2F -> { // Set Held Item(serverbound): Short slot(0~8)
                 int slot = frame.readShort();
                 if (slot >= 0 && slot < 9) {
                     Player p = player;
                     var ge = pluginEvents();
-                    if (p != null && ge.has(org.domi.furnace.api.event.player.PlayerItemHeldEvent.class)) {
-                        // 플러그인 PlayerItemHeldEvent: 소유 스레드에서 묻는다. 취소하면 이전 칸을 다시 보낸다
-                        p.runOnOwner(() -> {
+                    // 고른 칸도 인벤토리 줄에서 바꾼다 — 앞서 받은 설치·버리기가 바뀌기 전 칸으로 돌게(A04)
+                    if (p != null) onLine(p, r -> {
+                        if (ge.has(org.domi.furnace.api.event.player.PlayerItemHeldEvent.class)) {
+                            // 플러그인 PlayerItemHeldEvent: 취소하면 이전 칸을 다시 보낸다
                             int prev = inv.selected();
                             if (ge.playerItemHeld(p, prev, slot)) inv.setSelected(slot);
                             else p.send(new SetHeldSlot(prev));
-                        });
-                    } else {
-                        inv.setSelected(slot);
-                    }
+                        } else {
+                            inv.setSelected(slot);
+                        }
+                    });
                     touchLastAction();
                 }
             }
@@ -2005,12 +2025,15 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 boolean creative = cp != null && cp.gameMode() == org.domi.furnace.server.world.GameMode.CREATIVE && !cp.vitals().isDeadOrDying();
                 if (creative && slot >= 1 && slot < org.domi.furnace.server.entity.PlayerInventory.SIZE && validStack(stack)) {
                     // 바닐라 handleSetCreativeModeSlot: 인벤토리 창의 칸에 놓고, 클라이언트가 이미 아는 값으로 받아들이고, 변경을 방송한다.
-                    synchronized (cp.menuLock()) {
-                        var im = cp.inventoryMenu();
-                        im.getSlot(slot).setByPlayer(stack);
-                        im.setRemoteSlot(slot, stack);
-                        im.broadcastChanges();
-                    }
+                    onLine(cp, r -> {   // 인벤토리 줄(A04)
+                        if (cp.vitals().isDeadOrDying()) return;   // 큐에서 기다리는 사이 죽었다 — 사망 드롭 목록 뒤에 아이템이 생기지 않게
+                        synchronized (cp.menuLock()) {
+                            var im = cp.inventoryMenu();
+                            im.getSlot(slot).setByPlayer(stack);
+                            im.setRemoteSlot(slot, stack);
+                            im.broadcastChanges();
+                        }
+                    });
                 } else if (creative && slot < 0 && validStack(stack) && !stack.isEmpty() && cp.tryCreativeDrop()) {
                     spawnDrop(stack, false, true);   // 크리에이티브 창 밖으로 버리기 — player.drop(stack, true)
                 }
@@ -2056,7 +2079,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     break;
                 }
                 Player actor = player;
-                if (actor != null) world.runAt(actor.x(), actor.z(), region -> region.handleUseItem(actor, hand, seq, yRot, xRot));
+                if (actor != null) onLine(actor, region -> region.handleUseItem(actor, hand, seq, yRot, xRot));   // 손의 아이템을 쓴다 — 인벤토리 줄(A04)
             }
             case 0x0E -> { // Container Click: containerId, stateId, slotNum, button, clickType, changedSlots, carried
                 touchLastAction();
@@ -2091,14 +2114,15 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 for (ItemStack c : changed.values()) validClick &= validStack(c);
                 if (!validClick) break; // 음수 개수·알 수 없는 아이템 등 비정상 — 패킷 폐기
                 Player p = player;
-                if (p != null) handleContainerClick(p, containerId, stateId, slotNum, button, clickType, changed, newCarried);
+                // 열린 창 확인부터 인벤토리 줄에서(A04): 앞서 받은 닫기·설치·버리기가 반영된 뒤의 창·인벤토리로 클릭을 처리한다
+                if (p != null) onLineAwait(p, r -> handleContainerClick(r, p, containerId, stateId, slotNum, button, clickType, changed, newCarried));
             }
             case 0x0D -> { // Container Button Click: containerId, buttonId (VarInt 둘)
                 touchLastAction();
                 int containerId = Types.readVarInt(frame);
                 int buttonId = Types.readVarInt(frame);
                 Player p = player;
-                if (p != null) handleContainerButtonClick(p, containerId, buttonId);
+                if (p != null) onLineAwait(p, r -> handleContainerButtonClick(r, p, containerId, buttonId));   // 인벤토리 줄(A04)
             }
             case 0x10 -> { // container_slot_state_changed: VarInt slotId, VarInt containerId, Boolean newState(true = 풀림)
                 int slotId = Types.readVarInt(frame);
@@ -2110,7 +2134,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             case 0x0F -> { // Container Close(serverbound): VarInt containerId — 바닐라는 번호를 보지 않고 열린 창을 닫는다(doCloseContainer)
                 Types.readVarInt(frame);
                 Player p = player;
-                if (p != null && p.containerMenu() != null) handleContainerClose(p);
+                if (p != null) onLineAwait(p, r -> p.containerMenu() != null ? handleContainerClose(r, p) : null);   // 커서·제작 격자를 인벤토리로 — 인벤토리 줄(A04)
             }
             case 0x01 -> { // block_entity_tag_query: VarInt 처리 번호, 위치 — op(2)만
                 int tx = Types.readVarInt(frame);
@@ -2386,38 +2410,38 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
      * 바뀐 칸·커서는 "클라이언트가 이미 아는 값"으로만 받아들여 서버 결과와 같으면 추가 패킷이 나가지 않게 한다. stateId 가 다르면 전체를 다시 보낸다.
      * 블록에 매인 창(상자)은 그 블록을 가진 region 스레드에서 처리한다 — 같은 상자에 대한 클릭·닫기가 그 region 큐에서 차례로 돈다.
      */
-    private void handleContainerClick(Player p, int containerId, int stateId, int slotNum, int button,
+    private java.util.concurrent.CompletableFuture<?> handleContainerClick(org.domi.furnace.server.world.Region here, Player p, int containerId, int stateId, int slotNum, int button,
             org.domi.furnace.server.menu.ClickType type, java.util.Map<Integer, ItemStack> changed, ItemStack carried) {
         var menu = p.containerMenu();
-        if (menu == null || menu.containerId != containerId) return;   // 바닐라: 열린 창과 다르면 무시
-        if (p.vitals().isDeadOrDying()) return;   // 죽은 플레이어의 창 클릭은 무시(Paper isImmobile) — 사망 드롭 목록을 떠 간 뒤 아이템이 빠져나가지 않게
+        if (menu == null || menu.containerId != containerId) return null;   // 바닐라: 열린 창과 다르면 무시
+        if (p.vitals().isDeadOrDying()) return null;   // 죽은 플레이어의 창 클릭은 무시(Paper isImmobile) — 사망 드롭 목록을 떠 간 뒤 아이템이 빠져나가지 않게
         Runnable body = () -> applyContainerClick(p, menu, stateId, slotNum, button, type, changed, carried);
         int[] bp = menu.containerBlockPos();
-        if (bp == null) {
+        if (bp == null) {   // 블록 없는 창(인벤토리 창·플러그인 창·거래 등): 인벤토리 줄(지금 스레드)에서 바로
             synchronized (p.menuLock()) {
                 // 플러그인 보관함 메뉴: 보는 사람들의 클릭을 한 줄로 세우고 결과를 메뉴에 되돌려 쓴다
                 if (menu.pluginOwner() instanceof org.domi.furnace.server.plugin.MenuSession ms && ms.api().isStorage()) ms.runStorageClick(body);
                 else body.run();
             }
-        } else {
-            world.runAt(bp[0], bp[2], region -> runOnBlockRegion(region, p, menu, bp, body));
+            return null;
         }
+        return runOnMenuBlock(here, p, menu, bp, body);
     }
 
     /** 바닐라 handlePlaceRecipe: 레시피 북이 열린 창의 격자를 채운다(스펙테이터는 안 된다). */
-    private void handlePlaceRecipe(Player p, int containerId, String recipeId, boolean shift) {
-        if (p.vitals().isDeadOrDying()) return;   // 죽은 플레이어의 창 조작은 무시
+    private java.util.concurrent.CompletableFuture<?> handlePlaceRecipe(org.domi.furnace.server.world.Region here, Player p, int containerId, String recipeId, boolean shift) {
+        if (p.vitals().isDeadOrDying()) return null;   // 죽은 플레이어의 창 조작은 무시
         var rm = menus.recipes();
-        if (rm == null) return;
+        if (rm == null) return null;
         org.domi.furnace.server.data.ResourceId rid = org.domi.furnace.server.data.ResourceId.tryParse(recipeId);
-        if (rid == null) return;
+        if (rid == null) return null;
         var entry = rm.craftingEntry(rid);
-        if (entry == null) return;
+        if (entry == null) return null;
         var menu = p.containerMenu();
-        if (menu == null || menu.containerId != containerId || !(menu instanceof org.domi.furnace.server.menu.RecipeBookMenu rbm)) return;
+        if (menu == null || menu.containerId != containerId || !(menu instanceof org.domi.furnace.server.menu.RecipeBookMenu rbm)) return null;
         int[] bp = menu.containerBlockPos();
         Runnable body = () -> {
-            if (p.containerMenu() != menu) return;
+            if (p.containerMenu() != menu || p.vitals().isDeadOrDying()) return;   // 큐에서 기다리는 사이 닫혔거나 죽었다
             if (p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) { menu.sendAllDataToRemote(); return; }
             if (!menu.stillValid(menus)) { log.debug("Player {} interacted with invalid menu {}", p.name(), menu); return; }
             rbm.beginPlacingRecipe();
@@ -2430,18 +2454,18 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             menu.broadcastChanges();
         };
         if (bp == null) {
-            synchronized (p.menuLock()) { body.run(); }
-        } else {
-            world.runAt(bp[0], bp[2], region -> runOnBlockRegion(region, p, menu, bp, body));
+            synchronized (p.menuLock()) { body.run(); }   // 인벤토리 줄(지금 스레드)
+            return null;
         }
+        return runOnMenuBlock(here, p, menu, bp, body);
     }
 
     /** 바닐라 handleSelectTrade: 열린 창이 상인 거래이면 고른 거래의 재료를 지불 칸으로 옮겨 준다. */
     private void handleSelectTrade(Player p, int index) {
         var menu = p.containerMenu();
         if (!(menu instanceof org.domi.furnace.server.menu.MerchantMenu merchantMenu)) return;
-        synchronized (p.menuLock()) {
-            if (p.containerMenu() != menu) return;
+        synchronized (p.menuLock()) {   // 인벤토리 줄(지금 스레드)
+            if (p.containerMenu() != menu || p.vitals().isDeadOrDying()) return;
             if (!merchantMenu.stillValid(menus)) {
                 log.debug("Player {} interacted with invalid menu {}", p.name(), menu);
                 return;
@@ -2744,9 +2768,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     /** 바닐라 handleContainerButtonClick: 열린 창이 맞고 관전자가 아니며 유효하면 clickMenuButton, 바뀌었으면 broadcastChanges. */
-    private void handleContainerButtonClick(Player p, int containerId, int buttonId) {
+    private java.util.concurrent.CompletableFuture<?> handleContainerButtonClick(org.domi.furnace.server.world.Region here, Player p, int containerId, int buttonId) {
         var menu = p.containerMenu();
-        if (menu == null || menu.containerId != containerId) return;
+        if (menu == null || menu.containerId != containerId) return null;
         Runnable body = () -> {
             if (p.containerMenu() != menu) return;
             if (p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR || p.vitals().isDeadOrDying()) return;
@@ -2758,10 +2782,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         };
         int[] bp = menu.containerBlockPos();
         if (bp == null) {
-            synchronized (p.menuLock()) { body.run(); }
-        } else {
-            world.runAt(bp[0], bp[2], region -> runOnBlockRegion(region, p, menu, bp, body));
+            synchronized (p.menuLock()) { body.run(); }   // 인벤토리 줄(지금 스레드)
+            return null;
         }
+        return runOnMenuBlock(here, p, menu, bp, body);
     }
 
     private void applyContainerClick(Player p, org.domi.furnace.server.menu.AbstractContainerMenu menu, int stateId, int slotNum, int button,
@@ -2798,6 +2822,19 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             log.warn("컨테이너 클릭 처리 중 오류({}), 연결 종료: {}", menu, e.toString());
             closeFlushed(ctx);
         }
+    }
+
+    /**
+     * 인벤토리 줄에서 확인한 블록 창 작업: 그 블록 칸의 주인이 지금 region 이면 바로 돌려 줄의 순서를 지키고(같은 region 이 보통이다),
+     * 아니면 그 블록의 region 으로 넘기고 그 Future 를 돌려준다 — 줄은 use_item_on 처럼 끝날 때까지 멈춘다(뒤 패킷이 앞지르지 않게).
+     */
+    private java.util.concurrent.CompletableFuture<?> runOnMenuBlock(org.domi.furnace.server.world.Region here, Player p,
+            org.domi.furnace.server.menu.AbstractContainerMenu menu, int[] bp, Runnable body) {
+        if (here != null && here.isOwnerThread() && world.regionizer().ownerOf(bp[0] >> 4, bp[2] >> 4) == here) {
+            runOnBlockRegion(here, p, menu, bp, body);
+            return null;
+        }
+        return forwardToBlockRegion(bp[0], bp[2], region -> runOnBlockRegion(region, p, menu, bp, body));
     }
 
     /** 블록에 매인 창의 작업을 그 블록의 region 스레드에서 돌린다 — 청크가 내려갔거나 창이 바뀌었으면 body 를 돌리지 않는다. */
@@ -2983,17 +3020,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     /** 바닐라 handleContainerClose → ServerPlayer.doCloseContainer. */
-    private void handleContainerClose(Player p) {
+    private java.util.concurrent.CompletableFuture<?> handleContainerClose(org.domi.furnace.server.world.Region here, Player p) {
         var menu = p.containerMenu();
         int[] bp = menu.containerBlockPos();
         Runnable close = () -> {
             if (p.containerMenu() == menu) doCloseContainer(p);
         };
         if (bp == null) {
-            synchronized (p.menuLock()) { close.run(); }
-        } else {
-            world.runAt(bp[0], bp[2], region -> runOnBlockRegion(region, p, menu, bp, close));
+            synchronized (p.menuLock()) { close.run(); }   // 인벤토리 줄(지금 스레드)
+            return null;
         }
+        return runOnMenuBlock(here, p, menu, bp, close);
     }
 
     /** ServerPlayer.doCloseContainer: 창의 removed(커서·제작 격자 돌려주기) → 동기 상태를 인벤토리 창에 넘기고 인벤토리 창으로 돌아간다. */
@@ -3311,7 +3348,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         synchronized (p.menuLock()) {
             if (p.hasOpenContainer()) closeContainer(p);
         }
-        // 이벤트 루프는 패킷(버리기·창 클릭)과 같은 스레드라 여기서 본 인벤토리는 정확하다. 죽는 순간 뜬 목록과 맞춰 그 사이 일어난 일을 바로잡는다.
+        // 버리기·창 클릭은 인벤토리 줄(region)에서 죽음을 확인하고 돌므로 죽은 뒤에는 인벤토리를 바꾸지 않는다. 죽는 순간 뜬 목록과 맞춰 그 사이 일어난 일을 바로잡는다.
         java.util.Set<ItemStack> original = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         if (originals != null) original.addAll(originals);
         java.util.Set<ItemStack> present = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
@@ -3344,10 +3381,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
     }
 
-    /** ServerPlayer.drop(all): 든 칸에서 하나(또는 다) 꺼내 던진다. 열린 창에서 그 칸을 찾아, 클라이언트가 이미 비운 값을 아는 것으로 맞춘다(setRemoteSlot). */
-    private void dropFromSelected(boolean all) {
-        Player p = player;
-        if (p != null && p.vitals().isDeadOrDying()) return;   // 죽은 플레이어의 버리기는 무시(Paper isImmobile) — 사망 드롭을 가져간 무덤 플러그인과 바닥에 둘 다 생기는 복제를 막는다
+    /**
+     * ServerPlayer.drop(all), 인벤토리 줄(플레이어 region 스레드)에서: 든 칸에서 하나(또는 다) 꺼내 바로 던진다(바닐라처럼 칸 줄이기·
+     * PlayerDropItemEvent·던지기가 한 차례 — 취소면 그 자리에서 칸으로 돌아간다). 열린 창에서 그 칸을 찾아, 클라이언트가 이미 비운 값을
+     * 아는 것으로 맞춘다(setRemoteSlot).
+     */
+    private void dropFromSelected(org.domi.furnace.server.world.Region region, Player p, boolean all) {
+        if (p.vitals().isDeadOrDying()) return;   // 죽은 플레이어의 버리기는 무시(Paper isImmobile) — 사망 드롭을 가져간 무덤 플러그인과 바닥에 둘 다 생기는 복제를 막는다
         int ws = inv.heldWindowSlot();
         ItemStack held = inv.get(ws);
         ItemStack left = held;
@@ -3356,19 +3396,114 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             left = held.withCount(held.count() - n);
             // 죽음 확인과 칸 바꾸기를 인벤토리 잠금 안에서 함께 한다: 사망 스냅샷(같은 잠금)이 먼저면 이 확인에서 막히고, 이 바꾸기가 먼저면 스냅샷에 반영된다
             synchronized (inv) {
-                if (p != null && p.vitals().isDeadOrDying()) return;
+                if (p.vitals().isDeadOrDying()) return;
                 if (!inv.replace(ws, held, left)) return;
             }
-            fireInventoryChanged(ws);
-            spawnDrop(held.withCount(n), false, true);
+            ctx.channel().eventLoop().execute(() -> fireInventoryChanged(ws));
+            region.playerDrop(p, held.withCount(n), false, true);
         }
-        if (p != null && p.containerMenu() != null) {
+        if (p.containerMenu() != null) {
             synchronized (p.menuLock()) {
                 var menu = p.containerMenu();
                 int idx = menu.findSlot(p.inventoryMenu().inventoryContainer(), inv.selected());
                 if (idx >= 0) menu.setRemoteSlot(idx, left);
             }
         }
+    }
+
+    /** 인벤토리 줄의 작업 하나. 다른 region 으로 넘겨 끝을 기다려야 하면 그 Future 를, 아니면 null 을 돌려준다(그동안 줄은 멈춘다). */
+    @FunctionalInterface
+    private interface LineTask {
+        java.util.concurrent.CompletableFuture<?> run(org.domi.furnace.server.world.Region region);
+    }
+
+    /**
+     * 플레이어 인벤토리 줄(A04): 이 연결의 인벤토리·손·고른 칸을 만지는 패킷 처리(버리기·손 바꾸기·고른 칸·창 클릭·크리에이티브 칸·책 쓰기,
+     * 블록 설치·아이템 사용·엔티티 상호작용·사용 끝)와 퇴장 저장을 받은 순서대로 한 번에 하나씩 돌린다. 비우기 차례마다 그때 플레이어가 선 칸의
+     * region 스레드에서 돈다 — region 나누기·합치기·텔레포트로 칸 주인이 바뀌어도 같은 플레이어 작업은 겹치지도 앞지르지도 않는다(바닐라는 한
+     * 서버 스레드가 패킷을 받은 순서대로). 작업 안에서 손 스택을 읽으므로 "읽어 둔 손"과 다른 쓰기가 섞이는 틈이 없다.
+     */
+    private final class InventoryLine {
+        private final java.util.concurrent.ConcurrentLinkedQueue<LineTask> queue = new java.util.concurrent.ConcurrentLinkedQueue<>();
+        private final java.util.concurrent.atomic.AtomicBoolean scheduled = new java.util.concurrent.atomic.AtomicBoolean();
+        /** 비우기 차례를 보낼 칸의 기준(가장 최근에 넣은 작업의 플레이어). */
+        private volatile Player owner;
+
+        void submit(Player p, LineTask t) {
+            owner = p;
+            queue.add(t);
+            schedule();
+        }
+
+        private void schedule() {
+            while (!queue.isEmpty() && scheduled.compareAndSet(false, true)) {
+                Player p = owner;
+                World w = world;
+                try {
+                    w.runAt(p.x(), p.z(), this::drain);
+                    return;
+                } catch (java.util.concurrent.RejectedExecutionException e) {   // 내린 월드 — 돌릴 곳이 없다(퇴장 저장은 스스로 대신 뜬다)
+                    log.debug("내린 월드라 인벤토리 작업 {}개를 버린다: {}", queue.size(), p.name());
+                    queue.clear();
+                    scheduled.set(false);
+                }
+            }
+        }
+
+        /** 한 차례: 지금 region 에서 차례로 돌린다. 다른 region 으로 넘긴 작업이 있으면 그 끝까지 멈췄다가 다음 차례를 보낸다. */
+        private void drain(org.domi.furnace.server.world.Region region) {
+            for (int n = 0; n < LINE_BATCH; n++) {
+                LineTask t = queue.poll();
+                if (t == null) break;
+                java.util.concurrent.CompletableFuture<?> wait = null;
+                try {
+                    wait = t.run(region);
+                } catch (Throwable e) {   // Error 도 잡는다 — 놓치면 scheduled 가 참으로 남아 이 연결의 줄이 영원히 멈춘다
+                    log.warn("인벤토리 줄 작업 실패({})", owner == null ? "?" : owner.name(), e);
+                }
+                if (wait != null && !wait.isDone()) {
+                    wait.whenComplete((v, e) -> { scheduled.set(false); schedule(); });
+                    return;
+                }
+            }
+            scheduled.set(false);
+            schedule();
+        }
+    }
+
+    /** 인벤토리 줄 한 차례에 돌리는 작업 수 상한(넘으면 다음 차례로 — region 의 다른 작업을 굶기지 않게). */
+    private static final int LINE_BATCH = 256;
+
+    private final InventoryLine inventoryLine = new InventoryLine();
+
+    /** 인벤토리 줄에 넣는다(InventoryLine). 끊긴 뒤 꺼낸 작업은 버린다(바닐라 PacketUtils: 연결이 닫히면 남은 패킷을 처리하지 않는다). */
+    private void onLine(Player p, java.util.function.Consumer<org.domi.furnace.server.world.Region> task) {
+        inventoryLine.submit(p, region -> {
+            if (!p.isDisconnected()) task.accept(region);
+            return null;
+        });
+    }
+
+    /** onLine 과 같되, 작업이 다른 region 으로 넘긴 일의 Future 를 돌려주면 그 끝까지 줄을 멈춘다(블록 창 작업). */
+    private void onLineAwait(Player p, java.util.function.Function<org.domi.furnace.server.world.Region, java.util.concurrent.CompletableFuture<?>> task) {
+        inventoryLine.submit(p, region -> p.isDisconnected() ? null : task.apply(region));
+    }
+
+    /** 블록 (bx, bz) 의 region 으로 넘기고, 그 작업이 끝나면 완료되는 Future 를 돌려준다(내린 월드면 null — 줄을 멈추지 않는다). */
+    private java.util.concurrent.CompletableFuture<Void> forwardToBlockRegion(int bx, int bz, java.util.function.Consumer<org.domi.furnace.server.world.Region> task) {
+        java.util.concurrent.CompletableFuture<Void> done = new java.util.concurrent.CompletableFuture<>();
+        try {
+            world.runAt(bx, bz, region -> {
+                try {
+                    task.accept(region);
+                } finally {
+                    done.complete(null);
+                }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            return null;
+        }
+        return done;
     }
 
     /** 플러그인 이벤트 입구(코어가 없는 시험 연결은 NONE). */
@@ -4000,19 +4135,21 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     /**
      * 바닐라 ServerGamePacketListenerImpl.handleUseItemOn. 클릭한 칸의 region 스레드에서 거리·위치 검사 → useItemOn →
      * 클릭 칸과 면 너머 칸의 블록 갱신을 바로 보내고, ack 는 그 region 의 틱 끝(변경 방송 뒤)에 보낸다.
-     * 손의 스택은 지금(연결 스레드) 잡은 사본으로 쓰고, 바뀐 손은 돌아와서 그 칸이 그대로일 때만 반영한다.
+     * 고른 칸과 손의 스택은 그 region 작업 안에서 읽는다 — 버리기·창 클릭·고른 칸 바꾸기도 같은 인벤토리 줄(onLine)에서 받은 순서대로 돌므로
+     * 앞서 받은 것은 이미 반영돼 있고 뒤에 받은 것은 이 설치가 끝난 뒤에 돈다(A04-01). 바뀐 손은 그 칸이 그대로일 때만 반영한다.
      */
     private void handleUseItemOn(ChannelHandlerContext ctx, Player actor, int hand, int[] bp, int face,
                                  float cx, float cy, float cz, boolean inside, int seq) {
-        final int heldSlot = 36 + inv.selected();
-        final int handSlot = hand == 0 ? heldSlot : 45;
-        final ItemStack main = inv.get(heldSlot), off = inv.get(45);
-        final ItemStack before = hand == 0 ? main : off;
         org.domi.furnace.server.ServerCore core = login.core;
         int permission = core == null ? 0 : core.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(actor));
         var pos = new org.domi.furnace.server.block.Pos(bp[0], bp[1], bp[2]);
         var hit = new org.domi.furnace.server.block.Hit(pos, face, bp[0] + (double) cx, bp[1] + (double) cy, bp[2] + (double) cz, inside);
-        world.runAtRequested(bp[0], bp[2], actor.x(), actor.z(), region -> {
+        java.util.function.Consumer<org.domi.furnace.server.world.Region> use = region -> {
+            if (actor.isDisconnected()) return;   // 끊긴 뒤 큐에서 꺼낸 패킷은 버린다(바닐라) — 퇴장 저장 뒤에 월드만 바뀌지 않게(A04-02)
+            final int heldSlot = 36 + inv.selected();
+            final int handSlot = hand == 0 ? heldSlot : 45;
+            final ItemStack main = inv.get(heldSlot), off = inv.get(45);
+            final ItemStack before = hand == 0 ? main : off;
             var level = region.level();
             level.ackBlockChangesUpTo(actor, seq);
             ItemStack head = inv.get(5);
@@ -4119,6 +4256,18 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 ItemStack expect = pa.originalArmor(ws), now = pa.equipment(ws);
                 inv.replace(slot, expect, now);
             }
+        };
+        // 인벤토리 줄에서(A04-01): 클릭한 칸의 주인이 지금 region 이거나 없으면(플레이어 칸 region 이 "로드 안 된 칸"으로 본다) 바로,
+        // 다른 region 이면 그쪽으로 넘기고 끝날 때까지 줄을 멈춘다 — 뒤에 받은 버리기·창 클릭이 이 설치를 앞지르지 않게.
+        inventoryLine.submit(actor, here -> {
+            if (actor.isDisconnected()) return null;
+            World w = world;
+            var owner = w.regionizer().ownerOf(bp[0] >> 4, bp[2] >> 4);
+            if (owner == null || owner == here) {
+                use.accept(here);
+                return null;
+            }
+            return forwardToBlockRegion(bp[0], bp[2], use);
         });
     }
 
@@ -4224,10 +4373,50 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 iyaw = (float) standUp[3]; ipitch = 0.0F;
                 ig = true;
             }
-            savePlayerSnapshot();
-            p.markDisconnected(); // 소유 region이 다음 틱에 정리(라우팅 불필요)
+            p.markDisconnected(); // 소유 region이 다음 틱에 정리(라우팅 불필요). 이제부터 인벤토리 줄에서 꺼낸 패킷 작업은 버려진다
+            saveOnLine(p);
             world.playerOffline(p.entityId());   // adopt 전에 끊긴 경우에도 접속자 집합에서 즉시 제거(누수 방지, 관찰자는 다음 틱에 탭 제거)
         }
+    }
+
+    /** 퇴장 저장이 인벤토리 줄에서 이만큼 안에 돌지 않으면(그 region 이 멈췄다) 아무 스레드에서나 뜬다. */
+    static final long QUIT_SAVE_LINE_TIMEOUT_MS = 5_000L;
+
+    /**
+     * 퇴장 저장(A04-02·03): 끊기기 전에 받아 인벤토리 줄에 넣은 패킷 작업(설치·버리기·창 클릭)이 다 끝난 뒤에 뜨도록 저장도 그 줄 끝에 넣는다.
+     * 지금 돌고 있는 작업은 끝까지 가고, 아직 안 돈 작업은 끊긴 것을 보고 버려진다 — 저장된 인벤토리와 월드가 늘 맞는다(바닐라는 끊김 처리와
+     * 패킷 처리가 같은 서버 스레드). 위치는 지금(이벤트 루프의 IO 위치)·순서 번호도 지금 받는다 — 늦게 뜬 저장이 새 접속의 저장을 덮지 못하게.
+     * 그 사이 같은 UUID 의 다시 접속 읽기는 이 저장이 IO 에 들어갈 때까지 기다린다(PlayerData.reserveSave). 줄에 넣지 못하면 바로 뜬다.
+     */
+    private void saveOnLine(Player p) {
+        final double sx = ix, sy = iy, sz = iz;
+        final float syaw = iyaw, spitch = ipitch;
+        final boolean sg = ig;
+        final long seq = org.domi.furnace.server.entity.PlayerData.nextSeq();
+        final World w = world;
+        final Runnable release = org.domi.furnace.server.entity.PlayerData.reserveSave(w.worldDir(), p.uuid());
+        final java.util.concurrent.atomic.AtomicBoolean done = new java.util.concurrent.atomic.AtomicBoolean();
+        Runnable save = () -> {
+            if (!done.compareAndSet(false, true)) return;
+            try {
+                writePlayerSnapshot(p, w, sx, sy, sz, syaw, spitch, sg, seq);
+            } finally {
+                release.run();
+            }
+        };
+        if (w.isUnloaded() || w.regionizer().isClosed()) {   // 내린 월드·멈춘 region — 줄이 없다
+            save.run();
+            return;
+        }
+        inventoryLine.submit(p, r -> {   // 줄 끝: 앞서 넣은 작업이 다 돈 뒤(끊긴 뒤 꺼낸 것은 버려진다)
+            save.run();
+            return null;
+        });
+        java.util.concurrent.CompletableFuture.delayedExecutor(QUIT_SAVE_LINE_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS).execute(() -> {
+            if (done.get()) return;
+            log.warn("퇴장 저장이 {}ms 안에 플레이어 region 에서 돌지 않아 지금 뜬다: {}", QUIT_SAVE_LINE_TIMEOUT_MS, p.name());
+            save.run();
+        });
     }
 
     /**
@@ -4237,10 +4426,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void savePlayerSnapshot() {
         Player p = player;
         if (p == null) return;
+        // IO 전용 최신 위치(Player.x()는 region drain 전이면 0,0,0)
+        writePlayerSnapshot(p, world, ix, iy, iz, iyaw, ipitch, ig, org.domi.furnace.server.entity.PlayerData.nextSeq());
+    }
+
+    /** 인벤토리·나머지 필드를 지금 떠서 플레이어 데이터 직렬 실행기에 넣는다. 위치·순서 번호는 부르는 쪽이 뜬 값. 어느 스레드에서나. */
+    private void writePlayerSnapshot(Player p, World world, double sx, double sy, double sz, float syaw, float spitch, boolean sg, long seq) {
         final ItemStack[] snapshot = inv.snapshot();
-        final double sx = ix, sy = iy, sz = iz;     // IO 전용 최신 위치(Player.x()는 region drain 전이면 0,0,0)
-        final float syaw = iyaw, spitch = ipitch;
-        final boolean sg = ig;
         final var extra = p.vitals().saveData();
         extra.putInt("SelectedItemSlot", inv.selected());
         if (org.domi.furnace.server.entity.PlayerData.hasItemRegistry()) {   // 엔더 상자(바닐라 EnderItems)
@@ -4254,7 +4446,6 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         p.saveShoulders(extra);
         p.saveFire(extra);
         p.saveAttributes(extra);
-        final long seq = org.domi.furnace.server.entity.PlayerData.nextSeq();
         final var advancements = p.advancements();
         final var statsToSave = p.stats();
         try {
@@ -4304,10 +4495,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     private void scheduleKeepAlive() {
         // 타이밍은 global 스케줄러로(설계 결정), 실제 전송/검사는 채널 eventLoop로 되돌림.
-        scheduler.global().executeDelayed(() -> {
+        // 바닐라 keepConnectionAlive 는 Util.getMillis() 로 15초를 잰다(벽시계) — /tick rate 가 낮아도 클라이언트가 시간 초과로 끊기지 않게
+        org.domi.furnace.server.sched.GlobalThread.executeAfterMillis(scheduler.global(), () -> {
             if (ctx == null || !ctx.channel().isActive()) return;
             ctx.channel().eventLoop().execute(this::sendKeepAlive);
-        }, 300); // 15초(300틱)
+        }, 15_000);
     }
 
     private void sendKeepAlive() {

@@ -41,7 +41,7 @@ public final class AsyncChatEvent extends PlayerEvent implements Cancellable {
      * @param online 처음 받는 사람 — recipients() 를 처음 부를 때 한 번 읽는다(건드리지 않는 채팅은 사본을 만들지 않는다)
      */
     public AsyncChatEvent(Player player, String originalMessage, Text message, byte[] signature, Supplier<? extends Collection<? extends Player>> online) {
-        super(player);
+        super(player, true);   // 연결 스레드에서 불린다 — Paper AsyncChatEvent 처럼 비동기
         this.online = online;
         this.originalMessage = originalMessage;
         this.message = message;

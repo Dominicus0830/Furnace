@@ -4,14 +4,15 @@
 
 ## 이벤트 발화 스레드
 - `Event.isAsync()` — 기본 false. 동기 이벤트는 그 칸·엔티티를 가진 region(또는 전역) 스레드에서 불린다. 다른 region 것을 바로 만지면 `ThreadOwnershipException`.
-- 비동기 이벤트(`super(true)`)는 어느 스레드에서든 불릴 수 있으니 처리기는 월드·엔티티를 스케줄러로 넘겨 만진다.
+- 비동기 이벤트(`super(true)`)는 어느 스레드에서든 불릴 수 있으니 처리기는 월드·엔티티를 스케줄러로 넘겨 만진다. 이름이 `Async` 로 시작하는 `AsyncPlayerPreLoginEvent`·`AsyncPlayerConfigureEvent`·`AsyncChatEvent` 가 이것이다(Paper 와 같다, A14-03).
+- 연결 스레드 이벤트: `PlayerHandshakeEvent`·`PlayerLoginEvent`·`PlayerCreateEvent`·`PlayerSpawnLocationEvent`·`PlayerJoinEvent`·`PlayerQuitEvent`·`PlayerRespawnEvent`·채팅 명령의 `PlayerCommandPreprocessEvent`·`PlayerChannelEvent`·`PluginMessageEvent`·`ServerListPingEvent` 는 그 연결의 네트워크 스레드에서 불린다. Paper 에서 동기라 `isAsync()` 는 false 로 두지만 region/전역 스레드는 아니므로, 월드·엔티티는 비동기 이벤트처럼 스케줄러(`player.scheduler()` 등)로 넘긴다.
 - 우선순위 합성: MONITOR 처리기가 `Cancellable` 의 취소 상태를 바꾸면 처리기마다 한 번 경고한다(다른 우선순위는 검사 비용 없음).
 
 ## 디스패치
 `@Subscribe` 메서드는 `LambdaMetafactory` 호출 지점으로 만든다(비공개·상위 클래스 메서드 포함, 실패하면 `MethodHandle`). 구독자가 없으면 이벤트 객체를 만들지 않는 기존 규칙은 그대로.
 
 ## 자동 정리
-플러그인이 꺼지면 코어가 구독·예약 작업·명령·권한 첨부·플러그인 채널을 해제한다. 그 밖의 자원(열린 메뉴·핸들)은 `FurnacePlugin.own(AutoCloseable)` 로 맡기면 `onDisable` 뒤 등록 역순으로 닫힌다(꺼진 뒤에 맡기면 바로 닫는다).
+플러그인이 꺼지면 코어가 구독·예약 작업·명령·권한 첨부·플러그인 채널·스폰 필터를 해제한다. 예약 작업은 `tasks()` 로 건 것뿐 아니라 `server().scheduler()`·`entity.scheduler()` 로 바로 건 것도 꺼진 뒤에는 돌지 않고, 반복 작업은 다음 차례에 스스로 취소된다(A14-02). 비동기 실행기(`asyncExecutor()`)에 넘긴 작업은 그대로 돈다. 꺼진 플러그인의 명령은 Bukkit 처럼 "플러그인이 꺼져 있다"며 거부한다(A14-08). 그 밖의 자원(열린 메뉴·핸들)은 `FurnacePlugin.own(AutoCloseable)` 로 맡기면 `onDisable` 뒤 등록 역순으로 닫힌다(꺼진 뒤에 맡기면 바로 닫는다).
 
 ## furnace.properties 키
 | 키 | 기본 | 뜻 |

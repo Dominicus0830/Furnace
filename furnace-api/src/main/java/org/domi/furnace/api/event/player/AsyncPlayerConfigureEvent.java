@@ -16,6 +16,7 @@ public final class AsyncPlayerConfigureEvent extends Event {
     private Text kickMessage = Text.empty();
 
     public AsyncPlayerConfigureEvent(PlayerConnection connection) {
+        super(true);   // 가상 스레드에서 불린다
         this.connection = Objects.requireNonNull(connection, "connection");
     }
 

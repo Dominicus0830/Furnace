@@ -29,9 +29,18 @@ public abstract class FurnacePlugin {
         this.tasks = new PluginTasks(this, ctx.server().scheduler(), ctx.server().asyncExecutor(), ctx.server().profiler());
     }
 
-    /** 로더 전용 — 켜짐 상태를 바꾸고 수명 함수를 부른다. */
+    /**
+     * 로더 전용 — 켜짐 상태를 바꾸고 수명 함수를 부른다. 로더가 아닌 곳(플러그인 자신이나 다른 플러그인)에서 부르면 플러그인 관리자의
+     * enable/disable 로 넘긴다 — 수명 함수만 돌고 명령·구독·티켓 같은 자동 정리가 빠지는 일이 없게(A14-08).
+     */
     public final void setEnabled(boolean v) {
         if (enabled == v) return;
+        PluginContext ctx = context;
+        if (ctx != null && !loaderCall(ctx)) {
+            if (v) ctx.server().plugins().enable(this);
+            else ctx.server().plugins().disable(this);
+            return;
+        }
         if (v) {
             synchronized (owned) { closing = false; }
             enabled = true;
@@ -45,6 +54,15 @@ public abstract class FurnacePlugin {
                 synchronized (owned) { closing = true; }
                 closeOwned();
             }
+        }
+    }
+
+    /** 문맥이 답하지 못하면(java.lang.reflect.Proxy 로 만든 시험용 문맥이 null 을 돌려주는 등) 로더 호출로 본다. */
+    private static boolean loaderCall(PluginContext ctx) {
+        try {
+            return ctx.lifecycleCall();
+        } catch (RuntimeException e) {
+            return true;
         }
     }
 

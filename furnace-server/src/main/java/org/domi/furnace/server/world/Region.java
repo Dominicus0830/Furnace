@@ -279,7 +279,31 @@ public final class Region {
         evictGrace.putAll(o.evictGrace);
         o.evictGrace.clear();
         if (o.level != null) level().absorbFrom(o.level);
+        mergeStepsFrom(o);
     }
+
+    /**
+     * /tick step 남은 걸음 합치기(A03-03): 바닐라는 서버 틱 하나로 세어 step 동안 올라와 있는 모든 엔티티가 남은 걸음을 다 받는다. 예전엔
+     * 흡수하는 쪽 값만 남아, step 도중 생긴 새 region(걸음 0, 참여 안 함)이 원래 region 을 흡수하면 원래 엔티티가 남은 걸음을 잃고 멈췄다.
+     * 참여하는 쪽(이번 세대를 아직 안 봤거나 처음부터 받은 region)의 값을 쓴다. 둘 다 참여하면 Regionizer.stepCompatible 이 같은 박자의
+     * 한 걸음 차이는 한 번 미뤄 같게 만든다 — 그래도 다르면(박자가 밀린 region, 양보한 region) 많이 남은 쪽(잃는 것보다 낫다).
+     */
+    private void mergeStepsFrom(Region o) {
+        TickState ts = world.tickState();
+        int g = ts.generation();
+        boolean jm = stepParticipates(g), jo = o.stepParticipates(g);
+        int left;
+        if (jm && jo) left = Math.max(stepLeftAt(g, ts), o.stepLeftAt(g, ts));
+        else if (jm) left = stepLeftAt(g, ts);
+        else if (jo) left = o.stepLeftAt(g, ts);
+        else left = Math.max(stepsLeft, o.stepsLeft);   // 둘 다 step 도중 생긴 region(보통 0)
+        inheritSteps(g, left, jm || jo);
+    }
+
+    /** 세대 g 의 step 에 참여하나: 아직 이 세대를 못 봤으면(다음 틱에 요청 걸음을 다 채운다) 또는 처음부터 받았으면. */
+    private boolean stepParticipates(int g) { return stepGeneration != g || stepJoined; }
+
+    private int stepLeftAt(int g, TickState ts) { return stepGeneration != g ? ts.requestedSteps() : stepsLeft; }
 
     /** targetOf(청크 키) 가 null 이면 이 region 에 남는다. */
     void splitData(List<Region> created, LongFunction<Region> targetOf) {
@@ -1138,15 +1162,36 @@ public final class Region {
     long manualDone;
     boolean manualPass;
 
-    /** /tick step: 이 region 이 본 step 세대와 남은 걸음(region 스레드 전용). */
+    /** /tick step: 이 region 이 본 step 세대와 남은 걸음, 이번 세대에 처음부터 참여했는지(region 스레드 전용 — 쉬는 동안 잠금 안에서 이어받기). */
     private int stepGeneration;
     private int stepsLeft;
+    private boolean stepJoined;
+    /** 틱 뒤(Regionizer 잠금 안)에 남기는 요약: 본 세대, 참여 여부, 남은 걸음 — 병합 판정(stepCompatible)이 잠금 안에서 읽는다. */
+    int stepSeen;
+    boolean stepJoinedSummary;
+    int stepLeftSummary;
 
     /** 새 region 이 /tick step 상태를 이어받는다: 생성 시점 세대(남은 걸음 0) 또는 나눈 부모의 세대·남은 걸음. */
     void inheritSteps(int generation, int left) {
+        inheritSteps(generation, left, left > 0);
+    }
+
+    /** joined: 이 세대 step 에 참여 중인지(나눈 부모·합친 상대에게서 이어받는다). 요약도 함께 맞춘다(잠금 안). */
+    void inheritSteps(int generation, int left, boolean joined) {
         this.stepGeneration = generation;
         this.stepsLeft = left;
+        this.stepJoined = joined;
+        updateStepSummary();
     }
+
+    /** 요약 갱신(Regionizer 잠금 안, region 이 쉬는 동안). */
+    void updateStepSummary() {
+        stepSeen = stepGeneration;
+        stepJoinedSummary = stepJoined;
+        stepLeftSummary = stepsLeft;
+    }
+
+    boolean stepJoined() { return stepJoined; }
 
     int stepGeneration() { return stepGeneration; }
 
@@ -1216,6 +1261,7 @@ public final class Region {
         if (stepGeneration != tickState.generation()) {
             stepGeneration = tickState.generation();
             stepsLeft = tickState.requestedSteps();
+            stepJoined = true;   // 이 세대가 시작될 때 있던 region — 걸음을 처음부터 받는다
         }
         if (frozen && stepsLeft > 0) {
             stepsLeft--;
@@ -1229,10 +1275,10 @@ public final class Region {
         }
         if (level != null) {   // 바닐라 ServerLevel.tick: 블록·유체 예약 틱 → 청크 틱(무작위 틱) → 청크 변경 방송 → 블록 이벤트 → 엔티티
             int n = frozen ? 0 : collectTickingChunks();
-            // 판정(바닐라 1.21.1): 무작위 틱 = TickingTracker ≤ 32(randomTicking), 블록 엔티티 = blockEntityTicking, 엔티티 섹션 = ChunkHolder
+            // 판정(바닐라 1.21.1): 무작위 틱 = TickingTracker ≤ 32(randomTicking), 예약 틱·블록 엔티티 = blockTicking, 블록 이벤트 = blockEventTicking, 엔티티 섹션 = ChunkHolder
             // ENTITY_TICKING(시야 거리 — 버리기·사라짐 검사), 엔티티 틱 = TickingTracker ≤ 31(시뮬레이션 거리 — 엔티티 tick·추적)
             level.tickBlocks(tickingChunks, n, frozen ? 0 : spawnChunkCount, frozen || n == 0 ? 0 : naturalSpawnChunkCount(), this::randomTicking,
-                    this::blockEntityTicking, k -> naturalSpawningAllowed(Regionizer.chunkX(k), Regionizer.chunkZ(k)), this::entityTicking,
+                    this::blockTicking, this::blockEventTicking, k -> naturalSpawningAllowed(Regionizer.chunkX(k), Regionizer.chunkZ(k)), this::entityTicking,
                     pl -> players.containsKey(pl.entityId()), frozen);
             lap(0);
             level.runLightUpdates();
@@ -1269,6 +1315,7 @@ public final class Region {
             tickCamera(p);
             // 바닐라 ChunkMap.move — 이동 패킷마다 엔티티 보임을 다시 본다(탄 동안은 회전 패킷이 매 틱 온다)
             double tickX = p.x(), tickZ = p.z();   // 바닐라 xOld·zOld(틱 머리 setOldPosAndRot)
+            p.resetInPowderSnowTick();   // baseTick: isInPowderSnow = false — 아래 서버 move 의 checkInsideBlocks 가 다시 켠다
             boolean moved = processMoves(p);
             if ((moved || p.vehicle() != null) && level != null) level.playerMoved(p);
             if (p.vehicle() == null) {   // 바닐라는 연결 틱마다 서버에서 travel→move 를 한 번 돌린다: 움직이지 않아도 불 블록 안이면 불 틱이 오르고, 끝에서 불이 꺼진다
@@ -1602,6 +1649,14 @@ public final class Region {
     }
 
     /**
+     * ServerChunkCache.tickChunks 의 무작위 틱 조건 ServerLevel.shouldTickBlocksAt(long) = DistanceManager.inBlockTickingRange(TickingTracker 레벨 ≤ 32).
+     * 블록 이벤트와 같은 판정({@link #inBlockTickingRange}). 키는 Regionizer.chunkKey.
+     */
+    boolean randomTicking(long key) {
+        return inBlockTickingRange(Regionizer.chunkX(key), Regionizer.chunkZ(key), false);
+    }
+
+    /**
      * 티켓을 다는 플레이어(바닐라 DistanceManager.addPlayer — ChunkMap.skipPlayer 가 아닌: 관전자는 spectatorsGenerateChunks 일 때만) 중
      * 그 청크에서 체비셰프 range 안인 사람이 있는가. 시야 티켓·TickingTracker·스폰 수 세기가 모두 이 플레이어 집합을 쓴다.
      */
@@ -1629,25 +1684,6 @@ public final class Region {
         if (world.entityTicketed(cx, cz) || world.pluginTicking(cx, cz)) return true;   // 포털·드래곤·플러그인 티켓
         int sim = Math.max(world.levelServices().simulationDistance(), 2);
         return ticketPlayerWithin(cx, cz, Math.min(31 - Math.max(0, 31 - sim), Math.clamp(world.viewDistance(), 2, 32)));
-    }
-
-    /**
-     * ServerLevel.shouldTickBlocksAt(long) = DistanceManager.inBlockTickingRange: TickingTracker 레벨 < 33. 플레이어 티켓 레벨이 31 − 시뮬레이션 거리라
-     * 체비셰프 ≤ 시뮬레이션 거리 + 1(관전자는 spectatorsGenerateChunks 일 때만). 강제 로드·플러그인 티켓은 그 청크와 둘레 1칸, 포털 티켓도.
-     */
-    boolean randomTicking(long key) {
-        int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
-        var forced = world.forcedChunksOrNull();
-        boolean anyForced = forced != null && forced.size() > 0;
-        for (int dz = -1; dz <= 1; dz++) {   // /forceload·플러그인 ticking 티켓(레벨 31)은 둘레 1칸까지 32 로 퍼진다(A10 검토 R3)
-            for (int dx = -1; dx <= 1; dx++) {
-                if (anyForced && forced.contains(cx + dx, cz + dz) || world.pluginTicking(cx + dx, cz + dz)) return true;
-            }
-        }
-        // 포털·드래곤 티켓: 엔티티 틱 범위로 본다(블록 틱 범위는 한 칸 더 넓다 — PR #183 의 blockTicketed 로 합칠 때 맞춘다)
-        if (world.entityTicketed(cx, cz)) return true;
-        int sim = Math.max(world.levelServices().simulationDistance(), 2);
-        return ticketPlayerWithin(cx, cz, 32 - Math.max(0, 31 - sim));
     }
 
     /** collectTickingChunks 가 모은 앞쪽 몇 칸이 자연 스폰 대상(플레이어 근처)인가. 뒤는 강제 로드 청크. */
@@ -1727,21 +1763,47 @@ public final class Region {
     }
 
     /**
-     * 그 청크가 블록 엔티티 틱을 받는가 — 바닐라 LevelChunk.isTicking: 엔티티 틱 단계(플레이어 표가 시뮬레이션 거리 - 1 안,
-     * 체비셰프)인 청크. 키는 (x << 32 | z).
+     * 그 청크가 블록 틱(예약 틱·유체 틱·블록 이벤트·블록 엔티티)을 받는가. 키는 (x << 32 | z). 바닐라 1.21.1:
+     * 예약 틱은 ServerLevel.isPositionTickingWithEntitiesLoaded(엔티티 로드됨 && ServerChunkCache.isPositionTicking), 블록 이벤트·블록 엔티티는
+     * shouldTickBlocksAt(TickingTracker 레벨 ≤ 32)과 LevelChunk.isTicking(청크 단계 BLOCK_TICKING 이상 && 엔티티 로드됨, 보더는 레벨이 본다).
+     * <ul>
+     * <li>플레이어: TickingTracker 표 레벨 max(0, 31 − 시뮬레이션 거리)에서 청크마다 +1 → 체비셰프 ≤ min(sim, 31) + 1. 청크 단계는 시야 거리(2~32)
+     *     안 청크에 건 레벨 31 플레이어 티켓에서 +1 → 체비셰프 ≤ 시야 + 1. 두 조건 모두 가장 가까운 플레이어로 정해지므로 둘 중 작은 쪽.</li>
+     * <li>/forceload·플러그인 ticking 티켓(레벨 31): 그 청크와 둘레 1칸.</li>
+     * <li>포털·드래곤·순간 이동 뒤 티켓(레벨 33 − 거리): 거리 − 1 안({@link World#blockTicketed}).</li>
+     * <li>관전자는 spectatorsGenerateChunks 가 꺼져 있으면 세지 않는다(ChunkMap.skipPlayer — 티켓을 걸지 않는다).</li>
+     * </ul>
+     * 엔티티 틱({@link #entityTicking})과는 범위가 다르다.
      */
-    private boolean blockEntityTicking(long key) {
+    private boolean blockTicking(long key) {
         int cx = (int) (key >> 32), cz = (int) key;
+        ChunkColumn col = level != null ? level.chunkCached(cx, cz) : ownedChunk(cx, cz);
+        if (col == null || !col.entitiesLoaded()) return false;
+        return inBlockTickingRange(cx, cz, true);
+    }
+
+    /**
+     * 바닐라 shouldTickBlocksAt(DistanceManager.inBlockTickingRange: TickingTracker 레벨 ≤ 32). 블록 이벤트가 이것만 본다. 키는 (x << 32 | z).
+     */
+    private boolean blockEventTicking(long key) { return inBlockTickingRange((int) (key >> 32), (int) key, false); }
+
+    /**
+     * TickingTracker 레벨 ≤ 32 인가. withChunkStatus 면 플레이어 쪽은 청크 단계(시야 + 1 까지 BLOCK_TICKING)도 본다 — 티켓 쪽은 두 추적기에
+     * 같은 레벨로 들어가므로 따로 볼 것이 없다. 관전자는 spectatorsGenerateChunks 가 꺼져 있으면 티켓을 걸지 않는다(ChunkMap.skipPlayer).
+     */
+    private boolean inBlockTickingRange(int cx, int cz, boolean withChunkStatus) {
         var forced = world.forcedChunksOrNull();
-        if (forced != null && forced.size() > 0 && forced.contains(cx, cz)) return true;   // /forceload: 엔티티 틱 레벨 티켓
-        if (world.entityTicketed(cx, cz)) return true;   // 포털·드래곤 티켓의 엔티티 틱 범위
-        if (world.pluginTicking(cx, cz)) return true;   // 플러그인 티켓(ticking)
-        int range = Math.max(world.levelServices().simulationDistance(), 2) - 1;
-        for (Player p : players.values()) {
-            int pcx = (int) Math.floor(p.x()) >> 4, pcz = (int) Math.floor(p.z()) >> 4;
-            if (Math.max(Math.abs(pcx - cx), Math.abs(pcz - cz)) <= range) return true;
+        boolean anyForced = forced != null && forced.size() > 0;
+        for (int dz = -1; dz <= 1; dz++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                if (anyForced && forced.contains(cx + dx, cz + dz) || world.pluginTicking(cx + dx, cz + dz)) return true;
+            }
         }
-        return false;
+        if (world.blockTicketed(cx, cz)) return true;
+        int sim = Math.max(world.levelServices().simulationDistance(), 2);
+        int range = 32 - Math.max(0, 31 - sim);
+        if (withChunkStatus) range = Math.min(range, Math.clamp(world.viewDistance(), 2, 32) + 1);
+        return ticketPlayerWithin(cx, cz, range);
     }
 
     /**
@@ -2172,9 +2234,15 @@ public final class Region {
             boolean sneaking = p.sneaking();
             double height = p.bbHeight();
             double eye = p.eyeY() - p.y();
+            // Entity.isInWall: 관전자(noPhysics)는 아니다. getBlockStateOnLegacy: 받침 블록 방식의 0.2 아래 칸(tryAddFrost)
+            boolean inWall = level != null && p.gameMode() != GameMode.SPECTATOR
+                    && org.domi.furnace.server.entity.LivingEntity.isInWall(level, x, p.eyeY(), z, p.bbWidth());
+            int legacy = probe.onPosLegacyState(blocks, x, y, z, p.onGround());
+            boolean groundNotAir = legacy >= 0 && !org.domi.furnace.server.block.B.isAir(legacy);
             s = new PlayerVitals.Surroundings(true, probe.inWater(blocks, x, y, z, height),
                     probe.eyeInWater(blocks, x, y, z, eye), probe.eyeInBubbleColumn(blocks, x, y, z, eye),
-                    probe.climbable(blocks, x, y, z), probe.stuckInBlock(blocks, x, y, z, height), world.dimensionType().minY());
+                    probe.climbable(blocks, x, y, z), probe.stuckInBlock(blocks, x, y, z, height), world.dimensionType().minY(),
+                    inWall, p.inPowderSnowThisTick(), groundNotAir);
         }
         if (s.inWater() && !p.wasTouchingWater && p.waterStateKnown && s.chunkLoaded() && level != null) playerWaterSplash(p);
         p.waterStateKnown = s.chunkLoaded();
