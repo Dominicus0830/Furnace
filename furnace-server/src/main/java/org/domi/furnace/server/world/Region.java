@@ -1251,6 +1251,7 @@ public final class Region {
             tickCamera(p);
             // 바닐라 ChunkMap.move — 이동 패킷마다 엔티티 보임을 다시 본다(탄 동안은 회전 패킷이 매 틱 온다)
             double tickX = p.x(), tickZ = p.z();   // 바닐라 xOld·zOld(틱 머리 setOldPosAndRot)
+            p.resetInPowderSnowTick();   // baseTick: isInPowderSnow = false — 아래 서버 move 의 checkInsideBlocks 가 다시 켠다
             boolean moved = processMoves(p);
             if ((moved || p.vehicle() != null) && level != null) level.playerMoved(p);
             if (p.vehicle() == null) {   // 바닐라는 연결 틱마다 서버에서 travel→move 를 한 번 돌린다: 움직이지 않아도 불 블록 안이면 불 틱이 오르고, 끝에서 불이 꺼진다
@@ -2021,9 +2022,15 @@ public final class Region {
             boolean sneaking = p.sneaking();
             double height = p.bbHeight();
             double eye = p.eyeY() - p.y();
+            // Entity.isInWall: 관전자(noPhysics)는 아니다. getBlockStateOnLegacy: 0.2 아래 칸(받침 블록 추적은 없다 — 가정: 발 바로 아래 칸)
+            boolean inWall = level != null && p.gameMode() != GameMode.SPECTATOR
+                    && org.domi.furnace.server.entity.LivingEntity.isInWall(level, x, p.eyeY(), z, p.bbWidth());
+            boolean groundNotAir = level != null && !org.domi.furnace.server.block.B.isAir(level.getBlockState(
+                    new org.domi.furnace.server.block.Pos((int) Math.floor(x), (int) Math.floor(y - 0.2F), (int) Math.floor(z))));
             s = new PlayerVitals.Surroundings(true, probe.inWater(blocks, x, y, z, height),
                     probe.eyeInWater(blocks, x, y, z, eye), probe.eyeInBubbleColumn(blocks, x, y, z, eye),
-                    probe.climbable(blocks, x, y, z), probe.stuckInBlock(blocks, x, y, z, height), world.dimensionType().minY());
+                    probe.climbable(blocks, x, y, z), probe.stuckInBlock(blocks, x, y, z, height), world.dimensionType().minY(),
+                    inWall, p.inPowderSnowThisTick(), groundNotAir);
         }
         if (s.inWater() && !p.wasTouchingWater && p.waterStateKnown && s.chunkLoaded() && level != null) playerWaterSplash(p);
         p.waterStateKnown = s.chunkLoaded();

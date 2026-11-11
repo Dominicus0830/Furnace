@@ -243,6 +243,8 @@ public abstract class LivingEntity extends Entity implements Targetable {
             }
             blocked = true;
         }
+        // btn.a(brk,F) 오프셋 152: #is_freezing 피해는 #freeze_hurts_extra_types(스트라이더·블레이즈·마그마 큐브)에게 5배
+        if (DamageType.keyHasTag(source.type(), "is_freezing") && typeInTag("minecraft:freeze_hurts_extra_types")) amount *= 5.0F;
         boolean fresh = true;
         if (invulnerableTime > 10.0F && !source.bypassesInvulnerability()) {
             if (amount <= lastHurt) return false;
@@ -1034,7 +1036,9 @@ public abstract class LivingEntity extends Entity implements Targetable {
         activeEffects.clear();
     }
 
+    /** LivingEntity.calculateFallDamage(btn.e(FF)I): 맨 앞에서 #fall_damage_immune 종류는 0. */
     protected int calculateFallDamage(float distance, float multiplier) {
+        if (typeInTag("minecraft:fall_damage_immune")) return 0;
         return (int) Math.ceil((distance - attributeValue(Attribute.SAFE_FALL_DISTANCE)) * multiplier * attributeValue(Attribute.FALL_DAMAGE_MULTIPLIER));
     }
 
@@ -1069,15 +1073,13 @@ public abstract class LivingEntity extends Entity implements Targetable {
         if (isAlive()) {
             if (isInWall()) hurt(new Damage("in_wall", false, false, false), 1.0F);
             if (isEyeInWater() && !B.is(level.getBlockState(new org.domi.furnace.server.block.Pos((int) Math.floor(x()), (int) Math.floor(eyeY()), (int) Math.floor(z()))), "minecraft:bubble_column")) {
-                boolean drowns = !canBreatheUnderwater() && !hasEffect(org.domi.furnace.server.effect.MobEffect.WATER_BREATHING);
-                if (drowns) {
+                boolean drowns = !canBreatheUnderwater() && !hasWaterBreathing(this);
+                if (drowns) {   // 숨을 쉴 수 있으면 줄지 않을 뿐 물속에서 차오르지는 않는다(btn.aw 오프셋 308 → 477)
                     setAirSupply(decreaseAirSupply(getAirSupply()));
                     if (getAirSupply() == -20) {
                         setAirSupply(0);
                         hurt(new Damage("drown", false, false, false), 2.0F);
                     }
-                } else if (getAirSupply() < getMaxAirSupply()) {
-                    setAirSupply(increaseAirSupply(getAirSupply()));
                 }
             } else if (getAirSupply() < getMaxAirSupply()) {
                 setAirSupply(increaseAirSupply(getAirSupply()));
@@ -1201,7 +1203,61 @@ public abstract class LivingEntity extends Entity implements Targetable {
         zza *= 0.98F;
         if (getControllingPassenger() instanceof Player p && isAlive()) travelRidden(p);
         else travel(xxa, yya, zza);
+        tickFreezing();
         pushEntities();
+    }
+
+    /** 바닐라 SPEED_MODIFIER_POWDER_SNOW_ID: 얼어 있는 만큼 이동 속도를 깎는 수정자(transient — 저장하지 않는다). */
+    public static final String POWDER_SNOW_SPEED_MODIFIER = "minecraft:powder_snow";
+
+    /**
+     * LivingEntity.aiStep 의 "freezing" 구간(btn.m_ 오프셋 678~807, travel 바로 뒤): 죽어 가지 않으면 가루눈 안이고 얼 수 있을 때 ticksFrozen
+     * = min(140, +1), 아니면 max(0, −2). 얼음 속도 수정자를 지우고 다시 단다. 40틱마다 완전히 얼었고 얼 수 있으면 freeze 1 피해.
+     */
+    protected void tickFreezing() {
+        if (!isDeadOrDying()) {
+            int i = getTicksFrozen();
+            if (isInPowderSnow() && canFreeze()) setTicksFrozen(Math.min(TICKS_REQUIRED_TO_FREEZE, i + 1));
+            else setTicksFrozen(Math.max(0, i - 2));
+        }
+        removeFrost();
+        tryAddFrost();
+        if (tickCount % 40 == 0 && isFullyFrozen() && canFreeze()) hurt(FREEZE, 1.0F);
+    }
+
+    private static final Damage FREEZE = Damage.of(DamageType.byKey("freeze"));
+
+    /** removeFrost(btn.dY): 이동 속도에 얼음 수정자가 있으면 뗀다. */
+    protected void removeFrost() {
+        var inst = attributes().get(Attribute.MOVEMENT_SPEED);
+        if (inst != null) inst.removeModifier(POWDER_SNOW_SPEED_MODIFIER);
+    }
+
+    /** tryAddFrost(btn.dZ): 발밑(0.2 아래) 칸이 공기가 아니고 얼음 틱이 있으면 −0.05 × 언 비율(더하기)을 단다. */
+    protected void tryAddFrost() {
+        if (B.isAir(level.getBlockState(getOnPosLegacy()))) return;
+        if (getTicksFrozen() <= 0) return;
+        var inst = attributes().get(Attribute.MOVEMENT_SPEED);
+        if (inst == null) return;
+        float f = -0.05F * getPercentFrozen();
+        inst.addOrReplaceModifier(new org.domi.furnace.server.attribute.AttributeModifier(POWDER_SNOW_SPEED_MODIFIER, f, org.domi.furnace.server.attribute.AttributeModifier.ADD_VALUE));
+    }
+
+    /** LivingEntity.canFreeze(btn.dC): 관전자가 아니고, 머리·몸통·다리·발·몸(BODY) 칸에 #freeze_immune_wearables 를 하나도 입지 않았으며 종류가 면역이 아니다. */
+    @Override
+    public boolean canFreeze() {
+        if (isSpectator()) return false;
+        for (EquipmentSlot slot : FREEZE_ARMOR_SLOTS) {
+            if (org.domi.furnace.server.item.ItemTags.is(getItemBySlot(slot), "minecraft:freeze_immune_wearables")) return false;
+        }
+        return super.canFreeze();
+    }
+
+    static final EquipmentSlot[] FREEZE_ARMOR_SLOTS = {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET, EquipmentSlot.BODY};
+
+    /** MobEffectUtil.hasWaterBreathing(bsa.c): 물숨쉬기 또는 전도체의 힘. */
+    public static boolean hasWaterBreathing(LivingEntity e) {
+        return e.hasEffect(org.domi.furnace.server.effect.MobEffect.WATER_BREATHING) || e.hasEffect(org.domi.furnace.server.effect.MobEffect.CONDUIT_POWER);
     }
 
     /**
@@ -1537,8 +1593,15 @@ public abstract class LivingEntity extends Entity implements Targetable {
     /** Entity.isInWall: 눈 높이 칸이 질식시키는 블록 안이다. */
     public boolean isInWall() {
         if (noPhysics) return false;
-        float f = bbWidth() * 0.8F;
-        double ex = x(), ey = eyeY(), ez = z();
+        return isInWall(level, x(), eyeY(), z(), bbWidth());
+    }
+
+    /**
+     * Entity.isInWall 의 블록 검사: 눈 위치 둘레 폭×0.8, 높이 1e-6 상자가 질식 블록(공기 아님·isSuffocating)의 충돌 모양과 겹친다.
+     * 플레이어(엔티티 계층 밖)도 같은 식을 쓴다. noPhysics(관전자) 검사는 호출자가 한다.
+     */
+    public static boolean isInWall(ChunkLevel level, double ex, double ey, double ez, float width) {
+        float f = width * 0.8F;
         double x0 = ex - f / 2.0, x1 = ex + f / 2.0, y0 = ey - 5.0E-7, y1 = ey + 5.0E-7, z0 = ez - f / 2.0, z1 = ez + f / 2.0;
         for (int bx = (int) Math.floor(x0); bx <= (int) Math.floor(x1); bx++) {
             for (int by = (int) Math.floor(y0); by <= (int) Math.floor(y1); by++) {
@@ -1691,7 +1754,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
         tag.putInt("HurtByTimestamp", hurtByTimestamp);
         tag.putShort("DeathTime", (short) deathTime);
         tag.putFloat("AbsorptionAmount", absorptionAmount);
-        tag.putList("attributes", attributes().save());
+        tag.putList("attributes", attributes().save((a, id) -> id.equals(POWDER_SNOW_SPEED_MODIFIER)));   // 얼음 수정자는 transient
         if (!activeEffects.isEmpty()) {
             var list = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
             for (var e : activeEffects.values()) list.add(e.save());
