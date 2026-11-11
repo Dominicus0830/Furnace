@@ -56,3 +56,12 @@
 
 ## 기준 브랜치가 바뀌면
 `ci.yml` 의 `on.push.branches` 와 `env.BASE_BRANCH` 두 곳을 새 이름으로 바꾼다.
+
+## 커버리지(JaCoCo, 2026-11-11, A19-03 후속)
+- **보고용이다. 게이트가 없다**(`test` 판정에 들어가지 않는다).
+- 켜는 법: `-Pcoverage`(없으면 에이전트를 붙이지 않아 평소 시험 속도·시간 민감 시험에 영향이 없다).
+  `./gradlew -PskipOracle=true -Pcoverage :furnace-server:test :furnace-server:jacocoTestReport` → `furnace-server/build/reports/jacoco/test/`. 서버 시험 전체는 4코어에서 오래 걸리니 `--tests` 로 좁혀 써도 된다.
+- CI: **기준 브랜치 push 실행에서만** 서버 시험 조각 3개가 `-Pcoverage` 로 돌고 `coverage-exec-N` 산출물(`test.exec`)을 올린다. PR 실행에는 붙이지 않는다(에이전트 때문에 느려지면 흔들림 시험이 늘 수 있다).
+  `coverage` 작업이 3개를 합쳐(`:furnace-server:jacocoCoverageReport`) 패키지별 줄·가지 표를 실행 요약에, xml·html 을 `coverage-report` 산출물(14일)에 올린다. 표는 `tools/ci/coverage-summary.py` 로 로컬에서도 만든다.
+- 한계: 재시도 단계는 에이전트 없이 돌아 재시도로만 통과한 시험 클래스의 줄은 빠진다. 서버 모듈만 잰다(`furnace-api`·호환·시험 서버 모듈은 아직 아님).
+- 이 표가 줄 커버리지로 A19-03 의 "이름 참조 근사"를 대체한다. 기준 브랜치 첫 실행 뒤 표를 보고 다음 시험 대상(`block/types`·`entity/ai`·`command/builtin`)을 정한다.

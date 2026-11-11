@@ -54,7 +54,9 @@ jobs:
         timeout-minutes: 20
         run: |
           set -o pipefail
-          ./gradlew -PskipOracle=true -PtestShard=${{ matrix.shard }}/3 :furnace-server:test 2>&1 | tee /tmp/shard-run.log
+          # 기준 브랜치 push 실행에서만 JaCoCo 에이전트를 켠다(PR 시험이 느려져 시간 민감 시험이 흔들리지 않게). 아래 coverage 작업이 합친다.
+          cov=""; if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "$BASE_BRANCH" ]; then cov="-Pcoverage"; fi
+          ./gradlew -PskipOracle=true $cov -PtestShard=${{ matrix.shard }}/3 :furnace-server:test 2>&1 | tee /tmp/shard-run.log
       # 부하에서 가끔 실패하는 시간 민감 시험(CommandBlockOneTickTest 등): 처음에 실패한 시험 클래스만 한 번 다시 돌린다.
       # 재시도하지 않는 경우(JVM 이상 종료, 제한시간 초과, @NoRetry 실패)와 흔들린 시험 기록은 tools/ci/retry-failed-tests.sh 에 있다.
       - name: 실패한 시험만 재시도(1회)
@@ -70,6 +72,15 @@ jobs:
           path: /tmp/first-run/flaky-tests.txt
           if-no-files-found: ignore
           retention-days: 30
+      # 커버리지 원자료(조각마다 하나). 기준 브랜치 push 실행에서만 만들어진다. 실패한 조각도 올린다(시험이 일부 실패해도 JVM 종료 때 기록된다).
+      - name: 커버리지 원자료 올리기
+        if: always() && github.event_name == 'push' && github.ref == env.BASE_BRANCH
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-exec-${{ matrix.shard }}
+          path: furnace-server/build/jacoco/test.exec
+          if-no-files-found: ignore
+          retention-days: 7
       # 시험이 실패했거나 작업 제한시간으로 취소돼도 보고서·실행 로그는 올라가게 always() 로 둔다(로그에서 멈춘 시험을 찾는다).
       - name: 서버 테스트 보고서 올리기
         if: always() && (failure() || cancelled() || steps.server-test.outcome == 'failure')
@@ -129,6 +140,37 @@ jobs:
         with:
           name: user-todo-combined
           path: build/user-todo/user-todo-combined.md
+          retention-days: 14
+
+  # 서버 시험 커버리지 보고서(JaCoCo). 기준 브랜치 push 실행에서만, 조각의 .exec 를 합쳐 xml·html 과 패키지별 표를 만든다.
+  # 보고용이다 — `test` 판정에 넣지 않으므로 이 작업이 실패해도 병합 판단에는 영향이 없다.
+  coverage:
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/claude/quirky-wright-lra834'
+    needs: [server-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-exec-*
+          path: furnace-server/build/coverage-in
+      - name: 커버리지 보고서 만들기
+        run: |
+          ./gradlew -PskipOracle=true :furnace-server:jacocoCoverageReport
+          { echo "## 서버 시험 커버리지(JaCoCo, 보고용)"; echo; python3 -I tools/ci/coverage-summary.py furnace-server/build/reports/coverage/jacoco.xml; } >> "$GITHUB_STEP_SUMMARY"
+      - name: 커버리지 보고서 올리기
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: furnace-server/build/reports/coverage
           retention-days: 14
 
   # 이름이 `test` 인 합친 판정(기존 점검 이름). 조각·light 중 하나라도 실패·취소면 실패.
