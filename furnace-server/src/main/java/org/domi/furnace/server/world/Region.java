@@ -446,7 +446,15 @@ public final class Region {
         // 청크 안쪽 조명은 생성 스레드에서 미리 계산한다(region 틱 스레드가 청크당 ~2ms 를 쓰던 것) — 이웃과의 가장자리는 올릴 때 맞춘다.
         final boolean sky = level().hasSkyLight();
         final int bedrock = level().lightBedrockState();
+        final long traceReq = ChunkTrace.ON ? System.nanoTime() : 0L;
+        final long[] traceSrc = ChunkTrace.ON ? new long[2] : null;
+        if (ChunkTrace.ON) sourceFuture = sourceFuture.whenComplete((col, ex) -> {
+            traceSrc[0] = System.nanoTime();
+            if (col != null) ChunkTrace.nanos(col.dirty() ? "src.gen" : "src.disk", traceSrc[0] - traceReq);
+        });
         sourceFuture = sourceFuture.thenApplyAsync(col -> {   // 디스크에서 읽은 청크는 IO 스레드가 아니라 생성 풀에서 계산한다
+            long tl = ChunkTrace.ON ? System.nanoTime() : 0L;
+            if (ChunkTrace.ON) ChunkTrace.nanos("hop.genpool", tl - traceSrc[0]);
             if (col != null) {
                 if (col.poi() == null) col.poi(org.domi.furnace.server.world.poi.PoiManager.restore(col, cp.x(), cp.z(), col.poiNbt()));
                 // registerAllBlockEntitiesAfterLevelLoad: 남은 NBT·월드젠 칸을 블록 엔티티로(침대·종·상자는 없으면 클라이언트가 안 그린다).
@@ -461,12 +469,18 @@ public final class Region {
                     col.lightPrecomputed(false);
                 }
             }
+            if (ChunkTrace.ON) { traceSrc[1] = System.nanoTime(); ChunkTrace.nanos("light", traceSrc[1] - tl); }
             return col;
         }, world.genPool());
         CompletableFuture<ChunkColumn> f = new CompletableFuture<>();
         world.putLoading(key, f);
         // 완료는 그때의 주인 region 에서(그 사이 합쳐지거나 나뉘었을 수 있다). 실패해도 진행 중 표시는 반드시 지운다.
-        sourceFuture.whenComplete((col, err) -> world.runAtChunk(cp, r -> r.finishLoad(cp, key, col, err, f)));
+        sourceFuture.whenComplete((col, err) -> world.runAtChunk(cp, r -> {
+            long ti = ChunkTrace.ON ? System.nanoTime() : 0L;
+            if (ChunkTrace.ON && traceSrc[1] != 0L) ChunkTrace.nanos("hop.load", ti - traceSrc[1]);
+            r.finishLoad(cp, key, col, err, f);
+            if (ChunkTrace.ON) ChunkTrace.nanos("install", System.nanoTime() - ti);
+        }));
         return f;
     }
 
@@ -1240,6 +1254,7 @@ public final class Region {
 
     public void tick() {
         world.assertOwns(this);
+        syncBodiesLeft = MAX_SYNC_BODIES_PER_TICK;
         if (Regionizer.STATS) lapT = System.nanoTime();
         // /tick freeze: 정지 중이면 월드 진행만 건너뛴다(플레이어 처리·변경 방송은 계속). /tick step 은 정지 중에도 N 번 진행한다.
         TickState tickState = world.tickState();
@@ -2835,6 +2850,11 @@ public final class Region {
         sendBatch(p, batch, false);
     }
 
+    /** 매 틱 바뀌는 청크를 region 스레드에서 바로 직렬화하는 틱당 상한(이 region 의 모든 플레이어 합). 넘으면 다음 틱으로 미룬다. */
+    static final int MAX_SYNC_BODIES_PER_TICK = 4;
+    /** 이번 틱에 남은 바로 직렬화 수. tick() 이 채운다. */
+    private int syncBodiesLeft = MAX_SYNC_BODIES_PER_TICK;
+
     /** auto 전송의 틱당 상한 — 바닐라 PlayerChunkSender 의 클라이언트 속도 상한(64)과 같다. 첫 응답 전에도 이만큼까지. */
     static final int AUTO_MAX_CHUNKS_PER_TICK = (int) ChunkSendRate.MAX_CHUNKS_PER_TICK;
     /** auto 전송이 한 틱에 대기열에서 훑는 최대 수 — 시야 32(4225청크)에서도 틱 비용을 묶는다. 가까운 것부터 훑는다. */
@@ -2852,17 +2872,30 @@ public final class Region {
         int adaptive = p.chunkSendRate().nextBudget();   // 미확인 배치가 한도면 0 — 그래도 생성 요청은 계속 건다
         int budget = batchOpen ? 0 : Math.min(Math.max(adaptive, 0), AUTO_MAX_CHUNKS_PER_TICK);
         int genSlots = world.maxChunkSendsInFlight() - p.chunkPrefetches().size();
+        // 본문 미리 직렬화 창: 이번 배치 다음으로 볼 로드된 청크 수. 클라이언트 속도의 2배쯤 앞만 만든다(느린 클라이언트에 64개씩
+        // 미리 만들면 매 틱 바뀌는 청크가 끝없이 다시 직렬화된다). 첫 응답 전에는 auto 상한.
+        float rate = p.chunkSendRate().clientReported() ? p.chunkSendRate().desiredChunksPerTick() : AUTO_MAX_CHUNKS_PER_TICK;
+        int bodySlots = Math.clamp(2L * (long) Math.ceil(Math.max(budget, rate)), 2, AUTO_MAX_CHUNKS_PER_TICK);
         List<ChunkPos> batch = new ArrayList<>(Math.min(budget, p.pendingChunks().size()));
         int scanned = 0;
         // 바닐라 ChunkMap.skipPlayer: 청크를 만들지 않는 관전자는 미리 불러오기(생성·디스크 로드)를 걸지 않고 이미 로드된 것만 받는다
         boolean loadedOnly = skipsGeneration(p);
         var it = p.pendingChunks().iterator();
-        while (it.hasNext() && (batch.size() < budget || genSlots > 0) && scanned++ < AUTO_SCAN_LIMIT) {
+        while (it.hasNext() && (batch.size() < budget || genSlots > 0 || bodySlots > 0) && scanned++ < AUTO_SCAN_LIMIT) {
             ChunkPos cp = it.next();
             if (world.isChunkLoaded(cp.x(), cp.z())) {
-                if (batch.size() < budget) {
+                boolean room = batch.size() < budget;
+                if (!room && bodySlots <= 0) continue;
+                // 바닐라 PlayerChunkSender 처럼 배치는 한 틱 안에 Start → 청크 → Finished 로 끝나야 한다(클라이언트가 그 시간으로 속도를 정한다).
+                // 본문이 아직 없으면 직렬화만 걸어 두고 다음 틱에 보낸다. 다른 region 청크는 예전처럼 배치 안에서 기다린다(드묾).
+                int body = mine(Regionizer.chunkKey(cp.x(), cp.z()))
+                        ? world.chunkBodyReadyOrPrefetch(cp, room, syncBodiesLeft > 0) : World.BODY_READY;
+                if (body == World.BODY_SYNC) syncBodiesLeft--;
+                if (room && body != World.BODY_PENDING) {
                     batch.add(cp);
                     it.remove();
+                } else {
+                    bodySlots--;   // 창은 배치 다음의 로드된 청크 수 — 준비된 것도 센다(예산 0 인 틱에 대기열 끝까지 훑지 않게)
                 }
             } else if (!loadedOnly && genSlots > 0 && p.chunkPrefetches().add(cp)) {
                 genSlots--;
@@ -2892,6 +2925,8 @@ public final class Region {
 
     /** 배치 하나: Start → 청크들(본문이 준비되는 대로) → Finished(실제로 보낸 수). */
     private CompletableFuture<Void> sendBatch(Player p, List<ChunkPos> batch, boolean inline) {
+        final long traceT0 = ChunkTrace.ON ? System.nanoTime() : 0L;
+        final java.util.concurrent.atomic.AtomicInteger traceCached = ChunkTrace.ON ? new java.util.concurrent.atomic.AtomicInteger() : null;
         p.chunkSendRate().batchSent(batch.size());
         p.send(new ChunkBatchStart());
         // 실제 전송 수(stale 드롭으로 batch.size와 다를 수 있음) — ChunkBatchFinished에 정확히 보고.
@@ -2907,7 +2942,9 @@ public final class Region {
             final World.Subscription sub = existing;
             if (sub == null) continue;   // 그 사이 언로드됨 — 보낼 것 없음
             p.chunkSendsInFlight().incrementAndGet();
-            CompletableFuture<?> f = world.serializedChunkBody(cp, inline)
+            CompletableFuture<byte[]> bodyF = world.serializedChunkBody(cp, inline);
+            if (ChunkTrace.ON && bodyF.isDone()) traceCached.incrementAndGet();
+            CompletableFuture<?> f = bodyF
                     .whenComplete((b, ex) -> p.chunkSendsInFlight().decrementAndGet())
                     .thenAccept(body -> {
                         // gen 지연 동안 플레이어가 시야 밖으로 이동했거나(재구독 포함) 언로드됐으면 보내봐야 클라가
@@ -2927,7 +2964,14 @@ public final class Region {
         }
         // allOf로 모든 future(전송/예외) 완료 후 Finished 1회 — 마샬 누락에 의한 batch 미종료(클라 stall) 방지.
         return CompletableFuture.allOf(sends.toArray(new CompletableFuture[0]))
-                .thenRun(() -> p.send(new ChunkBatchFinished(sent.get())));
+                .thenRun(() -> {
+                    p.send(new ChunkBatchFinished(sent.get()));
+                    if (ChunkTrace.ON) {
+                        ChunkTrace.nanos("batch", System.nanoTime() - traceT0);
+                        ChunkTrace.value("batch.size", batch.size());
+                        ChunkTrace.value("batch.cached", traceCached.get());
+                    }
+                });
     }
 
     /** 관전자이고 spectatorsGenerateChunks 가 꺼져 있나 — 이 플레이어의 시야는 청크를 새로 만들게 하지 않는다. */
