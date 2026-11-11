@@ -1,0 +1,3 @@
+A19-02 관찰: CI run 943(PR #180, 문서만 바꾼 PR) 조각 3/3 에서 WorldBorderJoinTest#joinSendsLiveBorderAndChangesBroadcast 가 처음 실패하고 재시도에서 통과했다.
+재현 시도: command/WorldBorderJoinTest.java 를 복사해 @Test 를 @RepeatedTest(40) 로 바꿔 돌림 — 부하 없이 40/40 통과, 바쁜 루프 8개를 걸고 40/40 통과(로컬 4코어, 총 80회 0실패). 원인 미확인.
+가설(미검증): 시험은 0x25 초기 보더 패킷을 받은 직후 명령을 보내는데, 그 시점에 플레이어가 보더 방송 대상에 아직 안 들어갔다면 0x4F 를 영영 못 받아 awaitPacket 이 소켓 제한 15초를 기다린다. 서버 쪽 경합(접속 중 보더 변경 소실)일 수도 있어 A11/A09 쪽 확인 권장.
