@@ -76,6 +76,12 @@ public abstract class WorldCarver {
         int carved = getCarveState(worldX, y, worldZ, lavaLevelY, aquifer, lavaId);
         if (carved == Aquifer.NO_CARVE) return false;
         col.setBlock(lx, y, lz, carved);
+        // 바닐라 WorldCarver.carveBlock: aquifer.shouldScheduleFluidUpdate() 이고 놓은 블록에 유체가 있으면 후처리 표시(A06-03).
+        // 용암 높이 아래 칸은 computeSubstance 를 부르지 않으므로 직전 값을 그대로 읽는다(바닐라와 같다).
+        if (aquifer.shouldScheduleFluidUpdate()
+            && org.domi.furnace.server.world.gen.feature.FluidKinds.shared().of(carved) != org.domi.furnace.server.world.gen.feature.FluidKind.EMPTY) {
+            col.markPosForPostprocessing(lx, y, lz);
+        }
 
         // vanilla WorldCarver.carveBlock L151-161 — carve가 표면을 관통하면 노출된 dirt를 topMaterial로 승격.
         if (reachedSurface[0] && y - 1 >= minY) {

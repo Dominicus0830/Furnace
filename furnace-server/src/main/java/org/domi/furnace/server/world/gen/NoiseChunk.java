@@ -602,7 +602,31 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
         this.beardifier = b == null || b.isEmpty() ? null : b;
     }
 
+    /**
+     * 마지막 generateBlockIds 에서 후처리 표시할 칸(바닐라 NoiseBasedChunkGenerator.doFill: aquifer.shouldScheduleFluidUpdate() 이고
+     * 놓은 블록에 유체가 있을 때 markPosForPostprocessing) — {로컬 x, 월드 y, 로컬 z} 를 표시 순서대로 3개씩.
+     */
+    private int[] fluidMarks = new int[0];
+    private int fluidMarkCount;
+
+    /** 노이즈 채우기가 남긴 후처리 표시를 청크에 옮긴다(표시 순서대로). */
+    public void transferFluidMarks(org.domi.furnace.server.world.ChunkColumn col) {
+        for (int i = 0; i < fluidMarkCount; i++) col.markPosForPostprocessing(fluidMarks[i * 3], fluidMarks[i * 3 + 1], fluidMarks[i * 3 + 2]);
+    }
+
+    private void addFluidMark(int lx, int y, int lz) {
+        if (fluidMarkCount * 3 == fluidMarks.length) fluidMarks = java.util.Arrays.copyOf(fluidMarks, Math.max(48, fluidMarks.length * 2));
+        fluidMarks[fluidMarkCount * 3] = lx;
+        fluidMarks[fluidMarkCount * 3 + 1] = y;
+        fluidMarks[fluidMarkCount * 3 + 2] = lz;
+        fluidMarkCount++;
+    }
+
     public int[] generateBlockIds(int stoneId, Aquifer aquifer) {
+        fluidMarkCount = 0;
+        boolean lastSolid = false;   // 바닐라 순서로 마지막에 본 칸이 고체(density > 0)였는가
+        org.domi.furnace.server.world.gen.feature.FluidKinds fluidKinds = aquifer instanceof NoiseBasedAquifer
+            ? org.domi.furnace.server.world.gen.feature.FluidKinds.shared() : null;
         int minY   = this.cellNoiseMinY * this.cellHeight;
         int height = this.cellCountY   * this.cellHeight;
         int[] blocks = new int[height * 16 * 16];
@@ -640,6 +664,7 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
                                 }
                             }
                         }
+                        lastSolid = true;
                         continue;
                     }
                     // NOTE: all-fluid skip removed — aquifer needs exact per-block density
@@ -667,6 +692,7 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
                                 int lz = blockZ & 15;
                                 int yOff = blockY - minY;
                                 int idx = yOff * 256 + lz * 16 + lx;
+                                lastSolid = density > 0.0;
                                 if (idx >= 0 && idx < blocks.length) {
                                     if (density > 0.0) {
                                         // 바닐라 material rule: solid → aquifer null → oreVeinifier 실행.
@@ -691,6 +717,10 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
                                             blocks[idx] = vein != OreVeinifier.NO_VEIN ? vein : stoneId;
                                         } else {
                                             blocks[idx] = substance;
+                                            if (fluidKinds != null && aquifer.shouldScheduleFluidUpdate()
+                                                && fluidKinds.of(substance) != org.domi.furnace.server.world.gen.feature.FluidKind.EMPTY) {
+                                                addFluidMark(lx, blockY, lz);
+                                            }
                                         }
                                     }
                                 }
@@ -704,6 +734,7 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
         }
 
         stopInterpolation();
+        if (lastSolid && aquifer instanceof NoiseBasedAquifer nba) nba.solidVisited();
         return blocks;
     }
 

@@ -200,6 +200,15 @@ public final class CraftServer implements Server {
     public BukkitScheduler getScheduler() { return CompatScheduler.INSTANCE; }
 
     @Override
+    public io.papermc.paper.threadedregions.scheduler.AsyncScheduler getAsyncScheduler() { return org.domi.furnace.compat.paper.CompatPaperSchedulers.ASYNC; }
+
+    @Override
+    public io.papermc.paper.threadedregions.scheduler.GlobalRegionScheduler getGlobalRegionScheduler() { return org.domi.furnace.compat.paper.CompatPaperSchedulers.GLOBAL; }
+
+    @Override
+    public io.papermc.paper.threadedregions.scheduler.RegionScheduler getRegionScheduler() { return org.domi.furnace.compat.paper.CompatPaperSchedulers.REGION; }
+
+    @Override
     public ServicesManager getServicesManager() { return Compat.services(); }
 
     @Override

@@ -1,0 +1,49 @@
+// A13-03 재현: respectTeams=true 일 때 서로 다른 팀의 플레이어는 서로 다른 위치에 놓여야 한다(바닐라 setPlayerPositions 는 팀별 위치).
+// 기준 커밋의 place() 는 팀을 읽을 수단이 없어 모든 대상을 "팀 없음" 하나로 묶어 같은 위치에 놓는다.
+package org.domi.furnace.server.command.builtin;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
+import org.domi.furnace.server.ServerCore;
+import org.domi.furnace.server.TestServers;
+import org.domi.furnace.server.command.CommandSource;
+import org.domi.furnace.server.entity.Player;
+import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+class A13SpreadTeamsReproTest {
+
+    @TempDir Path tmp;
+
+    private static final SpreadPlayersCommand.Terrain FLAT = new SpreadPlayersCommand.Terrain() {
+        @Override public int spawnY(int x, int z) { return 64; }
+        @Override public boolean safe(int x, int z) { return true; }
+    };
+
+    @Test
+    void differentTeamsGetDifferentPositions() throws Exception {
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        try {
+            ServerCore core = TestServers.core(tmp, sched);
+            var a = new Player(1, UUID.nameUUIDFromBytes("A".getBytes()), "A", new ConcurrentEmbeddedChannel());
+            var b = new Player(2, UUID.nameUUIDFromBytes("B".getBytes()), "B", new ConcurrentEmbeddedChannel());
+            for (String c : new String[]{"team add red", "team add blue", "team join red A", "team join blue B"})
+                core.commands().performPrefixedCommandAsync(CommandSource.console(core), c).get(10, TimeUnit.SECONDS);
+            var ps = new SpreadPlayersCommand.Position[] {new SpreadPlayersCommand.Position(), new SpreadPlayersCommand.Position()};
+            ps[0].x = 10.2; ps[0].z = 20.9;
+            ps[1].x = -40.2; ps[1].z = 5.1;
+            var out = new ArrayList<SpreadPlayersCommand.Placement>();
+            SpreadPlayersCommand.place(List.of(a, b), FLAT, ps, true, out);
+            assertNotEquals(out.get(0).x(), out.get(1).x(), "팀이 다르면 위치도 달라야 한다(같은 팀만 한 위치를 나눈다)");
+        } finally {
+            sched.close();
+        }
+    }
+}

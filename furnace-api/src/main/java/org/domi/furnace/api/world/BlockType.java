@@ -25,6 +25,9 @@ public interface BlockType {
     /** 가능한 상태의 수. */
     int stateCount();
 
+    /** 이 블록의 아이템 키(바닐라 {@code Block.asItem} — 벽 횃불은 minecraft:torch). 아이템이 없는 블록이면 minecraft:air. */
+    default String item() { throw new UnsupportedOperationException("item"); }
+
     /** data 가 이 종류의 올바른 상태인가(종류가 같고, 모든 속성이 있으며 값이 가능한 값). */
     default boolean isValid(BlockData data) {
         if (!data.type().equals(id())) return false;

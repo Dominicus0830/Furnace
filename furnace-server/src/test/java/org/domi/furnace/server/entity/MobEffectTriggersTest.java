@@ -169,6 +169,7 @@ class MobEffectTriggersTest {
         var zombie = zombieAt(h, 0.5, 0.5, MobEffect.INFESTED);
         zombie.addEffect(new MobEffectInstance(MobEffect.RESISTANCE, 3600, 4));   // 저항 V: 피해 0 — 계속 맞아도 안 죽는다
         for (int i = 0; i < 200 && count(h.level, Silverfish.class) == 0; i++) {
+            zombie.invulnerableTime = 0;   // 같은 피해를 매번 새 피해로 받게(바닐라 무적 시간 창은 bypasses_cooldown 만 건너뛴다)
             zombie.hurt(new Entity.Damage("generic", false, false, true), 1.0F);
         }
         var fish = h.level.entities().tickSnapshot().stream().filter(e -> e instanceof Silverfish).toList();

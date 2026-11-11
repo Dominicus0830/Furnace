@@ -96,10 +96,18 @@ public record PluginDescription(String name, String version, String main, String
     /** "이름 v버전". */
     public String fullName() { return name + " v" + version; }
 
-    /** 설정 트리에서 읽는다. 필수 키(name, version, main)가 없거나 이름이 잘못되면 IllegalArgumentException. */
+    /**
+     * 플러그인 이름으로 쓸 수 없는 예약어(대소문자 무시). 서버·바닐라·API 의 이름공간과 겹치기 때문이다 —
+     * Paper 1.21.1 {@code PluginConfigConstraints.RESERVED_KEYS} 와 같은 목록(Spigot 형식·paper-plugin.yml 모두 거부).
+     */
+    public static final java.util.Set<String> RESERVED_NAMES = java.util.Set.of("bukkit", "minecraft", "mojang", "spigot", "paper");
+
+    /** 설정 트리에서 읽는다. 필수 키(name, version, main)가 없거나 이름이 잘못되거나 예약어({@link #RESERVED_NAMES})이면 IllegalArgumentException. */
     public static PluginDescription read(ConfigSection s) {
         String name = required(s, "name");
         if (!name.matches("[A-Za-z0-9 _.-]+")) throw new IllegalArgumentException("플러그인 이름에 쓸 수 없는 글자가 있다: " + name);
+        if (RESERVED_NAMES.contains(name.toLowerCase(java.util.Locale.ROOT)))
+            throw new IllegalArgumentException("Restricted name, cannot use " + name + " as a plugin name.");
         String version = required(s, "version");
         String main = required(s, "main");
         List<String> authors = new ArrayList<>(strings(s, "authors"));

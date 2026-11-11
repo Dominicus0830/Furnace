@@ -43,6 +43,7 @@ public final class Compat {
         final org.bukkit.craftbukkit.metadata.BlockMetadataStore blockMetadata = new org.bukkit.craftbukkit.metadata.BlockMetadataStore();
         // 옛 스케줄러·명령·서비스는 쓰는 플러그인이 있을 때 처음 만든다(박동 하나를 전역에 걸기 때문)
         private volatile LegacyScheduler scheduler;
+        private volatile org.domi.furnace.compat.sched.PaperSchedulers paperSchedulers;
         private volatile LegacyCommands commands;
         private volatile SimpleCommandMap commandMap;
         private volatile SimpleServicesManager services;
@@ -55,6 +56,11 @@ public final class Compat {
         synchronized LegacyScheduler scheduler() {
             if (scheduler == null) scheduler = new LegacyScheduler(furnace);
             return scheduler;
+        }
+
+        synchronized org.domi.furnace.compat.sched.PaperSchedulers paperSchedulers() {
+            if (paperSchedulers == null) paperSchedulers = new org.domi.furnace.compat.sched.PaperSchedulers(furnace);
+            return paperSchedulers;
         }
 
         synchronized LegacyCommands commands() {
@@ -84,6 +90,14 @@ public final class Compat {
         }
 
         void close() {
+            org.domi.furnace.compat.sched.PaperSchedulers ps = paperSchedulers;
+            if (ps != null) {
+                try {
+                    ps.close();
+                } catch (RuntimeException ignored) {
+                    // 이미 닫혔을 수 있다
+                }
+            }
             LegacyScheduler sc = scheduler;
             if (sc != null) {
                 try {
@@ -118,7 +132,10 @@ public final class Compat {
         State s = state;
         if (s == null || s.furnace != server) return;
         LegacyScheduler sc = s.scheduler;
-        if (sc == null) return;
+        if (sc == null) {
+            s.close();   // Paper 스케줄러 넷만 쓴 서버: 기다릴 옛 비동기 작업은 없다(Paper 도 FoliaAsyncScheduler 를 종료 때 기다리지 않는다) — 풀만 닫는다
+            return;
+        }
         try {
             sc.awaitAsyncWorkers(maxMillis);
         } finally {
@@ -143,6 +160,9 @@ public final class Compat {
 
     /** 지금 서버의 옛 스케줄러(BukkitScheduler 의 바닥). */
     static LegacyScheduler scheduler() { return state().scheduler(); }
+
+    /** 지금 서버의 Paper 스케줄러 넷(getAsyncScheduler 등의 바닥). */
+    static org.domi.furnace.compat.sched.PaperSchedulers paperSchedulers() { return state().paperSchedulers(); }
 
     /** 지금 서버의 옛 명령 지도(명령 트리에 붙이는 바닥). */
     static LegacyCommands commands() { return state().commands(); }

@@ -136,6 +136,7 @@ class MobGameEventsTest {
         assertEquals(hp, z.health());
         assertEquals(2.0F, z.absorptionAmount);
         assertTrue(level.of(GameEvent.ENTITY_DAMAGE).isEmpty());
+        z.invulnerableTime = 0;   // 무적 시간 창(바닐라는 bypasses_cooldown 태그만 건너뛴다)을 비워 두 번째도 새 피해로
         z.hurtBy(bypass, 4.0F, null);
         assertEquals(hp - 2.0F, z.health());
         assertEquals(0.0F, z.absorptionAmount);

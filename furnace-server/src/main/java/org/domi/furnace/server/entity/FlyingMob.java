@@ -16,6 +16,7 @@ public abstract class FlyingMob extends Mob {
 
     @Override
     protected void travel(float inX, float inY, float inZ) {
+        if (!isEffectiveAi()) return;
         if (isInWater()) {
             moveRelative(0.02F, inX, inY, inZ);
             move(MOVER_SELF, vx(), vy(), vz());

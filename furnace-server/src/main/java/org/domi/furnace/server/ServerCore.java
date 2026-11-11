@@ -297,12 +297,23 @@ public final class ServerCore {
     }
     private final long biomeZoomSeed;
 
+    /** 그 월드의 전리품 월드(주 월드는 만들어 둔 것, 다른 월드는 호출마다 새로 — 상태가 없는 얇은 감싸개라 싸다). */
+    private org.domi.furnace.server.loot.LootWorld lootWorldOf(World w) {
+        return w == null || w == world ? lootWorld : lootWorldFor(w);
+    }
+
+    /** LevelServices.unpackContainerLoot(호퍼·파괴 등 플레이어 없는 풀기): 그 월드 기준. */
+    private void unpackContainerLootIn(World w, Object container) {
+        if (container instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity c) unpackLoot(w, c, null);
+        else if (container instanceof org.domi.furnace.server.entity.ContainerEntity e) unpackLoot(w, e, null);
+    }
+
     /** 명령이 전리품 표를 평가한다(/loot): random_sequence 또는 월드 난수, 최대 스택으로 나눈 결과. 데이터 팩이 없으면 빈 목록. */
-    public java.util.List<ItemStack> commandLoot(org.domi.furnace.server.loot.LootTable table, org.domi.furnace.server.loot.LootParams params) {
+    public java.util.List<ItemStack> commandLoot(World w, org.domi.furnace.server.loot.LootTable table, org.domi.furnace.server.loot.LootParams params) {
         var dp = dataPacks;
         if (dp == null || dp.loot() == null) return java.util.List.of();
         java.util.List<ItemStack> out = new java.util.ArrayList<>();
-        for (var st : table.getRandomItems(table.context(dp.loot(), lootWorld, params, 0L))) {
+        for (var st : table.getRandomItems(table.context(dp.loot(), lootWorldOf(w), params, 0L))) {
             ItemStack is = dp.network().toItemStack(st);
             if (is != null && !is.isEmpty()) out.add(is);
         }
@@ -332,10 +343,11 @@ public final class ServerCore {
     }
 
     /** 명령이 아이템 수정자를 적용한다(/item modify, 바닐라 ItemCommands.applyModifier — 월드 난수). */
-    public ItemStack applyModifier(org.domi.furnace.server.loot.LootFunction modifier, ItemStack stack, org.domi.furnace.server.loot.LootParams params) {
+    public ItemStack applyModifier(World w, org.domi.furnace.server.loot.LootFunction modifier, ItemStack stack, org.domi.furnace.server.loot.LootParams params) {
         var dp = dataPacks;
         if (dp == null || dp.loot() == null) return stack;
-        var ctx = new org.domi.furnace.server.loot.LootContext(dp.loot(), lootWorld, params, lootWorld.random());
+        var lw = lootWorldOf(w);   // 바닐라 ItemCommands: source.getLevel()
+        var ctx = new org.domi.furnace.server.loot.LootContext(dp.loot(), lw, params, lw.random());
         ItemStack out = dp.network().toItemStack(modifier.apply(lootStack(stack), ctx));
         return out == null ? ItemStack.EMPTY : out;
     }
@@ -501,24 +513,24 @@ public final class ServerCore {
 
     /**
      * 바닐라 RandomizableContainer.unpackLootTable — 열지 않은 전리품 상자를 채운다(region 스레드에서).
-     * 표 이름을 먼저 지우고, 위치는 상자 중심, 연 플레이어가 this_entity.
+     * 표 이름을 먼저 지우고, 위치는 상자 중심, 연 플레이어가 this_entity. {@code w} 는 상자가 있는 월드(탐험 지도·바이옴 조건이 그 월드를 본다).
      */
-    public void unpackLoot(org.domi.furnace.server.block.entity.ContainerBlockEntity chest, Player opener) {
+    public void unpackLoot(World w, org.domi.furnace.server.block.entity.ContainerBlockEntity chest, Player opener) {
         if (chest.lootTable == null || dataPacks == null || dataPacks.loot() == null) return;
         String table = chest.lootTable;
         chest.lootTable = null;
         generatedLoot(opener, table);
-        fillLoot(chest.items, table, chest.lootSeed, new double[]{chest.pos().x() + 0.5, chest.pos().y() + 0.5, chest.pos().z() + 0.5}, opener);
+        fillLoot(w, chest.items, table, chest.lootSeed, new double[]{chest.pos().x() + 0.5, chest.pos().y() + 0.5, chest.pos().z() + 0.5}, opener);
     }
 
     /** 바닐라 ContainerEntity.unpackChestVehicleLootTable — 엔티티 용기의 전리품 표를 푼다(그 엔티티의 region 스레드에서). 위치는 엔티티 위치. */
-    public void unpackLoot(org.domi.furnace.server.entity.ContainerEntity entity, Player opener) {
+    public void unpackLoot(World w, org.domi.furnace.server.entity.ContainerEntity entity, Player opener) {
         String table = entity.lootTable();
         if (table == null || dataPacks == null || dataPacks.loot() == null) return;
         entity.setLootTable(null);
         generatedLoot(opener, table);
         var e = entity.asEntity();
-        fillLoot(entity.chestVehicleItems(), table, entity.lootTableSeed(), new double[]{e.x(), e.y(), e.z()}, opener);
+        fillLoot(w, entity.chestVehicleItems(), table, entity.lootTableSeed(), new double[]{e.x(), e.y(), e.z()}, opener);
     }
 
     /** 바닐라 unpackLootTable: 플레이어가 열어 전리품이 풀리면 전리품을 만들기 전에 player_generates_container_loot. */
@@ -529,7 +541,7 @@ public final class ServerCore {
     }
 
     /** LootTable.fill(container, params, seed): 빈 칸에 전리품을 흩어 넣는다. 데이터 팩이 없으면 아무것도. */
-    private void fillLoot(ItemStack[] items, String tableName, long seed, double[] origin, Player opener) {
+    private void fillLoot(World w, ItemStack[] items, String tableName, long seed, double[] origin, Player opener) {
         var dp = dataPacks;
         if (dp == null || dp.loot() == null) return;
         var loot = dp.loot();
@@ -539,7 +551,7 @@ public final class ServerCore {
         for (int i = 0; i < slots.length; i++) if (items[i] != null && !items[i].isEmpty()) slots[i] = occupied;
         var params = new org.domi.furnace.server.loot.LootParams().with(org.domi.furnace.server.loot.LootParams.ORIGIN, origin);
         if (opener != null) params.with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, () -> "minecraft:player");
-        table.fill(slots, loot, lootWorld, params, seed);
+        table.fill(slots, loot, lootWorldOf(w), params, seed);
         for (int i = 0; i < slots.length; i++) {
             if (slots[i] != null && slots[i] != occupied) items[i] = dp.network().toItemStack(slots[i]);
         }
@@ -1350,10 +1362,7 @@ public final class ServerCore {
             var dp = dataPacks;
             return dp == null ? null : dp.loot();
         }
-        public void unpackContainerLoot(Object container) {
-            if (container instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity c) unpackLoot(c, null);
-            else if (container instanceof org.domi.furnace.server.entity.ContainerEntity e) unpackLoot(e, null);
-        }
+        public void unpackContainerLoot(Object container) { unpackContainerLootIn(world, container); }
     };
 
     private volatile org.domi.furnace.server.world.Dimensions dimensions;
@@ -1473,6 +1482,7 @@ public final class ServerCore {
         private boolean sky() { return w.dimensionType().hasSkyLight(); }
 
         @Override public String dimension() { return w.dimension(); }
+        @Override public void unpackContainerLoot(Object container) { unpackContainerLootIn(w, container); }
         @Override public boolean runSignCommand(Player player, int x, int y, int z, boolean front, String command) {
             return signCommand(w, player, x, y, z, front, command);
         }

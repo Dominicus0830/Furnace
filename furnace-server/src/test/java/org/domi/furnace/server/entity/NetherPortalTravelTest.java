@@ -60,7 +60,7 @@ class NetherPortalTravelTest {
         var nether = l[1];
         portalColumn(over, 16, -60, 0);
         Pig pig = new Pig(over, over.nextEntityId());
-        pig.setNoAi(true);   // 걸어 다니지 않게 — 상대 위치가 정확히 가운데
+        pig.goalSelector().removeAllGoals(g -> true);   // 걸어 다니지 않게(목표를 비운다 — 바닐라 NoAI 몹은 move 하지 않아 포털에 들어가지 못한다)
         pig.moveTo(16.5, -60.0, 0.5, 30.0F, 0.0F);
         over.addFreshEntity(pig);
         over.tickEntities(3);
@@ -95,7 +95,7 @@ class NetherPortalTravelTest {
         portalColumn(over, 85, -60, 85);   // 출구 (84, −60, 84) 에서 가장 가까운 지옥문
         portalColumn(nether, 10, -60, 10);
         Pig pig = new Pig(nether, nether.nextEntityId());
-        pig.setNoAi(true);   // 걸어 다니지 않게 — 상대 위치가 정확히 가운데
+        pig.goalSelector().removeAllGoals(g -> true);   // 걸어 다니지 않게(목표를 비운다 — 바닐라 NoAI 몹은 move 하지 않아 포털에 들어가지 못한다)
         pig.moveTo(10.5, -60.0, 10.5, 0.0F, 0.0F);
         nether.addFreshEntity(pig);
         nether.tickEntities(3);
@@ -120,7 +120,7 @@ class NetherPortalTravelTest {
         portalColumn(nether, 12, -60, 10);
         portalColumn(nether, 13, -60, 10);   // 4 폭 원천 (10..13, 10)
         Pig pig = new Pig(nether, nether.nextEntityId());
-        pig.setNoAi(true);
+        pig.goalSelector().removeAllGoals(g -> true);   // 걸어 다니지 않게(목표를 비운다 — 바닐라 NoAI 몹은 move 하지 않아 포털에 들어가지 못한다)
         pig.moveTo(11.0, -60.0, 10.85, 0.0F, 0.0F);   // 폭 (11 − 10.45)/3.1, 깊이 +0.35
         nether.addFreshEntity(pig);
         nether.tickEntities(3);
@@ -141,7 +141,7 @@ class NetherPortalTravelTest {
         for (int z = 20; z <= 22; z++) for (int y = -60; y <= -58; y++) over.setBlock(new Pos(20, y, z), pz, 18);
         for (int z = 1; z <= 3; z++) for (int y = -60; y <= -58; y++) nether.setBlock(new Pos(2, y, z), pz, 18);
         Pig pig = new Pig(over, over.nextEntityId());
-        pig.setNoAi(true);
+        pig.goalSelector().removeAllGoals(g -> true);   // 걸어 다니지 않게(목표를 비운다 — 바닐라 NoAI 몹은 move 하지 않아 포털에 들어가지 못한다)
         pig.moveTo(20.2, -60.0, 21.0, 0.0F, 0.0F);   // 폭 (21 − 20.45)/2.1, 깊이 −0.3
         over.addFreshEntity(pig);
         over.tickEntities(3);
@@ -169,7 +169,7 @@ class NetherPortalTravelTest {
         nether.setBlock(new Pos(2, -59, 2), portalZ, 18);
         portalColumn(over, 20, -60, 20);
         Pig pig = new Pig(over, over.nextEntityId());
-        pig.setNoAi(true);   // 걸어 다니지 않게 — 상대 위치가 정확히 가운데
+        pig.goalSelector().removeAllGoals(g -> true);   // 걸어 다니지 않게(목표를 비운다 — 바닐라 NoAI 몹은 move 하지 않아 포털에 들어가지 못한다)
         pig.moveTo(20.5, -60.0, 20.5, 10.0F, 0.0F);
         over.addFreshEntity(pig);
         over.tickEntities(3);

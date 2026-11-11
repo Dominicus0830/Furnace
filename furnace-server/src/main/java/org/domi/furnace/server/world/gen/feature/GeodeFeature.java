@@ -91,6 +91,8 @@ public final class GeodeFeature implements ConfiguredFeature {
 
                     if (generateCrack && crackScore >= crackThreshold && distributionScore < fillingThreshold) {
                         safeSetBlock(view, pos, config.airId);
+                        // 바닐라 GeodeFeature: 균열 칸의 6방향 이웃(Direction.values 순)에 유체가 있으면 그 유체 틱(지연 0)
+                        for (Direction d : DIRECTIONS) view.scheduleFluidTickIfFluid(pos.x + d.dx, pos.y + d.dy, pos.z + d.dz, 0);
                     } else if (distributionScore >= fillingThreshold) {
                         safeSetBlock(view, pos, config.fillingStateId);
                     } else if (distributionScore >= innerThreshold) {

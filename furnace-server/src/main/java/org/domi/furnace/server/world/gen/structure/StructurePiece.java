@@ -223,6 +223,8 @@ public abstract class StructurePiece {
             state = c.table().transform(state, m, r);
         }
         c.view.setBlock(wx, wy, wz, state);
+        // 바닐라 StructurePiece.placeBlock: 놓은 칸의 유체가 비어 있지 않으면 scheduleTick(pos, 유체, 0)(A06-03)
+        c.view.scheduleFluidTickIfFluid(wx, wy, wz, 0);
         if (SHAPE_CHECK_BLOCKS.contains(c.table().name(state))) c.view.markPosForPostprocessing(wx, wy, wz);
     }
 

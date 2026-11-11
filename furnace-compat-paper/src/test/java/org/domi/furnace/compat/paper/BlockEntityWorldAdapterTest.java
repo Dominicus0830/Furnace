@@ -83,7 +83,9 @@ class BlockEntityWorldAdapterTest {
         BlockData stairs = Bukkit.createBlockData("oak_stairs[facing=east]");
         assertEquals("minecraft:oak_stairs[facing=east,half=bottom,shape=straight,waterlogged=false]", stairs.getAsString());
         assertEquals("minecraft:oak_stairs[facing=east]", stairs.getAsString(true), "적지 않은 속성은 숨긴다");
-        assertEquals(stairs, Bukkit.createBlockData(Material.OAK_STAIRS, "facing=east"));
+        assertEquals(stairs, Bukkit.createBlockData(Material.OAK_STAIRS, "[facing=east]"));
+        // CraftBukkit 은 등록 이름 뒤에 그대로 붙여 읽는다 — 대괄호 없는 속성은 파싱 실패
+        assertThrows(IllegalArgumentException.class, () -> Bukkit.createBlockData(Material.OAK_STAIRS, "facing=east"));
         assertEquals(stairs, Material.OAK_STAIRS.createBlockData("[facing=east]"));
         assertEquals("minecraft:stone", Bukkit.createBlockData(Material.STONE).getAsString());
         // matches 는 적은 속성만 본다
