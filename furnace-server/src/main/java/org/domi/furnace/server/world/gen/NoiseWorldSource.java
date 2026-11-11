@@ -65,10 +65,11 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     // 키: (cx<<32)^cz, 값: lz*16+lx 인덱스의 (height-1). generate()는 seed+좌표만의 순수 함수라 메모이제이션 안전.
     // bounded LRU(256) — 무제한 ConcurrentHashMap이던 것을 pristine 캐시와 같은 이유로 bounded화.
     private static final int SURFACE_HEIGHT_CACHE_SIZE = 256;
-    private final Map<Long, ChunkColumn> terrainCache = java.util.Collections.synchronizedMap(
+    // baseBlock(getBaseColumn) 캐시 — 청크의 노이즈 단계 블록(noiseBlockIds). 표면 규칙은 넣지 않는다(바닐라 iterateNoiseColumn).
+    private final Map<Long, int[]> terrainCache = java.util.Collections.synchronizedMap(
         new java.util.LinkedHashMap<>(16, 0.75f, true) {
             @Override
-            protected boolean removeEldestEntry(Map.Entry<Long, ChunkColumn> eldest) {
+            protected boolean removeEldestEntry(Map.Entry<Long, int[]> eldest) {
                 return size() > 24;
             }
         });
@@ -935,17 +936,22 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
             int[] filled = flatLayers.filled();
             return i >= 0 && i < filled.length && i < dimension.sectionCount * 16 && filled[i] >= 0 ? filled[i] : ChunkSection.AIR;
         }
+        // 바닐라 NoiseBasedChunkGenerator.getBaseColumn = iterateNoiseColumn: 노이즈·대수층·광맥만, 표면 규칙 없음(높이 질의와 같다).
+        // 예전에는 표면 규칙까지 한 청크를 만들어 읽었다 — 네더 화석은 청크마다 이웃 청크 표면을 몇 번씩 새로 만들었고(네더 생성 CPU 의
+        // 큰 몫), 오버월드는 표면 규칙이 공기·물에 놓는 블록(빙산·악지 기둥)을 바닥으로 보았다.
+        int i = blockY - dimension.minY;
+        if (i < 0 || i >= dimension.sectionCount * 16) return ChunkSection.AIR;
         int cx = Math.floorDiv(blockX, 16);
         int cz = Math.floorDiv(blockZ, 16);
         long key = chunkKey(cx, cz);
-        // synchronizedMap.computeIfAbsent 는 생성(수십 ms) 동안 맵 전체를 잠근다 — 락 밖에서 계산한다(순수 함수라 중복 계산도 같은 값).
-        ChunkColumn c = terrainCache.get(key);
-        if (c == null) {
-            ChunkColumn fresh = generate(cx, cz);
-            c = terrainCache.putIfAbsent(key, fresh);
-            if (c == null) c = fresh;
+        // synchronizedMap.computeIfAbsent 는 생성 동안 맵 전체를 잠근다 — 락 밖에서 계산한다(순수 함수라 중복 계산도 같은 값).
+        int[] ids = terrainCache.get(key);
+        if (ids == null) {
+            int[] fresh = noiseBlockIds(cx, cz);
+            ids = terrainCache.putIfAbsent(key, fresh);
+            if (ids == null) ids = fresh;
         }
-        return c.getBlock(blockX - cx * 16, blockY, blockZ - cz * 16);
+        return ids[i * 256 + (blockZ - cz * 16) * 16 + (blockX - cx * 16)];
     }
 
     @Override
@@ -1044,6 +1050,9 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     Map<Long, int[]> surfaceHeightCache() {
         return surfaceHeightCache;
     }
+
+    /** 표면 규칙 실행기(시험·측정용). */
+    public SurfaceSystem surfaceSystem() { return surfaceSystem; }
 
     /** BiomeSource.getNoiseBiome(quart 좌표, climate sampler) 의 레지스트리 id(/locate biome). */
     public int noiseBiomeIdAtQuart(int qx, int qy, int qz) { return biomeSampler.sampleQuart(qx, qy, qz, router); }

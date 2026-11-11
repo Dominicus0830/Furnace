@@ -29,6 +29,11 @@ public final class SurfaceContext {
      */
     public int[] haloBiomes;
     public int haloQuartY0, haloQuartYCount;
+    /**
+     * haloBiomes 와 같은 칸 배치의 꼭짓점 지터(fiddle x·y·z, 칸마다 3개) 메모. 안 구한 칸은 NaN. null 이면 블록마다 계산(예전 경로).
+     * 이 표가 있으면 haloBiomes 의 청크 안쪽 높이 범위 칸도 chunkBiomeIds 값으로 채워져 있다.
+     */
+    public double[] zoomFiddles;
     // 16×16 surfaceY grid for steep condition
     public int[] surfaceYGrid;  // [lz*16+lx]
 

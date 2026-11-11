@@ -81,6 +81,7 @@ public final class SurfaceSystem {
         this.packedIceId = reg.defaultStateId("minecraft:packed_ice");
         this.snowBlockId = reg.defaultStateId("minecraft:snow_block");
         this.interpret = Boolean.getBoolean("furnace.surfaceInterp");
+        this.zoomTable = !"false".equals(System.getProperty("furnace.surface.zoomTable"));
         this.compiled = compile(rule);
     }
 
@@ -188,6 +189,7 @@ public final class SurfaceSystem {
         ctx.haloQuartYCount = ((maxY >> 2) + 1) - ctx.haloQuartY0 + 1;
         ctx.haloBiomes = new int[6 * 6 * ctx.haloQuartYCount];
         java.util.Arrays.fill(ctx.haloBiomes, Integer.MIN_VALUE);
+        if (zoomTable && biomeIds != null) initZoomTable(ctx, biomeIds);
         initCompiledCaches(ctx);
 
         for (int lz = 0; lz < 16; lz++) {
@@ -672,6 +674,10 @@ public final class SurfaceSystem {
     }
 
     private int biomeAtBlock(int blockX, int blockY, int blockZ, SurfaceContext ctx) {
+        if (ctx.zoomFiddles != null) {
+            int v = biomeAtBlockTable(blockX, blockY, blockZ, ctx);
+            if (v != Integer.MIN_VALUE) return v;
+        }
         Map<Long, Integer> cache = ctx.biomeCache;
         QuartKey q = biomeManagerQuart(blockX, blockY, blockZ);
         int[] chunkBiomes = ctx.chunkBiomeIds;
@@ -704,6 +710,133 @@ public final class SurfaceSystem {
         int biomeId = biomeSampler.sampleQuart(q.x(), q.y(), q.z(), router);
         cache.put(key, biomeId);
         return biomeId;
+    }
+
+    // ------------------------------------------------------------------ 바이옴 확대(지터) 표
+    //
+    // 바닐라 BiomeManager.getBiome 은 블록마다 둘레 quart 꼭짓점 8개의 지터 거리(꼭짓점마다 LCG 9번)를 다시 구한다.
+    // 표면 규칙은 거의 모든 돌 블록에서 바이옴을 물으므로(네더는 새 청크 CPU 의 약 60%) 청크 단위로 두 가지를 메모한다.
+    //  1) 꼭짓점 8개의 바이옴이 모두 같으면 어느 꼭짓점이 이기든 답이 같다 — 거리 계산을 건너뛴다.
+    //  2) 꼭짓점 지터(fiddle 3개)는 시드·quart 좌표만의 함수다 — 꼭짓점마다 한 번만 구한다(같은 식, 같은 덧셈 순서).
+    // 꼭짓점 바이옴은 haloBiomes 한 표(6×6×높이)에 둔다: 청크 안쪽 높이 범위는 sampleChunk 결과(기존과 같은 값), 나머지는 sampleQuart.
+    // -Dfurnace.surface.zoomTable=false 면 예전 경로(블록마다 지터 계산)를 쓴다(대조용).
+
+    private final boolean zoomTable;
+    /** 꼭짓점 번호 i(바닐라 순서: x=4, y=2, z=1 비트) → haloBiomes 안 상대 위치. x +1, z +6, y +36. */
+    private static final int[] ZOOM_OFFSET = {0, 6, 36, 42, 1, 7, 37, 43};
+
+    /** buildSurface 용 꼭짓점 표를 만든다 — 안쪽 quart 는 청크 바이옴 배열을 그대로 옮긴다. */
+    private void initZoomTable(SurfaceContext ctx, int[] chunkBiomes) {
+        int[] halo = ctx.haloBiomes;
+        int yOff = (settings.minY() >> 2) - ctx.haloQuartY0;
+        int qyCount = settings.height() >> 2;
+        for (int ry = 0; ry < qyCount; ry++) {
+            int hy = ry + yOff;
+            if (hy < 0 || hy >= ctx.haloQuartYCount) continue;
+            for (int rz = 0; rz < 4; rz++) {
+                for (int rx = 0; rx < 4; rx++) {
+                    halo[(hy * 6 + rz + 1) * 6 + rx + 1] = chunkBiomes[(ry * 4 + rz) * 4 + rx];
+                }
+            }
+        }
+        double[] f = new double[halo.length * 3];
+        java.util.Arrays.fill(f, Double.NaN);
+        ctx.zoomFiddles = f;
+    }
+
+    /** 표 범위 안이면 바닐라 getBiome 과 같은 답, 밖이면 Integer.MIN_VALUE(예전 경로로). */
+    private int biomeAtBlockTable(int blockX, int blockY, int blockZ, SurfaceContext ctx) {
+        int x = blockX - 2;
+        int y = blockY - 2;
+        int z = blockZ - 2;
+        int qx = x >> 2, qy = y >> 2, qz = z >> 2;
+        int hx = qx - (ctx.chunkQuartX0 - 1);
+        int hz = qz - (ctx.chunkQuartZ0 - 1);
+        int hy = qy - ctx.haloQuartY0;
+        if (hx < 0 || hx > 4 || hz < 0 || hz > 4 || hy < 0 || hy + 1 >= ctx.haloQuartYCount) return Integer.MIN_VALUE;
+        int[] b = ctx.haloBiomes;
+        int i0 = (hy * 6 + hz) * 6 + hx;
+        int v = b[i0];
+        if (v != Integer.MIN_VALUE && b[i0 + 1] == v && b[i0 + 6] == v && b[i0 + 7] == v
+                && b[i0 + 36] == v && b[i0 + 37] == v && b[i0 + 42] == v && b[i0 + 43] == v) {
+            return v;
+        }
+
+        double fracX = (double)(x & 3) / 4.0;
+        double fracY = (double)(y & 3) / 4.0;
+        double fracZ = (double)(z & 3) / 4.0;
+        double[] f = ctx.zoomFiddles;
+        int best = 0;
+        double bestDistance = Double.POSITIVE_INFINITY;
+        for (int i = 0; i < 8; i++) {
+            boolean useX0 = (i & 4) == 0;
+            boolean useY0 = (i & 2) == 0;
+            boolean useZ0 = (i & 1) == 0;
+            int fi = (i0 + ZOOM_OFFSET[i]) * 3;
+            if (Double.isNaN(f[fi])) {
+                fillFiddles(biomeZoomSeed, useX0 ? qx : qx + 1, useY0 ? qy : qy + 1, useZ0 ? qz : qz + 1, f, fi);
+            }
+            double dx = useX0 ? fracX : fracX - 1.0;
+            double dy = useY0 ? fracY : fracY - 1.0;
+            double dz = useZ0 ? fracZ : fracZ - 1.0;
+            // fiddledDistance 와 같은 식·같은 덧셈 순서(z, y, x)
+            double distance = square(dz + f[fi + 2]) + square(dy + f[fi + 1]) + square(dx + f[fi]);
+            if (bestDistance > distance) {
+                best = i;
+                bestDistance = distance;
+            }
+        }
+        int bi = i0 + ZOOM_OFFSET[best];
+        int r = b[bi];
+        if (r == Integer.MIN_VALUE) {
+            r = biomeSampler.sampleQuart((best & 4) == 0 ? qx : qx + 1, (best & 2) == 0 ? qy : qy + 1,
+                (best & 1) == 0 ? qz : qz + 1, router);
+            b[bi] = r;
+        }
+        return r;
+    }
+
+    /**
+     * 시험용: buildSurface 와 같은 문맥으로 청크 안 모든 블록(생성 높이)의 표면 규칙 바이옴을 [y][z][x] 순으로 돌려준다.
+     * table=false 면 꼭짓점 표 없이 블록마다 지터를 계산하는 예전 경로(바닐라 getBiome 그대로)를 쓴다.
+     */
+    int[] blockBiomesForTest(int[] biomeIds, int chunkX, int chunkZ, boolean table) {
+        int minY = settings.minY(), maxY = minY + settings.height() - 1;
+        SurfaceContext ctx = new SurfaceContext();
+        ctx.biomeCache = new HashMap<>();
+        ctx.chunkBiomeIds = biomeIds;
+        ctx.chunkQuartX0 = chunkX * 4;
+        ctx.chunkQuartZ0 = chunkZ * 4;
+        ctx.haloQuartY0 = (minY >> 2) - 1;
+        ctx.haloQuartYCount = ((maxY >> 2) + 1) - ctx.haloQuartY0 + 1;
+        ctx.haloBiomes = new int[6 * 6 * ctx.haloQuartYCount];
+        java.util.Arrays.fill(ctx.haloBiomes, Integer.MIN_VALUE);
+        if (table) initZoomTable(ctx, biomeIds);
+        int[] out = new int[(maxY - minY + 1) * 256];
+        int i = 0;
+        for (int y = minY; y <= maxY; y++)
+            for (int z = 0; z < 16; z++)
+                for (int x = 0; x < 16; x++)
+                    out[i++] = biomeAtBlock(chunkX * 16 + x, y, chunkZ * 16 + z, ctx);
+        return out;
+    }
+
+    /** fiddledDistance 의 꼭짓점 지터 3개(x, y, z)를 out[off..off+2] 에. */
+    private static void fillFiddles(long seed, int x, int y, int z, double[] out, int off) {
+        long mixed = lcgNext(seed, x);
+        mixed = lcgNext(mixed, y);
+        mixed = lcgNext(mixed, z);
+        mixed = lcgNext(mixed, x);
+        mixed = lcgNext(mixed, y);
+        mixed = lcgNext(mixed, z);
+        double xFiddle = fiddle(mixed);
+        mixed = lcgNext(mixed, seed);
+        double yFiddle = fiddle(mixed);
+        mixed = lcgNext(mixed, seed);
+        double zFiddle = fiddle(mixed);
+        out[off + 1] = yFiddle;
+        out[off + 2] = zFiddle;
+        out[off] = xFiddle;
     }
 
     private static long packQuart(int x, int y, int z) {
