@@ -6,7 +6,8 @@
 표본: 널리 쓰이는 플러그인 10개의 1.21.1 대응 NMS 모듈 **소스**(GitHub). FAWE 2.16.2 `adapter-1_21`, WorldEdit `adapter-1.21`(2024-11-09),
 Citizens2 `v1_21_R2`(1.21.1 모듈이 지워져 1.21.3 판으로 근사), Shopkeepers `v1_21_R1`, Denizen `v1_21`(1.21.1 판), dynmap `bukkit-helper-121`,
 DecentHolograms `nms-v1_21_R1`, TAB `bukkit/v1_21_R1`, LibsDisguises `nms/legacy/v1_21_R1`, squaremap `paper`+`common`(1.21.3 판).
-클래스 단위로 "그 클래스를 쓰는 플러그인 수"를 센다(멤버·리플렉션 문자열은 세지 않는다). "이미 shim" 은 `furnace-compat-paper` 에 같은 이름 클래스가 있는 수.
+클래스 단위로 "그 클래스를 쓰는 플러그인 수"를 센다(멤버·리플렉션 문자열은 세지 않는다). **Spigot 이름 클래스(dynmap·TAB·DecentHolograms 의 `IBlockData`·`MinecraftKey`·`PacketPlayOut…`)는 Mojang 이름과 따로 세어져 클래스별 숫자가 낮다** — 독립 검토의 수작업 합산으로는 `ResourceLocation` 9, `BlockState`·`Component`·`ServerLevel`·`Registry` 7, `LevelChunk`·`ChunkAccess` 5, 게임 패킷은 서로 다른 40종(2개 이상이 쓰는 것 15종). "이미 shim" 은 `furnace-compat-paper` 에 같은 이름 클래스가 있는 수.
+
 
 ## 패키지 묶음별 (2개 이상 플러그인)
 
@@ -67,6 +68,7 @@ DecentHolograms `nms-v1_21_R1`, TAB `bukkit/v1_21_R1`, LibsDisguises `nms/legacy
 | `world.inventory` | 2 | 5 | 0 | Citizens, Denizen |
 | `server.players` | 2 | 4 | 0 | Citizens, Denizen |
 | `world.entity.npc` | 2 | 3 | 0 | Citizens, Denizen |
+| `advancements` | 2 | 2 | 0 | Citizens, Denizen |
 | `commands.arguments` | 2 | 2 | 0 | Denizen, squaremap |
 | `network.chat.contents` | 2 | 2 | 0 | Citizens, DecentHolograms |
 | `network.chat.numbers` | 2 | 2 | 0 | Denizen, TAB |
@@ -102,6 +104,7 @@ DecentHolograms `nms-v1_21_R1`, TAB `bukkit/v1_21_R1`, LibsDisguises `nms/legacy
 | `org.bukkit.craftbukkit.CraftWorld` | 7 | 있음 | Citizens, Denizen, FAWE, LibsDisguises, WorldEdit, dynmap, squaremap |
 | `net.minecraft.core.Registry` | 6 |  | Citizens, Denizen, FAWE, LibsDisguises, WorldEdit, squaremap |
 | `net.minecraft.core.registries.Registries` | 6 |  | Denizen, FAWE, LibsDisguises, WorldEdit, dynmap, squaremap |
+| `net.minecraft.network.chat.Component` | 6 | 있음 | Citizens, Denizen, FAWE, TAB, WorldEdit, squaremap |
 | `net.minecraft.resources.ResourceLocation` | 6 | 있음 | Citizens, Denizen, FAWE, LibsDisguises, WorldEdit, squaremap |
 | `net.minecraft.server.MinecraftServer` | 6 | 있음 | Citizens, Denizen, FAWE, Shopkeepers, WorldEdit, dynmap |
 | `net.minecraft.server.level.ServerLevel` | 6 | 있음 | Citizens, Denizen, FAWE, LibsDisguises, WorldEdit, squaremap |
@@ -109,9 +112,9 @@ DecentHolograms `nms-v1_21_R1`, TAB `bukkit/v1_21_R1`, LibsDisguises `nms/legacy
 | `org.bukkit.craftbukkit.entity.CraftEntity` | 6 | 있음 | Citizens, Denizen, FAWE, LibsDisguises, Shopkeepers, WorldEdit |
 | `org.bukkit.craftbukkit.inventory.CraftItemStack` | 6 | 있음 | Citizens, DecentHolograms, Denizen, FAWE, Shopkeepers, WorldEdit |
 | `net.minecraft.core.BlockPos` | 5 | 있음 | Citizens, Denizen, FAWE, WorldEdit, squaremap |
+| `net.minecraft.core.Direction` | 5 | 있음 | Citizens, Denizen, FAWE, WorldEdit, squaremap |
 | `net.minecraft.core.Holder` | 5 |  | Citizens, Denizen, FAWE, WorldEdit, squaremap |
 | `net.minecraft.nbt.CompoundTag` | 5 | 있음 | Citizens, Denizen, FAWE, WorldEdit, squaremap |
-| `net.minecraft.network.chat.Component` | 5 | 있음 | Citizens, Denizen, FAWE, WorldEdit, squaremap |
 | `net.minecraft.resources.ResourceKey` | 5 |  | Citizens, Denizen, FAWE, WorldEdit, squaremap |
 | `net.minecraft.server.level.ClientInformation` | 5 |  | Citizens, Denizen, FAWE, LibsDisguises, WorldEdit |
 | `net.minecraft.server.level.ServerChunkCache` | 5 |  | Citizens, Denizen, FAWE, LibsDisguises, WorldEdit |
@@ -124,7 +127,6 @@ DecentHolograms `nms-v1_21_R1`, TAB `bukkit/v1_21_R1`, LibsDisguises `nms/legacy
 | `net.minecraft.world.phys.Vec3` | 5 | 있음 | Citizens, Denizen, FAWE, WorldEdit, squaremap |
 | `org.bukkit.craftbukkit.CraftServer` | 5 | 있음 | Citizens, Denizen, FAWE, WorldEdit, dynmap |
 | `com.mojang.authlib.properties.Property` | 4 |  | Citizens, Denizen, TAB, dynmap |
-| `net.minecraft.core.Direction` | 4 | 있음 | Citizens, FAWE, WorldEdit, squaremap |
 | `net.minecraft.core.HolderSet` | 4 |  | Citizens, Denizen, FAWE, WorldEdit |
 | `net.minecraft.core.SectionPos` | 4 |  | Citizens, Denizen, FAWE, WorldEdit |
 | `net.minecraft.nbt.ByteArrayTag` | 4 | 있음 | Citizens, Denizen, FAWE, WorldEdit |

@@ -7,7 +7,10 @@
 # FAWE 는 태그 2.16.2(폴더 이름 FastAsyncWorldEdit).
 #
 # 사용: python3 -I nms-source-survey.py <클론 폴더> <compat-paper src/main/java> > 표.md
-# 한계: 클래스 단위다(멤버·리플렉션 문자열은 세지 않는다). Spigot 이름 소스도 1.17 이후 클래스 이름은 Mojang 과 같아 함께 센다.
+# 한계: 클래스 단위다(멤버·리플렉션 문자열은 세지 않는다). Spigot 이름 소스(dynmap·TAB·DecentHolograms)는 패키지만 Mojang 과 같고
+# 클래스 이름이 다르다(IBlockData·MinecraftKey·PacketPlayOut…) — 따로 세어져 클래스별 숫자가 낮게 나온다(검토 2026-11-11: 합치면
+# ResourceLocation 6→9, BlockState 5→7, 게임 패킷 46→40종). 합치려면 H7d 변환표가 필요해 도구는 합치지 않는다.
+# 와일드카드 import(pkg.*)는 다른 곳에서 본 같은 패키지 클래스 이름이 파일에 나오면 그 클래스로 센다.
 import collections
 import os
 import re
@@ -30,6 +33,8 @@ COMMITS = {
     'jpenilla_squaremap': '8e3cfea', 'DenizenScript_Denizen': '3f523e9',
 }
 
+WILDCARD = re.compile(r'^import\s+((?:net\.minecraft|org\.bukkit\.craftbukkit)\.[\w.]+)\.\*;', re.M)
+WORD = re.compile(r'\b[A-Z]\w*\b')
 IMPORT = re.compile(r'^import\s+(?:static\s+)?((?:net\.minecraft|org\.bukkit\.craftbukkit|com\.mojang)\.[\w.]+?)(?:\.\*)?;', re.M)
 QUALIFIED = re.compile(r'\b((?:net\.minecraft|org\.bukkit\.craftbukkit)\.(?:[a-z_0-9]+\.)+[A-Z]\w*)')
 
@@ -46,6 +51,7 @@ def norm(name):
 
 def scan(root):
     use = collections.defaultdict(set)
+    wild = []   # (플러그인, 패키지, 파일에 나온 대문자 이름들)
     for plugin, dirs in MODS.items():
         for d in dirs:
             for dp, _, fs in os.walk(os.path.join(root, d)):
@@ -57,6 +63,15 @@ def scan(root):
                     for h in hits:
                         if h.split('.')[-1][:1].isupper():
                             use[h].add(plugin)
+                    pkgs = WILDCARD.findall(s)
+                    if pkgs:
+                        words = set(WORD.findall(s))
+                        wild.extend((plugin, norm(p + '.X')[:-2], words) for p in pkgs)
+    known = set(use)
+    for plugin, pkg, words in wild:
+        for w in words:
+            if pkg + '.' + w in known:
+                use[pkg + '.' + w].add(plugin)
     return use
 
 
