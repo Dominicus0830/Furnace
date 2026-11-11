@@ -1154,7 +1154,15 @@ public final class World {
                     col.inflightSerializedBody(f);
                     // 결과(성공·실패)는 주인 스레드 태스크 안에서 진행 표시를 내린 뒤 완료한다 — 그 뒤 요청이 끝난(실패한)
                     // future 를 물려받지 않는다. 캐시 쓰기도 같은 태스크라 내림과 캐시 사이에 틈이 없다.
-                    chunkPool.submit(() -> serializeChunkBody(finalSnapshot)).handle((body, ex) -> submitAtChunk(cp, r2 -> {
+                    final long[] traceSer = ChunkTrace.ON ? new long[2] : null;
+                    if (ChunkTrace.ON) traceSer[0] = System.nanoTime();
+                    chunkPool.submit(() -> {
+                        long ts = ChunkTrace.ON ? System.nanoTime() : 0L;
+                        byte[] out = serializeChunkBody(finalSnapshot);
+                        if (ChunkTrace.ON) { traceSer[1] = System.nanoTime(); ChunkTrace.nanos("ser", traceSer[1] - ts); ChunkTrace.nanos("hop.serpool", ts - traceSer[0]); }
+                        return out;
+                    }).handle((body, ex) -> submitAtChunk(cp, r2 -> {
+                        if (ChunkTrace.ON && traceSer[1] != 0L) ChunkTrace.nanos("hop.ser", System.nanoTime() - traceSer[1]);
                         if (col.inflightSerializedBody() == f) col.inflightSerializedBody(null);
                         if (ex == null && col.modCount() == version) col.cachedSerializedBody(body);
                         return body;
@@ -1165,6 +1173,41 @@ public final class World {
                     }));
                     return f;
                 }).thenCompose(f -> f));
+    }
+
+    /** auto 전송이 본문을 기다려 주는 최대 횟수(보내려던 틱 수). 넘으면 바닐라처럼 그 자리에서 직렬화한다. */
+    static final int MAX_BODY_WAITS = 2;
+
+    /**
+     * auto 전송(그 청크 주인 region 스레드에서): 본문이 이미 준비돼 있어 배치에 넣으면 Start·청크·Finished 가 같은 틱에 나가는가.
+     * 준비 안 됐으면 직렬화를 걸어 두고(이미 진행 중이면 그대로) 거짓 — 끝나면 캐시에 들어가 다음 틱에 참이 된다.
+     * 바닐라 클라이언트는 Start~Finished 시간을 배치 크기로 나눠 자기 처리 속도로 여기고 틱당 원하는 청크 수를 정한다
+     * (ChunkBatchSizeCalculator). 그 사이에 직렬화 왕복(작업 큐가 다음 틱에 비워진다)이 끼면 클라이언트가 스스로 느리다고 보고 속도를 1 아래로 낮춘다.
+     * sendingNow(이번 배치에 넣으려는 청크)인데 이미 MAX_BODY_WAITS 틱을 기다렸으면 — 화로·레드스톤처럼 매 틱 바뀌어 캐시가 보내기 직전에
+     * 비워지는 청크 — 바닐라처럼 이 스레드에서 바로 직렬화해 캐시에 넣고 참(영영 못 보내지 않게, 배치도 한 틱 안에 끝난다).
+     */
+    public boolean chunkBodyReadyOrPrefetch(ChunkPos cp, boolean sendingNow) {
+        ChunkColumn col = loadedChunk(cp.x(), cp.z());
+        if (col == null) return true;
+        if (col.cachedSerializedBody() != null) {
+            if (sendingNow) col.bodyWaits(0);
+            return true;
+        }
+        if (sendingNow && col.bodyWaits() >= MAX_BODY_WAITS) {
+            if (ChunkTrace.ON) ChunkTrace.value("batch.syncser", 1);
+            col.bodyWaits(0);
+            try {
+                bodySnapshots.incrementAndGet();
+                col.cachedSerializedBody(serializeChunkBody(ChunkSnapshot.of(cp.x(), cp.z(), col)));
+            } catch (RuntimeException e) {
+                // 실패하면 캐시 없이 참 — 배치 안의 예전 경로(serializedChunkBody)가 다시 해 보고 실패를 기록한다
+                org.slf4j.LoggerFactory.getLogger(World.class).warn("[CHUNK] 본문 직렬화 실패 {}", cp, e);
+            }
+            return true;
+        }
+        if (sendingNow) col.bodyWaits(col.bodyWaits() + 1);
+        if (col.inflightSerializedBody() == null) serializedChunkBody(cp, true);
+        return false;
     }
 
     /** inline 이고 지금 스레드가 그 청크 주인 region 이면 바로 돌리고, 아니면 submitAtChunk. */

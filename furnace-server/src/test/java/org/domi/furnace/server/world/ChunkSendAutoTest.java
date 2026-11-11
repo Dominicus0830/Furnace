@@ -81,14 +81,19 @@ class ChunkSendAutoTest {
             for (int z = -VD; z <= VD; z++) w.awaitChunk(new ChunkPos(x, z));   // 모두 미리 로드
         EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
         join(ch);
-        tick();
         List<int[]> batches = new ArrayList<>();
         int[] open = {0};
+        // 첫 틱은 본문 직렬화만 건다(본문이 준비된 청크만 배치에) — 직렬화가 끝나 캐시에 들어가면 다음 틱에 나간다
+        tick();
+        drain(ch, batches, open);
+        assertTrue(batches.isEmpty(), "본문이 준비 안 된 청크로 배치를 열면 안 된다");
+        Thread.sleep(500);
         for (int i = 0; i < 100 && batches.isEmpty(); i++) {
+            tick();
+            Thread.sleep(10);
             drain(ch, batches, open);
-            if (batches.isEmpty()) Thread.sleep(10);
         }
-        assertFalse(batches.isEmpty(), "첫 틱에 배치가 나가야 한다");
+        assertFalse(batches.isEmpty(), "본문이 준비되면 배치가 나가야 한다");
         // 첫 응답 전에도 auto 상한(64)까지 한 배치로 — 예전 고정 기본값 16 보다 많다
         assertEquals(Region.AUTO_MAX_CHUNKS_PER_TICK, batches.get(0)[1]);
         assertEquals(batches.get(0)[1], batches.get(0)[0], "Finished 수 == 실제 보낸 청크 수");
@@ -119,6 +124,70 @@ class ChunkSendAutoTest {
         assertEquals(total, sent, "시야 안 청크가 모두 와야 한다");
         for (int[] b : batches) assertEquals(b[1], b[0], "배치마다 Finished 수 == 실제 보낸 청크 수");
         assertTrue(p.pendingChunks().isEmpty());
+    }
+
+    /**
+     * 바닐라 PlayerChunkSender 처럼 배치는 한 틱 안에서 Start → 청크 → Finished 로 끝난다. 바닐라 클라이언트(ChunkBatchSizeCalculator)는
+     * Start~Finished 시간을 배치 크기로 나눠 틱당 원하는 청크 수를 정하므로, Finished 가 다음 틱(본문 직렬화 왕복)으로 밀리면
+     * 클라이언트가 속도를 0.15청크/틱까지 낮춘다(2026-11-11 진단: 시야 10 이 22초).
+     */
+    @Test
+    void everyBatch_finishesInTheTickItStarted() throws Exception {
+        world(true);   // 디스크·생성 직후처럼 본문 캐시가 없는 청크들
+        EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
+        Player p = join(ch);
+        List<int[]> batches = new ArrayList<>();
+        int[] open = {0};
+        boolean[] inBatch = {false};
+        int total = (2 * VD + 1) * (2 * VD + 1);
+        int sent = 0;
+        for (int i = 0; i < 400 && sent < total; i++) {
+            tick();
+            drainTrackingOpen(ch, batches, open, inBatch);
+            // tick() 이 돌아온 뒤 Start 만 나가 있고 Finished 가 없으면 배치가 다음 틱으로 넘어간 것
+            assertFalse(inBatch[0], "틱 " + i + ": 배치가 같은 틱에 닫히지 않았다");
+            sent = batches.stream().mapToInt(x -> x[1]).sum();
+            Thread.sleep(5);
+        }
+        assertEquals(total, sent, "시야 안 청크가 모두 와야 한다");
+        for (int[] x : batches) assertEquals(x[1], x[0], "배치마다 Finished 수 == 실제 보낸 청크 수");
+        assertTrue(p.pendingChunks().isEmpty());
+    }
+
+    private static void drainTrackingOpen(EmbeddedChannel ch, List<int[]> batches, int[] open, boolean[] inBatch) {
+        ch.runPendingTasks();
+        Object o;
+        while ((o = ch.readOutbound()) != null) {
+            ByteBuf b = (ByteBuf) o;
+            int id = Types.readVarInt(b);
+            if (id == CHUNK_BATCH_START) { open[0] = 0; inBatch[0] = true; }
+            else if (id == LEVEL_CHUNK) open[0]++;
+            else if (id == CHUNK_BATCH_FINISHED) { batches.add(new int[]{open[0], Types.readVarInt(b)}); inBatch[0] = false; }
+            b.release();
+        }
+    }
+
+    /** 매 틱 바뀌는 청크(화로·레드스톤)는 본문이 캐시에 못 들어가도 결국 보내야 한다 — 그 자리에서 직렬화한다. */
+    @Test
+    void chunkChangedEveryTick_isStillSent() throws Exception {
+        world(true);
+        for (int x = -VD; x <= VD; x++)
+            for (int z = -VD; z <= VD; z++) w.awaitChunk(new ChunkPos(x, z));
+        EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
+        Player p = join(ch);
+        List<int[]> batches = new ArrayList<>();
+        int[] open = {0};
+        int total = (2 * VD + 1) * (2 * VD + 1);
+        int sent = 0;
+        for (int i = 0; i < 400 && sent < total; i++) {
+            sched.region(rp).execute(() -> w.loadedChunk(0, 0).markDirty()).get();   // 직렬화가 끝날 때마다 이미 낡았다
+            tick();
+            Thread.sleep(5);
+            drain(ch, batches, open);
+            sent = batches.stream().mapToInt(b -> b[1]).sum();
+        }
+        assertEquals(total, sent, "매 틱 바뀌는 청크도 와야 한다");
+        assertFalse(p.pendingChunks().contains(new ChunkPos(0, 0)));
     }
 
     @Test
