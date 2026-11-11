@@ -182,7 +182,7 @@ public final class ChunkSection {
         tickingCount = -1;
         blocks.load(scratch, 0);
         int count = 0;
-        for (int value : scratch) if (value != AIR) count++;
+        for (int value : scratch) if (!isAir(value)) count++;   // 바닐라 recalcBlockCounts 처럼 cave_air·void_air 도 공기
         nonAirCount = (short) count;
         scratch = null;
     }

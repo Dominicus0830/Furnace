@@ -217,6 +217,32 @@ public final class PluginManagerImpl implements PluginManager {
         public ClassLoader classLoader() { return loader; }
 
         public org.domi.furnace.api.registry.PluginRegistries registries() { return registries; }
+
+        /** 관리자가 이 플러그인에 건 1회 토큰을 쓴다 — setEnabled 머리에서 한 번만 참이다(onEnable 안에서 부른 setEnabled(false) 는 거짓). */
+        @Override
+        public boolean lifecycleCall() {
+            FurnacePlugin t = LIFECYCLE.get();
+            if (t == null || t.description() != d) return false;
+            LIFECYCLE.remove();
+            return true;
+        }
+    }
+
+    /**
+     * 관리자가 지금 setEnabled 를 부르려는 플러그인(1회 토큰). 그 밖의 setEnabled(플러그인 자신·다른 플러그인, onEnable 안의 setEnabled(false)
+     * 포함)는 관리자 enable/disable 로 넘어가 자동 정리까지 돈다(A14-08).
+     */
+    private static final ThreadLocal<FurnacePlugin> LIFECYCLE = new ThreadLocal<>();
+
+    private static void setEnabledByManager(FurnacePlugin p, boolean v) {
+        FurnacePlugin was = LIFECYCLE.get();
+        LIFECYCLE.set(p);
+        try {
+            p.setEnabled(v);
+        } finally {
+            if (was == null) LIFECYCLE.remove();
+            else LIFECYCLE.set(was);
+        }
     }
 
     // ------------------------------------------------------------------ 켜기·끄기
@@ -247,7 +273,7 @@ public final class PluginManagerImpl implements PluginManager {
         Timing timing = host.profiler().timing(p, PluginProfiler.Kind.LIFECYCLE, "onEnable");
         long t0 = timing.start();
         try {
-            p.setEnabled(true);
+            setEnabledByManager(p, true);
         } catch (Throwable t) {
             log.error("Error occurred while enabling {} (Is it up to date?)", l.description().fullName(), t);
             failures.add(l.description().name());
@@ -278,13 +304,14 @@ public final class PluginManagerImpl implements PluginManager {
             Timing timing = host.profiler().timing(p, PluginProfiler.Kind.LIFECYCLE, "onDisable");
             long t0 = timing.start();
             try {
-                p.setEnabled(false);
+                setEnabledByManager(p, false);
             } catch (Throwable t) {
                 log.error("Error occurred while disabling {} (Is it up to date?)", l.description().fullName(), t);
             } finally {
                 timing.stop(t0);
             }
         }
+        host.profiled().retire(p);   // 어느 스케줄러로 건 작업이든 꺼지기 전에 건 것은 다시 켜도 돌지 않는다
         host.eventsImpl().unregisterAll(p);
         host.commandsImpl().unregisterAll(p);
         host.removeAttachments(p);
@@ -299,6 +326,11 @@ public final class PluginManagerImpl implements PluginManager {
         host.virtualImpl().removeAll(p);   // 가상 엔티티·가짜 탭 줄
         host.entityViewsImpl().removeAll(p);   // 보이기·숨기기·변장 규칙
         host.playerViewsImpl().removeAll(p);   // 가상 블록·바이옴 층, 장비 덮어쓰기, 개인 보더
+        try {
+            for (var w : host.core().worlds()) w.spawnPolicy().removeFiltersOf(p);   // 스폰 필터(A14-06)
+        } catch (RuntimeException e) {
+            log.warn("{} 의 스폰 필터 정리 실패", l.description().name(), e);
+        }
         try {
             host.lightSourcesImpl().removeAll(p);   // 가짜 광원
         } catch (RuntimeException e) {

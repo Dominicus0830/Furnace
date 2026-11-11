@@ -22,6 +22,7 @@ public final class Translators {
     private Translators() {}
 
     /** 번역기 등록 — 먼저 등록한 것이 우선한다. */
+    /** 전역 등록 — 소유자가 없어 플러그인이 꺼져도 남는다(A14-11). 플러그인은 꺼질 때 풀리는 server().translations() 를 쓴다. */
     public static void register(Translator t) { TRANSLATORS.add(t); }
 
     public static void unregister(Translator t) { TRANSLATORS.remove(t); }

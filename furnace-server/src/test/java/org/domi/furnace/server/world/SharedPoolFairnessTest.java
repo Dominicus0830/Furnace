@@ -1,0 +1,140 @@
+package org.domi.furnace.server.world;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
+import org.domi.furnace.api.concurrent.Owned;
+import org.domi.furnace.api.concurrent.ThreadOwner;
+import org.domi.furnace.server.net.ChunkWorkerPool;
+import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
+import org.domi.furnace.server.world.gen.SuperflatWorldSource;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.Test;
+
+// A03-04 회귀(2차 점검 재현 시험): 무거운 차원이 둘이어도 셋째 가벼운 차원이 늦지 않는다 — 쉬는 차원 몫으로 워커 하나를 늘 남긴다
+// (예전엔 상한이 차원마다 T−1 이라 둘이 합쳐 워커를 모두 채워 가벼운 차원이 60ms 마다 돌았다).
+// 대조: 무거운 차원 하나(기존 SharedPoolS4Test.longTicksInOneDimensionLeaveAWorkerForOthers 와 같은 장면).
+class SharedPoolFairnessTest {
+
+    private final List<AutoCloseable> closers = new ArrayList<>();
+    private final List<ExecutorService> pools = new ArrayList<>();
+    private final AtomicBoolean stop = new AtomicBoolean();
+
+    @AfterEach
+    void tearDown() throws Exception {
+        stop.set(true);
+        for (int i = closers.size() - 1; i >= 0; i--) closers.get(i).close();
+        for (ExecutorService e : pools) e.shutdownNow();
+    }
+
+    private SharedScheduler sharedPool(int threads) {
+        SharedScheduler p = SharedScheduler.startShared(threads, "furnace-region-s4-");
+        closers.add(p::close);
+        return p;
+    }
+
+    private World world(DimensionType type, long tickNanos, SharedScheduler pool) {
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(tickNanos, 1);
+        closers.add(sched::close);
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        ExecutorService io = Executors.newSingleThreadExecutor(), gen = Executors.newSingleThreadExecutor();
+        pools.add(io);
+        pools.add(gen);
+        World w = new World(type, new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, pool, 4, 1, 2, 2,
+                reg.directBits(), 7, io, gen);
+        w.configurePersistence(Integer.MAX_VALUE, Integer.MAX_VALUE);
+        return w;
+    }
+
+    private List<World> threeDims(long tickNanos, SharedScheduler pool) {
+        return List.of(world(DimensionType.OVERWORLD, tickNanos, pool), world(DimensionType.NETHER, tickNanos, pool),
+                world(DimensionType.END, tickNanos, pool));
+    }
+
+    /** region(청크 cp 를 가진) 에서 매 틱 body 를 부른다. stop 이 서거나 n 번 돌면 끝. */
+    private CompletableFuture<Void> everyTick(World w, ChunkPos cp, int n, Consumer<Region> body) {
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        long key = Regionizer.chunkKey(cp.x(), cp.z());
+        AtomicInteger c = new AtomicInteger();
+        w.runAtChunk(cp, r -> {
+            r.chunkAtBlocking(cp);
+            r.schedule(key, new Consumer<Region>() {
+                @Override public void accept(Region r2) {
+                    body.accept(r2);
+                    if (c.incrementAndGet() >= n || stop.get()) f.complete(null);
+                    else r2.schedule(key, this, 1);
+                }
+            }, 1);
+        });
+        return f;
+    }
+
+
+    /** 마지막 lightGaps 동안 워커가 고르기를 돈 횟수·꺼내기 실패 수(초당) — 남겨 둔 워커가 헛돌면 수십만이 된다(검토 F3·F4). */
+    private double wakeupsPerSec, missesPerSec;
+
+    private long[] lightGaps(int heavyDims) throws Exception {
+        SharedScheduler pool = sharedPool(4);
+        DimensionType[] types = {DimensionType.OVERWORLD, DimensionType.END};
+        for (int d = 0; d < heavyDims; d++) {
+            World h = world(types[d], 50_000_000L, pool);
+            for (int k = 0; k < 4; k++) {
+                everyTick(h, new ChunkPos(k * 4096, 0), Integer.MAX_VALUE, r -> {
+                    long end = System.nanoTime() + 60_000_000L;
+                    while (System.nanoTime() - end < 0) Thread.onSpinWait();
+                });
+            }
+        }
+        World light = world(DimensionType.NETHER, 50_000_000L, pool);
+        ConcurrentLinkedQueue<Long> starts = new ConcurrentLinkedQueue<>();
+        long w0 = pool.loops(), m0 = pool.takeMisses(), t0 = System.nanoTime();
+        everyTick(light, new ChunkPos(0, 0), 80, r -> starts.add(System.nanoTime())).get(60, TimeUnit.SECONDS);
+        double secs = (System.nanoTime() - t0) / 1e9;
+        wakeupsPerSec = (pool.loops() - w0) / secs;
+        missesPerSec = (pool.takeMisses() - m0) / secs;
+        stop.set(true);
+        Long[] st = starts.toArray(Long[]::new);
+        long[] gaps = new long[st.length - 6];
+        for (int i = 6; i < st.length; i++) gaps[i - 6] = st[i] - st[i - 1];
+        Arrays.sort(gaps);
+        stop.set(false);
+        for (int i = closers.size() - 1; i >= 0; i--) closers.get(i).close();
+        closers.clear();
+        return gaps;
+    }
+
+    @Test
+    void lightDimensionWithTwoHeavyNeighbours() throws Exception {
+        Assumptions.assumeTrue(System.getProperty("furnace.sched.dimCap") == null);
+        StringBuilder sb = new StringBuilder("A03-HEAVY");
+        long offTwo = 0, nTwo = 0;
+        double maxWake = 0, maxMiss = 0;
+        for (int heavy : new int[] {1, 2}) {
+            long[] g = lightGaps(heavy);
+            long off = Arrays.stream(g).filter(x -> Math.abs(x - 50_000_000L) > 10_000_000L).count();
+            long late = Arrays.stream(g).filter(x -> x - 50_000_000L > 10_000_000L).count();
+            sb.append(String.format(" | 무거운 차원 %d개: 가벼운 차원 틱 간격 50±10ms 벗어남 %d/%d(늦음 %d), p50=%.1fms p90=%.1fms max=%.1fms, 고르기 %.0f/s 꺼내기 실패 %.0f/s",
+                    heavy, off, g.length, late, g[g.length / 2] / 1e6, g[g.length * 9 / 10] / 1e6, g[g.length - 1] / 1e6, wakeupsPerSec, missesPerSec));
+            if (heavy == 2) { offTwo = off; nTwo = g.length; }
+            maxWake = Math.max(maxWake, wakeupsPerSec);
+            maxMiss = Math.max(maxMiss, missesPerSec);
+        }
+        System.out.println(sb);
+        assertTrue(offTwo <= nTwo / 10, sb.toString());
+        // 틱은 초당 수백 번(무거운 region 8개·가벼운 1개 × 20) — 헛돌지 않으면 고르기·실패도 그 정도다
+        assertTrue(maxWake < 5_000 && maxMiss < 5_000, "워커 헛돌기: " + sb);
+    }
+}
