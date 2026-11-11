@@ -370,10 +370,12 @@ public final class Regionizer {
         if (urgent) urgentArrived(r);
     }
 
-    /** 주인 region 이 이미 있을 때만 작업을 넣는다(조회성 — region 을 만들지 않는다). 주인이 없으면 false. */
+    /** 주인 region 이 이미 있을 때만 작업을 넣는다(조회성 — region 을 만들지 않는다). 주인이 없으면(그 사이 없어졌어도) false. */
     boolean enqueueIfOwned(long chunkKey, java.util.function.Consumer<Region> task) {
-        if (ownerOf(chunkX(chunkKey), chunkZ(chunkKey)) == null) return false;
-        enqueue(chunkKey, task);
+        boolean urgent = org.domi.furnace.server.sched.GlobalThread.isGlobalThread();
+        Region r = offer(chunkX(chunkKey), chunkZ(chunkKey), new Region.Task(chunkKey, task, urgent));
+        if (r == null) return false;
+        if (urgent) urgentArrived(r);
         return true;
     }
 
