@@ -23,6 +23,7 @@ public final class AsyncPlayerPreLoginEvent extends Event {
     }
 
     public AsyncPlayerPreLoginEvent(String name, UUID uniqueId, InetAddress address, PlayerConnection connection) {
+        super(true);   // 가상 스레드에서 불린다(Paper 도 isAsynchronous()=true)
         this.name = name;
         this.uniqueId = uniqueId;
         this.address = address;

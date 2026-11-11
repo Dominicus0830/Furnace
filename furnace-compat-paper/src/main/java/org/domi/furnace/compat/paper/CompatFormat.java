@@ -70,6 +70,12 @@ public final class CompatFormat implements PluginFormat {
         } catch (InvalidDescriptionException e) {
             throw new IllegalArgumentException(fileName + ": " + (e.getCause() != null ? e.getCause().getMessage() : e.getMessage()), e);
         }
+        // Paper SpigotPluginProviderFactory.build: 예약 이름과 공백 든 이름은 불러올 때 거부한다(공백은 getName() 에서 '_' 로 바뀌므로 원래 이름으로 본다)
+        String rawName = String.valueOf(map.get("name"));
+        if (PluginDescription.RESERVED_NAMES.contains(rawName.toLowerCase(Locale.ROOT)))
+            throw new IllegalArgumentException(fileName + ": Restricted name, cannot use " + rawName + " as a plugin name.");
+        if (rawName.indexOf(' ') != -1)
+            throw new IllegalArgumentException(fileName + ": Restricted name, cannot use 0x20 (space character) in a plugin name.");
         checkApiVersion(pdf);
         // Furnace 설명으로: api-version 은 Bukkit 의 것이라 서버의 ApiVersion 검사에 넘기지 않고, bootstrapper 는 Furnace 의 PluginBootstrap 이 아니다
         ConfigSection fs = ConfigSection.fromMap(map);

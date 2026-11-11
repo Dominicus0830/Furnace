@@ -119,7 +119,7 @@ public final class MenuSession implements Menu.Listener {
     }
 
     /**
-     * 연결 스레드에서 menuLock 을 쥔 채: 보관함 메뉴의 클릭 하나(body = 이벤트 → 바닐라 클릭 재현 → 변경 보내기)를 보관함 잠금 안에서 돌리고,
+     * 인벤토리 줄(플레이어 region 스레드)에서 menuLock 을 쥔 채: 보관함 메뉴의 클릭 하나(body = 이벤트 → 바닐라 클릭 재현 → 변경 보내기)를 보관함 잠금 안에서 돌리고,
      * 클릭이 바꾼 위쪽 칸을 메뉴에 되돌려 쓴다. 클릭 처리 중 처리기가 Menu#set 으로 바꾼 칸은 그 값이 이긴다(클릭이 그 칸을 바꾸지 않았다면).
      */
     public void runStorageClick(Runnable body) {

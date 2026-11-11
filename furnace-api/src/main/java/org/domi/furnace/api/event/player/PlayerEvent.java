@@ -10,5 +10,11 @@ public abstract class PlayerEvent extends Event {
 
     protected PlayerEvent(Player player) { this.player = player; }
 
+    /** @param async 서버의 region/전역 스레드가 아닌 곳(연결 스레드 등)에서 불리면 true */
+    protected PlayerEvent(Player player, boolean async) {
+        super(async);
+        this.player = player;
+    }
+
     public Player player() { return player; }
 }

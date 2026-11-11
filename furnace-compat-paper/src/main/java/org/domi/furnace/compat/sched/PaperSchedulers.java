@@ -93,6 +93,15 @@ public final class PaperSchedulers implements AutoCloseable {
     /** 이 플러그인이 이 객체로 예약한 작업(네 스케줄러 모두)을 취소한다. */
     public void cancelTasks(FurnacePlugin plugin) { book.cancelAll(plugin); }
 
+    /**
+     * 스케줄러 하나의 cancelTasks: 그 종류의 작업만 취소한다. Paper 1.21.1 에서 AsyncScheduler.cancelTasks 는 비동기만, GlobalRegionScheduler.cancelTasks 는
+     * 전역 + region(비-Folia Paper 의 region 스케줄러는 전역으로 넘어간다)만 취소하고, 엔티티 작업은 어느 쪽도 건드리지 않는다(꺼질 때는 전부 — {@link #cancelTasks(FurnacePlugin)}).
+     */
+    private void cancelKinds(FurnacePlugin plugin, java.util.Set<String> kinds) {
+        if (plugin == null) throw new IllegalArgumentException("Plugin may not be null");
+        book.cancelWhere(plugin, h -> kinds.contains(h.kind));
+    }
+
     @Override
     public void close() {
         timer.shutdownNow();
@@ -120,7 +129,7 @@ public final class PaperSchedulers implements AutoCloseable {
             return submit(plugin, task, server.scheduler().global(), initialDelayTicks, periodTicks, "global");
         }
 
-        public void cancelTasks(FurnacePlugin plugin) { PaperSchedulers.this.cancelTasks(plugin); }
+        public void cancelTasks(FurnacePlugin plugin) { cancelKinds(plugin, java.util.Set.of("global", "region")); }
     }
 
     // ---- region
@@ -185,9 +194,16 @@ public final class PaperSchedulers implements AutoCloseable {
     public final class EntityTasks {
         private EntityTasks() {}
 
+        /**
+         * Paper FoliaEntityScheduler.execute: 지연 1 미만은 1 로 보고(EntityScheduler.schedule), 등록 때 플러그인이 켜졌는지는 보지 않는다 — 꺼진 플러그인도
+         * 엔티티가 살아 있으면 true 를 돌려주고 작업은 실행 때 건너뛴다(retired 도 안 불린다). 사라진 엔티티는 false.
+         */
         public boolean execute(FurnacePlugin plugin, Entity entity, Runnable task, Runnable retired, long delayTicks) {
-            requirePositive(delayTicks, "Delay ticks");
-            return runDelayed(plugin, entity, t -> task.run(), retired, delayTicks) != null;
+            if (plugin == null) throw new IllegalArgumentException("Plugin may not be null");
+            if (task == null) throw new IllegalArgumentException("Task may not be null");
+            long delay = Math.max(1L, delayTicks);
+            if (!plugin.isEnabled()) return entity.entityScheduler().runDelayed(() -> {}, () -> {}, delay) != null;
+            return runDelayed(plugin, entity, t -> task.run(), retired, delay) != null;
         }
 
         public CompatTask run(FurnacePlugin plugin, Entity entity, Consumer<CompatTask> task, Runnable retired) {
@@ -246,7 +262,7 @@ public final class PaperSchedulers implements AutoCloseable {
         }
 
         public CompatTask runDelayed(FurnacePlugin plugin, Consumer<CompatTask> task, long delay, TimeUnit unit) {
-            if (delay < 0) throw new IllegalArgumentException("Delay may not be <0");
+            if (delay < 0) throw new IllegalArgumentException("Delay may not be < 0");
             Handle h = newHandle(plugin, task, false, "async");
             AtomicReference<ScheduledFuture<?>> f = new AtomicReference<>();
             h.stop = () -> {
@@ -258,11 +274,12 @@ public final class PaperSchedulers implements AutoCloseable {
         }
 
         /**
-         * Paper FoliaAsyncScheduler 처럼: 한 회차가 끝난 뒤 다음을 "목표 시각 + 주기" 로 건다 — 회차가 느리면 바로 이어서 돌고 회차를 버리지 않는다.
+         * Paper AsyncScheduledTask 처럼: 한 회차가 끝난 뒤 다음을 max(지금, 목표 시각 + 주기) 로 건다 — 회차가 느리면 한 번 바로 이어서 돌고
+         * 그 시각부터 다시 센다(밀린 회차를 몰아 돌지는 않는다).
          * 회차는 서로 겹치지 않는다(앞 회차가 끝나야 다음이 걸린다).
          */
         public CompatTask runAtFixedRate(FurnacePlugin plugin, Consumer<CompatTask> task, long initialDelay, long period, TimeUnit unit) {
-            if (initialDelay < 0) throw new IllegalArgumentException("Initial delay may not be <0");
+            if (initialDelay < 0) throw new IllegalArgumentException("Initial delay may not be < 0");
             if (period <= 0) throw new IllegalArgumentException("Period may not be <= 0");
             Handle h = newHandle(plugin, task, true, "async");
             long periodNs = unit.toNanos(period);
@@ -285,7 +302,7 @@ public final class PaperSchedulers implements AutoCloseable {
                     try {
                         ex.execute(() -> {
                             h.run();
-                            arm(h, current, target + periodNs, periodNs);
+                            arm(h, current, Math.max(System.nanoTime(), target + periodNs), periodNs);
                         });
                     } catch (RejectedExecutionException e) {
                         h.cancel();
@@ -296,7 +313,7 @@ public final class PaperSchedulers implements AutoCloseable {
             }
         }
 
-        public void cancelTasks(FurnacePlugin plugin) { PaperSchedulers.this.cancelTasks(plugin); }
+        public void cancelTasks(FurnacePlugin plugin) { cancelKinds(plugin, java.util.Set.of("async")); }
 
         private void execute(Handle h) {
             Executor ex = asyncPool;

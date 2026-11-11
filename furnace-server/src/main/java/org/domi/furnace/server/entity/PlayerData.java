@@ -45,10 +45,74 @@ public final class PlayerData {
 
     public static java.util.concurrent.Executor io() { return IO; }
 
-    /** 지금까지 io() 에 제출된 작업이 끝날 때까지 기다린다(서버 종료·테스트). 시간 안에 끝나면 true. */
+    /**
+     * 지금까지 io() 에 제출된 작업이 끝날 때까지 기다린다(서버 종료·테스트). 시간 안에 끝나면 true. 잡힌 퇴장 저장(플레이어 인벤토리 줄에서
+     * 뜨는 중, reserveSave)이 있으면 그것이 io() 에 들어가기를 먼저 기다린다 — region 스레드에서 부르지 않는다.
+     */
     public static boolean awaitIo(long timeout, java.util.concurrent.TimeUnit unit) throws InterruptedException {
+        long deadline = System.nanoTime() + unit.toNanos(timeout);
+        if (!awaitPendingSaves(timeout, unit)) return false;
         try {
-            IO.submit(() -> { }).get(timeout, unit);
+            IO.submit(() -> { }).get(Math.max(1L, deadline - System.nanoTime()), java.util.concurrent.TimeUnit.NANOSECONDS);
+            return true;
+        } catch (java.util.concurrent.TimeoutException e) {
+            return false;
+        } catch (java.util.concurrent.ExecutionException e) {
+            return true;
+        }
+    }
+
+    /**
+     * 퇴장 저장 자리(A04-02): 퇴장 저장은 플레이어 region 줄에 남은 패킷 작업이 다 끝난 뒤 그 줄에서 뜬다. 그 사이 같은 UUID 로 다시 들어오면
+     * 읽기가 아직 제출되지 않은 저장을 앞질러 옛 데이터를 읽을 수 있으므로, 끊길 때 자리를 잡고 저장을 IO 에 넣은 뒤 푼다.
+     */
+    private static final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.CompletableFuture<Void>> PENDING_SAVES =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static String pendingKey(Path worldDir, UUID id) {
+        return (worldDir == null ? "" : worldDir.toAbsolutePath().normalize().toString()) + '|' + id;
+    }
+
+    /** 퇴장 저장 자리를 잡는다(그 월드 폴더의 그 UUID). 돌려준 것을 저장을 io() 에 넣은 뒤(또는 포기할 때) 한 번 부른다. 여러 번 불러도 된다. */
+    public static Runnable reserveSave(Path worldDir, UUID id) {
+        String key = pendingKey(worldDir, id);
+        java.util.concurrent.CompletableFuture<Void> mine = new java.util.concurrent.CompletableFuture<>();
+        PENDING_SAVES.merge(key, mine, (old, m) -> java.util.concurrent.CompletableFuture.allOf(old, m));
+        return () -> {
+            mine.complete(null);
+            PENDING_SAVES.computeIfPresent(key, (k, v) -> v.isDone() ? null : v);
+        };
+    }
+
+    /** 그 월드 폴더의 그 UUID 에 잡힌 퇴장 저장이 아직 io() 에 들어가지 않았는가. */
+    public static boolean hasPendingSave(Path worldDir, UUID id) {
+        var f = PENDING_SAVES.get(pendingKey(worldDir, id));
+        return f != null && !f.isDone();
+    }
+
+    /**
+     * 잡힌 퇴장 저장이 없으면 task 를 바로 돌리고 거짓, 있으면 그 저장들이 io() 에 들어간 뒤 돌리고 참(그 저장을 푼 스레드에서).
+     * 읽기 쪽은 task 에서 io() 에 읽기를 넣는다 — 같은 직렬 실행기라 저장 → 읽기 순서가 지켜진다.
+     */
+    public static boolean afterPendingSaves(Path worldDir, UUID id, Runnable task) {
+        java.util.concurrent.CompletableFuture<Void> f = PENDING_SAVES.get(pendingKey(worldDir, id));
+        if (f == null || f.isDone()) {
+            task.run();
+            return false;
+        }
+        f.whenComplete((v, t) -> task.run());
+        return true;
+    }
+
+    /** 지금 잡힌 퇴장 저장 자리가 모두 풀리면(저장이 IO 에 들어가면) 완료된다 — save-all·백업이 방금 나간 플레이어 저장을 빠뜨리지 않게. */
+    public static java.util.concurrent.CompletableFuture<Void> pendingSaves() {
+        return java.util.concurrent.CompletableFuture.allOf(PENDING_SAVES.values().toArray(new java.util.concurrent.CompletableFuture<?>[0]));
+    }
+
+    /** 잡힌 퇴장 저장이 모두 io() 에 들어갈 때까지 기다린다(서버 종료: awaitIo 앞에서). 시간 안에 끝나면 true. */
+    public static boolean awaitPendingSaves(long timeout, java.util.concurrent.TimeUnit unit) throws InterruptedException {
+        try {
+            pendingSaves().get(timeout, unit);
             return true;
         } catch (java.util.concurrent.TimeoutException e) {
             return false;

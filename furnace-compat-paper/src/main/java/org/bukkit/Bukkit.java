@@ -90,6 +90,12 @@ public final class Bukkit {
 
     public static BukkitScheduler getScheduler() { return s().getScheduler(); }
 
+    public static io.papermc.paper.threadedregions.scheduler.AsyncScheduler getAsyncScheduler() { return s().getAsyncScheduler(); }
+
+    public static io.papermc.paper.threadedregions.scheduler.GlobalRegionScheduler getGlobalRegionScheduler() { return s().getGlobalRegionScheduler(); }
+
+    public static io.papermc.paper.threadedregions.scheduler.RegionScheduler getRegionScheduler() { return s().getRegionScheduler(); }
+
     public static ServicesManager getServicesManager() { return s().getServicesManager(); }
 
     public static org.bukkit.plugin.messaging.Messenger getMessenger() { return s().getMessenger(); }

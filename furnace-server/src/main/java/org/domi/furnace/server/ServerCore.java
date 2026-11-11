@@ -48,6 +48,12 @@ public final class ServerCore {
         org.domi.furnace.server.map.MapStore.install(world.worldDir());   // 지도 저장 데이터(world/data/map_N.dat) 읽기
         this.levelData = levelData;
         this.scheduler = scheduler;
+        // 전역 지연 작업은 서버 틱으로 센다(A14-04). 운영 서버는 scheduledTick0 이 틱마다 낸다(driveByServerTicks). 서버 박동이 없는 시험은
+        // 대체 박동이 rate/20 씩, sprint 중에는 sprint 틱마다 하나(tickSprint)
+        if (scheduler.global() instanceof org.domi.furnace.server.sched.GlobalThread g) g.ticksPerBeat(() -> {
+            var ts = tickState();
+            return ts.sprinting() ? 0.0 : ts.rate() / org.domi.furnace.server.world.TickState.DEFAULT_RATE;
+        });
         this.gameRules = org.domi.furnace.server.world.GameRules.fromStrings(levelData.gameRules);
         this.gameRules.onChange(this::onGameRuleChanged);
         this.clock = world.clock();
@@ -876,15 +882,29 @@ public final class ServerCore {
     private void scheduledTick0() {
         commands.queue().tick();   // 명령 컨텍스트 경과 틱(정지 중에도 센다 — head-of-line 관측)
         var ts = tickState();
+        // 이번 박동이 낼 서버 틱 수(/tick rate). sprint 중에는 박동이 아니라 sprint 틱마다 센다.
+        int n = 0;
+        if (!ts.sprinting()) {
+            globalTickCredit += ts.rate() / org.domi.furnace.server.world.TickState.DEFAULT_RATE;
+            n = Math.min((int) globalTickCredit, 1000);
+            globalTickCredit -= (int) globalTickCredit;
+        }
         // 바닐라 1.21.2+ MinecraftServer.tickServer 의 pause-when-empty: 비어 있는 동안 틱을 세다가 넘으면 틱을 멈춘다(연결 처리만)
         var pause = idlePause;
-        if (pause != null && pause.onGlobalTick(world.onlinePlayers().isEmpty(), ts.sprinting())) return;
-        if (globalTicksHeld()) return;
+        if (pause != null && pause.onGlobalTick(world.onlinePlayers().isEmpty(), ts.sprinting())) {
+            schedulerTicks(n);   // 플러그인·내부 지연 작업은 계속 센다(퇴장 저장·종료가 그 길)
+            return;
+        }
+        if (globalTicksHeld()) {
+            schedulerTicks(n);
+            return;
+        }
         if (ts.sprinting()) {
             tickSprint(ts);
             return;
         }
         if (ts.frozen()) {
+            schedulerTicks(n);   // Paper: 정지 중에도 tickServer 와 스케줄러 heartbeat 는 rate 대로 돈다
             if (ts.takeGlobalStep()) {
                 tick();
                 if (ts.globalStepsLeft() == 0) broadcastTickStep(0);
@@ -893,10 +913,16 @@ public final class ServerCore {
             }
             return;
         }
-        globalTickCredit += ts.rate() / org.domi.furnace.server.world.TickState.DEFAULT_RATE;
-        int n = Math.min((int) globalTickCredit, 1000);
-        globalTickCredit -= (int) globalTickCredit;
-        for (int i = 0; i < n; i++) tick();
+        for (int i = 0; i < n; i++) {
+            schedulerTicks(1);   // Paper: heartbeat 는 tickChildren 머리 — 월드 틱보다 먼저
+            tick();
+        }
+    }
+
+    /** 운영 서버(전역 스케줄러가 서버 틱으로 구동될 때): 스케줄러 틱 n 개를 낸다(A14-04). 시험처럼 대체 박동이 세는 경우는 아무것도 안 한다. */
+    private void schedulerTicks(int n) {
+        if (n > 0 && scheduler.global() instanceof org.domi.furnace.server.sched.GlobalThread g && g.serverDriven())
+            for (int i = 0; i < n; i++) g.serverTick();
     }
 
     /** sprint 중 전역 틱 한 번 호출에 쓰는 최대 시간: 넘으면 돌려주고 다음 호출에서 잇는다(그 사이 전역 인박스·명령이 돈다). */
@@ -919,6 +945,7 @@ public final class ServerCore {
             }
             // 바닐라 checkShouldSprintThisTick: 남은 수를 틱 전에 줄인다(틱 안의 함수가 sprint 를 다시 걸면 N 이 그대로 남는다)
             ts.takeSprintGlobalTick();
+            if (scheduler.global() instanceof org.domi.furnace.server.sched.GlobalThread gt) gt.serverTick();   // Paper: sprint 중 tickServer 마다 스케줄러 heartbeat
             tick();
         }
         if (!ts.sprinting() || ts.sprintGlobalLeft() > 0) return;

@@ -29,7 +29,8 @@ public final class SharedScheduler implements AutoCloseable {
     private final AtomicLong wakeups = new AtomicLong();
     /** 계측: PARK 만료로 깼는데 깰 시각(until)보다 1ms 넘게 이른, 이미 지난 머리가 있었던 횟수(깨우기 유실 의심) / 만료 복귀 수 / tryTake 실패 수. */
     private final java.util.concurrent.atomic.LongAdder missedWakeups = new java.util.concurrent.atomic.LongAdder(),
-            timeouts = new java.util.concurrent.atomic.LongAdder(), takeMisses = new java.util.concurrent.atomic.LongAdder();
+            timeouts = new java.util.concurrent.atomic.LongAdder(), takeMisses = new java.util.concurrent.atomic.LongAdder(),
+            loops = new java.util.concurrent.atomic.LongAdder();
     static final long MISSED_NANOS = 1_000_000L;
     private final AtomicLong waitNanos = new AtomicLong();
     /** 거친 타이머 플랫폼에서 마지막 구간을 돌며 기다릴 길이(ns). 0(리눅스 기본)이면 스핀 경로가 없다. */
@@ -167,6 +168,9 @@ public final class SharedScheduler implements AutoCloseable {
 
     public long takeMisses() { return takeMisses.sum(); }
 
+    /** 계측: 워커가 고르기(select)를 돈 횟수 — 자지 않고 헛돌면 틱 수보다 훨씬 많아진다. */
+    public long loops() { return loops.sum(); }
+
     /** 계측: 워커가 park 에서 돌아온 횟수. */
     public long wakeups() { return wakeups.get(); }
 
@@ -190,6 +194,26 @@ public final class SharedScheduler implements AutoCloseable {
         Regionizer best;
         long due;
         int maxRunning;
+        /** 서버 전체 도는 틱 수 상한(쉬는 차원 몫을 남길 때 T−1, 아니면 없음) — tryTake 가 {@link #busy} 로 원자적으로 잡는다. */
+        int globalMax;
+        /** 고른 차원이 상한에 걸렸나(class 2 — 모든 후보가 상한). 이때는 꺼내지 않고 자리가 날 때까지 잔다. */
+        boolean capped;
+        /** 상한에 걸린 차원이 있었나 — 있으면 자는 동안 그 차원의 밀린 머리는 깨울 이유가 아니다(자리가 나면 {@link #slotFreed} 가 깨운다). */
+        boolean anyCapped;
+        /** 상한에 걸리지 않은 차원 가운데 가장 이른 머리 마감(없으면 MAX) — 잘 수 있는 마감. */
+        long wakeDue;
+    }
+
+    /** 모든 차원에서 지금 도는 틱(drain 차례 포함) 수. Regionizer 가 꺼낼 때 올리고 끝낼 때 내린다. */
+    final java.util.concurrent.atomic.AtomicInteger busy = new java.util.concurrent.atomic.AtomicInteger();
+
+    /** 도는 틱 수가 globalMax 보다 적으면 하나 올리고 참(원자적 — 선택기의 잠금 없는 판단이 두 워커에서 겹쳐도 넘지 않게). */
+    boolean reserveSlot(int globalMax) {
+        while (true) {
+            int b = busy.get();
+            if (b >= globalMax) return false;
+            if (busy.compareAndSet(b, b + 1)) return true;
+        }
     }
 
     private static final ThreadLocal<Pick> PICK = ThreadLocal.withInitial(Pick::new);
@@ -199,44 +223,78 @@ public final class SharedScheduler implements AutoCloseable {
      * 시작 위치를 rr 로 돌려 번갈아 고른다. maxRunning = 다른 차원에 할 일(큐 머리)이 있으면 perDimCap, 없으면 상한 없음(N3) —
      * 상한은 tryTake 가 잠금 안에서 다시 확인한다. 차원이 하나면 순수 EDF(호환 경로와 같은 동작).
      */
-    private Pick select(long now, Pick out) {
+    private Pick select(long now, Pick out) { return select(now, out, true); }
+
+    /** rotate: 동률 번갈이 시작 위치(rr)를 올린다 — 자기 전 재확인은 올리지 않는다(번갈이가 흐트러지지 않게). */
+    private Pick select(long now, Pick out, boolean rotate) {
         out.best = null;
         out.due = Long.MAX_VALUE;
         out.maxRunning = Integer.MAX_VALUE;
+        out.globalMax = Integer.MAX_VALUE;
+        out.capped = false;
+        out.anyCapped = false;
+        out.wakeDue = Long.MAX_VALUE;
         Regionizer[] ds = snapshot;
         int n = ds.length;
         if (n == 0) return out;
         if (n == 1) {
             Regionizer rz = ds[0];
             long d = rz.headDue();
-            if (d != Long.MAX_VALUE) { out.best = rz; out.due = d; }
+            if (d != Long.MAX_VALUE) { out.best = rz; out.due = d; out.wakeDue = d; }
             return out;
         }
         // 상한은 다른 차원에 "할 일이 있으면"(큐가 비지 않았으면) 건다 — "지금 때가 됐을 때만" 걸면, 무거운 차원이 가벼운 차원의
         // 틱 사이에 마지막 워커까지 긴 틱(40~80ms)으로 채워 가벼운 차원이 그만큼 늦는다(2026-11-07 과부하 벤치 asym).
-        int pendingCount = 0;
-        for (Regionizer o : ds) if (o.headDue() != Long.MAX_VALUE) pendingCount++;
-        int start = Math.floorMod(rr.getAndIncrement(), n);
+        // 서버 전체 몫(A03-04): 틱을 돌리는 차원끼리 함께 쓰는 워커를 합쳐 T−1 개로 묶는다(아래 reserve).
+        // 차원마다 T−1 상한만 두면 무거운 차원 둘이 워커 T 개를 다 채워 셋째(가벼운) 차원이 매 틱 늦었다(60ms 틱 → 약 16.7 TPS).
+        int pendingCount = 0, totalActive = 0;
+        long min1 = Long.MAX_VALUE, min2 = Long.MAX_VALUE;   // 할 일이 있는 차원의 평균 틱 시간 가장 작은 둘
+        for (Regionizer o : ds) {
+            totalActive += o.activeTicks();
+            if (o.headDue() != Long.MAX_VALUE) {
+                pendingCount++;
+                // 스스로 차원 상한(T−1)을 채운 차원은 남겨 둔 워커를 쓸 수 없다 — "가벼운 차원"으로 치면 무거운 차원만 T−1 로 묶이고
+                // 마지막 워커가 논다(작은 region 이 많은 오버월드 옆 무거운 네더 20→15 TPS, PR #206 검토 R1)
+                if (o.activeTicks() >= perDimCap) continue;
+                long a = o.avgTickNanos();
+                if (a < min1) { min2 = min1; min1 = a; }
+                else if (a < min2) min2 = a;
+            }
+        }
+        int start = Math.floorMod(rotate ? rr.getAndIncrement() : rr.get(), n);
         int bestClass = 3;
-        boolean bestOthersPending = false;
+        int bestMax = Integer.MAX_VALUE, bestGlobal = Integer.MAX_VALUE;
         for (int k = 0; k < n; k++) {
             Regionizer rz = ds[(start + k) % n];
             long d = rz.headDue();
             if (d == Long.MAX_VALUE) continue;                       // N4: MAX 먼저 거른다
             boolean due = now - d >= 0;
             boolean othersPending = pendingCount > 1;   // 자기 자신(d != MAX)을 빼고도 할 일이 있는 차원이 있다
+            int active = rz.activeTicks();
+            // 나보다 틱이 훨씬 가벼운(평균 절반 미만) 차원에 할 일이 있으면, 무거운 쪽은 워커를 서버 전체 합 T−1 개까지만 쓴다 — 마지막 하나는
+            // 가벼운 차원의 다음 틱 몫이다. 무거운 차원이 둘이면 둘이 합쳐 T−1, 가벼운 차원은 언제나 남은 하나를 받는다. 비슷한 차원끼리는 걸지 않는다.
+            long avg = rz.avgTickNanos(), lightest = avg == min1 ? min2 : min1;
+            // 워커 2개면 걸지 않는다: 무거운 차원 둘이 워커 하나를 나눠 쓰게 돼 처리량이 절반이 된다(차원별 상한 T−1=1 이 이미 있다)
+            boolean reserve = othersPending && workers.length >= 3 && lightest != Long.MAX_VALUE && lightest < avg / 2;
+            int max = othersPending ? perDimCap : Integer.MAX_VALUE;
+            if (reserve) max = Math.min(max, active + Math.max(0, workers.length - 1 - totalActive));
             int cls;
-            if (othersPending && rz.activeTicks() >= perDimCap) cls = 2;
+            if (othersPending && active >= max) cls = 2;
             else if (due && now - d >= starveTicks * rz.tickNanos()) cls = 0;
             else cls = 1;
+            if (cls == 2) out.anyCapped = true;
+            else if (earlier(d, out.wakeDue)) out.wakeDue = d;
             if (cls < bestClass || (cls == bestClass && d - out.due < -TIE_NANOS)) {
                 bestClass = cls;
                 out.best = rz;
                 out.due = d;
-                bestOthersPending = othersPending;
+                bestMax = max;
+                bestGlobal = reserve ? workers.length - 1 : Integer.MAX_VALUE;
             }
         }
-        out.maxRunning = bestOthersPending ? perDimCap : Integer.MAX_VALUE;
+        out.maxRunning = bestMax;
+        out.globalMax = bestGlobal;
+        out.capped = bestClass == 2;
         return out;
     }
 
@@ -273,13 +331,47 @@ public final class SharedScheduler implements AutoCloseable {
     }
 
     /** until 까지(또는 깨우기까지) 잔다. N1·N2 규칙. margin: 머리보다 이만큼 일찍 깬다(스핀 구간). */
-    private void sleep(long until, long margin) {
+    private void sleep(long until, long margin) { sleep(until, margin, false); }
+
+    /** 상한에 걸려 자는 워커 수 — 0 이 아니면 틱이 끝날 때 하나를 깨운다({@link #slotFreed}). */
+    private final java.util.concurrent.atomic.AtomicInteger cappedSleepers = new java.util.concurrent.atomic.AtomicInteger();
+    private static final ThreadLocal<Pick> RECHECK = ThreadLocal.withInitial(Pick::new);
+
+    /**
+     * 다시 볼 머리 마감. skipCapped 면 상한에 걸린 차원의 머리는 뺀다 — 무거운 차원의 밀린 머리를 보고 곧바로 깨면, 쉬는 차원 몫으로 남긴
+     * 워커가 가벼운 차원 마감까지 select→sleep 을 되풀이하며 코어 하나를 태운다(A03-04 검토 F3). 상한이 풀리면 slotFreed 가 깨운다.
+     */
+    private long recheckDue(boolean skipCapped) {
+        return skipCapped ? select(System.nanoTime(), RECHECK.get(), false).wakeDue : earliestHeadDue();
+    }
+
+    /**
+     * 어떤 차원의 틱(drain 차례 포함)이 끝나 풀 자리가 났다(Regionizer, 카운터를 내린 뒤). 상한 때문에 자는 워커가 있으면 하나 깨운다.
+     * 순서(데커): 자는 쪽은 cappedSleepers 를 올리고 등록한 뒤 상한을 다시 보고, 끝내는 쪽은 카운터를 내린 뒤 cappedSleepers 를 본다 —
+     * 둘 중 하나는 반드시 상대를 본다.
+     */
+    void slotFreed() {
+        if (cappedSleepers.get() == 0) return;
+        Parked p = parked.poll();
+        if (p != null) LockSupport.unpark(p.t);
+    }
+
+    private void sleep(long until, long margin, boolean skipCapped) {
+        if (skipCapped) cappedSleepers.incrementAndGet();
+        try {
+            sleep0(until, margin, skipCapped);
+        } finally {
+            if (skipCapped) cappedSleepers.decrementAndGet();
+        }
+    }
+
+    private void sleep0(long until, long margin, boolean skipCapped) {
         Thread self = Thread.currentThread();
         Parked me = new Parked(self, until);
         parked.add(me);                                    // ① 먼저 "잔다"고 등록
         var h1 = afterRegisterHook;
         if (h1 != null) h1.accept(me);
-        long d = earliestHeadDue();                        // ② 그 다음 머리를 다시 본다
+        long d = recheckDue(skipCapped);                   // ② 그 다음 머리를 다시 본다
         if (d != Long.MAX_VALUE) {
             long target = d - margin;
             long now = System.nanoTime();
@@ -301,7 +393,7 @@ public final class SharedScheduler implements AutoCloseable {
         if (picked && t1 - me.until >= 0) passBaton();     // (N1-③) 뽑혔는데 타임아웃과 겹친 경우만 넘긴다
         if (!picked && t1 - me.until >= 0) {
             timeouts.increment();
-            long hd = earliestHeadDue();
+            long hd = recheckDue(skipCapped);
             if (hd != Long.MAX_VALUE && me.until - hd > MISSED_NANOS && t1 - hd > MISSED_NANOS) {   // 깰 시각보다 이른 머리를 아무도 알려 주지 않았다
                 missedWakeups.increment();
                 if (log.isDebugEnabled()) log.debug("[SCHED] 만료 복귀 때 머리가 {}µs 밀려 있었다(until 보다 {}µs 늦음)", (t1 - hd) / 1000, (t1 - me.until) / 1000);
@@ -315,6 +407,7 @@ public final class SharedScheduler implements AutoCloseable {
         Regionizer.markWorkerThread();
         while (running) {
             try {
+                loops.increment();
                 long now = System.nanoTime();
                 Pick pick = select(now, PICK.get());
                 Regionizer best = pick.best;
@@ -322,6 +415,11 @@ public final class SharedScheduler implements AutoCloseable {
                     sleep(now + PARK_MAX, spinMargin);
                     continue;
                 }
+                if (pick.capped) {                          // 할 일이 있는 차원이 모두 상한 — 꺼내 봐야 실패한다. 자리가 날 때까지 잔다(F4)
+                    sleep(now + PARK_MAX, 0L, true);
+                    continue;
+                }
+                boolean skipCapped = pick.anyCapped;
                 long due = pick.due;
                 if (!isDue(due, now)) {
                     if (due == Long.MAX_VALUE) continue;   // 그 사이 비었다 — 다시 고른다
@@ -329,14 +427,14 @@ public final class SharedScheduler implements AutoCloseable {
                     if (spinMargin > 0L && wait - spinMargin <= SPIN_HANDOFF) {
                         // 대기 해상도가 거친 플랫폼: 마지막 구간은 돌며 기다려 틱 시작이 흔들리지 않게 한다. 도는 워커는 서버 전체 1개,
                         // 자리를 못 잡은 워커는 반드시 잔다(바쁜 재시도 금지 — D7)
-                        if (spinning.compareAndSet(false, true)) spinUntil(due);
-                        else sleep(now + Math.min(wait, PARK_MAX), 0L);
+                        if (spinning.compareAndSet(false, true)) spinUntil(due, skipCapped);
+                        else sleep(now + Math.min(wait, PARK_MAX), 0L, skipCapped);
                         continue;
                     }
-                    sleep(now + Math.min(wait, PARK_MAX), spinMargin);   // 머리보다 spinMargin 일찍 깬다
+                    sleep(now + Math.min(wait, PARK_MAX), spinMargin, skipCapped);   // 머리보다 spinMargin 일찍 깬다
                     continue;
                 }
-                Region r = best.tryTake(now, pick.maxRunning);
+                Region r = best.tryTake(now, pick.maxRunning, pick.globalMax);
                 if (r == null) {                            // 낡은 머리/닫힘/상한 → 다시 고른다
                     takeMisses.increment();
                     continue;
@@ -349,12 +447,12 @@ public final class SharedScheduler implements AutoCloseable {
     }
 
     /** 스핀 자리를 쥔 워커: due(또는 그 사이 앞당겨진 머리)까지 거친 구간은 자고 마지막만 돈다. */
-    private void spinUntil(long due) {
+    private void spinUntil(long due, boolean skipCapped) {
         long t0 = System.nanoTime();
         try {
             spinner = Thread.currentThread();
             spinDeadline.accumulateAndGet(due, PreciseWait::earlier);
-            long target = PreciseWait.earlier(spinDeadline.get(), earliestHeadDue());
+            long target = PreciseWait.earlier(skipCapped ? due : spinDeadline.get(), recheckDue(skipCapped));
             PreciseWait.parkUntilInterruptible(target, spinDeadline::get, spinMargin);
         } finally {
             spinner = null;
