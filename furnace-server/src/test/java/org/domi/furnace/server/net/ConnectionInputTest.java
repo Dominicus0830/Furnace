@@ -288,6 +288,12 @@ class ConnectionInputTest {
         Types.writeVarInt(b, 0);
     }
 
+    /** 인벤토리 줄(플레이어 region 큐)에 넣은 패킷 처리(창 클릭·크리에이티브 칸 등)가 끝날 때까지 기다린다(A04). */
+    private void settle() throws Exception {
+        world.submitAtChunk(p.chunkPos(), r -> null).get(10, java.util.concurrent.TimeUnit.SECONDS);
+        ch.runPendingTasks();
+    }
+
     private ItemStack[] slotsOf() throws Exception {
         Object inv = field("inv");
         java.lang.reflect.Field f = inv.getClass().getDeclaredField("slots");
@@ -305,9 +311,11 @@ class ConnectionInputTest {
                 org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
         // 0x32: 돌 65개 — 최대 스택(64)을 넘으면 바닐라처럼 조용히 무시
         ch.writeInbound(frame(0x32, b -> { b.writeShort(36); Types.writeVarInt(b, 65); Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); }));
+        if (ch.isActive()) settle();
         assertTrue(slotsOf()[36].isEmpty(), "최대 스택을 넘는 개수는 거부돼야 한다");
         // 정상 아이템은 그대로 들어간다
         ch.writeInbound(frame(0x32, b -> { b.writeShort(38); Types.writeVarInt(b, 3); Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); }));
+        if (ch.isActive()) settle();
         assertEquals(3, slotsOf()[38].count());
 
         // 0x0E: 음수 개수(= 비정상 스택)가 든 클릭 보고는 인벤토리에 아무것도 만들지 않는다
@@ -317,11 +325,13 @@ class ConnectionInputTest {
             b.writeShort(30); writeStrictSlot(b, -1, 1, 0);
             writeStrictSlot(b, 0, 0, 0);
         }));
+        if (ch.isActive()) settle();
         assertTrue(slotsOf()[12].isEmpty(), "음수 개수 클릭이 인벤토리에 반영됐다");
         assertTrue(ch.isActive());
 
         // 알 수 없는 아이템 id 는 바닐라처럼 디코드 실패 → 연결 종료
         ch.writeInbound(frame(0x32, b -> { b.writeShort(37); Types.writeVarInt(b, 1); Types.writeVarInt(b, 99999); Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); }));
+        if (ch.isActive()) settle();
         assertTrue(slotsOf()[37].isEmpty(), "알 수 없는 아이템 id는 거부돼야 한다");
         assertFalse(ch.isActive(), "디코드할 수 없는 아이템은 바닐라처럼 연결을 끊는다");
     }
@@ -342,6 +352,7 @@ class ConnectionInputTest {
             b.writeShort(36); writeStrictSlot(b, 0, 0, 0);
             writeStrictSlot(b, 10, 1, 0);
         }));
+        if (ch.isActive()) settle();
         assertTrue(slotsOf()[36].isEmpty(), "집은 칸은 비어야 한다");
         assertEquals(10, im.getCarried().count());
         drainOutbound();
@@ -352,6 +363,7 @@ class ConnectionInputTest {
             b.writeShort(20); writeStrictSlot(b, 10, 1, 0);
             writeStrictSlot(b, 0, 0, 0);
         }));
+        if (ch.isActive()) settle();
         assertEquals(10, slotsOf()[20].count(), "재배치는 반영");
         assertEquals(0, count(drainOutbound(), ContainerSetSlot.ID), "예측과 같으면 되돌려 보내지 않는다");
         // 거짓 보고: 21 은 빈 칸이고 커서도 비었는데 "21 에 10개가 생겼다"고 보고 → 서버는 아무것도 만들지 않고 그 칸을 바로잡는다
@@ -361,6 +373,7 @@ class ConnectionInputTest {
             b.writeShort(21); writeStrictSlot(b, 10, 1, 0);
             writeStrictSlot(b, 0, 0, 0);
         }));
+        if (ch.isActive()) settle();
         assertTrue(slotsOf()[21].isEmpty(), "서버가 재현한 결과(빈 칸)가 진실이다");
         assertEquals(1, count(drainOutbound(), ContainerSetSlot.ID), "어긋난 칸 하나만 서버 값으로 되돌려 보낸다");
     }
@@ -378,6 +391,7 @@ class ConnectionInputTest {
             Types.writeVarInt(b, 0); Types.writeVarInt(b, 0);
             writeStrictSlot(b, 0, 0, 0);
         }));
+        if (ch.isActive()) settle();
         assertEquals(1, count(drainOutbound(), ContainerSetContent.ID), "상태 번호 불일치 → 전체 재전송");
     }
 
@@ -881,6 +895,7 @@ class ConnectionInputTest {
             Types.writeVarInt(b, 0); Types.writeVarInt(b, 0);
             writeStrictSlot(b, 4, 2, 0);
         }));
+        if (ch.isActive()) settle();
         assertEquals(4, im.getCarried().count());
         ch.close();
         assertTrue(im.getCarried().isEmpty());
@@ -897,6 +912,7 @@ class ConnectionInputTest {
             b.writeShort(36); Types.writeVarInt(b, 1); Types.writeVarInt(b, 1);
             Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 13); Types.writeVarInt(b, 7);   // custom_model_data = 7
         }));
+        if (ch.isActive()) settle();
         assertEquals(org.domi.furnace.server.item.ComponentPatch.of(java.util.Map.of("minecraft:custom_model_data", 7)), slotsOf()[36].patch());
         ch.writeInbound(frame(0x0E, b -> {
             Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); b.writeShort(-1); b.writeByte(0);
@@ -904,6 +920,7 @@ class ConnectionInputTest {
             Types.writeVarInt(b, 1); Types.writeVarInt(b, 1);   // carried: 컴포넌트 있음
             Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 13); Types.writeVarInt(b, 7);
         }));
+        if (ch.isActive()) settle();
         assertTrue(ch.isActive(), "컴포넌트 아이템 하나로 접속이 끊겼다");
     }
 
@@ -915,6 +932,7 @@ class ConnectionInputTest {
                 java.util.Map.of("minecraft:custom_name", "\"" + "x".repeat(40) + "\"")));
         Consumer<ByteBuf> body = b -> { b.writeShort(36); org.domi.furnace.server.item.ItemStackCodecs.writeStack(b, named); };
         ch.writeInbound(frame(0x32, body));
+        if (ch.isActive()) settle();
         assertTrue(ch.isActive(), "기본은 바닐라와 같아 긴 이름도 받는다");
         assertEquals(1, slotsOf()[36].count());
 
@@ -923,6 +941,7 @@ class ConnectionInputTest {
         props.setProperty("limits.item.display-name", "20");
         login.limits(ConnectionLimits.fromProperties(props, m -> {}));
         ch.writeInbound(frame(0x32, body));
+        if (ch.isActive()) settle();
         assertFalse(ch.isActive(), "상한(20)을 넘는 이름은 연결을 끊는다");
     }
 

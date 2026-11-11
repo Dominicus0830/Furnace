@@ -60,6 +60,9 @@ public final class Regionizer {
     private volatile long headDue = Long.MAX_VALUE;
     /** close 뒤 참: tryTake 는 null, schedule 은 넣지 않는다. */
     private volatile boolean closed;
+
+    /** 닫혔는가 — 넣은 작업이 더는 돌지 않는다. */
+    public boolean isClosed() { return closed; }
     /** 거짓이면 region 틱은 작업만 처리하고 게임 틱은 건너뛴다(서버가 다 준비되기 전·테스트). */
     private volatile boolean gameTicks;
     private int nextId;
