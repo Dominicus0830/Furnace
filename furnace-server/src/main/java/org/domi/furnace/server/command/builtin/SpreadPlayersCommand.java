@@ -277,7 +277,7 @@ public final class SpreadPlayersCommand {
     record Placement(Rider target, double x, double y, double z) { }
 
     /**
-     * 바닐라 setPlayerPositions 의 계산 부분: 대상마다 위치를 정하고(팀 유지면 같은 팀은 같은 위치 — 팀이 아직 없어 모두 한 팀이다),
+     * 바닐라 setPlayerPositions 의 계산 부분: 대상마다 위치를 정하고(팀 유지면 같은 팀은 같은 위치, 팀 없는 대상은 한 그룹),
      * 대상마다 가장 가까운 다른 위치까지의 거리의 평균을 돌려준다. 옮기는 일은 호출자가 한다.
      */
     static double place(List<Rider> targets, Terrain terrain, Position[] positions, boolean respectTeams, List<Placement> out) {
@@ -288,10 +288,11 @@ public final class SpreadPlayersCommand {
         for (Rider t : targets) {
             Position p;
             if (respectTeams) {
-                Position found = byTeam.get(noTeam);   // 팀 시스템이 없어 모든 대상의 팀이 null
+                Object key = teamKey(t, noTeam);
+                Position found = byTeam.get(key);
                 if (found == null) {
                     found = positions[index++];
-                    byTeam.put(noTeam, found);
+                    byTeam.put(key, found);
                 }
                 p = found;
             } else {
@@ -306,8 +307,22 @@ public final class SpreadPlayersCommand {
         return targets.size() < 2 ? 0.0 : sum / targets.size();
     }
 
-    /** 팀 수 — 팀이 없으니 대상이 있으면 1(모두 "팀 없음" 하나). */
-    private static int teamCount(List<Rider> targets) { return targets.isEmpty() ? 0 : 1; }
+    /** 바닐라: 플레이어면 소속 팀, 그 밖의 엔티티는 팀 없음(null) — 팀 없는 대상은 한 그룹이다. */
+    private static Object teamKey(Rider t, Object noTeam) {
+        if (t instanceof org.domi.furnace.server.entity.Player p) {
+            var team = p.team();
+            if (team != null) return team;
+        }
+        return noTeam;
+    }
+
+    /** 바닐라 getNumberOfTeams: 대상들의 서로 다른 팀 수(팀 없는 대상은 한 그룹으로 센다). */
+    private static int teamCount(List<Rider> targets) {
+        Object noTeam = new Object();
+        java.util.Set<Object> teams = new java.util.HashSet<>();
+        for (Rider t : targets) teams.add(teamKey(t, noTeam));
+        return teams.size();
+    }
 
     static CompletableFuture<Integer> spread(CommandSource source, Vec2Argument.Vec2 center, float spreadDistance, float maxRange, int maxHeight, boolean respectTeams,
                       List<Rider> targets) throws CommandSyntaxException {

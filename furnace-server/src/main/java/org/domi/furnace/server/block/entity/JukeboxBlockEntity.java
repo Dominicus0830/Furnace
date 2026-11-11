@@ -54,6 +54,9 @@ public class JukeboxBlockEntity extends BlockEntity {
         return s;
     }
 
+    /** 바닐라 Clearable.clearContent(ContainerSingleItem): 음반을 통째로 비우고 재생을 멈춘다(떨어뜨리지 않는다). */
+    public void clearContent(BlockLevel level) { removeItem(0, 1, level); }
+
     /** getMaxStackSize = 1. */
     public int maxStackSize() { return 1; }
 

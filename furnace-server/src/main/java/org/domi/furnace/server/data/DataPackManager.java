@@ -253,12 +253,15 @@ public final class DataPackManager implements AutoCloseable {
         return CompletableFuture.supplyAsync(() -> {
             List<String> sel = order.stream().filter(repository::isAvailable).toList();
             synchronized (this) {
+                List<String> before = repository.selectedIds();
                 repository.setSelected(sel);
-                ResourceManager rm = repository.openResourceManager();
+                ResourceManager rm = null;
                 try {
+                    rm = repository.openResourceManager();
                     return loadFrom(rm);
                 } catch (RuntimeException e) {
-                    rm.close();
+                    if (rm != null) rm.close();
+                    repository.setSelected(before);   // 바닐라: 읽기가 실패하면 옛 선택이 그대로다
                     throw e;
                 }
             }

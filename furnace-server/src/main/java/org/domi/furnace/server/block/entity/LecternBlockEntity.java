@@ -45,6 +45,9 @@ public class LecternBlockEntity extends BlockEntity {
         if (level != null) setChanged(level);
     }
 
+    /** 바닐라 Clearable.clearContent: 책을 비운다(떨어뜨리지 않는다). */
+    public void clearContent(BlockLevel level) { setBook(ItemStack.EMPTY, level); }
+
     /** 바닐라 setPage: 범위로 잘라 넣고, 바뀌었으면 저장 표시 + 비교기/레드스톤에 쪽 넘김 신호. */
     public void setPage(int newPage, BlockLevel level) {
         int clamped = Math.clamp(newPage, 0, Math.max(pageCount - 1, 0));
