@@ -136,6 +136,11 @@ public final class EventBridge {
             if (!owner.markBridged(owning.getName() + "<" + m.furnace.getName() + "@" + priority.name())) continue;
             subscribe(owner, m, priority);
         }
+        // 로그인 거부가 확정되면(Furnace MONITOR — 모든 처리기 뒤) 그 접속용으로 만든 CraftPlayer 를 걷는다: 권한 구독·플레이어 표에 남지 않게(PR #210 검토 R4)
+        if (owning == org.bukkit.event.player.PlayerLoginEvent.class && owner.markBridged("login-denied-cleanup")) {
+            Furnace.server().events().subscribe(owner, org.domi.furnace.api.event.player.PlayerCreateEvent.class,
+                    org.domi.furnace.api.event.EventPriority.MONITOR, false, f -> { if (!f.isAllowed()) Compat.forgetDenied(f.player()); });
+        }
     }
 
     private static <F extends org.domi.furnace.api.event.Event, B extends org.bukkit.event.Event> void subscribe(BukkitPluginAdapter owner, Mapping<F, B> m,

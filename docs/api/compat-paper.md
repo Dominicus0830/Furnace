@@ -95,7 +95,7 @@ Furnace 이벤트가 알리지 않는 값은 지어내지 않는다. 읽기는 �
 
 ## 권한 체계와 접속·RCON 이벤트 (LuckPerms, 2026-11-11)
 
-`PermissibleBase`·`PermissionAttachment`·`PermissionAttachmentInfo`·`PermissionRemovedExecutor` 와 `Permissible` 의 첨부 메서드, `CraftHumanEntity.perm`(정확히 `PermissibleBase`, 권한 플러그인이 리플렉션으로 바꿔 끼운다), `Bukkit.getUnsafe()`(`UnsafeValues`/`CraftMagicNumbers`), `getOnlineMode`·`getOfflinePlayer`·`getOperators`, `Player#locale`·`updateCommands`. Bukkit 첨부는 같은 플러그인의 Furnace 첨부로 옮겨져 Furnace 쪽 판정에도 들어가고, 권한 객체를 바꿔 끼우면(LuckPerms) Furnace 쪽 판정도 그 객체에 맡긴다(서버 API `PermissionOverride`).
+`PermissibleBase`·`PermissionAttachment`·`PermissionAttachmentInfo`·`PermissionRemovedExecutor` 와 `Permissible` 의 첨부 메서드, `CraftHumanEntity.perm`(정확히 `PermissibleBase`, 권한 플러그인이 리플렉션으로 바꿔 끼운다), `Bukkit.getUnsafe()`(`UnsafeValues`/`CraftMagicNumbers`), `getOnlineMode`·`getOfflinePlayer`·`getOperators`, `Player#locale`·`updateCommands`. Bukkit 첨부는 같은 플러그인의 Furnace 첨부로 옮겨져 Furnace 쪽 판정에도 들어가고, 권한 객체를 바꿔 끼우면(LuckPerms) Furnace 쪽 판정도 그 객체에 맡긴다(서버 API `PermissionOverride`). 정확한 `PermissibleBase` 는 지금 끼워져 있을 때만 Furnace 판정에 묻는다(바꿔 끼운 객체가 옛 객체에 되물어도 재귀 없음). 아직: RCON 으로 친 Bukkit 플러그인 명령의 발신자는 `ConsoleCommandSender` 이고 출력이 콘솔로 간다(Paper 는 RCON 응답).
 
 이벤트 표에 더하는 것: `AsyncPlayerPreLoginEvent`(Furnace `AsyncPlayerPreLoginEvent`, 결과·사유 되돌림, 가상 스레드), `PlayerLoginEvent`(Furnace `PlayerCreateEvent` — Player 가 처음 생기는 때, 거부하면 월드에 넣지 않고 끊음), `RemoteServerCommandEvent`(Furnace `RemoteServerCommandEvent`, RCON 연결 스레드, 취소·명령 바꾸기; 발신자는 `RemoteConsoleCommandSender`). 설계·Paper 와 다른 점: `docs/feature-parity/compat-luckperms-2026-11-11.md`. 시험: `BukkitPermissionsTest`, 봇 `tools/bot-test/round-lp/lp.js`.
 

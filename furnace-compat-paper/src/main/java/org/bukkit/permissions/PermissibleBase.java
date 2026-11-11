@@ -42,6 +42,14 @@ public class PermissibleBase implements Permissible {
         recalculatePermissions();
     }
 
+    /**
+     * 지금 그 플레이어에 끼워져 있을 때만 Furnace 판정에 묻는다. 권한 플러그인이 바꿔 끼운 뒤의 옛 객체는 Bukkit 그대로 계산한다 —
+     * 끼운 객체가 옛 객체에 되물어도(데코레이터식 주입) 옛 객체 → Furnace → 끼운 객체 → 옛 객체 고리가 생기지 않게(PR #210 검토 R1).
+     */
+    private boolean delegating() {
+        return furnace != null && opable instanceof org.bukkit.craftbukkit.entity.CraftHumanEntity h && h.permissible() == this;
+    }
+
     @Override
     public boolean isOp() { return opable != null && opable.isOp(); }
 
@@ -54,7 +62,7 @@ public class PermissibleBase implements Permissible {
     @Override
     public boolean isPermissionSet(String name) {
         if (name == null) throw new IllegalArgumentException("Permission name cannot be null");
-        if (furnace != null) return furnace.isPermissionSet(name);
+        if (delegating()) return furnace.isPermissionSet(name);
         return permissions.containsKey(name.toLowerCase(Locale.ROOT));
     }
 
@@ -67,7 +75,7 @@ public class PermissibleBase implements Permissible {
     @Override
     public boolean hasPermission(String inName) {
         if (inName == null) throw new IllegalArgumentException("Permission name cannot be null");
-        if (furnace != null) return furnace.hasPermission(inName);
+        if (delegating()) return furnace.hasPermission(inName);
         String name = inName.toLowerCase(Locale.ROOT);
         PermissionAttachmentInfo info = permissions.get(name);
         if (info != null) return info.getValue();
@@ -79,7 +87,7 @@ public class PermissibleBase implements Permissible {
     public boolean hasPermission(Permission perm) {
         if (perm == null) throw new IllegalArgumentException("Permission cannot be null");
         String name = perm.getName().toLowerCase(Locale.ROOT);
-        if (furnace != null) {
+        if (delegating()) {
             if (furnace.isPermissionSet(name)) return furnace.hasPermission(name);
             return perm.getDefault().getValue(isOp());
         }

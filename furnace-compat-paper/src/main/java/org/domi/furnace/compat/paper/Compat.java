@@ -253,6 +253,17 @@ public final class Compat {
         });
     }
 
+    /** 로그인이 거부된 접속의 CraftPlayer 를 표에서 꺼내 권한 구독·거울을 걷는다(그 접속 것일 때만 — 같은 UUID 의 다른 접속은 두고). */
+    static void forgetDenied(org.domi.furnace.api.entity.Player p) {
+        State s = state;
+        if (s == null || p == null) return;
+        s.players.computeIfPresent(p.uniqueId(), (k, cur) -> {
+            if (cur.furnaceHandle() != p) return cur;
+            cur.retire();
+            return null;
+        });
+    }
+
     /**
      * 이미 감싼 CraftPlayer 만 준다(새로 만들지 않는다) — 권한 판정 경로에서 부르므로 CraftPlayer 생성(권한 계산)으로 되돌아가지 않게.
      * 접속이 바뀐(핸들이 다른) 옛 객체는 null.
@@ -274,20 +285,27 @@ public final class Compat {
         try {
             pm = furnace.permissions();
             pm.setOverride(new org.domi.furnace.api.permission.PermissionOverride() {
+                /** 안전망: 끼운 객체가 어떤 길로든 다시 Furnace 판정에 묻으면 그 안쪽은 맡지 않는다(재귀 고리 끊기, PR #210 검토 R1). */
+                private final ThreadLocal<Boolean> inside = new ThreadLocal<>();
+
                 @Override
                 public Boolean hasPermission(org.domi.furnace.api.permission.Permissible subject, String node) {
                     org.bukkit.permissions.PermissibleBase pb = injected(subject);
-                    return pb == null ? null : pb.hasPermission(node);
+                    if (pb == null) return null;
+                    inside.set(Boolean.TRUE);
+                    try { return pb.hasPermission(node); } finally { inside.remove(); }
                 }
 
                 @Override
                 public Boolean isPermissionSet(org.domi.furnace.api.permission.Permissible subject, String node) {
                     org.bukkit.permissions.PermissibleBase pb = injected(subject);
-                    return pb == null ? null : pb.isPermissionSet(node);
+                    if (pb == null) return null;
+                    inside.set(Boolean.TRUE);
+                    try { return pb.isPermissionSet(node); } finally { inside.remove(); }
                 }
 
                 private org.bukkit.permissions.PermissibleBase injected(org.domi.furnace.api.permission.Permissible subject) {
-                    if (state != owner || !(subject instanceof org.domi.furnace.api.entity.Player p)) return null;
+                    if (inside.get() != null || state != owner || !(subject instanceof org.domi.furnace.api.entity.Player p)) return null;
                     CraftPlayer c = existingPlayer(p);
                     if (c == null) return null;
                     org.bukkit.permissions.PermissibleBase pb = c.permissible();

@@ -96,6 +96,13 @@ class BukkitPermissionsTest {
                             f.set(p, new Custom(p));
                         } catch (ReflectiveOperationException ex) { WiringProbe.failure = ex; }
                     }
+                    if (p.getName().equals("Wrapped")) {
+                        try {
+                            Field f = Class.forName("org.bukkit.craftbukkit.entity.CraftHumanEntity").getDeclaredField("perm");
+                            f.setAccessible(true);
+                            f.set(p, new Wrap(p, (PermissibleBase) f.get(p)));
+                        } catch (ReflectiveOperationException ex) { WiringProbe.failure = ex; }
+                    }
                 }
                 @EventHandler(priority = EventPriority.MONITOR)
                 public void loginMonitor(PlayerLoginEvent e) { WiringProbe.LOG.add("login-monitor:" + e.getPlayer().getName() + ":" + e.getResult()); }
@@ -119,6 +126,18 @@ class BukkitPermissionsTest {
             }
             """;
 
+    /** 데코레이터식 주입: 자기 노드만 맡고 나머지는 원래 PermissibleBase 에 되묻는다. */
+    private static final String WRAP = """
+            package pp;
+            import org.bukkit.permissions.*;
+            public final class Wrap extends PermissibleBase {
+                private final PermissibleBase old;
+                public Wrap(ServerOperator op, PermissibleBase old) { super(op); this.old = old; }
+                @Override public boolean hasPermission(String n) { return n.startsWith("wrap.") || old.hasPermission(n); }
+                @Override public boolean isPermissionSet(String n) { return n.startsWith("wrap.") || old.isPermissionSet(n); }
+            }
+            """;
+
     @TempDir
     Path tmp;
 
@@ -126,7 +145,7 @@ class BukkitPermissionsTest {
     void reset() { WiringProbe.reset(); }
 
     private FurnaceTestServer start() throws Exception {
-        Path jar = JarCompiler.jar(tmp.resolve("pp.jar"), YML, Map.of("pp.PermProbe", PLUGIN, "pp.Events", EVENTS, "pp.Custom", CUSTOM));
+        Path jar = JarCompiler.jar(tmp.resolve("pp.jar"), YML, Map.of("pp.PermProbe", PLUGIN, "pp.Events", EVENTS, "pp.Custom", CUSTOM, "pp.Wrap", WRAP));
         return FurnaceTestServer.builder().failFast(false).pluginJar(jar).start();
     }
 
@@ -216,6 +235,25 @@ class BukkitPermissionsTest {
         }
     }
 
+    /** 독립 검토 R1: 바꿔 끼운 객체가 옛 PermissibleBase 에 되물어도 옛 객체 → Furnace → 끼운 객체 → 옛 객체 고리(StackOverflowError)가 없다. */
+    @Test
+    void decoratorInjectionFallingBackToOldPermissibleDoesNotLoop() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            TestPlayer tp = server.join("Wrapped");
+            server.tick(2);
+            assertNull(WiringProbe.failure, () -> "주입 실패: " + WiringProbe.failure);
+            CraftPlayer cp = (CraftPlayer) Bukkit.getPlayer("Wrapped");
+            assertEquals("pp.Wrap", cp.permissible().getClass().getName());
+            assertTrue(cp.hasPermission("pp.everyone"), "기본값 true — 옛 객체가 Bukkit 그대로 계산");
+            assertTrue(tp.player().hasPermission("pp.everyone"), "Furnace 판정도 끼운 객체를 거쳐 끝난다");
+            assertTrue(cp.hasPermission("wrap.x"));
+            assertTrue(tp.player().hasPermission("wrap.x"));
+            assertFalse(cp.hasPermission("pp.kid"));
+            assertFalse(tp.player().hasPermission("pp.kid"));
+            assertTrue(tp.player().isPermissionSet("wrap.x"));
+        }
+    }
+
     @Test
     void loginEventsCanDenyAndDeniedPlayersNeverJoin() throws Exception {
         try (FurnaceTestServer server = start()) {
@@ -230,6 +268,8 @@ class BukkitPermissionsTest {
                     "사전 로그인에서 거부 — 로그인·입장 없음");
             assertEquals(List.of("pre:Late:true:ALLOWED:true", "login:Late:ALLOWED:true:true", "login-monitor:Late:KICK_OTHER"),
                     WiringProbe.LOG.stream().filter(l -> l.contains("Late")).toList(), "로그인에서 거부 — 입장·퇴장 없음");
+            assertFalse(Bukkit.getPluginManager().getPermissionSubscriptions("pp.everyone").stream().anyMatch(x -> x instanceof Player pl && pl.getName().equals("Late")),
+                    "거부된 접속의 CraftPlayer 는 권한 구독에서 걷혔다(검토 R4)");
             server.join("After");   // 뒤 접속은 정상
             server.tick(2);
             assertNotNull(Bukkit.getPlayerExact("After"));

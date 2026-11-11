@@ -26,6 +26,10 @@
     (다시 계산할 때 맞춘다) — 그래서 Bukkit 플러그인이 준 권한을 Furnace 플러그인·명령 트리도 본다. 유효 권한 목록(`getEffectivePermissions`)은 Bukkit 규칙대로 Bukkit 첨부와 기본값으로 계산한다.
   - 바꿔 끼웠을 때(LuckPerms): 서버 API 의 새 `PermissionOverride` 를 호환 계층이 하나 걸어 두었다가, 그 플레이어의 Furnace 판정도 바꿔 끼운 객체에 맡긴다.
     Bukkit 서버에서 모든 `hasPermission` 이 그 객체로 가는 것과 같다. 하위 클래스는 Furnace 쪽에 묻지 않는다(무한 재귀를 막고, LuckPerms 가 기대하는 Bukkit 그대로의 동작).
+  - 정확한 `PermissibleBase` 도 **지금 그 플레이어에 끼워져 있을 때만** Furnace 에 묻는다. 바꿔 끼운 객체가 옛 객체에 되묻는 데코레이터식 주입이면
+    옛 객체 → Furnace → 끼운 객체 → 옛 객체 고리가 생겨 `StackOverflowError` 가 났다(PR #210 독립 검토 R1). 옛 객체는 이제 Bukkit 그대로 계산하고,
+    판정 공급자에도 스레드별 재진입 표시를 두어 어떤 길로 되돌아와도 안쪽은 Furnace 기본 판정으로 끝난다.
+  - 로그인이 거부되면(Furnace `PlayerCreateEvent` MONITOR 에서 거부 확정) 그 접속용으로 만든 `CraftPlayer` 를 꺼내 권한 구독·거울을 걷는다(검토 R4).
 
 ## 접속 이벤트 순서
 
@@ -53,14 +57,23 @@ Bukkit `PlayerLoginEvent` 는 Player 객체가 있어야 하는데, Furnace 는 
 9. Furnace 명령(`/op`·`/deop`)으로 OP 가 바뀌면 Bukkit 쪽 유효 권한 목록(`getEffectivePermissions`)·기본값 구독은 다음 재계산까지 낡는다. `hasPermission` 은 Furnace 판정에 묻으므로 맞다. LuckPerms 를 주입한 상태에서는 영향이 없다.
 10. 꺼진 플러그인의 Bukkit 첨부는 Furnace 쪽에서는 떨어지지만(서버가 플러그인 첨부를 걷는다) Bukkit 쪽 목록에는 남는다.
 11. 없는 멤버: Paper Adventure 쪽(`kickMessage(Component)` 등)·`PlayerProfile`, `Player#spigot()`. 부르면 `NoSuchMethodError`.
+12. **바꿔 끼운 뒤에는 Furnace 플러그인의 Furnace 첨부가 판정에서 빠진다**(PR #210 검토 R2). 판정 공급자가 먼저 답하기 때문이다. Paper 에는 "Furnace 첨부"가
+    없으므로 Bukkit 플러그인끼리의 동작은 같다. 바라는 순서는 Furnace 첨부의 명시값 → 공급자 → 기본 규칙인데, 바꿔 끼우기 전 Bukkit 첨부를 옮긴 거울 첨부가
+    LuckPerms 판정을 덮지 않게 가려내야 해서 후속으로 남긴다.
+13. **RCON 으로 실행한 Bukkit 플러그인 명령의 발신자가 `ConsoleCommandSender` 이고 출력이 RCON 응답이 아니라 서버 콘솔로 간다**(검토 R3, 대부분 이 PR 전부터 있던 문제).
+    원인은 호환 계층이 플레이어가 아닌 Furnace 발신자를 모두 콘솔로 바꾸는 것이다(`RemoteConsoleSender` 는 지금 `RemoteServerCommandEvent` 에만 쓰인다).
+    Paper 는 `RemoteConsoleCommandSender` 를 주고 출력을 RCON 응답에 담는다. 명령 발신자 연결은 후속 작업이다.
+14. 콘솔·RCON 발신자에서 Bukkit `addAttachment`·`getEffectivePermissions` 는 `UnsupportedFeature` 를 던진다(검토 R5, 후속 후보).
+15. 서버 API `PermissionManager#setOverride` 는 칸이 하나라 Furnace 플러그인이 부르면 호환 계층의 공급자가 밀려난다(검토 R6). javadoc 에 적고, 앞 공급자를
+    `override()` 로 받아 이어 쓰라고 안내했다.
 
 ## 확인
 
 - 실제 jar: `LIVE_PROBE_SEED=<LuckPerms/libs 를 미리 채운 폴더> ./gradlew -PskipOracle=true :furnace-compat-paper:liveProbe -Pjar=LuckPerms -PextraJars=<jar 폴더> -PlibraryCache=<캐시>`
   → `Successfully enabled`, 오류 없음.
 - 봇 접속 시험 `tools/bot-test/round-lp/lp.js` 9/9: 접속(주입 경고 없음), 권한 없을 때 `/lp info` 거부, 콘솔 `lp user Alice permission set luckperms.info true` 뒤 허용,
-  RCON 으로 LuckPerms 명령(결과는 콘솔 로그 — LuckPerms 가 콘솔·RCON 발신자 메시지를 콘솔로 낸다, Paper 와 같은 동작), RCON 바닐라 명령 응답, 권한을 다시 뺀 뒤 거부, 퇴장 때 주입 해제 예외 없음.
-- 시험: `BukkitPermissionsTest`(첨부·자식 권한·Furnace 쪽 반영·바꿔 끼운 객체의 Furnace 판정·로그인 거부·RCON 이벤트·getUnsafe·오프라인 플레이어),
+  RCON 으로 LuckPerms 명령(결과는 콘솔 로그 — RCON 의 Bukkit 명령 발신자가 콘솔로 바뀌어서다, 위 13번. Paper 에서는 RCON 응답에 담긴다), RCON 바닐라 명령 응답, 권한을 다시 뺀 뒤 거부, 퇴장 때 주입 해제 예외 없음.
+- 시험: `BukkitPermissionsTest`(첨부·자식 권한·Furnace 쪽 반영·바꿔 끼운 객체의 Furnace 판정·데코레이터식 주입에서 재귀 없음·로그인 거부와 구독 정리·RCON 이벤트·getUnsafe·오프라인 플레이어),
   `LoginPhaseEventsTest.createDisallowDisconnectsBeforeJoinWithoutQuitOrSave`, `PluginSystemTest.permissionOverrideDecidesFirstAndNullFallsBack`,
   `RconCoreTest.remoteServerCommandEventCanRewriteOrCancel`, `ServerLibrariesBootstrapTest.markerInsideNestedJarIsFound`.
 
