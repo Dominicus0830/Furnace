@@ -26,6 +26,7 @@ final class Mappings {
         registerInventory();
         registerEntityInteract();
         registerInteractAndBlocks();
+        registerLogin();
     }
 
     private static final java.util.Map<Object, String> FORMAT_BASE = java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
@@ -538,5 +539,64 @@ final class Mappings {
             return "minecraft:tnt".equals(damager.type()) ? DamageCause.BLOCK_EXPLOSION : DamageCause.ENTITY_EXPLOSION;
         }
         return cause(type);
+    }
+
+    // ------------------------------------------------------------------ 접속·RCON (LuckPerms 등 권한 플러그인이 쓰는 이벤트)
+
+    /** "호스트:포트" — CraftBukkit 이 핸드셰이크에서 남기는 Connection.hostname 과 같은 모양. */
+    private static String hostname(org.domi.furnace.api.net.PlayerConnection c) {
+        return c == null ? "" : c.hostname() + ":" + c.hostPort();
+    }
+
+    private static java.net.InetAddress address(org.domi.furnace.api.net.PlayerConnection c) {
+        return c == null || c.address() == null ? null : c.address().getAddress();
+    }
+
+    private static void registerLogin() {
+        EventBridge.reg(org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent.class, org.bukkit.event.player.AsyncPlayerPreLoginEvent.class,
+                f -> new org.bukkit.event.player.AsyncPlayerPreLoginEvent(f.name(), f.address(), f.address(), f.uniqueId(),
+                        f.connection() != null && f.connection().isTransferred(), hostname(f.connection())),
+                (f, b) -> {
+                    var r = org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent.Result.valueOf(b.getLoginResult().name());
+                    if (r == org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent.Result.ALLOWED) {
+                        if (f.result() != r) f.allow();
+                    } else if (r != f.result() || !Objects.equals(b.getKickMessage(), Compat.legacy(f.kickMessage()))) {
+                        f.disallow(r, Compat.text(b.getKickMessage() == null ? "" : b.getKickMessage()));
+                    }
+                },
+                (f, b) -> {
+                    var r = org.bukkit.event.player.AsyncPlayerPreLoginEvent.Result.valueOf(f.result().name());
+                    // 둘 다 허용이면 손대지 않는다 — 허용 상태에서 앞 처리기가 미리 넣은 사유(setKickMessage)를 지우지 않게
+                    if (r == org.bukkit.event.player.AsyncPlayerPreLoginEvent.Result.ALLOWED && b.getLoginResult() == r) return;
+                    String m = Compat.legacy(f.kickMessage());
+                    if (b.getLoginResult() != r || !Objects.equals(b.getKickMessage(), m)) b.disallow(r, m);
+                });
+        // Bukkit PlayerLoginEvent 는 Player 객체가 필요하다 — Furnace 에서 그것이 처음 생기는 PlayerCreateEvent 에 잇는다(compat-luckperms 문서)
+        EventBridge.reg(org.domi.furnace.api.event.player.PlayerCreateEvent.class, org.bukkit.event.player.PlayerLoginEvent.class,
+                f -> {
+                    var a = address(f.connection());
+                    return new org.bukkit.event.player.PlayerLoginEvent(p(f.player()), hostname(f.connection()), a, a);
+                },
+                (f, b) -> {
+                    if (b.getResult() == org.bukkit.event.player.PlayerLoginEvent.Result.ALLOWED) {
+                        if (!f.isAllowed()) f.allow();
+                    } else if (f.isAllowed() || !Objects.equals(b.getKickMessage(), Compat.legacy(f.kickMessage()))) {
+                        f.disallow(Compat.text(b.getKickMessage() == null ? "" : b.getKickMessage()));
+                    }
+                },
+                (f, b) -> {
+                    boolean bAllowed = b.getResult() == org.bukkit.event.player.PlayerLoginEvent.Result.ALLOWED;
+                    if (f.isAllowed() && !bAllowed) b.allow();
+                    else if (!f.isAllowed() && (bAllowed || !Objects.equals(b.getKickMessage(), Compat.legacy(f.kickMessage())))) {
+                        b.disallow(bAllowed ? org.bukkit.event.player.PlayerLoginEvent.Result.KICK_OTHER : b.getResult(), Compat.legacy(f.kickMessage()));
+                    }
+                });
+        EventBridge.reg(org.domi.furnace.api.event.server.RemoteServerCommandEvent.class, org.bukkit.event.server.RemoteServerCommandEvent.class,
+                f -> new org.bukkit.event.server.RemoteServerCommandEvent(Compat.sender(f.sender()), f.command()),
+                (f, b) -> {
+                    if (!Objects.equals(b.getCommand(), f.command())) f.command(b.getCommand());
+                }, (f, b) -> {
+                    if (!Objects.equals(b.getCommand(), f.command())) b.setCommand(f.command());
+                });
     }
 }

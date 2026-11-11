@@ -720,6 +720,13 @@ public final class ServerCore {
     public String runRconCommand(String command) throws Exception {
         var spawn = world.defaultSpawn();
         var sink = new org.domi.furnace.server.remote.RconConsole(() -> settings.get().broadcastRconToOps, spawn.x(), spawn.y(), spawn.z());
+        var events = events();
+        if (events.hasSubscribers(org.domi.furnace.api.event.server.RemoteServerCommandEvent.class)) {
+            // Paper DedicatedServer.runCommand: RemoteServerCommandEvent → 취소면 빈 응답, 아니면 바뀐 명령을 실행
+            var ev = events.call(new org.domi.furnace.api.event.server.RemoteServerCommandEvent(pluginHost.rconSender(sink::sendSystemMessage), command));
+            if (ev.isCancelled()) return "";
+            command = ev.command();
+        }
         commands.performPrefixedCommandAsync(org.domi.furnace.server.command.CommandSource.rcon(this, sink), command)
                 .get(5, java.util.concurrent.TimeUnit.MINUTES);
         return sink.takeOutput();

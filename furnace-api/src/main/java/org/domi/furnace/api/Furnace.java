@@ -231,6 +231,9 @@ public interface Furnace {
         throw new UnsupportedOperationException("knownPlayers");
     }
 
+    /** server.properties 의 online-mode(접속할 때 Mojang 세션 인증을 하는가). 프록시 뒤라 false 로 둔 서버면 false. */
+    default boolean onlineMode() { throw new UnsupportedOperationException("onlineMode"); }
+
     /** OP·밴·IP 밴·화이트리스트 목록. */
     default org.domi.furnace.api.access.AccessLists access() { throw new UnsupportedOperationException("access"); }
 

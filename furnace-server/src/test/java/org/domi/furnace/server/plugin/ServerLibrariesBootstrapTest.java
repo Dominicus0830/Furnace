@@ -146,6 +146,35 @@ class ServerLibrariesBootstrapTest {
         assertFalse(Files.exists(cache.resolve("libraries.lock")));
     }
 
+    /** LuckPerms 처럼 본체가 안쪽 jar(.jarinjar)에 든 플러그인 — 안쪽 jar 의 클래스가 쓰는 라이브러리도 찾는다. */
+    @Test
+    void markerInsideNestedJarIsFound() throws Exception {
+        putInCache("org.test", "fakelib", "1.0");
+        Path a = dir.resolve("bukkit-plugins").resolve("a.jar");
+        pluginJar(a, "fake.cfg", ALPHA, null, TestPlugins.Alpha.class);
+        ByteArrayOutputStream inner = new ByteArrayOutputStream();
+        try (JarOutputStream o = new JarOutputStream(inner)) {
+            o.putNextEntry(new JarEntry("inner/Uses.class"));
+            o.write(("Êþº¾....fakelib/Shared....").getBytes(StandardCharsets.ISO_8859_1));
+            o.closeEntry();
+        }
+        Path t = a.resolveSibling("a.jar.tmp");
+        try (var in = new java.util.jar.JarInputStream(Files.newInputStream(a));
+             JarOutputStream out = new JarOutputStream(Files.newOutputStream(t))) {
+            for (JarEntry e; (e = in.getNextJarEntry()) != null; ) {
+                out.putNextEntry(new JarEntry(e.getName()));
+                out.write(in.readAllBytes());
+                out.closeEntry();
+            }
+            out.putNextEntry(new JarEntry("alpha-bukkit.jarinjar"));
+            out.write(inner.toByteArray());
+            out.closeEntry();
+        }
+        Files.move(t, a, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        bootstrap(offline());
+        assertEquals(java.util.Set.of("fakelib"), boot.sharedLibraryGroups(), "안쪽 jar 의 표지로 묶음을 준비한다");
+    }
+
     @Test
     void groupsNobodyUsesAreNotPreparedButAllModePreparesThem() throws Exception {
         putInCache("org.test", "fakelib", "1.0");

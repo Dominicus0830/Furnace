@@ -101,6 +101,7 @@
 | `FunctionExecuteEvent` | `SERVER_DRIVEN` | - | 데이터 팩 함수 본문 실행(통째로 건너뜀) |
 | `FunctionCommandEvent` | `SERVER_DRIVEN` | - | 함수 안 명령 한 줄 실행(그 줄만 건너뜀) |
 | `ServerCommandEvent` | `SERVER_DRIVEN` | - | 콘솔 명령 실행 |
+| `RemoteServerCommandEvent` | `SERVER_DRIVEN` | - | RCON 명령 실행(취소면 빈 응답) |
 
 ## 5. 알려진 한계
 

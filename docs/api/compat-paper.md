@@ -64,7 +64,7 @@
 
 Furnace 이벤트가 알리지 않는 값은 지어내지 않는다. 읽기는 정직한 기본값(예: 순간이동 원인 `UNKNOWN`), 쓰기는 `UnsupportedFeature`(= `UnsupportedOperationException`)로 무엇이 없는지 말하며 던진다. 예: `PlayerMoveEvent#setTo`. (`AsyncPlayerChatEvent#getRecipients()` 는 바꿀 수 있다 — P3, `docs/feature-parity/context-notes/2026-11-08-p3-chat.md`.)
 
-아직 없는 `org.bukkit` 영역: 엔티티 종류별 하위 인터페이스, 커스텀 `Inventory` 생성(`createInventory`; 서버에 메뉴 API 연결 전이라 `UnsupportedFeature`), 나머지 수백 개 이벤트, `Bukkit.getOnlinePlayers` 이외의 대부분의 서버 보조(권한은 `PluginManager` 의 노드 API·구독·`Bukkit.broadcast(메시지, 권한)` 까지 — 첨부 `addAttachment` 는 아직 없다). 없는 클래스를 부르면 플러그인 쪽에서 `NoClassDefFoundError` 가 나 그 플러그인만 실패한다.
+아직 없는 `org.bukkit` 영역: 엔티티 종류별 하위 인터페이스, 커스텀 `Inventory` 생성(`createInventory`; 서버에 메뉴 API 연결 전이라 `UnsupportedFeature`), 나머지 수백 개 이벤트, `Bukkit.getOnlinePlayers` 이외의 대부분의 서버 보조(권한은 아래 "권한 체계와 접속·RCON 이벤트" 절). 없는 클래스를 부르면 플러그인 쪽에서 `NoClassDefFoundError` 가 나 그 플러그인만 실패한다.
 
 ## Material
 
@@ -92,6 +92,12 @@ Furnace 이벤트가 알리지 않는 값은 지어내지 않는다. 읽기는 �
 ## 플러그인 메시징 (H4 묶음 E)
 
 `Bukkit.getMessenger()`(`Messenger`/`StandardMessenger`), `PluginMessageListener`, `Player`·`Server` 의 `sendPluginMessage`·`getListeningPluginChannels`, `"BungeeCord"` ↔ `bungeecord:main` 이름 바꿈, 채널 등록 이벤트. 받은 메시지 리스너는 전역 스레드("주 스레드")에서 돌고, 보내기는 클라이언트가 그 채널을 알렸을 때만 나간다(Bukkit 과 같다). 설계·Bukkit 과 다른 점: `docs/feature-parity/compat-h4e-messaging-2026-11-08.md`. 시험: `PluginMessagingTest`.
+
+## 권한 체계와 접속·RCON 이벤트 (LuckPerms, 2026-11-11)
+
+`PermissibleBase`·`PermissionAttachment`·`PermissionAttachmentInfo`·`PermissionRemovedExecutor` 와 `Permissible` 의 첨부 메서드, `CraftHumanEntity.perm`(정확히 `PermissibleBase`, 권한 플러그인이 리플렉션으로 바꿔 끼운다), `Bukkit.getUnsafe()`(`UnsafeValues`/`CraftMagicNumbers`), `getOnlineMode`·`getOfflinePlayer`·`getOperators`, `Player#locale`·`updateCommands`. Bukkit 첨부는 같은 플러그인의 Furnace 첨부로 옮겨져 Furnace 쪽 판정에도 들어가고, 권한 객체를 바꿔 끼우면(LuckPerms) Furnace 쪽 판정도 그 객체에 맡긴다(서버 API `PermissionOverride`). 정확한 `PermissibleBase` 는 지금 끼워져 있을 때만 Furnace 판정에 묻는다(바꿔 끼운 객체가 옛 객체에 되물어도 재귀 없음). 아직: RCON 으로 친 Bukkit 플러그인 명령의 발신자는 `ConsoleCommandSender` 이고 출력이 콘솔로 간다(Paper 는 RCON 응답).
+
+이벤트 표에 더하는 것: `AsyncPlayerPreLoginEvent`(Furnace `AsyncPlayerPreLoginEvent`, 결과·사유 되돌림, 가상 스레드), `PlayerLoginEvent`(Furnace `PlayerCreateEvent` — Player 가 처음 생기는 때, 거부하면 월드에 넣지 않고 끊음), `RemoteServerCommandEvent`(Furnace `RemoteServerCommandEvent`, RCON 연결 스레드, 취소·명령 바꾸기; 발신자는 `RemoteConsoleCommandSender`). 설계·Paper 와 다른 점: `docs/feature-parity/compat-luckperms-2026-11-11.md`. 시험: `BukkitPermissionsTest`, 봇 `tools/bot-test/round-lp/lp.js`.
 
 ## 스레드 (H2 가 H1 에 넘긴 D1·D2 에 대한 결정)
 

@@ -91,13 +91,17 @@ public final class CompatFormat implements PluginFormat {
     static void checkApiVersion(PluginDescriptionFile pdf) {
         String v = pdf.getAPIVersion();
         if (v == null) return;
+        if (isNewerThanServerApi(v)) throw new IllegalArgumentException("Unsupported API version " + v + " (이 서버는 Bukkit API 1." + SUPPORTED_MINOR + "." + SUPPORTED_PATCH + " 까지 받는다)");
+    }
+
+    /** api-version 문자열("1.21", "1.20.6")이 이 서버의 Bukkit API(1.21.1)보다 새로운가. 읽을 수 없으면 IllegalArgumentException. */
+    public static boolean isNewerThanServerApi(String v) {
         String[] p = v.split("\\.");
         try {
             int major = Integer.parseInt(p[0]);
             int minor = p.length > 1 ? Integer.parseInt(p[1]) : 0;
             int patch = p.length > 2 ? Integer.parseInt(p[2]) : 0;
-            boolean tooNew = major > 1 || (major == 1 && (minor > SUPPORTED_MINOR || (minor == SUPPORTED_MINOR && patch > SUPPORTED_PATCH)));
-            if (tooNew) throw new IllegalArgumentException("Unsupported API version " + v + " (이 서버는 Bukkit API 1." + SUPPORTED_MINOR + "." + SUPPORTED_PATCH + " 까지 받는다)");
+            return major > 1 || (major == 1 && (minor > SUPPORTED_MINOR || (minor == SUPPORTED_MINOR && patch > SUPPORTED_PATCH)));
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("api-version '" + v + "' 을 읽을 수 없다");
         }
