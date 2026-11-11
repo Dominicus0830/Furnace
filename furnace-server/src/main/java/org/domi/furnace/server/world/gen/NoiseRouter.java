@@ -131,6 +131,13 @@ public final class NoiseRouter {
         );
     }
 
+    /** 시험용: final_density 만 바꾼 라우터(꼭짓점 공유 캐시는 새로). 나머지 함수·난수는 이 라우터 것을 그대로 쓴다. */
+    NoiseRouter withFinalDensityForTest(DensityFunction fd) {
+        return new NoiseRouter(fd, initialDensityWithoutJaggedness, temperature, humidity, continents, erosion, depth, ridges,
+            barrierNoise, fluidLevelFloodednessNoise, fluidLevelSpreadNoise, lavaNoise, veinToggle, veinRidged, veinGap,
+            aquiferRandom, oreRandom, random);
+    }
+
     public DensityFunction finalDensity() { return finalDensity; }
     public DensityFunction initialDensityWithoutJaggedness() { return initialDensityWithoutJaggedness; }
     public DensityFunction temperature() { return temperature; }

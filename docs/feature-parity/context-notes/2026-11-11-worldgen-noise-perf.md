@@ -11,3 +11,5 @@
 - `RangeChoice` 같은 DF 레코드는 NoiseChunk `wrapped` HashMap 의 키다(구조 동등성으로 같은 보간기를 한 번만 만든다). 레코드를 클래스로 바꾸면 이 공유가 깨져 같은 보간기를 두 번 계산한다 — 값 캐시는 레코드 성분으로 더한다.
 - 측정 함정: 새 `NoiseWorldSource` 는 처음 구조물 조회 때 요새 고리(128개, 바이옴 탐색)를 계산한다 — 몇 초짜리라 예열 없이 프로파일하면 표본의 20% 가 여기 간다.
 - 측정 함정: 컨테이너 4코어에서 다른 java 가 돌면 벽시계 값이 크게 흔들린다. 동일성 해시와 시간 측정을 같이 돌리지 않는다.
+- 검토 R1: `FlatCache`·`Cache2D`·`CacheOnce` 는 `mapAll` 을 덮어쓰지 않아 안쪽으로 내려가지 않는다. 보간기 순수성 판정은 `wrapped()` 를 직접 따라 들어가야 한다(`interpolated(range_choice(.., cache_once(interpolated(y))))` 같은 구성에서 블록이 달라졌다). 바닐라 데이터에는 없는 구성 — 시험 `SliceColumnCacheTest.wrappedInterpolatorInsideCacheDisablesSharing`.
+- 검토 N1: 보간기 안 `cache_2d` 가 Y 에 의존하면 첫 계산 y 가 순서에 좌우된다. 지금은 꼭짓점 기둥이 늘 그 (x, z) 의 첫 계산·y 오름차순이라 같다. 보수적으로 Y 의존을 막으면(`isYInvariant`) 바닐라 오버월드도 캐시를 못 쓰게 된다 — 데이터 팩 지원 때 다시 본다.

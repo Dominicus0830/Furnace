@@ -182,13 +182,27 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
      * cache_all_in_cell 은 셀 배열을 돌려주므로(바닐라도 같다) 그런 구성은 꼭짓점 값이 위치만의 함수가 아니다 — 공유 캐시를 쓰지 않는다.
      */
     private boolean interpolatorsArePositionPure() {
-        boolean[] pure = {true};
         for (NoiseInterpolator interp : this.interpolators) {
-            interp.wrapped().mapAll(df -> {
-                if (df instanceof NoiseInterpolator || df instanceof CacheAllInCell) pure[0] = false;
-                return df;
-            });
+            if (!positionPure(interp.wrapped())) return false;
         }
+        return true;
+    }
+
+    /**
+     * NoiseChunk 래퍼(FlatCache·Cache2D·CacheOnce)는 mapAll 이 안쪽으로 내려가지 않으므로 wrapped() 를 직접 따라 들어간다.
+     * 참고(검토 N1): Cache2D 는 (x, z) 만으로 메모한다. 꼭짓점 기둥은 어느 청크에서나 그 (x, z) 의 첫 계산이고 y 오름차순이라
+     * 지금 순서에서는 같은 값이 나온다. 데이터 팩으로 이 순서가 깨질 구성이 들어오면 여기서 Y 의존 여부를 더 본다.
+     */
+    private boolean positionPure(DensityFunction root) {
+        boolean[] pure = {true};
+        root.mapAll(df -> {
+            if (df instanceof NoiseInterpolator || df instanceof CacheAllInCell) {
+                pure[0] = false;
+            } else if (df instanceof FlatCache || df instanceof Cache2D || df instanceof CacheOnce) {
+                if (!positionPure(((DensityFunctions.MarkerOrMarked) df).wrapped())) pure[0] = false;
+            }
+            return df;
+        });
         return pure[0];
     }
 
@@ -983,7 +997,11 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
             return currentValue();
         }
 
-        /** 지금 블록의 보간값 — 바닐라 updateForY/X/Z 와 같은 식·순서(lerp(t, a, b))로, 바뀐 단계만 다시 계산한다. */
+        /**
+         * 지금 블록의 보간값 — 바닐라 updateForY/X/Z 와 같은 식·순서(lerp(t, a, b))로, 바뀐 단계만 다시 계산한다.
+         * 블록 루프 불변식에 기댄다: 보간값 읽기는 늘 NoiseChunk.updateForZ 뒤(t·세대가 지금 블록 것)에만 일어난다.
+         * 루프 밖이나 updateForY/X 와 updateForZ 사이에서 읽게 바꾸면 이 계산이 바닐라와 달라진다.
+         */
         private double currentValue() {
             long ze = zEpoch;
             if (this.zStamp != ze) {

@@ -58,6 +58,32 @@ class SliceColumnCacheTest {
         neighborsFirstMatchesFresh("minecraft:end", 99L, 90, -120);
     }
 
+    /** 보간기 안 cache_once·cache_2d·flat_cache 속에 다른 보간기가 있으면 꼭짓점이 청크 상태에 의존한다 — 캐시를 쓰지 않아야 한다(PR #222 검토 R1). */
+    @Test
+    void wrappedInterpolatorInsideCacheDisablesSharing() {
+        NoiseSettings s = NoiseSettings.fromJson("minecraft:overworld", DATA.noiseSettings("minecraft:overworld"));
+        NoiseRouter base = NoiseRouter.build(DATA, s, 1L);
+        java.util.List<java.util.function.UnaryOperator<org.domi.furnace.server.world.gen.df.DensityFunction>> wraps = java.util.List.of(
+            org.domi.furnace.server.world.gen.df.DensityFunctions::cacheOnce,
+            org.domi.furnace.server.world.gen.df.DensityFunctions::cache2d,
+            org.domi.furnace.server.world.gen.df.DensityFunctions::flatCache);
+        for (var wrap : wraps) {
+            var inner = org.domi.furnace.server.world.gen.df.DensityFunctions.interpolated(
+                org.domi.furnace.server.world.gen.df.DensityFunctions.yClampedGradient(-64, 320, 1.0, -1.0));
+            var fd = org.domi.furnace.server.world.gen.df.DensityFunctions.interpolated(
+                org.domi.furnace.server.world.gen.df.DensityFunctions.rangeChoice(
+                    org.domi.furnace.server.world.gen.df.DensityFunctions.constant(0.5), 0.0, 1.0, wrap.apply(inner),
+                    org.domi.furnace.server.world.gen.df.DensityFunctions.constant(0.0)));
+            int[] fresh = new NoiseChunk(0, 0, base.withFinalDensityForTest(fd), s)
+                .generateBlockIds(1, new DisabledAquifer(-1000, -1000, 2, 3));
+            NoiseRouter shared = base.withFinalDensityForTest(fd);
+            assertTrue(!new NoiseChunk(0, 0, shared, s).usesSliceCacheForTest(), "상태 의존 구성은 캐시를 쓰지 않는다");
+            new NoiseChunk(-1, 0, shared, s).generateBlockIds(1, new DisabledAquifer(-1000, -1000, 2, 3));
+            int[] after = new NoiseChunk(0, 0, shared, s).generateBlockIds(1, new DisabledAquifer(-1000, -1000, 2, 3));
+            assertArrayEquals(fresh, after);
+        }
+    }
+
     @Test
     void concurrentNeighborsMatchFresh() throws Exception {
         NoiseSettings settings = NoiseSettings.fromJson("minecraft:overworld", DATA.noiseSettings("minecraft:overworld"));
