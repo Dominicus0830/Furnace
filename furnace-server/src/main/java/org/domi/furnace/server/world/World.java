@@ -1091,7 +1091,8 @@ public final class World {
         ChunkColumn col;
         if (src instanceof org.domi.furnace.server.world.gen.NoiseWorldSource n) {
             col = n.generateIsolated(cx, cz);
-            col.freshlyGenerated(true);   // 생성 엔티티를 넣을 때만 쓴다(교체가 지운다)
+            // 생성 엔티티를 넣을 때만 쓴다(교체가 지운다). 평지 생성기(FlatLevelSource.spawnOriginalMobs)는 동물을 놓지 않는다
+            if (!n.isFlat()) col.freshlyGenerated(true);
         } else {
             col = src.generate(cx, cz);
         }

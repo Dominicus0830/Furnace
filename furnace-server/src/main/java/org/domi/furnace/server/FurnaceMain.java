@@ -247,9 +247,6 @@ public final class FurnaceMain {
         var regionStore = new org.domi.furnace.server.world.anvil.RegionFileStore(dimension.storageDir(worldDir), "region", props.syncChunkWrites);
         var chunkCodec = new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blockRegistry, itemRegistry,
                 registries.entries("minecraft:worldgen/biome"), plainsBiome, dimension.minY, dimension.sectionCount);
-        var noiseSource = NoiseWorldSource.overworld(config.levelSeed(), blockRegistry, registries, overworldNoiseSettings(levelData),
-                levelData.overworldFixedBiome());
-        applyWorldGenOptions(levelData, noiseSource);
         // 오버월드 생성기: level.dat 의 생성기가 minecraft:flat 이면 평지(바닐라 FlatLevelSource 층), 아니면 노이즈
         var generator = levelData.overworldGenerator();
         // 평지는 바닐라 FlatLevelSource 처럼 같은 생성 경로(지형지물·호수·빈 공간 발판)를 쓰는 평지 모드 생성기
@@ -264,6 +261,13 @@ public final class FurnaceMain {
             }
             flatSource = NoiseWorldSource.flat(config.levelSeed(), blockRegistry, registries, spec);
             applyWorldGenOptions(levelData, flatSource);
+        }
+        // 노이즈 생성기는 평지가 아닐 때만 만든다(평지에서는 쓰지 않는다)
+        NoiseWorldSource noiseSource = null;
+        if (flatSource == null) {
+            noiseSource = NoiseWorldSource.overworld(config.levelSeed(), blockRegistry, registries, overworldNoiseSettings(levelData),
+                    levelData.overworldFixedBiome());
+            applyWorldGenOptions(levelData, noiseSource);
         }
         // 디버그 월드: 오버월드 생성기가 minecraft:debug 면 모든 블록 상태 격자(바닐라 DebugLevelSource, 바이옴 plains)
         org.domi.furnace.server.world.gen.DebugWorldSource debugSource = levelData.isDebugWorld()

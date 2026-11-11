@@ -57,7 +57,103 @@ class FlatWorldGenerationTest {
 
         NoiseWorldSource bare = flat(air, "minecraft:the_void", false, false);
         assertTrue(ChunkSection.isAir(bare.generateWithFeatures(0, 0).getBlock(8, y, 8)));
-        // 공기 층이 아닌 평지에 the_void 바이옴이 아니면(!voidGen || the_void) 은 참이라 발판이 놓이는 것은 the_void 바이옴 쪽뿐이다
+
+        // 공기만인 평지(voidGen)에 the_void 가 아닌 바이옴이면 (!voidGen || the_void) 이 거짓이라 바이옴 지형지물이 없다
+        NoiseWorldSource voidPlains = flat(air, "minecraft:plains", true, false);
+        for (int cx = 0; cx < 2; cx++) for (int cz = 0; cz < 2; cz++) {
+            ChunkColumn col = voidPlains.generateWithFeatures(cx, cz);
+            for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) for (int yy = -64; yy < 0; yy++) {
+                assertTrue(ChunkSection.isAir(col.getBlock(x, yy, z)), cx + "," + cz + " " + x + "," + yy + "," + z);
+            }
+        }
+    }
+
+    /** voidGen 은 월드 높이로 자르기 전 층 전체로 정한다 — 공기 384층 위에 돌 1층이면 voidGen 이 아니다. */
+    @Test
+    void voidGenUsesWholeLayerList() {
+        var spec = new NoiseWorldSource.FlatSpec(List.of(new SuperflatWorldSource.Layer("minecraft:air", 384),
+                new SuperflatWorldSource.Layer("minecraft:stone", 1)), "minecraft:plains", true, false, null);
+        var layers = NoiseWorldSource.FlatLayers.of(spec, REG);
+        assertFalse(layers.voidGen());
+        assertEquals(385, layers.states().length);
+        NoiseWorldSource gen = NoiseWorldSource.flat(1234L, REG, REGS, spec);
+        assertEquals(320, gen.flatSurfaceY());   // 채우기는 월드 높이에서 멈춘다
+        assertTrue(ChunkSection.isAir(gen.generate(0, 0).getBlock(0, 319, 0)));
+    }
+
+    /** /place·직소의 높이(FlatLevelSource.getBaseHeight·getBaseColumn): 지운(null) 층은 건너뛴다. 노이즈 지형이 아니다. */
+    @Test
+    void baseHeightFollowsLayers() {
+        NoiseWorldSource def = flat(SuperflatWorldSource.DEFAULT_LAYERS, "minecraft:plains", false, false);
+        assertEquals(-61, def.firstOccupiedHeight(NoiseWorldSource.HM_WORLD_SURFACE_WG, 100, -300));
+        assertEquals(-61, def.firstOccupiedHeight(NoiseWorldSource.HM_OCEAN_FLOOR_WG, 7, 7));
+        assertEquals(state("minecraft:grass_block"), def.baseBlock(5, -61, 5));
+        assertTrue(ChunkSection.isAir(def.baseBlock(5, -60, 5)));
+
+        // 눈 층은 지워졌으니 높이·기둥에 없다
+        List<SuperflatWorldSource.Layer> snowy = List.of(new SuperflatWorldSource.Layer("minecraft:bedrock", 1),
+                new SuperflatWorldSource.Layer("minecraft:stone", 3), new SuperflatWorldSource.Layer("minecraft:snow", 1));
+        NoiseWorldSource gen = flat(snowy, "minecraft:plains", false, false);
+        assertEquals(-61, gen.firstOccupiedHeight(NoiseWorldSource.HM_WORLD_SURFACE_WG, 0, 0));
+        assertTrue(ChunkSection.isAir(gen.baseBlock(0, -60, 0)));
+
+        // 공기만이면 차원 최저 높이(-64) 아래
+        NoiseWorldSource air = flat(List.of(new SuperflatWorldSource.Layer("minecraft:air", 1)), "minecraft:the_void", false, false);
+        assertEquals(-65, air.firstOccupiedHeight(NoiseWorldSource.HM_WORLD_SURFACE_WG, 0, 0));
+    }
+
+    /** MOTION_BLOCKING 이 아닌 층이 둘(눈 층·카펫) — 인라인 fill_layer 둘이 각자 놓인다. */
+    @Test
+    void twoNonMotionBlockingLayers() {
+        var layers = List.of(new SuperflatWorldSource.Layer("minecraft:bedrock", 1), new SuperflatWorldSource.Layer("minecraft:stone", 3),
+                new SuperflatWorldSource.Layer("minecraft:snow", 1), new SuperflatWorldSource.Layer("minecraft:white_carpet", 1));
+        ChunkColumn col = flat(layers, "minecraft:plains", false, false).generateWithFeatures(2, -1);
+        for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) {
+            assertEquals(state("minecraft:snow"), col.getBlock(x, -60, z));
+            assertEquals(state("minecraft:white_carpet"), col.getBlock(x, -59, z));
+        }
+    }
+
+    /** lakes: 두꺼운 돌 층에 용암 호수(lake_lava_underground·surface)가 생기고, lakes=false 면 없다. */
+    @Test
+    void lakesPlaceLava() {
+        var layers = List.of(new SuperflatWorldSource.Layer("minecraft:bedrock", 1), new SuperflatWorldSource.Layer("minecraft:stone", 100));
+        NoiseWorldSource on = flat(layers, "minecraft:plains", false, true), off = flat(layers, "minecraft:plains", false, false);
+        int lava = state("minecraft:lava");
+        int lavaOn = 0, lavaOff = 0;
+        for (int cx = 0; cx < 8; cx++) for (int cz = 0; cz < 8; cz++) {
+            ChunkColumn a = on.generateWithFeatures(cx, cz), b = off.generateWithFeatures(cx, cz);
+            for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) for (int y = -63; y <= 40; y++) {
+                if (a.getBlock(x, y, z) == lava) lavaOn++;
+                if (b.getBlock(x, y, z) == lava) lavaOff++;
+            }
+        }
+        assertEquals(0, lavaOff);
+        assertTrue(lavaOn > 0, "lakes=true 인데 용암 0");
+    }
+
+    /**
+     * /place structure 는 평지 땅 높이에 짓는다(노이즈 지형 높이가 아니다). 마을(지그소 project_start_to_heightmap)으로 본다 —
+     * 사막 피라미드·이글루 같은 ScatteredFeaturePiece 는 바닐라도 시작 상자를 고정 y(64·90)로 두고 배치 때 땅 높이로 옮긴다.
+     */
+    @Test
+    void placeStructureUsesFlatHeight() {
+        NoiseWorldSource gen = flat(SuperflatWorldSource.DEFAULT_LAYERS, "minecraft:plains", false, false);
+        var cs = gen.structureEngine().generateForCommand("minecraft:village_plains", 0, 0, gen);
+        assertNotNull(cs.start());
+        int minY = cs.start().boundingBox().minY();
+        assertTrue(minY < -50, "village_plains minY=" + minY);   // 노이즈 지형이면 50 근처
+    }
+
+    /** 평지 생성기는 청크를 만들 때 동물을 놓지 않는다(FlatLevelSource.spawnOriginalMobs 가 비어 있다). */
+    @Test
+    void flatChunksSpawnNoAnimals(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws Exception {
+        NoiseWorldSource gen = flat(SuperflatWorldSource.DEFAULT_LAYERS, "minecraft:plains", true, false);
+        var src = new AnvilWorldSource(dir, new org.domi.furnace.server.world.anvil.RegionFileStore(dir),
+                new org.domi.furnace.server.world.anvil.AnvilChunkCodec(REG, 0), gen);
+        java.util.concurrent.Executor direct = Runnable::run;
+        ChunkColumn col = src.loadChunkAsync(3, 4, direct, direct, direct).get();
+        assertFalse(col.freshlyGenerated());
     }
 
     /** 지형지물이 켜진 평원 평지는 풀·꽃·나무가 자란다(지형지물이 꺼지면 땅 위가 비어 있다). 같은 시드는 같은 결과. */

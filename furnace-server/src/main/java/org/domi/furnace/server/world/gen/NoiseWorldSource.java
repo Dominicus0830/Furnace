@@ -277,7 +277,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         // WorldGenerationContext: minGenY = max(차원 min, 생성기 min), genDepth = min(차원 높이, 노이즈 높이)
         int genMinY = Math.max(dim.minY, flat != null ? FLAT_MIN_Y : settings.minY());
         int genDepth = Math.min(dim.sectionCount * 16, flat != null ? FLAT_GEN_DEPTH : settings.height());
-        FlatLayers flatLayers = flat != null ? FlatLayers.of(flat, reg, dim.sectionCount * 16) : null;
+        FlatLayers flatLayers = flat != null ? FlatLayers.of(flat, reg) : null;
         FeaturePlacer featurePlacer = loadFeaturePlacer(data, possible, biomeEntries, reg, seed, genMinY, genDepth,
                 flat != null ? FLAT_SEA_LEVEL : settings.seaLevel(), router, flatLayers == null ? null : b -> flatLayers.generationSteps(data, b));
         StructurePlacementCatalog structurePlacementCatalog = StructurePlacementCatalog.load(data);
@@ -311,7 +311,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     public int flatBiomeId() { return flatLayers != null ? flatBiomeId : -1; }
 
     /** 평지: 맨 위 층 바로 위 y(스폰 기준 — 예전 SuperflatWorldSource.surfaceY 와 같다). */
-    public int flatSurfaceY() { return dimension.minY + flatLayers.states().length; }
+    public int flatSurfaceY() { return dimension.minY + Math.min(flatLayers.states().length, dimension.sectionCount * 16); }
 
     /**
      * 평지 층(FlatLevelGeneratorSettings.getLayers): 아래부터 펼친 상태. adjustGenerationSettings 가 MOTION_BLOCKING 이 아닌 층을
@@ -319,11 +319,13 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
      * 생성 전에 그것을 부른다(가정: 생성 전 validate). 그래서 노이즈 채우기는 지운 층을 건너뛴다.
      */
     record FlatLayers(FlatSpec spec, int[] states, int[] filled, boolean voidGen) {
-        static FlatLayers of(FlatSpec spec, BlockRegistry reg, int maxHeight) {
+        static FlatLayers of(FlatSpec spec, BlockRegistry reg) {
+            // 월드 높이로 자르지 않는다: 바닐라 getLayers 는 층 전체(높이 합 최대 4064)이고 voidGen·fill_layer 도 그 목록으로 정한다.
+            // 채우기·높이 계산이 월드 높이에서 멈춘다.
             java.util.List<Integer> col = new ArrayList<>();
             for (SuperflatWorldSource.Layer l : spec.layers()) {
                 int st = reg.defaultStateId(l.block());
-                for (int i = 0; i < l.height() && col.size() < maxHeight; i++) col.add(st);
+                for (int i = 0; i < l.height(); i++) col.add(st);
             }
             int[] states = col.stream().mapToInt(Integer::intValue).toArray();
             int air = reg.defaultStateId("minecraft:air");
@@ -592,6 +594,8 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
     /** 실제 월드 청크용: 주변 terrain_adaptation 구조물의 Beardifier 를 적용한 지형. 높이 질의용 generate() 는 바닐라처럼 beard 없음. */
     public Generated generateWorldChunk(int chunkX, int chunkZ) {
+        // FlatLevelSource.fillFromNoise 는 Beardifier 를 쓰지 않는다
+        if (flatLayers != null) return generateFlat(chunkX, chunkZ);
         return generateWithBiomes(chunkX, chunkZ, beardifierFor(chunkX, chunkZ));
     }
 
@@ -705,7 +709,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         GenHooks hooks = genHooks;
         if (hooks == null || hooks.vanilla(org.domi.furnace.api.worldgen.GenerationStage.NOISE, chunkX, chunkZ)) {
             int[] filled = flatLayers.filled();
-            for (int i = 0; i < filled.length; i++) {
+            for (int i = 0, n = Math.min(filled.length, dimension.sectionCount * 16); i < n; i++) {
                 if (filled[i] >= 0) java.util.Arrays.fill(blockIds, i * 256, i * 256 + 256, filled[i]);
             }
         }
@@ -897,11 +901,35 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
     @Override
     public int firstOccupiedHeight(int heightmap, int blockX, int blockZ) {
+        if (flatLayers != null) return flatBaseHeight(heightmap) - 1;
         return heightmap == HM_OCEAN_FLOOR_WG ? oceanFloorWgHeightAt(blockX, blockZ) : worldSurfaceHeightAt(blockX, blockZ);
+    }
+
+    /**
+     * FlatLevelSource.getBaseHeight: 남은(null 이 아닌) 층을 위에서부터 보며 그 heightmap 술어(WORLD_SURFACE_WG 공기 아님,
+     * OCEAN_FLOOR_WG blocksMotion)에 맞는 첫 층 바로 위. 없으면 차원 최저 높이. 열마다 같다.
+     * 바닐라는 층 번호 상한을 높이(384)가 아니라 getMaxBuildHeight(320)로 잡는다 — 그대로 따른다.
+     */
+    private int flatBaseHeight(int heightmap) {
+        int[] filled = flatLayers.filled();
+        int top = Math.min(filled.length, dimension.minY + dimension.sectionCount * 16);
+        for (int i = top - 1; i >= 0; i--) {
+            int st = filled[i];
+            if (st < 0) continue;
+            boolean hit = heightmap == HM_OCEAN_FLOOR_WG ? org.domi.furnace.server.world.BlockAttrs.get().blocksMotion(st) : !ChunkSection.isAir(st);
+            if (hit) return dimension.minY + i + 1;
+        }
+        return dimension.minY;
     }
 
     @Override
     public int baseBlock(int blockX, int blockY, int blockZ) {
+        if (flatLayers != null) {
+            // FlatLevelSource.getBaseColumn: 층(null 은 공기), 그 위는 공기
+            int i = blockY - dimension.minY;
+            int[] filled = flatLayers.filled();
+            return i >= 0 && i < filled.length && i < dimension.sectionCount * 16 && filled[i] >= 0 ? filled[i] : ChunkSection.AIR;
+        }
         int cx = Math.floorDiv(blockX, 16);
         int cz = Math.floorDiv(blockZ, 16);
         long key = chunkKey(cx, cz);
