@@ -15,6 +15,7 @@ public abstract class BlockBehaviour {
     public abstract static class BlockStateBase extends StateHolder<Block, BlockState> {
 
         private final int furnaceStateId;
+        private net.minecraft.world.level.material.FluidState fluidState;   // 처음 물을 때 채운다(같은 객체라 경합해도 결과가 같다)
 
         protected BlockStateBase(Block owner, Map<Property<?>, Comparable<?>> values, int furnaceStateId) {
             super(owner, values);
@@ -43,6 +44,13 @@ public abstract class BlockBehaviour {
         public boolean is(net.minecraft.tags.TagKey<Block> tag, java.util.function.Predicate<BlockStateBase> predicate) { return is(tag) && predicate.test(this); }
 
         public java.util.stream.Stream<net.minecraft.tags.TagKey<Block>> getTags() { return owner.builtInRegistryHolder().tags(); }
+
+        /** 바닐라: 물·용암 블록은 level 에 맞는 유체, 잠긴 블록·켈프·해초·거품 기둥은 물 원천, 그 밖은 빈 유체. */
+        public net.minecraft.world.level.material.FluidState getFluidState() {
+            var f = fluidState;
+            if (f == null) fluidState = f = org.domi.furnace.compat.nms.NmsFluids.ofBlockState(furnaceStateId);
+            return f;
+        }
 
         /** 바닐라 isAir: air·cave_air·void_air. */
         public boolean isAir() { return owner.furnaceIsAir(); }

@@ -23,4 +23,7 @@ public interface BlockTypes {
 
     /** 상태 번호의 개수(1.21.1 = 26684). 번호는 0 부터 이 값 미만. */
     default int stateCount() { throw new UnsupportedOperationException("stateCount"); }
+
+    /** 상태 번호의 유체(바닐라 {@code BlockState.getFluidState}: 물·용암 블록, 잠긴 블록, 켈프·해초·거품 기둥). 유체가 없거나 범위 밖이면 {@link FluidData#EMPTY}. */
+    default FluidData fluid(int stateId) { throw new UnsupportedOperationException("fluid"); }
 }

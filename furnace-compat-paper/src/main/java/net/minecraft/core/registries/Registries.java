@@ -18,7 +18,7 @@ public final class Registries {
     public static final ResourceKey<Registry<Block>> BLOCK = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("block"));
     public static final ResourceKey<Registry<Item>> ITEM = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("item"));
     public static final ResourceKey<Registry<Object>> ENTITY_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("entity_type"));
-    public static final ResourceKey<Registry<Object>> FLUID = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("fluid"));
+    public static final ResourceKey<Registry<net.minecraft.world.level.material.Fluid>> FLUID = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("fluid"));
     public static final ResourceKey<Registry<Object>> GAME_EVENT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("game_event"));
     public static final ResourceKey<Registry<Object>> INSTRUMENT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("instrument"));
     public static final ResourceKey<Registry<Object>> CAT_VARIANT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("cat_variant"));
