@@ -1336,7 +1336,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private java.util.List<Object> lastEffectSignature = java.util.List.of();
     private boolean lastSprintForAttributes;
     /** 이 동기가 단 수정자 id(속성별) — /attribute 로 사람이 단 수정자는 건드리지 않으려고 따로 기억한다. */
-    private final java.util.Map<org.domi.furnace.server.attribute.Attribute, java.util.Set<String>> managedModifiers = new java.util.HashMap<>();
+    private final java.util.Map<org.domi.furnace.server.attribute.Attribute, java.util.Set<String>> managedModifiers = new java.util.concurrent.ConcurrentHashMap<>();
     private volatile org.domi.furnace.server.net.protocol.play.UpdateAttributes pairingAttributesSnap;
     private int lastLocationVersion = -1;
     private org.domi.furnace.server.attribute.AttributeModifier lastFrostModifier;
@@ -1427,7 +1427,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
             if (had != null) for (String id : had) if (!want.containsKey(id)) inst.removeModifier(id);
             for (var m : want.values()) if (!m.equals(inst.getModifier(m.id()))) inst.addOrReplaceModifier(m);
             if (want.isEmpty()) managedModifiers.remove(attr);
-            else managedModifiers.put(attr, new java.util.HashSet<>(want.keySet()));
+            else managedModifiers.put(attr, java.util.Set.copyOf(want.keySet()));
         }
     }
 

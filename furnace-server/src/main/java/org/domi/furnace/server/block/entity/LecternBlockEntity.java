@@ -51,7 +51,8 @@ public class LecternBlockEntity extends BlockEntity {
      * 청크를 읽을 때는 레벨이 없어 풀리지 않는다. 늦게 끝나면(다른 region 의 엔티티) 그새 책이 바뀌지 않았을 때만 바꾼다.
      */
     private void resolveBook(BlockLevel level) {
-        if (level == null || book.isEmpty()) return;
+        // 바닐라 drk.b(cuq,cmx): stack.is(Items.WRITTEN_BOOK) 일 때만(컴포넌트만 있는 다른 아이템은 풀지 않는다)
+        if (level == null || !"minecraft:written_book".equals(ItemTools.itemName(book))) return;
         ItemStack original = book;
         boolean[] sync = {true};
         level.resolveLecternBook(pos, original, (lv, out) -> {
