@@ -1,4 +1,4 @@
-// 바닐라 WitherSkeleton: 위더 효과(200틱)를 거는 근접 해골. 키 2.4, 불 면역, 돌 검. 화살은 불(100초). TODO: 피글린 사냥.
+// 바닐라 WitherSkeleton: 위더 효과(200틱)를 거는 근접 해골. 키 2.4, 불 면역, 돌 검. 화살은 불(100초). 피글린(야수 포함)을 노린다.
 package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -11,6 +11,13 @@ public class WitherSkeleton extends AbstractSkeleton {
     public WitherSkeleton(ChunkLevel level, int id) {
         super(EntityType.WITHER_SKELETON, level, id);
         setPathfindingMalus(org.domi.furnace.server.entity.ai.navigation.PathType.LAVA, 8.0F);
+    }
+
+    /** 바닐라 cku.B: 대상 3 NearestAttackableTargetGoal(AbstractPiglin, 보여야 함)을 AbstractSkeleton 목표보다 먼저 넣는다. */
+    @Override
+    protected void registerGoals() {
+        targetSelector.addGoal(3, new org.domi.furnace.server.entity.ai.goal.NearestAttackableTargetGoal(this, AbstractPiglin.class, true));
+        super.registerGoals();
     }
 
     @Override

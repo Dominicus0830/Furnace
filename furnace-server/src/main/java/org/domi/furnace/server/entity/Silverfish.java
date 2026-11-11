@@ -26,6 +26,7 @@ public class Silverfish extends Monster {
     protected void registerGoals() {
         friendsGoal = new SilverfishWakeUpFriendsGoal(this);
         goalSelector.addGoal(1, new FloatGoal(this));
+        goalSelector.addGoal(1, new ClimbOnTopOfPowderSnowGoal(this));   // 바닐라 ckk.B
         goalSelector.addGoal(3, friendsGoal);
         goalSelector.addGoal(4, new MeleeAttackGoal(this, 1.0, false));
         goalSelector.addGoal(5, new SilverfishMergeWithStoneGoal(this));

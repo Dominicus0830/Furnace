@@ -1994,6 +1994,12 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     /** Level.getHeight(WORLD_SURFACE, x, z): 가장 높은 블록 바로 위 y(청크가 없으면 최저 높이). */
+    /**
+     * ServerLevel.isNaturalSpawningAllowed(BlockPos): 그 청크가 엔티티 틱(PersistentEntitySectionManager.canPositionTick)인가.
+     * 엔티티 틱 개념이 없는 레벨(시험)은 청크가 올라와 있으면 참. RegionLevel 이 시뮬레이션 거리·티켓으로 덮어쓴다.
+     */
+    public boolean isNaturalSpawningAllowed(int chunkX, int chunkZ) { return chunk(chunkX, chunkZ) != null; }
+
     public int getWorldSurfaceHeight(int x, int z) {
         ChunkColumn col = chunk(x >> 4, z >> 4);
         return col == null ? minBuildHeight() : col.surfaceBlockY(x & 15, z & 15) + 1;
