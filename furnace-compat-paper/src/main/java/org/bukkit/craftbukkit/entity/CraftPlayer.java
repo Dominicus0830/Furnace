@@ -30,6 +30,9 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
     @Override
     public net.minecraft.server.level.ServerPlayer getHandle() { return (net.minecraft.server.level.ServerPlayer) super.getHandle(); }
 
+    /** CraftBukkit getProfile: 핸들의 authlib 프로필(같은 객체). */
+    public com.mojang.authlib.GameProfile getProfile() { return getHandle().getGameProfile(); }
+
     @Override
     protected net.minecraft.world.entity.Entity createHandle() { return new net.minecraft.server.level.ServerPlayer(this); }
 

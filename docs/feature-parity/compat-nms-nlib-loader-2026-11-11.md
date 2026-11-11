@@ -113,3 +113,29 @@ A 를 추천한다. 순서는 다음과 같다.
 - **N6:** authlib 를 `testImplementation` 으로 넣으면 `CompatLinkTest` 가 헛돈다. 라이브러리 패키지를 가리는 전용 로더에서 링크하도록 바꾼다.
 - **N9:** authlib·DFU 가 compatCore 에 들어오면 받는 양(fastutil 포함)을 user-todo 에 적는다.
 - **N8:** fat jar 기동을 자동 시험으로 만든다.
+
+## 6. N-lib-2 authlib 다리 (2026-11-11)
+
+- **Furnace API:** `Player.profileProperties()` — 접속 때 받은 프로필 속성(서명 포함). 오프라인 접속이면 비어 있다. 서버는 `entity.Player.profileProperties()`(로그인 때 세션 서버 응답으로 정해짐)를 옮겨 준다.
+- **호환 계층:**
+  - `net.minecraft.world.entity.player.Player.getGameProfile()`: 바닐라처럼 플레이어마다 하나인 `GameProfile`. 핸들을 만들 때 UUID·이름·속성(`Property(name, value, signature)`)으로 채운다. authlib 을 본문에 쓰는 부분은 `Player$Lib` 로 뗐다. authlib 이 없으면 생성자는 `LinkageError` 를 삼키고, `getGameProfile()` 을 부를 때 다시 만들어 원인 오류를 그대로 낸다.
+  - `CraftPlayer.getProfile()`: CraftBukkit 과 같이 `getHandle().getGameProfile()`.
+- **빌드:** 호환 모듈이 `com.mojang:authlib:6.0.54` 와 `guava:32.1.2-jre` 를 compileOnly 로 쓴다(바닐라 1.21.1 판). authlib 은 Central 에 없어 `libraries.minecraft.net` 저장소를 `com.mojang` 묶음에만 연다. 배포 jar 에는 싣지 않는다 — 서버가 H4b 경로로 sha256 을 맞춰 받는다. 이 컨테이너처럼 그 호스트에 닿지 않는 곳에서는 바닐라 번들러 jar 안의 같은 jar(sha256 같음)로 만든 로컬 저장소를 init 스크립트로 가리킨다(커밋하지 않음).
+- **compatCore:** 호환 jar 가 `com/mojang/authlib/` 를 가리키므로 훑기가 authlib 묶음을 자동으로 넣는다. 받는 양은 `docs/user-todo/entries/2026-11-11-nlib-authlib.md`(N9).
+- **N6 반영:** `CompatLinkTest` 는 시험 클래스패스에서 선택 라이브러리 jar(authlib·Guava·DFU·Brigadier·Adventure)를 뺀 전용 로더(부모 = 플랫폼 로더)로 호환 클래스를 다시 올려 링크한다. 그 로더가 정말 라이브러리를 가리는지, 검증기가 라이브러리 클래스를 읽어야 하는 본문(`LinkProbe`: `PropertyMap` 을 `ForwardingMultimap` 으로 돌려줌)이 실패로 잡히는지 먼저 확인한다.
+- **가정·남은 구멍:**
+  - 플러그인이 `GameProfile` 의 속성을 바꿔도(스킨 바꾸기) 서버의 탭 목록·스킨에는 반영되지 않는다. Paper 는 다음 플레이어 정보 패킷이 바뀐 프로필을 읽는다. 쓰기 방향 다리는 API(`Player` 의 프로필 속성 쓰기)와 다시 보내기 규칙이 필요해 따로 다룬다.
+  - 로그인 뒤에 서버 속성이 바뀌어도 이미 만든 프로필은 그대로다(지금 서버는 로그인 때만 정한다).
+  - Bukkit `org.bukkit.profile.PlayerProfile`·Paper `PlayerProfile` 과의 변환은 그 API 를 호환 계층에 넣을 때(H 묶음) 함께 한다.
+  - 가짜 플레이어 생성자(`new ServerPlayer(server, level, GameProfile, ClientInformation)`)는 N4a.
+
+### PR #231 독립 검토 반영 (`furnace/reviews/pr231-nlib2-review.md`)
+
+결론은 조건부 승인이었다. 코드 결함은 없었고, 병합 조건은 문서 하나였다.
+
+- **R1:** Mojang 저장소에 닿지 못하는 서버에서는 흔한 반사(`CraftPlayer.getMethod("getHandle")` 등)가 이제 실패한다. 검토자가 fat jar 기동으로 직접 재현했다. user-todo `2026-11-11-nlib-authlib.md` 를 알림에서 결정 항목으로 바꿨다. 추천은 내려받기 유지다.
+- **N3:** `CompatLinkTest` 의 전용 로더는 이제 jar 이름 접두가 아니라 `ServerLibraries` 표지 패키지를 `loadClass` 에서 막는다. N-lib-3 에서 fastutil 같은 묶음이 따라와도 목록을 따로 고칠 필요가 없다.
+- **N4:** `CompatLinkTest.compatCoreIsOnlyAuthlib` 를 넣었다. 호환 클래스를 jar 로 묶어 서버와 같은 훑기를 돌리고, 결과가 `[authlib]` 인지 본다.
+- **N5:** `docs/api/compat-paper.md` 에 "스킨 바꾸기는 아직 반영되지 않는다" 를 적었다.
+- **N6:** `tools/compat/local-mojang-repo/` 를 넣었다. 번들러 jar 에서 sha256 을 맞춰 꺼내는 스크립트와 init 스크립트, 사용법이 들어 있다. 출력은 저장소 밖에만 둔다.
+- **N7:** 빌드 저장소를 `exclusiveContent` 로 묶었다. 이제 `com.mojang` 은 Mojang 저장소에서만 찾는다.

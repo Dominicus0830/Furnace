@@ -1,0 +1,9 @@
+// libraries.minecraft.net 을 로컬 저장소(make-repo.sh 의 출력)로 바꾼다. 쓰는 법:
+//   FURNACE_MOJANG_REPO=/절대/경로 ./gradlew -I tools/compat/local-mojang-repo/mojang-repo.init.gradle ...
+def local = System.getenv('FURNACE_MOJANG_REPO')
+if (!local) throw new GradleException('FURNACE_MOJANG_REPO 에 make-repo.sh 출력 폴더(절대 경로)를 준다')
+def fix = { repos -> repos.withType(MavenArtifactRepository).configureEach { r ->
+    if (r.url.toString().contains('libraries.minecraft.net')) r.url = new File(local).toURI()
+} }
+settingsEvaluated { s -> fix(s.pluginManagement.repositories); fix(s.dependencyResolutionManagement.repositories) }
+allprojects { p -> fix(p.repositories); p.buildscript { fix(repositories) } }

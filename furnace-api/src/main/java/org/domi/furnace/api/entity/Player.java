@@ -30,6 +30,9 @@ public interface Player extends CommandSender, LivingEntity {
 
     boolean isOnline();
 
+    /** 접속 때 받은 게임 프로필 속성(스킨 "textures" 등, 서명 포함). 오프라인 모드면 비어 있다. 아무 스레드. */
+    default java.util.List<ProfileProperty> profileProperties() { return java.util.List.of(); }
+
     /** 마지막으로 알려진 위치. */
     @Override
     Location location();

@@ -8,7 +8,15 @@ plugins {
     id("java-library")
 }
 
-repositories { mavenCentral() }
+repositories {
+    mavenCentral()
+    // N-lib-2: authlib 은 Central 에 없다(Mojang 저장소에만). 컴파일·시험에만 쓰고 배포 jar 에 싣지 않는다 — 서버가 바닐라 libraries.list 의 sha256 으로 받는다(H4b).
+    // exclusiveContent: com.mojang 은 이 저장소에서만 찾는다(Central 헛조회 없음). 저장소에 닿지 않는 곳은 tools/compat/local-mojang-repo/README.md.
+    exclusiveContent {
+        forRepository { maven("https://libraries.minecraft.net") }
+        filter { includeGroup("com.mojang") }
+    }
+}
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
@@ -45,6 +53,13 @@ dependencies {
     implementation("org.ow2.asm:asm-commons:9.7.1")
     // H7a: 없는 NMS 심볼 호출을 덫으로 바꿀 때 메서드 하나를 트리로 다룬다(asm-commons 가 이미 끌어오는 것을 명시)
     implementation("org.ow2.asm:asm-tree:9.7.1")
+
+    // N-lib-2: 호환 계층이 서명에 쓰는 라이브러리(바닐라 1.21.1 판). 서버 공유 로더가 같은 판을 받는다(ServerLibraries).
+    compileOnly("com.mojang:authlib:6.0.54") { isTransitive = false }
+    compileOnly("com.google.guava:guava:32.1.2-jre") { isTransitive = false }   // PropertyMap 의 상위 타입
+    testImplementation("com.mojang:authlib:6.0.54") { isTransitive = false }
+    testImplementation("com.google.guava:guava:32.1.2-jre") { isTransitive = false }
+    testImplementation("com.google.guava:failureaccess:1.0.1")
 
     // 시험은 실제 서버(헤드리스)에 플러그인 jar 를 올려 돌린다
     testImplementation(project(":furnace-server"))
