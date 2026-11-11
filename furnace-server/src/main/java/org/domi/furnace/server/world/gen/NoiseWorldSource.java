@@ -288,6 +288,8 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         structureEngine.setBiomeRegistryNames(registryBiomeNames);
         // 평지: FlatLevelSource.createState — structure_overrides 의 세트만(없으면 레지스트리 전부)
         if (flat != null && flat.structureOverrides() != null) structureEngine.setAllowedSets(new java.util.HashSet<>(flat.structureOverrides()));
+        // ChunkGeneratorStructureState.createForFlat: concentricRingsSeed = 0(요새 링이 시드와 무관)
+        if (flat != null) structureEngine.setConcentricRingsSeed(0L);
         NoiseWorldSource source = new NoiseWorldSource(router, settings, biomeSampler, surfaceSystem,
                                     registryBiomeNames, stoneId, waterId, lavaId,
                                     seed, reg, biomeDirectBits, overworldCarvers,

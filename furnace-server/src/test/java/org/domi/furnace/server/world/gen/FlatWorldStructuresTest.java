@@ -68,6 +68,7 @@ class FlatWorldStructuresTest {
         assertEquals("minecraft:desert", all.biome());
         assertNull(all.structureOverrides(), "structure_overrides 가 없으면 레지스트리 전부");
         var tooTall = com.google.gson.JsonParser.parseString("{\"layers\":[{\"block\":\"minecraft:stone\",\"height\":4065}]}").getAsJsonObject();
-        assertEquals(SuperflatWorldSource.DEFAULT_LAYERS, SuperflatWorldSource.flatSpecOf(SuperflatWorldSource.settingsNbt(tooTall)).layers());
+        // 층 하나가 intRange(0,4064) 밖이면 그 층만 빠진다(resultOrPartial). 높이 합 > 4064 는 부분 결과 그대로.
+        assertEquals(List.of(), SuperflatWorldSource.flatSpecOf(SuperflatWorldSource.settingsNbt(tooTall)).layers());
     }
 }

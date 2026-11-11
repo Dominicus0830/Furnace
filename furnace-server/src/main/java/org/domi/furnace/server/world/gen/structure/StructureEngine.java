@@ -183,6 +183,12 @@ public final class StructureEngine {
     /** 링 위치 계산에 쓸 바이옴 소스(월드 생성기). */
     public void setRingTerrain(TerrainAccess t) { this.ringTerrain = t; }
 
+    /** ChunkGeneratorStructureState.concentricRingsSeed — createForNormal 은 월드 시드, createForFlat(FlatLevelSource)은 0. */
+    private volatile long concentricRingsSeed;
+    private volatile boolean concentricRingsSeedSet;
+
+    public void setConcentricRingsSeed(long s) { this.concentricRingsSeed = s; this.concentricRingsSeedSet = true; ringCache.clear(); }
+
     /** ChunkGeneratorStructureState.generateRingPositions — 시드로 각도·거리, findBiomeHorizontal 로 선호 바이옴 쪽 보정. */
     public long[] ringPositions(StructureRegistry.SetDef set) {
         return ringCache.computeIfAbsent(set.id(), k -> computeRings(set.rings()));
@@ -192,7 +198,7 @@ public final class StructureEngine {
         TerrainAccess terrain = ringTerrain;
         if (p.count() == 0 || terrain == null) return new long[0];
         int distance = p.distance(), count = p.count(), spread = p.spread();
-        org.domi.furnace.server.world.gen.carver.LegacyRandom random = new org.domi.furnace.server.world.gen.carver.LegacyRandom(seed);
+        org.domi.furnace.server.world.gen.carver.LegacyRandom random = new org.domi.furnace.server.world.gen.carver.LegacyRandom(concentricRingsSeedSet ? concentricRingsSeed : seed);
         double angle = random.nextDouble() * Math.PI * 2.0;
         int inRing = 0, ring = 0;
         long[] out = new long[count];
