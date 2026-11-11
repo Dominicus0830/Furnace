@@ -117,8 +117,17 @@ public final class NoiseBasedAquifer implements Aquifer {
         Arrays.fill(this.maxLevelCache, Integer.MIN_VALUE);
     }
 
+    @Override
     public boolean shouldScheduleFluidUpdate() {
         return this.shouldScheduleFluidUpdate;
+    }
+
+    /**
+     * 바닐라는 고체 칸(density > 0)에도 computeSubstance 를 불러 이 표시를 끈다. Furnace 노이즈 채우기는 고체 칸에서 부르지 않으므로
+     * 채우기가 끝났을 때 마지막 칸이 고체였으면 이것으로 바닐라와 같은 상태를 만든다(카버의 용암 칸이 이 값을 그대로 읽는다).
+     */
+    public void solidVisited() {
+        this.shouldScheduleFluidUpdate = false;
     }
 
     @Override
@@ -171,7 +180,8 @@ public final class NoiseBasedAquifer implements Aquifer {
     }
 
     // 테스트 전용 fuzz 게이트(감사 W-10): true 면 빠른 길이 잡은 블록마다 바닐라 식 결과를 다시 계산해 공기가 아닌 수를 센다.
-    // (shouldScheduleFluidUpdate 는 공기 블록에선 바닐라가 읽지 않으므로 대조하지 않는다.)
+    // (shouldScheduleFluidUpdate 는 대조하지 않는다. 빠른 길은 늘 false 로 두는데 바닐라 느린 길은 공기여도 true 일 수 있다 —
+    //  카버가 용암 높이 아래 칸에서 computeSubstance 없이 직전 값을 읽을 때만 드러난다. 알려진 차이, 컨텍스트 노트 A06-fluid-ticks.)
     static volatile boolean verifyShortcut;
     static final java.util.concurrent.atomic.AtomicLong shortcutHits = new java.util.concurrent.atomic.AtomicLong();
     static final java.util.concurrent.atomic.AtomicLong shortcutMismatches = new java.util.concurrent.atomic.AtomicLong();

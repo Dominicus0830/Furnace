@@ -37,6 +37,9 @@ public final class ChunkColumn {
     // 지금 직렬화 중인 본문(현재 modCount 기준). 같은 버전을 동시에 요청한 플레이어들이 하나의 결과(같은 byte[])를 받아
     // 스냅샷·직렬화·공유 압축 프레임이 한 번씩만 돈다. touch() 가 비운다. 주인 region 스레드 전용.
     private java.util.concurrent.CompletableFuture<byte[]> inflightSerializedBody;
+    // auto 전송이 이 청크를 보내려 했는데 본문이 준비 안 돼 미룬 횟수(보낼 때 0). 레드스톤처럼 매 틱 블록이 바뀌는 청크는 직렬화가 끝나
+    // 캐시에 들어가도 보내기 직전에 다시 비워지므로, 이 값이 차면 그 자리에서 직렬화한다(World.chunkBodyReadyOrPrefetch). 주인 region 스레드 전용.
+    private int bodyWaits;
     private long[] cachedMotionBlockingHeightmap;
     private long[] cachedWorldSurfaceHeightmap;
     private ChunkSnapshot cachedSnapshot;
@@ -99,6 +102,7 @@ public final class ChunkColumn {
         c.dirty = dirty;
         c.wgHeightmapsFrozen = wgHeightmapsFrozen;
         c.structures = structures;
+        copyGenerationMarksTo(c);
         return c;
     }
 
@@ -117,6 +121,7 @@ public final class ChunkColumn {
         c.dirty = dirty;
         c.wgHeightmapsFrozen = wgHeightmapsFrozen;
         c.structures = structures;
+        copyGenerationMarksTo(c);
         return c;
     }
 
@@ -174,6 +179,37 @@ public final class ChunkColumn {
     }
 
     public void clearPostProcessMarks() { postProcessMarks = null; }
+
+    // 바닐라 ProtoChunk 의 유체 예약 틱(ProtoChunkTicks — 칸·종류로 중복 없이, 예약 순서). 생성 중에는 지연을 0 으로 저장한다
+    // (ProtoChunkTicks.schedule 이 SavedTick(…, 0, 우선순위) 로 바꾼다). /place 같은 실제 월드 격자에서는 지연을 그대로 둔다.
+    // 키 = 종류 << 48 | lx << 40 | lz << 32 | y, 값 = 지연.
+    private java.util.LinkedHashMap<Long, Integer> generatedFluidTicks;
+
+    /** 생성 중 유체 예약 틱(로컬 x, z + 월드 y, 종류 = Fluids.T_*). 같은 칸·종류가 이미 있으면 무시한다. */
+    public void scheduleGeneratedFluidTick(int lx, int y, int lz, int fluidType, int delay) {
+        if (generatedFluidTicks == null) generatedFluidTicks = new java.util.LinkedHashMap<>();
+        generatedFluidTicks.putIfAbsent(((long) fluidType << 48) | ((long) lx << 40) | ((long) lz << 32) | (y & 0xFFFFFFFFL), delay);
+    }
+
+    /** 생성 중 유체 예약 틱 {lx, y, lz, 종류, 지연} 목록(예약 순서). */
+    public java.util.List<int[]> generatedFluidTicks() {
+        java.util.List<int[]> out = new java.util.ArrayList<>();
+        if (generatedFluidTicks != null) {
+            for (var e : generatedFluidTicks.entrySet()) {
+                long k = e.getKey();
+                out.add(new int[]{(int) (k >> 40) & 0xFF, (int) k, (int) (k >> 32) & 0xFF, (int) (k >> 48) & 0xFF, e.getValue()});
+            }
+        }
+        return out;
+    }
+
+    public void clearGeneratedFluidTicks() { generatedFluidTicks = null; }
+
+    /** 복사본에 후처리 표시·생성 유체 틱을 함께 넘긴다(노이즈·카버 단계 표시가 pristine 복사에서 빠지지 않게). */
+    private void copyGenerationMarksTo(ChunkColumn c) {
+        if (postProcessMarks != null) c.postProcessMarks = new java.util.LinkedHashSet<>(postProcessMarks);
+        if (generatedFluidTicks != null) c.generatedFluidTicks = new java.util.LinkedHashMap<>(generatedFluidTicks);
+    }
 
     // 월드젠 중 구조물 등이 스폰한 엔티티(NBT: id, Pos, Rotation …) — 청크 로드/저장 쪽에서 소비한다.
     private java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> generatedEntities;
@@ -532,6 +568,8 @@ public final class ChunkColumn {
     public void cachedSerializedBody(byte[] body) { this.cachedSerializedBody = body; }
     public java.util.concurrent.CompletableFuture<byte[]> inflightSerializedBody() { return inflightSerializedBody; }
     public void inflightSerializedBody(java.util.concurrent.CompletableFuture<byte[]> f) { this.inflightSerializedBody = f; }
+    public int bodyWaits() { return bodyWaits; }
+    public void bodyWaits(int n) { this.bodyWaits = n; }
     public ChunkSnapshot cachedSnapshot() { return cachedSnapshot; }
     public void cachedSnapshot(ChunkSnapshot snapshot) { this.cachedSnapshot = snapshot; }
 

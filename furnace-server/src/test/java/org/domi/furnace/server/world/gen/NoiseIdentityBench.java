@@ -77,6 +77,10 @@ public class NoiseIdentityBench {
             for (int bz = 0; bz < 16; bz++) for (int bx = 0; bx < 16; bx++)
                 h = fnv(h, col.getBlock(bx, y, bz));
         for (int b : g.biomeIds()) h = fnv(h, b);
+        // 유체 후처리 표시·생성 유체 틱(대수층 경계 — 순서까지)
+        for (int[] m : col.postProcessMarks()) for (int v : m) h = fnv(h, v);
+        h = fnv(h, 0x7FFF);
+        for (int[] t : col.generatedFluidTicks()) for (int v : t) h = fnv(h, v);
         return h;
     }
 

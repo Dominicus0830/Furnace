@@ -30,8 +30,6 @@ public final class PlayerVitals {
 
     public static final float MAX_HEALTH = 20.0f;
     public static final int MAX_AIR = 300;
-    /** 바닐라 Attributes.SAFE_FALL_DISTANCE 기본값. */
-    private static final float SAFE_FALL_DISTANCE = 3.0f;
     private static final int SPAWN_INVULNERABLE_TICKS = 60;
 
     /** 생존 상태가 서버에 묻거나 시키는 것. 스레드 안전해야 한다. */
@@ -527,6 +525,25 @@ public final class PlayerVitals {
         if (health > maxHealthLocked()) health = maxHealthLocked();
     }
 
+    private double safeFallBase = 3.0, fallMultiplierBase = 1.0;
+    private java.util.List<org.domi.furnace.server.attribute.AttributeModifier> safeFallExtra = java.util.List.of(), fallMultiplierExtra = java.util.List.of();
+
+    /** 속성 맵에서 넘어온 낙하 입력(소유 region 스레드): 기본값과 효과 밖 수정자. 효과 수정자(점프 강화 +1×(단계+1))는 지금 효과로 더한다. */
+    public synchronized void fallInputs(double safeBase, java.util.List<org.domi.furnace.server.attribute.AttributeModifier> safeExtra,
+            double multBase, java.util.List<org.domi.furnace.server.attribute.AttributeModifier> multExtra) {
+        this.safeFallBase = safeBase;
+        this.safeFallExtra = java.util.List.copyOf(safeExtra);
+        this.fallMultiplierBase = multBase;
+        this.fallMultiplierExtra = java.util.List.copyOf(multExtra);
+    }
+
+    private double fallAttribute(org.domi.furnace.server.attribute.Attribute attr, double base, java.util.List<org.domi.furnace.server.attribute.AttributeModifier> extra) {
+        if (effects.isEmpty() && extra.isEmpty()) return attr.sanitize(base);
+        java.util.Map<String, org.domi.furnace.server.attribute.AttributeModifier> mods = PlayerAttributes.effectModifiers(attr, new java.util.ArrayList<>(effects.values()));
+        for (var m : extra) mods.put(m.id(), m);
+        return PlayerAttributes.compute(attr, base, mods.values());
+    }
+
     /** 최대 체력 = 속성 generic.max_health 값(기본 20 + 체력 강화 4 × (단계+1) + 그 밖의 수정자), float 로 줄인다. */
     private float maxHealthLocked() {
         if (effects.isEmpty() && maxHealthExtra.isEmpty()) return (float) org.domi.furnace.server.attribute.Attribute.MAX_HEALTH.sanitize(maxHealthBase);
@@ -705,6 +722,11 @@ public final class PlayerVitals {
                 amount = 0.0f;
                 if (shield.directLiving() && shield.attacker() != null) Shields.blockUsingShield(player, shield.attacker());
                 blocked = true;
+            }
+            // LivingEntity.hurt(btn.a 오프셋 180~214): #damages_helmet(떨어지는 모루·블록·종유석) 피해는 머리 칸이 비어 있지 않으면 투구를 깎고 0.75 배
+            if (type.isInTag("damages_helmet") && !player.inventory().get(5).isEmpty()) {
+                player.hurtHelmet(amount);
+                amount *= 0.75F;
             }
             if (invulnerableTime > 10) {
                 if (amount <= lastHurt) return false;
@@ -1177,7 +1199,6 @@ public final class PlayerVitals {
     /** Player/ServerPlayer.causeFallDamage + LivingEntity.calculateFallDamage: 비행 가능이면 0, 충격 높이 규칙, 점프 강화로 안전 거리가 는다. */
     private float fallDamage(float distance, float multiplier) {
         if (abilities.mayfly) return 0;
-        MobEffectInstance jump = effects.get(MobEffect.JUMP_BOOST);
         boolean impulse = false;
         if (ignoreFallFromImpulse && impulsePos != null) {   // ServerPlayer.causeFallDamage: 충격 높이보다 위에서 내려앉으면 면제, 아니면 그 높이까지만 센다
             double top = impulsePos[1];
@@ -1186,8 +1207,11 @@ public final class PlayerVitals {
             distance = Math.min(distance, (float) (top - impulseY()));
             impulse = true;
         }
-        float over = distance - SAFE_FALL_DISTANCE - (jump == null ? 0.0f : jump.amplifier() + 1);
-        float dmg = (float) Math.ceil((double) (over * multiplier) * 1.0);
+        // LivingEntity.calculateFallDamage: ceil((거리 − safe_fall_distance) × 배율 × fall_damage_multiplier) — 점프 강화는 safe_fall_distance 수정자
+        double safe = fallAttribute(org.domi.furnace.server.attribute.Attribute.SAFE_FALL_DISTANCE, safeFallBase, safeFallExtra);
+        double attrMult = fallAttribute(org.domi.furnace.server.attribute.Attribute.FALL_DAMAGE_MULTIPLIER, fallMultiplierBase, fallMultiplierExtra);
+        float over = distance - (float) safe;   // 바닐라: float f = (float) safe_fall_distance; (distance − f) × …
+        float dmg = (float) Math.ceil((double) (over * multiplier) * attrMult);
         if (impulse && dmg > 0) resetCurrentImpulseContext();
         return dmg;
     }
@@ -1712,7 +1736,10 @@ public final class PlayerVitals {
     public synchronized Boolean effectsAmbient() { return effects.isEmpty() ? null : MobEffectInstance.allAmbient(effects.values()); }
 
     /** 바닐라 addEffect: 새로 걸면 패킷 + 시작 효과, 이미 있으면 update(더 센 쪽). 바뀌었으면 true. */
-    public boolean addEffect(MobEffectInstance incoming) {
+    public boolean addEffect(MobEffectInstance incoming) { return addEffect(incoming, null); }
+
+    /** 바닐라 addEffect(effect, source): source(효과를 준 엔티티, 이미 떠 둔 사본)를 effects_changed 트리거에 넘긴다. */
+    public boolean addEffect(MobEffectInstance incoming, org.domi.furnace.server.loot.LootEntity source) {
         boolean changed;
         synchronized (this) {
             if (health <= 0.0f) return false;
@@ -1731,12 +1758,14 @@ public final class PlayerVitals {
         }
         flushEffectPackets();
         runPendingEffectHurts();
-        if (changed) notifyEffectsChanged();
+        if (changed) notifyEffectsChanged(source);
         return changed;
     }
 
-    /** 바닐라 onEffectAdded/Updated/Removed → EFFECTS_CHANGED.trigger(player, source). 효과를 준 쪽(source)은 아직 넘기지 않아 null. */
-    private void notifyEffectsChanged() { player.triggerAdvancement(a -> a.triggerEffectsChanged(null)); }
+    /** 바닐라 onEffectAdded/Updated/Removed → EFFECTS_CHANGED.trigger(player, source). source 는 효과를 준 엔티티(addEffect(효과, 주인)만), 아니면 null. */
+    private void notifyEffectsChanged() { notifyEffectsChanged(null); }
+
+    private void notifyEffectsChanged(org.domi.furnace.server.loot.LootEntity source) { player.triggerAdvancement(a -> a.triggerEffectsChanged(source)); }
 
     private volatile boolean effectsExpired;
 

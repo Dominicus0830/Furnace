@@ -4,7 +4,7 @@ package net.minecraft.core;
  * 여섯 방향(Mojang 이름 shim, H7b, 등급 A). 상수 순서·3D/2D 번호·반대 방향·회전·{@code toString}(소문자 이름)은 바닐라 1.21.1 과 같다
  * (javap 로 정적 초기화의 인자를 확인: DOWN(0,1,-1) UP(1,0,-1) NORTH(2,3,2) SOUTH(3,2,0) WEST(4,5,1) EAST(5,4,3)).
  */
-public enum Direction {
+public enum Direction implements net.minecraft.util.StringRepresentable {
     DOWN(0, 1, -1, "down", AxisDirection.NEGATIVE, Axis.Y, new Vec3i(0, -1, 0)),
     UP(1, 0, -1, "up", AxisDirection.POSITIVE, Axis.Y, new Vec3i(0, 1, 0)),
     NORTH(2, 3, 2, "north", AxisDirection.NEGATIVE, Axis.Z, new Vec3i(0, 0, -1)),
@@ -121,7 +121,7 @@ public enum Direction {
     public String toString() { return name; }
 
     /** 축(바닐라 Direction.Axis). toString 은 소문자 이름. */
-    public enum Axis {
+    public enum Axis implements net.minecraft.util.StringRepresentable {
         X("x"), Y("y"), Z("z");
 
         private final String name;

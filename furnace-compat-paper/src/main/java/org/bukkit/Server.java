@@ -69,6 +69,15 @@ public interface Server extends org.bukkit.plugin.messaging.PluginMessageRecipie
     /** 옛 스케줄러(틱 단위). 동기 작업은 전역(주) 스레드에서 한 줄로 돈다. */
     BukkitScheduler getScheduler();
 
+    /** Paper 비동기 스케줄러(벽시계 시간, 서버 스레드 밖 풀). */
+    io.papermc.paper.threadedregions.scheduler.AsyncScheduler getAsyncScheduler();
+
+    /** Paper 전역 스케줄러(서버 틱, 전역 스레드). */
+    io.papermc.paper.threadedregions.scheduler.GlobalRegionScheduler getGlobalRegionScheduler();
+
+    /** Paper region 스케줄러(청크를 가진 region 스레드). */
+    io.papermc.paper.threadedregions.scheduler.RegionScheduler getRegionScheduler();
+
     /** 플러그인끼리 서비스를 주고받는 곳. */
     ServicesManager getServicesManager();
 

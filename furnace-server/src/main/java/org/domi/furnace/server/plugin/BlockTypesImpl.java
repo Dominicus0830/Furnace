@@ -34,6 +34,25 @@ public final class BlockTypesImpl implements BlockTypes {
     @Override
     public Collection<String> ids() { return Collections.unmodifiableSet(new TreeSet<>(registry.blockNames())); }
 
+    @Override
+    public int stateId(BlockData data) {
+        if (!registry.blockNames().contains(data.type())) return -1;
+        try {
+            return ApiConvert.stateId(data, registry);
+        } catch (IllegalArgumentException unknown) {
+            return -1;
+        }
+    }
+
+    @Override
+    public Optional<BlockData> byStateId(int stateId) {
+        if (stateId < 0 || stateId >= registry.totalStateCount() || registry.canonicalKeyOf(stateId) == null) return Optional.empty();
+        return Optional.of(ApiConvert.block(stateId, registry));
+    }
+
+    @Override
+    public int stateCount() { return registry.totalStateCount(); }
+
     private BlockType build(String id) {
         BlockData def = ApiConvert.block(registry.defaultStateId(id), registry);
         var ids = new TreeSet<>(registry.stateIdsForBlock(id));
@@ -55,7 +74,8 @@ public final class BlockTypesImpl implements BlockTypes {
         }
         List<BlockType.PropertyInfo> props = new ArrayList<>();
         for (var e : new java.util.TreeMap<>(values).entrySet()) props.add(new BlockType.PropertyInfo(e.getKey(), kind(e.getValue()), e.getValue()));
-        return new Type(id, List.copyOf(props), def, Math.max(states, 1));
+        String item = org.domi.furnace.server.block.BlockItems.asItem(org.domi.furnace.server.block.Blocks.get().block(id));
+        return new Type(id, List.copyOf(props), def, Math.max(states, 1), item);
     }
 
     private static BlockType.PropertyInfo.Kind kind(List<String> vs) {
@@ -67,5 +87,5 @@ public final class BlockTypesImpl implements BlockTypes {
         return bool ? BlockType.PropertyInfo.Kind.BOOLEAN : num ? BlockType.PropertyInfo.Kind.INTEGER : BlockType.PropertyInfo.Kind.ENUM;
     }
 
-    private record Type(String id, List<PropertyInfo> properties, BlockData defaultData, int stateCount) implements BlockType {}
+    private record Type(String id, List<PropertyInfo> properties, BlockData defaultData, int stateCount, String item) implements BlockType {}
 }

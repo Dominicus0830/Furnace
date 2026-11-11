@@ -246,7 +246,7 @@ public final class ChunkPipeline {
                     }
                 }
 
-                applyPostProcessing(grid, cx, cz);
+                finishFluidTicks(grid[centerIdx].col, cx, cz, applyPostProcessing(grid, cx, cz));
                 List<StructureStart> own = new ArrayList<>();
                 for (StructureStart st : ringStarts) if (st.chunkX() == cx && st.chunkZ() == cz) own.add(st);
                 grid[centerIdx].col.structures(
@@ -260,12 +260,12 @@ public final class ChunkPipeline {
 
     /**
      * 바닐라 LevelChunk.postProcessGeneration — 생성 중 markPosForPostprocessing 된 칸(울타리·횃불·사다리·철창 …)을
-     * 섹션 순서(아래→위), 섹션 안에서는 표시 순서로 이웃 shape 갱신한다. 유체 블록은 건너뛴다(유체 틱은 서버 틱에서).
+     * 섹션 순서(아래→위), 섹션 안에서는 표시 순서로 이웃 shape 갱신한다. 유체가 있는 칸은 유체 틱 후보로 돌려준다(finishFluidTicks).
      */
-    private void applyPostProcessing(ProtoColumn[] grid, int cx, int cz) {
+    private List<int[]> applyPostProcessing(ProtoColumn[] grid, int cx, int cz) {
         ProtoColumn center = grid[gridIndex(0, 0)];
         java.util.List<int[]> marks = center.col.postProcessMarks();
-        if (marks.isEmpty()) return;
+        if (marks.isEmpty()) return List.of();
         marks.sort(java.util.Comparator.comparingInt(m -> Math.floorDiv(m[1], 16)));   // 안정 정렬: 섹션 오름차순
         ChunkColumn[] viewGrid = new ChunkColumn[GRID_SIZE * GRID_SIZE];
         int[][] viewBiomeGrid = new int[GRID_SIZE * GRID_SIZE][];
@@ -274,16 +274,64 @@ public final class ChunkPipeline {
             viewBiomeGrid[i] = grid[i].biomeIds;
         }
         FeatureWorldView view = new FeatureWorldView(viewGrid, viewBiomeGrid, cx, cz, cx, cz, GRID_RADIUS, true, source.seed());
+        List<int[]> fluidTicks = postProcessMarks(view, marks, cx, cz);
+        center.col.clearPostProcessMarks();
+        return fluidTicks;
+    }
+
+    /**
+     * 표시된 칸마다(섹션 순): 유체가 있으면 유체 틱 후보 {x, y, z, 종류} 로 모으고(바닐라는 이 자리에서 fluidState.tick — A06-03),
+     * 유체 블록(LiquidBlock)이 아니면 이웃 shape 갱신(플래그 20)을 한다.
+     */
+    private List<int[]> postProcessMarks(FeatureWorldView view, List<int[]> marks, int cx, int cz) {
         org.domi.furnace.server.world.gen.structure.StructureEngine e = source.structureEngine();
+        List<int[]> fluidTicks = new ArrayList<>();
         for (int[] m : marks) {
             int x = cx * 16 + m[0], y = m[1], z = cz * 16 + m[2];
             int state = view.getBlock(x, y, z);
+            int fluid = FeatureWorldView.fluidTypeOf(state);
+            if (fluid != 0) fluidTicks.add(new int[] {x, y, z, fluid});
             String name = e.table().name(state);
             if (name.equals("minecraft:water") || name.equals("minecraft:lava")) continue;
             int s2 = org.domi.furnace.server.world.block.ShapeUpdater.updateFromNeighbourShapes(view, e.shapes(), state, x, y, z);
             if (s2 != state) view.setBlock(x, y, z, s2);
         }
-        center.col.clearPostProcessMarks();
+        return fluidTicks;
+    }
+
+    /**
+     * 생성 단계 유체 틱을 청크 NBT fluid_ticks(바닐라 ProtoChunk 저장 형식: i·x·y·z·t=0·p=0)로 남긴다. 청크가 레벨에 붙을 때
+     * Region 이 예약 틱으로 건다(ChunkLevel.loadChunkTicks).
+     * 순서: 후처리 유체 칸 먼저(바닐라 LevelChunk.postProcessGeneration 은 청크가 틱을 받기 시작할 때 그 자리에서 fluidState.tick 을
+     * 돌린 뒤에 ProtoChunk 예약을 푼다 — 여기서는 같은 틱에 먼저 돌도록 0 틱 예약을 앞에 둔다), 그다음 생성 중 예약 순서.
+     * 같은 칸·종류는 하나만(서버 예약 틱도 칸·종류로 겹치지 않는다).
+     */
+    static void finishFluidTicks(ChunkColumn col, int cx, int cz, List<int[]> postProcessFluids) {
+        List<int[]> gen = col.generatedFluidTicks();
+        col.clearGeneratedFluidTicks();
+        if (postProcessFluids.isEmpty() && gen.isEmpty()) return;
+        var list = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
+        java.util.Set<Long> seen = new java.util.HashSet<>();
+        for (int[] t : postProcessFluids) addFluidTick(list, seen, t[0], t[1], t[2], t[3]);
+        for (int[] t : gen) addFluidTick(list, seen, cx * 16 + t[0], t[1], cz * 16 + t[2], t[3]);
+        var extra = col.extraNbt();
+        if (extra == null) col.extraNbt(extra = new org.domi.furnace.server.net.io.nbt.NbtCompound());
+        extra.putList("fluid_ticks", list);
+    }
+
+    private static final String[] FLUID_NAMES = {"minecraft:empty", "minecraft:flowing_water", "minecraft:water", "minecraft:flowing_lava", "minecraft:lava"};
+
+    private static void addFluidTick(org.domi.furnace.server.net.io.nbt.NbtList list, java.util.Set<Long> seen, int x, int y, int z, int type) {
+        if (type <= 0 || type >= FLUID_NAMES.length) return;
+        if (!seen.add((x & 15) | (z & 15) << 4 | (long) type << 8 | (long) y << 12)) return;   // 한 청크 안의 칸·종류
+        var e = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        e.putString("i", FLUID_NAMES[type]);
+        e.putInt("x", x);
+        e.putInt("y", y);
+        e.putInt("z", z);
+        e.putInt("t", 0);
+        e.putInt("p", 0);
+        list.add(e);
     }
 
     // ================================================================== 공유 월드 장식(서버 경로)
@@ -410,8 +458,9 @@ public final class ChunkPipeline {
             Proto o = store.get(chunkKey(cx + dd[0], cz + dd[1]));
             if (!o.decorated && !decoratedKeys.contains(chunkKey(o.cx, o.cz))) decorateShared(o);
         }
-        postProcessShared(c);
+        List<int[]> postFluids = postProcessShared(c);
         ChunkColumn out = c.col;
+        finishFluidTicks(out, cx, cz, postFluids);
         out.structures(structuresOf(cx, cz));
         c.col = out.copy();          // 이웃 장식이 읽을 블록 복사본 — 넘긴 객체는 월드 스레드가 고친다
         c.finalized = true;
@@ -473,25 +522,18 @@ public final class ChunkPipeline {
                 grid[gridIndex(sdx, sdz)].spilled = true;
     }
 
-    private void postProcessShared(Proto c) {
+    private List<int[]> postProcessShared(Proto c) {
         java.util.List<int[]> marks = c.col.postProcessMarks();
-        if (marks.isEmpty()) return;
+        if (marks.isEmpty()) return List.of();
         marks.sort(java.util.Comparator.comparingInt(m -> Math.floorDiv(m[1], 16)));
         Proto[] grid = gridAround(c.cx, c.cz);
         ChunkColumn[] cols = new ChunkColumn[grid.length];
         int[][] biomes = new int[grid.length][];
         for (int i = 0; i < grid.length; i++) { cols[i] = grid[i].col; biomes[i] = grid[i].biomeIds; }
         FeatureWorldView view = new FeatureWorldView(cols, biomes, c.cx, c.cz, c.cx, c.cz, GRID_RADIUS, true, source.seed());
-        org.domi.furnace.server.world.gen.structure.StructureEngine e = source.structureEngine();
-        for (int[] m : marks) {
-            int x = c.cx * 16 + m[0], y = m[1], z = c.cz * 16 + m[2];
-            int state = view.getBlock(x, y, z);
-            String name = e.table().name(state);
-            if (name.equals("minecraft:water") || name.equals("minecraft:lava")) continue;
-            int s2 = org.domi.furnace.server.world.block.ShapeUpdater.updateFromNeighbourShapes(view, e.shapes(), state, x, y, z);
-            if (s2 != state) view.setBlock(x, y, z, s2);
-        }
+        List<int[]> fluidTicks = postProcessMarks(view, marks, c.cx, c.cz);
         c.col.clearPostProcessMarks();
+        return fluidTicks;
     }
 
     /**

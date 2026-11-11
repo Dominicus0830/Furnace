@@ -81,7 +81,7 @@ public class LeashFenceKnotEntity extends Entity {
     @Override
     public boolean skipAttackInteraction(Player attacker) {
         if (attacker.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return true;
-        hurtBy(new Damage("player_attack", false, false, false), 0.0F, attacker);
+        hurtBy(Damage.playerAttack(attacker), 0.0F, attacker);
         return true;
     }
 

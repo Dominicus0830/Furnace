@@ -203,7 +203,7 @@ public class Parrot extends TamableAnimal {
         if (ItemTags.is(held, "minecraft:parrot_poisonous_food")) {
             usePlayerItem(p, hand, held);
             addEffect(new MobEffectInstance(MobEffect.POISON, 900));
-            if (p.vitals().isCreative() || !isInvulnerable()) hurtBy(new Damage("player_attack", false, false, false), Float.MAX_VALUE, p);
+            if (p.vitals().isCreative() || !isInvulnerable()) hurtBy(Damage.playerAttack(p), Float.MAX_VALUE, p);
             return true;
         }
         if (isTame() && !(!onGround()) && isOwnedBy(p)) {

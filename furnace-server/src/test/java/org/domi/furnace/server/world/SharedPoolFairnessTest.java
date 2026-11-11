@@ -137,4 +137,47 @@ class SharedPoolFairnessTest {
         // 틱은 초당 수백 번(무거운 region 8개·가벼운 1개 × 20) — 헛돌지 않으면 고르기·실패도 그 정도다
         assertTrue(maxWake < 5_000 && maxMiss < 5_000, "워커 헛돌기: " + sb);
     }
+
+    /**
+     * PR #206 검토 R1 회귀: 틱은 짧지만 region 이 많아 스스로 차원 상한(T−1)을 채운 차원을 "가벼운 차원"으로 보면, 무거운 차원이 서버 전체
+     * T−1 로 묶이고 마지막 워커가 놀았다(오버월드 작은 region 24×8ms 옆 네더 20ms region 하나가 20→약 15 TPS, 워커 3·작은 region 16 도 같다). 상한을 채운 차원은 빼고 본다.
+     */
+    @Test
+    void lightDimensionAtItsOwnCapDoesNotThrottleTheHeavyOne() throws Exception {
+        Assumptions.assumeTrue(System.getProperty("furnace.sched.dimCap") == null);
+        String a = heavyNextToCappedLight(4, 24), b = heavyNextToCappedLight(3, 16);
+        System.out.println(a + " | " + b);
+    }
+
+    /** 무거운 네더 틱 수(초당)를 재고 19 이상인지 단언한다. 작은 region small 개 × 8ms 오버월드, 워커 threads. */
+    private String heavyNextToCappedLight(int threads, int small) throws Exception {
+        SharedScheduler pool = sharedPool(threads);
+        World ow = world(DimensionType.OVERWORLD, 50_000_000L, pool);
+        World nether = world(DimensionType.NETHER, 50_000_000L, pool);
+        for (int k = 0; k < small; k++) {
+            everyTick(ow, new ChunkPos(k * 4096, 0), Integer.MAX_VALUE, r -> {
+                long end = System.nanoTime() + 8_000_000L;
+                while (System.nanoTime() - end < 0) Thread.onSpinWait();
+            });
+        }
+        ConcurrentLinkedQueue<Long> starts = new ConcurrentLinkedQueue<>();
+        everyTick(nether, new ChunkPos(0, 0), Integer.MAX_VALUE, r -> {
+            starts.add(System.nanoTime());
+            long end = System.nanoTime() + 20_000_000L;
+            while (System.nanoTime() - end < 0) Thread.onSpinWait();
+        });
+        Thread.sleep(2_000);   // 평균 차례 시간이 자리 잡게
+        starts.clear();
+        long t0 = System.nanoTime();
+        Thread.sleep(6_000);
+        double secs = (System.nanoTime() - t0) / 1e9;
+        double tps = starts.size() / secs;
+        String msg = String.format("A03-R1 무거운 네더 틱 %.1f/s (오버월드 작은 region %d×8ms, 워커 %d)", tps, small, threads);
+        assertTrue(tps >= 19.0, msg);
+        stop.set(true);
+        for (int i = closers.size() - 1; i >= 0; i--) closers.get(i).close();
+        closers.clear();
+        stop.set(false);
+        return msg;
+    }
 }

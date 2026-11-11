@@ -599,6 +599,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
         int[] biomeIds = biomeSampler.sampleChunk(chunkX, chunkZ, nc);
         col.loadGenerated(blockIds, biomeIds);
+        if (vanillaNoise) nc.transferFluidMarks(col);   // 대수층 경계 유체 — 청크가 붙을 때 유체 틱(A06-03)
         if (hooks != null) hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.NOISE, col, chunkX, chunkZ);
 
         if (hooks == null || hooks.vanilla(org.domi.furnace.api.worldgen.GenerationStage.SURFACE, chunkX, chunkZ)) {

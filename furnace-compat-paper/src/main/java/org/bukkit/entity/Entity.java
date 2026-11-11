@@ -17,6 +17,9 @@ public interface Entity extends Metadatable, CommandSender, PersistentDataHolder
 
     UUID getUniqueId();
 
+    /** Paper(Folia) 엔티티 스케줄러: 엔티티를 따라다니는 region 스레드에서 돈다. */
+    io.papermc.paper.threadedregions.scheduler.EntityScheduler getScheduler();
+
     Location getLocation();
 
     World getWorld();

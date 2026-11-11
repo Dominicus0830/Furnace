@@ -20,4 +20,10 @@ public sealed interface Aquifer permits DisabledAquifer, NoiseBasedAquifer {
     default int computeSubstanceNonPositive(DensityFunction.FunctionContext ctx, DensityFunction density) {
         return computeSubstance(ctx, density.compute(ctx));
     }
+
+    /**
+     * 바닐라 Aquifer.shouldScheduleFluidUpdate — 마지막 computeSubstance 가 고른 유체가 이웃과 맞닿아 흘러야 하는가.
+     * 노이즈 채우기·카버가 true 이고 놓은 블록에 유체가 있으면 후처리 표시를 한다(DisabledAquifer 는 늘 false).
+     */
+    default boolean shouldScheduleFluidUpdate() { return false; }
 }

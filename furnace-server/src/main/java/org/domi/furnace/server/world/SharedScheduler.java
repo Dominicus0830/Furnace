@@ -253,6 +253,9 @@ public final class SharedScheduler implements AutoCloseable {
             totalActive += o.activeTicks();
             if (o.headDue() != Long.MAX_VALUE) {
                 pendingCount++;
+                // 스스로 차원 상한(T−1)을 채운 차원은 남겨 둔 워커를 쓸 수 없다 — "가벼운 차원"으로 치면 무거운 차원만 T−1 로 묶이고
+                // 마지막 워커가 논다(작은 region 이 많은 오버월드 옆 무거운 네더 20→15 TPS, PR #206 검토 R1)
+                if (o.activeTicks() >= perDimCap) continue;
                 long a = o.avgTickNanos();
                 if (a < min1) { min2 = min1; min1 = a; }
                 else if (a < min2) min2 = a;
