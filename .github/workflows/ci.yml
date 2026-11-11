@@ -54,9 +54,7 @@ jobs:
         timeout-minutes: 20
         run: |
           set -o pipefail
-          # 기준 브랜치 push 실행에서만 JaCoCo 에이전트를 켠다(PR 시험이 느려져 시간 민감 시험이 흔들리지 않게). 아래 coverage 작업이 합친다.
-          cov=""; if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "$BASE_BRANCH" ]; then cov="-Pcoverage"; fi
-          ./gradlew -PskipOracle=true $cov -PtestShard=${{ matrix.shard }}/3 :furnace-server:test 2>&1 | tee /tmp/shard-run.log
+          ./gradlew -PskipOracle=true -PtestShard=${{ matrix.shard }}/3 :furnace-server:test 2>&1 | tee /tmp/shard-run.log
       # 부하에서 가끔 실패하는 시간 민감 시험(CommandBlockOneTickTest 등): 처음에 실패한 시험 클래스만 한 번 다시 돌린다.
       # 재시도하지 않는 경우(JVM 이상 종료, 제한시간 초과, @NoRetry 실패)와 흔들린 시험 기록은 tools/ci/retry-failed-tests.sh 에 있다.
       - name: 실패한 시험만 재시도(1회)
@@ -72,15 +70,6 @@ jobs:
           path: /tmp/first-run/flaky-tests.txt
           if-no-files-found: ignore
           retention-days: 30
-      # 커버리지 원자료(조각마다 하나). 기준 브랜치 push 실행에서만 만들어진다. 실패한 조각도 올린다(시험이 일부 실패해도 JVM 종료 때 기록된다).
-      - name: 커버리지 원자료 올리기
-        if: always() && github.event_name == 'push' && github.ref == env.BASE_BRANCH
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-exec-${{ matrix.shard }}
-          path: furnace-server/build/jacoco/test.exec
-          if-no-files-found: ignore
-          retention-days: 7
       # 시험이 실패했거나 작업 제한시간으로 취소돼도 보고서·실행 로그는 올라가게 always() 로 둔다(로그에서 멈춘 시험을 찾는다).
       - name: 서버 테스트 보고서 올리기
         if: always() && (failure() || cancelled() || steps.server-test.outcome == 'failure')
@@ -142,12 +131,48 @@ jobs:
           path: build/user-todo/user-todo-combined.md
           retention-days: 14
 
+  # 커버리지용 서버 시험(JaCoCo 에이전트). `test` 판정과 무관한 별도 비게이트 작업이다 — 에이전트가 시험을 5배 가까이 느리게 해
+  # 제한시간 시험이 실패할 수 있으므로(RegenerateChunkTest 59초 대 11초) 판정용 조각과 분리했다. 기준 브랜치 push 실행에서만 돈다.
+  # 실패해도 .exec 는 JVM 종료 때 기록되니 그대로 올리고, 이 작업의 결과는 어디서도 needs 로 쓰지 않는다.
+  coverage-tests:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/claude/quirky-wright-lra834'
+    name: coverage-tests (${{ matrix.shard }}/3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
+      - name: 서버 테스트 + JaCoCo (조각 ${{ matrix.shard }}/3)
+        continue-on-error: true
+        timeout-minutes: 35
+        run: ./gradlew -PskipOracle=true -Pcoverage -PtestShard=${{ matrix.shard }}/3 :furnace-server:test
+      - name: 커버리지 원자료 올리기
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-exec-${{ matrix.shard }}
+          path: furnace-server/build/jacoco/test.exec
+          if-no-files-found: ignore
+          retention-days: 7
+
   # 서버 시험 커버리지 보고서(JaCoCo). 기준 브랜치 push 실행에서만, 조각의 .exec 를 합쳐 xml·html 과 패키지별 표를 만든다.
   # 보고용이다 — `test` 판정에 넣지 않으므로 이 작업이 실패해도 병합 판단에는 영향이 없다.
   coverage:
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/claude/quirky-wright-lra834'
-    needs: [server-tests]
+    needs: [coverage-tests]
     runs-on: ubuntu-latest
+    continue-on-error: true
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
