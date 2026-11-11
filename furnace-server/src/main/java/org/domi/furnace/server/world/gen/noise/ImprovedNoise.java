@@ -31,7 +31,21 @@ public final class ImprovedNoise {
         { 0, -1, -1}
     };
 
+    // 성능: 기울기 표를 3칸씩 펼친 double 배열(int*double 곱은 정수 → double 변환이 정확하므로 값이 같다)
+    private static final double[] GRAD3 = new double[16 * 3];
+    static {
+        for (int i = 0; i < 16; i++) {
+            GRAD3[i * 3] = GRADIENT[i][0];
+            GRAD3[i * 3 + 1] = GRADIENT[i][1];
+            GRAD3[i * 3 + 2] = GRADIENT[i][2];
+        }
+    }
+
     private final byte[] p;
+    /** perm[i] = p[i] & 0xFF (바닐라 p(i) 의 표 형태). */
+    private final int[] perm = new int[256];
+    /** gperm[i] = (p[i] & 15) * 3 — 마지막 해시 단계는 기울기 번호로만 쓰인다. */
+    private final int[] gperm = new int[256];
     public final double xo;
     public final double yo;
     public final double zo;
@@ -52,6 +66,10 @@ public final class ImprovedNoise {
             byte b = this.p[i];
             this.p[i] = this.p[i + randomInt];
             this.p[i + randomInt] = b;
+        }
+        for (int i = 0; i < 256; i++) {
+            this.perm[i] = this.p[i] & 0xFF;
+            this.gperm[i] = (this.p[i] & 15) * 3;
         }
     }
 
@@ -89,11 +107,44 @@ public final class ImprovedNoise {
         return g[0] * xFactor + g[1] * yFactor + g[2] * zFactor;
     }
 
+    /** gradDot 와 같은 식(g0*x + g1*y + g2*z, 왼쪽부터 더함). g3 = 기울기 번호 * 3. */
+    private static double dot3(int g3, double x, double y, double z) {
+        double[] g = GRAD3;
+        return g[g3] * x + g[g3 + 1] * y + g[g3 + 2] * z;
+    }
+
     private int p(int index) {
         return this.p[index & 0xFF] & 0xFF;
     }
 
-    private double sampleAndLerp(int gridX, int gridY, int gridZ,
+    double sampleAndLerp(int gridX, int gridY, int gridZ,
+                                  double deltaX, double weirdDeltaY, double deltaZ, double deltaY) {
+        // 바닐라와 같은 해시·기울기·보간 순서. 표만 int 로 미리 풀어 둔다(p(i) = perm[i & 0xFF]).
+        int[] perm = this.perm;
+        int[] gperm = this.gperm;
+        int i  = perm[gridX & 0xFF];
+        int i1 = perm[(gridX + 1) & 0xFF];
+        int i2 = perm[(i  + gridY) & 0xFF];
+        int i3 = perm[(i  + gridY + 1) & 0xFF];
+        int i4 = perm[(i1 + gridY) & 0xFF];
+        int i5 = perm[(i1 + gridY + 1) & 0xFF];
+        double dx1 = deltaX - 1.0, dy1 = weirdDeltaY - 1.0, dz1 = deltaZ - 1.0;
+        double d  = dot3(gperm[(i2 + gridZ) & 0xFF],     deltaX, weirdDeltaY, deltaZ);
+        double d1 = dot3(gperm[(i4 + gridZ) & 0xFF],     dx1,    weirdDeltaY, deltaZ);
+        double d2 = dot3(gperm[(i3 + gridZ) & 0xFF],     deltaX, dy1,         deltaZ);
+        double d3 = dot3(gperm[(i5 + gridZ) & 0xFF],     dx1,    dy1,         deltaZ);
+        double d4 = dot3(gperm[(i2 + gridZ + 1) & 0xFF], deltaX, weirdDeltaY, dz1);
+        double d5 = dot3(gperm[(i4 + gridZ + 1) & 0xFF], dx1,    weirdDeltaY, dz1);
+        double d6 = dot3(gperm[(i3 + gridZ + 1) & 0xFF], deltaX, dy1,         dz1);
+        double d7 = dot3(gperm[(i5 + gridZ + 1) & 0xFF], dx1,    dy1,         dz1);
+        double d8  = MathHelper.smoothstep(deltaX);
+        double d9  = MathHelper.smoothstep(deltaY);
+        double d10 = MathHelper.smoothstep(deltaZ);
+        return MathHelper.lerp3(d8, d9, d10, d, d1, d2, d3, d4, d5, d6, d7);
+    }
+
+    /** 시험용: 옛 표 경로(byte 표 + int[][] 기울기)로 같은 점을 계산 — 새 경로와 비트 대조. */
+    double sampleAndLerpReference(int gridX, int gridY, int gridZ,
                                   double deltaX, double weirdDeltaY, double deltaZ, double deltaY) {
         int i  = this.p(gridX);
         int i1 = this.p(gridX + 1);

@@ -37,6 +37,8 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
 
     // ── 보간기/캐시 목록 ──────────────────────────────────────────────────
     final List<NoiseInterpolator> interpolators = new ArrayList<>();
+    /** 보간 루프용 배열 사본(initializeForFirstCellX 에서 만든다 — 그 뒤로 보간기가 늘지 않는다). */
+    private NoiseInterpolator[] interpArr = new NoiseInterpolator[0];
     final List<CacheAllInCell> cellCaches = new ArrayList<>();
     private final Map<DensityFunction, DensityFunction> wrapped = new HashMap<>();
 
@@ -50,6 +52,9 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
     int inCellY;
     int inCellZ;
     long interpolationCounter = 0L;
+    // 지연 보간(성능): updateForY/X/Z 는 t 와 세대 번호만 바꾸고, 보간기는 값이 실제로 읽힐 때 바닐라와 같은 순서·식으로 계산한다.
+    private double tY, tX, tZ;
+    private long yEpoch, xEpoch, zEpoch;
     long arrayInterpolationCounter = 0L;
     int arrayIndex = 0;
 
@@ -155,7 +160,54 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
             reg.stateIdOrAir("minecraft:raw_iron_block"),
             reg.stateIdOrAir("minecraft:tuff"));
         this.climateCache = buildClimateCache();
+        // 꼭짓점 기둥 공유 캐시: 생성자에서 만든 보간기 구성이 그대로일 때만 쓴다(나중에 wrap 이 보간기를 더하면 구성이 달라진다).
+        this.ctorInterpolatorCount = this.interpolators.size();
+        // 구성 = 보간기 수·광맥 여부·셀 크기·높이(같은 라우터에 다른 설정을 넘긴 경우도 섞이지 않게 정확히 담는다)
+        this.sliceLayout = (long) this.ctorInterpolatorCount
+            | (this.wrappedVeinToggle != null ? 1L : 0L) << 8
+            | (long) (this.cellWidth & 0x1F) << 9
+            | (long) (this.cellHeight & 0x1F) << 14
+            | (long) (this.cellCountY & 0x3FF) << 19
+            | (long) (this.cellNoiseMinY & 0x3FF) << 29;
+        SliceColumnCache cache = SliceColumnCache.ENABLED && this.ctorInterpolatorCount > 0 ? router.sliceColumns() : null;
+        this.sliceCache = cache != null && cache.safeFor(this.sliceLayout, this::interpolatorsArePositionPure) ? cache : null;
     }
+
+    private final int ctorInterpolatorCount;
+    private final long sliceLayout;
+    private final SliceColumnCache sliceCache;
+
+    /**
+     * 보간기 함수 안에 NoiseChunk 상태를 읽는 노드가 없는지. 꼭짓점을 채우는 동안 다른 보간기를 compute 로 부르면 지금 블록의 보간값을,
+     * cache_all_in_cell 은 셀 배열을 돌려주므로(바닐라도 같다) 그런 구성은 꼭짓점 값이 위치만의 함수가 아니다 — 공유 캐시를 쓰지 않는다.
+     */
+    private boolean interpolatorsArePositionPure() {
+        for (NoiseInterpolator interp : this.interpolators) {
+            if (!positionPure(interp.wrapped())) return false;
+        }
+        return true;
+    }
+
+    /**
+     * NoiseChunk 래퍼(FlatCache·Cache2D·CacheOnce)는 mapAll 이 안쪽으로 내려가지 않으므로 wrapped() 를 직접 따라 들어간다.
+     * 참고(검토 N1): Cache2D 는 (x, z) 만으로 메모한다. 꼭짓점 기둥은 어느 청크에서나 그 (x, z) 의 첫 계산이고 y 오름차순이라
+     * 지금 순서에서는 같은 값이 나온다. 데이터 팩으로 이 순서가 깨질 구성이 들어오면 여기서 Y 의존 여부를 더 본다.
+     */
+    private boolean positionPure(DensityFunction root) {
+        boolean[] pure = {true};
+        root.mapAll(df -> {
+            if (df instanceof NoiseInterpolator || df instanceof CacheAllInCell) {
+                pure[0] = false;
+            } else if (df instanceof FlatCache || df instanceof Cache2D || df instanceof CacheOnce) {
+                if (!positionPure(((DensityFunctions.MarkerOrMarked) df).wrapped())) pure[0] = false;
+            }
+            return df;
+        });
+        return pure[0];
+    }
+
+    /** 시험용: 이 청크가 꼭짓점 공유 캐시를 쓰는가. */
+    boolean usesSliceCacheForTest() { return sliceCache != null; }
 
     private double[][][][] buildClimateCache() {
         // W-09: 구조상 Y-불변인 차원(오버월드는 depth 외 5개)은 j=0 에서 한 번만 평가하고 위로 복사한다.
@@ -348,6 +400,9 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
         long t0 = System.nanoTime();
         this.cellStartBlockX = cellX * this.cellWidth;
         this.inCellX = 0;
+        NoiseInterpolator[] interps = this.interpArr;
+        SliceColumnCache cache = interps.length == this.ctorInterpolatorCount ? this.sliceCache : null;
+        int col = this.cellCountY + 1;
 
         for (int iz = 0; iz < this.cellCountXZ + 1; iz++) {
             int cz = this.firstCellZ + iz;
@@ -355,9 +410,25 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
             this.inCellZ = 0;
             this.arrayInterpolationCounter++;
 
-            for (NoiseInterpolator interp : this.interpolators) {
+            double[] cached = cache == null ? null : cache.get(cellX, cz, this.sliceLayout);
+            if (cached != null) {
+                // 이웃 청크가 이미 계산한 같은 꼭짓점 기둥 — 값 그대로 복사(보간기 순서대로 이어 붙여 저장됨)
+                for (int k = 0; k < interps.length; k++) {
+                    System.arraycopy(cached, k * col, (isSlice0 ? interps[k].slice0 : interps[k].slice1)[iz], 0, col);
+                }
+                continue;
+            }
+
+            for (NoiseInterpolator interp : interps) {
                 double[] slice = (isSlice0 ? interp.slice0 : interp.slice1)[iz];
                 interp.fillArray(slice, this.sliceFillingContextProvider);
+            }
+            if (cache != null) {
+                double[] v = new double[interps.length * col];
+                for (int k = 0; k < interps.length; k++) {
+                    System.arraycopy((isSlice0 ? interps[k].slice0 : interps[k].slice1)[iz], 0, v, k * col, col);
+                }
+                cache.put(cellX, cz, this.sliceLayout, v);
             }
         }
 
@@ -370,6 +441,7 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
     // ─────────────────────────────────────────────────────────────────────
 
     private void initializeForFirstCellX() {
+        this.interpArr = this.interpolators.toArray(new NoiseInterpolator[0]);
         this.interpolating = true;
         this.interpolationCounter = 0L;
         fillSlice(true, this.firstCellX);
@@ -381,7 +453,7 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
     }
 
     private void selectCellYZ(int iy, int iz) {
-        for (NoiseInterpolator interp : this.interpolators) {
+        for (NoiseInterpolator interp : this.interpArr) {
             interp.selectCellYZ(iy, iz);
         }
         this.cellStartBlockY = (iy + this.cellNoiseMinY) * this.cellHeight;
@@ -440,26 +512,25 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
             cellStartBlockY, cellStartBlockY + cellHeight - 1, out);
     }
 
+    // 바닐라는 여기서 모든 보간기의 중간값을 바로 갱신한다. 값은 t 와 셀 꼭짓점만의 함수라 읽을 때 같은 식으로 계산해도 같다.
+    // 갱신 순서는 늘 Y → X → Z(바닐라 doFill 루프)라, Y 가 바뀌면 X·Z 세대도 그 뒤에 바뀐다.
     private void updateForY(int blockY, double t) {
         this.inCellY = blockY - this.cellStartBlockY;
-        for (NoiseInterpolator interp : this.interpolators) {
-            interp.updateForY(t);
-        }
+        this.tY = t;
+        this.yEpoch++;
     }
 
     private void updateForX(int blockX, double t) {
         this.inCellX = blockX - this.cellStartBlockX;
-        for (NoiseInterpolator interp : this.interpolators) {
-            interp.updateForX(t);
-        }
+        this.tX = t;
+        this.xEpoch++;
     }
 
     private void updateForZ(int blockZ, double t) {
         this.inCellZ = blockZ - this.cellStartBlockZ;
         this.interpolationCounter++;
-        for (NoiseInterpolator interp : this.interpolators) {
-            interp.updateForZ(t);
-        }
+        this.tZ = t;
+        this.zEpoch++;
     }
 
     private void stopInterpolation() {
@@ -467,7 +538,7 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
     }
 
     private void swapSlices() {
-        for (NoiseInterpolator interp : this.interpolators) {
+        for (NoiseInterpolator interp : this.interpArr) {
             interp.swapSlices();
         }
     }
@@ -668,6 +739,8 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
                         continue;
                     }
                     // NOTE: all-fluid skip removed — aquifer needs exact per-block density
+                    // 대신 셀 상한이 음수(블록 전부 밀도 ≤ 0)면 밀도는 aquifer 가 실제로 쓰는 갈래에서만 계산한다(결과 같음, 성능).
+                    boolean nonSolidCell = !beardHere && cellBoundsScratch[1] < -SKIP_EPS && AQ_WATCH == null;
 
                     fillCellCaches();
 
@@ -685,6 +758,28 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
                                 int blockZ = chunkBlockZ + cz * this.cellWidth + iz;
                                 double tz = (double) iz / this.cellWidth;
                                 updateForZ(blockZ, tz);
+
+                                if (nonSolidCell) {
+                                    // 아래 일반 갈래의 density ≤ 0 쪽과 같은 처리(고체 아님·유체 후처리 표시 포함)
+                                    int lx = blockX & 15, lz = blockZ & 15;
+                                    int idx = (blockY - minY) * 256 + lz * 16 + lx;
+                                    lastSolid = false;
+                                    if (idx >= 0 && idx < blocks.length) {
+                                        int substance = aquifer.computeSubstanceNonPositive(this, this.wrappedFinalDensity);
+                                        if (substance == Aquifer.NO_CARVE) {
+                                            int vein = this.oreVeinifier == null
+                                                ? OreVeinifier.NO_VEIN : this.oreVeinifier.veinStateId(this);
+                                            blocks[idx] = vein != OreVeinifier.NO_VEIN ? vein : stoneId;
+                                        } else {
+                                            blocks[idx] = substance;
+                                            if (fluidKinds != null && aquifer.shouldScheduleFluidUpdate()
+                                                && fluidKinds.of(substance) != org.domi.furnace.server.world.gen.feature.FluidKind.EMPTY) {
+                                                addFluidMark(lx, blockY, lz);
+                                            }
+                                        }
+                                    }
+                                    continue;
+                                }
 
                                 double density = this.wrappedFinalDensity.compute(this);
                                 if (beardHere) density += beardifier.compute(blockX, blockY, blockZ);
@@ -825,6 +920,8 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
         private double valueXZ00, valueXZ10, valueXZ01, valueXZ11;
         private double valueZ0, valueZ1;
         private double value;
+        // 지연 보간: 마지막으로 계산한 Y/X/Z 세대(-1 = 셀이 바뀌어 다시 계산해야 함)
+        private long yStamp = -1, xStamp = -1, zStamp = -1;
 
         NoiseInterpolator(DensityFunction noiseFiller) {
             this.noiseFiller = noiseFiller;
@@ -850,6 +947,9 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
             this.noise011 = slice0[iz + 1][iy + 1];
             this.noise110 = slice1[iz    ][iy + 1];
             this.noise111 = slice1[iz + 1][iy + 1];
+            this.yStamp = -1;
+            this.xStamp = -1;
+            this.zStamp = -1;
         }
 
         /** 현재 셀 8 코너의 [min, max]. 삼선형 보간값은 항상 이 구간 안(볼록결합). */
@@ -893,6 +993,30 @@ public final class NoiseChunk implements DensityFunction.ContextProvider, Densit
                     noise000, noise100, noise010, noise110,
                     noise001, noise101, noise011, noise111
                 );
+            }
+            return currentValue();
+        }
+
+        /**
+         * 지금 블록의 보간값 — 바닐라 updateForY/X/Z 와 같은 식·순서(lerp(t, a, b))로, 바뀐 단계만 다시 계산한다.
+         * 블록 루프 불변식에 기댄다: 보간값 읽기는 늘 NoiseChunk.updateForZ 뒤(t·세대가 지금 블록 것)에만 일어난다.
+         * 루프 밖이나 updateForY/X 와 updateForZ 사이에서 읽게 바꾸면 이 계산이 바닐라와 달라진다.
+         */
+        private double currentValue() {
+            long ze = zEpoch;
+            if (this.zStamp != ze) {
+                long xe = xEpoch;
+                if (this.xStamp != xe) {
+                    long ye = yEpoch;
+                    if (this.yStamp != ye) {
+                        updateForY(tY);
+                        this.yStamp = ye;
+                    }
+                    updateForX(tX);
+                    this.xStamp = xe;
+                }
+                updateForZ(tZ);
+                this.zStamp = ze;
             }
             return this.value;
         }

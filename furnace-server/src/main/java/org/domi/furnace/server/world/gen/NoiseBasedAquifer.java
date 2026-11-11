@@ -158,6 +158,27 @@ public final class NoiseBasedAquifer implements Aquifer {
         return computeSubstanceSlow(context, i, i1, i2, i3, i4, i5, substance);
     }
 
+    @Override
+    public int computeSubstanceNonPositive(DensityFunction.FunctionContext context, DensityFunction density) {
+        // computeSubstance 와 같은 갈래 — 호출자가 밀도 ≤ 0 을 보장하므로 첫 갈래(substance > 0)는 지나간다.
+        int i = context.blockX();
+        int i1 = context.blockY();
+        int i2 = context.blockZ();
+        if (globalFluidPicker(i, i1, i2).at(i1) == lavaId) {
+            this.shouldScheduleFluidUpdate = false;
+            return lavaId;
+        }
+        int i3 = Math.floorDiv(i - 5, 16);
+        int i4 = Math.floorDiv(i1 + 1, 12);
+        int i5 = Math.floorDiv(i2 - 5, 16);
+        if (AIR_SHORTCUT && i1 >= maxFluidLevelAround(i3, i4, i5) + 5) {
+            if (verifyShortcut) verifyShortcutHit(context, i, i1, i2, i3, i4, i5, density.compute(context));
+            this.shouldScheduleFluidUpdate = false;
+            return 0;
+        }
+        return computeSubstanceSlow(context, i, i1, i2, i3, i4, i5, density.compute(context));
+    }
+
     // 테스트 전용 fuzz 게이트(감사 W-10): true 면 빠른 길이 잡은 블록마다 바닐라 식 결과를 다시 계산해 공기가 아닌 수를 센다.
     // (shouldScheduleFluidUpdate 는 대조하지 않는다. 빠른 길은 늘 false 로 두는데 바닐라 느린 길은 공기여도 true 일 수 있다 —
     //  카버가 용암 높이 아래 칸에서 computeSubstance 없이 직전 값을 읽을 때만 드러난다. 알려진 차이, 컨텍스트 노트 A06-fluid-ticks.)

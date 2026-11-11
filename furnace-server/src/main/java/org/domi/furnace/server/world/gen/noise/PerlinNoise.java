@@ -162,6 +162,14 @@ public final class PerlinNoise {
     }
 
     public static double wrap(double value) {
+        // |value| < 2^23 이면 floor(value/2^25 + 0.5) = 0 이라 바닐라 식의 결과가 value 그대로다(value - 0.0, -0.0 도 유지).
+        if (Math.abs(value) < 8388608.0) return value;
+        // 2^25 로 나누기 = 2^-25 곱하기(둘 다 같은 실수값을 한 번 반올림 — 결과 비트가 같다)
+        return value - MathHelper.floor(value * 2.9802322387695312E-8 + 0.5) * 3.3554432E7;
+    }
+
+    /** 시험용: 바닐라 식 그대로의 wrap. */
+    static double wrapReference(double value) {
         return value - MathHelper.floor(value / 3.3554432E7 + 0.5) * 3.3554432E7;
     }
 }

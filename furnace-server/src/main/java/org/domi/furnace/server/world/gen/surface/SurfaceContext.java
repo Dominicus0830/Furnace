@@ -23,6 +23,12 @@ public final class SurfaceContext {
     // 이 청크의 quart biome 배열(sampleChunk 결과, 인덱스 (qy*4+qz)*4+qx) — 청크 안쪽 quart는 다시 검색하지 않고 여기서 읽는다. null이면 미사용.
     public int[] chunkBiomeIds;
     public int chunkQuartX0, chunkQuartZ0;   // 청크 첫 quart의 월드 quart 좌표
+    /**
+     * 청크 바로 바깥 한 줄(이웃 청크) quart 의 바이옴 메모 — biomeCache(HashMap) 대신 배열로(성능, 값은 같은 sampleQuart 결과).
+     * x·z 는 chunkQuart0-1 .. chunkQuart0+4(6칸), y 는 haloQuartY0 부터 haloQuartYCount 칸. 빈 칸은 Integer.MIN_VALUE. null 이면 미사용.
+     */
+    public int[] haloBiomes;
+    public int haloQuartY0, haloQuartYCount;
     // 16×16 surfaceY grid for steep condition
     public int[] surfaceYGrid;  // [lz*16+lx]
 
