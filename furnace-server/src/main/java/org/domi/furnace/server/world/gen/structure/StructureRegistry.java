@@ -190,6 +190,12 @@ public final class StructureRegistry {
         "ruined_portal_ocean", "ruined_portal_swamp", "shipwreck", "shipwreck_beached", "stronghold", "swamp_hut", "trail_ruins",
         "trial_chambers", "village_desert", "village_plains", "village_savanna", "village_snowy", "village_taiga");
 
+    /** 바닐라 구조물 세트 id 인가("minecraft:" 붙은 꼴, 이름공간 없으면 minecraft). */
+    public static boolean isKnownSet(String id) {
+        String path = id.startsWith("minecraft:") ? id.substring(10) : id.indexOf(':') < 0 ? id : null;
+        return path != null && SET_NAMES.contains(path);
+    }
+
     private static final List<String> SET_NAMES = List.of(
         "ancient_cities", "buried_treasures", "desert_pyramids", "end_cities", "igloos", "jungle_temples", "mineshafts",
         "nether_complexes", "nether_fossils", "ocean_monuments", "ocean_ruins", "pillager_outposts", "ruined_portals", "shipwrecks",
