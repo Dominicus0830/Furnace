@@ -27,18 +27,20 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
     /** 몹은 소유 스레드면 지금 체력(setHealth 직후 곧바로 바뀐 값), 아니면 핸들 시점 값. 플레이어 핸들은 그 자체가 지금 값이다. */
     @Override
     public double getHealth() {
+        if (!EntityStates.live(furnaceHandle())) return living().health();
         try {
             return EntityStates.read(furnaceHandle(), LivingEntityState.class, LivingEntityState::health, living().health(), "LivingEntity#getHealth");
-        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature notNow) {
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature raced) {
             return living().health();
         }
     }
 
     @Override
     public double getMaxHealth() {
+        if (!EntityStates.live(furnaceHandle())) return living().maxHealth();
         try {
             return EntityStates.read(furnaceHandle(), LivingEntityState.class, LivingEntityState::maxHealth, living().maxHealth(), "LivingEntity#getMaxHealth");
-        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature notNow) {
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature raced) {
             return living().maxHealth();
         }
     }

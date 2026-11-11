@@ -265,7 +265,7 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
         @Override
         public void setHealth(float health) {
             if (!writable()) return;
-            if (health <= 0f) le.kill();
+            if (health <= 0f) le.dieFromApi();
             else le.setHealth(Math.min(health, le.maxHealth()));
         }
 

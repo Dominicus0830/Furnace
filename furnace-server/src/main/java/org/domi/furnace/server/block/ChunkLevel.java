@@ -2105,6 +2105,10 @@ public abstract class ChunkLevel implements BlockLevel {
             retireApiTasks(e);
             return false;
         }
+        if (e.isRemoved()) {   // 스폰 이벤트 처리기가 지웠다: 이미 목록에서 빠졌으니 추적·리스너를 붙이지 않는다(유령 엔티티 방지)
+            retireApiTasks(e);
+            return false;
+        }
         startTracking(e);
         for (var l : e.dynamicGameEventListeners()) l.add(this);
         return true;

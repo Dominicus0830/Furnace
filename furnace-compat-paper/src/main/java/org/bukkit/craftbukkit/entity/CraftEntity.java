@@ -69,13 +69,14 @@ public class CraftEntity implements Entity {
     /**
      * 지금 위치. 소유 스레드(이벤트 처리기·entityScheduler 작업·옛 동기 작업의 빌림 구간)면 엔티티의 지금 값을 읽는다 — CraftBukkit 의 NMS 엔티티는
      * 살아 있는 객체라 {@code teleport} 직후 {@code getLocation} 이 바뀐 값을 준다. 소유 스레드가 아니거나 상태 손잡이가 없는 플레이어면 핸들 시점 값
-     * (플레이어 핸들은 그 자체가 지금 값이다). 사라진 엔티티는 마지막 값.
+     * (플레이어 핸들은 그 자체가 지금 값이다) — 예외 없이 가려서 자주 불러도 싸다. 사라진 몹은 핸들을 만든 시점 값(마지막 값을 따로 들지 않는다).
      */
     private org.domi.furnace.api.world.Location liveLocation() {
         org.domi.furnace.api.world.Location snapshot = handle.location();
+        if (!EntityStates.live(handle)) return snapshot;
         try {
             return EntityStates.read(handle, EntityState.class, EntityState::location, snapshot, "Entity#getLocation");
-        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature notNow) {
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature raced) {
             return snapshot;
         }
     }
@@ -86,12 +87,17 @@ public class CraftEntity implements Entity {
     @Override
     public World getWorld() { return Compat.world(liveLocation().world()); }
 
-    /** 소유 스레드면 지금 값(remove 직후 곧바로 false), 아니면 핸들 시점 값. */
+    /**
+     * 소유 스레드면 지금 값, 아니면 핸들 시점 값. Paper 처럼 살아 있는 엔티티는 {@code isAlive() && valid} 라 체력이 0 이하인(죽는 중) 몹도 false —
+     * remove 직후·setHealth(0) 직후 곧바로 false 다.
+     */
     @Override
     public boolean isValid() {
+        if (!EntityStates.live(handle)) return handle.isValid();
         try {
-            return EntityStates.read(handle, EntityState.class, EntityState::isValid, false, "Entity#isValid");
-        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature notNow) {
+            return EntityStates.read(handle, EntityState.class,
+                    s -> s.isValid() && (!(s instanceof org.domi.furnace.api.entity.LivingEntityState l) || l.health() > 0f), false, "Entity#isValid");
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature raced) {
             return handle.isValid();
         }
     }

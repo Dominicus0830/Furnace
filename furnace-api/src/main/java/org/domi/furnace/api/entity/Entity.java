@@ -141,6 +141,12 @@ public interface Entity {
     default Optional<EntityState> stateNow() { throw new UnsupportedOperationException("stateNow"); }
 
     /**
+     * 지금 이 스레드가 그 엔티티를 가진 region 스레드(빌림 구간 포함)면 true — {@link #stateNow()} 가 예외 없이 돌려줄 수 있는가.
+     * 사라진 엔티티는 어느 스레드에서나 true(stateNow 가 빈 값). 상태 손잡이가 없는 엔티티(플레이어)는 false. 예외를 만들지 않아 자주 불러도 싸다.
+     */
+    default boolean isOwnedByCurrentThread() { return false; }
+
+    /**
      * 그 엔티티를 가진 region 스레드에서 다음 틱에 action 을 돈다(엔티티가 region 을 옮겨 가도 따라간다). action 의 결과로 완료하고,
      * 엔티티가 이미 사라졌거나 그 전에 사라지면 IllegalStateException 으로 완료. 손잡이를 밖으로 들고 나가 다른 스레드에서 쓰지 않는다.
      */

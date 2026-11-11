@@ -59,8 +59,12 @@
 - **수정**: 소유 region 스레드에서는 엔티티의 지금 상태를 읽고 쓴다(이미 이름·플래그·효과가 쓰는 `EntityStates` 경로).
   - API: `EntityState.location()`·`remove()`, `LivingEntityState.health()·maxHealth()·setHealth()` 추가(구현은 `EntityStateImpl` — 서버 엔티티의 `x()/y()/z()`·`health()`·`discard()`·`kill()` 를 그대로 부른다, 새 규칙 없음).
   - 어댑터: `CraftEntity` 의 `getLocation`·`getWorld`·`getNearbyEntities`·`isValid`·`isDead`·`remove`, `CraftLivingEntity` 의 `getHealth`·`getMaxHealth`·`setHealth` 가 소유 스레드면 지금 값을 쓰고,
-    소유 스레드가 아니거나 상태 손잡이가 없는 플레이어(플레이어 핸들은 그 자체가 지금 값)면 예전 경로(스냅샷 읽기·예약 쓰기)를 그대로 쓴다. 사라진 엔티티의 위치는 핸들 마지막 값, `isValid` 는 false.
-  - 바닐라(NMS) 규칙: `setHealth(0)` 은 죽음(`kill`), 최대 체력 초과는 최대 체력으로 자름 — 기존 `updateHealth` 와 같다.
+    소유 스레드가 아니거나 상태 손잡이가 없는 플레이어(플레이어 핸들은 그 자체가 지금 값)면 예전 경로(스냅샷 읽기·예약 쓰기)를 그대로 쓴다. 사라진 몹의 위치·체력은 핸들을 만든 시점 값(마지막 값을 따로 들지 않는다), `isValid` 는 false.
+  - `setHealth(0)`: Paper `CraftLivingEntity#setHealth` 처럼 체력 0 + `die(generic)` — 피해 이벤트·토템·피해 무적을 거치지 않는다(처음 구현은 `kill()`=`hurt(generic_kill)` 이라 피해 이벤트 처리기 안의
+    `setHealth(0)` 이 피해 이벤트를 끝없이 겹쳐 불렀다 — 독립 검토 R1). 비소유 스레드의 `updateHealth` 도 같은 규칙. 최대 체력 초과는 최대 체력으로 자른다.
+  - `isValid`/`isDead`: Paper `isAlive()` 처럼 살아 있는 엔티티는 체력 0 이하(죽는 중)도 무효로 본다(검토 R3).
+  - 스폰 이벤트 안에서 `EntityState.remove()` 로 지운 엔티티는 `ChunkLevel.addFreshEntity` 가 추적·리스너를 붙이지 않고 거부한다(검토 R2, 유령 엔티티 방지).
+  - 비용: `Entity.isOwnedByCurrentThread()`(예외 없는 소유 질의)를 더해, 플레이어·비소유 스레드의 `getLocation` 류가 예외를 만들지 않는다(검토 R4: 플레이어 `getLocation` 2,687ns → 핸들 직접 읽기 수준).
 - **남는 한계**: 다른 스레드(비동기 작업·이벤트 루프)에서 읽으면 여전히 핸들 시점 값이다 — 스레드 소유 규칙상 막을 수 없다(`docs/api` 의 "Entity#location 은 만든 시점"). Paper 가 비동기 스레드의 엔티티 읽기를 허용하지 않는 것과 같은 선이다.
 
 ### A16-02 ~ A16-05 제안 (고치지 않음)
