@@ -27,4 +27,13 @@ public interface TerrainAccess {
 
     /** 블록 좌표의 노이즈 바이옴(쿼트 해상도) 이름. */
     String biomeAt(int blockX, int blockY, int blockZ);
+
+    /** LevelHeightAccessor.getMinBuildHeight — 차원 높이(생성기 minY 와 다를 수 있다: 평지 0 대 -64, 네더 노이즈 128 대 차원 256). */
+    default int levelMinY() { return minY(); }
+
+    /** LevelHeightAccessor.getMaxBuildHeight(배타). */
+    default int levelMaxY() { return minY() + genDepth(); }
+
+    /** 바이옴 원천이 FixedBiomeSource 면 그 바이옴(아니면 null) — findBiomeHorizontal 이 다른 식을 쓴다. */
+    default String fixedBiome() { return null; }
 }
