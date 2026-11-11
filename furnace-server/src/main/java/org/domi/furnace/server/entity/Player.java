@@ -487,6 +487,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     /** Player.rideTick(탈것 틱 뒤): 웅크리면(wantsToStopRiding) 내리고 웅크림을 푼다. 아니면 낙하 거리를 지우고 탈것이 자리를 잡아 준다. */
     public void rideTick() {
+        double ox = x, oy = y, oz = z;   // ServerPlayer.rideTick: 전후 위치 차로 탑승 거리 통계
         if (sneaking && vehicle != null) {
             stopRiding();
             sneaking = false;
@@ -494,6 +495,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         }
         vitals.resetFallDistance();
         if (vehicle != null) vehicle.positionRider(this);
+        vitals.checkRidingStatistics(x - ox, y - oy, z - oz);
     }
 
     /** ServerPlayer.setPlayerInput: 탄 동안만 ±1 안의 값을 받고 점프·웅크림을 정한다(IO 스레드). */
