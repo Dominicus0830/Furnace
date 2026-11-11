@@ -723,11 +723,42 @@ public final class FurnaceMain {
         public void run() {
             try {
                 task.run();
+            } catch (Throwable t) {
+                GLOBAL_ERRORS.report("자동 저장(level.dat)", t);
             } finally {
                 scheduler.global().executeDelayed(this, period);
             }
         }
     }
+
+    /**
+     * 전역 스레드 반복 작업의 예외 기록(A03-05): GlobalThread.execute 는 예외를 버려지는 future 에만 담아, 예전엔 전역 틱(시간·날씨·#tick 함수)
+     * 예외가 로그 없이 사라졌다. 처음 한 번은 바로, 이후 같은 곳의 예외는 10초에 한 번 묶어서(그 사이 건수와 함께) 남긴다. 바닐라는 tickServer
+     * 예외에 크래시 리포트를 남기고 멈추지만, 여기서는 region 틱 실패("[TICK] region 실패")처럼 기록하고 다음 박동을 계속 돈다.
+     */
+    static final class ErrorThrottle {
+        static final long INTERVAL_NANOS = 10_000_000_000L;
+        private final java.util.concurrent.ConcurrentHashMap<String, long[]> last = new java.util.concurrent.ConcurrentHashMap<>();   // [마지막 기록 시각, 그 뒤 건수]
+
+        void report(String where, Throwable t) {
+            long now = System.nanoTime();
+            long[] st = last.computeIfAbsent(where, k -> new long[] {now - INTERVAL_NANOS, 0});
+            long suppressed;
+            synchronized (st) {
+                if (now - st[0] < INTERVAL_NANOS) {
+                    st[1]++;
+                    return;
+                }
+                suppressed = st[1];
+                st[0] = now;
+                st[1] = 0;
+            }
+            if (suppressed > 0) log.error("[TICK] 전역 틱 실패({}) — 지난 10초 동안 {}번 더", where, suppressed, t);
+            else log.error("[TICK] 전역 틱 실패({})", where, t);
+        }
+    }
+
+    static final ErrorThrottle GLOBAL_ERRORS = new ErrorThrottle();
 
     /**
      * 고정 박자 반복(전역 틱) — 바닐라 MinecraftServer.runServer 의 박자: 마감을 주기만큼 앞으로 옮겨(nextTickTimeNanos += nanosPerTick)
@@ -741,6 +772,7 @@ public final class FurnaceMain {
         static final long OVERLOADED_WARNING_INTERVAL_NANOS = 10_000_000_000L;
         private final FurnaceSchedulerImpl scheduler;
         private final Runnable task;
+        private final ErrorThrottle errors = new ErrorThrottle();
         final long period;
         /** 이번 박동의 마감(바닐라 nextTickTimeNanos)과 마지막 과부하 경고 때의 마감(lastOverloadWarningNanos). */
         long next, lastWarning;
@@ -765,6 +797,8 @@ public final class FurnaceMain {
                 if (skipped > 0) log.warn("Can't keep up! Is the server overloaded? Running {}ms or {} ticks behind", behind / 1_000_000L, skipped);
                 next += period;
                 task.run();
+            } catch (Throwable t) {
+                errors.report("전역 박동", t);   // 예전엔 future 에 담겨 사라졌다
             } finally {
                 schedule();
             }
