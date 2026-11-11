@@ -950,6 +950,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         // 바닐라 NoiseBasedChunkGenerator.getBaseColumn = iterateNoiseColumn: 노이즈·대수층·광맥만, 표면 규칙 없음(높이 질의와 같다).
         // 예전에는 표면 규칙까지 한 청크를 만들어 읽었다 — 네더 화석은 청크마다 이웃 청크 표면을 몇 번씩 새로 만들었고(네더 생성 CPU 의
         // 큰 몫), 오버월드는 표면 규칙이 공기·물에 놓는 블록(빙산·악지 기둥)을 바닥으로 보았다.
+        // 높이 질의와 같이 플러그인 NOISE·SURFACE 훅은 보지 않는다(ChunkGenerationHooks 규칙).
         int i = blockY - dimension.minY;
         if (i < 0 || i >= dimension.sectionCount * 16) return ChunkSection.AIR;
         int cx = Math.floorDiv(blockX, 16);

@@ -68,6 +68,7 @@ java -Dfurnace.bench.dim=nether -Dfurnace.bench.jfr=out.jfr -cp <cp> ... pristin
 
 1. 이웃 청크 쪽 꼭짓점 바이옴을 몰라 거리 계산으로 가는 43%: 청크 가장자리 두 줄 블록이다. 이웃 청크 바이옴 배열을 빌려 오면 더 줄지만, 그 값은 `sampleChunk`(R-트리 힌트) 결과라
    예전 경로(`sampleQuart`)와 거리 동률에서 다를 수 있다 — 바닐라는 이웃 청크에 저장된 바이옴(= `sampleChunk` 쪽)을 읽으므로 이 차이 자체를 바닐라 대조로 먼저 확인해야 한다.
-   같은 맥락의 관찰(가정, 미확인): 바닐라 `ChunkAccess.getNoiseBiome` 은 quart y 를 청크 높이 범위로 자르는데, Furnace 는 높이 밖 한 칸(맨 아래·맨 위 블록 두 줄)을
-   자르지 않고 `sampleQuart` 로 구한다. 이번 PR 은 예전 값을 그대로 지켰다(바뀐 것 없음). 실서버 대조 때 같이 본다.
+   독립 검토(PR #228)가 바이트코드로 확인했다: ChunkPyramid SURFACE 단계가 BIOMES 를 반경 1로 요구하고 `WorldGenRegion.getChunk` 는 상태가 모자라면 예외라,
+   바닐라는 이웃 청크에 **저장된** 바이옴을 읽고 `ChunkAccess.getNoiseBiome` 이 quart y 를 차원 높이 범위로 자른다. Furnace 는 이웃 쪽을 `sampleQuart` 로, 높이 밖 한 칸을
+   자르지 않고 구한다 — 오버월드 시드 3 에서 28블록이 달랐다(y 자르기 23, 이웃 출처 5). 네더·amplified 는 0. 이 PR 이 만든 차이는 아니고(예전 값 그대로), 후속 parity 수정 후보다.
 2. 표면 규칙 노드 평가(`SurfaceSystem$2.apply`) 자체가 이제 네더 표본의 약 15%.
