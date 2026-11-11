@@ -3,7 +3,8 @@ name: CI
 # 실행 구조 (2026-11-07 병합 병목 개선)
 #  - 서버 시험(약 12분, 3500개)은 시험 클래스 해시로 3조각(-PtestShard=i/3)으로 나눠 러너 3대에서 동시에 돌린다.
 #  - 실패한 조각은 전체가 아니라 "처음에 실패한 시험 클래스만" 한 번 다시 돌린다(부하에서만 실패하는 시간 민감 시험 대응, 재시도 비용 12분 → 1분 안팎).
-#    다시 돌려도 실패하면 진짜 실패로 처리하고, 재시도에서 통과한 시험은 실행 요약에 "흔들린 시험"으로 남긴다.
+#    다시 돌려도 실패하면 진짜 실패로 처리하고, 재시도에서 통과한 시험은 "흔들린 시험" 주석·실행 요약·산출물(flaky-tests-N)로 남긴다.
+#    제한시간을 넘긴 시험·@NoRetry 시험의 실패는 재시도하지 않는다(멈춘 시험·확률 실패를 가리지 않게). 자세한 규칙은 docs/ci.md.
 #  - 나머지(API 시험·샘플 플러그인 컴파일·시험 서버 모듈·fatJar)는 light 작업으로 동시에 돈다.
 #  - 합쳐진 판정은 이름이 `test` 인 마지막 작업 하나다(기존 점검 이름 유지).
 #  - push 는 기준 브랜치에서만 돈다. 작업 브랜치는 pull_request 로 한 번만 돈다(전에는 push 와 pull_request 가 둘 다 돌아 같은 시험이 두 번 돌았다).
@@ -47,49 +48,39 @@ jobs:
       - name: 서버 테스트 (조각 ${{ matrix.shard }}/3)
         id: server-test
         continue-on-error: true
+        # 멈춘 시험이 작업 제한(35분)까지 가지 않게 단계에도 제한을 둔다(정상 조각은 5~8분). 시험 한 개의 기본 제한시간은
+        # furnace-server/src/test/resources/junit-platform.properties 에 있고, 이 제한은 그 위의 마지막 방어선이다.
+        # 단계 제한으로 끝나면 재시도 없이 실패하고 보고서·실행 로그는 올라간다.
+        timeout-minutes: 20
         run: |
           set -o pipefail
           ./gradlew -PskipOracle=true -PtestShard=${{ matrix.shard }}/3 :furnace-server:test 2>&1 | tee /tmp/shard-run.log
       # 부하에서 가끔 실패하는 시간 민감 시험(CommandBlockOneTickTest 등): 처음에 실패한 시험 클래스만 한 번 다시 돌린다.
+      # 재시도하지 않는 경우(JVM 이상 종료, 제한시간 초과, @NoRetry 실패)와 흔들린 시험 기록은 tools/ci/retry-failed-tests.sh 에 있다.
       - name: 실패한 시험만 재시도(1회)
         id: retry
         if: steps.server-test.outcome == 'failure'
-        run: |
-          # 시험 JVM 이 죽은(메모리 부족·강제 종료) 경우는 일부 시험이 아예 안 돈 것이라 재시도하면 초록이 거짓이 된다 — 시험 실패로만 끝났을 때만 재시도한다.
-          if ! grep -q "There were failing tests" /tmp/shard-run.log || grep -q "finished with non-zero exit value" /tmp/shard-run.log; then
-            echo "::error::시험 실패가 아니라 시험 JVM 이상 종료·빌드 오류로 보여 재시도하지 않습니다."
-            exit 1
-          fi
-          dir=furnace-server/build/test-results/test
-          failed=$(awk '
-            /<testcase /{ match($0,/name="[^"]*"/); n=substr($0,RSTART+6,RLENGTH-7); match($0,/classname="[^"]*"/); c=substr($0,RSTART+11,RLENGTH-12) }
-            /<(failure|error)[ >]/{ print c "#" n }
-          ' "$dir"/TEST-*.xml 2>/dev/null | sort -u)
-          classes=$(printf '%s\n' "$failed" | sed 's/#.*//' | sort -u | sed '/^$/d')
-          if [ -z "$classes" ]; then
-            echo "::error::실패한 시험을 찾지 못했습니다(컴파일·환경 오류로 보임). 재시도하지 않습니다."
-            exit 1
-          fi
-          echo "::warning::서버 테스트 조각 ${{ matrix.shard }} 에서 실패한 시험 클래스만 다시 돌립니다(불안정 시험 의심):"
-          printf '%s\n' "$failed"
-          # 첫 실행 결과는 보고서 올리기용으로 따로 보관(재시도가 같은 폴더를 덮어쓴다)
-          rm -rf /tmp/first-run && mkdir -p /tmp/first-run && cp -r furnace-server/build/reports/tests /tmp/first-run/reports || true
-          printf '%s\n' "$failed" > /tmp/first-run/failed-tests.txt
-          args=()
-          for c in $classes; do args+=(--tests "$c"); done
-          ./gradlew -PskipOracle=true :furnace-server:test "${args[@]}"
-          {
-            echo "### 흔들린 시험 (조각 ${{ matrix.shard }}/3: 처음 실패, 재시도에서 통과)"
-            printf '%s\n' "$failed" | sed 's/^/- /'
-          } >> "$GITHUB_STEP_SUMMARY"
+        run: tools/ci/retry-failed-tests.sh ${{ matrix.shard }}
+      # 재시도에서 통과한 시험(= 처음에 실패한 시험) 기록. 초록 뒤에 가려지지 않도록 30일 보관한다 — 두 번 이상 나온 시험은 고칠 대상(docs/ci.md).
+      - name: 흔들린 시험 기록 올리기
+        if: steps.retry.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: flaky-tests-${{ matrix.shard }}
+          path: /tmp/first-run/flaky-tests.txt
+          if-no-files-found: ignore
+          retention-days: 30
+      # 시험이 실패했거나 작업 제한시간으로 취소돼도 보고서·실행 로그는 올라가게 always() 로 둔다(로그에서 멈춘 시험을 찾는다).
       - name: 서버 테스트 보고서 올리기
-        if: failure() || steps.server-test.outcome == 'failure'
+        if: always() && (failure() || cancelled() || steps.server-test.outcome == 'failure')
         uses: actions/upload-artifact@v4
         with:
           name: server-test-reports-${{ matrix.shard }}
           path: |
             furnace-server/build/reports/tests
+            furnace-server/build/no-retry-failures.txt
             /tmp/first-run
+            /tmp/shard-run.log
           if-no-files-found: ignore
           retention-days: 7
 
