@@ -1898,6 +1898,7 @@ public final class Region {
         var result = org.domi.furnace.server.block.ItemUse.useItem(level(), actor, hand);
         if (result.shouldSwing()) p.swing(hand, true);   // handleUseItem: SUCCESS 류면 본인 포함 animate(서버 쪽 결과는 대개 CONSUME)
         writeBackHand(p, actor);
+        actor.flushOpenBook();   // 쪽을 푼 서명된 책: 칸 갱신 뒤에 open_book
     }
 
     /** 솔 사용 틱(BrushItem.onUseTick): 계속 쓰면 true, 시선이 블록을 벗어났으면 false. 이 플레이어가 이 region 소속일 때만. */

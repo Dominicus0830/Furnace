@@ -270,17 +270,17 @@ public class Axolotl extends Animal implements Bucketable {
             boolean near = false;
             var box = axolotl.boundingBox().inflate(20.0);
             if (box.intersects(killer.boundingBox())) near = true;
-            if (near) rewardPlayer(killer);
+            if (near) rewardPlayer(killer, axolotl);
         }
     }
 
-    private static void rewardPlayer(Player p) {
+    private static void rewardPlayer(Player p, Mob axolotl) {
         var vitals = p.vitals();
         MobEffectInstance existing = vitals.getEffect(MobEffect.REGENERATION);
         if (existing == null || existing.duration() <= 2399) {
             int old = existing != null ? existing.duration() : 0;
             int d = Math.min(2400, 100 + old);
-            vitals.addEffect(new MobEffectInstance(MobEffect.REGENERATION, d, 0));
+            vitals.addEffect(new MobEffectInstance(MobEffect.REGENERATION, d, 0), KillCredit.lootOf(axolotl));   // source = 아홀로틀(kill_axolotl_target)
         }
         vitals.removeEffect(MobEffect.MINING_FATIGUE);
     }

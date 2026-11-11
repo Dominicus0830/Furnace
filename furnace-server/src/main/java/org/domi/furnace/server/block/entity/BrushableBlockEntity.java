@@ -80,6 +80,10 @@ public class BrushableBlockEntity extends BlockEntity {
     /** unpackLootTable(player): 표가 남았으면 CHEST 문맥으로 풀어 아이템 하나를 정한다(여럿이면 첫 번째). 표는 지운다. */
     public void unpackLootTable(BlockLevel level, BlockActor player) {
         if (lootTable == null || !(level instanceof ChunkLevel cl)) return;
+        if (player != null && player.handle() instanceof org.domi.furnace.server.entity.Player p) {   // 바닐라 dql.a: 전리품을 만들기 전에 GENERATE_LOOT
+            String id = lootTable.indexOf(':') < 0 ? "minecraft:" + lootTable : lootTable;
+            p.triggerAdvancement(a -> a.triggerContainerLoot(id));
+        }
         var list = cl.chestLoot(lootTable, lootTableSeed, pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5,
                 player == null ? null : player.handle(), player == null ? 0.0F : player.luck());
         item = list.isEmpty() ? ItemStack.EMPTY : list.get(0);   // 둘 이상이면 바닐라는 경고 후 첫 번째

@@ -1578,6 +1578,18 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     }
 
     /**
+     * 서명된 책 쪽 풀기가 바로 끝나지 않았을 때의 뒷부분(주인 스레드): 그 손에 아직 같은 책이 있으면 풀린 책으로 바꿔 알리고 open_book 을 보낸다.
+     */
+    public void finishBookOpen(int hand, ItemStack original, ItemStack resolved) {
+        var inv = inventory();
+        int ws = hand == 0 ? inv.heldWindowSlot() : 45;
+        if (!inv.get(ws).equals(original)) return;
+        var host = inventoryHost();
+        if (host != null && !resolved.equals(original)) host.replace(ws, original, resolved);
+        send(new org.domi.furnace.server.net.protocol.play.OpenBook(hand));
+    }
+
+    /**
      * 발전 과제 트리거를 플레이어 주인 스레드에서 부른다(발전 과제가 없는 서버면 아무것도 안 한다).
      * 호출 쪽 스레드에서만 볼 수 있는 값(상대 엔티티 등)은 람다 밖에서 {@code KillCredit.lootOf} 로 떠서 넘긴다.
      */

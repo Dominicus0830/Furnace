@@ -1,6 +1,7 @@
 // 블록 레벨이 서버에서 가져다 쓰는 것(게임룰·난이도·보더·날씨·시간·플레이어 방송). ServerCore 가 World 에 설치한다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.text.Text;
 import java.util.function.Consumer;
 import org.domi.furnace.server.entity.Player;
 
@@ -164,6 +165,14 @@ public interface LevelServices {
     default java.util.List<org.domi.furnace.server.entity.ItemStack> chestLoot(String lootTable, long seed, double x, double y, double z,
             Object player, float luck) { return java.util.List.of(); }
 
+    /**
+     * ComponentUtils.updateForEntity(플레이어 소스, 글, 그 플레이어, 0): 서명된 책 쪽 안의 선택자·점수·NBT 글을 값으로 푼다.
+     * 풀 수 없는 서버(시험)는 그대로. 풀기 실패는 예외로 끝나는 future.
+     */
+    default java.util.concurrent.CompletableFuture<Text> resolveBookText(Object player, Text text) {
+        return java.util.concurrent.CompletableFuture.completedFuture(text);
+    }
+
     /** Level.getBiome(pos) 의 이름(확대 지터 포함). 모르면 null. */
     default String biomeAt(int x, int y, int z) { return null; }
 
@@ -320,6 +329,7 @@ public interface LevelServices {
                 Object player, float luck) {
             return d.chestLoot(lootTable, seed, x, y, z, player, luck);
         }
+        public java.util.concurrent.CompletableFuture<Text> resolveBookText(Object player, Text text) { return d.resolveBookText(player, text); }
         public String biomeAt(int x, int y, int z) { return d.biomeAt(x, y, z); }
         public String roughBiomeAt(int x, int y, int z) { return d.roughBiomeAt(x, y, z); }
         public int simulationDistance() { return d.simulationDistance(); }
