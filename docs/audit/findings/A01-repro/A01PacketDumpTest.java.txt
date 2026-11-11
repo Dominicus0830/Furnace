@@ -1,0 +1,71 @@
+// A01 점검: Furnace 가 쓰는 드문 play 패킷의 직렬화 바이트를 환경 변수 A01_DUMP 폴더의 play-extra.txt 로 덤프한다(독립 파서 대조용 입력).
+// 사용: .txt 를 떼어 furnace-server/src/test/java/org/domi/furnace/server/net/ 에 두고 A01_DUMP=<폴더> gradle :furnace-server:test --tests '*A01PacketDump*'. 그 폴더를 parsedump.js.txt 가 읽는다.
+package org.domi.furnace.server.net;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.UUID;
+import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.net.io.Types;
+import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.play.*;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.Test;
+
+class A01PacketDumpTest {
+    final StringBuilder out = new StringBuilder();
+
+    void dump(String name, Packet p) {
+        ByteBuf b = Unpooled.buffer();
+        Types.writeVarInt(b, p.id());
+        p.write(b);
+        byte[] bytes = new byte[b.readableBytes()];
+        b.readBytes(bytes);
+        out.append(name).append(' ').append(HexFormat.of().formatHex(bytes)).append('\n');
+    }
+
+    @Test
+    void dumpAll() throws Exception {
+        String dir = System.getenv("A01_DUMP");
+        Assumptions.assumeTrue(dir != null);
+        UUID u = new UUID(1, 2);
+        dump("horse", new HorseScreenOpen(3, 5, 77));
+        dump("ghost", new PlaceGhostRecipe(1, "minecraft:stick"));
+        dump("soundEntityReg", new SoundEntity(5, null, 2, 77, 1f, 1f, 123L));
+        dump("soundEntityDirect", new SoundEntity(-1, "my:sound", 2, 77, 1f, 1f, 123L));
+        dump("infoRemove", new PlayerInfoRemove(List.of(u)));
+        dump("enterCombat", new PlayerCombatEnter());
+        dump("lookAtPos", PlayerLookAt.atPosition(1, 1, 2, 3));
+        dump("lookAtEnt", new PlayerLookAt(0, 1, 2, 3, 77, 1));
+        dump("link", new SetEntityLink(1, 2));
+        dump("passengers", new SetPassengers(1, new int[]{2, 3}));
+        dump("openBook", new OpenBook(1));
+        dump("moveVehicle", new MoveVehicle(1, 2, 3, 4f, 5f));
+        dump("chunkRadius", new SetChunkCacheRadius(8));
+        dump("simDist", new SetSimulationDistance(8));
+        dump("camera", new SetCamera(5));
+        dump("transfer", new Transfer("h.example", 25565));
+        dump("serverLinksPlay", new ServerLinksPacket(List.of(new ServerLinksPacket.Entry(0, null, "https://a"), new ServerLinksPacket.Entry(-1, Text.text("x"), "https://b")), true));
+        dump("resourcePackPush", new ResourcePackPush(u, "https://u", "0123456789012345678901234567890123456789", true, Text.text("p"), true));
+        dump("resourcePackPush2", new ResourcePackPush(u, "https://u", "", false, null, true));
+        dump("infoUpdate", new PlayerInfoUpdate(List.of(new PlayerInfoUpdate.Entry(u, "Abc", 1, 20),
+                new PlayerInfoUpdate.Entry(new UUID(3, 4), "Def", List.of(new org.domi.furnace.server.players.GameProfile.Property("textures", "v", "sig"), new org.domi.furnace.server.players.GameProfile.Property("a", "b", null)), null, 0, 5))));
+        dump("infoGameMode", PlayerInfoUpdate.updateGameMode(u, 2));
+        dump("take", new TakeItemEntity(1, 2, 3));
+        dump("deleteCacheId", new DeleteChat(3, null));
+        dump("deleteSig", new DeleteChat(-1, new byte[256]));
+        dump("payload", new CustomPayloadPacket("a:b", new byte[]{1, 2, 3}, true));
+        dump("setData", new ContainerSetData(1, 2, 3));
+        dump("recipeBookInit", new RecipeBookUpdate(RecipeBookUpdate.INIT, new boolean[8], List.of(org.domi.furnace.server.data.ResourceId.parse("minecraft:stick")), List.of(org.domi.furnace.server.data.ResourceId.parse("minecraft:stone"))));
+        dump("recipeBookAdd", new RecipeBookUpdate(RecipeBookUpdate.ADD, new boolean[]{true, false, true, false, true, false, true, false}, List.of(org.domi.furnace.server.data.ResourceId.parse("minecraft:stick")), List.of()));
+        dump("mapNoPatch", new MapItemData(1, (byte) 2, false, null, null));
+        dump("mapPatch", new MapItemData(1, (byte) 2, true, List.of(), new MapItemData.Patch(1, 2, 3, 2, new byte[6])));
+        dump("equipment", new SetEquipment(5, List.of(new SetEquipment.Entry(org.domi.furnace.server.entity.EquipmentSlot.MAINHAND, org.domi.furnace.server.entity.ItemStack.EMPTY),
+                new SetEquipment.Entry(org.domi.furnace.server.entity.EquipmentSlot.HEAD, org.domi.furnace.server.entity.ItemStack.EMPTY))));
+        Files.writeString(Path.of(dir, "play-extra.txt"), out.toString());
+    }
+}

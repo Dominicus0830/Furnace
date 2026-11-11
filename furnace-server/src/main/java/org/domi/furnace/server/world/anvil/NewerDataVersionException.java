@@ -6,7 +6,7 @@ package org.domi.furnace.server.world.anvil;
 
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
-public final class NewerDataVersionException extends RuntimeException {
+public final class NewerDataVersionException extends UnsupportedDataVersionException {
 
     /** 이 서버가 읽고 쓰는 데이터 판(1.21.1). */
     public static final int CURRENT = AnvilChunkCodec.DATA_VERSION;
@@ -14,15 +14,10 @@ public final class NewerDataVersionException extends RuntimeException {
     /** Paper 와 같은 이름의 탈출구: 켜면 새 판 데이터도 연다(모르는 블록·아이템은 지워진다). */
     public static final String IGNORE_PROPERTY = "Paper.ignoreWorldDataVersion";
 
-    private final int dataVersion;
-
     public NewerDataVersionException(String what, int dataVersion) {
         super(what + " 의 데이터 버전 " + dataVersion + " 이 이 서버(" + CURRENT + ", 1.21.1)보다 새것이다 — 새 판에서 저장된 데이터는 열지 않는다"
-                + "(모르는 블록·아이템이 지워진다). 강제로 열려면 -D" + IGNORE_PROPERTY + "=true");
-        this.dataVersion = dataVersion;
+                + "(모르는 블록·아이템이 지워진다). 강제로 열려면 -D" + IGNORE_PROPERTY + "=true", dataVersion);
     }
-
-    public int dataVersion() { return dataVersion; }
 
     /** 기본은 꺼짐 — 새 판 데이터를 거부한다. */
     public static boolean ignored() {

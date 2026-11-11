@@ -225,7 +225,7 @@ public class Cat extends TamableAnimal {
     protected void reassessTameGoals() {
         if (avoidPlayersGoal == null) avoidPlayersGoal = new CatAvoidEntityGoal(this, Player.class, 16.0F, 0.8, 1.33);
         goalSelector.removeGoal(avoidPlayersGoal);
-        if (!isTame()) goalSelector.addGoal(3, avoidPlayersGoal);
+        if (!isTame()) goalSelector.addGoal(4, avoidPlayersGoal);   // 바닐라 cfh.gA: iconst_4 — 유혹(4)과 같아 서로 끊지 못한다
     }
 
     private static final class CatAvoidEntityGoal extends AvoidEntityGoal {

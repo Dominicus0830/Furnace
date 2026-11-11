@@ -38,9 +38,17 @@ public final class ExplorerMaps {
     public static ItemStack create(Backend backend, int x, int y, int z, String structureTag, MapDecorationType type, String nameKey) {
         int[] found = backend.findNearestMapStructure(structureTag, x, y, z, 100);
         if (found == null) return null;
-        ItemStack map = MapItems.create(backend.dimension(), found[0], found[1], (byte) 2, true, true);
-        MapRenderer.renderBiomePreview(MapStore.of(map), backend::waterOnMapOutlines);
-        map = MapItems.addTargetDecoration(map, found[0], found[1], "+", type);
+        ItemStack map = createAt(backend, found[0], found[1], (byte) 2, type);
         return ItemTools.with(map, "minecraft:item_name", "{\"translate\":\"" + nameKey + "\"}");
+    }
+
+    /**
+     * 찾은 구조물 (x, z) 를 가리키는 지도 한 장: MapItem.create(위치 추적·무제한 추적) → renderBiomePreviewMap
+     * → addTargetDecoration("+"). 거래(배율 2)와 전리품 exploration_map(배율 = zoom)이 함께 쓴다.
+     */
+    public static ItemStack createAt(Backend backend, int x, int z, byte scale, MapDecorationType type) {
+        ItemStack map = MapItems.create(backend.dimension(), x, z, scale, true, true);
+        MapRenderer.renderBiomePreview(MapStore.of(map), backend::waterOnMapOutlines);
+        return MapItems.addTargetDecoration(map, x, z, "+", type);
     }
 }

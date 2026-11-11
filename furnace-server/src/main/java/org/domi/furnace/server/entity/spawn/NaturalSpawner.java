@@ -66,7 +66,7 @@ public final class NaturalSpawner {
         private boolean near(Player p, int cx, int cz) {
             if (p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return false;
             double dx = p.x() - (cx * 16 + 8), dz = p.z() - (cz * 16 + 8);
-            return dx * dx + dz * dz <= 128.0 * 128.0;
+            return dx * dx + dz * dz < 16384.0;   // 바닐라 ChunkMap.playerIsCloseEnoughForSpawning: < 128²
         }
 
         void addMobToLocalCaps(int cx, int cz, MobCategory cat) {
@@ -124,11 +124,11 @@ public final class NaturalSpawner {
             if (policyHolder != null) policyHolder.removeFilter(f);
         }
 
-        /** SpawnState.canSpawn(type, pos, chunk): 스폰 비용(에너지 예산) 검사. */
-        boolean canSpawn(String type, Pos pos, ChunkLevel level) {
+        /** SpawnState.canSpawn(type, pos, chunk): 스폰 비용(에너지 예산) 검사. 바이옴은 스폰 중인 청크(cx, cz)의 rough 바이옴(spawnChunkBiome). */
+        boolean canSpawn(String type, Pos pos, ChunkLevel level, int cx, int cz) {
             lastPos = pos;
             lastType = type;
-            BiomeSpawns.SpawnCost cost = BiomeSpawns.cost(biomeName(level, pos), type);
+            BiomeSpawns.SpawnCost cost = BiomeSpawns.cost(spawnChunkBiome(level, cx, cz, pos), type);
             if (cost == null) {
                 lastCharge = 0.0;
                 return true;
@@ -152,14 +152,14 @@ public final class NaturalSpawner {
             if (charge != 0.0) charges.add(new double[] {pos.x(), pos.y(), pos.z(), charge});
         }
 
-        void afterSpawn(Mob mob, ChunkLevel level) {
+        void afterSpawn(Mob mob, ChunkLevel level, int cx, int cz) {
             String type = mob.type().name();
             Pos pos = mob.blockPosition();
             double charge;
             if (pos.equals(lastPos) && type.equals(lastType)) {
                 charge = lastCharge;
             } else {
-                BiomeSpawns.SpawnCost cost = BiomeSpawns.cost(biomeName(level, pos), type);
+                BiomeSpawns.SpawnCost cost = BiomeSpawns.cost(spawnChunkBiome(level, cx, cz, pos), type);
                 charge = cost == null ? 0.0 : cost.charge();
             }
             addCharge(pos, charge);
@@ -178,6 +178,14 @@ public final class NaturalSpawner {
     static String roughBiomeName(ChunkLevel level, Pos pos) {
         String b = level.roughBiomeAt(pos.x(), pos.y(), pos.z());
         return b == null ? null : b.indexOf(':') < 0 ? "minecraft:" + b : b;
+    }
+
+    /**
+     * 바닐라 NaturalSpawner.getRoughBiome(pos, chunk) = chunk.getNoiseBiome(quart x, y, z): 스폰 중인 청크의 섹션에서 quart 를 x&3, z&3 로 읽는다.
+     * 무리가 이웃 청크로 퍼져도 그 칸이 아니라 스폰 중인 청크의 같은 상대 자리 바이옴을 본다(바닐라 버릇 그대로).
+     */
+    static String spawnChunkBiome(ChunkLevel level, int cx, int cz, Pos pos) {
+        return roughBiomeName(level, new Pos((cx << 4) | (pos.x() & 12), pos.y(), (cz << 4) | (pos.z() & 12)));
     }
 
     /** NaturalSpawner.createState: region 의 엔티티를 세어 종류별 수·지역 상한·전하를 모은다. */
@@ -218,18 +226,22 @@ public final class NaturalSpawner {
     private static void spawnCategoryForChunk(MobCategory cat, ChunkLevel level, int cx, int cz, SpawnState state) {
         RandomSource rnd = level.random();
         int x = cx * 16 + rnd.nextInt(16), z = cz * 16 + rnd.nextInt(16);
-        int top = level.getWorldSurfaceHeight(x, z) + 1;
+        int top = randomPosTop(level, x, z);
         int min = level.minBuildHeight();
         int y = rnd.nextInt(top - min + 1) + min;
         if (y >= min + 1) spawnCategoryForPosition(cat, level, cx, cz, new Pos(x, y, z), state);
     }
 
-    private static boolean isRightDistanceToPlayerAndSpawnPoint(ChunkLevel level, int cx, int cz, Pos pos, double distSqr) {
+    /** 바닐라 getRandomPosWithin 의 위 끝(포함): LevelChunk.getHeight(WORLD_SURFACE)(맨 위 블록) + 1. getWorldSurfaceHeight 가 이미 맨 위 블록 + 1 이다. */
+    static int randomPosTop(ChunkLevel level, int x, int z) { return level.getWorldSurfaceHeight(x, z); }
+
+    static boolean isRightDistanceToPlayerAndSpawnPoint(ChunkLevel level, int cx, int cz, Pos pos, double distSqr) {
         if (distSqr <= 576.0) return false;
         int[] sp = level.sharedSpawnPos();
         double dx = pos.x() + 0.5 - (sp[0] + 0.5), dy = pos.y() - (sp[1] + 0.5), dz = pos.z() + 0.5 - (sp[2] + 0.5);
         if (dx * dx + dy * dy + dz * dz < 24.0 * 24.0) return false;
-        return cx == (pos.x() >> 4) && cz == (pos.z() >> 4) || level.withinBorder(pos);
+        // 바닐라 ddh.a(aqu,duy,jd$a,double): 같은 청크이거나 그 칸 청크가 엔티티 틱(isNaturalSpawningAllowed). 보더는 청크 단위로만 본다(RegionLevel.tickBlocks)
+        return cx == (pos.x() >> 4) && cz == (pos.z() >> 4) || level.isNaturalSpawningAllowed(pos.x() >> 4, pos.z() >> 4);
     }
 
     private static void spawnCategoryForPosition(MobCategory cat, ChunkLevel level, int cx, int cz, Pos start, SpawnState state) {
@@ -260,7 +272,7 @@ public final class NaturalSpawner {
                     if (data == null) break;
                     groupSize = data.minCount() + rnd.nextInt(1 + data.maxCount() - data.minCount());
                 }
-                if (!isValidSpawnPositionForType(level, cat, data, pos, distSqr, biome) || !state.canSpawn(data.type(), pos, level)
+                if (!isValidSpawnPositionForType(level, cat, data, pos, distSqr, biome) || !state.canSpawn(data.type(), pos, level, cx, cz)
                         || !state.filtersAllow(cat, data.type(), level, pos, player)) continue;
                 Mob mob = getMobForSpawn(level, data.type());
                 if (mob == null) return;
@@ -270,7 +282,7 @@ public final class NaturalSpawner {
                     spawned++;
                     inCluster++;
                     level.addFreshEntityWithPassengers(mob.spawnReason("NATURAL"));
-                    state.afterSpawn(mob, level);
+                    state.afterSpawn(mob, level, cx, cz);
                     if (spawned >= mob.getMaxSpawnClusterSize()) return;
                     if (mob.isMaxGroupSizeReached(inCluster)) break;
                 }

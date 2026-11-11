@@ -28,7 +28,7 @@ class SpawnStateLocalCapTest {
             for (Player p : players) {
                 if (p.gameMode() == GameMode.SPECTATOR) continue;
                 double dx = p.x() - mx, dz = p.z() - mz;
-                if (dx * dx + dz * dz <= 128.0 * 128.0) out.add(p);
+                if (dx * dx + dz * dz < 128.0 * 128.0) out.add(p);   // 바닐라 playerIsCloseEnoughForSpawning: <
             }
             return out;
         }

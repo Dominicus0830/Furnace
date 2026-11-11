@@ -8,6 +8,12 @@ import org.domi.furnace.server.block.Pos;
 
 public abstract class Monster extends PathfinderMob implements Enemy {
 
+    private static final String[] HOSTILE_FALL_SOUNDS = {"minecraft:entity.hostile.small_fall", "minecraft:entity.hostile.big_fall"};
+
+    @Override
+    public String[] fallSounds() { return HOSTILE_FALL_SOUNDS; }
+
+
     protected Monster(EntityType type, ChunkLevel level, int id) {
         super(type, level, id);
         xpReward = 5;

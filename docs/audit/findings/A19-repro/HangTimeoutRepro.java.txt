@@ -1,0 +1,9 @@
+// A19-01 재현: 시험 기본 제한시간이 없다. 아래 시험을 furnace-server/src/test/java/org/domi/furnace/server/ 에 넣고
+//   ./gradlew --offline -PskipOracle=true :furnace-server:test --tests '*ReviewA19HangTest'
+// → 기준 커밋(eab009d9)에서 통과(10초 그냥 기다림). furnace-server/src/test/resources/junit-platform.properties 에
+//   junit.jupiter.execution.timeout.default=3s 를 한 줄 넣으면 같은 시험이 "timed out after 3 seconds" 로 FAILED(실측).
+package org.domi.furnace.server;
+import org.junit.jupiter.api.Test;
+class ReviewA19HangTest {
+    @Test void blocksForTenSeconds() throws Exception { Thread.sleep(10_000); }
+}

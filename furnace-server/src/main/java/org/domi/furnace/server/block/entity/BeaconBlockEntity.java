@@ -11,6 +11,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.effect.MobEffect;
 import org.domi.furnace.server.effect.MobEffectInstance;
 import org.domi.furnace.server.entity.AABB;
+import org.domi.furnace.server.light.LightTables;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
@@ -83,8 +84,8 @@ public class BeaconBlockEntity extends BlockEntity {
                     }
                 }
             } else {
-                // TODO(빛): 바닐라는 getLightBlock(state) >= 15 && 기반암 아님. 지금은 위로 빛을 완전히 막는지로 근사.
-                if (section == null || B.lightBlockedAbove(state) && !B.is(state, "bedrock")) {
+                // 바닐라: getLightBlock(state) >= 15 && 기반암이 아니면 빛줄기가 끊긴다.
+                if (section == null || LightTables.lightBlock(state) >= 15 && !B.is(state, "bedrock")) {
                     checkingBeamSections.clear();
                     lastCheckY = topY;
                     break;

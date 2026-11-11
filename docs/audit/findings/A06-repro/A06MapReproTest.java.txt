@@ -1,0 +1,59 @@
+// A06 조사 재현: 보물 지도(전리품 exploration_map)·탐험 지도 skipKnownStructures. 기대값 근거는 A06 보고서.
+package org.domi.furnace.server.audit;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.lang.reflect.Method;
+import java.nio.file.Path;
+import org.domi.furnace.server.ServerCore;
+import org.domi.furnace.server.TestServers;
+import org.domi.furnace.server.net.registry.RegistrySet;
+import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
+import org.domi.furnace.server.world.gen.NoiseWorldSource;
+import org.domi.furnace.server.world.gen.structure.StructureLocator;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+class A06MapReproTest {
+    @TempDir Path tmp;
+
+    private ServerCore noiseCore() {
+        return TestServers.core(tmp, new FurnaceSchedulerImpl(50_000_000L, 1), reg -> NoiseWorldSource.overworld(1234L, reg, RegistrySet.load("registries/1.21.1.txt")));
+    }
+
+    /**
+     * A06-02: 난파선 지도 상자(chests/shipwreck_map)의 exploration_map(destination #on_treasure_maps, 반경 50, skip true)은
+     * 바닐라에서 묻힌 보물 지도가 된다. Furnace 전리품 월드는 findNearestMapStructure 를 구현하지 않아 늘 null → 빈 지도.
+     */
+    @Test
+    void lootExplorationMapFindsBuriedTreasure() throws Exception {
+        ServerCore core = noiseCore();
+        NoiseWorldSource gen = NoiseWorldSource.of(core.world().worldSource());
+        StructureLocator.Found f = gen.structureLocator().findNearest(java.util.List.of("minecraft:buried_treasure"), 0, 64, 0, 50);
+        assertNotNull(f, "시드 1234 원점 반경 50 안에 묻힌 보물이 있어야 시험이 뜻이 있다");
+        Method m = ServerCore.class.getDeclaredMethod("lootWorldFor", org.domi.furnace.server.world.World.class);
+        m.setAccessible(true);
+        org.domi.furnace.server.loot.LootWorld lw = (org.domi.furnace.server.loot.LootWorld) m.invoke(core, core.world());
+        int[] pos = lw.findNearestMapStructure("minecraft:on_treasure_maps", new double[] {0.5, 64, 0.5}, 50, true);
+        assertNotNull(pos, "전리품 exploration_map 이 묻힌 보물 " + f + " 을 못 찾는다(빈 지도가 나온다)");
+    }
+
+    /**
+     * A06-03: 바닐라 탐험 지도(skipKnownStructures=true)는 찾은 시작점의 references 를 늘려(tryAddReference) 다음 지도가 다른 구조물을 가리킨다.
+     * 같은 자리에서 해저 신전 탐험 지도를 두 번 만들면 두 번째는 다른 곳이어야 한다.
+     */
+    @Test
+    void secondExplorerMapSkipsKnownStructure() throws Exception {
+        ServerCore core = noiseCore();
+        Method m = ServerCore.class.getDeclaredMethod("explorerMapBackend");
+        m.setAccessible(true);
+        var backend = (org.domi.furnace.server.map.ExplorerMaps.Backend) m.invoke(core);
+        assertNotNull(backend);
+        int[] first = backend.findNearestMapStructure("minecraft:on_ocean_explorer_maps", 0, 64, 0, 100);
+        assertNotNull(first);
+        int[] second = backend.findNearestMapStructure("minecraft:on_ocean_explorer_maps", 0, 64, 0, 100);
+        assertNotNull(second);
+        assertFalse(first[0] == second[0] && first[1] == second[1],
+            "두 번째 탐험 지도가 같은 해저 신전 (" + first[0] + "," + first[1] + ") 을 가리킨다");
+    }
+}
