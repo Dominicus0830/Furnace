@@ -279,7 +279,31 @@ public final class Region {
         evictGrace.putAll(o.evictGrace);
         o.evictGrace.clear();
         if (o.level != null) level().absorbFrom(o.level);
+        mergeStepsFrom(o);
     }
+
+    /**
+     * /tick step 남은 걸음 합치기(A03-03): 바닐라는 서버 틱 하나로 세어 step 동안 올라와 있는 모든 엔티티가 남은 걸음을 다 받는다. 예전엔
+     * 흡수하는 쪽 값만 남아, step 도중 생긴 새 region(걸음 0, 참여 안 함)이 원래 region 을 흡수하면 원래 엔티티가 남은 걸음을 잃고 멈췄다.
+     * 참여하는 쪽(이번 세대를 아직 안 봤거나 처음부터 받은 region)의 값을 쓴다. 둘 다 참여하면 Regionizer.stepCompatible 이 같은 박자의
+     * 한 걸음 차이는 한 번 미뤄 같게 만든다 — 그래도 다르면(박자가 밀린 region, 양보한 region) 많이 남은 쪽(잃는 것보다 낫다).
+     */
+    private void mergeStepsFrom(Region o) {
+        TickState ts = world.tickState();
+        int g = ts.generation();
+        boolean jm = stepParticipates(g), jo = o.stepParticipates(g);
+        int left;
+        if (jm && jo) left = Math.max(stepLeftAt(g, ts), o.stepLeftAt(g, ts));
+        else if (jm) left = stepLeftAt(g, ts);
+        else if (jo) left = o.stepLeftAt(g, ts);
+        else left = Math.max(stepsLeft, o.stepsLeft);   // 둘 다 step 도중 생긴 region(보통 0)
+        inheritSteps(g, left, jm || jo);
+    }
+
+    /** 세대 g 의 step 에 참여하나: 아직 이 세대를 못 봤으면(다음 틱에 요청 걸음을 다 채운다) 또는 처음부터 받았으면. */
+    private boolean stepParticipates(int g) { return stepGeneration != g || stepJoined; }
+
+    private int stepLeftAt(int g, TickState ts) { return stepGeneration != g ? ts.requestedSteps() : stepsLeft; }
 
     /** targetOf(청크 키) 가 null 이면 이 region 에 남는다. */
     void splitData(List<Region> created, LongFunction<Region> targetOf) {
@@ -1124,15 +1148,36 @@ public final class Region {
     long manualDone;
     boolean manualPass;
 
-    /** /tick step: 이 region 이 본 step 세대와 남은 걸음(region 스레드 전용). */
+    /** /tick step: 이 region 이 본 step 세대와 남은 걸음, 이번 세대에 처음부터 참여했는지(region 스레드 전용 — 쉬는 동안 잠금 안에서 이어받기). */
     private int stepGeneration;
     private int stepsLeft;
+    private boolean stepJoined;
+    /** 틱 뒤(Regionizer 잠금 안)에 남기는 요약: 본 세대, 참여 여부, 남은 걸음 — 병합 판정(stepCompatible)이 잠금 안에서 읽는다. */
+    int stepSeen;
+    boolean stepJoinedSummary;
+    int stepLeftSummary;
 
     /** 새 region 이 /tick step 상태를 이어받는다: 생성 시점 세대(남은 걸음 0) 또는 나눈 부모의 세대·남은 걸음. */
     void inheritSteps(int generation, int left) {
+        inheritSteps(generation, left, left > 0);
+    }
+
+    /** joined: 이 세대 step 에 참여 중인지(나눈 부모·합친 상대에게서 이어받는다). 요약도 함께 맞춘다(잠금 안). */
+    void inheritSteps(int generation, int left, boolean joined) {
         this.stepGeneration = generation;
         this.stepsLeft = left;
+        this.stepJoined = joined;
+        updateStepSummary();
     }
+
+    /** 요약 갱신(Regionizer 잠금 안, region 이 쉬는 동안). */
+    void updateStepSummary() {
+        stepSeen = stepGeneration;
+        stepJoinedSummary = stepJoined;
+        stepLeftSummary = stepsLeft;
+    }
+
+    boolean stepJoined() { return stepJoined; }
 
     int stepGeneration() { return stepGeneration; }
 
@@ -1202,6 +1247,7 @@ public final class Region {
         if (stepGeneration != tickState.generation()) {
             stepGeneration = tickState.generation();
             stepsLeft = tickState.requestedSteps();
+            stepJoined = true;   // 이 세대가 시작될 때 있던 region — 걸음을 처음부터 받는다
         }
         if (frozen && stepsLeft > 0) {
             stepsLeft--;

@@ -434,6 +434,7 @@ public final class FurnaceMain {
             // 바닐라 saveEverything: 플레이어(PlayerList.saveAll) → 청크 → level.dat. 플레이어 기록은 전용 실행기에서 — 끝날 때까지 기다린다
             java.util.List<java.util.concurrent.CompletableFuture<Void>> players = new java.util.ArrayList<>();
             for (var p : core.players()) players.add(p.requestSave());
+            players.add(org.domi.furnace.server.entity.PlayerData.pendingSaves());   // 방금 나가 인벤토리 줄에서 기다리는 퇴장 저장(A04)
             for (World w : dimensions.all()) {
                 try {
                     int left = w.flushAllDrained(java.util.concurrent.TimeUnit.SECONDS.toNanos(60));
@@ -569,6 +570,8 @@ public final class FurnaceMain {
         console.attach(core);
         InterruptConfirm.installIfEnabled(org.domi.furnace.server.config.OperatorOptions.current());
         // 전역 틱: 시간·날씨(바닐라 ServerLevel.tick 의 전역 부분). 고정 박자 — /tps 의 전역 값이 이 박동이다.
+        // 전역 지연 작업(플러그인 runLater·Bukkit 스케줄러·자동 저장)은 이 박동이 낸 서버 틱으로 센다 — 건너뛴 틱은 스케줄러도 건너뛴다(A14-04)
+        ((org.domi.furnace.server.sched.GlobalThread) scheduler.global()).driveByServerTicks();
         new FixedRateBeat(scheduler, core::scheduledTick, 50_000_000L).start();
 
         startRemoteServices(core, props, config, rconLimits, remoteServices);
@@ -599,6 +602,7 @@ public final class FurnaceMain {
             @Override public java.util.List<java.util.concurrent.CompletableFuture<Void>> requestPlayerSaves() {
                 java.util.List<java.util.concurrent.CompletableFuture<Void>> out = new java.util.ArrayList<>();
                 for (var p : core.players()) out.add(p.requestSave());
+                out.add(org.domi.furnace.server.entity.PlayerData.pendingSaves());   // 잡힌 퇴장 저장(A04)
                 return out;
             }
             @Override public void saveLevelData() {
@@ -719,11 +723,42 @@ public final class FurnaceMain {
         public void run() {
             try {
                 task.run();
+            } catch (Throwable t) {
+                GLOBAL_ERRORS.report("자동 저장(level.dat)", t);
             } finally {
                 scheduler.global().executeDelayed(this, period);
             }
         }
     }
+
+    /**
+     * 전역 스레드 반복 작업의 예외 기록(A03-05): GlobalThread.execute 는 예외를 버려지는 future 에만 담아, 예전엔 전역 틱(시간·날씨·#tick 함수)
+     * 예외가 로그 없이 사라졌다. 처음 한 번은 바로, 이후 같은 곳의 예외는 10초에 한 번 묶어서(그 사이 건수와 함께) 남긴다. 바닐라는 tickServer
+     * 예외에 크래시 리포트를 남기고 멈추지만, 여기서는 region 틱 실패("[TICK] region 실패")처럼 기록하고 다음 박동을 계속 돈다.
+     */
+    static final class ErrorThrottle {
+        static final long INTERVAL_NANOS = 10_000_000_000L;
+        private final java.util.concurrent.ConcurrentHashMap<String, long[]> last = new java.util.concurrent.ConcurrentHashMap<>();   // [마지막 기록 시각, 그 뒤 건수]
+
+        void report(String where, Throwable t) {
+            long now = System.nanoTime();
+            long[] st = last.computeIfAbsent(where, k -> new long[] {now - INTERVAL_NANOS, 0});
+            long suppressed;
+            synchronized (st) {
+                if (now - st[0] < INTERVAL_NANOS) {
+                    st[1]++;
+                    return;
+                }
+                suppressed = st[1];
+                st[0] = now;
+                st[1] = 0;
+            }
+            if (suppressed > 0) log.error("[TICK] 전역 틱 실패({}) — 지난 10초 동안 {}번 더", where, suppressed, t);
+            else log.error("[TICK] 전역 틱 실패({})", where, t);
+        }
+    }
+
+    static final ErrorThrottle GLOBAL_ERRORS = new ErrorThrottle();
 
     /**
      * 고정 박자 반복(전역 틱) — 바닐라 MinecraftServer.runServer 의 박자: 마감을 주기만큼 앞으로 옮겨(nextTickTimeNanos += nanosPerTick)
@@ -737,6 +772,7 @@ public final class FurnaceMain {
         static final long OVERLOADED_WARNING_INTERVAL_NANOS = 10_000_000_000L;
         private final FurnaceSchedulerImpl scheduler;
         private final Runnable task;
+        private final ErrorThrottle errors = new ErrorThrottle();
         final long period;
         /** 이번 박동의 마감(바닐라 nextTickTimeNanos)과 마지막 과부하 경고 때의 마감(lastOverloadWarningNanos). */
         long next, lastWarning;
@@ -761,6 +797,8 @@ public final class FurnaceMain {
                 if (skipped > 0) log.warn("Can't keep up! Is the server overloaded? Running {}ms or {} ticks behind", behind / 1_000_000L, skipped);
                 next += period;
                 task.run();
+            } catch (Throwable t) {
+                errors.report("전역 박동", t);   // 예전엔 future 에 담겨 사라졌다
             } finally {
                 schedule();
             }
@@ -780,8 +818,8 @@ public final class FurnaceMain {
 
         private void schedule() {
             long delay = Math.max(0L, next - System.nanoTime());
-            java.util.concurrent.CompletableFuture.runAsync(this, java.util.concurrent.CompletableFuture.delayedExecutor(
-                    delay, java.util.concurrent.TimeUnit.NANOSECONDS, r -> scheduler.global().execute(r)));
+            // 전역 스레드 자신의 예약으로(벽시계) — JDK 지연 실행기 스레드를 쓰지 않는다(A14-09)
+            ((org.domi.furnace.server.sched.GlobalThread) scheduler.global()).executeAfterNanos(this, delay);
         }
     }
 
