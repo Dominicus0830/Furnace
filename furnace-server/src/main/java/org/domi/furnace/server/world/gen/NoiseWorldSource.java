@@ -286,8 +286,10 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
             new org.domi.furnace.server.world.gen.structure.StructureEngine(reg, seed, new java.util.HashSet<>(possible));
 
         structureEngine.setBiomeRegistryNames(registryBiomeNames);
-        // 평지 구조물(structure_overrides)은 아직 만들지 않는다 — 높이(getBaseHeight)·찾기 연결과 함께 다음 단계(A06-04 뒤쪽)
-        if (flat != null) structureEngine.setAllowedSets(java.util.Set.of());
+        // 평지: FlatLevelSource.createState — structure_overrides 의 세트만(없으면 레지스트리 전부)
+        if (flat != null && flat.structureOverrides() != null) structureEngine.setAllowedSets(new java.util.HashSet<>(flat.structureOverrides()));
+        // ChunkGeneratorStructureState.createForFlat: concentricRingsSeed = 0(요새 링이 시드와 무관)
+        if (flat != null) structureEngine.setConcentricRingsSeed(0L);
         NoiseWorldSource source = new NoiseWorldSource(router, settings, biomeSampler, surfaceSystem,
                                     registryBiomeNames, stoneId, waterId, lavaId,
                                     seed, reg, biomeDirectBits, overworldCarvers,
@@ -295,6 +297,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         source.worldgenData = data;
         source.dimension = dim;
         source.flatLayers = flatLayers;
+        source.fixedBiomeName = fixedBiome;
         if (flatLayers != null) source.flatBiomeId = registries.indexOf("minecraft:worldgen/biome", flat.biome());
         return source;
     }
@@ -303,6 +306,14 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     /** 평지 생성기의 층(null 이면 노이즈 생성기). */
     private FlatLayers flatLayers;
     private int flatBiomeId;
+    /** FixedBiomeSource 바이옴(평지·single_biome_surface), multi_noise 면 null. */
+    private String fixedBiomeName;
+
+    @Override public String fixedBiome() { return dimension == Dimension.OVERWORLD ? fixedBiomeName : null; }
+
+    @Override public int levelMinY() { return dimension.minY; }
+
+    @Override public int levelMaxY() { return dimension.minY + dimension.sectionCount * 16; }
 
     /** 평지 생성기(FlatLevelSource)인가. */
     public boolean isFlat() { return flatLayers != null; }
