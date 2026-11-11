@@ -512,7 +512,7 @@ public abstract non-sealed class Entity implements Rider {
     public boolean teleportToDimension(String dimension, double tx, double ty, double tz, float yaw, float pitch, Runnable done) {
         if (level == null || isRemoved()) return false;
         var travel = level.dimensionTravel();
-        if (travel == null) return false;
+        if (travel == null || travel.frozen()) return false;   // 종료 저장 기준점 뒤 — 옮기지 않는다
         float p = Math.clamp(pitch, -90.0F, 90.0F);
         PortalTravel plan = new PortalTravel(dimension, floor(tx), floor(tz), 0, 0,
                 lvl -> new DimensionTransition(lvl, tx, ty, tz, 0, 0, 0, yaw, p));
@@ -576,8 +576,20 @@ public abstract non-sealed class Entity implements Rider {
                             org.domi.furnace.server.block.LevelServices.DimensionTravel travel,
                             java.util.function.BiConsumer<Entity, DimensionTransition> place, Runnable done, String targetDimension,
                             boolean carryPassengers) {
+        if (travel.frozen()) {   // 종료 저장 기준점 뒤: 떠나지 않는다(저장된 차원과 나중 차원 사이에서 둘이 되거나 사라지지 않게)
+            if (done != null) done.run();
+            return;
+        }
         final double ox = x, oz = z;
-        final CarriedEntity self = depart(travel, targetDimension, carryPassengers);
+        // 떠나서 도착(또는 되돌림 작업 넣기)까지 원천 월드가 센다 — 종료 저장 기준점이 차원·관문 이동 모두 끝나기를 기다린다
+        travel.departing();
+        final CarriedEntity self;
+        try {
+            self = depart(travel, targetDimension, carryPassengers);
+        } catch (RuntimeException ex) {
+            travel.settled();
+            throw ex;
+        }
         final java.util.concurrent.atomic.AtomicBoolean called = new java.util.concurrent.atomic.AtomicBoolean();
         try {
             route.accept((target, t) -> {
@@ -589,6 +601,7 @@ public abstract non-sealed class Entity implements Rider {
                         arrive(target, t, travel, self, place);
                     }
                 } finally {
+                    travel.settled();
                     if (done != null) done.run();
                 }
             });
@@ -598,6 +611,7 @@ public abstract non-sealed class Entity implements Rider {
                 try {
                     travel.runAtSource(floor(ox), floor(oz), src -> restore(src, self, travel));
                 } finally {
+                    travel.settled();
                     if (done != null) done.run();
                 }
             }

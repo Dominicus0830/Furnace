@@ -188,7 +188,7 @@ class ConnectionDefenseSocketTest {
         try (Socket s = connect(port)) {
             toConfiguration(s);
             OutputStream out = s.getOutputStream();
-            for (int i = 0; i < 60; i++) writeFrame(out, 0x00, null);   // 한 초에 60개 > rate-limit 5
+            for (int i = 0; i < 60; i++) writeFrame(out, 0x00, ConnectionDefenseTest::clientInfoBody);   // 한 초에 60개 > rate-limit 5
             assertTrue(drain(s).contains("disconnect.exceeded_packet_rate"), "바닐라 사유로 끊긴다");
         }
     }
@@ -199,7 +199,7 @@ class ConnectionDefenseSocketTest {
         try (Socket s = connect(port)) {
             toConfiguration(s);
             OutputStream out = s.getOutputStream();
-            for (int i = 0; i < 60; i++) writeFrame(out, 0x00, null);
+            for (int i = 0; i < 60; i++) writeFrame(out, 0x00, ConnectionDefenseTest::clientInfoBody);
             s.setSoTimeout(2500);
             assertThrows(java.net.SocketTimeoutException.class, () -> { while (s.getInputStream().read() >= 0) { /* 소비 */ } },
                     "rate-limit=0(바닐라 기본)이면 버스트 안의 60개로는 끊기지 않는다");

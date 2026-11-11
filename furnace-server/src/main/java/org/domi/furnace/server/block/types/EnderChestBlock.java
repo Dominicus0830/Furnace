@@ -26,7 +26,7 @@ public class EnderChestBlock extends AbstractChestBlock {
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
         // 위 칸이 레드스톤 전도체면 열리지 않는다. 열면 이 플레이어의 엔더 인벤토리(container.enderchest) + 통계 open_enderchest.
-        if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.EnderChestBlockEntity && !ChestBlock.isChestBlockedAt(level, pos)) {
+        if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.EnderChestBlockEntity && !ChestBlock.isBlockedChestByBlock(level, pos)) {
             player.openContainer(pos);
             player.awardStat("minecraft:open_enderchest");
             level.angerNearbyPiglins(player, true);

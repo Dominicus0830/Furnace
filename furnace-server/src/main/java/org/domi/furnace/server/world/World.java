@@ -207,6 +207,11 @@ public final class World {
     /** 이 월드로 오는 중인 차원 이동 수(목적 청크 준비 중). */
     public int incomingTravels() { return incoming.get(); }
 
+    /** 이 월드에서 떠나 아직 도착(또는 되돌림 작업 넣기)하지 않은 엔티티 이동 수 — 같은 레벨 관문 이동도 센다. */
+    private final java.util.concurrent.atomic.AtomicInteger outgoing = new java.util.concurrent.atomic.AtomicInteger();
+
+    public int outgoingTravels() { return outgoing.get(); }
+
     /** 로드 중인 청크 수(생성·읽기 진행 중). */
     public int pendingChunkLoads() { return loading.size(); }
 
@@ -559,6 +564,49 @@ public final class World {
      */
     public CompletableFuture<Void> quiesce() {
         return CompletableFuture.allOf(forEachRegion(r -> { }).toArray(new CompletableFuture[0]));
+    }
+
+    /** 종료 기준점 뒤 참: 이 월드에서 새 차원·region 사이 엔티티 이동을 시작하지 않는다(놓지 않는다). */
+    private volatile boolean travelFrozen;
+
+    /** 이 월드에서 새 엔티티 이동을 더 시작하지 않는다(내리기·종료 — 놓지 않는다). */
+    public void freezeTravel() { travelFrozen = true; }
+
+    /**
+     * 종료 저장 기준점(A03-01): 바닐라는 서버 루프가 멈춘 뒤 모든 차원을 저장한다(stopServer → saveAllChunks) — 저장 사이에 틱도 이동도 없다.
+     * 여기서도 저장 전에 같은 기준점을 잡는다: 전역·모든 월드 게임 틱을 붙잡고(백업과 같다) 새 엔티티 이동을 막은 뒤, 지금 도는 틱이 끝나고
+     * 날아가는 차원 이동(목적 청크 준비 중)이 모두 도착할 때까지 기다리고, 도착이 남긴 작업까지 한 번 더 비운다. 그 뒤에는 어느 엔티티도
+     * 두 차원(또는 두 region) 사이에 떠 있지 않으므로 차원마다 차례로 저장해도 복제·소실이 없다. 종료라 놓지 않는다.
+     * holdGlobal·quiesceGlobal 은 null 이면 건너뛴다(시험). 마감 안에 다 되면 참.
+     */
+    public static boolean holdForShutdown(java.util.Collection<World> worlds, Runnable holdGlobal,
+                                          java.util.function.Supplier<CompletableFuture<Void>> quiesceGlobal, long deadlineNanos)
+            throws InterruptedException {
+        if (holdGlobal != null) holdGlobal.run();
+        for (World w : worlds) {
+            w.holdTicks(true);
+            w.freezeTravel();
+        }
+        List<CompletableFuture<Void>> quiet = new ArrayList<>();
+        if (quiesceGlobal != null) quiet.add(quiesceGlobal.get());
+        for (World w : worlds) quiet.add(w.quiesce());
+        boolean ok = awaitQuietly(quiet, deadlineNanos, "종료 틱 멈춤");
+        // 붙잡기 전 마지막 틱에 떠난 이동(차원·같은 레벨 관문): 목적 청크를 읽거나 출구를 만드는 중이면 도착 작업이 아직 없다 — 다 도착할 때까지
+        while (true) {
+            int flying = 0;
+            for (World w : worlds) flying += w.incomingTravels() + w.outgoingTravels();
+            if (flying == 0) break;
+            if (System.nanoTime() - deadlineNanos >= 0) {
+                org.slf4j.LoggerFactory.getLogger(World.class).error("[STOP] 차원 이동 {}건이 마감 안에 도착하지 않았다", flying);
+                ok = false;
+                break;
+            }
+            Thread.sleep(5);
+        }
+        // 도착(그리고 같은 차원 region 넘겨주기)이 남긴 작업까지 — 저장 작업은 그 뒤 차례에 선다
+        quiet.clear();
+        for (World w : worlds) quiet.add(w.quiesce());
+        return awaitQuietly(quiet, deadlineNanos, "종료 큐 비우기") && ok;
     }
 
     /** 켜면 저장 역압을 무시한다(백업 기준점 저장 — 레인이 밀려 미루면 기준점 상태가 빠진다). 횟수로 센다. */
@@ -1572,6 +1620,15 @@ public final class World {
             Dimensions d = dimensions;
             return d != null && d.get(dimension) != null && d.isLevelEnabled(dimension);
         }
+
+        @Override
+        public boolean frozen() { return travelFrozen; }
+
+        @Override
+        public void departing() { outgoing.incrementAndGet(); }
+
+        @Override
+        public void settled() { outgoing.decrementAndGet(); }
 
         @Override
         public void travel(org.domi.furnace.server.entity.PortalTravel plan,

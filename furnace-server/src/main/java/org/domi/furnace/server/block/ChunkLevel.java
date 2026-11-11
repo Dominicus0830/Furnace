@@ -2526,6 +2526,13 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     @Override
+    public boolean isCatSittingAbove(Pos pos) {
+        var l = entities.getEntitiesOfClass(org.domi.furnace.server.entity.Cat.class,
+                new AABB(pos.x(), pos.y() + 1, pos.z(), pos.x() + 1, pos.y() + 2, pos.z() + 1), c -> c.isInSittingPose());
+        return !l.isEmpty();
+    }
+
+    @Override
     public int countTriggeringEntities(double x0, double y0, double z0, double x1, double y1, double z1, boolean livingOnly) {
         AABB box = new AABB(x0, y0, z0, x1, y1, z1);
         int[] n = {entities.getEntities(null, box, e -> !e.isIgnoringBlockTriggers() && !e.isSpectator() && (!livingOnly || e.isLiving())).size()};

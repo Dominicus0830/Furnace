@@ -492,6 +492,10 @@ public final class WorldManager {
             log.warn("[WORLD] 월드 떼기 알림 실패 {}", e.name(), t);
         }
         w.stopTicking();
+        // 떼기 직전에 이 월드로 떠난 이동(목적 청크 준비 중)이 있으면 도착한 뒤 저장한다 — 저장 뒤에 도착해 사라지지 않게(A03-01)
+        w.freezeTravel();
+        long arriveBy = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (w.incomingTravels() + w.outgoingTravels() > 0 && System.nanoTime() - arriveBy < 0) Thread.sleep(5);   // 나간 이동의 되돌림까지
         if (save) {
             w.forceSave(true);
             awaitAll(w.flushAll(), "저장");

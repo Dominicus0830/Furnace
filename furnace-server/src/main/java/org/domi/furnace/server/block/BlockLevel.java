@@ -325,6 +325,9 @@ public interface BlockLevel {
      */
     default int pushEntitiesUp(int from, int to, Pos pos) { return to; }
 
+    /** ChestBlock.isCatSittingOnChest: 상자 위 칸(x,y+1,z ~ x+1,y+2,z+1)에 앉은 자세인 고양이가 있는가. 엔티티 없는 레벨은 false. */
+    default boolean isCatSittingAbove(Pos chestPos) { return false; }
+
     /** 상자와 겹치는 플레이어들(Level.getEntitiesOfClass(Player.class, box) 의 플레이어 쪽). 플레이어가 없는 레벨은 아무도 없다. */
     default void forEachPlayerIn(org.domi.furnace.server.entity.AABB box, java.util.function.Consumer<org.domi.furnace.server.entity.Player> c) {}
 
