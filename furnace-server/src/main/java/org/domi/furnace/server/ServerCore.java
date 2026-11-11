@@ -532,6 +532,12 @@ public final class ServerCore {
     /** 전역 틱(scheduledTick) 소요 시간 분포 — /furnace 관측용. */
     private final org.domi.furnace.server.sched.TickTimeRing globalTickRing = new org.domi.furnace.server.sched.TickTimeRing(512);
 
+    /** F3 틱 시간 그래프 구독(OP 전용) — 전역 박동이 끝날 때마다 표본을 보낸다. */
+    private final org.domi.furnace.server.net.DebugSampleSubscribers debugSamples =
+            new org.domi.furnace.server.net.DebugSampleSubscribers(p -> lists().isOp(profileOf(p)));
+
+    public org.domi.furnace.server.net.DebugSampleSubscribers debugSamples() { return debugSamples; }
+
     public org.domi.furnace.server.sched.TickTimeRing.Stats globalTickTimes() { return globalTickRing.stats(); }
 
     /** 최근 전역 박동 n 개의 소요(ns)를 박동 번호 % n 자리에 담은 사본(JMX tickTimes). */
@@ -785,6 +791,7 @@ public final class ServerCore {
             long took = System.nanoTime() - t0;
             globalTickRing.record(took);
             globalTickWindows.record(t0, took);
+            try { debugSamples.tick(took); } catch (RuntimeException e) { log.debug("debug_sample 전송 실패", e); }
         }
     }
 

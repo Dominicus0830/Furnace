@@ -154,6 +154,8 @@ public final class NetworkServer {
                                 .addLast("readTimeout", new io.netty.handler.timeout.ReadTimeoutHandler(
                                         readTimeoutSeconds > 0 ? readTimeoutSeconds : limits.readTimeoutSeconds()))
                                 .addLast("writabilityGuard", new WritabilityGuard(loginContext.logIps))
+                                .addLast("legacyPing", new LegacyPingHandler(loginContext.motd, loginContext.maxPlayers, "1.21.1",
+                                        () -> (int) world.onlinePlayers().stream().filter(p -> !p.isDisconnected()).count()))
                                 .addLast("frameDecoder", new FrameDecoder())
                                 .addLast("frameEncoder", new FrameEncoder())
                                 .addLast("handler",
