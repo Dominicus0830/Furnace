@@ -52,6 +52,11 @@ public final class StructureEngine {
 
     public long seed() { return seed; }
 
+    private final StructureReferences references = new StructureReferences();
+
+    /** 이 차원 구조물 시작점들의 references(탐험 지도 skipKnownStructures). */
+    public StructureReferences references() { return references; }
+
     // FeatureWorldView 가 돌려주는 biome 정수 id → 이름(레지스트리 순서). 구조물 조각의 biome 태그 검사(광산 mineshaft_blocking)에 쓴다.
     private volatile String[] biomeRegistryNames = new String[0];
 

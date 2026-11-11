@@ -250,7 +250,8 @@ public final class ChunkPipeline {
                 List<StructureStart> own = new ArrayList<>();
                 for (StructureStart st : ringStarts) if (st.chunkX() == cx && st.chunkZ() == cz) own.add(st);
                 grid[centerIdx].col.structures(
-                    org.domi.furnace.server.world.gen.structure.ChunkStructures.generated(cx, cz, own, ringStarts));
+                    org.domi.furnace.server.world.gen.structure.ChunkStructures.generated(cx, cz, own, ringStarts)
+                            .attach(source.structureEngine().references()));
                 grid[centerIdx].col.compactSections();
                 grid[centerIdx].col.clearDirty();
                 grid[centerIdx].status = GenStatus.FULL;
@@ -480,7 +481,8 @@ public final class ChunkPipeline {
                 List<StructureStart> l = decoStarts.get(chunkKey(cx + dx, cz + dz));
                 if (l != null && !l.isEmpty()) nearby.addAll(l);
             }
-        return org.domi.furnace.server.world.gen.structure.ChunkStructures.generated(cx, cz, own, nearby);
+        return org.domi.furnace.server.world.gen.structure.ChunkStructures.generated(cx, cz, own, nearby)
+                .attach(source.structureEngine().references());
     }
 
     private Proto[] gridAround(int ox, int oz) {

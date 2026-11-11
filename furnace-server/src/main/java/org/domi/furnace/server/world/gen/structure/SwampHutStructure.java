@@ -15,6 +15,16 @@ public final class SwampHutStructure extends StructureType {
     }
 
     static final class Piece extends ScatteredPiece {
+        @Override
+        public String pieceType() { return "tesh"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            super.saveAdditional(t);
+            t.putBoolean("Witch", spawnedWitch);
+            t.putBoolean("Cat", spawnedCat);
+        }
+
         private boolean spawnedWitch, spawnedCat;
 
         Piece(WorldgenRandom random, int x, int z) {

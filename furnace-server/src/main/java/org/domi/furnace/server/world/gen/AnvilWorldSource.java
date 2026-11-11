@@ -32,6 +32,30 @@ public final class AnvilWorldSource implements WorldSource {
         this.store = store;
         this.codec = codec;
         this.base = base;
+        // 탐험 지도 references(A06-06): 차원 data 폴더의 파일과, 아직 불러오지 않은 시작 청크는 디스크 NBT 에서 읽는다
+        if (base instanceof NoiseWorldSource n && store != null) {
+            n.structureEngine().references().bind(store.regionDir().resolveSibling("data").resolve("furnace_structure_references.dat"),
+                    this::storedReferences);
+        }
+    }
+
+    /**
+     * 바닐라 StructureCheck.tryLoadFromStorage 의 references 부분: 디스크 청크 NBT 의 {@code structures.starts.<id>.references}.
+     * 청크가 없거나 그 시작점이 없거나(INVALID 포함) 읽지 못하면 -1.
+     */
+    private int storedReferences(String structureId, int chunkX, int chunkZ) {
+        try {
+            RegionFile.Payload p = store.readPayload(chunkX, chunkZ);
+            if (p == null) return -1;
+            NbtCompound root = NbtIo.read(p.decompress());
+            if (root.tags().get("structures") instanceof NbtCompound s && s.tags().get("starts") instanceof NbtCompound starts
+                    && starts.tags().get(structureId) instanceof NbtCompound st && !"INVALID".equals(st.tags().get("id"))) {
+                return st.getIntOr0("references");
+            }
+            return -1;
+        } catch (IOException | RuntimeException e) {
+            return -1;
+        }
     }
 
     @Override
@@ -180,6 +204,7 @@ public final class AnvilWorldSource implements WorldSource {
         NewerDataVersionException.check(nbt);
         OlderDataVersionException.check(nbt, "청크 " + (nbt.tags().get("xPos") instanceof Number x ? x.intValue() : 0) + "," + (nbt.tags().get("zPos") instanceof Number z ? z.intValue() : 0));
         ChunkColumn col = codec.fromNbt(nbt);
+        if (col != null && base instanceof NoiseWorldSource n) col.structures().attach(n.structureEngine().references());
         if (col != null) col.clearDirty();
         return col;
     }

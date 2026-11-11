@@ -277,7 +277,8 @@ public final class ServerCore {
         public int[] findNearestMapStructure(String structureTag, double[] origin, int radius, boolean skipExisting) {
             var b = explorerMapBackend(world);
             if (b == null) return null;
-            return b.findNearestMapStructure(structureTag, (int) Math.floor(origin[0]), (int) Math.floor(origin[1]), (int) Math.floor(origin[2]), radius);
+            return b.findNearestMapStructure(structureTag, (int) Math.floor(origin[0]), (int) Math.floor(origin[1]), (int) Math.floor(origin[2]), radius,
+                    skipExisting);
         }
 
         /**
@@ -382,11 +383,11 @@ public final class ServerCore {
             private final java.util.Set<String> waterBiomes =
                     org.domi.furnace.server.world.gen.structure.StructureRegistry.biomeTag("minecraft:water_on_map_outlines");
 
-            public int[] findNearestMapStructure(String tag, int x, int y, int z, int radius) {
+            public int[] findNearestMapStructure(String tag, int x, int y, int z, int radius, boolean skipKnown) {
                 if (!levelData.generateFeatures) return null;   // ServerLevel.findNearestMapStructure: level.dat 의 generate_features
                 var ids = org.domi.furnace.server.world.gen.structure.StructureRegistry.structureTag(tag);
                 if (ids == null) return null;
-                var f = gen.structureLocator().findNearest(ids, x, y, z, radius);
+                var f = gen.structureLocator().findNearest(ids, x, y, z, radius, skipKnown);
                 return f == null ? null : new int[] {f.x(), f.z()};
             }
 

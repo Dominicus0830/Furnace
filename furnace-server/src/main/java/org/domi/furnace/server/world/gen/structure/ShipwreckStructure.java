@@ -43,6 +43,16 @@ public final class ShipwreckStructure extends StructureType {
     }
 
     static final class Piece extends TemplatePiece {
+        @Override
+        public String pieceType() { return "shipwreck"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            super.saveAdditional(t);
+            t.putBoolean("isBeached", beached);
+            t.putString("Rot", rotationName(settings.rotation));
+        }
+
         private final boolean beached;
 
         Piece(StructureEngine e, String name, int x, int y, int z, int rotation, boolean beached) {

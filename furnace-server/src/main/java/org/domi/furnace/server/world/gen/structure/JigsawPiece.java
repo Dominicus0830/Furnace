@@ -36,6 +36,37 @@ public final class JigsawPiece extends StructurePiece {
     public boolean rigid() { return element.rigid(); }
 
     @Override
+    public String pieceType() { return "jigsaw"; }
+
+    /** 바닐라 PoolElementStructurePiece 는 방향을 정하지 않는다(O = -1). */
+    @Override
+    protected Direction savedOrientation() { return null; }
+
+    /** 바닐라 PoolElementStructurePiece.addAdditionalSaveData. */
+    @Override
+    protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+        t.putInt("PosX", px);
+        t.putInt("PosY", py);
+        t.putInt("PosZ", pz);
+        t.putInt("ground_level_delta", groundLevelDelta);
+        t.put("pool_element", element.encode(element.projection()));
+        t.putString("rotation", TemplatePiece.rotationName(rotation));
+        var list = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
+        for (Junction j : junctions) {
+            org.domi.furnace.server.net.io.nbt.NbtCompound c = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+            c.putInt("source_x", j.sourceX());
+            c.putInt("source_ground_y", j.sourceGroundY());
+            c.putInt("source_z", j.sourceZ());
+            c.putInt("delta_y", j.deltaY());
+            c.putString("dest_proj", j.destRigid() ? "rigid" : "terrain_matching");
+            list.add(c);
+        }
+        t.putList("junctions", list);
+        // 기본값(apply_waterlogging)이면 쓰지 않는다
+        if (!keepLiquids) t.putString("liquid_settings", "ignore_waterlogging");
+    }
+
+    @Override
     public void move(int dx, int dy, int dz) {
         super.move(dx, dy, dz);
         px += dx;

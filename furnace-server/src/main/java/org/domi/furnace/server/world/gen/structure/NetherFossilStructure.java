@@ -51,6 +51,15 @@ public final class NetherFossilStructure extends StructureType {
     }
 
     static final class Piece extends TemplatePiece {
+        @Override
+        public String pieceType() { return "nefos"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            super.saveAdditional(t);
+            t.putString("Rot", rotationName(settings.rotation));
+        }
+
         Piece(StructureEngine e, String name, int x, int y, int z, int rotation) {
             super(name, e.template(name), settings(rotation), x, y, z);
         }

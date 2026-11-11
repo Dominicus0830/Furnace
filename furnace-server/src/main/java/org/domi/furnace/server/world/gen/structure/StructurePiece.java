@@ -10,6 +10,8 @@ public abstract class StructurePiece {
 
     protected BoundingBox boundingBox;
     protected final Direction orientation;
+    /** 바닐라 StructurePiece.genDepth(저장 키 GD). 조각 종류마다 생성 때 정한다(기본 0). */
+    protected int genDepth;
 
     protected StructurePiece(BoundingBox boundingBox, Direction orientation) {
         this.boundingBox = boundingBox;
@@ -28,6 +30,31 @@ public abstract class StructurePiece {
     public Direction orientation() {
         return orientation;
     }
+
+    /** 바닐라 StructurePieceType 레지스트리 이름(eki, 예: "mscorridor"). 저장 id 는 "minecraft:" + 이것. */
+    public abstract String pieceType();
+
+    /**
+     * 바닐라 StructurePiece.save(ejv.a(ekh)): id, BB(IntArray), O(get2DDataValue, 방향 없으면 -1), GD, 그리고 조각별 필드.
+     * 바닐라가 PiecesContainer.load 로 다시 읽을 수 있는 형식이다(Furnace 는 다시 읽을 때 BB 만 쓴다).
+     */
+    public final org.domi.furnace.server.net.io.nbt.NbtCompound save() {
+        var t = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        t.putString("id", "minecraft:" + pieceType());
+        BoundingBox b = boundingBox;
+        t.putIntArray("BB", new int[]{b.minX(), b.minY(), b.minZ(), b.maxX(), b.maxY(), b.maxZ()});
+        Direction o = savedOrientation();
+        t.putInt("O", o == null ? -1 : o.get2DDataValue());
+        t.putInt("GD", genDepth);
+        saveAdditional(t);
+        return t;
+    }
+
+    /** 저장할 방향(바닐라 getOrientation). 바닐라가 방향을 정하지 않는 조각은 null 을 돌려준다. */
+    protected Direction savedOrientation() { return orientation; }
+
+    /** 바닐라 addAdditionalSaveData — 조각별 필드. */
+    protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {}
 
     /**
      * 바닐라 StructurePiece.makeBoundingBox — axis(X/Z)에 따라 offsetX/offsetZ 를 스왑한다.
