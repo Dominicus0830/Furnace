@@ -52,6 +52,19 @@ public interface Entity extends Metadatable, CommandSender, PersistentDataHolder
      */
     boolean teleport(Location location);
 
+    /**
+     * Paper 의 원인 인자 텔레포트. Furnace 텔레포트 이벤트는 원인을 실어 나르지 않아 원인은 버려지고
+     * PlayerTeleportEvent#getCause 는 UNKNOWN 이다(PaperLib teleportAsync 가 Paper 경로에서 부르는 꼴).
+     */
+    default CompletableFuture<Boolean> teleportAsync(Location location, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause cause) {
+        return teleportAsync(location);
+    }
+
+    /** {@link #teleport(Location)} 와 같다. 원인은 위와 같이 버려진다. */
+    default boolean teleport(Location location, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause cause) {
+        return teleport(location);
+    }
+
     void remove();
 
     /** 이름을 바꾼다(§ 서식, null 이면 지운다, 256자에서 자른다 — Paper 와 같다). */
