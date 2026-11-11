@@ -1,0 +1,7 @@
+package org.bukkit;
+
+/** 소리 블록 악기(1.21.1 의 note_block instrument 속성 값 순서). */
+public enum Instrument {
+    PIANO, BASS_DRUM, SNARE_DRUM, STICKS, BASS_GUITAR, FLUTE, BELL, GUITAR, CHIME, XYLOPHONE, IRON_XYLOPHONE, COW_BELL,
+    DIDGERIDOO, BIT, BANJO, PLING, ZOMBIE, SKELETON, CREEPER, DRAGON, WITHER_SKELETON, PIGLIN, CUSTOM_HEAD
+}

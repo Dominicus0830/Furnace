@@ -25,6 +25,7 @@ final class Mappings {
         registerOther();
         registerInventory();
         registerEntityInteract();
+        registerInteractAndBlocks();
     }
 
     private static final java.util.Map<Object, String> FORMAT_BASE = java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
@@ -430,6 +431,96 @@ final class Mappings {
                 f -> new org.bukkit.event.player.PlayerInteractEntityEvent(p(f.player()), Compat.entity(f.target()),
                         f.isMainHand() ? org.bukkit.inventory.EquipmentSlot.HAND : org.bukkit.inventory.EquipmentSlot.OFF_HAND),
                 (f, b) -> {});
+    }
+
+    // ------------------------------------------------------------------ 블록 클릭·단축 칸·블록 갱신·화로 (FAWE 묶음)
+
+    private static org.bukkit.block.BlockFace face(String f) {
+        return f == null ? null : org.bukkit.block.BlockFace.valueOf(f.toUpperCase(java.util.Locale.ROOT));
+    }
+
+    /**
+     * PlayerInteractEvent 의 두 결과(블록 쓰기·아이템 쓰기)를 Furnace 의 취소 하나로 합친다. CraftBukkit 이 결과를 쓰는 방식을 따른다:
+     * 공기 클릭은 블록이 없어 아이템 쓰기만 본다(블록 쓰기는 처음부터 DENY 다), 왼쪽 블록 클릭은 블록 쓰기(DENY 면 캐기 시작을 막는다)만 본다,
+     * 오른쪽 블록 클릭은 둘 중 하나라도 DENY 면 막는다 — Furnace 는 "블록만 막고 아이템은 쓰기"를 나눠 하지 못해 더 막는 쪽을 골랐다(보호 플러그인이 새지 않게).
+     */
+    static boolean interactCancelled(org.bukkit.event.player.PlayerInteractEvent b) {
+        var deny = org.bukkit.event.Event.Result.DENY;
+        return switch (b.getAction()) {
+            case LEFT_CLICK_AIR, RIGHT_CLICK_AIR, PHYSICAL -> b.useItemInHand() == deny;
+            case LEFT_CLICK_BLOCK -> b.useInteractedBlock() == deny;
+            case RIGHT_CLICK_BLOCK -> b.useInteractedBlock() == deny || b.useItemInHand() == deny;
+        };
+    }
+
+    /** Furnace 쪽 취소를 Bukkit 이벤트에 보인다. 풀 때는 DENY 였던 결과만 DEFAULT 로(공기 클릭의 블록 쓰기 DENY 는 그대로 둔다 — Bukkit 원래 상태). */
+    static void showInteractCancelled(org.bukkit.event.player.PlayerInteractEvent b, boolean cancelled) {
+        var deny = org.bukkit.event.Event.Result.DENY;
+        if (cancelled) {
+            b.setUseItemInHand(deny);
+            if (b.hasBlock()) b.setUseInteractedBlock(deny);
+            return;
+        }
+        if (b.useItemInHand() == deny) b.setUseItemInHand(org.bukkit.event.Event.Result.DEFAULT);
+        if (b.hasBlock() && b.useInteractedBlock() == deny) b.setUseInteractedBlock(org.bukkit.event.Event.Result.DEFAULT);
+    }
+
+    private static void registerInteractAndBlocks() {
+        EventBridge.reg(org.domi.furnace.api.event.player.PlayerInteractEvent.class, org.bukkit.event.player.PlayerInteractEvent.class,
+                f -> {
+                    var action = org.bukkit.event.block.Action.valueOf(f.action().name());
+                    var item = f.item() == null || f.item().isEmpty() ? null : CompatItems.copyOf(f.item());   // CraftBukkit: 빈 손이면 null
+                    var clicked = f.clickedBlock();
+                    org.bukkit.block.Block block = clicked == null ? null : Compat.block(clicked.world(), clicked.pos());
+                    var bf = clicked == null ? org.bukkit.block.BlockFace.SOUTH : face(f.blockFace());   // CraftBukkit: 공기 클릭의 면은 SOUTH
+                    var hand = f.isMainHand() ? org.bukkit.inventory.EquipmentSlot.HAND : org.bukkit.inventory.EquipmentSlot.OFF_HAND;
+                    return new org.bukkit.event.player.PlayerInteractEvent(p(f.player()), action, item, block, bf, hand);
+                },
+                (f, b) -> {}, (f, b) -> {}, Mappings::interactCancelled, Mappings::showInteractCancelled);
+        EventBridge.reg(org.domi.furnace.api.event.player.PlayerItemHeldEvent.class, org.bukkit.event.player.PlayerItemHeldEvent.class,
+                f -> new org.bukkit.event.player.PlayerItemHeldEvent(p(f.player()), f.previousSlot(), f.newSlot()), (f, b) -> {});
+        EventBridge.reg(org.domi.furnace.api.event.block.BlockPhysicsEvent.class, org.bukkit.event.block.BlockPhysicsEvent.class,
+                f -> new org.bukkit.event.block.BlockPhysicsEvent(Compat.block(f.world(), f.pos()), CompatBlockData.of(f.block()),
+                        Compat.block(f.world(), f.sourcePos())), (f, b) -> {});
+        EventBridge.reg(org.domi.furnace.api.event.block.BlockFromToEvent.class, org.bukkit.event.block.BlockFromToEvent.class,
+                f -> new org.bukkit.event.block.BlockFromToEvent(Compat.block(f.world(), f.pos()), Compat.block(f.world(), f.toPos()), face(f.face())),
+                (f, b) -> {});
+        EventBridge.reg(org.domi.furnace.api.event.block.BlockBurnEvent.class, org.bukkit.event.block.BlockBurnEvent.class,
+                f -> new org.bukkit.event.block.BlockBurnEvent(Compat.block(f.world(), f.pos()),
+                        f.ignitingPos() == null ? null : Compat.block(f.world(), f.ignitingPos())), (f, b) -> {});
+        EventBridge.reg(org.domi.furnace.api.event.block.BlockIgniteEvent.class, org.bukkit.event.block.BlockIgniteEvent.class,
+                f -> new org.bukkit.event.block.BlockIgniteEvent(Compat.block(f.world(), f.pos()),
+                        org.bukkit.event.block.BlockIgniteEvent.IgniteCause.valueOf(f.cause().name()),
+                        f.player() == null ? null : p(f.player()),
+                        f.ignitingPos() == null ? null : Compat.block(f.world(), f.ignitingPos())), (f, b) -> {});
+        EventBridge.reg(org.domi.furnace.api.event.block.BlockRedstoneEvent.class, org.bukkit.event.block.BlockRedstoneEvent.class,
+                f -> new org.bukkit.event.block.BlockRedstoneEvent(Compat.block(f.world(), f.pos()), f.oldCurrent(), f.newCurrent()),
+                (f, b) -> {
+                    if (b.getNewCurrent() != f.newCurrent()) f.setNewCurrent(b.getNewCurrent());
+                }, (f, b) -> {
+                    if (b.getNewCurrent() != f.newCurrent()) b.setNewCurrent(f.newCurrent());
+                });
+        EventBridge.reg(org.domi.furnace.api.event.block.LeavesDecayEvent.class, org.bukkit.event.block.LeavesDecayEvent.class,
+                f -> new org.bukkit.event.block.LeavesDecayEvent(Compat.block(f.world(), f.pos())), (f, b) -> {});
+        EventBridge.reg(org.domi.furnace.api.event.inventory.FurnaceBurnEvent.class, org.bukkit.event.inventory.FurnaceBurnEvent.class,
+                f -> new org.bukkit.event.inventory.FurnaceBurnEvent(Compat.block(f.world(), f.pos()), CompatItems.copyOf(f.fuel()), f.burnTime()),
+                (f, b) -> {
+                    if (b.getBurnTime() != f.burnTime()) f.setBurnTime(b.getBurnTime());
+                    if (b.isBurning() != f.isBurning()) f.setBurning(b.isBurning());
+                }, (f, b) -> {
+                    if (b.getBurnTime() != f.burnTime()) b.setBurnTime(f.burnTime());
+                    if (b.isBurning() != f.isBurning()) b.setBurning(f.isBurning());
+                });
+        // 화로 제련은 Bukkit 에서 BlockCookEvent 처리기 목록으로 간다(FurnaceSmeltEvent 는 하위 클래스). 모닥불·훈연기의 BlockCookEvent 는 아직 없다
+        EventBridge.reg(org.domi.furnace.api.event.inventory.FurnaceSmeltEvent.class, org.bukkit.event.block.BlockCookEvent.class,
+                f -> new org.bukkit.event.inventory.FurnaceSmeltEvent(Compat.block(f.world(), f.pos()), CompatItems.copyOf(f.source()), CompatItems.copyOf(f.result())),
+                (f, b) -> {
+                    var r = b.getResult() == null ? org.domi.furnace.api.item.ItemStack.EMPTY : CompatItems.toFurnace(b.getResult());
+                    if (!Objects.equals(r, f.result())) f.setResult(r);
+                }, (f, b) -> {
+                    var r = b.getResult() == null ? org.domi.furnace.api.item.ItemStack.EMPTY : CompatItems.toFurnace(b.getResult());
+                    if (!Objects.equals(r, f.result())) b.setResult(CompatItems.copyOf(f.result()));
+                });
     }
 
     /** 때린 엔티티가 있는 피해의 DamageCause — Paper 처럼 폭발은 점화된 TNT 면 BLOCK_EXPLOSION, 다른 엔티티면 ENTITY_EXPLOSION. 그 밖은 피해 종류 키로. */
