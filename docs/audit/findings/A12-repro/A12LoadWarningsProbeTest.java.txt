@@ -1,0 +1,25 @@
+package org.domi.furnace.server.a12probe;
+
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.domi.furnace.server.advancement.VanillaAdvancementsTestAccess;
+import org.domi.furnace.server.loot.VanillaChestLootTest;
+import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
+
+class A12LoadWarningsProbeTest {
+    @Test
+    void probe() throws Exception {
+        Logger root = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+        ListAppender<ILoggingEvent> app = new ListAppender<>();
+        app.start();
+        root.addAppender(app);
+        VanillaChestLootTest.vanillaLoot();
+        VanillaAdvancementsTestAccess.load();
+        java.util.Map<String, Integer> counts = new java.util.TreeMap<>();
+        for (ILoggingEvent e : app.list) counts.merge(e.getLevel() + " " + e.getFormattedMessage(), 1, Integer::sum);
+        counts.forEach((k, v) -> System.out.println("PROBE " + v + "x " + k));
+        System.out.println("PROBE total events " + app.list.size());
+    }
+}

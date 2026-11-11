@@ -1,0 +1,40 @@
+// A12-01·A12-02 재현: 바닐라 발전 과제 spyglass_at_*(player.looking_at)와 play_jukebox_in_meadows(jukebox_playable 아이템 조건)가
+// 늘 거짓으로 읽힌다. 기준 커밋에서 두 시험 모두 실패한다(기대: 참).
+package org.domi.furnace.server.loot;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import com.google.gson.JsonParser;
+import java.util.Map;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+class A12PredicateReproTest {
+
+    @BeforeAll
+    static void load() throws Exception { ItemFunctionsTest.load(); }
+
+    @Test
+    void playerLookingAtParrotMatches() {
+        LootEntity parrot = new LootEntity() {
+            public String type() { return "minecraft:parrot"; }
+            public double[] position() { return new double[] {3, 0, 0}; }
+        };
+        LootEntity player = new LootEntity() {
+            public String type() { return "minecraft:player"; }
+            public double[] position() { return new double[] {0, 0, 0}; }
+            public Object typeSpecific(String key) { return key.equals("looking_at") ? parrot : null; }
+        };
+        String json = "{\"type_specific\":{\"type\":\"minecraft:player\",\"looking_at\":{\"type\":\"minecraft:parrot\"}}}";
+        EntityPredicate p = EntityPredicate.parse(JsonParser.parseString(json), ItemFunctionsTest.regs);
+        assertTrue(p.matches(PredicateFieldsTest.ctx(ItemFunctionsTest.WORLD), new double[] {0, 0, 0}, player),
+                "looking_at 은 읽을 때 경고하고 늘 거짓이다(EntityPredicate.java:60·255)");
+    }
+
+    @Test
+    void jukeboxPlayableItemPredicateMatchesMusicDisc() {
+        ItemPredicate p = ItemPredicate.parse(JsonParser.parseString("{\"predicates\":{\"minecraft:jukebox_playable\":{}}}"), ItemFunctionsTest.regs);
+        LootStack disc = LootStack.of("minecraft:music_disc_13", 1, Map.of());
+        assertTrue(p.test(disc, ItemFunctionsTest.regs), "jukebox_playable 조건은 '아직 지원하지 않는 아이템 조건 — 항상 거짓'(ItemPredicate.java:41)");
+    }
+}
