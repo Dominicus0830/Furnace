@@ -112,6 +112,10 @@ class NmsFluidsTest {
         Property<Boolean> wl = (Property<Boolean>) Blocks.OAK_SLAB.getStateDefinition().getProperty("waterlogged");
         assertSame(Fluids.EMPTY.defaultFluidState(), slab.setValue(wl, false).getFluidState());
         assertSame(Fluids.WATER.getSource(false), slab.setValue(wl, true).getFluidState());
+        BlockState grate = Blocks.COPPER_GRATE.defaultBlockState();
+        @SuppressWarnings("unchecked")
+        Property<Boolean> gwl = (Property<Boolean>) Blocks.COPPER_GRATE.getStateDefinition().getProperty("waterlogged");
+        assertSame(Fluids.WATER.getSource(true), grate.setValue(gwl, true).getFluidState(), "구리 격자만 떨어지는 원천(바닐라 dpd 의 getSource(true))");
     }
 
     @Test
