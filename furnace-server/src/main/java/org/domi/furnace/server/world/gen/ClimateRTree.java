@@ -94,6 +94,26 @@ final class ClimateRTree {
         return root.search(t, last);
     }
 
+    /**
+     * 직전 결과 힌트와 상관없이 답이 하나로 정해질 때만 그 값, 아니면 Integer.MIN_VALUE.
+     * 힌트는 거리 동률일 때만 답을 바꾸므로(탐색은 언제나 최근접), 최근접 거리에 값이 다른 leaf 가 또 있으면 힌트에 따라 답이 갈린다.
+     */
+    int searchUnique(long[] target6) {
+        long[] t = new long[DIMS];
+        System.arraycopy(target6, 0, t, 0, 6);
+        Leaf best = root.search(t, null);
+        long d = best.distance(t);
+        return otherAt(root, t, d, best.value) ? Integer.MIN_VALUE : best.value;
+    }
+
+    private static boolean otherAt(Node n, long[] t, long d, int value) {
+        if (n instanceof Leaf l) return l.value != value && l.distance(t) == d;
+        for (Node c : ((SubTree) n).children) {
+            if (c.distance(t) <= d && otherAt(c, t, d, value)) return true;
+        }
+        return false;
+    }
+
     static long paramDistance(long min, long max, long v) {
         long above = v - max;
         long below = min - v;
