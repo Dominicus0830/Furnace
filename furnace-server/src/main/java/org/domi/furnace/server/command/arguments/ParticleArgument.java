@@ -207,10 +207,13 @@ public final class ParticleArgument implements ArgumentType<ParticleOptions> {
         Integer iid = ItemContext.installed() ? ItemContext.id("minecraft:item", full) : null;
         if (iid == null) throw new Bad("Unknown registry key in minecraft:item: " + full);
         if (full.equals("minecraft:air")) throw new Bad("Empty ItemStack not allowed");
-        if (comps == null || !(comps.tags().get(org.domi.furnace.server.item.ItemNbt.KEY) instanceof NbtCompound cc) || cc.tags().isEmpty()) return new ItemStack(iid, 1);
-        var patch = org.domi.furnace.server.item.ItemNbt.read(comps, full, null);   // 컴포넌트 코덱(저장 형식과 같다)
-        if (patch == null) throw new Bad("Invalid item components for " + full);
-        return new ItemStack(iid, 1, patch);
+        Object raw = comps == null ? null : comps.tags().get(org.domi.furnace.server.item.ItemNbt.KEY);
+        if (raw == null) return new ItemStack(iid, 1);
+        try {   // DataComponentPatch.CODEC: 맵이 아니거나 모르는·틀린 컴포넌트면 코덱 오류(로그 없이 명령 오류로)
+            return new ItemStack(iid, 1, org.domi.furnace.server.item.ComponentPatch.fromCodec(raw).normalizedFor(full));
+        } catch (org.domi.furnace.server.item.CodecException e) {
+            throw new Bad(e.getMessage());
+        }
     }
 
     /** ARGB.color(colorFromFloat(a), r, g, b): 채널은 floor(값×255), 마스크 없이 이어 붙인다(바닐라 그대로). */

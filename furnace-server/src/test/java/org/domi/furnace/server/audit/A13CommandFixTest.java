@@ -108,4 +108,41 @@ class A13CommandFixTest {
         run("tag @e[type=cow,type=!pig] list");   // 양성 뒤에는 무엇이든 거절(이미 바닐라와 같음)
         assertTrue(out.stream().anyMatch(s -> s.contains("isn't applicable here")), out.toString());
     }
+
+    // ---- A13-07: particle item 컴포넌트(DataComponentPatch 코덱)
+    @Test
+    void particleItemWithComponentsAccepted() throws Exception {
+        run("particle item{item:{id:\"stick\",components:{\"minecraft:custom_model_data\":1}}} 0 70 0");
+        assertTrue(out.stream().noneMatch(s -> s.contains("parse particle")), out.toString());
+    }
+
+    @Test
+    void particleItemRemovalComponentAccepted() throws Exception {
+        run("particle item{item:{id:\"apple\",components:{\"!minecraft:food\":{}}}} 0 70 0");
+        assertTrue(out.stream().noneMatch(s -> s.contains("parse particle")), out.toString());
+    }
+
+    @Test
+    void particleItemBadComponentsRejected() throws Exception {
+        for (String comps : new String[]{"{\"minecraft:bogus\":1}", "{\"minecraft:custom_model_data\":\"abc\"}", "{\"minecraft:max_stack_size\":500}", "\"x\""}) {
+            run("particle item{item:{id:\"stick\",components:" + comps + "}} 0 70 0");
+            assertTrue(out.stream().anyMatch(s -> s.contains("parse particle")), comps + " " + out);
+        }
+    }
+
+    /** A13-02: 재생 중인 주크박스도 clone move 로 음반이 떨어지지 않는다. */
+    @Test
+    void cloneMovePlayingJukebox() throws Exception {
+        run("setblock 0 70 0 jukebox{RecordItem:{id:\"minecraft:music_disc_13\",count:1},ticks_since_song_started:5L}");
+        assertEquals(1, run("clone 0 70 0 0 70 0 10 70 10 replace move"), out.toString());
+        assertEquals(0, run("execute if entity @e[type=item]"));
+        assertEquals(1, run("execute if data block 10 70 10 RecordItem"));
+    }
+
+    @Test
+    void fillOverJukeboxDoesNotDrop() throws Exception {
+        run("setblock 0 70 0 jukebox{RecordItem:{id:\"minecraft:music_disc_13\",count:1}}");
+        run("fill 0 70 0 0 70 0 stone");
+        assertEquals(0, run("execute if entity @e[type=item]"), out.toString());
+    }
 }

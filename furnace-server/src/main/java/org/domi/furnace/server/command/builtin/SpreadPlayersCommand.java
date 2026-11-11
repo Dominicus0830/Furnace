@@ -281,14 +281,26 @@ public final class SpreadPlayersCommand {
      * 대상마다 가장 가까운 다른 위치까지의 거리의 평균을 돌려준다. 옮기는 일은 호출자가 한다.
      */
     static double place(List<Rider> targets, Terrain terrain, Position[] positions, boolean respectTeams, List<Placement> out) {
+        return place(targets, teamKeys(targets), terrain, positions, respectTeams, out);
+    }
+
+    /** 대상별 팀 키(명령 시작 때 한 번만 뽑는다 — 땅을 읽는 동안 팀이 바뀌어도 위치 수와 어긋나지 않게). */
+    static List<Object> teamKeys(List<Rider> targets) {
+        Object noTeam = new Object();
+        List<Object> keys = new java.util.ArrayList<>(targets.size());
+        for (Rider t : targets) keys.add(teamKey(t, noTeam));
+        return keys;
+    }
+
+    static double place(List<Rider> targets, List<Object> keys, Terrain terrain, Position[] positions, boolean respectTeams, List<Placement> out) {
         double sum = 0.0;
         int index = 0;
         Map<Object, Position> byTeam = new HashMap<>();
-        Object noTeam = new Object();
-        for (Rider t : targets) {
+        for (int ti = 0; ti < targets.size(); ti++) {
+            Rider t = targets.get(ti);
             Position p;
             if (respectTeams) {
-                Object key = teamKey(t, noTeam);
+                Object key = keys.get(ti);
                 Position found = byTeam.get(key);
                 if (found == null) {
                     found = positions[index++];
@@ -317,12 +329,7 @@ public final class SpreadPlayersCommand {
     }
 
     /** 바닐라 getNumberOfTeams: 대상들의 서로 다른 팀 수(팀 없는 대상은 한 그룹으로 센다). */
-    private static int teamCount(List<Rider> targets) {
-        Object noTeam = new Object();
-        java.util.Set<Object> teams = new java.util.HashSet<>();
-        for (Rider t : targets) teams.add(teamKey(t, noTeam));
-        return teams.size();
-    }
+    private static int teamCount(List<Object> keys) { return new java.util.HashSet<>(keys).size(); }
 
     static CompletableFuture<Integer> spread(CommandSource source, Vec2Argument.Vec2 center, float spreadDistance, float maxRange, int maxHeight, boolean respectTeams,
                       List<Rider> targets) throws CommandSyntaxException {
@@ -333,14 +340,15 @@ public final class SpreadPlayersCommand {
         RandomSource random = RandomSource.create();
         double[] avg = new double[1];
         double minX = center.x() - maxRange, minZ = center.y() - maxRange, maxX = center.x() + maxRange, maxZ = center.y() + maxRange;   // float 뺄셈 뒤 double
-        Position[] positions = createInitialPositions(random, respectTeams ? teamCount(targets) : targets.size(), minX, minZ, maxX, maxZ);
+        List<Object> keys = teamKeys(targets);
+        Position[] positions = createInitialPositions(random, respectTeams ? teamCount(keys) : targets.size(), minX, minZ, maxX, maxZ);
         // 땅을 읽느라 기다리므로 region·연결 스레드를 막지 않게 따로 돌린다(가상 스레드). 옮김·메시지는 전역에서.
         CompletableFuture<List<Placement>> computed = CompletableFuture.supplyAsync(() -> {
             try {
                 Terrain terrain = new WorldTerrain(world, maxHeight);
                 spreadPositions(center.x(), center.y(), spreadDistance, terrain, random, minX, minZ, maxX, maxZ, positions, respectTeams);
                 List<Placement> placements = new java.util.ArrayList<>();
-                avg[0] = place(targets, terrain, positions, respectTeams, placements);
+                avg[0] = place(targets, keys, terrain, positions, respectTeams, placements);
                 return placements;
             } catch (CommandSyntaxException e) {
                 throw new java.util.concurrent.CompletionException(e);
