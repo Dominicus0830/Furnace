@@ -141,21 +141,21 @@ class ConnectionGapsTest {
             Thread.sleep(200);
             assertEquals(1, core.debugSamples().size(), "비 OP 의 요청은 조용히 무시");
 
-            core.debugSamples().tick(12_345_678L);
+            core.debugSamples().tick(50_100_000L, 12_345_678L);
             ByteBuf s = c.await(0x1B);
             assertEquals(4, Types.readVarInt(s));
-            assertEquals(12_345_678L, s.readLong());
+            assertEquals(50_100_000L, s.readLong());
             assertEquals(12_345_678L, s.readLong());
             assertEquals(0L, s.readLong());
-            assertEquals(50_000_000L - 12_345_678L, s.readLong());
+            assertEquals(50_100_000L - 12_345_678L, s.readLong());
             assertEquals(0, Types.readVarInt(s));
 
             core.lists().deop(ServerCore.profileOf(op));
-            core.debugSamples().tick(1L);
+            core.debugSamples().tick(50_000_000L, 1L);
             c.socketTimeout(600);
             assertThrows(java.net.SocketTimeoutException.class, () -> c.await(0x1B), "OP 가 풀리면 받지 못한다");
             core.lists().op(ServerCore.profileOf(op), 4);   // 바닐라: 새 요청 없이도 다시 구독된다
-            core.debugSamples().tick(2L);
+            core.debugSamples().tick(50_000_000L, 2L);
             c.socketTimeout(0);
             assertEquals(4, Types.readVarInt(c.await(0x1B)));
         }

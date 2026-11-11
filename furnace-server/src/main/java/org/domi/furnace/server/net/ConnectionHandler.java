@@ -182,6 +182,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, ByteBuf frame) {
         this.ctx = ctx;
+        if (closing) return;   // 바닐라 setReadOnly: 끊기로 한 뒤 들어온 패킷은 처리하지 않는다
         int packetId = Types.readVarInt(frame);
         // 속도 제한은 모든 단계에 건다 — 로그인 전 단계에서 무제한으로 패킷을 처리하지 않게(바닐라 클라는 이 단계에 몇 개만 보낸다)
         if (rateWatch != null) rateWatch.onPacket();
@@ -3235,6 +3236,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     private String previousName;
     private Text kickReason;   // 우리가 끊은 사유(퇴장 로그 "lost connection: 사유"용)
+    /** kick 이 사유를 보내기 시작했다(바닐라 handlingFault + setReadOnly). 이벤트 루프 전용. */
+    private boolean closing;
 
     /** 바닐라 접속 거부 사유 → PlayerLoginEvent 결과 종류. */
     private static org.domi.furnace.api.event.player.PlayerLoginEvent.Result loginResult(Text reason) {
@@ -4652,6 +4655,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 끊는 이유(QuitReason)를 함께 남기는 kick — 처음 남긴 이유가 이긴다(markQuit). */
     void kick(ChannelHandlerContext ctx, Text reason, org.domi.furnace.api.net.QuitReason why) {
+        if (closing) return;   // 이미 사유를 보내는 중(바닐라 Double fault 는 사유 없이 닫는다 — 여기선 첫 사유가 나가도록 둔다)
+        closing = true;
+        ctx.channel().config().setAutoRead(false);
         markQuit(why);
         kickReason = reason;
         Packet pkt = switch (state) {

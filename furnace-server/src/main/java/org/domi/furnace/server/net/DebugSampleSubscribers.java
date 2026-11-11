@@ -28,7 +28,7 @@ public final class DebugSampleSubscribers {
     public int size() { return subscribers.size(); }
 
     /** 전역 박동 하나가 끝났을 때(전역 스레드): 나간 구독자는 빼고, 지금 OP 인 구독자에게 표본을 보낸다. */
-    public void tick(long tookNanos) {
+    public void tick(long fullNanos, long tookNanos) {
         if (subscribers.isEmpty()) return;
         DebugSample packet = null;
         for (Iterator<Player> it = subscribers.iterator(); it.hasNext(); ) {
@@ -36,7 +36,7 @@ public final class DebugSampleSubscribers {
             if (p.isDisconnected()) { it.remove(); continue; }
             if (!isOp.test(p)) continue;
             if (packet == null) {
-                packet = new DebugSample(new long[] {tookNanos, tookNanos, 0L, Math.max(0L, TICK_NANOS - tookNanos)}, DebugSample.TICK_TIME);
+                packet = new DebugSample(new long[] {fullNanos, tookNanos, 0L, Math.max(0L, fullNanos - tookNanos)}, DebugSample.TICK_TIME);
             }
             p.send(packet);
         }

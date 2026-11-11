@@ -779,6 +779,8 @@ public final class ServerCore {
      * 전역 틱 반복(50ms 마다)이 부르는 진입점. /tick rate 는 한 번에 rate/20 틱씩 낸다(20 미만이면 몇 번 걸러서), /tick freeze 중에는
      * 시간·날씨·보더를 멈추고 /tick step 으로 요청한 만큼만 낸다.
      */
+    private long prevTickStart;   // 전역 스레드만(debug_sample 의 틱 간격)
+
     public void scheduledTick() {
         long t0 = System.nanoTime();
         globalBeat = t0;   // 워치독이 보는 전역 틱 박동
@@ -791,7 +793,9 @@ public final class ServerCore {
             long took = System.nanoTime() - t0;
             globalTickRing.record(took);
             globalTickWindows.record(t0, took);
-            try { debugSamples.tick(took); } catch (RuntimeException e) { log.debug("debug_sample 전송 실패", e); }
+            long full = prevTickStart == 0 ? 50_000_000L : t0 - prevTickStart;
+            prevTickStart = t0;
+            try { debugSamples.tick(full, took); } catch (RuntimeException e) { log.debug("debug_sample 전송 실패", e); }
         }
     }
 
