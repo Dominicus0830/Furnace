@@ -139,9 +139,13 @@ class PaperSchedulerApiTest {
         try (FurnaceTestServer server = start("Sched")) {
             Plugin p = WiringProbe.plugin;
             var steve = server.join("Steve");
-            server.tick(10);
             org.bukkit.entity.Player player = Bukkit.getPlayerExact("Steve");
             assertNotNull(player);
+            AtomicInteger warm = new AtomicInteger();   // 다른 시험과 섞여 돌 때 region 에 오르는 틱 수가 달라 흔들렸다 — 한 번 돌 때까지 틱을 낸다
+            ScheduledTask w = player.getScheduler().runAtFixedRate(p, t -> warm.incrementAndGet(), null, 1, 1);
+            for (int i = 0; i < 200 && warm.get() == 0; i++) server.tick();
+            assertTrue(warm.get() > 0);
+            w.cancel();
             AtomicInteger runs = new AtomicInteger(), retired = new AtomicInteger();
             ScheduledTask task = player.getScheduler().runAtFixedRate(p, t -> runs.incrementAndGet(), retired::incrementAndGet, 1, 1);
             assertNotNull(task);

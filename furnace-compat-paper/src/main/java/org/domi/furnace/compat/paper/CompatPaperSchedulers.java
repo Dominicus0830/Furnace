@@ -51,7 +51,10 @@ public final class CompatPaperSchedulers {
     private static ScheduledTask schedule(Plugin plugin, Consumer<ScheduledTask> task, Function<Consumer<CompatTask>, CompatTask> scheduling) {
         if (task == null) throw new IllegalArgumentException("Task may not be null");
         PaperTask pt = new PaperTask(plugin);
-        CompatTask ct = guard(() -> scheduling.apply(t -> task.accept(pt)));
+        CompatTask ct = guard(() -> scheduling.apply(t -> {
+            pt.bind(t);   // 코어가 작업에 넘기는 손잡이가 곧 돌려줄 손잡이 — 첫 실행이 예약 호출 반환보다 앞서도 기다릴 필요가 없다
+            task.accept(pt);
+        }));
         if (ct == null) return null;   // 사라진 엔티티
         pt.bind(ct);
         return pt;
@@ -65,15 +68,7 @@ public final class CompatPaperSchedulers {
 
         void bind(CompatTask t) { inner = t; }
 
-        /** 예약 호출이 끝나기 전에 첫 실행이 손잡이를 부르면 아주 잠깐 기다린다. */
-        private CompatTask task() {
-            CompatTask t = inner;
-            while (t == null) {
-                Thread.onSpinWait();
-                t = inner;
-            }
-            return t;
-        }
+        private CompatTask task() { return inner; }
 
         @Override
         public Plugin getOwningPlugin() { return plugin; }

@@ -43,6 +43,19 @@ final class PluginTaskBook<T> {
         return copy.size();
     }
 
+    /** 이 플러그인의 작업 중 조건에 맞는 것만 취소하고 집합에서 뺀다(Paper 의 스케줄러별 cancelTasks). */
+    int cancelWhere(FurnacePlugin plugin, java.util.function.Predicate<T> filter) {
+        Set<T> set = byPlugin.get(plugin);
+        if (set == null) return 0;
+        List<T> hit = new ArrayList<>();
+        for (T t : set) if (filter.test(t)) hit.add(t);
+        for (T t : hit) {
+            set.remove(t);
+            canceller.accept(t);
+        }
+        return hit.size();
+    }
+
     /** 플러그인이 꺼졌을 때: 취소하고 이 플러그인 칸도 치운다. */
     void drop(FurnacePlugin plugin) {
         cancelAll(plugin);

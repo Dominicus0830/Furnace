@@ -92,7 +92,13 @@ public class CraftEntity implements Entity {
     public String getTypeKey() { return handle.type(); }
 
     @Override
-    public io.papermc.paper.threadedregions.scheduler.EntityScheduler getScheduler() { return org.domi.furnace.compat.paper.CompatPaperSchedulers.entity(this); }
+    public io.papermc.paper.threadedregions.scheduler.EntityScheduler getScheduler() {
+        io.papermc.paper.threadedregions.scheduler.EntityScheduler s = scheduler;
+        if (s == null) scheduler = s = org.domi.furnace.compat.paper.CompatPaperSchedulers.entity(this);   // Paper CraftEntity.apiScheduler 처럼 엔티티당 하나
+        return s;
+    }
+
+    private volatile io.papermc.paper.threadedregions.scheduler.EntityScheduler scheduler;
 
     @Override
     public CompletableFuture<Boolean> teleportAsync(Location location) { return handle.teleport(Compat.location(location)); }
