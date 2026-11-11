@@ -505,6 +505,7 @@ public final class Regionizer {
             running.remove(r);
             activeTicks.decrementAndGet();
             pool.busy.decrementAndGet();
+            pool.slotFreed();   // helpDrainAny 로 남의 스레드가 돌렸으면 다시 고를 워커가 없다 — 상한 때문에 자던 워커를 깨운다
             r.drainPass = false;
             PENDING_DRAINS.decrementAndGet();
             r.nextTickNanos = r.savedNextTickNanos;
@@ -727,6 +728,7 @@ public final class Regionizer {
             running.remove(r);
             activeTicks.decrementAndGet();
             pool.busy.decrementAndGet();
+            pool.slotFreed();   // 끝낸 워커는 곧바로 다시 고르지만 자리가 둘 열릴 수도 있다(차원별 상한 + 서버 전체 몫) — 상한 때문에 자던 워커 하나를 깨운다
             afterTick(r);
             // 틱 중에 들어온 급한 작업(다른 region 의 명령 블록이 기다린다)은 다음 틱까지 미루지 않는다
             if (Region.URGENT_WAITERS.get() > 0 && r.alive && r.hasUrgentTask()) urgentArrived(r);
@@ -809,6 +811,7 @@ public final class Regionizer {
             }
         }
         updateSprintSummary(r);
+        r.updateStepSummary();
         resolveMerges(r);
         if (!r.alive || r.yielded) return;
         if (counted) r.ticksSinceRecalc++;   // 수동 시계: 나누기 재계산 주기는 쉬는 차례가 아니라 시험 틱으로 센다
@@ -819,6 +822,7 @@ public final class Regionizer {
         if (!r.alive) return;
         long now = System.nanoTime();
         updateSprintSummary(r);   // 병합으로 이어받은 상태까지
+        r.updateStepSummary();
         if (manualClock) {
             // 수동 시계: 낸 틱이 남았으면 곧바로, 아니면 작업 큐를 비우러 잠깐 뒤에(manualAdvance 가 앞당긴다)
             r.nextTickNanos = r.manualDone < manualTarget ? now : now + MANUAL_POLL_NANOS;
@@ -864,6 +868,32 @@ public final class Regionizer {
         return r.sprintDoneSummary == o.sprintDoneSummary;
     }
 
+    /**
+     * /tick step 중 병합 조건(A03-03, 잠금 안 요약으로). 둘 다 참여 중이고 남은 걸음이 다르면 어느 값을 쓰든 한쪽 엔티티가 걸음을 잃거나 더 받는다.
+     * 같은 박자로 도는 region 끼리는 "방금 돈 쪽이 하나 적고 상대는 이번 주기 틱을 아직 안 돈" 차이 1 뿐이고, 상대가 틱을 돌면 같아진다 —
+     * 그때만 한 번 미룬다(검사하는 쪽 r 이 하나 적을 때). 그 밖의 차이(박자가 밀려 한 주기 넘게 뒤진 region)는 미뤄도 step 이 끝날 때까지
+     * 같아지지 않으므로 곧바로 합치고 많이 남은 쪽을 쓴다(Region.mergeStepsFrom — 잃는 것보다 낫다). 오래 미루면 병합 대기 중인 이웃 region 이
+     * 따로 틱을 돌게 되므로 미룸은 한 주기로 묶는다.
+     * 한쪽이 양보(yielded)했으면 미루지 않는다 — 양보한 region 은 다시 돌지 않아 영영 같아지지 않는다(정지가 풀릴 때까지 멈춤, 검토 B1).
+     */
+    private boolean stepCompatible(Region r, Region o) {
+        var ts = world.tickState();
+        return stepCompatible(ts.frozen(), ts.generation(), ts.requestedSteps(),
+                r.stepSeen, r.stepJoinedSummary, r.stepLeftSummary, r.yielded,
+                o.stepSeen, o.stepJoinedSummary, o.stepLeftSummary, o.yielded);
+    }
+
+    /** 위 판정의 순수 함수(시험용). 아직 이번 세대를 못 본 region 은 요청 걸음을 다 남긴 참여자로 본다. */
+    static boolean stepCompatible(boolean frozen, int g, int req, int rSeen, boolean rJoined, int rLeft, boolean rYielded,
+                                  int oSeen, boolean oJoined, int oLeft, boolean oYielded) {
+        if (!frozen) return true;   // 정지가 아니면 걸음을 쓰지 않는다
+        if (rYielded || oYielded) return true;
+        boolean jr = rSeen != g || rJoined, jo = oSeen != g || oJoined;
+        if (!jr || !jo) return true;
+        int lr = rSeen != g ? req : rLeft, lo = oSeen != g ? req : oLeft;
+        return lo - lr != 1;
+    }
+
     /** sprint 가 끝난 뒤 남은 region 이 미룬 병합을 다시 보게 깨우는 주기(나노초) — 전역을 기다린 region 의 재시도 간격도 같다. */
     static final long SPRINT_HOLD_NANOS = 100_000L;
 
@@ -895,7 +925,7 @@ public final class Regionizer {
             Region o = resolve(it.next());
             it.remove();
             if (o == null || o == r || !o.alive) continue;
-            if (!sprintCompatible(r, o) || !manualCompatible(r, o)) {   // 참여 region 끼리(수동 시계면 모두) 마친 틱이 다르면 한 틱 미룬다
+            if (!sprintCompatible(r, o) || !stepCompatible(r, o) || !manualCompatible(r, o)) {   // 참여 region 끼리(수동 시계면 모두) 마친 틱이 다르면 한 틱 미룬다
                 if (deferred == null) deferred = new ArrayList<>();
                 deferred.add(o);
                 continue;
@@ -1025,7 +1055,7 @@ public final class Regionizer {
         for (int i = 1; i < parts.size(); i++) {
             Region n = new Region(++nextId, world);
             n.manualDone = r.manualDone;   // 수동 시계: 부모가 마친 시험 틱 수
-            n.inheritSteps(r.stepGeneration(), r.stepsLeft());   // 나뉜 조각은 부모의 남은 걸음을 물려받는다
+            n.inheritSteps(r.stepGeneration(), r.stepsLeft(), r.stepJoined());   // 나뉜 조각은 부모의 남은 걸음·참여 여부를 물려받는다
             n.inheritSprint(r.sprintGeneration(), r.sprintLeft(), r.sprintJoined());   // sprint 틱도
             // 방금 돈 틱의 다음 — 나뉜 조각이 곧바로 한 번 더 돌지 않게. sprint 중이면 부모처럼 곧바로
             n.nextTickNanos = r.sprintLeft() > 0 || manualClock ? r.nextTickNanos : r.nextTickNanos + tickNanos;
@@ -1200,7 +1230,7 @@ public final class Regionizer {
                     h.pendingMerges.remove(p);
                     continue;
                 }
-                if (o.ticking || !sprintCompatible(h, o) || !manualCompatible(h, o)) continue;
+                if (o.ticking || !sprintCompatible(h, o) || !stepCompatible(h, o) || !manualCompatible(h, o)) continue;
                 h.pendingMerges.remove(p);
                 absorb(h, o);
                 any = true;

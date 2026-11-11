@@ -1,6 +1,6 @@
 // A03-03 회귀(2차 점검 재현 시험): /tick freeze 중 /tick step N 은 바닐라에서 모든 엔티티를 정확히 N 틱 진행한다. Furnace 는 region 마다
-// 남은 걸음을 따로 센다(Region.stepsLeft). step 도중 새로 생긴 region(남은 걸음 0)이 이미 있던 region 을 흡수해도 많이 남은 쪽을 쓰므로
-// (Region.mergeStepsFrom) 이미 있던 엔티티는 남은 걸음을 잃지 않는다.
+// 남은 걸음을 따로 센다(Region.stepsLeft). step 도중 새로 생긴 region(남은 걸음 0, 참여 안 함)이 이미 있던 region 을 흡수해도 참여 쪽
+// 값을 쓰므로(Region.mergeStepsFrom) 이미 있던 엔티티는 정확히 N 걸음을 받는다 — 잃지도 더 받지도 않는다.
 package org.domi.furnace.server.world;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -51,7 +51,7 @@ class StepMergeTest {
             var ts = core.tickState();
             w.startTicking();
             List<String> results = new ArrayList<>();
-            int lost = 0, gained = 0;
+            int wrong = 0, over = 0;
             for (int trial = 0; trial < 6; trial++) {
                 int base = 200 + trial * 100;   // 구역(16청크) 단위로 서로 멀리
                 force(w, base);
@@ -71,14 +71,15 @@ class StepMergeTest {
                 String r = String.format("trial %d: 원래 소 %d걸음(합치기 전 %d, 바닐라 %d), 새 소 %d걸음(문서: 0, 바닐라 ≈%d)",
                         trial, dOld, oldBeforeMerge, STEPS, dFresh, STEPS - oldBeforeMerge);
                 results.add(r);
-                if (dOld < STEPS) lost++;
-                if (dFresh > 0) gained++;
+                if (dOld != STEPS) wrong++;
+                if (dFresh > STEPS) over++;
                 ts.setFrozen(false);
                 Thread.sleep(100);
             }
-            String summary = "A03-STEP 6회 중 원래 엔티티가 걸음을 잃음 " + lost + "회, 새 엔티티가 걸음을 받음 " + gained + "회\n  " + String.join("\n  ", results);
+            String summary = "A03-STEP 6회 중 원래 엔티티 걸음이 N 이 아님 " + wrong + "회, 새 엔티티가 N 보다 더 받음 " + over + "회\n  " + String.join("\n  ", results);
             System.out.println(summary);
-            assertEquals(0, lost, summary);
+            assertEquals(0, wrong, summary);
+            assertEquals(0, over, summary);
         } finally {
             sched.close();
         }

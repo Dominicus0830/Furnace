@@ -83,6 +83,9 @@ class SharedPoolFairnessTest {
     }
 
 
+    /** 마지막 lightGaps 동안 워커가 고르기를 돈 횟수·꺼내기 실패 수(초당) — 남겨 둔 워커가 헛돌면 수십만이 된다(검토 F3·F4). */
+    private double wakeupsPerSec, missesPerSec;
+
     private long[] lightGaps(int heavyDims) throws Exception {
         SharedScheduler pool = sharedPool(4);
         DimensionType[] types = {DimensionType.OVERWORLD, DimensionType.END};
@@ -97,7 +100,11 @@ class SharedPoolFairnessTest {
         }
         World light = world(DimensionType.NETHER, 50_000_000L, pool);
         ConcurrentLinkedQueue<Long> starts = new ConcurrentLinkedQueue<>();
+        long w0 = pool.loops(), m0 = pool.takeMisses(), t0 = System.nanoTime();
         everyTick(light, new ChunkPos(0, 0), 80, r -> starts.add(System.nanoTime())).get(60, TimeUnit.SECONDS);
+        double secs = (System.nanoTime() - t0) / 1e9;
+        wakeupsPerSec = (pool.loops() - w0) / secs;
+        missesPerSec = (pool.takeMisses() - m0) / secs;
         stop.set(true);
         Long[] st = starts.toArray(Long[]::new);
         long[] gaps = new long[st.length - 6];
@@ -114,15 +121,20 @@ class SharedPoolFairnessTest {
         Assumptions.assumeTrue(System.getProperty("furnace.sched.dimCap") == null);
         StringBuilder sb = new StringBuilder("A03-HEAVY");
         long offTwo = 0, nTwo = 0;
+        double maxWake = 0, maxMiss = 0;
         for (int heavy : new int[] {1, 2}) {
             long[] g = lightGaps(heavy);
             long off = Arrays.stream(g).filter(x -> Math.abs(x - 50_000_000L) > 10_000_000L).count();
             long late = Arrays.stream(g).filter(x -> x - 50_000_000L > 10_000_000L).count();
-            sb.append(String.format(" | 무거운 차원 %d개: 가벼운 차원 틱 간격 50±10ms 벗어남 %d/%d(늦음 %d), p50=%.1fms p90=%.1fms max=%.1fms",
-                    heavy, off, g.length, late, g[g.length / 2] / 1e6, g[g.length * 9 / 10] / 1e6, g[g.length - 1] / 1e6));
+            sb.append(String.format(" | 무거운 차원 %d개: 가벼운 차원 틱 간격 50±10ms 벗어남 %d/%d(늦음 %d), p50=%.1fms p90=%.1fms max=%.1fms, 고르기 %.0f/s 꺼내기 실패 %.0f/s",
+                    heavy, off, g.length, late, g[g.length / 2] / 1e6, g[g.length * 9 / 10] / 1e6, g[g.length - 1] / 1e6, wakeupsPerSec, missesPerSec));
             if (heavy == 2) { offTwo = off; nTwo = g.length; }
+            maxWake = Math.max(maxWake, wakeupsPerSec);
+            maxMiss = Math.max(maxMiss, missesPerSec);
         }
         System.out.println(sb);
         assertTrue(offTwo <= nTwo / 10, sb.toString());
+        // 틱은 초당 수백 번(무거운 region 8개·가벼운 1개 × 20) — 헛돌지 않으면 고르기·실패도 그 정도다
+        assertTrue(maxWake < 5_000 && maxMiss < 5_000, "워커 헛돌기: " + sb);
     }
 }
