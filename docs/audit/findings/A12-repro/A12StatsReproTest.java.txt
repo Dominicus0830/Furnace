@@ -1,0 +1,56 @@
+// A12-04 재현: 바닐라 Stats 의 걷기·점프·피해 받음 통계가 하나도 오르지 않는다(스코어보드 기준 minecraft.custom:minecraft.walk_one_cm 등도 0).
+// 기준 커밋에서 아래 시험 4개가 모두 실패한다.
+package org.domi.furnace.server.stats;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
+import java.nio.file.Path;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
+import org.domi.furnace.server.entity.Player;
+import org.domi.furnace.server.entity.damage.DamageType;
+import org.domi.furnace.server.recipe.TestRecipes;
+import org.domi.furnace.server.world.GameMode;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+class A12StatsReproTest {
+
+    @TempDir Path dir;
+    Player player;
+    PlayerStats stats;
+
+    @BeforeEach
+    void setUp() throws Exception {
+        assumeTrue(TestRecipes.manager() != null, "로컬 바닐라 데이터 없음");
+        player = new Player(7, java.util.UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
+        player.vitals().loadGameTypes(null, GameMode.SURVIVAL, false);
+        stats = new PlayerStats(dir, player.uuid());
+        player.stats(stats);
+    }
+
+    @Test
+    void walkingOneBlockAddsWalkOneCm() {
+        for (int i = 0; i < 10; i++) player.vitals().onMove(0.1, 0, 0, true, true, false, false, false, false, null, "minecraft:stone", false);
+        assertEquals(100, stats.get("minecraft:walk_one_cm"));
+    }
+
+    @Test
+    void sprintingAddsSprintOneCm() {
+        for (int i = 0; i < 10; i++) player.vitals().onMove(0.1, 0, 0, true, true, true, false, false, false, null, "minecraft:stone", false);
+        assertEquals(100, stats.get("minecraft:sprint_one_cm"));
+    }
+
+    @Test
+    void jumpingAddsJump() {
+        player.vitals().onMove(0, 0.42, 0, true, false, false, false, false, false, null, "minecraft:air", false);
+        assertEquals(1, stats.get("minecraft:jump"));
+    }
+
+    @Test
+    void takingDamageAddsDamageTaken() {
+        player.vitals().hurt(DamageType.GENERIC, 4.0F);
+        assertEquals(40, stats.get("minecraft:damage_taken"), "바닐라 Player.actuallyHurt: Math.round(damage * 10)");
+    }
+}
