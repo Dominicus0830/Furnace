@@ -108,6 +108,6 @@ public final class PlayerAttributes {
     public static double value(Player p, Attribute attr) {
         ItemStack[] bySlot = new ItemStack[EquipmentSlot.values().length];
         for (EquipmentSlot s : EquipmentSlot.values()) bySlot[s.ordinal()] = p.equipment(s);
-        return compute(attr, base(attr), modifiers(attr, bySlot, p.vitals().activeEffects(), p.sprinting(), p.locationEffects.modifiers(attr)).values());
+        return compute(attr, base(attr), modifiers(attr, bySlot, p.vitals().activeEffects(), p.sprinting(), p.locatedModifiers(attr)).values());
     }
 }

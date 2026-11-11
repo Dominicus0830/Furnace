@@ -401,7 +401,20 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** Entity.isInPowderSnow 대응: 이번 move 의 checkInsideBlocks 에서 가루눈에 들었다(afterMove 가 읽고 지운다). */
     private volatile boolean inPowderSnowThisMove;
 
-    public void markInPowderSnow() { inPowderSnowThisMove = true; }
+    public void markInPowderSnow() {
+        inPowderSnowThisMove = true;
+        inPowderSnowThisTick = true;
+    }
+
+    /**
+     * 냉각(aiStep freezing)이 보는 Entity.isInPowderSnow: baseTick 이 거짓으로 시작하고 이번 틱의 서버 move(checkInsideBlocks)가 켠다.
+     * region 스레드 전용 — 플레이어 틱 머리에서 {@link #resetInPowderSnowTick} 로 지운다.
+     */
+    private boolean inPowderSnowThisTick;
+
+    public boolean inPowderSnowThisTick() { return inPowderSnowThisTick; }
+
+    public void resetInPowderSnowTick() { inPowderSnowThisTick = false; }
 
     /** 읽고 지운다. */
     public boolean takeInPowderSnow() { boolean v = inPowderSnowThisMove; inPowderSnowThisMove = false; return v; }
@@ -1113,6 +1126,12 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     /** 몸에 박힌 화살 수(LivingEntity.DATA_ARROW_COUNT 12). 20 × (30 − 수) 틱마다 하나씩 빠진다. */
     private int arrowCount, removeArrowTime, sentArrowCount;
+    /** 클라이언트가 아는 DATA_TICKS_FROZEN(얼음 화면·하트, 다른 사람에게는 떨림) — region 스레드 전용. */
+    private int sentTicksFrozen;
+
+    private static org.domi.furnace.server.net.protocol.play.SetEntityData.Item ticksFrozenItem(int v) {
+        return new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(Entity.DATA_TICKS_FROZEN, org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_INT, v);
+    }
 
     public int arrowCount() { return arrowCount; }
 
@@ -1212,6 +1231,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
             sentSharedFlags = 0; sentPose = 0; sentLivingFlags = 0; sentSleepingPos = null; sentSkinParts = 0; sentMainArm = 1; sentShoulderLeft = null; sentShoulderRight = null;
             sentEffectParticles = java.util.List.of(); sentEffectAmbient = false;
             sentArrowCount = 0; arrowCount = 0; removeArrowTime = 0;
+            sentTicksFrozen = 0;
         }
         byte shared = sharedFlags(), f = livingFlags();
         int pose = pose();
@@ -1219,6 +1239,8 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         if (shared != sentSharedFlags || sharedFlagsForce) items.add(flagItem(0, shared));
         sharedFlagsForce = false;
         if (pose != sentPose) items.add(poseItem(pose));
+        int frozen = vitals.ticksFrozen();
+        if (frozen != sentTicksFrozen) items.add(ticksFrozenItem(frozen));
         if (f != sentLivingFlags) items.add(flagItem(8, f));
         var ep = vitals.effectParticles();   // 효과 입자: 클라이언트가 이 목록을 보고 몸 주위에 뿌린다
         Boolean ambNow = vitals.effectsAmbient();
@@ -1245,6 +1267,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         sentEffectParticles = ep;
         sentEffectAmbient = amb;
         sentArrowCount = arrows;
+        sentTicksFrozen = frozen;
         sentSleepingPos = sp;
         sentSkinParts = skin;
         sentMainArm = arm;
@@ -1310,6 +1333,17 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private final java.util.Map<org.domi.furnace.server.attribute.Attribute, java.util.Set<String>> managedModifiers = new java.util.HashMap<>();
     private volatile org.domi.furnace.server.net.protocol.play.UpdateAttributes pairingAttributesSnap;
     private int lastLocationVersion = -1;
+    private org.domi.furnace.server.attribute.AttributeModifier lastFrostModifier;
+
+    /** 위치에 따라 붙는 수정자: 영혼 가속·서리 걸음(locationEffects) + 가루눈 얼음(이동 속도, PlayerVitals 의 tryAddFrost). */
+    public java.util.Collection<org.domi.furnace.server.attribute.AttributeModifier> locatedModifiers(org.domi.furnace.server.attribute.Attribute attr) {
+        var loc = locationEffects.modifiers(attr);
+        var frost = attr == org.domi.furnace.server.attribute.Attribute.MOVEMENT_SPEED ? vitals.frostModifier() : null;
+        if (frost == null) return loc;
+        var out = new java.util.ArrayList<>(loc);
+        out.add(frost);
+        return out;
+    }
     /** 위치 변화 인챈트(영혼 가속·서리 걸음)의 상태 — region 스레드 전용. */
     public final PlayerLocationEffects.State locationEffects = new PlayerLocationEffects.State();
 
@@ -1336,11 +1370,14 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         java.util.List<Object> sig = new java.util.ArrayList<>(effects.size() * 2);
         for (var e : effects) { sig.add(e.effect()); sig.add(e.amplifier()); }
         boolean sprint = sprinting;
-        if (!sig.equals(lastEffectSignature) || sprint != lastSprintForAttributes || locationEffects.version() != lastLocationVersion) changed = true;
+        var frost = vitals.frostModifier();
+        if (!sig.equals(lastEffectSignature) || sprint != lastSprintForAttributes || locationEffects.version() != lastLocationVersion
+                || !java.util.Objects.equals(frost, lastFrostModifier)) changed = true;
         if (changed) {
             lastEffectSignature = sig;
             lastSprintForAttributes = sprint;
             lastLocationVersion = locationEffects.version();
+            lastFrostModifier = frost;
             attributeInputsKnown = true;
             reconcileModifiers(map, effects, sprint);
         }
@@ -1361,7 +1398,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private void reconcileModifiers(org.domi.furnace.server.attribute.AttributeMap map, java.util.List<org.domi.furnace.server.effect.MobEffectInstance> effects, boolean sprint) {
         for (var inst : map.all()) {
             var attr = inst.attribute();
-            var want = PlayerAttributes.modifiers(attr, attributeEquipment, effects, sprint, locationEffects.modifiers(attr));
+            var want = PlayerAttributes.modifiers(attr, attributeEquipment, effects, sprint, locatedModifiers(attr));
             var had = managedModifiers.get(attr);
             if (had != null) for (String id : had) if (!want.containsKey(id)) inst.removeModifier(id);
             for (var m : want.values()) if (!m.equals(inst.getModifier(m.id()))) inst.addOrReplaceModifier(m);
@@ -1449,6 +1486,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         var items = new java.util.ArrayList<org.domi.furnace.server.net.protocol.play.SetEntityData.Item>(3);
         if (sentSharedFlags != 0) items.add(flagItem(0, sentSharedFlags));
         if (sentPose != 0) items.add(poseItem(sentPose));
+        if (sentTicksFrozen != 0) items.add(ticksFrozenItem(sentTicksFrozen));
         if (sentLivingFlags != 0) items.add(flagItem(8, sentLivingFlags));
         if (!sentEffectParticles.isEmpty()) items.add(effectParticlesItem(sentEffectParticles));
         if (sentEffectAmbient) items.add(effectAmbientItem(true));
