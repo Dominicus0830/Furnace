@@ -838,8 +838,10 @@ public abstract non-sealed class Entity implements Rider {
         return !isInvulnerableTo(source) && false;
     }
 
+    /** Entity.isInvulnerableTo(bsr.b): 빠졌거나, 무적(우회 태그 아님)이거나, 불 피해에 불 면역이거나, 낙하(#is_fall) 피해에 #fall_damage_immune 종류. */
     public boolean isInvulnerableTo(Damage source) {
-        return isRemoved() || invulnerable && !source.bypassesInvulnerability() || source.fire() && fireImmune();
+        return isRemoved() || invulnerable && !source.bypassesInvulnerability() || source.fire() && fireImmune()
+                || typeInTag("minecraft:fall_damage_immune") && org.domi.furnace.server.entity.damage.DamageType.keyHasTag(source.type(), "is_fall");
     }
 
     /** markHurt: 다음 추적 갱신에서 속도를 바로 보낸다. */
@@ -1285,6 +1287,22 @@ public abstract non-sealed class Entity implements Rider {
     public void setIsInPowderSnow(boolean v) { isInPowderSnow = v; }
 
     public boolean wasInPowderSnow() { return wasInPowderSnow; }
+
+    /** 바닐라 Entity.TICKS_REQUIRED_TO_FREEZE(getTicksRequiredToFreeze): 140틱이면 완전히 언다. */
+    public static final int TICKS_REQUIRED_TO_FREEZE = 140;
+
+    /** getTicksFrozen: 동기화 데이터 DATA_TICKS_FROZEN(클라이언트가 얼음 화면·하트를 그린다). */
+    public int getTicksFrozen() { return (Integer) entityData.get(DATA_TICKS_FROZEN); }
+
+    public void setTicksFrozen(int ticks) { entityData.set(DATA_TICKS_FROZEN, ticks); }
+
+    /** getPercentFrozen: min(ticksFrozen, 140) / 140. */
+    public float getPercentFrozen() { return (float) Math.min(getTicksFrozen(), TICKS_REQUIRED_TO_FREEZE) / (float) TICKS_REQUIRED_TO_FREEZE; }
+
+    public boolean isFullyFrozen() { return getTicksFrozen() >= TICKS_REQUIRED_TO_FREEZE; }
+
+    /** Entity.canFreeze(bsr.dC): #freeze_immune_entity_types 가 아니다. 생물은 방어구 검사를 더한다. */
+    public boolean canFreeze() { return !typeInTag("minecraft:freeze_immune_entity_types"); }
 
     /** getInBlockState: 발 칸의 블록 상태(틱마다 캐시). */
     public int inBlockState() {

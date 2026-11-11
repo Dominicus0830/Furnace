@@ -115,10 +115,18 @@ public final class PlayerVitals {
         void onDeath(boolean keepInventory, List<ItemStack> drops, List<ItemStack> originals, List<ItemStack> itemsToKeep);
     }
 
-    /** 틱마다 region 이 블록을 보고 계산해 넘기는 주변 상태. */
+    /**
+     * 틱마다 region 이 블록을 보고 계산해 넘기는 주변 상태. inWall 은 Entity.isInWall(눈 높이 질식 블록), inPowderSnow 는 이번 틱 서버 move 의
+     * checkInsideBlocks 가 가루눈에 들었는가(Entity.isInPowderSnow), groundNotAir 는 getBlockStateOnLegacy(0.2 아래 칸)가 공기가 아닌가(tryAddFrost).
+     */
     public record Surroundings(boolean chunkLoaded, boolean inWater, boolean eyeInWater, boolean eyeInBubbleColumn,
-                               String climbable, boolean stuckInBlock, int minBuildHeight) {
+                               String climbable, boolean stuckInBlock, int minBuildHeight, boolean inWall, boolean inPowderSnow, boolean groundNotAir) {
         public static final Surroundings NONE = new Surroundings(false, false, false, false, null, false, -64);
+
+        public Surroundings(boolean chunkLoaded, boolean inWater, boolean eyeInWater, boolean eyeInBubbleColumn,
+                            String climbable, boolean stuckInBlock, int minBuildHeight) {
+            this(chunkLoaded, inWater, eyeInWater, eyeInBubbleColumn, climbable, stuckInBlock, minBuildHeight, false, false, false);
+        }
     }
 
     private final Player player;
@@ -182,6 +190,10 @@ public final class PlayerVitals {
     // 클라이언트가 아는 엔티티 데이터 — 새 엔티티는 바닐라 정의 기본값(체력 1.0, 공기 300)에서 시작한다.
     private float lastDataHealth = 1.0f;
     private int lastDataAir = MAX_AIR;
+    /** Entity.ticksFrozen(DATA_TICKS_FROZEN): 가루눈 속에서 오르고 140 이면 완전히 언다. Player.syncLivingFlags 가 동기화한다. */
+    private int ticksFrozen;
+    /** tryAddFrost 가 이동 속도에 다는 얼음 수정자(없으면 null) — Player.syncAttributes 가 속성 맵에 맞춘다. */
+    private volatile org.domi.furnace.server.attribute.AttributeModifier frostModifier;
 
     private int[] respawnPos;
     private float respawnAngle;
@@ -232,6 +244,7 @@ public final class PlayerVitals {
         hurtTime = tag.getShort("HurtTime");
         deathTime = tag.getShort("DeathTime");
         if (tag.containsNumber("Air")) air = tag.getShort("Air");
+        ticksFrozen = tag.getIntOr0("TicksFrozen");
         fallDistance = tag.getFloat("FallDistance");
         ignoreFallFromImpulse = tag.getBoolean("ignore_fall_damage_from_current_explosion");
         impulseGrace = tag.getIntOr0("current_impulse_context_reset_grace_time");
@@ -307,6 +320,8 @@ public final class PlayerVitals {
             tag.tags().remove("active_effects");
         }
         tag.putShort("Air", (short) air);
+        if (ticksFrozen > 0) tag.putInt("TicksFrozen", ticksFrozen);
+        else tag.tags().remove("TicksFrozen");
         tag.putFloat("FallDistance", fallDistance);
         tag.putBoolean("ignore_fall_damage_from_current_explosion", ignoreFallFromImpulse);
         tag.putInt("current_impulse_context_reset_grace_time", impulseGrace);
@@ -1207,8 +1222,12 @@ public final class PlayerVitals {
     public void tick(Surroundings s) {
         player.combatTick();
         java.util.List<Runnable> after = new java.util.ArrayList<>(2);
+        boolean freezeHurt;
         java.util.List<Packet> toSelf = new java.util.ArrayList<>(3);
         java.util.List<Packet> toTrackers = new java.util.ArrayList<>(2);
+        // 인벤토리는 이 잠금 밖에서 읽는다(PlayerInventory.get 은 자체 잠금, ItemStack 은 불변). 가루눈 밖이어도 TicksFrozen 이 140 을 넘게
+        // 읽혀 왔으면(바닐라 load 는 자르지 않는다) 40틱 피해 판정이 canFreeze 를 보므로 늘 검사한다.
+        boolean freezeImmuneWear = wearsFreezeImmune();
         synchronized (this) {
             tickCount++;
             if (impulseGrace > 0) impulseGrace--;
@@ -1228,10 +1247,16 @@ public final class PlayerVitals {
             }
             if (player.y() < s.minBuildHeight() - 64) after.add(() -> hurt(DamageType.OUT_OF_WORLD, 4.0f));
             if (alive) {
-                float border = env.borderDamage(player, player.x(), player.y(), player.z());
-                if (border > 0) after.add(() -> hurt(DamageType.OUTSIDE_BORDER, border));
+                // btn.aw: 질식 블록 속이면 in_wall 1, 아니면(플레이어만) 월드 보더 밖 피해 — 둘은 같은 틱에 겹치지 않는다
+                if (s.inWall() && gameMode != GameMode.SPECTATOR) {
+                    after.add(() -> hurt(DamageType.IN_WALL, 1.0f));
+                } else {
+                    float border = env.borderDamage(player, player.x(), player.y(), player.z());
+                    if (border > 0) after.add(() -> hurt(DamageType.OUTSIDE_BORDER, border));
+                }
+                // 숨: MobEffectUtil.hasWaterBreathing(물숨쉬기·전도체의 힘) 이나 무적 능력이면 줄지 않는다(물속에서는 차오르지도 않는다 — 바닐라 그대로)
                 if (s.chunkLoaded() && s.eyeInWater() && !s.eyeInBubbleColumn()) {
-                    if (!abilities.invulnerable && !effects.containsKey(MobEffect.WATER_BREATHING)) {
+                    if (!abilities.invulnerable && !effects.containsKey(MobEffect.WATER_BREATHING) && !effects.containsKey(MobEffect.CONDUIT_POWER)) {
                         air = decreaseAirSupply(air);
                         if (air == -20) {
                             air = 0;
@@ -1245,6 +1270,7 @@ public final class PlayerVitals {
             if (hurtTime > 0) hurtTime--;
             if (alive) tickEffectsLocked(toSelf);
             if (effects.containsKey(MobEffect.SLOW_FALLING) || effects.containsKey(MobEffect.LEVITATION)) fallDistance = 0.0f;
+            freezeHurt = tickFreezingLocked(s, freezeImmuneWear);   // aiStep: travel 바로 뒤
             if (health <= 0.0f) {
                 if (++deathTime >= 20 && !removedAfterDeath) {
                     removedAfterDeath = true;
@@ -1268,6 +1294,8 @@ public final class PlayerVitals {
             notifyEffectsChanged();
         }
         runPendingEffectHurts();
+        // 냉각 피해는 aiStep 이라 baseTick 끝의 효과 틱(btn.aw 765 eo) 피해보다 뒤다
+        if (freezeHurt) hurt(DamageType.byKey("freeze"), 1.0f);
         applyPendingStarve();
         final int epoch;
         int levelFrom = -1, levelTo = -1;
@@ -1286,6 +1314,48 @@ public final class PlayerVitals {
         // 모은 뒤 리스폰이 끼면(연결 스레드) 낡은 체력 0 등이 Respawn 패킷 뒤에 가서 클라가 죽은 채로 남는다 — 쓰는 순간 세대를 비교해 버린다
         for (Packet p : toSelf) player.send(p, () -> respawnEpoch == epoch);
         for (Packet p : toTrackers) env.broadcastToTrackers(player.entityId(), p);
+    }
+
+    /**
+     * LivingEntity.aiStep 의 "freezing" 구간(btn.m_ 오프셋 678~807): 죽어 가지 않으면 가루눈 속이고 얼 수 있을 때 +1(최대 140), 아니면 −2(최소 0).
+     * 얼음 속도 수정자(removeFrost → tryAddFrost)는 발밑(0.2 아래)이 공기가 아니고 얼음 틱이 있을 때 −0.05 × 언 비율. 40틱마다 완전히 얼었으면 freeze 1.
+     */
+    /** 냉각 피해(freeze 1)를 줄 틱이면 참 — 호출자가 효과 피해 뒤에 입힌다. */
+    private boolean tickFreezingLocked(Surroundings s, boolean freezeImmuneWear) {
+        boolean canFreeze = gameMode != GameMode.SPECTATOR && !freezeImmuneWear;   // LivingEntity.canFreeze(플레이어 종류는 면역 태그에 없다)
+        if (health > 0.0f) {
+            if (s.inPowderSnow() && canFreeze) ticksFrozen = Math.min(Entity.TICKS_REQUIRED_TO_FREEZE, ticksFrozen + 1);
+            else ticksFrozen = Math.max(0, ticksFrozen - 2);
+        }
+        if (s.groundNotAir() && ticksFrozen > 0) {
+            float f = -0.05F * ((float) Math.min(ticksFrozen, Entity.TICKS_REQUIRED_TO_FREEZE) / (float) Entity.TICKS_REQUIRED_TO_FREEZE);
+            frostModifier = new org.domi.furnace.server.attribute.AttributeModifier(LivingEntity.POWDER_SNOW_SPEED_MODIFIER, f,
+                    org.domi.furnace.server.attribute.AttributeModifier.ADD_VALUE);
+        } else {
+            frostModifier = null;
+        }
+        return tickCount % 40 == 0 && ticksFrozen >= Entity.TICKS_REQUIRED_TO_FREEZE && canFreeze;
+    }
+
+    /** LivingEntity.canFreeze 의 방어구 항: 머리·몸통·다리·발에 #freeze_immune_wearables(가죽)를 하나라도 입었다. */
+    private boolean wearsFreezeImmune() {
+        for (EquipmentSlot slot : LivingEntity.FREEZE_ARMOR_SLOTS) {
+            if (org.domi.furnace.server.item.ItemTags.is(player.equipment(slot), "minecraft:freeze_immune_wearables")) return true;
+        }
+        return false;
+    }
+
+    /** 얼음 틱(DATA_TICKS_FROZEN). */
+    public synchronized int ticksFrozen() { return ticksFrozen; }
+
+    /** 지금 이동 속도에 달아야 할 얼음 수정자(없으면 null). */
+    public org.domi.furnace.server.attribute.AttributeModifier frostModifier() { return frostModifier; }
+
+    /** Entity.baseTick: 불이 붙어 있는 동안 얼음 틱이 있으면 0 으로 녹인다. 녹였으면 참(호출자가 레벨 이벤트 1009 를 낸다). */
+    public synchronized boolean thawByFire() {
+        if (ticksFrozen <= 0) return false;
+        ticksFrozen = 0;
+        return true;
     }
 
     /** 엔티티 데이터(체력·공기) 동기화, 그다음 바닐라 doTick 끝: 체력·허기·포화 0 여부가 바뀌면 SetHealth, 총 경험치가 바뀌면 SetExperience. */
@@ -1524,6 +1594,8 @@ public final class PlayerVitals {
         absorption = 0;
         food = new FoodData();
         air = MAX_AIR;
+        ticksFrozen = 0;
+        frostModifier = null;
         fallDistance = 0;
         invulnerableTime = 0;
         hurtTime = 0;

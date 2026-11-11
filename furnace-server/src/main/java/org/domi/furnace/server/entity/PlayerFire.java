@@ -25,6 +25,8 @@ public final class PlayerFire {
         if (rem > 0) {
             if (rem % 20 == 0 && !inLava) p.vitals().hurt(DamageType.byKey("on_fire"), 1.0F);
             p.setRemainingFireTicks(rem - 1);
+            // Entity.baseTick: 불붙어 있으면 얼음이 녹는다(레벨 이벤트 1009 = 불 꺼지는 소리)
+            if (p.vitals().thawByFire() && level != null) level.levelEvent(null, 1009, p.blockPosition(), 1);
         }
         if (inLava) {
             lavaHurt(p, level);
