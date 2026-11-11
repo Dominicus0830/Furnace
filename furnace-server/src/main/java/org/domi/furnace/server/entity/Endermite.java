@@ -24,6 +24,7 @@ public class Endermite extends Monster {
     @Override
     protected void registerGoals() {
         goalSelector.addGoal(1, new FloatGoal(this));
+        goalSelector.addGoal(1, new ClimbOnTopOfPowderSnowGoal(this));   // 바닐라 cju.B
         goalSelector.addGoal(2, new MeleeAttackGoal(this, 1.0, false));
         goalSelector.addGoal(3, new WaterAvoidingRandomStrollGoal(this, 1.0));
         goalSelector.addGoal(7, new LookAtPlayerGoal(this, 8.0F));

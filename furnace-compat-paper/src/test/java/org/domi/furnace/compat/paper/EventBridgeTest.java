@@ -130,6 +130,23 @@ class EventBridgeTest {
             fire.put(org.bukkit.event.inventory.InventoryDragEvent.class, null);
             fire.put(org.bukkit.event.player.PlayerInteractEntityEvent.class,
                     () -> new org.domi.furnace.api.event.player.PlayerInteractEntityEvent(p, p, org.domi.furnace.api.item.ItemStack.EMPTY, true));
+            var bp = new BlockPos(1, 64, 2);
+            var stoneData = org.domi.furnace.api.world.BlockData.of("minecraft:stone");
+            fire.put(org.bukkit.event.player.PlayerInteractEvent.class, () -> new org.domi.furnace.api.event.player.PlayerInteractEvent(p,
+                    org.domi.furnace.api.event.player.PlayerInteractEvent.Action.RIGHT_CLICK_BLOCK, stone,
+                    new org.domi.furnace.api.world.BlockSnapshot(w, bp, stoneData), "up", true));
+            fire.put(org.bukkit.event.player.PlayerItemHeldEvent.class, () -> new org.domi.furnace.api.event.player.PlayerItemHeldEvent(p, 0, 3));
+            fire.put(org.bukkit.event.block.BlockPhysicsEvent.class, () -> new org.domi.furnace.api.event.block.BlockPhysicsEvent(w, bp, stoneData, new BlockPos(1, 65, 2), "minecraft:sand"));
+            fire.put(org.bukkit.event.block.BlockFromToEvent.class, () -> new org.domi.furnace.api.event.block.BlockFromToEvent(w, bp, "minecraft:water", new BlockPos(1, 63, 2), "down"));
+            fire.put(org.bukkit.event.block.BlockBurnEvent.class, () -> new org.domi.furnace.api.event.block.BlockBurnEvent(w, bp, "minecraft:oak_planks", new BlockPos(1, 65, 2)));
+            fire.put(org.bukkit.event.block.BlockIgniteEvent.class, () -> new org.domi.furnace.api.event.block.BlockIgniteEvent(w, bp,
+                    org.domi.furnace.api.event.block.BlockIgniteEvent.Cause.FLINT_AND_STEEL, null, p));
+            fire.put(org.bukkit.event.block.BlockRedstoneEvent.class, () -> new org.domi.furnace.api.event.block.BlockRedstoneEvent(w, bp, "minecraft:redstone_wire", 0, 15));
+            fire.put(org.bukkit.event.block.LeavesDecayEvent.class, () -> new org.domi.furnace.api.event.block.LeavesDecayEvent(w, bp, org.domi.furnace.api.world.BlockData.of("minecraft:oak_leaves")));
+            fire.put(org.bukkit.event.inventory.FurnaceBurnEvent.class, () -> new org.domi.furnace.api.event.inventory.FurnaceBurnEvent(w, bp, "minecraft:furnace",
+                    org.domi.furnace.api.item.ItemStack.of("minecraft:coal"), 1600));
+            fire.put(org.bukkit.event.block.BlockCookEvent.class, () -> new org.domi.furnace.api.event.inventory.FurnaceSmeltEvent(w, bp, "minecraft:furnace",
+                    org.domi.furnace.api.item.ItemStack.of("minecraft:iron_ore"), org.domi.furnace.api.item.ItemStack.of("minecraft:iron_ingot")));
 
             // 시험이 빠뜨린 짝이 없는지: 다리가 아는 이벤트 = 이 시험이 발행한 이벤트
             assertEquals(EventBridge.bridgedEvents(), new HashSet<Class<?>>(fire.keySet()));

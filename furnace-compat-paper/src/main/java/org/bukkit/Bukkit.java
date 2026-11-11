@@ -94,6 +94,8 @@ public final class Bukkit {
 
     public static org.bukkit.plugin.messaging.Messenger getMessenger() { return s().getMessenger(); }
 
+    public static org.bukkit.help.HelpMap getHelpMap() { return s().getHelpMap(); }
+
     public static boolean isPrimaryThread() { return s().isPrimaryThread(); }
 
     public static org.bukkit.command.CommandMap getCommandMap() { return s().getCommandMap(); }

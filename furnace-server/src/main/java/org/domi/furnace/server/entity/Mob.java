@@ -497,6 +497,7 @@ public abstract class Mob extends LivingEntity implements Leashable {
     protected boolean shouldDespawnInPeaceful() { return false; }
 
     /** Mob.checkDespawn: 평화로움이면 적대 몹 제거, 아니면 가장 가까운 플레이어와의 거리로 사라질지 정한다(128 넘으면 즉시, 32 넘고 600틱 무행동이면 1/800). */
+    @Override
     public void checkDespawn() {
         if (level.difficulty() == 0 && shouldDespawnInPeaceful()) {
             discard();
@@ -518,7 +519,7 @@ public abstract class Mob extends LivingEntity implements Leashable {
 
     @Override
     public void tick() {
-        if (!isRemoved()) checkDespawn();
+        // checkDespawn 은 여기서 부르지 않는다 — 바닐라처럼 레벨 엔티티 틱이 tick 앞에서, 시뮬레이션 거리 밖 몹에도 부른다(ChunkLevel.tickEntities)
         super.tick();
         if (!isRemoved() && tickCount % 5 == 0) updateControlFlags();
     }

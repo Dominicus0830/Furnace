@@ -38,6 +38,12 @@ public final class Regionizer {
     private volatile long tickNanos;
 
     final ReentrantLock lock = new ReentrantLock();
+    /**
+     * 작업 길 잠금(A03-02): 작업 보내기(주인 읽기 + 그 큐에 넣기)는 읽기, 구역 주인 바꾸기(흡수·나누기·없애기)와 옛 큐 옮기기는 쓰기로 쥔다.
+     * 그래서 주인이 바뀐 것을 본 생산자의 새 작업은 언제나 옮겨진 옛 작업 뒤에 선다(같은 스레드가 같은 청크에 보낸 작업의 순서가 지켜진다).
+     * 순서: 쓰기는 늘 {@link #lock} 안에서만 잡는다. 읽기를 쥔 채로는 다른 잠금을 잡지 않는다(교착 없음).
+     */
+    private final java.util.concurrent.locks.ReentrantReadWriteLock route = new java.util.concurrent.locks.ReentrantReadWriteLock();
     /** 빌림(RegionBorrow): region 이 틱을 마치거나 흡수될 때 기다리는 빌리는 스레드를 깨운다. borrowWaiters 는 잠금 안. */
     private final java.util.concurrent.locks.Condition borrowable = lock.newCondition();
     private int borrowWaiters;
@@ -342,34 +348,65 @@ public final class Regionizer {
 
     // ------------------------------------------------------------------ 작업 보내기
 
-    /** 그 청크의 주인 region 큐에 작업을 넣는다. 그 사이 주인이 죽었으면(합쳐짐·나뉨) 죽은 큐를 비워 다시 보낸다. */
+    /** 그 청크의 주인 region 큐에 작업을 넣는다. 구역이 없으면 만든다. */
     void enqueue(long chunkKey, java.util.function.Consumer<Region> task) {
         enqueue(chunkKey, task, org.domi.furnace.server.sched.GlobalThread.isGlobalThread());
     }
 
     /** urgent: 전역(명령) 스레드가 보낸 작업 — 명령 블록이 결과를 기다리는 동안 골라 돌린다(Region.awaitUrgent). */
     void enqueue(long chunkKey, java.util.function.Consumer<Region> task, boolean urgent) {
-        Region r = ownerForTask(chunkX(chunkKey), chunkZ(chunkKey));
-        r.inbox.add(new Region.Task(chunkKey, task, urgent));
-        if (!r.alive) reroute(r);
-        else if (urgent) urgentArrived(r);
+        Region.Task t = new Region.Task(chunkKey, task, urgent);
+        int cx = chunkX(chunkKey), cz = chunkZ(chunkKey);
+        Region r;
+        while ((r = offer(cx, cz, t)) == null) {
+            // 구역이 없거나 주인이 없어졌다 — 잠금 안에서 구역을 만들고(읽기 잠금은 놓은 채) 다시 넣는다
+            lock.lock();
+            try {
+                sectionFor(sectionKeyOfChunk(cx, cz), null);
+            } finally {
+                lock.unlock();
+            }
+        }
+        if (urgent) urgentArrived(r);
     }
 
-    /** 주인 region 이 이미 있을 때만 작업을 넣는다(조회성 — region 을 만들지 않는다). 주인이 없으면 false. */
+    /** 주인 region 이 이미 있을 때만 작업을 넣는다(조회성 — region 을 만들지 않는다). 주인이 없으면(그 사이 없어졌어도) false. */
     boolean enqueueIfOwned(long chunkKey, java.util.function.Consumer<Region> task) {
-        Region r = ownerOf(chunkX(chunkKey), chunkZ(chunkKey));
-        if (r == null) return false;
         boolean urgent = org.domi.furnace.server.sched.GlobalThread.isGlobalThread();
-        r.inbox.add(new Region.Task(chunkKey, task, urgent));
-        if (!r.alive) reroute(r);
-        else if (urgent) urgentArrived(r);
+        Region r = offer(chunkX(chunkKey), chunkZ(chunkKey), new Region.Task(chunkKey, task, urgent));
+        if (r == null) return false;
+        if (urgent) urgentArrived(r);
         return true;
     }
 
-    /** 죽은 region 의 남은 작업을 지금 주인에게. */
-    void reroute(Region dead) {
+    /**
+     * 읽기 잠금 안에서 지금 주인을 읽고 그 큐에 넣는다. 주인 바꾸기(쓰기 잠금)와 겹치지 않으므로, 넣은 큐는 넣는 순간의 주인 것이고
+     * 이후 주인이 바뀌면 바꾸는 쪽이 이 작업을 순서대로 옮긴다. 주인이 없으면 null(넣지 않았다).
+     */
+    private Region offer(int cx, int cz, Region.Task t) {
+        var rl = route.readLock();
+        rl.lock();
+        try {
+            Region r = ownerOf(cx, cz);
+            if (r == null || !r.alive) return null;
+            r.inbox.add(t);
+            return r;
+        } finally {
+            rl.unlock();
+        }
+    }
+
+    /**
+     * 죽은 region 의 남은 작업을 넣은 순서대로 지금 주인에게(쓰기 잠금 안 — 그 사이 생산자는 기다린다). region 단위 작업은 into(흡수한 쪽)가
+     * 있으면 그쪽에서 돈다 — 청크 키로 보내면 그 키 구역이 나뉘어 간 다른 region 에서 두 번 돌고 흡수한 쪽 몫은 빠진다.
+     * 쓰기 잠금 안에서는 같은 차원에만 보낸다(다른 차원 Regionizer 로 enqueue 하면 잠금 순서가 깨진다).
+     */
+    private void reroute(Region dead, Region into) {
         Region.Task t;
-        while ((t = dead.inbox.poll()) != null) enqueue(t.chunkKey(), t.run(), t.urgent());
+        while ((t = dead.inbox.poll()) != null) {
+            if (into != null && t.run() instanceof RegionWide) into.inbox.add(t);
+            else enqueue(t.chunkKey(), t.run(), t.urgent());
+        }
     }
 
     // ------------------------------------------------------------------ 명령 블록 기다림(전역 스레드가 보낸 작업을 빨리 돌리기)
@@ -864,27 +901,59 @@ public final class Regionizer {
 
     /** o 를 r 로 흡수(둘 다 쉬는 중, 잠금 안). */
     private void absorb(Region r, Region o) {
-        o.alive = false;
-        o.mergedInto = r;
-        regions.remove(o);
-        for (long sk : o.sections) {
-            Section s = sections.get(sk);
-            if (s != null) s.owner = r;
-            r.sections.add(sk);
-        }
-        r.deadSections += o.deadSections;
-        o.sections.clear();
-        for (Region p : o.pendingMerges) if (resolve(p) != r) r.pendingMerges.add(p);
-        o.pendingMerges.clear();
+        // 주인 바꾸기와 o 큐 옮기기를 생산자에게 한 번에 보이게(쓰기 잠금): 바뀐 주인을 본 새 작업은 옮겨진 옛 작업 뒤에 선다.
+        // r 큐에는 r 구역 작업만 있으므로(같은 불변식) o 작업을 그 뒤에 붙여도 청크마다 순서는 그대로다.
+        // 데이터 옮기기는 쓰기 잠금 밖에서(생산자는 o 큐에만 넣는다 — 아래에서 함께 옮긴다). 그동안 넷티 스레드 작업 넣기가 멈추지 않게.
         r.absorbData(o);
         r.adoptSprintFrom(o);   // 참여하지 않던 쪽이 흡수하면 참여 쪽 sprint 상태를 이어받는다
-        reroute(o);
+        var wl = route.writeLock();
+        wl.lock();
+        try {
+            o.alive = false;
+            o.mergedInto = r;
+            regions.remove(o);
+            for (long sk : o.sections) {
+                Section s = sections.get(sk);
+                if (s != null) s.owner = r;
+                r.sections.add(sk);
+            }
+            r.deadSections += o.deadSections;
+            o.sections.clear();
+            for (Region p : o.pendingMerges) if (resolve(p) != r) r.pendingMerges.add(p);
+            o.pendingMerges.clear();
+            reroute(o, r);
+        } finally {
+            wl.unlock();
+        }
         if (o.yielded) o.yielded = false;
     }
 
     /** 죽은 구역을 지우고 남은 구역을 반경 인접으로 묶어, 둘 이상이면 나눈다(잠금 안, r 은 쉬는 중). */
     private void split(Region r) {
+        // 구역 지우기·주인 바꾸기와 큐 옮기기를 생산자에게 한 번에 보이게(쓰기 잠금 — absorb 와 같은 까닭)
+        var wl = route.writeLock();
+        wl.lock();
+        try {
+            splitLocked(r);
+        } finally {
+            wl.unlock();
+        }
+    }
+
+    /** r 큐에서 이제 r 것이 아닌 칸의 작업을 넣은 순서대로 지금 주인에게 보낸다(쓰기 잠금 안). r 에 남는 작업 순서도 그대로다. */
+    private void rerouteForeign(Region r) {
+        List<Region.Task> pending = new ArrayList<>();
+        Region.Task t;
+        while ((t = r.inbox.poll()) != null) pending.add(t);
+        for (Region.Task task : pending) {
+            if (task.run() instanceof RegionWide || owns(r, chunkX(task.chunkKey()), chunkZ(task.chunkKey()))) r.inbox.add(task);
+            else enqueue(task.chunkKey(), task.run(), task.urgent());
+        }
+    }
+
+    private void splitLocked(Region r) {
         long now = System.nanoTime();
+        boolean removed = false;
         int stillDead = 0;
         List<Long> live = new ArrayList<>();
         Set<Long> anchored = new HashSet<>();   // 플레이어가 선 구역은 청크가 없어도 남긴다(텔레포트 직후 등)
@@ -897,6 +966,7 @@ public final class Regionizer {
             if (s == null) continue;
             if (s.removable(now) && !anchored.contains(sk)) {
                 sections.remove(sk);
+                removed = true;
             } else {
                 live.add(sk);
                 if (s.present == 0) stillDead++;
@@ -906,6 +976,7 @@ public final class Regionizer {
         r.deadSections = stillDead;   // 아직 유예 중인 빈 구역은 다음 계산 때 다시 본다
         if (live.isEmpty()) {
             if (r.isIdleEmpty()) kill(r);   // 아니면(지연 작업·ack 가 남음) 다음 계산 때 다시 본다
+            else if (removed) rerouteForeign(r);   // 지운 구역 칸의 작업은 새 주인에게(남겨 두면 나중에 그 칸의 새 작업 뒤로 밀린다)
             return;
         }
         // 연결 성분(반경 안 = 인접)
@@ -930,7 +1001,10 @@ public final class Regionizer {
             }
             parts.add(part);
         }
-        if (parts.size() == 1) return;
+        if (parts.size() == 1) {
+            if (removed) rerouteForeign(r);
+            return;
+        }
         parts.sort((a, b) -> Integer.compare(b.size(), a.size()));   // 가장 큰 성분은 원래 region 이 갖는다
         Map<Long, Region> target = new HashMap<>();
         List<Region> created = new ArrayList<>();
@@ -987,9 +1061,15 @@ public final class Regionizer {
             r.drainPass = false;
             PENDING_DRAINS.decrementAndGet();
         }
-        r.alive = false;
-        regions.remove(r);
-        reroute(r);
+        var wl = route.writeLock();
+        wl.lock();
+        try {
+            r.alive = false;
+            regions.remove(r);
+            reroute(r, null);
+        } finally {
+            wl.unlock();
+        }
     }
 
     // ------------------------------------------------------------------ 빌림(RegionBorrow — 전역 스레드의 옛 "주 스레드" 코드)

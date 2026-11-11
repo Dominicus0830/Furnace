@@ -95,6 +95,9 @@ public interface Server extends org.bukkit.plugin.messaging.PluginMessageRecipie
     /** 플러그인 채널 메신저(서버마다 하나). */
     org.bukkit.plugin.messaging.Messenger getMessenger();
 
+    /** /help 항목 모음. 넣은 항목은 보관되지만 Furnace 의 /help 는 아직 보이지 않는다. */
+    org.bukkit.help.HelpMap getHelpMap();
+
     /** 지금 스레드가 "주 스레드"인가: 전역 스레드이거나, 호환 계층이 옛 코드를 돌리려고 표시한 스레드. */
     boolean isPrimaryThread();
 

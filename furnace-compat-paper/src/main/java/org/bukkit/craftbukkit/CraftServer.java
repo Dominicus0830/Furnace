@@ -246,6 +246,11 @@ public final class CraftServer implements Server {
     @Override
     public org.bukkit.plugin.messaging.Messenger getMessenger() { return Compat.messenger(); }
 
+    private final org.domi.furnace.compat.paper.CompatHelpMap helpMap = new org.domi.furnace.compat.paper.CompatHelpMap();
+
+    @Override
+    public org.bukkit.help.HelpMap getHelpMap() { return helpMap; }
+
     /** 모든 접속자에게(각자 그 채널을 알린 클라이언트에만 간다 — CraftServer 와 같다). */
     @Override
     public void sendPluginMessage(org.bukkit.plugin.Plugin source, String channel, byte[] message) {

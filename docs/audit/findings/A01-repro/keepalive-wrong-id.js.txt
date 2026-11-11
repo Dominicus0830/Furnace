@@ -1,0 +1,21 @@
+// A01-04 재현: 서버가 보낸 적 없는(또는 이미 답한) keep_alive id 를 보내면 바닐라는 "disconnect.timeout"(Timed out)으로 끊는다
+// (ServerCommonPacketListenerImpl.handleKeepAlive: 대기 중이고 id 가 같을 때만 지연 갱신, 아니면 싱글플레이 호스트가 아닌 한 disconnect(TIMEOUT)).
+// Furnace(ConnectionHandler.handlePlay case 0x18)는 id 가 달라도 그냥 무시하고 연결을 유지한다.
+// 사용: NODE_PATH=tools/bot-test/node_modules node keepalive-wrong-id.js   (오프라인 Furnace 가 25565 에 떠 있어야 한다)
+const mc = require('minecraft-protocol');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const c = mc.createClient({ host: '127.0.0.1', port: 25565, username: 'A01Keep', version: '1.21.1', auth: 'offline', hideErrors: true });
+let playing = false, ended = null;
+c.on('login', () => { playing = true; });
+c.on('position', p => c.write('teleport_confirm', { teleportId: p.teleportId }));
+c.on('keep_alive', p => c.write('keep_alive', { keepAliveId: p.keepAliveId }));
+c.on('end', r => { ended = r; });
+c.on('error', () => {});
+(async () => {
+  while (!playing) await sleep(200);
+  await sleep(2000);
+  c.write('keep_alive', { keepAliveId: 123456789n });   // 서버가 보낸 적 없는 id
+  await sleep(3000);
+  console.log(ended ? `끊김(${ended}) — 바닐라와 같다` : '연결 유지 — 바닐라는 여기서 disconnect.timeout 으로 끊는다');
+  c.end('done'); process.exit(0);
+})();

@@ -456,8 +456,8 @@ public final class Region {
         if (err != null) {
             Throwable root = err;
             while (root instanceof java.util.concurrent.CompletionException && root.getCause() != null) root = root.getCause();
-            if (root instanceof org.domi.furnace.server.world.anvil.NewerDataVersionException newer) {
-                // 새 판 청크는 올리지도 덮지도 않는다(A05-03). 시야 미리 불러오기가 틱마다 다시 걸므로 청크마다 한 번만 크게 남긴다.
+            if (root instanceof org.domi.furnace.server.world.anvil.UnsupportedDataVersionException newer) {
+                // 새 판·옛 판 청크는 올리지도 덮지도 않는다(A05-03·04). 시야 미리 불러오기가 틱마다 다시 걸므로 청크마다 한 번만 크게 남긴다.
                 if (world.warnNewerChunkOnce(key)) {
                     org.slf4j.LoggerFactory.getLogger(Region.class).error("[CHUNK] {} 를 올리지 않는다: {}", cp, newer.getMessage());
                 }
@@ -1215,7 +1215,11 @@ public final class Region {
         }
         if (level != null) {   // 바닐라 ServerLevel.tick: 블록·유체 예약 틱 → 청크 틱(무작위 틱) → 청크 변경 방송 → 블록 이벤트 → 엔티티
             int n = frozen ? 0 : collectTickingChunks();
-            level.tickBlocks(tickingChunks, n, frozen ? 0 : spawnChunkCount, this::blockEntityTicking, pl -> players.containsKey(pl.entityId()), frozen);
+            // 판정(바닐라 1.21.1): 무작위 틱 = TickingTracker ≤ 32(randomTicking), 예약 틱·블록 엔티티 = blockTicking, 블록 이벤트 = blockEventTicking, 엔티티 섹션 = ChunkHolder
+            // ENTITY_TICKING(시야 거리 — 버리기·사라짐 검사), 엔티티 틱 = TickingTracker ≤ 31(시뮬레이션 거리 — 엔티티 tick·추적)
+            level.tickBlocks(tickingChunks, n, frozen ? 0 : spawnChunkCount, frozen || n == 0 ? 0 : naturalSpawnChunkCount(), this::randomTicking,
+                    this::blockTicking, this::blockEventTicking, k -> naturalSpawningAllowed(Regionizer.chunkX(k), Regionizer.chunkZ(k)), this::entityTicking,
+                    pl -> players.containsKey(pl.entityId()), frozen);
             lap(0);
             level.runLightUpdates();
             lap(1);
@@ -1251,6 +1255,7 @@ public final class Region {
             tickCamera(p);
             // 바닐라 ChunkMap.move — 이동 패킷마다 엔티티 보임을 다시 본다(탄 동안은 회전 패킷이 매 틱 온다)
             double tickX = p.x(), tickZ = p.z();   // 바닐라 xOld·zOld(틱 머리 setOldPosAndRot)
+            p.resetInPowderSnowTick();   // baseTick: isInPowderSnow = false — 아래 서버 move 의 checkInsideBlocks 가 다시 켠다
             boolean moved = processMoves(p);
             if ((moved || p.vehicle() != null) && level != null) level.playerMoved(p);
             if (p.vehicle() == null) {   // 바닐라는 연결 틱마다 서버에서 travel→move 를 한 번 돌린다: 움직이지 않아도 불 블록 안이면 불 틱이 오르고, 끝에서 불이 꺼진다
@@ -1546,47 +1551,60 @@ public final class Region {
     private long[] tickingChunks = new long[64];
 
     /**
-     * 무작위 틱 받을 청크: 이 region 이 가진 로드된 청크 중, 관전자가 아닌 플레이어가 시뮬레이션 거리 안(체비셰프 ≤ min(거리, 11) − 1,
-     * 자연 스폰 범위 8 청크 안)이고 청크 가운데에서 128 블록 안(anyPlayerCloseEnoughForSpawning)인 것. 순서는 레벨이 섞는다.
+     * 청크 틱(스폰·무작위 틱) 대상 — 바닐라 ServerChunkCache.tickChunks(aqs.t): 이 region 이 가진 로드된 청크 중
+     * isNaturalSpawningAllowed(엔티티 틱 단계 — naturalSpawningAllowed, 서버 시야 거리 안이라 시뮬레이션 거리와 무관)이고
+     * anyPlayerCloseEnoughForSpawning(관전자가 아닌 플레이어가 자연 스폰 범위 8 청크 안이고 청크 가운데에서 128 블록 안)인 것.
+     * 이 청크들은 inhabitedTime 이 늘고 스폰을 받는다. 무작위 틱은 그중 shouldTickBlocksAt(randomTicking — 시뮬레이션 거리 + 1)만.
+     * 순서는 레벨이 섞는다. (예전에는 체비셰프 min(sim − 1, 8) 하나로 둘 다 정해 시뮬레이션 거리 8 이하에서 바닐라보다 좁았다.)
      */
     private int collectTickingChunks() {
         spawnChunkCount = 0;
         if (players.isEmpty()) return 0;
         org.domi.furnace.server.block.BlockBehaviors.ofBlock(0);   // 무작위 틱 표를 섹션에 건다
-        int sim = Math.clamp(world.levelServices().simulationDistance(), 2, 11) - 1;
-        int range = Math.min(sim, 8);
         int n = 0;
-        if (!players.isEmpty()) {
-            for (long key : present.snapshot()) {
-                int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
-                if (!closeToPlayer(cx, cz, range)) continue;
-                ChunkColumn col = ownedChunk(cx, cz);
-                if (col == null) continue;
-                col.inhabitedTime(col.inhabitedTime() + 1);   // LevelChunk.incrementInhabitedTime(1)
-                if (n == tickingChunks.length) tickingChunks = java.util.Arrays.copyOf(tickingChunks, n * 2);
-                tickingChunks[n++] = key;
-            }
+        for (long key : present.snapshot()) {
+            int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
+            if (!closeToPlayer(cx, cz, NATURAL_SPAWN_RANGE)) continue;
+            ChunkColumn col = ownedChunk(cx, cz);
+            if (col == null || !naturalSpawningAllowed(cx, cz)) continue;
+            col.inhabitedTime(col.inhabitedTime() + 1);   // LevelChunk.incrementInhabitedTime(1)
+            if (n == tickingChunks.length) tickingChunks = java.util.Arrays.copyOf(tickingChunks, n * 2);
+            tickingChunks[n++] = key;
         }
-        // 바닐라 ServerChunkCache.tickChunks: 무작위 틱·스폰·inhabitedTime 은 anyPlayerCloseEnoughForSpawning 청크만 — 강제 로드 청크도 예외 없다
+        // 바닐라: 무작위 틱·스폰·inhabitedTime 은 anyPlayerCloseEnoughForSpawning 청크만 — 강제 로드 청크도 예외 없다
         spawnChunkCount = n;
         return n;
     }
 
-    /** collectTickingChunks 가 모은 앞쪽 몇 칸이 자연 스폰 대상(플레이어 근처)인가. 뒤는 강제 로드 청크. */
-    private int spawnChunkCount;
+    /**
+     * ServerLevel.isNaturalSpawningAllowed(ChunkPos/BlockPos) = PersistentEntitySectionManager.canPositionTick: ChunkHolder 가 ENTITY_TICKING
+     * (티켓 레벨 ≤ 31). 플레이어 시야 티켓(DistanceManager.PlayerTicketTracker, 레벨 aqk.b = 31)이 서버 시야 거리 안(체비셰프) 청크 전부에 붙어
+     * 시뮬레이션 거리와 무관하다. 관전자는 spectatorsGenerateChunks 일 때만 티켓을 단다(skipPlayer). 강제 로드·포털·플러그인 티켓도 엔티티 틱이다.
+     */
+    boolean naturalSpawningAllowed(int cx, int cz) {
+        var forced = world.forcedChunksOrNull();
+        if (forced != null && forced.size() > 0 && forced.contains(cx, cz)) return true;
+        if (world.entityTicketed(cx, cz) || world.pluginTicking(cx, cz)) return true;
+        return ticketPlayerWithin(cx, cz, Math.clamp(world.viewDistance(), 2, 32));
+    }
 
     /**
-     * 그 청크가 블록 엔티티 틱을 받는가 — 바닐라 LevelChunk.isTicking: 엔티티 틱 단계(플레이어 표가 시뮬레이션 거리 - 1 안,
-     * 체비셰프)인 청크. 키는 (x << 32 | z).
+     * ServerChunkCache.tickChunks 의 무작위 틱 조건 ServerLevel.shouldTickBlocksAt(long) = DistanceManager.inBlockTickingRange(TickingTracker 레벨 ≤ 32).
+     * 블록 이벤트와 같은 판정({@link #inBlockTickingRange}). 키는 Regionizer.chunkKey.
      */
-    private boolean blockEntityTicking(long key) {
-        int cx = (int) (key >> 32), cz = (int) key;
-        var forced = world.forcedChunksOrNull();
-        if (forced != null && forced.size() > 0 && forced.contains(cx, cz)) return true;   // /forceload: 엔티티 틱 레벨 티켓
-        if (world.entityTicketed(cx, cz)) return true;   // 포털·드래곤 티켓의 엔티티 틱 범위
-        if (world.pluginTicking(cx, cz)) return true;   // 플러그인 티켓(ticking)
-        int range = Math.max(world.levelServices().simulationDistance(), 2) - 1;
+    boolean randomTicking(long key) {
+        return inBlockTickingRange(Regionizer.chunkX(key), Regionizer.chunkZ(key), false);
+    }
+
+    /**
+     * 티켓을 다는 플레이어(바닐라 DistanceManager.addPlayer — ChunkMap.skipPlayer 가 아닌: 관전자는 spectatorsGenerateChunks 일 때만) 중
+     * 그 청크에서 체비셰프 range 안인 사람이 있는가. 시야 티켓·TickingTracker·스폰 수 세기가 모두 이 플레이어 집합을 쓴다.
+     */
+    private boolean ticketPlayerWithin(int cx, int cz, int range) {
+        if (players.isEmpty()) return false;
+        boolean spectators = world.levelServices().gameRule("spectatorsGenerateChunks");
         for (Player p : players.values()) {
+            if (!spectators && p.gameMode() == GameMode.SPECTATOR) continue;
             int pcx = (int) Math.floor(p.x()) >> 4, pcz = (int) Math.floor(p.z()) >> 4;
             if (Math.max(Math.abs(pcx - cx), Math.abs(pcz - cz)) <= range) return true;
         }
@@ -1594,13 +1612,148 @@ public final class Region {
     }
 
     /**
-     * /execute if loaded 의 바닐라 조건: 청크가 FULL 이상이고 엔티티 틱 단계(ENTITY_TICKING)이며 엔티티가 불러와졌다(areEntitiesLoaded).
+     * 그 청크의 엔티티가 tick 을 받는가 — 바닐라 DistanceManager.inEntityTickingRange: TickingTracker 레벨 ≤ 31. 플레이어 티켓 레벨이
+     * max(0, 31 − sim)이라 체비셰프 ≤ min(sim, 31)(관전자는 spectatorsGenerateChunks 일 때만). 엔티티가 entityTickList 에 있으려면 섹션도
+     * ENTITY_TICKING(시야 거리 안)이어야 해서 시야 거리로도 자른다. 강제 로드·포털·드래곤·플러그인 티켓은 그 범위. 예전엔 ≤ sim − 1 이었다(A10 검토 R2).
+     * 사라짐 검사(checkDespawn)는 이 판정이 아니라 섹션 판정(naturalSpawningAllowed)을 따른다(ChunkLevel.tickEntities). 키는 (x << 32 | z).
+     */
+    boolean entityTicking(long key) {
+        int cx = Regionizer.chunkX(key), cz = Regionizer.chunkZ(key);
+        var forced = world.forcedChunksOrNull();
+        if (forced != null && forced.size() > 0 && forced.contains(cx, cz)) return true;   // /forceload: 엔티티 틱 레벨 티켓
+        if (world.entityTicketed(cx, cz) || world.pluginTicking(cx, cz)) return true;   // 포털·드래곤·플러그인 티켓
+        int sim = Math.max(world.levelServices().simulationDistance(), 2);
+        return ticketPlayerWithin(cx, cz, Math.min(31 - Math.max(0, 31 - sim), Math.clamp(world.viewDistance(), 2, 32)));
+    }
+
+    /** collectTickingChunks 가 모은 앞쪽 몇 칸이 자연 스폰 대상(플레이어 근처)인가. 뒤는 강제 로드 청크. */
+    private int spawnChunkCount;
+
+    /** 자연 스폰 상한 범위(바닐라 DistanceManager.naturalSpawnChunkCounter = FixedPlayerDistanceChunkTracker(8)): 체비셰프 8, 17×17. */
+    static final int NATURAL_SPAWN_RANGE = 8;
+    private long[] spawnCountKeys = new long[8], spawnCountCachedKeys = new long[0];
+    private int spawnCountCached;
+
+    /**
+     * 자연 스폰 전역 상한의 청크 수(바닐라 DistanceManager.getNaturalSpawnChunkCount, A10-01): 이 region 플레이어 청크 둘레 체비셰프 8 칸의
+     * 합집합 크기. 청크가 올라와 있는지·시뮬레이션 거리·128 블록 원과 무관하다(혼자면 늘 289 → 몬스터 상한 70). 관전자는
+     * spectatorsGenerateChunks 가 켜져 있을 때만 센다(ChunkMap.skipPlayer). 플레이어 청크 집합이 그대로면 지난 값을 쓴다.
+     * 바닐라는 차원 전체 합집합이다 — region 은 서로 떨어져 있어 각 region 합의 합과 같다(region 끼리 범위가 겹치는 짧은 때만 다르다).
+     */
+    int naturalSpawnChunkCount() {
+        if (players.isEmpty()) return 0;
+        boolean spectators = world.levelServices().gameRule("spectatorsGenerateChunks");
+        if (spawnCountKeys.length < players.size()) spawnCountKeys = new long[players.size() * 2];
+        long[] keys = spawnCountKeys;
+        int k = 0;
+        for (Player p : players.values()) {
+            if (!spectators && p.gameMode() == GameMode.SPECTATOR) continue;
+            keys[k++] = Regionizer.chunkKey((int) Math.floor(p.x()) >> 4, (int) Math.floor(p.z()) >> 4);
+        }
+        if (k <= 1) return k == 0 ? 0 : (2 * NATURAL_SPAWN_RANGE + 1) * (2 * NATURAL_SPAWN_RANGE + 1);
+        java.util.Arrays.sort(keys, 0, k);
+        int d = 1;
+        for (int i = 1; i < k; i++) if (keys[i] != keys[d - 1]) keys[d++] = keys[i];
+        if (d == 1) return (2 * NATURAL_SPAWN_RANGE + 1) * (2 * NATURAL_SPAWN_RANGE + 1);
+        if (java.util.Arrays.equals(keys, 0, d, spawnCountCachedKeys, 0, spawnCountCachedKeys.length)) return spawnCountCached;
+        spawnCountCachedKeys = java.util.Arrays.copyOf(keys, d);
+        int[] xs = new int[d], zs = new int[d];
+        for (int i = 0; i < d; i++) {
+            xs[i] = Regionizer.chunkX(keys[i]);
+            zs[i] = Regionizer.chunkZ(keys[i]);
+        }
+        return spawnCountCached = unionOfSquares(xs, zs, d, NATURAL_SPAWN_RANGE);
+    }
+
+    /** 칸 (xs[i], zs[i]) 둘레 체비셰프 r 정사각형 n 개의 합집합 칸 수. 열(x)마다 겹치는 z 구간을 합친다. */
+    static int unionOfSquares(int[] xs, int[] zs, int n, int r) {
+        Integer[] byZ = new Integer[n];
+        for (int i = 0; i < n; i++) byZ[i] = i;
+        java.util.Arrays.sort(byZ, (a, b) -> Integer.compare(zs[a], zs[b]));
+        int[] sx = java.util.Arrays.copyOf(xs, n);
+        java.util.Arrays.sort(sx);
+        int total = 0;
+        int from = sx[0] - r, to = sx[0] + r;
+        for (int j = 1; j <= n; j++) {
+            if (j < n && sx[j] - r <= to + 1) {
+                to = Math.max(to, sx[j] + r);
+                continue;
+            }
+            for (int x = from; x <= to; x++) {   // 이 열을 덮는 정사각형들의 z 구간(z 순)을 합친다
+                long runStart = Long.MIN_VALUE, runEnd = Long.MIN_VALUE;
+                for (Integer i : byZ) {
+                    if (Math.abs(xs[i] - x) > r) continue;
+                    long s = (long) zs[i] - r, e = (long) zs[i] + r;
+                    if (runStart == Long.MIN_VALUE || s > runEnd + 1) {
+                        if (runStart != Long.MIN_VALUE) total += (int) (runEnd - runStart + 1);
+                        runStart = s;
+                        runEnd = e;
+                    } else if (e > runEnd) {
+                        runEnd = e;
+                    }
+                }
+                if (runStart != Long.MIN_VALUE) total += (int) (runEnd - runStart + 1);
+            }
+            if (j < n) {
+                from = sx[j] - r;
+                to = sx[j] + r;
+            }
+        }
+        return total;
+    }
+
+    /**
+     * 그 청크가 블록 틱(예약 틱·유체 틱·블록 이벤트·블록 엔티티)을 받는가. 키는 (x << 32 | z). 바닐라 1.21.1:
+     * 예약 틱은 ServerLevel.isPositionTickingWithEntitiesLoaded(엔티티 로드됨 && ServerChunkCache.isPositionTicking), 블록 이벤트·블록 엔티티는
+     * shouldTickBlocksAt(TickingTracker 레벨 ≤ 32)과 LevelChunk.isTicking(청크 단계 BLOCK_TICKING 이상 && 엔티티 로드됨, 보더는 레벨이 본다).
+     * <ul>
+     * <li>플레이어: TickingTracker 표 레벨 max(0, 31 − 시뮬레이션 거리)에서 청크마다 +1 → 체비셰프 ≤ min(sim, 31) + 1. 청크 단계는 시야 거리(2~32)
+     *     안 청크에 건 레벨 31 플레이어 티켓에서 +1 → 체비셰프 ≤ 시야 + 1. 두 조건 모두 가장 가까운 플레이어로 정해지므로 둘 중 작은 쪽.</li>
+     * <li>/forceload·플러그인 ticking 티켓(레벨 31): 그 청크와 둘레 1칸.</li>
+     * <li>포털·드래곤·순간 이동 뒤 티켓(레벨 33 − 거리): 거리 − 1 안({@link World#blockTicketed}).</li>
+     * <li>관전자는 spectatorsGenerateChunks 가 꺼져 있으면 세지 않는다(ChunkMap.skipPlayer — 티켓을 걸지 않는다).</li>
+     * </ul>
+     * 엔티티 틱({@link #entityTicking})과는 범위가 다르다.
+     */
+    private boolean blockTicking(long key) {
+        int cx = (int) (key >> 32), cz = (int) key;
+        ChunkColumn col = level != null ? level.chunkCached(cx, cz) : ownedChunk(cx, cz);
+        if (col == null || !col.entitiesLoaded()) return false;
+        return inBlockTickingRange(cx, cz, true);
+    }
+
+    /**
+     * 바닐라 shouldTickBlocksAt(DistanceManager.inBlockTickingRange: TickingTracker 레벨 ≤ 32). 블록 이벤트가 이것만 본다. 키는 (x << 32 | z).
+     */
+    private boolean blockEventTicking(long key) { return inBlockTickingRange((int) (key >> 32), (int) key, false); }
+
+    /**
+     * TickingTracker 레벨 ≤ 32 인가. withChunkStatus 면 플레이어 쪽은 청크 단계(시야 + 1 까지 BLOCK_TICKING)도 본다 — 티켓 쪽은 두 추적기에
+     * 같은 레벨로 들어가므로 따로 볼 것이 없다. 관전자는 spectatorsGenerateChunks 가 꺼져 있으면 티켓을 걸지 않는다(ChunkMap.skipPlayer).
+     */
+    private boolean inBlockTickingRange(int cx, int cz, boolean withChunkStatus) {
+        var forced = world.forcedChunksOrNull();
+        boolean anyForced = forced != null && forced.size() > 0;
+        for (int dz = -1; dz <= 1; dz++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                if (anyForced && forced.contains(cx + dx, cz + dz) || world.pluginTicking(cx + dx, cz + dz)) return true;
+            }
+        }
+        if (world.blockTicketed(cx, cz)) return true;
+        int sim = Math.max(world.levelServices().simulationDistance(), 2);
+        int range = 32 - Math.max(0, 31 - sim);
+        if (withChunkStatus) range = Math.min(range, Math.clamp(world.viewDistance(), 2, 32) + 1);
+        return ticketPlayerWithin(cx, cz, range);
+    }
+
+    /**
+     * /execute if loaded 의 바닐라 조건(amt): 청크가 FULL 이상이고 청크 단계가 ENTITY_TICKING(시야 티켓 — 시뮬레이션 거리와 무관)이며 엔티티가 불러와졌다(areEntitiesLoaded).
      * 이 region 이 가진 청크만 안다. 이 region 스레드에서만.
      */
     public boolean isEntityTickingLoaded(int cx, int cz) {
         world.assertOwns(this);
         ChunkColumn col = ownedChunk(cx, cz);
-        return col != null && col.entitiesLoaded() && blockEntityTicking(((long) cx << 32) | (cz & 0xFFFFFFFFL));
+        return col != null && col.entitiesLoaded() && naturalSpawningAllowed(cx, cz);   // 바닐라 amt: getFullStatus() == ENTITY_TICKING(시야 거리)
     }
 
     private boolean closeToPlayer(int cx, int cz, int chunkRange) {
@@ -2021,9 +2174,15 @@ public final class Region {
             boolean sneaking = p.sneaking();
             double height = p.bbHeight();
             double eye = p.eyeY() - p.y();
+            // Entity.isInWall: 관전자(noPhysics)는 아니다. getBlockStateOnLegacy: 받침 블록 방식의 0.2 아래 칸(tryAddFrost)
+            boolean inWall = level != null && p.gameMode() != GameMode.SPECTATOR
+                    && org.domi.furnace.server.entity.LivingEntity.isInWall(level, x, p.eyeY(), z, p.bbWidth());
+            int legacy = probe.onPosLegacyState(blocks, x, y, z, p.onGround());
+            boolean groundNotAir = legacy >= 0 && !org.domi.furnace.server.block.B.isAir(legacy);
             s = new PlayerVitals.Surroundings(true, probe.inWater(blocks, x, y, z, height),
                     probe.eyeInWater(blocks, x, y, z, eye), probe.eyeInBubbleColumn(blocks, x, y, z, eye),
-                    probe.climbable(blocks, x, y, z), probe.stuckInBlock(blocks, x, y, z, height), world.dimensionType().minY());
+                    probe.climbable(blocks, x, y, z), probe.stuckInBlock(blocks, x, y, z, height), world.dimensionType().minY(),
+                    inWall, p.inPowderSnowThisTick(), groundNotAir);
         }
         if (s.inWater() && !p.wasTouchingWater && p.waterStateKnown && s.chunkLoaded() && level != null) playerWaterSplash(p);
         p.waterStateKnown = s.chunkLoaded();

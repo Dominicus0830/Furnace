@@ -69,6 +69,7 @@
 - 바닐라(`btn.aw` baseTick 앞 구간): 살아 있고 서버면 `Entity.isInWall()`(눈 높이 `폭×0.8`×`1e-6` 상자가 질식 블록의 충돌 모양과 겹침, `noPhysics` 면 거짓)이면 `in_wall` 1 피해를 **플레이어에게도** 입힌다(`cmx` 는 baseTick 을 덮어쓰지 않는다). 모래·자갈 더미에 파묻히거나 설치한 블록이 머리에 걸리거나 피스톤에 끼면 10틱마다 1 피해.
 - Furnace: 몹은 `LivingEntity.baseTick`(`LivingEntity.java:1070`)에 있지만 플레이어는 `LivingEntity` 가 아니고, `PlayerVitals`·`Player`·`Region` 어디에도 `isInWall`/`IN_WALL` 사용처가 없다(`PlayerSleeping` 의 `suffocating` 은 잠자리 검사). `/tp` 로 블록 속에 넣거나 떨어지는 모래에 묻혀도 피해가 없다.
 - 재현: `world/A11SuffocationReproTest`(생존 플레이어 눈 높이에 돌 → 60틱 뒤 체력 20 그대로, 바닐라는 감소).
+  > **정정(2026-11-11):** 눈 칸만 막으면 바닐라도 `Player.updatePlayerPose` 가 수영 자세(높이 0.6)로 바꿔 눈이 빠지므로 피해가 없다. 회귀 시험 `world/A11SuffocationTest` 는 발·눈 두 칸을 막는다.
 - 제안: `Region` 의 플레이어 틱에서 소유 region 스레드가 눈 위치 상자와 질식 블록을 `LivingEntity.isInWall` 과 같은 식으로 검사해 `p.vitals().hurt(DamageType.IN_WALL, 1.0F)`(`noPhysics` = 관전자는 제외; 창조 모드 면제는 `hurt` 가 이미 처리). `LivingEntity.isInWall` 을 정적 함수로 빼서 두 곳이 같이 쓰게 한다. **모델: Sonnet medium**, 크기: 작음.
 
 ### A11-03 [높음] `fall_damage_immune` 종류가 낙하 피해를 입는다
@@ -115,6 +116,8 @@
 - 제안: 플레이어 근접(`PlayerMelee`)이 이미 가진 날카로움·강타·해충 강타·화염·밀치기 계산을 `EnchantEffects` 로 일반화해 몹도 같이 쓴다. 활·쇠뇌 몹의 화살 마법(힘·화염·밀치기)은 이미 `AbstractArrow.firedFromWeapon` 으로 있다. **모델: Sonnet high**, 크기: 중.
 
 ### A11-09 [낮음] 물숨쉬기·창조 모드 플레이어는 물속에서 공기가 차오르지 않는다
+
+> **정정(2026-11-11, A11 높음 수정 PR):** 바이트코드를 다시 보니 반대다. `btn.aw` 오프셋 308 `ifeq 477` → 515 `goto 541` 로, 눈이 물속이면 숨을 쉴 수 있어도 채움 가지(518)를 건너뛴다. 플레이어(`PlayerVitals`)가 바닐라와 같았고 **몹(`LivingEntity.baseTick`)이 물속에서 공기를 채우던 것이 차이**였다 — 몹 쪽을 고쳤다(`A11HazardTest.waterBreathingDoesNotRefillAirUnderwater`).
 
 - 바닐라 `btn.aw`: 눈이 물속이어도 `hasWaterBreathing`(A11-04) 또는 플레이어의 `abilities.invulnerable` 이면 공기를 줄이지 않는 대신 `else if (air < max) air = increaseAirSupply(air)` 로 틱당 +4 를 채운다.
 - Furnace 몹(`LivingEntity.java:1079`)은 같지만 `PlayerVitals.java:1233~1241` 은 `if (물속) { if (물숨쉬기·무적이 아니면) 줄이기 }` 구조라 **물속에 있는 한 공기가 늘지 않는다**. 물숨쉬기 물약을 마셔도 이미 줄어든 공기 방울이 물을 나올 때까지 그대로이고, 창조 모드가 물속에서 방울을 못 채운다.

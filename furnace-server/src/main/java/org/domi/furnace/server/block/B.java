@@ -184,14 +184,6 @@ public final class B {
         return !s.isEmpty() && org.domi.furnace.server.item.ItemContext.isInTag("minecraft:item", tag, s.itemId());
     }
 
-    /**
-     * 위 칸이 아래 칸으로 오는 빛을 완전히 막는가 — LightEngine.getLightBlockInto(…, UP, …) >= 최대 빛(15) 의 근사.
-     * TODO(빛): 빛 차단량(getLightBlock) 표가 생기면 정확히. 지금은 가리는 블록의 아랫면 가림 모양이 꽉 찼으면 막힘.
-     */
-    public static boolean lightBlockedAbove(int aboveState) {
-        return INFO.canOcclude(block(aboveState)) && INFO.occlusionShape(aboveState).isFaceFull(Dir.DOWN);
-    }
-
     private static final int BARRIER = id("barrier"), CARVED_PUMPKIN = id("carved_pumpkin"), JACK_O_LANTERN = id("jack_o_lantern"),
             MELON = id("melon"), PUMPKIN = id("pumpkin");
 

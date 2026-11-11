@@ -71,6 +71,29 @@ public final class RecorderPlugin extends JavaPlugin implements Listener {
 
     @EventHandler public void on(PlayerJoinEvent e) { rec(e); }
 
+    @EventHandler public void on(org.bukkit.event.player.PlayerInteractEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.player.PlayerItemHeldEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.block.BlockPhysicsEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.block.BlockFromToEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.block.BlockBurnEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.block.BlockIgniteEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.block.BlockRedstoneEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.block.LeavesDecayEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.inventory.FurnaceBurnEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.block.BlockCookEvent e) { rec(e); }
+
+    /** 서버가 아직 알리지 않는 이벤트 — 같은 리스너의 다른 처리기 등록을 막지 않아야 한다(경고만). */
+    @EventHandler public void on(org.bukkit.event.block.BlockPlaceEvent e) { rec(e); }
+
     @EventHandler public void on(org.bukkit.event.inventory.InventoryClickEvent e) { rec(e); }
 
     @EventHandler public void on(org.bukkit.event.inventory.InventoryDragEvent e) { rec(e); }

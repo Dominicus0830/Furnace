@@ -123,11 +123,11 @@ public class ChestBlock extends AbstractChestBlock {
 
     protected String openChestStat() { return "minecraft:open_chest"; }
 
-    /** isChestBlockedAt: 위 칸이 레드스톤 전도체이거나(TODO(엔티티)) 위에 앉은 고양이가 있으면 막힘. */
-    public static boolean isChestBlockedAt(BlockLevel level, Pos pos) { return isBlockedChestByBlock(level, pos); }
+    /** isChestBlockedAt: 위 칸이 레드스톤 전도체이거나 위에 앉은 고양이가 있으면 막힘. */
+    public static boolean isChestBlockedAt(BlockLevel level, Pos pos) { return isBlockedChestByBlock(level, pos) || level.isCatSittingAbove(pos); }
 
     /** isBlockedChestByBlock: 위 칸이 레드스톤 전도체면 막힘. */
-    static boolean isBlockedChestByBlock(BlockLevel level, Pos pos) {
+    public static boolean isBlockedChestByBlock(BlockLevel level, Pos pos) {
         Pos above = pos.above();
         int s = level.getBlockState(above);
         return B.behavior(s).isRedstoneConductor(s, level, above);

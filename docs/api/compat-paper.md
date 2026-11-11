@@ -21,7 +21,7 @@
 
 우선순위(LOWEST~MONITOR), `ignoreCancelled`, 취소 전달은 Furnace 버스가 지킨다. 같은 우선순위의 Furnace 고유 플러그인과는 등록 순이다.
 
-## 지원하는 이벤트 (25)
+## 지원하는 이벤트 (35)
 
 | Bukkit | Furnace | 되돌려 쓰는 값 |
 |---|---|---|
@@ -40,6 +40,23 @@
 | `ServerLoadEvent` | 같은 이름 | — |
 | `WorldLoadEvent`, `WorldUnloadEvent`, `ChunkLoadEvent`, `ChunkUnloadEvent` | 같은 이름 | 월드 내림 취소(`WorldUnloadEvent` 만) |
 | `PlayerRegisterChannelEvent` / `PlayerUnregisterChannelEvent` (처리기 목록은 `PlayerChannelEvent`) | `PlayerChannelEvent` | — (연결 스레드) |
+| `PlayerInteractEvent` | 같은 이름 | 취소 — 두 결과(블록 쓰기·아이템 쓰기)를 하나로 합친다(아래) |
+| `PlayerItemHeldEvent` | 같은 이름 | 취소 |
+| `BlockPhysicsEvent`, `BlockFromToEvent`, `BlockBurnEvent`, `BlockIgniteEvent`, `LeavesDecayEvent` | 같은 이름 | 취소 |
+| `BlockRedstoneEvent` | 같은 이름 | 새 세기 |
+| `FurnaceBurnEvent` | 같은 이름 | 태우는 시간, 불붙음, 취소 |
+| `FurnaceSmeltEvent` (처리기 목록은 `BlockCookEvent`) | `FurnaceSmeltEvent` | 결과 아이템, 취소 |
+
+**PlayerInteractEvent 의 취소(FAWE 묶음, 2026-11-11).** Bukkit 은 결과가 둘이다: `useInteractedBlock()`(블록이 없으면 처음부터 DENY — 그래서 공기 클릭은 `isCancelled()` 가 처음부터 true)와 `useItemInHand()`. Furnace 서버 이벤트는 취소 하나라 CraftBukkit 이 결과를 읽는 방식대로 합친다: 공기 클릭은 아이템 쓰기만, 왼쪽 블록 클릭은 블록 쓰기 DENY 거나 (창조 모드가 아닐 때) 아이템 쓰기 DENY 면 — CraftBukkit 은 캐기 시작에서 블록 DENY 를 보고, 창조 모드면 바로 부수고, 아니면 아이템 DENY 를 본다 — 막고, 오른쪽 블록 클릭은 둘 중 하나라도 DENY 면 막는다(`PHYSICAL` 은 CraftBukkit 처럼 블록 쓰기만 본다). 마지막은 "블록만 막고 아이템은 쓰기"(예: 보호 구역 상자는 막고 음식은 먹기)를 나눠 하지 못해 더 막는 쪽을 고른 것이다 — Paper 와 다른 점. 빈 손이면 `getItem()` 은 null, 공기 클릭의 면은 `SOUTH`(CraftBukkit 과 같다). 클릭한 점(`getClickedPosition`·`getInteractionPoint`)은 서버 이벤트가 알리지 않아 null, `PHYSICAL`(압력판 밟기)은 아직 오지 않는다.
+
+오른쪽 블록 클릭에서 CraftBukkit 과 실제로 결과가 달라지는 조합은 둘이다. 블록 DENY + 아이템 DEFAULT(흔한 보호 플러그인 꼴)와 `setCancelled(true)` 는 같다.
+
+| 플러그인이 건 값 | CraftBukkit | Furnace |
+|---|---|---|
+| 블록 ALLOW/DEFAULT + 아이템 DENY | 상자·문은 열리고 아이템만 안 쓰임 | 둘 다 안 됨 |
+| 블록 DENY + 아이템 ALLOW | 블록은 안 쓰이고 아이템은 쓰임(보호 구역에서 음식 먹기·진주 던지기 허용) | 둘 다 안 됨 |
+
+**클래스만 있고 아직 알리지 않는 이벤트.** `BlockPlaceEvent`·`BlockFadeEvent`·`BlockGrowEvent`·`BlockExplodeEvent`·`BlockCanBuildEvent`·`BlockDamageEvent`·`BlockDispenseEvent`·`BlockExpEvent`·`NotePlayEvent`·`SignChangeEvent`·`EntityChangeBlockEvent`·`EntitySpawnEvent`(`ItemSpawnEvent`)·`PlayerCommandSendEvent`·`PlayerDropItemEvent`·`WorldInitEvent`. 리스너 클래스 하나에 이 이벤트 처리기가 섞여 있어도 나머지 처리기는 등록되도록 클래스를 두었다(Bukkit 은 리스너 클래스의 모든 처리기 서명을 한꺼번에 읽어서, 클래스 하나가 없으면 리스너 전체가 빠진다). 처리기를 달면 플러그인·이벤트마다 한 번 "이 이벤트는 아직 알리지 않는다" 경고를 남긴다(`EventBridge.isKnownButNotFired`). 앞의 넷과 `PlayerDropItemEvent`·`ItemSpawnEvent` 는 Furnace 서버 이벤트가 있지만 Bukkit 쪽 값(놓은 손·아이템, `BlockState` 새 상태, 폭발 위력, 아이템 엔티티 `Item`)을 아직 만들 수 없어 잇지 않았다.
 
 플러그인이 만든 자기 이벤트는 `PluginManager#callEvent` 로 그대로 돈다(Furnace 이벤트와 이어지지 않는 순수 Bukkit 이벤트).
 
@@ -94,6 +111,12 @@ Bukkit 은 메인 스레드 하나를 가정한다. 이 1차는 Furnace 이벤�
 - `plugins.compat.bukkit` 이 기본 켜짐이라 예전에 경고 후 건너뛰던 Bukkit jar 가 이제 로드를 시도한다. 아직 없는 API 를 쓰는 플러그인은 로드에 실패해 `failures` 에 들어가므로, `plugins.fail-fast=true` 인 서버는 부팅이 멈출 수 있다(그럴 때는 `plugins.compat.bukkit=false`).
 - 읽기 기본값이 있는 곳(정직한 기본값): `PlayerKickEvent#getLeaveMessage`(영어 고정 "<이름> left the game"; Furnace 킥 이벤트에 없는 값), `CraftPlayer#getLocale`(없으면 `en_us`), `CraftEntity#teleport` 는 Paper 처럼 진짜 결과(승객·사라짐·`PlayerTeleportEvent` 취소·다른 region/차원이면 `false`, 탈것은 먼저 내림) — 소유 스레드가 아닐 때만 맡기고 `true`(P4), `isDead` 는 `!isValid()`(언로드된 엔티티도 죽음으로 본다). `paper-plugin.yml` 의 `load: OMIT` 인 `required: true` 의존은 순서도 강제된다(Paper 는 순서 없음).
 - 이벤트 값 되돌려 쓰기: 처리기 전달 직전에 Furnace 의 현재 값을 Bukkit 이벤트에 맞추고(그래서 사이에 낀 Furnace 처리기의 변경이 보인다), 전달 뒤 달라진 값만 Furnace 에 쓴다.
+
+## Paper 서버 판별·도움말 지도 (FAWE 묶음, 2026-11-11)
+
+- **Paper 판별:** 플러그인들은 "Paper 서버인가"를 클래스 유무로 본다(PaperLib `isPaper()`, FastAsyncWorldEdit `PaperSupport`: `com.destroystokyo.paper.PaperConfig` 또는 `io.papermc.paper.configuration.Configuration`). 호환 계층에 `io.papermc.paper.configuration.Configuration`(상수만 있는 final 클래스)을 두어 Paper 로 판별된다. 그 결과 Paper 용 jar(예: `FastAsyncWorldEdit-Paper`)가 "Spigot 서버에서 Paper jar 를 돌린다"며 멈추지 않고, Paper 전용 경로(`teleportAsync` 등)를 탄다 — 그 경로에서 아직 없는 Paper API 는 부를 때 `NoSuchMethodError` 로 드러난다. PaperLib 경로 중 `Entity.teleportAsync(Location, TeleportCause)`·`teleport(Location, TeleportCause)` 는 있다(원인은 버려져 `PlayerTeleportEvent#getCause` 가 `UNKNOWN`). **`World.getChunkAtAsync(...)`·`Block.getState(boolean)` 은 아직 없다** — PaperLib `getChunkAtAsync` 는 Paper 로 판별되기 전에는 동기 `getChunkAt`(Furnace 에서는 불러오지 않는 핸들)으로 돌았고 지금은 `NoSuchMethodError` 다. 청크 티켓으로 불러오는 구현을 다음 작업으로 둔다.
+- **`Server#getHelpMap()`**(`HelpMap`·`HelpTopic`·`HelpTopicFactory`): 넣은 항목·공장은 보관하고 돌려주지만 Furnace 의 `/help` 는 아직 이 항목을 보이지 않는다.
+- FAWE 로 잰 결과와 남은 것: `docs/feature-parity/compat-fawe-2026-11-11.md`.
 
 ## H4: 실제 플러그인으로 잰 호환 정도
 

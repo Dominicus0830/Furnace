@@ -1,0 +1,25 @@
+// A01-01 재현: 구형(1.6 이전) 서버 목록 핑 `FE 01 FA ...` 에 바닐라는 `FF` 킥 문자열로 답한다. Furnace 는 답이 없다.
+// 사용: node legacy-ping.js [host] [port]   (오프라인 Furnace 서버가 떠 있어야 한다. Node 18+, 외부 패키지 없음)
+const net = require('net');
+const host = process.argv[2] || '127.0.0.1', port = Number(process.argv[3] || 25565);
+function ping(bytes, label) {
+  return new Promise(res => {
+    const s = net.connect(port, host, () => s.write(Buffer.from(bytes)));
+    const t0 = Date.now(); let got = Buffer.alloc(0);
+    s.on('data', d => { got = Buffer.concat([got, d]); });
+    let fin = false; const done = why => { if (fin) return; fin = true; console.log(label, '->', why, 'received', got.length, 'bytes', got.slice(0, 3).toString('hex'), (Date.now() - t0) + 'ms'); s.destroy(); res(); };
+    s.on('close', () => done('closed'));
+    s.on('error', () => done('error'));
+    setTimeout(() => done('3s timeout (still open, no reply)'), 3000);
+  });
+}
+(async () => {
+  await ping([0xFE], 'legacy 1.4(FE)');
+  await ping([0xFE, 0x01], 'legacy 1.5(FE 01)');
+  // 1.6: FE 01 FA 00 0B "MC|PingHost" 길이 프로토콜 호스트 포트
+  const host16 = Buffer.from('127.0.0.1', 'utf16le').swap16();
+  const body = Buffer.concat([Buffer.from([78]), Buffer.from([0, 9]), host16, Buffer.from([0, 0, 0x63, 0xdd])]);
+  const tag = Buffer.from('MC|PingHost', 'utf16le').swap16();
+  await ping([...Buffer.concat([Buffer.from([0xFE, 0x01, 0xFA, 0x00, 0x0B]), tag, Buffer.from([0, body.length]), body])], 'legacy 1.6(FE 01 FA)');
+  // 바닐라: 세 경우 모두 FF + 길이 + UTF-16BE "§1\0<프로토콜>\0<버전>\0<MOTD>\0<인원>\0<최대>" (1.4 는 "motd§인원§최대")를 돌려주고 닫는다.
+})();
