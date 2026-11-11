@@ -1,0 +1,47 @@
+// A06 조사: 바닐라 configured_feature 196개를 Furnace 파서에 넣어 NoopFeature(아무것도 안 놓음)로 떨어지는 것을 센다.
+// 루트 타입만 보는 NoopFeatureAuditTest 와 달리 하위 설정(상태 공급자·내부 나무 등) 때문에 떨어지는 것까지 잡는다.
+package org.domi.furnace.server.audit;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.TreeMap;
+import java.util.stream.Stream;
+import org.domi.furnace.server.world.BlockRegistry;
+import org.domi.furnace.server.world.gen.WorldgenData;
+import org.domi.furnace.server.world.gen.feature.BiomeFeatureData;
+import org.domi.furnace.server.world.gen.feature.ConfiguredFeature;
+import org.domi.furnace.server.world.gen.feature.NoopFeature;
+import org.junit.jupiter.api.Test;
+
+class A06NoopFeatureScanTest {
+    @Test
+    void everyVanillaConfiguredFeatureParsesToARealFeature() throws Exception {
+        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BiomeFeatureData bfd = BiomeFeatureData.load(data, List.of("minecraft:plains"), reg);
+        Path dir = Path.of(A06NoopFeatureScanTest.class.getClassLoader().getResource("worldgen/1.21.1/worldgen/configured_feature").toURI());
+        List<String> ids = new ArrayList<>();
+        try (Stream<Path> w = Files.walk(dir)) {
+            w.filter(p -> p.toString().endsWith(".json"))
+             .forEach(p -> ids.add("minecraft:" + dir.relativize(p).toString().replace('\\', '/').replace(".json", "")));
+        }
+        TreeMap<String, String> noop = new TreeMap<>();
+        for (String id : ids) {
+            ConfiguredFeature f;
+            try {
+                f = bfd.configuredFeatureById(id);
+            } catch (RuntimeException e) {
+                noop.put(id, "예외 " + e);
+                continue;
+            }
+            if (f == null || f instanceof NoopFeature) noop.put(id, data.configuredFeature(id).get("type").getAsString());
+        }
+        System.out.println("A06 Noop configured_feature " + noop.size() + "/" + ids.size());
+        noop.forEach((k, v) -> System.out.println("  " + k + " (" + v + ")"));
+        assertTrue(noop.isEmpty(), "Noop 으로 떨어지는 바닐라 configured_feature: " + noop.keySet());
+    }
+}
