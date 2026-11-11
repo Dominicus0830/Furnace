@@ -52,4 +52,32 @@ class RconCoreTest {
             sched.close();
         }
     }
+
+    @Test
+    void remoteServerCommandEventCanRewriteOrCancel() throws Exception {
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        try {
+            ServerCore core = TestServers.core(tmp, sched);
+            var plugin = new org.domi.furnace.api.plugin.FurnacePlugin() {};
+            org.domi.furnace.server.TestPluginContexts.init(plugin, core.plugins(), "rce", tmp);
+            plugin.setEnabled(true);
+            java.util.List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+            core.plugins().eventsImpl().subscribe(plugin, org.domi.furnace.api.event.server.RemoteServerCommandEvent.class, e -> {
+                seen.add(e.sender().name() + ":" + e.sender().isOp() + ":" + e.command());
+                if (e.command().equals("blocked")) {
+                    e.sender().sendMessage(org.domi.furnace.api.text.Text.text("nope"));
+                    e.setCancelled(true);
+                } else if (e.command().equals("make")) {
+                    e.command("scoreboard objectives add rw dummy");
+                }
+            });
+            org.junit.jupiter.api.Assertions.assertEquals("", core.runRconCommand("blocked"), "취소면 실행하지 않고 빈 응답(Paper DedicatedServer.runCommand)");
+            assertTrue(core.runRconCommand("make").contains("rw"), "바뀐 명령을 실행한다");
+            assertTrue(core.runRconCommand("scoreboard objectives list").contains("rw"));
+            org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of("Rcon:true:blocked", "Rcon:true:make", "Rcon:true:scoreboard objectives list"), seen);
+            core.plugins().eventsImpl().unregisterAll(plugin);
+        } finally {
+            sched.close();
+        }
+    }
 }

@@ -29,6 +29,10 @@ public interface Server extends org.bukkit.plugin.messaging.PluginMessageRecipie
     /** 마인크래프트 버전(Paper API). */
     String getMinecraftVersion();
 
+    /** 내부 값 창구(데이터 버전·프로토콜 번호 등). 지원 범위는 {@link UnsafeValues}. */
+    @Deprecated
+    UnsafeValues getUnsafe();
+
     Logger getLogger();
 
     PluginManager getPluginManager();
@@ -44,6 +48,22 @@ public interface Server extends org.bukkit.plugin.messaging.PluginMessageRecipie
     Player getPlayer(String name);
 
     Player getPlayer(UUID id);
+
+    /** 접속 중이면 그 Player, 아니면 UUID 로 가리키는 OfflinePlayer(한 번도 못 본 UUID 도). */
+    org.bukkit.OfflinePlayer getOfflinePlayer(UUID id);
+
+    /**
+     * 접속 중이면 그 Player, 아니면 이름의 OfflinePlayer. online-mode 면 서버가 아는 이름(usercache)의 UUID 를,
+     * 모르거나 offline-mode 면 오프라인 UUID("OfflinePlayer:" + 이름)를 쓴다. Mojang 에 묻지는 않는다(Bukkit 은 묻고 기다린다 — 차이).
+     */
+    @Deprecated
+    org.bukkit.OfflinePlayer getOfflinePlayer(String name);
+
+    /** ops.json 의 모든 플레이어. */
+    java.util.Set<org.bukkit.OfflinePlayer> getOperators();
+
+    /** server.properties 의 online-mode. */
+    boolean getOnlineMode();
 
     List<World> getWorlds();
 

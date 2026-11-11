@@ -88,6 +88,10 @@ public final class CraftServer implements Server {
     public String getMinecraftVersion() { return f().minecraftVersion(); }
 
     @Override
+    @Deprecated
+    public org.bukkit.UnsafeValues getUnsafe() { return org.bukkit.craftbukkit.util.CraftMagicNumbers.INSTANCE; }
+
+    @Override
     public Logger getLogger() { return LOG; }
 
     @Override
@@ -133,6 +137,43 @@ public final class CraftServer implements Server {
 
     @Override
     public Player getPlayer(UUID id) { return id == null ? null : Compat.player(f().player(id)); }
+
+    @Override
+    public org.bukkit.OfflinePlayer getOfflinePlayer(UUID id) {
+        if (id == null) throw new IllegalArgumentException("UUID id cannot be null");
+        Player online = getPlayer(id);
+        return online != null ? online : new CraftOfflinePlayer(id, null);
+    }
+
+    @Override
+    public org.bukkit.OfflinePlayer getOfflinePlayer(String name) {
+        if (name == null) throw new IllegalArgumentException("name cannot be null");
+        if (name.isBlank()) throw new IllegalArgumentException("name cannot be empty");
+        Player online = getPlayerExact(name);
+        if (online != null) return online;
+        if (getOnlineMode()) {
+            var known = f().offlinePlayerCached(name);
+            if (known != null) return getOfflinePlayer(known.uniqueId(), known.name());
+        }
+        // 바닐라 UUIDUtil.createOfflinePlayerUUID
+        UUID offline = UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return getOfflinePlayer(offline, name);
+    }
+
+    private org.bukkit.OfflinePlayer getOfflinePlayer(UUID id, String name) {
+        Player online = getPlayer(id);
+        return online != null ? online : new CraftOfflinePlayer(id, name);
+    }
+
+    @Override
+    public java.util.Set<org.bukkit.OfflinePlayer> getOperators() {
+        java.util.Set<org.bukkit.OfflinePlayer> out = new java.util.HashSet<>();
+        for (var op : f().access().operators()) out.add(getOfflinePlayer(op.uniqueId(), op.name()));
+        return out;
+    }
+
+    @Override
+    public boolean getOnlineMode() { return f().onlineMode(); }
 
     @Override
     public List<World> getWorlds() {

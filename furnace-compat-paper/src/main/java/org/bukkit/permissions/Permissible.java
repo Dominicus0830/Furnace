@@ -1,6 +1,13 @@
 package org.bukkit.permissions;
 
-/** 권한을 가질 수 있는 대상. 첨부(PermissionAttachment)·유효 권한 목록은 아직 없다. */
+import java.util.Set;
+import org.bukkit.plugin.Plugin;
+
+/**
+ * 권한을 가질 수 있는 대상. 플레이어는 Bukkit 처럼 {@link PermissibleBase}(CraftHumanEntity 의 {@code perm} 필드)에 맡긴다 —
+ * 권한 플러그인이 그 필드를 바꿔 끼우면 Furnace 쪽 권한 확인도 그리로 간다(docs/api/compat-paper.md "권한").
+ * 첨부를 받지 않는 대상(엔티티·명령 블록 등)의 첨부 메서드는 UnsupportedOperationException.
+ */
 public interface Permissible extends ServerOperator {
 
     boolean isPermissionSet(String name);
@@ -21,6 +28,23 @@ public interface Permissible extends ServerOperator {
         return perm.getDefault().getValue(isOp());
     }
 
-    /** Furnace 는 권한 등록소·첨부·OP 가 바뀌면 다음 확인 때 저절로 다시 계산한다 — 부를 일이 없다. */
+    default PermissionAttachment addAttachment(Plugin plugin, String name, boolean value) { throw noAttachments(this); }
+
+    default PermissionAttachment addAttachment(Plugin plugin) { throw noAttachments(this); }
+
+    default PermissionAttachment addAttachment(Plugin plugin, String name, boolean value, int ticks) { throw noAttachments(this); }
+
+    default PermissionAttachment addAttachment(Plugin plugin, int ticks) { throw noAttachments(this); }
+
+    default void removeAttachment(PermissionAttachment attachment) { throw noAttachments(this); }
+
+    /** Furnace 쪽 권한은 등록소·첨부·OP 가 바뀌면 다음 확인 때 저절로 다시 계산된다. 첨부를 받는 대상은 Bukkit 처럼 다시 계산한다. */
     default void recalculatePermissions() {}
+
+    default Set<PermissionAttachmentInfo> getEffectivePermissions() { throw noAttachments(this); }
+
+    private static UnsupportedOperationException noAttachments(Permissible who) {
+        return new org.domi.furnace.compat.paper.UnsupportedFeature("권한 첨부(" + who.getClass().getSimpleName() + ")",
+                "이 대상은 Bukkit 권한 첨부를 받지 않는다 — 플레이어만 받는다");
+    }
 }

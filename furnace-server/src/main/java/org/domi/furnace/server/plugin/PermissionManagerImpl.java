@@ -15,6 +15,24 @@ public final class PermissionManagerImpl implements PermissionManager {
 
     private final ConcurrentHashMap<String, Permission> permissions = new ConcurrentHashMap<>();
     private final AtomicLong version = new AtomicLong();
+    private volatile org.domi.furnace.api.permission.PermissionOverride override;
+
+    @Override
+    public void setOverride(org.domi.furnace.api.permission.PermissionOverride override) { this.override = override; }
+
+    @Override
+    public org.domi.furnace.api.permission.PermissionOverride override() { return override; }
+
+    /** 판정 공급자가 맡으면 그 값, 아니면 null. */
+    Boolean overrideHas(org.domi.furnace.api.permission.Permissible subject, String node) {
+        var o = override;
+        return o == null ? null : o.hasPermission(subject, node);
+    }
+
+    Boolean overrideIsSet(org.domi.furnace.api.permission.Permissible subject, String node) {
+        var o = override;
+        return o == null ? null : o.isPermissionSet(subject, node);
+    }
 
     @Override
     public void register(Permission permission) {

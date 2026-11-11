@@ -7,7 +7,8 @@ import java.util.Map;
 public final class AttributeInstance {
     private final Attribute attribute;
     private double base;
-    private final Map<String, AttributeModifier> modifiers = new LinkedHashMap<>();
+    // 바꿀 때마다 새 불변 사본으로 갈아 끼운다 — 다른 region 스레드가 읽는 중(전리품 luck 등)이어도 ConcurrentModificationException 이 없다.
+    private volatile Map<String, AttributeModifier> modifiers = Map.of();
     private double cached;
     private boolean dirty = true;
     private final Runnable onDirty;
@@ -36,18 +37,23 @@ public final class AttributeInstance {
 
     /** 같은 id 가 이미 있으면 바닐라는 예외를 던진다 — 여기서는 덮어쓴다(addOrReplacePermanentModifier). */
     public void addOrReplaceModifier(AttributeModifier m) {
-        modifiers.put(m.id(), m);
+        Map<String, AttributeModifier> next = new LinkedHashMap<>(modifiers);
+        next.put(m.id(), m);
+        modifiers = java.util.Collections.unmodifiableMap(next);
         setDirty();
     }
 
     public boolean removeModifier(String id) {
-        boolean r = modifiers.remove(id) != null;
-        if (r) setDirty();
-        return r;
+        if (!modifiers.containsKey(id)) return false;
+        Map<String, AttributeModifier> next = new LinkedHashMap<>(modifiers);
+        next.remove(id);
+        modifiers = java.util.Collections.unmodifiableMap(next);
+        setDirty();
+        return true;
     }
 
     public void removeModifiers() {
-        if (!modifiers.isEmpty()) { modifiers.clear(); setDirty(); }
+        if (!modifiers.isEmpty()) { modifiers = Map.of(); setDirty(); }
     }
 
     private void setDirty() {

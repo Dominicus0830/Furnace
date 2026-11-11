@@ -129,6 +129,16 @@ public final class BiomeFeatureData {
     /** @param seaLevel ChunkGenerator.getSeaLevel — 노이즈 설정의 sea_level(오버월드 63, 네더 32). basalt_columns 가 쓴다. */
     public static BiomeFeatureData load(WorldgenData data, Iterable<String> biomeIds,
                                         List<String> registryOrder, BlockRegistry registry, int genMinY, int genDepth, int seaLevel) {
+        return load(data, biomeIds, registryOrder, registry, genMinY, genDepth, seaLevel, null);
+    }
+
+    /**
+     * 바이옴 생성 설정을 바꿔 쓰는 생성기(바닐라 ChunkGenerator 의 generationSettingsGetter — 평지 adjustGenerationSettings)용.
+     * {@code stepsOf} 는 바이옴 → 단계별 목록(원소는 placed feature id 문자열 또는 인라인 {@link PlacedFeature}). null 이면 바이옴 JSON 그대로.
+     */
+    public static BiomeFeatureData load(WorldgenData data, Iterable<String> biomeIds, List<String> registryOrder, BlockRegistry registry,
+                                        int genMinY, int genDepth, int seaLevel,
+                                        java.util.function.Function<String, List<List<Object>>> stepsOf) {
         // biome id별 base 온도 — FreezeTopLayer 동결 게이트용. FreezeTopLayer가 조회에 쓰는
         // FeatureWorldView.getBiomeId는 REGISTRY 순서 인덱스를 돌려주므로 registryOrder로 인덱싱해야 한다.
         // 이전에는 biomeIds(=possibleBiomes, biome_parameters 첫등장 순서)로 인덱싱해 온도가 서로 다른
@@ -156,12 +166,16 @@ public final class BiomeFeatureData {
         Loader loader = new Loader(data, registry, biomeTemps, biomeFrozen, genMinY, genDepth, seaLevel);
         Map<String, List<List<PlacedFeature>>> loaded = new LinkedHashMap<>();
         for (String biomeId : biomeIds) {
-            JsonObject biome = data.biome(biomeId);
-            JsonArray features = biome.getAsJsonArray("features");
+            List<List<Object>> custom = stepsOf == null ? null : stepsOf.apply(biomeId);
+            JsonArray features = custom != null ? null : data.biome(biomeId).getAsJsonArray("features");
             ArrayList<List<PlacedFeature>> steps = new ArrayList<>(STEP_COUNT);
             for (int step = 0; step < STEP_COUNT; step++) {
                 ArrayList<PlacedFeature> stepFeatures = new ArrayList<>();
-                if (features != null && step < features.size()) {
+                if (custom != null && step < custom.size()) {
+                    for (Object f : custom.get(step)) {
+                        stepFeatures.add(f instanceof PlacedFeature pf ? pf : loader.placedFeature((String) f));
+                    }
+                } else if (features != null && step < features.size()) {
                     // 미구현 feature도 placeholder로 유지 — index parity 보존(vanilla와 동일 순서).
                     for (JsonElement featureId : features.get(step).getAsJsonArray()) {
                         stepFeatures.add(loader.placedFeature(featureId.getAsString()));

@@ -83,6 +83,17 @@ public final class ItemStack {
 
     public boolean is(Item other) { return getItem() == other; }
 
+    /** 바닐라: 아이템의 레지스트리 손잡이가 태그에 들었는가(지금 걸린 태그). */
+    public boolean is(net.minecraft.tags.TagKey<Item> tag) { return getItem().builtInRegistryHolder().is(tag); }
+
+    public boolean is(net.minecraft.core.Holder<Item> holder) { return is(holder.value()); }
+
+    public boolean is(net.minecraft.core.HolderSet<Item> set) { return set.contains(getItemHolder()); }
+
+    public net.minecraft.core.Holder<Item> getItemHolder() { return getItem().builtInRegistryHolder(); }
+
+    public java.util.stream.Stream<net.minecraft.tags.TagKey<Item>> getTags() { return getItem().builtInRegistryHolder().tags(); }
+
     /** 비었으면 0. */
     public int getCount() { return isEmpty() ? 0 : count; }
 

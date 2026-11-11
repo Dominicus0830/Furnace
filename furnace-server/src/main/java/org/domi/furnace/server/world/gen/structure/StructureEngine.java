@@ -130,8 +130,18 @@ public final class StructureEngine {
 
     // ------------------------------------------------------------------ 배치 판정
 
+    /**
+     * 이 생성기가 쓰는 구조물 세트 id(null = 레지스트리 전부). 평지(FlatLevelSource.createState)는 structure_overrides 만 쓴다 —
+     * 빈 집합이면 구조물이 없다.
+     */
+    private volatile Set<String> allowedSets;
+
+    public void setAllowedSets(Set<String> ids) { this.allowedSets = ids == null ? null : Set.copyOf(ids); }
+
     /** 이 엔진의 월드(바이옴 소스)가 만들 수 있는 세트인가 — ChunkGeneratorStructureState.hasBiomesForStructureSet. */
     private boolean possibleSet(StructureRegistry.SetDef set) {
+        Set<String> allowed = allowedSets;
+        if (allowed != null && !allowed.contains(set.id())) return false;
         for (StructureRegistry.Entry e : set.entries()) {
             StructureRegistry.Def d = registry.structure(e.structureId());
             for (String b : d.biomes()) if (possibleBiomes.contains(b)) return true;

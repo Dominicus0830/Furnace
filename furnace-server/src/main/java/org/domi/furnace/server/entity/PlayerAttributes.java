@@ -104,10 +104,12 @@ public final class PlayerAttributes {
         return compute(attr, base(attr), modifiers(attr, slotsOf(mainHand, null, armor), effects, false).values());
     }
 
-    /** 플레이어의 현재 장비·효과·달리기로 계산(소유 region 스레드 — 인벤토리를 읽는다). */
+    /** 플레이어의 현재 장비·효과·달리기와 /attribute 로 바꾼 기본값·수정자로 계산(소유 region 스레드 — 인벤토리를 읽는다). */
     public static double value(Player p, Attribute attr) {
         ItemStack[] bySlot = new ItemStack[EquipmentSlot.values().length];
         for (EquipmentSlot s : EquipmentSlot.values()) bySlot[s.ordinal()] = p.equipment(s);
-        return compute(attr, base(attr), modifiers(attr, bySlot, p.vitals().activeEffects(), p.sprinting(), p.locatedModifiers(attr)).values());
+        var mods = modifiers(attr, bySlot, p.vitals().activeEffects(), p.sprinting(), p.locatedModifiers(attr));
+        for (AttributeModifier m : p.userModifiers(attr)) mods.putIfAbsent(m.id(), m);   // /attribute 로 단 수정자
+        return compute(attr, p.attributeBase(attr), mods.values());   // 기본값도 /attribute base set 값
     }
 }

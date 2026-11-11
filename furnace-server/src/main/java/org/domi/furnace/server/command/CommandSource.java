@@ -119,6 +119,12 @@ public final class CommandSource {
                 EntityAnchorArgument.Anchor.FEET, ResultCallback.EMPTY, null, java.util.Map.of(), null, null);
     }
 
+    /** 독서대가 책을 풀 때의 소스(LecternBlockEntity.createCommandSourceStack(null)): 플레이어 없음, 이름 "Lectern", 권한 2, 칸 가운데. */
+    public static CommandSource lectern(ServerCore server, World w, int x, int y, int z) {
+        return new CommandSource(server, null, null, w, "Lectern", Text.text("Lectern"), 2, false, x + 0.5, y + 0.5, z + 0.5, 0f, 0f,
+                EntityAnchorArgument.Anchor.FEET, ResultCallback.EMPTY, null, java.util.Map.of(), null, null);
+    }
+
     /**
      * 명령 블록·명령 블록 수레의 소스(BaseCommandBlock.createCommandSourceStack): 권한 2, 위치·회전·이름·엔티티는 sink 에서,
      * 출력은 sink(마지막 출력 기록). w 는 그 블록이 있는 차원의 월드.
