@@ -28,6 +28,15 @@ shim 은 `furnace-api` 의 블록 종류 표만 본다. 상태 표는 처음 쓸
 - `furnace-server` `PluginBlockHandleTest.blockStateIdsRoundTrip`: API 상태 번호 왕복(공기 0, 돌 1, 26684개), 모르는 블록·속성·값 −1, `item()`(wall_torch → torch, water → air).
 - 기대 문구는 바닐라 1.21.1 서버 jar 를 javap 로 읽어 손으로 만든 것(dte·dtd·dfy·duf·jm·akq·jz).
 
+## 독립 검토 반영 (PR #209)
+
+검토(`furnace/reviews/pr209-n0-review.md`)는 문구·규칙·상태 표·byItem 이 바닐라와 같다고 확인했고, 가장자리 셋을 고쳤다.
+- R1: 상태 값 표를 바닐라 Reference2ObjectArrayMap 처럼 **동일 객체**로만 찾는다 — 따로 만든 `BooleanProperty.create("lit")` 는 없는 속성.
+- R2: `CraftMagicNumbers.getMaterial((Item) null)`·모르는 아이템은 AIR(CraftBukkit `getOrDefault(item, AIR)`).
+- R3: `CraftBlockData.newData`·`Bukkit.createBlockData(Material, String)` 은 등록 이름 뒤에 문자열을 그대로 붙여 읽는다 — 대괄호 없는 `facing=east` 는
+  `IllegalArgumentException("Could not parse data: minecraft:oak_stairsfacing=east")`. 전에 받아 주던 시험(`BlockEntityWorldAdapterTest`)을 바꿨다.
+- 남긴 것: `Blocks`·`BuiltInRegistries` 는 클래스 초기화 때 서버 블록 표를 읽는다(서버 전 정적 초기화면 실패가 굳음 — 플러그인은 서버가 뜬 뒤 적재되므로 닿지 않는다고 봄, 가정).
+
 ## 가정·남은 것
 
 - **가정:** `Blocks` 필드 이름 = 등록 이름 경로의 대문자. 매핑 파일로 확인하지 못했다(필드 이름은 난독화 jar 에 없다). 시험은 이름 → 경로 규칙과 순서만 확인한다.

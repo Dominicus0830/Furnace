@@ -3,6 +3,7 @@ package org.domi.furnace.compat.nms;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -21,6 +22,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.Half;
 import net.minecraft.world.level.block.state.properties.Property;
 import org.bukkit.Material;
@@ -183,5 +185,51 @@ class NmsBlockStateTest {
         }
         assertEquals("minecraft:oak_stairs[facing=east,half=bottom,shape=straight,waterlogged=false]", CraftBlockData.fromData(data.getState()).getAsString());
         assertEquals(Map.of(), Blocks.STONE.defaultBlockState().getValues());
+    }
+
+    /** 바닐라 StateHolder 값 표는 Reference2ObjectArrayMap(동일 객체 비교) — 따로 만든 같은 이름 속성은 없는 속성이다(PR #209 검토 R1). */
+    @Test
+    void foreignEqualPropertyIsNotAccepted() {
+        BlockState furnace = Blocks.FURNACE.defaultBlockState();
+        BooleanProperty mine = BooleanProperty.create("lit");
+        Property<Boolean> real = prop(Blocks.FURNACE, "lit");
+        assertNotSame(real, mine);
+        assertEquals(real, mine, "equals 는 같다(바닐라도 같다)");
+        assertFalse(furnace.hasProperty(mine));
+        assertTrue(furnace.getOptionalValue(mine).isEmpty());
+        assertThrows(IllegalArgumentException.class, () -> furnace.getValue(mine));
+        assertThrows(IllegalArgumentException.class, () -> furnace.setValue(mine, true));
+        assertSame(furnace, furnace.trySetValue(mine, true));
+        assertNull(furnace.getValues().get(mine));
+        assertEquals(Boolean.FALSE, furnace.getValues().get(real));
+        assertTrue(furnace.setValue(real, true).getValue(real));
+    }
+
+    /** 바닐라 Block.byItem: BlockItem 의 블록(이름이 다른 것 포함), 아니면 공기. 기대 쌍은 바닐라 Items 등록을 읽은 기억(가정, PR #209 검토 표). */
+    @Test
+    void byItemForRenamedBlockItems() {
+        String[][] want = {
+                {"melon_seeds", "melon_stem"}, {"pumpkin_seeds", "pumpkin_stem"}, {"wheat_seeds", "wheat"}, {"glow_berries", "cave_vines"},
+                {"sweet_berries", "sweet_berry_bush"}, {"string", "tripwire"}, {"cocoa_beans", "cocoa"}, {"carrot", "carrots"},
+                {"potato", "potatoes"}, {"beetroot_seeds", "beetroots"}, {"powder_snow_bucket", "powder_snow"},
+                {"torchflower_seeds", "torchflower_crop"}, {"pitcher_pod", "pitcher_crop"}, {"oak_sign", "oak_sign"},
+                {"white_banner", "white_banner"}, {"skeleton_skull", "skeleton_skull"}, {"tube_coral_fan", "tube_coral_fan"},
+                {"water_bucket", "air"},
+        };
+        for (String[] w : want) assertEquals("minecraft:" + w[1], Block.byItem(Item.byKey(w[0])).furnaceKey().toString(), w[0]);
+    }
+
+    /** CraftBukkit 과 같은 실패·기본값(PR #209 검토 R2·R3). */
+    @Test
+    void craftBukkitEdgesLikeCraftBukkit() {
+        assertEquals(Material.AIR, CraftMagicNumbers.getMaterial((Item) null), "ITEM_MATERIAL.getOrDefault(item, AIR)");
+        assertNull(CraftMagicNumbers.getMaterial((Block) null));
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> CraftBlockData.newData(Material.FURNACE, "lit=true"));
+        assertEquals("Could not parse data: minecraft:furnacelit=true", e.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> CraftBlockData.newData(Material.FURNACE, "[lit=true]x"));
+        assertThrows(IllegalArgumentException.class, () -> CraftBlockData.newData(Material.DIAMOND, null));
+        assertThrows(IllegalArgumentException.class, () -> CraftBlockData.newData(Material.DIAMOND, "[lit=true]"));
+        assertEquals("minecraft:furnace[facing=north,lit=true]", CraftBlockData.newData(Material.FURNACE, "[lit=true]").getAsString());
+        assertEquals(CraftBlockData.fromData(Blocks.FURNACE.defaultBlockState()), CraftBlockData.newData(Material.FURNACE, null));
     }
 }

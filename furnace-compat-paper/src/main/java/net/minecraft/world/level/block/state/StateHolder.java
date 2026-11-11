@@ -22,7 +22,7 @@ public abstract class StateHolder<O, S> {
 
     protected StateHolder(O owner, Map<Property<?>, Comparable<?>> values) {
         this.owner = owner;
-        this.values = Collections.unmodifiableMap(values);
+        this.values = org.domi.furnace.compat.nms.NmsCollections.identityOrderedMap(values);   // 바닐라처럼 동일 객체로만 찾는다
     }
 
     /** 이 상태에서 한 속성만 바꾼 상태(같은 주인의 표에서 찾는다). 값이 허용되는지는 부르는 쪽이 이미 확인했다. */

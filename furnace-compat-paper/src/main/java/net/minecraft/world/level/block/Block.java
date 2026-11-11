@@ -105,7 +105,8 @@ public class Block extends BlockBehaviour implements ItemLike {
     /** 호환 모듈 전용 — 상태에서 한 속성만 바꾼 상태. */
     @SuppressWarnings({"unchecked", "rawtypes"})
     public BlockState furnaceStateWith(BlockState from, Property<?> property, Comparable<?> value) {
-        int i = properties.indexOf(property);
+        int i = 0;
+        while (properties.get(i) != property) i++;   // setValue 가 이미 동일 객체로 있는지 확인했다
         int local = from.furnaceStateId() - baseStateId;
         int cur = indexOf(property, from.getValue((Property) property));
         int next = indexOf(property, value);

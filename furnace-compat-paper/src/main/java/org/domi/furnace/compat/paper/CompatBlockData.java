@@ -35,13 +35,20 @@ public final class CompatBlockData extends CraftBlockData {
         return merged(parsed.type(), parsed.properties());
     }
 
-    /** 종류와 속성 문자열("[facing=north]" 또는 "facing=north" 또는 null). */
+    /**
+     * 종류와 속성 문자열("[facing=north]" 또는 null). CraftBukkit newData 처럼 등록 이름 뒤에 문자열을 그대로 붙여 읽으므로 대괄호 없는 "facing=north" 는
+     * IllegalArgumentException("Could not parse data: …")이다. 블록이 아닌 종류도 IllegalArgumentException.
+     */
     public static BlockData create(Material material, String properties) {
         Objects.requireNonNull(material, "Material cannot be null");
-        if (properties == null || properties.isBlank()) return create(material);
-        String p = properties.strip();
-        if (!p.startsWith("[")) p = "[" + p + "]";
-        return create(material.getKey() + p);
+        if (!material.isBlock()) throw new IllegalArgumentException("Cannot get data for not block " + material);
+        if (properties == null) return create(material);
+        String full = material.getKey() + properties;
+        try {
+            return create(full);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Could not parse data: " + full, e);
+        }
     }
 
     private static org.domi.furnace.api.world.BlockData defaultOf(Material m) {
