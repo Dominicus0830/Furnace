@@ -31,7 +31,7 @@ public final class KillCredit {
     private static LootEntity snapshot(LootEntity e, int depth) {
         if (e == null) return null;
         String type = e.type();
-        boolean fire = e.isOnFire(), crouch = e.isCrouching(), sprint = e.isSprinting(), swim = e.isSwimming(), baby = e.isBaby(), ground = e.onGround();
+        boolean fire = e.isOnFire(), crouch = e.isCrouching(), sprint = e.isSprinting(), swim = e.isSwimming(), baby = e.isBaby(), ground = e.onGround(), flying = e.isFlying();
         double[] pos = e.position() == null ? null : e.position().clone();
         float luck = e.luck(), fall = e.fallDistance();
         java.util.Map<String, LootStack> eq = new java.util.HashMap<>();
@@ -49,6 +49,10 @@ public final class KillCredit {
             Object v = e.typeSpecific(k);
             if (v != null) specific.put(k, v);
         }
+        // 시선 끝의 엔티티(player looking_at)는 레이캐스트라 조건이 쓰일 때만, 소유 스레드에서 떠 둔다
+        if (depth == 0 && org.domi.furnace.server.loot.EntityPredicate.lookingAtUsed && e.isPlayer() && e.typeSpecific("looking_at") instanceof LootEntity hit) {
+            specific.put("looking_at", snapshot(hit, 1));
+        }
         java.util.Map<String, Object> profile = e.gameProfile();
         LootEntity vehicle = depth == 0 ? snapshot(e.vehicle(), 1) : null;
         LootEntity target = depth == 0 ? snapshot(e.targetedEntity(), 1) : null;
@@ -61,12 +65,13 @@ public final class KillCredit {
             public boolean isSprinting() { return sprint; }
             public boolean isSwimming() { return swim; }
             public boolean isBaby() { return baby; }
+            public boolean isFlying() { return flying; }
             public boolean onGround() { return ground; }
             public double[] position() { return pos; }
             public float luck() { return luck; }
             public LootStack equipment(String slot) { return eq.containsKey(slot) ? eq.get(slot) : e.equipment(slot); }
             public Object typeSpecific(String key) {
-                if (key.startsWith("recipe:") || key.startsWith("advancement:")) return e.typeSpecific(key);
+                if (key.startsWith("recipe:") || key.startsWith("advancement:") || key.startsWith("stat:")) return e.typeSpecific(key);
                 return specific.get(key);
             }
             public java.util.Map<String, Object> gameProfile() { return profile; }

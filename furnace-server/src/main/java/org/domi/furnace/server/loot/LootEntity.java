@@ -18,6 +18,9 @@ public interface LootEntity {
 
     default boolean isBaby() { return false; }
 
+    /** EntityFlagsPredicate.is_flying: 살아 있는 엔티티는 겉날개 비행, 플레이어는 abilities.flying 도. */
+    default boolean isFlying() { return false; }
+
     default boolean onGround() { return true; }
 
     /** 장비 칸(mainhand·offhand·head·chest·legs·feet·body). 비었으면 빈 스택. */
@@ -25,7 +28,11 @@ public interface LootEntity {
 
     default double[] position() { return null; }
 
-    /** 종류별 속성(type_specific: slime size, raider is_captain, fishing_hook in_open_water, frog variant 등). 없으면 null. */
+    /**
+     * 종류별 속성(type_specific: slime size, raider is_captain, fishing_hook in_open_water, frog variant 등). 없으면 null.
+     * 플레이어는 "stat:&lt;종류&gt;|&lt;값&gt;"(통계 현재 값, Integer, 없으면 0)와 "looking_at"(시선 끝의 엔티티 LootEntity —
+     * 눈에서 시선 방향 100칸 안에서 처음 맞는 것이고 hasLineOfSight 까지 통과한 것만, 아니면 null)도 답한다.
+     */
     default Object typeSpecific(String key) { return null; }
 
     default float luck() { return 0.0f; }

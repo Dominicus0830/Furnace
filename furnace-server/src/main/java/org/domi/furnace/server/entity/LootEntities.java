@@ -25,6 +25,13 @@ public final class LootEntities {
         return new EntityView((Entity) r);
     }
 
+    /** 엔더 드래곤의 파트: 바닐라에서는 종류가 ender_dragon 인 별개 엔티티라 부모 값에 파트의 위치를 얹는다. */
+    static LootEntity ofPart(EnderDragonPart part) {
+        return new EntityView(part.parent) {
+            @Override public double[] position() { return new double[] {part.x(), part.y(), part.z()}; }
+        };
+    }
+
     static Map<String, LootEntity.Effect> effectsOf(Iterable<MobEffectInstance> list) {
         Map<String, LootEntity.Effect> m = new LinkedHashMap<>();
         for (MobEffectInstance e : list) m.put(e.effect().name(), new LootEntity.Effect(e.amplifier(), e.duration(), e.ambient(), e.visible()));
@@ -53,7 +60,7 @@ public final class LootEntities {
         return null;
     }
 
-    private static final class EntityView implements LootEntity {
+    private static class EntityView implements LootEntity {
         final Entity e;
 
         EntityView(Entity e) { this.e = e; }
@@ -95,6 +102,7 @@ public final class LootEntities {
         public String type() { return "minecraft:player"; }
         public double[] position() { return new double[] {p.x(), p.y(), p.z()}; }
         public boolean isCrouching() { return p.sneaking(); }
+        public boolean isFlying() { return p.isFallFlying() || p.vitals().isFlying(); }
         public boolean isSprinting() { return p.sprinting(); }
         public boolean isSwimming() { return p.swimming; }
         public boolean onGround() { return p.onGround(); }
@@ -132,8 +140,17 @@ public final class LootEntities {
             return m;
         }
 
-        /** 바닐라 PlayerPredicate 가 읽는 값: gamemode(이름), level, recipe:&lt;id&gt;, advancement:&lt;id&gt;[|criterion]. 없는 것은 null. */
+        /**
+         * 바닐라 PlayerPredicate 가 읽는 값: gamemode(이름), level, recipe:&lt;id&gt;, advancement:&lt;id&gt;[|criterion],
+         * stat:&lt;종류&gt;|&lt;값&gt;(통계 값), looking_at(시선 끝 엔티티). 없는 것은 null.
+         */
         public Object typeSpecific(String key) {
+            if (key.equals("looking_at")) return lookingAt();
+            if (key.startsWith("stat:")) {
+                int bar = key.indexOf('|');
+                var s = p.stats();   // 통계가 안 붙은 플레이어(시험)는 바닐라 getValue 처럼 0
+                return s == null ? 0 : s.get(new org.domi.furnace.server.stats.PlayerStats.Stat(key.substring(5, bar), key.substring(bar + 1)));
+            }
             if (key.equals("gamemode")) return p.gameMode().key();
             if (key.equals("level")) return p.vitals().xpLevel();
             if (key.startsWith("recipe:")) return p.recipeBook().contains(org.domi.furnace.server.data.ResourceId.parse(key.substring(7)));
@@ -144,6 +161,52 @@ public final class LootEntities {
                 return p.advancements().advancementState(org.domi.furnace.server.data.ResourceId.parse(id), slash < 0 ? null : rest.substring(slash + 1));
             }
             return null;
+        }
+
+        /**
+         * 바닐라 PlayerPredicate.LookingAtPredicate: 눈에서 시선 방향 100칸 선분(상자를 1.0 키움)에서 관전자 아닌 엔티티 중 선분과 가장
+         * 가까이 만나는 것(ProjectileUtil.getEntityHitResult, 여유 0)을 고르고, 그 엔티티까지 hasLineOfSight 도 참이어야 한다.
+         * 이 플레이어를 가진 region 스레드에서 부른다(그 레벨이 가진 엔티티만 본다).
+         */
+        private LootEntity lookingAt() {
+            var level = p.currentLevel;
+            if (level == null) return null;
+            double ex = p.x(), ey = p.eyeY(), ez = p.z();
+            double[] v = org.domi.furnace.server.block.Clip.viewVector(p.pitch(), p.yaw());
+            double tx = ex + v[0] * 100.0, ty = ey + v[1] * 100.0, tz = ez + v[2] * 100.0;
+            AABB box = new AABB(Math.min(ex, tx), Math.min(ey, ty), Math.min(ez, tz), Math.max(ex, tx), Math.max(ey, ty), Math.max(ez, tz)).inflate(1.0);
+            // Level.getEntities(player, box, !spectator): 엔더 드래곤을 잡으면 그 바로 뒤에 파트가 조건만으로 붙는다. 플레이어는 따로 훑는다.
+            List<Object> cands = new ArrayList<>();
+            for (Entity e : level.getEntities(null, box, x -> !x.isSpectator())) {
+                cands.add(e);
+                if (e instanceof EnderDragon d) for (EnderDragonPart part : d.subEntities) cands.add(part);
+            }
+            level.forEachPlayerIn(box, o -> {
+                if (o != p && !o.isSpectator()) cands.add(o);
+            });
+            Object best = null;
+            double bestD = Double.MAX_VALUE;
+            for (Object c : cands) {
+                AABB bb = c instanceof Entity e ? e.boundingBox() : c instanceof Player o ? o.boundingBox() : ((EnderDragonPart) c).boundingBox();
+                double[] hit = bb.clip(ex, ey, ez, tx, ty, tz);
+                if (hit == null) continue;
+                double dx = hit[0] - ex, dy = hit[1] - ey, dz = hit[2] - ez;
+                double d = dx * dx + dy * dy + dz * dz;
+                if (d < bestD) {
+                    bestD = d;
+                    best = c;
+                }
+            }
+            if (best == null) return null;
+            double bx, by, bz;
+            LootEntity target;
+            if (best instanceof Entity e) { bx = e.x(); by = e.eyeY(); bz = e.z(); target = of(e); }
+            else if (best instanceof Player o) { bx = o.x(); by = o.eyeY(); bz = o.z(); target = of(o); }
+            else { var part = (EnderDragonPart) best; bx = part.x(); by = part.eyeY(); bz = part.z(); target = ofPart(part); }
+            // LivingEntity.hasLineOfSight: 눈에서 눈까지 128칸 안이고 충돌 모양에 안 막힌다
+            double ddx = bx - ex, ddy = by - ey, ddz = bz - ez;
+            if (Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz) > 128.0) return null;
+            return org.domi.furnace.server.block.Clip.clipCollider(level, ex, ey, ez, bx, by, bz).miss() ? target : null;
         }
     }
 }
