@@ -307,7 +307,7 @@ public final class ItemSlotCommands {
         var params = new LootParams().with(LootParams.ORIGIN, new double[] {source.x(), source.y(), source.z()});
         Player p = source.getPlayer();
         if (p != null) params.with(LootParams.THIS_ENTITY, org.domi.furnace.server.ServerCore.playerLootEntity(p));
-        ItemStack out = source.getServer().applyModifier(m, stack, params);
+        ItemStack out = source.getServer().applyModifier(source.level(), m, stack, params);
         int max = ItemArgument.maxStackSize(out);
         return out.count() > max ? out.withCount(max) : out;
     }

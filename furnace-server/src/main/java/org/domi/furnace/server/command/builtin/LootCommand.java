@@ -388,7 +388,7 @@ public final class LootCommand {
         source.level().runAt(pos.x(), pos.z(), region -> {
             try {
                 checkLoaded(region.level(), pos);
-                items.complete(source.getServer().commandLoot(table, params));
+                items.complete(source.getServer().commandLoot(source.level(), table, params));
             } catch (Throwable t) {
                 items.completeExceptionally(t);
             }
@@ -399,7 +399,7 @@ public final class LootCommand {
 
     private static int drop(CommandContext<CommandSource> c, LootTable table, LootParams params, DropConsumer target) throws CommandSyntaxException {
         CommandSource source = c.getSource();
-        List<ItemStack> items = source.getServer().commandLoot(table, params);
+        List<ItemStack> items = source.getServer().commandLoot(source.level(), table, params);
         PostMessages post = new PostMessages();
         return post.finish(source, run(() -> target.accept(c, items, list -> callback(source, post, list))));
     }
@@ -444,7 +444,7 @@ public final class LootCommand {
         if (attacker != null) {
             params.with(LootParams.LAST_DAMAGE_PLAYER, attacker).with(LootParams.ATTACKING_ENTITY, attacker).with(LootParams.DIRECT_ATTACKING_ENTITY, attacker);
         }
-        return new Object[] {source.getServer().commandLoot(table, params), tableId};
+        return new Object[] {source.getServer().commandLoot(source.level(), table, params), tableId};
     }
 
     /** dropBlockLoot: 그 칸 상태의 getDrops(BLOCK 문맥: origin 칸 중심·block_state·tool). */

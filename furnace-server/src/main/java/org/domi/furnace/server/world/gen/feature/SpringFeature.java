@@ -44,6 +44,8 @@ public final class SpringFeature implements ConfiguredFeature {
         }
         if (rocks == rockCount && holes == holeCount) {
             view.trySetBlock(x, y, z, stateId);
+            // 바닐라 SpringFeature.place: setBlock 뒤 scheduleTick(pos, 샘 유체, 0) — 틱 범위에 들어오면 바로 흐른다(A06-03)
+            view.scheduleFluidTick(x, y, z, FeatureWorldView.fluidTypeOf(stateId), 0);
             return true;
         }
         return false;

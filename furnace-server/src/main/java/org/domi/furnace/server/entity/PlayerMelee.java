@@ -151,7 +151,7 @@ public final class PlayerMelee {
                 if (le == target || p.isAlliedTo(le) || (le instanceof ArmorStand as && as.isMarker()) || distSqr(p, le) >= 9.0) continue;
                 float m = (l + enchantDamageBonus(weapon, le)) * h;
                 le.knockback(0.4F, sin, -cos);
-                le.hurtBy(new Entity.Damage("player_attack", false, false, false).withWeapon(weapon), m, p);
+                le.hurtBy(Entity.Damage.playerAttack(p).withWeapon(weapon), m, p);
                 postAttack(level, p, weapon, le);
             }
             for (Player o : w.players()) {
@@ -194,7 +194,7 @@ public final class PlayerMelee {
 
     /** target.hurt(playerAttack(p), amount). 플레이어 대상은 바닐라 LivingEntity.hurt 의 0.4 넉백까지(그쪽 피해 경로엔 넉백이 없다). */
     static boolean hurt(ChunkLevel level, Player p, Targetable target, float amount, ItemStack weapon) {
-        var dmg = new Entity.Damage("player_attack", false, false, false).withWeapon(weapon);
+        var dmg = Entity.Damage.playerAttack(p).withWeapon(weapon);
         if (target instanceof LivingEntity le) return le.hurtBy(dmg, amount, p);
         if (target instanceof Player victim) {
             victim.shieldLevel = level;
@@ -218,12 +218,23 @@ public final class PlayerMelee {
      */
     static void postAttack(ChunkLevel level, Player p, ItemStack weapon, Targetable target) {
         if (isLiving(target)) EnchantEffects.thorns(level, target, p);
+        igniteByWeapon(target, weapon);
+        EnchantEffects.windBurst(level, p, weapon);
+        baneSlowness(target, weapon);
+    }
+
+    /** 무기의 발화(불 붙이기 4초 × 레벨) — 플레이어·몹 공통(바닐라 minecraft:ignite 는 어떤 엔티티에든, 보트·수레 포함). */
+    static void igniteByWeapon(Targetable target, ItemStack weapon) {
         int fire = ItemTools.enchantmentLevel(weapon, "minecraft:fire_aspect");
         Entity victim = entityOf(target);
-        if (fire > 0 && victim != null) victim.igniteForSeconds(4.0F * fire);   // minecraft:ignite 는 어떤 엔티티에든(보트·수레 포함)
+        if (fire > 0 && victim != null) victim.igniteForSeconds(4.0F * fire);
         else if (fire > 0 && target instanceof Player pl) pl.igniteForSecondsLater(4.0F * fire);
-        EnchantEffects.windBurst(level, p, weapon);
+    }
+
+    /** 살충: 절지류에게 느림 IV — 플레이어·몹 공통. */
+    static void baneSlowness(Targetable target, ItemStack weapon) {
         int bane = ItemTools.enchantmentLevel(weapon, "minecraft:bane_of_arthropods");
+        Entity victim = entityOf(target);
         if (bane > 0 && victim instanceof LivingEntity e && e.type().is("minecraft:sensitive_to_bane_of_arthropods")) {
             var rnd = e.random();
             rnd.nextInt(1);
