@@ -46,6 +46,9 @@ public class NoiseIdentityBench {
             c.add(new Config("nether", NoiseWorldSource.Dimension.NETHER, "minecraft:nether", s));
             c.add(new Config("end", NoiseWorldSource.Dimension.END, "minecraft:end", s));
         }
+        // 네더 시드 더(표면 규칙 바이옴 조회 — 네더 바이옴 경계가 섞인 곳)
+        for (long s : new long[]{1L, -1L, 8675309L, Long.MAX_VALUE, 20261111L, -4172144997902289642L})
+            c.add(new Config("nether", NoiseWorldSource.Dimension.NETHER, "minecraft:nether", s));
         return c;
     }
 
@@ -61,6 +64,10 @@ public class NoiseIdentityBench {
         p.add(new int[]{100000 + r.nextInt(10), -100000 - r.nextInt(10)});
         p.add(new int[]{-1, -1});
         p.add(new int[]{0, 0});
+        // 월드 경계(블록 ±29,999,984 = 청크 ±1874999) 바로 안·바깥 — 큰 좌표의 quart·지터 계산
+        p.add(new int[]{1874999, 1874999});
+        p.add(new int[]{-1875000, -1875000});
+        p.add(new int[]{1875000 + r.nextInt(4), -1874999});
         if (cfg.dim == NoiseWorldSource.Dimension.END) {
             // 바깥 섬(원점에서 1000블록 너머)
             for (int i = 0; i < 4; i++) p.add(new int[]{80 + r.nextInt(200), -80 - r.nextInt(200)});
@@ -117,7 +124,7 @@ public class NoiseIdentityBench {
                     total = fnv(total, ch);
                     chunks++;
                 }
-                if (ci++ % 3 == 0) {
+                if (ci++ % 3 == 0 || cfg.dim == NoiseWorldSource.Dimension.NETHER) {
                     // 이어진 5×5 를 3 스레드가 동시에 — 이웃 꼭짓점 공유·동시 접근 경로를 거친 결과도 같아야 한다
                     int bx = 777 + (int) (cfg.seed & 63), bz = -333;
                     java.util.concurrent.ConcurrentSkipListMap<Long, Long> res = new java.util.concurrent.ConcurrentSkipListMap<>();
@@ -210,7 +217,7 @@ public class NoiseIdentityBench {
             case "time" -> time(args.length > 1 ? args[1] : null);
             case "pristine" -> {
                 // 프로파일용: 여러 스레드로 원시 청크만 계속 만든다
-                NoiseWorldSource src = NoiseWorldSource.overworld(12345L, BLOCKS, REGISTRIES);
+                NoiseWorldSource src = sourceFor(System.getProperty("furnace.bench.dim", "overworld"));
                 int threads = Integer.parseInt(args.length > 1 ? args[1] : "4"), per = Integer.parseInt(args.length > 2 ? args[2] : "200");
                 // 예열: 요새 고리 계산(월드당 한 번)·JIT 를 측정에서 뺀다
                 for (int i = 0; i < 40; i++) { var g = src.generateWorldChunk(-3000 + i, 700); src.applyCarvers(g, -3000 + i, 700); }
@@ -235,6 +242,7 @@ public class NoiseIdentityBench {
                 System.out.printf("PRISTINE %d chunks %.1f s%n", threads * per, (System.nanoTime() - t0) / 1e9);
                 if (rec != null) { rec.stop(); rec.dump(Path.of(jfr)); }
             }
+            case "starts" -> starts(Path.of(args[1]), Integer.parseInt(args.length > 2 ? args[2] : "200"));
             case "area" -> area(args.length > 1 ? args[1] : "overworld", Integer.parseInt(args.length > 2 ? args[2] : "3"),
                     Integer.parseInt(args.length > 3 ? args[3] : "24"));
             default -> throw new IllegalArgumentException(args[0]);
@@ -242,15 +250,59 @@ public class NoiseIdentityBench {
     }
 
     /**
+     * 구조물 시작점(종류·상자·조각 상자)을 side×side 청크 영역에서 모두 적는다 — baseBlock·높이 질의가 바뀌었을 때 배치가 같은지 본다.
+     * 시드·차원마다 청크 순서를 섞지 않고 차례로(캐시 상태와 무관하게 같은 값이어야 한다).
+     */
+    static String bb(org.domi.furnace.server.world.gen.structure.BoundingBox b) {
+        return b.minX() + "," + b.minY() + "," + b.minZ() + ".." + b.maxX() + "," + b.maxY() + "," + b.maxZ();
+    }
+
+    public static void starts(Path out, int side) throws Exception {
+        List<Config> cs = new ArrayList<>();
+        for (long s : new long[]{0L, 12345L, -1L, 42L, 8675309L})
+            cs.add(new Config("overworld", NoiseWorldSource.Dimension.OVERWORLD, "minecraft:overworld", s));
+        cs.add(new Config("amplified", NoiseWorldSource.Dimension.OVERWORLD, "minecraft:amplified", 7L));
+        cs.add(new Config("large_biomes", NoiseWorldSource.Dimension.OVERWORLD, "minecraft:large_biomes", -99L));
+        for (long s : new long[]{0L, 12345L, 42L, -7L, 1L})
+            cs.add(new Config("nether", NoiseWorldSource.Dimension.NETHER, "minecraft:nether", s));
+        java.util.Map<String, Integer> counts = new java.util.TreeMap<>();
+        try (PrintWriter w = new PrintWriter(Files.newBufferedWriter(out))) {
+            for (Config cfg : cs) {
+                NoiseWorldSource src = cfg.source();
+                for (int cx = -side / 2; cx < side / 2; cx++) {
+                    for (int cz = -side / 2; cz < side / 2; cz++) {
+                        for (var st : src.structureStartsFresh(cx, cz)) {
+                            var b = st.boundingBox();
+                            StringBuilder sb = new StringBuilder();
+                            sb.append(cfg.name).append(' ').append(cfg.seed).append(' ').append(cx).append(' ').append(cz).append(' ')
+                              .append(st.structureId()).append(' ').append(bb(b));
+                            for (var piece : st.pieces()) sb.append(" | ").append(bb(piece.boundingBox()));
+                            w.println(sb);
+                            counts.merge(cfg.name + " " + st.structureId(), 1, Integer::sum);
+                        }
+                    }
+                }
+                w.flush();
+            }
+        }
+        counts.forEach((k, v) -> System.out.println("STARTS " + k + " " + v));
+    }
+
+    /**
      * 서버처럼 이어진 땅을 만든다: side×side 청크를 가운데서 바깥으로(나선 비슷하게 거리순) threads 개 스레드가 나눠 원시 청크(지형·표면·카버)로.
      * 벽시계·전체 CPU·꼭짓점 캐시 적중을 적는다. 라운드마다 새 곳(캐시가 비어 있는 땅).
      */
-    public static void area(String dim, int threads, int side) throws Exception {
-        NoiseWorldSource src = switch (dim) {
+    static NoiseWorldSource sourceFor(String dim) {
+        return switch (dim) {
             case "nether" -> NoiseWorldSource.nether(12345L, BLOCKS, REGISTRIES);
             case "end" -> NoiseWorldSource.end(12345L, BLOCKS, REGISTRIES);
+            case "amplified" -> NoiseWorldSource.overworld(12345L, BLOCKS, REGISTRIES, "minecraft:amplified");
             default -> NoiseWorldSource.overworld(12345L, BLOCKS, REGISTRIES);
         };
+    }
+
+    public static void area(String dim, int threads, int side) throws Exception {
+        NoiseWorldSource src = sourceFor(dim);
         for (int i = 0; i < 60; i++) { var g = src.generateWorldChunk(-9000 + i, 700); src.applyCarvers(g, -9000 + i, 700); }
         int rounds = Integer.getInteger("furnace.bench.rounds", 4);
         for (int round = 0; round < rounds; round++) {
