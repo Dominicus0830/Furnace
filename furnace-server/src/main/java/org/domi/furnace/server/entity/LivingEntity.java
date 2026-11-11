@@ -542,6 +542,11 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     // ------------------------------------------------------------------ 소리
 
+    /** getFallSounds(): {작은 낙하 소리, 큰 낙하 소리}. 바닐라 LivingEntity 는 generic, 몬스터는 hostile, 갑옷 거치대는 armor_stand.fall 둘 다. */
+    public String[] fallSounds() { return GENERIC_FALL_SOUNDS; }
+
+    private static final String[] GENERIC_FALL_SOUNDS = {"minecraft:entity.generic.small_fall", "minecraft:entity.generic.big_fall"};
+
     protected String getHurtSound(Damage source) { return null; }
 
     protected String getDeathSound() { return null; }
