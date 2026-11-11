@@ -16,6 +16,32 @@ final class GameRegistriesImpl implements GameRegistries {
     public List<String> entries(String registry) { return List.copyOf(RegistrySet.current().entries(normalize(registry))); }
 
     @Override
+    public List<String> builtIn(String registry) { return BuiltIn.TABLE.getOrDefault(normalize(registry), List.of()); }
+
+    /** registries/builtin-1.21.1.txt(바닐라 reports/registries.json 의 protocol_id 순). 처음 쓸 때 한 번 읽는다. */
+    private static final class BuiltIn {
+        static final java.util.Map<String, List<String>> TABLE = load();
+
+        private static java.util.Map<String, List<String>> load() {
+            var out = new java.util.LinkedHashMap<String, java.util.List<String>>();
+            try (var in = GameRegistriesImpl.class.getClassLoader().getResourceAsStream("registries/builtin-1.21.1.txt")) {
+                if (in == null) throw new IllegalStateException("registries/builtin-1.21.1.txt 없음");
+                var r = new java.io.BufferedReader(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
+                String line;
+                while ((line = r.readLine()) != null) {
+                    if (line.isBlank() || line.startsWith("#")) continue;
+                    int sp = line.indexOf(' ');
+                    out.computeIfAbsent(line.substring(0, sp), k -> new java.util.ArrayList<>()).add(line.substring(sp + 1));
+                }
+            } catch (java.io.IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+            out.replaceAll((k, v) -> List.copyOf(v));
+            return java.util.Map.copyOf(out);
+        }
+    }
+
+    @Override
     public Optional<String> source(String registry, String key) {
         DynamicRegistries d = DynamicRegistries.current();
         return Optional.ofNullable(d == null ? null : d.source(normalize(registry), normalize(key)));

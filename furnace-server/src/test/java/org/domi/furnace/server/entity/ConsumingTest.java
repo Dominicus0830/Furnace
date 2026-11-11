@@ -72,6 +72,41 @@ class ConsumingTest {
         assertEquals(-1, player.usingHand);
     }
 
+    /** A12-05: 먹기·마시기가 used 통계를 올린다(바닐라 Player.eat·PotionItem·MilkBucketItem·HoneyBottleItem). 꿀은 두 번. */
+    @Test
+    void eatingAndDrinkingAwardUsedStats(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) {
+        var st = new org.domi.furnace.server.stats.PlayerStats(dir, UUID.randomUUID());
+        player.stats(st);
+        v.setFoodLevel(10);
+        hold(TestRecipes.item("apple", 1));
+        assertTrue(Consuming.tryStart(player, 0, player.inventory().get(player.inventory().heldWindowSlot())));
+        run(40);
+        assertEquals(1, st.get("minecraft:used:minecraft:apple"));
+
+        hold(TestRecipes.item("milk_bucket", 1));
+        assertTrue(Consuming.tryStart(player, 0, player.inventory().get(player.inventory().heldWindowSlot())));
+        run(40);
+        assertEquals(1, st.get("minecraft:used:minecraft:milk_bucket"));
+
+        hold(TestRecipes.item("potion", 1));
+        assertTrue(Consuming.tryStart(player, 0, player.inventory().get(player.inventory().heldWindowSlot())));
+        run(40);
+        assertEquals(1, st.get("minecraft:used:minecraft:potion"));
+
+        v.setFoodLevel(10);
+        hold(TestRecipes.item("honey_bottle", 1));
+        assertTrue(Consuming.tryStart(player, 0, player.inventory().get(player.inventory().heldWindowSlot())));
+        run(60);
+        assertEquals(2, st.get("minecraft:used:minecraft:honey_bottle"), "바닐라 꿀 병은 음식 경로와 고유 경로에서 각각 한 번");
+
+        v.setFoodLevel(10);
+        hold(TestRecipes.item("apple", 1));
+        Consuming.tryStart(player, 0, TestRecipes.item("apple", 1));
+        hold(ItemStack.EMPTY);   // 도중 취소: 안 오른다
+        run(40);
+        assertEquals(1, st.get("minecraft:used:minecraft:apple"));
+    }
+
     @Test
     void ominousBottleGivesBadOmenWithComponentAmplifierAndLeavesNoBottle() {
         ItemStack bottle = org.domi.furnace.server.item.ItemTools.with(TestRecipes.item("ominous_bottle", 2), "minecraft:ominous_bottle_amplifier", 3);

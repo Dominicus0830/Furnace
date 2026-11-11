@@ -12,7 +12,7 @@ name: CI
 on:
   push:
     branches:
-      - claude/quirky-wright-lra834   # 기준 브랜치가 바뀌면 이 이름과 아래 BASE_BRANCH 둘 다 바꾼다
+      - claude/quirky-wright-lra834   # 기준 브랜치가 바뀌면 이 이름과 아래 BASE_BRANCH, 그리고 coverage-tests·coverage 작업의 if(하드코딩) 모두 바꾼다
       - main
   pull_request:
 
@@ -129,6 +129,73 @@ jobs:
         with:
           name: user-todo-combined
           path: build/user-todo/user-todo-combined.md
+          retention-days: 14
+
+  # 커버리지용 서버 시험(JaCoCo 에이전트). `test` 판정과 무관한 별도 비게이트 작업이다 — 에이전트가 시험을 5배 가까이 느리게 해
+  # 제한시간 시험이 실패할 수 있으므로(RegenerateChunkTest 59초 대 11초) 판정용 조각과 분리했다. 기준 브랜치 push 실행에서만 돈다.
+  # 실패해도 .exec 는 JVM 종료 때 기록되니 그대로 올리고, 이 작업의 결과는 어디서도 needs 로 쓰지 않는다.
+  coverage-tests:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/claude/quirky-wright-lra834'
+    name: coverage-tests (${{ matrix.shard }}/3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
+      - name: 서버 테스트 + JaCoCo (조각 ${{ matrix.shard }}/3)
+        continue-on-error: true
+        timeout-minutes: 35
+        run: ./gradlew -PskipOracle=true -Pcoverage -PtestShard=${{ matrix.shard }}/3 :furnace-server:test
+      - name: 커버리지 원자료 올리기
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-exec-${{ matrix.shard }}
+          path: furnace-server/build/jacoco/test.exec
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # 서버 시험 커버리지 보고서(JaCoCo). 기준 브랜치 push 실행에서만, 조각의 .exec 를 합쳐 xml·html 과 패키지별 표를 만든다.
+  # 보고용이다 — `test` 판정에 넣지 않으므로 이 작업이 실패해도 병합 판단에는 영향이 없다.
+  coverage:
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/claude/quirky-wright-lra834'
+    needs: [coverage-tests]
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-exec-*
+          path: furnace-server/build/coverage-in
+      - name: 커버리지 보고서 만들기
+        run: |
+          ./gradlew -PskipOracle=true :furnace-server:jacocoCoverageReport
+          { echo "## 서버 시험 커버리지(JaCoCo, 보고용)"; echo; python3 -I tools/ci/coverage-summary.py furnace-server/build/reports/coverage/jacoco.xml; } >> "$GITHUB_STEP_SUMMARY"
+      - name: 커버리지 보고서 올리기
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: furnace-server/build/reports/coverage
           retention-days: 14
 
   # 이름이 `test` 인 합친 판정(기존 점검 이름). 조각·light 중 하나라도 실패·취소면 실패.

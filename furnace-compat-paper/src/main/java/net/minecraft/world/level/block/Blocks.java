@@ -3,9 +3,9 @@ package net.minecraft.world.level.block;
 import org.domi.furnace.compat.nms.NmsBlocks;
 
 /**
- * 블록 상수(Mojang 이름 shim, N0). 바닐라 1.21.1 블록 레지스트리 순서 그대로, 필드 이름은 등록 이름 경로의 대문자다(가정: 1.21.1 Blocks 필드 이름이
- * 모두 이 규칙을 따른다고 보았다 — 매핑 파일로 확인하지 못했다). 값은 {@link NmsBlocks} 표의 같은 객체라 {@code ==} 로 비교된다.
- * 생성: tools/compat/gen-nms-blocks.py — 직접 고치지 말 것.
+ * 블록 상수(Mojang 이름 shim, N0). 바닐라 1.21.1 블록 레지스트리 순서 그대로(1060개, 바닐라 클래스의 같은 타입 필드 수와 같다),
+ * 필드 이름은 등록 이름 경로의 대문자다(가정: 필드 이름은 난독화 jar 에 없어 매핑 파일로 확인하지 못했다).
+ * 값은 {@link NmsBlocks} 표의 같은 객체라 {@code ==} 로 비교된다. 생성: tools/compat/gen-nms-constants.py — 직접 고치지 말 것.
  */
 public final class Blocks {
 

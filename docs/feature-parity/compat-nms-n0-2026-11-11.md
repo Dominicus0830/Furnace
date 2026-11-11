@@ -41,5 +41,22 @@ shim 은 `furnace-api` 의 블록 종류 표만 본다. 상태 표는 처음 쓸
 
 - **가정:** `Blocks` 필드 이름 = 등록 이름 경로의 대문자. 매핑 파일로 확인하지 못했다(필드 이름은 난독화 jar 에 없다). 시험은 이름 → 경로 규칙과 순서만 확인한다.
 - 블록 **동작**(모양·단단함·설치·틱·상호작용)은 서버 안에 있어 두지 않았다 — 없는 멤버는 H7 링커가 호출 위치에서 `UnsupportedNmsLink` 로 알린다.
-- N0 2부: `BlockStateProperties` 상수(필드 이름 확인 필요), `HolderSet`·태그, `SectionPos`·`InteractionHand`, `FluidState`·`Fluids`, `BuiltInRegistries.ITEM`·`Items`. N-lib(authlib·DFU)는 결정 5 내려받기 틀 위에서 따로.
-- `Blocks` 는 `tools/compat/gen-nms-blocks.py` 로 다시 만든다(입력: 이미 커밋된 `registries/builtin-1.21.1.txt`).
+- N0 3부로 남은 것: `TagKey`·`HolderSet`·태그(`BlockState.is(TagKey)`), `FluidState`·`Fluids`, `BlockStateProperties`(받은 플러그인 소스 10개 중 쓰는 곳이 1곳뿐이라 뒤로). N-lib(authlib·DFU)는 결정 5 내려받기 틀 위에서 따로.
+- `Blocks`·`Items` 는 `tools/compat/gen-nms-constants.py` 로 다시 만든다(입력: 이미 커밋된 `registries/builtin-1.21.1.txt`).
+
+## N0 2부 (2026-11-11)
+
+플러그인 소스 10개에서 다음으로 많이 쓰는 것: `BuiltInRegistries.ITEM`(15곳)·`Registries.ITEM/BIOME/ENTITY_TYPE`, `InteractionHand`(4개 플러그인), `SectionPos`(3개).
+
+| 클래스 | 내용 |
+|---|---|
+| API `GameRegistries.builtIn(레지스트리)` | 내장 레지스트리 항목 id, 바닐라 protocol_id 순(registries/builtin-1.21.1.txt). 동기화(데이터 팩) 레지스트리는 빈 목록 |
+| `BuiltInRegistries.ITEM`·`Items`(1333개) | 기본값 minecraft:air. 값은 `Item.byKey` 의 같은 객체라 `ItemStack.getItem()` 과 `==`. 바닐라 Items(`cut`)의 Item 필드도 1333개 |
+| `Item.getId`·`byId`·`byBlock`·`builtInRegistryHolder` | null → 0, 모르는 번호 → 공기, 블록 아이템이 없으면 공기 |
+| `Registries` 키 29개 | 값 타입 shim 이 없는 것은 `Registry<Object>`(설명자는 ResourceKey 하나라 링크 됨). `DIMENSION`·`LEVEL_STEM` 은 바닐라처럼 같은 키 |
+| `SectionPos` | 묶기·풀기·상대 short·블록 ↔ 섹션·`getZeroNode`·`offset`. 바닐라 `kf` 바이트코드와 대조. 엔티티·청크 객체를 받는 생성 메서드와 좌표 스트림은 없다 |
+| `InteractionHand` | MAIN_HAND·OFF_HAND |
+
+**가정:** `Items` 필드 이름 = 등록 이름 경로 대문자(Blocks 와 같은 이유로 확인 못 함).
+
+시험: compat `NmsItemsSectionTest` 3개, server `GameRegistriesBuiltInTest` 1개.

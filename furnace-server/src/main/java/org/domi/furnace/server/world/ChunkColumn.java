@@ -37,6 +37,9 @@ public final class ChunkColumn {
     // 지금 직렬화 중인 본문(현재 modCount 기준). 같은 버전을 동시에 요청한 플레이어들이 하나의 결과(같은 byte[])를 받아
     // 스냅샷·직렬화·공유 압축 프레임이 한 번씩만 돈다. touch() 가 비운다. 주인 region 스레드 전용.
     private java.util.concurrent.CompletableFuture<byte[]> inflightSerializedBody;
+    // auto 전송이 이 청크를 보내려 했는데 본문이 준비 안 돼 미룬 횟수(보낼 때 0). 레드스톤처럼 매 틱 블록이 바뀌는 청크는 직렬화가 끝나
+    // 캐시에 들어가도 보내기 직전에 다시 비워지므로, 이 값이 차면 그 자리에서 직렬화한다(World.chunkBodyReadyOrPrefetch). 주인 region 스레드 전용.
+    private int bodyWaits;
     private long[] cachedMotionBlockingHeightmap;
     private long[] cachedWorldSurfaceHeightmap;
     private ChunkSnapshot cachedSnapshot;
@@ -565,6 +568,8 @@ public final class ChunkColumn {
     public void cachedSerializedBody(byte[] body) { this.cachedSerializedBody = body; }
     public java.util.concurrent.CompletableFuture<byte[]> inflightSerializedBody() { return inflightSerializedBody; }
     public void inflightSerializedBody(java.util.concurrent.CompletableFuture<byte[]> f) { this.inflightSerializedBody = f; }
+    public int bodyWaits() { return bodyWaits; }
+    public void bodyWaits(int n) { this.bodyWaits = n; }
     public ChunkSnapshot cachedSnapshot() { return cachedSnapshot; }
     public void cachedSnapshot(ChunkSnapshot snapshot) { this.cachedSnapshot = snapshot; }
 

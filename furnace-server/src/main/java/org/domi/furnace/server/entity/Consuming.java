@@ -120,8 +120,7 @@ public final class Consuming {
         String n = ItemTools.itemName(s);
         String leftover = null;
         if (n.equals("minecraft:ominous_bottle")) {   // OminousBottleItem.finishUsingItem: super(음식)를 부르지 않는다
-            consumeTrigger(p, s);
-            p.awardStat("minecraft:used:minecraft:ominous_bottle", 1);
+            consumeTrigger(p, s);   // 사용 통계(used)도 여기서 오른다
             ItemEffects.ominousBottleDrunk(p, region == null ? null : region.level(), s);
             if (!v.isCreative()) inv.set(ws, s.withCount(s.count() - 1));
             return;
@@ -173,7 +172,12 @@ public final class Consuming {
         if (n.equals("minecraft:chorus_fruit") && region != null) ItemEffects.chorusFruitTeleport(p, region.level());   // 먹은 뒤 순간이동(크리에이티브도)
     }
 
+    /**
+     * consume_item 트리거와 사용 통계: 바닐라는 같은 자리에서 둘 다 낸다(Player.eat·PotionItem·MilkBucketItem·HoneyBottleItem·OminousBottleItem 의
+     * finishUsingItem). 꿀은 음식 경로와 꿀 고유 경로에서 각각 불려 두 번 오른다(바닐라도 둘 다 award).
+     */
     private static void consumeTrigger(Player p, ItemStack s) {
+        p.awardStat("minecraft:used:" + ItemTools.itemName(s), 1);
         var adv = p.advancements();
         if (adv != null) adv.trigger("minecraft:consume_item", org.domi.furnace.server.ServerCore.lootStackOf(s));
     }

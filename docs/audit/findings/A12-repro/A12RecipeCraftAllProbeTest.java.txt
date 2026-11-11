@@ -1,0 +1,104 @@
+package org.domi.furnace.server.recipe;
+
+import com.google.gson.*;
+import java.nio.file.*;
+import java.util.*;
+import org.domi.furnace.server.entity.ItemStack;
+import org.junit.jupiter.api.Test;
+
+class A12RecipeCraftAllProbeTest extends CraftingMatchTest {
+
+    static final Gson G = new Gson();
+
+    List<List<String>> options(JsonElement e) {
+        // returns list of alternative items (each as a concrete name)
+        List<String> out = new ArrayList<>();
+        if (e.isJsonArray()) for (JsonElement x : e.getAsJsonArray()) out.addAll(flat(x));
+        else out.addAll(flat(e));
+        return List.of(out);
+    }
+
+    List<String> flat(JsonElement e) {
+        List<String> out = new ArrayList<>();
+        if (e.isJsonPrimitive()) { out.add(e.getAsString()); return out; }
+        JsonObject o = e.getAsJsonObject();
+        if (o.has("item")) out.add(o.get("item").getAsString());
+        else if (o.has("tag")) {
+            String t = o.get("tag").getAsString();
+            var tags = org.domi.furnace.server.item.ItemContext.class;
+            for (int id : tagItems(t)) out.add(org.domi.furnace.server.item.ItemContext.name("minecraft:item", id));
+        }
+        return out;
+    }
+
+    int[] tagItems(String tag) { return org.domi.furnace.server.item.ItemContext.tagEntries("minecraft:item", tag); }
+
+    ItemStack stackOf(String name) {
+        return new ItemStack(regs.id("minecraft:item", org.domi.furnace.server.data.ResourceId.parse(name)), 1);
+    }
+
+    @Test
+    void probe() throws Exception {
+        Path dir = Path.of("../tools/vanilla-data/server-1.21.1/data/minecraft/recipe");
+        int checked = 0, bad = 0;
+        try (var st = Files.list(dir)) {
+            for (Path p : st.sorted().toList()) {
+                JsonObject o = G.fromJson(Files.readString(p), JsonObject.class);
+                String type = o.get("type").getAsString();
+                String id = "minecraft:" + p.getFileName().toString().replace(".json", "");
+                if (!type.equals("minecraft:crafting_shaped") && !type.equals("minecraft:crafting_shapeless")) continue;
+                JsonObject res = o.getAsJsonObject("result");
+                String expItem = res.get("id").getAsString();
+                int expCount = res.has("count") ? res.get("count").getAsInt() : 1;
+                List<List<String>> slots = new ArrayList<>();
+                int w, h;
+                if (type.endsWith("shaped")) {
+                    JsonArray pat = o.getAsJsonArray("pattern");
+                    h = pat.size(); w = pat.get(0).getAsString().length();
+                    JsonObject key = o.getAsJsonObject("key");
+                    for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) {
+                        char c = pat.get(y).getAsString().charAt(x);
+                        if (c == ' ') slots.add(List.of());
+                        else slots.add(options(key.get(String.valueOf(c))).get(0));
+                    }
+                } else {
+                    JsonArray ing = o.getAsJsonArray("ingredients");
+                    w = 3; h = 3;
+                    for (JsonElement e : ing) slots.add(options(e).get(0));
+                    while (slots.size() < 9) slots.add(List.of());
+                }
+                // 첫 선택지 조합, 그리고 칸마다 선택지를 하나씩 바꿔 본다(최대 40조합)
+                int combos = 0;
+                List<int[]> picks = new ArrayList<>();
+                picks.add(new int[slots.size()]);
+                for (int i = 0; i < slots.size() && combos < 60; i++) for (int k = 1; k < slots.get(i).size() && combos < 60; k++) {
+                    int[] pk = new int[slots.size()]; pk[i] = k; picks.add(pk); combos++;
+                }
+                for (int[] pk : picks) {
+                    List<ItemStack> grid = new ArrayList<>();
+                    StringBuilder desc = new StringBuilder();
+                    for (int i = 0; i < slots.size(); i++) {
+                        if (slots.get(i).isEmpty()) { grid.add(ItemStack.EMPTY); continue; }
+                        String n = slots.get(i).get(pk[i]);
+                        desc.append(n.replace("minecraft:", "")).append(' ');
+                        grid.add(stackOf(n));
+                    }
+                    CraftingInput in = CraftingInput.of(w, h, grid);
+                    var e = rm.findCrafting(in, null);
+                    checked++;
+                    String got = null;
+                    if (e != null) {
+                        ItemStack s = e.recipe().assemble(in, rm.context());
+                        got = org.domi.furnace.server.item.ItemContext.name("minecraft:item", s.itemId()) + "x" + s.count();
+                    }
+                    String exp = expItem + "x" + expCount;
+                    if (!exp.equals(got)) {
+                        bad++;
+                        if (bad < 80) System.out.println("PROBE MISMATCH " + id + " [" + desc + "] expected " + exp + " got " + got + (e != null ? " via " + e.id() : ""));
+                    }
+                }
+            }
+        }
+        System.out.println("PROBE recipes checked=" + checked + " bad=" + bad);
+    }
+}
