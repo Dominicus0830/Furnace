@@ -1,0 +1,20 @@
+import re,sys,json
+lines=open('blocks_clinit.txt').read().split('\n')
+# find <clinit>
+start=[i for i,l in enumerate(lines) if 'static {}' in l][0]
+res=[];cur=None
+for l in lines[start:]:
+    m=re.search(r'ldc(_w)?\s+#\d+\s+// String (\S+)$',l)
+    if m and cur is None: cur={'name':m.group(2),'cls':None,'props':[]}; continue
+    if cur is not None:
+        m=re.search(r'new\s+#\d+\s+// class (\S+)',l)
+        if m and cur['cls'] is None: cur['cls']=m.group(1)
+        m=re.search(r'Method (dtb\$d\.\w+):',l)
+        if m: cur['props'].append(m.group(1))
+        if 'invokestatic' in l and 'Method a:(Ljava/lang/String;Ldfy;)Ldfy;' in l:
+            res.append(cur);cur=None
+        elif re.search(r'ldc(_w)?\s+#\d+\s+// String (\S+)$',l):
+            # a string that's not the name (e.g. other ldc); ignore
+            pass
+json.dump(res,open('vblocks.json','w'))
+print(len(res)); print(res[:3])

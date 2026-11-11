@@ -363,6 +363,9 @@ public abstract non-sealed class Entity implements Rider {
 
     public void tick() { baseTick(); }
 
+    /** Entity.checkDespawn: 기본은 아무것도 안 한다(Mob 이 덮는다). 엔티티 틱 앞에서 섹션 판정만으로 불린다(ChunkLevel.tickEntities). */
+    public void checkDespawn() {}
+
     public void baseTick() {
         inBlockState = -1;
         if (vehicle != null && vehicle.isRemoved()) stopRiding();

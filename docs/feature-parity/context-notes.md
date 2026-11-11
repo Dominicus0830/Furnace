@@ -941,7 +941,8 @@
 - 스폰 위치 판정(isRightDistanceToPlayerAndSpawnPoint) 마지막 조건은 보더가 아니라 그 칸 청크의 엔티티 틱(`ChunkLevel.isNaturalSpawningAllowed`). 에너지 예산 바이옴은 스폰 중인 청크의 quart(x&3, z&3) rough 바이옴(`NaturalSpawner.spawnChunkBiome`). 위 끝은 맨 위 블록 + 1. 지역 상한 거리 < 128².
 - 팬텀·순찰·고양이: `DimensionSpawners` 에 하나씩, 전역 틱에서 타이머·고르기(차원 전체 플레이어, 엔티티 번호 순), 그 플레이어 둘레 일은 `CustomSpawnerHost.atPlayer` 로 그 region 스레드(다음 region 틱 머리, 갈라 낸 난수). region 틱은 포위 후보 알리기만.
 - 스폰 바닥: always 는 soul_sand·carved_pumpkin·jack_o_lantern·redstone_lamp·mud 뿐(발광석·바다 랜턴·신호기·버섯불·개구리불 빼기), 구리 격자 8종 never. 목표: 고양이 피하기 4, 위더 스켈레톤 대상 3 AbstractPiglin(super 앞), 은좀벌레·엔더마이트 1 가루눈 오르기, 아홀로틀 기억 두 줄.
-- 시험: `NaturalSpawnChunkCountTest`, `A10MobParityTest`, `A10NaturalSpawnerParityTest`, `CustomSpawnerDimensionTest`.
+- 검토 반영(PR #182 R1·R2·R3): 엔티티 틱 람다(바닐라 aqu.a(brc,bnf,bsr))는 섹션 ENTITY_TICKING(시야 거리) 엔티티마다 버리기 → `checkDespawn` → `inEntityTickingRange`(TickingTracker ≤ 31 = 체비셰프 ≤ sim)일 때만 tick. `ChunkLevel.tickEntities(section, ticking)` 로 나눴고 `Mob.tick` 머리의 checkDespawn 은 뺐다(`Entity.checkDespawn` 기본 빈 메서드, 위더는 덮어씀). 엔티티 틱(`Region.entityTicking`)은 ≤ min(sim, 시야), 예전 ≤ sim−1. `/execute if loaded`(amt)는 청크 단계 ENTITY_TICKING = 시야 거리 판정. 무작위 틱은 /forceload·플러그인 티켓 이웃 1칸도. 블록 엔티티(`blockEntityTicking`)는 A07 PR #183 몫.
+- 시험: `NaturalSpawnChunkCountTest`, `A10MobParityTest`, `A10NaturalSpawnerParityTest`, `CustomSpawnerDimensionTest`, `EntityTickRangeTest`.
 - 시험: `VillageSiegeTest`(서버 길 3개: 보고 순서로 첫 사람, 늦은 답 버림, 떠남·무응답 재시도), `WanderingTraderTest.serverTimerRunsWithoutPlayersAndResetsChanceOnLateSpawn`. 봇 `tools/bot-test/round8/`: 두 봇을 3000칸 떨어뜨려(서로 다른 region) 둘 다 종 격자 마을·deep_dark(자연 스폰 없음)에 두고 60밤 — 고친 뒤 포위 9밤 모두 먼저 들어온 봇 쪽, 고치기 전 jar 는 10밤 중 2밤이 뒤에 들어온 봇 쪽. 어깨: 콘솔 `/gamemode spectator`·`/damage` 뒤 어깨가 비고 앵무새가 봇 자리(거리 0)에 섰다.
 
 ## 2026-11-06 데이터 주도 동기화 레지스트리·게임 레지스트리 훅 (묶음 D2, 불만 표 27·32·37번)

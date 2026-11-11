@@ -1,0 +1,26 @@
+#!/usr/bin/env python3
+# A19 패키지별 시험 참조율(근사). 시험 소스(서버·호환·시험 서버·API)에서 운영 클래스의 단순 이름이 한 번이라도 나오면 "참조됨".
+# 줄 단위 커버리지가 아니다 — JaCoCo 표(jacoco.tsv)와 함께 읽는다. 사용: python3 -I refs.py (저장소 루트에서)
+import os, re, collections
+root = 'furnace-server/src/main/java/org/domi/furnace/server/'
+tests = []
+for d in ['furnace-server', 'furnace-compat-paper', 'furnace-test', 'furnace-api']:
+    for dp, _, fs in os.walk(d + '/src/test'):
+        for f in fs:
+            if f.endswith('.java'):
+                tests.append(open(os.path.join(dp, f), encoding='utf-8', errors='ignore').read())
+words = set(re.findall(r'[A-Za-z_][A-Za-z0-9_]*', '\n'.join(tests)))
+pk = collections.defaultdict(lambda: [0, 0, 0, []])
+for dp, _, fs in os.walk(root):
+    for f in fs:
+        if not f.endswith('.java'): continue
+        rel = os.path.relpath(dp, root); parts = rel.split(os.sep)
+        key = '/'.join(parts[:2]) if parts[0] in ('world', 'net', 'command', 'entity', 'block') else parts[0]
+        if rel == '.': key = '(root)'
+        n = f[:-5]; loc = sum(1 for _ in open(os.path.join(dp, f), encoding='utf-8', errors='ignore'))
+        p = pk[key]; p[0] += 1; p[2] += loc
+        if n in words: p[1] += 1
+        else: p[3].append((loc, n))
+for k, v in sorted(pk.items(), key=lambda kv: kv[1][1] / max(kv[1][0], 1)):
+    print(f'{k:22} {v[0]:4} {100*v[1]//v[0]:3}% loc={v[2]:6} 시험에 이름이 안 나오는 줄수={sum(l for l,_ in v[3]):6}',
+          ' '.join(n for _, n in sorted(v[3], reverse=True)[:4]))

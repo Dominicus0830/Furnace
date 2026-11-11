@@ -1,0 +1,22 @@
+// A01 점검: 덤프(play-extra.txt)의 패킷 바이트를 독립 구현(node-minecraft-protocol 1.68 + minecraft-data 1.21.1 스키마)으로 파싱해 PartialReadError·남는 바이트를 찾는다.
+// 알려진 거짓 양성: mc-data 레시피 직렬기 목록의 여분 항목(banneraddpattern, id>=11 밀림)·food 컴포넌트의 usingConvertsTo 누락.
+// 사용: node parsedump.js <상태> <파일>  — 줄마다 "이름 16진(id 포함)" 을 독립 파서(클라이언트 방향)로 읽어 남는 바이트·오류를 보고한다.
+const mc = require('minecraft-protocol');
+const fs = require('fs');
+const state = process.argv[2];
+const des = mc.createDeserializer({ state, isServer: false, version: '1.21.1' });
+let cur = '';
+des.on('data', p => { const sz = p.metadata.size; const full = curLen; console.log((sz === full ? 'OK   ' : 'LEFT ') + cur.padEnd(20) + p.data.name + (sz !== full ? ` read=${sz} of ${full}` : '') + ' ' + JSON.stringify(p.data.params, (k, v) => typeof v === 'bigint' ? v.toString() : v).slice(0, 160)); });
+des.on('error', e => console.log('ERR  ' + cur + ' ' + e.message.slice(0, 150)));
+let curLen = 0;
+(async () => {
+  for (const line of fs.readFileSync(process.argv[3], 'utf8').split('\n').filter(Boolean)) {
+    const [name, hex] = line.split(' '); cur = name; const b = Buffer.from(hex, 'hex'); curLen = b.length;
+    const before = (global.__pktErrs || []).length;
+    des.write(b);
+    await new Promise(r => setTimeout(r, 30));
+    const pe = global.__pktErrs || [];
+    for (const e of pe.slice(before)) if (e.kind === 'partial') console.log('PART ' + name + ' ' + e.msg);
+  }
+  process.exit(0);
+})();

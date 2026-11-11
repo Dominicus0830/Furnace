@@ -3,9 +3,11 @@ package org.domi.furnace.server.block.types;
 
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
+import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
+import org.domi.furnace.server.light.LightTables;
 
 public abstract class SpreadingSnowyDirtBlock extends SnowyDirtBlock {
 
@@ -18,8 +20,8 @@ public abstract class SpreadingSnowyDirtBlock extends SnowyDirtBlock {
         int above = level.getBlockState(pos.above());
         if (B.is(above, SNOW) && SnowLayerBlock.LAYERS.intValue(above) == 1) return true;
         if (Fluids.amount(B.fluid(above)) == 8) return false;
-        // LightEngine.getLightBlockInto(…, UP, above.getLightBlock) < 최대 빛. TODO(빛): 빛 차단량 표가 생기면 정확히.
-        return !B.lightBlockedAbove(above);
+        // LightEngine.getLightBlockInto(grass, above, UP, above.getLightBlock) < 최대 빛(15)
+        return LightTables.lightBlockInto(state, above, Dir.UP, LightTables.lightBlock(above)) < 15;
     }
 
     private static boolean canPropagate(int state, BlockLevel level, Pos pos) {
