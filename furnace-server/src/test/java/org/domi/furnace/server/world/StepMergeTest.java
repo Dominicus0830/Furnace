@@ -72,11 +72,11 @@ class StepMergeTest {
                         trial, dOld, oldBeforeMerge, STEPS, dFresh, STEPS - oldBeforeMerge);
                 results.add(r);
                 if (dOld != STEPS) wrong++;
-                if (dFresh > STEPS) over++;
+                if (dFresh > STEPS - oldBeforeMerge) over++;   // 합칠 때 원래 region 의 남은 걸음 이하
                 ts.setFrozen(false);
                 Thread.sleep(100);
             }
-            String summary = "A03-STEP 6회 중 원래 엔티티 걸음이 N 이 아님 " + wrong + "회, 새 엔티티가 N 보다 더 받음 " + over + "회\n  " + String.join("\n  ", results);
+            String summary = "A03-STEP 6회 중 원래 엔티티 걸음이 N 이 아님 " + wrong + "회, 새 엔티티가 원래 쪽 남은 걸음보다 더 받음 " + over + "회\n  " + String.join("\n  ", results);
             System.out.println(summary);
             assertEquals(0, wrong, summary);
             assertEquals(0, over, summary);

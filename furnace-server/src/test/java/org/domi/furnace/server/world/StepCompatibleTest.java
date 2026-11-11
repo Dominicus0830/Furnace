@@ -20,7 +20,7 @@ class StepCompatibleTest {
         assertTrue(joined(5, 5));
         assertFalse(joined(4, 5), "방금 돈 쪽이 하나 적다 — 상대가 이번 주기 틱을 돌면 같아진다");
         assertTrue(joined(4, 6), "두 걸음 이상 차이는 미뤄도 step 끝까지 안 같아진다 — 곧바로 합친다");
-        assertTrue(joined(5, 4), "검사하는 쪽이 더 남으면 상대가 한 주기 앞섰다 — 미루면 끝까지 같아지지 않는다");
+        assertTrue(joined(5, 4), "검사하는 쪽이 더 남으면 상대가 한 주기 앞섰다 — 둘 다 걸음을 쓰는 동안 차이가 줄지 않으므로 미루지 않는다");
         assertTrue(joined(0, 0));
         assertFalse(joined(0, 1));
     }
