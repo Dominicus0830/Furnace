@@ -1,0 +1,43 @@
+// A01 점검: 독립 프로토콜 구현으로 실서버가 보내는 모든 패킷을 파싱해 종류별 개수와 파싱 오류를 센다. global.__pktErrs 는 protodef serializer.js 에서 PartialReadError·남는 바이트를 기록하게 고친 것(상류는 console.log 만 한다).
+// A01 점검: 독립 프로토콜 구현(node-minecraft-protocol + minecraft-data 1.21.1 스키마)으로 Furnace 가 보내는 모든 패킷을 파싱한다.
+// 파싱 오류(PartialReadError, 남는 바이트)와 패킷 이름별 개수를 기록한다. 서버에서 명령을 여러 가지로 쳐서 다양한 패킷을 만든다.
+const mc = require('minecraft-protocol');
+const fs = require('fs');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const SRV = process.env.SRV;
+const cmd = l => fs.appendFileSync(SRV + '/cmds', l + '\n');
+const NAME = process.env.BOTNAME || 'Chk';
+const counts = {}; const errors = [];
+const client = mc.createClient({ host: '127.0.0.1', port: 25565, username: NAME, version: '1.21.1', auth: 'offline', hideErrors: true });
+const origEmit = client.emit.bind(client);
+client.on('packet', (d, m) => { const k = m.state + ':' + m.name; counts[k] = (counts[k] || 0) + 1; });
+client.on('error', e => { errors.push({ msg: e.message.slice(0, 300), stack: (e.stack || '').split('\n').slice(0, 3).join(' | ') }); });
+client.on('state', s => console.log('state ->', s));
+// 구성 단계: 알려진 팩을 비워 답하는 기본 동작 그대로 둔다
+client.on('keep_alive', p => client.write('keep_alive', { keepAliveId: p.keepAliveId }));
+client.on('position', p => client.write('teleport_confirm', { teleportId: p.teleportId }));
+let playing = false;
+client.on('login', () => { playing = true; });
+client.on('end', r => { console.log('END', r); finish(); });
+client.on('kick_disconnect', p => console.log('KICK', JSON.stringify(p)));
+function finish() {
+  console.log('COUNTS', JSON.stringify(counts, null, 0));
+  console.log('ERRORS', errors.length);
+  const pe = global.__pktErrs || [];
+  console.log('PKTERRS', pe.length);
+  for (const e of pe.slice(0, 200)) console.log(' *', e.kind, e.name || '', e.msg || '', e.size ? `size=${e.size} read=${e.read}` : '', 'id=' + e.hex.slice(0, 2), e.stack ? e.stack.slice(0, 400) : '', '\n     hex=' + e.hex.slice(0, 300));
+  for (const e of errors.slice(0, 80)) console.log(' -', e.msg, '::', e.stack);
+  process.exit(0);
+}
+(async () => {
+  const t0 = Date.now();
+  while (!playing && Date.now() - t0 < 30000) await sleep(200);
+  await sleep(4000);
+  const cmds = (process.env.CMDS_FILE ? fs.readFileSync(process.env.CMDS_FILE, 'utf8').split('\n') : []).filter(l => l.trim() && !l.startsWith('#'));
+  for (const c of cmds) { cmd(c); await sleep(Number(process.env.GAP || 250)); }
+  await sleep(3000);
+  client.end('done');
+  setTimeout(finish, 1500);
+})();
+// 실패한 패킷 원본 저장
+process.on('exit', () => { const pe = global.__pktErrs || []; pe.forEach((e, i) => { if (e.full) fs.writeFileSync((process.env.DUMPDIR || '/tmp') + `/failed-${i}-${e.hex.slice(0,2)}.bin`, e.full); }); });

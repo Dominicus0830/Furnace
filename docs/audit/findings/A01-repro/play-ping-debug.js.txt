@@ -1,0 +1,27 @@
+// A01-02/A01-03 재현: 플레이 단계 ping_request(0x21) → 바닐라는 즉시 pong_response(0x36, 같은 time)로 답한다.
+// debug_sample_subscription(0x13) → 바닐라는 OP 에게 약 10초 동안 debug_sample(0x1b) 틱 시간 표본을 보낸다.
+// Furnace 는 둘 다 무시한다(ConnectionHandler.handlePlay 의 switch 에 없음).
+// 사용: tools/bot-test 의 node_modules(minecraft-protocol)를 쓰므로 `NODE_PATH=tools/bot-test/node_modules node play-ping-debug.js`
+//   환경: SRV=<서버 폴더>(cmds 파일에 콘솔 명령을 덧붙여 op 부여), 오프라인 Furnace 가 25565 에 떠 있어야 한다.
+const mc = require('minecraft-protocol'); const fs = require('fs');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const SRV = process.env.SRV, NAME = 'A01Ping';
+const c = mc.createClient({ host: '127.0.0.1', port: 25565, username: NAME, version: '1.21.1', auth: 'offline', hideErrors: true });
+const seen = {}; c.on('packet', (d, m) => { if (m.state === 'play') seen[m.name] = (seen[m.name] || 0) + 1; });
+c.on('keep_alive', p => c.write('keep_alive', { keepAliveId: p.keepAliveId }));
+c.on('position', p => c.write('teleport_confirm', { teleportId: p.teleportId }));
+let playing = false; c.on('login', () => { playing = true; });
+c.on('error', e => console.log('client error', e.message));
+(async () => {
+  while (!playing) await sleep(200);
+  await sleep(3000);
+  fs.appendFileSync(SRV + '/cmds', `op ${NAME}\n`); await sleep(500);
+  const t = BigInt(Date.now());
+  c.write('ping_request', { id: t });                 // 0x21
+  await sleep(2000);
+  console.log('ping_request sent; pong_response received:', seen.ping_response || seen.pong_response || 0, '(바닐라 기대값 1)');
+  c.write('debug_sample_subscription', { type: 0 });  // 0x13, type 0 = TICK_TIME
+  await sleep(6000);
+  console.log('debug_sample_subscription sent as OP; debug_sample packets received:', seen.debug_sample || 0, '(바닐라 기대값 ≥ 1, 틱마다 표본)');
+  c.end('done'); process.exit(0);
+})();

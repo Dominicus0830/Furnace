@@ -1,0 +1,35 @@
+// A01 상태 머신 가장자리 점검(원시 소켓): 어긋난 프로토콜 번호·잘못된 next_state·상태 요청 중복·핑 순서·로그인 전 play 패킷 등에서
+// Furnace 가 무엇을 돌려주는지 출력한다. 바닐라 기대값은 각 줄 주석. 외부 패키지 없음(Node 18+).
+// 사용: node state-machine-edges.js [host] [port]
+const net = require('net');
+const host = process.argv[2] || '127.0.0.1', port = Number(process.argv[3] || 25565);
+const vi = n => { const b = []; do { let x = n & 0x7f; n >>>= 7; if (n) x |= 0x80; b.push(x); } while (n); return Buffer.from(b); };
+const str = s => { const b = Buffer.from(s, 'utf8'); return Buffer.concat([vi(b.length), b]); };
+const pkt = (id, ...parts) => { const body = Buffer.concat([vi(id), ...parts]); return Buffer.concat([vi(body.length), body]); };
+const handshake = (proto, next, hostName = 'localhost') => pkt(0, vi(proto), str(hostName), Buffer.from([0x63, 0xdd]), vi(next));
+const uuid0 = Buffer.alloc(16);
+function run(label, sends, waitMs = 1500) {
+  return new Promise(res => {
+    const s = net.connect(port, host); let got = Buffer.alloc(0); const t0 = Date.now(); let fin = false;
+    s.on('connect', async () => { for (const b of sends) { s.write(b); await new Promise(r => setTimeout(r, 150)); } });
+    const done = why => { if (fin) return; fin = true; const txt = got.toString('utf8').replace(/[^\x20-\x7e]/g, '.').slice(0, 160);
+      console.log(label.padEnd(44), why.padEnd(8), String(got.length).padStart(5) + 'B', JSON.stringify(txt)); s.destroy(); res(); };
+    s.on('data', d => { got = Buffer.concat([got, d]); });
+    s.on('close', () => done('closed')); s.on('error', () => done('error'));
+    setTimeout(() => done('open'), waitMs);
+  });
+}
+(async () => {
+  console.log('--- 상태(status)');
+  await run('status 요청 2번 (바닐라: 두 번째에 끊음)', [handshake(767, 1), pkt(0), pkt(0)]);
+  await run('ping 을 status 요청 앞에 (바닐라: 응답함)', [handshake(767, 1), pkt(1, Buffer.alloc(8))]);
+  await run('status 후 ping 2번 (바닐라: 1번만 답하고 끊음)', [handshake(767, 1), pkt(0), pkt(1, Buffer.alloc(8)), pkt(1, Buffer.alloc(8))]);
+  console.log('--- 핸드셰이크/로그인');
+  await run('next_state=5 (바닐라: 끊음, "Invalid intention")', [handshake(767, 5)]);
+  await run('프로토콜 766 로그인 (바닐라: 구버전 안내 킥)', [handshake(766, 2), pkt(0, str('A01Old'), uuid0)]);
+  await run('프로토콜 999 로그인 (바닐라: 신버전 안내 킥)', [handshake(999, 2), pkt(0, str('A01New'), uuid0)]);
+  await run('로그인 이름 17자 (바닐라: 이름이 너무 길어 끊음)', [handshake(767, 2), pkt(0, str('A'.repeat(17)), uuid0)]);
+  await run('로그인 시작 2번 (바닐라: 두 번째에서 끊음)', [handshake(767, 2), pkt(0, str('A01Dup'), uuid0), pkt(0, str('A01Dup2'), uuid0)]);
+  await run('로그인 중 play 패킷 id 0x1A (바닐라: 끊음)', [handshake(767, 2), pkt(0x1A)]);
+  await run('호스트명 256자 핸드셰이크 (바닐라: 끊음)', [handshake(767, 1, 'h'.repeat(256)), pkt(0)]);
+})();
