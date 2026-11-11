@@ -183,6 +183,11 @@ public final class SurfaceSystem {
         ctx.chunkBiomeIds = biomeIds;
         ctx.chunkQuartX0 = chunkX * 4;
         ctx.chunkQuartZ0 = chunkZ * 4;
+        // biomeManagerQuart 는 블록 y-2 의 quart 와 그 위 하나를 고른다 — 생성 높이 quart 범위 한 칸 아래·위까지 배열로 덮는다
+        ctx.haloQuartY0 = (minY >> 2) - 1;
+        ctx.haloQuartYCount = ((maxY >> 2) + 1) - ctx.haloQuartY0 + 1;
+        ctx.haloBiomes = new int[6 * 6 * ctx.haloQuartYCount];
+        java.util.Arrays.fill(ctx.haloBiomes, Integer.MIN_VALUE);
         initCompiledCaches(ctx);
 
         for (int lz = 0; lz < 16; lz++) {
@@ -676,6 +681,21 @@ public final class SurfaceSystem {
             int ry = q.y() - (settings.minY() >> 2);
             if (rx >= 0 && rx < 4 && rz >= 0 && rz < 4 && ry >= 0 && ry < settings.height() >> 2) {
                 return chunkBiomes[(ry * 4 + rz) * 4 + rx];
+            }
+        }
+        int[] halo = ctx.haloBiomes;
+        if (halo != null) {
+            int hx = q.x() - (ctx.chunkQuartX0 - 1);
+            int hz = q.z() - (ctx.chunkQuartZ0 - 1);
+            int hy = q.y() - ctx.haloQuartY0;
+            if (hx >= 0 && hx < 6 && hz >= 0 && hz < 6 && hy >= 0 && hy < ctx.haloQuartYCount) {
+                int hi = (hy * 6 + hz) * 6 + hx;
+                int v = halo[hi];
+                if (v == Integer.MIN_VALUE) {
+                    v = biomeSampler.sampleQuart(q.x(), q.y(), q.z(), router);
+                    halo[hi] = v;
+                }
+                return v;
             }
         }
         long key = packQuart(q.x(), q.y(), q.z());

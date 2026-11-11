@@ -438,8 +438,19 @@ public final class DensityFunctions {
             double minInclusive,
             double maxExclusive,
             DensityFunction whenInRange,
-            DensityFunction whenOutOfRange
+            DensityFunction whenOutOfRange,
+            double minValue,
+            double maxValue
     ) implements DensityFunction {
+
+        // 바닐라는 minValue()/maxValue() 를 부를 때마다 두 가지의 값을 다시 구한다. 가지의 범위는 바뀌지 않으므로 만들 때 한 번 구해 둔다
+        // (Ap2 MIN/MAX 가 블록마다 상대 쪽 minValue()/maxValue() 를 묻는다 — 성능). 값은 같다.
+        RangeChoice(DensityFunction input, double minInclusive, double maxExclusive,
+                    DensityFunction whenInRange, DensityFunction whenOutOfRange) {
+            this(input, minInclusive, maxExclusive, whenInRange, whenOutOfRange,
+                Math.min(whenInRange.minValue(), whenOutOfRange.minValue()),
+                Math.max(whenInRange.maxValue(), whenOutOfRange.maxValue()));
+        }
 
         @Override
         public double compute(DensityFunction.FunctionContext ctx) {
@@ -459,9 +470,6 @@ public final class DensityFunctions {
                         : whenOutOfRange.compute(p.forIndex(i));
             }
         }
-
-        @Override public double minValue() { return Math.min(whenInRange.minValue(), whenOutOfRange.minValue()); }
-        @Override public double maxValue() { return Math.max(whenInRange.maxValue(), whenOutOfRange.maxValue()); }
 
         @Override
         public DensityFunction mapAll(DensityFunction.Visitor visitor) {

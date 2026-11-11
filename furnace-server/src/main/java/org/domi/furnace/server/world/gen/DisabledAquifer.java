@@ -13,4 +13,9 @@ public record DisabledAquifer(int seaLevel, int lavaFloorY, int waterId, int lav
         if (y < seaLevel)   return waterId;
         return 0;
     }
+
+    @Override
+    public int computeSubstanceNonPositive(DensityFunction.FunctionContext ctx, DensityFunction density) {
+        return computeSubstance(ctx, 0.0);   // 밀도는 부호로만 쓰인다(0 이하 보장)
+    }
 }

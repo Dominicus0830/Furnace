@@ -12,4 +12,12 @@ public sealed interface Aquifer permits DisabledAquifer, NoiseBasedAquifer {
     int NO_CARVE = -1;
 
     int computeSubstance(DensityFunction.FunctionContext ctx, double density);
+
+    /**
+     * 밀도가 0 이하로 보장된 블록(셀 상한이 음수)에서 computeSubstance 와 같은 결과·부수효과를 내되, 밀도 값이 결과에 쓰이는
+     * 갈래에서만 density 를 계산한다(성능 — 지표 위 공기처럼 결과가 밀도와 무관한 블록이 대부분이다).
+     */
+    default int computeSubstanceNonPositive(DensityFunction.FunctionContext ctx, DensityFunction density) {
+        return computeSubstance(ctx, density.compute(ctx));
+    }
 }

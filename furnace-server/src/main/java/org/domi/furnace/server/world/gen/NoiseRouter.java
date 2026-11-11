@@ -33,6 +33,11 @@ public final class NoiseRouter {
      * 청크·대수층·카버마다 다시 계산하던 것을 나눠 쓴다. 잠금 없는 직접 사상 캐시: 칸마다 (quartX 24비트, quartZ 24비트,
      * 값 16비트)를 long 하나에 담아 원자적으로 읽고 쓴다(충돌하면 덮어쓸 뿐 틀린 값을 돌려주지 않는다).
      */
+    /** 셀 꼭짓점 기둥 공유 캐시(이웃 청크가 경계 기둥을 다시 계산하지 않게) — {@link SliceColumnCache}. 4096칸. */
+    private final SliceColumnCache sliceColumns = new SliceColumnCache(12);
+
+    SliceColumnCache sliceColumns() { return sliceColumns; }
+
     private final java.util.concurrent.atomic.AtomicLongArray pslCache = new java.util.concurrent.atomic.AtomicLongArray(1 << 16);
     private static final int PSL_NONE = Integer.MAX_VALUE;   // 지표 없음(바닐라 MAX_VALUE)
 

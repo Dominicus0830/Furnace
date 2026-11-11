@@ -285,6 +285,11 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
     public Dimension dimension() { return dimension; }
 
+    // 측정·동일성 도구용(NoiseIdentityBench)
+    NoiseRouter router() { return router; }
+    NoiseSettings noiseSettings() { return settings; }
+    BiomeSampler biomeSampler() { return biomeSampler; }
+
     /** vanilla possibleBiomes() 순서 = biome_parameters.json 의 biome 첫등장 distinct (registry 존재만). */
     private static List<String> possibleBiomeOrder(JsonArray params, RegistrySet registries) {
         java.util.LinkedHashSet<String> seen = new java.util.LinkedHashSet<>();
