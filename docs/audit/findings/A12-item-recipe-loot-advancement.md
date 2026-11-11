@@ -10,12 +10,12 @@
 | 심각도 | 수 | 항목 |
 |---|---|---|
 | 치명 | 0 | |
-| 높음 | 4 | A12-01 망원경 발전 과제 3종 달성 불가(`looking_at`) · A12-02 "초원에서 음악 틀기" 달성 불가(`jukebox_playable`) · A12-03 솔질 전리품이 `player_generates_container_loot` 를 안 부름("유물 살려내기" 달성 불가) · A12-04 걷기·점프·피해 받음 통계 21종이 전혀 안 오름 |
-| 중간 | 3 | A12-05 먹기·마시기가 `used` 통계를 안 올림 · A12-06 `effects_changed` 의 source 없음(아홀로틀 발전 과제 달성 불가, 기존 문서화) · A12-07 지도가 그 region 이 가진 청크만 칠함(바닐라는 청크를 불러 옴) |
-| 낮음 | 4 | A12-08 ~ A12-11 |
+| 높음 | 5 | A12-01 망원경 발전 과제 3종 달성 불가(`looking_at`) · A12-02 "초원에서 음악 틀기" 달성 불가(`jukebox_playable`) · A12-03 솔질 전리품이 `player_generates_container_loot` 를 안 부름("유물 살려내기" 달성 불가) · A12-04 걷기·점프·피해 받음 통계 21종이 전혀 안 오름 · A12-06 `effects_changed` 의 source 없음(아홀로틀 발전 과제 달성 불가, 기존 문서화 — 영향이 A12-02·03 과 같아 같은 등급) |
+| 중간 | 1 | A12-05 먹기·마시기가 `used` 통계를 안 올림 |
+| 낮음 | 5 | A12-07 지도가 시야 밖 청크를 불러 오지 않음(범위 좁음) · A12-08 ~ A12-11 |
 | 참고 | 2 | A12-12 ~ A12-13 |
 
-도미니코의 결정이 필요한 항목: A12-07 하나(`docs/user-todo/entries/2026-11-11-audit-A12.md`). 나머지는 전부 바닐라와의 관측 차이다.
+도미니코의 결정이 필요한 항목: A12-07 하나(시야 거리가 8청크보다 작을 때 지도가 둘레 청크를 불러 올지 — 영향이 좁아 낮음)(`docs/user-todo/entries/2026-11-11-audit-A12.md`). 나머지는 전부 바닐라와의 관측 차이다.
 
 가장 큰 공통점은 **"바닐라 데이터는 전부 읽히는데, 읽은 조건을 평가하는 쪽(술어)이나 사건을 일으키는 쪽(호출 지점)에 구멍이 있다"** 는 것이다. 데이터 해석 자체(레시피 1,290개·발전 과제 1,399개·전리품 표 1,178개 적재, 모든 레시피 제작 일치, 연료·염료 표)는 이번 조사에서 하나도 어긋나지 않았다(아래 "같음 확인").
 
@@ -49,8 +49,8 @@
 | 종류 | 바닐라 차이(미구현) |
 | 근거 | `loot/EntityPredicate.java:60-63`(player `stats`·`looking_at` 를 읽을 때 경고만 하고 `:255` 에서 `return false`). 바닐라 데이터 `advancement/adventure/spyglass_at_parrot.json`·`spyglass_at_ghast.json`·`spyglass_at_dragon.json` 이 `using_item` 트리거의 `player` 조건으로 `type_specific:{type:"minecraft:player", looking_at:{type:...}}` 를 쓴다. 이 필드는 M19 기록(`unimplemented-recheck-2026-11-07.md` 78행)에 "남은 것(늘 거짓+경고)"으로만 적혀 있다. |
 | 재현 | `A12PredicateReproTest.playerLookingAtParrotMatches` — 기준 커밋에서 실패(기대 참, 결과 거짓). 바닐라 데이터 적재 시 경고 `아직 지원하지 않는 player 조건 필드(늘 거짓으로 본다): looking_at` 가 **3번** 나온다(`A12LoadWarningsProbeTest`). |
-| 영향 | **"망원경으로 앵무새/가스트/엔더 드래곤 보기"(Is It a Bird?·Is It a Balloon?·Is It a Plane?) 발전 과제 3종을 영영 못 깬다.** 바닐라는 `using_item` 을 망원경을 쓰는 매 틱 부르고 조건이 시선 레이캐스트(바닐라 `PlayerPredicate.LookingAtPredicate`: 눈 위치에서 시선 방향으로 약 100칸 안에서 `ProjectileUtil.getEntityHitResult`, 관전자 제외 — 거리·판정 상세는 바이트코드로 아직 확인하지 못했다. 가정). |
-| 제안 | `LootEntity` 에 플레이어의 시선 엔티티를 돌려주는 메서드를 두고(`KillCredit.snapshot` 이 다른 region 엔티티를 안전하게 뜨는 기존 방식을 따라), `EntityPredicate.playerSpecific` 가 `looking_at` 을 하위 `EntityPredicate` 로 평가. 같은 자리의 `stats`(player 술어의 통계 조건, 바닐라 데이터에는 쓰는 곳 없음)도 `PlayerStats` 로 연결 가능. 작음~중간. Sonnet high. |
+| 영향 | **"망원경으로 앵무새/가스트/엔더 드래곤 보기"(Is It a Bird?·Is It a Balloon?·Is It a Plane?) 발전 과제 3종을 영영 못 깬다.** 바닐라는 `using_item` 을 망원경을 쓰는 매 틱 부르고 조건이 시선 레이캐스트(바닐라 `PlayerPredicate.LookingAtPredicate`: 눈 위치에서 시선 방향으로 약 100칸 안에서 `ProjectileUtil.getEntityHitResult`, 관전자 제외. 독립 검토에서 바이트코드(`dp`)로 확인: 눈 위치에서 시선 벡터 × 100, 그 선분 상자를 1.0 부풀림, `ProjectileUtil.getEntityHitResult(…, 관전자 아님, 0.0f)`, 결과가 엔티티면 하위 술어 판정 **그리고 `ServerPlayer.hasLineOfSight(엔티티)` 도 참**이어야 한다 — 벽 뒤 앵무새는 달성되지 않는다). |
+| 제안 | `LootEntity` 에 플레이어의 시선 엔티티를 돌려주는 메서드를 두고(`KillCredit.snapshot` 이 다른 region 엔티티를 안전하게 뜨는 기존 방식을 따라), `EntityPredicate.playerSpecific` 가 `looking_at` 을 하위 `EntityPredicate` 로 평가하되 위 100칸·1.0 부풀림·관전자 제외·`hasLineOfSight` 를 그대로 옮긴다. 같은 자리의 `stats`(player 술어의 통계 조건, 바닐라 데이터에는 쓰는 곳 없음)도 `PlayerStats` 로 연결 가능. 작음~중간. Sonnet high. |
 
 | 칸 | 내용 |
 |---|---|
@@ -60,7 +60,7 @@
 | 근거 | `loot/ItemPredicate.java:41-44`(`predicates` 하위 조건 중 `enchantments`·`stored_enchantments`·`damage`·`potion_contents` 만 있고 나머지는 "아직 지원하지 않는 아이템 조건 — 항상 거짓"). 바닐라 데이터 `advancement/adventure/play_jukebox_in_meadows.json` 이 `item_used_on_block` 의 `match_tool` 조건에서 `predicates:{"minecraft:jukebox_playable":{}}` 를 쓴다. |
 | 재현 | `A12PredicateReproTest.jukeboxPlayableItemPredicateMatchesMusicDisc` — 기준 커밋에서 실패. 바닐라 데이터 적재 시 경고 `아직 지원하지 않는 아이템 조건 minecraft:jukebox_playable — 항상 거짓` 이 1번 나온다. |
 | 영향 | **"초원에서 음악 틀기"(Play Some Music in the Meadows) 발전 과제를 영영 못 깬다.** 데이터 팩이 쓰는 나머지 아이템 하위 조건도 전부 거짓이다: `custom_data`·`container`·`bundle_contents`·`firework_explosion`·`fireworks`·`writable_book_content`·`written_book_content`·`attribute_modifiers`·`trim`(바닐라 `ItemSubPredicates` 1.21.1, 이 목록은 바닐라 데이터에서 쓰이지 않아 이번엔 읽어 대조하지 못했다. 가정). 이 조건은 발전 과제뿐 아니라 `match_tool`·`entity_properties.equipment` 로 전리품 표에도 쓰인다(데이터 팩). |
-| 제안 | `ItemPredicate.sub` 에 `jukebox_playable`(컴포넌트 있음 + 선택적 `song`) 먼저, 이어서 나머지 9종을 컴포넌트 값 비교로 추가. 모르는 하위 조건은 지금처럼 거짓 + 경고를 유지. 작음. Sonnet medium. |
+| 제안 | **A13 보고서(PR #213) 수정 묶음 1(하위 술어 코덱을 명령 인자와 `loot/ItemPredicate` 가 함께 쓰게 함)과 하나로 합친다.** 바닐라 `ItemSubPredicates`(`cu`) 14종(`jukebox_playable` 포함)을 그쪽에서 구현하고, 같은 파일을 서로 다른 방침으로 고치지 않는다. 모르는 이름은 14종이 구현된 뒤 바닐라처럼 그 파일을 거부(오류 로그)한다(절대 규칙 2, 옵션 없음). 구현 전 단계에서만 지금의 거짓 + 경고를 유지. 작음. Sonnet medium. |
 
 | 칸 | 내용 |
 |---|---|
@@ -80,7 +80,17 @@
 | 근거 | 바닐라 `Stats`(`avz`) 커스텀 통계 중 Furnace 에서 **아무 곳에서도 안 오르는 것 21개**: 이동 거리 15종(`walk_one_cm`·`crouch_one_cm`·`sprint_one_cm`·`walk_on_water_one_cm`·`fall_one_cm`·`climb_one_cm`·`fly_one_cm`·`walk_under_water_one_cm`·`minecart_one_cm`·`boat_one_cm`·`pig_one_cm`·`horse_one_cm`·`aviate_one_cm`·`swim_one_cm`·`strider_one_cm`), `jump`, `damage_taken`, `damage_dealt_absorbed`·`damage_dealt_resisted`, `damage_absorbed`, `damage_resisted`. 바닐라 호출 지점: 이동 거리는 `ServerPlayer.checkMovementStatistics`(`aqv`, `avz.p`~`D`), `jump` 는 `Player.jumpFromGround`(`cmx`, `avz.E`), `damage_taken` 은 `Player.actuallyHurt`(`cmx`, `avz.J`), 피해 흡수·저항은 `cmx`(`L`)와 `LivingEntity`(`btn`, `H`·`I`·`M`). Furnace 는 `entity/PlayerVitals.java:1120-1135` `checkMovementStatistics` 가 허기 소모만 하고 통계는 안 올리며(주석: "허기 소모 부분"), `entity/VehicleMoves.java:68` 에 `TODO(통계): checkMovementStatistics`, `PlayerMelee.java:190` 의 `damage_dealt` 만 있다. |
 | 재현 | `A12StatsReproTest` 4개(`walkingOneBlockAddsWalkOneCm`·`sprintingAddsSprintOneCm`·`jumpingAddsJump`·`takingDamageAddsDamageTaken`) — 기준 커밋에서 **모두 실패**(결과 0). |
 | 영향 | 통계 화면(Esc → 통계)과 `stats/<uuid>.json` 에 걷기·점프 등이 항상 0 이다. 점수판 기준 `minecraft.custom:minecraft.walk_one_cm`·`jump`·`damage_taken` 이 영원히 0 이라 이 기준을 쓰는 서버(걷기 거리 순위·점프 횟수 대결·"피해 누적" 지표)가 통째로 동작하지 않는다. 데이터 팩·점수판 기반 콘텐츠에서 가장 눈에 띄는 차이다. |
-| 제안 | (1) `PlayerVitals.checkMovementStatistics` 를 바닐라 `ServerPlayer.checkMovementStatistics`(구역 분기: 물속 눈 → swim/walk_under_water, 물 → walk_on_water, 오르기, 땅 → walk/sprint/crouch, 비행·겉날개 → fly/aviate)로 맞추고 `Math.round(sqrt(dx²+dy²+dz²)*100)` 센티미터를 `awardStat`. (2) 탈것 이동(`VehicleMoves`)에서 `minecart/boat/pig/horse/strider_one_cm`. (3) `jump` 는 `jumpFromGround` 에 해당하는 `PlayerVitals.onMove` 의 점프 판정 자리(`:1097`). (4) `damage_taken`·흡수·저항은 `PlayerVitals` 의 실제 피해 반영 자리. 허기 소모와 같은 분기·같은 센티미터 정수 반올림을 쓰므로 같은 함수 안에서 고친다. 중간. Sonnet high. |
+| 제안 | **분기별로 바닐라 식을 그대로 옮긴다**(독립 검토가 `aqv`·`cmx` 바이트코드로 확인한 표). `ServerPlayer.checkMovementStatistics` 는 탈것을 타고 있으면 아무것도 안 하고, 아니면 아래 순서로 한 분기만 탄다.
+  | 분기(순서대로) | 통계 | 거리 식 | 조건 |
+  |---|---|---|---|
+  | 헤엄 | `swim_one_cm` | 3차원 | 0 보다 클 때 |
+  | 눈이 물속 | `walk_under_water_one_cm` | 3차원 | 0 보다 클 때 |
+  | 물 안 | `walk_on_water_one_cm` | 수평(dx, dz) | 0 보다 클 때 |
+  | 오르는 중 | `climb_one_cm` | dy 만, `Math.round(dy*100.0)` | dy 가 0 보다 클 때만 |
+  | 땅 위 | `sprint_one_cm` / `crouch_one_cm` / `walk_one_cm` | 수평 | 0 보다 클 때, 달리기 다음 웅크리기 순서 |
+  | 겉날개 | `aviate_one_cm` | 3차원 | 조건 없음 |
+  | 그 밖(공중) | `fly_one_cm` | 수평 | **25 보다 클 때만** |
+  `fall_one_cm` 은 이 함수가 아니라 `Player.causeFallDamage`(`cmx.a(float,float,brk)`)에 있고 낙하 거리 2 이상일 때 `Math.round(낙하 거리 * 100.0)`. 탈것 5종(`minecart`·`boat`·`pig`·`horse`·`strider`)은 `aqv` 의 다른 메서드(탑승 통계). `damage_taken`·`damage_absorbed` 는 `Math.round(값 * 10.0f)` 이고 `3.4028235E37` 미만일 때만. 점프는 `onMove` 의 점프 판정 자리(`:1097`). **완료 기준에 계단 오르기(수평만 셈)·사다리(dy 만)·공중 25 이하(안 오름)·낙하 2 미만(안 오름) 시험을 넣는다**(재현 시험은 걷기·달리기·점프·피해만 본다). 중간. Sonnet high. |
 
 ### 중간
 
@@ -97,7 +107,7 @@
 | 칸 | 내용 |
 |---|---|
 | ID | **A12-06** |
-| 심각도 | 중간 |
+| 심각도 | 높음(독립 검토 N2: 영향이 A12-02·03 과 같아 같은 등급) |
 | 종류 | 바닐라 차이(기존 문서화) |
 | 근거 | `docs/feature-parity/advancement-triggers-2026-10-28.md` "아직 미연결·미완": `effects_changed` 의 `source` 를 넘기지 않아 바닐라 발전 과제 `husbandry/kill_axolotl_target`("친구와 함께해요" — 아홀로틀이 적을 죽여 재생 효과를 받음)이 영영 안 뜬다. 바닐라 데이터가 `effects_changed` + `source` 에 `type: axolotl` 을 요구한다. |
 | 재현 | 문서에 이미 있다. 이번에 바닐라 데이터로 해당 발전 과제가 `source` 조건 하나뿐임을 확인했다. |
@@ -107,12 +117,12 @@
 | 칸 | 내용 |
 |---|---|
 | ID | **A12-07** |
-| 심각도 | 중간 |
+| 심각도 | 낮음(독립 검토 R3 반영: 처음엔 중간으로 적었다) |
 | 종류 | 바닐라 차이 + 성능 판단 |
-| 근거 | `map/MapRenderer.java:22,56` — "바닐라는 청크를 불러 와(level.getChunk) 먼 열도 칠한다. 여기서는 그 region 이 가진 청크만 칠한다(시야 밖 열은 빈 채로 남음)". 같은 종류의 미구현이 `ExplorerMaps.java:15`(탐험 지도의 이미 가리킨 구조물 건너뛰기), `trade/VillagerTrades.java:4`. |
-| 재현 | 코드 주석이 근거(시험 없음). 크기가 큰 지도(배율 2~4)일수록 눈에 띄게 비어 보일 것이다 — 이 영향은 실제 클라이언트로 봐야 한다(가정). |
-| 영향 | 바닐라에서는 큰 배율의 지도를 들고 다니면 서버가 칠할 청크를 동기로 불러 온다(생성까지 함 — 지도 만들기가 서버 부담이 되는 이유). Furnace 는 이미 올라온 청크만 칠해, 같은 걸음으로 칠해지는 면적이 작을 수 있다. 결과물이 바닐라와 같아야 한다는 원칙과 서버 청크 부하가 맞서므로 **도미니코 결정**이 필요하다(user-todo 항목). |
-| 제안 | 결정에 따라: (a) 바닐라처럼 칠하기 위해 필요한 청크를 읽기 전용으로 비동기 요청해 다음 틱에 칠한다(생성은 안 함 / 함), (b) 지금대로 둔다. 큼. Opus high(청크 읽기 경로 설계). |
+| 근거 | `map/MapRenderer.java:22,56` — "바닐라는 청크를 불러 와(level.getChunk) 먼 열도 칠한다. 여기서는 그 region 이 가진 청크만 칠한다". 칠하는 반경은 바닐라 `MapItem.update` 와 같은 `128 / scale` **픽셀**이고 한 픽셀이 `scale` 블록이라, 범위는 **배율과 상관없이 든 사람 둘레 128블록(8청크, 천장 있는 차원은 64블록)** 이다. 같은 종류의 미구현이 `ExplorerMaps.java:15`(A12-08), `trade/VillagerTrades.java:4`. |
+| 재현 | 코드 주석이 근거(시험 없음). 다른 region 소유 청크가 실제로 얼마나 자주 빠지는지는 재 보지 않았다(가정). |
+| 영향 | 바닐라가 청크를 불러 오는 범위는 둘레 8청크 원(최대 약 200개)이고, 시야 거리가 8청크 이상이면 그 청크들은 이미 올라와 있어 차이가 거의 없다. 차이가 나는 경우는 시야 거리 8 미만인 서버, 막 도착해 둘레 청크가 아직 안 올라온 때, 둘레 청크가 다른 region 소유인 때로 좁다. 결과물을 바닐라와 같게 하려면 청크를 읽어야 하지만 서버 청크 부하와 맞서므로 **도미니코 결정**(user-todo)으로 남긴다. |
+| 제안 | 결정에 따라: (a) 칠하기 위해 필요한 청크를 읽기 전용으로 비동기 요청해 다음 틱에 칠한다(생성은 안 함), (b) 지금대로 둔다. 중간(청크 읽기 경로). Sonnet high. |
 
 ### 낮음
 
@@ -121,7 +131,7 @@
 | **A12-08** | 탐험 지도 전리품 함수·거래의 `skip_existing_chunks`(이미 지도가 가리킨 구조물 건너뛰기)가 없다. 같은 탐험 지도 상자를 여러 장 열면 바닐라는 서로 다른 구조물을 가리키고 Furnace 는 같은 구조물을 가리킨다. | `map/ExplorerMaps.java:15`, `trade/VillagerTrades.java:4`(구조물 시작점 references 증가 없음). 구조물 시작점 저장이 필요해 **큼**. |
 | **A12-09** | 상자·상자 수레·단지를 열 때 `fillLoot` 가 플레이어 행운(`luck`)을 문맥에 안 넣는다. 바닐라 `RandomizableContainer.unpackLootTable` 은 `withLuck(player.getLuck())`. 바닐라 데이터에는 `bonus_rolls`(1,302개 전부 0.0)와 `quality`(낚시만)뿐이라 지금은 차이가 안 보이지만, 행운을 쓰는 데이터 팩 표에서는 어긋난다. 또 몹 처치 전리품의 `luck` 도 `ServerCore.java:1638` 에 `TODO(행운)`. | `ServerCore.fillLoot`(`:540` 근방) `params.luck(opener.luck())`. 작음. |
 | **A12-10** | 서명된 책을 열 때 선택자·점수 텍스트 컴포넌트를 풀지 않는다(바닐라 `resolveBookComponents`). `/give` 로 만든 책의 `{"selector":"@p"}`·`{"score":...}` 페이지가 해석되지 않은 채 보인다. | `block/ItemUse.java:111` 주석 "미구현". 작음~중간(A13 텍스트 해석과 함께). |
-| **A12-11** | `EntityPredicate`·`LocationPredicate` 가 모르는 필드를 만나면 조건 전체를 거짓으로 처리한다(경고 후). 바닐라는 파싱 오류로 그 데이터 파일을 거부한다. 지금은 모든 필드를 지원해(위 A12-01 의 `looking_at`·`stats` 제외) 바닐라 데이터에서는 드러나지 않지만, 데이터 팩 오타가 조용히 "절대 안 맞는 조건"이 되어 발전 과제·전리품 표가 죽는다. | `loot/EntityPredicate.java:101-105`, `loot/LocationPredicate.java:63-67`. 바닐라처럼 `LootParseException` 으로 거부하되 위험하므로 **새 기본값은 지금대로 두고 옵션**을 제안(R4: 기본은 바닐라). 작음. |
+| **A12-11** | `EntityPredicate`·`LocationPredicate` 가 모르는 필드를 만나면 조건 전체를 거짓으로 처리한다(경고 후). 바닐라는 파싱 오류로 그 데이터 파일을 거부한다. 지금은 모든 필드를 지원해(A12-01 의 `looking_at`·`stats` 제외) 바닐라 데이터에서는 드러나지 않지만, 데이터 팩 오타가 조용히 "절대 안 맞는 조건"이 되어 발전 과제·전리품 표가 죽는다. | `loot/EntityPredicate.java:101-105`, `loot/LocationPredicate.java:63-67`. 모든 필드를 구현한 뒤 바닐라처럼 `LootParseException` 으로 거부하고 옵션은 두지 않는다(절대 규칙 2, A13-01 과 같은 방침). 작음. |
 
 ### 참고
 
@@ -169,10 +179,13 @@
 
 | 묶음 | 항목 | 크기 | 모델·노력치 |
 |---|---|---|---|
-| 1. 술어 | A12-01·02·11 | 작음~중간 | Sonnet high |
+| 1. 술어(플레이어 필드) | A12-01(`looking_at`, `hasLineOfSight` 포함)·`stats`·A12-11 | 작음~중간 | Sonnet high |
 | 2. 호출 지점 | A12-03·05·06 | 작음 | Sonnet medium |
-| 3. 통계 | A12-04 | 중간 | Sonnet high (허기 소모와 같은 함수) |
-| 4. 지도·구조물 | A12-07·08 | 큼 | Opus high — 도미니코 결정 뒤 |
-| 5. 잔여 | A12-09·10 | 작음 | Haiku/Sonnet low |
+| 3. 통계 | A12-04(분기별 바닐라 식, 위 표) | 중간 | Sonnet high (허기 소모와 같은 함수) |
+| 4. 잔여 | A12-09·10 | 작음 | Haiku/Sonnet low |
+| 5. 지도 청크 | A12-07 | 중간 | Sonnet high — 도미니코 결정 뒤 |
+| 6. 지도 구조물 | A12-08 | 큼 | Opus high — 진행 중인 구조물 저장·보물 지도 작업과 맞춘 뒤 따로 연다 |
 
-충돌 주의: 묶음 3(`PlayerVitals.checkMovementStatistics`)은 A11 수정 묶음(낙하·피해 계산)과 같은 파일을 만진다. 묶음 1 은 H4 묶음 C(값 타입)와 겹치지 않는다.
+**아이템 하위 술어 14종(A12-02)은 A13 보고서(PR #213) 수정 묶음 1 에서 한 번만 고친다**(명령 인자와 공용 코덱, `jukebox_playable` 포함). A12 쪽에서 `loot/ItemPredicate` 를 따로 고치지 않는다. A12-11(모르는 필드 처리)의 방침도 같다: 14종·플레이어 필드를 모두 구현한 뒤에는 바닐라처럼 그 파일을 거부하고 옵션은 두지 않는다(절대 규칙 2).
+
+충돌 주의: 묶음 3(`PlayerVitals.checkMovementStatistics`)은 A11 수정 묶음(낙하·피해 계산)과 같은 파일을 만진다. 묶음 1 은 A13 묶음 1 이 `loot/ItemPredicate` 를 먼저 고치면 `EntityPredicate`(같은 `loot` 패키지)와 충돌하지 않게 순서만 맞추면 된다. H4 묶음 C(값 타입)와는 겹치지 않는다.
