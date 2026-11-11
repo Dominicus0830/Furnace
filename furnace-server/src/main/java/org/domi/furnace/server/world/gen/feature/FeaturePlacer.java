@@ -121,7 +121,8 @@ public final class FeaturePlacer {
                 featureRandom.setFeatureSeed(decorationSeed, idx, step);
                 PlacedFeature pf = stepData.features().get(idx);
                 String featureId = biomeData.idOf(pf);
-                if (hooks != null && !hooks.feature(featureId, cx, cz)) continue;
+                // id 없는 인라인 지형지물(평지 fill_layer)은 훅에 묻지 않는다 — 바닐라에도 레지스트리 id 가 없다
+                if (hooks != null && featureId != null && !hooks.feature(featureId, cx, cz)) continue;
                 long featureSeed = decorationSeed + idx + 10000L * step;
                 int[] before = BLOCK_DEBUG ? snapshotGrid(view) : null;
                 if (DEBUG) {

@@ -252,13 +252,18 @@ public final class FurnaceMain {
         applyWorldGenOptions(levelData, noiseSource);
         // 오버월드 생성기: level.dat 의 생성기가 minecraft:flat 이면 평지(바닐라 FlatLevelSource 층), 아니면 노이즈
         var generator = levelData.overworldGenerator();
-        org.domi.furnace.server.world.gen.SuperflatWorldSource flatSource = null;
+        // 평지는 바닐라 FlatLevelSource 처럼 같은 생성 경로(지형지물·호수·빈 공간 발판)를 쓰는 평지 모드 생성기
+        NoiseWorldSource flatSource = null;
         if (generator != null && "minecraft:flat".equals(generator.tags().get("type"))) {
             var flatSettings = generator.contains("settings") ? generator.getCompound("settings") : null;
-            String biome = flatSettings != null && flatSettings.tags().get("biome") instanceof String b ? b : "minecraft:plains";
-            int biomeId = Math.max(0, registries.indexOf("minecraft:worldgen/biome", biome));
-            flatSource = new org.domi.furnace.server.world.gen.SuperflatWorldSource(blockRegistry,
-                    org.domi.furnace.server.world.gen.SuperflatWorldSource.layersOf(flatSettings), biomeId);
+            var spec = org.domi.furnace.server.world.gen.SuperflatWorldSource.flatSpecOf(flatSettings);
+            if (registries.indexOf("minecraft:worldgen/biome", spec.biome()) < 0) {
+                // 바닐라 FlatLevelGeneratorSettings: "Unknown biome, defaulting to plains"
+                log.error("Unknown biome, defaulting to plains");
+                spec = new NoiseWorldSource.FlatSpec(spec.layers(), "minecraft:plains", spec.features(), spec.lakes(), spec.structureOverrides());
+            }
+            flatSource = NoiseWorldSource.flat(config.levelSeed(), blockRegistry, registries, spec);
+            applyWorldGenOptions(levelData, flatSource);
         }
         // 디버그 월드: 오버월드 생성기가 minecraft:debug 면 모든 블록 상태 격자(바닐라 DebugLevelSource, 바이옴 plains)
         org.domi.furnace.server.world.gen.DebugWorldSource debugSource = levelData.isDebugWorld()
@@ -304,7 +309,7 @@ public final class FurnaceMain {
             } else if (flatSource != null) {
                 // 평지: 바닐라 setInitialSpawn 은 청크 (0,0) 에서 첫 서 있을 수 있는 칸 — 맨 위 층 바로 위
                 levelData.spawnX = 0;
-                levelData.spawnY = flatSource.surfaceY();
+                levelData.spawnY = flatSource.flatSurfaceY();
                 levelData.spawnZ = 0;
                 levelData.spawnAngle = 0f;
             } else {

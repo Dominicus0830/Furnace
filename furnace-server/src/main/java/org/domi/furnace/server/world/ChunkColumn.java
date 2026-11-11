@@ -933,6 +933,9 @@ public final class ChunkColumn {
      * vanilla MOTION_BLOCKING 술어 {@code state.blocksMotion() || !state.getFluidState().isEmpty()}.
      * blocksMotion은 바닐라에서 export한 정확한 값(BlockAttrs)이고, 유체 상태는 물/용암·버블 기둥·켈프·해초·waterlogged 블록이다.
      */
+    /** Heightmap.Types.MOTION_BLOCKING 술어(평지 층 판정 — FlatLevelGeneratorSettings.adjustGenerationSettings 가 쓴다). */
+    public static boolean motionBlocking(int stateId) { return isMotionBlockingBlock(stateId); }
+
     private static boolean isMotionBlockingBlock(int stateId) {
         boolean[] t = motionBlockingTable;
         if (t == null) {
