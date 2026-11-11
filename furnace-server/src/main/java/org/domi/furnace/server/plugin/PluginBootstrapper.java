@@ -56,7 +56,7 @@ public final class PluginBootstrapper {
      * 다른 서버 소프트웨어 플러그인 형식 어댑터(예: Bukkit plugin.yml). 호환 모듈이 없으면 비어 있다.
      * 어댑터는 Furnace 설명 파일이 없는 jar 를 처음 만날 때까지 만들지 않는다 — Bukkit·Paper 플러그인이 없으면 호환 모듈 클래스는 올라오지 않는다.
      */
-    private final PluginFormats formats;
+    private PluginFormats formats;   // 생성 뒤 한 번만 정한다(embedded 는 이 부트스트래퍼의 로더를 가리켜야 해서)
     /** 찾기·부트스트랩에서 실패한 플러그인(또는 jar) 이름 — plugins.fail-fast 의 근거. */
     private final List<String> failures = new CopyOnWriteArrayList<>();
     private final PluginRegistryStore registries = new PluginRegistryStore();
@@ -87,8 +87,23 @@ public final class PluginBootstrapper {
     /** plugins/ 를 훑어 의존 순서대로 부트스트랩까지 한다. 실패한 플러그인은 로그를 남기고 건너뛴다. */
     public static PluginBootstrapper bootstrap(Path dir) { return bootstrap(dir, PluginSettings.DEFAULT); }
 
-    public static PluginBootstrapper bootstrap(Path dir, PluginSettings settings) {
-        return bootstrap(dir, settings, settings.compat() ? PluginFormats.discover(PluginBootstrapper.class.getClassLoader()) : PluginFormats.none(), ServerLibraries.DEFAULT);
+    public static PluginBootstrapper bootstrap(Path dir, PluginSettings settings) { return bootstrap(dir, settings, PluginBootstrapper.class.getClassLoader()); }
+
+    /** source: 호환 모듈 자원(통째로 실린 jar 색인 또는 ServiceLoader 자원)을 찾는 로더 — 시험이 바꿔 넣는다. */
+    static PluginBootstrapper bootstrap(Path dir, PluginSettings settings, ClassLoader source) {
+        if (!settings.compat()) return bootstrap(dir, settings, PluginFormats.none(), ServerLibraries.DEFAULT);
+        CompatJars embedded = CompatJars.find(source);
+        PluginFormats onClasspath = PluginFormats.discover(source);
+        if (embedded == null) return bootstrap(dir, settings, onClasspath, ServerLibraries.DEFAULT);
+        if (onClasspath.available()) {
+            // 같은 호환 클래스가 서버 로더와 공유 로더에 둘 다 정의되는 일을 구조로 막는다
+            throw new IllegalStateException("호환 모듈이 서버 클래스패스에도 있고 서버 jar 에 통째로도 실려 있다 — 한쪽만 있어야 한다");
+        }
+        PluginBootstrapper b = new PluginBootstrapper(dir, settings, null, ServerLibraries.DEFAULT);
+        b.compatJars = embedded;
+        b.formats = PluginFormats.embedded(b::sharedLoader);
+        b.run();
+        return b;
     }
 
     /** 형식 어댑터를 직접 정해 시작한다(시험용). */
@@ -516,6 +531,44 @@ public final class PluginBootstrapper {
 
     /** 호환 플러그인들의 부모 로더(처음 필요할 때 만든다). */
     private SharedLibraryLoader sharedLoader;
+    /** 서버 jar 에 실린 호환 모듈 jar(없으면 null — 호환 모듈이 서버 클래스패스에 바로 있다). */
+    private CompatJars compatJars;
+    /** 꺼내 공유 로더 첫 항목으로 붙인 호환 jar(아직이면 null). */
+    private List<Path> compatJarFiles;
+    /** 호환 계층 자신이 서명·상위 타입에 쓰는 라이브러리 묶음 — 호환 jar 를 표지로 훑어 얻는다. Bukkit 플러그인이 있으면 늘 준비한다. */
+    private Set<String> compatCore = Set.of();
+
+    /**
+     * 공유 로더를 만든다(있으면 그대로). 서버 jar 에 호환 모듈이 실려 있으면 그 jar 를 꺼내 <b>첫 항목</b>으로 붙인다(N-lib-1) — 호환 계층과 라이브러리가
+     * 한 로더에 있어 서로 본다(Paper 처럼). Adventure 는 제공자를 자기 로더로 찾으므로(Services0: ServiceLoader.load(type, type.getClassLoader()))
+     * 호환 계층을 자식 로더에 두면 Adventure 가 호환 계층의 제공자를 못 본다.
+     */
+    private synchronized SharedLibraryLoader sharedLoader() {
+        if (sharedLoader != null) return sharedLoader;
+        sharedLoader = new SharedLibraryLoader(PluginHost.class.getClassLoader());
+        if (compatJars != null) {
+            LibrarySettings ls = settings.libraries();
+            Path cache = ls.cache() != null ? ls.cache() : dir.resolve(LibrarySettings.DEFAULT_CACHE_DIR);
+            try {
+                compatJarFiles = compatJars.extract(cache.resolve("compat"));
+            } catch (IOException e) {
+                throw new java.io.UncheckedIOException("호환 모듈 jar 를 꺼내지 못했다", e);
+            }
+            Set<String> core = new java.util.TreeSet<>();
+            for (Path j : compatJarFiles) {
+                sharedLoader.add(j);
+                try {
+                    core.addAll(serverLibraries.scan(j, Set.of()));
+                } catch (IOException e) {
+                    throw new java.io.UncheckedIOException("호환 모듈 jar 를 훑지 못했다: " + j, e);
+                }
+            }
+            compatCore = Set.copyOf(core);
+            log.info("Bukkit·Paper 호환 모듈 {} 을(를) 서버 제공 라이브러리 로더에 올린다(호환 계층이 기대는 묶음: {})", compatJars.names(), compatCore);
+        }
+        return sharedLoader;
+    }
+
     /** 준비를 시도한 묶음(성공·실패 모두 — 실패를 플러그인마다 다시 시도해 경고를 되풀이하지 않는다). */
     private final Set<String> sharedTried = new HashSet<>();
     /** 붙인 묶음. */
@@ -524,6 +577,12 @@ public final class PluginBootstrapper {
 
     /** 붙인 서버 제공 라이브러리 묶음 이름(목록 순서가 아니라 붙인 순서). */
     synchronized Set<String> sharedLibraryGroups() { return Set.copyOf(sharedReady); }
+
+    /** 공유 로더에 붙인 호환 jar(통째로 실린 jar 가 아니거나 아직이면 null) — 시험·진단용. */
+    synchronized List<Path> compatJarFiles() { return compatJarFiles; }
+
+    /** 호환 계층이 기대는 묶음 — 시험·진단용. */
+    synchronized Set<String> compatCoreGroups() { return compatCore; }
 
     /** 공유 로더(아직 없으면 null) — 시험·진단용. */
     synchronized ClassLoader sharedLibraryLoader() { return sharedLoader; }
@@ -538,17 +597,20 @@ public final class PluginBootstrapper {
             if (!sharedOffWarned) {
                 sharedOffWarned = true;
                 log.warn("plugins.compat.libraries=off — Paper 가 싣고 있는 라이브러리(Guava·Adventure·SnakeYAML·Brigadier 등)를 주지 않는다. "
-                        + "그것을 쓰는 Paper/Bukkit 플러그인은 NoClassDefFoundError 로 실패한다");
+                        + "그것을 쓰는 Paper/Bukkit 플러그인은 NoClassDefFoundError 로 실패한다"
+                        + (compatCore.isEmpty() ? "" : " — 호환 계층 자신도 " + compatCore + " 를 기대하므로 Bukkit 호환이 제대로 돌지 않는다"));
             }
-            return null;
+            return compatJars != null ? sharedLoader() : null;   // 호환 jar 는 공유 로더에 있으므로 그 로더는 늘 부모다
         }
-        if (sharedLoader == null) sharedLoader = new SharedLibraryLoader(PluginHost.class.getClassLoader());
+        sharedLoader();
         java.util.Collection<String> want;
         if (ls.compat() == LibrarySettings.CompatMode.ALL) {
             want = serverLibraries.groups().stream().map(ServerLibraries.Group::id).toList();
         } else {
             try {
-                want = serverLibraries.scan(c.file(), sharedTried);
+                Set<String> w = new java.util.TreeSet<>(serverLibraries.scan(c.file(), sharedTried));
+                w.addAll(compatCore);   // 호환 계층이 서명·상위 타입에 쓰는 묶음: 반사(getMethod 하나)도 모든 서명을 풀므로 그 플러그인이 안 써도 있어야 한다
+                want = w;
             } catch (IOException e) {
                 log.warn("Plugin {} 의 jar 를 훑지 못해 서버 제공 라이브러리 판단을 건너뛴다: {}", c.description().fullName(), e.getMessage());
                 return sharedLoader;
@@ -596,6 +658,12 @@ public final class PluginBootstrapper {
             }
             for (Path j : jars) sharedLoader.add(j);
             sharedReady.add(g.id());
+        }
+        List<String> missingCore = new ArrayList<>();
+        for (ServerLibraries.Group g : todo) if (compatCore.contains(g.id()) && !sharedReady.contains(g.id())) missingCore.add(g.id());
+        if (!missingCore.isEmpty()) {
+            log.error("Bukkit·Paper 호환 계층이 기대는 라이브러리 {} 를 준비하지 못했다 — 그 타입이 서명에 있는 호환 클래스를 쓰거나 반사로 훑는 Bukkit 플러그인은 "
+                    + "NoClassDefFoundError 로 실패한다. 인터넷이 없는 서버라면 jar 를 {} 아래에 두고 plugins.libraries.offline=true 로 켜라", missingCore, resolver().cacheRoot());
         }
         if (!unreachable.isEmpty()) {
             log.warn("저장소에 이번 시작에서 이미 닿지 못해 서버 제공 라이브러리 {} 도 받지 않았다(묶음마다 제한 시간을 기다리지 않는다) — "
@@ -656,8 +724,9 @@ public final class PluginBootstrapper {
         return copy;
     }
 
-    /** 서버 종료 — 공유 로더를 닫는다(호환 플러그인 로더를 다 닫은 뒤). */
+    /** 서버 종료 — 공유 로더를 닫는다(호환 플러그인 로더를 다 닫은 뒤). 호환 jar 가 붙어 있으면 이미 만든 어댑터가 그 로더를 쓰므로 끝까지 둔다. */
     synchronized void closeSharedLibraries() {
+        if (compatJarFiles != null) return;
         if (sharedLoader == null) return;
         try {
             sharedLoader.close();

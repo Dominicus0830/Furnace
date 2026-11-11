@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
+import java.util.zip.ZipFile
 plugins {
     id("java")
     id("application")
@@ -110,14 +111,33 @@ val compatBundle by configurations.creating {
     isCanBeResolved = true
 }
 dependencies { compatBundle(project(":furnace-compat-paper")) }
+// 호환 모듈 jar 와 그 런타임 의존(ASM) — furnace-api 는 서버 로더에 이미 있으므로 빼고, 호환 모듈 자신은 넣는다.
+fun compatJars() = compatBundle.filter { it.name.endsWith(".jar") && (!it.name.startsWith("furnace-") || it.name.startsWith("furnace-compat")) }
+// 호환 jar 이름 색인(N-lib-1) — 서버는 이 자원이 있으면 jar 를 꺼내 서버 제공 라이브러리 로더 아래의 자기 로더에 올린다(CompatJars).
+val compatIndex = tasks.register("compatIndex") {
+    dependsOn(":furnace-compat-paper:jar")
+    dependsOn(compatBundle)
+    val out = layout.buildDirectory.file("compat-index/META-INF/furnace/compat/index.txt")
+    outputs.file(out)
+    outputs.upToDateWhen { false }
+    doLast {
+        val f = out.get().asFile
+        f.parentFile.mkdirs()
+        // 호환 모듈 jar 를 맨 앞에(공유 로더의 첫 항목 — 이름이 겹치면 호환 계층이 이긴다), 나머지는 이름순
+        val names = compatJars().files.map { it.name }.sortedWith(compareBy<String>({ !it.startsWith("furnace-compat") }, { it }))
+        f.writeText(names.joinToString("\n", postfix = "\n"))
+    }
+}
 val fatJar = tasks.register<Jar>("fatJar") {
     group = "build"
     // 런타임 의존성(furnace-api jar 등)을 먼저 만들어야 zipTree 로 합칠 수 있다
     dependsOn(configurations.runtimeClasspath)
-    // Bukkit·Paper 호환 어댑터(H1)도 함께 싣는다 — 서버가 ServiceLoader 로 찾아 plugins.compat.bukkit 가 켜져 있으면 쓴다.
+    // Bukkit·Paper 호환 어댑터(H1)도 함께 싣는다 — 서버가 색인을 보고 jar 를 꺼내 쓴다(plugins.compat.bukkit 가 켜져 있을 때).
+    // 클래스를 풀어 넣지 않고 jar 그대로 싣는다: 서버 로더가 호환 클래스를 보지 않아야 호환 계층을 서버 제공 라이브러리 로더 아래에 올릴 수 있다(N-lib-1).
     // 서버 모듈이 이 모듈에 의존하지는 않는다(순환 없음): 모듈 시험은 호환 모듈이 서버에 의존한다.
     dependsOn(":furnace-compat-paper:jar")
     dependsOn(compatBundle)
+    dependsOn(compatIndex)
     description = "서버와 모든 런타임 의존성을 담은 단일 실행 jar"
     archiveFileName = "furnace-server.jar"
     manifest { attributes["Main-Class"] = "org.domi.furnace.server.FurnaceMain" }
@@ -126,11 +146,22 @@ val fatJar = tasks.register<Jar>("fatJar") {
     from({
         configurations.runtimeClasspath.get().filter { it.name.endsWith(".jar") }.map { zipTree(it) }
     })
-    from({ zipTree(project(":furnace-compat-paper").tasks.named<Jar>("jar").get().archiveFile) })
-    // 호환 모듈의 런타임 의존(furnace-api 는 위에서 이미 실렸다 — 겹치는 항목은 EXCLUDE)
-    from({ compatBundle.filter { it.name.endsWith(".jar") && !it.name.startsWith("furnace-") }.map { zipTree(it) } })
+    into("META-INF/furnace/compat") { from({ compatJars() }) }
+    from(layout.buildDirectory.dir("compat-index"))
     // 서명 파일이 남으면 합친 jar 가 SecurityException 으로 실행되지 않는다
     exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "META-INF/MANIFEST.MF", "module-info.class")
+    // 최상위에 호환 클래스가 하나도 없어야 한다(N-lib-1): 있으면 서버 로더와 공유 로더에 같은 클래스가 둘 정의된다. 접두는 서버 CompatPackages 와 같다.
+    doLast {
+        val prefixes = listOf("org/bukkit/", "io/papermc/", "com/destroystokyo/", "org/domi/furnace/compat/", "org/objectweb/asm/", "net/minecraft/")
+        val bad = mutableListOf<String>()
+        ZipFile(archiveFile.get().asFile).use { z: ZipFile ->
+            for (e in z.entries()) {
+                val n: String = e.name
+                if (prefixes.any { p: String -> n.startsWith(p) }) bad.add(n)
+            }
+        }
+        if (bad.isNotEmpty()) throw GradleException("fat jar 최상위에 호환 클래스가 있다(N-lib-1): ${bad.take(5)} 외 ${bad.size}개")
+    }
 }
 tasks.named("assemble") { dependsOn(fatJar) }
 

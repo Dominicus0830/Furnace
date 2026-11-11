@@ -23,10 +23,10 @@ final class PluginFormats {
     private static final PluginFormats NONE = new PluginFormats(false, null, List.of());
 
     private final boolean available;
-    private final ClassLoader loader;
+    private final java.util.function.Supplier<ClassLoader> loader;
     private volatile List<PluginFormat> resolved;
 
-    private PluginFormats(boolean available, ClassLoader loader, List<PluginFormat> resolved) {
+    private PluginFormats(boolean available, java.util.function.Supplier<ClassLoader> loader, List<PluginFormat> resolved) {
         this.available = available;
         this.loader = loader;
         this.resolved = resolved;
@@ -49,8 +49,11 @@ final class PluginFormats {
             log.warn("호환 모듈 자원을 찾지 못했다: {}", e.toString());
             present = false;
         }
-        return present ? new PluginFormats(true, loader, null) : NONE;
+        return present ? new PluginFormats(true, () -> loader, null) : NONE;
     }
+
+    /** 서버 jar 에 통째로 실린 호환 모듈(N-lib-1). 로더는 get() 에서 처음 만든다 — 그전에는 jar 를 꺼내지도 않는다. */
+    static PluginFormats embedded(java.util.function.Supplier<ClassLoader> loader) { return new PluginFormats(true, loader, null); }
 
     /** 호환 모듈이 있는가(클래스를 올리지 않고 안다). */
     boolean available() { return available; }
@@ -63,7 +66,7 @@ final class PluginFormats {
         List<PluginFormat> r = resolved;
         if (r != null) return r;
         synchronized (this) {
-            if (resolved == null) resolved = load(loader);
+            if (resolved == null) resolved = load(loader.get());
             return resolved;
         }
     }

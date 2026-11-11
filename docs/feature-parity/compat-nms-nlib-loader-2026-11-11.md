@@ -81,3 +81,19 @@ A 를 추천한다. 순서는 다음과 같다.
 1. 후보 A·B·C 중 A 가 맞는가. A 의 위험(시험 서버 경로가 갈라짐, 핫 리로드, 검증기 선로드)을 더 싸게 막는 방법이 있는가.
 2. 1-5 의 "라이브러리 타입 본문을 도우미 클래스로 뗀다"가 HotSpot 검증기에서 실제로 충분한가. 서명에만 나오는 타입은 해석이 늦게 일어나는가.
 3. Adventure·Guava 를 "Bukkit 플러그인이 있으면 늘" 받는 것이 결정 4·5 와 어긋나지 않는가.
+
+## 5. 검토 반영과 구현 (N-lib-1, 2026-11-11)
+
+독립 검토(`furnace/reviews/nlib-loader-review.md`)는 A 방향에 동의하면서 고칠 점을 내놓았다. 반영한 것은 다음과 같다.
+
+- **A' — 새 로더 대신 공유 로더의 첫 항목으로 붙인다.** Adventure 는 제공자를 자기 로더로 찾는다. `adventure-api-4.17.0` 의 `Services0.loader` 는 `ServiceLoader.load(type, type.getClassLoader())` 이고, 바이트코드에서 확인했다. 호환 계층을 자식 로더에 두면 Adventure 가 호환 계층의 제공자(`ClickCallback.Provider` 등)를 못 본다. 시제품(자식 로더판)으로 fat jar 를 띄워 로더 사슬이 `PluginClassLoader > furnace-compat > furnace-server-libraries > app` 인 것을 확인한 뒤 A' 로 바꿨다. 지금 사슬은 `PluginClassLoader > furnace-server-libraries > app` 이고, 호환 jar 가 공유 로더의 첫 URL 이다.
+- **jar 안의 jar 는 꺼내 붙인다.** `CompatJars` 가 `META-INF/furnace/compat/index.txt` 순서대로 jar 를 `plugins/.libraries/compat/<이름>-<sha256 16자>.jar` 로 꺼낸다. 내용이 같으면 다시 쓰지 않는다. 판이 바뀌면 새 파일을 쓰고 열린 옛 파일은 덮어쓰지 않는다. 호환 모듈의 런타임 의존(ASM)도 함께 꺼낸다.
+- **경로 선택은 한 곳에서 한다(`PluginBootstrapper.bootstrap(dir, settings, source)`).** 색인이 없으면 예전처럼 클래스패스 방식(시험·개발 실행)이다. 색인이 있고 클래스패스에도 호환 서비스 자원이 있으면 시작을 거부한다(같은 클래스가 두 로더에 정의되는 일을 막는다).
+- **호환 계층이 기대는 묶음.** 호환 jar 를 라이브러리 표지로 훑어 자동으로 정한다(`compatCore`). needed 모드에서도 Bukkit 플러그인이 있으면 늘 준비한다. 받지 못하면 ERROR 한 줄을 남긴다. 반사(`getMethod` 하나)도 그 클래스의 서명을 모두 풀기 때문에, 그 플러그인이 그 라이브러리를 쓰지 않아도 있어야 한다. 지금은 비어 있다.
+- **시험:**
+  - server `CompatJarsTest` 6개: 색인, 꺼내기, 첫 항목, 두 경로 거부, Bukkit 플러그인 없으면 꺼내지 않음.
+  - compat `CompatLinkTest`: 선택 라이브러리 없이 호환 클래스 전부를 링크해 본다. 없는 이름으로 `findStatic` 을 하면 초기화 없이 검증이 일어난다. JDK 21 실험에서 라이브러리가 없으면 원인이 `NoClassDefFoundError` 인 `IllegalAccessException`, 있으면 `NoSuchMethodException` 이었다. `$Lib` 도우미만 실패를 허용한다.
+  - fatJar 태스크: 최상위에 호환 패키지 클래스가 하나라도 있으면 빌드 실패.
+  - fat jar 기동(로컬): Bukkit 플러그인 하나가 호환 계층 클래스를 공유 로더에서 받고, 시스템 로더는 `org.bukkit.Bukkit` 을 못 본다.
+- **사용자 알림과 결정:** `docs/user-todo/entries/2026-11-11-nlib-loader.md`. needed 의 뜻이 넓어졌고, Adventure 를 받지 못할 때 어떻게 할지 정해야 한다(추천: 내려받기 유지). 검토 지적대로 이 PR 은 "행동 변화 없는 구조 PR" 이 아니다. 받는 묶음 규칙이 바뀌었다(지금은 호환 계층이 라이브러리를 안 써서 실제로 더 받는 것은 없다).
+- **남은 것:** Guava 는 authlib·DFU 의 의존으로 따라온다(닫힘). 서버 jar 의 gson 2.11 을 받은 라이브러리들이 함께 쓰므로 gson 판을 바꿀 때 확인할 것.
