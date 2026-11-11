@@ -11,6 +11,8 @@ import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.anvil.AnvilChunkCodec;
 import org.domi.furnace.server.world.anvil.RegionFileStore;
 import org.domi.furnace.server.world.anvil.NewerDataVersionException;
+import org.domi.furnace.server.world.anvil.OlderDataVersionException;
+import org.domi.furnace.server.world.anvil.UnsupportedDataVersionException;
 import org.domi.furnace.server.world.anvil.RegionFile;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -39,7 +41,7 @@ public final class AnvilWorldSource implements WorldSource {
 
     /** 동기 로드. 읽기만 ioLane 에서 하고(같은 파일의 앞선 저장 뒤에 줄 선다) 그 결과를 기다려 이 스레드에서 디코드·생성한다. */
     public ChunkColumn generate(int chunkX, int chunkZ, Executor ioLane) {
-        NewerDataVersionException refused = refusedNewer.get(chunkKey(chunkX, chunkZ));
+        UnsupportedDataVersionException refused = refusedNewer.get(chunkKey(chunkX, chunkZ));
         if (refused != null) throw refused;
         Read read;
         try {
@@ -83,7 +85,7 @@ public final class AnvilWorldSource implements WorldSource {
         try {
             nbtBytes = payload.decompress();
             return decodeChunk(nbtBytes);
-        } catch (NewerDataVersionException e) {
+        } catch (UnsupportedDataVersionException e) {
             refusedNewer.put(chunkKey(chunkX, chunkZ), e);
             throw e;
         } catch (IOException | RuntimeException e) {
@@ -132,7 +134,7 @@ public final class AnvilWorldSource implements WorldSource {
     private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(AnvilWorldSource.class);
 
     /** 거부한 새 판 청크 — 서버가 도는 동안 다시 읽지 않는다(파일을 바꿨으면 다시 켠다). */
-    private final java.util.concurrent.ConcurrentHashMap<Long, NewerDataVersionException> refusedNewer = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.concurrent.ConcurrentHashMap<Long, UnsupportedDataVersionException> refusedNewer = new java.util.concurrent.ConcurrentHashMap<>();
 
     private static long chunkKey(int chunkX, int chunkZ) { return ((long) chunkX << 32) | (chunkZ & 0xFFFFFFFFL); }
 
@@ -147,7 +149,7 @@ public final class AnvilWorldSource implements WorldSource {
      */
     public CompletableFuture<ChunkColumn> loadChunkAsync(int chunkX, int chunkZ, Executor ioExecutor, Executor decodeExecutor,
                                                          Executor genExecutor) {
-        NewerDataVersionException refused = refusedNewer.get(chunkKey(chunkX, chunkZ));
+        UnsupportedDataVersionException refused = refusedNewer.get(chunkKey(chunkX, chunkZ));
         if (refused != null) return CompletableFuture.failedFuture(refused);   // 시야 미리 불러오기가 틱마다 다시 걸어도 다시 읽지 않는다
         return CompletableFuture.supplyAsync(() -> readPayload(chunkX, chunkZ), ioExecutor).thenCompose(read -> {
             CompletableFuture<ChunkColumn> decoded = read.payload() == null && read.failure() == null
@@ -176,6 +178,7 @@ public final class AnvilWorldSource implements WorldSource {
     private ChunkColumn decodeChunk(byte[] nbtBytes) throws IOException {
         NbtCompound nbt = NbtIo.read(nbtBytes);
         NewerDataVersionException.check(nbt);
+        OlderDataVersionException.check(nbt, "청크 " + (nbt.tags().get("xPos") instanceof Number x ? x.intValue() : 0) + "," + (nbt.tags().get("zPos") instanceof Number z ? z.intValue() : 0));
         ChunkColumn col = codec.fromNbt(nbt);
         if (col != null) col.clearDirty();
         return col;

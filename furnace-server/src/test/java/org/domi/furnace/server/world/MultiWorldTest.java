@@ -117,6 +117,7 @@ class MultiWorldTest {
         wgs.putLong("seed", 123L);
         var data = new org.domi.furnace.server.net.io.nbt.NbtCompound();
         data.putCompound("WorldGenSettings", wgs);
+        data.putInt("DataVersion", 3955);
         var root = new org.domi.furnace.server.net.io.nbt.NbtCompound();
         root.putCompound("Data", data);
         try (var out = Files.newOutputStream(dir.resolve("level.dat"))) {

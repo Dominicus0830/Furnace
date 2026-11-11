@@ -109,6 +109,15 @@ public final class LevelStorage implements AutoCloseable {
                     org.domi.furnace.server.world.anvil.NewerDataVersionException.IGNORE_PROPERTY);
             throw new IncompatibleWorldException("더 새 판 월드: 데이터 버전 " + dataVersion + " > " + current + " (" + name + ")");
         }
+        // A05-04: 옛 판 월드는 청크·플레이어·엔티티를 올리는 데이터 픽서가 아직 없어 그대로 열면 아이템 개수·마법 부여·블록이 사라진다
+        if (dataVersion < current && !org.domi.furnace.server.world.anvil.OlderDataVersionException.ignored()) {
+            log.info("This world was created by an incompatible version.");
+            log.error("{}: 이 월드는 더 옛 판({}, 데이터 버전 {})에서 저장됐다. 이 서버는 1.21.1(데이터 버전 {})이고 옛 판 청크·플레이어를 올리는 "
+                    + "픽서가 아직 없어 열면 아이템 개수·마법 부여·블록이 조용히 사라지므로 기동하지 않는다 — 월드 파일은 건드리지 않았다. "
+                    + "바닐라 1.21.1 로 한 번 열어 저장한 월드를 쓰거나, 손실을 감수하고 -D{}=true 로 강제로 열 수 있다",
+                    p, name, dataVersion, current, org.domi.furnace.server.world.anvil.OlderDataVersionException.IGNORE_PROPERTY);
+            throw new IncompatibleWorldException("더 옛 판 월드: 데이터 버전 " + dataVersion + " < " + current + " (" + name + ")");
+        }
     }
 
     /** 바닐라 restoreLevelDataFromOld: level.dat_old 를 level.dat 으로 되돌린다. */

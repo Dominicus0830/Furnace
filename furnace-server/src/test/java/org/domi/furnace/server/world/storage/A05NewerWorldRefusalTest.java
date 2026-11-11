@@ -66,14 +66,43 @@ class A05NewerWorldRefusalTest {
     }
 
     @Test
-    void sameAndOlderVersions_open(@TempDir Path dir) throws Exception {
+    void sameVersion_opens(@TempDir Path dir) throws Exception {
         writeLevel(dir.resolve("level.dat"), 3955, 3955, "1.21.1", "main");
         try (LevelStorage ls = LevelStorage.open(dir)) {
             assertNotNull(ls.loadLevelData());
         }
-        writeLevel(dir.resolve("level.dat"), 3700, 3700, "1.20.4", "main");   // 옛 판은 A05-04(결정 대기) 몫 — 여기서는 막지 않는다
+    }
+
+    // ---- A05-04: 옛 판(픽서 없음)은 열지 않는다 ----
+
+    @Test
+    void olderLevelDat_isRefusedAndLeftUntouched(@TempDir Path dir) throws Exception {
+        writeLevel(dir.resolve("level.dat"), 3700, 3700, "1.20.4", "main");
+        byte[] before = Files.readAllBytes(dir.resolve("level.dat"));
+        try (LevelStorage ls = LevelStorage.open(dir)) {
+            var e = assertThrows(LevelStorage.IncompatibleWorldException.class, ls::loadLevelData);
+            assertTrue(e.getMessage().contains("3700"), e.getMessage());
+        }
+        assertArrayEquals(before, Files.readAllBytes(dir.resolve("level.dat")), "level.dat 을 건드리지 않는다");
+        assertFalse(Files.exists(dir.resolve("level.dat_old")));
+    }
+
+    @Test
+    void levelDatWithoutAnyVersion_isRefusedAsOld(@TempDir Path dir) throws Exception {   // 1.9 이전
+        writeLevel(dir.resolve("level.dat"), null, null, "?", null);
+        try (LevelStorage ls = LevelStorage.open(dir)) {
+            assertThrows(LevelStorage.IncompatibleWorldException.class, ls::loadLevelData);
+        }
+    }
+
+    @Test
+    void olderWorld_opensWithOverride(@TempDir Path dir) throws Exception {
+        writeLevel(dir.resolve("level.dat"), 3700, 3700, "1.20.4", "main");
+        System.setProperty(org.domi.furnace.server.world.anvil.OlderDataVersionException.IGNORE_PROPERTY, "true");
         try (LevelStorage ls = LevelStorage.open(dir)) {
             assertNotNull(ls.loadLevelData());
+        } finally {
+            System.clearProperty(org.domi.furnace.server.world.anvil.OlderDataVersionException.IGNORE_PROPERTY);
         }
     }
 

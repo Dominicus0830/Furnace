@@ -39,6 +39,7 @@ class PlayerDataVanillaFormatTest {
         Path f = dir.resolve("playerdata").resolve(id + ".dat");
         Files.createDirectories(f.getParent());
         NbtCompound vanilla = new NbtCompound();
+        vanilla.putInt("DataVersion", 3955);
         vanilla.put("Health", 7.5f);
         vanilla.putInt("XpLevel", 30);
         vanilla.putString("Dimension", "minecraft:the_nether");

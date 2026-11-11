@@ -456,8 +456,8 @@ public final class Region {
         if (err != null) {
             Throwable root = err;
             while (root instanceof java.util.concurrent.CompletionException && root.getCause() != null) root = root.getCause();
-            if (root instanceof org.domi.furnace.server.world.anvil.NewerDataVersionException newer) {
-                // 새 판 청크는 올리지도 덮지도 않는다(A05-03). 시야 미리 불러오기가 틱마다 다시 걸므로 청크마다 한 번만 크게 남긴다.
+            if (root instanceof org.domi.furnace.server.world.anvil.UnsupportedDataVersionException newer) {
+                // 새 판·옛 판 청크는 올리지도 덮지도 않는다(A05-03·04). 시야 미리 불러오기가 틱마다 다시 걸므로 청크마다 한 번만 크게 남긴다.
                 if (world.warnNewerChunkOnce(key)) {
                     org.slf4j.LoggerFactory.getLogger(Region.class).error("[CHUNK] {} 를 올리지 않는다: {}", cp, newer.getMessage());
                 }
