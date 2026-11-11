@@ -80,6 +80,7 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
      * 시험용 문: true 면 Furnace 네이티브 플러그인에도 호환 클래스(org.bukkit.*·호환 코어 등)가 보인다. 서버 설정(furnace.properties)에는 없다 —
      * 지향점은 네이티브 플러그인이 Furnace API 만 쓰는 것이다. 호환 코어를 네이티브 시험 플러그인으로 직접 부리는 호환 모듈 시험만 켠다.
      */
+    /** 시험 전용. 호환 모듈이 서버 jar 에 jar 째로 실린 경로(N-lib-1)에서는 서버 로더에 호환 클래스가 없어 효과가 없다. */
     public PluginSettings withExposeCompatToNative(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, chunkTicketLimit, on, compatOptions); }
 
     public PluginSettings withLibraries(LibrarySettings l) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, l, compat, compatNms, chunkTicketLimit, exposeCompatToNative, compatOptions); }
