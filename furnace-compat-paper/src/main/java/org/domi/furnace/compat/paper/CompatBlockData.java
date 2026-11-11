@@ -6,9 +6,10 @@ import java.util.Set;
 import java.util.TreeMap;
 import org.bukkit.Material;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.craftbukkit.block.data.CraftBlockData;
 
-/** Furnace BlockData(종류 + 이름 기반 속성) 위의 Bukkit BlockData. */
-public final class CompatBlockData implements BlockData {
+/** Furnace BlockData(종류 + 이름 기반 속성) 위의 Bukkit BlockData. NMS 상태와는 상태 번호로 오간다({@link CraftBlockData}). */
+public final class CompatBlockData extends CraftBlockData {
 
     private final org.domi.furnace.api.world.BlockData data;
     /** 문자열에서 만들었으면 사용자가 적은 속성 이름, 세상에서 읽었으면 null(모두 적힘). */
@@ -64,6 +65,21 @@ public final class CompatBlockData implements BlockData {
 
     static BlockData of(org.domi.furnace.api.world.BlockData data) { return new CompatBlockData(data, null); }
 
+    /** NMS 상태 → 모든 속성이 적힌 BlockData. */
+    public static CompatBlockData ofState(net.minecraft.world.level.block.state.BlockState state) {
+        Objects.requireNonNull(state, "state");
+        int id = state.furnaceStateId();
+        var d = Compat.furnace().blockTypes().byStateId(id).orElseThrow(() -> new IllegalStateException("서버가 모르는 상태 번호 " + id));
+        return new CompatBlockData(d, null);
+    }
+
+    @Override
+    public net.minecraft.world.level.block.state.BlockState getState() {
+        int id = Compat.furnace().blockTypes().stateId(data);
+        if (id < 0) throw new IllegalStateException("서버가 모르는 상태 " + data);
+        return net.minecraft.world.level.block.Block.stateById(id);
+    }
+
     @Override
     public Material getMaterial() { return Compat.material(data.type()); }
 
@@ -89,7 +105,7 @@ public final class CompatBlockData implements BlockData {
     }
 
     @Override
-    public BlockData clone() { return new CompatBlockData(data, specified); }
+    public CompatBlockData clone() { return new CompatBlockData(data, specified); }
 
     @Override
     public boolean equals(Object o) { return o instanceof CompatBlockData b && b.data.equals(data); }
