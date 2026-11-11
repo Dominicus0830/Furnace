@@ -1583,9 +1583,10 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public void finishBookOpen(int hand, ItemStack original, ItemStack resolved) {
         var inv = inventory();
         int ws = hand == 0 ? inv.heldWindowSlot() : 45;
-        if (!inv.get(ws).equals(original)) return;
+        if (inv.get(ws) != original) return;   // replace 와 같은 기준(같은 객체)
         var host = inventoryHost();
-        if (host != null && !resolved.equals(original)) host.replace(ws, original, resolved);
+        if (host != null) host.replace(ws, original, resolved);
+        synchronized (menuLock()) { var m = containerMenu(); if (m != null) m.broadcastChanges(); }   // 칸 갱신 → open_book
         send(new org.domi.furnace.server.net.protocol.play.OpenBook(hand));
     }
 

@@ -274,7 +274,7 @@ public class Axolotl extends Animal implements Bucketable {
         }
     }
 
-    private static void rewardPlayer(Player p, Mob axolotl) {
+    static void rewardPlayer(Player p, Mob axolotl) {
         var vitals = p.vitals();
         MobEffectInstance existing = vitals.getEffect(MobEffect.REGENERATION);
         if (existing == null || existing.duration() <= 2399) {

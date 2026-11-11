@@ -82,5 +82,14 @@ class A12EffectSourceTest {
         p.vitals().addEffect(new MobEffectInstance(MobEffect.REGENERATION, 200, 0), () -> "minecraft:axolotl");
         p.drainOwnerTasks();
         assertEquals(5, xp[0]);
+
+        // 아홀로틀 경로(Axolotl.rewardPlayer)로도 source 가 넘어간다
+        a.revoke(manager.get(ResourceId.parse("test:friend")), "c");
+        xp[0] = 0;
+        p.vitals().removeAllEffects();
+        p.drainOwnerTasks();
+        Axolotl.rewardPlayer(p, new Axolotl(null, 1));
+        p.drainOwnerTasks();
+        assertEquals(5, xp[0], "Axolotl.rewardPlayer 가 효과를 줄 때 source 를 넘기지 않으면 안 맞는다");
     }
 }

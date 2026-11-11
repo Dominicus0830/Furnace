@@ -77,6 +77,8 @@ public class PlayerActor implements BlockActor {
     }
 
     /** 보류한 open_book 을 보낸다(호출자가 바뀐 손을 인벤토리에 써 넣은 뒤). */
+    public boolean hasPendingOpenBook() { return pendingOpenBook >= 0; }
+
     public void flushOpenBook() {
         if (pendingOpenBook < 0) return;
         int hand = pendingOpenBook;

@@ -1898,6 +1898,9 @@ public final class Region {
         var result = org.domi.furnace.server.block.ItemUse.useItem(level(), actor, hand);
         if (result.shouldSwing()) p.swing(hand, true);   // handleUseItem: SUCCESS 류면 본인 포함 animate(서버 쪽 결과는 대개 CONSUME)
         writeBackHand(p, actor);
+        if (actor.hasPendingOpenBook()) {   // 바닐라 openItemGui: 풀렸으면 containerMenu.broadcastChanges() → open_book
+            synchronized (p.menuLock()) { var m = p.containerMenu(); if (m != null) m.broadcastChanges(); }
+        }
         actor.flushOpenBook();   // 쪽을 푼 서명된 책: 칸 갱신 뒤에 open_book
     }
 
