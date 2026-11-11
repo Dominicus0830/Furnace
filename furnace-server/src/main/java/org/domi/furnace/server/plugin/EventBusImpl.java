@@ -153,14 +153,24 @@ public final class EventBusImpl implements EventBus {
     }
 
     private void add(Handler h) {
-        byType.computeIfAbsent(h.type(), k -> new CopyOnWriteArrayList<>()).add(h);
+        // 칸 잠금 안에서 넣는다 — remove 가 빈 목록의 키를 지우는 것과 엇갈려 처리기를 잃지 않게
+        byType.compute(h.type(), (k, l) -> {
+            List<Handler> out = l != null ? l : new CopyOnWriteArrayList<>();
+            out.add(h);
+            return out;
+        });
         baked.clear();
         wantsCause = computeWantsCause();
     }
 
     private void remove(java.util.function.Predicate<Handler> p) {
         boolean any = false;
-        for (List<Handler> l : byType.values()) any |= l.removeIf(p);
+        for (var en : byType.entrySet()) {
+            if (!en.getValue().removeIf(p)) continue;
+            any = true;
+            // 빈 목록의 키(이벤트 클래스)를 남기지 않는다 — 플러그인이 정의한 이벤트 클래스가 옛 클래스로더를 붙잡는다(A14-07)
+            byType.computeIfPresent(en.getKey(), (k, l) -> l.isEmpty() ? null : l);
+        }
         if (any) {
             baked.clear();
             wantsCause = computeWantsCause();
@@ -189,8 +199,18 @@ public final class EventBusImpl implements EventBus {
     @Override
     public void unregister(Listener listener) { remove(h -> h.owner() == listener); }
 
+    /**
+     * 그 플러그인의 처리기를 모두 뗀다. 처리기가 없어도 구운 표·경고 기록은 비운다 — 구독 없이 자기 이벤트를 발화만 한 플러그인의
+     * 이벤트 클래스(구운 표의 키)나 경고한 처리기가 핫 리로드 뒤 옛 클래스로더를 붙잡지 않게(A14-07).
+     */
     @Override
-    public void unregisterAll(FurnacePlugin plugin) { remove(h -> h.plugin() == plugin); }
+    public void unregisterAll(FurnacePlugin plugin) {
+        remove(h -> h.plugin() == plugin);
+        baked.clear();
+        monitorWarned.removeIf(h -> h.plugin() == plugin);
+        deprecationWarned.removeIf(c -> PluginManagerImpl.pluginOf(c) == plugin);
+        if (stats != null) stats.forget(plugin);
+    }
 
     @Override
     public boolean hasSubscribers(Class<? extends Event> type) { return handlers(type).length > 0; }
@@ -334,6 +354,11 @@ public final class EventBusImpl implements EventBus {
 
         void listener(Handler h, long ns) {
             listeners.computeIfAbsent(h, k -> new LongAdder()).add(ns);
+        }
+
+        void forget(FurnacePlugin plugin) {
+            listeners.keySet().removeIf(h -> h.plugin() == plugin);
+            types.keySet().removeIf(c -> PluginManagerImpl.pluginOf(c) == plugin);
         }
 
         long count(Class<?> type) { TypeStat t = types.get(type); return t == null ? 0 : t.count.sum(); }

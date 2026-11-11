@@ -1589,10 +1589,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 게이트 해제 fallback(6틱) — confirm+청크완료가 그전에 둘 다 안 갖춰지면 무조건 해제(위치 재확정 포함). */
     private void scheduleSpawnGateRelease() {
-        scheduler.global().executeDelayed(() -> {
+        // 벽시계 300ms(6틱 몫) — /tick rate 와 무관한 접속 처리라 서버 틱으로 세지 않는다
+        org.domi.furnace.server.sched.GlobalThread.executeAfterMillis(scheduler.global(), () -> {
             if (ctx == null || !ctx.channel().isActive()) return;
             ctx.channel().eventLoop().execute(this::releaseSpawnGate);
-        }, 6);
+        }, 300);
     }
 
     private void releaseSpawnGate() {
@@ -4272,10 +4273,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     private void scheduleKeepAlive() {
         // 타이밍은 global 스케줄러로(설계 결정), 실제 전송/검사는 채널 eventLoop로 되돌림.
-        scheduler.global().executeDelayed(() -> {
+        // 바닐라 keepConnectionAlive 는 Util.getMillis() 로 15초를 잰다(벽시계) — /tick rate 가 낮아도 클라이언트가 시간 초과로 끊기지 않게
+        org.domi.furnace.server.sched.GlobalThread.executeAfterMillis(scheduler.global(), () -> {
             if (ctx == null || !ctx.channel().isActive()) return;
             ctx.channel().eventLoop().execute(this::sendKeepAlive);
-        }, 300); // 15초(300틱)
+        }, 15_000);
     }
 
     private void sendKeepAlive() {

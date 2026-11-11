@@ -217,6 +217,22 @@ public final class PluginManagerImpl implements PluginManager {
         public ClassLoader classLoader() { return loader; }
 
         public org.domi.furnace.api.registry.PluginRegistries registries() { return registries; }
+
+        @Override
+        public boolean lifecycleCall() { return LIFECYCLE.get(); }
+    }
+
+    /** 지금 스레드가 관리자 안에서 setEnabled 를 부르는 중인가(그 밖의 setEnabled 는 관리자로 넘긴다 — A14-08). */
+    private static final ThreadLocal<Boolean> LIFECYCLE = ThreadLocal.withInitial(() -> false);
+
+    private static void setEnabledByManager(FurnacePlugin p, boolean v) {
+        boolean was = LIFECYCLE.get();
+        LIFECYCLE.set(true);
+        try {
+            p.setEnabled(v);
+        } finally {
+            LIFECYCLE.set(was);
+        }
     }
 
     // ------------------------------------------------------------------ 켜기·끄기
@@ -247,7 +263,7 @@ public final class PluginManagerImpl implements PluginManager {
         Timing timing = host.profiler().timing(p, PluginProfiler.Kind.LIFECYCLE, "onEnable");
         long t0 = timing.start();
         try {
-            p.setEnabled(true);
+            setEnabledByManager(p, true);
         } catch (Throwable t) {
             log.error("Error occurred while enabling {} (Is it up to date?)", l.description().fullName(), t);
             failures.add(l.description().name());
@@ -278,7 +294,7 @@ public final class PluginManagerImpl implements PluginManager {
             Timing timing = host.profiler().timing(p, PluginProfiler.Kind.LIFECYCLE, "onDisable");
             long t0 = timing.start();
             try {
-                p.setEnabled(false);
+                setEnabledByManager(p, false);
             } catch (Throwable t) {
                 log.error("Error occurred while disabling {} (Is it up to date?)", l.description().fullName(), t);
             } finally {
@@ -299,6 +315,11 @@ public final class PluginManagerImpl implements PluginManager {
         host.virtualImpl().removeAll(p);   // 가상 엔티티·가짜 탭 줄
         host.entityViewsImpl().removeAll(p);   // 보이기·숨기기·변장 규칙
         host.playerViewsImpl().removeAll(p);   // 가상 블록·바이옴 층, 장비 덮어쓰기, 개인 보더
+        try {
+            for (var w : host.core().worlds()) w.spawnPolicy().removeFiltersOf(p);   // 스폰 필터(A14-06)
+        } catch (RuntimeException e) {
+            log.warn("{} 의 스폰 필터 정리 실패", l.description().name(), e);
+        }
         try {
             host.lightSourcesImpl().removeAll(p);   // 가짜 광원
         } catch (RuntimeException e) {

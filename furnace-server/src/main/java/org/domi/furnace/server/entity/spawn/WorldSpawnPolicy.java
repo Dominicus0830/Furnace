@@ -112,5 +112,11 @@ public final class WorldSpawnPolicy {
 
     public void removeFilter(SpawnPolicyState.Filter f) { mutate(b -> b.filters.remove(f)); }
 
+    /** 그 주인의 필터를 모두 뗀다(플러그인이 꺼질 때 — 스폰 루프가 돌지 않는 월드에서도 옛 플러그인을 붙잡지 않게, A14-06). */
+    public void removeFiltersOf(Object owner) {
+        if (state.filters.stream().noneMatch(f -> f.owner() == owner)) return;
+        mutate(b -> b.filters.removeIf(f -> f.owner() == owner));
+    }
+
     public int filterCount() { return state.filters.size(); }
 }

@@ -30,4 +30,11 @@ public interface PluginContext {
 
     /** 이 플러그인 이름으로 묶인 플러그인 레지스트리 보기. */
     org.domi.furnace.api.registry.PluginRegistries registries();
+
+    /**
+     * 로더 전용: 지금 {@link FurnacePlugin#setEnabled} 호출이 로더(플러그인 관리자)에서 온 것인가. 거짓이면 setEnabled 는
+     * 플러그인 관리자의 enable/disable 로 넘어가 자동 정리까지 모두 돈다(Bukkit 은 setEnabled 를 다른 플러그인이 부를 수 없다).
+     * 기본은 참(관리자 없이 만든 시험용 문맥은 예전처럼 바로 켜고 끈다).
+     */
+    default boolean lifecycleCall() { return true; }
 }

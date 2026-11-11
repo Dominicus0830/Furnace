@@ -3,6 +3,9 @@
 // 작업 객체의 클래스로더(람다는 정의한 클래스의 로더)로 플러그인을 찾는다. 플러그인 것이 아니면 감싸지 않는다(서버·API 의 작업,
 // PluginTasks 처럼 이미 플러그인을 알고 재는 작업). 감싸기는 늘 한다 — 기동 때 예약한 반복 작업도 나중에 켠 프로파일러에 잡히게.
 // 꺼져 있을 때 감싼 작업이 더 쓰는 것은 volatile 읽기 하나다(구간은 처음 켜진 채로 돌 때 만든다).
+// 감싼 예약 작업(TASK)은 소유 플러그인이 꺼졌으면 돌지 않고, 반복 작업이면 스스로 취소한다(A14-02) — 어느 스케줄러로 건 작업이든
+// 꺼진 플러그인 코드가 더 돌지 않고 옛 클래스로더를 붙잡지 않는다(Paper 는 disablePlugin 때 그 플러그인 작업을 모두 취소한다).
+// 비동기 실행기(ASYNC)는 그대로 돌린다 — onDisable 에서 넘긴 저장 같은 블로킹 작업을 잃지 않게.
 package org.domi.furnace.server.plugin;
 
 import java.util.List;
@@ -39,10 +42,23 @@ public final class ProfiledScheduling {
 
     // ------------------------------------------------------------------ 작업
 
-    /** 플러그인 작업이면 재는 작업으로 감싼다. */
+    /** 플러그인 작업이면 재는 작업으로 감싼다(소유 플러그인이 꺼졌으면 돌지 않는다). */
     public Runnable wrap(Runnable task, Kind kind) {
         FurnacePlugin p = ownerOf(task);
         return p == null ? task : new MeasuredRunnable(this, p, kind, task);
+    }
+
+    /**
+     * 반복 작업을 감싸 건다: schedule 이 돌려준 손잡이를 감싼 작업에 알려 두어, 소유 플러그인이 꺼진 뒤 차례가 오면 스스로 취소한다
+     * (다음 예약을 하지 않아 작업 객체·클래스로더가 풀린다). 플러그인 작업이 아니면 그대로 건다.
+     */
+    <H> H scheduleRepeating(Runnable task, Kind kind, Function<Runnable, H> schedule, Function<H, Runnable> canceller) {
+        FurnacePlugin p = ownerOf(task);
+        if (p == null) return schedule.apply(task);
+        MeasuredRunnable m = new MeasuredRunnable(this, p, kind, task);
+        H h = schedule.apply(m);
+        if (h != null) m.stop = canceller.apply(h);
+        return h;
     }
 
     <T> Supplier<T> wrap(Supplier<T> task, Kind kind) {
@@ -50,6 +66,7 @@ public final class ProfiledScheduling {
         if (p == null) return task;
         Lazy lazy = new Lazy(this, p, kind, taskName(task));
         return () -> {
+            if (kind == Kind.TASK && !p.isEnabled()) throw new java.util.concurrent.CancellationException("플러그인이 꺼짐: " + p.name());
             Timing t = lazy.timing();
             long t0 = t.start();
             try {
@@ -65,6 +82,7 @@ public final class ProfiledScheduling {
         if (p == null) return task;
         Lazy lazy = new Lazy(this, p, kind, taskName(task));
         return () -> {
+            if (kind == Kind.TASK && !p.isEnabled()) throw new java.util.concurrent.CancellationException("플러그인이 꺼짐: " + p.name());
             Timing t = lazy.timing();
             long t0 = t.start();
             try {
@@ -107,7 +125,10 @@ public final class ProfiledScheduling {
 
     private static final class MeasuredRunnable implements Runnable {
         private final Lazy lazy;
-        private final Runnable task;
+        /** 꺼진 뒤 손을 놓으려고 null 로 바꾼다(반복 작업 손잡이가 남아 있어도 플러그인 람다는 풀린다). */
+        private volatile Runnable task;
+        /** 반복 작업이면 그 손잡이의 취소. 소유 플러그인이 꺼진 뒤 차례가 오면 부른다. */
+        volatile Runnable stop;
 
         MeasuredRunnable(ProfiledScheduling s, FurnacePlugin p, Kind kind, Runnable task) {
             this.lazy = new Lazy(s, p, kind, taskName(task));
@@ -116,6 +137,14 @@ public final class ProfiledScheduling {
 
         @Override
         public void run() {
+            Runnable task = this.task;
+            if (task == null) return;
+            if (lazy.kind == Kind.TASK && !lazy.plugin.isEnabled()) {
+                this.task = null;
+                Runnable s = stop;
+                if (s != null) s.run();
+                return;
+            }
             Timing t = lazy.timing();
             long t0 = t.start();
             try {
@@ -163,7 +192,7 @@ public final class ProfiledScheduling {
         // 기본 구현은 작업을 Repeating/Once 로 감싼 뒤 executeDelayed 로 넘겨 클래스로더가 가려진다 — 먼저 감싸고 원래 것에 맡긴다
         @Override
         public ScheduledTask runAtFixedRate(Runnable task, long initialDelayTicks, long periodTicks) {
-            return d.runAtFixedRate(p.wrap(task, Kind.TASK), initialDelayTicks, periodTicks);
+            return p.scheduleRepeating(task, Kind.TASK, w -> d.runAtFixedRate(w, initialDelayTicks, periodTicks), h -> h::cancel);
         }
 
         @Override

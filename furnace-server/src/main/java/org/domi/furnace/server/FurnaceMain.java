@@ -769,8 +769,8 @@ public final class FurnaceMain {
 
         private void schedule() {
             long delay = Math.max(0L, next - System.nanoTime());
-            java.util.concurrent.CompletableFuture.runAsync(this, java.util.concurrent.CompletableFuture.delayedExecutor(
-                    delay, java.util.concurrent.TimeUnit.NANOSECONDS, r -> scheduler.global().execute(r)));
+            // 전역 스레드 자신의 예약으로(벽시계) — JDK 지연 실행기 스레드를 쓰지 않는다(A14-09)
+            ((org.domi.furnace.server.sched.GlobalThread) scheduler.global()).executeAfterNanos(this, delay);
         }
     }
 

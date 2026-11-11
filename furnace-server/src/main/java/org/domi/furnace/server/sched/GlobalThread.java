@@ -6,21 +6,22 @@ import org.domi.furnace.api.sched.GlobalScheduler;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.Delayed;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 public final class GlobalThread implements GlobalScheduler, ThreadOwner, AutoCloseable {
 
     private final String name;
-    private final ThreadPoolExecutor exec;
+    /** 단일 스레드. 지연 작업용 틱 박동(beat)과 벽시계 지연(executeAfterMillis)도 같은 스레드의 예약으로 돈다 — 별도 타이머 스레드를 두지 않는다. */
+    private final ScheduledThreadPoolExecutor exec;
     private volatile Thread thread;
 
     public GlobalThread(String name) {
         this.name = name;
-        // newSingleThreadExecutor 와 같은 단일 스레드·무한 큐 — 대기 작업 수를 관측하려고 큐를 직접 쥔다(/furnace threads)
-        this.exec = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), r -> {
+        this.exec = new ScheduledThreadPoolExecutor(1, r -> {
             Thread t = new Thread(() -> {
                 GLOBAL.set(true);
                 r.run();
@@ -32,12 +33,17 @@ public final class GlobalThread implements GlobalScheduler, ThreadOwner, AutoClo
             @Override
             protected void afterExecute(Runnable r, Throwable t) { org.domi.furnace.server.world.RegionBorrow.closeLeaked(); }
         };
+        exec.setRemoveOnCancelPolicy(true);
+        exec.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);   // 닫으면 벽시계 지연(keep-alive 등)은 버린다 — 예전 delayedExecutor 경로와 같게
         // 스레드를 미리 생성해 isOwnerThread가 즉시 신뢰 가능하도록 prime.
         try {
             exec.submit(() -> {}).get();
         } catch (Exception e) {
             throw new RuntimeException("GlobalThread prime 실패", e);
         }
+        // JDK 의 CompletableFuture 지연 실행기 스레드는 처음 쓰는 쪽 호출 스택(AccessControlContext·문맥 로더)을 평생 쥔다(A14-09).
+        // 서버가 먼저 만들어 두면 플러그인이 처음 쓰는 경우(구조물 재시도 등)에도 플러그인 클래스로더가 붙잡히지 않는다.
+        CompletableFuture.delayedExecutor(1, TimeUnit.MILLISECONDS).execute(() -> {});
     }
 
     private static final ThreadLocal<Boolean> GLOBAL = ThreadLocal.withInitial(() -> false);
@@ -54,8 +60,12 @@ public final class GlobalThread implements GlobalScheduler, ThreadOwner, AutoClo
     @Override
     public RegionAccess openRegionAccess() { return org.domi.furnace.server.world.RegionBorrow.open(); }
 
-    /** 관측: 실행을 기다리는 작업 수(지연 작업은 때가 돼 큐에 들어온 뒤부터 센다). */
-    public int queueLength() { return exec.getQueue().size(); }
+    /** 관측: 실행을 기다리는 작업 수(박동·벽시계 지연처럼 아직 때가 안 된 예약은 세지 않는다). */
+    public int queueLength() {
+        int n = 0;
+        for (Runnable r : exec.getQueue()) if (!(r instanceof Delayed d) || d.getDelay(TimeUnit.NANOSECONDS) <= 0) n++;
+        return n;
+    }
 
     @Override
     public String ownerName() {
@@ -120,36 +130,139 @@ public final class GlobalThread implements GlobalScheduler, ThreadOwner, AutoClo
         public <U> CompletableFuture<U> newIncompleteFuture() { return new GlobalFuture<>(); }
     }
 
+    // ------------------------------------------------------------------ 지연 작업: 서버 틱으로 센다(A14-04)
+    // TaskScheduler 계약대로 delayTicks 는 서버 틱 단위다. 전역 스레드는 50ms 박동마다 /tick rate 에 맞춘 만큼(rate/20) 틱을 쌓고,
+    // 틱 하나마다 때가 된 지연 작업을 예약 순서대로 돌린다 — Paper 의 runTaskLater 가 tickServer 마다 한 번 도는 heartbeat 로 세는 것과 같다.
+    // /tick freeze 중에도 센다(Paper 도 정지 중 tickServer·스케줄러는 돈다). /tick sprint 중에는 박동이 세지 않고 sprint 틱마다 하나씩 센다
+    // (sprintTick). 0 과 1 은 다음 틱, n 은 n 틱 뒤(바닐라·Bukkit 과 같다).
+    // 수동 시계(헤드리스 시험 서버 furnace-test 전용)를 켜면 박동 대신 advanceManualTick 이 틱을 낸다.
+
+    /** 박동(50ms) 하나에 낼 틱 수. 기본은 1(초당 20틱) — ServerCore 가 /tick rate·sprint 를 보고 바꾼다. */
+    private volatile java.util.function.DoubleSupplier ticksPerBeat = () -> 1.0;
+    private static final long BEAT_NANOS = 50_000_000L;
+    /** 박동 하나에 낼 수 있는 최대 틱(/tick rate 상한 10000 이면 500). 비정상 값이 박동을 붙잡지 않게. */
+    private static final int MAX_TICKS_PER_BEAT = 1000;
+
+    private final Object delayLock = new Object();
+    /** 지금까지 낸 스케줄러 틱 수. delayLock 아래에서 읽고 쓴다. */
+    private long tick;
+    private long seq;
+    private final java.util.PriorityQueue<Delayed0> delayedQueue = new java.util.PriorityQueue<>(
+            (a, b) -> a.due != b.due ? Long.compare(a.due, b.due) : Long.compare(a.seq, b.seq));
+    /** 전역 스레드 전용: 박동마다 쌓는 틱 몫의 소수 부분. */
+    private double credit;
+    private volatile ScheduledFuture<?> beat;
+
+    private record Delayed0(long due, long seq, Runnable task, CompletableFuture<Void> future) {}
+
+    /** 박동 하나에 낼 틱 수를 정한다(ServerCore: sprint 중이면 0, 아니면 rate/20). */
+    public void ticksPerBeat(java.util.function.DoubleSupplier s) { this.ticksPerBeat = s == null ? () -> 1.0 : s; }
+
+    /** 관측: 지금까지 낸 스케줄러 틱 수. */
+    public long schedulerTick() {
+        synchronized (delayLock) { return tick; }
+    }
+
     @Override
     public CompletableFuture<Void> executeDelayed(Runnable task, long delayTicks) {
-        if (manual) {
-            CompletableFuture<Void> f = new GlobalFuture<>();
-            synchronized (manualQueue) {
-                // 바닐라·Bukkit 처럼 0 과 1 은 다음 틱, n 은 n 틱 뒤
-                manualQueue.add(new ManualDelayed(manualTick + Math.max(1, delayTicks), manualSeq++, task, f));
-            }
-            return f;
+        CompletableFuture<Void> f = new GlobalFuture<>();
+        synchronized (delayLock) {
+            delayedQueue.add(new Delayed0(tick + Math.max(1, delayTicks), seq++, task, f));
         }
-        Executor delayed = CompletableFuture.delayedExecutor(
-                delayTicks * 50, TimeUnit.MILLISECONDS, exec);
-        return run(() -> {
-            task.run();
-            return null;
-        }, delayed);
+        if (!manual && beat == null) armBeat();
+        return f;
+    }
+
+    /** 첫 지연 작업 때 박동을 건다(지연 작업을 쓰지 않는 스케줄러는 박동 없이 조용하다). 고정 박자 — 밀리면 따라잡는다. */
+    private synchronized void armBeat() {
+        if (beat != null || exec.isShutdown()) return;
+        try {
+            beat = exec.scheduleAtFixedRate(this::onBeat, BEAT_NANOS, BEAT_NANOS, TimeUnit.NANOSECONDS);
+        } catch (java.util.concurrent.RejectedExecutionException ignored) {
+            // 닫히는 중
+        }
+    }
+
+    private void onBeat() {
+        if (manual) return;
+        double per;
+        try {
+            per = ticksPerBeat.getAsDouble();
+        } catch (Throwable t) {
+            per = 1.0;   // 기동·종료 중 월드가 없을 때 등 — 박동이 죽으면(고정 박자 예약은 예외 뒤 다시 돌지 않는다) 지연 작업이 영영 멈춘다
+        }
+        if (!(per > 0)) return;   // sprint 중(0)·NaN
+        credit += per;
+        int n = (int) Math.min(credit, MAX_TICKS_PER_BEAT);
+        credit -= (int) credit;
+        for (int i = 0; i < n; i++) advanceTick();
+    }
+
+    /** /tick sprint 의 틱 하나 — 스케줄러 틱도 하나 낸다(Paper 는 sprint 중 tickServer 마다 heartbeat). */
+    public void sprintTick() {
+        if (manual) return;
+        if (isOwnerThread()) advanceTick();
+        else exec.execute(this::advanceTick);   // 시험이 전역 스레드 밖에서 틱을 부를 때 — 작업은 늘 전역 스레드에서
+    }
+
+    /** 틱 번호를 올리고 때가 된 지연 작업을 예약 순서대로 돌린다. 돌던 중 새로 건 작업(0·1)은 다음 틱으로 간다. */
+    private long advanceTick() {
+        long now;
+        synchronized (delayLock) { now = ++tick; }
+        while (true) {
+            Delayed0 d;
+            synchronized (delayLock) {
+                d = delayedQueue.peek();
+                if (d == null || d.due > now) break;
+                delayedQueue.poll();
+            }
+            if (d.future.isDone()) continue;
+            try {
+                d.task.run();
+                d.future.complete(null);
+            } catch (Throwable t) {
+                d.future.completeExceptionally(t instanceof java.util.concurrent.CompletionException ? t : new java.util.concurrent.CompletionException(t));
+            } finally {
+                org.domi.furnace.server.world.RegionBorrow.closeLeaked();   // 작업 하나마다(따로 큐 작업이던 때와 같게)
+            }
+        }
+        return now;
+    }
+
+    /**
+     * 서버 내부용 벽시계 지연: 틱 속도와 무관하게 millis 뒤 전역 스레드에서 돈다(바닐라 keep-alive 처럼 실제 시간으로 재는 것).
+     * 수동 시계에서는 50ms 를 한 틱으로 바꿔 센다(헤드리스 시험이 결정적이게).
+     */
+    public CompletableFuture<Void> executeAfterMillis(Runnable task, long millis) { return executeAfterNanos(task, TimeUnit.MILLISECONDS.toNanos(millis)); }
+
+    /** {@link #executeAfterMillis} 의 나노초판. */
+    public CompletableFuture<Void> executeAfterNanos(Runnable task, long nanos) {
+        if (manual) return executeDelayed(task, Math.max(1, (nanos + BEAT_NANOS - 1) / BEAT_NANOS));
+        GlobalFuture<Void> f = new GlobalFuture<>();
+        Runnable r = () -> {
+            if (f.isDone()) return;
+            try {
+                task.run();
+                f.complete(null);
+            } catch (Throwable t) {
+                f.completeExceptionally(t instanceof java.util.concurrent.CompletionException ? t : new java.util.concurrent.CompletionException(t));
+            }
+        };
+        exec.schedule(r, Math.max(0, nanos), TimeUnit.NANOSECONDS);
+        return f;
+    }
+
+    /** 전역 스케줄러가 GlobalThread 면 벽시계 지연, 아니면(감싼 스케줄러 등) 50ms = 1틱으로 바꿔 executeDelayed. */
+    public static CompletableFuture<Void> executeAfterMillis(GlobalScheduler s, Runnable task, long millis) {
+        if (s instanceof GlobalThread g) return g.executeAfterMillis(task, millis);
+        return s.executeDelayed(task, Math.max(1, (millis + 49) / 50));
     }
 
     // ------------------------------------------------------------------ 수동 시계(헤드리스 시험 서버 furnace-test 전용)
-    // 켜면 지연 작업은 벽시계가 아니라 advanceManualTick 이 센 틱으로 돈다. 같은 틱에 때가 된 작업은 예약 순서대로.
 
     private volatile boolean manual;
-    private long manualTick;
-    private long manualSeq;
-    private final java.util.PriorityQueue<ManualDelayed> manualQueue = new java.util.PriorityQueue<>(
-            (a, b) -> a.due != b.due ? Long.compare(a.due, b.due) : Long.compare(a.seq, b.seq));
 
-    private record ManualDelayed(long due, long seq, Runnable task, CompletableFuture<Void> future) {}
-
-    /** 지연 작업을 틱 수로 센다. 작업을 넣기 전에 한 번 부른다. */
+    /** 지연 작업을 advanceManualTick 이 센 틱으로 돌린다(박동은 멈춘다). 작업을 넣기 전에 한 번 부른다. */
     public void useManualClock() { this.manual = true; }
 
     public boolean manualClock() { return manual; }
@@ -157,23 +270,7 @@ public final class GlobalThread implements GlobalScheduler, ThreadOwner, AutoClo
     /** 전역 스레드에서: 시험 틱 하나 — 틱 번호를 올리고 때가 된 지연 작업을 돌린다. 지금 틱 번호를 돌려준다. */
     public long advanceManualTick() {
         if (!isOwnerThread()) throw new IllegalStateException("전역 스레드에서 불러야 한다");
-        long tick;
-        synchronized (manualQueue) { tick = ++manualTick; }
-        while (true) {
-            ManualDelayed d;
-            synchronized (manualQueue) {
-                d = manualQueue.peek();
-                if (d == null || d.due > tick) break;
-                manualQueue.poll();
-            }
-            try {
-                d.task.run();
-                d.future.complete(null);
-            } catch (Throwable t) {
-                d.future.completeExceptionally(t);
-            }
-        }
-        return tick;
+        return advanceTick();
     }
 
     @Override

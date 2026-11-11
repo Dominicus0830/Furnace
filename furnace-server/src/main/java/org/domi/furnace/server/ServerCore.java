@@ -48,6 +48,11 @@ public final class ServerCore {
         org.domi.furnace.server.map.MapStore.install(world.worldDir());   // 지도 저장 데이터(world/data/map_N.dat) 읽기
         this.levelData = levelData;
         this.scheduler = scheduler;
+        // 전역 지연 작업은 서버 틱으로 센다(A14-04): 박동마다 rate/20 틱, sprint 중에는 박동 대신 sprint 틱마다 하나(tickSprint)
+        if (scheduler.global() instanceof org.domi.furnace.server.sched.GlobalThread g) g.ticksPerBeat(() -> {
+            var ts = tickState();
+            return ts.sprinting() ? 0.0 : ts.rate() / org.domi.furnace.server.world.TickState.DEFAULT_RATE;
+        });
         this.gameRules = org.domi.furnace.server.world.GameRules.fromStrings(levelData.gameRules);
         this.gameRules.onChange(this::onGameRuleChanged);
         this.clock = world.clock();
@@ -871,6 +876,7 @@ public final class ServerCore {
             }
             // 바닐라 checkShouldSprintThisTick: 남은 수를 틱 전에 줄인다(틱 안의 함수가 sprint 를 다시 걸면 N 이 그대로 남는다)
             ts.takeSprintGlobalTick();
+            if (scheduler.global() instanceof org.domi.furnace.server.sched.GlobalThread gt) gt.sprintTick();   // Paper: sprint 중 tickServer 마다 스케줄러 heartbeat
             tick();
         }
         if (!ts.sprinting() || ts.sprintGlobalLeft() > 0) return;
