@@ -116,4 +116,18 @@ class A05NewerWorldRefusalTest {
             System.clearProperty(NewerDataVersionException.IGNORE_PROPERTY);
         }
     }
+
+    @Test
+    void levelDatBoundary_3944Refused_3945And3953Open(@TempDir Path dir) throws Exception {
+        writeLevel(dir.resolve("level.dat"), 3944, 3944, "1.20.6", "main");
+        try (LevelStorage ls = LevelStorage.open(dir)) {
+            assertThrows(LevelStorage.IncompatibleWorldException.class, ls::loadLevelData);
+        }
+        for (int v : new int[] {3945, 3953}) {
+            writeLevel(dir.resolve("level.dat"), v, v, "1.21", "main");
+            try (LevelStorage ls = LevelStorage.open(dir)) {
+                assertNotNull(ls.loadLevelData(), "데이터 버전 " + v);
+            }
+        }
+    }
 }

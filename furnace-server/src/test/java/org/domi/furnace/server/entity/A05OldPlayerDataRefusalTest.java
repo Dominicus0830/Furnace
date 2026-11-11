@@ -64,4 +64,15 @@ class A05OldPlayerDataRefusalTest {
             System.clearProperty(OlderDataVersionException.IGNORE_PROPERTY);
         }
     }
+
+    @Test
+    void boundary_3944Refused_3945And3953Load() throws Exception {   // 바닐라 1.21.1 DataFixers 마지막 스키마 3945
+        UUID a = UUID.randomUUID(), b = UUID.randomUUID(), c = UUID.randomUUID();
+        saveWithDataVersion(a, 3944);
+        assertThrows(OlderDataVersionException.class, () -> PlayerData.load(world, a));
+        saveWithDataVersion(b, 3945);
+        assertNotNull(PlayerData.load(world, b));
+        saveWithDataVersion(c, 3953);
+        assertNotNull(PlayerData.load(world, c));
+    }
 }

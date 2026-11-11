@@ -262,4 +262,23 @@ class A05CorruptChunkRegressionTest {
             store.closeAll();
         }
     }
+
+    @Test
+    void chunkBoundary_3944Refused_3945Loads(@TempDir Path dir) throws Exception {
+        AnvilChunkCodec codec = new AnvilChunkCodec(REG, 0);
+        RegionFileStore store = new RegionFileStore(dir);
+        AnvilWorldSource src = new AnvilWorldSource(dir, store, codec, new SuperflatWorldSource(REG, 0));
+        try {
+            NbtCompound old = codec.toNbt(new SuperflatWorldSource(REG, 0).generate(0, 0), 0, 0);
+            old.putInt("DataVersion", 3944);
+            store.writeChunk(0, 0, NbtIo.toBytes(old, ""));
+            NbtCompound ok = codec.toNbt(new SuperflatWorldSource(REG, 0).generate(1, 0), 1, 0);
+            ok.putInt("DataVersion", 3945);
+            store.writeChunk(1, 0, NbtIo.toBytes(ok, ""));
+            assertThrows(org.domi.furnace.server.world.anvil.OlderDataVersionException.class, () -> src.generate(0, 0));
+            assertNotNull(src.generate(1, 0));
+        } finally {
+            store.closeAll();
+        }
+    }
 }
