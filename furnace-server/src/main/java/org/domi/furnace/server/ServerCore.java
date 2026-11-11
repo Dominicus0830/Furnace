@@ -337,10 +337,11 @@ public final class ServerCore {
     }
 
     /** 명령이 아이템 수정자를 적용한다(/item modify, 바닐라 ItemCommands.applyModifier — 월드 난수). */
-    public ItemStack applyModifier(org.domi.furnace.server.loot.LootFunction modifier, ItemStack stack, org.domi.furnace.server.loot.LootParams params) {
+    public ItemStack applyModifier(World w, org.domi.furnace.server.loot.LootFunction modifier, ItemStack stack, org.domi.furnace.server.loot.LootParams params) {
         var dp = dataPacks;
         if (dp == null || dp.loot() == null) return stack;
-        var ctx = new org.domi.furnace.server.loot.LootContext(dp.loot(), lootWorld, params, lootWorld.random());
+        var lw = lootWorldOf(w);   // 바닐라 ItemCommands: source.getLevel()
+        var ctx = new org.domi.furnace.server.loot.LootContext(dp.loot(), lw, params, lw.random());
         ItemStack out = dp.network().toItemStack(modifier.apply(lootStack(stack), ctx));
         return out == null ? ItemStack.EMPTY : out;
     }

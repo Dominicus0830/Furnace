@@ -94,6 +94,51 @@ class GenerationFluidTicksTest {
         assertTrue(ticks > springCount, "대수층 경계 후처리 유체 틱이 없다(샘 " + springCount + ", 틱 " + ticks + ")");
     }
 
+    /**
+     * 노이즈 채우기(doFill)와 카버(carveBlock)의 후처리 표시 — 구조물·지형지물 없이 노이즈+카버 단계만 본다.
+     * 표시 칸은 모두 유체이고, 노이즈 단계와 카버 단계가 각각 표시를 남기는 청크가 있다.
+     */
+    @Test
+    void noiseAndCarversMarkAquiferEdges() {
+        NoiseWorldSource gen = overworld();
+        int noiseMarks = 0, carverMarks = 0;
+        for (int cx = -4; cx < 4; cx++) for (int cz = -4; cz < 4; cz++) {
+            NoiseWorldSource.Generated g = gen.generateWithBiomes(cx, cz);
+            int before = g.col().postProcessMarks().size();
+            for (int[] m : g.col().postProcessMarks()) {
+                assertNotEquals(0, org.domi.furnace.server.world.gen.feature.FeatureWorldView.fluidTypeOf(g.col().getBlock(m[0], m[1], m[2])),
+                        "노이즈 표시 칸이 유체가 아니다 " + cx + "," + cz + " " + java.util.Arrays.toString(m));
+            }
+            gen.applyCarvers(g, cx, cz);
+            List<int[]> after = g.col().postProcessMarks();
+            noiseMarks += before;
+            carverMarks += after.size() - before;
+            for (int[] m : after) {
+                assertNotEquals(0, org.domi.furnace.server.world.gen.feature.FeatureWorldView.fluidTypeOf(g.col().getBlock(m[0], m[1], m[2])),
+                        "카버 뒤 표시 칸이 유체가 아니다 " + cx + "," + cz + " " + java.util.Arrays.toString(m));
+            }
+        }
+        assertTrue(noiseMarks > 0, "노이즈 채우기 대수층 표시가 없다");
+        assertTrue(carverMarks > 0, "카버 대수층 표시가 없다");
+    }
+
+    /** 바닐라 GeodeFeature: 균열 칸 6방향 이웃 유체에 생성 틱(지연 0). 좌표는 시드 1234 에서 균열과 맞닿은 유체(PR #204 검토). */
+    @Test
+    void geodeCrackNeighbourFluidIsScheduled() {
+        NoiseWorldSource gen = overworld();
+        int[][] crackFluids = {{-1, -8, -173}, {0, -8, -172}, {-2, -7, -174}};
+        int fluids = 0;
+        for (int[] p : crackFluids) {
+            ChunkColumn col = gen.generateIsolated(p[0] >> 4, p[2] >> 4);
+            if (org.domi.furnace.server.world.gen.feature.FeatureWorldView.fluidTypeOf(col.getBlock(p[0] & 15, p[1], p[2] & 15)) == 0) continue;
+            fluids++;
+            boolean found = false;
+            for (String k : tickKeys(col)) if (k.endsWith("@" + p[0] + "," + p[1] + "," + p[2])) found = true;
+            assertTrue(found, "지오드 균열과 맞닿은 유체에 생성 틱이 없다 " + java.util.Arrays.toString(p));
+        }
+        assertTrue(fluids > 0, "시험 좌표에 유체가 없다");
+    }
+
     @Test
     void oceanMonumentWaterIsScheduled() {
         NoiseWorldSource gen = overworld();
