@@ -54,8 +54,8 @@ public abstract non-sealed class Entity implements Rider {
         public Damage withWeapon(ItemStack w) { return new Damage(type, fire, explosion, bypassesInvulnerability, w, creativeSource); }
 
         /**
-         * DamageSource.isCreativePlayer(brk.h): 직접 엔티티가 abilities.instabuild 인 플레이어다(맨손·무기 직접 공격. 화살 등 투사체는 아니다).
-         * Entity.isInvulnerableTo 의 Invulnerable 항을 뚫는다.
+         * DamageSource.isCreativePlayer(brk.h): **원인 엔티티**(brk.d() = getEntity — 화살이면 쏜 주인)가 abilities.instabuild 인 플레이어다.
+         * 그래서 창조 모드 플레이어가 쏜 화살·삼지창·투척물도 Entity.isInvulnerableTo 의 Invulnerable 항을 뚫는다.
          */
         public Damage withCreativeSource(boolean creative) { return creative == creativeSource ? this : new Damage(type, fire, explosion, bypassesInvulnerability, weapon, creative); }
 

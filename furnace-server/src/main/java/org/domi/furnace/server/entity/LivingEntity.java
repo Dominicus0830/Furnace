@@ -202,6 +202,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     /** 때린 쪽이 있을 때(밀려나는 방향·damage_event 의 원인·마지막으로 맞은 기록). */
     public boolean hurtBy(Damage source, float amount, Targetable attacker) {
+        if (attacker instanceof Player cp && cp.vitals().instabuild()) source = source.withCreativeSource(true);   // brk.h: 원인 엔티티(화살이면 주인)
         hurtAttacker = attacker;
         try {
             return hurtByInner(source, amount, attacker);
@@ -347,6 +348,10 @@ public abstract class LivingEntity extends Entity implements Targetable {
         ItemStack s = getItemBySlot(getUsedItemHand() == 0 ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND);
         return Shields.isShield(s) && Shields.USE_DURATION - useItemRemaining >= Shields.BLOCK_DELAY;
     }
+
+    /** LivingEntity.onBelowWorld(btn.aE): 월드 아래 64 칸을 벗어나면 discard 가 아니라 out_of_world 4 피해(죽음 처리·무적 시간 창을 거친다). */
+    @Override
+    protected void onBelowWorld() { hurt(Damage.OUT_OF_WORLD, 4.0F); }
 
     /** LivingEntity.hurtHelmet(btn.c): 몹은 아무것도 안 한다(투구 내구도는 플레이어만 — cmx.c → doHurtEquipment(HEAD)). */
     protected void hurtHelmet(Damage source, float amount) { }
@@ -1220,7 +1225,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
         // btn.m_ 오프셋 591~611: 슬로 폴링·부양 효과는 매 틱 낙하 거리를 지운다(생물 전체 — 플레이어는 PlayerVitals 쪽)
         if (hasEffect(org.domi.furnace.server.effect.MobEffect.SLOW_FALLING) || hasEffect(org.domi.furnace.server.effect.MobEffect.LEVITATION)) resetFallDistance();
         if (getControllingPassenger() instanceof Player p && isAlive()) travelRidden(p);
-        else if (isEffectiveAi()) travel(xxa, yya, zza);   // btn.a(exc): isControlledByLocalInstance(→ isEffectiveAi = !NoAI)가 아니면 움직이지 않는다 — NoAI 몹은 떨어지지도 밀리지도 않는다
+        else travel(xxa, yya, zza);   // btn.a(exc): isControlledByLocalInstance(→ isEffectiveAi = !NoAI)가 아니면 움직이지 않는다 — NoAI 몹은 떨어지지도 밀리지도 않는다
         tickFreezing();
         pushEntities();
     }
@@ -1528,6 +1533,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
      * 이동 뒤 y 속도에 중력을 빼고 0.98, 수평은 마찰×0.91. TODO(물·용암·사다리·겉날개): 유체 이동, 오르기.
      */
     protected void travel(float inX, float inY, float inZ) {
+        if (!isEffectiveAi()) return;   // btn.a(exc) 첫 줄 da()
         double gravity = attributeValue(Attribute.GRAVITY);
         boolean falling = vy() <= 0.0;
         if (falling && hasEffect(org.domi.furnace.server.effect.MobEffect.SLOW_FALLING)) gravity = Math.min(gravity, 0.01);

@@ -107,16 +107,23 @@ class A11MediumLowTest {
         assertTrue(hitInvulnerableCow(GameMode.CREATIVE) > 0.0F, "바닐라: 창조 모드 직접 공격은 invulnerable 을 무시한다");
     }
 
-    /** 직접 원인이 투사체면 창조 모드 주인이라도 막힌다(brk.d() 가 화살이므로 isCreativePlayer 거짓). */
+    /** brk.d() 는 원인 엔티티(화살이면 쏜 주인)다 — 창조 모드 플레이어가 쏜 투사체도 Invulnerable 을 뚫는다. 플레이어가 아니거나 생존이면 막힌다. */
     @Test
-    void projectileFromCreativePlayerDoesNotBypassInvulnerable() {
+    void projectileFromCreativePlayerBypassesInvulnerable() {
         var level = new SkeletonCombatTest.ArenaLevel();
         var cow = new Cow(level, level.nextEntityId());
         cow.moveTo(0.5, -60, 0.5, 0, 0);
         cow.setInvulnerable(true);
         level.addFreshEntity(cow);
-        assertTrue(cow.isInvulnerableTo(new Entity.Damage("arrow", false, false, false)));
-        assertFalse(cow.isInvulnerableTo(new Entity.Damage("arrow", false, false, false).withCreativeSource(true)));
+        var arrow = new Entity.Damage("arrow", false, false, false);
+        assertTrue(cow.isInvulnerableTo(arrow), "원인이 창조 모드가 아니면 막힌다");
+        assertFalse(cow.isInvulnerableTo(arrow.withCreativeSource(true)));
+        var creative = new Player(2, UUID.randomUUID(), "Alex", new ConcurrentEmbeddedChannel());
+        creative.vitals().env(new PlayerVitalsTest.TestEnv());
+        creative.vitals().loadGameTypes(null, GameMode.CREATIVE, false);
+        float before = cow.health();
+        assertTrue(cow.hurtBy(arrow, 1.0F, creative), "창조 모드 주인이 쏜 화살은 Invulnerable 을 뚫는다");
+        assertTrue(cow.health() < before);
     }
 
     // ---------------------------------------------------------------- A11-08 몹 무기 마법
@@ -318,6 +325,37 @@ class A11MediumLowTest {
         tick(level, 10);
         assertEquals(0.5, cow.x(), 0.0);
         assertEquals(0.5, cow.z(), 0.0);
+    }
+
+    /** 바닐라 Squid.travel 에는 isEffectiveAi 검사가 없다 — NoAI 오징어도 물 밖에서 떨어진다. 반대로 FlyingMob(블레이즈 등)은 NoAI 면 멈춘다. */
+    @Test
+    void noAiSquidStillFallsOutOfWater() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        level.dayTime = 18000;
+        var squid = new Squid(level, level.nextEntityId());
+        squid.moveTo(0.5, -50, 0.5, 0, 0);
+        squid.setNoAi(true);
+        level.addFreshEntity(squid);
+        tick(level, 20);
+        assertTrue(squid.y() < -50.0, "NoAI 오징어는 물 밖에서 떨어진다 y=" + squid.y());
+    }
+
+    /** LivingEntity.onBelowWorld(btn.aE): 월드 아래 64 칸 밖이면 out_of_world 4 피해 — 무적 시간 창을 거쳐 약 10틱마다 4 씩, 죽음 처리까지. */
+    @Test
+    void mobBelowWorldTakesOutOfWorldDamage() {
+        var level = new SkeletonCombatTest.ArenaLevel();
+        var cow = new Cow(level, level.nextEntityId());
+        cow.moveTo(0.5, level.minBuildHeight() - 70.0, 0.5, 0, 0);
+        cow.setNoAi(true);
+        level.addFreshEntity(cow);
+        float h0 = cow.health();
+        tick(level, 1);
+        assertEquals(h0 - 4.0F, cow.health(), 0.0F, "첫 틱 4 피해(사라지지 않는다)");
+        assertFalse(cow.isRemoved());
+        tick(level, 5);
+        assertEquals(h0 - 4.0F, cow.health(), 0.0F, "무적 시간 창 안에서는 같은 4 가 다시 들어가지 않는다");
+        tick(level, 60);
+        assertTrue(cow.isDeadOrDying() || cow.isRemoved(), "결국 죽는다");
     }
 
     // ---------------------------------------------------------------- #damages_helmet 투구 0.75 배

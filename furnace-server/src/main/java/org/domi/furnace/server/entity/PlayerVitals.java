@@ -1210,7 +1210,7 @@ public final class PlayerVitals {
         // LivingEntity.calculateFallDamage: ceil((거리 − safe_fall_distance) × 배율 × fall_damage_multiplier) — 점프 강화는 safe_fall_distance 수정자
         double safe = fallAttribute(org.domi.furnace.server.attribute.Attribute.SAFE_FALL_DISTANCE, safeFallBase, safeFallExtra);
         double attrMult = fallAttribute(org.domi.furnace.server.attribute.Attribute.FALL_DAMAGE_MULTIPLIER, fallMultiplierBase, fallMultiplierExtra);
-        float over = (float) (distance - safe);
+        float over = distance - (float) safe;   // 바닐라: float f = (float) safe_fall_distance; (distance − f) × …
         float dmg = (float) Math.ceil((double) (over * multiplier) * attrMult);
         if (impulse && dmg > 0) resetCurrentImpulseContext();
         return dmg;
