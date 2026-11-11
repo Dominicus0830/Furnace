@@ -62,6 +62,17 @@ public class PowderSnowBlock extends BlockBehavior {
         if (p.isOnFire() && mayInteract) level.destroyBlock(pos, false);
     }
 
+    /**
+     * fallOn: 4칸 이상 떨어진 생물만 소리(7 미만 작은, 이상 큰 낙하 소리)를 내고, super.fallOn(낙하 피해)은 부르지 않는다 — 몹도 피해가 없다.
+     * 플레이어는 PlayerVitals.fallMultiplier 가 가루눈에 -1 을 돌려줘 이미 피해가 없다.
+     */
+    @Override
+    public void fallOn(BlockLevel level, int state, Pos pos, Entity entity, float fallDistance) {
+        if (fallDistance < 4.0F || !(entity instanceof LivingEntity living)) return;
+        String[] sounds = living.fallSounds();
+        entity.playSound(fallDistance < 7.0F ? sounds[0] : sounds[1], 1.0F, 1.0F);
+    }
+
     /** getVisualShape: 빈 모양. */
     @Override
     public Shape getVisualShape(int state, BlockLevel level, Pos pos, BlockActor entity) { return Shape.EMPTY; }

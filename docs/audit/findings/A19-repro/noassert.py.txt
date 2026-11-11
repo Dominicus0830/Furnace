@@ -1,0 +1,18 @@
+import os,re
+out=[];tot=0
+for d in ['furnace-server','furnace-compat-paper','furnace-test','furnace-api']:
+  for dp,_,fs in os.walk(d+'/src/test'):
+    for f in fs:
+      if not f.endswith('.java'):continue
+      s=open(os.path.join(dp,f),encoding='utf-8',errors='ignore').read()
+      # split methods annotated @Test
+      for m in re.finditer(r'@(?:Test|ParameterizedTest|RepeatedTest)\b[^{;]*?\b(?:void)\s+(\w+)\s*\([^)]*\)[^{]*\{',s):
+        tot+=1
+        i=m.end();depth=1;j=i
+        while j<len(s) and depth:
+          c=s[j]; depth+= (c=='{')-(c=='}'); j+=1
+        body=s[i:j]
+        if not re.search(r'assert|fail\(|verify|expect|Assertions|assumeTrue|\bassertThat|assertThrows|check\w*\(|require\(|Objects\.requireNonNull|\.join\(\)|await',body):
+          out.append((os.path.join(dp,f),m.group(1),body.count('\n')))
+print(tot,len(out))
+for o in out:print(o)

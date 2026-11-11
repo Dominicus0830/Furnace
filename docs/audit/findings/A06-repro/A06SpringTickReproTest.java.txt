@@ -1,0 +1,53 @@
+// A06 조사 재현: 바닐라 SpringFeature 는 샘을 놓은 뒤 level.scheduleTick(pos, fluid, 0) 을 건다(갓 생성된 청크의 fluid_ticks 에 남는다).
+// 그래서 청크가 틱 범위에 들어오면 동굴·산비탈의 물·용암 샘이 바로 흘러내린다. Furnace 생성 경로(ChunkPipeline → 월드 설치)는 이 틱을 걸지 않는다.
+package org.domi.furnace.server.audit;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.util.ArrayList;
+import java.util.List;
+import org.domi.furnace.server.block.B;
+import org.domi.furnace.server.net.registry.RegistrySet;
+import org.domi.furnace.server.world.BlockRegistry;
+import org.domi.furnace.server.world.ChunkColumn;
+import org.domi.furnace.server.world.gen.NoiseWorldSource;
+import org.domi.furnace.server.world.gen.structure.StructureRegistry;
+import org.junit.jupiter.api.Test;
+
+class A06SpringTickReproTest {
+
+    @Test
+    void freshlyGeneratedSpringsCarryFluidTicks() {
+        NoiseWorldSource gen = NoiseWorldSource.overworld(1234L, BlockRegistry.load("blocks/1.21.1.txt"), RegistrySet.load("registries/1.21.1.txt"));
+        var vil = gen.structureLocator().findNearest(StructureRegistry.structureTag("minecraft:village"), 0, 70, 0, 100);
+        int bx = vil.x() >> 4, bz = vil.z() >> 4;
+        int water = B.defaultState("water"), lava = B.defaultState("lava");
+        List<String> springs = new ArrayList<>();
+        int ticks = 0, ores = 0;
+        for (int cx = bx - 1; cx <= bx + 1; cx++) for (int cz = bz - 1; cz <= bz + 1; cz++) {
+            ChunkColumn col = gen.generateWithFeatures(cx, cz);
+            if (col.extraNbt() != null) ticks += col.extraNbt().getList("fluid_ticks").size();
+            for (int x = 1; x < 15; x++) for (int z = 1; z < 15; z++) for (int y = -63; y < 250; y++) {
+                int s = col.getBlock(x, y, z);
+                if (B.is(s, "coal_ore") || B.is(s, "iron_ore")) ores++;
+                if (s != water && s != lava) continue;
+                int air = 0, solid = 0;
+                int[][] d = {{-1, 0, 0}, {1, 0, 0}, {0, 0, -1}, {0, 0, 1}, {0, -1, 0}};
+                for (int[] o : d) {
+                    int n = col.getBlock(x + o[0], y + o[1], z + o[2]);
+                    if (B.is(n, "air") || B.is(n, "cave_air")) air++;
+                    else if (!B.isLiquid(n)) solid++;
+                }
+                int up = col.getBlock(x, y + 1, z);
+                if (air == 1 && solid == 4 && !B.isLiquid(up) && !B.is(up, "air") && !B.is(up, "cave_air")) {
+                    springs.add((s == water ? "water" : "lava") + "@" + (cx * 16 + x) + "," + y + "," + (cz * 16 + z));
+                }
+            }
+        }
+        String r = "ores=" + ores + " springs=" + springs.size() + " fluidTicks=" + ticks + " " + springs.subList(0, Math.min(3, springs.size()));
+        System.out.println("A06 spring: " + r);
+        assertTrue(ores > 0, "장식이 돌지 않았다: " + r);
+        assertFalse(springs.isEmpty(), "시험할 샘이 없다: " + r);
+        assertTrue(ticks > 0, "샘이 " + springs.size() + "개 있는데 갓 생성된 청크에 유체 틱이 없다(흐르지 않는 샘): " + r);
+    }
+}
