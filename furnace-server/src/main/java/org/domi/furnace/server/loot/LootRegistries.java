@@ -15,9 +15,11 @@ public final class LootRegistries {
     private final Map<String, List<String>> names = new HashMap<>();
     private final Map<String, Map<String, List<String>>> tags = new HashMap<>();
     private final Map<String, Enchantment> enchantments = new LinkedHashMap<>();
+    private final TagRegistries all;
 
     /** @param tagIds TagRegistries.loadAll 결과(레지스트리 → 태그 → 숫자 id) */
     public LootRegistries(TagRegistries regs, Map<String, Map<String, int[]>> tagIds) {
+        this.all = regs;
         for (String reg : TagRegistries.SYNCED) {
             List<String> n = new ArrayList<>();
             for (ResourceId id : regs.names(reg)) n.add(id.toString());
@@ -53,7 +55,11 @@ public final class LootRegistries {
     public boolean exists(String registry, String id) {
         if (registry.equals("minecraft:item")) return ItemData.vanilla().exists(id);
         List<String> n = names.get(registry);
-        return n == null || n.contains(id);   // 동기화하지 않는 레지스트리(물약·효과 등)는 검사하지 않는다
+        if (n != null) return n.contains(id);
+        // 동기화하지 않는 레지스트리(물약·속성·효과·장식 재료/무늬·음반 등)는 내장·동적 레지스트리 이름표로. 이름표가 없는 레지스트리만 검사하지 않는다.
+        if (all.names(registry).isEmpty()) return true;
+        ResourceId rid = ResourceId.tryParse(id);
+        return rid != null && all.id(registry, rid) != null;
     }
 
     void putEnchantment(String id, Enchantment e) { enchantments.put(id, e); }

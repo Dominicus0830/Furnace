@@ -1,99 +1,60 @@
-// 바닐라 ItemPredicate — items·count·components(정확히 같은 값)·predicates(인챈트·손상·물약 …).
+// 바닐라 ItemPredicate(전리품 조건·발전 과제 쪽) — 판정은 명령 인자와 같은 공용 코덱(item/ItemPredicates)에 맡긴다.
+// 잘못된 술어(모르는 하위 술어 종류·컴포넌트, 없는 레지스트리 키, 잘못된 값)는 바닐라처럼 그 항목의 로드 오류다.
 package org.domi.furnace.server.loot;
 
 import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import org.domi.furnace.server.item.CodecException;
+import org.domi.furnace.server.item.DataComponents;
+import org.domi.furnace.server.item.ItemPredicates;
+import org.domi.furnace.server.item.ItemPrototypes;
+import org.domi.furnace.server.item.ItemView;
+import org.domi.furnace.server.item.RegistryView;
 
-public record ItemPredicate(HolderSet items, Bounds count, Map<String, Object> components, List<SubPredicate> predicates) {
+public final class ItemPredicate {
 
-    interface SubPredicate { boolean test(LootStack s, LootRegistries regs); }
+    private final ItemPredicates.Test test;
+
+    private ItemPredicate(ItemPredicates.Test test) { this.test = test; }
 
     public static ItemPredicate parse(JsonElement e, LootRegistries regs) {
-        JsonObject o = e.getAsJsonObject();
-        HolderSet items = o.has("items") ? HolderSet.parse("minecraft:item", o.get("items"), regs) : null;
-        @SuppressWarnings("unchecked")
-        Map<String, Object> comps = o.has("components") ? (Map<String, Object>) Components.fromJson(o.get("components")) : Map.of();
-        List<SubPredicate> subs = new ArrayList<>();
-        if (o.has("predicates")) {
-            for (var p : o.getAsJsonObject("predicates").entrySet()) subs.add(sub(LootJson.id(p.getKey()), p.getValue(), regs));
+        try {
+            return new ItemPredicate(ItemPredicates.parse(Components.fromJson(e), view(regs)));
+        } catch (CodecException ex) {
+            throw new LootParseException(ex.getMessage());
         }
-        return new ItemPredicate(items, Bounds.parse(o.get("count")), comps, List.copyOf(subs));
     }
 
-    private static SubPredicate sub(String type, JsonElement v, LootRegistries regs) {
-        return switch (type) {
-            case "minecraft:enchantments" -> enchantments("minecraft:enchantments", v, regs);
-            case "minecraft:stored_enchantments" -> enchantments("minecraft:stored_enchantments", v, regs);
-            case "minecraft:damage" -> {
-                JsonObject o = v.getAsJsonObject();
-                Bounds durability = Bounds.parse(o.get("durability")), damage = Bounds.parse(o.get("damage"));
-                yield (s, r) -> s.isDamageable() && durability.matches(s.maxDamage() - s.damage()) && damage.matches(s.damage());
-            }
-            case "minecraft:potion_contents" -> {
-                HolderSet potions = HolderSet.parse("minecraft:potion", v, regs);
-                yield (s, r) -> s.get("minecraft:potion_contents") instanceof Map<?, ?> m && m.get("potion") instanceof String p
-                        && potions.contains(p, r);
-            }
-            default -> {
-                org.slf4j.LoggerFactory.getLogger(ItemPredicate.class).warn("아직 지원하지 않는 아이템 조건 {} — 항상 거짓", type);
-                yield (s, r) -> false;
-            }
+    public boolean test(LootStack s, LootRegistries regs) { return test.test(view(s)); }
+
+    /** 전리품 레지스트리: 태그는 검사하지 않는다(예전 HolderSet 과 같게 — 없는 태그는 빈 태그). */
+    static RegistryView view(LootRegistries regs) {
+        return new RegistryView() {
+            public boolean exists(String registry, String id) { return regs.exists(registry, id); }
+            public boolean hasTag(String registry, String tag) { return true; }
+            public boolean inTag(String registry, String tag, String id) { return regs.tag(registry, tag).contains(id); }
         };
     }
 
-    private record EnchantmentPredicate(HolderSet enchantments, Bounds levels) {}
-
-    private static SubPredicate enchantments(String component, JsonElement v, LootRegistries regs) {
-        List<EnchantmentPredicate> list = new ArrayList<>();
-        for (JsonElement x : v.getAsJsonArray()) {
-            JsonObject o = x.getAsJsonObject();
-            list.add(new EnchantmentPredicate(o.has("enchantments") ? HolderSet.parse("minecraft:enchantment", o.get("enchantments"), regs) : null,
-                    Bounds.parse(o.get("levels"))));
-        }
-        return (s, r) -> {
-            Map<String, Integer> levels = Enchantments.levels(s, component);
-            for (EnchantmentPredicate p : list) {
-                boolean ok;
-                if (p.enchantments != null) {
-                    ok = false;
-                    for (String id : p.enchantments.resolve(r)) {
-                        int lvl = levels.getOrDefault(id, 0);
-                        if (lvl != 0 && (p.levels.isAny() || p.levels.matches(lvl))) { ok = true; break; }
-                    }
-                } else if (!p.levels.isAny()) {
-                    ok = false;
-                    for (int lvl : levels.values()) if (p.levels.matches(lvl)) { ok = true; break; }
-                } else {
-                    ok = !levels.isEmpty();
+    /** 전리품 스택을 술어가 보는 꼴로: 패치 값은 그 종류의 코덱으로 정규화(못 하면 없는 것으로). */
+    static ItemView view(LootStack s) {
+        if (s.isEmpty()) return ItemView.EMPTY;
+        return new ItemView() {
+            public String item() { return s.item(); }
+            public int count() { return s.count(); }
+            public Object get(String component) {
+                // 패치에 없으면 이미 정규화해 둔 아이템 기본값(ItemPrototypes — LootStack 기본값과 같은 원본)
+                if (!s.patch().containsKey(component)) return ItemPrototypes.defaultValue(s.item(), component);
+                Object v = s.patch().get(component);
+                if (v == null) return null;
+                var t = DataComponents.byName(component);
+                if (t == null || t.isTransient()) return v;
+                try {
+                    return t.normalize(v);
+                } catch (CodecException e) {
+                    // 검증 없이 들어온 잘못된 값(set_components 원값 등): 판정 중 예외를 내지 않도록 없는 것으로 본다
+                    return null;
                 }
-                if (!ok) return false;
             }
-            return true;
         };
-    }
-
-    /** 바닐라 DataComponentPredicate: 아이템의 값과 술어 값을 그 컴포넌트의 코덱으로 읽은 값끼리 equals. */
-    private static boolean sameComponent(String type, Object actual, Object expected) {
-        if (actual == null || expected == null) return actual == expected;
-        var t = org.domi.furnace.server.item.DataComponents.byName(type);
-        if (t != null && !t.isTransient()) {
-            try {
-                return t.same(t.normalize(actual), t.normalize(expected));
-            } catch (org.domi.furnace.server.item.CodecException e) {
-                // 아래 구조 비교로
-            }
-        }
-        return Components.same(actual, expected);
-    }
-
-    public boolean test(LootStack s, LootRegistries regs) {
-        if (items != null && !items.contains(s.item(), regs)) return false;
-        if (!count.matches(s.count())) return false;
-        for (var c : components.entrySet()) if (!sameComponent(LootJson.id(c.getKey()), s.get(LootJson.id(c.getKey())), c.getValue())) return false;
-        for (SubPredicate p : predicates) if (!p.test(s, regs)) return false;
-        return true;
     }
 }
