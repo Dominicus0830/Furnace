@@ -1358,6 +1358,7 @@ public final class ServerCore {
                     w.borderFollow(null);
                 }
                 pluginHost.worldDetached(w);
+                explorerBackends.remove(w);   // 내린 월드의 생성기를 붙잡지 않는다
             }
             @Override public org.domi.furnace.api.worldgen.DimensionTypeDefinition pluginDimensionType(String key) {
                 return pluginHost.pluginDimensionType(key);
