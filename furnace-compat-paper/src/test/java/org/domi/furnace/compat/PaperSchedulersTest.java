@@ -111,8 +111,12 @@ class PaperSchedulersTest {
         try (var server = start()) {
             var p = server.plugin(CompatTestPlugin.class);
             var steve = server.join("Steve");
-            server.tick(10);   // 플레이어가 region 에 올라야 엔티티 작업이 돈다
             var player = steve.player();
+            AtomicInteger warm = new AtomicInteger();   // 플레이어가 region 에 올라야 엔티티 작업이 돈다 — 다른 시험과 섞이면 걸리는 틱 수가 달라서 한 번 돌 때까지 낸다
+            CompatTask w = p.paper.entity().runAtFixedRate(p, player, t -> warm.incrementAndGet(), null, 1, 1);
+            for (int i = 0; i < 200 && warm.get() == 0; i++) server.tick();
+            assertTrue(warm.get() > 0);
+            w.cancel();
             AtomicInteger runs = new AtomicInteger(), retired = new AtomicInteger();
             CompatTask task = p.paper.entity().runAtFixedRate(p, player, t -> runs.incrementAndGet(), retired::incrementAndGet, 1, 1);
             assertNotNull(task);
