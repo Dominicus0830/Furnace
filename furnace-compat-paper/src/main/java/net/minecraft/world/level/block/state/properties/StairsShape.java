@@ -1,0 +1,22 @@
+package net.minecraft.world.level.block.state.properties;
+
+import net.minecraft.util.StringRepresentable;
+
+/** 블록 상태 속성 값(Mojang 이름 shim, N0). 상수 이름·순서·직렬화 이름은 바닐라 1.21.1 바이트코드의 정적 초기화와 같다. toString 도 바닐라처럼 직렬화 이름. */
+public enum StairsShape implements StringRepresentable {
+    STRAIGHT("straight"),
+    INNER_LEFT("inner_left"),
+    INNER_RIGHT("inner_right"),
+    OUTER_LEFT("outer_left"),
+    OUTER_RIGHT("outer_right");
+
+    private final String name;
+
+    StairsShape(String name) { this.name = name; }
+
+    @Override
+    public String getSerializedName() { return name; }
+
+    @Override
+    public String toString() { return name; }
+}

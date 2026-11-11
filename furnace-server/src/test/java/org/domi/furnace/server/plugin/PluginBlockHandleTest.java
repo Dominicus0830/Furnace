@@ -144,6 +144,28 @@ class PluginBlockHandleTest {
     }
 
     @Test
+    void blockStateIdsRoundTrip() {
+        var types = host.blockTypes();
+        assertEquals(26684, types.stateCount(), "1.21.1 상태 수");
+        assertEquals(0, types.stateId(BlockData.AIR));
+        assertEquals(1, types.stateId(BlockData.of("stone")));
+        assertEquals(BlockData.of("minecraft:stone"), types.byStateId(1).orElseThrow());
+        for (int id = 0; id < types.stateCount(); id++) {
+            BlockData d = types.byStateId(id).orElseThrow();
+            assertEquals(id, types.stateId(d), d::toString);
+        }
+        assertEquals(types.stateId(types.get("oak_stairs").orElseThrow().defaultData()), types.stateId(BlockData.of("oak_stairs")), "적지 않은 속성은 기본값");
+        assertEquals(-1, types.stateId(BlockData.parse("oak_stairs[facing=up]")));
+        assertEquals(-1, types.stateId(BlockData.parse("stone[age=1]")));
+        assertEquals(-1, types.stateId(BlockData.of("not_a_block")));
+        assertEquals("minecraft:torch", types.get("wall_torch").orElseThrow().item(), "바닐라 asItem: 벽 횃불 → 횃불");
+        assertEquals("minecraft:air", types.get("water").orElseThrow().item());
+        assertEquals("minecraft:stone", types.get("stone").orElseThrow().item());
+        assertTrue(types.byStateId(-1).isEmpty());
+        assertTrue(types.byStateId(types.stateCount()).isEmpty());
+    }
+
+    @Test
     void blockTypeValidatesData() {
         var types = host.blockTypes();
         BlockType stairs = types.get("oak_stairs").orElseThrow();
