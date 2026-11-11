@@ -297,13 +297,15 @@ public final class StructureEngine {
      * 위치만의 함수라 결과를 기억한다.
      */
     public String startOf(StructureRegistry.SetDef set, int cx, int cz, TerrainAccess terrain) {
+        // 바닐라 ChunkStatusTasks.generateStructureStarts 는 generateStructures 가 꺼지면 시작점을 만들지 않는다 —
+        // /locate·탐험 지도·엔더의 눈(StructureCheck 가 시작점 단계까지 만들어 읽음)도 찾지 못한다.
+        // 단서: 바닐라는 예전에 구조물이 켜진 채 저장된 청크의 시작점은 디스크에서 읽어 찾는다(여기는 예측만 한다).
+        if (!structuresEnabled) return null;
         if (!isStructureChunk(set, cx, cz)) return null;
         String key = set.id() + "/" + cx + "/" + cz;
         String cached = setStartCache.get(key);
         if (cached != null) return cached.isEmpty() ? null : cached;
         List<StructureStart> out = new ArrayList<>(1);
-        // 구조물 스위치를 보지 않는다: 바닐라 /locate 는 generateStructures 와 무관하게 StructureCheck 예측으로 찾는다
-        // (findNearestMapStructure — 탐험 지도·엔더의 눈 — 은 부르는 쪽이 스위치를 본다)
         startsForSet(set, cx, cz, terrain, out);
         String id = out.isEmpty() ? "" : out.get(0).structureId();
         if (setStartCache.size() > (1 << 16)) setStartCache.clear();
