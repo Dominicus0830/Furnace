@@ -1,0 +1,84 @@
+package org.domi.furnace.server.block;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.UUID;
+import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.ConcurrentEmbeddedChannel;
+import org.domi.furnace.server.advancement.AdvancementManager;
+import org.domi.furnace.server.advancement.PlayerAdvancements;
+import org.domi.furnace.server.data.PackRepository;
+import org.domi.furnace.server.data.ResourceId;
+import org.domi.furnace.server.data.ResourceManager;
+import org.domi.furnace.server.data.TagRegistries;
+import org.domi.furnace.server.entity.Player;
+import org.domi.furnace.server.loot.*;
+import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.registry.RegistrySet;
+import org.domi.furnace.server.world.gen.noise.NoiseRandom;
+import org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+class A12BrushLootTriggerTest extends BrushingTest {
+
+    @Test
+    void playerBrushFiresContainerLootTrigger(@TempDir Path dir) throws Exception {
+        Path adv = dir.resolve("pack/data/test/advancement");
+        Files.createDirectories(adv);
+        Files.writeString(adv.resolve("salvage.json"), "{\"criteria\":{\"c\":{\"trigger\":\"minecraft:player_generates_container_loot\","
+                + "\"conditions\":{\"loot_table\":\"minecraft:archaeology/desert_pyramid\"}}},\"requirements\":[[\"c\"]],\"rewards\":{\"experience\":3}}");
+        PackRepository repo = new PackRepository(dir.resolve("pack"), null);
+        repo.reload();
+        repo.setSelected(List.of("vanilla"));
+        TagRegistries tags = new TagRegistries(RegistrySet.load("registries/1.21.1.txt"));
+        LootRegistries regs;
+        LootData loot;
+        AdvancementManager manager;
+        try (ResourceManager rm = repo.openResourceManager()) {
+            regs = new LootRegistries(tags, tags.loadAll(rm));
+            loot = LootData.load(rm, regs);
+            manager = AdvancementManager.load(rm, regs, new NetworkComponents(tags));
+        }
+        NoiseRandom random = new XoroshiroRandomSource(1L);
+        LootWorld world = new LootWorld() {
+            public NoiseRandom random() { return random; }
+            public NoiseRandom randomSequence(ResourceId id) { return random; }
+        };
+        int[] xp = {0};
+        PlayerAdvancements.Host host = new PlayerAdvancements.Host() {
+            public void send(Packet p) {}
+            public void awardRecipes(List<ResourceId> r) {}
+            public void giveExperience(int points) { xp[0] += points; }
+            public void giveLoot(String table) {}
+            public void broadcast(Text message) {}
+            public boolean announceAdvancements() { return false; }
+            public Text displayName() { return Text.text("P"); }
+            public LootContext playerContext() {
+                return new LootContext(loot, world, new LootParams().with(LootParams.ORIGIN, new double[] {0, 64, 0}), random);
+            }
+            public LootRegistries registries() { return regs; }
+        };
+        Player p = new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
+        PlayerAdvancements a = new PlayerAdvancements(dir, p.uuid(), manager, host);
+        p.advancements(a);
+
+        // 대조: 같은 발전 과제를 직접 부르면 달성한다(시험 배선이 맞다는 확인)
+        a.triggerContainerLoot("minecraft:archaeology/desert_pyramid");
+        assertEquals(3, xp[0], "대조 실패: 직접 부른 트리거로 보상이 와야 한다");
+        xp[0] = 0;
+        a.revoke(manager.get(ResourceId.parse("test:salvage")), "c");
+
+        Lvl level = new Lvl();
+        level.lootResult = item("emerald", 1);
+        var be = place(level, "suspicious_sand");
+        be.setLootTable("minecraft:archaeology/desert_pyramid", 1L);
+        be.brush(level, 50, new PlayerActor(p), Dir.UP);
+        p.drainOwnerTasks();   // 트리거는 플레이어 주인 스레드(다음 플레이어 틱)에서 불린다
+
+        assertEquals(3, xp[0], "솔질로 전리품 표를 풀어도 player_generates_container_loot 가 불리지 않는다");
+    }
+}

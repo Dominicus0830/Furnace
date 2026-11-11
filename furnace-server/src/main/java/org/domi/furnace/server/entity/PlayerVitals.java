@@ -1736,7 +1736,10 @@ public final class PlayerVitals {
     public synchronized Boolean effectsAmbient() { return effects.isEmpty() ? null : MobEffectInstance.allAmbient(effects.values()); }
 
     /** 바닐라 addEffect: 새로 걸면 패킷 + 시작 효과, 이미 있으면 update(더 센 쪽). 바뀌었으면 true. */
-    public boolean addEffect(MobEffectInstance incoming) {
+    public boolean addEffect(MobEffectInstance incoming) { return addEffect(incoming, null); }
+
+    /** 바닐라 addEffect(effect, source): source(효과를 준 엔티티, 이미 떠 둔 사본)를 effects_changed 트리거에 넘긴다. */
+    public boolean addEffect(MobEffectInstance incoming, org.domi.furnace.server.loot.LootEntity source) {
         boolean changed;
         synchronized (this) {
             if (health <= 0.0f) return false;
@@ -1755,12 +1758,14 @@ public final class PlayerVitals {
         }
         flushEffectPackets();
         runPendingEffectHurts();
-        if (changed) notifyEffectsChanged();
+        if (changed) notifyEffectsChanged(source);
         return changed;
     }
 
-    /** 바닐라 onEffectAdded/Updated/Removed → EFFECTS_CHANGED.trigger(player, source). 효과를 준 쪽(source)은 아직 넘기지 않아 null. */
-    private void notifyEffectsChanged() { player.triggerAdvancement(a -> a.triggerEffectsChanged(null)); }
+    /** 바닐라 onEffectAdded/Updated/Removed → EFFECTS_CHANGED.trigger(player, source). source 는 효과를 준 엔티티(addEffect(효과, 주인)만), 아니면 null. */
+    private void notifyEffectsChanged() { notifyEffectsChanged(null); }
+
+    private void notifyEffectsChanged(org.domi.furnace.server.loot.LootEntity source) { player.triggerAdvancement(a -> a.triggerEffectsChanged(source)); }
 
     private volatile boolean effectsExpired;
 

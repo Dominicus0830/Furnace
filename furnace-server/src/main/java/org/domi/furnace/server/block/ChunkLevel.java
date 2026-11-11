@@ -1332,6 +1332,11 @@ public abstract class ChunkLevel implements BlockLevel {
         return services().giftLoot(lootTable, self, x, y, z);
     }
 
+    /** 서명된 책 쪽 글 풀기(services 위임). */
+    public java.util.concurrent.CompletableFuture<org.domi.furnace.api.text.Text> resolveBookText(Object player, org.domi.furnace.api.text.Text text) {
+        return services().resolveBookText(player, text);
+    }
+
     /** 고고학 전리품 평가(services 위임). */
     public java.util.List<ItemStack> chestLoot(String lootTable, long seed, double x, double y, double z, Object player, float luck) {
         return services().chestLoot(lootTable, seed, x, y, z, player, luck);

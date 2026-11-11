@@ -41,7 +41,7 @@
 | levitation | `PlayerAdvancements.tickPlayer(TickState)` (`Region` 플레이어 틱) | 시작 위치·지속 틱, 매 틱 |
 | nether_travel | `ConnectionHandler.applyDimensionChange`(기록)·`Region.adoptAfterDimensionChange`(발동) | 네더 → 오버월드 도착 때 |
 | fall_from_height / fall_after_explosion / ride_entity_in_lava | `tickPlayer(TickState)` | 아래 차이 참고 |
-| effects_changed | `PlayerVitals.addEffect`·`removeEffect`·`removeAllEffects`·효과 만료 | source 는 아직 null |
+| effects_changed | `PlayerVitals.addEffect`·`removeEffect`·`removeAllEffects`·효과 만료 | 아홀로틀 재생(`Axolotl.rewardPlayer`)은 source 를 넘긴다(A12-06). 나머지 경로는 null |
 | fishing_rod_hooked | `FishingHook.retrieve` | 걸린 엔티티가 있으면 그것을, 없으면 낚시찌를 문맥 엔티티로 |
 | channeled_lightning | `LightningBolt.tick` | `ThrownTrident` 가 `setCause`(소유 플레이어) |
 | lightning_strike | `LightningBolt` 끝 | 번개 256칸 안 모든 플레이어, 15칸 안 안 맞은 것이 구경꾼 |
@@ -62,7 +62,7 @@
 | crafter_recipe_crafted | `CrafterBlock.dispenseItem` | 17×17×17 안 플레이어, 월드에 내놓은 아이템마다 |
 
 ## 아직 미연결·미완
-56종 모두 호출 지점은 있지만 근사·미완 항목이 남아 있다(아래). 특히 **effects_changed 의 source 를 넘기지 않아 kill_axolotl_target 은 달성할 수 없다**(아홀로틀 효과 부여 경로에 source 전달이 없음). 기계 자체가 없어 못 이루는 경우:
+56종 모두 호출 지점은 있지만 근사·미완 항목이 남아 있다(아래). 특히 **(옛 기록, A12-06 에서 해결: 아홀로틀 효과 부여가 source 를 넘긴다)**. 기계 자체가 없어 못 이루는 경우:
 유리병으로 드래곤의 숨결 구름 뜨기(`ItemUse.glassBottleUse` TODO)에서 오는 player_interacted_with_entity, 효과를 준 쪽(source)이 필요한 effects_changed 의 `source` 조건, 철퇴 내려치기 뒤 fall_after_explosion 의 cause 조건.
 (used_totem·used_ender_eye·impossible 은 위 "연결됨"/기존 코드로 이미 호출 지점이 있다.)
 
@@ -74,7 +74,7 @@
 - player_interacted_with_entity: 소비한 상호작용은 늘 SUCCESS(통계 대상)로 보고 손에 든 사본을 넘긴다(가정). 서 있는 갑옷 거치대 `interactAt`·끈 매듭 등 일부 경로는 연결하지 않았다.
 - item_durability_changed: 부서질 때 새 피해 값은 `max(피해, 최대 내구)`(EnchantEffects 경로, 가정). 몹의 장비(`Mob`)는 바닐라도 플레이어만 부른다.
 - 다른 region 에서 일어난 사건은 플레이어 주인 region 의 다음 플레이어 틱에 반영된다(기존 차이와 같다).
-- player_generates_container_loot: 브러시 블록(`dql`)은 솔질 작업자 영역이라 연결하지 않았다.
+- player_generates_container_loot: 브러시 블록(`dql`)도 연결했다(A12-03, `BrushableBlockEntity.unpackLootTable`).
 - 엔티티 값(effects·nbt·vehicle 등)을 다른 region 의 엔티티에서 떠 올 때 `KillCredit.snapshot` 이 미리 복사한다. NBT 는 nbt 조건이 데이터 팩에 읽힌 적이 있을 때만(`EntityPredicate.nbtUsed`) 복사한다. `slots` 조건은 원본을 그대로 본다(가정: 한 틱 안 불변).
 - 플레이어의 `is_on_fire`·`is_baby` 같은 플래그는 기존대로(불 상태 없음).
 
