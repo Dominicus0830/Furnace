@@ -98,6 +98,14 @@ public interface Player extends CommandSender, LivingEntity {
         org.domi.furnace.api.Furnace.server().packets().send(this, packet);
     }
 
+    /**
+     * 여러 패킷을 번들 하나로 보낸다(Furnace.server().packets().sendBundle 과 같다) — 클라이언트가 한 프레임에 함께 처리해 깜박임이 없다.
+     * 예) player.sendPacketBundle(addEntity, entityData, equipment);
+     */
+    default void sendPacketBundle(org.domi.furnace.api.packet.ClientboundPacket... packets) {
+        org.domi.furnace.api.Furnace.server().packets().sendBundle(this, java.util.List.of(packets));
+    }
+
     /** 클라이언트가 minecraft:register 로 듣겠다고 알린 채널(사본). 바닐라 클라이언트는 비어 있다. */
     java.util.Set<String> listeningPluginChannels();
 
