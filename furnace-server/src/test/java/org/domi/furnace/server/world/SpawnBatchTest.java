@@ -28,7 +28,7 @@ class SpawnBatchTest {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         var io = Executors.newSingleThreadExecutor();
-        // viewDistance 1 → 3x3=9 청크, regionSize 16 → 전부 region(0,0) 소유.
+        // viewDistance 1 → 바닐라 둥근 모양 21 청크(정사각 3×3 아님), regionSize 16 → 전부 region(0,0) 소유.
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
                 sched, sched.regionThreadCount(), 16, 1, 1, reg.directBits(), 7, io);
         RegionPos rp = new RegionPos(0, 0);
@@ -62,8 +62,8 @@ class SpawnBatchTest {
 
         assertTrue(start >= 0, "ChunkBatchStart 전송돼야");
         assertTrue(finished >= 0, "ChunkBatchFinished 전송돼야");
-        assertEquals(9, chunkCount, "9개 청크 전송");
-        assertEquals(9, finishedSize, "Finished count == 청크 수");
+        assertEquals(21, chunkCount, "바닐라 둥근 모양 21개 청크 전송");
+        assertEquals(21, finishedSize, "Finished count == 청크 수");
         assertTrue(start < firstChunk, "Start가 첫 청크 앞");
         assertTrue(lastChunk < finished, "Finished가 마지막 청크 뒤");
 

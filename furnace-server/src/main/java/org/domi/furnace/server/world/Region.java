@@ -2798,7 +2798,7 @@ public final class Region {
             var it = p.loadedChunks().iterator();
             while (it.hasNext()) {
                 ChunkPos cp = it.next();
-                if (Math.abs(cp.x() - center.x()) > vd || Math.abs(cp.z() - center.z()) > vd) {
+                if (!ChunkTrackingView.contains(center.x(), center.z(), vd, cp.x(), cp.z())) {
                     it.remove();
                     world.unsubscribeChunk(cp, p);
                     // 아직 안 보낸(pending) 청크면 forget 패킷 불필요 — 큐서만 제거.
@@ -2814,8 +2814,11 @@ public final class Region {
         // sendQueuedChunks 의 동시 진행 상한이 막는다 — 예전처럼 대기가 많다고 새 중심의 청크를 안 넣으면 큰 시야에서
         // 플레이어 바로 옆 청크가 대기열에 없어 한참 비어 보였다.
         List<ChunkPos> toQueue = new ArrayList<>();
-        for (int dx = -vd; dx <= vd; dx++) {
-            for (int dz = -vd; dz <= vd; dz++) {
+        // 바닐라 ChunkTrackingView: 시야 안은 정사각이 아니라 둥근 모양이고 축 방향으로는 시야 + 1 칸까지 간다(둘레 포함).
+        int reach = ChunkTrackingView.reach(vd);
+        for (int dx = -reach; dx <= reach; dx++) {
+            for (int dz = -reach; dz <= reach; dz++) {
+                if (!ChunkTrackingView.contains(center.x(), center.z(), vd, center.x() + dx, center.z() + dz)) continue;
                 ChunkPos cp = new ChunkPos(center.x() + dx, center.z() + dz);
                 if (p.loadedChunks().add(cp)) {   // 새로 시야 진입
                     // 청크를 만들지 않는 관전자(spectatorsGenerateChunks 꺼짐)는 구독·구역 확보를 보내는 때로 미룬다 — 로드돼 있을 때만 보낸다
@@ -3005,11 +3008,11 @@ public final class Region {
         return p.gameMode() == GameMode.SPECTATOR && !world.levelServices().gameRule("spectatorsGenerateChunks");
     }
 
-    /** 청크가 플레이어의 현재 시야(per-player view distance, Chebyshev) 안인지. stale 드롭·전송 게이트용. */
+    /** 청크가 플레이어의 현재 시야(per-player view distance, 바닐라 ChunkTrackingView 의 둥근 모양) 안인지. stale 드롭·전송 게이트용. */
     private boolean inView(Player p, ChunkPos cp) {
         ChunkPos c = p.chunkPos();
         int vd = Math.min(world.viewDistance(), p.viewDistance());
-        return Math.abs(cp.x() - c.x()) <= vd && Math.abs(cp.z() - c.z()) <= vd;
+        return ChunkTrackingView.contains(c.x(), c.z(), vd, cp.x(), cp.z());
     }
 
     /**

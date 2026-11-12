@@ -66,6 +66,7 @@ import org.domi.furnace.server.config.Config;
 import org.domi.furnace.server.entity.EntityIdAllocator;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.world.ChunkPos;
+import org.domi.furnace.server.world.ChunkTrackingView;
 import org.domi.furnace.server.world.SpawnPoint;
 import org.domi.furnace.server.world.World;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1495,8 +1496,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         int r = world.spawnChunkRadius();
         java.util.List<ChunkPos> spawnChunks = new java.util.ArrayList<>();
         for (int dx = -r; dx <= r; dx++)
-            for (int dz = -r; dz <= r; dz++)
-                spawnChunks.add(new ChunkPos(centerCp.x() + dx, centerCp.z() + dz));
+            for (int dz = -r; dz <= r; dz++) {
+                ChunkPos cp = new ChunkPos(centerCp.x() + dx, centerCp.z() + dz);
+                // 바닐라 ChunkTrackingView: 시야 밖(둥근 모양 바깥) 모서리는 보내지 않는다 — 큰 spawn-chunk-radius 가 시야보다 클 때도 시야 모양을 따른다
+                if (ChunkTrackingView.contains(centerCp.x(), centerCp.z(), Math.min(world.viewDistance(), effVd), cp.x(), cp.z())) spawnChunks.add(cp);
+            }
         spawnChunks.sort(java.util.Comparator.comparingInt(
                 c -> Math.max(Math.abs(c.x() - centerCp.x()), Math.abs(c.z() - centerCp.z()))));
         // 스냅샷을 뜨기 전에 먼저 구독한다 — 구독이 청크 전달 전까지 블록 변경을 보류했다가 청크 뒤에 보낸다.

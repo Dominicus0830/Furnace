@@ -29,7 +29,7 @@ class RegionTickTest {
         RegionPos rp = new RegionPos(0, 0);   // 청크 좌표
         sched.region(rp).execute(() -> w.regionAt(rp).adopt(p)).get();
         sched.region(rp).execute(() -> w.regionAt(rp).tick()).get();
-        assertEquals(9, p.loadedChunks().size()); // viewDistance 1 → 3x3
+        assertEquals(ChunkTrackingViewTest.vanillaCount(1), p.loadedChunks().size()); // viewDistance 1 → 바닐라 둥근 모양 21칸(정사각 3×3 아님)
         sched.close();
     }
 
