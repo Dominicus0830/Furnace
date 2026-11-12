@@ -4224,12 +4224,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 @Override
                 public boolean allowPlace(org.domi.furnace.server.block.Pos p, int state, org.domi.furnace.server.block.Pos against) {
                     org.domi.furnace.server.ServerCore pc = login.core;
-                    if (pc == null || !pc.events().hasSubscribers(org.domi.furnace.api.event.block.BlockPlaceEvent.class)) return true;
-                    var ev = pc.events().call(new org.domi.furnace.api.event.block.BlockPlaceEvent(actor.dimension(),
-                            new org.domi.furnace.api.world.BlockPos(p.x(), p.y(), p.z()), world.blockRegistry().nameOf(state),
-                            new org.domi.furnace.api.world.BlockPos(against.x(), against.y(), against.z()), pc.plugins().player(actor)));
-                    if (ev.isCancelled()) org.domi.furnace.server.plugin.ClientResync.hands(actor);   // 클라이언트가 먼저 줄인 손 아이템을 되돌린다(칸은 호출 뒤 sendBlockState)
-                    return !ev.isCancelled();
+                    if (pc == null || !pc.gameEvents().wantsBlockPlace()) return true;
+                    boolean ok = pc.gameEvents().blockPlace(actor, p, state, level.getBlockState(p), against, before, hand == 0);
+                    if (!ok) org.domi.furnace.server.plugin.ClientResync.hands(actor);   // 클라이언트가 먼저 줄인 손 아이템을 되돌린다(칸은 호출 뒤 sendBlockState)
+                    return ok;
                 }
             };
             pa.withInventory(actor.inventoryHost());
