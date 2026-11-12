@@ -11,7 +11,7 @@ import org.domi.furnace.compat.nms.UnsupportedNmsCall;
  * Furnace 엔티티 핸들(만든 시점의 스냅샷)을 읽는다 — 위치는 그 스냅샷 값이다. 같은 엔티티는 같은 shim 이다(CraftEntity 마다 하나).
  * 바닐라처럼 equals 는 같은 엔티티인가(바닐라는 네트워크 id, 여기는 UUID)다.
  */
-public class Entity {
+public class Entity implements net.minecraft.network.syncher.SyncedDataHolder {
 
     private final CraftEntity bukkit;
 
