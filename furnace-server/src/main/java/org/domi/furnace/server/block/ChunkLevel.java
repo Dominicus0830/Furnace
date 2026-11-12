@@ -324,13 +324,16 @@ public abstract class ChunkLevel implements BlockLevel {
      * ServerLevel.sendBlockUpdated(pos, old, new, flags) 의 길찾기 부분: 충돌 모양(문맥 없음)이 바뀌었으면 navigatingMobs 마다
      * shouldRecomputePath(pos) 인 길찾기를 모두 모은 뒤 차례로 recomputePath(). 같은 길찾기가 두 번 모이면(탈것을 조종하는 몹과 그 탈것 몹 —
      * getNavigation 이 탈것 것을 준다) 두 번 부른다: 두 번째는 20틱 안이라 미룬 다시 찾기 표시만 남는다(바닐라 그대로).
-     * 바닐라는 모양을 먼저 비교하고 몹을 훑는다. 둘 다 부수 효과가 없어 순서를 바꿔도 결과가 같으므로 후보가 있을 때만 모양을 계산한다.
+     * 바닐라처럼 모양을 먼저 비교한다 — 충돌 모양은 표의 공유 객체라 같은 모양이면 바로 끝나고(레드스톤 선 세기 변경 등), 몹 훑기는 모양이 바뀐 때만.
      * 가정: 바닐라는 청크 단계가 BLOCK_TICKING 이상일 때만 sendBlockUpdated 를 부른다(Level.setBlock). Furnace 는 변경 방송(markChanged)과 같이
      * 이 조건을 보지 않는다 — 보더 청크에서 블록이 바뀌는 드문 경우만 다르다.
      */
     private void updateNavigations(Pos pos, int old, int now) {
         var mobs = entities.mobs();
         if (mobs.isEmpty()) return;
+        Shape before = BlockBehaviors.of(old).getCollisionShape(old, this, pos, null);
+        Shape after = BlockBehaviors.of(now).getCollisionShape(now, this, pos, null);
+        if (!Shape.differs(before, after)) return;
         java.util.ArrayList<org.domi.furnace.server.entity.ai.navigation.PathNavigation> list = null;
         for (var mob : mobs) {
             var nav = mob.getNavigation();
@@ -340,9 +343,6 @@ public abstract class ChunkLevel implements BlockLevel {
             }
         }
         if (list == null) return;
-        Shape before = BlockBehaviors.of(old).getCollisionShape(old, this, pos, null);
-        Shape after = BlockBehaviors.of(now).getCollisionShape(now, this, pos, null);
-        if (!Shape.differs(before, after)) return;
         if (updatingNavigations) {
             org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error("recursive call to sendBlockUpdated", new IllegalStateException("recursive call to sendBlockUpdated"));
         }

@@ -33,3 +33,13 @@ O06 검토 보고서(`furnace/reviews/opt-review/O06-mob-ai-spawning.md` 3장)�
 - `ayw.a()` = create(RandomSupport.generateUniqueSeed()) — 곱해 가는 원자 값 ^ nanoTime. Furnace `RandomSource.create()` 도 그렇게 바꿨다
   (이전 nanoTime ^ 스레드 id 는 같은 순간에 만든 두 난수의 씨앗이 겹칠 수 있었다 — TriggerGate 는 부를 때마다 ShufflingList 를 만든다).
 - 스레드 안전 난수는 잠금으로 감쌌다(바닐라는 CAS). 값이 씨앗으로 고정되지 않는 난수라 분포만 같으면 된다.
+
+## 독립 검토 반영(PR #274, 11-12)
+- 가정 ③(R6): 바닐라 navigatingMobs 는 추적(TRACKED, FULL 이상) 청크의 몹이고 Furnace `EntityStore.mobs()` 는 region 에 적재된 몹 전부다. 같은 집합으로 본다.
+- R4: `updateNavigations` 를 바닐라 순서(충돌 모양 먼저)로 — 충돌 모양은 표의 공유 객체라 같은 모양 변경(레드스톤 선 세기 등)은 몹을 훑지 않고 끝난다.
+- C2 로 비전투 조건이 크리에이티브를 통과시키면서 드러난 곳:
+  - R1 `PiglinSpecificSensor`: 금 안 입은 공격 대상 플레이어는 바닐라 `piglin.canAttack(player)` → `canBeSeenAsEnemy` 도 본다(평화 난이도 조건은 기존 TODO).
+  - R2 `Pufferfish.SCARY_MOB`: 바닐라 `player.isCreative()` 면 거짓.
+  - R3 `ArmorStand.canBeSeenByAnyone = !투명 && !마커`, `LivingEntity.canBeSeenAsEnemy = !무적 && canBeSeenByAnyone()`(바닐라 그대로).
+- 이전부터 있던 것(같은 대조에서 나옴): R5 `Raider.HoldGroundAttackGoal.shoutTargeting` 은 forNonCombat(전투면 동맹 검사로 옆 약탈자에게 못 외침),
+  R7 Evoker 울로로는 `getNearbyEntities(Sheep, forNonCombat().range(16).selector(파란 양))`(거리 16 구·시야), R8 TemptingSensor 는 나를 탄 플레이어 제외.

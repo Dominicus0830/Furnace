@@ -649,7 +649,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     @Override public int id() { return super.id(); }
 
-    @Override public boolean canBeSeenAsEnemy() { return !isInvulnerable() && isAlive(); }
+    @Override public boolean canBeSeenAsEnemy() { return !isInvulnerable() && canBeSeenByAnyone(); }
 
     /** getVisibilityPercent: 웅크림 ×0.8, 투명 ×0.7×방어구 가림, 같은 종류 머리 아이템 ×0.5. */
     @Override
