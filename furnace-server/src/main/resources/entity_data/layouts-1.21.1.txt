@@ -1,4 +1,4 @@
-# 엔티티 종류별 메타데이터 칸 배치(1.21.1, 번호 순 값 종류). 서버 엔티티 정의에서 만든다 — EntityDataKeysTest 가 대조한다.
+# 엔티티 종류별 메타데이터 칸 배치(1.21.1, 번호 순 값 종류). 서버 엔티티 정의에서 만들고 바닐라 1.21.1 jar 바이트코드와 130/130 대조했다(2026-11-12) — EntityDataKeysTest 가 서버 엔티티와 대조한다. 어긋나면 표가 아니라 서버 엔티티를 먼저 의심한다.
 minecraft:allay byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean boolean
 minecraft:area_effect_cloud byte int optional_component boolean boolean boolean pose int float boolean particle
 minecraft:armadillo byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean armadillo_state

@@ -110,11 +110,47 @@ public final class EntityData767 {
         return m.get(entityType.indexOf(':') < 0 ? "minecraft:" + entityType : entityType);
     }
 
-    /** 그 종류에 이 칸이 있는가(같은 번호에 같은 값 종류). */
+    /**
+     * 그 종류에 이 칸이 있는가: 칸의 주인 부류가 그 종류의 계층에 있고(바닐라 클래스 계층), 그 번호에 같은 값 종류가 있다.
+     * 번호·값 종류만 보면 다른 부류의 칸이 우연히 맞아 통과한다(예: interaction 9번 height 와 LivingEntity.HEALTH).
+     */
     public static boolean has(String entityType, EntityDataKey<?> key) {
-        EntityDataType<?>[] l = layout(entityType);
+        String type = entityType.indexOf(':') < 0 ? "minecraft:" + entityType : entityType;
+        EntityDataType<?>[] l = layout(type);
+        java.util.Set<String> o = owners(type);
         OptionalInt i = index(key);
-        return l != null && i.isPresent() && i.getAsInt() < l.length && l[i.getAsInt()] == key.type();
+        return l != null && o != null && o.contains(key.owner()) && i.isPresent() && i.getAsInt() < l.length && l[i.getAsInt()] == key.type();
+    }
+
+    private static volatile Map<String, java.util.Set<String>> owners;
+
+    /** 엔티티 종류의 메타데이터 주인 부류들(EntityDataKey.owner 이름). 모르는 종류면 null. */
+    public static java.util.Set<String> owners(String entityType) {
+        Map<String, java.util.Set<String>> m = owners;
+        if (m == null) {
+            synchronized (EntityData767.class) {
+                if (owners == null) owners = loadOwners();
+                m = owners;
+            }
+        }
+        return m.get(entityType.indexOf(':') < 0 ? "minecraft:" + entityType : entityType);
+    }
+
+    private static Map<String, java.util.Set<String>> loadOwners() {
+        Map<String, java.util.Set<String>> m = new HashMap<>();
+        try (var in = EntityData767.class.getClassLoader().getResourceAsStream("entity_data/owners-1.21.1.txt")) {
+            if (in == null) throw new IllegalStateException("entity_data/owners-1.21.1.txt 없음");
+            var r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+            for (String line; (line = r.readLine()) != null; ) {
+                line = line.strip();
+                if (line.isEmpty() || line.startsWith("#")) continue;
+                String[] p = line.split("\\s+");
+                m.put(p[0], java.util.Set.of(java.util.Arrays.copyOfRange(p, 1, p.length)));
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return Map.copyOf(m);
     }
 
     private static Map<String, EntityDataType<?>[]> loadLayouts() {
@@ -141,7 +177,10 @@ public final class EntityData767 {
 
     // ------------------------------------------------------------------ 와이어
 
-    /** 직렬화 번호 ser 의 값 하나를 읽는다. 이 버전이 모르는 번호면 null(길이를 모르므로 부르는 쪽이 멈춘다). */
+    /**
+     * 직렬화 번호 ser 의 값 하나를 읽는다. 이 버전이 모르는 번호면 null(길이를 모르므로 부르는 쪽이 멈춘다).
+     * 값을 이름으로 바꾸지 못하면(범위 밖 번호, 직접 정의된 그림·늑대 종류 등) RuntimeException — 부르는 쪽이 Unsupported 로 남기고 멈춘다.
+     */
     Value read(int ser, ByteBuf b) {
         EntityDataType<?> t = serializer(ser);
         if (t == null) return null;
@@ -189,7 +228,11 @@ public final class EntityData767 {
             }
             case "pose" -> enumAt(Pose.values(), Types.readVarInt(b), "자세");
             case "cat_variant" -> registryName("minecraft:cat_variant", Types.readVarInt(b));
-            case "wolf_variant" -> dataRegistryName("minecraft:wolf_variant", Types.readVarInt(b));
+            case "wolf_variant" -> {   // 바닐라 holder(WOLF_VARIANT, 직접 코덱): 0 = 직접 정의, 등록된 종류 = 번호 + 1
+                int v = Types.readVarInt(b);
+                if (v == 0) throw new IllegalArgumentException("직접 정의된 늑대 종류는 읽지 않는다");
+                yield dataRegistryName("minecraft:wolf_variant", v - 1);
+            }
             case "frog_variant" -> nameAt(List.of(Frog.VARIANTS), Types.readVarInt(b), "개구리 종류");
             case "optional_global_pos" -> b.readBoolean() ? Optional.of(new GlobalPos(Types.readString(b, STRING_MAX), pos(b))) : Optional.empty();
             case "painting_variant" -> {
@@ -265,7 +308,7 @@ public final class EntityData767 {
             }
             case "pose" -> Types.writeVarInt(o, ((Pose) v).id());
             case "cat_variant" -> Types.writeVarInt(o, registryId("minecraft:cat_variant", (String) v));
-            case "wolf_variant" -> Types.writeVarInt(o, dataRegistryId("minecraft:wolf_variant", (String) v));
+            case "wolf_variant" -> Types.writeVarInt(o, dataRegistryId("minecraft:wolf_variant", (String) v) + 1);   // 등록된 종류 = 번호 + 1(그림과 같음)
             case "frog_variant" -> Types.writeVarInt(o, indexIn(List.of(Frog.VARIANTS), (String) v, "개구리 종류"));
             case "optional_global_pos" -> {
                 Optional<?> opt = (Optional<?>) v;

@@ -97,11 +97,16 @@ public final class EntityDataType<T> {
     /** 값의 자바 클래스(Optional·List 는 바깥 클래스). */
     public Class<?> valueClass() { return valueClass; }
 
-    /** 이 종류의 값으로 맞는지 확인하고 그대로 돌려준다. 아니면 IllegalArgumentException. */
+    /**
+     * 이 종류의 값으로 맞는지 확인하고 돌려준다. 아니면 IllegalArgumentException.
+     * optional_block_state 의 공기(minecraft:air)는 Optional.empty() 로 바꾼다 — 바닐라 와이어에서 공기(0)와 없음이 같다.
+     */
     @SuppressWarnings("unchecked")
     public T check(Object value) {
         Objects.requireNonNull(value, () -> name + " 값이 null 이다(없음은 Optional.empty() 로)");
         if (!accepts.test(value)) throw new IllegalArgumentException(name + " 종류에 맞지 않는 값: " + value);
+        if (this == OPTIONAL_BLOCK_STATE && value instanceof Optional<?> o && o.isPresent() && o.get() instanceof BlockData b
+                && b.type().equals("minecraft:air")) return (T) Optional.empty();
         return (T) value;
     }
 

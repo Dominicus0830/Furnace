@@ -110,7 +110,7 @@ class EntityDataKeysTest {
         if (!ok) {
             Path p = Path.of("build/entity-data-layouts-1.21.1.txt");
             Files.writeString(p, file, StandardCharsets.UTF_8);
-            fail("resources/entity_data/layouts-1.21.1.txt 가 서버 엔티티와 다르다 — 새 표: " + p.toAbsolutePath());
+            fail("resources/entity_data/layouts-1.21.1.txt(바닐라 대조 완료) 가 서버 엔티티와 다르다 — 먼저 서버 엔티티의 defineSynchedData 를 바닐라와 대조할 것. 서버가 맞다고 확인된 경우에만 새 표로 바꾼다: " + p.toAbsolutePath());
         }
     }
 
@@ -147,7 +147,7 @@ class EntityDataKeysTest {
         }
         assertEquals(EntityDataOwners767.OWNERS.keySet(), checked, "주인 표와 API 칸 목록이 같다");
         assertEquals(EntityDataIndex767.INDEX.size(), EntityDataKeys.all().size());
-        assertEquals(210, EntityDataKeys.all().size());
+        assertEquals(207, EntityDataKeys.all().size());
         assertEquals(31, EntityDataType.all().size());
         for (EntityDataType<?> t : EntityDataType.all()) assertSame(t, EntityData767.serializer(EntityData767.serializerId(t)));
     }
@@ -265,7 +265,8 @@ class EntityDataKeysTest {
                 new SetEntityData.Item(8, SetEntityData.SERIALIZER_PAINTING_VARIANT, RegistrySet.current().indexOf("minecraft:painting_variant", "minecraft:kebab")),
                 new SetEntityData.Item(17, SetEntityData.SERIALIZER_SNIFFER_STATE, 5),
                 new SetEntityData.Item(20, SetEntityData.SERIALIZER_OPTIONAL_INT, 4),
-                new SetEntityData.Item(16, SetEntityData.SERIALIZER_DIRECTION, 1)));
+                new SetEntityData.Item(16, SetEntityData.SERIALIZER_DIRECTION, 1),
+                new SetEntityData.Item(22, SetEntityData.SERIALIZER_WOLF_VARIANT, org.domi.furnace.server.entity.Wolf.paleIndex())));
         ByteBuf sb = Unpooled.buffer();
         server.write(sb);
         byte[] serverBytes = ByteBufUtil.getBytes(sb);
@@ -282,7 +283,8 @@ class EntityDataKeysTest {
                 ClientboundSetEntityDataPacket.entry(8, Value.of(EntityDataType.PAINTING_VARIANT, "minecraft:kebab")),
                 ClientboundSetEntityDataPacket.entry(17, Value.of(EntityDataType.SNIFFER_STATE, "digging")),
                 ClientboundSetEntityDataPacket.entry(20, Value.of(EntityDataType.OPTIONAL_UNSIGNED_INT, OptionalInt.of(4))),
-                ClientboundSetEntityDataPacket.entry(16, Value.of(EntityDataType.DIRECTION, Direction.UP)));
+                ClientboundSetEntityDataPacket.entry(16, Value.of(EntityDataType.DIRECTION, Direction.UP)),
+                ClientboundSetEntityDataPacket.entry(22, Value.of(EntityDataType.WOLF_VARIANT, "minecraft:pale")));
         ByteBuf ab = Unpooled.buffer();
         assertEquals(SetEntityData.ID, codec.encode(api, ab));
         assertArrayEquals(serverBytes, ByteBufUtil.getBytes(ab));
@@ -321,5 +323,102 @@ class EntityDataKeysTest {
         assertThrows(IllegalArgumentException.class, () -> codec.encode(ClientboundSetEntityDataPacket.of(1,
                 ClientboundSetEntityDataPacket.entry(0, Value.of(EntityDataType.CAT_VARIANT, "minecraft:nope"))), Unpooled.buffer()));
         assertThrows(IllegalArgumentException.class, () -> Particle.of("minecraft:dust"), "옵션이 필요한 입자");
+    }
+
+    // ------------------------------------------------------------------ 독립 검토(2026-11-12) 반영
+
+    /** 바닐라 1.21.1 바이트 고정: wolf_variant 는 holder(WOLF_VARIANT, 직접 코덱) — 등록된 종류 = 번호 + 1, 0 = 직접 정의(그림과 같음). */
+    @Test
+    void wolfVariantIsHolderIdPlusOneLikeVanilla() {
+        assertEquals(3, RegistrySet.current().indexOf("minecraft:wolf_variant", "minecraft:pale"));
+        // 서버 본체(SetEntityData: 실제 접속자에게 가는 경로)
+        ByteBuf sb = Unpooled.buffer();
+        new SetEntityData(1, List.of(new SetEntityData.Item(22, SetEntityData.SERIALIZER_WOLF_VARIANT, 3))).write(sb);
+        assertArrayEquals(new byte[] {1, 22, 23, 4, (byte) 0xFF}, ByteBufUtil.getBytes(sb), "pale → 17 04(칸 22, 직렬화 23, 값 3+1)");
+        // API 코덱도 같은 바이트, 읽으면 같은 이름
+        ByteBuf ab = Unpooled.buffer();
+        codec.encode(ClientboundSetEntityDataPacket.of(1, ClientboundSetEntityDataPacket.entry(22, Value.of(EntityDataType.WOLF_VARIANT, "minecraft:pale"))), ab);
+        byte[] bytes = ByteBufUtil.getBytes(ab);
+        assertArrayEquals(new byte[] {1, 22, 23, 4, (byte) 0xFF}, bytes);
+        var back = (ClientboundSetEntityDataPacket) codec.decode(PacketTypes.Clientbound.SET_ENTITY_DATA, SetEntityData.ID, Unpooled.wrappedBuffer(bytes));
+        assertEquals(Optional.of("minecraft:pale"), back.get(EntityDataKeys.Wolf.VARIANT));
+        // ashen(0) 은 1 로 — 0 은 직접 정의라 클라이언트가 뒤 바이트를 잘못 읽는다
+        ByteBuf ash = Unpooled.buffer();
+        codec.encode(ClientboundSetEntityDataPacket.of(1, ClientboundSetEntityDataPacket.entry(22, Value.of(EntityDataType.WOLF_VARIANT, "minecraft:ashen"))), ash);
+        assertArrayEquals(new byte[] {1, 22, 23, 1, (byte) 0xFF}, ByteBufUtil.getBytes(ash));
+    }
+
+    /** 칸이 있는지는 주인 부류로 정한다 — 번호·값 종류가 우연히 맞는 다른 부류의 칸은 없다. */
+    @Test
+    void hasChecksOwnerHierarchy() {
+        assertFalse(EntityData767.has("minecraft:interaction", EntityDataKeys.LivingEntity.HEALTH), "interaction 9번은 height(float)");
+        assertFalse(EntityData767.has("minecraft:allay", EntityDataKeys.Zombie.BABY), "allay 16번은 dancing(boolean)");
+        assertFalse(EntityData767.has("minecraft:block_display", EntityDataKeys.Mob.MOB_FLAGS), "block_display 15번은 billboard(byte)");
+        assertFalse(EntityData767.has("minecraft:arrow", EntityDataKeys.LivingEntity.LIVING_ENTITY_FLAGS), "arrow 8번은 AbstractArrow.flags");
+        assertTrue(EntityData767.has("minecraft:minecart", EntityDataKeys.VehicleEntity.HURT));
+        assertTrue(EntityData767.has("minecraft:chest_boat", EntityDataKeys.VehicleEntity.DAMAGE));
+        assertTrue(EntityData767.has("minecraft:player", EntityDataKeys.Player.MODE_CUSTOMISATION));
+    }
+
+    /** 주인 부류 표(바닐라 계층)와 배치 표·키 표가 서로 맞는가: 종류마다 칸 하나에 키 하나, 번호·값 종류 일치. */
+    @Test
+    void ownersTableAgreesWithLayoutsAndKeys() {
+        Map<String, List<EntityDataKey<?>>> byOwner = new LinkedHashMap<>();
+        for (EntityDataKey<?> k : EntityDataKeys.all()) byOwner.computeIfAbsent(k.owner(), x -> new ArrayList<>()).add(k);
+        Set<String> usedOwners = new HashSet<>();
+        int types = 0;
+        for (String type : ItemContext.regs().names("minecraft:entity_type").stream().map(Object::toString).toList()) {
+            var l = EntityData767.layout(type);
+            var owners = EntityData767.owners(type);
+            assertEquals(l == null, owners == null, type + ": 배치 표와 주인 표 둘 다 있거나 둘 다 없어야 한다");
+            if (l == null) continue;
+            types++;
+            EntityDataKey<?>[] slots = new EntityDataKey<?>[l.length];
+            for (String o : owners) {
+                assertTrue(byOwner.containsKey(o), type + ": 키가 없는 주인 부류 " + o);
+                usedOwners.add(o);
+                for (EntityDataKey<?> k : byOwner.get(o)) {
+                    int i = k.index().orElseThrow();
+                    assertTrue(i < l.length, type + ": " + k + " 번호가 배치 밖");
+                    assertSame(l[i], k.type(), type + ": " + k + " 값 종류");
+                    assertNull(slots[i], type + ": 칸 " + i + " 에 키가 둘 — " + slots[i] + ", " + k);
+                    slots[i] = k;
+                    assertTrue(EntityData767.has(type, k));
+                }
+            }
+            for (int i = 0; i < l.length; i++) assertNotNull(slots[i], type + ": 칸 " + i + " 에 키가 없다");
+            for (EntityDataKey<?> k : EntityDataKeys.all()) {
+                int i = k.index().orElseThrow();
+                if (i >= l.length || slots[i] != k) assertFalse(EntityData767.has(type, k), type + " 에 " + k);
+            }
+        }
+        assertEquals(130, types, "엔티티 종류 130개(플레이어 포함)");
+        assertEquals(byOwner.keySet(), usedOwners, "쓰이지 않는 주인 부류가 없다");
+    }
+
+    /** 값 하나를 못 읽어도 패킷은 남는다 — 그 칸을 Unsupported 로 두고 멈춘다(리스너가 관찰·취소할 수 있게). */
+    @Test
+    void unreadableValueLeavesObservablePacket() {
+        for (int[] bad : new int[][] {{19, 22, 999}, {8, 26, 0}, {22, 23, 0}, {19, 22, -5}}) {   // 범위 밖 고양이, 직접 정의 그림·늑대, 음수
+            ByteBuf b = Unpooled.buffer();
+            org.domi.furnace.server.net.io.Types.writeVarInt(b, 7);
+            b.writeByte(0); org.domi.furnace.server.net.io.Types.writeVarInt(b, 0); b.writeByte(0x40);
+            b.writeByte(bad[0]); org.domi.furnace.server.net.io.Types.writeVarInt(b, bad[1]); org.domi.furnace.server.net.io.Types.writeVarInt(b, bad[2]);
+            b.writeByte(3); org.domi.furnace.server.net.io.Types.writeVarInt(b, 8); b.writeBoolean(true);
+            b.writeByte(0xFF);
+            var p = assertDoesNotThrow(() -> (ClientboundSetEntityDataPacket) codec.decode(PacketTypes.Clientbound.SET_ENTITY_DATA, SetEntityData.ID, b));
+            assertTrue(p.hasUnsupported());
+            assertEquals(2, p.entries().size(), "못 읽은 칸에서 멈춘다");
+            assertEquals(new ClientboundSetEntityDataPacket.Unsupported(bad[1]), p.entries().get(1).value());
+            assertEquals(Optional.of((byte) 0x40), p.get(EntityDataKeys.Entity.SHARED_FLAGS));
+        }
+    }
+
+    /** 칸 번호 표는 한 번만 걸린다 — 플러그인 하나가 바꿔 모든 플러그인의 칸 번호를 틀어지게 할 수 없다. */
+    @Test
+    void indexResolverCannotBeReplaced() {
+        assertEquals(OptionalInt.of(12), EntityDataKeys.Display.SCALE.index());
+        assertThrows(IllegalStateException.class, () -> EntityDataKey.installIndexResolver(k -> OptionalInt.of(0)));
+        assertEquals(OptionalInt.of(12), EntityDataKeys.Display.SCALE.index(), "거부된 뒤에도 그대로");
     }
 }

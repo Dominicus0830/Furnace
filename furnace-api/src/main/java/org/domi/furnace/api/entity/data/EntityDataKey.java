@@ -28,19 +28,24 @@ public final class EntityDataKey<T> {
 
     /**
      * 실행 중인 서버 버전에서의 칸 번호(이 버전에 없는 칸이면 empty). 번호는 버전마다 다르므로 저장하거나 상수로 쓰지 않는다.
-     * 서버가 준비되기 전이면 IllegalStateException.
+     * 서버가 칸 표를 걸기 전이면 IllegalStateException — 서버 없이 도는 플러그인 단위 시험에서는 index()·패킷 builder().set·get·with 를 쓸 수 없다.
      */
     public java.util.OptionalInt index() {
-        java.util.function.Function<EntityDataKey<?>, java.util.OptionalInt> r = resolver;
+        java.util.function.Function<EntityDataKey<?>, java.util.OptionalInt> r = RESOLVER.get();
         if (r == null) throw new IllegalStateException("서버가 아직 메타데이터 칸 표를 걸지 않았다");
         return r.apply(this);
     }
 
-    private static volatile java.util.function.Function<EntityDataKey<?>, java.util.OptionalInt> resolver;
+    private static final java.util.concurrent.atomic.AtomicReference<java.util.function.Function<EntityDataKey<?>, java.util.OptionalInt>> RESOLVER =
+            new java.util.concurrent.atomic.AtomicReference<>();
 
-    /** 서버 구현 전용 — 실행 중인 버전의 칸 번호 표를 건다. */
+    /**
+     * 서버 구현 전용 — 실행 중인 버전의 칸 번호 표를 건다. 한 번만 걸 수 있다(두 번째는 IllegalStateException):
+     * 표는 모든 플러그인이 같이 쓰므로 뒤에서 바꾸면 다른 플러그인의 칸 번호가 틀어진다.
+     */
     public static void installIndexResolver(java.util.function.Function<EntityDataKey<?>, java.util.OptionalInt> r) {
-        resolver = java.util.Objects.requireNonNull(r, "resolver");
+        java.util.Objects.requireNonNull(r, "resolver");
+        if (!RESOLVER.compareAndSet(null, r)) throw new IllegalStateException("메타데이터 칸 표는 이미 걸려 있다");
     }
 
     /** "Display.scale". */

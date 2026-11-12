@@ -112,10 +112,14 @@ public record ClientboundSetEntityDataPacket(int entityId, List<Entry> entries) 
         @Override public Object asObject() { return Pose.byId(pose); }
     }
 
-    /** 위 9종 밖의 값(아이템·블록 상태·벡터·쿼터니언·입자·NBT …). Value.of 로 만든다. */
+    /** 위 9종 밖의 값(아이템·블록 상태·벡터·쿼터니언·입자·NBT …). Value.of 로 만든다. 위 9종의 값 종류는 받지 않는다(같은 값이 두 꼴이 되지 않게). */
     public record Typed<T>(EntityDataType<T> type, T value) implements Value {
         public Typed {
             Objects.requireNonNull(type, "type");
+            if (type == EntityDataType.BYTE || type == EntityDataType.INT || type == EntityDataType.LONG || type == EntityDataType.FLOAT
+                    || type == EntityDataType.BOOLEAN || type == EntityDataType.STRING || type == EntityDataType.COMPONENT
+                    || type == EntityDataType.OPTIONAL_COMPONENT || type == EntityDataType.POSE)
+                throw new IllegalArgumentException(type + " 는 전용 값(ByteValue …)으로 만든다 — Value.of 를 쓸 것");
             value = type.check(value);
         }
         @Override public EntityDataType<?> dataType() { return type; }

@@ -17,9 +17,9 @@ final class EntityDataOwners767 {
         OWNERS.put("AbstractChestedHorse.chest", List.of("org.domi.furnace.server.entity.AbstractChestedHorse"));
         OWNERS.put("AbstractFish.from_bucket", List.of("org.domi.furnace.server.entity.AbstractFish"));
         OWNERS.put("AbstractHorse.flags", List.of("org.domi.furnace.server.entity.AbstractHorse"));
-        OWNERS.put("AbstractMinecart.hurt", List.of("org.domi.furnace.server.entity.AbstractMinecart"));
-        OWNERS.put("AbstractMinecart.hurtdir", List.of("org.domi.furnace.server.entity.AbstractMinecart"));
-        OWNERS.put("AbstractMinecart.damage", List.of("org.domi.furnace.server.entity.AbstractMinecart"));
+        OWNERS.put("VehicleEntity.hurt", List.of("org.domi.furnace.server.entity.AbstractMinecart", "org.domi.furnace.server.entity.Boat"));
+        OWNERS.put("VehicleEntity.hurtdir", List.of("org.domi.furnace.server.entity.AbstractMinecart", "org.domi.furnace.server.entity.Boat"));
+        OWNERS.put("VehicleEntity.damage", List.of("org.domi.furnace.server.entity.AbstractMinecart", "org.domi.furnace.server.entity.Boat"));
         OWNERS.put("AbstractMinecart.display_block", List.of("org.domi.furnace.server.entity.AbstractMinecart"));
         OWNERS.put("AbstractMinecart.display_offset", List.of("org.domi.furnace.server.entity.AbstractMinecart"));
         OWNERS.put("AbstractMinecart.custom_display", List.of("org.domi.furnace.server.entity.AbstractMinecart"));
@@ -40,9 +40,6 @@ final class EntityDataOwners767 {
         OWNERS.put("Bee.flags", List.of("org.domi.furnace.server.entity.Bee"));
         OWNERS.put("Bee.remaining_anger_time", List.of("org.domi.furnace.server.entity.Bee"));
         OWNERS.put("Blaze.flags", List.of("org.domi.furnace.server.entity.Blaze"));
-        OWNERS.put("Boat.hurt", List.of("org.domi.furnace.server.entity.Boat"));
-        OWNERS.put("Boat.hurtdir", List.of("org.domi.furnace.server.entity.Boat"));
-        OWNERS.put("Boat.damage", List.of("org.domi.furnace.server.entity.Boat"));
         OWNERS.put("Boat.type", List.of("org.domi.furnace.server.entity.Boat"));
         OWNERS.put("Boat.paddle_left", List.of("org.domi.furnace.server.entity.Boat"));
         OWNERS.put("Boat.paddle_right", List.of("org.domi.furnace.server.entity.Boat"));

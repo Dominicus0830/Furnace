@@ -20,9 +20,9 @@ final class EntityDataIndex767 {
         m.put(EntityDataKeys.AbstractChestedHorse.CHEST, 18);
         m.put(EntityDataKeys.AbstractFish.FROM_BUCKET, 16);
         m.put(EntityDataKeys.AbstractHorse.FLAGS, 17);
-        m.put(EntityDataKeys.AbstractMinecart.HURT, 8);
-        m.put(EntityDataKeys.AbstractMinecart.HURTDIR, 9);
-        m.put(EntityDataKeys.AbstractMinecart.DAMAGE, 10);
+        m.put(EntityDataKeys.VehicleEntity.HURT, 8);
+        m.put(EntityDataKeys.VehicleEntity.HURTDIR, 9);
+        m.put(EntityDataKeys.VehicleEntity.DAMAGE, 10);
         m.put(EntityDataKeys.AbstractMinecart.DISPLAY_BLOCK, 11);
         m.put(EntityDataKeys.AbstractMinecart.DISPLAY_OFFSET, 12);
         m.put(EntityDataKeys.AbstractMinecart.CUSTOM_DISPLAY, 13);
@@ -43,9 +43,6 @@ final class EntityDataIndex767 {
         m.put(EntityDataKeys.Bee.FLAGS, 17);
         m.put(EntityDataKeys.Bee.REMAINING_ANGER_TIME, 18);
         m.put(EntityDataKeys.Blaze.FLAGS, 16);
-        m.put(EntityDataKeys.Boat.HURT, 8);
-        m.put(EntityDataKeys.Boat.HURTDIR, 9);
-        m.put(EntityDataKeys.Boat.DAMAGE, 10);
         m.put(EntityDataKeys.Boat.TYPE, 11);
         m.put(EntityDataKeys.Boat.PADDLE_LEFT, 12);
         m.put(EntityDataKeys.Boat.PADDLE_RIGHT, 13);

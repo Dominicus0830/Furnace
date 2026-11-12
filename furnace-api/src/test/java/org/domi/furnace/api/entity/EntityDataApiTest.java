@@ -30,7 +30,7 @@ class EntityDataApiTest {
             assertSame(k, EntityDataKeys.byId(k.id()));
             assertEquals(k.name(), k.name().toLowerCase(java.util.Locale.ROOT));
         }
-        assertEquals(210, ids.size());
+        assertEquals(207, ids.size());
         assertSame(EntityDataType.VECTOR3, EntityDataKeys.Display.SCALE.type());
         assertEquals("Display.scale", EntityDataKeys.Display.SCALE.id());
         assertNull(EntityDataKeys.byId("Display.nope"));
@@ -64,5 +64,14 @@ class EntityDataApiTest {
         var d = (Particle.Dust) Particle.dust(0xFF0000, 9f);
         assertEquals(1f, d.red());
         assertEquals(4f, d.scale(), "크기는 바닐라처럼 4 로 죈다");
+    }
+
+    @Test
+    void typedRejectsLegacyKindsAndAirIsEmpty() {
+        assertThrows(IllegalArgumentException.class, () -> new org.domi.furnace.api.packet.clientbound.ClientboundSetEntityDataPacket.Typed<>(EntityDataType.BYTE, (byte) 1),
+                "예전 9종은 전용 값으로만(equals 가 어긋나지 않게)");
+        assertEquals(Value.ofByte(1), Value.of(EntityDataType.BYTE, (byte) 1));
+        assertEquals(Optional.empty(), Value.of(EntityDataType.OPTIONAL_BLOCK_STATE, Optional.of(BlockData.AIR)).asObject(), "공기는 와이어에서 없음과 같다");
+        assertEquals(Optional.of(BlockData.of("minecraft:cave_air")), Value.of(EntityDataType.OPTIONAL_BLOCK_STATE, Optional.of(BlockData.of("minecraft:cave_air"))).asObject());
     }
 }

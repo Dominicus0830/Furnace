@@ -457,8 +457,13 @@ public final class Protocol767 implements ProtocolCodec {
             int index = b.readUnsignedByte();
             if (index == 0xFF) break;
             int ser = Types.readVarInt(b);
-            ClientboundSetEntityDataPacket.Value v = ser == 21 ? ClientboundSetEntityDataPacket.Value.ofPose(Types.readVarInt(b)) : entityData.read(ser, b);
-            if (v == null) {   // 이 버전이 모르는 종류 — 길이를 알 수 없어 여기서 멈춘다
+            ClientboundSetEntityDataPacket.Value v;
+            try {
+                v = ser == 21 ? ClientboundSetEntityDataPacket.Value.ofPose(Types.readVarInt(b)) : entityData.read(ser, b);
+            } catch (RuntimeException ex) {
+                v = null;   // 값을 읽거나 이름으로 바꾸지 못함(범위 밖 번호, 직접 정의 등) — 패킷 전체를 버리지 않고 여기서 멈춘다(리스너는 관찰·취소 가능)
+            }
+            if (v == null) {   // 이 버전이 모르는 종류이거나 읽지 못한 값 — 남은 길이를 믿을 수 없어 여기서 멈춘다
                 out.add(new ClientboundSetEntityDataPacket.Entry(index, new ClientboundSetEntityDataPacket.Unsupported(ser)));
                 b.skipBytes(b.readableBytes());
                 break;

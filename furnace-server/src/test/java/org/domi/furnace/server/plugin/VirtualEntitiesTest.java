@@ -240,6 +240,25 @@ class VirtualEntitiesTest {
         assertEquals(java.util.Optional.of(new org.domi.furnace.api.math.Vector3f(2, 2, 2)), lateData.get(org.domi.furnace.api.entity.data.EntityDataKeys.Display.SCALE));
     }
 
+    /** 보낼 수 없는 값은 set 에서 바로 거부하고 저장하지 않는다 — 쌓아 두면 나중에 보는 사람이 이름표까지 잃는다. 다른 부류의 칸도 거부. */
+    @Test
+    void unencodableValueAndForeignOwnerKeyAreRejectedAtSet() {
+        VirtualEntity cat = host.virtualEntities().spawn(a, "cat", new Location(WORLD, 1, 64, 1));
+        cat.setCustomName(Text.text("나비"));
+        assertThrows(IllegalArgumentException.class, () -> cat.set(org.domi.furnace.api.entity.data.EntityDataKeys.Cat.VARIANT, "minecraft:nope"));
+        assertThrows(IllegalArgumentException.class, () -> cat.setMetadata(19,
+                ClientboundSetEntityDataPacket.Value.of(org.domi.furnace.api.entity.data.EntityDataType.CAT_VARIANT, "minecraft:nope")));
+        VirtualEntity box = host.virtualEntities().spawn(a, "interaction", new Location(WORLD, 2, 64, 1));
+        assertThrows(IllegalArgumentException.class, () -> box.set(org.domi.furnace.api.entity.data.EntityDataKeys.LivingEntity.HEALTH, 5f),
+                "interaction 9번은 height — 번호·값 종류가 맞아도 살아 있는 엔티티가 아니다");
+        Player late = online("Late", 0, 0);
+        track();
+        var data = sent(late).stream().filter(x -> x instanceof ClientboundSetEntityDataPacket d && d.entityId() == cat.entityId())
+                .map(x -> (ClientboundSetEntityDataPacket) x).findFirst();
+        assertTrue(data.isPresent(), "새로 보는 사람에게 메타데이터 묶음이 간다");
+        assertEquals(java.util.Optional.of(java.util.Optional.of(Text.text("나비"))), data.flatMap(d -> d.get(org.domi.furnace.api.entity.data.EntityDataKeys.Entity.CUSTOM_NAME)));
+    }
+
     @Test
     void unknownEntityTypeAndBadNameAreRejected() {
         assertThrows(IllegalArgumentException.class, () -> host.virtualEntities().spawn(a, "nope:thing", new Location(WORLD, 0, 0, 0)));

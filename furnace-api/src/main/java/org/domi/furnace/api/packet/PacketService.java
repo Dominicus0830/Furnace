@@ -64,7 +64,8 @@ public interface PacketService {
     java.util.OptionalInt entityDataIndex(org.domi.furnace.api.entity.data.EntityDataKey<?> key);
 
     /**
-     * 그 엔티티 종류("minecraft:text_display")에 이 칸이 있는가(같은 번호·같은 값 종류). 없는 칸을 보내면 클라이언트가 연결을 끊으므로
+     * 그 엔티티 종류("minecraft:text_display")에 이 칸이 있는가 — 칸의 주인 부류(key.owner())가 그 종류의 바닐라 계층에 있고 번호·값 종류가 맞을 때.
+     * 예) interaction 에 LivingEntity.HEALTH 는 false(9번이 height 라 번호·종류는 맞지만 살아 있는 엔티티가 아니다). 없는 칸을 보내면 클라이언트가 연결을 끊으므로
      * 숫자 칸으로 직접 패킷을 만들 때 확인용. 이 서버가 모르는 종류면 false.
      */
     boolean hasEntityData(String entityType, org.domi.furnace.api.entity.data.EntityDataKey<?> key);

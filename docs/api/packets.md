@@ -75,13 +75,22 @@ packets.listen(this, PacketTypes.Clientbound.SET_ENTITY_DATA, e -> e.packet().ge
         e.setPacket(e.packet().with(EntityDataKeys.Entity.SHARED_FLAGS, EntityFlags.set(f, EntityFlags.GLOWING, true)))));
 ```
 
-- 키 210개 = 바닐라 1.21.1 `SynchedEntityData` 정의 전부. 부류·칸 이름은 Mojang 이름(클래스 이름, 필드 이름에서 `DATA_`·`_ID` 를 뺀 것): `Entity.SHARED_FLAGS`, `LivingEntity.HEALTH`, `Display.SCALE`, `ItemDisplay.ITEM_STACK`, `ArmorStand.HEAD_POSE`, `Player.MODE_CUSTOMISATION` …. `EntityDataKeys.byId("Display.scale")` 로도 찾는다.
+- 키 207개 = 바닐라 1.21.1 `SynchedEntityData` 정의 전부. 부류·칸 이름은 Mojang 이름(클래스 이름, 필드 이름에서 `DATA_`·`_ID` 를 뺀 것): `Entity.SHARED_FLAGS`, `LivingEntity.HEALTH`, `Display.SCALE`, `ItemDisplay.ITEM_STACK`, `ArmorStand.HEAD_POSE`, `Player.MODE_CUSTOMISATION` …. `EntityDataKeys.byId("Display.scale")` 로도 찾는다.
 - 값 종류 31개(`EntityDataType`) 전부 읽고 쓴다. 자바 값: 아이템 `ItemStack`, 블록 상태 `BlockData`, 벡터 `Vector3f`·`Quaternionf`·`Rotations`(`api.math`), 입자 `Particle`(`api.particle`), NBT `NbtCompound`, 주민 `VillagerData`, 옵션 칸은 `Optional`/`OptionalInt`, 고양이·늑대·개구리·그림 종류는 이름 문자열, 스니퍼·아르마딜로 상태는 소문자 상태 이름.
 - `get(key)` 은 그 번호에 **같은 값 종류**가 있을 때만 값을 준다(다른 부류의 같은 번호 칸은 empty). `with(key, v)` 는 바꾸거나 더한 새 패킷, `without(key)` 은 뺀 새 패킷.
-- 그 엔티티 종류에 칸이 있는지: `packets.hasEntityData("minecraft:zombie", EntityDataKeys.TextDisplay.TEXT)` → false. 없는 칸을 보내면 클라이언트가 연결을 끊으므로, `VirtualEntity.set(key, v)` 는 이것으로 먼저 막는다.
+- 그 엔티티 종류에 칸이 있는지: `packets.hasEntityData("minecraft:zombie", EntityDataKeys.TextDisplay.TEXT)` → false. 칸의 주인 부류(`key.owner()`)가 그 종류의 바닐라 계층에 있어야 한다 — `interaction` 에 `LivingEntity.HEALTH` 는 번호·값 종류가 우연히 맞아도 false. 없는 칸을 보내면 클라이언트가 연결을 끊으므로, `VirtualEntity.set(key, v)` 는 이것으로 먼저 막는다. 보낼 수 없는 값(없는 고양이 종류 이름 등)도 `set` 에서 바로 `IllegalArgumentException` 이다.
+- 서버 없이 도는 플러그인 단위 시험에서는 칸 번호 표가 없어 `key.index()`·`builder().set`·`get`·`with` 가 `IllegalStateException` 을 낸다(표는 서버가 한 번만 건다).
+- `optional_block_state` 에 공기를 넣으면 `Optional.empty()` 로 바뀐다(바닐라 와이어에서 공기와 없음이 같은 0).
+- 가로챈 패킷에서 값 하나를 못 읽으면(이 버전이 모르는 직렬화 번호, 범위 밖 종류 번호, 직접 정의된 그림·늑대 종류) 그 칸을 `Unsupported` 로 남기고 멈춘다. 그런 패킷은 관찰·취소만 되고 다시 보낼 수 없다(`hasUnsupported()`).
 - 숫자 칸(`entry(int, Value)`, `VirtualEntity.setMetadata`)은 그대로 쓸 수 있다 — 번호는 버전마다 다르다. `Value.of(EntityDataType, 값)` 으로 모든 종류의 값을 만들 수 있다.
 - 공통 상태 비트는 `EntityFlags`(`ON_FIRE`·`CROUCHING`·`SPRINTING`·`SWIMMING`·`INVISIBLE`·`GLOWING`·`FALL_FLYING`).
-- 표의 근거: 칸 번호(`EntityDataIndex767`)와 종류별 칸 배치(`resources/entity_data/layouts-1.21.1.txt`)는 서버 엔티티 정의에서 만들었고, `EntityDataKeysTest` 가 엔티티 종류 130개를 만들어 하나하나 대조한다. 같은 값을 서버 자신의 `SetEntityData` 와 같은 바이트로 쓰는지도 시험한다.
+- 표의 근거: 칸 번호(`EntityDataIndex767`)와 종류별 칸 배치(`resources/entity_data/layouts-1.21.1.txt`)는 서버 엔티티 정의에서 만들었고, `EntityDataKeysTest` 가 엔티티 종류 130개를 만들어 하나하나 대조한다. 같은 값을 서버 자신의 `SetEntityData` 와 같은 바이트로 쓰는지도 시험한다. 배치·번호·값 종류·주인 부류(`resources/entity_data/owners-1.21.1.txt`)는 바닐라 1.21.1 서버 jar 바이트코드와도 대조했다(2026-11-12 독립 검토, 130/130).
+
+### 예전 코드에서 바뀐 점 (E1)
+
+- `Value` 는 sealed 인데 허용 하위 타입에 `Typed`(아이템·블록 상태·벡터·입자·NBT …)가 늘었다. `Value` 를 `switch` 로 나눌 때는 **`default` 를 둔다** — 없으면 소스는 컴파일되지 않고, 예전에 컴파일한 jar 는 `Typed` 를 만나면 `MatchException` 이 난다.
+- 예전에 `Unsupported` 로 오던 아이템·입자·블록 상태 칸이 이제 `Typed` 로 온다. 그래서 그런 패킷의 `hasUnsupported()` 가 false 가 되고, 디코드가 그 자리에서 멈추지 않아 뒤 칸까지 들어온다.
+- 예전 레코드 9종(`ByteValue` … `PoseValue`)과 `ofXxx` 팩토리는 그대로다. `Typed` 는 이 9종의 값 종류를 받지 않는다(`Value.of` 를 쓴다).
 
 ## 스레드와 순서
 
