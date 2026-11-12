@@ -74,6 +74,15 @@ final class GenericHand767 {
             case "c:set_objective" -> setObjective(c, d);
             case "c:set_equipment" -> setEquipment(c, d);
             case "c:section_blocks_update" -> sectionBlocks(c);
+            case "c:boss_event" -> bossEvent();
+            case "c:set_player_team" -> setPlayerTeam();
+            case "c:update_attributes" -> new Seq()   // 와이어가 필드 나열 그대로다(custom 표시는 접근자 이름 때문)
+                    .f("entity_id", VARINT).f("attributes", GenericCodec767.list(GenericCodec767.structNode(GenericCodec767.shape(
+                            List.of("attribute", "base", "modifiers"),
+                            List.of(GenericCodec767.registryId("minecraft:attribute"), F64, GenericCodec767.list(ATTRIBUTE_MODIFIER, false)), null)), false))
+                    .build();
+            case "c:map_item_data" -> mapItemData();
+            case "c:award_stats" -> new Seq().f("stats", STATS).build();
             case "c:damage_event" -> new Seq()       // 원인·직접 원인 번호는 id + 1(0 = 없음 = 필드 값 -1)
                     .f("entity_id", VARINT).f("source_type", GenericCodec767.registryId("minecraft:damage_type"))
                     .f("source_cause_id", PLUS_ONE).f("source_direct_id", PLUS_ONE)
@@ -369,5 +378,351 @@ final class GenericHand767 {
     private static String constantAt(List<String> constants, int i) {
         if (i < 0 || i >= constants.size()) throw new IllegalArgumentException("범위 밖 서수: " + i);
         return constants.get(i);
+    }
+
+    // ------------------------------------------------------------------ E4b-2: 값 와이어
+
+    private static Node string(int max) {
+        return node(String.class, b -> Types.readString(b, max), (o, v) -> {
+            String str = (String) v;
+            if (str.length() > max) throw new IllegalArgumentException(max + "자를 넘는다(" + str.length() + ")");
+            Types.writeString(o, str);
+        });
+    }
+
+    /** 고정 길이 바이트(앞에 길이 없음). */
+    private static Node fixedBytes(int n) {
+        return node(byte[].class, b -> {
+            byte[] a = new byte[n];
+            b.readBytes(a);
+            return a;
+        }, (o, v) -> {
+            byte[] a = (byte[]) v;
+            if (a.length != n) throw new IllegalArgumentException(n + "바이트여야 한다: " + a.length);
+            o.writeBytes(a);
+        });
+    }
+
+    /** varint 길이 + 바이트, 길이 상한(바닐라 readByteArray(max)). */
+    private static Node bytes(int max) {
+        return node(byte[].class, b -> {
+            int n = Types.readVarInt(b);
+            if (n < 0 || n > max || n > b.readableBytes()) throw new IllegalArgumentException("바이트 길이 오류: " + n + " (상한 " + max + ")");
+            byte[] a = new byte[n];
+            b.readBytes(a);
+            return a;
+        }, (o, v) -> {
+            byte[] a = (byte[]) v;
+            if (a.length > max) throw new IllegalArgumentException(max + "바이트를 넘는다(" + a.length + ")");
+            Types.writeVarInt(o, a.length);
+            o.writeBytes(a);
+        });
+    }
+
+    private static Node struct(List<String> names, List<Node> nodes) {
+        return GenericCodec767.structNode(GenericCodec767.shape(names, nodes, null));
+    }
+
+    /** 목록 + 원소 수 상한. */
+    private static Node limitedList(Node elem, int max) {
+        Node l = GenericCodec767.list(elem, false);
+        return node(List.class, b -> {
+            int n = Types.readVarInt(b.duplicate());
+            if (n > max) throw new IllegalArgumentException("원소가 너무 많다: " + n + " > " + max);
+            return l.read(b);
+        }, (o, v) -> {
+            if (((List<?>) v).size() > max) throw new IllegalArgumentException("원소가 너무 많다: " + ((List<?>) v).size() + " > " + max);
+            l.write(o, v);
+        });
+    }
+
+    /** 등록된 것만(번호 + 1). 0 = 직접 정의는 아직 읽지 않는다(바닐라 holder(레지스트리, 직접 코덱)). */
+    private static Node registeredPlusOne(String registry) {
+        return node(String.class, b -> {
+            int v = Types.readVarInt(b);
+            if (v == 0) throw new IllegalArgumentException(registry + " 직접 정의는 아직 읽지 않는다");
+            return GenericCodec767.registryName(registry, v - 1);
+        }, (o, v) -> Types.writeVarInt(o, GenericCodec767.registryNumber(registry, (String) v) + 1));
+    }
+
+    /** MessageSignature.Packed: {id, full_signature} — 와이어 varint id + 1, 0 이면 256바이트 서명 전체(id = -1). */
+    static final Node MESSAGE_SIGNATURE_PACKED = node(PacketStruct.class, b -> {
+        int id = Types.readVarInt(b) - 1;
+        LinkedHashMap<String, Object> m = new LinkedHashMap<>();
+        m.put("id", id);
+        m.put("full_signature", id == -1 ? Optional.of(fixedBytes(256).read(b)) : Optional.empty());
+        return PacketStruct.of(m);
+    }, (o, v) -> {
+        PacketStruct s = (PacketStruct) v;
+        if (!s.names().equals(List.of("id", "full_signature")) || !(s.asMap().get("id") instanceof Integer id)
+                || !(s.asMap().get("full_signature") instanceof Optional<?> sig)) {
+            throw new IllegalArgumentException("서명은 {id: Integer, full_signature: Optional<byte[]>} 이어야 한다: " + s);
+        }
+        if (id < -1) throw new IllegalArgumentException("id 는 -1(서명 전체) 이상: " + id);
+        if ((id == -1) != sig.isPresent()) throw new IllegalArgumentException("full_signature 는 id 가 -1 일 때만 있어야 한다: " + s);
+        Types.writeVarInt(o, id + 1);
+        if (sig.isPresent()) {
+            if (!(sig.get() instanceof byte[] a)) throw new IllegalArgumentException("full_signature 는 byte[] 이어야 한다");
+            fixedBytes(256).write(o, a);
+        }
+    });
+
+    /** ChatType.Bound: 채팅 종류(등록된 것, 번호 + 1), 이름, 대상 이름(선택). */
+    static final Node CHAT_TYPE_BOUND = struct(List.of("chat_type", "name", "target_name"),
+            List.of(registeredPlusOne("minecraft:chat_type"), TEXT, GenericCodec767.optional(TEXT, false)));
+
+    /** MapDecoration: 종류(map_decoration_type 번호), x·y(i8), 방향(i8, 0~15), 이름(선택). */
+    static final Node MAP_DECORATION = struct(List.of("type", "x", "y", "rot", "name"),
+            List.of(GenericCodec767.registryId("minecraft:map_decoration_type"), I8, I8, I8, GenericCodec767.optional(TEXT, false)));
+
+    /** RSA 공개 키(X.509, 바닐라 readPublicKey = readByteArray(512) 후 해석 — 해석이 안 되면 바닐라 디코드 실패). 읽기·쓰기 둘 다 해석해 본다. */
+    private static final Node PUBLIC_KEY = node(byte[].class, b -> checkRsaKey((byte[]) bytes(512).read(b)), (o, v) -> bytes(512).write(o, checkRsaKey((byte[]) v)));
+
+    private static byte[] checkRsaKey(byte[] a) {
+        try {
+            java.security.KeyFactory.getInstance("RSA").generatePublic(new java.security.spec.X509EncodedKeySpec(a));
+        } catch (java.security.GeneralSecurityException e) {
+            throw new IllegalArgumentException("RSA 공개 키(X.509)가 아니다: " + e.getMessage());
+        }
+        return a;
+    }
+
+    /** RemoteChatSession.Data: {session_id, profile_public_key {expires_at(epoch ms), key, key_signature(4096바이트까지)}}. */
+    static final Node CHAT_SESSION = struct(List.of("session_id", "profile_public_key"), List.of(GenericCodec767.UUID_NODE,
+            struct(List.of("expires_at", "key", "key_signature"), List.of(I64, PUBLIC_KEY, bytes(4096)))));
+
+    /** AttributeModifier: {id, amount, operation}. operation 번호는 서수(ADD_VALUE·ADD_MULTIPLIED_BASE·ADD_MULTIPLIED_TOTAL). */
+    static final Node ATTRIBUTE_MODIFIER = struct(List.of("id", "amount", "operation"), List.of(IDENTIFIER, F64,
+            GenericCodec767.enumNode("AttributeModifier$Operation", List.of("ADD_VALUE", "ADD_MULTIPLIED_BASE", "ADD_MULTIPLIED_TOTAL"), "varint")));
+
+    /** ArgumentSignatures: 8개까지 {name(16자), signature(256바이트)}. */
+    static final Node ARGUMENT_SIGNATURES = limitedList(struct(List.of("name", "signature"), List.of(string(16), fixedBytes(256))), 8);
+
+    /** LastSeenMessages.Update: {offset, acknowledged} — acknowledged 는 고정 20비트 집합(3바이트, 비트 i = 최근 i 번째)을 정수 마스크로. */
+    static final Node LAST_SEEN_UPDATE = node(PacketStruct.class, b -> {
+        LinkedHashMap<String, Object> m = new LinkedHashMap<>();
+        m.put("offset", Types.readVarInt(b));
+        m.put("acknowledged", b.readUnsignedByte() | b.readUnsignedByte() << 8 | b.readUnsignedByte() << 16);
+        return PacketStruct.of(m);
+    }, (o, v) -> {
+        PacketStruct s = (PacketStruct) v;
+        if (!s.names().equals(List.of("offset", "acknowledged")) || !(s.asMap().get("offset") instanceof Integer off)
+                || !(s.asMap().get("acknowledged") instanceof Integer mask)) {
+            throw new IllegalArgumentException("{offset: Integer, acknowledged: Integer} 이어야 한다: " + s);
+        }
+        if (mask < 0 || mask > 0xFFFFF) throw new IllegalArgumentException("acknowledged 는 20비트(0~0xFFFFF): " + mask);
+        Types.writeVarInt(o, off);
+        o.writeByte(mask);
+        o.writeByte(mask >> 8);
+        o.writeByte(mask >> 16);
+    });
+
+    /** ServerLinks.KnownLinkType(번호 = 서수, 바이트코드 확인). */
+    private static final List<String> KNOWN_LINKS = List.of("BUG_REPORT", "COMMUNITY_GUIDELINES", "SUPPORT", "STATUS", "FEEDBACK", "COMMUNITY",
+            "WEBSITE", "FORUMS", "NEWS", "ANNOUNCEMENTS");
+    private static final Node KNOWN_LINK = GenericCodec767.enumNode("ServerLinks$KnownLinkType", KNOWN_LINKS, "varint");
+
+    /** ServerLinks.UntrustedEntry: {known_type, label, url} — 알려진 종류(Either 왼쪽)나 글 이름(오른쪽) 가운데 하나만. */
+    static final Node SERVER_LINK = node(PacketStruct.class, b -> {
+        LinkedHashMap<String, Object> m = new LinkedHashMap<>();
+        boolean known = b.readBoolean();
+        m.put("known_type", known ? Optional.of(KNOWN_LINK.read(b)) : Optional.empty());
+        m.put("label", known ? Optional.empty() : Optional.of(TEXT.read(b)));
+        m.put("url", STRING.read(b));
+        return PacketStruct.of(m);
+    }, (o, v) -> {
+        PacketStruct s = (PacketStruct) v;
+        if (!s.names().equals(List.of("known_type", "label", "url")) || !(s.asMap().get("known_type") instanceof Optional<?> k)
+                || !(s.asMap().get("label") instanceof Optional<?> l) || !(s.asMap().get("url") instanceof String url)) {
+            throw new IllegalArgumentException("링크는 {known_type: Optional<String>, label: Optional<Text>, url: String} 이어야 한다: " + s);
+        }
+        if (k.isPresent() == l.isPresent()) throw new IllegalArgumentException("known_type 과 label 가운데 하나만 있어야 한다: " + s);
+        o.writeBoolean(k.isPresent());
+        if (k.isPresent()) KNOWN_LINK.write(o, k.get());
+        else if (l.get() instanceof org.domi.furnace.api.text.Text t) TEXT.write(o, t);
+        else throw new IllegalArgumentException("label 은 Text 이어야 한다: " + l.get());
+        STRING.write(o, url);
+    });
+
+    /** custom_report_details 의 Map&lt;String,String&gt; — 이름이 키인 PacketStruct(값 String). 바닐라 상한: 32개, 키 128자, 값 4096자. */
+    static final Node REPORT_DETAILS = node(PacketStruct.class, b -> {
+        int n = Types.readVarInt(b);
+        if (n < 0 || n > 32) throw new IllegalArgumentException("항목이 너무 많다: " + n + " > 32");
+        LinkedHashMap<String, Object> m = new LinkedHashMap<>();
+        for (int i = 0; i < n; i++) m.put(Types.readString(b, 128), Types.readString(b, 4096));
+        return PacketStruct.of(m);
+    }, (o, v) -> {
+        Map<String, Object> m = ((PacketStruct) v).asMap();
+        if (m.size() > 32) throw new IllegalArgumentException("항목이 너무 많다: " + m.size() + " > 32");
+        Node key = string(128), value = string(4096);
+        for (var e : m.entrySet()) {
+            if (!(e.getValue() instanceof String)) throw new IllegalArgumentException(e.getKey() + " 값은 String 이어야 한다: " + e.getValue());
+        }
+        Types.writeVarInt(o, m.size());
+        for (var e : m.entrySet()) {
+            key.write(o, e.getKey());
+            value.write(o, e.getValue());
+        }
+    });
+
+    /** 통계 종류 → 값이 들어 있는 레지스트리(바닐라 StatType 등록 순서와 그 레지스트리). */
+    private static final Map<String, String> STAT_VALUE_REGISTRY = Map.of(
+            "minecraft:mined", "minecraft:block", "minecraft:crafted", "minecraft:item", "minecraft:used", "minecraft:item",
+            "minecraft:broken", "minecraft:item", "minecraft:picked_up", "minecraft:item", "minecraft:dropped", "minecraft:item",
+            "minecraft:killed", "minecraft:entity_type", "minecraft:killed_by", "minecraft:entity_type", "minecraft:custom", "minecraft:custom_stat");
+
+    /** award_stats: Object2IntMap&lt;Stat&gt; — 목록 {type(stat_type), value(그 레지스트리 이름), amount}. 같은 통계 두 번은 거부(바닐라는 맵). */
+    static final Node STATS = node(List.class, b -> {
+        int n = Types.readVarInt(b);
+        if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("통계 수 오류: " + n);
+        LinkedHashMap<List<String>, PacketStruct> m = new LinkedHashMap<>();
+        for (int i = 0; i < n; i++) {
+            String type = GenericCodec767.registryName("minecraft:stat_type", Types.readVarInt(b));
+            String value = GenericCodec767.registryName(statRegistry(type), Types.readVarInt(b));
+            LinkedHashMap<String, Object> e = new LinkedHashMap<>();
+            e.put("type", type);
+            e.put("value", value);
+            e.put("amount", Types.readVarInt(b));
+            m.put(List.of(type, value), PacketStruct.of(e));   // 바닐라 맵처럼 같은 통계는 마지막 값
+        }
+        return List.copyOf(m.values());
+    }, (o, v) -> {
+        List<?> l = (List<?>) v;
+        Compiled entry = GenericCodec767.shape(List.of("type", "value", "amount"), List.of(STRING, STRING, VARINT), null);
+        HashSet<List<Object>> seen = new HashSet<>();
+        for (int i = 0; i < l.size(); i++) {
+            if (!(l.get(i) instanceof PacketStruct s)) throw new IllegalArgumentException("[" + i + "] 은 {type, value, amount} 이어야 한다: " + l.get(i));
+            Map<String, Object> e = GenericCodec767.checked(entry, s, "[" + i + "]");
+            String type = GenericCodec767.identifier((String) e.get("type"));
+            if (!seen.add(List.of(type, GenericCodec767.identifier((String) e.get("value"))))) throw new IllegalArgumentException("같은 통계가 두 번 있다: " + s);
+        }
+        Types.writeVarInt(o, l.size());
+        for (Object x : l) {
+            Map<String, Object> e = ((PacketStruct) x).asMap();
+            String type = GenericCodec767.identifier((String) e.get("type"));
+            Types.writeVarInt(o, GenericCodec767.registryNumber("minecraft:stat_type", type));
+            Types.writeVarInt(o, GenericCodec767.registryNumber(statRegistry(type), (String) e.get("value")));
+            Types.writeVarInt(o, (Integer) e.get("amount"));
+        }
+    });
+
+    private static String statRegistry(String type) {
+        String r = STAT_VALUE_REGISTRY.get(type);
+        if (r == null) throw new IllegalArgumentException("모르는 통계 종류: " + type);
+        return r;
+    }
+
+    // ------------------------------------------------------------------ E4b-2: 종류별
+
+    private static final List<String> BOSS_OPS = List.of("ADD", "REMOVE", "UPDATE_PROGRESS", "UPDATE_NAME", "UPDATE_STYLE", "UPDATE_PROPERTIES");
+    private static final Node BOSS_COLOR = GenericCodec767.enumNode("BossEvent$BossBarColor", List.of("PINK", "BLUE", "RED", "GREEN", "YELLOW", "PURPLE", "WHITE"), "varint");
+    private static final Node BOSS_OVERLAY = GenericCodec767.enumNode("BossEvent$BossBarOverlay",
+            List.of("PROGRESS", "NOTCHED_6", "NOTCHED_10", "NOTCHED_12", "NOTCHED_20"), "varint");
+
+    /**
+     * id, 그다음 operation = {type, 종류별 필드}: ADD {name, progress, color, overlay, darken_screen, play_music, create_world_fog},
+     * REMOVE {}, UPDATE_PROGRESS {progress}, UPDATE_NAME {name}, UPDATE_STYLE {color, overlay}, UPDATE_PROPERTIES {darken_screen, play_music, create_world_fog}.
+     * 플래그 바이트는 1 화면 어둡게·2 보스 음악·4 안개.
+     */
+    private static Compiled bossEvent() {
+        Map<String, Compiled> ops = new java.util.HashMap<>();
+        ops.put("ADD", new Seq().f("name", TEXT).f("progress", F32).f("color", BOSS_COLOR).f("overlay", BOSS_OVERLAY)
+                .flags("darken_screen", "play_music", "create_world_fog").build());
+        ops.put("REMOVE", new Seq().build());
+        ops.put("UPDATE_PROGRESS", new Seq().f("progress", F32).build());
+        ops.put("UPDATE_NAME", new Seq().f("name", TEXT).build());
+        ops.put("UPDATE_STYLE", new Seq().f("color", BOSS_COLOR).f("overlay", BOSS_OVERLAY).build());
+        ops.put("UPDATE_PROPERTIES", new Seq().flags("darken_screen", "play_music", "create_world_fog").build());
+        Node op = node(PacketStruct.class, b -> {
+            String type = constantAt(BOSS_OPS, Types.readVarInt(b));
+            LinkedHashMap<String, Object> m = new LinkedHashMap<>();
+            m.put("type", type);
+            m.putAll(GenericCodec767.readStruct(ops.get(type), b).asMap());
+            return PacketStruct.of(m);
+        }, (o, v) -> {
+            PacketStruct s = (PacketStruct) v;
+            if (!(s.asMap().get("type") instanceof String type) || !ops.containsKey(type)) {
+                throw new IllegalArgumentException("operation.type 은 " + BOSS_OPS + " 가운데 하나: " + s.asMap().get("type"));
+            }
+            LinkedHashMap<String, Object> rest = new LinkedHashMap<>(s.asMap());
+            rest.remove("type");
+            Types.writeVarInt(o, BOSS_OPS.indexOf(type));
+            GenericCodec767.writeStruct(ops.get(type), PacketStruct.of(rest), o, "operation(" + type + ")");
+        });
+        return new Seq().f("id", GenericCodec767.UUID_NODE).f("operation", op).build();
+    }
+
+    /** ChatFormatting 상수(서수 = 번호, 바이트코드 확인). */
+    private static final List<String> CHAT_FORMATTING = List.of("BLACK", "DARK_BLUE", "DARK_GREEN", "DARK_AQUA", "DARK_RED", "DARK_PURPLE", "GOLD",
+            "GRAY", "DARK_GRAY", "BLUE", "GREEN", "AQUA", "RED", "LIGHT_PURPLE", "YELLOW", "WHITE", "OBFUSCATED", "BOLD", "STRIKETHROUGH",
+            "UNDERLINE", "ITALIC", "RESET");
+
+    /**
+     * 이름, 방식(i8: 0 추가·1 제거·2 바꿈·3 선수 넣기·4 선수 빼기), 방식 0·2 면 parameters
+     * {display_name, options(i8 비트: 1 같은 팀 공격·2 투명 팀원 보기), nametag_visibility(40자), collision_rule(40자), color, player_prefix, player_suffix},
+     * 방식 0·3·4 면 players(이름 목록).
+     */
+    private static Compiled setPlayerTeam() {
+        Compiled params = GenericCodec767.shape(
+                List.of("display_name", "options", "nametag_visibility", "collision_rule", "color", "player_prefix", "player_suffix"),
+                List.of(TEXT, I8_INT, string(40), string(40), GenericCodec767.enumNode("ChatFormatting", CHAT_FORMATTING, "varint"), TEXT, TEXT), null);
+        Node players = GenericCodec767.list(STRING, false);
+        return GenericCodec767.shape(List.of("name", "method", "parameters", "players"), List.of(STRING, I8_INT,
+                GenericCodec767.optional(GenericCodec767.structNode(params), false), GenericCodec767.optional(players, false)), hand((b, m) -> {
+            m.put("name", STRING.read(b));
+            int method = b.readByte();
+            m.put("method", method);
+            m.put("parameters", method == 0 || method == 2 ? Optional.of(GenericCodec767.readStruct(params, b)) : Optional.empty());
+            m.put("players", method == 0 || method == 3 || method == 4 ? Optional.of(players.read(b)) : Optional.empty());
+        }, (o, m) -> {
+            int method = (Integer) m.get("method");
+            if (method < 0 || method > 4) throw new IllegalArgumentException("method 는 0~4(추가·제거·바꿈·선수 넣기·선수 빼기)여야 한다: " + method);
+            Optional<?> p = (Optional<?>) m.get("parameters"), pl = (Optional<?>) m.get("players");
+            if (p.isPresent() != (method == 0 || method == 2)) throw new IllegalArgumentException("parameters 는 method 0·2 일 때만 있어야 한다: method=" + method);
+            if (p.isPresent() && !(p.get() instanceof PacketStruct)) throw new IllegalArgumentException(
+                    "parameters 는 {display_name, options, nametag_visibility, collision_rule, color, player_prefix, player_suffix} 이어야 한다: " + p.get().getClass().getName());
+            if (pl.isPresent() != (method == 0 || method == 3 || method == 4)) throw new IllegalArgumentException("players 는 method 0·3·4 일 때만 있어야 한다: method=" + method);
+            if (pl.isPresent() && !(pl.get() instanceof List<?>)) throw new IllegalArgumentException("players 는 List<String> 이어야 한다");
+            STRING.write(o, m.get("name"));
+            I8_INT.write(o, method);
+            if (p.isPresent()) GenericCodec767.writeStruct(params, (PacketStruct) p.get(), o, "parameters");
+            if (pl.isPresent()) players.write(o, pl.get());
+        }));
+    }
+
+    /**
+     * map_id, scale(i8), locked, decorations Optional&lt;List&lt;{type, x, y, rot, name}&gt;&gt;,
+     * color_patch Optional&lt;{width, height, start_x, start_y, map_colors}&gt; — 색 조각은 bool 머리 없이 width 0 = 없음(u8 넷 + 바이트).
+     */
+    private static Compiled mapItemData() {
+        Node u8 = GenericCodec767.integer("u8", Integer.class);
+        Compiled patch = GenericCodec767.shape(List.of("width", "height", "start_x", "start_y", "map_colors"),
+                List.of(u8, u8, u8, u8, GenericCodec767.BYTES), null);
+        Node patchNode = node(Optional.class, b -> {
+            if (b.getUnsignedByte(b.readerIndex()) == 0) {
+                b.skipBytes(1);
+                return Optional.empty();
+            }
+            return Optional.of(GenericCodec767.readStruct(patch, b));
+        }, (o, v) -> {
+            Optional<?> p = (Optional<?>) v;
+            if (p.isEmpty()) {
+                o.writeByte(0);
+                return;
+            }
+            if (!(p.get() instanceof PacketStruct s)) throw new IllegalArgumentException("color_patch 는 {width, height, start_x, start_y, map_colors}");
+            if (Integer.valueOf(0).equals(s.asMap().get("width"))) throw new IllegalArgumentException("width 0 은 '없음' 이다 — Optional.empty() 를 쓴다");
+            // 바닐라 코덱은 통과시키지만 받은 쪽 MapPatch.applyToMap 이 colors[i + j*width]·지도[x + y*128] 를 넘겨 읽고 써서 끊긴다.
+            if (s.asMap().get("width") instanceof Integer w && s.asMap().get("height") instanceof Integer h
+                    && s.asMap().get("start_x") instanceof Integer x && s.asMap().get("start_y") instanceof Integer y
+                    && s.asMap().get("map_colors") instanceof byte[] c) {
+                if (c.length != w * h) throw new IllegalArgumentException("map_colors 길이는 width*height(" + w * h + ")여야 한다: " + c.length);
+                if (x + w > 128 || y + h > 128) throw new IllegalArgumentException("색 조각이 지도(128×128) 밖으로 나간다: start=(" + x + "," + y + "), 크기 " + w + "×" + h);
+            }
+            GenericCodec767.writeStruct(patch, s, o, "color_patch");
+        });
+        return new Seq().f("map_id", VARINT).f("scale", I8).f("locked", BOOL)
+                .f("decorations", GenericCodec767.optional(GenericCodec767.list(MAP_DECORATION, false), false))
+                .f("color_patch", patchNode).build();
     }
 }

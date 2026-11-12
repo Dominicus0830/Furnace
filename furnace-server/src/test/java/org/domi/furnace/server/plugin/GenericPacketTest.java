@@ -125,7 +125,7 @@ class GenericPacketTest {
                 }
             }
         }
-        assertEquals(122, readable, "범용 코덱이 읽는 종류 수(필드 나열 104 — E4b 에서 block_entity_data·set_score 추가 — + 손 코덱 18)");
+        assertEquals(133, readable, "범용 코덱이 읽는 종류 수(E4a 102 + E4b-1 20 + E4b-2 11)");
         assertFalse(codec.readable(Clientbound.BUNDLE_DELIMITER), "손 코덱이 아직 없는 custom 종류");
     }
 
