@@ -382,7 +382,7 @@ final class GenericHand767 {
 
     // ------------------------------------------------------------------ E4b-2: 값 와이어
 
-    private static Node string(int max) {
+    static Node string(int max) {
         return node(String.class, b -> Types.readString(b, max), (o, v) -> {
             String str = (String) v;
             if (str.length() > max) throw new IllegalArgumentException(max + "자를 넘는다(" + str.length() + ")");
@@ -404,7 +404,7 @@ final class GenericHand767 {
     }
 
     /** varint 길이 + 바이트, 길이 상한(바닐라 readByteArray(max)). */
-    private static Node bytes(int max) {
+    static Node bytes(int max) {
         return node(byte[].class, b -> {
             int n = Types.readVarInt(b);
             if (n < 0 || n > max || n > b.readableBytes()) throw new IllegalArgumentException("바이트 길이 오류: " + n + " (상한 " + max + ")");

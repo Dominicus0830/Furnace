@@ -88,6 +88,9 @@ public final class GenericCodec767 {
         void write(ByteBuf o, Object v);
 
         Class<?> kind();
+
+        /** 쓸 수 있는 값인가. 대개 kind 의 값이고, 소리 Holder 는 직접 정의 PacketStruct 도 받는다. */
+        default boolean accepts(Object v) { return kind().isInstance(v); }
     }
 
     /** 손 코덱: 와이어 전체를 직접 읽고 쓴다. read 는 이름 → 값을 아무 순서로 넣고(필드 순서는 Compiled 가 맞춘다), write 는 검사를 마친 값을 받는다. */
@@ -228,7 +231,7 @@ public final class GenericCodec767 {
             String n = c.names().get(i);
             Node node = c.nodes().get(i);
             Object v = m.get(n);
-            if (!node.kind().isInstance(v)) {
+            if (!node.accepts(v)) {
                 throw new IllegalArgumentException(where + "." + n + " 은 " + node.kind().getSimpleName() + " 값이어야 한다: " + v.getClass().getSimpleName());
             }
         }
@@ -244,23 +247,68 @@ public final class GenericCodec767 {
             return h;
         }
         if (d.superType() != null) throw new Unsupported("부모 클래스 필드");
-        return compileFields(d.fields(), d.javaPackage());
+        return compileFields(d.fields(), d.javaPackage(), d.binaryName());
     }
 
-    Compiled compileFields(List<FieldDef> fields, String pkg) {
+    Compiled compileFields(List<FieldDef> fields, String pkg, String owner) {
         List<String> names = new ArrayList<>();
         List<Node> nodes = new ArrayList<>();
         List<PacketField<?>> pf = new ArrayList<>();
         for (FieldDef f : fields) {
             String n = snake(f.name());
             if (names.contains(n)) throw new IllegalStateException("snake_case 이름이 겹친다: " + n);
-            Node node = node(f.type(), f.wire(), pkg);
+            Limit limit = FIELD_LIMITS.get(owner + "#" + f.name());
+            Node node = limit == null ? node(f.type(), f.wire(), pkg) : limited(f, limit);
             if (f.nullable()) node = node == NBT ? NULLABLE_NBT : optional(node, true);
             names.add(n);
             nodes.add(node);
             pf.add(PacketField.of(n, node.kind()));
         }
         return new Compiled(List.copyOf(names), List.copyOf(nodes), List.copyOf(pf), null);
+    }
+
+    /**
+     * 필드별 길이 상한(바닐라 readUtf(n)·ByteBufCodecs.stringUtf8(n)·byteArray(n)·list(n), 바이트코드·1.21.1 소스로 확인 — 스키마에는 상한 표기가 없다).
+     * 필드 나열 종류만. 손 코덱 종류(set_player_team·set_structure_block·custom_report_details 등)는 손 코덱이 직접 검사한다.
+     * 이 밖의 문자열은 32767자(readUtf 기본), 바이트는 남은 길이까지. 읽기·쓰기 모두 검사한다 — chunks_biomes 버퍼는 바닐라가 읽기만 검사하지만
+     * (쓰면 클라이언트가 읽다 끊는다) Furnace 는 끊김 대신 플러그인에 예외를 준다(묶음 안 묶음과 같은 방침).
+     */
+    private static final Map<String, Limit> FIELD_LIMITS = Map.of(
+            "net.minecraft.network.protocol.common.ClientboundResourcePackPushPacket#hash", new Limit(40, 0),
+            "net.minecraft.network.protocol.common.ClientboundStoreCookiePacket#payload", new Limit(5120, 0),
+            "net.minecraft.network.protocol.cookie.ServerboundCookieResponsePacket#payload", new Limit(5120, 0),
+            "net.minecraft.network.protocol.game.ServerboundCommandSuggestionPacket#command", new Limit(32500, 0),
+            "net.minecraft.network.protocol.game.ClientboundChunksBiomesPacket$ChunkBiomeData#buffer", new Limit(2097152, 0),
+            "net.minecraft.network.protocol.game.ServerboundEditBookPacket#pages", new Limit(8192, 200),
+            "net.minecraft.network.protocol.game.ServerboundEditBookPacket#title", new Limit(128, 0));
+
+    /** 값 하나의 상한(문자 수·바이트 수)과, 목록이면 원소 수 상한(0 = 목록 아님). */
+    private record Limit(int max, int count) {}
+
+    /** 상한이 있는 문자열·바이트·문자열 목록(list(n))·Optional 문자열 필드(nullable 이면 다시 Optional). */
+    private static Node limited(FieldDef f, Limit limit) {
+        var t = f.type();
+        if (f.wire() != null) throw new IllegalStateException("상한 표의 필드 모양이 다르다: " + f);
+        boolean string = t.name().equals("String") && t.arrayDimensions() == 0 && t.arguments().isEmpty();
+        if (limit.count() == 0 && string) return GenericHand767.string(limit.max());
+        if (limit.count() == 0 && t.name().equals("byte") && t.arrayDimensions() == 1) return GenericHand767.bytes(limit.max());
+        boolean ofString = t.arguments().size() == 1 && t.arguments().get(0).name().equals("String") && t.arrayDimensions() == 0;
+        if (limit.count() == 0 && ofString && t.name().equals("Optional")) return optional(GenericHand767.string(limit.max()), false);
+        if (limit.count() > 0 && ofString && t.name().equals("List")) return listMax(GenericHand767.string(limit.max()), limit.count());
+        throw new IllegalStateException("상한 표의 필드 타입이 다르다: " + f);
+    }
+
+    /** 원소 수 상한이 있는 목록(바닐라 ByteBufCodecs.list(n) — 읽기·쓰기 모두 n 을 넘으면 실패). */
+    static Node listMax(Node elem, int max) {
+        Node l = list(elem, false);
+        return node(List.class, b -> {
+            int n = Types.readVarInt(b.duplicate());
+            if (n > max) throw new IllegalArgumentException("목록 원소가 너무 많다(" + n + " > " + max + ")");
+            return l.read(b);
+        }, (o, v) -> {
+            if (((List<?>) v).size() > max) throw new IllegalArgumentException("목록 원소가 너무 많다(" + ((List<?>) v).size() + " > " + max + ")");
+            l.write(o, v);
+        });
     }
 
     /** Mojang camelCase → snake_case(cameraId → camera_id, yHeadRot → y_head_rot). */
@@ -408,7 +456,7 @@ public final class GenericCodec767 {
         if (struct != null) {
             return switch (struct.kind()) {
                 case ENUM -> enumNode(bin, constants, "varint");
-                case RECORD, CLASS -> structNode(compileFields(struct.fields(), struct.javaPackage()));
+                case RECORD, CLASS -> structNode(compileFields(struct.fields(), struct.javaPackage(), bin));
                 default -> throw new Unsupported("내포 " + struct.kind() + " " + bin);
             };
         }
@@ -658,7 +706,7 @@ public final class GenericCodec767 {
             Types.writeVarInt(o, l.size());
             for (int i = 0; i < l.size(); i++) {
                 Object x = l.get(i);
-                if (!elem.kind().isInstance(x)) throw new IllegalArgumentException("[" + i + "] 은 " + elem.kind().getSimpleName() + " 값이어야 한다: " + x);
+                if (!elem.accepts(x)) throw new IllegalArgumentException("[" + i + "] 은 " + elem.kind().getSimpleName() + " 값이어야 한다: " + x);
                 elem.write(o, x);
             }
         });
@@ -671,7 +719,7 @@ public final class GenericCodec767 {
             o.writeBoolean(opt.isPresent());
             if (opt.isPresent()) {
                 Object x = opt.get();
-                if (!elem.kind().isInstance(x)) throw new IllegalArgumentException("값은 " + elem.kind().getSimpleName() + " 이어야 한다: " + x);
+                if (!elem.accepts(x)) throw new IllegalArgumentException("값은 " + elem.kind().getSimpleName() + " 이어야 한다: " + x);
                 elem.write(o, x);
             }
         });
@@ -739,15 +787,29 @@ public final class GenericCodec767 {
         HolderInfo h = HOLDERS.get(arg.name());
         if (h == null) throw new Unsupported("Holder<" + arg + ">");
         if (h.form() == HolderForm.PLAIN) return registryId(h.registry());
-        // holder(레지스트리, 직접 코덱): 등록된 것 = 번호 + 1, 0 = 직접 정의. 소리의 직접 정의는 이름 + 고정 범위(선택) — 범위 없는 것만 다룬다.
-        return node(String.class, b -> {
+        // holder(레지스트리, 직접 코덱): 등록된 것 = 번호 + 1, 0 = 직접 정의(소리: 이름 + 고정 범위 Optional<Float>).
+        // 값: String = 이름(등록돼 있으면 번호, 아니면 범위 없는 직접 정의) · PacketStruct{sound_id, range Optional<Float>} = 언제나 직접 정의
+        // (바닐라 Holder.direct 와 같은 바이트 — 이름이 등록돼 있어도 직접 정의로 쓴다). 읽기는 다시 쓰면 같은 바이트가 되는 쪽으로 고른다.
+        Node plain = node(String.class, b -> {
             int v = Types.readVarInt(b);
             if (v > 0) return registryName(h.registry(), v - 1);
             String name = Types.readString(b, STRING_MAX);
-            if (b.readBoolean()) throw new IllegalArgumentException("고정 범위가 있는 직접 정의 소리는 아직 읽지 않는다: " + name);
-            return name;
+            Optional<Float> range = b.readBoolean() ? Optional.of(b.readFloat()) : Optional.empty();
+            boolean registered = ItemContext.installed() && ItemContext.id(h.registry(), identifier(name)) != null;
+            return range.isEmpty() && !registered ? name : directSound(name, range);
         }, (o, v) -> {
-            String name = identifier((String) v);
+            if (v instanceof PacketStruct s) {
+                String name = identifier((String) need(s, "sound_id", String.class));
+                Optional<?> range = s.has("range") ? (Optional<?>) need(s, "range", Optional.class) : Optional.empty();
+                if (range.isPresent() && !(range.get() instanceof Float)) throw new IllegalArgumentException("range 는 Optional<Float> 이어야 한다: " + range.get());
+                Types.writeVarInt(o, 0);
+                Types.writeString(o, name);
+                o.writeBoolean(range.isPresent());
+                if (range.isPresent()) o.writeFloat((Float) range.get());
+                return;
+            }
+            if (!(v instanceof String str)) throw new IllegalArgumentException("소리는 이름(String) 또는 직접 정의 PacketStruct{sound_id, range} 여야 한다: " + v);
+            String name = identifier(str);
             Integer id = ItemContext.installed() ? ItemContext.id(h.registry(), name) : null;
             if (id != null) {
                 Types.writeVarInt(o, id + 1);
@@ -757,6 +819,33 @@ public final class GenericCodec767 {
                 o.writeBoolean(false);
             }
         });
+        return new Node() {   // 선언 종류는 String(필드 목록·타입 키), 직접 정의 PacketStruct 도 받는다
+            @Override
+            public Object read(ByteBuf b) { return plain.read(b); }
+
+            @Override
+            public void write(ByteBuf o, Object v) { plain.write(o, v); }
+
+            @Override
+            public Class<?> kind() { return String.class; }
+
+            @Override
+            public boolean accepts(Object v) { return v instanceof String || v instanceof PacketStruct; }
+        };
+    }
+
+    /** 소리의 직접 정의 값(바닐라 SoundEvent 코덱 필드 이름 sound_id·range). */
+    static PacketStruct directSound(String name, Optional<Float> range) {
+        LinkedHashMap<String, Object> m = new LinkedHashMap<>();
+        m.put("sound_id", name);
+        m.put("range", range);
+        return PacketStruct.of(m);
+    }
+
+    private static Object need(PacketStruct s, String field, Class<?> kind) {
+        Object x = s.get(field);
+        if (!kind.isInstance(x)) throw new IllegalArgumentException("직접 정의 소리의 " + field + " 는 " + kind.getSimpleName() + " 값이어야 한다: " + x);
+        return x;
     }
 
     static String registryName(String registry, int id) {
@@ -804,7 +893,7 @@ public final class GenericCodec767 {
         return checkLength(ns + ":" + path);
     }
 
-    /** 바닐라 writeUtf 상한(32767자). 필드마다 더 작은 상한(리소스 팩 hash 40 등)은 스키마에 아직 없다. */
+    /** 바닐라 writeUtf 기본 상한(32767자). 필드마다 더 작은 상한은 FIELD_LIMITS. */
     private static String checkLength(String s) {
         if (s.length() > STRING_MAX) throw new IllegalArgumentException("문자열이 너무 길다(" + s.length() + " > " + STRING_MAX + ")");
         return s;
