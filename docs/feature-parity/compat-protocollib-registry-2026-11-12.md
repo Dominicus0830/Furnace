@@ -96,3 +96,12 @@ Furnace 의 파이프라인은 `frameDecoder`·`frameEncoder`·`handler`(Connect
 - 호환 Bukkit `Entity` 에 `getEntityId()` 가 없다(엔티티 id 를 쓰는 ProtocolLib 플러그인이 막힘) — 별도 작업.
 - `getEntityWatcher(entity)` 실패 메시지가 원인을 알려 주지 않는다(후속).
 - `EntityDataSerializer#codec` 은 아직 `UnsupportedNmsCall`(3단계 범용 코덱과 같이).
+
+## 2b-1 활성 가상 채널과 보내기 가로채기 (2026-11-12, 후속 PR)
+
+설계 전체는 `compat-protocollib-pipeline-2b-plan-2026-11-12.md`(ProtocolLib 5.4.0 소스 대조: 보내는 쪽 가로채기는 파이프라인 처리기가 아니라 `Connection.channel` 의 이벤트 루프 프록시). 이번 조각:
+접속마다 활성 가상 채널(`VirtualChannel`)·`decoder`/`encoder`/`packet_handler` 처리기·`Connection#send` 의 `channel.eventLoop().execute(작업)` 경로·접속 종료 시 채널 닫기.
+위 "왜 `channels` 가 비었나" 의 자리표시 채널은 이것으로 바뀌었다(소켓 주입 `channels` 는 여전히 비어 있음).
+
+진짜 ProtocolLib 5.4.0 으로 확인(탐침 플러그인, 커밋하지 않음): 접속마다 주입됨, `sendServerPacket(UPDATE_TIME)` 가 클라이언트에 도착, 나가는 리스너가 그 패킷을 보고(`furnace-global` 스레드) 필드를 바꾸면 바뀐 값이 나가며(dayTime 1→6000), `setCancelled(true)` 면 나가지 않고, `sendServerPacket(…, false)`(필터 안 함)는 리스너를 건너뛴다.
+**아직 안 되는 것**: Furnace 가 스스로 보내는 패킷의 가로채기(2b-2), 들어오는 패킷 가로채기·`receiveClientPacket`(2b-3, `Connection#read` 는 아직 UnsupportedNmsCall), `sendWirePacket`(버리고 경고), 핸드셰이크·로그인 단계.

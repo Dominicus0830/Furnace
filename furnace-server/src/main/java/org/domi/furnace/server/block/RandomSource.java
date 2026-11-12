@@ -22,7 +22,11 @@ public interface RandomSource {
     /** RandomSource.triangle(center, spread). */
     default double triangle(double center, double spread) { return center + spread * (nextDouble() - nextDouble()); }
 
-    static RandomSource create() { return new LegacyRandomSource(System.nanoTime() ^ 0x5DEECE66DL * Thread.currentThread().threadId()); }
+    /**
+     * 주인 열쇠로 난수를 만든다(RandomSeeds). 운영에서는 예측 불가 씨앗 — 바닐라 RandomSource.create() 와 같다.
+     * 시험 JVM(-Dfurnace.test.seeded=true)에서는 (열쇠, 용도)에서 파생해 같은 장면이 같은 난수열을 얻는다.
+     */
+    static RandomSource createFor(long ownerKey, int purpose) { return new LegacyRandomSource(RandomSeeds.seed(ownerKey, purpose)); }
 
     static RandomSource create(long seed) { return new LegacyRandomSource(seed); }
 }

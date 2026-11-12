@@ -255,8 +255,14 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
         return result;
     }
 
+    /** 호환 모듈 전용 — 접속이 끝났다: NMS 연결의 가상 채널을 닫는다(이미 만든 shim 이 있을 때만). */
+    public void disconnected() {
+        if (peekHandle() instanceof net.minecraft.server.level.ServerPlayer sp) sp.connection.compatDisconnected();
+    }
+
     /** 호환 모듈 전용 — 이 접속의 객체를 더 쓰지 않는다(재접속으로 바뀜): Bukkit 권한 계산·구독·Furnace 거울을 걷는다(CraftBukkit disconnect 의 perm.clearPermissions). */
     public void retire() {
+        disconnected();
         try {
             perm.clearPermissions();
         } catch (RuntimeException ignored) {
