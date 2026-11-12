@@ -43,7 +43,7 @@ class SchemaPacketBridgeTest {
             var packets = Furnace.server().packets();
             Set<String> bridged = new TreeSet<>(), missing = new TreeSet<>();
             for (PacketDef d : PacketSchema.protocol767().packets()) {
-                if (d.direction() != PacketDirection.CLIENTBOUND || !(d.state().equals("game") || d.state().equals("common"))) continue;
+                if (d.direction() != PacketDirection.CLIENTBOUND || !Set.of("game", "common", "cookie", "ping").contains(d.state())) continue;
                 PacketType<?> t = PacketTypes.byName(PacketDirection.CLIENTBOUND, "minecraft:" + d.wireName());
                 if (t == null || t.typed() || d.custom() || !packets.isReadable(t)) continue;
                 (SchemaPacketBridge.supports(d) ? bridged : missing).add(d.wireName());
@@ -51,7 +51,8 @@ class SchemaPacketBridgeTest {
             // 다리 없는 종류는 값 shim 이 아직 빈 껍데기다(BlockEntityType·MessageSignature.Packed·ChatType.Bound·GlobalPos·MenuType·ServerLinks.UntrustedEntry·NumberFormat)
             assertEquals(Set.of("block_entity_data", "delete_chat", "disguised_chat", "login", "open_screen", "respawn", "server_links", "set_score"), missing,
                     "다리 " + bridged.size() + "종: " + bridged);
-            assertEquals(65, bridged.size(), bridged.toString());
+            assertEquals(67, bridged.size(), bridged.toString());   // game·common 65 + cookie_request·pong_response(play 연결로도 나가는 cookie·ping 단계)
+            assertTrue(bridged.containsAll(Set.of("cookie_request", "pong_response")), bridged.toString());
         }
     }
 
@@ -150,6 +151,142 @@ class SchemaPacketBridgeTest {
             tp.awaitPacket(PacketTypes.Clientbound.SET_HEALTH, g -> Integer.valueOf(78).equals(g.get("food")));
             assertTrue(tp.received(PacketTypes.Clientbound.SET_HEALTH).stream().noneMatch(g -> Integer.valueOf(77).equals(g.get("food")) || Integer.valueOf(79).equals(g.get("food"))),
                     "실패한 묶음의 앞 패킷도 나가지 않는다");
+        }
+    }
+    @Test
+    void refusalsSayWhy() {
+        var schema = PacketSchema.protocol767();
+        assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.SERVERBOUND, "swing").orElseThrow()).contains("serverbound"));
+        assertTrue(SchemaPacketBridge.refusal(schema.packet("configuration", PacketDirection.CLIENTBOUND, "finish_configuration").orElseThrow())
+                .contains("configuration 단계"));
+        assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "add_entity").orElseThrow()).contains("타입 레코드"));
+        assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "set_experience").orElseThrow()).contains("손 코덱"));
+        assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "open_screen").orElseThrow()).contains("빈 껍데기"));
+        assertEquals(null, SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "set_health").orElseThrow()));
+    }
+
+    @Test
+    void soundAndEffectConstantsAreTheRegistryValues() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            var sounds = net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT;
+            var ids = Furnace.server().gameRegistries().builtIn("minecraft:sound_event");
+            assertEquals(1611, sounds.size());
+            assertEquals(ids.size(), sounds.size());
+            // 상수 필드 1603개 + 염소 뿔 변형 8개(GOAT_HORN_SOUND_VARIANTS — Guava 목록이라 두지 않음) = 레지스트리 전부, 같은 객체
+            Set<String> covered = new TreeSet<>();
+            int n = 0;
+            for (var f : net.minecraft.sounds.SoundEvents.class.getFields()) {
+                if (f.getType() == int.class) continue;
+                Object v = f.get(null);
+                var e = v instanceof net.minecraft.core.Holder<?> h ? (net.minecraft.sounds.SoundEvent) h.value() : (net.minecraft.sounds.SoundEvent) v;
+                var key = sounds.getKey(e);
+                assertNotNull(key, f.getName());
+                assertTrue(sounds.get(key) == e, f.getName());
+                assertTrue(covered.add(key.toString()), "같은 소리 두 번: " + f.getName());
+                n++;
+            }
+            assertEquals(1603, n);
+            for (String id : ids) if (!covered.contains(id)) assertTrue(id.startsWith("minecraft:item.goat_horn.sound."), id);
+            assertEquals(8, net.minecraft.sounds.SoundEvents.GOAT_HORN_VARIANT_COUNT);
+            assertEquals("minecraft:entity.pig.ambient", net.minecraft.sounds.SoundEvents.PIG_AMBIENT.getLocation().toString());
+            assertEquals(ids.indexOf("minecraft:ambient.cave"), sounds.getId(net.minecraft.sounds.SoundEvents.AMBIENT_CAVE.value()));
+            assertEquals(16f, net.minecraft.sounds.SoundEvents.PIG_AMBIENT.getRange(0.5f));
+            assertEquals(32f, net.minecraft.sounds.SoundEvents.PIG_AMBIENT.getRange(2f));
+            assertEquals(5f, net.minecraft.sounds.SoundEvent.createFixedRangeEvent(net.minecraft.resources.ResourceLocation.parse("a:b"), 5f).getRange(2f));
+            // 기본값 없는 레지스트리(바닐라 MappedRegistry): 모르는 것은 null·-1
+            assertEquals(null, sounds.get(net.minecraft.resources.ResourceLocation.parse("minecraft:nope")));
+            assertEquals(-1, sounds.getId(net.minecraft.sounds.SoundEvent.createVariableRangeEvent(net.minecraft.resources.ResourceLocation.parse("a:b"))));
+            assertTrue(!(sounds instanceof net.minecraft.core.DefaultedRegistry<?>));
+
+            // 효과 39개: 바닐라 이름·순서, 분류·색·즉시 여부는 서버 정의와 같다
+            var effects = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT;
+            assertEquals(Furnace.server().gameRegistries().builtIn("minecraft:mob_effect"), effects.keySet().stream().map(Object::toString)
+                    .sorted(java.util.Comparator.comparingInt(k -> effects.getId(effects.get(net.minecraft.resources.ResourceLocation.parse(k))))).toList());
+            var fields = net.minecraft.world.effect.MobEffects.class.getFields();
+            assertEquals(39, fields.length);
+            for (int i = 0; i < fields.length; i++) {
+                var h = (net.minecraft.core.Holder<net.minecraft.world.effect.MobEffect>) fields[i].get(null);
+                var e = h.value();
+                assertEquals(i, effects.getId(e), fields[i].getName());
+                var mine = org.domi.furnace.server.effect.MobEffect.byName(h.unwrapKey().orElseThrow().location().toString());
+                assertEquals(mine.category().name(), e.getCategory().name(), fields[i].getName());
+                assertEquals(mine.color(), e.getColor(), fields[i].getName());
+                assertEquals("effect." + h.unwrapKey().orElseThrow().location().toString().replace(':', '.'), e.getDescriptionId());
+            }
+            assertTrue(net.minecraft.world.effect.MobEffects.HEAL.value().isInstantenous());
+            assertTrue(net.minecraft.world.effect.MobEffects.SATURATION.value().isInstantenous());
+            assertTrue(!net.minecraft.world.effect.MobEffects.MOVEMENT_SPEED.value().isInstantenous());
+            assertTrue(net.minecraft.world.effect.MobEffects.MOVEMENT_SPEED.value().isBeneficial());
+            assertEquals("minecraft:slowness", net.minecraft.world.effect.MobEffects.MOVEMENT_SLOWDOWN.unwrapKey().orElseThrow().location().toString());
+        }
+    }
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void soundEventsMobEffectsAndDirectSoundsGoOut() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            TestPlayer tp = server.join("Snd");
+            server.tick(2);
+            Player p = Bukkit.getPlayer("Snd");
+            var handle = ((org.bukkit.craftbukkit.entity.CraftPlayer) p).getHandle();
+            var conn = handle.connection;
+            tp.sync();
+            long failuresBefore = tp.decodeFailures();
+            var at = tp.player().location();
+            var region = new org.domi.furnace.api.world.BlockPos((int) Math.floor(at.x()), (int) Math.floor(at.y()), (int) Math.floor(at.z()));
+            var neutral = net.minecraft.sounds.SoundSource.NEUTRAL;
+            server.onRegion(region, () -> {
+                conn.send(new net.minecraft.network.protocol.game.ClientboundSoundEntityPacket(net.minecraft.sounds.SoundEvents.AMBIENT_CAVE, neutral, handle, 1f, 1f, 1L));
+                conn.send(new net.minecraft.network.protocol.game.ClientboundSoundEntityPacket(net.minecraft.sounds.SoundEvents.ARMOR_EQUIP_IRON, neutral, handle, 1f, 1f, 2L));
+                conn.send(new net.minecraft.network.protocol.game.ClientboundSoundEntityPacket(
+                        net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.wrapAsHolder(net.minecraft.sounds.SoundEvents.PIG_AMBIENT), neutral, handle, 1f, 1f, 3L));
+                // 직접 정의: 리소스 팩 소리, 고정 범위, 등록된 이름이라도 직접 정의로(바닐라 Holder.direct 와 같은 바이트)
+                conn.send(new net.minecraft.network.protocol.game.ClientboundSoundEntityPacket(net.minecraft.core.Holder.direct(
+                        net.minecraft.sounds.SoundEvent.createVariableRangeEvent(net.minecraft.resources.ResourceLocation.parse("myplugin:boom"))), neutral, handle, 1f, 1f, 4L));
+                conn.send(new net.minecraft.network.protocol.game.ClientboundSoundEntityPacket(net.minecraft.core.Holder.direct(
+                        net.minecraft.sounds.SoundEvent.createFixedRangeEvent(net.minecraft.resources.ResourceLocation.parse("myplugin:far"), 64f)), neutral, handle, 1f, 1f, 5L));
+                conn.send(new net.minecraft.network.protocol.game.ClientboundSoundEntityPacket(net.minecraft.core.Holder.direct(
+                        net.minecraft.sounds.SoundEvent.createVariableRangeEvent(net.minecraft.resources.ResourceLocation.parse("minecraft:entity.pig.ambient"))), neutral, handle, 1f, 1f, 6L));
+                conn.send(new net.minecraft.network.protocol.game.ClientboundRemoveMobEffectPacket(p.getEntityId(), net.minecraft.world.effect.MobEffects.MOVEMENT_SLOWDOWN));
+                conn.send(new net.minecraft.network.protocol.cookie.ClientboundCookieRequestPacket(net.minecraft.resources.ResourceLocation.parse("plug:token")));
+                conn.send(new net.minecraft.network.protocol.ping.ClientboundPongResponsePacket(4242L));
+                return null;
+            });
+            java.util.function.LongFunction<Object> sound = seed -> tp.awaitPacket(PacketTypes.Clientbound.SOUND_ENTITY, g -> Long.valueOf(seed).equals(g.get("seed"))).get("sound");
+            assertEquals("minecraft:ambient.cave", sound.apply(1));
+            assertEquals("minecraft:item.armor.equip_iron", sound.apply(2));
+            assertEquals("minecraft:entity.pig.ambient", sound.apply(3));
+            assertEquals("myplugin:boom", sound.apply(4));
+            var far = (org.domi.furnace.api.packet.PacketStruct) sound.apply(5);
+            assertEquals("myplugin:far", far.get("sound_id"));
+            assertEquals(java.util.Optional.of(64f), far.get("range"));
+            var direct = (org.domi.furnace.api.packet.PacketStruct) sound.apply(6);
+            assertEquals("minecraft:entity.pig.ambient", direct.get("sound_id"));
+            assertEquals(java.util.Optional.empty(), direct.get("range"));
+            assertEquals("minecraft:slowness", tp.awaitPacket(PacketTypes.Clientbound.REMOVE_MOB_EFFECT, g -> true).get("effect"));
+            assertEquals("plug:token", tp.awaitPacket(PacketTypes.Clientbound.COOKIE_REQUEST, g -> true).get("key"));
+            assertEquals(4242L, tp.awaitPacket(PacketTypes.Clientbound.PONG_RESPONSE, g -> true).get("time"));
+            assertEquals(failuresBefore, tp.decodeFailures(), "보낸 것은 모두 바닐라 와이어로 읽혔다");
+
+            // 레지스트리에 없는 Reference 소리(바닐라도 번호를 못 찾는다), 묶음 안 묶음·null 은 아무것도 보내지 않고 IllegalArgumentException
+            tp.clearReceived();
+            server.onRegion(region, () -> {
+                var unknown = assertThrows(IllegalArgumentException.class, () -> conn.send(new net.minecraft.network.protocol.game.ClientboundSoundEntityPacket(
+                        holder(net.minecraft.core.registries.Registries.SOUND_EVENT, "plug:custom.sound"), neutral, handle, 1f, 1f, 7L)));
+                assertTrue(unknown.getMessage().contains("Holder.direct"), unknown.getMessage());
+                var inner = new net.minecraft.network.protocol.game.ClientboundBundlePacket(List.of(new net.minecraft.network.protocol.game.ClientboundSetHealthPacket(1f, 81, 0f)));
+                assertThrows(IllegalArgumentException.class, () -> conn.send(new net.minecraft.network.protocol.game.ClientboundBundlePacket(List.of(
+                        new net.minecraft.network.protocol.game.ClientboundSetHealthPacket(1f, 80, 0f), inner))));
+                var withNull = new java.util.ArrayList<net.minecraft.network.protocol.Packet<? super net.minecraft.network.protocol.game.ClientGamePacketListener>>();
+                withNull.add(new net.minecraft.network.protocol.game.ClientboundSetHealthPacket(1f, 82, 0f));
+                withNull.add(null);
+                assertThrows(IllegalArgumentException.class, () -> conn.send(new net.minecraft.network.protocol.game.ClientboundBundlePacket(withNull)));
+                conn.send(new net.minecraft.network.protocol.game.ClientboundSetHealthPacket(1f, 83, 0f));
+                return null;
+            });
+            tp.awaitPacket(PacketTypes.Clientbound.SET_HEALTH, g -> Integer.valueOf(83).equals(g.get("food")));
+            assertTrue(tp.received(PacketTypes.Clientbound.SET_HEALTH).stream().noneMatch(g -> Set.of(80, 81, 82).contains(g.get("food"))), "실패한 묶음은 나가지 않는다");
+            assertTrue(tp.received(PacketTypes.Clientbound.SOUND_ENTITY).isEmpty());
         }
     }
 }

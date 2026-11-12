@@ -81,7 +81,7 @@ packets.send(player, GenericPacket.of(PacketTypes.Clientbound.SET_BORDER_WARNING
 |---|---|
 | `int`·`long`·`short`·`byte`·`float`·`double`·`boolean` | `Integer`·`Long`·`Short`·`Byte`·`Float`·`Double`·`Boolean` — 바닐라 필드에 담긴 단위 그대로(회전은 1/256 바퀴 byte, 속도는 1/8000). 단위를 바꾼 편의 값은 타입 래퍼가 준다 |
 | `String`·`UUID`·`Component` | `String`·`UUID`·`Text` |
-| `ResourceLocation`·`ResourceKey`, 레지스트리 값(아이템·블록·엔티티 종류·메뉴·효과·소리·차원 종류) | 이름 문자열 `"minecraft:stone"`. 등록되지 않은 소리 이름은 바닐라처럼 직접 정의로 나간다 |
+| `ResourceLocation`·`ResourceKey`, 레지스트리 값(아이템·블록·엔티티 종류·메뉴·효과·소리·차원 종류) | 이름 문자열 `"minecraft:stone"`. 등록되지 않은 소리 이름은 바닐라처럼 직접 정의로 나간다. 소리는 `PacketStruct{sound_id, range Optional<Float>}`(바닐라 SoundEvent 코덱 필드 이름)도 받는다 — 언제나 직접 정의(고정 범위 포함)로 나가고, 직접 정의가 등록된 이름이거나 고정 범위가 있으면 읽을 때도 이 꼴로 온다. 필드 선언 종류는 String 이라 `with` 로 String 자리에 PacketStruct 를 넣을 수는 없다(묶음을 새로 만든다) |
 | `BlockPos`·`GlobalPos`·`BlockState`·`ItemStack`·`CompoundTag` | `BlockPos`·`GlobalPos`·`BlockData`·`ItemStack`·`NbtCompound` |
 | enum | 바닐라 상수 이름 문자열(`"MAIN_HAND"`). 이전 게임 모드처럼 바닐라가 -1 로 "없음"을 쓰는 것은 `Optional<String>` |
 | `byte[]`·`int[]`·`long[]` / `List`·`Set` / `Optional`·없을 수 있는 값 | 배열(넣고 꺼낼 때 복사) / `List` / `Optional` |
@@ -90,7 +90,7 @@ packets.send(player, GenericPacket.of(PacketTypes.Clientbound.SET_BORDER_WARNING
 
 - `with` 는 이미 있는 필드면 같은 값 종류만 받는다(`Integer` 자리에 `Long` 은 `IllegalArgumentException`). 보낼 때(그리고 리스너의 `setPacket` 때 바로) 필드가 빠졌거나 모르는 이름·범위를 넘는 값(u8 에 256)·바닐라 문법이 아닌 이름(`"minecraft:Bad Name"`)·32767자 넘는 문자열이면 `IllegalArgumentException`.
   필드마다 더 작은 상한(리소스 팩 hash 40자 등)은 아직 검사하지 않는다. 바닐라가 `Set` 인 필드(`login` 의 `levels`)는 같은 값을 두 번 넣으면 거부한다.
-- 읽을 수 있는 종류라도 패킷 하나가 디코드에 실패하면(클라이언트가 보낸 잘못된 패킷, 고정 범위가 있는 직접 정의 소리 등) 그 패킷만 `readable()` false 로 리스너에 간다.
+- 읽을 수 있는 종류라도 패킷 하나가 디코드에 실패하면(클라이언트가 보낸 잘못된 패킷 등) 그 패킷만 `readable()` false 로 리스너에 간다.
 - 값은 넣고 꺼낼 때 복사된다(배열·`NbtCompound` — 목록·`Optional` 안에 있어도). 꺼낸 값을 바꿔도 패킷은 그대로다.
 - **1.21.1 에서 읽는 종류 133개**(서버→클라 92, 클라→서버 41). 필드 나열 110개 + 손 코덱 23개(아래 "손 코덱 종류"). 나머지 12개(입자·폭발·청크·빛·
   명령 트리·레시피 둘·발전 과제·태그 묶음·서명된 채팅·상인 거래·번들 구분자)는 `readable()` false 로 관찰·취소만 된다.

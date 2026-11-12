@@ -28,7 +28,8 @@ import org.domi.furnace.api.packet.schema.TypeRef;
  * <p>필드 나열 종류(스키마 custom 이 아닌 것)는 스키마 필드를 차례로 바꾼다 — 이름은 snake_case, 값은 서버 범용 코덱(GenericCodec767)이
  * 같은 스키마 타입에 쓰는 값 종류와 같다(Component → Text, BlockPos → api BlockPos, enum → 상수 이름, Holder·ResourceKey·ResourceLocation → 이름,
  * 내포 record·class → PacketStruct, nullable → Optional). 바닐라 와이어 바이트는 서버 코덱이 만든다.
- * 손 코덱 종류(custom)와 타입 레코드 종류는 아직 바꾸지 않는다(E4c-2·E4c-3) — {@link #supports} 가 false.
+ * 종류마다 변환 계획을 처음 한 번 만들어 둔다(스키마 해석·필드 반사를 보낼 때마다 하지 않는다).
+ * 손 코덱 종류(custom)와 타입 레코드 종류는 아직 바꾸지 않는다(E4c-2·E4c-3) — {@link #supports} 가 false 이고 보내면 까닭을 밝혀 거절한다.
  */
 public final class SchemaPacketBridge {
 
@@ -36,13 +37,32 @@ public final class SchemaPacketBridge {
 
     private static final PacketSchema SCHEMA = PacketSchema.protocol767();
 
+    /** 서버 범용 코덱이 play 연결로 다루는 단계(GenericCodec767.PLAY_STATES 와 같다). */
+    private static final Set<String> PLAY_STATES = Set.of("game", "common", "cookie", "ping");
+
     /** 서버 범용 코덱의 Holder 표와 같다(그 밖의 Holder 는 서버도 못 쓴다). */
     private static final Set<String> HOLDERS = Set.of("MobEffect", "DimensionType", "SoundEvent", "Attribute");
 
     /** 이 다리가 값을 바꿀 줄 아는 타입 와이어(나머지 — global_pos·number_format 등 — 는 shim 이 아직 빈 껍데기다). */
     private static final Set<String> WIRES = Set.of("component", "identifier", "block_pos", "item_stack", "block_state", "nbt", "i64", "vec3", "registry_id");
 
-    private static final Map<String, Boolean> SUPPORTS = new ConcurrentHashMap<>();
+    private static final Set<String> REGISTRY_IDS = Set.of("net.minecraft.world.item.Item", "net.minecraft.world.level.block.Block",
+            "net.minecraft.world.entity.EntityType");
+
+    /** 값 하나의 변환(at = 오류 글에 쓸 자리). */
+    private interface Conv {
+        Object apply(Object v, String at);
+    }
+
+    /** 종류 하나의 계획: 보낼 수 있으면 fields·convs, 아니면 refusal(까닭). */
+    private record Plan(PacketDef def, PacketType<?> type, List<String> names, List<Conv> convs, List<String> fields, String refusal) {}
+
+    private static final Map<String, Plan> PLANS = new ConcurrentHashMap<>();
+
+    /** 계획을 만들 수 없는 타입(그 까닭). */
+    private static final class NoBridge extends RuntimeException {
+        NoBridge(String why) { super(why, null, false, false); }
+    }
 
     /** 스키마 키("game/clientbound/open_sign_editor")의 패킷 정의. */
     static Optional<PacketDef> def(String schemaKey) {
@@ -52,60 +72,166 @@ public final class SchemaPacketBridge {
         return dir == null ? Optional.empty() : SCHEMA.packet(k[0], dir, k[2]);
     }
 
-    /** 그 패킷의 Furnace 종류(play 단계 clientbound 만, 없으면 null). */
-    private static PacketType<?> type(PacketDef d) {
-        if (d.direction() != PacketDirection.CLIENTBOUND || !(d.state().equals("game") || d.state().equals("common"))) return null;
-        return PacketTypes.byName(PacketDirection.CLIENTBOUND, "minecraft:" + d.wireName());
+    private static Plan plan(PacketDef d) {
+        return PLANS.computeIfAbsent(d.state() + "/" + d.direction() + "/" + d.wireName(), k -> compile(d));
+    }
+
+    private static Plan refuse(PacketDef d, PacketType<?> t, String why) { return new Plan(d, t, null, null, null, why); }
+
+    private static Plan compile(PacketDef d) {
+        if (d.direction() != PacketDirection.CLIENTBOUND) {
+            return refuse(d, null, "serverbound 패킷이다 — 서버가 클라이언트에 보낼 수 없다(바닐라도 play 연결에서 인코딩이 실패한다). 받은 것처럼 넣으려면 Furnace PacketService.receive 를 쓴다");
+        }
+        if (!PLAY_STATES.contains(d.state())) {
+            return refuse(d, null, d.state() + " 단계 패킷이다 — play 연결로는 보낼 수 없다(바닐라도 인코딩이 실패한다)");
+        }
+        PacketType<?> t = PacketTypes.byName(PacketDirection.CLIENTBOUND, "minecraft:" + d.wireName());
+        if (t == null) return refuse(d, null, "Furnace 패킷 종류 표에 없다");
+        if (t.typed()) {
+            return refuse(d, t, "Furnace 타입 레코드 종류라 shim 변환이 아직 없다 — Furnace 패킷 API 의 레코드(docs/api/packets.md)를 쓴다");
+        }
+        if (d.custom()) {
+            return refuse(d, t, "와이어가 필드 나열이 아니라(손 코덱) 아직 shim 에서 바꾸지 못한다 — Furnace 패킷 API(docs/api/packets.md)의 GenericPacket 을 쓴다");
+        }
+        if (d.superType() != null) return refuse(d, t, "부모 클래스 필드가 있는 종류는 아직 다루지 않는다");
+        try {
+            List<String> names = new ArrayList<>();
+            List<Conv> convs = new ArrayList<>();
+            List<String> fields = new ArrayList<>();
+            for (FieldDef f : d.fields()) {
+                names.add(snake(f.name()));
+                convs.add(field(f, d.javaPackage(), 0));
+                fields.add(f.name());
+            }
+            return new Plan(d, t, List.copyOf(names), List.copyOf(convs), List.copyOf(fields), null);
+        } catch (NoBridge e) {
+            return refuse(d, t, e.getMessage() + " — Furnace 패킷 API(docs/api/packets.md)의 GenericPacket 을 쓴다");
+        }
     }
 
     /**
-     * 이 패킷 정의를 보낼 수 있게 바꿀 수 있는가(스키마만 보고 정한다 — 서버 없이도 된다). play 단계 clientbound, 타입 레코드가 아닌 종류, 필드 나열(custom 아님),
-     * 모든 필드 타입을 이 다리가 아는 것.
+     * 이 패킷 정의를 보낼 수 있게 바꿀 수 있는가(스키마만 보고 정한다 — 서버 없이도 된다). play 연결 clientbound, 타입 레코드가 아닌 종류,
+     * 필드 나열(custom 아님), 모든 필드 타입을 이 다리가 아는 것.
      */
-    public static boolean supports(PacketDef d) {
-        return SUPPORTS.computeIfAbsent(d.state() + "/" + d.direction() + "/" + d.wireName(), k -> {
-            PacketType<?> t = type(d);
-            if (t == null || t.typed() || d.custom() || d.superType() != null) return false;
-            for (FieldDef f : d.fields()) if (!supported(f.type(), f.wire(), d.javaPackage(), 0)) return false;
-            return true;
-        });
+    public static boolean supports(PacketDef d) { return plan(d).refusal() == null; }
+
+    /** 보낼 수 없는 까닭(보낼 수 있으면 null). 시험용. */
+    static String refusal(PacketDef d) { return plan(d).refusal(); }
+
+    private static Conv field(FieldDef f, String pkg, int depth) {
+        Conv c = conv(f.type(), f.wire(), pkg, depth);
+        if (!f.nullable()) return c;
+        return (v, at) -> v == null ? Optional.empty() : Optional.of(c.apply(v, at));
     }
 
-    private static boolean supported(TypeRef t, String wire, String pkg, int depth) {
-        if (depth > 8 || t.bound() != TypeRef.Bound.NONE) return false;
-        if (t.arrayDimensions() > 0) return t.arrayDimensions() == 1 && wire == null && Set.of("byte", "long", "int").contains(t.name());
+    private static Conv conv(TypeRef t, String wire, String pkg, int depth) {
+        if (depth > 8) throw new NoBridge("타입이 너무 깊다: " + t);
+        if (t.bound() != TypeRef.Bound.NONE) throw new NoBridge("와일드카드 타입 " + t);
+        if (t.arrayDimensions() > 0) {
+            if (t.arrayDimensions() == 1 && wire == null && Set.of("byte", "long", "int").contains(t.name())) return SchemaPacketBridge::need;
+            throw new NoBridge("배열 " + t);
+        }
         switch (t.name()) {
-            case "int", "short", "byte", "long", "float", "double", "boolean", "String", "UUID", "ResourceKey", "Instant": return true;
-            case "List", "Set", "Collection", "Optional": return wire == null && supported(t.arguments().get(0), null, pkg, depth + 1);
-            case "Holder": return HOLDERS.contains(t.arguments().get(0).name());
-            case "Map": return wire == null && t.arguments().size() == 2 && t.arguments().get(0).name().equals("String") && t.arguments().get(1).name().equals("String");
-            default: break;
+            case "int":
+                return (v, at) -> narrow((Integer) need(v, at), wire);
+            case "short", "byte", "long", "float", "double", "boolean", "String", "UUID":
+                return SchemaPacketBridge::need;
+            case "List", "Set", "Collection": {
+                if (wire != null) throw new NoBridge("목록 명시 와이어 " + wire);
+                Conv e = conv(t.arguments().get(0), null, pkg, depth + 1);
+                return (v, at) -> {
+                    List<Object> out = new ArrayList<>();
+                    int i = 0;
+                    for (Object x : (Collection<?>) need(v, at)) out.add(e.apply(x, at + "[" + i++ + "]"));
+                    return out;
+                };
+            }
+            case "Optional": {
+                if (wire != null) throw new NoBridge("Optional 명시 와이어 " + wire);
+                Conv e = conv(t.arguments().get(0), null, pkg, depth + 1);
+                return (v, at) -> ((Optional<?>) need(v, at)).map(x -> e.apply(x, at));
+            }
+            case "Holder": {
+                String arg = t.arguments().get(0).name();
+                if (!HOLDERS.contains(arg)) throw new NoBridge("Holder<" + arg + "> 는 서버 코덱도 아직 쓰지 못한다");
+                return (v, at) -> holder(need(v, at), arg, at);
+            }
+            case "ResourceKey":
+                return (v, at) -> ((net.minecraft.resources.ResourceKey<?>) need(v, at)).location().toString();
+            case "Instant":
+                return (v, at) -> ((java.time.Instant) need(v, at)).toEpochMilli();
+            case "Map": {
+                if (wire != null || t.arguments().size() != 2 || !t.arguments().get(0).name().equals("String") || !t.arguments().get(1).name().equals("String")) {
+                    throw new NoBridge("Map " + t);
+                }
+                return (v, at) -> {
+                    LinkedHashMap<String, Object> m = new LinkedHashMap<>();
+                    for (Map.Entry<?, ?> e : ((Map<?, ?>) need(v, at)).entrySet()) m.put((String) e.getKey(), e.getValue());
+                    return PacketStruct.of(m);
+                };
+            }
+            default:
+                break;
         }
         String bin;
         try {
             bin = SCHEMA.resolve(t.name(), pkg);
         } catch (IllegalArgumentException e) {
-            return false;
+            throw new NoBridge(e.getMessage());
         }
-        if (bin == null) return false;
+        if (bin == null) throw new NoBridge("타입 " + t);
         TypeDecl decl = SCHEMA.type(bin).orElse(null);
         StructDef struct = SCHEMA.struct(bin).orElse(null);
-        if (isEnum(decl, struct)) return true;
-        if (wire != null) return intField(struct) != null;   // 명시 와이어(예: game_event 의 Type u8) = 바닐라 번호
-        if (decl != null) {
-            if (!WIRES.contains(String.valueOf(decl.wire()))) return false;
-            return !"registry_id".equals(decl.wire()) || REGISTRY_IDS.contains(bin);
+        if ((decl != null && decl.kind() == TypeDecl.Kind.ENUM) || (struct != null && struct.kind() == StructDef.Kind.ENUM)) {
+            if ("i8".equals(wire)) return (v, at) -> v == null ? Optional.empty() : Optional.of(((Enum<?>) v).name());   // GameType.byNullableId 처럼 -1 = 없음
+            return (v, at) -> ((Enum<?>) need(v, at)).name();
         }
-        if (struct == null || !(struct.kind() == StructDef.Kind.RECORD || struct.kind() == StructDef.Kind.CLASS)) return false;
-        for (FieldDef f : struct.fields()) if (!supported(f.type(), f.wire(), struct.javaPackage(), depth + 1)) return false;
-        return true;
-    }
-
-    private static final Set<String> REGISTRY_IDS = Set.of("net.minecraft.world.item.Item", "net.minecraft.world.level.block.Block",
-            "net.minecraft.world.entity.EntityType");
-
-    private static boolean isEnum(TypeDecl decl, StructDef struct) {
-        return (decl != null && decl.kind() == TypeDecl.Kind.ENUM) || (struct != null && struct.kind() == StructDef.Kind.ENUM);
+        if (wire != null) {   // 명시 와이어(예: game_event 의 Type u8) = 보조 클래스가 들고 있는 바닐라 번호
+            String idField = intField(struct);
+            if (idField == null) throw new NoBridge("명시 와이어 " + wire + " 자리의 " + simple(bin));
+            Field fld = reflectField(bin, idField);
+            return (v, at) -> narrow((Integer) get(fld, need(v, at)), wire);
+        }
+        if (decl != null) {
+            String w = String.valueOf(decl.wire());
+            if (!WIRES.contains(w) || ("registry_id".equals(w) && !REGISTRY_IDS.contains(bin))) {
+                throw new NoBridge(simple(bin) + " 값 shim 이 아직 빈 껍데기다");
+            }
+            return switch (w) {
+                case "component" -> (v, at) -> net.minecraft.network.chat.Component.furnace((net.minecraft.network.chat.Component) need(v, at));
+                case "identifier" -> (v, at) -> need(v, at) instanceof net.minecraft.resources.ResourceKey<?> k ? k.location().toString() : v.toString();
+                case "block_pos" -> (v, at) -> ((net.minecraft.core.BlockPos) need(v, at)).furnace();
+                case "item_stack" -> (v, at) -> ((net.minecraft.world.item.ItemStack) need(v, at)).furnaceValue();
+                case "block_state" -> (v, at) -> blockData((net.minecraft.world.level.block.state.BlockState) need(v, at));
+                case "nbt" -> (v, at) -> ((net.minecraft.nbt.CompoundTag) need(v, at)).furnace();
+                case "i64" -> (v, at) -> need(v, at) instanceof net.minecraft.core.SectionPos s ? s.asLong() : ((net.minecraft.world.level.ChunkPos) v).toLong();
+                case "vec3" -> (v, at) -> {
+                    var p = (net.minecraft.world.phys.Vec3) need(v, at);
+                    LinkedHashMap<String, Object> m = new LinkedHashMap<>();
+                    m.put("x", p.x);
+                    m.put("y", p.y);
+                    m.put("z", p.z);
+                    return PacketStruct.of(m);
+                };
+                case "registry_id" -> (v, at) -> registryName(need(v, at));
+                default -> throw new NoBridge("와이어 " + w);
+            };
+        }
+        if (struct == null || !(struct.kind() == StructDef.Kind.RECORD || struct.kind() == StructDef.Kind.CLASS)) throw new NoBridge("타입 " + simple(bin));
+        List<String> names = new ArrayList<>();
+        List<Conv> convs = new ArrayList<>();
+        List<Field> refl = new ArrayList<>();
+        for (FieldDef f : struct.fields()) {
+            names.add(snake(f.name()));
+            convs.add(field(f, struct.javaPackage(), depth + 1));
+            refl.add(reflectField(bin, f.name()));
+        }
+        return (v, at) -> {
+            Object owner = need(v, at);
+            LinkedHashMap<String, Object> m = new LinkedHashMap<>();
+            for (int i = 0; i < names.size(); i++) m.put(names.get(i), convs.get(i).apply(get(refl.get(i), owner), at + "." + struct.fields().get(i).name()));
+            return PacketStruct.of(m);
+        };
     }
 
     /** 명시 와이어 자리의 보조 클래스가 들고 있는 번호 필드 하나(game_event Type 의 id). 없으면 null. */
@@ -115,100 +241,100 @@ public final class SchemaPacketBridge {
         return f.type().name().equals("int") && f.type().arrayDimensions() == 0 ? f.name() : null;
     }
 
+    /** 생성된 보조 shim(record·class)의 필드 — 필드 이름은 스키마 이름 그대로다. 계획을 만들 때 한 번 찾는다. */
+    private static Field reflectField(String bin, String name) {
+        Class<?> c;
+        try {
+            c = Class.forName(bin, false, SchemaPacketBridge.class.getClassLoader());
+        } catch (ClassNotFoundException | LinkageError e) {
+            throw new NoBridge(simple(bin) + " shim 클래스가 없다");
+        }
+        for (Class<?> k = c; k != null && k != Object.class; k = k.getSuperclass()) {
+            try {
+                Field f = k.getDeclaredField(name);
+                f.setAccessible(true);
+                return f;
+            } catch (NoSuchFieldException e) {
+                // 부모에서 찾는다
+            }
+        }
+        throw new NoBridge(simple(bin) + " shim 에 스키마 필드 " + name + " 이 없다");
+    }
+
+    private static Object get(Field f, Object owner) {
+        try {
+            return f.get(owner);
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static String simple(String bin) { return bin.substring(bin.lastIndexOf('.') + 1); }
+
     /**
-     * shim → GenericPacket. {@link #supports} 가 false 인 종류이거나 이 서버가 그 종류를 읽고 쓰지 못하면 {@link UnsupportedNmsCall},
+     * shim → GenericPacket. 보낼 수 없는 종류이거나 이 서버가 그 종류를 읽고 쓰지 못하면 까닭을 밝힌 {@link UnsupportedNmsCall},
      * 값이 바닐라 모양이 아니면(필수 필드가 null 등) IllegalArgumentException.
      */
     @SuppressWarnings("unchecked")
     public static GenericPacket toFurnace(SchemaPacket packet) {
         PacketDef d = def(packet.schemaKey()).orElseThrow(() -> new UnsupportedNmsCall("send(" + packet.getClass().getName() + ")", "스키마에 없는 패킷"));
-        if (!supports(d)) {
-            throw new UnsupportedNmsCall("ServerCommonPacketListenerImpl#send(" + d.binaryName() + ")",
-                    d.custom() ? "이 패킷은 와이어가 필드 나열이 아니라(손 코덱) 아직 shim 에서 바꾸지 못한다 — Furnace 패킷 API(docs/api/packets.md)를 쓴다"
-                            : "이 패킷의 필드 값 shim 을 아직 Furnace 값으로 바꾸지 못한다 — Furnace 패킷 API(docs/api/packets.md)를 쓴다");
-        }
-        PacketType<?> t = type(d);
-        if (!Furnace.server().packets().isReadable(t)) {
-            throw new UnsupportedNmsCall("ServerCommonPacketListenerImpl#send(" + d.binaryName() + ")", "이 서버 버전이 이 패킷을 쓰지 못한다");
-        }
+        Plan p = plan(d);
+        String call = "ServerCommonPacketListenerImpl#send(" + d.binaryName() + ")";
+        if (p.refusal() != null) throw new UnsupportedNmsCall(call, p.refusal());
+        if (!Furnace.server().packets().isReadable(p.type())) throw new UnsupportedNmsCall(call, "이 서버 버전이 이 패킷을 쓰지 못한다");
         Object[] values = packet.schemaValues();
-        if (values.length != d.fields().size()) throw new IllegalStateException(d.binaryName() + " shim 값 수가 스키마와 다르다");
-        return GenericPacket.of((PacketType<GenericPacket>) t, struct(d.fields(), values, d.javaPackage(), d.wireName()));
-    }
-
-    private static PacketStruct struct(List<FieldDef> fields, Object[] values, String pkg, String where) {
+        if (values.length != p.convs().size()) throw new IllegalStateException(d.binaryName() + " shim 값 수가 스키마와 다르다");
         LinkedHashMap<String, Object> m = new LinkedHashMap<>();
-        for (int i = 0; i < fields.size(); i++) {
-            FieldDef f = fields.get(i);
-            Object v = values[i];
-            String at = where + "." + f.name();
-            m.put(snake(f.name()), f.nullable() ? (v == null ? Optional.empty() : Optional.of(value(v, f.type(), f.wire(), pkg, at))) : value(v, f.type(), f.wire(), pkg, at));
-        }
-        return PacketStruct.of(m);
+        for (int i = 0; i < values.length; i++) m.put(p.names().get(i), p.convs().get(i).apply(values[i], d.wireName() + "." + p.fields().get(i)));
+        return GenericPacket.of((PacketType<GenericPacket>) p.type(), PacketStruct.of(m));
     }
 
-    private static Object value(Object v, TypeRef t, String wire, String pkg, String at) {
-        if (t.arrayDimensions() > 0) return need(v, at);   // byte[]·long[]·int[] 그대로
-        switch (t.name()) {
-            case "int": return narrow((Integer) need(v, at), wire);
-            case "short", "byte", "long", "float", "double", "boolean", "String", "UUID": return need(v, at);
-            case "List", "Set", "Collection": {
-                List<Object> out = new ArrayList<>();
-                int i = 0;
-                for (Object x : (Collection<?>) need(v, at)) out.add(value(x, t.arguments().get(0), null, pkg, at + "[" + i++ + "]"));
-                return out;
+    /**
+     * Holder → 서버 코덱 값. 등록된 것(Reference)은 키 이름 — 소리는 그 이름이 소리 레지스트리에 있어야 한다(바닐라 holder 코덱은 레지스트리에 없는
+     * Reference 의 번호를 못 찾아 인코딩이 실패한다. 서버 코덱은 모르는 이름을 직접 정의로 써 주므로 여기서 막는다, 검토 R3).
+     * 직접 정의(Direct)는 소리만 — PacketStruct{sound_id, range}로 넘겨 서버 코덱이 바닐라처럼 언제나 직접 정의(0 + 이름 + 고정 범위 Optional)로 쓴다.
+     * 다른 레지스트리의 직접 정의는 거절한다(바닐라 holderRegistry 코덱도 직접 정의를 쓰지 못한다).
+     */
+    private static Object holder(Object v, String registry, String at) {
+        if (v instanceof net.minecraft.core.Holder<?> h) {
+            var key = h.unwrapKey();
+            if (key.isPresent()) {
+                var loc = key.get().location();
+                if (registry.equals("SoundEvent") && !net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.containsKey(loc)) {
+                    throw new IllegalArgumentException(at + ": 소리 레지스트리에 없는 Reference 다(바닐라도 번호를 못 찾아 인코딩이 실패한다) — "
+                            + "리소스 팩 소리는 Holder.direct(SoundEvent.createVariableRangeEvent(…)) 로 보낸다: " + loc);
+                }
+                return loc.toString();
             }
-            case "Optional": {
-                Optional<?> o = (Optional<?>) need(v, at);
-                return o.map(x -> value(x, t.arguments().get(0), null, pkg, at));
-            }
-            case "Holder": {
-                if (need(v, at) instanceof net.minecraft.core.Holder<?> h && h.unwrapKey().isPresent()) return h.unwrapKey().get().location().toString();
-                throw new IllegalArgumentException(at + ": 등록된 것(Holder.Reference)만 보낼 수 있다 — 직접 정의는 아직 안 된다: " + v);
-            }
-            case "ResourceKey": return ((net.minecraft.resources.ResourceKey<?>) need(v, at)).location().toString();
-            case "Instant": return ((java.time.Instant) need(v, at)).toEpochMilli();
-            case "Map": {
+            if (registry.equals("SoundEvent") && h.value() instanceof net.minecraft.sounds.SoundEvent s) {
                 LinkedHashMap<String, Object> m = new LinkedHashMap<>();
-                for (Map.Entry<?, ?> e : ((Map<?, ?>) need(v, at)).entrySet()) m.put((String) e.getKey(), e.getValue());
+                m.put("sound_id", s.getLocation().toString());
+                m.put("range", fixedRange(s));
                 return PacketStruct.of(m);
             }
-            default: break;
         }
-        String bin = SCHEMA.resolve(t.name(), pkg);
-        TypeDecl decl = SCHEMA.type(bin).orElse(null);
-        StructDef struct = SCHEMA.struct(bin).orElse(null);
-        if (isEnum(decl, struct)) {
-            if ("i8".equals(wire)) return v == null ? Optional.empty() : Optional.of(((Enum<?>) v).name());   // GameType.byNullableId 처럼 -1 = 없음
-            return ((Enum<?>) need(v, at)).name();
+        throw new IllegalArgumentException(at + ": 등록된 것(Holder.Reference)만 보낼 수 있다 — " + registry + " 직접 정의는 바닐라도 이 자리에 쓰지 못한다: " + v);
+    }
+
+    /** SoundEvent 의 private fixedRange()(바닐라와 같은 private 멤버라 반사로 읽는다). */
+    private static final java.lang.reflect.Method FIXED_RANGE;
+
+    static {
+        try {
+            FIXED_RANGE = net.minecraft.sounds.SoundEvent.class.getDeclaredMethod("fixedRange");
+            FIXED_RANGE.setAccessible(true);
+        } catch (NoSuchMethodException e) {
+            throw new ExceptionInInitializerError(e);
         }
-        if (wire != null) return narrow((Integer) read(need(v, at), intField(struct)), wire);
-        if (decl != null) {
-            Object x = need(v, at);
-            return switch (decl.wire()) {
-                case "component" -> net.minecraft.network.chat.Component.furnace((net.minecraft.network.chat.Component) x);
-                case "identifier" -> x instanceof net.minecraft.resources.ResourceKey<?> k ? k.location().toString() : x.toString();
-                case "block_pos" -> ((net.minecraft.core.BlockPos) x).furnace();
-                case "item_stack" -> ((net.minecraft.world.item.ItemStack) x).furnaceValue();
-                case "block_state" -> blockData((net.minecraft.world.level.block.state.BlockState) x);
-                case "nbt" -> ((net.minecraft.nbt.CompoundTag) x).furnace();
-                case "i64" -> x instanceof net.minecraft.core.SectionPos s ? s.asLong() : ((net.minecraft.world.level.ChunkPos) x).toLong();
-                case "vec3" -> {
-                    var p = (net.minecraft.world.phys.Vec3) x;
-                    LinkedHashMap<String, Object> m = new LinkedHashMap<>();
-                    m.put("x", p.x);
-                    m.put("y", p.y);
-                    m.put("z", p.z);
-                    yield PacketStruct.of(m);
-                }
-                case "registry_id" -> registryName(x);
-                default -> throw new IllegalStateException("supports 와 어긋난 와이어: " + decl.wire());
-            };
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Optional<Float> fixedRange(net.minecraft.sounds.SoundEvent s) {
+        try {
+            return (Optional<Float>) FIXED_RANGE.invoke(s);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
         }
-        Object x = need(v, at);
-        Object[] values = new Object[struct.fields().size()];
-        for (int i = 0; i < values.length; i++) values[i] = read(x, struct.fields().get(i).name());
-        return struct(struct.fields(), values, struct.javaPackage(), at);
     }
 
     /**
@@ -241,22 +367,6 @@ public final class SchemaPacketBridge {
     private static org.domi.furnace.api.world.BlockData blockData(net.minecraft.world.level.block.state.BlockState s) {
         return Furnace.server().blockTypes().byStateId(s.furnaceStateId())
                 .orElseThrow(() -> new IllegalArgumentException("모르는 블록 상태 번호: " + s.furnaceStateId()));
-    }
-
-    /** 생성된 보조 shim(record·class)의 필드 값 — 필드 이름은 스키마 이름 그대로다. */
-    private static Object read(Object owner, String field) {
-        for (Class<?> c = owner.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
-            try {
-                Field f = c.getDeclaredField(field);
-                f.setAccessible(true);
-                return f.get(owner);
-            } catch (NoSuchFieldException e) {
-                // 부모에서 찾는다
-            } catch (IllegalAccessException e) {
-                throw new IllegalStateException(e);
-            }
-        }
-        throw new IllegalStateException(owner.getClass().getName() + " 에 스키마 필드 " + field + " 이 없다");
     }
 
     /** Mojang camelCase → snake_case(서버 GenericCodec767.snake 와 같은 규칙). */

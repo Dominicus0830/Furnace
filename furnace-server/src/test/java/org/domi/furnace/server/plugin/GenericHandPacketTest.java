@@ -359,4 +359,24 @@ class GenericHandPacketTest {
         var r = assertThrows(IllegalArgumentException.class, () -> codec.decode(session.type(), codec.ids(session.type())[0], Unpooled.wrappedBuffer(ByteBufUtil.decodeHexDump(bad))));
         assertTrue(r.getMessage().contains("RSA"), r.getMessage());
     }
+
+    @Test
+    void fieldLengthLimitsMatchVanillaReads() {
+        // 바닐라 바이트코드의 readUtf(n)·stringUtf8(n)·byteArray(n) 상수(검토 PR #259 R2)
+        var push = g(Clientbound.RESOURCE_PACK_PUSH, "id", BOSS, "url", "https://x", "hash", "a".repeat(40), "required", true, "prompt", Optional.empty());
+        body(push);
+        var e = assertThrows(IllegalArgumentException.class, () -> body(push.with("hash", "a".repeat(41))));
+        assertTrue(e.getMessage().contains("40"), e.getMessage());
+        var cookie = g(Clientbound.STORE_COOKIE, "key", "plug:c", "payload", new byte[5120]);
+        body(cookie);
+        assertThrows(IllegalArgumentException.class, () -> body(cookie.with("payload", new byte[5121])));
+        var answer = g(Serverbound.COOKIE_RESPONSE, "key", "plug:c", "payload", Optional.of(new byte[5121]));
+        assertThrows(IllegalArgumentException.class, () -> body(answer));
+        body(answer.with("payload", Optional.empty()));
+        assertThrows(IllegalArgumentException.class, () -> body(g(Serverbound.COMMAND_SUGGESTION, "id", 1, "command", "x".repeat(32501))));
+        body(g(Serverbound.COMMAND_SUGGESTION, "id", 1, "command", "x".repeat(32500)));
+        // 읽기도 바닐라처럼 상한을 넘으면 실패(키 "plug:c" + 길이 5121)
+        byte[] wire = ByteBufUtil.decodeHexDump("06706c75673a63" + "8128" + "00".repeat(5121));
+        assertThrows(IllegalArgumentException.class, () -> codec.decode(Clientbound.STORE_COOKIE, codec.ids(Clientbound.STORE_COOKIE)[0], Unpooled.wrappedBuffer(wire)));
+    }
 }
