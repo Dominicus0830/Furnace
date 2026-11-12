@@ -19,7 +19,7 @@
 - 더 큰 차이: 데이터 팩 블록 태그가 `B.isTag`·`BlockTags` 호출처 어디에도 안 들어간다(`isInTag("minecraft:block", …)` 호출처 없음). → `docs/user-todo/entries/2026-11-12-small-vanilla-mismatches.md` 결정 1.
 
 ## 검토 반영 (PR #280 독립 검토 2건)
-- **R5 `LegacyRandomSource.nextDouble`**: `long × 1.110223E-16F` 는 float 곱셈이라 정밀도를 잃고 최댓값이 1.0 이 됐다. 바닐라 `BitRandomSource.nextDouble` 은 `(double)l × 1.1102230246251565E-16`. 고침(JDK `Random.nextDouble` 과 같은 씨앗·같은 수열 시험). 이 난수를 쓰는 모든 곳(가우스 포함)의 값이 바닐라와 같아진다.
+- **R5 `LegacyRandomSource.nextDouble`**(float 곱 정밀도 손실): 별도 PR #286 이 고친다(같은 줄이라 이 묶음에서 뺐다).
 - **R6 효과 수정자**: 바닐라 `MobEffect.addAttributeModifiers` 는 `addPermanentModifier`(저장). Furnace `LivingEntity.applyEffectAttributes` 가 transient 라 청크를 다시 불러오면 수정자가 사라졌다 → `addOrReplaceModifier`(영구). 효과 자체는 효과 목록에서 되살아나고 속성 NBT 가 수정자를 되살린다(바닐라와 같다). 플레이어는 `PlayerAttributes` 가 효과 목록에서 매번 계산한다.
 - **R7**: `State.replace` 주석을 "바닐라와 다름(의도)"로 고침(연산이 바뀌면 바닐라는 옛 연산 맵에서 빼지 않아 이중 계산, 영구 id 위에 쓰면 permanentModifiers 를 안 건드림).
 - **R8 `AttributeMap.load`**: 저장된 수정자 id 가 이름공간 없이 `foo` 면 `minecraft:foo` 로 맞춘다(바닐라는 `ResourceLocation` 으로 파싱). 가정(바닐라와 다름): 바닐라 `load` 는 기존 수정자를 비우지 않지만 Furnace 는 비운다 — 저장 목록이 그 속성의 영구 수정자 전부를 담으므로 결과는 같고, 만들 때 단 기본 수정자가 저장에 없을 때만 다르다.
