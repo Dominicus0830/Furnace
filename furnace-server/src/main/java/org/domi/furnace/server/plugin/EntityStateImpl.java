@@ -74,6 +74,12 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
     }
 
     @Override
+    public org.domi.furnace.api.world.Aabb boundingBox() {
+        check();
+        return ApiBoxes.of(e.boundingBox());
+    }
+
+    @Override
     public boolean isCustomNameVisible() {
         check();
         return e.isCustomNameVisible();

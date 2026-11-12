@@ -131,6 +131,12 @@ public interface Entity {
         return CompletableFuture.failedFuture(new UnsupportedOperationException("setPose"));
     }
 
+    /**
+     * 핸들을 만든 시점의 충돌 상자(바닐라 Entity.getBoundingBox — 월드 좌표). 플레이어는 지금 값(위치·자세로 계산한다).
+     * 지금 값을 소유 스레드에서 읽으려면 {@link EntityState#boundingBox()}.
+     */
+    default org.domi.furnace.api.world.Aabb boundingBox() { throw new UnsupportedOperationException("boundingBox"); }
+
     /** 핸들을 만든 시점의 noPhysics(충돌·블록 막힘 없이 움직이는가). */
     default boolean noPhysics() { return false; }
 

@@ -135,16 +135,27 @@ public class CraftEntity implements Entity {
         return t;
     }
 
+    /** 소유 스레드면 지금 충돌 상자, 아니면(또는 상태 손잡이가 없는 플레이어면) 핸들의 상자(플레이어는 최근 값). */
+    private org.domi.furnace.api.world.Aabb currentBox() {
+        try {
+            return EntityStates.read(handle, EntityState.class, EntityState::boundingBox, handle.boundingBox(), "Entity#getBoundingBox");
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature notNow) {
+            return handle.boundingBox();
+        }
+    }
+
+    @Override
+    public org.bukkit.util.BoundingBox getBoundingBox() {
+        var b = currentBox();
+        return new org.bukkit.util.BoundingBox(b.minX(), b.minY(), b.minZ(), b.maxX(), b.maxY(), b.maxZ());
+    }
+
     @Override
     public java.util.List<org.bukkit.entity.Entity> getNearbyEntities(double x, double y, double z) {
-        var loc = handle.location();
-        double r = Math.sqrt(x * x + y * y + z * z);
-        var found = handle.world().nearbyEntitiesNow(loc, r);
-        java.util.List<org.bukkit.entity.Entity> out = new java.util.ArrayList<>();
+        var found = handle.world().entitiesInBoxNow(currentBox().inflate(x, y, z));
+        java.util.List<org.bukkit.entity.Entity> out = new java.util.ArrayList<>(found.size());
         for (var e : found) {
-            if (e.uniqueId().equals(handle.uniqueId())) continue;
-            var l = e.location();
-            if (Math.abs(l.x() - loc.x()) <= x && Math.abs(l.y() - loc.y()) <= y && Math.abs(l.z() - loc.z()) <= z) out.add(Compat.entity(e));
+            if (!e.uniqueId().equals(handle.uniqueId())) out.add(Compat.entity(e));
         }
         return out;
     }

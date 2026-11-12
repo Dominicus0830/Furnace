@@ -114,6 +114,24 @@ public interface World {
     default List<Entity> nearbyEntitiesNow(Location center, double radius) { throw new UnsupportedOperationException("nearbyEntitiesNow"); }
 
     /**
+     * box 와 충돌 상자가 겹치는(경계만 닿는 것은 제외) 엔티티와 플레이어 — 바닐라 Level.getEntities(null, box). box 가운데 칸을 가진
+     * region 스레드에서만(아니면 {@link org.domi.furnace.api.concurrent.ThreadOwnershipException}) 곧바로 목록을 돌려준다.
+     * 그 region 이 갖지 않은 청크의 엔티티는 빠지고, 청크가 로드돼 있지 않으면 빈 목록. 사라진 엔티티는 빠진다.
+     */
+    default List<Entity> entitiesInBoxNow(Aabb box) { throw new UnsupportedOperationException("entitiesInBoxNow"); }
+
+    /**
+     * 블록 광선 판정(바닐라 Level.clip) — 선분 (fx,fy,fz)→(tx,ty,tz) 가 처음 맞는 블록. 시작점이 든 칸의 region 스레드에서만(아니면
+     * ThreadOwnershipException). 안 맞으면 empty. ignorePassable 이면 충돌 모양(지나갈 수 있는 블록은 건너뛴다), 아니면 윤곽 모양.
+     * canCollide 가 false 를 주는 칸은 블록도 유체도 건너뛴다(null 이면 모두 본다 — Paper 의 canCollide). canCollide 는 그 region 스레드에서 불린다.
+     * 로드되지 않은(또는 그 region 이 갖지 않은) 청크에 닿으면 거기서 빗나간 것으로 끝낸다(청크를 만들지 않는다).
+     */
+    default Optional<BlockHit> rayTraceBlocksNow(double fx, double fy, double fz, double tx, double ty, double tz, FluidPick fluid, boolean ignorePassable,
+            java.util.function.Predicate<BlockPos> canCollide) {
+        throw new UnsupportedOperationException("rayTraceBlocksNow");
+    }
+
+    /**
      * 네트워크 엔티티 id({@link Entity#entityId()}, 패킷이 엔티티를 가리키는 번호)로 이 월드의 엔티티나 플레이어를 찾는다(Paper 의
      * ServerLevel#getEntity(int)). 그 엔티티를 가진 region 에서 읽은 새 핸들로 완료하고, 없거나 다른 월드에 있거나 사라졌으면 empty.
      * 엔티티가 region 을 옮겨 가는 도중이면 몇 번 다시 찾는다. 아무 스레드.

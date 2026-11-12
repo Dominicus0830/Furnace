@@ -52,6 +52,8 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     private final org.domi.furnace.api.event.cause.CauseChain origin;
     private final org.domi.furnace.api.entity.Pose pose;
     private final boolean noPhysics;
+    /** 충돌 상자(만든 순간 값). */
+    private final org.domi.furnace.api.world.Aabb boundingBox;
     /** 스냅샷 순번(서버 전체에서 늘어난다 — 값을 읽기 전에 매긴다). */
     private static final java.util.concurrent.atomic.AtomicLong STAMPS = new java.util.concurrent.atomic.AtomicLong();
     private final long stamp = STAMPS.incrementAndGet();
@@ -70,6 +72,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         this.origin = e.origin();
         this.pose = org.domi.furnace.api.entity.Pose.byId(e.getPose());
         this.noPhysics = e.noPhysics;
+        this.boundingBox = ApiBoxes.of(e.boundingBox());
         if (e instanceof ContainerEntity ce) {
             containerType = type;
             containerSize = ce.chestVehicleItems().length;
@@ -110,6 +113,9 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
 
     @Override
     public float headYaw() { return headYaw; }
+
+    @Override
+    public org.domi.furnace.api.world.Aabb boundingBox() { return boundingBox; }
 
     @Override
     public Text customName() { return customName; }
