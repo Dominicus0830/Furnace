@@ -120,6 +120,11 @@ public final class ServerLibraries {
             new Group("commons-lang3", "Apache Commons Lang 3", List.of(
                     new Artifact("org.apache.commons:commons-lang3:3.14.0", "7b96bf3ee68949abb5bc465559ac270e0551596fa34523fddf890ec418dde13c", C)),
                     List.of("org/apache/commons/lang3/"), List.of()),
+            // 옛 Bukkit API 가 싣던 commons-lang 2.x(org.apache.commons.lang.Validate 등). Paper·Spigot 서버 classpath 에 있어
+            // ProtocolLib 같은 오래된 플러그인이 그대로 쓴다. commons-lang3 와 패키지가 다르다(lang/ 대 lang3/).
+            new Group("commons-lang", "Apache Commons Lang 2.x(옛 Bukkit API 가 싣던 것)", List.of(
+                    new Artifact("commons-lang:commons-lang:2.6", "50f11b09f877c294d56f24463f47d28f929cf5044f648661c0f0cfbae9a2f49c", C)),
+                    List.of("org/apache/commons/lang/"), List.of()),
             new Group("commons-io", "Apache Commons IO", List.of(
                     new Artifact("commons-io:commons-io:2.15.1", "a58af12ee1b68cfd2ebb0c27caef164f084381a00ec81a48cc275fd7ea54e154", C)),
                     List.of("org/apache/commons/io/"), List.of()),

@@ -78,13 +78,14 @@ Paper 는 Guava·Adventure·SnakeYAML·Brigadier 같은 라이브러리를 서�
 | joml | joml 1.10.5 | Central | `org/joml/` |
 | fastutil | fastutil 8.5.12 (23 MB) | Central | `it/unimi/dsi/fastutil/` |
 | commons-lang3 | commons-lang3 3.14.0 | Central | `org/apache/commons/lang3/` |
+| commons-lang | commons-lang 2.6(옛 Bukkit API 가 싣던 `org.apache.commons.lang.Validate` 등) | Central | `org/apache/commons/lang/`(`lang3/` 와 다름) |
 | commons-io | commons-io 2.15.1 | Central | `org/apache/commons/io/` |
 | log4j | log4j-api 2.22.1 + log4j-to-slf4j 2.22.1(플러그인의 log4j 로그를 서버 로그로) | Central | `org/apache/logging/log4j/` |
 | brigadier | brigadier 1.3.10 | Mojang | `com/mojang/brigadier/` |
 | authlib | authlib 6.0.54 (+ guava·commons-io·commons-lang3) | Mojang | `com/mojang/authlib/` |
 | datafixerupper | datafixerupper 8.0.16 (+ guava·fastutil) | Mojang | `com/mojang/serialization/`, `com/mojang/datafixers/` |
 
-- 바닐라 1.21.1 서버 jar 가 싣는 것(Guava·failureaccess·JOML·fastutil·commons-lang3·commons-io·log4j-api·Brigadier·authlib·DataFixerUpper)은 바닐라 jar 의 `META-INF/libraries.list` 에 Mojang 이 적은 버전·sha256 을 그대로 썼다. 나머지(Adventure·SnakeYAML·BungeeChat·json-simple·log4j-to-slf4j)는 Maven Central 의 jar 를 받아 잰 값이다. Paper 1.21.1 이 정확히 어느 버전을 싣는지는 Paper 저장소에 못 닿아 대조하지 못했다(기억 기준: Adventure 4.17.0, SnakeYAML 2.2).
+- 바닐라 1.21.1 서버 jar 가 싣는 것(Guava·failureaccess·JOML·fastutil·commons-lang3·commons-io·log4j-api·Brigadier·authlib·DataFixerUpper)은 바닐라 jar 의 `META-INF/libraries.list` 에 Mojang 이 적은 버전·sha256 을 그대로 썼다. 나머지(Adventure·SnakeYAML·BungeeChat·json-simple·log4j-to-slf4j·commons-lang 2.6)는 Maven Central 의 jar 를 받아 잰 값이다. Paper 1.21.1 이 정확히 어느 버전을 싣는지는 Paper 저장소에 못 닿아 대조하지 못했다(기억 기준: Adventure 4.17.0, SnakeYAML 2.2).
 - 서버 클래스패스에 이미 있는 Gson·slf4j·netty 는 받지 않는다(두 벌이면 플러그인과 서버가 다른 Class 를 본다).
 - 받은(꺼낸) jar 는 고정 sha256 과 같은 바이트만 쓴다. 서버 jar 에 실린 바이트가 다르면 쓰지 않고 Central 에서 받는다. 캐시 파일이 다르면 지우고 다시 받는다. 잠금 파일(`libraries.lock`)은 보지도 쓰지도 않는다 — 코드의 고정값이 기준이다.
 
