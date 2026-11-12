@@ -36,6 +36,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
 
     final PluginHost host;
     private final UUID uuid;
+    private final int entityId;
     private final String type;
     private final Location location;
     private final Text customName;
@@ -56,6 +57,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     EntityHandle(PluginHost host, Entity e) {
         this.host = host;
         this.uuid = e.uuid();
+        this.entityId = e.id();
         this.type = e.type().name();
         this.location = new Location(e.dimensionKey(), e.x(), e.y(), e.z(), e.yRot(), e.xRot());
         this.customName = e.hasCustomName() ? e.getCustomName() : null;
@@ -87,6 +89,9 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
 
     @Override
     public UUID uniqueId() { return uuid; }
+
+    @Override
+    public int entityId() { return entityId; }
 
     @Override
     public long snapshotStamp() { return stamp; }

@@ -56,6 +56,9 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     public UUID uniqueId() { return p.uuid(); }
 
     @Override
+    public int entityId() { return p.entityId(); }
+
+    @Override
     public Text displayName() { return p.displayName(); }
 
     @Override

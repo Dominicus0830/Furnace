@@ -20,6 +20,12 @@ public interface Entity {
 
     UUID uniqueId();
 
+    /**
+     * 네트워크 엔티티 id(패킷이 엔티티를 가리키는 번호, Bukkit/Paper 의 getEntityId). 핸들을 만든 뒤에도 바뀌지 않으며
+     * 서버가 살아 있는 동안 같은 차원의 다른 엔티티와 겹치지 않는다. 플레이어도 같다.
+     */
+    int entityId();
+
     /** 종류 키(minecraft:zombie, minecraft:player). 불변. */
     String type();
 
