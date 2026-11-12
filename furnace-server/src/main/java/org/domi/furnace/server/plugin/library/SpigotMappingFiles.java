@@ -1,5 +1,5 @@
-// Spigot 이름 → Mojang 이름 대응표의 재료 파일 세 개를 운영자 컴퓨터에서 받아 캐시에 둔다(H7d, 사용자 결정 9: 선택해서 켤 때만).
-//  - 켜는 법: furnace.properties plugins.compat.nms.spigot-mappings=download (기본 off). 켜져 있어도 plugins/bukkit-plugins/ 에
+// Spigot 이름 → Mojang 이름 대응표의 재료 파일 세 개를 운영자 컴퓨터에서 받아 캐시에 둔다(H7d. 2026-11-12 결정: 기본으로 켜고, 필요할 때만 받는다).
+//  - 설정: furnace.properties plugins.compat.nms.spigot-mappings=download (기본). 그래도 plugins/bukkit-plugins/(또는 plugins/) 에
 //    Spigot 이름 NMS 플러그인(매니페스트에 paperweight-mappings-namespace: mojang 이 없고 net.minecraft 를 가리키는 jar)이 있을 때만 받는다.
 //  - 저장소·서버 jar 에는 싣지 않는다(Mojang·Spigot 에서 뽑은 자료, docs/policy/licensing.md). 받은 파일은 운영자 캐시에만 남는다.
 //  - Mojang server.txt: 주소·sha1·크기를 코드에 고정했다. 값은 Mojang 버전 목록 → 1.21.1 버전 파일(piston-meta, sha1 82ba6501…)의

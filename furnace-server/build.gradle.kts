@@ -151,7 +151,19 @@ val bundledLibrariesJar = tasks.register<Jar>("bundledLibrariesJar") {
     into("META-INF/furnace/libraries") { from(bundledLibraries) }
     into("META-INF/furnace/libraries") { from(rootProject.file("NOTICE")); from(rootProject.file("licenses/LICENSE-APACHE-2.0.txt")) }
 }
-distributions { main { contents { into("lib") { from(bundledLibrariesJar) } } } }
+// 같은 이유로 Bukkit·Paper 호환 계층도 jar 하나(META-INF/furnace/compat/ 색인 + jar 그대로)로 lib/ 에 넣는다 — 없으면 start.sh/start.bat 실행에서
+// 호환 어댑터가 클래스패스에 없어 Bukkit 플러그인이 안 올라간다(2026-11-12 결정: 폴더에 넣으면 바로 작동). 클래스를 풀지 않으므로 서버 로더는 호환 클래스를 보지 않고,
+// Bukkit 플러그인이 없으면 꺼내지도 않는다(CompatJars).
+val compatEmbeddedJar = tasks.register<Jar>("compatEmbeddedJar") {
+    dependsOn(":furnace-compat-paper:jar")
+    dependsOn(compatBundle)
+    dependsOn(compatIndex)
+    archiveFileName = "furnace-compat-embedded.jar"
+    destinationDirectory = layout.buildDirectory.dir("compat-embedded")
+    into("META-INF/furnace/compat") { from({ compatJars() }) }
+    from(layout.buildDirectory.dir("compat-index"))
+}
+distributions { main { contents { into("lib") { from(bundledLibrariesJar); from(compatEmbeddedJar) } } } }
 val fatJar = tasks.register<Jar>("fatJar") {
     group = "build"
     // 런타임 의존성(furnace-api jar 등)을 먼저 만들어야 zipTree 로 합칠 수 있다

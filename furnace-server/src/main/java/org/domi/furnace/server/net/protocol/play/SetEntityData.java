@@ -32,7 +32,7 @@ public record SetEntityData(int entityId, List<Item> items) implements Packet {
             Types.writeVarInt(buf, it.serializer());
             switch (it.serializer()) {
                 case SERIALIZER_BYTE -> buf.writeByte(((Number) it.value()).byteValue());
-                case SERIALIZER_INT, SERIALIZER_DIRECTION, SERIALIZER_FROG_VARIANT, SERIALIZER_WOLF_VARIANT, SERIALIZER_ARMADILLO_STATE, SERIALIZER_SNIFFER_STATE, SERIALIZER_POSE, SERIALIZER_CAT_VARIANT, SERIALIZER_BLOCK_STATE -> Types.writeVarInt(buf, ((Number) it.value()).intValue());
+                case SERIALIZER_INT, SERIALIZER_DIRECTION, SERIALIZER_FROG_VARIANT, SERIALIZER_ARMADILLO_STATE, SERIALIZER_SNIFFER_STATE, SERIALIZER_POSE, SERIALIZER_CAT_VARIANT, SERIALIZER_BLOCK_STATE -> Types.writeVarInt(buf, ((Number) it.value()).intValue());
                 case SERIALIZER_LONG -> Types.writeVarLong(buf, ((Number) it.value()).longValue());
                 case SERIALIZER_STRING -> Types.writeString(buf, (String) it.value());
                 case SERIALIZER_FLOAT -> buf.writeFloat(((Number) it.value()).floatValue());
@@ -64,6 +64,8 @@ public record SetEntityData(int entityId, List<Item> items) implements Packet {
                     Types.writeVarInt(buf, d[2]);
                 }
                 case SERIALIZER_PAINTING_VARIANT -> Types.writeVarInt(buf, ((Number) it.value()).intValue() + 1);   // 레지스트리 홀더
+                // 늑대 종류도 바닐라 1.21.1 은 ByteBufCodecs.holder(WOLF_VARIANT, 직접 코덱) — 0 은 직접 정의, 등록된 종류는 번호 + 1(그림과 같음)
+                case SERIALIZER_WOLF_VARIANT -> Types.writeVarInt(buf, ((Number) it.value()).intValue() + 1);
                 case SERIALIZER_COMPOUND -> new org.domi.furnace.server.net.io.nbt.NbtWriter(buf).writeCompound((org.domi.furnace.server.net.io.nbt.NbtCompound) it.value());   // CompoundTag: 무명 루트 NBT
                 case SERIALIZER_COMPONENT -> buf.writeBytes(((org.domi.furnace.api.text.Text) it.value()).networkNbt());
                 case SERIALIZER_OPTIONAL_COMPONENT -> {   // Optional<Component>: 있으면 true + 텍스트 NBT. 값은 null 또는 Text

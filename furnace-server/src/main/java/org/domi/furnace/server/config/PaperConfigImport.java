@@ -631,6 +631,8 @@ public final class PaperConfigImport {
         StringBuilder sb = new StringBuilder();
         if (old.length > 0 && old[old.length - 1] != '\n') sb.append('\n');
         if (old.length > 0) sb.append('\n');
+        // 새로 만드는 파일이면 지금 형식 버전을 먼저 적는다 — 안 적으면 바로 다음 마이그레이션이 형식 1 로 보고 돌아 가져온 값을 기본값 바꾸기로 뒤집을 수 있다
+        if (old.length == 0) sb.append(ConfigMigration.KEY).append('=').append(ConfigMigration.CURRENT).append('\n');
         sb.append("# --- Paper/Spigot 설정에서 가져옴 (").append(Instant.now().toString(), 0, 19).append("Z, ")
                 .append(String.join(" ", labels)).append(") ---\n");
         sb.append("# 어디서 무엇을 가져왔고 무엇을 못 옮겼는지: ").append(REPORT_FILE).append('\n');
