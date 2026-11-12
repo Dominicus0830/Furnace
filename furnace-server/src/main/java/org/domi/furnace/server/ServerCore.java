@@ -36,7 +36,11 @@ public final class ServerCore {
     /** 오버월드 보더(바닐라 overworld().getWorldBorder()) — 명령·level.dat·접속자 패킷이 이것을 쓴다. 다른 차원 보더는 이것을 따라간다. */
     private final org.domi.furnace.server.world.WorldBorder border;
     private volatile Runnable halt = () -> {};
-    private volatile Runnable saveAll = () -> {};
+    /** /save-all·빈 서버 일시정지 저장(서버가 채운다). 돌려주는 future 는 저장이 끝나면 완료된다 — 부른 스레드를 막지 않는다. */
+    @FunctionalInterface
+    public interface SaveAll { java.util.concurrent.CompletableFuture<Void> save(boolean flush); }
+
+    private volatile SaveAll saveAll = flush -> java.util.concurrent.CompletableFuture.completedFuture(null);
 
     public ServerCore(ServerPropertiesFile settings, PlayerLists lists, GameProfileCache profileCache, World world,
                       LevelData levelData, FurnaceScheduler scheduler) {
@@ -1824,12 +1828,19 @@ public final class ServerCore {
 
     public void onHalt(Runnable r) { this.halt = r; }
 
-    public void onSaveAll(Runnable r) { this.saveAll = r; }
+    public void onSaveAll(SaveAll s) { this.saveAll = s; }
 
     /** /stop — 종료 훅을 돈다. */
     public void halt() { halt.run(); }
 
-    public void saveAll() { saveAll.run(); }
+    /**
+     * 바닐라 saveEverything(suppressLogs, flush, forced=true) 을 시작한다. 플레이어 저장 요청·level.dat 값은 부른 스레드에서 바로 뜨고,
+     * 기다림은 저장 스레드에서 한다 — /save-all 이 전역 스레드를 막지 않게(P-O14-10). flush 면 디스크 동기화까지 끝난 뒤 완료된다.
+     */
+    public java.util.concurrent.CompletableFuture<Void> saveAllAsync(boolean flush) { return saveAll.save(flush); }
+
+    /** 끝날 때까지 기다리는 판(flush 없음). 유지보수 스레드 전용 — 전역·region 스레드에서 부르지 않는다. */
+    public void saveAll() { saveAllAsync(false).join(); }
 
     public boolean autosaveEnabled() { return world.autosaveEnabled(); }
 

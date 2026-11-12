@@ -111,14 +111,54 @@ public final class ServerCommands {
                 .then(literal("flush").executes(c -> saveAll(c.getSource(), true))));
     }
 
+    /** /save-all 지연 결과 대기 한도. 저장 자체가 차원마다 마감을 두므로 정상이면 닿지 않는 안전망이다(닿으면 뒤 명령을 풀어 준다). */
+    static final java.time.Duration SAVE_ALL_TIMEOUT = java.time.Duration.ofMinutes(10);
+
+    /**
+     * 바닐라 SaveAllCommand: "Saving the game…" → saveEverything(true, flush, true) → "Saved the game"(관리자에게 알림) → 1.
+     * Furnace 차이(P-O14-10): 저장 대기를 전역 스레드에서 하지 않는다. 결과를 지연 결과로 맡겨 이 명령 컨텍스트만 멈추고(뒤 명령은 바닐라처럼
+     * 저장 뒤에 돈다, RCON 응답도 저장이 끝난 뒤 두 줄을 함께 돌려준다) 시간·날씨·스케줄러·콘솔 입력은 계속 돈다.
+     */
     private static int saveAll(CommandSource source, boolean flush) throws CommandSyntaxException {
         source.sendSuccess(() -> Text.translatable("commands.save.saving"), false);
+        java.util.concurrent.CompletableFuture<Void> save;
         try {
-            source.getServer().saveAll();
+            save = source.getServer().saveAllAsync(flush);
         } catch (RuntimeException e) {
             throw ERROR_SAVE_FAILED.create();
         }
-        source.sendSuccess(() -> Text.translatable("commands.save.success"), true);
+        if (save.isDone() || source.executionContext() == null) {
+            // 이미 끝났거나 실행 컨텍스트 밖(직접 dispatcher.execute) — 그 자리에서 기다린다(저장 스레드는 전역 스레드를 기다리지 않는다)
+            try {
+                save.join();
+            } catch (java.util.concurrent.CompletionException | java.util.concurrent.CancellationException e) {
+                throw ERROR_SAVE_FAILED.create();
+            }
+            source.sendSuccess(() -> Text.translatable("commands.save.success"), true);
+            return 1;
+        }
+        java.util.concurrent.CompletableFuture<Integer> result = new java.util.concurrent.CompletableFuture<>();
+        save.whenComplete((v, ex) -> {
+            Runnable finish = () -> {
+                if (ex != null) {
+                    result.completeExceptionally(ERROR_SAVE_FAILED.create());
+                } else {
+                    // 바닐라 순서: 성공 메시지 → 결과 1(소스 콜백). 메시지는 전역 스레드에서 보낸다
+                    try {
+                        source.sendSuccess(() -> Text.translatable("commands.save.success"), true);
+                        result.complete(1);
+                    } catch (Throwable t) {
+                        result.completeExceptionally(t);
+                    }
+                }
+            };
+            try {
+                source.getServer().scheduler().global().execute(finish);
+            } catch (java.util.concurrent.RejectedExecutionException closed) {
+                result.cancel(false);   // 종료 중 — 명령 큐도 닫혀 이 결과를 받을 곳이 없다
+            }
+        });
+        source.defer(result, SAVE_ALL_TIMEOUT);
         return 1;
     }
 
