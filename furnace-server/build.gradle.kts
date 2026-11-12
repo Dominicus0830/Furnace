@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
+import java.security.MessageDigest
 import java.util.zip.ZipFile
 plugins {
     id("java")
@@ -128,6 +129,29 @@ val compatIndex = tasks.register("compatIndex") {
         f.writeText(names.joinToString("\n", postfix = "\n"))
     }
 }
+// 서버 jar 에 jar 그대로 싣는 서버 제공 라이브러리(사용자 결정 5 정정, 2026-11-12): Guava·failureaccess·SnakeYAML.
+// 풀어 넣지 않는다 — 서버 로더가 보지 않고, 호환 플러그인이 쓸 때만 꺼내 공유 로더에 붙인다(ServerLibraries.BUNDLE_DIR). 패키지 재배치 없음.
+// 버전·sha256 은 ServerLibraries.java 의 고정값과 같아야 한다(fatJar 가 확인한다). 전이 의존(주석 jar 등)은 싣지 않는다 — Paper 와 같이 실행에 필요 없다.
+val bundledLibraries by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+    isTransitive = false
+}
+dependencies {
+    bundledLibraries("com.google.guava:guava:32.1.2-jre")
+    bundledLibraries("com.google.guava:failureaccess:1.0.1")
+    bundledLibraries("org.yaml:snakeyaml:2.2")
+}
+val serverLibrariesSource = file("src/main/java/org/domi/furnace/server/plugin/library/ServerLibraries.java")
+// start.sh/start.bat 은 installDist 의 lib/* 로 띄운다 — 같은 자원(META-INF/furnace/libraries/*.jar)을 담은 jar 하나를 lib/ 에 넣어 그 실행에서도 꺼내게 한다.
+// 시험 클래스패스에는 넣지 않는다(시험은 내려받기 경로를 본다).
+val bundledLibrariesJar = tasks.register<Jar>("bundledLibrariesJar") {
+    archiveFileName = "furnace-bundled-libraries.jar"
+    destinationDirectory = layout.buildDirectory.dir("bundled-libraries")
+    into("META-INF/furnace/libraries") { from(bundledLibraries) }
+    into("META-INF/furnace/libraries") { from(rootProject.file("NOTICE")); from(rootProject.file("licenses/LICENSE-APACHE-2.0.txt")) }
+}
+distributions { main { contents { into("lib") { from(bundledLibrariesJar) } } } }
 val fatJar = tasks.register<Jar>("fatJar") {
     group = "build"
     // 런타임 의존성(furnace-api jar 등)을 먼저 만들어야 zipTree 로 합칠 수 있다
@@ -148,6 +172,10 @@ val fatJar = tasks.register<Jar>("fatJar") {
     })
     into("META-INF/furnace/compat") { from({ compatJars() }) }
     from(layout.buildDirectory.dir("compat-index"))
+    into("META-INF/furnace/libraries") { from(bundledLibraries) }
+    // 실린 라이브러리의 라이선스 고지(Apache 2.0) — 저장소 최상위 NOTICE·LICENSE-APACHE-2.0 과 같은 파일
+    into("META-INF/furnace/libraries") { from(rootProject.file("NOTICE")); from(rootProject.file("licenses/LICENSE-APACHE-2.0.txt")) }
+    inputs.file(serverLibrariesSource)
     // 서명 파일이 남으면 합친 jar 가 SecurityException 으로 실행되지 않는다
     exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "META-INF/MANIFEST.MF", "module-info.class")
     // 최상위에 호환 클래스가 하나도 없어야 한다(N-lib-1): 있으면 서버 로더와 공유 로더에 같은 클래스가 둘 정의된다.
@@ -166,6 +194,31 @@ val fatJar = tasks.register<Jar>("fatJar") {
         }
         if ("META-INF/services/org.domi.furnace.api.plugin.PluginFormat" in top) bad.add("META-INF/services/org.domi.furnace.api.plugin.PluginFormat")
         if (bad.isNotEmpty()) throw GradleException("fat jar 최상위에 호환 모듈 항목이 있다(N-lib-1): ${bad.take(5)} 외 ${bad.size}개")
+        // 실린 라이브러리는 ServerLibraries 의 고정 좌표·sha256 과 같아야 한다(다르면 서버가 그 jar 를 쓰지 않고 내려받으러 간다).
+        // 반대로 ServerLibraries 에서 bundled(", C, B)")로 적힌 것은 모두 실려 있어야 한다.
+        val src = serverLibrariesSource.readText()
+        // 주석 줄은 빼고, 공백·줄바꿈·Repo.X·true 표기를 모두 받는다. 하나도 못 찾으면 형식이 바뀐 것이므로 실패한다
+        val pinned = Regex("""^(?!\s*(?://|\*)).*?new Artifact\(\s*"([^"]+)",\s*"([0-9a-fA-F]{64})",\s*(?:Repo\.)?\w+,\s*(?:B|true)\s*\)""", RegexOption.MULTILINE)
+            .findAll(src).associate { it.groupValues[1] to it.groupValues[2].lowercase() }
+        if (pinned.isEmpty()) throw GradleException("ServerLibraries.java 에서 bundled 항목을 하나도 못 찾았다 — 표기가 바뀌었으면 이 검사도 고쳐라")
+        val bundledMentions = Regex("""^(?!\s*(?://|\*)).*?new Artifact\([^;]*?,\s*(?:B|true)\s*\)""", RegexOption.MULTILINE).findAll(src).count()
+        if (bundledMentions != pinned.size) throw GradleException("ServerLibraries.java 의 bundled 항목 ${bundledMentions}개 중 좌표·sha256 을 읽은 것은 ${pinned.size}개다")
+        val shipped = mutableMapOf<String, String>()
+        val resolved = bundledLibraries.resolvedConfiguration.resolvedArtifacts
+        for (a in resolved) {
+            val id = a.moduleVersion.id
+            val coord = "${id.group}:${id.name}:${id.version}"
+            val sha = MessageDigest.getInstance("SHA-256").digest(a.file.readBytes()).joinToString("") { "%02x".format(it) }
+            shipped[coord] = sha
+            val expected = pinned[coord] ?: throw GradleException("서버 jar 에 싣는 $coord 가 ServerLibraries 에 bundled 로 적혀 있지 않다")
+            if (expected != sha) throw GradleException("서버 jar 에 싣는 $coord 의 sha256 이 ServerLibraries 고정값과 다르다(기대 $expected, 실제 $sha)")
+            if ("META-INF/furnace/libraries/${id.name}-${id.version}.jar" !in top) throw GradleException("$coord 가 fat jar 에 실리지 않았다")
+        }
+        val missing = pinned.keys - shipped.keys
+        if (missing.isNotEmpty()) throw GradleException("ServerLibraries 에 bundled 로 적혔는데 서버 jar 에 안 실렸다: $missing")
+        // 풀린 클래스로 섞여 들어오면 서버 로더와 공유 로더에 같은 이름 클래스가 둘 생긴다
+        val leaked = top.filter { it.startsWith("com/google/common/") || it.startsWith("org/yaml/snakeyaml/") }
+        if (leaked.isNotEmpty()) throw GradleException("fat jar 최상위에 Guava·SnakeYAML 클래스가 있다: ${leaked.take(5)}")
     }
 }
 tasks.named("assemble") { dependsOn(fatJar) }
