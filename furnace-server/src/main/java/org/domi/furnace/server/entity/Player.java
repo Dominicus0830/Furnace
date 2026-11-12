@@ -584,30 +584,58 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     }
 
     /** 바닐라 번들 안 패킷 상한(BundlerInfo: 클라이언트가 4096 개를 넘으면 연결을 끊는다). */
-    public static final int BUNDLE_MAX = 4096;
+    public static final int BUNDLE_MAX = org.domi.furnace.api.packet.PacketService.BUNDLE_MAX;
 
     /**
      * 바닐라 ClientboundBundlePacket: 구분자(bundle_delimiter) 사이에 넣어 클라이언트가 한 프레임에 함께 처리한다(엔티티 생성 묶음 — 맨몸·기본 모습 깜박임 없음).
-     * 이벤트 루프 작업 하나로 써서 다른 스레드가 보낸 패킷이 묶음 사이에 끼거나 구분자가 엇갈리지 않는다. 변장으로 늘어난 패킷도 묶음 안에 들어가고,
-     * 상한을 넘으면 묶음을 나눈다.
+     * 이벤트 루프 작업 하나로 써서 다른 스레드가 보낸 패킷이 묶음 사이에 끼지 않는다. 변장으로 늘어난 패킷도 묶음 안에 들어가고, 상한을 넘을 때만 나눈다.
+     * 프레임을 모두 만든 뒤 한꺼번에 쓴다 — 도중에 예외가 나면 아무것도 쓰지 않는다(구분자가 열린 채 남지 않게). 구분자는 패킷 리스너를 거치지 않는다
+     * (취소되면 짝이 어긋나 클라이언트가 멈춘다). 안의 패킷이 모두 취소되면 아무것도 보내지 않는다.
      */
     public void sendBundle(java.util.List<? extends Packet> packets) {
         if (packets.isEmpty()) return;
         java.util.List<Packet> copy = java.util.List.copyOf(packets);
         runOnLoop(() -> {
-            writeOne(org.domi.furnace.server.net.protocol.play.BundleDelimiter.INSTANCE);
-            int n = 0;
-            for (Packet p : copy) {
-                if (n >= BUNDLE_MAX - 8) {   // 변장 확장 여유를 두고 나눈다
-                    writeOne(org.domi.furnace.server.net.protocol.play.BundleDelimiter.INSTANCE);
-                    writeOne(org.domi.furnace.server.net.protocol.play.BundleDelimiter.INSTANCE);
-                    n = 0;
+            java.util.List<Object> frames = new java.util.ArrayList<>(copy.size() + 4);
+            int total = 0;
+            try {
+                frames.add(delimiterFrame());
+                int n = 0;
+                for (Packet p : copy) {
+                    Object view = viewRewriter.rewrite(this, p);   // 플레이어별 변장(규칙이 없으면 그대로)
+                    Packet[] many = view == p ? new Packet[] {p} : view instanceof Packet[] arr ? arr : view instanceof Packet one ? new Packet[] {one} : new Packet[0];
+                    if (n > 0 && n + many.length > BUNDLE_MAX) {   // 변장으로 늘어난 수까지 세어 넘을 때만 나눈다
+                        frames.add(delimiterFrame());
+                        frames.add(delimiterFrame());
+                        n = 0;
+                    }
+                    for (Packet one : many) {
+                        Object msg = org.domi.furnace.server.net.io.SharedChunkFrames.encode(channel, one);
+                        if (msg == null) continue;   // 플러그인 리스너가 취소
+                        frames.add(msg);
+                        n++;
+                        total++;
+                    }
                 }
-                n += writeViewed(p);
+                frames.add(delimiterFrame());
+            } catch (RuntimeException | Error e) {
+                for (Object f : frames) io.netty.util.ReferenceCountUtil.release(f);
+                throw e;
             }
-            writeOne(org.domi.furnace.server.net.protocol.play.BundleDelimiter.INSTANCE);
+            if (total == 0) {   // 모두 취소 — 빈 번들은 보내지 않는다
+                for (Object f : frames) io.netty.util.ReferenceCountUtil.release(f);
+                return;
+            }
+            for (Object f : frames) channel.write(f);
             scheduleFlush();
         });
+    }
+
+    /** 구분자 프레임 — 플러그인 패킷 리스너를 거치지 않는다(취소·묵음 번들에서도 짝이 맞아야 한다). */
+    private io.netty.buffer.ByteBuf delimiterFrame() {
+        io.netty.buffer.ByteBuf buf = channel.alloc().buffer(1);
+        Types.writeVarInt(buf, org.domi.furnace.server.net.protocol.play.BundleDelimiter.ID);
+        return buf;
     }
 
     /** 이벤트 루프에서: 변장을 거쳐 쓴다. 쓴 패킷 수(취소·변장으로 안 보내면 0). */
