@@ -53,6 +53,9 @@ public interface EntityState {
     /** 지금 투명 상태 비트(상태 효과·갑옷 거치대 설정이 정한 값). */
     boolean isInvisible();
 
+    /** 지금 충돌 상자(바닐라 Entity.getBoundingBox, 월드 좌표). */
+    default org.domi.furnace.api.world.Aabb boundingBox() { throw new UnsupportedOperationException("boundingBox"); }
+
     /** {@link Entity#noPhysics()} 의 지금 값. */
     boolean noPhysics();
 

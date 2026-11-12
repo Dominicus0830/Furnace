@@ -52,8 +52,46 @@ public interface World extends Keyed, org.bukkit.metadata.Metadatable {
      */
     <T extends Entity> T spawn(Location location, Class<T> clazz, java.util.function.Consumer<? super T> function);
 
-    /** loc 둘레(x·y·z 반 길이 상자) 안의 엔티티(플레이어 포함). 위치 기준 판정과 소유 스레드 조건은 Entity#getNearbyEntities 와 같다. */
+    /** loc 둘레(x·y·z 반 길이 상자)와 충돌 상자가 겹치는 엔티티(플레이어 포함, Paper 와 같다). 소유 스레드 조건은 {@link #getNearbyEntities(org.bukkit.util.BoundingBox)} 와 같다. */
     Collection<Entity> getNearbyEntities(Location loc, double x, double y, double z);
+
+    /** loc 둘레 상자(x·y·z 반 길이)와 충돌 상자가 겹치는 엔티티 가운데 filter 에 맞는 것(Paper 와 같다 — null 이면 모두). */
+    Collection<Entity> getNearbyEntities(Location loc, double x, double y, double z, Predicate<? super Entity> filter);
+
+    /**
+     * box 와 충돌 상자가 겹치는(경계만 닿는 것은 제외) 엔티티(플레이어 포함). region 스레드에서는 지금 스레드가 돌리는 region 의 엔티티만, 전역 빌림 구간에서는 겹치는 region 모두
+     * (아니면 ThreadOwnershipException). 그 region 이 갖지 않은 청크의 엔티티는 보이지 않는다.
+     */
+    Collection<Entity> getNearbyEntities(org.bukkit.util.BoundingBox box);
+
+    /** {@link #getNearbyEntities(org.bukkit.util.BoundingBox)} 에서 filter 에 맞는 것만(null 이면 모두). */
+    Collection<Entity> getNearbyEntities(org.bukkit.util.BoundingBox box, Predicate<? super Entity> filter);
+
+    // ---- 광선 판정(Paper CraftWorld 와 같은 규칙). 블록은 시작점이 든 칸을 가진 region 스레드에서만(아니면 ThreadOwnershipException),
+    // 그 region 이 갖지 않은(또는 로드되지 않은) 청크에 닿으면 거기서 빗나간 것으로 끝낸다. 엔티티는 getNearbyEntities(BoundingBox) 의 규칙을 따른다.
+
+    org.bukkit.util.RayTraceResult rayTraceEntities(Location start, org.bukkit.util.Vector direction, double maxDistance);
+
+    org.bukkit.util.RayTraceResult rayTraceEntities(Location start, org.bukkit.util.Vector direction, double maxDistance, double raySize);
+
+    org.bukkit.util.RayTraceResult rayTraceEntities(Location start, org.bukkit.util.Vector direction, double maxDistance, Predicate<? super Entity> filter);
+
+    org.bukkit.util.RayTraceResult rayTraceEntities(Location start, org.bukkit.util.Vector direction, double maxDistance, double raySize, Predicate<? super Entity> filter);
+
+    org.bukkit.util.RayTraceResult rayTraceEntities(io.papermc.paper.math.Position start, org.bukkit.util.Vector direction, double maxDistance, double raySize, Predicate<? super Entity> filter);
+
+    org.bukkit.util.RayTraceResult rayTraceBlocks(Location start, org.bukkit.util.Vector direction, double maxDistance);
+
+    org.bukkit.util.RayTraceResult rayTraceBlocks(Location start, org.bukkit.util.Vector direction, double maxDistance, FluidCollisionMode fluidCollisionMode);
+
+    org.bukkit.util.RayTraceResult rayTraceBlocks(Location start, org.bukkit.util.Vector direction, double maxDistance, FluidCollisionMode fluidCollisionMode, boolean ignorePassableBlocks);
+
+    /** canCollide 가 false 를 주는 블록은 블록도 유체도 건너뛴다(null 이면 모두 본다). canCollide 는 광선을 도는 region 스레드에서 불린다. */
+    org.bukkit.util.RayTraceResult rayTraceBlocks(io.papermc.paper.math.Position start, org.bukkit.util.Vector direction, double maxDistance, FluidCollisionMode fluidCollisionMode, boolean ignorePassableBlocks, Predicate<? super Block> canCollide);
+
+    org.bukkit.util.RayTraceResult rayTrace(Location start, org.bukkit.util.Vector direction, double maxDistance, FluidCollisionMode fluidCollisionMode, boolean ignorePassableBlocks, double raySize, Predicate<? super Entity> filter);
+
+    org.bukkit.util.RayTraceResult rayTrace(io.papermc.paper.math.Position start, org.bukkit.util.Vector direction, double maxDistance, FluidCollisionMode fluidCollisionMode, boolean ignorePassableBlocks, double raySize, Predicate<? super Entity> filter, Predicate<? super Block> canCollide);
 
     // ---- Paper 의 getNearby* 편의 메서드(A15-06): getNearbyEntities 결과를 종류·조건으로 거른다(Paper 기본 메서드와 같다).
 

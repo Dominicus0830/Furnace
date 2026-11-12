@@ -55,11 +55,26 @@ public final class Clip {
     }
 
     private static Result clip(BlockLevel level, double fx, double fy, double fz, double tx, double ty, double tz, FluidMode fluid, int shapeMode) {
+        return clip(level, fx, fy, fz, tx, ty, tz, fluid, shapeMode, null, false);
+    }
+
+    /**
+     * 플러그인 API 광선(Paper CraftWorld.rayTraceBlocks): 충돌 모양(ignorePassable) 또는 윤곽 모양, 유체 모드, 칸 거르기(canCollide 가 false 면 그 칸은
+     * 블록·유체 모두 건너뛴다 — Paper 의 Add predicate for blocks when raytracing), 로드되지 않은 청크에 닿으면 거기서 빗나간 것으로 끝낸다
+     * (Paper 의 Prevent raytrace from loading chunks — 시작 칸이 그래도 같다).
+     */
+    public static Result clipApi(BlockLevel level, double fx, double fy, double fz, double tx, double ty, double tz, FluidMode fluid, boolean ignorePassable,
+            java.util.function.Predicate<Pos> canCollide) {
+        return clip(level, fx, fy, fz, tx, ty, tz, fluid, ignorePassable ? COLLIDER : OUTLINE, canCollide, true);
+    }
+
+    private static Result clip(BlockLevel level, double fx, double fy, double fz, double tx, double ty, double tz, FluidMode fluid, int shapeMode,
+            java.util.function.Predicate<Pos> canCollide, boolean stopUnloaded) {
         if (fx == tx && fy == ty && fz == tz) return miss(fx, fy, fz, tx, ty, tz);
         double ex = lerp(-1.0E-7, tx, fx), ey = lerp(-1.0E-7, ty, fy), ez = lerp(-1.0E-7, tz, fz);
         double sx = lerp(-1.0E-7, fx, tx), sy = lerp(-1.0E-7, fy, ty), sz = lerp(-1.0E-7, fz, tz);
         int i = (int) Math.floor(sx), j = (int) Math.floor(sy), k = (int) Math.floor(sz);
-        Result r = test(level, new Pos(i, j, k), fx, fy, fz, tx, ty, tz, fluid, shapeMode);
+        Result r = test(level, new Pos(i, j, k), fx, fy, fz, tx, ty, tz, fluid, shapeMode, canCollide, stopUnloaded);
         if (r != null) return r;
         double dx = ex - sx, dy = ey - sy, dz = ez - sz;
         int lx = sign(dx), ly = sign(dy), lz = sign(dz);
@@ -77,7 +92,7 @@ public final class Clip {
             } else {
                 k += lz; tZ += stepZ;
             }
-            r = test(level, new Pos(i, j, k), fx, fy, fz, tx, ty, tz, fluid, shapeMode);
+            r = test(level, new Pos(i, j, k), fx, fy, fz, tx, ty, tz, fluid, shapeMode, canCollide, stopUnloaded);
             if (r != null) return r;
         }
         return miss(fx, fy, fz, tx, ty, tz);
@@ -117,20 +132,30 @@ public final class Clip {
         return new Result(true, new Pos((int) Math.floor(tx), (int) Math.floor(ty), (int) Math.floor(tz)), face, tx, ty, tz, false);
     }
 
-    /** 칸 하나: 블록 OUTLINE(상호작용 모양 우선 면)과 유체 모양 중 가까운 것. */
-    private static Result test(BlockLevel level, Pos pos, double fx, double fy, double fz, double tx, double ty, double tz, FluidMode mode, int shapeMode) {
+    /**
+     * 칸 하나(바닐라 BlockGetter.clip(ClipContext, BlockPos)): 블록 모양(모드별 — 윤곽·충돌·시각)과 유체 모양 중 가까운 것.
+     * 블록 모양은 상호작용 모양이 더 가까우면 그 면으로 바꾼다(clipWithInteractionOverride — 모드와 상관없이).
+     */
+    private static Result test(BlockLevel level, Pos pos, double fx, double fy, double fz, double tx, double ty, double tz, FluidMode mode, int shapeMode,
+            java.util.function.Predicate<Pos> canCollide, boolean stopUnloaded) {
+        if (stopUnloaded && !level.isOutsideBuildHeight(pos.y()) && !level.hasChunkAt(pos)) return miss(fx, fy, fz, tx, ty, tz);
         int state = level.getBlockState(pos);
-        if (shapeMode == COLLIDER) return clipShape(B.behavior(state).getCollisionShape(state, level, pos, null), pos, fx, fy, fz, tx, ty, tz);
-        if (shapeMode == VISUAL) return clipShape(B.behavior(state).getVisualShape(state, level, pos, null), pos, fx, fy, fz, tx, ty, tz);
-        int fluid = level.getFluidState(pos);
+        if (B.INFO.isAir(state) || canCollide != null && !canCollide.test(pos)) return null;
         BlockBehavior b = B.behavior(state);
-        Result block = clipShape(b.getShape(state, level, pos), pos, fx, fy, fz, tx, ty, tz);
+        Shape shape = switch (shapeMode) {
+            case COLLIDER -> b.getCollisionShape(state, level, pos, null);
+            case VISUAL -> b.getVisualShape(state, level, pos, null);
+            default -> b.getShape(state, level, pos);
+        };
+        Result block = clipShape(shape, pos, fx, fy, fz, tx, ty, tz);
         if (block != null) {
             Result inter = clipShape(B.INFO.interactionShape(state), pos, fx, fy, fz, tx, ty, tz);
             if (inter != null && dist2(inter, fx, fy, fz) < dist2(block, fx, fy, fz)) {
                 block = new Result(false, block.pos, inter.face, block.x, block.y, block.z, block.inside);
             }
         }
+        if (mode == FluidMode.NONE) return block;
+        int fluid = level.getFluidState(pos);
         Result fl = canPick(mode, fluid) ? clipShape(fluidShape(fluid, level, pos), pos, fx, fy, fz, tx, ty, tz) : null;
         double d0 = block == null ? Double.MAX_VALUE : dist2(block, fx, fy, fz);
         double d1 = fl == null ? Double.MAX_VALUE : dist2(fl, fx, fy, fz);

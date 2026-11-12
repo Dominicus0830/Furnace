@@ -45,4 +45,10 @@ public interface Position {
     Position offset(double x, double y, double z);
 
     default Location toLocation(World world) { return new Location(world, x(), y(), z()); }
+
+    /** 세 좌표가 모두 유한한가(Paper 와 같다 — Location 은 yaw·pitch 도 본다). */
+    default boolean isFinite() { return Double.isFinite(x()) && Double.isFinite(y()) && Double.isFinite(z()); }
+
+    /** 같은 좌표의 Vector. */
+    default org.bukkit.util.Vector toVector() { return new org.bukkit.util.Vector(x(), y(), z()); }
 }

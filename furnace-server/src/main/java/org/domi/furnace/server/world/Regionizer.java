@@ -234,6 +234,38 @@ public final class Regionizer {
         return s == null ? null : resolve(s.owner);
     }
 
+    /** 청크 범위(양끝 포함)와 겹치는 구역을 가진 살아 있는 region 들(중복 없음, 사본). 청크를 새로 만들지 않는다. */
+    public List<Region> ownersOverlapping(int minCx, int maxCx, int minCz, int maxCz) {
+        java.util.LinkedHashSet<Region> out = new java.util.LinkedHashSet<>();
+        long span = ((long) (maxCx >> shift) - (minCx >> shift) + 1) * ((long) (maxCz >> shift) - (minCz >> shift) + 1);
+        if (span > 4096) {   // 아주 큰 상자는 있는 구역만 훑는다
+            for (var e : sections.entrySet()) {
+                int sx = chunkX(e.getKey()), sz = chunkZ(e.getKey());
+                if (sx < minCx >> shift || sx > maxCx >> shift || sz < minCz >> shift || sz > maxCz >> shift) continue;
+                Region r = resolve(e.getValue().owner);
+                if (r != null && r.alive) out.add(r);
+            }
+            return new ArrayList<>(out);
+        }
+        for (int sx = minCx >> shift; sx <= maxCx >> shift; sx++) {
+            for (int sz = minCz >> shift; sz <= maxCz >> shift; sz++) {
+                Section s = sections.get(chunkKey(sx, sz));
+                Region r = s == null ? null : resolve(s.owner);
+                if (r != null && r.alive) out.add(r);
+            }
+        }
+        return new ArrayList<>(out);
+    }
+
+    /** 지금 스레드가 돌리는(소유한) region — 없으면 null. 빌림 구간에서 이미 빌린 region 도 포함한다. */
+    public Region ownedByCurrentThread() {
+        for (Region r : running.keySet()) if (r.isOwnerThread()) return r;   // 잠금 없이 — 틱·drain 중인 region 만 이 스레드가 돌릴 수 있다
+        return null;
+    }
+
+    /** 합쳐져 죽은 region 이면 흡수한 살아 있는 주인(기다리는 사이 합쳐질 수 있어 빌릴 때 다시 찾는다). */
+    public static Region live(Region r) { return resolve(r); }
+
     /** 그 청크가 이 region 것인가(틱 중인 region 이 자기 청크만 만지게). */
     boolean owns(Region r, int cx, int cz) {
         Section s = sections.get(sectionKeyOfChunk(cx, cz));

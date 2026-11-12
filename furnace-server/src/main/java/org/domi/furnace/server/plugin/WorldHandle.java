@@ -393,6 +393,60 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     }
 
     @Override
+    public List<Entity> entitiesInBoxNow(org.domi.furnace.api.world.Aabb box) {
+        if (!Double.isFinite(box.minX() + box.minY() + box.minZ() + box.maxX() + box.maxY() + box.maxZ())) return List.of();
+        var rz = world.regionizer();
+        // region 스레드: 지금 스레드가 돌리는 region 하나의 엔티티만(소유 구역 밖은 이 스레드가 만질 수 없다). 상자 가운데가 어디든 상관없다.
+        // 전역 스레드의 빌림 구간: 상자와 겹치는 region 을 모두 빌려 합친다. 그 밖의 스레드는 소유 스레드가 아니다.
+        List<Region> regions;
+        Region own;
+        if (!org.domi.furnace.server.world.RegionBorrow.active() && (own = rz.ownedByCurrentThread()) != null) {
+            regions = List.of(own);
+        } else if (org.domi.furnace.server.world.RegionBorrow.active()) {
+            regions = new ArrayList<>();
+            for (Region r : rz.ownersOverlapping((int) Math.floor(box.minX()) >> 4, (int) Math.floor(box.maxX()) >> 4,
+                    (int) Math.floor(box.minZ()) >> 4, (int) Math.floor(box.maxZ()) >> 4)) {
+                if (org.domi.furnace.server.world.RegionBorrow.claim(() -> org.domi.furnace.server.world.Regionizer.live(r))) {
+                    Region now = org.domi.furnace.server.world.Regionizer.live(r);
+                    if (now != null && !regions.contains(now)) regions.add(now);
+                }
+            }
+        } else {
+            throw new ThreadOwnershipException("entitiesInBoxNow 는 region 스레드에서만 부를 수 있다 (현재 " + Thread.currentThread().getName() + ") — Async 판을 쓴다");
+        }
+        var bb = ApiBoxes.of(box);
+        List<Entity> out = new ArrayList<>();
+        for (Region r : regions) {
+            if (r.level() == null) continue;
+            for (var e : r.level().getEntities(null, bb, null)) {
+                if (!e.isRemoved()) out.add(EntityHandle.of(host, e));
+            }
+            for (var p : r.players().values()) {
+                if (!p.isDisconnected() && p.boundingBox().intersects(bb)) out.add(host.player(p));
+            }
+        }
+        return out;
+    }
+
+    @Override
+    public java.util.Optional<org.domi.furnace.api.world.BlockHit> rayTraceBlocksNow(double fx, double fy, double fz, double tx, double ty, double tz,
+            org.domi.furnace.api.world.FluidPick fluid, boolean ignorePassable, java.util.function.Predicate<BlockPos> canCollide) {
+        ChunkPos cp = ChunkPos.ofBlock(fx, fz);
+        Region r = ownedRegion(new BlockPos(cp.x() << 4, 0, cp.z() << 4), "rayTraceBlocksNow");
+        if (r == null || !Double.isFinite(fx + fy + fz + tx + ty + tz)) return java.util.Optional.empty();
+        var mode = switch (fluid) {
+            case NONE -> org.domi.furnace.server.block.Clip.FluidMode.NONE;
+            case SOURCE_ONLY -> org.domi.furnace.server.block.Clip.FluidMode.SOURCE_ONLY;
+            case ANY -> org.domi.furnace.server.block.Clip.FluidMode.ANY;
+        };
+        java.util.function.Predicate<org.domi.furnace.server.block.Pos> pass = canCollide == null ? null : p -> canCollide.test(new BlockPos(p.x(), p.y(), p.z()));
+        var hit = org.domi.furnace.server.block.Clip.clipApi(r.level(), fx, fy, fz, tx, ty, tz, mode, ignorePassable, pass);
+        if (hit.miss()) return java.util.Optional.empty();
+        return java.util.Optional.of(new org.domi.furnace.api.world.BlockHit(new BlockPos(hit.pos().x(), hit.pos().y(), hit.pos().z()),
+                org.domi.furnace.api.world.Direction.values()[hit.face()], hit.x(), hit.y(), hit.z(), hit.inside()));
+    }
+
+    @Override
     public CompletableFuture<List<Entity>> nearbyEntities(Location center, double radius) {
         if (!(radius >= 0 && radius <= 128)) return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalArgumentException("radius 는 0..128: " + radius)));
         if (!center.world().equals(world.dimension())) return RegionFuture.wrap(CompletableFuture.completedFuture(List.of()));

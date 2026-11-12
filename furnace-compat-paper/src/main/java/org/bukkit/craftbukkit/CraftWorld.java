@@ -134,16 +134,161 @@ public final class CraftWorld implements World {
     @Override
     public void removeMetadata(String metadataKey, org.bukkit.plugin.Plugin owningPlugin) { Compat.worldMetadata().removeMetadata(this, metadataKey, owningPlugin); }
 
+    // ---- 주변 엔티티·광선 판정: Paper 1.21.1 CraftWorld 본문과 같은 규칙(검사 문구·순서 포함)
+
     @Override
     public java.util.Collection<org.bukkit.entity.Entity> getNearbyEntities(org.bukkit.Location loc, double x, double y, double z) {
-        org.domi.furnace.api.world.Location c = Compat.location(loc);
-        double r = Math.sqrt(x * x + y * y + z * z);
-        java.util.List<org.bukkit.entity.Entity> out = new ArrayList<>();
-        for (var e : handle.nearbyEntitiesNow(c, r)) {
-            var l = e.location();
-            if (Math.abs(l.x() - c.x()) <= x && Math.abs(l.y() - c.y()) <= y && Math.abs(l.z() - c.z()) <= z) out.add(Compat.entity(e));
+        return getNearbyEntities(loc, x, y, z, null);
+    }
+
+    @Override
+    public java.util.Collection<org.bukkit.entity.Entity> getNearbyEntities(org.bukkit.Location loc, double x, double y, double z,
+            java.util.function.Predicate<? super org.bukkit.entity.Entity> filter) {
+        check(loc != null, "Location cannot be null");
+        check(this.equals(loc.getWorld()), "Location cannot be in a different world");
+        return getNearbyEntities(org.bukkit.util.BoundingBox.of(loc, x, y, z), filter);
+    }
+
+    @Override
+    public java.util.Collection<org.bukkit.entity.Entity> getNearbyEntities(org.bukkit.util.BoundingBox box) { return getNearbyEntities(box, null); }
+
+    @Override
+    public java.util.Collection<org.bukkit.entity.Entity> getNearbyEntities(org.bukkit.util.BoundingBox box,
+            java.util.function.Predicate<? super org.bukkit.entity.Entity> filter) {
+        check(box != null, "BoundingBox cannot be null");
+        var found = handle.entitiesInBoxNow(new org.domi.furnace.api.world.Aabb(box.getMinX(), box.getMinY(), box.getMinZ(), box.getMaxX(), box.getMaxY(), box.getMaxZ()));
+        java.util.List<org.bukkit.entity.Entity> out = new ArrayList<>(found.size());
+        for (var e : found) {
+            org.bukkit.entity.Entity b = Compat.entity(e);
+            if (filter == null || filter.test(b)) out.add(b);
         }
         return out;
+    }
+
+    private static void check(boolean ok, String message) {
+        if (!ok) throw new IllegalArgumentException(message);
+    }
+
+    @Override
+    public org.bukkit.util.RayTraceResult rayTraceEntities(org.bukkit.Location start, org.bukkit.util.Vector direction, double maxDistance) {
+        return rayTraceEntities(start, direction, maxDistance, null);
+    }
+
+    @Override
+    public org.bukkit.util.RayTraceResult rayTraceEntities(org.bukkit.Location start, org.bukkit.util.Vector direction, double maxDistance, double raySize) {
+        return rayTraceEntities(start, direction, maxDistance, raySize, null);
+    }
+
+    @Override
+    public org.bukkit.util.RayTraceResult rayTraceEntities(org.bukkit.Location start, org.bukkit.util.Vector direction, double maxDistance,
+            java.util.function.Predicate<? super org.bukkit.entity.Entity> filter) {
+        return rayTraceEntities(start, direction, maxDistance, 0.0D, filter);
+    }
+
+    @Override
+    public org.bukkit.util.RayTraceResult rayTraceEntities(org.bukkit.Location start, org.bukkit.util.Vector direction, double maxDistance, double raySize,
+            java.util.function.Predicate<? super org.bukkit.entity.Entity> filter) {
+        return rayTraceEntities((io.papermc.paper.math.Position) start, direction, maxDistance, raySize, filter);
+    }
+
+    @Override
+    public org.bukkit.util.RayTraceResult rayTraceEntities(io.papermc.paper.math.Position start, org.bukkit.util.Vector direction, double maxDistance, double raySize,
+            java.util.function.Predicate<? super org.bukkit.entity.Entity> filter) {
+        checkRay(start, direction);
+        if (maxDistance < 0.0D) return null;
+        org.bukkit.util.Vector startPos = start.toVector();
+        org.bukkit.util.Vector dir = direction.clone().normalize().multiply(maxDistance);
+        org.bukkit.util.BoundingBox aabb = org.bukkit.util.BoundingBox.of(startPos, startPos).expandDirectional(dir).expand(raySize);
+        java.util.Collection<org.bukkit.entity.Entity> entities = getNearbyEntities(aabb, filter);
+
+        org.bukkit.entity.Entity nearestHitEntity = null;
+        org.bukkit.util.RayTraceResult nearestHitResult = null;
+        double nearestDistanceSq = Double.MAX_VALUE;
+        for (org.bukkit.entity.Entity entity : entities) {
+            org.bukkit.util.BoundingBox boundingBox = entity.getBoundingBox().expand(raySize);
+            org.bukkit.util.RayTraceResult hitResult = boundingBox.rayTrace(startPos, direction, maxDistance);
+            if (hitResult != null) {
+                double distanceSq = startPos.distanceSquared(hitResult.getHitPosition());
+                if (distanceSq < nearestDistanceSq) {
+                    nearestHitEntity = entity;
+                    nearestHitResult = hitResult;
+                    nearestDistanceSq = distanceSq;
+                }
+            }
+        }
+        return nearestHitEntity == null ? null : new org.bukkit.util.RayTraceResult(nearestHitResult.getHitPosition(), nearestHitEntity, nearestHitResult.getHitBlockFace());
+    }
+
+    @Override
+    public org.bukkit.util.RayTraceResult rayTraceBlocks(org.bukkit.Location start, org.bukkit.util.Vector direction, double maxDistance) {
+        return rayTraceBlocks(start, direction, maxDistance, org.bukkit.FluidCollisionMode.NEVER, false);
+    }
+
+    @Override
+    public org.bukkit.util.RayTraceResult rayTraceBlocks(org.bukkit.Location start, org.bukkit.util.Vector direction, double maxDistance,
+            org.bukkit.FluidCollisionMode fluidCollisionMode) {
+        return rayTraceBlocks(start, direction, maxDistance, fluidCollisionMode, false);
+    }
+
+    @Override
+    public org.bukkit.util.RayTraceResult rayTraceBlocks(org.bukkit.Location start, org.bukkit.util.Vector direction, double maxDistance,
+            org.bukkit.FluidCollisionMode fluidCollisionMode, boolean ignorePassableBlocks) {
+        return rayTraceBlocks(start, direction, maxDistance, fluidCollisionMode, ignorePassableBlocks, null);
+    }
+
+    @Override
+    public org.bukkit.util.RayTraceResult rayTraceBlocks(io.papermc.paper.math.Position start, org.bukkit.util.Vector direction, double maxDistance,
+            org.bukkit.FluidCollisionMode fluidCollisionMode, boolean ignorePassableBlocks, java.util.function.Predicate<? super Block> canCollide) {
+        checkRay(start, direction);
+        check(fluidCollisionMode != null, "FluidCollisionMode cannot be null");
+        if (maxDistance < 0.0D) return null;
+        org.bukkit.util.Vector dir = direction.clone().normalize().multiply(maxDistance);
+        var fluid = switch (fluidCollisionMode) {
+            case ALWAYS -> org.domi.furnace.api.world.FluidPick.ANY;
+            case SOURCE_ONLY -> org.domi.furnace.api.world.FluidPick.SOURCE_ONLY;
+            case NEVER -> org.domi.furnace.api.world.FluidPick.NONE;
+        };
+        java.util.function.Predicate<BlockPos> pass = canCollide == null ? null : p -> canCollide.test(getBlockAt(p.x(), p.y(), p.z()));
+        var hit = handle.rayTraceBlocksNow(start.x(), start.y(), start.z(), start.x() + dir.getX(), start.y() + dir.getY(), start.z() + dir.getZ(), fluid, ignorePassableBlocks, pass);
+        if (hit.isEmpty()) return null;
+        var h = hit.get();
+        return new org.bukkit.util.RayTraceResult(new org.bukkit.util.Vector(h.x(), h.y(), h.z()), getBlockAt(h.pos().x(), h.pos().y(), h.pos().z()),
+                org.bukkit.block.BlockFace.valueOf(h.face().name()));
+    }
+
+    @Override
+    public org.bukkit.util.RayTraceResult rayTrace(org.bukkit.Location start, org.bukkit.util.Vector direction, double maxDistance,
+            org.bukkit.FluidCollisionMode fluidCollisionMode, boolean ignorePassableBlocks, double raySize, java.util.function.Predicate<? super org.bukkit.entity.Entity> filter) {
+        return rayTrace(start, direction, maxDistance, fluidCollisionMode, ignorePassableBlocks, raySize, filter, null);
+    }
+
+    @Override
+    public org.bukkit.util.RayTraceResult rayTrace(io.papermc.paper.math.Position start, org.bukkit.util.Vector direction, double maxDistance,
+            org.bukkit.FluidCollisionMode fluidCollisionMode, boolean ignorePassableBlocks, double raySize, java.util.function.Predicate<? super org.bukkit.entity.Entity> filter,
+            java.util.function.Predicate<? super Block> canCollide) {
+        org.bukkit.util.RayTraceResult blockHit = rayTraceBlocks(start, direction, maxDistance, fluidCollisionMode, ignorePassableBlocks, canCollide);
+        org.bukkit.util.Vector startVec = null;
+        double blockHitDistance = maxDistance;
+        // 블록을 맞았으면 엔티티 탐색 거리를 거기까지로 줄인다
+        if (blockHit != null) {
+            startVec = start.toVector();
+            blockHitDistance = startVec.distance(blockHit.getHitPosition());
+        }
+        org.bukkit.util.RayTraceResult entityHit = rayTraceEntities(start, direction, blockHitDistance, raySize, filter);
+        if (blockHit == null) return entityHit;
+        if (entityHit == null) return blockHit;
+        double entityHitDistanceSquared = startVec.distanceSquared(entityHit.getHitPosition());
+        return entityHitDistanceSquared < blockHitDistance * blockHitDistance ? entityHit : blockHit;
+    }
+
+    /** Paper CraftWorld 의 시작점·방향 검사(문구까지 같다). */
+    private void checkRay(io.papermc.paper.math.Position start, org.bukkit.util.Vector direction) {
+        check(start != null, "Location start cannot be null");
+        check(!(start instanceof org.bukkit.Location location) || this.equals(location.getWorld()), "Location start cannot be in a different world");
+        check(start.isFinite(), "Location start is not finite");
+        check(direction != null, "Vector direction cannot be null");
+        direction.checkFinite();
+        check(direction.lengthSquared() > 0, "Direction's magnitude (" + direction.lengthSquared() + ") need to be greater than 0");
     }
 
     @Override

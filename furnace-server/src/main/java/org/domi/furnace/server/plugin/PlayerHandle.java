@@ -74,6 +74,9 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     public Location location() { return new Location(p.dimension(), p.x(), p.y(), p.z(), p.yaw(), p.pitch()); }
 
     @Override
+    public org.domi.furnace.api.world.Aabb boundingBox() { return ApiBoxes.of(p.boundingBox()); }
+
+    @Override
     public GameMode gameMode() { return GameMode.byId(p.gameMode().id()); }
 
     @Override
