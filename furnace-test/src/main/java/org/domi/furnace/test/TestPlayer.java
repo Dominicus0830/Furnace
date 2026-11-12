@@ -185,26 +185,30 @@ public final class TestPlayer implements AutoCloseable {
                         e.printStackTrace();
                     }
                 }
-                record(id, f.duplicate());
-                switch (id) {
-                    case 0x26 -> {   // keep_alive → 그대로 되돌린다
-                        long v = f.readLong();
-                        write(0x18, b -> b.writeLong(v));
+                ByteBuf forRecord = f.duplicate();   // 답을 먼저 하고(느린 디코드가 keep-alive 를 늦추지 않게) 모으기는 뒤에
+                try {
+                    switch (id) {
+                        case 0x26 -> {   // keep_alive → 그대로 되돌린다
+                            long v = f.readLong();
+                            write(0x18, b -> b.writeLong(v));
+                        }
+                        case 0x40 -> {   // player_position → accept_teleportation
+                            f.skipBytes(8 * 3 + 4 * 2 + 1);
+                            int tp = Types.readVarInt(f);
+                            write(0x00, b -> Types.writeVarInt(b, tp));
+                        }
+                        case 0x0C -> write(0x08, b -> b.writeFloat(25.0f));   // chunk_batch_finished → chunk_batch_received
+                        case 0x1D -> {   // disconnect
+                            disconnectReason = "disconnect";
+                            connected = false;
+                        }
+                        default -> { }
                     }
-                    case 0x40 -> {   // player_position → accept_teleportation
-                        f.skipBytes(8 * 3 + 4 * 2 + 1);
-                        int tp = Types.readVarInt(f);
-                        write(0x00, b -> Types.writeVarInt(b, tp));
-                    }
-                    case 0x0C -> write(0x08, b -> b.writeFloat(25.0f));   // chunk_batch_finished → chunk_batch_received
-                    case 0x1D -> {   // disconnect
-                        disconnectReason = "disconnect";
-                        connected = false;
-                    }
-                    default -> { }
+                } finally {
+                    record(id, forRecord);   // 답 write 가 실패해도 받은 것은 기록한다
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {   // Error 로 읽기 스레드가 죽어도 이유가 남게
             if (connected && disconnectReason == null) disconnectReason = String.valueOf(e);
         } finally {
             connected = false;
@@ -220,7 +224,7 @@ public final class TestPlayer implements AutoCloseable {
         org.domi.furnace.api.packet.Packet p;
         try {
             p = c.decode(t, id, body);
-        } catch (RuntimeException e) {
+        } catch (RuntimeException | LinkageError | StackOverflowError e) {   // 코덱 버그·클래스 로딩 실패로 읽기 스레드가 죽어 접속 끊김처럼 보이지 않게
             decodeFailures.incrementAndGet();
             return;
         }
@@ -479,6 +483,9 @@ public final class TestPlayer implements AutoCloseable {
     /**
      * 받은 패킷 장벽: 서버가 지금까지 이 플레이어 연결에 쓴 패킷을 읽기 스레드가 모두 읽을 때까지 기다린다(서버가 ping 을 보내고 그것이 오면 끝).
      * 서버 쪽 처리(명령·틱)를 기다리지는 않는다 — 그건 sync()·tick().
+     * 접속이 끊겼거나 서버 목록에서 빠졌으면(킥 등) ping 을 보낼 수 없으니 연결 끝까지 다 읽기를 기다린다.
+     * 주의: 장벽 ping 은 play 단계 id 라서 구성(configuration) 단계에서는 쓸 수 없다 — 지금 가짜 플레이어는 재구성(start_configuration)을
+     * 따라가지 않으니 문제가 없지만, 재구성 시험을 넣을 때는 그 구간을 건너뛰거나 구성 단계 ping 으로 바꿀 것.
      */
     public void flushReceived() {
         if (pingId < 0) return;
@@ -501,7 +508,7 @@ public final class TestPlayer implements AutoCloseable {
         }
     }
 
-    /** 읽기 스레드가 끝날 때까지(연결 끝 — EOF·disconnect) 기다린다. 시간 제한을 넘기면 그대로 돌아간다. */
+    /** 읽기 스레드가 끝날 때까지(연결 끝 — EOF·disconnect) 기다린다. 시간 제한을 넘기면 일부만 읽은 채 돌려주지 않고 실패한다. */
     private void awaitReaderEnd() {
         Thread r = reader;
         if (r == null || r == Thread.currentThread()) return;
@@ -509,7 +516,9 @@ public final class TestPlayer implements AutoCloseable {
             r.join(server.timeoutMillis());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            throw new IllegalStateException(name + ": 받은 패킷을 다 읽기 전에 기다리다 중단되었다", e);
         }
+        if (r.isAlive()) throw new IllegalStateException(name + ": 서버 접속자 목록에서 빠졌는데 연결이 닫히지 않아 받은 패킷을 다 읽었는지 알 수 없다");
     }
 
     // ------------------------------------------------------------------ 나가기
