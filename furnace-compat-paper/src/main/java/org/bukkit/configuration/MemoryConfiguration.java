@@ -8,6 +8,10 @@ public class MemoryConfiguration extends MemorySection implements Configuration 
     private MemoryConfigurationOptions options;
     /** setDefaults 로 받은 설정(Paper 처럼 getDefaults 가 같은 객체를 돌려준다 — 그쪽 pathSeparator 도 그대로). */
     private MemorySection defaultsRef;
+    /** addDefault 로 만든 기본값 트리의 포장 객체 — Paper 처럼 부를 때마다 같은 객체라 그 options() 변경이 남는다(PR #264 검토 R4). */
+    private MemoryConfiguration defaultsWrapper;
+    /** 포장 객체의 구분자를 우리가 마지막으로 맞춘 값 — 그대로면 플러그인이 안 바꾼 것이라 루트 구분자를 따라간다(꺼짐일 때). */
+    private char defaultsWrapperAuto = '.';
 
     public MemoryConfiguration() {}
 
@@ -55,9 +59,20 @@ public class MemoryConfiguration extends MemorySection implements Configuration 
         ConfigSection d = delegate.getDefaults();
         if (d == null) return null;
         if (defaultsRef instanceof Configuration c && defaultsRef.delegate == d) return c;
-        MemoryConfiguration c = new MemoryConfiguration();
-        c.delegate = d;
-        c.options().pathSeparator(options().pathSeparator());   // addDefault 로 만들어진 기본값 트리는 이쪽 구분자로 쓰였다
+        MemoryConfiguration c = defaultsWrapper;
+        if (c == null || c.delegate != d) {
+            c = new MemoryConfiguration();
+            c.delegate = d;
+            defaultsWrapper = c;
+            defaultsWrapperAuto = '.';
+        }
+        // addDefault 로 만들어진 기본값 트리는 이쪽 구분자로 쓰였다. 옵션(paper-default-separator)을 켜면 Paper 처럼 '.' 로 쪼갰으므로 '.' 그대로.
+        // 플러그인이 포장 객체의 구분자를 직접 바꿨으면(Paper 와 같게) 건드리지 않는다
+        if (c.options().pathSeparator() == defaultsWrapperAuto) {
+            char want = org.domi.furnace.compat.paper.ConfigPaths.paperDefaultSeparator() ? '.' : options().pathSeparator();
+            c.options().pathSeparator(want);
+            defaultsWrapperAuto = want;
+        }
         return c;
     }
 

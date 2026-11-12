@@ -161,6 +161,11 @@ public class MemorySection implements ConfigurationSection {
 
     /** Paper getDefault: 기본값 구역의 같은 경로 값(없으면 null). */
     private Object defaultOf(String path) {
+        if (custom() && ConfigPaths.paperDefaultSeparator()) {
+            // Paper: defaults.get(createPath(this, path)) — 이 구역 경로를 루트 구분자로 이은 전체 경로를 기본값 설정('.')이 읽는다
+            Configuration dc = root.getDefaults();
+            return dc == null ? null : dc.get(paperPath(path));
+        }
         ConfigurationSection d = getDefaultSection();
         return d == null ? null : d.get(path);
     }
@@ -509,12 +514,33 @@ public class MemorySection implements ConfigurationSection {
 
     @Override
     public void addDefault(String path, Object value) {
+        // Paper: defaults.set(createPath(this, path), value) — setDefaults 로 받은 설정이 '.' 가 아닌 자기 구분자를 쓰면 그 구분자로 쪼갠다(PR #264 검토 R1·R3).
+        // addDefault 로 만든 기본값 트리의 포장 객체는 꺼짐일 때만 이쪽 구분자를 물려받으므로(MemoryConfiguration#getDefaults) 켜지 않은 채 사용자 지정 구분자면 아래 옛 길을 탄다.
+        if (!custom() || ConfigPaths.paperDefaultSeparator()) {
+            Configuration defs = root.getDefaults();
+            if (defs != null && defs.options().pathSeparator() != '.') {
+                if (path.isEmpty()) throw new IllegalArgumentException("Cannot set to an empty path");
+                defs.set(paperPath(path), value);
+                return;
+            }
+        }
         if (!custom()) {
             delegate.addDefault(path, in(value));
             return;
         }
         if (path.isEmpty()) throw new IllegalArgumentException("Cannot set to an empty path");
+        if (ConfigPaths.paperDefaultSeparator()) {
+            // Paper: root.addDefault(createPath(this, path)) — 기본값 설정은 언제나 '.' 로 쪼갠다(R6 "둘 다 지원" 옵션 plugins.compat.config.paper-default-separator)
+            delegate.getRoot().addDefault(paperPath(path), in(value));
+            return;
+        }
         delegate.addDefaultAt(parse(path).keys(), in(value));
+    }
+
+    /** Paper createPath(this, path): 이 구역의 현재 경로 + 루트 구분자 + path(루트면 path 그대로). */
+    private String paperPath(String path) {
+        String cur = getCurrentPath();
+        return cur.isEmpty() ? path : cur + sep() + path;
     }
 
     // ------------------------------------------------------------------ 주석
