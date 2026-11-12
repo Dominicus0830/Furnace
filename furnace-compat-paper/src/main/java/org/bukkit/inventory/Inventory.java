@@ -76,4 +76,7 @@ public interface Inventory extends Iterable<ItemStack> {
 
     @Override
     ListIterator<ItemStack> iterator();
+
+    /** 이 인벤토리가 있는 곳(블록·엔티티·플레이어 위치). 플러그인이 만든 인벤토리처럼 위치가 없으면 null. */
+    org.bukkit.Location getLocation();
 }

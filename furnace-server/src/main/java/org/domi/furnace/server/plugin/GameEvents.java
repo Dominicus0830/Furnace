@@ -93,7 +93,10 @@ public interface GameEvents {
 
     default boolean inventoryOpen(Player p, AbstractContainerMenu menu) { return true; }
 
-    default void inventoryClose(Player p, AbstractContainerMenu menu) {}
+    default void inventoryClose(Player p, AbstractContainerMenu menu) { inventoryClose(p, menu, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.UNKNOWN); }
+
+    /** 창이 닫히기 직전 — reason 은 닫힌 까닭(Paper InventoryCloseEvent.Reason). */
+    default void inventoryClose(Player p, AbstractContainerMenu menu, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason reason) {}
 
     default void chunkLoad(String dimension, int cx, int cz) {}
 
@@ -256,8 +259,8 @@ public interface GameEvents {
     /** 모루 결과를 정한 직후: 바꾼 값, null 이면 그대로(구독자 없음 포함). */
     default AnvilPrepared prepareAnvil(Player p, AbstractContainerMenu menu, ItemStack result, int repairCost, String renameText) { return null; }
 
-    /** 양조가 끝나 병을 바꾸기 직전(items 는 양조대 다섯 칸). false 면 취소. */
-    default boolean brew(String dimension, Pos pos, ItemStack[] items, int fuelLevel) { return true; }
+    /** 양조가 끝나 병을 바꾸기 직전(items 는 양조대 다섯 칸, results 는 병 세 칸에 들어갈 결과 — 처리기가 바꾸면 그 자리에서 고친다). false 면 취소. */
+    default boolean brew(String dimension, Pos pos, ItemStack[] items, ItemStack[] results, int fuelLevel) { return true; }
 
     /** 양조대 연료 결과(consuming 이 false 면 블레이즈 가루를 줄이지 않는다). */
     record BrewFuel(int fuelPower, boolean consuming) {}

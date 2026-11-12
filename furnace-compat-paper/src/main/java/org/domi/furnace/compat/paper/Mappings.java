@@ -24,6 +24,7 @@ final class Mappings {
         registerWorld();
         registerOther();
         registerInventory();
+        InventoryResultMappings.register();
         registerEntityInteract();
         registerInteractAndBlocks();
         registerLogin();
@@ -185,12 +186,16 @@ final class Mappings {
     }
 
     private static void registerInventory() {
-        // 클릭: 끌어 나누기(quick_craft)는 InventoryDragEvent 로, 제작 결과 칸 꺼내기(Furnace CraftItemEvent)는 Bukkit 에서 CraftItemEvent 자기
-        // 처리기 목록으로 가므로 InventoryClickEvent 처리기에는 오지 않는다(Bukkit 과 같다 — CraftItemEvent 는 아직 없다)
+        // 클릭: 끌어 나누기(quick_craft)는 InventoryDragEvent 로. 제작 결과 칸 꺼내기(Furnace CraftItemEvent)는 Bukkit CraftItemEvent 인데, Bukkit 에서
+        // CraftItemEvent 는 자기 처리기 목록이 없어 InventoryClickEvent 목록으로 간다 — InventoryClickEvent 처리기도 받는다(Paper 와 같다).
+        // 레시피를 모르면(Furnace recipe()==null) Paper 처럼 보통 InventoryClickEvent 다.
         EventBridge.reg(org.domi.furnace.api.event.inventory.InventoryClickEvent.class, org.bukkit.event.inventory.InventoryClickEvent.class,
                 f -> {
-                    if (f instanceof org.domi.furnace.api.event.inventory.CraftItemEvent || CompatInventories.isDrag(f.clickType())) return null;
-                    CompatInventoryView view = CompatInventories.view(f.player(), f.inventory(), f.menu(), f.cursor());
+                    if (CompatInventories.isDrag(f.clickType())) return null;
+                    EventInventories.CompatRecipe recipe = f instanceof org.domi.furnace.api.event.inventory.CraftItemEvent ce
+                            ? EventInventories.CompatRecipe.of(ce.recipe(), ce.result()) : null;
+                    CompatInventoryView view = CompatInventories.view(f.player(), f.inventory(), f.menu(), f.cursor(),
+                            recipe == null ? CompatInventories.Extras.NONE : new CompatInventories.Extras(recipe, false, null, null, null));
                     int raw = f.slot();
                     var ct = CompatInventories.click(f.clickType(), raw, f.button());
                     org.domi.furnace.api.item.ItemStack hotbar = org.domi.furnace.api.item.ItemStack.EMPTY;
@@ -199,9 +204,16 @@ final class Mappings {
                         hotbar = hr >= 0 ? f.inventory().get(hr) : CompatItems.toFurnace(view.getBottomInventory().getItem(40));
                     }
                     boolean creative = f.player().gameMode() == org.domi.furnace.api.entity.GameMode.CREATIVE;
-                    var action = CompatInventories.action(f.clickType(), raw, f.button(), raw >= 0 ? f.current() : org.domi.furnace.api.item.ItemStack.EMPTY,
-                            f.cursor(), hotbar, creative, f.clickType().equals("pickup_all") && sameTypeIn(f.inventory(), f.cursor()));
+                    var action = recipe != null
+                            ? CompatInventories.resultAction(f.clickType(), raw, f.button(), f.current(), f.cursor(), hotbar, creative)
+                            : CompatInventories.action(f.clickType(), raw, f.button(), raw >= 0 ? f.current() : org.domi.furnace.api.item.ItemStack.EMPTY,
+                                    f.cursor(), hotbar, creative, f.clickType().equals("pickup_all") && sameTypeIn(f.inventory(), f.cursor()));
                     var st = raw < 0 || raw >= view.countSlots() ? org.bukkit.event.inventory.InventoryType.SlotType.OUTSIDE : view.getSlotType(raw);
+                    if (recipe != null) {
+                        return ct == org.bukkit.event.inventory.ClickType.NUMBER_KEY
+                                ? new org.bukkit.event.inventory.CraftItemEvent(recipe, view, st, raw, ct, action, f.button())
+                                : new org.bukkit.event.inventory.CraftItemEvent(recipe, view, st, raw, ct, action);
+                    }
                     return ct == org.bukkit.event.inventory.ClickType.NUMBER_KEY || ct == org.bukkit.event.inventory.ClickType.SWAP_OFFHAND
                             ? new org.bukkit.event.inventory.InventoryClickEvent(view, st, raw, ct, action, f.button())
                             : new org.bukkit.event.inventory.InventoryClickEvent(view, st, raw, ct, action);
@@ -222,7 +234,8 @@ final class Mappings {
                 f -> new org.bukkit.event.inventory.InventoryOpenEvent(CompatInventories.view(f.player(), f.inventory(), f.menu(),
                         org.domi.furnace.api.item.ItemStack.EMPTY)), (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.inventory.InventoryCloseEvent.class, org.bukkit.event.inventory.InventoryCloseEvent.class,
-                f -> new org.bukkit.event.inventory.InventoryCloseEvent(CompatInventories.view(f.player(), f.inventory(), f.menu(), null)), (f, b) -> {});
+                f -> new org.bukkit.event.inventory.InventoryCloseEvent(CompatInventories.view(f.player(), f.inventory(), f.menu(), null),
+                        org.bukkit.event.inventory.InventoryCloseEvent.Reason.valueOf(f.reason().name())), (f, b) -> {});
 
         // 사망: 플레이어는 Furnace PlayerDeathEvent(메시지·유지 여부·드롭·경험치를 되돌려 쓴다), 몹은 Furnace EntityDeathEvent. Bukkit 은 둘 다 EntityDeathEvent 목록이다.
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerDeathEvent.class, org.bukkit.event.entity.EntityDeathEvent.class,

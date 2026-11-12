@@ -263,7 +263,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         if (ih == null) return;
         ih.execute(() -> {
             var m = p.containerMenu();
-            if (m != null && m.pluginOwner() instanceof MenuSession ms && ms.player() == this) ih.closeContainer(m);
+            if (m != null && m.pluginOwner() instanceof MenuSession ms && ms.player() == this) ih.closeContainer(m, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.PLUGIN);
         });
     }
 
@@ -273,7 +273,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         if (ih == null) return;
         ih.execute(() -> {
             var m = p.containerMenu();
-            if (m != null) ih.closeContainer(m);
+            if (m != null) ih.closeContainer(m, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.PLUGIN);
         });
     }
 

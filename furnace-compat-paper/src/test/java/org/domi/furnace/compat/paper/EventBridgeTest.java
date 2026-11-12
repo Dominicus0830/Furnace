@@ -148,6 +148,25 @@ class EventBridgeTest {
             fire.put(org.bukkit.event.block.BlockCookEvent.class, () -> new org.domi.furnace.api.event.inventory.FurnaceSmeltEvent(w, bp, "minecraft:furnace",
                     org.domi.furnace.api.item.ItemStack.of("minecraft:iron_ore"), org.domi.furnace.api.item.ItemStack.of("minecraft:iron_ingot")));
 
+            // 결과를 정하는 인벤토리 이벤트(H4 묶음 D)
+            fire.put(org.bukkit.event.inventory.PrepareItemCraftEvent.class, () -> new org.domi.furnace.api.event.inventory.PrepareItemCraftEvent(p,
+                    InventoryResultEventsTest.window("minecraft:crafting", 10), "minecraft:oak_planks", org.domi.furnace.api.item.ItemStack.of("minecraft:oak_planks").withAmount(4)));
+            fire.put(org.bukkit.event.inventory.PrepareInventoryResultEvent.class, () -> new org.domi.furnace.api.event.inventory.PrepareAnvilEvent(p,
+                    InventoryResultEventsTest.window("minecraft:anvil", 3), stone, 3, "x"));
+            fire.put(org.bukkit.event.enchantment.PrepareItemEnchantEvent.class, () -> new org.domi.furnace.api.event.inventory.PrepareItemEnchantEvent(p,
+                    InventoryResultEventsTest.window("minecraft:enchantment", 2), bp, stone, 15, new ArrayList<>(java.util.Arrays.asList(null, null, null))));
+            fire.put(org.bukkit.event.enchantment.EnchantItemEvent.class, () -> new org.domi.furnace.api.event.inventory.EnchantItemEvent(p,
+                    InventoryResultEventsTest.window("minecraft:enchantment", 2), bp, stone, 0, 1, new java.util.LinkedHashMap<>(Map.of("minecraft:sharpness", 1))));
+            fire.put(org.bukkit.event.inventory.BrewEvent.class, () -> new org.domi.furnace.api.event.inventory.BrewEvent(w, bp,
+                    new org.domi.furnace.api.inventory.InventorySnapshot("minecraft:brewing_stand", java.util.Collections.nCopies(5, org.domi.furnace.api.item.ItemStack.EMPTY)), 10));
+            fire.put(org.bukkit.event.inventory.BrewingStandFuelEvent.class, () -> new org.domi.furnace.api.event.inventory.BrewingStandFuelEvent(w, bp,
+                    org.domi.furnace.api.item.ItemStack.of("minecraft:blaze_powder"), 20));
+            fire.put(org.bukkit.event.inventory.InventoryMoveItemEvent.class, () -> new org.domi.furnace.api.event.inventory.InventoryMoveItemEvent(
+                    new org.domi.furnace.api.inventory.InventorySnapshot("minecraft:chest", java.util.Collections.nCopies(27, org.domi.furnace.api.item.ItemStack.EMPTY)),
+                    new Location(w, 1.5, 65.5, 2.5),
+                    new org.domi.furnace.api.inventory.InventorySnapshot("minecraft:hopper", java.util.Collections.nCopies(5, org.domi.furnace.api.item.ItemStack.EMPTY)),
+                    new Location(w, 1.5, 64.5, 2.5), stone, false));
+
             // 시험이 빠뜨린 짝이 없는지: 다리가 아는 이벤트 = 이 시험이 발행한 이벤트
             assertEquals(EventBridge.bridgedEvents(), new HashSet<Class<?>>(fire.keySet()));
 

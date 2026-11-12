@@ -46,6 +46,14 @@
 | `BlockRedstoneEvent` | 같은 이름 | 새 세기 |
 | `FurnaceBurnEvent` | 같은 이름 | 태우는 시간, 불붙음, 취소 |
 | `FurnaceSmeltEvent` (처리기 목록은 `BlockCookEvent`) | `FurnaceSmeltEvent` | 결과 아이템, 취소 |
+| `CraftItemEvent` (처리기 목록은 `InventoryClickEvent` — 클릭 처리기도 받는다) | `CraftItemEvent` | 취소. `getRecipe()` 는 키(`Keyed`)와 결과만 아는 레시피 |
+| `PrepareItemCraftEvent` | 같은 이름 | 결과 칸(`getInventory().setResult`) |
+| `PrepareAnvilEvent` (처리기 목록은 `PrepareInventoryResultEvent`) | `PrepareAnvilEvent` | 결과, 비용(`getView().setRepairCost`) |
+| `PrepareItemEnchantEvent` · `EnchantItemEvent` (`org.bukkit.event.enchantment`) | 같은 이름 | 제안 세 칸, 취소 · 부여할 마법·비용, 취소 |
+| `BrewEvent` · `BrewingStandFuelEvent` | 같은 이름 | 결과 목록(`getResults`), 취소 · 연료 횟수·소모 여부, 취소 |
+| `InventoryMoveItemEvent` | 같은 이름 | 옮길 아이템, 취소 |
+
+인벤토리 창 이벤트(클릭·끌기·열기·닫기, 닫힌 까닭 `getReason()`)와 위 결과 이벤트의 상세·Paper 와 다른 점: [`compat-h4d-inventory-events-2026-11-12.md`](../feature-parity/compat-h4d-inventory-events-2026-11-12.md).
 
 **PlayerInteractEvent 의 취소(FAWE 묶음, 2026-11-11).** Bukkit 은 결과가 둘이다: `useInteractedBlock()`(블록이 없으면 처음부터 DENY — 그래서 공기 클릭은 `isCancelled()` 가 처음부터 true)와 `useItemInHand()`. Furnace 서버 이벤트는 취소 하나라 CraftBukkit 이 결과를 읽는 방식대로 합친다: 공기 클릭은 아이템 쓰기만, 왼쪽 블록 클릭은 블록 쓰기 DENY 거나 (창조 모드가 아닐 때) 아이템 쓰기 DENY 면 — CraftBukkit 은 캐기 시작에서 블록 DENY 를 보고, 창조 모드면 바로 부수고, 아니면 아이템 DENY 를 본다 — 막고, 오른쪽 블록 클릭은 둘 중 하나라도 DENY 면 막는다(`PHYSICAL` 은 CraftBukkit 처럼 블록 쓰기만 본다). 마지막은 "블록만 막고 아이템은 쓰기"(예: 보호 구역 상자는 막고 음식은 먹기)를 나눠 하지 못해 더 막는 쪽을 고른 것이다 — Paper 와 다른 점. 빈 손이면 `getItem()` 은 null, 공기 클릭의 면은 `SOUTH`(CraftBukkit 과 같다). 클릭한 점(`getClickedPosition`·`getInteractionPoint`)은 서버 이벤트가 알리지 않아 null, `PHYSICAL`(압력판 밟기)은 아직 오지 않는다.
 
