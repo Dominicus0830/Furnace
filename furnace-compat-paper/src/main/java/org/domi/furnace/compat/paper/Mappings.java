@@ -61,10 +61,7 @@ final class Mappings {
                 (f, b) -> pullText(f.joinMessage(), b.getJoinMessage(), b::setJoinMessage));
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerQuitEvent.class, org.bukkit.event.player.PlayerQuitEvent.class,
                 f -> new org.bukkit.event.player.PlayerQuitEvent(p(f.player()), Compat.legacy(f.quitMessage())),
-                (f, b) -> {
-                    pushText(b.getQuitMessage(), f.quitMessage(), t -> f.quitMessage(t));
-                    Compat.disconnected(f.player());   // Bukkit 처리기들(ProtocolLib 의 MONITOR 포함)이 끝난 뒤 가상 채널을 닫는다
-                },
+                (f, b) -> pushText(b.getQuitMessage(), f.quitMessage(), t -> f.quitMessage(t)),
                 (f, b) -> pullText(f.quitMessage(), b.getQuitMessage(), b::setQuitMessage));
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerKickEvent.class, org.bukkit.event.player.PlayerKickEvent.class,
                 f -> new org.bukkit.event.player.PlayerKickEvent(p(f.player()), Compat.legacy(f.reason()), defaultLeaveMessage(f.player())),
