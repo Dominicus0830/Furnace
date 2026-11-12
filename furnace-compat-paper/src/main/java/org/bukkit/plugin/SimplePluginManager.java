@@ -246,8 +246,8 @@ public final class SimplePluginManager implements PluginManager {
         BukkitPluginAdapter owner = CompatPluginManager.adapter(plugin);
         Class<? extends Event> owning = CompatPluginManager.registrationClass(event);
         RegisteredListener registered = new RegisteredListener(listener, executor, priority, plugin, ignoreCancelled);
-        CompatPluginManager.handlerList(owning).register(registered);
-        EventBridge.ensure(owner, owning, priority, registered);
+        CompatPluginManager.handlerList(owning).register(registered);   // 버스 구독은 HandlerList 가 만들고 해제 때 끊는다(직접 register 한 처리기도 같게)
+        EventBridge.warnIfNotFired(owner, owning);
     }
 
     // ------------------------------------------------------------------ 권한
