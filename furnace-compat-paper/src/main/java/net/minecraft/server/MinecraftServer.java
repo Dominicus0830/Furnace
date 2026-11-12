@@ -22,6 +22,11 @@ public abstract class MinecraftServer {
     /** CraftBukkit 이 더한 정적 입구: 지금 서버. */
     public static MinecraftServer getServer() { return DedicatedServer.INSTANCE; }
 
+    private final net.minecraft.server.network.ServerConnectionListener connection = new net.minecraft.server.network.ServerConnectionListener();
+
+    /** 서버 접속 수신(N3 2단계, 패킷 라이브러리가 소켓 채널 목록을 읽는 자리). 지금은 채널 목록이 비어 있다. */
+    public net.minecraft.server.network.ServerConnectionListener getConnection() { return connection; }
+
     /** 바닐라 서버 버전 이름(1.21.1). */
     public String getServerVersion() { return CraftServer.INSTANCE.getMinecraftVersion(); }
 
