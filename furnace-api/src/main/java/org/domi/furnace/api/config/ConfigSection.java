@@ -42,6 +42,8 @@ public final class ConfigSection {
     private HashMap<String, String> inlineComments;
     private List<String> header;
     private List<String> footer;
+    /** 이 구역이 "값 하나"의 저장 꼴일 때 그 원래 객체(호환 계층의 직렬화 객체 보관). 복사·읽기·쓰기 경로는 건드리지 않는다. */
+    private Object attachment;
 
     public ConfigSection() {}
 
@@ -263,6 +265,25 @@ public final class ConfigSection {
         if (header != null) c.header = new ArrayList<>(header);
         if (footer != null) c.footer = new ArrayList<>(footer);
         return c;
+    }
+
+    /** 붙여 둔 원래 객체(없으면 null). {@link #copy()} 는 붙인 것을 옮기지 않는다. */
+    public Object attachment() { return attachment; }
+
+    /** 이 구역에 원래 객체를 붙인다(null 이면 뗀다). 구역 내용은 그 객체의 저장 꼴을 담고 있어야 한다. */
+    public void attach(Object value) { this.attachment = value; }
+
+    /** 이 구역 아래(자기 포함)에서 객체가 붙은 구역마다 action 을 부른다. 구역 자식만 따라간다(목록 안은 보지 않는다). */
+    public void forEachAttached(java.util.function.Consumer<ConfigSection> action) {
+        if (attachment != null) action.accept(this);
+        for (Object v : new ArrayList<>(map.values())) if (v instanceof ConfigSection s) s.forEachAttached(action);
+    }
+
+    /** 자식 전체를 source 로 바꾼다(키 주석은 건드리지 않는다). 붙인 객체의 저장 꼴을 다시 쓸 때. */
+    public void replaceChildren(Map<?, ?> source) {
+        for (Object v : map.values()) if (v instanceof ConfigSection os) { os.parent = null; os.key = null; }
+        map.clear();
+        for (Map.Entry<?, ?> e : source.entrySet()) putChild(String.valueOf(e.getKey()), normalize(e.getValue()));
     }
 
     /** 일반 Map/List 로 깊은 변환한 스냅샷. */

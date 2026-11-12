@@ -42,7 +42,8 @@ public class MemorySection implements ConfigurationSection {
     private ConfigurationSection wrap(ConfigSection s) { return new MemorySection(s, this, root); }
 
     private Object out(Object v) {
-        if (v instanceof ConfigSection s) return isSerialized(s) ? revive(s.toMap()) : wrap(s);
+        // Paper 는 set 한 객체를 그대로 들고 있다 — 직렬화 객체는 저장 꼴(구역) 위에 원래 객체를 붙여 두고 돌려준다
+        if (v instanceof ConfigSection s) return s.attachment() != null ? s.attachment() : isSerialized(s) ? revive(s.toMap()) : wrap(s);
         if (v instanceof List<?> l) {
             boolean convert = false;
             for (Object o : l) if (o instanceof ConfigSection) { convert = true; break; }
@@ -56,6 +57,7 @@ public class MemorySection implements ConfigurationSection {
 
     /** 별칭(==)이 등록된 ConfigurationSerializable 로 저장된 구역인가 — Bukkit 에서는 구역이 아니라 객체다. */
     private static boolean isSerialized(ConfigSection s) {
+        if (s.attachment() != null) return true;
         return s.get(ConfigurationSerialization.SERIALIZED_TYPE_KEY) instanceof String alias && ConfigurationSerialization.getClassByAlias(alias) != null;
     }
 
@@ -81,28 +83,10 @@ public class MemorySection implements ConfigurationSection {
         return v;
     }
 
-    /** 값 → 저장할 꼴: ConfigurationSerializable 은 {@code ==} 별칭이 맨 앞인 맵으로(안쪽도 같게), 집합은 리스트로. */
-    private static Object in(Object v) {
-        if (v instanceof MemorySection m) return m.delegate;
-        if (v instanceof ConfigurationSection s) return s.getValues(false);
-        if (v instanceof ConfigurationSerializable c) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put(ConfigurationSerialization.SERIALIZED_TYPE_KEY, ConfigurationSerialization.getAlias(c.getClass()));
-            for (var e : c.serialize().entrySet()) m.put(e.getKey(), in(e.getValue()));
-            return m;
-        }
-        if (v instanceof Map<?, ?> map) {
-            Map<Object, Object> out = new LinkedHashMap<>();
-            for (var e : map.entrySet()) out.put(e.getKey(), in(e.getValue()));
-            return out;
-        }
-        if (v instanceof Iterable<?> it && !(v instanceof ConfigSection)) {
-            List<Object> out = new ArrayList<>();
-            for (Object o : it) out.add(in(o));
-            return out;
-        }
-        return v;
-    }
+    private static Object in(Object v) { return org.domi.furnace.compat.paper.ConfigValues.lower(v); }
+
+    /** 호환 모듈 전용 — 이 구역이 감싼 Furnace 구역. */
+    public ConfigSection furnaceSection() { return delegate; }
 
     // ------------------------------------------------------------------ 경로 구분자(A15-05)
     //
@@ -270,7 +254,29 @@ public class MemorySection implements ConfigurationSection {
     }
 
     @Override
-    public void set(String path, Object value) { dSet(path, value == null ? null : in(value)); }
+    public void set(String path, Object value) {
+        if (value != null) replaceObjectAncestors(path);
+        dSet(path, value == null ? null : in(value));
+        // 직렬화 객체는 그 참조를 보관한다(Paper MemorySection.set 과 같다). 저장 꼴은 YAML 로 쓸 때 객체에서 다시 만든다.
+        if (value instanceof ConfigurationSerializable c && !(value instanceof ConfigurationSection) && dGet(path) instanceof ConfigSection stored) stored.attach(c);
+    }
+
+    /**
+     * path 의 중간 단계가 보관 중인 객체면 새 구역으로 바꾼다 — Paper set("a.b", x) 는 a 가 구역이 아니면(객체여도) 구역을 새로 만든다.
+     */
+    private void replaceObjectAncestors(String path) {
+        if (path.indexOf(sep()) < 0) return;
+        List<String> keys = parse(path).keys();
+        StringBuilder prefix = new StringBuilder();
+        for (int i = 0; i < keys.size() - 1; i++) {
+            if (i > 0) prefix.append(sep());
+            prefix.append(keys.get(i));
+            if (dGet(prefix.toString()) instanceof ConfigSection s && s.attachment() != null) {
+                dSet(prefix.toString(), new ConfigSection());
+                return;
+            }
+        }
+    }
 
     @Override
     public ConfigurationSection createSection(String path) {

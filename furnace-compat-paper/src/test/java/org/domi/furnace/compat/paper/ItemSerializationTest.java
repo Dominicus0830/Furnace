@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -527,8 +528,8 @@ class ItemSerializationTest {
         ItemStack s = cfg.getItemStack("a.b");
         assertFancy(s);
         assertEquals(fancySword(), s);
-        // 두 번 읽으면 서로 다른 사본(Bukkit 은 같은 객체지만, 사본이 안전하다)
-        assertNotSame(cfg.getItemStack("a.b"), s);
+        // 넣은 객체를 그대로 보관한다(Paper 의 MemorySection 과 같다) — 두 번 읽어도 같은 객체
+        assertSame(cfg.getItemStack("a.b"), s);
         cfg.set("a.b", null);
         assertNull(cfg.getItemStack("a.b"));
     }
