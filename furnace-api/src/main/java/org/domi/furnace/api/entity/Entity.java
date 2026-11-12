@@ -174,6 +174,12 @@ public interface Entity {
      */
     default org.domi.furnace.api.event.cause.CauseChain origin() { return org.domi.furnace.api.event.cause.CauseChain.NONE; }
 
+    /** 떨어진 아이템 엔티티(minecraft:item)가 든 아이템(만든 순간 값). 아이템 엔티티가 아니면 null. */
+    default org.domi.furnace.api.item.ItemStack droppedItem() { return null; }
+
+    /** 떨어진 아이템 엔티티의 줍기 지연(틱, 만든 순간 값). 아이템 엔티티가 아니면 0. */
+    default int pickupDelay() { return 0; }
+
     /**
      * 핸들(스냅샷)을 만든 순번 — 같은 엔티티의 두 핸들 중 값이 큰 쪽이 나중에 만든 것이다. 서버 전체에서 늘어나기만 한다.
      * 0 이면 모른다(살아 있는 핸들이거나 서버가 순번을 매기지 않는 구현). 호환 계층이 늦게 온 옛 스냅샷으로 새 값을 덮지 않게 쓴다.
