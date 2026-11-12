@@ -22,7 +22,7 @@ public abstract class Level {
      * 엔티티를 가진 region 스레드(또는 옛 동기 작업의 빌림 구간)면 곧바로, 그 밖의 스레드(네트워크·비동기)는 그 region 이 읽어 줄 때까지 잠깐 기다린다.
      * region 스레드가 남의 region 엔티티를 찾으면 ThreadOwnershipException(Paper 가 Folia 에서 던지는 것과 같은 규칙).
      */
-    public abstract net.minecraft.world.entity.Entity getEntity(int id);
+    public net.minecraft.world.entity.Entity getEntity(int id) { return null; }   // 서버 월드(ServerLevel)가 재정의한다
 
     @Override
     public String toString() { return getClass().getSimpleName() + "[" + world.getName() + "]"; }
