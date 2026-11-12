@@ -6,6 +6,8 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.Level;
 import org.bukkit.craftbukkit.CraftWorld;
 import org.bukkit.craftbukkit.entity.CraftPlayer;
+import net.minecraft.world.entity.Entity;
+import org.domi.furnace.compat.paper.Compat;
 
 /**
  * 서버 월드 shim(Mojang 이름, H6 최소 표면): {@code ((CraftWorld) w).getHandle()}. 같은 CraftWorld 는 같은 shim 이다.
@@ -19,6 +21,29 @@ public class ServerLevel extends Level {
     public long getSeed() { return getWorld().getSeed(); }
 
     public MinecraftServer getServer() { return MinecraftServer.getServer(); }
+
+    /** 대기 한도(ms) — 네트워크·비동기 스레드가 id 로 엔티티를 찾을 때 소유 region 의 응답을 기다리는 시간. */
+    private static final long LOOKUP_WAIT_MILLIS = Long.getLong("furnace.compat.entityLookupWaitMillis", 1_000L);
+
+    @Override
+    public Entity getEntity(int id) {
+        var w = getWorld().furnaceHandle();
+        java.util.Optional<org.domi.furnace.api.entity.Entity> found;
+        try {
+            found = w.entityByIdNow(id);
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException notOwner) {
+            if (org.domi.furnace.compat.thread.PrimaryThread.isPrimary() || org.domi.furnace.api.Furnace.server().scheduler().isTickThread()) throw notOwner;
+            try {
+                found = w.entityById(id).get(LOOKUP_WAIT_MILLIS, java.util.concurrent.TimeUnit.MILLISECONDS);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw notOwner;
+            } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException late) {
+                throw notOwner;
+            }
+        }
+        return found.map(e -> ((org.bukkit.craftbukkit.entity.CraftEntity) Compat.entity(e)).getHandle()).orElse(null);
+    }
 
     /** 이 월드에 있는 접속 플레이어. */
     public List<ServerPlayer> players() {

@@ -17,6 +17,13 @@ public abstract class Level {
 
     public boolean isClientSide() { return false; }
 
+    /**
+     * 바닐라 Level#getEntity(int): 그 네트워크 id 의 이 월드 엔티티(플레이어 포함), 없으면 null — ProtocolLib 의 getEntityFromID 가 쓴다.
+     * 엔티티를 가진 region 스레드(또는 옛 동기 작업의 빌림 구간)면 곧바로, 그 밖의 스레드(네트워크·비동기)는 그 region 이 읽어 줄 때까지 잠깐 기다린다.
+     * region 스레드가 남의 region 엔티티를 찾으면 ThreadOwnershipException(Paper 가 Folia 에서 던지는 것과 같은 규칙).
+     */
+    public abstract net.minecraft.world.entity.Entity getEntity(int id);
+
     @Override
     public String toString() { return getClass().getSimpleName() + "[" + world.getName() + "]"; }
 }

@@ -402,6 +402,56 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         return RegionFuture.wrap(f != null ? f : CompletableFuture.completedFuture(List.of()));
     }
 
+    // ------------------------------------------------------------------ id 로 찾기
+
+    /** 이 월드에 접속해 있는 그 id 의 플레이어(플레이어는 엔티티 색인에 없다). */
+    private Entity playerById(int id) {
+        for (var p : host.core().players()) {
+            if (p.entityId() == id && !p.isDisconnected() && world.dimension().equals(p.dimension())) return host.player(p);
+        }
+        return null;
+    }
+
+    @Override
+    public Optional<Entity> entityByIdNow(int entityId) {
+        var e = world.entityIndex().get(entityId);
+        if (e == null || e.isRemoved()) return Optional.ofNullable(playerById(entityId));
+        // 엔티티를 가진 region 스레드(빌림 구간이면 빌려서)에서만 — 아니면 낡은 값을 읽지 않고 소유 스레드가 아니라고 답한다
+        if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(e) && !(e.level() != null && e.level().isOwnerThread())) {
+            throw new ThreadOwnershipException("entityByIdNow 는 그 엔티티를 가진 region 스레드에서만 부를 수 있다 (현재 "
+                    + Thread.currentThread().getName() + ") — entityById 를 쓴다");
+        }
+        return e.isRemoved() ? Optional.empty() : Optional.of(EntityHandle.of(host, e));
+    }
+
+    @Override
+    public CompletableFuture<Optional<Entity>> entityById(int entityId) {
+        return RegionFuture.wrap(entityByIdAttempt(entityId, 0));
+    }
+
+    /** 색인에서 찾은 엔티티의 청크 주인 region 에서 읽는다. 그 사이 region 을 옮겼으면(주인 칸에 없으면) 몇 번 다시 찾는다. */
+    private CompletableFuture<Optional<Entity>> entityByIdAttempt(int id, int attempt) {
+        var e = world.entityIndex().get(id);
+        if (e == null || e.isRemoved()) return CompletableFuture.completedFuture(Optional.ofNullable(playerById(id)));
+        ChunkPos cp = ChunkPos.ofBlock(e.x(), e.z());
+        CompletableFuture<Optional<Entity>> f = world.submitAtOwnedChunk(cp, r -> {
+            var cur = r.level().entities().get(id);
+            if (cur == null) return null;   // 옮겨 가는 중 — 아래에서 다시
+            return cur.isRemoved() ? Optional.<Entity>empty() : Optional.<Entity>of(EntityHandle.of(host, cur));
+        });
+        if (f == null) {
+            if (attempt >= MAX_LOOKUP_ATTEMPTS) return CompletableFuture.completedFuture(Optional.empty());
+            return entityByIdAttempt(id, attempt + 1);
+        }
+        return f.thenCompose(found -> {
+            if (found != null) return CompletableFuture.completedFuture(found);
+            if (attempt >= MAX_LOOKUP_ATTEMPTS) return CompletableFuture.completedFuture(Optional.<Entity>empty());
+            return entityByIdAttempt(id, attempt + 1);
+        });
+    }
+
+    private static final int MAX_LOOKUP_ATTEMPTS = 3;
+
     // ------------------------------------------------------------------ 블록 칸
 
     @Override

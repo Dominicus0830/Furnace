@@ -70,7 +70,12 @@ public class CraftEntity implements Entity {
     public int getEntityId() { return handle.entityId(); }
 
     @Override
-    public Location getLocation() { return Compat.location(handle.location()); }
+    public Location getLocation() {
+        // Paper: yaw = getBukkitYaw() — 살아 있는 엔티티는 머리 방향(getYHeadRot), 그 밖은 몸 방향
+        org.domi.furnace.api.entity.Entity h = handle;
+        var l = h.location();
+        return Compat.location(new org.domi.furnace.api.world.Location(l.world(), l.x(), l.y(), l.z(), h.headYaw(), l.pitch()));
+    }
 
     @Override
     public World getWorld() { return Compat.world(handle.location().world()); }

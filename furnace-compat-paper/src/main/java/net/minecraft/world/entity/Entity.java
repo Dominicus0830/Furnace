@@ -37,6 +37,12 @@ public class Entity {
 
     public float getXRot() { return f().location().pitch(); }
 
+    /** 바닐라 Entity#getYHeadRot: 살아 있는 엔티티의 머리 방향(그 밖은 0). */
+    public float getYHeadRot() { return f() instanceof org.domi.furnace.api.entity.LivingEntity ? f().headYaw() : 0.0F; }
+
+    /** CraftBukkit 이 더한 메서드: Bukkit Location 의 yaw 가 되는 값(살아 있는 엔티티는 머리 방향, 그 밖은 몸 방향). */
+    public float getBukkitYaw() { return f().headYaw(); }
+
     /** 이 엔티티가 있는 월드의 shim. */
     public Level level() { return ((CraftWorld) bukkit.getWorld()).getHandle(); }
 
