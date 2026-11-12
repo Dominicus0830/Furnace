@@ -27,7 +27,7 @@ public class AnvilMenu extends ItemCombinerMenu {
 
     @Override protected boolean isValidBlock() { return access.stillBlock(); }
 
-    @Override protected boolean mayPickup(MenuPlayer p, boolean hasStack) { return (p.isCreative() || p.experienceLevel() >= cost.get()) && cost.get() > 0; }
+    @Override protected boolean mayPickup(MenuPlayer p, boolean hasStack) { return (p.isCreative() || p.experienceLevel() >= cost.get()) && cost.get() >= 0 && hasStack; }   // CraftBukkit: 비용 0 도 꺼낼 수 있다(무료 아이템)
 
     @Override
     protected void onTake(MenuPlayer p, ItemStack stack) {
