@@ -722,6 +722,9 @@ public final class ServerCore {
      * RCON 명령: IO 스레드가 부른다. 전역 스레드에서 실행하고(performPrefixedCommandAsync) 컨텍스트가 끝날 때까지 기다려 출력을 돌려준다.
      * 전역/region 스레드에서 부르면 데드락이므로 막는다(CommandFuture 가드).
      */
+    /** RCON 명령 대기 한도. 지연 결과가 가장 긴 /save-all(10분 안전망)보다 길어야 응답이 저장 결과를 담는다(바닐라 RCON 은 끝까지 기다린다). */
+    static final long RCON_COMMAND_WAIT_MINUTES = 11;
+
     public String runRconCommand(String command) throws Exception {
         var spawn = world.defaultSpawn();
         var sink = new org.domi.furnace.server.remote.RconConsole(() -> settings.get().broadcastRconToOps, spawn.x(), spawn.y(), spawn.z());
@@ -733,7 +736,7 @@ public final class ServerCore {
             command = ev.command();
         }
         commands.performPrefixedCommandAsync(org.domi.furnace.server.command.CommandSource.rcon(this, sink), command)
-                .get(5, java.util.concurrent.TimeUnit.MINUTES);
+                .get(RCON_COMMAND_WAIT_MINUTES, java.util.concurrent.TimeUnit.MINUTES);
         return sink.takeOutput();
     }
 

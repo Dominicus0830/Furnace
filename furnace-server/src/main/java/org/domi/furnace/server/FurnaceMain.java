@@ -483,6 +483,7 @@ public final class FurnaceMain {
                     }
                 });
         core.onSaveAll(serverSave::save);
+        worldManager.saveBarrier(serverSave::barrier);   // 추가 월드 내리기는 진행 중 save-all 이 끝난 뒤 저장소를 닫는다
         NetworkServer network = new NetworkServer(
                 config.port(), config.compressionThreshold(), loginContext, scheduler,
                 world, idAllocator);

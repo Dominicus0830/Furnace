@@ -116,6 +116,27 @@ class SaveAllCommandTest {
         assertEquals(List.of(SAVING, SAVED), List.copyOf(out));
     }
 
+    /** 검토 R3: 한도에 걸려 실패를 알린 뒤 저장이 늦게 끝나도 "Saved the game" 을 내지 않는다. */
+    @Test
+    void lateCompletionAfterTimeoutSendsNoSuccess() throws Exception {
+        java.time.Duration before = org.domi.furnace.server.command.builtin.ServerCommands.saveAllTimeout;
+        org.domi.furnace.server.command.builtin.ServerCommands.saveAllTimeout = Duration.ofMillis(200);
+        try {
+            CompletableFuture<CommandResult> cmd = start("save-all");
+            awaitHook(1);
+            CommandResult r = cmd.get(10, TimeUnit.SECONDS);
+            assertFalse(r.success());
+            pending.complete(null);
+            assertEquals(42, sched.global().submit(() -> 42).get(5, TimeUnit.SECONDS));
+            Thread.sleep(100);
+            assertEquals(42, sched.global().submit(() -> 42).get(5, TimeUnit.SECONDS));
+            assertEquals(SAVING, out.get(0));
+            assertFalse(out.contains(SAVED), "한도 실패 뒤 늦은 성공 메시지: " + out);
+        } finally {
+            org.domi.furnace.server.command.builtin.ServerCommands.saveAllTimeout = before;
+        }
+    }
+
     @Test
     void failedSaveReportsVanillaError() throws Exception {
         CompletableFuture<CommandResult> cmd = start("save-all");

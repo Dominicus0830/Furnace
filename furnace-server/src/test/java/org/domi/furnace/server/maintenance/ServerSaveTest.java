@@ -199,6 +199,45 @@ class ServerSaveTest {
         assertTrue(text.startsWith("Saving the game (this may take a moment!)") && text.contains("Saved the game"), text);
     }
 
+    /** 검토 R1: flush 가 마감 안에 디스크까지 끝내지 못하면 성공으로 보고하지 않는다(save-off 백업이 덜 쓴 월드를 복사하지 않게). */
+    @Test
+    void flushThatMissesDeadlineFails() throws Exception {
+        World w = world();
+        Calls calls = new Calls(w, playerIo);
+        calls.playerSave.complete(null);
+        save = new ServerSave(calls);
+        save.totalTimeoutNanos = TimeUnit.MILLISECONDS.toNanos(300);
+        CountDownLatch gate = new CountDownLatch(1);
+        io.execute(() -> { try { gate.await(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } });
+        CompletableFuture<Void> f = save.save(true);
+        var ex = assertThrows(java.util.concurrent.ExecutionException.class, () -> f.get(30, TimeUnit.SECONDS));
+        assertInstanceOf(ServerSave.IncompleteSaveException.class, ex.getCause());
+        assertTrue(calls.events.contains("write"), "level.dat·플레이어는 그래도 쓴다");
+        gate.countDown();
+        // flush 가 아니면 같은 상황에서도 레인을 기다리지 않고 성공한다(바닐라)
+        CountDownLatch gate2 = new CountDownLatch(1);
+        io.execute(() -> { try { gate2.await(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } });
+        save.save(false).get(30, TimeUnit.SECONDS);
+        gate2.countDown();
+    }
+
+    /** 검토 R2: 추가 월드 내리기가 기다리는 barrier 는 앞서 들어간 저장이 끝나야 완료된다. */
+    @Test
+    void barrierWaitsForRunningSave() throws Exception {
+        World w = world();
+        Calls calls = new Calls(w, playerIo);
+        save = new ServerSave(calls);
+        CompletableFuture<Void> f = save.save(false);   // 플레이어 저장이 안 끝나 저장 스레드에서 기다린다
+        CompletableFuture<Void> barrier = save.barrier();
+        Thread.sleep(200);
+        assertFalse(barrier.isDone(), "진행 중 저장이 끝나기 전에 내리기가 저장소를 닫으면 안 된다");
+        calls.playerSave.complete(null);
+        f.get(30, TimeUnit.SECONDS);
+        barrier.get(10, TimeUnit.SECONDS);
+        assertTrue(save.shutdown(10, TimeUnit.SECONDS));
+        assertTrue(save.barrier().isDone(), "닫힌 뒤 barrier 는 바로 완료(종료 저장 차례)");
+    }
+
     @Test
     void storageNameIsDimensionFolder() {
         World w = world();
