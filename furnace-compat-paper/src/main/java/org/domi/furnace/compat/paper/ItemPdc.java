@@ -235,10 +235,11 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
 
     @Override
     public Set<NamespacedKey> getKeys() {
+        // Paper: split(":", 2) 가 둘로 나뉠 때만 키로 낸다(콜론이 없는 원시 키는 빠지고, 형식이 틀린 이름은 NamespacedKey 가 IllegalArgumentException)
         Set<NamespacedKey> out = new LinkedHashSet<>();
         for (String k : rawKeys()) {
-            NamespacedKey nk = NamespacedKey.fromString(k);
-            if (nk != null) out.add(nk);
+            String[] parts = k.split(":", 2);
+            if (parts.length == 2) out.add(new NamespacedKey(parts[0], parts[1]));
         }
         return out;
     }
@@ -262,10 +263,20 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
     @Override
     public void copyTo(PersistentDataContainer other, boolean replace) {
         Objects.requireNonNull(other, "other");
+        if (other instanceof ItemPdc o) {
+            // Paper 는 원시 맵을 그대로 복사한다(콜론 없는 키도 옮겨진다)
+            for (String k : rawKeys()) {
+                if (!replace && o.exists(k)) continue;
+                Value v = lookup(k);
+                if (v == null) throw new org.domi.furnace.compat.paper.UnsupportedFeature("PersistentDataContainer#copyTo(" + k + ")", "이 키의 값 종류(목록의 목록 등)를 호환 계층이 읽지 못한다");
+                o.changes.put(k, copyValue(v));
+            }
+            return;
+        }
         for (NamespacedKey k : getKeys()) {
             if (!replace && other.has(k)) continue;
             Value v = lookup(k.toString());
-            if (v == null) throw new org.domi.furnace.compat.paper.UnsupportedFeature("PersistentDataContainer#copyTo(" + k + ")", "이 키의 값 종류(목록 등)를 호환 계층이 아직 읽지 못한다");
+            if (v == null) throw new org.domi.furnace.compat.paper.UnsupportedFeature("PersistentDataContainer#copyTo(" + k + ")", "이 키의 값 종류(목록의 목록 등)를 호환 계층이 읽지 못한다");
             other.set(k, (PersistentDataType) bukkitType(v.type()), v.value());
         }
     }
@@ -346,11 +357,18 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
     }
 
     @Override
-    public void readFromBytes(byte[] bytes, boolean clear) throws IOException { mergeFrom(parse(bytes), clear); }
+    public void readFromBytes(byte[] bytes, boolean clear) throws IOException {
+        if (clear) clearAll();   // Paper 는 파싱 전에 비운다 — 잘린 바이트에 실패해도 컨테이너는 이미 비어 있다
+        mergeFrom(parse(bytes), false);
+    }
+
+    void clearAll() {
+        for (String k : rawKeys()) changes.put(k, null);
+    }
 
     /** parsed 의 내용을 넣는다(clear 면 먼저 비운다). */
     void mergeFrom(ItemPdc parsed, boolean clear) {
-        if (clear) for (String k : rawKeys()) changes.put(k, null);
+        if (clear) clearAll();
         for (var e : parsed.changes.entrySet()) changes.put(e.getKey(), copyValue(e.getValue()));
     }
 
@@ -362,10 +380,12 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
             if (v == null) throw new IOException("호환 계층이 읽지 못하는 값 종류라 내보낼 수 없다: " + k);
             ordered.put(k, v);
         }
-        for (var e : ordered.entrySet()) {
-            out.writeByte(tagId(e.getValue().type()));
-            out.writeUTF(e.getKey());
-            writePayload(out, e.getValue().type(), e.getValue().value(), depth);
+        // Paper: customDataTags(java.util.HashMap) 순회 순서로 new CompoundTag()(fastutil Object2ObjectOpenHashMap(8, 0.8f))에 put → 그 keySet 순서로 쓴다
+        for (String k : PaperCompoundOrder.order(ordered.keySet())) {
+            Value v = ordered.get(k);
+            out.writeByte(tagId(v.type()));
+            out.writeUTF(k);
+            writePayload(out, v.type(), v.value(), depth);
         }
         out.writeByte(TAG_END);
     }

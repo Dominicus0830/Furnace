@@ -104,7 +104,18 @@ public final class EntityPdc implements PersistentDataContainer {
 
     @Override
     public void readFromBytes(byte[] bytes, boolean clear) throws java.io.IOException {
-        ItemPdc parsed = ItemPdc.parse(bytes); // 꼴이 틀리면 여기서(호출 스레드) IOException
+        ItemPdc parsed;
+        try {
+            parsed = ItemPdc.parse(bytes); // 꼴이 틀리면 여기서(호출 스레드) IOException
+        } catch (java.io.IOException bad) {
+            if (clear) {
+                write(p -> {
+                    p.clearAll();
+                    return null;
+                }, "PersistentDataContainer#readFromBytes");   // Paper 는 파싱 전에 비운다
+            }
+            throw bad;
+        }
         write(p -> {
             p.mergeFrom(parsed, clear);
             return null;

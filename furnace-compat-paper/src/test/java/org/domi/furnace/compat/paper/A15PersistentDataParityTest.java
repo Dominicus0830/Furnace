@@ -140,6 +140,48 @@ class A15PersistentDataParityTest {
         assertArrayEquals(new byte[] {10, 0, 0, 0}, pdc().serializeToBytes(), "빈 컨테이너");
     }
 
+    /** PR #257 검토 R1: Paper 는 fastutil Object2ObjectOpenHashMap(8, 0.8f) 순서로 쓴다 — 키 2개 이상의 고정 바이트(실제 fastutil 에서 확인한 순서). */
+    @Test
+    void serializeToBytesKeepsPapersCompoundKeyOrder() throws IOException {
+        ItemPdc p = pdc();
+        NamespacedKey k1 = new NamespacedKey("plugin", "key_0_1");
+        NamespacedKey k0 = new NamespacedKey("plugin", "key_0_0");
+        p.set(k1, PersistentDataType.INTEGER, 2);
+        p.set(k0, PersistentDataType.INTEGER, 1);
+        // Paper 는 key_0_0 → key_0_1 순서로 쓴다(java.util.HashMap 순서는 반대였다)
+        java.io.ByteArrayOutputStream expected = new java.io.ByteArrayOutputStream();
+        try (java.io.DataOutputStream out = new java.io.DataOutputStream(expected)) {
+            out.writeByte(10);
+            out.writeUTF("");
+            out.writeByte(3);
+            out.writeUTF("plugin:key_0_0");
+            out.writeInt(1);
+            out.writeByte(3);
+            out.writeUTF("plugin:key_0_1");
+            out.writeInt(2);
+            out.writeByte(0);
+        }
+        assertArrayEquals(expected.toByteArray(), p.serializeToBytes());
+    }
+
+    /** PR #257 검토 R2·R4: 콜론 없는 원시 키는 getKeys 에서 빠지고 copyTo 로는 옮겨진다, clear 는 파싱 전에 한다. */
+    @Test
+    void rawKeysAndClearBeforeParse() throws IOException {
+        ItemPdc src = pdc();
+        // 콜론 없는 키 "foo": [종류 3, "foo", 7] — 손으로 만든 바이트
+        byte[] bytes = {10, 0, 0, 3, 0, 3, 'f', 'o', 'o', 0, 0, 0, 7, 0};
+        src.readFromBytes(bytes);
+        assertEquals(java.util.Set.of(), src.getKeys());
+        ItemPdc dst = pdc();
+        src.copyTo(dst, true);
+        assertArrayEquals(bytes, dst.serializeToBytes());
+
+        ItemPdc q = pdc();
+        q.set(K, PersistentDataType.INTEGER, 1);
+        assertThrows(IOException.class, () -> q.readFromBytes(new byte[] {10, 0, 0, 3, 0}, true));
+        assertTrue(q.isEmpty(), "Paper 는 파싱 전에 비운다");
+    }
+
     @Test
     void bytesRoundTripEveryKind() throws IOException {
         ItemPdc p = pdc();
