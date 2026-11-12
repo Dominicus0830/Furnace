@@ -9,14 +9,16 @@
 - `addOrReplaceModifier` 는 바닐라 `addOrReplacePermanentModifier` 처럼 지우고 다시 넣는다(`modifiers()` 순서에서 끝으로). 해시 맵이라 계산 순서는 그대로(재삽입 순서 효과는 `modifiers()` 순서에만). `addOrUpdateTransientModifier`(제자리 교체, 같은 값이면 안 건드림)를 새로 두었다 — 호출처를 바닐라가 쓰는 쪽으로 바꾸는 일은 이번에 안 했다(순서가 `modifiers()` 에만 보인다).
 
 ## O05 C3 — RandomSource.create 씨앗 (이 묶음에서 제외)
-- 코디네이터 지시로 별도 스레드가 맡는다(바닐라 `RandomSupport.generateUniqueSeed()` 와 다름은 보고서 그대로). 이 묶음은 `RandomSource.java` 를 건드리지 않는다.
+- PR #272(주인 열쇠 이음매, `RandomSource.createFor`)가 맡아 병합됐다. 이 묶음은 그 위에서 `createFor`/`createThreadSafeFor` 만 쓴다.
 
 ## O05 C4 — B.isTag 캐시와 /reload (바뀐 것 없음)
 - `B.TAGS` 는 `BlockTags.get()`(jar 의 `worldgen/1.21.1/block_tags.txt`, 불변)만으로 채워진다. `/reload` 는 `DataPackManager` 가 `TagSet`(레지스트리 숫자 id)을 `ItemContext.installTags` 에 걸 뿐 `BlockTags`·`B.TAGS` 를 안 건드린다. 캐시가 낡을 원본 변화가 없으므로 무효화할 것이 없다.
 - 더 큰 차이: 데이터 팩 블록 태그가 `B.isTag`·`BlockTags` 호출처 어디에도 안 들어간다(`isInTag("minecraft:block", …)` 호출처 없음). → `docs/user-todo/entries/2026-11-12-small-vanilla-mismatches.md` 결정 1.
 
 ## O06 C3 — Sensor·ShufflingList 정적 난수
-- 바닐라: `Sensor.RANDOM = RandomSource.createThreadSafe()`, `ShufflingList.random = RandomSource.create()`(목록마다). `ThreadSafeLegacyRandomSource`(씨앗은 `RandomSource.create()` 에서 뽑는다 — C3 와 안 겹치게; CAS 48비트 LCG, 한 스레드에서 `LegacyRandomSource` 와 수열 같음)를 추가하고 Sensor 에 적용, ShufflingList 는 인스턴스 필드로. 8 스레드가 같이 뽑아도 한 스레드가 뽑은 것과 같은 집합(겹침·누락 없음)임을 시험.
+- 바닐라: `Sensor.RANDOM = RandomSource.createThreadSafe()`, `ShufflingList.random = RandomSource.create()`(목록마다). `ThreadSafeLegacyRandomSource`(CAS 48비트 LCG, 한 스레드에서 `LegacyRandomSource` 와 수열 같음)와 `RandomSource.createThreadSafeFor(열쇠, 용도)`(= `createFor` 의 스레드 안전판)를 추가해 Sensor 에 적용(열쇠 `Sensor.RANDOM`·용도 SENSOR_SCAN 유지), ShufflingList 는 인스턴스 필드 `createFor(key("ShufflingList"), SHUFFLING_LIST)`.
+- 켜짐(시험 JVM 결정적 씨앗) 한계: Sensor 난수는 여러 region 스레드가 공유하므로 호출 순서가 스레드 일정에 달려 장면 해시가 흔들릴 수 있다(예전 정적 난수와 같은 성격). ShufflingList 는 목록마다 같은 (열쇠, 용도)라 켜짐일 때 모든 목록이 같은 난수열로 시작한다 — 각 목록의 첫 shuffle 결과는 항목 수·가중치에만 달린다.
+- 시험: 8 스레드가 같이 뽑아도 한 스레드가 뽑은 것과 같은 집합(겹침·누락 없음), 한 스레드에서는 `LegacyRandomSource` 와 수열 동일.
 
 ## O06 C2 — LookAtPlayerGoal TargetingConditions
 - 바닐라: `forNonCombat().range(거리).selector(EntitySelector.notRiding(mob))`, `getNearestPlayer(조건, mob, x, eyeY, z)`; `canContinueToUse` 는 `isAlive`·거리·남은 시간만(관전자 전환 검사 없음).
