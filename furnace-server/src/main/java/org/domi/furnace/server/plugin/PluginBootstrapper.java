@@ -1,7 +1,8 @@
 // 플러그인 부트스트랩 단계: plugins/*.jar 를 훑어 설명 파일을 읽고 의존 순서를 정한 뒤, 플러그인마다 클래스로더를 만들고
 // 설명 파일의 bootstrapper 를 부른다. 서버는 이것을 블록·아이템·동기화 레지스트리와 데이터 팩을 읽기 "전"에 돌린다
 // (Paper 부트스트랩과 같은 자리). 메인 클래스 인스턴스·onLoad 는 그 뒤 PluginManagerImpl.loadAll 이 이어서 한다.
-// furnace-plugin.(yml|yaml|toml|json) 을 가진 jar 만 Furnace 플러그인이다. Paper/Bukkit 플러그인은 plugins/bukkit-plugins/ 에 둔다.
+// furnace-plugin.(yml|yaml|toml|json) 을 가진 jar 만 Furnace 플러그인이다. Paper/Bukkit 플러그인은 plugins/bukkit-plugins/(또는 Paper 처럼 plugins/)에 넣으면 바로 돈다.
+// Bukkit 플러그인이 하나도 없으면 호환 계층은 켜지지 않는다: 어댑터 클래스·호환 jar 꺼내기·서버 제공 라이브러리·Spigot 이름 대응표 모두 손대지 않는다.
 package org.domi.furnace.server.plugin;
 
 import java.io.IOException;
@@ -686,12 +687,15 @@ public final class PluginBootstrapper {
 
     // ------------------------------------------------------------------ Spigot 이름 대응표 (H7d, 사용자 결정 9)
 
-    /** furnace.properties 키: off(기본) | download | files. */
+    /** furnace.properties 키: download(기본) | files | off. */
     public static final String SPIGOT_MAPPINGS = "plugins.compat.nms.spigot-mappings";
     /** 대응표 재료 세 파일 경로(경로 구분자로 이음) — files 모드에서는 운영자가 적고, download 모드에서는 서버가 채운다. 호환 모듈 CompatFormat.SPIGOT_MAPPING_FILES 와 같은 값. */
     static final String SPIGOT_MAPPING_FILES = "plugins.compat.nms.spigot-mappings.files";
     /** download 모드에서 준비한 세 파일(경로 구분자로 이음). 실패했으면 "" — 플러그인마다 다시 받지 않는다. null 은 아직 시도 안 함. */
     private String spigotMappingFiles;
+
+    /** Spigot 이름 대응표 받기를 시도했는가 — 시험·진단용(Spigot 이름 NMS 플러그인이 없으면 false 여야 한다). */
+    synchronized boolean spigotMappingsTried() { return spigotMappingFiles != null; }
 
     /**
      * 이 호환 플러그인에 넘길 plugins.compat.* 설정. jar 가 Spigot 이름 NMS 플러그인일 때만 대응표 재료 경로를 넘긴다: download 면 Mojang·Spigot
@@ -699,7 +703,7 @@ public final class PluginBootstrapper {
      */
     private synchronized Map<String, String> compatOptionsFor(Candidate c) {
         Map<String, String> opts = settings.compatOptions();
-        String mode = opts.getOrDefault(SPIGOT_MAPPINGS, "off");
+        String mode = opts.getOrDefault(SPIGOT_MAPPINGS, PluginSettings.SPIGOT_MAPPINGS_DEFAULT);
         if (mode.equals("off")) {
             if (!opts.containsKey(SPIGOT_MAPPING_FILES)) return opts;
             Map<String, String> copy = new HashMap<>(opts);

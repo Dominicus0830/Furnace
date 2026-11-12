@@ -222,9 +222,22 @@ class PacketApiTest {
         assertEquals(9, d.entityId());
         assertEquals(new ClientboundSetEntityDataPacket.ByteValue((byte) 0x20), d.entries().get(0).value());
         assertEquals(new ClientboundSetEntityDataPacket.FloatValue(4.5f), d.entries().get(1).value());
-        assertEquals(new ClientboundSetEntityDataPacket.Unsupported(7), d.entries().get(2).value(), "읽지 못하는 종류는 거기서 멈춘다");
-        assertTrue(d.hasUnsupported());
-        assertThrows(IllegalArgumentException.class, () -> codec.encode(d, Unpooled.buffer()), "읽지 못한 값이 있으면 다시 보낼 수 없다");
+        assertEquals(org.domi.furnace.api.item.ItemStack.EMPTY, d.entries().get(2).value().asObject(), "아이템 값도 읽는다(E1)");
+        assertFalse(d.hasUnsupported());
+
+        // 이 버전이 모르는 직렬화 번호는 길이를 알 수 없어 거기서 멈춘다 — 다시 보낼 수 없다
+        ByteBuf unknown = Unpooled.buffer();
+        Types.writeVarInt(unknown, 9);
+        unknown.writeByte(0);
+        Types.writeVarInt(unknown, 0);
+        unknown.writeByte(0x20);
+        unknown.writeByte(5);
+        Types.writeVarInt(unknown, 99);
+        unknown.writeBytes(new byte[] {1, 2, 3});
+        var un = (ClientboundSetEntityDataPacket) codec.decode(PacketTypes.Clientbound.SET_ENTITY_DATA, org.domi.furnace.server.net.protocol.play.SetEntityData.ID, unknown);
+        assertEquals(new ClientboundSetEntityDataPacket.Unsupported(99), un.entries().get(1).value(), "모르는 종류는 거기서 멈춘다");
+        assertTrue(un.hasUnsupported());
+        assertThrows(IllegalArgumentException.class, () -> codec.encode(un, Unpooled.buffer()), "읽지 못한 값이 있으면 다시 보낼 수 없다");
 
         ByteBuf info = Unpooled.buffer();
         new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(List.of(new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry(u, "Bob",

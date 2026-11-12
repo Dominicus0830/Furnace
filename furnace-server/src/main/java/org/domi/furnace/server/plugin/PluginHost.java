@@ -70,7 +70,7 @@ public final class PluginHost implements Furnace {
     public PluginManagerImpl pluginsImpl() { return plugins; }
 
     private final org.domi.furnace.server.plugin.packet.PacketServiceImpl packets = new org.domi.furnace.server.plugin.packet.PacketServiceImpl(this,
-            new org.domi.furnace.server.plugin.packet.Protocol767(() -> core().world().blockRegistry()));
+            new org.domi.furnace.server.plugin.packet.Protocol767(() -> core().world().blockRegistry(), () -> core().world().itemRegistry()));
 
     /** 패킷 API 구현(연결에 가로채기 지점을 붙이는 쪽). */
     public org.domi.furnace.server.plugin.packet.PacketServiceImpl packetsImpl() { return packets; }

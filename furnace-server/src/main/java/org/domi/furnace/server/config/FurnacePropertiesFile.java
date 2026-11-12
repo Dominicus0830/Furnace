@@ -112,7 +112,7 @@ public final class FurnacePropertiesFile {
                 opt("backup.hold-timeout-seconds", mt.backupHoldTimeoutSeconds(), "백업 기준점에서 저장을 기다리는 최대 초(1~600).")
         )));
         s.add(new Section("설정 도구·콘솔(/furnace config 로 적용된 값을 본다)", List.of(
-                opt("config-version", ConfigMigration.CURRENT, "설정 파일 형식 버전. 키 이름이 바뀌면 서버가 파일을 옮기고 이 값을 올린다(원본은 .bak). 지우지 마세요."),
+                opt("config-version", ConfigMigration.CURRENT, "설정 파일 형식 버전. 키 이름·기본값이 바뀌면 서버가 파일을 옮기고 이 값을 올린다(원본은 .bak). 지우지 마세요."),
                 opt("config.preset", "none", "none | vanilla | performance. 기본값 그대로인 키를 프리셋 값으로 바꾼다(기본값과 다르게 적은 키가 이긴다)."),
                 opt("jvm.check", true, "기동 때 Java 버전·힙·GC 옵션을 점검해 경고한다."),
                 opt("console.jline", true, "콘솔 줄 편집·기록·Tab 자동완성(터미널이 아니면 자동으로 꺼진다)."),
@@ -128,7 +128,7 @@ public final class FurnacePropertiesFile {
                 opt("plugins.compat.nms.enabled", true, "Bukkit 호환 플러그인의 NMS·CraftBukkit 이름 변환(CraftBukkit 버전 접미사 v1_21_R1 을 접미사 없는 이름으로). 끄면 그런 이름을 쓰는 플러그인은 그 자리에서 실패한다."),
                 opt("plugins.compat.nms.strict", false, "미지원 NMS 심볼을 쓰는 Bukkit 호환 플러그인은 불러오지 않는다. 끄면 그 호출만 실행 때 실패하고 나머지는 돈다."),
                 opt("plugins.compat.nms.version-package", "plain", "plain | versioned. 플러그인이 읽는 CraftBukkit 패키지 이름(plain = Paper 처럼 접미사 없음, versioned = Spigot 처럼 v1_21_R1)."),
-                opt("plugins.compat.nms.spigot-mappings", "off", "off | download | files. download 면 Spigot 이름 NMS 플러그인이 있을 때만 Mojang·Spigot 매핑을 처음 한 번 받아 Spigot → Mojang 이름으로 바꿔 올린다(받은 파일은 캐시에만 남는다). files 면 받지 않고 아래 키의 세 파일을 쓴다."),
+                opt("plugins.compat.nms.spigot-mappings", org.domi.furnace.server.plugin.PluginSettings.SPIGOT_MAPPINGS_DEFAULT, "download | files | off. download(기본)면 Spigot 이름 NMS 플러그인이 있을 때만 Mojang·Spigot 매핑을 처음 한 번 받아 Spigot → Mojang 이름으로 바꿔 올린다(받은 파일은 캐시에만 남는다, 그런 플러그인이 없으면 받지 않는다). files 면 받지 않고 아래 키의 세 파일을 쓴다. off 면 바꾸지 않는다(그 NMS 호출은 실패)."),
                 opt("plugins.compat.nms.spigot-mappings.files", "", "spigot-mappings=files 일 때: Mojang server.txt, Spigot 클래스 csrg, Spigot 멤버 csrg 경로를 경로 구분자(윈도 ; 그 밖 :)로 이어 적는다."),
                 opt("plugins.chunk-tickets.max-per-plugin", org.domi.furnace.api.world.ChunkTickets.MAX_CHUNKS_PER_OWNER, "플러그인 하나가 청크 티켓(chunkTickets API)으로 붙잡을 수 있는 청크 수 상한(겹침 포함, 1 이상). 넘으면 add 가 거부된다."),
                 opt("plugins.compat.scheduler.async-threads", "platform", "Bukkit 비동기 작업(runTaskAsynchronously 등)을 도는 스레드. platform: 이름 붙은 플랫폼 스레드 풀(Paper 와 같은 모양 — 코어 4, 늘어나면 무제한, 30초 놀면 정리). virtual: 가상 스레드(JDK 21 에서는 synchronized 안에서 소켓·파일을 기다리는 옛 DB 드라이버가 운반 스레드를 붙잡을 수 있다)."),

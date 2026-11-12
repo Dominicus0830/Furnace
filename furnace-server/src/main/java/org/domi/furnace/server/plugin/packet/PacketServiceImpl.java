@@ -206,6 +206,16 @@ public final class PacketServiceImpl implements PacketService {
     @Override
     public int protocolVersion() { return codec.protocolVersion(); }
 
+    @Override
+    public java.util.OptionalInt entityDataIndex(org.domi.furnace.api.entity.data.EntityDataKey<?> key) {
+        return codec.entityDataIndex(java.util.Objects.requireNonNull(key, "key"));
+    }
+
+    @Override
+    public boolean hasEntityData(String entityType, org.domi.furnace.api.entity.data.EntityDataKey<?> key) {
+        return codec.hasEntityData(java.util.Objects.requireNonNull(entityType, "entityType"), java.util.Objects.requireNonNull(key, "key"));
+    }
+
     // ------------------------------------------------------------------ 연결마다
 
     /** play 진입 때: 이 플레이어 연결에 가로채기 지점을 붙인다. */
