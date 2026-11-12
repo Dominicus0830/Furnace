@@ -13,12 +13,20 @@ public final class TextColor {
         this.legacyCode = legacyCode;
     }
 
-    /** RGB(0xRRGGBB). 바닐라 16색과 값이 같으면 그 이름 있는 색을 돌려준다(바닐라 TextColor.fromRgb 와 같다). */
+    /**
+     * RGB(0xRRGGBB). 바닐라 16색과 값이 같으면 그 이름 있는 색을 돌려준다(Adventure TextColor.color 와 같다).
+     * 바닐라 TextColor.fromRgb 는 이름을 붙이지 않는다 — 그쪽과 같은 직렬화("#FF5555")가 필요하면 {@link #rgb(int)}.
+     */
     public static TextColor color(int rgb) {
         NamedTextColor.ensureLoaded();
         TextColor named = NamedTextColor.byValue(rgb & 0xFFFFFF);
         return named != null ? named : new TextColor(rgb, null, (char) 0);
     }
+
+    /**
+     * 이름 없는 RGB 색(바닐라 TextColor.fromRgb 와 같다): 16색과 값이 같아도 직렬화는 "#RRGGBB" 다. {@link #equals} 는 값만 보므로 같은 값의 이름 있는 색과 같다.
+     */
+    public static TextColor rgb(int rgb) { return new TextColor(rgb, null, (char) 0); }
 
     public static TextColor color(int r, int g, int b) {
         return color((r & 0xFF) << 16 | (g & 0xFF) << 8 | (b & 0xFF));

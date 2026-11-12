@@ -13,7 +13,7 @@ import org.domi.furnace.api.nbt.NbtCompound;
 import org.domi.furnace.api.nbt.NbtList;
 import org.domi.furnace.api.nbt.NbtType;
 
-final class NbtBinary {
+public final class NbtBinary {
 
     /** 압축을 푼 뒤 크기 상한 — 잘못된(또는 악의적인) 입력이 메모리를 먹지 않게. */
     private static final int MAX_BYTES = 64 << 20;
@@ -93,6 +93,24 @@ final class NbtBinary {
         if (type != NbtType.COMPOUND.id()) throw new IOException("루트가 묶음이 아니다: 태그 " + type);
         in.readUTF();
         return readCompound(in, 0);
+    }
+
+    /**
+     * 네트워크 NBT(1.20.2~ — 루트 태그 종류 바이트 + 이름 없는 묶음) 바이트의 루트 묶음. 형식이 틀리면 IllegalArgumentException.
+     * 호환 모듈 전용(api Text·Style 의 networkNbt 를 NbtCompound 값으로 바꿀 때 쓴다).
+     */
+    public static NbtCompound readNetwork(byte[] bytes) {
+        try {
+            if (bytes.length > MAX_BYTES) throw new IOException("NBT 가 너무 크다");
+            DataInputStream in = new DataInputStream(new ByteArrayInputStream(bytes));
+            int type = in.readUnsignedByte();
+            if (type != NbtType.COMPOUND.id()) throw new IOException("루트가 묶음이 아니다: 태그 " + type);
+            NbtCompound c = readCompound(in, 0);
+            if (in.available() != 0) throw new IOException("남는 바이트 " + in.available());
+            return c;
+        } catch (IOException e) {
+            throw new IllegalArgumentException("네트워크 NBT 를 읽지 못했다: " + e.getMessage(), e);
+        }
     }
 
     private static NbtCompound readCompound(DataInputStream in, int depth) throws IOException {

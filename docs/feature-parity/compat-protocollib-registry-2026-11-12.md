@@ -64,7 +64,7 @@ Furnace 의 파이프라인은 `frameDecoder`·`frameEncoder`·`handler`(Connect
 | `ChatVisiblity` enum, `ServerboundInteractPacket$Action#getType` | `EnumWrappers`(손·방향·장비 칸 등) 초기화, `getHands()` |
 
 아직 안 되는 값 래퍼:
-- `WrappedDataWatcher`(엔티티 메타데이터): `Rotations`·`EntityDataSerializers`·`SynchedEntityData` 가 필요 — 서버 쪽 키 표(PR #236 E1)와 이어 따로 한다.
+- `WrappedDataWatcher`(엔티티 메타데이터): 아래 4b 절에서 메모리 안 감시자·`ENTITY_METADATA` 칸 값은 됐다.
 - `WrappedGameProfile`: authlib 가 필요(PR #231 N-lib-2, 이 컨테이너는 Mojang 호스트가 막혀 확인 못 함).
 - 코덱이 필요한 4종(`USE_ENTITY`·`BOSS`·`ADVANCEMENTS`·상태 `SERVER_INFO`)은 3단계.
 - 새로 만든 `EntityType` 은 키만 가진다(레지스트리 상수 목록·`create` 등은 없음).
@@ -75,3 +75,24 @@ Furnace 의 파이프라인은 `frameDecoder`·`frameEncoder`·`handler`(Connect
 - `show_item` 호버의 아이템 컴포넌트가 JSON 왕복에서 사라진다 — API `TextJson` 이 읽을 때 SNBT 로 받아 두고 쓸 때 버린다(PR 이전부터). 호버 아이템이 있는 채팅 패킷을 `deepClone` 하면 툴팁이 빠진다.
 - 옛 데이터 값(평탄화 표) 기반 `CraftLegacy` 는 없다 — `WrappedBlockData.createData(WHITE_WOOL, 14)` 는 흰 양털(경고 한 번), `getData()` 는 늘 0.
 - Paper 는 색 코드마다 `bold/italic…:false` 를 명시하고 결과를 `{"text":"","extra":[…]}` 로 감싸 JSON 문자열이 다르다(화면은 같음).
+
+## 4b 엔티티 메타데이터 (`WrappedDataWatcher`, 2026-11-12, 후속 PR)
+
+진짜 ProtocolLib 5.4.0 이 반사로 찾는 모양만 Mojang 이름으로 더했다(바닐라 코드 복사 없음, 번호·필드 순서는 API `EntityDataType` 표와 ProtocolLib 이 읽는 계약):
+
+| shim | 쓰임 |
+|---|---|
+| `EntityDataSerializers` 상수 29종(번호 0~28 = 바닐라 등록 순서, 제네릭 인자는 바닐라 값 형식) | `WrappedDataWatcher.Registry` 가 필드 제네릭 인자로 "Java 형식 → 값 종류" 표를 만든다. `Registry.get(Byte.class)`·`getChatComponentSerializer`·`getItemStackSerializer` 확인 |
+| `EntityDataAccessor`(레코드, 칸 번호로 같음 판정)·`EntityDataSerializer` | `WrappedDataWatcherObject` |
+| `SynchedEntityData(SyncedDataHolder, DataItem[])` + `DataItem`(accessor·value·initialValue·dirty 순서)·`DataValue` 레코드 | `new WrappedDataWatcher()`(메모리 안 감시자, 배열 필드·생성자 반사), `WrappedWatchableObject`, `WrappedDataValue` |
+| `SyncedDataHolder`(엔티티가 구현), `Rotations`, `Pose`, 고양이·늑대·개구리·그림 종류·마을 주민 자료·스니퍼·아르마딜로 상태 | 직렬화 종류 제네릭 인자 |
+
+확인(진짜 jar, 시험 코드는 저장소에 커밋하지 않음): `new WrappedDataWatcher()` 에 `setObject`/`getByte`/`getFloat`/`deepClone`, `ENTITY_METADATA` 의 `getDataValueCollectionModifier` 쓰기·읽기·`deepClone`, `getWatchableCollectionModifier`. 저장소 시험은 `EntityDataShimsTest`(번호 표가 API 표와 같은 순서, 칸 더러움·기본값, `Rotations` 접힘).
+
+한계:
+- 엔티티에 붙은 메타데이터가 없다 — `WrappedDataWatcher.getEntityWatcher(entity)`/`new WrappedDataWatcher(entity)` 는 지원하지 않는다(서버 엔티티의 칸 표는 API `EntityDataKeys` 가 가짐, 연결은 별도 설계 필요).
+- `VECTOR3`·`QUATERNION` 종류는 아직 없다: `ServerLibraries` 에 joml 묶음이 있지만 호환 모듈 컴파일·로더 연결이 안 돼 있다(`Registry.get(Vector3f.class)` 는 "No serializer", 디스플레이 엔티티 변환·회전 칸 11~14 가 막힘). 후속.
+- NMS 직접 사용 멤버 일부 없음: `defineId`·`Builder`·`assignValues`·`EntityDataSerializer.forValueType`.
+- 호환 Bukkit `Entity` 에 `getEntityId()` 가 없다(엔티티 id 를 쓰는 ProtocolLib 플러그인이 막힘) — 별도 작업.
+- `getEntityWatcher(entity)` 실패 메시지가 원인을 알려 주지 않는다(후속).
+- `EntityDataSerializer#codec` 은 아직 `UnsupportedNmsCall`(3단계 범용 코덱과 같이).
