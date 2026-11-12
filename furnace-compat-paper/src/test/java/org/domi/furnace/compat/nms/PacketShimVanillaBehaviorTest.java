@@ -93,12 +93,13 @@ class PacketShimVanillaBehaviorTest {
     }
 
     @Test
-    void reportCountsSchemaOnlyPacketConstructionAsUnsupported() throws Exception {
+    void reportCountsOnlyPacketsWithoutASendBridgeAsUnsupported() throws Exception {
         String src = """
                 package rep;
                 public class Use {
                     public static void go(net.minecraft.server.network.ServerCommonPacketListenerImpl c) {
                         c.send(new net.minecraft.network.protocol.game.ClientboundSetHealthPacket(1f, 20, 5f));
+                        c.send(new net.minecraft.network.protocol.game.ClientboundSetExperiencePacket(0.5f, 30, 2));
                         c.send(new net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket(null));
                     }
                 }
@@ -106,10 +107,10 @@ class PacketShimVanillaBehaviorTest {
         Path dir = Files.createTempDirectory("n3-report");
         Path jar = JarCompiler.jar(dir.resolve("r.jar"), "name: R\nversion: '1'\nmain: rep.Use\n", Map.of("rep.Use", src), Set.of());
         NmsCompatReport r = NmsCompatReport.scan("R", jar, NmsSymbols.RUNTIME);
-        // 보내기 변환이 없는 생성 패킷의 생성자만 미지원 — 손으로 쓴(보낼 수 있는) 제목 패킷은 있음
+        // 보내기 다리가 없는 생성 패킷(손 코덱 종류 set_experience)의 생성자만 미지원 — 손으로 쓴 제목 패킷·범용 다리로 가는 체력 패킷은 있음
         assertEquals(1, r.unsupported(), r.toString());
-        assertTrue(r.missing().stream().anyMatch(m -> m.contains("ClientboundSetHealthPacket#<init>") && m.contains("보내기 미지원")), r.missing().toString());
-        assertTrue(r.missing().stream().noneMatch(m -> m.contains("ClientboundSetTitleTextPacket")), r.missing().toString());
+        assertTrue(r.missing().stream().anyMatch(m -> m.contains("ClientboundSetExperiencePacket#<init>") && m.contains("보내기 미지원")), r.missing().toString());
+        assertTrue(r.missing().stream().noneMatch(m -> m.contains("ClientboundSetTitleTextPacket") || m.contains("ClientboundSetHealthPacket")), r.missing().toString());
     }
 
     @Test
