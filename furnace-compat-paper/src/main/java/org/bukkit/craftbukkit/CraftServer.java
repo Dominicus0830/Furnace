@@ -97,12 +97,29 @@ public final class CraftServer implements Server {
     @Override
     public PluginManager getPluginManager() { return Compat.pluginManager(); }
 
+    /**
+     * Paper 의 playerView 처럼 고칠 수 없는 살아 있는 보기(A15-08): 받아 둔 컬렉션도 지금 접속자를 보이고, add·remove·clear 는
+     * UnsupportedOperationException. 순회는 그때의 접속자 목록을 하나씩 어댑터로 바꾼다(목록을 미리 복사하지 않는다).
+     */
+    private final Collection<Player> onlineView = new java.util.AbstractCollection<>() {
+        @Override
+        public java.util.Iterator<Player> iterator() {
+            var it = f().onlinePlayers().iterator();
+            return new java.util.Iterator<>() {
+                @Override
+                public boolean hasNext() { return it.hasNext(); }
+
+                @Override
+                public Player next() { return Compat.player(it.next()); }
+            };
+        }
+
+        @Override
+        public int size() { return f().onlinePlayers().size(); }
+    };
+
     @Override
-    public Collection<? extends Player> getOnlinePlayers() {
-        List<Player> out = new ArrayList<>();
-        for (var p : f().onlinePlayers()) out.add(Compat.player(p));
-        return out;
-    }
+    public Collection<? extends Player> getOnlinePlayers() { return onlineView; }
 
     @Override
     public int getMaxPlayers() { return f().maxPlayers(); }

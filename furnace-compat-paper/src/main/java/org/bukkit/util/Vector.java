@@ -1,7 +1,8 @@
 package org.bukkit.util;
 
-/** 3차원 벡터(가변). */
-public class Vector implements Cloneable {
+/** 3차원 벡터(가변). 설정 파일에는 Paper 와 같은 별칭 {@code Vector}, 키 x·y·z 로 저장·되읽는다(A15-01). */
+@org.bukkit.configuration.serialization.SerializableAs("Vector")
+public class Vector implements Cloneable, org.bukkit.configuration.serialization.ConfigurationSerializable {
 
     private double x, y, z;
 
@@ -95,4 +96,20 @@ public class Vector implements Cloneable {
 
     @Override
     public String toString() { return x + "," + y + "," + z; }
+
+    @Override
+    public java.util.Map<String, Object> serialize() {
+        java.util.Map<String, Object> data = new java.util.LinkedHashMap<>();
+        data.put("x", x);
+        data.put("y", y);
+        data.put("z", z);
+        return data;
+    }
+
+    /** serialize() 의 맵에서(빠진 축은 0). */
+    public static Vector deserialize(java.util.Map<String, Object> args) {
+        return new Vector(args.containsKey("x") ? NumberConversions.toDouble(args.get("x")) : 0,
+                args.containsKey("y") ? NumberConversions.toDouble(args.get("y")) : 0,
+                args.containsKey("z") ? NumberConversions.toDouble(args.get("z")) : 0);
+    }
 }

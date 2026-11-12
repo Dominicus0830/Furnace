@@ -99,6 +99,24 @@ public interface ConfigurationSection {
 
     boolean isItemStack(String path);
 
+    org.bukkit.Location getLocation(String path);
+
+    org.bukkit.Location getLocation(String path, org.bukkit.Location def);
+
+    boolean isLocation(String path);
+
+    org.bukkit.util.Vector getVector(String path);
+
+    org.bukkit.util.Vector getVector(String path, org.bukkit.util.Vector def);
+
+    boolean isVector(String path);
+
+    org.bukkit.Color getColor(String path);
+
+    org.bukkit.Color getColor(String path, org.bukkit.Color def);
+
+    boolean isColor(String path);
+
     /** ConfigurationSerializable 로 저장된 값은 구역이 아니라 객체다 — 그 경로는 null. */
     ConfigurationSection getConfigurationSection(String path);
 

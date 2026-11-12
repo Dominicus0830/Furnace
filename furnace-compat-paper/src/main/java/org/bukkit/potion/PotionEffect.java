@@ -10,6 +10,7 @@ import org.bukkit.configuration.serialization.ConfigurationSerializable;
 import org.bukkit.entity.LivingEntity;
 
 /** 상태 효과 값 하나(종류·지속 틱·증폭·환경·입자·아이콘). 불변. */
+@org.bukkit.configuration.serialization.SerializableAs("PotionEffect")
 public class PotionEffect implements ConfigurationSerializable {
 
     /** 끝나지 않는 지속시간. */

@@ -16,6 +16,9 @@ import org.domi.furnace.api.config.ConfigSection;
 /** YAML 설정(Furnace 의 YAML 파서·작성기 — 주석을 보존한다). */
 public class YamlConfiguration extends FileConfiguration {
 
+    /** 빈 설정을 쓰면 나오는 글(Paper YamlConfiguration.BLANK_CONFIG). */
+    protected static final String BLANK_CONFIG = "{}\n";
+
     private YamlConfigurationOptions options;
 
     public YamlConfiguration() {}
@@ -23,7 +26,8 @@ public class YamlConfiguration extends FileConfiguration {
     @Override
     public String saveToString() {
         if (options().copyDefaults()) furnaceRoot().copyDefaults();
-        return ConfigFormat.YAML.write(furnaceRoot());
+        String dump = ConfigFormat.YAML.write(furnaceRoot());
+        return BLANK_CONFIG.equals(dump) ? "" : dump;   // Paper 처럼 빈 설정은 빈 파일(A15-11)
     }
 
     @Override
