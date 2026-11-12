@@ -386,6 +386,14 @@ public final class VirtualEntitiesImpl implements VirtualEntities {
             broadcast(ClientboundSetEntityDataPacket.of(id, new ClientboundSetEntityDataPacket.Entry(index, value)));
         }
 
+        @Override
+        public <T> void set(org.domi.furnace.api.entity.data.EntityDataKey<T> key, T value) {
+            Objects.requireNonNull(key, "key");
+            var packets = host.packets();
+            if (!packets.hasEntityData(type, key)) throw new IllegalArgumentException(type + " 에는 메타데이터 칸 " + key.id() + " 이 없다");
+            setMetadata(packets.entityDataIndex(key).getAsInt(), Value.of(key.type(), value));
+        }
+
         private void setFlag(int bit, boolean on) {
             int f = on ? flags | bit : flags & ~bit;
             setMetadata(0, Value.ofByte(f));

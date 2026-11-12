@@ -56,6 +56,33 @@ packets.listen(this, PacketTypes.Clientbound.LEVEL_PARTICLES, e -> e.setCancelle
 
 단위: 각도는 도(degree), 속도는 블록/틱(축마다 ±3.9 로 잘림), 좌표는 블록. 와이어의 1/256 바퀴 바이트·1/8000 short·×8 정수는 변환 계층이 맡는다.
 
+## 엔티티 메타데이터 — 이름 있는 칸 (E1, 2026-11-12)
+
+`set_entity_data` 의 칸은 숫자 대신 **이름 있는 키**(`org.domi.furnace.api.entity.data.EntityDataKeys`)로 다룬다. 칸 번호는 마인크래프트 버전마다 밀리므로(ProtocolLib `WrappedDataWatcher` 의 흔한 고장) 서버가 실행 중인 버전에 맞춰 정한다.
+
+```java
+// 디스플레이 엔티티 홀로그램: 생성 + 메타데이터
+int id = packets.nextEntityId();
+player.sendPacket(ClientboundAddEntityPacket.of(id, UUID.randomUUID(), "minecraft:text_display", x, y, z, 0, 0));
+player.sendPacket(ClientboundSetEntityDataPacket.builder(id)
+        .set(EntityDataKeys.TextDisplay.TEXT, Text.text("상점"))
+        .set(EntityDataKeys.Display.SCALE, new Vector3f(2, 2, 2))
+        .set(EntityDataKeys.Display.BILLBOARD_RENDER_CONSTRAINTS, (byte) 3)          // 3 = CENTER
+        .build());
+
+// 가로챈 메타데이터를 이 사람에게만 발광으로
+packets.listen(this, PacketTypes.Clientbound.SET_ENTITY_DATA, e -> e.packet().get(EntityDataKeys.Entity.SHARED_FLAGS).ifPresent(f ->
+        e.setPacket(e.packet().with(EntityDataKeys.Entity.SHARED_FLAGS, EntityFlags.set(f, EntityFlags.GLOWING, true)))));
+```
+
+- 키 210개 = 바닐라 1.21.1 `SynchedEntityData` 정의 전부. 부류·칸 이름은 Mojang 이름(클래스 이름, 필드 이름에서 `DATA_`·`_ID` 를 뺀 것): `Entity.SHARED_FLAGS`, `LivingEntity.HEALTH`, `Display.SCALE`, `ItemDisplay.ITEM_STACK`, `ArmorStand.HEAD_POSE`, `Player.MODE_CUSTOMISATION` …. `EntityDataKeys.byId("Display.scale")` 로도 찾는다.
+- 값 종류 31개(`EntityDataType`) 전부 읽고 쓴다. 자바 값: 아이템 `ItemStack`, 블록 상태 `BlockData`, 벡터 `Vector3f`·`Quaternionf`·`Rotations`(`api.math`), 입자 `Particle`(`api.particle`), NBT `NbtCompound`, 주민 `VillagerData`, 옵션 칸은 `Optional`/`OptionalInt`, 고양이·늑대·개구리·그림 종류는 이름 문자열, 스니퍼·아르마딜로 상태는 소문자 상태 이름.
+- `get(key)` 은 그 번호에 **같은 값 종류**가 있을 때만 값을 준다(다른 부류의 같은 번호 칸은 empty). `with(key, v)` 는 바꾸거나 더한 새 패킷, `without(key)` 은 뺀 새 패킷.
+- 그 엔티티 종류에 칸이 있는지: `packets.hasEntityData("minecraft:zombie", EntityDataKeys.TextDisplay.TEXT)` → false. 없는 칸을 보내면 클라이언트가 연결을 끊으므로, `VirtualEntity.set(key, v)` 는 이것으로 먼저 막는다.
+- 숫자 칸(`entry(int, Value)`, `VirtualEntity.setMetadata`)은 그대로 쓸 수 있다 — 번호는 버전마다 다르다. `Value.of(EntityDataType, 값)` 으로 모든 종류의 값을 만들 수 있다.
+- 공통 상태 비트는 `EntityFlags`(`ON_FIRE`·`CROUCHING`·`SPRINTING`·`SWIMMING`·`INVISIBLE`·`GLOWING`·`FALL_FLYING`).
+- 표의 근거: 칸 번호(`EntityDataIndex767`)와 종류별 칸 배치(`resources/entity_data/layouts-1.21.1.txt`)는 서버 엔티티 정의에서 만들었고, `EntityDataKeysTest` 가 엔티티 종류 130개를 만들어 하나하나 대조한다. 같은 값을 서버 자신의 `SetEntityData` 와 같은 바이트로 쓰는지도 시험한다.
+
 ## 스레드와 순서
 
 - `PacketService` 의 모든 메서드는 **어느 스레드에서 불러도 된다.** 보낼 값은 부른 스레드에서 바로 인코딩되므로 없는 블록·엔티티 종류 같은 오류는 그 자리에서 `IllegalArgumentException` 으로 난다.
@@ -91,7 +118,7 @@ packets.listen(this, PacketTypes.Clientbound.LEVEL_PARTICLES, e -> e.setCancelle
 
 ## 다음에 더할 것
 
-장비(`set_equipment`: 아이템 와이어 변환), 엔티티 메타데이터의 나머지 값 종류(아이템·입자·NBT), 입자(`level_particles`), 상대 이동(`move_entity_*`), 블록 여러 칸(`section_blocks_update`). 래퍼가 늘어도 기존 API 는 그대로다 — `OpaquePacket` 이던 종류가 타입 래퍼로 바뀐다(D5: API 는 semver, 래퍼 추가는 마이너).
+장비(`set_equipment`), 입자(`level_particles` — 값은 이미 있는 `Particle`), 상대 이동(`move_entity_*`), 블록 여러 칸(`section_blocks_update`). 래퍼가 늘어도 기존 API 는 그대로다 — `OpaquePacket` 이던 종류가 타입 래퍼로 바뀐다(D5: API 는 semver, 래퍼 추가는 마이너).
 
 ## 서버 구현 위치
 

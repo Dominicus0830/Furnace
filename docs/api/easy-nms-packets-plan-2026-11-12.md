@@ -94,7 +94,7 @@ virtualEntity.set(EntityDataKeys.Display.BILLBOARD, Billboard.CENTER);
 
 버전 안정: 스키마는 버전마다 하나(`Schema767`), API 필드 이름은 바뀌지 않게 유지하고 바닐라가 필드를 없애면 그 필드는 `isSupported(field)` false.
 
-> 이 부분은 NMS 패킷 스키마 스레드와 **하나의 스키마**를 쓰기로 맞추는 중이다(누가 서버 스키마·범용 코덱을 먼저 만들지). 맞춘 결과를 이 절에 적는다.
+> 합의(2026-11-12): 스키마는 하나만 둔다. 손으로 쓴 스키마 파일 `furnace-api/src/main/resources/org/domi/furnace/api/packet/schema/protocol-767.schema` 와 파서(`api.packet.schema.PacketSchema`)는 NMS 패킷 스키마 스레드(브랜치 claude/project-thread-qcp8th)가 만들고, 그 위의 서버 범용 코덱(스키마 → 바이트)과 공개 `GenericPacket` 은 이 계획의 E4 가 맡는다. 스키마 필드 이름은 Mojang camelCase(shim 용) — 공개 API 필드 키는 snake_case 로 기계 변환한다. 각도(byte)·속도(i16) 단위 변환은 API 의미 층에서 한다. `particle`·`entity_data` 는 스키마에서 custom 이고 E1 의 `EntityData767` 코덱을 쓴다.
 
 ### 4.3 번들 보내기 (G3)
 
@@ -137,7 +137,7 @@ packets.sendBundle(player, List.of(addEntity, entityData, equipment));   // 바�
 
 | PR | 내용 | 크기 | 기대 |
 |---|---|---|---|
-| E1 | 4.1 타입 있는 메타데이터: `EntityDataKey`·`EntityDataType` 31종·`EntityDataKeys`(서버 정의 전부)·`EntityFlags`, 패킷 레코드 `get/with`, `VirtualEntity.set`, 서버 표·시험 | 중 | G1 해소, 디스플레이 엔티티 홀로그램 가능 |
+| E1 ✓ | 4.1 타입 있는 메타데이터: `EntityDataKey`·`EntityDataType` 31종·`EntityDataKeys`(서버 정의 전부)·`EntityFlags`, 패킷 레코드 `get/with`, `VirtualEntity.set`, 서버 표·시험 | 중 | G1 해소, 디스플레이 엔티티 홀로그램 가능 |
 | E2 | 4.3 번들 + 가상 엔티티·변장 생성 묶음 번들로 | 소 | 깜박임 제거 |
 | E3 | 4.4 `TestPlayer.received/awaitPacket` | 소 | 패킷 단위 시험 |
 | E4 | 4.2 범용 스키마·`GenericPacket`(NMS 스키마 스레드와 합의한 쪽이 서버 스키마를 먼저) | 대 → 스키마 골격 + 종류 묶음별로 쪼갬 | 179종 전부 읽고 쓰기 |

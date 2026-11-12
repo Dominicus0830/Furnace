@@ -1,0 +1,131 @@
+# 엔티티 종류별 메타데이터 칸 배치(1.21.1, 번호 순 값 종류). 서버 엔티티 정의에서 만든다 — EntityDataKeysTest 가 대조한다.
+minecraft:allay byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean boolean
+minecraft:area_effect_cloud byte int optional_component boolean boolean boolean pose int float boolean particle
+minecraft:armadillo byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean armadillo_state
+minecraft:armor_stand byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte rotations rotations rotations rotations rotations rotations
+minecraft:arrow byte int optional_component boolean boolean boolean pose int byte byte int
+minecraft:axolotl byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean int boolean boolean
+minecraft:bat byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte byte
+minecraft:bee byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean byte int
+minecraft:blaze byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte byte
+minecraft:block_display byte int optional_component boolean boolean boolean pose int int int int vector3 vector3 quaternion quaternion byte int float float float float float int block_state
+minecraft:boat byte int optional_component boolean boolean boolean pose int int int float int boolean boolean int
+minecraft:bogged byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean
+minecraft:breeze byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte
+minecraft:breeze_wind_charge byte int optional_component boolean boolean boolean pose int
+minecraft:camel byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean byte boolean long
+minecraft:cat byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean byte optional_uuid cat_variant boolean boolean int
+minecraft:cave_spider byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte byte
+minecraft:chest_boat byte int optional_component boolean boolean boolean pose int int int float int boolean boolean int
+minecraft:chest_minecart byte int optional_component boolean boolean boolean pose int int int float int int boolean
+minecraft:chicken byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean
+minecraft:cod byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean
+minecraft:command_block_minecart byte int optional_component boolean boolean boolean pose int int int float int int boolean string component
+minecraft:cow byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean
+minecraft:creeper byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte int boolean boolean
+minecraft:dolphin byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte block_pos boolean int
+minecraft:donkey byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean byte boolean
+minecraft:dragon_fireball byte int optional_component boolean boolean boolean pose int
+minecraft:drowned byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean int boolean
+minecraft:egg byte int optional_component boolean boolean boolean pose int item_stack
+minecraft:elder_guardian byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean int
+minecraft:end_crystal byte int optional_component boolean boolean boolean pose int optional_block_pos boolean
+minecraft:ender_dragon byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte int
+minecraft:ender_pearl byte int optional_component boolean boolean boolean pose int item_stack
+minecraft:enderman byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte optional_block_state boolean boolean
+minecraft:endermite byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte
+minecraft:evoker byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean byte
+minecraft:evoker_fangs byte int optional_component boolean boolean boolean pose int
+minecraft:experience_bottle byte int optional_component boolean boolean boolean pose int item_stack
+minecraft:experience_orb byte int optional_component boolean boolean boolean pose int
+minecraft:eye_of_ender byte int optional_component boolean boolean boolean pose int item_stack
+minecraft:falling_block byte int optional_component boolean boolean boolean pose int block_pos
+minecraft:fireball byte int optional_component boolean boolean boolean pose int item_stack
+minecraft:firework_rocket byte int optional_component boolean boolean boolean pose int item_stack optional_unsigned_int boolean
+minecraft:fishing_bobber byte int optional_component boolean boolean boolean pose int int boolean
+minecraft:fox byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean int byte optional_uuid optional_uuid
+minecraft:frog byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean frog_variant optional_unsigned_int
+minecraft:furnace_minecart byte int optional_component boolean boolean boolean pose int int int float int int boolean boolean
+minecraft:ghast byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean
+minecraft:giant byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte
+minecraft:glow_item_frame byte int optional_component boolean boolean boolean pose int item_stack int
+minecraft:glow_squid byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte int
+minecraft:goat byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean boolean boolean boolean
+minecraft:guardian byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean int
+minecraft:hoglin byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean boolean
+minecraft:hopper_minecart byte int optional_component boolean boolean boolean pose int int int float int int boolean
+minecraft:horse byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean byte int
+minecraft:husk byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean int boolean
+minecraft:illusioner byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean byte
+minecraft:interaction byte int optional_component boolean boolean boolean pose int float float boolean
+minecraft:iron_golem byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte byte
+minecraft:item byte int optional_component boolean boolean boolean pose int item_stack
+minecraft:item_display byte int optional_component boolean boolean boolean pose int int int int vector3 vector3 quaternion quaternion byte int float float float float float int item_stack byte
+minecraft:item_frame byte int optional_component boolean boolean boolean pose int item_stack int
+minecraft:leash_knot byte int optional_component boolean boolean boolean pose int
+minecraft:lightning_bolt byte int optional_component boolean boolean boolean pose int
+minecraft:llama byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean byte boolean int int
+minecraft:llama_spit byte int optional_component boolean boolean boolean pose int
+minecraft:magma_cube byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte int
+minecraft:marker byte int optional_component boolean boolean boolean pose int
+minecraft:minecart byte int optional_component boolean boolean boolean pose int int int float int int boolean
+minecraft:mooshroom byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean string
+minecraft:mule byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean byte boolean
+minecraft:ocelot byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean boolean
+minecraft:ominous_item_spawner byte int optional_component boolean boolean boolean pose int item_stack
+minecraft:painting byte int optional_component boolean boolean boolean pose int painting_variant
+minecraft:panda byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean int int int byte byte byte
+minecraft:parrot byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean byte optional_uuid int
+minecraft:phantom byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte int
+minecraft:pig byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean boolean int
+minecraft:piglin byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean boolean boolean boolean
+minecraft:piglin_brute byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean
+minecraft:pillager byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean boolean
+minecraft:player byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos float int byte byte compound_tag compound_tag
+minecraft:polar_bear byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean boolean
+minecraft:potion byte int optional_component boolean boolean boolean pose int item_stack
+minecraft:pufferfish byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean int
+minecraft:rabbit byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean int
+minecraft:ravager byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean
+minecraft:salmon byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean
+minecraft:sheep byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean byte
+minecraft:shulker byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte direction byte byte
+minecraft:shulker_bullet byte int optional_component boolean boolean boolean pose int
+minecraft:silverfish byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte
+minecraft:skeleton byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean
+minecraft:skeleton_horse byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean byte
+minecraft:slime byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte int
+minecraft:small_fireball byte int optional_component boolean boolean boolean pose int item_stack
+minecraft:sniffer byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean sniffer_state int
+minecraft:snow_golem byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte byte
+minecraft:snowball byte int optional_component boolean boolean boolean pose int item_stack
+minecraft:spawner_minecart byte int optional_component boolean boolean boolean pose int int int float int int boolean
+minecraft:spectral_arrow byte int optional_component boolean boolean boolean pose int byte byte
+minecraft:spider byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte byte
+minecraft:squid byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte
+minecraft:stray byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte
+minecraft:strider byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean int boolean boolean
+minecraft:tadpole byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean
+minecraft:text_display byte int optional_component boolean boolean boolean pose int int int int vector3 vector3 quaternion quaternion byte int float float float float float int component int int byte byte
+minecraft:tnt byte int optional_component boolean boolean boolean pose int int block_state
+minecraft:tnt_minecart byte int optional_component boolean boolean boolean pose int int int float int int boolean
+minecraft:trader_llama byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean byte boolean int int
+minecraft:trident byte int optional_component boolean boolean boolean pose int byte byte byte boolean
+minecraft:tropical_fish byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean int
+minecraft:turtle byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean block_pos boolean boolean block_pos boolean boolean
+minecraft:vex byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte byte
+minecraft:villager byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean int villager_data
+minecraft:vindicator byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean
+minecraft:wandering_trader byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean int
+minecraft:warden byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte int
+minecraft:wind_charge byte int optional_component boolean boolean boolean pose int
+minecraft:witch byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean boolean
+minecraft:wither byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte int int int int
+minecraft:wither_skeleton byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte
+minecraft:wither_skull byte int optional_component boolean boolean boolean pose int boolean
+minecraft:wolf byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean byte optional_uuid boolean int int wolf_variant
+minecraft:zoglin byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean
+minecraft:zombie byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean int boolean
+minecraft:zombie_horse byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean byte
+minecraft:zombie_villager byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean int boolean boolean villager_data
+minecraft:zombified_piglin byte int optional_component boolean boolean boolean pose int byte float particles boolean int int optional_block_pos byte boolean int boolean

@@ -57,6 +57,18 @@ public interface PacketService {
     /** 서버 엔티티와 겹치지 않는 새 엔티티 번호 — 가상 엔티티(ClientboundAddEntityPacket)에 쓴다. */
     int nextEntityId();
 
+    /**
+     * 이름 있는 메타데이터 칸의 이 서버 버전 칸 번호(없는 칸이면 empty). 보통은 직접 부르지 않는다 —
+     * ClientboundSetEntityDataPacket.get/with·VirtualEntity.set 이 이것으로 번호를 정한다.
+     */
+    java.util.OptionalInt entityDataIndex(org.domi.furnace.api.entity.data.EntityDataKey<?> key);
+
+    /**
+     * 그 엔티티 종류("minecraft:text_display")에 이 칸이 있는가(같은 번호·같은 값 종류). 없는 칸을 보내면 클라이언트가 연결을 끊으므로
+     * 숫자 칸으로 직접 패킷을 만들 때 확인용. 이 서버가 모르는 종류면 false.
+     */
+    boolean hasEntityData(String entityType, org.domi.furnace.api.entity.data.EntityDataKey<?> key);
+
     /** 클라이언트 프로토콜 번호(1.21.1 = 767). 버전별 분기가 꼭 필요할 때만 쓴다. */
     int protocolVersion();
 }

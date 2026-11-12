@@ -208,6 +208,39 @@ class VirtualEntitiesTest {
     }
 
     @Test
+    void namedMetadataKeysOnDisplayEntities() {
+        Player p = online("Viewer", 0, 0);
+        core.world().setRegistries(core.world().blockRegistry(), org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        VirtualEntity text = host.virtualEntities().spawn(a, "text_display", new Location(WORLD, 1, 65, 1));
+        VirtualEntity item = host.virtualEntities().spawn(a, "item_display", new Location(WORLD, 2, 65, 1));
+        sent(p);
+        text.set(org.domi.furnace.api.entity.data.EntityDataKeys.TextDisplay.TEXT, Text.text("상점"));
+        text.set(org.domi.furnace.api.entity.data.EntityDataKeys.Display.SCALE, new org.domi.furnace.api.math.Vector3f(2, 2, 2));
+        item.set(org.domi.furnace.api.entity.data.EntityDataKeys.ItemDisplay.ITEM_STACK, ItemStack.of("minecraft:diamond"));
+        item.set(org.domi.furnace.api.entity.data.EntityDataKeys.Display.LEFT_ROTATION, org.domi.furnace.api.math.Quaternionf.rotationY(45));
+        List<Packet> out = sent(p);
+        assertEquals(4, out.size());
+        var t0 = (ClientboundSetEntityDataPacket) out.get(0);
+        assertEquals(java.util.Optional.of(Text.text("상점")), t0.get(org.domi.furnace.api.entity.data.EntityDataKeys.TextDisplay.TEXT));
+        assertEquals(23, t0.entries().get(0).index(), "1.21.1 TextDisplay.text 칸");
+        var i0 = (ClientboundSetEntityDataPacket) out.get(2);
+        assertEquals(java.util.Optional.of(ItemStack.of("minecraft:diamond")), i0.get(org.domi.furnace.api.entity.data.EntityDataKeys.ItemDisplay.ITEM_STACK));
+        // 그 종류에 없는 칸은 클라이언트가 끊기기 전에 막는다
+        assertThrows(IllegalArgumentException.class, () -> text.set(org.domi.furnace.api.entity.data.EntityDataKeys.ItemDisplay.ITEM_STACK, ItemStack.of("minecraft:diamond")));
+        VirtualEntity zombie = host.virtualEntities().spawn(a, "zombie", new Location(WORLD, 3, 64, 1));
+        assertThrows(IllegalArgumentException.class, () -> zombie.set(org.domi.furnace.api.entity.data.EntityDataKeys.Display.SCALE, org.domi.furnace.api.math.Vector3f.ONE));
+        zombie.set(org.domi.furnace.api.entity.data.EntityDataKeys.Zombie.BABY, true);
+        sent(p);
+        // 새로 보게 된 사람에게는 쌓인 칸이 생성 묶음으로 간다
+        Player late = online("Late", 500, 0);
+        late.setPosRaw(1, 64, 1);
+        track();
+        var lateData = sent(late).stream().filter(x -> x instanceof ClientboundSetEntityDataPacket d && d.entityId() == text.entityId())
+                .map(x -> (ClientboundSetEntityDataPacket) x).findFirst().orElseThrow();
+        assertEquals(java.util.Optional.of(new org.domi.furnace.api.math.Vector3f(2, 2, 2)), lateData.get(org.domi.furnace.api.entity.data.EntityDataKeys.Display.SCALE));
+    }
+
+    @Test
     void unknownEntityTypeAndBadNameAreRejected() {
         assertThrows(IllegalArgumentException.class, () -> host.virtualEntities().spawn(a, "nope:thing", new Location(WORLD, 0, 0, 0)));
         assertThrows(IllegalArgumentException.class, () -> host.virtualEntities().spawn(a, "minecraft:player", new Location(WORLD, 0, 0, 0)));
