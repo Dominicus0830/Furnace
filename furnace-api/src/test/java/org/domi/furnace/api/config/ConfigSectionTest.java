@@ -319,4 +319,42 @@ class ConfigSectionTest {
         assertEquals(1, c.getInt("a.b.c"));
         assertEquals(List.of("a.b"), List.copyOf(c.keys(false)));
     }
+
+    /** 단계 목록으로 지정하는 경로: 점이 든 키가 한 단계이고, 너그러운 literal 대체가 없다. */
+    @Test
+    void segmentPathsTreatEachStepAsOneKey() {
+        ConfigSection c = new ConfigSection();
+        c.setAt(List.of("a.b", "c.d", "e"), 1);
+        c.setAt(List.of("top.level"), "x");
+        assertEquals(1, c.getAt(List.of("a.b", "c.d", "e")));
+        assertEquals("x", c.getAt(List.of("top.level")));
+        assertTrue(c.containsAt(List.of("a.b", "c.d"), true));
+        assertFalse(c.containsAt(List.of("a", "b"), true), "점은 구분자가 아니다");
+        assertNull(c.getAt(List.of("a.b", "c", "d")));
+        assertSame(c, c.getAt(List.of()));
+        ConfigSection mid = (ConfigSection) c.getAt(List.of("a.b", "c.d"));
+        assertEquals(List.of("a.b", "c.d"), mid.pathSegments());
+        assertEquals(List.of(), c.pathSegments());
+        // 섹션이 아닌 값 위에 쓰면 새 섹션으로 바뀐다
+        c.setAt(List.of("top.level", "k"), 2);
+        assertEquals(2, c.getAt(List.of("top.level", "k")));
+        // 기본값과 주석
+        ConfigSection defs = new ConfigSection();
+        defs.setAt(List.of("a.b", "z"), 9);
+        c.setDefaults(defs);
+        assertEquals(9, c.getAt(List.of("a.b", "z")));
+        assertTrue(c.containsAt(List.of("a.b", "z"), false));
+        assertFalse(c.containsAt(List.of("a.b", "z"), true));
+        c.addDefaultAt(List.of("n.m", "q"), 3);
+        assertEquals(3, c.getAt(List.of("n.m", "q")));
+        c.setCommentsAt(List.of("a.b", "c.d", "e"), List.of("note"));
+        assertEquals(List.of("note"), c.getCommentsAt(List.of("a.b", "c.d", "e")));
+        c.setInlineCommentAt(List.of("a.b", "c.d", "e"), "inl");
+        assertEquals("inl", c.getInlineCommentAt(List.of("a.b", "c.d", "e")));
+        assertThrows(IllegalArgumentException.class, () -> c.setCommentsAt(List.of("nope"), List.of("x")));
+        assertEquals(1, c.removeAt(List.of("a.b", "c.d", "e")));
+        assertFalse(c.containsAt(List.of("a.b", "c.d", "e"), true));
+        assertEquals(List.of(), c.getCommentsAt(List.of("a.b", "c.d", "e")));
+        assertThrows(IllegalArgumentException.class, () -> c.setAt(List.of(), 1));
+    }
 }

@@ -9,6 +9,7 @@ import org.bukkit.configuration.serialization.ConfigurationSerializable;
 import org.bukkit.configuration.serialization.ConfigurationSerialization;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.NumberConversions;
+import org.domi.furnace.compat.paper.ConfigPaths;
 import org.domi.furnace.api.config.ConfigSection;
 
 /**
@@ -103,6 +104,91 @@ public class MemorySection implements ConfigurationSection {
         return v;
     }
 
+    // ------------------------------------------------------------------ 경로 구분자(A15-05)
+    //
+    // Paper 는 루트 옵션의 pathSeparator 로 경로를 단계로 나눈다. 기본 '.' 는 Furnace ConfigSection 의 점 경로(점이 든 literal 키도 너그럽게 찾는다)를
+    // 그대로 쓰고, 다른 문자는 단계 목록을 만들어 ConfigSection 의 *At 메서드로 넘긴다 — 단계 하나가 키 하나라 점이 든 키가 그대로 한 단계다.
+
+    private char sep() { return root.options().pathSeparator(); }
+
+    private boolean custom() { return sep() != '.'; }
+
+    private ConfigPaths.Parsed parse(String path) { return ConfigPaths.parse(path, sep()); }
+
+    /** 이 구역 데이터에서 path 가 가리키는 값(기본값 제외하려면 dHas 로 먼저 확인). 사용자 지정 구분자의 끝 구분자는 구역일 때만 그 구역. */
+    private Object dGet(String path) {
+        if (!custom()) return delegate.get(path);
+        ConfigPaths.Parsed p = parse(path);
+        if (p.keys().isEmpty()) return delegate;
+        Object v = delegate.getAt(p.keys());
+        return p.endsAtSection() && !(v instanceof ConfigSection) ? null : v;
+    }
+
+    /** 자기 데이터(기본값 제외)에 path 가 있는가. */
+    private boolean dHas(String path) {
+        if (!custom()) return delegate.contains(path, true);
+        ConfigPaths.Parsed p = parse(path);
+        if (p.keys().isEmpty()) return true;
+        return delegate.containsAt(p.keys(), true) && (!p.endsAtSection() || delegate.getAt(p.keys()) instanceof ConfigSection);
+    }
+
+    /** Paper 처럼: 값이 null 이면 지운다(없는 중간 구역은 만들지 않는다). */
+    private void dSet(String path, Object value) {
+        if (!custom()) {
+            if (value == null) delegate.remove(path);
+            else delegate.set(path, value);
+            return;
+        }
+        if (path.isEmpty()) throw new IllegalArgumentException("Cannot set to an empty path");
+        ConfigPaths.Parsed p = parse(path);
+        if (!p.endsAtSection()) {
+            if (value == null) delegate.removeAt(p.keys());
+            else delegate.setAt(p.keys(), value);
+            return;
+        }
+        // 끝 구분자: Paper 는 중간 구역을 먼저 만들고(지울 때는 없으면 조용히 끝) 빈 마지막 키에서 IllegalArgumentException
+        if (value == null && !allSections(p.keys())) return;
+        if (value != null) ensureSections(p.keys());
+        throw new IllegalArgumentException("Cannot set to an empty path");
+    }
+
+    private boolean allSections(List<String> keys) {
+        for (int i = 1; i <= keys.size(); i++) {
+            List<String> prefix = keys.subList(0, i);
+            if (!(delegate.containsAt(prefix, true) && delegate.getAt(prefix) instanceof ConfigSection)) return false;
+        }
+        return true;
+    }
+
+    private void ensureSections(List<String> keys) {
+        for (int i = 1; i <= keys.size(); i++) {
+            List<String> prefix = keys.subList(0, i);
+            if (!(delegate.containsAt(prefix, true) && delegate.getAt(prefix) instanceof ConfigSection)) delegate.setAt(prefix, new ConfigSection());
+        }
+    }
+
+    /** 주석 조회·수정용 키 단계(경로가 비거나 끝 구분자로 끝나면 null — Paper 는 그때 빈 목록·무동작). */
+    private List<String> commentKeys(String path) {
+        ConfigPaths.Parsed p = parse(path);
+        return p.keys().isEmpty() || p.endsAtSection() ? null : p.keys();
+    }
+
+    /** 이 구역 아래 키(deep 이면 하위 구역 키를 구분자로 이어서). */
+    private Set<String> ownKeys(boolean deep) {
+        if (!custom()) return delegate.keys(deep);
+        Set<String> out = new java.util.LinkedHashSet<>();
+        collectKeys(out, delegate, "", deep, sep());
+        return out;
+    }
+
+    private static void collectKeys(Set<String> out, ConfigSection section, String prefix, boolean deep, char sep) {
+        for (String k : section.keys(false)) {
+            String full = prefix.isEmpty() ? k : prefix + sep + k;
+            out.add(full);
+            if (deep && section.getAt(List.of(k)) instanceof ConfigSection child) collectKeys(out, child, full, true, sep);
+        }
+    }
+
     // ------------------------------------------------------------------ Paper 읽기 규칙(A15-03)
     //
     // Paper MemorySection: get(path, def) 는 자기 데이터에 없으면 def 다(기본값 구역은 보지 않는다). 인자 하나짜리만 기본값 구역의 값을 def 로 넘긴다.
@@ -110,7 +196,7 @@ public class MemorySection implements ConfigurationSection {
 
     /** 자기 데이터의 값(기본값 구역 제외). 없으면 null. */
     private Object own(String path) {
-        return delegate.contains(path, true) ? out(delegate.get(path)) : null;
+        return dHas(path) ? out(dGet(path)) : null;
     }
 
     /** Paper getDefault: 기본값 구역의 같은 경로 값(없으면 null). */
@@ -129,7 +215,7 @@ public class MemorySection implements ConfigurationSection {
             ConfigurationSection d = getDefaultSection();
             if (d != null) out.addAll(d.getKeys(deep));
         }
-        out.addAll(delegate.keys(deep));
+        out.addAll(ownKeys(deep));
         return out;
     }
 
@@ -141,24 +227,25 @@ public class MemorySection implements ConfigurationSection {
             if (d != null) out.putAll(d.getValues(deep));
         }
         // Paper(SPIGOT-4558): 자기 키는 remove 뒤 put — 기본값에만 있는 키가 앞에 남는다
-        for (String k : delegate.keys(deep)) {
+        for (String k : ownKeys(deep)) {
             out.remove(k);
             out.put(k, get(k));
         }
         return out;
     }
 
+    /** Paper 처럼 get 과 같은 길로 정한다(기본값 설정의 구분자가 달라도 get 과 어긋나지 않게 — PR #254 검토 R3). */
     @Override
-    public boolean contains(String path) { return delegate.contains(path); }
+    public boolean contains(String path) { return get(path) != null; }
 
     @Override
-    public boolean contains(String path, boolean ignoreDefault) { return delegate.contains(path, ignoreDefault); }
+    public boolean contains(String path, boolean ignoreDefault) { return (ignoreDefault ? get(path, null) : get(path)) != null; }
 
     @Override
-    public boolean isSet(String path) { return delegate.contains(path, !root.options().copyDefaults()); }
+    public boolean isSet(String path) { return root.options().copyDefaults() ? contains(path) : get(path, null) != null; }
 
     @Override
-    public String getCurrentPath() { return delegate.getPath(); }
+    public String getCurrentPath() { return custom() ? String.join(String.valueOf(sep()), delegate.pathSegments()) : delegate.getPath(); }
 
     @Override
     public String getName() { return delegate.getName(); }
@@ -183,24 +270,28 @@ public class MemorySection implements ConfigurationSection {
     }
 
     @Override
-    public void set(String path, Object value) {
-        if (value == null) {
-            delegate.remove(path);
-            return;
-        }
-        delegate.set(path, in(value));
-    }
+    public void set(String path, Object value) { dSet(path, value == null ? null : in(value)); }
 
     @Override
     public ConfigurationSection createSection(String path) {
-        delegate.set(path, new ConfigSection());
+        if (path.isEmpty()) throw new IllegalArgumentException("Cannot create section at empty path");
+        dSet(path, new ConfigSection());
         return getConfigurationSection(path);
     }
 
     @Override
     public ConfigurationSection createSection(String path, Map<?, ?> map) {
-        delegate.set(path, ConfigSection.fromMap(map));
-        return getConfigurationSection(path);
+        if (!custom()) {
+            dSet(path, ConfigSection.fromMap(map));
+            return getConfigurationSection(path);
+        }
+        // 사용자 지정 구분자: Paper 처럼 맵 키도 그 구분자로 쪼개 넣는다
+        ConfigurationSection section = createSection(path);
+        for (Map.Entry<?, ?> e : map.entrySet()) {
+            if (e.getValue() instanceof Map<?, ?> inner) section.createSection(String.valueOf(e.getKey()), inner);
+            else section.set(String.valueOf(e.getKey()), e.getValue());
+        }
+        return section;
     }
 
     @Override
@@ -386,11 +477,11 @@ public class MemorySection implements ConfigurationSection {
 
     @Override
     public ConfigurationSection getConfigurationSection(String path) {
-        return delegate.get(path) instanceof ConfigSection s && !isSerialized(s) ? wrap(s) : null;
+        return dGet(path) instanceof ConfigSection s && !isSerialized(s) ? wrap(s) : null;
     }
 
     @Override
-    public boolean isConfigurationSection(String path) { return delegate.get(path) instanceof ConfigSection s && !isSerialized(s); }
+    public boolean isConfigurationSection(String path) { return dGet(path) instanceof ConfigSection s && !isSerialized(s); }
 
     // ------------------------------------------------------------------ 직렬화 객체
 
@@ -449,32 +540,63 @@ public class MemorySection implements ConfigurationSection {
     public ConfigurationSection getDefaultSection() {
         Configuration d = root.getDefaults();
         if (d == null) return null;
-        String p = delegate.getPath();
+        String p = getCurrentPath();
         return p.isEmpty() ? d : d.getConfigurationSection(p);
     }
 
     @Override
-    public void addDefault(String path, Object value) { delegate.addDefault(path, in(value)); }
+    public void addDefault(String path, Object value) {
+        if (!custom()) {
+            delegate.addDefault(path, in(value));
+            return;
+        }
+        if (path.isEmpty()) throw new IllegalArgumentException("Cannot set to an empty path");
+        delegate.addDefaultAt(parse(path).keys(), in(value));
+    }
 
     // ------------------------------------------------------------------ 주석
 
     @Override
-    public List<String> getComments(String path) { return delegate.contains(path, true) ? delegate.getComments(path) : List.of(); }
+    public List<String> getComments(String path) {
+        if (!dHas(path)) return List.of();
+        if (!custom()) return delegate.getComments(path);
+        List<String> keys = commentKeys(path);
+        return keys == null ? List.of() : delegate.getCommentsAt(keys);
+    }
 
     @Override
     public List<String> getInlineComments(String path) {
-        String c = delegate.contains(path, true) ? delegate.getInlineComment(path) : null;
+        if (!dHas(path)) return List.of();
+        String c;
+        if (!custom()) c = delegate.getInlineComment(path);
+        else {
+            List<String> keys = commentKeys(path);
+            c = keys == null ? null : delegate.getInlineCommentAt(keys);
+        }
         return c == null ? List.of() : List.of(c);
     }
 
     @Override
     public void setComments(String path, List<String> comments) {
-        if (delegate.contains(path, true)) delegate.setComments(path, comments);
+        if (!dHas(path)) return;
+        if (!custom()) {
+            delegate.setComments(path, comments);
+            return;
+        }
+        List<String> keys = commentKeys(path);
+        if (keys != null) delegate.setCommentsAt(keys, comments);
     }
 
     @Override
     public void setInlineComments(String path, List<String> comments) {
-        if (delegate.contains(path, true)) delegate.setInlineComment(path, comments == null || comments.isEmpty() ? null : comments.get(0));
+        if (!dHas(path)) return;
+        String c = comments == null || comments.isEmpty() ? null : comments.get(0);
+        if (!custom()) {
+            delegate.setInlineComment(path, c);
+            return;
+        }
+        List<String> keys = commentKeys(path);
+        if (keys != null) delegate.setInlineCommentAt(keys, c);
     }
 
     @Override

@@ -12,8 +12,8 @@ public class ConfigurationOptions {
 
     public char pathSeparator() { return pathSeparator; }
 
+    /** 경로를 단계로 나누는 문자(기본 '.'). 바꾸면 그 뒤의 조회·저장이 새 문자로 경로를 나눈다 — 점이 든 키를 쓰는 설정에 쓴다(A15-05). */
     public ConfigurationOptions pathSeparator(char value) {
-        if (value != '.') throw new UnsupportedOperationException("Furnace 호환 설정은 경로 구분자로 '.' 만 지원한다");
         this.pathSeparator = value;
         return this;
     }
