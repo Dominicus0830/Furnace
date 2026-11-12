@@ -13,8 +13,8 @@
 ## 독립 검토(#262) 반영
 - `PersistentDataView#raw(key)`: 저장된 값을 종류를 묻지 않고 한 번에 읽는다(서버 `NbtPersistentData` 가 NBT 를 그대로 변환). 호환 계층 `ItemPdc` 는 종류를 하나씩 물어보던 탐색(8겹 한도·키 하나에 원본 `has` 99번)을 없애고 값의 모양에서 종류를 정한다 — 겹 수 한도 없음.
 - `has(key, type)` 은 Paper `matchesListTag` 처럼 **바깥 목록의 원소 종류만** 본다(안쪽 목록 종류가 달라도 참, `get` 이 IllegalArgumentException). `get` 은 안쪽까지 검사.
-- 안쪽 목록의 원소 종류가 서로 다른 목록의 목록(`[["a"],[1]]`)은 바닐라·Paper 에서 올바른 NBT 라 `readFromBytes`·`serializeToBytes`·`copyTo`·`has(key)` 가 된다. 다만 서버(NBT)로 **쓰는** 길(`setItemMeta`·엔티티 PDC)은 종류가 정해진 값만 되므로 섞인 값을 쓰면 IllegalArgumentException.
-- 오프라인 보기에서 플레이어 파일을 읽지 못하면(손상·다른 판) 경고 로그 한 줄 뒤 빈 보기 — 순위표류 플러그인이 파일 하나 때문에 끊기지 않는다.
+- 안쪽 목록의 원소 종류가 서로 다른 목록의 목록(`[["a"],[1]]`)은 바닐라·Paper 에서 올바른 NBT 라 `readFromBytes`·`serializeToBytes`·`copyTo`·`has(key)` 가 된다. 서버(NBT)로 쓰는 길도 `PersistentDataContainer#setRaw`(`raw` 의 짝, 모양 그대로)로 되므로 섞인 값도 `setItemMeta`·엔티티 PDC 에 적용된다.
+- 오프라인 보기에서 플레이어 파일을 읽지 못하면(손상, 또는 서버가 지원하지 않는 DataVersion — 서버는 그런 파일을 로드도 거부한다) 경고 로그 한 줄 뒤 빈 보기. Paper 는 옛 판을 DataFixer 로 올리고 새 판을 그대로 읽어 PDC 가 보인다(차이) — 순위표류 플러그인이 파일 하나 때문에 끊기지 않는다.
 - 읽을 때 모르던 `==` 별칭이 나중에 등록되면 읽기 입구(`get`·`getKeys`·`getValues`·`contains`…)에서 트리를 먼저 되살린 뒤 읽는다(클래스 등록이 바뀐 뒤에만 다시 시도). 되살리기 전에 `getConfigurationSection` 으로 잡아 둔 구역은 떨어져 나간다(Paper 는 이 경우 읽기 자체가 실패).
 - 보기의 `getAdapterContext()` 는 보기마다 하나이고 컨테이너가 아니다.
 

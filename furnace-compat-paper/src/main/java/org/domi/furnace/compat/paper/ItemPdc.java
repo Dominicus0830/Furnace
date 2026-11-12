@@ -126,7 +126,15 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
     /** 메모리 값의 종류: 단일 값은 그 종류, 중첩 컨테이너는 TAG_CONTAINER, 목록은 첫 원소 종류의 목록(빈 목록은 byte 목록). */
     static org.domi.furnace.api.persistence.PersistentDataType<?> typeOf(Object v) {
         if (v instanceof List<?> l) {
-            org.domi.furnace.api.persistence.PersistentDataType<?> elem = l.isEmpty() ? SCALARS[0] : typeOf(l.get(0));
+            // 원소 종류는 첫 "비지 않은" 원소로 — [[],["a"]] 의 첫 원소(빈 목록)가 종류를 정하지 않는다
+            org.domi.furnace.api.persistence.PersistentDataType<?> elem = null;
+            for (Object e : l) {
+                if (!(e instanceof List<?> x && x.isEmpty())) {
+                    elem = typeOf(e);
+                    break;
+                }
+            }
+            if (elem == null) elem = l.isEmpty() ? SCALARS[0] : org.domi.furnace.api.persistence.PersistentDataType.list(SCALARS[0]);
             return org.domi.furnace.api.persistence.PersistentDataType.list(elem);
         }
         if (v instanceof PersistentDataContainer || v instanceof PersistentDataView) return org.domi.furnace.api.persistence.PersistentDataType.TAG_CONTAINER;
@@ -311,7 +319,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
                 target.remove(e.getKey());
                 continue;
             }
-            target.set(e.getKey(), (org.domi.furnace.api.persistence.PersistentDataType) v.type(), toFurnace(v.value(), target));
+            target.setRaw(e.getKey(), toFurnace(v.value(), target));
         }
     }
 
@@ -474,14 +482,15 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
         if (n < 0) throw new IOException("NBT 길이가 음수다");
         if (n == 0) return new ArrayList<>();
         if (elemId == TAG_END) throw new IOException("원소가 있는 목록의 종류가 END 다");
-        List<Object> items = new ArrayList<>(n);
         if (elemId == TAG_LIST) {
             checkLength(in, n, 5);
+            List<Object> items = new ArrayList<>(n);
             for (int i = 0; i < n; i++) items.add(readList(in, depth + 1));
             return items;
         }
         scalarType(elemId);   // 알 수 없는 태그 번호면 IOException
         checkLength(in, n, 1);
+        List<Object> items = new ArrayList<>(n);   // 길이를 남은 바이트로 확인한 뒤에 잡는다(잘못된 바이트로 큰 배열을 잡지 않게)
         for (int i = 0; i < n; i++) items.add(readPayload(in, elemId, depth + 1));
         return items;
     }
@@ -538,7 +547,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
         for (NamespacedKey k : a) {
             Value x = lookup(k.toString()), y = p.lookup(k.toString());
             if (x == null || y == null) return false;
-            if (!(deepMatches(x.value(), typeOf(y.value())) && deepMatches(y.value(), typeOf(x.value()))) || !valueEquals(x.value(), y.value())) return false;
+            if (!valueEquals(x.value(), y.value())) return false;
         }
         return true;
     }

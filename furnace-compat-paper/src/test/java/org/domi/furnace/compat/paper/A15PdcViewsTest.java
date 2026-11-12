@@ -155,4 +155,44 @@ class A15PdcViewsTest {
         var t = PersistentDataType.LIST.listTypeFrom(PersistentDataType.LIST.strings());
         assertThrows(NullPointerException.class, () -> p.set(K, t, java.util.Arrays.asList(List.of("a"), null)));
     }
+
+    // #262 재검토 Q1~Q3: 첫 원소가 빈 목록이어도·안쪽 종류가 섞여도 아이템에 적용되고 equals 가 자기와 같다
+    @Test
+    void emptyFirstAndMixedInnerListsApplyToItemsAndEqualThemselves() throws IOException {
+        var t = PersistentDataType.LIST.listTypeFrom(PersistentDataType.LIST.strings());
+        var a = new ItemStack(Material.STONE);
+        var meta = a.getItemMeta();
+        meta.getPersistentDataContainer().set(K, t, List.of(List.of(), List.of("a")));
+        a.setItemMeta(meta);
+        assertTrue(a.getPersistentDataContainer().has(K, t));
+        assertEquals(List.of(List.of(), List.of("a")), a.getPersistentDataContainer().get(K, t));
+
+        // 다른 아이템 메타로 copyTo 한 뒤 적용
+        var b = new ItemStack(Material.DIRT);
+        var bm = b.getItemMeta();
+        a.getPersistentDataContainer().copyTo(bm.getPersistentDataContainer(), true);
+        b.setItemMeta(bm);
+        assertEquals(List.of(List.of(), List.of("a")), b.getPersistentDataContainer().get(K, t));
+
+        // 안쪽 종류가 섞인 값(바이트로만 만들 수 있다)도 적용·왕복
+        byte[] mixed = {10, 0, 0, 9, 0, 3, 't', ':', 'k', 9, 0, 0, 0, 2,
+                8, 0, 0, 0, 1, 0, 1, 'a',
+                3, 0, 0, 0, 1, 0, 0, 0, 1,
+                0};
+        ItemPdc p = pdc();
+        p.readFromBytes(mixed, true);
+        assertEquals(p, p);
+        var c = new ItemStack(Material.GRASS_BLOCK);
+        var cm = c.getItemMeta();
+        cm.getPersistentDataContainer().readFromBytes(mixed, true);
+        c.setItemMeta(cm);
+        assertArrayEquals(mixed, c.getItemMeta().getPersistentDataContainer().serializeToBytes());
+    }
+
+    @Test
+    void malformedNestedListLengthsFailFastWithoutAllocatingHugeLists() {
+        // 키 이름 길이가 어긋나 목록 길이가 20억 가까이 읽힌다 — IOException 이어야지 큰 배열을 잡으면 안 된다
+        byte[] bad = {10, 0, 0, 9, 0, 1, 't', ':', 'k', 9, 0, 0, 0, 2, 8, 0, 0, 0, 1, 0, 1, 'a', 0};
+        assertThrows(IOException.class, () -> pdc().readFromBytes(bad, true));
+    }
 }
