@@ -26,6 +26,19 @@ public interface Audience {
     /** 월드의 한 지점에서 나는 것처럼 들려준다(그 사람에게만 — 멀면 크기에 따라 작게 들린다). */
     default void playSound(Sound sound, double x, double y, double z) {}
 
+    /** 위와 같되 소리 변형을 고르는 씨앗을 정한다(바닐라 sound 패킷의 seed). */
+    default void playSound(Sound sound, double x, double y, double z, long seed) { playSound(sound, x, y, z); }
+
+    /** 엔티티에 붙어 따라 움직이는 소리를 그 사람에게만(sound_entity). 다른 월드의 엔티티면 아무 일도 없다. */
+    default void playSound(Sound sound, org.domi.furnace.api.entity.Entity emitter, long seed) {}
+
+    /**
+     * 그 사람에게만 입자를 보낸다(거리와 관계없이 — Paper Player#spawnParticle 과 같다). 퍼짐·속도는 float 로 줄여 싣는다.
+     * 모르는 입자 종류면 IllegalArgumentException.
+     */
+    default void spawnParticle(org.domi.furnace.api.world.ParticleEffect particle, double x, double y, double z, int count,
+                               double offsetX, double offsetY, double offsetZ, double speed, boolean force) {}
+
     /** 소리를 멈춘다. source·key 중 null 인 쪽은 가리지 않는다(둘 다 null 이면 모든 소리). key 가 리소스 id 가 아니면 IllegalArgumentException. */
     default void stopSound(Sound.Source source, String key) {}
 
@@ -61,6 +74,12 @@ public interface Audience {
             public void hideSidebar(org.domi.furnace.api.scoreboard.Sidebar s) { for (Audience a : members) a.hideSidebar(s); }
             public void playSound(Sound s) { for (Audience a : members) a.playSound(s); }
             public void playSound(Sound s, double x, double y, double z) { for (Audience a : members) a.playSound(s, x, y, z); }
+            public void playSound(Sound s, double x, double y, double z, long seed) { for (Audience a : members) a.playSound(s, x, y, z, seed); }
+            public void playSound(Sound s, org.domi.furnace.api.entity.Entity e, long seed) { for (Audience a : members) a.playSound(s, e, seed); }
+            public void spawnParticle(org.domi.furnace.api.world.ParticleEffect p, double x, double y, double z, int count,
+                                      double ox, double oy, double oz, double speed, boolean force) {
+                for (Audience a : members) a.spawnParticle(p, x, y, z, count, ox, oy, oz, speed, force);
+            }
             public void stopSound(Sound.Source src, String k) { for (Audience a : members) a.stopSound(src, k); }
             public void sendPlayerListHeaderAndFooter(Text h, Text f) { for (Audience a : members) a.sendPlayerListHeaderAndFooter(h, f); }
         };

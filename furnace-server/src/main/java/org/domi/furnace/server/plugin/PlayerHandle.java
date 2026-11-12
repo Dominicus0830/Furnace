@@ -179,6 +179,40 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     }
 
     @Override
+    public void playSound(org.domi.furnace.api.audience.Sound s, double x, double y, double z, long seed) {
+        java.util.Objects.requireNonNull(s, "sound");
+        p.send(ApiEffects.soundAt(s, x, y, z, seed));   // 레지스트리 소리는 번호로(WorldHandle 과 같다)
+    }
+
+    @Override
+    public void playSound(org.domi.furnace.api.audience.Sound s, org.domi.furnace.api.entity.Entity emitter, long seed) {
+        java.util.Objects.requireNonNull(s, "sound");
+        java.util.Objects.requireNonNull(emitter, "emitter");
+        int eid;
+        if (emitter instanceof PlayerHandle ph) {
+            if (!ph.p.dimension().equals(p.dimension())) return;
+            eid = ph.p.entityId();
+        } else if (emitter instanceof EntityHandle eh && eh.tasks().owner() instanceof org.domi.furnace.server.entity.Entity e) {
+            if (e.isRemoved() || !e.dimensionKey().equals(p.dimension())) return;
+            eid = e.id();
+        } else {
+            return;
+        }
+        p.send(ApiEffects.soundOn(s, eid, seed));
+    }
+
+    @Override
+    public void spawnParticle(org.domi.furnace.api.world.ParticleEffect particle, double x, double y, double z, int count,
+                              double offsetX, double offsetY, double offsetZ, double speed, boolean force) {
+        var w = core().world(p.dimension());
+        var blocks = w != null ? w.blockRegistry() : core().world().blockRegistry();
+        var items = w != null ? w.itemRegistry() : core().world().itemRegistry();
+        var opts = ApiEffects.particle(particle, blocks, items);
+        p.send(new org.domi.furnace.server.net.protocol.play.LevelParticles(force, x, y, z, (float) offsetX, (float) offsetY, (float) offsetZ,
+                (float) speed, count, opts));
+    }
+
+    @Override
     public void stopSound(org.domi.furnace.api.audience.Sound.Source source, String key) {
         // 바닐라 클라이언트는 stop_sound 의 이름을 ResourceLocation 으로 읽다 실패하면 접속을 끊는다 — playSound 와 같은 규칙으로 막는다
         if (key != null && !org.domi.furnace.api.audience.Sound.isValidKey(key)) throw new IllegalArgumentException("잘못된 소리 이름: " + key);

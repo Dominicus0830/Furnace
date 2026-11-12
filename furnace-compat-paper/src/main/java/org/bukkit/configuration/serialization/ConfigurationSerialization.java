@@ -27,6 +27,9 @@ public class ConfigurationSerialization {
     static {
         registerClass(ItemStack.class);
         registerClass(org.bukkit.craftbukkit.inventory.SerializableMeta.class);
+        registerClass(org.bukkit.Color.class);
+        registerClass(org.bukkit.FireworkEffect.class);
+        registerClass(org.bukkit.attribute.AttributeModifier.class);
     }
 
     private final Class<? extends ConfigurationSerializable> clazz;

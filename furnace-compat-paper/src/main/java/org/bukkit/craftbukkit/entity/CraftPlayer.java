@@ -127,6 +127,58 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
         handle.setGameMode(org.domi.furnace.api.entity.GameMode.valueOf(mode.name()));
     }
 
+    // ---- 소리·입자(H4 묶음 C) — 이 사람에게만. Paper CraftPlayer 처럼 null 인자는 조용히 넘어간다
+
+    @Override
+    public void playSound(org.bukkit.Location loc, org.bukkit.Sound sound, org.bukkit.SoundCategory category, float volume, float pitch, long seed) {
+        if (sound == null) return;
+        playSound(loc, org.domi.furnace.compat.paper.CompatEffects.key(sound), category, volume, pitch, seed);
+    }
+
+    @Override
+    public void playSound(org.bukkit.Location loc, String sound, org.bukkit.SoundCategory category, float volume, float pitch, long seed) {
+        if (loc == null || sound == null || category == null || !handle.isOnline()) return;
+        handle.playSound(org.domi.furnace.compat.paper.CompatEffects.sound(sound, category, volume, pitch), loc.getX(), loc.getY(), loc.getZ(), seed);
+    }
+
+    @Override
+    public void playSound(org.bukkit.entity.Entity entity, org.bukkit.Sound sound, org.bukkit.SoundCategory category, float volume, float pitch, long seed) {
+        if (sound == null) return;
+        playSound(entity, org.domi.furnace.compat.paper.CompatEffects.key(sound), category, volume, pitch, seed);
+    }
+
+    @Override
+    public void playSound(org.bukkit.entity.Entity entity, String sound, org.bukkit.SoundCategory category, float volume, float pitch, long seed) {
+        if (!(entity instanceof CraftEntity ce) || sound == null || category == null || !handle.isOnline()) return;
+        handle.playSound(org.domi.furnace.compat.paper.CompatEffects.sound(sound, category, volume, pitch), ce.furnaceHandle(), seed);
+    }
+
+    /** category 가 null 이면 MASTER(CraftPlayer 와 같다 — 모든 분류가 아니다). */
+    @Override
+    public void stopSound(String sound, org.bukkit.SoundCategory category) {
+        if (!handle.isOnline()) return;
+        org.bukkit.SoundCategory c = category == null ? org.bukkit.SoundCategory.MASTER : category;
+        handle.stopSound(org.domi.furnace.compat.paper.CompatEffects.source(c), sound);
+    }
+
+    @Override
+    public void stopSound(org.bukkit.SoundCategory category) {
+        java.util.Objects.requireNonNull(category, "category");   // CraftPlayer 도 SoundSource.valueOf(category.name()) 에서 NPE
+        if (handle.isOnline()) handle.stopSound(org.domi.furnace.compat.paper.CompatEffects.source(category), null);
+    }
+
+    @Override
+    public void stopAllSounds() {
+        if (handle.isOnline()) handle.stopSound(null, null);
+    }
+
+    @Override
+    public <T> void spawnParticle(org.bukkit.Particle particle, double x, double y, double z, int count, double offsetX, double offsetY, double offsetZ,
+                                  double extra, T data, boolean force) {
+        org.domi.furnace.api.world.ParticleEffect effect = org.domi.furnace.compat.paper.CompatEffects.particle(particle, data);
+        if (handle.isOnline()) handle.spawnParticle(effect, x, y, z, count, offsetX, offsetY, offsetZ, extra, force);
+    }
+
     // ---- 플러그인 메시지
 
     /**

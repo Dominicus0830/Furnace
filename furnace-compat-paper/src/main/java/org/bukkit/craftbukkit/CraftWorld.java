@@ -15,6 +15,7 @@ import org.domi.furnace.api.world.BlockPos;
 import org.domi.furnace.compat.paper.Compat;
 import org.domi.furnace.compat.paper.CompatBlock;
 import org.domi.furnace.compat.paper.CompatChunk;
+import org.domi.furnace.compat.paper.CompatEffects;
 import org.domi.furnace.compat.paper.UnsupportedFeature;
 
 /**
@@ -178,6 +179,66 @@ public final class CraftWorld implements World {
 
     @Override
     public String getGameRuleValue(String rule) { return handle.gameRule(rule); }
+
+    // ---- 소리·입자(H4 묶음 C) — Paper CraftWorld 와 같이 null 인자는 조용히 넘어간다
+
+    @Override
+    public void playSound(org.bukkit.Location location, org.bukkit.Sound sound, org.bukkit.SoundCategory category, float volume, float pitch, long seed) {
+        if (sound == null) return;
+        playSound(location, CompatEffects.key(sound), category, volume, pitch, seed);
+    }
+
+    @Override
+    public void playSound(org.bukkit.Location location, String sound, org.bukkit.SoundCategory category, float volume, float pitch, long seed) {
+        if (location == null || sound == null || category == null) return;
+        handle.playSound(CompatEffects.sound(sound, category, volume, pitch), location.getX(), location.getY(), location.getZ(), seed);
+    }
+
+    @Override
+    public void playSound(org.bukkit.entity.Entity entity, org.bukkit.Sound sound, org.bukkit.SoundCategory category, float volume, float pitch, long seed) {
+        if (sound == null) return;
+        playSound(entity, CompatEffects.key(sound), category, volume, pitch, seed);
+    }
+
+    @Override
+    public void playSound(org.bukkit.entity.Entity entity, String sound, org.bukkit.SoundCategory category, float volume, float pitch, long seed) {
+        if (!(entity instanceof org.bukkit.craftbukkit.entity.CraftEntity ce) || sound == null || category == null) return;
+        org.domi.furnace.api.entity.Entity fe = ce.furnaceHandle();
+        if (!fe.location().world().equals(handle.dimension())) return;   // Paper: 다른 월드의 엔티티면 아무 일도 없다
+        handle.playSound(CompatEffects.sound(sound, category, volume, pitch), fe, seed);
+    }
+
+    @Override
+    public <T> void spawnParticle(org.bukkit.Particle particle, List<Player> receivers, Player source, double x, double y, double z, int count,
+                                  double offsetX, double offsetY, double offsetZ, double extra, T data, boolean force) {
+        org.domi.furnace.api.world.ParticleEffect effect = CompatEffects.particle(particle, data);
+        List<org.domi.furnace.api.entity.Player> to = null;
+        if (receivers != null) {
+            to = new ArrayList<>(receivers.size());
+            for (Player p : receivers) {
+                if (p instanceof org.bukkit.craftbukkit.entity.CraftPlayer cp) to.add(cp.furnaceHandle());
+            }
+        }
+        handle.spawnParticle(effect, to, x, y, z, count, offsetX, offsetY, offsetZ, extra, force);
+    }
+
+    // ---- 바이옴(H4 묶음 C)
+
+    @Override
+    public org.bukkit.block.Biome getBiome(int x, int y, int z) {
+        String key = handle.biomeNow(new BlockPos(x, y, z))
+                .orElseThrow(() -> new UnsupportedFeature("World#getBiome(로드되지 않은 청크)", "Furnace 는 바이옴을 읽으려고 청크를 동기로 불러오지 않는다 — 로드된 청크에서 부른다"));
+        NamespacedKey k = NamespacedKey.fromString(key);
+        org.bukkit.block.Biome b = k == null ? null : org.bukkit.block.Biome.byKey(k);
+        return b != null ? b : org.bukkit.block.Biome.CUSTOM;   // CraftBlock.biomeBaseToBiome: 레지스트리에 없는 바이옴은 CUSTOM
+    }
+
+    @Override
+    public void setBiome(int x, int y, int z, org.bukkit.block.Biome biome) {
+        if (biome == null) throw new IllegalArgumentException("Biome cannot be null");
+        if (biome == org.bukkit.block.Biome.CUSTOM) throw new IllegalArgumentException("Cannot set the biome to CUSTOM");
+        handle.setBiomeNow(new BlockPos(x, y, z), biome.getKey().toString());   // 로드되지 않은 청크면 Paper 처럼 아무 일도 없다
+    }
 
     @Override
     public boolean equals(Object o) { return o instanceof CraftWorld w && w.handle.dimension().equals(handle.dimension()); }

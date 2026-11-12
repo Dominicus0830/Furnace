@@ -812,6 +812,22 @@ public final class Region {
         return col.sections()[((qy << 2) - col.minY()) >> 4].getBiome(x >> 2 & 3, qy & 3, z >> 2 & 3);
     }
 
+    /**
+     * 그 칸이 든 바이옴 칸 하나를 바꾼다(ChunkAccess.setBiome — 높이는 끝 칸으로 죈다). 클라이언트에 다시 보내지 않는다
+     * (Paper CraftWorld.setBiome 과 같다 — 보이려면 청크를 다시 보내야 한다). 청크가 로드돼 있지 않으면 false.
+     */
+    public boolean setNoiseBiomeAtBlock(int x, int y, int z, int biomeId) {
+        world.assertOwns(this);
+        ChunkColumn col = ownedChunk(x >> 4, z >> 4);
+        if (col == null) return false;
+        int minQ = col.minY() >> 2, maxQ = minQ + col.sections().length * 4 - 1;
+        int qy = Math.max(minQ, Math.min(maxQ, y >> 2));
+        col.sections()[((qy << 2) - col.minY()) >> 4].setBiome(x >> 2 & 3, qy & 3, z >> 2 & 3, biomeId);
+        col.markDirty();
+        dirtyChunks.add(new ChunkPos(x >> 4, z >> 4));
+        return true;
+    }
+
     public int biomeIdAtQuart(int qx, int qy, int qz) {
         world.assertOwns(this);
         ChunkColumn col = cachedChunk(qx >> 2, qz >> 2);   // 스폰 시도마다 불린다 — 해시 맵 두 번 대신 레벨 조회 캐시

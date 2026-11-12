@@ -140,6 +140,47 @@ public interface World {
         return CompletableFuture.failedFuture(new UnsupportedOperationException("setBiome"));
     }
 
+    /** {@link #biomeAt} 의 동기 판 — 그 칸을 가진 region 스레드에서만 된다(아니면 ThreadOwnershipException). 높이 밖은 끝 칸으로 죈다. 청크가 없으면 empty. */
+    default Optional<String> biomeNow(BlockPos pos) { throw new UnsupportedOperationException("biomeNow"); }
+
+    /**
+     * 그 칸이 든 4×4×4 바이옴 칸 하나를 바꾸는 동기 판 — 그 칸을 가진 region 스레드에서만 된다(아니면 ThreadOwnershipException). 높이 밖은 끝 칸으로 죈다.
+     * 클라이언트에 다시 보내지 않는다(Paper CraftWorld.setBiome 과 같다). 모르는 키는 IllegalArgumentException, 청크가 없으면 false.
+     */
+    default boolean setBiomeNow(BlockPos pos, String biome) { throw new UnsupportedOperationException("setBiomeNow"); }
+
+    // ------------------------------------------------------------------ 소리·입자
+
+    /**
+     * 그 지점에서 소리를 낸다(바닐라 Level.playSeededSound): 이 차원 접속자 중 크기에 따른 거리(크기 1 이하 16칸, 넘으면 16×크기) 안에 있는 사람에게.
+     * seed 는 소리 변형을 고르는 클라이언트 난수 씨앗. 아무 스레드.
+     */
+    default void playSound(org.domi.furnace.api.audience.Sound sound, double x, double y, double z, long seed) {
+        throw new UnsupportedOperationException("playSound");
+    }
+
+    /** 씨앗을 서버 난수로 정한다. */
+    default void playSound(org.domi.furnace.api.audience.Sound sound, double x, double y, double z) {
+        playSound(sound, x, y, z, java.util.concurrent.ThreadLocalRandom.current().nextLong());
+    }
+
+    /**
+     * 엔티티에 붙어 따라 움직이는 소리(sound_entity). 그 엔티티를 화면에 보고 있는 사람과, 엔티티가 플레이어면 그 자신에게 보낸다
+     * (Paper World#playSound(Entity, …) 와 같다). 엔티티가 이 월드에 없으면 아무 일도 없다. 아무 스레드.
+     */
+    default void playSound(org.domi.furnace.api.audience.Sound sound, org.domi.furnace.api.entity.Entity entity, long seed) {
+        throw new UnsupportedOperationException("playSound");
+    }
+
+    /**
+     * 입자를 낸다(바닐라 ServerLevel.sendParticles): receivers(null 이면 이 차원 접속자 모두) 중 칸 가운데가 그 지점에서 32칸(force 면 512칸)
+     * 미만인 사람에게 한 패킷을 보낸다. 퍼짐·속도는 float 로 줄여 싣는다. 모르는 입자 종류면 IllegalArgumentException. 아무 스레드.
+     */
+    default void spawnParticle(ParticleEffect particle, java.util.Collection<? extends org.domi.furnace.api.entity.Player> receivers,
+                               double x, double y, double z, int count, double offsetX, double offsetY, double offsetZ, double speed, boolean force) {
+        throw new UnsupportedOperationException("spawnParticle");
+    }
+
     // ------------------------------------------------------------------ region 정보
 
     /**
