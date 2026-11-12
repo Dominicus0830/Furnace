@@ -27,9 +27,7 @@ public class YamlConfiguration extends FileConfiguration {
     @Override
     public String saveToString() {
         ConfigSection root = furnaceRoot();
-        // 보관한 직렬화 객체는 set 한 뒤 바뀌었을 수 있다 — Paper 처럼 쓰는 순간의 serialize() 를 쓴다
-        root.forEachAttached(s -> s.replaceChildren(org.domi.furnace.compat.paper.ConfigValues.lowerSerializable(
-                (org.bukkit.configuration.serialization.ConfigurationSerializable) s.attachment())));
+        // 보관한 직렬화 객체(잎)는 ConfigFormat.write 가 쓰는 순간의 serialize() 로 풀어 쓴다 — 트리는 읽기만 한다(Paper 와 같다)
         ConfigSection defaults = root.getDefaults();
         // Paper 는 각 단계 getValues(false) 로 쓴다: 기본값을 데이터로 옮기지 않고, 기본값에만 있는 키가 앞에 온다
         ConfigSection toWrite = options().copyDefaults() && defaults != null ? merged(root, defaults) : root;
@@ -127,6 +125,7 @@ public class YamlConfiguration extends FileConfiguration {
         }
         char sep = options().pathSeparator();
         if (sep != '.') fresh = resplit(fresh, sep);   // Paper 는 읽을 때 구분자가 든 키를 쪼갠다(PR #254 검토 R5)
+        org.domi.furnace.compat.paper.ConfigValues.reviveTree(fresh);   // Paper 는 읽을 때 한 번 되살려 그 참조를 보관한다
         fresh.setDefaults(furnaceRoot().getDefaults());
         furnaceRoot(fresh);
     }

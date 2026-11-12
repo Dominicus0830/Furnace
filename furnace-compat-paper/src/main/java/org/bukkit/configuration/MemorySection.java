@@ -9,7 +9,9 @@ import org.bukkit.configuration.serialization.ConfigurationSerializable;
 import org.bukkit.configuration.serialization.ConfigurationSerialization;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.NumberConversions;
+import org.domi.furnace.compat.paper.ConfigObject;
 import org.domi.furnace.compat.paper.ConfigPaths;
+import org.domi.furnace.compat.paper.ConfigValues;
 import org.domi.furnace.api.config.ConfigSection;
 
 /**
@@ -42,44 +44,10 @@ public class MemorySection implements ConfigurationSection {
     private ConfigurationSection wrap(ConfigSection s) { return new MemorySection(s, this, root); }
 
     private Object out(Object v) {
-        // Paper 는 set 한 객체를 그대로 들고 있다 — 직렬화 객체는 저장 꼴(구역) 위에 원래 객체를 붙여 두고 돌려준다
-        if (v instanceof ConfigSection s) return s.attachment() != null ? s.attachment() : isSerialized(s) ? revive(s.toMap()) : wrap(s);
-        if (v instanceof List<?> l) {
-            boolean convert = false;
-            for (Object o : l) if (o instanceof ConfigSection) { convert = true; break; }
-            if (!convert) return v;
-            List<Object> r = new ArrayList<>(l.size());
-            for (Object o : l) r.add(o instanceof ConfigSection s ? revive(s.toMap()) : o);
-            return r;
-        }
-        return v;
-    }
-
-    /** 별칭(==)이 등록된 ConfigurationSerializable 로 저장된 구역인가 — Bukkit 에서는 구역이 아니라 객체다. */
-    private static boolean isSerialized(ConfigSection s) {
-        if (s.attachment() != null) return true;
-        return s.get(ConfigurationSerialization.SERIALIZED_TYPE_KEY) instanceof String alias && ConfigurationSerialization.getClassByAlias(alias) != null;
-    }
-
-    /**
-     * 맵 → 값: 안쪽 맵·리스트부터 되읽고, 별칭이 등록된 {@code ==} 맵은 ConfigurationSerializable 로 되읽는다(Bukkit 의 YAML 읽기와 같은 순서).
-     * 되읽지 못하면(별칭을 모르거나 되읽기가 null) 맵 그대로 둔다.
-     */
-    private static Object revive(Object v) {
-        if (v instanceof Map<?, ?> m) {
-            Map<String, Object> plain = new LinkedHashMap<>();
-            for (var e : m.entrySet()) plain.put(String.valueOf(e.getKey()), revive(e.getValue()));
-            if (plain.get(ConfigurationSerialization.SERIALIZED_TYPE_KEY) instanceof String alias && ConfigurationSerialization.getClassByAlias(alias) != null) {
-                ConfigurationSerializable obj = ConfigurationSerialization.deserializeObject(plain);
-                if (obj != null) return obj;
-            }
-            return plain;
-        }
-        if (v instanceof List<?> l) {
-            List<Object> out = new ArrayList<>(l.size());
-            for (Object o : l) out.add(revive(o));
-            return out;
-        }
+        // 직렬화 객체는 트리의 잎이다 — 넣은 객체(읽어 온 것은 읽을 때 되살린 객체) 그 참조를 돌려준다(Paper MemorySection 과 같다)
+        if (v instanceof ConfigObject o) return o.value();
+        if (v instanceof ConfigSection s) return wrap(s);
+        if (v instanceof List<?> l) return ConfigValues.needsOut(l) ? ConfigValues.plainOut(l) : v;
         return v;
     }
 
@@ -255,27 +223,8 @@ public class MemorySection implements ConfigurationSection {
 
     @Override
     public void set(String path, Object value) {
-        if (value != null) replaceObjectAncestors(path);
+        // 직렬화 객체는 잎으로 참조를 보관한다(Paper MemorySection.set 과 같다) — serialize() 는 쓸 때만 부른다
         dSet(path, value == null ? null : in(value));
-        // 직렬화 객체는 그 참조를 보관한다(Paper MemorySection.set 과 같다). 저장 꼴은 YAML 로 쓸 때 객체에서 다시 만든다.
-        if (value instanceof ConfigurationSerializable c && !(value instanceof ConfigurationSection) && dGet(path) instanceof ConfigSection stored) stored.attach(c);
-    }
-
-    /**
-     * path 의 중간 단계가 보관 중인 객체면 새 구역으로 바꾼다 — Paper set("a.b", x) 는 a 가 구역이 아니면(객체여도) 구역을 새로 만든다.
-     */
-    private void replaceObjectAncestors(String path) {
-        if (path.indexOf(sep()) < 0) return;
-        List<String> keys = parse(path).keys();
-        StringBuilder prefix = new StringBuilder();
-        for (int i = 0; i < keys.size() - 1; i++) {
-            if (i > 0) prefix.append(sep());
-            prefix.append(keys.get(i));
-            if (dGet(prefix.toString()) instanceof ConfigSection s && s.attachment() != null) {
-                dSet(prefix.toString(), new ConfigSection());
-                return;
-            }
-        }
     }
 
     @Override
@@ -483,11 +432,11 @@ public class MemorySection implements ConfigurationSection {
 
     @Override
     public ConfigurationSection getConfigurationSection(String path) {
-        return dGet(path) instanceof ConfigSection s && !isSerialized(s) ? wrap(s) : null;
+        return dGet(path) instanceof ConfigSection s ? wrap(s) : null;
     }
 
     @Override
-    public boolean isConfigurationSection(String path) { return dGet(path) instanceof ConfigSection s && !isSerialized(s); }
+    public boolean isConfigurationSection(String path) { return dGet(path) instanceof ConfigSection; }
 
     // ------------------------------------------------------------------ 직렬화 객체
 
