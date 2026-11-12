@@ -776,6 +776,15 @@ public final class World {
 
     public org.domi.furnace.server.entity.EntityIdAllocator entityIds() { return entityIds; }
 
+    /**
+     * 이 월드(차원)에 있는 엔티티의 id → 엔티티 색인(ServerLevel#getEntity(int) 용). 레벨이 엔티티를 넣고 뺄 때 같이 고친다 —
+     * region 사이를 넘어가는 중에도 남는다. 어느 스레드에서나 읽을 수 있지만 엔티티 상태는 소유 region 스레드에서만 만진다.
+     * 플레이어는 들어 있지 않다(엔티티 저장소에 없다).
+     */
+    public java.util.concurrent.ConcurrentMap<Integer, org.domi.furnace.server.entity.Entity> entityIndex() { return entityIndex; }
+
+    private final java.util.concurrent.ConcurrentMap<Integer, org.domi.furnace.server.entity.Entity> entityIndex = new java.util.concurrent.ConcurrentHashMap<>();
+
     public void entityIds(org.domi.furnace.server.entity.EntityIdAllocator a) { this.entityIds = a; }
 
     public void configurePersistence(int autosaveTicks, int graceTicks) {

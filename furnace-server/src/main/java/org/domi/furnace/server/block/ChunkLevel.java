@@ -2107,8 +2107,12 @@ public abstract class ChunkLevel implements BlockLevel {
         }
         startTracking(e);
         for (var l : e.dynamicGameEventListeners()) l.add(this);
+        indexEntity(e, true);
         return true;
     }
+
+    /** id → 엔티티 색인(월드마다 하나, 어느 스레드에서나 읽는다)에 넣거나 뺀다. 색인이 없는 레벨(시험 레벨)은 아무것도 안 한다. */
+    protected void indexEntity(Entity e, boolean add) {}
 
     /** tryAddFreshEntityWithPassengers: 승객의 승객까지 하나라도 UUID 가 겹치면 아무것도 넣지 않는다. */
     public boolean addFreshEntityWithPassengers(Entity e) {
@@ -2154,13 +2158,18 @@ public abstract class ChunkLevel implements BlockLevel {
     public void adoptEntity(Entity e) {
         if (e.isRemoved()) return;
         e.setLevel(this);
-        if (!entities.add(e)) return;
+        if (!entities.add(e)) {
+            if (!entities.contains(e)) indexEntity(e, false);   // 같은 UUID 가 이미 있어 못 받았다 — 색인에 유령을 남기지 않는다
+            return;
+        }
         if (e.tracker == null) startTracking(e);
         for (var l : e.dynamicGameEventListeners()) l.add(this);
+        indexEntity(e, true);
     }
 
     /** 엔티티가 지워졌다(setRemoved) — 저장소에서 빼고 보는 사람에게 지운다. */
     public void entityRemoved(Entity e) {
+        indexEntity(e, false);   // region 사이를 넘어가는 중(저장소에서만 빠진 상태)에 지워져도 색인이 남지 않게 먼저
         if (!entities.remove(e)) return;
         for (var l : e.dynamicGameEventListeners()) l.remove(this);
         if (e.tracker != null) {

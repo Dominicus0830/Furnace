@@ -113,6 +113,28 @@ public interface World {
     /** nearbyEntities 의 동기판 — center 칸을 가진 region 스레드에서만(아니면 ThreadOwnershipException), 곧바로 목록을 돌려준다. 청크가 로드돼 있지 않으면 빈 목록. */
     default List<Entity> nearbyEntitiesNow(Location center, double radius) { throw new UnsupportedOperationException("nearbyEntitiesNow"); }
 
+    /**
+     * 네트워크 엔티티 id({@link Entity#entityId()}, 패킷이 엔티티를 가리키는 번호)로 이 월드의 엔티티나 플레이어를 찾는다(Paper 의
+     * ServerLevel#getEntity(int)). 그 엔티티를 가진 region 에서 읽은 새 핸들로 완료하고, 없거나 다른 월드에 있거나 사라졌으면 empty.
+     * 엔티티가 region 을 옮겨 가는 도중이면 몇 번 다시 찾는다. 아무 스레드.
+     */
+    default CompletableFuture<Optional<Entity>> entityById(int entityId) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("entityById"));
+    }
+
+    /**
+     * 그 id 의 엔티티·플레이어 UUID(없으면 empty). 엔티티 상태는 읽지 않고 id → UUID 만 보므로 어느 스레드에서나 기다림 없이 된다 —
+     * 호환 계층이 이미 아는 Bukkit 객체를 소유 스레드가 아닌 곳에서도 곧바로 돌려줄 때 쓴다.
+     */
+    default Optional<java.util.UUID> entityUuidById(int entityId) { throw new UnsupportedOperationException("entityUuidById"); }
+
+    /**
+     * entityById 의 동기판 — 그 엔티티를 가진 region 스레드에서만(옛 동기 작업의 빌림 구간 포함, 아니면
+     * {@link org.domi.furnace.api.concurrent.ThreadOwnershipException}) 곧바로 핸들을 돌려준다. 없으면 empty.
+     * 플레이어는 어느 스레드에서나 된다.
+     */
+    default Optional<Entity> entityByIdNow(int entityId) { throw new UnsupportedOperationException("entityByIdNow"); }
+
     // ------------------------------------------------------------------ 블록 칸
 
     /**

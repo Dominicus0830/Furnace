@@ -188,6 +188,9 @@ public final class ProfiledScheduling {
 
             @Override
             public TaskScheduler region(RegionPos pos) { return wrap(s.region(pos)); }
+
+            @Override
+            public boolean isTickThread() { return s.isTickThread(); }
         };
     }
 

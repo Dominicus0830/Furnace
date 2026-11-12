@@ -39,6 +39,8 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     private final int entityId;
     private final String type;
     private final Location location;
+    /** 머리 방향(살아 있는 몹은 몸과 다를 수 있다, 그 밖은 몸 방향). */
+    private final float headYaw;
     private final Text customName;
     private final boolean valid;
     private final EntityTasks tasks;
@@ -60,6 +62,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         this.entityId = e.id();
         this.type = e.type().name();
         this.location = new Location(e.dimensionKey(), e.x(), e.y(), e.z(), e.yRot(), e.xRot());
+        this.headYaw = e instanceof LivingEntity le ? le.yHeadRot() : e.yRot();
         this.customName = e.hasCustomName() ? e.getCustomName() : null;
         this.valid = !e.isRemoved();
         this.tasks = e.apiTasks();
@@ -104,6 +107,9 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
 
     @Override
     public Location location() { return location; }
+
+    @Override
+    public float headYaw() { return headYaw; }
 
     @Override
     public Text customName() { return customName; }

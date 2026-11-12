@@ -29,8 +29,14 @@ public interface Entity {
     /** 종류 키(minecraft:zombie, minecraft:player). 불변. */
     String type();
 
-    /** 핸들을 만든 시점의 위치. */
+    /** 핸들을 만든 시점의 위치. yaw 는 몸 방향이다(살아 있는 몹은 머리와 다를 수 있다 — {@link #headYaw()}). */
     Location location();
+
+    /**
+     * 핸들을 만든 시점의 머리 방향(yaw, 도). 살아 있는 몹은 시선을 따로 돌려 몸 방향({@code location().yaw()})과 다를 수 있고,
+     * 그 밖의 엔티티·플레이어는 몸 방향과 같다. Bukkit/Paper 의 {@code getLocation().getYaw()} 가 살아 있는 엔티티에서 이 값이다.
+     */
+    default float headYaw() { return location().yaw(); }
 
     /** 핸들을 만든 시점의 사용자 지정 이름(없으면 null). */
     Text customName();
