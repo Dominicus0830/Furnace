@@ -5,7 +5,8 @@
 //   });
 //   player.sendPacket(GenericPacket.of(PacketTypes.Clientbound.SET_CAMERA).with("camera_id", npcId));
 //
-// 필드 이름은 바닐라(Mojang) 필드 이름을 snake_case 로 바꾼 것이고, 순서는 바닐라 필드 순서다. 종류마다 필드는 PacketService.fields(type).
+// 필드 이름은 바닐라(Mojang) 필드 이름을 snake_case 로 바꾼 것이고, 순서는 바닐라 필드 순서다(비트 묶음·조건부 와이어인 종류는 와이어 순서 —
+// 비트 묶음은 Boolean 필드 여럿, 조건부 부분은 Optional<PacketStruct>; docs/api/packets.md "손 코덱 종류"). 종류마다 필드는 PacketService.fields(type).
 // 값 종류(버전 중립):
 //   int·long·short·byte·float·double·boolean 필드 → Integer·Long·Short·Byte·Float·Double·Boolean(바닐라 필드에 담긴 단위 그대로 —
 //     회전은 1/256 바퀴 byte, 속도는 1/8000 블록/틱 정수. 단위를 바꾼 편의 값은 타입 레코드가 준다)
@@ -13,7 +14,8 @@
 //   BlockPos → BlockPos, GlobalPos → GlobalPos, BlockState → BlockData, ItemStack → ItemStack, CompoundTag → NbtCompound,
 //   아이템·블록·엔티티 종류·메뉴 종류·효과 등 레지스트리 값 → 이름 문자열("minecraft:stone"),
 //   enum → 바닐라 상수 이름 문자열("MAIN_HAND"), byte[]·int[]·long[] → 배열, List·Set → List, Optional·없을 수 있는 값 → Optional,
-//   패킷 안 내포 구조 → PacketStruct, ChunkPos·SectionPos → 바닐라가 쓰는 묶은 long.
+//   패킷 안 내포 구조 → PacketStruct, ChunkPos·SectionPos → 바닐라가 쓰는 묶은 long, Vec3 → PacketStruct{x, y, z}(Double),
+//   NumberFormat → PacketStruct{type:"minecraft:blank"|"minecraft:styled"(+ style NbtCompound)|"minecraft:fixed"(+ value Text)}.
 //
 // readable() 이 false 면 서버가 이 버전에서 내용을 풀지 못하는 종류다(손으로 다뤄야 하는 와이어 등) — 관찰·취소만 된다.
 // 어떤 종류가 읽히는지는 PacketService.isReadable(type).

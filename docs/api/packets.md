@@ -92,10 +92,38 @@ packets.send(player, GenericPacket.of(PacketTypes.Clientbound.SET_BORDER_WARNING
   필드마다 더 작은 상한(리소스 팩 hash 40자 등)은 아직 검사하지 않는다. 바닐라가 `Set` 인 필드(`login` 의 `levels`)는 같은 값을 두 번 넣으면 거부한다.
 - 읽을 수 있는 종류라도 패킷 하나가 디코드에 실패하면(클라이언트가 보낸 잘못된 패킷, 고정 범위가 있는 직접 정의 소리 등) 그 패킷만 `readable()` false 로 리스너에 간다.
 - 값은 넣고 꺼낼 때 복사된다(배열·`NbtCompound` — 목록·`Optional` 안에 있어도). 꺼낸 값을 바꿔도 패킷은 그대로다.
-- **1.21.1 에서 읽는 종류 102개**(서버→클라 69, 클라→서버 33). 와이어가 필드 나열로 떨어지지 않는 종류(스키마의 `custom` — 입자·청크·명령 트리·이동·팀 등)와
-  아직 모르는 값(`number_format`·채팅 서명·상인 거래·태그 묶음 등) 43개는 `readable()` false 로 관찰·취소만 된다(E4b 에서 늘린다).
+- **1.21.1 에서 읽는 종류 122개**(서버→클라 83, 클라→서버 39). 필드 나열 104개 + 손 코덱 18개(아래 "손 코덱 종류"). 나머지 23개(입자·청크·빛·명령 트리·
+  레시피·발전 과제·태그 묶음·채팅 서명·상인 거래·보스바·팀·속성·통계·지도 등)는 `readable()` false 로 관찰·취소만 된다(E4b-2 에서 늘린다).
 - 필드 목록은 중립 스키마(`furnace-api/.../packet/schema/protocol-767.schema`) 하나에서 나온다 — NMS 호환 계층의 패킷 shim 과 같은 파일이다.
-- 와이어 확인: 서버가 실제로 보내는 26종은 바이트 왕복 시험(`GenericPacketRoundTripTest`), 나머지는 바닐라 jar 바이트코드와 하나씩 대조했다(`docs/feature-parity/context-notes/2026-11-12-easy-nms-e4a.md`).
+- 와이어 확인: 서버가 실제로 보내는 종류는 바이트 왕복 시험(`GenericPacketRoundTripTest`), 나머지는 바닐라 jar 바이트코드와 하나씩 대조했다(`docs/feature-parity/context-notes/2026-11-12-easy-nms-e4a.md`).
+  손 코덱 종류는 바닐라 jar 의 패킷 코덱을 직접 돌려 같은 바이트를 확인했다(`2026-11-12-easy-nms-e4b.md`).
+
+### 손 코덱 종류 (E4b, 2026-11-12)
+
+바닐라가 비트 묶음·조건부·순서를 바꿔 쓰는 종류(스키마 `custom`). 이름은 같은 snake_case 규칙이고, **필드 순서는 와이어 순서**다. 비트 묶음 바이트는 `Boolean` 필드 여럿으로,
+조건이 있어야 나가는 부분은 `Optional<PacketStruct>` 로 나뉜다.
+
+| 종류 | 필드 (와이어 순서) |
+|---|---|
+| `player_abilities`(→클라) | `invulnerable`·`is_flying`·`can_fly`·`instabuild`(비트 1·2·4·8) `flying_speed`·`walking_speed` |
+| `set_experience` | `experience_progress` `experience_level` `total_experience` |
+| `stop_sound` | `source` `Optional<String>`(SoundSource) · `name` `Optional<String>` |
+| `player_look_at` | `from_anchor` `x` `y` `z` · `at_entity` `Optional<{entity, to_anchor}>` |
+| `player_position` | `x` `y` `z` `y_rot` `x_rot` · `relative_arguments` `List<String>`(`X`·`Y`·`Z`·`Y_ROT`·`X_ROT`, 비트 집합) · `id` |
+| `move_entity_pos` / `_pos_rot` / `_rot` | `entity_id` (`xa` `ya` `za` Short) (`y_rot` `x_rot` Byte) `on_ground` — 종류에 있는 것만 |
+| `set_objective` | `objective_name` · `method`(0 추가·1 제거·2 바꿈) · `parameters` `Optional<{display_name, render_type, number_format}>` — method 0·2 일 때만 있다 |
+| `set_equipment` | `entity` · `slots` `List<{slot, item}>`(EquipmentSlot 이름, 빈 목록은 못 보낸다 — 바닐라가 적어도 한 칸을 읽는다) |
+| `section_blocks_update` | `section_pos` `Long` · `positions` `List<Short>`(구역 안 `x<<8 \| z<<4 \| y`, 0~4095) · `states` `List<BlockData>`(같은 길이) |
+| `damage_event` | `entity_id` `source_type`(damage_type 이름) `source_cause_id` `source_direct_id`(-1 = 없음) `source_position` `Optional<{x,y,z}>` |
+| `player_abilities`(→서버) | `is_flying` |
+| `player_input` | `xxa` `zza` `is_jumping` `is_shift_key_down` |
+| `seen_advancements` | `action` · `tab` `Optional<String>` — `OPENED_TAB` 일 때만 있다 |
+| `set_command_block` | `pos` `command` `mode` `track_output` `conditional` `automatic` |
+| `set_structure_block` | `pos` `update_type` `mode` `name` `offset` `size`(좌표마다 i8 인 `BlockPos`) `mirror` `rotation` `data` `integrity` `seed` `ignore_entities` `show_air` `show_bounding_box` |
+| `container_click` | `container_id` `state_id` `slot_num` `button_num` `click_type` · `changed_slots` `List<{slot, item}>`(128칸까지, 같은 칸 두 번 안 됨) · `carried_item` |
+
+숫자 형식(`set_objective`·`set_score` 의 `number_format`)은 `{type:"minecraft:blank"}`·`{type:"minecraft:styled", style:<스타일 NbtCompound>}`·
+`{type:"minecraft:fixed", value:<Text>}`, 바닐라 `Vec3` 은 `{x, y, z}`(`Double`). `block_entity_data` 의 `type` 은 블록 엔티티 종류 이름(`"minecraft:sign"`).
 
 ### 예전 코드에서 바뀐 점 (E4a)
 
@@ -191,12 +219,12 @@ packets.sendBundle(player, List.of(
 
 ## 다음에 더할 것
 
-장비(`set_equipment`), 입자(`level_particles` — 값은 이미 있는 `Particle`), 상대 이동(`move_entity_*`), 블록 여러 칸(`section_blocks_update`). 래퍼가 늘면 `GenericPacket` 이던 종류가 타입 래퍼로 바뀐다(E5) — 그때도 `GenericPacket` 으로 볼 길을 둔다(D5: API 는 semver).
+타입 래퍼: 장비(`set_equipment`), 입자(`level_particles` — 값은 이미 있는 `Particle`), 상대 이동(`move_entity_*`), 블록 여러 칸(`section_blocks_update`). 래퍼가 늘면 `GenericPacket` 이던 종류가 타입 래퍼로 바뀐다(E5) — 그때도 `GenericPacket` 으로 볼 길을 둔다(D5: API 는 semver).
 
 ## 서버 구현 위치
 
 - API: `furnace-api/.../api/packet/`(+ `entity/Hand`, `world/BlockFace`, `world/SoundCategory`).
-- 구현: `furnace-server/.../plugin/packet/` — `PacketServiceImpl`(등록·연결별 `Tap`), `ProtocolCodec`(버전 계층 인터페이스), `Protocol767`(1.21.1 id 표·코덱; id 순서는 바닐라 `GameProtocols` 등록 순서를 바이트코드로 확인), `NetworkText`(네트워크 NBT ↔ `Text`), `GenericCodec767`(스키마로 `GenericPacket` 읽고 쓰기).
+- 구현: `furnace-server/.../plugin/packet/` — `PacketServiceImpl`(등록·연결별 `Tap`), `ProtocolCodec`(버전 계층 인터페이스), `Protocol767`(1.21.1 id 표·코덱; id 순서는 바닐라 `GameProtocols` 등록 순서를 바이트코드로 확인), `NetworkText`(네트워크 NBT ↔ `Text`), `GenericCodec767`(스키마로 `GenericPacket` 읽고 쓰기), `GenericHand767`(custom 종류 손 코덱).
 - 연결 지점: 나가는 쪽은 `SharedChunkFrames.encode`(모든 play 송신이 지나는 곳), 들어오는 쪽은 `ConnectionHandler.dispatchPlay`. 플레이어가 play 에 들어올 때 채널 속성 `PacketTap.KEY` 로 붙는다. `receive` 는 `ConnectionHandler.injectPlay` 로 이벤트 루프에 넣는다.
 - 새 MC 버전 지원: `ProtocolCodec` 구현을 하나 더 만들고 `PluginHost` 에서 고른다. API 타입은 바꾸지 않는다.
 - 시험: `PacketApiTest`(id 표·왕복·가로채기), `PacketApiFlowTest`(실제 연결에서 바꾸기·취소·receive), `GenericPacketTest`(범용 코덱 고정 바이트·검사), furnace-test `GenericPacketRoundTripTest`(서버가 보낸 바이트 왕복), `furnace-api` 의 `PacketTypesTest`·`GenericPacketApiTest`.

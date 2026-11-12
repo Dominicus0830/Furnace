@@ -1,0 +1,201 @@
+// E4b 손 코덱: 비트 묶음·조건부·순서 다른 와이어 종류. 고정 바이트는 바닐라 1.21.1 jar 의 패킷 코덱으로 읽고 다시 써서 같은 것을 확인한 값이다
+// (방법: docs/feature-parity/context-notes/2026-11-12-easy-nms-e4b.md). 서버가 실제로 보낸 프레임 왕복은 furnace-test GenericPacketRoundTripTest.
+package org.domi.furnace.server.plugin;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
+import io.netty.buffer.Unpooled;
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Optional;
+import org.domi.furnace.api.item.ItemStack;
+import org.domi.furnace.api.nbt.NbtCompound;
+import org.domi.furnace.api.packet.GenericPacket;
+import org.domi.furnace.api.packet.PacketField;
+import org.domi.furnace.api.packet.PacketStruct;
+import org.domi.furnace.api.packet.PacketType;
+import org.domi.furnace.api.packet.PacketTypes.Clientbound;
+import org.domi.furnace.api.packet.PacketTypes.Serverbound;
+import org.domi.furnace.api.text.Text;
+import org.domi.furnace.api.world.BlockData;
+import org.domi.furnace.api.world.BlockPos;
+import org.domi.furnace.server.ServerCore;
+import org.domi.furnace.server.TestServers;
+import org.domi.furnace.server.plugin.packet.ProtocolCodec;
+import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+class GenericHandPacketTest {
+
+    @TempDir Path tmp;
+    private FurnaceSchedulerImpl sched;
+    private ServerCore core;
+    private ProtocolCodec codec;
+
+    @BeforeEach
+    void setUp() {
+        sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        core = TestServers.core(tmp, sched);
+        codec = core.plugins().packetsImpl().codec();
+    }
+
+    @AfterEach
+    void tearDown() throws Exception {
+        core.plugins().close();
+        sched.close();
+        TestServers.drainIoPools();
+    }
+
+    private static PacketStruct s(Object... kv) {
+        LinkedHashMap<String, Object> m = new LinkedHashMap<>();
+        for (int i = 0; i < kv.length; i += 2) m.put((String) kv[i], kv[i + 1]);
+        return PacketStruct.of(m);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static GenericPacket g(PacketType<?> t, Object... kv) { return GenericPacket.of((PacketType<GenericPacket>) t, s(kv)); }
+
+    private String body(GenericPacket p) {
+        ByteBuf b = Unpooled.buffer();
+        codec.encode(p, b);
+        return ByteBufUtil.hexDump(b);
+    }
+
+    /** 바닐라와 같은 바이트로 쓰고, 그 바이트를 읽으면 같은 패킷. */
+    private void vanilla(String hex, GenericPacket p) {
+        assertEquals(hex, body(p), p.type().toString());
+        assertEquals(p, codec.decode(p.type(), codec.ids(p.type())[0], Unpooled.wrappedBuffer(ByteBufUtil.decodeHexDump(hex))), p.type().toString());
+    }
+
+    @Test
+    void flagBytesAndWireOrder() {
+        vanilla("0d3d4ccccd3dcccccd", g(Clientbound.PLAYER_ABILITIES, "invulnerable", true, "is_flying", false, "can_fly", true, "instabuild", true,
+                "flying_speed", 0.05f, "walking_speed", 0.1f));
+        // 와이어 순서(진행도, 레벨, 총량)가 바닐라 필드 순서(진행도, 총량, 레벨)와 달라 필드도 와이어 순서다
+        vanilla("3f0000001ef30a", g(Clientbound.SET_EXPERIENCE, "experience_progress", 0.5f, "experience_level", 30, "total_experience", 1395));
+        assertEquals(List.of(PacketField.of("experience_progress", Float.class), PacketField.of("experience_level", Integer.class),
+                PacketField.of("total_experience", Integer.class)), core.plugins().packets().fields(Clientbound.SET_EXPERIENCE));
+        vanilla("02", g(Serverbound.PLAYER_ABILITIES, "is_flying", true));
+        vanilla("3f7ae148bf00000003", g(Serverbound.PLAYER_INPUT, "xxa", 0.98f, "zza", -0.5f, "is_jumping", true, "is_shift_key_down", true));
+        vanilla("000000c000005004067361792068690205", g(Serverbound.SET_COMMAND_BLOCK, "pos", new BlockPos(3, 4, 5), "command", "say hi", "mode", "REDSTONE",
+                "track_output", true, "conditional", false, "automatic", true));
+        vanilla("000000c00000500403020f6d696e6563726166743a686f757365fd0030300100020301783f00000094b4e4f4cb0305",
+                g(Serverbound.SET_STRUCTURE_BLOCK, "pos", new BlockPos(3, 4, 5), "update_type", "SCAN_AREA", "mode", "CORNER", "name", "minecraft:house",
+                        "offset", new BlockPos(-3, 0, 48), "size", new BlockPos(48, 1, 0), "mirror", "FRONT_BACK", "rotation", "COUNTERCLOCKWISE_90", "data", "x",
+                        "integrity", 0.5f, "seed", 123456789012L, "ignore_entities", true, "show_air", false, "show_bounding_box", true));
+        vanilla("ac020001fffe0003804000", g(Clientbound.MOVE_ENTITY_POS_ROT, "entity_id", 300, "xa", (short) 1, "ya", (short) -2, "za", (short) 3,
+                "y_rot", (byte) -128, "x_rot", (byte) 64, "on_ground", false));
+        vanilla("3ff00000000000004050000000000000c00c00000000000042b40000c12000001505", g(Clientbound.PLAYER_POSITION, "x", 1.0, "y", 64.0, "z", -3.5,
+                "y_rot", 90f, "x_rot", -10f, "relative_arguments", List.of("X", "Z", "X_ROT"), "id", 5));
+    }
+
+    @Test
+    void conditionalParts() {
+        vanilla("03051c6d696e6563726166743a656e746974792e7069672e616d6269656e74",
+                g(Clientbound.STOP_SOUND, "source", Optional.of("HOSTILE"), "name", Optional.of("minecraft:entity.pig.ambient")));
+        vanilla("020d6d79706c7567696e3a626f6f6d", g(Clientbound.STOP_SOUND, "source", Optional.empty(), "name", Optional.of("myplugin:boom")));
+        vanilla("0109", g(Clientbound.STOP_SOUND, "source", Optional.of("VOICE"), "name", Optional.empty()));
+        vanilla("00", g(Clientbound.STOP_SOUND, "source", Optional.empty(), "name", Optional.empty()));
+        vanilla("013ff000000000000040000000000000004008000000000000014d00", g(Clientbound.PLAYER_LOOK_AT, "from_anchor", "EYES", "x", 1.0, "y", 2.0, "z", 3.0,
+                "at_entity", Optional.of(s("entity", 77, "to_anchor", "FEET"))));
+        vanilla("00146d696e6563726166743a73746f72792f726f6f74",
+                g(Serverbound.SEEN_ADVANCEMENTS, "action", "OPENED_TAB", "tab", Optional.of("minecraft:story/root")));
+        vanilla("01", g(Serverbound.SEEN_ADVANCEMENTS, "action", "CLOSED_SCREEN", "tab", Optional.empty()));
+        vanilla("036f626a01", g(Clientbound.SET_OBJECTIVE, "objective_name", "obj", "method", 1, "parameters", Optional.empty()));
+        vanilla("036f626a020800024869000100", g(Clientbound.SET_OBJECTIVE, "objective_name", "obj", "method", 2,
+                "parameters", Optional.of(s("display_name", Text.text("Hi"), "render_type", "INTEGER", "number_format", Optional.of(s("type", "minecraft:blank"))))));
+        vanilla("0509000000", g(Clientbound.DAMAGE_EVENT, "entity_id", 5, "source_type", "minecraft:fall", "source_cause_id", -1, "source_direct_id", -1,
+                "source_position", Optional.empty()));
+        vanilla("05000809013ff8000000000000c000000000000000400a000000000000", g(Clientbound.DAMAGE_EVENT, "entity_id", 5, "source_type", "minecraft:arrow",
+                "source_cause_id", 7, "source_direct_id", 8, "source_position", Optional.of(s("x", 1.5, "y", -2.0, "z", 3.25))));
+    }
+
+    @Test
+    void numberFormatsAndBlockEntityTypes() {
+        NbtCompound style = new NbtCompound().put("color", "red").put("bold", (byte) 1);
+        vanilla("036f626a0208000248690001010a080005636f6c6f720003726564010004626f6c640100", g(Clientbound.SET_OBJECTIVE, "objective_name", "obj", "method", 2,
+                "parameters", Optional.of(s("display_name", Text.text("Hi"), "render_type", "INTEGER",
+                        "number_format", Optional.of(s("type", "minecraft:styled", "style", style))))));
+        vanilla("055374657665036f626a0701080002486901020800024869", g(Clientbound.SET_SCORE, "owner", "Steve", "objective_name", "obj", "score", 7,
+                "display", Optional.of(Text.text("Hi")), "number_format", Optional.of(s("type", "minecraft:fixed", "value", Text.text("Hi")))));
+        vanilla("0000004000009ffb2b0a00", g(Clientbound.BLOCK_ENTITY_DATA, "pos", new BlockPos(1, -5, 9), "type", "minecraft:vault", "tag", new NbtCompound()));
+        // 이름공간 없는 형식 이름은 minecraft: 로 읽힌다
+        var blank = g(Clientbound.SET_SCORE, "owner", "a", "objective_name", "o", "score", 1, "display", Optional.empty(),
+                "number_format", Optional.of(s("type", "blank")));
+        assertTrue(body(blank).endsWith("00" + "01" + "00"), "표시 없음, 형식 있음, blank = 0");
+        var e = assertThrows(IllegalArgumentException.class, () -> body(blank.with("number_format", Optional.of(s("type", "minecraft:fixed")))));
+        assertTrue(e.getMessage().contains("[type, value]"), e.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> body(blank.with("number_format", Optional.of(s("type", "minecraft:rainbow")))));
+        assertThrows(IllegalArgumentException.class, () -> body(g(Clientbound.BLOCK_ENTITY_DATA, "pos", new BlockPos(0, 0, 0), "type", "minecraft:oven",
+                "tag", new NbtCompound())));
+    }
+
+    @Test
+    void listsWithTheirOwnWire() {
+        ItemStack dia = new ItemStack("minecraft:diamond", 3);
+        String diaHex = body(g(Clientbound.SET_EQUIPMENT, "entity", 9, "slots", List.of(s("slot", "OFFHAND", "item", dia)))).substring(4);
+        vanilla("0901" + diaHex, g(Clientbound.SET_EQUIPMENT, "entity", 9, "slots", List.of(s("slot", "OFFHAND", "item", dia))));
+        var three = g(Clientbound.SET_EQUIPMENT, "entity", 9, "slots", List.of(s("slot", "MAINHAND", "item", dia), s("slot", "BODY", "item", ItemStack.EMPTY),
+                s("slot", "HEAD", "item", new ItemStack("minecraft:diamond_helmet", 1))));
+        String h = body(three);
+        assertTrue(h.startsWith("0980" + diaHex + "8600" + "05"), "뒤에 더 있으면 0x80, 마지막은 없음: " + h);
+        assertEquals(three, codec.decode(three.type(), codec.ids(three.type())[0], Unpooled.wrappedBuffer(ByteBufUtil.decodeHexDump(h))));
+
+        var blocks = g(Clientbound.SECTION_BLOCKS_UPDATE, "section_pos", 0x123456789L, "positions", List.of((short) 0, (short) 4095, (short) 0x123),
+                "states", List.of(BlockData.of("minecraft:stone"), BlockData.AIR, BlockData.of("minecraft:oak_log").with("axis", "z")));
+        vanilla("0000000123456789038020ff1fa38221", blocks);
+
+        vanilla("039003fc19010601000503a506000000", g(Serverbound.CONTAINER_CLICK, "container_id", 3, "state_id", 400, "slot_num", -999,
+                "button_num", 1, "click_type", "PICKUP_ALL", "changed_slots", List.of(s("slot", 5, "item", dia)), "carried_item", ItemStack.EMPTY));
+        vanilla("0001002400010003a5060000", g(Serverbound.CONTAINER_CLICK, "container_id", 0, "state_id", 1, "slot_num", 36, "button_num", 0,
+                "click_type", "QUICK_MOVE", "changed_slots", List.of(), "carried_item", dia));
+    }
+
+    @Test
+    void shapesVanillaCannotSendAreRefused() {
+        ItemStack dia = new ItemStack("minecraft:diamond", 1);
+        var eq = g(Clientbound.SET_EQUIPMENT, "entity", 1, "slots", List.of());
+        var e = assertThrows(IllegalArgumentException.class, () -> body(eq));
+        assertTrue(e.getMessage().contains("slots"), e.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> body(eq.with("slots", List.of(s("slot", "TAIL", "item", dia)))));
+        assertThrows(IllegalArgumentException.class, () -> body(eq.with("slots", List.of(s("slot", "HEAD")))));
+
+        var obj = g(Clientbound.SET_OBJECTIVE, "objective_name", "o", "method", 1, "parameters", Optional.of(s("display_name", Text.text("x"),
+                "render_type", "INTEGER", "number_format", Optional.empty())));
+        e = assertThrows(IllegalArgumentException.class, () -> body(obj));
+        assertTrue(e.getMessage().contains("method"), e.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> body(obj.with("method", 0).with("parameters", Optional.empty())));
+
+        assertThrows(IllegalArgumentException.class, () -> body(g(Serverbound.SEEN_ADVANCEMENTS, "action", "OPENED_TAB", "tab", Optional.empty())));
+        assertThrows(IllegalArgumentException.class, () -> body(g(Serverbound.SEEN_ADVANCEMENTS, "action", "CLOSED_SCREEN", "tab", Optional.of("minecraft:a"))));
+
+        var blocks = g(Clientbound.SECTION_BLOCKS_UPDATE, "section_pos", 0L, "positions", List.of((short) 1), "states", List.of());
+        assertThrows(IllegalArgumentException.class, () -> body(blocks), "길이가 다르다");
+        assertThrows(IllegalArgumentException.class, () -> body(blocks.with("positions", List.of((short) 4096)).with("states", List.of(BlockData.AIR))));
+
+        var pos = g(Clientbound.PLAYER_POSITION, "x", 0.0, "y", 0.0, "z", 0.0, "y_rot", 0f, "x_rot", 0f, "relative_arguments", List.of("X", "X"), "id", 1);
+        assertThrows(IllegalArgumentException.class, () -> body(pos));
+        assertThrows(IllegalArgumentException.class, () -> body(pos.with("relative_arguments", List.of("W"))));
+
+        var click = g(Serverbound.CONTAINER_CLICK, "container_id", 0, "state_id", 1, "slot_num", 36, "button_num", 0, "click_type", "PICKUP",
+                "changed_slots", List.of(s("slot", 1, "item", dia), s("slot", 1, "item", dia)), "carried_item", dia);
+        e = assertThrows(IllegalArgumentException.class, () -> body(click));
+        assertTrue(e.getMessage().contains("두 번"), e.getMessage());
+
+        var dmg = g(Clientbound.DAMAGE_EVENT, "entity_id", 1, "source_type", "minecraft:fall", "source_cause_id", -2, "source_direct_id", -1,
+                "source_position", Optional.empty());
+        assertThrows(IllegalArgumentException.class, () -> body(dmg));
+        assertThrows(IllegalArgumentException.class, () -> body(dmg.with("source_cause_id", -1).with("source_position", Optional.of(s("x", 1.0, "y", 2.0)))));
+
+        var structure = g(Serverbound.SET_STRUCTURE_BLOCK, "pos", new BlockPos(0, 0, 0), "update_type", "UPDATE_DATA", "mode", "SAVE", "name", "",
+                "offset", new BlockPos(0, 200, 0), "size", new BlockPos(0, 0, 0), "mirror", "NONE", "rotation", "NONE", "data", "", "integrity", 1f, "seed", 0L,
+                "ignore_entities", false, "show_air", true, "show_bounding_box", false);
+        assertThrows(IllegalArgumentException.class, () -> body(structure), "offset 은 i8");
+    }
+}
