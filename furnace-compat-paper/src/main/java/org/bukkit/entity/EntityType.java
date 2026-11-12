@@ -155,6 +155,14 @@ public enum EntityType implements Keyed {
         return NamespacedKey.minecraft(name().toLowerCase(Locale.ROOT));
     }
 
+    /** Bukkit 옛 이름(키의 경로 부분, 예 "zombie"). UNKNOWN 은 null. 패킷 라이브러리가 NMS 종류와 잇는 데 쓴다. */
+    @Deprecated
+    public String getName() { return this == UNKNOWN ? null : name().toLowerCase(Locale.ROOT); }
+
+    /** 옛 이름("zombie")으로 찾는다. 없으면 null. */
+    @Deprecated
+    public static EntityType fromName(String name) { return name == null ? null : BY_KEY.get(name.toLowerCase(Locale.ROOT)); }
+
     /** "minecraft:zombie"·"zombie"·"ZOMBIE" 로 찾는다. 없으면 null. */
     public static EntityType fromKey(String key) {
         if (key == null) return null;

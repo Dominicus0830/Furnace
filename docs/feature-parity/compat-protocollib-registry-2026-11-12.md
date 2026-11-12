@@ -51,3 +51,20 @@ Furnace 의 파이프라인은 `frameDecoder`·`frameEncoder`·`handler`(Connect
 - `furnace-api` `ProtocolIdsTest`(5): 표의 수·잘 알려진 번호·스키마와의 1:1·번호 빈틈/중복·번들 하나만 번호 없음, 문법 오류.
 - `furnace-server` `ProtocolIdsMatchServerTableTest`(2): 게임 번호 표가 서버 자신의 play 표(`Protocol767`)와 한 글자도 다르지 않다. 두 표는 따로 바닐라 바이트코드에서 뽑았다.
 - `furnace-compat-paper` `PacketRegistryShimTest`(9): ProtocolLib 이 읽는 경로(`*Protocols` static final 틀 → bind → codec → `byId` → Entry → `*PacketTypes` 필드 제네릭 인자)를 그대로 읽어 번호 223개 전부 대조, 종류 202개, `IdDispatchCodec`, 접속 수신 목록 갈아 끼우기, `FriendlyByteBuf` 와이어 바이트(128→`80 01`, -1→`ff ff ff ff 0f`)·위임·감싸기.
+
+## 4a 값 래퍼 첫 묶음 (2026-11-12, 후속 PR)
+
+검토 R4 에서 막힌 값 래퍼 중 데이터가 필요 없는 것을 먼저 이었다. 진짜 ProtocolLib 5.4.0 으로 확인(`deepClone` 실패 18종 → 4종, 남은 4종은 코덱 대기).
+
+| 추가 | 풀린 것 |
+|---|---|
+| `org.bukkit.craftbukkit.util.CraftChatMessage`(`fromString`·`fromJSON`·`toJSON`·`fromComponent` 등, 글 규칙은 Furnace `Text`) | `WrappedChatComponent` 전부 — 채팅·타이틀·액션바·보스·인벤토리 이름 등 패킷 13종. `fromText`·`fromJson`·`fromLegacyText`·`fromChatMessage`·`deepClone` |
+| `net.minecraft.world.entity.EntityType`(키 값 객체, `byString`·`getKey`) + Bukkit `EntityType#getName`·`fromName` | `getEntityTypeModifier()`(`SPAWN_ENTITY` 등) 읽기·쓰기 |
+| `CraftMagicNumbers#toLegacyData`·`getBlock(Material, byte)` | `WrappedBlockData` — `BLOCK_CHANGE` 등 `getBlockData()` 읽기·쓰기·`deepClone` |
+| `ChatVisiblity` enum, `ServerboundInteractPacket$Action#getType` | `EnumWrappers`(손·방향·장비 칸 등) 초기화, `getHands()` |
+
+아직 안 되는 값 래퍼:
+- `WrappedDataWatcher`(엔티티 메타데이터): `Rotations`·`EntityDataSerializers`·`SynchedEntityData` 가 필요 — 서버 쪽 키 표(PR #236 E1)와 이어 따로 한다.
+- `WrappedGameProfile`: authlib 가 필요(PR #231 N-lib-2, 이 컨테이너는 Mojang 호스트가 막혀 확인 못 함).
+- 코덱이 필요한 4종(`USE_ENTITY`·`BOSS`·`ADVANCEMENTS`·상태 `SERVER_INFO`)은 3단계.
+- 새로 만든 `EntityType` 은 키만 가진다(레지스트리 상수 목록·`create` 등은 없음).
