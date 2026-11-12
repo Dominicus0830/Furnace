@@ -120,6 +120,27 @@ class A15PluginSurfaceParityTest {
         }
     }
 
+    /**
+     * HandlerList: 같은 우선순위는 플러그인을 가리지 않고 등록 순이다. A(첫 처리기) → B → A(나중에 단 처리기) 가 그 순서로 불린다(A15-07).
+     * 처리기를 해제한 뒤에는 불리지 않고, 해제하지 않은 처리기의 순서는 그대로다.
+     */
+    @Test
+    void samePriorityHandlersRunInRegistrationOrderAcrossPlugins() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            org.domi.furnace.api.entity.Player p = server.join("Dana").player();
+            server.tick(3);
+            WiringProbe.LOG.clear();
+            server.api().events().call(new org.domi.furnace.api.event.player.PlayerToggleSneakEvent(p, true));
+            assertEquals(List.of("A1", "B1", "A2"), WiringProbe.LOG);
+
+            // 다른 플러그인(B)의 처리기만 해제하면 나머지 순서는 그대로
+            org.bukkit.event.player.PlayerToggleSneakEvent.getHandlerList().unregister(Bukkit.getPluginManager().getPlugin("AuditB"));
+            WiringProbe.LOG.clear();
+            server.api().events().call(new org.domi.furnace.api.event.player.PlayerToggleSneakEvent(p, false));
+            assertEquals(List.of("A1", "A2"), WiringProbe.LOG, "해제된 처리기는 불리지 않는다");
+        }
+    }
+
     /** CraftServer#getOnlinePlayers 는 고칠 수 없는 살아 있는 보기(playerView)다. */
     @Test
     void onlinePlayersIsALiveUnmodifiableView() throws Exception {

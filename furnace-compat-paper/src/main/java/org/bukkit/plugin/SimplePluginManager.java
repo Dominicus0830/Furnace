@@ -245,8 +245,9 @@ public final class SimplePluginManager implements PluginManager {
         if (!plugin.isEnabled()) throw new IllegalPluginAccessException("Plugin attempted to register " + event + " while not enabled");
         BukkitPluginAdapter owner = CompatPluginManager.adapter(plugin);
         Class<? extends Event> owning = CompatPluginManager.registrationClass(event);
-        CompatPluginManager.handlerList(owning).register(new RegisteredListener(listener, executor, priority, plugin, ignoreCancelled));
-        EventBridge.ensure(owner, owning, priority);
+        RegisteredListener registered = new RegisteredListener(listener, executor, priority, plugin, ignoreCancelled);
+        CompatPluginManager.handlerList(owning).register(registered);
+        EventBridge.ensure(owner, owning, priority, registered);
     }
 
     // ------------------------------------------------------------------ 권한

@@ -14,6 +14,8 @@ public class HandlerList {
 
     private final EnumMap<EventPriority, ArrayList<RegisteredListener>> slots = new EnumMap<>(EventPriority.class);
     private volatile RegisteredListener[] baked;
+    /** 지금 등록돼 있는 처리기(객체 동일성) — 이벤트 다리가 "그 사이 해제됐는가"를 목록 훑기 없이 본다. */
+    private final java.util.Set<RegisteredListener> live = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     public HandlerList() {
         for (EventPriority p : EventPriority.values()) slots.put(p, new ArrayList<>());
@@ -28,6 +30,7 @@ public class HandlerList {
         for (HandlerList h : ALL) {
             synchronized (h) {
                 for (List<RegisteredListener> l : h.slots.values()) l.clear();
+                h.live.clear();
                 h.baked = null;
             }
         }
@@ -46,6 +49,7 @@ public class HandlerList {
         if (slot.contains(listener)) throw new IllegalStateException("This listener is already registered to priority " + listener.getPriority());
         baked = null;
         slot.add(listener);
+        live.add(listener);
     }
 
     public void registerAll(java.util.Collection<RegisteredListener> listeners) {
@@ -53,18 +57,32 @@ public class HandlerList {
     }
 
     public synchronized void unregister(RegisteredListener listener) {
-        if (slots.get(listener.getPriority()).remove(listener)) baked = null;
+        if (slots.get(listener.getPriority()).remove(listener)) {
+            live.remove(listener);
+            baked = null;
+        }
     }
+
+    /** 이 처리기가 아직 등록돼 있는가(호환 계층 내부용 — Paper 에는 없다). */
+    public boolean isRegistered(RegisteredListener listener) { return live.contains(listener); }
 
     public synchronized void unregister(Plugin plugin) {
         boolean changed = false;
-        for (List<RegisteredListener> l : slots.values()) changed |= l.removeIf(r -> r.getPlugin().equals(plugin));
+        for (List<RegisteredListener> l : slots.values()) changed |= l.removeIf(r -> {
+            boolean match = r.getPlugin().equals(plugin);
+            if (match) live.remove(r);
+            return match;
+        });
         if (changed) baked = null;
     }
 
     public synchronized void unregister(Listener listener) {
         boolean changed = false;
-        for (List<RegisteredListener> l : slots.values()) changed |= l.removeIf(r -> r.getListener().equals(listener));
+        for (List<RegisteredListener> l : slots.values()) changed |= l.removeIf(r -> {
+            boolean match = r.getListener().equals(listener);
+            if (match) live.remove(r);
+            return match;
+        });
         if (changed) baked = null;
     }
 
