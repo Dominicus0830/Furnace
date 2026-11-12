@@ -164,11 +164,7 @@ public final class CompatFormat implements PluginFormat {
      */
     @Override
     public org.domi.furnace.api.plugin.ClassTransformer transformer(PluginDescription description, java.nio.file.Path jar, Map<String, String> settings) {
-        var options = new org.domi.furnace.compat.nms.NmsClassTransformer.Options(
-                Boolean.parseBoolean(settings.getOrDefault("plugins.compat.nms.strict", "false")),
-                "versioned".equalsIgnoreCase(settings.getOrDefault("plugins.compat.nms.version-package", "plain")),
-                spigotMappings(description.name(), settings.get(SPIGOT_MAPPING_FILES)));
-        return org.domi.furnace.compat.nms.NmsClassTransformer.forJar(description.name(), jar, options);
+        return transformer(description, jar, settings, null);
     }
 
     /**

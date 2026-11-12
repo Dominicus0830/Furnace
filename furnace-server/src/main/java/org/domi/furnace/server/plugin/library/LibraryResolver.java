@@ -66,8 +66,13 @@ public final class LibraryResolver {
     }
 
     /** HTTP 응답은 왔지만 쓸 수 없다(상태 코드·크기 상한) — 저장소에 닿기는 했다. */
-    static final class HttpStatusException extends IOException {
+    static class HttpStatusException extends IOException {
         HttpStatusException(String message) { super(message); }
+    }
+
+    /** 429·5xx 를 정해진 횟수만큼 쉬며 다시 시도했는데도 계속 같았다 — 응답은 왔지만 한참 기다린 뒤라, 시작마다 되풀이하지 않게 호출자가 기억할 수 있다. */
+    static final class RetriesExhausted extends HttpStatusException {
+        RetriesExhausted(String message) { super(message); }
     }
 
     /** 이번 시작에서 연결(전송)에 실패한 저장소 호스트 → 그 이유. 같은 호스트는 다시 시도하지 않는다. */
@@ -600,7 +605,7 @@ public final class LibraryResolver {
                         int code = r.statusCode();
                         if (code == 404) return null;
                         if (code == 429 || code >= 500) {
-                            last = new HttpStatusException("HTTP " + code + " (" + uri + ")");
+                            last = new RetriesExhausted("HTTP " + code + " (" + uri + ")");
                             continue;
                         }
                         if (code != 200) throw new HttpStatusException("HTTP " + code + " (" + uri + ")");

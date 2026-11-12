@@ -150,23 +150,53 @@ class SpigotMappingFilesTest {
         Path record = tmp.resolve("cache/spigot-mappings/1.21.1").resolve(SpigotMappingFiles.FAILED);
         assertTrue(Files.isRegularFile(record));
 
-        // 30분 뒤 다음 시작 — 아직 1시간 안이라 네트워크에 나가지 않고 한 줄 안내(Backoff)만
-        var e = assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t0.plusSeconds(30 * 60)).ensure());
+        // 5분 뒤 다음 시작 — 아직 10분 안이라 네트워크에 나가지 않고 한 줄 안내(Backoff)만
+        var e = assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t0.plusSeconds(5 * 60)).ensure());
         assertEquals(1, networkCalls.get(), "기다림 안에는 나가지 않는다");
-        assertTrue(e.getMessage().contains("1번 연속") && e.getMessage().contains("다음 시도는 약 30분 뒤") && e.getMessage().contains(record.toString()), e.getMessage());
+        assertTrue(e.getMessage().contains("1번 연속") && e.getMessage().contains("다음 시도는 약 5분 뒤") && e.getMessage().contains(record.toString()), e.getMessage());
         assertFalse(e.getMessage().contains("\n"), "한 줄");
 
-        // 1시간이 지나면 다시 시도하고, 또 실패하면 6시간으로 늘어난다
-        assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t0.plusSeconds(61 * 60)).ensure());
+        // 10분이 지나면 다시 시도(순간 실패는 오래 잠그지 않는다), 또 실패하면 1시간 → 6시간 → 24시간으로 늘어난다
+        java.time.Instant t1 = t0.plusSeconds(11 * 60);
+        assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t1).ensure());
         assertEquals(2, networkCalls.get());
-        assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t0.plusSeconds(61 * 60 + 5 * 3600)).ensure());
-        assertEquals(2, networkCalls.get(), "2번째 실패 뒤는 6시간 기다린다");
-        assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t0.plusSeconds(61 * 60 + 6 * 3600 + 60)).ensure());
+        assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t1.plusSeconds(59 * 60)).ensure());
+        assertEquals(2, networkCalls.get(), "2번째 실패 뒤는 1시간 기다린다");
+        java.time.Instant t2 = t1.plusSeconds(61 * 60);
+        assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t2).ensure());
         assertEquals(3, networkCalls.get());
-        // 3번째 이후는 24시간 상한
-        assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t0.plusSeconds(61 * 60 + 6 * 3600 + 60 + 23 * 3600)).ensure());
-        assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t0.plusSeconds(61 * 60 + 6 * 3600 + 60 + 24 * 3600 + 60)).ensure());
+        var six = assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t2.plusSeconds(3 * 3600)).ensure());
+        assertTrue(six.getMessage().contains("약 3시간 뒤"), "2시간이 넘으면 시간 단위로: " + six.getMessage());
+        assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t2.plusSeconds(5 * 3600)).ensure());
+        java.time.Instant t3 = t2.plusSeconds(6 * 3600 + 60);
+        assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t3).ensure());
         assertEquals(4, networkCalls.get());
+        // 4번째 이후는 24시간 상한
+        assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t3.plusSeconds(23 * 3600)).ensure());
+        assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t3.plusSeconds(24 * 3600 + 60)).ensure());
+        assertEquals(5, networkCalls.get());
+    }
+
+    @Test
+    void aFailureRecordFromTheFutureIsIgnored() throws Exception {
+        java.time.Instant t0 = java.time.Instant.parse("2026-11-12T00:00:00Z");
+        assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t0.plusSeconds(365L * 86400)).ensure());   // 시계가 1년 앞서 있을 때 적힌 기록
+        assertEquals(1, networkCalls.get());
+        assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t0).ensure());
+        assertEquals(2, networkCalls.get(), "시계가 바로잡힌 뒤에는 미래 시각 기록으로 막지 않는다");
+    }
+
+    @Test
+    void exhaustedRetriesOn5xxAreRememberedLikeConnectionFailures() throws Exception {
+        java.time.Instant t0 = java.time.Instant.parse("2026-11-12T00:00:00Z");
+        var down = new SpigotMappingFiles(online(), tmp.resolve("cache"), (uri, max) -> {
+            networkCalls.incrementAndGet();
+            throw new LibraryResolver.RetriesExhausted("HTTP 503 (" + uri + ")");
+        }, MOJANG_URI, MOJANG_SHA1, MOJANG.length, VERSION_URI, RAW, LOG).withClock(java.time.Clock.fixed(t0, java.time.ZoneOffset.UTC));
+        assertThrows(LibraryResolver.LibraryException.class, down::ensure);
+        assertTrue(Files.isRegularFile(tmp.resolve("cache/spigot-mappings/1.21.1").resolve(SpigotMappingFiles.FAILED)));
+        assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t0.plusSeconds(60)).ensure());
+        assertEquals(1, networkCalls.get(), "재시도 끝에 포기한 서버를 시작마다 몇 초씩 다시 기다리지 않는다");
     }
 
     @Test

@@ -7,7 +7,7 @@
 //  - Spigot BuildData(클래스·멤버 csrg): Spigot 은 체크섬을 내지 않는다. hub.spigotmc.org/versions/1.21.1.json 의 BuildData 커밋에 고정해 받고,
 //    그 커밋의 info.json 이 가리키는 Mojang 매핑이 위 sha1 과 같은지 확인한 뒤, 처음 받은 커밋·sha256 을 잠금 파일(spigot-mappings.lock)에 적는다.
 //    그 뒤로는 다른 커밋·다른 바이트를 받지도 쓰지도 않는다(의도한 갱신이면 잠금 파일을 지운다).
-//  - 받기가 연결·제한 시간 문제로 실패하면 그 사실을 캐시(download-failed.properties)에 남기고, 다음 시작들은 기다림 없이 건너뛴다(1시간 → 6시간 → 24시간 상한 백오프).
+//  - 받기가 연결·제한 시간 문제로 실패하면 그 사실을 캐시(download-failed.properties)에 남기고, 다음 시작들은 기다림 없이 건너뛴다(10분 → 1시간 → 6시간 → 24시간 상한 백오프).
 //    인터넷이 막힌 서버가 시작마다 제한 시간을 기다리지 않게 한다. 캐시에 파일이 있거나 받기에 성공하면 기록은 지워진다.
 //  - plugins.libraries.offline=true 면 네트워크에 나가지 않는다 — 파일을 손으로 캐시에 두면(아래 경로) 그것을 쓴다(Mojang 파일은 sha1 이 맞아야 한다).
 package org.domi.furnace.server.plugin.library;
@@ -75,7 +75,7 @@ public final class SpigotMappingFiles {
     /** 받기 실패 기억 파일(캐시 폴더 안). 지우면 바로 다시 받는다. */
     public static final String FAILED = "download-failed.properties";
     /** 연속 실패 횟수별 다음 시도까지 기다리는 시간(마지막 값이 상한). */
-    static final Duration[] BACKOFF = {Duration.ofHours(1), Duration.ofHours(6), Duration.ofHours(24)};
+    static final Duration[] BACKOFF = {Duration.ofMinutes(10), Duration.ofHours(1), Duration.ofHours(6), Duration.ofHours(24)};
 
     /** 이전 시작에서 받기에 실패해 아직 기다리는 중이라 이번에는 네트워크에 나가지 않았다 — 운영자에게 한 줄로 알릴 뿐 다시 시도하지 않는다. */
     public static final class Backoff extends LibraryResolver.LibraryException {
@@ -142,10 +142,12 @@ public final class SpigotMappingFiles {
             Instant last = Instant.ofEpochMilli(Long.parseLong(p.getProperty("last-failure-epoch-ms").strip()));
             Instant next = last.plus(BACKOFF[Math.min(n, BACKOFF.length) - 1]);
             Instant now = clock.instant();
+            if (last.isAfter(now)) return;   // 시계가 되돌려졌거나 기록이 잘못 앞선 시각이면 믿지 않는다(몇 달씩 막지 않게)
             if (now.isBefore(next)) {
                 long mins = Math.max(1, Duration.between(now, next).toMinutes());
-                throw new Backoff(n + "번 연속 받기에 실패했고(마지막 " + last + ", " + p.getProperty("reason", "연결 실패") + ") 다음 시도는 약 " + mins
-                        + "분 뒤다(바로 다시 받으려면 " + f + " 를 지워라)");
+                String wait = mins >= 120 ? "약 " + (mins + 30) / 60 + "시간" : "약 " + mins + "분";
+                throw new Backoff(n + "번 연속 받기에 실패했고(마지막 " + last + ", " + p.getProperty("reason", "연결 실패") + ") 다음 시도는 " + wait
+                        + " 뒤다(바로 다시 받으려면 " + f + " 를 지워라)");
             }
         } catch (IOException | RuntimeException e) {
             // 읽을 수 없는 기록은 없는 것으로 본다(받기를 막지 않는다)
@@ -313,6 +315,8 @@ public final class SpigotMappingFiles {
     private byte[] get(URI uri, long max) throws LibraryResolver.LibraryException {
         try {
             return fetcher.get(uri, max);
+        } catch (LibraryResolver.RetriesExhausted e) {   // 429·5xx 를 몇 초 쉬며 되풀이하다 포기 — 시작마다 같은 기다림을 하지 않게 기억한다
+            throw new NetworkFailure(uri.getHost() + " 에서 받지 못했다(" + e.getMessage() + ", 다시 시도해도 같았다)", e);
         } catch (LibraryResolver.HttpStatusException e) {
             throw new LibraryResolver.LibraryException(uri.getHost() + " 에서 받지 못했다(" + e.getMessage() + ")", e);
         } catch (IOException e) {
