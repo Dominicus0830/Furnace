@@ -38,16 +38,24 @@ public final class CraftMagicNumbers implements UnsafeValues {
         return Item.byKey(material.getKey().toString());
     }
 
-    /** Bukkit Material 열거형에 없는 블록(데이터 팩·플러그인 블록)이면 null. */
-    /** 옛 데이터 값(패킷 라이브러리가 링크만 본다): 1.13 이후는 평탄화돼 0. */
+    /** 옛 데이터 값: Furnace 는 옛 평탄화 표를 갖지 않아 늘 0 이다(지금 상태의 속성은 옛 값으로 바꾸지 않는다). */
     public static byte toLegacyData(net.minecraft.world.level.block.state.BlockState state) { return 0; }
 
-    /** 옛 (재료, 데이터) → 상태. 데이터는 무시하고 기본 상태(평탄화 이후). 블록이 아닌 재료는 null. */
+    /**
+     * 옛 (재료, 데이터) → 상태. Paper 처럼 블록이 아닌 재료는 공기의 기본 상태다. 옛 데이터 값은 지원하지 않아 무시하고 기본 상태를 돌려준다 —
+     * 데이터가 0 이 아니면 부른 플러그인마다 한 번 알린다(조용히 다른 블록이 나오지 않게).
+     */
     public static net.minecraft.world.level.block.state.BlockState getBlock(Material material, byte data) {
+        if (data != 0) {
+            org.domi.furnace.compat.nms.NmsCaller.warnOnce("legacy-block-data",
+                    "플러그인 {} 가 옛 블록 데이터 값(0 아님)으로 블록 상태를 만들었다 — Furnace 는 옛 데이터 값(평탄화 표)을 지원하지 않아 무시하고 기본 상태를 쓴다."
+                            + " (예: 빨간 양털 WOOL,14 는 흰 양털이 된다) BlockData 를 쓰는 방식으로 바꾼다.");
+        }
         Block b = getBlock(material);
-        return b == null ? null : b.defaultBlockState();
+        return (b == null ? net.minecraft.world.level.block.Blocks.AIR : b).defaultBlockState();
     }
 
+    /** Bukkit Material 열거형에 없는 블록(데이터 팩·플러그인 블록)이면 null. */
     public static Material getMaterial(Block block) { return block == null ? null : Material.matchMaterial(block.furnaceKey().toString()); }
 
     /** CraftBukkit 처럼 null·Bukkit Material 열거형에 없는 아이템이면 AIR(블록 쪽은 null). */

@@ -60,6 +60,9 @@ public interface Component {
 
         private Serializer() {}
 
+        /** Gson 관대 읽기가 따옴표 없이 한 낱말로 받아들이는 글(공백·구분 문자 없음). */
+        private static final java.util.regex.Pattern BARE_WORD = java.util.regex.Pattern.compile("[^\\s{}\\[\\],:;#=/\\\\\"']+");
+
         public static String toJson(Component c, HolderLookup.Provider registries) { return furnace(c).toJson(); }
 
         /** 빈 글·null JSON 은 null(바닐라와 같다). 틀린 JSON 은 IllegalArgumentException 계열. */
@@ -67,6 +70,8 @@ public interface Component {
             if (json == null) return null;
             String t = json.strip();
             if (t.isEmpty() || t.equals("null")) return null;
+            // 바닐라는 관대 읽기(JsonParser.parseString)라 따옴표 없는 한 낱말("plain")도 글자 그대로의 글이 된다
+            if (BARE_WORD.matcher(t).matches() && !t.equals("true") && !t.equals("false")) return literal(t);
             return fromFurnace(org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize(json));
         }
 

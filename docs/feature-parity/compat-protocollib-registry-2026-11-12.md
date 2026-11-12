@@ -60,7 +60,7 @@ Furnace 의 파이프라인은 `frameDecoder`·`frameEncoder`·`handler`(Connect
 |---|---|
 | `org.bukkit.craftbukkit.util.CraftChatMessage`(`fromString`·`fromJSON`·`toJSON`·`fromComponent` 등, 글 규칙은 Furnace `Text`) | `WrappedChatComponent` 전부 — 채팅·타이틀·액션바·보스·인벤토리 이름 등 패킷 13종. `fromText`·`fromJson`·`fromLegacyText`·`fromChatMessage`·`deepClone` |
 | `net.minecraft.world.entity.EntityType`(키 값 객체, `byString`·`getKey`) + Bukkit `EntityType#getName`·`fromName` | `getEntityTypeModifier()`(`SPAWN_ENTITY` 등) 읽기·쓰기 |
-| `CraftMagicNumbers#toLegacyData`·`getBlock(Material, byte)` | `WrappedBlockData` — `BLOCK_CHANGE` 등 `getBlockData()` 읽기·쓰기·`deepClone` |
+| `CraftMagicNumbers#toLegacyData`·`getBlock(Material, byte)` | `WrappedBlockData` — `BLOCK_CHANGE` 등 `getBlockData()` 읽기·쓰기·`deepClone`. 옛 데이터 값(0 아님)은 무시하고 기본 상태(플러그인마다 한 번 경고), 블록이 아닌 재료는 Paper 처럼 공기 |
 | `ChatVisiblity` enum, `ServerboundInteractPacket$Action#getType` | `EnumWrappers`(손·방향·장비 칸 등) 초기화, `getHands()` |
 
 아직 안 되는 값 래퍼:
@@ -68,3 +68,10 @@ Furnace 의 파이프라인은 `frameDecoder`·`frameEncoder`·`handler`(Connect
 - `WrappedGameProfile`: authlib 가 필요(PR #231 N-lib-2, 이 컨테이너는 Mojang 호스트가 막혀 확인 못 함).
 - 코덱이 필요한 4종(`USE_ENTITY`·`BOSS`·`ADVANCEMENTS`·상태 `SERVER_INFO`)은 3단계.
 - 새로 만든 `EntityType` 은 키만 가진다(레지스트리 상수 목록·`create` 등은 없음).
+
+4a 검토(PR #244) 반영: 새 `EntityType` 은 키 없이 만들어져도 바닐라 기본 레지스트리처럼 `minecraft:pig`(R1), `CraftChatMessage.fromString` 은 주소를 링크로 만들고 줄바꿈 뒤에도 색·서식이 이어지며 `fromStringOrNull/Empty` 는 CraftBukkit 의미(빈 문자열 null, 첫 줄만)(R2), `Component.Serializer.fromJson` 은 따옴표 없는 한 낱말을 글자 그대로 받는다(R3, 낱말이 둘 이상이면 바닐라처럼 오류).
+
+알려진 한계(후속):
+- `show_item` 호버의 아이템 컴포넌트가 JSON 왕복에서 사라진다 — API `TextJson` 이 읽을 때 SNBT 로 받아 두고 쓸 때 버린다(PR 이전부터). 호버 아이템이 있는 채팅 패킷을 `deepClone` 하면 툴팁이 빠진다.
+- 옛 데이터 값(평탄화 표) 기반 `CraftLegacy` 는 없다 — `WrappedBlockData.createData(WHITE_WOOL, 14)` 는 흰 양털(경고 한 번), `getData()` 는 늘 0.
+- Paper 는 색 코드마다 `bold/italic…:false` 를 명시하고 결과를 `{"text":"","extra":[…]}` 로 감싸 JSON 문자열이 다르다(화면은 같음).

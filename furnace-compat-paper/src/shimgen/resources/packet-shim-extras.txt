@@ -274,3 +274,29 @@ public ServerboundUseItemOnPacket(net.minecraft.world.InteractionHand hand, net.
 // 바닐라 Action 의 계약(getType). 패킷 라이브러리가 이 메서드의 반환형으로 사용 종류 enum 을 찾는다.
 @@ net.minecraft.network.protocol.game.ServerboundInteractPacket$Action
 net.minecraft.network.protocol.game.ServerboundInteractPacket.ActionType getType();
+
+// 바닐라 모양의 Action 구현 셋(ProtocolLib WrappedEnumEntityUseAction 이 정적 초기화에서 찾는다): (손) 생성자, (손, 위치) 생성자, ATTACK_ACTION.
+@@ net.minecraft.network.protocol.game.ServerboundInteractPacket
+static final Action ATTACK_ACTION = new Action() {
+    @Override public ActionType getType() { return ActionType.ATTACK; }
+};
+
+private static class InteractionAction implements Action {
+    private final net.minecraft.world.InteractionHand hand;
+
+    private InteractionAction(net.minecraft.world.InteractionHand hand) { this.hand = hand; }
+
+    @Override public ActionType getType() { return ActionType.INTERACT; }
+}
+
+private static class InteractionAtLocationAction implements Action {
+    private final net.minecraft.world.InteractionHand hand;
+    private final net.minecraft.world.phys.Vec3 location;
+
+    private InteractionAtLocationAction(net.minecraft.world.InteractionHand hand, net.minecraft.world.phys.Vec3 location) {
+        this.hand = hand;
+        this.location = location;
+    }
+
+    @Override public ActionType getType() { return ActionType.INTERACT_AT; }
+}
