@@ -1499,7 +1499,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             for (int dz = -r; dz <= r; dz++) {
                 ChunkPos cp = new ChunkPos(centerCp.x() + dx, centerCp.z() + dz);
                 // 바닐라 ChunkTrackingView: 시야 밖(둥근 모양 바깥) 모서리는 보내지 않는다 — 큰 spawn-chunk-radius 가 시야보다 클 때도 시야 모양을 따른다
-                if (ChunkTrackingView.contains(centerCp.x(), centerCp.z(), Math.min(world.viewDistance(), effVd), cp.x(), cp.z())) spawnChunks.add(cp);
+                if (ChunkTrackingView.contains(centerCp.x(), centerCp.z(), effVd, cp.x(), cp.z())) spawnChunks.add(cp);
             }
         spawnChunks.sort(java.util.Comparator.comparingInt(
                 c -> Math.max(Math.abs(c.x() - centerCp.x()), Math.abs(c.z() - centerCp.z()))));

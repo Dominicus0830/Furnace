@@ -17,7 +17,7 @@ class RegionTickTest {
     private static World world(FurnaceSchedulerImpl sched) {
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         return new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(2),
-                sched, sched.regionThreadCount(), 16, 1, 1, reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor());
+                sched, sched.regionThreadCount(), 16, 2, 2, reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor());
     }
 
     @Test
@@ -29,7 +29,7 @@ class RegionTickTest {
         RegionPos rp = new RegionPos(0, 0);   // 청크 좌표
         sched.region(rp).execute(() -> w.regionAt(rp).adopt(p)).get();
         sched.region(rp).execute(() -> w.regionAt(rp).tick()).get();
-        assertEquals(ChunkTrackingViewTest.vanillaCount(1), p.loadedChunks().size()); // viewDistance 1 → 바닐라 둥근 모양 21칸(정사각 3×3 아님)
+        assertEquals(ChunkTrackingViewTest.vanillaCount(2), p.loadedChunks().size()); // viewDistance 2 → 바닐라 둥근 모양 45칸(정사각 5×5 아님)
         sched.close();
     }
 

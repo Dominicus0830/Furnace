@@ -28,16 +28,16 @@ class SpawnBatchTest {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         var io = Executors.newSingleThreadExecutor();
-        // viewDistance 1 → 바닐라 둥근 모양 21 청크(정사각 3×3 아님), regionSize 16 → 전부 region(0,0) 소유.
+        // viewDistance 2 → 바닐라 둥근 모양 45 청크(정사각 5×5=25 아님), regionSize 16 → 전부 region(0,0) 소유.
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
-                sched, sched.regionThreadCount(), 16, 1, 1, reg.directBits(), 7, io);
+                sched, sched.regionThreadCount(), 16, 2, 2, reg.directBits(), 7, io);
         RegionPos rp = new RegionPos(0, 0);
         EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
         Player p = new Player(1, UUID.randomUUID(), "A", ch);
         p.applyMove(0, -60, 0, 0, 0, true);
         sched.region(rp).execute(() -> w.regionAt(rp).adopt(p)).get();
         // 비동기 청크 파이프라인(미리 불러오기 → 본문 준비)이 끝날 때까지 틱을 돌리며 outbound 패킷 id 수집. 배치는 틱마다 준비된 청크만 담으므로 여러 개일 수 있다.
-        int expected = ChunkTrackingViewTest.vanillaCount(1);
+        int expected = ChunkTrackingViewTest.vanillaCount(2);
         List<Integer> ids = new ArrayList<>();
         List<Integer> finishedSizes = new ArrayList<>();
         long chunkCount = 0;

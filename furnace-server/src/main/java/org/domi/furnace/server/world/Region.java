@@ -1085,12 +1085,20 @@ public final class Region {
         if (root != null) world.savePoiAsync(cx, cz, root);
     }
 
+    /**
+     * 플레이어 티켓이 붙잡은 청크인가(바닐라 PlayerTicketTracker: 서버 시야 안 체비셰프 정사각). 구독은 둥근 모양만이라, 정사각에만 있는
+     * 모서리 청크와 둥근 모양을 막 벗어난 청크는 이 판정으로 안 내린다. 티켓을 다는 플레이어(관전자 규칙 포함)만 센다.
+     */
+    private boolean heldByPlayerTicket(ChunkPos cp) {
+        return ticketPlayerWithin(cp.x(), cp.z(), Math.clamp(world.viewDistance(), 2, 32));
+    }
+
     /** 구독자 0인 "있는 청크"를 grace 후 퇴출(dirty면 저장). 로드 중인 청크는 끝날 때까지 둔다. 매 틱 호출. */
     private void evictIdleChunks() {
         List<Long> drop = null;
         for (long key : present.snapshot()) {
             ChunkPos cp = new ChunkPos(Regionizer.chunkX(key), Regionizer.chunkZ(key));
-            if (!world.subscribers(cp).isEmpty() || world.loadingChunk(key) != null || world.ticketed(key)) {
+            if (!world.subscribers(cp).isEmpty() || world.loadingChunk(key) != null || world.ticketed(key) || heldByPlayerTicket(cp)) {
                 if (!evictGrace.isEmpty()) evictGrace.remove(cp);   // 유예 중인 청크가 없으면 지울 것도 없다(X1)
                 continue;
             }
@@ -1386,6 +1394,7 @@ public final class Region {
             }
             updateChunks(p);
             sendQueuedChunks(p);
+            loadCornerChunks(p);
         }
         lap(2);
         if (!players.isEmpty()) {
@@ -2670,6 +2679,7 @@ public final class Region {
         for (ChunkPos cp : p.loadedChunks()) world.unsubscribeChunk(cp, p);
         p.loadedChunks().clear();
         p.pendingChunks().clear();
+        p.cornerLoads().clear();
         p.lastCenter(null);
         p.queuedCenter(null);
         p.trackedViewDistance(-1);
@@ -2787,7 +2797,7 @@ public final class Region {
      */
     private void updateChunks(Player p) {
         ChunkPos center = p.chunkPos();
-        int vd = Math.min(world.viewDistance(), p.viewDistance()); // 서버 상한 + 클라 요청
+        int vd = trackingDistance(p);
         boolean vdChanged = vd != p.trackedViewDistance();
         if (!vdChanged && center.equals(p.lastCenter()) && center.equals(p.queuedCenter())) return;
         List<ChunkPos> toForget = new ArrayList<>();
@@ -2833,8 +2843,75 @@ public final class Region {
         orderNearestFirst(center, toQueue);
         p.pendingChunks().addAll(toQueue);
         reorderPendingNearestFirst(center, p.pendingChunks());
+        collectCornerLoads(p, center, vd);
         p.queuedCenter(center);
         p.trackedViewDistance(vd);
+    }
+
+    /**
+     * 바닐라 플레이어 티켓(DistanceManager.PlayerTicketTracker)은 시야 안 체비셰프 정사각 전부를 엔티티 틱 단계로 올려 둔다 — 보내는 것만
+     * 둥근 모양이다. 구독은 보낼 집합(둥근 모양)만 하므로, 정사각에만 있는 모서리 청크는 구독 없이 올려만 둔다. 그중 아직 안 올라온 것을
+     * 가까운 것부터 모은다(구독하지 않으니 블록 변경 방송·빛 경계에는 끼지 않는다). 올라온 뒤 안 내리는 것은 evictIdleChunks 가 맡는다.
+     */
+    private void collectCornerLoads(Player p, ChunkPos center, int vd) {
+        var corners = p.cornerLoads();
+        corners.clear();
+        if (skipsGeneration(p)) return;
+        List<ChunkPos> list = new ArrayList<>();
+        for (int dx = -vd; dx <= vd; dx++) {
+            for (int dz = -vd; dz <= vd; dz++) {
+                int x = center.x() + dx, z = center.z() + dz;
+                if (ChunkTrackingView.contains(center.x(), center.z(), vd, x, z) || world.isChunkLoaded(x, z)) continue;
+                list.add(new ChunkPos(x, z));
+            }
+        }
+        orderNearestFirst(center, list);
+        for (ChunkPos cp : list) {
+            rz().want(cp.x(), cp.z(), this);   // 구역을 이 region 이 갖는다(다른 region 것이면 합칠 대상)
+            corners.add(cp);
+        }
+    }
+
+    /** 모서리 청크 올리기의 동시 상한: 보이는 청크의 생성 요청을 밀지 않게 동시 진행 상한의 4분의 1(최소 2). */
+    private int cornerLoadSlots() {
+        return Math.max(2, world.maxChunkSendsInFlight() / 4);
+    }
+
+    /** 모서리 청크(시야 정사각 ∖ 둥근 모양)를 조금씩 올린다. 둥근 모양으로 보낼 청크가 모두 나간 뒤에만 시작한다(보이는 것이 먼저). */
+    private void loadCornerChunks(Player p) {
+        var corners = p.cornerLoads();
+        if (corners.isEmpty() || !p.pendingChunks().isEmpty() || skipsGeneration(p)) return;
+        int slots = cornerLoadSlots() - p.cornerInFlight().size();
+        var it = corners.iterator();
+        while (it.hasNext() && slots > 0) {
+            ChunkPos cp = it.next();
+            it.remove();
+            if (world.isChunkLoaded(cp.x(), cp.z()) || !p.chunkPrefetches().add(cp)) continue;
+            p.cornerInFlight().add(cp);
+            slots--;
+            startPrefetch(p, cp).whenComplete((col, ex) -> p.cornerInFlight().remove(cp));
+        }
+    }
+
+    /**
+     * 그 청크의 생성·디스크 로드를 건다(구독은 호출한 쪽이 이미 했거나 하지 않는다). 이 region 의 청크면 작업 큐(다음 틱)를 거치지 않고
+     * 바로 건다 — 디스크에 있는 청크는 그만큼 일찍 온다. 끝나면 chunkPrefetches 에서 뺀다(호출한 쪽이 먼저 add 해 둔다).
+     */
+    private CompletableFuture<ChunkColumn> startPrefetch(Player p, ChunkPos cp) {
+        CompletableFuture<ChunkColumn> load;
+        if (mine(Regionizer.chunkKey(cp.x(), cp.z()))) {
+            try {
+                load = loadChunk(cp);
+            } catch (RuntimeException e) {
+                load = CompletableFuture.failedFuture(e);
+            }
+        } else {
+            load = world.submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(f -> f);
+        }
+        return load.whenComplete((col, ex) -> {
+            p.chunkPrefetches().remove(cp);
+            if (ex != null) org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 미리 불러오기 실패 {}", cp, ex);
+        });
     }
 
     /** chunks를 중심 거리 오름차순 정렬 — 스폰/근접 청크 먼저 전송해 클라가 즉시 "로드된 청크"에 스폰(낙하 방지). */
@@ -2929,21 +3006,7 @@ public final class Region {
             } else if (!loadedOnly && genSlots > 0 && p.chunkPrefetches().add(cp)) {
                 genSlots--;
                 // 구독은 updateChunks 가 해 두었으므로 로드된 뒤 유휴 정리로 내려가지 않는다(evictIdleChunks 는 구독자가 있으면 건너뛴다).
-                // 이 region 의 청크면 작업 큐(다음 틱)를 거치지 않고 바로 건다 — 디스크에 있는 청크는 그만큼 일찍 온다.
-                CompletableFuture<ChunkColumn> load;
-                if (mine(Regionizer.chunkKey(cp.x(), cp.z()))) {
-                    try {
-                        load = loadChunk(cp);
-                    } catch (RuntimeException e) {
-                        load = CompletableFuture.failedFuture(e);
-                    }
-                } else {
-                    load = world.submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(f -> f);
-                }
-                load.whenComplete((col, ex) -> {
-                    p.chunkPrefetches().remove(cp);
-                    if (ex != null) org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 미리 불러오기 실패 {}", cp, ex);
-                });
+                startPrefetch(p, cp);
             }
         }
         if (!batch.isEmpty()) {
@@ -3011,8 +3074,12 @@ public final class Region {
     /** 청크가 플레이어의 현재 시야(per-player view distance, 바닐라 ChunkTrackingView 의 둥근 모양) 안인지. stale 드롭·전송 게이트용. */
     private boolean inView(Player p, ChunkPos cp) {
         ChunkPos c = p.chunkPos();
-        int vd = Math.min(world.viewDistance(), p.viewDistance());
-        return ChunkTrackingView.contains(c.x(), c.z(), vd, cp.x(), cp.z());
+        return ChunkTrackingView.contains(c.x(), c.z(), trackingDistance(p), cp.x(), cp.z());
+    }
+
+    /** 바닐라 ChunkMap.getPlayerViewDistance: clamp(클라이언트가 요청한 시야, 2, 서버 시야). 서버 시야가 2 보다 작아도 2 이상. */
+    private int trackingDistance(Player p) {
+        return Math.clamp(p.viewDistance(), 2, Math.max(2, world.viewDistance()));
     }
 
     /**
