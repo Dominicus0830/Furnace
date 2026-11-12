@@ -82,9 +82,8 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     private ChunkPos lastCenter;                 // 마지막으로 SetCenterChunk 보낸 청크(null=미전송)
     private final Set<ChunkPos> loadedChunks = new HashSet<>();
-    /** Entity.random — 엔티티 자신의 난수(RandomSource.create()). */
-    private final org.domi.furnace.server.block.LegacyRandomSource random =
-            new org.domi.furnace.server.block.LegacyRandomSource(java.util.concurrent.ThreadLocalRandom.current().nextLong());
+    /** Entity.random — 엔티티 자신의 난수(RandomSource.create()). 주인 열쇠 = 엔티티 id. */
+    private final org.domi.furnace.server.block.LegacyRandomSource random;
     private final Set<ChunkPos> pendingChunks = new LinkedHashSet<>(); // 시야 진입했으나 아직 전송 안 한 청크(순서 보존). region 스레드 전용.
     private final Map<Integer, double[]> tracked = new HashMap<>(); // 관찰중 엔티티 → 마지막 전송 {x,y,z}
     private final Map<Integer, Integer> missingTicks = new HashMap<>(); // 추적중인데 후보서 사라진 틱 수(grace despawn)
@@ -212,6 +211,8 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     public Player(int entityId, UUID uuid, String name, Channel channel) {
         this.entityId = entityId;
+        this.random = new org.domi.furnace.server.block.LegacyRandomSource(
+                org.domi.furnace.server.block.RandomSeeds.seed(entityId, org.domi.furnace.server.block.RandomSeeds.Purpose.PLAYER));
         this.uuid = uuid;
         this.name = name;
         this.channel = channel;

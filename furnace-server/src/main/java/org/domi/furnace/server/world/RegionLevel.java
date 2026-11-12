@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.LevelServices;
+import org.domi.furnace.server.block.RandomSeeds;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.protocol.Packet;
@@ -26,7 +27,7 @@ public final class RegionLevel extends ChunkLevel {
     private final ChunkColumn[] cacheCol = new ChunkColumn[CACHE];
 
     RegionLevel(Region region, World world) {
-        super(world.levelServices().maxChainedNeighborUpdates());
+        super(world.levelServices().maxChainedNeighborUpdates(), RandomSeeds.region(world.dimension(), world.levelName(), region.id()));
         this.region = region;
         this.world = world;
         this.minY = world.dimensionType().minY();

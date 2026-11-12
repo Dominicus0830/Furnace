@@ -27,13 +27,13 @@ public abstract class ChunkLevel implements BlockLevel {
     protected final Blocks blocks = Blocks.get();
     protected final BlockInfo info = BlockInfo.get();
     private final NeighborUpdater neighborUpdater;
-    private final RandomSource random = RandomSource.create();
-    private final RandomSource soundRandom = RandomSource.create();
+    private final RandomSource random;
+    private final RandomSource soundRandom;
     private final BlockTicks blockTicks = new BlockTicks();
     private final BlockTicks fluidTicks = new BlockTicks();
     private long subTickCount;
     /** Level.randValue — 무작위 칸 고르기 LCG(getBlockRandomPos). 바닐라처럼 처음 값은 임의. */
-    private int randValue = new java.util.Random().nextInt();
+    private int randValue;
     /** 지역 틱 시계(예약 틱 기준 — Folia 의 redstoneTime 처럼 region 마다 따로 간다. 월드 시간은 gameTime()). */
     private long levelTime;
     /** 레드스톤 횃불 과열 기록(바닐라 정적 RECENT_TOGGLES 대신 레벨마다 — region 스레드끼리 겹치지 않고 합치기·나누기 때 옮긴다). */
@@ -47,7 +47,13 @@ public abstract class ChunkLevel implements BlockLevel {
 
     private record BlockEventData(int x, int y, int z, int block, int type, int data) {}
 
-    protected ChunkLevel(int maxChainedNeighborUpdates) {
+    protected ChunkLevel(int maxChainedNeighborUpdates) { this(maxChainedNeighborUpdates, 0L); }
+
+    /** ownerKey: 이 레벨의 난수 주인 열쇠(RandomSeeds.region). 시험 JVM 에서 같은 열쇠면 같은 난수열을 얻는다. */
+    protected ChunkLevel(int maxChainedNeighborUpdates, long ownerKey) {
+        this.random = RandomSource.createFor(ownerKey, RandomSeeds.Purpose.LEVEL);
+        this.soundRandom = RandomSource.createFor(ownerKey, RandomSeeds.Purpose.LEVEL_SOUND);
+        this.randValue = RandomSource.createFor(ownerKey, RandomSeeds.Purpose.LEVEL_RAND_VALUE).nextInt();
         this.neighborUpdater = new NeighborUpdater(this, maxChainedNeighborUpdates);
     }
 
