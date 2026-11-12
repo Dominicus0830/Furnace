@@ -293,12 +293,12 @@ public class Camel extends AbstractHorse {
 
     public boolean isVisuallySittingDown() { return isCamelSitting() && getPoseTime() < SITTING_TO_STANDING_TICKS && getPoseTime() >= 0L; }
 
-    /** Camel.canCamelChangePose = wouldNotSuffocateAtTargetPose(앉았으면 선 자세, 아니면 앉은 자세): 그 자세 몸 상자(1e-7 줄임)에 블록 충돌이 없다. */
+    /** Camel.canCamelChangePose = wouldNotSuffocateAtTargetPose(앉았으면 선 자세, 아니면 앉은 자세): 그 자세 몸 상자에 블록 충돌(noBlockCollision(this, …))이 없다. */
     public boolean canChangePose() {
         float s = getAgeScale();
         float w = EntityType.CAMEL.width() * s, h = (isCamelSitting() ? EntityType.CAMEL.height() : SITTING_HEIGHT) * s;
         double hw = w / 2.0;
-        return level.noCollision(new AABB(x() - hw, y(), z() - hw, x() + hw, y() + h, z() + hw).deflate(1.0E-7));
+        return level.noBlockCollision(this, new AABB(x() - hw, y(), z() - hw, x() + hw, y() + h, z() + hw).deflate(1.0E-7));
     }
 
     public void sitDown() {

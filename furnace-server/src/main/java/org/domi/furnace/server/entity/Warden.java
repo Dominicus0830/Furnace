@@ -335,7 +335,7 @@ public class Warden extends Monster implements VibrationSystem {
     }
 
     @Override
-    public boolean checkSpawnObstruction(ChunkLevel level) { return super.checkSpawnObstruction(level) && level.noCollision(boundingBox()); }
+    public boolean checkSpawnObstruction(ChunkLevel level) { return super.checkSpawnObstruction(level) && level.noCollision(this, boundingBox()); }
 
     // ------------------------------------------------------------------ 진동
 

@@ -89,7 +89,7 @@ public final class ItemEntity extends Entity {
         } else {
             applyGravity();
         }
-        noPhysics = !level.noCollision(boundingBox().deflate(1.0E-7));
+        noPhysics = !level.noCollision(this, boundingBox().deflate(1.0E-7));
         if (noPhysics) moveTowardsClosestSpace(x(), (boundingBox().minY() + boundingBox().maxY()) / 2.0, z());
         if (!onGround() || vx() * vx() + vz() * vz() > 1.0E-5F || (tickCount + id()) % 4 == 0) {
             move(MOVER_SELF, vx(), vy(), vz());

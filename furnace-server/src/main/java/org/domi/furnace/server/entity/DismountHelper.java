@@ -15,8 +15,8 @@ public final class DismountHelper {
     /** isBlockFloorValid: 바닥 높이가 무한이 아니고 1 보다 낮다. */
     public static boolean isBlockFloorValid(double h) { return !Double.isInfinite(h) && h < 1.0; }
 
-    /** canDismountTo: 그 상자에 블록 충돌이 없고 월드 보더 안이다(getWorldBorder().isWithinBounds(box)). */
-    public static boolean canDismountTo(ChunkLevel level, AABB box) { return level.noCollision(box) && withinBorder(level, box); }
+    /** canDismountTo: 그 상자에 블록 충돌(getBlockCollisions — 엔티티는 보지 않는다)이 없고 월드 보더 안이다(getWorldBorder().isWithinBounds(box)). */
+    public static boolean canDismountTo(ChunkLevel level, AABB box) { return level.noBlockCollision(null, box) && withinBorder(level, box); }
 
     /** WorldBorder.isWithinBounds(AABB): 두 모서리(최대는 1e-5 안쪽)가 모두 보더 안(최소 이상, 최대 미만). */
     public static boolean withinBorder(ChunkLevel level, AABB box) {

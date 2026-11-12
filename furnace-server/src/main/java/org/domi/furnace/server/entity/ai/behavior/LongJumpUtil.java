@@ -58,7 +58,7 @@ public final class LongJumpUtil {
             cur = i == steps - 1 ? to : new double[] {cur[0] + ux * d * 0.9F, cur[1] + uy * d * 0.9F, cur[2] + uz * d * 0.9F};
             float hw = mob.bbWidth() / 2.0F;
             AABB box = new AABB(cur[0] - hw, cur[1], cur[2] - hw, cur[0] + hw, cur[1] + mob.bbHeight(), cur[2] + hw);
-            if (!mob.level().noCollision(box)) return false;
+            if (!mob.level().noCollision(mob, box)) return false;
         }
         return true;
     }

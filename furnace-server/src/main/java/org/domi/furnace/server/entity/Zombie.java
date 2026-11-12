@@ -128,7 +128,7 @@ public class Zombie extends Monster {
                         && org.domi.furnace.server.entity.spawn.SpawnPlacements.checkSpawnRules(type().name(), level,
                                 org.domi.furnace.server.entity.spawn.SpawnReason.REINFORCEMENT, pos, level.random())) {
                     zombie.setPos(x, y, z);
-                    if (!hasNearbyAlivePlayer(x, y, z, 7.0) && zombie.checkSpawnObstruction(level) && level.noCollision(zombie.boundingBox())) {
+                    if (!hasNearbyAlivePlayer(x, y, z, 7.0) && zombie.checkSpawnObstruction(level) && level.noCollision(zombie, zombie.boundingBox())) {
                         zombie.setTarget(target);
                         zombie.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(zombie.blockPosition()));
                         level.addFreshEntityWithPassengers(zombie.spawnReason("REINFORCEMENTS"));

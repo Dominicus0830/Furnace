@@ -139,7 +139,11 @@ public abstract class AbstractMinecart extends Entity {
     @Override public boolean isPickable() { return !isRemoved(); }
 
     /** canCollideWith = Boat.canVehicleCollide. */
-    public boolean canCollideWith(Entity e) { return (e.canBeCollidedWith() || e.isPushable()) && !isPassengerOfSameVehicle(e); }
+    @Override public boolean canCollideWith(Entity e) { return (e.canBeCollidedWith() || e.isPushable()) && !isPassengerOfSameVehicle(e); }
+
+    @Override public boolean canCollideWithPlayer(Player p) { return p.isPushableByEntities() && !isPassengerOfSameVehicle(p); }
+
+    @Override public boolean collidesOnlyWithHardColliders() { return false; }
 
     @Override protected double defaultGravity() { return isInWater() ? 0.005 : 0.04; }
 

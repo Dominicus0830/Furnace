@@ -1718,12 +1718,12 @@ public abstract class ChunkLevel implements BlockLevel {
                 reason == org.domi.furnace.server.entity.spawn.SpawnReason.DISPENSER ? "DISPENSE_EGG" : "SPAWNER_EGG", stack, player) != null;
     }
 
-    /** EntityType.getYOffset: 칸 위에서 아래로 떨어뜨려 바닥에 맞출 높이(extendDown 이면 한 칸 아래까지). */
+    /** EntityType.getYOffset: 칸 위에서 아래로 떨어뜨려 바닥에 맞출 높이(extendDown 이면 한 칸 아래까지). 충돌은 getCollisions(null, 칸) — 단단한 엔티티 몸 포함. */
     public double snapOffset(Entity e, Pos pos, boolean extendDown) {
         e.setPos(pos.x() + 0.5, pos.y() + 1, pos.z() + 0.5);
         AABB box = new AABB(pos.x(), pos.y(), pos.z(), pos.x() + 1.0, pos.y() + 1.0, pos.z() + 1.0);
         if (extendDown) box = box.expandTowards(0.0, -1.0, 0.0);
-        return 1.0 + Entity.collideWithShapes(0.0, extendDown ? -2.0 : -1.0, 0.0, e.boundingBox(), blockCollisions(box))[1];
+        return 1.0 + Entity.collideWithShapes(0.0, extendDown ? -2.0 : -1.0, 0.0, e.boundingBox(), collisions(null, box))[1];
     }
 
     /**
@@ -1762,7 +1762,7 @@ public abstract class ChunkLevel implements BlockLevel {
         if (!(e instanceof org.domi.furnace.server.entity.Mob mob)) return null;
         mob.setPos(pos.x() + 0.5, pos.y() + 1, pos.z() + 0.5);
         AABB box = new AABB(pos.x(), pos.y(), pos.z(), pos.x() + 1.0, pos.y() + 1.0, pos.z() + 1.0);
-        double d0 = 1.0 + Entity.collideWithShapes(0.0, -1.0, 0.0, mob.boundingBox(), blockCollisions(box))[1];
+        double d0 = 1.0 + Entity.collideWithShapes(0.0, -1.0, 0.0, mob.boundingBox(), collisions(null, box))[1];   // getYOffset 과 같다
         mob.moveTo(pos.x() + 0.5, pos.y() + d0, pos.z() + 0.5, org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(random.nextFloat() * 360.0F), 0.0F);
         mob.setYHeadRot(mob.yRot());
         mob.setYBodyRot(mob.yRot());
@@ -2496,14 +2496,129 @@ public abstract class ChunkLevel implements BlockLevel {
         return false;
     }
 
-    /** noCollision(entity, box): 블록 충돌이 없는가(엔티티 충돌·월드 보더는 아직 없다). */
-    public boolean noCollision(AABB box) {
+    /** CollisionGetter.noCollision(box) = noCollision(null, box): 블록 충돌과 단단한 엔티티(배·셜커) 몸이 없는가. 월드 보더는 보지 않는다. */
+    public boolean noCollision(AABB box) { return noCollision(null, box); }
+
+    /** CollisionGetter.noCollision(self, box): 블록(self 문맥) → 엔티티(self.canCollideWith) → self 가 있으면 월드 보더(self 위치 기준). */
+    public boolean noCollision(org.domi.furnace.server.entity.Rider self, AABB box) {
+        return self == null ? noCollisionAt(null, 0.0, 0.0, box, true) : noCollisionAt(self, self.x(), self.z(), box, true);
+    }
+
+    /**
+     * noCollision(self, box) 이되 보더 가까움(isInsideCloseToBorder)을 self 의 지금 위치 대신 (sx, sz) 로 본다 — 바닐라가 self 를 이미 옮긴 뒤
+     * 부르는 곳(플레이어 이동 검증)에서 Furnace 는 옮기기 전에 계산하기 때문.
+     */
+    public boolean noCollision(org.domi.furnace.server.entity.Rider self, double sx, double sz, AABB box) {
+        return noCollisionAt(self, sx, sz, box, true);
+    }
+
+    /**
+     * 길찾기의 noCollision(mob, box): 바닐라는 PathNavigationRegion 위에서 부르고, 그 getEntityCollisions 는 언제나 빈 목록이다 —
+     * 블록(mob 문맥)과 월드 보더만 본다.
+     */
+    public boolean noCollisionIgnoringEntities(Entity self, AABB box) { return noCollisionAt(self, self.x(), self.z(), box, false); }
+
+    /**
+     * noCollision(플레이어, box) 를 Player 객체 없이: 탈것에 타지 않은 플레이어는 canCollideWith 가 canBeCollidedWith 와 같고 블록 문맥도 없으므로
+     * 엔티티 몫은 noCollision(null, box) 와 같다. 보더 가까움은 (sx, sz) 로 본다(스폰 자리 흩뿌리기).
+     */
+    public boolean noCollisionForUnmountedPlayer(double sx, double sz, AABB box) {
+        if (!noCollisionAt(null, 0.0, 0.0, box, true)) return false;
+        return borderClear(sx, sz, box);
+    }
+
+    private boolean noCollisionAt(org.domi.furnace.server.entity.Rider self, double sx, double sz, AABB box, boolean withEntities) {
+        if (!noBlockCollision(self instanceof Entity e ? e : null, box)) return false;
+        if (withEntities && !entityCollisions(self, box).isEmpty()) return false;
+        return self == null || borderClear(sx, sz, box);
+    }
+
+    private boolean borderClear(double sx, double sz, AABB box) {
+        Shape border = borderCollision(sx, sz, box);
+        // Shapes.joinIsNotEmpty(border, Shapes.create(box), AND) — 한 변이 1e-7 미만인 상자는 빈 모양이라 겹치지 않는다
+        return border == null || Shape.box(box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(), box.maxZ()).isEmpty()
+                || !border.overlaps(box, 0.0, 0.0, 0.0);
+    }
+
+    /** CollisionGetter.noBlockCollision(self, box): 블록 충돌 모양(self 가 있으면 그 문맥 — 가루눈 등)이 없는가. 엔티티·보더는 보지 않는다. */
+    public boolean noBlockCollision(Entity self, AABB box) {
         boolean[] hit = {false};
-        collectCollisions(box, (p, s) -> {
+        collectCollisions(box, self, (p, s) -> {
             hit[0] = true;
             return false;
         });
         return !hit[0];
+    }
+
+    /** CollisionGetter.getCollisions(self, box): 엔티티 충돌 모양 다음 블록 충돌 모양(보더 없음). */
+    public java.util.List<Shape> collisions(org.domi.furnace.server.entity.Rider self, AABB box) {
+        java.util.List<Shape> ents = entityCollisions(self, box);
+        java.util.List<Shape> blocks = blockCollisions(self instanceof Entity e ? e : null, box);
+        if (ents.isEmpty()) return blocks;
+        java.util.List<Shape> out = new java.util.ArrayList<>(ents.size() + blocks.size());
+        out.addAll(ents);
+        out.addAll(blocks);
+        return out;
+    }
+
+    /**
+     * EntityGetter.getEntityCollisions(self, box): 상자 크기(세 변 평균)가 1e-7 미만이면 빈 목록. 아니면 1e-7 넓힌 상자와 겹치는 관전자 아닌 엔티티 중
+     * self 가 없으면 canBeCollidedWith, 있으면 self.canCollideWith(그것)인 것의 몸 모양(Shapes.create — 빈 모양도 목록에 든다).
+     * 순서는 바닐라 getEntities 의 구역 순·넣은 순이고, 플레이어(배·수레만 부딪힌다)는 Furnace 에서 따로 들고 있어 엔티티 뒤에 온다.
+     * self 가 상대의 canBeCollidedWith 만 보는 경우(배·수레 말고 전부)는 HardCollider 구역 목록만 훑는다(같은 결과·같은 순서).
+     */
+    public java.util.List<Shape> entityCollisions(org.domi.furnace.server.entity.Rider self, AABB box) {
+        if (box.size() < 1.0E-7) return java.util.List.of();
+        AABB q = box.inflate(1.0E-7);
+        Entity selfEntity = self instanceof Entity e ? e : null;
+        boolean hardOnly = selfEntity == null || selfEntity.collidesOnlyWithHardColliders();
+        java.util.List<Shape> out = new java.util.ArrayList<>(2);
+        if (!entities.isEmpty()) {
+            java.util.function.Predicate<Entity> ok = e -> e != self && !e.isSpectator() && canCollide(self, e);
+            var found = hardOnly ? entities.getEntitiesOfType(org.domi.furnace.server.entity.HardCollider.class, q, ok)
+                    : entities.getEntities(selfEntity, q, ok);
+            for (Entity e : found) {
+                AABB b = e.boundingBox();
+                out.add(Shape.box(b.minX(), b.minY(), b.minZ(), b.maxX(), b.maxY(), b.maxZ()));
+            }
+        }
+        if (!hardOnly) {
+            forEachPlayerIn(q, p -> {
+                if (p != self && !p.isSpectator() && selfEntity.canCollideWithPlayer(p)) {
+                    AABB b = p.boundingBox();
+                    out.add(Shape.box(b.minX(), b.minY(), b.minZ(), b.maxX(), b.maxY(), b.maxZ()));
+                }
+            });
+        }
+        return out.isEmpty() ? java.util.List.of() : out;
+    }
+
+    /** self.canCollideWith(e): self 없음 = canBeCollidedWith, 엔티티 = 그 덮어쓰기, 플레이어 = Entity 기본(단단하고 같은 탈것 무리가 아님). */
+    private static boolean canCollide(org.domi.furnace.server.entity.Rider self, Entity e) {
+        if (self == null) return e.canBeCollidedWith();
+        if (self instanceof Entity s) return s.canCollideWith(e);
+        return e.canBeCollidedWith() && !e.isPassengerOfSameVehicle(self);
+    }
+
+    private double[] borderShapeKey;
+    private Shape borderShape;
+
+    /**
+     * CollisionGetter.borderCollision → WorldBorder.isInsideCloseToBorder(self, box): d = max(|가로 길이|, |세로 길이|, 1) 일 때
+     * self 위치 (sx, sz)가 보더까지 2d 미만이고 보더를 d 만큼 넓힌 안이면 보더 바깥 모양(정수로 넓힌 보더 기둥 밖), 아니면 null.
+     */
+    public Shape borderCollision(double sx, double sz, AABB box) {
+        double[] b = borderBounds();
+        double d = Math.max(Math.max(Math.abs(box.getXsize()), Math.abs(box.getZsize())), 1.0);
+        double dist = Math.min(Math.min(Math.min(sx - b[0], b[2] - sx), sz - b[1]), b[3] - sz);
+        if (!(dist < d * 2.0) || !(sx >= b[0] - d && sx < b[2] + d && sz >= b[1] - d && sz < b[3] + d)) return null;
+        double x0 = Math.floor(b[0]), z0 = Math.floor(b[1]), x1 = Math.ceil(b[2]), z1 = Math.ceil(b[3]);
+        double[] k = borderShapeKey;
+        if (k == null || k[0] != x0 || k[1] != z0 || k[2] != x1 || k[3] != z1) {
+            borderShape = Shape.outsideBorder(x0, z0, x1, z1);
+            borderShapeKey = new double[] {x0, z0, x1, z1};
+        }
+        return borderShape;
     }
 
     /** findSupportingBlock(entity, box): 겹치는 충돌 블록 중 엔티티 위치에서 가운데가 가장 가까운 것(같으면 compareTo 가 큰 쪽). */
