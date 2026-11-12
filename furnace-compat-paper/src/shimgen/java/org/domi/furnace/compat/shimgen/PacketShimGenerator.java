@@ -54,23 +54,27 @@ public final class PacketShimGenerator {
 
     static {
         String b = "net.minecraft.network.";
+        // 1.21.1 바닐라 계층(바이트코드 대조: tools/compat/packet-schema-check 에 shim 클래스 폴더를 주면 본다).
+        // game.ServerPacketListener 는 서버 쪽 처리자의 공통 부모(바닐라는 Logger·onPacketError 기본 메서드를 가진다, Mojang 이름은 가정).
+        String sp = PROTO + "game.ServerPacketListener";
         LISTENER_PARENTS.put(b + "ClientboundPacketListener", List.of(b + "PacketListener"));
         LISTENER_PARENTS.put(b + "ServerboundPacketListener", List.of(b + "PacketListener"));
+        LISTENER_PARENTS.put(sp, List.of(b + "ServerboundPacketListener"));
         LISTENER_PARENTS.put(PROTO + "cookie.ClientCookiePacketListener", List.of(b + "ClientboundPacketListener"));
-        LISTENER_PARENTS.put(PROTO + "cookie.ServerCookiePacketListener", List.of(b + "ServerboundPacketListener"));
-        LISTENER_PARENTS.put(PROTO + "ping.ClientPongPacketListener", List.of(b + "ClientboundPacketListener"));
-        LISTENER_PARENTS.put(PROTO + "ping.ServerPingPacketListener", List.of(b + "ServerboundPacketListener"));
-        LISTENER_PARENTS.put(PROTO + "common.ClientCommonPacketListener", List.of(PROTO + "cookie.ClientCookiePacketListener"));
-        LISTENER_PARENTS.put(PROTO + "common.ServerCommonPacketListener", List.of(PROTO + "cookie.ServerCookiePacketListener"));
+        LISTENER_PARENTS.put(PROTO + "cookie.ServerCookiePacketListener", List.of(sp));
+        LISTENER_PARENTS.put(PROTO + "ping.ClientPongPacketListener", List.of(b + "PacketListener"));
+        LISTENER_PARENTS.put(PROTO + "ping.ServerPingPacketListener", List.of(b + "PacketListener"));
+        LISTENER_PARENTS.put(PROTO + "common.ClientCommonPacketListener", List.of(PROTO + "cookie.ClientCookiePacketListener", b + "ClientboundPacketListener"));
+        LISTENER_PARENTS.put(PROTO + "common.ServerCommonPacketListener", List.of(PROTO + "cookie.ServerCookiePacketListener", sp));
         LISTENER_PARENTS.put(PROTO + "game.ClientGamePacketListener", List.of(PROTO + "ping.ClientPongPacketListener", PROTO + "common.ClientCommonPacketListener"));
         LISTENER_PARENTS.put(PROTO + "game.ServerGamePacketListener", List.of(PROTO + "ping.ServerPingPacketListener", PROTO + "common.ServerCommonPacketListener"));
         LISTENER_PARENTS.put(PROTO + "configuration.ClientConfigurationPacketListener", List.of(PROTO + "common.ClientCommonPacketListener"));
         LISTENER_PARENTS.put(PROTO + "configuration.ServerConfigurationPacketListener", List.of(PROTO + "common.ServerCommonPacketListener"));
-        LISTENER_PARENTS.put(PROTO + "login.ClientLoginPacketListener", List.of(PROTO + "cookie.ClientCookiePacketListener"));
-        LISTENER_PARENTS.put(PROTO + "login.ServerLoginPacketListener", List.of(PROTO + "cookie.ServerCookiePacketListener"));
-        LISTENER_PARENTS.put(PROTO + "status.ClientStatusPacketListener", List.of(PROTO + "ping.ClientPongPacketListener"));
-        LISTENER_PARENTS.put(PROTO + "status.ServerStatusPacketListener", List.of(PROTO + "ping.ServerPingPacketListener"));
-        LISTENER_PARENTS.put(PROTO + "handshake.ServerHandshakePacketListener", List.of(b + "ServerboundPacketListener"));
+        LISTENER_PARENTS.put(PROTO + "login.ClientLoginPacketListener", List.of(PROTO + "cookie.ClientCookiePacketListener", b + "ClientboundPacketListener"));
+        LISTENER_PARENTS.put(PROTO + "login.ServerLoginPacketListener", List.of(PROTO + "cookie.ServerCookiePacketListener", sp));
+        LISTENER_PARENTS.put(PROTO + "status.ClientStatusPacketListener", List.of(PROTO + "ping.ClientPongPacketListener", b + "ClientboundPacketListener"));
+        LISTENER_PARENTS.put(PROTO + "status.ServerStatusPacketListener", List.of(sp, PROTO + "ping.ServerPingPacketListener"));
+        LISTENER_PARENTS.put(PROTO + "handshake.ServerHandshakePacketListener", List.of(sp));
     }
 
     private final PacketSchema schema;
@@ -321,7 +325,7 @@ public final class PacketShimGenerator {
                 }
                 sb.append(vis).append(st).append(abs ? "abstract " : "").append("class ").append(name).append(impl).append(" {\n");
                 fields(sb, s.fields(), s.javaPackage(), abs ? "protected" : "private");
-                if (!s.fields().isEmpty()) ctor(sb, name, s.fields(), s.javaPackage(), abs ? "protected" : (s.privateAccess() ? "private" : "public"));
+                if (!s.fields().isEmpty()) ctor(sb, name, s.fields(), s.javaPackage(), abs ? "protected" : (s.publicConstructor() ? "public" : "private"));
                 getters(sb, s.fields(), s.javaPackage());
             }
         }

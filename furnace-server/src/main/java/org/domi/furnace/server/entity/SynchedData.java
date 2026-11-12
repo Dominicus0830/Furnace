@@ -27,6 +27,12 @@ public final class SynchedData {
 
     public Object get(int index) { return values[index]; }
 
+    /** 정의된 칸 수. */
+    public int size() { return values.length; }
+
+    /** 그 칸의 직렬화 번호(SetEntityData.SERIALIZER_*). */
+    public int serializer(int index) { return serializers[index]; }
+
     public void set(int index, Object value) { set(index, value, false); }
 
     /** 같지 않거나(force) 면 바꾸고 dirty. */

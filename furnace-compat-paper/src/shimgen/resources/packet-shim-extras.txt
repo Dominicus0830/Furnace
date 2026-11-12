@@ -6,12 +6,17 @@
 public ClientboundAddEntityPacket(int id, java.util.UUID uuid, double x, double y, double z, float xRot, float yRot,
         net.minecraft.world.entity.EntityType<?> type, int data, net.minecraft.world.phys.Vec3 deltaMovement, double yHeadRot) {
     this(id, uuid, type, x, y, z, velocity(deltaMovement.x), velocity(deltaMovement.y), velocity(deltaMovement.z),
-            angle(xRot), angle(yRot), angle((float) yHeadRot), data);
+            angle(xRot), angle(yRot), (byte) floor(yHeadRot * 256.0 / 360.0), data);
 }
 
 static int velocity(double v) { return (int) (Math.max(-3.9, Math.min(3.9, v)) * 8000.0); }
 
-static byte angle(float degrees) { return (byte) Math.floor(degrees * 256.0F / 360.0F); }
+// 바닐라 Mth.floor: int 로 자른 뒤 1 을 뺀다(아주 큰 음수에서 Math.floor 와 다르다). 머리 각도는 바닐라처럼 double 로 계산한다.
+static int floor(float f) { int i = (int) f; return f < (float) i ? i - 1 : i; }
+
+static int floor(double d) { int i = (int) d; return d < (double) i ? i - 1 : i; }
+
+static byte angle(float degrees) { return (byte) floor(degrees * 256.0F / 360.0F); }
 
 public double getXa() { return xa / 8000.0; }
 public double getYa() { return ya / 8000.0; }
@@ -37,7 +42,15 @@ public ClientboundBlockEventPacket(net.minecraft.core.BlockPos pos, net.minecraf
 @@ net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket
 public ClientboundContainerSetContentPacket(int containerId, int stateId, net.minecraft.core.NonNullList<net.minecraft.world.item.ItemStack> items,
         net.minecraft.world.item.ItemStack carriedItem) {
-    this(containerId, stateId, java.util.List.copyOf(items), carriedItem);
+    this(containerId, stateId, copyItems(items), carriedItem.copy());
+}
+
+// 바닐라: 크기 고정(값 교체 가능) NonNullList 에 각 스택의 복사본을 담는다(List 로 돌려줘 모든 필드 생성자를 부른다)
+private static java.util.List<net.minecraft.world.item.ItemStack> copyItems(java.util.List<net.minecraft.world.item.ItemStack> items) {
+    net.minecraft.core.NonNullList<net.minecraft.world.item.ItemStack> copy =
+            net.minecraft.core.NonNullList.withSize(items.size(), net.minecraft.world.item.ItemStack.EMPTY);
+    for (int i = 0; i < items.size(); i++) copy.set(i, items.get(i).copy());
+    return copy;
 }
 
 @@ net.minecraft.network.protocol.game.ClientboundEntityEventPacket
@@ -48,7 +61,7 @@ public ClientboundExplodePacket(double x, double y, double z, float power, java.
         net.minecraft.world.phys.Vec3 knockback, net.minecraft.world.level.Explosion.BlockInteraction blockInteraction,
         net.minecraft.core.particles.ParticleOptions smallExplosionParticles, net.minecraft.core.particles.ParticleOptions largeExplosionParticles,
         net.minecraft.core.Holder<net.minecraft.sounds.SoundEvent> explosionSound) {
-    this(x, y, z, power, java.util.List.copyOf(toBlow), knockback == null ? 0.0F : (float) knockback.x,
+    this(x, y, z, power, new java.util.ArrayList<>(toBlow), knockback == null ? 0.0F : (float) knockback.x,
             knockback == null ? 0.0F : (float) knockback.y, knockback == null ? 0.0F : (float) knockback.z,
             smallExplosionParticles, largeExplosionParticles, blockInteraction, explosionSound);
 }
@@ -79,6 +92,14 @@ public static final int DEMO_PARAM_HINT_4 = 104;
 public <T extends net.minecraft.core.particles.ParticleOptions> ClientboundLevelParticlesPacket(T particle, boolean overrideLimit,
         double x, double y, double z, float xDist, float yDist, float zDist, float maxSpeed, int count) {
     this(x, y, z, xDist, yDist, zDist, maxSpeed, count, overrideLimit, particle);
+}
+
+@@ net.minecraft.network.protocol.game.ClientboundMapItemDataPacket
+public ClientboundMapItemDataPacket(net.minecraft.world.level.saveddata.maps.MapId mapId, byte scale, boolean locked,
+        java.util.Collection<net.minecraft.world.level.saveddata.maps.MapDecoration> decorations,
+        net.minecraft.world.level.saveddata.maps.MapItemSavedData.MapPatch colorPatch) {
+    this(mapId, scale, locked, decorations != null ? java.util.Optional.of(java.util.List.copyOf(decorations)) : java.util.Optional.empty(),
+            java.util.Optional.ofNullable(colorPatch));
 }
 
 @@ net.minecraft.network.protocol.game.ClientboundMoveEntityPacket
@@ -134,6 +155,8 @@ public ClientboundRecipePacket(State state, java.util.Collection<net.minecraft.r
 public static final byte KEEP_ATTRIBUTES = 1;
 public static final byte KEEP_ENTITY_DATA = 2;
 public static final byte KEEP_ALL_DATA = 3;
+
+public boolean shouldKeep(byte flag) { return (dataToKeep & flag) != 0; }
 
 @@ net.minecraft.network.protocol.game.ClientboundRotateHeadPacket
 public ClientboundRotateHeadPacket(net.minecraft.world.entity.Entity entity, byte yHeadRot) { this(entity.getId(), yHeadRot); }

@@ -84,6 +84,26 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
     private static final java.util.regex.Pattern VERSION_TOKEN =
             java.util.regex.Pattern.compile("(?<![0-9])1_(\\d{1,2})(?:_R(\\d+)|((?:_\\d{1,2})+))?(?![0-9])");
 
+    private static final java.util.concurrent.ConcurrentHashMap<String, Boolean> SEND_UNSUPPORTED = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * 스키마로 생성한 clientbound 패킷 shim 인데 보내기 변환이 아직 없는가({@link SchemaPacket} 이고 {@link NmsPacket} 이 아니다).
+     * 그런 패킷을 만드는 플러그인은 보낼 때 실패하므로 보고·strict 가 미지원으로 센다. 클래스는 초기화하지 않고 본다.
+     */
+    static boolean sendUnsupported(String internalName) {
+        return SEND_UNSUPPORTED.computeIfAbsent(internalName, n -> {
+            String bin = n.replace('/', '.');
+            var def = org.domi.furnace.api.packet.schema.PacketSchema.protocol767().packetByClass(bin);
+            if (def.isEmpty() || def.get().direction() != org.domi.furnace.api.packet.PacketDirection.CLIENTBOUND) return false;
+            try {
+                Class<?> c = Class.forName(bin, false, NmsCompatReport.class.getClassLoader());
+                return SchemaPacket.class.isAssignableFrom(c) && !NmsPacket.class.isAssignableFrom(c);
+            } catch (ClassNotFoundException | LinkageError ex) {
+                return false;
+            }
+        });
+    }
+
     /** 미지원(등급 C + 아직 없음) 심볼 수. */
     public int unsupported() { return gradeC + unknown; }
 
@@ -164,8 +184,8 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
                         ? " 대응표로도 풀리지 않은 난독화 이름 멤버 " + obfuscatedLooking + "개는 그 호출이 실패한다." : "")
                 : spigotNamed && missing.stream().anyMatch(n -> n.startsWith("net.minecraft."))
                 ? " Spigot 이름 jar 로 보인다" + (obfuscatedLooking > 0 ? "(난독화 이름 멤버 " + obfuscatedLooking + "개)" : "")
-                        + " — Spigot→Mojang 대응표가 없어 shim 에 없는 그 이름의 호출은 실패한다. furnace.properties 에 plugins.compat.nms.spigot-mappings=download 를"
-                        + " 쓰면 처음 한 번 Mojang·Spigot 매핑을 받아 바꿔 올린다."
+                        + " — Spigot→Mojang 대응표가 없어 shim 에 없는 그 이름의 호출은 실패한다. furnace.properties 에 plugins.compat.nms.spigot-mappings=download(기본)"
+                        + " 로 두면 처음 한 번 Mojang·Spigot 매핑을 받아 바꿔 올린다(이미 download 라면 시작 로그의 받기 실패 경고를 보라)."
                 : obfuscatedLooking > 0
                 ? " 난독화 이름으로 보이는 멤버 " + obfuscatedLooking + "개는 그 호출이 실패한다."
                 : "";
@@ -230,6 +250,11 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
             if (owner.charAt(0) == '[') return;   // 배열의 clone 등
             if (!seen.add((field ? "F " : "M ") + owner + "#" + name + desc)) return;
             boolean ok = field ? index.hasField(owner, name, desc) : index.hasMethod(owner, name, desc);
+            if (ok && !field && name.equals("<init>") && sendUnsupported(e)) {
+                // 생성 패킷(모양만): 만들 수는 있지만 보내면 UnsupportedNmsCall — 보고·strict 에서 미지원으로 센다(범용 코덱이 붙으면 없앤다)
+                miss(owner, NmsLinker.dots(owner) + "#<init>(" + Type.getArgumentTypes(desc).length + ") — 모양만, 보내기 미지원", false);
+                return;
+            }
             if (ok) counts[0]++;
             else miss(owner, NmsLinker.dots(owner) + "#" + name + (field ? "" : "(" + Type.getArgumentTypes(desc).length + ")"),
                     name.length() <= 2 && !name.equals("<init>"));

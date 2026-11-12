@@ -19,10 +19,11 @@
 #               custom = 와이어가 필드 나열로 떨어지지 않는다(비트 묶음·조건부·순서 다름 등) — 코덱이 손으로 다룬다
 #               extends=<부모> = 부모 클래스(이 스키마의 base 나 Mojang 타입)
 #       클래스 이름에 '$' 가 있으면 내포 패킷이다(ClientboundMoveEntityPacket$Pos).
-#   base <클래스> [abstract]
+#   base <클래스> [abstract|record] [new]
 #       패킷이 아닌 같은 패키지 부모·보조 클래스(필드 블록을 가진다).
-#   record|class|interface|enum <바깥$안> [private] [: 상수 ...]
+#   record|class|interface|enum <바깥$안> [private] [new] [: 상수 ...]
 #       패킷 안에 내포된 타입. 필드 블록을 가질 수 있다.
+#       new = (class 만) 바닐라에 모든 필드를 받는 public 생성자가 있다. 없으면 생성자는 private(abstract 는 protected).
 #   필드:  <Java 타입> <이름> [와이어] [nullable] [get=<접근자>]
 #       순서는 바닐라 클래스의 필드 선언 순서. 이름은 Mojang 이름 그대로(camelCase).
 #       와이어 생략 시 Java 타입에서: int=varint long=i64 short=i16 byte=i8 float=f32 double=f64 boolean=bool
@@ -399,7 +400,7 @@ packet clientbound forget_level_chunk ClientboundForgetLevelChunkPacket record
 packet clientbound game_event ClientboundGameEventPacket class new
   ClientboundGameEventPacket.Type event u8 get=getEvent
   float param get=getParam
-class ClientboundGameEventPacket$Type
+class ClientboundGameEventPacket$Type new
   int id
 packet clientbound horse_screen_open ClientboundHorseScreenOpenPacket class new
   int containerId u8 get=getContainerId

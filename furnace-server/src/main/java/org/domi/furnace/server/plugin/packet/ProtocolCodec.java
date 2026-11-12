@@ -24,4 +24,10 @@ public interface ProtocolCodec {
 
     /** 값을 이 버전의 와이어로: 본문은 out 에 쓰고 id 를 돌려준다. 보낼 수 없는 값이면 IllegalArgumentException. */
     int encode(Packet packet, ByteBuf out);
+
+    /** 이름 있는 메타데이터 칸의 이 버전 칸 번호(없으면 empty). */
+    java.util.OptionalInt entityDataIndex(org.domi.furnace.api.entity.data.EntityDataKey<?> key);
+
+    /** 그 엔티티 종류에 이 칸이 있는가(같은 번호·같은 값 종류). */
+    boolean hasEntityData(String entityType, org.domi.furnace.api.entity.data.EntityDataKey<?> key);
 }

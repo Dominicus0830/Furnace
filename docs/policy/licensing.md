@@ -6,7 +6,7 @@
 - `furnace-api`: **MIT**. `furnace-api/LICENSE`. 플러그인이 API 만 쓰면 어떤 라이선스든 가능하다.
 - 모듈별 SPDX 식별자는 각 `build.gradle.kts` 첫 줄.
 - **제외:** 바닐라 Mojang 에서 추출한 데이터·코드·자산은 이 라이선스 대상이 아니다(Mojang EULA 적용). 저장소에 커밋하지 않는 원칙은 그대로.
-- **Spigot 이름 대응표(H7d):** Mojang 공식 매핑·Spigot BuildData 매핑은 저장소·서버 jar 에 싣지 않는다. 운영자가 `plugins.compat.nms.spigot-mappings=download` 로 켤 때만 운영자 컴퓨터가 원 출처에서 받아 캐시에 두고 메모리에서 대응표를 만든다(Paper 의 첫 실행 방식과 같은 구조). 코드에는 주소·체크섬만 있다.
+- **Spigot 이름 대응표(H7d):** Mojang 공식 매핑·Spigot BuildData 매핑은 저장소·서버 jar 에 싣지 않는다. Spigot 이름으로 컴파일된 NMS 플러그인이 `plugins/bukkit-plugins/` 에 있을 때만 운영자 컴퓨터가 원 출처에서 받아 캐시에 두고 메모리에서 대응표를 만든다(Paper 의 첫 실행 방식과 같은 구조). 기본 `plugins.compat.nms.spigot-mappings=download`(2026-11-12 도미니코 결정 — 넣으면 바로 돈다), 받지 않으려면 `off`. 코드에는 주소·체크섬만 있다.
 - `furnace-compat-paper` 의 `org.bukkit.*` 호환 클래스는 공개 이름·서명만 따라 새로 썼고 Bukkit 소스를 복사하지 않았다. 서버 모듈이 GPLv3 이므로 같은 jar 에 넣어도 GPLv3 조건을 지키면 된다.
 
 ## 의존 라이브러리와 GPLv3 호환 점검 (build.gradle.kts 기준, 라이선스는 각 프로젝트 공지에서 아는 대로 적음 — 릴리스 전 재확인)
