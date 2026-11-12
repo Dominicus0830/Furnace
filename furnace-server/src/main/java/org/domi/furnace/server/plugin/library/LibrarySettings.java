@@ -9,6 +9,7 @@
 // Paper/Bukkit 호환 플러그인용(H4 묶음 B) — enabled 와 따로 움직인다. offline·cache·timeout-seconds·max-size-mb 는 함께 쓴다:
 //   plugins.compat.libraries=needed          Paper 가 싣는 라이브러리(Guava·Adventure·SnakeYAML·Brigadier 등, ServerLibraries)를
 //                                            needed: plugins/bukkit-plugins/ 의 플러그인 클래스가 쓰는 묶음만 / all: 호환 플러그인이 하나라도 있으면 전부 / off: 안 받는다
+//                                            Guava·SnakeYAML 은 서버 jar 에 실려 있어 받지 않고 꺼낸다(offline 이어도 됨). off 면 그 둘도 주지 않는다
 //   plugins.compat.libraries.mojang=true     Brigadier·authlib·DataFixerUpper 를 Mojang 저장소(libraries.minecraft.net)에서 받는다 — false 면 그 셋은 빼고 경고
 //   plugins.compat.libraries.declared=true   호환 플러그인 plugin.yml 의 libraries 를 Paper·Spigot 처럼 받는다(plugins.libraries.enabled 가 꺼져 있어도)
 package org.domi.furnace.server.plugin.library;

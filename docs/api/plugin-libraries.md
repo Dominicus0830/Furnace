@@ -54,7 +54,7 @@ libraries:
 
 ## Paper/Bukkit 플러그인용 서버 제공 라이브러리 (H4 묶음 B)
 
-Paper 는 Guava·Adventure·SnakeYAML·Brigadier 같은 라이브러리를 서버 jar 에 싣고 있어서, Paper/Bukkit 플러그인은 `libraries:` 선언 없이 그것들을 그냥 쓴다. Furnace 는 서버 jar 를 가볍게 두려고(사용자 결정 4·5) 이 라이브러리를 싣지 않고, **`plugins/bukkit-plugins/` 의 플러그인이 쓸 때만** 받아서 붙인다. Furnace 플러그인(`furnace-plugin.yml`)과 위의 `plugins.libraries.*` 기능에는 영향이 없다.
+Paper 는 Guava·Adventure·SnakeYAML·Brigadier 같은 라이브러리를 서버 jar 에 싣고 있어서, Paper/Bukkit 플러그인은 `libraries:` 선언 없이 그것들을 그냥 쓴다. Furnace 는 **`plugins/bukkit-plugins/` 의 플러그인이 쓸 때만** 이 라이브러리를 준비해 붙인다(폴더가 비면 아무것도 올리지 않는다). 그중 **Guava(+failureaccess)·SnakeYAML 은 서버 jar 에 jar 그대로 실려 있어**(약 3.4 MB, 사용자 결정 5 정정 2026-11-12) 내려받지 않고 꺼내 쓴다. 나머지(Adventure 포함)는 쓸 때 받는다(사용자 결정 4·5). Furnace 플러그인(`furnace-plugin.yml`)과 위의 `plugins.libraries.*` 기능에는 영향이 없다.
 
 | 키 | 기본 | 뜻 |
 |---|---|---|
@@ -66,11 +66,13 @@ Paper 는 Guava·Adventure·SnakeYAML·Brigadier 같은 라이브러리를 서�
 
 ### 무엇을 받나 (버전·sha256 은 코드 `ServerLibraries` 에 고정)
 
+"서버 jar" 는 fat jar(`furnace-server.jar`) 의 `META-INF/furnace/libraries/` 에 jar 그대로 실려 있다는 뜻이다. 클래스를 풀어 넣지 않았고 패키지 이름도 바꾸지 않았다(재배치 없음 — 플러그인이 `com.google.common`·`org.yaml.snakeyaml` 을 그대로 쓴다). 필요할 때 캐시(아래 경로와 같은 자리)로 꺼내 공유 로더에 붙이므로 서버 로더·Furnace 플러그인은 이 클래스를 보지 않는다. `fatJar` 는 실은 jar 의 sha256 이 `ServerLibraries` 고정값과 같은지, bundled 로 적힌 것이 모두 실렸는지 확인한다. gradle 개발 실행·시험처럼 서버 jar 가 아닐 때는 Central 에서 받는다. 라이선스 고지는 저장소 `NOTICE`·`licenses/` 와 서버 jar 의 `META-INF/furnace/libraries/NOTICE`.
+
 | 묶음 | jar | 저장소 | 표지(이 패키지가 보이면 필요) |
 |---|---|---|---|
-| guava | guava 32.1.2-jre, failureaccess 1.0.1 | Central | `com/google/common/`, `com/google/thirdparty/` |
+| guava | guava 32.1.2-jre, failureaccess 1.0.1 | **서버 jar** (없으면 Central) | `com/google/common/`, `com/google/thirdparty/` |
 | adventure | adventure-api·key·text-minimessage·text-serializer-json/gson/legacy/plain/ansi·text-logger-slf4j 4.17.0, examination-api/string 1.3.0, option 1.0.0, ansi 1.0.3 | Central | `net/kyori/adventure/`, `net/kyori/examination/` |
-| snakeyaml | snakeyaml 2.2 | Central | `org/yaml/snakeyaml/` |
+| snakeyaml | snakeyaml 2.2 | **서버 jar** (없으면 Central) | `org/yaml/snakeyaml/` |
 | bungeecord-chat | bungeecord-chat 1.20-R0.2 (+ guava) | Central | `net/md_5/bungee/api/`(ChatColor 포함), `net/md_5/bungee/chat/` |
 | json-simple | json-simple 1.1.1 | Central | `org/json/simple/` |
 | joml | joml 1.10.5 | Central | `org/joml/` |
@@ -84,7 +86,7 @@ Paper 는 Guava·Adventure·SnakeYAML·Brigadier 같은 라이브러리를 서�
 
 - 바닐라 1.21.1 서버 jar 가 싣는 것(Guava·failureaccess·JOML·fastutil·commons-lang3·commons-io·log4j-api·Brigadier·authlib·DataFixerUpper)은 바닐라 jar 의 `META-INF/libraries.list` 에 Mojang 이 적은 버전·sha256 을 그대로 썼다. 나머지(Adventure·SnakeYAML·BungeeChat·json-simple·log4j-to-slf4j)는 Maven Central 의 jar 를 받아 잰 값이다. Paper 1.21.1 이 정확히 어느 버전을 싣는지는 Paper 저장소에 못 닿아 대조하지 못했다(기억 기준: Adventure 4.17.0, SnakeYAML 2.2).
 - 서버 클래스패스에 이미 있는 Gson·slf4j·netty 는 받지 않는다(두 벌이면 플러그인과 서버가 다른 Class 를 본다).
-- 받은 jar 는 고정 sha256 과 같은 바이트만 쓴다. 캐시 파일이 다르면 지우고 다시 받는다. 잠금 파일(`libraries.lock`)은 보지도 쓰지도 않는다 — 코드의 고정값이 기준이다.
+- 받은(꺼낸) jar 는 고정 sha256 과 같은 바이트만 쓴다. 서버 jar 에 실린 바이트가 다르면 쓰지 않고 Central 에서 받는다. 캐시 파일이 다르면 지우고 다시 받는다. 잠금 파일(`libraries.lock`)은 보지도 쓰지도 않는다 — 코드의 고정값이 기준이다.
 
 ### 어떻게 붙나
 
@@ -93,6 +95,7 @@ Paper 는 Guava·Adventure·SnakeYAML·Brigadier 같은 라이브러리를 서�
 
 ### 끄거나 오프라인일 때
 
+- Guava·SnakeYAML 은 서버 jar 에서 꺼내므로 `offline=true` 이거나 인터넷이 없어도 준비된다. `plugins.compat.libraries=off` 면 이 둘도 주지 않는다.
 - 받지 못한 묶음(오프라인·캐시 없음·404·sha256 불일치·Mojang 금지)은 **경고 한 줄만 남기고 플러그인은 그대로 올린다.** 그 클래스를 쓰는 순간 `NoClassDefFoundError` 가 나고 서버는 평소처럼 그 플러그인의 오류를 남긴다(옆 플러그인은 영향 없음). 경고에는 받을 주소, 캐시 경로, sha256 이 들어 있다.
 - 인터넷이 없는 서버: 다른 곳에서 받은 jar 를 경고에 나온 경로(`plugins/.libraries/<그룹 경로>/<아티팩트>/<버전>/<아티팩트>-<버전>.jar`)에 두고 `plugins.libraries.offline=true` 로 켠다. 고정 sha256 과 같으면 그대로 쓴다. Mojang 라이브러리 셋은 바닐라 1.21.1 서버 jar 안 `META-INF/libraries/com/mojang/...` 에 있는 jar 와 바이트가 같다.
 - 응답 없는 네트워크: 한 저장소 호스트에 연결(전송)이 한 번 실패하면 그 시작 동안 같은 호스트의 남은 받기는 시도하지 않고 묶음 목록을 한 번에 경고한다(묶음마다 `timeout-seconds` 를 기다리지 않게). HTTP 오류·404·sha256 불일치는 호스트를 막지 않는다. Furnace 플러그인 `libraries` 받기도 같은 규칙이다.

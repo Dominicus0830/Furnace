@@ -1,5 +1,8 @@
 // Paper 가 서버 jar 에 싣고 있어 Paper/Bukkit 플러그인이 libraries 선언 없이 기대는 라이브러리 목록(H4 묶음 B, 사용자 결정 4·5).
-// Furnace 서버 jar 에는 넣지 않고, plugins/bukkit-plugins/ 에 그 라이브러리를 쓰는 플러그인이 있을 때만 받아 공유 로더(SharedLibraryLoader)에 붙인다.
+// plugins/bukkit-plugins/ 에 그 라이브러리를 쓰는 플러그인이 있을 때만 준비해 공유 로더(SharedLibraryLoader)에 붙인다.
+//  - Guava(+failureaccess)·SnakeYAML 은 서버 jar 에 jar 그대로 싣는다(bundled, 사용자 결정 5 정정 2026-11-12). 내려받지 않고 서버 jar 에서 캐시로 꺼낸다.
+//    패키지 이름은 바꾸지 않는다(재배치 없음 — 플러그인이 com.google.common·org.yaml.snakeyaml 을 그대로 쓴다). 서버 로더에는 풀지 않는다.
+//    서버 jar 에 없으면(gradle 개발 실행·시험) 예전처럼 Maven Central 에서 받는다. 나머지(Adventure 포함)는 필요할 때 받는다.
 //  - 버전·sha256 은 코드에 고정한다. 바닐라 1.21.1 서버 jar 의 META-INF/libraries.list 에 있는 것(Guava·fastutil·JOML·commons-*·log4j-api,
 //    그리고 Mojang 저장소에만 있는 Brigadier·authlib·DataFixerUpper)은 Mojang 이 적은 sha256 을 그대로 쓰고, 나머지(Adventure·SnakeYAML·BungeeChat 등)는
 //    Maven Central 의 jar 를 받아 잰 값이다(2026-11-08). 다른 바이트는 받지도 쓰지도 않는다.
@@ -36,9 +39,17 @@ public final class ServerLibraries {
         Repo(String label) { this.label = label; }
     }
 
-    /** jar 하나: 좌표·고정 sha256·저장소. */
-    public record Artifact(Library library, Repo repo) {
-        public Artifact(String coordinate, String sha256, Repo repo) { this(new Library(coordinate, sha256), repo); }
+    /**
+     * jar 하나: 좌표·고정 sha256·저장소. bundled 면 서버 jar 의 {@value #BUNDLE_DIR} 에 jar 그대로 실려 있어 내려받지 않고 꺼낸다
+     * (서버 jar 에 없을 때만 repo 에서 받는다).
+     */
+    public record Artifact(Library library, Repo repo, boolean bundled) {
+        public Artifact(String coordinate, String sha256, Repo repo) { this(new Library(coordinate, sha256), repo, false); }
+
+        public Artifact(String coordinate, String sha256, Repo repo, boolean bundled) { this(new Library(coordinate, sha256), repo, bundled); }
+
+        /** 서버 jar 안 자원 이름: {@code META-INF/furnace/libraries/<아티팩트>-<버전>.jar}. */
+        public String bundleResource() { return BUNDLE_DIR + library.artifact() + "-" + library.version() + ".jar"; }
 
         public String coordinate() { return library.coordinate(); }
 
@@ -55,8 +66,16 @@ public final class ServerLibraries {
             requires = List.copyOf(requires);
         }
 
-        public boolean mojang() { return artifacts.stream().anyMatch(a -> a.repo() == Repo.MOJANG); }
+        public boolean mojang() { return artifacts.stream().anyMatch(a -> a.repo() == Repo.MOJANG && !a.bundled()); }
+
+        /** 모든 jar 가 서버 jar 에 실려 있다. */
+        public boolean bundled() { return artifacts.stream().allMatch(Artifact::bundled); }
     }
+
+    /** 서버 jar 에 실린 라이브러리 jar 자리(fatJar 가 채운다). */
+    public static final String BUNDLE_DIR = "META-INF/furnace/libraries/";
+    /** 서버 jar 에 실려 있다(bundled). */
+    private static final boolean B = true;
 
     private static final Repo C = Repo.CENTRAL;
     private static final Repo M = Repo.MOJANG;
@@ -64,8 +83,8 @@ public final class ServerLibraries {
     /** 기본 목록(1.21.1). 순서는 로그·문서 순서다. */
     public static final ServerLibraries DEFAULT = new ServerLibraries(List.of(
             new Group("guava", "Google Guava", List.of(
-                    new Artifact("com.google.guava:guava:32.1.2-jre", "bc65dea7cfd9e4dacf8419d8af0e741655857d27885bb35d943d7187fc3a8fce", C),
-                    new Artifact("com.google.guava:failureaccess:1.0.1", "a171ee4c734dd2da837e4b16be9df4661afab72a41adaf31eb84dfdaf936ca26", C)),
+                    new Artifact("com.google.guava:guava:32.1.2-jre", "bc65dea7cfd9e4dacf8419d8af0e741655857d27885bb35d943d7187fc3a8fce", C, B),
+                    new Artifact("com.google.guava:failureaccess:1.0.1", "a171ee4c734dd2da837e4b16be9df4661afab72a41adaf31eb84dfdaf936ca26", C, B)),
                     List.of("com/google/common/", "com/google/thirdparty/"), List.of()),
             new Group("adventure", "Kyori Adventure(API·MiniMessage·직렬화기)", List.of(
                     new Artifact("net.kyori:adventure-api:4.17.0", "15c8c2eb1a69d8b1bc914f554353da8ee7cf074c05c8074da9898aee5c70d0d8", C),
@@ -83,7 +102,7 @@ public final class ServerLibraries {
                     new Artifact("net.kyori:adventure-text-logger-slf4j:4.17.0", "d3e39084845e030de1e14c1859919f8e7a29341282b364ee9b188a8f2f03992b", C)),
                     List.of("net/kyori/adventure/", "net/kyori/examination/"), List.of()),
             new Group("snakeyaml", "SnakeYAML", List.of(
-                    new Artifact("org.yaml:snakeyaml:2.2", "1467931448a0817696ae2805b7b8b20bfb082652bf9c4efaed528930dc49389b", C)),
+                    new Artifact("org.yaml:snakeyaml:2.2", "1467931448a0817696ae2805b7b8b20bfb082652bf9c4efaed528930dc49389b", C, B)),
                     List.of("org/yaml/snakeyaml/"), List.of()),
             new Group("bungeecord-chat", "BungeeCord Chat(Spigot 채팅 컴포넌트)", List.of(
                     new Artifact("net.md-5:bungeecord-chat:1.20-R0.2", "5ea54c6a429331cc535f0bf912ce2aa1853b2f35e68e35d1ff3ef5e226e90596", C)),

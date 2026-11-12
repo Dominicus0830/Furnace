@@ -539,6 +539,86 @@ class LibraryResolverTest {
                 r.sourceOf(new ServerLibraries.Artifact("org.test:none:1.0", pin, ServerLibraries.Repo.MOJANG)));
     }
 
+    // ------------------------------------------------------------------ 서버 jar 에 실린 라이브러리(Guava·SnakeYAML, 사용자 결정 5 정정)
+
+    /** 서버 jar 대신: 폴더 하나를 META-INF/furnace/libraries/ 자원으로 보이는 로더. */
+    private ClassLoader bundle(Map<String, byte[]> files) throws Exception {
+        Path root = Files.createDirectories(tmp.resolve("bundle-" + files.hashCode()));
+        for (var e : files.entrySet()) {
+            Path f = root.resolve(ServerLibraries.BUNDLE_DIR + e.getKey());
+            Files.createDirectories(f.getParent());
+            Files.write(f, e.getValue());
+        }
+        return new java.net.URLClassLoader(new java.net.URL[]{root.toUri().toURL()}, null);
+    }
+
+    private LibraryResolver bundled(LibrarySettings s, ClassLoader source) {
+        return new LibraryResolver(s, cache, URI.create(REPO), URI.create(MOJANG_REPO), (uri, max) -> {
+            requests.add(uri.toString());
+            return remote.get(uri.toString());
+        }, source, LOG);
+    }
+
+    @Test
+    void bundledArtifactsAreExtractedFromTheServerJarWithoutTheNetwork() throws Exception {
+        byte[] jar = jarBytes("bundled");
+        String pin = hex("SHA-256", jar);
+        ServerLibraries.Artifact a = new ServerLibraries.Artifact("org.test:lib:1.0", pin, ServerLibraries.Repo.CENTRAL, true);
+        assertEquals("META-INF/furnace/libraries/lib-1.0.jar", a.bundleResource());
+        // offline 이고 저장소가 비어 있어도 서버 jar 에서 꺼낸다
+        Path got = bundled(LibrarySettings.DEFAULT.withOffline(true), bundle(Map.of("lib-1.0.jar", jar))).ensurePinned(a);
+        assertArrayEquals(jar, Files.readAllBytes(got));
+        assertEquals(cache.resolve("org/test/lib/1.0/lib-1.0.jar"), got, "내려받은 것과 같은 자리(캐시 공유)");
+        assertEquals(List.of(), requests, "네트워크에 나가지 않는다");
+        // 망가진 캐시도 서버 jar 에서 고친다
+        Files.writeString(got, "망가짐");
+        assertArrayEquals(jar, Files.readAllBytes(bundled(LibrarySettings.DEFAULT.withOffline(true), bundle(Map.of("lib-1.0.jar", jar))).ensurePinned(a)));
+        assertEquals(List.of(), requests);
+    }
+
+    @Test
+    void bundledBytesMustMatchThePinOrTheResolverFallsBackToTheRepository() throws Exception {
+        byte[] good = jarBytes("good");
+        String pin = hex("SHA-256", good);
+        ServerLibraries.Artifact a = new ServerLibraries.Artifact("org.test:lib:1.0", pin, ServerLibraries.Repo.CENTRAL, true);
+        ClassLoader wrong = bundle(Map.of("lib-1.0.jar", jarBytes("다른 바이트")));
+        assertThrows(LibraryException.class, () -> bundled(LibrarySettings.DEFAULT.withOffline(true), wrong).ensurePinned(a),
+                "다른 바이트는 쓰지 않는다(offline 이면 실패)");
+        assertFalse(Files.exists(cache.resolve("org/test/lib/1.0/lib-1.0.jar")));
+        remote.put(url("org.test", "lib", "1.0", "jar"), good);
+        assertArrayEquals(good, Files.readAllBytes(bundled(LibrarySettings.DEFAULT, wrong).ensurePinned(a)), "온라인이면 저장소에서 받는다");
+        assertEquals(List.of(url("org.test", "lib", "1.0", "jar")), requests);
+    }
+
+    @Test
+    void serverJarWithoutTheBundleStillDownloadsAndUnbundledArtifactsIgnoreIt() throws Exception {
+        byte[] good = jarBytes("good");
+        String pin = hex("SHA-256", good);
+        remote.put(url("org.test", "lib", "1.0", "jar"), good);
+        // 개발 실행·시험: 자원이 없으면 예전처럼 받는다
+        assertArrayEquals(good, Files.readAllBytes(bundled(LibrarySettings.DEFAULT, bundle(Map.of()))
+                .ensurePinned(new ServerLibraries.Artifact("org.test:lib:1.0", pin, ServerLibraries.Repo.CENTRAL, true))));
+        assertEquals(1, requests.size());
+        // bundled 가 아닌 것은 같은 이름의 자원이 있어도 보지 않는다(Adventure 등은 늘 받는다)
+        Files.delete(cache.resolve("org/test/lib/1.0/lib-1.0.jar"));
+        requests.clear();
+        bundled(LibrarySettings.DEFAULT, bundle(Map.of("lib-1.0.jar", good)))
+                .ensurePinned(new ServerLibraries.Artifact("org.test:lib:1.0", pin, ServerLibraries.Repo.CENTRAL));
+        assertEquals(List.of(url("org.test", "lib", "1.0", "jar")), requests);
+    }
+
+    @Test
+    void onlyGuavaAndSnakeYamlAreBundled() {
+        java.util.Set<String> bundledCoords = new java.util.TreeSet<>();
+        for (ServerLibraries.Group g : ServerLibraries.DEFAULT.groups()) {
+            for (ServerLibraries.Artifact a : g.artifacts()) if (a.bundled()) bundledCoords.add(a.coordinate());
+            if (g.id().equals("guava") || g.id().equals("snakeyaml")) assertTrue(g.bundled(), g.id());
+            else assertFalse(g.bundled(), g.id() + " 는 필요할 때 받는다");
+        }
+        assertEquals(java.util.Set.of("com.google.guava:guava:32.1.2-jre", "com.google.guava:failureaccess:1.0.1", "org.yaml:snakeyaml:2.2"), bundledCoords,
+                "서버 jar 에 싣는 것은 Guava·failureaccess·SnakeYAML 뿐(Adventure 는 받는다, 2026-11-12)");
+    }
+
     @Test
     void anUnreachableHostIsNotRetriedForTheRestOfTheStart() throws Exception {
         byte[] good = jarBytes("good");
