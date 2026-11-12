@@ -79,7 +79,7 @@ class VirtualEntitiesTest {
         return p;
     }
 
-    /** 보낸 패킷을 (id, 값) 으로. 타입 래퍼가 없는 종류는 OpaquePacket 으로 나온다. */
+    /** 보낸 패킷을 (id, 값) 으로. 타입 레코드가 없는 종류는 GenericPacket 으로 나온다. */
     private List<Packet> sent(Player p) {
         EmbeddedChannel ch = channels.get(p);
         ch.runPendingTasks();
@@ -89,14 +89,13 @@ class VirtualEntitiesTest {
             ByteBuf bb = (ByteBuf) o;
             int id = Types.readVarInt(bb);
             PacketType<?> t = codec.clientboundType(id);
-            out.add(t.typed() ? codec.decode(t, id, bb) : new org.domi.furnace.api.packet.OpaquePacket(castOpaque(t)));
+            out.add(codec.decode(t, id, bb));
             bb.release();
         }
         return out;
     }
 
-    @SuppressWarnings("unchecked")
-    private static PacketType<org.domi.furnace.api.packet.OpaquePacket> castOpaque(PacketType<?> t) { return (PacketType<org.domi.furnace.api.packet.OpaquePacket>) t; }
+
 
     private static List<PacketType<?>> kinds(List<Packet> l) {
         List<PacketType<?>> k = new ArrayList<>();

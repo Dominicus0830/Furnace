@@ -1,7 +1,7 @@
 // 시험 서버의 가짜 플레이어: 루프백 소켓으로 실제 접속 흐름(핸드셰이크 → 오프라인 로그인 → 구성 → 플레이)을 밟는 최소 클라이언트.
 // 읽기 스레드가 클라이언트가 꼭 해야 하는 답(keep-alive 되돌리기, 텔레포트 확인, 청크 묶음 받음)을 대신 한다.
 // 받은 시스템 메시지·액션바는 서버 쪽 패킷 구독으로 Text 그대로 모은다(직렬화 전 값 — NBT 를 다시 풀지 않는다).
-// 받은 패킷: 읽기 스레드가 타입 래퍼가 있는 종류(PacketType.typed())를 버전 중립 레코드로 풀어 모은다 — received(type)·awaitPacket.
+// 받은 패킷: 읽기 스레드가 내용을 읽을 수 있는 종류(타입 레코드·GenericPacket)를 버전 중립 값으로 풀어 모은다 — received(type)·awaitPacket.
 // 다른 플러그인 리스너가 바꾸거나 취소한 뒤, 실제로 소켓으로 온 그대로다.
 // command()/chat() 은 패킷을 보낸 뒤 동기화 장벽(같은 연결의 다음 패킷 → 전역 스레드 → 플레이어 region)을 거쳐, 서버가 그 패킷을
 // 처리한 뒤에 돌아온다. 그래서 바로 다음 줄에서 결과(메시지·블록·플러그인 상태)를 확인해도 된다. 틱은 진행하지 않는다.
@@ -50,7 +50,7 @@ public final class TestPlayer implements AutoCloseable {
     private final AtomicLong syncSent = new AtomicLong();
     private final AtomicLong syncSeen = new AtomicLong();
     private final List<EventSubscription> subs = new CopyOnWriteArrayList<>();
-    /** 받은 패킷(타입 래퍼가 있는 종류만, 받은 순서). 오래된 것부터 버린다. */
+    /** 받은 패킷(읽을 수 있는 종류만, 받은 순서). 오래된 것부터 버린다. */
     private final java.util.ArrayDeque<org.domi.furnace.api.packet.Packet> received = new java.util.ArrayDeque<>();
     /** received 에 남기는 최대 수(오래 도는 시험의 메모리 상한). */
     static final int RECEIVED_MAX = 20_000;
@@ -60,7 +60,7 @@ public final class TestPlayer implements AutoCloseable {
     private final int pingBase = java.util.concurrent.ThreadLocalRandom.current().nextInt();
     private final AtomicLong pingSent = new AtomicLong();
     private final AtomicLong pingSeen = new AtomicLong();
-    /** 타입 래퍼가 있는데 풀지 못한 패킷 수(실패 메시지에 보인다). */
+    /** 읽을 수 있는 종류인데 풀지 못한 패킷 수(실패 메시지에 보인다). */
     private final AtomicLong decodeFailures = new AtomicLong();
     private volatile boolean connected;
     private volatile String disconnectReason;
@@ -164,6 +164,9 @@ public final class TestPlayer implements AutoCloseable {
 
     // ------------------------------------------------------------------ 읽기(클라이언트가 꼭 하는 답)
 
+    /** 시험 전용(같은 패키지): 읽기 스레드가 받은 play 프레임(id, 본문)을 그대로 넘긴다. 범용 코덱 왕복 시험이 쓴다. */
+    static volatile java.util.function.BiConsumer<Integer, byte[]> frameTap;
+
     private void readLoop() {
         try {
             while (connected) {
@@ -173,6 +176,14 @@ public final class TestPlayer implements AutoCloseable {
                     long d = (f.getInt(f.readerIndex()) - pingBase) & 0xFFFFFFFFL;   // 우리가 보낸 번호(1..보낸 수)만 인정
                     if (d >= 1 && d <= pingSent.get()) pingSeen.accumulateAndGet(d, Math::max);
                     continue;
+                }
+                var tap = frameTap;
+                if (tap != null) {
+                    try {
+                        tap.accept(id, io.netty.buffer.ByteBufUtil.getBytes(f));
+                    } catch (RuntimeException e) {   // 시험 코드 실수가 접속 끊김처럼 보이지 않게
+                        e.printStackTrace();
+                    }
                 }
                 record(id, f.duplicate());
                 switch (id) {
@@ -200,12 +211,12 @@ public final class TestPlayer implements AutoCloseable {
         }
     }
 
-    /** 타입 래퍼가 있는 종류면 풀어서 모은다(못 풀면 건너뛴다). 읽기 스레드에서. */
+    /** 읽을 수 있는 종류면 풀어서 모은다(못 풀면 건너뛴다). 읽기 스레드에서. */
     private void record(int id, ByteBuf body) {
         var c = codec;
         if (c == null) return;
         var t = c.clientboundType(id);
-        if (t == null || !t.typed()) return;
+        if (t == null || !codec.readable(t)) return;
         org.domi.furnace.api.packet.Packet p;
         try {
             p = c.decode(t, id, body);
@@ -377,12 +388,12 @@ public final class TestPlayer implements AutoCloseable {
     // ------------------------------------------------------------------ 받은 패킷
 
     /**
-     * 받은 패킷 중 그 종류(받은 순서). 타입 래퍼가 있는 종류만 모은다(PacketType.typed()). 서버가 지금까지 이 플레이어에게 보낸 것은
+     * 받은 패킷 중 그 종류(받은 순서). 읽을 수 있는 종류만 모은다(PacketService.isReadable). 서버가 지금까지 이 플레이어에게 보낸 것은
      * 모두 읽은 뒤에 돌려준다(flushReceived). 예) tp.received(PacketTypes.Clientbound.SET_ENTITY_DATA)
      */
     public <P extends org.domi.furnace.api.packet.Packet> List<P> received(org.domi.furnace.api.packet.PacketType<P> type) {
         java.util.Objects.requireNonNull(type, "type");
-        if (!type.typed()) throw new IllegalArgumentException(type + " 는 타입 래퍼가 없어 모으지 않는다");
+        if (!codec.readable(type)) throw new IllegalArgumentException(type + " 는 이 서버 버전에서 내용을 읽을 수 없어 모으지 않는다");
         flushReceived();
         List<P> out = new java.util.ArrayList<>();
         synchronized (received) {
@@ -391,7 +402,7 @@ public final class TestPlayer implements AutoCloseable {
         return out;
     }
 
-    /** 받은 패킷 전부(타입 래퍼가 있는 종류, 받은 순서). */
+    /** 받은 패킷 전부(읽을 수 있는 종류, 받은 순서). */
     public List<org.domi.furnace.api.packet.Packet> received() {
         flushReceived();
         synchronized (received) {
@@ -413,7 +424,7 @@ public final class TestPlayer implements AutoCloseable {
      */
     public <P extends org.domi.furnace.api.packet.Packet> P awaitPacket(org.domi.furnace.api.packet.PacketType<P> type, Predicate<? super P> match) {
         java.util.Objects.requireNonNull(match, "match");
-        if (!type.typed()) throw new IllegalArgumentException(type + " 는 타입 래퍼가 없어 모으지 않는다");
+        if (!codec.readable(type)) throw new IllegalArgumentException(type + " 는 이 서버 버전에서 내용을 읽을 수 없어 모으지 않는다");
         flushReceived();   // 서버가 이미 보낸 것은 먼저 다 읽는다
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(server.timeoutMillis());
         while (true) {
@@ -462,7 +473,7 @@ public final class TestPlayer implements AutoCloseable {
         return b.toString();
     }
 
-    /** 타입 래퍼가 있는데 풀지 못해 모으지 못한 패킷 수. */
+    /** 읽을 수 있는 종류인데 풀지 못해 모으지 못한 패킷 수. */
     public long decodeFailures() { return decodeFailures.get(); }
 
     /**

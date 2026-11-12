@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 import org.domi.furnace.api.entity.Hand;
 import org.domi.furnace.api.entity.ProfileProperty;
-import org.domi.furnace.api.packet.OpaquePacket;
+import org.domi.furnace.api.packet.GenericPacket;
 import org.domi.furnace.api.packet.Packet;
 import org.domi.furnace.api.packet.PacketDirection;
 import org.domi.furnace.api.packet.PacketType;
@@ -88,6 +88,7 @@ public final class Protocol767 implements ProtocolCodec {
     private final Supplier<BlockRegistry> blocks;
     private final Supplier<ItemRegistry> items;
     private final EntityData767 entityData;
+    private final GenericCodec767 generic;
 
     public Protocol767(Supplier<BlockRegistry> blocks) { this(blocks, () -> null); }
 
@@ -95,6 +96,7 @@ public final class Protocol767 implements ProtocolCodec {
         this.blocks = blocks;
         this.items = items;
         this.entityData = new EntityData767(this::blocks, this::items);
+        this.generic = new GenericCodec767(this::blocks, this::items);
         Map<PacketType<?>, List<Integer>> tmp = new IdentityHashMap<>();
         for (int i = 0; i < CLIENTBOUND.length; i++) {
             cbTypes[i] = lookup(PacketDirection.CLIENTBOUND, CLIENTBOUND[i]);
@@ -182,14 +184,27 @@ public final class Protocol767 implements ProtocolCodec {
     @SuppressWarnings("unchecked")
     public Packet decode(PacketType<?> type, int id, ByteBuf body) {
         Codec<?> c = codecs.get(type);
-        if (c == null) return new OpaquePacket((PacketType<OpaquePacket>) type);
-        return c.dec().decode(id, body);
+        if (c != null) return c.dec().decode(id, body);
+        if (generic.readable(type)) return generic.decode(type, body);
+        return GenericPacket.unreadable((PacketType<GenericPacket>) type);
     }
+
+    @Override
+    public boolean readable(PacketType<?> type) { return codecs.containsKey(type) || generic.readable(type); }
+
+    @Override
+    public java.util.List<org.domi.furnace.api.packet.PacketField<?>> fields(PacketType<?> type) { return generic.fields(type); }
+
+    /** 범용 코덱이 이 종류를 못 읽는 까닭(읽거나 타입 레코드면 null). */
+    public String whyUnreadable(PacketType<?> type) { return generic.whyUnreadable(type); }
 
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public int encode(Packet packet, ByteBuf out) {
-        if (packet instanceof OpaquePacket) throw new IllegalArgumentException("OpaquePacket 은 보낼 수 없다: " + packet.type());
+        if (packet instanceof GenericPacket g) {
+            generic.encode(g, out);
+            return id(g.type());
+        }
         Codec c = codecs.get(packet.type());
         if (c == null) throw new IllegalArgumentException("이 서버 버전에서 보낼 수 없는 패킷: " + packet.type());
         return c.enc().encode(packet, out);

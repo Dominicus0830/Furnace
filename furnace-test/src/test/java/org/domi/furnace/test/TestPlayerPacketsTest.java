@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.domi.furnace.api.entity.data.EntityDataKeys;
 import org.domi.furnace.api.entity.data.EntityFlags;
+import org.domi.furnace.api.packet.GenericPacket;
 import org.domi.furnace.api.packet.PacketTypes;
 import org.domi.furnace.api.packet.clientbound.ClientboundAddEntityPacket;
 import org.domi.furnace.api.packet.clientbound.ClientboundSetEntityDataPacket;
@@ -42,9 +43,13 @@ class TestPlayerPacketsTest {
             assertTrue(EntityFlags.has(data.get(EntityDataKeys.Entity.SHARED_FLAGS).orElseThrow(), EntityFlags.GLOWING));
             assertEquals(1, steve.received(PacketTypes.Clientbound.ADD_ENTITY).stream().filter(a -> a.entityId() == id).count());
 
+            // 타입 레코드가 없는 종류는 GenericPacket(이름 붙은 필드)으로 모인다
+            packets.send(steve.player(), GenericPacket.of(PacketTypes.Clientbound.SET_CAMERA).with("camera_id", id));
+            assertEquals(id, steve.awaitPacket(PacketTypes.Clientbound.SET_CAMERA, c -> true).get("camera_id"));
+
             steve.clearReceived();
             assertEquals(List.of(), steve.received(PacketTypes.Clientbound.SET_TITLE_TEXT));
-            assertThrows(IllegalArgumentException.class, () -> steve.received(PacketTypes.Clientbound.BUNDLE_DELIMITER), "타입 래퍼 없는 종류");
+            assertThrows(IllegalArgumentException.class, () -> steve.received(PacketTypes.Clientbound.BUNDLE_DELIMITER), "이 버전에서 내용을 못 읽는 종류");
         }
     }
 
