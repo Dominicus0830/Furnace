@@ -48,11 +48,30 @@ class SchemaPacketBridgeTest {
                 if (t == null || t.typed() || d.custom() || !packets.isReadable(t)) continue;
                 (SchemaPacketBridge.supports(d) ? bridged : missing).add(d.wireName());
             }
-            // 다리 없는 종류는 값 shim 이 아직 빈 껍데기다(BlockEntityType·MessageSignature.Packed·ChatType.Bound·GlobalPos·MenuType·ServerLinks.UntrustedEntry·NumberFormat)
-            assertEquals(Set.of("block_entity_data", "delete_chat", "disguised_chat", "login", "open_screen", "respawn", "server_links", "set_score"), missing,
+            // 다리 없는 종류는 값 shim 이 아직 빈 껍데기다(BlockEntityType·MessageSignature.Packed·ChatType.Bound·GlobalPos·MenuType·ServerLinks.UntrustedEntry)
+            assertEquals(Set.of("block_entity_data", "delete_chat", "disguised_chat", "login", "open_screen", "respawn", "server_links"), missing,
                     "다리 " + bridged.size() + "종: " + bridged);
-            assertEquals(67, bridged.size(), bridged.toString());   // game·common 65 + cookie_request·pong_response(play 연결로도 나가는 cookie·ping 단계)
-            assertTrue(bridged.containsAll(Set.of("cookie_request", "pong_response")), bridged.toString());
+            // game·common 66(set_score 는 E4c-2 숫자 형식 shim 으로) + cookie_request·pong_response(play 연결로도 나가는 cookie·ping 단계)
+            assertEquals(68, bridged.size(), bridged.toString());
+            assertTrue(bridged.containsAll(Set.of("cookie_request", "pong_response", "set_score")), bridged.toString());
+        }
+    }
+
+    @Test
+    void everyHandCodecKindTheServerCanWriteHasABridgeExceptBossBarAndStats() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            var packets = Furnace.server().packets();
+            Set<String> bridged = new TreeSet<>(), missing = new TreeSet<>();
+            for (PacketDef d : PacketSchema.protocol767().packets()) {
+                if (d.direction() != PacketDirection.CLIENTBOUND || !Set.of("game", "common", "cookie", "ping").contains(d.state())) continue;
+                PacketType<?> t = PacketTypes.byName(PacketDirection.CLIENTBOUND, "minecraft:" + d.wireName());
+                if (t == null || t.typed() || !d.custom() || !packets.isReadable(t)) continue;
+                (SchemaPacketBridge.supports(d) ? bridged : missing).add(d.wireName());
+            }
+            assertEquals(Set.of("award_stats", "boss_event"), missing, "다리 " + bridged.size() + "종: " + bridged);
+            assertEquals(Set.of("damage_event", "map_item_data", "move_entity_pos", "move_entity_pos_rot", "move_entity_rot", "player_abilities", "player_look_at",
+                    "player_position", "section_blocks_update", "set_equipment", "set_experience", "set_objective", "set_player_team", "stop_sound",
+                    "update_attributes"), bridged);
         }
     }
 
@@ -131,12 +150,12 @@ class SchemaPacketBridgeTest {
             int bundle = tp.received().indexOf(forget);
             assertTrue(bundle >= 0 && tp.received().get(bundle + 1).equals(border), "묶음 안 둘이 붙어 온다: " + tp.received());
 
-            // 다리가 없는 종류(손 코덱)는 지어내지 않고 UnsupportedNmsCall, 필수 값이 null 이면 IllegalArgumentException — 묶음은 아무것도 안 나간다
+            // 다리가 없는 종류(보스바)는 지어내지 않고 UnsupportedNmsCall, 필수 값이 null 이면 IllegalArgumentException — 묶음은 아무것도 안 나간다
             tp.clearReceived();
             server.onRegion(region, () -> {
-                var refused = assertThrows(UnsupportedNmsCall.class,
-                        () -> conn.send(new net.minecraft.network.protocol.game.ClientboundSetExperiencePacket(0.5f, 30, 2)));
-                assertTrue(refused.getMessage().contains("손 코덱"), refused.getMessage());
+                var refused = assertThrows(UnsupportedNmsCall.class, () -> conn.send(construct(net.minecraft.network.protocol.game.ClientboundBossEventPacket.class,
+                        java.util.UUID.randomUUID(), null)));
+                assertTrue(refused.getMessage().contains("보스바"), refused.getMessage());
                 var bad = assertThrows(IllegalArgumentException.class, () -> conn.send(new net.minecraft.network.protocol.game.ClientboundBundlePacket(List.of(
                         new net.minecraft.network.protocol.game.ClientboundSetHealthPacket(1f, 77, 0f),
                         new net.minecraft.network.protocol.game.ClientboundOpenSignEditorPacket(null, true)))));
@@ -160,7 +179,11 @@ class SchemaPacketBridgeTest {
         assertTrue(SchemaPacketBridge.refusal(schema.packet("configuration", PacketDirection.CLIENTBOUND, "finish_configuration").orElseThrow())
                 .contains("configuration 단계"));
         assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "add_entity").orElseThrow()).contains("타입 레코드"));
-        assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "set_experience").orElseThrow()).contains("손 코덱"));
+        assertEquals(null, SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "set_experience").orElseThrow()));
+        assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "boss_event").orElseThrow()).contains("보스바"));
+        assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "award_stats").orElseThrow()).contains("통계"));
+        assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "player_info_update").orElseThrow()).contains("손 코덱")
+                || SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "player_info_update").orElseThrow()).contains("타입 레코드"));
         assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "open_screen").orElseThrow()).contains("빈 껍데기"));
         assertEquals(null, SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "set_health").orElseThrow()));
     }
@@ -303,6 +326,236 @@ class SchemaPacketBridgeTest {
             tp.awaitPacket(PacketTypes.Clientbound.SET_HEALTH, g -> Integer.valueOf(83).equals(g.get("food")));
             assertTrue(tp.received(PacketTypes.Clientbound.SET_HEALTH).stream().noneMatch(g -> Set.of(80, 81, 82).contains(g.get("food"))), "실패한 묶음은 나가지 않는다");
             assertTrue(tp.received(PacketTypes.Clientbound.SOUND_ENTITY).isEmpty());
+        }
+    }
+
+    /** private 생성자 shim 을 만든다(바닐라 생성자가 Furnace 에 아직 없는 객체 — Abilities·PlayerTeam·Objective 등 — 를 받을 때 플러그인이 반사로 만드는 것과 같다). */
+    private static <T> T construct(Class<T> c, Object... args) {
+        for (var k : c.getDeclaredConstructors()) {
+            if (k.getParameterCount() != args.length) continue;
+            try {
+                k.setAccessible(true);
+                return c.cast(k.newInstance(args));
+            } catch (ReflectiveOperationException | IllegalArgumentException e) {
+                // 다음 생성자
+            }
+        }
+        throw new AssertionError("생성자 없음: " + c.getName() + " " + args.length);
+    }
+
+    /** DataFixerUpper Pair 와 같은 접근자(시험 경로에 DFU 가 없다 — 다리는 이름으로 getFirst·getSecond 를 부른다). */
+    public static final class Pair<A, B> {
+        private final A first;
+        private final B second;
+
+        public Pair(A first, B second) {
+            this.first = first;
+            this.second = second;
+        }
+
+        public A getFirst() { return first; }
+
+        public B getSecond() { return second; }
+    }
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void handCodecShimsGoOutInTheServerShape() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            TestPlayer tp = server.join("Hand");
+            server.tick(2);
+            Player p = Bukkit.getPlayer("Hand");
+            var conn = ((org.bukkit.craftbukkit.entity.CraftPlayer) p).getHandle().connection;
+            tp.sync();
+            long failuresBefore = tp.decodeFailures();
+            var at = tp.player().location();
+            var region = new org.domi.furnace.api.world.BlockPos((int) Math.floor(at.x()), (int) Math.floor(at.y()), (int) Math.floor(at.z()));
+            var rl = (java.util.function.Function<String, net.minecraft.resources.ResourceLocation>) net.minecraft.resources.ResourceLocation::parse;
+            var item = net.minecraft.world.item.ItemStack.fromFurnace(new org.domi.furnace.api.item.ItemStack("minecraft:iron_helmet", 1), 1);
+            var stone = net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(rl.apply("minecraft:stone")).defaultBlockState();
+            var gold = net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(rl.apply("minecraft:gold_block")).defaultBlockState();
+            var game = "net.minecraft.network.protocol.game.";
+            server.onRegion(region, () -> {
+                conn.send(construct(net.minecraft.network.protocol.game.ClientboundPlayerAbilitiesPacket.class, true, false, true, false, 0.07f, 0.1f));
+                conn.send(new net.minecraft.network.protocol.game.ClientboundSetExperiencePacket(0.5f, 30, 2));
+                conn.send(new net.minecraft.network.protocol.game.ClientboundStopSoundPacket(rl.apply("minecraft:entity.pig.ambient"), null));
+                conn.send(new net.minecraft.network.protocol.game.ClientboundStopSoundPacket(null, net.minecraft.sounds.SoundSource.WEATHER));
+                conn.send(new net.minecraft.network.protocol.game.ClientboundPlayerLookAtPacket(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, 1.5, 2.5, 3.5));
+                conn.send(construct(net.minecraft.network.protocol.game.ClientboundPlayerLookAtPacket.class, 4.0, 5.0, 6.0, 4321,
+                        net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.FEET, net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, true));
+                conn.send(new net.minecraft.network.protocol.game.ClientboundMoveEntityPacket.Pos(901, (short) 40, (short) -8, (short) 0, true));
+                conn.send(new net.minecraft.network.protocol.game.ClientboundMoveEntityPacket.PosRot(902, (short) 1, (short) 2, (short) 3, (byte) 64, (byte) -32, false));
+                conn.send(new net.minecraft.network.protocol.game.ClientboundMoveEntityPacket.Rot(903, (byte) 10, (byte) 20, true));
+                conn.send(new net.minecraft.network.protocol.game.ClientboundSetEquipmentPacket(904, List.of(
+                        new Pair<>(net.minecraft.world.entity.EquipmentSlot.HEAD, item), new Pair<>(net.minecraft.world.entity.EquipmentSlot.MAINHAND, item))));
+                // 상태가 더 길면 바닐라처럼 positions 길이까지만
+                conn.send(construct(net.minecraft.network.protocol.game.ClientboundSectionBlocksUpdatePacket.class, net.minecraft.core.SectionPos.of(3, 4, -5),
+                        new short[] {0x123, 0x000}, new net.minecraft.world.level.block.state.BlockState[] {stone, gold, stone}));
+                conn.send(new net.minecraft.network.protocol.game.ClientboundDamageEventPacket(905, holder(net.minecraft.core.registries.Registries.DAMAGE_TYPE, "minecraft:fall"),
+                        -1, 7, java.util.Optional.of(new net.minecraft.world.phys.Vec3(1, 2, 3))));
+                // 팀: 추가(parameters + players), 제거(바닐라가 쓰지 않는 parameters·players 는 버린다)
+                var params = construct(net.minecraft.network.protocol.game.ClientboundSetPlayerTeamPacket.Parameters.class,
+                        net.minecraft.network.chat.Component.literal("Red"), net.minecraft.network.chat.Component.literal("["),
+                        net.minecraft.network.chat.Component.literal("]"), "always", "never", net.minecraft.ChatFormatting.RED, 3);
+                conn.send(construct(net.minecraft.network.protocol.game.ClientboundSetPlayerTeamPacket.class, 0, "red", List.of("Hand", "Bob"), java.util.Optional.of(params)));
+                conn.send(construct(net.minecraft.network.protocol.game.ClientboundSetPlayerTeamPacket.class, 1, "blue", List.of("x"), java.util.Optional.of(params)));
+                // 점수판 목표: 숫자 형식 셋, 제거(method 1)
+                conn.send(construct(net.minecraft.network.protocol.game.ClientboundSetObjectivePacket.class, "o1", net.minecraft.network.chat.Component.literal("Kills"),
+                        net.minecraft.world.scores.criteria.ObjectiveCriteria.RenderType.INTEGER,
+                        java.util.Optional.of(new net.minecraft.network.chat.numbers.StyledFormat(net.minecraft.network.chat.Style.EMPTY.withColor(net.minecraft.ChatFormatting.RED).withBold(true))), 0));
+                conn.send(construct(net.minecraft.network.protocol.game.ClientboundSetObjectivePacket.class, "o2", net.minecraft.network.chat.Component.literal("Hp"),
+                        net.minecraft.world.scores.criteria.ObjectiveCriteria.RenderType.HEARTS, java.util.Optional.of(net.minecraft.network.chat.numbers.BlankFormat.INSTANCE), 2));
+                conn.send(construct(net.minecraft.network.protocol.game.ClientboundSetObjectivePacket.class, "o3", null, null, java.util.Optional.empty(), 1));
+                conn.send(new net.minecraft.network.protocol.game.ClientboundSetScorePacket("Hand", "o1", 12, java.util.Optional.empty(),
+                        java.util.Optional.of(new net.minecraft.network.chat.numbers.FixedFormat(net.minecraft.network.chat.Component.literal("MAX")))));
+                conn.send(construct(net.minecraft.network.protocol.game.ClientboundUpdateAttributesPacket.class, 906, List.of(
+                        new net.minecraft.network.protocol.game.ClientboundUpdateAttributesPacket.AttributeSnapshot(holder(net.minecraft.core.registries.Registries.ATTRIBUTE,
+                                "minecraft:generic.scale"), 2.0, List.of(new net.minecraft.world.entity.ai.attributes.AttributeModifier(rl.apply("plug:grow"), 0.5,
+                                net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_MULTIPLIED_BASE))))));
+                byte[] colors = new byte[] {1, 2, 3, 4, 5, 6};
+                conn.send(new net.minecraft.network.protocol.game.ClientboundMapItemDataPacket(new net.minecraft.world.level.saveddata.maps.MapId(77), (byte) 2, true,
+                        List.of(new net.minecraft.world.level.saveddata.maps.MapDecoration(net.minecraft.world.level.saveddata.maps.MapDecorationTypes.RED_X,
+                                        (byte) 10, (byte) -10, (byte) 4, java.util.Optional.of(net.minecraft.network.chat.Component.literal("X"))),
+                                new net.minecraft.world.level.saveddata.maps.MapDecoration(net.minecraft.core.Holder.direct(
+                                        net.minecraft.world.level.saveddata.maps.MapDecorationTypes.TRIAL_CHAMBERS.value()), (byte) 0, (byte) 0, (byte) 0, java.util.Optional.empty())),
+                        new net.minecraft.world.level.saveddata.maps.MapItemSavedData.MapPatch(5, 6, 3, 2, colors)));
+                conn.send(new net.minecraft.network.protocol.game.ClientboundMapItemDataPacket(new net.minecraft.world.level.saveddata.maps.MapId(78), (byte) 0, false,
+                        (java.util.Collection) null, null));
+                return null;
+            });
+            var ab = tp.awaitPacket(PacketTypes.Clientbound.PLAYER_ABILITIES, g -> Float.valueOf(0.07f).equals(g.get("flying_speed")));
+            assertEquals(List.of(true, false, true, false, 0.1f), List.of(ab.get("invulnerable"), ab.get("is_flying"), ab.get("can_fly"), ab.get("instabuild"), ab.get("walking_speed")));
+            var xp = tp.awaitPacket(PacketTypes.Clientbound.SET_EXPERIENCE, g -> Integer.valueOf(30).equals(g.get("total_experience")));
+            assertEquals(List.of(0.5f, 2, 30), List.of(xp.get("experience_progress"), xp.get("experience_level"), xp.get("total_experience")));
+            var stopName = tp.awaitPacket(PacketTypes.Clientbound.STOP_SOUND, g -> ((java.util.Optional<?>) g.get("name")).isPresent());
+            assertEquals(java.util.Optional.of("minecraft:entity.pig.ambient"), stopName.get("name"));
+            assertEquals(java.util.Optional.empty(), stopName.get("source"));
+            var stopSource = tp.awaitPacket(PacketTypes.Clientbound.STOP_SOUND, g -> ((java.util.Optional<?>) g.get("source")).isPresent());
+            assertEquals(java.util.Optional.of("WEATHER"), stopSource.get("source"));
+            assertEquals(java.util.Optional.empty(), stopSource.get("name"));
+            var look = tp.awaitPacket(PacketTypes.Clientbound.PLAYER_LOOK_AT, g -> Double.valueOf(1.5).equals(g.get("x")));
+            assertEquals("EYES", look.get("from_anchor"));
+            assertEquals(java.util.Optional.empty(), look.get("at_entity"));
+            var lookEntity = tp.awaitPacket(PacketTypes.Clientbound.PLAYER_LOOK_AT, g -> Double.valueOf(4.0).equals(g.get("x")));
+            var target = (org.domi.furnace.api.packet.PacketStruct) ((java.util.Optional<?>) lookEntity.get("at_entity")).orElseThrow();
+            assertEquals(List.of("FEET", 4321, "EYES"), List.of(lookEntity.get("from_anchor"), target.get("entity"), target.get("to_anchor")));
+            var pos = tp.awaitPacket(PacketTypes.Clientbound.MOVE_ENTITY_POS, g -> Integer.valueOf(901).equals(g.get("entity_id")));
+            assertEquals(List.of((short) 40, (short) -8, (short) 0, true), List.of(pos.get("xa"), pos.get("ya"), pos.get("za"), pos.get("on_ground")));
+            var posRot = tp.awaitPacket(PacketTypes.Clientbound.MOVE_ENTITY_POS_ROT, g -> Integer.valueOf(902).equals(g.get("entity_id")));
+            assertEquals(List.of((short) 3, (byte) 64, (byte) -32, false), List.of(posRot.get("za"), posRot.get("y_rot"), posRot.get("x_rot"), posRot.get("on_ground")));
+            var rot = tp.awaitPacket(PacketTypes.Clientbound.MOVE_ENTITY_ROT, g -> Integer.valueOf(903).equals(g.get("entity_id")));
+            assertEquals(List.of((byte) 10, (byte) 20, true), List.of(rot.get("y_rot"), rot.get("x_rot"), rot.get("on_ground")));
+            var eq = tp.awaitPacket(PacketTypes.Clientbound.SET_EQUIPMENT, g -> Integer.valueOf(904).equals(g.get("entity")));
+            var slots = (List<org.domi.furnace.api.packet.PacketStruct>) eq.get("slots");
+            assertEquals(List.of("HEAD", "MAINHAND"), slots.stream().map(x -> x.get("slot")).toList());
+            assertEquals("minecraft:iron_helmet", ((org.domi.furnace.api.item.ItemStack) slots.get(0).get("item")).type());
+            var sec = tp.awaitPacket(PacketTypes.Clientbound.SECTION_BLOCKS_UPDATE, g -> true);
+            assertEquals(net.minecraft.core.SectionPos.of(3, 4, -5).asLong(), sec.get("section_pos"));
+            assertEquals(List.of((short) 0x123, (short) 0), sec.get("positions"));
+            assertEquals(List.of("minecraft:stone", "minecraft:gold_block"),
+                    ((List<org.domi.furnace.api.world.BlockData>) sec.get("states")).stream().map(org.domi.furnace.api.world.BlockData::type).toList());
+            var dmg = tp.awaitPacket(PacketTypes.Clientbound.DAMAGE_EVENT, g -> Integer.valueOf(905).equals(g.get("entity_id")));
+            assertEquals(List.of("minecraft:fall", -1, 7), List.of(dmg.get("source_type"), dmg.get("source_cause_id"), dmg.get("source_direct_id")));
+            assertEquals(2.0, ((org.domi.furnace.api.packet.PacketStruct) ((java.util.Optional<?>) dmg.get("source_position")).orElseThrow()).get("y"));
+            var red = tp.awaitPacket(PacketTypes.Clientbound.SET_PLAYER_TEAM, g -> "red".equals(g.get("name")));
+            var rp = (org.domi.furnace.api.packet.PacketStruct) ((java.util.Optional<?>) red.get("parameters")).orElseThrow();
+            assertEquals(List.of("Red", 3, "always", "never", "RED", "[", "]"), List.of(((org.domi.furnace.api.text.Text) rp.get("display_name")).plainText(), rp.get("options"),
+                    rp.get("nametag_visibility"), rp.get("collision_rule"), rp.get("color"), ((org.domi.furnace.api.text.Text) rp.get("player_prefix")).plainText(),
+                    ((org.domi.furnace.api.text.Text) rp.get("player_suffix")).plainText()));
+            assertEquals(java.util.Optional.of(List.of("Hand", "Bob")), red.get("players"));
+            var blue = tp.awaitPacket(PacketTypes.Clientbound.SET_PLAYER_TEAM, g -> "blue".equals(g.get("name")));
+            assertEquals(List.of(1, java.util.Optional.empty(), java.util.Optional.empty()), List.of(blue.get("method"), blue.get("parameters"), blue.get("players")));
+            var o1 = tp.awaitPacket(PacketTypes.Clientbound.SET_OBJECTIVE, g -> "o1".equals(g.get("objective_name")));
+            var o1p = (org.domi.furnace.api.packet.PacketStruct) ((java.util.Optional<?>) o1.get("parameters")).orElseThrow();
+            assertEquals("INTEGER", o1p.get("render_type"));
+            var styled = (org.domi.furnace.api.packet.PacketStruct) ((java.util.Optional<?>) o1p.get("number_format")).orElseThrow();
+            assertEquals("minecraft:styled", styled.get("type"));
+            var style = (org.domi.furnace.api.nbt.NbtCompound) styled.get("style");
+            assertEquals("red", style.getString("color"));
+            assertTrue(style.getBoolean("bold"));
+            var o2 = tp.awaitPacket(PacketTypes.Clientbound.SET_OBJECTIVE, g -> "o2".equals(g.get("objective_name")));
+            var o2p = (org.domi.furnace.api.packet.PacketStruct) ((java.util.Optional<?>) o2.get("parameters")).orElseThrow();
+            assertEquals("HEARTS", o2p.get("render_type"));
+            assertEquals("minecraft:blank", ((org.domi.furnace.api.packet.PacketStruct) ((java.util.Optional<?>) o2p.get("number_format")).orElseThrow()).get("type"));
+            var o3 = tp.awaitPacket(PacketTypes.Clientbound.SET_OBJECTIVE, g -> "o3".equals(g.get("objective_name")));
+            assertEquals(List.of(1, java.util.Optional.empty()), List.of(o3.get("method"), o3.get("parameters")));
+            var score = tp.awaitPacket(PacketTypes.Clientbound.SET_SCORE, g -> "Hand".equals(g.get("owner")));
+            var fixed = (org.domi.furnace.api.packet.PacketStruct) ((java.util.Optional<?>) score.get("number_format")).orElseThrow();
+            assertEquals("MAX", ((org.domi.furnace.api.text.Text) fixed.get("value")).plainText());
+            var attrs = tp.awaitPacket(PacketTypes.Clientbound.UPDATE_ATTRIBUTES, g -> Integer.valueOf(906).equals(g.get("entity_id")));
+            var snap = ((List<org.domi.furnace.api.packet.PacketStruct>) attrs.get("attributes")).get(0);
+            assertEquals(List.of("minecraft:generic.scale", 2.0), List.of(snap.get("attribute"), snap.get("base")));
+            var mod = ((List<org.domi.furnace.api.packet.PacketStruct>) snap.get("modifiers")).get(0);
+            assertEquals(List.of("plug:grow", 0.5, "ADD_MULTIPLIED_BASE"), List.of(mod.get("id"), mod.get("amount"), mod.get("operation")));
+            var map = tp.awaitPacket(PacketTypes.Clientbound.MAP_ITEM_DATA, g -> Integer.valueOf(77).equals(g.get("map_id")));
+            assertEquals(List.of((byte) 2, true), List.of(map.get("scale"), map.get("locked")));
+            var decos = (List<org.domi.furnace.api.packet.PacketStruct>) ((java.util.Optional<?>) map.get("decorations")).orElseThrow();
+            assertEquals(List.of("minecraft:red_x", "minecraft:trial_chambers"), decos.stream().map(x -> x.get("type")).toList());
+            assertEquals(List.of((byte) 10, (byte) -10, (byte) 4), List.of(decos.get(0).get("x"), decos.get(0).get("y"), decos.get(0).get("rot")));
+            assertEquals("X", ((org.domi.furnace.api.text.Text) ((java.util.Optional<?>) decos.get(0).get("name")).orElseThrow()).plainText());
+            var patch = (org.domi.furnace.api.packet.PacketStruct) ((java.util.Optional<?>) map.get("color_patch")).orElseThrow();
+            assertEquals(List.of(3, 2, 5, 6), List.of(patch.get("width"), patch.get("height"), patch.get("start_x"), patch.get("start_y")));
+            assertTrue(java.util.Arrays.equals(new byte[] {1, 2, 3, 4, 5, 6}, (byte[]) patch.get("map_colors")));
+            var bare = tp.awaitPacket(PacketTypes.Clientbound.MAP_ITEM_DATA, g -> Integer.valueOf(78).equals(g.get("map_id")));
+            assertEquals(List.of(java.util.Optional.empty(), java.util.Optional.empty()), List.of(bare.get("decorations"), bare.get("color_patch")));
+            assertEquals(failuresBefore, tp.decodeFailures(), "보낸 것은 모두 바닐라 와이어로 읽혔다");
+
+            // 바닐라도 쓰다 실패하는 값은 아무것도 보내지 않고 IllegalArgumentException
+            tp.clearReceived();
+            server.onRegion(region, () -> {
+                java.util.function.Consumer<net.minecraft.network.protocol.Packet<?>> bad = pk -> assertThrows(IllegalArgumentException.class, () -> conn.send(pk), pk.toString());
+                bad.accept(new net.minecraft.network.protocol.game.ClientboundSetEquipmentPacket(1, List.of()));   // 빈 목록: 클라이언트가 적어도 한 칸을 읽는다
+                bad.accept(new net.minecraft.network.protocol.game.ClientboundSetEquipmentPacket(1, List.of("not a pair")));
+                bad.accept(construct(net.minecraft.network.protocol.game.ClientboundSectionBlocksUpdatePacket.class, net.minecraft.core.SectionPos.of(0, 0, 0),
+                        new short[] {1, 2}, new net.minecraft.world.level.block.state.BlockState[] {stone}));
+                bad.accept(new net.minecraft.network.protocol.game.ClientboundDamageEventPacket(1, net.minecraft.core.Holder.direct(null), -1, -1, java.util.Optional.empty()));
+                bad.accept(construct(net.minecraft.network.protocol.game.ClientboundSetPlayerTeamPacket.class, 2, "t", List.of(), java.util.Optional.empty()));
+                bad.accept(construct(net.minecraft.network.protocol.game.ClientboundSetObjectivePacket.class, "o", net.minecraft.network.chat.Component.literal("o"),
+                        net.minecraft.world.scores.criteria.ObjectiveCriteria.RenderType.INTEGER, java.util.Optional.of((net.minecraft.network.chat.numbers.NumberFormat) n -> null), 0));
+                bad.accept(new net.minecraft.network.protocol.game.ClientboundMapItemDataPacket(new net.minecraft.world.level.saveddata.maps.MapId(1), (byte) 0, false,
+                        List.of(new net.minecraft.world.level.saveddata.maps.MapDecoration(net.minecraft.core.Holder.direct(new net.minecraft.world.level.saveddata.maps.MapDecorationType(
+                                rl.apply("plug:pin"), true, -1, false, true)), (byte) 0, (byte) 0, (byte) 0, java.util.Optional.empty())), null));
+                conn.send(new net.minecraft.network.protocol.game.ClientboundSetExperiencePacket(0.25f, 1, 99));
+                return null;
+            });
+            tp.awaitPacket(PacketTypes.Clientbound.SET_EXPERIENCE, g -> Integer.valueOf(99).equals(g.get("experience_level")));
+            for (var t : List.of(PacketTypes.Clientbound.SET_EQUIPMENT, PacketTypes.Clientbound.SECTION_BLOCKS_UPDATE, PacketTypes.Clientbound.DAMAGE_EVENT,
+                    PacketTypes.Clientbound.SET_PLAYER_TEAM, PacketTypes.Clientbound.SET_OBJECTIVE, PacketTypes.Clientbound.MAP_ITEM_DATA)) {
+                assertTrue(tp.received(t).isEmpty(), t.toString());
+            }
+            assertTrue(tp.isConnected());
+        }
+    }
+
+    @Test
+    void mapDecorationTypesAreTheVanillaTable() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            var reg = net.minecraft.core.registries.BuiltInRegistries.MAP_DECORATION_TYPE;
+            var ids = Furnace.server().gameRegistries().builtIn("minecraft:map_decoration_type");
+            assertEquals(35, reg.size());
+            var fields = net.minecraft.world.level.saveddata.maps.MapDecorationTypes.class.getFields();
+            assertEquals(35, fields.length);
+            for (int i = 0; i < fields.length; i++) {
+                @SuppressWarnings("unchecked")
+                var h = (net.minecraft.core.Holder<net.minecraft.world.level.saveddata.maps.MapDecorationType>) fields[i].get(null);
+                assertEquals(ids.get(i), h.unwrapKey().orElseThrow().location().toString(), fields[i].getName());   // 선언 순서 = 레지스트리 순서
+                assertEquals(i, reg.getId(h.value()));
+            }
+            var mansion = net.minecraft.world.level.saveddata.maps.MapDecorationTypes.WOODLAND_MANSION.value();
+            assertEquals("minecraft:woodland_mansion", mansion.assetId().toString());
+            assertEquals(List.of(true, 5393476, true, false), List.of(mansion.showOnItemFrame(), mansion.mapColor(), mansion.explorationMapElement(), mansion.trackCount()));
+            var player = net.minecraft.world.level.saveddata.maps.MapDecorationTypes.PLAYER.value();
+            assertEquals(List.of(false, -1, false, true), List.of(player.showOnItemFrame(), player.mapColor(), player.explorationMapElement(), player.trackCount()));
+            assertTrue(!player.hasMapColor());
+            assertEquals("minecraft:white_banner", net.minecraft.world.level.saveddata.maps.MapDecorationTypes.WHITE_BANNER.value().assetId().toString());
+            assertEquals(10066329, net.minecraft.world.level.saveddata.maps.MapDecorationTypes.SWAMP_HUT.value().mapColor());
+            assertEquals(12741452, net.minecraft.world.level.saveddata.maps.MapDecorationTypes.TRIAL_CHAMBERS.value().mapColor());
+            assertEquals("map_7", new net.minecraft.world.level.saveddata.maps.MapId(7).key());
+            assertEquals(net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_VALUE,
+                    net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.BY_ID.apply(9));
+            assertEquals("add_multiplied_total", net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL.getSerializedName());
+            assertEquals("12", net.minecraft.network.chat.numbers.StyledFormat.SIDEBAR_DEFAULT.format(12).getString());
+            assertEquals("", net.minecraft.network.chat.numbers.BlankFormat.INSTANCE.format(12).getString());
         }
     }
 }
