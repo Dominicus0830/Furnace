@@ -1,10 +1,12 @@
 // N-10 선행 시험(perf-c4): 같은 틱에 블록 변경·이동(청크 전송 요청)·엔티티 이동이 섞일 때 클라이언트로 나가는 패킷 열을 고정한다.
 // 본문 캐시가 모두 적중하는 상태(같은 청크를 이미 직렬화)에서 실제 게임 틱(startTicking)으로 돌린다 — 청크 본문 홉 수를 바꾸는
-// 최적화가 청크와 다른 패킷 사이의 순서를 바꾸면 이 시험이 깨진다. 기대 열은 현재 구현으로 기록한 것이다.
+// 최적화가 청크와 다른 패킷 사이의 순서를 바꾸면 이 시험이 깨진다. 기대 열은 현재 구현으로 기록한 것이다 —
+// 금 파일과 같은 규칙: 최적화 PR 은 기대 열을 바꾸지 않고, 바꾸려면 docs/testing/identitykit.md "금 파일 갱신" 절차를 따른다.
 package org.domi.furnace.server.world;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.domi.furnace.server.ConcurrentEmbeddedChannel;
 import java.util.ArrayList;
@@ -15,6 +17,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.domi.furnace.server.entity.Player;
+import org.domi.furnace.server.identity.PacketTape;
 import org.domi.furnace.server.net.ChunkWorkerPool;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.play.BlockUpdate;
@@ -41,24 +44,23 @@ class ChunkSendPacketOrderGoldenTest {
             MoveEntityPosRot.ID, "movePosRot", MoveEntityRot.ID, "moveRot", SetHeadRotation.ID, "head",
             SpawnEntity.ID, "spawn");
 
-    /** 채널은 region 스레드에서만 만진다(EmbeddedEventLoop 큐는 스레드 안전하지 않다). */
+    /** 채널은 region 스레드에서만 만진다(EmbeddedEventLoop 큐는 스레드 안전하지 않다). 꺼내기는 IdentityKit PacketTape. */
     private static List<String> drain(World w, EmbeddedChannel ch) throws Exception {
         return w.submitAtChunk(C00, r -> {
-            ch.runPendingTasks();
+            PacketTape tape = new PacketTape();
+            tape.drain(ch, PacketTape.Wire.PLAIN);
             List<String> out = new ArrayList<>();
-            Object o;
-            while ((o = ch.readOutbound()) != null) {
-                ByteBuf b = (ByteBuf) o;
-                int id = Types.readVarInt(b);
-                String n = NAMES.get(id);
-                if (n != null && id == BlockUpdate.ID) {
+            for (PacketTape.Packet p : tape.packets()) {
+                String n = NAMES.get(p.id());
+                if (n == null) continue;
+                ByteBuf b = Unpooled.wrappedBuffer(p.body());
+                if (p.id() == BlockUpdate.ID) {
                     int[] pos = Types.readBlockPos(b);
                     n = "block@" + pos[0] + "," + pos[1] + "," + pos[2];
-                } else if (n != null && id == LevelChunkWithLight.ID) {
+                } else if (p.id() == LevelChunkWithLight.ID) {
                     n = "chunk@" + b.readInt() + "," + b.readInt();
                 }
-                if (n != null) out.add(n);
-                b.release();
+                out.add(n);
             }
             return out;
         }).get(10, TimeUnit.SECONDS);
