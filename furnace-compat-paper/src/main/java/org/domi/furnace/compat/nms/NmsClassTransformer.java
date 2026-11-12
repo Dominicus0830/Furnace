@@ -90,10 +90,21 @@ public final class NmsClassTransformer implements ClassTransformer {
     /**
      * jar 를 한 번 훑어 호환 보고를 남기고 변환기를 만든다. strict 이고 미지원 심볼이 있으면 {@link UnsupportedNmsCall}(플러그인 로드 거절).
      */
-    public static NmsClassTransformer forJar(String plugin, Path jar, Options options) {
+    public static NmsClassTransformer forJar(String plugin, Path jar, Options options) { return forJar(plugin, jar, options, null); }
+
+    /**
+     * 위와 같고, 대응표를 지금 갖고 있지 않으면({@code options.spigot()} 이 null) jar 가 Spigot 이름 대응표를 필요로 한다고 확인된 뒤에만
+     * {@code lateSpigot} 에 물어 얻는다 — 서버가 jar 를 따로 훑어 필요 여부를 묻지 않아도 되게(jar 를 한 번만 읽는다). null 을 돌려주면 바꾸지 않는다.
+     */
+    public static NmsClassTransformer forJar(String plugin, Path jar, Options options, java.util.function.Supplier<SpigotMappings> lateSpigot) {
         NmsCompatReport report;
         try {
-            report = NmsCompatReport.scan(plugin, jar, NmsSymbols.RUNTIME, options.spigot());
+            NmsCompatReport.Read read = NmsCompatReport.read(jar);
+            if (options.spigot() == null && lateSpigot != null && read.needsSpigotMappings()) {
+                SpigotMappings late = lateSpigot.get();
+                if (late != null) options = new Options(options.strict(), options.versionedPackage(), late);
+            }
+            report = NmsCompatReport.analyze(plugin, read, NmsSymbols.RUNTIME, options.spigot());
         } catch (IOException e) {
             LOG.warn("플러그인 {}: NMS 호환 보고를 만들지 못했다({}) — 변환은 그대로 한다", plugin, e.toString());
             SpigotMappings.register(plugin, null);
