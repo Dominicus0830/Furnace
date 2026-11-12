@@ -447,7 +447,9 @@ public final class FurnaceTestServer implements AutoCloseable {
         private boolean compatNms = true;
         private boolean exposeCompatToNative = false;
         private boolean devMode = false;
-        private final java.util.Map<String, String> compatOptions = new java.util.HashMap<>();
+        /** 시험은 기본으로 네트워크에 나가지 않는다 — Spigot 이름 대응표(실제 서버 기본 download)도 끈다. 켜려면 compatOption 으로 덮어쓴다. */
+        private final java.util.Map<String, String> compatOptions = new java.util.HashMap<>(
+                java.util.Map.of(org.domi.furnace.server.plugin.PluginSettings.SPIGOT_MAPPINGS_KEY, "off"));
         /** 시험은 기본으로 네트워크에 나가지 않는다 — 호환 플러그인용 서버 제공 라이브러리·plugin.yml libraries 도 끈다. */
         private org.domi.furnace.server.plugin.library.LibrarySettings libraries = org.domi.furnace.server.plugin.library.LibrarySettings.DEFAULT
                 .withCompat(org.domi.furnace.server.plugin.library.LibrarySettings.CompatMode.OFF).withCompatDeclared(false);
