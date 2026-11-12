@@ -86,7 +86,7 @@ public final class RandomCommand {
             NoiseRandom r = source.getServer().randomSequences().get(sequence);
             synchronized (r) { value = r.nextInt(max - min + 1) + min; }   // Mth.randomBetweenInclusive
         } else {
-            value = org.domi.furnace.server.block.RandomSource.create().nextInt(max - min + 1) + min;
+            value = org.domi.furnace.server.block.RandomSource.createFor(org.domi.furnace.server.block.RandomSeeds.key("command.random"), org.domi.furnace.server.block.RandomSeeds.Purpose.COMMAND_RANDOM).nextInt(max - min + 1) + min;
         }
         if (announce) {
             source.getServer().broadcastSystemMessage(Text.translatable("commands.random.roll", source.getDisplayName(), value, min, max), false);

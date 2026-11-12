@@ -8,7 +8,8 @@ import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 
 public abstract class Sensor<E extends Mob> {
-    private static final org.domi.furnace.server.block.RandomSource RANDOM = org.domi.furnace.server.block.RandomSource.create();
+    private static final org.domi.furnace.server.block.RandomSource RANDOM = org.domi.furnace.server.block.RandomSource.createFor(
+            org.domi.furnace.server.block.RandomSeeds.key("Sensor.RANDOM"), org.domi.furnace.server.block.RandomSeeds.Purpose.SENSOR_SCAN);
     private static final int DEFAULT_SCAN_RATE = 20;
     protected static final int TARGETING_RANGE = 16;
     private static final TargetingConditions TARGET_CONDITIONS = TargetingConditions.forNonCombat().range(16.0);
