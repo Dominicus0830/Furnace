@@ -326,7 +326,8 @@ public final class ServerCore {
 
     /** 그 월드의 바이옴 확대 지터 시드 = 클라이언트가 LoginPlay/Respawn 으로 받는 hashed seed(차원별 시드를 정하지 않았으면 서버 시드 — 바닐라). */
     public long biomeZoomSeed(World w) {
-        return w.hasSeed() ? org.domi.furnace.server.net.protocol.play.LoginPlay.obfuscateSeed(w.seed()) : biomeZoomSeed;
+        // 월드가 시드를 정할 때 한 번 계산해 둔 값을 읽는다(SHA-256 을 부를 때마다 다시 하지 않는다 — O00-01, T-010)
+        return w.hasSeed() ? w.zoomSeed() : biomeZoomSeed;
     }
 
     /** 그 월드의 생성 시드(정하지 않았으면 서버 시드). */

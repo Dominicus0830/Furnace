@@ -145,8 +145,9 @@ public final class World {
     private final Runnable closeHook;
     private volatile boolean unloaded;
     private volatile String levelName;
-    private volatile long seed;
-    private volatile boolean hasSeed;
+    /** (시드, 바이옴 확대 지터 시드) 불변 묶음 — null 이면 시드를 정하지 않은 월드. setter 에서 한 번 계산해 찢어 읽기·SHA-256 재계산이 없다. */
+    private record SeedInfo(long seed, long zoomSeed) {}
+    private volatile SeedInfo seedInfo;
     private volatile boolean extra;
 
     /** 실행 중에 올린 추가 월드인가(다중 월드 — 내릴 수 있다). */
@@ -161,15 +162,23 @@ public final class World {
     /** 월드 이름(폴더 이름). 기본 세 차원은 null — 부르는 쪽이 level-name 으로 만든다(WorldHandle.name). */
     public String levelName() { return levelName; }
 
-    /** 생성 시드(바닐라 BiomeManager 의 해시 시드·LoginPlay/Respawn 의 hashed seed 의 바탕). FurnaceMain/월드 관리자가 정한다. */
-    public long seed() { return seed; }
+    /** 생성 시드(바닐라 BiomeManager 의 해시 시드·LoginPlay/Respawn 의 hashed seed 의 바탕). FurnaceMain/월드 관리자가 정한다. 정하지 않았으면 0. */
+    public long seed() {
+        SeedInfo si = seedInfo;
+        return si == null ? 0L : si.seed();
+    }
 
     /** 시드를 정했는가(시험 월드는 안 정한다 — 그때는 서버 시드를 쓴다). */
-    public boolean hasSeed() { return hasSeed; }
+    public boolean hasSeed() { return seedInfo != null; }
+
+    /** BiomeManager.obfuscateSeed(seed) — 시드를 정할 때 한 번 계산해 둔 값. 시드를 정하지 않았으면 0(부르는 쪽이 hasSeed 로 먼저 가른다). */
+    public long zoomSeed() {
+        SeedInfo si = seedInfo;
+        return si == null ? 0L : si.zoomSeed();
+    }
 
     public void seed(long seed) {
-        this.seed = seed;
-        this.hasSeed = true;
+        this.seedInfo = new SeedInfo(seed, BiomeZoom.obfuscateSeed(seed));
     }
 
     /** 내렸는가(다시 쓰지 않는다). */
