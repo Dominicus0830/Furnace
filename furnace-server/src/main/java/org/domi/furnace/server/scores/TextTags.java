@@ -33,7 +33,7 @@ public final class TextTags {
     }
 
     /** compound → 스타일(형식이 틀리면 null). */
-    static Style tagToStyle(NbtCompound tag) {
+    public static Style tagToStyle(NbtCompound tag) {
         try {
             return JsonTextSerializer.json().deserializeStyle(toJson(tag).toString());
         } catch (RuntimeException e) {

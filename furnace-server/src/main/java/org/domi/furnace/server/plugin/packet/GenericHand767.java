@@ -89,7 +89,7 @@ final class GenericHand767 {
             case "s:set_structure_block" -> new Seq()
                     .f("pos", BLOCK_POS).f("update_type", c.fieldNode(d, "updateType")).f("mode", c.fieldNode(d, "mode"))
                     .f("name", STRING).f("offset", BYTE_POS).f("size", BYTE_POS)
-                    .f("mirror", c.fieldNode(d, "mirror")).f("rotation", c.fieldNode(d, "rotation")).f("data", STRING)
+                    .f("mirror", c.fieldNode(d, "mirror")).f("rotation", c.fieldNode(d, "rotation")).f("data", STRING_128)
                     .f("integrity", F32).f("seed", VARLONG)
                     .flags("ignore_entities", "show_air", "show_bounding_box").build();
             case "s:container_click" -> new Seq()    // 바뀐 칸 목록이 들고 있는 아이템보다 먼저 나간다
@@ -158,6 +158,13 @@ final class GenericHand767 {
     }
 
     // ------------------------------------------------------------------ 값 노드
+
+    /** 바닐라가 readUtf(128) 로 읽는 문자열(구조물 블록 data — 검토 R1). 129자 넘으면 바닐라 서버가 디코드에 실패한다. */
+    private static final Node STRING_128 = node(String.class, b -> Types.readString(b, 128), (o, v) -> {
+        String str = (String) v;
+        if (str.length() > 128) throw new IllegalArgumentException("128자를 넘는다(" + str.length() + ")");
+        Types.writeString(o, str);
+    });
 
     /** id + 1 로 나가는 엔티티 번호(필드 값 -1 = 없음 = 와이어 0). */
     private static final Node PLUS_ONE = node(Integer.class, b -> Types.readVarInt(b) - 1, (o, v) -> {
@@ -339,9 +346,13 @@ final class GenericHand767 {
         return node(List.class, b -> {
             int n = Types.readVarInt(b);
             if (n < 0 || n > 128) throw new IllegalArgumentException("바뀐 칸이 너무 많다: " + n + " > 128");
-            List<Object> l = new ArrayList<>(n);
-            for (int i = 0; i < n; i++) l.add(GenericCodec767.readStruct(entry, b));
-            return Collections.unmodifiableList(l);
+            // 바닐라·서버는 Int2ObjectMap 이라 같은 칸 번호가 다시 오면 마지막 값만 남는다 — 읽기도 그렇게 합친다(검토 R3)
+            LinkedHashMap<Object, Object> bySlot = new LinkedHashMap<>();
+            for (int i = 0; i < n; i++) {
+                PacketStruct e = GenericCodec767.readStruct(entry, b);
+                bySlot.put(e.asMap().get("slot"), e);
+            }
+            return List.copyOf(bySlot.values());
         }, (o, v) -> {
             List<?> l = (List<?>) v;
             if (l.size() > 128) throw new IllegalArgumentException("바뀐 칸이 너무 많다: " + l.size() + " > 128");

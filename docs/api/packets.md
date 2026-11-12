@@ -119,11 +119,15 @@ packets.send(player, GenericPacket.of(PacketTypes.Clientbound.SET_BORDER_WARNING
 | `player_input` | `xxa` `zza` `is_jumping` `is_shift_key_down` |
 | `seen_advancements` | `action` · `tab` `Optional<String>` — `OPENED_TAB` 일 때만 있다 |
 | `set_command_block` | `pos` `command` `mode` `track_output` `conditional` `automatic` |
-| `set_structure_block` | `pos` `update_type` `mode` `name` `offset` `size`(좌표마다 i8 인 `BlockPos`) `mirror` `rotation` `data` `integrity` `seed` `ignore_entities` `show_air` `show_bounding_box` |
-| `container_click` | `container_id` `state_id` `slot_num` `button_num` `click_type` · `changed_slots` `List<{slot, item}>`(128칸까지, 같은 칸 두 번 안 됨) · `carried_item` |
+| `set_structure_block` | `pos` `update_type` `mode` `name` `offset` `size`(좌표마다 i8 인 `BlockPos`) `mirror` `rotation` `data`(128자까지 — 바닐라 readUtf(128)) `integrity` `seed` `ignore_entities` `show_air` `show_bounding_box` |
+| `container_click` | `container_id` `state_id` `slot_num` `button_num` `click_type` · `changed_slots` `List<{slot, item}>`(128칸까지, 같은 칸 두 번 안 됨 — 클라이언트가 같은 칸을 두 번 보내면 읽을 때 바닐라처럼 마지막 값 하나로 합친다) · `carried_item` |
 
 숫자 형식(`set_objective`·`set_score` 의 `number_format`)은 `{type:"minecraft:blank"}`·`{type:"minecraft:styled", style:<스타일 NbtCompound>}`·
 `{type:"minecraft:fixed", value:<Text>}`, 바닐라 `Vec3` 은 `{x, y, z}`(`Double`). `block_entity_data` 의 `type` 은 블록 엔티티 종류 이름(`"minecraft:sign"`).
+styled 의 `style` 은 보낼 때 바닐라 Style 로 읽히는지 검사한다(틀린 색 이름·문자열 참거짓 등은 바닐라 클라이언트가 접속을 끊으므로 `IllegalArgumentException`, 모르는 키는 바닐라처럼 무시).
+
+- `relative_arguments` 처럼 비트 집합인 목록은 읽으면 비트 순서로 나온다. 다른 순서로 만든 값과 `equals` 는 다르지만 같은 바이트로 나간다.
+- `fields(type)` 는 바깥 필드만 준다(`Optional<PacketStruct>` 안쪽 필드는 위 표).
 
 ### 예전 코드에서 바뀐 점 (E4a)
 

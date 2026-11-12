@@ -168,7 +168,13 @@ public final class GenericCodec767 {
         Compiled c = packets.get(p.type());
         if (c == null) throw new IllegalArgumentException("이 서버 버전에서 내용을 쓸 수 없는 패킷: " + p.type() + " (" + unsupported.get(p.type()) + ")");
         if (!p.readable()) throw new IllegalArgumentException("내용 없는 패킷은 보낼 수 없다: " + p.type());
-        writeStruct(c, p.fields(), o, p.type().toString());
+        int start = o.writerIndex();
+        try {
+            writeStruct(c, p.fields(), o, p.type().toString());
+        } catch (RuntimeException e) {
+            o.writerIndex(start);   // 일부만 쓰인 본문을 남기지 않는다(같은 버퍼에 이어 쓰는 호출자 대비)
+            throw e;
+        }
     }
 
     // ------------------------------------------------------------------ 묶음
@@ -527,12 +533,63 @@ public final class GenericCodec767 {
         Types.writeVarInt(o, registryNumber("minecraft:number_format_type", type));
         if (type.equals("minecraft:styled")) {
             if (!(s.asMap().get("style") instanceof NbtCompound n)) throw new IllegalArgumentException("style 은 NbtCompound 이어야 한다");
+            checkStyle(n);
             NBT.write(o, n);
         } else if (type.equals("minecraft:fixed")) {
             if (!(s.asMap().get("value") instanceof Text x)) throw new IllegalArgumentException("value 는 Text 이어야 한다");
             TEXT.write(o, x);
         }
     });
+
+    /**
+     * 바닐라 Style.Serializer.CODEC 이 읽지 못하는 스타일 NBT 를 거부한다 — 바닐라 클라이언트는 디코드에 실패해 접속이 끊긴다(검토 R2).
+     * 아는 키의 종류·값을 보고(색 이름·#RRGGBB, 참거짓은 숫자 태그, font 는 이름 문법, 사건은 compound), 끝으로 서버 스타일 해석기로 읽어 본다.
+     * 모르는 키는 바닐라가 버리므로 그냥 둔다.
+     */
+    static void checkStyle(NbtCompound st) {
+        for (String k : st.keys()) {
+            Object v = st.get(k);
+            switch (k) {
+                case "color" -> {
+                    if (!(v instanceof String c) || !validColor(c)) throw new IllegalArgumentException("style.color 는 16색 이름이나 #RRGGBB 이어야 한다: " + v);
+                }
+                case "bold", "italic", "underlined", "strikethrough", "obfuscated" -> {
+                    if (!(v instanceof Number)) throw new IllegalArgumentException("style." + k + " 은 숫자(참거짓) 태그여야 한다: " + v);
+                }
+                case "insertion" -> {
+                    if (!(v instanceof String)) throw new IllegalArgumentException("style.insertion 은 문자열이어야 한다: " + v);
+                }
+                case "font" -> {
+                    if (!(v instanceof String f)) throw new IllegalArgumentException("style.font 는 이름 문자열이어야 한다: " + v);
+                    identifier(f);
+                }
+                case "clickEvent", "hoverEvent" -> {
+                    if (!(v instanceof NbtCompound)) throw new IllegalArgumentException("style." + k + " 은 compound 이어야 한다: " + v);
+                }
+                default -> { }
+            }
+        }
+        if (org.domi.furnace.server.scores.TextTags.tagToStyle(ApiNbt.toServer(st)) == null) {
+            throw new IllegalArgumentException("스타일로 읽을 수 없는 NBT: " + st);
+        }
+    }
+
+    /** 바닐라 TextColor.parseColor: "#" + 16진수(0~FFFFFF) 또는 색 이름(정확히 같은 글자). */
+    private static boolean validColor(String c) {
+        if (c.startsWith("#")) {
+            try {
+                int v = Integer.parseInt(c.substring(1), 16);
+                return v >= 0 && v <= 0xFFFFFF;
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        }
+        return COLOR_NAMES.contains(c);
+    }
+
+    /** 바닐라 TextColor.NAMED_COLORS 의 키 — ChatFormatting 색 16개 이름 그대로(대소문자 구분, 바이트코드 xy.a(String) 확인). */
+    private static final Set<String> COLOR_NAMES = Set.of("black", "dark_blue", "dark_green", "dark_aqua", "dark_red", "dark_purple", "gold", "gray",
+            "dark_gray", "blue", "green", "aqua", "red", "light_purple", "yellow", "white");
 
     static final Node BYTES = node(byte[].class, b -> {
         int n = Types.readVarInt(b);

@@ -197,5 +197,48 @@ class GenericHandPacketTest {
                 "offset", new BlockPos(0, 200, 0), "size", new BlockPos(0, 0, 0), "mirror", "NONE", "rotation", "NONE", "data", "", "integrity", 1f, "seed", 0L,
                 "ignore_entities", false, "show_air", true, "show_bounding_box", false);
         assertThrows(IllegalArgumentException.class, () -> body(structure), "offset 은 i8");
+        // 검토 R1: 바닐라는 data 를 readUtf(128) 로 읽는다
+        var ok = structure.with("offset", new BlockPos(0, 0, 0));
+        body(ok.with("data", "d".repeat(128)));
+        e = assertThrows(IllegalArgumentException.class, () -> body(ok.with("data", "d".repeat(129))));
+        assertTrue(e.getMessage().contains("128"), e.getMessage());
+    }
+
+    @Test
+    void styledNumberFormatRejectsStylesVanillaCannotRead() {
+        // 검토 R2: 바닐라 클라이언트가 읽지 못하는 스타일은 접속을 끊는다 — 쓰기에서 막는다
+        var p = g(Clientbound.SET_SCORE, "owner", "a", "objective_name", "o", "score", 1, "display", Optional.empty(), "number_format", Optional.empty());
+        java.util.function.Function<NbtCompound, GenericPacket> styled = st -> p.with("number_format", Optional.of(s("type", "minecraft:styled", "style", st)));
+        body(styled.apply(new NbtCompound().put("color", "dark_red").put("bold", (byte) 1).put("italic", 0)));
+        body(styled.apply(new NbtCompound().put("color", "#fff").put("insertion", "x").put("zzz", 1)));   // 바닐라 parseColor 는 짧은 16진수도 받고, 모르는 키는 버린다
+        body(styled.apply(new NbtCompound()));
+        for (NbtCompound bad : List.of(new NbtCompound().put("color", "notacolor"), new NbtCompound().put("color", "#1000000"), new NbtCompound().put("color", "DarkRed"),
+                new NbtCompound().put("bold", "yes"), new NbtCompound().put("font", "Bad Font"), new NbtCompound().put("clickEvent", "x"))) {
+            assertThrows(IllegalArgumentException.class, () -> body(styled.apply(bad)), bad.toString());
+        }
+    }
+
+    @Test
+    void duplicateChangedSlotsReadAsTheLastValueAndFailedWritesLeaveNoBytes() {
+        // 검토 R3: 바닐라·서버는 Int2ObjectMap — 같은 칸이 다시 오면 마지막 값 하나
+        ItemStack dia = new ItemStack("minecraft:diamond", 3);
+        String one = body(g(Serverbound.CONTAINER_CLICK, "container_id", 0, "state_id", 1, "slot_num", 36, "button_num", 0, "click_type", "PICKUP",
+                "changed_slots", List.of(s("slot", 5, "item", ItemStack.EMPTY)), "carried_item", ItemStack.EMPTY));
+        String entry = one.substring(14, one.length() - 2);   // 앞 6바이트(창·상태·칸·버튼·종류) + 개수 다음, 0005 + 빈 아이템
+        String diaEntry = body(g(Serverbound.CONTAINER_CLICK, "container_id", 0, "state_id", 1, "slot_num", 36, "button_num", 0, "click_type", "PICKUP",
+                "changed_slots", List.of(s("slot", 5, "item", dia)), "carried_item", ItemStack.EMPTY));
+        diaEntry = diaEntry.substring(14, diaEntry.length() - 2);
+        String twice = one.substring(0, 12) + "02" + entry + diaEntry + "00";
+        var read = (GenericPacket) codec.decode(Serverbound.CONTAINER_CLICK, codec.ids(Serverbound.CONTAINER_CLICK)[0],
+                Unpooled.wrappedBuffer(ByteBufUtil.decodeHexDump(twice)));
+        assertEquals(List.of(s("slot", 5, "item", dia)), read.get("changed_slots"));
+        body(read);   // 다시 쓸 수 있다
+
+        // 검토 R8: 쓰기에 실패하면 버퍼에 아무것도 남기지 않는다
+        ByteBuf b = Unpooled.buffer();
+        b.writeByte(0x7F);
+        var bad = g(Clientbound.SET_EQUIPMENT, "entity", 9, "slots", List.of(s("slot", "HEAD", "item", dia), s("slot", "TAIL", "item", dia)));
+        assertThrows(IllegalArgumentException.class, () -> codec.encode(bad, b));
+        assertEquals(1, b.writerIndex());
     }
 }
