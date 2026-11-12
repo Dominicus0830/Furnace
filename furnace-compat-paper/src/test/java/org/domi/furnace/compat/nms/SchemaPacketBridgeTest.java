@@ -213,6 +213,14 @@ class SchemaPacketBridgeTest {
                 assertEquals(mine.color(), e.getColor(), fields[i].getName());
                 assertEquals("effect." + h.unwrapKey().orElseThrow().location().toString().replace(':', '.'), e.getDescriptionId());
             }
+            // 규칙에서 벗어나는 Mojang 이름(검토 PR #263 R1 — 1.21.1 Mojang 이름 소스와 1603개 대조)
+            for (String name : List.of("ALLAY_THROW", "FROGSPAWNSTEP", "SCULK_BLOCK_SPREAD", "SCULK_BLOCK_CHARGE", "SCULK_BLOCK_BREAK", "SCULK_BLOCK_FALL",
+                    "SCULK_BLOCK_HIT", "SCULK_BLOCK_PLACE", "SCULK_BLOCK_STEP", "SCULK_CLICKING", "SCULK_CLICKING_STOP", "BELL_BLOCK", "WAXED_SIGN_INTERACT_FAIL",
+                    "MOOSHROOM_MILK_SUSPICIOUSLY", "BREEZE_WIND_CHARGE_BURST", "BRUSH_SAND_COMPLETED", "MUSIC_BIOME_DEEP_DARK", "APPLY_EFFECT_BAD_OMEN")) {
+                assertNotNull(net.minecraft.sounds.SoundEvents.class.getField(name), name);
+            }
+            assertEquals("minecraft:block.sculk.spread", net.minecraft.sounds.SoundEvents.SCULK_BLOCK_SPREAD.getLocation().toString());
+            assertTrue(net.minecraft.world.effect.MobEffects.HEAL.value() instanceof net.minecraft.world.effect.InstantenousMobEffect);
             assertTrue(net.minecraft.world.effect.MobEffects.HEAL.value().isInstantenous());
             assertTrue(net.minecraft.world.effect.MobEffects.SATURATION.value().isInstantenous());
             assertTrue(!net.minecraft.world.effect.MobEffects.MOVEMENT_SPEED.value().isInstantenous());
@@ -248,6 +256,9 @@ class SchemaPacketBridgeTest {
                 conn.send(new net.minecraft.network.protocol.game.ClientboundSoundEntityPacket(net.minecraft.core.Holder.direct(
                         net.minecraft.sounds.SoundEvent.createVariableRangeEvent(net.minecraft.resources.ResourceLocation.parse("minecraft:entity.pig.ambient"))), neutral, handle, 1f, 1f, 6L));
                 conn.send(new net.minecraft.network.protocol.game.ClientboundRemoveMobEffectPacket(p.getEntityId(), net.minecraft.world.effect.MobEffects.MOVEMENT_SLOWDOWN));
+                // 등록된 효과를 담은 직접 정의: 바닐라 holderRegistry 처럼 그 번호로(검토 PR #263 R3)
+                conn.send(new net.minecraft.network.protocol.game.ClientboundRemoveMobEffectPacket(p.getEntityId() + 1000,
+                        net.minecraft.core.Holder.direct(net.minecraft.world.effect.MobEffects.DIG_SPEED.value())));
                 conn.send(new net.minecraft.network.protocol.cookie.ClientboundCookieRequestPacket(net.minecraft.resources.ResourceLocation.parse("plug:token")));
                 conn.send(new net.minecraft.network.protocol.ping.ClientboundPongResponsePacket(4242L));
                 return null;
@@ -263,7 +274,8 @@ class SchemaPacketBridgeTest {
             var direct = (org.domi.furnace.api.packet.PacketStruct) sound.apply(6);
             assertEquals("minecraft:entity.pig.ambient", direct.get("sound_id"));
             assertEquals(java.util.Optional.empty(), direct.get("range"));
-            assertEquals("minecraft:slowness", tp.awaitPacket(PacketTypes.Clientbound.REMOVE_MOB_EFFECT, g -> true).get("effect"));
+            assertEquals("minecraft:slowness", tp.awaitPacket(PacketTypes.Clientbound.REMOVE_MOB_EFFECT, g -> Integer.valueOf(p.getEntityId()).equals(g.get("entity_id"))).get("effect"));
+            assertEquals("minecraft:haste", tp.awaitPacket(PacketTypes.Clientbound.REMOVE_MOB_EFFECT, g -> Integer.valueOf(p.getEntityId() + 1000).equals(g.get("entity_id"))).get("effect"));
             assertEquals("plug:token", tp.awaitPacket(PacketTypes.Clientbound.COOKIE_REQUEST, g -> true).get("key"));
             assertEquals(4242L, tp.awaitPacket(PacketTypes.Clientbound.PONG_RESPONSE, g -> true).get("time"));
             assertEquals(failuresBefore, tp.decodeFailures(), "보낸 것은 모두 바닐라 와이어로 읽혔다");
@@ -274,6 +286,10 @@ class SchemaPacketBridgeTest {
                 var unknown = assertThrows(IllegalArgumentException.class, () -> conn.send(new net.minecraft.network.protocol.game.ClientboundSoundEntityPacket(
                         holder(net.minecraft.core.registries.Registries.SOUND_EVENT, "plug:custom.sound"), neutral, handle, 1f, 1f, 7L)));
                 assertTrue(unknown.getMessage().contains("Holder.direct"), unknown.getMessage());
+                // 레지스트리에 없는 효과의 직접 정의는 바닐라도 번호를 못 찾는다
+                var stray = new net.minecraft.world.effect.MobEffect(net.minecraft.world.effect.MobEffectCategory.NEUTRAL, 0) {};
+                assertThrows(IllegalArgumentException.class, () -> conn.send(new net.minecraft.network.protocol.game.ClientboundRemoveMobEffectPacket(1,
+                        net.minecraft.core.Holder.direct(stray))));
                 var inner = new net.minecraft.network.protocol.game.ClientboundBundlePacket(List.of(new net.minecraft.network.protocol.game.ClientboundSetHealthPacket(1f, 81, 0f)));
                 assertThrows(IllegalArgumentException.class, () -> conn.send(new net.minecraft.network.protocol.game.ClientboundBundlePacket(List.of(
                         new net.minecraft.network.protocol.game.ClientboundSetHealthPacket(1f, 80, 0f), inner))));

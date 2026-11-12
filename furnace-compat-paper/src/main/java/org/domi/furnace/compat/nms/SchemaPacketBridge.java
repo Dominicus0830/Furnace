@@ -292,8 +292,9 @@ public final class SchemaPacketBridge {
     /**
      * Holder → 서버 코덱 값. 등록된 것(Reference)은 키 이름 — 소리는 그 이름이 소리 레지스트리에 있어야 한다(바닐라 holder 코덱은 레지스트리에 없는
      * Reference 의 번호를 못 찾아 인코딩이 실패한다. 서버 코덱은 모르는 이름을 직접 정의로 써 주므로 여기서 막는다, 검토 R3).
-     * 직접 정의(Direct)는 소리만 — PacketStruct{sound_id, range}로 넘겨 서버 코덱이 바닐라처럼 언제나 직접 정의(0 + 이름 + 고정 범위 Optional)로 쓴다.
-     * 다른 레지스트리의 직접 정의는 거절한다(바닐라 holderRegistry 코덱도 직접 정의를 쓰지 못한다).
+     * 직접 정의(Direct) 소리는 PacketStruct{sound_id, range}로 넘겨 서버 코덱이 바닐라처럼 언제나 직접 정의(0 + 이름 + 고정 범위 Optional)로 쓴다.
+     * 다른 레지스트리(holderRegistry — asHolderIdMap.getId(value()))는 바닐라가 직접 정의라도 값이 레지스트리에 있으면 그 번호로 보낸다:
+     * 효과는 MOB_EFFECT 에서 같은 객체의 이름을 찾는다. 레지스트리 shim 이 아직 없는 Attribute·DimensionType 의 직접 정의는 거절한다(검토 PR #263 R3).
      */
     private static Object holder(Object v, String registry, String at) {
         if (v instanceof net.minecraft.core.Holder<?> h) {
@@ -312,8 +313,17 @@ public final class SchemaPacketBridge {
                 m.put("range", fixedRange(s));
                 return PacketStruct.of(m);
             }
+            if (registry.equals("MobEffect") && h.value() instanceof net.minecraft.world.effect.MobEffect e) {
+                var loc = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getKey(e);
+                if (loc == null) throw new IllegalArgumentException(at + ": 효과 레지스트리에 없는 효과다(바닐라도 번호를 못 찾아 인코딩이 실패한다): " + e);
+                return loc.toString();
+            }
+            if (h.value() != null) {
+                throw new IllegalArgumentException(at + ": " + registry + " 직접 정의 — 바닐라는 값이 레지스트리에 있으면 그 번호로 보내지만 Furnace 는 아직 이 레지스트리 값을 찾지 못한다."
+                        + " Holder.Reference 로 보낸다: " + v);
+            }
         }
-        throw new IllegalArgumentException(at + ": 등록된 것(Holder.Reference)만 보낼 수 있다 — " + registry + " 직접 정의는 바닐라도 이 자리에 쓰지 못한다: " + v);
+        throw new IllegalArgumentException(at + ": " + registry + " Holder 가 아니거나 값이 없다: " + v);
     }
 
     /** SoundEvent 의 private fixedRange()(바닐라와 같은 private 멤버라 반사로 읽는다). */

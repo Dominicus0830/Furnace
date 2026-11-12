@@ -89,7 +89,7 @@ packets.send(player, GenericPacket.of(PacketTypes.Clientbound.SET_BORDER_WARNING
 | `ChunkPos`·`SectionPos` | 바닐라가 쓰는 묶은 `long` |
 
 - `with` 는 이미 있는 필드면 같은 값 종류만 받는다(`Integer` 자리에 `Long` 은 `IllegalArgumentException`). 보낼 때(그리고 리스너의 `setPacket` 때 바로) 필드가 빠졌거나 모르는 이름·범위를 넘는 값(u8 에 256)·바닐라 문법이 아닌 이름(`"minecraft:Bad Name"`)·32767자 넘는 문자열이면 `IllegalArgumentException`.
-  필드마다 더 작은 상한(리소스 팩 hash 40자 등)은 아직 검사하지 않는다. 바닐라가 `Set` 인 필드(`login` 의 `levels`)는 같은 값을 두 번 넣으면 거부한다.
+  필드마다 더 작은 바닐라 상한도 검사한다(리소스 팩 hash 40자, 쿠키 payload 5120바이트, 명령 제안 32500자, 책 쪽 200개·쪽 8192자·제목 128자 등). 바닐라가 `Set` 인 필드(`login` 의 `levels`)는 같은 값을 두 번 넣으면 거부한다.
 - 읽을 수 있는 종류라도 패킷 하나가 디코드에 실패하면(클라이언트가 보낸 잘못된 패킷 등) 그 패킷만 `readable()` false 로 리스너에 간다.
 - 값은 넣고 꺼낼 때 복사된다(배열·`NbtCompound` — 목록·`Optional` 안에 있어도). 꺼낸 값을 바꿔도 패킷은 그대로다.
 - **1.21.1 에서 읽는 종류 133개**(서버→클라 92, 클라→서버 41). 필드 나열 110개 + 손 코덱 23개(아래 "손 코덱 종류"). 나머지 12개(입자·폭발·청크·빛·

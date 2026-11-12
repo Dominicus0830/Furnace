@@ -378,5 +378,14 @@ class GenericHandPacketTest {
         // 읽기도 바닐라처럼 상한을 넘으면 실패(키 "plug:c" + 길이 5121)
         byte[] wire = ByteBufUtil.decodeHexDump("06706c75673a63" + "8128" + "00".repeat(5121));
         assertThrows(IllegalArgumentException.class, () -> codec.decode(Clientbound.STORE_COOKIE, codec.ids(Clientbound.STORE_COOKIE)[0], Unpooled.wrappedBuffer(wire)));
+        // edit_book(검토 PR #263 R2): 쪽 list(200)·쪽 stringUtf8(8192)·제목 optional(stringUtf8(128))
+        var book = g(Serverbound.EDIT_BOOK, "slot", 0, "pages", java.util.Collections.nCopies(200, "p".repeat(8192)), "title", Optional.of("t".repeat(128)));
+        assertEquals(book, codec.decode(Serverbound.EDIT_BOOK, codec.ids(Serverbound.EDIT_BOOK)[0], Unpooled.wrappedBuffer(ByteBufUtil.decodeHexDump(body(book)))));
+        assertThrows(IllegalArgumentException.class, () -> body(book.with("pages", java.util.Collections.nCopies(201, "p"))));
+        assertThrows(IllegalArgumentException.class, () -> body(book.with("pages", List.of("p".repeat(8193)))));
+        assertThrows(IllegalArgumentException.class, () -> body(book.with("title", Optional.of("t".repeat(129)))));
+        // 읽기: 쪽 201개(빈 문자열)는 바닐라처럼 실패
+        byte[] many = ByteBufUtil.decodeHexDump("00" + "c901" + "00".repeat(201) + "00");
+        assertThrows(IllegalArgumentException.class, () -> codec.decode(Serverbound.EDIT_BOOK, codec.ids(Serverbound.EDIT_BOOK)[0], Unpooled.wrappedBuffer(many)));
     }
 }

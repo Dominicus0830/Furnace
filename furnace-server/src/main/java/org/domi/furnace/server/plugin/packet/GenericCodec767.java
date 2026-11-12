@@ -257,7 +257,7 @@ public final class GenericCodec767 {
         for (FieldDef f : fields) {
             String n = snake(f.name());
             if (names.contains(n)) throw new IllegalStateException("snake_case 이름이 겹친다: " + n);
-            Integer limit = FIELD_LIMITS.get(owner + "#" + f.name());
+            Limit limit = FIELD_LIMITS.get(owner + "#" + f.name());
             Node node = limit == null ? node(f.type(), f.wire(), pkg) : limited(f, limit);
             if (f.nullable()) node = node == NBT ? NULLABLE_NBT : optional(node, true);
             names.add(n);
@@ -268,23 +268,47 @@ public final class GenericCodec767 {
     }
 
     /**
-     * 필드별 길이 상한(바닐라 readUtf(n)·ByteBufCodecs.stringUtf8(n)·byteArray(n), 바이트코드 상수로 확인 — 스키마에는 상한 표기가 없다).
+     * 필드별 길이 상한(바닐라 readUtf(n)·ByteBufCodecs.stringUtf8(n)·byteArray(n)·list(n), 바이트코드·1.21.1 소스로 확인 — 스키마에는 상한 표기가 없다).
      * 필드 나열 종류만. 손 코덱 종류(set_player_team·set_structure_block·custom_report_details 등)는 손 코덱이 직접 검사한다.
-     * 이 밖의 문자열은 32767자(readUtf 기본), 바이트는 남은 길이까지.
+     * 이 밖의 문자열은 32767자(readUtf 기본), 바이트는 남은 길이까지. 읽기·쓰기 모두 검사한다 — chunks_biomes 버퍼는 바닐라가 읽기만 검사하지만
+     * (쓰면 클라이언트가 읽다 끊는다) Furnace 는 끊김 대신 플러그인에 예외를 준다(묶음 안 묶음과 같은 방침).
      */
-    private static final Map<String, Integer> FIELD_LIMITS = Map.of(
-            "net.minecraft.network.protocol.common.ClientboundResourcePackPushPacket#hash", 40,
-            "net.minecraft.network.protocol.common.ClientboundStoreCookiePacket#payload", 5120,
-            "net.minecraft.network.protocol.cookie.ServerboundCookieResponsePacket#payload", 5120,
-            "net.minecraft.network.protocol.game.ServerboundCommandSuggestionPacket#command", 32500,
-            "net.minecraft.network.protocol.game.ClientboundChunksBiomesPacket$ChunkBiomeData#buffer", 2097152);
+    private static final Map<String, Limit> FIELD_LIMITS = Map.of(
+            "net.minecraft.network.protocol.common.ClientboundResourcePackPushPacket#hash", new Limit(40, 0),
+            "net.minecraft.network.protocol.common.ClientboundStoreCookiePacket#payload", new Limit(5120, 0),
+            "net.minecraft.network.protocol.cookie.ServerboundCookieResponsePacket#payload", new Limit(5120, 0),
+            "net.minecraft.network.protocol.game.ServerboundCommandSuggestionPacket#command", new Limit(32500, 0),
+            "net.minecraft.network.protocol.game.ClientboundChunksBiomesPacket$ChunkBiomeData#buffer", new Limit(2097152, 0),
+            "net.minecraft.network.protocol.game.ServerboundEditBookPacket#pages", new Limit(8192, 200),
+            "net.minecraft.network.protocol.game.ServerboundEditBookPacket#title", new Limit(128, 0));
 
-    /** 상한이 있는 문자열·바이트 필드(nullable 이면 Optional). */
-    private static Node limited(FieldDef f, int max) {
-        if (f.wire() != null || f.type().arguments().size() > 0) throw new IllegalStateException("상한 표의 필드 모양이 다르다: " + f);
-        if (f.type().name().equals("String") && f.type().arrayDimensions() == 0) return GenericHand767.string(max);
-        if (f.type().name().equals("byte") && f.type().arrayDimensions() == 1) return GenericHand767.bytes(max);
+    /** 값 하나의 상한(문자 수·바이트 수)과, 목록이면 원소 수 상한(0 = 목록 아님). */
+    private record Limit(int max, int count) {}
+
+    /** 상한이 있는 문자열·바이트·문자열 목록(list(n))·Optional 문자열 필드(nullable 이면 다시 Optional). */
+    private static Node limited(FieldDef f, Limit limit) {
+        var t = f.type();
+        if (f.wire() != null) throw new IllegalStateException("상한 표의 필드 모양이 다르다: " + f);
+        boolean string = t.name().equals("String") && t.arrayDimensions() == 0 && t.arguments().isEmpty();
+        if (limit.count() == 0 && string) return GenericHand767.string(limit.max());
+        if (limit.count() == 0 && t.name().equals("byte") && t.arrayDimensions() == 1) return GenericHand767.bytes(limit.max());
+        boolean ofString = t.arguments().size() == 1 && t.arguments().get(0).name().equals("String") && t.arrayDimensions() == 0;
+        if (limit.count() == 0 && ofString && t.name().equals("Optional")) return optional(GenericHand767.string(limit.max()), false);
+        if (limit.count() > 0 && ofString && t.name().equals("List")) return listMax(GenericHand767.string(limit.max()), limit.count());
         throw new IllegalStateException("상한 표의 필드 타입이 다르다: " + f);
+    }
+
+    /** 원소 수 상한이 있는 목록(바닐라 ByteBufCodecs.list(n) — 읽기·쓰기 모두 n 을 넘으면 실패). */
+    static Node listMax(Node elem, int max) {
+        Node l = list(elem, false);
+        return node(List.class, b -> {
+            int n = Types.readVarInt(b.duplicate());
+            if (n > max) throw new IllegalArgumentException("목록 원소가 너무 많다(" + n + " > " + max + ")");
+            return l.read(b);
+        }, (o, v) -> {
+            if (((List<?>) v).size() > max) throw new IllegalArgumentException("목록 원소가 너무 많다(" + ((List<?>) v).size() + " > " + max + ")");
+            l.write(o, v);
+        });
     }
 
     /** Mojang camelCase → snake_case(cameraId → camera_id, yHeadRot → y_head_rot). */
@@ -869,7 +893,7 @@ public final class GenericCodec767 {
         return checkLength(ns + ":" + path);
     }
 
-    /** 바닐라 writeUtf 상한(32767자). 필드마다 더 작은 상한(리소스 팩 hash 40 등)은 스키마에 아직 없다. */
+    /** 바닐라 writeUtf 기본 상한(32767자). 필드마다 더 작은 상한은 FIELD_LIMITS. */
     private static String checkLength(String s) {
         if (s.length() > STRING_MAX) throw new IllegalArgumentException("문자열이 너무 길다(" + s.length() + " > " + STRING_MAX + ")");
         return s;

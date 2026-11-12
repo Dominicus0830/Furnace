@@ -183,22 +183,28 @@ class GenericPacketTest {
 
         // 직접 정의 값(PacketStruct{sound_id, range}): 이름이 등록돼 있어도 바닐라 Holder.direct 처럼 0 + 이름 + 고정 범위 Optional
         // (with 는 필드 값 종류를 바꾸지 못한다 — String 자리에 PacketStruct 를 넣으려면 묶음을 새로 만든다)
+        java.util.function.BiFunction<String, Optional<?>, PacketStruct> directSound = (id, range) -> {   // 바닐라 코덱 필드 순서 sound_id, range
+            var m = new LinkedHashMap<String, Object>();
+            m.put("sound_id", id);
+            m.put("range", range);
+            return PacketStruct.of(m);
+        };
         java.util.function.Function<Object, GenericPacket> sound = v -> {
             var m = new LinkedHashMap<>(p.fields().asMap());
             m.put("sound", v);
             return GenericPacket.of(Clientbound.SOUND_ENTITY, PacketStruct.of(m));
         };
-        var direct = sound.apply(PacketStruct.of(new LinkedHashMap<>(Map.of("sound_id", "minecraft:entity.pig.ambient", "range", Optional.of(24.5f)))));
+        var direct = sound.apply(directSound.apply("minecraft:entity.pig.ambient", Optional.of(24.5f)));
         ByteBuf d = Unpooled.wrappedBuffer(body(direct));
         assertEquals(0, Types.readVarInt(d), "직접 정의");
         assertEquals("minecraft:entity.pig.ambient", Types.readString(d, 100));
         assertTrue(d.readBoolean(), "고정 범위 있음");
         assertEquals(24.5f, d.readFloat());
         assertEquals(direct, decode(Clientbound.SOUND_ENTITY, body(direct)), "다시 쓰면 같은 바이트가 되는 값으로 읽는다");
-        var registeredDirect = sound.apply(PacketStruct.of(new LinkedHashMap<>(Map.of("sound_id", "minecraft:entity.pig.ambient", "range", Optional.empty()))));
+        var registeredDirect = sound.apply(directSound.apply("minecraft:entity.pig.ambient", Optional.empty()));
         assertEquals(0, Unpooled.wrappedBuffer(body(registeredDirect)).getByte(0), "등록된 이름이라도 직접 정의");
         assertEquals(registeredDirect, decode(Clientbound.SOUND_ENTITY, body(registeredDirect)));
-        assertThrows(IllegalArgumentException.class, () -> body(sound.apply(PacketStruct.of(new LinkedHashMap<>(Map.of("sound_id", "a:b", "range", Optional.of(1.0)))))),
+        assertThrows(IllegalArgumentException.class, () -> body(sound.apply(directSound.apply("a:b", Optional.of(1.0)))),
                 "범위는 Float");
     }
 

@@ -6,6 +6,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.effect.InstantenousMobEffect;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectCategory;
 import org.domi.furnace.api.Furnace;
@@ -85,10 +86,7 @@ public final class NmsMobEffects {
                         Row row = ROWS.get(id);
                         if (row == null) throw new IllegalStateException("효과 정의가 없는 서버 효과: " + id);
                         r.add(ResourceLocation.parse(id), row.instant()
-                                ? new MobEffect(row.category(), row.color()) {
-                                    @Override
-                                    public boolean isInstantenous() { return true; }
-                                }
+                                ? new InstantenousMobEffect(row.category(), row.color())
                                 : new MobEffect(row.category(), row.color()) {});
                     }
                     registry = r;

@@ -20,7 +20,7 @@ public class MobEffect {
         this.color = color;
     }
 
-    /** 즉시 효과인가. 바닐라처럼 기본 false — 즉시 치유·피해·포화는 덮어쓴 하위 클래스다(바닐라 InstantenousMobEffect). */
+    /** 즉시 효과인가. 바닐라처럼 기본 false — 즉시 치유·피해·포화는 {@link InstantenousMobEffect}. */
     public boolean isInstantenous() { return false; }
 
     public MobEffectCategory getCategory() { return category; }

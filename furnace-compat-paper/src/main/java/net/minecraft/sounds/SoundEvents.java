@@ -6,9 +6,10 @@ import org.domi.furnace.compat.nms.NmsSounds;
 /**
  * 바닐라 소리 상수(Mojang 이름 shim, easy-nms E4c-1b). 필드 1603개 — 선언 순서·필드 타입(SoundEvent · Holder.Reference · Holder)은 바닐라 1.21.1 서버 jar 의
  * SoundEvents 에서 옮겼고, 소리 이름은 서버 내장 레지스트리(builtin-1.21.1.txt, 바닐라 번호 순)와 같다. 값은 {@code BuiltInRegistries.SOUND_EVENT} 의 같은 객체다.
- * <p><b>가정:</b> 필드 이름은 Mojang 매핑을 받을 수 없어 규칙(앞의 entity·block·item·event·particle·enchant 마디를 떼고 점을 _ 로)과 예외 표로 만들었다
- * (docs/feature-parity/context-notes/2026-11-12-easy-nms-e4c.md). 바닐라 선언 순서가 묶음마다 대체로 이름순이라 예외 일부는 그 순서로 맞춰 봤다.
- * {@code GOAT_HORN_SOUND_VARIANTS}(Guava ImmutableList)는 Guava 가 호환 계층 클래스패스에 늘 있지 않아 두지 않았다 — 부르면 없는 필드다.
+ * 필드 이름은 규칙(앞의 entity·block·item·event·particle·enchant 마디를 떼고 점을 _ 로)과 예외 표로 만들고, 1.21.1 Mojang 이름 디컴파일 소스와
+ * 1603개 모두 대조했다(PR #263 검토, docs/feature-parity/context-notes/2026-11-12-easy-nms-e4c.md).
+ * {@code GOAT_HORN_SOUND_VARIANTS}(Guava ImmutableList)는 두지 않았다 — 서버 제공 Guava 는 그것을 쓰는 플러그인이 있을 때만 붙어, 필드 타입이
+ * ImmutableList 면 Guava 가 없을 때 {@code SoundEvents.class.getFields()} 같은 리플렉션이 NoClassDefFoundError 로 깨진다. 부르면 없는 필드다.
  * <p>일회성 생성기로 만든 파일이다(필드 종류 목록이 바닐라 jar 에서 나와 생성기는 커밋하지 않는다). 고칠 때는 문서의 이름 예외 표도 함께 고친다.
  */
 public final class SoundEvents {
@@ -21,7 +22,7 @@ public final class SoundEvents {
     public static final SoundEvent ALLAY_HURT = NmsSounds.event("entity.allay.hurt");
     public static final SoundEvent ALLAY_ITEM_GIVEN = NmsSounds.event("entity.allay.item_given");
     public static final SoundEvent ALLAY_ITEM_TAKEN = NmsSounds.event("entity.allay.item_taken");
-    public static final SoundEvent ALLAY_ITEM_THROWN = NmsSounds.event("entity.allay.item_thrown");
+    public static final SoundEvent ALLAY_THROW = NmsSounds.event("entity.allay.item_thrown");
     public static final Holder.Reference<SoundEvent> AMBIENT_CAVE = NmsSounds.reference("ambient.cave");
     public static final Holder.Reference<SoundEvent> AMBIENT_BASALT_DELTAS_ADDITIONS = NmsSounds.reference("ambient.basalt_deltas.additions");
     public static final Holder.Reference<SoundEvent> AMBIENT_BASALT_DELTAS_LOOP = NmsSounds.reference("ambient.basalt_deltas.loop");
@@ -566,7 +567,7 @@ public final class SoundEvents {
     public static final SoundEvent FROGLIGHT_HIT = NmsSounds.event("block.froglight.hit");
     public static final SoundEvent FROGLIGHT_PLACE = NmsSounds.event("block.froglight.place");
     public static final SoundEvent FROGLIGHT_STEP = NmsSounds.event("block.froglight.step");
-    public static final SoundEvent FROGSPAWN_STEP = NmsSounds.event("block.frogspawn.step");
+    public static final SoundEvent FROGSPAWNSTEP = NmsSounds.event("block.frogspawn.step");
     public static final SoundEvent FROGSPAWN_BREAK = NmsSounds.event("block.frogspawn.break");
     public static final SoundEvent FROGSPAWN_FALL = NmsSounds.event("block.frogspawn.fall");
     public static final SoundEvent FROGSPAWN_HATCH = NmsSounds.event("block.frogspawn.hatch");
@@ -1203,21 +1204,21 @@ public final class SoundEvents {
     public static final SoundEvent SCAFFOLDING_HIT = NmsSounds.event("block.scaffolding.hit");
     public static final SoundEvent SCAFFOLDING_PLACE = NmsSounds.event("block.scaffolding.place");
     public static final SoundEvent SCAFFOLDING_STEP = NmsSounds.event("block.scaffolding.step");
-    public static final SoundEvent SCULK_SPREAD = NmsSounds.event("block.sculk.spread");
-    public static final SoundEvent SCULK_CHARGE = NmsSounds.event("block.sculk.charge");
-    public static final SoundEvent SCULK_BREAK = NmsSounds.event("block.sculk.break");
-    public static final SoundEvent SCULK_FALL = NmsSounds.event("block.sculk.fall");
-    public static final SoundEvent SCULK_HIT = NmsSounds.event("block.sculk.hit");
-    public static final SoundEvent SCULK_PLACE = NmsSounds.event("block.sculk.place");
-    public static final SoundEvent SCULK_STEP = NmsSounds.event("block.sculk.step");
+    public static final SoundEvent SCULK_BLOCK_SPREAD = NmsSounds.event("block.sculk.spread");
+    public static final SoundEvent SCULK_BLOCK_CHARGE = NmsSounds.event("block.sculk.charge");
+    public static final SoundEvent SCULK_BLOCK_BREAK = NmsSounds.event("block.sculk.break");
+    public static final SoundEvent SCULK_BLOCK_FALL = NmsSounds.event("block.sculk.fall");
+    public static final SoundEvent SCULK_BLOCK_HIT = NmsSounds.event("block.sculk.hit");
+    public static final SoundEvent SCULK_BLOCK_PLACE = NmsSounds.event("block.sculk.place");
+    public static final SoundEvent SCULK_BLOCK_STEP = NmsSounds.event("block.sculk.step");
     public static final SoundEvent SCULK_CATALYST_BLOOM = NmsSounds.event("block.sculk_catalyst.bloom");
     public static final SoundEvent SCULK_CATALYST_BREAK = NmsSounds.event("block.sculk_catalyst.break");
     public static final SoundEvent SCULK_CATALYST_FALL = NmsSounds.event("block.sculk_catalyst.fall");
     public static final SoundEvent SCULK_CATALYST_HIT = NmsSounds.event("block.sculk_catalyst.hit");
     public static final SoundEvent SCULK_CATALYST_PLACE = NmsSounds.event("block.sculk_catalyst.place");
     public static final SoundEvent SCULK_CATALYST_STEP = NmsSounds.event("block.sculk_catalyst.step");
-    public static final SoundEvent SCULK_SENSOR_CLICKING = NmsSounds.event("block.sculk_sensor.clicking");
-    public static final SoundEvent SCULK_SENSOR_CLICKING_STOP = NmsSounds.event("block.sculk_sensor.clicking_stop");
+    public static final SoundEvent SCULK_CLICKING = NmsSounds.event("block.sculk_sensor.clicking");
+    public static final SoundEvent SCULK_CLICKING_STOP = NmsSounds.event("block.sculk_sensor.clicking_stop");
     public static final SoundEvent SCULK_SENSOR_BREAK = NmsSounds.event("block.sculk_sensor.break");
     public static final SoundEvent SCULK_SENSOR_FALL = NmsSounds.event("block.sculk_sensor.fall");
     public static final SoundEvent SCULK_SENSOR_HIT = NmsSounds.event("block.sculk_sensor.hit");
