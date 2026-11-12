@@ -274,6 +274,12 @@ public final class Compat {
     }
 
     /** 로그인이 거부된 접속의 CraftPlayer 를 표에서 꺼내 권한 구독·거울을 걷는다(그 접속 것일 때만 — 같은 UUID 의 다른 접속은 두고). */
+    /** 접속이 끝났다(퇴장 이벤트를 Bukkit 처리기들이 본 뒤) — NMS 연결의 가상 채널을 닫아 패킷 라이브러리가 자기 처리기를 걷게 한다. */
+    static void disconnected(org.domi.furnace.api.entity.Player p) {
+        CraftPlayer c = existingPlayer(p);
+        if (c != null) c.disconnected();
+    }
+
     static void forgetDenied(org.domi.furnace.api.entity.Player p) {
         State s = state;
         if (s == null || p == null) return;
