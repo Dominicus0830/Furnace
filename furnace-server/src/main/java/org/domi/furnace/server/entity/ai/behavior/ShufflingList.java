@@ -7,7 +7,8 @@ import java.util.Iterator;
 import java.util.List;
 
 public final class ShufflingList<U> implements Iterable<U> {
-    private static final org.domi.furnace.server.block.RandomSource RANDOM = org.domi.furnace.server.block.RandomSource.create();
+    private static final org.domi.furnace.server.block.RandomSource RANDOM = org.domi.furnace.server.block.RandomSource.createFor(
+            org.domi.furnace.server.block.RandomSeeds.key("ShufflingList.RANDOM"), org.domi.furnace.server.block.RandomSeeds.Purpose.SHUFFLING_LIST);
 
     private static final class Entry<T> {
         final T data;
