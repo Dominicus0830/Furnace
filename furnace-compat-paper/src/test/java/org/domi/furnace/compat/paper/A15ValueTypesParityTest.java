@@ -187,6 +187,28 @@ class A15ValueTypesParityTest {
     }
 
     @Test
+    void locationIsAFinePositionAndNeedsAWorldForBlockAndChunk() {
+        Location l = new Location(null, 1.5, 64.9, -0.5);
+        io.papermc.paper.math.Position p = l;
+        assertTrue(p.isFine());
+        assertFalse(p.isBlock());
+        assertEquals(1, p.blockX());
+        assertEquals(64, p.blockY());
+        assertEquals(-1, p.blockZ());
+        assertEquals(io.papermc.paper.math.Position.block(1, 64, -1), p.toBlock());
+        assertEquals(io.papermc.paper.math.Position.fine(1.5, 64.5, -0.5), p.toCenter());
+        assertEquals(io.papermc.paper.math.Position.fine(2.5, 65.9, 0.5), l.offset(1.0, 1.0, 1.0));
+        io.papermc.paper.math.BlockPosition b = io.papermc.paper.math.Position.block(1, 2, 3);
+        assertTrue(b.isBlock());
+        assertFalse(b.isFine());
+        assertEquals(io.papermc.paper.math.Position.block(2, 2, 2), b.offset(1, 0, -1));
+        assertEquals(1.0, b.x());
+        assertEquals(io.papermc.paper.math.Position.fine(1.5, 2.5, 3.5), b.toCenter());
+        assertThrows(NullPointerException.class, l::getChunk);
+        assertThrows(NullPointerException.class, l::getBlock);
+    }
+
+    @Test
     void blockKeyPacksCoordinates() {
         long key = Block.getBlockKey(1, 2, 3);
         assertEquals(1L | (3L << 27) | (2L << 54), key);

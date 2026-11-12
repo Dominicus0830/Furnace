@@ -13,7 +13,8 @@ import org.bukkit.util.Vector;
  * 월드 안의 좌표와 시선(가변). world 는 null 일 수 있다.
  * 설정 파일에 Paper 와 같은 꼴(별칭 {@code org.bukkit.Location}, 키 world·x·y·z·yaw·pitch)로 저장·되읽는다(A15-01).
  */
-public class Location implements Cloneable, org.bukkit.configuration.serialization.ConfigurationSerializable {
+public class Location implements Cloneable, org.bukkit.configuration.serialization.ConfigurationSerializable,
+        io.papermc.paper.math.FinePosition {
 
     private World world;
     private double x, y, z;
@@ -62,16 +63,11 @@ public class Location implements Cloneable, org.bukkit.configuration.serializati
 
     public void setPitch(float pitch) { this.pitch = pitch; }
 
-    /** 이 위치의 청크(world.getChunkAt(this)). 월드가 없으면 IllegalArgumentException. */
-    public Chunk getChunk() {
-        if (world == null) throw new IllegalArgumentException("Location has no world");
-        return world.getChunkAt(this);
-    }
+    /** 이 위치의 청크(world.getChunkAt(this)). 월드가 없으면 NullPointerException(Paper 와 같다). */
+    public Chunk getChunk() { return world.getChunkAt(this); }
 
-    public Block getBlock() {
-        if (world == null) throw new IllegalStateException("world 가 없는 Location");
-        return world.getBlockAt(this);
-    }
+    /** 이 위치의 블록(world.getBlockAt(this)). 월드가 없으면 NullPointerException(Paper 와 같다). */
+    public Block getBlock() { return world.getBlockAt(this); }
 
     /** 시선 방향의 단위 벡터. */
     public Vector getDirection() {
@@ -184,12 +180,15 @@ public class Location implements Cloneable, org.bukkit.configuration.serializati
         return worldForNearby().getNearbyEntitiesByType(clazz, this, xRadius, yRadius, zRadius, predicate);
     }
 
-    // ---- 위치 수학(Paper 의 Position 인터페이스 멤버 가운데 값만 보는 것)
+    // ---- 위치 수학(Paper 의 Position 인터페이스 멤버. blockX/Y/Z·offset·toCenter·toBlock 은 FinePosition 기본 구현)
 
+    @Override
     public double x() { return getX(); }
 
+    @Override
     public double y() { return getY(); }
 
+    @Override
     public double z() { return getZ(); }
 
     /** 좌표 셋과 yaw·pitch 가 모두 유한한가. */
