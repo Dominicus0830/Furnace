@@ -21,13 +21,17 @@ public final class AttributeMap {
     private int version;
 
     public AttributeInstance register(Attribute a) {
-        return instances.computeIfAbsent(a, k -> {
+        boolean[] added = new boolean[1];
+        AttributeInstance r = instances.computeIfAbsent(a, k -> {
+            added[0] = true;
             AttributeInstance[] self = new AttributeInstance[1];
             self[0] = new AttributeInstance(k, () -> { dirty.add(self[0]); toUpdate.add(self[0]); version++; });
             if (k.id() >= byId.length) byId = java.util.Arrays.copyOf(byId, Math.max(k.id() + 1, byId.length * 2));
             byId[k.id()] = self[0];
             return self[0];
         });
+        if (added[0]) version++;   // 새 속성도 저장·스냅샷에 들어가므로 바뀐 것으로 센다(바닐라 registerAttribute 처럼 클라이언트로는 보내지 않는다)
+        return r;
     }
 
     public AttributeMap add(Attribute a, double base) {
@@ -38,6 +42,32 @@ public final class AttributeMap {
     }
 
     public int version() { return version; }
+
+    /** 한 속성의 어느 순간 값(불변 — 수정자 맵은 갈아 끼우는 사본이라 그대로 공유한다). */
+    public record View(Attribute attribute, double base, double value, Map<String, AttributeModifier> modifiers) { }
+
+    private Map<Attribute, View> snapshot = Map.of();
+    private int snapshotVersion = -1;
+
+    /**
+     * 모든 속성의 읽기 전용 스냅샷. 버전이 같으면 이전 것을 그대로 돌려줘 핸들을 자주 만들어도 싸다. 이 맵을 쥔 region 스레드에서만 부른다
+     * (돌려준 값은 불변이라 다른 스레드로 넘겨도 된다).
+     */
+    /** {@link #snapshot()} 인데 캐시(버전 스냅샷·인스턴스 값 캐시)를 건드리지 않는다 — 소유 스레드가 아닌 곳이 맨 처음 한 번 뜰 때(최근 값). */
+    public Map<Attribute, View> snapshotDetached() {
+        Map<Attribute, View> out = new LinkedHashMap<>();
+        for (AttributeInstance i : new ArrayList<>(instances.values())) out.put(i.attribute(), new View(i.attribute(), i.baseValue(), i.compute(), i.modifiers()));
+        return java.util.Collections.unmodifiableMap(out);
+    }
+
+    public Map<Attribute, View> snapshot() {
+        if (snapshotVersion == version) return snapshot;
+        Map<Attribute, View> out = new LinkedHashMap<>();
+        for (AttributeInstance i : instances.values()) out.put(i.attribute(), new View(i.attribute(), i.baseValue(), i.value(), i.modifiers()));
+        snapshot = java.util.Collections.unmodifiableMap(out);
+        snapshotVersion = version;
+        return snapshot;
+    }
 
     public boolean has(Attribute a) { return get(a) != null; }
 
@@ -94,7 +124,7 @@ public final class AttributeMap {
             t.put("base", i.baseValue());
             NbtList mods = new NbtList((byte) 10);
             for (AttributeModifier m : i.modifiers().values()) {
-                if (skip.test(i.attribute(), m.id())) continue;
+                if (i.isTransient(m.id()) || skip.test(i.attribute(), m.id())) continue;
                 NbtCompound mt = new NbtCompound();
                 mt.putString("id", m.id());
                 mt.put("amount", m.amount());

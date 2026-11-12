@@ -60,7 +60,7 @@ class PacketPipelineShapeTest {
             Connection connection = (Connection) conn.get(listener);
             assertNotNull(connection);
 
-            // Connection 의 정확히 Channel 형식인 비정적 필드 — 활성이 아니어야 라이브러리가 조용히 건너뛴다
+            // Connection 의 정확히 Channel 형식인 비정적 필드 — 접속이 붙어 있는 동안 활성인 가상 채널(ProtocolLib 다리 2b-1)
             Field ch = null;
             for (Field f : Connection.class.getDeclaredFields()) {
                 if (f.getType() == Channel.class && !Modifier.isStatic(f.getModifiers())) ch = f;
@@ -68,7 +68,8 @@ class PacketPipelineShapeTest {
             assertNotNull(ch, "Channel 형식 필드");
             Channel channel = (Channel) ch.get(connection);
             assertNotNull(channel);
-            assertFalse(channel.isActive(), "자리표시 채널은 활성이 아니다");
+            assertTrue(channel.isActive(), "가상 채널은 접속이 붙어 있는 동안 활성이다");
+            assertTrue(channel instanceof org.domi.furnace.compat.nms.VirtualChannel);
 
             // PacketListenerInvoker 가 정적 초기화에서 찾는 메서드들
             assertNotNull(Connection.class.getMethod("send", Packet.class));

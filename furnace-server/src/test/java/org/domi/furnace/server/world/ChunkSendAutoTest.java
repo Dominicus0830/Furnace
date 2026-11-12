@@ -25,7 +25,7 @@ class ChunkSendAutoTest {
     private static final int CHUNK_BATCH_START = 0x0D;
     private static final int CHUNK_BATCH_FINISHED = 0x0C;
     private static final int LEVEL_CHUNK = 0x27;
-    private static final int VD = 4;   // 9×9 = 81 청크(구역 16×16 하나 안)
+    private static final int VD = 4;   // 바닐라 둥근 시야 109 청크(구역 16×16 하나 안)
 
     private FurnaceSchedulerImpl sched;
     private ExecutorService io;
@@ -77,8 +77,7 @@ class ChunkSendAutoTest {
     @Test
     void loadedChunks_goOutAtClientRate_notCappedAt16() throws Exception {
         world(true);
-        for (int x = -VD; x <= VD; x++)
-            for (int z = -VD; z <= VD; z++) w.awaitChunk(new ChunkPos(x, z));   // 모두 미리 로드
+        for (ChunkPos c : ChunkTrackingViewTest.vanillaSet(0, 0, VD)) w.awaitChunk(c);   // 모두 미리 로드
         EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
         join(ch);
         List<int[]> batches = new ArrayList<>();
@@ -113,7 +112,7 @@ class ChunkSendAutoTest {
         int prefetching = p.chunkPrefetches().size();
         assertTrue(prefetching > 0 && prefetching <= w.maxChunkSendsInFlight(), "미리 불러오기 수 " + prefetching);
 
-        int total = (2 * VD + 1) * (2 * VD + 1);
+        int total = ChunkTrackingViewTest.vanillaCount(VD);
         int sent = 0;
         for (int i = 0; i < 400 && sent < total; i++) {
             tick();
@@ -139,7 +138,7 @@ class ChunkSendAutoTest {
         List<int[]> batches = new ArrayList<>();
         int[] open = {0};
         boolean[] inBatch = {false};
-        int total = (2 * VD + 1) * (2 * VD + 1);
+        int total = ChunkTrackingViewTest.vanillaCount(VD);
         int sent = 0;
         for (int i = 0; i < 400 && sent < total; i++) {
             tick();
@@ -171,13 +170,12 @@ class ChunkSendAutoTest {
     @Test
     void chunkChangedEveryTick_isStillSent() throws Exception {
         world(true);
-        for (int x = -VD; x <= VD; x++)
-            for (int z = -VD; z <= VD; z++) w.awaitChunk(new ChunkPos(x, z));
+        for (ChunkPos c : ChunkTrackingViewTest.vanillaSet(0, 0, VD)) w.awaitChunk(c);
         EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
         Player p = join(ch);
         List<int[]> batches = new ArrayList<>();
         int[] open = {0};
-        int total = (2 * VD + 1) * (2 * VD + 1);
+        int total = ChunkTrackingViewTest.vanillaCount(VD);
         int sent = 0;
         for (int i = 0; i < 400 && sent < total; i++) {
             sched.region(rp).execute(() -> w.loadedChunk(0, 0).markDirty()).get();   // 직렬화가 끝날 때마다 이미 낡았다
@@ -194,8 +192,7 @@ class ChunkSendAutoTest {
     @Test
     void everyChunkChangingEachTick_syncSerializationIsCappedPerTick() throws Exception {
         world(true);
-        for (int x = -VD; x <= VD; x++)
-            for (int z = -VD; z <= VD; z++) w.awaitChunk(new ChunkPos(x, z));
+        for (ChunkPos c : ChunkTrackingViewTest.vanillaSet(0, 0, VD)) w.awaitChunk(c);
         Thread[] regionThread = new Thread[1];
         sched.region(rp).execute(() -> regionThread[0] = Thread.currentThread()).get();
         java.util.concurrent.atomic.AtomicInteger onRegion = new java.util.concurrent.atomic.AtomicInteger();
@@ -204,10 +201,10 @@ class ChunkSendAutoTest {
         join(ch);
         List<int[]> batches = new ArrayList<>();
         int[] open = {0};
-        int total = (2 * VD + 1) * (2 * VD + 1), sent = 0, maxSyncInTick = 0;
+        int total = ChunkTrackingViewTest.vanillaCount(VD), sent = 0, maxSyncInTick = 0;
         for (int i = 0; i < 200 && sent < total; i++) {
             sched.region(rp).execute(() -> {
-                for (int x = -VD; x <= VD; x++) for (int z = -VD; z <= VD; z++) w.loadedChunk(x, z).markDirty();
+                for (ChunkPos c : ChunkTrackingViewTest.vanillaSet(0, 0, VD)) w.loadedChunk(c.x(), c.z()).markDirty();
             }).get();
             int before = onRegion.get();
             tick();
@@ -223,8 +220,7 @@ class ChunkSendAutoTest {
     @Test
     void numericSetting_keepsFixedCap() throws Exception {
         world(false);
-        for (int x = -VD; x <= VD; x++)
-            for (int z = -VD; z <= VD; z++) w.awaitChunk(new ChunkPos(x, z));
+        for (ChunkPos c : ChunkTrackingViewTest.vanillaSet(0, 0, VD)) w.awaitChunk(c);
         EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
         join(ch);
         tick();

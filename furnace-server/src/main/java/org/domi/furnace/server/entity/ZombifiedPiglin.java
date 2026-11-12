@@ -46,7 +46,7 @@ public class ZombifiedPiglin extends Zombie implements NeutralMob {
     protected void customServerAiStep() {
         var speed = attributes().get(Attribute.MOVEMENT_SPEED);
         if (isAngry()) {
-            if (!isBaby() && !speed.hasModifier(SPEED_MODIFIER_ATTACKING_ID)) speed.addOrReplaceModifier(SPEED_MODIFIER_ATTACKING);
+            if (!isBaby() && !speed.hasModifier(SPEED_MODIFIER_ATTACKING_ID)) speed.addOrReplaceTransientModifier(SPEED_MODIFIER_ATTACKING);
             maybePlayFirstAngerSound();
         } else if (speed.hasModifier(SPEED_MODIFIER_ATTACKING_ID)) {
             speed.removeModifier(SPEED_MODIFIER_ATTACKING_ID);

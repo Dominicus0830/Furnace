@@ -67,7 +67,7 @@ public class Enderman extends Monster implements NeutralMob {
         } else {
             targetChangeTime = tickCount;
             entityData.set(DATA_CREEPY, true);
-            if (!speed.hasModifier(SPEED_MODIFIER_ATTACKING_ID)) speed.addOrReplaceModifier(SPEED_MODIFIER_ATTACKING);
+            if (!speed.hasModifier(SPEED_MODIFIER_ATTACKING_ID)) speed.addOrReplaceTransientModifier(SPEED_MODIFIER_ATTACKING);
         }
         return true;
     }
