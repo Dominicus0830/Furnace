@@ -374,7 +374,7 @@ public class Zombie extends Monster {
         entityData.set(DATA_BABY, baby);
         var speed = attributes().get(Attribute.MOVEMENT_SPEED);
         speed.removeModifier(BABY_MODIFIER_ID);
-        if (baby) speed.addOrReplaceModifier(new AttributeModifier(BABY_MODIFIER_ID, 0.5, AttributeModifier.ADD_MULTIPLIED_BASE));
+        if (baby) speed.addOrReplaceTransientModifier(new AttributeModifier(BABY_MODIFIER_ID, 0.5, AttributeModifier.ADD_MULTIPLIED_BASE));
         if (baby) setDimensions(0.3F, 0.975F, 0.93F);   // 크기 0.5 배, 눈높이 0.93
         else setDimensions(0.6F, 1.95F, 1.74F);
     }

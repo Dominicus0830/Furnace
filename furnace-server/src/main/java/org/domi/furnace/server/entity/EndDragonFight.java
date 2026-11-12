@@ -587,7 +587,7 @@ public final class EndDragonFight {
         EndCrystal crystal = new EndCrystal(level, level.nextEntityId());
         crystal.setBeamTarget(BEAM_CENTER);
         crystal.setInvulnerable(true);
-        crystal.moveTo(cx + 0.5, height + 1, cz + 0.5, org.domi.furnace.server.block.RandomSource.create().nextFloat() * 360.0F, 0.0F);
+        crystal.moveTo(cx + 0.5, height + 1, cz + 0.5, org.domi.furnace.server.block.RandomSource.createFor(crystal.id(), org.domi.furnace.server.block.RandomSeeds.Purpose.END_CRYSTAL_YAW).nextFloat() * 360.0F, 0.0F);
         level.addFreshEntity(crystal);
         Pos cp = crystal.blockPosition();
         level.setBlock(new Pos(cp.x(), cp.y() - 1, cp.z()), bedrock, 3);

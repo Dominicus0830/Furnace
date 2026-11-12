@@ -82,9 +82,8 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     private ChunkPos lastCenter;                 // 마지막으로 SetCenterChunk 보낸 청크(null=미전송)
     private final Set<ChunkPos> loadedChunks = new HashSet<>();
-    /** Entity.random — 엔티티 자신의 난수(RandomSource.create()). */
-    private final org.domi.furnace.server.block.LegacyRandomSource random =
-            new org.domi.furnace.server.block.LegacyRandomSource(java.util.concurrent.ThreadLocalRandom.current().nextLong());
+    /** Entity.random — 엔티티 자신의 난수(RandomSource.create()). 주인 열쇠 = 엔티티 id. */
+    private final org.domi.furnace.server.block.LegacyRandomSource random;
     private final Set<ChunkPos> pendingChunks = new LinkedHashSet<>(); // 시야 진입했으나 아직 전송 안 한 청크(순서 보존). region 스레드 전용.
     private final Map<Integer, double[]> tracked = new HashMap<>(); // 관찰중 엔티티 → 마지막 전송 {x,y,z}
     private final Map<Integer, Integer> missingTicks = new HashMap<>(); // 추적중인데 후보서 사라진 틱 수(grace despawn)
@@ -189,7 +188,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
                     .add(org.domi.furnace.server.attribute.Attribute.ARMOR_TOUGHNESS, 0.0).add(org.domi.furnace.server.attribute.Attribute.MAX_ABSORPTION, 0.0)
                     .add(org.domi.furnace.server.attribute.Attribute.STEP_HEIGHT, 0.6).add(org.domi.furnace.server.attribute.Attribute.SCALE, 1.0)
                     .add(org.domi.furnace.server.attribute.Attribute.GRAVITY, 0.08).add(org.domi.furnace.server.attribute.Attribute.SAFE_FALL_DISTANCE, 3.0)
-                    .add(org.domi.furnace.server.attribute.Attribute.FALL_DAMAGE_MULTIPLIER, 1.0).add(org.domi.furnace.server.attribute.Attribute.JUMP_STRENGTH, 0.42)
+                    .add(org.domi.furnace.server.attribute.Attribute.FALL_DAMAGE_MULTIPLIER, 1.0).add(org.domi.furnace.server.attribute.Attribute.JUMP_STRENGTH, 0.42F)
                     .add(org.domi.furnace.server.attribute.Attribute.OXYGEN_BONUS, 0.0).add(org.domi.furnace.server.attribute.Attribute.BURNING_TIME, 1.0)
                     .add(org.domi.furnace.server.attribute.Attribute.EXPLOSION_KNOCKBACK_RESISTANCE, 0.0)
                     .add(org.domi.furnace.server.attribute.Attribute.WATER_MOVEMENT_EFFICIENCY, 0.0).add(org.domi.furnace.server.attribute.Attribute.MOVEMENT_EFFICIENCY, 0.0)
@@ -212,6 +211,8 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     public Player(int entityId, UUID uuid, String name, Channel channel) {
         this.entityId = entityId;
+        this.random = new org.domi.furnace.server.block.LegacyRandomSource(
+                org.domi.furnace.server.block.RandomSeeds.seed(entityId, org.domi.furnace.server.block.RandomSeeds.Purpose.PLAYER));
         this.uuid = uuid;
         this.name = name;
         this.channel = channel;
@@ -1409,6 +1410,37 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private int lastLocationVersion = -1;
     private org.domi.furnace.server.attribute.AttributeModifier lastFrostModifier;
 
+    private volatile java.util.Map<org.domi.furnace.server.attribute.Attribute, org.domi.furnace.server.attribute.AttributeMap.View> attributeView;
+
+    /**
+     * 플러그인 API 가 아무 스레드에서 읽는 속성 스냅샷(최근 값 — region 이 매 틱 동기 끝에 다시 떠 둔다, 불변). 아직 한 번도 동기 전이면
+     * 캐시를 건드리지 않는 사본을 한 번 뜬다(첫 동기가 곧 덮는다).
+     */
+    public java.util.Map<org.domi.furnace.server.attribute.Attribute, org.domi.furnace.server.attribute.AttributeMap.View> attributeView() {
+        var v = attributeView;
+        if (v == null) {
+            synchronized (this) {
+                v = attributeView;
+                if (v == null) attributeView = v = attributes().snapshotDetached();   // 소유 스레드 밖 — 캐시를 건드리지 않는 사본
+            }
+        }
+        return v;
+    }
+
+    /**
+     * 리스폰(바닐라 ServerPlayer.restoreFrom 이 assignBaseValues 만 한다): 기본값은 두고 /attribute·플러그인이 단 수정자를 뗀다.
+     * 장비·효과·달리기·위치 효과 수정자(managedModifiers)는 동기가 맞춘다. 소유 스레드 전용.
+     */
+    public void clearUserModifiersForRespawn() {
+        var map = attributes();
+        for (var inst : map.all()) {
+            var managed = managedModifiers.get(inst.attribute());
+            for (String id : java.util.List.copyOf(inst.modifiers().keySet())) {
+                if (managed == null || !managed.contains(id)) inst.removeModifier(id);
+            }
+        }
+    }
+
     /** 위치에 따라 붙는 수정자: 영혼 가속·서리 걸음(locationEffects) + 가루눈 얼음(이동 속도, PlayerVitals 의 tryAddFrost). */
     public java.util.Collection<org.domi.furnace.server.attribute.AttributeModifier> locatedModifiers(org.domi.furnace.server.attribute.Attribute attr) {
         var loc = locationEffects.modifiers(attr);
@@ -1457,6 +1489,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         }
         pushVitalsInputs(map, effects);
         refreshAttributesSave(map);
+        attributeView = map.snapshot();   // 버전이 같으면 이전 것 그대로
         boolean first = !armorAttributesSent;
         java.util.List<org.domi.furnace.server.attribute.AttributeInstance> out = first ? map.syncable() : map.takeDirty();
         if (first) map.takeDirty();
@@ -1655,6 +1688,12 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 마지막으로 이 플레이어를 틱한 region(주인 판별용, 낡을 수 있다 — ownsPlayer 로 확인). */
     public volatile org.domi.furnace.server.world.Region ownerRegion;
     private final java.util.concurrent.ConcurrentLinkedQueue<Runnable> ownerTasks = new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+    /** 지금 이 스레드가 이 플레이어를 가진 region 스레드인가(플러그인 API 손잡이의 소유 스레드 확인). */
+    public boolean isOnOwnerThread() {
+        var r = ownerRegion;
+        return r != null && r.ownsPlayer(this);
+    }
 
     /** 플레이어 소유 스레드에서 실행한다: 지금 주인 region 스레드면 바로, 아니면 다음 플레이어 틱에(순서 보존). */
     public void runOnOwner(Runnable task) {
@@ -2279,6 +2318,17 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public void trackedViewDistance(int vd) { this.trackedViewDistance = vd; }
     public Set<ChunkPos> loadedChunks() { return loadedChunks; }
     public Set<ChunkPos> pendingChunks() { return pendingChunks; }
+
+    /**
+     * 바닐라 플레이어 티켓은 시야 정사각 전부를 올려 두지만(보내는 것만 둥근 모양) 구독은 둥근 모양만 한다 — 정사각에만 있는 모서리 청크 중
+     * 아직 안 올라온 것(region 스레드 전용, 가까운 것부터). 보낼 것이 다 나간 뒤 조금씩 올린다({@code Region.loadCornerChunks}).
+     */
+    private final java.util.LinkedHashSet<ChunkPos> cornerLoads = new java.util.LinkedHashSet<>();
+    public java.util.LinkedHashSet<ChunkPos> cornerLoads() { return cornerLoads; }
+
+    /** cornerLoads 에서 꺼내 올리는 중인(아직 안 끝난) 모서리 청크(아무 스레드). */
+    private final java.util.Set<ChunkPos> cornerInFlight = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    public java.util.Set<ChunkPos> cornerInFlight() { return cornerInFlight; }
 
     /** 요청했지만 아직 끝나지 않은(생성·직렬화 중인) 청크 전송 수 — 완료 콜백은 다른 스레드서 줄인다. */
     private final java.util.concurrent.atomic.AtomicInteger chunkSendsInFlight = new java.util.concurrent.atomic.AtomicInteger();

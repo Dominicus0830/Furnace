@@ -13,6 +13,7 @@ import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.FluidTicker;
 import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.Pos;
+import org.domi.furnace.server.block.RandomSeeds;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.block.Shape;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
@@ -88,7 +89,7 @@ public abstract non-sealed class Entity implements Rider {
     private final int id;
     protected UUID uuid;
     protected ChunkLevel level;
-    protected final RandomSource random = RandomSource.create();
+    protected final RandomSource random;
     protected final SynchedData entityData = new SynchedData();
 
     private double x, y, z;
@@ -129,6 +130,7 @@ public abstract non-sealed class Entity implements Rider {
         this.type = type;
         this.level = level;
         this.id = id;
+        this.random = RandomSource.createFor(id, RandomSeeds.Purpose.ENTITY);   // 주인 열쇠 = 엔티티 id. UUID 도 이 난수에서 나온다
         this.uuid = randomUuid(random);
         entityData.define(DATA_SHARED_FLAGS, SetEntityData.SERIALIZER_BYTE, (byte) 0);
         entityData.define(DATA_AIR_SUPPLY, SetEntityData.SERIALIZER_INT, 300);
