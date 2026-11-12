@@ -642,20 +642,30 @@ public final class Region {
         }
         fresh.markDirty();
         dirtyChunks.add(cp);
-        // 보는 플레이어에게 새 청크를 다시 보낸다 — 새 구독(ready=false)으로 바꿔 그 사이 변경은 청크 뒤로 미루고, 아직 옛 청크를
-        // 직렬화하던 전송은 구독이 바뀌어 버려진다(그래서 아직 받지 못한 플레이어에게도 지금 보낸다)
+        resendChunk(cp);
+        return Boolean.TRUE;
+    }
+
+    /**
+     * 그 청크를 보는 플레이어에게 지금 청크를 통째로 다시 보낸다(재생성 교체·빠른 블록 쓰기 CHUNKS). 이 region 스레드에서.
+     * 새 구독(ready=false)으로 바꿔 그 사이 변경은 청크 뒤로 미루고, 아직 옛 청크를 직렬화하던 전송은 구독이 바뀌어 버려진다
+     * (그래서 아직 받지 못한 플레이어에게도 지금 보낸다). 그 사이 구독을 푼 플레이어는 다시 넣지 않는다. 스냅샷은 이 자리에서 뜬다
+     * (inlineOnOwner) — 지금 상태가 실리고, 미뤄 두는 변경이 한 틱 짧아진다.
+     */
+    void resendChunk(ChunkPos cp) {
+        world.assertOwns(this);
         for (Player p : new ArrayList<>(world.subscribers(cp))) {
-            World.Subscription sub = world.subscribeChunk(cp, p);
-            world.serializedChunkBody(cp).thenAccept(body -> {
+            World.Subscription sub = world.resubscribeIfPresent(cp, p);
+            if (sub == null) continue;
+            world.serializedChunkBody(cp, true).thenAccept(body -> {
                 if (!world.isSubscribed(cp, p, sub)) return;
                 p.send(LevelChunkWithLight.ofShared(body));
                 world.chunkDelivered(cp, p, sub);
             }).exceptionally(ex -> {
-                org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 재생성 청크 재전송 실패 {}", cp, ex);
+                org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 청크 재전송 실패 {}", cp, ex);
                 return null;
             });
         }
-        return Boolean.TRUE;
     }
 
     private static boolean carriesPlayer(org.domi.furnace.server.entity.Entity e) {
