@@ -3070,17 +3070,20 @@ public final class Region {
             }
             if (near && !tracking) {
                 if (!a.listed().containsKey(b.entityId())) continue;   // syncTabList가 올리지 않은(퇴장 경합) 대상은 스폰 안 함
-                a.send(new SpawnEntity(b.entityId(), b.uuid(), b.x(), b.y(), b.z(), b.yaw(), b.pitch()));
-                a.send(new SetHeadRotation(b.entityId(), b.yaw()));
+                // ServerEntity.addPairing: 생성 묶음은 바닐라처럼 번들 하나로(맨몸·기본 모습·변장 전 모습이 한 프레임 보이지 않게)
+                var bundle = new java.util.ArrayList<org.domi.furnace.server.net.protocol.Packet>(6);
+                bundle.add(new SpawnEntity(b.entityId(), b.uuid(), b.x(), b.y(), b.z(), b.yaw(), b.pitch()));
+                bundle.add(new SetHeadRotation(b.entityId(), b.yaw()));
                 Player bp = world.onlinePlayer(b.entityId());   // ServerEntity.sendPairingData: 탄 플레이어면 탈것의 승객 목록
                 var bd = bp == null ? null : bp.pairingData();   // 웅크림·자세·사용 중(활·방패·먹기) 손 비트
-                if (bd != null) a.send(bd);
+                if (bd != null) bundle.add(bd);
                 var ba = bp == null ? null : bp.pairingAttributes();   // 속성(update_attributes) — 엔티티 데이터 다음, 장비 앞
-                if (ba != null) a.send(ba);
+                if (ba != null) bundle.add(ba);
                 var be = bp == null ? null : bp.pairingEquipment();   // 든 아이템·방어구(set_equipment)
-                if (be != null) a.send(be);
+                if (be != null) bundle.add(be);
                 var bv = bp == null ? null : bp.vehicle();
-                if (bv != null) a.send(org.domi.furnace.server.net.protocol.play.SetPassengers.of(bv));
+                if (bv != null) bundle.add(org.domi.furnace.server.net.protocol.play.SetPassengers.of(bv));
+                a.sendBundle(bundle);
                 startTracking(a, b.entityId(), new double[]{b.x(), b.y(), b.z(), b.yaw(), b.pitch(), b.generation(), headRotp(b.yaw()),
                         org.domi.furnace.server.entity.view.EntityViewRules.epochFor(a, b.uuid())});
             } else if (!near && tracking) {

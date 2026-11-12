@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.net.protocol.play.AddEntity;
-import org.domi.furnace.server.net.protocol.play.BundleDelimiter;
 import org.domi.furnace.server.net.protocol.play.MoveEntity;
 import org.domi.furnace.server.net.protocol.play.RemoveEntities;
 import org.domi.furnace.server.net.protocol.play.RotateHead;
@@ -167,9 +166,7 @@ public final class EntityTracker {
         if (entity.isVehicle()) list.add(org.domi.furnace.server.net.protocol.play.SetPassengers.of(entity));
         if (entity.isPassenger()) list.add(org.domi.furnace.server.net.protocol.play.SetPassengers.of(entity.vehicle()));
         if (entity instanceof Leashable m && m.isLeashed()) list.add(new org.domi.furnace.server.net.protocol.play.SetEntityLink(entity.id(), m.getLeashHolder().id()));   // aqt.addPairing
-        p.send(BundleDelimiter.INSTANCE);
-        for (Packet pkt : list) p.send(pkt);
-        p.send(BundleDelimiter.INSTANCE);
+        p.sendBundle(list);   // ServerEntity.addPairing: ClientboundBundlePacket — 한 작업으로 써서 다른 패킷이 끼지 않는다
         entity.onStartSeenBy(p);
     }
 

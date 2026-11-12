@@ -346,12 +346,27 @@ public final class VirtualEntitiesImpl implements VirtualEntities {
             sendSpawn(sp);
         }
 
+        /** 생성 묶음: 바닐라 ServerEntity.addPairing 처럼 번들 하나로(메타데이터·장비 없는 모습이 한 프레임 보이지 않게). */
         void sendSpawn(org.domi.furnace.server.entity.Player sp) {
-            send(sp, addPacket());
+            if (sp.isDisconnected()) return;
+            List<org.domi.furnace.server.net.protocol.Packet> bundle = new ArrayList<>(4);
+            ClientboundAddEntityPacket add = addPacket();
+            if (!encodeInto(bundle, add)) return;   // 생성 패킷을 못 만들면 나머지도 보내지 않는다
             List<ClientboundSetEntityDataPacket.Entry> es = dataEntries();
-            if (!es.isEmpty()) send(sp, new ClientboundSetEntityDataPacket(id, es));
-            if (!equipment.isEmpty()) sp.send(equipmentPacket(equipment));
-            send(sp, new ClientboundRotateHeadPacket(id, headYaw));
+            if (!es.isEmpty()) encodeInto(bundle, new ClientboundSetEntityDataPacket(id, es));
+            if (!equipment.isEmpty()) bundle.add(equipmentPacket(equipment));
+            encodeInto(bundle, new ClientboundRotateHeadPacket(id, headYaw));
+            sp.sendBundle(bundle);
+        }
+
+        private boolean encodeInto(List<org.domi.furnace.server.net.protocol.Packet> out, ClientboundPacket packet) {
+            try {
+                out.add(host.packetsImpl().encode(packet));
+                return true;
+            } catch (RuntimeException e) {
+                log.warn("가상 엔티티 패킷을 보내지 못했다({}): {}", packet.type(), e.toString());
+                return false;
+            }
         }
 
         void despawn(Viewer v) {

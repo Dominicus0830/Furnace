@@ -111,9 +111,10 @@ class VirtualEntitiesTest {
         Player near = online("Near", 10, 0), far = online("Far", 500, 0);
         VirtualEntity e = host.virtualEntities().spawn(a, "villager", new Location(WORLD, 0, 64, 0));
         List<Packet> n = sent(near);
-        assertEquals(List.of(PacketTypes.Clientbound.ADD_ENTITY, PacketTypes.Clientbound.ROTATE_HEAD), kinds(n));
-        assertEquals(e.entityId(), ((ClientboundAddEntityPacket) n.get(0)).entityId());
-        assertEquals("minecraft:villager", ((ClientboundAddEntityPacket) n.get(0)).entityType());
+        assertEquals(List.of(PacketTypes.Clientbound.BUNDLE_DELIMITER, PacketTypes.Clientbound.ADD_ENTITY, PacketTypes.Clientbound.ROTATE_HEAD,
+                PacketTypes.Clientbound.BUNDLE_DELIMITER), kinds(n), "생성 묶음은 번들 하나");
+        assertEquals(e.entityId(), ((ClientboundAddEntityPacket) n.get(1)).entityId());
+        assertEquals("minecraft:villager", ((ClientboundAddEntityPacket) n.get(1)).entityType());
         assertEquals(List.of(), sent(far), "멀리 있는 플레이어에게는 안 보낸다");
         assertEquals(1, e.viewers().size());
 
@@ -128,7 +129,7 @@ class VirtualEntitiesTest {
         // 멀리 있던 사람이 다가오면 다음 추적 때 나타난다
         far.setPosRaw(5, 64, 5);
         track();
-        assertEquals(PacketTypes.Clientbound.ADD_ENTITY, sent(far).get(0).type());
+        assertEquals(PacketTypes.Clientbound.ADD_ENTITY, sent(far).get(1).type());
         // 가까운 사람이 멀어지면(범위 + 여유 밖) 사라진다
         near.setPosRaw(200, 64, 0);
         track();
@@ -157,7 +158,7 @@ class VirtualEntitiesTest {
         e.setVisibleByDefault(false);
         assertEquals(PacketTypes.Clientbound.REMOVE_ENTITIES, sent(p2).get(0).type(), "기본을 끄면 지정 없는 사람은 사라진다");
         e.show(host.player(p2));
-        assertEquals(PacketTypes.Clientbound.ADD_ENTITY, sent(p2).get(0).type());
+        assertEquals(PacketTypes.Clientbound.ADD_ENTITY, sent(p2).get(1).type());
         assertEquals(List.of(), sent(p1));
         e.resetVisibility(host.player(p2));
         assertEquals(PacketTypes.Clientbound.REMOVE_ENTITIES, sent(p2).get(0).type());
@@ -238,6 +239,20 @@ class VirtualEntitiesTest {
         var lateData = sent(late).stream().filter(x -> x instanceof ClientboundSetEntityDataPacket d && d.entityId() == text.entityId())
                 .map(x -> (ClientboundSetEntityDataPacket) x).findFirst().orElseThrow();
         assertEquals(java.util.Optional.of(new org.domi.furnace.api.math.Vector3f(2, 2, 2)), lateData.get(org.domi.furnace.api.entity.data.EntityDataKeys.Display.SCALE));
+    }
+
+    /** 생성 묶음은 바닐라처럼 번들 하나 — 메타데이터·장비 없는 모습이 한 프레임 보이지 않는다(E2). */
+    @Test
+    void spawnIsSentAsOneBundle() {
+        VirtualEntity text = host.virtualEntities().spawn(a, "text_display", new Location(WORLD, 1, 65, 1));
+        text.set(org.domi.furnace.api.entity.data.EntityDataKeys.TextDisplay.TEXT, Text.text("상점"));
+        Player viewer = online("Viewer", 0, 0);
+        track();
+        List<Packet> out = sent(viewer).stream().filter(x -> !(x instanceof ClientboundSetEntityDataPacket d) || d.entityId() == text.entityId()).toList();
+        int start = kinds(out).indexOf(PacketTypes.Clientbound.ADD_ENTITY);
+        assertTrue(start > 0);
+        assertEquals(List.of(PacketTypes.Clientbound.BUNDLE_DELIMITER, PacketTypes.Clientbound.ADD_ENTITY, PacketTypes.Clientbound.SET_ENTITY_DATA,
+                PacketTypes.Clientbound.ROTATE_HEAD, PacketTypes.Clientbound.BUNDLE_DELIMITER), kinds(out).subList(start - 1, start + 4));
     }
 
     /** 보낼 수 없는 값은 set 에서 바로 거부하고 저장하지 않는다 — 쌓아 두면 나중에 보는 사람이 이름표까지 잃는다. 다른 부류의 칸도 거부. */

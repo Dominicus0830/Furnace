@@ -36,6 +36,21 @@ public interface PacketService {
     /** 리스너를 거치지 않고 보낸다. */
     void sendSilently(Player player, ClientboundPacket packet);
 
+    /**
+     * 여러 패킷을 번들 하나로 보낸다 — 클라이언트가 한 프레임에 함께 처리한다(바닐라 bundle_delimiter, 서버가 엔티티를 보여 줄 때 쓰는 것과 같다).
+     * 엔티티 생성 + 메타데이터 + 장비를 따로 보내면 한 프레임 동안 맨몸·기본 모습이 보이는데, 번들로 보내면 처음부터 다 갖춘 모습으로 나타난다.
+     * 다른 스레드가 보낸 패킷이 사이에 끼지 않는다. 리스너는 안의 패킷을 하나씩 본다(취소하면 그것만 빠진다).
+     * 모두 먼저 인코딩해 보고 하나라도 못 하면 아무것도 보내지 않고 IllegalArgumentException. 최대 {@value #BUNDLE_MAX} 개(바닐라 클라이언트 상한).
+     * 예) packets.sendBundle(player, List.of(addEntity, entityData, equipment));
+     */
+    void sendBundle(Player player, java.util.List<? extends ClientboundPacket> packets);
+
+    /** sendBundle 과 같되 리스너를 거치지 않는다. */
+    void sendBundleSilently(Player player, java.util.List<? extends ClientboundPacket> packets);
+
+    /** 번들 하나에 넣을 수 있는 최대 패킷 수(바닐라 클라이언트가 이보다 많으면 연결을 끊는다). */
+    int BUNDLE_MAX = 4096;
+
     /** 접속한 모든 플레이어에게 보낸다(바이트는 한 번만 만든다). */
     void broadcast(ClientboundPacket packet);
 

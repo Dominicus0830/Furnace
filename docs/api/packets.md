@@ -113,10 +113,27 @@ packets.listen(this, PacketTypes.Clientbound.SET_ENTITY_DATA, e -> e.packet().ge
 | `send(player, p)` / `player.sendPacket(p)` | 거친다(`isPluginPacket()` = true) | 보통 보내기 |
 | `sendSilently(player, p)` | 안 거친다 | 다른 플러그인이 건드리면 안 되는 패킷 |
 | `broadcast(p)` | 거친다 | 모든 접속자 |
+| `sendBundle(player, List)` / `player.sendPacketBundle(p…)` | 거친다(안의 패킷 하나씩) | 여러 패킷을 한 프레임에(아래) |
+| `sendBundleSilently(player, List)` | 안 거친다 | |
 | `receive(player, p)` | 거친다 | 클라이언트가 보낸 것처럼 서버에 넣기(진짜 패킷과 같은 검사·처리) |
 | `receiveSilently(player, p)` | 안 거친다 | |
 
 보내는 패킷은 서버 상태를 바꾸지 않는다(가상 블록·가상 엔티티). 진짜로 바꾸려면 월드·엔티티 API 를 쓴다.
+
+### 번들 — 여러 패킷을 한 프레임에 (E2, 2026-11-12)
+
+```java
+packets.sendBundle(player, List.of(
+        ClientboundAddEntityPacket.of(id, uuid, "minecraft:zombie", x, y, z, 0, 0),
+        ClientboundSetEntityDataPacket.builder(id).set(EntityDataKeys.Entity.SHARED_FLAGS, EntityFlags.of(EntityFlags.GLOWING)).build(),
+        equipment));
+```
+
+- 바닐라 `bundle_delimiter` 로 감싼다 — 클라이언트가 안의 패킷을 한 프레임에 처리한다. 엔티티 생성·메타데이터·장비를 따로 보내면 한 프레임 동안 맨몸·기본 모습이 보이는데(깜박임), 번들이면 처음부터 다 갖춘 모습으로 나타난다. 서버도 엔티티를 보여 줄 때 이렇게 보낸다.
+- 다른 스레드가 같은 플레이어에게 보낸 패킷이 번들 사이에 끼지 않는다(연결 스레드 작업 하나로 쓴다).
+- 모두 먼저 인코딩한다. 하나라도 못 하면 아무것도 보내지 않고 `IllegalArgumentException`. 최대 `PacketService.BUNDLE_MAX`(4096, 바닐라 클라이언트 상한 — 넘으면 클라이언트가 끊는다). 구분자는 서버가 넣으므로 목록에 넣지 않는다.
+- 리스너는 안의 패킷을 하나씩 본다. 취소하면 그 패킷만 빠진다.
+- 가상 엔티티(`VirtualEntity`)·엔티티 변장·플레이어 생성 묶음도 번들로 간다(바닐라 `ServerEntity.addPairing`).
 
 ## 주의
 

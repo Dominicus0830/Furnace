@@ -136,6 +136,25 @@ public final class PacketServiceImpl implements PacketService {
     public void sendSilently(Player player, ClientboundPacket packet) { serverPlayer(player).send(encodeOutbound(packet, true)); }
 
     @Override
+    public void sendBundle(Player player, java.util.List<? extends ClientboundPacket> packets) { serverPlayer(player).sendBundle(encodeBundle(packets, false)); }
+
+    @Override
+    public void sendBundleSilently(Player player, java.util.List<? extends ClientboundPacket> packets) { serverPlayer(player).sendBundle(encodeBundle(packets, true)); }
+
+    /** 번들 안 패킷을 모두 먼저 인코딩한다 — 하나라도 실패하면 아무것도 보내지 않는다. 리스너는 보낼 때(이벤트 루프) 하나씩 본다. */
+    public java.util.List<RawPacket> encodeBundle(java.util.List<? extends ClientboundPacket> packets, boolean silent) {
+        Objects.requireNonNull(packets, "packets");
+        if (packets.size() > BUNDLE_MAX) throw new IllegalArgumentException("번들에 패킷이 너무 많다: " + packets.size() + " > " + BUNDLE_MAX);
+        java.util.List<RawPacket> out = new ArrayList<>(packets.size());
+        for (ClientboundPacket p : packets) {
+            Objects.requireNonNull(p, "packet");
+            if (p.type() == org.domi.furnace.api.packet.PacketTypes.Clientbound.BUNDLE_DELIMITER) throw new IllegalArgumentException("번들 구분자는 서버가 넣는다");
+            out.add(encodeOutbound(p, silent));
+        }
+        return out;
+    }
+
+    @Override
     public void broadcast(ClientboundPacket packet) {
         RawPacket raw = encodeOutbound(packet, false);
         for (org.domi.furnace.server.entity.Player p : host.core().players()) p.send(raw);

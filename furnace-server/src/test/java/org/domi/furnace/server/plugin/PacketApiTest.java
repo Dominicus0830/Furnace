@@ -387,4 +387,75 @@ class PacketApiTest {
         assertThrows(IllegalArgumentException.class, () -> host.packets().receive(api, new OpaquePacket(PacketTypes.Serverbound.PONG)), "내용 없는 패킷");
         assertThrows(IllegalArgumentException.class, () -> host.packets().receive(api, new OpaquePacket(PacketTypes.Clientbound.PING)), "방향이 다르다");
     }
+
+    // ------------------------------------------------------------------ 번들 (E2)
+
+    private static final byte[] DELIMITER = {0x00};
+
+    @Test
+    void sendBundleWrapsPacketsInDelimitersAndListenersSeeEachOne() {
+        Player p = online("P");
+        List<String> seen = new ArrayList<>();
+        host.packets().listen(a, PacketTypes.Clientbound.SET_TITLE_TEXT, e -> {
+            seen.add(e.packet().text().getString());
+            if (e.packet().text().getString().equals("x")) e.setCancelled(true);   // 안의 하나만 빠진다
+        });
+        var api = host.player(p);
+        host.packets().sendBundle(api, List.of(new ClientboundSetTitleTextPacket(Text.text("a")), new ClientboundSetTitleTextPacket(Text.text("x")),
+                new ClientboundSetTitleTextPacket(Text.text("b"))));
+        List<byte[]> out = sent(p);
+        assertEquals(List.of("a", "x", "b"), seen);
+        assertEquals(4, out.size());
+        assertArrayEquals(DELIMITER, out.get(0));
+        assertArrayEquals(DELIMITER, out.get(3));
+        assertArrayEquals(frame(host.packetsImpl().encode(new ClientboundSetTitleTextPacket(Text.text("a")))), out.get(1));
+        assertArrayEquals(frame(host.packetsImpl().encode(new ClientboundSetTitleTextPacket(Text.text("b")))), out.get(2));
+        host.packets().sendBundle(api, List.of(new ClientboundSetTitleTextPacket(Text.text("c"))));
+        assertEquals(3, sent(p).size());
+        host.packets().sendBundleSilently(api, List.of(new ClientboundSetTitleTextPacket(Text.text("x"))));
+        assertEquals(3, sent(p).size(), "리스너를 거치지 않으면 취소도 없다");
+        assertEquals(List.of("a", "x", "b", "c"), seen);
+    }
+
+    @Test
+    void sendBundleIsAllOrNothingAndChecked() {
+        Player p = online("P");
+        var api = host.player(p);
+        // 둘째가 인코딩되지 않으면(없는 고양이 종류) 첫째도 보내지 않는다
+        assertThrows(IllegalArgumentException.class, () -> host.packets().sendBundle(api, List.of(new ClientboundSetTitleTextPacket(Text.text("a")),
+                ClientboundSetEntityDataPacket.of(1, ClientboundSetEntityDataPacket.entry(19,
+                        ClientboundSetEntityDataPacket.Value.of(org.domi.furnace.api.entity.data.EntityDataType.CAT_VARIANT, "minecraft:nope"))))));
+        assertThrows(IllegalArgumentException.class, () -> host.packets().sendBundle(api, List.of(new OpaquePacket(PacketTypes.Clientbound.BUNDLE_DELIMITER))));
+        var many = java.util.Collections.nCopies(org.domi.furnace.api.packet.PacketService.BUNDLE_MAX + 1, (org.domi.furnace.api.packet.ClientboundPacket) new ClientboundSetTitleTextPacket(Text.text("a")));
+        assertThrows(IllegalArgumentException.class, () -> host.packets().sendBundle(api, many), "바닐라 클라이언트 상한");
+        host.packets().sendBundle(api, List.of());   // 빈 번들은 아무것도 보내지 않는다
+        assertEquals(List.of(), sent(p));
+    }
+
+    /** 서버 Player.sendBundle: 변장 등으로 상한 가까이 늘면 묶음을 나눈다 — 한 번들이 바닐라 상한을 넘지 않는다. */
+    @Test
+    void serverBundleSplitsBeforeVanillaLimit() {
+        Player p = online("P");
+        int n = org.domi.furnace.server.entity.Player.BUNDLE_MAX + 10;
+        List<org.domi.furnace.server.net.protocol.Packet> list = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) list.add(new org.domi.furnace.server.net.protocol.play.SetTime(i, i));
+        p.sendBundle(list);
+        List<byte[]> out = sent(p);
+        int inBundle = 0, bundles = 0, max = 0;
+        boolean open = false;
+        for (byte[] f : out) {
+            if (java.util.Arrays.equals(f, DELIMITER)) {
+                if (open) { bundles++; max = Math.max(max, inBundle); }
+                open = !open;
+                inBundle = 0;
+            } else {
+                assertTrue(open, "번들 밖 패킷이 없다");
+                inBundle++;
+            }
+        }
+        assertFalse(open);
+        assertEquals(2, bundles);
+        assertTrue(max <= org.domi.furnace.server.entity.Player.BUNDLE_MAX, "번들 하나 " + max);
+        assertEquals(n + 4, out.size());
+    }
 }
