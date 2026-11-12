@@ -150,7 +150,8 @@ public final class SchemaPacketBridge {
     private static Object value(Object v, TypeRef t, String wire, String pkg, String at) {
         if (t.arrayDimensions() > 0) return need(v, at);   // byte[]·long[]·int[] 그대로
         switch (t.name()) {
-            case "int", "short", "byte", "long", "float", "double", "boolean", "String", "UUID": return need(v, at);
+            case "int": return narrow((Integer) need(v, at), wire);
+            case "short", "byte", "long", "float", "double", "boolean", "String", "UUID": return need(v, at);
             case "List", "Set", "Collection": {
                 List<Object> out = new ArrayList<>();
                 int i = 0;
@@ -181,7 +182,7 @@ public final class SchemaPacketBridge {
             if ("i8".equals(wire)) return v == null ? Optional.empty() : Optional.of(((Enum<?>) v).name());   // GameType.byNullableId 처럼 -1 = 없음
             return ((Enum<?>) need(v, at)).name();
         }
-        if (wire != null) return read(need(v, at), intField(struct));
+        if (wire != null) return narrow((Integer) read(need(v, at), intField(struct)), wire);
         if (decl != null) {
             Object x = need(v, at);
             return switch (decl.wire()) {
@@ -208,6 +209,21 @@ public final class SchemaPacketBridge {
         Object[] values = new Object[struct.fields().size()];
         for (int i = 0; i < values.length; i++) values[i] = read(x, struct.fields().get(i).name());
         return struct(struct.fields(), values, struct.javaPackage(), at);
+    }
+
+    /**
+     * int 필드의 명시 와이어(u8·i8·u16·i16): 바닐라는 writeByte·writeShort 로 아래 비트만 보낸다(블록 부수기 진행도 -1 = 지우기,
+     * 컨테이너 번호 등). 같은 바이트가 나가게 그 크기로 자른다 — 서버 코덱은 범위 밖 정수를 거절하기 때문이다.
+     */
+    private static Integer narrow(Integer v, String wire) {
+        if (wire == null) return v;
+        return switch (wire) {
+            case "u8" -> v & 0xFF;
+            case "i8" -> (int) (byte) (int) v;
+            case "u16" -> v & 0xFFFF;
+            case "i16" -> (int) (short) (int) v;
+            default -> v;
+        };
     }
 
     private static Object need(Object v, String at) {

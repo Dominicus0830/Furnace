@@ -85,6 +85,11 @@ class SchemaPacketBridgeTest {
                         net.minecraft.network.chat.Component.literal("foot")));
                 conn.send(new net.minecraft.network.protocol.game.ClientboundBlockEventPacket(new net.minecraft.core.BlockPos(2, 3, 4),
                         net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(net.minecraft.resources.ResourceLocation.parse("minecraft:note_block")), 1, 2));
+                // 바닐라처럼 명시 와이어 크기로 잘린다: 진행도 -1(u8 → 255 = 지우기), 블록 이벤트 300(u8 → 44), 컨테이너 200(i8 → -56)
+                conn.send(new net.minecraft.network.protocol.game.ClientboundBlockDestructionPacket(777, new net.minecraft.core.BlockPos(5, 6, 7), -1));
+                conn.send(new net.minecraft.network.protocol.game.ClientboundBlockEventPacket(new net.minecraft.core.BlockPos(8, 9, 10),
+                        net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(net.minecraft.resources.ResourceLocation.parse("minecraft:chest")), 1, 300));
+                conn.send(new net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket(200, 6, 37, item));
                 // 묶음은 번들 하나로
                 conn.send(new net.minecraft.network.protocol.game.ClientboundBundlePacket(List.of(
                         new net.minecraft.network.protocol.game.ClientboundForgetLevelChunkPacket(new net.minecraft.world.level.ChunkPos(100, -7)),
@@ -110,9 +115,12 @@ class SchemaPacketBridgeTest {
             var tab = tp.awaitPacket(PacketTypes.Clientbound.TAB_LIST, g -> true);
             assertEquals("head", ((org.domi.furnace.api.text.Text) tab.get("header")).plainText());
             assertEquals("foot", ((org.domi.furnace.api.text.Text) tab.get("footer")).plainText());
-            var block = tp.awaitPacket(PacketTypes.Clientbound.BLOCK_EVENT, g -> true);
+            var block = tp.awaitPacket(PacketTypes.Clientbound.BLOCK_EVENT, g -> "minecraft:note_block".equals(g.get("block")));
             assertEquals("minecraft:note_block", block.get("block"));
             assertEquals(List.of(1, 2), List.of(block.get("b0"), block.get("b1")));
+            assertEquals(255, tp.awaitPacket(PacketTypes.Clientbound.BLOCK_DESTRUCTION, g -> Integer.valueOf(777).equals(g.get("id"))).get("progress"));
+            assertEquals(44, tp.awaitPacket(PacketTypes.Clientbound.BLOCK_EVENT, g -> "minecraft:chest".equals(g.get("block"))).get("b1"));
+            assertEquals(-56, tp.awaitPacket(PacketTypes.Clientbound.CONTAINER_SET_SLOT, g -> Integer.valueOf(37).equals(g.get("slot"))).get("container_id"));
             var forget = tp.awaitPacket(PacketTypes.Clientbound.FORGET_LEVEL_CHUNK, g -> Long.valueOf(net.minecraft.world.level.ChunkPos.asLong(100, -7)).equals(g.get("pos")));
             assertNotNull(forget);
             var border = tp.awaitPacket(PacketTypes.Clientbound.SET_CHUNK_CACHE_CENTER, g -> Integer.valueOf(-8).equals(g.get("z")));
@@ -132,11 +140,15 @@ class SchemaPacketBridgeTest {
                         new net.minecraft.network.protocol.game.ClientboundSetHealthPacket(1f, 77, 0f),
                         new net.minecraft.network.protocol.game.ClientboundOpenSignEditorPacket(null, true)))));
                 assertTrue(bad.getMessage().contains("pos"), bad.getMessage());
+                // 바꾸기는 되지만 인코딩에서 실패하는 것(레지스트리에 없는 효과)이 묶음 뒤에 있어도 앞의 것은 나가지 않는다
+                assertThrows(IllegalArgumentException.class, () -> conn.send(new net.minecraft.network.protocol.game.ClientboundBundlePacket(List.of(
+                        new net.minecraft.network.protocol.game.ClientboundSetHealthPacket(1f, 79, 0f),
+                        new net.minecraft.network.protocol.game.ClientboundRemoveMobEffectPacket(1, holder(net.minecraft.core.registries.Registries.MOB_EFFECT, "minecraft:nope"))))));
                 conn.send(new net.minecraft.network.protocol.game.ClientboundSetHealthPacket(1f, 78, 0f));
                 return null;
             });
             tp.awaitPacket(PacketTypes.Clientbound.SET_HEALTH, g -> Integer.valueOf(78).equals(g.get("food")));
-            assertTrue(tp.received(PacketTypes.Clientbound.SET_HEALTH).stream().noneMatch(g -> Integer.valueOf(77).equals(g.get("food"))),
+            assertTrue(tp.received(PacketTypes.Clientbound.SET_HEALTH).stream().noneMatch(g -> Integer.valueOf(77).equals(g.get("food")) || Integer.valueOf(79).equals(g.get("food"))),
                     "실패한 묶음의 앞 패킷도 나가지 않는다");
         }
     }
