@@ -9,6 +9,7 @@ import org.domi.furnace.compat.paper.Compat;
  * 접속 중이 아닐 수 있는 플레이어(CraftBukkit CraftOfflinePlayer 와 같은 이름). UUID 와, 알면 이름을 든다.
  * 같음은 UUID 로 가른다(CraftBukkit 처럼 — 접속 중 Player 와도 UUID 가 같으면 같은 플레이어로 본다).
  */
+@org.bukkit.configuration.serialization.SerializableAs("Player")
 public final class CraftOfflinePlayer implements OfflinePlayer {
 
     private final UUID id;
@@ -48,6 +49,20 @@ public final class CraftOfflinePlayer implements OfflinePlayer {
     public void setOp(boolean value) {
         if (value == isOp()) return;
         furnace().setOpLevel(value ? 4 : 0);
+    }
+
+    /** 설정에 쓸 값: {@code UUID} 하나(Paper 와 같다). */
+    @Override
+    public java.util.Map<String, Object> serialize() {
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("UUID", id.toString());
+        return result;
+    }
+
+    /** 옛 형식({@code name} 키)이 있으면 이름으로, 아니면 {@code UUID} 로 찾는다 — Paper 와 같다. */
+    public static OfflinePlayer deserialize(java.util.Map<String, Object> args) {
+        if (args.get("name") != null) return org.bukkit.Bukkit.getServer().getOfflinePlayer((String) args.get("name"));
+        return org.bukkit.Bukkit.getServer().getOfflinePlayer(UUID.fromString((String) args.get("UUID")));
     }
 
     @Override

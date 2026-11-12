@@ -1,12 +1,15 @@
 package org.bukkit;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Predicate;
 import org.bukkit.block.Biome;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 
 /** 월드(차원 하나). 1차 호환 범위의 조회 메서드만 있다 — 스폰·시간·블록 쓰기·엔티티 목록은 H3. */
@@ -51,6 +54,53 @@ public interface World extends Keyed, org.bukkit.metadata.Metadatable {
 
     /** loc 둘레(x·y·z 반 길이 상자) 안의 엔티티(플레이어 포함). 위치 기준 판정과 소유 스레드 조건은 Entity#getNearbyEntities 와 같다. */
     Collection<Entity> getNearbyEntities(Location loc, double x, double y, double z);
+
+    // ---- Paper 의 getNearby* 편의 메서드(A15-06): getNearbyEntities 결과를 종류·조건으로 거른다(Paper 기본 메서드와 같다).
+
+    default Collection<LivingEntity> getNearbyLivingEntities(Location loc, double radius) { return getNearbyEntitiesByType(LivingEntity.class, loc, radius, radius, radius); }
+
+    default Collection<LivingEntity> getNearbyLivingEntities(Location loc, double xzRadius, double yRadius) { return getNearbyEntitiesByType(LivingEntity.class, loc, xzRadius, yRadius, xzRadius); }
+
+    default Collection<LivingEntity> getNearbyLivingEntities(Location loc, double xRadius, double yRadius, double zRadius) { return getNearbyEntitiesByType(LivingEntity.class, loc, xRadius, yRadius, zRadius); }
+
+    default Collection<LivingEntity> getNearbyLivingEntities(Location loc, double radius, Predicate<? super LivingEntity> predicate) { return getNearbyEntitiesByType(LivingEntity.class, loc, radius, radius, radius, predicate); }
+
+    default Collection<LivingEntity> getNearbyLivingEntities(Location loc, double xzRadius, double yRadius, Predicate<? super LivingEntity> predicate) { return getNearbyEntitiesByType(LivingEntity.class, loc, xzRadius, yRadius, xzRadius, predicate); }
+
+    default Collection<LivingEntity> getNearbyLivingEntities(Location loc, double xRadius, double yRadius, double zRadius, Predicate<? super LivingEntity> predicate) { return getNearbyEntitiesByType(LivingEntity.class, loc, xRadius, yRadius, zRadius, predicate); }
+
+    default Collection<Player> getNearbyPlayers(Location loc, double radius) { return getNearbyEntitiesByType(Player.class, loc, radius, radius, radius); }
+
+    default Collection<Player> getNearbyPlayers(Location loc, double xzRadius, double yRadius) { return getNearbyEntitiesByType(Player.class, loc, xzRadius, yRadius, xzRadius); }
+
+    default Collection<Player> getNearbyPlayers(Location loc, double xRadius, double yRadius, double zRadius) { return getNearbyEntitiesByType(Player.class, loc, xRadius, yRadius, zRadius); }
+
+    default Collection<Player> getNearbyPlayers(Location loc, double radius, Predicate<? super Player> predicate) { return getNearbyEntitiesByType(Player.class, loc, radius, radius, radius, predicate); }
+
+    default Collection<Player> getNearbyPlayers(Location loc, double xzRadius, double yRadius, Predicate<? super Player> predicate) { return getNearbyEntitiesByType(Player.class, loc, xzRadius, yRadius, xzRadius, predicate); }
+
+    default Collection<Player> getNearbyPlayers(Location loc, double xRadius, double yRadius, double zRadius, Predicate<? super Player> predicate) { return getNearbyEntitiesByType(Player.class, loc, xRadius, yRadius, zRadius, predicate); }
+
+    default <T extends Entity> Collection<T> getNearbyEntitiesByType(Class<? extends T> clazz, Location loc, double radius) { return getNearbyEntitiesByType(clazz, loc, radius, radius, radius, null); }
+
+    default <T extends Entity> Collection<T> getNearbyEntitiesByType(Class<? extends T> clazz, Location loc, double xzRadius, double yRadius) { return getNearbyEntitiesByType(clazz, loc, xzRadius, yRadius, xzRadius, null); }
+
+    default <T extends Entity> Collection<T> getNearbyEntitiesByType(Class<? extends T> clazz, Location loc, double xRadius, double yRadius, double zRadius) { return getNearbyEntitiesByType(clazz, loc, xRadius, yRadius, zRadius, null); }
+
+    default <T extends Entity> Collection<T> getNearbyEntitiesByType(Class<? extends T> clazz, Location loc, double radius, Predicate<? super T> predicate) { return getNearbyEntitiesByType(clazz, loc, radius, radius, radius, predicate); }
+
+    default <T extends Entity> Collection<T> getNearbyEntitiesByType(Class<? extends T> clazz, Location loc, double xzRadius, double yRadius, Predicate<? super T> predicate) { return getNearbyEntitiesByType(clazz, loc, xzRadius, yRadius, xzRadius, predicate); }
+
+    /** clazz 가 null 이면 Entity. 종류는 객체의 클래스로 가른다(Paper 와 같다). */
+    @SuppressWarnings("unchecked")
+    default <T extends Entity> Collection<T> getNearbyEntitiesByType(Class<? extends Entity> clazz, Location loc, double xRadius, double yRadius, double zRadius, Predicate<? super T> predicate) {
+        Class<? extends Entity> type = clazz == null ? Entity.class : clazz;
+        List<T> nearby = new ArrayList<>();
+        for (Entity e : getNearbyEntities(loc, xRadius, yRadius, zRadius)) {
+            if (type.isAssignableFrom(e.getClass()) && (predicate == null || predicate.test((T) e))) nearby.add((T) e);
+        }
+        return nearby;
+    }
 
     boolean isChunkLoaded(int x, int z);
 

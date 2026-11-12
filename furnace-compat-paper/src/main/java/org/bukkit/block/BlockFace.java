@@ -17,6 +17,13 @@ public enum BlockFace {
 
     public int getModZ() { return modZ; }
 
+    /** 그 면이 향하는 단위 벡터(SELF 는 0 벡터). */
+    public org.bukkit.util.Vector getDirection() {
+        org.bukkit.util.Vector direction = new org.bukkit.util.Vector(modX, modY, modZ);
+        if (modX != 0 || modY != 0 || modZ != 0) direction.normalize();
+        return direction;
+    }
+
     public BlockFace getOppositeFace() {
         return switch (this) {
             case NORTH -> SOUTH;

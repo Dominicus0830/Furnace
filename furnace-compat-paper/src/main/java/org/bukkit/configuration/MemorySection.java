@@ -428,6 +428,15 @@ public class MemorySection implements ConfigurationSection {
     public boolean isVector(String path) { return getSerializable(path, org.bukkit.util.Vector.class) != null; }
 
     @Override
+    public org.bukkit.OfflinePlayer getOfflinePlayer(String path) { return getSerializable(path, org.bukkit.OfflinePlayer.class); }
+
+    @Override
+    public org.bukkit.OfflinePlayer getOfflinePlayer(String path, org.bukkit.OfflinePlayer def) { return getSerializable(path, org.bukkit.OfflinePlayer.class, def); }
+
+    @Override
+    public boolean isOfflinePlayer(String path) { return getSerializable(path, org.bukkit.OfflinePlayer.class) != null; }
+
+    @Override
     public org.bukkit.Color getColor(String path) { return getSerializable(path, org.bukkit.Color.class); }
 
     @Override

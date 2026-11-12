@@ -8,6 +8,7 @@ import org.domi.furnace.compat.paper.Compat;
 import org.domi.furnace.compat.paper.CompatPlayerInventory;
 
 /** Furnace 플레이어 위의 Bukkit Player. 접속이 끊긴 뒤에도 객체는 남지만 isOnline() 이 false 다. */
+@org.bukkit.configuration.serialization.DelegateDeserialization(org.bukkit.craftbukkit.CraftOfflinePlayer.class)
 public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.furnace.compat.paper.FurnacePermissibleSource {
 
     private final org.domi.furnace.api.entity.Player handle;
@@ -245,6 +246,14 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
 
     @Override
     public int hashCode() { return 97 * 5 + getUniqueId().hashCode(); }
+
+    /** 설정에 쓸 값: {@code name} 하나(Paper 와 같다 — 되읽을 때는 이름으로 OfflinePlayer 를 찾는다). */
+    @Override
+    public java.util.Map<String, Object> serialize() {
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("name", getName());
+        return result;
+    }
 
     /** 호환 모듈 전용 — 이 접속의 객체를 더 쓰지 않는다(재접속으로 바뀜): Bukkit 권한 계산·구독·Furnace 거울을 걷는다(CraftBukkit disconnect 의 perm.clearPermissions). */
     public void retire() {
