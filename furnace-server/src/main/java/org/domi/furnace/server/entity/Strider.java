@@ -87,7 +87,7 @@ public class Strider extends Animal {
         entityData.set(DATA_SUFFOCATING, v);
         var inst = attributes().get(Attribute.MOVEMENT_SPEED);
         if (inst != null) {
-            if (v) inst.addOrReplaceModifier(SUFFOCATING_MODIFIER);
+            if (v) inst.addOrReplaceTransientModifier(SUFFOCATING_MODIFIER);
             else inst.removeModifier(SUFFOCATING_MODIFIER_ID);
         }
     }
