@@ -152,7 +152,7 @@ class EventBridgeTest {
             fire.put(org.bukkit.event.inventory.PrepareItemCraftEvent.class, () -> new org.domi.furnace.api.event.inventory.PrepareItemCraftEvent(p,
                     InventoryResultEventsTest.window("minecraft:crafting", 10), "minecraft:oak_planks", org.domi.furnace.api.item.ItemStack.of("minecraft:oak_planks").withAmount(4)));
             fire.put(org.bukkit.event.inventory.PrepareInventoryResultEvent.class, () -> new org.domi.furnace.api.event.inventory.PrepareAnvilEvent(p,
-                    InventoryResultEventsTest.window("minecraft:anvil", 3), stone, 3, "x"));
+                    InventoryResultEventsTest.window("minecraft:anvil", 3), stone, 3, 40, "x"));
             fire.put(org.bukkit.event.enchantment.PrepareItemEnchantEvent.class, () -> new org.domi.furnace.api.event.inventory.PrepareItemEnchantEvent(p,
                     InventoryResultEventsTest.window("minecraft:enchantment", 2), bp, stone, 15, new ArrayList<>(java.util.Arrays.asList(null, null, null))));
             fire.put(org.bukkit.event.enchantment.EnchantItemEvent.class, () -> new org.domi.furnace.api.event.inventory.EnchantItemEvent(p,

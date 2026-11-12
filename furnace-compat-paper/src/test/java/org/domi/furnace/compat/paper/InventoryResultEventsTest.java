@@ -167,13 +167,15 @@ class InventoryResultEventsTest {
                         + a.getInventory().getFirstItem().getType() + "," + (v.getTopInventory() == a.getInventory()));
                 a.setResult(null);
                 v.setRepairCost(7);
+                v.setMaximumRepairCost(99);
             });
             var snap = window("minecraft:anvil", 3, Map.of(0, item("minecraft:iron_sword", 1), 2, item("minecraft:iron_sword", 1)));
-            var f = new org.domi.furnace.api.event.inventory.PrepareAnvilEvent(p, snap, item("minecraft:iron_sword", 1), 3, "Blade");
+            var f = new org.domi.furnace.api.event.inventory.PrepareAnvilEvent(p, snap, item("minecraft:iron_sword", 1), 3, 40, "Blade");
             server.api().events().call(f);
             assertEquals(List.of("IRON_SWORD,Blade,3,40,IRON_SWORD,true"), log);
             assertTrue(f.result().isEmpty(), "setResult(null) 은 결과 칸을 비운다");
             assertEquals(7, f.repairCost());
+            assertEquals(99, f.maximumRepairCost(), "setMaximumRepairCost 가 서버 이벤트로 돌아온다");
         });
     }
 

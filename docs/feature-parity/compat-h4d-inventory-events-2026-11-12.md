@@ -52,16 +52,19 @@ helper 장벽 묶음(PR #161, `compat-h4-helper-barriers-2026-11-08.md`)에서 �
    레시피는 격자가 **지금** 맞는 레시피다(CraftBukkit `getCurrentRecipe`, 맞는 것이 없으면 null). 플러그인이 `PrepareItemCraftEvent` 로 사용자 정의 결과를 넣으면
    꺼낼 때 보통 `InventoryClickEvent` 가 된다(PR #238 검토 R1). 결과 칸 숫자키는 단축 칸이 차 있으면 결과 칸이 받을 수 없어 `NOTHING`, 비어 있으면 `HOTBAR_SWAP`
    (Paper 현행 소스 기준, R3).
-4. `AnvilView`: 재료 소모 개수(`getRepairItemCountCost`)는 모르고(`UnsupportedFeature`), 최대 비용은 바닐라 40 고정(다른 값으로 바꾸기·`bypassEnchantmentLevelRestriction(true)`
-   는 `UnsupportedFeature`, 흔히 쓰여 후속 구현 후보 — 검토 R6). 비용·이름은 `PrepareAnvilEvent` 안에서만 알고, 다른 이벤트의 모루 창에서 읽으면 `UnsupportedFeature`.
+4. `AnvilView`: 재료 소모 개수(`getRepairItemCountCost`)는 모르고(`UnsupportedFeature`), `bypassEnchantmentLevelRestriction(true)` 도 `UnsupportedFeature`(후속 후보).
+   최대 비용은 Paper 와 같게 창마다 값이다(기본 40): `PrepareAnvilEvent` 안에서 `AnvilView/AnvilInventory#setMaximumRepairCost` 로 바꾸면 서버 모루 창에 남고
+   "너무 비쌈"(결과 비움)·이름만 바꿀 때의 비용 눌림(한계 − 1)에 쓰인다. 이벤트는 결과 계산 **뒤**에 불리므로(Paper 순서) 이번 결과가 아니라 다음 계산(재료·이름 변경)부터 적용된다.
+   비용·이름·최대 비용은 `PrepareAnvilEvent` 안에서만 알고, 다른 이벤트의 모루 창에서 읽으면 `UnsupportedFeature`(최대 비용 읽기만 40).
 5. `EnchantmentView`: 마법 부여 씨앗은 읽기·쓰기 모두 `UnsupportedFeature`. 제안(`getOffers`)은 `PrepareItemEnchantEvent` 안에서만 알고, 그 이벤트의 배열 그대로다.
 6. `EnchantItemEvent#setItem` 은 다른 아이템이면 `UnsupportedFeature`. Bukkit `Enchantment` 가 모르는 마법 부여(데이터 팩)는 `getEnchantsToAdd()` 에
    보이지 않지만 처리기가 맵을 바꿔도 Furnace 쪽에 남는다. `getItem()` 은 사본이라 처리기가 그 스택을 그 자리에서 고친 것(메타 등)은 반영되지 않는다(R5).
 7. `PrepareItemEnchantEvent`: 단서 없이 비용만 있는 제안은 Bukkit 에서 null 이고, 구독자가 있으면 단서 없는 칸은 꺼진다(CraftBukkit 과 같다).
    구독자가 없으면 예전 바닐라 동작 그대로 비용이 남는다.
 8. 깔때기 이벤트의 주크박스·퇴비통은 Furnace 용기 키가 없어 종류가 `CHEST` 로 보인다.
-9. 닫힌 까닭: 블록 창의 청크가 내려가 있을 때 `UNLOADED`, 블록이 사라지거나 멀어지면 `CANT_USE` 다. 바닐라 이동(포털 등)은 창을 닫지 않으므로 `TELEPORT` 는
-   플러그인 텔레포트에서만 온다. 엔티티 보관함(수레·당나귀 등)·상인 창이 대상이 사라져 닫힐 때 Paper 는 `UNLOADED` 지만 Furnace 는 `CANT_USE` 다(R4).
+9. 닫힌 까닭: 블록 창의 청크가 내려가 있을 때 `UNLOADED`, 블록이 사라지거나 멀어지면 `CANT_USE` 다. 엔티티 보관함(수레·당나귀 등)과 상인 창은 대상 엔티티가
+   지워져서 닫히면 Paper 처럼 `UNLOADED`, 멀어짐·거래 끝(상인이 죽으며 거래 상대를 놓음 — 지워지기 전)은 `CANT_USE` 다(PR #238 검토 R4 해소). 거래 상대를 놓지 못한 채 지워진 상인(플러그인 remove 등)의 창도 Paper 처럼 닫힌다(PR #243 검토 R1). 바닐라 이동(포털 등)은 창을 닫지 않으므로 `TELEPORT` 는
+   플러그인 텔레포트에서만 온다.
    Paper 는 이벤트를 먼저 부르고 닫기 패킷을 보내지만 Furnace 는 닫기 패킷이 먼저다(R7, 처리기 안에서 클라이언트 화면만 다르다).
 10. `InventoryView#setCursor` 등 PR #161 문서의 나머지 차이는 그대로다.
 

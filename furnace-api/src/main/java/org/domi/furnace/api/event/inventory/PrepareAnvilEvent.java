@@ -12,11 +12,13 @@ public final class PrepareAnvilEvent extends InventoryEvent {
     private final String renameText;
     private ItemStack result;
     private int repairCost;
+    private int maximumRepairCost;
 
-    public PrepareAnvilEvent(Player player, InventorySnapshot inventory, ItemStack result, int repairCost, String renameText) {
+    public PrepareAnvilEvent(Player player, InventorySnapshot inventory, ItemStack result, int repairCost, int maximumRepairCost, String renameText) {
         super(player, inventory);
         this.result = result;
         this.repairCost = repairCost;
+        this.maximumRepairCost = maximumRepairCost;
         this.renameText = renameText;
     }
 
@@ -29,6 +31,15 @@ public final class PrepareAnvilEvent extends InventoryEvent {
     public int repairCost() { return repairCost; }
 
     public void setRepairCost(int repairCost) { this.repairCost = repairCost; }
+
+    /** 이 창의 최대 비용(기본 40). 결과 비용이 이 값 이상이면 생존 모드에서 결과가 빈다(Paper AnvilView#getMaximumRepairCost). */
+    public int maximumRepairCost() { return maximumRepairCost; }
+
+    /** 최대 비용을 바꾼다. 이 창에 계속 남지만 이번 결과는 이미 정해졌으니 다음 계산(재료·이름이 바뀔 때)부터 적용된다. 0 이상. */
+    public void setMaximumRepairCost(int maximumRepairCost) {
+        if (maximumRepairCost < 0) throw new IllegalArgumentException("maximumRepairCost must be >= 0");
+        this.maximumRepairCost = maximumRepairCost;
+    }
 
     /** 이름 입력란의 글자(없으면 null). */
     public String renameText() { return renameText; }

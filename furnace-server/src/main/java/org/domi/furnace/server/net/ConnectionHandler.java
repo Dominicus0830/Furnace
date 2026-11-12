@@ -1242,7 +1242,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     if (p.containerMenu() != menu) return;
                     org.domi.furnace.server.world.MenuBlockContext.runIn(region, () -> {
                         if (bp == null || !region.chunkLoaded(ChunkPos.ofBlock(bp[0], bp[2]))) ConnectionHandler.this.closeContainer(p, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.UNLOADED);
-                        else if (!menu.stillValid(menus)) ConnectionHandler.this.closeContainer(p, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.CANT_USE);
+                        else if (!menu.stillValid(menus)) ConnectionHandler.this.closeContainer(p, menu.invalidCloseReason());
                     });
                 }
             }
@@ -3136,9 +3136,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
 
         @Override public org.domi.furnace.server.plugin.GameEvents.AnvilPrepared prepareAnvil(org.domi.furnace.server.menu.AbstractContainerMenu menu, ItemStack result,
-                int repairCost, String renameText) {
+                int repairCost, int maximumRepairCost, String renameText) {
             var c = login.core;
-            return c == null ? null : c.gameEvents().prepareAnvil(p, menu, result, repairCost, renameText);   // 플러그인 PrepareAnvilEvent
+            return c == null ? null : c.gameEvents().prepareAnvil(p, menu, result, repairCost, maximumRepairCost, renameText);   // 플러그인 PrepareAnvilEvent
         }
 
         @Override public boolean doLimitedCrafting() {

@@ -129,6 +129,30 @@ class AnvilMenuTest {
     }
 
     @Test
+    void maximumRepairCostMovesTheTooExpensiveLimit() {
+        menu.getSlot(0).set(EnchantTools.update(it("iron_sword", 1), m -> m.put("minecraft:unbreaking", 3)));
+        menu.getSlot(1).set(EnchantTools.update(it("enchanted_book", 1), m -> m.put("minecraft:unbreaking", 3)));
+        ItemStack worn = ItemTools.with(menu.getSlot(0).getItem(), "minecraft:repair_cost", 63);
+        assertEquals(40, menu.maximumRepairCost());
+        menu.setMaximumRepairCost(Integer.MAX_VALUE);
+        menu.getSlot(0).set(worn);
+        assertFalse(result().isEmpty(), "한계를 올리면 비싼 결과도 나온다");
+        assertTrue(menu.cost() >= 40);
+        menu.setMaximumRepairCost(5);
+        menu.getSlot(0).set(worn);
+        assertTrue(result().isEmpty(), "한계를 내리면 더 싼 결과도 막힌다");
+    }
+
+    @Test
+    void renameOnlyIsCappedBelowTheMaximum() {
+        menu.getSlot(0).set(ItemTools.with(it("iron_sword", 1), "minecraft:repair_cost", 0));
+        menu.setMaximumRepairCost(1);
+        menu.setItemName("Foo");
+        assertEquals(0, menu.cost(), "이름만 바꾸면 비용이 한계 - 1 로 눌린다");
+        assertFalse(result().isEmpty());
+    }
+
+    @Test
     void differentUndamagedItemsGiveNothing() {
         menu.getSlot(0).set(it("iron_sword", 1));
         menu.getSlot(1).set(it("dirt", 1));

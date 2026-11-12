@@ -2172,7 +2172,7 @@ public final class Region {
                 var m = menu;
                 world.runAt(bp[0], bp[2], r -> host.validateBlockMenu(r, m));
             } else if (!host.menuStillValid(menu)) {
-                host.closeContainer(menu, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.CANT_USE);
+                host.closeContainer(menu, menu.invalidCloseReason());
             }
         }
         synchronized (p.menuLock()) {
