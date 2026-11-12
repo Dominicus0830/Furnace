@@ -442,7 +442,11 @@ public final class Region {
         CompletableFuture<ChunkColumn> sourceFuture =
                 world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource anvil
                         ? anvil.loadChunkAsync(cp.x(), cp.z(), world.ioLane(cp.x(), cp.z()), world.ioDecodeExecutor(), world.genPool())
-                        : CompletableFuture.supplyAsync(() -> world.worldSource().generate(cp.x(), cp.z()), world.genPool());
+                        : CompletableFuture.supplyAsync(() -> {
+                            ChunkColumn made = world.worldSource().generate(cp.x(), cp.z());
+                            if (made != null) made.newlyCreated(true);   // 저장소가 없는 월드 소스는 늘 새로 만든다
+                            return made;
+                        }, world.genPool());
         // 청크 안쪽 조명은 생성 스레드에서 미리 계산한다(region 틱 스레드가 청크당 ~2ms 를 쓰던 것) — 이웃과의 가장자리는 올릴 때 맞춘다.
         final boolean sky = level().hasSkyLight();
         final int bedrock = level().lightBedrockState();
@@ -540,7 +544,9 @@ public final class Region {
             installStats[2] += t2 - t1;
             installStats[3] += t3 - t2;
         }
-        world.levelServices().gameEvents().chunkLoad(world.dimension(), cp.x(), cp.z());   // 플러그인 ChunkLoadEvent
+        boolean created = col.newlyCreated();
+        col.newlyCreated(false);
+        world.levelServices().gameEvents().chunkLoad(world.dimension(), cp.x(), cp.z(), created);   // 플러그인 ChunkLoadEvent
         f.complete(col);
     }
 

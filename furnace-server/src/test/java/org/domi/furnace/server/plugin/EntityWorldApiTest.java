@@ -407,12 +407,12 @@ class EntityWorldApiTest {
     @Test
     void chunkLoadEventFiresOnOwningRegion() throws Exception {
         List<String> got = new java.util.concurrent.CopyOnWriteArrayList<>();
-        host.eventsImpl().subscribe(plugin, ChunkLoadEvent.class, e -> got.add(e.world() + ":" + e.chunkX() + "," + e.chunkZ()));
+        host.eventsImpl().subscribe(plugin, ChunkLoadEvent.class, e -> got.add(e.world() + ":" + e.chunkX() + "," + e.chunkZ() + (e.newChunk() ? ":new" : "")));
         ChunkPos cp = new ChunkPos(2, 2);
         core.world().runAtChunk(cp, r -> r.loadChunk(cp));
         long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
         while (got.isEmpty() && System.nanoTime() < end) Thread.sleep(20);
-        assertEquals(List.of("minecraft:overworld:2,2"), got);
+        assertEquals(List.of("minecraft:overworld:2,2:new"), got, "저장된 적 없는 청크는 새로 만든 것이다(A15-04)");
     }
 
     @Test

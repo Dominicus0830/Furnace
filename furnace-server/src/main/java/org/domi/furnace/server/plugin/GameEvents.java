@@ -100,6 +100,9 @@ public interface GameEvents {
 
     default void chunkLoad(String dimension, int cx, int cz) {}
 
+    /** newChunk: 저장된 청크를 읽은 것이 아니라 이번에 생성기가 만든 청크. 기본은 3인자 판을 부른다. */
+    default void chunkLoad(String dimension, int cx, int cz, boolean newChunk) { chunkLoad(dimension, cx, cz); }
+
     default void chunkUnload(String dimension, int cx, int cz) {}
 
     // ------------------------------------------------------------------ 3단계: 플레이어

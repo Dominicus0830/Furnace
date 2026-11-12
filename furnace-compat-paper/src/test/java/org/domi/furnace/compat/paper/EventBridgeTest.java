@@ -113,7 +113,7 @@ class EventBridgeTest {
                     ((org.domi.furnace.server.plugin.PluginHost) server.api()).rconSender(t -> {}), "list"));
             fire.put(org.bukkit.event.world.WorldLoadEvent.class, () -> new org.domi.furnace.api.event.world.WorldLoadEvent(w, "world"));
             fire.put(org.bukkit.event.world.WorldUnloadEvent.class, () -> new org.domi.furnace.api.event.world.WorldUnloadEvent(w, "world", false));
-            fire.put(org.bukkit.event.world.ChunkLoadEvent.class, () -> new org.domi.furnace.api.event.world.ChunkLoadEvent(w, 3, 4));
+            fire.put(org.bukkit.event.world.ChunkLoadEvent.class, () -> new org.domi.furnace.api.event.world.ChunkLoadEvent(w, 3, 4, true));
             fire.put(org.bukkit.event.world.ChunkUnloadEvent.class, () -> new org.domi.furnace.api.event.world.ChunkUnloadEvent(w, 3, 4));
             var chest = new org.domi.furnace.api.inventory.InventorySnapshot("minecraft:generic_9x3", java.util.Collections.nCopies(63, org.domi.furnace.api.item.ItemStack.EMPTY));
             var stone = org.domi.furnace.api.item.ItemStack.of("minecraft:stone").withAmount(4);
@@ -175,6 +175,10 @@ class EventBridgeTest {
                 if (en.getValue() == null) sequences.get(en.getKey()).forEach(bus::call);
                 else bus.call(en.getValue().get());
                 assertEquals(1, seen((Class<? extends Event>) en.getKey()).size(), en.getKey().getSimpleName() + " 이 처리기에 오지 않았다");
+                if (en.getKey() == org.bukkit.event.world.ChunkLoadEvent.class) {
+                    assertTrue(((org.bukkit.event.world.ChunkLoadEvent) seen(org.bukkit.event.world.ChunkLoadEvent.class).get(0)).isNewChunk(),
+                            "서버 이벤트의 newChunk 가 Bukkit isNewChunk 로 이어진다(A15-04)");
+                }
             }
         }
     }
