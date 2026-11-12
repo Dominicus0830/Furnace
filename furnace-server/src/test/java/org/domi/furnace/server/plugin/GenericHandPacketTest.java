@@ -273,6 +273,11 @@ class GenericHandPacketTest {
         assertThrows(IllegalArgumentException.class, () -> body(g(Clientbound.SET_PLAYER_TEAM, "name", "team", "method", 2, "parameters", Optional.of(s("display_name", hi,
                 "options", 0, "nametag_visibility", "x".repeat(41), "collision_rule", "always", "color", "RED", "player_prefix", hi, "player_suffix", hi)),
                 "players", Optional.empty())), "바닐라는 40자까지 읽는다");
+        assertThrows(IllegalArgumentException.class, () -> body(g(Clientbound.SET_PLAYER_TEAM, "name", "team", "method", 5, "parameters", Optional.empty(),
+                "players", Optional.empty())), "method 는 0~4");
+        var p = assertThrows(IllegalArgumentException.class, () -> body(g(Clientbound.SET_PLAYER_TEAM, "name", "team", "method", 2, "parameters", Optional.of("x"),
+                "players", Optional.empty())));
+        assertTrue(p.getMessage().contains("display_name"), p.getMessage());
     }
 
     @Test
@@ -283,14 +288,23 @@ class GenericHandPacketTest {
                                 s("id", "minecraft:sprinting", "amount", 0.3, "operation", "ADD_MULTIPLIED_TOTAL"),
                                 s("id", "myplugin:x", "amount", -1.0, "operation", "ADD_VALUE"))),
                         s("attribute", "minecraft:generic.max_health", "base", 20.0, "modifiers", List.of()))));
-        vanilla("070201010200fd640f0108000248691a0000000002010aff0204fb", g(Clientbound.MAP_ITEM_DATA, "map_id", 7, "scale", (byte) 2, "locked", true,
+        vanilla("070201010200fd640f0108000248691a0000000002010a7f0204fb", g(Clientbound.MAP_ITEM_DATA, "map_id", 7, "scale", (byte) 2, "locked", true,
                 "decorations", Optional.of(List.of(s("type", "minecraft:player", "x", (byte) -3, "y", (byte) 100, "rot", (byte) 15, "name", Optional.of(Text.text("Hi"))),
                         s("type", "minecraft:red_x", "x", (byte) 0, "y", (byte) 0, "rot", (byte) 0, "name", Optional.empty()))),
-                "color_patch", Optional.of(s("width", 2, "height", 1, "start_x", 10, "start_y", 255, "map_colors", new byte[]{4, -5}))));
+                "color_patch", Optional.of(s("width", 2, "height", 1, "start_x", 10, "start_y", 127, "map_colors", new byte[]{4, -5}))));
         var empty = g(Clientbound.MAP_ITEM_DATA, "map_id", 0, "scale", (byte) 0, "locked", false, "decorations", Optional.empty(), "color_patch", Optional.empty());
         vanilla("0000000000", empty);
         assertThrows(IllegalArgumentException.class, () -> body(empty.with("color_patch", Optional.of(s("width", 0, "height", 1, "start_x", 0, "start_y", 0,
                 "map_colors", new byte[0])))), "width 0 은 없음과 같은 바이트");
+        // 받는 클라이언트의 MapPatch.applyToMap 이 넘겨 접근하는 조각(검토 PR #255 R1)
+        var e = assertThrows(IllegalArgumentException.class, () -> body(empty.with("color_patch", Optional.of(s("width", 2, "height", 2, "start_x", 0, "start_y", 0,
+                "map_colors", new byte[3])))));
+        assertTrue(e.getMessage().contains("width*height"), e.getMessage());
+        e = assertThrows(IllegalArgumentException.class, () -> body(empty.with("color_patch", Optional.of(s("width", 2, "height", 1, "start_x", 127, "start_y", 0,
+                "map_colors", new byte[2])))));
+        assertTrue(e.getMessage().contains("128"), e.getMessage());
+        assertEquals("00000000" + "8080" + "0000" + "808001" + "00".repeat(16384),
+                body(empty.with("color_patch", Optional.of(s("width", 128, "height", 128, "start_x", 0, "start_y", 0, "map_colors", new byte[16384])))), "지도 전체 조각");
         // 통계 하나씩(바닐라는 해시 맵이라 둘 이상이면 다시 쓴 순서가 다를 수 있다)
         vanilla("01000103", g(Clientbound.AWARD_STATS, "stats", List.of(s("type", "minecraft:mined", "value", "minecraft:stone", "amount", 3))));
         vanilla("010815ac02", g(Clientbound.AWARD_STATS, "stats", List.of(s("type", "minecraft:custom", "value", "minecraft:jump", "amount", 300))));
@@ -338,5 +352,11 @@ class GenericHandPacketTest {
         var e = assertThrows(IllegalArgumentException.class, () -> body(session.with("chat_session", s("session_id", BOSS, "profile_public_key",
                 s("expires_at", 0L, "key", new byte[]{1, 2, 3}, "key_signature", new byte[0])))));
         assertTrue(e.getMessage().contains("RSA"), e.getMessage());
+        // 바닐라 readPublicKey 처럼 읽기도 해석 못 하는 키는 실패한다(검토 PR #255 R2)
+        String good = body(session), keyLen = ByteBufUtil.hexDump(new byte[]{(byte) (key.length & 0x7f | 0x80), (byte) (key.length >> 7)});
+        int at = good.indexOf(keyLen + ByteBufUtil.hexDump(key));
+        String bad = good.substring(0, at) + "03010203" + good.substring(at + keyLen.length() + key.length * 2);
+        var r = assertThrows(IllegalArgumentException.class, () -> codec.decode(session.type(), codec.ids(session.type())[0], Unpooled.wrappedBuffer(ByteBufUtil.decodeHexDump(bad))));
+        assertTrue(r.getMessage().contains("RSA"), r.getMessage());
     }
 }

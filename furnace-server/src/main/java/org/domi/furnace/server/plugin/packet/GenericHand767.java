@@ -475,16 +475,17 @@ final class GenericHand767 {
     static final Node MAP_DECORATION = struct(List.of("type", "x", "y", "rot", "name"),
             List.of(GenericCodec767.registryId("minecraft:map_decoration_type"), I8, I8, I8, GenericCodec767.optional(TEXT, false)));
 
-    /** RSA 공개 키(X.509, 바닐라 readPublicKey = readByteArray(512) 후 해석 — 해석이 안 되면 바닐라 디코드 실패). */
-    private static final Node PUBLIC_KEY = node(byte[].class, b -> bytes(512).read(b), (o, v) -> {
-        byte[] a = (byte[]) v;
+    /** RSA 공개 키(X.509, 바닐라 readPublicKey = readByteArray(512) 후 해석 — 해석이 안 되면 바닐라 디코드 실패). 읽기·쓰기 둘 다 해석해 본다. */
+    private static final Node PUBLIC_KEY = node(byte[].class, b -> checkRsaKey((byte[]) bytes(512).read(b)), (o, v) -> bytes(512).write(o, checkRsaKey((byte[]) v)));
+
+    private static byte[] checkRsaKey(byte[] a) {
         try {
             java.security.KeyFactory.getInstance("RSA").generatePublic(new java.security.spec.X509EncodedKeySpec(a));
         } catch (java.security.GeneralSecurityException e) {
             throw new IllegalArgumentException("RSA 공개 키(X.509)가 아니다: " + e.getMessage());
         }
-        bytes(512).write(o, a);
-    });
+        return a;
+    }
 
     /** RemoteChatSession.Data: {session_id, profile_public_key {expires_at(epoch ms), key, key_signature(4096바이트까지)}}. */
     static final Node CHAT_SESSION = struct(List.of("session_id", "profile_public_key"), List.of(GenericCodec767.UUID_NODE,
@@ -675,8 +676,11 @@ final class GenericHand767 {
             m.put("players", method == 0 || method == 3 || method == 4 ? Optional.of(players.read(b)) : Optional.empty());
         }, (o, m) -> {
             int method = (Integer) m.get("method");
+            if (method < 0 || method > 4) throw new IllegalArgumentException("method 는 0~4(추가·제거·바꿈·선수 넣기·선수 빼기)여야 한다: " + method);
             Optional<?> p = (Optional<?>) m.get("parameters"), pl = (Optional<?>) m.get("players");
             if (p.isPresent() != (method == 0 || method == 2)) throw new IllegalArgumentException("parameters 는 method 0·2 일 때만 있어야 한다: method=" + method);
+            if (p.isPresent() && !(p.get() instanceof PacketStruct)) throw new IllegalArgumentException(
+                    "parameters 는 {display_name, options, nametag_visibility, collision_rule, color, player_prefix, player_suffix} 이어야 한다: " + p.get().getClass().getName());
             if (pl.isPresent() != (method == 0 || method == 3 || method == 4)) throw new IllegalArgumentException("players 는 method 0·3·4 일 때만 있어야 한다: method=" + method);
             if (pl.isPresent() && !(pl.get() instanceof List<?>)) throw new IllegalArgumentException("players 는 List<String> 이어야 한다");
             STRING.write(o, m.get("name"));
@@ -708,6 +712,13 @@ final class GenericHand767 {
             }
             if (!(p.get() instanceof PacketStruct s)) throw new IllegalArgumentException("color_patch 는 {width, height, start_x, start_y, map_colors}");
             if (Integer.valueOf(0).equals(s.asMap().get("width"))) throw new IllegalArgumentException("width 0 은 '없음' 이다 — Optional.empty() 를 쓴다");
+            // 바닐라 코덱은 통과시키지만 받은 쪽 MapPatch.applyToMap 이 colors[i + j*width]·지도[x + y*128] 를 넘겨 읽고 써서 끊긴다.
+            if (s.asMap().get("width") instanceof Integer w && s.asMap().get("height") instanceof Integer h
+                    && s.asMap().get("start_x") instanceof Integer x && s.asMap().get("start_y") instanceof Integer y
+                    && s.asMap().get("map_colors") instanceof byte[] c) {
+                if (c.length != w * h) throw new IllegalArgumentException("map_colors 길이는 width*height(" + w * h + ")여야 한다: " + c.length);
+                if (x + w > 128 || y + h > 128) throw new IllegalArgumentException("색 조각이 지도(128×128) 밖으로 나간다: start=(" + x + "," + y + "), 크기 " + w + "×" + h);
+            }
             GenericCodec767.writeStruct(patch, s, o, "color_patch");
         });
         return new Seq().f("map_id", VARINT).f("scale", I8).f("locked", BOOL)

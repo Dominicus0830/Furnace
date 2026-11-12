@@ -123,15 +123,15 @@ packets.send(player, GenericPacket.of(PacketTypes.Clientbound.SET_BORDER_WARNING
 | `boss_event` | `id` · `operation` `{type, …}` — `ADD {name, progress, color, overlay, darken_screen, play_music, create_world_fog}`, `REMOVE {}`, `UPDATE_PROGRESS {progress}`, `UPDATE_NAME {name}`, `UPDATE_STYLE {color, overlay}`, `UPDATE_PROPERTIES {darken_screen, play_music, create_world_fog}` |
 | `set_player_team` | `name` · `method`(0 추가·1 제거·2 바꿈·3 선수 넣기·4 선수 빼기) · `parameters` `Optional<{display_name, options, nametag_visibility, collision_rule, color, player_prefix, player_suffix}>`(method 0·2, 두 문자열은 40자까지, `color` 는 ChatFormatting 이름) · `players` `Optional<List<String>>`(method 0·3·4) |
 | `update_attributes` | `entity_id` · `attributes` `List<{attribute, base, modifiers List<{id, amount, operation}>}>` |
-| `map_item_data` | `map_id` `scale` `locked` · `decorations` `Optional<List<{type, x, y, rot, name}>>` · `color_patch` `Optional<{width, height, start_x, start_y, map_colors}>`(width 1 이상) |
-| `award_stats` | `stats` `List<{type, value, amount}>`(`type` 은 stat_type 이름, `value` 는 그 종류의 레지스트리 이름 — `minecraft:mined` 면 블록) |
+| `map_item_data` | `map_id` `scale` `locked` · `decorations` `Optional<List<{type, x, y, rot, name}>>` · `color_patch` `Optional<{width, height, start_x, start_y, map_colors}>`(width 1 이상, 보낼 때 `map_colors` 길이 = width×height, start+크기 ≤ 128 — 어기면 클라이언트가 끊기므로 거부) |
+| `award_stats` | `stats` `List<{type, value, amount}>`(`type` 은 stat_type 이름, `value` 는 그 종류의 레지스트리 이름 — `minecraft:mined` 면 블록. 읽은 값은 늘 `minecraft:` 이 붙으므로 줄여 쓴 값과 `equals` 가 다르다) |
 | `container_click` | `container_id` `state_id` `slot_num` `button_num` `click_type` · `changed_slots` `List<{slot, item}>`(128칸까지, 같은 칸 두 번 안 됨 — 클라이언트가 같은 칸을 두 번 보내면 읽을 때 바닐라처럼 마지막 값 하나로 합친다) · `carried_item` |
 
 숫자 형식(`set_objective`·`set_score` 의 `number_format`)은 `{type:"minecraft:blank"}`·`{type:"minecraft:styled", style:<스타일 NbtCompound>}`·
 `{type:"minecraft:fixed", value:<Text>}`, 바닐라 `Vec3` 은 `{x, y, z}`(`Double`). `block_entity_data` 의 `type` 은 블록 엔티티 종류 이름(`"minecraft:sign"`).
 채팅 쪽 값: `MessageSignature.Packed` = `{id, full_signature Optional<byte[]>}`(id -1 이면 256바이트 서명 전체), `ChatType.Bound` = `{chat_type, name, target_name}`,
-`LastSeenMessages.Update` = `{offset, acknowledged}`(최근 20개 확인 비트를 정수로), 인자 서명 = `List<{name, signature}>`(8개까지, 서명 256바이트),
-채팅 세션 = `{session_id, profile_public_key {expires_at, key, key_signature}}`(`key` 는 RSA X.509 — 아니면 거부), `Instant` = epoch 밀리초 `Long`.
+`LastSeenMessages.Update` = `{offset, acknowledged}`(최근 20개 확인 비트를 정수로 — 읽기는 바닐라처럼 3바이트 24비트까지 받지만 20비트를 넘은 값은 다시 쓸 수 없다), 인자 서명 = `List<{name, signature}>`(8개까지, 서명 256바이트),
+채팅 세션 = `{session_id, profile_public_key {expires_at, key, key_signature}}`(`key` 는 RSA X.509 — 읽기·쓰기 모두 아니면 거부, 바닐라 디코드 실패와 같다), `Instant` = epoch 밀리초 `Long`.
 `server_links` 원소는 `{known_type, label, url}`(둘 중 하나만), `custom_report_details` 의 `details` 는 키가 이름인 `PacketStruct`(값 String, 32개·키 128자·값 4096자까지).
 styled 의 `style` 은 보낼 때 바닐라 Style 로 읽히는지 검사한다(틀린 색 이름·문자열 참거짓 등은 바닐라 클라이언트가 접속을 끊으므로 `IllegalArgumentException`, 모르는 키는 바닐라처럼 무시).
 
