@@ -146,7 +146,7 @@ final class Mappings {
                     return w == null ? null : new org.bukkit.event.world.WorldUnloadEvent(w);
                 }, (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.world.ChunkLoadEvent.class, org.bukkit.event.world.ChunkLoadEvent.class,
-                f -> new org.bukkit.event.world.ChunkLoadEvent(new CompatChunk(f.world(), f.chunkX(), f.chunkZ())), (f, b) -> {});
+                f -> new org.bukkit.event.world.ChunkLoadEvent(new CompatChunk(f.world(), f.chunkX(), f.chunkZ()), f.newChunk()), (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.world.ChunkUnloadEvent.class, org.bukkit.event.world.ChunkUnloadEvent.class,
                 f -> new org.bukkit.event.world.ChunkUnloadEvent(new CompatChunk(f.world(), f.chunkX(), f.chunkZ())), (f, b) -> {});
     }

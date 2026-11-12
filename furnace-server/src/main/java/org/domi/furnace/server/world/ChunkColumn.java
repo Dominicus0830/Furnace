@@ -215,6 +215,13 @@ public final class ChunkColumn {
     private java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> generatedEntities;
 
     private boolean freshlyGenerated;
+    /** 이번에 생성기가 만든 청크(저장된 것을 읽지 않았다) — 설치 때 ChunkLoadEvent 의 isNewChunk 로 한 번 읽고 내린다. */
+    private boolean newlyCreated;
+
+    public boolean newlyCreated() { return newlyCreated; }
+
+    public void newlyCreated(boolean v) { this.newlyCreated = v; }
+
 
     /** 방금 생성기로 만든 청크(디스크에서 읽은 것이 아님) — 올릴 때 한 번 동물을 놓는다(NaturalSpawner.spawnMobsForChunkGeneration). */
     public boolean freshlyGenerated() { return freshlyGenerated; }

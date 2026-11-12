@@ -283,9 +283,12 @@ public final class PluginGameEvents implements GameEvents {
     }
 
     @Override
-    public void chunkLoad(String dimension, int cx, int cz) {
+    public void chunkLoad(String dimension, int cx, int cz) { chunkLoad(dimension, cx, cz, false); }
+
+    @Override
+    public void chunkLoad(String dimension, int cx, int cz, boolean newChunk) {
         if (!bus().hasSubscribers(ChunkLoadEvent.class)) return;
-        bus().call(new ChunkLoadEvent(dimension, cx, cz));
+        bus().call(new ChunkLoadEvent(dimension, cx, cz, newChunk));
     }
 
     @Override

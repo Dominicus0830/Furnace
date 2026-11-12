@@ -1,7 +1,9 @@
 // Furnace 이벤트 → Bukkit 이벤트 다리.
 //
-// Bukkit 처리기가 등록되면(SimplePluginManager.registerEvent) 그 Bukkit 이벤트에 대응하는 Furnace 이벤트를 (플러그인, 우선순위) 마다 한 번씩
-// Furnace 이벤트 버스에 구독한다. 구독은 그 플러그인의 것이라 코어가 플러그인을 끌 때 알아서 지우고, 프로파일러·MONITOR 검사도 그 플러그인으로 잡힌다.
+// Bukkit 처리기가 등록되면(SimplePluginManager.registerEvent) 그 Bukkit 이벤트에 대응하는 Furnace 이벤트를 처리기마다 한 번씩
+// Furnace 이벤트 버스에 구독한다(A15-07). 구독은 그 플러그인의 것이라 코어가 플러그인을 끌 때 알아서 지우고, 프로파일러·MONITOR 검사도 그 플러그인으로 잡힌다.
+// 처리기마다 구독하는 까닭: Bukkit HandlerList 는 같은 우선순위 안에서 플러그인을 가리지 않고 등록 순으로 부른다 — 플러그인 A 가 B 보다 먼저 켜진 뒤
+// 처리기를 더 달아도 A1 → B1 → A2 순서가 지켜져야 한다. 버스는 (우선순위, 구독 순서)로 부르고 구독은 처리기를 등록하는 그 자리에서 하므로 두 순서가 같다.
 // Furnace 이벤트 하나에 Bukkit 이벤트 객체는 하나만 만들어 플러그인·우선순위가 다른 구독들이 나눠 쓴다(약한 참조 — 이벤트가 끝나면 사라진다).
 // 우선순위 순서는 Furnace 버스가 지킨다: 같은 이벤트를 Furnace 플러그인이 같은 우선순위로 구독했다면 등록 순이다.
 package org.domi.furnace.compat.paper;
@@ -122,57 +124,95 @@ public final class EventBridge {
     /** 지원하는 Bukkit 이벤트 클래스(문서·시험용). */
     public static java.util.Set<Class<?>> bridgedEvents() { return java.util.Set.copyOf(BY_BUKKIT.keySet()); }
 
-    /** owner 가 이 Bukkit 이벤트를 이 우선순위로 받도록 Furnace 버스에 구독한다(한 번만). */
-    public static void ensure(BukkitPluginAdapter owner, Class<? extends org.bukkit.event.Event> owning, org.bukkit.event.EventPriority priority) {
-        var ms = BY_BUKKIT.get(owning);
-        if (ms == null) {
-            if (NOT_FIRED.contains(owning.getName()) && owner.markBridged("unfired:" + owning.getName())) {
-                owner.logger().warning(owning.getSimpleName() + " 처리기를 등록했지만 Furnace 서버는 아직 이 이벤트를 알리지 않는다 — 그 처리기는 불리지 않는다"
-                        + " (지원 목록: docs/api/compat-paper.md)");
+    /** 같은 HandlerList 를 쓰는 Bukkit 이벤트 클래스들(그 클래스가 getHandlerList 를 직접 가진 것만) — 처음 쓸 때 한 번 만든다. */
+    private static volatile Map<org.bukkit.event.HandlerList, java.util.List<Class<? extends org.bukkit.event.Event>>> owners;
+
+    private static Map<org.bukkit.event.HandlerList, java.util.List<Class<? extends org.bukkit.event.Event>>> owners() {
+        var m = owners;
+        if (m == null) {
+            synchronized (EventBridge.class) {
+                m = owners;
+                if (m == null) {
+                    m = new java.util.IdentityHashMap<>();
+                    for (Class<?> raw : BY_BUKKIT.keySet()) {
+                        Class<? extends org.bukkit.event.Event> c = raw.asSubclass(org.bukkit.event.Event.class);
+                        try {
+                            m.computeIfAbsent(CompatPluginManager.handlerList(c), k -> new java.util.ArrayList<>(1)).add(c);
+                        } catch (RuntimeException notDeclared) {
+                            // getHandlerList 를 직접 갖지 않는 클래스 — 부모 목록으로 등록되므로 부모 쪽에서 잡힌다
+                        }
+                    }
+                    owners = m;
+                }
             }
-            return;   // 플러그인 자기 이벤트 — callEvent 로만 불린다
         }
-        for (Mapping<?, ?> m : ms) {
-            if (!owner.markBridged(owning.getName() + "<" + m.furnace.getName() + "@" + priority.name())) continue;
-            subscribe(owner, m, priority);
+        return m;
+    }
+
+    /**
+     * HandlerList 에 처리기 하나가 등록될 때 Furnace 버스에 이어 준다(처리기마다 구독 하나 — 같은 우선순위 순서가 등록 순이 되도록).
+     * 돌려준 구독은 그 처리기가 해제될 때 HandlerList 가 끊는다. 이 호환 계층의 플러그인이 아니면 이을 것이 없다.
+     */
+    public static java.util.List<org.domi.furnace.api.event.EventSubscription> attach(org.bukkit.event.HandlerList list, org.bukkit.plugin.RegisteredListener registered) {
+        BukkitPluginAdapter owner;
+        try {
+            owner = CompatPluginManager.adapterOrNull(registered.getPlugin());
+        } catch (RuntimeException noServer) {
+            return java.util.List.of();   // 서버가 없는 환경(HandlerList 단독 사용)
         }
+        var classes = owner == null ? null : owners().get(list);
+        if (classes == null) return java.util.List.of();
+        java.util.List<org.domi.furnace.api.event.EventSubscription> out = new java.util.ArrayList<>();
+        for (Class<? extends org.bukkit.event.Event> owning : classes) out.addAll(ensure(owner, owning, registered.getPriority(), registered));
+        return out;
+    }
+
+    /** 서버가 알리지 않는 이벤트의 처리기를 등록하면 플러그인·이벤트마다 한 번 경고한다. */
+    public static void warnIfNotFired(BukkitPluginAdapter owner, Class<? extends org.bukkit.event.Event> owning) {
+        if (!BY_BUKKIT.containsKey(owning) && NOT_FIRED.contains(owning.getName()) && owner.markBridged("unfired:" + owning.getName())) {
+            owner.logger().warning(owning.getSimpleName() + " 처리기를 등록했지만 Furnace 서버는 아직 이 이벤트를 알리지 않는다 — 그 처리기는 불리지 않는다"
+                    + " (지원 목록: docs/api/compat-paper.md)");
+        }
+    }
+
+    private static java.util.List<org.domi.furnace.api.event.EventSubscription> ensure(BukkitPluginAdapter owner, Class<? extends org.bukkit.event.Event> owning,
+                                                                                        org.bukkit.event.EventPriority priority, org.bukkit.plugin.RegisteredListener registered) {
+        var ms = BY_BUKKIT.get(owning);
+        if (ms == null) return java.util.List.of();   // 플러그인 자기 이벤트 — callEvent 로만 불린다
+        java.util.List<org.domi.furnace.api.event.EventSubscription> subs = new java.util.ArrayList<>(ms.size());
+        for (Mapping<?, ?> m : ms) subs.add(subscribe(owner, m, priority, registered));
         // 로그인 거부가 확정되면(Furnace MONITOR — 모든 처리기 뒤) 그 접속용으로 만든 CraftPlayer 를 걷는다: 권한 구독·플레이어 표에 남지 않게(PR #210 검토 R4)
         if (owning == org.bukkit.event.player.PlayerLoginEvent.class && owner.markBridged("login-denied-cleanup")) {
             Furnace.server().events().subscribe(owner, org.domi.furnace.api.event.player.PlayerCreateEvent.class,
                     org.domi.furnace.api.event.EventPriority.MONITOR, false, f -> { if (!f.isAllowed()) Compat.forgetDenied(f.player()); });
         }
+        return subs;
     }
 
-    private static <F extends org.domi.furnace.api.event.Event, B extends org.bukkit.event.Event> void subscribe(BukkitPluginAdapter owner, Mapping<F, B> m,
-                                                                                                                 org.bukkit.event.EventPriority priority) {
+    private static <F extends org.domi.furnace.api.event.Event, B extends org.bukkit.event.Event> org.domi.furnace.api.event.EventSubscription subscribe(
+            BukkitPluginAdapter owner, Mapping<F, B> m, org.bukkit.event.EventPriority priority, org.bukkit.plugin.RegisteredListener registered) {
         var fp = org.domi.furnace.api.event.EventPriority.valueOf(priority.name());
-        Furnace.server().events().subscribe(owner, m.furnace, fp, false, f -> deliver(owner, m, priority, f));
+        return Furnace.server().events().subscribe(owner, m.furnace, fp, false, f -> deliver(owner, m, registered, f));
     }
 
     private static <F extends org.domi.furnace.api.event.Event, B extends org.bukkit.event.Event> void deliver(BukkitPluginAdapter owner, Mapping<F, B> m,
-                                                                                                                org.bukkit.event.EventPriority priority, F f) {
+                                                                                                                org.bukkit.plugin.RegisteredListener rl, F f) {
         B b = m.bukkitFor(f);
         if (b == null) return;
+        if (!b.getHandlers().isRegistered(rl)) return;   // 그 사이 해제된 처리기(HandlerList.unregister·플러그인 끄기 직전)
         m.pull.accept(f, b);
         org.domi.furnace.api.event.Cancellable fc = f instanceof org.domi.furnace.api.event.Cancellable c ? c : null;
         org.bukkit.event.Cancellable bc = b instanceof org.bukkit.event.Cancellable c ? c : null;
         if (fc != null && bc != null && m.cancelOf.test(b) != fc.isCancelled()) m.showCancel.accept(b, fc.isCancelled());   // 앞선 Furnace 처리기의 결과를 먼저 보인다
-        var jp = owner.javaPlugin();
-        boolean ran = false;
         // 전역 스레드에서 오는 이벤트(명령 등)는 Bukkit 에서 주 스레드 이벤트다 — 리스너가 블록·엔티티를 만지면 region 을 빌린다(다른 스레드는 빈 손잡이)
         try (var access = Furnace.server().scheduler().global().openRegionAccess()) {
-            for (RegisteredListener rl : b.getHandlers().getRegisteredListeners()) {
-                if (rl.getPlugin() != jp || rl.getPriority() != priority) continue;
-                ran = true;
-                try {
-                    rl.callEvent(b);
-                } catch (Throwable t) {
-                    Throwable cause = t instanceof EventException ee && ee.getCause() != null ? ee.getCause() : t;
-                    owner.logger().log(Level.SEVERE, "Could not pass event " + b.getEventName() + " to " + owner.bukkitDescription().getFullName(), cause);
-                }
+            try {
+                rl.callEvent(b);
+            } catch (Throwable t) {
+                Throwable cause = t instanceof EventException ee && ee.getCause() != null ? ee.getCause() : t;
+                owner.logger().log(Level.SEVERE, "Could not pass event " + b.getEventName() + " to " + owner.bukkitDescription().getFullName(), cause);
             }
         }
-        if (!ran) return;
         m.push.accept(f, b);
         if (fc != null && bc != null && m.cancelOf.test(b) != fc.isCancelled()) fc.setCancelled(m.cancelOf.test(b));
     }
