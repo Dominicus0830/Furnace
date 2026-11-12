@@ -69,13 +69,21 @@ class A15BoundingBoxRayTraceTest {
 
     void setBlock(int dx, int dy, int dz, Material m) { world.getBlockAt(origin.x() + dx, origin.y() + dy, origin.z() + dz).setType(m); }
 
-    /** 틱을 돌리지 않고 만든다 — 만든 자리에서 그대로 서 있게 중력도 끈다(몹 AI 는 틱을 돌려야 움직인다). */
+    /**
+     * 틱을 돌리지 않고 만든다 — 만든 자리에서 그대로 서 있게 중력도 끈다(몹 AI 는 틱을 돌려야 움직인다).
+     * 좀비는 바닐라처럼 5% 로 아기(0.3×0.975)로 태어나 충돌 상자 기대값이 어긋나므로 어른(0.6 너비)이 나올 때까지 다시 만든다(흔들림의 원인이었다).
+     */
     Entity spawn(Location at, EntityType type) {
-        return owner(() -> {
-            Entity e = world.spawnEntity(at, type);
-            e.setGravity(false);
-            return e;
-        });
+        for (int attempt = 0; ; attempt++) {
+            Entity e = owner(() -> {
+                Entity made = world.spawnEntity(at, type);
+                made.setGravity(false);
+                return made;
+            });
+            if (type != EntityType.ZOMBIE || owner(() -> e.getBoundingBox().getWidthX()) > 0.5) return e;
+            owner(() -> { e.remove(); return null; });
+            if (attempt >= 200) throw new AssertionError("어른 좀비가 나오지 않는다");
+        }
     }
 
     /** 앞 시험이 실패해도 엔티티가 남아 다음 시험을 흔들지 않게. */
