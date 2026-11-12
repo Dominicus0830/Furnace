@@ -201,6 +201,11 @@ public class MemorySection implements ConfigurationSection {
 
     /** Paper getDefault: 기본값 구역의 같은 경로 값(없으면 null). */
     private Object defaultOf(String path) {
+        if (custom() && ConfigPaths.paperDefaultSeparator()) {
+            // Paper: defaults.get(createPath(this, path)) — 이 구역 경로를 루트 구분자로 이은 전체 경로를 기본값 설정('.')이 읽는다
+            Configuration dc = root.getDefaults();
+            return dc == null ? null : dc.get(paperPath(path));
+        }
         ConfigurationSection d = getDefaultSection();
         return d == null ? null : d.get(path);
     }
@@ -551,7 +556,18 @@ public class MemorySection implements ConfigurationSection {
             return;
         }
         if (path.isEmpty()) throw new IllegalArgumentException("Cannot set to an empty path");
+        if (ConfigPaths.paperDefaultSeparator()) {
+            // Paper: root.addDefault(createPath(this, path)) — 기본값 설정은 언제나 '.' 로 쪼갠다(R6 "둘 다 지원" 옵션 plugins.compat.config.paper-default-separator)
+            delegate.getRoot().addDefault(paperPath(path), in(value));
+            return;
+        }
         delegate.addDefaultAt(parse(path).keys(), in(value));
+    }
+
+    /** Paper createPath(this, path): 이 구역의 현재 경로 + 루트 구분자 + path(루트면 path 그대로). */
+    private String paperPath(String path) {
+        String cur = getCurrentPath();
+        return cur.isEmpty() ? path : cur + sep() + path;
     }
 
     // ------------------------------------------------------------------ 주석

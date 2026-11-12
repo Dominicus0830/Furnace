@@ -57,7 +57,8 @@ public class MemoryConfiguration extends MemorySection implements Configuration 
         if (defaultsRef instanceof Configuration c && defaultsRef.delegate == d) return c;
         MemoryConfiguration c = new MemoryConfiguration();
         c.delegate = d;
-        c.options().pathSeparator(options().pathSeparator());   // addDefault 로 만들어진 기본값 트리는 이쪽 구분자로 쓰였다
+        // addDefault 로 만들어진 기본값 트리는 이쪽 구분자로 쓰였다. 옵션(paper-default-separator)을 켜면 Paper 처럼 '.' 로 쪼갰으므로 '.' 그대로
+        if (!org.domi.furnace.compat.paper.ConfigPaths.paperDefaultSeparator()) c.options().pathSeparator(options().pathSeparator());
         return c;
     }
 

@@ -14,6 +14,7 @@
 //   plugins.compat.nms.spigot-mappings=download  Spigot 이름 NMS 플러그인이 있을 때만 Mojang·Spigot 매핑을 받아 Spigot → Mojang 이름으로 바꿔 올린다(H7d,
 //                                             2026-11-12 결정: 폴더에 넣으면 바로 돈다, 없으면 아무것도 안 받는다). files 면 받지 않고
 //                                             plugins.compat.nms.spigot-mappings.files 의 세 파일(server.txt, 클래스 csrg, 멤버 csrg)을 쓴다. off 면 바꾸지 않는다
+//   plugins.compat.config.paper-default-separator=false  Bukkit 설정의 addDefault 기본값 트리를 Paper 처럼 언제나 '.' 로 쪼갠다(꺼짐: 플러그인이 options().pathSeparator 로 정한 구분자로 쪼갬)
 //   scheduler.async-threads·nms.strict·nms.version-package·nms.spigot-mappings(.files) 는 검사해 compatOptions 로(기본값과 같으면 빠진다) — 호환 어댑터·PluginFormat#transformer 가 읽는다
 package org.domi.furnace.server.plugin;
 
@@ -134,6 +135,8 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
             }
             if (!t.equals("platform")) out.put(ASYNC_THREADS_KEY, t);   // 기본값과 같게 적은 것은 안 적은 것과 같다(DEFAULT 와 같은 설정)
         }
+        // A15-05(R6 "둘 다 지원"): addDefault 기본값 트리의 구분자 — 켠 것만 남는다
+        if (org.domi.furnace.server.config.OptionKeys.strictBool(p, PAPER_DEFAULT_SEPARATOR_KEY, false)) out.put(PAPER_DEFAULT_SEPARATOR_KEY, "true");
         // H7: NMS 변환 옵션(PluginFormat#transformer 의 settings 로도 넘어간다)
         if (org.domi.furnace.server.config.OptionKeys.strictBool(p, NMS_STRICT_KEY, false)) out.put(NMS_STRICT_KEY, "true");
         String vp = p.getProperty(NMS_VERSION_PACKAGE_KEY);
@@ -179,6 +182,9 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
 
     /** 플러그인이 읽는 CraftBukkit 패키지 이름: plain(기본) | versioned. */
     public static final String NMS_VERSION_PACKAGE_KEY = "plugins.compat.nms.version-package";
+
+    /** addDefault 기본값 트리를 Paper 처럼 언제나 '.' 로 쪼갠다(기본 false) — 호환 어댑터가 읽는다. */
+    public static final String PAPER_DEFAULT_SEPARATOR_KEY = "plugins.compat.config.paper-default-separator";
 
     /** Bukkit 비동기 작업을 돌릴 스레드: platform(기본, 이름 붙은 플랫폼 스레드 풀) | virtual(가상 스레드). */
     public static final String ASYNC_THREADS_KEY = "plugins.compat.scheduler.async-threads";

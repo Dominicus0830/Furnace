@@ -9,6 +9,18 @@ public final class ConfigPaths {
 
     private ConfigPaths() {}
 
+    /** 서버 옵션(furnace.properties): 켜면 addDefault 기본값 트리를 Paper 처럼 언제나 '.' 로 쪼갠다(기본 꺼짐 = 개발자가 정한 구분자로 쪼갬). */
+    public static final String PAPER_DEFAULT_SEPARATOR_OPTION = "plugins.compat.config.paper-default-separator";
+
+    /** 위 옵션이 켜졌는가. 서버가 없으면(설정만 쓰는 도구·시험) 꺼짐. */
+    public static boolean paperDefaultSeparator() {
+        try {
+            return "true".equals(org.domi.furnace.api.Furnace.server().compatOption(PAPER_DEFAULT_SEPARATOR_OPTION));
+        } catch (IllegalStateException noServer) {
+            return false;
+        }
+    }
+
     /**
      * @param keys 구역을 따라 내려갈 키 단계(빈 경로면 비어 있다 = 이 구역 자신)
      * @param endsAtSection 경로가 끝 구분자(또는 빈 경로)로 끝나 keys 가 가리키는 것이 "구역 자신"인가
