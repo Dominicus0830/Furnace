@@ -2,9 +2,11 @@ package net.minecraft.server.network;
 
 import net.minecraft.network.PacketListener;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.BundlePacket;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.server.level.ServerPlayer;
 import org.domi.furnace.compat.nms.NmsPacket;
+import org.domi.furnace.compat.nms.SchemaPacket;
 import org.domi.furnace.compat.nms.UnsupportedNmsCall;
 
 /**
@@ -25,9 +27,16 @@ public abstract class ServerCommonPacketListenerImpl implements PacketListener {
      */
     public void send(Packet<?> packet) {
         if (packet == null) return;   // 바닐라 Connection#send 는 null 을 그대로 내려보내다 인코딩에서 실패한다 — 여기서는 보낼 것이 없다
+        if (packet instanceof BundlePacket<?> bundle) {
+            // 묶음: 안의 패킷을 차례로 보낸다(묶음 경계 없이 — 클라이언트가 한 프레임에 모아 처리하는 것까지는 아직 같지 않다)
+            for (Packet<?> sub : bundle.subPackets()) send(sub);
+            return;
+        }
         if (!(packet instanceof NmsPacket p)) {
             throw new UnsupportedNmsCall("ServerCommonPacketListenerImpl#send(" + packet.getClass().getName() + ")",
-                    "이 패킷 종류는 아직 shim 이 없다 — Furnace 패킷 API(docs/api/packets.md)를 쓴다");
+                    packet instanceof SchemaPacket
+                            ? "이 패킷은 모양(shim)은 있지만 보내기 변환이 아직 없다(범용 패킷 코덱 대기) — Furnace 패킷 API(docs/api/packets.md)를 쓴다"
+                            : "이 패킷 종류는 아직 shim 이 없다 — Furnace 패킷 API(docs/api/packets.md)를 쓴다");
         }
         f().sendPacket(p.toFurnace());
     }

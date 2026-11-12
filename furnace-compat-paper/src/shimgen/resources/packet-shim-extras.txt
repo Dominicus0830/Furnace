@@ -1,0 +1,249 @@
+// 패킷 shim 덧붙임: 생성기가 "@@ <'$' 클래스 이름>" 아래 글을 그 클래스 몸통 끝에 그대로 넣는다.
+// 바닐라 1.21.1 의 편의 생성자·변환 접근자·상수 중 필드 나열로 안 떨어지는 것만 손으로 쓴다(바닐라 코드 복사 아님 — 공개 동작을 따라 새로 씀).
+// 엔티티를 받는 생성자는 Entity#getId 가 네트워크 id 를 내보내지 않으므로 그 자리에서 UnsupportedNmsCall 이 난다(바닐라 서명은 있어 링크는 된다).
+
+@@ net.minecraft.network.protocol.game.ClientboundAddEntityPacket
+public ClientboundAddEntityPacket(int id, java.util.UUID uuid, double x, double y, double z, float xRot, float yRot,
+        net.minecraft.world.entity.EntityType<?> type, int data, net.minecraft.world.phys.Vec3 deltaMovement, double yHeadRot) {
+    this(id, uuid, type, x, y, z, velocity(deltaMovement.x), velocity(deltaMovement.y), velocity(deltaMovement.z),
+            angle(xRot), angle(yRot), angle((float) yHeadRot), data);
+}
+
+static int velocity(double v) { return (int) (Math.max(-3.9, Math.min(3.9, v)) * 8000.0); }
+
+static byte angle(float degrees) { return (byte) Math.floor(degrees * 256.0F / 360.0F); }
+
+public double getXa() { return xa / 8000.0; }
+public double getYa() { return ya / 8000.0; }
+public double getZa() { return za / 8000.0; }
+public float getXRot() { return xRot * 360 / 256.0F; }
+public float getYRot() { return yRot * 360 / 256.0F; }
+public float getYHeadRot() { return yHeadRot * 360 / 256.0F; }
+
+@@ net.minecraft.network.protocol.game.ClientboundAnimatePacket
+public static final int SWING_MAIN_HAND = 0;
+public static final int WAKE_UP = 2;
+public static final int SWING_OFF_HAND = 3;
+public static final int CRITICAL_HIT = 4;
+public static final int MAGIC_CRITICAL_HIT = 5;
+
+public ClientboundAnimatePacket(net.minecraft.world.entity.Entity entity, int action) { this(entity.getId(), action); }
+
+@@ net.minecraft.network.protocol.game.ClientboundBlockEventPacket
+public ClientboundBlockEventPacket(net.minecraft.core.BlockPos pos, net.minecraft.world.level.block.Block block, int b0, int b1) {
+    this(pos, b0, b1, block);
+}
+
+@@ net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket
+public ClientboundContainerSetContentPacket(int containerId, int stateId, net.minecraft.core.NonNullList<net.minecraft.world.item.ItemStack> items,
+        net.minecraft.world.item.ItemStack carriedItem) {
+    this(containerId, stateId, java.util.List.copyOf(items), carriedItem);
+}
+
+@@ net.minecraft.network.protocol.game.ClientboundEntityEventPacket
+public ClientboundEntityEventPacket(net.minecraft.world.entity.Entity entity, byte eventId) { this(entity.getId(), eventId); }
+
+@@ net.minecraft.network.protocol.game.ClientboundExplodePacket
+public ClientboundExplodePacket(double x, double y, double z, float power, java.util.List<net.minecraft.core.BlockPos> toBlow,
+        net.minecraft.world.phys.Vec3 knockback, net.minecraft.world.level.Explosion.BlockInteraction blockInteraction,
+        net.minecraft.core.particles.ParticleOptions smallExplosionParticles, net.minecraft.core.particles.ParticleOptions largeExplosionParticles,
+        net.minecraft.core.Holder<net.minecraft.sounds.SoundEvent> explosionSound) {
+    this(x, y, z, power, java.util.List.copyOf(toBlow), knockback == null ? 0.0F : (float) knockback.x,
+            knockback == null ? 0.0F : (float) knockback.y, knockback == null ? 0.0F : (float) knockback.z,
+            smallExplosionParticles, largeExplosionParticles, blockInteraction, explosionSound);
+}
+
+@@ net.minecraft.network.protocol.game.ClientboundGameEventPacket
+// 바닐라처럼 종류 상수는 바깥 패킷 클래스에 있다
+public static final Type NO_RESPAWN_BLOCK_AVAILABLE = new Type(0);
+public static final Type START_RAINING = new Type(1);
+public static final Type STOP_RAINING = new Type(2);
+public static final Type CHANGE_GAME_MODE = new Type(3);
+public static final Type WIN_GAME = new Type(4);
+public static final Type DEMO_EVENT = new Type(5);
+public static final Type ARROW_HIT_PLAYER = new Type(6);
+public static final Type RAIN_LEVEL_CHANGE = new Type(7);
+public static final Type THUNDER_LEVEL_CHANGE = new Type(8);
+public static final Type PUFFER_FISH_STING = new Type(9);
+public static final Type GUARDIAN_ELDER_EFFECT = new Type(10);
+public static final Type IMMEDIATE_RESPAWN = new Type(11);
+public static final Type LIMITED_CRAFTING = new Type(12);
+public static final Type LEVEL_CHUNKS_LOAD_START = new Type(13);
+public static final int DEMO_PARAM_INTRO = 0;
+public static final int DEMO_PARAM_HINT_1 = 101;
+public static final int DEMO_PARAM_HINT_2 = 102;
+public static final int DEMO_PARAM_HINT_3 = 103;
+public static final int DEMO_PARAM_HINT_4 = 104;
+
+@@ net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket
+public <T extends net.minecraft.core.particles.ParticleOptions> ClientboundLevelParticlesPacket(T particle, boolean overrideLimit,
+        double x, double y, double z, float xDist, float yDist, float zDist, float maxSpeed, int count) {
+    this(x, y, z, xDist, yDist, zDist, maxSpeed, count, overrideLimit, particle);
+}
+
+@@ net.minecraft.network.protocol.game.ClientboundMoveEntityPacket
+public short getXa() { return xa; }
+public short getYa() { return ya; }
+public short getZa() { return za; }
+public byte getyRot() { return yRot; }
+public byte getxRot() { return xRot; }
+public boolean isOnGround() { return onGround; }
+public boolean hasRotation() { return hasRot; }
+public boolean hasPosition() { return hasPos; }
+
+@@ net.minecraft.network.protocol.game.ClientboundMoveEntityPacket$Pos
+public Pos(int entityId, short xa, short ya, short za, boolean onGround) {
+    super(entityId, xa, ya, za, (byte) 0, (byte) 0, onGround, false, true);
+}
+
+@@ net.minecraft.network.protocol.game.ClientboundMoveEntityPacket$PosRot
+public PosRot(int entityId, short xa, short ya, short za, byte yRot, byte xRot, boolean onGround) {
+    super(entityId, xa, ya, za, yRot, xRot, onGround, true, true);
+}
+
+@@ net.minecraft.network.protocol.game.ClientboundMoveEntityPacket$Rot
+public Rot(int entityId, byte yRot, byte xRot, boolean onGround) {
+    super(entityId, (short) 0, (short) 0, (short) 0, yRot, xRot, onGround, true, false);
+}
+
+@@ net.minecraft.network.protocol.game.ClientboundMoveVehiclePacket
+public ClientboundMoveVehiclePacket(net.minecraft.world.entity.Entity entity) {
+    this(entity.getX(), entity.getY(), entity.getZ(), entity.getYRot(), entity.getXRot());
+}
+
+@@ net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket
+/** ADD_PLAYER 동작이 있을 때만 항목 전체(바닐라: 새로 보이는 플레이어 목록). */
+public java.util.List<Entry> newEntries() {
+    return actions.contains(Action.ADD_PLAYER) ? entries : java.util.List.of();
+}
+
+@@ net.minecraft.network.protocol.game.ClientboundPlayerLookAtPacket
+public ClientboundPlayerLookAtPacket(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor fromAnchor, double x, double y, double z) {
+    this(x, y, z, 0, fromAnchor, null, false);
+}
+
+public net.minecraft.commands.arguments.EntityAnchorArgument.Anchor getFromAnchor() { return fromAnchor; }
+
+@@ net.minecraft.network.protocol.game.ClientboundRecipePacket
+public ClientboundRecipePacket(State state, java.util.Collection<net.minecraft.resources.ResourceLocation> recipes,
+        java.util.Collection<net.minecraft.resources.ResourceLocation> toHighlight, net.minecraft.stats.RecipeBookSettings bookSettings) {
+    this(state, java.util.List.copyOf(recipes), java.util.List.copyOf(toHighlight), bookSettings);
+}
+
+@@ net.minecraft.network.protocol.game.ClientboundRespawnPacket
+public static final byte KEEP_ATTRIBUTES = 1;
+public static final byte KEEP_ENTITY_DATA = 2;
+public static final byte KEEP_ALL_DATA = 3;
+
+@@ net.minecraft.network.protocol.game.ClientboundRotateHeadPacket
+public ClientboundRotateHeadPacket(net.minecraft.world.entity.Entity entity, byte yHeadRot) { this(entity.getId(), yHeadRot); }
+
+@@ net.minecraft.network.protocol.game.ClientboundSetCameraPacket
+public ClientboundSetCameraPacket(net.minecraft.world.entity.Entity camera) { this(camera.getId()); }
+
+@@ net.minecraft.network.protocol.game.ClientboundSetEntityLinkPacket
+public ClientboundSetEntityLinkPacket(net.minecraft.world.entity.Entity source, net.minecraft.world.entity.Entity dest) {
+    this(source.getId(), dest != null ? dest.getId() : 0);
+}
+
+@@ net.minecraft.network.protocol.game.ClientboundSetObjectivePacket
+public static final int METHOD_ADD = 0;
+public static final int METHOD_REMOVE = 1;
+public static final int METHOD_CHANGE = 2;
+
+@@ net.minecraft.network.protocol.game.ClientboundSoundEntityPacket
+public ClientboundSoundEntityPacket(net.minecraft.core.Holder<net.minecraft.sounds.SoundEvent> sound, net.minecraft.sounds.SoundSource source,
+        net.minecraft.world.entity.Entity entity, float volume, float pitch, long seed) {
+    this(sound, source, entity.getId(), volume, pitch, seed);
+}
+
+@@ net.minecraft.network.protocol.game.ClientboundSoundPacket
+public ClientboundSoundPacket(net.minecraft.core.Holder<net.minecraft.sounds.SoundEvent> sound, net.minecraft.sounds.SoundSource source,
+        double x, double y, double z, float volume, float pitch, long seed) {
+    this(sound, source, (int) (x * 8.0), (int) (y * 8.0), (int) (z * 8.0), volume, pitch, seed);
+}
+
+public double getX() { return x / 8.0F; }
+public double getY() { return y / 8.0F; }
+public double getZ() { return z / 8.0F; }
+
+@@ net.minecraft.network.protocol.game.ClientboundUpdateAdvancementsPacket
+public ClientboundUpdateAdvancementsPacket(boolean reset, java.util.Collection<net.minecraft.advancements.AdvancementHolder> added,
+        java.util.Set<net.minecraft.resources.ResourceLocation> removed,
+        java.util.Map<net.minecraft.resources.ResourceLocation, net.minecraft.advancements.AdvancementProgress> progress) {
+    this(reset, java.util.List.copyOf(added), java.util.Set.copyOf(removed), java.util.Map.copyOf(progress));
+}
+
+@@ net.minecraft.network.protocol.game.ClientboundUpdateMobEffectPacket
+public boolean isEffectAmbient() { return (flags & 1) != 0; }
+public boolean isEffectVisible() { return (flags & 2) != 0; }
+public boolean effectShowsIcon() { return (flags & 4) != 0; }
+public boolean shouldBlend() { return (flags & 8) != 0; }
+
+@@ net.minecraft.network.protocol.game.ClientboundUpdateRecipesPacket
+public ClientboundUpdateRecipesPacket(java.util.Collection<net.minecraft.world.item.crafting.RecipeHolder<?>> recipes) {
+    this(java.util.List.copyOf(recipes));
+}
+
+@@ net.minecraft.network.protocol.game.ServerboundMovePlayerPacket
+public double getX(double fallback) { return hasPos ? x : fallback; }
+public double getY(double fallback) { return hasPos ? y : fallback; }
+public double getZ(double fallback) { return hasPos ? z : fallback; }
+public float getYRot(float fallback) { return hasRot ? yRot : fallback; }
+public float getXRot(float fallback) { return hasRot ? xRot : fallback; }
+public boolean isOnGround() { return onGround; }
+public boolean hasPosition() { return hasPos; }
+public boolean hasRotation() { return hasRot; }
+
+@@ net.minecraft.network.protocol.game.ServerboundMovePlayerPacket$Pos
+public Pos(double x, double y, double z, boolean onGround) { super(x, y, z, 0.0F, 0.0F, onGround, true, false); }
+
+@@ net.minecraft.network.protocol.game.ServerboundMovePlayerPacket$PosRot
+public PosRot(double x, double y, double z, float yRot, float xRot, boolean onGround) { super(x, y, z, yRot, xRot, onGround, true, true); }
+
+@@ net.minecraft.network.protocol.game.ServerboundMovePlayerPacket$Rot
+public Rot(float yRot, float xRot, boolean onGround) { super(0.0, 0.0, 0.0, yRot, xRot, onGround, false, true); }
+
+@@ net.minecraft.network.protocol.game.ServerboundMovePlayerPacket$StatusOnly
+public StatusOnly(boolean onGround) { super(0.0, 0.0, 0.0, 0.0F, 0.0F, onGround, false, false); }
+
+@@ net.minecraft.network.protocol.game.ServerboundMoveVehiclePacket
+public ServerboundMoveVehiclePacket(net.minecraft.world.entity.Entity entity) {
+    this(entity.getX(), entity.getY(), entity.getZ(), entity.getYRot(), entity.getXRot());
+}
+
+@@ net.minecraft.network.protocol.game.ServerboundPlayerActionPacket
+public ServerboundPlayerActionPacket(Action action, net.minecraft.core.BlockPos pos, net.minecraft.core.Direction direction, int sequence) {
+    this(pos, direction, action, sequence);
+}
+
+public ServerboundPlayerActionPacket(Action action, net.minecraft.core.BlockPos pos, net.minecraft.core.Direction direction) {
+    this(pos, direction, action, 0);
+}
+
+@@ net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket
+public ServerboundPlayerCommandPacket(net.minecraft.world.entity.Entity entity, Action action) { this(entity, action, 0); }
+
+public ServerboundPlayerCommandPacket(net.minecraft.world.entity.Entity entity, Action action, int data) { this(entity.getId(), action, data); }
+
+@@ net.minecraft.network.protocol.game.ServerboundSeenAdvancementsPacket
+public static ServerboundSeenAdvancementsPacket closedScreen() { return new ServerboundSeenAdvancementsPacket(Action.CLOSED_SCREEN, null); }
+
+@@ net.minecraft.network.protocol.game.ServerboundSetCommandBlockPacket
+public ServerboundSetCommandBlockPacket(net.minecraft.core.BlockPos pos, String command,
+        net.minecraft.world.level.block.entity.CommandBlockEntity.Mode mode, boolean trackOutput, boolean conditional, boolean automatic) {
+    this(pos, command, trackOutput, conditional, automatic, mode);
+}
+
+@@ net.minecraft.network.protocol.game.ServerboundSetCreativeModeSlotPacket
+public ServerboundSetCreativeModeSlotPacket(int slotNum, net.minecraft.world.item.ItemStack itemStack) { this((short) slotNum, itemStack); }
+
+@@ net.minecraft.network.protocol.game.ServerboundSignUpdatePacket
+public ServerboundSignUpdatePacket(net.minecraft.core.BlockPos pos, boolean isFrontText, String line1, String line2, String line3, String line4) {
+    this(pos, new String[] {line1, line2, line3, line4}, isFrontText);
+}
+
+@@ net.minecraft.network.protocol.game.ServerboundUseItemOnPacket
+public ServerboundUseItemOnPacket(net.minecraft.world.InteractionHand hand, net.minecraft.world.phys.BlockHitResult blockHit, int sequence) {
+    this(blockHit, hand, sequence);
+}

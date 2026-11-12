@@ -34,8 +34,8 @@
 # 필드 값의 단위: Java 필드에 바닐라가 담는 값 그대로다(예: 회전은 1/256 바퀴 byte, 속도는 ×8000 short 를 int 에).
 
 # ---------------------------------------------------------------- 바깥 타입
-type class net.minecraft.network.chat.Component wire=component
-type record net.minecraft.resources.ResourceLocation wire=identifier
+type interface net.minecraft.network.chat.Component wire=component
+type class net.minecraft.resources.ResourceLocation wire=identifier
 type class net.minecraft.resources.ResourceKey<T> wire=identifier
 type interface net.minecraft.core.Registry<T>
 type interface net.minecraft.core.Holder<T> wire=holder
@@ -322,6 +322,8 @@ packet clientbound chunks_biomes ClientboundChunksBiomesPacket record
 record ClientboundChunksBiomesPacket$ChunkBiomeData
   ChunkPos pos
   byte[] buffer
+packet clientbound clear_titles ClientboundClearTitlesPacket class new
+  boolean resetTimes get=shouldResetTimes
 packet clientbound command_suggestions ClientboundCommandSuggestionsPacket record
   int id
   int start
@@ -765,6 +767,7 @@ packet clientbound ticking_state ClientboundTickingStatePacket record
   boolean isFrozen
 packet clientbound ticking_step ClientboundTickingStepPacket record
   int tickSteps
+# bundle 은 자기 와이어 id 가 없다 — 안의 패킷들이 앞뒤 bundle_delimiter 사이에 나간다
 packet clientbound bundle ClientboundBundlePacket class custom extends=BundlePacket<ClientGamePacketListener>
 
 # ---------------------------------------------------------------- play (serverbound)

@@ -20,8 +20,8 @@ class PacketSchemaTest {
     void loadsEveryPacketOfProtocol767() {
         PacketSchema s = PacketSchema.protocol767();
         assertEquals(767, s.protocol());
-        assertEquals(201, s.packets().size(), "1.21.1 패킷 종류 수(핸드셰이크 1 + 상태 2 + 핑 2 + 쿠키 2 + 로그인 9 + 설정 7 + 공통 16 + 게임 162)");
-        assertEquals(162, s.packets().stream().filter(p -> p.state().equals("game")).count());
+        assertEquals(202, s.packets().size(), "1.21.1 패킷 종류 수(핸드셰이크 1 + 상태 2 + 핑 2 + 쿠키 2 + 로그인 9 + 설정 7 + 공통 16 + 게임 163)");
+        assertEquals(163, s.packets().stream().filter(p -> p.state().equals("game")).count());
         assertSame(s, PacketSchema.protocol767());
         Set<String> classes = new HashSet<>();
         for (PacketDef p : s.packets()) {
@@ -44,6 +44,7 @@ class PacketSchemaTest {
             }
             for (PacketDef p : s.packets()) {
                 if (p.direction() != d || !PLAY_STATES.contains(p.state())) continue;
+                if (p.wireName().equals("bundle")) continue;   // 와이어 id 가 없다 — 앞뒤 bundle_delimiter 로 나간다
                 String wire = p.wireName().startsWith("move_player_") ? "move_player" : p.wireName();
                 assertTrue(api.contains(wire), "PacketTypes 에 없다: " + d + " " + p.wireName());
             }

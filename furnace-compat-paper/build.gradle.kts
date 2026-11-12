@@ -31,6 +31,29 @@ val nmsSurvey by configurations.creating {
     isTransitive = false
 }
 
+// N3: 중립 패킷 스키마(furnace-api packet/schema/protocol-767.schema)에서 net.minecraft 패킷 shim 소스를 빌드 때 만든다.
+// 결과물은 build/generated 에만 생기고 커밋하지 않는다. 손으로 쓴 shim(src/main/java)이 있는 클래스는 만들지 않는다.
+val shimgen: SourceSet = the<SourceSetContainer>().create("shimgen")
+dependencies { "shimgenImplementation"(project(":furnace-api")) }
+val generateNmsPacketShims by tasks.registering(JavaExec::class) {
+    group = "build"
+    description = "패킷 스키마에서 net.minecraft 패킷 shim 소스를 만든다"
+    val out = layout.buildDirectory.dir("generated/sources/nms-packets/java")
+    val hand = layout.projectDirectory.dir("src/main/java")
+    val extras = layout.projectDirectory.file("src/shimgen/resources/packet-shim-extras.txt")
+    classpath = shimgen.runtimeClasspath
+    mainClass.set("org.domi.furnace.compat.shimgen.PacketShimGenerator")
+    jvmArgs("-Dstdout.encoding=UTF-8")
+    inputs.files(shimgen.runtimeClasspath).withNormalizer(ClasspathNormalizer::class)
+    inputs.dir(hand).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file(extras)
+    outputs.dir(out)
+    argumentProviders.add(CommandLineArgumentProvider {
+        listOf(out.get().asFile.absolutePath, hand.asFile.absolutePath, extras.asFile.absolutePath)
+    })
+}
+the<SourceSetContainer>()["main"].java.srcDir(generateNmsPacketShims)
+
 // 경로 목록은 태스크 실행 때 푼다 — 설정 단계에서 풀면 다른 모듈의 시험(:furnace-server:test)도 jar 13개를 받으려 든다.
 class RealWorldJars(@get:InputFiles @get:PathSensitive(PathSensitivity.NONE) val jars: FileCollection) : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String> =
