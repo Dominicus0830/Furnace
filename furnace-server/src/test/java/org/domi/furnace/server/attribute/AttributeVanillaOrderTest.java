@@ -106,8 +106,8 @@ class AttributeVanillaOrderTest {
         i.addOrReplaceModifier(new AttributeModifier("test:a", 2, AttributeModifier.ADD_VALUE));
         assertEquals(List.of("test:b", "test:c", "test:a"), List.copyOf(i.modifiers().keySet()));
         assertEquals(1.1 + 1 + 1 + 2, i.value(), 1e-12);
-        // addOrUpdateTransientModifier: 제자리
-        i.addOrUpdateTransientModifier(new AttributeModifier("test:b", 5, AttributeModifier.ADD_VALUE));
+        // addOrReplaceTransientModifier: 제자리
+        i.addOrReplaceTransientModifier(new AttributeModifier("test:b", 5, AttributeModifier.ADD_VALUE));
         assertEquals(List.of("test:b", "test:c", "test:a"), List.copyOf(i.modifiers().keySet()));
         assertEquals(5, i.getModifier("test:b").amount());
         assertEquals(1.1 + 5 + 1 + 2, i.value(), 1e-12);
@@ -118,20 +118,36 @@ class AttributeVanillaOrderTest {
         int[] dirty = {0};
         var i = new AttributeInstance(Attribute.MAX_HEALTH, () -> dirty[0]++);
         var m = new AttributeModifier("test:a", 1, AttributeModifier.ADD_VALUE);
-        i.addOrUpdateTransientModifier(m);
+        i.addOrReplaceTransientModifier(m);
         int n = dirty[0];
-        i.addOrUpdateTransientModifier(new AttributeModifier("test:a", 1, AttributeModifier.ADD_VALUE));
+        i.addOrReplaceTransientModifier(new AttributeModifier("test:a", 1, AttributeModifier.ADD_VALUE));
         assertEquals(n, dirty[0]);
     }
 
     @Test
     void transientUpdateCanChangeOperation() {
         var i = instance();
-        i.addOrUpdateTransientModifier(new AttributeModifier("test:a", 1, AttributeModifier.ADD_VALUE));
+        i.addOrReplaceTransientModifier(new AttributeModifier("test:a", 1, AttributeModifier.ADD_VALUE));
         assertEquals(2.1, i.value(), 1e-12);
-        i.addOrUpdateTransientModifier(new AttributeModifier("test:a", 1, AttributeModifier.ADD_MULTIPLIED_TOTAL));
+        i.addOrReplaceTransientModifier(new AttributeModifier("test:a", 1, AttributeModifier.ADD_MULTIPLIED_TOTAL));
         assertEquals(2.2, i.value(), 1e-12);
         i.removeModifier("test:a");
         assertEquals(1.1, i.value(), 0.0);
+    }
+
+    @Test
+    void transientFlagFollowsTheLastAddAndClearsOnRemove() {
+        var i = instance();
+        i.addOrReplaceTransientModifier(new AttributeModifier("test:a", 1, AttributeModifier.ADD_VALUE));
+        assertTrue(i.isTransient("test:a"));
+        i.addOrReplaceModifier(new AttributeModifier("test:a", 1, AttributeModifier.ADD_VALUE));
+        assertFalse(i.isTransient("test:a"));
+        i.addOrReplaceTransientModifier(new AttributeModifier("test:a", 1, AttributeModifier.ADD_VALUE));
+        assertTrue(i.isTransient("test:a"), "같은 값이어도 저장 안 함으로 바뀐다");
+        i.removeModifier("test:a");
+        assertFalse(i.isTransient("test:a"));
+        i.addOrReplaceTransientModifier(new AttributeModifier("test:b", 1, AttributeModifier.ADD_VALUE));
+        i.removeModifiers();
+        assertFalse(i.isTransient("test:b"));
     }
 }

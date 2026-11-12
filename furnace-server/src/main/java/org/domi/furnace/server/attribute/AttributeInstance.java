@@ -2,8 +2,10 @@
 package org.domi.furnace.server.attribute;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 public final class AttributeInstance {
     private final Attribute attribute;
@@ -39,23 +41,33 @@ public final class AttributeInstance {
 
     /**
      * 같은 id 가 이미 있으면 바닐라는 예외를 던진다 — 여기서는 덮어쓴다. 바닐라 addOrReplacePermanentModifier 와 같이 옛것을 지우고 다시 넣는다
-     * (modifiers() 순서에서 끝으로 간다). 연산별 값 계산 순서는 바닐라 해시 맵 순회 순서다(ModifierOrder).
+     * (modifiers() 순서에서 끝으로 간다). 저장되는 수정자가 된다. 연산별 값 계산 순서는 바닐라 해시 맵 순회 순서다(ModifierOrder).
      */
     public void addOrReplaceModifier(AttributeModifier m) {
         State s = state;
         if (s.byId.containsKey(m.id())) s = s.without(m.id());
-        state = s.with(m);
+        state = s.with(m, false);
         setDirty();
     }
 
-    /** 바닐라 addOrUpdateTransientModifier: 같은 id 가 있으면 제자리에서 바꾼다(순서 유지). 같은 값이면 아무것도 안 한다. */
-    public void addOrUpdateTransientModifier(AttributeModifier m) {
+    /**
+     * 저장하지 않는 수정자를 단다. 바닐라 addOrUpdateTransientModifier 와 같이 같은 id 가 있으면 제자리에서 바꾼다(순서 유지).
+     * 이미 같은 값의 저장 안 하는 수정자면 아무것도 안 한다. (바닐라 addTransientModifier 의 중복 예외는 부르는 쪽이 검사한다.)
+     */
+    public void addOrReplaceTransientModifier(AttributeModifier m) {
         State s = state;
         AttributeModifier old = s.byId.get(m.id());
-        if (m.equals(old)) return;
-        state = old == null ? s.with(m) : s.replace(old, m);
+        if (old == null) {
+            state = s.with(m, true);
+        } else {
+            if (m.equals(old) && s.transientIds.contains(m.id())) return;
+            state = s.replace(old, m, true);
+        }
         setDirty();
     }
+
+    /** 저장하지 않는 수정자인가(AttributeMap.save 가 뺀다). */
+    public boolean isTransient(String id) { return state.transientIds.contains(id); }
 
     public boolean removeModifier(String id) {
         State s = state;
@@ -96,23 +108,30 @@ public final class AttributeInstance {
         return attribute.sanitize(acc[0]);
     }
 
-    /** 수정자 전체(넣은 순서) + 연산별 바닐라 순회 순서. 불변. */
-    private record State(Map<String, AttributeModifier> byId, ModifierOrder[] order) {
+    /** 수정자 전체(넣은 순서) + 연산별 바닐라 순회 순서 + 저장 안 하는 id. 불변. */
+    private record State(Map<String, AttributeModifier> byId, ModifierOrder[] order, Set<String> transientIds) {
         static final State EMPTY = new State(Map.of(),
-                new ModifierOrder[] {ModifierOrder.EMPTY, ModifierOrder.EMPTY, ModifierOrder.EMPTY});
+                new ModifierOrder[] {ModifierOrder.EMPTY, ModifierOrder.EMPTY, ModifierOrder.EMPTY}, Set.of());
 
         private static int op(AttributeModifier m) {
             int o = m.operation();
             return o == AttributeModifier.ADD_MULTIPLIED_BASE || o == AttributeModifier.ADD_MULTIPLIED_TOTAL ? o : AttributeModifier.ADD_VALUE;
         }
 
-        State with(AttributeModifier m) {
+        private static Set<String> withTransient(Set<String> t, String id, boolean isTransient) {
+            if (isTransient == t.contains(id)) return t;
+            Set<String> n = new HashSet<>(t);
+            if (isTransient) n.add(id); else n.remove(id);
+            return Set.copyOf(n);
+        }
+
+        State with(AttributeModifier m, boolean isTransient) {
             Map<String, AttributeModifier> next = new LinkedHashMap<>(byId);
             next.put(m.id(), m);
             ModifierOrder[] o = order.clone();
             int k = op(m);
             o[k] = o[k].put(m.id());
-            return new State(Collections.unmodifiableMap(next), o);
+            return new State(Collections.unmodifiableMap(next), o, withTransient(transientIds, m.id(), isTransient));
         }
 
         State without(String id) {
@@ -122,11 +141,11 @@ public final class AttributeInstance {
             ModifierOrder[] o = order.clone();
             int k = op(old);
             o[k] = o[k].remove(id);
-            return new State(Collections.unmodifiableMap(next), o);
+            return new State(Collections.unmodifiableMap(next), o, withTransient(transientIds, id, false));
         }
 
         /** 같은 id 의 값만 바꾼다(제자리). 연산이 달라지면 옛 연산 표에서 빼고 새 연산 표에 넣는다(바닐라 맵 동작과 같다). */
-        State replace(AttributeModifier old, AttributeModifier m) {
+        State replace(AttributeModifier old, AttributeModifier m, boolean isTransient) {
             Map<String, AttributeModifier> next = new LinkedHashMap<>(byId);
             next.put(m.id(), m);
             ModifierOrder[] o = order.clone();
@@ -135,7 +154,7 @@ public final class AttributeInstance {
                 o[ko] = o[ko].remove(m.id());
                 o[kn] = o[kn].put(m.id());
             }
-            return new State(Collections.unmodifiableMap(next), o);
+            return new State(Collections.unmodifiableMap(next), o, withTransient(transientIds, m.id(), isTransient));
         }
     }
 }
