@@ -56,8 +56,12 @@ public final class TestPlayer implements AutoCloseable {
     static final int RECEIVED_MAX = 20_000;
     private volatile org.domi.furnace.server.plugin.packet.ProtocolCodec codec;
     private volatile int pingId = -1;
+    /** 우리 ping 의 기준값 — 플러그인이 보낸 ping(안티치트 등)과 섞이지 않게 기준값 + 번호만 인정한다. */
+    private final int pingBase = java.util.concurrent.ThreadLocalRandom.current().nextInt();
     private final AtomicLong pingSent = new AtomicLong();
     private final AtomicLong pingSeen = new AtomicLong();
+    /** 타입 래퍼가 있는데 풀지 못한 패킷 수(실패 메시지에 보인다). */
+    private final AtomicLong decodeFailures = new AtomicLong();
     private volatile boolean connected;
     private volatile String disconnectReason;
     private Thread reader;
@@ -166,7 +170,8 @@ public final class TestPlayer implements AutoCloseable {
                 ByteBuf f = read();
                 int id = Types.readVarInt(f);
                 if (id == pingId) {   // 받은 패킷 장벽(flushReceived) — 서버가 그 앞에 쓴 것은 모두 읽었다
-                    pingSeen.accumulateAndGet(f.getInt(f.readerIndex()), Math::max);
+                    long d = (f.getInt(f.readerIndex()) - pingBase) & 0xFFFFFFFFL;   // 우리가 보낸 번호(1..보낸 수)만 인정
+                    if (d >= 1 && d <= pingSent.get()) pingSeen.accumulateAndGet(d, Math::max);
                     continue;
                 }
                 record(id, f.duplicate());
@@ -205,6 +210,7 @@ public final class TestPlayer implements AutoCloseable {
         try {
             p = c.decode(t, id, body);
         } catch (RuntimeException e) {
+            decodeFailures.incrementAndGet();
             return;
         }
         synchronized (received) {
@@ -410,41 +416,88 @@ public final class TestPlayer implements AutoCloseable {
         if (!type.typed()) throw new IllegalArgumentException(type + " 는 타입 래퍼가 없어 모으지 않는다");
         flushReceived();   // 서버가 이미 보낸 것은 먼저 다 읽는다
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(server.timeoutMillis());
-        synchronized (received) {
-            while (true) {
-                for (var p : received) if (p.type() == type && match.test(type.packetClass().cast(p))) return type.packetClass().cast(p);
-                long left = deadline - System.nanoTime();
-                if (left <= 0 || !connected) {
-                    List<String> got = new java.util.ArrayList<>();
-                    for (var p : received) if (p.type() == type) got.add(p.toString());
-                    throw new IllegalStateException(name + ": 맞는 " + type + " 가 오지 않았다" + (connected ? "" : "(접속 끊김)") + ". 받은 것: " + got);
-                }
-                try {
-                    received.wait(Math.max(1, TimeUnit.NANOSECONDS.toMillis(Math.min(left, 50_000_000L))));
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IllegalStateException(e);
+        while (true) {
+            List<org.domi.furnace.api.packet.Packet> snap;
+            synchronized (received) {
+                snap = List.copyOf(received);
+            }
+            // 조건은 잠금 밖에서 돌린다 — 조건 안에서 received() 를 불러도 읽기 스레드가 막히지 않게
+            List<P> sameType = new java.util.ArrayList<>();
+            for (var p : snap) {
+                if (p.type() != type) continue;
+                P cast = type.packetClass().cast(p);
+                if (match.test(cast)) return cast;
+                sameType.add(cast);
+            }
+            long left = deadline - System.nanoTime();
+            if (left <= 0 || !connected) throw new IllegalStateException(name + ": 맞는 " + type + " 가 오지 않았다" + (connected ? "" : "(접속 끊김)")
+                    + ". " + summary(sameType));
+            synchronized (received) {
+                if (received.size() == snap.size() && (snap.isEmpty() || received.peekLast() == snap.get(snap.size() - 1))) {
+                    try {
+                        received.wait(Math.max(1, TimeUnit.NANOSECONDS.toMillis(Math.min(left, 50_000_000L))));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException(e);
+                    }
                 }
             }
         }
     }
+
+    /** 실패 메시지용: 그 종류 받은 수, 마지막 10개(각각 300자까지), 풀지 못한 패킷 수. */
+    private String summary(List<? extends org.domi.furnace.api.packet.Packet> sameType) {
+        StringBuilder b = new StringBuilder("받은 그 종류 ").append(sameType.size()).append("개");
+        if (!sameType.isEmpty()) {
+            b.append(sameType.size() > 10 ? ", 마지막 10개: [" : ": [");
+            List<? extends org.domi.furnace.api.packet.Packet> tail = sameType.subList(Math.max(0, sameType.size() - 10), sameType.size());
+            for (int i = 0; i < tail.size(); i++) {
+                String one = String.valueOf(tail.get(i));
+                b.append(i == 0 ? "" : ", ").append(one.length() > 300 ? one.substring(0, 300) + "…" : one);
+            }
+            b.append(']');
+        }
+        long bad = decodeFailures.get();
+        if (bad > 0) b.append(". 풀지 못한 패킷 ").append(bad).append("개");
+        return b.toString();
+    }
+
+    /** 타입 래퍼가 있는데 풀지 못해 모으지 못한 패킷 수. */
+    public long decodeFailures() { return decodeFailures.get(); }
 
     /**
      * 받은 패킷 장벽: 서버가 지금까지 이 플레이어 연결에 쓴 패킷을 읽기 스레드가 모두 읽을 때까지 기다린다(서버가 ping 을 보내고 그것이 오면 끝).
      * 서버 쪽 처리(명령·틱)를 기다리지는 않는다 — 그건 sync()·tick().
      */
     public void flushReceived() {
-        if (!connected || pingId < 0) return;
-        var p = server.internals().playerByName(name);
-        if (p == null) return;
+        if (pingId < 0) return;
+        var p = connected ? server.internals().playerByName(name) : null;
+        if (p == null) {   // 끊겼거나 서버 목록에서 빠졌다(킥 직후 등) — 장벽을 보낼 곳이 없으니 읽기 스레드가 연결 끝까지 다 읽기를 기다린다
+            awaitReaderEnd();
+            return;
+        }
         long n = pingSent.incrementAndGet();
-        byte[] body = java.nio.ByteBuffer.allocate(4).putInt((int) n).array();
+        byte[] body = java.nio.ByteBuffer.allocate(4).putInt(pingBase + (int) n).array();
         p.send(new org.domi.furnace.server.net.protocol.RawPacket(pingId, body, null, true));   // 리스너를 거치지 않는다
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(server.timeoutMillis());
         while (pingSeen.get() < n) {
-            if (!connected) return;
+            if (!connected) {   // 장벽을 보낸 뒤 끊겼다 — 남은 것을 다 읽을 때까지
+                awaitReaderEnd();
+                return;
+            }
             if (System.nanoTime() - deadline > 0) throw new IllegalStateException(name + ": 받은 패킷 장벽이 돌아오지 않았다");
             java.util.concurrent.locks.LockSupport.parkNanos(200_000L);
+        }
+    }
+
+    /** 읽기 스레드가 끝날 때까지(연결 끝 — EOF·disconnect) 기다린다. 시간 제한을 넘기면 그대로 돌아간다. */
+    private void awaitReaderEnd() {
+        Thread r = reader;
+        if (r == null || r == Thread.currentThread()) return;
+        try {
+            r.join(server.timeoutMillis());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

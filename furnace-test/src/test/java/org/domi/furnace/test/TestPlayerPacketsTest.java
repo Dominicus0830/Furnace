@@ -13,6 +13,7 @@ import org.domi.furnace.api.packet.clientbound.ClientboundAddEntityPacket;
 import org.domi.furnace.api.packet.clientbound.ClientboundSetEntityDataPacket;
 import org.domi.furnace.api.packet.clientbound.ClientboundSetTitleTextPacket;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.net.protocol.RawPacket;
 import org.domi.furnace.test.sample.CounterPlugin;
 import org.junit.jupiter.api.Test;
 
@@ -64,6 +65,45 @@ class TestPlayerPacketsTest {
             var e = assertThrows(IllegalStateException.class,
                     () -> steve.awaitPacket(PacketTypes.Clientbound.SET_TITLE_TEXT, t -> t.text().plainText().equals("비밀")));
             assertTrue(e.getMessage().contains("[!] 공지"), "실패 메시지에 받은 그 종류 목록: " + e.getMessage());
+        }
+    }
+    @Test
+    void afterKickReceivedReturnsEverythingUpToDisconnect() {
+        try (var server = FurnaceTestServer.builder().plugin(CounterPlugin.class).timeout(5_000).start()) {
+            TestPlayer steve = server.join("Steve");
+            steve.clearReceived();
+            var handle = steve.player();
+            for (int i = 0; i < 200; i++) server.api().packets().send(handle, new ClientboundSetTitleTextPacket(Text.text("k" + i)));
+            handle.kick(Text.text("bye"));
+            long dl = System.nanoTime() + 5_000_000_000L;
+            while (server.internals().playerByName("Steve") != null && System.nanoTime() < dl) Thread.onSpinWait();
+            assertEquals(200, steve.received(PacketTypes.Clientbound.SET_TITLE_TEXT).size(), "킥 뒤에는 연결 끝까지 읽은 것");
+        }
+    }
+
+    @Test
+    void pluginPingDoesNotBreakBarrierAndDecodeFailuresAreCounted() {
+        try (var server = FurnaceTestServer.builder().plugin(CounterPlugin.class).timeout(2_000).start()) {
+            TestPlayer steve = server.join("Steve");
+            var core = server.internals();
+            var codec = core.plugins().packetsImpl().codec();
+            int pingId = codec.ids(PacketTypes.Clientbound.PING)[0];
+            // 안티치트류 플러그인이 임의 값으로 ping 을 보내도 장벽은 우리 값만 센다
+            core.playerByName("Steve").send(new RawPacket(pingId, java.nio.ByteBuffer.allocate(4).putInt(1_000_000).array(), null, true));
+            steve.flushReceived();
+            for (int round = 0; round < 50; round++) {
+                steve.clearReceived();
+                for (int k = 0; k < 20; k++) server.api().packets().send(steve.player(), new ClientboundSetTitleTextPacket(Text.text("k" + k)));
+                assertEquals(20, steve.received(PacketTypes.Clientbound.SET_TITLE_TEXT).size());
+            }
+            // 깨진 본문은 기록되지 않고 수로 남으며 실패 메시지에 보인다
+            int titleId = codec.ids(PacketTypes.Clientbound.SET_TITLE_TEXT)[0];
+            long before = steve.decodeFailures();
+            steve.clearReceived();
+            core.playerByName("Steve").send(new RawPacket(titleId, new byte[0], null, true));
+            var e = assertThrows(IllegalStateException.class, () -> steve.awaitPacket(PacketTypes.Clientbound.SET_TITLE_TEXT, t -> true));
+            assertEquals(before + 1, steve.decodeFailures());
+            assertTrue(e.getMessage().contains("풀지 못한 패킷"), e.getMessage());
         }
     }
 }
