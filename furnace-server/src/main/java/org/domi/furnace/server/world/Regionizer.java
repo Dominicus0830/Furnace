@@ -461,7 +461,7 @@ public final class Regionizer {
             java.util.concurrent.locks.LockSupport.unpark(w);
             return;
         }
-        if (Region.URGENT_WAITERS.get() == 0) return;
+        if (!Region.urgentOpen()) return;
         lock.lock();
         try {
             if (closed || !r.queued || r.ticking || !r.alive || r.yielded || r.drainPass) return;
@@ -766,7 +766,7 @@ public final class Regionizer {
             pool.slotFreed();   // 끝낸 워커는 곧바로 다시 고르지만 자리가 둘 열릴 수도 있다(차원별 상한 + 서버 전체 몫) — 상한 때문에 자던 워커 하나를 깨운다
             afterTick(r);
             // 틱 중에 들어온 급한 작업(다른 region 의 명령 블록이 기다린다)은 다음 틱까지 미루지 않는다
-            if (Region.URGENT_WAITERS.get() > 0 && r.alive && r.hasUrgentTask()) urgentArrived(r);
+            if (Region.urgentOpen() && r.alive && r.hasUrgentTask()) urgentArrived(r);
         } catch (Throwable t) {
             log.error("[REGION] region #{} 틱 뒤 정리 실패", r.id, t);
         } finally {
@@ -1287,7 +1287,7 @@ public final class Regionizer {
             r.tickThread = null;
             resolveMerges(r);
             if (r.alive && !r.yielded) schedule(r);
-            if (Region.URGENT_WAITERS.get() > 0 && r.alive && r.hasUrgentTask()) urgentArrived(r);
+            if (Region.urgentOpen() && r.alive && r.hasUrgentTask()) urgentArrived(r);
         } catch (Throwable t) {
             log.error("[REGION] region #{} 빌림 반납 실패", r.id, t);
         } finally {

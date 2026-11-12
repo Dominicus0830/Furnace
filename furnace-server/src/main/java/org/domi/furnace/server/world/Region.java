@@ -88,6 +88,8 @@ public final class Region {
     static final java.util.concurrent.atomic.AtomicInteger URGENT_WAITERS = new java.util.concurrent.atomic.AtomicInteger();
     /** 한 틱에 명령 블록이 명령 결과를 기다리는 데 쓸 수 있는 시간 합(ns). 넘으면 예전처럼 결과를 다음 틱 이후에 반영한다. */
     static final long URGENT_WAIT_BUDGET_NANOS = Long.getLong("furnace.commandBlockWaitMicros", 20_000L) * 1_000L;
+    /** 급한 작업을 곧바로 돌려도 되는가: 명령 블록이 기다리는 중이거나 명령 큐 문(CommandDrainGate)이 열려 있다. */
+    static boolean urgentOpen() { return URGENT_WAITERS.get() > 0 || CommandDrainGate.open(); }
     /** 지금 명령 결과를 기다리는 이 region 의 스레드(급한 작업이 오면 깨운다). */
     volatile Thread urgentWaiter;
     /** Regionizer 잠금 안: 이번 차례는 급한 작업만(drain) — 끝나면 savedNextTickNanos 로 돌아간다. */
@@ -210,7 +212,9 @@ public final class Region {
         } finally {
             URGENT_WAITERS.decrementAndGet();
             urgentWaiter = prev;
-            urgentWaitUsed += System.nanoTime() - start;
+            long waited = System.nanoTime() - start;
+            urgentWaitUsed += waited;
+            CommandDrainGate.charge(waited);   // 명령 큐 문과 예산을 나눠 쓴다
         }
     }
 
@@ -235,10 +239,12 @@ public final class Region {
     void runUrgentDrain() {
         if (level != null) level.chunkUnloaded();
         betweenTicks = true;
+        long start = System.nanoTime();
         try {
             runUrgentTasks();
         } finally {
             betweenTicks = false;
+            CommandDrainGate.charge(System.nanoTime() - start);
         }
     }
 
