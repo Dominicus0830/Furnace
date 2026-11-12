@@ -36,36 +36,58 @@ class SpawnBatchTest {
         Player p = new Player(1, UUID.randomUUID(), "A", ch);
         p.applyMove(0, -60, 0, 0, 0, true);
         sched.region(rp).execute(() -> w.regionAt(rp).adopt(p)).get();
-        sched.region(rp).execute(() -> w.regionAt(rp).tick()).get();
-
-        // 비동기 청크 파이프라인 완료까지 폴링하며 outbound 패킷 id 수집.
+        // 비동기 청크 파이프라인(미리 불러오기 → 본문 준비)이 끝날 때까지 틱을 돌리며 outbound 패킷 id 수집. 배치는 틱마다 준비된 청크만 담으므로 여러 개일 수 있다.
+        int expected = ChunkTrackingViewTest.vanillaCount(1);
         List<Integer> ids = new ArrayList<>();
-        int finishedSize = -1;
-        for (int i = 0; i < 300 && finishedSize < 0; i++) {
+        List<Integer> finishedSizes = new ArrayList<>();
+        long chunkCount = 0;
+        for (int i = 0; i < 600 && chunkCount < expected; i++) {
+            sched.region(rp).execute(() -> w.regionAt(rp).tick()).get();
             ch.runPendingTasks();
             Object o;
             while ((o = ch.readOutbound()) != null) {
                 ByteBuf b = (ByteBuf) o;
                 int id = Types.readVarInt(b);
                 ids.add(id);
-                if (id == CHUNK_BATCH_FINISHED) finishedSize = Types.readVarInt(b);
+                if (id == CHUNK_BATCH_FINISHED) finishedSizes.add(Types.readVarInt(b));
+                else if (id == LEVEL_CHUNK) chunkCount++;
                 b.release();
             }
-            if (finishedSize < 0) Thread.sleep(10);
+            Thread.sleep(10);
+        }
+        // 마지막 Finished 가 나가기까지 한 번 더
+        for (int i = 0; i < 100 && ids.lastIndexOf(CHUNK_BATCH_FINISHED) < ids.lastIndexOf(LEVEL_CHUNK); i++) {
+            ch.runPendingTasks();
+            Object o;
+            while ((o = ch.readOutbound()) != null) {
+                ByteBuf b = (ByteBuf) o;
+                int id = Types.readVarInt(b);
+                ids.add(id);
+                if (id == CHUNK_BATCH_FINISHED) finishedSizes.add(Types.readVarInt(b));
+                b.release();
+            }
+            Thread.sleep(10);
         }
 
-        int start = ids.indexOf(CHUNK_BATCH_START);
-        int finished = ids.lastIndexOf(CHUNK_BATCH_FINISHED);
-        long chunkCount = ids.stream().filter(id -> id == LEVEL_CHUNK).count();
-        int firstChunk = ids.indexOf(LEVEL_CHUNK);
-        int lastChunk = ids.lastIndexOf(LEVEL_CHUNK);
-
-        assertTrue(start >= 0, "ChunkBatchStart 전송돼야");
-        assertTrue(finished >= 0, "ChunkBatchFinished 전송돼야");
-        assertEquals(21, chunkCount, "바닐라 둥근 모양 21개 청크 전송");
-        assertEquals(21, finishedSize, "Finished count == 청크 수");
-        assertTrue(start < firstChunk, "Start가 첫 청크 앞");
-        assertTrue(lastChunk < finished, "Finished가 마지막 청크 뒤");
+        assertEquals(expected, chunkCount, "바닐라 둥근 모양 " + expected + "개 청크 전송");
+        assertEquals(expected, finishedSizes.stream().mapToInt(Integer::intValue).sum(), "Finished count 합 == 청크 수");
+        // 배치마다 Start → 청크들 → Finished(그 배치의 청크 수), 배치끼리 겹치지 않는다
+        int open = -1;
+        int batchIndex = 0;
+        for (int id : ids) {
+            if (id == CHUNK_BATCH_START) {
+                assertEquals(-1, open, "앞 배치가 닫히기 전에 새 배치가 열렸다");
+                open = 0;
+            } else if (id == LEVEL_CHUNK) {
+                assertTrue(open >= 0, "청크가 배치 밖에서 나갔다");
+                open++;
+            } else if (id == CHUNK_BATCH_FINISHED) {
+                assertTrue(open >= 0, "Finished 가 Start 없이 나갔다");
+                assertEquals(finishedSizes.get(batchIndex++), open, "배치 Finished 수 == 그 배치의 청크 수");
+                open = -1;
+            }
+        }
+        assertEquals(-1, open, "마지막 배치가 닫혀야 한다");
 
         io.shutdown();
         sched.close();
