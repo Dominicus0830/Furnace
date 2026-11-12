@@ -69,11 +69,14 @@ public enum ConfigFormat {
     /** 섹션을 이 포맷의 텍스트로 직렬화한다. */
     public String write(ConfigSection section) {
         return switch (this) {
-            case YAML -> YamlWriter.write(section);
-            case TOML -> TomlWriter.write(section);
-            case JSON -> JsonWriter.write(section);
+            case YAML -> YamlWriter.write(writable(section));
+            case TOML -> TomlWriter.write(writable(section));
+            case JSON -> JsonWriter.write(writable(section));
         };
     }
+
+    /** 쓰기용: 불투명 값({@link ConfigSection.Opaque})이 있으면 그 순간의 저장 꼴로 바꾼 사본(원본 트리는 읽기만 한다). */
+    private static ConfigSection writable(ConfigSection section) { return section.hasOpaque() ? section.lowered() : section; }
 
     /** 파일 이름의 확장자(.yml/.yaml/.toml/.json, 대소문자 무시)로 포맷을 찾는다. */
     public static Optional<ConfigFormat> fromFileName(String fileName) {
