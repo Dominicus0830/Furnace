@@ -55,6 +55,33 @@ public interface World {
     CompletableFuture<Boolean> setBlock(BlockPos pos, BlockData data);
 
     /**
+     * 빠른 블록 쓰기(E7): edit 이 적은 칸들을 한꺼번에 바꾼다. edit 은 지금 이 스레드에서 바로 불리고(월드를 읽지 않고 목록만 쌓는다),
+     * 적용은 청크마다 그 청크를 가진 region 스레드에서 한다 — 여러 region 에 걸치면 region 마다 따로, 동시에.
+     * 한 청크 안에서는 아래 섹션부터, 섹션 안에서는 y·z·x 순서로 바꾼다(적은 순서가 아니다). 순서가 결과를 바꾸는 편집
+     * (지지대와 그 위 블록을 같은 편집에서 바꾸며 IMMEDIATE 이웃 갱신 등)은 나눠서 하거나 AFTER_EDIT 을 쓴다.
+     * 로드되지 않은 청크는 건너뛴다(만들거나 불러오지 않는다). 칸마다 바닐라 Level.setBlock 과 같은 길을 지나므로 결과는
+     * 같은 옵션의 setBlock 을 그 순서로 부른 것과 같다. BlockPlace/BlockBreak 이벤트는 거치지 않는다.
+     * 알 수 없는 블록·속성이면 IllegalArgumentException 으로 완료된다(아무 칸도 바꾸지 않는다).
+     * 결과를 같은 region 스레드에서 {@code get()} 으로 기다리지 말 것.
+     */
+    default CompletableFuture<BlockEditResult> editBlocks(BlockEditOptions options, java.util.function.Consumer<BlockEditor> edit) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("editBlocks"));
+    }
+
+    /** {@link BlockEditOptions#DEFAULT} 로 — World.setBlock 을 칸마다 부른 것과 같은 결과를 한꺼번에. */
+    default CompletableFuture<BlockEditResult> editBlocks(java.util.function.Consumer<BlockEditor> edit) {
+        return editBlocks(BlockEditOptions.DEFAULT, edit);
+    }
+
+    /**
+     * {@link #editBlocks} 의 동기판 — 적은 칸의 청크가 모두 이 스레드가 돌리는 region 것일 때만 된다(예: 그 region 이벤트 처리기 안).
+     * 아니면 아무 칸도 바꾸지 않고 {@link org.domi.furnace.api.concurrent.ThreadOwnershipException}. chunksPerTick 은 무시하고 한 번에 다 한다.
+     */
+    default BlockEditResult editBlocksNow(BlockEditOptions options, java.util.function.Consumer<BlockEditor> edit) {
+        throw new UnsupportedOperationException("editBlocksNow");
+    }
+
+    /**
      * 동기 읽기 — 호출한 스레드가 그 칸을 가진 region 스레드일 때만 된다(예: 그 region 에서 발화한 이벤트 처리기 안).
      * 아니면 {@link org.domi.furnace.api.concurrent.ThreadOwnershipException}.
      */

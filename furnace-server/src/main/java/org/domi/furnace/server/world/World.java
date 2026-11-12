@@ -1294,6 +1294,23 @@ public final class World {
         });
         return sub;
     }
+    /**
+     * 그 플레이어가 지금도 그 청크를 구독하고 있을 때만 새 구독으로 바꾼다(청크 다시 보내기). 그 사이 다른 스레드에서 구독을 풀었으면
+     * 다시 넣지 않고 null — 떠난 플레이어의 구독이 남아 청크가 내려가지 않는 일을 막는다.
+     */
+    public Subscription resubscribeIfPresent(ChunkPos cp, Player p) {
+        Subscription sub = new Subscription();
+        boolean[] done = new boolean[1];
+        chunkSubscribers.computeIfPresent(cp, (k, m) -> {
+            if (m.containsKey(p)) {
+                m.put(p, sub);
+                done[0] = true;
+            }
+            return m;
+        });
+        return done[0] ? sub : null;
+    }
+
     public void unsubscribeChunk(ChunkPos cp, Player p) {
         chunkSubscribers.computeIfPresent(cp, (k, m) -> {
             m.remove(p);

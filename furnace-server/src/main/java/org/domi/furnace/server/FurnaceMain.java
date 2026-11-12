@@ -78,6 +78,8 @@ public final class FurnaceMain {
             return;
         }
         // 바닐라 Main 순서: server.properties 를 읽어 기본값을 채워 다시 쓰고 → eula.txt 확인.
+        if (org.domi.furnace.server.block.RandomSeeds.SEEDED)
+            log.warn("-Dfurnace.test.seeded=true 는 시험 전용이다: 난수가 예측 가능해지고 엔티티 UUID 가 부팅마다 겹칠 수 있다. 운영 서버에서는 끄라.");
         Path propertiesPath = Path.of("server.properties");
         ServerPropertiesFile settings = new ServerPropertiesFile(propertiesPath);
         settings.forceSave();

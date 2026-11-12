@@ -284,6 +284,12 @@ public final class Compat {
         });
     }
 
+    /** 접속이 끝났다(퇴장 이벤트를 Bukkit 처리기들이 본 뒤) — NMS 연결의 가상 채널을 닫아 패킷 라이브러리가 자기 처리기를 걷게 한다. */
+    static void disconnected(org.domi.furnace.api.entity.Player p) {
+        CraftPlayer c = existingPlayer(p);
+        if (c != null) c.disconnected();
+    }
+
     /**
      * 이미 감싼 CraftPlayer 만 준다(새로 만들지 않는다) — 권한 판정 경로에서 부르므로 CraftPlayer 생성(권한 계산)으로 되돌아가지 않게.
      * 접속이 바뀐(핸들이 다른) 옛 객체는 null.

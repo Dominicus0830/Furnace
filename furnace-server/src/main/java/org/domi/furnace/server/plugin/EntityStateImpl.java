@@ -282,6 +282,28 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
         }
 
         @Override
+        public Optional<org.domi.furnace.api.entity.attribute.AttributeInstance> attribute(org.domi.furnace.api.entity.attribute.Attribute attribute) {
+            java.util.Objects.requireNonNull(attribute, "attribute");
+            check();
+            var i = le.attributes().get(AttributeApi.server(attribute));
+            return i == null ? Optional.empty() : Optional.of(new AttributeApi.Live(i, this::check));
+        }
+
+        @Override
+        public List<org.domi.furnace.api.entity.attribute.Attribute> attributes() {
+            check();
+            return AttributeApi.keys(le.attributes().snapshot());
+        }
+
+        @Override
+        public boolean registerAttribute(org.domi.furnace.api.entity.attribute.Attribute attribute) {
+            var a = AttributeApi.server(java.util.Objects.requireNonNull(attribute, "attribute"));
+            if (!writable() || le.attributes().has(a)) return false;
+            le.attributes().register(a);
+            return true;
+        }
+
+        @Override
         public boolean isCollidable() {
             check();
             return le.collides;
