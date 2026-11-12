@@ -9,3 +9,10 @@
 - copyDefaults 저장·getKeys 는 기본값 트리가 이미 '.' 로 쪼개져 있어 코드를 바꾸지 않아도 Paper 와 같다(저장 병합이 literal 키 기준이라서).
 
 기대값은 PR #254 검토의 Paper 설정 클래스 실행 결과(`oracle-results-cb6a091b.tsv` Paper 열)에서 옮겼다.
+
+## 독립 검토 반영(PR #264, 11-12)
+- R1·R3: Paper `MemoryConfiguration.addDefault` 는 `defaults.set(path)` — 기본값 설정이 이미 있으면(setDefaults 로 받은 것) **그 설정 자신의 구분자**로 쪼갠다. `'.'` 은 새로 만든 기본값 설정의 기본일 뿐. 그래서 기본값 설정의 구분자가 '.' 가 아니면(옵션 켬 또는 '.' 루트) 그 설정에 `set(createPath)` 로 쓴다. 꺼진 사용자 지정 구분자 길(addDefault 가 만든 트리는 이쪽 구분자)은 그대로.
+- R4: `getDefaults()` 포장 객체를 한 번 만들어 둔다(같은 객체, options() 변경이 남는다). 플러그인이 안 바꿨다면(꺼짐) 루트 구분자를 따라간다.
+- R6: 옵션 값은 서버마다 한 번만 읽어 둔다. 서버 없는 호출은 `Furnace.serverOrNull()` 로 예외 없이 처리.
+- R2: 옵션 설명을 고쳤다 — 켜면 setDefaults 와 섞을 때·저장 뒤 다시 읽을 때의 값도 Paper 와 같아지고, Paper 처럼 다시 읽으면 기본값이 빠질 수 있다(시나리오 70).
+- R5: `addDefault("")` 뒤 Paper 는 빈 기본값 설정이 남는다 — 기록만.

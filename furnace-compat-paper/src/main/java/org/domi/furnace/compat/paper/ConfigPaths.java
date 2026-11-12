@@ -12,13 +12,18 @@ public final class ConfigPaths {
     /** 서버 옵션(furnace.properties): 켜면 addDefault 기본값 트리를 Paper 처럼 언제나 '.' 로 쪼갠다(기본 꺼짐 = 개발자가 정한 구분자로 쪼갬). */
     public static final String PAPER_DEFAULT_SEPARATOR_OPTION = "plugins.compat.config.paper-default-separator";
 
+    /** 서버 하나의 옵션 값(서버 수명 동안 바뀌지 않는다 — 값 조회마다 맵을 뒤지지 않게 한 번만 읽어 둔다). */
+    private record Cached(org.domi.furnace.api.Furnace server, boolean on) {}
+
+    private static volatile Cached cached;
+
     /** 위 옵션이 켜졌는가. 서버가 없으면(설정만 쓰는 도구·시험) 꺼짐. */
     public static boolean paperDefaultSeparator() {
-        try {
-            return "true".equals(org.domi.furnace.api.Furnace.server().compatOption(PAPER_DEFAULT_SEPARATOR_OPTION));
-        } catch (IllegalStateException noServer) {
-            return false;
-        }
+        org.domi.furnace.api.Furnace f = org.domi.furnace.api.Furnace.serverOrNull();
+        if (f == null) return false;
+        Cached c = cached;
+        if (c == null || c.server != f) cached = c = new Cached(f, "true".equals(f.compatOption(PAPER_DEFAULT_SEPARATOR_OPTION)));
+        return c.on;
     }
 
     /**

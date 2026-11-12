@@ -506,6 +506,16 @@ public class MemorySection implements ConfigurationSection {
 
     @Override
     public void addDefault(String path, Object value) {
+        // Paper: defaults.set(createPath(this, path), value) — setDefaults 로 받은 설정이 '.' 가 아닌 자기 구분자를 쓰면 그 구분자로 쪼갠다(PR #264 검토 R1·R3).
+        // addDefault 로 만든 기본값 트리의 포장 객체는 꺼짐일 때만 이쪽 구분자를 물려받으므로(MemoryConfiguration#getDefaults) 켜지 않은 채 사용자 지정 구분자면 아래 옛 길을 탄다.
+        if (!custom() || ConfigPaths.paperDefaultSeparator()) {
+            Configuration defs = root.getDefaults();
+            if (defs != null && defs.options().pathSeparator() != '.') {
+                if (path.isEmpty()) throw new IllegalArgumentException("Cannot set to an empty path");
+                defs.set(paperPath(path), value);
+                return;
+            }
+        }
         if (!custom()) {
             delegate.addDefault(path, in(value));
             return;

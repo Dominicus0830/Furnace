@@ -23,6 +23,9 @@ public interface Furnace {
         return s;
     }
 
+    /** 서버가 아직 없으면 null(예외를 만들지 않는다) — 서버 없이도 쓰이는 코드(설정만 쓰는 도구·시험)용. */
+    static Furnace serverOrNull() { return Holder.server; }
+
     /** 서버 구현 전용 — 한 번만 정할 수 있다. */
     static void setServer(Furnace server) {
         synchronized (Holder.class) {
