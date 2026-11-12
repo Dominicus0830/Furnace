@@ -17,6 +17,8 @@ PR #253 검토 R2 — Paper `MemorySection.set` 은 값 객체를 그대로 `map
 - `serialize()` 가 트리가 모르는 타입(byte[] 등)을 돌려주면 쓸 때 IllegalArgumentException 이다(Paper 는 `!!binary` 로 씀, R12). set 때가 아니라 쓸 때 난다.
 - `==` 키를 `'=='` 로 따옴표 쳐서 쓴다(R15), 빈 경로 set 의 예외 문구(R17), 객체가 구역으로 바뀔 때 키 주석이 남는 점(R13)은 기존과 같다.
 
+- 읽을 때 되살리지 못한 `==` 구역(읽는 순간 클래스가 등록돼 있지 않았거나 되살리기가 예외)은 구역으로 남는다. 나중에 클래스가 등록되면 `get` 때 되살려 잎으로 바꾼다. 되살리기가 예외면 경고 로그 한 줄(검토 N1·N2).
+
 ## 시험
 `A15ConfigRetainTest`(같은 참조·set 뒤 변경 반영·저장 시점 값·등록 안 한 클래스 등), `A15ConfigObjectLeafTest`(독립 검토의 재현 11개: 객체 아래 createSection, 저장이 트리를 안 고침, copyDefaults, 깊은 키, 객체 아래 경로·주석, serialize 호출 횟수,
 기본값 참조, setDefaults 객체, 구역 복사, 읽은 객체 참조 유지), API `ConfigOpaqueTest`.

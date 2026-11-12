@@ -67,8 +67,14 @@ public class MemorySection implements ConfigurationSection {
 
     private ConfigPaths.Parsed parse(String path) { return ConfigPaths.parse(path, sep()); }
 
+    /** 읽을 때 모르던 별칭이 그 뒤 등록됐으면 트리를 한 번에 되살린다(읽기 입구마다 — 키를 모으거나 값을 꺼내기 전에). 남은 것이 없으면 아무것도 안 한다. */
+    private void reviveLate() {
+        if (root instanceof MemoryConfiguration mc && mc.pendingAliases()) mc.pendingAliases(ConfigValues.reviveTree(mc.furnaceRoot()));
+    }
+
     /** 이 구역 데이터에서 path 가 가리키는 값(기본값 제외하려면 dHas 로 먼저 확인). 사용자 지정 구분자의 끝 구분자는 구역일 때만 그 구역. */
     private Object dGet(String path) {
+        reviveLate();
         if (!custom()) return delegate.get(path);
         ConfigPaths.Parsed p = parse(path);
         if (p.keys().isEmpty()) return delegate;
@@ -78,6 +84,7 @@ public class MemorySection implements ConfigurationSection {
 
     /** 자기 데이터(기본값 제외)에 path 가 있는가. */
     private boolean dHas(String path) {
+        reviveLate();
         if (!custom()) return delegate.contains(path, true);
         ConfigPaths.Parsed p = parse(path);
         if (p.keys().isEmpty()) return true;
@@ -127,6 +134,7 @@ public class MemorySection implements ConfigurationSection {
 
     /** 이 구역 아래 키(deep 이면 하위 구역 키를 구분자로 이어서). */
     private Set<String> ownKeys(boolean deep) {
+        reviveLate();
         if (!custom()) return delegate.keys(deep);
         Set<String> out = new java.util.LinkedHashSet<>();
         collectKeys(out, delegate, "", deep, sep());

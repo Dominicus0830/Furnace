@@ -25,6 +25,7 @@ import org.junit.jupiter.api.TestInstance;
 
 /** 긴 광선·큰 상자에서의 엔티티 탐색 region 규칙: region 스레드는 자기 region, 전역 빌림 구간은 겹치는 region 을 모두 빌려 합친다(PR #258 검토 R1). */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+/** (엔티티는 AI 가 없는 갑옷 거치대 — 몹은 느린 실행기에서 틱 사이에 움직여 광선에서 벗어날 수 있다) */
 class A15BoxRegionTest {
 
     FurnaceTestServer server;
@@ -76,7 +77,7 @@ class A15BoxRegionTest {
 
     @Test
     void longRayFromOwnRegion() {
-        Entity zombie = spawn(origin, at(3, 0, 0), EntityType.ZOMBIE);
+        Entity zombie = spawn(origin, at(3, 0, 0), EntityType.ARMOR_STAND);
         List<String> out = new ArrayList<>();
         for (double d : new double[] {50, 150, 300, 1000}) {
             out.add(d + " entities: " + owner(() -> run(() -> {
@@ -88,36 +89,36 @@ class A15BoxRegionTest {
                 return r == null ? "null" : r.getHitEntity() != null ? r.getHitEntity().getType() : r.getHitBlock();
             })));
         }
-        // Paper: 어느 거리든 바로 앞 좀비를 맞춘다.
+        // Paper: 어느 거리든 바로 앞 받침대(갑옷 거치대)를 맞춘다.
         out.forEach(System.out::println);
         owner(() -> { zombie.remove(); return null; });
-        for (String s : out) assertEquals(true, s.contains("ZOMBIE"), s);
+        for (String s : out) assertEquals(true, s.contains("ARMOR_STAND"), s);
     }
 
     @Test
     void boxSpanningTwoRegions() {
-        Entity near = spawn(origin, at(1, 0, 0), EntityType.PIG);
+        Entity near = spawn(origin, at(1, 0, 0), EntityType.ARMOR_STAND);
         Location farLoc = new Location(world, far.x() + 0.5, far.y(), far.z() + 0.5);
-        Entity farPig = spawn(far, farLoc, EntityType.PIG);
-        // 가운데가 origin 쪽인 큰 상자(x 로 ±700) — region 스레드는 자기 region 의 돼지만 본다(Folia 처럼 남의 region 은 못 만진다)
+        Entity farPig = spawn(far, farLoc, EntityType.ARMOR_STAND);
+        // 가운데가 origin 쪽인 큰 상자(x 로 ±700) — region 스레드는 자기 region 의 갑옷 거치대만 본다(Folia 처럼 남의 region 은 못 만진다)
         BoundingBox box = new BoundingBox(origin.x() - 700, origin.y() - 2, origin.z() - 2, origin.x() + 700, origin.y() + 4, origin.z() + 3);
-        String a = owner(() -> run(() -> world.getNearbyEntities(box, e -> e.getType() == EntityType.PIG).size()));
+        String a = owner(() -> run(() -> world.getNearbyEntities(box, e -> e.getType() == EntityType.ARMOR_STAND).size()));
         // 가운데가 far 쪽 region 인 상자를 origin 스레드에서
         BoundingBox box2 = new BoundingBox(origin.x() - 2, origin.y() - 2, origin.z() - 2, far.x() + 40, origin.y() + 4, origin.z() + 3);
-        String b = owner(() -> run(() -> world.getNearbyEntities(box2, e -> e.getType() == EntityType.PIG).size()));
+        String b = owner(() -> run(() -> world.getNearbyEntities(box2, e -> e.getType() == EntityType.ARMOR_STAND).size()));
         System.out.println("centerOrigin=" + a + " centerFarSide=" + b);
         owner(() -> { near.remove(); return null; });
         server.onRegion(far, () -> { farPig.remove(); return null; });
-        assertEquals("OK 1", a, "자기 region 의 돼지만");
-        assertEquals("OK 1", b, "상자 가운데가 남의 region 이어도 자기 region 의 돼지는 보인다 — 예외·누락 없음");
+        assertEquals("OK 1", a, "자기 region 의 갑옷 거치대만");
+        assertEquals("OK 1", b, "상자 가운데가 남의 region 이어도 자기 region 의 갑옷 거치대는 보인다 — 예외·누락 없음");
     }
 
     /** 옛 Bukkit 동기 작업(전역 스레드 + region 빌림 구간)에서: Paper 의 "주 스레드" 호출에 해당. */
     @Test
     void legacySyncBorrowScope() {
-        Entity zombie = spawn(origin, at(3, 0, 0), EntityType.ZOMBIE);
+        Entity zombie = spawn(origin, at(3, 0, 0), EntityType.ARMOR_STAND);
         Location farLoc = new Location(world, far.x() + 0.5, far.y(), far.z() + 0.5);
-        Entity farPig = spawn(far, farLoc, EntityType.PIG);
+        Entity farPig = spawn(far, farLoc, EntityType.ARMOR_STAND);
         BoundingBox box = new BoundingBox(origin.x() - 700, origin.y() - 2, origin.z() - 2, origin.x() + 700, origin.y() + 4, origin.z() + 3);
         String[] r = server.onGlobal(() -> {
             try (var access = org.domi.furnace.api.Furnace.server().scheduler().global().openRegionAccess()) {
@@ -132,7 +133,7 @@ class A15BoxRegionTest {
         System.out.println("legacy ray=" + r[0] + " nearby=" + r[1]);
         owner(() -> { zombie.remove(); return null; });
         server.onRegion(far, () -> { farPig.remove(); return null; });
-        assertEquals("OK ZOMBIE", r[0]);
+        assertEquals("OK ARMOR_STAND", r[0]);
         assertEquals("OK 2", r[1]);
     }
 }

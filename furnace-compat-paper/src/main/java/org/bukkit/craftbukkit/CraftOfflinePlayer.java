@@ -51,6 +51,11 @@ public final class CraftOfflinePlayer implements OfflinePlayer {
         furnace().setOpLevel(value ? 4 : 0);
     }
 
+    private final io.papermc.paper.persistence.PersistentDataContainerView pdcView = org.domi.furnace.compat.paper.PdcViews.live(() -> furnace().persistentDataNow());
+
+    @Override
+    public io.papermc.paper.persistence.PersistentDataContainerView getPersistentDataContainer() { return pdcView; }
+
     /** 설정에 쓸 값: {@code UUID} 하나(Paper 와 같다). */
     @Override
     public java.util.Map<String, Object> serialize() {

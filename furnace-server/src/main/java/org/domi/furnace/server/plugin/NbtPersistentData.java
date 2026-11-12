@@ -37,6 +37,26 @@ final class NbtPersistentData implements PersistentDataContainer {
     }
 
     @Override
+    public Object raw(String key) {
+        Object v = tag.tags().get(PersistentDataType.checkKey(key));
+        return v == null ? null : toRaw(v);
+    }
+
+    /** 저장된 NBT 값 → 종류 없는 값(배열·중첩 컨테이너는 사본, 목록은 새 목록). */
+    private Object toRaw(Object v) {
+        if (v instanceof NbtList l) {
+            java.util.List<Object> out = new java.util.ArrayList<>(l.size());
+            for (Object item : l.items()) out.add(toRaw(item));
+            return out;
+        }
+        if (v instanceof NbtCompound c) return new NbtPersistentData(c.copy(), true);
+        if (v instanceof byte[] a) return a.clone();
+        if (v instanceof int[] a) return a.clone();
+        if (v instanceof long[] a) return a.clone();
+        return v;
+    }
+
+    @Override
     public boolean has(String key) { return tag.tags().containsKey(PersistentDataType.checkKey(key)); }
 
     @Override
@@ -118,6 +138,34 @@ final class NbtPersistentData implements PersistentDataContainer {
         PersistentDataType.checkKey(key);
         if (value == null) throw new IllegalArgumentException("값이 null — 지우려면 remove");
         tag.tags().put(key, toNbt(value, type));
+    }
+
+    @Override
+    public void setRaw(String key, Object value) {
+        writable();
+        PersistentDataType.checkKey(key);
+        if (value == null) throw new IllegalArgumentException("값이 null — 지우려면 remove");
+        tag.tags().put(key, rawToNbt(value));
+    }
+
+    /** 종류 없는 값 → NBT 값(목록은 모양대로 — 안쪽 목록마다 자기 원소 종류). */
+    private static Object rawToNbt(Object v) {
+        if (v instanceof java.util.List<?> list) {
+            NbtList out = new NbtList(NbtIo.TAG_END);
+            for (Object item : list) {
+                if (item == null) throw new IllegalArgumentException("목록에 null 을 넣을 수 없다");
+                Object nbt = rawToNbt(item);
+                if (!out.addTag(out.size(), nbt, NbtTags.typeOf(nbt))) throw new IllegalArgumentException("목록 원소의 종류가 섞였다");
+            }
+            return out;
+        }
+        if (v instanceof NbtPersistentData c) return c.tag.copy();
+        if (v instanceof Boolean b) return (byte) (b ? 1 : 0);
+        if (v instanceof byte[] a) return a.clone();
+        if (v instanceof int[] a) return a.clone();
+        if (v instanceof long[] a) return a.clone();
+        if (v instanceof Byte || v instanceof Short || v instanceof Integer || v instanceof Long || v instanceof Float || v instanceof Double || v instanceof String) return v;
+        throw new IllegalArgumentException(v.getClass().getSimpleName() + " 는 영속 데이터 값이 아니다");
     }
 
     @Override

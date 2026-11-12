@@ -19,9 +19,10 @@ import org.domi.furnace.compat.paper.ItemSlot;
  * 바꾸면 칸에 곧바로 반영된다(Bukkit 과 같다). 종류·개수·내구도·메타(이름·설명·마법 부여·영속 데이터)를 다룬다.
  * Material 로 나타낼 수 없는 아이템(데이터 팩·플러그인 아이템)의 getType 은 UnsupportedFeature 다.
  */
-public class ItemStack implements Cloneable, ConfigurationSerializable {
+public class ItemStack implements Cloneable, ConfigurationSerializable, io.papermc.paper.persistence.PersistentDataViewHolder {
 
     private final ItemSlot slot;
+    private volatile io.papermc.paper.persistence.PersistentDataContainerView pdcView;
 
     /** 호환 모듈 전용 — 칸에 붙은 스택. */
     public ItemStack(ItemSlot slot) { this.slot = Objects.requireNonNull(slot, "slot"); }
@@ -66,6 +67,17 @@ public class ItemStack implements Cloneable, ConfigurationSerializable {
     public void setDurability(short durability) { slot.set(slot.get().with(ItemComponents.DAMAGE, (int) durability)); }
 
     // ------------------------------------------------------------------ 메타
+
+    /**
+     * 이 스택의 영속 데이터 읽기 전용 보기(Paper 와 같다) — 읽을 때마다 지금 칸의 데이터를 본다(스택을 고친 뒤에도 같은 보기가 새 값을 준다).
+     * 쓰려면 {@link #getItemMeta()} 의 컨테이너를 고쳐 {@link #setItemMeta} 로 돌려놓는다.
+     */
+    @Override
+    public io.papermc.paper.persistence.PersistentDataContainerView getPersistentDataContainer() {
+        var v = pdcView;
+        if (v == null) pdcView = v = org.domi.furnace.compat.paper.PdcViews.live(() -> slot.get().persistentData());
+        return v;
+    }
 
     public boolean hasItemMeta() {
         var s = slot.get();

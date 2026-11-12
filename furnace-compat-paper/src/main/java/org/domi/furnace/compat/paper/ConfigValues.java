@@ -20,7 +20,7 @@ public final class ConfigValues {
 
     private static Object lower(Object v, boolean keepObjects) {
         if (v instanceof MemorySection m) return m.furnaceSection();
-        if (v instanceof ConfigurationSection s) return s.getValues(false);
+        if (v instanceof ConfigurationSection s) return lower(s.getValues(false), keepObjects);
         if (v instanceof ConfigurationSerializable c) return keepObjects ? new ConfigObject(c) : lowerSerializable(c);
         if (v instanceof Map<?, ?> map) {
             Map<Object, Object> out = new LinkedHashMap<>();
@@ -68,17 +68,32 @@ public final class ConfigValues {
 
     /**
      * 읽어 온 트리의 {@code ==} 구역(별칭이 등록된 것)을 직렬화 객체로 되살려 잎으로 바꾼다 — Paper YamlConstructor 처럼 읽을 때 한 번(안쪽부터).
-     * 되살리지 못하면(별칭을 모르거나 되읽기가 null·예외) 구역 그대로 둔다.
+     * 되살리지 못하면(별칭을 모르거나 되읽기가 null·예외) 구역 그대로 둔다. 되살리지 못한 {@code ==} 구역이 남았으면 true.
      */
-    public static void reviveTree(ConfigSection s) {
+    public static boolean reviveTree(ConfigSection s) {
+        boolean pending = false;
         for (String k : new ArrayList<>(s.keys(false))) {
             Object v = s.getAt(List.of(k));
             Object r = reviveNode(v);
             if (r != v) s.setLiteral(k, r);
+            pending |= leftAlias(r);
         }
+        return pending;
     }
 
-    private static Object reviveNode(Object v) {
+    /** r 안에 되살리지 못한 {@code ==} 구역이 있는가(목록 안 포함). */
+    private static boolean leftAlias(Object r) {
+        if (r instanceof ConfigSection c) {
+            if (c.getAt(List.of(ConfigurationSerialization.SERIALIZED_TYPE_KEY)) instanceof String) return true;
+            for (String k : c.keys(false)) if (leftAlias(c.getAt(List.of(k)))) return true;
+        } else if (r instanceof List<?> l) {
+            for (Object o : l) if (leftAlias(o)) return true;
+        }
+        return false;
+    }
+
+    /** 값 하나를 되살린다: 별칭이 등록된 {@code ==} 구역은 {@link ConfigObject}, 목록은 안쪽까지, 그 밖은 그대로. */
+    public static Object reviveNode(Object v) {
         if (v instanceof ConfigSection c) {
             reviveTree(c);
             if (c.getAt(List.of(ConfigurationSerialization.SERIALIZED_TYPE_KEY)) instanceof String alias && ConfigurationSerialization.getClassByAlias(alias) != null) {
@@ -87,8 +102,10 @@ public final class ConfigValues {
                     Map<String, Object> plain = (Map<String, Object>) plainOut(c);
                     ConfigurationSerializable obj = ConfigurationSerialization.deserializeObject(plain);
                     if (obj != null) return new ConfigObject(obj);
-                } catch (RuntimeException ignored) {
-                    // 되살리지 못하면 구역 그대로
+                } catch (RuntimeException e) {
+                    // 되살리지 못하면 구역 그대로 — 데이터가 조용히 구역으로 남지 않게 한 줄 알린다
+                    java.util.logging.Logger.getLogger("Bukkit").log(java.util.logging.Level.WARNING,
+                            "Cannot deserialize " + alias + " in the loaded configuration; keeping it as a section: " + e);
                 }
             }
             return c;
