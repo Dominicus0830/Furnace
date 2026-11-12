@@ -16,6 +16,7 @@
 //   enum → 바닐라 상수 이름 문자열("MAIN_HAND"), byte[]·int[]·long[] → 배열, List·Set → List, Optional·없을 수 있는 값 → Optional,
 //   패킷 안 내포 구조 → PacketStruct, ChunkPos·SectionPos → 바닐라가 쓰는 묶은 long, Vec3 → PacketStruct{x, y, z}(Double),
 //   NumberFormat → PacketStruct{type:"minecraft:blank"|"minecraft:styled"(+ style NbtCompound)|"minecraft:fixed"(+ value Text)}.
+//   종류마다 모양이 다른 값(number_format, boss_event 의 operation)은 type 필드가 나머지 필드를 정한다.
 //
 // readable() 이 false 면 서버가 이 버전에서 내용을 풀지 못하는 종류다(손으로 다뤄야 하는 와이어 등) — 관찰·취소만 된다.
 // 어떤 종류가 읽히는지는 PacketService.isReadable(type).

@@ -92,8 +92,8 @@ packets.send(player, GenericPacket.of(PacketTypes.Clientbound.SET_BORDER_WARNING
   필드마다 더 작은 상한(리소스 팩 hash 40자 등)은 아직 검사하지 않는다. 바닐라가 `Set` 인 필드(`login` 의 `levels`)는 같은 값을 두 번 넣으면 거부한다.
 - 읽을 수 있는 종류라도 패킷 하나가 디코드에 실패하면(클라이언트가 보낸 잘못된 패킷, 고정 범위가 있는 직접 정의 소리 등) 그 패킷만 `readable()` false 로 리스너에 간다.
 - 값은 넣고 꺼낼 때 복사된다(배열·`NbtCompound` — 목록·`Optional` 안에 있어도). 꺼낸 값을 바꿔도 패킷은 그대로다.
-- **1.21.1 에서 읽는 종류 122개**(서버→클라 83, 클라→서버 39). 필드 나열 104개 + 손 코덱 18개(아래 "손 코덱 종류"). 나머지 23개(입자·청크·빛·명령 트리·
-  레시피·발전 과제·태그 묶음·채팅 서명·상인 거래·보스바·팀·속성·통계·지도 등)는 `readable()` false 로 관찰·취소만 된다(E4b-2 에서 늘린다).
+- **1.21.1 에서 읽는 종류 133개**(서버→클라 92, 클라→서버 41). 필드 나열 110개 + 손 코덱 23개(아래 "손 코덱 종류"). 나머지 12개(입자·폭발·청크·빛·
+  명령 트리·레시피 둘·발전 과제·태그 묶음·서명된 채팅·상인 거래·번들 구분자)는 `readable()` false 로 관찰·취소만 된다.
 - 필드 목록은 중립 스키마(`furnace-api/.../packet/schema/protocol-767.schema`) 하나에서 나온다 — NMS 호환 계층의 패킷 shim 과 같은 파일이다.
 - 와이어 확인: 서버가 실제로 보내는 종류는 바이트 왕복 시험(`GenericPacketRoundTripTest`), 나머지는 바닐라 jar 바이트코드와 하나씩 대조했다(`docs/feature-parity/context-notes/2026-11-12-easy-nms-e4a.md`).
   손 코덱 종류는 바닐라 jar 의 패킷 코덱을 직접 돌려 같은 바이트를 확인했다(`2026-11-12-easy-nms-e4b.md`).
@@ -120,10 +120,19 @@ packets.send(player, GenericPacket.of(PacketTypes.Clientbound.SET_BORDER_WARNING
 | `seen_advancements` | `action` · `tab` `Optional<String>` — `OPENED_TAB` 일 때만 있다 |
 | `set_command_block` | `pos` `command` `mode` `track_output` `conditional` `automatic` |
 | `set_structure_block` | `pos` `update_type` `mode` `name` `offset` `size`(좌표마다 i8 인 `BlockPos`) `mirror` `rotation` `data`(128자까지 — 바닐라 readUtf(128)) `integrity` `seed` `ignore_entities` `show_air` `show_bounding_box` |
+| `boss_event` | `id` · `operation` `{type, …}` — `ADD {name, progress, color, overlay, darken_screen, play_music, create_world_fog}`, `REMOVE {}`, `UPDATE_PROGRESS {progress}`, `UPDATE_NAME {name}`, `UPDATE_STYLE {color, overlay}`, `UPDATE_PROPERTIES {darken_screen, play_music, create_world_fog}` |
+| `set_player_team` | `name` · `method`(0 추가·1 제거·2 바꿈·3 선수 넣기·4 선수 빼기) · `parameters` `Optional<{display_name, options, nametag_visibility, collision_rule, color, player_prefix, player_suffix}>`(method 0·2, 두 문자열은 40자까지, `color` 는 ChatFormatting 이름) · `players` `Optional<List<String>>`(method 0·3·4) |
+| `update_attributes` | `entity_id` · `attributes` `List<{attribute, base, modifiers List<{id, amount, operation}>}>` |
+| `map_item_data` | `map_id` `scale` `locked` · `decorations` `Optional<List<{type, x, y, rot, name}>>` · `color_patch` `Optional<{width, height, start_x, start_y, map_colors}>`(width 1 이상) |
+| `award_stats` | `stats` `List<{type, value, amount}>`(`type` 은 stat_type 이름, `value` 는 그 종류의 레지스트리 이름 — `minecraft:mined` 면 블록) |
 | `container_click` | `container_id` `state_id` `slot_num` `button_num` `click_type` · `changed_slots` `List<{slot, item}>`(128칸까지, 같은 칸 두 번 안 됨 — 클라이언트가 같은 칸을 두 번 보내면 읽을 때 바닐라처럼 마지막 값 하나로 합친다) · `carried_item` |
 
 숫자 형식(`set_objective`·`set_score` 의 `number_format`)은 `{type:"minecraft:blank"}`·`{type:"minecraft:styled", style:<스타일 NbtCompound>}`·
 `{type:"minecraft:fixed", value:<Text>}`, 바닐라 `Vec3` 은 `{x, y, z}`(`Double`). `block_entity_data` 의 `type` 은 블록 엔티티 종류 이름(`"minecraft:sign"`).
+채팅 쪽 값: `MessageSignature.Packed` = `{id, full_signature Optional<byte[]>}`(id -1 이면 256바이트 서명 전체), `ChatType.Bound` = `{chat_type, name, target_name}`,
+`LastSeenMessages.Update` = `{offset, acknowledged}`(최근 20개 확인 비트를 정수로), 인자 서명 = `List<{name, signature}>`(8개까지, 서명 256바이트),
+채팅 세션 = `{session_id, profile_public_key {expires_at, key, key_signature}}`(`key` 는 RSA X.509 — 아니면 거부), `Instant` = epoch 밀리초 `Long`.
+`server_links` 원소는 `{known_type, label, url}`(둘 중 하나만), `custom_report_details` 의 `details` 는 키가 이름인 `PacketStruct`(값 String, 32개·키 128자·값 4096자까지).
 styled 의 `style` 은 보낼 때 바닐라 Style 로 읽히는지 검사한다(틀린 색 이름·문자열 참거짓 등은 바닐라 클라이언트가 접속을 끊으므로 `IllegalArgumentException`, 모르는 키는 바닐라처럼 무시).
 
 - `relative_arguments` 처럼 비트 집합인 목록은 읽으면 비트 순서로 나온다. 다른 순서로 만든 값과 `equals` 는 다르지만 같은 바이트로 나간다.

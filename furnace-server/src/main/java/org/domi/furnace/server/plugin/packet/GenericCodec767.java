@@ -73,7 +73,8 @@ public final class GenericCodec767 {
     private static final Map<String, HolderInfo> HOLDERS = Map.of(
             "MobEffect", new HolderInfo("minecraft:mob_effect", HolderForm.PLAIN),
             "DimensionType", new HolderInfo("minecraft:dimension_type", HolderForm.PLAIN),
-            "SoundEvent", new HolderInfo("minecraft:sound_event", HolderForm.PLUS_ONE));
+            "SoundEvent", new HolderInfo("minecraft:sound_event", HolderForm.PLUS_ONE),
+            "Attribute", new HolderInfo("minecraft:attribute", HolderForm.PLAIN));
 
     /** 아직 다루지 않는 모양 — 그 종류는 readable=false. */
     static final class Unsupported extends RuntimeException {
@@ -246,7 +247,7 @@ public final class GenericCodec767 {
         return compileFields(d.fields(), d.javaPackage());
     }
 
-    private Compiled compileFields(List<FieldDef> fields, String pkg) {
+    Compiled compileFields(List<FieldDef> fields, String pkg) {
         List<String> names = new ArrayList<>();
         List<Node> nodes = new ArrayList<>();
         List<PacketField<?>> pf = new ArrayList<>();
@@ -345,6 +346,12 @@ public final class GenericCodec767 {
                 return optional(node(t.arguments().get(0), null, pkg), false);
             case "Holder": return holder(t.arguments().get(0));
             case "ResourceKey": return plain(wire, "identifier", IDENTIFIER);
+            case "Instant": return plain(wire, "i64", I64);   // 바닐라 FriendlyByteBuf.writeInstant = epoch 밀리초 i64
+            case "Map":
+                if (wire == null && t.arguments().size() == 2 && t.arguments().get(0).name().equals("String") && t.arguments().get(1).name().equals("String")) {
+                    return GenericHand767.REPORT_DETAILS;   // Map<String,String> 은 custom_report_details 하나뿐
+                }
+                throw new Unsupported("Map " + t);
             default: break;
         }
         String bin;
@@ -381,6 +388,14 @@ public final class GenericCodec767 {
                 case "i64" -> I64;
                 case "vec3" -> VEC3;
                 case "number_format" -> NUMBER_FORMAT;
+                case "message_signature_packed" -> GenericHand767.MESSAGE_SIGNATURE_PACKED;
+                case "chat_type_bound" -> GenericHand767.CHAT_TYPE_BOUND;
+                case "map_decoration" -> GenericHand767.MAP_DECORATION;
+                case "chat_session" -> GenericHand767.CHAT_SESSION;
+                case "attribute_modifier" -> GenericHand767.ATTRIBUTE_MODIFIER;
+                case "argument_signatures" -> GenericHand767.ARGUMENT_SIGNATURES;
+                case "last_seen_update" -> GenericHand767.LAST_SEEN_UPDATE;
+                case "server_link" -> GenericHand767.SERVER_LINK;
                 case "varint" -> integer("varint", Integer.class);
                 case "registry_id" -> {
                     String reg = REGISTRY_IDS.get(bin);

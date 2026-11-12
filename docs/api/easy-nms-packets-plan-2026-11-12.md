@@ -140,7 +140,7 @@ packets.sendBundle(player, List.of(addEntity, entityData, equipment));   // 바�
 | E1 ✓ | 4.1 타입 있는 메타데이터: `EntityDataKey`·`EntityDataType` 31종·`EntityDataKeys`(서버 정의 전부)·`EntityFlags`, 패킷 레코드 `get/with`, `VirtualEntity.set`, 서버 표·시험 | 중 | G1 해소, 디스플레이 엔티티 홀로그램 가능 |
 | E2 ✓ | 4.3 번들(`PacketService.sendBundle`) + 가상 엔티티·플레이어(변장 포함) 생성 묶음 번들로 | 소 | 깜박임 제거 |
 | E3 ✓ | 4.4 `TestPlayer.received/awaitPacket/clearReceived/flushReceived` | 소 | 패킷 단위 시험 |
-| E4 (E4a ✓, E4b-1 ✓) | 4.2 범용 스키마·`GenericPacket`(NMS 스키마 스레드와 합의한 쪽이 서버 스키마를 먼저) | 대 → E4a: 범용 코덱·`GenericPacket`, 필드 나열 종류 102개(2026-11-12). E4b-1: 손 코덱 18종·number_format·블록 엔티티 종류 → 122개. E4b-2: 남은 23개 | 179종 전부 읽고 쓰기 |
+| E4 (E4a ✓, E4b-1 ✓, E4b-2 ✓) | 4.2 범용 스키마·`GenericPacket`(NMS 스키마 스레드와 합의한 쪽이 서버 스키마를 먼저) | 대 → E4a: 범용 코덱·`GenericPacket`, 필드 나열 종류 102개(2026-11-12). E4b-1: 손 코덱 18종·number_format·블록 엔티티 종류 → 122개. E4b-2: 보스바·팀·속성·지도·통계·채팅 값 등 11종 → 133개. 남은 12개(입자·청크·빛·명령 트리·레시피·발전 과제·태그·서명된 채팅·상인 거래·번들 구분자)는 E5 타입 레코드에서 | 179종 전부 읽고 쓰기 |
 | E5 | 4.2 자주 쓰는 타입 레코드 1차(장비·입자·상대 이동·여러 칸·탑승·팀) | 중 | |
 | E6 | 4.5 엔티티 속성 API | 중 | |
 | E7 | 4.5 빠른 블록 쓰기 | 중~대 | |
