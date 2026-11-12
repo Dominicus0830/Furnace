@@ -3,8 +3,6 @@
 // 용암이 물을 만나 돌이 되기·물이 부수는 블록 드롭·용암 무작위 틱(불 번지기)까지 바닐라 순서 그대로.
 package org.domi.furnace.server.block;
 
-import java.util.HashMap;
-import java.util.Map;
 import org.domi.furnace.server.block.types.BaseFireBlock;
 import org.domi.furnace.server.block.types.DoorBlock;
 import org.domi.furnace.server.block.types.LiquidBlock;
@@ -263,29 +261,39 @@ public final class FluidTicker {
         return n;
     }
 
-    /** 원점 기준 상대 좌표 키(바닐라 getCacheKey — x, z 각 8비트). */
-    private static short cacheKey(Pos origin, Pos p) {
-        int dx = p.x() - origin.x(), dz = p.z() - origin.z();
-        return (short) ((dx + 128 & 0xFF) << 8 | dz + 128 & 0xFF);
+    /** getSpread·getSlopeDistance 의 칸 기억(바닐라 Short2ObjectMap·Short2BooleanMap 과 같은 내용): 원점 기준 ±8 칸 평면 배열. */
+    private static final class SpreadCache {
+        static final int R = 8, W = 2 * R + 1;
+        final int[] states = new int[W * W];
+        final boolean[] hasState = new boolean[W * W];
+        final byte[] holes = new byte[W * W];   // 0 모름, 1 아님, 2 구멍
+        static int idx(Pos origin, Pos p) {
+            int dx = p.x() - origin.x() + R, dz = p.z() - origin.z() + R;
+            if ((dx | dz) < 0 || dx >= W || dz >= W) throw new IllegalStateException("유체 퍼짐 칸이 범위를 벗어남: " + dx + "," + dz);
+            return dx * W + dz;
+        }
+        int state(BlockLevel level, int i, Pos p) {
+            if (!hasState[i]) { states[i] = level.getBlockState(p); hasState[i] = true; }
+            return states[i];
+        }
     }
 
-    /** getSpread: 가장 가까운 구멍 쪽(거리가 같으면 모두)으로 퍼질 방향과 그 칸의 새 유체. 결과는 방향 번호로(-1 은 없음). */
     private static int[] getSpread(BlockLevel level, Pos pos, int state, boolean water) {
         int best = 1000;
         int[] out = {-1, -1, -1, -1, -1, -1};
-        Map<Short, Integer> states = new HashMap<>();
-        Map<Short, Boolean> holes = new HashMap<>();
+        SpreadCache c = new SpreadCache();
         int flowing = flowingType(water);
         for (int dir : Dir.HORIZONTAL) {
             Pos np = pos.relative(dir);
-            short key = cacheKey(pos, np);
-            int ns = states.computeIfAbsent(key, k -> level.getBlockState(np));
+            int key = SpreadCache.idx(pos, np);
+            int ns = c.state(level, key, np);
             int nf = B.fluid(ns);
             int newFluid = getNewLiquid(level, np, ns, water);
             if (canPassThrough(level, Fluids.type(newFluid), pos, state, dir, np, ns, nf, water)) {
                 Pos below = np.below();
-                boolean hole = holes.computeIfAbsent(key, k -> isWaterHole(level, flowing, np, ns, below, level.getBlockState(below), water));
-                int dist = hole ? 0 : slopeDistance(level, np, 1, Dir.opposite(dir), ns, pos, states, holes, water);
+                if (c.holes[key] == 0) c.holes[key] = (byte) (isWaterHole(level, flowing, np, ns, below, level.getBlockState(below), water) ? 2 : 1);
+                boolean hole = c.holes[key] == 2;
+                int dist = hole ? 0 : slopeDistance(level, np, 1, Dir.opposite(dir), ns, pos, c, water);
                 if (dist < best) java.util.Arrays.fill(out, -1);
                 if (dist <= best) {
                     out[dir] = newFluid;
@@ -296,25 +304,23 @@ public final class FluidTicker {
         return out;
     }
 
-    /** getSlopeDistance: 흐름이 지나갈 수 있는 칸을 따라 가장 가까운 구멍까지 거리(찾는 거리 안에 없으면 1000). */
-    private static int slopeDistance(BlockLevel level, Pos pos, int depth, int excludedDir, int state, Pos origin,
-                                     Map<Short, Integer> states, Map<Short, Boolean> holes, boolean water) {
+    private static int slopeDistance(BlockLevel level, Pos pos, int depth, int excludedDir, int state, Pos origin, SpreadCache c, boolean water) {
         int best = 1000;
         int flowing = flowingType(water);
         for (int dir : Dir.HORIZONTAL) {
             if (dir == excludedDir) continue;
             Pos np = pos.relative(dir);
-            short key = cacheKey(origin, np);
-            int ns = states.computeIfAbsent(key, k -> level.getBlockState(np));
+            int key = SpreadCache.idx(origin, np);
+            int ns = c.state(level, key, np);
             int nf = B.fluid(ns);
             if (canPassThrough(level, flowing, pos, state, dir, np, ns, nf, water)) {
-                boolean hole = holes.computeIfAbsent(key, k -> {
+                if (c.holes[key] == 0) {
                     Pos below = np.below();
-                    return isWaterHole(level, flowing, np, ns, below, level.getBlockState(below), water);
-                });
-                if (hole) return depth;
+                    c.holes[key] = (byte) (isWaterHole(level, flowing, np, ns, below, level.getBlockState(below), water) ? 2 : 1);
+                }
+                if (c.holes[key] == 2) return depth;
                 if (depth < slopeFindDistance(level, water)) {
-                    int d = slopeDistance(level, np, depth + 1, Dir.opposite(dir), ns, origin, states, holes, water);
+                    int d = slopeDistance(level, np, depth + 1, Dir.opposite(dir), ns, origin, c, water);
                     if (d < best) best = d;
                 }
             }
