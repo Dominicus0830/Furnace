@@ -167,10 +167,10 @@ public class MemorySection implements ConfigurationSection {
         }
     }
 
-    /** 주석 조회·수정용 키 단계(경로가 비면 null). */
+    /** 주석 조회·수정용 키 단계(경로가 비거나 끝 구분자로 끝나면 null — Paper 는 그때 빈 목록·무동작). */
     private List<String> commentKeys(String path) {
-        List<String> keys = parse(path).keys();
-        return keys.isEmpty() ? null : keys;
+        ConfigPaths.Parsed p = parse(path);
+        return p.keys().isEmpty() || p.endsAtSection() ? null : p.keys();
     }
 
     /** 이 구역 아래 키(deep 이면 하위 구역 키를 구분자로 이어서). */

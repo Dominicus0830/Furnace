@@ -113,4 +113,16 @@ class A15PathSeparatorReviewTest {
         assertNull(c.get("a/b/"));
         assertFalse(c.contains("a/b/"));
     }
+
+    /** 끝 구분자가 붙은 경로의 주석: Paper 는 빈 목록을 돌려주고 쓰지 않는다. */
+    @Test
+    void trailingSeparatorCommentsAreNoOps() {
+        YamlConfiguration c = y('/');
+        c.set("a.b/c", 1);
+        c.setComments("a.b", java.util.List.of("sec"));
+        assertEquals(java.util.List.of(), c.getComments("a.b/"));
+        c.setComments("a.b/", java.util.List.of("x"));
+        c.setInlineComments("a.b/", java.util.List.of("y"));
+        assertEquals(java.util.List.of("sec"), c.getComments("a.b"));
+    }
 }
