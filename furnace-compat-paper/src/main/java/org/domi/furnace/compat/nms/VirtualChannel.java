@@ -1,8 +1,11 @@
 package org.domi.furnace.compat.nms;
 
+import io.netty.channel.DefaultChannelId;
 import io.netty.channel.EventLoop;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.ReferenceCountUtil;
+import io.netty.util.concurrent.GlobalEventExecutor;
+import io.netty.util.concurrent.ImmediateEventExecutor;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
@@ -15,10 +18,12 @@ import java.util.function.Supplier;
  * 패킷 라이브러리가 {@code Connection#channel} 을 보고 처리기·이벤트 루프 가로채기를 끼울 수 있도록 바닐라와 같은 모양의 채널을 따로 둔다.
  *
  * <ul>
- *   <li>활성·원격 주소는 접속 상태를 따라간다(접속이 끊기면 비활성) — 라이브러리의 "연결되어 있는가" 판단과 같다.</li>
- *   <li>이벤트 루프는 호출 스레드에서 바로 실행한다({@code execute} = 그 자리에서 run, {@code inEventLoop} = true). 바닐라는 보낸 스레드에서
- *       패킷 라이브러리가 먼저 가로채고 나머지를 연결 스레드에 올리지만, Furnace 의 패킷 전달은 이미 스레드 안전·순서 보장이므로 줄 세우지 않는다.</li>
- *   <li>파이프라인 끝으로 흘러나온 쓰기·읽기는 아무 데도 가지 않는다 — 바이트 와이어 패킷({@code sendWirePacket})은 아직 지원하지 않는다(버리고 한 번 경고).</li>
+ *   <li>활성·원격 주소는 접속 상태를 따라간다(접속이 끊기면 비활성). 채널 번호는 접속마다 다르다.</li>
+ *   <li>이벤트 루프는 호출 스레드에서 바로 실행한다: {@code execute}·{@code submit}·{@code invokeAll} 은 그 자리에서 돌고, {@code schedule*} 는
+ *       Netty 공용 예약기(데몬 스레드)가 시간이 되면 돌리며, {@code inEventLoop} 은 늘 true 다. 바닐라는 보낸 스레드에서 패킷 라이브러리가 먼저 가로채고
+ *       나머지를 연결 스레드에 올리지만, Furnace 의 패킷 전달은 이미 스레드 안전·순서 보장이므로 줄 세우지 않는다.</li>
+ *   <li><b>스레드 안전</b>: Netty 의 출력 버퍼(unsafe)는 이벤트 루프 한 스레드 전용인데 이 루프는 모든 스레드가 "이벤트 루프 안"이다. 그래서 쓰기는 파이프라인 맨 앞의
+ *       끝 처리기({@link Connection} 이 단다)가 끝내고 출력 버퍼·unsafe 에는 닿지 않는다. 처리기들은 상태가 없거나 라이브러리가 스레드 안전을 맡는다.</li>
  * </ul>
  * 플러그인용이 아니다.
  */
@@ -27,18 +32,15 @@ public final class VirtualChannel extends EmbeddedChannel {
     private final BooleanSupplier online;
     private final Supplier<SocketAddress> remote;
     private final EventLoop inline;
-    private final Runnable onDropped;
 
     /**
      * @param online 접속이 아직 붙어 있는가
      * @param remote 원격 주소(모르면 null)
-     * @param onDropped 파이프라인 끝으로 흘러나온 메시지를 버릴 때(한 번만 부르는 것은 호출한 쪽 몫)
      */
-    public VirtualChannel(BooleanSupplier online, Supplier<SocketAddress> remote, Runnable onDropped) {
-        super();
+    public VirtualChannel(BooleanSupplier online, Supplier<SocketAddress> remote) {
+        super(DefaultChannelId.newInstance());
         this.online = online;
         this.remote = remote;
-        this.onDropped = onDropped;
         EventLoop embedded = super.eventLoop();
         this.inline = (EventLoop) Proxy.newProxyInstance(EventLoop.class.getClassLoader(), new Class<?>[] {EventLoop.class}, new Inline(embedded));
     }
@@ -59,23 +61,19 @@ public final class VirtualChannel extends EmbeddedChannel {
     @Override
     protected SocketAddress remoteAddress0() { return isActive() ? remote.get() : null; }
 
+    /** 끝 처리기를 지나쳐 출력 버퍼까지 온 것(있을 수 없다)은 버린다. */
     @Override
-    protected void handleOutboundMessage(Object msg) {
-        ReferenceCountUtil.release(msg);
-        onDropped.run();
-    }
+    protected void handleOutboundMessage(Object msg) { ReferenceCountUtil.release(msg); }
 
     @Override
-    protected void handleInboundMessage(Object msg) {
-        ReferenceCountUtil.release(msg);
-    }
+    protected void handleInboundMessage(Object msg) { ReferenceCountUtil.release(msg); }
 
     /** 이 접속의 파이프라인을 닫는다(접속이 끊겼을 때). 라이브러리는 닫힘 알림으로 자기 처리기를 걷는다. */
     public void disconnected() {
         if (super.isOpen()) close();
     }
 
-    /** 호출 스레드에서 바로 실행하는 이벤트 루프. 그 밖의 메서드는 내장 루프에 맡긴다. */
+    /** 호출 스레드에서 바로 실행하는 이벤트 루프. 예약은 공용 예약기, 그 밖의 메서드는 내장 루프에 맡긴다. */
     private static final class Inline implements InvocationHandler {
         private final EventLoop delegate;
 
@@ -83,7 +81,9 @@ public final class VirtualChannel extends EmbeddedChannel {
 
         @Override
         public Object invoke(Object proxy, java.lang.reflect.Method m, Object[] args) throws Throwable {
-            switch (m.getName()) {
+            String n = m.getName();
+            Object target = delegate;
+            switch (n) {
                 case "execute":
                     if (args != null && args.length == 1) {
                         ((Runnable) args[0]).run();
@@ -92,6 +92,8 @@ public final class VirtualChannel extends EmbeddedChannel {
                     break;
                 case "inEventLoop":
                     return Boolean.TRUE;
+                case "next":
+                    return proxy;
                 case "equals":
                     if (args != null && args.length == 1) return proxy == args[0];
                     break;
@@ -101,11 +103,17 @@ public final class VirtualChannel extends EmbeddedChannel {
                 case "toString":
                     if (args == null || args.length == 0) return "VirtualChannel.InlineEventLoop";
                     break;
+                case "submit", "invokeAll", "invokeAny":
+                    target = ImmediateEventExecutor.INSTANCE;   // 그 자리에서 돌고 끝난 future 를 준다
+                    break;
+                case "schedule", "scheduleAtFixedRate", "scheduleWithFixedDelay":
+                    target = GlobalEventExecutor.INSTANCE;      // 진짜 예약기
+                    break;
                 default:
                     break;
             }
             try {
-                return m.invoke(delegate, args);
+                return m.invoke(target, args);
             } catch (InvocationTargetException e) {
                 throw e.getCause();
             }

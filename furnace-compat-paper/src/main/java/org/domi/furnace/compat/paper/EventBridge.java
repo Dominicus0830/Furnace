@@ -186,6 +186,11 @@ public final class EventBridge {
             Furnace.server().events().subscribe(owner, org.domi.furnace.api.event.player.PlayerCreateEvent.class,
                     org.domi.furnace.api.event.EventPriority.MONITOR, false, f -> { if (!f.isAllowed()) Compat.forgetDenied(f.player()); });
         }
+        // 접속이 끝나면(Furnace MONITOR — 모든 처리기 뒤) NMS 연결의 가상 채널을 닫는다 — 어떤 Bukkit 이벤트든 듣는 플러그인이 하나라도 있으면 걸린다
+        if (owner.markBridged("quit-channel-close")) {
+            Furnace.server().events().subscribe(owner, org.domi.furnace.api.event.player.PlayerQuitEvent.class,
+                    org.domi.furnace.api.event.EventPriority.MONITOR, false, f -> Compat.disconnected(f.player()));
+        }
         return subs;
     }
 

@@ -70,7 +70,7 @@ class VirtualChannelTest {
             Connection c = connectionOf("Pipe");
             Channel ch = c.channel;
             assertTrue(ch.isActive());
-            assertEquals(List.of("decoder", "encoder", "packet_handler"), ch.pipeline().names().stream().filter(n -> !n.startsWith("Default")).toList());
+            assertEquals(List.of("furnace_sink", "decoder", "encoder", "packet_handler"), ch.pipeline().names().stream().filter(n -> !n.startsWith("Default")).toList());
             assertSame(c, ch.pipeline().get("packet_handler"), "처리기 이름 packet_handler 가 Connection");
             PacketEncoder<?> enc = assertInstanceOf(PacketEncoder.class, ch.pipeline().get("encoder"));
             PacketDecoder<?> dec = assertInstanceOf(PacketDecoder.class, ch.pipeline().get("decoder"));
@@ -195,6 +195,79 @@ class VirtualChannelTest {
             // 퇴장 이벤트를 Bukkit 처리기가 듣는 서버(ProtocolLib 등)에서는 그 전달 뒤 이것이 불린다(Mappings 의 PlayerQuitEvent push)
             handle.connection.compatDisconnected();
             assertTrue(ch.closeFuture().isDone(), "닫힘 알림이 나간다(라이브러리가 자기 처리기를 걷는다)");
+        }
+    }
+
+    @Test
+    void channelWritesAreSafeFromManyThreadsAndDeliverPackets() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            TestPlayer p = server.join("Many");
+            server.tick(2);
+            p.flushReceived();
+            p.clearReceived();
+            Connection c = connectionOf("Many");
+            Channel ch = c.channel;
+            int threads = 8, each = 50;
+            java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.atomic.AtomicInteger failedWire = new java.util.concurrent.atomic.AtomicInteger();
+            java.util.concurrent.atomic.AtomicInteger okPackets = new java.util.concurrent.atomic.AtomicInteger();
+            List<Thread> ts = new ArrayList<>();
+            for (int t = 0; t < threads; t++) {
+                final int base = t * each;
+                Thread th = new Thread(() -> {
+                    try {
+                        go.await();
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+                    for (int i = 0; i < each; i++) {
+                        // 바닐라 NMS 플러그인 모양: channel.writeAndFlush(패킷) — 끝 처리기가 Furnace 패킷으로 보낸다
+                        if (ch.writeAndFlush(new ClientboundSetTimePacket(base + i + 1, 0L, true)).syncUninterruptibly().isSuccess()) okPackets.incrementAndGet();
+                        // 바이트(와이어 패킷)는 실패로 알리되 채널은 멀쩡해야 한다
+                        io.netty.buffer.ByteBuf b = io.netty.buffer.Unpooled.buffer(4).writeInt(1);
+                        if (!ch.writeAndFlush(b).awaitUninterruptibly().isSuccess()) failedWire.incrementAndGet();
+                        assertEquals(0, b.refCnt(), "바이트는 해제된다");
+                    }
+                });
+                th.start();
+                ts.add(th);
+            }
+            go.countDown();
+            for (Thread th : ts) th.join(20_000);
+            assertEquals(threads * each, okPackets.get());
+            assertEquals(threads * each, failedWire.get());
+            assertTrue(ch.isOpen() && ch.isActive(), "여러 스레드 쓰기 뒤에도 가상 채널은 열려 있다");
+            server.tick(2);
+            p.flushReceived();
+            assertEquals(threads * each, p.received(PacketTypes.Clientbound.SET_TIME).size());
+        }
+    }
+
+    @Test
+    void eventLoopSubmitRunsInlineScheduleRunsLaterAndIdsAreDistinct() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            server.join("Loop1");
+            server.join("Loop2");
+            server.tick(2);
+            Channel a = connectionOf("Loop1").channel;
+            Channel b = connectionOf("Loop2").channel;
+            assertFalse(a.id().equals(b.id()), "접속마다 채널 번호가 다르다");
+            assertFalse(a.id().asLongText().equals(b.id().asLongText()));
+            List<String> order = new ArrayList<>();
+            io.netty.util.concurrent.Future<String> f = a.eventLoop().submit(() -> {
+                order.add("submit");
+                return "v";
+            });
+            order.add("after");
+            assertTrue(f.isDone(), "submit 은 그 자리에서 돌고 끝난 future 를 준다");
+            assertEquals("v", f.get());
+            assertEquals(List.of("submit", "after"), order);
+            // 처리기를 이벤트 루프 작업으로 끼우는 흔한 모양
+            a.eventLoop().submit(() -> a.pipeline().addBefore("packet_handler", "late", new io.netty.channel.ChannelInboundHandlerAdapter())).get();
+            assertNotNull(a.pipeline().get("late"));
+            java.util.concurrent.CountDownLatch ran = new java.util.concurrent.CountDownLatch(1);
+            a.eventLoop().schedule(ran::countDown, 20, java.util.concurrent.TimeUnit.MILLISECONDS);
+            assertTrue(ran.await(5, java.util.concurrent.TimeUnit.SECONDS), "schedule 은 시간이 되면 돈다");
         }
     }
 }

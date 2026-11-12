@@ -106,10 +106,11 @@ Furnace 서버가 받은 패킷(PacketService 리스너 HIGHEST, ProtocolLib 이
 |---|---|---|
 | 활성 | 접속(`Player.isOnline`)이 붙어 있는 동안 | ProtocolLib `inject()`·`isConnected()` |
 | 원격 주소 | `Player.address()` | `getAddress()`, 로그 |
-| 이벤트 루프 | 호출 스레드에서 바로 실행(`execute`=그 자리 `run`, `inEventLoop`=true), 그 밖의 메서드는 내장 루프에 위임(동적 프록시) | 바닐라처럼 보낸 스레드에서 가로채기가 일어나게. Furnace 의 연결은 이미 순서·스레드 안전 |
-| 파이프라인 | `decoder`(`PacketDecoder`, `ProtocolInfo` PLAY/SERVERBOUND), `encoder`(`PacketEncoder`, PLAY/CLIENTBOUND), `packet_handler`(= `Connection`) | ProtocolLib 이 이름·클래스로 찾는다. 처리기는 바이트 변환을 하지 않는다(Furnace 가 바이트를 만든다) |
-| 쓰기·읽기 끝 | 버리고 해제 | 와이어 패킷(`sendWirePacket`)은 경고 후 버림 |
-| 닫기 | `PlayerQuitEvent` 의 Bukkit 처리기들이 끝난 뒤 | ProtocolLib 이 `closeFuture` 로 프록시·처리기를 걷고 `InjectionFactory` 를 비운다 |
+| 채널 번호 | 접속마다 다름(`DefaultChannelId`) | 채널 그룹·맵 키 |
+| 이벤트 루프 | 호출 스레드에서 바로 실행: `execute`·`submit`·`invokeAll` = 그 자리 `run`(끝난 future), `schedule*` = Netty 공용 예약기, `inEventLoop`=true (동적 프록시) | 바닐라처럼 보낸 스레드에서 가로채기가 일어나게. 처리기를 `eventLoop().submit(...)` 로 끼우는 흔한 모양도 동작 |
+| 파이프라인 | `furnace_sink`(쓰기의 끝), `decoder`(`PacketDecoder`, `ProtocolInfo` PLAY/SERVERBOUND), `encoder`(`PacketEncoder`, PLAY/CLIENTBOUND), `packet_handler`(= `Connection`) | ProtocolLib 이 이름·클래스로 찾는다. 처리기는 바이트 변환을 하지 않는다(Furnace 가 바이트를 만든다) |
+| 쓰기 | 끝 처리기(`furnace_sink`)가 `write` 를 끝낸다: `Packet` → `PacketDelivery`(성공·실패를 promise 로), `ByteBuf`(와이어 패킷) → 해제 + 실패 + 플러그인 이름으로 한 번 경고. `flush` 는 넘기지 않는다 | Netty 출력 버퍼·unsafe 는 한 스레드 전용인데 이 루프는 모든 스레드가 "안"이므로 아예 건드리지 않는다(여러 스레드 쓰기 안전, PR #269 검토 R1) |
+| 닫기 | Furnace `PlayerQuitEvent` MONITOR(Bukkit 이벤트를 듣는 플러그인이 하나라도 있으면 걸림)·`retire()` | ProtocolLib 이 `closeFuture` 로 프록시·처리기를 걷고 `InjectionFactory` 를 비운다 |
 
 `Connection` shim 은 netty `ChannelInboundHandlerAdapter` 가 되어 파이프라인의 `packet_handler` 자리를 맡는다(ProtocolLib `InjectionFactory.findNetworkManager` 가 파이프라인에서 `Connection` 하위 클래스를 찾는다 — 소켓 주입 경로를 열 때 쓰인다).
 
@@ -127,7 +128,7 @@ Furnace 서버가 받은 패킷(PacketService 리스너 HIGHEST, ProtocolLib 이
 | O1 | `Bukkit.isPrimaryThread()` 의미(호환 모듈). SYNC 리스너 재예약이 무한히 되돌지 않으려면 이 값이 "어느 스레드에서든 일관"해야 한다 | 2b-2 시작 전에 호환 모듈의 정의를 확인하고, 틱 스레드면 그 스레드로 보내는 `Bukkit.getScheduler().runTask` 와 맞춘다 |
 | O2 | `ProtocolManager#getPacketListeners()` 로 구독을 따라잡는 지연(최대 20틱) | 플러그인이 켜질 때(`onEnable`)에 리스너를 붙이는 것이 99% 라 `PluginEnableEvent` 뒤 1틱 동기화로 충분. 런타임 추가는 20틱 주기로 따라잡고, 그 사이 패킷은 못 본다는 한계를 문서에 적는다 |
 | O3 | shim 필드가 바뀌었는지 모를 때 매번 재변환하는 비용 | 듣는 종류에 한정. 측정 후 필요하면 값 해시 비교(`toFurnace` 결과 `equals`)로 원본 재사용 |
-| O4 | 가상 채널 닫기 시점 | 지금은 `PlayerQuitEvent` push 뒤. 접속 거부(로그인 거부)로 끝난 접속(`forgetDenied`)에서도 닫는다 |
+| O4 | 가상 채널 닫기 시점 | 해결: Furnace `PlayerQuitEvent`(MONITOR)·재접속/정리 때 `retire()`·로그인 거부(`forgetDenied` → `retire()`)에서 닫는다. 바닐라는 채널이 먼저 닫히고 퇴장 이벤트가 나중이지만 퇴장 중 보내기는 어느 쪽이든 안 나가므로 관찰 차이 없음 |
 | O5 | 동시에 여러 스레드가 같은 접속에 보낼 때 ProtocolLib 리스너 재진입 | 바닐라와 같은 호출 스레드 가로채기라 ProtocolLib 이 이미 견딘다. 다만 Furnace 쪽 `PacketService` 는 한 플레이어 순서를 보장하므로 변환 단계에서는 잠금이 없다 |
 
 ## 8. 단계
@@ -143,8 +144,11 @@ Furnace 서버가 받은 패킷(PacketService 리스너 HIGHEST, ProtocolLib 이
 
 ## 9. 2b-1 구현 요약 (이 PR)
 
-- `org.domi.furnace.compat.nms.VirtualChannel`: 위 §5.
+- `org.domi.furnace.compat.nms.VirtualChannel`: 위 §5(`Connection` 이 `furnace_sink` 끝 처리기를 단다).
 - `net.minecraft.network.{PacketEncoder, PacketDecoder}`: 파이프라인의 `encoder`·`decoder` 자리(PLAY 단계 `ProtocolInfo` 필드).
 - `net.minecraft.network.Connection`: `ChannelInboundHandlerAdapter`, `channel` 필드 = 가상 채널, `send` = `channel.eventLoop().execute(Send)`(작업에 `Packet` 필드), 접속 종료 시 `disconnected()`.
 - `org.domi.furnace.compat.nms.PacketDelivery`: `ServerCommonPacketListenerImpl#send` 가 하던 변환·묶음 처리 본문을 옮김(동작 그대로). 처리자의 `send` 는 `connection.send` 로 잇는다.
-- `PlayerQuitEvent` 전달 뒤 `CraftPlayer.disconnected()` → `ServerCommonPacketListenerImpl.compatDisconnected()` → 가상 채널 닫기.
+- Furnace 퇴장 이벤트(MONITOR) 뒤 `CraftPlayer.disconnected()` → `ServerCommonPacketListenerImpl.compatDisconnected()` → 가상 채널 닫기.
+
+검토(PR #269) 반영: 쓰기 끝 처리기(여러 스레드 안전)·`submit`/`schedule`·`channel.writeAndFlush(패킷)` 직접 쓰기·`Send.run` 이 바닐라처럼 `channel.writeAndFlush` 로 써서 ProtocolLib 의 "이미 처리함" 스레드 로컬이 꺼짐·채널 번호·라이브러리 없을 때(`channel == virtual`) 바로 전달하는 빠른 길.
+ProtocolLib 5.4.0 자체 동작(Furnace 버그 아님): `NettyChannelProxy` 에 `id()` 가 없어 주입된 뒤 `connection.channel.id()` 는 `AbstractMethodError`(Paper 도 같음), 묶음 안 패킷을 모두 취소하면 빈 묶음을 쓴다(`PacketDelivery` 는 빈 묶음을 보내지 않아 결과 같음).
