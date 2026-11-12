@@ -946,6 +946,13 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
     @Override
     public int firstOccupiedHeight(int heightmap, int blockX, int blockZ) {
+        // 플러그인 baseHeight 훅(Paper CustomChunkGenerator.getBaseHeight) — 정하지 않으면 바닐라. 훅 값은 첫 빈 칸 y 라 하나 뺀다.
+        GenHooks hooks = genHooks;
+        if (hooks != null) {
+            var r = hooks.baseHeight(heightmap == HM_OCEAN_FLOOR_WG ? org.domi.furnace.api.worldgen.GenerationHeightmap.OCEAN_FLOOR_WG
+                : org.domi.furnace.api.worldgen.GenerationHeightmap.WORLD_SURFACE_WG, blockX, blockZ);
+            if (r.isPresent()) return r.getAsInt() - 1;
+        }
         if (flatLayers != null) return flatBaseHeight(heightmap) - 1;
         return heightmap == HM_OCEAN_FLOOR_WG ? oceanFloorWgHeightAt(blockX, blockZ) : worldSurfaceHeightAt(blockX, blockZ);
     }

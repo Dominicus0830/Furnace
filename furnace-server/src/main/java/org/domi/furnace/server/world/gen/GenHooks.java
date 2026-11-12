@@ -152,6 +152,28 @@ public final class GenHooks {
         }
     }
 
+    /** baseHeight 를 UnsupportedOperationException 으로 거절한 훅 객체(약한 참조 — 같은 객체에는 다시 묻지 않는다, Paper implementBaseHeight=false 와 같다). */
+    private volatile java.lang.ref.WeakReference<ChunkGenerationHooks> baseHeightOff = new java.lang.ref.WeakReference<>(null);
+
+    /**
+     * 구조물 배치 높이(첫 빈 칸 y) — 훅이 안 정하면(구현 안 함·empty·UnsupportedOperationException·예외) empty 라 바닐라 높이를 쓴다.
+     * 높이 캐시는 바닐라 값만 담는다(훅 결과는 매번 묻는다 — 훅이 바뀌어도 낡지 않는다).
+     */
+    public java.util.OptionalInt baseHeight(org.domi.furnace.api.worldgen.GenerationHeightmap map, int x, int z) {
+        ChunkGenerationHooks h = current();
+        if (h == null || baseHeightOff.get() == h) return java.util.OptionalInt.empty();
+        try {
+            java.util.OptionalInt r = h.baseHeight(map, x, z);
+            return r == null ? java.util.OptionalInt.empty() : r;
+        } catch (UnsupportedOperationException e) {
+            baseHeightOff = new java.lang.ref.WeakReference<>(h);
+            return java.util.OptionalInt.empty();
+        } catch (RuntimeException | LinkageError e) {
+            failed("baseHeight(" + map + ")", x >> 4, z >> 4, e);
+            return java.util.OptionalInt.empty();
+        }
+    }
+
     public boolean feature(String placedFeatureId, int ox, int oz) {
         ChunkGenerationHooks h = current();
         if (h == null) return true;
