@@ -1,0 +1,963 @@
+# Furnace 패킷 중립 스키마 — 프로토콜 767 (Minecraft 1.21.1, Mojang 이름)
+#
+# 손으로 쓴 파일이다. 바닐라 jar 에서 뽑은 것이 아니고 바닐라 코드도 들어 있지 않다(이름·필드 타입 목록뿐).
+# 바닐라 jar 와 모양이 맞는지는 커밋하지 않는 로컬 도구(tools/compat/packet-schema-check)로 확인한다.
+# 쓰는 곳: furnace-api 파서(org.domi.furnace.api.packet.schema.PacketSchema), 호환 계층 shim 생성기(빌드 때),
+#          서버 범용 패킷 코덱(별도 작업).
+#
+# 문법 (한 줄에 하나, '#' 뒤는 주석, 들여쓰기 = 바로 위 블록의 멤버)
+#
+#   type <종류> <FQCN>[<타입 인자>] [wire=<와이어>] [: 상수 ...]
+#       패킷 필드에 나오는 바깥 타입. 종류: class | abstract | interface | record | enum | lib
+#       net.minecraft 타입이 호환 계층에 없으면 생성기가 빈 shim(enum 은 상수까지)을 만든다.
+#       lib = Mojang 라이브러리(authlib·DFU·fastutil·brigadier) — 컴파일 경로에 없으면 Object 로 지운다.
+#       내포 타입은 '$' 로 쓴다(net.minecraft.world.BossEvent$BossBarColor). 필드에서는 BossEvent.BossBarColor 로 부른다.
+#   state <상태>
+#       뒤따르는 패킷의 상태. 패키지는 net.minecraft.network.protocol.<상태> (game·common·configuration·login·status·cookie·ping·handshake)
+#   packet <clientbound|serverbound> <와이어 이름> <클래스> <record|class|singleton> [플래그 ...]
+#       플래그: new = 바닐라에 모든 필드를 필드 순서대로 받는 public 생성자가 있다(record 는 늘 있음)
+#               custom = 와이어가 필드 나열로 떨어지지 않는다(비트 묶음·조건부·순서 다름 등) — 코덱이 손으로 다룬다
+#               extends=<부모> = 부모 클래스(이 스키마의 base 나 Mojang 타입)
+#       클래스 이름에 '$' 가 있으면 내포 패킷이다(ClientboundMoveEntityPacket$Pos).
+#   base <클래스> [abstract]
+#       패킷이 아닌 같은 패키지 부모·보조 클래스(필드 블록을 가진다).
+#   record|class|interface|enum <바깥$안> [private] [: 상수 ...]
+#       패킷 안에 내포된 타입. 필드 블록을 가질 수 있다.
+#   필드:  <Java 타입> <이름> [와이어] [nullable] [get=<접근자>]
+#       순서는 바닐라 클래스의 필드 선언 순서. 이름은 Mojang 이름 그대로(camelCase).
+#       와이어 생략 시 Java 타입에서: int=varint long=i64 short=i16 byte=i8 float=f32 double=f64 boolean=bool
+#       String=string UUID=uuid byte[]=bytes long[]=longs int[]=varints, 나머지는 type 줄의 wire=, enum 은 varint 서수.
+#       명시 와이어: varint varlong i8 u8 i16 u16 i32 i64 f32 f64 bool string uuid bytes ... (값 크기·부호만 다를 때)
+#       nullable = 와이어에서 bool 머리가 붙은 선택값(Java 쪽은 null 허용).
+#       get= = class 패킷의 접근자 이름(record 는 필드 이름이 곧 접근자).
+#
+# 필드 값의 단위: Java 필드에 바닐라가 담는 값 그대로다(예: 회전은 1/256 바퀴 byte, 속도는 ×8000 short 를 int 에).
+
+# ---------------------------------------------------------------- 바깥 타입
+type class net.minecraft.network.chat.Component wire=component
+type record net.minecraft.resources.ResourceLocation wire=identifier
+type class net.minecraft.resources.ResourceKey<T> wire=identifier
+type interface net.minecraft.core.Registry<T>
+type interface net.minecraft.core.Holder<T> wire=holder
+type class net.minecraft.core.BlockPos wire=block_pos
+type class net.minecraft.core.Vec3i
+type class net.minecraft.core.SectionPos wire=i64
+type class net.minecraft.world.level.ChunkPos wire=i64
+type class net.minecraft.world.phys.Vec3 wire=vec3
+type class net.minecraft.world.item.ItemStack wire=item_stack
+type class net.minecraft.world.item.Item wire=registry_id
+type class net.minecraft.world.level.block.Block wire=registry_id
+type class net.minecraft.world.level.block.state.BlockState wire=block_state
+type class net.minecraft.nbt.CompoundTag wire=nbt
+type class net.minecraft.world.level.Level
+type enum net.minecraft.world.InteractionHand wire=varint : MAIN_HAND OFF_HAND
+type enum net.minecraft.core.Direction wire=varint : DOWN UP NORTH SOUTH WEST EAST
+type enum net.minecraft.ChatFormatting wire=varint
+type enum net.minecraft.world.level.block.state.properties.StructureMode wire=varint : SAVE LOAD CORNER DATA
+type class net.minecraft.server.level.ServerPlayer
+type class net.minecraft.world.entity.Entity
+type class net.minecraft.world.entity.LivingEntity
+
+type interface net.minecraft.network.protocol.common.custom.CustomPacketPayload wire=custom_payload
+type class net.minecraft.server.ServerLinks
+type record net.minecraft.server.ServerLinks$UntrustedEntry wire=server_link
+type class net.minecraft.tags.TagNetworkSerialization
+type class net.minecraft.tags.TagNetworkSerialization$NetworkPayload wire=tag_payload
+type record net.minecraft.server.level.ClientInformation wire=client_information
+type class net.minecraft.world.entity.EntityType<T> wire=registry_id
+type class net.minecraft.world.level.block.entity.BlockEntityType<T> wire=registry_id
+type class net.minecraft.world.BossEvent
+type enum net.minecraft.world.BossEvent$BossBarColor : PINK BLUE RED GREEN YELLOW PURPLE WHITE
+type enum net.minecraft.world.BossEvent$BossBarOverlay : PROGRESS NOTCHED_6 NOTCHED_10 NOTCHED_12 NOTCHED_20
+type enum net.minecraft.world.Difficulty wire=u8 : PEACEFUL EASY NORMAL HARD
+type class net.minecraft.core.NonNullList<E>
+type record net.minecraft.world.damagesource.DamageType
+type enum net.minecraft.util.debugchart.RemoteDebugSampleType : TICK_TIME
+type record net.minecraft.network.chat.MessageSignature wire=bytes
+type record net.minecraft.network.chat.MessageSignature$Packed wire=message_signature_packed
+type record net.minecraft.network.chat.ChatType
+type record net.minecraft.network.chat.ChatType$Bound wire=chat_type_bound
+type interface net.minecraft.core.particles.ParticleOptions wire=particle
+type class net.minecraft.world.level.Explosion
+type enum net.minecraft.world.level.Explosion$BlockInteraction : KEEP DESTROY DESTROY_WITH_DECAY TRIGGER_BLOCK
+type class net.minecraft.sounds.SoundEvent
+type enum net.minecraft.sounds.SoundSource : MASTER MUSIC RECORDS WEATHER BLOCKS HOSTILE NEUTRAL PLAYERS AMBIENT VOICE
+type record net.minecraft.world.level.dimension.DimensionType
+type record net.minecraft.core.GlobalPos wire=global_pos
+type enum net.minecraft.world.level.GameType : SURVIVAL CREATIVE ADVENTURE SPECTATOR
+type record net.minecraft.world.level.saveddata.maps.MapId wire=varint
+type record net.minecraft.world.level.saveddata.maps.MapDecoration wire=map_decoration
+type class net.minecraft.world.level.saveddata.maps.MapItemSavedData
+type record net.minecraft.world.level.saveddata.maps.MapItemSavedData$MapPatch wire=map_patch
+type class net.minecraft.world.item.trading.MerchantOffers wire=merchant_offers
+type class net.minecraft.world.inventory.MenuType<T> wire=registry_id
+type record net.minecraft.world.item.crafting.RecipeHolder<T> wire=recipe_holder
+type record net.minecraft.network.chat.SignedMessageBody
+type record net.minecraft.network.chat.SignedMessageBody$Packed wire=signed_body_packed
+type class net.minecraft.network.chat.FilterMask wire=filter_mask
+type record net.minecraft.network.chat.RemoteChatSession
+type record net.minecraft.network.chat.RemoteChatSession$Data wire=chat_session
+type class net.minecraft.commands.arguments.EntityAnchorArgument
+type enum net.minecraft.commands.arguments.EntityAnchorArgument$Anchor : FEET EYES
+type enum net.minecraft.world.entity.RelativeMovement : X Y Z Y_ROT X_ROT
+type class net.minecraft.stats.RecipeBookSettings wire=recipe_book_settings
+type class net.minecraft.world.effect.MobEffect
+type enum net.minecraft.world.scores.DisplaySlot wire=varint : LIST SIDEBAR BELOW_NAME TEAM_BLACK TEAM_DARK_BLUE TEAM_DARK_GREEN TEAM_DARK_AQUA TEAM_DARK_RED TEAM_DARK_PURPLE TEAM_GOLD TEAM_GRAY TEAM_DARK_GRAY TEAM_BLUE TEAM_GREEN TEAM_AQUA TEAM_RED TEAM_LIGHT_PURPLE TEAM_YELLOW TEAM_WHITE
+type class net.minecraft.network.syncher.SynchedEntityData
+type record net.minecraft.network.syncher.SynchedEntityData$DataValue<T> wire=entity_data
+type enum net.minecraft.world.entity.EquipmentSlot : MAINHAND OFFHAND FEET LEGS CHEST HEAD BODY
+type class net.minecraft.world.scores.criteria.ObjectiveCriteria
+type enum net.minecraft.world.scores.criteria.ObjectiveCriteria$RenderType : INTEGER HEARTS
+type interface net.minecraft.network.chat.numbers.NumberFormat wire=number_format
+type record net.minecraft.advancements.AdvancementHolder wire=advancement_holder
+type class net.minecraft.advancements.AdvancementProgress wire=advancement_progress
+type class net.minecraft.world.entity.ai.attributes.Attribute
+type record net.minecraft.world.entity.ai.attributes.AttributeModifier wire=attribute_modifier
+type record net.minecraft.commands.arguments.ArgumentSignatures wire=argument_signatures
+type record net.minecraft.network.chat.LastSeenMessages
+type record net.minecraft.network.chat.LastSeenMessages$Update wire=last_seen_update
+type enum net.minecraft.world.inventory.ClickType : PICKUP QUICK_MOVE SWAP CLONE THROW QUICK_CRAFT PICKUP_ALL
+type enum net.minecraft.world.inventory.RecipeBookType : CRAFTING FURNACE BLAST_FURNACE SMOKER
+type class net.minecraft.world.level.block.entity.CommandBlockEntity
+type enum net.minecraft.world.level.block.entity.CommandBlockEntity$Mode : SEQUENCE AUTO REDSTONE
+type class net.minecraft.world.level.block.entity.JigsawBlockEntity
+type enum net.minecraft.world.level.block.entity.JigsawBlockEntity$JointType wire=string : ROLLABLE ALIGNED
+type class net.minecraft.world.level.block.entity.StructureBlockEntity
+type enum net.minecraft.world.level.block.entity.StructureBlockEntity$UpdateType : UPDATE_DATA SAVE_AREA LOAD_AREA SCAN_AREA
+type enum net.minecraft.world.level.block.Mirror : NONE LEFT_RIGHT FRONT_BACK
+type enum net.minecraft.world.level.block.Rotation : NONE CLOCKWISE_90 CLOCKWISE_180 COUNTERCLOCKWISE_90
+type class net.minecraft.world.phys.BlockHitResult wire=block_hit
+type class net.minecraft.core.RegistrySynchronization
+type record net.minecraft.core.RegistrySynchronization$PackedRegistryEntry wire=packed_registry_entry
+type record net.minecraft.server.packs.repository.KnownPack wire=known_pack
+type interface net.minecraft.network.protocol.login.custom.CustomQueryPayload wire=custom_query
+type interface net.minecraft.network.protocol.login.custom.CustomQueryAnswerPayload wire=custom_query_answer
+type record net.minecraft.network.protocol.status.ServerStatus wire=json_status
+type enum net.minecraft.network.protocol.handshake.ClientIntent : STATUS LOGIN TRANSFER
+type class net.minecraft.stats.Stat<T>
+type class net.minecraft.network.protocol.BundlePacket<T>
+type class net.minecraft.network.protocol.BundleDelimiterPacket<T>
+type interface net.minecraft.network.protocol.Packet<T>
+type interface net.minecraft.network.protocol.game.ClientGamePacketListener
+
+type lib com.mojang.authlib.GameProfile wire=game_profile
+type lib com.mojang.datafixers.util.Pair<A,B>
+type lib it.unimi.dsi.fastutil.ints.IntList
+type lib it.unimi.dsi.fastutil.ints.Int2ObjectMap<V>
+type lib it.unimi.dsi.fastutil.objects.Object2IntMap<K>
+
+# ---------------------------------------------------------------- 핸드셰이크
+state handshake
+packet serverbound intention ClientIntentionPacket record
+  int protocolVersion
+  String hostName
+  int port u16
+  ClientIntent intention
+
+# ---------------------------------------------------------------- 상태
+state status
+packet clientbound status_response ClientboundStatusResponsePacket record
+  ServerStatus status
+packet serverbound status_request ServerboundStatusRequestPacket singleton
+
+# ---------------------------------------------------------------- 핑·쿠키 (여러 상태에서 같이 쓰임)
+state ping
+packet clientbound pong_response ClientboundPongResponsePacket record
+  long time
+packet serverbound ping_request ServerboundPingRequestPacket class new
+  long time get=getTime
+
+state cookie
+packet clientbound cookie_request ClientboundCookieRequestPacket record
+  ResourceLocation key
+packet serverbound cookie_response ServerboundCookieResponsePacket record
+  ResourceLocation key
+  byte[] payload nullable
+
+# ---------------------------------------------------------------- 로그인
+state login
+packet clientbound custom_query ClientboundCustomQueryPacket record custom
+  int transactionId
+  CustomQueryPayload payload
+packet clientbound game_profile ClientboundGameProfilePacket record
+  GameProfile gameProfile
+  boolean strictErrorHandling
+packet clientbound hello ClientboundHelloPacket class new
+  String serverId get=getServerId
+  byte[] publicKey
+  byte[] challenge get=getChallenge
+  boolean shouldAuthenticate get=shouldAuthenticate
+packet clientbound login_compression ClientboundLoginCompressionPacket class new
+  int compressionThreshold get=getCompressionThreshold
+packet clientbound login_disconnect ClientboundLoginDisconnectPacket class new
+  Component reason get=getReason
+packet serverbound custom_query_answer ServerboundCustomQueryAnswerPacket record custom
+  int transactionId
+  CustomQueryAnswerPayload payload nullable
+packet serverbound hello ServerboundHelloPacket record
+  String name
+  UUID profileId
+packet serverbound key ServerboundKeyPacket class
+  byte[] keybytes
+  byte[] encryptedChallenge
+packet serverbound login_acknowledged ServerboundLoginAcknowledgedPacket singleton
+
+# ---------------------------------------------------------------- 설정
+state configuration
+packet clientbound finish_configuration ClientboundFinishConfigurationPacket singleton
+packet clientbound registry_data ClientboundRegistryDataPacket record
+  ResourceKey<? extends Registry<?>> registry
+  List<RegistrySynchronization.PackedRegistryEntry> entries
+packet clientbound update_enabled_features ClientboundUpdateEnabledFeaturesPacket record
+  Set<ResourceLocation> features
+packet clientbound select_known_packs ClientboundSelectKnownPacks record
+  List<KnownPack> knownPacks
+packet clientbound reset_chat ClientboundResetChatPacket singleton
+packet serverbound finish_configuration ServerboundFinishConfigurationPacket singleton
+packet serverbound select_known_packs ServerboundSelectKnownPacks record
+  List<KnownPack> knownPacks
+
+# ---------------------------------------------------------------- 공통 (설정·play)
+state common
+packet clientbound custom_payload ClientboundCustomPayloadPacket record custom
+  CustomPacketPayload payload
+packet clientbound custom_report_details ClientboundCustomReportDetailsPacket record
+  Map<String,String> details
+packet clientbound disconnect ClientboundDisconnectPacket record
+  Component reason
+packet clientbound keep_alive ClientboundKeepAlivePacket class new
+  long id get=getId
+packet clientbound ping ClientboundPingPacket class new
+  int id i32 get=getId
+packet clientbound resource_pack_pop ClientboundResourcePackPopPacket record
+  Optional<UUID> id
+packet clientbound resource_pack_push ClientboundResourcePackPushPacket record
+  UUID id
+  String url
+  String hash
+  boolean required
+  Optional<Component> prompt
+packet clientbound server_links ClientboundServerLinksPacket record
+  List<ServerLinks.UntrustedEntry> links
+packet clientbound store_cookie ClientboundStoreCookiePacket record
+  ResourceLocation key
+  byte[] payload
+packet clientbound transfer ClientboundTransferPacket record
+  String host
+  int port
+packet clientbound update_tags ClientboundUpdateTagsPacket class new
+  Map<ResourceKey<? extends Registry<?>>,TagNetworkSerialization.NetworkPayload> tags get=getTags
+packet serverbound client_information ServerboundClientInformationPacket record
+  ClientInformation information
+packet serverbound custom_payload ServerboundCustomPayloadPacket record custom
+  CustomPacketPayload payload
+packet serverbound keep_alive ServerboundKeepAlivePacket class new
+  long id get=getId
+packet serverbound pong ServerboundPongPacket class new
+  int id i32 get=getId
+packet serverbound resource_pack ServerboundResourcePackPacket record
+  UUID id
+  ServerboundResourcePackPacket.Action action
+enum ServerboundResourcePackPacket$Action : SUCCESSFULLY_LOADED DECLINED FAILED_DOWNLOAD ACCEPTED DOWNLOADED INVALID_URL FAILED_RELOAD DISCARDED
+
+# ---------------------------------------------------------------- play (clientbound)
+state game
+packet clientbound bundle_delimiter ClientboundBundleDelimiterPacket class custom extends=BundleDelimiterPacket<ClientGamePacketListener>
+packet clientbound add_entity ClientboundAddEntityPacket class custom
+  int id get=getId
+  UUID uuid get=getUUID
+  EntityType<?> type get=getType
+  double x get=getX
+  double y get=getY
+  double z get=getZ
+  int xa i16
+  int ya i16
+  int za i16
+  byte xRot
+  byte yRot
+  byte yHeadRot
+  int data get=getData
+packet clientbound add_experience_orb ClientboundAddExperienceOrbPacket class
+  int id get=getId
+  double x get=getX
+  double y get=getY
+  double z get=getZ
+  int value i16 get=getValue
+packet clientbound animate ClientboundAnimatePacket class
+  int id get=getId
+  int action u8 get=getAction
+packet clientbound award_stats ClientboundAwardStatsPacket record custom
+  Object2IntMap<Stat<?>> stats
+packet clientbound block_changed_ack ClientboundBlockChangedAckPacket record
+  int sequence
+packet clientbound block_destruction ClientboundBlockDestructionPacket class new
+  int id get=getId
+  BlockPos pos get=getPos
+  int progress u8 get=getProgress
+packet clientbound block_entity_data ClientboundBlockEntityDataPacket class
+  BlockPos pos get=getPos
+  BlockEntityType<?> type get=getType
+  CompoundTag tag get=getTag
+packet clientbound block_event ClientboundBlockEventPacket class
+  BlockPos pos get=getPos
+  int b0 u8 get=getB0
+  int b1 u8 get=getB1
+  Block block get=getBlock
+packet clientbound block_update ClientboundBlockUpdatePacket class new
+  BlockPos pos get=getPos
+  BlockState blockState get=getBlockState
+packet clientbound boss_event ClientboundBossEventPacket class custom
+  UUID id
+  ClientboundBossEventPacket.Operation operation
+interface ClientboundBossEventPacket$Operation private
+interface ClientboundBossEventPacket$Handler
+packet clientbound change_difficulty ClientboundChangeDifficultyPacket class new
+  Difficulty difficulty get=getDifficulty
+  boolean locked get=isLocked
+packet clientbound chunk_batch_finished ClientboundChunkBatchFinishedPacket record
+  int batchSize
+packet clientbound chunk_batch_start ClientboundChunkBatchStartPacket singleton
+packet clientbound chunks_biomes ClientboundChunksBiomesPacket record
+  List<ClientboundChunksBiomesPacket.ChunkBiomeData> chunkBiomeData
+record ClientboundChunksBiomesPacket$ChunkBiomeData
+  ChunkPos pos
+  byte[] buffer
+packet clientbound command_suggestions ClientboundCommandSuggestionsPacket record
+  int id
+  int start
+  int length
+  List<ClientboundCommandSuggestionsPacket.Entry> suggestions
+record ClientboundCommandSuggestionsPacket$Entry
+  String text
+  Optional<Component> tooltip
+packet clientbound commands ClientboundCommandsPacket class custom
+  int rootIndex
+  List<ClientboundCommandsPacket.Entry> entries
+class ClientboundCommandsPacket$Entry private
+  ClientboundCommandsPacket.NodeStub stub
+  int flags
+  int redirect
+  int[] children
+interface ClientboundCommandsPacket$NodeStub private
+packet clientbound container_close ClientboundContainerClosePacket class new
+  int containerId u8 get=getContainerId
+packet clientbound container_set_content ClientboundContainerSetContentPacket class
+  int containerId u8 get=getContainerId
+  int stateId get=getStateId
+  List<ItemStack> items get=getItems
+  ItemStack carriedItem get=getCarriedItem
+packet clientbound container_set_data ClientboundContainerSetDataPacket class new
+  int containerId u8 get=getContainerId
+  int id i16 get=getId
+  int value i16 get=getValue
+packet clientbound container_set_slot ClientboundContainerSetSlotPacket class new
+  int containerId i8 get=getContainerId
+  int stateId get=getStateId
+  int slot i16 get=getSlot
+  ItemStack itemStack get=getItem
+packet clientbound cooldown ClientboundCooldownPacket record
+  Item item
+  int duration
+packet clientbound custom_chat_completions ClientboundCustomChatCompletionsPacket record
+  ClientboundCustomChatCompletionsPacket.Action action
+  List<String> entries
+enum ClientboundCustomChatCompletionsPacket$Action : ADD REMOVE SET
+packet clientbound damage_event ClientboundDamageEventPacket record custom
+  int entityId
+  Holder<DamageType> sourceType
+  int sourceCauseId
+  int sourceDirectId
+  Optional<Vec3> sourcePosition
+packet clientbound debug_sample ClientboundDebugSamplePacket record
+  long[] sample
+  RemoteDebugSampleType debugSampleType
+packet clientbound delete_chat ClientboundDeleteChatPacket record
+  MessageSignature.Packed messageSignature
+packet clientbound disguised_chat ClientboundDisguisedChatPacket record
+  Component message
+  ChatType.Bound chatType
+packet clientbound entity_event ClientboundEntityEventPacket class
+  int entityId i32
+  byte eventId get=getEventId
+packet clientbound explode ClientboundExplodePacket class custom
+  double x get=getX
+  double y get=getY
+  double z get=getZ
+  float power get=getPower
+  List<BlockPos> toBlow get=getToBlow
+  float knockbackX get=getKnockbackX
+  float knockbackY get=getKnockbackY
+  float knockbackZ get=getKnockbackZ
+  ParticleOptions smallExplosionParticles get=getSmallExplosionParticles
+  ParticleOptions largeExplosionParticles get=getLargeExplosionParticles
+  Explosion.BlockInteraction blockInteraction get=getBlockInteraction
+  Holder<SoundEvent> explosionSound get=getExplosionSound
+packet clientbound forget_level_chunk ClientboundForgetLevelChunkPacket record
+  ChunkPos pos
+packet clientbound game_event ClientboundGameEventPacket class new
+  ClientboundGameEventPacket.Type event u8 get=getEvent
+  float param get=getParam
+class ClientboundGameEventPacket$Type
+  int id
+packet clientbound horse_screen_open ClientboundHorseScreenOpenPacket class new
+  int containerId u8 get=getContainerId
+  int inventoryColumns get=getInventoryColumns
+  int entityId i32 get=getEntityId
+packet clientbound hurt_animation ClientboundHurtAnimationPacket record
+  int id
+  float yaw
+packet clientbound initialize_border ClientboundInitializeBorderPacket class
+  double newCenterX get=getNewCenterX
+  double newCenterZ get=getNewCenterZ
+  double oldSize get=getOldSize
+  double newSize get=getNewSize
+  long lerpTime varlong get=getLerpTime
+  int newAbsoluteMaxSize get=getNewAbsoluteMaxSize
+  int warningBlocks get=getWarningBlocks
+  int warningTime get=getWarningTime
+packet clientbound level_chunk_with_light ClientboundLevelChunkWithLightPacket class custom
+  int x i32 get=getX
+  int z i32 get=getZ
+  ClientboundLevelChunkPacketData chunkData get=getChunkData
+  ClientboundLightUpdatePacketData lightData get=getLightData
+base ClientboundLevelChunkPacketData
+  CompoundTag heightmaps
+  byte[] buffer
+  List<ClientboundLevelChunkPacketData.BlockEntityInfo> blockEntitiesData
+class ClientboundLevelChunkPacketData$BlockEntityInfo private
+  int packedXZ u8
+  int y i16
+  BlockEntityType<?> type
+  CompoundTag tag nullable
+base ClientboundLightUpdatePacketData
+  BitSet skyYMask
+  BitSet blockYMask
+  BitSet emptySkyYMask
+  BitSet emptyBlockYMask
+  List<byte[]> skyUpdates
+  List<byte[]> blockUpdates
+packet clientbound level_event ClientboundLevelEventPacket class new
+  int type i32 get=getType
+  BlockPos pos get=getPos
+  int data i32 get=getData
+  boolean globalEvent get=isGlobalEvent
+packet clientbound level_particles ClientboundLevelParticlesPacket class custom
+  double x get=getX
+  double y get=getY
+  double z get=getZ
+  float xDist get=getXDist
+  float yDist get=getYDist
+  float zDist get=getZDist
+  float maxSpeed get=getMaxSpeed
+  int count i32 get=getCount
+  boolean overrideLimit get=isOverrideLimit
+  ParticleOptions particle get=getParticle
+packet clientbound light_update ClientboundLightUpdatePacket class custom
+  int x get=getX
+  int z get=getZ
+  ClientboundLightUpdatePacketData lightData get=getLightData
+packet clientbound login ClientboundLoginPacket record
+  int playerId i32
+  boolean hardcore
+  Set<ResourceKey<Level>> levels
+  int maxPlayers
+  int chunkRadius
+  int simulationDistance
+  boolean reducedDebugInfo
+  boolean showDeathScreen
+  boolean doLimitedCrafting
+  CommonPlayerSpawnInfo commonPlayerSpawnInfo
+  boolean enforcesSecureChat
+base CommonPlayerSpawnInfo record
+  Holder<DimensionType> dimensionType
+  ResourceKey<Level> dimension
+  long seed
+  GameType gameType u8
+  GameType previousGameType i8
+  boolean isDebug
+  boolean isFlat
+  Optional<GlobalPos> lastDeathLocation
+  int portalCooldown
+packet clientbound map_item_data ClientboundMapItemDataPacket record custom
+  MapId mapId
+  byte scale
+  boolean locked
+  Optional<List<MapDecoration>> decorations
+  Optional<MapItemSavedData.MapPatch> colorPatch
+packet clientbound merchant_offers ClientboundMerchantOffersPacket class new
+  int containerId get=getContainerId
+  MerchantOffers offers get=getOffers
+  int villagerLevel get=getVillagerLevel
+  int villagerXp get=getVillagerXp
+  boolean showProgress get=showProgress
+  boolean canRestock get=canRestock
+base ClientboundMoveEntityPacket abstract
+  int entityId
+  short xa
+  short ya
+  short za
+  byte yRot
+  byte xRot
+  boolean onGround
+  boolean hasRot
+  boolean hasPos
+packet clientbound move_entity_pos ClientboundMoveEntityPacket$Pos class custom extends=ClientboundMoveEntityPacket
+packet clientbound move_entity_pos_rot ClientboundMoveEntityPacket$PosRot class custom extends=ClientboundMoveEntityPacket
+packet clientbound move_entity_rot ClientboundMoveEntityPacket$Rot class custom extends=ClientboundMoveEntityPacket
+packet clientbound move_vehicle ClientboundMoveVehiclePacket class
+  double x get=getX
+  double y get=getY
+  double z get=getZ
+  float yRot get=getYRot
+  float xRot get=getXRot
+packet clientbound open_book ClientboundOpenBookPacket class new
+  InteractionHand hand get=getHand
+packet clientbound open_screen ClientboundOpenScreenPacket class new
+  int containerId get=getContainerId
+  MenuType<?> type get=getType
+  Component title get=getTitle
+packet clientbound open_sign_editor ClientboundOpenSignEditorPacket class new
+  BlockPos pos get=getPos
+  boolean isFrontText get=isFrontText
+packet clientbound place_ghost_recipe ClientboundPlaceGhostRecipePacket class
+  int containerId i8 get=getContainerId
+  ResourceLocation recipe get=getRecipe
+packet clientbound player_abilities ClientboundPlayerAbilitiesPacket class custom
+  boolean invulnerable get=isInvulnerable
+  boolean isFlying get=isFlying
+  boolean canFly get=canFly
+  boolean instabuild get=canInstabuild
+  float flyingSpeed get=getFlyingSpeed
+  float walkingSpeed get=getWalkingSpeed
+packet clientbound player_chat ClientboundPlayerChatPacket record custom
+  UUID sender
+  int index
+  MessageSignature signature nullable
+  SignedMessageBody.Packed body
+  Component unsignedContent nullable
+  FilterMask filterMask
+  ChatType.Bound chatType
+packet clientbound player_combat_end ClientboundPlayerCombatEndPacket class new
+  int duration
+packet clientbound player_combat_enter ClientboundPlayerCombatEnterPacket singleton
+packet clientbound player_combat_kill ClientboundPlayerCombatKillPacket record
+  int playerId
+  Component message
+packet clientbound player_info_remove ClientboundPlayerInfoRemovePacket record
+  List<UUID> profileIds
+packet clientbound player_info_update ClientboundPlayerInfoUpdatePacket class custom
+  EnumSet<ClientboundPlayerInfoUpdatePacket.Action> actions get=actions
+  List<ClientboundPlayerInfoUpdatePacket.Entry> entries get=entries
+record ClientboundPlayerInfoUpdatePacket$Entry
+  UUID profileId
+  GameProfile profile
+  boolean listed
+  int latency
+  GameType gameMode
+  Component displayName nullable
+  RemoteChatSession.Data chatSession nullable
+enum ClientboundPlayerInfoUpdatePacket$Action : ADD_PLAYER INITIALIZE_CHAT UPDATE_GAME_MODE UPDATE_LISTED UPDATE_LATENCY UPDATE_DISPLAY_NAME
+packet clientbound player_look_at ClientboundPlayerLookAtPacket class custom
+  double x
+  double y
+  double z
+  int entity
+  EntityAnchorArgument.Anchor fromAnchor
+  EntityAnchorArgument.Anchor toAnchor
+  boolean atEntity
+packet clientbound player_position ClientboundPlayerPositionPacket class new custom
+  double x get=getX
+  double y get=getY
+  double z get=getZ
+  float yRot get=getYRot
+  float xRot get=getXRot
+  Set<RelativeMovement> relativeArguments get=getRelativeArguments
+  int id get=getId
+packet clientbound recipe ClientboundRecipePacket class custom
+  ClientboundRecipePacket.State state get=getState
+  List<ResourceLocation> recipes get=getRecipes
+  List<ResourceLocation> toHighlight get=getHighlights
+  RecipeBookSettings bookSettings get=getBookSettings
+enum ClientboundRecipePacket$State : INIT ADD REMOVE
+packet clientbound remove_entities ClientboundRemoveEntitiesPacket class new
+  IntList entityIds get=getEntityIds
+packet clientbound remove_mob_effect ClientboundRemoveMobEffectPacket record
+  int entityId
+  Holder<MobEffect> effect
+packet clientbound respawn ClientboundRespawnPacket record
+  CommonPlayerSpawnInfo commonPlayerSpawnInfo
+  byte dataToKeep
+packet clientbound rotate_head ClientboundRotateHeadPacket class
+  int entityId
+  byte yHeadRot get=getYHeadRot
+packet clientbound section_blocks_update ClientboundSectionBlocksUpdatePacket class custom
+  SectionPos sectionPos
+  short[] positions
+  BlockState[] states
+packet clientbound select_advancements_tab ClientboundSelectAdvancementsTabPacket class new
+  ResourceLocation tab nullable get=getTab
+packet clientbound server_data ClientboundServerDataPacket record
+  Component motd
+  Optional<byte[]> iconBytes
+packet clientbound set_action_bar_text ClientboundSetActionBarTextPacket record
+  Component text
+packet clientbound set_border_center ClientboundSetBorderCenterPacket class
+  double newCenterX get=getNewCenterX
+  double newCenterZ get=getNewCenterZ
+packet clientbound set_border_lerp_size ClientboundSetBorderLerpSizePacket class
+  double oldSize get=getOldSize
+  double newSize get=getNewSize
+  long lerpTime varlong get=getLerpTime
+packet clientbound set_border_size ClientboundSetBorderSizePacket class
+  double size get=getSize
+packet clientbound set_border_warning_delay ClientboundSetBorderWarningDelayPacket class
+  int warningDelay get=getWarningDelay
+packet clientbound set_border_warning_distance ClientboundSetBorderWarningDistancePacket class
+  int warningBlocks get=getWarningBlocks
+packet clientbound set_camera ClientboundSetCameraPacket class
+  int cameraId
+packet clientbound set_carried_item ClientboundSetCarriedItemPacket class new
+  int slot i8 get=getSlot
+packet clientbound set_chunk_cache_center ClientboundSetChunkCacheCenterPacket class new
+  int x get=getX
+  int z get=getZ
+packet clientbound set_chunk_cache_radius ClientboundSetChunkCacheRadiusPacket class new
+  int radius get=getRadius
+packet clientbound set_default_spawn_position ClientboundSetDefaultSpawnPositionPacket class new
+  BlockPos pos get=getPos
+  float angle get=getAngle
+packet clientbound set_display_objective ClientboundSetDisplayObjectivePacket class
+  DisplaySlot slot get=getSlot
+  String objectiveName get=getObjectiveName
+packet clientbound set_entity_data ClientboundSetEntityDataPacket record custom
+  int id
+  List<SynchedEntityData.DataValue<?>> packedItems
+packet clientbound set_entity_link ClientboundSetEntityLinkPacket class
+  int sourceId i32 get=getSourceId
+  int destId i32 get=getDestId
+packet clientbound set_entity_motion ClientboundSetEntityMotionPacket class
+  int id get=getId
+  int xa i16 get=getXa
+  int ya i16 get=getYa
+  int za i16 get=getZa
+packet clientbound set_equipment ClientboundSetEquipmentPacket class new custom
+  int entity get=getEntity
+  List<Pair<EquipmentSlot,ItemStack>> slots get=getSlots
+packet clientbound set_experience ClientboundSetExperiencePacket class new custom
+  float experienceProgress get=getExperienceProgress
+  int totalExperience get=getTotalExperience
+  int experienceLevel get=getExperienceLevel
+packet clientbound set_health ClientboundSetHealthPacket class new
+  float health get=getHealth
+  int food get=getFood
+  float saturation get=getSaturation
+packet clientbound set_objective ClientboundSetObjectivePacket class custom
+  String objectiveName get=getObjectiveName
+  Component displayName get=getDisplayName
+  ObjectiveCriteria.RenderType renderType get=getRenderType
+  Optional<NumberFormat> numberFormat get=getNumberFormat
+  int method get=getMethod
+packet clientbound set_passengers ClientboundSetPassengersPacket class
+  int vehicle get=getVehicle
+  int[] passengers get=getPassengers
+packet clientbound set_player_team ClientboundSetPlayerTeamPacket class custom
+  int method
+  String name get=getName
+  Collection<String> players get=getPlayers
+  Optional<ClientboundSetPlayerTeamPacket.Parameters> parameters get=getParameters
+class ClientboundSetPlayerTeamPacket$Parameters
+  Component displayName get=getDisplayName
+  Component playerPrefix get=getPlayerPrefix
+  Component playerSuffix get=getPlayerSuffix
+  String nametagVisibility get=getNametagVisibility
+  String collisionRule get=getCollisionRule
+  ChatFormatting color get=getColor
+  int options i8 get=getOptions
+enum ClientboundSetPlayerTeamPacket$Action : ADD REMOVE
+packet clientbound set_score ClientboundSetScorePacket record
+  String owner
+  String objectiveName
+  int score
+  Optional<Component> display
+  Optional<NumberFormat> numberFormat
+packet clientbound set_simulation_distance ClientboundSetSimulationDistancePacket record
+  int simulationDistance
+packet clientbound set_subtitle_text ClientboundSetSubtitleTextPacket record
+  Component text
+packet clientbound set_time ClientboundSetTimePacket class
+  long gameTime get=getGameTime
+  long dayTime get=getDayTime
+packet clientbound set_title_text ClientboundSetTitleTextPacket record
+  Component text
+packet clientbound set_titles_animation ClientboundSetTitlesAnimationPacket class new
+  int fadeIn i32 get=getFadeIn
+  int stay i32 get=getStay
+  int fadeOut i32 get=getFadeOut
+packet clientbound sound_entity ClientboundSoundEntityPacket class
+  Holder<SoundEvent> sound get=getSound
+  SoundSource source get=getSource
+  int id get=getId
+  float volume get=getVolume
+  float pitch get=getPitch
+  long seed get=getSeed
+packet clientbound sound ClientboundSoundPacket class
+  Holder<SoundEvent> sound get=getSound
+  SoundSource source get=getSource
+  int x i32
+  int y i32
+  int z i32
+  float volume get=getVolume
+  float pitch get=getPitch
+  long seed get=getSeed
+packet clientbound start_configuration ClientboundStartConfigurationPacket singleton
+packet clientbound stop_sound ClientboundStopSoundPacket class new custom
+  ResourceLocation name nullable get=getName
+  SoundSource source nullable get=getSource
+packet clientbound system_chat ClientboundSystemChatPacket record
+  Component content
+  boolean overlay
+packet clientbound tab_list ClientboundTabListPacket record
+  Component header
+  Component footer
+packet clientbound tag_query ClientboundTagQueryPacket class new
+  int transactionId get=getTransactionId
+  CompoundTag tag nullable get=getTag
+packet clientbound take_item_entity ClientboundTakeItemEntityPacket class new
+  int itemId get=getItemId
+  int playerId get=getPlayerId
+  int amount get=getAmount
+packet clientbound teleport_entity ClientboundTeleportEntityPacket class
+  int id get=getId
+  double x get=getX
+  double y get=getY
+  double z get=getZ
+  byte yRot get=getyRot
+  byte xRot get=getxRot
+  boolean onGround get=isOnGround
+packet clientbound update_advancements ClientboundUpdateAdvancementsPacket class custom
+  boolean reset get=shouldReset
+  List<AdvancementHolder> added get=getAdded
+  Set<ResourceLocation> removed get=getRemoved
+  Map<ResourceLocation,AdvancementProgress> progress get=getProgress
+packet clientbound update_attributes ClientboundUpdateAttributesPacket class custom
+  int entityId get=getEntityId
+  List<ClientboundUpdateAttributesPacket.AttributeSnapshot> attributes get=getValues
+record ClientboundUpdateAttributesPacket$AttributeSnapshot
+  Holder<Attribute> attribute
+  double base
+  Collection<AttributeModifier> modifiers
+packet clientbound update_mob_effect ClientboundUpdateMobEffectPacket class
+  int entityId get=getEntityId
+  Holder<MobEffect> effect get=getEffect
+  int effectAmplifier get=getEffectAmplifier
+  int effectDurationTicks get=getEffectDurationTicks
+  byte flags
+packet clientbound update_recipes ClientboundUpdateRecipesPacket class custom
+  List<RecipeHolder<?>> recipes get=getRecipes
+packet clientbound projectile_power ClientboundProjectilePowerPacket class new
+  int id get=getId
+  double accelerationPower get=getAccelerationPower
+packet clientbound reset_score ClientboundResetScorePacket record
+  String owner
+  String objectiveName nullable
+packet clientbound ticking_state ClientboundTickingStatePacket record
+  float tickRate
+  boolean isFrozen
+packet clientbound ticking_step ClientboundTickingStepPacket record
+  int tickSteps
+packet clientbound bundle ClientboundBundlePacket class custom extends=BundlePacket<ClientGamePacketListener>
+
+# ---------------------------------------------------------------- play (serverbound)
+packet serverbound accept_teleportation ServerboundAcceptTeleportationPacket class new
+  int id get=getId
+packet serverbound block_entity_tag_query ServerboundBlockEntityTagQueryPacket class new
+  int transactionId get=getTransactionId
+  BlockPos pos get=getPos
+packet serverbound change_difficulty ServerboundChangeDifficultyPacket class new
+  Difficulty difficulty get=getDifficulty
+packet serverbound chat_ack ServerboundChatAckPacket record
+  int offset
+packet serverbound chat_command ServerboundChatCommandPacket record
+  String command
+packet serverbound chat_command_signed ServerboundChatCommandSignedPacket record
+  String command
+  Instant timeStamp
+  long salt
+  ArgumentSignatures argumentSignatures
+  LastSeenMessages.Update lastSeenMessages
+packet serverbound chat ServerboundChatPacket record custom
+  String message
+  Instant timeStamp
+  long salt
+  MessageSignature signature nullable
+  LastSeenMessages.Update lastSeenMessages
+packet serverbound chat_session_update ServerboundChatSessionUpdatePacket record
+  RemoteChatSession.Data chatSession
+packet serverbound chunk_batch_received ServerboundChunkBatchReceivedPacket record
+  float desiredChunksPerTick
+packet serverbound client_command ServerboundClientCommandPacket class new
+  ServerboundClientCommandPacket.Action action get=getAction
+enum ServerboundClientCommandPacket$Action : PERFORM_RESPAWN REQUEST_STATS
+packet serverbound command_suggestion ServerboundCommandSuggestionPacket class new
+  int id get=getId
+  String command get=getCommand
+packet serverbound configuration_acknowledged ServerboundConfigurationAcknowledgedPacket singleton
+packet serverbound container_button_click ServerboundContainerButtonClickPacket record
+  int containerId
+  int buttonId
+packet serverbound container_click ServerboundContainerClickPacket class new custom
+  int containerId i8 get=getContainerId
+  int stateId get=getStateId
+  int slotNum i16 get=getSlotNum
+  int buttonNum i8 get=getButtonNum
+  ClickType clickType get=getClickType
+  ItemStack carriedItem get=getCarriedItem
+  Int2ObjectMap<ItemStack> changedSlots get=getChangedSlots
+packet serverbound container_close ServerboundContainerClosePacket class new
+  int containerId i8 get=getContainerId
+packet serverbound container_slot_state_changed ServerboundContainerSlotStateChangedPacket record
+  int slotId
+  int containerId
+  boolean newState
+packet serverbound debug_sample_subscription ServerboundDebugSampleSubscriptionPacket record
+  RemoteDebugSampleType sampleType
+packet serverbound edit_book ServerboundEditBookPacket record
+  int slot
+  List<String> pages
+  Optional<String> title
+packet serverbound entity_tag_query ServerboundEntityTagQueryPacket class new
+  int transactionId get=getTransactionId
+  int entityId get=getEntityId
+packet serverbound interact ServerboundInteractPacket class custom
+  int entityId
+  ServerboundInteractPacket.Action action
+  boolean usingSecondaryAction get=isUsingSecondaryAction
+interface ServerboundInteractPacket$Action private
+interface ServerboundInteractPacket$Handler
+enum ServerboundInteractPacket$ActionType private : INTERACT ATTACK INTERACT_AT
+packet serverbound jigsaw_generate ServerboundJigsawGeneratePacket class new
+  BlockPos pos get=getPos
+  int levels get=levels
+  boolean keepJigsaws get=keepJigsaws
+packet serverbound lock_difficulty ServerboundLockDifficultyPacket class new
+  boolean locked get=isLocked
+base ServerboundMovePlayerPacket abstract
+  double x
+  double y
+  double z
+  float yRot
+  float xRot
+  boolean onGround
+  boolean hasPos
+  boolean hasRot
+packet serverbound move_player_pos ServerboundMovePlayerPacket$Pos class custom extends=ServerboundMovePlayerPacket
+packet serverbound move_player_pos_rot ServerboundMovePlayerPacket$PosRot class custom extends=ServerboundMovePlayerPacket
+packet serverbound move_player_rot ServerboundMovePlayerPacket$Rot class custom extends=ServerboundMovePlayerPacket
+packet serverbound move_player_status_only ServerboundMovePlayerPacket$StatusOnly class custom extends=ServerboundMovePlayerPacket
+packet serverbound move_vehicle ServerboundMoveVehiclePacket class
+  double x get=getX
+  double y get=getY
+  double z get=getZ
+  float yRot get=getYRot
+  float xRot get=getXRot
+packet serverbound paddle_boat ServerboundPaddleBoatPacket class new
+  boolean left get=getLeft
+  boolean right get=getRight
+packet serverbound pick_item ServerboundPickItemPacket class new
+  int slot get=getSlot
+packet serverbound place_recipe ServerboundPlaceRecipePacket class
+  int containerId i8 get=getContainerId
+  ResourceLocation recipe get=getRecipe
+  boolean shiftDown get=isShiftDown
+packet serverbound player_abilities ServerboundPlayerAbilitiesPacket class custom
+  boolean isFlying get=isFlying
+packet serverbound player_action ServerboundPlayerActionPacket class custom
+  BlockPos pos get=getPos
+  Direction direction u8 get=getDirection
+  ServerboundPlayerActionPacket.Action action get=getAction
+  int sequence get=getSequence
+enum ServerboundPlayerActionPacket$Action : START_DESTROY_BLOCK ABORT_DESTROY_BLOCK STOP_DESTROY_BLOCK DROP_ALL_ITEMS DROP_ITEM RELEASE_USE_ITEM SWAP_ITEM_WITH_OFFHAND
+packet serverbound player_command ServerboundPlayerCommandPacket class
+  int id
+  ServerboundPlayerCommandPacket.Action action get=getAction
+  int data get=getData
+enum ServerboundPlayerCommandPacket$Action : PRESS_SHIFT_KEY RELEASE_SHIFT_KEY STOP_SLEEPING START_SPRINTING STOP_SPRINTING START_RIDING_JUMP STOP_RIDING_JUMP OPEN_INVENTORY START_FALL_FLYING
+packet serverbound player_input ServerboundPlayerInputPacket class new custom
+  float xxa get=getXxa
+  float zza get=getZza
+  boolean isJumping get=isJumping
+  boolean isShiftKeyDown get=isShiftKeyDown
+packet serverbound recipe_book_change_settings ServerboundRecipeBookChangeSettingsPacket class new
+  RecipeBookType bookType get=getBookType
+  boolean isOpen get=isOpen
+  boolean isFiltering get=isFiltering
+packet serverbound recipe_book_seen_recipe ServerboundRecipeBookSeenRecipePacket class
+  ResourceLocation recipe get=getRecipe
+packet serverbound rename_item ServerboundRenameItemPacket class new
+  String name get=getName
+packet serverbound seen_advancements ServerboundSeenAdvancementsPacket class new custom
+  ServerboundSeenAdvancementsPacket.Action action get=getAction
+  ResourceLocation tab nullable get=getTab
+enum ServerboundSeenAdvancementsPacket$Action : OPENED_TAB CLOSED_SCREEN
+packet serverbound select_trade ServerboundSelectTradePacket class new
+  int item get=getItem
+packet serverbound set_beacon ServerboundSetBeaconPacket record
+  Optional<Holder<MobEffect>> primary
+  Optional<Holder<MobEffect>> secondary
+packet serverbound set_carried_item ServerboundSetCarriedItemPacket class new
+  int slot i16 get=getSlot
+packet serverbound set_command_block ServerboundSetCommandBlockPacket class custom
+  BlockPos pos get=getPos
+  String command get=getCommand
+  boolean trackOutput get=isTrackOutput
+  boolean conditional get=isConditional
+  boolean automatic get=isAutomatic
+  CommandBlockEntity.Mode mode get=getMode
+packet serverbound set_command_minecart ServerboundSetCommandMinecartPacket class new
+  int entity
+  String command get=getCommand
+  boolean trackOutput get=isTrackOutput
+packet serverbound set_creative_mode_slot ServerboundSetCreativeModeSlotPacket record
+  short slotNum
+  ItemStack itemStack
+packet serverbound set_jigsaw_block ServerboundSetJigsawBlockPacket class new
+  BlockPos pos get=getPos
+  ResourceLocation name get=getName
+  ResourceLocation target get=getTarget
+  ResourceLocation pool get=getPool
+  String finalState get=getFinalState
+  JigsawBlockEntity.JointType joint get=getJoint
+  int selectionPriority get=getSelectionPriority
+  int placementPriority get=getPlacementPriority
+packet serverbound set_structure_block ServerboundSetStructureBlockPacket class new custom
+  BlockPos pos get=getPos
+  StructureBlockEntity.UpdateType updateType get=getUpdateType
+  StructureMode mode get=getMode
+  String name get=getName
+  BlockPos offset get=getOffset
+  Vec3i size get=getSize
+  Mirror mirror get=getMirror
+  Rotation rotation get=getRotation
+  String data get=getData
+  boolean ignoreEntities get=isIgnoreEntities
+  boolean showAir get=isShowAir
+  boolean showBoundingBox get=isShowBoundingBox
+  float integrity get=getIntegrity
+  long seed varlong get=getSeed
+packet serverbound sign_update ServerboundSignUpdatePacket class custom
+  BlockPos pos get=getPos
+  String[] lines get=getLines
+  boolean isFrontText get=isFrontText
+packet serverbound swing ServerboundSwingPacket class new
+  InteractionHand hand get=getHand
+packet serverbound teleport_to_entity ServerboundTeleportToEntityPacket class new
+  UUID uuid
+packet serverbound use_item_on ServerboundUseItemOnPacket class custom
+  BlockHitResult blockHit get=getHitResult
+  InteractionHand hand get=getHand
+  int sequence get=getSequence
+packet serverbound use_item ServerboundUseItemPacket class new
+  InteractionHand hand get=getHand
+  int sequence get=getSequence
+  float yRot get=getYRot
+  float xRot get=getXRot
