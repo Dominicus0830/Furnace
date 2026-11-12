@@ -4,8 +4,11 @@ import java.util.Objects;
 import org.bukkit.block.Block;
 import org.bukkit.util.Vector;
 
-/** 월드 안의 좌표와 시선(가변). world 는 null 일 수 있다. */
-public class Location implements Cloneable {
+/**
+ * 월드 안의 좌표와 시선(가변). world 는 null 일 수 있다.
+ * 설정 파일에 Paper 와 같은 꼴(별칭 {@code org.bukkit.Location}, 키 world·x·y·z·yaw·pitch)로 저장·되읽는다(A15-01).
+ */
+public class Location implements Cloneable, org.bukkit.configuration.serialization.ConfigurationSerializable {
 
     private World world;
     private double x, y, z;
@@ -132,5 +135,30 @@ public class Location implements Cloneable {
     @Override
     public String toString() {
         return "Location{world=" + world + ",x=" + x + ",y=" + y + ",z=" + z + ",pitch=" + pitch + ",yaw=" + yaw + "}";
+    }
+
+    /** 설정에 쓸 값: 월드가 있으면 그 이름, 좌표는 double, 시선은 float. */
+    @Override
+    public java.util.Map<String, Object> serialize() {
+        java.util.Map<String, Object> data = new java.util.LinkedHashMap<>();
+        if (world != null) data.put("world", world.getName());
+        data.put("x", x);
+        data.put("y", y);
+        data.put("z", z);
+        data.put("yaw", yaw);
+        data.put("pitch", pitch);
+        return data;
+    }
+
+    /** serialize() 의 맵에서. 이름의 월드가 이 서버에 없으면 IllegalArgumentException("unknown world") — Paper 와 같다. */
+    public static Location deserialize(java.util.Map<String, Object> args) {
+        World w = null;
+        if (args.containsKey("world")) {
+            w = Bukkit.getWorld(String.valueOf(args.get("world")));
+            if (w == null) throw new IllegalArgumentException("unknown world");
+        }
+        return new Location(w, org.bukkit.util.NumberConversions.toDouble(args.get("x")), org.bukkit.util.NumberConversions.toDouble(args.get("y")),
+                org.bukkit.util.NumberConversions.toDouble(args.get("z")), org.bukkit.util.NumberConversions.toFloat(args.get("yaw")),
+                org.bukkit.util.NumberConversions.toFloat(args.get("pitch")));
     }
 }

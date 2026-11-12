@@ -8,6 +8,7 @@ import java.util.Set;
 import org.bukkit.configuration.serialization.ConfigurationSerializable;
 import org.bukkit.configuration.serialization.ConfigurationSerialization;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.util.NumberConversions;
 import org.domi.furnace.api.config.ConfigSection;
 
 /**
@@ -102,23 +103,48 @@ public class MemorySection implements ConfigurationSection {
         return v;
     }
 
-    private void applyCopyDefaults() {
-        if (root.options().copyDefaults()) delegate.copyDefaults();
+    // ------------------------------------------------------------------ Paper 읽기 규칙(A15-03)
+    //
+    // Paper MemorySection: get(path, def) 는 자기 데이터에 없으면 def 다(기본값 구역은 보지 않는다). 인자 하나짜리만 기본값 구역의 값을 def 로 넘긴다.
+    // getInt·getBoolean 등은 값이 그 종류(Number·Boolean)가 아니면 def — 따옴표 친 '5' 는 숫자가 아니다.
+
+    /** 자기 데이터의 값(기본값 구역 제외). 없으면 null. */
+    private Object own(String path) {
+        return delegate.contains(path, true) ? out(delegate.get(path)) : null;
+    }
+
+    /** Paper getDefault: 기본값 구역의 같은 경로 값(없으면 null). */
+    private Object defaultOf(String path) {
+        ConfigurationSection d = getDefaultSection();
+        return d == null ? null : d.get(path);
     }
 
     // ------------------------------------------------------------------ 조회
 
     @Override
     public Set<String> getKeys(boolean deep) {
-        applyCopyDefaults();
-        return delegate.keys(deep);
+        // Paper 처럼 copyDefaults 면 기본값 구역 키를 먼저 넣고 자기 키를 잇는다 — 보기만 합치고 데이터는 바꾸지 않는다(A15-11)
+        Set<String> out = new java.util.LinkedHashSet<>();
+        if (root.options().copyDefaults()) {
+            ConfigurationSection d = getDefaultSection();
+            if (d != null) out.addAll(d.getKeys(deep));
+        }
+        out.addAll(delegate.keys(deep));
+        return out;
     }
 
     @Override
     public Map<String, Object> getValues(boolean deep) {
-        applyCopyDefaults();
         Map<String, Object> out = new LinkedHashMap<>();
-        for (String k : delegate.keys(deep)) out.put(k, get(k));
+        if (root.options().copyDefaults()) {
+            ConfigurationSection d = getDefaultSection();
+            if (d != null) out.putAll(d.getValues(deep));
+        }
+        // Paper(SPIGOT-4558): 자기 키는 remove 뒤 put — 기본값에만 있는 키가 앞에 남는다
+        for (String k : delegate.keys(deep)) {
+            out.remove(k);
+            out.put(k, get(k));
+        }
         return out;
     }
 
@@ -144,11 +170,15 @@ public class MemorySection implements ConfigurationSection {
     public ConfigurationSection getParent() { return parent; }
 
     @Override
-    public Object get(String path) { return out(delegate.get(path)); }
+    public Object get(String path) {
+        if (path.isEmpty()) return this;
+        return get(path, defaultOf(path));
+    }
 
     @Override
     public Object get(String path, Object def) {
-        Object v = get(path);
+        if (path.isEmpty()) return this;
+        Object v = own(path);
         return v == null ? def : v;
     }
 
@@ -174,69 +204,115 @@ public class MemorySection implements ConfigurationSection {
     }
 
     @Override
-    public String getString(String path) { return delegate.getString(path); }
+    public String getString(String path) {
+        Object def = defaultOf(path);
+        return getString(path, def != null ? def.toString() : null);
+    }
 
     @Override
-    public String getString(String path, String def) { return delegate.getString(path, def); }
+    public String getString(String path, String def) {
+        Object v = get(path, def);
+        return v != null ? v.toString() : def;
+    }
 
     @Override
-    public boolean isString(String path) { return delegate.get(path) instanceof String; }
+    public boolean isString(String path) { return get(path) instanceof String; }
 
     @Override
-    public int getInt(String path) { return delegate.getInt(path); }
+    public int getInt(String path) {
+        return getInt(path, defaultOf(path) instanceof Number n ? NumberConversions.toInt(n) : 0);
+    }
 
     @Override
-    public int getInt(String path, int def) { return delegate.getInt(path, def); }
+    public int getInt(String path, int def) {
+        return get(path, def) instanceof Number n ? NumberConversions.toInt(n) : def;
+    }
 
     @Override
-    public boolean isInt(String path) { return delegate.get(path) instanceof Integer; }
+    public boolean isInt(String path) { return get(path) instanceof Integer; }
 
     @Override
-    public boolean getBoolean(String path) { return delegate.getBoolean(path); }
+    public boolean getBoolean(String path) {
+        return getBoolean(path, defaultOf(path) instanceof Boolean b && b);
+    }
 
     @Override
-    public boolean getBoolean(String path, boolean def) { return delegate.getBoolean(path, def); }
+    public boolean getBoolean(String path, boolean def) {
+        return get(path, def) instanceof Boolean b ? b : def;
+    }
 
     @Override
-    public boolean isBoolean(String path) { return delegate.get(path) instanceof Boolean; }
+    public boolean isBoolean(String path) { return get(path) instanceof Boolean; }
 
     @Override
-    public double getDouble(String path) { return delegate.getDouble(path); }
+    public double getDouble(String path) {
+        return getDouble(path, defaultOf(path) instanceof Number n ? NumberConversions.toDouble(n) : 0);
+    }
 
     @Override
-    public double getDouble(String path, double def) { return delegate.getDouble(path, def); }
+    public double getDouble(String path, double def) {
+        return get(path, def) instanceof Number n ? NumberConversions.toDouble(n) : def;
+    }
 
     @Override
-    public boolean isDouble(String path) { return delegate.get(path) instanceof Double; }
+    public boolean isDouble(String path) { return get(path) instanceof Double; }
 
     @Override
-    public long getLong(String path) { return delegate.getLong(path); }
+    public long getLong(String path) {
+        return getLong(path, defaultOf(path) instanceof Number n ? NumberConversions.toLong(n) : 0);
+    }
 
     @Override
-    public long getLong(String path, long def) { return delegate.getLong(path, def); }
+    public long getLong(String path, long def) {
+        return get(path, def) instanceof Number n ? NumberConversions.toLong(n) : def;
+    }
 
     @Override
-    public boolean isLong(String path) { return delegate.get(path) instanceof Long; }
+    public boolean isLong(String path) { return get(path) instanceof Long; }
 
     @Override
     public List<?> getList(String path) {
-        return out(delegate.get(path)) instanceof List<?> l ? l : null;
+        return getList(path, defaultOf(path) instanceof List<?> l ? l : null);
     }
 
     @Override
     public List<?> getList(String path, List<?> def) {
-        List<?> l = getList(path);
-        return l == null ? def : l;
+        return get(path, def) instanceof List<?> l ? l : def;
     }
 
     @Override
-    public boolean isList(String path) { return delegate.get(path) instanceof List; }
+    public boolean isList(String path) { return get(path) instanceof List; }
+
+    private static boolean isPrimitiveWrapper(Object o) {
+        return o instanceof Integer || o instanceof Short || o instanceof Byte || o instanceof Long || o instanceof Double
+                || o instanceof Float || o instanceof Boolean || o instanceof Character;
+    }
 
     @Override
-    public List<String> getStringList(String path) { return delegate.getStringList(path); }
+    public List<String> getStringList(String path) {
+        List<String> out = new ArrayList<>();
+        if (getList(path) instanceof List<?> l) for (Object o : l) if (o instanceof String || isPrimitiveWrapper(o)) out.add(String.valueOf(o));
+        return out;
+    }
 
     @Override
-    public List<Integer> getIntegerList(String path) { return delegate.getIntegerList(path); }
+    public List<Integer> getIntegerList(String path) {
+        List<Integer> out = new ArrayList<>();
+        if (getList(path) instanceof List<?> l) {
+            for (Object o : l) {
+                if (o instanceof Integer i) out.add(i);
+                else if (o instanceof String s) {
+                    try {
+                        out.add(Integer.valueOf(s));
+                    } catch (NumberFormatException ignored) {
+                        // 건너뜀(Paper 와 같다)
+                    }
+                } else if (o instanceof Character c) out.add((int) c);
+                else if (o instanceof Number n) out.add(n.intValue());
+            }
+        }
+        return out;
+    }
 
     @Override
     public List<Boolean> getBooleanList(String path) {
@@ -244,10 +320,8 @@ public class MemorySection implements ConfigurationSection {
         if (getList(path) instanceof List<?> l) {
             for (Object o : l) {
                 if (o instanceof Boolean b) out.add(b);
-                else if (o instanceof String s) {
-                    if (s.equalsIgnoreCase("true")) out.add(true);
-                    else if (s.equalsIgnoreCase("false")) out.add(false);
-                }
+                else if ("true".equals(o)) out.add(true);    // Paper 는 대소문자를 가린다
+                else if ("false".equals(o)) out.add(false);
             }
         }
         return out;
@@ -258,14 +332,15 @@ public class MemorySection implements ConfigurationSection {
         List<Double> out = new ArrayList<>();
         if (getList(path) instanceof List<?> l) {
             for (Object o : l) {
-                if (o instanceof Number n) out.add(n.doubleValue());
+                if (o instanceof Double d) out.add(d);
                 else if (o instanceof String s) {
                     try {
-                        out.add(Double.valueOf(s.trim()));
+                        out.add(Double.valueOf(s));
                     } catch (NumberFormatException ignored) {
                         // 건너뜀
                     }
-                }
+                } else if (o instanceof Character c) out.add((double) c);
+                else if (o instanceof Number n) out.add(n.doubleValue());
             }
         }
         return out;
@@ -276,14 +351,15 @@ public class MemorySection implements ConfigurationSection {
         List<Long> out = new ArrayList<>();
         if (getList(path) instanceof List<?> l) {
             for (Object o : l) {
-                if (o instanceof Number n) out.add(n.longValue());
+                if (o instanceof Long v) out.add(v);
                 else if (o instanceof String s) {
                     try {
-                        out.add(Long.valueOf(s.trim()));
+                        out.add(Long.valueOf(s));
                     } catch (NumberFormatException ignored) {
                         // 건너뜀
                     }
-                }
+                } else if (o instanceof Character c) out.add((long) c);
+                else if (o instanceof Number n) out.add(n.longValue());
             }
         }
         return out;
@@ -297,11 +373,14 @@ public class MemorySection implements ConfigurationSection {
     }
 
     @Override
-    public <T> T getObject(String path, Class<T> clazz) { return getObject(path, clazz, null); }
+    public <T> T getObject(String path, Class<T> clazz) {
+        Object def = defaultOf(path);
+        return getObject(path, clazz, clazz.isInstance(def) ? clazz.cast(def) : null);
+    }
 
     @Override
     public <T> T getObject(String path, Class<T> clazz, T def) {
-        Object v = get(path);
+        Object v = get(path, def);
         return clazz.isInstance(v) ? clazz.cast(v) : def;
     }
 
@@ -329,6 +408,33 @@ public class MemorySection implements ConfigurationSection {
 
     @Override
     public boolean isItemStack(String path) { return get(path) instanceof ItemStack; }
+
+    @Override
+    public org.bukkit.Location getLocation(String path) { return getSerializable(path, org.bukkit.Location.class); }
+
+    @Override
+    public org.bukkit.Location getLocation(String path, org.bukkit.Location def) { return getSerializable(path, org.bukkit.Location.class, def); }
+
+    @Override
+    public boolean isLocation(String path) { return getSerializable(path, org.bukkit.Location.class) != null; }
+
+    @Override
+    public org.bukkit.util.Vector getVector(String path) { return getSerializable(path, org.bukkit.util.Vector.class); }
+
+    @Override
+    public org.bukkit.util.Vector getVector(String path, org.bukkit.util.Vector def) { return getSerializable(path, org.bukkit.util.Vector.class, def); }
+
+    @Override
+    public boolean isVector(String path) { return getSerializable(path, org.bukkit.util.Vector.class) != null; }
+
+    @Override
+    public org.bukkit.Color getColor(String path) { return getSerializable(path, org.bukkit.Color.class); }
+
+    @Override
+    public org.bukkit.Color getColor(String path, org.bukkit.Color def) { return getSerializable(path, org.bukkit.Color.class, def); }
+
+    @Override
+    public boolean isColor(String path) { return getSerializable(path, org.bukkit.Color.class) != null; }
 
     @Override
     public ConfigurationSection getDefaultSection() {

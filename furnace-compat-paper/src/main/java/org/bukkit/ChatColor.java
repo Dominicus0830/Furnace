@@ -10,7 +10,7 @@ public enum ChatColor {
     MAGIC('k'), BOLD('l'), STRIKETHROUGH('m'), UNDERLINE('n'), ITALIC('o'), RESET('r');
 
     public static final char COLOR_CHAR = '§';
-    private static final Pattern STRIP = Pattern.compile("(?i)" + COLOR_CHAR + "[0-9A-FK-OR]");
+    private static final Pattern STRIP = Pattern.compile("(?i)" + COLOR_CHAR + "[0-9A-FK-ORX]");
 
     private final char code;
     private final String text;
@@ -58,6 +58,11 @@ public enum ChatColor {
         StringBuilder result = new StringBuilder();
         for (int i = input.length() - 2; i >= 0; i--) {
             if (input.charAt(i) != COLOR_CHAR) continue;
+            int hex = hexColorStart(input, i);
+            if (hex >= 0) {   // 16진 색(§x§r§r§g§g§b§b)은 통째로 — 색이므로 여기서 멈춘다(A15-10)
+                result.insert(0, input, hex, i + 2);
+                break;
+            }
             ChatColor c = getByChar(input.charAt(i + 1));
             if (c == null) continue;
             result.insert(0, c.toString());
@@ -65,6 +70,22 @@ public enum ChatColor {
         }
         return result.toString();
     }
+
+    /**
+     * i 가 16진 색 코드의 마지막 "§숫자" 자리면 그 코드의 시작(§x 의 §) 위치, 아니면 -1.
+     * 16진 색은 §x 뒤에 "§ + 16진 숫자" 여섯 쌍이 이어진 14글자다.
+     */
+    private static int hexColorStart(String input, int i) {
+        int start = i - 12;
+        if (start < 0 || i + 1 >= input.length()) return -1;
+        if (input.charAt(start) != COLOR_CHAR || input.charAt(start + 1) != 'x') return -1;   // Paper 도 소문자 x 만 본다
+        for (int k = start + 2; k <= i; k += 2) {
+            if (input.charAt(k) != COLOR_CHAR || !isHexDigit(input.charAt(k + 1))) return -1;
+        }
+        return start;
+    }
+
+    private static boolean isHexDigit(char c) { return c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F'; }
 
     public String toLowerName() { return name().toLowerCase(Locale.ROOT); }
 }

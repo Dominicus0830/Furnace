@@ -5,6 +5,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.Reader;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.Configuration;
@@ -16,14 +17,63 @@ import org.domi.furnace.api.config.ConfigSection;
 /** YAML 설정(Furnace 의 YAML 파서·작성기 — 주석을 보존한다). */
 public class YamlConfiguration extends FileConfiguration {
 
+    /** 빈 설정을 쓰면 나오는 글(Paper YamlConfiguration.BLANK_CONFIG). */
+    protected static final String BLANK_CONFIG = "{}\n";
+
     private YamlConfigurationOptions options;
 
     public YamlConfiguration() {}
 
     @Override
     public String saveToString() {
-        if (options().copyDefaults()) furnaceRoot().copyDefaults();
-        return ConfigFormat.YAML.write(furnaceRoot());
+        ConfigSection root = furnaceRoot();
+        ConfigSection defaults = root.getDefaults();
+        // Paper 는 각 단계 getValues(false) 로 쓴다: 기본값을 데이터로 옮기지 않고, 기본값에만 있는 키가 앞에 온다
+        ConfigSection toWrite = options().copyDefaults() && defaults != null ? merged(root, defaults) : root;
+        if (toWrite != root) {
+            toWrite.setHeader(root.getHeader());
+            toWrite.setFooter(root.getFooter());
+        }
+        String dump = ConfigFormat.YAML.write(toWrite);
+        return BLANK_CONFIG.equals(dump) ? "" : dump;   // Paper 처럼 빈 설정은 빈 파일(A15-11)
+    }
+
+    /** 쓰기용 합친 보기(새 섹션): 기본값에만 있는 키 → 자기 키 순서, 둘 다 섹션이면 안쪽도 같게. 주석은 값이 온 쪽 것을 쓴다. */
+    private static ConfigSection merged(ConfigSection own, ConfigSection defaults) {
+        ConfigSection out = new ConfigSection();
+        Map<String, Object> ownMap = own.toMap();
+        Map<String, Object> defMap = defaults.toMap();
+        for (var e : defMap.entrySet()) {
+            if (!ownMap.containsKey(e.getKey())) put(out, defaults, e.getKey(), e.getValue());
+        }
+        for (var e : ownMap.entrySet()) {
+            String k = e.getKey();
+            if (k.indexOf('.') < 0 && own.get(k) instanceof ConfigSection s && defaults.get(k) instanceof ConfigSection ds) {
+                out.setLiteral(k, merged(s, ds));
+                copyComments(own, out, k);
+            } else {
+                put(out, own, k, e.getValue());
+            }
+        }
+        return out;
+    }
+
+    /** from 의 키 k 를 out 에 옮긴다. 점 없는 키는 섹션째(안쪽 주석 유지), 점 있는 literal 키는 평범한 값으로. */
+    private static void put(ConfigSection out, ConfigSection from, String k, Object plain) {
+        if (k.indexOf('.') >= 0) {
+            out.setLiteral(k, plain);
+            return;
+        }
+        out.setLiteral(k, from.get(k));
+        copyComments(from, out, k);
+    }
+
+    private static void copyComments(ConfigSection from, ConfigSection to, String k) {
+        if (k.indexOf('.') >= 0) return;
+        List<String> c = from.getComments(k);
+        if (!c.isEmpty()) to.setComments(k, c);
+        String ic = from.getInlineComment(k);
+        if (ic != null) to.setInlineComment(k, ic);
     }
 
     @Override

@@ -621,7 +621,19 @@ public final class PluginManagerImpl implements PluginManager {
          */
         PluginClassLoader(Path jar, PluginBootstrapper group, boolean shadowCopy, List<Path> libraries,
                           org.domi.furnace.api.plugin.ClassTransformer transformer, ClassLoader parent, boolean hideCompat) throws MalformedURLException {
+            this(jar, group, shadowCopy, libraries, transformer, parent, hideCompat, false);
+        }
+
+        /**
+         * ownResources: true 면 리소스(getResource·getResources)를 이 jar(+ libraries jar)에서만 찾는다 — Paper PluginClassLoader 처럼 서버 jar 의
+         * 같은 이름 파일(lang/en_us.json, META-INF/MANIFEST.MF 등)이 플러그인 것을 가리거나, 플러그인에 없는 서버 파일이 보이지 않게(A15-02).
+         * 호환(Bukkit) 플러그인만 켠다. 클래스 찾기 순서는 바꾸지 않는다.
+         */
+        PluginClassLoader(Path jar, PluginBootstrapper group, boolean shadowCopy, List<Path> libraries,
+                          org.domi.furnace.api.plugin.ClassTransformer transformer, ClassLoader parent, boolean hideCompat,
+                          boolean ownResources) throws MalformedURLException {
             super(urls(jar, libraries), parent != null ? parent : PluginHost.class.getClassLoader());
+            this.ownResources = ownResources;
             this.hideCompat = hideCompat;
             this.group = group;
             this.shadow = shadowCopy ? jar : null;
@@ -631,6 +643,7 @@ public final class PluginManagerImpl implements PluginManager {
         }
 
         private final boolean hideCompat;
+        private final boolean ownResources;
         private final org.domi.furnace.api.plugin.ClassTransformer transformer;
         private final Path jarPath;
         private final URL jarUrl;
@@ -739,6 +752,16 @@ public final class PluginManagerImpl implements PluginManager {
                 }
             }
             return super.loadClass(name, resolve);
+        }
+
+        @Override
+        public URL getResource(String name) {
+            return ownResources ? findResource(name) : super.getResource(name);
+        }
+
+        @Override
+        public java.util.Enumeration<URL> getResources(String name) throws IOException {
+            return ownResources ? findResources(name) : super.getResources(name);
         }
 
         @Override

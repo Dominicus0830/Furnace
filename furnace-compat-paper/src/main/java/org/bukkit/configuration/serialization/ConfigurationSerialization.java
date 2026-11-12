@@ -13,7 +13,7 @@ import org.bukkit.inventory.ItemStack;
 
 /**
  * {@link ConfigurationSerializable} 의 별칭 등록부와 되읽기. 별칭 → 클래스 표는 서버 전체가 하나다(Bukkit 과 같다).
- * 기본으로 ItemStack 과 ItemMeta(별칭 "ItemMeta")가 등록돼 있다.
+ * 기본으로 ItemStack·ItemMeta(별칭 "ItemMeta")·Color·FireworkEffect·AttributeModifier·Vector·PotionEffect·Location 이 등록돼 있다.
  * 되읽기 순서: 정적 {@code deserialize(Map)} → 정적 {@code valueOf(Map)} → {@code (Map)} 생성자. 앞의 것이 없거나 null·예외면 다음으로 간다.
  */
 public class ConfigurationSerialization {
@@ -30,6 +30,10 @@ public class ConfigurationSerialization {
         registerClass(org.bukkit.Color.class);
         registerClass(org.bukkit.FireworkEffect.class);
         registerClass(org.bukkit.attribute.AttributeModifier.class);
+        // Paper 기본 등록 가운데 호환 계층에 있는 것(A15-01) — 별칭과 클래스 이름 둘 다로 되읽힌다
+        registerClass(org.bukkit.util.Vector.class);
+        registerClass(org.bukkit.potion.PotionEffect.class);
+        registerClass(org.bukkit.Location.class);
     }
 
     private final Class<? extends ConfigurationSerializable> clazz;
