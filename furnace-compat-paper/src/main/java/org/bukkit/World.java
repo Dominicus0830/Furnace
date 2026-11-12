@@ -59,7 +59,7 @@ public interface World extends Keyed, org.bukkit.metadata.Metadatable {
     Collection<Entity> getNearbyEntities(Location loc, double x, double y, double z, Predicate<? super Entity> filter);
 
     /**
-     * box 와 충돌 상자가 겹치는(경계만 닿는 것은 제외) 엔티티(플레이어 포함). box 가운데 칸을 가진 region 스레드에서만 된다
+     * box 와 충돌 상자가 겹치는(경계만 닿는 것은 제외) 엔티티(플레이어 포함). region 스레드에서는 지금 스레드가 돌리는 region 의 엔티티만, 전역 빌림 구간에서는 겹치는 region 모두
      * (아니면 ThreadOwnershipException). 그 region 이 갖지 않은 청크의 엔티티는 보이지 않는다.
      */
     Collection<Entity> getNearbyEntities(org.bukkit.util.BoundingBox box);

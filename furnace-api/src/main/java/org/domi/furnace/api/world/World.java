@@ -114,9 +114,10 @@ public interface World {
     default List<Entity> nearbyEntitiesNow(Location center, double radius) { throw new UnsupportedOperationException("nearbyEntitiesNow"); }
 
     /**
-     * box 와 충돌 상자가 겹치는(경계만 닿는 것은 제외) 엔티티와 플레이어 — 바닐라 Level.getEntities(null, box). box 가운데 칸을 가진
-     * region 스레드에서만(아니면 {@link org.domi.furnace.api.concurrent.ThreadOwnershipException}) 곧바로 목록을 돌려준다.
-     * 그 region 이 갖지 않은 청크의 엔티티는 빠지고, 청크가 로드돼 있지 않으면 빈 목록. 사라진 엔티티는 빠진다.
+     * box 와 충돌 상자가 겹치는(경계만 닿는 것은 제외) 엔티티와 플레이어 — 바닐라 Level.getEntities(null, box). region 스레드에서는 지금 스레드가
+     * 돌리는 region 의 엔티티만 본다(상자 가운데가 어디든, 상자가 아무리 커도 예외 없이 — 남의 region 엔티티는 빠진다). 전역 스레드의 빌림 구간
+     * ({@code openRegionAccess})에서는 상자와 겹치는 로드된 region 을 모두 빌려 합친다. 그 밖의 스레드는
+     * {@link org.domi.furnace.api.concurrent.ThreadOwnershipException}. 사라진 엔티티는 빠진다.
      */
     default List<Entity> entitiesInBoxNow(Aabb box) { throw new UnsupportedOperationException("entitiesInBoxNow"); }
 

@@ -11,7 +11,7 @@ PR #253 검토 R4 가 후속 후보로 꼽은 `Entity#getBoundingBox`, `World#ge
 - **바뀐 동작**: `Entity#getNearbyEntities(x,y,z)`·`World#getNearbyEntities(Location,x,y,z)` 가 **위치**가 아니라 **충돌 상자가 겹치는지**(바닐라 `AABB.intersects`,
   경계만 닿으면 제외)로 판단한다 — Paper 와 같아졌다. 전에는 가장자리에서 Bukkit 보다 적게 잡혔다.
 - **서버 `Clip` 바로잡음**: 충돌 모양(COLLIDER)·시각 모양(VISUAL) 판정이 유체 모드를 무시하고 상호작용 모양 면 덮어쓰기도 안 했다. 바닐라 `BlockGetter.clip(ClipContext, BlockPos)` 는
-  모든 모드에서 둘 다 한다 — `FallingBlockEntity`(콘크리트 가루가 물 원천에 닿는 검사, SOURCE_ONLY)·`WaterBoundPathNavigation`(ANY)이 이 경로를 쓰므로 그쪽도 바닐라 쪽으로 바뀐다.
+  모든 모드에서 둘 다 한다 — `FallingBlockEntity`(콘크리트 가루가 물 원천에 닿는 검사, SOURCE_ONLY)·`FlyingPathNavigation`(ANY — 벌·앵무새·알레이의 직선 이동 판정이 물·용암에 막힌다)이 이 경로를 쓰므로 그쪽도 바닐라 쪽으로 바뀐다. `WaterBoundPathNavigation`·`AmphibiousPathNavigation` 은 NONE 이라 그대로다.
 
 ## Paper 와 같게 맞춘 것(함정)
 - 로드되지 않은 청크에 닿으면 광선은 거기서 **빗나간 것으로 끝난다**(Paper "Prevent raytrace from loading chunks"; 바닐라는 공기로 보고 계속). Furnace 는 그 region 이 갖지 않은 청크도 같게 본다.
@@ -22,8 +22,11 @@ PR #253 검토 R4 가 후속 후보로 꼽은 `Entity#getBoundingBox`, `World#ge
 - `Aabb`·`BoundingBox.of(Location,x,y,z)`: 경계가 같으면 겹침이 아니다.
 
 ## 알려진 차이(의도)
-- **region 경계**: `getNearbyEntities(BoundingBox)` 는 상자 **가운데 칸**을 가진 region 에서만 되고 다른 region 이 가진 청크의 엔티티는 빠진다. 블록 광선은 **시작점 칸**을 가진 region 에서만
-  되고 그 region 이 갖지 않은 청크에 닿으면 끝난다(Paper 는 로드된 청크면 어디든 본다). 소유 스레드가 아니면 `ThreadOwnershipException`(Paper 의 주 스레드 검사에 해당).
+- **region 경계**: `getNearbyEntities(BoundingBox)`·`rayTraceEntities`·`rayTrace` 의 엔티티 탐색은 region 스레드에서는 **지금 스레드가 돌리는 region** 의 엔티티만 본다(상자 가운데가 어디든,
+  상자·광선이 얼마나 길든 예외·누락 없이 — 다른 region 의 엔티티만 빠진다. Folia 도 남의 region 은 못 만진다). 전역 스레드의 빌림 구간(옛 Bukkit 동기 작업)에서는 상자와 겹치는 region 을
+  모두 빌려 합쳐서 Paper 와 같은 결과가 된다. 블록 광선은 **시작점 칸**을 가진 region 에서만 되고 그 region 이 갖지 않은 청크에 닿으면 끝난다(Paper 는 로드된 청크면 어디든 본다 — 빌림 구간에서도
+  시작점 region 만 빌린다. 후속). 소유 스레드가 아니면 `ThreadOwnershipException`(Paper 의 주 스레드 검사에 해당).
+  (검토 R1: 이전에는 상자 가운데 칸으로 region 을 골라 긴 광선이 조용히 null 이거나 예외였다. `A15BoxRegionTest` 가 재현.)
 - 엔더 드래곤 부위(`EnderDragonPart`)는 엔티티 목록에 없다(드래곤 본체만).
 - `Entity#getBoundingBox` 를 소유 스레드가 아닌 곳에서 부르면 핸들을 만든 시점 값이다(플레이어는 어느 스레드에서나 최근 값).
 - `LivingEntity#rayTraceBlocks`·`getTargetBlock*`·`Block#getBoundingBox`/`rayTrace`·`Block#getCollisionShape` 는 아직 없다(`getEyeLocation` 도 없다) — 후속.
