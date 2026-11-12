@@ -165,8 +165,38 @@ class ConfigToolsTest {
     void noVersionLineMeansVersionOneAndCurrentOneTouchesNothing() throws IOException {
         Path f = write("# 내 설정\nautosave-ticks=100\n");
         String before = Files.readString(f, StandardCharsets.UTF_8);
-        assertNull(ConfigMigration.run(f, warn()));
+        assertNull(ConfigMigration.run(f, 1, List.of(), warn()));
         assertEquals(before, Files.readString(f, StandardCharsets.UTF_8));
+    }
+
+    /** 형식 2(2026-11-12): 옛 기본 off 로 자동 기록된 spigot-mappings 줄은 새 기본 download 로, 다른 값·주석 줄은 그대로. */
+    @Test
+    void version2MovesTheOldSpigotMappingsDefaultOnly() throws IOException {
+        Path f = write("# 내 설정\nplugins.compat.nms.spigot-mappings=off\nautosave-ticks=100\n");
+        ConfigMigration.Result r = ConfigMigration.run(f, warn());
+        assertNotNull(r);
+        assertEquals(1, r.from());
+        assertEquals(ConfigMigration.CURRENT, r.to());
+        Properties p = FurnaceProps.readRaw(f);
+        assertEquals("download", p.getProperty("plugins.compat.nms.spigot-mappings"));
+        assertEquals("100", p.getProperty("autosave-ticks"));
+        assertTrue(r.changes().stream().anyMatch(c -> c.contains("plugins.compat.nms.spigot-mappings")), r.changes().toString());
+        assertTrue(Files.readString(r.backup(), StandardCharsets.UTF_8).contains("spigot-mappings=off"), "백업은 원본");
+        assertNull(ConfigMigration.run(f, warn()), "다시 돌리면 아무 일도 없다");
+
+        Path files = write("plugins.compat.nms.spigot-mappings = files\n#plugins.compat.nms.spigot-mappings=off\n");
+        ConfigMigration.run(files, warn());
+        String after = Files.readString(files, StandardCharsets.UTF_8);
+        assertTrue(after.contains("plugins.compat.nms.spigot-mappings = files"), "옛 기본과 다른 값은 그대로: " + after);
+        assertTrue(after.contains("#plugins.compat.nms.spigot-mappings=off"), "주석 줄은 그대로: " + after);
+    }
+
+    @Test
+    void freshlyCreatedPropertiesFileIsAlreadyCurrent() throws IOException {
+        Path f = dir.resolve("fresh.properties");
+        FurnacePropertiesFile.ensure(f);
+        assertNull(ConfigMigration.run(f, warn()), "새로 만든 파일은 다음 기동에 마이그레이션(백업)이 돌지 않는다");
+        assertEquals("download", FurnaceProps.readRaw(f).getProperty("plugins.compat.nms.spigot-mappings"));
     }
 
     @Test

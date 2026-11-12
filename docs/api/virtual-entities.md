@@ -24,6 +24,20 @@ var line = ve.tabList(player).add(this, "서버 정보", List.of(), GameMode.CRE
 line.setLatency(5);
 ```
 
+### 디스플레이 엔티티(홀로그램) — 이름 있는 칸
+
+```java
+VirtualEntity holo = ve.spawn(this, "minecraft:text_display", loc);
+holo.set(EntityDataKeys.TextDisplay.TEXT, Text.text("§6상점"));
+holo.set(EntityDataKeys.Display.SCALE, new Vector3f(1.5f, 1.5f, 1.5f));
+holo.set(EntityDataKeys.Display.BILLBOARD_RENDER_CONSTRAINTS, (byte) 3);       // 늘 플레이어를 본다
+VirtualEntity icon = ve.spawn(this, "minecraft:item_display", iconLoc);
+icon.set(EntityDataKeys.ItemDisplay.ITEM_STACK, ItemStack.of("minecraft:diamond"));
+icon.set(EntityDataKeys.Display.LEFT_ROTATION, Quaternionf.rotationY(45));
+```
+
+`set(key, 값)` 은 그 엔티티 종류에 없는 칸이면 `IllegalArgumentException`(예: 좀비에 `TextDisplay.TEXT`) — 클라이언트가 끊기기 전에 막는다. 칸 번호는 서버가 버전에 맞춘다([패킷 API](packets.md) "엔티티 메타데이터").
+
 ## 보이는 범위
 
 - 전역 스레드가 **2틱마다** 한 번, 같은 월드이고 `trackingRange`(기본 48블록) 안인 플레이어에게 나타나게/사라지게 한다. 이미 보는 사람은 범위 + 4블록을 벗어나야 사라진다(경계에서 깜박이지 않게).
@@ -51,12 +65,12 @@ line.setLatency(5);
 ## 새로 생긴 패킷 래퍼
 
 `SET_ENTITY_DATA`(칸 번호 + 값: byte·int·long·float·boolean·string·텍스트·옵션 텍스트·자세), `PLAYER_INFO_UPDATE`, `PLAYER_INFO_REMOVE` 가 타입 래퍼가 됐다(34종).
-- `SET_ENTITY_DATA` 는 아이템·입자·NBT 같은 값 종류를 만나면 거기서 멈추고 `Unsupported` 로 남긴다 — 관찰·취소는 되지만 그 패킷을 바꿔 다시 보낼 수는 없다(원본이 그대로 간다).
+- `SET_ENTITY_DATA` 는 값 종류 31개를 모두 읽는다(E1). 이 서버 버전이 모르는 직렬화 번호를 만날 때만 `Unsupported` 로 멈춘다.
 - `PLAYER_INFO_UPDATE` 는 채팅 세션 초기화 비트가 든 패킷을 읽지 않는다(관찰·취소만).
 - 장비(`set_equipment`)·팀(`set_player_team`)은 아직 타입 래퍼가 아니다. 가상 엔티티 서비스가 서버 내부 패킷으로 보낸다.
 
 ## 한계
 
 - 서버가 모르는 엔티티라 AI·물리·충돌·피해가 없다. 움직임은 `teleport` 로만(상대 이동 패킷 없음).
-- 메타데이터 칸 번호는 바닐라 엔티티 종류마다 다르다(`setMetadata` 는 그대로 보낸다). 편의 메서드는 공통 칸(상태 비트·이름·침묵·무중력)과 플레이어 겉 레이어(칸 17)만 다룬다.
+- 메타데이터는 `set(EntityDataKeys.X.Y, 값)` 으로 모든 칸을 이름으로 정한다(종류에 없는 칸은 거부). `setMetadata(번호, 값)` 은 번호를 그대로 보낸다(버전마다 다름).
 - 화면에서 어떻게 보이는지(스킨·이름표·자세·장비)는 실제 클라이언트로 확인할 항목이다(`docs/user-todo.md`).

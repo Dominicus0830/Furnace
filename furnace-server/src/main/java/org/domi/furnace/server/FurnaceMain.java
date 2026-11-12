@@ -104,7 +104,10 @@ public final class FurnaceMain {
         var migration = org.domi.furnace.server.config.ConfigMigration.run(Path.of("furnace.properties"), log::warn);
         if (migration != null) {
             log.info("furnace.properties 를 형식 {} → {} 로 옮겼다(원본: {}):", migration.from(), migration.to(), migration.backup());
-            for (String c : migration.changes()) log.info("  {}", c);
+            for (String c : migration.changes()) {
+                if (c.startsWith(org.domi.furnace.server.config.ConfigMigration.DEFAULT_CHANGE_MARK)) log.warn("  {}", c);
+                else log.info("  {}", c);
+            }
         }
         // furnace.properties: Paper 가져오기 뒤에(먼저 만들면 모든 키가 "이미 있음"이 되어 Paper 값을 못 옮긴다). 없으면 모든 옵션(기본값·설명)으로 만들고, 새 버전에서 생긴 옵션만 끝에 덧붙인다
         try {

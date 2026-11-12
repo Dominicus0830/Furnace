@@ -184,8 +184,8 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
                         ? " 대응표로도 풀리지 않은 난독화 이름 멤버 " + obfuscatedLooking + "개는 그 호출이 실패한다." : "")
                 : spigotNamed && missing.stream().anyMatch(n -> n.startsWith("net.minecraft."))
                 ? " Spigot 이름 jar 로 보인다" + (obfuscatedLooking > 0 ? "(난독화 이름 멤버 " + obfuscatedLooking + "개)" : "")
-                        + " — Spigot→Mojang 대응표가 없어 shim 에 없는 그 이름의 호출은 실패한다. furnace.properties 에 plugins.compat.nms.spigot-mappings=download 를"
-                        + " 쓰면 처음 한 번 Mojang·Spigot 매핑을 받아 바꿔 올린다."
+                        + " — Spigot→Mojang 대응표가 없어 shim 에 없는 그 이름의 호출은 실패한다. furnace.properties 에 plugins.compat.nms.spigot-mappings=download(기본)"
+                        + " 로 두면 처음 한 번 Mojang·Spigot 매핑을 받아 바꿔 올린다(이미 download 라면 시작 로그의 받기 실패 경고를 보라)."
                 : obfuscatedLooking > 0
                 ? " 난독화 이름으로 보이는 멤버 " + obfuscatedLooking + "개는 그 호출이 실패한다."
                 : "";

@@ -65,7 +65,18 @@ public interface VirtualEntity {
 
     // ------------------------------------------------------------------ 겉모습
 
-    /** 칸 번호를 직접 정한다(바닐라 엔티티 메타데이터 칸). 이미 보는 플레이어에게 바로 보낸다. */
+    /**
+     * 이름 있는 메타데이터 칸을 정한다(EntityDataKeys). 이미 보는 플레이어에게 바로 보낸다.
+     * 이 엔티티 종류에 없는 칸이면 IllegalArgumentException(예: 좀비에 TextDisplay.TEXT, interaction 에 LivingEntity.HEALTH) — 클라이언트가 끊기는 일을 미리 막는다.
+     * 보낼 수 없는 값(없는 종류 이름·아이템 등)도 IllegalArgumentException 이고 저장하지 않는다.
+     * 예) textDisplay.set(EntityDataKeys.TextDisplay.TEXT, Text.text("상점")); itemDisplay.set(EntityDataKeys.Display.SCALE, new Vector3f(2, 2, 2));
+     */
+    <T> void set(org.domi.furnace.api.entity.data.EntityDataKey<T> key, T value);
+
+    /**
+     * 칸 번호를 직접 정한다(바닐라 엔티티 메타데이터 칸 — 번호는 마인크래프트 버전마다 다르다, set(EntityDataKey, …) 를 먼저 쓴다). 이미 보는 플레이어에게 바로 보낸다.
+     * 보낼 수 없는 값이면 IllegalArgumentException 이고 저장하지 않는다. 칸이 이 종류에 맞는지는 확인하지 않는다.
+     */
     void setMetadata(int index, ClientboundSetEntityDataPacket.Value value);
 
     /** 커스텀 이름(null 이면 지움). 이름표를 보이려면 {@link #setCustomNameVisible}. */
