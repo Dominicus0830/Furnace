@@ -390,12 +390,13 @@ public final class Regionizer {
 
     /** 그 청크의 주인 region 큐에 작업을 넣는다. 구역이 없으면 만든다. */
     void enqueue(long chunkKey, java.util.function.Consumer<Region> task) {
-        enqueue(chunkKey, task, org.domi.furnace.server.sched.GlobalThread.isGlobalThread());
+        boolean command = CommandDrainGate.inScope();
+        enqueue(chunkKey, task, org.domi.furnace.server.sched.GlobalThread.isGlobalThread() || command, command);
     }
 
     /** urgent: 전역(명령) 스레드가 보낸 작업 — 명령 블록이 결과를 기다리는 동안 골라 돌린다(Region.awaitUrgent). */
-    void enqueue(long chunkKey, java.util.function.Consumer<Region> task, boolean urgent) {
-        Region.Task t = new Region.Task(chunkKey, task, urgent);
+    void enqueue(long chunkKey, java.util.function.Consumer<Region> task, boolean urgent, boolean command) {
+        Region.Task t = new Region.Task(chunkKey, task, urgent, command);
         int cx = chunkX(chunkKey), cz = chunkZ(chunkKey);
         Region r;
         while ((r = offer(cx, cz, t)) == null) {
@@ -407,15 +408,16 @@ public final class Regionizer {
                 lock.unlock();
             }
         }
-        if (urgent) urgentArrived(r);
+        if (urgent) urgentArrived(r, command);
     }
 
     /** 주인 region 이 이미 있을 때만 작업을 넣는다(조회성 — region 을 만들지 않는다). 주인이 없으면(그 사이 없어졌어도) false. */
     boolean enqueueIfOwned(long chunkKey, java.util.function.Consumer<Region> task) {
-        boolean urgent = org.domi.furnace.server.sched.GlobalThread.isGlobalThread();
-        Region r = offer(chunkX(chunkKey), chunkZ(chunkKey), new Region.Task(chunkKey, task, urgent));
+        boolean command = CommandDrainGate.inScope();
+        boolean urgent = org.domi.furnace.server.sched.GlobalThread.isGlobalThread() || command;
+        Region r = offer(chunkX(chunkKey), chunkZ(chunkKey), new Region.Task(chunkKey, task, urgent, command));
         if (r == null) return false;
-        if (urgent) urgentArrived(r);
+        if (urgent) urgentArrived(r, command);
         return true;
     }
 
@@ -445,7 +447,7 @@ public final class Regionizer {
         Region.Task t;
         while ((t = dead.inbox.poll()) != null) {
             if (into != null && t.run() instanceof RegionWide) into.inbox.add(t);
-            else enqueue(t.chunkKey(), t.run(), t.urgent());
+            else enqueue(t.chunkKey(), t.run(), t.urgent(), t.command());
         }
     }
 
@@ -455,13 +457,13 @@ public final class Regionizer {
      * 급한 작업이 r 에 들어왔다: r 이 명령 결과를 기다리는 중이면 깨우고, 어딘가에서 명령 블록이 기다리는 중이고 r 이 쉬고 있으면
      * 다음 틱을 기다리지 않고 급한 작업만 돌리는 차례(drain)를 곧바로 준다 — 그래야 @e 처럼 모든 region 을 도는 명령이 한 틱 안에 끝난다.
      */
-    private void urgentArrived(Region r) {
+    private void urgentArrived(Region r, boolean command) {
         Thread w = r.urgentWaiter;
         if (w != null) {
             java.util.concurrent.locks.LockSupport.unpark(w);
             return;
         }
-        if (!Region.urgentOpen()) return;
+        if (Region.URGENT_WAITERS.get() == 0 && !(command && CommandDrainGate.open())) return;   // 명령 블록이 기다리지 않으면 명령 큐 문이 열린 명령 작업만
         lock.lock();
         try {
             if (closed || !r.queued || r.ticking || !r.alive || r.yielded || r.drainPass) return;
@@ -565,9 +567,10 @@ public final class Regionizer {
             for (Region r : regions) {
                 long sk = r.sections.isEmpty() ? 0 : r.sections.iterator().next();
                 RegionWide w = new RegionWide(task);
-                boolean urgent = org.domi.furnace.server.sched.GlobalThread.isGlobalThread();
-                r.inbox.add(new Region.Task(chunkKey(chunkX(sk) << shift, chunkZ(sk) << shift), w, urgent));
-                if (urgent) urgentArrived(r);
+                boolean command = CommandDrainGate.inScope();
+                boolean urgent = org.domi.furnace.server.sched.GlobalThread.isGlobalThread() || command;
+                r.inbox.add(new Region.Task(chunkKey(chunkX(sk) << shift, chunkZ(sk) << shift), w, urgent, command));
+                if (urgent) urgentArrived(r, command);
                 out.add(w.done);
             }
         } finally {
@@ -766,7 +769,7 @@ public final class Regionizer {
             pool.slotFreed();   // 끝낸 워커는 곧바로 다시 고르지만 자리가 둘 열릴 수도 있다(차원별 상한 + 서버 전체 몫) — 상한 때문에 자던 워커 하나를 깨운다
             afterTick(r);
             // 틱 중에 들어온 급한 작업(다른 region 의 명령 블록이 기다린다)은 다음 틱까지 미루지 않는다
-            if (Region.urgentOpen() && r.alive && r.hasUrgentTask()) urgentArrived(r);
+            if (r.alive && r.drainWanted()) urgentArrived(r, true);
         } catch (Throwable t) {
             log.error("[REGION] region #{} 틱 뒤 정리 실패", r.id, t);
         } finally {
@@ -1026,7 +1029,7 @@ public final class Regionizer {
         while ((t = r.inbox.poll()) != null) pending.add(t);
         for (Region.Task task : pending) {
             if (task.run() instanceof RegionWide || owns(r, chunkX(task.chunkKey()), chunkZ(task.chunkKey()))) r.inbox.add(task);
-            else enqueue(task.chunkKey(), task.run(), task.urgent());
+            else enqueue(task.chunkKey(), task.run(), task.urgent(), task.command());
         }
     }
 
@@ -1119,7 +1122,7 @@ public final class Regionizer {
                     n.inbox.add(task);
                 }
             } else {
-                enqueue(task.chunkKey(), task.run(), task.urgent());
+                enqueue(task.chunkKey(), task.run(), task.urgent(), task.command());
             }
         }
         for (Region n : created) schedule(n);
@@ -1287,7 +1290,7 @@ public final class Regionizer {
             r.tickThread = null;
             resolveMerges(r);
             if (r.alive && !r.yielded) schedule(r);
-            if (Region.urgentOpen() && r.alive && r.hasUrgentTask()) urgentArrived(r);
+            if (r.alive && r.drainWanted()) urgentArrived(r, true);
         } catch (Throwable t) {
             log.error("[REGION] region #{} 빌림 반납 실패", r.id, t);
         } finally {

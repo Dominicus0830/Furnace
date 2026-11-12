@@ -45,7 +45,10 @@ public final class Region {
     private static final long DRAIN_BUDGET_NANOS = 25_000_000L;
 
     /** 청크 키가 붙은 작업. urgent: 전역(명령) 스레드가 보냈다 — 명령 블록이 결과를 기다리는 동안 이것만 골라 돌린다. */
-    record Task(long chunkKey, Consumer<Region> run, boolean urgent) {}
+    /** urgent: 전역(명령) 스레드가 보낸 작업. command: 명령 범위(CommandDrainGate)에서 넣은 작업 — 명령 큐 즉시 처리 문의 대상. */
+    record Task(long chunkKey, Consumer<Region> run, boolean urgent, boolean command) {
+        Task(long chunkKey, Consumer<Region> run, boolean urgent) { this(chunkKey, run, urgent, false); }
+    }
 
     private record Delayed(long dueTick, long seq, long chunkKey, Consumer<Region> run) {
         Delayed(long dueTick, long chunkKey, Consumer<Region> run) { this(dueTick, DELAYED_SEQ.getAndIncrement(), chunkKey, run); }
@@ -88,8 +91,6 @@ public final class Region {
     static final java.util.concurrent.atomic.AtomicInteger URGENT_WAITERS = new java.util.concurrent.atomic.AtomicInteger();
     /** 한 틱에 명령 블록이 명령 결과를 기다리는 데 쓸 수 있는 시간 합(ns). 넘으면 예전처럼 결과를 다음 틱 이후에 반영한다. */
     static final long URGENT_WAIT_BUDGET_NANOS = Long.getLong("furnace.commandBlockWaitMicros", 20_000L) * 1_000L;
-    /** 급한 작업을 곧바로 돌려도 되는가: 명령 블록이 기다리는 중이거나 명령 큐 문(CommandDrainGate)이 열려 있다. */
-    static boolean urgentOpen() { return URGENT_WAITERS.get() > 0 || CommandDrainGate.open(); }
     /** 지금 명령 결과를 기다리는 이 region 의 스레드(급한 작업이 오면 깨운다). */
     volatile Thread urgentWaiter;
     /** Regionizer 잠금 안: 이번 차례는 급한 작업만(drain) — 끝나면 savedNextTickNanos 로 돌아간다. */
@@ -166,8 +167,8 @@ public final class Region {
         betweenTicks = true;
         try {
             while ((t = inbox.poll()) != null) {
-                if (t.run() instanceof Regionizer.RegionWide || mine(t.chunkKey())) runTask(t.run());
-                else rz().enqueue(t.chunkKey(), t.run(), t.urgent());
+                if (t.run() instanceof Regionizer.RegionWide || mine(t.chunkKey())) runTask(t);
+                else rz().enqueue(t.chunkKey(), t.run(), t.urgent(), t.command());
                 if ((++n & 15) == 0 && System.nanoTime() > deadline) break;
             }
             if (hold) return;
@@ -202,7 +203,7 @@ public final class Region {
         URGENT_WAITERS.incrementAndGet();
         try {
             while (true) {
-                runUrgentTasks();
+                runUrgentTasks(0L);
                 if (done.getAsBoolean()) return true;
                 if (Regionizer.helpDrainAny()) continue;   // 워커가 모자라 못 돈 남의 급한 작업(예: @e 가 도는 다른 region)
                 long now = System.nanoTime();
@@ -212,22 +213,29 @@ public final class Region {
         } finally {
             URGENT_WAITERS.decrementAndGet();
             urgentWaiter = prev;
-            long waited = System.nanoTime() - start;
-            urgentWaitUsed += waited;
-            CommandDrainGate.charge(waited);   // 명령 큐 문과 예산을 나눠 쓴다
+            urgentWaitUsed += System.nanoTime() - start;
         }
     }
 
     /** 작업 큐에서 급한 작업만 꺼내 돌린다(넣은 순서대로, 나머지는 그대로 둔다). 이 region 이 아닌 칸이면 지금 주인에게. */
-    private void runUrgentTasks() {
-        for (var it = inbox.iterator(); it.hasNext(); ) {
-            Task t = it.next();
-            if (!t.urgent()) continue;
-            it.remove();
-            if (t.run() instanceof Regionizer.RegionWide || mine(t.chunkKey())) runTask(t.run());
-            else rz().enqueue(t.chunkKey(), t.run(), true);
+    private void runUrgentTasks(long deadlineNanos) {
+        long start = System.nanoTime();
+        urgentDepth++;
+        try {
+            for (var it = inbox.iterator(); it.hasNext(); ) {
+                Task t = it.next();
+                if (!t.urgent()) continue;
+                it.remove();
+                if (t.run() instanceof Regionizer.RegionWide || mine(t.chunkKey())) runTask(t);
+                else rz().enqueue(t.chunkKey(), t.run(), true, t.command());
+                if (deadlineNanos != 0L && System.nanoTime() - deadlineNanos >= 0L) break;   // 남은 것은 다음 틱 머리에서
+            }
+        } finally {
+            // 바깥 호출만 센다(기다리는 중 돈 안쪽 호출은 바깥 시간에 들어 있다) — 명령 큐 문과 명령 블록이 한 예산을 나눠 쓴다
+            if (--urgentDepth == 0) CommandDrainGate.charge(System.nanoTime() - start);
         }
     }
+    private int urgentDepth;
 
     /** 작업 큐에 급한 작업이 있는가(아무 스레드, 힌트). */
     boolean hasUrgentTask() {
@@ -235,16 +243,26 @@ public final class Region {
         return false;
     }
 
+    /** 작업 큐에 명령 범위에서 넣은 작업이 있는가(아무 스레드, 힌트). */
+    private boolean hasCommandTask() {
+        for (Task t : inbox) if (t.command()) return true;
+        return false;
+    }
+
+    /** 틱 사이에 drain 차례를 줄 일이 있는가: 명령 블록이 기다리는 중이고 급한 작업이 있거나, 명령 큐 문이 열려 있고 명령 작업이 있다. */
+    boolean drainWanted() {
+        return (URGENT_WAITERS.get() > 0 && hasUrgentTask()) || (CommandDrainGate.open() && hasCommandTask());
+    }
+
     /** drain 차례(틱 사이, 이 region 스레드): 급한 작업만 돌린다. 틱 사이 합치기·나누기가 있었을 수 있어 칸 조회 캐시를 먼저 비운다. */
     void runUrgentDrain() {
         if (level != null) level.chunkUnloaded();
         betweenTicks = true;
-        long start = System.nanoTime();
         try {
-            runUrgentTasks();
+            // 명령 블록이 기다리지 않는 drain(= 명령 큐 문)은 남은 문 예산을 마감으로 받는다 — 넘으면 멈추고 나머지는 다음 틱 머리로
+            runUrgentTasks(URGENT_WAITERS.get() > 0 ? 0L : System.nanoTime() + CommandDrainGate.remainingNanos());
         } finally {
             betweenTicks = false;
-            CommandDrainGate.charge(System.nanoTime() - start);
         }
     }
 
@@ -254,6 +272,17 @@ public final class Region {
      */
     private boolean mine(long chunkKey) {
         return rz().owns(this, Regionizer.chunkX(chunkKey), Regionizer.chunkZ(chunkKey));
+    }
+
+    /** 명령 범위에서 넣은 작업은 명령 범위 안에서 돈다 — 이어서 넣는 두 번째 홉도 문 대상이 되게. */
+    private void runTask(Task t) {
+        boolean command = t.command();
+        if (command) CommandDrainGate.enterScope();
+        try {
+            runTask(t.run());
+        } finally {
+            if (command) CommandDrainGate.exitScope();
+        }
     }
 
     private void runTask(Consumer<Region> task) {

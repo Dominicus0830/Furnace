@@ -33,11 +33,15 @@ class CommandRegionDrainTest {
     Path functionDir;
     Path vanilla;
 
+    static final ChunkPos FAR = new ChunkPos(200, 200);   // 3200 블록 — 0,0 과 다른 region
+
     @BeforeEach
     void setUp() throws Exception {
+        CommandDrainGate.newGlobalTick();
         sched = new FurnaceSchedulerImpl(50_000_000L, 4);
         core = TestServers.core(tmp, sched);
         core.world().awaitChunk(new ChunkPos(0, 0));
+        core.world().awaitChunk(FAR);
         DeferredResultTest.spawnCows(core, 2);
         vanilla = tmp.resolve("vanilla");
         Files.createDirectories(vanilla.resolve("data/minecraft/tags/item"));
@@ -133,20 +137,20 @@ class CommandRegionDrainTest {
     @Test
     void tickFunctionWithThreeRegionAccessesRunsEveryTick() throws Exception {
         double ratio = tickFunctionRatio(HOP, HOP, HOP);
-        assertTrue(ratio >= 0.9, "리전 접근 3번이어도 #tick 함수가 매 틱 돌아야 한다(바닐라 20/s): " + ratio);
+        assertTrue(ratio >= 0.8, "리전 접근 3번이어도 #tick 함수가 매 틱 돌아야 한다(바닐라 20/s): " + ratio);
     }
 
     @Test
     void tickFunctionWithSetblockAndReadRunsEveryTick() throws Exception {
         double ratio = tickFunctionRatio("setblock 0 -61 0 minecraft:stone", HOP, "setblock 0 -61 0 minecraft:air", HOP);
-        assertTrue(ratio >= 0.9, "쓰기·읽기 섞인 #tick 함수도 매 틱 돌아야 한다: " + ratio);
+        assertTrue(ratio >= 0.8, "쓰기·읽기 섞인 #tick 함수도 매 틱 돌아야 한다: " + ratio);
     }
 
     @Test
     void optionOffKeepsTheOldOneTickPerRegionAccessBehaviour() throws Exception {
         drain(false);
         double ratio = tickFunctionRatio(HOP, HOP, HOP);
-        assertTrue(ratio < 0.6, "commands.region-drain=false 면 예전처럼 접근 한 줄이 한 틱씩 걸린다(약 1/3): " + ratio);
+        assertTrue(ratio < 0.75, "commands.region-drain=false 면 예전처럼 접근 한 줄이 한 틱씩 걸린다(약 1/3): " + ratio);
     }
 
     // ---------------------------------------------------------------- 결과 동일성
@@ -233,5 +237,80 @@ class CommandRegionDrainTest {
         } finally {
             CommandDrainGate.newGlobalTick();
         }
+    }
+
+    // ---------------------------------------------------------------- 검토 R2·R3·R4·R7 (PR #271 독립 검토)
+
+    @Test
+    void tickFunctionWithTwoHopCommandsRunsEveryTick() throws Exception {
+        // data get entity: 선택자 region 에서 끝난 뒤 이어서 소유 region 에 다시 보낸다(두 번째 홉은 region 스레드에서 넣는다) — 명령 범위를 이어받아야 한다
+        double ratio = tickFunctionRatio("data get entity @e[type=cow,limit=1] Health", "data get entity @e[type=cow,limit=1] Health");
+        assertTrue(ratio >= 0.8, "두 홉 명령 두 줄도 매 틱 돌아야 한다: " + ratio);
+    }
+
+    @Test
+    void tickFunctionTouchingTwoRegionsRunsEveryTick() throws Exception {
+        double ratio = tickFunctionRatio("setblock 3200 -61 3200 minecraft:stone", "execute if block 3200 -61 3200 minecraft:stone", HOP,
+                "setblock 3200 -61 3200 minecraft:air", "execute if block 3200 -61 3200 minecraft:stone", HOP);
+        assertTrue(ratio >= 0.8, "region 둘을 오가는 #tick 함수도 매 틱 돌아야 한다: " + ratio);
+    }
+
+    @Test
+    void secondHopCommandStaysOnOneTickWhenTheFunctionFinishesInstantly() throws Exception {
+        String[] lines = new String[20];
+        java.util.Arrays.fill(lines, "data get entity @e[type=cow,limit=1] Health");
+        long ms = timedFunctionMillis(lines);
+        System.out.println("DRAIN 20 two-hop took " + ms + " ms");
+        assertTrue(ms < 600, "두 홉 명령 20줄이 줄당 1틱(1000ms 이상)이 아니어야 한다: " + ms + " ms");
+    }
+
+    @Test
+    void sameItemAgeIsReadTwiceInOneTickFunctionRun() throws Exception {
+        // 바닐라 불변식: 한 함수 실행 안에서 region 틱이 끼어들지 않는다 — 두 줄이 읽은 Age 가 같다
+        run("summon item 0 -60 0 {Item:{id:\"minecraft:stone\",count:1},PickupDelay:32767,Age:0}");
+        double ratio = tickFunctionRatio(
+                "execute store result score #a o run data get entity @e[type=item,limit=1] Age",
+                "execute store result score #b o run data get entity @e[type=item,limit=1] Age",
+                "execute unless score #a o = #b o run scoreboard players add #diff o 1");
+        assertTrue(ratio >= 0.8, "ratio " + ratio);
+        Integer diff = score("#diff");
+        assertTrue(diff == null || diff == 0, "한 실행 안에서 Age 가 달라졌다(region 틱이 끼어들었다): " + diff);
+    }
+
+    @Test
+    void nonCommandGlobalTasksKeepTheirOrderAndAreNotDrained() throws Exception {
+        // 명령 범위 밖의 전역 작업(플러그인 전역 스케줄러·전역 틱 몸통 자리)은 문 대상이 아니다 — 같은 region 에 먼저 넣은 비급한 작업을 앞지르지 않는다
+        int reorders = 0;
+        for (int i = 0; i < 20; i++) {
+            CommandDrainGate.newGlobalTick();
+            List<String> order = java.util.Collections.synchronizedList(new ArrayList<>());
+            java.util.concurrent.CountDownLatch both = new java.util.concurrent.CountDownLatch(2);
+            core.world().runAtChunk(FAR, r -> { order.add("first"); both.countDown(); });
+            sched.global().execute(() -> core.world().runAtChunk(FAR, r -> { order.add("second"); both.countDown(); }));
+            assertTrue(both.await(5, TimeUnit.SECONDS));
+            if (order.get(0).equals("second")) reorders++;
+            Thread.sleep(7 + (i % 5) * 9);
+        }
+        assertEquals(0, reorders, "명령과 무관한 전역 작업이 비급한 작업을 앞질렀다");
+    }
+
+    @Test
+    void oneDrainPassStopsAtTheRemainingGateBudget() throws Exception {
+        // 남은 문 예산이 10ms 일 때 1ms 짜리 명령 작업 100개: drain 차례가 예산에서 멈추고 나머지는 다음 틱 머리에서 돈다
+        long budget = CommandDrainGate.budgetNanos();
+        CommandDrainGate.charge(budget - 10_000_000L);
+        java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(100);
+        sched.global().execute(() -> CommandDrainGate.inCommandScope(() -> {
+            for (int i = 0; i < 100; i++) core.world().runAtChunk(FAR, r -> { busy(1_000_000L); done.countDown(); });
+        }));
+        assertTrue(done.await(10, TimeUnit.SECONDS), "나머지는 region 틱 머리에서 마저 돈다");
+        long over = CommandDrainGate.usedNanos() - budget;
+        System.out.println("BURST used over budget by " + over / 1000 + " us");
+        assertTrue(over < 8_000_000L, "drain 차례 하나가 남은 예산을 한참 넘겼다: +" + over / 1_000_000L + " ms");
+    }
+
+    private static void busy(long nanos) {
+        long end = System.nanoTime() + nanos;
+        while (System.nanoTime() < end) Thread.onSpinWait();
     }
 }

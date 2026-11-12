@@ -41,8 +41,6 @@ public final class CommandQueue {
     /** 지금 drive(완료 처리 body + run) 중인 컨텍스트 — 재개 body 안에서 들어온 명령도 그 컨텍스트에 합친다(S0 검토 S-3). */
     private ExecutionContext driving;
     private volatile boolean closed;
-    /** 지금 컨텍스트가 region 즉시 처리 문(CommandDrainGate)을 열어 두었는가 — 컨텍스트가 도는 동안만 열린다. */
-    private boolean gateOpen;
 
     public CommandQueue(TaskScheduler global, ThreadOwner owner, IntSupplier chainLimit, IntSupplier forkLimit, Duration deferredTimeout) {
         this.global = global;
@@ -92,7 +90,6 @@ public final class CommandQueue {
         currentEntry = p;
         currentTicks = 0;
         slowWarned = false;
-        openGate();
         drive(ctx, p, () -> p.init().accept(ctx));
     }
 
@@ -101,6 +98,7 @@ public final class CommandQueue {
         boolean handled = false;
         ExecutionContext prevDriving = driving;
         driving = ctx;
+        org.domi.furnace.server.world.CommandDrainGate.enterScope();   // 이 안에서 region 에 넣는 작업은 명령 큐 즉시 처리 문 대상(O11 P-O11-01)
         try {
             if (body != null) body.run();
             ctx.run();
@@ -110,28 +108,16 @@ public final class CommandQueue {
             reportException(p, e);
             ctx.abort();
         } finally {
+            org.domi.furnace.server.world.CommandDrainGate.exitScope();
             driving = prevDriving;
             if (!handled) ctx.abort();   // Error: 컨텍스트를 끝내고 그대로 던진다(큐가 막히지 않게)
             if (ctx.isFinished() && current == ctx) {
                 current = null;
                 currentEntry = null;
-                closeGate();
                 p.done().complete(null);
                 pump();
             }
         }
-    }
-
-    private void openGate() {
-        if (gateOpen) return;
-        gateOpen = true;
-        org.domi.furnace.server.world.CommandDrainGate.enter();
-    }
-
-    private void closeGate() {
-        if (!gateOpen) return;
-        gateOpen = false;
-        org.domi.furnace.server.world.CommandDrainGate.exit();
     }
 
     private static void reportException(Pending p, Exception e) {
@@ -215,7 +201,6 @@ public final class CommandQueue {
         pending.clear();
         current = null;
         currentEntry = null;
-        closeGate();
         if (n > 0) log.warn("종료: 미완료 명령 컨텍스트 {}개 버림", n);
     }
 }
