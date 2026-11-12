@@ -13,7 +13,8 @@ import org.bukkit.inventory.ItemStack;
 
 /**
  * {@link ConfigurationSerializable} 의 별칭 등록부와 되읽기. 별칭 → 클래스 표는 서버 전체가 하나다(Bukkit 과 같다).
- * 기본으로 ItemStack·ItemMeta(별칭 "ItemMeta")·Color·FireworkEffect·AttributeModifier·Vector·PotionEffect·Location 이 등록돼 있다.
+ * 기본으로 ItemStack·ItemMeta(별칭 "ItemMeta")·Color·FireworkEffect·AttributeModifier·Vector·BlockVector·BoundingBox·PotionEffect·Location·SpawnRule·OfflinePlayer(별칭 "Player")가 등록돼 있다.
+ * 배너 무늬(Pattern)는 호환 계층에 배너 API 가 아직 없어 빠져 있다.
  * 되읽기 순서: 정적 {@code deserialize(Map)} → 정적 {@code valueOf(Map)} → {@code (Map)} 생성자. 앞의 것이 없거나 null·예외면 다음으로 간다.
  */
 public class ConfigurationSerialization {
@@ -34,6 +35,10 @@ public class ConfigurationSerialization {
         registerClass(org.bukkit.util.Vector.class);
         registerClass(org.bukkit.potion.PotionEffect.class);
         registerClass(org.bukkit.Location.class);
+        registerClass(org.bukkit.util.BlockVector.class);
+        registerClass(org.bukkit.util.BoundingBox.class);
+        registerClass(org.bukkit.block.spawner.SpawnRule.class);
+        registerClass(org.bukkit.craftbukkit.CraftOfflinePlayer.class);   // 별칭 Player
     }
 
     private final Class<? extends ConfigurationSerializable> clazz;

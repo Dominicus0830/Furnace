@@ -111,6 +111,12 @@ public interface ConfigurationSection {
 
     boolean isVector(String path);
 
+    org.bukkit.OfflinePlayer getOfflinePlayer(String path);
+
+    org.bukkit.OfflinePlayer getOfflinePlayer(String path, org.bukkit.OfflinePlayer def);
+
+    boolean isOfflinePlayer(String path);
+
     org.bukkit.Color getColor(String path);
 
     org.bukkit.Color getColor(String path, org.bukkit.Color def);

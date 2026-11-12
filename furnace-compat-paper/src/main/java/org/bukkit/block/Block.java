@@ -15,6 +15,23 @@ public interface Block extends org.bukkit.metadata.Metadatable {
 
     World getWorld();
 
+    /** 좌표를 한 long 에 담은 값(Paper, 1.18.1 부터 deprecated). */
+    @Deprecated
+    default long getBlockKey() { return Block.getBlockKey(getX(), getY(), getZ()); }
+
+    /** x 27 비트·z 27 비트·y 10 비트(위쪽)로 묶는다. */
+    @Deprecated
+    static long getBlockKey(int x, int y, int z) { return ((long) x & 0x7FFFFFF) | (((long) z & 0x7FFFFFF) << 27) | ((long) y << 54); }
+
+    @Deprecated
+    static int getBlockKeyX(long packed) { return (int) ((packed << 37) >> 37); }
+
+    @Deprecated
+    static int getBlockKeyY(long packed) { return (int) (packed >> 54); }
+
+    @Deprecated
+    static int getBlockKeyZ(long packed) { return (int) ((packed << 10) >> 37); }
+
     int getX();
 
     int getY();
