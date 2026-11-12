@@ -126,10 +126,36 @@ class PluginFormatsLazyTest {
         @Override public PluginDescription readDescriptor(String fileName, String text) { return fake.readDescriptor(fileName, text); }
         @Override public FurnacePlugin create(PluginContext context, Class<?> main) throws ReflectiveOperationException { return fake.create(context, main); }
 
+        /** 어댑터가 jar 를 훑어 "Spigot 이름 NMS 라 대응표가 필요하다"고 확인했을 때 서버에 물어 받은 값(null = 서버가 안 줌). NMS 를 안 쓰는 jar 는 묻지 않으므로 기록이 없다. */
+        final List<String> askedFiles = new java.util.ArrayList<>();
+
         @Override
         public org.domi.furnace.api.plugin.ClassTransformer transformer(PluginDescription description, Path jar, java.util.Map<String, String> s) {
             settings.add(java.util.Map.copyOf(s));
             return null;
+        }
+
+        @Override
+        public org.domi.furnace.api.plugin.ClassTransformer transformer(PluginDescription description, Path jar, java.util.Map<String, String> s,
+                                                                         java.util.function.Supplier<String> spigotMappingFiles) {
+            transformer(description, jar, s);
+            if (mentionsNms(jar)) askedFiles.add(spigotMappingFiles.get());
+            return null;
+        }
+
+        /** 실제 어댑터(NmsCompatReport.read)의 판정을 흉내 낸다 — 클래스 파일에 net/minecraft/ 가 있다. */
+        private static boolean mentionsNms(Path jar) {
+            try (java.util.jar.JarFile in = new java.util.jar.JarFile(jar.toFile())) {
+                for (var e : java.util.Collections.list(in.entries())) {
+                    if (!e.getName().endsWith(".class")) continue;
+                    try (var is = in.getInputStream(e)) {
+                        if (new String(is.readAllBytes(), java.nio.charset.StandardCharsets.ISO_8859_1).contains("net/minecraft/")) return true;
+                    }
+                }
+            } catch (java.io.IOException ex) {
+                throw new java.io.UncheckedIOException(ex);
+            }
+            return false;
         }
     }
 
@@ -181,6 +207,7 @@ class PluginFormatsLazyTest {
         assertFalse(boot.spigotMappingsTried(), "NMS 를 안 쓰는 플러그인은 대응표가 필요 없다");
         assertEquals(1, rec.settings.size());
         assertFalse(rec.settings.get(0).containsKey(PluginBootstrapper.SPIGOT_MAPPING_FILES));
+        assertEquals(List.of(), rec.askedFiles, "어댑터가 필요 없다고 보았으니 서버에 묻지도 않는다");
     }
 
     @Test
@@ -191,8 +218,22 @@ class PluginFormatsLazyTest {
         boot = PluginBootstrapper.bootstrap(dir, defaultsOffline(), PluginFormats.of(List.of(rec)), ServerLibraries.DEFAULT);
         assertTrue(boot.spigotMappingsTried(), "기본(download)이라 따로 켜지 않아도 받으려 한다");
         assertEquals(List.of("Beta"), boot.prepared().stream().map(p -> p.description().name()).toList(), "받지 못해도 플러그인은 올린다(그 NMS 호출만 실패)");
-        assertFalse(rec.settings.get(0).containsKey(PluginBootstrapper.SPIGOT_MAPPING_FILES), "준비 못 한 대응표는 넘기지 않는다");
+        assertFalse(rec.settings.get(0).containsKey(PluginBootstrapper.SPIGOT_MAPPING_FILES), "대응표 경로는 설정으로 미리 넘기지 않는다(어댑터가 필요하다고 할 때만 묻는다)");
+        assertEquals(java.util.Collections.singletonList(null), rec.askedFiles, "어댑터가 물었고, 준비 못 한 대응표는 null 로 답한다");
         assertEquals(List.of(), boot.failures());
+    }
+
+    @Test
+    void filesModeHandsOverTheOperatorPathsOnlyWhenTheAdapterAsks() throws Exception {
+        Path dir = tmp.resolve("plugins");
+        bukkitJar(dir.resolve(PluginBootstrapper.BUKKIT_FOLDER).resolve("b.jar"), true);
+        RecordingFormat rec = new RecordingFormat();
+        PluginSettings files = defaultsOffline().withCompatOptions(java.util.Map.of(PluginSettings.SPIGOT_MAPPINGS_KEY, "files",
+                PluginBootstrapper.SPIGOT_MAPPING_FILES, "a:b:c"));
+        boot = PluginBootstrapper.bootstrap(dir, files, PluginFormats.of(List.of(rec)), ServerLibraries.DEFAULT);
+        assertEquals(List.of("a:b:c"), rec.askedFiles);
+        assertFalse(rec.settings.get(0).containsKey(PluginBootstrapper.SPIGOT_MAPPING_FILES), "설정 사본에는 경로를 싣지 않는다");
+        assertFalse(boot.spigotMappingsTried(), "files 모드는 받지 않는다");
     }
 
     @Test

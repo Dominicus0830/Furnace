@@ -172,6 +172,22 @@ public final class CompatFormat implements PluginFormat {
     }
 
     /**
+     * 위와 같고, Spigot 이름 대응표 파일은 서버가 미리 주지 않는다: 이 jar 가 대응표를 필요로 한다고(Spigot 이름 jar 이고 NMS 이름을 담음) jar 를
+     * 훑으면서 확인된 때만 {@code spigotMappingFiles} 로 서버에 물어 세 파일 경로(아래 {@link #SPIGOT_MAPPING_FILES} 형식)를 받는다 — 서버가 필요 여부를
+     * 알아보려고 jar 를 또 읽지 않고, 필요 없는 플러그인에는 대응표를 받지도 않는다. null·빈 값이면 바꾸지 않는다.
+     */
+    @Override
+    public org.domi.furnace.api.plugin.ClassTransformer transformer(PluginDescription description, java.nio.file.Path jar, Map<String, String> settings,
+                                                                     java.util.function.Supplier<String> spigotMappingFiles) {
+        var options = new org.domi.furnace.compat.nms.NmsClassTransformer.Options(
+                Boolean.parseBoolean(settings.getOrDefault("plugins.compat.nms.strict", "false")),
+                "versioned".equalsIgnoreCase(settings.getOrDefault("plugins.compat.nms.version-package", "plain")),
+                spigotMappings(description.name(), settings.get(SPIGOT_MAPPING_FILES)));
+        return org.domi.furnace.compat.nms.NmsClassTransformer.forJar(description.name(), jar, options,
+                spigotMappingFiles == null ? null : () -> spigotMappings(description.name(), spigotMappingFiles.get()));
+    }
+
+    /**
      * H7d: 서버가 이 jar 에 Spigot 이름 대응표를 쓰기로 했으면(plugins.compat.nms.spigot-mappings=download 이고 준비됨) 세 파일 경로를
      * 경로 구분자({@link java.io.File#pathSeparator})로 이어 이 키에 넣는다: Mojang server.txt, Spigot 클래스 csrg, Spigot 멤버 csrg.
      */

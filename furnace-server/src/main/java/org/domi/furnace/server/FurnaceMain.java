@@ -360,7 +360,13 @@ public final class FurnaceMain {
                     registries, newWorld,
                     props.initialEnabledPacks, props.initialDisabledPacks, pluginBoot.dataPackHooks());
         } catch (Exception e) {
-            log.error("바닐라 데이터를 준비하지 못해 데이터 팩 없이 시작한다 — 태그는 내장 목록을 쓴다", e);
+            log.error("바닐라 데이터를 준비하지 못해 데이터 팩 없이 시작한다 — 레시피·전리품·발전 과제·태그는 비고, 아이템 번호표만 내장 레지스트리를 쓴다"
+                    + "(지형·블록은 돈다). 공식 서버 jar 를 구하면 해결된다", e);
+        }
+        // 데이터 팩 없이 시작해도 블록 동작 표(가마솥·퇴비통 등 아이템 번호를 읽는 정적 초기화)가 처음 만들어질 때 아이템 번호표가 있어야 한다.
+        // 없으면 첫 청크 로드마다 CauldronInteraction 정적 초기화 실패가 청크 수만큼 찍히고 청크가 하나도 열리지 않는다(진짜 서버는 데이터 팩이 먼저 깔려 해당 없음).
+        if (!org.domi.furnace.server.item.ItemContext.installed()) {
+            org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(registries));
         }
         // 마법부여 끄기(운영 설정, 기본 없음) — 레지스트리를 읽은 뒤라 데이터 팩·플러그인 마법부여도 끌 수 있다
         org.domi.furnace.server.loot.EnchantmentToggles.load(furnaceProps,
