@@ -6,6 +6,7 @@
 
 - **Spigot 이름 NMS 대응표가 기본으로 켜졌다.** `plugins.compat.nms.spigot-mappings` 기본이 `off` → `download`. Spigot 이름으로 컴파일된 NMS 플러그인(예: CommandAPI 일반 판, dynmap·TAB 의 1.21.1 모듈)을 `plugins/bukkit-plugins/` 에 넣기만 하면, 처음 켤 때 한 번 Mojang·Spigot 매핑을 받아 바꿔 올린다. 그런 플러그인이 없으면 받지 않는다.
 - **기존 서버의 furnace.properties 도 옮긴다.** 예전 기본으로 자동 기록된 `plugins.compat.nms.spigot-mappings=off` 줄은 다음 기동 때 `download` 로 바뀐다(설정 형식 1 → 2, 원본은 `furnace.properties.v1.bak`). 일부러 끄고 싶으면 다시 `off` 로 적으면 그대로 둔다.
+- **`start.sh`·`start.bat` 로 켜는 서버에서도 Bukkit 플러그인이 돈다.** 예전에는 이 실행 방식(installDist)에 호환 계층이 빠져 있어 "호환 어댑터가 클래스패스에 없어 불러오지 않는다" 경고만 나왔다(fat jar `java -jar furnace-server.jar` 는 됐음). 이제 `lib/furnace-compat-embedded.jar` 로 같이 실린다. 한 번 빌드해 둔 폴더가 있으면 `furnace-server/build/install` 을 지우거나 `./gradlew :furnace-server:installDist` 를 다시 돌려야 새 파일이 들어간다.
 - **Bukkit 플러그인이 없으면 호환 계층은 아무것도 하지 않는다**(이미 그랬고, 이번에 대응표까지 시험으로 묶었다): 어댑터 클래스를 올리지 않고, 호환 jar 를 꺼내지 않고, 라이브러리·매핑을 받지 않는다. `plugins/bukkit-plugins/` 빈 폴더는 넣을 곳을 알려 주려고 만들어 둔다.
 
 ## 직접 확인하면 좋은 것
