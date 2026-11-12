@@ -148,7 +148,15 @@ public class MemorySection implements ConfigurationSection {
 
     /** 자기 데이터의 값(기본값 구역 제외). 없으면 null. */
     private Object own(String path) {
-        return dHas(path) ? out(dGet(path)) : null;
+        if (!dHas(path)) return null;
+        Object v = dGet(path);
+        // 클래스 등록이 읽기보다 늦었던 {@code ==} 구역은 지금 되살려 잎으로 바꿔 둔다(읽을 때 모르던 별칭)
+        if (v instanceof ConfigSection s && s.getAt(List.of(ConfigurationSerialization.SERIALIZED_TYPE_KEY)) instanceof String alias
+                && ConfigurationSerialization.getClassByAlias(alias) != null && ConfigValues.reviveNode(s) instanceof ConfigObject revived) {
+            dSet(path, revived);
+            v = revived;
+        }
+        return out(v);
     }
 
     /** Paper getDefault: 기본값 구역의 같은 경로 값(없으면 null). */

@@ -179,4 +179,38 @@ class A15ConfigObjectLeafTest {
             ConfigurationSerialization.unregisterClass(Reg.class);
         }
     }
+
+    @SerializableAs("A15LateReg")
+    public static final class Late implements ConfigurationSerializable {
+        public int x;
+        public Late(int x) { this.x = x; }
+        @Override public Map<String, Object> serialize() { return new LinkedHashMap<>(Map.of("x", x)); }
+        public static Late deserialize(Map<String, Object> m) { return new Late(((Number) m.get("x")).intValue()); }
+    }
+
+    // 검토 N1: 클래스 등록이 YAML 읽기보다 늦어도 get 때 되살려 같은 참조로 둔다
+    @Test
+    void lateRegisteredAliasIsRevivedOnGet() throws Exception {
+        YamlConfiguration c = new YamlConfiguration();
+        c.loadFromString("o:\n  ==: A15LateReg\n  x: 3\n");
+        assertTrue(c.isConfigurationSection("o"), "등록 전에는 구역");
+        ConfigurationSerialization.registerClass(Late.class);
+        Object a = c.get("o");
+        assertInstanceOf(Late.class, a);
+        assertSame(a, c.get("o"));
+        assertEquals(3, ((Late) a).x);
+    }
+
+    // 검토 N3: Bukkit 이 아닌 ConfigurationSection 구현 안의 객체도 set 된다
+    @Test
+    void foreignSectionWithObjectCanBeSet() {
+        YamlConfiguration src = new YamlConfiguration();
+        src.set("q.o", new Unreg(1, "a"));
+        ConfigurationSection foreign = (ConfigurationSection) java.lang.reflect.Proxy.newProxyInstance(getClass().getClassLoader(),
+                new Class<?>[] {ConfigurationSection.class},
+                (pr, m, args) -> m.getName().equals("getValues") ? src.getConfigurationSection("q").getValues(false) : null);
+        YamlConfiguration c = new YamlConfiguration();
+        c.set("f", foreign);
+        assertInstanceOf(Unreg.class, c.get("f.o"));
+    }
 }

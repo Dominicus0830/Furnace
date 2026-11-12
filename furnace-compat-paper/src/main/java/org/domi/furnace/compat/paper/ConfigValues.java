@@ -20,7 +20,7 @@ public final class ConfigValues {
 
     private static Object lower(Object v, boolean keepObjects) {
         if (v instanceof MemorySection m) return m.furnaceSection();
-        if (v instanceof ConfigurationSection s) return s.getValues(false);
+        if (v instanceof ConfigurationSection s) return lower(s.getValues(false), keepObjects);
         if (v instanceof ConfigurationSerializable c) return keepObjects ? new ConfigObject(c) : lowerSerializable(c);
         if (v instanceof Map<?, ?> map) {
             Map<Object, Object> out = new LinkedHashMap<>();
@@ -78,7 +78,8 @@ public final class ConfigValues {
         }
     }
 
-    private static Object reviveNode(Object v) {
+    /** 값 하나를 되살린다: 별칭이 등록된 {@code ==} 구역은 {@link ConfigObject}, 목록은 안쪽까지, 그 밖은 그대로. */
+    public static Object reviveNode(Object v) {
         if (v instanceof ConfigSection c) {
             reviveTree(c);
             if (c.getAt(List.of(ConfigurationSerialization.SERIALIZED_TYPE_KEY)) instanceof String alias && ConfigurationSerialization.getClassByAlias(alias) != null) {
@@ -87,8 +88,10 @@ public final class ConfigValues {
                     Map<String, Object> plain = (Map<String, Object>) plainOut(c);
                     ConfigurationSerializable obj = ConfigurationSerialization.deserializeObject(plain);
                     if (obj != null) return new ConfigObject(obj);
-                } catch (RuntimeException ignored) {
-                    // 되살리지 못하면 구역 그대로
+                } catch (RuntimeException e) {
+                    // 되살리지 못하면 구역 그대로 — 데이터가 조용히 구역으로 남지 않게 한 줄 알린다
+                    java.util.logging.Logger.getLogger("Bukkit").log(java.util.logging.Level.WARNING,
+                            "Cannot deserialize " + alias + " in the loaded configuration; keeping it as a section: " + e);
                 }
             }
             return c;
