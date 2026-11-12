@@ -104,4 +104,6 @@ Furnace 의 파이프라인은 `frameDecoder`·`frameEncoder`·`handler`(Connect
 위 "왜 `channels` 가 비었나" 의 자리표시 채널은 이것으로 바뀌었다(소켓 주입 `channels` 는 여전히 비어 있음).
 
 진짜 ProtocolLib 5.4.0 으로 확인(탐침 플러그인, 커밋하지 않음): 접속마다 주입됨, `sendServerPacket(UPDATE_TIME)` 가 클라이언트에 도착, 나가는 리스너가 그 패킷을 보고(`furnace-global` 스레드) 필드를 바꾸면 바뀐 값이 나가며(dayTime 1→6000), `setCancelled(true)` 면 나가지 않고, `sendServerPacket(…, false)`(필터 안 함)는 리스너를 건너뛴다.
-**아직 안 되는 것**: Furnace 가 스스로 보내는 패킷의 가로채기(2b-2), 들어오는 패킷 가로채기·`receiveClientPacket`(2b-3, `Connection#read` 는 아직 UnsupportedNmsCall), `sendWirePacket`(버리고 경고), 핸드셰이크·로그인 단계.
+**2b-2(구현)**: Furnace 가 스스로 보내는 패킷(채팅·엔티티 생성·블록 등)도 ProtocolLib 나가는 리스너가 보고 바꾸고 취소한다 — 되돌리지 못하는 종류 표는 `compat-protocollib-pipeline-2b-plan-2026-11-12.md` §10.
+
+**아직 안 되는 것**: 들어오는 패킷 가로채기·`receiveClientPacket`(2b-3, `Connection#read` 는 아직 UnsupportedNmsCall), 메타데이터·플레이어 정보 등 일부 종류의 서버 패킷 보이기(2b-4), `sendWirePacket`(버리고 경고), 핸드셰이크·로그인 단계.
