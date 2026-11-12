@@ -181,6 +181,29 @@ class IdentityKitTest {
     }
 
     @Nested
+    class FreshJvm {
+        @Test
+        void entitySceneIsDeterministicOnlyInFreshSeededJvms() {
+            // 같은 JVM: 엔티티 id 카운터가 이어지고 씨앗 이음매도 꺼져 있어 두 번째 실행이 다르다(PR #272 검토 R2)
+            AssertionError e = assertThrows(AssertionError.class, () -> SceneHash.deterministic("entity-same-jvm", new EntitySelftestScene()));
+            assertTrue(e.getMessage().contains("결정적이지 않다"), e.getMessage());
+            // 새 JVM(씨앗 켜짐) 두 번: 같고, 금 파일과도 같다
+            SceneHash.assertGoldenInFreshJvm("identitykit-entity-selftest", EntitySelftestScene.class);
+        }
+
+        @Test
+        void freshJvmFailureCarriesChildLog() {
+            AssertionError e = assertThrows(AssertionError.class, () -> SceneHash.recordInFreshJvm(BrokenScene.class));
+            assertTrue(e.getMessage().contains("exit") && e.getMessage().contains("장면 고장"), e.getMessage());
+        }
+    }
+
+    public static final class BrokenScene implements SceneHash.Scene {
+        @Override
+        public void run(SceneHash.Recorder rec) { throw new IllegalStateException("장면 고장"); }
+    }
+
+    @Nested
     class Packets {
         private static ByteBuf packet(int id, int len, int fill) {
             ByteBuf b = Unpooled.buffer();

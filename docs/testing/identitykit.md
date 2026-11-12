@@ -58,7 +58,8 @@ SceneHash.assertGolden("scene-name", rec -> {
 
 - 줄은 "무엇 어디 해시" 꼴로(금 파일 diff 를 사람이 읽는다). `TOTAL` 줄은 자동.
 - 해시에 넣지 않는 것: 정체 해시(`System.identityHashCode`·기본 `hashCode`), `HashMap<객체>`·`ConcurrentHashMap` 순회 순서, 시각, `nanoTime` 씨앗 난수. 결정성 점검이 대부분을 잡지만 JVM 사이에서만 달라지는 것은 못 잡는다.
-- 엔티티·청크 난수는 아직 `System.nanoTime()` 씨앗이다(`RandomSource.create()`). 엔티티가 들어가는 장면은 T-O15-01(주인 열쇠 씨앗 이음매)이 병합된 뒤에 만든다. 그 전에는 월드젠·블록·순수 계산 장면만 결정적이다.
+- **같은 JVM 모드(`assertGolden`)와 새 JVM 모드(`assertGoldenInFreshJvm`)**: 엔티티가 든 장면은 새 JVM 모드를 쓴다. 엔티티·레벨 난수는 T-O15-01(PR #272) 이음매로 `-Dfurnace.test.seeded=true` 일 때 주인 열쇠에서 결정되지만, 시험 레벨의 엔티티 id 카운터(`ChunkLevel.FALLBACK_IDS`)와 정적 난수(`Sensor.RANDOM`·`ShufflingList.RANDOM`)는 JVM 전역이라 같은 JVM 의 두 번째 실행이나 앞서 돈 다른 시험(시험 조각 구성)에 따라 UUID·난수가 달라진다. 새 JVM 모드는 실행마다 시험 클래스패스로 새 JVM 을 띄우고(씨앗 켜짐), 장면 클래스(public, 인자 없는 생성자)를 돌린다 — 한 번에 JVM 시작 비용(약 1~2초)이 든다. 본보기: `identity/EntitySelftestScene` + `IdentityKitTest.FreshJvm`. 같은 JVM 모드는 정적 상태를 건드리지 않는 월드젠·순수 계산 장면용이다.
+- 새 JVM 이어도 이음매 밖 난수(`ThreadLocalRandom`·`Math.random`·`UUID.randomUUID`·`WorldClock` 의 `new Random()` 등 — 목록은 `docs/feature-parity/context-notes/2026-11-12-random-seeds-seam.md`)를 거치는 장면은 결정적이지 않다. 결정성 점검이 잡으면 그 지점을 같은 이음매로 옮기는 것이 먼저다.
 - region 은 하나, 시험 스레드가 직접 틱을 돌리는 장면으로 한정한다(여러 region 스레드 순서는 비결정).
 
 ## 금 파일 갱신 (bless)
