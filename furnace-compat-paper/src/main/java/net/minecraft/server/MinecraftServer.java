@@ -24,8 +24,6 @@ public abstract class MinecraftServer {
 
     private final net.minecraft.server.network.ServerConnectionListener connection = new net.minecraft.server.network.ServerConnectionListener();
 
-    private static final java.util.Set<String> WARNED_PIPELINE = java.util.concurrent.ConcurrentHashMap.newKeySet();
-
     /**
      * 서버 접속 수신(N3 2단계, 패킷 라이브러리가 소켓 채널 목록을 읽는 자리). 지금은 채널 목록이 비어 있다.
      * 플러그인이 여기 들어오면 패킷 파이프라인에 끼어들려는 것이므로, 아직 가로채기·보내기가 이어지지 않았음을 한 번 알린다.
@@ -36,18 +34,10 @@ public abstract class MinecraftServer {
     }
 
     private static void warnPipelineNotBridged() {
-        String who = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE).walk(frames -> frames
-                .map(StackWalker.StackFrame::getDeclaringClass)
-                .map(c -> org.domi.furnace.compat.paper.PluginLoaders.of(c.getClassLoader()))
-                .filter(java.util.Objects::nonNull)
-                .findFirst()
-                .map(a -> a.name())
-                .orElse(null));
-        if (who == null || !WARNED_PIPELINE.add(who)) return;
-        org.slf4j.LoggerFactory.getLogger("Furnace").warn(
+        org.domi.furnace.compat.nms.NmsCaller.warnOnce("pipeline",
                 "플러그인 {} 가 패킷 파이프라인(ServerConnectionListener)에 끼어들려 한다. Furnace 는 아직 패킷 가로채기·보내기를 잇지 않았다"
                         + "(ProtocolLib 다리 1단계) — 이 플러그인과 이를 쓰는 플러그인의 패킷 기능(가로채기 리스너, sendServerPacket 등)은 동작하지 않는다."
-                        + " 대신 Furnace 패킷 API(docs/api/packets.md)를 쓴다.", who);
+                        + " 대신 Furnace 패킷 API(docs/api/packets.md)를 쓴다.");
     }
 
     /** 바닐라 서버 버전 이름(1.21.1). */

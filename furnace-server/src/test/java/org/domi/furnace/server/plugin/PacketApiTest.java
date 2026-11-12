@@ -387,4 +387,135 @@ class PacketApiTest {
         assertThrows(IllegalArgumentException.class, () -> host.packets().receive(api, new OpaquePacket(PacketTypes.Serverbound.PONG)), "내용 없는 패킷");
         assertThrows(IllegalArgumentException.class, () -> host.packets().receive(api, new OpaquePacket(PacketTypes.Clientbound.PING)), "방향이 다르다");
     }
+
+    // ------------------------------------------------------------------ 번들 (E2)
+
+    private static final byte[] DELIMITER = {0x00};
+
+    @Test
+    void sendBundleWrapsPacketsInDelimitersAndListenersSeeEachOne() {
+        Player p = online("P");
+        List<String> seen = new ArrayList<>();
+        host.packets().listen(a, PacketTypes.Clientbound.SET_TITLE_TEXT, e -> {
+            seen.add(e.packet().text().getString());
+            if (e.packet().text().getString().equals("x")) e.setCancelled(true);   // 안의 하나만 빠진다
+        });
+        var api = host.player(p);
+        host.packets().sendBundle(api, List.of(new ClientboundSetTitleTextPacket(Text.text("a")), new ClientboundSetTitleTextPacket(Text.text("x")),
+                new ClientboundSetTitleTextPacket(Text.text("b"))));
+        List<byte[]> out = sent(p);
+        assertEquals(List.of("a", "x", "b"), seen);
+        assertEquals(4, out.size());
+        assertArrayEquals(DELIMITER, out.get(0));
+        assertArrayEquals(DELIMITER, out.get(3));
+        assertArrayEquals(frame(host.packetsImpl().encode(new ClientboundSetTitleTextPacket(Text.text("a")))), out.get(1));
+        assertArrayEquals(frame(host.packetsImpl().encode(new ClientboundSetTitleTextPacket(Text.text("b")))), out.get(2));
+        host.packets().sendBundle(api, List.of(new ClientboundSetTitleTextPacket(Text.text("c"))));
+        assertEquals(3, sent(p).size());
+        host.packets().sendBundleSilently(api, List.of(new ClientboundSetTitleTextPacket(Text.text("x"))));
+        assertEquals(3, sent(p).size(), "리스너를 거치지 않으면 취소도 없다");
+        assertEquals(List.of("a", "x", "b", "c"), seen);
+    }
+
+    @Test
+    void sendBundleIsAllOrNothingAndChecked() {
+        Player p = online("P");
+        var api = host.player(p);
+        // 둘째가 인코딩되지 않으면(없는 고양이 종류) 첫째도 보내지 않는다
+        assertThrows(IllegalArgumentException.class, () -> host.packets().sendBundle(api, List.of(new ClientboundSetTitleTextPacket(Text.text("a")),
+                ClientboundSetEntityDataPacket.of(1, ClientboundSetEntityDataPacket.entry(19,
+                        ClientboundSetEntityDataPacket.Value.of(org.domi.furnace.api.entity.data.EntityDataType.CAT_VARIANT, "minecraft:nope"))))));
+        var delim = assertThrows(IllegalArgumentException.class, () -> host.packets().sendBundle(api, List.of(new OpaquePacket(PacketTypes.Clientbound.BUNDLE_DELIMITER))));
+        assertTrue(delim.getMessage().contains("구분자"), delim.getMessage());
+        var many = java.util.Collections.nCopies(org.domi.furnace.api.packet.PacketService.BUNDLE_MAX + 1, (org.domi.furnace.api.packet.ClientboundPacket) new ClientboundSetTitleTextPacket(Text.text("a")));
+        assertThrows(IllegalArgumentException.class, () -> host.packets().sendBundle(api, many), "바닐라 클라이언트 상한");
+        host.packets().sendBundle(api, List.of());   // 빈 번들은 아무것도 보내지 않는다
+        assertEquals(List.of(), sent(p));
+    }
+
+    /** 서버 Player.sendBundle: 변장 등으로 상한 가까이 늘면 묶음을 나눈다 — 한 번들이 바닐라 상한을 넘지 않는다. */
+    @Test
+    void serverBundleSplitsBeforeVanillaLimit() {
+        Player p = online("P");
+        int n = org.domi.furnace.server.entity.Player.BUNDLE_MAX + 10;
+        List<org.domi.furnace.server.net.protocol.Packet> list = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) list.add(new org.domi.furnace.server.net.protocol.play.SetTime(i, i));
+        p.sendBundle(list);
+        List<byte[]> out = sent(p);
+        int inBundle = 0, bundles = 0, max = 0;
+        boolean open = false;
+        for (byte[] f : out) {
+            if (java.util.Arrays.equals(f, DELIMITER)) {
+                if (open) { bundles++; max = Math.max(max, inBundle); }
+                open = !open;
+                inBundle = 0;
+            } else {
+                assertTrue(open, "번들 밖 패킷이 없다");
+                inBundle++;
+            }
+        }
+        assertFalse(open);
+        assertEquals(2, bundles);
+        assertTrue(max <= org.domi.furnace.server.entity.Player.BUNDLE_MAX, "번들 하나 " + max);
+        assertEquals(n + 4, out.size());
+    }
+
+    private static String shape(List<byte[]> out) {
+        StringBuilder sb = new StringBuilder();
+        for (byte[] f : out) sb.append(java.util.Arrays.equals(f, DELIMITER) ? "D" : "p");
+        return sb.toString();
+    }
+
+    /** 구분자는 리스너를 거치지 않는다 — 구분자 리스너가 취소해도 짝이 맞고, silent 번들은 어떤 리스너도 부르지 않는다(검토 R1). */
+    @Test
+    void bundleDelimitersBypassListeners() {
+        Player p = online("P");
+        AtomicInteger seen = new AtomicInteger();
+        host.packets().listen(a, PacketTypes.Clientbound.BUNDLE_DELIMITER, e -> {
+            seen.incrementAndGet();
+            e.setCancelled(true);
+        });
+        var api = host.player(p);
+        // EmbeddedChannel 은 쓰기 도중 대기 작업을 돌려 버리므로(실제 이벤트 루프는 아니다) 번들마다 읽는다
+        host.packets().sendBundleSilently(api, List.of(new ClientboundSetTitleTextPacket(Text.text("a")), new ClientboundSetTitleTextPacket(Text.text("b"))));
+        assertEquals("DppD", shape(sent(p)));
+        host.packets().sendBundle(api, List.of(new ClientboundSetTitleTextPacket(Text.text("c"))));
+        assertEquals("DpD", shape(sent(p)));
+        assertEquals(0, seen.get());
+    }
+
+    /** 번들 도중 쓰기가 예외를 내면 아무것도 쓰지 않는다 — 구분자가 열린 채 남지 않는다(검토 R2). */
+    @Test
+    void bundleWriteFailureWritesNothing() {
+        Player p = online("P");
+        org.domi.furnace.server.net.protocol.Packet bad = new org.domi.furnace.server.net.protocol.Packet() {
+            @Override public int id() { return 0x68; }
+            @Override public void write(ByteBuf buf) { throw new IllegalStateException("쓰기 실패"); }
+        };
+        p.sendBundle(List.of(new org.domi.furnace.server.net.protocol.play.SetTime(1, 1), bad, new org.domi.furnace.server.net.protocol.play.SetTime(2, 2)));
+        String s;
+        try {
+            s = shape(sent(p));
+        } catch (IllegalStateException e) {   // EmbeddedChannel 은 작업 예외를 runPendingTasks 에서 다시 던진다
+            s = shape(sent(p));
+        }
+        assertEquals("", s);
+        p.send(new org.domi.furnace.server.net.protocol.play.SetTime(3, 3));
+        assertEquals("p", shape(sent(p)), "연결은 계속 쓸 수 있다");
+    }
+
+    /** API 상한(4096)인 번들은 쪼개지 않고, 모두 취소된 번들은 보내지 않는다(검토 R3·R4). */
+    @Test
+    void fullBundleIsNotSplitAndEmptyBundleIsNotSent() {
+        Player p = online("P");
+        var api = host.player(p);
+        var many = java.util.Collections.nCopies(org.domi.furnace.api.packet.PacketService.BUNDLE_MAX, (org.domi.furnace.api.packet.ClientboundPacket) new ClientboundSetTitleTextPacket(Text.text("a")));
+        host.packets().sendBundle(api, many);
+        String s = shape(sent(p));
+        assertEquals(2, s.chars().filter(c -> c == 'D').count(), "상한 이하 번들은 한 번들");
+        assertEquals(org.domi.furnace.api.packet.PacketService.BUNDLE_MAX + 2, s.length());
+        host.packets().listen(a, PacketTypes.Clientbound.SET_TITLE_TEXT, e -> e.setCancelled(true));
+        host.packets().sendBundle(api, List.of(new ClientboundSetTitleTextPacket(Text.text("x"))));
+        assertEquals("", shape(sent(p)), "모두 취소되면 빈 번들도 보내지 않는다");
+    }
 }

@@ -17,10 +17,26 @@ public interface Entity extends Metadatable, CommandSender, PersistentDataHolder
 
     UUID getUniqueId();
 
+    /** 네트워크 엔티티 id(Paper 와 같다 — 패킷이 이 엔티티를 가리키는 번호). */
+    int getEntityId();
+
     /** Paper(Folia) 엔티티 스케줄러: 엔티티를 따라다니는 region 스레드에서 돈다. */
     io.papermc.paper.threadedregions.scheduler.EntityScheduler getScheduler();
 
     Location getLocation();
+
+    /** 위치를 loc 에 채워 돌려준다(Paper 와 같다 — loc 이 null 이면 null). 월드·x·y·z·yaw·pitch 를 덮어쓴다. */
+    default Location getLocation(Location loc) {
+        if (loc == null) return null;
+        Location l = getLocation();
+        loc.setWorld(l.getWorld());
+        loc.setX(l.getX());
+        loc.setY(l.getY());
+        loc.setZ(l.getZ());
+        loc.setYaw(l.getYaw());
+        loc.setPitch(l.getPitch());
+        return loc;
+    }
 
     World getWorld();
 

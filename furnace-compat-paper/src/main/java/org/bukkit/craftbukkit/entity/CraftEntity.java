@@ -67,6 +67,9 @@ public class CraftEntity implements Entity {
     public UUID getUniqueId() { return handle.uniqueId(); }
 
     @Override
+    public int getEntityId() { return handle.entityId(); }
+
+    @Override
     public Location getLocation() { return Compat.location(handle.location()); }
 
     @Override

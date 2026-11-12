@@ -46,13 +46,8 @@ public class Entity {
     /** 바닐라 Entity: 지워지지 않았는가. LivingEntity 는 체력도 본다. */
     public boolean isAlive() { return !isRemoved(); }
 
-    /**
-     * 네트워크 엔티티 id. Furnace 공개 API 는 실제 엔티티의 이 번호를 내보내지 않는다 — 패킷을 직접 만드는 코드가 쓰므로 지어내지 않고 던진다.
-     * 패킷으로만 보이는 가짜 엔티티라면 Furnace 패킷 API 의 {@code nextEntityId()} 로 번호를 받는다(docs/api/packets.md).
-     */
-    public int getId() {
-        throw new UnsupportedNmsCall("Entity#getId", "네트워크 엔티티 id 는 플러그인에 내보내지 않는다 — 패킷으로만 보이는 가짜 엔티티는 Furnace 패킷 API 의 nextEntityId() 로 번호를 받는다");
-    }
+    /** 네트워크 엔티티 id(바닐라 getId — Bukkit getEntityId 와 같은 번호). */
+    public int getId() { return f().entityId(); }
 
     @Override
     public boolean equals(Object o) { return o instanceof Entity e && e.getUUID().equals(getUUID()); }
