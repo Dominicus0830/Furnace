@@ -143,18 +143,20 @@ class PacketShimVanillaBehaviorTest {
 
     @Test
     void containerSetContentCopiesLikeVanilla() throws Exception {
-        ItemStack stone = new ItemStack(Items.STONE, 3);
-        ItemStack carried = new ItemStack(Items.DIAMOND_SWORD);
-        NonNullList<ItemStack> items = NonNullList.withSize(2, ItemStack.EMPTY);
-        items.set(0, stone);
-        var p = new ClientboundContainerSetContentPacket(1, 2, items, carried);
-        stone.setCount(9);
-        carried.setCount(5);
-        assertEquals(3, p.getItems().get(0).getCount(), "각 스택을 복사한다");
-        assertEquals(1, p.getCarriedItem().getCount(), "들고 있는 스택도 복사한다");
-        assertSame(ItemStack.EMPTY, p.getItems().get(1));
-        p.getItems().set(1, new ItemStack(Items.STONE));   // 크기 고정이지만 값 교체는 된다
-        assertThrows(UnsupportedOperationException.class, () -> p.getItems().add(ItemStack.EMPTY));
+        try (var server = org.domi.furnace.test.FurnaceTestServer.builder().start()) {
+            ItemStack stone = new ItemStack(Items.STONE, 3);
+            ItemStack carried = new ItemStack(Items.DIAMOND_SWORD);
+            NonNullList<ItemStack> items = NonNullList.withSize(2, ItemStack.EMPTY);
+            items.set(0, stone);
+            var p = new ClientboundContainerSetContentPacket(1, 2, items, carried);
+            stone.setCount(9);
+            carried.setCount(5);
+            assertEquals(3, p.getItems().get(0).getCount(), "각 스택을 복사한다");
+            assertEquals(1, p.getCarriedItem().getCount(), "들고 있는 스택도 복사한다");
+            assertSame(ItemStack.EMPTY, p.getItems().get(1));
+            p.getItems().set(1, new ItemStack(Items.STONE));   // 크기 고정이지만 값 교체는 된다
+            assertThrows(UnsupportedOperationException.class, () -> p.getItems().add(ItemStack.EMPTY));
+        }
     }
 
     @Test
