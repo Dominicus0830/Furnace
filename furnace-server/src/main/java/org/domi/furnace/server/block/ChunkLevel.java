@@ -2158,7 +2158,10 @@ public abstract class ChunkLevel implements BlockLevel {
     public void adoptEntity(Entity e) {
         if (e.isRemoved()) return;
         e.setLevel(this);
-        if (!entities.add(e)) return;
+        if (!entities.add(e)) {
+            if (!entities.contains(e)) indexEntity(e, false);   // 같은 UUID 가 이미 있어 못 받았다 — 색인에 유령을 남기지 않는다
+            return;
+        }
         if (e.tracker == null) startTracking(e);
         for (var l : e.dynamicGameEventListeners()) l.add(this);
         indexEntity(e, true);

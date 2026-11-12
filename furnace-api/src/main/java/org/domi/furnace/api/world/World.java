@@ -123,6 +123,12 @@ public interface World {
     }
 
     /**
+     * 그 id 의 엔티티·플레이어 UUID(없으면 empty). 엔티티 상태는 읽지 않고 id → UUID 만 보므로 어느 스레드에서나 기다림 없이 된다 —
+     * 호환 계층이 이미 아는 Bukkit 객체를 소유 스레드가 아닌 곳에서도 곧바로 돌려줄 때 쓴다.
+     */
+    default Optional<java.util.UUID> entityUuidById(int entityId) { throw new UnsupportedOperationException("entityUuidById"); }
+
+    /**
      * entityById 의 동기판 — 그 엔티티를 가진 region 스레드에서만(옛 동기 작업의 빌림 구간 포함, 아니면
      * {@link org.domi.furnace.api.concurrent.ThreadOwnershipException}) 곧바로 핸들을 돌려준다. 없으면 empty.
      * 플레이어는 어느 스레드에서나 된다.

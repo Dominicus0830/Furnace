@@ -413,11 +413,22 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     }
 
     @Override
+    public Optional<java.util.UUID> entityUuidById(int entityId) {
+        var e = world.entityIndex().get(entityId);
+        if (e != null && !e.isRemoved()) return Optional.of(e.uuid());   // uuid 는 바뀌지 않는다(어느 스레드나 안전)
+        Entity p = playerById(entityId);
+        return p == null ? Optional.empty() : Optional.of(p.uniqueId());
+    }
+
+    @Override
     public Optional<Entity> entityByIdNow(int entityId) {
         var e = world.entityIndex().get(entityId);
         if (e == null || e.isRemoved()) return Optional.ofNullable(playerById(entityId));
-        // 엔티티를 가진 region 스레드(빌림 구간이면 빌려서)에서만 — 아니면 낡은 값을 읽지 않고 소유 스레드가 아니라고 답한다
-        if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(e) && !(e.level() != null && e.level().isOwnerThread())) {
+        // 엔티티를 가진 region 스레드(빌림 구간이면 빌려서)에서만 — 아니면 낡은 값을 읽지 않고 소유 스레드가 아니라고 답한다.
+        // region 사이를 넘어가는 중(옛 저장소에서 빠졌고 새 쪽이 아직 받기 전)에는 level 이 옛 쪽이라도 저장소 소속을 본다.
+        boolean owned = (org.domi.furnace.server.world.RegionBorrow.claimEntity(e) || (e.level() != null && e.level().isOwnerThread()))
+                && e.level() != null && e.level().entities().contains(e);
+        if (!owned) {
             throw new ThreadOwnershipException("entityByIdNow 는 그 엔티티를 가진 region 스레드에서만 부를 수 있다 (현재 "
                     + Thread.currentThread().getName() + ") — entityById 를 쓴다");
         }
@@ -429,16 +440,23 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         return RegionFuture.wrap(entityByIdAttempt(entityId, 0));
     }
 
-    /** 색인에서 찾은 엔티티의 청크 주인 region 에서 읽는다. 그 사이 region 을 옮겼으면(주인 칸에 없으면) 몇 번 다시 찾는다. */
+    /**
+     * 색인에서 찾은 엔티티를 가진 region 에서 읽는다. 청크 경계를 넘은 틱에는 엔티티가 새 청크 쪽에 가 있어도 옛 region 저장소에서 아직
+     * 안 빠졌다(틱 끝 handOffEntities) — 새 칸의 주인에 없으면 지난 틱 칸(xo, zo)의 주인에서 한 번 더 찾고, 그래도 없으면(그 사이 옮겨 갔으면) 몇 번 다시 찾는다.
+     */
     private CompletableFuture<Optional<Entity>> entityByIdAttempt(int id, int attempt) {
         var e = world.entityIndex().get(id);
         if (e == null || e.isRemoved()) return CompletableFuture.completedFuture(Optional.ofNullable(playerById(id)));
-        ChunkPos cp = ChunkPos.ofBlock(e.x(), e.z());
-        CompletableFuture<Optional<Entity>> f = world.submitAtOwnedChunk(cp, r -> {
-            var cur = r.level().entities().get(id);
-            if (cur == null) return null;   // 옮겨 가는 중 — 아래에서 다시
-            return cur.isRemoved() ? Optional.<Entity>empty() : Optional.<Entity>of(EntityHandle.of(host, cur));
-        });
+        ChunkPos now = ChunkPos.ofBlock(e.x(), e.z());
+        ChunkPos before = ChunkPos.ofBlock(e.xo, e.zo);
+        CompletableFuture<Optional<Entity>> f = lookupAt(now, id);
+        if (f != null && !before.equals(now)) {
+            f = f.thenCompose(found -> {
+                if (found != null) return CompletableFuture.completedFuture(found);
+                CompletableFuture<Optional<Entity>> g = lookupAt(before, id);
+                return g != null ? g : CompletableFuture.<Optional<Entity>>completedFuture(null);
+            });
+        }
         if (f == null) {
             if (attempt >= MAX_LOOKUP_ATTEMPTS) return CompletableFuture.completedFuture(Optional.empty());
             return entityByIdAttempt(id, attempt + 1);
@@ -447,6 +465,15 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
             if (found != null) return CompletableFuture.completedFuture(found);
             if (attempt >= MAX_LOOKUP_ATTEMPTS) return CompletableFuture.completedFuture(Optional.<Entity>empty());
             return entityByIdAttempt(id, attempt + 1);
+        });
+    }
+
+    /** 그 청크의 주인 region 에서 id 의 엔티티를 읽는다. 저장소에 없으면 null 로 완료, 그 청크에 주인이 없으면 null(future 없음). */
+    private CompletableFuture<Optional<Entity>> lookupAt(ChunkPos cp, int id) {
+        return world.submitAtOwnedChunk(cp, r -> {
+            var cur = r.level().entities().get(id);
+            if (cur == null) return null;
+            return cur.isRemoved() ? Optional.<Entity>empty() : Optional.<Entity>of(EntityHandle.of(host, cur));
         });
     }
 

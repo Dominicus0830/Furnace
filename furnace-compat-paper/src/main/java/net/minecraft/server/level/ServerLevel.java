@@ -32,6 +32,13 @@ public class ServerLevel extends Level {
         try {
             found = w.entityByIdNow(id);
         } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException notOwner) {
+            // Paper·Folia 의 EntityLookup#get(int) 는 어느 스레드에서나 기다림 없이 돌려준다 — 그 엔티티의 Bukkit 객체를 이미 알면(UUID 캐시)
+            // 소유 region 을 기다리지 않고 그것(마지막 스냅샷)을 준다. 상태를 읽을 때의 스레드 검사는 지금처럼 그 호출이 한다.
+            var uuid = w.entityUuidById(id);
+            if (uuid.isEmpty()) return null;   // 그 사이 사라졌다
+            var cached = Compat.cachedEntity(uuid.get());
+            if (cached != null) return cached.getHandle();
+            // 처음 보는 엔티티: 스냅샷은 그 엔티티를 가진 region 이 떠야 한다. 틱 스레드가 아닌 쪽만 기다린다
             if (org.domi.furnace.compat.thread.PrimaryThread.isPrimary() || org.domi.furnace.api.Furnace.server().scheduler().isTickThread()) throw notOwner;
             try {
                 found = w.entityById(id).get(LOOKUP_WAIT_MILLIS, java.util.concurrent.TimeUnit.MILLISECONDS);

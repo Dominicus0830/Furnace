@@ -337,6 +337,12 @@ public final class Compat {
         }
     }
 
+    /** 이미 만들어 둔 그 UUID 의 Bukkit 엔티티(플레이어 아닌 것만, 없으면 null). 새로 만들지 않는다 — 어느 스레드나 된다. */
+    public static CraftEntity cachedEntity(UUID id) {
+        WeakReference<CraftEntity> ref = state().entities.get(id);
+        return ref == null ? null : ref.get();
+    }
+
     public static org.bukkit.entity.Entity entity(org.domi.furnace.api.entity.Entity e) {
         if (e == null) return null;
         if (e instanceof org.domi.furnace.api.entity.Player p) return player(p);
