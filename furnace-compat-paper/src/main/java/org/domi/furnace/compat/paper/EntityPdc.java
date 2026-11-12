@@ -44,15 +44,11 @@ public final class EntityPdc implements PersistentDataContainer {
 
     @Override
     public <P, C> void set(NamespacedKey key, PersistentDataType<P, C> type, C value) {
-        // 값 변환은 호출 스레드에서 미리 해 둔다(사용자 정의 종류의 코드가 소유 스레드에서 돌지 않게)
-        P prim = type.toPrimitive(java.util.Objects.requireNonNull(value, "value"), this);
+        java.util.Objects.requireNonNull(key, "key");
+        // 값 변환·종류 검사는 호출 스레드에서 미리 해 둔다(사용자 정의 종류의 코드가 소유 스레드에서 돌지 않게)
+        ItemPdc.Prepared prepared = ItemPdc.prepare(type, value, this);
         write(p -> {
-            p.set(key, new PersistentDataType<P, P>() {
-                @Override public Class<P> getPrimitiveType() { return type.getPrimitiveType(); }
-                @Override public Class<P> getComplexType() { return type.getPrimitiveType(); }
-                @Override public P toPrimitive(P complex, PersistentDataAdapterContext ctx) { return complex; }
-                @Override public P fromPrimitive(P primitive, PersistentDataAdapterContext ctx) { return primitive; }
-            }, prim);
+            p.put(key.toString(), prepared);
             return null;
         }, "PersistentDataContainer#set(" + key + ")");
     }
@@ -89,6 +85,30 @@ public final class EntityPdc implements PersistentDataContainer {
             p.copyTo(other, replace);
             return null;
         });
+    }
+
+    @Override
+    public byte[] serializeToBytes() throws java.io.IOException {
+        try {
+            return access(p -> {
+                try {
+                    return p.serializeToBytes();
+                } catch (java.io.IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+            });
+        } catch (java.io.UncheckedIOException e) {
+            throw e.getCause();
+        }
+    }
+
+    @Override
+    public void readFromBytes(byte[] bytes, boolean clear) throws java.io.IOException {
+        ItemPdc parsed = ItemPdc.parse(bytes); // 꼴이 틀리면 여기서(호출 스레드) IOException
+        write(p -> {
+            p.mergeFrom(parsed, clear);
+            return null;
+        }, "PersistentDataContainer#readFromBytes");
     }
 
     @Override
