@@ -79,6 +79,8 @@ public final class LibraryResolver {
     /** Mojang 라이브러리 저장소(서버 제공 라이브러리 중 Brigadier·authlib·DataFixerUpper 만 쓴다). */
     private final URI mojangRepo;
     private final Fetcher fetcher;
+    /** 서버 jar 에 실린 라이브러리(ServerLibraries.BUNDLE_DIR)를 찾는 로더. 자원이 없으면(개발 실행·시험) 내려받는다. */
+    private final ClassLoader bundleSource;
     private final Logger log;
     private final Path lockFile;
     private final Map<String, String> lock = new TreeMap<>();
@@ -95,6 +97,12 @@ public final class LibraryResolver {
 
     /** 시험용: Maven Central·Mojang 저장소 둘 다 바꾼다. */
     LibraryResolver(LibrarySettings settings, Path cache, URI repo, URI mojangRepo, Fetcher fetcher, Logger log) {
+        this(settings, cache, repo, mojangRepo, fetcher, LibraryResolver.class.getClassLoader(), log);
+    }
+
+    /** 시험용: 서버 jar 대신 다른 로더에서 실린 라이브러리를 찾는다. */
+    LibraryResolver(LibrarySettings settings, Path cache, URI repo, URI mojangRepo, Fetcher fetcher, ClassLoader bundleSource, Logger log) {
+        this.bundleSource = bundleSource;
         this.settings = settings;
         this.cache = cache;
         this.repo = slash(repo);
@@ -151,6 +159,7 @@ public final class LibraryResolver {
     /**
      * 서버 제공 라이브러리 jar 하나를 캐시에 두고 경로를 돌려 준다. 코드에 고정된 sha256 과 같은 바이트만 쓴다(잠금 파일은 보지도 쓰지도 않는다 —
      * 고정값이 기준이다). 캐시 파일이 다르면 지우고 다시 받는다. offline 이면 네트워크에 나가지 않는다. 전이 의존은 따라가지 않는다(목록이 이미 닫혀 있다).
+     * 서버 jar 에 실린 것(bundled)은 내려받지 않고 서버 jar 에서 꺼낸다 — offline 이어도 된다. 실린 바이트가 고정값과 다르면 쓰지 않고 내려받기로 넘어간다.
      */
     public Path ensurePinned(ServerLibraries.Artifact a) throws LibraryException {
         Library lib = a.library();
@@ -163,6 +172,18 @@ public final class LibraryResolver {
             log.warn("캐시된 서버 제공 라이브러리 {} 의 해시가 고정값과 다르다 — 지우고 다시 받는다", coord);
             deleteQuietly(file);
         }
+        if (a.bundled()) {
+            byte[] body = readBundled(a);
+            if (body != null) {
+                String got = sha256(body);
+                if (pin.equals(got)) {
+                    store(file, body);
+                    log.info("서버 제공 라이브러리 {} 를 서버 jar 에서 꺼냈다", coord);
+                    return file;
+                }
+                log.warn("서버 jar 에 실린 {} 의 sha256 이 고정값과 다르다(기대 {}, 실제 {}) — 쓰지 않는다", coord, pin, got);
+            }
+        }
         if (settings.offline()) throw new LibraryException("plugins.libraries.offline=true 인데 캐시에 없다");
         URI base = a.repo() == ServerLibraries.Repo.MOJANG ? mojangRepo : repo;
         URI uri = base.resolve(relative(lib, "jar"));
@@ -173,6 +194,17 @@ public final class LibraryResolver {
         if (!pin.equals(got)) throw new LibraryException("받은 파일의 sha256 이 고정값과 다르다 (기대 " + pin + ", 실제 " + got + ", " + uri + ")");
         store(file, body);
         return file;
+    }
+
+    /** 서버 jar 에 실린 jar 의 바이트(없으면 null). 읽다 실패하면 경고하고 null — 내려받기로 넘어간다. */
+    private byte[] readBundled(ServerLibraries.Artifact a) {
+        if (bundleSource == null) return null;
+        try (InputStream in = bundleSource.getResourceAsStream(a.bundleResource())) {
+            return in == null ? null : in.readAllBytes();
+        } catch (IOException e) {
+            log.warn("서버 jar 에 실린 {} 를 읽지 못했다: {}", a.coordinate(), e.getMessage());
+            return null;
+        }
     }
 
     /** 서버 제공 라이브러리 jar 가 놓일 캐시 경로(오프라인 서버에 손으로 둘 자리 안내용). */
