@@ -8,7 +8,7 @@ public final class Rotations {
     private final float z;
 
     public Rotations(float x, float y, float z) {
-        // 바닐라: 0 이상 360 미만으로 접는다(음수·큰 값도 같은 각도)
+        // 바닐라: 360 으로 나눈 나머지(부호 유지), 무한·NaN 은 0
         this.x = !Float.isInfinite(x) && !Float.isNaN(x) ? x % 360.0F : 0.0F;
         this.y = !Float.isInfinite(y) && !Float.isNaN(y) ? y % 360.0F : 0.0F;
         this.z = !Float.isInfinite(z) && !Float.isNaN(z) ? z % 360.0F : 0.0F;

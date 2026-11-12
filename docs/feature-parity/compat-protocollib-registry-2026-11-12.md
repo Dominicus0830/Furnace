@@ -91,5 +91,8 @@ Furnace 의 파이프라인은 `frameDecoder`·`frameEncoder`·`handler`(Connect
 
 한계:
 - 엔티티에 붙은 메타데이터가 없다 — `WrappedDataWatcher.getEntityWatcher(entity)`/`new WrappedDataWatcher(entity)` 는 지원하지 않는다(서버 엔티티의 칸 표는 API `EntityDataKeys` 가 가짐, 연결은 별도 설계 필요).
-- `VECTOR3`·`QUATERNION` 종류는 JOML 이 호환 로더에 없어 빠졌다(`Registry.get(Vector.class)` 는 "No serializer").
+- `VECTOR3`·`QUATERNION` 종류는 아직 없다: `ServerLibraries` 에 joml 묶음이 있지만 호환 모듈 컴파일·로더 연결이 안 돼 있다(`Registry.get(Vector3f.class)` 는 "No serializer", 디스플레이 엔티티 변환·회전 칸 11~14 가 막힘). 후속.
+- NMS 직접 사용 멤버 일부 없음: `defineId`·`Builder`·`assignValues`·`EntityDataSerializer.forValueType`.
+- 호환 Bukkit `Entity` 에 `getEntityId()` 가 없다(엔티티 id 를 쓰는 ProtocolLib 플러그인이 막힘) — 별도 작업.
+- `getEntityWatcher(entity)` 실패 메시지가 원인을 알려 주지 않는다(후속).
 - `EntityDataSerializer#codec` 은 아직 `UnsupportedNmsCall`(3단계 범용 코덱과 같이).

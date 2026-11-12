@@ -30,20 +30,26 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class EntityDataShimsTest {
 
+    /** 바닐라 1.21.1 등록 순서(= 번호 0~28). 리플렉션 필드 순서에 기대지 않고 이름으로 고정한다. */
+    private static final String[] ORDER = {"BYTE", "INT", "LONG", "FLOAT", "STRING", "COMPONENT", "OPTIONAL_COMPONENT", "ITEM_STACK", "BOOLEAN",
+        "ROTATIONS", "BLOCK_POS", "OPTIONAL_BLOCK_POS", "DIRECTION", "OPTIONAL_UUID", "BLOCK_STATE", "OPTIONAL_BLOCK_STATE", "COMPOUND_TAG",
+        "PARTICLE", "PARTICLES", "VILLAGER_DATA", "OPTIONAL_UNSIGNED_INT", "POSE", "CAT_VARIANT", "WOLF_VARIANT", "FROG_VARIANT",
+        "OPTIONAL_GLOBAL_POS", "PAINTING_VARIANT", "SNIFFER_STATE", "ARMADILLO_STATE"};
+
     @Test
     void serializerIdsFollowTheVanillaOrderOfTheApiTypeTable(@TempDir Path tmp) throws Exception {
         try (FurnaceTestServer server = FurnaceTestServer.builder().directory(tmp.resolve("srv")).start()) {
             List<EntityDataType<?>> api = new ArrayList<>(EntityDataType.all());
-            int n = 0;
-            for (Field f : EntityDataSerializers.class.getDeclaredFields()) {
-                if (!Modifier.isPublic(f.getModifiers()) || f.getType() != EntityDataSerializer.class) continue;
+            for (int n = 0; n < ORDER.length; n++) {
+                Field f = EntityDataSerializers.class.getField(ORDER[n]);
                 EntityDataSerializer<?> s = (EntityDataSerializer<?>) f.get(null);
-                assertEquals(n, EntityDataSerializers.getSerializedId(s), f.getName());
-                assertEquals(api.get(n).name(), f.getName().toLowerCase(java.util.Locale.ROOT), "API 종류 표와 같은 순서");
+                assertEquals(n, EntityDataSerializers.getSerializedId(s), ORDER[n]);
+                assertEquals(api.get(n).name(), ORDER[n].toLowerCase(java.util.Locale.ROOT), "API 종류 표와 같은 순서");
                 assertEquals("EntityDataSerializer[" + api.get(n).name() + "]", s.toString());
-                n++;
             }
-            assertEquals(29, n, "JOML 값 둘(vector3·quaternion)은 아직 없다");
+            long publicSerializers = java.util.Arrays.stream(EntityDataSerializers.class.getDeclaredFields())
+                .filter(f -> Modifier.isPublic(f.getModifiers()) && f.getType() == EntityDataSerializer.class).count();
+            assertEquals(ORDER.length, publicSerializers, "표에 없는 상수가 끼어들지 않았다(JOML 값 둘은 아직 없다)");
             assertEquals(-1, EntityDataSerializers.getSerializedId(null));
         }
     }
@@ -67,6 +73,8 @@ class EntityDataShimsTest {
         assertEquals(new Rotations(10f, -10f, 0f), r);
         assertEquals(18, Pose.values().length);
         assertEquals(Pose.SLEEPING, Pose.byId(2));
+        assertEquals(Pose.STANDING, Pose.byId(19), "바닐라 BY_ID: 범위 밖은 STANDING");
+        assertEquals(Pose.STANDING, Pose.byId(-1));
     }
 
     @Test

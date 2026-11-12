@@ -6,5 +6,8 @@ public enum Pose {
 
     public int id() { return ordinal(); }
 
-    public static Pose byId(int id) { return values()[Math.floorMod(id, values().length)]; }
+    /** 바닐라 BY_ID: 범위 밖 번호는 STANDING(ZERO 전략). */
+    public static final java.util.function.IntFunction<Pose> BY_ID = id -> id >= 0 && id < values().length ? values()[id] : STANDING;
+
+    public static Pose byId(int id) { return BY_ID.apply(id); }
 }

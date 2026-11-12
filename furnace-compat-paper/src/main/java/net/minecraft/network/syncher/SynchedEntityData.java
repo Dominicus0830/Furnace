@@ -25,8 +25,12 @@ public class SynchedEntityData {
     }
 
     public <T> void set(EntityDataAccessor<T> accessor, T value) {
+        set(accessor, value, false);
+    }
+
+    public <T> void set(EntityDataAccessor<T> accessor, T value, boolean force) {
         DataItem<T> item = item(accessor);
-        if (!java.util.Objects.equals(value, item.value)) {
+        if (force || !java.util.Objects.equals(value, item.value)) {
             item.value = value;
             item.dirty = true;
             isDirty = true;
@@ -103,6 +107,14 @@ public class SynchedEntityData {
 
         public T getValue() {
             return value;
+        }
+
+        public boolean isDirty() {
+            return dirty;
+        }
+
+        public void setDirty(boolean dirty) {
+            this.dirty = dirty;
         }
 
         public boolean isSetToDefault() {
