@@ -406,7 +406,10 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
             regions = new ArrayList<>();
             for (Region r : rz.ownersOverlapping((int) Math.floor(box.minX()) >> 4, (int) Math.floor(box.maxX()) >> 4,
                     (int) Math.floor(box.minZ()) >> 4, (int) Math.floor(box.maxZ()) >> 4)) {
-                if (org.domi.furnace.server.world.RegionBorrow.claim(() -> r)) regions.add(r);
+                if (org.domi.furnace.server.world.RegionBorrow.claim(() -> org.domi.furnace.server.world.Regionizer.live(r))) {
+                    Region now = org.domi.furnace.server.world.Regionizer.live(r);
+                    if (now != null && !regions.contains(now)) regions.add(now);
+                }
             }
         } else {
             throw new ThreadOwnershipException("entitiesInBoxNow 는 region 스레드에서만 부를 수 있다 (현재 " + Thread.currentThread().getName() + ") — Async 판을 쓴다");

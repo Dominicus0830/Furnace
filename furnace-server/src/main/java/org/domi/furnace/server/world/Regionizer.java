@@ -259,9 +259,12 @@ public final class Regionizer {
 
     /** 지금 스레드가 돌리는(소유한) region — 없으면 null. 빌림 구간에서 이미 빌린 region 도 포함한다. */
     public Region ownedByCurrentThread() {
-        for (Region r : regionsSnapshot()) if (r.isOwnerThread()) return r;
+        for (Region r : running.keySet()) if (r.isOwnerThread()) return r;   // 잠금 없이 — 틱·drain 중인 region 만 이 스레드가 돌릴 수 있다
         return null;
     }
+
+    /** 합쳐져 죽은 region 이면 흡수한 살아 있는 주인(기다리는 사이 합쳐질 수 있어 빌릴 때 다시 찾는다). */
+    public static Region live(Region r) { return resolve(r); }
 
     /** 그 청크가 이 region 것인가(틱 중인 region 이 자기 청크만 만지게). */
     boolean owns(Region r, int cx, int cz) {
