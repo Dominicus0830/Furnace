@@ -265,6 +265,16 @@ public final class ConfigSection {
         return c;
     }
 
+    /**
+     * 트리의 잎 값으로 들어가는 불투명한 객체(호환 계층의 직렬화 객체 등). 트리는 이것을 구역이 아닌 값 하나로 다루며(키 나열·경로 해석이 안쪽으로 내려가지 않는다)
+     * 참조 그대로 보관·복사한다. 쓰거나 {@link #toMap()} 으로 바꿀 때만 {@link #lower()} 로 그 순간의 저장 꼴을 얻는다.
+     * 호환 계층이 쓰라고 연 것이다 — 일반 설정 코드는 쓸 필요가 없다.
+     */
+    public interface Opaque {
+        /** 쓰는 순간의 저장 꼴: Map·List·스칼라(안쪽에 또 Opaque 가 있어도 된다). */
+        Object lower();
+    }
+
     /** 일반 Map/List 로 깊은 변환한 스냅샷. */
     public Map<String, Object> toMap() {
         LinkedHashMap<String, Object> out = new LinkedHashMap<>();
@@ -515,6 +525,54 @@ public final class ConfigSection {
         inlineComments.put(k, c);
     }
 
+    /** 트리 어디에든 {@link Opaque} 값이 있는가(목록 안 포함). */
+    boolean hasOpaque() {
+        for (Object v : map.values()) if (hasOpaque(v)) return true;
+        return false;
+    }
+
+    private static boolean hasOpaque(Object v) {
+        if (v instanceof Opaque) return true;
+        if (v instanceof ConfigSection s) return s.hasOpaque();
+        if (v instanceof List<?> l) for (Object o : l) if (hasOpaque(o)) return true;
+        return false;
+    }
+
+    /** 쓰기용 사본: {@link Opaque} 값을 그 순간의 {@link Opaque#lower()} 꼴(구역·목록)로 바꾼 깊은 복사. 이 트리는 읽기만 한다. */
+    ConfigSection lowered() {
+        ConfigSection c = copy();
+        c.lowerOpaqueInPlace();
+        return c;
+    }
+
+    private void lowerOpaqueInPlace() {
+        for (Map.Entry<String, Object> e : new ArrayList<>(map.entrySet())) {
+            Object v = lowerValue(e.getValue());
+            if (v != e.getValue()) putChild(e.getKey(), v);
+        }
+    }
+
+    private static Object lowerValue(Object v) {
+        if (v instanceof Opaque o) {
+            Object n = normalize(o.lower());
+            if (n instanceof ConfigSection ns) ns.lowerOpaqueInPlace();
+            else if (n instanceof List<?> l) return lowerList(l);
+            return n;
+        }
+        if (v instanceof ConfigSection s) {
+            s.lowerOpaqueInPlace();
+            return s;
+        }
+        if (v instanceof List<?> l) return lowerList(l);
+        return v;
+    }
+
+    private static List<Object> lowerList(List<?> l) {
+        ArrayList<Object> out = new ArrayList<>(l.size());
+        for (Object o : l) out.add(lowerValue(o));
+        return out;
+    }
+
     /** long 을 Integer(범위 내) 또는 Long 으로 정규화한다. */
     static Object intOrLong(long v) {
         return v >= Integer.MIN_VALUE && v <= Integer.MAX_VALUE ? (Object) (int) v : (Object) v;
@@ -659,6 +717,7 @@ public final class ConfigSection {
     }
 
     private static Object plain(Object v) {
+        if (v instanceof Opaque o) return plain(normalize(o.lower()));
         if (v instanceof ConfigSection s) return s.toMap();
         if (v instanceof List<?> l) {
             ArrayList<Object> out = new ArrayList<>(l.size());
@@ -677,6 +736,7 @@ public final class ConfigSection {
         if (v instanceof CharSequence || v instanceof Character || v instanceof UUID) return v.toString();
         if (v instanceof Enum<?> e) return e.name();
         if (v instanceof OffsetDateTime || v instanceof LocalDateTime || v instanceof LocalDate || v instanceof LocalTime) return v;
+        if (v instanceof Opaque) return v;
         if (v instanceof ConfigSection s) return s.parent != null ? s.copy() : s;
         if (v instanceof Map<?, ?> m) return fromMap(m);
         if (v instanceof Collection<?> c) {
