@@ -189,7 +189,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
                     .add(org.domi.furnace.server.attribute.Attribute.ARMOR_TOUGHNESS, 0.0).add(org.domi.furnace.server.attribute.Attribute.MAX_ABSORPTION, 0.0)
                     .add(org.domi.furnace.server.attribute.Attribute.STEP_HEIGHT, 0.6).add(org.domi.furnace.server.attribute.Attribute.SCALE, 1.0)
                     .add(org.domi.furnace.server.attribute.Attribute.GRAVITY, 0.08).add(org.domi.furnace.server.attribute.Attribute.SAFE_FALL_DISTANCE, 3.0)
-                    .add(org.domi.furnace.server.attribute.Attribute.FALL_DAMAGE_MULTIPLIER, 1.0).add(org.domi.furnace.server.attribute.Attribute.JUMP_STRENGTH, 0.42)
+                    .add(org.domi.furnace.server.attribute.Attribute.FALL_DAMAGE_MULTIPLIER, 1.0).add(org.domi.furnace.server.attribute.Attribute.JUMP_STRENGTH, 0.42F)
                     .add(org.domi.furnace.server.attribute.Attribute.OXYGEN_BONUS, 0.0).add(org.domi.furnace.server.attribute.Attribute.BURNING_TIME, 1.0)
                     .add(org.domi.furnace.server.attribute.Attribute.EXPLOSION_KNOCKBACK_RESISTANCE, 0.0)
                     .add(org.domi.furnace.server.attribute.Attribute.WATER_MOVEMENT_EFFICIENCY, 0.0).add(org.domi.furnace.server.attribute.Attribute.MOVEMENT_EFFICIENCY, 0.0)
@@ -1410,17 +1410,31 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     /**
      * 플러그인 API 가 아무 스레드에서 읽는 속성 스냅샷(최근 값 — region 이 매 틱 동기 끝에 다시 떠 둔다, 불변). 아직 한 번도 동기 전이면
-     * 지금 맵에서 한 번 뜬다(그때는 아직 다른 스레드가 맵을 고치지 않는다).
+     * 캐시를 건드리지 않는 사본을 한 번 뜬다(첫 동기가 곧 덮는다).
      */
     public java.util.Map<org.domi.furnace.server.attribute.Attribute, org.domi.furnace.server.attribute.AttributeMap.View> attributeView() {
         var v = attributeView;
         if (v == null) {
             synchronized (this) {
                 v = attributeView;
-                if (v == null) attributeView = v = attributes().snapshot();
+                if (v == null) attributeView = v = attributes().snapshotDetached();   // 소유 스레드 밖 — 캐시를 건드리지 않는 사본
             }
         }
         return v;
+    }
+
+    /**
+     * 리스폰(바닐라 ServerPlayer.restoreFrom 이 assignBaseValues 만 한다): 기본값은 두고 /attribute·플러그인이 단 수정자를 뗀다.
+     * 장비·효과·달리기·위치 효과 수정자(managedModifiers)는 동기가 맞춘다. 소유 스레드 전용.
+     */
+    public void clearUserModifiersForRespawn() {
+        var map = attributes();
+        for (var inst : map.all()) {
+            var managed = managedModifiers.get(inst.attribute());
+            for (String id : java.util.List.copyOf(inst.modifiers().keySet())) {
+                if (managed == null || !managed.contains(id)) inst.removeModifier(id);
+            }
+        }
     }
 
     /** 위치에 따라 붙는 수정자: 영혼 가속·서리 걸음(locationEffects) + 가루눈 얼음(이동 속도, PlayerVitals 의 tryAddFrost). */

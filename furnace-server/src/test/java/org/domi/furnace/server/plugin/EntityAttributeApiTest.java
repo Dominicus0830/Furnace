@@ -364,4 +364,63 @@ class EntityAttributeApiTest {
         var ex = assertThrows(Exception.class, () -> ph.attribute(Attribute.LUCK).orElseThrow().setBaseValue(1).get(5, TimeUnit.SECONDS));
         assertInstanceOf(IllegalStateException.class, cause(ex));
     }
+
+    // ---------------------------------------------------------------- 검토(PR #268) 반영
+
+    @Test
+    void handleModifierLookupNormalizesId() throws Exception {
+        Spawned s = spawnPig();
+        run(s.handle().attribute(Attribute.MOVEMENT_SPEED).orElseThrow().addModifier(new AttributeModifier("boost", 0.1, Operation.ADD_VALUE)));
+        var h = fresh(s).attribute(Attribute.MOVEMENT_SPEED).orElseThrow();
+        assertTrue(h.modifier("boost").isPresent(), "네임스페이스 없는 id 도 찾는다");
+        assertTrue(h.modifier("minecraft:boost").isPresent());
+        assertTrue(h.modifier("other:boost").isEmpty());
+    }
+
+    @Test
+    void vanillaTransientMobModifiersAreNotSaved() throws Exception {
+        var zombie = onRegion(() -> {
+            var level = core.world().regionizer().ownerOf(0, 0).level();
+            var z = new org.domi.furnace.server.entity.Zombie(level, level.nextEntityId());
+            z.setBaby(true);
+            return z;
+        });
+        var speed = onRegion(() -> entry(zombie.attributes().save(), "minecraft:generic.movement_speed"));
+        assertNull(speed.tags().get("modifiers"), "아기 좀비 속도 수정자는 바닐라도 transient 라 저장하지 않는다");
+        assertTrue(onRegion(() -> zombie.attributes().get(org.domi.furnace.server.attribute.Attribute.MOVEMENT_SPEED).hasModifier("minecraft:baby")));
+    }
+
+    @Test
+    void jumpStrengthDefaultIsTheVanillaFloatWidened() {
+        assertEquals((double) 0.42F, Attribute.JUMP_STRENGTH.defaultValue(), 0.0);
+        assertEquals((double) 0.42F, org.domi.furnace.server.attribute.Attribute.JUMP_STRENGTH.defaultValue(), 0.0);
+        assertEquals((double) 0.42F, new org.domi.furnace.server.entity.Player(1, UUID.randomUUID(), "A", new EmbeddedChannel()).attributes()
+                .baseValue(org.domi.furnace.server.attribute.Attribute.JUMP_STRENGTH), 0.0);
+    }
+
+    @Test
+    void respawnDropsUserModifiersButKeepsBaseValues() throws Exception {
+        Player p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "Alex", new EmbeddedChannel());
+        core.world().playerOnline(p);
+        var ph = host.player(p);
+        core.world().submitAtChunk(C00, r -> {
+            r.players().put(p.entityId(), p);
+            p.ownerRegion = r;
+            p.syncAttributes();
+            return null;
+        }).get(10, TimeUnit.SECONDS);
+        var speed = ph.attribute(Attribute.MOVEMENT_SPEED).orElseThrow();
+        run(speed.setBaseValue(0.2));
+        run(speed.addModifier(new AttributeModifier("t:keepme", 0.1, Operation.ADD_VALUE)));
+        onRegion(() -> {
+            p.vitals().respawn();   // 같은 owner 스레드라 바로 돈다
+            p.syncAttributes();
+            return null;
+        });
+        var after = ph.attribute(Attribute.MOVEMENT_SPEED).orElseThrow();
+        assertEquals(0.2, after.baseValue(), 0.0, "기본값은 옮긴다(assignBaseValues)");
+        assertTrue(after.modifier("t:keepme").isEmpty(), "수정자는 사라진다");
+        // 플러그인이 리스폰 뒤 다시 달 수 있다(옛 수정자가 남아 IAE 가 나지 않는다)
+        run(after.addModifier(new AttributeModifier("t:keepme", 0.1, Operation.ADD_VALUE)));
+    }
 }

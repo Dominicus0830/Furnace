@@ -87,20 +87,25 @@ public final class AttributeInstance {
 
     public double value() {
         if (dirty) {
-            double d = base, add = 0, mulBase = 0, mulTotal = 1;
-            for (AttributeModifier m : modifiers.values()) {
-                switch (m.operation()) {
-                    case AttributeModifier.ADD_VALUE -> add += m.amount();
-                    case AttributeModifier.ADD_MULTIPLIED_BASE -> mulBase += m.amount();
-                    default -> mulTotal *= 1.0 + m.amount();
-                }
-            }
-            d = base + add;
-            double e = d + d * mulBase;
-            e *= mulTotal;
-            cached = attribute.sanitize(e);
+            cached = compute();
             dirty = false;
         }
         return cached;
+    }
+
+    /** 캐시를 건드리지 않고 지금 값을 계산한다(소유 스레드 밖에서 읽는 사본용 — base 는 최근 값일 수 있다). */
+    public double compute() {
+        double d = base, add = 0, mulBase = 0, mulTotal = 1;
+        for (AttributeModifier m : modifiers.values()) {
+            switch (m.operation()) {
+                case AttributeModifier.ADD_VALUE -> add += m.amount();
+                case AttributeModifier.ADD_MULTIPLIED_BASE -> mulBase += m.amount();
+                default -> mulTotal *= 1.0 + m.amount();
+            }
+        }
+        d = base + add;
+        double e = d + d * mulBase;
+        e *= mulTotal;
+        return attribute.sanitize(e);
     }
 }

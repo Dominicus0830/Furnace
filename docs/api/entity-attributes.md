@@ -50,12 +50,14 @@ entity.editState(st -> ((LivingEntityState) st).attribute(Attribute.MAX_HEALTH).
 - `addModifier` = 바닐라 `addPermanentModifier` — **저장된다**. 같은 id 가 이미 있으면 `IllegalArgumentException("Modifier is already applied on this attribute!")`.
 - `addTransientModifier`(Paper) — 같은 검사, **저장하지 않는다**(서버를 다시 켜면 사라진다). 값 계산에는 든다.
 - `removeModifier` — id 로 뗀다. 장비·상태 효과·달리기가 단 수정자도 `modifiers()` 에 보인다.
-- `registerAttribute` — 없는 속성을 속성 기본값으로 단다. 클라이언트로는 보내지 않는다(클라이언트는 엔티티 종류의 속성만 안다).
+- `registerAttribute` — 없는 속성을 속성 기본값으로 단다(아래 "다른 점" 참고).
+- 리스폰하면 /attribute·플러그인이 단 수정자는 사라지고 기본값만 남는다(바닐라 `ServerPlayer.restoreFrom` 이 `assignBaseValues` 만 하는 것과 같다). 플러그인은 리스폰 뒤에 다시 단다.
 
 ## 다른 점
 
 - Bukkit 은 모든 호출이 동기다. 여기서는 읽기가 만든 시점 값이고 쓰기가 Future 다(스레드 소유권 규칙). 소유 스레드 안에서는 `editState`·`AttributeHandle#edit` 의 `AttributeInstance` 로 Bukkit 과 똑같이 동기로 쓴다.
-- `setModifier`(있으면 바꾸고 없으면 단다)는 Bukkit 에 없는 편의다.
+- `setModifier`(있으면 바꾸고 없으면 단다)는 Bukkit 에 없는 편의다(바닐라 `addOrReplacePermanentModifier` — transient 수정자에 쓰면 저장되는 수정자가 된다).
+- `registerAttribute` 는 이미 있으면 그대로 두고 false 다. Paper 는 이미 있어도 새 인스턴스로 바꿔 끼워 기본값·수정자를 초기화한다(Furnace 쪽이 안전해 유지). 등록하는 순간 클라이언트로는 보내지 않지만, 그 뒤 값이 바뀌면 일반 속성처럼 동기에 실려 간다 — 클라이언트가 모르는 속성이면 클라이언트 로그에 경고가 찍힐 수 있다.
 - 수정자 id 는 `minecraft:` 네임스페이스를 붙인 소문자 키여야 한다(`AttributeModifier` 가 검사). 옛 UUID 수정자는 받지 않는다. NaN·무한대 양은 Bukkit 처럼 막지 않는다.
 - 호환 계층(`CraftLivingEntity#getAttribute` → 이 API)은 이 PR 범위가 아니다(후속).
 

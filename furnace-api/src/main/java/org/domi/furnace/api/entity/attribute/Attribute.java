@@ -32,7 +32,7 @@ public final class Attribute {
     public static final Attribute FLYING_SPEED = of("generic.flying_speed", 0.4, 0, 1024);
     public static final Attribute FOLLOW_RANGE = of("generic.follow_range", 32, 0, 2048);
     public static final Attribute GRAVITY = of("generic.gravity", 0.08, -1, 1);
-    public static final Attribute JUMP_STRENGTH = of("generic.jump_strength", 0.42, 0, 32);
+    public static final Attribute JUMP_STRENGTH = of("generic.jump_strength", 0.42F, 0, 32);   // 바닐라 기본값은 float 리터럴 0.42F 를 double 로 넓힌 값(0.41999998688697815)
     public static final Attribute KNOCKBACK_RESISTANCE = of("generic.knockback_resistance", 0, 0, 1);
     public static final Attribute LUCK = of("generic.luck", 0, -1024, 1024);
     public static final Attribute MAX_ABSORPTION = of("generic.max_absorption", 0, 0, 2048);

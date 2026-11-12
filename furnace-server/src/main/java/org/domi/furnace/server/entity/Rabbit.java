@@ -189,7 +189,7 @@ public class Rabbit extends Animal {
             targetSelector.addGoal(1, new HurtByTargetGoal(this).setAlertOthers());
             targetSelector.addGoal(2, new NearestAttackableTargetGoal(this, Player.class, true));
             targetSelector.addGoal(2, new NearestAttackableTargetGoal(this, Wolf.class, true));
-            attributes().get(Attribute.ATTACK_DAMAGE).addOrReplaceModifier(new AttributeModifier(EVIL_ATTACK_MODIFIER, 5.0, AttributeModifier.ADD_VALUE));
+            attributes().get(Attribute.ATTACK_DAMAGE).addOrReplaceTransientModifier(new AttributeModifier(EVIL_ATTACK_MODIFIER, 5.0, AttributeModifier.ADD_VALUE));
             if (!hasCustomName()) setCustomName(org.domi.furnace.api.text.Text.translatable("entity.minecraft.killer_bunny"));   // 이름 없으면 킬러 토끼
         } else {
             attributes().get(Attribute.ATTACK_DAMAGE).removeModifier(EVIL_ATTACK_MODIFIER);

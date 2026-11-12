@@ -96,7 +96,7 @@ public class Witch extends Raider implements RangedAttackMob {
                     if (!isSilent()) level.playSound(null, x(), y(), z(), "entity.witch.drink", soundSource(), 1.0F, 0.8F + random.nextFloat() * 0.4F);
                     var speed = attributes().get(Attribute.MOVEMENT_SPEED);
                     speed.removeModifier(SPEED_MODIFIER_DRINKING_ID);
-                    speed.addOrReplaceModifier(SPEED_MODIFIER_DRINKING);
+                    speed.addOrReplaceTransientModifier(SPEED_MODIFIER_DRINKING);
                 }
             }
             if (random.nextFloat() < 7.5E-4F) broadcastEntityEvent((byte) 15);

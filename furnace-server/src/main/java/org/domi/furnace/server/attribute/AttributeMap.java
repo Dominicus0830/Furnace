@@ -53,6 +53,13 @@ public final class AttributeMap {
      * 모든 속성의 읽기 전용 스냅샷. 버전이 같으면 이전 것을 그대로 돌려줘 핸들을 자주 만들어도 싸다. 이 맵을 쥔 region 스레드에서만 부른다
      * (돌려준 값은 불변이라 다른 스레드로 넘겨도 된다).
      */
+    /** {@link #snapshot()} 인데 캐시(버전 스냅샷·인스턴스 값 캐시)를 건드리지 않는다 — 소유 스레드가 아닌 곳이 맨 처음 한 번 뜰 때(최근 값). */
+    public Map<Attribute, View> snapshotDetached() {
+        Map<Attribute, View> out = new LinkedHashMap<>();
+        for (AttributeInstance i : new ArrayList<>(instances.values())) out.put(i.attribute(), new View(i.attribute(), i.baseValue(), i.compute(), i.modifiers()));
+        return java.util.Collections.unmodifiableMap(out);
+    }
+
     public Map<Attribute, View> snapshot() {
         if (snapshotVersion == version) return snapshot;
         Map<Attribute, View> out = new LinkedHashMap<>();

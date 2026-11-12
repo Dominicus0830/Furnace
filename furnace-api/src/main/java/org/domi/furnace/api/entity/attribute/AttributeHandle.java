@@ -24,7 +24,8 @@ public interface AttributeHandle {
     List<AttributeModifier> modifiers();
 
     default Optional<AttributeModifier> modifier(String id) {
-        for (AttributeModifier m : modifiers()) if (m.id().equals(id)) return Optional.of(m);
+        String key = new AttributeModifier(id, 0, org.domi.furnace.api.item.AttributeModifiers.Operation.ADD_VALUE).id();   // 네임스페이스를 맞춘다("boost" = "minecraft:boost")
+        for (AttributeModifier m : modifiers()) if (m.id().equals(key)) return Optional.of(m);
         return Optional.empty();
     }
 

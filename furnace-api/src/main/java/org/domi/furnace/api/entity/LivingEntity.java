@@ -33,7 +33,7 @@ public interface LivingEntity extends Entity {
 
     /**
      * 엔티티에 없는 속성을 달아 준다(Paper registerAttribute — 기본값은 그 속성의 기본값). 이미 있으면 false 로 완료.
-     * 클라이언트로 보내지는 않는다(클라이언트는 엔티티 종류의 속성만 안다) — 서버 쪽 계산에만 쓰인다.
+     * 등록 순간 클라이언트로 보내지 않는다(클라이언트는 엔티티 종류의 속성만 안다). Paper 와 달리 이미 있으면 바꿔 끼우지 않는다.
      */
     default CompletableFuture<Boolean> registerAttribute(Attribute attribute) {
         return CompletableFuture.failedFuture(new UnsupportedOperationException("registerAttribute"));
