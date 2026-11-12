@@ -56,7 +56,7 @@ public final class TargetingConditions {
 
     public boolean test(Mob source, Targetable target) {
         if (source != null && source.id() == target.id()) return false;
-        if (!target.canBeSeenAsEnemy()) return false;
+        if (!target.canBeSeenByAnyone()) return false;   // 바닐라 첫 검사: 무적(크리에이티브)은 통과, 관전자·죽은 것만 거른다
         if (selector != null && !selector.test(target)) return false;
         if (source == null) return !isCombat || target.canBeSeenAsEnemy();   // TODO(평화 난이도): 출처 없는 조건
         if (isCombat && (!target.canBeSeenAsEnemy() || !source.canAttackType(target) || source.isAlliedTo(target))) return false;

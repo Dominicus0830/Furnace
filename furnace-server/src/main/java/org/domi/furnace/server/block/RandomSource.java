@@ -28,5 +28,8 @@ public interface RandomSource {
      */
     static RandomSource createFor(long ownerKey, int purpose) { return new LegacyRandomSource(RandomSeeds.seed(ownerKey, purpose)); }
 
+    /** createFor 의 스레드 안전판(바닐라 createThreadSafe): 여러 스레드가 함께 쓰는 정적 난수용. */
+    static RandomSource createThreadSafeFor(long ownerKey, int purpose) { return new ThreadSafeLegacyRandomSource(RandomSeeds.seed(ownerKey, purpose)); }
+
     static RandomSource create(long seed) { return new LegacyRandomSource(seed); }
 }

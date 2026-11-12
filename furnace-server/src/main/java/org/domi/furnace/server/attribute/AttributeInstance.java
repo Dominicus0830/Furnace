@@ -1,6 +1,7 @@
-// 바닐라 AttributeInstance: 기본값 + 수정자(id 로 유일). 값 = ((기본+더하기) + 기본×배율합) × Π(1+전체배율), 범위로 자른다.
+// 바닐라 AttributeInstance: 기본값 + 수정자(id 로 유일). 값은 바닐라 calculateValue 와 같은 순서·같은 부동소수 연산으로 계산하고 범위로 자른다.
 package org.domi.furnace.server.attribute;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -8,9 +9,7 @@ public final class AttributeInstance {
     private final Attribute attribute;
     private double base;
     // 바꿀 때마다 새 불변 사본으로 갈아 끼운다 — 다른 region 스레드가 읽는 중(전리품 luck 등)이어도 ConcurrentModificationException 이 없다.
-    private volatile Map<String, AttributeModifier> modifiers = Map.of();
-    // 바닐라 AttributeInstance.permanentModifiers 의 보수: 저장하지 않는 수정자 id(플러그인 API 의 addTransientModifier). modifiers 와 같은 방식으로 통째로 갈아 끼운다.
-    private volatile java.util.Set<String> transientIds = java.util.Set.of();
+    private volatile State state = State.EMPTY;
     private double cached;
     private boolean dirty = true;
     private final Runnable onDirty;
@@ -31,53 +30,43 @@ public final class AttributeInstance {
         setDirty();
     }
 
-    public Map<String, AttributeModifier> modifiers() { return modifiers; }
+    /** 바닐라 modifierById(Object2ObjectArrayMap): 넣은 순서. */
+    public Map<String, AttributeModifier> modifiers() { return state.byId; }
 
-    public boolean hasModifier(String id) { return modifiers.containsKey(id); }
+    public boolean hasModifier(String id) { return state.byId.containsKey(id); }
 
-    public AttributeModifier getModifier(String id) { return modifiers.get(id); }
+    public AttributeModifier getModifier(String id) { return state.byId.get(id); }
 
-    /** 같은 id 가 이미 있으면 바닐라는 예외를 던진다 — 여기서는 덮어쓴다(addOrReplacePermanentModifier). 저장되는 수정자가 된다. */
+    /**
+     * 같은 id 가 이미 있으면 바닐라는 예외를 던진다 — 여기서는 덮어쓴다. 바닐라 addOrReplacePermanentModifier 와 같이 옛것을 지우고 다시 넣는다
+     * (modifiers() 순서에서 끝으로 간다). 연산별 값 계산 순서는 바닐라 해시 맵 순회 순서다(ModifierOrder).
+     */
     public void addOrReplaceModifier(AttributeModifier m) {
-        put(m, false);
-    }
-
-    /** 저장하지 않는 수정자를 단다(바닐라 addTransientModifier). 같은 id 가 있으면 덮어쓴다 — 중복 검사는 부르는 쪽이 한다. */
-    public void addOrReplaceTransientModifier(AttributeModifier m) {
-        put(m, true);
-    }
-
-    private void put(AttributeModifier m, boolean isTransient) {
-        Map<String, AttributeModifier> next = new LinkedHashMap<>(modifiers);
-        next.put(m.id(), m);
-        modifiers = java.util.Collections.unmodifiableMap(next);
-        if (isTransient != transientIds.contains(m.id())) {
-            java.util.Set<String> t = new java.util.HashSet<>(transientIds);
-            if (isTransient) t.add(m.id()); else t.remove(m.id());
-            transientIds = java.util.Set.copyOf(t);
-        }
+        State s = state;
+        if (s.byId.containsKey(m.id())) s = s.without(m.id());
+        state = s.with(m);
         setDirty();
     }
 
-    /** 저장하지 않는 수정자인가(AttributeMap.save 가 뺀다). */
-    public boolean isTransient(String id) { return transientIds.contains(id); }
+    /** 바닐라 addOrUpdateTransientModifier: 같은 id 가 있으면 제자리에서 바꾼다(순서 유지). 같은 값이면 아무것도 안 한다. */
+    public void addOrUpdateTransientModifier(AttributeModifier m) {
+        State s = state;
+        AttributeModifier old = s.byId.get(m.id());
+        if (m.equals(old)) return;
+        state = old == null ? s.with(m) : s.replace(old, m);
+        setDirty();
+    }
 
     public boolean removeModifier(String id) {
-        if (!modifiers.containsKey(id)) return false;
-        Map<String, AttributeModifier> next = new LinkedHashMap<>(modifiers);
-        next.remove(id);
-        modifiers = java.util.Collections.unmodifiableMap(next);
-        if (transientIds.contains(id)) {
-            java.util.Set<String> t = new java.util.HashSet<>(transientIds);
-            t.remove(id);
-            transientIds = java.util.Set.copyOf(t);
-        }
+        State s = state;
+        if (!s.byId.containsKey(id)) return false;
+        state = s.without(id);
         setDirty();
         return true;
     }
 
     public void removeModifiers() {
-        if (!modifiers.isEmpty()) { modifiers = Map.of(); transientIds = java.util.Set.of(); setDirty(); }
+        if (!state.byId.isEmpty()) { state = State.EMPTY; setDirty(); }
     }
 
     private void setDirty() {
@@ -93,19 +82,60 @@ public final class AttributeInstance {
         return cached;
     }
 
-    /** 캐시를 건드리지 않고 지금 값을 계산한다(소유 스레드 밖에서 읽는 사본용 — base 는 최근 값일 수 있다). */
+    /**
+     * 캐시를 건드리지 않고 지금 값을 계산한다(소유 스레드 밖에서 읽는 사본용 — base 는 최근 값일 수 있다).
+     * 바닐라 calculateValue: d = base + Σadd(차례로); e = d; e += d × baseMul(차례로); e ×= (1 + totalMul)(차례로).
+     */
     public double compute() {
-        double d = base, add = 0, mulBase = 0, mulTotal = 1;
-        for (AttributeModifier m : modifiers.values()) {
-            switch (m.operation()) {
-                case AttributeModifier.ADD_VALUE -> add += m.amount();
-                case AttributeModifier.ADD_MULTIPLIED_BASE -> mulBase += m.amount();
-                default -> mulTotal *= 1.0 + m.amount();
-            }
+        State s = state;
+        double[] acc = {base};
+        s.order[AttributeModifier.ADD_VALUE].forEachId(id -> acc[0] += s.byId.get(id).amount());
+        double d = acc[0];
+        s.order[AttributeModifier.ADD_MULTIPLIED_BASE].forEachId(id -> acc[0] += d * s.byId.get(id).amount());
+        s.order[AttributeModifier.ADD_MULTIPLIED_TOTAL].forEachId(id -> acc[0] *= 1.0 + s.byId.get(id).amount());
+        return attribute.sanitize(acc[0]);
+    }
+
+    /** 수정자 전체(넣은 순서) + 연산별 바닐라 순회 순서. 불변. */
+    private record State(Map<String, AttributeModifier> byId, ModifierOrder[] order) {
+        static final State EMPTY = new State(Map.of(),
+                new ModifierOrder[] {ModifierOrder.EMPTY, ModifierOrder.EMPTY, ModifierOrder.EMPTY});
+
+        private static int op(AttributeModifier m) {
+            int o = m.operation();
+            return o == AttributeModifier.ADD_MULTIPLIED_BASE || o == AttributeModifier.ADD_MULTIPLIED_TOTAL ? o : AttributeModifier.ADD_VALUE;
         }
-        d = base + add;
-        double e = d + d * mulBase;
-        e *= mulTotal;
-        return attribute.sanitize(e);
+
+        State with(AttributeModifier m) {
+            Map<String, AttributeModifier> next = new LinkedHashMap<>(byId);
+            next.put(m.id(), m);
+            ModifierOrder[] o = order.clone();
+            int k = op(m);
+            o[k] = o[k].put(m.id());
+            return new State(Collections.unmodifiableMap(next), o);
+        }
+
+        State without(String id) {
+            AttributeModifier old = byId.get(id);
+            Map<String, AttributeModifier> next = new LinkedHashMap<>(byId);
+            next.remove(id);
+            ModifierOrder[] o = order.clone();
+            int k = op(old);
+            o[k] = o[k].remove(id);
+            return new State(Collections.unmodifiableMap(next), o);
+        }
+
+        /** 같은 id 의 값만 바꾼다(제자리). 연산이 달라지면 옛 연산 표에서 빼고 새 연산 표에 넣는다(바닐라 맵 동작과 같다). */
+        State replace(AttributeModifier old, AttributeModifier m) {
+            Map<String, AttributeModifier> next = new LinkedHashMap<>(byId);
+            next.put(m.id(), m);
+            ModifierOrder[] o = order.clone();
+            int ko = op(old), kn = op(m);
+            if (ko != kn) {
+                o[ko] = o[ko].remove(m.id());
+                o[kn] = o[kn].put(m.id());
+            }
+            return new State(Collections.unmodifiableMap(next), o);
+        }
     }
 }

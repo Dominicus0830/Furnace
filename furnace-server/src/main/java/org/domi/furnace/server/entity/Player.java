@@ -890,6 +890,10 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     @Override public boolean isAlive() { return !vitals.isDeadOrDying(); }
 
+    /** LivingEntity.canBeSeenByAnyone: 관전자가 아니고 살아 있다. */
+    @Override
+    public boolean canBeSeenByAnyone() { return isAlive() && gameMode() != org.domi.furnace.server.world.GameMode.SPECTATOR; }
+
     /** Player.canBeSeenAsEnemy: 무적 능력(크리에이티브·관전자)이 없고 살아 있다. */
     @Override
     public boolean canBeSeenAsEnemy() {

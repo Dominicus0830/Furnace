@@ -8,7 +8,8 @@ import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 
 public abstract class Sensor<E extends Mob> {
-    private static final org.domi.furnace.server.block.RandomSource RANDOM = org.domi.furnace.server.block.RandomSource.createFor(
+    // region 스레드 여럿이 함께 쓰는 정적 난수 — 바닐라 createThreadSafe.
+    private static final org.domi.furnace.server.block.RandomSource RANDOM = org.domi.furnace.server.block.RandomSource.createThreadSafeFor(
             org.domi.furnace.server.block.RandomSeeds.key("Sensor.RANDOM"), org.domi.furnace.server.block.RandomSeeds.Purpose.SENSOR_SCAN);
     private static final int DEFAULT_SCAN_RATE = 20;
     protected static final int TARGETING_RANGE = 16;

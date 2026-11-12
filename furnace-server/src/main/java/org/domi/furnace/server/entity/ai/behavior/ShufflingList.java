@@ -7,8 +7,9 @@ import java.util.Iterator;
 import java.util.List;
 
 public final class ShufflingList<U> implements Iterable<U> {
-    private static final org.domi.furnace.server.block.RandomSource RANDOM = org.domi.furnace.server.block.RandomSource.createFor(
-            org.domi.furnace.server.block.RandomSeeds.key("ShufflingList.RANDOM"), org.domi.furnace.server.block.RandomSeeds.Purpose.SHUFFLING_LIST);
+    // 바닐라처럼 목록마다 난수 하나(정적으로 공유하면 region 스레드 여럿이 동기화 없이 같은 상태를 건드린다).
+    private final org.domi.furnace.server.block.RandomSource random = org.domi.furnace.server.block.RandomSource.createFor(
+            org.domi.furnace.server.block.RandomSeeds.key("ShufflingList"), org.domi.furnace.server.block.RandomSeeds.Purpose.SHUFFLING_LIST);
 
     private static final class Entry<T> {
         final T data;
@@ -29,7 +30,7 @@ public final class ShufflingList<U> implements Iterable<U> {
     }
 
     public ShufflingList<U> shuffle() {
-        for (Entry<U> e : entries) e.randWeight = -Math.pow(RANDOM.nextFloat(), 1.0F / e.weight);
+        for (Entry<U> e : entries) e.randWeight = -Math.pow(random.nextFloat(), 1.0F / e.weight);
         entries.sort(Comparator.comparingDouble(e -> e.randWeight));
         return this;
     }
