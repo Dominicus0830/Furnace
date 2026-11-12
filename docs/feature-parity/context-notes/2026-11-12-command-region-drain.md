@@ -8,3 +8,5 @@
 - 미측정(R6): RegionBorrow 와의 비교는 하지 않았다(첫 단계 지시가 기존 드레인 문 확장). `#tick` 전역 틱 대기(도미니코 결정)와 함께 후속에서 잰다.
 - 함정(시험): 데이터 팩 `tick.json` 은 `DataPackManager.start` 가 읽으므로 함수·태그 파일을 쓴 뒤에 start 해야 한다. `execute store result score … if entity @e[...]` 의 값은 일치한 엔티티 수다. 시험 JVM 은 문 예산을 500ms 로 둔다(`furnace-server/build.gradle.kts`) — 예산 시험은 `CommandDrainGate.charge` 로 남은 예산을 줄여서 본다.
 - 측정(4코어 헤드리스, 3초): 접근 3번 `#tick` 함수 61틱 중 61번(끄면 22번), 40줄 `if block` 함수 4ms.
+- (재검토 R9) 명령 작업 때문에 열린 drain 차례는 `runUrgentTasks` 가 그 region 의 **급한 작업 전부**를 돌린다 — 명령과 무관하게 전역 스레드가 보낸 급한 작업(명령 블록 대기 때 이미 그랬던 경로)도 같이 앞당겨진다(측정 97µs). 순서는 큐 순서 그대로라 새 앞지르기는 아니고, 문 예산(마감)에 들어간다. 필요해지면 `URGENT_WAITERS==0` 일 때 `command` 작업만 고르게 좁힐 수 있다.
+- (재검토 R10) region 스레드의 명령 범위(`Region.runTask(Task)`)는 그 작업이 도는 동안 같은 스레드에서 넣는 작업에 모두 `command` 를 단다 — 명령 작업 안에서 플러그인 리스너·이벤트 처리기가 넣은 region 작업도 포함한다. 범위는 그 작업 하나가 끝나면 닫히고 다른 스레드로 번지지 않으며, 효과는 그 작업들이 문 예산 안에서 곧바로 돌 수 있다는 것뿐이다(결과·줄 순서는 같다).
