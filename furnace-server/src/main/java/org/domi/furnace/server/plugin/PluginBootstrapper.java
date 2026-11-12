@@ -447,7 +447,7 @@ public final class PluginBootstrapper {
         PluginManagerImpl.PluginClassLoader loader;
         try {
             Path jar = settings.devMode() ? HotReload.shadowCopy(dir, c.file()) : c.file();
-            org.domi.furnace.api.plugin.ClassTransformer transformer = c.format() != null && settings.compatNms() ? c.format().transformer(d, jar, compatOptionsFor(c)) : null;
+            org.domi.furnace.api.plugin.ClassTransformer transformer = c.format() != null && settings.compatNms() ? c.format().transformer(d, jar, compatOptionsFor(c), () -> spigotMappingFilesFor(c)) : null;
             ClassLoader parent = c.format() != null ? sharedLibrariesFor(c) : null;
             loader = new PluginManagerImpl.PluginClassLoader(jar, this, settings.devMode(), libraries, transformer, parent,
                     c.format() == null && !settings.exposeCompatToNative());
@@ -697,47 +697,45 @@ public final class PluginBootstrapper {
     /** Spigot 이름 대응표 받기를 시도했는가 — 시험·진단용(Spigot 이름 NMS 플러그인이 없으면 false 여야 한다). */
     synchronized boolean spigotMappingsTried() { return spigotMappingFiles != null; }
 
-    /**
-     * 이 호환 플러그인에 넘길 plugins.compat.* 설정. jar 가 Spigot 이름 NMS 플러그인일 때만 대응표 재료 경로를 넘긴다: download 면 Mojang·Spigot
-     * 매핑을 (처음 한 번) 받아서, files 면 운영자가 적은 경로 그대로. 받지 못하면 경고하고 넘기지 않는다 — 그 플러그인의 Spigot 이름 NMS 호출만 실패한다.
-     */
+    /** 이 호환 플러그인에 넘길 plugins.compat.* 설정. 대응표 재료 경로는 여기 넣지 않는다 — 어댑터가 jar 를 훑어 필요하다고 확인하면 {@link #spigotMappingFilesFor} 로 묻는다. */
     private synchronized Map<String, String> compatOptionsFor(Candidate c) {
         Map<String, String> opts = settings.compatOptions();
-        String mode = opts.getOrDefault(SPIGOT_MAPPINGS, PluginSettings.SPIGOT_MAPPINGS_DEFAULT);
-        if (mode.equals("off")) {
-            if (!opts.containsKey(SPIGOT_MAPPING_FILES)) return opts;
-            Map<String, String> copy = new HashMap<>(opts);
-            copy.remove(SPIGOT_MAPPING_FILES);
-            return copy;
-        }
-        boolean needs;
-        try {
-            needs = SpigotMappingFiles.needs(c.file());
-        } catch (IOException e) {
-            log.warn("Plugin {} 의 jar 를 훑지 못해 Spigot 이름 대응표 판단을 건너뛴다: {}", c.description().fullName(), e.getMessage());
-            needs = false;
-        }
+        if (!opts.containsKey(SPIGOT_MAPPING_FILES)) return opts;
         Map<String, String> copy = new HashMap<>(opts);
-        if (mode.equals("files")) {
-            if (!needs) copy.remove(SPIGOT_MAPPING_FILES);
-            return copy;
-        }
         copy.remove(SPIGOT_MAPPING_FILES);
-        if (!needs) return copy;
+        return copy;
+    }
+
+    /**
+     * 어댑터가 "이 jar 는 Spigot 이름 NMS 라 대응표가 필요하다"고 jar 를 훑으며 확인했을 때 부른다(필요 여부를 서버가 따로 jar 를 읽어 알아보지 않는다).
+     * download 면 Mojang·Spigot 매핑을 (처음 한 번) 받아서, files 면 운영자가 적은 경로 그대로 돌려준다. off 거나 받지 못했으면 null —
+     * 그 플러그인의 Spigot 이름 NMS 호출만 실패한다.
+     */
+    private synchronized String spigotMappingFilesFor(Candidate c) {
+        Map<String, String> opts = settings.compatOptions();
+        String mode = opts.getOrDefault(SPIGOT_MAPPINGS, PluginSettings.SPIGOT_MAPPINGS_DEFAULT);
+        if (mode.equals("off")) return null;
+        if (mode.equals("files")) {
+            String v = opts.get(SPIGOT_MAPPING_FILES);
+            return v == null || v.isBlank() ? null : v;
+        }
         if (spigotMappingFiles == null) {
             LibrarySettings ls = settings.libraries();
             SpigotMappingFiles files = new SpigotMappingFiles(ls, ls.cache() != null ? ls.cache() : dir.resolve(LibrarySettings.DEFAULT_CACHE_DIR), log);
-            log.info("Spigot 이름 NMS 플러그인({})이 있어 Spigot → Mojang 이름 대응표를 준비한다({}=download)", c.description().fullName(), SPIGOT_MAPPINGS);
             try {
                 spigotMappingFiles = files.ensure().joined();
+            } catch (SpigotMappingFiles.Backoff e) {
+                spigotMappingFiles = "";
+                log.warn("Spigot 이름 대응표를 이번 시작에서는 받지 않는다 — {}. Spigot 이름으로 컴파일된 NMS 플러그인(처음: {})의 NMS 호출은 실패한다. "
+                        + "인터넷이 없는 서버라면 파일을 {} 에 두라(있으면 받기를 시도하지 않고 그것을 쓴다)", e.getMessage(), c.description().fullName(), files.directory());
             } catch (LibraryResolver.LibraryException e) {
                 spigotMappingFiles = "";
                 log.warn("Spigot 이름 대응표를 준비하지 못했다 — {}. Spigot 이름으로 컴파일된 NMS 플러그인(처음: {})의 NMS 호출은 실패한다. "
-                        + "인터넷이 없는 서버라면 파일을 {} 에 두고 plugins.libraries.offline=true 로 켜라", e.getMessage(), c.description().fullName(), files.directory());
+                        + "인터넷이 없는 서버라면 파일을 {} 에 두고 plugins.libraries.offline=true 로 켜라(연결 문제로 실패했으면 다음 시작들은 한동안 다시 받지 않고 건너뛴다)",
+                        e.getMessage(), c.description().fullName(), files.directory());
             }
         }
-        if (!spigotMappingFiles.isEmpty()) copy.put(SPIGOT_MAPPING_FILES, spigotMappingFiles);
-        return copy;
+        return spigotMappingFiles.isEmpty() ? null : spigotMappingFiles;
     }
 
     /** 서버 종료 — 공유 로더를 닫는다(호환 플러그인 로더를 다 닫은 뒤). 호환 jar 가 붙어 있으면 호환 계층 클래스 자체가 그 로더에 있으므로 끝까지 둔다. */

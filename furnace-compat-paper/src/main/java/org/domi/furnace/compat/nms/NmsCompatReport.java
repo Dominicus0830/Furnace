@@ -47,10 +47,6 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
                               int otherVersionClasses, int otherVersionSymbols, boolean spigotNamed, boolean spigotMapped) {
 
     private static final Logger LOG = LoggerFactory.getLogger("Furnace");
-    private static final byte[][] NEEDLES = {
-            "net/minecraft/".getBytes(StandardCharsets.UTF_8),
-            "org/bukkit/craftbukkit/".getBytes(StandardCharsets.UTF_8),
-    };
 
     /**
      * 클래스 이름에 다른 Minecraft 버전 표지가 있는가(여러 버전을 싣는 라이브러리의 버전 모듈: {@code nms/v1_20_1}, {@code NMS_1_20_R3},
@@ -111,14 +107,53 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
     public static NmsCompatReport scan(String plugin, Path jar, NmsSymbols index) throws IOException { return scan(plugin, jar, index, null); }
 
     /**
-     * jar 를 훑는다. 읽지 못하는 클래스는 건너뛴다(그 클래스는 정의 때 변환기가 원래 바이트로 올린다). {@code spigot} 이 있고 jar 가 Spigot 이름이면
-     * 변환기와 같은 이름 바꾸기를 먼저 건 뒤 센다.
+     * 1단계 — jar 를 한 번 읽은 결과. 바이트를 읽는 일은 여기서 끝나므로, 서버가 "Spigot 이름 대응표가 필요한가"를 따로 jar 를 훑어 묻지 않고
+     * {@link #needsSpigotMappings()} 로 답을 얻은 뒤(필요할 때만 대응표를 준비해) {@link #analyze} 로 이어 갈 수 있다.
+     *
+     * @param nmsReference 어느 클래스든 {@code net/minecraft/} 나 {@code net.minecraft.}(리터럴·리플렉션 문자열) 를 담았다
      */
-    public static NmsCompatReport scan(String plugin, Path jar, NmsSymbols index, SpigotMappings spigot) throws IOException {
+    public record Read(String namespace, boolean spigotNamed, Set<String> own, List<byte[]> candidates, boolean nmsReference) {
+        /**
+         * 이 jar 에 Spigot → Mojang 이름 대응표가 필요한가: 매니페스트에 {@code paperweight-mappings-namespace: mojang} 이 없고(Paper 와 같은 판정 —
+         * 속성이 없으면 Spigot 이름으로 본다) NMS 이름을 담은 클래스가 하나라도 있다.
+         */
+        public boolean needsSpigotMappings() { return spigotNamed && nmsReference; }
+    }
+
+    private static final int SLASHED = 1, DOTTED = 2, CRAFT = 4;
+    private static final byte[] NET_SLASHED = "net/minecraft/".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] NET_DOTTED = "net.minecraft.".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] CRAFTBUKKIT = "org/bukkit/craftbukkit/".getBytes(StandardCharsets.UTF_8);
+
+    /** 클래스 바이트를 한 번 훑어 {@code net/minecraft/}·{@code net.minecraft.}·{@code org/bukkit/craftbukkit/} 가 있는지 비트로 돌려준다(세 번 따로 훑지 않는다). */
+    static int scanNames(byte[] b) {
+        int hits = 0;
+        for (int i = 0, n = b.length; i < n; i++) {
+            byte c = b[i];
+            if (c == 'n') {
+                if ((hits & SLASHED) == 0 && at(b, i, NET_SLASHED)) hits |= SLASHED;
+                else if ((hits & DOTTED) == 0 && at(b, i, NET_DOTTED)) hits |= DOTTED;
+            } else if (c == 'o' && (hits & CRAFT) == 0 && at(b, i, CRAFTBUKKIT)) {
+                hits |= CRAFT;
+            }
+            if (hits == (SLASHED | DOTTED | CRAFT)) break;
+        }
+        return hits;
+    }
+
+    private static boolean at(byte[] hay, int i, byte[] needle) {
+        if (i + needle.length > hay.length) return false;
+        for (int j = 1; j < needle.length; j++) if (hay[i + j] != needle[j]) return false;
+        return true;
+    }
+
+    /** jar 를 훑는다. 읽지 못하는 클래스는 건너뛴다. */
+    public static Read read(Path jar) throws IOException {
         Set<String> own = new HashSet<>();
         List<byte[]> candidates = new ArrayList<>();
         String namespace;
         boolean spigotNamed;
+        boolean nmsReference = false;
         try (JarFile jf = new JarFile(jar.toFile(), false, java.util.zip.ZipFile.OPEN_READ, Runtime.version())) {
             var man = jf.getManifest();
             String ns = man == null ? null : man.getMainAttributes().getValue("paperweight-mappings-namespace");
@@ -137,10 +172,28 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
                 own.add(n.substring(0, n.length() - ".class".length()));
                 try (InputStream in = jf.getInputStream(e)) {
                     byte[] b = in.readAllBytes();
-                    if (NmsClassTransformer.contains(b, NEEDLES)) candidates.add(b);
+                    int hits = scanNames(b);
+                    if ((hits & (SLASHED | CRAFT)) != 0) candidates.add(b);
+                    if ((hits & (SLASHED | DOTTED)) != 0) nmsReference = true;
                 }
             }
         }
+        return new Read(namespace, spigotNamed, own, candidates, nmsReference);
+    }
+
+    /** jar 를 훑는다(Spigot 이름 대응표 있으면 먼저 이름을 바꾼 뒤 센다). {@link #read} + {@link #analyze}. */
+    public static NmsCompatReport scan(String plugin, Path jar, NmsSymbols index, SpigotMappings spigot) throws IOException {
+        return analyze(plugin, read(jar), index, spigot);
+    }
+
+    /**
+     * 2단계 — 읽은 결과를 센다. {@code spigot} 이 있고 jar 가 Spigot 이름이면 변환기와 같은 이름 바꾸기를 먼저 건 뒤 센다.
+     */
+    public static NmsCompatReport analyze(String plugin, Read read, NmsSymbols index, SpigotMappings spigot) {
+        Set<String> own = read.own();
+        List<byte[]> candidates = read.candidates();
+        String namespace = read.namespace();
+        boolean spigotNamed = read.spigotNamed();
         Set<String> seen = new HashSet<>();
         TreeSet<String> missing = new TreeSet<>();
         int[] counts = new int[6];   // present, gradeC, unknown, obf, 다른 버전 클래스, 다른 버전 심볼

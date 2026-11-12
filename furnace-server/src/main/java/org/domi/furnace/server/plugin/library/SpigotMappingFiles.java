@@ -1,12 +1,14 @@
 // Spigot 이름 → Mojang 이름 대응표의 재료 파일 세 개를 운영자 컴퓨터에서 받아 캐시에 둔다(H7d. 2026-11-12 결정: 기본으로 켜고, 필요할 때만 받는다).
 //  - 설정: furnace.properties plugins.compat.nms.spigot-mappings=download (기본). 그래도 plugins/bukkit-plugins/(또는 plugins/) 에
-//    Spigot 이름 NMS 플러그인(매니페스트에 paperweight-mappings-namespace: mojang 이 없고 net.minecraft 를 가리키는 jar)이 있을 때만 받는다.
+//    Spigot 이름 NMS 플러그인(매니페스트에 paperweight-mappings-namespace: mojang 이 없고 net.minecraft 를 가리키는 jar)이 있을 때만 받는다 — 판정은 호환 어댑터가 jar 를 훑으며 한다.
 //  - 저장소·서버 jar 에는 싣지 않는다(Mojang·Spigot 에서 뽑은 자료, docs/policy/licensing.md). 받은 파일은 운영자 캐시에만 남는다.
 //  - Mojang server.txt: 주소·sha1·크기를 코드에 고정했다. 값은 Mojang 버전 목록 → 1.21.1 버전 파일(piston-meta, sha1 82ba6501…)의
 //    downloads.server_mappings 에서 옮겼고, 같은 파일의 downloads.server.sha1(59353fb4…)이 저장소의 바닐라 1.21.1 서버 jar 해시와 같음을 확인했다(2026-11-08).
 //  - Spigot BuildData(클래스·멤버 csrg): Spigot 은 체크섬을 내지 않는다. hub.spigotmc.org/versions/1.21.1.json 의 BuildData 커밋에 고정해 받고,
 //    그 커밋의 info.json 이 가리키는 Mojang 매핑이 위 sha1 과 같은지 확인한 뒤, 처음 받은 커밋·sha256 을 잠금 파일(spigot-mappings.lock)에 적는다.
 //    그 뒤로는 다른 커밋·다른 바이트를 받지도 쓰지도 않는다(의도한 갱신이면 잠금 파일을 지운다).
+//  - 받기가 연결·제한 시간 문제로 실패하면 그 사실을 캐시(download-failed.properties)에 남기고, 다음 시작들은 기다림 없이 건너뛴다(10분 → 1시간 → 6시간 → 24시간 상한 백오프).
+//    인터넷이 막힌 서버가 시작마다 제한 시간을 기다리지 않게 한다. 캐시에 파일이 있거나 받기에 성공하면 기록은 지워진다.
 //  - plugins.libraries.offline=true 면 네트워크에 나가지 않는다 — 파일을 손으로 캐시에 두면(아래 경로) 그것을 쓴다(Mojang 파일은 sha1 이 맞아야 한다).
 package org.domi.furnace.server.plugin.library;
 
@@ -21,6 +23,9 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Map;
@@ -65,6 +70,23 @@ public final class SpigotMappingFiles {
     private final URI spigotVersionUri;
     private final URI buildDataRaw;
     private final Logger log;
+    private Clock clock = Clock.systemUTC();
+
+    /** 받기 실패 기억 파일(캐시 폴더 안). 지우면 바로 다시 받는다. */
+    public static final String FAILED = "download-failed.properties";
+    /** 연속 실패 횟수별 다음 시도까지 기다리는 시간(마지막 값이 상한). */
+    static final Duration[] BACKOFF = {Duration.ofMinutes(10), Duration.ofHours(1), Duration.ofHours(6), Duration.ofHours(24)};
+
+    /** 이전 시작에서 받기에 실패해 아직 기다리는 중이라 이번에는 네트워크에 나가지 않았다 — 운영자에게 한 줄로 알릴 뿐 다시 시도하지 않는다. */
+    public static final class Backoff extends LibraryResolver.LibraryException {
+        Backoff(String message) { super(message); }
+    }
+
+    /** 시험용: 시계를 바꾼다. */
+    SpigotMappingFiles withClock(Clock c) {
+        this.clock = c;
+        return this;
+    }
 
     public SpigotMappingFiles(LibrarySettings settings, Path cacheRoot, Logger log) {
         this(settings, cacheRoot, new LibraryResolver.HttpFetcher(settings.timeoutSeconds(), 1000), MOJANG_MAPPINGS, MOJANG_SHA1, MOJANG_SIZE,
@@ -90,9 +112,74 @@ public final class SpigotMappingFiles {
 
     /** 세 파일을 준비한다(캐시에 맞는 것이 있으면 네트워크에 나가지 않는다). */
     public Files3 ensure() throws LibraryResolver.LibraryException {
-        Path mojang = ensureMojang();
-        Path[] spigot = ensureSpigot();
-        return new Files3(mojang, spigot[0], spigot[1]);
+        try {
+            Path mojang = ensureMojang();
+            Path[] spigot = ensureSpigot();
+            Files3 done = new Files3(mojang, spigot[0], spigot[1]);
+            forgetFailure();
+            return done;
+        } catch (NetworkFailure e) {
+            rememberFailure(e);
+            throw e;
+        }
+    }
+
+    /** 연결·제한 시간·이름 풀이 실패(HTTP 응답이 온 것은 아님) — 다음 시작에서 같은 기다림을 되풀이하지 않도록 기억한다. */
+    private static final class NetworkFailure extends LibraryResolver.LibraryException {
+        NetworkFailure(String message, Throwable cause) { super(message, cause); }
+    }
+
+    private Path failedFile() { return dir.resolve(FAILED); }
+
+    /** 네트워크가 필요한 지점(캐시에 맞는 파일이 없다) 직전에 부른다 — 이전 시작의 실패가 아직 기다림 안이면 Backoff. */
+    private void backoffCheck() throws Backoff {
+        Path f = failedFile();
+        if (!Files.isRegularFile(f)) return;
+        java.util.Properties p = new java.util.Properties();
+        try (var in = Files.newInputStream(f)) {
+            p.load(new java.io.InputStreamReader(in, StandardCharsets.UTF_8));
+            int n = Math.max(1, Integer.parseInt(p.getProperty("failures", "1").strip()));
+            Instant last = Instant.ofEpochMilli(Long.parseLong(p.getProperty("last-failure-epoch-ms").strip()));
+            Instant next = last.plus(BACKOFF[Math.min(n, BACKOFF.length) - 1]);
+            Instant now = clock.instant();
+            if (last.isAfter(now)) return;   // 시계가 되돌려졌거나 기록이 잘못 앞선 시각이면 믿지 않는다(몇 달씩 막지 않게)
+            if (now.isBefore(next)) {
+                long mins = Math.max(1, Duration.between(now, next).toMinutes());
+                String wait = mins >= 120 ? "약 " + (mins + 30) / 60 + "시간" : "약 " + mins + "분";
+                throw new Backoff(n + "번 연속 받기에 실패했고(마지막 " + last + ", " + p.getProperty("reason", "연결 실패") + ") 다음 시도는 " + wait
+                        + " 뒤다(바로 다시 받으려면 " + f + " 를 지워라)");
+            }
+        } catch (IOException | RuntimeException e) {
+            // 읽을 수 없는 기록은 없는 것으로 본다(받기를 막지 않는다)
+        }
+    }
+
+    private void rememberFailure(NetworkFailure e) {
+        Path f = failedFile();
+        int n = 0;
+        try (var in = Files.newInputStream(f)) {
+            java.util.Properties p = new java.util.Properties();
+            p.load(new java.io.InputStreamReader(in, StandardCharsets.UTF_8));
+            n = Integer.parseInt(p.getProperty("failures", "0").strip());
+        } catch (IOException | RuntimeException ignored) {
+            // 기록 없음
+        }
+        java.util.Properties out = new java.util.Properties();
+        out.setProperty("failures", String.valueOf(Math.max(0, n) + 1));
+        out.setProperty("last-failure-epoch-ms", String.valueOf(clock.millis()));
+        String why = String.valueOf(e.getMessage()).replaceAll("[\\r\\n]+", " ");
+        out.setProperty("reason", why.length() > 200 ? why.substring(0, 200) : why);
+        try {
+            var w = new java.io.StringWriter();
+            out.store(w, "Spigot 이름 대응표 받기 실패 기록(연결 문제만). 지우면 다음 시작에 바로 다시 받는다.");
+            store(f, w.toString().getBytes(StandardCharsets.UTF_8));
+        } catch (IOException | LibraryResolver.LibraryException ex) {
+            log.debug("받기 실패 기록을 쓰지 못했다(캐시 폴더를 쓸 수 없음) — 다음 시작에도 다시 시도한다: {}", ex.getMessage());
+        }
+    }
+
+    private void forgetFailure() {
+        deleteQuietly(failedFile());
     }
 
     // ------------------------------------------------------------------ Mojang
@@ -215,55 +302,25 @@ public final class SpigotMappingFiles {
         throw new LibraryResolver.LibraryException(what + " 를 JSON 으로 읽지 못했다");
     }
 
-    // ------------------------------------------------------------------ 필요 판정
-
-    // 서버 클래스 파일에 호환 이름공간 문자열을 상수로 남기지 않는다(CompatIsolationStaticTest) — 실행 때 잇는다
-    private static final byte[][] NMS = {String.join("/", "net", "minecraft", "").getBytes(StandardCharsets.UTF_8),
-            String.join(".", "net", "minecraft", "").getBytes(StandardCharsets.UTF_8)};
-
-    /**
-     * 이 호환 플러그인 jar 에 대응표가 필요한가: 매니페스트에 {@code paperweight-mappings-namespace: mojang} 이 없고(Paper 와 같은 판정 — 속성이 없으면
-     * Spigot 이름으로 본다) 클래스 파일 하나라도 {@code net/minecraft/}·{@code net.minecraft.} 를 담고 있다.
-     */
-    public static boolean needs(Path jar) throws IOException {
-        try (java.util.jar.JarFile jf = new java.util.jar.JarFile(jar.toFile(), false)) {
-            var man = jf.getManifest();
-            String ns = man == null ? null : man.getMainAttributes().getValue("paperweight-mappings-namespace");
-            if (ns != null && !ns.equalsIgnoreCase("spigot")) return false;
-            var en = jf.entries();
-            while (en.hasMoreElements()) {
-                var e = en.nextElement();
-                if (!e.getName().endsWith(".class")) continue;
-                byte[] b;
-                try (var in = jf.getInputStream(e)) {
-                    b = in.readAllBytes();
-                }
-                for (byte[] n : NMS) if (indexOf(b, n) >= 0) return true;
-            }
-        }
-        return false;
-    }
-
-    private static int indexOf(byte[] hay, byte[] needle) {
-        outer:
-        for (int i = 0, last = hay.length - needle.length; i <= last; i++) {
-            for (int j = 0; j < needle.length; j++) if (hay[i + j] != needle[j]) continue outer;
-            return i;
-        }
-        return -1;
-    }
+    // 이 대응표가 필요한 플러그인인지(Spigot 이름 jar + NMS 이름 참조) 판정은 호환 어댑터가 jar 를 한 번 훑으며 한다(NmsCompatReport.Read.needsSpigotMappings) —
+    // 서버가 같은 jar 를 따로 한 번 더 읽지 않는다.
 
     // ------------------------------------------------------------------ 공통
 
     private void offlineCheck(String hint) throws LibraryResolver.LibraryException {
         if (settings.offline()) throw new LibraryResolver.LibraryException("plugins.libraries.offline=true 인데 캐시에 없다 — " + hint);
+        backoffCheck();
     }
 
     private byte[] get(URI uri, long max) throws LibraryResolver.LibraryException {
         try {
             return fetcher.get(uri, max);
-        } catch (IOException e) {
+        } catch (LibraryResolver.RetriesExhausted e) {   // 429·5xx 를 몇 초 쉬며 되풀이하다 포기 — 시작마다 같은 기다림을 하지 않게 기억한다
+            throw new NetworkFailure(uri.getHost() + " 에서 받지 못했다(" + e.getMessage() + ", 다시 시도해도 같았다)", e);
+        } catch (LibraryResolver.HttpStatusException e) {
             throw new LibraryResolver.LibraryException(uri.getHost() + " 에서 받지 못했다(" + e.getMessage() + ")", e);
+        } catch (IOException e) {
+            throw new NetworkFailure(uri.getHost() + " 에서 받지 못했다(" + e.getMessage() + ")", e);
         }
     }
 
