@@ -292,6 +292,114 @@ public final class ConfigSection {
         return pp.isEmpty() ? key : pp + "." + key;
     }
 
+    // ---------------------------------------------------------------- 키 한 단계씩 지정하는 경로(구분자가 '.' 이 아닌 호환 설정용)
+    //
+    // 위 메서드들은 점으로 경로를 나누고 점이 든 literal 키도 너그럽게 찾는다. 아래 메서드는 호출하는 쪽이 이미 키 단계로 나눈 목록을 준다 —
+    // 단계 하나가 곧 키 하나라서 점이 든 키("minecraft:stone.x", 도메인 이름)가 그대로 한 단계다. 단계가 섹션이 아니면 없는 것으로 본다(너그러운 대체 없음).
+
+    /** 루트부터 이 섹션까지의 키 단계(루트면 빈 목록). */
+    public List<String> pathSegments() {
+        if (parent == null) return List.of();
+        ArrayList<String> out = new ArrayList<>(parent.pathSegments());
+        out.add(key);
+        return out;
+    }
+
+    private Loc locateSegments(List<String> segs) {
+        ConfigSection cur = this;
+        for (int i = 0; i < segs.size() - 1; i++) {
+            if (!(cur.map.get(segs.get(i)) instanceof ConfigSection next)) return null;
+            cur = next;
+        }
+        return segs.isEmpty() || !cur.map.containsKey(segs.get(segs.size() - 1)) ? null : new Loc(cur, segs.get(segs.size() - 1));
+    }
+
+    private Object lookupSegments(List<String> segs) {
+        Loc loc = locateSegments(segs);
+        return loc == null ? ABSENT : loc.owner.map.get(loc.key);
+    }
+
+    private Object defaultValueSegments(List<String> segs) {
+        ConfigSection root = getRoot();
+        if (root.defaults == null) return ABSENT;
+        ArrayList<String> full = new ArrayList<>(pathSegments());
+        full.addAll(segs);
+        return root.defaults.lookupSegments(full);
+    }
+
+    /** 값 조회(없으면 defaults, 그래도 없으면 null). 단계가 없으면 이 섹션 자신. */
+    public Object getAt(List<String> segs) {
+        if (segs.isEmpty()) return this;
+        Object v = lookupSegments(segs);
+        if (v == ABSENT || v == null) {
+            Object d = defaultValueSegments(segs);
+            return d == ABSENT ? null : d;
+        }
+        return v;
+    }
+
+    public boolean containsAt(List<String> segs, boolean ignoreDefaults) {
+        if (segs.isEmpty()) return true;
+        if (lookupSegments(segs) != ABSENT) return true;
+        return !ignoreDefaults && defaultValueSegments(segs) != ABSENT;
+    }
+
+    /** 값 저장. 중간 단계는 필요하면 새 섹션으로 만들고, 섹션이 아닌 값이 있으면 새 섹션으로 바꾼다. 단계가 비면 IllegalArgumentException. */
+    public void setAt(List<String> segs, Object value) {
+        if (segs.isEmpty()) throw new IllegalArgumentException("빈 경로");
+        Object v = normalize(value);
+        ConfigSection cur = this;
+        for (int i = 0; i < segs.size() - 1; i++) {
+            if (cur.map.get(segs.get(i)) instanceof ConfigSection next) {
+                cur = next;
+            } else {
+                ConfigSection made = new ConfigSection();
+                cur.putChild(segs.get(i), made);
+                cur = made;
+            }
+        }
+        cur.putChild(segs.get(segs.size() - 1), v);
+    }
+
+    /** 제거하고 이전 값을 돌려준다(없으면 null). 그 키의 주석도 함께 지운다. */
+    public Object removeAt(List<String> segs) {
+        Loc loc = locateSegments(segs);
+        return loc == null ? null : loc.owner.removeKey(loc.key);
+    }
+
+    public List<String> getCommentsAt(List<String> segs) {
+        Loc loc = locateSegments(segs);
+        List<String> c = loc == null || loc.owner.comments == null ? null : loc.owner.comments.get(loc.key);
+        return c == null ? List.of() : Collections.unmodifiableList(c);
+    }
+
+    /** 키가 존재해야 한다(없으면 IllegalArgumentException). */
+    public void setCommentsAt(List<String> segs, List<String> lines) {
+        Loc loc = locateSegments(segs);
+        if (loc == null) throw new IllegalArgumentException("존재하지 않는 경로: " + segs);
+        loc.owner.setCommentsRaw(loc.key, lines == null || lines.isEmpty() ? null : new ArrayList<>(lines));
+    }
+
+    public String getInlineCommentAt(List<String> segs) {
+        Loc loc = locateSegments(segs);
+        return loc == null || loc.owner.inlineComments == null ? null : loc.owner.inlineComments.get(loc.key);
+    }
+
+    public void setInlineCommentAt(List<String> segs, String comment) {
+        Loc loc = locateSegments(segs);
+        if (loc == null) throw new IllegalArgumentException("존재하지 않는 경로: " + segs);
+        loc.owner.setInlineRaw(loc.key, comment);
+    }
+
+    /** 기본값 하나 추가(루트 defaults 의 이 섹션 아래에 생성). */
+    public void addDefaultAt(List<String> segs, Object value) {
+        ConfigSection root = getRoot();
+        if (root.defaults == null) root.defaults = new ConfigSection();
+        ArrayList<String> full = new ArrayList<>(pathSegments());
+        full.addAll(segs);
+        root.defaults.setAt(full, value);
+    }
+
     // ---------------------------------------------------------------- 기본값
 
     /** 기본값 트리 지정(루트에서 사용). 조회 시 값이 없으면 여기서 같은 경로를 찾는다. */

@@ -6,6 +6,8 @@ import org.domi.furnace.api.config.ConfigSection;
 public class MemoryConfiguration extends MemorySection implements Configuration {
 
     private MemoryConfigurationOptions options;
+    /** setDefaults 로 받은 설정(Paper 처럼 getDefaults 가 같은 객체를 돌려준다 — 그쪽 pathSeparator 도 그대로). */
+    private MemorySection defaultsRef;
 
     public MemoryConfiguration() {}
 
@@ -36,10 +38,13 @@ public class MemoryConfiguration extends MemorySection implements Configuration 
     public void setDefaults(Configuration defaults) {
         if (defaults == null) {
             delegate.setDefaults(null);
+            defaultsRef = null;
         } else if (defaults instanceof MemorySection m) {
             delegate.setDefaults(m.delegate);
+            defaultsRef = m;
         } else {
             delegate.setDefaults(null);
+            defaultsRef = null;
             addDefaults(defaults);
         }
     }
@@ -48,8 +53,10 @@ public class MemoryConfiguration extends MemorySection implements Configuration 
     public Configuration getDefaults() {
         ConfigSection d = delegate.getDefaults();
         if (d == null) return null;
+        if (defaultsRef instanceof Configuration c && defaultsRef.delegate == d) return c;
         MemoryConfiguration c = new MemoryConfiguration();
         c.delegate = d;
+        c.options().pathSeparator(options().pathSeparator());   // addDefault 로 만들어진 기본값 트리는 이쪽 구분자로 쓰였다
         return c;
     }
 
