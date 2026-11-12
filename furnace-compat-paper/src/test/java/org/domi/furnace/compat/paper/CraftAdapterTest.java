@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.paper;
 
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -110,10 +111,35 @@ class CraftAdapterTest {
         assertSame(player.getWorld(), level.getWorld());
         assertTrue(level.players().contains(h));
         assertEquals(player.getWorld().getSeed(), level.getSeed());
-        // 네트워크 id 는 지어내지 않는다
-        UnsupportedNmsCall e = assertThrows(UnsupportedNmsCall.class, h::getId);
-        assertTrue(e.getMessage().contains("Entity#getId"), e.getMessage());
-        assertInstanceOf(UnsupportedOperationException.class, e, "UnsupportedFeature(UnsupportedOperationException) 하위");
+        // 네트워크 엔티티 id — Bukkit getEntityId 와 NMS getId 와 Furnace 핸들이 같은 번호
+        assertEquals(tp.player().entityId(), player.getEntityId());
+        assertEquals(player.getEntityId(), h.getId());
+        assertTrue(player.getEntityId() > 0);
+    }
+
+    @Test
+    void entityIdIsStableAndDistinct() {
+        World world = player.getWorld();
+        Location spot = new Location(world, at.x() + 3.5, at.y() + 1, at.z() + 0.5);
+        Entity a = owner(() -> world.spawnEntity(spot, EntityType.PIG));
+        Entity b = owner(() -> world.spawnEntity(spot, EntityType.PIG));
+        try {
+            assertTrue(a.getEntityId() > 0);
+            assertNotEquals(a.getEntityId(), b.getEntityId());
+            assertNotEquals(a.getEntityId(), player.getEntityId());
+            assertEquals(a.getEntityId(), ((CraftEntity) a).getHandle().getId());
+            int before = a.getEntityId();
+            ((CraftEntity) a).furnaceHandle(((CraftEntity) a).furnaceHandle().refresh().join());
+            assertEquals(before, a.getEntityId(), "새 스냅샷 뒤에도 같은 번호");
+            // Paper 의 getLocation(Location): 채워서 돌려주고 null 은 null
+            Location into = new Location(null, 0, 0, 0);
+            assertSame(into, a.getLocation(into));
+            assertEquals(a.getLocation().getX(), into.getX());
+            assertEquals(a.getWorld(), into.getWorld());
+            assertNull(a.getLocation(null));
+        } finally {
+            owner(() -> { a.remove(); b.remove(); return null; });
+        }
     }
 
     @Test
