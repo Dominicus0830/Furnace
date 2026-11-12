@@ -5,8 +5,9 @@ package org.domi.furnace.api.packet.schema;
 import java.util.List;
 import java.util.Objects;
 
+// publicConstructor: class 보조 타입에 모든 필드를 받는 public 생성자가 바닐라에 있다(new 플래그). 없으면 private(abstract 는 protected).
 public record StructDef(String state, String javaPackage, String name, Kind kind, boolean privateAccess,
-                        List<FieldDef> fields, List<String> constants) {
+                        List<FieldDef> fields, List<String> constants, boolean publicConstructor) {
 
     public enum Kind { CLASS, ABSTRACT, INTERFACE, RECORD, ENUM }
 

@@ -359,15 +359,18 @@ public final class PacketSchema {
             need(w, 2);
             if (state == null) throw new IllegalArgumentException("base 앞에 state 가 없다");
             StructDef.Kind kind = StructDef.Kind.CLASS;
-            if (w.size() > 2) {
-                kind = switch (w.get(2)) {
-                    case "abstract" -> StructDef.Kind.ABSTRACT;
-                    case "record" -> StructDef.Kind.RECORD;
-                    default -> throw new IllegalArgumentException("base 종류는 abstract|record: " + w.get(2));
-                };
+            boolean pub = false;
+            for (int i = 2; i < w.size(); i++) {
+                switch (w.get(i)) {
+                    case "abstract" -> kind = StructDef.Kind.ABSTRACT;
+                    case "record" -> kind = StructDef.Kind.RECORD;
+                    case "new" -> pub = true;
+                    default -> throw new IllegalArgumentException("base 옵션은 abstract|record|new: " + w.get(i));
+                }
             }
+            if (pub && kind != StructDef.Kind.CLASS) throw new IllegalArgumentException("new 는 class 에만: " + w.get(1));
             if (w.get(1).contains("$")) throw new IllegalArgumentException("base 는 바깥 클래스만: " + w.get(1));
-            openStruct(w.get(1), kind, false, List.of());
+            openStruct(w.get(1), kind, false, pub, List.of());
         }
 
         private void nested(List<String> w, List<String> consts) {
@@ -379,18 +382,20 @@ public final class PacketSchema {
                 case "interface" -> StructDef.Kind.INTERFACE;
                 default -> StructDef.Kind.ENUM;
             };
-            boolean priv = false;
+            boolean priv = false, pub = false;
             for (int i = 2; i < w.size(); i++) {
                 if (w.get(i).equals("private")) priv = true;
+                else if (w.get(i).equals("new")) pub = true;
                 else throw new IllegalArgumentException("모르는 옵션: " + w.get(i));
             }
+            if (pub && (kind != StructDef.Kind.CLASS || priv)) throw new IllegalArgumentException("new 는 공개 class 에만: " + w.get(1));
             if (!w.get(1).contains("$")) throw new IllegalArgumentException("내포 타입은 바깥$안 으로: " + w.get(1));
             if (kind == StructDef.Kind.ENUM && consts.isEmpty()) throw new IllegalArgumentException("enum 상수가 없다: " + w.get(1));
             if (kind != StructDef.Kind.ENUM && !consts.isEmpty()) throw new IllegalArgumentException("상수는 enum 에만: " + w.get(1));
-            openStruct(w.get(1), kind, priv, consts);
+            openStruct(w.get(1), kind, priv, pub, consts);
         }
 
-        private void openStruct(String name, StructDef.Kind kind, boolean priv, List<String> consts) {
+        private void openStruct(String name, StructDef.Kind kind, boolean priv, boolean pub, List<String> consts) {
             String st = state;
             String pkg = STATE_PACKAGES.get(st);
             int at = lineNo;
@@ -398,7 +403,7 @@ public final class PacketSchema {
                 if ((kind == StructDef.Kind.ENUM || kind == StructDef.Kind.INTERFACE) && !fields.isEmpty()) {
                     throw new IllegalArgumentException("스키마 " + at + "줄: " + kind + " 에는 필드를 둘 수 없다: " + name);
                 }
-                StructDef s = new StructDef(st, pkg, name, kind, priv, fields, consts);
+                StructDef s = new StructDef(st, pkg, name, kind, priv, fields, consts, pub);
                 lineOf.put(s, at);
                 return s;
             }, kind == StructDef.Kind.CLASS || kind == StructDef.Kind.ABSTRACT);

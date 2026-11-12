@@ -4,6 +4,8 @@
 // 보는 것: 패킷 종류(와이어 이름 → 클래스), record/class/singleton, 부모 클래스, 인스턴스 필드 수·순서·서술자·제네릭 인자,
 // 모든 필드 public 생성자 유무(new 플래그), enum 상수 이름·순서. 난독화 이름은 "Mojang 이름 ↔ 난독화 이름" 짝이
 // 처음 본 대로 끝까지 한결같은지(일대일)로 맞춘다. 필드 이름·접근자 이름·와이어는 난독화돼 여기서 볼 수 없다.
+// 두 번째 인자로 생성된 shim 클래스 폴더(furnace-compat-paper/build/classes/java/main)를 주면 더 본다:
+// 처리자 인터페이스 계층(바로 위 인터페이스와 순서), shim 의 public 생성자·메서드 서술자가 바닐라에도 있는지(이름은 난독화돼 서술자만).
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
@@ -12,6 +14,8 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import org.domi.furnace.api.packet.PacketDirection;
 import org.domi.furnace.api.packet.schema.FieldDef;
 import org.domi.furnace.api.packet.schema.PacketDef;
@@ -39,6 +43,9 @@ public class PacketSchemaCheck {
     static final String HANDSHAKE_INTENTION = "aij";
 
     static Path root;
+    static Path shimRoot;
+    static final Map<String, ClassNode> shimCache = new HashMap<>();
+    static final List<String> notes = new ArrayList<>();
     static PacketSchema schema = PacketSchema.protocol767();
     static final Map<String, ClassNode> cache = new HashMap<>();
     static final Map<String, String> m2o = new HashMap<>();   // Mojang 내부 이름 → 난독화
@@ -48,6 +55,7 @@ public class PacketSchemaCheck {
 
     public static void main(String[] args) throws Exception {
         root = Path.of(args[0]);
+        shimRoot = args.length > 1 ? Path.of(args[1]) : null;
         Map<String, String> vanilla = packetTable();
         int checked = 0;
         for (PacketDef p : schema.packets()) {
@@ -59,14 +67,136 @@ public class PacketSchemaCheck {
             checked++;
         }
         for (String k : vanilla.keySet()) problems.add("스키마에 없는 바닐라 패킷: " + k);
+        drain();
+        if (shimRoot != null) {
+            checkListeners();
+            drain();
+            checkPublicSignatures();
+        }
+        System.out.println("패킷 " + checked + "종 대조, 이름 짝 " + m2o.size() + "개" + (shimRoot != null ? " (shim 클래스 계층·공개 서술자 포함)" : ""));
+        notes.forEach(s -> System.out.println("  · " + s));
+        problems.forEach(s -> System.out.println("  ✗ " + s));
+        System.out.println(problems.isEmpty() ? "일치" : "불일치 " + problems.size() + "건");
+        if (!problems.isEmpty()) System.exit(1);
+    }
+
+    static void drain() throws Exception {
         while (!pending.isEmpty()) {
             String[] b = pending.poll();
             checkBound(b[0], b[1]);
         }
-        System.out.println("패킷 " + checked + "종 대조, 이름 짝 " + m2o.size() + "개");
-        problems.forEach(s -> System.out.println("  ✗ " + s));
-        System.out.println(problems.isEmpty() ? "일치" : "불일치 " + problems.size() + "건");
-        if (!problems.isEmpty()) System.exit(1);
+    }
+
+    // ------------------------------------------------------------------ 처리자 계층·공개 서술자(shim 클래스 폴더가 있을 때)
+
+    /** 패킷의 Packet&lt;X&gt; 인자(자기나 부모 클래스의 제네릭 서명에서). */
+    static String listenerOf(ClassNode c, boolean shim) throws Exception {
+        for (ClassNode k = c; k != null; k = k.superName == null ? null : (shim ? loadShim(k.superName) : load(k.superName))) {
+            String g = k.signature;
+            if (g != null && g.contains("<L")) {
+                int i = g.lastIndexOf("<L");
+                return g.substring(i + 2, g.indexOf(';', i));
+            }
+        }
+        return null;
+    }
+
+    static void checkListeners() throws Exception {
+        Deque<String[]> q = new ArrayDeque<>();
+        for (PacketDef p : schema.packets()) {
+            String m = internal(p.binaryName());
+            ClassNode v = load(m2o.get(m)), g = loadShim(m);
+            if (v == null || g == null) continue;
+            String vl = listenerOf(v, false), gl = listenerOf(g, true);
+            if (vl == null || gl == null) { problems.add(p.className() + ": 처리자 인자를 못 찾음"); continue; }
+            bind(gl, vl, p.className() + " 처리자");
+            q.add(new String[] {gl, vl});
+        }
+        Set<String> seen = new TreeSet<>();
+        while (!q.isEmpty()) {
+            String[] b = q.poll();
+            if (!seen.add(b[0])) continue;
+            ClassNode v = load(b[1]), g = loadShim(b[0]);
+            if (v == null || g == null) { problems.add(b[0] + ": 처리자 클래스가 없다(바닐라 " + (v != null) + ", shim " + (g != null) + ")"); continue; }
+            if (v.interfaces.size() != g.interfaces.size()) {
+                problems.add(b[0] + ": 바로 위 인터페이스 " + g.interfaces + " / 바닐라 " + v.interfaces.stream().map(i -> o2m.getOrDefault(i, "?" + i)).toList());
+                continue;
+            }
+            for (int i = 0; i < v.interfaces.size(); i++) {
+                bind(g.interfaces.get(i), v.interfaces.get(i), b[0] + " 위 " + i);
+                q.add(new String[] {g.interfaces.get(i), v.interfaces.get(i)});
+            }
+        }
+        notes.add("처리자 인터페이스 " + seen.size() + "개 계층 대조");
+    }
+
+    static void checkPublicSignatures() throws Exception {
+        List<String> names = new ArrayList<>();
+        schema.packets().forEach(p -> names.add(internal(p.binaryName())));
+        schema.structs().forEach(s -> names.add(internal(s.binaryName())));
+        int erasedOnly = 0, classes = 0;
+        for (String m : names) {
+            ClassNode v = load(m2o.get(m)), g = loadShim(m);
+            if (v == null || g == null) continue;
+            classes++;
+            List<String> vs = new ArrayList<>();
+            for (MethodNode mn : v.methods) if (visible(mn)) vs.add(sigKey(mn, true));
+            for (MethodNode mn : g.methods) {
+                // schemaKey·schemaValues(SchemaPacket)·toFurnace(NmsPacket)는 호환 계층 다리라 바닐라에 없다
+                if (!visible(mn) || mn.name.equals("schemaKey") || mn.name.equals("schemaValues") || mn.name.equals("toFurnace")) continue;
+                String k = sigKey(mn, false);
+                if (vs.stream().anyMatch(x -> sameShape(x, k))) continue;
+                if (k.contains("Ljava/lang/Object;")) { erasedOnly++; continue; }   // 지운 라이브러리 타입(authlib·fastutil 등) — 예상된 차이
+                problems.add(m.substring(m.lastIndexOf('/') + 1) + ": 바닐라에 없는 public " + k);
+            }
+        }
+        notes.add("공개 서술자 대조 " + classes + "개 클래스, 지운 라이브러리 타입 때문에 다른 것 " + erasedOnly + "개(예상)");
+    }
+
+    static boolean visible(MethodNode mn) {
+        return (mn.access & Opcodes.ACC_PUBLIC) != 0 && (mn.access & Opcodes.ACC_SYNTHETIC) == 0 && !mn.name.equals("<clinit>");
+    }
+
+    /** 이름은 난독화돼 비교 못 하므로 생성자/메서드 구분과 서술자만. 바닐라 쪽은 짝이 있는 이름을 Mojang 이름으로, 없는 것은 '?' 로. */
+    static String sigKey(MethodNode mn, boolean vanilla) {
+        String d = mn.desc;
+        if (vanilla) {
+            java.util.regex.Matcher mt = java.util.regex.Pattern.compile("L([^;]+);").matcher(d);
+            StringBuilder sb = new StringBuilder();
+            while (mt.find()) {
+                String n = mt.group(1);
+                String r = n.contains("/") ? n : o2m.getOrDefault(n, "?");
+                mt.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement("L" + r + ";"));
+            }
+            mt.appendTail(sb);
+            d = sb.toString();
+        }
+        return ((mn.access & Opcodes.ACC_STATIC) != 0 ? "static " : "") + (mn.name.equals("<init>") ? "<init>" : "m") + d;
+    }
+
+    /** 바닐라 서술자의 짝 없는 net.minecraft 타입('?')은 shim 의 net.minecraft 타입 아무것과 맞는다고 본다. */
+    static boolean sameShape(String vanilla, String shim) {
+        if (vanilla.equals(shim)) return true;
+        if (!vanilla.contains("L?;")) return false;
+        StringBuilder re = new StringBuilder();
+        String[] parts = vanilla.split("L\\?;", -1);
+        for (int k = 0; k < parts.length; k++) {
+            if (k > 0) re.append("Lnet/minecraft/[^;]+;");
+            re.append(java.util.regex.Pattern.quote(parts[k]));
+        }
+        return shim.matches(re.toString());
+    }
+
+    static ClassNode loadShim(String internalName) throws Exception {
+        if (shimCache.containsKey(internalName)) return shimCache.get(internalName);
+        Path p = shimRoot.resolve(internalName + ".class");
+        ClassNode cn = null;
+        if (Files.exists(p)) {
+            cn = new ClassNode();
+            new ClassReader(Files.readAllBytes(p)).accept(cn, ClassReader.SKIP_CODE);
+        }
+        shimCache.put(internalName, cn);
+        return cn;
     }
 
     // ------------------------------------------------------------------ 바닐라 종류 표
@@ -135,6 +265,11 @@ public class PacketSchemaCheck {
             if (s.kind() == StructDef.Kind.ENUM) enumConsts(s.name(), s.constants(), cn);
             else if (s.kind() == StructDef.Kind.RECORD || s.kind() == StructDef.Kind.CLASS || s.kind() == StructDef.Kind.ABSTRACT) {
                 compareFields(s.name(), s.fields(), s.javaPackage(), instanceFields(cn));
+                if (s.kind() == StructDef.Kind.CLASS && !s.privateAccess() && !s.fields().isEmpty()) {
+                    String all = "(" + String.join("", instanceFields(cn).stream().map(f -> f.desc).toList()) + ")V";
+                    boolean has = cn.methods.stream().anyMatch(m -> m.name.equals("<init>") && (m.access & Opcodes.ACC_PUBLIC) != 0 && m.desc.equals(all));
+                    if (has != s.publicConstructor()) problems.add(s.name() + ": 모든 필드 public 생성자 " + (has ? "있음 → new 플래그 필요" : "없음 → new 플래그 빼야"));
+                }
                 boolean record = "java/lang/Record".equals(cn.superName);
                 if ((s.kind() == StructDef.Kind.RECORD) != record) problems.add(s.name() + ": record 여부가 다르다");
             }

@@ -9,6 +9,9 @@
 - `new` 플래그 = 바닐라에 모든 필드를 받는 public 생성자가 있는가
 - enum 상수 이름·순서(스키마 enum·type enum)
 - 난독화 이름은 "Mojang 이름 ↔ 난독화 이름" 짝이 처음 본 대로 끝까지 한결같은지(일대일)로 맞춘다
+- 보조 class(`base`·`class` 줄)의 `new` 플래그
+- (shim 클래스 폴더를 줄 때) 처리자 인터페이스 계층: 바로 위 인터페이스와 그 순서
+- (shim 클래스 폴더를 줄 때) shim 의 public 생성자·메서드 서술자가 바닐라에도 있는가. 이름은 난독화돼 서술자만 본다. 짝이 없는 바닐라 net.minecraft 타입은 아무 net.minecraft 타입과 맞는다고 보고, 지운 라이브러리 타입(`Object`)과 호환 다리(`schemaKey`·`schemaValues`·`toFurnace`)는 뺀다
 
 필드 이름·접근자 이름·와이어 순서는 난독화돼 여기서 볼 수 없다(와이어는 서버 범용 코덱 시험이 본다).
 
@@ -20,8 +23,11 @@ git archive main tools/vanilla-data/server-1.21.1 | tar -x -C /tmp/vanilla
 ./gradlew -PskipOracle=true :furnace-api:jar
 CP=<asm-9.x.jar>:<asm-tree-9.x.jar>:furnace-api/build/libs/furnace-api.jar
 java -Dstdout.encoding=UTF-8 -cp $CP tools/compat/packet-schema-check/PacketSchemaCheck.java /tmp/vanilla/tools/vanilla-data/server-1.21.1
+# shim 까지: ./gradlew -PskipOracle=true :furnace-compat-paper:compileJava 뒤
+java -Dstdout.encoding=UTF-8 -cp $CP tools/compat/packet-schema-check/PacketSchemaCheck.java /tmp/vanilla/tools/vanilla-data/server-1.21.1 furnace-compat-paper/build/classes/java/main
 ```
 끝줄이 `일치` 면 통과, 아니면 어긋난 곳을 한 줄씩 쓰고 1 로 끝난다.
 2026-11-12 결과: 패킷 202종, 이름 짝 306개 일치. 스키마에 일부러 틀린 곳 셋(필드 타입·필드 수·enum 순서)을 넣으면 셋 다 잡는다.
+2026-11-12 검토 반영 뒤(shim 폴더 포함): 이름 짝 325개, 처리자 인터페이스 19개 계층, 공개 서술자 226개 클래스 일치(지운 라이브러리 타입 8개는 예상된 차이). 보조 class `new` 플래그를 일부러 둘 바꾸면 둘 다 잡는다.
 
 다른 버전으로 올릴 때는 `TYPE_TABLES`(패킷 종류 표 클래스의 난독화 이름)만 바꾼다.
