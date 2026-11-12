@@ -68,10 +68,12 @@ final class EventInventories {
 
         final String renameText;
         int repairCost;
+        int maximumRepairCost;
 
-        AnvilState(String renameText, int repairCost) {
+        AnvilState(String renameText, int repairCost, int maximumRepairCost) {
             this.renameText = renameText;
             this.repairCost = repairCost;
+            this.maximumRepairCost = maximumRepairCost;
         }
     }
 
@@ -80,7 +82,7 @@ final class EventInventories {
     }
 
     static UnsupportedFeature anvilFixed(String what) {
-        return new UnsupportedFeature(what, "Furnace 모루 이벤트는 재료 소모 개수·최대 비용을 바꾸지 못한다");
+        return new UnsupportedFeature(what, "Furnace 모루 이벤트는 재료 소모 개수·재료 수준 제한 풀기를 바꾸지 못한다");
     }
 
     /** 모루: 0 첫째, 1 둘째, 2 결과. */
@@ -114,12 +116,13 @@ final class EventInventories {
         public void setRepairCost(int levels) { state("AnvilInventory#setRepairCost").repairCost = levels; }
 
         @Override
-        public int getMaximumRepairCost() { return AnvilState.MAX_REPAIR_COST; }
+        public int getMaximumRepairCost() { return state == null ? AnvilState.MAX_REPAIR_COST : state.maximumRepairCost; }
 
         @Override
         public void setMaximumRepairCost(int levels) {
             if (levels < 0) throw new IllegalArgumentException("Maximum repair cost must be positive (or 0)");
-            if (levels != AnvilState.MAX_REPAIR_COST) throw anvilFixed("AnvilInventory#setMaximumRepairCost");
+            if (state != null) state.maximumRepairCost = levels;
+            else if (levels != AnvilState.MAX_REPAIR_COST) throw anvilUnknown("AnvilInventory#setMaximumRepairCost");
         }
 
         AnvilState state() { return state; }

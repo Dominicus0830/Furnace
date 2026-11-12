@@ -648,11 +648,11 @@ public final class PluginGameEvents implements GameEvents {
     }
 
     @Override
-    public AnvilPrepared prepareAnvil(Player p, AbstractContainerMenu menu, ItemStack result, int repairCost, String renameText) {
+    public AnvilPrepared prepareAnvil(Player p, AbstractContainerMenu menu, ItemStack result, int repairCost, int maximumRepairCost, String renameText) {
         if (!bus().hasSubscribers(PrepareAnvilEvent.class)) return null;
         var given = ApiConvert.item(result, items());
-        var ev = bus().call(new PrepareAnvilEvent(host.player(p), ApiConvert.snapshot(menu, items()), given, repairCost, renameText));
-        return new AnvilPrepared(fromApi(ev.result(), given, result), ev.repairCost());
+        var ev = bus().call(new PrepareAnvilEvent(host.player(p), ApiConvert.snapshot(menu, items()), given, repairCost, maximumRepairCost, renameText));
+        return new AnvilPrepared(fromApi(ev.result(), given, result), ev.repairCost(), ev.maximumRepairCost());
     }
 
     @Override

@@ -181,7 +181,7 @@ public class CompatInventoryView implements InventoryView {
         public int getRepairCost() { return state("AnvilView#getRepairCost").repairCost; }
 
         @Override
-        public int getMaximumRepairCost() { return EventInventories.AnvilState.MAX_REPAIR_COST; }
+        public int getMaximumRepairCost() { return top.getMaximumRepairCost(); }
 
         @Override
         public void setRepairItemCountCost(int amount) { throw EventInventories.anvilFixed("AnvilView#setRepairItemCountCost"); }

@@ -245,6 +245,26 @@ class EntityInventoryMenuTest {
     }
 
     @Test
+    void invalidCloseReasonIsUnloadedOnlyWhenTheBoundEntityIsRemoved() {   // Paper: 엔티티 제거 훅은 UNLOADED, 멀어짐은 CANT_USE
+        var reason = org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.class;
+        Donkey d = tamed(new Donkey(level, level.nextEntityId()));
+        HorseInventoryMenu m = open(d);
+        mp.inRange = false;
+        assertFalse(m.stillValid(mp));
+        assertEquals(Enum.valueOf(reason, "CANT_USE"), m.invalidCloseReason());
+        mp.inRange = true;
+        d.setRemoved(Entity.RemovalReason.DISCARDED);
+        assertEquals(Enum.valueOf(reason, "UNLOADED"), m.invalidCloseReason());
+
+        MinecartChest mc = new MinecartChest(level, level.nextEntityId());
+        mc.moveTo(0.5, -60, 0.5, 0, 0);
+        ChestMenu cm = ChestMenu.threeRows(1, invC, new EntityContainer(mc), null, mp);
+        assertEquals(Enum.valueOf(reason, "CANT_USE"), cm.invalidCloseReason());
+        mc.setRemoved(Entity.RemovalReason.KILLED);
+        assertEquals(Enum.valueOf(reason, "UNLOADED"), cm.invalidCloseReason());
+    }
+
+    @Test
     void armorSlotClickEquipsBodyArmor() {
         Horse h = tamed(new Horse(level, level.nextEntityId()));
         HorseInventoryMenu m = open(h);

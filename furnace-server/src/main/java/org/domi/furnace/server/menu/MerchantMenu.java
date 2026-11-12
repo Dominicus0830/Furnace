@@ -32,6 +32,10 @@ public class MerchantMenu extends AbstractContainerMenu {
 
     @Override public boolean stillValid(MenuPlayer player) { return trader.tradingPlayer() == player; }
 
+    @Override public org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason invalidCloseReason() {
+        return trader instanceof org.domi.furnace.server.entity.Entity e ? reasonForEntity(e) : super.invalidCloseReason();
+    }
+
     @Override
     public void slotsChanged(Container container) {
         tradeContainer.updateSellItem();

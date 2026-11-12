@@ -62,6 +62,13 @@ public class AnvilMenu extends ItemCombinerMenu {
         return v.toString();
     }
 
+    /** 결과를 가져올 수 있는 비용의 위쪽 한계(Paper AnvilMenu.maximumRepairCost, 기본 40). 이 값 이상이면 생존 모드에서 "너무 비쌈". 창마다 따로다. */
+    private int maximumRepairCost = 40;
+
+    public int maximumRepairCost() { return maximumRepairCost; }
+
+    public void setMaximumRepairCost(int levels) { this.maximumRepairCost = levels; }
+
     private void empty() {
         resultSlots.set(0, ItemStack.EMPTY);
         cost.set(0);
@@ -70,10 +77,11 @@ public class AnvilMenu extends ItemCombinerMenu {
 
     /** 플러그인 PrepareAnvilEvent — 바뀐 값이 있으면 결과 칸·비용에 적용하고 true. */
     private boolean firePrepare() {
-        var r = player.prepareAnvil(this, resultSlots.get(0), cost.get(), itemName);
+        var r = player.prepareAnvil(this, resultSlots.get(0), cost.get(), maximumRepairCost, itemName);
         if (r == null) return false;
         resultSlots.set(0, r.result());
         cost.set(r.repairCost());
+        maximumRepairCost = r.maximumRepairCost();   // 이번 결과는 이미 정해졌다 — 새 한계는 다음 계산부터(Paper 와 같다)
         return true;
     }
 
@@ -161,8 +169,8 @@ public class AnvilMenu extends ItemCombinerMenu {
         int total = (int) Math.max(0L, Math.min(baseCost + levelCost, Integer.MAX_VALUE));
         cost.set(total);
         if (levelCost <= 0) result = ItemStack.EMPTY;
-        if (renameCost == levelCost && renameCost > 0 && cost.get() >= 40) cost.set(39);
-        if (cost.get() >= 40 && !player.isCreative()) result = ItemStack.EMPTY;
+        if (renameCost == levelCost && renameCost > 0 && cost.get() >= maximumRepairCost) cost.set(maximumRepairCost - 1);
+        if (cost.get() >= maximumRepairCost && !player.isCreative()) result = ItemStack.EMPTY;
         if (!result.isEmpty()) {
             int rc = repairCost(result);
             if (rc < repairCost(addition)) rc = repairCost(addition);

@@ -67,7 +67,7 @@ final class InventoryResultMappings {
         // Paper: PrepareAnvilEvent 는 PrepareInventoryResultEvent 의 처리기 목록을 쓴다. 결과는 이벤트 값, 비용은 AnvilView 값
         EventBridge.reg(org.domi.furnace.api.event.inventory.PrepareAnvilEvent.class, org.bukkit.event.inventory.PrepareInventoryResultEvent.class,
                 f -> {
-                    var st = new EventInventories.AnvilState(f.renameText(), f.repairCost());
+                    var st = new EventInventories.AnvilState(f.renameText(), f.repairCost(), f.maximumRepairCost());
                     CompatInventoryView view = CompatInventories.view(f.player(), f.inventory(), f.menu(), null,
                             new CompatInventories.Extras(null, false, null, st, null));
                     if (!(view instanceof CompatInventoryView.Anvil av)) return null;
@@ -78,10 +78,13 @@ final class InventoryResultMappings {
                     if (!r.equals(f.result())) f.setResult(r);
                     int cost = anvilState(b).repairCost;
                     if (cost != f.repairCost()) f.setRepairCost(cost);
+                    int max = anvilState(b).maximumRepairCost;
+                    if (max != f.maximumRepairCost()) f.setMaximumRepairCost(max);
                 }, (f, b) -> {
                     if (!furnace(b.getResult()).equals(f.result())) b.setResult(bukkitOrNull(f.result()));
                     var st = anvilState(b);
                     if (st.repairCost != f.repairCost()) st.repairCost = f.repairCost();
+                    if (st.maximumRepairCost != f.maximumRepairCost()) st.maximumRepairCost = f.maximumRepairCost();
                 });
     }
 

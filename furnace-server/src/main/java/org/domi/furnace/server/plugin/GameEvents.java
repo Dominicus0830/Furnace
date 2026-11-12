@@ -254,10 +254,10 @@ public interface GameEvents {
     }
 
     /** 모루 결과 값. */
-    record AnvilPrepared(ItemStack result, int repairCost) {}
+    record AnvilPrepared(ItemStack result, int repairCost, int maximumRepairCost) {}
 
     /** 모루 결과를 정한 직후: 바꾼 값, null 이면 그대로(구독자 없음 포함). */
-    default AnvilPrepared prepareAnvil(Player p, AbstractContainerMenu menu, ItemStack result, int repairCost, String renameText) { return null; }
+    default AnvilPrepared prepareAnvil(Player p, AbstractContainerMenu menu, ItemStack result, int repairCost, int maximumRepairCost, String renameText) { return null; }
 
     /** 양조가 끝나 병을 바꾸기 직전(items 는 양조대 다섯 칸, results 는 병 세 칸에 들어갈 결과 — 처리기가 바꾸면 그 자리에서 고친다). false 면 취소. */
     default boolean brew(String dimension, Pos pos, ItemStack[] items, ItemStack[] results, int fuelLevel) { return true; }
