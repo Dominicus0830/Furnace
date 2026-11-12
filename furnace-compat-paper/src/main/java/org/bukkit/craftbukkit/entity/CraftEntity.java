@@ -45,6 +45,9 @@ public class CraftEntity implements Entity {
         handle = fresh;
     }
 
+    /** 호환 모듈 전용 — 이미 만든 NMS 엔티티 shim(없으면 null, 만들지 않는다). */
+    public net.minecraft.world.entity.Entity peekHandle() { return nms; }
+
     /**
      * NMS 엔티티 shim. 같은 CraftEntity 는 같은 shim 을 준다(== 비교·Map 키). shim 의 멤버는 일부만 있다 —
      * 없는 멤버는 호출할 때 NoSuchMethodError/NoSuchFieldError, 있지만 못 하는 것은 UnsupportedNmsCall(docs/feature-parity/compat-h6-2026-11-07.md).

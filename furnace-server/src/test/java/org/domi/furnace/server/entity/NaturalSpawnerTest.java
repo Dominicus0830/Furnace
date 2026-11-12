@@ -31,7 +31,7 @@ class NaturalSpawnerTest {
         assertEquals(MobCategory.MONSTER, EntityMeta.category("minecraft:zombie"));
         assertEquals(MobCategory.CREATURE, EntityMeta.category("minecraft:cow"));
         assertEquals(MobCategory.WATER_AMBIENT, EntityMeta.category("minecraft:cod"));
-        assertNotNull(BiomeSpawns.getRandom(plains, RandomSource.create()));
+        assertNotNull(BiomeSpawns.getRandom(plains, RandomSource.createFor(0L, 0)));
         assertNotNull(EntityType.byName("minecraft:zombie"));
     }
 
@@ -43,7 +43,7 @@ class NaturalSpawnerTest {
         }
         Pos pos = new Pos(5, -60, 5);
         assertTrue(SpawnPlacements.isSpawnPositionOk("minecraft:cow", level, pos), "풀 위 빈 칸은 땅 스폰 가능");
-        assertTrue(SpawnPlacements.checkSpawnRules("minecraft:cow", level, SpawnReason.NATURAL, pos, RandomSource.create()) || level.getRawBrightness(pos, 0) <= 8,
+        assertTrue(SpawnPlacements.checkSpawnRules("minecraft:cow", level, SpawnReason.NATURAL, pos, RandomSource.createFor(0L, 0)) || level.getRawBrightness(pos, 0) <= 8,
                 "소는 밝은 풀 위에 난다");
         assertFalse(SpawnPlacements.isSpawnPositionOk("minecraft:cow", level, new Pos(5, -61, 5)), "블록 안은 불가");
         level.setBlock(new Pos(7, -61, 7), B.defaultState(B.id("minecraft:glass")), 3);

@@ -35,9 +35,10 @@ public abstract class MinecraftServer {
 
     private static void warnPipelineNotBridged() {
         org.domi.furnace.compat.nms.NmsCaller.warnOnce("pipeline",
-                "플러그인 {} 가 패킷 파이프라인(ServerConnectionListener)에 끼어들려 한다. Furnace 는 아직 패킷 가로채기·보내기를 잇지 않았다"
-                        + "(ProtocolLib 다리 1단계) — 이 플러그인과 이를 쓰는 플러그인의 패킷 기능(가로채기 리스너, sendServerPacket 등)은 동작하지 않는다."
-                        + " 대신 Furnace 패킷 API(docs/api/packets.md)를 쓴다.");
+                "플러그인 {} 가 패킷 파이프라인(ServerConnectionListener)에 끼어들려 한다. Furnace 는 서버 소켓·로그인 전 단계 가로채기를 잇지 않았다 — "
+                        + "그 단계(핸드셰이크·상태·로그인)를 보려는 기능은 동작하지 않는다. 접속한 플레이어에게 보내는 패킷은 일부 이어졌다"
+                        + "(sendServerPacket·connection.send 와 나가는 가로채기), 서버가 스스로 보내는 패킷·들어오는 패킷 가로채기는 아직이다"
+                        + "(docs/feature-parity/compat-protocollib-pipeline-2b-plan-2026-11-12.md). 대신 Furnace 패킷 API(docs/api/packets.md)를 쓴다.");
     }
 
     /** 바닐라 서버 버전 이름(1.21.1). */

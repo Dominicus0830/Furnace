@@ -111,7 +111,7 @@ class LookAtPlayerConditionsTest {
     @Test
     void threadSafeRandomKeepsStateAcrossThreads() throws Exception {
         // 여러 스레드가 함께 뽑아도 예외·손실 없이 고르게 나온다(Sensor 시작 틱 난수).
-        var shared = RandomSource.createThreadSafe();
+        var shared = RandomSource.createThreadSafeFor(org.domi.furnace.server.block.RandomSeeds.key("test"), 0);
         int threads = 4, each = 20000;
         var out = new java.util.concurrent.ConcurrentLinkedQueue<Integer>();
         var pool = java.util.concurrent.Executors.newFixedThreadPool(threads);
@@ -122,6 +122,5 @@ class LookAtPlayerConditionsTest {
         int[] hist = new int[1000];
         for (int v : out) hist[v]++;
         for (int h : hist) assertTrue(h > 30 && h < 130, "고르게 나온다: " + h);
-        assertNotEquals(RandomSource.create().nextLong(), RandomSource.create().nextLong(), "연달아 만든 난수의 씨앗이 겹치지 않는다");
     }
 }

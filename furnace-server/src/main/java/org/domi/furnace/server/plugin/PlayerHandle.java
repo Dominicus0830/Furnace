@@ -376,6 +376,51 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     @Override
     public float maxHealth() { return p.vitals().maxHealth(); }
 
+    // ------------------------------------------------------------------ 속성(/attribute 와 같은 맵 — 읽기는 최근 값, 쓰기는 소유 스레드)
+
+    private final AttributeApi.Owner attrOwner = new AttributeApi.Owner() {
+        @Override
+        public <T> java.util.concurrent.CompletableFuture<T> run(java.util.function.Function<org.domi.furnace.server.attribute.AttributeMap, T> task) {
+            if (p.isDisconnected()) return RegionFuture.wrap(java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("접속이 끊긴 플레이어: " + p.name())));
+            RegionFuture<T> f = new RegionFuture<>();
+            p.runOnOwner(() -> {
+                try {
+                    f.complete(task.apply(p.attributes()));
+                } catch (Throwable t) {
+                    f.completeExceptionally(t);
+                }
+            });
+            return f;
+        }
+
+        @Override
+        public void check() {
+            if (!p.isOnOwnerThread()) {
+                throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("AttributeInstance 는 플레이어 " + p.name()
+                        + " 를 가진 region 스레드에서만 쓸 수 있다 (현재 " + Thread.currentThread().getName() + ") — AttributeHandle.edit 를 쓴다");
+            }
+        }
+    };
+
+    @Override
+    public java.util.Optional<org.domi.furnace.api.entity.attribute.AttributeHandle> attribute(org.domi.furnace.api.entity.attribute.Attribute attribute) {
+        java.util.Objects.requireNonNull(attribute, "attribute");
+        return AttributeApi.handle(p.attributeView(), attribute, attrOwner);
+    }
+
+    @Override
+    public java.util.List<org.domi.furnace.api.entity.attribute.Attribute> attributes() { return AttributeApi.keys(p.attributeView()); }
+
+    @Override
+    public java.util.concurrent.CompletableFuture<Boolean> registerAttribute(org.domi.furnace.api.entity.attribute.Attribute attribute) {
+        var a = AttributeApi.server(java.util.Objects.requireNonNull(attribute, "attribute"));
+        return attrOwner.run(map -> {
+            if (map.has(a)) return false;
+            map.register(a);
+            return true;
+        });
+    }
+
     @Override
     public org.domi.furnace.api.sched.TaskScheduler scheduler() {
         var w = host.worldHandle(p.dimension());

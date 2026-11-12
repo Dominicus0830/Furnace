@@ -22,23 +22,17 @@ public interface RandomSource {
     /** RandomSource.triangle(center, spread). */
     default double triangle(double center, double spread) { return center + spread * (nextDouble() - nextDouble()); }
 
-    /** RandomSource.create(): RandomSupport.generateUniqueSeed 로 씨앗을 고른 LegacyRandomSource. */
-    static RandomSource create() { return new LegacyRandomSource(UniqueSeed.next()); }
+    /**
+     * 주인 열쇠로 난수를 만든다(RandomSeeds). 운영에서는 예측 불가 씨앗 — 바닐라 RandomSource.create() 와 같다.
+     * 시험 JVM(-Dfurnace.test.seeded=true)에서는 (열쇠, 용도)에서 파생해 같은 장면이 같은 난수열을 얻는다.
+     */
+    static RandomSource createFor(long ownerKey, int purpose) { return new LegacyRandomSource(RandomSeeds.seed(ownerKey, purpose)); }
 
     /**
      * RandomSource.createThreadSafe(): 여러 스레드가 함께 써도 상태가 깨지지 않는 LCG(바닐라 ThreadSafeLegacyRandomSource 는 CAS,
-     * 여기서는 잠금 — 값의 분포는 같다). 정적 공유 난수(Sensor 시작 틱 등)에 쓴다.
+     * 여기서는 잠금 — 값의 분포는 같다). 정적 공유 난수(Sensor 시작 틱)에 쓴다. 씨앗은 createFor 와 같은 이음매.
      */
-    static RandomSource createThreadSafe() { return new ThreadSafe(new LegacyRandomSource(UniqueSeed.next())); }
-
-    /** RandomSupport.generateUniqueSeed: 곱해 가는 원자 값 ^ nanoTime(같은 순간에 만들어도 씨앗이 겹치지 않는다). */
-    final class UniqueSeed {
-        private static final java.util.concurrent.atomic.AtomicLong UNIQUIFIER = new java.util.concurrent.atomic.AtomicLong(8682522807148012L);
-
-        private UniqueSeed() {}
-
-        static long next() { return UNIQUIFIER.updateAndGet(v -> v * 1181783497276652981L) ^ System.nanoTime(); }
-    }
+    static RandomSource createThreadSafeFor(long ownerKey, int purpose) { return new ThreadSafe(createFor(ownerKey, purpose)); }
 
     /** 잠금으로 감싼 난수. */
     final class ThreadSafe implements RandomSource {

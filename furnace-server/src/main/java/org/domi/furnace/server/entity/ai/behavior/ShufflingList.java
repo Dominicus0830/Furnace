@@ -7,8 +7,12 @@ import java.util.Iterator;
 import java.util.List;
 
 public final class ShufflingList<U> implements Iterable<U> {
-    /** 바닐라처럼 목록마다 난수(정적으로 공유하면 여러 region 스레드가 동기화 없이 같은 상태를 고친다). */
-    private final org.domi.furnace.server.block.RandomSource random = org.domi.furnace.server.block.RandomSource.create();
+    /**
+     * 바닐라처럼 목록마다 난수(정적으로 공유하면 여러 region 스레드가 동기화 없이 같은 상태를 고친다). 주인이 없어 열쇠는 상수 —
+     * 시험 씨앗 켜짐에서는 모든 목록이 같은 난수열을 받는다(운영은 바닐라처럼 목록마다 예측 불가 씨앗).
+     */
+    private final org.domi.furnace.server.block.RandomSource random = org.domi.furnace.server.block.RandomSource.createFor(
+            org.domi.furnace.server.block.RandomSeeds.key("ShufflingList.random"), org.domi.furnace.server.block.RandomSeeds.Purpose.SHUFFLING_LIST);
 
     private static final class Entry<T> {
         final T data;

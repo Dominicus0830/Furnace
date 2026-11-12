@@ -30,8 +30,8 @@ O06 검토 보고서(`furnace/reviews/opt-review/O06-mob-ai-spawning.md` 3장)�
 
 ## C3 공유 정적 난수
 - 바닐라 `cdy`(Sensor) 정적 초기화 `ayw.b()` = RandomSource.createThreadSafe(ThreadSafeLegacyRandomSource). `bxq`(ShufflingList) 는 인스턴스 필드 `ayw b`(목록마다 RandomSource.create()).
-- `ayw.a()` = create(RandomSupport.generateUniqueSeed()) — 곱해 가는 원자 값 ^ nanoTime. Furnace `RandomSource.create()` 도 그렇게 바꿨다
-  (이전 nanoTime ^ 스레드 id 는 같은 순간에 만든 두 난수의 씨앗이 겹칠 수 있었다 — TriggerGate 는 부를 때마다 ShufflingList 를 만든다).
+- `ayw.a()` = create(RandomSupport.generateUniqueSeed()). PR #272 의 씨앗 이음매(`RandomSource.createFor` — 꺼짐이면 generateUniqueSeed)와 합쳐
+  Sensor 는 `createThreadSafeFor(key("Sensor.RANDOM"), SENSOR_SCAN)`, ShufflingList 는 인스턴스마다 `createFor(key("ShufflingList.random"), SHUFFLING_LIST)`.
 - 스레드 안전 난수는 잠금으로 감쌌다(바닐라는 CAS). 값이 씨앗으로 고정되지 않는 난수라 분포만 같으면 된다.
 
 ## 독립 검토 반영(PR #274, 11-12)
