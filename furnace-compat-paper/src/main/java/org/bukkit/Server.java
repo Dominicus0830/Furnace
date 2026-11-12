@@ -33,6 +33,9 @@ public interface Server extends org.bukkit.plugin.messaging.PluginMessageRecipie
     @Deprecated
     UnsafeValues getUnsafe();
 
+    /** 그 형의 레지스트리(이 호환 계층에 없는 형이면 null). */
+    default <T extends Keyed> Registry<T> getRegistry(Class<T> tClass) { return org.domi.furnace.compat.paper.CompatRegistries.forType(tClass); }
+
     Logger getLogger();
 
     PluginManager getPluginManager();

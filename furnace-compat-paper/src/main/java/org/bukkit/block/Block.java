@@ -55,4 +55,10 @@ public interface Block extends org.bukkit.metadata.Metadatable {
 
     /** 이웃 블록이 어느 면인지(이웃이 아니면 null). */
     BlockFace getFace(Block block);
+
+    /** 이 칸의 바이옴(World#getBiome 과 같은 규칙 — 소유 스레드 전용, 플러그인 바이옴은 CUSTOM). */
+    default Biome getBiome() { return getWorld().getBiome(getX(), getY(), getZ()); }
+
+    /** 이 칸이 든 4×4×4 바이옴 칸을 바꾼다(World#setBiome 과 같다). */
+    default void setBiome(Biome biome) { getWorld().setBiome(getX(), getY(), getZ(), biome); }
 }

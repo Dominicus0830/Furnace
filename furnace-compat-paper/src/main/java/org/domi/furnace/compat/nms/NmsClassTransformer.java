@@ -59,8 +59,8 @@ public final class NmsClassTransformer implements ClassTransformer {
     }
 
     /** 이 바이트 조각이 하나도 없으면 바꿀 것이 없다(상수 풀의 UTF-8 이름을 바로 훑는다). */
-    private static final byte[][] NEEDLES = utf8(CraftNames.VERSIONED_INTERNAL, "forName", "loadClass", "findClass", "net/minecraft/", "org/bukkit/craftbukkit/",
-            ApiRenames.ITEM_FLAG);
+    private static final byte[][] NEEDLES = utf8(concat(new String[]{CraftNames.VERSIONED_INTERNAL, "forName", "loadClass", "findClass", "net/minecraft/",
+            "org/bukkit/craftbukkit/"}, ApiRenames.OWNERS));
     /** 리플렉션 멤버 다리는 NMS 이름(리터럴 조각 포함)을 담은 클래스에만 건다 — 일반 플러그인 코드의 리플렉션은 건드리지 않는다. */
     private static final byte[][] NMS_HINTS = utf8("minecraft", "craftbukkit");
     private static final byte[][] NAME_READS = utf8("getName", "getPackageName");
@@ -185,6 +185,12 @@ public final class NmsClassTransformer implements ClassTransformer {
         return false;
     }
 
+    private static String[] concat(String[] a, String[] b) {
+        String[] out = java.util.Arrays.copyOf(a, a.length + b.length);
+        System.arraycopy(b, 0, out, a.length, b.length);
+        return out;
+    }
+
     private static byte[][] utf8(String... s) {
         byte[][] out = new byte[s.length][];
         for (int i = 0; i < s.length; i++) out[i] = s[i].getBytes(StandardCharsets.UTF_8);
@@ -247,6 +253,11 @@ public final class NmsClassTransformer implements ClassTransformer {
                 public void visitMethodInsn(int opcode, String owner, String mname, String desc, boolean itf) {
                     if (opcode == Opcodes.INVOKESTATIC && mname.equals("valueOf") && ApiRenames.reroutesValueOf(owner, desc)) {
                         super.visitMethodInsn(Opcodes.INVOKESTATIC, ApiRenames.INTERNAL, ApiRenames.valueOfName(owner), desc, false);
+                        changed[1] = true;
+                        return;
+                    }
+                    if (opcode == Opcodes.INVOKESTATIC && mname.equals("getByName") && ApiRenames.reroutesGetByName(owner, desc)) {
+                        super.visitMethodInsn(Opcodes.INVOKESTATIC, ApiRenames.INTERNAL, ApiRenames.getByNameName(owner), desc, false);
                         changed[1] = true;
                         return;
                     }

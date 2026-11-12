@@ -230,6 +230,73 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         return RegionFuture.wrap(f != null ? f : CompletableFuture.completedFuture(false));
     }
 
+    @Override
+    public Optional<String> biomeNow(BlockPos pos) {
+        Region r = ownedRegion(pos, "biomeNow(" + pos + ")");
+        ChunkPos cp = new ChunkPos(pos.chunkX(), pos.chunkZ());
+        if (r == null || !r.chunkLoaded(cp)) return Optional.empty();   // 높이 밖은 끝 칸(LevelChunk.getNoiseBiome 처럼 죈다)
+        return Optional.ofNullable(biomeName(r.noiseBiomeIdAtBlock(pos.x(), pos.y(), pos.z())));
+    }
+
+    @Override
+    public boolean setBiomeNow(BlockPos pos, String biome) {
+        int id = biomeId(biome);
+        Region r = ownedRegion(pos, "setBiomeNow(" + pos + ")");
+        ChunkPos cp = new ChunkPos(pos.chunkX(), pos.chunkZ());
+        if (r == null || !r.chunkLoaded(cp)) return false;
+        return r.setNoiseBiomeAtBlock(pos.x(), pos.y(), pos.z(), id);
+    }
+
+    // ------------------------------------------------------------------ 소리·입자
+
+    @Override
+    public void playSound(org.domi.furnace.api.audience.Sound sound, double x, double y, double z, long seed) {
+        java.util.Objects.requireNonNull(sound, "sound");
+        var pkt = ApiEffects.soundAt(sound, x, y, z, seed);
+        double range = ApiEffects.range(sound.volume());
+        // PlayerList.broadcast: 같은 차원에서 거리 제곱 < range²
+        world.forEachPlayerHere(p -> {
+            if (p.isDisconnected()) return;
+            double dx = x - p.x(), dy = y - p.y(), dz = z - p.z();
+            if (dx * dx + dy * dy + dz * dz < range * range) p.send(pkt);
+        });
+    }
+
+    @Override
+    public void playSound(org.domi.furnace.api.audience.Sound sound, Entity entity, long seed) {
+        java.util.Objects.requireNonNull(sound, "sound");
+        java.util.Objects.requireNonNull(entity, "entity");
+        // Paper: TrackedEntity.broadcastAndSend — 그 엔티티를 보는 사람 + 플레이어면 자기 자신
+        if (entity instanceof PlayerHandle ph) {
+            var self = ph.handle();
+            if (self.isDisconnected() || !world.dimension().equals(self.dimension())) return;
+            var pkt = ApiEffects.soundOn(sound, self.entityId(), seed);
+            world.broadcastToTrackers(self.entityId(), pkt);
+            self.send(pkt);
+        } else if (entity instanceof EntityHandle eh && eh.tasks().owner() instanceof org.domi.furnace.server.entity.Entity e) {
+            if (e.isRemoved() || !world.dimension().equals(e.dimensionKey())) return;
+            world.broadcastToTrackers(e.id(), ApiEffects.soundOn(sound, e.id(), seed));
+        }
+    }
+
+    @Override
+    public void spawnParticle(org.domi.furnace.api.world.ParticleEffect particle, java.util.Collection<? extends org.domi.furnace.api.entity.Player> receivers,
+                              double x, double y, double z, int count, double offsetX, double offsetY, double offsetZ, double speed, boolean force) {
+        var opts = ApiEffects.particle(particle, world.blockRegistry(), world.itemRegistry());
+        var pkt = new org.domi.furnace.server.net.protocol.play.LevelParticles(force, x, y, z, (float) offsetX, (float) offsetY, (float) offsetZ,
+                (float) speed, count, opts);
+        java.util.function.Consumer<org.domi.furnace.server.entity.Player> send = p -> {
+            // ServerLevel.sendParticles(player, …): 플레이어가 이 레벨에 있고 칸 가운데가 범위 안
+            if (p.isDisconnected() || !world.dimension().equals(p.dimension())) return;
+            if (org.domi.furnace.server.block.ChunkLevel.particleInRange(p, force, x, y, z)) p.send(pkt);
+        };
+        if (receivers == null) {
+            world.forEachPlayerHere(send);
+        } else {
+            for (var r : receivers) if (r instanceof PlayerHandle ph) send.accept(ph.handle());
+        }
+    }
+
     // ------------------------------------------------------------------ 청크
 
     @Override
