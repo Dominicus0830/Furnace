@@ -11,7 +11,7 @@ import java.util.function.Predicate;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
 public record LocationPredicate(Bounds x, Bounds y, Bounds z, HolderSet biomes, String dimension,
-                                HolderSet blocks, Map<String, JsonElement> state, boolean unsupported,
+                                HolderSet blocks, Map<String, JsonElement> state,
                                 Predicate<String> structures, Bounds light, Boolean smokey, Boolean canSeeSky,
                                 HolderSet fluids, Map<String, JsonElement> fluidState, NbtCompound blockNbt) {
 
@@ -25,7 +25,6 @@ public record LocationPredicate(Bounds x, Bounds y, Bounds z, HolderSet biomes, 
         Bounds light = null;
         Boolean smokey = null, canSeeSky = null;
         NbtCompound blockNbt = null;
-        boolean unsupported = false;
         for (var f : o.entrySet()) {
             switch (f.getKey()) {
                 case "position" -> {
@@ -61,11 +60,11 @@ public record LocationPredicate(Bounds x, Bounds y, Bounds z, HolderSet biomes, 
                         for (var s : b.getAsJsonObject("state").entrySet()) fluidState.put(s.getKey(), s.getValue());
                     }
                 }
-                default -> unsupported = true;
+                // 바닐라 코덱(RecordCodecBuilder)은 모르는 키를 오류로 보지 않고 무시한다 — 데이터 팩 오타는 조용히 빠진다
+                default -> org.slf4j.LoggerFactory.getLogger(LocationPredicate.class).warn("모르는 위치 조건 필드(바닐라처럼 무시한다): {}", f.getKey());
             }
         }
-        if (unsupported) org.slf4j.LoggerFactory.getLogger(LocationPredicate.class).warn("아직 지원하지 않는 위치 조건 필드: {}", o.keySet());
-        return new LocationPredicate(x, y, z, biomes, dimension, blocks, state, unsupported, structures, light, smokey, canSeeSky,
+        return new LocationPredicate(x, y, z, biomes, dimension, blocks, state, structures, light, smokey, canSeeSky,
                 fluids, fluidState, blockNbt);
     }
 
@@ -87,7 +86,7 @@ public record LocationPredicate(Bounds x, Bounds y, Bounds z, HolderSet biomes, 
     }
 
     public boolean matches(LootContext ctx, double[] pos) {
-        if (pos == null || unsupported) return false;
+        if (pos == null) return false;
         if (!x.matches(pos[0]) || !y.matches(pos[1]) || !z.matches(pos[2])) return false;
         if (dimension != null && !dimension.equals(ctx.world().dimension())) return false;
         int bx = (int) Math.floor(pos[0]), by = (int) Math.floor(pos[1]), bz = (int) Math.floor(pos[2]);

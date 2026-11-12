@@ -99,7 +99,8 @@ public record Criterion(String trigger, Matcher matcher, List<LootCondition> pla
             throw new IllegalArgumentException("Unknown registry key in ResourceKey[minecraft:root / minecraft:trigger_type]: " + trigger);
         }
         JsonObject c = o.has("conditions") && o.get("conditions").isJsonObject() ? o.getAsJsonObject("conditions") : new JsonObject();
-        List<LootCondition> player = c.has("player") ? playerPredicate(c.get("player"), regs) : List.of();
+        // player 조건은 소유 스레드의 살아 있는 보기로 평가한다 — looking_at 을 스냅샷에서 미리 뜨게 만들지 않는다
+        List<LootCondition> player = c.has("player") ? EntityPredicate.liveViewOnly(() -> playerPredicate(c.get("player"), regs)) : List.of();
         return new Criterion(trigger, matcher(trigger, c, regs), player);
     }
 

@@ -44,6 +44,7 @@ public final class LootData {
      */
     public static LootData load(ResourceManager rm, LootRegistries regs, Map<String, com.google.gson.JsonObject> enchantments) {
         EntityPredicate.nbtUsed = false;
+        EntityPredicate.lookingAtUsed = false;
         EntityPredicate.variantUsed = false;   // 리로드마다 다시 센다(이후 읽는 조건이 켠다)
         // 인챈트 정의 먼저(전리품 함수가 참조). 레지스트리 순서 = 파일 id 순(path → namespace).
         Map<String, ? extends JsonElement> defs = enchantments != null && !enchantments.isEmpty() ? enchantments : read(rm, "enchantment");
