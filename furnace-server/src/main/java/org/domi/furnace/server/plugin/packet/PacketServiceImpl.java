@@ -16,7 +16,7 @@ import org.domi.furnace.api.entity.Player;
 import org.domi.furnace.api.event.EventPriority;
 import org.domi.furnace.api.event.EventSubscription;
 import org.domi.furnace.api.packet.ClientboundPacket;
-import org.domi.furnace.api.packet.OpaquePacket;
+import org.domi.furnace.api.packet.GenericPacket;
 import org.domi.furnace.api.packet.Packet;
 import org.domi.furnace.api.packet.PacketDirection;
 import org.domi.furnace.api.packet.PacketEvent;
@@ -220,6 +220,12 @@ public final class PacketServiceImpl implements PacketService {
     }
 
     @Override
+    public boolean isReadable(PacketType<?> type) { return isSupported(type) && codec.readable(java.util.Objects.requireNonNull(type, "type")); }
+
+    @Override
+    public java.util.List<org.domi.furnace.api.packet.PacketField<?>> fields(PacketType<?> type) { return codec.fields(java.util.Objects.requireNonNull(type, "type")); }
+
+    @Override
     public int nextEntityId() { return host.core().world().entityIds().next(); }
 
     @Override
@@ -270,7 +276,7 @@ public final class PacketServiceImpl implements PacketService {
             try {
                 if (raw != null && raw.source() instanceof Packet src) {
                     value = src;
-                } else if (type.typed()) {
+                } else if (codec.readable(type)) {
                     ByteBuf b = Unpooled.buffer();
                     try {
                         packet.write(b);
@@ -280,11 +286,15 @@ public final class PacketServiceImpl implements PacketService {
                     }
                     value = codec.decode(type, id, Unpooled.wrappedBuffer(bytes));
                 } else {
-                    value = opaque(type);
+                    value = unreadable(type);
                 }
             } catch (RuntimeException e) {
-                log.warn("패킷 디코드 실패({}), 리스너를 건너뛴다: {}", type, e.toString());
-                return bytes != null ? new RawPacket(id, bytes, null, true) : packet;
+                if (type.typed()) {
+                    log.warn("패킷 디코드 실패({}), 리스너를 건너뛴다: {}", type, e.toString());
+                    return bytes != null ? new RawPacket(id, bytes, null, true) : packet;
+                }
+                log.debug("범용 디코드 실패({}), 내용 없이 리스너에 넘긴다: {}", type, e.toString());
+                value = unreadable(type);
             }
             EventImpl ev = fire(rs, type, value, raw != null);
             if (ev.cancelled) return null;
@@ -306,9 +316,10 @@ public final class PacketServiceImpl implements PacketService {
             if (type == null) return body;
             Packet value;
             try {
-                value = type.typed() ? codec.decode(type, packetId, body.duplicate()) : opaque(type);
+                value = codec.readable(type) ? codec.decode(type, packetId, body.duplicate()) : unreadable(type);
             } catch (RuntimeException e) {
-                return body;   // 잘못된 패킷 — 서버 본래 처리(바닐라처럼 끊기 등)에 맡긴다
+                if (type.typed()) return body;   // 잘못된 패킷 — 서버 본래 처리(바닐라처럼 끊기 등)에 맡긴다
+                value = unreadable(type);        // 범용: 관찰·취소는 되게
             }
             EventImpl ev = fire(rs, type, value, pluginPacket);
             if (ev.cancelled) return null;
@@ -329,7 +340,7 @@ public final class PacketServiceImpl implements PacketService {
         }
 
         private EventImpl fire(Reg[] rs, PacketType<?> type, Packet value, boolean plugin) {
-            EventImpl ev = new EventImpl(api(), type, value, plugin);
+            EventImpl ev = new EventImpl(api(), type, value, plugin, value instanceof GenericPacket g ? g.readable() : true);
             for (Reg r : rs) {
                 ev.monitor = r.priority == EventPriority.MONITOR;
                 try {
@@ -352,22 +363,23 @@ public final class PacketServiceImpl implements PacketService {
     }
 
     @SuppressWarnings("unchecked")
-    private static OpaquePacket opaque(PacketType<?> type) { return new OpaquePacket((PacketType<OpaquePacket>) type); }
+    private static GenericPacket unreadable(PacketType<?> type) { return GenericPacket.unreadable((PacketType<GenericPacket>) type); }
 
     @SuppressWarnings("rawtypes")
     private static final class EventImpl implements PacketEvent {
 
         private final Player player;
         private final PacketType<?> type;
-        private final boolean plugin;
+        private final boolean plugin, readable;
         Packet value;
         boolean cancelled, modified, monitor;
 
-        EventImpl(Player player, PacketType<?> type, Packet value, boolean plugin) {
+        EventImpl(Player player, PacketType<?> type, Packet value, boolean plugin, boolean readable) {
             this.player = player;
             this.type = type;
             this.value = value;
             this.plugin = plugin;
+            this.readable = readable;
         }
 
         @Override
@@ -383,8 +395,9 @@ public final class PacketServiceImpl implements PacketService {
         public void setPacket(Packet packet) {
             if (monitor) throw new IllegalStateException("MONITOR 리스너는 패킷을 바꿀 수 없다");
             Objects.requireNonNull(packet, "packet");
-            if (!type.typed()) throw new UnsupportedOperationException("타입 래퍼가 없는 패킷은 바꿀 수 없다: " + type);
+            if (!readable) throw new UnsupportedOperationException("내용을 읽지 못한 패킷은 바꿀 수 없다: " + type);
             if (packet.type() != type) throw new IllegalArgumentException("같은 종류여야 한다: " + type + " ← " + packet.type());
+            if (packet instanceof GenericPacket g && !g.readable()) throw new IllegalArgumentException("내용 없는 패킷으로는 바꿀 수 없다: " + type);
             value = packet;
             modified = true;
         }

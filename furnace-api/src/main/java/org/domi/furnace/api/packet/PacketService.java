@@ -87,4 +87,13 @@ public interface PacketService {
 
     /** 클라이언트 프로토콜 번호(1.21.1 = 767). 버전별 분기가 꼭 필요할 때만 쓴다. */
     int protocolVersion();
+
+    /**
+     * 이 서버 버전에서 그 종류의 내용을 읽고 바꾸고 보낼 수 있는가. 타입 레코드 종류는 늘 true, GenericPacket 종류는 서버의 범용 코덱이
+     * 그 와이어를 아는 것만 true(나머지는 리스너가 내용 없는 GenericPacket 을 받아 관찰·취소만 한다).
+     */
+    boolean isReadable(PacketType<?> type);
+
+    /** GenericPacket 종류의 필드(이름 + 값 종류, 바닐라 순서). 타입 레코드 종류이거나 읽을 수 없는 종류면 빈 목록. */
+    java.util.List<PacketField<?>> fields(PacketType<?> type);
 }

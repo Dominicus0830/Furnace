@@ -31,7 +31,13 @@ packets.listen(this, PacketTypes.Serverbound.INTERACT, e -> {
 packets.listen(this, PacketTypes.Clientbound.SYSTEM_CHAT, e ->
     e.setPacket(e.packet().withMessage(Text.text("[서버] ").append(e.packet().message()))));
 
-// 5) 타입 래퍼 없는 패킷도 관찰·취소는 된다
+// 5) 타입 래퍼가 없는 종류는 GenericPacket — 이름 붙은 필드로 읽고 바꾸고 보낸다(E4a)
+packets.listen(this, PacketTypes.Clientbound.GAME_EVENT, e -> {
+    if (e.packet().get("event").equals(1)) e.setCancelled(true);       // 비 시작을 숨긴다
+});
+player.sendPacket(GenericPacket.of(PacketTypes.Clientbound.SET_CAMERA).with("camera_id", npcId));
+
+// 6) 서버가 아직 내용을 못 푸는 종류도 관찰·취소는 된다
 packets.listen(this, PacketTypes.Clientbound.LEVEL_PARTICLES, e -> e.setCancelled(true));
 ```
 
@@ -41,9 +47,9 @@ packets.listen(this, PacketTypes.Clientbound.LEVEL_PARTICLES, e -> e.setCancelle
 |---|---|
 | `PacketType<P>` | 방향 + 바닐라 패킷 이름(`minecraft:system_chat`). 상수는 `PacketTypes.Clientbound.*` / `PacketTypes.Serverbound.*`, 이름으로는 `PacketTypes.byName`. 같은 종류는 늘 같은 객체 |
 | 타입 래퍼 | `ClientboundXxxPacket` / `ServerboundXxxPacket` 레코드(Mojang 매핑 이름과 같게 지었다). 읽기·바꾸기·보내기 가능 |
-| `OpaquePacket` | 아직 래퍼가 없는 종류. 종류만 알고 내용은 못 본다 — 관찰·취소만, 보내기 불가 |
+| `GenericPacket` | 타입 래퍼가 없는 종류. 바닐라 필드 이름(snake_case)으로 읽기·바꾸기·보내기(아래 "범용 패킷"). 서버가 그 버전에서 못 푸는 종류면 `readable()` false — 관찰·취소만 |
 | `PacketEvent` | `player()`, `packet()`, `setPacket()`, `setCancelled()`, `isPluginPacket()` |
-| `PacketService` | `listen`, `send`/`sendSilently`, `broadcast`, `receive`/`receiveSilently`, `isSupported`, `nextEntityId`, `protocolVersion` |
+| `PacketService` | `listen`, `send`/`sendSilently`, `sendBundle`, `broadcast`, `receive`/`receiveSilently`, `isSupported`, `isReadable`, `fields`, `nextEntityId`, `protocolVersion` |
 
 - 목록은 play 단계 전체(서버→클라이언트 124종, 클라이언트→서버 55종)다. 바닐라의 이동 패킷 넷(`move_player_pos`·`_pos_rot`·`_rot`·`_status_only`)은 `MOVE_PLAYER` 하나로 묶었다(버전마다 갈래가 달라질 수 있어서). 보낼 때 `hasPosition`·`hasRotation` 으로 알맞은 것이 골라진다.
 - 다른 버전에 없는 패킷은 `isSupported(type)` 가 false 이고, 구독해도 불리지 않는다.
@@ -55,6 +61,43 @@ packets.listen(this, PacketTypes.Clientbound.LEVEL_PARTICLES, e -> e.setCancelle
 클라이언트→서버: `CHAT`, `CHAT_COMMAND`, `CLIENT_COMMAND`, `CLIENT_INFORMATION`, `CUSTOM_PAYLOAD`, `INTERACT`, `MOVE_PLAYER`, `PLAYER_ACTION`, `PLAYER_COMMAND`, `SET_CARRIED_ITEM`, `SIGN_UPDATE`, `SWING`, `USE_ITEM`, `USE_ITEM_ON`.
 
 단위: 각도는 도(degree), 속도는 블록/틱(축마다 ±3.9 로 잘림), 좌표는 블록. 와이어의 1/256 바퀴 바이트·1/8000 short·×8 정수는 변환 계층이 맡는다.
+
+## 범용 패킷 — 이름 붙은 필드 (E4a, 2026-11-12)
+
+타입 래퍼가 없는 종류는 모두 `GenericPacket` 이다. 필드는 바닐라(Mojang) 필드 이름을 snake_case 로 바꾼 것이고 순서도 바닐라와 같다.
+종류마다 어떤 필드가 있는지는 `packets.fields(type)`(이름 + 값 종류), 내용을 읽을 수 있는지는 `packets.isReadable(type)`.
+
+```java
+static final PacketField<Integer> EVENT = PacketField.of("event", Integer.class);   // 같은 필드를 여러 번 쓰면 상수로
+
+packets.listen(this, PacketTypes.Clientbound.UPDATE_MOB_EFFECT, e -> {
+    GenericPacket p = e.packet();
+    if (p.get("effect").equals("minecraft:invisibility")) e.setPacket(p.with("flags", (byte) 0));   // 입자·아이콘 숨김
+});
+packets.send(player, GenericPacket.of(PacketTypes.Clientbound.SET_BORDER_WARNING_DISTANCE).with("warning_blocks", 0));
+```
+
+| 바닐라 필드 | 값 |
+|---|---|
+| `int`·`long`·`short`·`byte`·`float`·`double`·`boolean` | `Integer`·`Long`·`Short`·`Byte`·`Float`·`Double`·`Boolean` — 바닐라 필드에 담긴 단위 그대로(회전은 1/256 바퀴 byte, 속도는 1/8000). 단위를 바꾼 편의 값은 타입 래퍼가 준다 |
+| `String`·`UUID`·`Component` | `String`·`UUID`·`Text` |
+| `ResourceLocation`·`ResourceKey`, 레지스트리 값(아이템·블록·엔티티 종류·메뉴·효과·소리·차원 종류) | 이름 문자열 `"minecraft:stone"`. 등록되지 않은 소리 이름은 바닐라처럼 직접 정의로 나간다 |
+| `BlockPos`·`GlobalPos`·`BlockState`·`ItemStack`·`CompoundTag` | `BlockPos`·`GlobalPos`·`BlockData`·`ItemStack`·`NbtCompound` |
+| enum | 바닐라 상수 이름 문자열(`"MAIN_HAND"`). 이전 게임 모드처럼 바닐라가 -1 로 "없음"을 쓰는 것은 `Optional<String>` |
+| `byte[]`·`int[]`·`long[]` / `List`·`Set` / `Optional`·없을 수 있는 값 | 배열(넣고 꺼낼 때 복사) / `List` / `Optional` |
+| 패킷 안 구조(`CommonPlayerSpawnInfo` 등) | `PacketStruct`(같은 get/with) |
+| `ChunkPos`·`SectionPos` | 바닐라가 쓰는 묶은 `long` |
+
+- `with` 는 이미 있는 필드면 같은 값 종류만 받는다(`Integer` 자리에 `Long` 은 `IllegalArgumentException`). 보낼 때 필드가 빠졌거나 모르는 이름·범위를 넘는 값(u8 에 256)이면 `IllegalArgumentException`.
+- **1.21.1 에서 읽는 종류 102개**(서버→클라 69, 클라→서버 33). 와이어가 필드 나열로 떨어지지 않는 종류(스키마의 `custom` — 입자·청크·명령 트리·이동·팀 등)와
+  아직 모르는 값(`number_format`·채팅 서명·상인 거래·태그 묶음 등) 43개는 `readable()` false 로 관찰·취소만 된다(E4b 에서 늘린다).
+- 필드 목록은 중립 스키마(`furnace-api/.../packet/schema/protocol-767.schema`) 하나에서 나온다 — NMS 호환 계층의 패킷 shim 과 같은 파일이다.
+- 와이어 확인: 서버가 실제로 보내는 26종은 바이트 왕복 시험(`GenericPacketRoundTripTest`), 나머지는 바닐라 jar 바이트코드와 하나씩 대조했다(`docs/feature-parity/context-notes/2026-11-12-easy-nms-e4a.md`).
+
+### 예전 코드에서 바뀐 점 (E4a)
+
+- `OpaquePacket` 은 없어졌다. 타입 래퍼가 없는 상수는 `PacketType<GenericPacket>` 이다. `packet.readable()` 이 false 인 것만 예전 `OpaquePacket` 처럼 관찰·취소만 된다.
+- 읽을 수 있는 `GenericPacket` 종류는 리스너에서 `setPacket` 으로 바꿀 수 있다(예전에는 `UnsupportedOperationException`).
 
 ## 엔티티 메타데이터 — 이름 있는 칸 (E1, 2026-11-12)
 
@@ -103,7 +146,7 @@ packets.listen(this, PacketTypes.Clientbound.SET_ENTITY_DATA, e -> e.packet().ge
 ## 비용
 
 - 구독자가 없는 종류는 연결당 배열 한 칸 확인뿐이다(디코드·할당 없음). 등록이 바뀔 때만 "id → 리스너 배열" 표를 다시 굽는다.
-- 구독한 타입 래퍼 종류는 패킷마다 한 번 디코드한다. 바꾸지 않으면 이미 만든 바이트를 그대로 보낸다(다시 인코딩하지 않음). `OpaquePacket` 종류는 디코드하지 않는다.
+- 구독한 종류는 패킷마다 한 번 디코드한다(타입 래퍼·`GenericPacket` 모두). 바꾸지 않으면 이미 만든 바이트를 그대로 보낸다(다시 인코딩하지 않음). 내용을 못 푸는 종류는 디코드하지 않는다.
 - `broadcast` 는 바이트를 한 번만 만들어 모든 접속자에게 나눈다.
 
 ## 보내기·넣기
@@ -145,12 +188,12 @@ packets.sendBundle(player, List.of(
 
 ## 다음에 더할 것
 
-장비(`set_equipment`), 입자(`level_particles` — 값은 이미 있는 `Particle`), 상대 이동(`move_entity_*`), 블록 여러 칸(`section_blocks_update`). 래퍼가 늘어도 기존 API 는 그대로다 — `OpaquePacket` 이던 종류가 타입 래퍼로 바뀐다(D5: API 는 semver, 래퍼 추가는 마이너).
+장비(`set_equipment`), 입자(`level_particles` — 값은 이미 있는 `Particle`), 상대 이동(`move_entity_*`), 블록 여러 칸(`section_blocks_update`). 래퍼가 늘면 `GenericPacket` 이던 종류가 타입 래퍼로 바뀐다(E5) — 그때도 `GenericPacket` 으로 볼 길을 둔다(D5: API 는 semver).
 
 ## 서버 구현 위치
 
 - API: `furnace-api/.../api/packet/`(+ `entity/Hand`, `world/BlockFace`, `world/SoundCategory`).
-- 구현: `furnace-server/.../plugin/packet/` — `PacketServiceImpl`(등록·연결별 `Tap`), `ProtocolCodec`(버전 계층 인터페이스), `Protocol767`(1.21.1 id 표·코덱; id 순서는 바닐라 `GameProtocols` 등록 순서를 바이트코드로 확인), `NetworkText`(네트워크 NBT ↔ `Text`).
+- 구현: `furnace-server/.../plugin/packet/` — `PacketServiceImpl`(등록·연결별 `Tap`), `ProtocolCodec`(버전 계층 인터페이스), `Protocol767`(1.21.1 id 표·코덱; id 순서는 바닐라 `GameProtocols` 등록 순서를 바이트코드로 확인), `NetworkText`(네트워크 NBT ↔ `Text`), `GenericCodec767`(스키마로 `GenericPacket` 읽고 쓰기).
 - 연결 지점: 나가는 쪽은 `SharedChunkFrames.encode`(모든 play 송신이 지나는 곳), 들어오는 쪽은 `ConnectionHandler.dispatchPlay`. 플레이어가 play 에 들어올 때 채널 속성 `PacketTap.KEY` 로 붙는다. `receive` 는 `ConnectionHandler.injectPlay` 로 이벤트 루프에 넣는다.
 - 새 MC 버전 지원: `ProtocolCodec` 구현을 하나 더 만들고 `PluginHost` 에서 고른다. API 타입은 바꾸지 않는다.
-- 시험: `PacketApiTest`(id 표·왕복·가로채기), `PacketApiFlowTest`(실제 연결에서 바꾸기·취소·receive), `furnace-api` 의 `PacketTypesTest`.
+- 시험: `PacketApiTest`(id 표·왕복·가로채기), `PacketApiFlowTest`(실제 연결에서 바꾸기·취소·receive), `GenericPacketTest`(범용 코덱 고정 바이트·검사), furnace-test `GenericPacketRoundTripTest`(서버가 보낸 바이트 왕복), `furnace-api` 의 `PacketTypesTest`·`GenericPacketApiTest`.

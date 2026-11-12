@@ -16,7 +16,7 @@ import org.domi.furnace.api.entity.Hand;
 import org.domi.furnace.api.event.EventPriority;
 import org.domi.furnace.api.event.EventSubscription;
 import org.domi.furnace.api.packet.ClientboundPacket;
-import org.domi.furnace.api.packet.OpaquePacket;
+import org.domi.furnace.api.packet.GenericPacket;
 import org.domi.furnace.api.packet.Packet;
 import org.domi.furnace.api.packet.PacketDirection;
 import org.domi.furnace.api.packet.PacketType;
@@ -255,7 +255,7 @@ class PacketApiTest {
         assertEquals(new BlockPos(1, 2, 3), v.pos());
         assertEquals(BlockData.of("minecraft:stone"), v.block());
         assertThrows(IllegalArgumentException.class, () -> codec.encode(new ClientboundBlockUpdatePacket(new BlockPos(0, 0, 0), BlockData.of("nope:block")), Unpooled.buffer()));
-        assertThrows(IllegalArgumentException.class, () -> codec.encode(new OpaquePacket(PacketTypes.Clientbound.GAME_EVENT), Unpooled.buffer()));
+        assertThrows(IllegalArgumentException.class, () -> codec.encode(GenericPacket.unreadable(PacketTypes.Clientbound.GAME_EVENT), Unpooled.buffer()));
     }
 
     // ------------------------------------------------------------------ 보내기
@@ -270,7 +270,7 @@ class PacketApiTest {
         assertEquals(2, out.size());
         assertArrayEquals(frame(new BlockUpdate(4, 5, 6, stone)), out.get(0));
         assertArrayEquals(frame(new SystemChat(Text.text("all"), false)), out.get(1));
-        assertThrows(IllegalArgumentException.class, () -> host.player(p).sendPacket(new OpaquePacket(PacketTypes.Clientbound.GAME_EVENT)));
+        assertThrows(IllegalArgumentException.class, () -> host.player(p).sendPacket(GenericPacket.of(PacketTypes.Clientbound.GAME_EVENT)));
     }
 
     // ------------------------------------------------------------------ 가로채기
@@ -300,16 +300,16 @@ class PacketApiTest {
     }
 
     @Test
-    void opaquePacketsCanBeObservedAndCancelledButNotChanged() {
+    void unreadablePacketsCanBeObservedAndCancelledButNotChanged() {
         Player p = online("P");
         AtomicInteger n = new AtomicInteger();
-        host.packets().listen(a, PacketTypes.Clientbound.GAME_EVENT, e -> {
+        host.packets().listen(a, PacketTypes.Clientbound.LEVEL_PARTICLES, e -> {   // 범용 코덱이 아직 못 읽는 종류(custom)
             n.incrementAndGet();
-            assertFalse(e.type().typed());
+            assertFalse(e.packet().readable());
             assertThrows(UnsupportedOperationException.class, () -> e.setPacket(e.packet()));
             e.setCancelled(true);
         });
-        p.send(new GameEvent(GameEvent.CHANGE_GAME_MODE, 1f));
+        p.send(new org.domi.furnace.server.net.protocol.RawPacket(codec.ids(PacketTypes.Clientbound.LEVEL_PARTICLES)[0], new byte[]{0}, null, false));
         assertEquals(List.of(), sent(p));
         assertEquals(1, n.get());
     }
@@ -383,9 +383,9 @@ class PacketApiTest {
     void sendRejectsWrongDirectionAndOpaque() {
         Player p = online("P");
         var api = host.player(p);
-        assertThrows(IllegalArgumentException.class, () -> host.packets().send(api, new OpaquePacket(PacketTypes.Serverbound.PONG)), "방향이 다르다");
-        assertThrows(IllegalArgumentException.class, () -> host.packets().receive(api, new OpaquePacket(PacketTypes.Serverbound.PONG)), "내용 없는 패킷");
-        assertThrows(IllegalArgumentException.class, () -> host.packets().receive(api, new OpaquePacket(PacketTypes.Clientbound.PING)), "방향이 다르다");
+        assertThrows(IllegalArgumentException.class, () -> host.packets().send(api, GenericPacket.of(PacketTypes.Serverbound.PONG)), "방향이 다르다");
+        assertThrows(IllegalArgumentException.class, () -> host.packets().receive(api, GenericPacket.unreadable(PacketTypes.Serverbound.PONG)), "내용 없는 패킷");
+        assertThrows(IllegalArgumentException.class, () -> host.packets().receive(api, GenericPacket.of(PacketTypes.Clientbound.PING)), "방향이 다르다");
     }
 
     // ------------------------------------------------------------------ 번들 (E2)
@@ -425,7 +425,7 @@ class PacketApiTest {
         assertThrows(IllegalArgumentException.class, () -> host.packets().sendBundle(api, List.of(new ClientboundSetTitleTextPacket(Text.text("a")),
                 ClientboundSetEntityDataPacket.of(1, ClientboundSetEntityDataPacket.entry(19,
                         ClientboundSetEntityDataPacket.Value.of(org.domi.furnace.api.entity.data.EntityDataType.CAT_VARIANT, "minecraft:nope"))))));
-        var delim = assertThrows(IllegalArgumentException.class, () -> host.packets().sendBundle(api, List.of(new OpaquePacket(PacketTypes.Clientbound.BUNDLE_DELIMITER))));
+        var delim = assertThrows(IllegalArgumentException.class, () -> host.packets().sendBundle(api, List.of(GenericPacket.of(PacketTypes.Clientbound.BUNDLE_DELIMITER))));
         assertTrue(delim.getMessage().contains("구분자"), delim.getMessage());
         var many = java.util.Collections.nCopies(org.domi.furnace.api.packet.PacketService.BUNDLE_MAX + 1, (org.domi.furnace.api.packet.ClientboundPacket) new ClientboundSetTitleTextPacket(Text.text("a")));
         assertThrows(IllegalArgumentException.class, () -> host.packets().sendBundle(api, many), "바닐라 클라이언트 상한");

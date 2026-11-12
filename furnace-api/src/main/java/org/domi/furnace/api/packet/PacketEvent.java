@@ -11,11 +11,11 @@ public interface PacketEvent<P extends Packet> {
 
     PacketType<P> type();
 
-    /** 지금 값 — 앞선 리스너가 바꿨으면 바꾼 값. 타입 래퍼가 없는 종류면 OpaquePacket. */
+    /** 지금 값 — 앞선 리스너가 바꿨으면 바꾼 값. 타입 레코드가 없는 종류면 GenericPacket. */
     P packet();
 
     /**
-     * 값을 바꾼다. 같은 종류여야 한다(아니면 IllegalArgumentException). 타입 래퍼가 없는 종류(OpaquePacket)는 바꿀 수 없다
+     * 값을 바꾼다. 같은 종류여야 한다(아니면 IllegalArgumentException). 서버가 내용을 풀지 못하는 종류(PacketService.isReadable 이 false)는 바꿀 수 없다
      * (UnsupportedOperationException). MONITOR 우선순위에서는 IllegalStateException.
      */
     void setPacket(P packet);

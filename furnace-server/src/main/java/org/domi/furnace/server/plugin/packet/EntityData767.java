@@ -401,7 +401,7 @@ public final class EntityData767 {
 
     private static void writePos(ByteBuf o, BlockPos p) { Types.writeBlockPos(o, p.x(), p.y(), p.z()); }
 
-    private static NbtCompound readCompound(ByteBuf b) {
+    static NbtCompound readCompound(ByteBuf b) {
         Object tag;
         try (ByteBufInputStream in = new ByteBufInputStream(b)) {
             tag = NbtIo.readUnnamed(in);
