@@ -366,11 +366,49 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     static class Living extends EntityHandle implements org.domi.furnace.api.entity.LivingEntity {
 
         private final float health, maxHealth;
+        /** 속성 스냅샷(만든 순간 — 불변, 맵 버전이 같으면 이전 것을 그대로 받는다). */
+        private final java.util.Map<org.domi.furnace.server.attribute.Attribute, org.domi.furnace.server.attribute.AttributeMap.View> attrs;
 
         Living(PluginHost host, LivingEntity e) {
             super(host, e);
             this.health = e.health();
             this.maxHealth = e.maxHealth();
+            this.attrs = e.attributes().snapshot();
+        }
+
+        private final AttributeApi.Owner attrOwner = new AttributeApi.Owner() {
+            @Override
+            public <T> CompletableFuture<T> run(Function<org.domi.furnace.server.attribute.AttributeMap, T> task) {
+                return onEntity(e -> task.apply(((LivingEntity) e).attributes()), null, true);
+            }
+
+            @Override
+            public void check() {
+                if (!(tasks().owner() instanceof Entity e)) return;
+                if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(e) && !e.level().isOwnerThread()) {
+                    throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("AttributeInstance 는 엔티티 " + type()
+                            + " 를 가진 region 스레드에서만 쓸 수 있다 (현재 " + Thread.currentThread().getName() + ") — AttributeHandle.edit 를 쓴다");
+                }
+            }
+        };
+
+        @Override
+        public Optional<org.domi.furnace.api.entity.attribute.AttributeHandle> attribute(org.domi.furnace.api.entity.attribute.Attribute attribute) {
+            java.util.Objects.requireNonNull(attribute, "attribute");
+            return AttributeApi.handle(attrs, attribute, attrOwner);
+        }
+
+        @Override
+        public List<org.domi.furnace.api.entity.attribute.Attribute> attributes() { return AttributeApi.keys(attrs); }
+
+        @Override
+        public CompletableFuture<Boolean> registerAttribute(org.domi.furnace.api.entity.attribute.Attribute attribute) {
+            var a = AttributeApi.server(java.util.Objects.requireNonNull(attribute, "attribute"));
+            return attrOwner.run(map -> {
+                if (map.has(a)) return false;
+                map.register(a);
+                return true;
+            });
         }
 
         @Override

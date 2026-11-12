@@ -1406,6 +1406,23 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private int lastLocationVersion = -1;
     private org.domi.furnace.server.attribute.AttributeModifier lastFrostModifier;
 
+    private volatile java.util.Map<org.domi.furnace.server.attribute.Attribute, org.domi.furnace.server.attribute.AttributeMap.View> attributeView;
+
+    /**
+     * 플러그인 API 가 아무 스레드에서 읽는 속성 스냅샷(최근 값 — region 이 매 틱 동기 끝에 다시 떠 둔다, 불변). 아직 한 번도 동기 전이면
+     * 지금 맵에서 한 번 뜬다(그때는 아직 다른 스레드가 맵을 고치지 않는다).
+     */
+    public java.util.Map<org.domi.furnace.server.attribute.Attribute, org.domi.furnace.server.attribute.AttributeMap.View> attributeView() {
+        var v = attributeView;
+        if (v == null) {
+            synchronized (this) {
+                v = attributeView;
+                if (v == null) attributeView = v = attributes().snapshot();
+            }
+        }
+        return v;
+    }
+
     /** 위치에 따라 붙는 수정자: 영혼 가속·서리 걸음(locationEffects) + 가루눈 얼음(이동 속도, PlayerVitals 의 tryAddFrost). */
     public java.util.Collection<org.domi.furnace.server.attribute.AttributeModifier> locatedModifiers(org.domi.furnace.server.attribute.Attribute attr) {
         var loc = locationEffects.modifiers(attr);
@@ -1454,6 +1471,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         }
         pushVitalsInputs(map, effects);
         refreshAttributesSave(map);
+        attributeView = map.snapshot();   // 버전이 같으면 이전 것 그대로
         boolean first = !armorAttributesSent;
         java.util.List<org.domi.furnace.server.attribute.AttributeInstance> out = first ? map.syncable() : map.takeDirty();
         if (first) map.takeDirty();
@@ -1652,6 +1670,12 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 마지막으로 이 플레이어를 틱한 region(주인 판별용, 낡을 수 있다 — ownsPlayer 로 확인). */
     public volatile org.domi.furnace.server.world.Region ownerRegion;
     private final java.util.concurrent.ConcurrentLinkedQueue<Runnable> ownerTasks = new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+    /** 지금 이 스레드가 이 플레이어를 가진 region 스레드인가(플러그인 API 손잡이의 소유 스레드 확인). */
+    public boolean isOnOwnerThread() {
+        var r = ownerRegion;
+        return r != null && r.ownsPlayer(this);
+    }
 
     /** 플레이어 소유 스레드에서 실행한다: 지금 주인 region 스레드면 바로, 아니면 다음 플레이어 틱에(순서 보존). */
     public void runOnOwner(Runnable task) {
