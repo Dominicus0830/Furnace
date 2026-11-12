@@ -49,7 +49,9 @@ class SchemaPacketBridgeTest {
                 (SchemaPacketBridge.supports(d) ? bridged : missing).add(d.wireName());
             }
             // 다리 없는 종류는 값 shim 이 아직 빈 껍데기다(BlockEntityType·MessageSignature.Packed·ChatType.Bound·GlobalPos·MenuType·ServerLinks.UntrustedEntry·NumberFormat)
-            assertEquals(Set.of("block_entity_data", "delete_chat", "disguised_chat", "login", "open_screen", "respawn", "server_links", "set_score"), missing,
+            // merchant_offers·update_tags 는 E5 에서 서버 범용 코덱이 읽게 됐으나(손 코덱) 아직 다리가 없다
+            assertEquals(Set.of("block_entity_data", "delete_chat", "disguised_chat", "login", "merchant_offers", "open_screen", "respawn", "server_links",
+                    "set_score", "update_tags"), missing,
                     "다리 " + bridged.size() + "종: " + bridged);
             assertEquals(67, bridged.size(), bridged.toString());   // game·common 65 + cookie_request·pong_response(play 연결로도 나가는 cookie·ping 단계)
             assertTrue(bridged.containsAll(Set.of("cookie_request", "pong_response")), bridged.toString());

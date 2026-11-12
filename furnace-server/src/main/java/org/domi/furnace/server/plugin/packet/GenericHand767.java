@@ -105,14 +105,14 @@ final class GenericHand767 {
                     .f("container_id", I8_INT).f("state_id", VARINT).f("slot_num", I16_INT).f("button_num", I8_INT)
                     .f("click_type", c.fieldNode(d, "clickType"))
                     .f("changed_slots", changedSlots(c)).f("carried_item", c.itemStack()).build();
-            default -> null;
+            default -> GenericComplex767.compile(c, d);   // E5: 입자·청크·빛·명령 트리·레시피·발전 과제·태그·서명 채팅·상인 거래·번들 구분자
         };
     }
 
     // ------------------------------------------------------------------ 차례대로 읽고 쓰기
 
     /** 와이어를 차례로: 값 하나(노드)나 비트 묶음 바이트 하나. 필드 순서 = 와이어 순서. */
-    private static final class Seq {
+    static final class Seq {
         private final List<String> names = new ArrayList<>();
         private final List<Node> kinds = new ArrayList<>();
         private final List<BiConsumer<ByteBuf, Map<String, Object>>> reads = new ArrayList<>();
@@ -156,7 +156,7 @@ final class GenericHand767 {
         }
     }
 
-    private static Hand hand(BiConsumer<ByteBuf, Map<String, Object>> r, BiConsumer<ByteBuf, Map<String, Object>> w) {
+    static Hand hand(BiConsumer<ByteBuf, Map<String, Object>> r, BiConsumer<ByteBuf, Map<String, Object>> w) {
         return new Hand() {
             @Override
             public void read(ByteBuf b, Map<String, Object> out) { r.accept(b, out); }
@@ -212,7 +212,7 @@ final class GenericHand767 {
         });
     }
 
-    private static Node node(Class<?> kind, java.util.function.Function<ByteBuf, Object> r, BiConsumer<ByteBuf, Object> w) {
+    static Node node(Class<?> kind, java.util.function.Function<ByteBuf, Object> r, BiConsumer<ByteBuf, Object> w) {
         return new Node() {
             @Override
             public Object read(ByteBuf b) { return r.apply(b); }
@@ -391,7 +391,7 @@ final class GenericHand767 {
     }
 
     /** 고정 길이 바이트(앞에 길이 없음). */
-    private static Node fixedBytes(int n) {
+    static Node fixedBytes(int n) {
         return node(byte[].class, b -> {
             byte[] a = new byte[n];
             b.readBytes(a);
@@ -424,7 +424,7 @@ final class GenericHand767 {
     }
 
     /** 목록 + 원소 수 상한. */
-    private static Node limitedList(Node elem, int max) {
+    static Node limitedList(Node elem, int max) {
         Node l = GenericCodec767.list(elem, false);
         return node(List.class, b -> {
             int n = Types.readVarInt(b.duplicate());

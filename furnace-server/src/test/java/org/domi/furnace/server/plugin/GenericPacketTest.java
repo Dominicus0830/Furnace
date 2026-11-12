@@ -125,8 +125,8 @@ class GenericPacketTest {
                 }
             }
         }
-        assertEquals(133, readable, "범용 코덱이 읽는 종류 수(E4a 102 + E4b-1 20 + E4b-2 11)");
-        assertFalse(codec.readable(Clientbound.BUNDLE_DELIMITER), "손 코덱이 아직 없는 custom 종류");
+        assertEquals(145, readable, "범용 코덱이 읽는 종류 수(E4a 102 + E4b-1 20 + E4b-2 11 + E5 12)");
+        assertTrue(codec.readable(Clientbound.BUNDLE_DELIMITER), "E5: 빈 본문");
     }
 
     @Test
@@ -257,7 +257,7 @@ class GenericPacketTest {
         assertTrue(e.getMessage().contains("u8"), e.getMessage());
         assertThrows(IllegalArgumentException.class, () -> body(GenericPacket.of(Clientbound.OPEN_BOOK).with("hand", "LEFT_HAND")));
         assertThrows(IllegalArgumentException.class, () -> body(GenericPacket.unreadable(Clientbound.SET_CAMERA)));
-        assertThrows(IllegalArgumentException.class, () -> body(GenericPacket.of(Clientbound.BUNDLE_DELIMITER)), "못 읽는 종류는 못 보낸다");
+        assertEquals(0, body(GenericPacket.of(Clientbound.BUNDLE_DELIMITER)).length, "번들 구분자 본문은 비었다(혼자 보내기는 PacketService 가 막는다)");
         assertThrows(IllegalArgumentException.class, () -> decode(Clientbound.SET_CAMERA, bytes(0x01, 0x02)), "본문이 남으면 실패");
     }
 
@@ -309,7 +309,7 @@ class GenericPacketTest {
         });
         host.packets().listen(plugin, Clientbound.SET_CAMERA, EventPriority.NORMAL, e -> e.setCancelled(true));
         List<GenericPacket> particles = new ArrayList<>();
-        host.packets().listen(plugin, Clientbound.LEVEL_PARTICLES, e -> {   // 아직 못 읽는 종류(custom): 내용 없이 관찰·취소만
+        host.packets().listen(plugin, Clientbound.LEVEL_PARTICLES, e -> {   // 본문이 깨져 못 읽는 패킷: 내용 없이 관찰·취소만
             particles.add(e.packet());
             assertThrows(UnsupportedOperationException.class, () -> e.setPacket(GenericPacket.of(Clientbound.LEVEL_PARTICLES)));
             e.setCancelled(true);

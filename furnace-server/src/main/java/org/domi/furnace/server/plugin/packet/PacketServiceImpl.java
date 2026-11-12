@@ -172,6 +172,9 @@ public final class PacketServiceImpl implements PacketService {
     private RawPacket encodeOutbound(ClientboundPacket packet, boolean silent) {
         Objects.requireNonNull(packet, "packet");
         if (packet.type().direction() != PacketDirection.CLIENTBOUND) throw new IllegalArgumentException("서버→클라이언트 패킷이 아니다: " + packet.type());
+        if (packet.type() == org.domi.furnace.api.packet.PacketTypes.Clientbound.BUNDLE_DELIMITER) {   // 혼자 보내면 짝이 어긋나 클라이언트가 뒤 패킷을 묶음으로 쌓다 끊긴다
+            throw new IllegalArgumentException("번들 구분자는 서버가 넣는다 — sendBundle 을 쓴다");
+        }
         ByteBuf b = Unpooled.buffer();
         try {
             int id = codec.encode(packet, b);

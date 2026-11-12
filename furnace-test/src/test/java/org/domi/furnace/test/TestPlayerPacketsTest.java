@@ -49,7 +49,8 @@ class TestPlayerPacketsTest {
 
             steve.clearReceived();
             assertEquals(List.of(), steve.received(PacketTypes.Clientbound.SET_TITLE_TEXT));
-            assertThrows(IllegalArgumentException.class, () -> steve.received(PacketTypes.Clientbound.BUNDLE_DELIMITER), "이 버전에서 내용을 못 읽는 종류");
+            // E5 부터 1.21.1 의 범용 종류는 모두 읽힌다(못 읽는 종류였던 번들 구분자도 이제 모인다)
+            assertDoesNotThrow(() -> steve.received(PacketTypes.Clientbound.BUNDLE_DELIMITER));
         }
     }
 

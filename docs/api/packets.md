@@ -92,11 +92,11 @@ packets.send(player, GenericPacket.of(PacketTypes.Clientbound.SET_BORDER_WARNING
   필드마다 더 작은 바닐라 상한도 검사한다(리소스 팩 hash 40자, 쿠키 payload 5120바이트, 명령 제안 32500자, 책 쪽 200개·쪽 8192자·제목 128자 등). 바닐라가 `Set` 인 필드(`login` 의 `levels`)는 같은 값을 두 번 넣으면 거부한다.
 - 읽을 수 있는 종류라도 패킷 하나가 디코드에 실패하면(클라이언트가 보낸 잘못된 패킷 등) 그 패킷만 `readable()` false 로 리스너에 간다.
 - 값은 넣고 꺼낼 때 복사된다(배열·`NbtCompound` — 목록·`Optional` 안에 있어도). 꺼낸 값을 바꿔도 패킷은 그대로다.
-- **1.21.1 에서 읽는 종류 133개**(서버→클라 92, 클라→서버 41). 필드 나열 110개 + 손 코덱 23개(아래 "손 코덱 종류"). 나머지 12개(입자·폭발·청크·빛·
-  명령 트리·레시피 둘·발전 과제·태그 묶음·서명된 채팅·상인 거래·번들 구분자)는 `readable()` false 로 관찰·취소만 된다.
+- **1.21.1 에서 읽는 종류 145개 — 범용 종류 전부**(서버→클라 104, 클라→서버 41). 필드 나열 110개 + 손 코덱 23개(아래 "손 코덱 종류") + 복잡한 종류 12개(아래 "복잡한 종류", E5).
+  `readable()` false 는 이제 패킷 하나가 디코드에 실패했을 때뿐이다.
 - 필드 목록은 중립 스키마(`furnace-api/.../packet/schema/protocol-767.schema`) 하나에서 나온다 — NMS 호환 계층의 패킷 shim 과 같은 파일이다.
 - 와이어 확인: 서버가 실제로 보내는 종류는 바이트 왕복 시험(`GenericPacketRoundTripTest`), 나머지는 바닐라 jar 바이트코드와 하나씩 대조했다(`docs/feature-parity/context-notes/2026-11-12-easy-nms-e4a.md`).
-  손 코덱 종류는 바닐라 jar 의 패킷 코덱을 직접 돌려 같은 바이트를 확인했다(`2026-11-12-easy-nms-e4b.md`).
+  손 코덱 종류는 바닐라 jar 의 패킷 코덱을 직접 돌려 같은 바이트를 확인했다(`2026-11-12-easy-nms-e4b.md`, 복잡한 종류는 `2026-11-12-easy-nms-e5.md`).
 
 ### 손 코덱 종류 (E4b, 2026-11-12)
 
@@ -137,6 +137,43 @@ styled 의 `style` 은 보낼 때 바닐라 Style 로 읽히는지 검사한다(
 
 - `relative_arguments` 처럼 비트 집합인 목록은 읽으면 비트 순서로 나온다. 다른 순서로 만든 값과 `equals` 는 다르지만 같은 바이트로 나간다.
 - `fields(type)` 는 바깥 필드만 준다(`Optional<PacketStruct>` 안쪽 필드는 위 표).
+
+### 복잡한 종류 (E5, 2026-11-12)
+
+종류 이름이 나머지 모양을 정하는 값은 `{type, …}`(명령 인자는 `{parser, …}`) 묶음이다 — `type` 은 레지스트리 이름이고 쓸 때 이름공간이 없으면 `minecraft:` 를 붙인다.
+재료·비용 등 아이템은 `ItemStack`, 비트 집합(BitSet)은 `long[]`(끝의 0 은 떼어 바닐라와 같은 바이트), 빛 배열은 `byte[2048]`.
+
+| 종류 | 필드 (와이어 순서) |
+|---|---|
+| `bundle_delimiter` | 없음. 읽을 수 있지만 혼자 보내면 `IllegalArgumentException` — 번들은 `sendBundle` 로(짝은 서버가 맞춘다) |
+| `level_particles` | `override_limiter` `x` `y` `z`(Double) `x_dist` `y_dist` `z_dist` `max_speed`(Float) `count` · `particle` `{type, …}` |
+| `explode` | `x` `y` `z` `power` · `to_blow` `List<BlockPos>`(절대 좌표 — 와이어는 `floor(x,y,z)` 에서 i8 차이라 그 밖은 거부) · `knockback_x/y/z` · `block_interaction`(KEEP·DESTROY·DESTROY_WITH_DECAY·TRIGGER_BLOCK) · `small_explosion_particles` `large_explosion_particles`(입자) · `explosion_sound`(소리 이름 또는 직접 정의 — E4b 소리와 같다) |
+| `light_update` | `x` `z` · `light_data` (아래 빛 묶음) |
+| `level_chunk_with_light` | `x` `z` · `chunk_data` `{heightmaps NbtCompound, buffer byte[], block_entities_data List<{packed_xz, y, type, tag Optional<NbtCompound>}>}` · `light_data` |
+| `commands` | `entries` `List<{type, executable, children int[], redirect Optional<Integer>, name, argument_type, suggestion_id}>` · `root_index` |
+| `player_chat` | `sender` `index` `signature` `Optional<byte[256]>` · `body` `{content(256자), time_stamp, salt, last_seen List<MessageSignature.Packed>(20개)}` · `unsigned_content` `Optional<Text>` · `filter_mask` `{type, mask Optional<long[]>}` · `chat_type`(ChatType.Bound) |
+| `update_recipes` | `recipes` `List<{id, type, …}>` (아래 레시피) |
+| `recipe` | `state`(INIT·ADD·REMOVE) · `book_settings` `{crafting_open, crafting_filtering, furnace_open, furnace_filtering, blast_furnace_open, blast_furnace_filtering, smoker_open, smoker_filtering}` · `recipes` `List<String>` · `to_highlight` `Optional<List<String>>`(INIT 일 때만 있다) |
+| `update_advancements` | `reset` · `added` `List<{id, parent Optional, display Optional<{title, description, icon, type, show_toast, hidden, background Optional, x, y}>, requirements List<List<String>>, sends_telemetry_event}>` · `removed` `List<String>`(Set) · `progress` `List<{id, criteria List<{name, obtained Optional<Long>(epoch ms)}>}>` |
+| `update_tags` | `tags` `List<{registry, tags List<{name, entries int[](그 레지스트리 번호)}>}>` |
+| `merchant_offers` | `container_id` · `offers` `List<{base_cost_a, result, cost_b Optional, out_of_stock, uses, max_uses, xp, special_price_diff, price_multiplier, demand}>` · `villager_level` `villager_xp` `show_progress` `can_restock` |
+
+- **입자** `particle`: 내용이 있는 종류만 필드가 더 있다 — `block`·`block_marker`·`falling_dust`·`dust_pillar` `{state BlockData}`, `dust` `{color {x,y,z}, scale}`,
+  `dust_color_transition` `{from_color, to_color, scale}`, `entity_effect` `{color}`(ARGB), `item` `{item_stack}`(빈 것 안 됨), `sculk_charge` `{roll}`, `shriek` `{delay}`,
+  `vibration` `{destination {type:"minecraft:block", pos} | {type:"minecraft:entity", entity_id, y_offset}, arrival_in_ticks}`. 먼지 `scale` 은 바닐라 생성자처럼 0.01~4 로 죈다.
+- **빛 묶음** `light_data`: `sky_y_mask` `block_y_mask` `empty_sky_y_mask` `empty_block_y_mask`(long[], 비트 i = 맨 아래 빛 구역에서 i 번째) · `sky_updates` `block_updates` `List<byte[]>`.
+  바닐라 클라이언트는 마스크 비트마다 배열 하나를 꺼내고 배열은 꼭 2048바이트여야 하므로, 배열 수 ≠ 비트 수이거나 2048이 아니면 쓰지 않는다.
+- **명령 트리**: `type` ROOT·LITERAL·ARGUMENT. `name` 은 LITERAL·ARGUMENT, `argument_type`·`suggestion_id`(`Optional<String>`)는 ARGUMENT 에만 있다.
+  `argument_type` = `{parser, …}` — `brigadier:float`·`double`·`integer`·`long` `{min, max}`(Optional), `brigadier:string` `{type}`(SINGLE_WORD·QUOTABLE_PHRASE·GREEDY_PHRASE),
+  `minecraft:entity` `{single, players_only}`, `minecraft:score_holder` `{multiple}`, `minecraft:time` `{min}`, `minecraft:resource`·`resource_key`·`resource_or_tag`·`resource_or_tag_key` `{registry_key}`, 나머지는 `{parser}` 뿐.
+  쓸 때 번호가 목록 안인지, 뿌리가 ROOT 인지, 자식·리다이렉트에 순환이 없는지(바닐라 validateEntries) 본다 — 어기면 클라이언트가 "impossible command tree" 로 끊긴다.
+- **레시피** `type`(recipe_serializer): `crafting_shaped` `{group, category, width, height, ingredients, result, show_notification}`(가로·세로 1~3, 재료 width×height 개),
+  `crafting_shapeless` `{group, category, ingredients(1~9), result}`, `smelting`·`blasting`·`smoking`·`campfire_cooking` `{group, category, ingredient, result, experience, cooking_time}`,
+  `stonecutting` `{group, ingredient, result}`, `smithing_transform` `{template, base, addition, result}`, `smithing_trim` `{template, base, addition}`, `crafting_special_*`·`crafting_decorated_pot` `{category}`.
+  재료(ingredient) 하나는 `List<ItemStack>`(빈 목록 = 빈 칸). 같은 id 를 두 번 쓰지 않는다(바닐라 클라이언트 RecipeManager 가 끊긴다).
+- **거래 비용** `base_cost_a`·`cost_b` 는 `ItemStack` — 종류·개수·`components`(같아야 하는 컴포넌트). 지운 컴포넌트(`removedComponents`)는 조건으로 나타낼 수 없어 거부한다.
+- 바닐라가 맵인 목록(태그의 `registry`·`name`, 진행도의 `id`·`name`)은 같은 키를 두 번 쓰지 않는다(`"item"` 과 `"minecraft:item"` 은 같은 키). 읽을 때 겹치면 바닐라 맵처럼 마지막 값만 남긴다.
+- 이 종류들도 바닐라 jar 로 132 프레임(입자 전 종류·명령 인자 전 종류·레시피 전 종류 포함)을 읽고 다시 써 같은 바이트를 확인했다.
 
 ### 예전 코드에서 바뀐 점 (E4a)
 
@@ -237,7 +274,7 @@ packets.sendBundle(player, List.of(
 ## 서버 구현 위치
 
 - API: `furnace-api/.../api/packet/`(+ `entity/Hand`, `world/BlockFace`, `world/SoundCategory`).
-- 구현: `furnace-server/.../plugin/packet/` — `PacketServiceImpl`(등록·연결별 `Tap`), `ProtocolCodec`(버전 계층 인터페이스), `Protocol767`(1.21.1 id 표·코덱; id 순서는 바닐라 `GameProtocols` 등록 순서를 바이트코드로 확인), `NetworkText`(네트워크 NBT ↔ `Text`), `GenericCodec767`(스키마로 `GenericPacket` 읽고 쓰기), `GenericHand767`(custom 종류 손 코덱).
+- 구현: `furnace-server/.../plugin/packet/` — `PacketServiceImpl`(등록·연결별 `Tap`), `ProtocolCodec`(버전 계층 인터페이스), `Protocol767`(1.21.1 id 표·코덱; id 순서는 바닐라 `GameProtocols` 등록 순서를 바이트코드로 확인), `NetworkText`(네트워크 NBT ↔ `Text`), `GenericCodec767`(스키마로 `GenericPacket` 읽고 쓰기), `GenericHand767`(custom 종류 손 코덱), `GenericComplex767`(E5 복잡한 종류).
 - 연결 지점: 나가는 쪽은 `SharedChunkFrames.encode`(모든 play 송신이 지나는 곳), 들어오는 쪽은 `ConnectionHandler.dispatchPlay`. 플레이어가 play 에 들어올 때 채널 속성 `PacketTap.KEY` 로 붙는다. `receive` 는 `ConnectionHandler.injectPlay` 로 이벤트 루프에 넣는다.
 - 새 MC 버전 지원: `ProtocolCodec` 구현을 하나 더 만들고 `PluginHost` 에서 고른다. API 타입은 바꾸지 않는다.
-- 시험: `PacketApiTest`(id 표·왕복·가로채기), `PacketApiFlowTest`(실제 연결에서 바꾸기·취소·receive), `GenericPacketTest`(범용 코덱 고정 바이트·검사), furnace-test `GenericPacketRoundTripTest`(서버가 보낸 바이트 왕복), `furnace-api` 의 `PacketTypesTest`·`GenericPacketApiTest`.
+- 시험: `PacketApiTest`(id 표·왕복·가로채기), `PacketApiFlowTest`(실제 연결에서 바꾸기·취소·receive), `GenericPacketTest`(범용 코덱 고정 바이트·검사), `GenericComplexPacketTest`(E5 종류 바닐라 바이트·쓰기 거부), furnace-test `GenericPacketRoundTripTest`(서버가 보낸 바이트 왕복), `furnace-api` 의 `PacketTypesTest`·`GenericPacketApiTest`.
