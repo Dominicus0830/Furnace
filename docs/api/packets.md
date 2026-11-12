@@ -88,7 +88,10 @@ packets.send(player, GenericPacket.of(PacketTypes.Clientbound.SET_BORDER_WARNING
 | 패킷 안 구조(`CommonPlayerSpawnInfo` 등) | `PacketStruct`(같은 get/with) |
 | `ChunkPos`·`SectionPos` | 바닐라가 쓰는 묶은 `long` |
 
-- `with` 는 이미 있는 필드면 같은 값 종류만 받는다(`Integer` 자리에 `Long` 은 `IllegalArgumentException`). 보낼 때 필드가 빠졌거나 모르는 이름·범위를 넘는 값(u8 에 256)이면 `IllegalArgumentException`.
+- `with` 는 이미 있는 필드면 같은 값 종류만 받는다(`Integer` 자리에 `Long` 은 `IllegalArgumentException`). 보낼 때(그리고 리스너의 `setPacket` 때 바로) 필드가 빠졌거나 모르는 이름·범위를 넘는 값(u8 에 256)·바닐라 문법이 아닌 이름(`"minecraft:Bad Name"`)·32767자 넘는 문자열이면 `IllegalArgumentException`.
+  필드마다 더 작은 상한(리소스 팩 hash 40자 등)은 아직 검사하지 않는다. 바닐라가 `Set` 인 필드(`login` 의 `levels`)는 같은 값을 두 번 넣으면 거부한다.
+- 읽을 수 있는 종류라도 패킷 하나가 디코드에 실패하면(클라이언트가 보낸 잘못된 패킷, 고정 범위가 있는 직접 정의 소리 등) 그 패킷만 `readable()` false 로 리스너에 간다.
+- 값은 넣고 꺼낼 때 복사된다(배열·`NbtCompound` — 목록·`Optional` 안에 있어도). 꺼낸 값을 바꿔도 패킷은 그대로다.
 - **1.21.1 에서 읽는 종류 102개**(서버→클라 69, 클라→서버 33). 와이어가 필드 나열로 떨어지지 않는 종류(스키마의 `custom` — 입자·청크·명령 트리·이동·팀 등)와
   아직 모르는 값(`number_format`·채팅 서명·상인 거래·태그 묶음 등) 43개는 `readable()` false 로 관찰·취소만 된다(E4b 에서 늘린다).
 - 필드 목록은 중립 스키마(`furnace-api/.../packet/schema/protocol-767.schema`) 하나에서 나온다 — NMS 호환 계층의 패킷 shim 과 같은 파일이다.

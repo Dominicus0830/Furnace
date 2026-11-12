@@ -196,6 +196,14 @@ class GenericPacketTest {
         assertEquals(p, decode(Clientbound.RESPAWN, b));
         var withPrev = p.with("common_player_spawn_info", info.with("previous_game_type", Optional.of("SURVIVAL")));
         assertEquals(0, body(withPrev)[30]);
+
+        // login 의 levels 는 바닐라 Set — 같은 이름 두 번은 거부(검토 R5)
+        var login = GenericPacket.of(Clientbound.LOGIN).with("player_id", 1).with("hardcore", false)
+                .with("levels", List.of("minecraft:overworld", "minecraft:the_end")).with("max_players", 20).with("chunk_radius", 8)
+                .with("simulation_distance", 8).with("reduced_debug_info", false).with("show_death_screen", true).with("do_limited_crafting", false)
+                .with("common_player_spawn_info", info).with("enforces_secure_chat", false);
+        assertEquals(login, decode(Clientbound.LOGIN, body(login)));
+        assertThrows(IllegalArgumentException.class, () -> body(login.with("levels", List.of("minecraft:overworld", "minecraft:overworld"))));
     }
 
     @Test
@@ -225,6 +233,41 @@ class GenericPacketTest {
         assertThrows(IllegalArgumentException.class, () -> body(GenericPacket.unreadable(Clientbound.SET_CAMERA)));
         assertThrows(IllegalArgumentException.class, () -> body(GenericPacket.of(Clientbound.BUNDLE_DELIMITER)), "못 읽는 종류는 못 보낸다");
         assertThrows(IllegalArgumentException.class, () -> decode(Clientbound.SET_CAMERA, bytes(0x01, 0x02)), "본문이 남으면 실패");
+    }
+
+    @Test
+    void namesAndStringsVanillaClientsRejectAreNotSent() {
+        // 검토 R1: 바닐라 클라이언트가 디코드에 실패해 끊기는 값은 쓰지 않는다(바닐라 ResourceLocation 문법·writeUtf 상한)
+        var tab = GenericPacket.of(Clientbound.SELECT_ADVANCEMENTS_TAB);
+        assertArrayEquals(body(tab.with("tab", Optional.of("minecraft:story/root"))), body(tab.with("tab", Optional.of("story/root"))), "이름공간 없으면 minecraft:");
+        assertThrows(IllegalArgumentException.class, () -> body(tab.with("tab", Optional.of("minecraft:Bad Name"))));
+        assertThrows(IllegalArgumentException.class, () -> body(tab.with("tab", Optional.of("My:tab"))));
+        var sound = GenericPacket.of(Clientbound.SOUND_ENTITY).with("sound", "myplugin:Bad Sound").with("source", "MASTER").with("id", 1)
+                .with("volume", 1f).with("pitch", 1f).with("seed", 0L);
+        assertThrows(IllegalArgumentException.class, () -> body(sound));
+        var obj = GenericPacket.of(Clientbound.SET_DISPLAY_OBJECTIVE).with("slot", "SIDEBAR");
+        assertThrows(IllegalArgumentException.class, () -> body(obj.with("objective_name", "x".repeat(32768))));
+        body(obj.with("objective_name", "x".repeat(32767)));
+    }
+
+    @Test
+    void setPacketRejectsUnwritablePacketsAtOnce() {
+        // 검토 R2: 오타 필드를 넣으면 나중에 조용히 원본이 나가지 않고 리스너에서 바로 예외
+        Player p = online("P");
+        List<Throwable> thrown = new ArrayList<>();
+        host.packets().listen(plugin, Clientbound.SET_CAMERA, e -> {
+            try {
+                e.setPacket(e.packet().with("cameraId", 99));
+            } catch (IllegalArgumentException x) {
+                thrown.add(x);
+            }
+        });
+        host.packets().send(host.player(p), GenericPacket.of(Clientbound.SET_CAMERA).with("camera_id", 4));
+        ByteBuf b = Unpooled.wrappedBuffer(sent(p).get(0));   // 리스너는 이벤트 루프에서(여기서 돈다)
+        assertEquals(1, thrown.size());
+        assertTrue(thrown.get(0).getMessage().contains("cameraId"), thrown.get(0).getMessage());
+        Types.readVarInt(b);
+        assertEquals(4, Types.readVarInt(b), "바뀌지 않은 원래 값");
     }
 
     // ------------------------------------------------------------------ 보내기·리스너

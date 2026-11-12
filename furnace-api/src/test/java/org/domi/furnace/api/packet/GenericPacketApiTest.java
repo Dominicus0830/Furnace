@@ -39,6 +39,20 @@ class GenericPacketApiTest {
     }
 
     @Test
+    void mutableValuesAreCopiedEvenInsideOptionalsAndLists() {
+        var tag = new org.domi.furnace.api.nbt.NbtCompound();
+        tag.putInt("a", 1);
+        var p = GenericPacket.of(PacketTypes.Clientbound.TAG_QUERY).with("tag", Optional.of(tag)).with("icons", List.of(new byte[]{1}));
+        int h = p.hashCode();
+        tag.putInt("a", 2);
+        ((org.domi.furnace.api.nbt.NbtCompound) ((Optional<?>) p.get("tag")).orElseThrow()).putInt("a", 3);
+        ((byte[]) ((List<?>) p.get("icons")).get(0))[0] = 9;
+        assertEquals(h, p.hashCode(), "패킷 값은 밖에서 바뀌지 않는다(검토 R3·R4)");
+        assertEquals(1, ((org.domi.furnace.api.nbt.NbtCompound) ((Optional<?>) p.get("tag")).orElseThrow()).getInt("a"));
+        assertArrayEquals(new byte[]{1}, (byte[]) ((List<?>) p.get("icons")).get(0));
+    }
+
+    @Test
     void nestedStructsAndOptionals() {
         var s = PacketStruct.of(Map.of("text", "hi")).with("tooltip", Optional.of(Text.text("t")));
         var p = GenericPacket.of(PacketTypes.Clientbound.COMMAND_SUGGESTIONS).with("suggestions", List.of(s));

@@ -82,7 +82,7 @@ public final class PacketStruct {
 
     public <T> PacketStruct with(PacketField<T> field, T value) { return with(field.name(), value); }
 
-    /** 읽기 전용 이름 → 값 보기(배열은 원본이니 바꾸지 않는다). */
+    /** 읽기 전용 이름 → 값 보기(배열·NbtCompound 는 원본이니 바꾸지 않는다 — 바꿀 값은 get 으로 복사본을 받는다). */
     public Map<String, Object> asMap() { return fields; }
 
     // ------------------------------------------------------------------ 값
@@ -112,6 +112,7 @@ public final class PacketStruct {
             case byte[] a -> a.clone();
             case int[] a -> a.clone();
             case long[] a -> a.clone();
+            case NbtCompound n -> n.copy();   // 가변이라 패킷 밖과 나누지 않는다
             case Collection<?> c -> {
                 List<Object> l = new ArrayList<>(c.size());
                 int i = 0;
@@ -123,12 +124,33 @@ public final class PacketStruct {
         };
     }
 
+    /** 꺼낼 때 가변 값(배열·NbtCompound)은 복사본 — 목록·Optional 안에 있어도. */
     private static Object copyOut(Object v) {
         return switch (v) {
             case byte[] a -> a.clone();
             case int[] a -> a.clone();
             case long[] a -> a.clone();
+            case NbtCompound n -> n.copy();
+            case List<?> l -> {
+                if (l.stream().noneMatch(PacketStruct::mutable)) yield l;
+                List<Object> c = new ArrayList<>(l.size());
+                for (Object o : l) c.add(copyOut(o));
+                yield Collections.unmodifiableList(c);
+            }
+            case Optional<?> o -> o.isPresent() && mutable(o.get()) ? Optional.of(copyOut(o.get())) : o;
             default -> v;
+        };
+    }
+
+    private static boolean mutable(Object v) {
+        return switch (v) {
+            case byte[] a -> true;
+            case int[] a -> true;
+            case long[] a -> true;
+            case NbtCompound n -> true;
+            case List<?> l -> l.stream().anyMatch(PacketStruct::mutable);
+            case Optional<?> o -> o.isPresent() && mutable(o.get());
+            default -> false;
         };
     }
 

@@ -178,7 +178,13 @@ public final class TestPlayer implements AutoCloseable {
                     continue;
                 }
                 var tap = frameTap;
-                if (tap != null) tap.accept(id, io.netty.buffer.ByteBufUtil.getBytes(f));
+                if (tap != null) {
+                    try {
+                        tap.accept(id, io.netty.buffer.ByteBufUtil.getBytes(f));
+                    } catch (RuntimeException e) {   // 시험 코드 실수가 접속 끊김처럼 보이지 않게
+                        e.printStackTrace();
+                    }
+                }
                 record(id, f.duplicate());
                 switch (id) {
                     case 0x26 -> {   // keep_alive → 그대로 되돌린다

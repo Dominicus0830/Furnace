@@ -16,7 +16,8 @@ public interface PacketEvent<P extends Packet> {
 
     /**
      * 값을 바꾼다. 같은 종류여야 한다(아니면 IllegalArgumentException). 서버가 내용을 풀지 못하는 종류(PacketService.isReadable 이 false)는 바꿀 수 없다
-     * (UnsupportedOperationException). MONITOR 우선순위에서는 IllegalStateException.
+     * (UnsupportedOperationException). 이 버전의 와이어로 쓸 수 없는 값(GenericPacket 의 빠진·모르는 필드, 범위 밖 값, 없는 이름 등)이면
+     * 그 자리에서 IllegalArgumentException. MONITOR 우선순위에서는 IllegalStateException.
      */
     void setPacket(P packet);
 

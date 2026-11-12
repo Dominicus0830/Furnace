@@ -250,7 +250,7 @@ public final class GenericCodec767 {
             case "UUID": return plain(wire, "uuid", UUID_NODE);
             case "List", "Set", "Collection":
                 if (wire != null) throw new Unsupported("목록 명시 와이어 " + wire);
-                return list(node(t.arguments().get(0), null, pkg));
+                return list(node(t.arguments().get(0), null, pkg), t.name().equals("Set"));
             case "Optional":
                 if (wire != null) throw new Unsupported("Optional 명시 와이어 " + wire);
                 return optional(node(t.arguments().get(0), null, pkg), false);
@@ -369,7 +369,7 @@ public final class GenericCodec767 {
     private static final Node F32 = node(Float.class, ByteBuf::readFloat, (o, v) -> o.writeFloat((Float) v));
     private static final Node F64 = node(Double.class, ByteBuf::readDouble, (o, v) -> o.writeDouble((Double) v));
     private static final Node BOOL = node(Boolean.class, ByteBuf::readBoolean, (o, v) -> o.writeBoolean((Boolean) v));
-    private static final Node STRING = node(String.class, b -> Types.readString(b, STRING_MAX), (o, v) -> Types.writeString(o, (String) v));
+    private static final Node STRING = node(String.class, b -> Types.readString(b, STRING_MAX), (o, v) -> Types.writeString(o, checkLength((String) v)));
     private static final Node UUID_NODE = node(UUID.class, Types::readUuid, (o, v) -> Types.writeUuid(o, (UUID) v));
     private static final Node IDENTIFIER = node(String.class, b -> Types.readString(b, STRING_MAX), (o, v) -> Types.writeString(o, identifier((String) v)));
     private static final Node TEXT = node(Text.class, NetworkText::read, (o, v) -> NetworkText.write(o, (Text) v));
@@ -435,7 +435,8 @@ public final class GenericCodec767 {
         return n;
     }
 
-    private static Node list(Node elem) {
+    /** distinct: 바닐라가 Set 인 필드 — 같은 값을 두 번 쓰지 않는다(바닐라는 하나로 줄인다). */
+    private static Node list(Node elem, boolean distinct) {
         return node(List.class, b -> {
             int n = count(b, 1);   // 원소는 모두 1바이트 이상
             List<Object> l = new ArrayList<>(Math.min(n, 4096));
@@ -443,6 +444,7 @@ public final class GenericCodec767 {
             return Collections.unmodifiableList(l);
         }, (o, v) -> {
             List<?> l = (List<?>) v;
+            if (distinct && new java.util.HashSet<>(l).size() != l.size()) throw new IllegalArgumentException("Set 필드에 같은 값이 두 번 있다: " + l);
             Types.writeVarInt(o, l.size());
             for (int i = 0; i < l.size(); i++) {
                 Object x = l.get(i);
@@ -559,8 +561,33 @@ public final class GenericCodec767 {
         return id;
     }
 
-    /** 이름공간 없는 이름은 minecraft: 를 붙인다(바닐라 ResourceLocation 과 같은 뜻). */
-    private static String identifier(String s) { return s.indexOf(':') < 0 ? "minecraft:" + s : s; }
+    /**
+     * 이름공간 없는 이름은 minecraft: 를 붙인다(바닐라 ResourceLocation 과 같은 뜻). 바닐라 문법(이름공간 [a-z0-9_.-], 경로 [a-z0-9/._-])이
+     * 아니면 IllegalArgumentException — 바닐라 클라이언트는 그런 이름을 받으면 디코드에 실패해 끊긴다.
+     */
+    static String identifier(String s) {
+        int c = s.indexOf(':');
+        String ns = c < 0 ? "minecraft" : s.substring(0, c), path = c < 0 ? s : s.substring(c + 1);
+        for (int i = 0; i < ns.length(); i++) {
+            char ch = ns.charAt(i);
+            if (!(ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == '_' || ch == '.' || ch == '-')) {
+                throw new IllegalArgumentException("이름공간에 쓸 수 없는 글자(" + ch + "): " + s);
+            }
+        }
+        for (int i = 0; i < path.length(); i++) {
+            char ch = path.charAt(i);
+            if (!(ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == '_' || ch == '.' || ch == '-' || ch == '/')) {
+                throw new IllegalArgumentException("경로에 쓸 수 없는 글자(" + ch + "): " + s);
+            }
+        }
+        return checkLength(ns + ":" + path);
+    }
+
+    /** 바닐라 writeUtf 상한(32767자). 필드마다 더 작은 상한(리소스 팩 hash 40 등)은 스키마에 아직 없다. */
+    private static String checkLength(String s) {
+        if (s.length() > STRING_MAX) throw new IllegalArgumentException("문자열이 너무 길다(" + s.length() + " > " + STRING_MAX + ")");
+        return s;
+    }
 
     private static BlockPos readPos(ByteBuf b) {
         int[] p = Types.readBlockPos(b);

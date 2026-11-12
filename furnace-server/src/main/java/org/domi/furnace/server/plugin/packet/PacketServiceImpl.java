@@ -340,7 +340,7 @@ public final class PacketServiceImpl implements PacketService {
         }
 
         private EventImpl fire(Reg[] rs, PacketType<?> type, Packet value, boolean plugin) {
-            EventImpl ev = new EventImpl(api(), type, value, plugin, value instanceof GenericPacket g ? g.readable() : true);
+            EventImpl ev = new EventImpl(codec, api(), type, value, plugin, value instanceof GenericPacket g ? g.readable() : true);
             for (Reg r : rs) {
                 ev.monitor = r.priority == EventPriority.MONITOR;
                 try {
@@ -370,11 +370,13 @@ public final class PacketServiceImpl implements PacketService {
 
         private final Player player;
         private final PacketType<?> type;
+        private final ProtocolCodec codec;
         private final boolean plugin, readable;
         Packet value;
         boolean cancelled, modified, monitor;
 
-        EventImpl(Player player, PacketType<?> type, Packet value, boolean plugin, boolean readable) {
+        EventImpl(ProtocolCodec codec, Player player, PacketType<?> type, Packet value, boolean plugin, boolean readable) {
+            this.codec = codec;
             this.player = player;
             this.type = type;
             this.value = value;
@@ -398,6 +400,13 @@ public final class PacketServiceImpl implements PacketService {
             if (!readable) throw new UnsupportedOperationException("내용을 읽지 못한 패킷은 바꿀 수 없다: " + type);
             if (packet.type() != type) throw new IllegalArgumentException("같은 종류여야 한다: " + type + " ← " + packet.type());
             if (packet instanceof GenericPacket g && !g.readable()) throw new IllegalArgumentException("내용 없는 패킷으로는 바꿀 수 없다: " + type);
+            // 쓸 수 없는 값(빠진·모르는 필드, 범위 밖, 없는 이름)은 여기서 리스너에게 바로 알린다 — 나중에 실패하면 원래 패킷이 나가 버린다
+            ByteBuf check = Unpooled.buffer();
+            try {
+                codec.encode(packet, check);
+            } finally {
+                check.release();
+            }
             value = packet;
             modified = true;
         }
