@@ -83,7 +83,8 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
     private static final java.util.concurrent.ConcurrentHashMap<String, Boolean> SEND_UNSUPPORTED = new java.util.concurrent.ConcurrentHashMap<>();
 
     /**
-     * 스키마로 생성한 clientbound 패킷 shim 인데 보내기 변환이 아직 없는가({@link SchemaPacket} 이고 {@link NmsPacket} 이 아니다).
+     * 스키마로 생성한 clientbound 패킷 shim 인데 보내기 변환이 아직 없는가({@link SchemaPacket} 이고 {@link NmsPacket} 이 아니며
+     * {@link SchemaPacketBridge#supports} 도 아니다 — 손 코덱·타입 레코드 종류, 값 shim 이 빈 껍데기인 종류).
      * 그런 패킷을 만드는 플러그인은 보낼 때 실패하므로 보고·strict 가 미지원으로 센다. 클래스는 초기화하지 않고 본다.
      */
     static boolean sendUnsupported(String internalName) {
@@ -93,7 +94,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
             if (def.isEmpty() || def.get().direction() != org.domi.furnace.api.packet.PacketDirection.CLIENTBOUND) return false;
             try {
                 Class<?> c = Class.forName(bin, false, NmsCompatReport.class.getClassLoader());
-                return SchemaPacket.class.isAssignableFrom(c) && !NmsPacket.class.isAssignableFrom(c);
+                return SchemaPacket.class.isAssignableFrom(c) && !NmsPacket.class.isAssignableFrom(c) && !SchemaPacketBridge.supports(def.get());
             } catch (ClassNotFoundException | LinkageError ex) {
                 return false;
             }
@@ -304,8 +305,8 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
             if (!seen.add((field ? "F " : "M ") + owner + "#" + name + desc)) return;
             boolean ok = field ? index.hasField(owner, name, desc) : index.hasMethod(owner, name, desc);
             if (ok && !field && name.equals("<init>") && sendUnsupported(e)) {
-                // 생성 패킷(모양만): 만들 수는 있지만 보내면 UnsupportedNmsCall — 보고·strict 에서 미지원으로 센다(범용 코덱이 붙으면 없앤다)
-                miss(owner, NmsLinker.dots(owner) + "#<init>(" + Type.getArgumentTypes(desc).length + ") — 모양만, 보내기 미지원", false);
+                // 생성 패킷 중 보내기 다리가 아직 없는 것: 만들 수는 있지만 보내면 UnsupportedNmsCall — 보고·strict 에서 미지원으로 센다
+                miss(owner, NmsLinker.dots(owner) + "#<init>(" + Type.getArgumentTypes(desc).length + ") — 생성 패킷, 보내기 미지원", false);
                 return;
             }
             if (ok) counts[0]++;

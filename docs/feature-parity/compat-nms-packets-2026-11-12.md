@@ -23,11 +23,11 @@
 - 모든 생성 패킷은 `SchemaPacket`(`schemaKey()`·`schemaValues()`)을 구현한다 — 범용 코덱이 붙으면 보내기 다리가 이것만 본다.
 
 ## 아직 안 되는 것(정직하게)
-- **보내기**: 손으로 쓴 shim 11종(+묶음 패킷)만 실제로 나간다. 생성 패킷을 `connection.send` 하면 `UnsupportedNmsCall`("모양은 있지만 보내기 변환이 아직 없다") — 범용 코덱(E4, 다른 스레드)이 들어오면 `SchemaPacket` 으로 잇는다.
-  - 로드 보고·`plugins.compat.nms.strict`: 보내기 변환이 없는 clientbound 생성 패킷의 **생성자**를 부르는 jar 는 그 생성자를 "모양만 — 보내기 미지원"으로 세어 미지원 수에 넣는다. 그래서 strict=true 면 이전(클래스가 없던 때)처럼 로드를 거절한다. 클래스 참조·instanceof·필드 리플렉션은 지원으로 센다. 범용 코덱이 붙으면 이 갈래를 없앤다(`NmsCompatReport.sendUnsupported`).
+- **보내기**(2026-11-12 easy-nms E4c-1 갱신): 손으로 쓴 shim 11종은 타입 레코드로, 생성 패킷 중 필드 나열 종류 65종은 `SchemaPacketBridge` 가 `GenericPacket` 으로 바꿔 서버 범용 코덱으로 내보낸다(값: Component → Text, BlockPos → api BlockPos, enum → 상수 이름, Holder·ResourceKey·ResourceLocation → 이름, Item·Block·EntityType → 레지스트리 이름, BlockState → BlockData, 내포 record·class → PacketStruct, nullable → Optional). 아직 안 나가는 생성 패킷: 손 코덱 종류(custom — set_experience·boss_event 등, E4c-2 대응 표), 타입 레코드 종류(add_entity·set_entity_data·teleport_entity 등 9종, E4c-3), 값 shim 이 빈 껍데기인 8종(block_entity_data·delete_chat·disguised_chat·login·open_screen·respawn·server_links·set_score). 이것들은 `connection.send` 에서 `UnsupportedNmsCall`. 필수 필드가 null 이면 `IllegalArgumentException`(바닐라도 쓰다 실패한다). int 필드의 명시 와이어(u8·i8·u16·i16)는 바닐라 writeByte·writeShort 처럼 아래 비트로 자른다(블록 부수기 진행도 -1 → 255 = 지우기, 컨테이너 번호 200 → i8 -56). 검토(PR #259)가 바닐라 1.21.1 jar 로 65종 × 2벌 130 프레임을 대조해 모두 같은 바이트였다. 아직 없는 것: 필드별 길이 상한(resource_pack_push.hash 40자, store_cookie.payload 5120바이트 — 스키마에 상한 표기가 없다), 직접 정의 Holder(SoundEvent 값 shim 이 빈 껍데기라 지금은 만들 수 없다).
+  - 로드 보고·`plugins.compat.nms.strict`: 보내기 다리가 없는 clientbound 생성 패킷의 **생성자**를 부르는 jar 는 그 생성자를 "생성 패킷, 보내기 미지원"으로 세어 미지원 수에 넣는다(`NmsCompatReport.sendUnsupported` = SchemaPacket 이고 NmsPacket 도 아니고 `SchemaPacketBridge.supports` 도 아닌 것). 클래스 참조·instanceof·필드 리플렉션은 지원으로 센다.
   - `STREAM_CODEC`·`type()`·`handle()` 은 아직 생성하지 않는다. 1.21.1 에서 public 생성자가 `(Entity)` 뿐인 패킷(Teleport·SetEntityMotion·SectionBlocksUpdate·LevelChunkWithLight 등)을 `STREAM_CODEC.decode` 로 만드는 플러그인 경로는 막혀 있다 — E4 때 스키마 와이어로 함께 생성한다.
 - **받기**: 플러그인 Netty 처리기에 serverbound 패킷 객체를 넘기는 파이프라인 shim(N3a)은 이번 범위 밖. 지금 효과는 "클래스가 있어서 플러그인 클래스가 죽지 않고, instanceof·필드 리플렉션·생성이 된다"까지.
-- `ClientboundBundlePacket` 보내기는 안의 패킷을 묶음 경계 없이 차례로 보낸다(클라이언트가 한 프레임에 모아 처리하는 것까지는 같지 않다). 하나라도 못 보내는 패킷이 있으면 먼저 확인해 아무것도 보내지 않는다(일부만 나가지 않게).
+- `ClientboundBundlePacket` 보내기는 바닐라처럼 번들 하나(`sendPacketBundle`)로 나간다 — 안의 패킷을 모두 먼저 바꾸고 인코딩해 보고, 하나라도 못 하면 아무것도 보내지 않는다.
 - `Entity` 를 받는 바닐라 생성자는 있으나 `Entity#getId` 가 네트워크 id 를 내보내지 않아 그 자리에서 `UnsupportedNmsCall`(H7 의 기존 방침).
 - 접근자 이름(get=)은 난독화돼 jar 로 확인할 수 없다 — Mojang 이름 기억 기준(가정). 필드 이름도 같다.
 - 손으로 쓴 `ClientboundRemoveEntitiesPacket` 은 fastutil 이 없어 `int[]` 로 담는다(스키마는 `IntList`).
