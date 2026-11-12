@@ -578,6 +578,8 @@ public final class FurnaceMain {
             }
         }, "furnace-shutdown"));
 
+        // 바닐라 prepareLevels → overworld.setDefaultSpawnPos: 게임 규칙 spawnChunkRadius 의 START 티켓 — 플레이어가 없어도 스폰 청크가 올라와 돈다
+        world.enableSpawnChunks();
         prepareSpawnArea(world, defaultSpawn, config.spawnChunkRadius());
         core.plugins().pluginsImpl().enableAll();
         core.plugins().pluginsImpl().startWatcher();   // plugins.dev-mode.auto-reload 일 때만

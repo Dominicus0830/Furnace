@@ -146,6 +146,9 @@ public final class RegionLevel extends ChunkLevel {
         if (t.ticketPos() != null) world.placePortalTicket(t.ticketPos().x(), t.ticketPos().z());
     }
 
+    @Override
+    public void resetEmptyTime() { world.resetEmptyTime(); }
+
     // ------------------------------------------------------------------ 엔티티
 
     @Override
@@ -315,6 +318,7 @@ public final class RegionLevel extends ChunkLevel {
         runBlockEvents(k -> chunk((int) (k >> 32), (int) k) == null || blockEventTicking.test(k));
         runEntityTasks();   // 플러그인 EntityScheduler — /tick freeze 중에도 돈다(플러그인 논리는 게임 틱 정지와 무관)
         if (frozen) return;   // 정지 중에는 엔티티·블록 엔티티·드래곤 전투를 틱하지 않는다
+        if (world.emptyIdle()) return;   // 바닐라 emptyTime: 플레이어·/forceload 없이 300 틱이 지난 차원은 이 셋을 쉰다(위 예약 틱·블록 이벤트는 돈다)
         world.tickDragonFight(region, this);   // 바닐라 ServerLevel.tick: 엔티티 틱 바로 앞
         tickEntities(entitySection, entityTick);
         tickBlockEntities(blockTicking);

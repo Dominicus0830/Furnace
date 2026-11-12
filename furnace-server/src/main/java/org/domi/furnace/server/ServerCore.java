@@ -926,6 +926,7 @@ public final class ServerCore {
                 if (ts.globalStepsLeft() == 0) broadcastTickStep(0);
             } else {
                 beginServerTick();   // 바닐라는 정지 중에도 서버 틱 번호가 간다
+                tickEmptyTimes();
             }
             return;
         }
@@ -1031,6 +1032,12 @@ public final class ServerCore {
                 log.error("[SPAWN] 포위·상인 스포너 실패", e);
             }
         }
+        tickEmptyTimes();
+    }
+
+    /** 바닐라 ServerLevel.tick 의 emptyTime(차원마다, 정지 중에도 센다). region 틱보다 먼저 정해 둔다 — 이번 틱 엔티티·블록 엔티티를 돌릴지. */
+    private void tickEmptyTimes() {
+        for (World w : worlds()) w.tickEmptyTime();
     }
 
     /**
@@ -1122,6 +1129,7 @@ public final class ServerCore {
                 for (Player p : players()) p.send(new org.domi.furnace.server.net.protocol.play.GameEvent(
                         org.domi.furnace.server.net.protocol.play.GameEvent.IMMEDIATE_RESPAWN, value != 0 ? 1f : 0f));
             }
+            case "spawnChunkRadius" -> world.refreshSpawnTicket();   // 바닐라 규칙 콜백: overworld.setDefaultSpawnPos(지금 스폰) — 티켓을 새 반경으로
             default -> { }
         }
     }
