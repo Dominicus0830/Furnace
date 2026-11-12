@@ -40,6 +40,6 @@ public final class NmsGrades {
         if (c != null) return "등급 C — " + c;
         String n = NmsSymbols.element(internalName);
         if (n != null && n.startsWith("org/bukkit/craftbukkit/")) return "CraftBukkit 어댑터에 아직 없다(docs/feature-parity/compat-h6-2026-11-07.md)";
-        return "NMS shim 에 아직 없다(docs/feature-parity/compat-h7-2026-11-08.md). Spigot 이름이면 plugins.compat.nms.spigot-mappings=download 로 Spigot → Mojang 대응표를 켜라";
+        return "NMS shim 에 아직 없다(docs/feature-parity/compat-h7-2026-11-08.md). Spigot 이름이면 Spigot → Mojang 대응표가 필요하다(plugins.compat.nms.spigot-mappings=download, 기본 — 시작 로그에서 받기 실패 경고를 보라)";
     }
 }
