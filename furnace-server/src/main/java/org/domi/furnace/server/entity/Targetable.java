@@ -24,9 +24,6 @@ public interface Targetable {
 
     boolean isAlive();
 
-    /** canBeSeenByAnyone: 관전자가 아니고 살아 있다(무적이어도 보인다 — 비전투 조건은 이것만 본다). */
-    default boolean canBeSeenByAnyone() { return isAlive(); }
-
     /** canBeSeenAsEnemy: 무적(크리에이티브)·관전자가 아니고 살아 있다. */
     boolean canBeSeenAsEnemy();
 
