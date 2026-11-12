@@ -18,7 +18,8 @@ public final class BlockEditOptions {
         /** 칸마다 바꾸는 즉시(바닐라 setBlock 플래그 1, World.setBlock 과 같다). */
         IMMEDIATE,
         /**
-         * 바꾸는 동안은 하지 않고, 다 바꾼 뒤 바뀐 칸마다 한 번(바닐라 /fill·/clone 과 같다: 플래그 2 로 놓은 뒤 blockUpdated).
+         * 바꾸는 동안은 하지 않고, 다 바꾼 뒤 바뀐 칸마다 한 번 — 이웃 갱신 시점이 바닐라 /fill·/clone 과 같다(플래그 2 로 놓은 뒤
+         * blockUpdated). /fill 이 놓기 전에 하는 이웃 모양 맞추기(BlockInput.place 의 updateFromNeighbourShapes)는 하지 않는다 — 준 상태 그대로.
          * 여러 region 에 걸치면 region 묶음마다 그 묶음을 다 바꾼 뒤.
          */
         AFTER_EDIT,
@@ -32,7 +33,10 @@ public final class BlockEditOptions {
         BLOCKS,
         /**
          * 바꾼 청크는 그 청크를 보는 사람에게 청크째 한 번 다시 보낸다(빛 포함). 많은 칸을 바꿀 때 칸 갱신보다 훨씬 작다.
-         * 바꾼 청크 밖으로 번진 모양 갱신(계단·울타리 잇기 등)은 바닐라처럼 칸 갱신으로 간다. 클라이언트가 보는 결과는 BLOCKS 와 같다.
+         * 바꾼 청크 밖으로 번진 모양 갱신(계단·울타리 잇기 등)은 바닐라처럼 칸 갱신으로 간다. 블록 결과는 BLOCKS 와 같다.
+         * 단서: 아직 그 청크를 받는 중인 사람에게는 한 번 더 갈 수 있고, 보는 사람마다 바꾼 청크를 한 번에 보낸다(큰 편집은 chunksPerTick 으로
+         * 나눈다). 청크를 다시 받은 클라이언트는 블록 엔티티를 새로 만들므로 열려 있던 상자·셜커 상자 뚜껑이 닫혀 보일 수 있다
+         * (상자는 몇 틱 뒤 다시 열리고, 셜커 상자는 다음 열기·닫기까지).
          */
         CHUNKS,
         /**
@@ -91,8 +95,9 @@ public final class BlockEditOptions {
     public BlockEditOptions clearContainers(boolean v) { return new BlockEditOptions(neighborUpdates, shapeUpdates, clientUpdates, v, chunksPerTick); }
 
     /**
-     * region 스레드가 한 틱에 적용할 최대 청크 수(0 = 한 번에 다). 큰 편집이 한 틱을 길게 붙잡지 않게 나눈다 — 나머지는 다음 틱에
-     * 이어 간다(그 사이 다른 게임 진행이 끼어든다). AFTER_EDIT 이웃 갱신·CHUNKS 재전송은 틱 묶음마다.
+     * 작업 하나(보통 region 하나의 한 틱)가 적용할 최대 청크 수(0 = 한 번에 다). 큰 편집이 한 틱을 길게 붙잡지 않게 나눈다 — 나머지는 다음 틱에
+     * 이어 간다(그 사이 다른 게임 진행이 끼어든다). 보낸 뒤 region 이 합쳐지면 한 틱에 묶음 두 개가 돌 수 있다.
+     * AFTER_EDIT 이웃 갱신·CHUNKS 재전송은 묶음마다.
      */
     public int chunksPerTick() { return chunksPerTick; }
 

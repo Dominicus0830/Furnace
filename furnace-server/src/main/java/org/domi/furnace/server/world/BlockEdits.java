@@ -81,10 +81,14 @@ public final class BlockEdits {
 
         private void send(List<BlockEditBuffer.ChunkEdit> group) {
             if (failed) return;
+            if (world.isUnloaded()) {   // 내린 월드 — 작업 큐가 버려지므로 기다리게 두지 않는다
+                fail(new java.util.concurrent.RejectedExecutionException("내린 월드: " + world.dimension()));
+                return;
+            }
             var head = group.get(0);
             boolean sent;
             try {
-                sent = !world.isUnloaded() && world.regionizer().enqueueIfOwned(Regionizer.chunkKey(head.cx, head.cz), r -> runGroup(r, group));
+                sent = world.regionizer().enqueueIfOwned(Regionizer.chunkKey(head.cx, head.cz), r -> runGroup(r, group));
             } catch (RuntimeException ex) {   // 스케줄러가 닫히는 중
                 fail(ex);
                 return;
@@ -109,7 +113,9 @@ public final class BlockEdits {
                 changed.add(c.changed);
                 unchanged.add(c.unchanged);
                 skipped.add(c.skipped);
-                if (limit < mine.size()) {
+                if (limit < mine.size() && world.isUnloaded()) {
+                    fail(new java.util.concurrent.RejectedExecutionException("내린 월드: " + world.dimension()));
+                } else if (limit < mine.size()) {
                     List<BlockEditBuffer.ChunkEdit> rest = new ArrayList<>(mine.subList(limit, mine.size()));
                     var head = rest.get(0);
                     r.schedule(Regionizer.chunkKey(head.cx, head.cz), r2 -> runGroup(r2, rest), 1);
@@ -177,7 +183,7 @@ public final class BlockEdits {
             for (Pos p : after) lv.blockUpdated(p, B.block(lv.getBlockState(p)));
         }
         if (touched != null && !touched.isEmpty()) {
-            // 청크째 다시 보낼 때 빛까지 맞게 — 틱 끝에 할 빛 계산을 지금(재생성 교체와 같다). 그 청크의 칸 갱신은 청크가 대신한다.
+            // 청크째 다시 보낼 때 빛까지 맞게 — 틱 끝에 할 빛 계산을 지금 하고 스냅샷도 지금 뜬다(resendChunk). 그 청크의 칸 갱신은 청크가 대신한다.
             lv.runLightUpdates();
             for (ChunkPos cp : touched) {
                 lv.discardChanges(cp.x(), cp.z());

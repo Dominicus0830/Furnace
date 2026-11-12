@@ -173,7 +173,7 @@ class BlockEditApiTest {
     }
 
     @Test
-    void afterEditMatchesFillCommandOrder() throws Exception {
+    void afterEditMatchesFillCommandUpdateOrder() throws Exception {
         List<Put> scene = randomScene(22);
         var o = BlockEditOptions.DEFAULT.neighborUpdates(NeighborUpdates.AFTER_EDIT).clearContainers(true);
         edit(A, scene, o);

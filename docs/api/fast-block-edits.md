@@ -18,7 +18,7 @@ world.editBlocks(ed -> {
 // 맵 복구: 이웃·모양 갱신 없음, 상자를 덮어써도 쏟지 않음, 청크째 다시 보내기, 한 틱에 청크 8개씩
 world.editBlocks(BlockEditOptions.FAST.chunksPerTick(8), ed -> snapshot.forEach(ed::set));
 
-// /fill 과 같은 방식: 다 놓은 뒤 놓은 칸마다 이웃 갱신(중간 상태로 레드스톤·모래가 반응하지 않는다)
+// /fill 과 같은 이웃 갱신 시점: 다 놓은 뒤 놓은 칸마다(중간 상태로 레드스톤·모래가 반응하지 않는다). 상태는 준 그대로
 world.editBlocks(BlockEditOptions.DEFAULT.neighborUpdates(NeighborUpdates.AFTER_EDIT).clearContainers(true), ed -> ...);
 
 // 이벤트 처리기 안(그 region 스레드)에서 바로
@@ -30,14 +30,14 @@ BlockEditResult r = world.editBlocksNow(BlockEditOptions.DEFAULT, ed -> ed.set(p
 | 옵션 | 값 | 바닐라 뜻 |
 |---|---|---|
 | `neighborUpdates` | `IMMEDIATE`(기본) | 플래그 1 — 칸마다 바로 `neighborChanged`(World.setBlock 의 11과 같다) |
-| | `AFTER_EDIT` | 플래그 1 없이 놓고, 다 놓은 뒤 바뀐 칸마다 `blockUpdated(pos, 지금 블록)` — `FillCommand`·`CloneCommand` 와 같다. region 이 여럿이면 region 묶음(틱 묶음)마다 |
+| | `AFTER_EDIT` | 플래그 1 없이 놓고, 다 놓은 뒤 바뀐 칸마다 `blockUpdated(pos, 지금 블록)` — 이웃 갱신 **시점**이 `FillCommand`·`CloneCommand` 와 같다. `/fill` 이 놓기 전에 하는 이웃 모양 맞추기(`BlockInput.place` 의 `updateFromNeighbourShapes`, 예: 돌 옆 울타리 `east=true`)는 하지 않는다 — 준 상태 그대로(World.setBlock 과 같은 뜻). region 이 여럿이면 묶음마다 |
 | | `NONE` | 플래그 1 없음 |
 | `shapeUpdates` | `true`(기본) / `false` | false 면 플래그 16(`UPDATE_KNOWN_SHAPE`) — 계단·울타리 잇기, 지지대 잃은 블록 부수기를 하지 않는다 |
 | `clientUpdates` | `BLOCKS`(기본) | 플래그 2 — 칸·섹션 갱신 패킷 |
-| | `CHUNKS` | 플래그 2 는 그대로(바꾼 청크 밖으로 번진 모양 갱신은 칸 갱신으로 간다), 바꾼 청크는 빛까지 계산한 뒤 보는 사람에게 청크째 한 번 다시 보내고 그 청크의 칸 갱신은 버린다. 클라이언트가 보는 결과는 같다 |
+| | `CHUNKS` | 플래그 2 는 그대로(바꾼 청크 밖으로 번진 모양 갱신은 칸 갱신으로 간다), 바꾼 청크는 빛까지 계산하고 그 자리에서 스냅샷을 떠 보는 사람에게 청크째 한 번 다시 보내고 그 청크의 칸 갱신은 버린다. 블록 결과는 같다. 단서: 아직 그 청크를 받는 중인 사람에게는 한 번 더 갈 수 있고, 보는 사람마다 바꾼 청크를 한 번에 보낸다(큰 편집은 `chunksPerTick`). 청크를 다시 받은 클라이언트는 블록 엔티티를 새로 만들어 열린 상자 뚜껑은 잠깐, 열린 셜커 상자 뚜껑은 다음 열기·닫기까지 닫혀 보인다(바닐라 클라이언트 동작 기준 — 가정) |
 | | `NONE` | 플래그 2 없음(번진 모양 갱신도 알리지 않는다). 플레이어별 보기를 따로 보낼 때만 |
 | `clearContainers` | `false`(기본) / `true` | true 면 다른 상태로 바꾸는 칸의 내용물을 먼저 비운다(`Clearable.tryClear`, `/fill`·`/setblock`). 같은 상태인 칸은 건드리지 않는다 |
-| `chunksPerTick` | `0`(기본, 한 번에) / n | region 한 틱에 청크 n 개까지, 나머지는 다음 틱(합치기·나누기를 따라간다) |
+| `chunksPerTick` | `0`(기본, 한 번에) / n | 작업 하나(보통 region 하나의 한 틱)에 청크 n 개까지, 나머지는 다음 틱(합치기·나누기를 따라간다). 보낸 뒤 region 이 합쳐지면 한 틱에 묶음 둘이 돌 수 있다 |
 
 어느 옵션이든 일어나는 것(바닐라 `LevelChunk.setBlockState` 몫): 블록의 `onRemove`·`onPlace`(예약 틱 걸기, 블록 엔티티 만들기·지우기, 레드스톤 선 세기, `clearContainers=false` 면 담긴 아이템 쏟기), 빛 다시 계산(틱 끝에 한 번 묶어서 — CHUNKS 는 재전송 전에), 마을 POI, 저장 표시. 이벤트(BlockPlace 등)는 거치지 않는다(World.setBlock 과 같다).
 
@@ -50,6 +50,7 @@ BlockEditResult r = world.editBlocksNow(BlockEditOptions.DEFAULT, ed -> ed.set(p
 - 순서: 한 청크 안에서 아래 섹션부터, 섹션 안에서 y·z·x 오름차순(적은 순서가 아니다). 순서가 결과를 바꾸는 편집(IMMEDIATE 로 지지대와 그 위를 같이 바꾸기 등)은 나누거나 `AFTER_EDIT` 를 쓴다.
 - 로드 안 된 청크·높이 밖 칸은 건너뛰고 `skipped` 로 센다. 청크를 불러오거나 만들지 않는다.
 - 알 수 없는 블록·속성은 `edit` 안에서 `IllegalArgumentException` → future 가 그 예외로 끝나고 아무 칸도 바뀌지 않는다.
+- 월드를 내리면(추가 월드 unload) 아직 남은 묶음은 `RejectedExecutionException` 으로 끝난다(이미 큐에 들어간 묶음이 버려지면 future 가 끝나지 않을 수 있다 — World.setBlock 과 같다).
 - `editBlocksNow`: 모든 청크가 이 스레드가 돌리는 region 것이어야 한다. 하나라도 아니면 아무것도 바꾸지 않고 `ThreadOwnershipException`. `chunksPerTick` 은 무시.
 
 ## 4. 측정 (2026-11-12, 4코어 컨테이너, 평지, 4×4 청크, 보는 플레이어 1명)
@@ -63,7 +64,7 @@ BlockEditResult r = world.editBlocksNow(BlockEditOptions.DEFAULT, ed -> ed.set(p
 | 524,288 (높이 128) | 2,013~2,353 ms, 5.2 MB | 391~424 ms, 0.9~1.05 MB | 119~124 ms | 117~124 ms, **4.2 KB** |
 
 - 시간은 부른 스레드에서 future 가 끝날 때까지(region 작업 큐 왕복 포함). World.setBlock 은 칸마다 작업 하나·future 하나·블록 갱신 패킷 하나라 느리다. editBlocks 는 region 마다 작업 하나, 섹션마다 패킷 하나.
-- 이번에 함께 고친 것: 틱 끝 변경 방송의 칸 집합을 `TreeSet<Short>` 에서 4096비트 배열로(같은 오름차순, 상자 없음), 블록 엔티티 없는 청크는 칸마다 블록 엔티티를 찾지 않는다. 바뀐 칸이 많은 모든 블록 쓰기(폭발·피스톤·/fill 포함)가 빨라진다 — 이웃·모양 끔 52만 칸이 211~289 ms → 119~124 ms.
+- 이번에 함께 고친 것: 틱 끝 변경 방송의 칸 집합을 `TreeSet<Short>` 에서 4096비트 배열로(같은 오름차순, 상자 없음, 한 칸뿐이면 배열 없이 필드 하나), 블록 엔티티 없는 청크는 칸마다 블록 엔티티를 찾지 않는다. 바뀐 칸이 많은 모든 블록 쓰기(폭발·피스톤·/fill 포함)가 빨라진다 — 이웃·모양 끔 52만 칸이 211~289 ms → 119~124 ms.
 - CHUNKS 는 압축 전에는 청크 패킷(빛 배열 포함)이 더 크지만 압축하면 섹션 갱신보다 수십 배 작고, 클라이언트도 칸마다 setBlock·빛 계산을 하지 않는다. 평지라 압축이 특히 잘 된 값이다 — 실제 지형은 더 크다(가정).
 
 ## 5. 뒤로 미룬 것

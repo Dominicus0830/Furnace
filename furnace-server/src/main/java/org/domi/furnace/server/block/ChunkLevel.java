@@ -42,12 +42,26 @@ public abstract class ChunkLevel implements BlockLevel {
     /** 방송할 변경: 구역 키(청크 x,z,구역 y) → 구역 안 칸 번호 집합(바닐라 ChunkHolder.changedBlocksPerSection). */
     private final TreeMap<Long, SectionChanges> changed = new TreeMap<>();
 
-    /** 한 구역의 바뀐 칸 번호 집합 — 4096비트. 번호 오름차순으로 돈다(예전 TreeSet<Short> 과 같은 순서, 칸마다 상자를 만들지 않는다). */
+    /**
+     * 한 구역의 바뀐 칸 번호 집합. 번호 오름차순으로 돈다(예전 TreeSet<Short> 과 같은 순서, 칸마다 상자를 만들지 않는다).
+     * 한 칸뿐인 흔한 경우(무작위 틱·레드스톤)는 필드 하나, 둘째 칸부터 4096비트 배열.
+     */
     static final class SectionChanges {
-        final long[] bits = new long[64];
+        private long[] bits;
+        private int single = -1;
         int count;
 
         void add(int local) {
+            if (bits == null) {
+                if (count == 0) {
+                    single = local;
+                    count = 1;
+                    return;
+                }
+                if (single == local) return;
+                bits = new long[64];
+                bits[single >>> 6] |= 1L << single;
+            }
             long m = 1L << local;
             int w = local >>> 6;
             if ((bits[w] & m) == 0) {
@@ -57,13 +71,16 @@ public abstract class ChunkLevel implements BlockLevel {
         }
 
         void addAll(SectionChanges o) {
-            int n = 0;
-            for (int i = 0; i < 64; i++) n += Long.bitCount(bits[i] |= o.bits[i]);
-            count = n;
+            if (o.bits == null) {
+                if (o.count > 0) add(o.single);
+                return;
+            }
+            for (short l : o.toArray()) add(l);
         }
 
         /** 오름차순 칸 번호. */
         short[] toArray() {
+            if (bits == null) return count == 0 ? new short[0] : new short[] {(short) single};
             short[] out = new short[count];
             int k = 0;
             for (int w = 0; w < 64; w++) {
