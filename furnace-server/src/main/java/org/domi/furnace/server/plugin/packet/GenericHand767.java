@@ -459,6 +459,8 @@ final class GenericHand767 {
             throw new IllegalArgumentException("서명은 {id: Integer, full_signature: Optional<byte[]>} 이어야 한다: " + s);
         }
         if (id < -1) throw new IllegalArgumentException("id 는 -1(서명 전체) 이상: " + id);
+        // 받은 클라이언트 MessageSignatureCache 는 128칸이고 unpack 이 배열을 바로 읽는다(128 이상이면 AIOOBE 로 끊긴다)
+        if (id > 127) throw new IllegalArgumentException("id 는 127 이하(바닐라 서명 캐시 128칸): " + id);
         if ((id == -1) != sig.isPresent()) throw new IllegalArgumentException("full_signature 는 id 가 -1 일 때만 있어야 한다: " + s);
         Types.writeVarInt(o, id + 1);
         if (sig.isPresent()) {

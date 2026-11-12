@@ -145,7 +145,7 @@ styled 의 `style` 은 보낼 때 바닐라 Style 로 읽히는지 검사한다(
 
 | 종류 | 필드 (와이어 순서) |
 |---|---|
-| `bundle_delimiter` | 없음. 읽을 수 있지만 혼자 보내면 `IllegalArgumentException` — 번들은 `sendBundle` 로(짝은 서버가 맞춘다) |
+| `bundle_delimiter` | 없음. 읽을 수 있지만 혼자 보내면 `IllegalArgumentException` — 번들은 `sendBundle` 로(짝은 서버가 맞춘다). 서버 번들의 구분자는 리스너를 거치지 않고, 이벤트에서도 취소·바꾸기는 `UnsupportedOperationException` |
 | `level_particles` | `override_limiter` `x` `y` `z`(Double) `x_dist` `y_dist` `z_dist` `max_speed`(Float) `count` · `particle` `{type, …}` |
 | `explode` | `x` `y` `z` `power` · `to_blow` `List<BlockPos>`(절대 좌표 — 와이어는 `floor(x,y,z)` 에서 i8 차이라 그 밖은 거부) · `knockback_x/y/z` · `block_interaction`(KEEP·DESTROY·DESTROY_WITH_DECAY·TRIGGER_BLOCK) · `small_explosion_particles` `large_explosion_particles`(입자) · `explosion_sound`(소리 이름 또는 직접 정의 — E4b 소리와 같다) |
 | `light_update` | `x` `z` · `light_data` (아래 빛 묶음) |
@@ -167,11 +167,17 @@ styled 의 `style` 은 보낼 때 바닐라 Style 로 읽히는지 검사한다(
   `argument_type` = `{parser, …}` — `brigadier:float`·`double`·`integer`·`long` `{min, max}`(Optional), `brigadier:string` `{type}`(SINGLE_WORD·QUOTABLE_PHRASE·GREEDY_PHRASE),
   `minecraft:entity` `{single, players_only}`, `minecraft:score_holder` `{multiple}`, `minecraft:time` `{min}`, `minecraft:resource`·`resource_key`·`resource_or_tag`·`resource_or_tag_key` `{registry_key}`, 나머지는 `{parser}` 뿐.
   쓸 때 번호가 목록 안인지, 뿌리가 ROOT 인지, 자식·리다이렉트에 순환이 없는지(바닐라 validateEntries) 본다 — 어기면 클라이언트가 "impossible command tree" 로 끊긴다.
+  `minecraft:resource`·`resource_or_tag` 의 `registry_key` 는 클라이언트에 있는 레지스트리여야 한다(받은 클라이언트가 찾다가 끊긴다 — `*_key` 둘은 찾지 않아 검사하지 않는다).
 - **레시피** `type`(recipe_serializer): `crafting_shaped` `{group, category, width, height, ingredients, result, show_notification}`(가로·세로 1~3, 재료 width×height 개),
   `crafting_shapeless` `{group, category, ingredients(1~9), result}`, `smelting`·`blasting`·`smoking`·`campfire_cooking` `{group, category, ingredient, result, experience, cooking_time}`,
   `stonecutting` `{group, ingredient, result}`, `smithing_transform` `{template, base, addition, result}`, `smithing_trim` `{template, base, addition}`, `crafting_special_*`·`crafting_decorated_pot` `{category}`.
   재료(ingredient) 하나는 `List<ItemStack>`(빈 목록 = 빈 칸). 같은 id 를 두 번 쓰지 않는다(바닐라 클라이언트 RecipeManager 가 끊긴다).
 - **거래 비용** `base_cost_a`·`cost_b` 는 `ItemStack` — 종류·개수·`components`(같아야 하는 컴포넌트). 지운 컴포넌트(`removedComponents`)는 조건으로 나타낼 수 없어 거부한다.
+- **태그 묶음은 전체 교체다**: 받은 클라이언트는 동기화 레지스트리가 아닌 레지스트리(block·item·fluid·entity_type …)의 태그를 모두 지운 뒤 받은 것만 넣는다.
+  일부 레지스트리만 보내면 빠진 레지스트리의 태그(`minecraft:climbable` 등)가 사라져 이동 예측이 어긋난다 — 바닐라처럼 언제나 전부 보낸다. `registry` 는 클라이언트에 있는 레지스트리여야 한다(빈 목록이라도 없으면 끊긴다).
+- **청크 `buffer`** 는 구역 데이터를 해석하지 않고 그대로 보낸다. 잘못된 구역 데이터는 클라이언트가 청크를 적용하다 끊기므로 서버가 보낸 값을 바꿀 때 조심한다.
+- **비용**: `level_chunk_with_light` 리스너를 하나라도 달면(관찰·취소만 해도) 플레이어·청크마다 패킷을 이름 붙은 필드로 푼다(구역 버퍼 복사·heightmap NBT 읽기). 청크 전송이 많은 서버에서는 꼭 필요할 때만 단다.
+- `player_chat` 의 `last_seen`·`delete_chat` 의 서명 번호(`id`)는 127 까지다(클라이언트 서명 캐시 128칸 — 넘으면 끊긴다).
 - 바닐라가 맵인 목록(태그의 `registry`·`name`, 진행도의 `id`·`name`)은 같은 키를 두 번 쓰지 않는다(`"item"` 과 `"minecraft:item"` 은 같은 키). 읽을 때 겹치면 바닐라 맵처럼 마지막 값만 남긴다.
 - 이 종류들도 바닐라 jar 로 132 프레임(입자 전 종류·명령 인자 전 종류·레시피 전 종류 포함)을 읽고 다시 써 같은 바이트를 확인했다.
 

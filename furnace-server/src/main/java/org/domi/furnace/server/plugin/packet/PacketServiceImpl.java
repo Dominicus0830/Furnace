@@ -371,6 +371,9 @@ public final class PacketServiceImpl implements PacketService {
     @SuppressWarnings("rawtypes")
     private static final class EventImpl implements PacketEvent {
 
+        /** 구분자 하나만 빠지면 짝이 어긋나 클라이언트가 뒤 패킷을 묶음으로 쌓다가(4096개) 끊긴다. */
+        private static final String BUNDLE_PAIR = "번들 구분자는 취소·바꾸기를 할 수 없다(짝이 어긋나면 클라이언트가 끊긴다) — 묶음 안의 패킷을 취소한다";
+
         private final Player player;
         private final PacketType<?> type;
         private final ProtocolCodec codec;
@@ -401,6 +404,7 @@ public final class PacketServiceImpl implements PacketService {
             if (monitor) throw new IllegalStateException("MONITOR 리스너는 패킷을 바꿀 수 없다");
             Objects.requireNonNull(packet, "packet");
             if (!readable) throw new UnsupportedOperationException("내용을 읽지 못한 패킷은 바꿀 수 없다: " + type);
+            if (type == org.domi.furnace.api.packet.PacketTypes.Clientbound.BUNDLE_DELIMITER) throw new UnsupportedOperationException(BUNDLE_PAIR);
             if (packet.type() != type) throw new IllegalArgumentException("같은 종류여야 한다: " + type + " ← " + packet.type());
             if (packet instanceof GenericPacket g && !g.readable()) throw new IllegalArgumentException("내용 없는 패킷으로는 바꿀 수 없다: " + type);
             // 쓸 수 없는 값(빠진·모르는 필드, 범위 밖, 없는 이름)은 여기서 리스너에게 바로 알린다 — 나중에 실패하면 원래 패킷이 나가 버린다
@@ -420,6 +424,7 @@ public final class PacketServiceImpl implements PacketService {
         @Override
         public void setCancelled(boolean c) {
             if (monitor) throw new IllegalStateException("MONITOR 리스너는 취소할 수 없다");
+            if (c && type == org.domi.furnace.api.packet.PacketTypes.Clientbound.BUNDLE_DELIMITER) throw new UnsupportedOperationException(BUNDLE_PAIR);
             cancelled = c;
         }
 

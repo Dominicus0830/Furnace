@@ -216,6 +216,31 @@ final class GenericComplex767 {
 
     // ------------------------------------------------------------------ 폭발
 
+    /** 바닐라 1.21.1 클라이언트의 레지스트리 이름(정적 + 동기화). registries/client-registries-1.21.1.txt. */
+    private static final class ClientRegistries {
+        static final Set<String> NAMES = load();
+
+        private static Set<String> load() {
+            try (var in = GenericComplex767.class.getClassLoader().getResourceAsStream("registries/client-registries-1.21.1.txt")) {
+                if (in == null) throw new IllegalStateException("registries/client-registries-1.21.1.txt 없음");
+                Set<String> names = new HashSet<>();
+                for (String line : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
+                    line = line.strip();
+                    if (!line.isEmpty() && !line.startsWith("#")) names.add(line);
+                }
+                return Set.copyOf(names);
+            } catch (java.io.IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+        }
+    }
+
+    private static void clientRegistry(Object key, String where) {
+        if (!(key instanceof String k)) return;   // 값 종류 검사는 코덱이 한다
+        String id = GenericCodec767.identifier(k);
+        if (!ClientRegistries.NAMES.contains(id)) throw bad(where + " 는 바닐라 클라이언트에 있는 레지스트리여야 한다(없으면 접속이 끊긴다): " + k);
+    }
+
     /** 바닐라 Mth.floor(double). */
     private static int floor(double v) {
         int i = (int) v;
@@ -372,6 +397,9 @@ final class GenericComplex767 {
         ARGUMENT_TYPE = keyed("parser", "명령 인자 종류", PARSERS, s, EMPTY);
     }
 
+    /** 받은 클라이언트가 생성자에서 레지스트리를 찾는 인자 종류(resource_key·resource_or_tag_key 는 찾지 않는다). */
+    private static final Set<String> LOOKED_UP_PARSERS = Set.of("minecraft:resource", "minecraft:resource_or_tag");
+
     private static final Compiled ENTRY = shape(List.of("type", "executable", "children", "redirect", "name", "argument_type", "suggestion_id"),
             List.of(STRING, BOOL, VARINTS, GenericCodec767.optional(VARINT, false), GenericCodec767.optional(STRING, false),
                     GenericCodec767.optional(ARGUMENT_TYPE, false), GenericCodec767.optional(IDENTIFIER, false)));
@@ -407,7 +435,14 @@ final class GenericComplex767 {
         VARINTS.write(o, m.get("children"));
         if (redirect.isPresent()) VARINT.write(o, redirect.get());
         if (name.isPresent()) STRING.write(o, name.get());
-        if (arg.isPresent()) ARGUMENT_TYPE.write(o, arg.get());
+        if (arg.isPresent()) {
+            // resource·resource_or_tag 는 받은 클라이언트가 인자를 만들 때 lookupOrThrow 로 레지스트리를 찾는다(없으면 끊긴다)
+            if (arg.get() instanceof PacketStruct a && a.has("parser") && a.has("registry_key")
+                    && LOOKED_UP_PARSERS.contains(GenericCodec767.identifier(String.valueOf(a.get("parser"))))) {
+                clientRegistry(a.get("registry_key"), "argument_type.registry_key");
+            }
+            ARGUMENT_TYPE.write(o, arg.get());
+        }
         if (suggestion.isPresent()) IDENTIFIER.write(o, suggestion.get());
     });
 
@@ -675,8 +710,16 @@ final class GenericComplex767 {
     // ------------------------------------------------------------------ 태그
 
     /** 태그: [{registry, tags[{name, entries(그 레지스트리 번호 int[])}]}] — 바닐라는 맵이라 같은 registry·name 은 쓰지 않는다. */
-    private static final Node TAGS = distinctBy(struct(List.of("registry", "tags"), List.of(IDENTIFIER,
-            distinctBy(struct(List.of("name", "entries"), List.of(IDENTIFIER, VARINTS)), "name", true))), "registry", true);
+    private static final Node TAGS = clientRegistries(distinctBy(struct(List.of("registry", "tags"), List.of(IDENTIFIER,
+            distinctBy(struct(List.of("name", "entries"), List.of(IDENTIFIER, VARINTS)), "name", true))), "registry", true));
+
+    /** 태그 묶음의 registry 는 클라이언트에 있는 레지스트리여야 한다(TagCollector 가 registryOrThrow — 빈 목록이라도 끊긴다). */
+    private static Node clientRegistries(Node tags) {
+        return node(List.class, tags::read, (o, v) -> {
+            for (Object x : (List<?>) v) if (x instanceof PacketStruct p && p.has("registry")) clientRegistry(p.get("registry"), "registry");
+            tags.write(o, v);
+        });
+    }
 
     // ------------------------------------------------------------------ 상인 거래
 

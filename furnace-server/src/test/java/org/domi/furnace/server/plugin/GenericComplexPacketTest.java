@@ -200,6 +200,17 @@ class GenericComplexPacketTest {
         assertTrue(rejected(g(Clientbound.COMMANDS, "entries", List.of(root, tp, alias, node("LITERAL", new int[]{9}, Optional.empty(), "x", null)), "root_index", 0)).contains("목록 밖"));
         rejected(g(Clientbound.COMMANDS, "entries", List.of(root, tp, alias, node("LITERAL", new int[0], Optional.empty(), null, null)), "root_index", 0));   // 이름 없는 리터럴
         rejected(g(Clientbound.COMMANDS, "entries", List.of(root, tp, alias, node("ARGUMENT", new int[0], Optional.empty(), "n", s("parser", "brigadier:string", "type", "WORDS"))), "root_index", 0));
+        // resource·resource_or_tag 는 받은 클라이언트가 레지스트리를 찾는다 — 클라이언트에 없는 레지스트리면 끊긴다. *_key 는 찾지 않는다
+        for (String parser : List.of("minecraft:resource", "resource_or_tag")) {
+            PacketStruct bad = node("ARGUMENT", new int[0], Optional.empty(), "n", s("parser", parser, "registry_key", "x:nope"));
+            assertTrue(rejected(g(Clientbound.COMMANDS, "entries", List.of(root, tp, alias, bad), "root_index", 0)).contains("레지스트리"), parser);
+            for (String reg : List.of("minecraft:enchantment", "entity_type", "worldgen/structure_type")) {
+                PacketStruct good = node("ARGUMENT", new int[0], Optional.empty(), "n", s("parser", parser, "registry_key", reg));
+                hex(g(Clientbound.COMMANDS, "entries", List.of(root, tp, alias, good), "root_index", 0));
+            }
+        }
+        hex(g(Clientbound.COMMANDS, "entries", List.of(root, tp, alias,
+                node("ARGUMENT", new int[0], Optional.empty(), "n", s("parser", "minecraft:resource_key", "registry_key", "x:nope"))), "root_index", 0));
     }
 
     @Test
@@ -221,6 +232,12 @@ class GenericComplexPacketTest {
                 "progress", List.of(s("id", "x:a", "criteria", List.of(crit, crit))))).contains("두 번"));
         rejected(g(Clientbound.UPDATE_ADVANCEMENTS, "reset", false, "added", List.of(), "removed", List.of("x:a", "x:a"), "progress", List.of()));
         rejected(g(Clientbound.UPDATE_TAGS, "tags", List.of(s("registry", "minecraft:item", "tags", List.of()), s("registry", "item", "tags", List.of()))));
+        // 서명 캐시 번호는 127 까지(클라이언트 MessageSignatureCache 128칸) — delete_chat 과 player_chat 의 last_seen 이 같은 노드
+        assertTrue(rejected(g(Clientbound.DELETE_CHAT, "message_signature", s("id", 128, "full_signature", Optional.empty()))).contains("127"));
+        hex(g(Clientbound.DELETE_CHAT, "message_signature", s("id", 127, "full_signature", Optional.empty())));
+        // 클라이언트에 없는 레지스트리는 빈 태그 목록이라도 TagCollector 가 끊는다
+        assertTrue(rejected(g(Clientbound.UPDATE_TAGS, "tags", List.of(s("registry", "x:nope", "tags", List.of())))).contains("레지스트리"));
+        hex(g(Clientbound.UPDATE_TAGS, "tags", List.of(s("registry", "worldgen/biome", "tags", List.of()), s("registry", "minecraft:enchantment", "tags", List.of()))));
         assertTrue(rejected(g(Clientbound.MERCHANT_OFFERS, "container_id", 1, "offers", List.of(s("base_cost_a",
                 new ItemStack("minecraft:emerald", 1, Map.of(), Set.of("minecraft:max_stack_size")), "result", stone, "cost_b", Optional.empty(), "out_of_stock", false,
                 "uses", 0, "max_uses", 1, "xp", 0, "special_price_diff", 0, "price_multiplier", 0f, "demand", 0)),
@@ -241,6 +258,26 @@ class GenericComplexPacketTest {
         var e = assertThrows(IllegalArgumentException.class, () -> host.packets().send(api, GenericPacket.of(Clientbound.BUNDLE_DELIMITER)));
         assertTrue(e.getMessage().contains("sendBundle"), e.getMessage());
         assertThrows(IllegalArgumentException.class, () -> host.packets().broadcast(GenericPacket.of(Clientbound.BUNDLE_DELIMITER)));
+        // 서버 번들의 구분자는 리스너를 거치지 않는다(Player.sendBundle 이 바로 넣는다) — 리스너가 취소·바꾸기로 짝을 깰 수 없다.
+        // 혹시 이벤트로 오더라도 PacketEvent 가 취소·바꾸기를 거부한다(UnsupportedOperationException).
+        List<String> seen = new ArrayList<>();
+        host.packets().listen(new TestPlugins.Gamma(), Clientbound.BUNDLE_DELIMITER, ev -> {
+            seen.add(String.valueOf(ev.packet().type()));
+            ev.setCancelled(true);
+        });
+        host.packets().sendBundle(api, List.of(g(Clientbound.SET_CAMERA, "camera_id", 4)));
+        ch.runPendingTasks();
+        List<byte[]> frames = new ArrayList<>();
+        for (Object o; (o = ch.readOutbound()) != null; ) {
+            ByteBuf bb = (ByteBuf) o;
+            frames.add(ByteBufUtil.getBytes(bb));
+            bb.release();
+        }
+        assertEquals(List.of(), seen);
+        int delimiter = codec.ids(Clientbound.BUNDLE_DELIMITER)[0];
+        assertEquals(3, frames.size(), "구분자·패킷·구분자");
+        assertEquals(delimiter, frames.get(0)[0]);
+        assertEquals(delimiter, frames.get(2)[0]);
     }
 
     @Test
