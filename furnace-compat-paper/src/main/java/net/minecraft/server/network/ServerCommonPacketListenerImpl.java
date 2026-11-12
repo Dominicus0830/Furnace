@@ -13,13 +13,19 @@ import org.domi.furnace.compat.nms.UnsupportedNmsCall;
 
 /**
  * 서버 쪽 연결 공통 처리자 shim(Mojang 이름, H7c): {@code player.connection.send(packet)}.
- * 실제 연결({@code connection} 필드, Netty 채널)은 내보내지 않는다 — 파이프라인에 처리기를 끼우는 코드는 등급 C 다(Furnace 패킷 API 의 PacketListener 를 쓴다).
+ * {@code connection} 필드는 바닐라처럼 있지만 Netty 채널은 닫힌 자리표시다 — 파이프라인에 처리기를 끼우는 코드는 아직 지원하지 않는다(Furnace 패킷 API 의 PacketListener 를 쓴다).
  */
 public abstract class ServerCommonPacketListenerImpl implements PacketListener {
 
     private final ServerPlayer owner;
 
-    protected ServerCommonPacketListenerImpl(ServerPlayer owner) { this.owner = owner; }
+    /** 바닐라: 이 접속의 연결(패킷 라이브러리가 형식으로 이 필드를 찾는다). */
+    protected final net.minecraft.network.Connection connection;
+
+    protected ServerCommonPacketListenerImpl(ServerPlayer owner) {
+        this.owner = owner;
+        this.connection = new net.minecraft.network.Connection(this);
+    }
 
     private org.domi.furnace.api.entity.Player f() { return owner.getBukkitEntity().furnaceHandle(); }
 

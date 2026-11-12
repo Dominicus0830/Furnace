@@ -255,15 +255,16 @@ class PacketRegistryShimTest {
     }
 
     @Test
-    void friendlyByteBufDelegatesAndWrapsDerivedBuffers() {
+    void friendlyByteBufDelegatesAndDoesNotWrapDerivedBuffers() {
         ByteBuf raw = Unpooled.buffer();
         FriendlyByteBuf buf = new FriendlyByteBuf(raw);
         buf.writeInt(0x01020304).writeByte(9);
         assertEquals(5, raw.writableBytes() >= 0 ? raw.readableBytes() : -1);
         assertSame(buf, buf.writeShort(1), "체이닝은 감싼 객체를 돌려준다");
-        assertInstanceOf(FriendlyByteBuf.class, buf.copy());
-        assertInstanceOf(FriendlyByteBuf.class, buf.duplicate());
-        assertInstanceOf(FriendlyByteBuf.class, buf.slice());
+        // 바닐라(vw.copy)처럼 안쪽 ByteBuf 를 감싸지 않고 그대로 돌려준다
+        assertFalse(buf.copy() instanceof FriendlyByteBuf);
+        assertFalse(buf.duplicate() instanceof FriendlyByteBuf);
+        assertFalse(buf.slice() instanceof FriendlyByteBuf);
         assertEquals(0x01020304, buf.getInt(0));
         assertEquals(1, buf.refCnt());
         assertTrue(buf.release());
@@ -273,6 +274,11 @@ class PacketRegistryShimTest {
         assertThrows(io.netty.handler.codec.EncoderException.class, () -> small.writeUtf("abcd", 3));
         small.writeUtf("abc", 3);
         assertThrows(io.netty.handler.codec.DecoderException.class, () -> small.readUtf(2));
+        // 바닐라 wp.a: 길이가 남은 바이트보다 크면 DecoderException
+        FriendlyByteBuf truncated = new FriendlyByteBuf(Unpooled.buffer());
+        truncated.writeVarInt(5).writeBytes(new byte[] {1, 2});
+        var ex = assertThrows(io.netty.handler.codec.DecoderException.class, truncated::readUtf);
+        assertEquals("Not enough bytes in buffer, expected 5, but got 2", ex.getMessage());
     }
 
     @Test

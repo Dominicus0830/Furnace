@@ -81,6 +81,8 @@ public class FriendlyByteBuf extends ByteBuf {
         int bytes = readVarInt();
         if (bytes > maxLength * 3) throw new io.netty.handler.codec.DecoderException("The received encoded string buffer length is longer than maximum allowed (" + bytes + " > " + maxLength * 3 + ")");
         if (bytes < 0) throw new io.netty.handler.codec.DecoderException("The received encoded string buffer length is less than zero! Weird string!");
+        int readable = readableBytes();
+        if (bytes > readable) throw new io.netty.handler.codec.DecoderException("Not enough bytes in buffer, expected " + bytes + ", but got " + readable);
         String s = toString(readerIndex(), bytes, StandardCharsets.UTF_8);
         readerIndex(readerIndex() + bytes);
         if (s.length() > maxLength) throw new io.netty.handler.codec.DecoderException("The received string length is longer than maximum allowed (" + s.length() + " > " + maxLength + ")");
@@ -281,8 +283,8 @@ public class FriendlyByteBuf extends ByteBuf {
     @Override public float readFloat() { return source.readFloat(); }
     @Override public double readDouble() { return source.readDouble(); }
     @Override public io.netty.buffer.ByteBuf readBytes(int p0) { source.readBytes(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf readSlice(int p0) { return new FriendlyByteBuf(source.readSlice(p0)); }
-    @Override public io.netty.buffer.ByteBuf readRetainedSlice(int p0) { return new FriendlyByteBuf(source.readRetainedSlice(p0)); }
+    @Override public io.netty.buffer.ByteBuf readSlice(int p0) { return source.readSlice(p0); }
+    @Override public io.netty.buffer.ByteBuf readRetainedSlice(int p0) { return source.readRetainedSlice(p0); }
     @Override public io.netty.buffer.ByteBuf readBytes(io.netty.buffer.ByteBuf p0) { source.readBytes(p0); return this; }
     @Override public io.netty.buffer.ByteBuf readBytes(io.netty.buffer.ByteBuf p0, int p1) { source.readBytes(p0, p1); return this; }
     @Override public io.netty.buffer.ByteBuf readBytes(io.netty.buffer.ByteBuf p0, int p1, int p2) { source.readBytes(p0, p1, p2); return this; }
@@ -326,14 +328,14 @@ public class FriendlyByteBuf extends ByteBuf {
     @Override public int forEachByte(int p0, int p1, io.netty.util.ByteProcessor p2) { return source.forEachByte(p0, p1, p2); }
     @Override public int forEachByteDesc(io.netty.util.ByteProcessor p0) { return source.forEachByteDesc(p0); }
     @Override public int forEachByteDesc(int p0, int p1, io.netty.util.ByteProcessor p2) { return source.forEachByteDesc(p0, p1, p2); }
-    @Override public io.netty.buffer.ByteBuf copy() { return new FriendlyByteBuf(source.copy()); }
-    @Override public io.netty.buffer.ByteBuf copy(int p0, int p1) { return new FriendlyByteBuf(source.copy(p0, p1)); }
-    @Override public io.netty.buffer.ByteBuf slice() { return new FriendlyByteBuf(source.slice()); }
-    @Override public io.netty.buffer.ByteBuf retainedSlice() { return new FriendlyByteBuf(source.retainedSlice()); }
-    @Override public io.netty.buffer.ByteBuf slice(int p0, int p1) { return new FriendlyByteBuf(source.slice(p0, p1)); }
-    @Override public io.netty.buffer.ByteBuf retainedSlice(int p0, int p1) { return new FriendlyByteBuf(source.retainedSlice(p0, p1)); }
-    @Override public io.netty.buffer.ByteBuf duplicate() { return new FriendlyByteBuf(source.duplicate()); }
-    @Override public io.netty.buffer.ByteBuf retainedDuplicate() { return new FriendlyByteBuf(source.retainedDuplicate()); }
+    @Override public io.netty.buffer.ByteBuf copy() { return source.copy(); }
+    @Override public io.netty.buffer.ByteBuf copy(int p0, int p1) { return source.copy(p0, p1); }
+    @Override public io.netty.buffer.ByteBuf slice() { return source.slice(); }
+    @Override public io.netty.buffer.ByteBuf retainedSlice() { return source.retainedSlice(); }
+    @Override public io.netty.buffer.ByteBuf slice(int p0, int p1) { return source.slice(p0, p1); }
+    @Override public io.netty.buffer.ByteBuf retainedSlice(int p0, int p1) { return source.retainedSlice(p0, p1); }
+    @Override public io.netty.buffer.ByteBuf duplicate() { return source.duplicate(); }
+    @Override public io.netty.buffer.ByteBuf retainedDuplicate() { return source.retainedDuplicate(); }
     @Override public int nioBufferCount() { return source.nioBufferCount(); }
     @Override public java.nio.ByteBuffer nioBuffer() { return source.nioBuffer(); }
     @Override public java.nio.ByteBuffer nioBuffer(int p0, int p1) { return source.nioBuffer(p0, p1); }

@@ -5,7 +5,7 @@ import re, subprocess, sys
 
 jar = sys.argv[1]
 out = subprocess.run(["javap", "-cp", jar, "-public", "io.netty.buffer.ByteBuf"], capture_output=True, text=True).stdout
-# 안의 새 버퍼를 돌려주는 메서드: 바닐라처럼 FriendlyByteBuf 로 감싼다. 그 밖에 ByteBuf 를 돌려주면 그 자체(=내부 버퍼)를 반환하지 않고 this 로 바꾼다(체이닝).
+# 안의 새 버퍼를 돌려주는 메서드: 바닐라(javap vw.copy 등)처럼 안쪽 ByteBuf 를 감싸지 않고 그대로 돌려준다. 그 밖에 ByteBuf 를 돌려주면 그 자체(=내부 버퍼)를 반환하지 않고 this 로 바꾼다(체이닝).
 WRAP = {"copy", "duplicate", "slice", "readSlice", "retainedSlice", "readRetainedSlice", "retainedDuplicate"}
 lines = []
 for l in out.splitlines():
@@ -19,7 +19,7 @@ for l in out.splitlines():
     call = ", ".join(f"p{i}" for i in range(len(plist)))
     if ret == "io.netty.buffer.ByteBuf":
         if name in WRAP:
-            lines.append(f"    @Override public io.netty.buffer.ByteBuf {name}({decl}){throws} {{ return new FriendlyByteBuf(source.{name}({call})); }}")
+            lines.append(f"    @Override public io.netty.buffer.ByteBuf {name}({decl}){throws} {{ return source.{name}({call}); }}")
         elif name in ("unwrap", "asReadOnly", "order") and not plist or name == "order":
             lines.append(f"    @Override public io.netty.buffer.ByteBuf {name}({decl}){throws} {{ return source.{name}({call}); }}")
         else:

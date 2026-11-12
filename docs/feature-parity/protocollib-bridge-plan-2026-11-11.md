@@ -38,3 +38,8 @@ ProtocolLib 은 세 층에서 바닐라를 본다(디컴파일 대조, 5.4.0):
 
 `onLoad` 의 `PacketRegistry.<clinit>` 에서 `network.EnumProtocol`/`network.ConnectionProtocol` 을 못 찾아 실패, 이어서 `onEnable` 이 "does not support plugin reloaders" 를 찍고 꺼진다.
 LuckPerms·Vault 는 같은 서버에서 정상(`docs/feature-parity/compat-luckperms-2026-11-11.md`). 1단계는 별도 스레드·PR 로 시작한다.
+
+## 갱신(2026-11-12, PR #240)
+
+1단계(패킷 등록부)와 2단계 최소분(연결 모양: `ServerCommonPacketListenerImpl.connection`, 닫힌 자리표시 `Connection.channel`)을 끝냈다. ProtocolLib 5.4.0 은 켜지고 `PacketContainer` 생성·읽기·쓰기가 되며, 접속·핫 리로드도 오류가 없다.
+가로채기·`sendServerPacket` 은 아직 아니다(2b 파이프라인 주입, 3 코덱, 4 값 래퍼). 자세히: `compat-protocollib-registry-2026-11-12.md`.
