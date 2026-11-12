@@ -298,7 +298,10 @@ public abstract class ChunkLevel implements BlockLevel {
         if (old < 0) return false;
         int now = getBlockState(pos);
         if (now == state) {
-            if ((flags & UPDATE_CLIENTS) != 0) markChanged(pos);
+            if ((flags & UPDATE_CLIENTS) != 0) {
+                markChanged(pos);
+                updateNavigations(pos, old, state);   // ServerLevel.sendBlockUpdated 의 길찾기 부분
+            }
             if ((flags & UPDATE_NEIGHBORS) != 0) {
                 blockUpdated(pos, blocks.blockOf(old));
                 if (BlockBehaviors.of(state).hasAnalogOutputSignal(state)) updateNeighbourForOutputSignal(pos, blocks.blockOf(state));
@@ -312,6 +315,43 @@ public abstract class ChunkLevel implements BlockLevel {
             poiManager.onBlockStateChange(pos, old, now);   // 바닐라 onBlockStateChange(server.execute 로 미루지 않고 바로)
         }
         return true;
+    }
+
+    /** ServerLevel.isUpdatingNavigations: 길 다시 찾기 도중 다시 들어오면 바닐라는 오류만 남기고 계속한다. */
+    private boolean updatingNavigations;
+
+    /**
+     * ServerLevel.sendBlockUpdated(pos, old, new, flags) 의 길찾기 부분: 충돌 모양(문맥 없음)이 바뀌었으면 navigatingMobs 마다
+     * shouldRecomputePath(pos) 인 길찾기를 모두 모은 뒤 차례로 recomputePath(). 같은 길찾기가 두 번 모이면(탈것을 조종하는 몹과 그 탈것 몹 —
+     * getNavigation 이 탈것 것을 준다) 두 번 부른다: 두 번째는 20틱 안이라 미룬 다시 찾기 표시만 남는다(바닐라 그대로).
+     * 바닐라는 모양을 먼저 비교하고 몹을 훑는다. 둘 다 부수 효과가 없어 순서를 바꿔도 결과가 같으므로 후보가 있을 때만 모양을 계산한다.
+     * 가정: 바닐라는 청크 단계가 BLOCK_TICKING 이상일 때만 sendBlockUpdated 를 부른다(Level.setBlock). Furnace 는 변경 방송(markChanged)과 같이
+     * 이 조건을 보지 않는다 — 보더 청크에서 블록이 바뀌는 드문 경우만 다르다.
+     */
+    private void updateNavigations(Pos pos, int old, int now) {
+        var mobs = entities.mobs();
+        if (mobs.isEmpty()) return;
+        java.util.ArrayList<org.domi.furnace.server.entity.ai.navigation.PathNavigation> list = null;
+        for (var mob : mobs) {
+            var nav = mob.getNavigation();
+            if (nav != null && nav.shouldRecomputePath(pos)) {
+                if (list == null) list = new java.util.ArrayList<>(4);
+                list.add(nav);
+            }
+        }
+        if (list == null) return;
+        Shape before = BlockBehaviors.of(old).getCollisionShape(old, this, pos, null);
+        Shape after = BlockBehaviors.of(now).getCollisionShape(now, this, pos, null);
+        if (!Shape.differs(before, after)) return;
+        if (updatingNavigations) {
+            org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error("recursive call to sendBlockUpdated", new IllegalStateException("recursive call to sendBlockUpdated"));
+        }
+        updatingNavigations = true;
+        try {
+            for (var nav : list) nav.recomputePath();
+        } finally {
+            updatingNavigations = false;
+        }
     }
 
     /** LevelChunk.setBlockState — 바뀌지 않았거나 onRemove 가 블록을 갈아 치웠으면 -1, 아니면 이전 상태. */

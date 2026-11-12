@@ -111,6 +111,17 @@ public final class Shape {
         return r;
     }
 
+    /**
+     * Shapes.joinIsNotEmpty(a, b, BooleanOp.NOT_SAME): 두 모양이 차지하는 부피가 다른가. 하나만 비었으면 참, 같은 객체·같은 상자 목록이면 거짓,
+     * 아니면 어느 한쪽에만 있는 부분이 있는가(joinOnlySecond 의 격자 그대로 — 상자 쪼개기가 달라도 같은 부피면 거짓).
+     */
+    public static boolean differs(Shape a, Shape b) {
+        boolean ae = a.isEmpty(), be = b.isEmpty();
+        if (ae || be) return ae != be;
+        if (a == b || a.sameAs(b)) return false;
+        return !joinOnlySecond(a, b).isEmpty() || !joinOnlySecond(b, a).isEmpty();
+    }
+
     /** 격자가 [0,1] 의 1/res 등간격(res = 2^b, b ≤ 3, 큐브 격자)이면 res, 아니면 0. */
     private static int cubeRes(double[] c, double off) {
         int res = c.length - 1;
