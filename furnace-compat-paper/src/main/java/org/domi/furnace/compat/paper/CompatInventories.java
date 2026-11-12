@@ -221,6 +221,8 @@ final class CompatInventories {
         if (type.equals("pickup") && (button == 0 || button == 1) && slot >= 0 && !current.isEmpty() && !cursor.isEmpty()) {
             return current.isSimilar(cursor) && current.amount() + cursor.amount() <= maxStack(cursor) ? InventoryAction.PICKUP_ALL : InventoryAction.NOTHING;
         }
+        // Paper: 숫자키는 단축 칸이 차 있으면 결과 칸이 받을 수 없어(mayPlace=false) NOTHING
+        if (type.equals("swap") && slot >= 0 && !hotbar.isEmpty()) return InventoryAction.NOTHING;
         return action(type, slot, button, current, cursor, hotbar, creative, false);
     }
 

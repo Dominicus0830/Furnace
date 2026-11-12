@@ -255,7 +255,7 @@ public final class PluginGameEvents implements GameEvents {
         if (!(menu instanceof org.domi.furnace.server.menu.CraftingMenu) && !(menu instanceof org.domi.furnace.server.menu.InventoryMenu)) return null;
         var s = menu.getSlot(0);
         if (!(s instanceof org.domi.furnace.server.menu.ResultSlot) || !s.hasItem()) return null;
-        if (s.container instanceof org.domi.furnace.server.menu.ResultContainer rc && rc.recipeUsed() != null) return rc.recipeUsed().id().toString();
+        if (s.container instanceof org.domi.furnace.server.menu.ResultContainer rc && rc.currentRecipe() != null) return rc.currentRecipe().id().toString();
         return "";
     }
 

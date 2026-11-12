@@ -42,20 +42,27 @@ helper 장벽 묶음(PR #161, `compat-h4-helper-barriers-2026-11-08.md`)에서 �
 
 1. 이벤트의 위쪽 인벤토리는 그 순간의 **읽기 전용 사본**이다(PR #161 과 같은 원칙). 쓸 수 있는 칸은 `PrepareItemCraftEvent` 의 결과 칸 하나뿐이고,
    `CraftingInventory#setMatrix`·`BrewEvent#getContents()` 쓰기·`InventoryMoveItemEvent` 의 두 용기 쓰기는 `UnsupportedFeature` 다.
+   단 `CraftingInventory#getResult()`·`getMatrix()` 는 Paper 처럼 칸을 비추는 거울이라, 처리기가 `setResult` 없이 결과 스택을 그 자리에서 고쳐도(개수·메타) 결과에 남고,
+   격자 스택을 그 자리에서 고치면 조용히 사라지지 않고 `UnsupportedFeature` 로 드러난다(PR #238 검토 R2).
    `getHolder()` 는 null(블록 상태 구현이 없다). `getLocation()` 은 깔때기 이벤트·양조 이벤트에서만 안다(블록이면 블록 좌표, 수레면 엔티티 위치).
 2. `Recipe` 는 키(`Keyed#getKey`)와 결과만 안다 — `ShapedRecipe`·`ShapelessRecipe` 같은 하위 타입이 아니다. `PrepareItemCraftEvent#getRecipe().getResult()` 는
    그 이벤트 순간의 결과(데이터 팩 레시피의 기본 결과와 같다).
 3. `CraftItemEvent` 는 결과 칸이 비어 있지 않고 레시피를 알 때만 온다. 결과 칸 더블 클릭(`PICKUP_ALL`)은 Paper 에서는 `CraftItemEvent` 지만 Furnace 에서는
    보통 `InventoryClickEvent` 다. 레시피를 모르면(Furnace `recipe()==null`) Paper 처럼 보통 클릭이다.
+   레시피는 격자가 **지금** 맞는 레시피다(CraftBukkit `getCurrentRecipe`, 맞는 것이 없으면 null). 플러그인이 `PrepareItemCraftEvent` 로 사용자 정의 결과를 넣으면
+   꺼낼 때 보통 `InventoryClickEvent` 가 된다(PR #238 검토 R1). 결과 칸 숫자키는 단축 칸이 차 있으면 결과 칸이 받을 수 없어 `NOTHING`, 비어 있으면 `HOTBAR_SWAP`
+   (Paper 현행 소스 기준, R3).
 4. `AnvilView`: 재료 소모 개수(`getRepairItemCountCost`)는 모르고(`UnsupportedFeature`), 최대 비용은 바닐라 40 고정(다른 값으로 바꾸기·`bypassEnchantmentLevelRestriction(true)`
-   는 `UnsupportedFeature`). 비용·이름은 `PrepareAnvilEvent` 안에서만 알고, 다른 이벤트의 모루 창에서 읽으면 `UnsupportedFeature`.
+   는 `UnsupportedFeature`, 흔히 쓰여 후속 구현 후보 — 검토 R6). 비용·이름은 `PrepareAnvilEvent` 안에서만 알고, 다른 이벤트의 모루 창에서 읽으면 `UnsupportedFeature`.
 5. `EnchantmentView`: 마법 부여 씨앗은 읽기·쓰기 모두 `UnsupportedFeature`. 제안(`getOffers`)은 `PrepareItemEnchantEvent` 안에서만 알고, 그 이벤트의 배열 그대로다.
 6. `EnchantItemEvent#setItem` 은 다른 아이템이면 `UnsupportedFeature`. Bukkit `Enchantment` 가 모르는 마법 부여(데이터 팩)는 `getEnchantsToAdd()` 에
-   보이지 않지만 처리기가 맵을 바꿔도 Furnace 쪽에 남는다.
-7. `PrepareItemEnchantEvent`: 단서 없이 비용만 있는 제안은 Bukkit 에서 null 이다(CraftBukkit 과 같다). 처리기가 그 칸을 바꾸지 않으면 Furnace 제안은 그대로 둔다.
+   보이지 않지만 처리기가 맵을 바꿔도 Furnace 쪽에 남는다. `getItem()` 은 사본이라 처리기가 그 스택을 그 자리에서 고친 것(메타 등)은 반영되지 않는다(R5).
+7. `PrepareItemEnchantEvent`: 단서 없이 비용만 있는 제안은 Bukkit 에서 null 이고, 구독자가 있으면 단서 없는 칸은 꺼진다(CraftBukkit 과 같다).
+   구독자가 없으면 예전 바닐라 동작 그대로 비용이 남는다.
 8. 깔때기 이벤트의 주크박스·퇴비통은 Furnace 용기 키가 없어 종류가 `CHEST` 로 보인다.
 9. 닫힌 까닭: 블록 창의 청크가 내려가 있을 때 `UNLOADED`, 블록이 사라지거나 멀어지면 `CANT_USE` 다. 바닐라 이동(포털 등)은 창을 닫지 않으므로 `TELEPORT` 는
-   플러그인 텔레포트에서만 온다.
+   플러그인 텔레포트에서만 온다. 엔티티 보관함(수레·당나귀 등)·상인 창이 대상이 사라져 닫힐 때 Paper 는 `UNLOADED` 지만 Furnace 는 `CANT_USE` 다(R4).
+   Paper 는 이벤트를 먼저 부르고 닫기 패킷을 보내지만 Furnace 는 닫기 패킷이 먼저다(R7, 처리기 안에서 클라이언트 화면만 다르다).
 10. `InventoryView#setCursor` 등 PR #161 문서의 나머지 차이는 그대로다.
 
 ## 시험

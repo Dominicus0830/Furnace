@@ -308,4 +308,12 @@ class InventoryResultEventsTest {
             assertNull(closes.get(0).getInventory().getLocation(), "블록을 모르는 창은 위치가 없다");
         });
     }
+
+    @Test
+    void resultSlotNumberKeyIsNothingWhenHotbarIsFull() {
+        // Paper: 결과 칸은 아이템을 받을 수 없어(mayPlace=false) 단축 칸이 차 있으면 NOTHING, 비어 있으면 HOTBAR_SWAP
+        var planks = item("minecraft:oak_planks", 4);
+        assertEquals(InventoryAction.NOTHING, CompatInventories.resultAction("swap", 0, 0, planks, ItemStack.EMPTY, item("minecraft:stone", 1), false));
+        assertEquals(InventoryAction.HOTBAR_SWAP, CompatInventories.resultAction("swap", 0, 0, planks, ItemStack.EMPTY, ItemStack.EMPTY, false));
+    }
 }

@@ -39,12 +39,12 @@ final class EventInventories {
         }
 
         @Override
-        public ItemStack getResult() { return bukkitAt(0); }
+        public ItemStack getResult() { return getItem(0); }   // Paper: 결과 칸 거울(그 자리 고침이 결과에 남는다)
 
         @Override
         public ItemStack[] getMatrix() {
             ItemStack[] m = new ItemStack[getSize() - 1];
-            for (int i = 0; i < m.length; i++) m[i] = bukkitAt(i + 1);
+            for (int i = 0; i < m.length; i++) m[i] = getItem(i + 1);   // 거울: 그 자리 쓰기는 UnsupportedFeature 로 드러난다
             return m;
         }
 
