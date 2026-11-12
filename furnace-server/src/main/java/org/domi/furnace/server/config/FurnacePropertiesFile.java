@@ -112,7 +112,7 @@ public final class FurnacePropertiesFile {
                 opt("backup.hold-timeout-seconds", mt.backupHoldTimeoutSeconds(), "백업 기준점에서 저장을 기다리는 최대 초(1~600).")
         )));
         s.add(new Section("설정 도구·콘솔(/furnace config 로 적용된 값을 본다)", List.of(
-                opt("config-version", ConfigMigration.CURRENT, "설정 파일 형식 버전. 키 이름이 바뀌면 서버가 파일을 옮기고 이 값을 올린다(원본은 .bak). 지우지 마세요."),
+                opt("config-version", ConfigMigration.CURRENT, "설정 파일 형식 버전. 키 이름·기본값이 바뀌면 서버가 파일을 옮기고 이 값을 올린다(원본은 .bak). 지우지 마세요."),
                 opt("config.preset", "none", "none | vanilla | performance. 기본값 그대로인 키를 프리셋 값으로 바꾼다(기본값과 다르게 적은 키가 이긴다)."),
                 opt("jvm.check", true, "기동 때 Java 버전·힙·GC 옵션을 점검해 경고한다."),
                 opt("console.jline", true, "콘솔 줄 편집·기록·Tab 자동완성(터미널이 아니면 자동으로 꺼진다)."),
@@ -190,9 +190,6 @@ public final class FurnacePropertiesFile {
     public static Result ensure(Path path) throws IOException {
         if (!Files.exists(path)) {
             StringBuilder sb = new StringBuilder(HEADER);
-            // 지금 형식 버전을 적어 둔다 — 안 적으면 다음 기동에 형식 1 로 보고 마이그레이션(백업)이 돈다
-            sb.append("# 설정 형식 버전 — 서버가 키 이름·기본값을 바꿀 때 파일을 알아서 옮기는 데 쓴다. 지우지 마세요.\n")
-                    .append(ConfigMigration.KEY).append('=').append(ConfigMigration.CURRENT).append('\n');
             for (Section s : sections()) appendSection(sb, s.title(), s.options());
             Files.writeString(path, sb.toString(), StandardCharsets.UTF_8);
             return Result.CREATED;

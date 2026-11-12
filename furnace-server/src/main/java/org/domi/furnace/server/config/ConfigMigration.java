@@ -99,11 +99,23 @@ public final class ConfigMigration {
         changes.add(KEY + " " + version + " → " + current);
 
         Path backup = backupPath(file, version);
+        boolean backedUp = false;
         try {
             Files.copy(file, backup, StandardCopyOption.COPY_ATTRIBUTES);
+            backedUp = true;
             Files.writeString(file, String.join("\n", lines) + "\n", StandardCharsets.ISO_8859_1);
         } catch (IOException e) {
-            throw new RuntimeException("설정 마이그레이션 실패(원본 " + file + " 을(를) 확인하세요): " + e.getMessage(), e);
+            // 읽기 전용 설정(도커 :ro·ConfigMap 등) — ensure() 처럼 경고만 하고 옛 내용으로 계속한다. 만든 백업은 지워 기동마다 쌓이지 않게 한다
+            if (backedUp) {
+                try {
+                    Files.deleteIfExists(backup);
+                } catch (IOException ignored) {
+                    // 지우지 못하면 남긴다
+                }
+            }
+            warn.accept(file.getFileName() + " 을(를) 형식 " + version + " → " + current + " 로 옮기지 못했다(" + e
+                    + ") — 파일을 그대로 두고 계속한다. 옮겼을 내용: " + changes);
+            return null;
         }
         return new Result(version, current, List.copyOf(changes), backup);
     }
@@ -138,13 +150,16 @@ public final class ConfigMigration {
         }
     }
 
+    /** 기본값을 옮긴 변경 줄의 머리 — 일부러 옛 값을 적었던 운영자가 알아차리게 기동 로그에서 경고로 올린다. */
+    public static final String DEFAULT_CHANGE_MARK = "[기본값 바뀜] ";
+
     private static void resetDefault(List<String> lines, DefaultChange d, List<String> changes) {
         Pattern p = Pattern.compile("^(\\s*" + Pattern.quote(d.key()) + "\\s*[=:]\\s*)" + Pattern.quote(d.oldValue()) + "\\s*$");
         for (int i = 0; i < lines.size(); i++) {
             Matcher m = p.matcher(lines.get(i));
             if (!m.matches()) continue;
             lines.set(i, m.group(1) + d.newValue());
-            changes.add(d.key() + " 기본값이 " + d.oldValue() + " → " + d.newValue() + " 로 바뀌어 적힌 " + d.oldValue() + " 를 " + d.newValue()
+            changes.add(DEFAULT_CHANGE_MARK + d.key() + " 기본값이 " + d.oldValue() + " → " + d.newValue() + " 로 바뀌어 적힌 " + d.oldValue() + " 를 " + d.newValue()
                     + " 로 옮겼다(그대로 두려면 다시 " + d.oldValue() + " 로 적으라)");
         }
     }
