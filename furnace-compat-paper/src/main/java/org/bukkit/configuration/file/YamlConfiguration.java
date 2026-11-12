@@ -125,9 +125,10 @@ public class YamlConfiguration extends FileConfiguration {
         }
         char sep = options().pathSeparator();
         if (sep != '.') fresh = resplit(fresh, sep);   // Paper 는 읽을 때 구분자가 든 키를 쪼갠다(PR #254 검토 R5)
-        org.domi.furnace.compat.paper.ConfigValues.reviveTree(fresh);   // Paper 는 읽을 때 한 번 되살려 그 참조를 보관한다
+        boolean pending = org.domi.furnace.compat.paper.ConfigValues.reviveTree(fresh);   // Paper 는 읽을 때 한 번 되살려 그 참조를 보관한다
         fresh.setDefaults(furnaceRoot().getDefaults());
         furnaceRoot(fresh);
+        pendingAliases(pending);
     }
 
     @Override

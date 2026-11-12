@@ -46,7 +46,7 @@ public final class ListPersistentDataTypeProvider {
 
     public ListPersistentDataType<PersistentDataContainer, PersistentDataContainer> dataContainers() { return DATA_CONTAINER; }
 
-    /** 임의의 원소 종류로 만든 목록 종류(원소가 또 목록이면 저장할 때 IllegalArgumentException). */
+    /** 임의의 원소 종류로 만든 목록 종류(원소가 또 목록인 목록의 목록도 된다). */
     public <P, C> ListPersistentDataType<P, C> listTypeFrom(PersistentDataType<P, C> elementType) {
         return new ListImpl<>(java.util.Objects.requireNonNull(elementType, "elementType"));
     }

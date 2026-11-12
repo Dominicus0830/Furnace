@@ -35,18 +35,6 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
         org.domi.furnace.api.persistence.PersistentDataType.INTEGER_ARRAY, org.domi.furnace.api.persistence.PersistentDataType.LONG_ARRAY,
         org.domi.furnace.api.persistence.PersistentDataType.TAG_CONTAINER};
 
-    /** 원본 값의 종류를 찾아볼 순서: 단일 값 먼저, 그다음 각 원소 종류의 목록(빈 목록은 첫 목록 종류로 잡힌다). */
-    private static final org.domi.furnace.api.persistence.PersistentDataType<?>[] PROBE = probe();
-
-    private static org.domi.furnace.api.persistence.PersistentDataType<?>[] probe() {
-        var out = new org.domi.furnace.api.persistence.PersistentDataType<?>[SCALARS.length * 2];
-        for (int i = 0; i < SCALARS.length; i++) {
-            out[i] = SCALARS[i];
-            out[SCALARS.length + i] = org.domi.furnace.api.persistence.PersistentDataType.list(SCALARS[i]);
-        }
-        return out;
-    }
-
     /** 이 종류로 저장될 값 — 호출 스레드에서 미리 만들어 두었다가(prepare) 소유 스레드에서 넣는다. */
     record Prepared(org.domi.furnace.api.persistence.PersistentDataType<?> type, Object stored) {}
 
@@ -125,16 +113,32 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
         return PersistentDataType.TAG_CONTAINER;
     }
 
-    /** 키가 뜻하는 값(바뀐 것 → 원본). 없으면 null. 원본 값의 종류는 하나씩 읽어 보며 찾는다. 알 수 없는 종류(목록의 목록 등)는 null. */
+    /** 키가 뜻하는 값(바뀐 것 → 원본). 없으면 null. 원본 값은 종류 없이 한 번에 읽고(raw) 모양에서 종류를 정한다. */
     private Value lookup(String key) {
         if (changes.containsKey(key)) return changes.get(key);
-        if (view == null || !view.has(key)) return null;
-        for (var t : PROBE) {
-            if (view.has(key, t)) {
-                return new Value(t, fromView(view.get(key, t)));
+        if (view == null) return null;
+        Object raw = view.raw(key);
+        if (raw == null) return null;
+        Object v = fromView(raw);
+        return new Value(typeOf(v), v);
+    }
+
+    /** 메모리 값의 종류: 단일 값은 그 종류, 중첩 컨테이너는 TAG_CONTAINER, 목록은 첫 원소 종류의 목록(빈 목록은 byte 목록). */
+    static org.domi.furnace.api.persistence.PersistentDataType<?> typeOf(Object v) {
+        if (v instanceof List<?> l) {
+            // 원소 종류는 첫 "비지 않은" 원소로 — [[],["a"]] 의 첫 원소(빈 목록)가 종류를 정하지 않는다
+            org.domi.furnace.api.persistence.PersistentDataType<?> elem = null;
+            for (Object e : l) {
+                if (!(e instanceof List<?> x && x.isEmpty())) {
+                    elem = typeOf(e);
+                    break;
+                }
             }
+            if (elem == null) elem = l.isEmpty() ? SCALARS[0] : org.domi.furnace.api.persistence.PersistentDataType.list(SCALARS[0]);
+            return org.domi.furnace.api.persistence.PersistentDataType.list(elem);
         }
-        return null;
+        if (v instanceof PersistentDataContainer || v instanceof PersistentDataView) return org.domi.furnace.api.persistence.PersistentDataType.TAG_CONTAINER;
+        return furnaceType(v.getClass());
     }
 
     /** 원본에서 읽은 값을 메모리 값으로 — 중첩 컨테이너는 복사한다. */
@@ -148,10 +152,27 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
         return v;
     }
 
-    /** 저장된 값이 want 종류로 읽히는가(빈 목록은 어떤 목록 종류로도 읽힌다 — NBT 의 빈 목록은 원소 종류가 없다). */
-    private static boolean matches(Value v, org.domi.furnace.api.persistence.PersistentDataType<?> want) {
-        if (v.type().equals(want)) return true;
-        return want.elementType() != null && v.type().elementType() != null && v.value() instanceof List<?> l && l.isEmpty();
+    /** get 용 깊은 검사: 값이 want 종류로 읽히는가(빈 목록은 어떤 목록 종류로도 읽힌다 — NBT 의 빈 목록은 원소 종류가 없다. 목록의 목록은 안쪽까지 같은 규칙). */
+    private static boolean matches(Value v, org.domi.furnace.api.persistence.PersistentDataType<?> want) { return deepMatches(v.value(), want); }
+
+    private static boolean deepMatches(Object value, org.domi.furnace.api.persistence.PersistentDataType<?> want) {
+        if (want.elementType() == null) return !(value instanceof List) && typeOf(value).equals(want);
+        if (!(value instanceof List<?> l)) return false;
+        for (Object e : l) if (!deepMatches(e, want.elementType())) return false;
+        return true;
+    }
+
+    /**
+     * has 용 얕은 검사(Paper matchesListTag): 바깥 목록의 원소 종류만 본다 — 원하는 원소가 목록이면 저장된 원소도 목록이기만 하면 참이고
+     * 안쪽 원소 종류는 get 때 걸린다. 빈 목록은 어떤 목록 종류와도 맞는다.
+     */
+    private static boolean shallowMatches(Object value, org.domi.furnace.api.persistence.PersistentDataType<?> want) {
+        if (want.elementType() == null) return !(value instanceof List) && typeOf(value).equals(want);
+        if (!(value instanceof List<?> l)) return false;
+        if (l.isEmpty()) return true;
+        Object first = l.get(0);
+        var elem = want.elementType();
+        return elem.elementType() != null ? first instanceof List : !(first instanceof List) && typeOf(first).equals(elem);
     }
 
     /** 중첩 컨테이너를 메모리로 복사한다 — 원본(엔티티 콜백 안의 살아 있는 값)을 콜백 밖으로 들고 나가지 않게. */
@@ -194,7 +215,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
     @Override
     public <P, C> boolean has(NamespacedKey key, PersistentDataType<P, C> type) {
         Value v = lookup(key.toString());
-        return v != null && matches(v, furnaceType(type));
+        return v != null && shallowMatches(v.value(), furnaceType(type));
     }
 
     @Override
@@ -298,7 +319,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
                 target.remove(e.getKey());
                 continue;
             }
-            target.set(e.getKey(), (org.domi.furnace.api.persistence.PersistentDataType) v.type(), toFurnace(v.value(), target));
+            target.setRaw(e.getKey(), toFurnace(v.value(), target));
         }
     }
 
@@ -340,6 +361,9 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
         for (int i = 0; i < SCALARS.length; i++) if (SCALARS[i] == t) return SCALAR_TAGS[i];
         throw new IllegalArgumentException("알 수 없는 종류: " + t);
     }
+
+    /** 값 하나의 NBT 태그 번호(값의 모양으로 — 목록의 안쪽 목록은 저마다 자기 원소 종류를 가진다). */
+    private static int tagOf(Object v) { return v instanceof List ? TAG_LIST : tagId(typeOf(v)); }
 
     /**
      * 내용을 Paper 와 같은 바이트로 낸다: 압축 없는 이름 없는 compound(종류 10, 빈 이름, 항목들, 끝 0).
@@ -383,15 +407,15 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
         // Paper: customDataTags(java.util.HashMap) 순회 순서로 new CompoundTag()(fastutil Object2ObjectOpenHashMap(8, 0.8f))에 put → 그 keySet 순서로 쓴다
         for (String k : PaperCompoundOrder.order(ordered.keySet())) {
             Value v = ordered.get(k);
-            out.writeByte(tagId(v.type()));
+            out.writeByte(tagOf(v.value()));
             out.writeUTF(k);
-            writePayload(out, v.type(), v.value(), depth);
+            writePayload(out, v.value(), depth);
         }
         out.writeByte(TAG_END);
     }
 
-    private static void writePayload(DataOutputStream out, org.domi.furnace.api.persistence.PersistentDataType<?> t, Object v, int depth) throws IOException {
-        switch (tagId(t)) {
+    private static void writePayload(DataOutputStream out, Object v, int depth) throws IOException {
+        switch (tagOf(v)) {
             case TAG_BYTE -> out.writeByte((Byte) v);
             case TAG_SHORT -> out.writeShort((Short) v);
             case TAG_INT -> out.writeInt((Integer) v);
@@ -417,10 +441,9 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
             case TAG_COMPOUND -> ((ItemPdc) v).writeCompound(out, depth + 1);
             default -> {
                 List<?> list = (List<?>) v;
-                var elem = t.elementType();
-                out.writeByte(list.isEmpty() ? TAG_END : tagId(elem));
+                out.writeByte(list.isEmpty() ? TAG_END : tagOf(list.get(0)));
                 out.writeInt(list.size());
-                for (Object e : list) writePayload(out, elem, e, depth + 1);
+                for (Object e : list) writePayload(out, e, depth + 1);
             }
         }
     }
@@ -443,26 +466,33 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
             if (id == TAG_END) return out;
             String key = in.readUTF();
             if (id == TAG_LIST) {
-                out.changes.put(key, readList(in, depth));
+                List<Object> list = readList(in, depth);
+                out.changes.put(key, new Value(typeOf(list), list));
                 continue;
             }
             out.changes.put(key, new Value(scalarType(id), readPayload(in, id, depth)));
         }
     }
 
-    /** 목록: 원소 종류는 단일 값이어야 한다(목록의 목록은 호환 계층이 다루지 못한다). 빈 목록은 byte 목록으로 둔다. */
-    private static Value readList(DataInputStream in, int depth) throws IOException {
+    /** 목록: 원소는 단일 값이거나 또 목록이다(목록의 목록 — 바깥 원소 종류만 하나면 되고 안쪽 목록의 원소 종류는 서로 달라도 된다, 바닐라 ListTag 와 같다). */
+    private static List<Object> readList(DataInputStream in, int depth) throws IOException {
+        if (depth > MAX_DEPTH) throw new IOException("NBT 중첩이 너무 깊다");
         int elemId = in.readByte();
         int n = in.readInt();
         if (n < 0) throw new IOException("NBT 길이가 음수다");
-        if (n == 0) return new Value(org.domi.furnace.api.persistence.PersistentDataType.list(SCALARS[0]), new ArrayList<>());
+        if (n == 0) return new ArrayList<>();
         if (elemId == TAG_END) throw new IOException("원소가 있는 목록의 종류가 END 다");
-        if (elemId == TAG_LIST) throw new IOException("목록의 목록은 호환 계층이 다루지 못한다");
-        var elem = scalarType(elemId);
+        if (elemId == TAG_LIST) {
+            checkLength(in, n, 5);
+            List<Object> items = new ArrayList<>(n);
+            for (int i = 0; i < n; i++) items.add(readList(in, depth + 1));
+            return items;
+        }
+        scalarType(elemId);   // 알 수 없는 태그 번호면 IOException
         checkLength(in, n, 1);
-        List<Object> items = new ArrayList<>(n);
+        List<Object> items = new ArrayList<>(n);   // 길이를 남은 바이트로 확인한 뒤에 잡는다(잘못된 바이트로 큰 배열을 잡지 않게)
         for (int i = 0; i < n; i++) items.add(readPayload(in, elemId, depth + 1));
-        return new Value(org.domi.furnace.api.persistence.PersistentDataType.list(elem), items);
+        return items;
     }
 
     /** 단일 값 태그 번호 → 종류. 목록(9)은 따로 읽는다. */
@@ -517,7 +547,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
         for (NamespacedKey k : a) {
             Value x = lookup(k.toString()), y = p.lookup(k.toString());
             if (x == null || y == null) return false;
-            if (!(matches(x, y.type()) && matches(y, x.type())) || !valueEquals(x.value(), y.value())) return false;
+            if (!valueEquals(x.value(), y.value())) return false;
         }
         return true;
     }
