@@ -2327,6 +2327,15 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private final java.util.Set<ChunkPos> cornerInFlight = java.util.concurrent.ConcurrentHashMap.newKeySet();
     public java.util.Set<ChunkPos> cornerInFlight() { return cornerInFlight; }
 
+    /** 모서리 청크 로드가 실패했다(아무 스레드가 세운다, region 틱이 보고 다시 모으게 한다). */
+    private volatile boolean cornerFailed;
+    public boolean cornerFailed() { return cornerFailed; }
+    public void cornerFailed(boolean v) { this.cornerFailed = v; }
+    /** 다시 모으기까지 남은 틱(region 스레드만). */
+    private int cornerRetryCooldown;
+    public int cornerRetryCooldown() { return cornerRetryCooldown; }
+    public void cornerRetryCooldown(int v) { this.cornerRetryCooldown = v; }
+
     /** 요청했지만 아직 끝나지 않은(생성·직렬화 중인) 청크 전송 수 — 완료 콜백은 다른 스레드서 줄인다. */
     private final java.util.concurrent.atomic.AtomicInteger chunkSendsInFlight = new java.util.concurrent.atomic.AtomicInteger();
 

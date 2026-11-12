@@ -2901,20 +2901,20 @@ public final class Region {
     private void collectCornerLoads(Player p, ChunkPos center, int vd) {
         var corners = p.cornerLoads();
         corners.clear();
-        if (skipsGeneration(p)) return;
+        // 관전자(규칙 꺼짐)여도 모은다 — 올릴 때(loadCornerChunks)만 거른다. 제자리에서 모드·게임룰이 바뀌어도 이 목록이 이미 있어 모서리가
+        // 올라온다(바닐라는 skipPlayer 변화를 보고 티켓을 단다). 구역 확보(want)도 올릴 때 한다 — 관전자에게 구역을 걸지 않으려고.
+        // 범위는 바닐라 플레이어 티켓처럼 *서버* 시야 정사각이다(클라 시야가 더 작아도 — heldByPlayerTicket·naturalSpawningAllowed 와 같은 판정).
+        int sq = Math.max(vd, Math.clamp(world.viewDistance(), 2, 32));
         List<ChunkPos> list = new ArrayList<>();
-        for (int dx = -vd; dx <= vd; dx++) {
-            for (int dz = -vd; dz <= vd; dz++) {
+        for (int dx = -sq; dx <= sq; dx++) {
+            for (int dz = -sq; dz <= sq; dz++) {
                 int x = center.x() + dx, z = center.z() + dz;
                 if (ChunkTrackingView.contains(center.x(), center.z(), vd, x, z) || world.isChunkLoaded(x, z)) continue;
                 list.add(new ChunkPos(x, z));
             }
         }
         orderNearestFirst(center, list);
-        for (ChunkPos cp : list) {
-            rz().want(cp.x(), cp.z(), this);   // 구역을 이 region 이 갖는다(다른 region 것이면 합칠 대상)
-            corners.add(cp);
-        }
+        corners.addAll(list);
     }
 
     /** 모서리 청크 올리기의 동시 상한: 보이는 청크의 생성 요청을 밀지 않게 동시 진행 상한의 4분의 1(최소 2). */
@@ -2924,6 +2924,16 @@ public final class Region {
 
     /** 모서리 청크(시야 정사각 ∖ 둥근 모양)를 조금씩 올린다. 둥근 모양으로 보낼 청크가 모두 나간 뒤에만 시작한다(보이는 것이 먼저). */
     private void loadCornerChunks(Player p) {
+        if (p.cornerFailed() && p.cornerInFlight().isEmpty()) {
+            // 실패한 모서리는 잠시 뒤 다시 모아 시도한다(바닐라는 티켓이 남아 있는 한 다시 시도). 계속 실패해도 CORNER_RETRY_TICKS 마다 한 번뿐.
+            int cd = p.cornerRetryCooldown();
+            if (cd == 0) p.cornerRetryCooldown(CORNER_RETRY_TICKS);   // 0 = 아직 세기 전
+            else if (cd == 1) {
+                p.cornerRetryCooldown(0);
+                p.cornerFailed(false);
+                p.queuedCenter(null);   // 다음 updateChunks 가 목록을 다시 모은다(이미 올라온 것은 빠진다)
+            } else p.cornerRetryCooldown(cd - 1);
+        }
         var corners = p.cornerLoads();
         if (corners.isEmpty() || !p.pendingChunks().isEmpty() || skipsGeneration(p)) return;
         int slots = cornerLoadSlots() - p.cornerInFlight().size();
@@ -2932,11 +2942,18 @@ public final class Region {
             ChunkPos cp = it.next();
             it.remove();
             if (world.isChunkLoaded(cp.x(), cp.z()) || !p.chunkPrefetches().add(cp)) continue;
+            rz().want(cp.x(), cp.z(), this);   // 구역을 이 region 이 갖는다(다른 region 것이면 합칠 대상)
             p.cornerInFlight().add(cp);
             slots--;
-            startPrefetch(p, cp).whenComplete((col, ex) -> p.cornerInFlight().remove(cp));
+            startPrefetch(p, cp).whenComplete((col, ex) -> {
+                p.cornerInFlight().remove(cp);
+                if (ex != null) p.cornerFailed(true);
+            });
         }
     }
+
+    /** 모서리 청크 로드가 실패한 뒤 다시 시도하기까지의 틱. */
+    private static final int CORNER_RETRY_TICKS = 100;
 
     /**
      * 그 청크의 생성·디스크 로드를 건다(구독은 호출한 쪽이 이미 했거나 하지 않는다). 이 region 의 청크면 작업 큐(다음 틱)를 거치지 않고
