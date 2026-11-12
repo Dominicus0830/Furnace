@@ -143,6 +143,15 @@ dependencies {
     bundledLibraries("org.yaml:snakeyaml:2.2")
 }
 val serverLibrariesSource = file("src/main/java/org/domi/furnace/server/plugin/library/ServerLibraries.java")
+// start.sh/start.bat 은 installDist 의 lib/* 로 띄운다 — 같은 자원(META-INF/furnace/libraries/*.jar)을 담은 jar 하나를 lib/ 에 넣어 그 실행에서도 꺼내게 한다.
+// 시험 클래스패스에는 넣지 않는다(시험은 내려받기 경로를 본다).
+val bundledLibrariesJar = tasks.register<Jar>("bundledLibrariesJar") {
+    archiveFileName = "furnace-bundled-libraries.jar"
+    destinationDirectory = layout.buildDirectory.dir("bundled-libraries")
+    into("META-INF/furnace/libraries") { from(bundledLibraries) }
+    into("META-INF/furnace/libraries") { from(rootProject.file("NOTICE")); from(rootProject.file("licenses/LICENSE-APACHE-2.0.txt")) }
+}
+distributions { main { contents { into("lib") { from(bundledLibrariesJar) } } } }
 val fatJar = tasks.register<Jar>("fatJar") {
     group = "build"
     // 런타임 의존성(furnace-api jar 등)을 먼저 만들어야 zipTree 로 합칠 수 있다
@@ -188,7 +197,12 @@ val fatJar = tasks.register<Jar>("fatJar") {
         // 실린 라이브러리는 ServerLibraries 의 고정 좌표·sha256 과 같아야 한다(다르면 서버가 그 jar 를 쓰지 않고 내려받으러 간다).
         // 반대로 ServerLibraries 에서 bundled(", C, B)")로 적힌 것은 모두 실려 있어야 한다.
         val src = serverLibrariesSource.readText()
-        val pinned = Regex("""new Artifact\("([^"]+)", "([0-9a-f]{64})", [CM], B\)""").findAll(src).associate { it.groupValues[1] to it.groupValues[2] }
+        // 주석 줄은 빼고, 공백·줄바꿈·Repo.X·true 표기를 모두 받는다. 하나도 못 찾으면 형식이 바뀐 것이므로 실패한다
+        val pinned = Regex("""^(?!\s*(?://|\*)).*?new Artifact\(\s*"([^"]+)",\s*"([0-9a-fA-F]{64})",\s*(?:Repo\.)?\w+,\s*(?:B|true)\s*\)""", RegexOption.MULTILINE)
+            .findAll(src).associate { it.groupValues[1] to it.groupValues[2].lowercase() }
+        if (pinned.isEmpty()) throw GradleException("ServerLibraries.java 에서 bundled 항목을 하나도 못 찾았다 — 표기가 바뀌었으면 이 검사도 고쳐라")
+        val bundledMentions = Regex("""^(?!\s*(?://|\*)).*?new Artifact\([^;]*?,\s*(?:B|true)\s*\)""", RegexOption.MULTILINE).findAll(src).count()
+        if (bundledMentions != pinned.size) throw GradleException("ServerLibraries.java 의 bundled 항목 ${bundledMentions}개 중 좌표·sha256 을 읽은 것은 ${pinned.size}개다")
         val shipped = mutableMapOf<String, String>()
         val resolved = bundledLibraries.resolvedConfiguration.resolvedArtifacts
         for (a in resolved) {

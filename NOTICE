@@ -23,6 +23,6 @@ under META-INF/furnace/libraries/. Each is licensed under its own terms.
   https://bitbucket.org/snakeyaml/snakeyaml
 
 그 밖에 서버 jar 에 풀어 넣은 런타임 의존(Netty, Gson, SLF4J, Logback, JLine, aircompressor,
-ASM 등)의 라이선스 고지는 각 라이브러리 jar 의 META-INF 자원을 따른다.
+ASM 등)은 각 프로젝트의 라이선스를 따른다(이 파일은 그 목록을 아직 담지 않는다).
 Bukkit·Paper 가 싣는 나머지 라이브러리(Adventure, Brigadier, authlib 등)는 서버 jar 에 싣지 않고
 필요할 때 원 저장소에서 내려받는다.

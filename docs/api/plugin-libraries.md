@@ -66,7 +66,7 @@ Paper 는 Guava·Adventure·SnakeYAML·Brigadier 같은 라이브러리를 서�
 
 ### 무엇을 받나 (버전·sha256 은 코드 `ServerLibraries` 에 고정)
 
-"서버 jar" 는 fat jar(`furnace-server.jar`) 의 `META-INF/furnace/libraries/` 에 jar 그대로 실려 있다는 뜻이다. 클래스를 풀어 넣지 않았고 패키지 이름도 바꾸지 않았다(재배치 없음 — 플러그인이 `com.google.common`·`org.yaml.snakeyaml` 을 그대로 쓴다). 필요할 때 캐시(아래 경로와 같은 자리)로 꺼내 공유 로더에 붙이므로 서버 로더·Furnace 플러그인은 이 클래스를 보지 않는다. `fatJar` 는 실은 jar 의 sha256 이 `ServerLibraries` 고정값과 같은지, bundled 로 적힌 것이 모두 실렸는지 확인한다. gradle 개발 실행·시험처럼 서버 jar 가 아닐 때는 Central 에서 받는다. 라이선스 고지는 저장소 `NOTICE`·`licenses/` 와 서버 jar 의 `META-INF/furnace/libraries/NOTICE`.
+"서버 jar" 는 fat jar(`furnace-server.jar`) 의 `META-INF/furnace/libraries/` 에 jar 그대로 실려 있다는 뜻이다. 클래스를 풀어 넣지 않았고 패키지 이름도 바꾸지 않았다(재배치 없음 — 플러그인이 `com.google.common`·`org.yaml.snakeyaml` 을 그대로 쓴다). 필요할 때 캐시(아래 경로와 같은 자리)로 꺼내 공유 로더에 붙이므로 서버 로더·Furnace 플러그인은 이 클래스를 보지 않는다. `fatJar` 는 실은 jar 의 sha256 이 `ServerLibraries` 고정값과 같은지, bundled 로 적힌 것이 모두 실렸는지 확인한다. `start.sh`/`start.bat`(installDist 의 `lib/*` 실행)에도 같은 자원을 담은 `lib/furnace-bundled-libraries.jar` 를 넣었다(2026-11-12 기준 그 실행은 호환 어댑터 자체가 클래스패스에 없어 Bukkit 플러그인을 안 올린다는 경고만 낸다 — 어댑터가 실리면 같은 자원으로 꺼낸다). gradle 개발 실행(`run`)·시험처럼 그 jar 가 없을 때만 Central 에서 받는다. 라이선스 고지는 저장소 `NOTICE`·`licenses/` 와 서버 jar 의 `META-INF/furnace/libraries/NOTICE`.
 
 | 묶음 | jar | 저장소 | 표지(이 패키지가 보이면 필요) |
 |---|---|---|---|

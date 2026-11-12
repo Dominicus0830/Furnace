@@ -11,3 +11,4 @@
 - fat jar 기동 탐침(offline=true, 네트워크 없음): Bukkit 플러그인 하나가 `ImmutableList`·`Futures`·`new Yaml().load` 를 써서 onEnable 통과, 둘 다 `furnace-server-libraries` 로더에서 왔다.
 - 라이선스: 셋 다 Apache 2.0. 저장소 최상위 `NOTICE`, `licenses/LICENSE-APACHE-2.0.txt`(guava jar 의 META-INF/LICENSE 와 같은 본문), fat jar `META-INF/furnace/libraries/NOTICE`·`LICENSE-APACHE-2.0.txt`.
 - 서버 jar 크기: 약 22 MB → 25.6 MB.
+- 검토 반영(PR #235): start 스크립트(installDist `-cp lib/*`)는 fat jar 가 아니라 자원이 없었다 → `bundledLibrariesJar`(같은 자원만 담은 jar)를 배포 lib/ 에 넣는다. fatJar 정규식은 주석 줄 제외·공백·줄바꿈·`Repo.X`·`true` 표기를 받고, 못 읽은 bundled 항목이 있거나 0개면 실패. NOTICE 의 "각 jar META-INF 를 따른다" 문구는 사실과 달라 고침(fat jar 에는 logback LICENSE 하나뿐).
