@@ -20,7 +20,8 @@ public class MemoryConfiguration extends MemorySection implements Configuration 
 
     @Override
     public void addDefaults(Configuration defaults) {
-        if (defaults instanceof MemorySection m) {
+        // 빠른 길은 두 쪽 모두 '.' 일 때만(점으로 이은 경로를 점으로 다시 나누므로). 아니면 Paper 처럼 getValues(true) 를 addDefault 로 하나씩(PR #254 검토 R1)
+        if (defaults instanceof MemorySection m && options().pathSeparator() == '.' && m.getRoot().options().pathSeparator() == '.') {
             ConfigSection d = delegate.getDefaults();
             if (d == null) delegate.setDefaults(d = new ConfigSection());
             for (String k : m.delegate.keys(true)) {

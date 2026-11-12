@@ -5,7 +5,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.Reader;
 import java.util.List;
-import java.util.Map;
 import java.util.logging.Level;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.Configuration;
@@ -13,6 +12,7 @@ import org.bukkit.configuration.InvalidConfigurationException;
 import org.domi.furnace.api.config.ConfigFormat;
 import org.domi.furnace.api.config.ConfigParseException;
 import org.domi.furnace.api.config.ConfigSection;
+import org.domi.furnace.compat.paper.ConfigPaths;
 
 /** YAML 설정(Furnace 의 YAML 파서·작성기 — 주석을 보존한다). */
 public class YamlConfiguration extends FileConfiguration {
@@ -38,42 +38,77 @@ public class YamlConfiguration extends FileConfiguration {
         return BLANK_CONFIG.equals(dump) ? "" : dump;   // Paper 처럼 빈 설정은 빈 파일(A15-11)
     }
 
-    /** 쓰기용 합친 보기(새 섹션): 기본값에만 있는 키 → 자기 키 순서, 둘 다 섹션이면 안쪽도 같게. 주석은 값이 온 쪽 것을 쓴다. */
+    /**
+     * 쓰기용 합친 보기(새 섹션): 기본값에만 있는 키 → 자기 키 순서, 둘 다 섹션이면 안쪽도 같게. 주석은 값이 온 쪽 것을 쓴다.
+     * 키는 점이 들어 있어도 그대로 한 키로 다룬다(literal 키 단계 접근 — PR #254 검토 R2).
+     */
     private static ConfigSection merged(ConfigSection own, ConfigSection defaults) {
         ConfigSection out = new ConfigSection();
-        Map<String, Object> ownMap = own.toMap();
-        Map<String, Object> defMap = defaults.toMap();
-        for (var e : defMap.entrySet()) {
-            if (!ownMap.containsKey(e.getKey())) put(out, defaults, e.getKey(), e.getValue());
+        for (String k : defaults.keys(false)) {
+            if (!own.containsAt(List.of(k), true)) put(out, defaults, k);
         }
-        for (var e : ownMap.entrySet()) {
-            String k = e.getKey();
-            if (k.indexOf('.') < 0 && own.get(k) instanceof ConfigSection s && defaults.get(k) instanceof ConfigSection ds) {
+        for (String k : own.keys(false)) {
+            List<String> step = List.of(k);
+            if (own.getAt(step) instanceof ConfigSection s && defaults.containsAt(step, true) && defaults.getAt(step) instanceof ConfigSection ds) {
                 out.setLiteral(k, merged(s, ds));
                 copyComments(own, out, k);
             } else {
-                put(out, own, k, e.getValue());
+                put(out, own, k);
             }
         }
         return out;
     }
 
-    /** from 의 키 k 를 out 에 옮긴다. 점 없는 키는 섹션째(안쪽 주석 유지), 점 있는 literal 키는 평범한 값으로. */
-    private static void put(ConfigSection out, ConfigSection from, String k, Object plain) {
-        if (k.indexOf('.') >= 0) {
-            out.setLiteral(k, plain);
-            return;
-        }
-        out.setLiteral(k, from.get(k));
+    /** from 의 키 k(점이 든 literal 키도 한 키)를 값·주석째 out 에 옮긴다. */
+    private static void put(ConfigSection out, ConfigSection from, String k) {
+        out.setLiteral(k, from.getAt(List.of(k)));
         copyComments(from, out, k);
     }
 
     private static void copyComments(ConfigSection from, ConfigSection to, String k) {
-        if (k.indexOf('.') >= 0) return;
-        List<String> c = from.getComments(k);
-        if (!c.isEmpty()) to.setComments(k, c);
-        String ic = from.getInlineComment(k);
-        if (ic != null) to.setInlineComment(k, ic);
+        List<String> step = List.of(k);
+        List<String> c = from.getCommentsAt(step);
+        if (!c.isEmpty()) to.setCommentsAt(step, c);
+        String ic = from.getInlineCommentAt(step);
+        if (ic != null) to.setInlineCommentAt(step, ic);
+    }
+
+    private static boolean isSerialized(ConfigSection s) { return s.containsAt(List.of("=="), true); }
+
+    private static boolean hasSeparatorKey(ConfigSection s, char sep) {
+        for (String k : s.keys(false)) {
+            if (k.indexOf(sep) >= 0) return true;
+            if (s.getAt(List.of(k)) instanceof ConfigSection c && !isSerialized(c) && hasSeparatorKey(c, sep)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 구분자가 든 키를 그 구분자로 쪼갠 새 트리(주석·머리말은 옮긴다). 직렬화 객체(== 키가 있는 구역)의 안쪽은 건드리지 않고,
+     * 끝 구분자로 끝나는 키는 쪼개지 않고 그대로 둔다. 쪼갤 키가 없으면 같은 트리를 돌려준다.
+     */
+    private static ConfigSection resplit(ConfigSection src, char sep) {
+        if (!hasSeparatorKey(src, sep)) return src;
+        return resplitTree(src, sep);
+    }
+
+    private static ConfigSection resplitTree(ConfigSection src, char sep) {
+        ConfigSection out = new ConfigSection();
+        for (String k : src.keys(false)) {
+            List<String> step = List.of(k);
+            Object v = src.getAt(step);
+            if (v instanceof ConfigSection c && !isSerialized(c)) v = resplitTree(c, sep);
+            ConfigPaths.Parsed p = ConfigPaths.parse(k, sep);
+            List<String> keys = p.endsAtSection() || p.keys().isEmpty() ? step : p.keys();
+            out.setAt(keys, v);
+            List<String> comments = src.getCommentsAt(step);
+            if (!comments.isEmpty()) out.setCommentsAt(keys, comments);
+            String inline = src.getInlineCommentAt(step);
+            if (inline != null) out.setInlineCommentAt(keys, inline);
+        }
+        out.setHeader(src.getHeader());
+        out.setFooter(src.getFooter());
+        return out;
     }
 
     @Override
@@ -87,6 +122,8 @@ public class YamlConfiguration extends FileConfiguration {
         } catch (RuntimeException e) {
             throw new InvalidConfigurationException(e);
         }
+        char sep = options().pathSeparator();
+        if (sep != '.') fresh = resplit(fresh, sep);   // Paper 는 읽을 때 구분자가 든 키를 쪼갠다(PR #254 검토 R5)
         fresh.setDefaults(furnaceRoot().getDefaults());
         furnaceRoot(fresh);
     }
