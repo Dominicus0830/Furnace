@@ -68,14 +68,28 @@ public final class ConfigValues {
 
     /**
      * 읽어 온 트리의 {@code ==} 구역(별칭이 등록된 것)을 직렬화 객체로 되살려 잎으로 바꾼다 — Paper YamlConstructor 처럼 읽을 때 한 번(안쪽부터).
-     * 되살리지 못하면(별칭을 모르거나 되읽기가 null·예외) 구역 그대로 둔다.
+     * 되살리지 못하면(별칭을 모르거나 되읽기가 null·예외) 구역 그대로 둔다. 되살리지 못한 {@code ==} 구역이 남았으면 true.
      */
-    public static void reviveTree(ConfigSection s) {
+    public static boolean reviveTree(ConfigSection s) {
+        boolean pending = false;
         for (String k : new ArrayList<>(s.keys(false))) {
             Object v = s.getAt(List.of(k));
             Object r = reviveNode(v);
             if (r != v) s.setLiteral(k, r);
+            pending |= leftAlias(r);
         }
+        return pending;
+    }
+
+    /** r 안에 되살리지 못한 {@code ==} 구역이 있는가(목록 안 포함). */
+    private static boolean leftAlias(Object r) {
+        if (r instanceof ConfigSection c) {
+            if (c.getAt(List.of(ConfigurationSerialization.SERIALIZED_TYPE_KEY)) instanceof String) return true;
+            for (String k : c.keys(false)) if (leftAlias(c.getAt(List.of(k)))) return true;
+        } else if (r instanceof List<?> l) {
+            for (Object o : l) if (leftAlias(o)) return true;
+        }
+        return false;
     }
 
     /** 값 하나를 되살린다: 별칭이 등록된 {@code ==} 구역은 {@link ConfigObject}, 목록은 안쪽까지, 그 밖은 그대로. */

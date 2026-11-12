@@ -17,7 +17,18 @@ public final class PdcViews {
     /** source 가 줄 때마다(없으면 null = 빈 데이터) 읽는 읽기 전용 보기. */
     public static PersistentDataContainerView live(Supplier<PersistentDataView> source) { return new Live(source); }
 
-    private record Live(Supplier<PersistentDataView> source) implements PersistentDataContainerView {
+    /** 보기마다 하나 두는 어댑터 문맥(Paper CraftPersistentDataAdapterContext — 컨테이너가 아니다). */
+    private static final class Context implements PersistentDataAdapterContext {
+        @Override
+        public PersistentDataContainer newPersistentDataContainer() { return new ItemPdc(null); }
+    }
+
+    private static final class Live implements PersistentDataContainerView {
+
+        private final Supplier<PersistentDataView> source;
+        private final PersistentDataAdapterContext context = new Context();
+
+        Live(Supplier<PersistentDataView> source) { this.source = source; }
 
         private ItemPdc now() { return new ItemPdc(source.get()); }
 
@@ -43,7 +54,7 @@ public final class PdcViews {
         public void copyTo(PersistentDataContainer other, boolean replace) { now().copyTo(other, replace); }
 
         @Override
-        public PersistentDataAdapterContext getAdapterContext() { return new ItemPdc(null); }
+        public PersistentDataAdapterContext getAdapterContext() { return context; }
 
         @Override
         public byte[] serializeToBytes() throws java.io.IOException { return now().serializeToBytes(); }

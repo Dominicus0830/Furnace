@@ -115,7 +115,14 @@ final class OfflinePlayerImpl implements OfflinePlayer {
     public PersistentDataView persistentDataNow() {
         Player p = online();
         if (p != null) return host.player(p).persistentData();
-        var root = PlayerData.readRoot(core().world().worldDir(), id);
+        org.domi.furnace.server.net.io.nbt.NbtCompound root;
+        try {
+            root = PlayerData.readRoot(core().world().worldDir(), id);
+        } catch (RuntimeException e) {
+            // Paper 처럼 읽지 못하는 파일은 경고만 남기고 빈 보기로 — 한 파일 때문에 플레이어를 훑는 플러그인이 끊기지 않게
+            org.slf4j.LoggerFactory.getLogger(OfflinePlayerImpl.class).warn("플레이어 데이터를 읽지 못해 영속 데이터를 빈 값으로 본다 ({}): {}", id, e.toString());
+            return null;
+        }
         if (root == null) return null;
         return NbtPersistentData.snapshot(root.tags().get("BukkitValues") instanceof org.domi.furnace.server.net.io.nbt.NbtCompound c ? c : null);
     }

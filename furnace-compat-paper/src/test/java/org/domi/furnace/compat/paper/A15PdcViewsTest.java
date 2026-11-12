@@ -3,6 +3,7 @@ package org.domi.furnace.compat.paper;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -82,7 +83,53 @@ class A15PdcViewsTest {
         assertEquals(List.of(List.of("a", "b"), List.of(), List.of("c")), p.get(K, t));
         assertTrue(p.has(K, t));
         assertFalse(p.has(K, PersistentDataType.LIST.strings()));
-        assertFalse(p.has(K, PersistentDataType.LIST.listTypeFrom(PersistentDataType.LIST.integers())));
+        // Paper matchesListTag: has 는 바깥 목록의 원소 종류(목록)만 본다 — 안쪽 종류가 달라도 참이고 get 이 IAE
+        var wrongInner = PersistentDataType.LIST.listTypeFrom(PersistentDataType.LIST.integers());
+        assertTrue(p.has(K, wrongInner));
+        assertThrows(IllegalArgumentException.class, () -> p.get(K, wrongInner));
+    }
+
+    @Test
+    void innerListsOfDifferentKindsAreValidNbt() throws IOException {
+        // [["a"],[1]] — 바깥 원소 종류가 목록으로 같으면 바닐라·Paper 에서 올바른 값이다
+        byte[] mixed = {10, 0, 0, 9, 0, 1, 'k', 9, 0, 0, 0, 2,
+                8, 0, 0, 0, 1, 0, 1, 'a',
+                3, 0, 0, 0, 1, 0, 0, 0, 1,
+                0};
+        ItemPdc p = pdc();
+        p.readFromBytes(mixed, true);
+        assertArrayEquals(mixed, p.serializeToBytes());
+        ItemPdc q = pdc();
+        p.copyTo(q, true);
+        assertEquals(p, q);
+        assertArrayEquals(mixed, q.serializeToBytes());
+    }
+
+    @Test
+    void deeplyNestedListsReadFromAnItemWithoutDepthLimit() {
+        PersistentDataType<?, ?> t = PersistentDataType.LIST.strings();
+        Object value = List.of("x");
+        for (int i = 0; i < 12; i++) {
+            t = PersistentDataType.LIST.listTypeFrom((PersistentDataType) t);
+            value = List.of(value);
+        }
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        PersistentDataType<Object, Object> type = (PersistentDataType) t;
+        var item = new ItemStack(Material.STONE);
+        var meta = item.getItemMeta();
+        meta.getPersistentDataContainer().set(K, type, value);
+        item.setItemMeta(meta);
+        var view = item.getPersistentDataContainer();
+        assertTrue(view.has(K));
+        assertTrue(view.has(K, type));
+        assertEquals(value, view.get(K, type));
+    }
+
+    @Test
+    void viewAdapterContextIsOneNonContainerObject() {
+        var view = new ItemStack(Material.STONE).getPersistentDataContainer();
+        assertSame(view.getAdapterContext(), view.getAdapterContext());
+        assertFalse(view.getAdapterContext() instanceof PersistentDataContainer);
     }
 
     @Test

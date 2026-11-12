@@ -23,6 +23,10 @@ public class ConfigurationSerialization {
     public static final String SERIALIZED_TYPE_KEY = "==";
 
     private static final Map<String, Class<? extends ConfigurationSerializable>> REGISTRY = new ConcurrentHashMap<>();
+    private static final java.util.concurrent.atomic.AtomicInteger EPOCH = new java.util.concurrent.atomic.AtomicInteger();
+
+    /** 호환 모듈 전용: 등록이 바뀔 때마다 늘어나는 번호(읽을 때 모르던 별칭을 다시 시도할지 가리는 데 쓴다). */
+    public static int epoch() { return EPOCH.get(); }
     private static final Logger LOG = Logger.getLogger(ConfigurationSerialization.class.getName());
 
     static {
@@ -142,12 +146,12 @@ public class ConfigurationSerialization {
         for (String name : new String[] {getAlias(clazz), clazz.getName()}) registerClass(clazz, name);
     }
 
-    public static void registerClass(Class<? extends ConfigurationSerializable> clazz, String alias) { REGISTRY.put(alias, clazz); }
+    public static void registerClass(Class<? extends ConfigurationSerializable> clazz, String alias) { REGISTRY.put(alias, clazz); EPOCH.incrementAndGet(); }
 
-    public static void unregisterClass(String alias) { REGISTRY.remove(alias); }
+    public static void unregisterClass(String alias) { REGISTRY.remove(alias); EPOCH.incrementAndGet(); }
 
     /** 그 클래스로 등록된 별칭을 모두 지운다. */
-    public static void unregisterClass(Class<? extends ConfigurationSerializable> clazz) { REGISTRY.values().removeIf(c -> c == clazz); }
+    public static void unregisterClass(Class<? extends ConfigurationSerializable> clazz) { REGISTRY.values().removeIf(c -> c == clazz); EPOCH.incrementAndGet(); }
 
     /** 별칭의 클래스. 없으면 null. */
     public static Class<? extends ConfigurationSerializable> getClassByAlias(String alias) { return REGISTRY.get(alias); }

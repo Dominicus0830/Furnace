@@ -213,4 +213,25 @@ class A15ConfigObjectLeafTest {
         c.set("f", foreign);
         assertInstanceOf(Unreg.class, c.get("f.o"));
     }
+
+    @SerializableAs("A15LateReg2")
+    public static final class Late2 implements ConfigurationSerializable {
+        public int x;
+        public Late2(int x) { this.x = x; }
+        @Override public Map<String, Object> serialize() { return new LinkedHashMap<>(Map.of("x", x)); }
+        public static Late2 deserialize(Map<String, Object> m) { return new Late2(((Number) m.get("x")).intValue()); }
+    }
+
+    // #262 검토 R6: 늦게 등록돼도 첫 읽기부터 키·값이 일관된다(null 값 항목·읽기 전후 달라짐 없음)
+    @Test
+    void lateRegisteredAliasIsConsistentFromTheFirstRead() throws Exception {
+        YamlConfiguration c = new YamlConfiguration();
+        c.loadFromString("obj:\n  ==: A15LateReg2\n  x: 1\nother: 2\n");
+        ConfigurationSerialization.registerClass(Late2.class);
+        assertFalse(c.isConfigurationSection("obj"));
+        Map<String, Object> first = c.getValues(true);
+        assertEquals(java.util.List.of("obj", "other"), new ArrayList<>(first.keySet()));
+        assertEquals(java.util.List.of("obj", "other"), new ArrayList<>(c.getKeys(true)));
+        assertEquals(first.keySet(), c.getValues(true).keySet());
+    }
 }

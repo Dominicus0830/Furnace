@@ -64,6 +64,18 @@ public class MemoryConfiguration extends MemorySection implements Configuration 
     @Override
     public ConfigurationSection getParent() { return null; }
 
+    /** 읽을 때 되살리지 못한 {@code ==} 구역(그때 등록되지 않았던 별칭)이 남아 있는가 — 있으면 읽기 입구에서 다시 시도한다. */
+    private boolean pendingAliases;
+    private int aliasEpoch;
+
+    /** 호환 모듈 전용: 다시 시도할 때가 됐는가(남은 구역이 있고 그 뒤 클래스 등록이 바뀌었을 때만). */
+    public final boolean pendingAliases() { return pendingAliases && aliasEpoch != org.bukkit.configuration.serialization.ConfigurationSerialization.epoch(); }
+
+    public final void pendingAliases(boolean pending) {
+        this.pendingAliases = pending;
+        this.aliasEpoch = org.bukkit.configuration.serialization.ConfigurationSerialization.epoch();
+    }
+
     /** 하위 클래스(YamlConfiguration)가 쓰는 Furnace 설정 트리 루트. */
     protected final ConfigSection furnaceRoot() { return delegate; }
 

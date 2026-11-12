@@ -237,9 +237,8 @@ class A15PersistentDataParityTest {
         assertThrows(IOException.class, () -> p.readFromBytes(new byte[] {9, 0, 0}, true), "루트는 compound 여야 한다");
         assertThrows(IOException.class, () -> p.readFromBytes(new byte[] {10, 0, 0, 7, 0, 1, 'k', 0x7f, 0, 0, 0}, true), "길이가 남은 바이트보다 크다");
         assertThrows(IOException.class, () -> p.readFromBytes(new byte[] {10, 0, 0, 3, 0, 1}, true), "중간에 끝남");
-        // 목록의 목록: 안쪽 목록의 원소 종류가 서로 다르면 못 읽는다(int 목록 + 문자열 목록)
-        assertThrows(IOException.class, () -> p.readFromBytes(new byte[] {10, 0, 0, 9, 0, 1, 'k', 9, 0, 0, 0, 2,
-                3, 0, 0, 0, 1, 0, 0, 0, 5, 8, 0, 0, 0, 1, 0, 1, 'a', 0}, true));
+        // 원소가 있는 목록의 종류가 END 면 못 읽는다(안쪽 목록의 원소 종류가 서로 다른 목록의 목록은 올바른 NBT 라 읽힌다 — A15PdcViewsTest)
+        assertThrows(IOException.class, () -> p.readFromBytes(new byte[] {10, 0, 0, 9, 0, 1, 'k', 0, 0, 0, 0, 1, 0}, true));
     }
 
     @Test
