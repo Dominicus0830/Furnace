@@ -50,7 +50,8 @@ public final class LegacyRandomSource implements RandomSource {
 
     public float nextFloat() { return next(24) * 5.9604645E-8F; }
 
-    public double nextDouble() { return (((long) next(26) << 27) + next(27)) * 1.110223E-16F; }
+    // 바닐라 BitRandomSource.nextDouble: (double)l * 1.1102230246251565E-16 (float 상수로 곱하면 long 이 float 로 줄어 정밀도를 잃고 최댓값이 1.0 이 된다)
+    public double nextDouble() { return (double) (((long) next(26) << 27) + next(27)) * 1.1102230246251565E-16; }
 
     public boolean nextBoolean() { return next(1) != 0; }
 

@@ -21,12 +21,19 @@ final class ModifierOrder {
 
     int size() { return size; }
 
-    /** ResourceLocation.hashCode: 31 × namespace.hashCode() + path.hashCode(). 이름공간이 없으면 minecraft. */
+    /** ResourceLocation.hashCode: 31 × namespace.hashCode() + path.hashCode(). 이름공간이 없으면 minecraft. (문자열을 자르지 않고 문자 해시를 직접 합친다.) */
     static int idHash(String id) {
         int c = id.indexOf(':');
-        String ns = c < 0 ? "minecraft" : id.substring(0, c);
-        String path = c < 0 ? id : id.substring(c + 1);
-        return 31 * ns.hashCode() + path.hashCode();
+        int nsHash = c < 0 ? NS_MINECRAFT_HASH : subHash(id, 0, c);
+        return 31 * nsHash + subHash(id, c + 1, id.length());
+    }
+
+    private static final int NS_MINECRAFT_HASH = "minecraft".hashCode();
+
+    private static int subHash(String s, int from, int to) {
+        int h = 0;
+        for (int i = from; i < to; i++) h = 31 * h + s.charAt(i);
+        return h;
     }
 
     /** fastutil HashCommon.mix(int). */
@@ -69,6 +76,24 @@ final class ModifierOrder {
         // fastutil insert: if (size++ >= maxFill) rehash(arraySize(size + 1, f)) — 비교는 넣기 전 size.
         if (size >= maxFill(key.length)) return r.rehash(arraySize(newSize + 1L));
         return r;
+    }
+
+    /** 여러 id 를 차례로 넣은 것과 같은 결과(put 을 반복하는 것과 같은 칸 배치)를 표 복사 한 번으로 만든다. */
+    ModifierOrder putAll(java.util.List<String> ids) {
+        String[] k = key.clone();
+        int sz = size;
+        for (String id : ids) {
+            int mask = k.length - 1;
+            int pos = slotOf(id, mask);
+            boolean found = false;
+            for (String curr; (curr = k[pos]) != null; pos = (pos + 1) & mask) {
+                if (curr.equals(id)) { found = true; break; }
+            }
+            if (found) continue;
+            k[pos] = id;
+            if (sz++ >= maxFill(k.length)) k = new ModifierOrder(k, sz).rehash(arraySize(sz + 1L)).key;
+        }
+        return new ModifierOrder(k, sz);
     }
 
     /** 없으면 this. 있으면 fastutil shiftKeys 로 뒤 칸을 당기고, 많이 비면 절반으로 줄인다. */

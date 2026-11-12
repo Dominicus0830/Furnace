@@ -42,12 +42,43 @@ public final class AttributeInstance {
     /**
      * 같은 id 가 이미 있으면 바닐라는 예외를 던진다 — 여기서는 덮어쓴다. 바닐라 addOrReplacePermanentModifier 와 같이 옛것을 지우고 다시 넣는다
      * (modifiers() 순서에서 끝으로 간다). 저장되는 수정자가 된다. 연산별 값 계산 순서는 바닐라 해시 맵 순회 순서다(ModifierOrder).
+     * 해시 충돌(같은 칸)이 있으면 지우고 다시 넣기가 계산 순서도 바꾼다 — 바닐라와 같다.
      */
     public void addOrReplaceModifier(AttributeModifier m) {
         State s = state;
         if (s.byId.containsKey(m.id())) s = s.without(m.id());
         state = s.with(m, false);
         setDirty();
+    }
+
+    /**
+     * 수정자 여러 개를 차례로 addOrReplaceModifier 한 것과 같은 결과를 상태 복사 한 번으로 만든다(플레이어 값 계산이 매번 새 인스턴스에 몇 개씩 단다).
+     * 비어 있는 인스턴스에 서로 다른 id 만 들어올 때의 빠른 길이고, 그 밖에는 하나씩 단다.
+     */
+    public void addAllModifiers(java.util.Collection<AttributeModifier> mods) {
+        if (mods.isEmpty()) return;
+        if (!state.byId.isEmpty()) {
+            for (AttributeModifier m : mods) addOrReplaceModifier(m);
+            return;
+        }
+        Map<String, AttributeModifier> byId = new LinkedHashMap<>();
+        for (AttributeModifier m : mods) {
+            if (byId.put(m.id(), m) != null) {   // 같은 id 가 겹치면 하나씩(지우고 다시 넣기) 단다
+                for (AttributeModifier x : mods) addOrReplaceModifier(x);
+                return;
+            }
+        }
+        java.util.List<String>[] ids = newIdLists();
+        for (AttributeModifier m : mods) ids[State.op(m)].add(m.id());
+        ModifierOrder[] o = new ModifierOrder[3];
+        for (int k = 0; k < 3; k++) o[k] = ids[k].isEmpty() ? ModifierOrder.EMPTY : ModifierOrder.EMPTY.putAll(ids[k]);
+        state = new State(Collections.unmodifiableMap(byId), o, Set.of());
+        setDirty();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static java.util.List<String>[] newIdLists() {
+        return new java.util.List[] {new java.util.ArrayList<String>(), new java.util.ArrayList<String>(), new java.util.ArrayList<String>()};
     }
 
     /**
@@ -113,7 +144,8 @@ public final class AttributeInstance {
         static final State EMPTY = new State(Map.of(),
                 new ModifierOrder[] {ModifierOrder.EMPTY, ModifierOrder.EMPTY, ModifierOrder.EMPTY}, Set.of());
 
-        private static int op(AttributeModifier m) {
+        /** 범위 밖 연산 값은 ADD_VALUE 로 본다(operationName·operationOf 의 기본값과 같다 — 옛 compute 는 전체 배율로 처리했다). */
+        static int op(AttributeModifier m) {
             int o = m.operation();
             return o == AttributeModifier.ADD_MULTIPLIED_BASE || o == AttributeModifier.ADD_MULTIPLIED_TOTAL ? o : AttributeModifier.ADD_VALUE;
         }
@@ -144,7 +176,7 @@ public final class AttributeInstance {
             return new State(Collections.unmodifiableMap(next), o, withTransient(transientIds, id, false));
         }
 
-        /** 같은 id 의 값만 바꾼다(제자리). 연산이 달라지면 옛 연산 표에서 빼고 새 연산 표에 넣는다(바닐라 맵 동작과 같다). */
+        /** 같은 id 의 값만 바꾼다(제자리). 연산이 달라지면 옛 연산 표에서 빼고 새 연산 표에 넣는다. 바닐라와 다른 점(의도): 바닐라 addOrUpdateTransientModifier 는 옛 연산 맵에서 빼지 않아 수정자가 두 번 계산되는 버그가 있고, 저장 목록(permanentModifiers)도 건드리지 않는다. */
         State replace(AttributeModifier old, AttributeModifier m, boolean isTransient) {
             Map<String, AttributeModifier> next = new LinkedHashMap<>(byId);
             next.put(m.id(), m);

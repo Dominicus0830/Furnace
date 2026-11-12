@@ -26,7 +26,7 @@ class AttributeVanillaOrderTest {
     void iterationOrderIsFastutilHashOrderNotInsertionOrder() {
         ModifierOrder six = put("test:a", "test:b", "test:c", "test:d", "test:e", "test:f");
         assertEquals(List.of("test:b", "test:d", "test:f", "test:a", "test:c", "test:e"), order(six));
-        // 빼고 다시 넣어도 자리는 해시가 정한다(끝으로 가지 않는다)
+        // 빼고 다시 넣어도 자리는 해시가 정한다(끝으로 가지 않는다). 같은 칸에 떨어지는 충돌이 없을 때 — 충돌이 있으면 아래 시험처럼 순서가 바뀔 수 있다.
         assertEquals(order(six), order(six.remove("test:b").put("test:b")));
     }
 
@@ -45,6 +45,15 @@ class AttributeVanillaOrderTest {
     }
 
     @Test
+    void collidingSlotsDependOnInsertionHistory() {
+        // 32칸 표에서 test:m12 와 test:m13 은 같은 칸(17)에 떨어진다. 먼저 온 m12 가 17, 나중 온 m13 이 탐사로 18 — 순회는 큰 칸부터라 [m13, m12].
+        // 지우고 다시 넣으면 m12 가 뒤로 가 순서가 뒤집힌다. 해시 충돌이 있으면 "지우고 다시 넣기"와 "제자리 교체"는 계산 순서도 다르다(fastutil 실측).
+        assertEquals(List.of("test:m13", "test:m12"), order(put("test:m12", "test:m13")));
+        assertEquals(List.of("test:m12", "test:m13"), order(put("test:m12", "test:m13").remove("test:m12").put("test:m12")));
+        assertEquals(order(put("test:m12", "test:m13")), order(put("test:m12", "test:m13").put("test:m12")), "이미 있는 키를 다시 넣으면(제자리) 그대로");
+    }
+
+    @Test
     void namespaceDefaultsToMinecraft() {
         assertEquals(ModifierOrder.idHash("minecraft:x"), ModifierOrder.idHash("x"));
     }
@@ -60,7 +69,7 @@ class AttributeVanillaOrderTest {
         for (int k = 0; k < 6; k++) i.addOrReplaceModifier(new AttributeModifier("test:" + (char) ('a' + k), amt[k], AttributeModifier.ADD_VALUE));
         // 바닐라 순서 b d f a c e
         double expected = 1.1;
-        for (char c : "bdfaec".toCharArray()) expected += amt[c - 'a'];
+        for (char c : "bdface".toCharArray()) expected += amt[c - 'a'];
         assertEquals(expected, i.value(), 0.0);
         assertEquals(3.6999999999999997, i.value(), 0.0);   // 넣은 순서로 더한 값은 3.7 — 마지막 비트가 다르다
     }
@@ -72,7 +81,7 @@ class AttributeVanillaOrderTest {
         i.addOrReplaceModifier(new AttributeModifier("test:add", 2.6, AttributeModifier.ADD_VALUE));   // d = 1.1 + 2.6 = 3.7
         for (int k = 0; k < 6; k++) i.addOrReplaceModifier(new AttributeModifier("test:" + (char) ('a' + k), amt[k], AttributeModifier.ADD_MULTIPLIED_BASE));
         double d = 1.1 + 2.6, e = d;
-        for (char c : "bdfaec".toCharArray()) e += d * amt[c - 'a'];
+        for (char c : "bdface".toCharArray()) e += d * amt[c - 'a'];
         assertEquals(e, i.value(), 0.0);
     }
 
@@ -83,7 +92,7 @@ class AttributeVanillaOrderTest {
         i.addOrReplaceModifier(new AttributeModifier("test:add", 2.6, AttributeModifier.ADD_VALUE));
         for (int k = 0; k < 6; k++) i.addOrReplaceModifier(new AttributeModifier("test:" + (char) ('a' + k), amt[k], AttributeModifier.ADD_MULTIPLIED_TOTAL));
         double e = 1.1 + 2.6;
-        for (char c : "bdfaec".toCharArray()) e *= 1.0 + amt[c - 'a'];
+        for (char c : "bdface".toCharArray()) e *= 1.0 + amt[c - 'a'];
         assertEquals(e, i.value(), 0.0);
     }
 
@@ -149,5 +158,40 @@ class AttributeVanillaOrderTest {
         i.addOrReplaceTransientModifier(new AttributeModifier("test:b", 1, AttributeModifier.ADD_VALUE));
         i.removeModifiers();
         assertFalse(i.isTransient("test:b"));
+    }
+
+    @Test
+    void putAllMatchesRepeatedPut() {
+        java.util.Random r = new java.util.Random(5);
+        for (int round = 0; round < 300; round++) {
+            int n = r.nextInt(60);
+            List<String> ids = new ArrayList<>();
+            for (int k = 0; k < n; k++) ids.add((r.nextBoolean() ? "test:" : "minecraft:effect.") + "m" + r.nextInt(80));
+            ModifierOrder one = ModifierOrder.EMPTY;
+            for (String id : ids) one = one.put(id);
+            assertEquals(order(one), order(ModifierOrder.EMPTY.putAll(ids)), "round " + round);
+            assertEquals(one.size(), ModifierOrder.EMPTY.putAll(ids).size());
+        }
+    }
+
+    @Test
+    void addAllModifiersEqualsAddingOneByOne() {
+        double[] amt = {0.1, 0.7, 0.3, 0.2, 0.9, 0.4};
+        List<AttributeModifier> mods = new ArrayList<>();
+        for (int k = 0; k < 6; k++) mods.add(new AttributeModifier("test:" + (char) ('a' + k), amt[k], k % 3));
+        var bulk = instance();
+        bulk.addAllModifiers(mods);
+        var one = instance();
+        for (AttributeModifier m : mods) one.addOrReplaceModifier(m);
+        assertEquals(one.value(), bulk.value(), 0.0);
+        assertEquals(List.copyOf(one.modifiers().keySet()), List.copyOf(bulk.modifiers().keySet()));
+        // 같은 id 가 겹치면 하나씩 단 것과 같다(뒤의 것이 이기고 끝으로 간다)
+        var dupBulk = instance();
+        var dupOne = instance();
+        List<AttributeModifier> dup = List.of(mods.get(0), mods.get(1), new AttributeModifier("test:a", 9, AttributeModifier.ADD_VALUE));
+        dupBulk.addAllModifiers(dup);
+        for (AttributeModifier m : dup) dupOne.addOrReplaceModifier(m);
+        assertEquals(dupOne.value(), dupBulk.value(), 0.0);
+        assertEquals(List.copyOf(dupOne.modifiers().keySet()), List.copyOf(dupBulk.modifiers().keySet()));
     }
 }
