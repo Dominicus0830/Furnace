@@ -47,10 +47,11 @@ public final class RandomSeeds {
     /** 열쇠 둘을 섞는다(순서가 다르면 다른 값). */
     public static long combine(long a, long b) { return mix(a * 0x9E3779B97F4A7C15L + b); }
 
-    /** region 의 주인 열쇠 — 월드(차원·추가 월드 이름)와 region 번호. 번호는 한 월드 안에서 순서대로 매겨지므로 region 하나짜리 장면에서만 안정하다. */
-    public static long region(String dimension, String levelName, int regionId) {
-        return combine(key(levelName == null ? dimension : dimension + "|" + levelName), regionId);
-    }
+    /**
+     * 월드의 주인 열쇠 — 차원과 추가 월드 이름. region 번호는 열쇠에 넣지 않는다: 번호는 region 생성·합치기·나누기 순번(Regionizer.nextId)이라
+     * 구역 크기·합치기 규칙을 바꾸는 최적화가 레벨 난수 씨앗을 밀어 가짜 불일치를 낸다. 한 월드에 region 이 여럿이면 레벨 난수열이 같아진다(꺼짐은 영향 없음).
+     */
+    public static long world(String dimension, String levelName) { return key(levelName == null ? dimension : dimension + "|" + levelName); }
 
     /** 켜짐일 때의 씨앗: (열쇠, 용도)의 순수 함수. */
     public static long derive(long ownerKey, int purpose) { return mix(mix(ownerKey ^ 0x5DEECE66DL) + purpose * 0x9E3779B97F4A7C15L); }

@@ -36,9 +36,8 @@ class RandomSeedsTest {
         assertNotEquals(RandomSeeds.key("a"), RandomSeeds.key("b"));
         assertEquals(0xCBF29CE484222325L, RandomSeeds.key(""));
         assertNotEquals(RandomSeeds.combine(1, 2), RandomSeeds.combine(2, 1));
-        assertNotEquals(RandomSeeds.region("minecraft:overworld", null, 1), RandomSeeds.region("minecraft:overworld", null, 2));
-        assertNotEquals(RandomSeeds.region("minecraft:overworld", null, 1), RandomSeeds.region("minecraft:the_nether", null, 1));
-        assertNotEquals(RandomSeeds.region("minecraft:overworld", null, 1), RandomSeeds.region("minecraft:overworld", "extra", 1));
+        assertNotEquals(RandomSeeds.world("minecraft:overworld", null), RandomSeeds.world("minecraft:the_nether", null));
+        assertNotEquals(RandomSeeds.world("minecraft:overworld", null), RandomSeeds.world("minecraft:overworld", "extra"));
     }
 
     /** 꺼짐(운영): 같은 열쇠로 연달아 만들어도 다른 난수열(바닐라 RandomSource.create() 처럼). */

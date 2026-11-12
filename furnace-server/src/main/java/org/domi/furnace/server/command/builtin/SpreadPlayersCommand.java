@@ -315,7 +315,7 @@ public final class SpreadPlayersCommand {
         int minY = world.dimensionType().minY();
         if (maxHeight < minY) throw ERROR_INVALID_MAX_HEIGHT.create(maxHeight, minY);
         String dimension = world.dimension();
-        RandomSource random = RandomSource.createFor(org.domi.furnace.server.block.RandomSeeds.region(dimension, world.levelName(), 0), org.domi.furnace.server.block.RandomSeeds.Purpose.SPREAD_PLAYERS);
+        RandomSource random = RandomSource.createFor(org.domi.furnace.server.block.RandomSeeds.world(dimension, world.levelName()), org.domi.furnace.server.block.RandomSeeds.Purpose.SPREAD_PLAYERS);
         double[] avg = new double[1];
         double minX = center.x() - maxRange, minZ = center.y() - maxRange, maxX = center.x() + maxRange, maxZ = center.y() + maxRange;   // float 뺄셈 뒤 double
         Position[] positions = createInitialPositions(random, respectTeams ? teamCount(targets) : targets.size(), minX, minZ, maxX, maxZ);

@@ -27,7 +27,7 @@ public final class RegionLevel extends ChunkLevel {
     private final ChunkColumn[] cacheCol = new ChunkColumn[CACHE];
 
     RegionLevel(Region region, World world) {
-        super(world.levelServices().maxChainedNeighborUpdates(), RandomSeeds.region(world.dimension(), world.levelName(), region.id()));
+        super(world.levelServices().maxChainedNeighborUpdates(), RandomSeeds.world(world.dimension(), world.levelName()));
         this.region = region;
         this.world = world;
         this.minY = world.dimensionType().minY();

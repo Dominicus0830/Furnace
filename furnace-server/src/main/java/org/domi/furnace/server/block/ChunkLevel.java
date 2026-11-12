@@ -49,7 +49,7 @@ public abstract class ChunkLevel implements BlockLevel {
 
     protected ChunkLevel(int maxChainedNeighborUpdates) { this(maxChainedNeighborUpdates, 0L); }
 
-    /** ownerKey: 이 레벨의 난수 주인 열쇠(RandomSeeds.region). 시험 JVM 에서 같은 열쇠면 같은 난수열을 얻는다. */
+    /** ownerKey: 이 레벨의 난수 주인 열쇠(RandomSeeds.world). 시험 JVM 에서 같은 열쇠면 같은 난수열을 얻는다. */
     protected ChunkLevel(int maxChainedNeighborUpdates, long ownerKey) {
         this.random = RandomSource.createFor(ownerKey, RandomSeeds.Purpose.LEVEL);
         this.soundRandom = RandomSource.createFor(ownerKey, RandomSeeds.Purpose.LEVEL_SOUND);

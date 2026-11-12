@@ -34,7 +34,7 @@ public final class DimensionSpawners {
 
     DimensionSpawners(World world) {
         this.world = world;
-        long key = RandomSeeds.region(world.dimension(), world.levelName(), 0);   // 월드 열쇠(region 번호 0 = 월드 전체)
+        long key = RandomSeeds.world(world.dimension(), world.levelName());
         this.trader = new WanderingTraderSpawner(key);
         this.random = RandomSource.createFor(key, RandomSeeds.Purpose.DIMENSION_SPAWNERS);
     }
