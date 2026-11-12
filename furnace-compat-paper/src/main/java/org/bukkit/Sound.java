@@ -1,5 +1,5 @@
 // 이 파일은 tools/compat/gen-bukkit-values.py 가 만든다 — 손으로 고치지 않는다.
-// sound_event 레지스트리 1.21.1 의 1611 종. 상수 이름은 키의 '.' 을 '_' 로 바꿔 대문자로 한 것, 순서는 이름순(가정).
+// sound_event 레지스트리 1.21.1 의 1611 종. 상수 이름은 키의 '.' 을 '_' 로 바꿔 대문자로 한 것, 순서는 이름순(1.21.1 Bukkit 과 같다).
 package org.bukkit;
 
 import java.util.HashMap;

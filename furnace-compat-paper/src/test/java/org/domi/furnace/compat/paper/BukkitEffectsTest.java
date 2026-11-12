@@ -176,7 +176,18 @@ class BukkitEffectsTest {
         assertEquals(List.of("Alice", "Bob"), who(particles));
 
         particles.clear();
-        w.spawnParticle(Particle.FLAME, here(600), 1);   // force 기본 true 라도 512칸 밖은 보내지 않는다
+        w.spawnParticle(Particle.FLAME, here(100), 1);   // force 기본 false(Paper 1.21.1 CraftWorld) → 32칸 밖은 안 간다
+        sync();
+        assertEquals(List.of(), who(particles));
+        w.spawnParticle(Particle.FLAME, here(100), 1, 0, 0, 0, 0, null, true);   // force → 512칸
+        sync();
+        assertEquals(List.of("Alice", "Bob"), who(particles));
+        particles.clear();
+        w.spawnParticle(Particle.FLAME, List.of(a, b), null, here(100).getX(), here(100).getY(), here(100).getZ(), 1, 0, 0, 0, 0, null);   // receivers 판은 force true
+        sync();
+        assertEquals(List.of("Alice", "Bob"), who(particles));
+        particles.clear();
+        w.spawnParticle(Particle.FLAME, here(600), 1, 0, 0, 0, 0, null, true);   // force 라도 512칸 밖은 보내지 않는다
         sync();
         assertEquals(List.of(), who(particles));
         assertThrows(IllegalArgumentException.class, () -> w.spawnParticle(Particle.DUST, here(0), 1));

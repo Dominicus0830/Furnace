@@ -1,5 +1,5 @@
 // 이 파일은 tools/compat/gen-bukkit-values.py 가 만든다 — 손으로 고치지 않는다.
-// painting_variant 1.21.1 의 50 종. 번호는 1.21 전 그림(옛 번호 순)에 1.21 추가분을 이름순으로 이었다(가정). 크기는 데이터 값.
+// painting_variant 1.21.1 의 50 종. 순서·번호는 1.21.1 Bukkit 과 같다. 크기는 데이터 값.
 package org.bukkit;
 
 import java.util.HashMap;
@@ -37,26 +37,26 @@ public enum Art implements Keyed {
     WIND(27, "wind", 2, 2),
     WATER(28, "water", 2, 2),
     FIRE(29, "fire", 2, 2),
-    BACKYARD(30, "backyard", 3, 4),
-    BAROQUE(31, "baroque", 2, 2),
-    BOUQUET(32, "bouquet", 3, 3),
-    CAVEBIRD(33, "cavebird", 3, 3),
-    CHANGING(34, "changing", 4, 2),
-    COTAN(35, "cotan", 3, 3),
-    ENDBOSS(36, "endboss", 3, 3),
-    FERN(37, "fern", 3, 3),
-    FINDING(38, "finding", 4, 2),
-    HUMBLE(39, "humble", 2, 2),
-    LOWMIST(40, "lowmist", 4, 2),
-    MEDITATIVE(41, "meditative", 1, 1),
-    ORB(42, "orb", 4, 4),
-    OWLEMONS(43, "owlemons", 3, 3),
-    PASSAGE(44, "passage", 4, 2),
-    POND(45, "pond", 3, 4),
-    PRAIRIE_RIDE(46, "prairie_ride", 1, 2),
-    SUNFLOWERS(47, "sunflowers", 3, 3),
-    TIDES(48, "tides", 3, 3),
-    UNPACKED(49, "unpacked", 4, 4);
+    BAROQUE(30, "baroque", 2, 2),
+    HUMBLE(31, "humble", 2, 2),
+    MEDITATIVE(32, "meditative", 1, 1),
+    PRAIRIE_RIDE(33, "prairie_ride", 1, 2),
+    UNPACKED(34, "unpacked", 4, 4),
+    BACKYARD(35, "backyard", 3, 4),
+    BOUQUET(36, "bouquet", 3, 3),
+    CAVEBIRD(37, "cavebird", 3, 3),
+    CHANGING(38, "changing", 4, 2),
+    COTAN(39, "cotan", 3, 3),
+    ENDBOSS(40, "endboss", 3, 3),
+    FERN(41, "fern", 3, 3),
+    FINDING(42, "finding", 4, 2),
+    LOWMIST(43, "lowmist", 4, 2),
+    ORB(44, "orb", 4, 4),
+    OWLEMONS(45, "owlemons", 3, 3),
+    PASSAGE(46, "passage", 4, 2),
+    POND(47, "pond", 3, 4),
+    SUNFLOWERS(48, "sunflowers", 3, 3),
+    TIDES(49, "tides", 3, 3);
 
     private static final Map<Integer, Art> BY_ID = new HashMap<>();
     private static final Map<String, Art> BY_NAME = new HashMap<>();

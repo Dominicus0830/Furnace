@@ -1,5 +1,5 @@
 // 이 파일은 tools/compat/gen-bukkit-values.py 가 만든다 — 손으로 고치지 않는다.
-// potion 레지스트리 1.21.1 의 46 종(레지스트리 순서). 효과·지속·단계는 서버 effect.Potions(바닐라 표)에서 가져왔다.
+// potion 레지스트리 1.21.1 의 46 종(순서는 1.21.1 Bukkit 과 같다). 효과·지속·단계는 서버 effect.Potions(바닐라 표)에서 가져왔다.
 // 1.20.5 이후 Bukkit 처럼 강화·연장 판(STRONG_·LONG_)은 따로 있는 상수다. 옛 이름(JUMP·SPEED·REGEN …)은 ApiRenames 가 바꿔 준다.
 package org.bukkit.potion;
 
@@ -29,9 +29,6 @@ public enum PotionType implements Keyed {
     SLOWNESS("slowness", true, true, List.of(new PotionEffect(PotionEffectType.SLOWNESS, 1800, 0, false, true, true))),
     LONG_SLOWNESS("long_slowness", false, false, List.of(new PotionEffect(PotionEffectType.SLOWNESS, 4800, 0, false, true, true))),
     STRONG_SLOWNESS("strong_slowness", false, false, List.of(new PotionEffect(PotionEffectType.SLOWNESS, 400, 3, false, true, true))),
-    TURTLE_MASTER("turtle_master", true, true, List.of(new PotionEffect(PotionEffectType.SLOWNESS, 400, 3, false, true, true), new PotionEffect(PotionEffectType.RESISTANCE, 400, 2, false, true, true))),
-    LONG_TURTLE_MASTER("long_turtle_master", false, false, List.of(new PotionEffect(PotionEffectType.SLOWNESS, 800, 3, false, true, true), new PotionEffect(PotionEffectType.RESISTANCE, 800, 2, false, true, true))),
-    STRONG_TURTLE_MASTER("strong_turtle_master", false, false, List.of(new PotionEffect(PotionEffectType.SLOWNESS, 400, 5, false, true, true), new PotionEffect(PotionEffectType.RESISTANCE, 400, 3, false, true, true))),
     WATER_BREATHING("water_breathing", false, true, List.of(new PotionEffect(PotionEffectType.WATER_BREATHING, 3600, 0, false, true, true))),
     LONG_WATER_BREATHING("long_water_breathing", false, false, List.of(new PotionEffect(PotionEffectType.WATER_BREATHING, 9600, 0, false, true, true))),
     HEALING("healing", true, false, List.of(new PotionEffect(PotionEffectType.INSTANT_HEALTH, 1, 0, false, true, true))),
@@ -50,6 +47,9 @@ public enum PotionType implements Keyed {
     WEAKNESS("weakness", false, true, List.of(new PotionEffect(PotionEffectType.WEAKNESS, 1800, 0, false, true, true))),
     LONG_WEAKNESS("long_weakness", false, false, List.of(new PotionEffect(PotionEffectType.WEAKNESS, 4800, 0, false, true, true))),
     LUCK("luck", false, false, List.of(new PotionEffect(PotionEffectType.LUCK, 6000, 0, false, true, true))),
+    TURTLE_MASTER("turtle_master", true, true, List.of(new PotionEffect(PotionEffectType.SLOWNESS, 400, 3, false, true, true), new PotionEffect(PotionEffectType.RESISTANCE, 400, 2, false, true, true))),
+    LONG_TURTLE_MASTER("long_turtle_master", false, false, List.of(new PotionEffect(PotionEffectType.SLOWNESS, 800, 3, false, true, true), new PotionEffect(PotionEffectType.RESISTANCE, 800, 2, false, true, true))),
+    STRONG_TURTLE_MASTER("strong_turtle_master", false, false, List.of(new PotionEffect(PotionEffectType.SLOWNESS, 400, 5, false, true, true), new PotionEffect(PotionEffectType.RESISTANCE, 400, 3, false, true, true))),
     SLOW_FALLING("slow_falling", false, true, List.of(new PotionEffect(PotionEffectType.SLOW_FALLING, 1800, 0, false, true, true))),
     LONG_SLOW_FALLING("long_slow_falling", false, false, List.of(new PotionEffect(PotionEffectType.SLOW_FALLING, 4800, 0, false, true, true))),
     WIND_CHARGED("wind_charged", false, false, List.of(new PotionEffect(PotionEffectType.WIND_CHARGED, 3600, 0, false, true, true))),

@@ -245,6 +245,11 @@ public final class NmsClassTransformer implements ClassTransformer {
                         changed[1] = true;
                         return;
                     }
+                    if (opcode == Opcodes.INVOKESTATIC && mname.equals("getByName") && ApiRenames.reroutesGetByName(owner, desc)) {
+                        super.visitMethodInsn(Opcodes.INVOKESTATIC, ApiRenames.INTERNAL, ApiRenames.getByNameName(owner), desc, false);
+                        changed[1] = true;
+                        return;
+                    }
                     if (opcode == Opcodes.INVOKESTATIC && owner.equals("java/lang/Class") && mname.equals("forName")) {
                         if (desc.equals("(Ljava/lang/String;)Ljava/lang/Class;") && canLdcClass) {
                             super.visitLdcInsn(Type.getObjectType(self));

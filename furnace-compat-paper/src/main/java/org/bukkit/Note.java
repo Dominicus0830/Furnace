@@ -120,7 +120,7 @@ public class Note {
     }
 
     /** 소리 높이(바닐라 NoteBlock.getPitchFromNote: 2^((음-12)/12)). */
-    public float getPitch() { return (float) Math.pow(2.0, (note - 12) / 12.0); }
+    public float getPitch() { return (float) Math.pow(2.0, (note - 12) / 12F); }   // Bukkit 처럼 지수를 float 로(바닐라 double 식과 note 1 에서 1ulp 다르다)
 
     @Override
     public boolean equals(Object o) { return o instanceof Note n && n.note == note; }

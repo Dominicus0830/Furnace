@@ -17,7 +17,7 @@ public final class FireworkEffect implements ConfigurationSerializable {
 
     public static Builder builder() { return new Builder(); }
 
-    /** 색을 하나 이상 넣어야 build() 가 된다. */
+    /** 효과 만들기(Paper 는 색 없이도 된다). */
     public static final class Builder {
         private boolean flicker;
         private boolean trail;
@@ -54,7 +54,7 @@ public final class FireworkEffect implements ConfigurationSerializable {
         public Builder withFade(Iterable<?> colors) { addAll(fadeColors, colors); return this; }
 
         public FireworkEffect build() {
-            if (colors.isEmpty()) throw new IllegalStateException("Cannot make FireworkEffect without any color");
+            // Paper 1.21.1(General-ItemMeta-fixes): 색 없는 효과도 된다(Spigot 은 IllegalStateException)
             return new FireworkEffect(flicker, trail, List.copyOf(colors), List.copyOf(fadeColors), type);
         }
 

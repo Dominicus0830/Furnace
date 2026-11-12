@@ -39,6 +39,9 @@ public class AttributeModifier implements ConfigurationSerializable, Keyed {
         this(NamespacedKey.fromString(Objects.requireNonNull(uuid, "uuid").toString()), amount, operation, slot);
     }
 
+    /** Paper: 칸 묶음 없이(ANY). */
+    public AttributeModifier(NamespacedKey key, double amount, Operation operation) { this(key, amount, operation, EquipmentSlotGroup.ANY); }
+
     public AttributeModifier(NamespacedKey key, double amount, Operation operation, EquipmentSlotGroup slot) {
         if (key == null) throw new IllegalArgumentException("Key cannot be null");
         if (operation == null) throw new IllegalArgumentException("Operation cannot be null");
@@ -60,9 +63,15 @@ public class AttributeModifier implements ConfigurationSerializable, Keyed {
         };
     }
 
-    /** @deprecated 키 이름을 UUID 로 읽는다(UUID 로 만든 수정치가 아니면 IllegalArgumentException). */
+    /** @deprecated minecraft:&lt;UUID 모양&gt; 키면 그 UUID, 아니면 키 문자열의 이름 기반 UUID(Bukkit 1.21.1 과 같다). */
     @Deprecated
-    public UUID getUniqueId() { return UUID.fromString(key.getKey()); }
+    public UUID getUniqueId() {
+        if (key.getNamespace().equals(NamespacedKey.MINECRAFT) && UUID_SHAPE.matcher(key.getKey()).matches()) return UUID.fromString(key.getKey());
+        return UUID.nameUUIDFromBytes(key.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private static final java.util.regex.Pattern UUID_SHAPE =
+            java.util.regex.Pattern.compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
 
     @Override
     public NamespacedKey getKey() { return key; }
@@ -92,22 +101,16 @@ public class AttributeModifier implements ConfigurationSerializable, Keyed {
     }
 
     public static AttributeModifier deserialize(Map<String, Object> args) {
-        NamespacedKey key = args.containsKey("key") ? NamespacedKey.fromString((String) args.get("key"))
-                : NamespacedKey.fromString(String.valueOf(args.get("uuid")));
+        // Bukkit 1.21.1: uuid 를 먼저 본다. 숫자는 NumberConversions(문자열 숫자도 된다), 모르는 칸 이름은 EquipmentSlot.valueOf 의 예외가 그대로 난다
+        NamespacedKey key = args.containsKey("uuid") ? NamespacedKey.fromString((String) args.get("uuid")) : NamespacedKey.fromString((String) args.get("key"));
         EquipmentSlotGroup slot = EquipmentSlotGroup.ANY;
-        if (args.get("slot") instanceof String s) {
-            EquipmentSlotGroup g = EquipmentSlotGroup.getByName(s);
-            if (g != null) slot = g;
-            else {
-                try {
-                    slot = group(EquipmentSlot.valueOf(s.toUpperCase(java.util.Locale.ROOT)));
-                } catch (IllegalArgumentException ignored) {
-                    // 모르는 칸이면 ANY(Bukkit 과 같다)
-                }
-            }
+        if (args.containsKey("slot")) {
+            String s = args.get("slot").toString();
+            EquipmentSlotGroup g = EquipmentSlotGroup.getByName(s.toLowerCase(java.util.Locale.ROOT));
+            slot = g != null ? g : group(EquipmentSlot.valueOf(s.toUpperCase(java.util.Locale.ROOT)));
         }
-        return new AttributeModifier(key, ((Number) args.get("amount")).doubleValue(),
-                Operation.values()[((Number) args.get("operation")).intValue()], slot);
+        return new AttributeModifier(key, org.bukkit.util.NumberConversions.toDouble(args.get("amount")),
+                Operation.values()[org.bukkit.util.NumberConversions.toInt(args.get("operation"))], slot);
     }
 
     @Override

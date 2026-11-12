@@ -1,5 +1,5 @@
 // 이 파일은 tools/compat/gen-bukkit-values.py 가 만든다 — 손으로 고치지 않는다.
-// worldgen/biome 1.21.1 의 64 종 + CUSTOM. 순서는 Bukkit 이 쓰는 옛 번호 순(가정 — 원문 대조 못 함).
+// worldgen/biome 1.21.1 의 64 종 + CUSTOM. 순서는 1.21.1 Bukkit 과 같다.
 package org.bukkit.block;
 
 import java.util.HashMap;

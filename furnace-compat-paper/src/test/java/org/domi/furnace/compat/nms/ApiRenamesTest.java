@@ -1,6 +1,7 @@
 package org.domi.furnace.compat.nms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -28,7 +29,7 @@ class ApiRenamesTest {
                 checked++;
             }
         }
-        assertEquals(110, checked);
+        assertEquals(111, checked);
     }
 
     @Test
@@ -40,6 +41,16 @@ class ApiRenamesTest {
         assertEquals(org.bukkit.potion.PotionType.LEAPING, ApiRenames.valueOfPotionType("JUMP"));
         assertThrows(IllegalArgumentException.class, () -> ApiRenames.valueOfParticle("NOPE"));
         assertThrows(NullPointerException.class, () -> ApiRenames.valueOfBiome(null));   // Enum.valueOf 와 같다
+        // Paper FieldRenameData 는 대문자로 바꾼 뒤 찾는다
+        assertEquals(org.bukkit.entity.EntityType.ZOMBIE, ApiRenames.valueOfEntityType("zombie"));
+        assertEquals(org.bukkit.block.Biome.NETHER_WASTES, ApiRenames.valueOfBiome("nether"));
+        assertEquals(org.bukkit.inventory.ItemFlag.HIDE_ENCHANTS, ApiRenames.valueOfItemFlag("hide_enchants"));
+        assertEquals(org.bukkit.attribute.Attribute.GENERIC_JUMP_STRENGTH, ApiRenames.valueOfAttribute("horse.jump_strength"));
+        assertEquals(org.bukkit.potion.PotionEffectType.SLOWNESS, ApiRenames.getByNamePotionEffectType("slow"));
+        assertEquals(org.bukkit.potion.PotionEffectType.SLOWNESS, ApiRenames.getByNamePotionEffectType("minecraft:slowness"));
+        assertEquals(org.bukkit.enchantments.Enchantment.SHARPNESS, ApiRenames.getByNameEnchantment("DAMAGE_ALL"));
+        assertEquals(org.bukkit.enchantments.Enchantment.SWEEPING_EDGE, ApiRenames.getByNameEnchantment("sweeping"));
+        assertNull(ApiRenames.getByNameEnchantment(null));
         assertEquals("SHARPNESS", ApiRenames.field("org/bukkit/enchantments/Enchantment", "DAMAGE_ALL"));
         assertEquals("STRENGTH", ApiRenames.field("org/bukkit/potion/PotionEffectType", "INCREASE_DAMAGE"));
         assertEquals("STONE", ApiRenames.field("org/bukkit/Material", "STONE"));

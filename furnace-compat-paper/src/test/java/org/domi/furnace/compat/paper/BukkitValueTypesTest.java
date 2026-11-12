@@ -84,6 +84,8 @@ class BukkitValueTypesTest {
         Set<String> reg = new TreeSet<>();
         for (String[] p : lines("/registries/particle_types-1.21.1.txt")) reg.add(p[0]);
         assertEquals(reg, keys(List.of(Particle.values())));
+        assertEquals(0, Particle.POOF.ordinal());   // 순서는 1.21.1 Bukkit(레지스트리 순서가 아니다)
+        assertEquals(Particle.BLOCK_MARKER, Particle.values()[Particle.values().length - 1]);
         assertEquals(Particle.DustOptions.class, Particle.DUST.getDataType());
         assertEquals(Particle.DustTransition.class, Particle.DUST_COLOR_TRANSITION.getDataType());
         assertEquals(org.bukkit.block.data.BlockData.class, Particle.BLOCK.getDataType());
@@ -121,7 +123,9 @@ class BukkitValueTypesTest {
             assertEquals(Integer.parseInt(p[2]), a.getBlockHeight(), p[0]);
             assertSame(a, Art.getById(a.getId()));
         }
-        assertSame(Art.KEBAB, Art.getById(0));   // 1.21 전 번호는 그대로
+        assertSame(Art.KEBAB, Art.getById(0));   // 번호는 1.21.1 Bukkit 과 같다
+        assertSame(Art.BAROQUE, Art.getById(30));
+        assertSame(Art.TIDES, Art.getById(49));
         assertSame(Art.KEBAB, Art.getByName("kebab"));
     }
 
@@ -150,6 +154,7 @@ class BukkitValueTypesTest {
                 assertEquals(s.showIcon(), m.hasIcon(), t.name());
             }
         }
+        assertEquals(PotionType.TURTLE_MASTER, PotionType.values()[PotionType.LUCK.ordinal() + 1]);   // 1.21.1 Bukkit 순서
         assertTrue(PotionType.SWIFTNESS.isUpgradeable() && PotionType.SWIFTNESS.isExtendable());
         assertFalse(PotionType.HEALING.isExtendable());
         assertTrue(PotionType.HEALING.isInstant());
@@ -233,7 +238,7 @@ class BukkitValueTypesTest {
         assertEquals(FireworkEffect.Type.STAR, e.getType());
         assertEquals(List.of(Color.RED, Color.BLUE), e.getColors());
         assertTrue(e.hasFlicker() && !e.hasTrail());
-        assertThrows(IllegalStateException.class, () -> FireworkEffect.builder().build());
+        assertTrue(FireworkEffect.builder().build().getColors().isEmpty());   // Paper 1.21.1 은 색 없는 효과를 허용한다
         ConfigurationSerializable back = ConfigurationSerialization.deserializeObject(e.serialize(), FireworkEffect.class);
         assertEquals(e, back);
     }
@@ -244,6 +249,10 @@ class BukkitValueTypesTest {
         assertEquals(new NamespacedKey("plug", "speed"), m.getKey());
         assertEquals(EquipmentSlotGroup.HAND, m.getSlotGroup());
         assertEquals(m, ConfigurationSerialization.deserializeObject(m.serialize(), AttributeModifier.class));
+        java.util.UUID u = java.util.UUID.randomUUID();
+        assertEquals(u, new AttributeModifier(u, "old", 1, AttributeModifier.Operation.ADD_NUMBER).getUniqueId());
+        assertEquals(EquipmentSlotGroup.ANY, new AttributeModifier(new NamespacedKey("plug", "x"), 1, AttributeModifier.Operation.ADD_NUMBER).getSlotGroup());
+        assertThrows(IllegalArgumentException.class, () -> AttributeModifier.deserialize(Map.of("key", "plug:x", "amount", 1.0, "operation", 0, "slot", "nope")));
         assertTrue(EquipmentSlotGroup.ARMOR.test(org.bukkit.inventory.EquipmentSlot.HEAD));
         assertFalse(EquipmentSlotGroup.ARMOR.test(org.bukkit.inventory.EquipmentSlot.HAND));
     }

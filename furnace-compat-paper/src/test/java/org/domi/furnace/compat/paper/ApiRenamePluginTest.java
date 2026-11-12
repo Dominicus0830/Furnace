@@ -92,6 +92,9 @@ class ApiRenamePluginTest {
                         WiringProbe.LOG.add("potion=" + PotionType.INSTANT_HEAL.name() + "," + PotionType.valueOf("REGEN").name());
                         WiringProbe.LOG.add("ench=" + Enchantment.DAMAGE_ALL.getKey() + "," + Enchantment.DURABILITY.getKey());
                         WiringProbe.LOG.add("effect=" + PotionEffectType.INCREASE_DAMAGE.getKey());
+                        WiringProbe.LOG.add("byName=" + PotionEffectType.getByName("slow").getKey() + "," + Enchantment.getByName("DAMAGE_ALL").getKey());
+                        WiringProbe.LOG.add("attr=" + org.bukkit.attribute.Attribute.HORSE_JUMP_STRENGTH.name() + "," + org.bukkit.attribute.Attribute.valueOf("HORSE_JUMP_STRENGTH").name());
+                        WiringProbe.LOG.add("lower=" + Particle.valueOf("redstone").name());
                         switch (Particle.valueOf("SPELL_MOB")) {
                             case SPELL_MOB -> WiringProbe.LOG.add("switch=ok");
                             default -> WiringProbe.LOG.add("switch=other");
@@ -110,13 +113,20 @@ class ApiRenamePluginTest {
             "org.bukkit.block.Biome", "package org.bukkit.block; public enum Biome { NETHER, MOUNTAINS }",
             "org.bukkit.entity.EntityType", "package org.bukkit.entity; public enum EntityType { DROPPED_ITEM, PIG_ZOMBIE }",
             "org.bukkit.potion.PotionType", "package org.bukkit.potion; public enum PotionType { INSTANT_HEAL, REGEN }",
+            "org.bukkit.attribute.Attribute", "package org.bukkit.attribute; public enum Attribute { HORSE_JUMP_STRENGTH }",
             "org.bukkit.enchantments.Enchantment", """
                     package org.bukkit.enchantments;
-                    public abstract class Enchantment implements org.bukkit.Keyed { public static final Enchantment DAMAGE_ALL = null, DURABILITY = null; }
+                    public abstract class Enchantment implements org.bukkit.Keyed {
+                        public static final Enchantment DAMAGE_ALL = null, DURABILITY = null;
+                        public static Enchantment getByName(String n) { return null; }
+                    }
                     """,
             "org.bukkit.potion.PotionEffectType", """
                     package org.bukkit.potion;
-                    public abstract class PotionEffectType implements org.bukkit.Keyed { public static final PotionEffectType INCREASE_DAMAGE = null; }
+                    public abstract class PotionEffectType implements org.bukkit.Keyed {
+                        public static final PotionEffectType INCREASE_DAMAGE = null;
+                        public static PotionEffectType getByName(String n) { return null; }
+                    }
                     """);
 
     @Test
@@ -133,6 +143,9 @@ class ApiRenamePluginTest {
             assertTrue(log.contains("potion=HEALING,REGENERATION"), log.toString());
             assertTrue(log.contains("ench=minecraft:sharpness,minecraft:unbreaking"), log.toString());
             assertTrue(log.contains("effect=minecraft:strength"), log.toString());
+            assertTrue(log.contains("byName=minecraft:slowness,minecraft:sharpness"), log.toString());
+            assertTrue(log.contains("attr=GENERIC_JUMP_STRENGTH,GENERIC_JUMP_STRENGTH"), log.toString());
+            assertTrue(log.contains("lower=DUST"), log.toString());
             assertTrue(log.contains("switch=ok"), log.toString());
         }
     }

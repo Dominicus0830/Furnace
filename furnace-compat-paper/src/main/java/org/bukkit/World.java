@@ -100,7 +100,7 @@ public interface World extends Keyed, org.bukkit.metadata.Metadatable {
 
     void playSound(Entity entity, String sound, SoundCategory category, float volume, float pitch, long seed);
 
-    // ---- 입자(H4 묶음 C). 퍼짐을 적지 않으면 0, extra(보통 속도)를 적지 않으면 1. force 를 적지 않으면 Paper 처럼 true(512칸, 클라이언트 입자 설정 무시).
+    // ---- 입자(H4 묶음 C). 퍼짐을 적지 않으면 0, extra(보통 속도)를 적지 않으면 1. force 를 적지 않으면 false(32칸) — 받는 사람을 고르는 Paper 판만 true.
 
     default void spawnParticle(Particle particle, Location location, int count) { spawnParticle(particle, location.getX(), location.getY(), location.getZ(), count); }
 
@@ -138,9 +138,9 @@ public interface World extends Keyed, org.bukkit.metadata.Metadatable {
         spawnParticle(particle, location.getX(), location.getY(), location.getZ(), count, offsetX, offsetY, offsetZ, extra, data);
     }
 
-    /** Paper: force 를 적지 않으면 true 다(Bukkit 원래는 false). */
+    /** force 는 false(Paper 1.21.1 CraftWorld 가 이 판을 force=false 로 부른다 — 인터페이스 기본 메서드의 true 는 쓰이지 않는다). */
     default <T> void spawnParticle(Particle particle, double x, double y, double z, int count, double offsetX, double offsetY, double offsetZ, double extra, T data) {
-        spawnParticle(particle, null, null, x, y, z, count, offsetX, offsetY, offsetZ, extra, data, true);
+        spawnParticle(particle, null, null, x, y, z, count, offsetX, offsetY, offsetZ, extra, data, false);
     }
 
     default <T> void spawnParticle(Particle particle, Location location, int count, double offsetX, double offsetY, double offsetZ, double extra, T data, boolean force) {
@@ -166,7 +166,7 @@ public interface World extends Keyed, org.bukkit.metadata.Metadatable {
 
     // ---- 바이옴(H4 묶음 C). 그 칸을 가진 region 스레드에서만(아니면 ThreadOwnershipException). 플러그인 바이옴은 Biome.CUSTOM.
 
-    /** 그 칸의 바이옴. 높이 밖이면 가까운 끝 칸(바닐라와 같다), 청크가 로드돼 있지 않으면 IllegalStateException. */
+    /** 그 칸의 바이옴. 높이 밖이면 가까운 끝 칸(바닐라와 같다), 청크가 로드돼 있지 않으면 UnsupportedFeature(Paper 는 동기로 불러온다). */
     Biome getBiome(int x, int y, int z);
 
     default Biome getBiome(Location location) { return getBiome(location.getBlockX(), location.getBlockY(), location.getBlockZ()); }
@@ -175,7 +175,7 @@ public interface World extends Keyed, org.bukkit.metadata.Metadatable {
     @Deprecated
     default Biome getBiome(int x, int z) { return getBiome(x, 0, z); }
 
-    /** 그 칸이 든 4×4×4 바이옴 칸을 바꾸고 보는 플레이어에게 다시 보낸다. CUSTOM 이면 IllegalArgumentException. */
+    /** 그 칸이 든 4×4×4 바이옴 칸을 바꾼다. 클라이언트에 다시 보내지 않는다(Paper 와 같다). CUSTOM 이면 IllegalArgumentException, 청크가 로드돼 있지 않으면 아무 일도 없다. */
     void setBiome(int x, int y, int z, Biome biome);
 
     default void setBiome(Location location, Biome biome) { setBiome(location.getBlockX(), location.getBlockY(), location.getBlockZ(), biome); }

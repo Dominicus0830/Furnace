@@ -1,5 +1,5 @@
 // 이 파일은 tools/compat/gen-bukkit-values.py 가 만든다 — 손으로 고치지 않는다.
-// attribute 레지스트리 1.21.1 의 31 종(1.21.1 Bukkit 이름 GENERIC_·PLAYER_ 접두 그대로). 순서는 Bukkit 이 쓰는 순서(가정).
+// attribute 레지스트리 1.21.1 의 31 종(1.21.1 Bukkit 이름 GENERIC_·PLAYER_ 접두 그대로). 순서는 1.21.1 Bukkit 과 같다.
 package org.bukkit.attribute;
 
 import java.util.HashMap;

@@ -7,6 +7,8 @@ import org.objectweb.asm.Type;
  * Paper 1.21.1 이 옛 플러그인을 위해 클래스를 올릴 때 바꿔 주는 Bukkit 필드 이름(CraftBukkit {@code FieldRename}) 가운데 이 호환 계층에
  * 해당 형이 있는 것. 필드 읽기({@code GETSTATIC})는 새 이름으로, 열거형의 {@code valueOf(String)} 은 옛 이름도 받는 다리로 바꾼다.
  * 모든 api-version 에 같은 규칙이다(Paper 의 {@code forAllVersions}). 1.21.1 뒤에 생긴 이름 바꿈(속성 GENERIC_ 떼기·소리 등)은 넣지 않는다.
+ * {@code valueOf}·{@code getByName} 다리는 Paper 처럼 이름을 대문자로 바꾼 뒤 찾는다({@code FieldRenameData.getReplacement}) — 소문자도 받는다.
+ * 1.21.1 표에는 PatternType·MusicInstrument·LootTables·MapCursor.Type·DisplaySlot 도 있다 — 호환 계층에 그 형이 생기면 여기 같이 넣는다.
  */
 public final class ApiRenames {
 
@@ -18,9 +20,10 @@ public final class ApiRenames {
     static final String POTION_TYPE = "org/bukkit/potion/PotionType";
     static final String ENCHANTMENT = "org/bukkit/enchantments/Enchantment";
     static final String POTION_EFFECT_TYPE = "org/bukkit/potion/PotionEffectType";
+    static final String ATTRIBUTE = "org/bukkit/attribute/Attribute";
 
     /** 변환기가 클래스를 열어 볼지 고르는 바이트 열(상수 풀에 이 이름이 있어야 바꿀 것이 있다). */
-    static final String[] OWNERS = {ITEM_FLAG, PARTICLE, BIOME, ENTITY_TYPE, POTION_TYPE, ENCHANTMENT, POTION_EFFECT_TYPE};
+    static final String[] OWNERS = {ITEM_FLAG, PARTICLE, BIOME, ENTITY_TYPE, POTION_TYPE, ENCHANTMENT, POTION_EFFECT_TYPE, ATTRIBUTE};
 
     /** 1.20.5 아이템 설명 숨김 표시. */
     private static final Map<String, String> ITEM_FLAG_RENAMES = Map.of("HIDE_POTION_EFFECTS", "HIDE_ADDITIONAL_TOOLTIP");
@@ -83,14 +86,22 @@ public final class ApiRenames {
             "SLOW", "SLOWNESS", "FAST_DIGGING", "HASTE", "SLOW_DIGGING", "MINING_FATIGUE", "INCREASE_DAMAGE", "STRENGTH",
             "HEAL", "INSTANT_HEALTH", "HARM", "INSTANT_DAMAGE", "JUMP", "JUMP_BOOST", "CONFUSION", "NAUSEA", "DAMAGE_RESISTANCE", "RESISTANCE");
 
+    /** 1.20.5 속성 이름(FieldRename 의 HORSE.JUMP_STRENGTH → GENERIC.JUMP_STRENGTH, '.' 은 '_'). */
+    private static final Map<String, String> ATTRIBUTE_RENAMES = Map.of("HORSE_JUMP_STRENGTH", "GENERIC_JUMP_STRENGTH");
+
     private static final Map<String, Map<String, String>> FIELDS = Map.of(
             ITEM_FLAG, ITEM_FLAG_RENAMES, PARTICLE, PARTICLE_RENAMES, BIOME, BIOME_RENAMES, ENTITY_TYPE, ENTITY_TYPE_RENAMES,
-            POTION_TYPE, POTION_TYPE_RENAMES, ENCHANTMENT, ENCHANTMENT_RENAMES, POTION_EFFECT_TYPE, POTION_EFFECT_TYPE_RENAMES);
+            POTION_TYPE, POTION_TYPE_RENAMES, ENCHANTMENT, ENCHANTMENT_RENAMES, POTION_EFFECT_TYPE, POTION_EFFECT_TYPE_RENAMES,
+            ATTRIBUTE, ATTRIBUTE_RENAMES);
 
     /** valueOf 다리가 있는 열거형 → 다리 메서드 이름. */
     private static final Map<String, String> VALUE_OF = Map.of(
             ITEM_FLAG, "valueOfItemFlag", PARTICLE, "valueOfParticle", BIOME, "valueOfBiome", ENTITY_TYPE, "valueOfEntityType",
-            POTION_TYPE, "valueOfPotionType");
+            POTION_TYPE, "valueOfPotionType", ATTRIBUTE, "valueOfAttribute");
+
+    /** getByName(String) 다리가 있는 형 → 다리 메서드 이름(Paper FieldRename 의 getByName_*). */
+    private static final Map<String, String> GET_BY_NAME = Map.of(
+            POTION_EFFECT_TYPE, "getByNamePotionEffectType", ENCHANTMENT, "getByNameEnchantment");
 
     private ApiRenames() {}
 
@@ -106,7 +117,18 @@ public final class ApiRenames {
 
     static String valueOfName(String owner) { return VALUE_OF.get(owner); }
 
-    private static String renamed(Map<String, String> m, String name) { return name == null ? null : m.getOrDefault(name, name); }
+    static boolean reroutesGetByName(String owner, String desc) {
+        return GET_BY_NAME.containsKey(owner) && desc.equals("(Ljava/lang/String;)L" + owner + ";");
+    }
+
+    static String getByNameName(String owner) { return GET_BY_NAME.get(owner); }
+
+    /** Paper FieldRenameData.getReplacement: 대문자로 바꾼 뒤 표에서 찾는다(null 은 그대로 — Enum.valueOf 의 NPE). */
+    private static String renamed(Map<String, String> m, String name) {
+        if (name == null) return null;
+        String up = name.toUpperCase(java.util.Locale.ROOT);
+        return m.getOrDefault(up, up);
+    }
 
     /** {@code ItemFlag.valueOf} 다리: 옛 이름도 받는다(Paper 의 {@code FieldRename.valueOf_ItemFlag}). */
     public static org.bukkit.inventory.ItemFlag valueOfItemFlag(String name) {
@@ -127,5 +149,21 @@ public final class ApiRenames {
     /** {@code PotionType.valueOf} 다리. */
     public static org.bukkit.potion.PotionType valueOfPotionType(String name) {
         return org.bukkit.potion.PotionType.valueOf(renamed(POTION_TYPE_RENAMES, name));
+    }
+
+    /** {@code Attribute.valueOf} 다리(Paper 는 '.' 을 '_' 로도 바꾼다). */
+    public static org.bukkit.attribute.Attribute valueOfAttribute(String name) {
+        String n = renamed(ATTRIBUTE_RENAMES, name == null ? null : name.replace('.', '_'));
+        return org.bukkit.attribute.Attribute.valueOf(n);
+    }
+
+    /** {@code PotionEffectType.getByName} 다리: 옛 이름(SLOW·slow)도 찾는다. */
+    public static org.bukkit.potion.PotionEffectType getByNamePotionEffectType(String name) {
+        return org.bukkit.potion.PotionEffectType.getByName(renamed(POTION_EFFECT_TYPE_RENAMES, name));
+    }
+
+    /** {@code Enchantment.getByName} 다리: 옛 이름(DAMAGE_ALL)도 찾는다. */
+    public static org.bukkit.enchantments.Enchantment getByNameEnchantment(String name) {
+        return org.bukkit.enchantments.Enchantment.getByName(renamed(ENCHANTMENT_RENAMES, name));
     }
 }
