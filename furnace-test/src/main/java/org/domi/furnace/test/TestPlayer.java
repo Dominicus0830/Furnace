@@ -186,26 +186,29 @@ public final class TestPlayer implements AutoCloseable {
                     }
                 }
                 ByteBuf forRecord = f.duplicate();   // 답을 먼저 하고(느린 디코드가 keep-alive 를 늦추지 않게) 모으기는 뒤에
-                switch (id) {
-                    case 0x26 -> {   // keep_alive → 그대로 되돌린다
-                        long v = f.readLong();
-                        write(0x18, b -> b.writeLong(v));
+                try {
+                    switch (id) {
+                        case 0x26 -> {   // keep_alive → 그대로 되돌린다
+                            long v = f.readLong();
+                            write(0x18, b -> b.writeLong(v));
+                        }
+                        case 0x40 -> {   // player_position → accept_teleportation
+                            f.skipBytes(8 * 3 + 4 * 2 + 1);
+                            int tp = Types.readVarInt(f);
+                            write(0x00, b -> Types.writeVarInt(b, tp));
+                        }
+                        case 0x0C -> write(0x08, b -> b.writeFloat(25.0f));   // chunk_batch_finished → chunk_batch_received
+                        case 0x1D -> {   // disconnect
+                            disconnectReason = "disconnect";
+                            connected = false;
+                        }
+                        default -> { }
                     }
-                    case 0x40 -> {   // player_position → accept_teleportation
-                        f.skipBytes(8 * 3 + 4 * 2 + 1);
-                        int tp = Types.readVarInt(f);
-                        write(0x00, b -> Types.writeVarInt(b, tp));
-                    }
-                    case 0x0C -> write(0x08, b -> b.writeFloat(25.0f));   // chunk_batch_finished → chunk_batch_received
-                    case 0x1D -> {   // disconnect
-                        disconnectReason = "disconnect";
-                        connected = false;
-                    }
-                    default -> { }
+                } finally {
+                    record(id, forRecord);   // 답 write 가 실패해도 받은 것은 기록한다
                 }
-                record(id, forRecord);
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {   // Error 로 읽기 스레드가 죽어도 이유가 남게
             if (connected && disconnectReason == null) disconnectReason = String.valueOf(e);
         } finally {
             connected = false;
@@ -513,7 +516,7 @@ public final class TestPlayer implements AutoCloseable {
             r.join(server.timeoutMillis());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return;
+            throw new IllegalStateException(name + ": 받은 패킷을 다 읽기 전에 기다리다 중단되었다", e);
         }
         if (r.isAlive()) throw new IllegalStateException(name + ": 서버 접속자 목록에서 빠졌는데 연결이 닫히지 않아 받은 패킷을 다 읽었는지 알 수 없다");
     }
