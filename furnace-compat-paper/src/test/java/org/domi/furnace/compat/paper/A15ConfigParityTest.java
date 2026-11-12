@@ -165,4 +165,35 @@ class A15ConfigParityTest {
     void emptyConfigSavesAsEmptyString() {
         assertEquals("", new YamlConfiguration().saveToString());
     }
+
+    private static YamlConfiguration withCopyDefaults(String own, String defaults) throws Exception {
+        YamlConfiguration c = new YamlConfiguration();
+        c.loadFromString(own);
+        YamlConfiguration d = new YamlConfiguration();
+        d.loadFromString(defaults);
+        c.setDefaults(d);
+        c.options().copyDefaults(true);
+        return c;
+    }
+
+    /** Paper getValues(SPIGOT-4558): 기본값을 먼저 넣고 자기 키를 remove→put — 기본값에만 있는 키가 앞선다(PR #247 검토 R1). */
+    @Test
+    void getValuesPutsDefaultOnlyKeysFirst() throws Exception {
+        var c = withCopyDefaults("a: 1\nc: 3\n", "a: 0\nb: 2\nc: 0\nd: 4\n");
+        assertEquals(List.of("b", "d", "a", "c"), List.copyOf(c.getValues(false).keySet()));
+    }
+
+    /** Paper saveToString 은 단계마다 getValues(false) 로 쓴다: 순서 b,d,a,c, 저장이 데이터를 바꾸지 않는다, 안쪽 섹션도 같은 규칙. */
+    @Test
+    void saveToStringWithCopyDefaultsMatchesPaper() throws Exception {
+        var c = withCopyDefaults("a: 1\nc: 3\n", "a: 0\nb: 2\nc: 0\nd: 4\n");
+        assertEquals("b: 2\nd: 4\na: 1\nc: 3\n", c.saveToString());
+        c.options().copyDefaults(false);
+        assertFalse(c.contains("b", true), "Paper: 저장이 기본값을 데이터로 옮기지 않는다");
+
+        var n = withCopyDefaults("s:\n  x: 1\n", "s:\n  x: 0\n  # 설명\n  y: 2\n");
+        String out = n.saveToString();
+        assertTrue(out.indexOf("y: 2") < out.indexOf("x: 1"), () -> "안쪽도 기본값에만 있는 키가 앞. 실제:\n" + out);
+        assertTrue(out.contains("# 설명"), () -> "기본값 쪽 주석을 같이 쓴다. 실제:\n" + out);
+    }
 }

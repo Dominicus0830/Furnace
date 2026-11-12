@@ -101,7 +101,17 @@ public final class CraftServer implements Server {
      * Paper 의 playerView 처럼 고칠 수 없는 살아 있는 보기(A15-08): 받아 둔 컬렉션도 지금 접속자를 보이고, add·remove·clear 는
      * UnsupportedOperationException. 순회는 그때의 접속자 목록을 하나씩 어댑터로 바꾼다(목록을 미리 복사하지 않는다).
      */
-    private final Collection<Player> onlineView = new java.util.AbstractCollection<>() {
+    /** Paper: Collections.unmodifiableList(Lists.transform(...)) — 살아 있는 고칠 수 없는 List. 고치는 메서드는 비어 있어도 언제나 던진다. */
+    private final List<Player> onlineView = new OnlineView();
+
+    private final class OnlineView extends java.util.AbstractList<Player> implements java.util.RandomAccess {
+        @Override
+        public Player get(int index) {
+            var all = f().onlinePlayers();
+            if (all instanceof List<?> l) return Compat.player((org.domi.furnace.api.entity.Player) l.get(index));
+            return Compat.player(List.copyOf(all).get(index));
+        }
+
         @Override
         public java.util.Iterator<Player> iterator() {
             var it = f().onlinePlayers().iterator();
@@ -116,7 +126,23 @@ public final class CraftServer implements Server {
 
         @Override
         public int size() { return f().onlinePlayers().size(); }
-    };
+
+        private static UnsupportedOperationException ro() { return new UnsupportedOperationException(); }
+
+        @Override public boolean add(Player p) { throw ro(); }
+        @Override public void add(int i, Player p) { throw ro(); }
+        @Override public boolean addAll(Collection<? extends Player> c) { throw ro(); }
+        @Override public boolean addAll(int i, Collection<? extends Player> c) { throw ro(); }
+        @Override public Player set(int i, Player p) { throw ro(); }
+        @Override public Player remove(int i) { throw ro(); }
+        @Override public boolean remove(Object o) { throw ro(); }
+        @Override public boolean removeAll(Collection<?> c) { throw ro(); }
+        @Override public boolean retainAll(Collection<?> c) { throw ro(); }
+        @Override public boolean removeIf(java.util.function.Predicate<? super Player> f) { throw ro(); }
+        @Override public void replaceAll(java.util.function.UnaryOperator<Player> op) { throw ro(); }
+        @Override public void sort(java.util.Comparator<? super Player> c) { throw ro(); }
+        @Override public void clear() { throw ro(); }
+    }
 
     @Override
     public Collection<? extends Player> getOnlinePlayers() { return onlineView; }

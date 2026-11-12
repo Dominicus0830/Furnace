@@ -140,7 +140,11 @@ public class MemorySection implements ConfigurationSection {
             ConfigurationSection d = getDefaultSection();
             if (d != null) out.putAll(d.getValues(deep));
         }
-        for (String k : delegate.keys(deep)) out.put(k, get(k));
+        // Paper(SPIGOT-4558): 자기 키는 remove 뒤 put — 기본값에만 있는 키가 앞에 남는다
+        for (String k : delegate.keys(deep)) {
+            out.remove(k);
+            out.put(k, get(k));
+        }
         return out;
     }
 

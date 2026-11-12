@@ -125,10 +125,14 @@ class A15PluginSurfaceParityTest {
     void onlinePlayersIsALiveUnmodifiableView() throws Exception {
         try (FurnaceTestServer server = start()) {
             Collection<? extends Player> view = Bukkit.getOnlinePlayers();
+            assertTrue(view instanceof java.util.List<?>, "Paper: unmodifiableList — List 로 캐스팅할 수 있다");
+            assertThrows(UnsupportedOperationException.class, view::clear, "Paper: 비어 있어도 던진다");
+            assertThrows(UnsupportedOperationException.class, () -> view.removeIf(p -> true), "Paper: 비어 있어도 던진다");
             TestPlayer dana = server.join("Dana");
             server.tick(2);
             assertEquals(1, view.size(), "Paper: 앞서 받은 컬렉션에도 새 접속자가 보인다");
             assertThrows(UnsupportedOperationException.class, () -> Bukkit.getOnlinePlayers().clear());
+            assertEquals("Dana", ((java.util.List<? extends Player>) view).get(0).getName(), "List#get 도 살아 있다");
             dana.close();
         }
     }
