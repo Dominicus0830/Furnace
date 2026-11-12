@@ -783,7 +783,7 @@ public final class Region {
             int[] open = menu == null ? null : menu.containerBlockPos();
             if (open != null && open[0] == bx && open[1] == by && open[2] == bz) {
                 var host = pl.inventoryHost();
-                if (host != null) host.closeContainer(menu);
+                if (host != null) host.closeContainer(menu, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.CANT_USE);
             }
         }
     }
@@ -2156,7 +2156,7 @@ public final class Region {
                 var m = menu;
                 world.runAt(bp[0], bp[2], r -> host.validateBlockMenu(r, m));
             } else if (!host.menuStillValid(menu)) {
-                host.closeContainer(menu);
+                host.closeContainer(menu, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.CANT_USE);
             }
         }
         synchronized (p.menuLock()) {

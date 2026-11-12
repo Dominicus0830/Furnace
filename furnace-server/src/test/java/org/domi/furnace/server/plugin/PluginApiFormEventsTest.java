@@ -399,4 +399,35 @@ class PluginApiFormEventsTest {
         assertTrue(log.contains("fuel:minecraft:blaze_powder:20"), log.toString());
         assertTrue(log.contains("brew:minecraft:nether_wart:fuel=6"), log.toString());
     }
+
+    /** Paper BrewEvent#getResults: 결과 목록이 미리 계산돼 오고, 고친 목록이 병 칸에 들어간다(짧으면 남는 칸은 빈다). */
+    @Test
+    void brewEventResultsAreComputedAndWrittenBack() throws Exception {
+        List<String> seen = new CopyOnWriteArrayList<>();
+        on(BrewEvent.class, e -> {
+            for (var s : e.results()) seen.add(s.type());
+            e.results().set(0, org.domi.furnace.api.item.ItemStack.of("minecraft:stone").withAmount(2));
+            e.results().remove(2);
+            e.results().remove(1);
+        });
+        Pos p = new Pos(8, -50, 8);
+        String[] res = at(r -> {
+            var l = r.level();
+            l.setBlock(p, B.defaultState("minecraft:brewing_stand"), 3);
+            var be = (BrewingStandBlockEntity) l.getBlockEntity(p);
+            var water = org.domi.furnace.server.item.ItemTools.with(B.stack("minecraft:potion", 1), "minecraft:potion_contents", java.util.Map.of("potion", "minecraft:water"));
+            be.items[0] = water;
+            be.items[1] = water;
+            be.items[3] = B.stack("minecraft:nether_wart", 2);
+            be.items[4] = B.stack("minecraft:blaze_powder", 3);
+            for (int i = 0; i < 401; i++) be.tick(l);
+            return new String[] {org.domi.furnace.server.item.ItemTools.itemName(be.items[0]) + "x" + be.items[0].count(),
+                    String.valueOf(be.items[1].isEmpty()), String.valueOf(be.items[2].isEmpty()), String.valueOf(be.items[3].count())};
+        });
+        assertEquals(List.of("minecraft:potion", "minecraft:potion", "minecraft:air"), seen, "병 두 칸은 양조 결과, 빈 칸은 빈 결과");
+        assertEquals("minecraft:stonex2", res[0], "처리기가 바꾼 결과가 칸 0 에 들어간다");
+        assertEquals("true", res[1], "목록에서 뺀 칸은 빈다(Paper 와 같다)");
+        assertEquals("true", res[2]);
+        assertEquals("1", res[3], "재료는 하나 줄었다");
+    }
 }

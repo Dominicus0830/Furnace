@@ -132,8 +132,11 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         /** 열린 창이 expect 이면 서버가 닫는다(ServerPlayer.closeContainer — 상자가 사라졌을 때 등). 어느 스레드에서든. */
         default void closeContainer(org.domi.furnace.server.menu.AbstractContainerMenu expect) {}
 
+        /** closeContainer 에 닫는 까닭(플러그인 InventoryCloseEvent#reason)을 함께 넘긴다. 기본은 까닭 없이 closeContainer. */
+        default void closeContainer(org.domi.furnace.server.menu.AbstractContainerMenu expect, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason reason) { closeContainer(expect); }
+
         /** 임의 스레드(플러그인 텔레포트)에서 부르는 창 닫기 — 블록에 매인 창은 그 블록의 region 스레드로 넘겨 닫는다. 기본은 closeContainer. */
-        default void closeContainerFromAnyThread(org.domi.furnace.server.menu.AbstractContainerMenu expect) { closeContainer(expect); }
+        default void closeContainerFromAnyThread(org.domi.furnace.server.menu.AbstractContainerMenu expect, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason reason) { closeContainer(expect, reason); }
 
         /** 블록에 매이지 않은 열린 창이 아직 유효한가(AbstractContainerMenu.stillValid). */
         default boolean menuStillValid(org.domi.furnace.server.menu.AbstractContainerMenu menu) { return true; }
@@ -1976,7 +1979,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         // CraftPlayer#teleport: 이벤트가 통과한 뒤 열린 창(상자·플러그인 메뉴 등)을 TELEPORT 사유로 닫는다 — 바닐라 이동 경로는 닫지 않는다.
         var ih = inventoryHost();
         var open = containerMenu;
-        if (ih != null && hasOpenContainer()) ih.closeContainerFromAnyThread(open);
+        if (ih != null && hasOpenContainer()) ih.closeContainerFromAnyThread(open, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.TELEPORT);
         Runnable go = () -> {
             if (vehicle != null) stopRiding();
             correctTo(x, y, z, yaw, pitch);

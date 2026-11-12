@@ -255,7 +255,7 @@ public final class PluginGameEvents implements GameEvents {
         if (!(menu instanceof org.domi.furnace.server.menu.CraftingMenu) && !(menu instanceof org.domi.furnace.server.menu.InventoryMenu)) return null;
         var s = menu.getSlot(0);
         if (!(s instanceof org.domi.furnace.server.menu.ResultSlot) || !s.hasItem()) return null;
-        if (s.container instanceof org.domi.furnace.server.menu.ResultContainer rc && rc.recipeUsed() != null) return rc.recipeUsed().id().toString();
+        if (s.container instanceof org.domi.furnace.server.menu.ResultContainer rc && rc.currentRecipe() != null) return rc.currentRecipe().id().toString();
         return "";
     }
 
@@ -266,10 +266,15 @@ public final class PluginGameEvents implements GameEvents {
     }
 
     @Override
-    public void inventoryClose(Player p, AbstractContainerMenu menu) {
-        if (menu.pluginOwner() instanceof MenuSession ms) ms.closed();
-        if (!bus().hasSubscribers(InventoryCloseEvent.class)) return;
-        bus().call(new InventoryCloseEvent(host.player(p), ApiConvert.snapshot(menu, items()), pluginMenu(menu)));
+    public void inventoryClose(Player p, AbstractContainerMenu menu, InventoryCloseEvent.Reason reason) {
+        // Paper 처럼 닫는 사람은 이벤트 동안 아직 그 메뉴의 보는 사람이다 — 메뉴 세션은 이벤트 뒤에 끝낸다
+        try {
+            if (bus().hasSubscribers(InventoryCloseEvent.class)) {
+                bus().call(new InventoryCloseEvent(host.player(p), ApiConvert.snapshot(menu, items()), pluginMenu(menu), reason));
+            }
+        } finally {
+            if (menu.pluginOwner() instanceof MenuSession ms) ms.closed();
+        }
     }
 
     /** 플러그인 메뉴(Player#openMenu) 창이면 그 메뉴. */
@@ -631,7 +636,14 @@ public final class PluginGameEvents implements GameEvents {
     public EnchantApply enchantItem(Player p, AbstractContainerMenu menu, int[] table, ItemStack item, int button, int cost, java.util.Map<String, Integer> enchants) {
         if (!bus().hasSubscribers(EnchantItemEvent.class)) return new EnchantApply(cost, enchants);
         var map = new java.util.LinkedHashMap<>(enchants);
-        var ev = bus().call(new EnchantItemEvent(host.player(p), ApiConvert.snapshot(menu, items()), tablePos(table), ApiConvert.item(item, items()), button, cost, map));
+        String hint = null;
+        int levelHint = -1;
+        if (menu instanceof org.domi.furnace.server.menu.EnchantmentMenu em && button >= 0 && button < 3) {
+            hint = em.clueName(button);
+            levelHint = hint == null ? -1 : em.levelClue[button];
+        }
+        var ev = bus().call(new EnchantItemEvent(host.player(p), ApiConvert.snapshot(menu, items()), tablePos(table), ApiConvert.item(item, items()), button, cost, map,
+                hint, levelHint));
         return ev.isCancelled() ? null : new EnchantApply(ev.expLevelCost(), ev.enchants());
     }
 
@@ -644,11 +656,21 @@ public final class PluginGameEvents implements GameEvents {
     }
 
     @Override
-    public boolean brew(String dimension, org.domi.furnace.server.block.Pos pos, ItemStack[] stacks, int fuelLevel) {
+    public boolean brew(String dimension, org.domi.furnace.server.block.Pos pos, ItemStack[] stacks, ItemStack[] results, int fuelLevel) {
         if (!bus().hasSubscribers(BrewEvent.class)) return true;
         java.util.List<org.domi.furnace.api.item.ItemStack> list = new java.util.ArrayList<>(stacks.length);
         for (ItemStack s : stacks) list.add(ApiConvert.item(s, items()));
-        return !bus().call(new BrewEvent(dimension, bp(pos), new org.domi.furnace.api.inventory.InventorySnapshot("minecraft:brewing_stand", list), fuelLevel)).isCancelled();
+        java.util.List<org.domi.furnace.api.item.ItemStack> given = new java.util.ArrayList<>(results.length);
+        for (ItemStack s : results) given.add(ApiConvert.item(s, items()));
+        var ev = bus().call(new BrewEvent(dimension, bp(pos), new org.domi.furnace.api.inventory.InventorySnapshot("minecraft:brewing_stand", list), given, fuelLevel));
+        if (ev.isCancelled()) return false;
+        // Paper: 결과 목록의 i 번째가 병 칸 i 로 들어가고, 목록이 짧으면 남는 칸은 빈다. 바뀌지 않은 칸은 서버 스택을 그대로 둔다(부품이 깎이지 않게)
+        var now = ev.results();
+        for (int i = 0; i < results.length; i++) {
+            if (i >= now.size() || now.get(i) == null) results[i] = ItemStack.EMPTY;
+            else if (!now.get(i).equals(given.get(i))) results[i] = fromApi(now.get(i), given.get(i), results[i]);
+        }
+        return true;
     }
 
     @Override
