@@ -38,7 +38,7 @@ public final class TextColor {
             var named = org.domi.furnace.api.text.NamedTextColor.byName(name);
             if (named != null) return named;
         }
-        return org.domi.furnace.api.text.TextColor.color(value);
+        return org.domi.furnace.api.text.TextColor.rgb(value);   // 바닐라 fromRgb 처럼 이름 없이(검토 PR #267 R3)
     }
 
     /** 호환 모듈 전용 — 이름 있는 Furnace 색은 이름을 지킨다. */

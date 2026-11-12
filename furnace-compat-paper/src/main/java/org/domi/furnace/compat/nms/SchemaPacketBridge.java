@@ -159,7 +159,7 @@ public final class SchemaPacketBridge {
 
     /** 대응표를 두지 않은 손 코덱 종류(clientbound play)와 까닭. 타입 레코드 종류(add_entity 등)는 그 앞에서 따로 거절된다. */
     private static final Map<String, String> CUSTOM_REFUSALS = Map.of(
-            "boss_event", "보스바 operation 은 바닐라에서도 private 인터페이스이고 BossEvent shim 이 아직 비어 있어 shim 값을 읽을 수 없다",
+            "boss_event", "보스바 operation 은 바닐라에서도 package-private 인터페이스(Operation)이고 BossEvent shim 이 아직 비어 있어 shim 값을 읽을 수 없다",
             "award_stats", "통계 맵(fastutil Object2IntMap<Stat<?>>)은 라이브러리 타입이 지워졌고 Stat shim 이 아직 비어 있다");
 
     /** 스키마 필드 i 를 범용 변환으로. */
@@ -260,12 +260,23 @@ public final class SchemaPacketBridge {
         return m;
     }
 
+    /** 클래스마다 getFirst·getSecond 를 한 번만 찾는다(장비 패킷은 자주 나간다, 검토 PR #267 R6). 없으면 null. */
+    private static final ClassValue<java.lang.reflect.Method[]> PAIR_METHODS = new ClassValue<>() {
+        @Override
+        protected java.lang.reflect.Method[] computeValue(Class<?> c) {
+            try {
+                return new java.lang.reflect.Method[] {c.getMethod("getFirst"), c.getMethod("getSecond")};
+            } catch (NoSuchMethodException e) {
+                return null;
+            }
+        }
+    };
+
     private static Object pairPart(Object pair, String method, String at) {
+        java.lang.reflect.Method[] ms = PAIR_METHODS.get(pair.getClass());
+        if (ms == null) throw new IllegalArgumentException(at + " 은 DataFixerUpper Pair(getFirst·getSecond)이어야 한다: " + pair.getClass().getName());
         try {
-            java.lang.reflect.Method mt = pair.getClass().getMethod(method);
-            return mt.invoke(pair);
-        } catch (NoSuchMethodException e) {
-            throw new IllegalArgumentException(at + " 은 DataFixerUpper Pair(getFirst·getSecond)이어야 한다: " + pair.getClass().getName());
+            return ms[method.equals("getFirst") ? 0 : 1].invoke(pair);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException(at + ": " + e, e);
         }
@@ -361,17 +372,16 @@ public final class SchemaPacketBridge {
         }
     }
 
-    /**
-     * 바닐라 숫자 형식 셋 → 서버 값({type, …}). 바닐라도 등록된 형식 종류(blank·styled·fixed)만 쓸 수 있다.
-     * styled 의 글자 모양은 NBT 로 옮긴다 — 색·꾸밈·insertion·font 만. 클릭·호버 사건은 아직 옮기지 못해 거절한다(가정: 점수 숫자 모양에 쓰는 일은 드물다).
-     */
+    /** 바닐라 숫자 형식 셋 → 서버 값({type, …}). 바닐라도 등록된 형식 종류(blank·styled·fixed)만 쓸 수 있다. */
     private static PacketStruct numberFormat(Object f, String at) {
         LinkedHashMap<String, Object> m = new LinkedHashMap<>();
         if (f instanceof net.minecraft.network.chat.numbers.BlankFormat) {
             m.put("type", "minecraft:blank");
         } else if (f instanceof net.minecraft.network.chat.numbers.StyledFormat) {
             m.put("type", "minecraft:styled");
-            m.put("style", styleNbt(((net.minecraft.network.chat.Style) need(get(STYLED_STYLE, f), at + ".style")).furnace(), at + ".style"));
+            // 바닐라 Style.Serializer 와 같은 NBT(api TextNbt — 클릭·호버 포함, 검토 PR #267 R2)
+            var style = ((net.minecraft.network.chat.Style) need(get(STYLED_STYLE, f), at + ".style")).furnace();
+            m.put("style", org.domi.furnace.compat.paper.NbtBinary.readNetwork(style.networkNbt()));
         } else if (f instanceof net.minecraft.network.chat.numbers.FixedFormat) {
             m.put("type", "minecraft:fixed");
             m.put("value", net.minecraft.network.chat.Component.furnace((net.minecraft.network.chat.Component) need(get(FIXED_VALUE, f), at + ".value")));
@@ -379,24 +389,6 @@ public final class SchemaPacketBridge {
             throw new IllegalArgumentException(at + ": 바닐라 숫자 형식(BlankFormat·StyledFormat·FixedFormat)이 아니다(바닐라도 형식 종류가 없어 쓰다 실패한다): " + f);
         }
         return PacketStruct.of(m);
-    }
-
-    /** 바닐라 Style 직렬화(NBT)와 같은 키: color(이름·#RRGGBB), bold 등 꾸밈(바이트 0·1, 정해진 것만), insertion, font. */
-    private static org.domi.furnace.api.nbt.NbtCompound styleNbt(org.domi.furnace.api.text.Style s, String at) {
-        if (s.clickEvent() != null || s.hoverEvent() != null) {
-            throw new IllegalArgumentException(at + ": 숫자 형식 글자 모양의 클릭·호버 사건은 아직 보낼 수 없다(Furnace 다리 한계) — 색·꾸밈·insertion·font 만 쓴다");
-        }
-        org.domi.furnace.api.nbt.NbtCompound n = new org.domi.furnace.api.nbt.NbtCompound();
-        if (s.color() != null) n.putString("color", s.color().serialize());
-        for (var d : List.of(org.domi.furnace.api.text.TextDecoration.BOLD, org.domi.furnace.api.text.TextDecoration.ITALIC,
-                org.domi.furnace.api.text.TextDecoration.UNDERLINED, org.domi.furnace.api.text.TextDecoration.STRIKETHROUGH,
-                org.domi.furnace.api.text.TextDecoration.OBFUSCATED)) {
-            var st = s.decoration(d);
-            if (st != org.domi.furnace.api.text.TriState.NOT_SET) n.putBoolean(d.name().toLowerCase(java.util.Locale.ROOT), st == org.domi.furnace.api.text.TriState.TRUE);
-        }
-        if (s.insertion() != null) n.putString("insertion", s.insertion());
-        if (s.font() != null) n.putString("font", s.font());
-        return n;
     }
 
     /** entityId, attributes(List&lt;AttributeSnapshot{attribute, base, modifiers}&gt;) → entity_id attributes List&lt;{attribute, base, modifiers List&lt;{id, amount, operation}&gt;}&gt;. */
@@ -457,6 +449,10 @@ public final class SchemaPacketBridge {
         }));
         m.put("color_patch", ((Optional<?>) need(v[4], at + ".colorPatch")).map(o -> {
             var c = (net.minecraft.world.level.saveddata.maps.MapItemSavedData.MapPatch) o;
+            if (c.width() != 0 && (c.width() & 0xFF) == 0) {
+                throw new IllegalArgumentException(at + ".colorPatch: width " + c.width() + " 이 바닐라 writeByte 처럼 아래 8비트로 잘려 0(= 조각 없음)이 된다"
+                        + " — 바닐라도 클라이언트가 남는 바이트로 끊긴다(검토 PR #267 R4)");
+            }
             LinkedHashMap<String, Object> e = new LinkedHashMap<>();
             e.put("width", c.width() & 0xFF);
             e.put("height", c.height() & 0xFF);

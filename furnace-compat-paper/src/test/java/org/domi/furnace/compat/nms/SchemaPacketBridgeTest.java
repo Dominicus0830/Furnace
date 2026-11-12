@@ -406,6 +406,12 @@ class SchemaPacketBridgeTest {
                 conn.send(construct(net.minecraft.network.protocol.game.ClientboundSetObjectivePacket.class, "o2", net.minecraft.network.chat.Component.literal("Hp"),
                         net.minecraft.world.scores.criteria.ObjectiveCriteria.RenderType.HEARTS, java.util.Optional.of(net.minecraft.network.chat.numbers.BlankFormat.INSTANCE), 2));
                 conn.send(construct(net.minecraft.network.protocol.game.ClientboundSetObjectivePacket.class, "o3", null, null, java.util.Optional.empty(), 1));
+                // 이름 없는 RGB 색(바닐라 fromRgb → "#FF5555")·클릭·호버도 바닐라 Style 직렬화 그대로(검토 PR #267 R2·R3)
+                var rich = net.minecraft.network.chat.Style.fromFurnace(net.minecraft.network.chat.Style.EMPTY.withColor(0xFF5555).furnace()
+                        .clickEvent(org.domi.furnace.api.text.ClickEvent.runCommand("/top"))
+                        .hoverEvent(new org.domi.furnace.api.text.HoverEvent.ShowText(org.domi.furnace.api.text.Text.text("hi"))));
+                conn.send(construct(net.minecraft.network.protocol.game.ClientboundSetObjectivePacket.class, "o4", net.minecraft.network.chat.Component.literal("Rich"),
+                        net.minecraft.world.scores.criteria.ObjectiveCriteria.RenderType.INTEGER, java.util.Optional.of(new net.minecraft.network.chat.numbers.StyledFormat(rich)), 0));
                 conn.send(new net.minecraft.network.protocol.game.ClientboundSetScorePacket("Hand", "o1", 12, java.util.Optional.empty(),
                         java.util.Optional.of(new net.minecraft.network.chat.numbers.FixedFormat(net.minecraft.network.chat.Component.literal("MAX")))));
                 conn.send(construct(net.minecraft.network.protocol.game.ClientboundUpdateAttributesPacket.class, 906, List.of(
@@ -415,7 +421,7 @@ class SchemaPacketBridgeTest {
                 byte[] colors = new byte[] {1, 2, 3, 4, 5, 6};
                 conn.send(new net.minecraft.network.protocol.game.ClientboundMapItemDataPacket(new net.minecraft.world.level.saveddata.maps.MapId(77), (byte) 2, true,
                         List.of(new net.minecraft.world.level.saveddata.maps.MapDecoration(net.minecraft.world.level.saveddata.maps.MapDecorationTypes.RED_X,
-                                        (byte) 10, (byte) -10, (byte) 4, java.util.Optional.of(net.minecraft.network.chat.Component.literal("X"))),
+                                        (byte) 10, (byte) -10, (byte) 20, java.util.Optional.of(net.minecraft.network.chat.Component.literal("X"))),
                                 new net.minecraft.world.level.saveddata.maps.MapDecoration(net.minecraft.core.Holder.direct(
                                         net.minecraft.world.level.saveddata.maps.MapDecorationTypes.TRIAL_CHAMBERS.value()), (byte) 0, (byte) 0, (byte) 0, java.util.Optional.empty())),
                         new net.minecraft.world.level.saveddata.maps.MapItemSavedData.MapPatch(5, 6, 3, 2, colors)));
@@ -479,6 +485,13 @@ class SchemaPacketBridgeTest {
             assertEquals("minecraft:blank", ((org.domi.furnace.api.packet.PacketStruct) ((java.util.Optional<?>) o2p.get("number_format")).orElseThrow()).get("type"));
             var o3 = tp.awaitPacket(PacketTypes.Clientbound.SET_OBJECTIVE, g -> "o3".equals(g.get("objective_name")));
             assertEquals(List.of(1, java.util.Optional.empty()), List.of(o3.get("method"), o3.get("parameters")));
+            var o4 = tp.awaitPacket(PacketTypes.Clientbound.SET_OBJECTIVE, g -> "o4".equals(g.get("objective_name")));
+            var o4p = (org.domi.furnace.api.packet.PacketStruct) ((java.util.Optional<?>) o4.get("parameters")).orElseThrow();
+            var richStyle = (org.domi.furnace.api.nbt.NbtCompound) ((org.domi.furnace.api.packet.PacketStruct) ((java.util.Optional<?>) o4p.get("number_format")).orElseThrow()).get("style");
+            assertEquals("#FF5555", richStyle.getString("color"));
+            assertEquals("run_command", richStyle.getCompound("clickEvent").getString("action"));
+            assertEquals("/top", richStyle.getCompound("clickEvent").getString("value"));
+            assertEquals("show_text", richStyle.getCompound("hoverEvent").getString("action"));
             var score = tp.awaitPacket(PacketTypes.Clientbound.SET_SCORE, g -> "Hand".equals(g.get("owner")));
             var fixed = (org.domi.furnace.api.packet.PacketStruct) ((java.util.Optional<?>) score.get("number_format")).orElseThrow();
             assertEquals("MAX", ((org.domi.furnace.api.text.Text) fixed.get("value")).plainText());
@@ -515,6 +528,10 @@ class SchemaPacketBridgeTest {
                 bad.accept(new net.minecraft.network.protocol.game.ClientboundMapItemDataPacket(new net.minecraft.world.level.saveddata.maps.MapId(1), (byte) 0, false,
                         List.of(new net.minecraft.world.level.saveddata.maps.MapDecoration(net.minecraft.core.Holder.direct(new net.minecraft.world.level.saveddata.maps.MapDecorationType(
                                 rl.apply("plug:pin"), true, -1, false, true)), (byte) 0, (byte) 0, (byte) 0, java.util.Optional.empty())), null));
+                var wide = assertThrows(IllegalArgumentException.class, () -> conn.send(new net.minecraft.network.protocol.game.ClientboundMapItemDataPacket(
+                        new net.minecraft.world.level.saveddata.maps.MapId(2), (byte) 0, false, (java.util.Collection) null,
+                        new net.minecraft.world.level.saveddata.maps.MapItemSavedData.MapPatch(0, 0, 256, 1, new byte[256]))));
+                assertTrue(wide.getMessage().contains("8비트"), wide.getMessage());
                 conn.send(new net.minecraft.network.protocol.game.ClientboundSetExperiencePacket(0.25f, 1, 99));
                 return null;
             });
@@ -551,6 +568,14 @@ class SchemaPacketBridgeTest {
             assertEquals(10066329, net.minecraft.world.level.saveddata.maps.MapDecorationTypes.SWAMP_HUT.value().mapColor());
             assertEquals(12741452, net.minecraft.world.level.saveddata.maps.MapDecorationTypes.TRIAL_CHAMBERS.value().mapColor());
             assertEquals("map_7", new net.minecraft.world.level.saveddata.maps.MapId(7).key());
+            // 방향은 바닐라 생성자처럼 아래 4비트(검토 PR #267 R1)
+            assertEquals(4, new net.minecraft.world.level.saveddata.maps.MapDecoration(net.minecraft.world.level.saveddata.maps.MapDecorationTypes.PLAYER,
+                    (byte) 0, (byte) 0, (byte) 20, java.util.Optional.empty()).rot());
+            assertEquals(15, new net.minecraft.world.level.saveddata.maps.MapDecoration(net.minecraft.world.level.saveddata.maps.MapDecorationTypes.PLAYER,
+                    (byte) 0, (byte) 0, (byte) -1, java.util.Optional.empty()).rot());
+            // 바닐라 TextColor.fromRgb 는 이름을 붙이지 않는다(검토 PR #267 R3) — 16색 상수는 이름 그대로
+            assertEquals("#FF5555", net.minecraft.network.chat.TextColor.fromRgb(0xFF5555).furnace().serialize());
+            assertEquals("red", net.minecraft.network.chat.TextColor.fromLegacyFormat(net.minecraft.ChatFormatting.RED).furnace().serialize());
             assertEquals(net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_VALUE,
                     net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.BY_ID.apply(9));
             assertEquals("add_multiplied_total", net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL.getSerializedName());
