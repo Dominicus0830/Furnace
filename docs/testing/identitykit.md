@@ -69,7 +69,7 @@ SceneHash.assertGolden("scene-name", rec -> {
 1. **의도한 정확성 수정**(바닐라와 달랐던 동작을 바로잡음) — 바닐라 근거가 있어야 한다.
 2. **장면 자체를 바꿈**(새 장면 추가, 장면 입력·범위 변경) — 결과가 아니라 질문이 바뀐 것.
 
-절차(추천안, 도미니코 결정 대기 — `docs/user-todo/entries/2026-11-12-identitykit-golden-update.md`):
+절차(도미니코 승인 11-12 — `docs/user-todo/entries/2026-11-12-identitykit-golden-update.md`):
 1. 갱신 명령: `./gradlew :furnace-server:test --tests '<시험>' -Dfurnace.identity.bless=<이름>[,<이름>…]`(bench 장면은 해당 `-Dfurnace.bench=true`/`-Dfurnace.profile=true` 도). 이름을 하나씩 적는다.
 2. PR 본문에 **"금 파일 갱신"** 절: 바뀐 파일, 바뀐 줄 수, 왜 결과가 달라지는지(위 1·2 중 무엇), 바닐라 근거(정확성 수정이면).
 3. **독립 검토자 스레드가 바뀐 줄을 확인하고 승인**해야 병합한다(기존 병합 규칙: CI `test` + 독립 검토 위에 이 확인을 더한다). 금 파일 변경과 최적화를 한 PR 에 섞지 않는다.
