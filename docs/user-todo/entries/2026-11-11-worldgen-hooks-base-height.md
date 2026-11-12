@@ -2,7 +2,11 @@
 
 설명: `docs/api/worldgen-hooks.md` "규칙", PR #228·표면 바이옴 후속 PR.
 
-## 결정할 것
+## 결정됨 (2026-11-12, 도미니코: "PAPER랑 같게 해줘")
+
+추천대로 구현했다: `ChunkGenerationHooks.baseHeight(GenerationHeightmap, x, z)` 선택 훅(첫 빈 칸 y, 안 정하면 바닐라), 바닥 열은 늘 바닐라. 문서 `docs/api/worldgen-hooks.md` 규칙·`docs/feature-parity/context-notes/2026-11-12-worldgen-base-height-hook.md`. 아래는 결정 당시 기록이다.
+
+## 결정할 것 (결정됨)
 
 - **플러그인 지형 높이를 구조물 배치에 반영하는 훅을 만들까?** 지금 구조물 배치 높이(바닐라 `getBaseHeight`·`getBaseColumn`)는 바닐라 노이즈로만 판정한다.
   플러그인이 `NOISE`·`SURFACE` 훅으로 지형을 크게 바꾼 월드에서는 마을·폐허 포털 등이 바닐라 지형 높이에 놓여 떠 있거나 묻힐 수 있다.
