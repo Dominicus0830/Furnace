@@ -35,4 +35,18 @@ goto parse
 
 :run
 echo !JVM_ARGS! | find "-Xmx" >nul || set "JVM_ARGS=-Xmx%FURNACE_XMX% !JVM_ARGS!"
-java !JVM_ARGS! -cp "%APP%\lib\*" org.domi.furnace.server.FurnaceMain %*
+rem AppCDS: JDK 19 이상이면 클래스 공유 아카이브를 자동으로 만들고 다음 기동부터 쓴다. FURNACE_CDS=0 이면 끈다.
+set "CDS_ARGS="
+if not "%FURNACE_CDS%"=="0" (
+  echo !JVM_ARGS! | find "SharedArchiveFile" >nul || echo !JVM_ARGS! | find "AutoCreateSharedArchive" >nul || echo !JVM_ARGS! | find "Xshare" >nul || call :cds_probe
+)
+java !CDS_ARGS! !JVM_ARGS! -cp "%APP%\lib\*" org.domi.furnace.server.FurnaceMain %*
+exit /b %ERRORLEVEL%
+
+:cds_probe
+set "JVM_VER="
+for /f "tokens=3" %%V in ('java -version 2^>^&1 ^| find "version"') do if not defined JVM_VER set "JVM_VER=%%~V"
+set "JVM_MAJOR="
+for /f "tokens=1 delims=." %%M in ("!JVM_VER!") do set "JVM_MAJOR=%%M"
+if defined JVM_MAJOR if !JVM_MAJOR! GEQ 19 set "CDS_ARGS=-XX:+AutoCreateSharedArchive "-XX:SharedArchiveFile=%APP%\furnace.jsa""
+exit /b 0

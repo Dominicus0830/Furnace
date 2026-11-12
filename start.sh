@@ -33,4 +33,14 @@ done
 HAS_XMX=0
 for a in "${JVM_ARGS[@]}"; do case "$a" in -Xmx*) HAS_XMX=1 ;; esac; done
 [ "$HAS_XMX" = 0 ] && JVM_ARGS=("-Xmx${FURNACE_XMX:-6G}" "${JVM_ARGS[@]}")
-exec java "${JVM_ARGS[@]}" -cp "$APP/lib/*" org.domi.furnace.server.FurnaceMain "$@"
+
+# AppCDS: JDK 19 이상이면 클래스 공유 아카이브를 자동으로 만들고(처음 끌 때 저장) 다음 기동부터 쓴다.
+# 아카이브 파일이 없거나 낡았으면 JVM 이 다시 만든다. 끄려면 FURNACE_CDS=0, 직접 지정한 옵션이 있으면 그대로 둔다.
+CDS_ARGS=()
+if [ "${FURNACE_CDS:-1}" != 0 ] && ! printf '%s\n' "${JVM_ARGS[@]}" | grep -q -e SharedArchiveFile -e AutoCreateSharedArchive -e 'Xshare'; then
+  JMAJOR=$(java -version 2>&1 | sed -n 's/.*version "\([0-9]*\).*/\1/p' | head -1)
+  if [ -n "$JMAJOR" ] && [ "$JMAJOR" -ge 19 ] 2>/dev/null; then
+    CDS_ARGS=("-XX:+AutoCreateSharedArchive" "-XX:SharedArchiveFile=$APP/furnace.jsa")
+  fi
+fi
+exec java "${CDS_ARGS[@]}" "${JVM_ARGS[@]}" -cp "$APP/lib/*" org.domi.furnace.server.FurnaceMain "$@"
