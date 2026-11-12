@@ -160,7 +160,7 @@ public final class EventBusImpl implements EventBus {
             return out;
         });
         baked.clear();
-        wantsCause = computeWantsCause();
+        refreshFlags();
     }
 
     private void remove(java.util.function.Predicate<Handler> p) {
@@ -173,7 +173,7 @@ public final class EventBusImpl implements EventBus {
         }
         if (any) {
             baked.clear();
-            wantsCause = computeWantsCause();
+            refreshFlags();
         }
     }
 
@@ -184,6 +184,46 @@ public final class EventBusImpl implements EventBus {
 
     /** 원인 기록이 필요한가(등록이 바뀔 때만 다시 센다 — 발화 경로는 필드 읽기 하나). */
     private volatile boolean wantsCause;
+
+    /**
+     * 이벤트 종류 하나의 구독 여부 — hasSubscribers(type) 와 늘 같은 값을 volatile 필드 하나로 읽는다(맵 조회 없음).
+     * 등록이 바뀔 때만(register·subscribe·해제·핫 리로드) 다시 계산하므로, 그 호출이 돌아온 뒤 처음 읽는 값부터 새 등록을 반영한다.
+     * 이벤트를 자주 묻는 호출 지점(이웃 갱신·레드스톤·유체 등)이 서버 시작 때 한 번 받아 두고 쓴다.
+     */
+    public static final class Flag {
+        private final Class<? extends Event> type;
+        private volatile boolean on;
+
+        private Flag(Class<? extends Event> type) { this.type = type; }
+
+        /** hasSubscribers(type) 와 같은 값. */
+        public boolean on() { return on; }
+    }
+
+    // flags 와 refreshFlags 는 flagLock 안에서만 만지고 읽는다 — 동시에 등록이 바뀌어도 마지막 재계산이 모든 등록을 본다
+    private final Object flagLock = new Object();
+    private final Map<Class<?>, Flag> flags = new java.util.HashMap<>();
+
+    /** type 의 구독 여부 필드. 같은 종류는 같은 객체를 돌려준다. */
+    public Flag flag(Class<? extends Event> type) {
+        synchronized (flagLock) {
+            Flag f = flags.get(type);
+            if (f == null) {
+                f = new Flag(type);
+                f.on = bake(type).length > 0;
+                flags.put(type, f);
+            }
+            return f;
+        }
+    }
+
+    /** 등록 목록이 바뀐 뒤 모든 필드와 원인 기록 여부를 다시 계산한다. */
+    private void refreshFlags() {
+        synchronized (flagLock) {
+            for (Flag f : flags.values()) f.on = bake(f.type).length > 0;
+            wantsCause = computeWantsCause();
+        }
+    }
 
     public boolean wantsCause() { return wantsCause; }
 
