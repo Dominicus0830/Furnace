@@ -28,6 +28,7 @@ final class Mappings {
         registerEntityInteract();
         registerInteractAndBlocks();
         registerLogin();
+        WorldChangeMappings.register();
     }
 
     private static final java.util.Map<Object, String> FORMAT_BASE = java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
