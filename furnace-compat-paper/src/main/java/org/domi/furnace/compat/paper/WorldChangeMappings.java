@@ -86,6 +86,11 @@ final class WorldChangeMappings {
         return out;
     }
 
+    /** Paper 가 EntitySpawnEvent 대신 다른 이벤트로 내는 종류(탈것·번개). 호환 CraftEntity 가 Vehicle 을 구현하지 않아 종류 이름으로 본다. */
+    static boolean notEntitySpawnKind(String type) {
+        return type != null && (type.endsWith("boat") || type.endsWith("raft") || type.endsWith("minecart") || type.equals("minecraft:lightning_bolt"));
+    }
+
     private static void registerEntities() {
         // 처리기 목록은 EntitySpawnEvent 하나(ItemSpawnEvent·CreatureSpawnEvent 는 그 목록을 같이 쓴다). 서버의 하위 이벤트(아이템·살아 있는 것·투사체)도
         // EntitySpawnEvent 구독자에게 오므로 하나로 받아 알맞은 Bukkit 종류를 만든다. 플레이어는 Bukkit 도 이 이벤트를 내지 않는다.
@@ -93,6 +98,9 @@ final class WorldChangeMappings {
                 f -> {
                     var e = Compat.entity(f.entity());
                     if (e == null || e instanceof org.bukkit.entity.Player) return null;
+                    // Paper doEntityAddEventCalling: 투사체는 ProjectileLaunchEvent, 탈것은 VehicleCreateEvent, 번개는 LightningStrikeEvent 로 나가고
+                    // EntitySpawnEvent 는 그 밖의 것만 받는다. 서버의 ProjectileLaunchEvent 는 EntitySpawnEvent 의 하위라 여기로 오므로 걸러 낸다.
+                    if (f instanceof org.domi.furnace.api.event.entity.ProjectileLaunchEvent || notEntitySpawnKind(f.entity().type())) return null;
                     if (f instanceof org.domi.furnace.api.event.entity.ItemSpawnEvent && e instanceof org.bukkit.entity.Item item) {
                         return new org.bukkit.event.entity.ItemSpawnEvent(item);
                     }

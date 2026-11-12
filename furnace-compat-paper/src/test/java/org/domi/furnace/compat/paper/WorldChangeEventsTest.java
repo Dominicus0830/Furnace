@@ -264,6 +264,46 @@ class WorldChangeEventsTest {
         }
     }
 
+    /** Paper 는 투사체·탈것·번개를 EntitySpawnEvent 로 내지 않는다 — 몹 수 제한류 플러그인이 화살·보트를 막으면 안 된다. */
+    @Test
+    void projectilesVehiclesAndLightningAreNotBukkitEntitySpawnEvents() throws Exception {
+        try (FurnaceTestServer server = FurnaceTestServer.builder().failFast(false).pluginJar(recorderJar()).start()) {
+            var p = server.join("Dana").player();
+            server.tick(2);
+            var at = p.location();
+            var pig = server.await(server.overworld().spawnEntity("minecraft:pig", at));
+            // 서버가 소환할 수 있는 탈것·번개만(아직 못 만드는 종류는 건너뛴다) — 종류 판별은 아래에서 따로 확인한다
+            var vehicles = new java.util.ArrayList<org.domi.furnace.api.entity.Entity>();
+            for (String t : List.of("minecraft:oak_boat", "minecraft:minecart", "minecraft:lightning_bolt")) {
+                try {
+                    var e = server.await(server.overworld().spawnEntity(t, at));
+                    if (e != null) vehicles.add(e);
+                } catch (IllegalArgumentException unsupported) { /* 소환 불가 종류 */ }
+            }
+            for (String t : List.of("minecraft:oak_boat", "minecraft:bamboo_raft", "minecraft:oak_chest_boat", "minecraft:minecart", "minecraft:chest_minecart",
+                    "minecraft:tnt_minecart", "minecraft:hopper_minecart", "minecraft:lightning_bolt")) {
+                assertTrue(WorldChangeMappings.notEntitySpawnKind(t), t);
+            }
+            for (String t : List.of("minecraft:pig", "minecraft:item", "minecraft:armor_stand", "minecraft:arrow", "minecraft:tnt")) {
+                assertFalse(WorldChangeMappings.notEntitySpawnKind(t), t);
+            }
+            var bus = server.api().events();
+
+            RecorderPlugin.reset();
+            RecorderPlugin.ACTIONS.put("EntitySpawnEvent", e -> ((org.bukkit.event.Cancellable) e).setCancelled(true));
+            // 투사체 발사(서버는 ProjectileLaunchEvent 로 낸다 — EntitySpawnEvent 의 하위)
+            assertFalse(bus.call(new org.domi.furnace.api.event.entity.ProjectileLaunchEvent(pig)).isCancelled(), "투사체 발사는 Bukkit EntitySpawnEvent 로 막히지 않는다");
+            for (var e : vehicles) {
+                assertFalse(bus.call(new org.domi.furnace.api.event.entity.EntitySpawnEvent(e)).isCancelled(), e.type() + " 는 EntitySpawnEvent 로 막히지 않는다");
+            }
+            assertTrue(seen(org.bukkit.event.entity.EntitySpawnEvent.class).isEmpty(), RecorderPlugin.SEEN.toString());
+
+            // 그 밖의 것은 그대로 EntitySpawnEvent
+            assertTrue(bus.call(new org.domi.furnace.api.event.entity.EntitySpawnEvent(pig)).isCancelled());
+            assertEquals(1, seen(org.bukkit.event.entity.EntitySpawnEvent.class).size());
+        }
+    }
+
     // ------------------------------------------------------------------ 아이템 버리기
 
     @Test

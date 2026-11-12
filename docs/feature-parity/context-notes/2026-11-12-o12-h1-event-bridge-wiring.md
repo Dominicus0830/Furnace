@@ -18,3 +18,14 @@ O12 보고서(H1): `EventBridge.NOT_FIRED` 가 낡아 `BlockPlaceEvent`·`Player
 ## 시험
 `WorldChangeEventsTest`(6: 설치 값·취소·canBuild, 실제 설치 경로, 자람·사라짐, 폭발 목록 편집·취소, 스폰 3종·취소, 버리기 취소·허용), `EventBridgeTest` 표에 여섯 추가, `CancelResyncE2ETest` 2개(서버 이벤트가 상태·손·아이템·드롭 엔티티를 보임).
 스폰 보호 반경(16) 안에서 일반 접속자는 놓을 수 없어 실제 경로 시험은 `spawn-protection=0` 으로 돌린다.
+
+## 독립 검토 반영 (PR #276)
+
+- **R1 반영:** EntitySpawn 매핑이 투사체(`ProjectileLaunchEvent`)와 탈것(`*boat`·`*raft`·`*minecart`)·번개(`lightning_bolt`)를 건너뛴다. Paper 는 이들을 각각 ProjectileLaunch·VehicleCreate·LightningStrike 로 내고 EntitySpawnEvent 는 그 밖의 것만 받는다. 시험: `projectilesVehiclesAndLightningAreNotBukkitEntitySpawnEvents`.
+- **후속(이번 PR 밖):**
+  - R2 `CompatBlock.showing` 이 이벤트 뒤에도 남음, 처리기 안의 놓인 칸 쓰기가 설치에 덮임 — 이벤트 끝 고리 필요.
+  - R3 BlockGrow `getNewState()` 수정이 무시됨(API 에 새 상태 쓰기 필요).
+  - R4 `canBuild` 초기값이 늘 true(놓일 칸 기준 `mayInteract`).
+  - R5 `CraftItem#setItemStack`·`setPickupDelay` 미지원.
+  - R6 BlockExplode `getExplodedBlockState()` 가 기본 상태.
+  - R7 취소 뒤 부분 반환의 남은 것을 새 엔티티로 다시 던져 id·난수를 더 씀(구독자 있을 때만, 기존 동작).
