@@ -44,4 +44,4 @@ LuckPerms·Vault 는 같은 서버에서 정상(`docs/feature-parity/compat-luck
 1단계(패킷 등록부)와 2단계 최소분(연결 모양: `ServerCommonPacketListenerImpl.connection`, 닫힌 자리표시 `Connection.channel`)을 끝냈다. ProtocolLib 5.4.0 은 켜지고 `PacketContainer` 생성·읽기·쓰기가 되며, 접속·핫 리로드도 오류가 없다.
 가로채기·`sendServerPacket` 은 아직 아니다(2b 파이프라인 주입, 3 코덱, 4 값 래퍼). 자세히: `compat-protocollib-registry-2026-11-12.md`.
 
-4단계 첫 묶음(채팅 컴포넌트·엔티티 종류·블록 데이터·열거형, 4a)은 `compat-protocollib-registry-2026-11-12.md` 끝 절에 있다. 2b(파이프라인 주입)는 3단계 코덱("쉬운 NMS·패킷" 계획 E4)이 있어야 의미가 있어 그 뒤로 둔다.
+4단계 첫 묶음(채팅 컴포넌트·엔티티 종류·블록 데이터·열거형, 4a)과 엔티티 메타데이터(4b, `WrappedDataWatcher` 메모리 안 감시자·칸 값)는 `compat-protocollib-registry-2026-11-12.md` 끝 절에 있다. 2b(파이프라인 주입)는 3단계 코덱("쉬운 NMS·패킷" 계획 E4)이 있어야 의미가 있어 그 뒤로 둔다.
