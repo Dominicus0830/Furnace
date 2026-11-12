@@ -48,3 +48,7 @@ Furnace API 에 더한 것: `world.ParticleEffect`(봉인 형 — 단순·블록
 - `BukkitValueTypesTest` — 생성 열거형이 서버 1.21.1 자료와 같다(소리·입자·바이옴·그림 크기·속성·물약 효과 값), DyeColor 색표, Registry·Color·Note·FireworkEffect·AttributeModifier 규칙, Bukkit→Furnace 소리·입자 변환.
 - `BukkitEffectsTest` — 가짜 플레이어 둘로 실제 패킷 확인: 월드 소리 거리·씨앗·분류, 플레이어 소리는 한 사람, 엔티티 소리는 보는 사람+자신, stop_sound, 입자 receivers·512칸·data 검사, 바이옴 읽기/쓰기(같은 4×4×4 칸, 높이 밖, CUSTOM 거절).
 - `ApiRenamesTest`·`ApiRenamePluginTest` — 옛 이름 표의 새 이름이 모두 실제 필드이고 옛 이름은 없다(110개), 옛 이름으로 컴파일한 플러그인(getstatic·valueOf·enum switch)이 새 상수를 받는다.
+
+## 측정(compatReport, 이 묶음 병합 뒤)
+
+`compat-h4-coverage-2026-11-07.md` 를 다시 만들었다. 없는 Bukkit 클래스 164 → 131, 해석되는 Bukkit 멤버 850 → 995(앞 숫자는 11-07 측정 — 그 사이 다른 묶음 몫도 섞여 있다). jar 별: helper 91.6%, XSeries 50.9%, CommandAPI 플러그인 84.2%, IF 80.1%.
