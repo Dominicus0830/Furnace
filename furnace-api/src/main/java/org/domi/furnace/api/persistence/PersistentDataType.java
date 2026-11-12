@@ -32,11 +32,10 @@ public final class PersistentDataType<T> {
 
     /**
      * 같은 종류 값의 목록(NBT 리스트로 저장, Paper 의 PersistentDataType.LIST 와 같은 꼴). 읽은 목록은 고칠 수 없다.
-     * 중첩 목록(목록의 목록)과 서로 다른 종류 섞기는 지원하지 않는다.
+     * 원소가 또 목록인 목록(목록의 목록)도 된다. 서로 다른 종류를 섞을 수는 없다(빈 목록은 어느 목록 종류로도 읽힌다).
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static <E> PersistentDataType<java.util.List<E>> list(PersistentDataType<E> element) {
-        if (element.element != null) throw new IllegalArgumentException("목록의 목록은 지원하지 않는다");
         return new PersistentDataType<>("list<" + element.name + ">", (Class) java.util.List.class, element);
     }
 
@@ -44,7 +43,7 @@ public final class PersistentDataType<T> {
     public PersistentDataType<?> elementType() { return element; }
 
     @Override
-    public boolean equals(Object o) { return o == this || o instanceof PersistentDataType<?> t && element != null && t.element == element; }
+    public boolean equals(Object o) { return o == this || o instanceof PersistentDataType<?> t && element != null && t.element != null && t.element.equals(element); }
 
     @Override
     public int hashCode() { return element == null ? System.identityHashCode(this) : element.hashCode() * 31 + 1; }

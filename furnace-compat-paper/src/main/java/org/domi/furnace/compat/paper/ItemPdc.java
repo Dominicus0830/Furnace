@@ -134,8 +134,20 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
                 return new Value(t, fromView(view.get(key, t)));
             }
         }
+        // 목록의 목록: 원소가 목록인 목록을 겹을 늘려 가며 찾는다(Paper 는 겹 수에 한도가 없지만 여기서는 NESTED_PROBE_DEPTH 겹까지)
+        var prev = new org.domi.furnace.api.persistence.PersistentDataType<?>[SCALARS.length];
+        System.arraycopy(PROBE, SCALARS.length, prev, 0, SCALARS.length);   // 한 겹 목록
+        for (int depth = 2; depth <= NESTED_PROBE_DEPTH; depth++) {
+            for (int i = 0; i < SCALARS.length; i++) {
+                prev[i] = org.domi.furnace.api.persistence.PersistentDataType.list(prev[i]);
+                if (view.has(key, prev[i])) return new Value(prev[i], fromView(view.get(key, prev[i])));
+            }
+        }
         return null;
     }
+
+    /** 목록의 목록을 찾아볼 겹 수 한도(바깥 목록을 센다). */
+    private static final int NESTED_PROBE_DEPTH = 8;
 
     /** 원본에서 읽은 값을 메모리 값으로 — 중첩 컨테이너는 복사한다. */
     private static Object fromView(Object v) {
@@ -148,10 +160,16 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
         return v;
     }
 
-    /** 저장된 값이 want 종류로 읽히는가(빈 목록은 어떤 목록 종류로도 읽힌다 — NBT 의 빈 목록은 원소 종류가 없다). */
+    /** 저장된 값이 want 종류로 읽히는가(빈 목록은 어떤 목록 종류로도 읽힌다 — NBT 의 빈 목록은 원소 종류가 없다. 목록의 목록은 안쪽까지 같은 규칙). */
     private static boolean matches(Value v, org.domi.furnace.api.persistence.PersistentDataType<?> want) {
-        if (v.type().equals(want)) return true;
-        return want.elementType() != null && v.type().elementType() != null && v.value() instanceof List<?> l && l.isEmpty();
+        return compatible(v.type(), v.value(), want);
+    }
+
+    private static boolean compatible(org.domi.furnace.api.persistence.PersistentDataType<?> have, Object value, org.domi.furnace.api.persistence.PersistentDataType<?> want) {
+        if (have.equals(want)) return true;
+        if (want.elementType() == null || have.elementType() == null || !(value instanceof List<?> l)) return false;
+        for (Object e : l) if (!compatible(have.elementType(), e, want.elementType())) return false;
+        return true;   // 빈 목록은 원소가 없으니 그대로 참
     }
 
     /** 중첩 컨테이너를 메모리로 복사한다 — 원본(엔티티 콜백 안의 살아 있는 값)을 콜백 밖으로 들고 나가지 않게. */
@@ -450,14 +468,30 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
         }
     }
 
-    /** 목록: 원소 종류는 단일 값이어야 한다(목록의 목록은 호환 계층이 다루지 못한다). 빈 목록은 byte 목록으로 둔다. */
+    /** 목록: 원소는 단일 값이거나 또 목록이다(목록의 목록 — 안쪽 목록 종류가 서로 다르면 IOException). 빈 목록은 byte 목록으로 둔다. */
     private static Value readList(DataInputStream in, int depth) throws IOException {
+        if (depth > MAX_DEPTH) throw new IOException("NBT 중첩이 너무 깊다");
         int elemId = in.readByte();
         int n = in.readInt();
         if (n < 0) throw new IOException("NBT 길이가 음수다");
         if (n == 0) return new Value(org.domi.furnace.api.persistence.PersistentDataType.list(SCALARS[0]), new ArrayList<>());
         if (elemId == TAG_END) throw new IOException("원소가 있는 목록의 종류가 END 다");
-        if (elemId == TAG_LIST) throw new IOException("목록의 목록은 호환 계층이 다루지 못한다");
+        if (elemId == TAG_LIST) {
+            checkLength(in, n, 5);
+            List<Object> items = new ArrayList<>(n);
+            org.domi.furnace.api.persistence.PersistentDataType<?> inner = null;
+            for (int i = 0; i < n; i++) {
+                Value child = readList(in, depth + 1);
+                boolean empty = child.value() instanceof List<?> cl && cl.isEmpty();
+                if (!empty) {
+                    if (inner != null && !inner.equals(child.type())) throw new IOException("목록 원소의 종류가 섞였다");
+                    inner = child.type();
+                }
+                items.add(child.value());
+            }
+            if (inner == null) inner = org.domi.furnace.api.persistence.PersistentDataType.list(SCALARS[0]);
+            return new Value(org.domi.furnace.api.persistence.PersistentDataType.list(inner), items);
+        }
         var elem = scalarType(elemId);
         checkLength(in, n, 1);
         List<Object> items = new ArrayList<>(n);

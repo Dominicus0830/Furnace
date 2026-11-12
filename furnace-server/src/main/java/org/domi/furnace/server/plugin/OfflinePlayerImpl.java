@@ -112,6 +112,15 @@ final class OfflinePlayerImpl implements OfflinePlayer {
     }
 
     @Override
+    public PersistentDataView persistentDataNow() {
+        Player p = online();
+        if (p != null) return host.player(p).persistentData();
+        var root = PlayerData.readRoot(core().world().worldDir(), id);
+        if (root == null) return null;
+        return NbtPersistentData.snapshot(root.tags().get("BukkitValues") instanceof org.domi.furnace.server.net.io.nbt.NbtCompound c ? c : null);
+    }
+
+    @Override
     public CompletableFuture<Boolean> editPersistentData(Consumer<PersistentDataContainer> edit) {
         java.util.Objects.requireNonNull(edit, "edit");
         Player p = online();
