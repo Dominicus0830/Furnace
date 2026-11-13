@@ -74,6 +74,12 @@ class RealWorldJars(@get:InputFiles @get:PathSensitive(PathSensitivity.NONE) val
         listOf("-Dfurnace.realworld.jars=" + jars.files.joinToString(File.pathSeparator) { it.absolutePath })
 }
 
+// T-075: 서버의 시험 소스(IdentityKit·장면 라이브러리) 클래스 — 호환 기준 장면이 같은 금 파일 장치를 쓴다.
+evaluationDependsOn(":furnace-server")
+val serverSources = project(":furnace-server").extensions.getByType<JavaPluginExtension>().sourceSets
+val serverTest: FileCollection = serverSources["test"].output
+val serverBench: FileCollection = serverSources["bench"].output
+
 dependencies {
     api(project(":furnace-api"))
     // 서버가 slf4j 를 싣고 있다 — 설명 파일 경고를 서버 로그로 보낸다
@@ -87,6 +93,8 @@ dependencies {
 
     // 시험은 실제 서버(헤드리스)에 플러그인 jar 를 올려 돌린다
     testImplementation(project(":furnace-server"))
+    // T-075: 호환 기준 장면은 서버의 시험 도우미(IdentityKit·장면 라이브러리 인터페이스)를 그대로 쓴다 — docs/testing/compat-scenes.md
+    testImplementation(serverTest)
     testImplementation(project(":furnace-test"))
     testImplementation("org.slf4j:slf4j-api:2.0.16")
     testImplementation("ch.qos.logback:logback-classic:1.5.12")   // H4: 서버 로그의 예외를 모아 플러그인 실패 원인을 읽는다
@@ -123,7 +131,53 @@ tasks.test {
     enableAssertions = true
     maxHeapSize = "2g"
     jvmArgumentProviders.add(RealWorldJars(realWorld))
+    // T-075: -Dfurnace.identity.bless=<금 파일 이름> 등 furnace.* 속성을 시험 JVM 에 넘긴다(서버 시험과 같다)
+    System.getProperties().forEach { k, v ->
+        if (k.toString().startsWith("furnace.")) systemProperty(k.toString(), v.toString())
+    }
 }
+
+// ===== 호환 기준 장면 벤치(T-075) =====
+// 서버의 bench 소스셋(furnace-server/build.gradle.kts)과 같은 모양: 벤치는 src/bench 에 두어 평소 `test` 에 안 들어간다(시험 요약에 "건너뜀"이 안 섞인다).
+// 서버 쪽 BenchReport(JSON 출력)·시험 도우미를 클래스패스로 받는다. 수동 실행(O15 결정 — 야간 벤치 미승인):
+//   ./gradlew -PskipOracle=true :furnace-compat-paper:compatSceneBench [--tests '*CompatSceneBench*'] [-Dfurnace.bench.scenes=compat-held-item,...]
+// 결과 JSON: furnace-compat-paper/build/bench/CompatScene-<장면>.json (docs/testing/compat-scenes.md)
+val mainSources = the<SourceSetContainer>()["main"]
+val testSources = the<SourceSetContainer>()["test"]
+val benchSources = the<SourceSetContainer>().create("bench") {
+    java.srcDir("src/bench/java")
+    val main = mainSources
+    val test = testSources
+    compileClasspath += main.output + test.output + test.compileClasspath + serverBench
+    runtimeClasspath += main.output + test.output + test.runtimeClasspath + serverBench
+}
+val benchCommit = providers.exec { commandLine("git", "rev-parse", "--short=12", "HEAD"); isIgnoreExitValue = true }
+    .standardOutput.asText.map { it.trim().ifEmpty { "unknown" } }.orElse("unknown")
+tasks.register<Test>("compatSceneBench") {
+    group = "verification"
+    description = "호환 기준 장면(T-075)을 FULL 크기로 돌려 시간을 잰다(수동 실행). 결과 JSON: build/bench/CompatScene-<장면>.json"
+    val bench = benchSources
+    testClassesDirs = bench.output.classesDirs
+    classpath = bench.runtimeClasspath
+    useJUnitPlatform()
+    enableAssertions = true
+    maxHeapSize = "3g"
+    minHeapSize = "3g"
+    jvmArgs("-XX:+UseG1GC", "-XX:+UnlockDiagnosticVMOptions", "-XX:+DebugNonSafepoints")
+    jvmArgumentProviders.add(RealWorldJars(realWorld))
+    testLogging { showStandardStreams = true }
+    outputs.upToDateWhen { false }
+    val outDir = layout.buildDirectory.dir("bench")
+    systemProperty("furnace.bench", "true")
+    systemProperty("furnace.bench.outDir", outDir.get().asFile.absolutePath)
+    systemProperty("furnace.bench.commit", benchCommit.get())
+    System.getProperties().forEach { k, v ->
+        if (k.toString().startsWith("furnace.")) systemProperty(k.toString(), v.toString())
+    }
+    doFirst { outDir.get().asFile.mkdirs() }
+}
+// 벤치 소스가 컴파일은 되게 한다(시험을 돌리면 같이 확인 — 벤치가 몰래 썩지 않게). 벤치를 돌리지는 않는다.
+tasks.test { dependsOn("compileBenchJava") }
 
 // 저장소에 넣지 않는 추가 jar(라이선스·크기): -PextraJars=<폴더 또는 jar 경로, 경로 구분자로 여러 개>. compatReport·liveProbe 에만 붙는다.
 // 시험(test)에는 붙지 않아 기준표 시험이 사용자 jar 때문에 흔들리지 않는다.
