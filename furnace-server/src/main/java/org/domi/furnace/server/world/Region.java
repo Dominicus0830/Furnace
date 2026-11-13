@@ -1174,6 +1174,8 @@ public final class Region {
                     col.clearDirty();
                 }
                 world.removeChunk(cx, cz);
+                // 이벤트 처리기 안의 조회·예약(scheduleTick 의 청크 있음 검사)이 내린 청크를 캐시로 보지 않게 먼저 비운다
+                if (level != null) level.chunkUnloaded();
                 world.levelServices().gameEvents().chunkUnload(world.dimension(), cx, cz);   // 플러그인 ChunkUnloadEvent
             }
             if (level != null) level.raids().park(cx, cz);   // 중심 청크가 내려간 습격은 저장소로
