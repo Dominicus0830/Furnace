@@ -23,6 +23,16 @@ public class ClientboundSetEntityMotionPacket implements Packet<ClientGamePacket
         this.za = (int) (clamp(motion.z) * 8000.0);
     }
 
+    /** 호환 모듈 전용(ProtocolLib 다리 2b-2): 와이어 값(1/8000 단위 정수) 그대로 — Furnace 가 보내는 패킷을 shim 으로 되돌릴 때 반올림이 끼지 않게. */
+    public static ClientboundSetEntityMotionPacket ofWire(int id, int xa, int ya, int za) { return new ClientboundSetEntityMotionPacket(id, xa, ya, za); }
+
+    private ClientboundSetEntityMotionPacket(int id, int xa, int ya, int za) {
+        this.id = id;
+        this.xa = xa;
+        this.ya = ya;
+        this.za = za;
+    }
+
     private static double clamp(double v) { return v < -3.9 ? -3.9 : Math.min(v, 3.9); }
 
     public int getId() { return id; }
@@ -34,5 +44,8 @@ public class ClientboundSetEntityMotionPacket implements Packet<ClientGamePacket
     public double getZa() { return za / 8000.0; }
 
     @Override
-    public ClientboundPacket toFurnace() { return new org.domi.furnace.api.packet.clientbound.ClientboundSetEntityMotionPacket(id, getXa(), getYa(), getZa()); }
+    public ClientboundPacket toFurnace() {
+        // 와이어는 short — 서버 코덱이 읽는 값과 같게(바닐라 writeShort 처럼 아래 16비트)
+        return new org.domi.furnace.api.packet.clientbound.ClientboundSetEntityMotionPacket(id, (short) xa / 8000.0, (short) ya / 8000.0, (short) za / 8000.0);
+    }
 }

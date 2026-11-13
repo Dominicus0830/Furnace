@@ -177,13 +177,18 @@ public class Evoker extends SpellcasterIllager {
     }
 
     class EvokerWololoSpellGoal extends SpellcasterUseSpellGoal {
+        private final TargetingConditions wololoTargeting =
+                TargetingConditions.forNonCombat().range(16.0).selector(t -> t instanceof Sheep sh && sh.getColor() == DyeColor.BLUE);
+
         @Override
         public boolean canUse() {
             if (getTarget() != null) return false;
             if (isCastingSpell()) return false;
             if (tickCount < nextAttackTickCount) return false;
             if (!level.gameRule("mobGriefing")) return false;
-            List<Sheep> list = level.getEntitiesOfClass(Sheep.class, boundingBox().inflate(16.0, 4.0, 16.0), s -> s.getColor() == DyeColor.BLUE);
+            // ServerLevel.getNearbyEntities(Sheep, wololoTargeting, this, 상자): 상자 안 양을 넣은 순서대로 조건(거리 16·시야·파란 양)으로 거른다.
+            List<Sheep> list = new java.util.ArrayList<>();
+            for (Sheep s : level.getEntitiesOfClass(Sheep.class, boundingBox().inflate(16.0, 4.0, 16.0), x -> true)) if (wololoTargeting.test(Evoker.this, s)) list.add(s);
             if (list.isEmpty()) return false;
             wololoTarget = list.get(random.nextInt(list.size()));
             return true;

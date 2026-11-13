@@ -20,6 +20,8 @@ public final class EntityStore {
     /** 구역 키 순서(inChunk 의 바닐라 순서용). 조회는 bySection(해시)으로 한다 — 같은 Section 을 가리킨다. */
     private final TreeMap<Long, Section> sections = new TreeMap<>();
     private final LongMap<Section> bySection = new LongMap<>();
+    /** 몹만(바닐라 ServerLevel.navigatingMobs — 추적 시작한 Mob 전부). 블록 충돌 모양이 바뀔 때 길 다시 찾기 후보를 훑는다. */
+    private final LinkedHashMap<Integer, Mob> mobs = new LinkedHashMap<>();
     /** 다음 순번(byId 의 넣은 순서와 같은 차례로 늘어난다 — orderAndDedupe 가 쓴다). */
     private long nextSeq;
     private long[] sortScratch = new long[0];
@@ -98,6 +100,7 @@ public final class EntityStore {
         if (prev != null && prev != e && prev.store == this) prev.store = null;
         e.store = this;
         byUuid.put(e.uuid(), e);
+        if (e instanceof Mob m) mobs.put(e.id(), m);
         sectionOrNew(e.sectionKey()).add(e);
         return true;
     }
@@ -107,6 +110,7 @@ public final class EntityStore {
         if (had == null) return false;
         if (had.store == this) had.store = null;
         byUuid.remove(e.uuid());
+        if (e instanceof Mob) mobs.remove(e.id());
         removeFromSection(e, e.sectionKey());
         return true;
     }
@@ -132,6 +136,9 @@ public final class EntityStore {
     public List<Entity> tickSnapshot() { return new ArrayList<>(byId.values()); }
 
     public Iterable<Entity> all() { return byId.values(); }
+
+    /** 이 레벨의 몹(넣은 순서, 바닐라 navigatingMobs). 훑는 동안 넣거나 빼면 안 된다. */
+    public java.util.Collection<Mob> mobs() { return mobs.values(); }
 
     /** 청크 열(cx, cz)의 구역 minSy..maxSy 에 든 엔티티를 훑는다(지워진 것 포함 — 부른 쪽이 거른다). 목록을 복사하지 않는다. */
     public void forEachInColumn(int cx, int cz, int minSy, int maxSy, Consumer<Entity> out) {
@@ -312,6 +319,7 @@ public final class EntityStore {
         }
         other.byId.clear();
         other.byUuid.clear();
+        other.mobs.clear();
         other.sections.clear();
         other.bySection.clear();
     }

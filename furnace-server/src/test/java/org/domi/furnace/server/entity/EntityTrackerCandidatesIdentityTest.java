@@ -36,8 +36,10 @@ class EntityTrackerCandidatesIdentityTest {
     }
 
     /** 장면 입력: 이 씨앗에서 장면 전체(엔티티·플레이어·조작 열)가 결정된다. */
-    record Scene(long seed, int entities, int players, int steps, int spread) {
-        String summary() { return "seed=" + Long.toHexString(seed) + " E=" + entities + " P=" + players + " steps=" + steps + " spread=" + spread; }
+    record Scene(long seed, int entities, int players, int steps, int spread, boolean listener) {
+        String summary() {
+            return "seed=" + Long.toHexString(seed) + " E=" + entities + " P=" + players + " steps=" + steps + " spread=" + spread + " listener=" + listener;
+        }
     }
 
     /** 보임 다시 보기를 어떤 길로. */
@@ -45,7 +47,13 @@ class EntityTrackerCandidatesIdentityTest {
 
     private static Scene scene(SplittableRandom r) {
         int spread = r.nextInt(4) == 0 ? 40 : 160 + r.nextInt(400);   // 가끔은 몰림(모두 시야 안)
-        return new Scene(r.nextLong(), 40 + r.nextInt(220), 2 + r.nextInt(6), 150 + r.nextInt(150), spread);
+        return new Scene(r.nextLong(), 40 + r.nextInt(220), 2 + r.nextInt(6), 150 + r.nextInt(150), spread, false);
+    }
+
+    /** 자동 길 시험용: 절반은 PlayerTrackEntityEvent 처리기가 가끔 켜지는 장면. */
+    private static Scene sceneWithListener(SplittableRandom r) {
+        Scene s = scene(r);
+        return new Scene(s.seed, s.entities, s.players, s.steps, s.spread, r.nextBoolean());
     }
 
     @Test
@@ -60,8 +68,8 @@ class EntityTrackerCandidatesIdentityTest {
 
     @Test
     void adaptivePlayerMovedMatchesFullScan() {
-        Differential.<Scene, List<String>>of("tracker-candidates-adaptive", EntityTrackerCandidatesIdentityTest::scene)
-                .seed(0x7017_0002L).iterations(15).describe(Scene::summary)
+        Differential.<Scene, List<String>>of("tracker-candidates-adaptive", EntityTrackerCandidatesIdentityTest::sceneWithListener)
+                .seed(0x7017_0002L).iterations(20).describe(Scene::summary)
                 .check(s -> run(s, Mode.FULL), s -> run(s, Mode.ADAPTIVE));
     }
 
@@ -138,6 +146,8 @@ class EntityTrackerCandidatesIdentityTest {
                 sim.mergeAndSplit(r.nextInt(40) - 20);
             } else if (op < 92) {   // 청크 받음 여부가 바뀜
                 epoch[0]++;
+                // 처리기 켜고 끄기(그 장면만): 켠 동안 판정 밖 길로 바뀐 seenBy 가 역색인에 남는지 — 끈 뒤 자동 길이 후보 길을 쓴다
+                if (s.listener) sim.trackListener = !sim.trackListener;
             } else if (op < 93) {   // 차원 이동(패킷 없이 잊음) — 같은 자리로 돌아온다
                 Player p = pick(r, players);
                 if (p != null) {
@@ -201,6 +211,8 @@ class EntityTrackerCandidatesIdentityTest {
         final int[] epoch;
         final Level[] levels = new Level[2];
         final Map<Player, Integer> membership = new IdentityHashMap<>();
+        /** 켜져 있으면 PlayerTrackEntityEvent 처리기가 있는 서버(자동 길은 전체 훑기로 간다). */
+        boolean trackListener;
         final List<Player> order = new ArrayList<>();   // 소속 목록 순서(넣은 순)
 
         Sim(Mode mode, int[] epoch) {
@@ -301,9 +313,33 @@ class EntityTrackerCandidatesIdentityTest {
         Level(Sim sim, int index) {
             this.sim = sim;
             this.index = index;
+            org.domi.furnace.server.plugin.GameEvents events = new org.domi.furnace.server.plugin.GameEvents() {
+                /** 플러그인 EntitySpawnEvent 처리기 흉내: id 가 7 의 배수인 엔티티를 멀리(다른 청크 열로) 옮긴다. */
+                @Override
+                public boolean entitySpawn(Entity e) {
+                    if (e.id() % 7 == 0) e.setPos(e.x() + 97.0, e.y(), e.z() - 61.0);
+                    return true;
+                }
+
+                @Override
+                public boolean wantsPlayerTrackEntity() { return sim.trackListener; }
+
+                /**
+                 * PlayerTrackEntityEvent 처리기 흉내(켜져 있을 때만): 판정 도중 월드를 바꾼다 — 다음 id 엔티티를 보는 사람 곁으로 옮기고,
+                 * 그 엔티티의 보임을 바로 다시 정한다(refreshViews — 판정 밖 길로 seenBy 가 바뀜).
+                 */
+                @Override
+                public void playerTrackEntity(Player viewer, Entity e) {
+                    if (!sim.trackListener || e.id() % 3 != 0) return;
+                    Entity next = Level.this.entities().get(e.id() + 1);
+                    if (next == null || next.isRemoved()) return;
+                    next.setPos(viewer.x() + 3.0, next.y(), viewer.z() - 2.0);
+                    Level.this.refreshViews(next, viewer, false);
+                }
+            };
             this.svc = new LevelServices.Delegating(LevelServices.DEFAULT) {
                 @Override
-                public org.domi.furnace.server.plugin.GameEvents gameEvents() { return MOVE_ON_SPAWN; }
+                public org.domi.furnace.server.plugin.GameEvents gameEvents() { return events; }
             };
         }
 
@@ -319,13 +355,4 @@ class EntityTrackerCandidatesIdentityTest {
         @Override
         protected LevelServices services() { return svc; }
     }
-
-    /** 플러그인 EntitySpawnEvent 처리기 흉내: id 가 7 의 배수인 엔티티를 멀리(다른 청크 열로) 옮긴다. */
-    private static final org.domi.furnace.server.plugin.GameEvents MOVE_ON_SPAWN = new org.domi.furnace.server.plugin.GameEvents() {
-        @Override
-        public boolean entitySpawn(Entity e) {
-            if (e.id() % 7 == 0) e.setPos(e.x() + 97.0, e.y(), e.z() - 61.0);
-            return true;
-        }
-    };
 }

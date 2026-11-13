@@ -358,7 +358,10 @@ public abstract class ChunkLevel implements BlockLevel {
         if (old < 0) return false;
         int now = getBlockState(pos);
         if (now == state) {
-            if ((flags & UPDATE_CLIENTS) != 0) markChanged(pos);
+            if ((flags & UPDATE_CLIENTS) != 0) {
+                markChanged(pos);
+                updateNavigations(pos, old, state);   // ServerLevel.sendBlockUpdated 의 길찾기 부분
+            }
             if ((flags & UPDATE_NEIGHBORS) != 0) {
                 blockUpdated(pos, blocks.blockOf(old));
                 if (BlockBehaviors.of(state).hasAnalogOutputSignal(state)) updateNeighbourForOutputSignal(pos, blocks.blockOf(state));
@@ -372,6 +375,43 @@ public abstract class ChunkLevel implements BlockLevel {
             poiManager.onBlockStateChange(pos, old, now);   // 바닐라 onBlockStateChange(server.execute 로 미루지 않고 바로)
         }
         return true;
+    }
+
+    /** ServerLevel.isUpdatingNavigations: 길 다시 찾기 도중 다시 들어오면 바닐라는 오류만 남기고 계속한다. */
+    private boolean updatingNavigations;
+
+    /**
+     * ServerLevel.sendBlockUpdated(pos, old, new, flags) 의 길찾기 부분: 충돌 모양(문맥 없음)이 바뀌었으면 navigatingMobs 마다
+     * shouldRecomputePath(pos) 인 길찾기를 모두 모은 뒤 차례로 recomputePath(). 같은 길찾기가 두 번 모이면(탈것을 조종하는 몹과 그 탈것 몹 —
+     * getNavigation 이 탈것 것을 준다) 두 번 부른다: 두 번째는 20틱 안이라 미룬 다시 찾기 표시만 남는다(바닐라 그대로).
+     * 바닐라처럼 모양을 먼저 비교한다 — 충돌 모양은 표의 공유 객체라 같은 모양이면 바로 끝나고(레드스톤 선 세기 변경 등), 몹 훑기는 모양이 바뀐 때만.
+     * 가정: 바닐라는 청크 단계가 BLOCK_TICKING 이상일 때만 sendBlockUpdated 를 부른다(Level.setBlock). Furnace 는 변경 방송(markChanged)과 같이
+     * 이 조건을 보지 않는다 — 보더 청크에서 블록이 바뀌는 드문 경우만 다르다.
+     */
+    private void updateNavigations(Pos pos, int old, int now) {
+        var mobs = entities.mobs();
+        if (mobs.isEmpty()) return;
+        Shape before = BlockBehaviors.of(old).getCollisionShape(old, this, pos, null);
+        Shape after = BlockBehaviors.of(now).getCollisionShape(now, this, pos, null);
+        if (!Shape.differs(before, after)) return;
+        java.util.ArrayList<org.domi.furnace.server.entity.ai.navigation.PathNavigation> list = null;
+        for (var mob : mobs) {
+            var nav = mob.getNavigation();
+            if (nav != null && nav.shouldRecomputePath(pos)) {
+                if (list == null) list = new java.util.ArrayList<>(4);
+                list.add(nav);
+            }
+        }
+        if (list == null) return;
+        if (updatingNavigations) {
+            org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error("recursive call to sendBlockUpdated", new IllegalStateException("recursive call to sendBlockUpdated"));
+        }
+        updatingNavigations = true;
+        try {
+            for (var nav : list) nav.recomputePath();
+        } finally {
+            updatingNavigations = false;
+        }
     }
 
     /** LevelChunk.setBlockState — 바뀌지 않았거나 onRemove 가 블록을 갈아 치웠으면 -1, 아니면 이전 상태. */
@@ -744,6 +784,15 @@ public abstract class ChunkLevel implements BlockLevel {
         absorbSeenIndex(other);
         raids.absorb(other.raids, this);
         torchToggles.absorb(other.torchToggles);
+        // 빛: 틱 사이에 놓인 블록의 미처리 검사와 방송 전 빛 변경은 합친 쪽이 이어받는다(안 옮기면 빛이 계산·방송되지 않는다)
+        if (other.lightEngine != null && other.lightEngine.hasWork()) other.lightEngine.moveChecksTo(lightEngine(), p -> true);
+        for (var e : other.lightChanges.entrySet()) {
+            long[] m = lightChanges.computeIfAbsent(e.getKey(), k -> new long[2]);
+            m[0] |= e.getValue()[0];
+            m[1] |= e.getValue()[1];
+        }
+        other.lightChanges.clear();
+        lightWorld.resetLast();
     }
 
     /** 청크 조건(청크 x, z)에 맞는 자료를 target 으로 옮긴다. target 은 이 레벨의 시계를 이어받는다. */
@@ -790,6 +839,22 @@ public abstract class ChunkLevel implements BlockLevel {
                 bit.remove();
             }
         }
+        // 빛: 청크가 target 쪽인 미처리 검사와 방송 전 빛 변경(키 = sx<<32 | sz)
+        if (lightEngine != null && lightEngine.hasWork()) {
+            lightEngine.moveChecksTo(target.lightEngine(),
+                    p -> inTarget.test(org.domi.furnace.server.light.LightEngine.px(p) >> 4, org.domi.furnace.server.light.LightEngine.pz(p) >> 4));
+        }
+        var lit = lightChanges.entrySet().iterator();
+        while (lit.hasNext()) {
+            var e = lit.next();
+            if (inTarget.test((int) (e.getKey() >> 32), (int) (long) e.getKey())) {
+                long[] m = target.lightChanges.computeIfAbsent(e.getKey(), k -> new long[2]);
+                m[0] |= e.getValue()[0];
+                m[1] |= e.getValue()[1];
+                lit.remove();
+            }
+        }
+        lightWorld.resetLast();   // 옮겨 비운 lightChanges 때문에 방송이 안 돌면 섹션 기억이 낡는다
     }
 
     /** 청크 좌표 조건. */
@@ -1794,12 +1859,12 @@ public abstract class ChunkLevel implements BlockLevel {
                 reason == org.domi.furnace.server.entity.spawn.SpawnReason.DISPENSER ? "DISPENSE_EGG" : "SPAWNER_EGG", stack, player) != null;
     }
 
-    /** EntityType.getYOffset: 칸 위에서 아래로 떨어뜨려 바닥에 맞출 높이(extendDown 이면 한 칸 아래까지). */
+    /** EntityType.getYOffset: 칸 위에서 아래로 떨어뜨려 바닥에 맞출 높이(extendDown 이면 한 칸 아래까지). 충돌은 getCollisions(null, 칸) — 단단한 엔티티 몸 포함. */
     public double snapOffset(Entity e, Pos pos, boolean extendDown) {
         e.setPos(pos.x() + 0.5, pos.y() + 1, pos.z() + 0.5);
         AABB box = new AABB(pos.x(), pos.y(), pos.z(), pos.x() + 1.0, pos.y() + 1.0, pos.z() + 1.0);
         if (extendDown) box = box.expandTowards(0.0, -1.0, 0.0);
-        return 1.0 + Entity.collideWithShapes(0.0, extendDown ? -2.0 : -1.0, 0.0, e.boundingBox(), blockCollisions(box))[1];
+        return 1.0 + Entity.collideWithShapes(0.0, extendDown ? -2.0 : -1.0, 0.0, e.boundingBox(), collisions(null, box))[1];
     }
 
     /**
@@ -1838,7 +1903,7 @@ public abstract class ChunkLevel implements BlockLevel {
         if (!(e instanceof org.domi.furnace.server.entity.Mob mob)) return null;
         mob.setPos(pos.x() + 0.5, pos.y() + 1, pos.z() + 0.5);
         AABB box = new AABB(pos.x(), pos.y(), pos.z(), pos.x() + 1.0, pos.y() + 1.0, pos.z() + 1.0);
-        double d0 = 1.0 + Entity.collideWithShapes(0.0, -1.0, 0.0, mob.boundingBox(), blockCollisions(box))[1];
+        double d0 = 1.0 + Entity.collideWithShapes(0.0, -1.0, 0.0, mob.boundingBox(), collisions(null, box))[1];   // getYOffset 과 같다
         mob.moveTo(pos.x() + 0.5, pos.y() + d0, pos.z() + 0.5, org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(random.nextFloat() * 360.0F), 0.0F);
         mob.setYHeadRot(mob.yRot());
         mob.setYBodyRot(mob.yRot());
@@ -2394,8 +2459,10 @@ public abstract class ChunkLevel implements BlockLevel {
         if (VERIFY_TRACK_CANDIDATES && !seenIndexCovers(p)) throw new AssertionError("추적 역색인에 빠진 엔티티가 있다: " + p);
         int n = entities.size();
         SeenList seen = seenIndex.get(p);
-        // 엔티티가 적거나, p 가 이미 절반 넘게 본다(몰림 — 후보가 거의 전부라 모으고 늘어놓는 값만 더 든다)면 전체 훑기
-        if (n < CANDIDATE_MIN_ENTITIES || seen != null && seen.size * 2 >= n || !playerMovedCandidates(p)) playerMovedFullScan(p);
+        // 엔티티가 적거나, p 가 이미 절반 넘게 본다(몰림 — 후보가 거의 전부라 모으고 늘어놓는 값만 더 든다)면 전체 훑기.
+        // 플러그인 PlayerTrackEntityEvent 처리기가 있으면 판정 도중 엔티티·플레이어를 옮길 수 있어(후보를 미리 못 정한다) 전체 훑기
+        if (n < CANDIDATE_MIN_ENTITIES || seen != null && seen.size * 2 >= n || gameEvents().wantsPlayerTrackEntity()
+                || !playerMovedCandidates(p)) playerMovedFullScan(p);
     }
 
     /**
@@ -2422,11 +2489,15 @@ public abstract class ChunkLevel implements BlockLevel {
         fresh.size = 0;   // 옛 칸은 덮어쓴다(전체를 도니 옛 목록은 필요 없다)
         boolean done = false;
         try {
+            passPlayer = p;
             for (Entity e : entities.all()) {
+                passEntity = e;
                 if (e.tracker != null && !e.isRemoved() && e.tracker.updatePlayer(p, viewers)) fresh.add(e);
             }
             done = true;
         } finally {
+            passPlayer = null;
+            passEntity = null;
             if (!done) {   // 도중 예외: 아직 안 본 것 중 p 를 보던 것도 빠짐없이
                 fresh.size = 0;
                 for (Entity e : entities.all()) if (e.tracker != null && e.tracker.isSeenBy(p)) fresh.add(e);
@@ -2462,12 +2533,16 @@ public abstract class ChunkLevel implements BlockLevel {
         Entity[] buf = candBuf;
         if (VERIFY_TRACK_CANDIDATES && !candidatesComplete(p, buf, n)) throw new AssertionError("추적 후보에 빠진 엔티티가 있다: " + p);
         int i = 0;
+        passPlayer = p;
         try {
             for (; i < n; i++) {
                 Entity e = buf[i];
+                passEntity = e;
                 if (e.tracker != null && !e.isRemoved() && e.tracker.updatePlayer(p, viewers)) fresh.add(e);
             }
         } finally {
+            passPlayer = null;
+            passEntity = null;
             // p 를 보는 엔티티는 모두 후보였다 — 도중 예외(i < n)면 남은 후보 중 보던 것도 올린다
             for (int j = i; j < n; j++) if (buf[j].tracker != null && buf[j].tracker.isSeenBy(p)) fresh.add(buf[j]);
             java.util.Arrays.fill(buf, 0, n, null);
@@ -2494,6 +2569,9 @@ public abstract class ChunkLevel implements BlockLevel {
 
     /** 플레이어 → 그 플레이어를 seenBy 에 넣은 이 레벨 엔티티(상위 집합 — 지금은 안 보거나 다른 레벨로 간 것이 섞일 수 있어 쓸 때 거른다). */
     private final java.util.IdentityHashMap<Player, SeenList> seenIndex = new java.util.IdentityHashMap<>();
+    /** 지금 판정 중인 (플레이어, 엔티티) — 그 쌍의 콜백은 판정 결과가 대신한다. */
+    private Player passPlayer;
+    private Entity passEntity;
     /** 이 레벨에 들어온 추적기 거리의 최댓값(블록). 줄지 않는다 — 후보 범위의 상한으로만 쓴다. */
     private int maxTrackRange;
 
@@ -2514,8 +2592,13 @@ public abstract class ChunkLevel implements BlockLevel {
         return l != null ? l : new SeenList();
     }
 
-    /** 판정이 만든 정확한 목록을 단다(비었으면 뺀다). 쓰지 않는 칸은 비워 엔티티를 붙잡지 않는다. */
+    /**
+     * 판정이 만든 목록을 단다(비었으면 뺀다). 판정 도중 다른 길(플러그인 처리기가 부른 refreshViews 등)로 p 를 보기 시작한 엔티티는
+     * noteSeen 이 임시 목록에 붙였으니 합친다(상위 집합이어도 된다). 쓰지 않는 칸은 비워 엔티티를 붙잡지 않는다.
+     */
     private void putSeenList(Player p, SeenList l) {
+        SeenList during = seenIndex.get(p);
+        if (during != null) for (int i = 0; i < during.size; i++) l.add(during.items[i]);
         int cap = l.items.length;
         if (cap > 64 && l.size * 4 < cap) l.items = java.util.Arrays.copyOf(l.items, Math.max(8, l.size * 2));
         else java.util.Arrays.fill(l.items, l.size, cap, null);
@@ -2526,6 +2609,7 @@ public abstract class ChunkLevel implements BlockLevel {
 
     /** p 가 e 를 보기 시작했다. 목록이 쌓이면(안 움직이는 플레이어 곁을 몹이 드나듦) 지금 보는 것만 남긴다. */
     private void noteSeen(Player p, Entity e) {
+        if (p == passPlayer && e == passEntity) return;   // 판정 중인 바로 그 쌍 — 판정이 결과로 올린다
         SeenList l = seenIndex.computeIfAbsent(p, k -> new SeenList());
         l.add(e);
         if (l.size >= l.compactAt) compactSeen(p, l);
@@ -2794,15 +2878,133 @@ public abstract class ChunkLevel implements BlockLevel {
         return false;
     }
 
-    /** noCollision(entity, box): 블록 충돌이 없는가(엔티티 충돌·월드 보더는 아직 없다). */
-    public boolean noCollision(AABB box) {
+    /** CollisionGetter.noCollision(box) = noCollision(null, box): 블록 충돌과 단단한 엔티티(배·셜커) 몸이 없는가. 월드 보더는 보지 않는다. */
+    public boolean noCollision(AABB box) { return noCollision(null, box); }
+
+    /** CollisionGetter.noCollision(self, box): 블록(self 문맥) → 엔티티(self.canCollideWith) → self 가 있으면 월드 보더(self 위치 기준). */
+    public boolean noCollision(org.domi.furnace.server.entity.Rider self, AABB box) {
+        return self == null ? noCollisionAt(null, 0.0, 0.0, box, true) : noCollisionAt(self, self.x(), self.z(), box, true);
+    }
+
+    /**
+     * noCollision(self, box) 이되 보더 가까움(isInsideCloseToBorder)을 self 의 지금 위치 대신 (sx, sz) 로 본다 — 바닐라가 self 를 이미 옮긴 뒤
+     * 부르는 곳(플레이어 이동 검증)에서 Furnace 는 옮기기 전에 계산하기 때문.
+     */
+    public boolean noCollision(org.domi.furnace.server.entity.Rider self, double sx, double sz, AABB box) {
+        return noCollisionAt(self, sx, sz, box, true);
+    }
+
+    /**
+     * 길찾기의 noCollision(mob, box): 바닐라는 PathNavigationRegion 위에서 부르고, 그 getEntityCollisions 는 언제나 빈 목록이다 —
+     * 블록(mob 문맥)과 월드 보더만 본다.
+     */
+    public boolean noCollisionIgnoringEntities(Entity self, AABB box) { return noCollisionAt(self, self.x(), self.z(), box, false); }
+
+    /**
+     * noCollision(플레이어, box) 를 Player 객체 없이: 탈것에 타지 않은 플레이어는 canCollideWith 가 canBeCollidedWith 와 같고 블록 문맥도 없으므로
+     * 엔티티 몫은 noCollision(null, box) 와 같다. 보더 가까움은 (sx, sz) 로 본다(스폰 자리 흩뿌리기).
+     */
+    public boolean noCollisionForUnmountedPlayer(double sx, double sz, AABB box) {
+        if (!noCollisionAt(null, 0.0, 0.0, box, true)) return false;
+        return borderClear(sx, sz, box);
+    }
+
+    private boolean noCollisionAt(org.domi.furnace.server.entity.Rider self, double sx, double sz, AABB box, boolean withEntities) {
+        if (!noBlockCollision(self instanceof Entity e ? e : null, box)) return false;
+        if (withEntities && !entityCollisions(self, box).isEmpty()) return false;
+        return self == null || borderClear(sx, sz, box);
+    }
+
+    private boolean borderClear(double sx, double sz, AABB box) {
+        Shape border = borderCollision(sx, sz, box);
+        // Shapes.joinIsNotEmpty(border, Shapes.create(box), AND) — 한 변이 1e-7 미만인 상자는 빈 모양이라 겹치지 않는다
+        return border == null || Shape.box(box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(), box.maxZ()).isEmpty()
+                || !border.overlaps(box, 0.0, 0.0, 0.0);
+    }
+
+    /** CollisionGetter.noBlockCollision(self, box): 블록 충돌 모양(self 가 있으면 그 문맥 — 가루눈 등)이 없는가. 엔티티·보더는 보지 않는다. */
+    public boolean noBlockCollision(Entity self, AABB box) {
         boolean[] hit = {false};
-        collectCollisions(box, (p, s) -> {
+        collectCollisions(box, self, (p, s) -> {
             hit[0] = true;
             return false;
         });
         return !hit[0];
     }
+
+    /** CollisionGetter.getCollisions(self, box): 엔티티 충돌 모양 다음 블록 충돌 모양(보더 없음). */
+    public java.util.List<Shape> collisions(org.domi.furnace.server.entity.Rider self, AABB box) {
+        java.util.List<Shape> ents = entityCollisions(self, box);
+        java.util.List<Shape> blocks = blockCollisions(self instanceof Entity e ? e : null, box);
+        if (ents.isEmpty()) return blocks;
+        java.util.List<Shape> out = new java.util.ArrayList<>(ents.size() + blocks.size());
+        out.addAll(ents);
+        out.addAll(blocks);
+        return out;
+    }
+
+    /**
+     * EntityGetter.getEntityCollisions(self, box): 상자 크기(세 변 평균)가 1e-7 미만이면 빈 목록. 아니면 1e-7 넓힌 상자와 겹치는 관전자 아닌 엔티티 중
+     * self 가 없으면 canBeCollidedWith, 있으면 self.canCollideWith(그것)인 것의 몸 모양(Shapes.create — 빈 모양도 목록에 든다).
+     * 순서는 바닐라 getEntities 의 구역 순·넣은 순이고, 플레이어(배·수레만 부딪힌다)는 Furnace 에서 따로 들고 있어 엔티티 뒤에 온다.
+     * self 가 상대의 canBeCollidedWith 만 보는 경우(배·수레 말고 전부)는 HardCollider 구역 목록만 훑는다(같은 결과·같은 순서).
+     */
+    public java.util.List<Shape> entityCollisions(org.domi.furnace.server.entity.Rider self, AABB box) {
+        if (box.size() < 1.0E-7) return java.util.List.of();
+        AABB q = box.inflate(1.0E-7);
+        Entity selfEntity = self instanceof Entity e ? e : null;
+        boolean hardOnly = selfEntity == null || selfEntity.collidesOnlyWithHardColliders();
+        java.util.List<Shape> out = new java.util.ArrayList<>(2);
+        if (!entities.isEmpty()) {
+            java.util.function.Predicate<Entity> ok = e -> e != self && !e.isSpectator() && canCollide(self, e);
+            var found = hardOnly ? entities.getEntitiesOfType(org.domi.furnace.server.entity.HardCollider.class, q, ok)
+                    : entities.getEntities(selfEntity, q, ok);
+            for (Entity e : found) {
+                AABB b = e.boundingBox();
+                out.add(Shape.box(b.minX(), b.minY(), b.minZ(), b.maxX(), b.maxY(), b.maxZ()));
+            }
+        }
+        if (!hardOnly) {
+            forEachPlayerIn(q, p -> {
+                if (p != self && !p.isSpectator() && selfEntity.canCollideWithPlayer(p)) {
+                    AABB b = p.boundingBox();
+                    out.add(Shape.box(b.minX(), b.minY(), b.minZ(), b.maxX(), b.maxY(), b.maxZ()));
+                }
+            });
+        }
+        return out.isEmpty() ? java.util.List.of() : out;
+    }
+
+    /** self.canCollideWith(e): self 없음 = canBeCollidedWith, 엔티티 = 그 덮어쓰기, 플레이어 = Entity 기본(단단하고 같은 탈것 무리가 아님). */
+    private static boolean canCollide(org.domi.furnace.server.entity.Rider self, Entity e) {
+        if (self == null) return e.canBeCollidedWith();
+        if (self instanceof Entity s) return s.canCollideWith(e);
+        return e.canBeCollidedWith() && !e.isPassengerOfSameVehicle(self);
+    }
+
+    /** 마지막 보더 모양과 그 정수 경계. 여러 region 스레드가 읽으므로 한 객체로 바꿔 끼운다. */
+    private record BorderShapeMemo(double x0, double z0, double x1, double z1, Shape shape) {}
+    private volatile BorderShapeMemo borderShapeMemo;
+
+    /**
+     * CollisionGetter.borderCollision → WorldBorder.isInsideCloseToBorder(self, box): d = max(|가로 길이|, |세로 길이|, 1) 일 때
+     * self 위치 (sx, sz)가 보더까지 2d 미만이고 보더를 d 만큼 넓힌 안이면 보더 바깥 모양(정수로 넓힌 보더 기둥 밖), 아니면 null.
+     */
+    public Shape borderCollision(double sx, double sz, AABB box) {
+        double[] b = borderBounds();
+        double d = Math.max(Math.max(Math.abs(box.getXsize()), Math.abs(box.getZsize())), 1.0);
+        double dist = Math.min(Math.min(Math.min(sx - b[0], b[2] - sx), sz - b[1]), b[3] - sz);
+        if (!(dist < d * 2.0) || !(sx >= b[0] - d && sx < b[2] + d && sz >= b[1] - d && sz < b[3] + d)) return null;
+        double x0 = Math.floor(b[0]), z0 = Math.floor(b[1]), x1 = Math.ceil(b[2]), z1 = Math.ceil(b[3]);
+        BorderShapeMemo m = borderShapeMemo;
+        // -0.0 과 0.0 을 가른다(Math.ceil(-0.3) = -0.0 이 모양 좌표에 그대로 남아 collide 결과의 부호가 된다).
+        if (m == null || !same(m.x0, x0) || !same(m.z0, z0) || !same(m.x1, x1) || !same(m.z1, z1)) {
+            borderShapeMemo = m = new BorderShapeMemo(x0, z0, x1, z1, Shape.outsideBorder(x0, z0, x1, z1));
+        }
+        return m.shape;
+    }
+
+    private static boolean same(double a, double b) { return Double.doubleToRawLongBits(a) == Double.doubleToRawLongBits(b); }
 
     /** findSupportingBlock(entity, box): 겹치는 충돌 블록 중 엔티티 위치에서 가운데가 가장 가까운 것(같으면 compareTo 가 큰 쪽). */
     public Pos findSupportingBlock(AABB box, double ex, double ey, double ez) { return findSupportingBlock(null, box, ex, ey, ez); }

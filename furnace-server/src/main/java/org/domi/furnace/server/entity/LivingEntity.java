@@ -650,7 +650,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     @Override public int id() { return super.id(); }
 
-    @Override public boolean canBeSeenAsEnemy() { return !isInvulnerable() && isAlive(); }
+    @Override public boolean canBeSeenAsEnemy() { return !isInvulnerable() && canBeSeenByAnyone(); }
 
     /** getVisibilityPercent: 웅크림 ×0.8, 투명 ×0.7×방어구 가림, 같은 종류 머리 아이템 ×0.5. */
     @Override
@@ -1678,7 +1678,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
             }
             if (found) {
                 teleportTo(nx, d3, nz);
-                if (level.noCollision(boundingBox()) && !level.containsAnyLiquid(boundingBox())) ok = true;
+                if (level.noCollision(this, boundingBox()) && !level.containsAnyLiquid(boundingBox())) ok = true;
             }
         }
         if (!ok) {
@@ -1774,7 +1774,11 @@ public abstract class LivingEntity extends Entity implements Targetable {
         return new double[] {mx, my, mz};
     }
 
-    private boolean isFree(double dx, double dy, double dz) { return level.noCollision(boundingBox().move(dx, dy, dz)); }
+    /** Entity.isFree(dx, dy, dz): 옮긴 상자에 충돌(블록·엔티티·보더)이 없고 액체도 없다. */
+    private boolean isFree(double dx, double dy, double dz) {
+        AABB b = boundingBox().move(dx, dy, dz);
+        return level.noCollision(this, b) && !level.containsAnyLiquid(b);
+    }
 
     /** Entity.moveRelative(speed, input): 입력을 바라보는 방향으로 돌려 속도에 더한다(길이가 1을 넘으면 정규화). */
     public void moveRelative(float speed, float ix, float iy, float iz) {

@@ -172,13 +172,24 @@ class MinecartTest {
     void movingCartPicksUpMobsAndActivatorEjects() {
         var level = floor();
         for (int x = -6; x <= 6; x++) rail(level, new Pos(x, -60, 0), "minecraft:rail", "east_west");
-        Minecart m = cart(level, -2.5, Y + 0.0625, 0.5);
+        Minecart m = cart(level, -2.5, Y + 0.0625, 0.5);   // 오른쪽 면 -2.01, 한 틱에 0.2 → -1.81
         Zombie z = new Zombie(level, level.nextEntityId());
-        z.moveTo(-1.6, -60, 0.5, 0, 0);
+        z.moveTo(-1.4, -60, 0.5, 0, 0);                     // 왼쪽 면 -1.7: 부딪히지 않고 0.2 넓힌 줍기 상자 안
         level.addFreshEntity(z);
         m.setDeltaMovement(0.2, 0.0, 0.0);
         tick(m);
         assertSame(m, z.vehicle(), "가로 속도² > 0.01 이면 닿은 몹을 태운다");
+        // 수레는 밀 수 있는 몹과 부딪힌다(canVehicleCollide): 이번 이동 안에 몸이 닿으면 move 가 가로 속도를 0 으로 만들어 그 틱에는 못 태운다
+        var levelB = floor();
+        for (int x = -6; x <= 6; x++) rail(levelB, new Pos(x, -60, 0), "minecraft:rail", "east_west");
+        Minecart mb = cart(levelB, -2.5, Y + 0.0625, 0.5);
+        Zombie zb = new Zombie(levelB, levelB.nextEntityId());
+        zb.moveTo(-1.6, -60, 0.5, 0, 0);                    // 왼쪽 면 -1.9 < -1.81
+        levelB.addFreshEntity(zb);
+        mb.setDeltaMovement(0.2, 0.0, 0.0);
+        tick(mb);
+        assertEquals(-1.9 - 0.49, mb.x(), 1.0E-6, "좀비 왼쪽 면에서 멈춘다");
+        assertNull(zb.vehicle());
         // 켜진 활성화 레일: 승객을 내리고 흔들린다
         var level2 = floor();
         level2.setBlock(new Pos(0, -61, 0), B.defaultState("minecraft:redstone_block"), 3);
