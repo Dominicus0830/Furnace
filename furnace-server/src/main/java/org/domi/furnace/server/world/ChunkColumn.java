@@ -242,6 +242,7 @@ public final class ChunkColumn {
         if (sharedSections != null) for (int i = 0; i < sectionCount; i++) ownSection(i);
     }
 
+    /** 구역 배열 원본. 원소를 읽고 구역에 쓰는 것은 되지만 원소 대입은 금지 — 교체는 replaceSection 만(무작위 틱 마스크 주인, T-053). */
     public ChunkSection[] sections() {
         ownAllSections();
         return sections;

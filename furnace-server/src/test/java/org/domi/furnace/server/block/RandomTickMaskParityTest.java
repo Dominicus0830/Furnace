@@ -69,7 +69,10 @@ class RandomTickMaskParityTest {
     }
 
     /** 장면을 만들고 틱을 돌린 뒤 결과 지문(청크 -1..1 블록 해시들, 레벨 난수 다음 값, randValue). */
-    private static List<Long> play(Scene sc, SectionLoop loop) throws Exception {
+    private static List<Long> play(Scene sc, SectionLoop loop) throws Exception { return play(sc, loop, false); }
+
+    /** freeze: 틱마다 일부 컬럼을 빛 작업처럼 얼린다(T-064) — 그동안 무작위 틱의 쓰기는 replaceSection 복사본으로 간다(PR #309 검토 R1). */
+    private static List<Long> play(Scene sc, SectionLoop loop, boolean freeze) throws Exception {
         BlockPlacementTest.TestLevel level = new BlockPlacementTest.TestLevel();
         seedLevel(level, sc.seed);
         SplittableRandom r = new SplittableRandom(sc.seed);
@@ -86,7 +89,13 @@ class RandomTickMaskParityTest {
             int x = r.nextInt(32), z = r.nextInt(16), y = -64 + r.nextInt(6 * 16);
             level.setBlock(new Pos(x, y, z), ticking[r.nextInt(ticking.length)], 2 | 16);
         }
+        SplittableRandom fr = new SplittableRandom(~sc.seed);
+        List<ChunkColumn.LightBlocks> frozen = new ArrayList<>();
         for (int t = 0; t < sc.ticks; t++) {
+            if (freeze) {
+                if (fr.nextInt(3) == 0) { for (var lb : frozen) lb.thaw(); frozen.clear(); }
+                for (int cx = -1; cx <= 2; cx++) if (fr.nextBoolean()) frozen.add(level.column(cx, 0).freezeForLight());
+            }
             for (int cx = 0; cx < 2; cx++) loop.run(level, level.column(cx, 0), cx << 4, 0, sc.speed);
             for (int e = 0; e < sc.editsPerTick; e++) {   // 틱 사이 블록 바꾸기: 무작위 틱 상태를 놓거나 지운다(비트 켜짐·꺼짐)
                 int x = r.nextInt(32), z = r.nextInt(16), y = -64 + r.nextInt(6 * 16);
@@ -114,6 +123,18 @@ class RandomTickMaskParityTest {
     @Test
     void maskedLoopMatchesLegacyLoop() {
         diff().check(sc -> play(sc, LegacyRandomTickSections::run), sc -> play(sc, ChunkLevel::randomTickSections));
+    }
+
+    /** 새 루프 + 얼린 구역(빛 작업) == 옛 루프 + 얼리지 않음 — 얼림은 블록 결과를 바꾸지 않는다. 얼린 구역 복사가 replaceSection 을 안 거치면 잡힌다. */
+    @Test
+    void maskedLoopWithFrozenSectionsMatchesLegacy() {
+        diff().check(sc -> play(sc, LegacyRandomTickSections::run, false), sc -> play(sc, ChunkLevel::randomTickSections, true));
+    }
+
+    /** 새 루프 + 얼린 구역 == 옛 루프 + 얼린 구역. */
+    @Test
+    void maskedLoopWithFrozenSectionsMatchesLegacyFrozen() {
+        diff().check(sc -> play(sc, LegacyRandomTickSections::run, true), sc -> play(sc, ChunkLevel::randomTickSections, true));
     }
 
     /** 변이: 틱 머리에 마스크를 굳혀 쓴다(같은 틱에 위 구역으로 자란 사탕수수 구역을 그 틱에 못 돌림). */

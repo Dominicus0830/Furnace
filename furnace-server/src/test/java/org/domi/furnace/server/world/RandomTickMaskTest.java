@@ -1,5 +1,5 @@
 // T-053: 컬럼의 무작위 틱 구역 마스크가 모든 쓰기 경로(컬럼 setBlock·생성 블록·구역 직접 쓰기·디스크 적재 두 꼴·scratch+compact·
-// 생성 결과 통째 넣기·copy·cowCopy)를 섞어도 "무작위 틱 받는 구역을 놓치지 않는다". 매 연산 뒤 마스크로 훑은 구역 집합이
+// 생성 결과 통째 넣기·copy·cowCopy·빛 작업 얼림/녹임)를 섞어도 "무작위 틱 받는 구역을 놓치지 않는다". 매 연산 뒤 마스크로 훑은 구역 집합이
 // 4096칸 전수(브루트)로 센 집합과 같아야 하고, randomTickMaskCovers(-ea 단언과 같은 검사)가 참이어야 한다.
 package org.domi.furnace.server.world;
 
@@ -50,7 +50,7 @@ class RandomTickMaskTest {
         int n = 20 + r.nextInt(60);
         for (int i = 0; i < n; i++) {
             int k = r.nextInt(100);
-            int kind = k < 30 ? 0 : k < 40 ? 1 : k < 55 ? 2 : k < 62 ? 3 : k < 68 ? 4 : k < 74 ? 5 : k < 78 ? 6 : k < 84 ? 7 : k < 97 ? 8 : 9;
+            int kind = r.nextInt(100) < 15 ? (r.nextBoolean() ? 10 : 11) : k < 30 ? 0 : k < 40 ? 1 : k < 55 ? 2 : k < 62 ? 3 : k < 68 ? 4 : k < 74 ? 5 : k < 78 ? 6 : k < 84 ? 7 : k < 97 ? 8 : 9;
             ops.add(new Op(kind, r.nextLong()));
         }
         return new Input(tall, ops);
@@ -72,7 +72,16 @@ class RandomTickMaskTest {
         return f;
     }
 
+    /** 빛 작업(T-064)이 쥐고 있는 얼린 구역 묶음 — 그 사이 컬럼 쓰기는 replaceSection 복사본으로 간다(PR #309 검토 R1). 시험 스레드 하나만 쓴다. */
+    private static final List<ChunkColumn.LightBlocks> FROZEN = new ArrayList<>();
+
+    private static void thawAll() {
+        for (ChunkColumn.LightBlocks lb : FROZEN) lb.thaw();
+        FROZEN.clear();
+    }
+
     private static ChunkColumn fresh(boolean tall) {
+        thawAll();
         return tall ? new ChunkColumn(0, 15, 7, -64, 70) : new ChunkColumn(0, 15, 7, ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT);
     }
 
@@ -84,7 +93,10 @@ class RandomTickMaskTest {
         switch (op.kind) {
             case 0 -> col.setBlock(x, y, z, state(r, true));
             case 1 -> col.setGeneratedBlock(x, y, z, state(r, true));
-            case 2 -> col.sections()[r.nextInt(secs)].setBlock(x, r.nextInt(16), z, state(r, true));   // 배열을 받아 구역에 직접 쓰는 바깥 경로
+            case 2 -> {   // 배열을 받아 구역에 직접 쓰는 바깥 경로(얼린 구역에는 운영 코드도 직접 쓰지 않는다 — 단언)
+                ChunkSection cs = col.sections()[r.nextInt(secs)];
+                if (!cs.lightFrozen) cs.setBlock(x, r.nextInt(16), z, state(r, true));
+            }
             case 3 -> col.loadSectionBlocks(r.nextInt(secs), flat(r));
             case 4 -> {
                 int[] f = flat(r);
@@ -112,6 +124,8 @@ class RandomTickMaskTest {
                 for (int s = 0; s < secs; s++) if (r.nextInt(4) == 0) System.arraycopy(flat(r), 0, blocks, s * 4096, 4096);
                 col.loadGenerated(blocks, biomes);
             }
+            case 10 -> FROZEN.add(col.freezeForLight());
+            case 11 -> thawAll();
             default -> throw new IllegalStateException();
         }
         return col;
@@ -152,6 +166,7 @@ class RandomTickMaskTest {
             col = apply(col, op);
             out.add(probe.apply(col));
         }
+        thawAll();
         return out;
     }
 
