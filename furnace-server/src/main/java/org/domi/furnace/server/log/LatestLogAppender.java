@@ -34,8 +34,8 @@ public class LatestLogAppender extends FileAppender<ILoggingEvent> {
     @Override
     public void start() {
         Path latest = Path.of(getFile());
+        recoverPending(latest);
         try {
-            recoverPending(latest);
             if (Files.exists(latest) && Files.size(latest) > 0) {
                 LocalDate day = LocalDate.ofInstant(Files.getLastModifiedTime(latest).toInstant(), ZoneId.systemDefault());
                 archive(latest, day);
@@ -69,20 +69,28 @@ public class LatestLogAppender extends FileAppender<ILoggingEvent> {
     @Override
     protected void subAppend(ILoggingEvent event) {
         LocalDate day = LocalDate.ofInstant(Instant.ofEpochMilli(event.getTimeStamp()), ZoneId.systemDefault());
-        if (!day.equals(currentDay)) {
+        // 늦게 도착한 전날 이벤트가 롤오버를 거꾸로 돌리지 않게 날짜가 앞으로 갈 때만 넘긴다(바닐라와 같음).
+        if (day.isAfter(currentDay)) {
             streamWriteLock.lock();
             try {
-                if (!day.equals(currentDay)) {
+                if (isStarted() && day.isAfter(currentDay)) {
                     LocalDate prev = currentDay;
                     currentDay = day;
                     closeOutputStream();
                     try {
                         // 락 안에서는 이름 고르기·이름 바꾸기·새 파일 열기만 한다(빠름). gzip 은 락 밖에서.
                         Path pending = prepare(Path.of(getFile()), prev);
+                        compressor.execute(() -> compressQuietly(pending));
                         openFile(getFile());
-                        if (pending != null) compressor.execute(() -> compressQuietly(pending));
                     } catch (IOException e) {
                         addError("날짜 변경 로그 롤링 실패", e);
+                        // 이름 바꾸기가 실패했으면 기존 파일에 이어 쓴다(스트림을 못 열면 이후 로그가 전부 사라진다).
+                        try {
+                            setAppend(true);
+                            openFile(getFile());
+                        } catch (IOException e2) {
+                            addError("latest.log 다시 열기 실패", e2);
+                        }
                     }
                 }
             } finally {
@@ -95,7 +103,7 @@ public class LatestLogAppender extends FileAppender<ILoggingEvent> {
     /** dir/<day>-<i>.log.gz 로 압축(i = 그날 기존 최대 번호 + 1, 1..1000). */
     static Path archive(Path latest, LocalDate day) throws IOException {
         Path pending = prepare(latest, day);
-        return pending == null ? null : compress(pending);
+        return compress(pending);
     }
 
     /**
@@ -135,13 +143,20 @@ public class LatestLogAppender extends FileAppender<ILoggingEvent> {
     }
 
     /** 이전 실행이 압축 도중 끝났다면 남은 .pending 을 마저 압축한다. */
-    private static void recoverPending(Path latest) throws IOException {
+    private void recoverPending(Path latest) {
         Path dir = latest.toAbsolutePath().getParent();
         if (dir == null || !Files.isDirectory(dir)) return;
         try (var s = Files.list(dir)) {
             for (Path f : (Iterable<Path>) s::iterator) {
-                if (f.getFileName().toString().endsWith(".log.gz" + PENDING)) compress(f);
+                if (!f.getFileName().toString().endsWith(".log.gz" + PENDING)) continue;
+                try {
+                    compress(f);
+                } catch (IOException e) { // 하나가 실패해도 latest.log 보관을 막지 않는다
+                    addError("남은 로그 압축 실패: " + f, e);
+                }
             }
+        } catch (IOException e) {
+            addError("남은 로그 압축 목록 읽기 실패", e);
         }
     }
 
