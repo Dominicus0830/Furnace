@@ -28,7 +28,7 @@
 PROOF 크기는 위 표의 앞 숫자, FULL 은 괄호. 금 파일의 `...count`·`heads=`·`employed=` 같은 **텍스트 줄**은 사람이 읽는 보조 표시이면서 "장면이 비어 있지 않다"는 확인이다(해시 줄만 있으면 아무것도 안 하는 장면도 통과한다).
 
 ### 변이 점검(이 PR 에서 확인함)
-운영 코드를 일부러 틀리게 고쳤을 때 해당 장면의 금 파일 시험이 실패하는지 봤다(고친 뒤 되돌림): 피스톤 최대 12→11 → `piston`, 물 틱 지연 5→6 → `fluid`, TNT 중력 0.04→0.05 → `explosion`, `OreFeature` 크기 +1 → `shared-pipeline`(`noise-quick` 은 통과 — 장식 전이라), 좀비 속도 0.23→0.24 → `chase`·`mobs`·`farm`·`explosion`, 주민 일터 접근 반경 9→6 → `village`.
+운영 코드를 일부러 틀리게 고쳤을 때 해당 장면의 금 파일 시험이 실패하는지 봤다(고친 뒤 되돌림): 피스톤 최대 12→11 → `piston`, 피스톤 이동 진행 +0.5→+0.34(2틱→3틱) → `piston`(틱마다 섞는 `trace` 줄 덕분 — 점검 시점만 보면 이동이 끝난 뒤라 놓쳤다), 물 틱 지연 5→6(`Fluids.tickDelay`) → `fluid`·`explosion`(땅에 물이 있다), TNT 중력 0.04→0.05 → `explosion`, `OreFeature` 크기 +1 → `shared-pipeline`(`noise-quick` 은 통과 — 장식 전이라), 좀비 속도 0.23→0.24 → `chase`·`mobs`·`farm`·`explosion`, 주민 일터 접근 반경 9→6 → `village`.
 
 ## 새 장면 더하기
 
@@ -38,6 +38,10 @@ PROOF 크기는 위 표의 앞 숫자, FULL 은 괄호. 금 파일의 `...count`
 4. 변이 점검 한 번: 그 장면이 의존하는 운영 코드를 일부러 틀려 시험이 실패하는지 확인.
 
 ## 규칙·한계
+
+- **난수:** `SceneLevel` 은 레벨 난수(`random`)를 이름에서 파생한 값으로 고정한다(씨앗 켜짐 여부와 무관). `soundRandom`·`randValue` 는 `ChunkLevel` 안에 private 이라 못 고정한다 — 무작위 틱·소리를 결과에 쓰는 장면은 새 JVM 모드(씨앗 켜짐)로 둔다.
+- **점검이 시뮬레이션의 일부일 수 있다:** `fluid` 는 점검마다 레벨 난수를 한 번 쓰므로 `checkEvery` 를 바꾸면 이후 줄이 모두 달라진다(장면 정의에 든다).
+- **틱마다 봐야 하는 상태는 `afterTick(t)` 로 누적 해시에 섞는다**(`piston` 의 `trace`). 점검 간격이 길면 이동 중 상태를 못 본다.
 
 - **엔티티가 들었으면 `freshJvm() = true`.** 엔티티 id 카운터(`ChunkLevel.FALLBACK_IDS`)·정적 난수가 JVM 전역이라 같은 JVM 두 번째 실행이 달라진다. 새 JVM 에서 `-Dfurnace.test.seeded=true` 로 돈다(IdentityKit). 블록만 다루는 장면만 같은 JVM.
 - **region 하나, 시험 스레드가 직접 틱** — `SceneLevel` 은 예약 틱 → 블록 이벤트 → 엔티티(사라짐 검사 포함) → 블록 엔티티 → 빛 순으로 돈다. 자연 스폰·추적기·네트워크·여러 region 스레드·구역 합치기는 안 돈다(그쪽은 `RegionTickBench`·`MultiDimensionTickBench`). 무작위 틱이 필요한 장면(`farm`)은 직접 `tickChunk` 를 부른다.

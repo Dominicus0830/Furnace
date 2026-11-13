@@ -2,6 +2,9 @@
 // region·스케줄러·네트워크 없이 단일 스레드로 틱을 돌린다 — 장면 해시의 결정성을 위해서다(여러 region 스레드 순서는 비결정, O15 3.1절).
 // tick() 은 바닐라 ServerLevel.tick 순서를 따른다: 예약 틱 → (무작위 틱 없음) → 블록 이벤트 → 엔티티 → 블록 엔티티 → 빛. 무작위 틱·자연 스폰은
 // 장면이 자기 방식(setRandomTickSpeed 대신 직접 tickChunk)으로 부른다.
+// 난수: 레벨 난수(random)는 시험 JVM 의 씨앗 켜짐 여부와 무관하게 이름에서 파생한 값으로 고정한다(같은 JVM 모드 장면도 결정적이게).
+// soundRandom(소리 씨앗, 방송은 버려진다)·randValue(무작위 칸 고르기, tickChunk 만 쓴다)는 ChunkLevel 안에 private 이라 못 고정한다 —
+// 그것을 결과에 쓰는 장면(무작위 틱·소리 해시)은 새 JVM 모드(씨앗 켜짐)로 둬야 한다. 같은 JVM 장면(fluid·piston·shared-pipeline)은 쓰지 않는다.
 package org.domi.furnace.server.scene;
 
 import java.util.ArrayList;
@@ -10,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import org.domi.furnace.server.block.ChunkLevel;
+import org.domi.furnace.server.block.LegacyRandomSource;
 import org.domi.furnace.server.block.LevelServices;
 import org.domi.furnace.server.block.RandomSeeds;
 import org.domi.furnace.server.entity.Player;
@@ -27,9 +31,14 @@ public class SceneLevel extends ChunkLevel {
     public final List<Player> players = new ArrayList<>();
     public long gameTime, dayTime;
 
-    /** name: 난수열 열쇠(같은 이름이면 시험 JVM 에서 같은 난수열). radius: 청크 반지름(이 밖은 로드되지 않은 칸). */
+    /** name: 난수열 열쇠(같은 이름이면 같은 레벨 난수열). radius: 청크 반지름(이 밖은 로드되지 않은 칸). */
     public SceneLevel(String name, int radius) {
-        super(1000000, RandomSeeds.key("scene:" + name));
+        this(name, radius, RandomSeeds.key("scene:" + name));
+    }
+
+    private SceneLevel(String name, int radius, long ownerKey) {
+        super(1000000, ownerKey);
+        ((LegacyRandomSource) random()).setSeed(RandomSeeds.derive(ownerKey, RandomSeeds.Purpose.LEVEL));
         this.radius = radius;
         this.services = new LevelServices.Delegating(LevelServices.DEFAULT) {
             @Override public long gameTime() { return gameTime; }

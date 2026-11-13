@@ -1,5 +1,5 @@
 // 노이즈 결과 동일 장면(NoiseIdentityBench 에서 뗀 장면 부분, T-003): 설정 목록·위치·청크/라우터 해시·record 장면.
-// 시험 소스에 있어 평소 시험(NoiseIdentityGoldenTest, scene.NoiseQuickScene)과 bench 의 NoiseIdentityBench(전체 판·시간)가 함께 쓴다.
+// 시험 소스에 있어 평소 시험(SceneLibraryTest 의 noise-quick = scene.NoiseQuickScene)과 bench 의 NoiseIdentityBench(전체 판·시간)가 함께 쓴다.
 // 줄 형식은 금 파일 identity/worldgen-noise-{quick,full}.txt 와 같아야 한다 — 이 파일을 고칠 때는 줄이 그대로인지 두 금 파일로 확인한다.
 package org.domi.furnace.server.world.gen;
 
@@ -107,7 +107,7 @@ public final class NoiseIdentityScene {
 
     /**
      * 동일성 장면: 설정마다 라우터 해시, 위치마다 원시 청크 해시, 일부 설정은 이어진 5×5 를 3 스레드로.
-     * full=false 는 CI 용 짧은 부분집합(설정 7개 × 라우터 + 청크 두 곳, 동시 생성 없음) — NoiseIdentityGoldenTest.
+     * full=false 는 CI 용 짧은 부분집합(설정 7개 × 라우터 + 청크 두 곳, 동시 생성 없음) — noise-quick 장면(SceneLibraryTest).
      * 시간은 대부분 오버월드 계열 소스마다 첫 청크(지연 초기화, 1.2~2.4초)라 설정 수를 줄였다 — 소스 만들기 자체는 합쳐 약 1.6초
      * (PR #290 검토 R5 측정). 29개 전부면 두 번 돌려 약 54초(4코어).
      */

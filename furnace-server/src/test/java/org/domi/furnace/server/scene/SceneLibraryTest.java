@@ -12,13 +12,15 @@ import org.domi.furnace.server.NoRetry;
 import org.domi.furnace.server.identity.Golden;
 import org.domi.furnace.server.identity.SceneHash;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 @NoRetry   // 결정적 비교라 재시도해도 결과가 같다 — 비결정 실패를 재시도로 가리지 않는다
 class SceneLibraryTest {
 
-    static Stream<LibraryScene> scenes() { return SceneLibrary.all().stream(); }
+    /** 이름표를 붙여 시험 이름이 장면 이름("fluid" 등)이 되게 한다(객체 기본 toString 은 정체 해시라 실행마다 달라진다). */
+    static Stream<Named<LibraryScene>> scenes() { return SceneLibrary.all().stream().map(s -> Named.of(s.name(), s)); }
 
     @Test
     void namesAreUniqueAndValid() {

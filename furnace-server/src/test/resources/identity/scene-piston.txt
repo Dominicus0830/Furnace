@@ -1,16 +1,22 @@
 # 결과 동일 금 파일 — scene-piston. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
-piston tick 0 182c6c4d7e3ca2ad
-piston tick 0 heads=0 moving=0
+piston tick 0 a3464ee75b5c5a73
+piston tick 0 heads=0 moving=0 movingSeen=0
 piston tick 40 0ea5a9d0377a2220
-piston tick 40 heads=21 moving=0
+piston tick 40 trace cbc36ccb47c32dd1
+piston tick 40 heads=21 moving=0 movingSeen=616
 piston tick 80 25ac32a9605c4e9b
-piston tick 80 heads=14 moving=0
+piston tick 80 trace e244050741452de1
+piston tick 80 heads=14 moving=0 movingSeen=896
 piston tick 120 3a22ab972ed78673
-piston tick 120 heads=14 moving=0
+piston tick 120 trace 27a7f6b94326a129
+piston tick 120 heads=14 moving=0 movingSeen=1204
 piston tick 160 06a065815b7902c3
-piston tick 160 heads=0 moving=0
+piston tick 160 trace 03acba12e508a1c5
+piston tick 160 heads=0 moving=0 movingSeen=1512
 piston tick 200 2d1d290e21900aab
-piston tick 200 heads=28 moving=0
+piston tick 200 trace 4f48b218e39697a5
+piston tick 200 heads=28 moving=0 movingSeen=1820
 piston tick 240 a1c859d71b247f94
-piston tick 240 heads=7 moving=0
-TOTAL 94965c0500e90a93 lines=14
+piston tick 240 trace 10932feaee956139
+piston tick 240 heads=7 moving=0 movingSeen=2100
+TOTAL 546b1fcac0214586 lines=20

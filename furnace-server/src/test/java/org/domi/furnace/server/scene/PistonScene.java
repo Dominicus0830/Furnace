@@ -15,6 +15,8 @@ public final class PistonScene extends TickScene {
     private SceneLevel level;
     private int machines, layers;
     private int rb, air;
+    private long movingSeen;   // 이동 중(moving_piston) 칸을 합쳐 본 횟수(틱마다 셈) — 점검 시점에 안 보이는 이동을 사람이 읽을 수 있게
+    private IdentityHash trace;   // 틱마다 모든 기계 칸을 섞은 누적 해시 — 점검 사이의 이동 중(moving_piston) 상태도 해시에 든다
 
     @Override public String name() { return "piston"; }
     @Override public boolean freshJvm() { return false; }
@@ -32,6 +34,8 @@ public final class PistonScene extends TickScene {
         machines = size.pick(40, 200);
         layers = (machines + PER_LAYER - 1) / PER_LAYER;
         level = new SceneLevel("piston", 2);
+        trace = new IdentityHash();
+        movingSeen = 0;
         Blocks b = Blocks.get();
         rb = b.defaultState("minecraft:redstone_block");
         air = b.defaultState("minecraft:air");
@@ -49,7 +53,7 @@ public final class PistonScene extends TickScene {
                     level.setBlock(new Pos(X0 + 1, y, z), stone, 3);
                     level.setBlock(new Pos(X0 + 2, y, z), slime, 3);
                     level.setBlock(new Pos(X0 + 3, y, z), stone, 3);
-                    level.setBlock(new Pos(X0 + 3, y, z + 1), glass, 3);   // 점액에 붙지 않는 이웃(유리는 붙는다) — 사슬 모양을 비튼다
+                    level.setBlock(new Pos(X0 + 2, y, z + 1), glass, 3);   // 점액 옆 이웃: 점액은 (꿀이 아닌) 옆 블록을 달고 간다 — 유리가 사슬에 같이 끌려 나온다
                 }
                 case 2 -> {   // 꿀 블록 사슬(점액과 안 섞인다)
                     level.setBlock(new Pos(X0, y, z), piston("minecraft:sticky_piston", "east"), 3);
@@ -88,12 +92,20 @@ public final class PistonScene extends TickScene {
     }
 
     @Override
+    protected void afterTick(int t) {
+        SceneKit.blocks(level, trace, X0 - 2, SceneLevel.FLOOR_Y, -32, X0 + 18, y(machines - 1) + 1, z(PER_LAYER - 1) + 1);
+        movingSeen += SceneKit.count(level, "minecraft:moving_piston", X0 - 2, SceneLevel.FLOOR_Y, -32, X0 + 18, y(machines - 1) + 1, z(PER_LAYER - 1) + 1);
+    }
+
+    @Override
     protected void checkpoint(SceneHash.Recorder rec, String label) {
         IdentityHash h = new IdentityHash();
         SceneKit.blocks(level, h, X0 - 2, SceneLevel.FLOOR_Y, -32, X0 + 18, y(machines - 1) + 1, z(PER_LAYER - 1) + 1);
         rec.line("piston " + label, h);
+        if (trace.count() > 0) rec.line("piston " + label + " trace", trace);   // 틱 0 에는 아직 섞인 값이 없다
         int x1 = X0 + 18, y1 = y(machines - 1) + 1, z1 = z(PER_LAYER - 1) + 1;
         rec.text("piston " + label + " heads=" + SceneKit.count(level, "minecraft:piston_head", X0 - 2, SceneLevel.FLOOR_Y, -32, x1, y1, z1)
-                + " moving=" + SceneKit.count(level, "minecraft:moving_piston", X0 - 2, SceneLevel.FLOOR_Y, -32, x1, y1, z1));
+                + " moving=" + SceneKit.count(level, "minecraft:moving_piston", X0 - 2, SceneLevel.FLOOR_Y, -32, x1, y1, z1)
+                + " movingSeen=" + movingSeen);
     }
 }

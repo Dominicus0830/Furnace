@@ -21,7 +21,17 @@ public abstract class TickScene implements LibraryScene {
     /** 장면 틱 하나(Probe 로 재는 구간). */
     protected abstract void tick(int t);
 
-    /** 점검: 이 시점의 상태를 줄로 적는다. label 은 "tick N" 꼴. */
+    /**
+     * 틱 하나가 끝난 직후(Probe 구간 밖). 틱마다 봐야 하는 짧은 상태(예: 이동 중 블록)를 누적 해시에 섞는 자리 —
+     * 점검 간격이 길어도 중간 상태를 놓치지 않는다. 기본은 아무것도 안 한다.
+     */
+    protected void afterTick(int t) {}
+
+    /**
+     * 점검: 이 시점의 상태를 줄로 적는다. label 은 "tick N" 꼴.
+     * 주의: 점검이 레벨 난수를 쓰는 장면(예: fluid 의 난수 줄)은 점검이 시뮬레이션의 일부가 되므로 checkEvery 도 장면 정의에 든다 —
+     * 바꾸면 이후 줄이 모두 달라져 금 파일을 다시 만들어야 한다.
+     */
     protected abstract void checkpoint(SceneHash.Recorder rec, String label);
 
     @Override
@@ -36,6 +46,7 @@ public abstract class TickScene implements LibraryScene {
                 probe.before(t);
                 tick(t);
                 probe.after(t);
+                afterTick(t);
                 if ((t + 1) % every == 0 || t == n - 1) checkpoint(rec, prefix + "tick " + (t + 1));
             }
         }

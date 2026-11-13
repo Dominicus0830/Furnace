@@ -29,10 +29,11 @@ public final class FluidScene extends TickScene {
         level = new SceneLevel("fluid-" + seed, 2);
         ((LegacyRandomSource) level.random()).setSeed(seed);
         Blocks b = Blocks.get();
+        int stone = b.defaultState("minecraft:stone");
         java.util.Random r = new java.util.Random(seed);
         for (int x = -24; x < 24; x++) for (int z = -24; z < 24; z++) for (int y = FLOOR; y < FLOOR + 6; y++) {
-            if (y == FLOOR && r.nextInt(12) == 0) { level.setBlock(new Pos(x, y, z), b.defaultState("minecraft:air"), 2); continue; }   // 바닥 구멍
-            if (y > FLOOR && r.nextInt(3) == 0) level.setBlock(new Pos(x, y, z), b.defaultState(TERRAIN[r.nextInt(TERRAIN.length)]), 2);
+            if (y == FLOOR) { if (r.nextInt(12) != 0) level.setBlock(new Pos(x, y, z), stone, 2); continue; }   // 돌 바닥, 12칸에 하나는 구멍(공기 — 물이 떨어지는 길)
+            if (r.nextInt(3) == 0) level.setBlock(new Pos(x, y, z), b.defaultState(TERRAIN[r.nextInt(TERRAIN.length)]), 2);
         }
         water = b.defaultState("minecraft:water");
         lava = b.defaultState("minecraft:lava");
