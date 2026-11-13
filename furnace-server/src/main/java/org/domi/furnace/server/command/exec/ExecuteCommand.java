@@ -35,6 +35,7 @@ public final class ExecuteCommand implements UnboundEntryAction {
         CommandSource source = sourceStack.withExecutionContext(context);
         context.incrementCost();
         CompletableFuture<Integer> deferred;
+        java.time.Duration timeout;
         try {
             // 바닐라 ContextChain.runExecutable(…, CommandResultCallback 로 보내는 소비자, forked). 지연 결과면 콜백은 완료 때로 미룬다.
             int[] value = new int[1];
@@ -44,6 +45,7 @@ public final class ExecuteCommand implements UnboundEntryAction {
                 value[0] = result;
             }, forked);
             deferred = context.takeDeferred();
+            timeout = context.takeDeferredTimeout();
             if (deferred == null) {
                 // 바닐라 순서: 소스 콜백(runExecutable 안) → 추적기 onReturn
                 int result = value[0];
@@ -53,15 +55,17 @@ public final class ExecuteCommand implements UnboundEntryAction {
         } catch (CommandSyntaxException e) {
             // 비-forked 에서만 여기로 온다(forked 면 runExecutable 이 삼킨다) — 바닐라 handleError
             context.takeDeferred();
+            context.takeDeferredTimeout();
             awaitCallback(context, source.callback().onFailure(), () -> { });
             source.handleError(e, forked, context.tracer());
             return;
         } catch (RuntimeException e) {
             context.takeDeferred();
+            context.takeDeferredTimeout();
             throw e;
         }
         Deferred d = new Deferred(deferred, forked, commandInput);
-        context.suspend(d.future(), (v, ex) -> onDeferredDone(context, frame, source, d, v, ex));
+        context.suspend(d.future(), timeout, (v, ex) -> onDeferredDone(context, frame, source, d, v, ex));
     }
 
     private void traceReturn(ExecutionContext context, Frame frame, int result) {

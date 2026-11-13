@@ -270,6 +270,12 @@ public final class CommandSource {
         execution.defer(future);
     }
 
+    /** 대기 한도를 정한 {@link #defer(CompletableFuture)} — 디스크를 기다리는 /save-all 처럼 기본 5초보다 긴 것이 정상인 명령만. */
+    public void defer(CompletableFuture<Integer> future, java.time.Duration timeout) {
+        if (execution == null) throw new IllegalStateException("실행 컨텍스트 밖에서 defer — Commands.performCommand 로 실행해야 한다");
+        execution.defer(future, timeout);
+    }
+
     /** 바닐라 handleError: forked 가 아니면 사용자에게 빨간 메시지. */
     public void handleError(CommandSyntaxException e, boolean forked) {
         handleError(e, forked, null);
