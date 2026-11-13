@@ -11,7 +11,7 @@
 - 시험: `OnlinePlayersViewTest`(compat-paper) — 모델(접속·퇴장·리스폰 순수 목록 조작) 대조, 옛 구현(매번 새로 만들기) 대조 무작위 각본 60단계, 같은 `CraftPlayer` 객체 재사용, 순회 스냅샷, 퇴장 직후 비워짐.
 
 ## 함정·한계
-- `Player.markDisconnected` 는 **`rosterEpoch` 를 올린다**(TASK 문서는 "끊김은 epoch 를 안 올림"이라 적었으나 코드는 올림). 이 캐시의 "끊긴 플레이어 거르기"가 그 상승에 기댄다 — `markDisconnected` 에서 `bumpRoster()` 를 빼면 시험 `unchangedRosterReusesWrapperArrayAndSameObjects` 가 잡는다.
+- `Player.markDisconnected` 는 **`rosterEpoch` 를 올린다**(TASK 문서는 "끊김은 epoch 를 안 올림"이라 적었으나 코드는 올림). 이 캐시의 "끊긴 플레이어 거르기"가 그 상승에 기댄다 — `markDisconnected` 에서 `bumpRoster()` 를 빼면 `OnlinePlayersDisconnectTest`(끊김 표시만 하고 바로 보기·읽기 스레드 경합)가 실패한다. (`TestPlayer.close()` 로 퇴장시키는 시험은 roster 제거의 bump 가 가려 못 잡는다.)
 - 끊김 표시(`disconnected=true`)와 번호 상승 사이 한 걸음에는 방금 끊긴 플레이어가 한 번 더 보일 수 있다(Paper 도 퇴장 처리가 틱 단위로 늦다).
 - `EntityViewsImpl` 의 숨기기·보이기도 `bumpRoster()` 라 그때마다 목록을 한 번 다시 만든다(40명 약 1µs 규모, 호출 빈도에 비해 드묾).
 - 남는 한계(TASK 문서에 적은 대로): region 스레드에서 `for (i < size()) get(i)` 를 도는 동안 다른 스레드가 접속·퇴장하면 `size()` 와 `get(i)` 가 서로 다른 배열을 볼 수 있다(Paper 의 `ArrayList` 도 같은 경합). `get` 은 범위를 벗어나면 `IndexOutOfBoundsException`.
@@ -23,3 +23,5 @@
 | `for (i<size()) get(i)` 40회 | 21.4µs | 0.30µs |
 | `for (p : view)` 40명 | 0.78µs | 0.06µs |
 (옛 = 이 PR 전 `PluginHost.onlinePlayers()` 본문을 시험에서 그대로 따라 한 것. 임시 측정이라 저장소에는 넣지 않았다.)
+
+- 방금 나간 플레이어의 핸들·`CraftPlayer` 는 다음 호출·접속·퇴장 전까지 캐시(`onlineSnapshot`·`OnlineView.wrapped`)가 한 접속자 목록 분량만큼 붙잡는다. `listIterator()`·`subList` 는 여전히 `size()`/`get(i)` 기반이라 스냅샷이 아니다(옛 구현과 같음).
