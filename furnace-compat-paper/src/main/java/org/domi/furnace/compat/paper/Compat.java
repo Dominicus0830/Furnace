@@ -248,10 +248,18 @@ public final class Compat {
 
     /** minecraft:stone → STONE. 모르는 종류(플러그인 블록)는 AIR 가 아니라 null 이 아닌 값을 줄 수 없어 UnsupportedFeature. */
     static Material material(String blockType) {
-        Material m = Material.matchMaterial(blockType);
+        Material m = MATERIALS.get(blockType);
+        if (m != null) return m;
+        m = Material.matchMaterial(blockType);
         if (m == null) throw new UnsupportedFeature("Material " + blockType, "Bukkit Material 열거형에 없는 블록이다(데이터 팩·플러그인 블록)");
+        // 정식 키(minecraft:stone)로 찾은 것만 담는다 — 없는 종류는 지금처럼 부를 때마다 예외이고, matchMaterial 이 받아주는 다른 철자("STONE" 등)는 담지 않아
+        // 플러그인이 만든 임의 문자열로 표가 자라지 않는다. 서버가 상태 번호별로 같은 BlockData(같은 type 문자열)를 주므로 키 해시가 이미 계산돼 있다.
+        if (blockType.equals(m.getKey().toString())) MATERIALS.putIfAbsent(blockType, m);
         return m;
     }
+
+    /** 블록 종류 키 → Material. 정식 키만 담으므로 Material 수(블록 약 1100개)를 넘지 않는다. */
+    private static final java.util.concurrent.ConcurrentHashMap<String, Material> MATERIALS = new java.util.concurrent.ConcurrentHashMap<>(2048);
 
     // ------------------------------------------------------------------ 엔티티·플레이어
 

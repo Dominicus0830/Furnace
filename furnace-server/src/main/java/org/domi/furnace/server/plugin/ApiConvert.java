@@ -56,7 +56,20 @@ public final class ApiConvert {
 
     // ------------------------------------------------------------------ 블록
 
+    /**
+     * 상태 번호 → 불변 API BlockData. 같은 번호는 같은 객체를 돌려준다(레지스트리가 상태 번호별로 한 번만 만든다 — 속성 문자열 쪼개기·TreeMap 을 호출마다
+     * 하지 않는다). BlockData 는 불변 record 라 공유해도 관측 결과가 같다. 레지스트리 밖 번호는 캐시하지 않고 그때그때 만든다.
+     */
     public static BlockData block(int stateId, BlockRegistry blocks) {
+        BlockData hit = blocks.cachedApiBlock(stateId);
+        if (hit != null) return hit;
+        BlockData made = buildBlock(stateId, blocks);
+        blocks.cacheApiBlock(stateId, made);
+        return made;
+    }
+
+    /** 캐시를 거치지 않고 만든다(시험이 캐시 결과와 전수 비교하는 기준). */
+    static BlockData buildBlock(int stateId, BlockRegistry blocks) {
         String key = blocks.canonicalKeyOf(stateId);
         if (key == null) return BlockData.of(blocks.nameOf(stateId));
         int semi = key.indexOf(';');
