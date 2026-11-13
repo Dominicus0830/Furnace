@@ -86,7 +86,7 @@ public final class SceneWorldHandles extends CompatScene {
             World w = Compat.world(dim);
             var mob = s.onRegion(pos, () -> fw.spawnEntityNow("minecraft:pig", new org.domi.furnace.api.world.Location(dim, 3.5, -49, 3.5, 0, 0)));
             var tp = s.join("Dana");
-            s.tick(2);
+            attachAll(s);
             Block blk = w.getBlockAt(3, -50, 3);
             var pig = Compat.entity(mob);
             var pl = Compat.player(tp.player());

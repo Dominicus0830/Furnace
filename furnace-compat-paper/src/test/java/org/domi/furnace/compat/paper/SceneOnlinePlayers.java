@@ -1,6 +1,5 @@
 // 호환 기준 장면 compat-online-players — Bukkit.getOnlinePlayers()·getPlayer 가 접속자 집합에서 주는 것(순서와 무관한 의미)을 기록한다.
-// T-074(getOnlinePlayers 를 살아 있는 보기·도착 순 배열로)가 "집합·크기·동일성·불변성이 같다"를 증명하는 바탕. 순서는 의도적으로 바뀐다(새 정확성 C5 —
-// Bukkit 은 CHM eid 순이고 Paper 는 접속 순) — 순서만 따로 SceneOnlineOrder(compat-online-order)에 둔다. 벤치 한 걸음 = 접속자 24명(FULL)에서
+// T-074(getOnlinePlayers 를 살아 있는 보기·도착 순 배열로)가 "집합·크기·동일성·불변성이 같다"를 증명하는 바탕. 순서(C5, #308 에서 Paper 와 같은 접속 순이 됨)는 따로 SceneOnlineOrder(compat-online-order)에 둔다. 벤치 한 걸음 = 접속자 24명(FULL)에서
 // getOnlinePlayers().stream() 을 되풀이(Paper 는 살아 있는 보기 O(1)).
 package org.domi.furnace.compat.paper;
 
@@ -38,14 +37,14 @@ public final class SceneOnlinePlayers extends CompatScene {
             Bukkit.setServer(org.bukkit.craftbukkit.CraftServer.INSTANCE);
             List<TestPlayer> tps = new ArrayList<>();
             for (String n : NAMES) tps.add(s.join(n));
-            s.tick(3);
+            attachAll(s);
             report(rec, "joined");
             // 한 명 나갔다 다시 들어온다
             tps.get(2).close();
             s.tick(3);
             report(rec, "after-quit");
             tps.set(2, s.join("Mia"));
-            s.tick(3);
+            attachAll(s);
             report(rec, "after-rejoin");
 
             // 불변성: 돌려준 모음은 고칠 수 없다(고치려 하면 예외 종류)
@@ -67,7 +66,7 @@ public final class SceneOnlinePlayers extends CompatScene {
             // 벤치(FULL: 접속자를 24명으로 늘린다 — 이름은 서버 안에서 고유하기만 하면 된다)
             if (size.full()) {
                 for (int i = 0; i < 18; i++) tps.add(s.join("Bot" + i));
-                s.tick(3);
+                attachAll(s);
             }
             int rounds = size.pick(1, 30), per = size.pick(200, 20_000);
             for (int r = 0; r < rounds; r++) {

@@ -39,21 +39,15 @@ public final class SceneHeldItem extends CompatScene {
     public void play(Size size, SceneHash.Recorder rec, Probe probe) throws Exception {
         try (FurnaceTestServer s = server()) {
             TestPlayer tp = s.join("Dana");
-            s.tick(3);
+            attachAll(s);
             Player player = Compat.player(tp.player());
             int batch = size.pick(200, 2000), rounds = size.pick(1, 20);
             // 플레이어 소유 스레드에서 돈다 — 실서버에서 플레이어 이벤트 처리기가 도는 곳(칸 쓰기가 바로 끝난다)
             List<String> log = s.await(tp.player().scheduler().submit(() -> script(player, tp, size, batch, rounds, probe)));
             for (String l : log) rec.text(l);
             // 서버 쪽 진실: 어댑터가 쓴 것이 실제 Furnace 인벤토리에 닿았다
-            // 어댑터 칸 쓰기는 소유 스레드 큐를 거쳐 닿는다 — 마지막 쓰기(6번 칸 검)가 보일 때까지(최대 200틱) 틱을 돌린 뒤 읽는다
+            // 서버 쪽 진실은 틱 없이 곧바로 읽는다 — 플레이어가 region 에 붙은 뒤 주인 스레드 쓰기는 즉시 칸에 닿는다(attachAll).
             var truth = tp.player().inventory().contents().join();
-            for (int waited = 0; waited < 200 && truth.get(6).isEmpty(); waited++) {
-                s.tick(1);
-                truth = tp.player().inventory().contents().join();
-            }
-            s.tick(2);
-            truth = tp.player().inventory().contents().join();
             StringBuilder b = new StringBuilder("server-inventory");
             for (int i = 0; i < truth.size(); i++) if (!truth.get(i).isEmpty()) b.append(' ').append(i).append('=').append(truth.get(i).type()).append('x').append(truth.get(i).amount());
             rec.text(b.toString());

@@ -50,7 +50,7 @@ public final class SceneEvents extends CompatScene {
         Bukkit.setServer(org.bukkit.craftbukkit.CraftServer.INSTANCE);
         try (s) {
             var tp = s.join("Dana");
-            s.tick(3);
+            attachAll(s);
             var p = tp.player();
             s.loadChunk(0, 0);
             var fw = s.overworld();

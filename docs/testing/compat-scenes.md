@@ -13,21 +13,23 @@ Bukkit·Paper 호환 계층(`furnace-compat-paper`)의 **핫 경로가 지금 �
 
 | 이름 | 무엇을 굳히나 | 기대는 쪽 | 모드 |
 |---|---|---|---|
-| `compat-block-reads` | 1.21.1 **모든 블록 상태 26,684개**를 FAST 로 깔고 `getType`·`getBlockData().getAsString`·`isEmpty`·`isLiquid`·`getState` 종류·위치를 상태 2048개마다 한 줄 해시. 못 읽은 수 0, Material 1052종 | T-072 | 새 JVM |
+| `compat-block-reads` | 1.21.1 블록 상태 26,684개를 FAST 로 깔되 놓을 때 onPlace 가 반응해 다른 블록이 된 칸(레드스톤 선·불·용암·스펀지 등 4,535개)은 읽기 해시에서 빼고(`placed-mismatch` 줄에 개수만), 나머지 22,149개의 `getType`·`getBlockData().getAsString`·`isEmpty`·`isLiquid`·위치를 상태 2048개마다 한 줄 해시. 못 읽은 수 0, Material 1051종. `getState()` 클래스 이름은 해시에 섞지 않고 `state-classes` 한 줄로 따로 뗐다(어댑터에 TileState 를 넣는 PR 은 그 한 줄만 바꾼다) | T-072 | 새 JVM |
 | `compat-world-handles` | `Compat.world` 동일성(1·2·4 스레드가 20,000번씩 불러도 객체 하나), 블록·엔티티·플레이어·Location 이 같은 월드 객체를 낸다, 같은 읽기를 **스레드 종류별**(소유 region·다른 region·전역·시험·비동기)로 했을 때 값 또는 예외 종류(`ThreadOwnershipException`) | T-071·T-072 스레드 축 | 새 JVM |
-| `compat-entity-reads` | 엔티티 종류 **129개 전부**(스폰 실패 2종 포함 — `fishing_bobber`·`wolf`)를 스폰해 감싸개 종류·`getType`·`getName`·`getLocation`·`getWorld`·`instanceof`·`equals` 해시, 감싸기 동일성(같은 객체·UUID·번호·`cachedEntity`), 플레이어 읽기 | T-078·T-073 | 새 JVM |
+| `compat-entity-reads` | 엔티티 종류 **129개**(늑대는 시험 서버에 바이옴이 없어 스폰 NPE 라 `skipped` 줄로 뺀다, `fishing_bobber` 는 Paper 와 같은 IAE 로 `spawn-failed`)를 스폰해 감싸개 종류·`getType`·`getName`·`getLocation`·`getWorld`·`instanceof`·`equals` 해시, 감싸기 동일성(같은 객체·UUID·번호·`cachedEntity`), 플레이어 읽기, 주인 스레드에서 움직인·다친·없어진 뒤 지금 값(`live` 줄들, A16-01·#230) | T-078·T-073 | 새 JVM |
 | `compat-wrapper-cache` | 살아 있는 감싸개 1500개(>`PRUNE_AT` 1024)를 쥔 채 새 엔티티 300개 처음 감싸기(놓침 경로), 엔티티 400개 제거 뒤 감싸개, 쥔 것의 절반을 놓고 GC 한 뒤 다시 감싸기의 읽기값(GC 시점과 무관하게 같다) | T-073 | 새 JVM |
 | `compat-held-item` | 플레이어 인벤토리 **칸 거울** 의미 28줄: 쓰기가 칸에 닿는다·칸 쪽 쓰기가 거울에 보인다·같은 칸 거울 200개 중 하나로 쓰면 모두 본다·칸을 거울 없이 바꾸면 쥔 거울이 그 순간 값으로 **떨어진다**(떨어진 거울들은 사본 하나를 공유 — T-070 R1)·GC 로 치워져도 의미가 같다·단축 칸 9개·`getContents` 거울·빈 손(`setType` 해도 칸 안 바뀜)·서버 인벤토리의 최종 상태 | T-070 | 새 JVM |
 | `compat-event-conversion` | 처리기 안에서 `BlockPhysicsEvent`(칸 8종×바뀐 상태 2종)·`PlayerMoveEvent`(5종)·`InventoryMoveItemEvent`(3종)가 보는 값(`getType`·`getLocation`·`getItemInMainHand`·`getOnlinePlayers()` 수)과 쓰기(취소·`setItem`·**제자리 수정이 `getItem()` 으로 다시 보이고 Furnace 쪽 결과에 반영됨** — 반론 09(b)) | T-076·T-070·T-072 | 새 JVM |
 | `compat-online-players` | `getOnlinePlayers()` 의 **집합**·크기·`stream().count()`·불변성(`add`·`clear` → `UnsupportedOperationException`)·같은 접속자는 같은 `Player` 객체·나갔다 들어온 뒤. 순서는 보지 않는다 | T-074 | 새 JVM |
-| `compat-online-order` | `getOnlinePlayers()` **순서만**(지금은 접속 순과 같다. T-074 가 C5 로 의도적으로 바꾸는 쪽) | T-074 | 새 JVM |
+| `compat-online-order` | `getOnlinePlayers()` **순서만**(접속 순·나갔다 들어오면 끝 = Paper `PlayerList.players`. C5 는 #308 에서 이미 반영됐다 — **T-074 는 이 금 파일을 바꾸지 않는다**, 바뀌면 회귀) | T-074 | 새 JVM |
 | `compat-asm-prefilter` | `NmsClassTransformer.mayNeed` 경계 사례 210개(바늘 14종 × 맨 앞·맨 끝·가운데·한 글자 모자람·마지막 글자 틀림·접두부 겹침·빈 배열 등)의 판정 해시 + **실제 jar 13개 클래스 전부**(기본·버전 접미사 두 옵션)의 (판정, 변환 결과 바이트) 해시 | P-O13-10 | 같은 JVM |
 | `compat-protocollib-order` | ProtocolLib 다리가 가로챈 패킷이 클라이언트에 닿는 순서 5장면: 안 바꿈·바꿈(값·취소·다른 종류)·리스너 안 송신(**지금 패킷 앞**)·묶음(리스너 안 송신은 **묶음 앞**)·add_entity 취소 후 묶음으로 바꿔 보내기 + 뒤따르는 메타데이터(**묶음 뒤** — 순서 계약 A). 리스너가 본 순서도 같이 적는다 | T-013 (`wave2-rebuttal-compat.md` 2장 A~D) | 새 JVM |
 
 규칙(장면을 더할 때도 같다)
 - 줄에는 정체 해시·엔티티 번호·UUID·시각·플레이어 스폰 좌표를 넣지 않는다(플레이어 스폰 x·z 는 서버를 띄울 때마다 다르다 — y 와 월드 이름만 본다).
 - 장면이 가리키는 **예외 종류**는 결과의 일부라 적지만 메시지는 적지 않는다(문구 고침이 결과 변경이 아니다).
-- **지금 동작이 틀린 것으로 알려진 값은 굳히지 않는다.** 움직이거나 제거된 뒤의 엔티티 `getLocation()`·`isValid()` 가 만든 시점 값을 돌려주는 것(A16-01, #230 이 바로잡는다)은 장면에서 일부러 뺐다 — 그 PR 이 금 파일을 고쳐야 하는 일이 없게. `getOnlinePlayers()` 순서(C5)만 따로 `compat-online-order` 로 떼어 T-074 가 그 한 파일만 다시 만들게 했다.
+- **지금 동작이 틀린 것으로 알려진 값은 굳히지 않는다.** 움직이거나 제거된 뒤의 엔티티 `getLocation()`·`isValid()` 가 만든 시점 값을 돌려주던 것(A16-01)은 #230 에서 바로잡혔고, 지금 값은 `compat-entity-reads` 의 `live` 줄들이 고정한다(주인 스레드에서만 지금 상태). `getOnlinePlayers()` 순서(C5)도 #308 에서 Paper 와 같아졌고 `compat-online-order` 가 그 순서를 고정한다.
+- **플레이어를 쓰는 장면은 접속 뒤 `attachAll` 로 region 에 붙을 때까지 틱을 돈다.** 붙기까지는 접속 뒤 3~28틱으로 벽시계에 달려 있어(CPU 부하 속 실측) 고정 틱 수로는 모자란다. 붙기 전에는 다른 스레드에서 읽은 위치가 0.0 이고 인벤토리 쓰기가 소유 스레드 큐에만 쌓인다.
+- **주인 밖 대체 경로를 고정하는 장면이 있다(의도).** `compat-wrapper-cache` 의 `snapshot()` 과 `compat-world-handles` 의 `pig-loc` 은 시험 스레드(주인 밖)에서 읽어 핸들 시점 값 대체 경로를 탄다. T-078 이 대체 경로를 바꾸면 이 두 장면이 움직인다.
 - 새 장면 = `CompatScene`(서버를 띄우는 것)이나 `LibraryScene` 을 구현 + `CompatSceneLibrary.all()` 한 줄 + `-Dfurnace.identity.bless=scene-compat-<이름>`(새 파일이라도 PR 본문 "금 파일 갱신" 절과 독립 검토 승인이 필요하다 — `identitykit.md`).
 
 ## 증명 모드(평소 시험)
@@ -51,7 +53,7 @@ O15 결정(야간 벤치 미승인)대로 **CI 에 안 넣는다.** 벤치는 `s
 
 | 장면 | 한 걸음(FULL) | 보는 TASK |
 |---|---|---|
-| `compat-block-reads` | 모든 상태 26,684개 읽기 한 번(25번) | T-072 |
+| `compat-block-reads` | 읽을 수 있는 상태 약 22,000개 읽기 한 번(25번) | T-072 |
 | `compat-held-item` | 같은 칸에서 `getItemInMainHand` 2000번 부르고 스택을 쥐기(20번) — 거울 목록이 자란다 | T-070 |
 | `compat-entity-reads` | 감싼 8마리에게 `getLocation`·`getWorld`·`getType`·`getName` 5000번 | T-078 |
 | `compat-wrapper-cache` | 감싼 것 1500개가 있는 채 새 감싸개 300개 처음 만들기(10번) | T-073 |
@@ -71,7 +73,7 @@ T-013 의 "서버 루프 CPU −69%" 는 다리가 없는 장면 값이다(`wave
 
 ## 한계(알고 쓴다)
 - **헤드리스 서버 하나, 플레이어는 가짜 클라이언트**다. 실제 플러그인이 일으키는 호출 비율·GC 압력은 아니다 — 그래서 "실서버 몫"의 절대값이 아니라 옛·새 비교용이다.
-- `getLocation`·`isValid()` 의 낡은 값(A16-01)은 일부러 안 굳혔다(위). #230 이 병합된 뒤 "움직인 뒤 지금 값" 장면을 `compat-entity-reads` 에 더하는 것은 그 PR 의 몫이다.
+- 늑대는 시험 서버에 데이터 팩(바이옴)이 없어 스폰 NPE(`Wolf.vanillaVariantForBiome(null)`)라 `compat-entity-reads` 에서 뺐다(`skipped` 줄). 시험 서버에 바이옴이 생기면 그때 넣는다.
 - ProtocolLib 순서 장면은 **진짜 ProtocolLib 이 아니라 다리가 가로채는 자리를 흉내 낸 것**이다. 진짜 라이브러리의 리스너 호출 순서(스레드 포함)는 못 본다.
 - `compat-asm-prefilter` 의 jar 말뭉치는 `realWorld` 13개다(JDK 클래스 전체는 아니다 — JDK 빌드마다 클래스 목록이 달라 금 파일이 흔들린다). 사전 거르기 판정 자체는 경계 사례 210개가 맡는다.
 - 스폰·접속 좌표처럼 서버를 띄울 때마다 달라지는 값은 읽지 않는다. 같은 JVM 두 번째 실행이 달라질 수 있는 장면(엔티티 든 것)은 모두 새 JVM 에서 돈다.

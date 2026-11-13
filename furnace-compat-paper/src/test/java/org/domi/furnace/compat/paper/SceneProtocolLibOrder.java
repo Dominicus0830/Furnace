@@ -100,7 +100,7 @@ public final class SceneProtocolLibOrder extends CompatScene {
         Bukkit.setServer(org.bukkit.craftbukkit.CraftServer.INSTANCE);
         try (s) {
             TestPlayer tp = s.join("Lib");
-            s.tick(2);
+            attachAll(s);
             tp.sync();
             var player = tp.player();
             var owner = CompatPluginManager.adapterOrNull(Bukkit.getPluginManager().getPlugin("Plb"));

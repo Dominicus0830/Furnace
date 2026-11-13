@@ -81,7 +81,7 @@ public final class SceneWrapperCache extends CompatScene {
             rec.line("fresh-reads", h2);
 
             // 3) 엔티티를 없앤다 — 쥔 것은 같은 객체를 주고, 없어진 핸들을 다시 감싸도 읽기값이 같다.
-            //    (없어진 뒤 isValid() 가 낡은 값을 주는 지금 동작은 A16-01/#230 이 바로잡을 대상이라 여기에 굳히지 않는다.)
+            //    (없어진 뒤 isValid()·움직인 뒤 getLocation 의 "지금 값"(A16-01, #230 병합)은 주인 스레드에서만 보인다 — compat-entity-reads 의 live 줄들이 고정한다. 여기 snapshot 은 시험 스레드(주인 밖)에서 읽어 EntityStates 예외 → 핸들 시점 값 대체 경로를 탄다: 그 대체 경로를 고정하는 것은 의도이고, T-078 이 대체 경로를 바꾸면 이 장면이 움직인다.)
             int removeCount = 400;
             String[] beforeRemove = new String[removeCount];
             for (int i = 0; i < removeCount; i++) beforeRemove[i] = snapshot(held.get(i));

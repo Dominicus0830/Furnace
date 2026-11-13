@@ -1,6 +1,7 @@
 // 호환 기준 장면 compat-entity-reads — 엔티티·플레이어 감싸개의 읽기(getLocation·getWorld·getType·getName·getEntityId·감싸기 동일성)를
 // 모든 엔티티 종류에 대해 해시한다. T-078(감싸개 "지금 값" 읽기 정리, #230 위)·T-073(감싸개 캐시)이 결과 동일을 증명하는 바탕.
-// 읽는 것은 "만들고 곧바로(움직이기 전)" 값만이다 — 움직인 뒤 낡은 값을 돌려주는 지금 동작(A16-01, #230 이 바로잡는다)은 일부러 금 파일에 굳히지 않는다.
+// 종류별 읽기는 "만들고 곧바로" 값이고, 움직인·없어진 뒤의 "지금 값"(A16-01, #230 병합됨)은 마지막 live 줄들이 고정한다(주인 스레드에서만 지금 상태).
+// 늑대는 시험 서버에 바이옴이 없어 스폰 NPE 라 뺀다(skipped 줄).
 // 벤치 한 걸음 = 감싼 엔티티 몇 마리에게 읽기 묶음을 부르는 것.
 package org.domi.furnace.compat.paper;
 
@@ -31,12 +32,13 @@ public final class SceneEntityReads extends CompatScene {
     public void play(Size size, SceneHash.Recorder rec, Probe probe) throws Exception {
         try (FurnaceTestServer s = server()) {
             TestPlayer tp = s.join("Dana");
-            s.tick(3);
+            attachAll(s);
             BlockPos at = new BlockPos(8, -59, 8);
             s.loadChunk(0, 0);
             List<EntityType> kinds = new ArrayList<>();
             for (EntityType t : EntityType.values()) if (t != EntityType.PLAYER && t != EntityType.UNKNOWN) kinds.add(t);
             List<String> failures = new ArrayList<>();
+            List<String> skipped = new ArrayList<>();
             List<org.domi.furnace.api.entity.Entity> handles = new ArrayList<>();
             var world = s.overworld();
             s.onRegion(at, () -> {
@@ -46,6 +48,11 @@ public final class SceneEntityReads extends CompatScene {
                     // 종류마다 칸이 다르게(스폰 위치 해시를 종류마다 다르게 하려고) — 같은 청크 안
                     Location loc = new Location("minecraft:overworld", 1.5 + (n % 12) * 1.25, -59, 2.5 + (n / 12) * 1.5, 11.0f * (n % 30), 3.0f * (n % 20));
                     n++;
+                    if (t == EntityType.WOLF) {
+                        // 시험 서버는 데이터 팩이 없어 biomeAt 이 늘 null → Wolf.vanillaVariantForBiome(null) 이 NPE. 크래시를 결과로 굳히지 않으려고 뺀다
+                        skipped.add(key);
+                        continue;
+                    }
                     try {
                         handles.add(world.spawnEntityNow(key, loc));
                     } catch (RuntimeException e) {
@@ -55,6 +62,7 @@ public final class SceneEntityReads extends CompatScene {
                 return null;
             });
             rec.text("kinds " + kinds.size());
+            for (String k : skipped) rec.text("skipped " + k + " (no-biome harness)");
             for (String f : failures) rec.text("spawn-failed " + f.substring(0, f.lastIndexOf(':')) + " " + f.substring(f.lastIndexOf(':') + 1));
             // 읽기: 한 번 감싸 종류별로 모든 읽기를 적는다
             List<String> perKind = s.onRegion(at, () -> read(handles, rec));
@@ -67,6 +75,9 @@ public final class SceneEntityReads extends CompatScene {
             ph.add(p.getUniqueId().equals(tp.uuid())).add(Compat.player(tp.player()) == p).add(p.isOnline()).add(p.getGameMode().name());
             ph.add(p.getEntityId() == tp.player().entityId()).add(d(p.getLocation().getY()));
             rec.line("player", ph);
+
+            // 움직인·다친·없어진 뒤 지금 값(A16-01, #230): 주인 스레드에서 같은 Bukkit 객체를 쥐고 읽는다 — T-078(감싸개 지금 값 읽기)이 깨뜨릴 수 있는 핵심 길
+            for (String l : s.onRegion(at, SceneEntityReads::live)) rec.text(l);
 
             // 벤치: 감싼 몇 마리에게 읽기 묶음
             int rounds = size.pick(1, 40), per = size.pick(200, 5000);
@@ -87,6 +98,22 @@ public final class SceneEntityReads extends CompatScene {
                 probe.after(r);
             }
         }
+    }
+
+    private static List<String> live() {
+        List<String> out = new ArrayList<>();
+        org.bukkit.World w = Compat.world("minecraft:overworld");
+        Entity pig = w.spawnEntity(new org.bukkit.Location(w, 4.5, -59, 4.5), EntityType.PIG);
+        out.add("live spawned valid=" + pig.isValid() + " x=" + safe(() -> d(pig.getLocation().getX())) + " z=" + safe(() -> d(pig.getLocation().getZ())));
+        pig.teleport(new org.bukkit.Location(w, 9.5, -59, 7.5));
+        out.add("live after-teleport x=" + safe(() -> d(pig.getLocation().getX())) + " z=" + safe(() -> d(pig.getLocation().getZ())) + " valid=" + pig.isValid());
+        var le = (org.bukkit.entity.LivingEntity) pig;
+        double before = le.getHealth();
+        le.setHealth(3);
+        out.add("live health before=" + d(before) + " after-set=" + d(le.getHealth()));
+        pig.remove();
+        out.add("live after-remove valid=" + pig.isValid() + " dead=" + safe(pig::isDead) + " x=" + safe(() -> d(pig.getLocation().getX())));
+        return out;
     }
 
     private static List<String> read(List<org.domi.furnace.api.entity.Entity> handles, SceneHash.Recorder unused) {

@@ -1,7 +1,7 @@
 # 결과 동일 금 파일 — scene-compat-entity-reads. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
 kinds 129
+skipped minecraft:wolf (no-biome harness)
 spawn-failed minecraft:fishing_bobber IllegalArgumentException
-spawn-failed minecraft:wolf NullPointerException
 entity minecraft:allay 37ff568b7fc9d2c2
 entity minecraft:area_effect_cloud 6404d92f1e01856d
 entity minecraft:armadillo 7023c5a03d20db4f
@@ -130,5 +130,9 @@ entity minecraft:zombie_horse a0f7f2c255d6b694
 entity minecraft:zombie_villager 9f7351ab5418e111
 entity minecraft:zombified_piglin 018e12c0ff11fcdc
 wrap same-object=true uuid=true id=true cached=true
-player 2d6c1b5048287305
-TOTAL 37017e682edb308c lines=132
+player f0c89f152ce14355
+live spawned valid=true x=4.5 z=4.5
+live after-teleport x=9.5 z=7.5 valid=true
+live health before=10.0 after-set=3.0
+live after-remove valid=false dead=true x=4.5
+TOTAL aeb92ffcbd42c385 lines=136

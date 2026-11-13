@@ -22,6 +22,21 @@ abstract class CompatScene implements LibraryScene {
         return s;
     }
 
+    /**
+     * 접속한 플레이어 모두가 region 에 붙을 때까지 틱을 돌린다(첫 플레이어 틱에 {@code ownerRegion} 이 선다).
+     * 접속 뒤 붙기까지 걸리는 틱 수는 3~28 로 벽시계에 달려 있어 고정 틱 수로는 모자라다 — 붙기 전에는 다른 스레드에서 읽은 위치가 0.0 이고
+     * 인벤토리 쓰기가 소유 스레드 큐에만 쌓여 장면이 실행마다 다른 경로를 잰다. 플레이어를 쓰는 장면은 접속 뒤 늘 이것을 부른다.
+     */
+    static void attachAll(FurnaceTestServer s) {
+        for (int i = 0; i < 600; i++) {
+            boolean all = true;
+            for (var p : s.internals().players()) if (p.ownerRegion == null) { all = false; break; }
+            if (all) return;
+            s.tick(1);
+        }
+        throw new IllegalStateException("플레이어가 600틱 안에 region 에 붙지 않았다");
+    }
+
     /** 읽기 결과를 문자열로. 던지면 "!예외클래스" — 예외 종류도 결과의 일부라 해시에 들어간다(메시지는 뺀다: 문구 고침이 결과 변경이 아니다). */
     static String safe(Supplier<?> read) {
         try {
