@@ -40,3 +40,9 @@ PR #305(T-018) 검토 R6 에서 나눈 정확성 수정. 바닐라 1.21.1 에서
   윗면 말고 다른 격자 좌표는 오르기 후보(0 이상)가 될 수 없어 결과가 같다. 문맥 없는 collide(엔티티 없는 이동)만 다를 수 있는데 게임에서는 부르지 않는다.
 - 비계 윤곽 모양(getShape: 비계를 들고 있으면 꽉 찬 블록)의 isHoldingItem 문맥은 아직 없다 — 서버 쪽은 OUTLINE 광선(아이템 쓰기 시선)에서만 보며 비계를 든 채 하는 일이 없다.
 - 플레이어 fallDistance 는 PlayerVitals 값(가루눈 0.9 모양). 바닐라와 갱신 시점이 같은지는 이동 검증 쪽 기존 가정을 따른다.
+
+### 금 파일 갱신 — `identity/entity-collision-scene.txt` (15줄 + TOTAL 모두)
+- 이유: 의도한 정확성 수정. 장면에 비계(기본 상태 distance=7, bottom=false)가 장애물로 놓여 있고, 몹은 비계 윗면 위에 있지 않으면
+  바닐라 ScaffoldingBlock.getCollisionShape 가 빈 모양을 돌려 지나간다(바닥 판도 distance≠0·bottom 일 때만). 옛 Furnace 는 언제나 데이터 모양(꽉 막힘)이었다.
+- 귀속 확인: 비계 문맥 분기를 "언제나 데이터 모양"으로 되돌리면(나머지 변경은 그대로) 옛 금 파일과 그대로 같다 — 달라진 것은 비계 문맥 하나뿐이다.
+- 갱신 명령 `-Dfurnace.identity.bless=entity-collision-scene`, 결정성 점검(두 번 실행) 통과.
