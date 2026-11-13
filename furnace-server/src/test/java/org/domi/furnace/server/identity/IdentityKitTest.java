@@ -49,7 +49,7 @@ class IdentityKitTest {
                 int[] a = new int[1 + r.nextInt(20)];
                 for (int i = 0; i < a.length; i++) a[i] = r.nextInt(100) - 50;
                 return a;
-            }).seed(42).iterations(300);
+            }).seed(42).iterations(300).ignoreProperties();   // 야간·재현 속성(scale·seed·iter)에 흔들리지 않게
         }
 
         private static int sumLoop(int[] a) { int s = 0; for (int v : a) s += v; return s; }
@@ -85,10 +85,20 @@ class IdentityKitTest {
         @Test
         void sameExceptionTypeIsSameResult_differentIsNot() {
             Differential<int[], Integer> d = sumDiff();
-            d.check(a -> { throw new IllegalStateException("x"); }, a -> { throw new IllegalStateException("y"); });
+            // 길이 1 입력에서만 둘 다 같은 종류 예외 — 나머지 반복은 값 비교
+            d.check(a -> { if (a.length == 1) throw new IllegalStateException("x"); return sumLoop(a); },
+                    a -> { if (a.length == 1) throw new IllegalStateException("y"); return sumLoop(a); });
             AssertionError e = assertThrows(AssertionError.class,
                     () -> d.check(a -> { throw new IllegalStateException(); }, IdentityKitTest.Diff::sumLoop));
             assertTrue(e.getMessage().contains("옛 구현만 예외"), e.getMessage());
+        }
+
+        @Test
+        void everyIterationThrowingOnBothSidesIsAnEmptyTest() {
+            AssertionError e = assertThrows(AssertionError.class,
+                    () -> sumDiff().check(a -> { throw new IllegalStateException(); }, a -> { throw new IllegalStateException(); }));
+            assertTrue(e.getMessage().contains("빈 시험"), e.getMessage());
+            sumDiff().allowAllExceptions().check(a -> { throw new IllegalStateException(); }, a -> { throw new IllegalStateException(); });
         }
 
         @Test
@@ -116,26 +126,26 @@ class IdentityKitTest {
     class GoldenFiles {
         @Test
         void matchingLinesPass_commentsIgnored() {
-            Golden.assertMatches("identitykit-selftest", List.of("alpha 0000000000000001", "beta 0000000000000002"));
+            Golden.assertMatches("identitykit-selftest", List.of("alpha 0000000000000001", "beta 0000000000000002"), false);
         }
 
         @Test
         void mismatchNamesFirstLineAndDumpsActual() {
             AssertionError e = assertThrows(AssertionError.class,
-                    () -> Golden.assertMatches("identitykit-selftest", List.of("alpha 0000000000000001", "beta 00000000000000ff")));
+                    () -> Golden.assertMatches("identitykit-selftest", List.of("alpha 0000000000000001", "beta 00000000000000ff"), false));
             assertTrue(e.getMessage().contains("첫 차이 2번째") && e.getMessage().contains("00000000000000ff"), e.getMessage());
             assertTrue(Files.isRegularFile(Path.of(System.getProperty("user.dir"), "build/identity/actual/identitykit-selftest.txt")));
         }
 
         @Test
         void missingGoldenFailsWithBlessHint() {
-            AssertionError e = assertThrows(AssertionError.class, () -> Golden.assertMatches("identitykit-no-such-scene", List.of("x 1")));
+            AssertionError e = assertThrows(AssertionError.class, () -> Golden.assertMatches("identitykit-no-such-scene", List.of("x 1"), false));
             assertTrue(e.getMessage().contains("-Dfurnace.identity.bless=identitykit-no-such-scene"), e.getMessage());
         }
 
         @Test
         void emptyResultNeverMatches() {
-            assertThrows(AssertionError.class, () -> Golden.assertMatches("identitykit-selftest", List.of()));
+            assertThrows(AssertionError.class, () -> Golden.assertMatches("identitykit-selftest", List.of(), false));
         }
 
         @Test
@@ -192,9 +202,31 @@ class IdentityKitTest {
         }
 
         @Test
+        void hangingFreshJvmSceneIsKilledAtTimeout() {
+            long saved = SceneHash.FRESH_JVM_TIMEOUT_SECONDS;
+            SceneHash.FRESH_JVM_TIMEOUT_SECONDS = 5;
+            try {
+                long t0 = System.nanoTime();
+                AssertionError e = assertThrows(AssertionError.class, () -> SceneHash.recordInFreshJvm(HangingScene.class));
+                assertTrue(e.getMessage().contains("5초 안에 안 끝났다"), e.getMessage());
+                assertTrue(System.nanoTime() - t0 < 60_000_000_000L, "시간 제한이 들어야 한다");
+            } finally {
+                SceneHash.FRESH_JVM_TIMEOUT_SECONDS = saved;
+            }
+        }
+
+        @Test
         void freshJvmFailureCarriesChildLog() {
             AssertionError e = assertThrows(AssertionError.class, () -> SceneHash.recordInFreshJvm(BrokenScene.class));
             assertTrue(e.getMessage().contains("exit") && e.getMessage().contains("장면 고장"), e.getMessage());
+        }
+    }
+
+    public static final class HangingScene implements SceneHash.Scene {
+        @Override
+        public void run(SceneHash.Recorder rec) throws Exception {
+            System.out.println("출력을 계속 낸다");   // 파이프를 읽느라 막히던 경로(R2)를 덮는다
+            Thread.sleep(Long.MAX_VALUE);
         }
     }
 

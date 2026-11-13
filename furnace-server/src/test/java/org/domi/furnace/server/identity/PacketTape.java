@@ -54,8 +54,8 @@ public final class PacketTape {
         Object o;
         while ((o = ch.readOutbound()) != null) {
             if (o instanceof CompressionEncoder.Precompressed p) {
-                // 압축 인코더가 없는 채널에 미리 압축한 청크가 그대로 나왔다 — 압축 형식으로 푼다
-                append(p.payload(), wire == Wire.FRAMED || wire == Wire.FRAMED_COMPRESSED ? Wire.COMPRESSED : wire);
+                // 압축 인코더를 거치지 않은 미리 압축한 프레임: 언제나 [VarInt 원래 길이][zlib] 라 wire 와 무관하게 압축 형식으로 푼다
+                append(p.payload(), Wire.COMPRESSED);
             } else if (o instanceof ByteBuf b) {
                 append(b, wire);
             } else {
@@ -121,6 +121,7 @@ public final class PacketTape {
             if (n != dataLen || !inf.finished()) {
                 throw new IllegalStateException("압축 해제 길이 " + n + " != 표시 " + dataLen + (inf.finished() ? "" : " (스트림 안 끝남)"));
             }
+            if (inf.getRemaining() != 0) throw new IllegalStateException("zlib 스트림 뒤에 남은 바이트 " + inf.getRemaining());
             return out;
         } catch (DataFormatException e) {
             throw new IllegalStateException("zlib 형식 오류", e);

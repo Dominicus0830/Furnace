@@ -36,6 +36,26 @@ class LegacyOracleRulesTest {
         return out;
     }
 
+    /** 주석(블록·줄)·import·package 줄을 지운 코드. 문자열 안의 // 는 드물어 무시한다(사용처 검사용 근사). */
+    static String codeOnly(String src) {
+        String noBlock = src.replaceAll("(?s)/\\*.*?\\*/", " ");
+        StringBuilder sb = new StringBuilder();
+        for (String line : noBlock.split("\n", -1)) {
+            String t = line.strip();
+            if (t.startsWith("import ") || t.startsWith("package ")) continue;
+            int c = line.indexOf("//");
+            sb.append(c >= 0 ? line.substring(0, c) : line).append('\n');
+        }
+        return sb.toString();
+    }
+
+    @Test
+    void usageCheckIgnoresCommentsAndImports() {
+        String onlyMentions = "// LegacyFoo 를 쓴다\nimport a.b.LegacyFoo;\n/* LegacyFoo.top() */ class X {}";
+        assertFalse(Pattern.compile("\\bLegacyFoo\\s*(\\.|::)").matcher(codeOnly(onlyMentions)).find());
+        assertTrue(Pattern.compile("\\bLegacyFoo\\s*(\\.|::)").matcher(codeOnly("int y = LegacyFoo.top(c);")).find());
+    }
+
     @Test
     void legacyOraclesFollowLifetimeRules() throws Exception {
         Path root = testSourceRoot();
@@ -74,9 +94,9 @@ class LegacyOracleRulesTest {
             }
             if (!ann.since().equals(m.group(1))) problems.add(rel + ": 머리 since " + m.group(1) + " != @LegacyOracle since " + ann.since());
             if (ann.copyOf().isBlank()) problems.add(rel + ": copyOf 가 비었다");
-            // 3. 쓰는 차분 시험이 있어야 한다
-            Pattern use = Pattern.compile("\\b" + Pattern.quote(simple) + "\\b");
-            boolean used = src.entrySet().stream().anyMatch(o -> !o.getKey().equals(file) && use.matcher(o.getValue()).find());
+            // 3. 쓰는 차분 시험이 있어야 한다 — 주석·import 가 아니라 코드에서 호출(이름. 또는 이름::)
+            Pattern use = Pattern.compile("\\b" + Pattern.quote(simple) + "\\s*(\\.|::)");
+            boolean used = src.entrySet().stream().anyMatch(o -> !o.getKey().equals(file) && use.matcher(codeOnly(o.getValue())).find());
             if (!used) problems.add(rel + ": 아무 시험도 쓰지 않는다 — 지운다");
             // 4. 금 파일이 덮으면 지운다
             if (!ann.coveredBy().isBlank() && Golden.expected(ann.coveredBy()) != null) {

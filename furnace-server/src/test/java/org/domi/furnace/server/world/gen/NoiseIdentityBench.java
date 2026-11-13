@@ -117,7 +117,8 @@ public class NoiseIdentityBench {
     /**
      * 동일성 장면: 설정마다 라우터 해시, 위치마다 원시 청크 해시, 일부 설정은 이어진 5×5 를 3 스레드로.
      * full=false 는 CI 용 짧은 부분집합(설정 7개 × 라우터 + 청크 두 곳, 동시 생성 없음) — NoiseIdentityGoldenTest.
-     * 시간은 대부분 설정마다 소스(라우터·노이즈) 만들기라 설정 수를 줄였다(29개 전부면 두 번 돌려 약 54초, 4코어).
+     * 시간은 대부분 오버월드 계열 소스마다 첫 청크(지연 초기화, 1.2~2.4초)라 설정 수를 줄였다 — 소스 만들기 자체는 합쳐 약 1.6초
+     * (PR #290 검토 R5 측정). 29개 전부면 두 번 돌려 약 54초(4코어).
      */
     static void record(SceneHash.Recorder rec, boolean full) throws Exception {
         int ci = 0;

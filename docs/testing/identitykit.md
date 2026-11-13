@@ -10,7 +10,7 @@
 |---|---|---|
 | `IdentityHash` | 모든 해시 | `h = (h ^ v) * FNV_PRIME`. 기존 `NoiseIdentityBench`·O04·O07 도구와 같은 식이라 그 값들과 이어진다 |
 | `Differential` | 순수 함수 차분(옛 함수 vs 새 함수) | 반복마다 (시드, 번호)에서 따로 만든 `SplittableRandom` 입력, 실패 시 시드·번호·입력 요약·재현 명령, 변이 점검 `assertDetects` |
-| `SceneHash` | 장면 상태 해시 | 장면 줄을 쌓고 끝에 `TOTAL`. **결정성 자기 점검**(같은 JVM 에서 두 번 돌려 다르면 실패) 뒤 금 파일 비교 |
+| `SceneHash` | 장면 상태 해시 | 장면 줄을 쌓고 끝에 `TOTAL`. 한 번 돌려 금 파일과 같으면 끝. 다르거나·없거나·bless 면 **결정성 자기 점검**(한 번 더 돌려 다르면 "결정적이지 않음") 뒤 비교·갱신 |
 | `Golden` | 금 파일 비교 | `src/test/resources/identity/<이름>.txt` 와 줄 단위 비교, 불일치 시 `build/identity/actual/<이름>.txt` 에 지금 결과 |
 | `PacketTape` | 나가는 패킷 대조 | 시험 채널에서 (id, 본문) 열을 모은다. 압축·프레임은 풀어서 비교. `assertSame`·`hash`·`lines` |
 | `Mca` | `.mca` 바이트 대조 | `assertSameBytes(dirA, dirB[, 시각 무시])`, `fixClock(RegionFile, 초)` |
@@ -31,7 +31,7 @@ Differential.<Input, Result>of("이름", r -> 입력생성(r))   // r 만 써서
 ```
 
 - 옛·새 구현은 각자 새로 만든 입력을 받는다(한쪽이 입력을 고쳐도 섞이지 않는다).
-- 결과 비교 기본은 `Objects.deepEquals`(배열은 내용). 둘 다 같은 종류의 예외를 던지면 같은 결과다.
+- 결과 비교 기본은 `Objects.deepEquals`(배열은 내용). 둘 다 같은 종류의 예외를 던지면 같은 결과다. 단 **모든 반복이 양쪽 예외**면 아무것도 비교하지 않은 빈 시험이라 실패한다(예외 동작만 보는 차분이면 `allowAllExceptions()`).
 - 시험 하나에 변이 점검 하나를 권한다: `assertDetects(옛, 일부러틀린것)` — 생성기가 그 틀린 경우를 만들지 못하면 실패한다.
 - 실패 재현: 메시지의 `-Dfurnace.identity.seed=… -Dfurnace.identity.iter=…` 를 붙여 그 시험 하나만 돌린다(`--tests`).
 
@@ -42,7 +42,7 @@ Differential.<Input, Result>of("이름", r -> 입력생성(r))   // r 만 써서
 | `furnace.identity.scale` | 1 | 차분 반복 수 배수(야간·수동 실행에서 100 권장) |
 | `furnace.identity.randomSeeds` | 0 | 고정 시드 뒤 무작위 시드 N 개 추가, 시드를 출력. 실패한 시드는 고정 시드 시험에 추가한다 |
 | `furnace.identity.seed` / `.iter` | — | 재현 모드: 그 시드(·반복 하나)만 |
-| `furnace.identity.determinismRuns` | 2 | 장면 결정성 점검 반복 수 |
+| `furnace.identity.determinismRuns` | 2 | 결정성 점검 때 몇 번째 실행까지 비교할지(금 파일과 다르거나·없거나·bless 때만 돈다) |
 | `furnace.identity.bless` | — | 금 파일 갱신(이름을 쉼표로 하나씩. `*`·`all` 거부) |
 
 평소 CI 는 고정 시드만 쓴다 — 결정적이라 CI 재시도에 가려지는 확률 실패가 아니다.
@@ -57,6 +57,7 @@ SceneHash.assertGolden("scene-name", rec -> {
 ```
 
 - 줄은 "무엇 어디 해시" 꼴로(금 파일 diff 를 사람이 읽는다). `TOTAL` 줄은 자동.
+- 비용: 성공하면 장면을 한 번만 돈다(커밋된 금 파일과의 일치가 곧 실행 간 결정성 증거). 금 파일과 다르거나 bless 때만 한 번 더 돌려 "비결정"과 "결과가 바뀜"을 가른다 — 비결정 장면을 금 파일로 굳히지 않는다.
 - 해시에 넣지 않는 것: 정체 해시(`System.identityHashCode`·기본 `hashCode`), `HashMap<객체>`·`ConcurrentHashMap` 순회 순서, 시각, `nanoTime` 씨앗 난수. 결정성 점검이 대부분을 잡지만 JVM 사이에서만 달라지는 것은 못 잡는다.
 - **같은 JVM 모드(`assertGolden`)와 새 JVM 모드(`assertGoldenInFreshJvm`)**: 엔티티가 든 장면은 새 JVM 모드를 쓴다. 엔티티·레벨 난수는 T-O15-01(PR #272) 이음매로 `-Dfurnace.test.seeded=true` 일 때 주인 열쇠에서 결정되지만, 시험 레벨의 엔티티 id 카운터(`ChunkLevel.FALLBACK_IDS`)와 정적 난수(`Sensor.RANDOM`·`ShufflingList.RANDOM`)는 JVM 전역이라 같은 JVM 의 두 번째 실행이나 앞서 돈 다른 시험(시험 조각 구성)에 따라 UUID·난수가 달라진다. 새 JVM 모드는 실행마다 시험 클래스패스로 새 JVM 을 띄우고(씨앗 켜짐), 장면 클래스(public, 인자 없는 생성자)를 돌린다 — 한 번에 JVM 시작 비용(약 1~2초)이 든다. 본보기: `identity/EntitySelftestScene` + `IdentityKitTest.FreshJvm`. 같은 JVM 모드는 정적 상태를 건드리지 않는 월드젠·순수 계산 장면용이다.
 - 새 JVM 이어도 이음매 밖 난수(`ThreadLocalRandom`·`Math.random`·`UUID.randomUUID`·`WorldClock` 의 `new Random()` 등 — 목록은 `docs/feature-parity/context-notes/2026-11-12-random-seeds-seam.md`)를 거치는 장면은 결정적이지 않다. 결정성 점검이 잡으면 그 지점을 같은 이음매로 옮기는 것이 먼저다.
@@ -74,7 +75,7 @@ SceneHash.assertGolden("scene-name", rec -> {
 1. 갱신 명령: `./gradlew :furnace-server:test --tests '<시험>' -Dfurnace.identity.bless=<이름>[,<이름>…]`(bench 장면은 해당 `-Dfurnace.bench=true`/`-Dfurnace.profile=true` 도). 이름을 하나씩 적는다.
 2. PR 본문에 **"금 파일 갱신"** 절: 바뀐 파일, 바뀐 줄 수, 왜 결과가 달라지는지(위 1·2 중 무엇), 바닐라 근거(정확성 수정이면).
 3. **독립 검토자 스레드가 바뀐 줄을 확인하고 승인**해야 병합한다(기존 병합 규칙: CI `test` + 독립 검토 위에 이 확인을 더한다). 금 파일 변경과 최적화를 한 PR 에 섞지 않는다.
-4. 금 파일 변경 PR 에 CI 알림을 다는 것은 T-O15-05(CI) 몫이다.
+4. 기계 점검은 아직 없다(이 절차는 사람이 지킨다). **T-O15-05(CI)** 가 넘겨받는다: `src/test/resources/identity/*.txt` 가 바뀐 PR 에서 본문에 "금 파일 갱신" 절이 없으면 실패하는 점검 + Step Summary 알림.
 
 `ChunkSendPacketOrderGoldenTest` 의 기대 열처럼 시험 코드 안에 적은 기대값도 같은 규칙을 따른다.
 
@@ -93,4 +94,6 @@ SceneHash.assertGolden("scene-name", rec -> {
 ## 금 파일 안정성 (확인한 것과 가설)
 
 - `worldgen-noise-quick` 은 4코어 클라우드 컨테이너에서 만들었고, 같은 파일이 GitHub Actions 러너(CI `test`)에서 통과하는지로 환경 간 안정성을 확인한다(이 PR 의 CI).
-- double 연산은 Java 17+ 에서 항상 strict 라 플랫폼 무관하다고 본다. `Math.sin` 류 내장 함수가 장면에 들어가면 `StrictMath` 와 결과가 다를 수 있다 — 가설, 그런 장면을 만들 때 두 환경에서 확인한다.
+- 확인함(PR #290): `worldgen-noise-quick`·`identitykit-entity-selftest` 가 4코어 컨테이너 두 곳과 GitHub Actions 러너(x86_64 리눅스)에서 같다. 검토자가 CPU 1·4개(`-XX:ActiveProcessorCount`)와 C1 전용(`-XX:TieredStopAtLevel=1`)에서도 TOTAL 이 같음을 확인했다.
+- 가설: double 사칙연산은 Java 17+ 에서 항상 strict 라 플랫폼 무관하다. 그러나 quick 장면에 이미 `Math.sin`(카버의 `Mth.SIN` 표)·`Math.log`(가우스)가 들어 있고 구조물은 `Math.cos/sin` 을 쓴다. x86_64 HotSpot 은 OS 와 무관하게 같은 내장 함수라 Windows·리눅스는 같다고 보지만, aarch64(Apple Silicon 등)에서는 1ulp 차이로 금 파일이 어긋날 수 있다(확인 못 함). 그런 환경에서 실패하면 bless 하지 말고 이 절에 적는다.
+- `NoiseIdentityBench` 출력 파일의 `TOTAL` 식이 IdentityKit 도입 때 바뀌었다(값 FNV → 줄 문자열 해시). 줄 단위 diff 는 예전 출력과 그대로 되지만 예전 PR 본문의 `NOISE_IDENTITY TOTAL` 값과는 직접 비교가 안 된다.

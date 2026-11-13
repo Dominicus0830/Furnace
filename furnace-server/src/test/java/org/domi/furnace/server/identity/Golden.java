@@ -72,13 +72,18 @@ public final class Golden {
 
     /** 지금 결과가 금 파일과 같아야 한다. bless 요청이면 금 파일을 다시 쓴다. */
     public static void assertMatches(String name, List<String> actual) {
+        assertMatches(name, actual, blessRequested(checkName(name)));
+    }
+
+    /** bless 여부를 직접 준다 — 장치 자기 시험이 bless 속성으로 금 파일을 덮지 않게(bless=false). */
+    static void assertMatches(String name, List<String> actual, boolean bless) {
         checkName(name);
         for (String l : actual) {
             if (l.contains("\n") || l.contains("\r")) throw new IllegalArgumentException("줄 안에 줄바꿈: " + l);
             if (l.isBlank() || l.startsWith("#")) throw new IllegalArgumentException("빈 줄·'#' 줄은 비교에서 빠지므로 결과 줄로 쓸 수 없다: '" + l + "'");
         }
         if (actual.isEmpty()) throw new AssertionError("[" + name + "] 결과 줄이 하나도 없다 — 빈 결과를 금 파일과 같다고 볼 수 없다");
-        if (blessRequested(name)) {
+        if (bless) {
             Path file = bless(name, actual);
             System.out.printf("IDENTITY-BLESS %s lines=%d -> %s%n", name, actual.size(), file);
             return;

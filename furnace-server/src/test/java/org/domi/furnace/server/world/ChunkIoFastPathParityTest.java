@@ -27,6 +27,18 @@ class ChunkIoFastPathParityTest {
                 field(a, "palette"), field(a, "lookupKeys"), field(a, "lookupVals"), st == null ? null : st.data(), a.unpack(), nonAir};
     }
 
+    private static final String[] SNAPSHOT_FIELDS = {"bits", "paletteSize", "singleValue", "palette", "lookupKeys", "lookupVals",
+            "storage data", "unpack", "nonAir"};
+
+    /** 스냅샷 차이를 필드 이름으로(예전 assertSameStorage 메시지 수준). */
+    private static String snapshotDifference(Object[] a, Object[] b) {
+        for (int i = 0; i < SNAPSHOT_FIELDS.length; i++) {
+            String d = Differential.deepDifference(a[i], b[i]);
+            if (d != null) return SNAPSHOT_FIELDS[i] + ": " + d;
+        }
+        return null;
+    }
+
     private static int ceillog2(int n) { return 32 - Integer.numberOfLeadingZeros(n - 1); }
 
     /** NBT 팔레트 값 + 칸 인덱스 + 같은 내용을 펼친 배열. */
@@ -72,7 +84,8 @@ class ChunkIoFastPathParityTest {
 
     private static Differential<PaletteInput, Object[]> paletteDiff() {
         return Differential.<PaletteInput, Object[]>of("palette-loadIndexed", ChunkIoFastPathParityTest::randomPalette)
-                .seed(0x10AD).iterations(3000).describe(PaletteInput::summary);
+                .seed(0x10AD).iterations(3000).describe(PaletteInput::summary)
+                .compare(ChunkIoFastPathParityTest::snapshotDifference);
     }
 
     @Test
@@ -144,48 +157,67 @@ class ChunkIoFastPathParityTest {
         return col;
     }
 
-    @Test
-    void columnScans_matchPerBlockScan() throws Exception {
-        int[] pool = pool(BlockRegistry.load("blocks/1.21.1.txt"));
+    /** 칸마다 (MBNL, MB, OF) 월드 y — 예전 칸별 탐색. leavesExcluded=false 는 변이(잎 제외를 빼먹은 구현). */
+    private static int[] legacyScans(ChunkColumn col, boolean leavesExcluded) throws Exception {
         var isMb = predicate("isMotionBlockingBlock");
         var isOf = predicate("isOceanFloorBlock");
         var isLv = predicate("isLeaves");
-        // 결과: 칸마다 (MBNL, MB, OF) — 월드 y
-        Differential.<ChunkColumn, int[]>of("column-scans", r -> mixedColumn(r, pool)).seed(0x70B).iterations(200)
-                .check(col -> {
-                    int[] out = new int[3 * 256];
-                    for (int i = 0; i < 256; i++) {
-                        int x = i & 15, z = i >> 4;
-                        out[3 * i] = LegacyColumnScans.top(col, x, z, s -> isMb.test(s) && !isLv.test(s), true);
-                        out[3 * i + 1] = ChunkColumn.MIN_Y + LegacyColumnScans.top(col, x, z, isMb, false) - 1;
-                        out[3 * i + 2] = ChunkColumn.MIN_Y + LegacyColumnScans.top(col, x, z, isOf, false) - 1;
-                    }
-                    return out;
-                }, col -> {
-                    int[] out = new int[3 * 256];
-                    for (int i = 0; i < 256; i++) {
-                        int x = i & 15, z = i >> 4;
-                        out[3 * i] = col.motionBlockingNoLeavesBlockY(x, z);
-                        out[3 * i + 1] = col.motionBlockingBlockY(x, z);
-                        out[3 * i + 2] = col.oceanFloorBlockY(x, z);
-                    }
-                    return out;
-                });
+        int[] out = new int[3 * 256];
+        for (int i = 0; i < 256; i++) {
+            int x = i & 15, z = i >> 4;
+            out[3 * i] = LegacyColumnScans.top(col, x, z, st -> isMb.test(st) && !(leavesExcluded && isLv.test(st)), true);
+            out[3 * i + 1] = ChunkColumn.MIN_Y + LegacyColumnScans.top(col, x, z, isMb, false) - 1;
+            out[3 * i + 2] = ChunkColumn.MIN_Y + LegacyColumnScans.top(col, x, z, isOf, false) - 1;
+        }
+        return out;
+    }
+
+    private static int[] fastScans(ChunkColumn col) {
+        int[] out = new int[3 * 256];
+        for (int i = 0; i < 256; i++) {
+            int x = i & 15, z = i >> 4;
+            out[3 * i] = col.motionBlockingNoLeavesBlockY(x, z);
+            out[3 * i + 1] = col.motionBlockingBlockY(x, z);
+            out[3 * i + 2] = col.oceanFloorBlockY(x, z);
+        }
+        return out;
+    }
+
+    private static Differential<ChunkColumn, int[]> scanDiff() {
+        int[] pool = pool(BlockRegistry.load("blocks/1.21.1.txt"));
+        return Differential.<ChunkColumn, int[]>of("column-scans", r -> mixedColumn(r, pool)).seed(0x70B).iterations(200);
+    }
+
+    @Test
+    void columnScans_matchPerBlockScan() {
+        scanDiff().check(col -> legacyScans(col, true), ChunkIoFastPathParityTest::fastScans);
+    }
+
+    @Test
+    void columnScans_differentialCatchesLeavesNotExcluded() {
+        scanDiff().assertDetects(col -> legacyScans(col, true), col -> legacyScans(col, false));
+    }
+
+    /** 예전 rebuild 결과(월드 y). oceanFloor 술어를 바꿔 변이를 만든다. */
+    private static int[][] legacyRebuild(ChunkColumn col, java.util.function.IntPredicate isOceanFloor) {
+        int[][] e = LegacyColumnScans.rebuild(col, isOceanFloor);
+        for (int i = 0; i < 256; i++) { e[0][i] = ChunkColumn.MIN_Y + e[0][i] - 1; e[1][i] = ChunkColumn.MIN_Y + e[1][i] - 1; }
+        return e;
+    }
+
+    private static Differential<ChunkColumn, int[][]> rebuildDiff() {
+        int[] pool = pool(BlockRegistry.load("blocks/1.21.1.txt"));
+        return Differential.<ChunkColumn, int[][]>of("rebuild-heightmaps", r -> {
+            ChunkColumn col = randomColumn(r, pool);
+            col.compactSections();
+            return col;
+        }).seed(0x5C2).iterations(200);
     }
 
     @Test
     void rebuildHeightmaps_sameValuesWithoutOpeningScratch() throws Exception {
-        int[] pool = pool(BlockRegistry.load("blocks/1.21.1.txt"));
         var isOf = predicate("isOceanFloorBlock");
-        Differential.<ChunkColumn, int[][]>of("rebuild-heightmaps", r -> {
-            ChunkColumn col = randomColumn(r, pool);
-            col.compactSections();
-            return col;
-        }).seed(0x5C2).iterations(200).check(col -> {
-            int[][] e = LegacyColumnScans.rebuild(col, isOf);
-            for (int i = 0; i < 256; i++) { e[0][i] = ChunkColumn.MIN_Y + e[0][i] - 1; e[1][i] = ChunkColumn.MIN_Y + e[1][i] - 1; }
-            return e;
-        }, col -> {
+        rebuildDiff().check(col -> legacyRebuild(col, isOf), col -> {
             col.rebuildHeightmapsAfterSurface();
             for (ChunkSection s : col.sections()) assertNull(field(s, "scratch"), "scratch 열림");
             int[][] got = new int[2][256];
@@ -195,5 +227,12 @@ class ChunkIoFastPathParityTest {
             }
             return got;
         });
+    }
+
+    @Test
+    void rebuildHeightmaps_differentialCatchesWrongOceanFloorPredicate() throws Exception {
+        var isOf = predicate("isOceanFloorBlock");
+        // 변이: 바다 바닥을 "공기 아님"으로(물·잎도 바닥으로 셈)
+        rebuildDiff().assertDetects(col -> legacyRebuild(col, isOf), col -> legacyRebuild(col, st -> !ChunkSection.isAir(st)));
     }
 }

@@ -4,9 +4,11 @@
 //       for (...) rec.line("chunk overworld 12345 0 0", hashColumn(g));
 //   });
 //
-// 비교 전에 **결정성 자기 점검**을 한다: 같은 빌드·같은 JVM 에서 장면을 두 번(-Dfurnace.identity.determinismRuns) 돌려
+// **결정성 자기 점검**: 장면을 한 번 돌려 금 파일과 같으면 끝이다(커밋된 금 파일과의 일치가 곧 실행 간 결정성 증거).
+// 다르거나 금 파일이 없거나 bless 요청이면, 비교·갱신 전에 장면을 더 돌려(-Dfurnace.identity.determinismRuns, 기본 2회째까지)
 // 줄이 하나라도 다르면 "결정적이지 않음"으로 실패한다 — 금 파일과의 차이가 최적화 탓인지 장면의 비결정(정체 해시 순서·
-// 시각·nanoTime 씨앗 난수·여러 region 스레드 순서) 탓인지 섞이지 않게. 장면은 매번 새 상태(새 월드·새 소스)로 시작해야 한다.
+// 시각·이음매 밖 난수·여러 region 스레드 순서) 탓인지 섞이지 않게, 그리고 비결정 장면을 금 파일로 굳히지 않게.
+// 장면은 매번 새 상태(새 월드·새 소스)로 시작해야 한다.
 //
 // **같은 JVM 두 번이 같다는 보장이 없는 장면**(엔티티가 든 장면): 시험 레벨의 엔티티 id 카운터(ChunkLevel.FALLBACK_IDS)와
 // 정적 난수(Sensor·ShufflingList)가 JVM 전역이라, 같은 JVM 의 두 번째 실행·앞서 돈 다른 시험에 따라 UUID·난수가 달라진다
@@ -82,33 +84,43 @@ public final class SceneHash {
         return Math.max(2, Integer.getInteger("furnace.identity.determinismRuns", 2));
     }
 
-    /** 결정성 자기 점검: 여러 번 돌려 모두 같아야 한다. 첫 결과를 돌려준다. */
+    /** 결정성 자기 점검(같은 JVM): 여러 번 돌려 모두 같아야 한다. 첫 결과를 돌려준다. */
     public static List<String> deterministic(String name, Scene scene) {
-        return deterministic(name, scene, determinismRuns());
-    }
-
-    public static List<String> deterministic(String name, Scene scene, int runs) {
         List<String> first = record(scene);
-        for (int run = 2; run <= runs; run++) {
-            List<String> again = record(scene);
-            if (!first.equals(again)) {
-                int i = 0;
-                while (i < Math.min(first.size(), again.size()) && first.get(i).equals(again.get(i))) i++;
-                throw new AssertionError("[" + name + "] 장면이 결정적이지 않다 — 같은 빌드에서 " + run + "번째 실행이 첫 실행과 다르다(금 파일 비교 전 점검)"
-                        + "\n  첫 차이 " + (i + 1) + "번째 줄\n    1회: " + (i < first.size() ? first.get(i) : "(없음)")
-                        + "\n    " + run + "회: " + (i < again.size() ? again.get(i) : "(없음)")
-                        + "\n  흔한 원인: 정체 해시 순서(HashMap<객체>), ConcurrentHashMap 순회, nanoTime 씨앗 난수, 여러 region 스레드, 이전 실행이 남긴 정적 캐시");
-            }
-        }
+        checkSame(name, first, () -> record(scene), "같은 JVM");
         return first;
     }
 
-    /** 결정성 점검 → 금 파일 비교(같은 JVM 에서 돌린다 — 정적 상태를 안 건드리는 장면용). */
+    /** 금 파일 비교(같은 JVM 에서 돌린다 — 정적 상태를 안 건드리는 장면용). 다를 때·없을 때·bless 때는 결정성 점검을 먼저. */
     public static List<String> assertGolden(String name, Scene scene) {
         Golden.checkName(name);
-        List<String> lines = deterministic(name, scene);
-        Golden.assertMatches(name, lines);
+        List<String> lines = record(scene);
+        if (!matchesGoldenWithoutBless(name, lines)) {
+            // 금 파일과 다르거나(·없거나) bless 요청: 두 번째 실행으로 "비결정" 과 "결과가 바뀜" 을 가른 뒤 비교·갱신한다
+            checkSame(name, lines, () -> record(scene), "같은 JVM");
+            Golden.assertMatches(name, lines);
+        }
         return lines;
+    }
+
+    /** 금 파일과 같고 bless 요청이 아니면 true — 금 파일과의 일치가 곧 실행 간 결정성 증거라 두 번째 실행을 생략한다. */
+    static boolean matchesGoldenWithoutBless(String name, List<String> lines) {
+        return !Golden.blessRequested(name) && lines.equals(Golden.expected(name));
+    }
+
+    private static void checkSame(String name, List<String> first, java.util.function.Supplier<List<String>> again, String where) {
+        for (int run = 2; run <= determinismRuns(); run++) {
+            List<String> next = again.get();
+            if (!first.equals(next)) {
+                int i = 0;
+                while (i < Math.min(first.size(), next.size()) && first.get(i).equals(next.get(i))) i++;
+                throw new AssertionError("[" + name + "] 장면이 결정적이지 않다 — " + where + " " + run + "번째 실행이 첫 실행과 다르다(금 파일 비교 전 점검)"
+                        + "\n  첫 차이 " + (i + 1) + "번째 줄\n    1회: " + (i < first.size() ? first.get(i) : "(없음)")
+                        + "\n    " + run + "회: " + (i < next.size() ? next.get(i) : "(없음)")
+                        + "\n  흔한 원인: 정체 해시 순서(HashMap<객체>), ConcurrentHashMap 순회, 이음매 밖 난수(ThreadLocalRandom·Math.random·"
+                        + "UUID.randomUUID·new Random()), 시각, 여러 region 스레드, 같은 JVM 이면 이전 실행이 남긴 정적 상태(엔티티 id 카운터·정적 캐시)");
+            }
+        }
     }
 
     /**
@@ -118,48 +130,45 @@ public final class SceneHash {
      */
     public static List<String> assertGoldenInFreshJvm(String name, Class<? extends Scene> scene, String... jvmArgs) {
         Golden.checkName(name);
-        List<String> lines = deterministicInFreshJvm(name, scene, jvmArgs);
-        Golden.assertMatches(name, lines);
+        List<String> lines = recordInFreshJvm(scene, jvmArgs);
+        if (!matchesGoldenWithoutBless(name, lines)) {
+            checkSame(name, lines, () -> recordInFreshJvm(scene, jvmArgs), "새 JVM");
+            Golden.assertMatches(name, lines);
+        }
         return lines;
     }
 
+    /** 결정성 자기 점검(새 JVM 여러 번). 첫 결과를 돌려준다. */
     public static List<String> deterministicInFreshJvm(String name, Class<? extends Scene> scene, String... jvmArgs) {
         List<String> first = recordInFreshJvm(scene, jvmArgs);
-        for (int run = 2; run <= determinismRuns(); run++) {
-            List<String> again = recordInFreshJvm(scene, jvmArgs);
-            if (!first.equals(again)) {
-                int i = 0;
-                while (i < Math.min(first.size(), again.size()) && first.get(i).equals(again.get(i))) i++;
-                throw new AssertionError("[" + name + "] 장면이 결정적이지 않다 — 새 JVM " + run + "번째 실행이 첫 실행과 다르다"
-                        + "\n  첫 차이 " + (i + 1) + "번째 줄\n    1회: " + (i < first.size() ? first.get(i) : "(없음)")
-                        + "\n    " + run + "회: " + (i < again.size() ? again.get(i) : "(없음)")
-                        + "\n  새 JVM 이라도 남는 원인: 이음매 밖 난수(ThreadLocalRandom·Math.random·UUID.randomUUID·new Random()), 시각, 여러 스레드 순서");
-            }
-        }
+        checkSame(name, first, () -> recordInFreshJvm(scene, jvmArgs), "새 JVM");
         return first;
     }
+
+    /** 새 JVM 장면 하나의 시간 제한(초). 넘으면 자식 JVM 을 죽이고 실패한다. */
+    static long FRESH_JVM_TIMEOUT_SECONDS = 240;
 
     /** 새 JVM 하나에서 장면을 한 번 돌린 줄(끝에 TOTAL). */
     public static List<String> recordInFreshJvm(Class<? extends Scene> scene, String... jvmArgs) {
         if (!java.lang.reflect.Modifier.isPublic(scene.getModifiers())) throw new IllegalArgumentException("장면 클래스는 public: " + scene.getName());
-        java.nio.file.Path out = null;
+        java.nio.file.Path out = null, logFile = null;
         try {
             out = java.nio.file.Files.createTempFile("scene-", ".txt");
+            logFile = java.nio.file.Files.createTempFile("scene-", ".log");
             String javaBin = java.nio.file.Path.of(System.getProperty("java.home"), "bin", "java").toString();
             List<String> cmd = new ArrayList<>(List.of(javaBin, "-ea", "-Xmx1g", "-Dfurnace.test.seeded=true",
                     "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8"));
             cmd.addAll(List.of(jvmArgs));
             cmd.addAll(List.of("-cp", System.getProperty("java.class.path"), ForkMain.class.getName(), scene.getName(), out.toString()));
-            ProcessBuilder pb = new ProcessBuilder(cmd).redirectErrorStream(true);
+            // 출력은 파일로 보낸다 — 파이프를 읽느라 막히면 아래 시간 제한이 듣지 않는다. 로그는 실패 메시지용, 결과는 out 파일.
+            ProcessBuilder pb = new ProcessBuilder(cmd).redirectErrorStream(true).redirectOutput(logFile.toFile());
             Process p = pb.start();
-            // 출력은 실패 메시지용으로만 모은다(로그가 섞여도 결과는 파일로 받는다)
-            byte[] log = p.getInputStream().readAllBytes();
-            if (!p.waitFor(240, java.util.concurrent.TimeUnit.SECONDS)) {
-                p.destroyForcibly();
-                throw new AssertionError("장면 JVM 이 240초 안에 안 끝났다: " + scene.getName());
+            if (!p.waitFor(FRESH_JVM_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)) {
+                p.destroyForcibly().waitFor(10, java.util.concurrent.TimeUnit.SECONDS);
+                throw new AssertionError("장면 JVM 이 " + FRESH_JVM_TIMEOUT_SECONDS + "초 안에 안 끝났다: " + scene.getName());
             }
             if (p.exitValue() != 0) {
-                String text = new String(log, java.nio.charset.StandardCharsets.UTF_8);
+                String text = java.nio.file.Files.readString(logFile, java.nio.charset.StandardCharsets.UTF_8);
                 throw new AssertionError("장면 JVM 실패(exit " + p.exitValue() + "): " + scene.getName() + "\n"
                         + (text.length() > 4000 ? text.substring(text.length() - 4000) : text));
             }
@@ -170,7 +179,9 @@ public final class SceneHash {
             Thread.currentThread().interrupt();
             throw new AssertionError("중단됨", e);
         } finally {
-            if (out != null) try { java.nio.file.Files.deleteIfExists(out); } catch (java.io.IOException ignored) {}
+            for (java.nio.file.Path f : new java.nio.file.Path[]{out, logFile}) {
+                if (f != null) try { java.nio.file.Files.deleteIfExists(f); } catch (java.io.IOException ignored) {}
+            }
         }
     }
 

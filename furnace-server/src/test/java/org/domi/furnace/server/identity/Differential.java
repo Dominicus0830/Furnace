@@ -12,6 +12,8 @@
 // - 반복 수: 시험이 정한 기본값 × -Dfurnace.identity.scale(기본 1, 야간 100 권장).
 //   -Dfurnace.identity.randomSeeds=N 이면 고정 시드 뒤에 무작위 시드 N 개를 더 돌리고 시드를 표준 출력에 남긴다(야간용 —
 //   실패한 시드는 고정 시드 시험에 추가한다). 평소 CI 는 고정 시드만이라 재시도에 가려지는 확률 실패가 아니다.
+// - 모든 반복에서 양쪽이 같은 예외로 끝나면 실패한다(생성기·오라클 고장으로 아무것도 비교하지 않는 빈 시험).
+//   의도한 경우만 allowAllExceptions().
 // - 변이 점검 assertDetects(oracle, mutant): 일부러 틀린 구현을 넣어도 이 차분이 잡는지 확인한다(항상 통과하는 빈 시험 방지).
 package org.domi.furnace.server.identity;
 
@@ -42,6 +44,8 @@ public final class Differential<I, O> {
     private Function<? super I, String> describe = Differential::shortString;
     private Comparison<? super O> comparison = Differential::deepDifference;
     private boolean exceptionsAreResults = true;
+    private boolean allowAllExceptions;
+    private boolean honorProperties = true;
 
     private Differential(String name, Function<SplittableRandom, I> generator) {
         this.name = Objects.requireNonNull(name);
@@ -69,20 +73,27 @@ public final class Differential<I, O> {
     /** 기본은 예외도 결과로 비교한다. false 면 어느 쪽이든 예외가 나면 그대로 실패한다. */
     public Differential<I, O> exceptionsAreResults(boolean v) { this.exceptionsAreResults = v; return this; }
 
+    /** 모든 반복이 양쪽 같은 예외로 끝나도 통과시킨다(예외 동작만 보는 차분일 때). */
+    public Differential<I, O> allowAllExceptions() { this.allowAllExceptions = true; return this; }
+
+    /** furnace.identity.* 속성(scale·seed·iter·randomSeeds)을 무시한다 — 장치 자기 시험이 야간·재현 속성에 흔들리지 않게. */
+    Differential<I, O> ignoreProperties() { this.honorProperties = false; return this; }
+
     /** 반복 k 의 입력 난수. (시드, k) 가 같으면 같은 난수다. */
     public static SplittableRandom randomFor(long seed, long iteration) {
         return new SplittableRandom(new SplittableRandom(seed ^ (iteration * 0xBF58476D1CE4E5B9L)).nextLong() ^ iteration);
     }
 
     public int effectiveIterations() {
-        long n = (long) iterations * Math.max(1, Integer.getInteger("furnace.identity.scale", 1));
+        int scale = honorProperties ? Math.max(1, Integer.getInteger("furnace.identity.scale", 1)) : 1;
+        long n = (long) iterations * scale;
         return (int) Math.min(Integer.MAX_VALUE, n);
     }
 
     /** 옛 구현과 새 구현의 결과가 모든 반복에서 같아야 한다. 돌린 반복 수를 돌려준다. */
     public int check(Impl<? super I, ? extends O> oracle, Impl<? super I, ? extends O> candidate) {
-        Long onlySeed = Long.getLong("furnace.identity.seed");
-        Integer onlyIter = Integer.getInteger("furnace.identity.iter");
+        Long onlySeed = honorProperties ? Long.getLong("furnace.identity.seed") : null;
+        Integer onlyIter = honorProperties ? Integer.getInteger("furnace.identity.iter") : null;
         if (onlySeed != null || onlyIter != null) {
             // 재현 모드: 실패 메시지가 알려 준 시드·반복 하나만
             long s = onlySeed != null ? onlySeed : seed;
@@ -94,7 +105,7 @@ public final class Differential<I, O> {
             return runAll(s, oracle, candidate);
         }
         int ran = runAll(seed, oracle, candidate);
-        int extra = Integer.getInteger("furnace.identity.randomSeeds", 0);
+        int extra = honorProperties ? Integer.getInteger("furnace.identity.randomSeeds", 0) : 0;
         for (int i = 0; i < extra; i++) {
             long s = System.nanoTime() ^ (0x632BE59BD9B4E019L * (i + 1));
             System.out.printf("IDENTITY %s randomSeed=%d (0x%x)%n", name, s, s);
@@ -118,12 +129,19 @@ public final class Differential<I, O> {
 
     private int runAll(long s, Impl<? super I, ? extends O> oracle, Impl<? super I, ? extends O> candidate) {
         int n = effectiveIterations();
+        bothThrew = 0;
         for (int k = 0; k < n; k++) {
             AssertionError diff = runOne(s, k, oracle, candidate);
             if (diff != null) throw diff;
         }
+        if (bothThrew == n && !allowAllExceptions) {
+            throw new AssertionError("[" + name + "] " + n + "번 반복 모두 옛·새 구현이 예외로 끝났다(seed=0x" + Long.toHexString(s)
+                    + ") — 아무 결과도 비교하지 않은 빈 시험이다. 생성기·오라클을 확인하고, 예외만 보는 차분이면 allowAllExceptions().");
+        }
         return n;
     }
+
+    private int bothThrew;
 
     /** 반복 하나. 같으면 null, 다르면 던질 실패. */
     private AssertionError runOne(long s, int k, Impl<? super I, ? extends O> oracle, Impl<? super I, ? extends O> candidate) {
@@ -132,7 +150,10 @@ public final class Differential<I, O> {
         Outcome<O> expected = call(oracle, forOracle);
         Outcome<O> actual = call(candidate, forCandidate);
         String diff = differ(expected, actual);
-        if (diff == null) return null;
+        if (diff == null) {
+            if (expected.error != null) bothThrew++;
+            return null;
+        }
         String input;
         try {
             input = describe.apply(generator.apply(randomFor(s, k)));
