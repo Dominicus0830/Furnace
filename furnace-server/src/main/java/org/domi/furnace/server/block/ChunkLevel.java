@@ -1329,14 +1329,28 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public boolean isHandlingTick() { return handlingTick; }
 
-    /** EntityGetter.hasNearbyAlivePlayer: 관전자 아니고 살아 있는 플레이어가 (x,y,z) 에서 range 안(< range²). */
+    /**
+     * EntityGetter.hasNearbyAlivePlayer: 관전자 아니고 살아 있는 플레이어가 (x,y,z) 에서 range 안(< range²). 바닐라처럼 range 가 음수면 거리와
+     * 무관하게 그런 플레이어가 하나라도 있으면 참이다(스포너 RequiredPlayerRange 음수 = 늘 켜짐).
+     */
     public boolean hasNearbyAlivePlayer(double x, double y, double z, double range) {
         boolean[] found = {false};
-        services().forEachPlayer(p -> {
+        boolean anyDistance = range < 0.0;
+        java.util.function.Consumer<Player> scan = p -> {
             if (found[0] || p.isDisconnected() || p.isSpectator() || !p.isAlive()) return;
+            if (anyDistance) {
+                found[0] = true;
+                return;
+            }
             double dx = p.x() - x, dy = p.y() - y, dz = p.z() - z;
             if (dx * dx + dy * dy + dz * dz < range * range) found[0] = true;
-        });
+        };
+        if (anyDistance) {
+            services().forEachPlayer(scan);
+        } else {
+            double r = range + NEAR_MARGIN;
+            forEachPlayerNear(x - r, z - r, x + r, z + r, scan);
+        }
         return found[0];
     }
 
@@ -1557,8 +1571,8 @@ public abstract class ChunkLevel implements BlockLevel {
     /** Level.getNearestPlayer(x, y, z, 거리, ignoreCreativeAndSpectators): 관전자(옵션으로 크리에이티브도) 제외 가장 가까운 플레이어. 거리가 음수면 제한 없음. */
     public Player getNearestPlayer(double x, double y, double z, double dist, boolean ignoreCreative) {
         Player[] best = new Player[1];
-        double[] bestD = {dist < 0.0 ? Double.MAX_VALUE : dist * dist};
-        services().forEachPlayer(p -> {
+        double[] bestD = new double[1];
+        java.util.function.Consumer<Player> scan = p -> {
             if (p.isDisconnected() || p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return;
             if (ignoreCreative && p.gameMode() == org.domi.furnace.server.world.GameMode.CREATIVE) return;
             double dx = p.x() - x, dy = p.y() - y, dz = p.z() - z;
@@ -1567,24 +1581,65 @@ public abstract class ChunkLevel implements BlockLevel {
                 bestD[0] = d;
                 best[0] = p;
             }
-        });
+        };
+        nearestScan(x, z, dist, best, bestD, scan);
         return best[0];
     }
 
     /** Level.getNearestPlayer(entity, 거리): 관전자가 아닌 가장 가까운 플레이어(거리 안에서), 없으면 null. */
     public Player getNearestPlayer(Entity from, double dist) {
         Player[] best = new Player[1];
-        double[] bestD = {dist < 0.0 ? Double.MAX_VALUE : dist * dist};
-        services().forEachPlayer(p -> {
+        double[] bestD = new double[1];
+        double fx = from.x(), fy = from.y(), fz = from.z();
+        java.util.function.Consumer<Player> scan = p -> {
             if (p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR || p.isDisconnected()) return;
-            double dx = p.x() - from.x(), dy = p.y() - from.y(), dz = p.z() - from.z();
+            double dx = p.x() - fx, dy = p.y() - fy, dz = p.z() - fz;
             double d = dx * dx + dy * dy + dz * dz;
             if (d < bestD[0]) {
                 bestD[0] = d;
                 best[0] = p;
             }
-        });
+        };
+        nearestScan(fx, fz, dist, best, bestD, scan);
         return best[0];
+    }
+
+    /** 근접 후보의 상자 여유(블록) — 거리 비교의 반올림·플레이어 몸 반폭을 덮는다. 격자 칸이 128 이라 거의 공짜다. */
+    static final double NEAR_MARGIN = 2.0;
+
+    /**
+     * 근접 조회 후보: [x0,x1]×[z0,z1] 와 겹칠 수 있는 플레이어를 forEachPlayer 와 같은 순서로(상위 집합 — 부르는 쪽이 원래 판정을
+     * 다시 한다). 색인이 없는 레벨(시험 등)은 forEachPlayer 그대로.
+     */
+    protected final void forEachPlayerNear(double x0, double z0, double x1, double z1, java.util.function.Consumer<Player> c) {
+        var idx = services().playerIndex();
+        if (idx == null) services().forEachPlayer(c);
+        else idx.forEachNear(x0, z0, x1, z1, c);
+    }
+
+    /**
+     * "가장 가까운 플레이어"(엄격한 &lt; 로 먼저 찾은 쪽) 훑기를 전체 훑기와 같은 결과로 줄인다. scan 은 bestD 보다 가까울 때만 고른다.
+     * 거리 제한이 있으면 그 반경 상자 후보만. 없으면(음수) 먼저 반경 128 상자 후보만 보고, 그 안(≤ 128²)에서 찾았으면 그것이 전체의
+     * 답이다 — 상자 밖 플레이어는 모두 128² 보다 멀어 이길 수도 비길 수도 없다. 못 찾았으면 전체를 다시 훑는다.
+     */
+    private void nearestScan(double x, double z, double dist, Player[] best, double[] bestD, java.util.function.Consumer<Player> scan) {
+        if (!(dist < 0.0)) {   // NaN 도 여기(옛 코드처럼 bestD = NaN 이라 아무도 못 고른다 — 상자도 NaN 이라 전부 훑는다)
+            bestD[0] = dist * dist;
+            double r = dist + NEAR_MARGIN;
+            forEachPlayerNear(x - r, z - r, x + r, z + r, scan);
+            return;
+        }
+        bestD[0] = Double.MAX_VALUE;
+        var idx = services().playerIndex();
+        if (idx != null && idx.gridActive()) {
+            double r0 = org.domi.furnace.server.world.PlayerRoster.NEAREST_FIRST_RADIUS;
+            double r = r0 + NEAR_MARGIN;
+            forEachPlayerNear(x - r, z - r, x + r, z + r, scan);
+            if (best[0] != null && bestD[0] <= r0 * r0) return;
+            best[0] = null;
+            bestD[0] = Double.MAX_VALUE;
+        }
+        services().forEachPlayer(scan);
     }
 
     /** Level.getNearestEntity(class, 조건, 출처, x, y, z, 상자): 조건에 맞는 것 중 (x,y,z)에 가장 가까운 엔티티(같은 거리면 먼저 찾은 것). */
@@ -1817,7 +1872,7 @@ public abstract class ChunkLevel implements BlockLevel {
     /** 상자와 겹치는 플레이어들(Level.getEntitiesOfClass(Player.class, box) 의 플레이어 쪽). */
     @Override
     public void forEachPlayerIn(org.domi.furnace.server.entity.AABB box, java.util.function.Consumer<Player> c) {
-        services().forEachPlayer(p -> {
+        forEachPlayerNear(box.minX() - NEAR_MARGIN, box.minZ() - NEAR_MARGIN, box.maxX() + NEAR_MARGIN, box.maxZ() + NEAR_MARGIN, p -> {
             if (!p.isDisconnected() && p.boundingBox().intersects(box)) c.accept(p);
         });
     }
@@ -1829,7 +1884,7 @@ public abstract class ChunkLevel implements BlockLevel {
         double[] bestD = {-1.0};
         // 사거리 밖(조건 검사가 어차피 거짓)인 플레이어는 조건을 부르지 않고 건너뛴다 — 검사 순서의 조건들은 모두 부수 효과 없는 판정이다(X1).
         final double far = source == null ? Double.POSITIVE_INFINITY : conditions.farLimitSqr();
-        services().forEachPlayer(p -> {
+        java.util.function.Consumer<Player> scan = p -> {
             if (p.isDisconnected()) return;
             if (far != Double.POSITIVE_INFINITY) {
                 double fx = source.x() - p.x(), fy = source.y() - p.y(), fz = source.z() - p.z();
@@ -1842,7 +1897,13 @@ public abstract class ChunkLevel implements BlockLevel {
                 bestD[0] = d;
                 best[0] = p;
             }
-        });
+        };
+        if (far != Double.POSITIVE_INFINITY && far >= 0.0) {   // 사거리 밖은 위에서 어차피 건너뛴다 — 그 상자 후보만
+            double r = Math.sqrt(far) + NEAR_MARGIN, sx = source.x(), sz = source.z();
+            forEachPlayerNear(sx - r, sz - r, sx + r, sz + r, scan);
+        } else {
+            services().forEachPlayer(scan);
+        }
         return best[0];
     }
 
