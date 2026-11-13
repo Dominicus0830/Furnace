@@ -1,8 +1,9 @@
-// 플레이어 1명이 걸어 다니는 region 틱 측정(기본 꺼짐: -Dfurnace.bench=true). 실제 Region.tick 경로를 단계별로 잰다.
+// 플레이어 1명이 걸어 다니는 region 틱 측정(:furnace-server:bench 작업에서만 돈다). 실제 Region.tick 경로를 단계별로 잰다.
 package org.domi.furnace.server.world;
 
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.domi.furnace.server.ConcurrentEmbeddedChannel;
+import org.domi.furnace.server.bench.BenchReport;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import org.domi.furnace.api.sched.RegionPos;
@@ -15,18 +16,28 @@ import org.domi.furnace.server.net.ChunkWorkerPool;
 import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 class RegionTickBench {
 
+    // 속성은 시작 때 한 번만 읽는다 — 틱·게임규칙 질의마다 System.getProperty 를 부르면 벤치가 만든 비용이 프로파일에 섞인다(O07 지적: isRaining 2.5%).
+    static final String SCENE = System.getProperty("furnace.bench.scene", "");
+    static final boolean RUN_TICK = Boolean.getBoolean("furnace.bench.runtick");
+    static final boolean NO_SPAWN = Boolean.getBoolean("furnace.bench.nospawn");
+    /** 기본은 실서버 모양의 이벤트 입구(처리기 0개여도 구독 확인을 한다). 끄려면 -Dfurnace.bench.realEvents=false(옛 GameEvents.NONE 길). */
+    static final boolean REAL_EVENTS = !"false".equals(System.getProperty("furnace.bench.realEvents"));
+    static final int SCENE_SIZE = Integer.getInteger("furnace.bench.sceneSize", 200);
+    static final int SCENE_PERIOD = Integer.getInteger("furnace.bench.scenePeriod", 20);
+    static final boolean HOPPER_IDLE = Boolean.getBoolean("furnace.bench.hopperIdle");
+
     @Test
     void walkingPlayerTick() throws Exception {
-        Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
         int view = Integer.getInteger("furnace.bench.view", 10);
         int mobs = Integer.getInteger("furnace.bench.count", 100);
         int ticks = Integer.getInteger("furnace.bench.ticks", 1200);
         double speed = Double.parseDouble(System.getProperty("furnace.bench.speed", "0"));
+        final int skip = Integer.getInteger("furnace.bench.skip", ticks / 4);   // 앞 구간(청크 로드·예열)은 통계에서 뺀다
+        if (!Regionizer.STATS) System.out.println("RBENCH 경고: -Dfurnace.tickstats 가 꺼져 단계별 시간(phases)은 0 으로 나온다(:furnace-server:bench 작업은 켠다)");
         ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
@@ -56,8 +67,22 @@ class RegionTickBench {
                 if (!w.ownsChunkOnCurrentThread(bx, bz)) return null;
                 return nameOf.apply(w.regionizer().ownerOf(bx, bz).biomeIdAtQuart(q[0], q[1], q[2]));
             }
+            // 실서버처럼 플러그인 이벤트 입구가 버스 구독 확인을 하게(처리기 0개). PluginGameEvents.blockPhysics·blockRedstone 첫 줄과 같은 일.
+            // GameEvents.NONE 이면 이 확인이 통째로 건너뛰어져 레드스톤 장면이 약 5% 싸게 나온다(O08 반론 B).
+            final org.domi.furnace.server.plugin.EventBusImpl rbBus = new org.domi.furnace.server.plugin.EventBusImpl();
+            final org.domi.furnace.server.plugin.GameEvents rbEvents = new org.domi.furnace.server.plugin.GameEvents() {
+                @Override public boolean blockPhysics(String d, org.domi.furnace.server.block.Pos pos, int st, org.domi.furnace.server.block.Pos sp, int sb) {
+                    return !rbBus.hasSubscribers(org.domi.furnace.api.event.block.BlockPhysicsEvent.class) || true;
+                }
+                @Override public int blockRedstone(String d, org.domi.furnace.server.block.Pos pos, int st, int o, int n) {
+                    return rbBus.hasSubscribers(org.domi.furnace.api.event.block.BlockRedstoneEvent.class) ? n : n;
+                }
+            };
+            @Override public org.domi.furnace.server.plugin.GameEvents gameEvents() {
+                return REAL_EVENTS ? rbEvents : super.gameEvents();
+            }
             @Override public boolean gameRule(String name) {   // furnace.bench.nospawn=true: 자연 스폰 끔(다른 비용을 보려고)
-                if (Boolean.getBoolean("furnace.bench.nospawn") && name.equals("doMobSpawning")) return false;
+                if (NO_SPAWN && name.equals("doMobSpawning")) return false;
                 return super.gameRule(name);
             }
             @Override public String roughBiomeAt(int x, int y, int z) {   // ServerCore 와 같은 길(확대 없음)
@@ -93,9 +118,9 @@ class RegionTickBench {
                 e.moveTo(cx0 + rnd.nextInt(60) - 30, cy0 + 2, cz0 + rnd.nextInt(60) - 30, rnd.nextFloat() * 360, 0);
                 level.addFreshEntity(e);
             }
-            if (!System.getProperty("furnace.bench.scene", "").isEmpty())
+            if (!SCENE.isEmpty())
                 for (int dx = -3; dx <= 3; dx++) for (int dz = -3; dz <= 3; dz++) r.chunkAtBlocking(new ChunkPos(((int) cx0 >> 4) + dx, ((int) cz0 >> 4) + dz));
-            buildScene(level, System.getProperty("furnace.bench.scene", ""), (int) Math.floor(cx0), (int) Math.floor(cy0), (int) Math.floor(cz0));
+            buildScene(level, SCENE, (int) Math.floor(cx0), (int) Math.floor(cy0), (int) Math.floor(cz0));
         }).get();
         long[] samples = new long[ticks];
         long[] rawSamples = new long[ticks];
@@ -103,7 +128,8 @@ class RegionTickBench {
         // -Dfurnace.bench.cpujfr=true: region 스레드 CPU 샘플(jdk.ExecutionSample 2ms)을 자기·포함 비율로 찍는다
         jdk.jfr.Recording rec = null;
         final boolean wantJfr = Boolean.getBoolean("furnace.bench.cpujfr");
-        final int jfrFrom = Integer.getInteger("furnace.bench.skip", ticks / 4);   // 앞 구간(청크 로드·예열)은 프로파일에서 뺀다
+        final int jfrFrom = skip;   // 앞 구간은 프로파일에서도 뺀다
+        final long[] alloc = new long[ticks];   // 틱마다 region 스레드가 할당한 바이트(결정적 계수 후보 — 시간과 달리 러너 속도에 안 흔들린다)
         long cpu0 = MultiDimensionTickBench.processCpuNanos(), wall0 = System.nanoTime();
         for (int t = 0; t < ticks; t++) {
             if (wantJfr && t == jfrFrom) {
@@ -123,12 +149,14 @@ class RegionTickBench {
             sched.region(pr).execute(() -> {
                 Region r = w.regionAt(pr);
                 long[] before = r.phaseSum.clone();
+                long a0 = BenchReport.threadAllocatedBytes();
                 long t0 = System.nanoTime();
-                sceneTick(r.level(), System.getProperty("furnace.bench.scene", ""), (int) Math.floor(cx0), (int) Math.floor(cy0), (int) Math.floor(cz0), tt);
-                if (Boolean.getBoolean("furnace.bench.runtick")) r.runTick(true); else r.tick();
+                sceneTick(r.level(), SCENE, (int) Math.floor(cx0), (int) Math.floor(cy0), (int) Math.floor(cz0), tt);
+                if (RUN_TICK) r.runTick(true); else r.tick();
                 samples[tt] = System.nanoTime() - t0;
                 rawSamples[tt] = samples[tt];
-                if (tt >= Integer.getInteger("furnace.bench.skip", ticks / 4)) for (int i = 0; i < 5; i++) ph[i] += r.phaseSum[i] - before[i];
+                alloc[tt] = BenchReport.threadAllocatedBytes() - a0;
+                if (tt >= skip) for (int i = 0; i < 5; i++) ph[i] += r.phaseSum[i] - before[i];
             }).get();
             // 엔티티가 많으면 EmbeddedChannel 의 보류 작업이 재귀로 깊어진다 — 큰 스택 스레드에서 비운다
             Thread dr = new Thread(null, () -> {
@@ -154,7 +182,7 @@ class RegionTickBench {
             for (int t = 0; t < Math.min(ticks, 200); t++) sbd.append(String.format(" %.0f", rawSamples[t] / 1e6));
             System.out.println(sbd);
         }
-        int from = Integer.getInteger("furnace.bench.skip", ticks / 4), n = ticks - from;
+        int from = skip, n = ticks - from;
         java.util.Arrays.sort(samples, from, ticks);
         long sum = 0;
         for (int i = from; i < ticks; i++) sum += samples[i];
@@ -162,13 +190,30 @@ class RegionTickBench {
                 sum / (double) n / 1e6, samples[from + n / 2] / 1e6, samples[from + n * 95 / 100] / 1e6, samples[ticks - 1] / 1e6);
         System.out.printf("RBENCH phases(avg ms) block=%.3f light=%.3f player=%.3f vis=%.3f misc=%.3f%n",
                 ph[0] / (double) n / 1e6, ph[1] / (double) n / 1e6, ph[2] / (double) n / 1e6, ph[3] / (double) n / 1e6, ph[4] / (double) n / 1e6);
+        final int[] loadedEntities = new int[2];
         sched.region(new RegionPos(p.chunkPos().x(), p.chunkPos().z())).execute(() -> {
             Region r = w.regionAt(new RegionPos(p.chunkPos().x(), p.chunkPos().z()));
-            System.out.printf("RBENCH loaded=%d entities=%d%n", p.loadedChunks().size(), r.level().entities().size());
+            loadedEntities[0] = p.loadedChunks().size();
+            loadedEntities[1] = r.level().entities().size();
+            System.out.printf("RBENCH loaded=%d entities=%d%n", loadedEntities[0], loadedEntities[1]);
         }).get();
         long[] is = new long[4];   // region 별 표의 합(흡수·없어진 region 몫은 빠진다)
         for (Region rr : w.regionizer().regionsSnapshot()) for (int i = 0; i < 4; i++) is[i] += rr.installStats[i];
         System.out.printf("RBENCH install(누적, 100틱 리셋 없음) count=%d put=%dms light=%dms ent=%dms%n", is[0], is[1] / 1000000, is[2] / 1000000, is[3] / 1000000);
+        long allocSum = 0;
+        boolean allocOk = true;
+        for (int i = from; i < ticks; i++) { if (alloc[i] < 0) allocOk = false; allocSum += alloc[i]; }
+        BenchReport rep = BenchReport.of("RegionTickBench").scene(SCENE.isEmpty() ? "walk" : SCENE).seed(12345L)
+                .put("view", view).put("mobs", mobs).put("ticks", ticks).put("skip", skip)
+                .put("realEvents", REAL_EVENTS).put("noise", noise).put("tickstats", Regionizer.STATS)
+                .timesNs("tick_", samples, from, ticks)   // samples 는 위에서 이미 정렬됨(정렬해도 같은 값)
+                .put("cpu_ms", cpu / 1e6).put("wall_ms", wall / 1e6)
+                .put("loadedChunks", loadedEntities[0]).put("entities", loadedEntities[1])
+                .put("installCount", is[0]);
+        if (allocOk) rep.put("allocBytesPerTick", allocSum / (double) n);
+        if (Regionizer.STATS) rep.put("phase_block_ms", ph[0] / (double) n / 1e6).put("phase_light_ms", ph[1] / (double) n / 1e6)
+                .put("phase_player_ms", ph[2] / (double) n / 1e6).put("phase_vis_ms", ph[3] / (double) n / 1e6).put("phase_misc_ms", ph[4] / (double) n / 1e6);
+        rep.write();
         ioPool.shutdown();
         genPool.shutdown();
         sched.close();
@@ -177,7 +222,7 @@ class RegionTickBench {
 
     /** X1 성능 점검용 장면: hoppers(깔때기 줄·저장 상자), rails(전동 레일 줄 + 레드스톤 횃불/와이어), wire(레드스톤 배선 격자), tempt(음식 든 플레이어 근처 동물). */
     static void buildScene(RegionLevel level, String scene, int cx, int cy, int cz) {
-        int n = Integer.getInteger("furnace.bench.sceneSize", 200);
+        int n = SCENE_SIZE;
         for (String sc : scene.split(",")) {
             switch (sc.trim()) {
                 case "hoppers" -> {
@@ -188,7 +233,7 @@ class RegionTickBench {
                         int z = cz - 30 + (row % 60), y = cy + 3 + row / 60 * 2, x0 = cx - 30;
                         var top = new org.domi.furnace.server.block.Pos(x0, y + 1, z);
                         level.setBlock(top, org.domi.furnace.server.block.B.defaultState("chest"), 3);
-                        if (!Boolean.getBoolean("furnace.bench.hopperIdle") && level.getBlockEntity(top) instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity c)
+                        if (!HOPPER_IDLE && level.getBlockEntity(top) instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity c)
                             for (int i = 0; i < c.items.length; i++) c.items[i] = new org.domi.furnace.server.entity.ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "minecraft:cobblestone"), 64);
                         for (int i = 0; i < 7; i++) level.setBlock(new org.domi.furnace.server.block.Pos(x0 + i, y, z), facingEast, 3);
                         level.setBlock(new org.domi.furnace.server.block.Pos(x0 + 7, y, z), facingDown, 3);
@@ -213,8 +258,8 @@ class RegionTickBench {
 
     /** 장면 틱 훅: rails/wire 줄 끝의 레드스톤 블록을 주기로 껐다 켠다. */
     static void sceneTick(RegionLevel level, String scene, int cx, int cy, int cz, int t) {
-        int n = Integer.getInteger("furnace.bench.sceneSize", 200);
-        int period = Integer.getInteger("furnace.bench.scenePeriod", 20);
+        int n = SCENE_SIZE;
+        int period = SCENE_PERIOD;
         if (!(scene.contains("rails") || scene.contains("wire")) || t % period != 0) return;
         boolean on = (t / period) % 2 == 0;
         int rb = org.domi.furnace.server.block.B.defaultState("redstone_block"), air = org.domi.furnace.server.block.B.defaultState("air");

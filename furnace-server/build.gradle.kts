@@ -76,6 +76,57 @@ tasks.test {
     }
 }
 
+// ===== 벤치(O15 T-O15-03) =====
+// 벤치는 src/bench 소스셋에 둔다(src/test 가 아니다). 평소 `test` 에는 들어가지 않아 시험 요약에 "건너뜀"이 섞이지 않는다.
+// 같은 패키지 이름을 쓰므로 패키지 비공개 멤버에 그대로 닿고, 시험 소스(도우미·금 파일 자원)도 클래스패스에 받는다.
+//   ./gradlew -PskipOracle=true :furnace-server:bench                              (전부: 약 8분)
+//   ./gradlew -PskipOracle=true :furnace-server:bench --tests '*RegionTickBench*'   (하나만)
+//   ./gradlew -PskipOracle=true :furnace-server:bench --tests '*RegionTickBench*' -Dfurnace.bench.scene=clock -Dfurnace.bench.ticks=600
+// 모든 -Dfurnace.* 는 벤치 JVM 에 그대로 넘어간다. 벤치 속성 이름은 furnace.bench.* 하나다. 결과 JSON 은 build/bench/<벤치>.json.
+sourceSets {
+    create("bench") {
+        java.srcDir("src/bench/java")
+        resources.srcDir("src/bench/resources")
+        compileClasspath += sourceSets.main.get().output + sourceSets.test.get().output
+        runtimeClasspath += sourceSets.main.get().output + sourceSets.test.get().output
+    }
+}
+configurations["benchImplementation"].extendsFrom(configurations.testImplementation.get())
+configurations["benchRuntimeOnly"].extendsFrom(configurations.testRuntimeOnly.get())
+
+// 벤치 JVM 옵션을 한 곳에 고정한다(측정이 실행기마다 달라지지 않게). 바꿀 때는 -Pbench.heap=… / -Pbench.tickstats=false.
+//  - 힙 고정: 힙 크기가 GC 빈도를 바꿔 틱 시간이 흔들린다(O04 가 3g 로 쟀다).
+//  - DebugNonSafepoints: 이게 없으면 JFR 이 자기 시간을 엉뚱한 줄에 몰아 준다(O08 실측: 가짜 36% 가 실제 0.1%). stackdepth=512 는 `jfr print --stack-depth 400` 과 짝이다(기본 64·5 면 단계 분류가 전부 "기타").
+//  - furnace.tickstats: Regionizer.STATS 는 static final 이라 JVM 시작 때 켜야 한다. 꺼져 있으면 RegionTickBench 의 단계별 시간이 전부 0 으로 찍힌다.
+val benchCommit = providers.exec { commandLine("git", "rev-parse", "--short=12", "HEAD"); isIgnoreExitValue = true }
+    .standardOutput.asText.map { it.trim() }.orElse("unknown")
+tasks.register<Test>("bench") {
+    group = "verification"
+    description = "src/bench 의 벤치를 돌린다(평소 test 와 따로). 결과 JSON: build/bench/<벤치>.json"
+    testClassesDirs = sourceSets["bench"].output.classesDirs
+    classpath = sourceSets["bench"].runtimeClasspath
+    useJUnitPlatform()
+    enableAssertions = true
+    val heap = (findProperty("bench.heap") as String?) ?: "3g"
+    minHeapSize = heap
+    maxHeapSize = heap
+    jvmArgs("-XX:+UnlockDiagnosticVMOptions", "-XX:+DebugNonSafepoints", "-XX:FlightRecorderOptions:stackdepth=512")
+    testLogging { showStandardStreams = true }
+    // 결과는 매번 새로 잰다(입력이 같아도 건너뛰지 않는다)
+    outputs.upToDateWhen { false }
+    val outDir = layout.buildDirectory.dir("bench")
+    systemProperty("furnace.bench", "true")
+    systemProperty("furnace.bench.outDir", outDir.get().asFile.absolutePath)
+    systemProperty("furnace.bench.commit", benchCommit.get())
+    if ((findProperty("bench.tickstats") as String?) != "false") systemProperty("furnace.tickstats", "true")
+    System.getProperties().forEach { k, v ->
+        if (k.toString().startsWith("furnace.")) systemProperty(k.toString(), v.toString())
+    }
+    doFirst { outDir.get().asFile.mkdirs() }
+}
+// 벤치 소스가 컴파일은 되게 한다(시험을 돌리면 같이 확인 — 벤치가 몰래 썩지 않게). 벤치를 돌리지는 않는다.
+tasks.test { dependsOn("compileBenchJava") }
+
 // 줄·가지 커버리지(JaCoCo, 보고용 — 게이트 아님). 평소 시험은 에이전트 없이 돌고(느려짐·시간 민감 시험 영향 방지), -Pcoverage 를 주면 켠다:
 //   ./gradlew -PskipOracle=true -Pcoverage :furnace-server:test :furnace-server:jacocoTestReport
 // CI 는 기준 브랜치 push 실행의 서버 시험 조각마다 test.exec 를 올리고, 합치는 작업(coverage)이 jacocoCoverageReport 로 표 하나를 만든다(docs/ci.md).
