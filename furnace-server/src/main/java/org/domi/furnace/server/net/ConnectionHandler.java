@@ -1098,7 +1098,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                             return;
                         }
                         org.domi.furnace.server.world.RespawnFinder.worldSpawn(over, over.levelServices().gameRuleInt("spawnRadius"),
-                                over.levelServices().worldAdventure(), spot -> {
+                                over.levelServices().worldAdventure(), 0.0, 0.0, spot -> {   // 생성자 안이라 플레이어는 아직 (0, 0)
                                     try {
                                         ctx.executor().execute(() -> {
                                             if (!once.compareAndSet(false, true)) return;
@@ -3633,7 +3633,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // 리스폰 블록 없음: 오버월드 월드 스폰에서 흩뿌린 자리(adjustSpawnLocation — 블록을 읽으므로 오버월드 region 에서)
         World over = login.core != null ? login.core.world() : org.domi.furnace.server.world.RespawnFinder.overworld(world);
         org.domi.furnace.server.world.RespawnFinder.worldSpawn(over, over.levelServices().gameRuleInt("spawnRadius"), over.levelServices().worldAdventure(),
-                s -> ctx.executor().execute(() -> {
+                p.x(), p.z(), s -> ctx.executor().execute(() -> {
                     if (player != p || !ctx.channel().isActive() || world != from) {
                         respawnPending = false;
                         return;

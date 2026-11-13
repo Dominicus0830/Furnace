@@ -26,7 +26,7 @@ public final class InsideBrownianWalk {
                 for (int z = -1; z <= 1; z++) for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) list.add(new Pos(pos.x() + x, pos.y() + y, pos.z() + z));
                 Collections.shuffle(list);
                 for (Pos p : list) {
-                    if (!level.canSeeSky(p) && loadedAndEntityCanStandOn(level, p) && level.noCollision(mob.boundingBox())) {
+                    if (!level.canSeeSky(p) && loadedAndEntityCanStandOn(level, p) && level.noCollision(mob, mob.boundingBox())) {
                         mob.getBrain().setMemory(MemoryModuleType.WALK_TARGET, new WalkTarget(p, speed, 0));
                         break;
                     }

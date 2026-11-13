@@ -15,6 +15,8 @@ public final class Shape {
     private final Shape base;
     private final double ox, oy, oz;
     private Grid grid;
+    /** 격자(coords)가 바닐라 VoxelShape 와 똑같은가(Shape.box·outsideBorder). */
+    private boolean exactCoords;
 
     public Shape(double[] boxes) {
         this.boxes = boxes;
@@ -39,6 +41,93 @@ public final class Shape {
             for (int k = 0; k < 6; k++) b[i * 6 + k] = Double.parseDouble(v[k]);
         }
         return b.length == 6 && Arrays.equals(b, BLOCK.boxes) ? BLOCK : new Shape(b);
+    }
+
+    /**
+     * Shapes.create(minX, minY, minZ, maxX, maxY, maxZ)(엔티티 충돌 상자): 한 변이라도 1e-7 미만이면 빈 모양. 세 축이 모두 [0,1] 안의 1/2^b(b ≤ 3)
+     * 배수면(findBits) 바닐라처럼 축마다 그 간격의 큐브 격자에 맞춰 넣고(모두 b = 0 이면 BLOCK), 아니면 격자 {min, max} 의 칸 하나.
+     * 격자를 바닐라와 똑같이 두는 것은 걸어 오르기 후보(getCoords(Y))가 격자 좌표 전부를 쓰기 때문이다(exactCoords).
+     */
+    public static Shape box(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
+        if (maxX - minX < 1.0E-7 || maxY - minY < 1.0E-7 || maxZ - minZ < 1.0E-7) return EMPTY_BOX;
+        int bx = findBits(minX, maxX), by = findBits(minY, maxY), bz = findBits(minZ, maxZ);
+        if (bx >= 0 && by >= 0 && bz >= 0) {
+            if (bx == 0 && by == 0 && bz == 0) return BLOCK;
+            int rx = 1 << bx, ry = 1 << by, rz = 1 << bz;
+            int x0 = (int) Math.round(minX * rx), y0 = (int) Math.round(minY * ry), z0 = (int) Math.round(minZ * rz);
+            int x1 = (int) Math.round(maxX * rx), y1 = (int) Math.round(maxY * ry), z1 = (int) Math.round(maxZ * rz);
+            Shape s = new Shape(new double[] {(double) x0 / rx, (double) y0 / ry, (double) z0 / rz, (double) x1 / rx, (double) y1 / ry, (double) z1 / rz});
+            boolean[] full = new boolean[rx * ry * rz];
+            for (int x = x0; x < x1; x++) for (int y = y0; y < y1; y++) for (int z = z0; z < z1; z++) full[(x * ry + y) * rz + z] = true;
+            s.grid = new Grid(new double[][] {unitCoords(rx), unitCoords(ry), unitCoords(rz)}, full, ry, rz);
+            s.exactCoords = true;
+            return s;
+        }
+        Shape s = new Shape(new double[] {minX, minY, minZ, maxX, maxY, maxZ});
+        s.grid = new Grid(new double[][] {{minX, maxX}, {minY, maxY}, {minZ, maxZ}}, new boolean[] {true}, 1, 1);
+        s.exactCoords = true;
+        return s;
+    }
+
+    /**
+     * Shapes.empty(): 비었지만 격자 좌표가 {0} 인 ArrayVoxelShape. 크기 0 인 엔티티 몸이 충돌 목록에 들면 걸어 오르기 후보에 (0 − 상자 minY)가
+     * 생기는 바닐라 버릇까지 맞추려고 EMPTY 와 따로 둔다(충돌·겹침은 EMPTY 와 같다).
+     */
+    private static final Shape EMPTY_BOX = emptyBox();
+
+    private static Shape emptyBox() {
+        Shape s = new Shape(new double[0]);
+        s.grid = new Grid(new double[][] {{0.0}, {0.0}, {0.0}}, new boolean[0], 0, 0);
+        s.exactCoords = true;
+        return s;
+    }
+
+    /** Shapes.findBits(min, max): 둘 다 [0,1] 안이고 1/2^b 배수(오차 1e-7·2^b 미만)인 가장 작은 b(0..3), 없으면 -1. */
+    private static int findBits(double lo, double hi) {
+        if (lo < -1.0E-7 || hi > 1.0000001) return -1;
+        for (int b = 0; b <= 3; b++) {
+            int res = 1 << b;
+            double d0 = lo * res, d1 = hi * res;
+            if (Math.abs(d0 - Math.round(d0)) < 1.0E-7 * res && Math.abs(d1 - Math.round(d1)) < 1.0E-7 * res) return b;
+        }
+        return -1;
+    }
+
+    private static double[] unitCoords(int res) {
+        double[] r = new double[res + 1];
+        for (int i = 0; i <= res; i++) r[i] = (double) i / res;
+        return r;
+    }
+
+    /**
+     * 걸어 오르기 후보에 쓸 Y 격자 좌표(VoxelShape.getCoords(Y), 옮긴 거리 포함). 격자를 바닐라와 똑같이 만든 모양(엔티티 상자·보더)만 돌려주고,
+     * 블록 모양(바닐라에서 뽑은 상자 목록 — 격자가 바닐라와 다를 수 있다)은 null.
+     */
+    public double[] exactYCoords() {
+        if (!base.exactCoords) return null;
+        double[] c = base.grid().coords[1].clone();
+        if (oy != 0) for (int i = 0; i < c.length; i++) c[i] += oy;
+        return c;
+    }
+
+    /**
+     * 월드 보더 충돌 모양(바닐라 BorderExtent.getCollisionShape): Shapes.join(INFINITY, box(x0, -inf, z0, x1, +inf, z1), ONLY_FIRST) —
+     * 보더 안(정수로 넓힌 x0..x1 × z0..z1 기둥) 밖의 모든 공간. 바닐라 결과는 ArrayVoxelShape 로 격자 x {-inf, x0, x1, +inf}, y {-inf, +inf},
+     * z {-inf, z0, z1, +inf} 에 가운데 칸만 빈다. y 칸 가운데가 NaN 이 되므로 격자를 직접 만든다.
+     */
+    public static Shape outsideBorder(double x0, double z0, double x1, double z1) {
+        double ni = Double.NEGATIVE_INFINITY, pi = Double.POSITIVE_INFINITY;
+        Shape s = new Shape(new double[] {
+                ni, ni, ni, x0, pi, pi,     // x < x0
+                x1, ni, ni, pi, pi, pi,     // x > x1
+                x0, ni, ni, x1, pi, z0,     // 가운데 x, z < z0
+                x0, ni, z1, x1, pi, pi});   // 가운데 x, z > z1
+        boolean[] full = new boolean[3 * 1 * 3];
+        java.util.Arrays.fill(full, true);
+        full[(1 * 1 + 0) * 3 + 1] = false;
+        s.grid = new Grid(new double[][] {{ni, x0, x1, pi}, {ni, pi}, {ni, z0, z1, pi}}, full, 1, 3);
+        s.exactCoords = true;
+        return s;
     }
 
     public boolean isEmpty() { return boxes.length == 0; }
@@ -378,7 +467,7 @@ public final class Shape {
         if (d > 0.0) {
             for (int p = j + 1; p < o; p++) {
                 if (layerFull(g, axis, p, k, l, m, n)) {
-                    double f = ca[p] + oa - maxA;
+                    double f = (oa == 0.0 ? ca[p] : ca[p] + oa) - maxA;   // 옮기지 않은 모양은 더하지 않는다(보더 좌표 -0.0 의 부호 — 바닐라와 같게)
                     if (f >= -1.0E-7) d = Math.min(d, f);
                     return d;
                 }
@@ -386,7 +475,7 @@ public final class Shape {
         } else if (d < 0.0) {
             for (int p = i - 1; p >= 0; p--) {
                 if (layerFull(g, axis, p, k, l, m, n)) {
-                    double f = ca[p + 1] + oa - minA;
+                    double f = (oa == 0.0 ? ca[p + 1] : ca[p + 1] + oa) - minA;
                     if (f <= 1.0E-7) d = Math.max(d, f);
                     return d;
                 }

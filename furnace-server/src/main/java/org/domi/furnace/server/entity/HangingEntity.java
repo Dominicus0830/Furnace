@@ -87,7 +87,7 @@ public abstract class HangingEntity extends Entity {
 
     /** 붙은 면이 단단하고 겹치는 다른 걸이 엔티티가 없는가. */
     public boolean survives() {
-        if (!level.noCollision(boundingBox())) return false;
+        if (!level.noCollision(this, boundingBox())) return false;
         AABB behind = boundingBox().move(-0.5 * Dir.DX[direction], -0.5 * Dir.DY[direction], -0.5 * Dir.DZ[direction]).deflate(1.0E-7);
         for (int x = (int) Math.floor(behind.minX()); x <= (int) Math.floor(behind.maxX()); x++) {
             for (int y = (int) Math.floor(behind.minY()); y <= (int) Math.floor(behind.maxY()); y++) {

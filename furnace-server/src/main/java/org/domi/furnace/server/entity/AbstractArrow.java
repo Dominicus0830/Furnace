@@ -266,7 +266,7 @@ public abstract class AbstractArrow extends Projectile {
     }
 
     private boolean shouldFall() {
-        return inGround && level.noCollision(boundingBox().inflate(0.06));
+        return inGround && level.noCollision(new AABB(x(), y(), z(), x(), y(), z()).inflate(0.06));   // 바닐라: 위치 점을 0.06 넓힌 상자(몸 상자 아님)
     }
 
     private void startFalling() {

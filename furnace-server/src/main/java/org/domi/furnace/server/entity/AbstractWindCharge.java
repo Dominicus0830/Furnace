@@ -22,6 +22,10 @@ public abstract class AbstractWindCharge extends AbstractHurtingProjectile {
 
     protected abstract void explode(double x, double y, double z);
 
+    /** 윈드 차지끼리는 부딪히지 않는다. */
+    @Override
+    public boolean canCollideWith(Entity other) { return !(other instanceof AbstractWindCharge) && super.canCollideWith(other); }
+
     /** 테스트용: 폭발을 직접 일으킨다. */
     public void explodeAt(double x, double y, double z) { explode(x, y, z); }
 

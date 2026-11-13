@@ -1067,6 +1067,9 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 지난 생존 틱 기준 사다리·덩굴 위인가(onClimbable). */
     public boolean onClimbable;
 
+    /** LivingEntity.isPushable(플레이어는 덮어쓰지 않는다): 살아 있고 관전자가 아니고 사다리 위가 아니다. 밀기·배·수레 충돌 후보. */
+    public boolean isPushableByEntities() { return isAlive() && !isSpectator() && !onClimbable; }
+
     /** getCurrentItemAttackStrengthDelay: 1 / 공격 속도 × 20. 공격 속도 = attack_speed 속성(기본 4 + 주 손 아이템, 성급함 +10%·피로 −10% × (증폭+1)). */
     public float attackStrengthDelay() {
         double speed = PlayerAttributes.value(this, org.domi.furnace.server.attribute.Attribute.ATTACK_SPEED);
