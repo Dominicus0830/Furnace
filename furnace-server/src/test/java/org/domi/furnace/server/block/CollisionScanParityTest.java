@@ -164,6 +164,10 @@ class CollisionScanParityTest {
         }
         AABB box = new AABB(cx - w / 2, cy, cz - w / 2, cx + w / 2, cy + h, cz + w / 2);
         if (r.nextInt(4) == 0) box = new AABB(cx, cy, cz, cx + coord(r, 0, 2), cy + coord(r, 0, 2), cz + coord(r, 0, 2));
+        if (r.nextInt(12) == 0) {   // 넓은 상자: x 로 청크 열 셋 이상(scanCollisions 의 열 배열 길, 검토 R4)
+            double wx = 20 + r.nextDouble() * 30, wz = r.nextDouble() * 30;
+            box = new AABB(cx - wx / 2, cy, cz - wz / 2, cx + wx / 2, cy + coord(r, 0, 3), cz + wz / 2);
+        }
         double[] border = {-2.9999984E7, -2.9999984E7, 2.9999984E7, 2.9999984E7};
         if (r.nextInt(4) == 0) {   // 질의 근처를 지나는 보더
             double bx = cx + (r.nextDouble() - 0.5) * 6, bz = cz + (r.nextDouble() - 0.5) * 6;
@@ -251,10 +255,11 @@ class CollisionScanParityTest {
     @Test
     void generatorCoversInterestingCases() {
         int piston = B.id("moving_piston"), snow = B.id("powder_snow");
-        int n = 20000, nonEmpty = 0, dynamicHits = 0, entityShapes = 0, borders = 0, stepped = 0, blocked = 0;
+        int n = 20000, nonEmpty = 0, dynamicHits = 0, entityShapes = 0, borders = 0, stepped = 0, blocked = 0, wide = 0;
         for (int k = 0; k < n; k++) {
             Query q = query(Differential.randomFor(0x7018_0001L, k));
             Entity self = q.self();
+            if ((Entity.floor(q.box().maxX() + 1.0E-7) + 1 >> 4) - (Entity.floor(q.box().minX() - 1.0E-7) - 1 >> 4) >= 2) wide++;
             int[] dyn = {0};
             boolean[] any = {false};
             level.scanCollisions(q.box(), self, (x, y, z, sh) -> {
@@ -272,9 +277,9 @@ class CollisionScanParityTest {
             if (!java.util.Arrays.equals(with, without)) stepped++;
             if (with[0] != q.dx() || with[1] != q.dy() || with[2] != q.dz()) blocked++;
         }
-        System.out.printf("T018 coverage n=%d nonEmpty=%d dynamic=%d entityShapes=%d border=%d stepped=%d blocked=%d%n",
-                n, nonEmpty, dynamicHits, entityShapes, borders, stepped, blocked);
-        assertTrue(nonEmpty > n / 4 && dynamicHits > 50 && entityShapes > 50 && borders > 50 && stepped > 50 && blocked > n / 10,
+        System.out.printf("T018 coverage n=%d nonEmpty=%d dynamic=%d entityShapes=%d border=%d stepped=%d blocked=%d wide=%d%n",
+                n, nonEmpty, dynamicHits, entityShapes, borders, stepped, blocked, wide);
+        assertTrue(nonEmpty > n / 4 && dynamicHits > 50 && entityShapes > 50 && borders > 50 && stepped > 50 && blocked > n / 10 && wide > 500,
                 "생성기가 경우를 고루 만들지 못한다");
     }
 

@@ -2582,6 +2582,10 @@ public abstract class ChunkLevel implements BlockLevel {
             byte[] f = new byte[n];
             Shape[] s = new Shape[n];
             int piston = B.id("moving_piston");
+            // 덮어쓰기 판정은 블록마다 한 번(동작 클래스가 같으면 리플렉션도 한 번) — 상태마다 하면 표 만들기가 0.2초 걸렸다(T-018 R2)
+            java.util.Map<Class<?>, Boolean> byClass = new java.util.IdentityHashMap<>();
+            boolean[] ctxBlock = new boolean[blocks.blockCount()];
+            for (int b = 0; b < ctxBlock.length; b++) ctxBlock[b] = byClass.computeIfAbsent(BlockBehaviors.ofBlock(b).getClass(), CollisionTable::contextual);
             for (int st = 0; st < n; st++) {
                 int block = blocks.blockOf(st);
                 Shape shape = info.collisionShape(st);
@@ -2590,7 +2594,7 @@ public abstract class ChunkLevel implements BlockLevel {
                 double[] b = shape.bounds();
                 if (b != null) large |= b[0] < 0 || b[1] < 0 || b[2] < 0 || b[3] > 1 || b[4] > 1 || b[5] > 1;
                 int v;
-                if (contextual(BlockBehaviors.ofBlock(block).getClass())) v = DYNAMIC;
+                if (ctxBlock[block]) v = DYNAMIC;
                 else if (shape.isEmpty()) v = NONE;
                 else { v = STATIC; s[st] = shape; }
                 if (large) v |= LARGE;
@@ -2610,6 +2614,11 @@ public abstract class ChunkLevel implements BlockLevel {
                 throw new IllegalStateException(e);
             }
         }
+    }
+
+    /** 충돌 상태 표를 지금 만든다(서버 시작 때 — 블록 동작 표와 아이템 번호표가 깔린 뒤). */
+    public static void warmCollisionTable() {
+        if (CollisionTable.FLAGS.length == 0) throw new IllegalStateException("충돌 상태 표가 비었다");
     }
 
     /**
@@ -2654,7 +2663,8 @@ public abstract class ChunkLevel implements BlockLevel {
                     if (c == null || !inWorld) continue;   // 세계 높이 밖은 공기(충돌 없음)
                     int local = y - c.minY();
                     org.domi.furnace.server.world.ChunkSection sec = c.sectionForRead(local >> 4);
-                    if (sec.hasOnlyAir()) continue;       // 공기·동굴 공기·빈 공간 공기뿐 — 충돌 모양이 하나도 없다
+                    // 공기·동굴 공기·빈 공간 공기뿐 — 충돌 모양이 하나도 없다. scratch 가 열린 구역(월드젠 표면 단계)은 비공기 수가 낡았을 수 있어 칸을 읽는다(T-018 R3)
+                    if (sec.hasOnlyAir() && !sec.scratchOpen()) continue;
                     int ly = local & 15;
                     int bx = (cx0 + ci) << 4;
                     int xs = Math.max(x0, bx), xe = Math.min(x1, bx + 15);

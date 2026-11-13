@@ -147,7 +147,11 @@ public final class ChunkSection {
         biomes.load(source, sourceOffset);
     }
 
+    /** 비공기 수가 0 인가. scratch 가 열린 동안에는 바깥이 scratch 를 직접 고쳐 낡을 수 있다(닫을 때 compact 가 다시 센다) — scratchOpen 참고. */
     public boolean hasOnlyAir() { return nonAirCount == 0; }
+
+    /** scratch(펼친 배열)가 열려 있는가 — 열려 있으면 hasOnlyAir 를 믿지 말고 칸을 읽는다. */
+    public boolean scratchOpen() { return scratch != null; }
 
     public short nonAirCount() {
         return nonAirCount;

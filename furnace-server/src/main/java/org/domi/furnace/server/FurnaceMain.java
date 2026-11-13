@@ -385,6 +385,8 @@ public final class FurnaceMain {
         if (!org.domi.furnace.server.item.ItemContext.installed()) {
             org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(registries));
         }
+        // 엔티티 충돌 상태 표(블록 동작 표 뒤에 만든다)를 시작 때 만들어 둔다 — 첫 충돌 질의가 region 틱 하나에 표 만들기를 떠안지 않게(T-018 R2)
+        org.domi.furnace.server.block.ChunkLevel.warmCollisionTable();
         // 마법부여 끄기(운영 설정, 기본 없음) — 레지스트리를 읽은 뒤라 데이터 팩·플러그인 마법부여도 끌 수 있다
         org.domi.furnace.server.loot.EnchantmentToggles.load(furnaceProps,
                 id -> org.domi.furnace.server.net.registry.RegistrySet.current().indexOf("minecraft:enchantment", id) >= 0, log::warn);
