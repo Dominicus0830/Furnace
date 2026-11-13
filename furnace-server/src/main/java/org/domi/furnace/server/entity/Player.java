@@ -2337,7 +2337,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     public java.util.Set<org.domi.furnace.server.world.ChunkPos> chunkPrefetches() { return chunkPrefetches; }
 
-    /** chunks-per-tick=auto: 보낸 배치의 Finished 가 아직 안 나갔다(아무 스레드). */
+    /** 보낸 청크 배치의 Finished 가 아직 안 나갔다(auto·숫자 chunks-per-tick 모두, 아무 스레드). 열려 있으면 새 배치를 열지 않는다. */
     private volatile boolean chunkBatchOpen;
 
     public boolean chunkBatchOpen() { return chunkBatchOpen; }
