@@ -751,6 +751,7 @@ public abstract class ChunkLevel implements BlockLevel {
             m[1] |= e.getValue()[1];
         }
         other.lightChanges.clear();
+        lightWorld.resetLast();
     }
 
     /** 청크 조건(청크 x, z)에 맞는 자료를 target 으로 옮긴다. target 은 이 레벨의 시계를 이어받는다. */
@@ -809,6 +810,7 @@ public abstract class ChunkLevel implements BlockLevel {
                 lit.remove();
             }
         }
+        lightWorld.resetLast();   // 옮겨 비운 lightChanges 때문에 방송이 안 돌면 섹션 기억이 낡는다
     }
 
     /** 청크 좌표 조건. */

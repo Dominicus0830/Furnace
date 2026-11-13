@@ -114,6 +114,28 @@ class RegionizerTest {
         await("합쳐진다", () -> w.regionCount() == 1);
     }
 
+    /** F8: 틱 사이(빛 계산 전)에 놓은 광원이 region 합치기를 거쳐도 계산된다(실제 Regionizer 합치기 경로). */
+    @Test
+    void pendingLightCheck_survivesRealMerge() throws Exception {
+        load(0);
+        load(2);
+        assertEquals(2, w.regionCount());
+        org.domi.furnace.server.block.Pos p = new org.domi.furnace.server.block.Pos(32 * 16 + 5, -59, 5);
+        int glow = org.domi.furnace.server.block.B.defaultState("glowstone");
+        w.submitAtChunk(new ChunkPos(32, 0), r -> {
+            r.level().runLightUpdates();   // 올라온 청크 빛 정리
+            r.level().setBlock(p, glow, 2);   // 틱 끝 계산 전
+            return null;
+        }).get(5, TimeUnit.SECONDS);
+        load(1);   // 다리 → 합치기(둘 다 쉬는 중)
+        await("합쳐진다", () -> w.regionCount() == 1);
+        int light = w.submitAtChunk(new ChunkPos(32, 0), r -> {
+            r.level().runLightUpdates();
+            return r.level().getBlockLight(p);
+        }).get(5, TimeUnit.SECONDS);
+        assertEquals(15, light, "합친 region 이 미처리 빛 검사를 이어받아 계산한다");
+    }
+
     @Test
     void delayedTask_followsMerge() throws Exception {
         load(0);

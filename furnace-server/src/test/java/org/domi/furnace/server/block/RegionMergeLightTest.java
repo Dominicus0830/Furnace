@@ -2,6 +2,7 @@
 // 바닐라는 차원 하나의 빛 엔진이 하나라 이런 틈이 없다 — 합치기·나누기를 거쳐도 결과는 합치지 않은 것과 같아야 한다.
 package org.domi.furnace.server.block;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -172,5 +173,74 @@ class RegionMergeLightTest {
         for (Pos p : ps) ref.setBlock(p, glow, 2);
         ref.runLightUpdates();
         org.junit.jupiter.api.Assertions.assertArrayEquals(snapshot(ref), merged);
+    }
+
+    private int[] skySnap(Lvl l) {
+        int[] out = new int[17 * 17 * 10];
+        int n = 0;
+        for (int x = -8; x <= 24; x += 2) for (int z = -8; z <= 24; z += 2) for (int y = -60; y < -50; y++) out[n++] = l.getSkyLight(new Pos(x, y, z));
+        return out;
+    }
+
+    /** 하늘빛 검사도 옮겨지는가: b 가 하늘을 막는 판을 놓고(계산 전) a 가 흡수 → 한 레벨에서 같은 일을 한 결과와 같아야 한다. */
+    @Test
+    void absorbCarriesSkyChecks() {
+        int stone = B.defaultState("stone");
+        Lvl a = lit(), b = new Lvl();
+        for (int x = 4; x < 12; x++) for (int z = 4; z < 12; z++) b.setBlock(new Pos(x, -52, z), stone, 2);
+        a.absorb(b);
+        a.runLightUpdates();
+        int[] merged = skySnap(a);
+        shared.clear();
+        Lvl ref = lit();
+        for (int x = 4; x < 12; x++) for (int z = 4; z < 12; z++) ref.setBlock(new Pos(x, -52, z), stone, 2);
+        ref.runLightUpdates();
+        int[] want = skySnap(ref);
+        assertEquals(want[0], merged[0]);
+        assertArrayEquals(want, merged);
+        assertTrue(ref.getSkyLight(new Pos(8, -55, 8)) < 15, "판 아래는 15보다 어두워야 시험이 의미 있다");
+    }
+
+    /** 하늘빛 검사 나누기. */
+    @Test
+    void splitCarriesSkyChecks() {
+        int stone = B.defaultState("stone");
+        Lvl c = lit(), d = new Lvl();
+        for (int x = 20; x < 28; x++) for (int z = 20; z < 28; z++) c.setBlock(new Pos(x, -52, z), stone, 2);
+        c.splitTo(d, (cx, cz) -> cx >= 1 && cz >= 1);
+        c.owns = (cx, cz) -> !(cx >= 1 && cz >= 1);
+        d.owns = (cx, cz) -> cx >= 1 && cz >= 1;
+        c.runLightUpdates();
+        d.runLightUpdates();
+        assertTrue(d.getSkyLight(new Pos(24, -55, 24)) < 15);
+    }
+
+    /**
+     * 나눈 쪽(c)의 lightChanged 섹션 캐시(lastX/Y/Z/Sky)는 broadcastLightChanges 안에서만 풀린다. splitTo 가 c 의 lightChanges 를 다 옮겨
+     * 비우면 c 의 방송은 resetLast 를 부르지 않아, 나중에 그 청크를 다시 합친 c 가 같은 섹션 한 곳만 바꿀 때 표시를 건너뛴다.
+     */
+    @Test
+    void splitThenRemergeKeepsBroadcastingSameSection() {
+        int egg = B.defaultState("dragon_egg");   // 발광 1: 그 칸 하나만 바뀐다(섹션 안쪽이면 섹션 하나)
+        Pos p = new Pos(24, -56, 24);   // 청크 (1,1), 섹션 -4 의 한가운데
+        Lvl c = lit(), d = new Lvl();
+        c.setBlock(p, egg, 2);
+        c.runLightUpdates();
+        assertEquals(1, c.getBlockLight(p));
+        c.splitTo(d, (cx, cz) -> cx >= 1 && cz >= 1);
+        c.owns = (cx, cz) -> !(cx >= 1 && cz >= 1);
+        d.owns = (cx, cz) -> cx >= 1 && cz >= 1;
+        d.broadcastChanges();
+        c.broadcastChanges();
+        assertEquals(1, d.light.size());
+        // 다시 합친다(d 를 c 가 흡수)
+        c.absorb(d);
+        c.owns = (cx, cz) -> true;
+        c.light.clear();
+        c.setBlock(p, B.defaultState("air"), 2);
+        c.runLightUpdates();
+        assertEquals(0, c.getBlockLight(p));
+        c.broadcastChanges();
+        assertEquals(1, c.light.size(), "알 칸 빛 1→0 변경이 방송되어야 한다");
     }
 }
