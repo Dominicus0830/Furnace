@@ -52,23 +52,99 @@ class ClosestVillageSectionTest {
     void sameAsOldForRandomLayouts() {
         Random r = new Random(0x7051);
         int villagePicks = 0, total = 0;
-        for (int round = 0; round < 120; round++) {
+        for (int round = 0; round < 60; round++) {
             Map<Long, PoiChunk> cols = new HashMap<>();
             int span = 6 + r.nextInt(5);
-            PoiManager poi = randomWorld(r, span, 1 + r.nextInt(round < 60 ? 6 : 40), cols);
+            PoiManager poi = randomWorld(r, span, 1 + r.nextInt(round < 30 ? 6 : 40), cols);
+            List<int[]> centers = centersOf(cols);
             for (int q = 0; q < 60; q++) {
                 int[] sp = {r.nextInt(span * 2 + 5) - span - 2, r.nextInt(30) - 7, r.nextInt(span * 2 + 5) - span - 2};   // 높이 끝·열 밖 포함
                 for (int radius = 0; radius <= 3; radius++) {
-                    int[] a = old(poi, sp, radius), b = poi.closestVillageSection(sp, radius);
-                    assertArrayEquals(a, b, "round " + round + " sp " + java.util.Arrays.toString(sp) + " r " + radius);
-                    assertEquals(a == sp, b == sp, "sp 자신을 돌려주는 모양(MoveBackToVillageGoal 이 참조 비교)");
+                    checkAll(poi, centers, sp, radius, "round " + round + " sp " + java.util.Arrays.toString(sp) + " r " + radius);
                     total++;
-                    if (a != sp) villagePicks++;
+                    if (poi.closestVillageSection(sp, radius) != sp) villagePicks++;
                 }
-                assertEquals(poi.sectionsToVillage(sp[0], sp[1], sp[2]) == 0, poi.isVillageCenterSection(sp[0], sp[1], sp[2]));
             }
         }
         assertTrue(villagePicks > total / 20, "마을로 가는 답이 충분히 섞여야 의미 있는 시험이다: " + villagePicks + "/" + total);
+    }
+
+
+    /** 독립 오라클: 운영 코드(sectionsToVillage·isVillageCenter)를 안 쓰고, 열 맵에서 직접 뽑은 마을 중심 목록으로 계산한다. */
+    private static List<int[]> centersOf(Map<Long, PoiChunk> cols) {
+        List<int[]> out = new ArrayList<>();
+        for (var e : cols.entrySet()) {
+            int cx = (int) (e.getKey() >> 32), cz = (int) (long) e.getKey();
+            PoiChunk c = e.getValue();
+            if (!c.hasSections()) continue;
+            for (int y = c.minSection(); y <= c.maxSection(); y++) {
+                PoiSection sec = c.section(y);
+                if (sec != null && sec.anyRecord(PoiTypes.VILLAGE, PoiManager.Occupancy.IS_OCCUPIED)) out.add(new int[] {cx, y, cz});
+            }
+        }
+        return out;
+    }
+
+    private static int dist(List<int[]> centers, int x, int y, int z) {
+        int best = PoiManager.MAX_VILLAGE_DISTANCE + 1;
+        for (int[] c : centers) best = Math.min(best, Math.max(Math.abs(c[0] - x), Math.max(Math.abs(c[1] - y), Math.abs(c[2] - z))));
+        return best;
+    }
+
+    private static int[] indep(List<int[]> centers, int[] sp, int radius) {
+        int cur = dist(centers, sp[0], sp[1], sp[2]);
+        int[] best = null;
+        int bestD = Integer.MAX_VALUE;
+        for (int z = sp[2] - radius; z <= sp[2] + radius; z++)
+            for (int y = sp[1] - radius; y <= sp[1] + radius; y++)
+                for (int x = sp[0] - radius; x <= sp[0] + radius; x++) {
+                    int d = dist(centers, x, y, z);
+                    if (d < cur && d < bestD) {
+                        bestD = d;
+                        best = new int[] {x, y, z};
+                    }
+                }
+        return best == null ? sp : best;
+    }
+
+    private static int windowCenters(List<int[]> centers, int[] sp, int radius) {
+        int win = radius + PoiManager.MAX_VILLAGE_DISTANCE, n = 0;
+        for (int[] c : centers) if (Math.abs(c[0] - sp[0]) <= win && Math.abs(c[1] - sp[1]) <= win && Math.abs(c[2] - sp[2]) <= win) n++;
+        return n;
+    }
+
+    /** 새 구현·옛 구현·독립 오라클이 모두 같은지, 철골렘 5×5×5 마을 섹션(z → y → x)도 같은지. */
+    private static void checkAll(PoiManager poi, List<int[]> centers, int[] sp, int radius, String tag) {
+        int[] a = old(poi, sp, radius), b = poi.closestVillageSection(sp, radius), c = indep(centers, sp, radius);
+        assertArrayEquals(a, b, tag + " 새 vs 옛");
+        assertArrayEquals(c, b, tag + " 새 vs 독립");
+        assertEquals(a == sp, b == sp, tag + " sp 참조");
+        if (radius != 0) return;   // 골렘 5×5×5 는 위치마다 한 번만(옛 sectionsToVillage 125번이 느리다)
+        for (int z = sp[2] - 2; z <= sp[2] + 2; z++)
+            for (int y = sp[1] - 2; y <= sp[1] + 2; y++)
+                for (int x = sp[0] - 2; x <= sp[0] + 2; x++) {
+                    assertEquals(poi.sectionsToVillage(x, y, z) == 0, poi.isVillageCenterSection(x, y, z), tag + " 골렘 옛 " + x + "," + y + "," + z);
+                    assertEquals(dist(centers, x, y, z) == 0, poi.isVillageCenterSection(x, y, z), tag + " 골렘 독립 " + x + "," + y + "," + z);
+                }
+    }
+
+    @Test
+    void denseVillagesGrowCenterBufferAndMatchIndependentOracle() {
+        Random r = new Random(0xD3E5);
+        int maxWindow = 0;
+        for (int round = 0; round < 12; round++) {
+            Map<Long, PoiChunk> cols = new HashMap<>();
+            PoiManager poi = randomWorld(r, 5, 500 + r.nextInt(300), cols);   // 창 안 중심이 16개(초기 버퍼)를 훨씬 넘는다
+            List<int[]> centers = centersOf(cols);
+            for (int q = 0; q < 8; q++) {
+                int[] sp = {r.nextInt(9) - 4, r.nextInt(20) - 6, r.nextInt(9) - 4};
+                for (int radius = 0; radius <= 3; radius++) {
+                    maxWindow = Math.max(maxWindow, windowCenters(centers, sp, radius));
+                    checkAll(poi, centers, sp, radius, "dense round " + round);
+                }
+            }
+        }
+        assertTrue(maxWindow > 16 * 4, "버퍼 늘리기 경로(중심 16개 초과)를 충분히 타야 한다: 창 안 최대 " + maxWindow);
     }
 
     @Test
