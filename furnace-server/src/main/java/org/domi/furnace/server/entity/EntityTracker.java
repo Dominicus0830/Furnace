@@ -24,6 +24,9 @@ public final class EntityTracker {
         int viewDistance(Player p);
 
         boolean chunkTracked(Player p, int chunkX, int chunkZ);
+
+        /** p 가 e 를 새로 보기 시작했다(seenBy 에 들어감) — 레벨이 플레이어별 "보는 엔티티" 색인을 고친다(T-017). */
+        default void startedSeeing(Player p, Entity e) {}
     }
 
     private final Entity entity;
@@ -73,16 +76,25 @@ public final class EntityTracker {
 
     public int seenByCount() { return seenBy.size(); }
 
+    /** 추적 거리(블록, 방송 비율 적용). */
+    public int range() { return range; }
+
+    /** 보는 사람마다(엔티티를 다른 레벨로 옮길 때 그 레벨 색인에 올린다). */
+    public void forEachViewer(java.util.function.Consumer<Player> out) {
+        for (Player p : seenBy.keySet()) out.accept(p);
+    }
+
     // ------------------------------------------------------------------ 보임(TrackedEntity.updatePlayer)
 
     public void updatePlayers(Iterable<Player> players, Viewers v) {
         for (Player p : players) updatePlayer(p, v);
     }
 
-    public void updatePlayer(Player p, Viewers v) {
+    /** 보임을 다시 정한다. 끝난 뒤 p 가 이 엔티티를 보는가(seenBy 에 있는가)를 돌려준다. */
+    public boolean updatePlayer(Player p, Viewers v) {
         if (p.isDisconnected()) {
             seenBy.remove(p);
-            return;
+            return false;
         }
         double dx = p.x() - entity.x(), dz = p.z() - entity.z();
         double r = Math.min(range, v.viewDistance(p) * 16);
@@ -91,13 +103,16 @@ public final class EntityTracker {
         if (visible) {
             if (!seenBy.containsKey(p)) {
                 seenBy.put(p, 0);
+                v.startedSeeing(p, entity);
                 addPairing(p);
             } else {
                 seenBy.put(p, 0);
             }
+            return true;
         } else if (seenBy.remove(p) != null) {
             removePairing(p);
         }
+        return false;
     }
 
     /**
