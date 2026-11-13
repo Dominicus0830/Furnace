@@ -15,7 +15,7 @@ import org.domi.furnace.server.net.protocol.play.SetEntityData;
 public class Pufferfish extends AbstractFish {
     public static final int DATA_PUFF_STATE = 17;
     private static final Predicate<Targetable> SCARY_MOB = t -> {
-        if (t instanceof Player p && p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return false;
+        if (t instanceof Player p && p.gameMode() == org.domi.furnace.server.world.GameMode.CREATIVE) return false;   // 바닐라 player.isCreative()(관전자는 조건 첫 검사가 뺀다)
         return !(t instanceof Entity e) || !e.type().is("minecraft:not_scary_for_pufferfish");
     };
     static final TargetingConditions TARGETING_CONDITIONS = TargetingConditions.forNonCombat().ignoreInvisibilityTesting().ignoreLineOfSight().selector(SCARY_MOB);

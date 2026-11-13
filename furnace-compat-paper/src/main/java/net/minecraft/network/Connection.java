@@ -17,7 +17,8 @@ import org.domi.furnace.compat.nms.VirtualChannel;
  * {@link #channel} 은 이 접속의 <b>가상 채널</b>({@link VirtualChannel})이다 — 접속이 붙어 있는 동안 활성이고, 파이프라인에는 바닐라와 같은 이름의
  * {@code "decoder"}·{@code "encoder"}(단계를 알리는 자리)와 이 연결({@code "packet_handler"})이 있다. 패킷 라이브러리(ProtocolLib)는 이 필드를 자기 프록시 채널로
  * 갈아 끼우고, {@link #send} 가 {@code channel.eventLoop().execute(…)} 로 올리는 작업 안의 패킷을 보고 바꾸거나 취소한다(바닐라와 같은 자리).
- * 작업이 실행되면 패킷이 파이프라인에 쓰이고(플러그인이 {@code channel.writeAndFlush(패킷)} 으로 직접 써도 같다) 끝 처리기가 Furnace 패킷으로 바꿔 내보낸다. 들어오는 쪽(서버로 오는 패킷 가로채기)과 Furnace 가 스스로 보내는 패킷(채팅·엔티티 등)은 아직 이 파이프라인을
+ * 작업이 실행되면 패킷이 파이프라인에 쓰이고(플러그인이 {@code channel.writeAndFlush(패킷)} 으로 직접 써도 같다) 끝 처리기가 Furnace 패킷으로 바꿔 내보낸다.
+ * Furnace 가 스스로 보내는 패킷(채팅·엔티티 등)은 {@link #compatIntercept} 로 같은 자리를 지난다(2b-2). 들어오는 쪽(서버로 오는 패킷 가로채기)은 아직 이 파이프라인을
  * 지나지 않는다 — 다음 단계(docs/feature-parity/compat-protocollib-pipeline-2b-plan-2026-11-12.md).
  */
 public class Connection extends ChannelInboundHandlerAdapter {
@@ -103,6 +104,50 @@ public class Connection extends ChannelInboundHandlerAdapter {
         }
     }
 
+    /**
+     * 호환 모듈 전용(ProtocolLib 다리 2b-2): Furnace 서버가 스스로 보내는 패킷(shim 으로 바꾼 것)을 패킷 라이브러리에 보여 준다. {@link #send} 와 같은 자리
+     * ({@code channel.eventLoop().execute(작업)} → 작업이 {@code channel.writeAndFlush(패킷)})를 지나되 끝 처리기가 내보내지 않고 받아 둔다 —
+     * 라이브러리 리스너가 바꿨으면 바꾼 패킷, 취소했으면 null 을 돌려준다. 라이브러리가 {@link #channel} 을 바꾸지 않았으면 그대로 돌려준다.
+     * 가로채기는 이 스레드에서 그 자리에 끝난다(가상 채널의 이벤트 루프). 라이브러리가 작업을 나중으로 미루면(주 스레드로 되돌리기 등) 지금은 null 이다.
+     */
+    public Packet<?> compatIntercept(Packet<?> packet) {
+        if (packet == null || channel == virtual) return packet;
+        Capture c = new Capture(this, packet);
+        channel.eventLoop().execute(c);
+        return c.ran ? c.result : null;
+    }
+
+    /** {@link #compatIntercept} 의 작업. 패킷 라이브러리가 필드를 읽고 바꿀 수 있게 이름 있는 클래스·비 final {@link Packet} 필드다(Send 와 같은 모양). */
+    private static final class Capture implements Runnable {
+        private final Connection connection;
+        private Packet<?> packet;
+        boolean ran;
+        Packet<?> result;
+
+        Capture(Connection connection, Packet<?> packet) {
+            this.connection = connection;
+            this.packet = packet;
+        }
+
+        @Override
+        public void run() {
+            ran = true;
+            Packet<?> p = packet;
+            result = p;
+            if (p == null) return;
+            // 바닐라처럼 채널에 써서(라이브러리의 "이미 처리함" 표시를 끈다) 끝 처리기가 받아 둔다
+            CAPTURE.set(this);
+            try {
+                connection.channel.writeAndFlush(p);
+            } finally {
+                CAPTURE.remove();
+            }
+        }
+    }
+
+    /** 지금 이 스레드에서 받아 두는 중인 Capture(끝 처리기가 내보내는 대신 여기에 남긴다). */
+    private static final ThreadLocal<Capture> CAPTURE = new ThreadLocal<>();
+
     /** Send 작업이 쓰는 중인가(그 실패는 호출한 쪽으로 던지므로 끝 처리기가 따로 경고하지 않는다). */
     private static final ThreadLocal<Boolean> SENDING = new ThreadLocal<>();
 
@@ -114,6 +159,13 @@ public class Connection extends ChannelInboundHandlerAdapter {
     private final class Sink extends io.netty.channel.ChannelDuplexHandler {
         @Override
         public void write(ChannelHandlerContext ctx, Object msg, io.netty.channel.ChannelPromise promise) {
+            Capture cap = CAPTURE.get();
+            if (cap != null && msg instanceof Packet<?> captured) {   // 내보내지 않고 받아 둔다(compatIntercept)
+                cap.result = captured;
+                CAPTURE.remove();   // 한 번만 — 리스너가 이 안에서 다른 패킷을 쓰면 그것은 보통대로 나간다
+                promise.trySuccess();
+                return;
+            }
             if (msg instanceof Packet<?> p && packetListener instanceof net.minecraft.server.network.ServerCommonPacketListenerImpl l) {
                 try {
                     PacketDelivery.deliver(l.furnacePlayer(), p);

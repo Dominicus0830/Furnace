@@ -28,5 +28,32 @@ public interface RandomSource {
      */
     static RandomSource createFor(long ownerKey, int purpose) { return new LegacyRandomSource(RandomSeeds.seed(ownerKey, purpose)); }
 
+    /**
+     * RandomSource.createThreadSafe(): 여러 스레드가 함께 써도 상태가 깨지지 않는 LCG(바닐라 ThreadSafeLegacyRandomSource 는 CAS,
+     * 여기서는 잠금 — 값의 분포는 같다). 정적 공유 난수(Sensor 시작 틱)에 쓴다. 씨앗은 createFor 와 같은 이음매.
+     */
+    static RandomSource createThreadSafeFor(long ownerKey, int purpose) { return new ThreadSafe(createFor(ownerKey, purpose)); }
+
+    /** 잠금으로 감싼 난수. */
+    final class ThreadSafe implements RandomSource {
+        private final RandomSource r;
+
+        ThreadSafe(RandomSource r) { this.r = r; }
+
+        public synchronized int nextInt() { return r.nextInt(); }
+
+        public synchronized int nextInt(int bound) { return r.nextInt(bound); }
+
+        public synchronized long nextLong() { return r.nextLong(); }
+
+        public synchronized float nextFloat() { return r.nextFloat(); }
+
+        public synchronized double nextDouble() { return r.nextDouble(); }
+
+        public synchronized boolean nextBoolean() { return r.nextBoolean(); }
+
+        public synchronized double nextGaussian() { return r.nextGaussian(); }
+    }
+
     static RandomSource create(long seed) { return new LegacyRandomSource(seed); }
 }

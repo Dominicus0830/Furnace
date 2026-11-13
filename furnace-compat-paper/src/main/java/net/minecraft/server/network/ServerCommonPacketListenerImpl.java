@@ -34,6 +34,9 @@ public abstract class ServerCommonPacketListenerImpl implements PacketListener {
     /** 호환 모듈 전용: 접속이 끝났다 — 연결의 가상 채널을 닫는다. */
     public void compatDisconnected() { connection.disconnected(); }
 
+    /** 호환 모듈 전용(ProtocolLib 다리 2b-2): 이 접속의 연결. */
+    public net.minecraft.network.Connection compatConnection() { return connection; }
+
     /** 호환 모듈 전용: 이 접속의 Furnace 플레이어(패킷을 실제로 내보낼 곳). */
     public org.domi.furnace.api.entity.Player furnacePlayer() { return f(); }
 

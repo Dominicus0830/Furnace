@@ -3004,10 +3004,14 @@ public final class Region {
      *  스폰 청크가 첫 틱 소량 배치에 들어가 빨리 도착 → 클라가 즉시 안착(289개 일괄 async fan-out 회피).
      *  아직 끝나지 않은 요청이 상한(world.maxChunkSendsInFlight)에 닿으면 더 꺼내지 않는다 — 생성이 수요를 못 따라갈 때
      *  요청이 생성 큐에 한없이 쌓여(FIFO) 플레이어 바로 옆 청크까지 수십 초 밀리는 것을 막는다. 남은 청크는 대기열에 남아
-     *  플레이어가 움직이면 새 중심 기준으로 다시 정렬되므로, 다음에 꺼내는 것은 언제나 지금 위치에서 가장 가까운 청크다. */
+     *  플레이어가 움직이면 새 중심 기준으로 다시 정렬되므로, 다음에 꺼내는 것은 언제나 지금 위치에서 가장 가까운 청크다.
+     *  배치는 겹치지 않는다(앞 배치 Finished 전엔 새 배치를 열지 않음) — 한 배치의 가장 느린 청크가 끝나야 다음 배치가 열린다. */
     private void sendQueuedChunks(Player p) {
         if (p.pendingChunks().isEmpty()) return;
         if (world.autoChunkRate()) { sendQueuedChunksAuto(p); return; }
+        // 바닐라 PlayerChunkSender 처럼 배치는 겹치지 않는다: 앞 배치의 Finished 가 나가기 전엔 새 배치를 열지 않는다(auto 와 같은 규칙).
+        // 동시 진행 상한은 청크 단위라, 앞 배치 청크 일부만 끝나도 예산이 생겨 Start 가 앞 배치 안에 끼어들었다.
+        if (p.chunkBatchOpen()) return;
         int adaptive = p.chunkSendRate().nextBudget();   // 바닐라 PlayerChunkSender: 클라이언트가 알린 속도·미확인 배치 한도
         if (adaptive <= 0) return;
         int budget = Math.min(Math.min(world.chunksPerTick(), adaptive), world.maxChunkSendsInFlight() - p.chunkSendsInFlight().get());
@@ -3023,7 +3027,7 @@ public final class Region {
             it.remove();
         }
         if (batch.isEmpty()) return;
-        sendBatch(p, batch, false);
+        sendBatchGuarded(p, batch, false);
     }
 
     /** 매 틱 바뀌는 청크를 region 스레드에서 바로 직렬화하는 틱당 상한(이 region 의 모든 플레이어 합). 넘으면 다음 틱으로 미룬다. */
@@ -3080,8 +3084,18 @@ public final class Region {
             }
         }
         if (!batch.isEmpty()) {
-            p.chunkBatchOpen(true);
-            sendBatch(p, batch, true).whenComplete((v, ex) -> p.chunkBatchOpen(false));
+            sendBatchGuarded(p, batch, true);
+        }
+    }
+
+    /** 배치를 연 표시를 하고 보낸다. Finished 가 나가면(또는 실패하면) 닫는다 — 동기 예외로 영영 열린 채 남지 않게. */
+    private void sendBatchGuarded(Player p, List<ChunkPos> batch, boolean inline) {
+        p.chunkBatchOpen(true);
+        try {
+            sendBatch(p, batch, inline).whenComplete((v, ex) -> p.chunkBatchOpen(false));
+        } catch (RuntimeException | Error e) {
+            p.chunkBatchOpen(false);
+            throw e;
         }
     }
 

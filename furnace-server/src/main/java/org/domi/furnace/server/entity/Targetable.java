@@ -24,6 +24,12 @@ public interface Targetable {
 
     boolean isAlive();
 
+    /** isSpectator: 관전 모드 플레이어만 참. */
+    default boolean isSpectator() { return false; }
+
+    /** LivingEntity.canBeSeenByAnyone: 관전자가 아니고 살아 있다(크리에이티브도 참 — 비전투 대상 조건의 첫 검사). */
+    default boolean canBeSeenByAnyone() { return !isSpectator() && isAlive(); }
+
     /** canBeSeenAsEnemy: 무적(크리에이티브)·관전자가 아니고 살아 있다. */
     boolean canBeSeenAsEnemy();
 

@@ -145,6 +145,7 @@ public final class EntityTracker {
 
     /** addPairing: 스폰 묶음(add_entity, 데이터, 속도). */
     private void addPairing(Player p) {
+        if (entity.level() != null) entity.level().gameEvents().playerTrackEntity(p, entity);   // 플러그인 PlayerTrackEntityEvent(구독자가 있을 때만)
         List<Packet> list = new ArrayList<>(4);
         Packet custom = entity.customSpawnPacket(baseX, baseY, baseZ);
         list.add(custom != null ? custom : new AddEntity(entity.id(), entity.uuid(), entity.type().id(), baseX, baseY, baseZ, xRotp, yRotp, yHeadRotp,

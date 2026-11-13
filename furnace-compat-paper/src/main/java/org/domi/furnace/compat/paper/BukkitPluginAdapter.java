@@ -45,6 +45,7 @@ public final class BukkitPluginAdapter extends FurnacePlugin {
         List<Command> declared = PluginCommandYamlParser.parse(plugin);
         if (!declared.isEmpty()) Compat.commandMap().registerAll(bukkitDescription.getName(), declared);
         plugin.onEnable();
+        ProtocolLibBridge.pluginEnabled(this);   // ProtocolLib 이면 서버가 보내는 패킷을 리스너에 보이고, 아니면 그 리스너 목록을 다시 맞춘다
     }
 
     @Override
@@ -54,6 +55,7 @@ public final class BukkitPluginAdapter extends FurnacePlugin {
         } finally {
             HandlerList.unregisterAll(plugin);
             bridged.clear();
+            ProtocolLibBridge.pluginDisabled(this);
         }
     }
 }
