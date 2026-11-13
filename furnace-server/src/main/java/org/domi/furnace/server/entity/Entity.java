@@ -125,6 +125,8 @@ public abstract non-sealed class Entity implements Rider {
     public EntityTracker tracker;
     /** EntityStore 틱 목록 안 순번(넣을 때 매긴다 — 작을수록 앞). 같은 저장소 안에서만 뜻이 있다. */
     long storeSeq;
+    /** 저장소의 구역 목록에 실제로 들어 있는 구역 키(EntityStore 만 쓴다). */
+    long storedSection;
     /** 이 엔티티를 가진 EntityStore(없으면 null) — contains 를 해시 없이(EntityStore.holds). */
     EntityStore store;
     // 탑승(바닐라 Entity.vehicle/passengers/boardingCooldown). 승객이 없으면 공유 빈 목록이라 틱 비용이 없다.

@@ -67,6 +67,34 @@ class EntitySpawnRemoveTest {
         assertEquals(false, out[0], "지워진 엔티티를 넣었다고 답했다(Paper: isRemoved 면 넣지 않음)");
     }
 
+    /**
+     * T-078 보완(#230 남은 틈): 스폰 이벤트 처리기가 엔티티를 다른 구역으로 옮긴 뒤 지우면, 추적기가 없는 동안에는 구역 이동이 알려지지 않아
+     * 저장소가 옛 구역 키로 목록을 찾다가 지운 엔티티를 옛 구역 목록에 남겼다 — 지운 엔티티가 공간 조회에 계속 잡혔다.
+     */
+    @Test
+    void moveThenRemoveInsideSpawnEventLeavesNoStaleSectionEntry() throws Exception {
+        Cow[] holder = new Cow[1];
+        host.eventsImpl().subscribe(plugin, EntitySpawnEvent.class, e -> {
+            holder[0].moveTo(8, 100, 8, 0, 0);   // 다른 구역(y 구역이 다름)
+            holder[0].discard();
+        });
+        Object[] out = core.world().submitAtChunk(C00, r -> {
+            var level = r.level();
+            Cow cow = new Cow(level, level.nextEntityId());
+            holder[0] = cow;
+            cow.moveTo(8, -50, 8, 0, 0);
+            boolean added = level.addFreshEntity(cow);
+            var wide = new org.domi.furnace.server.entity.AABB(-64, -64, -64, 64, 200, 64);
+            java.util.List<org.domi.furnace.server.entity.Entity> found = new java.util.ArrayList<>();
+            level.entities().forEachIn(wide, found::add);
+            return new Object[] {added, cow.isRemoved(), found.contains(cow), level.entities().inChunk(0, 0).contains(cow)};
+        }).get(30, TimeUnit.SECONDS);
+        assertEquals(false, out[0]);
+        assertEquals(true, out[1]);
+        assertEquals(false, out[2], "지운 엔티티가 옛 구역 목록에 남아 공간 조회에 잡힌다");
+        assertEquals(false, out[3], "지운 엔티티가 청크 조회에 잡힌다");
+    }
+
     /** A16-01 재검토(R6): dieFromApi 는 die(GENERIC) 인데 die 안의 damageSourceEntity()=lastDamageAttacker 가 예전 공격자 그대로라, 좀비가 전에 때린 주민을 setHealth(0) 하면 감염(바닐라 generic 은 원인 엔티티 없음). */
     @Test
     void dieFromApiCreditsStaleAttacker() throws Exception {
