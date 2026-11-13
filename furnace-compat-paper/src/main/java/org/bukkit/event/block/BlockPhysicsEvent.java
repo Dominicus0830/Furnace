@@ -23,14 +23,19 @@ public class BlockPhysicsEvent extends BlockEvent implements Cancellable {
 
     @Override
     public void setCancelled(boolean cancel) { this.cancelled = cancel; }
-    private final BlockData changed;
+    private final org.domi.furnace.api.event.LazyValue<BlockData> changed;
     private final Block sourceBlock;
 
     public BlockPhysicsEvent(Block block, BlockData changed) { this(block, changed, block); }
 
     public BlockPhysicsEvent(Block block, BlockData changed, Block sourceBlock) {
+        this(block, org.domi.furnace.api.event.LazyValue.ready(changed), sourceBlock);
+    }
+
+    /** 호환 모듈 전용(T-076) — 갱신받는 칸의 상태를 처리기가 처음 읽을 때 만든다. 결과는 위 생성자에 미리 만든 값을 준 것과 같다. */
+    public BlockPhysicsEvent(Block block, org.domi.furnace.api.event.LazyValue<BlockData> changed, Block sourceBlock) {
         super(block);
-        this.changed = changed;
+        this.changed = java.util.Objects.requireNonNull(changed, "changed");
         this.sourceBlock = sourceBlock;
     }
 
@@ -38,7 +43,7 @@ public class BlockPhysicsEvent extends BlockEvent implements Cancellable {
     public Block getSourceBlock() { return sourceBlock; }
 
     /** 갱신을 받는 블록의 종류(CraftBukkit 은 갱신받는 칸의 상태를 넘긴다). */
-    public Material getChangedType() { return changed.getMaterial(); }
+    public Material getChangedType() { return changed.get().getMaterial(); }
 
-    public BlockData getChangedBlockData() { return changed.clone(); }
+    public BlockData getChangedBlockData() { return changed.get().clone(); }
 }

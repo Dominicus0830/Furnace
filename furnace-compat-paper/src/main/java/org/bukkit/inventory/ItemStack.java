@@ -38,6 +38,12 @@ public class ItemStack implements Cloneable, ConfigurationSerializable, io.paper
     /** 호환 모듈 전용 — 지금 값(Furnace 쪽 불변 스택). */
     public org.domi.furnace.api.item.ItemStack asFurnace() { return slot.get(); }
 
+    /**
+     * 호환 모듈 전용 — 이 스택의 변경 번호: 값을 바꾸는 모든 메서드(setType·setAmount·setDurability·setItemMeta·마법 부여 추가·제거)가 올린다.
+     * 같은 객체의 번호가 같으면 값이 같다. 칸을 비추는 스택은 추적하지 않아 -1(비교는 값으로).
+     */
+    public long changeStamp() { return slot.changeStamp(); }
+
     public Material getType() { return CompatItems.material(slot.get().type()); }
 
     public void setType(Material type) {
