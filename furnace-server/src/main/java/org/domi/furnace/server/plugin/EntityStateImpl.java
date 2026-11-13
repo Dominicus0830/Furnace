@@ -63,6 +63,23 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
     }
 
     @Override
+    public void remove() {
+        if (writable()) e.discard();
+    }
+
+    @Override
+    public org.domi.furnace.api.world.Location location() {
+        check();
+        return new org.domi.furnace.api.world.Location(e.dimensionKey(), e.x(), e.y(), e.z(), e.yRot(), e.xRot());
+    }
+
+    @Override
+    public float headYaw() {
+        check();
+        return e instanceof org.domi.furnace.server.entity.LivingEntity le ? le.yHeadRot() : e.yRot();
+    }
+
+    @Override
     public Text customName() {
         check();
         return e.hasCustomName() ? e.getCustomName() : null;
@@ -243,6 +260,25 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
 
         static MobEffect toApi(MobEffectInstance i) {
             return new MobEffect(i.effect().name(), i.duration(), i.amplifier(), i.ambient(), i.visible(), i.showIcon());
+        }
+
+        @Override
+        public float health() {
+            check();
+            return le.health();
+        }
+
+        @Override
+        public float maxHealth() {
+            check();
+            return le.maxHealth();
+        }
+
+        @Override
+        public void setHealth(float health) {
+            if (!writable()) return;
+            if (health <= 0f) le.dieFromApi();
+            else le.setHealth(Math.min(health, le.maxHealth()));
         }
 
         @Override

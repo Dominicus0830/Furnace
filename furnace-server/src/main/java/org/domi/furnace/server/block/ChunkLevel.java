@@ -2462,6 +2462,10 @@ public abstract class ChunkLevel implements BlockLevel {
             retireApiTasks(e);
             return false;
         }
+        if (e.isRemoved()) {   // 스폰 이벤트 처리기가 지웠다: 이미 목록에서 빠졌으니 추적·리스너를 붙이지 않는다(유령 엔티티 방지)
+            retireApiTasks(e);
+            return false;
+        }
         // 처리기가 옮겼으면 구역 목록을 맞춘다 — 추적기가 없는 동안에는 setPosRaw 가 구역 이동을 알리지 않는다(Paper 도 이벤트 뒤 위치로 넣는다)
         if (e.sectionKey() != addedKey) entities.moved(e, addedKey);
         startTracking(e);
