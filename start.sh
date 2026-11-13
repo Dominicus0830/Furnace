@@ -43,13 +43,17 @@ CDS_FILE="$APP/furnace.jsa"
 if [ "${FURNACE_CDS:-1}" != 0 ] && ! printf '%s\n' "${JVM_ARGS[@]}" | grep -q -e SharedArchiveFile -e AutoCreateSharedArchive -e 'Xshare'; then
   JMAJOR=$(java -version 2>&1 | sed -n 's/.*version "\([0-9]*\).*/\1/p' | head -1)
   if [ -n "$JMAJOR" ] && [ "$JMAJOR" -ge 19 ] 2>/dev/null; then
+    CDS_OK=0
     if [ -f "$CDS_FILE" ]; then
       MAGIC=$(od -An -tx1 -N4 "$CDS_FILE" 2>/dev/null | tr -d ' ')
-      if [ "$MAGIC" != "a8ab0bf0" ] || [ -n "$(find "$APP/lib" -newer "$CDS_FILE" -print -quit 2>/dev/null)" ]; then
-        rm -f "$CDS_FILE" 2>/dev/null
+      if [ "$MAGIC" = "a8ab0bf0" ] && [ -z "$(find "$APP/lib" -newer "$CDS_FILE" -print -quit 2>/dev/null)" ]; then
+        CDS_OK=1
+      else
+        rm -f "$CDS_FILE" 2>/dev/null || true
       fi
     fi
-    if [ -f "$CDS_FILE" ] || [ -w "$APP" ]; then
+    # 낡거나 깨진 파일을 못 지웠으면 옵션을 붙이지 않는다(set -e 로 죽지 않게 || true)
+    if [ "$CDS_OK" = 1 ] || { [ ! -e "$CDS_FILE" ] && [ -w "$APP" ]; }; then
       CDS_ARGS=("-XX:+AutoCreateSharedArchive" "-XX:SharedArchiveFile=$CDS_FILE")
     fi
   fi
