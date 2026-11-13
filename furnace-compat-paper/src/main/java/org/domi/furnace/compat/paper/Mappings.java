@@ -500,7 +500,8 @@ final class Mappings {
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerItemHeldEvent.class, org.bukkit.event.player.PlayerItemHeldEvent.class,
                 f -> new org.bukkit.event.player.PlayerItemHeldEvent(p(f.player()), f.previousSlot(), f.newSlot()), (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.block.BlockPhysicsEvent.class, org.bukkit.event.block.BlockPhysicsEvent.class,
-                f -> new org.bukkit.event.block.BlockPhysicsEvent(Compat.block(f.world(), f.pos()), CompatBlockData.of(f.block()),
+                f -> new org.bukkit.event.block.BlockPhysicsEvent(Compat.block(f.world(), f.pos()),
+                        org.domi.furnace.api.event.LazyValue.of(f, e -> CompatBlockData.of(e.block())),
                         Compat.block(f.world(), f.sourcePos())), (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.block.BlockFromToEvent.class, org.bukkit.event.block.BlockFromToEvent.class,
                 // CraftBukkit 흐름처럼 (출발 칸, 방향) — 도착 칸은 출발 칸의 그 방향 이웃이다. 방향이 없으면 (출발, 도착) 꼴(면 SELF)

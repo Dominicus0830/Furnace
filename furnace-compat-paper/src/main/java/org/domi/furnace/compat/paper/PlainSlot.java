@@ -7,6 +7,8 @@ final class PlainSlot implements ItemSlot {
 
     private ItemStack stack;
     private int amount;
+    /** 값을 바꿀 때마다 오르는 번호(T-076) — 모든 쓰기는 set·setAmount 를 거친다. */
+    private long stamp;
 
     PlainSlot(ItemStack stack, int amount) {
         this.stack = stack;
@@ -18,6 +20,7 @@ final class PlainSlot implements ItemSlot {
 
     @Override
     public void set(ItemStack s) {
+        stamp++;
         stack = s;
         amount = s.amount();
     }
@@ -26,7 +29,11 @@ final class PlainSlot implements ItemSlot {
     public int amount() { return amount; }
 
     @Override
+    public long changeStamp() { return stamp; }
+
+    @Override
     public void setAmount(int n) {
+        stamp++;
         amount = n;
         stack = new ItemStack(stack.type(), Math.max(0, n), stack.components(), stack.removedComponents());
     }
