@@ -253,6 +253,70 @@ public final class PoiManager {
         return found;
     }
 
+    /** 이 섹션이 마을 중심인가(= sectionsToVillage(x, y, z) == 0). 올라온 열만 본다. */
+    public boolean isVillageCenterSection(int sx, int sy, int sz) {
+        PoiChunk c = columns.poi(sx, sz);
+        if (c == null || !c.hasSections()) return false;
+        PoiSection s = c.section(sy);
+        return s != null && isVillageCenter(s);
+    }
+
+    // closestVillageSection 의 마을 중심 좌표 모음(x, y, z 세 칸씩). 레벨 주인 스레드만 부른다.
+    private int[] centerBuf = new int[48];
+
+    /**
+     * BehaviorUtils.findSectionClosestToVillage: 둘레 섹션(z → y → x 순) 중 지금보다 마을에 가까운 것의 최솟값(같으면 먼저 것), 없으면 sp 자신.
+     * 옛 구현은 섹션마다 sectionsToVillage 로 13×13 열을 다시 훑었다. 여기서는 창(반지름 + 6) 안의 마을 중심 좌표를 한 번만 모으고
+     * 섹션마다 체비셰프 최솟값(6 넘으면 7)을 낸다. 값은 sectionsToVillage 와 같다(같은 열·같은 마을 중심 기준).
+     */
+    public int[] closestVillageSection(int[] sp, int radius) {
+        int win = radius + MAX_VILLAGE_DISTANCE;
+        int n = 0;
+        int[] buf = centerBuf;
+        for (int x = sp[0] - win; x <= sp[0] + win; x++) {
+            for (int z = sp[2] - win; z <= sp[2] + win; z++) {
+                PoiChunk c = columns.poi(x, z);
+                if (c == null || !c.hasSections()) continue;
+                int y0 = Math.max(sp[1] - win, c.minSection()), y1 = Math.min(sp[1] + win, c.maxSection());
+                for (int y = y0; y <= y1; y++) {
+                    PoiSection s = c.section(y);
+                    if (s != null && isVillageCenter(s)) {
+                        if (n * 3 + 3 > buf.length) centerBuf = buf = java.util.Arrays.copyOf(buf, buf.length * 2);
+                        buf[n * 3] = x;
+                        buf[n * 3 + 1] = y;
+                        buf[n * 3 + 2] = z;
+                        n++;
+                    }
+                }
+            }
+        }
+        if (n == 0) return sp;   // 창 안에 중심이 없으면 모든 섹션이 7 — 어느 것도 지금보다 가깝지 않다
+        int cur = villageDistance(buf, n, sp[0], sp[1], sp[2]);
+        int[] best = null;
+        int bestD = Integer.MAX_VALUE;
+        for (int z = sp[2] - radius; z <= sp[2] + radius; z++) {
+            for (int y = sp[1] - radius; y <= sp[1] + radius; y++) {
+                for (int x = sp[0] - radius; x <= sp[0] + radius; x++) {
+                    int d = villageDistance(buf, n, x, y, z);
+                    if (d < cur && d < bestD) {
+                        bestD = d;
+                        best = new int[] {x, y, z};
+                    }
+                }
+            }
+        }
+        return best == null ? sp : best;
+    }
+
+    private static int villageDistance(int[] centers, int n, int x, int y, int z) {
+        int best = MAX_VILLAGE_DISTANCE + 1;
+        for (int i = 0; i < n; i++) {
+            int d = Math.max(Math.abs(centers[i * 3] - x), Math.max(Math.abs(centers[i * 3 + 1] - y), Math.abs(centers[i * 3 + 2] - z)));
+            if (d < best) best = d;
+        }
+        return best;
+    }
+
     /** 바닐라 PoiManager.isVillageCenter: 마을 POI 중 <b>점유된</b> 것(IS_OCCUPIED)이 있는 섹션만 마을 중심이다. */
     private static boolean isVillageCenter(PoiSection s) { return s.anyRecord(PoiTypes.VILLAGE, Occupancy.IS_OCCUPIED); }
 
