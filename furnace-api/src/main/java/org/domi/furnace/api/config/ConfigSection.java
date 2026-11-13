@@ -265,6 +265,16 @@ public final class ConfigSection {
         return c;
     }
 
+    /**
+     * 트리의 잎 값으로 들어가는 불투명한 객체(호환 계층의 직렬화 객체 등). 트리는 이것을 구역이 아닌 값 하나로 다루며(키 나열·경로 해석이 안쪽으로 내려가지 않는다)
+     * 참조 그대로 보관·복사한다. 쓰거나 {@link #toMap()} 으로 바꿀 때만 {@link #lower()} 로 그 순간의 저장 꼴을 얻는다.
+     * 호환 계층이 쓰라고 연 것이다 — 일반 설정 코드는 쓸 필요가 없다.
+     */
+    public interface Opaque {
+        /** 쓰는 순간의 저장 꼴: Map·List·스칼라(안쪽에 또 Opaque 가 있어도 된다). */
+        Object lower();
+    }
+
     /** 일반 Map/List 로 깊은 변환한 스냅샷. */
     public Map<String, Object> toMap() {
         LinkedHashMap<String, Object> out = new LinkedHashMap<>();
@@ -290,6 +300,114 @@ public final class ConfigSection {
         if (parent == null) return "";
         String pp = parent.getPath();
         return pp.isEmpty() ? key : pp + "." + key;
+    }
+
+    // ---------------------------------------------------------------- 키 한 단계씩 지정하는 경로(구분자가 '.' 이 아닌 호환 설정용)
+    //
+    // 위 메서드들은 점으로 경로를 나누고 점이 든 literal 키도 너그럽게 찾는다. 아래 메서드는 호출하는 쪽이 이미 키 단계로 나눈 목록을 준다 —
+    // 단계 하나가 곧 키 하나라서 점이 든 키("minecraft:stone.x", 도메인 이름)가 그대로 한 단계다. 단계가 섹션이 아니면 없는 것으로 본다(너그러운 대체 없음).
+
+    /** 루트부터 이 섹션까지의 키 단계(루트면 빈 목록). */
+    public List<String> pathSegments() {
+        if (parent == null) return List.of();
+        ArrayList<String> out = new ArrayList<>(parent.pathSegments());
+        out.add(key);
+        return out;
+    }
+
+    private Loc locateSegments(List<String> segs) {
+        ConfigSection cur = this;
+        for (int i = 0; i < segs.size() - 1; i++) {
+            if (!(cur.map.get(segs.get(i)) instanceof ConfigSection next)) return null;
+            cur = next;
+        }
+        return segs.isEmpty() || !cur.map.containsKey(segs.get(segs.size() - 1)) ? null : new Loc(cur, segs.get(segs.size() - 1));
+    }
+
+    private Object lookupSegments(List<String> segs) {
+        Loc loc = locateSegments(segs);
+        return loc == null ? ABSENT : loc.owner.map.get(loc.key);
+    }
+
+    private Object defaultValueSegments(List<String> segs) {
+        ConfigSection root = getRoot();
+        if (root.defaults == null) return ABSENT;
+        ArrayList<String> full = new ArrayList<>(pathSegments());
+        full.addAll(segs);
+        return root.defaults.lookupSegments(full);
+    }
+
+    /** 값 조회(없으면 defaults, 그래도 없으면 null). 단계가 없으면 이 섹션 자신. */
+    public Object getAt(List<String> segs) {
+        if (segs.isEmpty()) return this;
+        Object v = lookupSegments(segs);
+        if (v == ABSENT || v == null) {
+            Object d = defaultValueSegments(segs);
+            return d == ABSENT ? null : d;
+        }
+        return v;
+    }
+
+    public boolean containsAt(List<String> segs, boolean ignoreDefaults) {
+        if (segs.isEmpty()) return true;
+        if (lookupSegments(segs) != ABSENT) return true;
+        return !ignoreDefaults && defaultValueSegments(segs) != ABSENT;
+    }
+
+    /** 값 저장. 중간 단계는 필요하면 새 섹션으로 만들고, 섹션이 아닌 값이 있으면 새 섹션으로 바꾼다. 단계가 비면 IllegalArgumentException. */
+    public void setAt(List<String> segs, Object value) {
+        if (segs.isEmpty()) throw new IllegalArgumentException("빈 경로");
+        Object v = normalize(value);
+        ConfigSection cur = this;
+        for (int i = 0; i < segs.size() - 1; i++) {
+            if (cur.map.get(segs.get(i)) instanceof ConfigSection next) {
+                cur = next;
+            } else {
+                ConfigSection made = new ConfigSection();
+                cur.putChild(segs.get(i), made);
+                cur = made;
+            }
+        }
+        cur.putChild(segs.get(segs.size() - 1), v);
+    }
+
+    /** 제거하고 이전 값을 돌려준다(없으면 null). 그 키의 주석도 함께 지운다. */
+    public Object removeAt(List<String> segs) {
+        Loc loc = locateSegments(segs);
+        return loc == null ? null : loc.owner.removeKey(loc.key);
+    }
+
+    public List<String> getCommentsAt(List<String> segs) {
+        Loc loc = locateSegments(segs);
+        List<String> c = loc == null || loc.owner.comments == null ? null : loc.owner.comments.get(loc.key);
+        return c == null ? List.of() : Collections.unmodifiableList(c);
+    }
+
+    /** 키가 존재해야 한다(없으면 IllegalArgumentException). */
+    public void setCommentsAt(List<String> segs, List<String> lines) {
+        Loc loc = locateSegments(segs);
+        if (loc == null) throw new IllegalArgumentException("존재하지 않는 경로: " + segs);
+        loc.owner.setCommentsRaw(loc.key, lines == null || lines.isEmpty() ? null : new ArrayList<>(lines));
+    }
+
+    public String getInlineCommentAt(List<String> segs) {
+        Loc loc = locateSegments(segs);
+        return loc == null || loc.owner.inlineComments == null ? null : loc.owner.inlineComments.get(loc.key);
+    }
+
+    public void setInlineCommentAt(List<String> segs, String comment) {
+        Loc loc = locateSegments(segs);
+        if (loc == null) throw new IllegalArgumentException("존재하지 않는 경로: " + segs);
+        loc.owner.setInlineRaw(loc.key, comment);
+    }
+
+    /** 기본값 하나 추가(루트 defaults 의 이 섹션 아래에 생성). */
+    public void addDefaultAt(List<String> segs, Object value) {
+        ConfigSection root = getRoot();
+        if (root.defaults == null) root.defaults = new ConfigSection();
+        ArrayList<String> full = new ArrayList<>(pathSegments());
+        full.addAll(segs);
+        root.defaults.setAt(full, value);
     }
 
     // ---------------------------------------------------------------- 기본값
@@ -405,6 +523,54 @@ public final class ConfigSection {
         }
         if (inlineComments == null) inlineComments = new HashMap<>();
         inlineComments.put(k, c);
+    }
+
+    /** 트리 어디에든 {@link Opaque} 값이 있는가(목록 안 포함). */
+    boolean hasOpaque() {
+        for (Object v : map.values()) if (hasOpaque(v)) return true;
+        return false;
+    }
+
+    private static boolean hasOpaque(Object v) {
+        if (v instanceof Opaque) return true;
+        if (v instanceof ConfigSection s) return s.hasOpaque();
+        if (v instanceof List<?> l) for (Object o : l) if (hasOpaque(o)) return true;
+        return false;
+    }
+
+    /** 쓰기용 사본: {@link Opaque} 값을 그 순간의 {@link Opaque#lower()} 꼴(구역·목록)로 바꾼 깊은 복사. 이 트리는 읽기만 한다. */
+    ConfigSection lowered() {
+        ConfigSection c = copy();
+        c.lowerOpaqueInPlace();
+        return c;
+    }
+
+    private void lowerOpaqueInPlace() {
+        for (Map.Entry<String, Object> e : new ArrayList<>(map.entrySet())) {
+            Object v = lowerValue(e.getValue());
+            if (v != e.getValue()) putChild(e.getKey(), v);
+        }
+    }
+
+    private static Object lowerValue(Object v) {
+        if (v instanceof Opaque o) {
+            Object n = normalize(o.lower());
+            if (n instanceof ConfigSection ns) ns.lowerOpaqueInPlace();
+            else if (n instanceof List<?> l) return lowerList(l);
+            return n;
+        }
+        if (v instanceof ConfigSection s) {
+            s.lowerOpaqueInPlace();
+            return s;
+        }
+        if (v instanceof List<?> l) return lowerList(l);
+        return v;
+    }
+
+    private static List<Object> lowerList(List<?> l) {
+        ArrayList<Object> out = new ArrayList<>(l.size());
+        for (Object o : l) out.add(lowerValue(o));
+        return out;
     }
 
     /** long 을 Integer(범위 내) 또는 Long 으로 정규화한다. */
@@ -551,6 +717,7 @@ public final class ConfigSection {
     }
 
     private static Object plain(Object v) {
+        if (v instanceof Opaque o) return plain(normalize(o.lower()));
         if (v instanceof ConfigSection s) return s.toMap();
         if (v instanceof List<?> l) {
             ArrayList<Object> out = new ArrayList<>(l.size());
@@ -569,6 +736,7 @@ public final class ConfigSection {
         if (v instanceof CharSequence || v instanceof Character || v instanceof UUID) return v.toString();
         if (v instanceof Enum<?> e) return e.name();
         if (v instanceof OffsetDateTime || v instanceof LocalDateTime || v instanceof LocalDate || v instanceof LocalTime) return v;
+        if (v instanceof Opaque) return v;
         if (v instanceof ConfigSection s) return s.parent != null ? s.copy() : s;
         if (v instanceof Map<?, ?> m) return fromMap(m);
         if (v instanceof Collection<?> c) {

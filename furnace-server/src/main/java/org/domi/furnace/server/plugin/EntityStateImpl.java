@@ -74,6 +74,12 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
     }
 
     @Override
+    public float headYaw() {
+        check();
+        return e instanceof org.domi.furnace.server.entity.LivingEntity le ? le.yHeadRot() : e.yRot();
+    }
+
+    @Override
     public Text customName() {
         check();
         return e.hasCustomName() ? e.getCustomName() : null;
@@ -82,6 +88,12 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
     @Override
     public void setCustomName(Text name) {
         if (writable()) e.setCustomName(name);
+    }
+
+    @Override
+    public org.domi.furnace.api.world.Aabb boundingBox() {
+        check();
+        return ApiBoxes.of(e.boundingBox());
     }
 
     @Override
@@ -303,6 +315,28 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
         public int clearEffects() {
             if (!writable()) return 0;
             return le.removeAllEffects();
+        }
+
+        @Override
+        public Optional<org.domi.furnace.api.entity.attribute.AttributeInstance> attribute(org.domi.furnace.api.entity.attribute.Attribute attribute) {
+            java.util.Objects.requireNonNull(attribute, "attribute");
+            check();
+            var i = le.attributes().get(AttributeApi.server(attribute));
+            return i == null ? Optional.empty() : Optional.of(new AttributeApi.Live(i, this::check));
+        }
+
+        @Override
+        public List<org.domi.furnace.api.entity.attribute.Attribute> attributes() {
+            check();
+            return AttributeApi.keys(le.attributes().snapshot());
+        }
+
+        @Override
+        public boolean registerAttribute(org.domi.furnace.api.entity.attribute.Attribute attribute) {
+            var a = AttributeApi.server(java.util.Objects.requireNonNull(attribute, "attribute"));
+            if (!writable() || le.attributes().has(a)) return false;
+            le.attributes().register(a);
+            return true;
         }
 
         @Override

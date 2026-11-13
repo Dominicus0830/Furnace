@@ -13,7 +13,8 @@ import org.bukkit.inventory.ItemStack;
 
 /**
  * {@link ConfigurationSerializable} 의 별칭 등록부와 되읽기. 별칭 → 클래스 표는 서버 전체가 하나다(Bukkit 과 같다).
- * 기본으로 ItemStack 과 ItemMeta(별칭 "ItemMeta")가 등록돼 있다.
+ * 기본으로 ItemStack·ItemMeta(별칭 "ItemMeta")·Color·FireworkEffect·AttributeModifier·Vector·BlockVector·BoundingBox·PotionEffect·Location·SpawnRule·OfflinePlayer(별칭 "Player")가 등록돼 있다.
+ * 배너 무늬(Pattern)는 호환 계층에 배너 API 가 아직 없어 빠져 있다.
  * 되읽기 순서: 정적 {@code deserialize(Map)} → 정적 {@code valueOf(Map)} → {@code (Map)} 생성자. 앞의 것이 없거나 null·예외면 다음으로 간다.
  */
 public class ConfigurationSerialization {
@@ -22,11 +23,26 @@ public class ConfigurationSerialization {
     public static final String SERIALIZED_TYPE_KEY = "==";
 
     private static final Map<String, Class<? extends ConfigurationSerializable>> REGISTRY = new ConcurrentHashMap<>();
+    private static final java.util.concurrent.atomic.AtomicInteger EPOCH = new java.util.concurrent.atomic.AtomicInteger();
+
+    /** 호환 모듈 전용: 등록이 바뀔 때마다 늘어나는 번호(읽을 때 모르던 별칭을 다시 시도할지 가리는 데 쓴다). */
+    public static int epoch() { return EPOCH.get(); }
     private static final Logger LOG = Logger.getLogger(ConfigurationSerialization.class.getName());
 
     static {
         registerClass(ItemStack.class);
         registerClass(org.bukkit.craftbukkit.inventory.SerializableMeta.class);
+        registerClass(org.bukkit.Color.class);
+        registerClass(org.bukkit.FireworkEffect.class);
+        registerClass(org.bukkit.attribute.AttributeModifier.class);
+        // Paper 기본 등록 가운데 호환 계층에 있는 것(A15-01) — 별칭과 클래스 이름 둘 다로 되읽힌다
+        registerClass(org.bukkit.util.Vector.class);
+        registerClass(org.bukkit.potion.PotionEffect.class);
+        registerClass(org.bukkit.Location.class);
+        registerClass(org.bukkit.util.BlockVector.class);
+        registerClass(org.bukkit.util.BoundingBox.class);
+        registerClass(org.bukkit.block.spawner.SpawnRule.class);
+        registerClass(org.bukkit.craftbukkit.CraftOfflinePlayer.class);   // 별칭 Player
     }
 
     private final Class<? extends ConfigurationSerializable> clazz;
@@ -130,12 +146,12 @@ public class ConfigurationSerialization {
         for (String name : new String[] {getAlias(clazz), clazz.getName()}) registerClass(clazz, name);
     }
 
-    public static void registerClass(Class<? extends ConfigurationSerializable> clazz, String alias) { REGISTRY.put(alias, clazz); }
+    public static void registerClass(Class<? extends ConfigurationSerializable> clazz, String alias) { REGISTRY.put(alias, clazz); EPOCH.incrementAndGet(); }
 
-    public static void unregisterClass(String alias) { REGISTRY.remove(alias); }
+    public static void unregisterClass(String alias) { REGISTRY.remove(alias); EPOCH.incrementAndGet(); }
 
     /** 그 클래스로 등록된 별칭을 모두 지운다. */
-    public static void unregisterClass(Class<? extends ConfigurationSerializable> clazz) { REGISTRY.values().removeIf(c -> c == clazz); }
+    public static void unregisterClass(Class<? extends ConfigurationSerializable> clazz) { REGISTRY.values().removeIf(c -> c == clazz); EPOCH.incrementAndGet(); }
 
     /** 별칭의 클래스. 없으면 null. */
     public static Class<? extends ConfigurationSerializable> getClassByAlias(String alias) { return REGISTRY.get(alias); }

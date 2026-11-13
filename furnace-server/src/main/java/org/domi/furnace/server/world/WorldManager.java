@@ -106,6 +106,16 @@ public final class WorldManager {
 
     public void hooks(Hooks h) { this.hooks = h == null ? Hooks.NONE : h; }
 
+    private volatile java.util.function.Supplier<CompletableFuture<Void>> saveBarrier = () -> CompletableFuture.completedFuture(null);
+
+    /**
+     * 진행 중 /save-all 이 끝나면 완료되는 future(저장 스레드에 넣은 빈 작업). 월드를 목록에서 뗀 뒤 저장소를 닫기 전에 기다린다 —
+     * 저장 스레드가 이 월드를 저장하는 중에 닫히면 닫힌 저장소에 기록이 다시 핸들을 연다(PR #278 검토 R2).
+     */
+    public void saveBarrier(java.util.function.Supplier<CompletableFuture<Void>> barrier) {
+        this.saveBarrier = barrier == null ? () -> CompletableFuture.completedFuture(null) : barrier;
+    }
+
     public Dimensions dimensions() { return dimensions; }
 
     // ------------------------------------------------------------------ 조립(기본 차원과 추가 월드 공용)
@@ -485,6 +495,12 @@ public final class WorldManager {
             return true;
         }).get(30, TimeUnit.SECONDS);
         if (!go) return false;
+        // 목록에서 뗐으니 새 save-all 은 이 월드를 고르지 않는다. 이미 고른 저장(진행 중·대기 중)이 끝나길 기다린다
+        try {
+            saveBarrier.get().get(10, TimeUnit.MINUTES);
+        } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException | java.util.concurrent.CancellationException ex) {
+            log.warn("[WORLD] '{}' 진행 중 save-all 을 기다리지 못했다 — 그대로 내린다", e.name(), ex);
+        }
         extras.remove(e.name(), e);
         try {
             hooks.detached(w);

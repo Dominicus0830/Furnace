@@ -91,8 +91,18 @@ public final class RecorderPlugin extends JavaPlugin implements Listener {
 
     @EventHandler public void on(org.bukkit.event.block.BlockCookEvent e) { rec(e); }
 
-    /** 서버가 아직 알리지 않는 이벤트 — 같은 리스너의 다른 처리기 등록을 막지 않아야 한다(경고만). */
     @EventHandler public void on(org.bukkit.event.block.BlockPlaceEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.block.BlockGrowEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.block.BlockFadeEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.block.BlockExplodeEvent e) { rec(e); }
+
+    /** ItemSpawnEvent·CreatureSpawnEvent 도 여기로 온다(Bukkit 에서 같은 HandlerList). */
+    @EventHandler public void on(org.bukkit.event.entity.EntitySpawnEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.player.PlayerDropItemEvent e) { rec(e); }
 
     @EventHandler public void on(org.bukkit.event.inventory.InventoryClickEvent e) { rec(e); }
 
@@ -101,6 +111,21 @@ public final class RecorderPlugin extends JavaPlugin implements Listener {
     @EventHandler public void on(org.bukkit.event.inventory.InventoryOpenEvent e) { rec(e); }
 
     @EventHandler public void on(org.bukkit.event.inventory.InventoryCloseEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.inventory.PrepareItemCraftEvent e) { rec(e); }
+
+    /** PrepareAnvilEvent 는 PrepareInventoryResultEvent 의 처리기 목록으로 간다(Paper 와 같다). */
+    @EventHandler public void on(org.bukkit.event.inventory.PrepareAnvilEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.enchantment.PrepareItemEnchantEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.enchantment.EnchantItemEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.inventory.BrewEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.inventory.BrewingStandFuelEvent e) { rec(e); }
+
+    @EventHandler public void on(org.bukkit.event.inventory.InventoryMoveItemEvent e) { rec(e); }
 
     /** PlayerDeathEvent 도 여기로 온다(Bukkit 에서 같은 HandlerList). */
     @EventHandler public void on(org.bukkit.event.entity.EntityDeathEvent e) { rec(e); }

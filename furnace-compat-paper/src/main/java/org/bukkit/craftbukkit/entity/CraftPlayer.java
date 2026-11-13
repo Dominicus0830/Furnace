@@ -8,6 +8,7 @@ import org.domi.furnace.compat.paper.Compat;
 import org.domi.furnace.compat.paper.CompatPlayerInventory;
 
 /** Furnace 플레이어 위의 Bukkit Player. 접속이 끊긴 뒤에도 객체는 남지만 isOnline() 이 false 다. */
+@org.bukkit.configuration.serialization.DelegateDeserialization(org.bukkit.craftbukkit.CraftOfflinePlayer.class)
 public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.furnace.compat.paper.FurnacePermissibleSource {
 
     private final org.domi.furnace.api.entity.Player handle;
@@ -127,6 +128,58 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
         handle.setGameMode(org.domi.furnace.api.entity.GameMode.valueOf(mode.name()));
     }
 
+    // ---- 소리·입자(H4 묶음 C) — 이 사람에게만. Paper CraftPlayer 처럼 null 인자는 조용히 넘어간다
+
+    @Override
+    public void playSound(org.bukkit.Location loc, org.bukkit.Sound sound, org.bukkit.SoundCategory category, float volume, float pitch, long seed) {
+        if (sound == null) return;
+        playSound(loc, org.domi.furnace.compat.paper.CompatEffects.key(sound), category, volume, pitch, seed);
+    }
+
+    @Override
+    public void playSound(org.bukkit.Location loc, String sound, org.bukkit.SoundCategory category, float volume, float pitch, long seed) {
+        if (loc == null || sound == null || category == null || !handle.isOnline()) return;
+        handle.playSound(org.domi.furnace.compat.paper.CompatEffects.sound(sound, category, volume, pitch), loc.getX(), loc.getY(), loc.getZ(), seed);
+    }
+
+    @Override
+    public void playSound(org.bukkit.entity.Entity entity, org.bukkit.Sound sound, org.bukkit.SoundCategory category, float volume, float pitch, long seed) {
+        if (sound == null) return;
+        playSound(entity, org.domi.furnace.compat.paper.CompatEffects.key(sound), category, volume, pitch, seed);
+    }
+
+    @Override
+    public void playSound(org.bukkit.entity.Entity entity, String sound, org.bukkit.SoundCategory category, float volume, float pitch, long seed) {
+        if (!(entity instanceof CraftEntity ce) || sound == null || category == null || !handle.isOnline()) return;
+        handle.playSound(org.domi.furnace.compat.paper.CompatEffects.sound(sound, category, volume, pitch), ce.furnaceHandle(), seed);
+    }
+
+    /** category 가 null 이면 MASTER(CraftPlayer 와 같다 — 모든 분류가 아니다). */
+    @Override
+    public void stopSound(String sound, org.bukkit.SoundCategory category) {
+        if (!handle.isOnline()) return;
+        org.bukkit.SoundCategory c = category == null ? org.bukkit.SoundCategory.MASTER : category;
+        handle.stopSound(org.domi.furnace.compat.paper.CompatEffects.source(c), sound);
+    }
+
+    @Override
+    public void stopSound(org.bukkit.SoundCategory category) {
+        java.util.Objects.requireNonNull(category, "category");   // CraftPlayer 도 SoundSource.valueOf(category.name()) 에서 NPE
+        if (handle.isOnline()) handle.stopSound(org.domi.furnace.compat.paper.CompatEffects.source(category), null);
+    }
+
+    @Override
+    public void stopAllSounds() {
+        if (handle.isOnline()) handle.stopSound(null, null);
+    }
+
+    @Override
+    public <T> void spawnParticle(org.bukkit.Particle particle, double x, double y, double z, int count, double offsetX, double offsetY, double offsetZ,
+                                  double extra, T data, boolean force) {
+        org.domi.furnace.api.world.ParticleEffect effect = org.domi.furnace.compat.paper.CompatEffects.particle(particle, data);
+        if (handle.isOnline()) handle.spawnParticle(effect, x, y, z, count, offsetX, offsetY, offsetZ, extra, force);
+    }
+
     // ---- 플러그인 메시지
 
     /**
@@ -194,8 +247,22 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
     @Override
     public int hashCode() { return 97 * 5 + getUniqueId().hashCode(); }
 
+    /** 설정에 쓸 값: {@code name} 하나(Paper 와 같다 — 되읽을 때는 이름으로 OfflinePlayer 를 찾는다). */
+    @Override
+    public java.util.Map<String, Object> serialize() {
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("name", getName());
+        return result;
+    }
+
+    /** 호환 모듈 전용 — 접속이 끝났다: NMS 연결의 가상 채널을 닫는다(이미 만든 shim 이 있을 때만). */
+    public void disconnected() {
+        if (peekHandle() instanceof net.minecraft.server.level.ServerPlayer sp) sp.connection.compatDisconnected();
+    }
+
     /** 호환 모듈 전용 — 이 접속의 객체를 더 쓰지 않는다(재접속으로 바뀜): Bukkit 권한 계산·구독·Furnace 거울을 걷는다(CraftBukkit disconnect 의 perm.clearPermissions). */
     public void retire() {
+        disconnected();
         try {
             perm.clearPermissions();
         } catch (RuntimeException ignored) {

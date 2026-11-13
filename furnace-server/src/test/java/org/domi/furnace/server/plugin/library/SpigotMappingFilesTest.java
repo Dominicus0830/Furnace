@@ -14,10 +14,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.jar.Attributes;
-import java.util.jar.JarEntry;
-import java.util.jar.JarOutputStream;
-import java.util.jar.Manifest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.Logger;
@@ -130,24 +126,150 @@ class SpigotMappingFilesTest {
         assertTrue(asked.isEmpty());
     }
 
-    @Test
-    void needsLooksAtTheManifestAndNmsReferences() throws Exception {
-        assertTrue(SpigotMappingFiles.needs(jar("a.jar", null, "net/minecraft/server/level/EntityPlayer")));
-        assertTrue(SpigotMappingFiles.needs(jar("b.jar", "spigot", "net.minecraft.server.level.EntityPlayer")));
-        assertFalse(SpigotMappingFiles.needs(jar("c.jar", "mojang", "net/minecraft/server/level/ServerPlayer")), "Mojang 이름이라고 밝힌 jar");
-        assertFalse(SpigotMappingFiles.needs(jar("d.jar", null, "org/bukkit/entity/Player")), "NMS 를 가리키지 않는 jar");
+    // ------------------------------------------------------------------ 받기 실패 기억(백오프)
+
+    private final java.util.concurrent.atomic.AtomicInteger networkCalls = new java.util.concurrent.atomic.AtomicInteger();
+
+    /** 연결이 안 되는 저장소(방화벽): 호출마다 IOException. */
+    private SpigotMappingFiles blocked(java.time.Instant now) {
+        return new SpigotMappingFiles(online(), tmp.resolve("cache"), (uri, max) -> {
+            networkCalls.incrementAndGet();
+            throw new IOException("Connect timed out");
+        }, MOJANG_URI, MOJANG_SHA1, MOJANG.length, VERSION_URI, RAW, LOG).withClock(java.time.Clock.fixed(now, java.time.ZoneOffset.UTC));
     }
 
-    private Path jar(String name, String ns, String content) throws IOException {
-        Path p = tmp.resolve(name);
-        Manifest man = new Manifest();
-        man.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
-        if (ns != null) man.getMainAttributes().putValue("paperweight-mappings-namespace", ns);
-        try (JarOutputStream out = new JarOutputStream(Files.newOutputStream(p), man)) {
-            out.putNextEntry(new JarEntry("x/A.class"));
-            out.write(("Êþ" + content).getBytes(StandardCharsets.UTF_8));
-            out.closeEntry();
-        }
-        return p;
+    private SpigotMappingFiles healthy(java.time.Instant now) {
+        return files(online()).withClock(java.time.Clock.fixed(now, java.time.ZoneOffset.UTC));
+    }
+
+    @Test
+    void networkFailureIsRememberedAndNextStartsSkipTheWaitUntilBackoffEnds() throws Exception {
+        java.time.Instant t0 = java.time.Instant.parse("2026-11-12T00:00:00Z");
+        assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t0).ensure());
+        assertEquals(1, networkCalls.get(), "첫 시작은 시도한다");
+        Path record = tmp.resolve("cache/spigot-mappings/1.21.1").resolve(SpigotMappingFiles.FAILED);
+        assertTrue(Files.isRegularFile(record));
+
+        // 5분 뒤 다음 시작 — 아직 10분 안이라 네트워크에 나가지 않고 한 줄 안내(Backoff)만
+        var e = assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t0.plusSeconds(5 * 60)).ensure());
+        assertEquals(1, networkCalls.get(), "기다림 안에는 나가지 않는다");
+        assertTrue(e.getMessage().contains("1번 연속") && e.getMessage().contains("다음 시도는 약 5분 뒤") && e.getMessage().contains(record.toString()), e.getMessage());
+        assertFalse(e.getMessage().contains("\n"), "한 줄");
+
+        // 10분이 지나면 다시 시도(순간 실패는 오래 잠그지 않는다), 또 실패하면 1시간 → 6시간 → 24시간으로 늘어난다
+        java.time.Instant t1 = t0.plusSeconds(11 * 60);
+        assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t1).ensure());
+        assertEquals(2, networkCalls.get());
+        assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t1.plusSeconds(59 * 60)).ensure());
+        assertEquals(2, networkCalls.get(), "2번째 실패 뒤는 1시간 기다린다");
+        java.time.Instant t2 = t1.plusSeconds(61 * 60);
+        assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t2).ensure());
+        assertEquals(3, networkCalls.get());
+        var six = assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t2.plusSeconds(3 * 3600)).ensure());
+        assertTrue(six.getMessage().contains("약 3시간 뒤"), "2시간이 넘으면 시간 단위로: " + six.getMessage());
+        assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t2.plusSeconds(5 * 3600)).ensure());
+        java.time.Instant t3 = t2.plusSeconds(6 * 3600 + 60);
+        assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t3).ensure());
+        assertEquals(4, networkCalls.get());
+        // 4번째 이후는 24시간 상한
+        assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t3.plusSeconds(23 * 3600)).ensure());
+        assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t3.plusSeconds(24 * 3600 + 60)).ensure());
+        assertEquals(5, networkCalls.get());
+    }
+
+    @Test
+    void aFailureRecordFromTheFutureIsIgnored() throws Exception {
+        java.time.Instant t0 = java.time.Instant.parse("2026-11-12T00:00:00Z");
+        assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t0.plusSeconds(365L * 86400)).ensure());   // 시계가 1년 앞서 있을 때 적힌 기록
+        assertEquals(1, networkCalls.get());
+        assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t0).ensure());
+        assertEquals(2, networkCalls.get(), "시계가 바로잡힌 뒤에는 미래 시각 기록으로 막지 않는다");
+    }
+
+    @Test
+    void exhaustedRetriesOn5xxAreRememberedLikeConnectionFailures() throws Exception {
+        java.time.Instant t0 = java.time.Instant.parse("2026-11-12T00:00:00Z");
+        var down = new SpigotMappingFiles(online(), tmp.resolve("cache"), (uri, max) -> {
+            networkCalls.incrementAndGet();
+            throw new LibraryResolver.RetriesExhausted("HTTP 503 (" + uri + ")");
+        }, MOJANG_URI, MOJANG_SHA1, MOJANG.length, VERSION_URI, RAW, LOG).withClock(java.time.Clock.fixed(t0, java.time.ZoneOffset.UTC));
+        assertThrows(LibraryResolver.LibraryException.class, down::ensure);
+        assertTrue(Files.isRegularFile(tmp.resolve("cache/spigot-mappings/1.21.1").resolve(SpigotMappingFiles.FAILED)));
+        assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t0.plusSeconds(60)).ensure());
+        assertEquals(1, networkCalls.get(), "재시도 끝에 포기한 서버를 시작마다 몇 초씩 다시 기다리지 않는다");
+    }
+
+    @Test
+    void successOrHandPlacedFilesClearTheFailureRecord() throws Exception {
+        java.time.Instant t0 = java.time.Instant.parse("2026-11-12T00:00:00Z");
+        assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t0).ensure());
+        Path dir = tmp.resolve("cache/spigot-mappings/1.21.1");
+        Path record = dir.resolve(SpigotMappingFiles.FAILED);
+        assertTrue(Files.isRegularFile(record));
+
+        // 기다림 안이라도 캐시에 맞는 파일을 손으로 두면 받기를 건너뛰고 그 파일을 쓴다(기록도 지워진다)
+        Files.write(dir.resolve(SpigotMappingFiles.MOJANG_FILE), MOJANG);
+        Files.writeString(dir.resolve(SpigotMappingFiles.CLASSES_FILE), "jh x/Y\n");
+        Files.writeString(dir.resolve(SpigotMappingFiles.MEMBERS_FILE), "");
+        assertEquals(dir.resolve(SpigotMappingFiles.CLASSES_FILE), blocked(t0.plusSeconds(60)).ensure().classes());
+        assertFalse(Files.exists(record));
+
+        // 기록을 지우면(운영자가 직접) 바로 다시 시도한다
+        Files.delete(dir.resolve(SpigotMappingFiles.CLASSES_FILE));
+        Files.delete(dir.resolve(SpigotMappingFiles.MEMBERS_FILE));
+        Files.delete(dir.resolve(SpigotMappingFiles.LOCK));
+        Files.delete(dir.resolve(SpigotMappingFiles.MOJANG_FILE));
+        networkCalls.set(0);
+        assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t0.plusSeconds(120)).ensure());
+        assertEquals(1, networkCalls.get());
+        Files.delete(record);
+        assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t0.plusSeconds(180)).ensure());
+        assertEquals(2, networkCalls.get(), "지운 뒤에는 기다림 없이 시도한다");
+
+        // 받기에 성공하면 기록이 사라진다
+        standardRepo("jh net/minecraft/core/BlockPosition\n", "");
+        healthy(t0.plusSeconds(86400L * 3)).ensure();
+        assertFalse(Files.exists(record));
+    }
+
+    @Test
+    void onlyConnectionFailuresAreRemembered_httpAndIntegrityFailuresAreNot() throws Exception {
+        java.time.Instant t0 = java.time.Instant.parse("2026-11-12T00:00:00Z");
+        Path record = tmp.resolve("cache/spigot-mappings/1.21.1").resolve(SpigotMappingFiles.FAILED);
+        // 404(없음) — 바로 알 수 있는 실패라 기록하지 않는다
+        assertThrows(LibraryResolver.LibraryException.class, () -> healthy(t0).ensure());
+        assertFalse(Files.exists(record));
+        // 변조된 Mojang 바이트
+        standardRepo("jh a/B\n", "");
+        repo.put(MOJANG_URI.toString(), "tampered".getBytes(StandardCharsets.UTF_8));
+        assertThrows(LibraryResolver.LibraryException.class, () -> healthy(t0).ensure());
+        assertFalse(Files.exists(record));
+        // HTTP 응답은 왔는데 쓸 수 없음(403 등)
+        var http = new SpigotMappingFiles(online(), tmp.resolve("cache"), (uri, max) -> {
+            throw new LibraryResolver.HttpStatusException("HTTP 403 (" + uri + ")");
+        }, MOJANG_URI, MOJANG_SHA1, MOJANG.length, VERSION_URI, RAW, LOG).withClock(java.time.Clock.fixed(t0, java.time.ZoneOffset.UTC));
+        assertThrows(LibraryResolver.LibraryException.class, http::ensure);
+        assertFalse(Files.exists(record));
+        // offline 은 네트워크를 안 쓰므로 기록하지 않는다
+        assertThrows(LibraryResolver.LibraryException.class, () -> files(online().withOffline(true)).ensure());
+        assertFalse(Files.exists(record));
+    }
+
+    @Test
+    void unreadableOrUnwritableRecordNeverBlocksStartup() throws Exception {
+        java.time.Instant t0 = java.time.Instant.parse("2026-11-12T00:00:00Z");
+        Path dir = tmp.resolve("cache/spigot-mappings/1.21.1");
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve(SpigotMappingFiles.FAILED), "failures=abc\nlast-failure-epoch-ms=zzz\n");   // 깨진 기록은 없는 것으로 본다
+        standardRepo("jh net/minecraft/core/BlockPosition\n", "");
+        assertEquals(dir.resolve(SpigotMappingFiles.CLASSES_FILE), healthy(t0).ensure().classes());
+        // 기록 파일 자리에 폴더가 있어 쓸 수 없어도 원래 실패를 그대로 던진다(기록 실패가 시작을 막지 않는다)
+        Files.delete(dir.resolve(SpigotMappingFiles.CLASSES_FILE));
+        Files.delete(dir.resolve(SpigotMappingFiles.MEMBERS_FILE));
+        Files.delete(dir.resolve(SpigotMappingFiles.LOCK));
+        Files.createDirectory(dir.resolve(SpigotMappingFiles.FAILED));
+        Files.writeString(dir.resolve(SpigotMappingFiles.FAILED).resolve("x"), "비어 있지 않은 폴더라 덮어쓸 수 없다");
+        var e = assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t0).ensure());
+        assertTrue(e.getMessage().contains("Connect timed out"), e.getMessage());
     }
 }

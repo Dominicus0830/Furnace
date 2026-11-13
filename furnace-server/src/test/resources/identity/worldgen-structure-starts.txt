@@ -1,0 +1,3 @@
+# 결과 동일 금 파일 — worldgen-structure-starts. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
+structures overworld 12345 starts=40 f6663745 826b2800d02f8623
+structures overworld 51532 starts=30 93a11a60 bfc62561c8acd886

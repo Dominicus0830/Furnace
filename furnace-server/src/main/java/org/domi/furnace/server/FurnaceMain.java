@@ -78,6 +78,8 @@ public final class FurnaceMain {
             return;
         }
         // 바닐라 Main 순서: server.properties 를 읽어 기본값을 채워 다시 쓰고 → eula.txt 확인.
+        if (org.domi.furnace.server.block.RandomSeeds.SEEDED)
+            log.warn("-Dfurnace.test.seeded=true 는 시험 전용이다: 난수가 예측 가능해지고 엔티티 UUID 가 부팅마다 겹칠 수 있다. 운영 서버에서는 끄라.");
         Path propertiesPath = Path.of("server.properties");
         ServerPropertiesFile settings = new ServerPropertiesFile(propertiesPath);
         settings.forceSave();
@@ -104,7 +106,10 @@ public final class FurnaceMain {
         var migration = org.domi.furnace.server.config.ConfigMigration.run(Path.of("furnace.properties"), log::warn);
         if (migration != null) {
             log.info("furnace.properties 를 형식 {} → {} 로 옮겼다(원본: {}):", migration.from(), migration.to(), migration.backup());
-            for (String c : migration.changes()) log.info("  {}", c);
+            for (String c : migration.changes()) {
+                if (c.startsWith(org.domi.furnace.server.config.ConfigMigration.DEFAULT_CHANGE_MARK)) log.warn("  {}", c);
+                else log.info("  {}", c);
+            }
         }
         // furnace.properties: Paper 가져오기 뒤에(먼저 만들면 모든 키가 "이미 있음"이 되어 Paper 값을 못 옮긴다). 없으면 모든 옵션(기본값·설명)으로 만들고, 새 버전에서 생긴 옵션만 끝에 덧붙인다
         try {
@@ -223,6 +228,8 @@ public final class FurnaceMain {
         // 공유 region 풀(S4, 기본 켬): 모든 차원·추가 월드가 워커 풀 하나를 쓰고 region-threads 는 서버 전체 워커 수다.
         // furnace.properties 'shared-region-pool=false'(또는 -Dfurnace.sharedRegionPool=false)면 차원마다 따로(이전 방식).
         var regionPoolSettings = org.domi.furnace.server.config.RegionPoolSettings.load(furnaceProps, log::warn);
+        // 빛 계산 풀(T-064, 기본 꺼짐): light.async=true 면 빛을 빛 스레드에서 계산한다
+        org.domi.furnace.server.config.LightSettings.install(org.domi.furnace.server.config.LightSettings.load(furnaceProps, log::warn));
         org.domi.furnace.server.world.SharedScheduler regionPool = regionPoolSettings.shared()
                 ? org.domi.furnace.server.world.SharedScheduler.startShared(config.regionThreads(), "furnace-region-",
                         regionPoolSettings.dimCap(), regionPoolSettings.starveTicks()) : null;
@@ -333,7 +340,8 @@ public final class FurnaceMain {
         final java.util.concurrent.atomic.AtomicReference<ServerCore> coreRef = new java.util.concurrent.atomic.AtomicReference<>();
         chunkCodec.gameTime(world::gameTime);
         final LevelData level = levelData;
-        Runnable saveLevelData = () -> {
+        // level.dat: 런타임 값 옮기기(전역 상태를 읽는다 — 전역 스레드에서)와 파일 쓰기를 나눠 둔다(/save-all 은 쓰기만 저장 스레드에서).
+        Runnable snapshotLevelData = () -> {
             synchronized (level) {
                 ServerCore c = coreRef.get();
                 if (c != null) {
@@ -342,11 +350,21 @@ public final class FurnaceMain {
                     level.gameTime = world.gameTime();
                     level.dayTime = world.dayTime();
                 }
+            }
+        };
+        Runnable writeLevelFile = () -> {
+            synchronized (level) {
                 try {
                     storage.saveLevelData(level);
                 } catch (java.io.IOException e) {
                     log.error("level.dat 저장 실패", e);
                 }
+            }
+        };
+        Runnable saveLevelData = () -> {
+            synchronized (level) {
+                snapshotLevelData.run();
+                writeLevelFile.run();
             }
         };
         // 데이터 팩: 바닐라 내장 데이터(첫 실행 때 공식 서버 jar 에서 추출) + 기능 팩 + <월드>/datapacks.
@@ -356,8 +374,18 @@ public final class FurnaceMain {
             dataPacks = org.domi.furnace.server.data.DataPackManager.start(vanillaRoot, worldDir, levelData,
                     registries, newWorld,
                     props.initialEnabledPacks, props.initialDisabledPacks, pluginBoot.dataPackHooks());
-        } catch (Exception e) {
-            log.error("바닐라 데이터를 준비하지 못해 데이터 팩 없이 시작한다 — 태그는 내장 목록을 쓴다", e);
+        } catch (java.io.IOException e) {   // 공식 jar 를 못 구함 — 예상된 실패: 메시지에 원인과 할 일이 다 들어 있다
+            log.error("바닐라 데이터를 준비하지 못해 데이터 팩 없이 시작한다 — {}. 지형·블록은 돌지만 레시피·전리품(블록·몹 드롭)·발전 과제와 데이터 팩 태그는 비어 있다"
+                    + "(아이템 번호표만 내장 레지스트리를 쓴다)", e.getMessage());
+            log.debug("바닐라 데이터 준비 실패 자세히", e);
+        } catch (Exception e) {   // 데이터 팩을 읽다가 난 예기치 못한 오류는 스택을 남긴다
+            log.error("데이터 팩을 읽지 못해 데이터 팩 없이 시작한다 — 지형·블록은 돌지만 레시피·전리품(블록·몹 드롭)·발전 과제와 데이터 팩 태그는 비어 있다"
+                    + "(아이템 번호표만 내장 레지스트리를 쓴다)", e);
+        }
+        // 데이터 팩 없이 시작해도 블록 동작 표(가마솥·퇴비통 등 아이템 번호를 읽는 정적 초기화)가 처음 만들어질 때 아이템 번호표가 있어야 한다.
+        // 없으면 첫 청크 로드마다 CauldronInteraction 정적 초기화 실패가 청크 수만큼 찍히고 청크가 하나도 열리지 않는다(진짜 서버는 데이터 팩이 먼저 깔려 해당 없음).
+        if (!org.domi.furnace.server.item.ItemContext.installed()) {
+            org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(registries));
         }
         // 마법부여 끄기(운영 설정, 기본 없음) — 레지스트리를 읽은 뒤라 데이터 팩·플러그인 마법부여도 끌 수 있다
         org.domi.furnace.server.loot.EnchantmentToggles.load(furnaceProps,
@@ -439,29 +467,25 @@ public final class FurnaceMain {
         org.domi.furnace.server.command.builtin.TpsCommands.register(core.commands().getDispatcher());
         org.domi.furnace.server.command.builtin.TimingsCommands.register(core.commands().getDispatcher());
         org.domi.furnace.server.command.builtin.BackupCommands.register(core.commands().getDispatcher());
-        core.onSaveAll(() -> {
-            // 바닐라 saveEverything: 플레이어(PlayerList.saveAll) → 청크 → level.dat. 플레이어 기록은 전용 실행기에서 — 끝날 때까지 기다린다
-            java.util.List<java.util.concurrent.CompletableFuture<Void>> players = new java.util.ArrayList<>();
-            for (var p : core.players()) players.add(p.requestSave());
-            players.add(org.domi.furnace.server.entity.PlayerData.pendingSaves());   // 방금 나가 인벤토리 줄에서 기다리는 퇴장 저장(A04)
-            for (World w : dimensions.all()) {
-                try {
-                    int left = w.flushAllDrained(java.util.concurrent.TimeUnit.SECONDS.toNanos(60));
-                    if (left != 0) log.warn("save-all: {} 청크 {}개는 자동 저장으로 넘어갔다(IO 레인이 60초 안에 비지 않았다, -1 = 수 모름)", w.dimension(), left);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();   // 남은 차원은 건너뛰어도 level.dat 은 아래에서 저장한다
-                    break;
-                }
-            }
-            saveLevelData.run();
-            worldManager.saveLevelData();
-            try {
-                java.util.concurrent.CompletableFuture.allOf(players.toArray(new java.util.concurrent.CompletableFuture[0])).get(30, java.util.concurrent.TimeUnit.SECONDS);
-                java.util.concurrent.CompletableFuture.runAsync(() -> { }, world.playerIo()).get(30, java.util.concurrent.TimeUnit.SECONDS);
-            } catch (Exception e) {
-                log.warn("save-all: 플레이어 데이터 저장이 30초 안에 끝나지 않았다", e);
-            }
-        });
+        // /save-all·빈 서버 일시정지 저장(바닐라 saveEverything). 기다림은 전용 저장 스레드에서 — 전역 스레드를 막지 않는다(P-O14-10).
+        org.domi.furnace.server.maintenance.ServerSave serverSave = new org.domi.furnace.server.maintenance.ServerSave(
+                new org.domi.furnace.server.maintenance.ServerSave.Hooks() {
+                    @Override public java.util.List<World> worlds() { return dimensions.all(); }
+                    @Override public java.util.List<java.util.concurrent.CompletableFuture<Void>> requestPlayerSaves() {
+                        java.util.List<java.util.concurrent.CompletableFuture<Void>> out = new java.util.ArrayList<>();
+                        for (var p : core.players()) out.add(p.requestSave());
+                        out.add(org.domi.furnace.server.entity.PlayerData.pendingSaves());   // 방금 나가 인벤토리 줄에서 기다리는 퇴장 저장(A04)
+                        return out;
+                    }
+                    @Override public java.util.concurrent.Executor playerIo() { return world.playerIo(); }
+                    @Override public void snapshotLevelData() { snapshotLevelData.run(); }
+                    @Override public void writeLevelData() {
+                        writeLevelFile.run();
+                        worldManager.saveLevelData();
+                    }
+                });
+        core.onSaveAll(serverSave::save);
+        worldManager.saveBarrier(serverSave::barrier);   // 추가 월드 내리기는 진행 중 save-all 이 끝난 뒤 저장소를 닫는다
         NetworkServer network = new NetworkServer(
                 config.port(), config.compressionThreshold(), loginContext, scheduler,
                 world, idAllocator);
@@ -493,6 +517,12 @@ public final class FurnaceMain {
                 })
                 .on(ShutdownSequence.Step.STOP_NETWORK, network::stop)
                 .on(ShutdownSequence.Step.FLUSH_WORLDS, () -> {
+                    // 돌고 있는 /save-all 이 있으면 region·IO 레인이 살아 있을 때 끝낸다(새 저장은 받지 않는다 — 아래 종료 저장이 모두 저장한다)
+                    try {
+                        if (!serverSave.shutdown(30, java.util.concurrent.TimeUnit.SECONDS)) log.warn("[STOP] 진행 중이던 save-all 이 30초 안에 끝나지 않았다 — 종료 저장을 이어 간다");
+                    } catch (InterruptedException e) {
+                        log.error("[STOP] save-all 대기 중단", e);
+                    }
                     // 각 region 스레드서 dirty 청크 + 접속 플레이어 flush(scheduler 살아있을 때). 레인이 밀려도 남은 청크를 다음 틱으로
                     // 넘기지 않고 비울 때까지 되풀이한다(종료 때는 다음 틱이 없다 — 예전엔 그 청크가 사라졌다).
                     // region 스레드가 멈춰 있어도 종료가 영원히 안 끝나지 않게 마감을 둔다. 하나가 실패/지연돼도 나머지 정리는 계속한다.
@@ -563,6 +593,8 @@ public final class FurnaceMain {
             }
         }, "furnace-shutdown"));
 
+        // 바닐라 prepareLevels → overworld.setDefaultSpawnPos: 게임 규칙 spawnChunkRadius 의 START 티켓 — 플레이어가 없어도 스폰 청크가 올라와 돈다
+        world.enableSpawnChunks();
         prepareSpawnArea(world, defaultSpawn, config.spawnChunkRadius());
         core.plugins().pluginsImpl().enableAll();
         core.plugins().pluginsImpl().startWatcher();   // plugins.dev-mode.auto-reload 일 때만

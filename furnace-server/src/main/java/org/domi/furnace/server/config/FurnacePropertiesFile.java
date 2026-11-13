@@ -62,14 +62,18 @@ public final class FurnacePropertiesFile {
                 opt("region-pool-dim-cap", RegionPoolSettings.DEFAULT.dimCap(), "공유 풀에서 다른 차원에 일이 있을 때 한 차원이 쓸 수 있는 워커 상한(0 = 워커 수−1)."),
                 opt("region-pool-starve-ticks", RegionPoolSettings.DEFAULT.starveTicks(), "차원의 가장 이른 일이 이 틱 수만큼 밀리면 그 차원을 먼저 돌린다. 1 이상."),
                 opt("region-section-shift", d.regionSectionShift(), "구역 크기 = 2^값 청크(4 → 16×16 청크). 1~8."),
-                opt("region-merge-radius", d.regionMergeRadius(), "이 반경(구역 단위) 안의 구역은 같은 region 으로 합친다. 1 이상.")
+                opt("region-merge-radius", d.regionMergeRadius(), "이 반경(구역 단위) 안의 구역은 같은 region 으로 합친다. 1 이상."),
+                opt("light.async", LightSettings.DEFAULT.async(), "true 면 빛 계산을 region 스레드 대신 빛 스레드가 한다(바닐라 방식). 램프 시계 같은 큰 빛 장치가 TPS 를 먹지 않는 대신, 빛 스레드가 밀리면 바닐라 과부하 때처럼 빛이 한두 틱 늦게 보이고 새 청크 전송이 한 틱 늦다. 기본 false(지금 동작)."),
+                opt("light.async-threads", LightSettings.DEFAULT.threads(), "light.async 의 빛 스레드 수(서버 전체). 1 이상.")
         )));
         s.add(new Section("채팅·운영", List.of(
                 opt("chat.strict-order", o.strictChatOrder(), "true(바닐라)면 순서가 어긋난 채팅에서 서명 체인을 끊는다. false 면 그 메시지만 버린다."),
                 opt("chat.unsigned-as-system", o.unsignedChatAsSystem(), "true 면 채팅을 서명 없는 시스템 메시지로 보낸다(채팅 신고 불가)."),
                 opt("server-brand", o.serverBrand(), "F3 화면에 보이는 서버 브랜드."),
                 opt("commands.send-namespaced", o.sendNamespacedCommands(), "true(기본, Paper 와 같다)면 minecraft:give 같은 바닐라 명령 별칭이 자동완성에 보인다. false 면 안 보이지만 쳐서 실행은 된다."),
+                opt("commands.region-drain", o.commandRegionDrain(), "true(기본)면 함수·명령이 region 의 칸·엔티티를 만질 때 다음 틱을 기다리지 않고 곧바로 처리한다(#tick 함수가 초당 20번 그대로 돈다). 전역 틱당 20ms 예산을 명령 블록과 나눠 쓰고 넘으면 다음 틱. false 면 접근 한 줄이 한 틱씩 걸린다."),
                 opt("announce-sleep-status", o.announceSleepStatus(), "false 면 자는 사람 수 액션바를 보내지 않는다(기본 true = 바닐라)."),
+                opt("world.tick-when-empty", o.tickWhenEmpty(), "플레이어도 /forceload 도 없는 차원의 몹·호퍼: vanilla 면 15초 뒤 쉰다(바닐라), always 면 늘 돈다(Paper·Spigot 기본), auto(기본)면 Bukkit 플러그인이 있을 때만 always."),
                 opt("gravity-block-portal-dupe", o.gravityBlockPortalDupe(), "true(기본 = 바닐라) 면 엔드 포털로 넘어간 모래·자갈 같은 중력 블록이 제자리에도 놓여 복제된다. false 면 복제되지 않는다."),
                 opt("motd-format", o.motdFormat(), "server.properties 의 motd 해석: plain(기본, 바닐라) | legacy(& 색 코드) | markup(<gradient:red:blue>…</gradient> 같은 태그)."),
                 opt("confirm-interrupt", o.confirmInterrupt(), "true 면 콘솔 Ctrl+C 를 한 번 더 눌러야 종료한다."),
@@ -112,7 +116,7 @@ public final class FurnacePropertiesFile {
                 opt("backup.hold-timeout-seconds", mt.backupHoldTimeoutSeconds(), "백업 기준점에서 저장을 기다리는 최대 초(1~600).")
         )));
         s.add(new Section("설정 도구·콘솔(/furnace config 로 적용된 값을 본다)", List.of(
-                opt("config-version", ConfigMigration.CURRENT, "설정 파일 형식 버전. 키 이름이 바뀌면 서버가 파일을 옮기고 이 값을 올린다(원본은 .bak). 지우지 마세요."),
+                opt("config-version", ConfigMigration.CURRENT, "설정 파일 형식 버전. 키 이름·기본값이 바뀌면 서버가 파일을 옮기고 이 값을 올린다(원본은 .bak). 지우지 마세요."),
                 opt("config.preset", "none", "none | vanilla | performance. 기본값 그대로인 키를 프리셋 값으로 바꾼다(기본값과 다르게 적은 키가 이긴다)."),
                 opt("jvm.check", true, "기동 때 Java 버전·힙·GC 옵션을 점검해 경고한다."),
                 opt("console.jline", true, "콘솔 줄 편집·기록·Tab 자동완성(터미널이 아니면 자동으로 꺼진다)."),
@@ -128,9 +132,10 @@ public final class FurnacePropertiesFile {
                 opt("plugins.compat.nms.enabled", true, "Bukkit 호환 플러그인의 NMS·CraftBukkit 이름 변환(CraftBukkit 버전 접미사 v1_21_R1 을 접미사 없는 이름으로). 끄면 그런 이름을 쓰는 플러그인은 그 자리에서 실패한다."),
                 opt("plugins.compat.nms.strict", false, "미지원 NMS 심볼을 쓰는 Bukkit 호환 플러그인은 불러오지 않는다. 끄면 그 호출만 실행 때 실패하고 나머지는 돈다."),
                 opt("plugins.compat.nms.version-package", "plain", "plain | versioned. 플러그인이 읽는 CraftBukkit 패키지 이름(plain = Paper 처럼 접미사 없음, versioned = Spigot 처럼 v1_21_R1)."),
-                opt("plugins.compat.nms.spigot-mappings", "off", "off | download | files. download 면 Spigot 이름 NMS 플러그인이 있을 때만 Mojang·Spigot 매핑을 처음 한 번 받아 Spigot → Mojang 이름으로 바꿔 올린다(받은 파일은 캐시에만 남는다). files 면 받지 않고 아래 키의 세 파일을 쓴다."),
+                opt("plugins.compat.nms.spigot-mappings", org.domi.furnace.server.plugin.PluginSettings.SPIGOT_MAPPINGS_DEFAULT, "download | files | off. download(기본)면 Spigot 이름 NMS 플러그인이 있을 때만 Mojang·Spigot 매핑을 처음 한 번 받아 Spigot → Mojang 이름으로 바꿔 올린다(받은 파일은 캐시에만 남는다, 그런 플러그인이 없으면 받지 않는다). files 면 받지 않고 아래 키의 세 파일을 쓴다. off 면 바꾸지 않는다(그 NMS 호출은 실패)."),
                 opt("plugins.compat.nms.spigot-mappings.files", "", "spigot-mappings=files 일 때: Mojang server.txt, Spigot 클래스 csrg, Spigot 멤버 csrg 경로를 경로 구분자(윈도 ; 그 밖 :)로 이어 적는다."),
                 opt("plugins.chunk-tickets.max-per-plugin", org.domi.furnace.api.world.ChunkTickets.MAX_CHUNKS_PER_OWNER, "플러그인 하나가 청크 티켓(chunkTickets API)으로 붙잡을 수 있는 청크 수 상한(겹침 포함, 1 이상). 넘으면 add 가 거부된다."),
+                opt("plugins.compat.config.paper-default-separator", false, "Bukkit 설정에서 플러그인이 options().pathSeparator 를 바꿨을 때 addDefault 기본값 트리를 Paper 처럼 언제나 '.' 로 쪼갠다(getDefaults() 구분자도 '.'). 끄면 플러그인이 정한 구분자로 쪼갠다. 켜면 저장 파일 모양·contains·getKeys 와 setDefaults 와 섞어 쓸 때·저장 뒤 다시 읽을 때의 값도 Paper 와 같아진다(Paper 처럼 다시 읽으면 기본값이 빠질 수 있다)."),
                 opt("plugins.compat.scheduler.async-threads", "platform", "Bukkit 비동기 작업(runTaskAsynchronously 등)을 도는 스레드. platform: 이름 붙은 플랫폼 스레드 풀(Paper 와 같은 모양 — 코어 4, 늘어나면 무제한, 30초 놀면 정리). virtual: 가상 스레드(JDK 21 에서는 synchronized 안에서 소켓·파일을 기다리는 옛 DB 드라이버가 운반 스레드를 붙잡을 수 있다)."),
                 opt("plugins.compat.libraries", "needed", "Paper 가 싣는 라이브러리(Guava·Adventure·SnakeYAML·Brigadier 등)를 Furnace jar 에 넣지 않고 필요할 때 받는다. needed: 호환 플러그인 클래스가 쓰는 것만, all: 호환 플러그인이 있으면 전부, off: 받지 않는다(그것을 쓰는 플러그인은 실패)."),
                 opt("plugins.compat.libraries.mojang", true, "Brigadier·authlib·DataFixerUpper 는 Mojang 저장소(libraries.minecraft.net)에서 받는다. false 면 그 셋은 빼고 경고."),

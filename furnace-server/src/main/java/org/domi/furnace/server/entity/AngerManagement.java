@@ -62,7 +62,7 @@ public final class AngerManagement {
         return Integer.compare(ib, ia);
     };
 
-    /** conversionDelay 초깃값 = Mth.randomBetweenInclusive(RandomSource.create(), 0, 2) — 새 난수라 월드 난수와 무관. */
+    /** conversionDelay 초깃값 = Mth.randomBetweenInclusive(새 난수, 0, 2) — 새 난수라 월드 난수와 무관. */
     public AngerManagement(Predicate<Targetable> filter, org.domi.furnace.server.block.RandomSource fresh) {
         this.filter = filter;
         this.conversionDelay = fresh.nextInt(3);

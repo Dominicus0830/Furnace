@@ -20,6 +20,13 @@ public interface PersistentDataView {
         return v != null ? v : fallback;
     }
 
+    /**
+     * 저장된 값을 종류를 묻지 않고 그대로 읽는다(없으면 null): 단일 값은 Byte·Short·Integer·Long·Float·Double·String·배열 사본,
+     * 중첩 컨테이너는 {@link PersistentDataView}, 목록은 {@link java.util.List}(원소는 같은 규칙, 안쪽 목록의 원소 종류는 서로 달라도 된다).
+     * 호환 계층이 값의 모양을 한 번에 알아내는 길이다 — 종류를 하나씩 물어보는 것보다 싸고 깊이 한도가 없다.
+     */
+    default Object raw(String key) { throw new UnsupportedOperationException("raw"); }
+
     /** 키 목록(사본). */
     Set<String> keys();
 

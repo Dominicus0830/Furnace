@@ -36,8 +36,11 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
 
     final PluginHost host;
     private final UUID uuid;
+    private final int entityId;
     private final String type;
     private final Location location;
+    /** 머리 방향(살아 있는 몹은 몸과 다를 수 있다, 그 밖은 몸 방향). */
+    private final float headYaw;
     private final Text customName;
     private final boolean valid;
     private final EntityTasks tasks;
@@ -49,6 +52,11 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     private final org.domi.furnace.api.event.cause.CauseChain origin;
     private final org.domi.furnace.api.entity.Pose pose;
     private final boolean noPhysics;
+    /** 충돌 상자(만든 순간 값). */
+    private final org.domi.furnace.api.world.Aabb boundingBox;
+    /** 떨어진 아이템 엔티티의 아이템(불변이라 참조만 복사, API 값은 처음 물을 때 만든다)·줍기 지연. 아이템 엔티티가 아니면 null·0. */
+    private final org.domi.furnace.server.entity.ItemStack droppedStack;
+    private final int pickupDelay;
     /** 스냅샷 순번(서버 전체에서 늘어난다 — 값을 읽기 전에 매긴다). */
     private static final java.util.concurrent.atomic.AtomicLong STAMPS = new java.util.concurrent.atomic.AtomicLong();
     private final long stamp = STAMPS.incrementAndGet();
@@ -56,8 +64,10 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     EntityHandle(PluginHost host, Entity e) {
         this.host = host;
         this.uuid = e.uuid();
+        this.entityId = e.id();
         this.type = e.type().name();
         this.location = new Location(e.dimensionKey(), e.x(), e.y(), e.z(), e.yRot(), e.xRot());
+        this.headYaw = e instanceof LivingEntity le ? le.yHeadRot() : e.yRot();
         this.customName = e.hasCustomName() ? e.getCustomName() : null;
         this.valid = !e.isRemoved();
         this.tasks = e.apiTasks();
@@ -65,6 +75,14 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         this.origin = e.origin();
         this.pose = org.domi.furnace.api.entity.Pose.byId(e.getPose());
         this.noPhysics = e.noPhysics;
+        this.boundingBox = ApiBoxes.of(e.boundingBox());
+        if (e instanceof org.domi.furnace.server.entity.ItemEntity ie) {
+            droppedStack = ie.getItem();
+            pickupDelay = ie.pickupDelay();
+        } else {
+            droppedStack = null;
+            pickupDelay = 0;
+        }
         if (e instanceof ContainerEntity ce) {
             containerType = type;
             containerSize = ce.chestVehicleItems().length;
@@ -89,7 +107,18 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     public UUID uniqueId() { return uuid; }
 
     @Override
+    public int entityId() { return entityId; }
+
+    @Override
     public long snapshotStamp() { return stamp; }
+
+    @Override
+    public org.domi.furnace.api.item.ItemStack droppedItem() {
+        return droppedStack == null ? null : ApiConvert.item(droppedStack, host.core().world().itemRegistry());
+    }
+
+    @Override
+    public int pickupDelay() { return pickupDelay; }
 
     @Override
     public org.domi.furnace.api.event.cause.CauseChain origin() { return origin; }
@@ -99,6 +128,12 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
 
     @Override
     public Location location() { return location; }
+
+    @Override
+    public float headYaw() { return headYaw; }
+
+    @Override
+    public org.domi.furnace.api.world.Aabb boundingBox() { return boundingBox; }
 
     @Override
     public Text customName() { return customName; }
@@ -355,11 +390,49 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     static class Living extends EntityHandle implements org.domi.furnace.api.entity.LivingEntity {
 
         private final float health, maxHealth;
+        /** 속성 스냅샷(만든 순간 — 불변, 맵 버전이 같으면 이전 것을 그대로 받는다). */
+        private final java.util.Map<org.domi.furnace.server.attribute.Attribute, org.domi.furnace.server.attribute.AttributeMap.View> attrs;
 
         Living(PluginHost host, LivingEntity e) {
             super(host, e);
             this.health = e.health();
             this.maxHealth = e.maxHealth();
+            this.attrs = e.attributes().snapshot();
+        }
+
+        private final AttributeApi.Owner attrOwner = new AttributeApi.Owner() {
+            @Override
+            public <T> CompletableFuture<T> run(Function<org.domi.furnace.server.attribute.AttributeMap, T> task) {
+                return onEntity(e -> task.apply(((LivingEntity) e).attributes()), null, true);
+            }
+
+            @Override
+            public void check() {
+                if (!(tasks().owner() instanceof Entity e)) return;
+                if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(e) && !e.level().isOwnerThread()) {
+                    throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("AttributeInstance 는 엔티티 " + type()
+                            + " 를 가진 region 스레드에서만 쓸 수 있다 (현재 " + Thread.currentThread().getName() + ") — AttributeHandle.edit 를 쓴다");
+                }
+            }
+        };
+
+        @Override
+        public Optional<org.domi.furnace.api.entity.attribute.AttributeHandle> attribute(org.domi.furnace.api.entity.attribute.Attribute attribute) {
+            java.util.Objects.requireNonNull(attribute, "attribute");
+            return AttributeApi.handle(attrs, attribute, attrOwner);
+        }
+
+        @Override
+        public List<org.domi.furnace.api.entity.attribute.Attribute> attributes() { return AttributeApi.keys(attrs); }
+
+        @Override
+        public CompletableFuture<Boolean> registerAttribute(org.domi.furnace.api.entity.attribute.Attribute attribute) {
+            var a = AttributeApi.server(java.util.Objects.requireNonNull(attribute, "attribute"));
+            return attrOwner.run(map -> {
+                if (map.has(a)) return false;
+                map.register(a);
+                return true;
+            });
         }
 
         @Override

@@ -297,6 +297,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
                                     featurePlacer, structurePlacementCatalog, structureEngine, spawnTargets);
         source.worldgenData = data;
         source.dimension = dim;
+        surfaceSystem.attachChunkBiomes(source.chunkBiomeSource(), dim.minY, dim.sectionCount * 16);
         source.flatLayers = flatLayers;
         source.fixedBiomeName = fixedBiome;
         if (flatLayers != null) source.flatBiomeId = registries.indexOf("minecraft:worldgen/biome", flat.biome());
@@ -304,6 +305,31 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     }
 
     private Dimension dimension = Dimension.OVERWORLD;
+
+    // 최근 만든 청크의 바이옴 배열(sampleChunk 결과 사본) — 이웃 청크 표면 규칙이 바닐라처럼 "이웃 청크에 저장된 바이옴"을 읽을 때 쓴다.
+    // 순수 함수 결과라 언제 비워도 되고, 없으면 그 quart 만 다시 검색한다(SurfaceSystem.storedBiome).
+    private static final int CHUNK_BIOME_CACHE_SIZE = 512;
+    private final Map<Long, int[]> chunkBiomeCache = java.util.Collections.synchronizedMap(
+        new java.util.LinkedHashMap<>(64, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<Long, int[]> eldest) {
+                return size() > CHUNK_BIOME_CACHE_SIZE;
+            }
+        });
+
+    private SurfaceSystem.ChunkBiomes chunkBiomeSource() {
+        return new SurfaceSystem.ChunkBiomes() {
+            @Override public int[] cached(int chunkX, int chunkZ) { return chunkBiomeCache.get(chunkKey(chunkX, chunkZ)); }
+
+            @Override public int[] compute(int chunkX, int chunkZ) {
+                int[] a = cached(chunkX, chunkZ);
+                if (a != null) return a;
+                a = sampleBiomes(chunkX, chunkZ);
+                int[] prev = chunkBiomeCache.putIfAbsent(chunkKey(chunkX, chunkZ), a);
+                return prev != null ? prev : a;
+            }
+        };
+    }
     /** 평지 생성기의 층(null 이면 노이즈 생성기). */
     private FlatLayers flatLayers;
     private int flatBiomeId;
@@ -672,6 +698,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
             terrainCache.clear();
             surfaceHeightCache.clear();
             beardStartCache.clear();
+            chunkBiomeCache.clear();
             sharedStarts.clear();
             pipeline.clearPristineCache();
             hookStamp = now;
@@ -706,6 +733,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         }
 
         int[] biomeIds = biomeSampler.sampleChunk(chunkX, chunkZ, nc);
+        chunkBiomeCache.put(chunkKey(chunkX, chunkZ), biomeIds.clone());
         col.loadGenerated(blockIds, biomeIds);
         if (vanillaNoise) nc.transferFluidMarks(col);   // 대수층 경계 유체 — 청크가 붙을 때 유체 틱(A06-03)
         if (hooks != null) hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.NOISE, col, chunkX, chunkZ);
@@ -918,6 +946,13 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
     @Override
     public int firstOccupiedHeight(int heightmap, int blockX, int blockZ) {
+        // 플러그인 baseHeight 훅(Paper CustomChunkGenerator.getBaseHeight) — 정하지 않으면 바닐라. 훅 값은 첫 빈 칸 y 라 하나 뺀다.
+        GenHooks hooks = genHooks;
+        if (hooks != null) {
+            var r = hooks.baseHeight(heightmap == HM_OCEAN_FLOOR_WG ? org.domi.furnace.api.worldgen.GenerationHeightmap.OCEAN_FLOOR_WG
+                : org.domi.furnace.api.worldgen.GenerationHeightmap.WORLD_SURFACE_WG, blockX, blockZ);
+            if (r.isPresent()) return r.getAsInt() - 1;
+        }
         if (flatLayers != null) return flatBaseHeight(heightmap) - 1;
         return heightmap == HM_OCEAN_FLOOR_WG ? oceanFloorWgHeightAt(blockX, blockZ) : worldSurfaceHeightAt(blockX, blockZ);
     }

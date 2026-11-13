@@ -82,6 +82,9 @@ class EventBridgeTest {
             Location at = new Location(w, 1, 64, 2);
             Location to = new Location(w, 5, 64, 6);
             var recorder = server.plugin("Recorder");
+            // 스폰·버리기 이벤트는 월드에 있는 엔티티 핸들이 필요하다(몹과 떨어진 아이템 엔티티)
+            var pig = server.await(server.overworld().spawnEntity("minecraft:pig", p.location()));
+            var itemEntity = server.await(server.overworld().spawnEntity("minecraft:item", p.location()));
             Map<Class<?>, Supplier<org.domi.furnace.api.event.Event>> fire = new java.util.LinkedHashMap<>();
             fire.put(org.bukkit.event.player.PlayerChannelEvent.class, () -> new org.domi.furnace.api.event.player.PlayerChannelEvent(p, "mod:a",
                     org.domi.furnace.api.event.player.PlayerChannelEvent.Action.REGISTER));
@@ -113,7 +116,7 @@ class EventBridgeTest {
                     ((org.domi.furnace.server.plugin.PluginHost) server.api()).rconSender(t -> {}), "list"));
             fire.put(org.bukkit.event.world.WorldLoadEvent.class, () -> new org.domi.furnace.api.event.world.WorldLoadEvent(w, "world"));
             fire.put(org.bukkit.event.world.WorldUnloadEvent.class, () -> new org.domi.furnace.api.event.world.WorldUnloadEvent(w, "world", false));
-            fire.put(org.bukkit.event.world.ChunkLoadEvent.class, () -> new org.domi.furnace.api.event.world.ChunkLoadEvent(w, 3, 4));
+            fire.put(org.bukkit.event.world.ChunkLoadEvent.class, () -> new org.domi.furnace.api.event.world.ChunkLoadEvent(w, 3, 4, true));
             fire.put(org.bukkit.event.world.ChunkUnloadEvent.class, () -> new org.domi.furnace.api.event.world.ChunkUnloadEvent(w, 3, 4));
             var chest = new org.domi.furnace.api.inventory.InventorySnapshot("minecraft:generic_9x3", java.util.Collections.nCopies(63, org.domi.furnace.api.item.ItemStack.EMPTY));
             var stone = org.domi.furnace.api.item.ItemStack.of("minecraft:stone").withAmount(4);
@@ -148,6 +151,37 @@ class EventBridgeTest {
             fire.put(org.bukkit.event.block.BlockCookEvent.class, () -> new org.domi.furnace.api.event.inventory.FurnaceSmeltEvent(w, bp, "minecraft:furnace",
                     org.domi.furnace.api.item.ItemStack.of("minecraft:iron_ore"), org.domi.furnace.api.item.ItemStack.of("minecraft:iron_ingot")));
 
+            // 결과를 정하는 인벤토리 이벤트(H4 묶음 D)
+            fire.put(org.bukkit.event.inventory.PrepareItemCraftEvent.class, () -> new org.domi.furnace.api.event.inventory.PrepareItemCraftEvent(p,
+                    InventoryResultEventsTest.window("minecraft:crafting", 10), "minecraft:oak_planks", org.domi.furnace.api.item.ItemStack.of("minecraft:oak_planks").withAmount(4)));
+            fire.put(org.bukkit.event.inventory.PrepareInventoryResultEvent.class, () -> new org.domi.furnace.api.event.inventory.PrepareAnvilEvent(p,
+                    InventoryResultEventsTest.window("minecraft:anvil", 3), stone, 3, 40, "x"));
+            fire.put(org.bukkit.event.enchantment.PrepareItemEnchantEvent.class, () -> new org.domi.furnace.api.event.inventory.PrepareItemEnchantEvent(p,
+                    InventoryResultEventsTest.window("minecraft:enchantment", 2), bp, stone, 15, new ArrayList<>(java.util.Arrays.asList(null, null, null))));
+            fire.put(org.bukkit.event.enchantment.EnchantItemEvent.class, () -> new org.domi.furnace.api.event.inventory.EnchantItemEvent(p,
+                    InventoryResultEventsTest.window("minecraft:enchantment", 2), bp, stone, 0, 1, new java.util.LinkedHashMap<>(Map.of("minecraft:sharpness", 1))));
+            fire.put(org.bukkit.event.inventory.BrewEvent.class, () -> new org.domi.furnace.api.event.inventory.BrewEvent(w, bp,
+                    new org.domi.furnace.api.inventory.InventorySnapshot("minecraft:brewing_stand", java.util.Collections.nCopies(5, org.domi.furnace.api.item.ItemStack.EMPTY)), 10));
+            fire.put(org.bukkit.event.inventory.BrewingStandFuelEvent.class, () -> new org.domi.furnace.api.event.inventory.BrewingStandFuelEvent(w, bp,
+                    org.domi.furnace.api.item.ItemStack.of("minecraft:blaze_powder"), 20));
+            fire.put(org.bukkit.event.inventory.InventoryMoveItemEvent.class, () -> new org.domi.furnace.api.event.inventory.InventoryMoveItemEvent(
+                    new org.domi.furnace.api.inventory.InventorySnapshot("minecraft:chest", java.util.Collections.nCopies(27, org.domi.furnace.api.item.ItemStack.EMPTY)),
+                    new Location(w, 1.5, 65.5, 2.5),
+                    new org.domi.furnace.api.inventory.InventorySnapshot("minecraft:hopper", java.util.Collections.nCopies(5, org.domi.furnace.api.item.ItemStack.EMPTY)),
+                    new Location(w, 1.5, 64.5, 2.5), stone, false));
+
+            // 서버가 이미 내던 이벤트 여섯(O12 H1)
+            fire.put(org.bukkit.event.block.BlockPlaceEvent.class, () -> new org.domi.furnace.api.event.block.BlockPlaceEvent(w, bp,
+                    org.domi.furnace.api.world.BlockData.of("minecraft:stone"), org.domi.furnace.api.world.BlockData.AIR, new BlockPos(1, 63, 2), p, stone, true));
+            fire.put(org.bukkit.event.block.BlockGrowEvent.class, () -> new org.domi.furnace.api.event.block.BlockGrowEvent(w, bp,
+                    org.domi.furnace.api.world.BlockData.of("minecraft:wheat"), org.domi.furnace.api.world.BlockData.of("minecraft:wheat")));
+            fire.put(org.bukkit.event.block.BlockFadeEvent.class, () -> new org.domi.furnace.api.event.block.BlockFadeEvent(w, bp, stoneData,
+                    org.domi.furnace.api.world.BlockData.AIR));
+            fire.put(org.bukkit.event.block.BlockExplodeEvent.class, () -> new org.domi.furnace.api.event.block.BlockExplodeEvent(w, bp, "minecraft:red_bed",
+                    new ArrayList<>(List.of(new BlockPos(1, 64, 3))), org.domi.furnace.api.event.cause.CauseChain.NONE, 1f, "DESTROY"));
+            fire.put(org.bukkit.event.entity.EntitySpawnEvent.class, () -> new org.domi.furnace.api.event.entity.EntitySpawnEvent(pig));
+            fire.put(org.bukkit.event.player.PlayerDropItemEvent.class, () -> new org.domi.furnace.api.event.player.PlayerDropItemEvent(p, stone, itemEntity));
+
             // 시험이 빠뜨린 짝이 없는지: 다리가 아는 이벤트 = 이 시험이 발행한 이벤트
             assertEquals(EventBridge.bridgedEvents(), new HashSet<Class<?>>(fire.keySet()));
 
@@ -156,6 +190,10 @@ class EventBridgeTest {
                 if (en.getValue() == null) sequences.get(en.getKey()).forEach(bus::call);
                 else bus.call(en.getValue().get());
                 assertEquals(1, seen((Class<? extends Event>) en.getKey()).size(), en.getKey().getSimpleName() + " 이 처리기에 오지 않았다");
+                if (en.getKey() == org.bukkit.event.world.ChunkLoadEvent.class) {
+                    assertTrue(((org.bukkit.event.world.ChunkLoadEvent) seen(org.bukkit.event.world.ChunkLoadEvent.class).get(0)).isNewChunk(),
+                            "서버 이벤트의 newChunk 가 Bukkit isNewChunk 로 이어진다(A15-04)");
+                }
             }
         }
     }

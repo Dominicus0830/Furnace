@@ -31,6 +31,43 @@ val nmsSurvey by configurations.creating {
     isTransitive = false
 }
 
+// N3: 중립 패킷 스키마(furnace-api packet/schema/protocol-767.schema)에서 net.minecraft 패킷 shim 소스를 빌드 때 만든다.
+// 결과물은 build/generated 에만 생기고 커밋하지 않는다. 손으로 쓴 shim(src/main/java)이 있는 클래스는 만들지 않는다.
+val shimgen: SourceSet = the<SourceSetContainer>().create("shimgen")
+dependencies { "shimgenImplementation"(project(":furnace-api")) }
+val generateNmsPacketShims by tasks.registering(JavaExec::class) {
+    group = "build"
+    description = "패킷 스키마에서 net.minecraft 패킷 shim 소스를 만든다"
+    val out = layout.buildDirectory.dir("generated/sources/nms-packets/java")
+    val hand = layout.projectDirectory.dir("src/main/java")
+    val extras = layout.projectDirectory.file("src/shimgen/resources/packet-shim-extras.txt")
+    classpath = shimgen.runtimeClasspath
+    mainClass.set("org.domi.furnace.compat.shimgen.PacketShimGenerator")
+    jvmArgs("-Dstdout.encoding=UTF-8")
+    inputs.files(shimgen.runtimeClasspath).withNormalizer(ClasspathNormalizer::class)
+    inputs.dir(hand).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file(extras)
+    outputs.dir(out)
+    argumentProviders.add(CommandLineArgumentProvider {
+        listOf(out.get().asFile.absolutePath, hand.asFile.absolutePath, extras.asFile.absolutePath)
+    })
+}
+the<SourceSetContainer>()["main"].java.srcDir(generateNmsPacketShims)
+
+// N3 1단계: 패킷 번호 표(protocol-767-ids.txt)와 스키마에서 *PacketTypes·*Protocols(패킷 등록부) shim 소스를 만든다.
+val generateNmsProtocolShims by tasks.registering(JavaExec::class) {
+    group = "build"
+    description = "패킷 번호 표에서 net.minecraft 패킷 등록부(*PacketTypes·*Protocols) shim 소스를 만든다"
+    val out = layout.buildDirectory.dir("generated/sources/nms-protocols/java")
+    classpath = shimgen.runtimeClasspath
+    mainClass.set("org.domi.furnace.compat.shimgen.ProtocolShimGenerator")
+    jvmArgs("-Dstdout.encoding=UTF-8")
+    inputs.files(shimgen.runtimeClasspath).withNormalizer(ClasspathNormalizer::class)
+    outputs.dir(out)
+    argumentProviders.add(CommandLineArgumentProvider { listOf(out.get().asFile.absolutePath) })
+}
+the<SourceSetContainer>()["main"].java.srcDir(generateNmsProtocolShims)
+
 // 경로 목록은 태스크 실행 때 푼다 — 설정 단계에서 풀면 다른 모듈의 시험(:furnace-server:test)도 jar 13개를 받으려 든다.
 class RealWorldJars(@get:InputFiles @get:PathSensitive(PathSensitivity.NONE) val jars: FileCollection) : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String> =
@@ -41,6 +78,8 @@ dependencies {
     api(project(":furnace-api"))
     // 서버가 slf4j 를 싣고 있다 — 설명 파일 경고를 서버 로그로 보낸다
     compileOnly("org.slf4j:slf4j-api:2.0.16")
+    // N3 1단계: 패킷 등록부 shim 의 형식 인자(ByteBuf)·서버 소켓 채널 목록(ChannelFuture). 서버가 netty 를 싣고 있다.
+    compileOnly("io.netty:netty-codec:4.1.115.Final")   // transport·buffer 를 함께 끌어온다
     // H6: 플러그인 클래스를 올릴 때 CraftBukkit 버전 접미사·리플렉션 이름을 바꾸는 바이트코드 변환(BSD). 서버 fatJar 에 함께 싣는다.
     implementation("org.ow2.asm:asm-commons:9.7.1")
     // H7a: 없는 NMS 심볼 호출을 덫으로 바꿀 때 메서드 하나를 트리로 다룬다(asm-commons 가 이미 끌어오는 것을 명시)

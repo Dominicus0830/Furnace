@@ -82,9 +82,8 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     private ChunkPos lastCenter;                 // 마지막으로 SetCenterChunk 보낸 청크(null=미전송)
     private final Set<ChunkPos> loadedChunks = new HashSet<>();
-    /** Entity.random — 엔티티 자신의 난수(RandomSource.create()). */
-    private final org.domi.furnace.server.block.LegacyRandomSource random =
-            new org.domi.furnace.server.block.LegacyRandomSource(java.util.concurrent.ThreadLocalRandom.current().nextLong());
+    /** Entity.random — 엔티티 자신의 난수(RandomSource.create()). 주인 열쇠 = 엔티티 id. */
+    private final org.domi.furnace.server.block.LegacyRandomSource random;
     private final Set<ChunkPos> pendingChunks = new LinkedHashSet<>(); // 시야 진입했으나 아직 전송 안 한 청크(순서 보존). region 스레드 전용.
     private final Map<Integer, double[]> tracked = new HashMap<>(); // 관찰중 엔티티 → 마지막 전송 {x,y,z}
     private final Map<Integer, Integer> missingTicks = new HashMap<>(); // 추적중인데 후보서 사라진 틱 수(grace despawn)
@@ -132,8 +131,11 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         /** 열린 창이 expect 이면 서버가 닫는다(ServerPlayer.closeContainer — 상자가 사라졌을 때 등). 어느 스레드에서든. */
         default void closeContainer(org.domi.furnace.server.menu.AbstractContainerMenu expect) {}
 
+        /** closeContainer 에 닫는 까닭(플러그인 InventoryCloseEvent#reason)을 함께 넘긴다. 기본은 까닭 없이 closeContainer. */
+        default void closeContainer(org.domi.furnace.server.menu.AbstractContainerMenu expect, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason reason) { closeContainer(expect); }
+
         /** 임의 스레드(플러그인 텔레포트)에서 부르는 창 닫기 — 블록에 매인 창은 그 블록의 region 스레드로 넘겨 닫는다. 기본은 closeContainer. */
-        default void closeContainerFromAnyThread(org.domi.furnace.server.menu.AbstractContainerMenu expect) { closeContainer(expect); }
+        default void closeContainerFromAnyThread(org.domi.furnace.server.menu.AbstractContainerMenu expect, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason reason) { closeContainer(expect, reason); }
 
         /** 블록에 매이지 않은 열린 창이 아직 유효한가(AbstractContainerMenu.stillValid). */
         default boolean menuStillValid(org.domi.furnace.server.menu.AbstractContainerMenu menu) { return true; }
@@ -186,7 +188,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
                     .add(org.domi.furnace.server.attribute.Attribute.ARMOR_TOUGHNESS, 0.0).add(org.domi.furnace.server.attribute.Attribute.MAX_ABSORPTION, 0.0)
                     .add(org.domi.furnace.server.attribute.Attribute.STEP_HEIGHT, 0.6).add(org.domi.furnace.server.attribute.Attribute.SCALE, 1.0)
                     .add(org.domi.furnace.server.attribute.Attribute.GRAVITY, 0.08).add(org.domi.furnace.server.attribute.Attribute.SAFE_FALL_DISTANCE, 3.0)
-                    .add(org.domi.furnace.server.attribute.Attribute.FALL_DAMAGE_MULTIPLIER, 1.0).add(org.domi.furnace.server.attribute.Attribute.JUMP_STRENGTH, 0.42)
+                    .add(org.domi.furnace.server.attribute.Attribute.FALL_DAMAGE_MULTIPLIER, 1.0).add(org.domi.furnace.server.attribute.Attribute.JUMP_STRENGTH, 0.42F)
                     .add(org.domi.furnace.server.attribute.Attribute.OXYGEN_BONUS, 0.0).add(org.domi.furnace.server.attribute.Attribute.BURNING_TIME, 1.0)
                     .add(org.domi.furnace.server.attribute.Attribute.EXPLOSION_KNOCKBACK_RESISTANCE, 0.0)
                     .add(org.domi.furnace.server.attribute.Attribute.WATER_MOVEMENT_EFFICIENCY, 0.0).add(org.domi.furnace.server.attribute.Attribute.MOVEMENT_EFFICIENCY, 0.0)
@@ -209,6 +211,8 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     public Player(int entityId, UUID uuid, String name, Channel channel) {
         this.entityId = entityId;
+        this.random = new org.domi.furnace.server.block.LegacyRandomSource(
+                org.domi.furnace.server.block.RandomSeeds.seed(entityId, org.domi.furnace.server.block.RandomSeeds.Purpose.PLAYER));
         this.uuid = uuid;
         this.name = name;
         this.channel = channel;
@@ -579,27 +583,87 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public void send(Packet packet, java.util.function.BooleanSupplier current) {
         runOnLoop(() -> {
             if (!current.getAsBoolean()) return;
-            Object view = viewRewriter.rewrite(this, packet);   // 플레이어별 변장(규칙이 없으면 그대로)
-            if (view == packet) {
-                if (!writeOne(packet)) return;
-            } else if (view instanceof Packet[] many) {
-                boolean any = false;
-                for (Packet one : many) any |= writeOne(one);
-                if (!any) return;
-            } else if (view instanceof Packet one) {
-                if (!writeOne(one)) return;
-            } else {
-                return;   // 변장 때문에 보내지 않는다(살아 있지 않은 모습에 보내는 속성 등)
-            }
-            // 보낼 때마다 flush(시스템 호출) 하지 않고, 같은 순간에 쌓인 패킷은 한 번에 내보낸다(플래그는 이벤트 루프 스레드에서만 만진다).
-            if (!flushPending) {
-                flushPending = true;
-                runOnLoop(() -> {
-                    flushPending = false;
-                    channel.flush();
-                });
-            }
+            if (writeViewed(packet) > 0) scheduleFlush();
         });
+    }
+
+    /** 바닐라 번들 안 패킷 상한(BundlerInfo: 클라이언트가 4096 개를 넘으면 연결을 끊는다). */
+    public static final int BUNDLE_MAX = org.domi.furnace.api.packet.PacketService.BUNDLE_MAX;
+
+    /**
+     * 바닐라 ClientboundBundlePacket: 구분자(bundle_delimiter) 사이에 넣어 클라이언트가 한 프레임에 함께 처리한다(엔티티 생성 묶음 — 맨몸·기본 모습 깜박임 없음).
+     * 이벤트 루프 작업 하나로 써서 다른 스레드가 보낸 패킷이 묶음 사이에 끼지 않는다. 변장으로 늘어난 패킷도 묶음 안에 들어가고, 상한을 넘을 때만 나눈다.
+     * 프레임을 모두 만든 뒤 한꺼번에 쓴다 — 도중에 예외가 나면 아무것도 쓰지 않는다(구분자가 열린 채 남지 않게). 구분자는 패킷 리스너를 거치지 않는다
+     * (취소되면 짝이 어긋나 클라이언트가 멈춘다). 안의 패킷이 모두 취소되면 아무것도 보내지 않는다.
+     */
+    public void sendBundle(java.util.List<? extends Packet> packets) {
+        if (packets.isEmpty()) return;
+        java.util.List<Packet> copy = java.util.List.copyOf(packets);
+        runOnLoop(() -> {
+            java.util.List<Object> frames = new java.util.ArrayList<>(copy.size() + 4);
+            int total = 0;
+            try {
+                frames.add(delimiterFrame());
+                int n = 0;
+                for (Packet p : copy) {
+                    Object view = viewRewriter.rewrite(this, p);   // 플레이어별 변장(규칙이 없으면 그대로)
+                    Packet[] many = view == p ? new Packet[] {p} : view instanceof Packet[] arr ? arr : view instanceof Packet one ? new Packet[] {one} : new Packet[0];
+                    if (n > 0 && n + many.length > BUNDLE_MAX) {   // 변장으로 늘어난 수까지 세어 넘을 때만 나눈다
+                        frames.add(delimiterFrame());
+                        frames.add(delimiterFrame());
+                        n = 0;
+                    }
+                    for (Packet one : many) {
+                        Object msg = org.domi.furnace.server.net.io.SharedChunkFrames.encode(channel, one);
+                        if (msg == null) continue;   // 플러그인 리스너가 취소
+                        frames.add(msg);
+                        n++;
+                        total++;
+                    }
+                }
+                frames.add(delimiterFrame());
+            } catch (RuntimeException | Error e) {
+                for (Object f : frames) io.netty.util.ReferenceCountUtil.release(f);
+                throw e;
+            }
+            if (total == 0) {   // 모두 취소 — 빈 번들은 보내지 않는다
+                for (Object f : frames) io.netty.util.ReferenceCountUtil.release(f);
+                return;
+            }
+            for (Object f : frames) channel.write(f);
+            scheduleFlush();
+        });
+    }
+
+    /** 구분자 프레임 — 플러그인 패킷 리스너를 거치지 않는다(취소·묵음 번들에서도 짝이 맞아야 한다). */
+    private io.netty.buffer.ByteBuf delimiterFrame() {
+        io.netty.buffer.ByteBuf buf = channel.alloc().buffer(1);
+        Types.writeVarInt(buf, org.domi.furnace.server.net.protocol.play.BundleDelimiter.ID);
+        return buf;
+    }
+
+    /** 이벤트 루프에서: 변장을 거쳐 쓴다. 쓴 패킷 수(취소·변장으로 안 보내면 0). */
+    private int writeViewed(Packet packet) {
+        Object view = viewRewriter.rewrite(this, packet);   // 플레이어별 변장(규칙이 없으면 그대로)
+        if (view == packet) return writeOne(packet) ? 1 : 0;
+        if (view instanceof Packet[] many) {
+            int n = 0;
+            for (Packet one : many) if (writeOne(one)) n++;
+            return n;
+        }
+        if (view instanceof Packet one) return writeOne(one) ? 1 : 0;
+        return 0;   // 변장 때문에 보내지 않는다(살아 있지 않은 모습에 보내는 속성 등)
+    }
+
+    /** 보낼 때마다 flush(시스템 호출) 하지 않고, 같은 순간에 쌓인 패킷은 한 번에 내보낸다(플래그는 이벤트 루프 스레드에서만 만진다). */
+    private void scheduleFlush() {
+        if (!flushPending) {
+            flushPending = true;
+            runOnLoop(() -> {
+                flushPending = false;
+                channel.flush();
+            });
+        }
     }
 
     private boolean flushPending;
@@ -609,6 +673,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
      * 없고, 던지면 종료 직전 틱(끊긴 플레이어 정리 → 다른 플레이어에게 보내기)이 중간에 끊긴다.
      */
     private void runOnLoop(Runnable task) {
+        if (org.domi.furnace.server.net.io.SharedChunkFrames.deferInsideListener(channel, task)) return;   // 리스너 안에서 보냄 — 지금 패킷 앞에
         try {
             channel.eventLoop().execute(task);
         } catch (java.util.concurrent.RejectedExecutionException ignored) {
@@ -1002,6 +1067,9 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 지난 생존 틱 기준 사다리·덩굴 위인가(onClimbable). */
     public boolean onClimbable;
 
+    /** LivingEntity.isPushable(플레이어는 덮어쓰지 않는다): 살아 있고 관전자가 아니고 사다리 위가 아니다. 밀기·배·수레 충돌 후보. */
+    public boolean isPushableByEntities() { return isAlive() && !isSpectator() && !onClimbable; }
+
     /** getCurrentItemAttackStrengthDelay: 1 / 공격 속도 × 20. 공격 속도 = attack_speed 속성(기본 4 + 주 손 아이템, 성급함 +10%·피로 −10% × (증폭+1)). */
     public float attackStrengthDelay() {
         double speed = PlayerAttributes.value(this, org.domi.furnace.server.attribute.Attribute.ATTACK_SPEED);
@@ -1343,6 +1411,37 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private int lastLocationVersion = -1;
     private org.domi.furnace.server.attribute.AttributeModifier lastFrostModifier;
 
+    private volatile java.util.Map<org.domi.furnace.server.attribute.Attribute, org.domi.furnace.server.attribute.AttributeMap.View> attributeView;
+
+    /**
+     * 플러그인 API 가 아무 스레드에서 읽는 속성 스냅샷(최근 값 — region 이 매 틱 동기 끝에 다시 떠 둔다, 불변). 아직 한 번도 동기 전이면
+     * 캐시를 건드리지 않는 사본을 한 번 뜬다(첫 동기가 곧 덮는다).
+     */
+    public java.util.Map<org.domi.furnace.server.attribute.Attribute, org.domi.furnace.server.attribute.AttributeMap.View> attributeView() {
+        var v = attributeView;
+        if (v == null) {
+            synchronized (this) {
+                v = attributeView;
+                if (v == null) attributeView = v = attributes().snapshotDetached();   // 소유 스레드 밖 — 캐시를 건드리지 않는 사본
+            }
+        }
+        return v;
+    }
+
+    /**
+     * 리스폰(바닐라 ServerPlayer.restoreFrom 이 assignBaseValues 만 한다): 기본값은 두고 /attribute·플러그인이 단 수정자를 뗀다.
+     * 장비·효과·달리기·위치 효과 수정자(managedModifiers)는 동기가 맞춘다. 소유 스레드 전용.
+     */
+    public void clearUserModifiersForRespawn() {
+        var map = attributes();
+        for (var inst : map.all()) {
+            var managed = managedModifiers.get(inst.attribute());
+            for (String id : java.util.List.copyOf(inst.modifiers().keySet())) {
+                if (managed == null || !managed.contains(id)) inst.removeModifier(id);
+            }
+        }
+    }
+
     /** 위치에 따라 붙는 수정자: 영혼 가속·서리 걸음(locationEffects) + 가루눈 얼음(이동 속도, PlayerVitals 의 tryAddFrost). */
     public java.util.Collection<org.domi.furnace.server.attribute.AttributeModifier> locatedModifiers(org.domi.furnace.server.attribute.Attribute attr) {
         var loc = locationEffects.modifiers(attr);
@@ -1391,6 +1490,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         }
         pushVitalsInputs(map, effects);
         refreshAttributesSave(map);
+        attributeView = map.snapshot();   // 버전이 같으면 이전 것 그대로
         boolean first = !armorAttributesSent;
         java.util.List<org.domi.furnace.server.attribute.AttributeInstance> out = first ? map.syncable() : map.takeDirty();
         if (first) map.takeDirty();
@@ -1589,6 +1689,12 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 마지막으로 이 플레이어를 틱한 region(주인 판별용, 낡을 수 있다 — ownsPlayer 로 확인). */
     public volatile org.domi.furnace.server.world.Region ownerRegion;
     private final java.util.concurrent.ConcurrentLinkedQueue<Runnable> ownerTasks = new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+    /** 지금 이 스레드가 이 플레이어를 가진 region 스레드인가(플러그인 API 손잡이의 소유 스레드 확인). */
+    public boolean isOnOwnerThread() {
+        var r = ownerRegion;
+        return r != null && r.ownsPlayer(this);
+    }
 
     /** 플레이어 소유 스레드에서 실행한다: 지금 주인 region 스레드면 바로, 아니면 다음 플레이어 틱에(순서 보존). */
     public void runOnOwner(Runnable task) {
@@ -1976,7 +2082,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         // CraftPlayer#teleport: 이벤트가 통과한 뒤 열린 창(상자·플러그인 메뉴 등)을 TELEPORT 사유로 닫는다 — 바닐라 이동 경로는 닫지 않는다.
         var ih = inventoryHost();
         var open = containerMenu;
-        if (ih != null && hasOpenContainer()) ih.closeContainerFromAnyThread(open);
+        if (ih != null && hasOpenContainer()) ih.closeContainerFromAnyThread(open, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.TELEPORT);
         Runnable go = () -> {
             if (vehicle != null) stopRiding();
             correctTo(x, y, z, yaw, pitch);
@@ -2214,6 +2320,22 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public Set<ChunkPos> loadedChunks() { return loadedChunks; }
     public Set<ChunkPos> pendingChunks() { return pendingChunks; }
 
+    /**
+     * 바닐라 플레이어 티켓은 시야 정사각 전부를 올려 두지만(보내는 것만 둥근 모양) 구독은 둥근 모양만 한다 — 정사각에만 있는 모서리 청크 중
+     * 아직 안 올라온 것(region 스레드 전용, 가까운 것부터). 보낼 것이 다 나간 뒤 조금씩 올린다({@code Region.loadCornerChunks}).
+     */
+    private final java.util.LinkedHashSet<ChunkPos> cornerLoads = new java.util.LinkedHashSet<>();
+    public java.util.LinkedHashSet<ChunkPos> cornerLoads() { return cornerLoads; }
+
+    /** cornerLoads 에서 꺼내 올리는 중인(아직 안 끝난) 모서리 청크(아무 스레드). */
+    private final java.util.Set<ChunkPos> cornerInFlight = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    public java.util.Set<ChunkPos> cornerInFlight() { return cornerInFlight; }
+
+    /** 모서리 목록을 다시 모으기까지 쉰 틱(region 스레드만). */
+    private int cornerIdleTicks;
+    public int cornerIdleTicks() { return cornerIdleTicks; }
+    public void cornerIdleTicks(int v) { this.cornerIdleTicks = v; }
+
     /** 요청했지만 아직 끝나지 않은(생성·직렬화 중인) 청크 전송 수 — 완료 콜백은 다른 스레드서 줄인다. */
     private final java.util.concurrent.atomic.AtomicInteger chunkSendsInFlight = new java.util.concurrent.atomic.AtomicInteger();
 
@@ -2224,7 +2346,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     public java.util.Set<org.domi.furnace.server.world.ChunkPos> chunkPrefetches() { return chunkPrefetches; }
 
-    /** chunks-per-tick=auto: 보낸 배치의 Finished 가 아직 안 나갔다(아무 스레드). */
+    /** 보낸 청크 배치의 Finished 가 아직 안 나갔다(auto·숫자 chunks-per-tick 모두, 아무 스레드). 열려 있으면 새 배치를 열지 않는다. */
     private volatile boolean chunkBatchOpen;
 
     public boolean chunkBatchOpen() { return chunkBatchOpen; }

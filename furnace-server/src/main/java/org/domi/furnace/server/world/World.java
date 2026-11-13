@@ -54,7 +54,7 @@ public final class World {
     private java.nio.file.Path worldDir = java.nio.file.Path.of("world");
     private BlockRegistry blockRegistry;
     private ItemRegistry itemRegistry;
-    private SpawnPoint defaultSpawn = new SpawnPoint(0, 64, 0, 0.0f);
+    private volatile SpawnPoint defaultSpawn = new SpawnPoint(0, 64, 0, 0.0f);
     // 이 월드의 차원(기본 오버월드 — 단일 차원 테스트·도구 호환). 저장 폴더·높이·하늘빛이 여기서 나온다.
     private volatile DimensionType dimensionType;
     private volatile Dimensions dimensions;
@@ -145,8 +145,9 @@ public final class World {
     private final Runnable closeHook;
     private volatile boolean unloaded;
     private volatile String levelName;
-    private volatile long seed;
-    private volatile boolean hasSeed;
+    /** (시드, 바이옴 확대 지터 시드) 불변 묶음 — null 이면 시드를 정하지 않은 월드. setter 에서 한 번 계산해 찢어 읽기·SHA-256 재계산이 없다. */
+    private record SeedInfo(long seed, long zoomSeed) {}
+    private volatile SeedInfo seedInfo;
     private volatile boolean extra;
 
     /** 실행 중에 올린 추가 월드인가(다중 월드 — 내릴 수 있다). */
@@ -161,15 +162,35 @@ public final class World {
     /** 월드 이름(폴더 이름). 기본 세 차원은 null — 부르는 쪽이 level-name 으로 만든다(WorldHandle.name). */
     public String levelName() { return levelName; }
 
-    /** 생성 시드(바닐라 BiomeManager 의 해시 시드·LoginPlay/Respawn 의 hashed seed 의 바탕). FurnaceMain/월드 관리자가 정한다. */
-    public long seed() { return seed; }
+    /** 생성 시드(바닐라 BiomeManager 의 해시 시드·LoginPlay/Respawn 의 hashed seed 의 바탕). FurnaceMain/월드 관리자가 정한다. 정하지 않았으면 0. */
+    public long seed() {
+        SeedInfo si = seedInfo;
+        return si == null ? 0L : si.seed();
+    }
 
     /** 시드를 정했는가(시험 월드는 안 정한다 — 그때는 서버 시드를 쓴다). */
-    public boolean hasSeed() { return hasSeed; }
+    public boolean hasSeed() { return seedInfo != null; }
+
+    /** BiomeManager.obfuscateSeed(seed) — 시드를 정할 때 한 번 계산해 둔 값. 시드를 정하지 않았으면 0(부르는 쪽이 hasSeed 로 먼저 가른다). */
+    public long zoomSeed() {
+        SeedInfo si = seedInfo;
+        return si == null ? 0L : si.zoomSeed();
+    }
+
+    /** 시드를 정했으면 그 시드, 아니면 fallback — SeedInfo 를 한 번만 읽는다. */
+    public long seedOr(long fallback) {
+        SeedInfo si = seedInfo;
+        return si == null ? fallback : si.seed();
+    }
+
+    /** 시드를 정했으면 그 시드의 확대 지터 시드, 아니면 fallback — SeedInfo 를 한 번만 읽는다. */
+    public long zoomSeedOr(long fallback) {
+        SeedInfo si = seedInfo;
+        return si == null ? fallback : si.zoomSeed();
+    }
 
     public void seed(long seed) {
-        this.seed = seed;
-        this.hasSeed = true;
+        this.seedInfo = new SeedInfo(seed, BiomeZoom.obfuscateSeed(seed));
     }
 
     /** 내렸는가(다시 쓰지 않는다). */
@@ -776,6 +797,15 @@ public final class World {
 
     public org.domi.furnace.server.entity.EntityIdAllocator entityIds() { return entityIds; }
 
+    /**
+     * 이 월드(차원)에 있는 엔티티의 id → 엔티티 색인(ServerLevel#getEntity(int) 용). 레벨이 엔티티를 넣고 뺄 때 같이 고친다 —
+     * region 사이를 넘어가는 중에도 남는다. 어느 스레드에서나 읽을 수 있지만 엔티티 상태는 소유 region 스레드에서만 만진다.
+     * 플레이어는 들어 있지 않다(엔티티 저장소에 없다).
+     */
+    public java.util.concurrent.ConcurrentMap<Integer, org.domi.furnace.server.entity.Entity> entityIndex() { return entityIndex; }
+
+    private final java.util.concurrent.ConcurrentMap<Integer, org.domi.furnace.server.entity.Entity> entityIndex = new java.util.concurrent.ConcurrentHashMap<>();
+
     public void entityIds(org.domi.furnace.server.entity.EntityIdAllocator a) { this.entityIds = a; }
 
     public void configurePersistence(int autosaveTicks, int graceTicks) {
@@ -838,7 +868,108 @@ public final class World {
         }
     }
     public java.nio.file.Path worldDir() { return worldDir; }
-    public void defaultSpawn(SpawnPoint spawn) { this.defaultSpawn = spawn; }
+    public void defaultSpawn(SpawnPoint spawn) {
+        this.defaultSpawn = spawn;
+        if (spawnChunks) refreshSpawnTicket();   // 바닐라 setDefaultSpawnPos: 옛 START 티켓을 놓고 새 자리에 다시 건다
+    }
+
+    // ------------------------------------------------------------------ 스폰 청크(바닐라 ServerLevel.setDefaultSpawnPos 의 START 티켓)
+
+    /** 스폰 청크 티켓을 쓰는 월드인가(주 오버월드만 — 바닐라 prepareLevels 가 오버월드에만 setDefaultSpawnPos 를 부른다). */
+    private volatile boolean spawnChunks;
+
+    /** 지금 걸린 START 티켓(없으면 null): 가운데 청크와 거리(게임 규칙 spawnChunkRadius + 1, 레벨 33 − 거리). */
+    private volatile SpawnTicket spawnTicket;
+
+    /** 스폰 청크 START 티켓. 거리 d 면 체비셰프 ≤ d 청크가 올라와 있고(FULL), ≤ d − 1 은 블록 틱, ≤ d − 2 는 엔티티 틱(바닐라 레벨 33/32/31). */
+    record SpawnTicket(int cx, int cz, int distance) {
+        int chebyshev(int x, int z) { return Math.max(Math.abs(x - cx), Math.abs(z - cz)); }
+    }
+
+    /**
+     * 이 월드에 스폰 청크를 켠다(운영 서버가 주 오버월드에 한 번, 바닐라 MinecraftServer.prepareLevels). 켜는 즉시 지금 스폰 자리에
+     * 티켓을 걸고 그 청크를 올린다. 이후 {@link #defaultSpawn(SpawnPoint)}·게임 규칙 변경({@link #refreshSpawnTicket()})이 따라 옮긴다.
+     */
+    public void enableSpawnChunks() {
+        spawnChunks = true;
+        refreshSpawnTicket();
+    }
+
+    public boolean spawnChunksEnabled() { return spawnChunks; }
+
+    /**
+     * 바닐라 ServerLevel.setDefaultSpawnPos 의 티켓 부분(바이트코드 aqu.a(jd, float)): 옛 START 티켓(거리 &gt; 1 이었으면)을 놓고
+     * 거리 = spawnChunkRadius + 1 이 1 보다 크면 스폰 청크에 새로 건다. 게임 규칙 spawnChunkRadius 를 바꾸면 바닐라처럼 같은 자리로 다시 부른다.
+     * 켜지 않은 월드는 아무것도 안 한다. 어느 스레드에서 불러도 된다.
+     */
+    public synchronized void refreshSpawnTicket() {
+        if (!spawnChunks) return;
+        SpawnPoint sp = defaultSpawn;
+        int distance = levelServices.gameRuleInt("spawnChunkRadius") + 1;
+        SpawnTicket next = distance > 1 ? new SpawnTicket(Math.floorDiv(sp.x(), 16), Math.floorDiv(sp.z(), 16), distance) : null;
+        spawnTicket = next;   // 옛 티켓은 그냥 없어진다 — 그 청크는 구독자·다른 티켓이 없으면 퇴출 유예 뒤 내려간다
+        if (next == null || unloaded) return;
+        for (int dz = -distance; dz <= distance; dz++) {
+            for (int dx = -distance; dx <= distance; dx++) {
+                ChunkPos cp = new ChunkPos(next.cx() + dx, next.cz() + dz);
+                try {
+                    runAtChunk(cp, r -> r.loadChunk(cp));
+                } catch (RuntimeException e) {   // 닫히는 중
+                    log.debug("스폰 청크 {} 올리기 실패", cp, e);
+                }
+            }
+        }
+    }
+
+    /** 지금 START 티켓(시험·관측용, 없으면 null). */
+    SpawnTicket spawnTicket() { return spawnTicket; }
+
+    private boolean spawnTicketWithin(int cx, int cz, int less) {
+        SpawnTicket t = spawnTicket;
+        return t != null && t.chebyshev(cx, cz) <= t.distance() - less;
+    }
+
+    // ------------------------------------------------------------------ 빈 차원(바닐라 ServerLevel.emptyTime)
+
+    /** 바닐라 emptyTime: 플레이어도 /forceload 청크도 없이 지난 틱 수. 전역 틱이 늘리고, 엔티티가 차원을 넘으면 어느 스레드든 0 으로. */
+    private final java.util.concurrent.atomic.AtomicInteger emptyTime = new java.util.concurrent.atomic.AtomicInteger();
+
+    /**
+     * 바닐라 ServerLevel.tick: {@code flag = !players.isEmpty() || !getForcedChunks().isEmpty(); if (flag) resetEmptyTime();
+     * if (flag || emptyTime++ < 300) { 드래곤 전투·엔티티·블록 엔티티 }}. 전역 틱(서버 틱마다, region 틱보다 먼저)에서 차원마다 부른다.
+     * 예약 틱·블록 이벤트·청크 틱은 이와 무관하게 돈다 — 스폰 청크의 중계기·관측기는 계속 돌고 호퍼·움직이는 피스톤은 멈춘다.
+     * keepTicking 이면 비어도 flag 를 참으로 본다(CraftBukkit·Paper 기본 {@code flag1 = true || …}, world.tick-when-empty).
+     */
+    public void tickEmptyTime(boolean keepTicking) {
+        boolean occupied = keepTicking;
+        if (!occupied) {
+            var forced = forcedChunks;
+            occupied = forced != null && forced.size() > 0;
+        }
+        if (!occupied) {
+            String dim = dimensionType.levelKey();
+            for (Player p : online.array) {
+                if (dim.equals(p.dimension())) {
+                    occupied = true;
+                    break;
+                }
+            }
+        }
+        if (occupied) emptyTime.set(0);
+        else emptyTime.incrementAndGet();
+    }
+
+    /** 바닐라 규칙대로(Bukkit 의 늘 돌기 없이). */
+    public void tickEmptyTime() { tickEmptyTime(false); }
+
+    /** 바닐라 ServerLevel.resetEmptyTime(Entity.changeDimension 이 떠나는·닿는 차원 둘 다 부른다): 다음 300 틱은 다시 엔티티가 돈다. */
+    public void resetEmptyTime() { emptyTime.set(0); }
+
+    /**
+     * 이 차원이 비어 300 틱이 지나 엔티티·블록 엔티티 틱을 쉬는가. 바닐라 {@code emptyTime++ < 300} 의 거짓 = 늘린 뒤 값 &gt; 300.
+     * 값 하나에서 유도하므로 resetEmptyTime 과 전역 틱이 겹쳐도 쉼 표시가 남지 않는다.
+     */
+    public boolean emptyIdle() { return emptyTime.get() > 300; }
 
     // 월드 시계: 모든 region 스레드·연결이 같은 값을 보도록 단조 시계(nanoTime)에서 계산한다(스레드별 tickCount는 비교 불가).
     // 시간·날씨: 전역 틱(ServerCore.tick)이 진행한다.
@@ -1144,38 +1275,75 @@ public final class World {
                     // 같은 버전이 이미 직렬화 중이면 그 결과를 같이 받는다. 필드 읽기·쓰기·touch 가 모두 주인 region 스레드
                     // 태스크라, 남아 있으면 지금 modCount 와 같은 버전이고 아직 끝나지 않은 것이다.
                     CompletableFuture<byte[]> inflight = col.inflightSerializedBody();
-                    if (inflight != null) return inflight;
-
-                    // 스냅샷(약 390KB)은 본문 직렬화에만 쓰므로 컬럼에 붙들어 두지 않는다 — 본문 캐시가 그 뒤를 대신한다.
-                    ChunkSnapshot snapshot = ChunkSnapshot.of(cp.x(), cp.z(), col);
-                    bodySnapshots.incrementAndGet();
-                    // 스냅샷과 같은 동기 구간에서 수정 카운터를 잡는다 — 풀 직렬화가 도는 동안 편집이 끼면
-                    // 카운터가 달라져 낡은 본문을 캐시에 넣지 않는다.
-                    long version = col.modCount();
-                    ChunkSnapshot finalSnapshot = snapshot;
-                    CompletableFuture<byte[]> f = new CompletableFuture<>();
-                    col.inflightSerializedBody(f);
-                    // 결과(성공·실패)는 주인 스레드 태스크 안에서 진행 표시를 내린 뒤 완료한다 — 그 뒤 요청이 끝난(실패한)
-                    // future 를 물려받지 않는다. 캐시 쓰기도 같은 태스크라 내림과 캐시 사이에 틈이 없다.
-                    final long[] traceSer = ChunkTrace.ON ? new long[2] : null;
-                    if (ChunkTrace.ON) traceSer[0] = System.nanoTime();
-                    chunkPool.submit(() -> {
-                        long ts = ChunkTrace.ON ? System.nanoTime() : 0L;
-                        byte[] out = serializeChunkBody(finalSnapshot);
-                        if (ChunkTrace.ON) { traceSer[1] = System.nanoTime(); ChunkTrace.nanos("ser", traceSer[1] - ts); ChunkTrace.nanos("hop.serpool", ts - traceSer[0]); }
-                        return out;
-                    }).handle((body, ex) -> submitAtChunk(cp, r2 -> {
-                        if (ChunkTrace.ON && traceSer[1] != 0L) ChunkTrace.nanos("hop.ser", System.nanoTime() - traceSer[1]);
-                        if (col.inflightSerializedBody() == f) col.inflightSerializedBody(null);
-                        if (ex == null && col.modCount() == version) col.cachedSerializedBody(body);
-                        return body;
-                    }).whenComplete((body2, ex2) -> {
-                        if (ex != null) f.completeExceptionally(ex);
-                        else if (ex2 != null) f.completeExceptionally(ex2);
-                        else f.complete(body);
-                    }));
-                    return f;
+                    if (inflight != null) {
+                        // 미리 직렬화로 걸린 일에 실제로 기다리는 요청이 붙었다 — 이제 낡아도 건너뛰지 않는다(예전처럼 그 결과를 받는다).
+                        // 진행 표시를 내리기(touch) 전에 이 쓰기가 일어나므로 풀은 "진행 표시가 바뀜"을 본 뒤 이 값을 보면 반드시 본다.
+                        if (inflight instanceof BodyJob job) job.speculative = false;
+                        return inflight;
+                    }
+                    return startBodySerialization(cp, col, false);
                 }).thenCompose(f -> f));
+    }
+
+    /** 본문 직렬화 진행 표시. speculative = auto 전송의 미리 직렬화가 건 일이라 결과를 기다리는 요청이 아직 없다(T-011). */
+    static final class BodyJob extends CompletableFuture<byte[]> {
+        volatile boolean speculative;
+
+        BodyJob(boolean speculative) { this.speculative = speculative; }
+    }
+
+    /** 미리 직렬화 일이 풀에서 시작하기 전에 낡아(청크가 바뀌어) 건너뛴 수 — 결과를 쓸 곳이 없던 일(측정·시험 신호, T-011). */
+    final java.util.concurrent.atomic.AtomicInteger staleBodySkips = new java.util.concurrent.atomic.AtomicInteger();
+    /** auto 전송이 이웃 청크가 올라오는 중이라 본문 직렬화를 미룬 수(측정·시험 신호, T-011). */
+    final java.util.concurrent.atomic.AtomicInteger bodyLightDeferrals = new java.util.concurrent.atomic.AtomicInteger();
+
+    /**
+     * 주인 region 스레드에서: 스냅샷을 뜨고 풀에 직렬화를 건다(캐시·진행 중 본문이 없을 때만 부른다). 결과는 주인 스레드 태스크에서
+     * 진행 표시를 내리고, 그 사이 청크가 안 바뀌었으면 캐시에 넣은 뒤 완료한다.
+     * speculative(미리 직렬화, 기다리는 요청 없음)인 일은 풀에서 시작할 때 이미 낡았으면 직렬화하지 않는다 — 그 결과는 어차피 캐시에 들어가지 않고
+     * 받을 곳도 없다(T-011: 이웃이 올라올 때마다 비워진 본문을 풀이 계속 다시 만들던 낭비).
+     */
+    private CompletableFuture<byte[]> startBodySerialization(ChunkPos cp, ChunkColumn col, boolean speculative) {
+        // 스냅샷(약 390KB)은 본문 직렬화에만 쓰므로 컬럼에 붙들어 두지 않는다 — 본문 캐시가 그 뒤를 대신한다.
+        ChunkSnapshot snapshot = ChunkSnapshot.of(cp.x(), cp.z(), col);
+        bodySnapshots.incrementAndGet();
+        // 스냅샷과 같은 동기 구간에서 수정 카운터를 잡는다 — 풀 직렬화가 도는 동안 편집이 끼면
+        // 카운터가 달라져 낡은 본문을 캐시에 넣지 않는다.
+        long version = col.modCount();
+        BodyJob f = new BodyJob(speculative);
+        col.inflightSerializedBody(f);
+        // 결과(성공·실패)는 주인 스레드 태스크 안에서 진행 표시를 내린 뒤 완료한다 — 그 뒤 요청이 끝난(실패한)
+        // future 를 물려받지 않는다. 캐시 쓰기도 같은 태스크라 내림과 캐시 사이에 틈이 없다.
+        final long[] traceSer = ChunkTrace.ON ? new long[2] : null;
+        if (ChunkTrace.ON) traceSer[0] = System.nanoTime();
+        chunkPool.submit(() -> {
+            // 읽는 순서가 중요하다: 진행 표시 먼저, speculative 나중(BodyJob 주석). 진행 표시가 그대로면 청크가 안 바뀌었다.
+            if (col.inflightSerializedBody() != f && f.speculative) {
+                staleBodySkips.incrementAndGet();
+                if (ChunkTrace.ON) ChunkTrace.value("batch.ser.staleskip", 1);
+                return null;
+            }
+            long ts = ChunkTrace.ON ? System.nanoTime() : 0L;
+            byte[] out = serializeChunkBody(snapshot);
+            if (ChunkTrace.ON) { traceSer[1] = System.nanoTime(); ChunkTrace.nanos("ser", traceSer[1] - ts); ChunkTrace.nanos("hop.serpool", ts - traceSer[0]); }
+            return out;
+        }).handle((body, ex) -> {
+            if (ex == null && body == null) {   // 건너뛴 낡은 미리 직렬화 — 진행 표시는 이미 내려갔고 기다리는 요청이 없다
+                f.complete(null);
+                return null;
+            }
+            return submitAtChunk(cp, r2 -> {
+                if (ChunkTrace.ON && traceSer[1] != 0L) ChunkTrace.nanos("hop.ser", System.nanoTime() - traceSer[1]);
+                if (col.inflightSerializedBody() == f) col.inflightSerializedBody(null);
+                if (ex == null && col.modCount() == version) col.cachedSerializedBody(body);
+                return body;
+            }).whenComplete((body2, ex2) -> {
+                if (ex != null) f.completeExceptionally(ex);
+                else if (ex2 != null) f.completeExceptionally(ex2);
+                else f.complete(body);
+            });
+        });
+        return f;
     }
 
     /** auto 전송이 본문을 기다려 주는 최대 횟수(보내려던 틱 수). 넘으면 바닐라처럼 그 자리에서 직렬화한다. */
@@ -1193,15 +1361,47 @@ public final class World {
      * 틱당 상한으로 준다(이런 청크가 많을 때 한 틱에 몰리지 않게).
      */
     public int chunkBodyReadyOrPrefetch(ChunkPos cp, boolean sendingNow, boolean allowSync) {
+        return chunkBodyReadyOrPrefetch(cp, sendingNow, allowSync, null);
+    }
+
+    /** upcoming: 이 플레이어가 곧 받을(아직 안 올라온 것은 곧 올릴) 청크 — 그 안의 이웃이 아직 없으면 올라오는 중과 같이 본다(T-011). */
+    public int chunkBodyReadyOrPrefetch(ChunkPos cp, boolean sendingNow, boolean allowSync, java.util.Set<ChunkPos> upcoming) {
+        return chunkBodyReadyOrPrefetch(cp, sendingNow, allowSync, upcoming, NO_TICK);
+    }
+
+    /** tick 을 모를 때(시험·도구): 이웃 기다림을 부를 때마다 센다. */
+    static final long NO_TICK = Long.MIN_VALUE;
+
+    /**
+     * tick: 부르는 region 의 틱 번호. 이웃 기다림(lightWaits)은 틱당 한 번만 세고, 앞 틱에 세지 않았으면(대기열에서 빠졌다 돌아옴 등)
+     * 1 부터 다시 센다 — 상한 MAX_LIGHT_WAITS 는 "연속으로 보내려다 미룬 틱 수"다.
+     */
+    int chunkBodyReadyOrPrefetch(ChunkPos cp, boolean sendingNow, boolean allowSync, java.util.Set<ChunkPos> upcoming, long tick) {
         ChunkColumn col = loadedChunk(cp.x(), cp.z());
         if (col == null) return BODY_READY;
         if (col.cachedSerializedBody() != null) {
-            if (sendingNow) col.bodyWaits(0);
+            if (sendingNow) {
+                col.bodyWaits(0);
+                col.lightWaits(0);
+            }
             return BODY_READY;
+        }
+        // T-011: 이웃(8칸)이 올라오는 중이면 아직 직렬화하지 않는다. 이웃이 올라와 빛을 붙이면(LevelLight.attachPrecomputed) 가장자리 빛이 이 청크로
+        // 번져 본문 캐시와 진행 중 직렬화가 버려진다 — 8명 냉 접속에서 버린 원인의 98.8%, 청크당 직렬화 3.6번(O00-05 계수).
+        // 바닐라도 청크를 반경 1 이웃이 모두 FULL 이 된 뒤에야 보낸다(ChunkMap.prepareTickingChunk → onChunkReadyToSend).
+        // 이 플레이어의 대기열에 있어 곧 올릴 이웃(upcoming)도 같이 기다린다. 올라오는 중도 대기열도 아닌 이웃(시야 밖)은 기다리지 않는다.
+        // 보내는 본문은 여전히 보낼 때의 청크 상태다(바뀌면 캐시가 비워진다) — 바뀌는 것은 직렬화·전송 시점뿐이다.
+        // 보내려는 청크는 MAX_LIGHT_WAITS 번까지만 미룬다 — 이웃 생성이 오래 걸리면 예전처럼 보낸다.
+        if ((!sendingNow || col.lightWaits() < MAX_LIGHT_WAITS) && neighborLoading(cp.x(), cp.z(), upcoming)) {
+            if (sendingNow) countLightWait(col, tick);
+            bodyLightDeferrals.incrementAndGet();
+            if (ChunkTrace.ON) ChunkTrace.value(sendingNow ? "batch.lightwait.send" : "batch.lightwait.prefetch", 1);
+            return BODY_PENDING;
         }
         if (sendingNow && allowSync && col.bodyWaits() >= MAX_BODY_WAITS) {
             if (ChunkTrace.ON) ChunkTrace.value("batch.syncser", 1);
             col.bodyWaits(0);
+            col.lightWaits(0);
             try {
                 bodySnapshots.incrementAndGet();
                 col.cachedSerializedBody(serializeChunkBody(ChunkSnapshot.of(cp.x(), cp.z(), col)));
@@ -1212,8 +1412,45 @@ public final class World {
             return BODY_SYNC;
         }
         if (sendingNow && col.bodyWaits() < MAX_BODY_WAITS) col.bodyWaits(col.bodyWaits() + 1);
-        if (col.inflightSerializedBody() == null) serializedChunkBody(cp, true);
+        if (col.inflightSerializedBody() == null) {
+            Region owner = regionizer.ownerOf(cp.x(), cp.z());
+            // 미리 직렬화: 결과는 캐시로만 받는다(배치는 다음 틱에 캐시를 본다). 기다리는 요청이 없으니 낡으면 풀이 건너뛴다.
+            if (owner != null && owner.isOwnerThread()) startBodySerialization(cp, col, true);
+            else serializedChunkBody(cp, true);
+        }
         return BODY_PENDING;
+    }
+
+    private static void countLightWait(ChunkColumn col, long tick) {
+        if (tick == NO_TICK) {
+            col.lightWaits(col.lightWaits() + 1);
+            return;
+        }
+        long last = col.lightWaitTick();
+        if (last == tick) return;   // 이 틱에 이미 셌다(같은 청크를 기다리는 다른 플레이어)
+        col.lightWaits(last == tick - 1 ? col.lightWaits() + 1 : 1);
+        col.lightWaitTick(tick);
+    }
+
+    /** 이웃 청크가 올라오는 중이면 보내려는 청크의 직렬화를 미루는 최대 횟수(연속으로 보내려던 틱 수, T-011). 넘으면 예전처럼 직렬화한다. */
+    static final int MAX_LIGHT_WAITS = 20;
+
+    /**
+     * (cx, cz) 를 둘러싼 8칸 중 지금 올라오는(디스크 읽기·생성 중) 청크, 또는 upcoming 에 있는데 아직 안 올라온 청크가 있는가.
+     * 빛은 15칸 안에서만 번지므로 반경 1 밖은 이 청크 빛을 못 바꾼다(바닐라 sectionLightChanged 표시 상자 ±1 칸 포함).
+     */
+    boolean neighborLoading(int cx, int cz, java.util.Set<ChunkPos> upcoming) {
+        if (loading.isEmpty() && (upcoming == null || upcoming.isEmpty())) return false;
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if ((dx | dz) == 0) continue;
+                long k = mapKey(Regionizer.chunkKey(cx + dx, cz + dz));
+                if (loading.containsKey(k)) return true;
+                // 대기열 조회용 ChunkPos 는 이웃이 아직 안 올라왔을 때만 만든다(대부분은 올라와 있어 할당 없음)
+                if (upcoming != null && !chunks.containsKey(k) && upcoming.contains(new ChunkPos(cx + dx, cz + dz))) return true;
+            }
+        }
+        return false;
     }
 
     /** inline 이고 지금 스레드가 그 청크 주인 region 이면 바로 돌리고, 아니면 submitAtChunk. */
@@ -1233,6 +1470,8 @@ public final class World {
 
     /** 시험용: 본문 직렬화 실패 주입(null 이면 없음). */
     volatile Runnable serializeFaultHook;
+    /** 시험 전용: 청크 본문을 플레이어에게 보내기 직전에 (좌표, 본문)으로 불린다(본문이 준비돼 있으면 주인 region 스레드에서). 운영에서는 null. */
+    volatile java.util.function.BiConsumer<ChunkPos, byte[]> chunkSendTap;
 
     private byte[] serializeChunkBody(ChunkSnapshot snap) {
         Runnable hook = serializeFaultHook;
@@ -1285,6 +1524,23 @@ public final class World {
         });
         return sub;
     }
+    /**
+     * 그 플레이어가 지금도 그 청크를 구독하고 있을 때만 새 구독으로 바꾼다(청크 다시 보내기). 그 사이 다른 스레드에서 구독을 풀었으면
+     * 다시 넣지 않고 null — 떠난 플레이어의 구독이 남아 청크가 내려가지 않는 일을 막는다.
+     */
+    public Subscription resubscribeIfPresent(ChunkPos cp, Player p) {
+        Subscription sub = new Subscription();
+        boolean[] done = new boolean[1];
+        chunkSubscribers.computeIfPresent(cp, (k, m) -> {
+            if (m.containsKey(p)) {
+                m.put(p, sub);
+                done[0] = true;
+            }
+            return m;
+        });
+        return done[0] ? sub : null;
+    }
+
     public void unsubscribeChunk(ChunkPos cp, Player p) {
         chunkSubscribers.computeIfPresent(cp, (k, m) -> {
             m.remove(p);
@@ -1408,6 +1664,7 @@ public final class World {
 
     /** 그 청크에 블록 틱 단계의 티켓이 살아 있는가(지난 것은 지운다). 강제 로드·플러그인 티켓은 따로 본다. */
     boolean blockTicketed(int cx, int cz) {
+        if (spawnTicketWithin(cx, cz, 1)) return true;   // 스폰 청크(START, 레벨 ≤ 32)
         if (blockTickets.isEmpty()) return false;
         long key = Regionizer.chunkKey(cx, cz);
         Long until = blockTickets.get(key);
@@ -1434,6 +1691,7 @@ public final class World {
 
     /** 그 청크에 엔티티 틱 단계의 티켓이 살아 있는가(지난 것은 지운다). 강제 로드는 따로 본다. */
     boolean entityTicketed(int cx, int cz) {
+        if (spawnTicketWithin(cx, cz, 2)) return true;   // 스폰 청크(START, 레벨 ≤ 31)
         if (entityTickets.isEmpty()) return false;
         long key = Regionizer.chunkKey(cx, cz);
         Long until = entityTickets.get(key);
@@ -1492,6 +1750,7 @@ public final class World {
         var forced = forcedChunks;
         if (forced != null && forced.size() > 0 && forced.contains(Regionizer.chunkX(chunkKey), Regionizer.chunkZ(chunkKey))) return true;
         if (!pluginHolds.isEmpty() && pluginHolds.containsKey(chunkKey)) return true;   // 플러그인 티켓
+        if (spawnTicketWithin(Regionizer.chunkX(chunkKey), Regionizer.chunkZ(chunkKey), 0)) return true;   // 스폰 청크(START)
         Long until = tickets.get(chunkKey);
         if (until == null) return false;
         if (until < gameTime()) {

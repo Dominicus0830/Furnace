@@ -123,6 +123,16 @@ public final class Enchantment implements Keyed {
         return BY_KEY.get(key.getKey());
     }
 
+    /**
+     * @deprecated 키 문자열(소문자로 바꿔 읽는다)로 찾는다. null 이면 null. 옛 이름(DAMAGE_ALL)은 Paper 처럼 클래스를 올릴 때 바꾼 다리
+     * (compat.nms.ApiRenames)가 먼저 새 이름으로 바꿔 넘긴다.
+     */
+    @Deprecated
+    public static Enchantment getByName(String name) {
+        if (name == null) return null;
+        return getByKey(NamespacedKey.fromString(name.toLowerCase(Locale.ROOT)));
+    }
+
     /** "minecraft:sharpness"·"sharpness"·"SHARPNESS" 로 찾는다. 없으면 null. */
     public static Enchantment fromKey(String name) {
         if (name == null) return null;

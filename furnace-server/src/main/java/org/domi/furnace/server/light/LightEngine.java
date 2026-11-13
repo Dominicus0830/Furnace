@@ -102,7 +102,7 @@ public abstract class LightEngine {
         int x = px(pos), y = py(pos), z = pz(pos);
         ChunkLight cl = world.light(x >> 4, z >> 4);
         byte[][] layers = layers(cl);
-        ChunkLight.set(layers[ChunkLight.sectionIndex(y)], x, y, z, v);
+        ChunkLight.set(cl.writable(layers, ChunkLight.sectionIndex(y)), x, y, z, v);
         world.lightChanged(x, y, z, layers == cl.sky);
     }
 
@@ -111,6 +111,24 @@ public abstract class LightEngine {
     protected boolean shapeOccludes(int fromState, int toState, int dir) { return LightTables.shapeOccludes(fromState, toState, dir); }
 
     public void checkBlock(long pos) { checks.add(pos); }
+
+    /**
+     * 아직 처리하지 않은 칸 검사 중 {@code sel} 에 맞는 것을 순서를 지켜 target 으로 옮긴다(region 합치기·나누기 — 틱 사이에 놓인 블록의 검사가
+     * 사라지지 않게). 증가·감소 대기열은 runUpdates 안에서만 차므로 옮길 것이 없다.
+     */
+    void moveChecksTo(LightEngine target, java.util.function.LongPredicate sel) {
+        if (checks.isEmpty()) return;
+        var it = checks.iterator();
+        while (it.hasNext()) {
+            long p = it.next();
+            if (sel.test(p)) {
+                target.checks.add(p);
+                it.remove();
+            }
+        }
+    }
+
+    void forEachCheck(java.util.function.LongConsumer c) { for (long p : checks) c.accept(p); }
 
     public boolean hasWork() { return !checks.isEmpty() || !increase.isEmpty() || !decrease.isEmpty(); }
 

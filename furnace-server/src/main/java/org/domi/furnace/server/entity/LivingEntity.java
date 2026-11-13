@@ -131,7 +131,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
         map.add(Attribute.MAX_HEALTH, 20.0).add(Attribute.KNOCKBACK_RESISTANCE, 0.0).add(Attribute.MOVEMENT_SPEED, 0.7)
                 .add(Attribute.ARMOR, 0.0).add(Attribute.ARMOR_TOUGHNESS, 0.0).add(Attribute.MAX_ABSORPTION, 0.0)
                 .add(Attribute.STEP_HEIGHT, 0.6).add(Attribute.SCALE, 1.0).add(Attribute.GRAVITY, 0.08).add(Attribute.SAFE_FALL_DISTANCE, 3.0)
-                .add(Attribute.FALL_DAMAGE_MULTIPLIER, 1.0).add(Attribute.JUMP_STRENGTH, 0.42).add(Attribute.OXYGEN_BONUS, 0.0)
+                .add(Attribute.FALL_DAMAGE_MULTIPLIER, 1.0).add(Attribute.JUMP_STRENGTH, 0.42F).add(Attribute.OXYGEN_BONUS, 0.0)
                 .add(Attribute.BURNING_TIME, 1.0).add(Attribute.EXPLOSION_KNOCKBACK_RESISTANCE, 0.0)
                 .add(Attribute.WATER_MOVEMENT_EFFICIENCY, 0.0).add(Attribute.MOVEMENT_EFFICIENCY, 0.0);
     }
@@ -512,6 +512,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
             if (a == null || attributes().get(a) == null) continue;
             var inst = attributes().get(a);
             inst.removeModifier((String) m[1]);
+            // 바닐라 MobEffect.addAttributeModifiers = addPermanentModifier: 속성 NBT 에 저장돼 청크를 다시 불러와도 남는다(효과 자체는 효과 목록에서 되살아난다).
             inst.addOrReplaceModifier(new org.domi.furnace.server.attribute.AttributeModifier((String) m[1], ((Number) m[2]).doubleValue() * (i.amplifier() + 1), (Integer) m[3]));
         }
     }
@@ -672,7 +673,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     @Override public int id() { return super.id(); }
 
-    @Override public boolean canBeSeenAsEnemy() { return !isInvulnerable() && isAlive(); }
+    @Override public boolean canBeSeenAsEnemy() { return !isInvulnerable() && canBeSeenByAnyone(); }
 
     /** getVisibilityPercent: 웅크림 ×0.8, 투명 ×0.7×방어구 가림, 같은 종류 머리 아이템 ×0.5. */
     @Override
@@ -1302,7 +1303,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
         var inst = attributes().get(Attribute.MOVEMENT_SPEED);
         if (inst == null) return;
         float f = -0.05F * getPercentFrozen();
-        inst.addOrReplaceModifier(new org.domi.furnace.server.attribute.AttributeModifier(POWDER_SNOW_SPEED_MODIFIER, f, org.domi.furnace.server.attribute.AttributeModifier.ADD_VALUE));
+        inst.addOrReplaceTransientModifier(new org.domi.furnace.server.attribute.AttributeModifier(POWDER_SNOW_SPEED_MODIFIER, f, org.domi.furnace.server.attribute.AttributeModifier.ADD_VALUE));
     }
 
     /** LivingEntity.canFreeze(btn.dC): 관전자가 아니고, 머리·몸통·다리·발·몸(BODY) 칸에 #freeze_immune_wearables 를 하나도 입지 않았으며 종류가 면역이 아니다. */
@@ -1413,7 +1414,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
             });
             EnchantAttributes.forEachModifier(cur, slot, (a, m) -> {
                 var inst = attributes().get(a);
-                if (inst != null) inst.addOrReplaceModifier(m);
+                if (inst != null) inst.addOrReplaceTransientModifier(m);
             });
             for (var e : org.domi.furnace.server.item.ItemTools.attributeEntries(cur)) {
                 if (!org.domi.furnace.server.item.ItemTools.slotGroupMatches(e.slot(), slot.slotName())) continue;
@@ -1421,7 +1422,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
                 var inst = a == null ? null : attributes().get(a);
                 if (inst != null) {
                     inst.removeModifier(e.id());
-                    inst.addOrReplaceModifier(new org.domi.furnace.server.attribute.AttributeModifier(e.id(), e.amount(),
+                    inst.addOrReplaceTransientModifier(new org.domi.furnace.server.attribute.AttributeModifier(e.id(), e.amount(),
                             org.domi.furnace.server.attribute.AttributeModifier.operationOf(e.operation())));
                 }
             }
@@ -1700,7 +1701,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
             }
             if (found) {
                 teleportTo(nx, d3, nz);
-                if (level.noCollision(boundingBox()) && !level.containsAnyLiquid(boundingBox())) ok = true;
+                if (level.noCollision(this, boundingBox()) && !level.containsAnyLiquid(boundingBox())) ok = true;
             }
         }
         if (!ok) {
@@ -1796,7 +1797,11 @@ public abstract class LivingEntity extends Entity implements Targetable {
         return new double[] {mx, my, mz};
     }
 
-    private boolean isFree(double dx, double dy, double dz) { return level.noCollision(boundingBox().move(dx, dy, dz)); }
+    /** Entity.isFree(dx, dy, dz): 옮긴 상자에 충돌(블록·엔티티·보더)이 없고 액체도 없다. */
+    private boolean isFree(double dx, double dy, double dz) {
+        AABB b = boundingBox().move(dx, dy, dz);
+        return level.noCollision(this, b) && !level.containsAnyLiquid(b);
+    }
 
     /** Entity.moveRelative(speed, input): 입력을 바라보는 방향으로 돌려 속도에 더한다(길이가 1을 넘으면 정규화). */
     public void moveRelative(float speed, float ix, float iy, float iz) {
@@ -1817,7 +1822,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
         tag.putInt("HurtByTimestamp", hurtByTimestamp);
         tag.putShort("DeathTime", (short) deathTime);
         tag.putFloat("AbsorptionAmount", absorptionAmount);
-        tag.putList("attributes", attributes().save((a, id) -> id.equals(POWDER_SNOW_SPEED_MODIFIER)));   // 얼음 수정자는 transient
+        tag.putList("attributes", attributes().save());   // transient 수정자(얼음·장비·효과 …)는 AttributeMap 이 뺀다
         if (!activeEffects.isEmpty()) {
             var list = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
             for (var e : activeEffects.values()) list.add(e.save());

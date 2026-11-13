@@ -56,6 +56,9 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     public UUID uniqueId() { return p.uuid(); }
 
     @Override
+    public int entityId() { return p.entityId(); }
+
+    @Override
     public Text displayName() { return p.displayName(); }
 
     @Override
@@ -69,6 +72,9 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
 
     @Override
     public Location location() { return new Location(p.dimension(), p.x(), p.y(), p.z(), p.yaw(), p.pitch()); }
+
+    @Override
+    public org.domi.furnace.api.world.Aabb boundingBox() { return ApiBoxes.of(p.boundingBox()); }
 
     @Override
     public GameMode gameMode() { return GameMode.byId(p.gameMode().id()); }
@@ -179,6 +185,40 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     }
 
     @Override
+    public void playSound(org.domi.furnace.api.audience.Sound s, double x, double y, double z, long seed) {
+        java.util.Objects.requireNonNull(s, "sound");
+        p.send(ApiEffects.soundAt(s, x, y, z, seed));   // 레지스트리 소리는 번호로(WorldHandle 과 같다)
+    }
+
+    @Override
+    public void playSound(org.domi.furnace.api.audience.Sound s, org.domi.furnace.api.entity.Entity emitter, long seed) {
+        java.util.Objects.requireNonNull(s, "sound");
+        java.util.Objects.requireNonNull(emitter, "emitter");
+        int eid;
+        if (emitter instanceof PlayerHandle ph) {
+            if (!ph.p.dimension().equals(p.dimension())) return;
+            eid = ph.p.entityId();
+        } else if (emitter instanceof EntityHandle eh && eh.tasks().owner() instanceof org.domi.furnace.server.entity.Entity e) {
+            if (e.isRemoved() || !e.dimensionKey().equals(p.dimension())) return;
+            eid = e.id();
+        } else {
+            return;
+        }
+        p.send(ApiEffects.soundOn(s, eid, seed));
+    }
+
+    @Override
+    public void spawnParticle(org.domi.furnace.api.world.ParticleEffect particle, double x, double y, double z, int count,
+                              double offsetX, double offsetY, double offsetZ, double speed, boolean force) {
+        var w = core().world(p.dimension());
+        var blocks = w != null ? w.blockRegistry() : core().world().blockRegistry();
+        var items = w != null ? w.itemRegistry() : core().world().itemRegistry();
+        var opts = ApiEffects.particle(particle, blocks, items);
+        p.send(new org.domi.furnace.server.net.protocol.play.LevelParticles(force, x, y, z, (float) offsetX, (float) offsetY, (float) offsetZ,
+                (float) speed, count, opts));
+    }
+
+    @Override
     public void stopSound(org.domi.furnace.api.audience.Sound.Source source, String key) {
         // 바닐라 클라이언트는 stop_sound 의 이름을 ResourceLocation 으로 읽다 실패하면 접속을 끊는다 — playSound 와 같은 규칙으로 막는다
         if (key != null && !org.domi.furnace.api.audience.Sound.isValidKey(key)) throw new IllegalArgumentException("잘못된 소리 이름: " + key);
@@ -263,7 +303,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         if (ih == null) return;
         ih.execute(() -> {
             var m = p.containerMenu();
-            if (m != null && m.pluginOwner() instanceof MenuSession ms && ms.player() == this) ih.closeContainer(m);
+            if (m != null && m.pluginOwner() instanceof MenuSession ms && ms.player() == this) ih.closeContainer(m, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.PLUGIN);
         });
     }
 
@@ -273,7 +313,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         if (ih == null) return;
         ih.execute(() -> {
             var m = p.containerMenu();
-            if (m != null) ih.closeContainer(m);
+            if (m != null) ih.closeContainer(m, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.PLUGIN);
         });
     }
 
@@ -335,6 +375,51 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
 
     @Override
     public float maxHealth() { return p.vitals().maxHealth(); }
+
+    // ------------------------------------------------------------------ 속성(/attribute 와 같은 맵 — 읽기는 최근 값, 쓰기는 소유 스레드)
+
+    private final AttributeApi.Owner attrOwner = new AttributeApi.Owner() {
+        @Override
+        public <T> java.util.concurrent.CompletableFuture<T> run(java.util.function.Function<org.domi.furnace.server.attribute.AttributeMap, T> task) {
+            if (p.isDisconnected()) return RegionFuture.wrap(java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("접속이 끊긴 플레이어: " + p.name())));
+            RegionFuture<T> f = new RegionFuture<>();
+            p.runOnOwner(() -> {
+                try {
+                    f.complete(task.apply(p.attributes()));
+                } catch (Throwable t) {
+                    f.completeExceptionally(t);
+                }
+            });
+            return f;
+        }
+
+        @Override
+        public void check() {
+            if (!p.isOnOwnerThread()) {
+                throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("AttributeInstance 는 플레이어 " + p.name()
+                        + " 를 가진 region 스레드에서만 쓸 수 있다 (현재 " + Thread.currentThread().getName() + ") — AttributeHandle.edit 를 쓴다");
+            }
+        }
+    };
+
+    @Override
+    public java.util.Optional<org.domi.furnace.api.entity.attribute.AttributeHandle> attribute(org.domi.furnace.api.entity.attribute.Attribute attribute) {
+        java.util.Objects.requireNonNull(attribute, "attribute");
+        return AttributeApi.handle(p.attributeView(), attribute, attrOwner);
+    }
+
+    @Override
+    public java.util.List<org.domi.furnace.api.entity.attribute.Attribute> attributes() { return AttributeApi.keys(p.attributeView()); }
+
+    @Override
+    public java.util.concurrent.CompletableFuture<Boolean> registerAttribute(org.domi.furnace.api.entity.attribute.Attribute attribute) {
+        var a = AttributeApi.server(java.util.Objects.requireNonNull(attribute, "attribute"));
+        return attrOwner.run(map -> {
+            if (map.has(a)) return false;
+            map.register(a);
+            return true;
+        });
+    }
 
     @Override
     public org.domi.furnace.api.sched.TaskScheduler scheduler() {

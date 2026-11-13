@@ -45,6 +45,9 @@ public class CraftEntity implements Entity {
         handle = fresh;
     }
 
+    /** 호환 모듈 전용 — 이미 만든 NMS 엔티티 shim(없으면 null, 만들지 않는다). */
+    public net.minecraft.world.entity.Entity peekHandle() { return nms; }
+
     /**
      * NMS 엔티티 shim. 같은 CraftEntity 는 같은 shim 을 준다(== 비교·Map 키). shim 의 멤버는 일부만 있다 —
      * 없는 멤버는 호출할 때 NoSuchMethodError/NoSuchFieldError, 있지만 못 하는 것은 UnsupportedNmsCall(docs/feature-parity/compat-h6-2026-11-07.md).
@@ -72,14 +75,22 @@ public class CraftEntity implements Entity {
      * (플레이어 핸들은 그 자체가 지금 값이다) — 예외 없이 가려서 자주 불러도 싸다. 사라진 몹은 핸들을 만든 시점 값(마지막 값을 따로 들지 않는다).
      */
     private org.domi.furnace.api.world.Location liveLocation() {
-        org.domi.furnace.api.world.Location snapshot = handle.location();
+        // Paper: yaw = getBukkitYaw() — 살아 있는 엔티티는 머리 방향(getYHeadRot), 그 밖은 몸 방향
+        var l = handle.location();
+        org.domi.furnace.api.world.Location snapshot = new org.domi.furnace.api.world.Location(l.world(), l.x(), l.y(), l.z(), handle.headYaw(), l.pitch());
         if (!EntityStates.live(handle)) return snapshot;
         try {
-            return EntityStates.read(handle, EntityState.class, EntityState::location, snapshot, "Entity#getLocation");
+            return EntityStates.read(handle, EntityState.class, st -> {
+                var n = st.location();
+                return new org.domi.furnace.api.world.Location(n.world(), n.x(), n.y(), n.z(), st.headYaw(), n.pitch());
+            }, snapshot, "Entity#getLocation");
         } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature raced) {
             return snapshot;
         }
     }
+
+    @Override
+    public int getEntityId() { return handle.entityId(); }
 
     @Override
     public Location getLocation() { return Compat.location(liveLocation()); }
@@ -154,16 +165,28 @@ public class CraftEntity implements Entity {
         return t;
     }
 
+    /** 소유 스레드면 지금 충돌 상자, 아니면(또는 상태 손잡이가 없는 플레이어면) 핸들의 상자(플레이어는 최근 값). */
+    private org.domi.furnace.api.world.Aabb currentBox() {
+        if (!EntityStates.live(handle)) return handle.boundingBox();   // 소유 스레드가 아니거나 상태 손잡이가 없는 플레이어: 예외 없이 핸들 값
+        try {
+            return EntityStates.read(handle, EntityState.class, EntityState::boundingBox, handle.boundingBox(), "Entity#getBoundingBox");
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature notNow) {
+            return handle.boundingBox();
+        }
+    }
+
+    @Override
+    public org.bukkit.util.BoundingBox getBoundingBox() {
+        var b = currentBox();
+        return new org.bukkit.util.BoundingBox(b.minX(), b.minY(), b.minZ(), b.maxX(), b.maxY(), b.maxZ());
+    }
+
     @Override
     public java.util.List<org.bukkit.entity.Entity> getNearbyEntities(double x, double y, double z) {
-        var loc = liveLocation();
-        double r = Math.sqrt(x * x + y * y + z * z);
-        var found = handle.world().nearbyEntitiesNow(loc, r);
-        java.util.List<org.bukkit.entity.Entity> out = new java.util.ArrayList<>();
+        var found = handle.world().entitiesInBoxNow(currentBox().inflate(x, y, z));
+        java.util.List<org.bukkit.entity.Entity> out = new java.util.ArrayList<>(found.size());
         for (var e : found) {
-            if (e.uniqueId().equals(handle.uniqueId())) continue;
-            var l = e.location();
-            if (Math.abs(l.x() - loc.x()) <= x && Math.abs(l.y() - loc.y()) <= y && Math.abs(l.z() - loc.z()) <= z) out.add(Compat.entity(e));
+            if (!e.uniqueId().equals(handle.uniqueId())) out.add(Compat.entity(e));
         }
         return out;
     }

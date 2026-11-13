@@ -66,6 +66,7 @@ import org.domi.furnace.server.config.Config;
 import org.domi.furnace.server.entity.EntityIdAllocator;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.world.ChunkPos;
+import org.domi.furnace.server.world.ChunkTrackingView;
 import org.domi.furnace.server.world.SpawnPoint;
 import org.domi.furnace.server.world.World;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1097,7 +1098,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                             return;
                         }
                         org.domi.furnace.server.world.RespawnFinder.worldSpawn(over, over.levelServices().gameRuleInt("spawnRadius"),
-                                over.levelServices().worldAdventure(), spot -> {
+                                over.levelServices().worldAdventure(), 0.0, 0.0, spot -> {   // 생성자 안이라 플레이어는 아직 (0, 0)
                                     try {
                                         ctx.executor().execute(() -> {
                                             if (!once.compareAndSet(false, true)) return;
@@ -1212,16 +1213,20 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             public void inventoryChanged(int windowSlot) { ctx.channel().eventLoop().execute(() -> fireInventoryChanged(windowSlot)); }
 
             public void closeContainer(org.domi.furnace.server.menu.AbstractContainerMenu expect) {
+                closeContainer(expect, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.CANT_USE);
+            }
+
+            public void closeContainer(org.domi.furnace.server.menu.AbstractContainerMenu expect, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason reason) {
                 synchronized (p.menuLock()) {
-                    if (p.containerMenu() == expect && p.hasOpenContainer()) ConnectionHandler.this.closeContainer(p);
+                    if (p.containerMenu() == expect && p.hasOpenContainer()) ConnectionHandler.this.closeContainer(p, reason);
                 }
             }
 
-            public void closeContainerFromAnyThread(org.domi.furnace.server.menu.AbstractContainerMenu expect) {
+            public void closeContainerFromAnyThread(org.domi.furnace.server.menu.AbstractContainerMenu expect, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason reason) {
                 // handleContainerClose 와 같은 규칙: 블록에 매인 창(상자 stopOpen·신호기 등)은 그 블록의 region 스레드에서 닫는다
                 int[] bp = expect.containerBlockPos();
                 Runnable close = () -> {
-                    if (p.containerMenu() == expect && p.hasOpenContainer()) ConnectionHandler.this.closeContainer(p);
+                    if (p.containerMenu() == expect && p.hasOpenContainer()) ConnectionHandler.this.closeContainer(p, reason);
                 };
                 if (bp == null) {
                     synchronized (p.menuLock()) { close.run(); }
@@ -1237,7 +1242,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 synchronized (p.menuLock()) {
                     if (p.containerMenu() != menu) return;
                     org.domi.furnace.server.world.MenuBlockContext.runIn(region, () -> {
-                        if (bp == null || !region.chunkLoaded(ChunkPos.ofBlock(bp[0], bp[2])) || !menu.stillValid(menus)) ConnectionHandler.this.closeContainer(p);
+                        if (bp == null || !region.chunkLoaded(ChunkPos.ofBlock(bp[0], bp[2]))) ConnectionHandler.this.closeContainer(p, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.UNLOADED);
+                        else if (!menu.stillValid(menus)) ConnectionHandler.this.closeContainer(p, menu.invalidCloseReason());
                     });
                 }
             }
@@ -1490,8 +1496,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         int r = world.spawnChunkRadius();
         java.util.List<ChunkPos> spawnChunks = new java.util.ArrayList<>();
         for (int dx = -r; dx <= r; dx++)
-            for (int dz = -r; dz <= r; dz++)
-                spawnChunks.add(new ChunkPos(centerCp.x() + dx, centerCp.z() + dz));
+            for (int dz = -r; dz <= r; dz++) {
+                ChunkPos cp = new ChunkPos(centerCp.x() + dx, centerCp.z() + dz);
+                // 바닐라 ChunkTrackingView: 시야 밖(둥근 모양 바깥) 모서리는 보내지 않는다 — 큰 spawn-chunk-radius 가 시야보다 클 때도 시야 모양을 따른다
+                if (ChunkTrackingView.contains(centerCp.x(), centerCp.z(), effVd, cp.x(), cp.z())) spawnChunks.add(cp);
+            }
         spawnChunks.sort(java.util.Comparator.comparingInt(
                 c -> Math.max(Math.abs(c.x() - centerCp.x()), Math.abs(c.z() - centerCp.z()))));
         // 스냅샷을 뜨기 전에 먼저 구독한다 — 구독이 청크 전달 전까지 블록 변경을 보류했다가 청크 뒤에 보낸다.
@@ -1553,14 +1562,28 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void fireInventoryChanged(int windowSlot) {
         Player p = player;
         var adv = p == null ? null : p.advancements();
-        if (adv == null || windowSlot < 5 || windowSlot > 45) return;
+        if (adv == null || windowSlot < 5 || windowSlot > 45 || !adv.hasListeners("minecraft:inventory_changed")) return;
         ItemStack[] now = this.inv.snapshot();
-        org.domi.furnace.server.loot.LootStack[] inv = new org.domi.furnace.server.loot.LootStack[41];
-        for (int i = 0; i < inv.length; i++) inv[i] = lootStack(now[inventoryToWindowSlot(i)]);
-        adv.trigger("minecraft:inventory_changed",
-                new org.domi.furnace.server.advancement.Criterion.InventoryEvent(inv, lootStack(now[windowSlot])));
+        ItemStack changed = now[windowSlot];
+        // 스택 변환(깊은 복사)은 후보 기준이 필요로 할 때만(Criterion.InventoryEvent 가 미룬다). 스냅숏의 스택은 바뀌지 않는다.
+        adv.trigger("minecraft:inventory_changed", new org.domi.furnace.server.advancement.Criterion.InventoryEvent(
+                lootItemName(changed), () -> lootStack(changed), () -> {
+                    org.domi.furnace.server.loot.LootStack[] all = new org.domi.furnace.server.loot.LootStack[41];
+                    for (int i = 0; i < all.length; i++) all[i] = lootStack(now[inventoryToWindowSlot(i)]);
+                    return all;
+                }, () -> {
+                    int oc = 0;
+                    for (int i = 0; i < 41; i++) if (lootItemName(now[inventoryToWindowSlot(i)]) != null) oc++;
+                    return oc;
+                }));
     }
 
+    /** lootStack 가 비지 않은 스택을 돌려줄 때의 아이템 이름, 아니면 null. */
+    private String lootItemName(ItemStack s) {
+        var items = world.itemRegistry();
+        if (s == null || s.isEmpty() || items == null) return null;
+        return items.nameOf(s.itemId());
+    }
 
     /** 탭 목록 항목(바닐라 ClientboundPlayerInfoUpdatePacket.createPlayerInitializing 의 한 줄). */
     private static org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry tabEntry(Player b) {
@@ -2489,7 +2512,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void openHorseInventory(Player p, org.domi.furnace.server.entity.AbstractHorse horse, org.domi.furnace.server.menu.Container container, int columns) {
         if (player != p) return;
         synchronized (p.menuLock()) {
-            if (p.hasOpenContainer()) closeContainer(p);
+            if (p.hasOpenContainer()) closeContainer(p, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.OPEN_NEW);
             int containerId = p.nextContainerCounter();
             send(ctx, new org.domi.furnace.server.net.protocol.play.HorseScreenOpen(containerId, columns, horse.id()));
             var menu = new org.domi.furnace.server.menu.HorseInventoryMenu(containerId, p.inventoryMenu().inventoryContainer(), container, horse, columns, menus);
@@ -2506,7 +2529,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void openEntityContainer(Player p, org.domi.furnace.server.entity.ContainerEntity entity, boolean blocked, Text title, boolean hopper) {
         if (player != p) return;
         synchronized (p.menuLock()) {
-            if (p.hasOpenContainer()) closeContainer(p);
+            if (p.hasOpenContainer()) closeContainer(p, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.OPEN_NEW);
             int containerId = p.nextContainerCounter();
             if (blocked) {
                 p.send(new org.domi.furnace.server.net.protocol.play.SystemChat(
@@ -2532,7 +2555,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             return;
         }
         synchronized (p.menuLock()) {
-            if (p.hasOpenContainer()) closeContainer(p);
+            if (p.hasOpenContainer()) closeContainer(p, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.OPEN_NEW);
             int containerId = p.nextContainerCounter();
             var menu = session.createMenu(containerId, p.inventoryMenu().inventoryContainer(), menus);
             if (login.core != null && !login.core.gameEvents().inventoryOpen(p, menu)) {
@@ -2567,7 +2590,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             Player p = player;
             if (p == null) return;
             synchronized (p.menuLock()) {
-                if (p.hasOpenContainer()) closeContainer(p);
+                if (p.hasOpenContainer()) closeContainer(p, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.OPEN_NEW);
                 int containerId = p.nextContainerCounter();
                 merchant.setTradingPlayer(menus);
                 var menu = new org.domi.furnace.server.menu.MerchantMenu(containerId, p.inventoryMenu().inventoryContainer(), menus, merchant);
@@ -2852,7 +2875,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         synchronized (p.menuLock()) {
             if (p.containerMenu() != menu) return;
             if (!region.chunkLoaded(ChunkPos.ofBlock(bp[0], bp[2]))) {   // 청크 없이 상자를 읽거나 쓰지 않는다
-                closeContainer(p);
+                closeContainer(p, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.UNLOADED);
                 return;
             }
             org.domi.furnace.server.world.MenuBlockContext.runIn(region, body);
@@ -2864,7 +2887,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         Player p = player;
         if (p == null) return;
         synchronized (p.menuLock()) {
-            if (p.hasOpenContainer()) closeContainer(p);
+            if (p.hasOpenContainer()) closeContainer(p, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.OPEN_NEW);
             int containerId = p.nextContainerCounter();
             var menu = new org.domi.furnace.server.menu.CraftingMenu(containerId, p.inventoryMenu().inventoryContainer(), menus, new int[]{x, y, z}, () -> {
                 // 제작대 블록이 아직 그 자리에 있는가 — 블록을 가진 region 스레드(MenuBlockContext 안)에서만 부른다
@@ -2889,7 +2912,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         Player p = player;
         if (p == null) return;
         synchronized (p.menuLock()) {
-            if (p.hasOpenContainer()) closeContainer(p);
+            if (p.hasOpenContainer()) closeContainer(p, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.OPEN_NEW);
             int containerId = p.nextContainerCounter();
             var menu = factory.create(containerId, p.inventoryMenu().inventoryContainer(), new int[]{x, y, z},
                     new org.domi.furnace.server.menu.BlockAccess() {
@@ -3033,7 +3056,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var menu = p.containerMenu();
         int[] bp = menu.containerBlockPos();
         Runnable close = () -> {
-            if (p.containerMenu() == menu) doCloseContainer(p);
+            if (p.containerMenu() == menu) doCloseContainer(p, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.PLAYER);
         };
         if (bp == null) {
             synchronized (p.menuLock()) { close.run(); }   // 인벤토리 줄(지금 스레드)
@@ -3043,19 +3066,19 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     /** ServerPlayer.doCloseContainer: 창의 removed(커서·제작 격자 돌려주기) → 동기 상태를 인벤토리 창에 넘기고 인벤토리 창으로 돌아간다. */
-    private void doCloseContainer(Player p) {
+    private void doCloseContainer(Player p, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason reason) {
         var menu = p.containerMenu();
-        if (login.core != null) login.core.gameEvents().inventoryClose(p, menu);   // 플러그인 InventoryCloseEvent
+        if (login.core != null) login.core.gameEvents().inventoryClose(p, menu, reason);   // 플러그인 InventoryCloseEvent
         menu.removed(menus);
         p.inventoryMenu().transferState(menu);
         p.setContainerMenu(p.inventoryMenu());
     }
 
     /** ServerPlayer.closeContainer: 클라이언트에 닫으라고 알리고 닫는다. */
-    private void closeContainer(Player p) {
+    private void closeContainer(Player p, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason reason) {
         var menu = p.containerMenu();
         menus.out(new ContainerClose(menu.containerId));
-        doCloseContainer(p);
+        doCloseContainer(p, reason);
     }
 
     /** 메뉴 ↔ 플레이어·연결 어댑터: MenuPlayer(메뉴가 플레이어에게 바라는 것) + MenuSynchronizer(패킷) + MenuListener(inventory_changed). */
@@ -3131,9 +3154,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
 
         @Override public org.domi.furnace.server.plugin.GameEvents.AnvilPrepared prepareAnvil(org.domi.furnace.server.menu.AbstractContainerMenu menu, ItemStack result,
-                int repairCost, String renameText) {
+                int repairCost, int maximumRepairCost, String renameText) {
             var c = login.core;
-            return c == null ? null : c.gameEvents().prepareAnvil(p, menu, result, repairCost, renameText);   // 플러그인 PrepareAnvilEvent
+            return c == null ? null : c.gameEvents().prepareAnvil(p, menu, result, repairCost, maximumRepairCost, renameText);   // 플러그인 PrepareAnvilEvent
         }
 
         @Override public boolean doLimitedCrafting() {
@@ -3355,7 +3378,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         Player p = player;
         if (p == null) return;
         synchronized (p.menuLock()) {
-            if (p.hasOpenContainer()) closeContainer(p);
+            if (p.hasOpenContainer()) closeContainer(p, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.DEATH);
         }
         // 버리기·창 클릭은 인벤토리 줄(region)에서 죽음을 확인하고 돌므로 죽은 뒤에는 인벤토리를 바꾸지 않는다. 죽는 순간 뜬 목록과 맞춰 그 사이 일어난 일을 바로잡는다.
         java.util.Set<ItemStack> original = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
@@ -3610,7 +3633,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // 리스폰 블록 없음: 오버월드 월드 스폰에서 흩뿌린 자리(adjustSpawnLocation — 블록을 읽으므로 오버월드 region 에서)
         World over = login.core != null ? login.core.world() : org.domi.furnace.server.world.RespawnFinder.overworld(world);
         org.domi.furnace.server.world.RespawnFinder.worldSpawn(over, over.levelServices().gameRuleInt("spawnRadius"), over.levelServices().worldAdventure(),
-                s -> ctx.executor().execute(() -> {
+                p.x(), p.z(), s -> ctx.executor().execute(() -> {
                     if (player != p || !ctx.channel().isActive() || world != from) {
                         respawnPending = false;
                         return;
@@ -4219,12 +4242,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 @Override
                 public boolean allowPlace(org.domi.furnace.server.block.Pos p, int state, org.domi.furnace.server.block.Pos against) {
                     org.domi.furnace.server.ServerCore pc = login.core;
-                    if (pc == null || !pc.events().hasSubscribers(org.domi.furnace.api.event.block.BlockPlaceEvent.class)) return true;
-                    var ev = pc.events().call(new org.domi.furnace.api.event.block.BlockPlaceEvent(actor.dimension(),
-                            new org.domi.furnace.api.world.BlockPos(p.x(), p.y(), p.z()), world.blockRegistry().nameOf(state),
-                            new org.domi.furnace.api.world.BlockPos(against.x(), against.y(), against.z()), pc.plugins().player(actor)));
-                    if (ev.isCancelled()) org.domi.furnace.server.plugin.ClientResync.hands(actor);   // 클라이언트가 먼저 줄인 손 아이템을 되돌린다(칸은 호출 뒤 sendBlockState)
-                    return !ev.isCancelled();
+                    if (pc == null || !pc.gameEvents().wantsBlockPlace()) return true;
+                    boolean ok = pc.gameEvents().blockPlace(actor, p, state, level.getBlockState(p), against, before, hand == 0);
+                    if (!ok) org.domi.furnace.server.plugin.ClientResync.hands(actor);   // 클라이언트가 먼저 줄인 손 아이템을 되돌린다(칸은 호출 뒤 sendBlockState)
+                    return ok;
                 }
             };
             pa.withInventory(actor.inventoryHost());
@@ -4370,7 +4391,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             if (menus != null && p.inventoryMenu() != null) {
                 synchronized (p.menuLock()) {
                     p.inventoryMenu().removed(menus);
-                    if (p.hasOpenContainer()) doCloseContainer(p);
+                    if (p.hasOpenContainer()) doCloseContainer(p, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.DISCONNECT);
                 }
             }
             p.awardStat("minecraft:leave_game", 1);   // 바닐라 PlayerList.remove
@@ -4961,7 +4982,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     /** openContainer 의 뒷부분 — 블록의 region 스레드, MenuBlockContext 안. 패킷은 menus.out(p.send) 으로 이 순서대로 나간다. */
     private void openResolved(Player p, OpenSpec spec, int x, int y, int z) {
         synchronized (p.menuLock()) {
-            if (p.hasOpenContainer()) closeContainer(p);
+            if (p.hasOpenContainer()) closeContainer(p, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.OPEN_NEW);
             int containerId = p.nextContainerCounter();
             int[] bp = {x, y, z};
             var inventory = p.inventoryMenu().inventoryContainer();

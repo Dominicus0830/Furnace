@@ -30,7 +30,7 @@ public class DimensionTestLevel extends ChunkLevel {
     double[] border;
 
     public DimensionTestLevel(String dimension) {
-        super(1000000);
+        super(1000000, org.domi.furnace.server.block.RandomSeeds.key(dimension));   // 시험 레벨끼리 난수열이 겹치지 않게 차원 이름을 열쇠로
         this.dimension = dimension;
     }
 
@@ -51,6 +51,11 @@ public class DimensionTestLevel extends ChunkLevel {
     }
 
     @Override public org.domi.furnace.server.plugin.GameEvents gameEvents() { return events; }
+
+    /** resetEmptyTime 이 불린 횟수(빈 차원 규칙 시험용). */
+    int emptyResets;
+
+    @Override public void resetEmptyTime() { emptyResets++; }
 
     @Override protected void markDirty(int x, int z) {}
 

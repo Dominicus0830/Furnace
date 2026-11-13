@@ -98,6 +98,7 @@ public final class CommandQueue {
         boolean handled = false;
         ExecutionContext prevDriving = driving;
         driving = ctx;
+        org.domi.furnace.server.world.CommandDrainGate.enterScope();   // 이 안에서 region 에 넣는 작업은 명령 큐 즉시 처리 문 대상(O11 P-O11-01)
         try {
             if (body != null) body.run();
             ctx.run();
@@ -107,6 +108,7 @@ public final class CommandQueue {
             reportException(p, e);
             ctx.abort();
         } finally {
+            org.domi.furnace.server.world.CommandDrainGate.exitScope();
             driving = prevDriving;
             if (!handled) ctx.abort();   // Error: 컨텍스트를 끝내고 그대로 던진다(큐가 막히지 않게)
             if (ctx.isFinished() && current == ctx) {

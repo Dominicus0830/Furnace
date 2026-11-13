@@ -21,7 +21,7 @@
 
 우선순위(LOWEST~MONITOR), `ignoreCancelled`, 취소 전달은 Furnace 버스가 지킨다. 같은 우선순위의 Furnace 고유 플러그인과는 등록 순이다.
 
-## 지원하는 이벤트 (35)
+## 지원하는 이벤트 (41)
 
 | Bukkit | Furnace | 되돌려 쓰는 값 |
 |---|---|---|
@@ -34,6 +34,11 @@
 | `PlayerCommandPreprocessEvent` | 같은 이름 | 명령 문자열, 취소 |
 | `PlayerLevelChangeEvent`, `PlayerExpChangeEvent` | 같은 이름 | 경험치 양 |
 | `BlockBreakEvent` | `BlockBreakEvent` | 취소 (플레이어가 깬 것만) |
+| `BlockPlaceEvent` | `BlockPlaceEvent` | 취소 또는 `setBuild(false)`(둘 다 막는다), 플레이어가 놓은 것만. `getBlockPlaced()` 가 놓일 상태를 보인다([아래](#세계-변화·스폰·버리기-이벤트-o12-h1-2026-11-12)) |
+| `BlockGrowEvent` / `BlockFadeEvent` | 같은 이름 | 취소. `getNewState()` 는 바뀐 뒤 스냅숏 |
+| `BlockExplodeEvent` | `BlockExplodeEvent` | 취소, `blockList()` 편집(`yield` 는 읽기만) |
+| `EntitySpawnEvent`(`ItemSpawnEvent`·`CreatureSpawnEvent` 같은 처리기 목록) | `EntitySpawnEvent` 와 하위 | 취소 |
+| `PlayerDropItemEvent` | `PlayerDropItemEvent` | 취소(아이템은 인벤토리로 돌아간다) |
 | `EntityDamageEvent` | 같은 이름 | 피해량, 취소 |
 | `PluginEnableEvent` / `PluginDisableEvent` | 같은 이름 | — (Bukkit 플러그인만 알린다) |
 | `ServerCommandEvent` | 같은 이름 | 명령 문자열, 취소 |
@@ -46,6 +51,14 @@
 | `BlockRedstoneEvent` | 같은 이름 | 새 세기 |
 | `FurnaceBurnEvent` | 같은 이름 | 태우는 시간, 불붙음, 취소 |
 | `FurnaceSmeltEvent` (처리기 목록은 `BlockCookEvent`) | `FurnaceSmeltEvent` | 결과 아이템, 취소 |
+| `CraftItemEvent` (처리기 목록은 `InventoryClickEvent` — 클릭 처리기도 받는다) | `CraftItemEvent` | 취소. `getRecipe()` 는 키(`Keyed`)와 결과만 아는 레시피 |
+| `PrepareItemCraftEvent` | 같은 이름 | 결과 칸(`getInventory().setResult`) |
+| `PrepareAnvilEvent` (처리기 목록은 `PrepareInventoryResultEvent`) | `PrepareAnvilEvent` | 결과, 비용(`getView().setRepairCost`) |
+| `PrepareItemEnchantEvent` · `EnchantItemEvent` (`org.bukkit.event.enchantment`) | 같은 이름 | 제안 세 칸, 취소 · 부여할 마법·비용, 취소 |
+| `BrewEvent` · `BrewingStandFuelEvent` | 같은 이름 | 결과 목록(`getResults`), 취소 · 연료 횟수·소모 여부, 취소 |
+| `InventoryMoveItemEvent` | 같은 이름 | 옮길 아이템, 취소 |
+
+인벤토리 창 이벤트(클릭·끌기·열기·닫기, 닫힌 까닭 `getReason()`)와 위 결과 이벤트의 상세·Paper 와 다른 점: [`compat-h4d-inventory-events-2026-11-12.md`](../feature-parity/compat-h4d-inventory-events-2026-11-12.md).
 
 **PlayerInteractEvent 의 취소(FAWE 묶음, 2026-11-11).** Bukkit 은 결과가 둘이다: `useInteractedBlock()`(블록이 없으면 처음부터 DENY — 그래서 공기 클릭은 `isCancelled()` 가 처음부터 true)와 `useItemInHand()`. Furnace 서버 이벤트는 취소 하나라 CraftBukkit 이 결과를 읽는 방식대로 합친다: 공기 클릭은 아이템 쓰기만, 왼쪽 블록 클릭은 블록 쓰기 DENY 거나 (창조 모드가 아닐 때) 아이템 쓰기 DENY 면 — CraftBukkit 은 캐기 시작에서 블록 DENY 를 보고, 창조 모드면 바로 부수고, 아니면 아이템 DENY 를 본다 — 막고, 오른쪽 블록 클릭은 둘 중 하나라도 DENY 면 막는다(`PHYSICAL` 은 CraftBukkit 처럼 블록 쓰기만 본다). 마지막은 "블록만 막고 아이템은 쓰기"(예: 보호 구역 상자는 막고 음식은 먹기)를 나눠 하지 못해 더 막는 쪽을 고른 것이다 — Paper 와 다른 점. 빈 손이면 `getItem()` 은 null, 공기 클릭의 면은 `SOUTH`(CraftBukkit 과 같다). 클릭한 점(`getClickedPosition`·`getInteractionPoint`)은 서버 이벤트가 알리지 않아 null, `PHYSICAL`(압력판 밟기)은 아직 오지 않는다.
 
@@ -56,7 +69,15 @@
 | 블록 ALLOW/DEFAULT + 아이템 DENY | 상자·문은 열리고 아이템만 안 쓰임 | 둘 다 안 됨 |
 | 블록 DENY + 아이템 ALLOW | 블록은 안 쓰이고 아이템은 쓰임(보호 구역에서 음식 먹기·진주 던지기 허용) | 둘 다 안 됨 |
 
-**클래스만 있고 아직 알리지 않는 이벤트.** `BlockPlaceEvent`·`BlockFadeEvent`·`BlockGrowEvent`·`BlockExplodeEvent`·`BlockCanBuildEvent`·`BlockDamageEvent`·`BlockDispenseEvent`·`BlockExpEvent`·`NotePlayEvent`·`SignChangeEvent`·`EntityChangeBlockEvent`·`EntitySpawnEvent`(`ItemSpawnEvent`)·`PlayerCommandSendEvent`·`PlayerDropItemEvent`·`WorldInitEvent`. 리스너 클래스 하나에 이 이벤트 처리기가 섞여 있어도 나머지 처리기는 등록되도록 클래스를 두었다(Bukkit 은 리스너 클래스의 모든 처리기 서명을 한꺼번에 읽어서, 클래스 하나가 없으면 리스너 전체가 빠진다). 처리기를 달면 플러그인·이벤트마다 한 번 "이 이벤트는 아직 알리지 않는다" 경고를 남긴다(`EventBridge.isKnownButNotFired`). 앞의 넷과 `PlayerDropItemEvent`·`ItemSpawnEvent` 는 Furnace 서버 이벤트가 있지만 Bukkit 쪽 값(놓은 손·아이템, `BlockState` 새 상태, 폭발 위력, 아이템 엔티티 `Item`)을 아직 만들 수 없어 잇지 않았다.
+**세계 변화·스폰·버리기 이벤트 (O12 H1, 2026-11-12).** 서버가 이미 내던 여섯 이벤트가 목록에서 빠져 있어 Bukkit 보호·기록 플러그인(WorldGuard·GriefPrevention·CoreProtect 류)이 설치·자람·사라짐·폭발·스폰·버리기를 막지도 기록하지도 못했다. 이제 잇는다. 규칙은 CraftBukkit/Paper 1.21.1 기준이다.
+
+- `BlockPlaceEvent`: 막는 것은 `isCancelled()` 이거나 `canBuild()` 가 거짓일 때다(`CraftEventFactory.callBlockPlaceEvent`). 푸는 쪽(Furnace 처리기가 취소를 풀면)은 둘 다 되돌린다. CraftBukkit 은 블록을 놓은 *뒤에* 부르고 Furnace 는 *전에* 부르므로 `getBlockPlaced()` 는 "놓일 블록"(종류·속성)을 보이게 만든 블록이다 — 이벤트가 끝나도 그 상태를 계속 보이므로 취소된 뒤에도 월드의 원래 블록으로 돌아가지 않는다(Paper 는 되돌린 뒤 월드를 읽는다). 이벤트 처리기 안에서 `world.getBlockAt(x, y, z)` 로 그 칸을 다시 읽으면 아직 놓기 전이라 원래 블록이다(CraftBukkit 은 놓인 블록) — 보호 플러그인이 쓰는 이벤트 자신의 블록은 놓일 상태다. `getBlockReplacedState()` 는 그 자리의 원래 상태(소유 스레드에서 읽어 알린다), `getItemInHand()` 는 놓는 손의 아이템 복사본, `getHand()` 는 `HAND`/`OFF_HAND`. 침대·문처럼 두 칸을 놓는 `BlockMultiPlaceEvent` 는 아직 없다(한 칸 이벤트로 온다).
+- `BlockGrowEvent`·`BlockFadeEvent`: `getNewState()` 는 이벤트 시점 스냅숏(`CompatBlockState`). `update()` 는 Paper 처럼 종류가 같을 때만(또는 `force`) 월드에 쓴다. 블록 엔티티 내용은 스냅숏에 담지 않는다.
+- `BlockExplodeEvent`: `blockList()` 를 고치면 서버가 그대로 따른다(Paper 와 같다 — 넣은 칸도 부서진다). `getYield()`·`getExplosionResult()` 는 읽을 수 있고(DESTROY_WITH_DECAY 는 1/반지름) `setYield` 는 서버가 적용하지 않는다. `getExplodedBlockState()` 는 터진 블록 종류의 기본 상태다(속성은 서버가 알리지 않는다).
+- `EntitySpawnEvent`: 서버의 하위 이벤트가 같은 처리기 목록으로 온다 — 아이템은 `ItemSpawnEvent`(`getEntity()` 가 `Item`), 살아 있는 것은 `CreatureSpawnEvent`(`getSpawnReason()`), 투사체 등은 `EntitySpawnEvent`. 플레이어는 Bukkit 도 이 이벤트를 내지 않는다.
+- `PlayerDropItemEvent`: CraftBukkit 순서대로 던질 아이템 엔티티(속도·난수까지)를 만든 뒤 이벤트를 부르고, 취소하면 엔티티는 들어가지 않고 아이템은 인벤토리로 돌아간다. 구독자가 없으면 이전과 같이 난수를 쓰지 않는다. `getItemDrop()` 은 `Item`(`CraftItem`)이고 `getItemStack()`·`getPickupDelay()` 는 읽기만 된다 — `setItemStack`·`setPickupDelay` 는 `UnsupportedFeature`(Furnace 핸들에 쓰는 길이 아직 없다).
+
+**클래스만 있고 아직 알리지 않는 이벤트.** `BlockCanBuildEvent`·`BlockDamageEvent`·`BlockDispenseEvent`·`BlockExpEvent`·`NotePlayEvent`·`SignChangeEvent`·`EntityChangeBlockEvent`·`PlayerCommandSendEvent`·`WorldInitEvent`. 리스너 클래스 하나에 이 이벤트 처리기가 섞여 있어도 나머지 처리기는 등록되도록 클래스를 두었다(Bukkit 은 리스너 클래스의 모든 처리기 서명을 한꺼번에 읽어서, 클래스 하나가 없으면 리스너 전체가 빠진다). 처리기를 달면 플러그인·이벤트마다 한 번 "이 이벤트는 아직 알리지 않는다" 경고를 남긴다(`EventBridge.isKnownButNotFired`).
 
 플러그인이 만든 자기 이벤트는 `PluginManager#callEvent` 로 그대로 돈다(Furnace 이벤트와 이어지지 않는 순수 Bukkit 이벤트).
 
@@ -130,6 +151,8 @@ Bukkit 은 메인 스레드 하나를 가정한다. 이 1차는 Furnace 이벤�
 
 호환 모듈(`org.bukkit.*`·어댑터·ASM, 약 0.6 MB)은 서버 `fatJar` 에 함께 실리지만 서버 핵심과 얽히지 않는다.
 - **모듈 방향:** `furnace-server` 와 `furnace-api` 는 호환 모듈에 의존하지 않는다(호환 모듈 → API 한 방향. 서버 `fatJar` 만 둘을 합친다). `CompatIsolationStaticTest` 가 서버·API 클래스 파일에 `org/bukkit/` 등 호환 패키지 이름이 없음을 확인한다.
+- **넣으면 바로 돈다, 비면 아무것도 안 켠다(2026-11-12 도미니코 결정):** Bukkit·Paper 플러그인 jar 를 `plugins/bukkit-plugins/`(또는 Paper 처럼 `plugins/`)에 넣고 서버를 켜면 따로 설정할 것이 없다. 필요한 것은 그 플러그인이 있을 때만 준비한다 — 호환 어댑터·호환 jar 꺼내기, Paper 가 싣는 라이브러리(`plugins.compat.libraries=needed`), Spigot 이름 NMS 플러그인용 Spigot → Mojang 대응표(`plugins.compat.nms.spigot-mappings=download`, 기본). fat jar(`java -jar furnace-server.jar`)와 `start.sh`·`start.bat`(installDist, `lib/furnace-compat-embedded.jar`) 둘 다 같다. Bukkit 플러그인이 하나도 없으면 이 중 아무것도 하지 않는다(클래스를 올리지 않고, 파일을 꺼내지 않고, 네트워크에 나가지 않는다). 예전 기본 `off` 로 자동 기록된 furnace.properties 줄은 설정 형식 2 마이그레이션이 `download` 로 옮긴다(원본은 `furnace.properties.v1.bak`).
+- **설정 경로 구분자와 addDefault 기본값(2026-11-12 결정 "둘 다 지원"):** 플러그인이 `options().pathSeparator('/')` 처럼 구분자를 바꾸면 Bukkit 설정은 그 문자로 경로를 나눈다. 기본값 트리(`addDefault`)는 Paper 가 언제나 '.' 로 쪼개는데(그래서 `addDefault("groups/default/x", 1)` 를 `copyDefaults` 로 저장하면 `groups/default/x: 1` 한 줄 키가 된다), Furnace 기본은 플러그인이 정한 구분자로 쪼갠다(`groups:` 아래 중첩). `furnace.properties` 의 `plugins.compat.config.paper-default-separator=true` 로 켜면 Paper 와 똑같이 '.' 로 쪼개고 `getDefaults().options().pathSeparator()` 도 '.' 이다. 켜면 저장 파일 모양·`contains`·`getKeys`·`isConfigurationSection` 뿐 아니라 `setDefaults` 와 섞어 쓸 때·저장한 파일을 다시 읽을 때의 값도 Paper 와 같아진다. 예: 파일을 읽고 `addDefault("groups/default/x")` 한 뒤 `copyDefaults` 로 저장하면 한 줄 키가 앞에 쓰이고, 그 파일을 '/' 로 다시 읽을 때 뒤의 `groups:` 트리가 앞 키를 덮어 기본값이 사라질 수 있다(Paper 도 같다). 시험: `A15DefaultSeparatorOptionTest`(기대값은 Paper 설정 클래스 실행 결과).
 - **지연 로딩:** 서버는 시작할 때 호환 어댑터(`PluginFormat`)를 만들지 않는다. `PluginFormats` 가 클래스패스에 `META-INF/services` 자원이 있는지만 보고(클래스를 읽지 않는다), Furnace 설명 파일이 없는 jar(= Bukkit·Paper 플러그인)를 처음 만났을 때 한 번만 `ServiceLoader` 로 만든다. 그 전에는 호환 모듈 클래스가 JVM 에 하나도 올라오지 않는다 — `plugins/` 가 비었거나 Furnace 플러그인뿐이거나 `plugins/bukkit-plugins/` 가 비어 있어도 마찬가지다. 단 설명 파일이 없는 다른 jar(라이브러리 jar 를 잘못 둔 경우 등 — 원래 오류 jar)가 `plugins/` 나 `plugins/bukkit-plugins/` 에 있으면 그 판정을 위해 어댑터가 올라온다. 호환 모듈 자원은 있는데 어댑터를 만들 수 없으면(깨진 호환 모듈) Bukkit jar 는 실패로 세지 않고 경고 후 건너뛴다.
 - **모듈이 없어도 된다:** 호환 모듈이 클래스패스에 아예 없어도(서버를 호환 없이 붙일 때) 서버 관측 결과는 같다. Bukkit jar 가 있으면 "클래스패스에 없어 불러오지 않는다" 경고만 남긴다.
 - **증거:** `CompatIsolationTest` 가 별도 JVM 을 `-Xlog:class+load` 로 띄워 서버 기동·접속·명령·종료 동안 올라온 클래스에 `org.bukkit.`·`org.domi.furnace.compat.`·`org.objectweb.asm.` 등이 없음을 센다(대조군: Bukkit 플러그인을 넣으면 `CompatFormat` 이 올라온다). `PluginFormatsLazyTest` 는 어댑터 생성 횟수를 센다.

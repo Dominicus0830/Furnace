@@ -284,6 +284,12 @@ public final class Compat {
         });
     }
 
+    /** 접속이 끝났다(퇴장 이벤트를 Bukkit 처리기들이 본 뒤) — NMS 연결의 가상 채널을 닫아 패킷 라이브러리가 자기 처리기를 걷게 한다. */
+    static void disconnected(org.domi.furnace.api.entity.Player p) {
+        CraftPlayer c = existingPlayer(p);
+        if (c != null) c.disconnected();
+    }
+
     /**
      * 이미 감싼 CraftPlayer 만 준다(새로 만들지 않는다) — 권한 판정 경로에서 부르므로 CraftPlayer 생성(권한 계산)으로 되돌아가지 않게.
      * 접속이 바뀐(핸들이 다른) 옛 객체는 null.
@@ -337,6 +343,12 @@ public final class Compat {
         }
     }
 
+    /** 이미 만들어 둔 그 UUID 의 Bukkit 엔티티(플레이어 아닌 것만, 없으면 null). 새로 만들지 않는다 — 어느 스레드나 된다. */
+    public static CraftEntity cachedEntity(UUID id) {
+        WeakReference<CraftEntity> ref = state().entities.get(id);
+        return ref == null ? null : ref.get();
+    }
+
     public static org.bukkit.entity.Entity entity(org.domi.furnace.api.entity.Entity e) {
         if (e == null) return null;
         if (e instanceof org.domi.furnace.api.entity.Player p) return player(p);
@@ -366,7 +378,7 @@ public final class Compat {
 
     /** 이 핸들을 감쌀 CraftEntity 종류 — Bukkit 이 따로 형을 두는 종류(갑옷 거치대·돼지)는 그 형, 나머지는 살아 있는지로. */
     private static Class<? extends CraftEntity> craftClass(org.domi.furnace.api.entity.Entity e) {
-        if (!(e instanceof org.domi.furnace.api.entity.LivingEntity)) return CraftEntity.class;
+        if (!(e instanceof org.domi.furnace.api.entity.LivingEntity)) return "minecraft:item".equals(e.type()) ? org.bukkit.craftbukkit.entity.CraftItem.class : CraftEntity.class;
         return switch (e.type()) {
             case "minecraft:armor_stand" -> org.bukkit.craftbukkit.entity.CraftArmorStand.class;
             case "minecraft:pig" -> e instanceof org.domi.furnace.api.entity.Mob ? org.bukkit.craftbukkit.entity.CraftPig.class : CraftLivingEntity.class;
@@ -376,6 +388,7 @@ public final class Compat {
 
     private static CraftEntity newCraft(Class<? extends CraftEntity> kind, org.domi.furnace.api.entity.Entity e) {
         if (kind == CraftEntity.class) return new CraftEntity(e);
+        if (kind == org.bukkit.craftbukkit.entity.CraftItem.class) return new org.bukkit.craftbukkit.entity.CraftItem(e);
         var living = (org.domi.furnace.api.entity.LivingEntity) e;
         if (kind == org.bukkit.craftbukkit.entity.CraftArmorStand.class) return new org.bukkit.craftbukkit.entity.CraftArmorStand(living);
         if (kind == org.bukkit.craftbukkit.entity.CraftPig.class) return new org.bukkit.craftbukkit.entity.CraftPig((org.domi.furnace.api.entity.Mob) e);

@@ -574,6 +574,16 @@ public abstract class AbstractContainerMenu {
 
     public abstract boolean stillValid(MenuPlayer player);
 
+    /**
+     * stillValid 가 거짓이라 창을 닫을 때의 까닭. 창이 매인 엔티티(상자 수레·말·상인)가 지워졌으면 Paper 는 UNLOADED
+     * (ServerLevel 의 엔티티 제거 훅이 보는 사람을 닫는다), 그 밖(멀어짐·블록 사라짐·거래 끝)은 CANT_USE.
+     */
+    public org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason invalidCloseReason() { return org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.CANT_USE; }
+
+    protected static org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason reasonForEntity(org.domi.furnace.server.entity.Entity e) {
+        return e != null && e.isRemoved() ? org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.UNLOADED : org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.CANT_USE;
+    }
+
     /** 메뉴가 닫힐 때(removed): 커서에 든 것을 인벤토리로 돌려주거나(죽었으면 던진다) 비운다. */
     public void removed(MenuPlayer player) {
         ItemStack held = carried;

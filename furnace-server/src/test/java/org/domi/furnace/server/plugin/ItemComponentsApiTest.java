@@ -283,7 +283,10 @@ class ItemComponentsApiTest {
         assertThrows(UnsupportedOperationException.class, () -> view.get("p:nums", ints).add(4), "읽은 목록은 고칠 수 없다");
         assertEquals(strings, PersistentDataType.list(PersistentDataType.STRING));
         assertNotEquals(strings, ints);
-        assertThrows(IllegalArgumentException.class, () -> PersistentDataType.list(strings), "목록의 목록");
+        var nested = PersistentDataType.list(strings);
+        ItemStack n = sword().withPersistentData(c -> c.set("p:nested", nested, List.of(List.of("a"), List.of("b", "c"))));
+        assertEquals(List.of(List.of("a"), List.of("b", "c")), n.persistentData().get("p:nested", nested), "목록의 목록도 된다");
+        assertFalse(n.persistentData().has("p:nested", strings), "바깥 목록의 원소 종류가 다르면 읽을 수 없다");
         assertThrows(IllegalArgumentException.class, () -> sword().withPersistentData(c -> c.set("p:x", strings, (List) List.of("a", 1))), "섞인 종류");
         assertThrows(IllegalArgumentException.class, () -> sword().withPersistentData(c -> c.set("p:x", ints, (List) List.of("a"))));
     }

@@ -1,0 +1,908 @@
+// 1.21.1 범용 패킷 코덱(E4): 중립 스키마(PacketSchema.protocol767)의 필드 목록으로 타입 레코드가 없는 종류를 GenericPacket 으로 읽고 쓴다.
+// 스키마에서 와이어가 필드 나열로 떨어지는 종류는 필드 목록으로, custom 종류는 GenericHand767 의 손 코덱(E4b)으로 다룬다. 둘 다 아닌 것은
+// readable=false(리스너는 내용 없는 GenericPacket 을 받는다). 읽을 때 본문을 끝까지 다 읽지 못하면 실패로 본다(모양이 어긋난 것).
+// 값 종류는 api GenericPacket 머리말 표. 바닐라 와이어 근거는 docs/feature-parity/context-notes/2026-11-12-easy-nms-e4a.md.
+package org.domi.furnace.server.plugin.packet;
+
+import io.netty.buffer.ByteBuf;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.function.Supplier;
+import org.domi.furnace.api.item.ItemStack;
+import org.domi.furnace.api.nbt.NbtCompound;
+import org.domi.furnace.api.packet.GenericPacket;
+import org.domi.furnace.api.packet.PacketDirection;
+import org.domi.furnace.api.packet.PacketField;
+import org.domi.furnace.api.packet.PacketStruct;
+import org.domi.furnace.api.packet.PacketType;
+import org.domi.furnace.api.packet.PacketTypes;
+import org.domi.furnace.api.packet.schema.FieldDef;
+import org.domi.furnace.api.packet.schema.PacketDef;
+import org.domi.furnace.api.packet.schema.PacketSchema;
+import org.domi.furnace.api.packet.schema.StructDef;
+import org.domi.furnace.api.packet.schema.TypeDecl;
+import org.domi.furnace.api.packet.schema.TypeRef;
+import org.domi.furnace.api.text.Text;
+import org.domi.furnace.api.world.BlockData;
+import org.domi.furnace.api.world.BlockPos;
+import org.domi.furnace.api.world.GlobalPos;
+import org.domi.furnace.server.item.ItemContext;
+import org.domi.furnace.server.item.ItemStackCodecs;
+import org.domi.furnace.server.net.io.Types;
+import org.domi.furnace.server.net.io.nbt.NbtWriter;
+import org.domi.furnace.server.plugin.ApiConvert;
+import org.domi.furnace.server.plugin.ApiNbt;
+import org.domi.furnace.server.world.BlockRegistry;
+import org.domi.furnace.server.world.ItemRegistry;
+
+public final class GenericCodec767 {
+
+    /** play 종류를 찾을 스키마 상태(앞쪽 우선). */
+    private static final List<String> PLAY_STATES = List.of("game", "common", "cookie", "ping");
+    private static final int STRING_MAX = 32767;
+
+    /** 레지스트리 번호로 나가는 타입(type 줄 wire=registry_id) → 레지스트리. 없는 것(블록 엔티티 종류 등)은 아직 못 읽는다. */
+    private static final Map<String, String> REGISTRY_IDS = Map.of(
+            "net.minecraft.world.item.Item", "minecraft:item",
+            "net.minecraft.world.level.block.Block", "minecraft:block",
+            "net.minecraft.world.entity.EntityType", "minecraft:entity_type",
+            "net.minecraft.world.inventory.MenuType", "minecraft:menu",
+            "net.minecraft.world.level.block.entity.BlockEntityType", "minecraft:block_entity_type");
+
+    /** ItemContext 에 없는(데이터 팩·레지스트리 파일이 아니라 코드로 고정된) 레지스트리의 1.21.1 순서. */
+    private static final Map<String, List<String>> FIXED_REGISTRIES = Map.of(
+            "minecraft:block_entity_type", List.of(org.domi.furnace.server.block.entity.BlockEntity.TYPES),
+            "minecraft:number_format_type", List.of("minecraft:blank", "minecraft:styled", "minecraft:fixed"));
+
+    /**
+     * Holder&lt;X&gt; 의 와이어(바닐라 X.STREAM_CODEC, 바이트코드로 확인). PLAIN = holderRegistry(번호 그대로),
+     * PLUS_ONE = holder(레지스트리, 직접 코덱)(등록된 것 번호 + 1, 0 = 직접 정의).
+     */
+    private enum HolderForm { PLAIN, PLUS_ONE }
+
+    private record HolderInfo(String registry, HolderForm form) {}
+
+    private static final Map<String, HolderInfo> HOLDERS = Map.of(
+            "MobEffect", new HolderInfo("minecraft:mob_effect", HolderForm.PLAIN),
+            "DimensionType", new HolderInfo("minecraft:dimension_type", HolderForm.PLAIN),
+            "SoundEvent", new HolderInfo("minecraft:sound_event", HolderForm.PLUS_ONE),
+            "Attribute", new HolderInfo("minecraft:attribute", HolderForm.PLAIN));
+
+    /** 아직 다루지 않는 모양 — 그 종류는 readable=false. */
+    static final class Unsupported extends RuntimeException {
+        Unsupported(String why) { super(why, null, false, false); }
+    }
+
+    /** 값 하나의 읽기·쓰기. kind 는 api 값 종류(PacketStruct.VALUE_KINDS 중 하나). */
+    interface Node {
+        Object read(ByteBuf b);
+
+        void write(ByteBuf o, Object v);
+
+        Class<?> kind();
+
+        /** 쓸 수 있는 값인가. 대개 kind 의 값이고, 소리 Holder 는 직접 정의 PacketStruct 도 받는다. */
+        default boolean accepts(Object v) { return kind().isInstance(v); }
+    }
+
+    /** 손 코덱: 와이어 전체를 직접 읽고 쓴다. read 는 이름 → 값을 아무 순서로 넣고(필드 순서는 Compiled 가 맞춘다), write 는 검사를 마친 값을 받는다. */
+    interface Hand {
+        void read(ByteBuf b, Map<String, Object> out);
+
+        void write(ByteBuf o, Map<String, Object> in);
+    }
+
+    /** 한 묶음의 모양. hand 가 null 이면 nodes 를 차례로 읽고 쓴다. 손 코덱이면 nodes 는 값 종류 검사에만 쓴다. */
+    record Compiled(List<String> names, List<Node> nodes, List<PacketField<?>> fields, Hand hand) {}
+
+    /** 이름·노드 목록으로 묶음 모양(손 코덱이 쓴다). */
+    static Compiled shape(List<String> names, List<Node> nodes, Hand hand) {
+        List<PacketField<?>> pf = new ArrayList<>();
+        for (int i = 0; i < names.size(); i++) pf.add(PacketField.of(names.get(i), nodes.get(i).kind()));
+        return new Compiled(List.copyOf(names), List.copyOf(nodes), List.copyOf(pf), hand);
+    }
+
+    private final PacketSchema schema = PacketSchema.protocol767();
+    private final Supplier<BlockRegistry> blocks;
+    private final Supplier<ItemRegistry> items;
+    private final Map<PacketType<?>, Compiled> packets = new IdentityHashMap<>();
+    private final Map<PacketType<?>, String> unsupported = new IdentityHashMap<>();
+
+    GenericCodec767(Supplier<BlockRegistry> blocks, Supplier<ItemRegistry> items) {
+        this.blocks = blocks;
+        this.items = items;
+        for (PacketDirection dir : PacketDirection.values()) {
+            for (PacketType<?> t : PacketTypes.all(dir)) {
+                if (t.typed()) continue;
+                PacketDef d = find(t);
+                if (d == null) {
+                    unsupported.put(t, "스키마에 없다");
+                    continue;
+                }
+                try {
+                    packets.put(t, compile(d));
+                } catch (Unsupported e) {
+                    unsupported.put(t, e.getMessage());
+                }
+            }
+        }
+    }
+
+    private PacketDef find(PacketType<?> t) {
+        String wire = t.name().substring(t.name().indexOf(':') + 1);
+        for (String state : PLAY_STATES) {
+            Optional<PacketDef> d = schema.packet(state, t.direction(), wire);
+            if (d.isPresent()) return d.get();
+        }
+        return null;
+    }
+
+    /** 이 종류를 읽고 쓸 수 있는가. */
+    public boolean readable(PacketType<?> type) { return packets.containsKey(type); }
+
+    /** 읽을 수 없는 까닭(읽을 수 있거나 타입 레코드 종류면 null). */
+    public String whyUnreadable(PacketType<?> type) { return unsupported.get(type); }
+
+    /** 필드(이름·값 종류, 바닐라 순서). 읽을 수 없으면 빈 목록. */
+    public List<PacketField<?>> fields(PacketType<?> type) {
+        Compiled c = packets.get(type);
+        return c == null ? List.of() : c.fields();
+    }
+
+    /** 본문을 끝까지 읽어 GenericPacket 으로. 모양이 어긋나면(남거나 모자라면) 예외. */
+    @SuppressWarnings("unchecked")
+    public GenericPacket decode(PacketType<?> type, ByteBuf b) {
+        Compiled c = packets.get(type);
+        if (c == null) throw new IllegalArgumentException("범용 코덱이 다루지 않는 종류: " + type);
+        PacketStruct s = readStruct(c, b);
+        if (b.isReadable()) throw new IllegalArgumentException(type + " 본문이 " + b.readableBytes() + "바이트 남았다(스키마와 와이어가 다르다)");
+        return GenericPacket.of((PacketType<GenericPacket>) type, s);
+    }
+
+    /** 패킷 본문을 쓴다(id 는 부르는 쪽이). 필드가 빠졌거나 모르는 필드·종류가 다른 값이면 IllegalArgumentException. */
+    public void encode(GenericPacket p, ByteBuf o) {
+        Compiled c = packets.get(p.type());
+        if (c == null) throw new IllegalArgumentException("이 서버 버전에서 내용을 쓸 수 없는 패킷: " + p.type() + " (" + unsupported.get(p.type()) + ")");
+        if (!p.readable()) throw new IllegalArgumentException("내용 없는 패킷은 보낼 수 없다: " + p.type());
+        int start = o.writerIndex();
+        try {
+            writeStruct(c, p.fields(), o, p.type().toString());
+        } catch (RuntimeException e) {
+            o.writerIndex(start);   // 일부만 쓰인 본문을 남기지 않는다(같은 버퍼에 이어 쓰는 호출자 대비)
+            throw e;
+        }
+    }
+
+    // ------------------------------------------------------------------ 묶음
+
+    static PacketStruct readStruct(Compiled c, ByteBuf b) {
+        LinkedHashMap<String, Object> m = new LinkedHashMap<>();
+        if (c.hand() != null) {
+            Map<String, Object> got = new java.util.HashMap<>();
+            c.hand().read(b, got);
+            if (!got.keySet().equals(Set.copyOf(c.names()))) throw new IllegalStateException("손 코덱이 읽은 필드 " + got.keySet() + " ≠ " + c.names());
+            for (String n : c.names()) m.put(n, got.get(n));
+        } else {
+            for (int i = 0; i < c.nodes().size(); i++) m.put(c.names().get(i), c.nodes().get(i).read(b));
+        }
+        return PacketStruct.of(m);
+    }
+
+    static void writeStruct(Compiled c, PacketStruct s, ByteBuf o, String where) {
+        Map<String, Object> m = checked(c, s, where);
+        if (c.hand() != null) {
+            try {
+                c.hand().write(o, m);
+            } catch (IllegalArgumentException | ClassCastException e) {
+                throw new IllegalArgumentException(where + ": " + e.getMessage(), e);
+            }
+            return;
+        }
+        for (int i = 0; i < c.nodes().size(); i++) {
+            String n = c.names().get(i);
+            try {
+                c.nodes().get(i).write(o, m.get(n));
+            } catch (IllegalArgumentException | ClassCastException e) {
+                throw new IllegalArgumentException(where + "." + n + ": " + e.getMessage(), e);
+            }
+        }
+    }
+
+    /** 필드 이름이 꼭 맞고 값 종류가 맞는지 보고 이름 → 값을 준다(쓰기 전에). */
+    static Map<String, Object> checked(Compiled c, PacketStruct s, String where) {
+        Map<String, Object> m = s.asMap();
+        if (!m.keySet().equals(Set.copyOf(c.names()))) {
+            List<String> missing = new ArrayList<>(c.names());
+            missing.removeAll(m.keySet());
+            List<String> extra = new ArrayList<>(m.keySet());
+            extra.removeAll(c.names());
+            throw new IllegalArgumentException(where + ": " + (missing.isEmpty() ? "" : "빠진 필드 " + missing + " ")
+                    + (extra.isEmpty() ? "" : "모르는 필드 " + extra + " ") + "(필드: " + c.fields() + ")");
+        }
+        for (int i = 0; i < c.nodes().size(); i++) {
+            String n = c.names().get(i);
+            Node node = c.nodes().get(i);
+            Object v = m.get(n);
+            if (!node.accepts(v)) {
+                throw new IllegalArgumentException(where + "." + n + " 은 " + node.kind().getSimpleName() + " 값이어야 한다: " + v.getClass().getSimpleName());
+            }
+        }
+        return m;
+    }
+
+    // ------------------------------------------------------------------ 컴파일
+
+    private Compiled compile(PacketDef d) {
+        Compiled h = GenericHand767.compile(this, d);   // custom 종류, 그리고 값 타입이 필드 나열로 안 떨어지는 종류(E5: update_tags·merchant_offers)
+        if (h != null) return h;
+        if (d.custom()) throw new Unsupported("손으로 다뤄야 하는 와이어(custom) — 손 코덱이 아직 없다");
+        if (d.superType() != null) throw new Unsupported("부모 클래스 필드");
+        return compileFields(d.fields(), d.javaPackage(), d.binaryName());
+    }
+
+    Compiled compileFields(List<FieldDef> fields, String pkg, String owner) {
+        List<String> names = new ArrayList<>();
+        List<Node> nodes = new ArrayList<>();
+        List<PacketField<?>> pf = new ArrayList<>();
+        for (FieldDef f : fields) {
+            String n = snake(f.name());
+            if (names.contains(n)) throw new IllegalStateException("snake_case 이름이 겹친다: " + n);
+            Limit limit = FIELD_LIMITS.get(owner + "#" + f.name());
+            Node node = limit == null ? node(f.type(), f.wire(), pkg) : limited(f, limit);
+            if (f.nullable()) node = node == NBT ? NULLABLE_NBT : optional(node, true);
+            names.add(n);
+            nodes.add(node);
+            pf.add(PacketField.of(n, node.kind()));
+        }
+        return new Compiled(List.copyOf(names), List.copyOf(nodes), List.copyOf(pf), null);
+    }
+
+    /**
+     * 필드별 길이 상한(바닐라 readUtf(n)·ByteBufCodecs.stringUtf8(n)·byteArray(n)·list(n), 바이트코드·1.21.1 소스로 확인 — 스키마에는 상한 표기가 없다).
+     * 필드 나열 종류만. 손 코덱 종류(set_player_team·set_structure_block·custom_report_details 등)는 손 코덱이 직접 검사한다.
+     * 이 밖의 문자열은 32767자(readUtf 기본), 바이트는 남은 길이까지. 읽기·쓰기 모두 검사한다 — chunks_biomes 버퍼는 바닐라가 읽기만 검사하지만
+     * (쓰면 클라이언트가 읽다 끊는다) Furnace 는 끊김 대신 플러그인에 예외를 준다(묶음 안 묶음과 같은 방침).
+     */
+    private static final Map<String, Limit> FIELD_LIMITS = Map.of(
+            "net.minecraft.network.protocol.common.ClientboundResourcePackPushPacket#hash", new Limit(40, 0),
+            "net.minecraft.network.protocol.common.ClientboundStoreCookiePacket#payload", new Limit(5120, 0),
+            "net.minecraft.network.protocol.cookie.ServerboundCookieResponsePacket#payload", new Limit(5120, 0),
+            "net.minecraft.network.protocol.game.ServerboundCommandSuggestionPacket#command", new Limit(32500, 0),
+            "net.minecraft.network.protocol.game.ClientboundChunksBiomesPacket$ChunkBiomeData#buffer", new Limit(2097152, 0),
+            "net.minecraft.network.protocol.game.ServerboundEditBookPacket#pages", new Limit(8192, 200),
+            "net.minecraft.network.protocol.game.ServerboundEditBookPacket#title", new Limit(128, 0));
+
+    /** 값 하나의 상한(문자 수·바이트 수)과, 목록이면 원소 수 상한(0 = 목록 아님). */
+    private record Limit(int max, int count) {}
+
+    /** 상한이 있는 문자열·바이트·문자열 목록(list(n))·Optional 문자열 필드(nullable 이면 다시 Optional). */
+    private static Node limited(FieldDef f, Limit limit) {
+        var t = f.type();
+        if (f.wire() != null) throw new IllegalStateException("상한 표의 필드 모양이 다르다: " + f);
+        boolean string = t.name().equals("String") && t.arrayDimensions() == 0 && t.arguments().isEmpty();
+        if (limit.count() == 0 && string) return GenericHand767.string(limit.max());
+        if (limit.count() == 0 && t.name().equals("byte") && t.arrayDimensions() == 1) return GenericHand767.bytes(limit.max());
+        boolean ofString = t.arguments().size() == 1 && t.arguments().get(0).name().equals("String") && t.arrayDimensions() == 0;
+        if (limit.count() == 0 && ofString && t.name().equals("Optional")) return optional(GenericHand767.string(limit.max()), false);
+        if (limit.count() > 0 && ofString && t.name().equals("List")) return listMax(GenericHand767.string(limit.max()), limit.count());
+        throw new IllegalStateException("상한 표의 필드 타입이 다르다: " + f);
+    }
+
+    /** 원소 수 상한이 있는 목록(바닐라 ByteBufCodecs.list(n) — 읽기·쓰기 모두 n 을 넘으면 실패). */
+    static Node listMax(Node elem, int max) {
+        Node l = list(elem, false);
+        return node(List.class, b -> {
+            int n = Types.readVarInt(b.duplicate());
+            if (n > max) throw new IllegalArgumentException("목록 원소가 너무 많다(" + n + " > " + max + ")");
+            return l.read(b);
+        }, (o, v) -> {
+            if (((List<?>) v).size() > max) throw new IllegalArgumentException("목록 원소가 너무 많다(" + ((List<?>) v).size() + " > " + max + ")");
+            l.write(o, v);
+        });
+    }
+
+    /** Mojang camelCase → snake_case(cameraId → camera_id, yHeadRot → y_head_rot). */
+    static String snake(String camel) {
+        StringBuilder b = new StringBuilder(camel.length() + 4);
+        for (int i = 0; i < camel.length(); i++) {
+            char c = camel.charAt(i);
+            if (Character.isUpperCase(c)) {
+                if (i > 0) b.append('_');
+                b.append(Character.toLowerCase(c));
+            } else {
+                b.append(c);
+            }
+        }
+        return b.toString();
+    }
+
+    /** 패킷 필드 하나의 노드(스키마의 타입·와이어 그대로). 손 코덱이 enum·값 노드를 얻을 때 쓴다. */
+    Node fieldNode(PacketDef d, String field) {
+        FieldDef f = field(d, field);
+        return node(f.type(), f.wire(), d.javaPackage());
+    }
+
+    /** 패킷 필드 타입(또는 그 첫 타입 인자 — Set&lt;E&gt; 등)이 enum 이면 상수 목록. */
+    List<String> constants(PacketDef d, String field, boolean argument) {
+        TypeRef t = field(d, field).type();
+        if (argument) t = t.arguments().get(0);
+        String bin = schema.resolve(t.name(), d.javaPackage());
+        TypeDecl decl = bin == null ? null : schema.type(bin).orElse(null);
+        StructDef struct = bin == null ? null : schema.struct(bin).orElse(null);
+        List<String> c = decl != null ? decl.constants() : struct != null ? struct.constants() : List.of();
+        if (c.isEmpty()) throw new Unsupported("상수 목록이 없다: " + t);
+        return c;
+    }
+
+    /** enum 타입(이진 이름)의 상수 목록. */
+    List<String> enumConstants(String bin) {
+        List<String> c = schema.type(bin).map(TypeDecl::constants).orElse(List.of());
+        if (c.isEmpty()) throw new Unsupported("상수 목록이 없다: " + bin);
+        return c;
+    }
+
+    BlockData blockData(int stateId) { return ApiConvert.block(stateId, blocks.get()); }
+
+    ItemRegistry itemRegistry() { return items.get(); }
+
+    int stateId(BlockData b) { return ApiConvert.stateId(b, blocks.get()); }
+
+    private static FieldDef field(PacketDef d, String name) {
+        for (FieldDef f : d.fields()) if (f.name().equals(name)) return f;
+        throw new Unsupported(d.wireName() + " 에 필드 " + name + " 이 없다(스키마)");
+    }
+
+    private Node node(TypeRef t, String wire, String pkg) {
+        if (t.bound() != TypeRef.Bound.NONE) throw new Unsupported("와일드카드 타입 " + t);
+        if (t.arrayDimensions() > 0) {
+            if (t.arrayDimensions() == 1 && wire == null) {
+                switch (t.name()) {
+                    case "byte": return BYTES;
+                    case "long": return LONGS;
+                    case "int": return VARINTS;
+                    default: break;
+                }
+            }
+            throw new Unsupported("배열 " + t);
+        }
+        switch (t.name()) {
+            case "int": return integer(wire == null ? "varint" : wire, Integer.class);
+            case "short": return integer(wire == null ? "i16" : wire, Short.class);
+            case "byte": return integer(wire == null ? "i8" : wire, Byte.class);
+            case "long":
+                if (wire == null || wire.equals("i64")) return I64;
+                if (wire.equals("varlong")) return VARLONG;
+                throw new Unsupported("long 와이어 " + wire);
+            case "float": return plain(wire, "f32", F32);
+            case "double": return plain(wire, "f64", F64);
+            case "boolean": return plain(wire, "bool", BOOL);
+            case "String": return plain(wire, "string", STRING);
+            case "UUID": return plain(wire, "uuid", UUID_NODE);
+            case "List", "Set", "Collection":
+                if (wire != null) throw new Unsupported("목록 명시 와이어 " + wire);
+                return list(node(t.arguments().get(0), null, pkg), t.name().equals("Set"));
+            case "Optional":
+                if (wire != null) throw new Unsupported("Optional 명시 와이어 " + wire);
+                return optional(node(t.arguments().get(0), null, pkg), false);
+            case "Holder": return holder(t.arguments().get(0));
+            case "ResourceKey": return plain(wire, "identifier", IDENTIFIER);
+            case "Instant": return plain(wire, "i64", I64);   // 바닐라 FriendlyByteBuf.writeInstant = epoch 밀리초 i64
+            case "Map":
+                if (wire == null && t.arguments().size() == 2 && t.arguments().get(0).name().equals("String") && t.arguments().get(1).name().equals("String")) {
+                    return GenericHand767.REPORT_DETAILS;   // Map<String,String> 은 custom_report_details 하나뿐
+                }
+                throw new Unsupported("Map " + t);
+            default: break;
+        }
+        String bin;
+        try {
+            bin = schema.resolve(t.name(), pkg);
+        } catch (IllegalArgumentException e) {
+            throw new Unsupported(e.getMessage());
+        }
+        if (bin == null) throw new Unsupported("타입 " + t);
+        TypeDecl decl = schema.type(bin).orElse(null);
+        StructDef struct = schema.struct(bin).orElse(null);
+        boolean isEnum = (decl != null && decl.kind() == TypeDecl.Kind.ENUM) || (struct != null && struct.kind() == StructDef.Kind.ENUM);
+        List<String> constants = decl != null ? decl.constants() : struct != null ? struct.constants() : List.of();
+        if (wire != null) {   // 필드 줄 명시 와이어: 크기만 다른 정수
+            if (isEnum) return enumNode(bin, constants, wire);
+            if (struct != null || decl != null) return integer(wire, Integer.class);   // 예: game_event 의 Type(u8) — 바닐라 번호를 정수로
+            throw new Unsupported("명시 와이어 " + wire + " on " + t);
+        }
+        if (decl != null) {
+            if (decl.kind() == TypeDecl.Kind.ENUM) {
+                if ("string".equals(decl.wire())) return enumString(bin, constants);
+                return enumNode(bin, constants, decl.wire() == null ? "varint" : decl.wire());
+            }
+            String w = decl.wire();
+            if (w == null) throw new Unsupported("와이어 없는 타입 " + bin);
+            return switch (w) {
+                case "component" -> TEXT;
+                case "identifier" -> IDENTIFIER;
+                case "block_pos" -> BLOCK_POS;
+                case "global_pos" -> GLOBAL_POS;
+                case "item_stack" -> itemStack();
+                case "block_state" -> blockState();
+                case "nbt" -> NBT;
+                case "i64" -> I64;
+                case "vec3" -> VEC3;
+                case "number_format" -> NUMBER_FORMAT;
+                case "message_signature_packed" -> GenericHand767.MESSAGE_SIGNATURE_PACKED;
+                case "chat_type_bound" -> GenericHand767.CHAT_TYPE_BOUND;
+                case "map_decoration" -> GenericHand767.MAP_DECORATION;
+                case "chat_session" -> GenericHand767.CHAT_SESSION;
+                case "attribute_modifier" -> GenericHand767.ATTRIBUTE_MODIFIER;
+                case "argument_signatures" -> GenericHand767.ARGUMENT_SIGNATURES;
+                case "last_seen_update" -> GenericHand767.LAST_SEEN_UPDATE;
+                case "server_link" -> GenericHand767.SERVER_LINK;
+                case "varint" -> integer("varint", Integer.class);
+                case "registry_id" -> {
+                    String reg = REGISTRY_IDS.get(bin);
+                    if (reg == null) throw new Unsupported("레지스트리 번호 " + bin);
+                    yield registryId(reg);
+                }
+                default -> throw new Unsupported("와이어 " + w + " (" + bin + ")");
+            };
+        }
+        if (struct != null) {
+            return switch (struct.kind()) {
+                case ENUM -> enumNode(bin, constants, "varint");
+                case RECORD, CLASS -> structNode(compileFields(struct.fields(), struct.javaPackage(), bin));
+                default -> throw new Unsupported("내포 " + struct.kind() + " " + bin);
+            };
+        }
+        throw new Unsupported("타입 " + bin);
+    }
+
+    private static Node plain(String wire, String expected, Node n) {
+        if (wire != null && !wire.equals(expected)) throw new Unsupported(expected + " 자리의 명시 와이어 " + wire);
+        return n;
+    }
+
+    // ------------------------------------------------------------------ 값 종류
+
+    static Node node(Class<?> kind, java.util.function.Function<ByteBuf, Object> r, java.util.function.BiConsumer<ByteBuf, Object> w) {
+        return new Node() {
+            @Override
+            public Object read(ByteBuf b) { return r.apply(b); }
+
+            @Override
+            public void write(ByteBuf o, Object v) { w.accept(o, v); }
+
+            @Override
+            public Class<?> kind() { return kind; }
+        };
+    }
+
+    /** 정수 와이어 하나 — 값은 Java 필드 타입의 상자(Integer·Short·Byte). 쓸 때 와이어 범위를 넘으면 IllegalArgumentException. */
+    static Node integer(String wire, Class<?> box) {
+        long min, max;
+        switch (wire) {
+            case "varint", "i32" -> { min = Integer.MIN_VALUE; max = Integer.MAX_VALUE; }
+            case "i16" -> { min = Short.MIN_VALUE; max = Short.MAX_VALUE; }
+            case "u16" -> { min = 0; max = 0xFFFF; }
+            case "i8" -> { min = Byte.MIN_VALUE; max = Byte.MAX_VALUE; }
+            case "u8" -> { min = 0; max = 0xFF; }
+            default -> throw new Unsupported("정수 와이어 " + wire);
+        }
+        if (box == Byte.class && (min < Byte.MIN_VALUE || max > Byte.MAX_VALUE)) throw new Unsupported("byte 필드의 와이어 " + wire);
+        if (box == Short.class && (min < Short.MIN_VALUE || max > Short.MAX_VALUE)) throw new Unsupported("short 필드의 와이어 " + wire);
+        return node(box, b -> {
+            int v = switch (wire) {
+                case "varint" -> Types.readVarInt(b);
+                case "i32" -> b.readInt();
+                case "i16" -> b.readShort();
+                case "u16" -> b.readUnsignedShort();
+                case "i8" -> b.readByte();
+                default -> b.readUnsignedByte();
+            };
+            return box == Integer.class ? (Object) v : box == Short.class ? (Object) (short) v : (Object) (byte) v;
+        }, (o, x) -> {
+            int v = ((Number) x).intValue();
+            if (v < min || v > max) throw new IllegalArgumentException(wire + " 범위(" + min + "~" + max + ") 밖: " + v);
+            switch (wire) {
+                case "varint" -> Types.writeVarInt(o, v);
+                case "i32" -> o.writeInt(v);
+                case "i16", "u16" -> o.writeShort(v);
+                default -> o.writeByte(v);
+            }
+        });
+    }
+
+    static final Node I64 = node(Long.class, ByteBuf::readLong, (o, v) -> o.writeLong((Long) v));
+    static final Node VARLONG = node(Long.class, Types::readVarLong, (o, v) -> Types.writeVarLong(o, (Long) v));
+    static final Node F32 = node(Float.class, ByteBuf::readFloat, (o, v) -> o.writeFloat((Float) v));
+    static final Node F64 = node(Double.class, ByteBuf::readDouble, (o, v) -> o.writeDouble((Double) v));
+    static final Node BOOL = node(Boolean.class, ByteBuf::readBoolean, (o, v) -> o.writeBoolean((Boolean) v));
+    static final Node STRING = node(String.class, b -> Types.readString(b, STRING_MAX), (o, v) -> Types.writeString(o, checkLength((String) v)));
+    static final Node UUID_NODE = node(UUID.class, Types::readUuid, (o, v) -> Types.writeUuid(o, (UUID) v));
+    static final Node IDENTIFIER = node(String.class, b -> Types.readString(b, STRING_MAX), (o, v) -> Types.writeString(o, identifier((String) v)));
+    static final Node TEXT = node(Text.class, NetworkText::read, (o, v) -> NetworkText.write(o, (Text) v));
+    static final Node BLOCK_POS = node(BlockPos.class, GenericCodec767::readPos, (o, v) -> writePos(o, (BlockPos) v));
+    static final Node GLOBAL_POS = node(GlobalPos.class, b -> new GlobalPos(Types.readString(b, STRING_MAX), readPos(b)), (o, v) -> {
+        GlobalPos g = (GlobalPos) v;
+        Types.writeString(o, identifier(g.dimension()));
+        writePos(o, g.pos());
+    });
+    static final Node NBT = node(NbtCompound.class, b -> ApiNbt.toApi(EntityData767.readCompound(b)),
+            (o, v) -> new NbtWriter(o).writeCompound(ApiNbt.toServer((NbtCompound) v)));
+
+    /** 없을 수 있는 CompoundTag — 바닐라 FriendlyByteBuf.writeNbt(null) 은 bool 머리가 아니라 END 태그(0) 한 바이트다(tag_query, 바이트코드 확인). */
+    static final Node NULLABLE_NBT = node(Optional.class, b -> {
+        if (b.getByte(b.readerIndex()) == 0) {
+            b.skipBytes(1);
+            return Optional.empty();
+        }
+        return Optional.of(NBT.read(b));
+    }, (o, v) -> {
+        Optional<?> opt = (Optional<?>) v;
+        if (opt.isEmpty()) o.writeByte(0);
+        else if (opt.get() instanceof NbtCompound c) NBT.write(o, c);
+        else throw new IllegalArgumentException("값은 NbtCompound 이어야 한다: " + opt.get());
+    });
+
+    /** 바닐라 Vec3(f64 셋) — {x, y, z}. */
+    static final Node VEC3 = node(PacketStruct.class, b -> PacketStruct.of(vec3(b.readDouble(), b.readDouble(), b.readDouble())), (o, v) -> {
+        PacketStruct s = (PacketStruct) v;
+        if (!s.names().equals(List.of("x", "y", "z"))) throw new IllegalArgumentException("Vec3 는 {x, y, z} 이어야 한다: " + s);
+        for (String n : List.of("x", "y", "z")) {
+            if (!(s.asMap().get(n) instanceof Double d)) throw new IllegalArgumentException("Vec3." + n + " 은 Double 이어야 한다: " + s);
+            o.writeDouble(d);
+        }
+    });
+
+    private static Map<String, Object> vec3(double x, double y, double z) {
+        LinkedHashMap<String, Object> m = new LinkedHashMap<>();
+        m.put("x", x);
+        m.put("y", y);
+        m.put("z", z);
+        return m;
+    }
+
+    /**
+     * 바닐라 NumberFormat(NumberFormatTypes.STREAM_CODEC: number_format_type 번호 + 내용) — {type:"minecraft:blank"},
+     * {type:"minecraft:styled", style:&lt;스타일 NBT&gt;}, {type:"minecraft:fixed", value:&lt;Text&gt;}.
+     */
+    static final Node NUMBER_FORMAT = node(PacketStruct.class, b -> {
+        String type = registryName("minecraft:number_format_type", Types.readVarInt(b));
+        LinkedHashMap<String, Object> m = new LinkedHashMap<>();
+        m.put("type", type);
+        switch (type) {
+            case "minecraft:styled" -> m.put("style", NBT.read(b));
+            case "minecraft:fixed" -> m.put("value", TEXT.read(b));
+            default -> { }
+        }
+        return PacketStruct.of(m);
+    }, (o, v) -> {
+        PacketStruct s = (PacketStruct) v;
+        if (!(s.asMap().get("type") instanceof String t)) throw new IllegalArgumentException("숫자 형식에 type(String) 이 없다: " + s);
+        String type = identifier(t);
+        List<String> want = switch (type) {
+            case "minecraft:blank" -> List.of("type");
+            case "minecraft:styled" -> List.of("type", "style");
+            case "minecraft:fixed" -> List.of("type", "value");
+            default -> throw new IllegalArgumentException("모르는 숫자 형식: " + t + " (blank·styled·fixed)");
+        };
+        if (!Set.copyOf(s.names()).equals(Set.copyOf(want))) throw new IllegalArgumentException(type + " 숫자 형식의 필드는 " + want + ": " + s.names());
+        Types.writeVarInt(o, registryNumber("minecraft:number_format_type", type));
+        if (type.equals("minecraft:styled")) {
+            if (!(s.asMap().get("style") instanceof NbtCompound n)) throw new IllegalArgumentException("style 은 NbtCompound 이어야 한다");
+            checkStyle(n);
+            NBT.write(o, n);
+        } else if (type.equals("minecraft:fixed")) {
+            if (!(s.asMap().get("value") instanceof Text x)) throw new IllegalArgumentException("value 는 Text 이어야 한다");
+            TEXT.write(o, x);
+        }
+    });
+
+    /**
+     * 바닐라 Style.Serializer.CODEC 이 읽지 못하는 스타일 NBT 를 거부한다 — 바닐라 클라이언트는 디코드에 실패해 접속이 끊긴다(검토 R2).
+     * 아는 키의 종류·값을 보고(색 이름·#RRGGBB, 참거짓은 숫자 태그, font 는 이름 문법, 사건은 compound), 끝으로 서버 스타일 해석기로 읽어 본다.
+     * 모르는 키는 바닐라가 버리므로 그냥 둔다.
+     */
+    static void checkStyle(NbtCompound st) {
+        for (String k : st.keys()) {
+            Object v = st.get(k);
+            switch (k) {
+                case "color" -> {
+                    if (!(v instanceof String c) || !validColor(c)) throw new IllegalArgumentException("style.color 는 16색 이름이나 #RRGGBB 이어야 한다: " + v);
+                }
+                case "bold", "italic", "underlined", "strikethrough", "obfuscated" -> {
+                    if (!(v instanceof Number)) throw new IllegalArgumentException("style." + k + " 은 숫자(참거짓) 태그여야 한다: " + v);
+                }
+                case "insertion" -> {
+                    if (!(v instanceof String)) throw new IllegalArgumentException("style.insertion 은 문자열이어야 한다: " + v);
+                }
+                case "font" -> {
+                    if (!(v instanceof String f)) throw new IllegalArgumentException("style.font 는 이름 문자열이어야 한다: " + v);
+                    identifier(f);
+                }
+                case "clickEvent", "hoverEvent" -> {
+                    if (!(v instanceof NbtCompound)) throw new IllegalArgumentException("style." + k + " 은 compound 이어야 한다: " + v);
+                }
+                default -> { }
+            }
+        }
+        if (org.domi.furnace.server.scores.TextTags.tagToStyle(ApiNbt.toServer(st)) == null) {
+            throw new IllegalArgumentException("스타일로 읽을 수 없는 NBT: " + st);
+        }
+    }
+
+    /** 바닐라 TextColor.parseColor: "#" + 16진수(0~FFFFFF) 또는 색 이름(정확히 같은 글자). */
+    private static boolean validColor(String c) {
+        if (c.startsWith("#")) {
+            try {
+                int v = Integer.parseInt(c.substring(1), 16);
+                return v >= 0 && v <= 0xFFFFFF;
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        }
+        return COLOR_NAMES.contains(c);
+    }
+
+    /** 바닐라 TextColor.NAMED_COLORS 의 키 — ChatFormatting 색 16개 이름 그대로(대소문자 구분, 바이트코드 xy.a(String) 확인). */
+    private static final Set<String> COLOR_NAMES = Set.of("black", "dark_blue", "dark_green", "dark_aqua", "dark_red", "dark_purple", "gold", "gray",
+            "dark_gray", "blue", "green", "aqua", "red", "light_purple", "yellow", "white");
+
+    static final Node BYTES = node(byte[].class, b -> {
+        int n = Types.readVarInt(b);
+        if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("바이트 길이 오류: " + n);
+        byte[] a = new byte[n];
+        b.readBytes(a);
+        return a;
+    }, (o, v) -> {
+        byte[] a = (byte[]) v;
+        Types.writeVarInt(o, a.length);
+        o.writeBytes(a);
+    });
+    static final Node LONGS = node(long[].class, b -> {
+        int n = count(b, 8);
+        long[] a = new long[n];
+        for (int i = 0; i < n; i++) a[i] = b.readLong();
+        return a;
+    }, (o, v) -> {
+        long[] a = (long[]) v;
+        Types.writeVarInt(o, a.length);
+        for (long x : a) o.writeLong(x);
+    });
+    static final Node VARINTS = node(int[].class, b -> {
+        int n = count(b, 1);
+        int[] a = new int[n];
+        for (int i = 0; i < n; i++) a[i] = Types.readVarInt(b);
+        return a;
+    }, (o, v) -> {
+        int[] a = (int[]) v;
+        Types.writeVarInt(o, a.length);
+        for (int x : a) Types.writeVarInt(o, x);
+    });
+
+    /** 원소 수(원소 하나가 적어도 minBytes 라 남은 바이트로 상한을 건다). */
+    private static int count(ByteBuf b, int minBytes) {
+        int n = Types.readVarInt(b);
+        if (n < 0 || (long) n * minBytes > b.readableBytes()) throw new IllegalArgumentException("원소 수 오류: " + n);
+        return n;
+    }
+
+    /** distinct: 바닐라가 Set 인 필드 — 같은 값을 두 번 쓰지 않는다(바닐라는 하나로 줄인다). */
+    static Node list(Node elem, boolean distinct) {
+        return node(List.class, b -> {
+            int n = count(b, 1);   // 원소는 모두 1바이트 이상
+            List<Object> l = new ArrayList<>(Math.min(n, 4096));
+            for (int i = 0; i < n; i++) l.add(elem.read(b));
+            return Collections.unmodifiableList(l);
+        }, (o, v) -> {
+            List<?> l = (List<?>) v;
+            if (distinct && new java.util.HashSet<>(l).size() != l.size()) throw new IllegalArgumentException("Set 필드에 같은 값이 두 번 있다: " + l);
+            Types.writeVarInt(o, l.size());
+            for (int i = 0; i < l.size(); i++) {
+                Object x = l.get(i);
+                if (!elem.accepts(x)) throw new IllegalArgumentException("[" + i + "] 은 " + elem.kind().getSimpleName() + " 값이어야 한다: " + x);
+                elem.write(o, x);
+            }
+        });
+    }
+
+    /** bool 머리 + 값(바닐라 optional·writeNullable 둘 다 같은 와이어). */
+    static Node optional(Node elem, boolean nullable) {
+        return node(Optional.class, b -> b.readBoolean() ? Optional.of(elem.read(b)) : Optional.empty(), (o, v) -> {
+            Optional<?> opt = (Optional<?>) v;
+            o.writeBoolean(opt.isPresent());
+            if (opt.isPresent()) {
+                Object x = opt.get();
+                if (!elem.accepts(x)) throw new IllegalArgumentException("값은 " + elem.kind().getSimpleName() + " 이어야 한다: " + x);
+                elem.write(o, x);
+            }
+        });
+    }
+
+    static Node structNode(Compiled c) {
+        return node(PacketStruct.class, b -> readStruct(c, b), (o, v) -> writeStruct(c, (PacketStruct) v, o, "struct"));
+    }
+
+    /**
+     * enum: 값은 바닐라 상수 이름. 번호는 서수(스키마 상수 순서 = 바닐라 선언 순서). i8 은 바닐라 GameType.byNullableId 처럼 -1 = 없음이라
+     * Optional&lt;String&gt; 이다(previous_game_type).
+     */
+    static Node enumNode(String bin, List<String> constants, String wire) {
+        if (constants.isEmpty()) throw new Unsupported("상수 목록 없는 enum " + bin);
+        if (wire.equals("i8")) {
+            return node(Optional.class, b -> {
+                int i = b.readByte();
+                return i == -1 ? Optional.empty() : Optional.of(constantAt(constants, i, bin));
+            }, (o, v) -> {
+                Optional<?> opt = (Optional<?>) v;
+                o.writeByte(opt.isEmpty() ? -1 : indexOf(constants, opt.get(), bin));
+            });
+        }
+        Node n = integer(wire, Integer.class);
+        return node(String.class, b -> constantAt(constants, (Integer) n.read(b), bin), (o, v) -> n.write(o, indexOf(constants, v, bin)));
+    }
+
+    /** 와이어가 문자열인 enum(바닐라 StringRepresentable 이름 = 상수 이름 소문자). */
+    private static Node enumString(String bin, List<String> constants) {
+        return node(String.class, b -> {
+            String s = Types.readString(b, STRING_MAX).toUpperCase(Locale.ROOT);
+            return constantAt(constants, constants.indexOf(s), bin);
+        }, (o, v) -> Types.writeString(o, constants.get(indexOf(constants, v, bin)).toLowerCase(Locale.ROOT)));
+    }
+
+    private static String constantAt(List<String> constants, int i, String bin) {
+        if (i < 0 || i >= constants.size()) throw new IllegalArgumentException(simple(bin) + " 범위 밖: " + i);
+        return constants.get(i);
+    }
+
+    private static int indexOf(List<String> constants, Object v, String bin) {
+        int i = v instanceof String s ? constants.indexOf(s) : -1;
+        if (i < 0) throw new IllegalArgumentException(simple(bin) + " 상수가 아니다: " + v + " (" + constants + ")");
+        return i;
+    }
+
+    private static String simple(String bin) { return bin.substring(bin.lastIndexOf('.') + 1); }
+
+    Node itemStack() {
+        return node(ItemStack.class, b -> ApiConvert.item(ItemStackCodecs.readStack(b), items.get()),
+                (o, v) -> ItemStackCodecs.writeStack(o, ApiConvert.item((ItemStack) v, items.get())));
+    }
+
+    Node blockState() {
+        return node(BlockData.class, b -> ApiConvert.block(Types.readVarInt(b), blocks.get()),
+                (o, v) -> Types.writeVarInt(o, ApiConvert.stateId((BlockData) v, blocks.get())));
+    }
+
+    static Node registryId(String registry) {
+        return node(String.class, b -> registryName(registry, Types.readVarInt(b)), (o, v) -> Types.writeVarInt(o, registryNumber(registry, (String) v)));
+    }
+
+    private static Node holder(TypeRef arg) {
+        HolderInfo h = HOLDERS.get(arg.name());
+        if (h == null) throw new Unsupported("Holder<" + arg + ">");
+        if (h.form() == HolderForm.PLAIN) return registryId(h.registry());
+        // holder(레지스트리, 직접 코덱): 등록된 것 = 번호 + 1, 0 = 직접 정의(소리: 이름 + 고정 범위 Optional<Float>).
+        // 값: String = 이름(등록돼 있으면 번호, 아니면 범위 없는 직접 정의) · PacketStruct{sound_id, range Optional<Float>} = 언제나 직접 정의
+        // (바닐라 Holder.direct 와 같은 바이트 — 이름이 등록돼 있어도 직접 정의로 쓴다). 읽기는 다시 쓰면 같은 바이트가 되는 쪽으로 고른다.
+        Node plain = node(String.class, b -> {
+            int v = Types.readVarInt(b);
+            if (v > 0) return registryName(h.registry(), v - 1);
+            String name = Types.readString(b, STRING_MAX);
+            Optional<Float> range = b.readBoolean() ? Optional.of(b.readFloat()) : Optional.empty();
+            boolean registered = ItemContext.installed() && ItemContext.id(h.registry(), identifier(name)) != null;
+            return range.isEmpty() && !registered ? name : directSound(name, range);
+        }, (o, v) -> {
+            if (v instanceof PacketStruct s) {
+                String name = identifier((String) need(s, "sound_id", String.class));
+                Optional<?> range = s.has("range") ? (Optional<?>) need(s, "range", Optional.class) : Optional.empty();
+                if (range.isPresent() && !(range.get() instanceof Float)) throw new IllegalArgumentException("range 는 Optional<Float> 이어야 한다: " + range.get());
+                Types.writeVarInt(o, 0);
+                Types.writeString(o, name);
+                o.writeBoolean(range.isPresent());
+                if (range.isPresent()) o.writeFloat((Float) range.get());
+                return;
+            }
+            if (!(v instanceof String str)) throw new IllegalArgumentException("소리는 이름(String) 또는 직접 정의 PacketStruct{sound_id, range} 여야 한다: " + v);
+            String name = identifier(str);
+            Integer id = ItemContext.installed() ? ItemContext.id(h.registry(), name) : null;
+            if (id != null) {
+                Types.writeVarInt(o, id + 1);
+            } else {   // 등록되지 않은 이름(리소스 팩 소리) — 바닐라처럼 직접 정의로
+                Types.writeVarInt(o, 0);
+                Types.writeString(o, name);
+                o.writeBoolean(false);
+            }
+        });
+        return new Node() {   // 선언 종류는 String(필드 목록·타입 키), 직접 정의 PacketStruct 도 받는다
+            @Override
+            public Object read(ByteBuf b) { return plain.read(b); }
+
+            @Override
+            public void write(ByteBuf o, Object v) { plain.write(o, v); }
+
+            @Override
+            public Class<?> kind() { return String.class; }
+
+            @Override
+            public boolean accepts(Object v) { return v instanceof String || v instanceof PacketStruct; }
+        };
+    }
+
+    /** 소리의 직접 정의 값(바닐라 SoundEvent 코덱 필드 이름 sound_id·range). */
+    static PacketStruct directSound(String name, Optional<Float> range) {
+        LinkedHashMap<String, Object> m = new LinkedHashMap<>();
+        m.put("sound_id", name);
+        m.put("range", range);
+        return PacketStruct.of(m);
+    }
+
+    private static Object need(PacketStruct s, String field, Class<?> kind) {
+        Object x = s.get(field);
+        if (!kind.isInstance(x)) throw new IllegalArgumentException("직접 정의 소리의 " + field + " 는 " + kind.getSimpleName() + " 값이어야 한다: " + x);
+        return x;
+    }
+
+    static String registryName(String registry, int id) {
+        List<String> fixed = FIXED_REGISTRIES.get(registry);
+        if (fixed != null) {
+            if (id < 0 || id >= fixed.size()) throw new IllegalArgumentException(registry + " 에 없는 번호: " + id);
+            return fixed.get(id);
+        }
+        String n = ItemContext.installed() ? ItemContext.name(registry, id) : null;
+        if (n == null) throw new IllegalArgumentException(registry + " 에 없는 번호: " + id);
+        return n;
+    }
+
+    static int registryNumber(String registry, String name) {
+        List<String> fixed = FIXED_REGISTRIES.get(registry);
+        if (fixed != null) {
+            int i = fixed.indexOf(identifier(name));
+            if (i < 0) throw new IllegalArgumentException(registry + " 에 없는 이름: " + name + " " + fixed);
+            return i;
+        }
+        Integer id = ItemContext.installed() ? ItemContext.id(registry, identifier(name)) : null;
+        if (id == null) throw new IllegalArgumentException(registry + " 에 없는 이름: " + name);
+        return id;
+    }
+
+    /**
+     * 이름공간 없는 이름은 minecraft: 를 붙인다(바닐라 ResourceLocation 과 같은 뜻). 바닐라 문법(이름공간 [a-z0-9_.-], 경로 [a-z0-9/._-])이
+     * 아니면 IllegalArgumentException — 바닐라 클라이언트는 그런 이름을 받으면 디코드에 실패해 끊긴다.
+     */
+    static String identifier(String s) {
+        int c = s.indexOf(':');
+        String ns = c < 0 ? "minecraft" : s.substring(0, c), path = c < 0 ? s : s.substring(c + 1);
+        for (int i = 0; i < ns.length(); i++) {
+            char ch = ns.charAt(i);
+            if (!(ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == '_' || ch == '.' || ch == '-')) {
+                throw new IllegalArgumentException("이름공간에 쓸 수 없는 글자(" + ch + "): " + s);
+            }
+        }
+        for (int i = 0; i < path.length(); i++) {
+            char ch = path.charAt(i);
+            if (!(ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == '_' || ch == '.' || ch == '-' || ch == '/')) {
+                throw new IllegalArgumentException("경로에 쓸 수 없는 글자(" + ch + "): " + s);
+            }
+        }
+        return checkLength(ns + ":" + path);
+    }
+
+    /** 바닐라 writeUtf 기본 상한(32767자). 필드마다 더 작은 상한은 FIELD_LIMITS. */
+    private static String checkLength(String s) {
+        if (s.length() > STRING_MAX) throw new IllegalArgumentException("문자열이 너무 길다(" + s.length() + " > " + STRING_MAX + ")");
+        return s;
+    }
+
+    static BlockPos readPos(ByteBuf b) {
+        int[] p = Types.readBlockPos(b);
+        return new BlockPos(p[0], p[1], p[2]);
+    }
+
+    static void writePos(ByteBuf o, BlockPos p) { Types.writeBlockPos(o, p.x(), p.y(), p.z()); }
+}

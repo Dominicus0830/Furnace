@@ -79,6 +79,7 @@ public final class AnvilWorldSource implements WorldSource {
         if (col != null) return withPoi(chunkX, chunkZ, col);
         col = generateFallback(chunkX, chunkZ);
         col.markDirty();   // 바닐라처럼 새로 생성한 청크도 디스크에 남긴다(깨진 청크면 다음 저장이 덮는다)
+        col.newlyCreated(true);
         return col;
     }
 
@@ -184,6 +185,7 @@ public final class AnvilWorldSource implements WorldSource {
                 return CompletableFuture.supplyAsync(() -> {
                     ChunkColumn gen = generateFallback(chunkX, chunkZ);
                     gen.markDirty();
+                    gen.newlyCreated(true);
                     // 노이즈 생성기만 청크 생성 때 동물을 놓는다(NoiseBasedChunkGenerator.spawnOriginalMobs — 평지 생성기는 없다)
                     if (base instanceof NoiseWorldSource n && !n.isFlat()) gen.freshlyGenerated(true);
                     return gen;

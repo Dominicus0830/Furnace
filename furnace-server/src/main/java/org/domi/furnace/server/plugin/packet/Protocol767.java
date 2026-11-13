@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 import org.domi.furnace.api.entity.Hand;
 import org.domi.furnace.api.entity.ProfileProperty;
-import org.domi.furnace.api.packet.OpaquePacket;
+import org.domi.furnace.api.packet.GenericPacket;
 import org.domi.furnace.api.packet.Packet;
 import org.domi.furnace.api.packet.PacketDirection;
 import org.domi.furnace.api.packet.PacketType;
@@ -26,6 +26,7 @@ import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.plugin.ApiConvert;
 import org.domi.furnace.server.world.BlockRegistry;
+import org.domi.furnace.server.world.ItemRegistry;
 
 public final class Protocol767 implements ProtocolCodec {
 
@@ -85,9 +86,17 @@ public final class Protocol767 implements ProtocolCodec {
     private final Map<PacketType<?>, int[]> ids = new IdentityHashMap<>();
     private final Map<PacketType<?>, Codec<?>> codecs = new IdentityHashMap<>();
     private final Supplier<BlockRegistry> blocks;
+    private final Supplier<ItemRegistry> items;
+    private final EntityData767 entityData;
+    private final GenericCodec767 generic;
 
-    public Protocol767(Supplier<BlockRegistry> blocks) {
+    public Protocol767(Supplier<BlockRegistry> blocks) { this(blocks, () -> null); }
+
+    public Protocol767(Supplier<BlockRegistry> blocks, Supplier<ItemRegistry> items) {
         this.blocks = blocks;
+        this.items = items;
+        this.entityData = new EntityData767(this::blocks, this::items);
+        this.generic = new GenericCodec767(this::blocks, this::items);
         Map<PacketType<?>, List<Integer>> tmp = new IdentityHashMap<>();
         for (int i = 0; i < CLIENTBOUND.length; i++) {
             cbTypes[i] = lookup(PacketDirection.CLIENTBOUND, CLIENTBOUND[i]);
@@ -118,6 +127,31 @@ public final class Protocol767 implements ProtocolCodec {
         }
         return r;
     }
+
+    private static volatile ItemRegistry fallbackItems;
+
+    /** 서버 아이템 레지스트리(없으면 이 버전의 표를 한 번 읽어 쓴다 — 번호는 같다). */
+    private ItemRegistry items() {
+        ItemRegistry r = items.get();
+        if (r != null) return r;
+        r = fallbackItems;
+        if (r == null) {
+            synchronized (Protocol767.class) {
+                if (fallbackItems == null) fallbackItems = ItemRegistry.load("items/1.21.1.txt");
+                r = fallbackItems;
+            }
+        }
+        return r;
+    }
+
+    @Override
+    public java.util.OptionalInt entityDataIndex(org.domi.furnace.api.entity.data.EntityDataKey<?> key) { return EntityData767.index(key); }
+
+    @Override
+    public boolean hasEntityData(String entityType, org.domi.furnace.api.entity.data.EntityDataKey<?> key) { return EntityData767.has(entityType, key); }
+
+    /** 메타데이터 변환(EntityData767). */
+    public EntityData767 entityData() { return entityData; }
 
     private static PacketType<?> lookup(PacketDirection d, String name) {
         PacketType<?> t = PacketTypes.byName(d, name);
@@ -150,14 +184,27 @@ public final class Protocol767 implements ProtocolCodec {
     @SuppressWarnings("unchecked")
     public Packet decode(PacketType<?> type, int id, ByteBuf body) {
         Codec<?> c = codecs.get(type);
-        if (c == null) return new OpaquePacket((PacketType<OpaquePacket>) type);
-        return c.dec().decode(id, body);
+        if (c != null) return c.dec().decode(id, body);
+        if (generic.readable(type)) return generic.decode(type, body);
+        return GenericPacket.unreadable((PacketType<GenericPacket>) type);
     }
+
+    @Override
+    public boolean readable(PacketType<?> type) { return codecs.containsKey(type) || generic.readable(type); }
+
+    @Override
+    public java.util.List<org.domi.furnace.api.packet.PacketField<?>> fields(PacketType<?> type) { return generic.fields(type); }
+
+    /** 범용 코덱이 이 종류를 못 읽는 까닭(읽거나 타입 레코드면 null). */
+    public String whyUnreadable(PacketType<?> type) { return generic.whyUnreadable(type); }
 
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public int encode(Packet packet, ByteBuf out) {
-        if (packet instanceof OpaquePacket) throw new IllegalArgumentException("OpaquePacket 은 보낼 수 없다: " + packet.type());
+        if (packet instanceof GenericPacket g) {
+            generic.encode(g, out);
+            return id(g.type());
+        }
         Codec c = codecs.get(packet.type());
         if (c == null) throw new IllegalArgumentException("이 서버 버전에서 보낼 수 없는 패킷: " + packet.type());
         return c.enc().encode(packet, out);
@@ -176,7 +223,19 @@ public final class Protocol767 implements ProtocolCodec {
 
     private static double readVelocity(ByteBuf b) { return b.readShort() / 8000.0; }
 
-    private static void writeVelocity(ByteBuf b, double v) { b.writeShort((int) (Math.clamp(v, -3.9, 3.9) * 8000.0)); }
+    /**
+     * 바닐라처럼 ±3.9 로 자르고 1/8000 단위로 버린다. 단, 정수에서 부동소수 오차만큼만 모자란 값(와이어에서 읽은 {@code s / 8000} — 16380 등 374개)은
+     * 그 정수로: 읽고 바꾸지 않은 속도를 다시 쓸 때 1/8000 줄지 않게(리스너가 다른 필드만 바꾼 패킷, ProtocolLib 다리 검토 R4).
+     * 이 코덱은 플러그인 패킷 API 전용이다 — 서버 자신의 물리 속도 패킷(net/protocol/play)은 바닐라 버림 그대로.
+     * compat 의 TypedPacketBridge.velocity 가 같은 식을 쓴다.
+     */
+    static int velocityUnits(double v) {
+        double x = Math.clamp(v, -3.9, 3.9) * 8000.0;
+        double r = Math.rint(x);
+        return (int) (Math.abs(x - r) < 1e-6 ? r : x);
+    }
+
+    private static void writeVelocity(ByteBuf b, double v) { b.writeShort(velocityUnits(v)); }
 
     private static BlockPos readPos(ByteBuf b) {
         int[] p = Types.readBlockPos(b);
@@ -408,62 +467,30 @@ public final class Protocol767 implements ProtocolCodec {
         });
     }
 
-    // 엔티티 데이터 직렬화기 번호(1.21.1 EntityDataSerializers 등록 순서) — 서버 SetEntityData 와 같다.
-    private static final int S_BYTE = 0, S_INT = 1, S_LONG = 2, S_FLOAT = 3, S_STRING = 4, S_COMPONENT = 5, S_OPT_COMPONENT = 6, S_BOOLEAN = 8, S_POSE = 21;
-
-    private static void writeDataEntry(ByteBuf o, ClientboundSetEntityDataPacket.Entry e) {
+    /** 메타데이터 값 하나: 칸 번호, 직렬화 번호, 값(EntityData767). */
+    private void writeDataEntry(ByteBuf o, ClientboundSetEntityDataPacket.Entry e) {
         var v = e.value();
-        int ser = switch (v) {
-            case ClientboundSetEntityDataPacket.ByteValue x -> S_BYTE;
-            case ClientboundSetEntityDataPacket.IntValue x -> S_INT;
-            case ClientboundSetEntityDataPacket.LongValue x -> S_LONG;
-            case ClientboundSetEntityDataPacket.FloatValue x -> S_FLOAT;
-            case ClientboundSetEntityDataPacket.StringValue x -> S_STRING;
-            case ClientboundSetEntityDataPacket.TextValue x -> S_COMPONENT;
-            case ClientboundSetEntityDataPacket.OptionalTextValue x -> S_OPT_COMPONENT;
-            case ClientboundSetEntityDataPacket.BooleanValue x -> S_BOOLEAN;
-            case ClientboundSetEntityDataPacket.PoseValue x -> S_POSE;
-            case ClientboundSetEntityDataPacket.Unsupported x -> throw new IllegalArgumentException("읽지 못한 값 종류는 보낼 수 없다: " + x.serializer());
-        };
+        if (v instanceof ClientboundSetEntityDataPacket.Unsupported x) throw new IllegalArgumentException("읽지 못한 값 종류는 보낼 수 없다: " + x.serializer());
         o.writeByte(e.index());
-        Types.writeVarInt(o, ser);
-        switch (v) {
-            case ClientboundSetEntityDataPacket.ByteValue x -> o.writeByte(x.value());
-            case ClientboundSetEntityDataPacket.IntValue x -> Types.writeVarInt(o, x.value());
-            case ClientboundSetEntityDataPacket.LongValue x -> Types.writeVarLong(o, x.value());
-            case ClientboundSetEntityDataPacket.FloatValue x -> o.writeFloat(x.value());
-            case ClientboundSetEntityDataPacket.StringValue x -> Types.writeString(o, x.value());
-            case ClientboundSetEntityDataPacket.TextValue x -> NetworkText.write(o, x.value());
-            case ClientboundSetEntityDataPacket.OptionalTextValue x -> {
-                o.writeBoolean(x.value() != null);
-                if (x.value() != null) NetworkText.write(o, x.value());
-            }
-            case ClientboundSetEntityDataPacket.BooleanValue x -> o.writeBoolean(x.value());
-            case ClientboundSetEntityDataPacket.PoseValue x -> Types.writeVarInt(o, x.pose());
-            case ClientboundSetEntityDataPacket.Unsupported x -> throw new IllegalStateException();
-        }
+        Types.writeVarInt(o, EntityData767.serializerId(v.dataType()));
+        if (v instanceof ClientboundSetEntityDataPacket.PoseValue x) Types.writeVarInt(o, x.pose());   // 번호 그대로(예전 동작)
+        else entityData.write(o, v);
     }
 
-    private static ClientboundSetEntityDataPacket decodeEntityData(ByteBuf b) {
+    private ClientboundSetEntityDataPacket decodeEntityData(ByteBuf b) {
         int eid = Types.readVarInt(b);
         List<ClientboundSetEntityDataPacket.Entry> out = new ArrayList<>();
         while (true) {
             int index = b.readUnsignedByte();
             if (index == 0xFF) break;
             int ser = Types.readVarInt(b);
-            ClientboundSetEntityDataPacket.Value v = switch (ser) {
-                case S_BYTE -> ClientboundSetEntityDataPacket.Value.ofByte(b.readByte());
-                case S_INT -> ClientboundSetEntityDataPacket.Value.ofInt(Types.readVarInt(b));
-                case S_LONG -> ClientboundSetEntityDataPacket.Value.ofLong(Types.readVarLong(b));
-                case S_FLOAT -> ClientboundSetEntityDataPacket.Value.ofFloat(b.readFloat());
-                case S_STRING -> ClientboundSetEntityDataPacket.Value.ofString(Types.readString(b, STRING_MAX));
-                case S_COMPONENT -> ClientboundSetEntityDataPacket.Value.ofText(NetworkText.read(b));
-                case S_OPT_COMPONENT -> ClientboundSetEntityDataPacket.Value.ofOptionalText(b.readBoolean() ? NetworkText.read(b) : null);
-                case S_BOOLEAN -> ClientboundSetEntityDataPacket.Value.ofBoolean(b.readBoolean());
-                case S_POSE -> ClientboundSetEntityDataPacket.Value.ofPose(Types.readVarInt(b));
-                default -> null;
-            };
-            if (v == null) {   // 길이를 알 수 없는 종류 — 여기서 멈춘다
+            ClientboundSetEntityDataPacket.Value v;
+            try {
+                v = ser == 21 ? ClientboundSetEntityDataPacket.Value.ofPose(Types.readVarInt(b)) : entityData.read(ser, b);
+            } catch (RuntimeException ex) {
+                v = null;   // 값을 읽거나 이름으로 바꾸지 못함(범위 밖 번호, 직접 정의 등) — 패킷 전체를 버리지 않고 여기서 멈춘다(리스너는 관찰·취소 가능)
+            }
+            if (v == null) {   // 이 버전이 모르는 종류이거나 읽지 못한 값 — 남은 길이를 믿을 수 없어 여기서 멈춘다
                 out.add(new ClientboundSetEntityDataPacket.Entry(index, new ClientboundSetEntityDataPacket.Unsupported(ser)));
                 b.skipBytes(b.readableBytes());
                 break;

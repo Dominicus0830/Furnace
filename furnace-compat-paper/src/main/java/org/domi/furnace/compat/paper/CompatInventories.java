@@ -28,14 +28,49 @@ final class CompatInventories {
 
     /** 이벤트의 창. 플러그인 메뉴면 그 메뉴의 인벤토리를 위쪽에 둔다. */
     static CompatInventoryView view(org.domi.furnace.api.entity.Player fp, InventorySnapshot snap, org.domi.furnace.api.menu.Menu menu, ItemStack cursor) {
+        return view(fp, snap, menu, cursor, Extras.NONE);
+    }
+
+    /** 창 종류별 위쪽 인벤토리가 이벤트에서 받는 값: 제작 레시피·결과 칸 쓰기, 모루 상태, 마법 부여 제안. */
+    record Extras(EventInventories.CompatRecipe recipe, boolean resultWritable, ItemStack resultOverride, EventInventories.AnvilState anvil,
+                  org.bukkit.enchantments.EnchantmentOffer[] offers) {
+        static final Extras NONE = new Extras(null, false, null, null, null);
+    }
+
+    static CompatInventoryView view(org.domi.furnace.api.entity.Player fp, InventorySnapshot snap, org.domi.furnace.api.menu.Menu menu, ItemStack cursor,
+                                    Extras extras) {
         CraftPlayer p = (CraftPlayer) Compat.player(fp);
         CompatMenuInventory own = CompatMenuInventory.of(menu);
         if (own != null) return new CompatInventoryView(p, own, own.getType(), own.title(), cursor);
         InventoryType type = menu != null ? menuType(menu.type()) : type(snap.type(), snap.size());
         int top = topSize(snap.type(), snap.size());
-        Inventory inv = new SnapshotInventory(type, snap.contents().subList(0, Math.min(top, snap.size())), top, snap.type());
+        java.util.List<ItemStack> contents = new java.util.ArrayList<>(snap.contents().subList(0, Math.min(top, snap.size())));
+        if (extras.resultOverride() != null && !contents.isEmpty()) contents.set(0, extras.resultOverride());
         String title = menu != null ? Compat.legacy(menu.title()) : type.getDefaultTitle();
-        return new CompatInventoryView(p, inv, type, title, cursor);
+        return typedView(p, type, contents, top, snap.type(), title, cursor, menu != null ? Extras.NONE : extras);
+    }
+
+    /** 종류에 맞는 위쪽 인벤토리(제작·모루·양조·마법 부여는 Bukkit 하위 인벤토리)와 창. contents 가 null 이면 내용을 모른다. */
+    private static CompatInventoryView typedView(CraftPlayer p, InventoryType type, java.util.List<ItemStack> contents, int top, String key, String title,
+                                                 ItemStack cursor, Extras extras) {
+        switch (type) {
+            case WORKBENCH, CRAFTING -> {
+                java.util.function.IntPredicate writable = extras.resultWritable() ? i -> i == 0 : i -> false;
+                return new CompatInventoryView(p, new EventInventories.Crafting(type, contents, top, key, writable, extras.recipe()), type, title, cursor);
+            }
+            case ANVIL -> {
+                return new CompatInventoryView.Anvil(p, new EventInventories.Anvil(contents, top, key, extras.anvil()), title, cursor);
+            }
+            case ENCHANTING -> {
+                return new CompatInventoryView.Enchantment(p, new EventInventories.Enchanting(contents, top, key), title, cursor, extras.offers());
+            }
+            case BREWING -> {
+                return new CompatInventoryView(p, new EventInventories.Brewer(contents, top, key, null), type, title, cursor);
+            }
+            default -> {
+                return new CompatInventoryView(p, new SnapshotInventory(type, contents, top, key), type, title, cursor);
+            }
+        }
     }
 
     /** 이벤트 밖(getOpenInventory): 지금 열린 화면. 플러그인 메뉴가 아니면 위쪽 칸 내용은 모른다. */
@@ -52,7 +87,7 @@ final class CompatInventories {
         if (key == null) key = "minecraft:player";
         InventoryType t = type(key, -1);
         int top = key.equals("minecraft:player") ? 5 : t.getDefaultSize();
-        return new CompatInventoryView(p, new SnapshotInventory(t, null, top, key), t, t.getDefaultTitle(), null);
+        return typedView(p, t, null, top, key, t.getDefaultTitle(), null, Extras.NONE);
     }
 
     /** 위쪽 칸 수: 플레이어 인벤토리 창은 2×2 제작(결과 포함 5), 나머지는 창 칸에서 플레이어 인벤토리 36 을 뺀 것. */
@@ -176,6 +211,19 @@ final class CompatInventories {
                 return InventoryAction.UNKNOWN;
             }
         }
+    }
+
+    /**
+     * 결과 칸(제작 결과 등 — 놓을 수 없는 칸)의 InventoryAction. CraftBukkit 은 커서를 든 PICKUP 에서 칸이 받지 못하면(mayPlace=false)
+     * 같은 아이템이고 합쳐 한 묶음에 들어갈 때만 PICKUP_ALL, 아니면 NOTHING 이다. 그 밖의 클릭은 보통 규칙.
+     */
+    static InventoryAction resultAction(String type, int slot, int button, ItemStack current, ItemStack cursor, ItemStack hotbar, boolean creative) {
+        if (type.equals("pickup") && (button == 0 || button == 1) && slot >= 0 && !current.isEmpty() && !cursor.isEmpty()) {
+            return current.isSimilar(cursor) && current.amount() + cursor.amount() <= maxStack(cursor) ? InventoryAction.PICKUP_ALL : InventoryAction.NOTHING;
+        }
+        // Paper: 숫자키는 단축 칸이 차 있으면 결과 칸이 받을 수 없어(mayPlace=false) NOTHING
+        if (type.equals("swap") && slot >= 0 && !hotbar.isEmpty()) return InventoryAction.NOTHING;
+        return action(type, slot, button, current, cursor, hotbar, creative, false);
     }
 
     static int maxStack(ItemStack s) { return CompatItems.copyOf(s).getMaxStackSize(); }

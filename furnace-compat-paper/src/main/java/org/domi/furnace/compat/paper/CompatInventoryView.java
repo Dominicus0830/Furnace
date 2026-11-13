@@ -11,7 +11,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
 
-public final class CompatInventoryView implements InventoryView {
+public class CompatInventoryView implements InventoryView {
 
     private final CraftPlayer player;
     private final Inventory top;
@@ -149,5 +149,97 @@ public final class CompatInventoryView implements InventoryView {
             return;
         }
         throw new UnsupportedFeature("InventoryView#setTitle", "플러그인이 만든 인벤토리(createInventory)의 창만 제목을 바꿀 수 있다");
+    }
+
+    // ------------------------------------------------------------------ 창 종류별 뷰(Paper 1.21.1 org.bukkit.inventory.view)
+
+    /** 모루 창. 비용·이름은 PrepareAnvilEvent 안에서만 안다(state). */
+    static final class Anvil extends CompatInventoryView implements org.bukkit.inventory.view.AnvilView {
+        private final EventInventories.Anvil top;
+
+        Anvil(CraftPlayer player, EventInventories.Anvil top, String title, org.domi.furnace.api.item.ItemStack cursor) {
+            super(player, top, InventoryType.ANVIL, title, cursor);
+            this.top = top;
+        }
+
+        @Override
+        public org.bukkit.inventory.AnvilInventory getTopInventory() { return top; }
+
+        private EventInventories.AnvilState state(String what) {
+            var st = top.state();
+            if (st == null) throw EventInventories.anvilUnknown(what);
+            return st;
+        }
+
+        @Override
+        public String getRenameText() { return state("AnvilView#getRenameText").renameText; }
+
+        @Override
+        public int getRepairItemCountCost() { throw EventInventories.anvilUnknown("AnvilView#getRepairItemCountCost"); }
+
+        @Override
+        public int getRepairCost() { return state("AnvilView#getRepairCost").repairCost; }
+
+        @Override
+        public int getMaximumRepairCost() { return top.getMaximumRepairCost(); }
+
+        @Override
+        public void setRepairItemCountCost(int amount) { throw EventInventories.anvilFixed("AnvilView#setRepairItemCountCost"); }
+
+        @Override
+        public void setRepairCost(int cost) { state("AnvilView#setRepairCost").repairCost = cost; }
+
+        @Override
+        public void setMaximumRepairCost(int levels) { top.setMaximumRepairCost(levels); }
+
+        @Override
+        public boolean bypassesEnchantmentLevelRestriction() { return false; }
+
+        @Override
+        public void bypassEnchantmentLevelRestriction(boolean bypass) {
+            if (bypass) throw EventInventories.anvilFixed("AnvilView#bypassEnchantmentLevelRestriction");
+        }
+    }
+
+    /** 마법 부여대 창. 제안은 PrepareItemEnchantEvent 안에서만 안다(offers). */
+    static final class Enchantment extends CompatInventoryView implements org.bukkit.inventory.view.EnchantmentView {
+        private final EventInventories.Enchanting top;
+        private final org.bukkit.enchantments.EnchantmentOffer[] offers;
+
+        Enchantment(CraftPlayer player, EventInventories.Enchanting top, String title, org.domi.furnace.api.item.ItemStack cursor,
+                    org.bukkit.enchantments.EnchantmentOffer[] offers) {
+            super(player, top, InventoryType.ENCHANTING, title, cursor);
+            this.top = top;
+            this.offers = offers;
+        }
+
+        @Override
+        public org.bukkit.inventory.EnchantingInventory getTopInventory() { return top; }
+
+        @Override
+        public int getEnchantmentSeed() {
+            throw new UnsupportedFeature("EnchantmentView#getEnchantmentSeed", "Furnace API 가 플레이어의 마법 부여 씨앗을 알리지 않는다");
+        }
+
+        @Override
+        public void setEnchantmentSeed(int seed) {
+            throw new UnsupportedFeature("EnchantmentView#setEnchantmentSeed", "Furnace API 가 플레이어의 마법 부여 씨앗을 바꾸지 못한다");
+        }
+
+        private org.bukkit.enchantments.EnchantmentOffer[] offers(String what) {
+            if (offers == null) throw new UnsupportedFeature(what, "제안은 Furnace 가 제안을 정할 때(PrepareItemEnchantEvent)만 알린다");
+            return offers;
+        }
+
+        /** Paper 처럼 이벤트의 배열 그대로(고치면 이벤트 결과가 바뀐다). */
+        @Override
+        public org.bukkit.enchantments.EnchantmentOffer[] getOffers() { return offers("EnchantmentView#getOffers"); }
+
+        @Override
+        public void setOffers(org.bukkit.enchantments.EnchantmentOffer[] offers) {
+            var mine = offers("EnchantmentView#setOffers");
+            if (offers.length != 3) throw new IllegalArgumentException("There must be 3 offers given");
+            System.arraycopy(offers, 0, mine, 0, 3);
+        }
     }
 }

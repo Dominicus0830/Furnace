@@ -26,6 +26,9 @@ public interface EntityState {
     /** 지금 위치(월드 키·좌표·회전). Entity.location() 은 핸들을 만든 시점 값이고, 이것은 소유 스레드에서 읽는 지금 값이다. */
     org.domi.furnace.api.world.Location location();
 
+    /** 지금 머리 방향 yaw(살아 있는 몹은 머리, 그 밖은 몸 방향) — Paper getLocation 의 yaw. */
+    default float headYaw() { return location().yaw(); }
+
     /** 사용자 지정 이름(없으면 null). */
     Text customName();
 
@@ -58,6 +61,9 @@ public interface EntityState {
 
     /** 지금 투명 상태 비트(상태 효과·갑옷 거치대 설정이 정한 값). */
     boolean isInvisible();
+
+    /** 지금 충돌 상자(바닐라 Entity.getBoundingBox, 월드 좌표). */
+    default org.domi.furnace.api.world.Aabb boundingBox() { throw new UnsupportedOperationException("boundingBox"); }
 
     /** {@link Entity#noPhysics()} 의 지금 값. */
     boolean noPhysics();

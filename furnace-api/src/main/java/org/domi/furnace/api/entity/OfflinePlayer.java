@@ -40,6 +40,12 @@ public interface OfflinePlayer {
     CompletableFuture<PersistentDataView> persistentData();
 
     /**
+     * {@link #persistentData()} 의 동기판 — 이 스레드에서 곧바로 돌려준다(접속 중이면 지금 값, 아니면 저장 파일을 **이 스레드에서 읽는다 — 블로킹 IO**).
+     * 서버 스레드에서 부르면 읽는 동안 틱이 멈추므로 드물게만(Bukkit/Paper 의 OfflinePlayer PDC 보기가 이렇게 동작한다). 데이터가 없으면 null.
+     */
+    default PersistentDataView persistentDataNow() { throw new UnsupportedOperationException("persistentDataNow"); }
+
+    /**
      * 영속 데이터를 고친다. 접속 중이면 그 플레이어를 가진 스레드에서, 아니면 파일을 읽고 고쳐 써서(이전 파일은 .dat_old) 바꾼다.
      * 데이터 파일이 없는 플레이어는 만들지 않고 false 로 끝난다(손상 파일이 되기 때문). edit 가 예외를 던지면 아무것도 쓰지 않고 그 예외로 끝난다.
      * 편집 도중 그 플레이어가 접속하면 접속 쪽으로 넘겨 고친다(편집이 사라지지 않는다).

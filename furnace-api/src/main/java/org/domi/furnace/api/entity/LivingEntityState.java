@@ -3,6 +3,8 @@ package org.domi.furnace.api.entity;
 
 import java.util.List;
 import java.util.Optional;
+import org.domi.furnace.api.entity.attribute.Attribute;
+import org.domi.furnace.api.entity.attribute.AttributeInstance;
 
 public interface LivingEntityState extends EntityState {
 
@@ -41,4 +43,15 @@ public interface LivingEntityState extends EntityState {
     boolean isCollidable();
 
     void setCollidable(boolean collidable);
+
+    // ------------------------------------------------------------------ 속성 (지금 값, 곧바로 쓴다)
+
+    /** 이 속성의 지금 값 손잡이. 엔티티가 그 속성을 가지지 않으면 empty. */
+    Optional<AttributeInstance> attribute(Attribute attribute);
+
+    /** 이 엔티티가 가진 속성들(레지스트리 순서). */
+    List<Attribute> attributes();
+
+    /** 없는 속성을 단다(기본값은 속성 기본값, 클라이언트로는 보내지 않는다 — Paper registerAttribute). 이미 있으면 false. */
+    boolean registerAttribute(Attribute attribute);
 }

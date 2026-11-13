@@ -1,11 +1,13 @@
-// 바닐라 LookAtPlayerGoal(플레이어 대상): 가까운 플레이어를 40~79틱 바라본다. TODO(타게팅 조건): TargetingConditions 의 투명·팀·보임 검사.
+// 바닐라 LookAtPlayerGoal(플레이어 대상): 조건(비전투·거리·투명 보정·시야·나를 타고 있지 않음)에 맞는 가장 가까운 플레이어를 40~79틱 바라본다.
 package org.domi.furnace.server.entity.ai.goal;
 
 import java.util.EnumSet;
 import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.Player;
+import org.domi.furnace.server.entity.Entity;
+import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.ai.Goal;
-import org.domi.furnace.server.world.GameMode;
+import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 
 public class LookAtPlayerGoal extends Goal {
     protected final Mob mob;
@@ -14,6 +16,8 @@ public class LookAtPlayerGoal extends Goal {
     private int lookTime;
     protected final float probability;
     private final boolean onlyHorizontal;
+    /** forNonCombat().range(거리).selector(EntitySelector.notRiding(mob)). */
+    protected final TargetingConditions lookAtContext;
 
     public LookAtPlayerGoal(Mob mob, float lookDistance) { this(mob, lookDistance, 0.02F, false); }
 
@@ -25,18 +29,27 @@ public class LookAtPlayerGoal extends Goal {
         this.probability = probability;
         this.onlyHorizontal = onlyHorizontal;
         setFlags(EnumSet.of(Flag.LOOK));
+        this.lookAtContext = TargetingConditions.forNonCombat().range(lookDistance).selector(t -> notRiding(mob, t));
+    }
+
+    /** EntitySelector.notRiding(mob): 대상이 (탈것을 거슬러 올라가며) 이 몹을 타고 있지 않다. */
+    static boolean notRiding(Mob mob, Targetable target) {
+        Entity v = target instanceof Player p ? p.vehicle() : target instanceof Entity e ? e.vehicle() : null;
+        for (; v != null; v = v.vehicle()) if (v == mob) return false;
+        return true;
     }
 
     @Override
     public boolean canUse() {
         if (mob.random().nextFloat() >= probability) return false;
-        lookAt = mob.level().getNearestPlayer(mob, lookDistance);
-        return lookAt != null && lookAt.gameMode() != GameMode.SPECTATOR;
+        lookAt = mob.level().getNearestPlayer(lookAtContext, mob, mob.x(), mob.eyeY(), mob.z());
+        return lookAt != null;
     }
 
+    /** 바닐라는 살아 있는지·거리·남은 시간만 본다(바라보는 중에 관전자가 되어도 계속 본다). */
     @Override
     public boolean canContinueToUse() {
-        if (lookAt == null || lookAt.vitals().isDeadOrDying() || lookAt.gameMode() == GameMode.SPECTATOR) return false;
+        if (lookAt == null || !lookAt.isAlive()) return false;
         double dx = lookAt.x() - mob.x(), dy = lookAt.y() - mob.y(), dz = lookAt.z() - mob.z();
         return dx * dx + dy * dy + dz * dz <= (double) (lookDistance * lookDistance) && lookTime > 0;
     }
@@ -47,7 +60,7 @@ public class LookAtPlayerGoal extends Goal {
 
     @Override
     public void tick() {
-        if (lookAt != null && !lookAt.vitals().isDeadOrDying()) {
+        if (lookAt != null && lookAt.isAlive()) {
             double y = onlyHorizontal ? mob.eyeY() : lookAt.eyeY();
             mob.getLookControl().setLookAt(lookAt.x(), y, lookAt.z());
             lookTime--;

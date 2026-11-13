@@ -4,7 +4,7 @@ import java.util.Set;
 import org.bukkit.NamespacedKey;
 
 /** 키-값 영속 데이터. 키는 네임스페이스 키, 값은 {@link PersistentDataType} 이 정한 종류. */
-public interface PersistentDataContainer extends PersistentDataAdapterContext {
+public interface PersistentDataContainer extends io.papermc.paper.persistence.PersistentDataContainerView, PersistentDataAdapterContext {
 
     <P, C> void set(NamespacedKey key, PersistentDataType<P, C> type, C value);
 
@@ -28,6 +28,11 @@ public interface PersistentDataContainer extends PersistentDataAdapterContext {
     void copyTo(PersistentDataContainer other, boolean replace);
 
     PersistentDataAdapterContext getAdapterContext();
+
+    /** {@link #serializeToBytes()} 로 낸 바이트를 읽어 넣는다. clear 가 참이면 먼저 비운다(기본). 모르는 꼴이면 IOException. */
+    void readFromBytes(byte[] bytes, boolean clear) throws java.io.IOException;
+
+    default void readFromBytes(byte[] bytes) throws java.io.IOException { readFromBytes(bytes, true); }
 
     @Override
     default PersistentDataContainer newPersistentDataContainer() { return getAdapterContext().newPersistentDataContainer(); }

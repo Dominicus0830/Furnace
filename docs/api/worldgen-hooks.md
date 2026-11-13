@@ -24,6 +24,9 @@ final class IslandHooks implements ChunkGenerationHooks {
         }
     }
     @Override public boolean structure(String id, int cx, int cz) { return !id.startsWith("minecraft:village"); }
+    @Override public java.util.OptionalInt baseHeight(GenerationHeightmap map, int x, int z) {   // 구조물이 이 섬 위에 서게(첫 빈 칸 y)
+        return java.util.OptionalInt.of(65);
+    }
     @Override public boolean feature(String id, int cx, int cz) { return !id.equals("minecraft:ore_diamond"); }
     @Override public void decorate(DecorationRegion r) {             // 원점 장식 뒤, 둘레 3×3 청크에 쓸 수 있다
         var rnd = new java.util.SplittableRandom(r.decorationSeed());
@@ -39,7 +42,7 @@ final class IslandHooks implements ChunkGenerationHooks {
 | `NOISE` | 공기에서 시작(바이옴은 그대로 샘플) | `noise(GenerationChunk)` | 그 청크 |
 | `SURFACE` | 표면 규칙·기반암 없음 | `surface(GenerationChunk)` | 그 청크 |
 | `CARVERS` | 동굴·협곡 깎기 없음 | `carvers(GenerationChunk)` | 그 청크 |
-| `STRUCTURES` | 그 청크를 시작점으로 하는 구조물 없음 | `structure(id, cx, cz)` — 바닐라가 고른 뒤 거른다(Paper `AsyncStructureGenerateEvent` 취소와 같다) | — |
+| `STRUCTURES` | 그 청크를 시작점으로 하는 구조물 없음 | `structure(id, cx, cz)` — 바닐라가 고른 뒤 거른다(Paper `AsyncStructureGenerateEvent` 취소와 같다). 배치 높이는 `baseHeight`(아래 규칙) | — |
 | `FEATURES` | 지형지물(나무·광석·꽃·호수…)만 빠지고 구조물 조각은 그대로(구조물은 `STRUCTURES` 로 따로 끈다. CraftBukkit `shouldGenerateDecorations=false` 는 구조물 조각까지 건너뛴다고 알려져 있다(소스 미확인) — 호환 어댑터는 FEATURES 와 그 원점의 구조물 조각을 함께 끄는 쪽으로 맞춘다) | `feature(placedFeatureId, ox, oz)`, `decorate(DecorationRegion)` | 원점 둘레 3×3 청크(바닐라 `WorldGenRegion` 쓰기 범위). 읽기는 5×5 |
 
 - `runVanilla` 는 청크마다 묻는다. 끈 단계의 훅도 불린다.
@@ -51,8 +54,15 @@ final class IslandHooks implements ChunkGenerationHooks {
 ### 규칙
 
 - **스레드**: 모든 훅은 생성 스레드(여러 개가 동시에)에서 불린다. 스레드 안전해야 하고 서버 API(월드·엔티티·스케줄러)를 부르면 안 된다.
-- **결정성**: 같은 청크에 대해 여러 번 불릴 수 있다(구조물 높이 조회·스폰 찾기·청크 재생성). 결과는 (시드, 청크 좌표)만의 함수여야 한다 — 아니면 청크 경계가 어긋난다.
-  노이즈·표면 훅은 높이 조회(구조물 배치 판정)에도 들어가므로 마을 같은 구조물은 플러그인 지형 위에 선다.
+- **결정성**: 같은 청크에 대해 여러 번 불릴 수 있다(스폰 찾기·청크 재생성). 결과는 (시드, 청크 좌표)만의 함수여야 한다 — 아니면 청크 경계가 어긋난다.
+- **구조물 배치 높이(`baseHeight`)**: 바닐라 `getBaseHeight`(마을·폐허 포털·바다 유적 등이 놓일 높이 찾기)는 기본으로 바닐라 노이즈 단계만으로
+  계산하고 `NOISE`·`SURFACE` 훅을 보지 않는다 — 지형을 크게 바꾸면 구조물이 바닐라 지형 높이에 놓여 떠 있거나 묻힌다. 이를 고치려면
+  `ChunkGenerationHooks.baseHeight(GenerationHeightmap, blockX, blockZ)` 를 구현해 그 지형의 **첫 빈 칸 y**(맨 위 점유 블록 y + 1, 바닐라·Paper 와 같다)를 돌려준다
+  (`GenerationHeightmap` = `WORLD_SURFACE_WG`·`OCEAN_FLOOR_WG`). 구현하지 않거나 `OptionalInt.empty()` 면 바닐라 높이다.
+  Paper `CustomChunkGenerator.getBaseHeight` 와 같다: Bukkit `ChunkGenerator.getBaseHeight` 가 `UnsupportedOperationException`(기본 구현) 을 던지면 바닐라 높이를 쓰고 그 훅 객체에는 다시 묻지 않는다(Paper `implementBaseHeight=false`). 다른 예외는 기록하고 그 질의만 바닐라 높이로 간다(Paper 는 예외를 그대로 올리지만 Furnace 는 청크 생성을 계속한다 — 위 "예외").
+  훅의 값은 바닐라 높이 캐시에 넣지 않고 매번 묻는다(같은 (x, z)에 여러 번 불리니 가볍게, 결과는 (시드, 좌표)의 함수로).
+  **바닥 열(`getBaseColumn`: 네더 화석·폐허 포털의 바닥 찾기)은 훅과 무관하게 늘 바닐라 노이즈다** — Paper `CustomChunkGenerator.getBaseColumn` 도 늘 바닐라(delegate)에 맡긴다(Paper 원문 확인, PR #232 검토).
+  그래서 지형을 크게 바꾸는 생성기는 `baseHeight` 를 구현해도 네더 화석·폐허 포털의 바닥 찾기는 바닐라 지형 기준이다(Bukkit 과 같다).
 - **예외**: 훅이 던지면(`RuntimeException`, 핫 언로드 중의 `NoClassDefFoundError` 같은 `LinkageError`) 기록하고(처음 10번, 그 뒤 1000번마다) 그 훅만 건너뛴다. 청크는 계속 만든다.
 - **플러그인이 꺼지면**: 저장소에서 그 키가 빠지고 그 월드의 새 청크는 바닐라로 만든다(Paper 에서 생성기 플러그인이 빠졌을 때와 같다). 이미 만든 청크는 그대로다. 훅이 바뀌거나 빠지면 다음 청크 생성 때 훅 결과가 든 캐시(지형·높이·구조물 시작점)를 비운다 — 그때 이미 만들던 청크와 장식을 기다리던 청크는 옛 훅 결과일 수 있다. 월드는 키만 쥐므로(캐시 무효화 표식도 약한 참조) 플러그인 클래스를 붙들지 않는다(핫 리로드 때 새지 않는다). 핫 리로드로 다시 켜면 그 플러그인의 `WORLD_GENERATION` 처리기만 다시 돌아 같은 키의 훅이 바뀐다.
 - 다른 플러그인이 쓰는 키는 거절한다. 키의 namespace 는 그 플러그인의 namespace 여야 한다.

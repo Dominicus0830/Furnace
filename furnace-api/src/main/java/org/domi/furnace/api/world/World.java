@@ -55,6 +55,33 @@ public interface World {
     CompletableFuture<Boolean> setBlock(BlockPos pos, BlockData data);
 
     /**
+     * 빠른 블록 쓰기(E7): edit 이 적은 칸들을 한꺼번에 바꾼다. edit 은 지금 이 스레드에서 바로 불리고(월드를 읽지 않고 목록만 쌓는다),
+     * 적용은 청크마다 그 청크를 가진 region 스레드에서 한다 — 여러 region 에 걸치면 region 마다 따로, 동시에.
+     * 한 청크 안에서는 아래 섹션부터, 섹션 안에서는 y·z·x 순서로 바꾼다(적은 순서가 아니다). 순서가 결과를 바꾸는 편집
+     * (지지대와 그 위 블록을 같은 편집에서 바꾸며 IMMEDIATE 이웃 갱신 등)은 나눠서 하거나 AFTER_EDIT 을 쓴다.
+     * 로드되지 않은 청크는 건너뛴다(만들거나 불러오지 않는다). 칸마다 바닐라 Level.setBlock 과 같은 길을 지나므로 결과는
+     * 같은 옵션의 setBlock 을 그 순서로 부른 것과 같다. BlockPlace/BlockBreak 이벤트는 거치지 않는다.
+     * 알 수 없는 블록·속성이면 IllegalArgumentException 으로 완료된다(아무 칸도 바꾸지 않는다).
+     * 결과를 같은 region 스레드에서 {@code get()} 으로 기다리지 말 것.
+     */
+    default CompletableFuture<BlockEditResult> editBlocks(BlockEditOptions options, java.util.function.Consumer<BlockEditor> edit) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("editBlocks"));
+    }
+
+    /** {@link BlockEditOptions#DEFAULT} 로 — World.setBlock 을 칸마다 부른 것과 같은 결과를 한꺼번에. */
+    default CompletableFuture<BlockEditResult> editBlocks(java.util.function.Consumer<BlockEditor> edit) {
+        return editBlocks(BlockEditOptions.DEFAULT, edit);
+    }
+
+    /**
+     * {@link #editBlocks} 의 동기판 — 적은 칸의 청크가 모두 이 스레드가 돌리는 region 것일 때만 된다(예: 그 region 이벤트 처리기 안).
+     * 아니면 아무 칸도 바꾸지 않고 {@link org.domi.furnace.api.concurrent.ThreadOwnershipException}. chunksPerTick 은 무시하고 한 번에 다 한다.
+     */
+    default BlockEditResult editBlocksNow(BlockEditOptions options, java.util.function.Consumer<BlockEditor> edit) {
+        throw new UnsupportedOperationException("editBlocksNow");
+    }
+
+    /**
      * 동기 읽기 — 호출한 스레드가 그 칸을 가진 region 스레드일 때만 된다(예: 그 region 에서 발화한 이벤트 처리기 안).
      * 아니면 {@link org.domi.furnace.api.concurrent.ThreadOwnershipException}.
      */
@@ -113,6 +140,47 @@ public interface World {
     /** nearbyEntities 의 동기판 — center 칸을 가진 region 스레드에서만(아니면 ThreadOwnershipException), 곧바로 목록을 돌려준다. 청크가 로드돼 있지 않으면 빈 목록. */
     default List<Entity> nearbyEntitiesNow(Location center, double radius) { throw new UnsupportedOperationException("nearbyEntitiesNow"); }
 
+    /**
+     * box 와 충돌 상자가 겹치는(경계만 닿는 것은 제외) 엔티티와 플레이어 — 바닐라 Level.getEntities(null, box). region 스레드에서는 지금 스레드가
+     * 돌리는 region 의 엔티티만 본다(상자 가운데가 어디든, 상자가 아무리 커도 예외 없이 — 남의 region 엔티티는 빠진다). 전역 스레드의 빌림 구간
+     * ({@code openRegionAccess})에서는 상자와 겹치는 로드된 region 을 모두 빌려 합친다. 그 밖의 스레드는
+     * {@link org.domi.furnace.api.concurrent.ThreadOwnershipException}. 사라진 엔티티는 빠진다.
+     */
+    default List<Entity> entitiesInBoxNow(Aabb box) { throw new UnsupportedOperationException("entitiesInBoxNow"); }
+
+    /**
+     * 블록 광선 판정(바닐라 Level.clip) — 선분 (fx,fy,fz)→(tx,ty,tz) 가 처음 맞는 블록. 시작점이 든 칸의 region 스레드에서만(아니면
+     * ThreadOwnershipException). 안 맞으면 empty. ignorePassable 이면 충돌 모양(지나갈 수 있는 블록은 건너뛴다), 아니면 윤곽 모양.
+     * canCollide 가 false 를 주는 칸은 블록도 유체도 건너뛴다(null 이면 모두 본다 — Paper 의 canCollide). canCollide 는 그 region 스레드에서 불린다.
+     * 로드되지 않은(또는 그 region 이 갖지 않은) 청크에 닿으면 거기서 빗나간 것으로 끝낸다(청크를 만들지 않는다).
+     */
+    default Optional<BlockHit> rayTraceBlocksNow(double fx, double fy, double fz, double tx, double ty, double tz, FluidPick fluid, boolean ignorePassable,
+            java.util.function.Predicate<BlockPos> canCollide) {
+        throw new UnsupportedOperationException("rayTraceBlocksNow");
+    }
+
+    /**
+     * 네트워크 엔티티 id({@link Entity#entityId()}, 패킷이 엔티티를 가리키는 번호)로 이 월드의 엔티티나 플레이어를 찾는다(Paper 의
+     * ServerLevel#getEntity(int)). 그 엔티티를 가진 region 에서 읽은 새 핸들로 완료하고, 없거나 다른 월드에 있거나 사라졌으면 empty.
+     * 엔티티가 region 을 옮겨 가는 도중이면 몇 번 다시 찾는다. 아무 스레드.
+     */
+    default CompletableFuture<Optional<Entity>> entityById(int entityId) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("entityById"));
+    }
+
+    /**
+     * 그 id 의 엔티티·플레이어 UUID(없으면 empty). 엔티티 상태는 읽지 않고 id → UUID 만 보므로 어느 스레드에서나 기다림 없이 된다 —
+     * 호환 계층이 이미 아는 Bukkit 객체를 소유 스레드가 아닌 곳에서도 곧바로 돌려줄 때 쓴다.
+     */
+    default Optional<java.util.UUID> entityUuidById(int entityId) { throw new UnsupportedOperationException("entityUuidById"); }
+
+    /**
+     * entityById 의 동기판 — 그 엔티티를 가진 region 스레드에서만(옛 동기 작업의 빌림 구간 포함, 아니면
+     * {@link org.domi.furnace.api.concurrent.ThreadOwnershipException}) 곧바로 핸들을 돌려준다. 없으면 empty.
+     * 플레이어는 어느 스레드에서나 된다.
+     */
+    default Optional<Entity> entityByIdNow(int entityId) { throw new UnsupportedOperationException("entityByIdNow"); }
+
     // ------------------------------------------------------------------ 블록 칸
 
     /**
@@ -138,6 +206,47 @@ public interface World {
      */
     default CompletableFuture<Boolean> setBiome(BlockPos pos, String biome) {
         return CompletableFuture.failedFuture(new UnsupportedOperationException("setBiome"));
+    }
+
+    /** {@link #biomeAt} 의 동기 판 — 그 칸을 가진 region 스레드에서만 된다(아니면 ThreadOwnershipException). 높이 밖은 끝 칸으로 죈다. 청크가 없으면 empty. */
+    default Optional<String> biomeNow(BlockPos pos) { throw new UnsupportedOperationException("biomeNow"); }
+
+    /**
+     * 그 칸이 든 4×4×4 바이옴 칸 하나를 바꾸는 동기 판 — 그 칸을 가진 region 스레드에서만 된다(아니면 ThreadOwnershipException). 높이 밖은 끝 칸으로 죈다.
+     * 클라이언트에 다시 보내지 않는다(Paper CraftWorld.setBiome 과 같다). 모르는 키는 IllegalArgumentException, 청크가 없으면 false.
+     */
+    default boolean setBiomeNow(BlockPos pos, String biome) { throw new UnsupportedOperationException("setBiomeNow"); }
+
+    // ------------------------------------------------------------------ 소리·입자
+
+    /**
+     * 그 지점에서 소리를 낸다(바닐라 Level.playSeededSound): 이 차원 접속자 중 크기에 따른 거리(크기 1 이하 16칸, 넘으면 16×크기) 안에 있는 사람에게.
+     * seed 는 소리 변형을 고르는 클라이언트 난수 씨앗. 아무 스레드.
+     */
+    default void playSound(org.domi.furnace.api.audience.Sound sound, double x, double y, double z, long seed) {
+        throw new UnsupportedOperationException("playSound");
+    }
+
+    /** 씨앗을 서버 난수로 정한다. */
+    default void playSound(org.domi.furnace.api.audience.Sound sound, double x, double y, double z) {
+        playSound(sound, x, y, z, java.util.concurrent.ThreadLocalRandom.current().nextLong());
+    }
+
+    /**
+     * 엔티티에 붙어 따라 움직이는 소리(sound_entity). 그 엔티티를 화면에 보고 있는 사람과, 엔티티가 플레이어면 그 자신에게 보낸다
+     * (Paper World#playSound(Entity, …) 와 같다). 엔티티가 이 월드에 없으면 아무 일도 없다. 아무 스레드.
+     */
+    default void playSound(org.domi.furnace.api.audience.Sound sound, org.domi.furnace.api.entity.Entity entity, long seed) {
+        throw new UnsupportedOperationException("playSound");
+    }
+
+    /**
+     * 입자를 낸다(바닐라 ServerLevel.sendParticles): receivers(null 이면 이 차원 접속자 모두) 중 칸 가운데가 그 지점에서 32칸(force 면 512칸)
+     * 미만인 사람에게 한 패킷을 보낸다. 퍼짐·속도는 float 로 줄여 싣는다. 모르는 입자 종류면 IllegalArgumentException. 아무 스레드.
+     */
+    default void spawnParticle(ParticleEffect particle, java.util.Collection<? extends org.domi.furnace.api.entity.Player> receivers,
+                               double x, double y, double z, int count, double offsetX, double offsetY, double offsetZ, double speed, boolean force) {
+        throw new UnsupportedOperationException("spawnParticle");
     }
 
     // ------------------------------------------------------------------ region 정보

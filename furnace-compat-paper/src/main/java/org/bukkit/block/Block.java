@@ -15,6 +15,23 @@ public interface Block extends org.bukkit.metadata.Metadatable {
 
     World getWorld();
 
+    /** 좌표를 한 long 에 담은 값(Paper, 1.18.1 부터 deprecated). */
+    @Deprecated
+    default long getBlockKey() { return Block.getBlockKey(getX(), getY(), getZ()); }
+
+    /** x 27 비트·z 27 비트·y 10 비트(위쪽)로 묶는다. */
+    @Deprecated
+    static long getBlockKey(int x, int y, int z) { return ((long) x & 0x7FFFFFF) | (((long) z & 0x7FFFFFF) << 27) | ((long) y << 54); }
+
+    @Deprecated
+    static int getBlockKeyX(long packed) { return (int) ((packed << 37) >> 37); }
+
+    @Deprecated
+    static int getBlockKeyY(long packed) { return (int) (packed >> 54); }
+
+    @Deprecated
+    static int getBlockKeyZ(long packed) { return (int) ((packed << 10) >> 37); }
+
     int getX();
 
     int getY();
@@ -32,6 +49,9 @@ public interface Block extends org.bukkit.metadata.Metadatable {
     Material getType();
 
     BlockData getBlockData();
+
+    /** 이 칸의 지금 상태 스냅숏(블록 엔티티 내용은 담지 않는다). */
+    BlockState getState();
 
     /** 이웃 갱신을 하며 기본 상태로 바꾼다. 블록이 아닌 종류면 IllegalArgumentException, 청크가 로드돼 있지 않으면 IllegalStateException. */
     void setType(Material type);
@@ -55,4 +75,10 @@ public interface Block extends org.bukkit.metadata.Metadatable {
 
     /** 이웃 블록이 어느 면인지(이웃이 아니면 null). */
     BlockFace getFace(Block block);
+
+    /** 이 칸의 바이옴(World#getBiome 과 같은 규칙 — 소유 스레드 전용, 플러그인 바이옴은 CUSTOM). */
+    default Biome getBiome() { return getWorld().getBiome(getX(), getY(), getZ()); }
+
+    /** 이 칸이 든 4×4×4 바이옴 칸을 바꾼다(World#setBiome 과 같다). */
+    default void setBiome(Biome biome) { getWorld().setBiome(getX(), getY(), getZ(), biome); }
 }

@@ -59,8 +59,8 @@ public final class NmsClassTransformer implements ClassTransformer {
     }
 
     /** 이 바이트 조각이 하나도 없으면 바꿀 것이 없다(상수 풀의 UTF-8 이름을 바로 훑는다). */
-    private static final byte[][] NEEDLES = utf8(CraftNames.VERSIONED_INTERNAL, "forName", "loadClass", "findClass", "net/minecraft/", "org/bukkit/craftbukkit/",
-            ApiRenames.ITEM_FLAG);
+    private static final byte[][] NEEDLES = utf8(concat(new String[]{CraftNames.VERSIONED_INTERNAL, "forName", "loadClass", "findClass", "net/minecraft/",
+            "org/bukkit/craftbukkit/"}, ApiRenames.OWNERS));
     /** 리플렉션 멤버 다리는 NMS 이름(리터럴 조각 포함)을 담은 클래스에만 건다 — 일반 플러그인 코드의 리플렉션은 건드리지 않는다. */
     private static final byte[][] NMS_HINTS = utf8("minecraft", "craftbukkit");
     private static final byte[][] NAME_READS = utf8("getName", "getPackageName");
@@ -90,10 +90,21 @@ public final class NmsClassTransformer implements ClassTransformer {
     /**
      * jar 를 한 번 훑어 호환 보고를 남기고 변환기를 만든다. strict 이고 미지원 심볼이 있으면 {@link UnsupportedNmsCall}(플러그인 로드 거절).
      */
-    public static NmsClassTransformer forJar(String plugin, Path jar, Options options) {
+    public static NmsClassTransformer forJar(String plugin, Path jar, Options options) { return forJar(plugin, jar, options, null); }
+
+    /**
+     * 위와 같고, 대응표를 지금 갖고 있지 않으면({@code options.spigot()} 이 null) jar 가 Spigot 이름 대응표를 필요로 한다고 확인된 뒤에만
+     * {@code lateSpigot} 에 물어 얻는다 — 서버가 jar 를 따로 훑어 필요 여부를 묻지 않아도 되게(jar 를 한 번만 읽는다). null 을 돌려주면 바꾸지 않는다.
+     */
+    public static NmsClassTransformer forJar(String plugin, Path jar, Options options, java.util.function.Supplier<SpigotMappings> lateSpigot) {
         NmsCompatReport report;
         try {
-            report = NmsCompatReport.scan(plugin, jar, NmsSymbols.RUNTIME, options.spigot());
+            NmsCompatReport.Read read = NmsCompatReport.read(jar);
+            if (options.spigot() == null && lateSpigot != null && read.needsSpigotMappings()) {
+                SpigotMappings late = lateSpigot.get();
+                if (late != null) options = new Options(options.strict(), options.versionedPackage(), late);
+            }
+            report = NmsCompatReport.analyze(plugin, read, NmsSymbols.RUNTIME, options.spigot());
         } catch (IOException e) {
             LOG.warn("플러그인 {}: NMS 호환 보고를 만들지 못했다({}) — 변환은 그대로 한다", plugin, e.toString());
             SpigotMappings.register(plugin, null);
@@ -174,6 +185,12 @@ public final class NmsClassTransformer implements ClassTransformer {
         return false;
     }
 
+    private static String[] concat(String[] a, String[] b) {
+        String[] out = java.util.Arrays.copyOf(a, a.length + b.length);
+        System.arraycopy(b, 0, out, a.length, b.length);
+        return out;
+    }
+
     private static byte[][] utf8(String... s) {
         byte[][] out = new byte[s.length][];
         for (int i = 0; i < s.length; i++) out[i] = s[i].getBytes(StandardCharsets.UTF_8);
@@ -236,6 +253,11 @@ public final class NmsClassTransformer implements ClassTransformer {
                 public void visitMethodInsn(int opcode, String owner, String mname, String desc, boolean itf) {
                     if (opcode == Opcodes.INVOKESTATIC && mname.equals("valueOf") && ApiRenames.reroutesValueOf(owner, desc)) {
                         super.visitMethodInsn(Opcodes.INVOKESTATIC, ApiRenames.INTERNAL, ApiRenames.valueOfName(owner), desc, false);
+                        changed[1] = true;
+                        return;
+                    }
+                    if (opcode == Opcodes.INVOKESTATIC && mname.equals("getByName") && ApiRenames.reroutesGetByName(owner, desc)) {
+                        super.visitMethodInsn(Opcodes.INVOKESTATIC, ApiRenames.INTERNAL, ApiRenames.getByNameName(owner), desc, false);
                         changed[1] = true;
                         return;
                     }

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
+import java.security.MessageDigest
 import java.util.zip.ZipFile
 plugins {
     id("java")
@@ -75,6 +76,59 @@ tasks.test {
     }
 }
 
+// ===== 벤치(O15 T-O15-03) =====
+// 벤치는 src/bench 소스셋에 둔다(src/test 가 아니다). 평소 `test` 에는 들어가지 않아 시험 요약에 "건너뜀"이 섞이지 않는다.
+// 같은 패키지 이름을 쓰므로 패키지 비공개 멤버에 그대로 닿고, 시험 소스(도우미·금 파일 자원)도 클래스패스에 받는다.
+//   ./gradlew -PskipOracle=true :furnace-server:bench                              (전부: 약 8분)
+//   ./gradlew -PskipOracle=true :furnace-server:bench --tests '*RegionTickBench*'   (하나만)
+//   ./gradlew -PskipOracle=true :furnace-server:bench --tests '*RegionTickBench*' -Dfurnace.bench.scene=clock -Dfurnace.bench.ticks=600
+// 모든 -Dfurnace.* 는 벤치 JVM 에 그대로 넘어간다. 벤치 속성 이름은 furnace.bench.* 하나다. 결과 JSON 은 build/bench/<벤치>.json.
+sourceSets {
+    create("bench") {
+        java.srcDir("src/bench/java")
+        resources.srcDir("src/bench/resources")
+        compileClasspath += sourceSets.main.get().output + sourceSets.test.get().output
+        runtimeClasspath += sourceSets.main.get().output + sourceSets.test.get().output
+    }
+}
+configurations["benchImplementation"].extendsFrom(configurations.testImplementation.get())
+configurations["benchRuntimeOnly"].extendsFrom(configurations.testRuntimeOnly.get())
+
+// 벤치 JVM 옵션을 한 곳에 고정한다(측정이 실행기마다 달라지지 않게). 바꿀 때는 -Pbench.heap=… / -Pbench.tickstats=false.
+//  - 힙 고정: 힙 크기가 GC 빈도를 바꿔 틱 시간이 흔들린다(O04 가 3g 로 쟀다).
+//  - DebugNonSafepoints: 이게 없으면 JFR 이 자기 시간을 엉뚱한 줄에 몰아 준다(O08 실측: 가짜 36% 가 실제 0.1%). stackdepth=512 는 `jfr print --stack-depth 400` 과 짝이다(기본 64·5 면 단계 분류가 전부 "기타").
+//  - furnace.tickstats: Regionizer.STATS 는 static final 이라 JVM 시작 때 켜야 한다. 꺼져 있으면 RegionTickBench 의 단계별 시간이 전부 0 으로 찍힌다.
+val benchCommit = providers.exec { commandLine("git", "rev-parse", "--short=12", "HEAD"); isIgnoreExitValue = true }
+    .standardOutput.asText.map { it.trim().ifEmpty { "unknown" } }.orElse("unknown")
+val benchTask = tasks.register<Test>("bench") {
+    group = "verification"
+    description = "src/bench 의 벤치를 돌린다(평소 test 와 따로). 결과 JSON: build/bench/<벤치>.json"
+    testClassesDirs = sourceSets["bench"].output.classesDirs
+    classpath = sourceSets["bench"].runtimeClasspath
+    useJUnitPlatform()
+    enableAssertions = true
+    val heap = (findProperty("bench.heap") as String?) ?: "3g"
+    minHeapSize = heap
+    maxHeapSize = heap
+    jvmArgs("-XX:+UseG1GC", "-XX:+UnlockDiagnosticVMOptions", "-XX:+DebugNonSafepoints", "-XX:FlightRecorderOptions:stackdepth=512")
+    testLogging { showStandardStreams = true }
+    // 결과는 매번 새로 잰다(입력이 같아도 건너뛰지 않는다)
+    outputs.upToDateWhen { false }
+    val outDir = layout.buildDirectory.dir("bench")
+    systemProperty("furnace.bench", "true")
+    systemProperty("furnace.bench.outDir", outDir.get().asFile.absolutePath)
+    systemProperty("furnace.bench.commit", benchCommit.get())
+    if ((findProperty("bench.tickstats") as String?) != "false") systemProperty("furnace.tickstats", "true")
+    System.getProperties().forEach { k, v ->
+        if (k.toString().startsWith("furnace.")) systemProperty(k.toString(), v.toString())
+    }
+    doFirst { outDir.get().asFile.mkdirs() }
+}
+// jacoco 플러그인은 모든 Test 작업에 에이전트를 붙인다(위 test 의 isEnabled 는 test 에만 걸려 있다). 벤치 JVM 에는 붙이지 않는다 — 측정이 느려진다.
+benchTask.configure { extensions.configure<JacocoTaskExtension> { isEnabled = false } }
+// 벤치 소스가 컴파일은 되게 한다(시험을 돌리면 같이 확인 — 벤치가 몰래 썩지 않게). 벤치를 돌리지는 않는다.
+tasks.test { dependsOn("compileBenchJava") }
+
 // 줄·가지 커버리지(JaCoCo, 보고용 — 게이트 아님). 평소 시험은 에이전트 없이 돌고(느려짐·시간 민감 시험 영향 방지), -Pcoverage 를 주면 켠다:
 //   ./gradlew -PskipOracle=true -Pcoverage :furnace-server:test :furnace-server:jacocoTestReport
 // CI 는 기준 브랜치 push 실행의 서버 시험 조각마다 test.exec 를 올리고, 합치는 작업(coverage)이 jacocoCoverageReport 로 표 하나를 만든다(docs/ci.md).
@@ -128,6 +182,41 @@ val compatIndex = tasks.register("compatIndex") {
         f.writeText(names.joinToString("\n", postfix = "\n"))
     }
 }
+// 서버 jar 에 jar 그대로 싣는 서버 제공 라이브러리(사용자 결정 5 정정, 2026-11-12): Guava·failureaccess·SnakeYAML.
+// 풀어 넣지 않는다 — 서버 로더가 보지 않고, 호환 플러그인이 쓸 때만 꺼내 공유 로더에 붙인다(ServerLibraries.BUNDLE_DIR). 패키지 재배치 없음.
+// 버전·sha256 은 ServerLibraries.java 의 고정값과 같아야 한다(fatJar 가 확인한다). 전이 의존(주석 jar 등)은 싣지 않는다 — Paper 와 같이 실행에 필요 없다.
+val bundledLibraries by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+    isTransitive = false
+}
+dependencies {
+    bundledLibraries("com.google.guava:guava:32.1.2-jre")
+    bundledLibraries("com.google.guava:failureaccess:1.0.1")
+    bundledLibraries("org.yaml:snakeyaml:2.2")
+}
+val serverLibrariesSource = file("src/main/java/org/domi/furnace/server/plugin/library/ServerLibraries.java")
+// start.sh/start.bat 은 installDist 의 lib/* 로 띄운다 — 같은 자원(META-INF/furnace/libraries/*.jar)을 담은 jar 하나를 lib/ 에 넣어 그 실행에서도 꺼내게 한다.
+// 시험 클래스패스에는 넣지 않는다(시험은 내려받기 경로를 본다).
+val bundledLibrariesJar = tasks.register<Jar>("bundledLibrariesJar") {
+    archiveFileName = "furnace-bundled-libraries.jar"
+    destinationDirectory = layout.buildDirectory.dir("bundled-libraries")
+    into("META-INF/furnace/libraries") { from(bundledLibraries) }
+    into("META-INF/furnace/libraries") { from(rootProject.file("NOTICE")); from(rootProject.file("licenses/LICENSE-APACHE-2.0.txt")) }
+}
+// 같은 이유로 Bukkit·Paper 호환 계층도 jar 하나(META-INF/furnace/compat/ 색인 + jar 그대로)로 lib/ 에 넣는다 — 없으면 start.sh/start.bat 실행에서
+// 호환 어댑터가 클래스패스에 없어 Bukkit 플러그인이 안 올라간다(2026-11-12 결정: 폴더에 넣으면 바로 작동). 클래스를 풀지 않으므로 서버 로더는 호환 클래스를 보지 않고,
+// Bukkit 플러그인이 없으면 꺼내지도 않는다(CompatJars).
+val compatEmbeddedJar = tasks.register<Jar>("compatEmbeddedJar") {
+    dependsOn(":furnace-compat-paper:jar")
+    dependsOn(compatBundle)
+    dependsOn(compatIndex)
+    archiveFileName = "furnace-compat-embedded.jar"
+    destinationDirectory = layout.buildDirectory.dir("compat-embedded")
+    into("META-INF/furnace/compat") { from({ compatJars() }) }
+    from(layout.buildDirectory.dir("compat-index"))
+}
+distributions { main { contents { into("lib") { from(bundledLibrariesJar); from(compatEmbeddedJar) } } } }
 val fatJar = tasks.register<Jar>("fatJar") {
     group = "build"
     // 런타임 의존성(furnace-api jar 등)을 먼저 만들어야 zipTree 로 합칠 수 있다
@@ -148,6 +237,10 @@ val fatJar = tasks.register<Jar>("fatJar") {
     })
     into("META-INF/furnace/compat") { from({ compatJars() }) }
     from(layout.buildDirectory.dir("compat-index"))
+    into("META-INF/furnace/libraries") { from(bundledLibraries) }
+    // 실린 라이브러리의 라이선스 고지(Apache 2.0) — 저장소 최상위 NOTICE·LICENSE-APACHE-2.0 과 같은 파일
+    into("META-INF/furnace/libraries") { from(rootProject.file("NOTICE")); from(rootProject.file("licenses/LICENSE-APACHE-2.0.txt")) }
+    inputs.file(serverLibrariesSource)
     // 서명 파일이 남으면 합친 jar 가 SecurityException 으로 실행되지 않는다
     exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "META-INF/MANIFEST.MF", "module-info.class")
     // 최상위에 호환 클래스가 하나도 없어야 한다(N-lib-1): 있으면 서버 로더와 공유 로더에 같은 클래스가 둘 정의된다.
@@ -166,6 +259,31 @@ val fatJar = tasks.register<Jar>("fatJar") {
         }
         if ("META-INF/services/org.domi.furnace.api.plugin.PluginFormat" in top) bad.add("META-INF/services/org.domi.furnace.api.plugin.PluginFormat")
         if (bad.isNotEmpty()) throw GradleException("fat jar 최상위에 호환 모듈 항목이 있다(N-lib-1): ${bad.take(5)} 외 ${bad.size}개")
+        // 실린 라이브러리는 ServerLibraries 의 고정 좌표·sha256 과 같아야 한다(다르면 서버가 그 jar 를 쓰지 않고 내려받으러 간다).
+        // 반대로 ServerLibraries 에서 bundled(", C, B)")로 적힌 것은 모두 실려 있어야 한다.
+        val src = serverLibrariesSource.readText()
+        // 주석 줄은 빼고, 공백·줄바꿈·Repo.X·true 표기를 모두 받는다. 하나도 못 찾으면 형식이 바뀐 것이므로 실패한다
+        val pinned = Regex("""^(?!\s*(?://|\*)).*?new Artifact\(\s*"([^"]+)",\s*"([0-9a-fA-F]{64})",\s*(?:Repo\.)?\w+,\s*(?:B|true)\s*\)""", RegexOption.MULTILINE)
+            .findAll(src).associate { it.groupValues[1] to it.groupValues[2].lowercase() }
+        if (pinned.isEmpty()) throw GradleException("ServerLibraries.java 에서 bundled 항목을 하나도 못 찾았다 — 표기가 바뀌었으면 이 검사도 고쳐라")
+        val bundledMentions = Regex("""^(?!\s*(?://|\*)).*?new Artifact\([^;]*?,\s*(?:B|true)\s*\)""", RegexOption.MULTILINE).findAll(src).count()
+        if (bundledMentions != pinned.size) throw GradleException("ServerLibraries.java 의 bundled 항목 ${bundledMentions}개 중 좌표·sha256 을 읽은 것은 ${pinned.size}개다")
+        val shipped = mutableMapOf<String, String>()
+        val resolved = bundledLibraries.resolvedConfiguration.resolvedArtifacts
+        for (a in resolved) {
+            val id = a.moduleVersion.id
+            val coord = "${id.group}:${id.name}:${id.version}"
+            val sha = MessageDigest.getInstance("SHA-256").digest(a.file.readBytes()).joinToString("") { "%02x".format(it) }
+            shipped[coord] = sha
+            val expected = pinned[coord] ?: throw GradleException("서버 jar 에 싣는 $coord 가 ServerLibraries 에 bundled 로 적혀 있지 않다")
+            if (expected != sha) throw GradleException("서버 jar 에 싣는 $coord 의 sha256 이 ServerLibraries 고정값과 다르다(기대 $expected, 실제 $sha)")
+            if ("META-INF/furnace/libraries/${id.name}-${id.version}.jar" !in top) throw GradleException("$coord 가 fat jar 에 실리지 않았다")
+        }
+        val missing = pinned.keys - shipped.keys
+        if (missing.isNotEmpty()) throw GradleException("ServerLibraries 에 bundled 로 적혔는데 서버 jar 에 안 실렸다: $missing")
+        // 풀린 클래스로 섞여 들어오면 서버 로더와 공유 로더에 같은 이름 클래스가 둘 생긴다
+        val leaked = top.filter { it.startsWith("com/google/common/") || it.startsWith("org/yaml/snakeyaml/") }
+        if (leaked.isNotEmpty()) throw GradleException("fat jar 최상위에 Guava·SnakeYAML 클래스가 있다: ${leaked.take(5)}")
     }
 }
 tasks.named("assemble") { dependsOn(fatJar) }

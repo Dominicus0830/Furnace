@@ -17,10 +17,26 @@ public interface Entity extends Metadatable, CommandSender, PersistentDataHolder
 
     UUID getUniqueId();
 
+    /** 네트워크 엔티티 id(Paper 와 같다 — 패킷이 이 엔티티를 가리키는 번호). */
+    int getEntityId();
+
     /** Paper(Folia) 엔티티 스케줄러: 엔티티를 따라다니는 region 스레드에서 돈다. */
     io.papermc.paper.threadedregions.scheduler.EntityScheduler getScheduler();
 
     Location getLocation();
+
+    /** 위치를 loc 에 채워 돌려준다(Paper 와 같다 — loc 이 null 이면 null). 월드·x·y·z·yaw·pitch 를 덮어쓴다. */
+    default Location getLocation(Location loc) {
+        if (loc == null) return null;
+        Location l = getLocation();
+        loc.setWorld(l.getWorld());
+        loc.setX(l.getX());
+        loc.setY(l.getY());
+        loc.setZ(l.getZ());
+        loc.setYaw(l.getYaw());
+        loc.setPitch(l.getPitch());
+        return loc;
+    }
 
     World getWorld();
 
@@ -37,9 +53,13 @@ public interface Entity extends Metadatable, CommandSender, PersistentDataHolder
     EntityType getType();
 
     /**
-     * 이 엔티티 둘레(x·y·z 반 길이 상자) 안의 다른 엔티티. 소유 region 스레드에서만 된다(아니면 ThreadOwnershipException).
-     * Bukkit 은 엔티티의 충돌 상자가 겹치는지 보지만 Furnace API 는 엔티티 위치만 알려 주어 **위치**가 상자 안인지로 판단한다
-     * (가장자리에서 Bukkit 보다 적게 잡힐 수 있다).
+     * 충돌 상자(Paper 와 같다 — 월드 좌표, 사본). 이 엔티티를 가진 region 스레드에서는 지금 값, 아니면 핸들을 만든 시점 값(플레이어는 최근 값).
+     */
+    org.bukkit.util.BoundingBox getBoundingBox();
+
+    /**
+     * 이 엔티티의 충돌 상자를 x·y·z 만큼 늘린 상자와 충돌 상자가 겹치는 다른 엔티티(Paper 와 같다 — 경계만 닿으면 제외). 소유 region 스레드에서만 된다
+     * (아니면 ThreadOwnershipException). 상자 가운데 칸을 가진 region 의 엔티티만 보인다.
      */
     List<Entity> getNearbyEntities(double x, double y, double z);
 

@@ -114,6 +114,139 @@ class PluginFormatsLazyTest {
         assertEquals(0, CountingFormat.CONSTRUCTED.get());
     }
 
+    // ---- 2026-11-12 결정: Bukkit 플러그인 폴더에 넣으면 바로 돈다(Spigot 이름 대응표 기본 download), 필요 없으면 아무것도 안 받는다
+
+    /** 어댑터에 넘어간 plugins.compat.* 설정을 남기는 형식. */
+    static final class RecordingFormat implements PluginFormat {
+        final List<java.util.Map<String, String>> settings = new java.util.ArrayList<>();
+        private final PluginFormatSpiTest.FakeFormat fake = new PluginFormatSpiTest.FakeFormat();
+
+        @Override public String id() { return fake.id(); }
+        @Override public List<String> descriptorNames() { return fake.descriptorNames(); }
+        @Override public PluginDescription readDescriptor(String fileName, String text) { return fake.readDescriptor(fileName, text); }
+        @Override public FurnacePlugin create(PluginContext context, Class<?> main) throws ReflectiveOperationException { return fake.create(context, main); }
+
+        /** 어댑터가 jar 를 훑어 "Spigot 이름 NMS 라 대응표가 필요하다"고 확인했을 때 서버에 물어 받은 값(null = 서버가 안 줌). NMS 를 안 쓰는 jar 는 묻지 않으므로 기록이 없다. */
+        final List<String> askedFiles = new java.util.ArrayList<>();
+
+        @Override
+        public org.domi.furnace.api.plugin.ClassTransformer transformer(PluginDescription description, Path jar, java.util.Map<String, String> s) {
+            settings.add(java.util.Map.copyOf(s));
+            return null;
+        }
+
+        @Override
+        public org.domi.furnace.api.plugin.ClassTransformer transformer(PluginDescription description, Path jar, java.util.Map<String, String> s,
+                                                                         java.util.function.Supplier<String> spigotMappingFiles) {
+            transformer(description, jar, s);
+            if (mentionsNms(jar)) askedFiles.add(spigotMappingFiles.get());
+            return null;
+        }
+
+        /** 실제 어댑터(NmsCompatReport.read)의 판정을 흉내 낸다 — 클래스 파일에 net/minecraft/ 가 있다. */
+        private static boolean mentionsNms(Path jar) {
+            try (java.util.jar.JarFile in = new java.util.jar.JarFile(jar.toFile())) {
+                for (var e : java.util.Collections.list(in.entries())) {
+                    if (!e.getName().endsWith(".class")) continue;
+                    try (var is = in.getInputStream(e)) {
+                        if (new String(is.readAllBytes(), java.nio.charset.StandardCharsets.ISO_8859_1).contains("net/minecraft/")) return true;
+                    }
+                }
+            } catch (java.io.IOException ex) {
+                throw new java.io.UncheckedIOException(ex);
+            }
+            return false;
+        }
+    }
+
+    /** Bukkit 플러그인 jar(fake.cfg). nms 면 net/minecraft 를 가리키는 클래스 파일을 하나 더 넣는다(매니페스트 없음 = Spigot 이름으로 본다). */
+    private static void bukkitJar(Path file, boolean nms) throws Exception {
+        PluginSystemTest.jar(file, "fake.cfg", "name=Beta\nmain=org.domi.furnace.server.plugin.TestPlugins$Beta\n", TestPlugins.Beta.class);
+        if (!nms) return;
+        Path tmpJar = file.resolveSibling(file.getFileName() + ".tmp");
+        try (java.util.jar.JarFile in = new java.util.jar.JarFile(file.toFile());
+             java.util.jar.JarOutputStream out = new java.util.jar.JarOutputStream(Files.newOutputStream(tmpJar))) {
+            for (var e : java.util.Collections.list(in.entries())) {
+                out.putNextEntry(new java.util.jar.JarEntry(e.getName()));
+                try (var is = in.getInputStream(e)) { is.transferTo(out); }
+                out.closeEntry();
+            }
+            out.putNextEntry(new java.util.jar.JarEntry("beta/UsesNms.class"));
+            out.write(("....net/minecraft/server/level/ServerPlayer....").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            out.closeEntry();
+        }
+        Files.move(tmpJar, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    /** 기본 설정 + 네트워크에 나가지 않는 라이브러리 캐시(받기를 "시도"는 하되 바로 실패한다). */
+    private PluginSettings defaultsOffline() {
+        return PluginSettings.DEFAULT.withLibraries(PluginSettings.DEFAULT.libraries().withOffline(true).withCache(tmp.resolve("cache"))
+                .withCompat(org.domi.furnace.server.plugin.library.LibrarySettings.CompatMode.OFF));
+    }
+
+    @Test
+    void emptyBukkitFolderNeverTouchesSpigotMappingsEvenWithDownloadDefault() throws Exception {
+        Path dir = tmp.resolve("plugins");
+        furnaceJar(dir);
+        PluginFormats f = PluginFormats.discover(withService);
+        boot = PluginBootstrapper.bootstrap(dir, defaultsOffline(), f, ServerLibraries.DEFAULT);
+        assertTrue(Files.isDirectory(dir.resolve(PluginBootstrapper.BUKKIT_FOLDER)), "넣을 폴더는 만들어 둔다");
+        assertFalse(f.loaded());
+        assertFalse(boot.spigotMappingsTried(), "Bukkit 플러그인이 없으면 대응표를 받으려 하지도 않는다");
+        assertFalse(Files.exists(tmp.resolve("cache")), "캐시 폴더도 만들지 않는다");
+        assertEquals(null, boot.sharedLibraryLoader());
+    }
+
+    @Test
+    void bukkitPluginWithoutNmsDoesNotFetchMappings() throws Exception {
+        Path dir = tmp.resolve("plugins");
+        bukkitJar(dir.resolve(PluginBootstrapper.BUKKIT_FOLDER).resolve("b.jar"), false);
+        RecordingFormat rec = new RecordingFormat();
+        boot = PluginBootstrapper.bootstrap(dir, defaultsOffline(), PluginFormats.of(List.of(rec)), ServerLibraries.DEFAULT);
+        assertEquals(List.of("Beta"), boot.prepared().stream().map(p -> p.description().name()).toList());
+        assertFalse(boot.spigotMappingsTried(), "NMS 를 안 쓰는 플러그인은 대응표가 필요 없다");
+        assertEquals(1, rec.settings.size());
+        assertFalse(rec.settings.get(0).containsKey(PluginBootstrapper.SPIGOT_MAPPING_FILES));
+        assertEquals(List.of(), rec.askedFiles, "어댑터가 필요 없다고 보았으니 서버에 묻지도 않는다");
+    }
+
+    @Test
+    void spigotNamedNmsPluginFetchesMappingsByDefaultAndStillLoadsWhenItFails() throws Exception {
+        Path dir = tmp.resolve("plugins");
+        bukkitJar(dir.resolve(PluginBootstrapper.BUKKIT_FOLDER).resolve("b.jar"), true);
+        RecordingFormat rec = new RecordingFormat();
+        boot = PluginBootstrapper.bootstrap(dir, defaultsOffline(), PluginFormats.of(List.of(rec)), ServerLibraries.DEFAULT);
+        assertTrue(boot.spigotMappingsTried(), "기본(download)이라 따로 켜지 않아도 받으려 한다");
+        assertEquals(List.of("Beta"), boot.prepared().stream().map(p -> p.description().name()).toList(), "받지 못해도 플러그인은 올린다(그 NMS 호출만 실패)");
+        assertFalse(rec.settings.get(0).containsKey(PluginBootstrapper.SPIGOT_MAPPING_FILES), "대응표 경로는 설정으로 미리 넘기지 않는다(어댑터가 필요하다고 할 때만 묻는다)");
+        assertEquals(java.util.Collections.singletonList(null), rec.askedFiles, "어댑터가 물었고, 준비 못 한 대응표는 null 로 답한다");
+        assertEquals(List.of(), boot.failures());
+    }
+
+    @Test
+    void filesModeHandsOverTheOperatorPathsOnlyWhenTheAdapterAsks() throws Exception {
+        Path dir = tmp.resolve("plugins");
+        bukkitJar(dir.resolve(PluginBootstrapper.BUKKIT_FOLDER).resolve("b.jar"), true);
+        RecordingFormat rec = new RecordingFormat();
+        PluginSettings files = defaultsOffline().withCompatOptions(java.util.Map.of(PluginSettings.SPIGOT_MAPPINGS_KEY, "files",
+                PluginBootstrapper.SPIGOT_MAPPING_FILES, "a:b:c"));
+        boot = PluginBootstrapper.bootstrap(dir, files, PluginFormats.of(List.of(rec)), ServerLibraries.DEFAULT);
+        assertEquals(List.of("a:b:c"), rec.askedFiles);
+        assertFalse(rec.settings.get(0).containsKey(PluginBootstrapper.SPIGOT_MAPPING_FILES), "설정 사본에는 경로를 싣지 않는다");
+        assertFalse(boot.spigotMappingsTried(), "files 모드는 받지 않는다");
+    }
+
+    @Test
+    void explicitOffNeverFetchesMappings() throws Exception {
+        Path dir = tmp.resolve("plugins");
+        bukkitJar(dir.resolve(PluginBootstrapper.BUKKIT_FOLDER).resolve("b.jar"), true);
+        RecordingFormat rec = new RecordingFormat();
+        PluginSettings off = defaultsOffline().withCompatOptions(java.util.Map.of(PluginSettings.SPIGOT_MAPPINGS_KEY, "off"));
+        boot = PluginBootstrapper.bootstrap(dir, off, PluginFormats.of(List.of(rec)), ServerLibraries.DEFAULT);
+        assertFalse(boot.spigotMappingsTried());
+        assertEquals(List.of("Beta"), boot.prepared().stream().map(p -> p.description().name()).toList());
+    }
+
     /** 검토 F1: 서비스 파일은 있는데 어댑터를 만들 수 없을 때(깨진 호환 모듈) — 전처럼 경고만, 실패로 세지 않는다(fail-fast 가 서버를 멈추면 안 된다). */
     @Test
     void brokenAdapterSkipsBukkitJarsWithoutCountingFailures() throws Exception {

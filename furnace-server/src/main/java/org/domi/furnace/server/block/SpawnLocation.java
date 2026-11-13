@@ -20,12 +20,18 @@ public final class SpawnLocation {
     /**
      * adjustSpawnLocation(level, pos): 하늘빛이 있는 차원이고 월드 기본 게임 모드가 모험이 아니면 반경 안을 훑는다. 못 찾거나 해당 없으면 pos 에서
      * 충돌이 없어질 때까지 올리고, 아래 칸도 비어 있으면 내린다. 결과는 설 칸(발 밑 블록 위 칸).
+     * 충돌은 noCollision(플레이어, 상자) — (selfX, selfZ) 는 그때 플레이어 위치(처음 들어오면 생성자의 0,0, 리스폰이면 죽은 자리)로
+     * 보더 가까움 판정(isInsideCloseToBorder)에만 쓰인다.
      */
-    public static Pos adjust(ChunkLevel level, Pos pos, int spawnRadius, boolean worldAdventure) {
-        return adjust(level, pos, spawnRadius, worldAdventure, new LegacyRandomSource(uniqueSeed()));
+    public static Pos adjust(ChunkLevel level, Pos pos, int spawnRadius, boolean worldAdventure, double selfX, double selfZ) {
+        return adjust(level, pos, spawnRadius, worldAdventure, new LegacyRandomSource(uniqueSeed()), selfX, selfZ);
     }
 
     static Pos adjust(ChunkLevel level, Pos pos, int spawnRadius, boolean worldAdventure, RandomSource random) {
+        return adjust(level, pos, spawnRadius, worldAdventure, random, 0.0, 0.0);
+    }
+
+    static Pos adjust(ChunkLevel level, Pos pos, int spawnRadius, boolean worldAdventure, RandomSource random, double selfX, double selfZ) {
         Pos result = pos;
         if (level.hasSkyLight() && !worldAdventure) {
             int r = Math.max(0, spawnRadius);
@@ -41,12 +47,12 @@ public final class SpawnLocation {
                 int k = (start + step * i) % count;
                 int dx = k % (r * 2 + 1), dz = k / (r * 2 + 1);
                 Pos p = overworldRespawnPos(level, pos.x() + dx - r, pos.z() + dz - r);
-                if (p != null && noCollision(level, p)) return p;
+                if (p != null && noCollision(level, p, selfX, selfZ)) return p;
             }
             result = pos;
         }
-        while (!noCollision(level, result) && result.y() < level.maxBuildHeight() - 1) result = result.above();
-        while (noCollision(level, result.below()) && result.y() > level.minBuildHeight() + 1) result = result.below();
+        while (!noCollision(level, result, selfX, selfZ) && result.y() < level.maxBuildHeight() - 1) result = result.above();
+        while (noCollision(level, result.below(), selfX, selfZ) && result.y() > level.minBuildHeight() + 1) result = result.below();
         return result;
     }
 
@@ -57,10 +63,13 @@ public final class SpawnLocation {
         return Math.min(Math.min(dx0, dx1), Math.min(dz0, dz1));
     }
 
-    /** 서 있는 플레이어 상자(0.6 × 1.8)를 칸 바닥 가운데에 놓았을 때 블록 충돌이 없는가(noCollision — 엔티티 충돌은 보지 않는다). */
-    static boolean noCollision(ChunkLevel level, Pos p) {
+    /**
+     * 서 있는 플레이어 상자(0.6 × 1.8)를 칸 바닥 가운데에 놓았을 때 noCollision(플레이어, 상자)인가 — 블록, 단단한 엔티티(배·셜커; 죽었거나 갓 만든
+     * 플레이어는 탈것이 없어 canCollideWith 가 canBeCollidedWith 와 같다), (selfX, selfZ) 가 보더 가까이면 월드 보더.
+     */
+    static boolean noCollision(ChunkLevel level, Pos p, double selfX, double selfZ) {
         double x = p.x() + 0.5, z = p.z() + 0.5;
-        return level.noCollision(new AABB(x - 0.3, p.y(), z - 0.3, x + 0.3, p.y() + 1.8, z + 0.3));
+        return level.noCollisionForUnmountedPlayer(selfX, selfZ, new AABB(x - 0.3, p.y(), z - 0.3, x + 0.3, p.y() + 1.8, z + 0.3));
     }
 
     /**

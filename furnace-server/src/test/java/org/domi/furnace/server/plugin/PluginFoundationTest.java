@@ -349,11 +349,15 @@ class PluginFoundationTest {
         Properties badBool = new Properties();
         badBool.setProperty("plugins.compat.nms.strict", "yes");
         assertThrows(IllegalArgumentException.class, () -> PluginSettings.from(badBool, log));
-        // H7d: Spigot 이름 대응표 — 기본 off, download|files 만, files 는 경로가 있어야 한다
-        assertEquals(null, d.compatOptions().get("plugins.compat.nms.spigot-mappings"), "안 적으면 off(맵에서 빠진다)");
+        // H7d: Spigot 이름 대응표 — 기본 download(2026-11-12 결정), off|download|files 만, files 는 경로가 있어야 한다
+        assertEquals(null, d.compatOptions().get("plugins.compat.nms.spigot-mappings"), "안 적으면 download(맵에서 빠진다)");
+        assertEquals("download", PluginSettings.SPIGOT_MAPPINGS_DEFAULT);
         Properties dl = new Properties();
         dl.setProperty("plugins.compat.nms.spigot-mappings", "Download");
-        assertEquals("download", PluginSettings.from(dl, log).compatOptions().get("plugins.compat.nms.spigot-mappings"));
+        assertEquals(PluginSettings.DEFAULT, PluginSettings.from(dl, log), "기본값과 같게 적은 것은 안 적은 것과 같다");
+        Properties off = new Properties();
+        off.setProperty("plugins.compat.nms.spigot-mappings", "OFF");
+        assertEquals("off", PluginSettings.from(off, log).compatOptions().get("plugins.compat.nms.spigot-mappings"), "끄는 것은 적어야 남는다");
         Properties badMode = new Properties();
         badMode.setProperty("plugins.compat.nms.spigot-mappings", "yes");
         assertThrows(IllegalArgumentException.class, () -> PluginSettings.from(badMode, log));

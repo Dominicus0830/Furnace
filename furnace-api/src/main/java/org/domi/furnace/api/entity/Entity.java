@@ -20,11 +20,23 @@ public interface Entity {
 
     UUID uniqueId();
 
+    /**
+     * 네트워크 엔티티 id(패킷이 엔티티를 가리키는 번호, Bukkit/Paper 의 getEntityId). 핸들을 만든 뒤에도 바뀌지 않으며
+     * 서버가 살아 있는 동안 서버 전체(모든 차원)에서 다른 엔티티와 겹치지 않는다. 플레이어도 같다.
+     */
+    int entityId();
+
     /** 종류 키(minecraft:zombie, minecraft:player). 불변. */
     String type();
 
-    /** 핸들을 만든 시점의 위치. */
+    /** 핸들을 만든 시점의 위치. yaw 는 몸 방향이다(살아 있는 몹은 머리와 다를 수 있다 — {@link #headYaw()}). */
     Location location();
+
+    /**
+     * 핸들을 만든 시점의 머리 방향(yaw, 도). 살아 있는 몹은 시선을 따로 돌려 몸 방향({@code location().yaw()})과 다를 수 있고,
+     * 그 밖의 엔티티·플레이어는 몸 방향과 같다. Bukkit/Paper 의 {@code getLocation().getYaw()} 가 살아 있는 엔티티에서 이 값이다.
+     */
+    default float headYaw() { return location().yaw(); }
 
     /** 핸들을 만든 시점의 사용자 지정 이름(없으면 null). */
     Text customName();
@@ -119,6 +131,12 @@ public interface Entity {
         return CompletableFuture.failedFuture(new UnsupportedOperationException("setPose"));
     }
 
+    /**
+     * 핸들을 만든 시점의 충돌 상자(바닐라 Entity.getBoundingBox — 월드 좌표). 플레이어는 지금 값(위치·자세로 계산한다).
+     * 지금 값을 소유 스레드에서 읽으려면 {@link EntityState#boundingBox()}.
+     */
+    default org.domi.furnace.api.world.Aabb boundingBox() { throw new UnsupportedOperationException("boundingBox"); }
+
     /** 핸들을 만든 시점의 noPhysics(충돌·블록 막힘 없이 움직이는가). */
     default boolean noPhysics() { return false; }
 
@@ -161,6 +179,12 @@ public interface Entity {
      * 엔티티 자신은 들어 있지 않다. 모르면 {@link org.domi.furnace.api.event.cause.CauseChain#NONE}. 저장되지 않는다(다시 읽은 엔티티는 바닐라 주인만).
      */
     default org.domi.furnace.api.event.cause.CauseChain origin() { return org.domi.furnace.api.event.cause.CauseChain.NONE; }
+
+    /** 떨어진 아이템 엔티티(minecraft:item)가 든 아이템(만든 순간 값). 아이템 엔티티가 아니면 null. */
+    default org.domi.furnace.api.item.ItemStack droppedItem() { return null; }
+
+    /** 떨어진 아이템 엔티티의 줍기 지연(틱, 만든 순간 값). 아이템 엔티티가 아니면 0. */
+    default int pickupDelay() { return 0; }
 
     /**
      * 핸들(스냅샷)을 만든 순번 — 같은 엔티티의 두 핸들 중 값이 큰 쪽이 나중에 만든 것이다. 서버 전체에서 늘어나기만 한다.

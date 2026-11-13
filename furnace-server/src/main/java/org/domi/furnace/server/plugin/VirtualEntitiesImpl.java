@@ -346,12 +346,27 @@ public final class VirtualEntitiesImpl implements VirtualEntities {
             sendSpawn(sp);
         }
 
+        /** 생성 묶음: 바닐라 ServerEntity.addPairing 처럼 번들 하나로(메타데이터·장비 없는 모습이 한 프레임 보이지 않게). */
         void sendSpawn(org.domi.furnace.server.entity.Player sp) {
-            send(sp, addPacket());
+            if (sp.isDisconnected()) return;
+            List<org.domi.furnace.server.net.protocol.Packet> bundle = new ArrayList<>(4);
+            ClientboundAddEntityPacket add = addPacket();
+            if (!encodeInto(bundle, add)) return;   // 생성 패킷을 못 만들면 나머지도 보내지 않는다
             List<ClientboundSetEntityDataPacket.Entry> es = dataEntries();
-            if (!es.isEmpty()) send(sp, new ClientboundSetEntityDataPacket(id, es));
-            if (!equipment.isEmpty()) sp.send(equipmentPacket(equipment));
-            send(sp, new ClientboundRotateHeadPacket(id, headYaw));
+            if (!es.isEmpty()) encodeInto(bundle, new ClientboundSetEntityDataPacket(id, es));
+            if (!equipment.isEmpty()) bundle.add(equipmentPacket(equipment));
+            encodeInto(bundle, new ClientboundRotateHeadPacket(id, headYaw));
+            sp.sendBundle(bundle);
+        }
+
+        private boolean encodeInto(List<org.domi.furnace.server.net.protocol.Packet> out, ClientboundPacket packet) {
+            try {
+                out.add(host.packetsImpl().encode(packet));
+                return true;
+            } catch (RuntimeException e) {
+                log.warn("가상 엔티티 패킷을 보내지 못했다({}): {}", packet.type(), e.toString());
+                return false;
+            }
         }
 
         void despawn(Viewer v) {
@@ -381,9 +396,33 @@ public final class VirtualEntitiesImpl implements VirtualEntities {
             if (removed) return;
             Objects.requireNonNull(value, "value");
             if (value instanceof ClientboundSetEntityDataPacket.Unsupported) throw new IllegalArgumentException("읽지 못한 값 종류는 정할 수 없다");
+            var entry = new ClientboundSetEntityDataPacket.Entry(index, value);
+            validateEncodable(entry);   // 보낼 수 없는 값(없는 종류 이름·아이템 등)을 쌓아 두면 이후 새 시청자의 메타데이터 묶음 전체가 안 간다
             if (index == 0 && value instanceof ClientboundSetEntityDataPacket.ByteValue b) flags = b.value() & 0xFF;
             meta.put(index, value);
-            broadcast(ClientboundSetEntityDataPacket.of(id, new ClientboundSetEntityDataPacket.Entry(index, value)));
+            broadcast(ClientboundSetEntityDataPacket.of(id, entry));
+        }
+
+        /** 칸 하나짜리 패킷을 미리 인코딩해 본다 — 실패하면 IllegalArgumentException(저장하지 않는다). */
+        private void validateEncodable(ClientboundSetEntityDataPacket.Entry entry) {
+            io.netty.buffer.ByteBuf b = io.netty.buffer.Unpooled.buffer(32);
+            try {
+                host.packetsImpl().codec().encode(ClientboundSetEntityDataPacket.of(id, entry), b);
+            } catch (IllegalArgumentException e) {
+                throw e;
+            } catch (RuntimeException e) {
+                throw new IllegalArgumentException("메타데이터 칸 " + entry.index() + " 값을 보낼 수 없다: " + e.getMessage(), e);
+            } finally {
+                b.release();
+            }
+        }
+
+        @Override
+        public <T> void set(org.domi.furnace.api.entity.data.EntityDataKey<T> key, T value) {
+            Objects.requireNonNull(key, "key");
+            var packets = host.packets();
+            if (!packets.hasEntityData(type, key)) throw new IllegalArgumentException(type + " 에는 메타데이터 칸 " + key.id() + " 이 없다");
+            setMetadata(packets.entityDataIndex(key).getAsInt(), Value.of(key.type(), value));
         }
 
         private void setFlag(int bit, boolean on) {

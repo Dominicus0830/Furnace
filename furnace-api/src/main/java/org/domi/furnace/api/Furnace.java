@@ -23,6 +23,9 @@ public interface Furnace {
         return s;
     }
 
+    /** 서버가 아직 없으면 null(예외를 만들지 않는다) — 서버 없이도 쓰이는 코드(설정만 쓰는 도구·시험)용. */
+    static Furnace serverOrNull() { return Holder.server; }
+
     /** 서버 구현 전용 — 한 번만 정할 수 있다. */
     static void setServer(Furnace server) {
         synchronized (Holder.class) {
@@ -127,7 +130,7 @@ public interface Furnace {
 
     /**
      * <b>호환 어댑터 전용</b>(Bukkit·Paper 어댑터가 서버 설정을 받는 통로) — 플러그인이 기대지 말 것, 예고 없이 바뀐다.
-     * 서버가 어댑터에게 넘기기로 한 {@code plugins.compat.*} 키의 값만 준다(지금은 {@code plugins.compat.scheduler.async-threads} 하나, 소문자로 다듬은 값).
+     * 서버가 어댑터에게 넘기기로 한 {@code plugins.compat.*} 키의 값만 준다(예: {@code plugins.compat.scheduler.async-threads}·{@code plugins.compat.config.paper-default-separator}, 소문자로 다듬은 값).
      * 안 적었거나 기본값과 같게 적었거나 다른 키면 null(= 어댑터의 기본값).
      */
     default String compatOption(String key) { return null; }

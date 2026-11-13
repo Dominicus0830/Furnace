@@ -17,10 +17,11 @@ public class BlockBreakEvent extends BlockEvent implements Cancellable {
 
     public Player getPlayer() { return player; }
 
-    /** 드롭 끄기·경험치 조절은 Furnace 의 블록 파괴 이벤트가 아직 노출하지 않는다(H3). */
-    public boolean isDropItems() {
-        throw new org.domi.furnace.compat.paper.UnsupportedFeature("BlockBreakEvent#isDropItems", "블록 파괴 이벤트가 드롭 제어를 노출하지 않는다");
-    }
+    /**
+     * 드롭 끄기·경험치 조절은 Furnace 의 블록 파괴 이벤트가 아직 노출하지 않는다(H3).
+     * 읽기는 정직한 값: 취소하지 않으면 늘 떨구므로 true(Paper 기본값과 같다, A15-04). 쓰기는 지원하지 않는다.
+     */
+    public boolean isDropItems() { return true; }
 
     public void setDropItems(boolean dropItems) {
         throw new org.domi.furnace.compat.paper.UnsupportedFeature("BlockBreakEvent#setDropItems", "블록 파괴 이벤트가 드롭 제어를 노출하지 않는다");

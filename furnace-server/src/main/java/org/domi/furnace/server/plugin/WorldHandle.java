@@ -147,6 +147,98 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         return ok;
     }
 
+    // ------------------------------------------------------------------ 빠른 블록 쓰기(E7)
+
+    @Override
+    public CompletableFuture<org.domi.furnace.api.world.BlockEditResult> editBlocks(org.domi.furnace.api.world.BlockEditOptions options,
+                                                                                  java.util.function.Consumer<org.domi.furnace.api.world.BlockEditor> edit) {
+        org.domi.furnace.server.world.BlockEditBuffer buf;
+        try {
+            buf = fillEdit(edit);
+        } catch (IllegalArgumentException e) {
+            return RegionFuture.wrap(CompletableFuture.failedFuture(e));
+        }
+        return RegionFuture.wrap(org.domi.furnace.server.world.BlockEdits.apply(world, buf, mode(options)).thenApply(WorldHandle::toApi));
+    }
+
+    @Override
+    public org.domi.furnace.api.world.BlockEditResult editBlocksNow(org.domi.furnace.api.world.BlockEditOptions options,
+                                                                    java.util.function.Consumer<org.domi.furnace.api.world.BlockEditor> edit) {
+        var mode = mode(options);
+        var buf = fillEdit(edit);
+        // 모든 청크가 이 스레드 것인지 먼저 다 확인한다 — 하나라도 아니면 아무것도 바꾸지 않는다
+        java.util.Map<Region, java.util.List<org.domi.furnace.server.world.BlockEditBuffer.ChunkEdit>> byRegion = new java.util.LinkedHashMap<>();
+        for (var e : buf.chunks()) {
+            Region r = ownedRegion(new BlockPos(e.cx() << 4, 0, e.cz() << 4), "editBlocksNow(청크 " + e.cx() + ", " + e.cz() + ")");
+            if (r == null) throw new ThreadOwnershipException("editBlocksNow: 청크 " + e.cx() + ", " + e.cz() + " 의 region 이 없다");
+            byRegion.computeIfAbsent(r, k -> new ArrayList<>()).add(e);
+        }
+        return toApi(org.domi.furnace.server.world.BlockEdits.applyNow(byRegion, buf, mode));
+    }
+
+    private static org.domi.furnace.api.world.BlockEditResult toApi(org.domi.furnace.server.world.BlockEdits.Result r) {
+        return new org.domi.furnace.api.world.BlockEditResult(r.changed(), r.unchanged(), r.skipped());
+    }
+
+    /** API 옵션 → 바닐라 setBlock 플래그와 묶음 방식. */
+    static org.domi.furnace.server.world.BlockEdits.Mode mode(org.domi.furnace.api.world.BlockEditOptions o) {
+        java.util.Objects.requireNonNull(o, "options");
+        int flags = 0;
+        if (o.neighborUpdates() == org.domi.furnace.api.world.BlockEditOptions.NeighborUpdates.IMMEDIATE) flags |= 1 | 8;   // World.setBlock 의 11 과 같게
+        if (o.clientUpdates() != org.domi.furnace.api.world.BlockEditOptions.ClientUpdates.NONE) flags |= 2;
+        if (!o.shapeUpdates()) flags |= 16;
+        return new org.domi.furnace.server.world.BlockEdits.Mode(flags,
+                o.neighborUpdates() == org.domi.furnace.api.world.BlockEditOptions.NeighborUpdates.AFTER_EDIT,
+                o.clientUpdates() == org.domi.furnace.api.world.BlockEditOptions.ClientUpdates.CHUNKS, o.clearContainers(), o.chunksPerTick());
+    }
+
+    /** edit 을 지금 이 스레드에서 불러 쓰기 목록을 채운다. 끝나면 닫는다. */
+    private org.domi.furnace.server.world.BlockEditBuffer fillEdit(java.util.function.Consumer<org.domi.furnace.api.world.BlockEditor> edit) {
+        java.util.Objects.requireNonNull(edit, "edit");
+        var buf = new org.domi.furnace.server.world.BlockEditBuffer(world.dimensionType().minY(), world.dimensionType().maxY());
+        Editor ed = new Editor(buf, world.blockRegistry());
+        try {
+            edit.accept(ed);
+        } finally {
+            ed.closed = true;
+        }
+        return buf;
+    }
+
+    /** BlockEditor 구현 — 같은 BlockData 를 거듭 넣는 반복(채우기)이 이름 조회를 칸마다 하지 않게 상태 번호를 캐시한다. */
+    private static final class Editor implements org.domi.furnace.api.world.BlockEditor {
+        private final org.domi.furnace.server.world.BlockEditBuffer buf;
+        private final org.domi.furnace.server.world.BlockRegistry blocks;
+        private final java.util.HashMap<BlockData, Integer> ids = new java.util.HashMap<>();
+        private BlockData lastData;
+        private int lastId;
+        boolean closed;
+
+        Editor(org.domi.furnace.server.world.BlockEditBuffer buf, org.domi.furnace.server.world.BlockRegistry blocks) {
+            this.buf = buf;
+            this.blocks = blocks;
+        }
+
+        @Override
+        public void set(int x, int y, int z, BlockData data) {
+            if (closed) throw new IllegalStateException("editBlocks 함수가 끝난 뒤의 BlockEditor 는 쓸 수 없다");
+            java.util.Objects.requireNonNull(data, "data");
+            int id;
+            if (data == lastData) {
+                id = lastId;
+            } else {
+                Integer c = ids.get(data);
+                if (c == null) ids.put(data, c = ApiConvert.stateId(data, blocks));
+                lastData = data;
+                lastId = id = c;
+            }
+            buf.set(x, y, z, id);
+        }
+
+        @Override
+        public int size() { return buf.size(); }
+    }
+
     /** 이 스레드가 그 칸을 가진 region 스레드여야 한다(아니면 ThreadOwnershipException). 그 region 을 돌려준다(없으면 null). */
     Region ownedRegion(BlockPos pos, String what) {
         ThreadOwner owner = (ThreadOwner) world.chunkScheduler(pos.chunkX(), pos.chunkZ());
@@ -228,6 +320,73 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
             return r.fillBiomes(qx, qy, qz, qx, qy, qz, id, b -> true) > 0;
         });
         return RegionFuture.wrap(f != null ? f : CompletableFuture.completedFuture(false));
+    }
+
+    @Override
+    public Optional<String> biomeNow(BlockPos pos) {
+        Region r = ownedRegion(pos, "biomeNow(" + pos + ")");
+        ChunkPos cp = new ChunkPos(pos.chunkX(), pos.chunkZ());
+        if (r == null || !r.chunkLoaded(cp)) return Optional.empty();   // 높이 밖은 끝 칸(LevelChunk.getNoiseBiome 처럼 죈다)
+        return Optional.ofNullable(biomeName(r.noiseBiomeIdAtBlock(pos.x(), pos.y(), pos.z())));
+    }
+
+    @Override
+    public boolean setBiomeNow(BlockPos pos, String biome) {
+        int id = biomeId(biome);
+        Region r = ownedRegion(pos, "setBiomeNow(" + pos + ")");
+        ChunkPos cp = new ChunkPos(pos.chunkX(), pos.chunkZ());
+        if (r == null || !r.chunkLoaded(cp)) return false;
+        return r.setNoiseBiomeAtBlock(pos.x(), pos.y(), pos.z(), id);
+    }
+
+    // ------------------------------------------------------------------ 소리·입자
+
+    @Override
+    public void playSound(org.domi.furnace.api.audience.Sound sound, double x, double y, double z, long seed) {
+        java.util.Objects.requireNonNull(sound, "sound");
+        var pkt = ApiEffects.soundAt(sound, x, y, z, seed);
+        double range = ApiEffects.range(sound.volume());
+        // PlayerList.broadcast: 같은 차원에서 거리 제곱 < range²
+        world.forEachPlayerHere(p -> {
+            if (p.isDisconnected()) return;
+            double dx = x - p.x(), dy = y - p.y(), dz = z - p.z();
+            if (dx * dx + dy * dy + dz * dz < range * range) p.send(pkt);
+        });
+    }
+
+    @Override
+    public void playSound(org.domi.furnace.api.audience.Sound sound, Entity entity, long seed) {
+        java.util.Objects.requireNonNull(sound, "sound");
+        java.util.Objects.requireNonNull(entity, "entity");
+        // Paper: TrackedEntity.broadcastAndSend — 그 엔티티를 보는 사람 + 플레이어면 자기 자신
+        if (entity instanceof PlayerHandle ph) {
+            var self = ph.handle();
+            if (self.isDisconnected() || !world.dimension().equals(self.dimension())) return;
+            var pkt = ApiEffects.soundOn(sound, self.entityId(), seed);
+            world.broadcastToTrackers(self.entityId(), pkt);
+            self.send(pkt);
+        } else if (entity instanceof EntityHandle eh && eh.tasks().owner() instanceof org.domi.furnace.server.entity.Entity e) {
+            if (e.isRemoved() || !world.dimension().equals(e.dimensionKey())) return;
+            world.broadcastToTrackers(e.id(), ApiEffects.soundOn(sound, e.id(), seed));
+        }
+    }
+
+    @Override
+    public void spawnParticle(org.domi.furnace.api.world.ParticleEffect particle, java.util.Collection<? extends org.domi.furnace.api.entity.Player> receivers,
+                              double x, double y, double z, int count, double offsetX, double offsetY, double offsetZ, double speed, boolean force) {
+        var opts = ApiEffects.particle(particle, world.blockRegistry(), world.itemRegistry());
+        var pkt = new org.domi.furnace.server.net.protocol.play.LevelParticles(force, x, y, z, (float) offsetX, (float) offsetY, (float) offsetZ,
+                (float) speed, count, opts);
+        java.util.function.Consumer<org.domi.furnace.server.entity.Player> send = p -> {
+            // ServerLevel.sendParticles(player, …): 플레이어가 이 레벨에 있고 칸 가운데가 범위 안
+            if (p.isDisconnected() || !world.dimension().equals(p.dimension())) return;
+            if (org.domi.furnace.server.block.ChunkLevel.particleInRange(p, force, x, y, z)) p.send(pkt);
+        };
+        if (receivers == null) {
+            world.forEachPlayerHere(send);
+        } else {
+            for (var r : receivers) if (r instanceof PlayerHandle ph) send.accept(ph.handle());
+        }
     }
 
     // ------------------------------------------------------------------ 청크
@@ -326,6 +485,60 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     }
 
     @Override
+    public List<Entity> entitiesInBoxNow(org.domi.furnace.api.world.Aabb box) {
+        if (!Double.isFinite(box.minX() + box.minY() + box.minZ() + box.maxX() + box.maxY() + box.maxZ())) return List.of();
+        var rz = world.regionizer();
+        // region 스레드: 지금 스레드가 돌리는 region 하나의 엔티티만(소유 구역 밖은 이 스레드가 만질 수 없다). 상자 가운데가 어디든 상관없다.
+        // 전역 스레드의 빌림 구간: 상자와 겹치는 region 을 모두 빌려 합친다. 그 밖의 스레드는 소유 스레드가 아니다.
+        List<Region> regions;
+        Region own;
+        if (!org.domi.furnace.server.world.RegionBorrow.active() && (own = rz.ownedByCurrentThread()) != null) {
+            regions = List.of(own);
+        } else if (org.domi.furnace.server.world.RegionBorrow.active()) {
+            regions = new ArrayList<>();
+            for (Region r : rz.ownersOverlapping((int) Math.floor(box.minX()) >> 4, (int) Math.floor(box.maxX()) >> 4,
+                    (int) Math.floor(box.minZ()) >> 4, (int) Math.floor(box.maxZ()) >> 4)) {
+                if (org.domi.furnace.server.world.RegionBorrow.claim(() -> org.domi.furnace.server.world.Regionizer.live(r))) {
+                    Region now = org.domi.furnace.server.world.Regionizer.live(r);
+                    if (now != null && !regions.contains(now)) regions.add(now);
+                }
+            }
+        } else {
+            throw new ThreadOwnershipException("entitiesInBoxNow 는 region 스레드에서만 부를 수 있다 (현재 " + Thread.currentThread().getName() + ") — Async 판을 쓴다");
+        }
+        var bb = ApiBoxes.of(box);
+        List<Entity> out = new ArrayList<>();
+        for (Region r : regions) {
+            if (r.level() == null) continue;
+            for (var e : r.level().getEntities(null, bb, null)) {
+                if (!e.isRemoved()) out.add(EntityHandle.of(host, e));
+            }
+            for (var p : r.players().values()) {
+                if (!p.isDisconnected() && p.boundingBox().intersects(bb)) out.add(host.player(p));
+            }
+        }
+        return out;
+    }
+
+    @Override
+    public java.util.Optional<org.domi.furnace.api.world.BlockHit> rayTraceBlocksNow(double fx, double fy, double fz, double tx, double ty, double tz,
+            org.domi.furnace.api.world.FluidPick fluid, boolean ignorePassable, java.util.function.Predicate<BlockPos> canCollide) {
+        ChunkPos cp = ChunkPos.ofBlock(fx, fz);
+        Region r = ownedRegion(new BlockPos(cp.x() << 4, 0, cp.z() << 4), "rayTraceBlocksNow");
+        if (r == null || !Double.isFinite(fx + fy + fz + tx + ty + tz)) return java.util.Optional.empty();
+        var mode = switch (fluid) {
+            case NONE -> org.domi.furnace.server.block.Clip.FluidMode.NONE;
+            case SOURCE_ONLY -> org.domi.furnace.server.block.Clip.FluidMode.SOURCE_ONLY;
+            case ANY -> org.domi.furnace.server.block.Clip.FluidMode.ANY;
+        };
+        java.util.function.Predicate<org.domi.furnace.server.block.Pos> pass = canCollide == null ? null : p -> canCollide.test(new BlockPos(p.x(), p.y(), p.z()));
+        var hit = org.domi.furnace.server.block.Clip.clipApi(r.level(), fx, fy, fz, tx, ty, tz, mode, ignorePassable, pass);
+        if (hit.miss()) return java.util.Optional.empty();
+        return java.util.Optional.of(new org.domi.furnace.api.world.BlockHit(new BlockPos(hit.pos().x(), hit.pos().y(), hit.pos().z()),
+                org.domi.furnace.api.world.Direction.values()[hit.face()], hit.x(), hit.y(), hit.z(), hit.inside()));
+    }
+
+    @Override
     public CompletableFuture<List<Entity>> nearbyEntities(Location center, double radius) {
         if (!(radius >= 0 && radius <= 128)) return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalArgumentException("radius 는 0..128: " + radius)));
         if (!center.world().equals(world.dimension())) return RegionFuture.wrap(CompletableFuture.completedFuture(List.of()));
@@ -334,6 +547,83 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         CompletableFuture<List<Entity>> f = world.submitAtOwnedChunk(cp, r -> nearbyOn(r, center, radius));
         return RegionFuture.wrap(f != null ? f : CompletableFuture.completedFuture(List.of()));
     }
+
+    // ------------------------------------------------------------------ id 로 찾기
+
+    /** 이 월드에 접속해 있는 그 id 의 플레이어(플레이어는 엔티티 색인에 없다). */
+    private Entity playerById(int id) {
+        for (var p : host.core().players()) {
+            if (p.entityId() == id && !p.isDisconnected() && world.dimension().equals(p.dimension())) return host.player(p);
+        }
+        return null;
+    }
+
+    @Override
+    public Optional<java.util.UUID> entityUuidById(int entityId) {
+        var e = world.entityIndex().get(entityId);
+        if (e != null && !e.isRemoved()) return Optional.of(e.uuid());   // uuid 는 바뀌지 않는다(어느 스레드나 안전)
+        Entity p = playerById(entityId);
+        return p == null ? Optional.empty() : Optional.of(p.uniqueId());
+    }
+
+    @Override
+    public Optional<Entity> entityByIdNow(int entityId) {
+        var e = world.entityIndex().get(entityId);
+        if (e == null || e.isRemoved()) return Optional.ofNullable(playerById(entityId));
+        // 엔티티를 가진 region 스레드(빌림 구간이면 빌려서)에서만 — 아니면 낡은 값을 읽지 않고 소유 스레드가 아니라고 답한다.
+        // region 사이를 넘어가는 중(옛 저장소에서 빠졌고 새 쪽이 아직 받기 전)에는 level 이 옛 쪽이라도 저장소 소속을 본다.
+        boolean owned = (org.domi.furnace.server.world.RegionBorrow.claimEntity(e) || (e.level() != null && e.level().isOwnerThread()))
+                && e.level() != null && e.level().entities().contains(e);
+        if (!owned) {
+            throw new ThreadOwnershipException("entityByIdNow 는 그 엔티티를 가진 region 스레드에서만 부를 수 있다 (현재 "
+                    + Thread.currentThread().getName() + ") — entityById 를 쓴다");
+        }
+        return e.isRemoved() ? Optional.empty() : Optional.of(EntityHandle.of(host, e));
+    }
+
+    @Override
+    public CompletableFuture<Optional<Entity>> entityById(int entityId) {
+        return RegionFuture.wrap(entityByIdAttempt(entityId, 0));
+    }
+
+    /**
+     * 색인에서 찾은 엔티티를 가진 region 에서 읽는다. 청크 경계를 넘은 틱에는 엔티티가 새 청크 쪽에 가 있어도 옛 region 저장소에서 아직
+     * 안 빠졌다(틱 끝 handOffEntities) — 새 칸의 주인에 없으면 지난 틱 칸(xo, zo)의 주인에서 한 번 더 찾고, 그래도 없으면(그 사이 옮겨 갔으면) 몇 번 다시 찾는다.
+     */
+    private CompletableFuture<Optional<Entity>> entityByIdAttempt(int id, int attempt) {
+        var e = world.entityIndex().get(id);
+        if (e == null || e.isRemoved()) return CompletableFuture.completedFuture(Optional.ofNullable(playerById(id)));
+        ChunkPos now = ChunkPos.ofBlock(e.x(), e.z());
+        ChunkPos before = ChunkPos.ofBlock(e.xo, e.zo);
+        CompletableFuture<Optional<Entity>> f = lookupAt(now, id);
+        if (f != null && !before.equals(now)) {
+            f = f.thenCompose(found -> {
+                if (found != null) return CompletableFuture.completedFuture(found);
+                CompletableFuture<Optional<Entity>> g = lookupAt(before, id);
+                return g != null ? g : CompletableFuture.<Optional<Entity>>completedFuture(null);
+            });
+        }
+        if (f == null) {
+            if (attempt >= MAX_LOOKUP_ATTEMPTS) return CompletableFuture.completedFuture(Optional.empty());
+            return entityByIdAttempt(id, attempt + 1);
+        }
+        return f.thenCompose(found -> {
+            if (found != null) return CompletableFuture.completedFuture(found);
+            if (attempt >= MAX_LOOKUP_ATTEMPTS) return CompletableFuture.completedFuture(Optional.<Entity>empty());
+            return entityByIdAttempt(id, attempt + 1);
+        });
+    }
+
+    /** 그 청크의 주인 region 에서 id 의 엔티티를 읽는다. 저장소에 없으면 null 로 완료, 그 청크에 주인이 없으면 null(future 없음). */
+    private CompletableFuture<Optional<Entity>> lookupAt(ChunkPos cp, int id) {
+        return world.submitAtOwnedChunk(cp, r -> {
+            var cur = r.level().entities().get(id);
+            if (cur == null) return null;
+            return cur.isRemoved() ? Optional.<Entity>empty() : Optional.<Entity>of(EntityHandle.of(host, cur));
+        });
+    }
+
+    private static final int MAX_LOOKUP_ATTEMPTS = 3;
 
     // ------------------------------------------------------------------ 블록 칸
 

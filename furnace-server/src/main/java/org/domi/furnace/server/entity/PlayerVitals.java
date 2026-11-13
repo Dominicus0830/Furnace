@@ -1726,6 +1726,7 @@ public final class PlayerVitals {
         lastHurt = 0;
         spawnInvulnerableTime = SPAWN_INVULNERABLE_TICKS;
         player.clearHurtRecords();
+        player.runOnOwner(player::clearUserModifiersForRespawn);   // 바닐라 restoreFrom: 기본값만 옮기고 수정자는 사라진다
         combat = newCombat();
         inWater = false;
         lastClimbable = null;

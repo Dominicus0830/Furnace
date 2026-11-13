@@ -35,11 +35,17 @@ public final class ChunkColumn {
     private boolean wgHeightmapsFrozen;
     private byte[] cachedSerializedBody;
     // 지금 직렬화 중인 본문(현재 modCount 기준). 같은 버전을 동시에 요청한 플레이어들이 하나의 결과(같은 byte[])를 받아
-    // 스냅샷·직렬화·공유 압축 프레임이 한 번씩만 돈다. touch() 가 비운다. 주인 region 스레드 전용.
-    private java.util.concurrent.CompletableFuture<byte[]> inflightSerializedBody;
+    // 스냅샷·직렬화·공유 압축 프레임이 한 번씩만 돈다. touch() 가 비운다. 쓰기는 주인 region 스레드 전용이고, 직렬화 풀은 일을 시작할 때
+    // 읽기만 한다(volatile — 자기 일이 아직 진행 표시인가 = 그 사이 청크가 안 바뀌었나, T-011). touch() 는 비어 있지 않을 때만 쓴다.
+    private volatile java.util.concurrent.CompletableFuture<byte[]> inflightSerializedBody;
     // auto 전송이 이 청크를 보내려 했는데 본문이 준비 안 돼 미룬 횟수(보낼 때 0). 레드스톤처럼 매 틱 블록이 바뀌는 청크는 직렬화가 끝나
     // 캐시에 들어가도 보내기 직전에 다시 비워지므로, 이 값이 차면 그 자리에서 직렬화한다(World.chunkBodyReadyOrPrefetch). 주인 region 스레드 전용.
     private int bodyWaits;
+    // auto 전송이 이 청크의 본문 직렬화를 "이웃 청크가 올라오는 중"이라 미룬 횟수(보낼 때 0, T-011). 이웃이 올라오면 가장자리 빛이 이 청크로
+    // 번져 본문이 낡으므로 그 뒤에 직렬화한다. 이 값이 상한에 닿으면 더 미루지 않는다(World.chunkBodyReadyOrPrefetch). 주인 region 스레드 전용.
+    private int lightWaits;
+    // lightWaits 를 마지막으로 센 region 틱(틱당 한 번만 센다 — 여럿이 같은 청크를 기다려도 상한이 줄지 않게). 주인 region 스레드 전용.
+    private long lightWaitTick = Long.MIN_VALUE;
     private long[] cachedMotionBlockingHeightmap;
     private long[] cachedWorldSurfaceHeightmap;
     private ChunkSnapshot cachedSnapshot;
@@ -132,8 +138,50 @@ public final class ChunkColumn {
         if (sharedSections != null && sharedSections[i]) {
             sections[i] = sections[i].copy();
             sharedSections[i] = false;
+        } else if (sections[i].lightFrozen) {
+            sections[i] = sections[i].copy();   // 빛 작업이 옛 객체를 읽는 중 — 복사본에 쓴다(복사본은 얼지 않았다)
         }
         return sections[i];
+    }
+
+    /**
+     * 빛 작업(T-064)에 넘길 블록 읽기 사본: 지금 구역 객체들을 그대로 넘기고 얼린다. 이후 이 컬럼의 블록 쓰기는 그 구역을 복사해서 하므로
+     * 넘긴 객체는 {@link LightBlocks#thaw} 까지 바뀌지 않는다(다른 스레드에서 잠금 없이 읽어도 된다). 주인 스레드에서.
+     * 바이옴 쓰기는 얼린 객체에도 그 자리에서 할 수 있다 — 빛 작업은 바이옴을 읽지 않는다.
+     */
+    public LightBlocks freezeForLight() {
+        ChunkSection[] secs = sections.clone();
+        for (ChunkSection cs : secs) cs.lightFrozen = true;
+        return new LightBlocks(secs, minY);
+    }
+
+    /** 얼린 구역 묶음 — 빛 스레드가 읽는다. 월드 높이 안 좌표만 받는다. */
+    public static final class LightBlocks implements org.domi.furnace.server.light.LevelLight.StateReader {
+        private final ChunkSection[] secs;
+        private final int minY;
+
+        LightBlocks(ChunkSection[] secs, int minY) {
+            this.secs = secs;
+            this.minY = minY;
+        }
+
+        @Override public int state(int x, int y, int z) {
+            int local = y - minY;
+            return secs[local >> 4].getBlock(x & 15, local & 15, z & 15);
+        }
+
+        @Override public int uniformSectionState(int sectionY) {
+            int i = sectionY - (minY >> 4);
+            return i < 0 || i >= secs.length ? -1 : secs[i].uniformBlock();
+        }
+
+        @Override public boolean sectionMayEmit(int sectionY) {
+            int i = sectionY - (minY >> 4);
+            return i < 0 || i >= secs.length || secs[i].maybeHasBlock(org.domi.furnace.server.light.LightTables.EMITS);
+        }
+
+        /** 빛 작업이 끝났다 — 넘긴 객체를 녹인다(아직 컬럼에 남아 있는 것은 다시 그 자리에서 고칠 수 있다). 주인 스레드에서. */
+        public void thaw() { for (ChunkSection cs : secs) cs.lightFrozen = false; }
     }
 
     private void ownAllSections() {
@@ -215,6 +263,13 @@ public final class ChunkColumn {
     private java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> generatedEntities;
 
     private boolean freshlyGenerated;
+    /** 이번에 생성기가 만든 청크(저장된 것을 읽지 않았다) — 설치 때 ChunkLoadEvent 의 isNewChunk 로 한 번 읽고 내린다. */
+    private boolean newlyCreated;
+
+    public boolean newlyCreated() { return newlyCreated; }
+
+    public void newlyCreated(boolean v) { this.newlyCreated = v; }
+
 
     /** 방금 생성기로 만든 청크(디스크에서 읽은 것이 아님) — 올릴 때 한 번 동물을 놓는다(NaturalSpawner.spawnMobsForChunkGeneration). */
     public boolean freshlyGenerated() { return freshlyGenerated; }
@@ -537,7 +592,7 @@ public final class ChunkColumn {
     private void touch() {
         modCount++;
         cachedSerializedBody = null;
-        inflightSerializedBody = null;
+        if (inflightSerializedBody != null) inflightSerializedBody = null;   // volatile 쓰기는 진행 중일 때만(월드젠 블록마다 불린다)
         cachedMotionBlockingHeightmap = null;
         cachedWorldSurfaceHeightmap = null;
         cachedSnapshot = null;
@@ -550,7 +605,7 @@ public final class ChunkColumn {
     public void lightTouched() {
         modCount++;
         cachedSerializedBody = null;
-        inflightSerializedBody = null;
+        if (inflightSerializedBody != null) inflightSerializedBody = null;
         cachedSnapshot = null;
     }
 
@@ -570,6 +625,10 @@ public final class ChunkColumn {
     public void inflightSerializedBody(java.util.concurrent.CompletableFuture<byte[]> f) { this.inflightSerializedBody = f; }
     public int bodyWaits() { return bodyWaits; }
     public void bodyWaits(int n) { this.bodyWaits = n; }
+    public int lightWaits() { return lightWaits; }
+    public void lightWaits(int n) { this.lightWaits = n; }
+    public long lightWaitTick() { return lightWaitTick; }
+    public void lightWaitTick(long t) { this.lightWaitTick = t; }
     public ChunkSnapshot cachedSnapshot() { return cachedSnapshot; }
     public void cachedSnapshot(ChunkSnapshot snapshot) { this.cachedSnapshot = snapshot; }
 

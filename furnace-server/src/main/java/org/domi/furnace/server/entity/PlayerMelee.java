@@ -41,6 +41,7 @@ public final class PlayerMelee {
         @Override public org.domi.furnace.server.block.Pos blockPosition() { return entity.blockPosition(); }
         @Override public boolean isAlive() { return entity.isAlive(); }
         @Override public boolean canBeSeenAsEnemy() { return false; }
+        @Override public boolean canBeSeenByAnyone() { return false; }   // LivingEntity 가 아니라 대상 조건에 들 수 없다
         @Override public double visibilityPercent(Entity looker) { return 1.0; }
         @Override public boolean isPlayer() { return false; }
         @Override public boolean hurtByMob(Entity.Damage source, float amount, Mob attacker) { return entity.hurt(source, amount); }

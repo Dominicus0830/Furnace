@@ -25,10 +25,10 @@ public final class Registries {
     public static final ResourceKey<Registry<Object>> POINT_OF_INTEREST_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("point_of_interest_type"));
     public static final ResourceKey<Registry<Object>> DATA_COMPONENT_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("data_component_type"));
     public static final ResourceKey<Registry<Object>> POTION = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("potion"));
-    public static final ResourceKey<Registry<Object>> MOB_EFFECT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("mob_effect"));
+    public static final ResourceKey<Registry<net.minecraft.world.effect.MobEffect>> MOB_EFFECT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("mob_effect"));
     public static final ResourceKey<Registry<Object>> ATTRIBUTE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("attribute"));
-    public static final ResourceKey<Registry<Object>> SOUND_EVENT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("sound_event"));
-    public static final ResourceKey<Registry<Object>> MAP_DECORATION_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("map_decoration_type"));
+    public static final ResourceKey<Registry<net.minecraft.sounds.SoundEvent>> SOUND_EVENT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("sound_event"));
+    public static final ResourceKey<Registry<net.minecraft.world.level.saveddata.maps.MapDecorationType>> MAP_DECORATION_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("map_decoration_type"));
     public static final ResourceKey<Registry<Object>> ARMOR_MATERIAL = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("armor_material"));
     public static final ResourceKey<Registry<Object>> MENU = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("menu"));
     public static final ResourceKey<Registry<Object>> STAT_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("stat_type"));

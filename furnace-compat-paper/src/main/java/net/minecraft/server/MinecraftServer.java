@@ -22,6 +22,25 @@ public abstract class MinecraftServer {
     /** CraftBukkit 이 더한 정적 입구: 지금 서버. */
     public static MinecraftServer getServer() { return DedicatedServer.INSTANCE; }
 
+    private final net.minecraft.server.network.ServerConnectionListener connection = new net.minecraft.server.network.ServerConnectionListener();
+
+    /**
+     * 서버 접속 수신(N3 2단계, 패킷 라이브러리가 소켓 채널 목록을 읽는 자리). 지금은 채널 목록이 비어 있다.
+     * 플러그인이 여기 들어오면 패킷 파이프라인에 끼어들려는 것이므로, 아직 가로채기·보내기가 이어지지 않았음을 한 번 알린다.
+     */
+    public net.minecraft.server.network.ServerConnectionListener getConnection() {
+        warnPipelineNotBridged();
+        return connection;
+    }
+
+    private static void warnPipelineNotBridged() {
+        org.domi.furnace.compat.nms.NmsCaller.warnOnce("pipeline",
+                "플러그인 {} 가 패킷 파이프라인(ServerConnectionListener)에 끼어들려 한다. Furnace 는 서버 소켓·로그인 전 단계 가로채기를 잇지 않았다 — "
+                        + "그 단계(핸드셰이크·상태·로그인)를 보려는 기능은 동작하지 않는다. 접속한 플레이어에게 보내는 패킷은 일부 이어졌다"
+                        + "(sendServerPacket·connection.send 와 나가는 가로채기), 서버가 스스로 보내는 패킷·들어오는 패킷 가로채기는 아직이다"
+                        + "(docs/feature-parity/compat-protocollib-pipeline-2b-plan-2026-11-12.md). 대신 Furnace 패킷 API(docs/api/packets.md)를 쓴다.");
+    }
+
     /** 바닐라 서버 버전 이름(1.21.1). */
     public String getServerVersion() { return CraftServer.INSTANCE.getMinecraftVersion(); }
 

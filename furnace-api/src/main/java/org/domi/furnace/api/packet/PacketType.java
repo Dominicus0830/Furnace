@@ -21,11 +21,11 @@ public final class PacketType<P extends Packet> {
     /** "minecraft:system_chat" 같은 이름. 방향마다 따로 매겨진다(custom_payload 는 양쪽에 있다). */
     public String name() { return name; }
 
-    /** 이 종류의 값 클래스. 타입 래퍼가 없으면 OpaquePacket. */
+    /** 이 종류의 값 클래스. 타입 레코드가 없으면 GenericPacket. */
     public Class<P> packetClass() { return packetClass; }
 
-    /** 내용을 읽고 바꿀 수 있는 타입 래퍼가 있는가(없으면 관찰·취소만). */
-    public boolean typed() { return packetClass != OpaquePacket.class; }
+    /** 타입 레코드가 있는가(없으면 GenericPacket — 이름 붙은 필드로 다룬다). */
+    public boolean typed() { return packetClass != GenericPacket.class; }
 
     @Override
     public String toString() { return direction.name().toLowerCase(java.util.Locale.ROOT) + "/" + name; }

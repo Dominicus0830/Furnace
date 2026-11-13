@@ -337,7 +337,7 @@ public final class ItemUse {
      * BoatItem.use: 유체까지 맞추는 시선이 빗나가면 넘긴다. 시선 5 블록 앞까지 넓힌 상자 안 맞출 수 있는 엔티티의 몸이 눈을 품으면 넘긴다.
      * 블록에 맞았으면 그 지점에 배(종류·상자 여부는 아이템 이름)를 플레이어 방향으로 놓아, 블록과 겹치면 실패, 아니면 넣고 하나 쓴다.
      * 아이템의 이름·entity_data 는 위치를 둔 뒤 입힌다(getBoat 의 createDefaultStackConfig) — 종류·방향은 그 뒤에 정해진다.
-     * TODO(엔티티 충돌): noCollision 의 엔티티(다른 배) 부분.
+     * 겹침 판정은 noCollision(배, 배 상자) — 블록, 배가 부딪히는 엔티티(다른 배·셜커·밀 수 있는 몹·플레이어), 월드 보더.
      */
     private static Holder boatUse(BlockLevel level, BlockActor player, ItemStack stack, String n) {
         if (!(level instanceof ChunkLevel cl)) return Holder.pass(stack);
@@ -363,7 +363,7 @@ public final class ItemUse {
         org.domi.furnace.server.entity.EntityStackConfig.apply(cl, stack, player, boat);
         boat.setVariant(org.domi.furnace.server.entity.Boat.Type.byName(type));
         boat.setYRot(player.yRot());
-        if (!cl.noCollision(boat.boundingBox())) return Holder.fail(stack);
+        if (!cl.noCollision(boat, boat.boundingBox())) return Holder.fail(stack);
         if (!cl.addFreshEntity(boat)) {
             player.resyncHands();
             return Holder.fail(stack);

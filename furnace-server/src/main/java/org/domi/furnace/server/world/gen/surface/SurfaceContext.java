@@ -24,14 +24,15 @@ public final class SurfaceContext {
     public int[] chunkBiomeIds;
     public int chunkQuartX0, chunkQuartZ0;   // 청크 첫 quart의 월드 quart 좌표
     /**
-     * 청크 바로 바깥 한 줄(이웃 청크) quart 의 바이옴 메모 — biomeCache(HashMap) 대신 배열로(성능, 값은 같은 sampleQuart 결과).
-     * x·z 는 chunkQuart0-1 .. chunkQuart0+4(6칸), y 는 haloQuartY0 부터 haloQuartYCount 칸. 빈 칸은 Integer.MIN_VALUE. null 이면 미사용.
+     * 표면 규칙 꼭짓점 quart 의 바이옴 메모(바닐라 WorldGenRegion 바이옴: 그 quart 청크의 저장 바이옴, y 는 차원 범위로 자름).
+     * x·z 는 chunkQuart0-1 .. chunkQuart0+4(6칸), y 는 haloQuartY0 부터 haloQuartYCount 칸. 빈 칸은 Integer.MIN_VALUE. null 이면 미사용(carver topMaterial).
      */
     public int[] haloBiomes;
     public int haloQuartY0, haloQuartYCount;
+    /** 자기·이웃 청크(3×3, (dz+1)*3+dx+1)의 저장 바이옴 배열. 모르는 칸은 null. */
+    public int[][] neighborBiomes;
     /**
      * haloBiomes 와 같은 칸 배치의 꼭짓점 지터(fiddle x·y·z, 칸마다 3개) 메모. 안 구한 칸은 NaN. null 이면 블록마다 계산(예전 경로).
-     * 이 표가 있으면 haloBiomes 의 청크 안쪽 높이 범위 칸도 chunkBiomeIds 값으로 채워져 있다.
      */
     public double[] zoomFiddles;
     // 16×16 surfaceY grid for steep condition

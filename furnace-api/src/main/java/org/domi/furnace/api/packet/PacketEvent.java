@@ -11,18 +11,22 @@ public interface PacketEvent<P extends Packet> {
 
     PacketType<P> type();
 
-    /** 지금 값 — 앞선 리스너가 바꿨으면 바꾼 값. 타입 래퍼가 없는 종류면 OpaquePacket. */
+    /** 지금 값 — 앞선 리스너가 바꿨으면 바꾼 값. 타입 레코드가 없는 종류면 GenericPacket. */
     P packet();
 
     /**
-     * 값을 바꾼다. 같은 종류여야 한다(아니면 IllegalArgumentException). 타입 래퍼가 없는 종류(OpaquePacket)는 바꿀 수 없다
-     * (UnsupportedOperationException). MONITOR 우선순위에서는 IllegalStateException.
+     * 값을 바꾼다. 같은 종류여야 한다(아니면 IllegalArgumentException). 서버가 내용을 풀지 못하는 종류(PacketService.isReadable 이 false)는 바꿀 수 없다
+     * (UnsupportedOperationException). 이 버전의 와이어로 쓸 수 없는 값(GenericPacket 의 빠진·모르는 필드, 범위 밖 값, 없는 이름 등)이면
+     * 그 자리에서 IllegalArgumentException. MONITOR 우선순위에서는 IllegalStateException.
      */
     void setPacket(P packet);
 
     boolean isCancelled();
 
-    /** true 면 이 패킷을 버린다(클라이언트로 가지 않거나, 서버가 처리하지 않는다). MONITOR 우선순위에서는 IllegalStateException. */
+    /**
+     * true 면 이 패킷을 버린다(클라이언트로 가지 않거나, 서버가 처리하지 않는다). MONITOR 우선순위에서는 IllegalStateException.
+     * 번들 구분자(bundle_delimiter)는 짝이 어긋나면 클라이언트가 끊기므로 취소·바꾸기 모두 UnsupportedOperationException.
+     */
     void setCancelled(boolean cancelled);
 
     /** 플러그인이 PacketService.send/receive 로 넣은 패킷인가. */

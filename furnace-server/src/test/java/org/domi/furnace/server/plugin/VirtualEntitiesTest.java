@@ -79,7 +79,7 @@ class VirtualEntitiesTest {
         return p;
     }
 
-    /** 보낸 패킷을 (id, 값) 으로. 타입 래퍼가 없는 종류는 OpaquePacket 으로 나온다. */
+    /** 보낸 패킷을 (id, 값) 으로. 타입 레코드가 없는 종류는 GenericPacket 으로 나온다. */
     private List<Packet> sent(Player p) {
         EmbeddedChannel ch = channels.get(p);
         ch.runPendingTasks();
@@ -89,14 +89,13 @@ class VirtualEntitiesTest {
             ByteBuf bb = (ByteBuf) o;
             int id = Types.readVarInt(bb);
             PacketType<?> t = codec.clientboundType(id);
-            out.add(t.typed() ? codec.decode(t, id, bb) : new org.domi.furnace.api.packet.OpaquePacket(castOpaque(t)));
+            out.add(codec.decode(t, id, bb));
             bb.release();
         }
         return out;
     }
 
-    @SuppressWarnings("unchecked")
-    private static PacketType<org.domi.furnace.api.packet.OpaquePacket> castOpaque(PacketType<?> t) { return (PacketType<org.domi.furnace.api.packet.OpaquePacket>) t; }
+
 
     private static List<PacketType<?>> kinds(List<Packet> l) {
         List<PacketType<?>> k = new ArrayList<>();
@@ -111,9 +110,10 @@ class VirtualEntitiesTest {
         Player near = online("Near", 10, 0), far = online("Far", 500, 0);
         VirtualEntity e = host.virtualEntities().spawn(a, "villager", new Location(WORLD, 0, 64, 0));
         List<Packet> n = sent(near);
-        assertEquals(List.of(PacketTypes.Clientbound.ADD_ENTITY, PacketTypes.Clientbound.ROTATE_HEAD), kinds(n));
-        assertEquals(e.entityId(), ((ClientboundAddEntityPacket) n.get(0)).entityId());
-        assertEquals("minecraft:villager", ((ClientboundAddEntityPacket) n.get(0)).entityType());
+        assertEquals(List.of(PacketTypes.Clientbound.BUNDLE_DELIMITER, PacketTypes.Clientbound.ADD_ENTITY, PacketTypes.Clientbound.ROTATE_HEAD,
+                PacketTypes.Clientbound.BUNDLE_DELIMITER), kinds(n), "생성 묶음은 번들 하나");
+        assertEquals(e.entityId(), ((ClientboundAddEntityPacket) n.get(1)).entityId());
+        assertEquals("minecraft:villager", ((ClientboundAddEntityPacket) n.get(1)).entityType());
         assertEquals(List.of(), sent(far), "멀리 있는 플레이어에게는 안 보낸다");
         assertEquals(1, e.viewers().size());
 
@@ -128,7 +128,7 @@ class VirtualEntitiesTest {
         // 멀리 있던 사람이 다가오면 다음 추적 때 나타난다
         far.setPosRaw(5, 64, 5);
         track();
-        assertEquals(PacketTypes.Clientbound.ADD_ENTITY, sent(far).get(0).type());
+        assertEquals(PacketTypes.Clientbound.ADD_ENTITY, sent(far).get(1).type());
         // 가까운 사람이 멀어지면(범위 + 여유 밖) 사라진다
         near.setPosRaw(200, 64, 0);
         track();
@@ -157,7 +157,7 @@ class VirtualEntitiesTest {
         e.setVisibleByDefault(false);
         assertEquals(PacketTypes.Clientbound.REMOVE_ENTITIES, sent(p2).get(0).type(), "기본을 끄면 지정 없는 사람은 사라진다");
         e.show(host.player(p2));
-        assertEquals(PacketTypes.Clientbound.ADD_ENTITY, sent(p2).get(0).type());
+        assertEquals(PacketTypes.Clientbound.ADD_ENTITY, sent(p2).get(1).type());
         assertEquals(List.of(), sent(p1));
         e.resetVisibility(host.player(p2));
         assertEquals(PacketTypes.Clientbound.REMOVE_ENTITIES, sent(p2).get(0).type());
@@ -205,6 +205,72 @@ class VirtualEntitiesTest {
         assertTrue(kinds(end).contains(PacketTypes.Clientbound.PLAYER_INFO_REMOVE));
         assertTrue(npc.isRemoved());
         assertEquals(0, host.virtualEntities().entities(a).size());
+    }
+
+    @Test
+    void namedMetadataKeysOnDisplayEntities() {
+        Player p = online("Viewer", 0, 0);
+        core.world().setRegistries(core.world().blockRegistry(), org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        VirtualEntity text = host.virtualEntities().spawn(a, "text_display", new Location(WORLD, 1, 65, 1));
+        VirtualEntity item = host.virtualEntities().spawn(a, "item_display", new Location(WORLD, 2, 65, 1));
+        sent(p);
+        text.set(org.domi.furnace.api.entity.data.EntityDataKeys.TextDisplay.TEXT, Text.text("상점"));
+        text.set(org.domi.furnace.api.entity.data.EntityDataKeys.Display.SCALE, new org.domi.furnace.api.math.Vector3f(2, 2, 2));
+        item.set(org.domi.furnace.api.entity.data.EntityDataKeys.ItemDisplay.ITEM_STACK, ItemStack.of("minecraft:diamond"));
+        item.set(org.domi.furnace.api.entity.data.EntityDataKeys.Display.LEFT_ROTATION, org.domi.furnace.api.math.Quaternionf.rotationY(45));
+        List<Packet> out = sent(p);
+        assertEquals(4, out.size());
+        var t0 = (ClientboundSetEntityDataPacket) out.get(0);
+        assertEquals(java.util.Optional.of(Text.text("상점")), t0.get(org.domi.furnace.api.entity.data.EntityDataKeys.TextDisplay.TEXT));
+        assertEquals(23, t0.entries().get(0).index(), "1.21.1 TextDisplay.text 칸");
+        var i0 = (ClientboundSetEntityDataPacket) out.get(2);
+        assertEquals(java.util.Optional.of(ItemStack.of("minecraft:diamond")), i0.get(org.domi.furnace.api.entity.data.EntityDataKeys.ItemDisplay.ITEM_STACK));
+        // 그 종류에 없는 칸은 클라이언트가 끊기기 전에 막는다
+        assertThrows(IllegalArgumentException.class, () -> text.set(org.domi.furnace.api.entity.data.EntityDataKeys.ItemDisplay.ITEM_STACK, ItemStack.of("minecraft:diamond")));
+        VirtualEntity zombie = host.virtualEntities().spawn(a, "zombie", new Location(WORLD, 3, 64, 1));
+        assertThrows(IllegalArgumentException.class, () -> zombie.set(org.domi.furnace.api.entity.data.EntityDataKeys.Display.SCALE, org.domi.furnace.api.math.Vector3f.ONE));
+        zombie.set(org.domi.furnace.api.entity.data.EntityDataKeys.Zombie.BABY, true);
+        sent(p);
+        // 새로 보게 된 사람에게는 쌓인 칸이 생성 묶음으로 간다
+        Player late = online("Late", 500, 0);
+        late.setPosRaw(1, 64, 1);
+        track();
+        var lateData = sent(late).stream().filter(x -> x instanceof ClientboundSetEntityDataPacket d && d.entityId() == text.entityId())
+                .map(x -> (ClientboundSetEntityDataPacket) x).findFirst().orElseThrow();
+        assertEquals(java.util.Optional.of(new org.domi.furnace.api.math.Vector3f(2, 2, 2)), lateData.get(org.domi.furnace.api.entity.data.EntityDataKeys.Display.SCALE));
+    }
+
+    /** 생성 묶음은 바닐라처럼 번들 하나 — 메타데이터·장비 없는 모습이 한 프레임 보이지 않는다(E2). */
+    @Test
+    void spawnIsSentAsOneBundle() {
+        VirtualEntity text = host.virtualEntities().spawn(a, "text_display", new Location(WORLD, 1, 65, 1));
+        text.set(org.domi.furnace.api.entity.data.EntityDataKeys.TextDisplay.TEXT, Text.text("상점"));
+        Player viewer = online("Viewer", 0, 0);
+        track();
+        List<Packet> out = sent(viewer).stream().filter(x -> !(x instanceof ClientboundSetEntityDataPacket d) || d.entityId() == text.entityId()).toList();
+        int start = kinds(out).indexOf(PacketTypes.Clientbound.ADD_ENTITY);
+        assertTrue(start > 0);
+        assertEquals(List.of(PacketTypes.Clientbound.BUNDLE_DELIMITER, PacketTypes.Clientbound.ADD_ENTITY, PacketTypes.Clientbound.SET_ENTITY_DATA,
+                PacketTypes.Clientbound.ROTATE_HEAD, PacketTypes.Clientbound.BUNDLE_DELIMITER), kinds(out).subList(start - 1, start + 4));
+    }
+
+    /** 보낼 수 없는 값은 set 에서 바로 거부하고 저장하지 않는다 — 쌓아 두면 나중에 보는 사람이 이름표까지 잃는다. 다른 부류의 칸도 거부. */
+    @Test
+    void unencodableValueAndForeignOwnerKeyAreRejectedAtSet() {
+        VirtualEntity cat = host.virtualEntities().spawn(a, "cat", new Location(WORLD, 1, 64, 1));
+        cat.setCustomName(Text.text("나비"));
+        assertThrows(IllegalArgumentException.class, () -> cat.set(org.domi.furnace.api.entity.data.EntityDataKeys.Cat.VARIANT, "minecraft:nope"));
+        assertThrows(IllegalArgumentException.class, () -> cat.setMetadata(19,
+                ClientboundSetEntityDataPacket.Value.of(org.domi.furnace.api.entity.data.EntityDataType.CAT_VARIANT, "minecraft:nope")));
+        VirtualEntity box = host.virtualEntities().spawn(a, "interaction", new Location(WORLD, 2, 64, 1));
+        assertThrows(IllegalArgumentException.class, () -> box.set(org.domi.furnace.api.entity.data.EntityDataKeys.LivingEntity.HEALTH, 5f),
+                "interaction 9번은 height — 번호·값 종류가 맞아도 살아 있는 엔티티가 아니다");
+        Player late = online("Late", 0, 0);
+        track();
+        var data = sent(late).stream().filter(x -> x instanceof ClientboundSetEntityDataPacket d && d.entityId() == cat.entityId())
+                .map(x -> (ClientboundSetEntityDataPacket) x).findFirst();
+        assertTrue(data.isPresent(), "새로 보는 사람에게 메타데이터 묶음이 간다");
+        assertEquals(java.util.Optional.of(java.util.Optional.of(Text.text("나비"))), data.flatMap(d -> d.get(org.domi.furnace.api.entity.data.EntityDataKeys.Entity.CUSTOM_NAME)));
     }
 
     @Test
