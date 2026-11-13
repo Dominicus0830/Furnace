@@ -297,9 +297,6 @@ public interface GameEvents {
     /** 플레이어가 엔티티를 보기 시작한다(스폰 묶음을 보내기 바로 전, Paper PlayerTrackEntityEvent 자리). 엔티티 소유 region 스레드에서. */
     default void playerTrackEntity(Player viewer, Entity e) {}
 
-    /** playerTrackEntity 를 받을 처리기가 있는가. 있으면 추적 판정이 바닐라처럼 모든 엔티티를 차례로 돈다(처리기가 판정 중 월드를 바꿀 수 있다 — T-017). */
-    default boolean wantsPlayerTrackEntity() { return false; }
-
     /** 탈것에서 내리기 직전(cancellable 이 false 면 취소해도 소용없다 — 호출한 쪽이 반환값을 무시한다). false 면 취소. */
     default boolean entityDismount(org.domi.furnace.server.entity.Rider rider, Entity vehicle, boolean cancellable) { return true; }
 

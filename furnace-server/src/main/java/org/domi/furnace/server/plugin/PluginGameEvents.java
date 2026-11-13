@@ -307,9 +307,6 @@ public final class PluginGameEvents implements GameEvents {
     }
 
     @Override
-    public boolean wantsPlayerTrackEntity() { return bus().hasSubscribers(org.domi.furnace.api.event.player.PlayerTrackEntityEvent.class); }
-
-    @Override
     public void playerTrackEntity(Player viewer, Entity e) {
         if (!bus().hasSubscribers(org.domi.furnace.api.event.player.PlayerTrackEntityEvent.class)) return;
         bus().call(new org.domi.furnace.api.event.player.PlayerTrackEntityEvent(host.player(viewer), EntityHandle.of(host, e)));

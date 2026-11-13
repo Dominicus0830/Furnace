@@ -24,6 +24,8 @@ public final class EntityStore {
     private final LinkedHashMap<Integer, Mob> mobs = new LinkedHashMap<>();
     /** 다음 순번(byId 의 넣은 순서와 같은 차례로 늘어난다 — orderAndDedupe 가 쓴다). */
     private long nextSeq;
+    /** 넣기·빼기·구역 이동마다 는다(추적 후보 판정이 도중 변경을 알아챈다). */
+    private int modCount;
     private long[] sortScratch = new long[0];
     private Entity[] orderScratch = new Entity[0];
 
@@ -86,6 +88,9 @@ public final class EntityStore {
 
     public boolean containsUuid(UUID uuid) { return byUuid.containsKey(uuid); }
 
+    /** 넣기·빼기·구역 이동 횟수(바뀌었는지만 본다). */
+    public int modCount() { return modCount; }
+
     /** contains 와 같은 답을 필드 하나로(추적 후보 거르기용). */
     public boolean holds(Entity e) { return e.store == this; }
 
@@ -99,6 +104,7 @@ public final class EntityStore {
         e.storeSeq = prev != null ? prev.storeSeq : nextSeq++;   // 같은 id 키를 덮으면 LinkedHashMap 은 옛 자리를 지킨다
         if (prev != null && prev != e && prev.store == this) prev.store = null;
         e.store = this;
+        modCount++;
         byUuid.put(e.uuid(), e);
         if (e instanceof Mob m) mobs.put(e.id(), m);
         sectionOrNew(e.sectionKey()).add(e);
@@ -109,6 +115,7 @@ public final class EntityStore {
         Entity had = byId.remove(e.id());
         if (had == null) return false;
         if (had.store == this) had.store = null;
+        modCount++;
         byUuid.remove(e.uuid());
         if (e instanceof Mob) mobs.remove(e.id());
         removeFromSection(e, e.sectionKey());
@@ -118,6 +125,7 @@ public final class EntityStore {
     /** 구역이 바뀌었다 — 옛 구역에서 빼 새 구역 끝에 단다. */
     public void moved(Entity e, long oldKey) {
         if (!byId.containsKey(e.id())) return;
+        modCount++;
         removeFromSection(e, oldKey);
         sectionOrNew(e.sectionKey()).add(e);
     }

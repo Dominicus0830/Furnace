@@ -2459,10 +2459,8 @@ public abstract class ChunkLevel implements BlockLevel {
         if (VERIFY_TRACK_CANDIDATES && !seenIndexCovers(p)) throw new AssertionError("추적 역색인에 빠진 엔티티가 있다: " + p);
         int n = entities.size();
         SeenList seen = seenIndex.get(p);
-        // 엔티티가 적거나, p 가 이미 절반 넘게 본다(몰림 — 후보가 거의 전부라 모으고 늘어놓는 값만 더 든다)면 전체 훑기.
-        // 플러그인 PlayerTrackEntityEvent 처리기가 있으면 판정 도중 엔티티·플레이어를 옮길 수 있어(후보를 미리 못 정한다) 전체 훑기
-        if (n < CANDIDATE_MIN_ENTITIES || seen != null && seen.size * 2 >= n || gameEvents().wantsPlayerTrackEntity()
-                || !playerMovedCandidates(p)) playerMovedFullScan(p);
+        // 엔티티가 적거나, p 가 이미 절반 넘게 본다(몰림 — 후보가 거의 전부라 모으고 늘어놓는 값만 더 든다)면 전체 훑기
+        if (n < CANDIDATE_MIN_ENTITIES || seen != null && seen.size * 2 >= n || !playerMovedCandidates(p)) playerMovedFullScan(p);
     }
 
     /**
@@ -2512,40 +2510,59 @@ public abstract class ChunkLevel implements BlockLevel {
      */
     public boolean playerMovedCandidates(Player p) {
         double px = p.x(), pz = p.z();
+        int vd = viewDistanceFor(p);
         // updatePlayer 의 거리 r = min(엔티티 추적 거리, 시야 × 16) ≤ 이 값. 1 블록은 부동소수 경계 여유
-        double reach = Math.min(viewDistanceFor(p) * 16.0, maxTrackRange) + 1.0;
+        double reach = Math.min(vd * 16.0, maxTrackRange) + 1.0;
         if (!(Math.abs(px) < 3.0E7) || !(Math.abs(pz) < 3.0E7)) return false;
         int cx0 = Entity.floor(px - reach) >> 4, cx1 = Entity.floor(px + reach) >> 4;
         int cz0 = Entity.floor(pz - reach) >> 4, cz1 = Entity.floor(pz + reach) >> 4;
         if (cx1 - cx0 > MAX_CANDIDATE_COLUMNS || cz1 - cz0 > MAX_CANDIDATE_COLUMNS) return false;
         SeenList fresh = takeSeenList(p);   // 옛 목록을 후보로 읽은 뒤 같은 배열에 새 목록을 쓴다
-        candN = 0;
-        for (int i = 0; i < fresh.size; i++) {
-            Entity e = fresh.items[i];
-            int ecx = e.chunkX(), ecz = e.chunkZ();
-            if (ecx >= cx0 && ecx <= cx1 && ecz >= cz0 && ecz <= cz1) continue;   // 범위 안이면 열 훑기가 찾는다(저장소에 있다면)
-            if (e.tracker != null && !e.isRemoved() && entities.holds(e)) addCandidate(e);
-        }
-        fresh.size = 0;
-        entities.forEachInColumns(cx0, cx1, cz0, cz1, candidateSink);
-        int n = entities.orderAndDedupe(candBuf, candN);
-        candN = 0;
         Entity[] buf = candBuf;
-        if (VERIFY_TRACK_CANDIDATES && !candidatesComplete(p, buf, n)) throw new AssertionError("추적 후보에 빠진 엔티티가 있다: " + p);
-        int i = 0;
+        int n = 0;
+        boolean done = false;
         passPlayer = p;
         try {
-            for (; i < n; i++) {
+            candN = 0;
+            for (int i = 0; i < fresh.size; i++) {
+                Entity e = fresh.items[i];
+                int ecx = e.chunkX(), ecz = e.chunkZ();
+                if (ecx >= cx0 && ecx <= cx1 && ecz >= cz0 && ecz <= cz1) continue;   // 범위 안이면 열 훑기가 찾는다(저장소에 있다면)
+                if (e.tracker != null && !e.isRemoved() && entities.holds(e)) addCandidate(e);
+            }
+            fresh.size = 0;
+            entities.forEachInColumns(cx0, cx1, cz0, cz1, candidateSink);
+            buf = candBuf;
+            n = entities.orderAndDedupe(buf, candN);
+            candN = 0;
+            if (VERIFY_TRACK_CANDIDATES && !candidatesComplete(p, buf, n)) throw new AssertionError("추적 후보에 빠진 엔티티가 있다: " + p);
+            long mods = entities.modCount();
+            for (int i = 0; i < n; i++) {
                 Entity e = buf[i];
                 passEntity = e;
                 if (e.tracker != null && !e.isRemoved() && e.tracker.updatePlayer(p, viewers)) fresh.add(e);
+                // 판정 도중 처리기(플러그인 PlayerTrackEntityEvent·onStartSeenBy)가 엔티티를 넣고 빼거나 옮겼거나 p 를 옮겼으면
+                // 미리 정한 후보가 더는 맞지 않는다 — 옛 길처럼 이 엔티티 뒤(틱 목록 순서)를 모두 돈다
+                if (entities.modCount() != mods || p.x() != px || p.z() != pz || viewDistanceFor(p) != vd) {
+                    long after = org.domi.furnace.server.entity.EntityStore.orderKey(e);
+                    for (Entity x : entities.all()) {
+                        if (org.domi.furnace.server.entity.EntityStore.orderKey(x) <= after) continue;
+                        passEntity = x;
+                        if (x.tracker != null && !x.isRemoved() && x.tracker.updatePlayer(p, viewers)) fresh.add(x);
+                    }
+                    break;
+                }
             }
+            done = true;
         } finally {
             passPlayer = null;
             passEntity = null;
-            // p 를 보는 엔티티는 모두 후보였다 — 도중 예외(i < n)면 남은 후보 중 보던 것도 올린다
-            for (int j = i; j < n; j++) if (buf[j].tracker != null && buf[j].tracker.isSeenBy(p)) fresh.add(buf[j]);
             java.util.Arrays.fill(buf, 0, n, null);
+            candN = 0;
+            if (!done) {   // 도중 예외: p 를 보는 것을 빠짐없이 다시 모은다(역색인을 잃으면 먼 엔티티의 제거 패킷을 놓친다)
+                fresh.size = 0;
+                for (Entity e : entities.all()) if (e.tracker != null && e.tracker.isSeenBy(p)) fresh.add(e);
+            }
             putSeenList(p, fresh);
         }
         return true;

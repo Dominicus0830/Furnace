@@ -50,7 +50,7 @@ class EntityTrackerCandidatesIdentityTest {
         return new Scene(r.nextLong(), 40 + r.nextInt(220), 2 + r.nextInt(6), 150 + r.nextInt(150), spread, false);
     }
 
-    /** 자동 길 시험용: 절반은 PlayerTrackEntityEvent 처리기가 가끔 켜지는 장면. */
+    /** 절반은 PlayerTrackEntityEvent 처리기(판정 도중 월드를 바꾼다)가 가끔 켜지는 장면. */
     private static Scene sceneWithListener(SplittableRandom r) {
         Scene s = scene(r);
         return new Scene(s.seed, s.entities, s.players, s.steps, s.spread, r.nextBoolean());
@@ -58,7 +58,7 @@ class EntityTrackerCandidatesIdentityTest {
 
     @Test
     void candidatesMatchFullScan() {
-        Differential<Scene, List<String>> d = Differential.<Scene, List<String>>of("tracker-candidates", EntityTrackerCandidatesIdentityTest::scene)
+        Differential<Scene, List<String>> d = Differential.<Scene, List<String>>of("tracker-candidates", EntityTrackerCandidatesIdentityTest::sceneWithListener)
                 .seed(0x7017_0001L).iterations(40).describe(Scene::summary);
         d.check(s -> run(s, Mode.FULL), s -> run(s, Mode.CANDIDATES));
         // 변이 점검: 역색인을 빼거나(가까운 것만) 순서를 뒤집으면 잡혀야 한다
@@ -126,6 +126,12 @@ class EntityTrackerCandidatesIdentityTest {
                     if (r.nextInt(5) == 0) e.setPos(rc(r, s.spread), -60, rc(r, s.spread));
                     else e.setPos(e.x() + r.nextDouble(-20, 20), -60, e.z() + r.nextDouble(-20, 20));
                 }
+                // 넘김 대기 중인 것도 움직이고, 옛 레벨이 보임을 다시 정한다(플러그인 refreshViews 처럼 — 옛 레벨 색인에 붙는다)
+                if (!sim.pending.isEmpty() && r.nextInt(3) == 0) {
+                    Entity e = sim.pending.get(r.nextInt(sim.pending.size()));
+                    e.setPos(e.x() + r.nextDouble(-30, 30), -60, e.z() + r.nextDouble(-30, 30));
+                    e.level().refreshViews(e, null, false);
+                }
             } else if (op < 72) {   // 틱 끝 추적(구역 바뀐 엔티티 다시 보기·변화 방송·grace)
                 sim.track();
             } else if (op < 76) {   // 새 엔티티
@@ -133,9 +139,14 @@ class EntityTrackerCandidatesIdentityTest {
             } else if (op < 79) {   // 지움
                 Entity e = sim.anyEntity(r);
                 if (e != null) e.discard();
-            } else if (op < 84) {   // 다른 region 으로 넘김(추적 상태째)
+            } else if (op < 81) {   // 다른 region 으로 넘김(추적 상태째, 바로)
                 Entity e = sim.anyEntity(r);
                 if (e != null) sim.handOff(e);
+            } else if (op < 83) {   // 넘김 시작: 옛 저장소에서 빼고 새 region 이 받기 전(어느 저장소에도 없음, level = 옛 레벨)
+                Entity e = sim.anyEntity(r);
+                if (e != null) sim.beginHandOff(e);
+            } else if (op < 84) {   // 기다리던 넘김을 받는다
+                sim.finishHandOffs();
             } else if (op < 87) {   // 플레이어가 다른 region 으로(옛 region 엔티티는 grace 동안 계속 본다)
                 Player p = pick(r, players);
                 if (p != null) {
@@ -293,8 +304,28 @@ class EntityTrackerCandidatesIdentityTest {
             to.adoptEntity(e);
         }
 
+        /** 넘김 대기(handOffEntities 의 remove 와 runAtChunk 사이). */
+        final List<Entity> pending = new ArrayList<>();
+
+        void beginHandOff(Entity e) {
+            Level from = (Level) e.level();
+            if (!from.entities().contains(e)) return;
+            from.entities().remove(e);
+            pending.add(e);
+        }
+
+        void finishHandOffs() {
+            for (Entity e : pending) {
+                if (e.isRemoved()) continue;
+                Level from = (Level) e.level();
+                levels[1 - from.index].adoptEntity(e);
+            }
+            pending.clear();
+        }
+
         /** 합치기(1 → 0) 뒤 x 청크가 split 보다 작은 쪽을 새 레벨 1 로 나눈다(플레이어도 그 기준으로). */
         void mergeAndSplit(int split) {
+            finishHandOffs();
             levels[0].absorb(levels[1]);
             for (Player p : order) membership.put(p, 0);
             Level fresh = new Level(this, 1);
@@ -321,12 +352,10 @@ class EntityTrackerCandidatesIdentityTest {
                     return true;
                 }
 
-                @Override
-                public boolean wantsPlayerTrackEntity() { return sim.trackListener; }
-
                 /**
                  * PlayerTrackEntityEvent 처리기 흉내(켜져 있을 때만): 판정 도중 월드를 바꾼다 — 다음 id 엔티티를 보는 사람 곁으로 옮기고,
-                 * 그 엔티티의 보임을 바로 다시 정한다(refreshViews — 판정 밖 길로 seenBy 가 바뀜).
+                 * 반은 그 엔티티의 보임을 바로 다시 정한다(refreshViews — 판정 밖 길로 seenBy 가 바뀜). 나머지는 같은 판정이 뒤에서
+                 * 그 엔티티를 만나야 한다(옛 길은 틱 목록 순서로 계속 도니까 — 후보 길은 변경을 알아채고 나머지를 전체로 돈다).
                  */
                 @Override
                 public void playerTrackEntity(Player viewer, Entity e) {
@@ -334,7 +363,7 @@ class EntityTrackerCandidatesIdentityTest {
                     Entity next = Level.this.entities().get(e.id() + 1);
                     if (next == null || next.isRemoved()) return;
                     next.setPos(viewer.x() + 3.0, next.y(), viewer.z() - 2.0);
-                    Level.this.refreshViews(next, viewer, false);
+                    if (e.id() % 2 == 0) Level.this.refreshViews(next, viewer, false);   // 반은 바로 다시 정하고, 반은 판정이 뒤에서 만나게 둔다
                 }
             };
             this.svc = new LevelServices.Delegating(LevelServices.DEFAULT) {
