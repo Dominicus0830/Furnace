@@ -94,9 +94,10 @@ class CompatPlayerCachePruneTest {
         assertNull(Compat.existingPlayer(ps.get(0)), "접속이 끝난 것은 걷혀야 한다");
         assertNull(Compat.existingPlayer(ps.get(599)));
         assertSame(keep, Compat.existingPlayer(ps.get(1000)), "접속 중인 것은 같은 감싸개");
-        int left = 500 + 20;   // 접속 중이던 P600..P1099 와 새로 들어온 Q 20명
-        assertTrue(Compat.playerCacheSize() <= left + 1, "접속 중인 것만 남아야 한다: " + Compat.playerCacheSize());
-        assertEquals(Math.max(1024, 2 * (Compat.playerCacheSize() - 1)), Math.max(1024, Compat.playerPruneAt()) , "문턱은 남은 수 × 2 (최소 1024)");
+        int left = (1100 - 600) + 20;   // 접속 중이던 P600..P1099(1100 - 600) 와 새로 들어온 Q 20명
+        assertEquals(left + 1, Compat.playerCacheSize(), "접속 중인 것과 방금 넣은 Trigger 만 남아야 한다");
+        assertEquals(Math.max(1024, 2 * left), Compat.playerPruneAt(), "훑은 뒤 문턱 = 남은 수 × 2 (최소 1024)");
+        assertTrue(Compat.playerPruneAt() > 1024, "복귀 분기와 구분되려면 1024 보다 커야 한다");
 
         // 4) 표가 1024 이하로 줄었으면 다음 놓침이 문턱을 1024 로 되돌린다
         missOffline("AfterShrink");
