@@ -2672,8 +2672,9 @@ public abstract class ChunkLevel implements BlockLevel {
         return e.canBeCollidedWith() && !e.isPassengerOfSameVehicle(self);
     }
 
-    private double[] borderShapeKey;
-    private Shape borderShape;
+    /** 마지막 보더 모양과 그 정수 경계. 여러 region 스레드가 읽으므로 한 객체로 바꿔 끼운다. */
+    private record BorderShapeMemo(double x0, double z0, double x1, double z1, Shape shape) {}
+    private volatile BorderShapeMemo borderShapeMemo;
 
     /**
      * CollisionGetter.borderCollision → WorldBorder.isInsideCloseToBorder(self, box): d = max(|가로 길이|, |세로 길이|, 1) 일 때
@@ -2685,13 +2686,15 @@ public abstract class ChunkLevel implements BlockLevel {
         double dist = Math.min(Math.min(Math.min(sx - b[0], b[2] - sx), sz - b[1]), b[3] - sz);
         if (!(dist < d * 2.0) || !(sx >= b[0] - d && sx < b[2] + d && sz >= b[1] - d && sz < b[3] + d)) return null;
         double x0 = Math.floor(b[0]), z0 = Math.floor(b[1]), x1 = Math.ceil(b[2]), z1 = Math.ceil(b[3]);
-        double[] k = borderShapeKey;
-        if (k == null || k[0] != x0 || k[1] != z0 || k[2] != x1 || k[3] != z1) {
-            borderShape = Shape.outsideBorder(x0, z0, x1, z1);
-            borderShapeKey = new double[] {x0, z0, x1, z1};
+        BorderShapeMemo m = borderShapeMemo;
+        // -0.0 과 0.0 을 가른다(Math.ceil(-0.3) = -0.0 이 모양 좌표에 그대로 남아 collide 결과의 부호가 된다).
+        if (m == null || !same(m.x0, x0) || !same(m.z0, z0) || !same(m.x1, x1) || !same(m.z1, z1)) {
+            borderShapeMemo = m = new BorderShapeMemo(x0, z0, x1, z1, Shape.outsideBorder(x0, z0, x1, z1));
         }
-        return borderShape;
+        return m.shape;
     }
+
+    private static boolean same(double a, double b) { return Double.doubleToRawLongBits(a) == Double.doubleToRawLongBits(b); }
 
     /** findSupportingBlock(entity, box): 겹치는 충돌 블록 중 엔티티 위치에서 가운데가 가장 가까운 것(같으면 compareTo 가 큰 쪽). */
     public Pos findSupportingBlock(AABB box, double ex, double ey, double ez) { return findSupportingBlock(null, box, ex, ey, ez); }

@@ -49,7 +49,7 @@ public final class Shape {
      * 격자를 바닐라와 똑같이 두는 것은 걸어 오르기 후보(getCoords(Y))가 격자 좌표 전부를 쓰기 때문이다(exactCoords).
      */
     public static Shape box(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
-        if (maxX - minX < 1.0E-7 || maxY - minY < 1.0E-7 || maxZ - minZ < 1.0E-7) return EMPTY;
+        if (maxX - minX < 1.0E-7 || maxY - minY < 1.0E-7 || maxZ - minZ < 1.0E-7) return EMPTY_BOX;
         int bx = findBits(minX, maxX), by = findBits(minY, maxY), bz = findBits(minZ, maxZ);
         if (bx >= 0 && by >= 0 && bz >= 0) {
             if (bx == 0 && by == 0 && bz == 0) return BLOCK;
@@ -65,6 +65,19 @@ public final class Shape {
         }
         Shape s = new Shape(new double[] {minX, minY, minZ, maxX, maxY, maxZ});
         s.grid = new Grid(new double[][] {{minX, maxX}, {minY, maxY}, {minZ, maxZ}}, new boolean[] {true}, 1, 1);
+        s.exactCoords = true;
+        return s;
+    }
+
+    /**
+     * Shapes.empty(): 비었지만 격자 좌표가 {0} 인 ArrayVoxelShape. 크기 0 인 엔티티 몸이 충돌 목록에 들면 걸어 오르기 후보에 (0 − 상자 minY)가
+     * 생기는 바닐라 버릇까지 맞추려고 EMPTY 와 따로 둔다(충돌·겹침은 EMPTY 와 같다).
+     */
+    private static final Shape EMPTY_BOX = emptyBox();
+
+    private static Shape emptyBox() {
+        Shape s = new Shape(new double[0]);
+        s.grid = new Grid(new double[][] {{0.0}, {0.0}, {0.0}}, new boolean[0], 0, 0);
         s.exactCoords = true;
         return s;
     }

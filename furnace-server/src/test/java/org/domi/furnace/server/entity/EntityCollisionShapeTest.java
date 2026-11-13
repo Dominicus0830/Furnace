@@ -283,4 +283,38 @@ class EntityCollisionShapeTest {
         assertEquals(1, Shape.box(0, 0, 0, 1, 1, 1).boxCount());
         assertSame(Shape.BLOCK, Shape.box(0, 0, 0, 1, 1, 1));
     }
+
+    /** 크기 0 인 상자는 Shapes.empty(): 막지도 겹치지도 않지만 Y 격자 {0} 이 오르기 후보(0 − minY)를 낸다(바닐라 버릇). */
+    @Test
+    void emptyEntityBoxKeepsVanillaZeroCoord() {
+        Shape e = Shape.box(0.5, 0.0, 0.0, 0.5, 1.0, 1.0);
+        assertTrue(e.isEmpty());
+        assertArrayEquals(new double[] {0.0}, e.exactYCoords());
+        assertEquals(0.7, e.collide(1, new AABB(0, 0.5, 0, 1, 1.5, 1), 0.7));
+        assertFalse(e.overlaps(new AABB(0, 0, 0, 1, 1, 1), 0, 0, 0));
+        assertArrayEquals(new float[] {0.25F}, Entity.stepHeightCandidates(new AABB(0, -0.25, 0, 1, 1.5, 1), List.of(e), 0.6F, 0.0F));
+        assertArrayEquals(new float[0], Entity.stepHeightCandidates(new AABB(0, 0.25, 0, 1, 1.5, 1), List.of(e), 0.6F, 0.0F));
+    }
+
+    // ---------------------------------------------------------------- 블록만 보는 판정·도착 자리 보더
+
+    /** 내릴·리스폰 자리(findSafeDismountLocation, canDismountTo)는 블록만 본다(getBlockCollisions) — 배가 있어도 그 자리를 버리지 않는다. */
+    @Test
+    void dismountLocationIgnoresHardEntities() {
+        var l = new CollLevel();
+        boatAt(l, 0.5, 0.5);
+        var pos = new org.domi.furnace.server.block.Pos(0, -60, 0);
+        assertNotNull(DismountHelper.findSafeDismountLocation(l, DismountHelper.PLAYER_WIDTH, 1.8F, pos, false));
+        assertTrue(DismountHelper.canDismountTo(l, null, new AABB(0.2, GROUND, 0.2, 0.8, GROUND + 1.8, 0.8)));
+    }
+
+    /** 후렴과 순간이동(randomTeleport → teleportTo 뒤 noCollision(this))은 도착 자리 기준으로 보더 밖과 겹치면 실패한다. */
+    @Test
+    void chorusTeleportChecksBorderAtTarget() {
+        var l = new CollLevel();
+        l.border = new double[] {-5.5, -5.5, 5.5, 5.5};
+        Player p = playerAt(l, 0.5, GROUND, 0.5);
+        assertNull(ItemEffects.randomTeleportTarget(p, l, 5.9, GROUND, 0.5), "몸이 정수 보더 6 을 넘는다");
+        assertNotNull(ItemEffects.randomTeleportTarget(p, l, 5.5, GROUND, 0.5));
+    }
 }

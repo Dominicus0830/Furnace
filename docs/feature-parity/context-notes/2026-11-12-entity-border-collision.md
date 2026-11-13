@@ -32,9 +32,12 @@
 | BoatItem | self=새 배 | `noCollision(boat, …)` — 몹·플레이어 자리에 배를 못 놓는다 |
 | WalkNodeEvaluator(PathNavigationRegion = 엔티티 충돌 없음) | self, 엔티티 없음 | `noCollisionIgnoringEntities(mob, …)` |
 | Camel.wouldNotSuffocateAtTargetPose | noBlockCollision(self) | `noBlockCollision(this, …)` |
-| DismountHelper.canDismountTo | getBlockCollisions | `noBlockCollision(null, …)` |
+| DismountHelper.canDismountTo | getBlockCollisions(승객) | `canDismountTo(level, 승객, …)` → `noBlockCollision(승객 엔티티, …)` |
+| DismountHelper.findSafeDismountLocation(침대·정박기 리스폰, 몹 내리기) | getBlockCollisions(null) | `noBlockCollision(null, …)` — 배·셜커 몸은 안 본다 |
+| LivingEntity.randomTeleport(후렴과) | teleportTo 뒤 noCollision(this) | `noCollision(p, nx, nz, …)` — 보더는 도착 자리 기준 |
+| Entity.isFree(물·용암 벽 뛰어나오기) | noCollision(this) ∧ !containsAnyLiquid | 같음 |
 | EntityType.getYOffset(알·양동이) | getCollisions(null) | `collisions(null, …)` |
-| ItemEntity·HangingEntity·ItemFrame·TamableAnimal·LongJump·InsideBrownianWalk·Zombie 지원군·Warden·Ghast·Shulker(둘)·Boat floatBoat·randomTeleport·isFree | self | `noCollision(this/mob, …)` |
+| ItemEntity·HangingEntity·ItemFrame·TamableAnimal·LongJump·InsideBrownianWalk·Zombie 지원군·Warden·Ghast·Shulker(둘)·Boat floatBoat·몹 randomTeleport | self | `noCollision(this/mob, …)` |
 | ShulkerBox 열기·ArmorStand·스포너·자연 스폰·ExperienceOrb·AbstractArrow | self 없음 | `noCollision(box)` |
 
 바뀐 관측 동작(바닐라와 같아짐): 수레·배는 밀 수 있는 몹·플레이어에 막힌다. 한 번 이동 안에 몸이 닿으면 `move` 가 가로 속도를 0 으로 만들어 그 틱에는
@@ -45,15 +48,29 @@
 ## 검증
 - 하네스(커밋 안 함, 바닐라 서버 클래스 + 번들러 jar 라이브러리로 직접 실행): 무작위 30만 건 × 씨앗 3개, 항목 6개(보더 collide, 엔티티 상자 collide,
   보더 겹침, 엔티티 겹침, 모양 목록 collideWithShapes, 오르기 후보) — 불일치 0(-0.0 고친 뒤). 하네스 소스는 프로젝트 파일 `furnace/reviews/o05-c1-collision-repro/`.
-- 시험: `EntityCollisionShapeTest`(15), `HardColliderTest`(2). 전체 `:furnace-api:test :furnace-server:test` 4327개 중 실패 1(MinecartTest — 위 바닐라 순서로 고침, 재실행 통과).
+- 시험: `EntityCollisionShapeTest`(18), `HardColliderTest`(3).
+- 검토 반영 뒤(기준 브랜치 92b7239b 합침): 전체 `:furnace-api:test :furnace-server:test` 4430개 실패 0. 검토 하네스 4변형(씨앗 1, 보더 +3e7, flat, 보더 −3e7 flat)
+  각 30만 건 — 오르기 후보 불일치 7400·7308 → 0, 남은 것은 −3e7 flat 의 얇은 상자 겹침 260·3(R7, 아래 남은 차이). 전체 `:furnace-api:test :furnace-server:test` 4327개 중 실패 1(MinecartTest — 위 바닐라 순서로 고침, 재실행 통과).
+
+## 검토 반영(PR #291 독립 검토 R1~R9)
+- R1: `findSafeDismountLocation` 이 `noCollision(box)`(이제 배·셜커를 봄)를 쓰던 회귀 → 블록만. `canDismountTo` 는 승객 엔티티를 블록 문맥으로 넘긴다.
+- R2 후렴과 보더(도착 자리), R3 `isFree` 액체 검사, R4 낙타 자세 상자 `deflate` 제거(바닐라 `wouldNotSuffocateAtTargetPose` 는 줄이지 않음).
+- R5: `WorldBorder.bounds()` — 정적 크기면 잠금 없는 volatile 스냅숏(중심·크기·최대 크기·보간 끝에서 지움), 보간 중이면 벽시계로 매번 계산(값은 그대로).
+  보더 모양 기억은 (정수 경계, 모양) 한 객체로 바꿔 끼우고 경계는 비트로 비교(-0.0 과 0.0 을 가른다).
+- R6: `Shape.box` 의 빈 경우는 `Shapes.empty()` 처럼 Y 격자 {0} 을 가진 빈 모양(크기 0 몸이 오르기 후보 0 − minY 를 내는 바닐라 버릇). 바닐라 엔티티로는 닿지 않는다.
+- R8: `HardColliderTest` 가 `canCollideWith` 를 넓게 덮어쓰는 클래스도 잡는다(좁히기만 하는 AbstractWindCharge 는 허용 목록).
 
 ## 성능 메모(P-O05-07 가 이어받음)
 - 몹·플레이어·투사체 등 상대의 `canBeCollidedWith` 만 보는 self 는 `HardCollider`(배·셜커) 구역 목록만 훑는다(EntityStore 클래스별 목록 — 같은 결과·순서).
   배·수레만 전체 훑기 + 플레이어. canBeCollidedWith 를 덮어쓰면 HardCollider 를 달아야 한다(`HardColliderTest`).
-- 보더는 호출마다 `borderBounds()`(잠금) 한 번, 모양은 정수 경계가 같으면 레벨에 기억해 재사용.
+- 보더는 호출마다 `borderBounds()` 한 번(정적 보더면 잠금·할당 없음), 모양은 정수 경계가 같으면 레벨에 기억해 재사용.
 
 ## 남은 차이(가정·작음)
 - 플레이어는 Furnace 에서 엔티티 저장소 밖이라 배·수레의 충돌 후보에서 엔티티 **뒤**에 온다(바닐라는 구역 안 넣은 순서). 1e-7 조기 반환에만 영향.
 - 플레이어 self 의 블록 문맥(가루눈 등)은 여전히 없음(기존). region 경계 너머 엔티티는 안 보임(밀기와 같은 기존 한계).
 - 블록 모양의 오르기 후보는 상자 minY/maxY(바닐라는 격자 좌표 — 큐브 격자 반 블록 등에서 후보 1.0 이 더 있을 수 있다). 기존 근사, 이번에 손대지 않음.
 - `isUnobstructed`(건설 막기, blocksBuilding)는 Furnace 가 플레이어만 본다 — 별도 항목.
+- 겉날개 비행은 바닐라가 `Entity.move` → `collide`(착지할 때 오르기 있음)인데 Furnace 는 `collideBoundingBox`(오르기 없음, 기존 근사).
+- 플레이어 승객의 `canDismountTo` 블록 문맥(가루눈 등)은 없음 — 플레이어가 Entity 가 아니라서(엔티티 승객은 넘긴다).
+- 좌표 ±3e7 근처에서 폭 ~1e-7 인 아주 얇은 상자의 겹침 판정은 바닐라 `IndexMerger` 가 얇은 칸을 버려 다를 수 있다(검토 하네스 flat 변형:
+  보더 260·엔티티 3 / 30만). 실제 호출 지점에는 그런 상자가 없다.

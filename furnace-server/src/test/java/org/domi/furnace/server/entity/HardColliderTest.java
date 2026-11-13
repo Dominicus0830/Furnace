@@ -45,6 +45,20 @@ class HardColliderTest {
         assertTrue(HardCollider.class.isAssignableFrom(Shulker.class));
     }
 
+    /**
+     * canCollideWith 를 덮어쓰면 상대의 canBeCollidedWith 없이 참이 될 수 있으니 전체를 훑어야 한다(collidesOnlyWithHardColliders 거짓).
+     * 좁히기만 하는 덮어쓰기(super 와 그리고)는 허용 목록에 둔다 — 바닐라 1.21.1 에서는 AbstractWindCharge 뿐.
+     */
+    @Test
+    void widenedCanCollideWithScansEverything() throws Exception {
+        java.util.Set<Class<?>> narrowingOnly = java.util.Set.of(AbstractWindCharge.class);
+        for (Class<?> c : entityClasses()) {
+            if (c != Entity.class && declares(c, "canCollideWith", Entity.class) && !narrowingOnly.contains(c)) {
+                assertTrue(declares(c, "collidesOnlyWithHardColliders"), c.getName() + " 는 canCollideWith 를 넓히니 전체를 훑어야 한다");
+            }
+        }
+    }
+
     @Test
     void vehicleCollidersScanEverything() throws Exception {
         for (Class<?> c : entityClasses()) {

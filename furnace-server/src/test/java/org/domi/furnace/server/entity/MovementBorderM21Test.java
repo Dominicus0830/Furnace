@@ -83,10 +83,10 @@ class MovementBorderM21Test {
     void dismountBoxOutsideWorldBorderIsRejected() {
         var level = new DimensionTestLevel("minecraft:overworld");
         level.border = new double[] {-10, -10, 10, 10};
-        assertTrue(DismountHelper.canDismountTo(level, new AABB(0.2, -60, 0.2, 0.8, -58.2, 0.8)));
-        assertFalse(DismountHelper.canDismountTo(level, new AABB(9.8, -60, 0.2, 10.4, -58.2, 0.8)), "상자 한쪽이 보더 밖");
-        assertTrue(DismountHelper.canDismountTo(level, new AABB(9.3, -60, 0.2, 9.9, -58.2, 0.8)), "최대 모서리는 1e-5 안쪽까지 본다");
-        assertFalse(DismountHelper.canDismountTo(level, new AABB(-10.4, -60, 0.2, -9.8, -58.2, 0.8)));
+        assertTrue(DismountHelper.canDismountTo(level, null, new AABB(0.2, -60, 0.2, 0.8, -58.2, 0.8)));
+        assertFalse(DismountHelper.canDismountTo(level, null, new AABB(9.8, -60, 0.2, 10.4, -58.2, 0.8)), "상자 한쪽이 보더 밖");
+        assertTrue(DismountHelper.canDismountTo(level, null, new AABB(9.3, -60, 0.2, 9.9, -58.2, 0.8)), "최대 모서리는 1e-5 안쪽까지 본다");
+        assertFalse(DismountHelper.canDismountTo(level, null, new AABB(-10.4, -60, 0.2, -9.8, -58.2, 0.8)));
     }
 
     @Test

@@ -298,7 +298,7 @@ public class Camel extends AbstractHorse {
         float s = getAgeScale();
         float w = EntityType.CAMEL.width() * s, h = (isCamelSitting() ? EntityType.CAMEL.height() : SITTING_HEIGHT) * s;
         double hw = w / 2.0;
-        return level.noBlockCollision(this, new AABB(x() - hw, y(), z() - hw, x() + hw, y() + h, z() + hw).deflate(1.0E-7));
+        return level.noBlockCollision(this, new AABB(x() - hw, y(), z() - hw, x() + hw, y() + h, z() + hw));
     }
 
     public void sitDown() {

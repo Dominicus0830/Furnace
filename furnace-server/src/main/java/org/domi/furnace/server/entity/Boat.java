@@ -504,7 +504,7 @@ public class Boat extends Entity implements Leashable, HardCollider {
             for (float[] dim : poses) {
                 for (Vec3 s : spots) {
                     double hw = dim[0] / 2.0F;
-                    if (DismountHelper.canDismountTo(level, new AABB(s.x() - hw, s.y(), s.z() - hw, s.x() + hw, s.y() + dim[1], s.z() + hw))) return s;
+                    if (DismountHelper.canDismountTo(level, r, new AABB(s.x() - hw, s.y(), s.z() - hw, s.x() + hw, s.y() + dim[1], s.z() + hw))) return s;
                 }
             }
         }

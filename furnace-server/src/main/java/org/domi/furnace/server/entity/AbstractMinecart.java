@@ -575,7 +575,7 @@ public abstract class AbstractMinecart extends Entity {
                     if (DismountHelper.isBlockFloorValid(h)) {
                         double vx = m.x() + 0.5, vy = m.y() + h, vz = m.z() + 0.5;
                         AABB box = new AABB(vx - hw, vy, vz - hw, vx + hw, vy + poses[pi][1], vz + hw);
-                        if (DismountHelper.canDismountTo(level, box)) return new Vec3(vx, vy, vz);   // TODO(자세): 고른 자세로 승객 자세 바꾸기
+                        if (DismountHelper.canDismountTo(level, r, box)) return new Vec3(vx, vy, vz);   // TODO(자세): 고른 자세로 승객 자세 바꾸기
                     }
                 }
             }
