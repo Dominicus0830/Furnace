@@ -2316,6 +2316,17 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public Set<ChunkPos> loadedChunks() { return loadedChunks; }
     public Set<ChunkPos> pendingChunks() { return pendingChunks; }
 
+    /**
+     * 바닐라 플레이어 티켓은 시야 정사각 전부를 올려 두지만(보내는 것만 둥근 모양) 구독은 둥근 모양만 한다 — 정사각에만 있는 모서리 청크 중
+     * 아직 안 올라온 것(region 스레드 전용, 가까운 것부터). 보낼 것이 다 나간 뒤 조금씩 올린다({@code Region.loadCornerChunks}).
+     */
+    private final java.util.LinkedHashSet<ChunkPos> cornerLoads = new java.util.LinkedHashSet<>();
+    public java.util.LinkedHashSet<ChunkPos> cornerLoads() { return cornerLoads; }
+
+    /** cornerLoads 에서 꺼내 올리는 중인(아직 안 끝난) 모서리 청크(아무 스레드). */
+    private final java.util.Set<ChunkPos> cornerInFlight = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    public java.util.Set<ChunkPos> cornerInFlight() { return cornerInFlight; }
+
     /** 요청했지만 아직 끝나지 않은(생성·직렬화 중인) 청크 전송 수 — 완료 콜백은 다른 스레드서 줄인다. */
     private final java.util.concurrent.atomic.AtomicInteger chunkSendsInFlight = new java.util.concurrent.atomic.AtomicInteger();
 

@@ -91,7 +91,7 @@ class ChunkSendPacketOrderGoldenTest {
                 @Override
                 public int gameRuleInt(String name) { return name.equals("randomTickSpeed") ? 0 : super.gameRuleInt(name); }
             });
-            // 본문 캐시를 모두 채운다(-3..4 × -3..3) — 이후 요청은 모두 캐시 적중
+            // 본문 캐시를 모두 채운다(-3..4 × -3..3 ⊇ 바닐라 둥근 모양 두 중심) — 이후 요청은 모두 캐시 적중
             List<CompletableFuture<byte[]>> warm = new ArrayList<>();
             for (int x = -3; x <= 4; x++) for (int z = -3; z <= 3; z++) warm.add(w.serializedChunkBody(new ChunkPos(x, z)));
             for (var f : warm) f.get(30, TimeUnit.SECONDS);
@@ -108,26 +108,26 @@ class ChunkSendPacketOrderGoldenTest {
             w.submitAtChunk(C00, r -> { r.adopt(a); r.adopt(b); return null; }).get(10, TimeUnit.SECONDS);
             w.startTicking();
             List<String> join = settle(w, chA);
-            assertEquals(25, join.stream().filter(x -> x.startsWith("chunk")).count(), "접속 시야 5×5: " + join);
+            assertEquals(ChunkTrackingViewTest.vanillaCount(2), join.stream().filter(x -> x.startsWith("chunk")).count(), "접속 시야 2 = 바닐라 둥근 모양 45: " + join);
             settle(w, chB);
 
             // 한 인박스 작업(= 다음 틱 드레인, 그 틱의 게임 틱 직전): 이미 받은 청크 (0,0) 편집, A 는 청크 (1,0) 으로 이동,
-            // B 는 조금 이동·회전, 다음 틱에 새로 구독될 청크 (3,0) 편집을 1틱 지연 작업으로.
+            // B 는 조금 이동·회전, 다음 틱에 새로 구독될 청크 (4,0) 편집(시야 2 의 바닐라 둥근 모양은 (3,0) 이 이미 받은 칸이다)을 1틱 지연 작업으로.
             w.runAtChunk(C00, r -> {
                 r.breakBlock(1, -61, 1);
                 a.publishPosition(24.5, -60, 8.5, 0, 0, true);
                 a.pushMove(24.5, -60, 8.5, true);
                 b.publishPosition(11.0, -60, 8.5, 45, 0, true);
                 b.pushMove(11.0, -60, 8.5, true);
-                r.schedule(Regionizer.chunkKey(3, 0), r2 -> r2.breakBlock(48, -61, 1), 1);
+                r.schedule(Regionizer.chunkKey(4, 0), r2 -> r2.breakBlock(64, -61, 1), 1);
             });
             List<String> seq = settle(w, chA);
             // 현재 구현: 청크 본문은 틱 안에서 요청만 하고(배치 시작은 그 자리), 본문 홉은 다음 틱 드레인에서 돈다 —
-            // 그래서 같은 틱의 엔티티 이동 패킷이 청크보다 앞선다. 새 구독 청크 (3,0) 편집(1틱 지연 작업)은 전달 뒤라 즉시 나간다.
-            assertEquals(List.of("block@1,-61,1", "center", "unload", "unload", "unload", "unload", "unload",
+            // 그래서 같은 틱의 엔티티 이동 패킷이 청크보다 앞선다. 새 구독 청크 (4,0) 편집(1틱 지연 작업)은 전달 뒤라 즉시 나간다.
+            assertEquals(List.of("block@1,-61,1", "center", "unload", "unload", "unload", "unload", "unload", "unload", "unload",
                     "batchStart", "movePosRot", "head",
-                    "chunk@3,0", "chunk@3,-1", "chunk@3,1", "chunk@3,-2", "chunk@3,2", "batchEnd",
-                    "block@48,-61,1"), seq);
+                    "chunk@4,0", "chunk@4,-1", "chunk@4,1", "chunk@3,-3", "chunk@3,3", "chunk@4,-2", "chunk@4,2", "batchEnd",
+                    "block@64,-61,1"), seq);
         } finally {
             sched.close();
         }

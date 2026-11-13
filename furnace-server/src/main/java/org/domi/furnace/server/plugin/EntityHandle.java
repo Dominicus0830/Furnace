@@ -54,6 +54,9 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     private final boolean noPhysics;
     /** 충돌 상자(만든 순간 값). */
     private final org.domi.furnace.api.world.Aabb boundingBox;
+    /** 떨어진 아이템 엔티티의 아이템(불변이라 참조만 복사, API 값은 처음 물을 때 만든다)·줍기 지연. 아이템 엔티티가 아니면 null·0. */
+    private final org.domi.furnace.server.entity.ItemStack droppedStack;
+    private final int pickupDelay;
     /** 스냅샷 순번(서버 전체에서 늘어난다 — 값을 읽기 전에 매긴다). */
     private static final java.util.concurrent.atomic.AtomicLong STAMPS = new java.util.concurrent.atomic.AtomicLong();
     private final long stamp = STAMPS.incrementAndGet();
@@ -73,6 +76,13 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         this.pose = org.domi.furnace.api.entity.Pose.byId(e.getPose());
         this.noPhysics = e.noPhysics;
         this.boundingBox = ApiBoxes.of(e.boundingBox());
+        if (e instanceof org.domi.furnace.server.entity.ItemEntity ie) {
+            droppedStack = ie.getItem();
+            pickupDelay = ie.pickupDelay();
+        } else {
+            droppedStack = null;
+            pickupDelay = 0;
+        }
         if (e instanceof ContainerEntity ce) {
             containerType = type;
             containerSize = ce.chestVehicleItems().length;
@@ -101,6 +111,14 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
 
     @Override
     public long snapshotStamp() { return stamp; }
+
+    @Override
+    public org.domi.furnace.api.item.ItemStack droppedItem() {
+        return droppedStack == null ? null : ApiConvert.item(droppedStack, host.core().world().itemRegistry());
+    }
+
+    @Override
+    public int pickupDelay() { return pickupDelay; }
 
     @Override
     public org.domi.furnace.api.event.cause.CauseChain origin() { return origin; }

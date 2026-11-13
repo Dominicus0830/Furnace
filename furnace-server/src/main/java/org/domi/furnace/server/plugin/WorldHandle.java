@@ -147,6 +147,98 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         return ok;
     }
 
+    // ------------------------------------------------------------------ 빠른 블록 쓰기(E7)
+
+    @Override
+    public CompletableFuture<org.domi.furnace.api.world.BlockEditResult> editBlocks(org.domi.furnace.api.world.BlockEditOptions options,
+                                                                                  java.util.function.Consumer<org.domi.furnace.api.world.BlockEditor> edit) {
+        org.domi.furnace.server.world.BlockEditBuffer buf;
+        try {
+            buf = fillEdit(edit);
+        } catch (IllegalArgumentException e) {
+            return RegionFuture.wrap(CompletableFuture.failedFuture(e));
+        }
+        return RegionFuture.wrap(org.domi.furnace.server.world.BlockEdits.apply(world, buf, mode(options)).thenApply(WorldHandle::toApi));
+    }
+
+    @Override
+    public org.domi.furnace.api.world.BlockEditResult editBlocksNow(org.domi.furnace.api.world.BlockEditOptions options,
+                                                                    java.util.function.Consumer<org.domi.furnace.api.world.BlockEditor> edit) {
+        var mode = mode(options);
+        var buf = fillEdit(edit);
+        // 모든 청크가 이 스레드 것인지 먼저 다 확인한다 — 하나라도 아니면 아무것도 바꾸지 않는다
+        java.util.Map<Region, java.util.List<org.domi.furnace.server.world.BlockEditBuffer.ChunkEdit>> byRegion = new java.util.LinkedHashMap<>();
+        for (var e : buf.chunks()) {
+            Region r = ownedRegion(new BlockPos(e.cx() << 4, 0, e.cz() << 4), "editBlocksNow(청크 " + e.cx() + ", " + e.cz() + ")");
+            if (r == null) throw new ThreadOwnershipException("editBlocksNow: 청크 " + e.cx() + ", " + e.cz() + " 의 region 이 없다");
+            byRegion.computeIfAbsent(r, k -> new ArrayList<>()).add(e);
+        }
+        return toApi(org.domi.furnace.server.world.BlockEdits.applyNow(byRegion, buf, mode));
+    }
+
+    private static org.domi.furnace.api.world.BlockEditResult toApi(org.domi.furnace.server.world.BlockEdits.Result r) {
+        return new org.domi.furnace.api.world.BlockEditResult(r.changed(), r.unchanged(), r.skipped());
+    }
+
+    /** API 옵션 → 바닐라 setBlock 플래그와 묶음 방식. */
+    static org.domi.furnace.server.world.BlockEdits.Mode mode(org.domi.furnace.api.world.BlockEditOptions o) {
+        java.util.Objects.requireNonNull(o, "options");
+        int flags = 0;
+        if (o.neighborUpdates() == org.domi.furnace.api.world.BlockEditOptions.NeighborUpdates.IMMEDIATE) flags |= 1 | 8;   // World.setBlock 의 11 과 같게
+        if (o.clientUpdates() != org.domi.furnace.api.world.BlockEditOptions.ClientUpdates.NONE) flags |= 2;
+        if (!o.shapeUpdates()) flags |= 16;
+        return new org.domi.furnace.server.world.BlockEdits.Mode(flags,
+                o.neighborUpdates() == org.domi.furnace.api.world.BlockEditOptions.NeighborUpdates.AFTER_EDIT,
+                o.clientUpdates() == org.domi.furnace.api.world.BlockEditOptions.ClientUpdates.CHUNKS, o.clearContainers(), o.chunksPerTick());
+    }
+
+    /** edit 을 지금 이 스레드에서 불러 쓰기 목록을 채운다. 끝나면 닫는다. */
+    private org.domi.furnace.server.world.BlockEditBuffer fillEdit(java.util.function.Consumer<org.domi.furnace.api.world.BlockEditor> edit) {
+        java.util.Objects.requireNonNull(edit, "edit");
+        var buf = new org.domi.furnace.server.world.BlockEditBuffer(world.dimensionType().minY(), world.dimensionType().maxY());
+        Editor ed = new Editor(buf, world.blockRegistry());
+        try {
+            edit.accept(ed);
+        } finally {
+            ed.closed = true;
+        }
+        return buf;
+    }
+
+    /** BlockEditor 구현 — 같은 BlockData 를 거듭 넣는 반복(채우기)이 이름 조회를 칸마다 하지 않게 상태 번호를 캐시한다. */
+    private static final class Editor implements org.domi.furnace.api.world.BlockEditor {
+        private final org.domi.furnace.server.world.BlockEditBuffer buf;
+        private final org.domi.furnace.server.world.BlockRegistry blocks;
+        private final java.util.HashMap<BlockData, Integer> ids = new java.util.HashMap<>();
+        private BlockData lastData;
+        private int lastId;
+        boolean closed;
+
+        Editor(org.domi.furnace.server.world.BlockEditBuffer buf, org.domi.furnace.server.world.BlockRegistry blocks) {
+            this.buf = buf;
+            this.blocks = blocks;
+        }
+
+        @Override
+        public void set(int x, int y, int z, BlockData data) {
+            if (closed) throw new IllegalStateException("editBlocks 함수가 끝난 뒤의 BlockEditor 는 쓸 수 없다");
+            java.util.Objects.requireNonNull(data, "data");
+            int id;
+            if (data == lastData) {
+                id = lastId;
+            } else {
+                Integer c = ids.get(data);
+                if (c == null) ids.put(data, c = ApiConvert.stateId(data, blocks));
+                lastData = data;
+                lastId = id = c;
+            }
+            buf.set(x, y, z, id);
+        }
+
+        @Override
+        public int size() { return buf.size(); }
+    }
+
     /** 이 스레드가 그 칸을 가진 region 스레드여야 한다(아니면 ThreadOwnershipException). 그 region 을 돌려준다(없으면 null). */
     Region ownedRegion(BlockPos pos, String what) {
         ThreadOwner owner = (ThreadOwner) world.chunkScheduler(pos.chunkX(), pos.chunkZ());

@@ -66,6 +66,7 @@ import org.domi.furnace.server.config.Config;
 import org.domi.furnace.server.entity.EntityIdAllocator;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.world.ChunkPos;
+import org.domi.furnace.server.world.ChunkTrackingView;
 import org.domi.furnace.server.world.SpawnPoint;
 import org.domi.furnace.server.world.World;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1495,8 +1496,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         int r = world.spawnChunkRadius();
         java.util.List<ChunkPos> spawnChunks = new java.util.ArrayList<>();
         for (int dx = -r; dx <= r; dx++)
-            for (int dz = -r; dz <= r; dz++)
-                spawnChunks.add(new ChunkPos(centerCp.x() + dx, centerCp.z() + dz));
+            for (int dz = -r; dz <= r; dz++) {
+                ChunkPos cp = new ChunkPos(centerCp.x() + dx, centerCp.z() + dz);
+                // 바닐라 ChunkTrackingView: 시야 밖(둥근 모양 바깥) 모서리는 보내지 않는다 — 큰 spawn-chunk-radius 가 시야보다 클 때도 시야 모양을 따른다
+                if (ChunkTrackingView.contains(centerCp.x(), centerCp.z(), effVd, cp.x(), cp.z())) spawnChunks.add(cp);
+            }
         spawnChunks.sort(java.util.Comparator.comparingInt(
                 c -> Math.max(Math.abs(c.x() - centerCp.x()), Math.abs(c.z() - centerCp.z()))));
         // 스냅샷을 뜨기 전에 먼저 구독한다 — 구독이 청크 전달 전까지 블록 변경을 보류했다가 청크 뒤에 보낸다.
@@ -4224,12 +4228,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 @Override
                 public boolean allowPlace(org.domi.furnace.server.block.Pos p, int state, org.domi.furnace.server.block.Pos against) {
                     org.domi.furnace.server.ServerCore pc = login.core;
-                    if (pc == null || !pc.events().hasSubscribers(org.domi.furnace.api.event.block.BlockPlaceEvent.class)) return true;
-                    var ev = pc.events().call(new org.domi.furnace.api.event.block.BlockPlaceEvent(actor.dimension(),
-                            new org.domi.furnace.api.world.BlockPos(p.x(), p.y(), p.z()), world.blockRegistry().nameOf(state),
-                            new org.domi.furnace.api.world.BlockPos(against.x(), against.y(), against.z()), pc.plugins().player(actor)));
-                    if (ev.isCancelled()) org.domi.furnace.server.plugin.ClientResync.hands(actor);   // 클라이언트가 먼저 줄인 손 아이템을 되돌린다(칸은 호출 뒤 sendBlockState)
-                    return !ev.isCancelled();
+                    if (pc == null || !pc.gameEvents().wantsBlockPlace()) return true;
+                    boolean ok = pc.gameEvents().blockPlace(actor, p, state, level.getBlockState(p), against, before, hand == 0);
+                    if (!ok) org.domi.furnace.server.plugin.ClientResync.hands(actor);   // 클라이언트가 먼저 줄인 손 아이템을 되돌린다(칸은 호출 뒤 sendBlockState)
+                    return ok;
                 }
             };
             pa.withInventory(actor.inventoryHost());
