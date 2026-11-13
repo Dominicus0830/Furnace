@@ -17,6 +17,8 @@ public final class ComponentPatch {
     private final Map<String, Object> entries;
     private volatile byte[] network;
     private int hash;
+    /** 플러그인 API 모양 — 처음 {@link #apiForm()} 때 한 번 만든다(T-033). final 필드뿐인 불변 객체라 경합 공개해도 안전하다. */
+    private ApiForm api;
 
     private ComponentPatch(LinkedHashMap<String, Object> entries) {
         this.entries = Collections.unmodifiableMap(entries);
@@ -176,6 +178,44 @@ public final class ComponentPatch {
         }
         if (out == null) return this;
         return out.isEmpty() ? EMPTY : new ComponentPatch(out);
+    }
+
+    // ------------------------------------------------------------------ 플러그인 API 모양(T-033, O09-01 (a))
+
+    /**
+     * 플러그인 API 아이템의 컴포넌트 모양: 붙은 것 이름 → SNBT, 지운 것 이름 — 둘 다 이름순, 읽기 전용.
+     * 패치가 불변이라 한 번 만든 모양을 계속 쓴다(인챈트·이름 아이템 변환 때마다 Snbt.write 를 하던 비용).
+     */
+    public record ApiForm(java.util.SortedMap<String, String> components, java.util.SortedSet<String> removed) {
+        static final ApiForm EMPTY = new ApiForm(Collections.emptySortedMap(), Collections.emptySortedSet());
+    }
+
+    /**
+     * API 모양. 옛 ApiConvert.item 과 같은 순서로 같은 값을 만든다(값 → 코덱 NBT → SNBT). 변환이 예외를 내면 저장하지 않고 그대로 던진다.
+     * 경합해서 둘이 만들어도 내용이 같으므로 아무 쪽이나 남는다(String.hash 와 같은 방식).
+     */
+    public ApiForm apiForm() {
+        ApiForm a = api;
+        if (a == null) {
+            if (entries.isEmpty()) return ApiForm.EMPTY;
+            java.util.TreeMap<String, String> comps = new java.util.TreeMap<>();
+            java.util.TreeSet<String> removed = new java.util.TreeSet<>();
+            for (var e : entries.entrySet()) {
+                if (e.getValue() == null) removed.add(e.getKey());
+                else comps.put(e.getKey(), Snbt.write(apiNbt(e.getKey(), e.getValue())));
+            }
+            api = a = new ApiForm(Collections.unmodifiableSortedMap(comps), Collections.unmodifiableSortedSet(removed));
+        }
+        return a;
+    }
+
+    /**
+     * 패치의 정규 값은 NBT 가 아니라 코덱의 값(마법 부여는 Map 등)일 수 있다 — 저장할 때처럼 그 컴포넌트의 코덱으로 NBT 로 바꾼다.
+     * 저장되지 않는(transient) 컴포넌트는 값이 이미 NBT 꼴이다.
+     */
+    private static Object apiNbt(String component, Object value) {
+        ComponentType t = DataComponents.byName(component);
+        return t == null || t.isTransient() ? value : t.persistent().toNbt(value);
     }
 
     // ------------------------------------------------------------------ 같음

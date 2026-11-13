@@ -1,11 +1,10 @@
 // 서버 내부 값 ↔ 플러그인 API 값 변환. 숫자 id 는 이 경계 안에서만 쓰고 API 로는 이름만 내보낸다.
 package org.domi.furnace.server.plugin;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import org.domi.furnace.api.event.LazyList;
 import org.domi.furnace.api.inventory.InventorySnapshot;
 import org.domi.furnace.api.world.BlockData;
 import org.domi.furnace.server.entity.ItemStack;
@@ -23,24 +22,10 @@ public final class ApiConvert {
 
     public static org.domi.furnace.api.item.ItemStack item(ItemStack s, ItemRegistry items) {
         if (s == null || s.isEmpty()) return org.domi.furnace.api.item.ItemStack.EMPTY;
-        Map<String, String> comps = new TreeMap<>();
-        java.util.Set<String> removed = new java.util.TreeSet<>();
-        for (var e : s.patch().entries().entrySet()) {
-            if (e.getValue() == null) removed.add(e.getKey());
-            else comps.put(e.getKey(), Snbt.write(toNbt(e.getKey(), e.getValue())));
-        }
+        // 컴포넌트 SNBT 는 패치가 한 번 만들어 들고 있다(T-033 (a)) — 예전엔 부를 때마다 값 → NBT → SNBT 를 했다
+        var form = s.patch().apiForm();
         String name = items == null ? "minecraft:air" : items.nameOf(s.itemId());
-        return new org.domi.furnace.api.item.ItemStack(name, s.count(), comps, removed);
-    }
-
-    /**
-     * 패치의 정규 값은 NBT 가 아니라 코덱의 값(마법 부여는 Map 등)일 수 있다 — 저장할 때처럼 그 컴포넌트의 코덱으로 NBT 로 바꾼다
-     * (예전엔 그대로 SNBT 로 쓰다 "NBT 값이 아님" 으로 실패해, 마법 부여 아이템을 /give 하면 드롭 이벤트 구독 플러그인이 있을 때 명령이 오류를 냈다).
-     * 저장되지 않는(transient) 컴포넌트는 값이 이미 NBT 꼴이다.
-     */
-    private static Object toNbt(String component, Object value) {
-        var t = org.domi.furnace.server.item.DataComponents.byName(component);
-        return t == null || t.isTransient() ? value : t.persistent().toNbt(value);
+        return new org.domi.furnace.api.item.ItemStack(name, s.count(), form.components(), form.removed());
     }
 
     /** 알 수 없는 아이템·컴포넌트면 IllegalArgumentException. */
@@ -88,10 +73,19 @@ public final class ApiConvert {
 
     // ------------------------------------------------------------------ 창
 
+    /**
+     * 창의 칸 내용. 칸의 서버 아이템(불변) 참조는 지금 잡고, API 아이템으로 바꾸는 일은 플러그인이 그 칸을 처음 읽을 때 한다(T-033).
+     * 처리기가 칸을 보지 않으면 변환하지 않는다. 읽은 값은 예전 즉시 변환과 같다.
+     */
     public static InventorySnapshot snapshot(AbstractContainerMenu menu, ItemRegistry items) {
-        List<org.domi.furnace.api.item.ItemStack> out = new ArrayList<>(menu.slots.size());
-        for (var slot : menu.slots) out.add(item(slot.getItem(), items));
-        return new InventorySnapshot(menuType(menu), out);
+        ItemStack[] refs = new ItemStack[menu.slots.size()];
+        for (int i = 0; i < refs.length; i++) refs[i] = menu.slots.get(i).getItem();
+        return snapshot(menuType(menu), refs, items);
+    }
+
+    /** 이벤트 시점의 서버 아이템 참조 배열(복사함)로 만든 게으른 스냅샷. */
+    public static InventorySnapshot snapshot(String type, ItemStack[] refs, ItemRegistry items) {
+        return new InventorySnapshot(type, LazyList.of(refs, s -> item(s, items)));
     }
 
     /** 메뉴 종류 키 — 클래스 이름에서 만든다(InventoryMenu 는 minecraft:player). 바닐라 menu type 이름과 같지 않을 수 있다(가정). */
