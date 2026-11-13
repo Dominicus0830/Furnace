@@ -17,7 +17,10 @@ public final class ComponentPatch {
     private final Map<String, Object> entries;
     private volatile byte[] network;
     private int hash;
-    /** 플러그인 API 모양 — 처음 {@link #apiForm()} 때 한 번 만든다(T-033). final 필드뿐인 불변 객체라 경합 공개해도 안전하다. */
+    /**
+     * 플러그인 API 모양 — 처음 {@link #apiForm()} 때 한 번 만든다(T-033). volatile 이 아니어도 되는 까닭: ApiForm 은 final 필드뿐이고
+     * 그 필드가 가리키는 맵·집합은 생성자 전에 다 채워진다 — final 필드 규칙(JLS 17.5)으로 경합 공개된 참조로도 다 채운 내용이 보인다.
+     */
     private ApiForm api;
 
     private ComponentPatch(LinkedHashMap<String, Object> entries) {
@@ -191,8 +194,15 @@ public final class ComponentPatch {
     }
 
     /**
+     * 이보다 SNBT 글자 수 합이 크면 모양을 저장하지 않고 부를 때마다 만든다(PR #323 검토 R3). 캐시는 패치 수명 동안 SNBT 를 붙잡으므로
+     * 책 100쪽(SNBT 약 2.6만 자)·책 든 셜커(약 70만 자) 같은 큰 패치가 청크에 남아 있는 내내 메모리를 더 쓰게 된다. 뜨거운 경우(인챈트·이름
+     * 붙은 도구 약 100~300자)는 한참 아래다. 큰 패치는 변환 자체가 비싸 캐시 이득 비율은 같지만, 드물고 메모리 비용이 커서 저장하지 않는다.
+     */
+    static final int API_FORM_CACHE_LIMIT = 8192;
+
+    /**
      * API 모양. 옛 ApiConvert.item 과 같은 순서로 같은 값을 만든다(값 → 코덱 NBT → SNBT). 변환이 예외를 내면 저장하지 않고 그대로 던진다.
-     * 경합해서 둘이 만들어도 내용이 같으므로 아무 쪽이나 남는다(String.hash 와 같은 방식).
+     * 경합해서 둘이 만들어도 내용이 같으므로 아무 쪽이나 남는다. 큰 모양(API_FORM_CACHE_LIMIT 초과)은 저장하지 않는다.
      */
     public ApiForm apiForm() {
         ApiForm a = api;
@@ -200,11 +210,17 @@ public final class ComponentPatch {
             if (entries.isEmpty()) return ApiForm.EMPTY;
             java.util.TreeMap<String, String> comps = new java.util.TreeMap<>();
             java.util.TreeSet<String> removed = new java.util.TreeSet<>();
+            long chars = 0;
             for (var e : entries.entrySet()) {
                 if (e.getValue() == null) removed.add(e.getKey());
-                else comps.put(e.getKey(), Snbt.write(apiNbt(e.getKey(), e.getValue())));
+                else {
+                    String snbt = Snbt.write(apiNbt(e.getKey(), e.getValue()));
+                    chars += snbt.length();
+                    comps.put(e.getKey(), snbt);
+                }
             }
-            api = a = new ApiForm(Collections.unmodifiableSortedMap(comps), Collections.unmodifiableSortedSet(removed));
+            a = new ApiForm(Collections.unmodifiableSortedMap(comps), Collections.unmodifiableSortedSet(removed));
+            if (chars <= API_FORM_CACHE_LIMIT) api = a;
         }
         return a;
     }

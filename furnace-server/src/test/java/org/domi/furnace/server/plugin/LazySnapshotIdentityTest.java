@@ -166,6 +166,76 @@ class LazySnapshotIdentityTest {
         });
     }
 
+    /** 모든 아이템의 프로토타입 컴포넌트 전부(그리고 같은 이름 지움 표시)를 패치로 — 표본 생성기가 안 덮는 종류까지(PR #323 검토 R4). */
+    @Test
+    void everyPrototypeComponentMatchesLegacy() {
+        List<String> bad = new ArrayList<>();
+        int checked = 0;
+        for (int id = 0; id < 4000; id++) {
+            if (!items.isValid(id)) continue;
+            String name = items.nameOf(id);
+            Map<String, Object> d = org.domi.furnace.server.item.ItemPrototypes.defaults(name);
+            if (d.isEmpty()) continue;
+            Map<String, Object> rm = new LinkedHashMap<>();
+            for (String k : d.keySet()) rm.put(k, null);
+            for (ComponentPatch patch : new ComponentPatch[] {ComponentPatch.ofNormalized(d), ComponentPatch.ofNormalized(rm)}) {
+                ItemStack s = new ItemStack(id, 3, patch);
+                var old = LegacyApiConvert.item(s, items);
+                for (int rep = 0; rep < 2; rep++) {   // 처음(캐시 채움)과 두 번째(캐시)
+                    var now = ApiConvert.item(s, items);
+                    checked += patch.size();
+                    if ((!old.equals(now) || !old.toString().equals(now.toString())) && bad.size() < 5) bad.add(name + " " + old + " vs " + now);
+                }
+            }
+        }
+        assertEquals(List.of(), bad);
+        assertTrue(checked > 10_000, "프로토타입 컴포넌트를 거의 못 봤다: " + checked);
+    }
+
+    /** 큰 모양(SNBT 합 8192자 초과)은 저장하지 않는다 — 값은 같고 매번 새로 만든다(PR #323 검토 R3). */
+    @Test
+    void largeApiFormIsNotRetained() {
+        List<Object> pages = new ArrayList<>();
+        for (int i = 0; i < 100; i++) pages.add("\"" + "가나다라마바사".repeat(36) + i + "\"");
+        ComponentPatch book = ComponentPatch.of(m("minecraft:written_book_content", m("title", "T", "author", "A", "pages", pages)));
+        ItemStack s = new ItemStack(items.idOf("minecraft:written_book"), 1, book);
+        assertEquals(LegacyApiConvert.item(s, items), ApiConvert.item(s, items));
+        assertEquals(LegacyApiConvert.item(s, items).toString(), ApiConvert.item(s, items).toString());
+        assertTrue(book.apiForm() != book.apiForm(), "큰 모양은 붙잡지 않는다");
+        ComponentPatch small = ComponentPatch.of(m("minecraft:custom_name", "\"Excalibur\"", "minecraft:enchantments", m("sharpness", 5)));
+        assertSame(small.apiForm(), small.apiForm(), "작은 모양은 붙잡는다");
+    }
+
+    /** 손으로 만든 직렬화 스트림의 LazyList 는 JDK 불변 목록처럼 거부한다(PR #323 검토 R1). 정상 직렬화는 List.of 가 된다. */
+    @Test
+    void lazyListSerializationMatchesListOf() throws Exception {
+        LazyList<String> l = LazyList.of(new Integer[] {1, 2, 3}, String::valueOf);
+        var bo = new java.io.ByteArrayOutputStream();
+        try (var oo = new java.io.ObjectOutputStream(bo)) { oo.writeObject(l); }
+        Object back;
+        try (var oi = new java.io.ObjectInputStream(new java.io.ByteArrayInputStream(bo.toByteArray()))) { back = oi.readObject(); }
+        assertEquals(List.of("1", "2", "3").getClass(), back.getClass());
+        assertEquals(List.of("1", "2", "3"), back);
+
+        var crafted = new java.io.ByteArrayOutputStream();
+        var d = new java.io.DataOutputStream(crafted);
+        d.writeShort(0xACED);
+        d.writeShort(5);
+        d.writeByte(0x73);   // TC_OBJECT
+        d.writeByte(0x72);   // TC_CLASSDESC
+        d.writeUTF(LazyList.class.getName());
+        d.writeLong(1L);
+        d.writeByte(0x02);   // SC_SERIALIZABLE
+        d.writeShort(0);
+        d.writeByte(0x78);   // TC_ENDBLOCKDATA
+        d.writeByte(0x70);   // 상위 없음
+        d.flush();
+        var e = assertThrows(java.io.InvalidObjectException.class, () -> {
+            try (var oi = new java.io.ObjectInputStream(new java.io.ByteArrayInputStream(crafted.toByteArray()))) { oi.readObject(); }
+        });
+        assertEquals("not serial proxy", e.getMessage());
+    }
+
     @Test
     void apiFormIsReadOnlyAndShared() {
         ItemStack s = new SlotSpec(2, 0, 1, new int[] {6, 3}, new int[] {1, 2}).build();
@@ -288,7 +358,11 @@ class LazySnapshotIdentityTest {
                     default -> throw new IllegalStateException();
                 };
             } catch (RuntimeException e) {
-                line = "throw " + e.getClass().getName() + ": " + e.getMessage();
+                // JVM 이 스스로 던지는 예외(배열 범위 밖·NPE 등)는 같은 자리에서 많이 던지면 C2 가 메시지 없는 미리 만든 객체로 바꾼다
+                // (-XX:+OmitStackTraceInFastThrow, 기본 켜짐) — 어느 쪽이 먼저 뜨거워지느냐에 따라 메시지가 null 이 되므로 종류만 비교한다
+                boolean implicit = e instanceof ArrayIndexOutOfBoundsException || e instanceof NullPointerException || e instanceof ClassCastException
+                        || e instanceof ArithmeticException || e instanceof ArrayStoreException;
+                line = "throw " + e.getClass().getName() + (implicit ? "" : ": " + e.getMessage());
             }
             out.add(k + " " + line);
         }

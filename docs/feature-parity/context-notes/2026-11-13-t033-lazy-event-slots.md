@@ -7,7 +7,8 @@ TASK: `docs/roadmap/optimization-tasks.md` T-033 (O09-01, O09 답변 (a)(b), 반
 
 - **(a) `ComponentPatch.apiForm()`**: 패치의 API 모양(이름 → SNBT, 지운 이름 — 둘 다 이름순 읽기 전용)을 처음 요구할 때 한 번 만들어 들고 있다.
   `ApiConvert.item(서버 → API)` 은 그 모양으로 API 아이템을 만든다. 계산은 옛 `ApiConvert.item` 과 같은 순서·같은 값(값 → 코덱 NBT → `Snbt.write`).
-  변환이 예외를 내면 저장하지 않고 그대로 던진다. 필드는 final 필드뿐인 불변 레코드라 `String.hash` 처럼 경합 공개해도 안전하다.
+  변환이 예외를 내면 저장하지 않고 그대로 던진다. 캐시 필드가 volatile 이 아니어도 되는 까닭은 `ApiForm` 이 final 필드뿐이고 그 맵·집합이 생성자 전에 다 채워지기 때문이다(final 필드 규칙, JLS 17.5).
+  - **크기 상한(검토 R3)**: SNBT 글자 수 합이 8192 를 넘는 모양은 저장하지 않고 부를 때마다 만든다. 캐시는 패치 수명(청크가 내려갈 때까지) 동안 SNBT 를 붙잡는데, 검토 계산으로 책 100쪽은 네트워크 76KB 에 더해 약 53KB, 그 책 27권 든 셜커는 2.06MB 에 더해 약 1.4MB 였다. 뜨거운 경우(인챈트·이름 붙은 도구 100~300자)는 한참 아래라 이득은 그대로다. `ComponentPatch` 객체는 참조 필드 하나만큼 커진다(압축 OOP 기준 24 → 32B, 계산값).
 - **(b) `furnace-api` `LazyList<T>`**: 원소 원본 배열(받을 때 복사)과 변환 함수. `List.copyOf` 결과와 관측 결과가 같은 불변 목록이다.
   - 범위 안 `get(i)`·`size()`·`isEmpty()` 만 게으르다(그 칸만 변환, CAS 로 고정).
   - 그 밖의 모든 메서드(반복·`equals`·`hashCode`·`toString`·`contains`·`subList`·`stream`·바꾸기 시도·범위 밖 `get` …)는 칸을 모두 변환한 `List.of(…)` 사본에 맡긴다 → 예외 종류·메시지(`contains(null)` 의 NPE, 바꾸기의 UOE, 범위 밖 예외 꼴)까지 옛 `List.copyOf` 와 같다.
@@ -37,13 +38,16 @@ TASK: `docs/roadmap/optimization-tasks.md` T-033 (O09-01, O09 답변 (a)(b), 반
 - 옛 구현 사본 `identity/legacy/plugin/LegacyApiConvert`(since 2b28b2ff: `ApiConvert#item`·`#snapshot`).
 - `t033-item-api-form` 3000번: 무작위 스택(아이템 12종, 컴포넌트 0~6개 — 텍스트·로어·인챈트·custom_data·물약·책·장식·폭죽·속성·컨테이너·저장 안 하는 종류, 지움 표시, null·EMPTY, 레지스트리 없음)에서 API 아이템과 `toString`(맵 순서)이 같다. 같은 패치를 다른 아이템·개수로 다시 변환(캐시 찬 뒤)해도 같다. 변이 점검: 캐시가 아이템 이름·개수까지 붙잡으면 잡는다.
 - `t033-lazy-snapshot` 3000번: 칸 0~63개 스냅샷에 무작위 조작열 30종(범위 안·밖 get, 반복, contains(null), indexOf, subList, toArray, 바꾸기 시도 10종, equals 양방향·hashCode·toString, stream, getFirst/getLast·reversed, listIterator)을 옛·새에 돌려 값·예외·"어느 조작이 같은 객체를 받는가"가 같다. 부른 쪽이 배열을 나중에 고쳐도 같다. 변이 점검: 배열을 복사하지 않으면 잡는다.
+- 프로토타입 전수(검토 R4, `everyPrototypeComponentMatchesLegacy`): 모든 아이템의 기본 컴포넌트 전부와 같은 이름 지움 표시를 패치로 옛·새 대조(표본 생성기가 안 덮는 약 30종 추가, 1초 안).
 - 동시성: 8 스레드가 같은 스냅샷 27칸을 서로 다른 순서로 처음 읽어도 칸마다 한 객체, 다 변환한 사본도 같은 객체(`@RepeatedTest(20)` × 50라운드).
 - 실서버 경로(`PluginApiBlockEventsTest.hopperMoveSnapshotIsLazyAndEventTime`): 깔때기 이벤트 처리기가 칸을 안 읽으면 변환 0칸. 이벤트가 끝나 상자가 바뀐 뒤에 읽어도 이벤트 시점 내용 = 옛 즉시 변환(처리기 안에서 서버 배열로 만든 값).
 - 호환 계층(`InventoryResultEventsTest.lazySnapshotsStayLazyThroughBukkitContainers`): Bukkit 처리기가 `getItem(0)` 만 읽으면 1칸만 변환, 쓸 수 있는 칸에 쓰면 사본만 바뀌고 이벤트 스냅샷은 그대로.
 
-## 달라지는 것 (오류 경로만)
+## 달라지는 것
 
-칸 변환이 예외를 내는 아이템(정상 아이템에서는 없다 — 코덱 `toNbt` 실패)이 있으면, 예전엔 이벤트를 만들다 게임 코드 쪽에서 예외가 났고 지금은 플러그인이 그 칸을 읽을 때 난다. 정상 값은 모두 같다.
+- 오류 경로: 칸 변환이 예외를 내는 아이템(정상 아이템에서는 없다 — 코덱 `toNbt` 실패)이 있으면, 예전엔 이벤트를 만들다 게임 코드 쪽에서 예외가 났고 지금은 플러그인이 그 칸을 읽을 때 난다. 정상 값은 모두 같다.
+- 정체 하나(검토 R2): 예전엔 `contents()` 가 JDK 불변 목록이라 `List.copyOf(snapshot.contents()) == snapshot.contents()` 가 참이었다. 지금은 `LazyList` 라 거짓이고, 그때 칸을 다 변환한 새 `List.of` 를 만든다. 값·`equals` 는 같다. 목록 정체에 기대는 플러그인 코드는 보지 못했다.
+- 직렬화: 정상 직렬화는 `writeReplace` 로 `List.of` 사본이 된다(옛 목록과 같은 클래스). 손으로 만든 스트림의 `LazyList` 는 JDK 불변 목록처럼 `InvalidObjectException("not serial proxy")` 로 거부한다(검토 R1).
 
 ## 후속 후보
 

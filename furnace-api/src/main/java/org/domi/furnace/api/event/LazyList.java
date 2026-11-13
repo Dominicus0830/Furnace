@@ -165,4 +165,15 @@ public final class LazyList<T> implements List<T>, RandomAccess, Serializable {
     /** 직렬화하면 다 변환한 List.of 사본이 된다(List.copyOf 결과를 직렬화한 것과 같다). */
     @Serial
     private Object writeReplace() { return full(); }
+
+    /** 스트림에 이 클래스가 직접 나올 일은 없다(writeReplace) — 손으로 만든 스트림은 JDK 불변 목록처럼 거부한다(PR #323 검토 R1). */
+    @Serial
+    private void readObject(java.io.ObjectInputStream in) throws java.io.InvalidObjectException {
+        throw new java.io.InvalidObjectException("not serial proxy");
+    }
+
+    @Serial
+    private void readObjectNoData() throws java.io.InvalidObjectException {
+        throw new java.io.InvalidObjectException("not serial proxy");
+    }
 }
