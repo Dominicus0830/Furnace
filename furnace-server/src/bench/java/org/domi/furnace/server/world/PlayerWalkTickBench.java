@@ -1,4 +1,4 @@
-// 플레이어 N명이 걸어 다니며 청크를 로드할 때 region 스레드의 틱당 할당 바이트·CPU ns 를 잰다(기본 꺼짐: -Dfurnace.bench=true).
+// 플레이어 N명이 걸어 다니며 청크를 로드할 때 region 스레드의 틱당 할당 바이트·CPU ns 를 잰다(:furnace-server:bench 작업에서만 돈다).
 // 이동 입력은 ConnectionHandler 의 move_player_pos_rot 수락 경로와 같은 호출(publishPosition + pushMove)로 넣는다.
 // region 스레드는 1개(모든 region 이 한 워커)라 그 스레드의 ThreadMXBean 차분 = 틱(인박스 포함) 비용.
 // C-4 측정용: docs/feature-parity/perf-c4-2026-10-28.md
@@ -22,7 +22,6 @@ import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.ChunkWorkerPool;
 import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 class PlayerWalkTickBench {
@@ -31,7 +30,6 @@ class PlayerWalkTickBench {
 
     @Test
     void playersWalking() throws Exception {
-        Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
         int reps = Integer.getInteger("furnace.bench.reps", 3);
         int ticks = Integer.getInteger("furnace.bench.ticks", 200);
         int warm = Integer.getInteger("furnace.bench.warm", 40);
@@ -115,6 +113,11 @@ class PlayerWalkTickBench {
         System.out.printf("WALKBENCH rep=%d players=%d ticks=%d | 틱당할당 평균=%.1fKB p50=%.1fKB p95=%.1fKB | 틱당CPU 평균=%.3fms p50=%.3fms p95=%.3fms | 패킷=%d 로드청크=%d%n",
                 rep, n, ticks, mean(alloc) / 1024, pct(alloc, 50) / 1024, pct(alloc, 95) / 1024,
                 mean(cpu) / 1e6, pct(cpu, 50) / 1e6, pct(cpu, 95) / 1e6, sent, w.loadedChunkCount());
+        // 같은 플레이어 수의 반복은 같은 파일에 덮어쓴다(마지막 반복). 반복 사이 중앙값은 도구 몫.
+        org.domi.furnace.server.bench.BenchReport.of("PlayerWalkTickBench").variant("players" + n).scene("walk").put("rep", rep)
+                .put("players", n).put("ticks", ticks).put("allocBytesPerTick_mean", mean(alloc)).put("allocBytesPerTick_p50", pct(alloc, 50))
+                .put("allocBytesPerTick_p95", pct(alloc, 95)).put("cpuTick_mean_ms", mean(cpu) / 1e6).put("cpuTick_p50_ms", pct(cpu, 50) / 1e6)
+                .put("cpuTick_p95_ms", pct(cpu, 95) / 1e6).put("packets", sent).put("loadedChunks", w.loadedChunkCount()).write();
         for (EmbeddedChannel c : chs) c.finishAndReleaseAll();
         sched.close();
         w.regionizer().close();

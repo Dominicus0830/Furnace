@@ -23,7 +23,10 @@ public interface PacketEvent<P extends Packet> {
 
     boolean isCancelled();
 
-    /** true 면 이 패킷을 버린다(클라이언트로 가지 않거나, 서버가 처리하지 않는다). MONITOR 우선순위에서는 IllegalStateException. */
+    /**
+     * true 면 이 패킷을 버린다(클라이언트로 가지 않거나, 서버가 처리하지 않는다). MONITOR 우선순위에서는 IllegalStateException.
+     * 번들 구분자(bundle_delimiter)는 짝이 어긋나면 클라이언트가 끊기므로 취소·바꾸기 모두 UnsupportedOperationException.
+     */
     void setCancelled(boolean cancelled);
 
     /** 플러그인이 PacketService.send/receive 로 넣은 패킷인가. */

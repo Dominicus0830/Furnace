@@ -82,10 +82,10 @@ public final class ChunkSerializer {
             if (isZero(blk[lightBase + i])) emptyBlock |= 1L << i; else blockMask |= 1L << i;
         }
         if (sky == null) emptyBlock = (1L << LIGHT_SECTIONS) - 1;
-        writeBitSet(buf, new long[]{skyMask});
-        writeBitSet(buf, new long[]{blockMask});
-        writeBitSet(buf, new long[]{emptySky});
-        writeBitSet(buf, new long[]{emptyBlock});
+        writeBitSet(buf, skyMask);
+        writeBitSet(buf, blockMask);
+        writeBitSet(buf, emptySky);
+        writeBitSet(buf, emptyBlock);
         writeLayers(buf, sky, skyMask, lightBase, LIGHT_SECTIONS);
         writeLayers(buf, blk, blockMask, lightBase, LIGHT_SECTIONS);
     }
@@ -104,8 +104,13 @@ public final class ChunkSerializer {
         }
     }
 
-    private static void writeBitSet(ByteBuf buf, long[] longs) {
-        Types.writeVarInt(buf, longs.length);
-        for (long l : longs) buf.writeLong(l);
+    /** FriendlyByteBuf.writeBitSet: toLongArray(뒤쪽 0 long 은 빠진다 — 빈 집합은 길이 0, 예전에는 [0] 을 보냈다). */
+    private static void writeBitSet(ByteBuf buf, long mask) {
+        if (mask == 0) {
+            Types.writeVarInt(buf, 0);
+        } else {
+            Types.writeVarInt(buf, 1);
+            buf.writeLong(mask);
+        }
     }
 }

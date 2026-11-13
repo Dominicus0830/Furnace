@@ -1,10 +1,13 @@
 // 노이즈 최적화 전후 동일성·시간 측정 도구(-Dfurnace.bench=true 일 때만 JUnit 으로 돈다, main 으로도 실행 가능).
 //  hash <출력 파일>: 시드·차원·월드 타입·위치 여러 곳의 원시 청크(지형+표면+카버+바이옴) 해시와, 라우터 밀도 함수 15종을
 //                    무작위 좌표에서 직접 평가한 double 비트 해시를 한 줄씩 적는다. 옛 커밋과 새 커밋의 출력 파일을 diff 한다.
+//                    JUnit identityHash 는 같은 줄을 금 파일 identity/worldgen-noise-full.txt 와 비교한다(IdentityKit).
+//                    짧은 판은 평소 시험 NoiseIdentityGoldenTest 가 금 파일 worldgen-noise-quick.txt 와 비교한다.
 //  time: 한 스레드에서 단계별 청크당 CPU 시간(NoiseChunk 생성·지형 채우기·바이옴·원시 청크 전체)을 잰다.
 package org.domi.furnace.server.world.gen;
 
 import java.io.PrintWriter;
+import org.domi.furnace.server.identity.SceneHash;
 import java.lang.management.ManagementFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -51,6 +54,10 @@ public class NoiseIdentityBench {
             c.add(new Config("nether", NoiseWorldSource.Dimension.NETHER, "minecraft:nether", s));
         return c;
     }
+
+    /** 짧은 판 설정: 월드 타입·차원마다 하나 이상, 네더는 표면 규칙 바이옴 경계 시드 하나 더. */
+    static final java.util.Set<String> QUICK = java.util.Set.of("overworld 0", "overworld 12345", "large_biomes 12345",
+            "amplified 7", "nether 12345", "nether -4172144997902289642", "end 42");
 
     /** 위치: 원점 근처 2×2 묶음(이웃 캐시 공유), 흩어진 곳, 음수, 먼 곳(±16만 블록, ±160만 블록). 시드마다 조금씩 옮긴다. */
     static List<int[]> positions(Config cfg) {
@@ -107,54 +114,59 @@ public class NoiseIdentityBench {
         return h;
     }
 
-    public static void hash(Path out) throws Exception {
-        try (PrintWriter w = new PrintWriter(Files.newBufferedWriter(out))) {
-            long total = 0xCBF29CE484222325L;
-            int chunks = 0, ci = 0;
-            for (Config cfg : configs()) {
-                NoiseWorldSource src = cfg.source();
-                long rh = hashRouter(src.router(), cfg.seed);
-                w.printf("router %s %d %016x%n", cfg.name, cfg.seed, rh);
-                total = fnv(total, rh);
-                for (int[] p : positions(cfg)) {
-                    NoiseWorldSource.Generated g = src.generateWorldChunk(p[0], p[1]);
-                    src.applyCarvers(g, p[0], p[1]);
-                    long ch = hashColumn(g);
-                    w.printf("chunk %s %d %d %d %016x%n", cfg.name, cfg.seed, p[0], p[1], ch);
-                    total = fnv(total, ch);
-                    chunks++;
-                }
-                if (ci++ % 3 == 0 || cfg.dim == NoiseWorldSource.Dimension.NETHER) {
-                    // 이어진 5×5 를 3 스레드가 동시에 — 이웃 꼭짓점 공유·동시 접근 경로를 거친 결과도 같아야 한다
-                    int bx = 777 + (int) (cfg.seed & 63), bz = -333;
-                    java.util.concurrent.ConcurrentSkipListMap<Long, Long> res = new java.util.concurrent.ConcurrentSkipListMap<>();
-                    java.util.concurrent.atomic.AtomicInteger next = new java.util.concurrent.atomic.AtomicInteger();
-                    List<Thread> ts = new ArrayList<>();
-                    for (int t = 0; t < 3; t++) {
-                        Thread th = new Thread(() -> {
-                            for (int i; (i = next.getAndIncrement()) < 25; ) {
-                                int cx = bx + i % 5, cz = bz + i / 5;
-                                NoiseWorldSource.Generated g = src.generateWorldChunk(cx, cz);
-                                src.applyCarvers(g, cx, cz);
-                                res.put((long) i, hashColumn(g));
-                            }
-                        });
-                        th.start();
-                        ts.add(th);
-                    }
-                    for (Thread th : ts) th.join();
-                    for (var e : res.entrySet()) {
-                        int i = e.getKey().intValue();
-                        w.printf("area %s %d %d %d %016x%n", cfg.name, cfg.seed, bx + i % 5, bz + i / 5, e.getValue());
-                        total = fnv(total, e.getValue());
-                        chunks++;
-                    }
-                }
-                w.flush();
+    /**
+     * 동일성 장면: 설정마다 라우터 해시, 위치마다 원시 청크 해시, 일부 설정은 이어진 5×5 를 3 스레드로.
+     * full=false 는 CI 용 짧은 부분집합(설정 7개 × 라우터 + 청크 두 곳, 동시 생성 없음) — NoiseIdentityGoldenTest.
+     * 시간은 대부분 오버월드 계열 소스마다 첫 청크(지연 초기화, 1.2~2.4초)라 설정 수를 줄였다 — 소스 만들기 자체는 합쳐 약 1.6초
+     * (PR #290 검토 R5 측정). 29개 전부면 두 번 돌려 약 54초(4코어).
+     */
+    static void record(SceneHash.Recorder rec, boolean full) throws Exception {
+        int ci = 0;
+        for (Config cfg : configs()) {
+            if (!full && !QUICK.contains(cfg.name + " " + cfg.seed)) continue;
+            NoiseWorldSource src = cfg.source();
+            rec.line("router " + cfg.name + " " + cfg.seed, hashRouter(src.router(), cfg.seed));
+            List<int[]> ps = positions(cfg);
+            // 짧은 판: 원점 2×2 묶음의 첫 칸과 먼 곳(±10만 블록) 한 칸
+            if (!full) ps = List.of(ps.get(0), ps.get(4 + 10 + 3));
+            for (int[] p : ps) {
+                NoiseWorldSource.Generated g = src.generateWorldChunk(p[0], p[1]);
+                src.applyCarvers(g, p[0], p[1]);
+                rec.line("chunk " + cfg.name + " " + cfg.seed + " " + p[0] + " " + p[1], hashColumn(g));
             }
-            w.printf("TOTAL %016x chunks=%d%n", total, chunks);
-            System.out.printf("NOISE_IDENTITY TOTAL %016x chunks=%d%n", total, chunks);
+            if (full && (ci++ % 3 == 0 || cfg.dim == NoiseWorldSource.Dimension.NETHER)) {
+                // 이어진 5×5 를 3 스레드가 동시에 — 이웃 꼭짓점 공유·동시 접근 경로를 거친 결과도 같아야 한다
+                int bx = 777 + (int) (cfg.seed & 63), bz = -333;
+                java.util.concurrent.ConcurrentSkipListMap<Long, Long> res = new java.util.concurrent.ConcurrentSkipListMap<>();
+                java.util.concurrent.atomic.AtomicInteger next = new java.util.concurrent.atomic.AtomicInteger();
+                List<Thread> ts = new ArrayList<>();
+                for (int t = 0; t < 3; t++) {
+                    Thread th = new Thread(() -> {
+                        for (int i; (i = next.getAndIncrement()) < 25; ) {
+                            int cx = bx + i % 5, cz = bz + i / 5;
+                            NoiseWorldSource.Generated g = src.generateWorldChunk(cx, cz);
+                            src.applyCarvers(g, cx, cz);
+                            res.put((long) i, hashColumn(g));
+                        }
+                    });
+                    th.start();
+                    ts.add(th);
+                }
+                for (Thread th : ts) th.join();
+                if (res.size() != 25) throw new AssertionError("동시 생성 결과 " + res.size() + "/25");
+                for (var e : res.entrySet()) {
+                    int i = e.getKey().intValue();
+                    rec.line("area " + cfg.name + " " + cfg.seed + " " + (bx + i % 5) + " " + (bz + i / 5), e.getValue());
+                }
+            }
         }
+    }
+
+    /** 옛 커밋·새 커밋 출력 파일을 diff 하는 손 비교용(main hash). 줄 형식은 금 파일과 같다. */
+    public static void hash(Path out) throws Exception {
+        List<String> lines = SceneHash.record(rec -> record(rec, true));
+        Files.write(out, (String.join("\n", lines) + "\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        System.out.println("NOISE_IDENTITY " + lines.get(lines.size() - 1));
     }
 
     static final com.sun.management.ThreadMXBean MX = (com.sun.management.ThreadMXBean) ManagementFactory.getThreadMXBean();
@@ -337,10 +349,13 @@ public class NoiseIdentityBench {
         }
     }
 
+    /** 전체 판(설정 29개 × 위치 약 22곳 + 동시 생성 영역): 결정성 점검 뒤 금 파일 worldgen-noise-full 과 비교, 결과 파일도 남긴다. */
     @Test
     void identityHash() throws Exception {
         Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
-        hash(Path.of(System.getProperty("furnace.bench.out", "build/noise-identity.txt")));
+        List<String> lines = SceneHash.assertGolden("worldgen-noise-full", rec -> record(rec, true));
+        Files.write(Path.of(System.getProperty("furnace.bench.out", "build/noise-identity.txt")),
+                (String.join("\n", lines) + "\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     @Test

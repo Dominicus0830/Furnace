@@ -2913,20 +2913,20 @@ public final class Region {
     private void collectCornerLoads(Player p, ChunkPos center, int vd) {
         var corners = p.cornerLoads();
         corners.clear();
-        if (skipsGeneration(p)) return;
+        // 관전자(규칙 꺼짐)여도 모은다 — 올릴 때(loadCornerChunks)만 거른다. 제자리에서 모드·게임룰이 바뀌어도 이 목록이 이미 있어 모서리가
+        // 올라온다(바닐라는 skipPlayer 변화를 보고 티켓을 단다). 구역 확보(want)도 올릴 때 한다 — 관전자에게 구역을 걸지 않으려고.
+        // 범위는 바닐라 플레이어 티켓처럼 *서버* 시야 정사각이다(클라 시야가 더 작아도 — heldByPlayerTicket·naturalSpawningAllowed 와 같은 판정).
+        int sq = Math.max(vd, Math.clamp(world.viewDistance(), 2, 32));
         List<ChunkPos> list = new ArrayList<>();
-        for (int dx = -vd; dx <= vd; dx++) {
-            for (int dz = -vd; dz <= vd; dz++) {
+        for (int dx = -sq; dx <= sq; dx++) {
+            for (int dz = -sq; dz <= sq; dz++) {
                 int x = center.x() + dx, z = center.z() + dz;
                 if (ChunkTrackingView.contains(center.x(), center.z(), vd, x, z) || world.isChunkLoaded(x, z)) continue;
                 list.add(new ChunkPos(x, z));
             }
         }
         orderNearestFirst(center, list);
-        for (ChunkPos cp : list) {
-            rz().want(cp.x(), cp.z(), this);   // 구역을 이 region 이 갖는다(다른 region 것이면 합칠 대상)
-            corners.add(cp);
-        }
+        corners.addAll(list);
     }
 
     /** 모서리 청크 올리기의 동시 상한: 보이는 청크의 생성 요청을 밀지 않게 동시 진행 상한의 4분의 1(최소 2). */
@@ -2936,6 +2936,15 @@ public final class Region {
 
     /** 모서리 청크(시야 정사각 ∖ 둥근 모양)를 조금씩 올린다. 둥근 모양으로 보낼 청크가 모두 나간 뒤에만 시작한다(보이는 것이 먼저). */
     private void loadCornerChunks(Player p) {
+        // 다 올렸거나 막 실패한 채 쉬는 동안 CORNER_RECOLLECT_TICKS 마다 목록을 다시 모은다(다음 updateChunks 가 queuedCenter(null) 을 보고 모은다,
+        // 이미 올라온 칸은 빠진다). 모은 뒤 상황이 바뀌는 경로(생존↔관전 왕복으로 내려간 모서리, 실행 중 서버 시야 증가, 로드 실패)를 신호
+        // 하나씩 달지 않고 한꺼번에 덮는다. 바닐라는 티켓이 남아 있는 한 모자라면 다시 올린다.
+        if (!skipsGeneration(p) && p.cornerLoads().isEmpty() && p.pendingChunks().isEmpty() && p.cornerInFlight().isEmpty()) {
+            if (p.cornerIdleTicks() + 1 >= CORNER_RECOLLECT_TICKS) {
+                p.cornerIdleTicks(0);
+                p.queuedCenter(null);
+            } else p.cornerIdleTicks(p.cornerIdleTicks() + 1);
+        } else p.cornerIdleTicks(0);
         var corners = p.cornerLoads();
         if (corners.isEmpty() || !p.pendingChunks().isEmpty() || skipsGeneration(p)) return;
         int slots = cornerLoadSlots() - p.cornerInFlight().size();
@@ -2944,11 +2953,15 @@ public final class Region {
             ChunkPos cp = it.next();
             it.remove();
             if (world.isChunkLoaded(cp.x(), cp.z()) || !p.chunkPrefetches().add(cp)) continue;
+            rz().want(cp.x(), cp.z(), this);   // 구역을 이 region 이 갖는다(다른 region 것이면 합칠 대상)
             p.cornerInFlight().add(cp);
             slots--;
             startPrefetch(p, cp).whenComplete((col, ex) -> p.cornerInFlight().remove(cp));
         }
     }
+
+    /** 모서리 목록을 다시 모으는 간격(틱). 시야 32 에서도 5초에 한 번 (2·32+1)² 칸 조회. */
+    private static final int CORNER_RECOLLECT_TICKS = 100;
 
     /**
      * 그 청크의 생성·디스크 로드를 건다(구독은 호출한 쪽이 이미 했거나 하지 않는다). 이 region 의 청크면 작업 큐(다음 틱)를 거치지 않고
@@ -2991,10 +3004,14 @@ public final class Region {
      *  스폰 청크가 첫 틱 소량 배치에 들어가 빨리 도착 → 클라가 즉시 안착(289개 일괄 async fan-out 회피).
      *  아직 끝나지 않은 요청이 상한(world.maxChunkSendsInFlight)에 닿으면 더 꺼내지 않는다 — 생성이 수요를 못 따라갈 때
      *  요청이 생성 큐에 한없이 쌓여(FIFO) 플레이어 바로 옆 청크까지 수십 초 밀리는 것을 막는다. 남은 청크는 대기열에 남아
-     *  플레이어가 움직이면 새 중심 기준으로 다시 정렬되므로, 다음에 꺼내는 것은 언제나 지금 위치에서 가장 가까운 청크다. */
+     *  플레이어가 움직이면 새 중심 기준으로 다시 정렬되므로, 다음에 꺼내는 것은 언제나 지금 위치에서 가장 가까운 청크다.
+     *  배치는 겹치지 않는다(앞 배치 Finished 전엔 새 배치를 열지 않음) — 한 배치의 가장 느린 청크가 끝나야 다음 배치가 열린다. */
     private void sendQueuedChunks(Player p) {
         if (p.pendingChunks().isEmpty()) return;
         if (world.autoChunkRate()) { sendQueuedChunksAuto(p); return; }
+        // 바닐라 PlayerChunkSender 처럼 배치는 겹치지 않는다: 앞 배치의 Finished 가 나가기 전엔 새 배치를 열지 않는다(auto 와 같은 규칙).
+        // 동시 진행 상한은 청크 단위라, 앞 배치 청크 일부만 끝나도 예산이 생겨 Start 가 앞 배치 안에 끼어들었다.
+        if (p.chunkBatchOpen()) return;
         int adaptive = p.chunkSendRate().nextBudget();   // 바닐라 PlayerChunkSender: 클라이언트가 알린 속도·미확인 배치 한도
         if (adaptive <= 0) return;
         int budget = Math.min(Math.min(world.chunksPerTick(), adaptive), world.maxChunkSendsInFlight() - p.chunkSendsInFlight().get());
@@ -3010,7 +3027,7 @@ public final class Region {
             it.remove();
         }
         if (batch.isEmpty()) return;
-        sendBatch(p, batch, false);
+        sendBatchGuarded(p, batch, false);
     }
 
     /** 매 틱 바뀌는 청크를 region 스레드에서 바로 직렬화하는 틱당 상한(이 region 의 모든 플레이어 합). 넘으면 다음 틱으로 미룬다. */
@@ -3067,8 +3084,18 @@ public final class Region {
             }
         }
         if (!batch.isEmpty()) {
-            p.chunkBatchOpen(true);
-            sendBatch(p, batch, true).whenComplete((v, ex) -> p.chunkBatchOpen(false));
+            sendBatchGuarded(p, batch, true);
+        }
+    }
+
+    /** 배치를 연 표시를 하고 보낸다. Finished 가 나가면(또는 실패하면) 닫는다 — 동기 예외로 영영 열린 채 남지 않게. */
+    private void sendBatchGuarded(Player p, List<ChunkPos> batch, boolean inline) {
+        p.chunkBatchOpen(true);
+        try {
+            sendBatch(p, batch, inline).whenComplete((v, ex) -> p.chunkBatchOpen(false));
+        } catch (RuntimeException | Error e) {
+            p.chunkBatchOpen(false);
+            throw e;
         }
     }
 

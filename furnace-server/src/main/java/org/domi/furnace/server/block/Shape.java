@@ -200,6 +200,17 @@ public final class Shape {
         return r;
     }
 
+    /**
+     * Shapes.joinIsNotEmpty(a, b, BooleanOp.NOT_SAME): 두 모양이 차지하는 부피가 다른가. 하나만 비었으면 참, 같은 객체·같은 상자 목록이면 거짓,
+     * 아니면 어느 한쪽에만 있는 부분이 있는가(joinOnlySecond 의 격자 그대로 — 상자 쪼개기가 달라도 같은 부피면 거짓).
+     */
+    public static boolean differs(Shape a, Shape b) {
+        boolean ae = a.isEmpty(), be = b.isEmpty();
+        if (ae || be) return ae != be;
+        if (a == b || a.sameAs(b)) return false;
+        return !joinOnlySecond(a, b).isEmpty() || !joinOnlySecond(b, a).isEmpty();
+    }
+
     /** 격자가 [0,1] 의 1/res 등간격(res = 2^b, b ≤ 3, 큐브 격자)이면 res, 아니면 0. */
     private static int cubeRes(double[] c, double off) {
         int res = c.length - 1;
@@ -297,7 +308,13 @@ public final class Shape {
      * 면 전체(1×1)를 덮는가 — 유체가 두 칸 사이를 지나갈 수 없는지(FlowingFluid.canPassThroughWall).
      */
     public static boolean mergedFaceOccludes(Shape shape, Shape adjacent, int dir) {
-        if (shape == BLOCK && adjacent == BLOCK) return true;
+        // 한쪽 면이 꽉 차면 합도 꽉 찬다(바닐라 Shapes.mergedFaceOccludes 도 같은 첫 줄 — T-050 O07-02).
+        if (shape == BLOCK || adjacent == BLOCK) return true;
+        return mergedFaceOccludesGeneral(shape, adjacent, dir);
+    }
+
+    /** mergedFaceOccludes 의 일반 경로(꽉 찬 모양 빠른 경로를 뺀 것) — 옛 구현 대조 시험이 쓴다. */
+    static boolean mergedFaceOccludesGeneral(Shape shape, Shape adjacent, int dir) {
         if (shape.isEmpty() && adjacent.isEmpty()) return false;
         java.util.List<double[]> rects = new java.util.ArrayList<>();
         shape.faceRects(dir, rects);

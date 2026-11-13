@@ -7,17 +7,15 @@ import jdk.jfr.Recording;
 import jdk.jfr.consumer.*;
 import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.server.world.BlockRegistry;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 class FullGenProfile {
     @Test
     void profile() throws Exception {
-        Assumptions.assumeTrue(Boolean.getBoolean("furnace.profile"));
         BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
         RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
         NoiseWorldSource source = NoiseWorldSource.overworld(12345L, blocks, registries);
-        if (Boolean.getBoolean("furnace.profile.nostruct")) source.structureEngine().setStructuresEnabled(false);
+        if (Boolean.getBoolean("furnace.bench.nostruct")) source.structureEngine().setStructuresEnabled(false);
         for (int i = 0; i < 10; i++) source.generateWithFeatures(-500 + i, 500);
         Path out = Files.createTempFile("gen", ".jfr");
         try (Recording r = new Recording()) {
@@ -25,7 +23,7 @@ class FullGenProfile {
             r.start();
             ExecutorService ex = Executors.newFixedThreadPool(4);
             List<Future<?>> fs = new ArrayList<>();
-            boolean pristineOnly = Boolean.getBoolean("furnace.profile.pristine");
+            boolean pristineOnly = Boolean.getBoolean("furnace.bench.pristine");
             for (int col = 0; col < (pristineOnly ? 12 : 4); col++) for (int row = -10; row <= 10; row++) {
                 int c0 = col, r0 = row;
                 fs.add(ex.submit(() -> {

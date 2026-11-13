@@ -76,4 +76,4 @@ views.disguise(this, villager, Disguise.player("Guard", List.of(ProfileProperty.
 | 모든 엔티티 전역 변장 | ~30 | ~226 |
 
 규칙이 없으면 기준과 차이가 잡음 안이다(두 번 번갈아 잰 중앙값). 규칙이 많아도 쌍당 수십 ns 라 틱 예산(50ms)에 비해 작다.
-다시 재기: `./gradlew :furnace-server:test --tests '*EntityViewTrackerBench' -Dfurnace.bench=true -Dfurnace.bench.rules=none|unrelated|all|disguise`.
+다시 재기: `./gradlew :furnace-server:bench --tests '*EntityViewTrackerBench' -Dfurnace.bench.rules=none|unrelated|all|disguise`.

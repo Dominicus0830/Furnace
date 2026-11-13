@@ -223,7 +223,19 @@ public final class Protocol767 implements ProtocolCodec {
 
     private static double readVelocity(ByteBuf b) { return b.readShort() / 8000.0; }
 
-    private static void writeVelocity(ByteBuf b, double v) { b.writeShort((int) (Math.clamp(v, -3.9, 3.9) * 8000.0)); }
+    /**
+     * 바닐라처럼 ±3.9 로 자르고 1/8000 단위로 버린다. 단, 정수에서 부동소수 오차만큼만 모자란 값(와이어에서 읽은 {@code s / 8000} — 16380 등 374개)은
+     * 그 정수로: 읽고 바꾸지 않은 속도를 다시 쓸 때 1/8000 줄지 않게(리스너가 다른 필드만 바꾼 패킷, ProtocolLib 다리 검토 R4).
+     * 이 코덱은 플러그인 패킷 API 전용이다 — 서버 자신의 물리 속도 패킷(net/protocol/play)은 바닐라 버림 그대로.
+     * compat 의 TypedPacketBridge.velocity 가 같은 식을 쓴다.
+     */
+    static int velocityUnits(double v) {
+        double x = Math.clamp(v, -3.9, 3.9) * 8000.0;
+        double r = Math.rint(x);
+        return (int) (Math.abs(x - r) < 1e-6 ? r : x);
+    }
+
+    private static void writeVelocity(ByteBuf b, double v) { b.writeShort(velocityUnits(v)); }
 
     private static BlockPos readPos(ByteBuf b) {
         int[] p = Types.readBlockPos(b);

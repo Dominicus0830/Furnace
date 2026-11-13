@@ -68,7 +68,7 @@ public final class PlayerAdvancements {
         default void runFunction(String function) {}
     }
 
-    private record Listener(ResourceId advancement, String criterion) {}
+    record Listener(ResourceId advancement, String criterion) {}
 
     private final Path file;
     private final Host host;
@@ -294,23 +294,62 @@ public final class PlayerAdvancements {
         synchronized (this) {
             LinkedHashSet<Listener> set = listeners.get(trigger);
             if (set == null || set.isEmpty()) return;
-            LootContext ctx = null;
-            hits = new ArrayList<>();
-            for (Listener l : set) {
-                Advancement a = manager.get(l.advancement);
-                Criterion c = a == null ? null : a.criteria().get(l.criterion);
-                if (c == null || !c.matcher().test(event, host.registries())) continue;
-                if (!c.player().isEmpty()) {
-                    if (ctx == null) ctx = host.playerContext();
-                    if (!org.domi.furnace.server.loot.LootCondition.allOf(c.player(), ctx)) continue;
+            if (event instanceof Criterion.InventoryEvent ie && trigger.equals("minecraft:inventory_changed")) {
+                hits = inventoryHits(set, ie);
+            } else {
+                LootContext[] ctx = new LootContext[1];
+                hits = new ArrayList<>();
+                for (Listener l : set) {
+                    Advancement a = manager.get(l.advancement);
+                    Criterion c = a == null ? null : a.criteria().get(l.criterion);
+                    if (c != null && accepts(c, event, ctx)) hits.add(l);
                 }
-                hits.add(l);
             }
         }
         for (Listener l : hits) {
             Advancement a = manager.get(l.advancement);
             if (a != null) award(a, l.criterion);
         }
+    }
+
+    /** 사건과 맞고 player 조건도 맞나(플레이어 문맥은 처음 필요할 때 한 번만 만든다). */
+    private boolean accepts(Criterion c, Object event, LootContext[] ctx) {
+        return c.matcher().test(event, host.registries()) && playerOk(c, ctx);
+    }
+
+    /** player 조건(플레이어 문맥은 처음 필요할 때 한 번만 만든다). */
+    private boolean playerOk(Criterion c, LootContext[] ctx) {
+        if (c.player().isEmpty()) return true;
+        if (ctx[0] == null) ctx[0] = host.playerContext();
+        return org.domi.furnace.server.loot.LootCondition.allOf(c.player(), ctx[0]);
+    }
+
+    /**
+     * inventory_changed: 바뀐 칸의 아이템 색인으로 후보에만 매처를 돌린다(나머지 기준은 그 아이템에는 맞을 수 없다).
+     * 옛 전부 훑기와 같은 결과가 되도록 순서를 지킨다: 매처가 맞은 것이 둘 이상이면 대기 표 순서로 정렬한 **뒤에** 그 순서로
+     * player 조건을 판정한다(player 조건은 공유 난수를 쓸 수 있어 판정 순서가 결과다). 둘 이상일 때만 표를 한 번 훑는다.
+     */
+    private List<Listener> inventoryHits(LinkedHashSet<Listener> set, Criterion.InventoryEvent ev) {
+        AdvancementManager.TriggerIndex idx = manager.inventoryIndex();
+        LootRegistries regs = host.registries();
+        List<AdvancementManager.IndexEntry> matched = new ArrayList<>();
+        String item = ev.changedItem();
+        List<AdvancementManager.IndexEntry> byItem = item == null ? null : idx.byItem().get(item);
+        if (byItem != null) for (var e : byItem) if (set.contains(e.listener()) && e.criterion().matcher().test(ev, regs)) matched.add(e);
+        for (var e : idx.general()) if (set.contains(e.listener()) && e.criterion().matcher().test(ev, regs)) matched.add(e);
+        if (matched.size() > 1) {
+            Map<Listener, AdvancementManager.IndexEntry> want = new HashMap<>();
+            for (var e : matched) want.put(e.listener(), e);
+            matched.clear();
+            for (Listener l : set) {
+                var e = want.get(l);
+                if (e != null) matched.add(e);
+            }
+        }
+        LootContext[] ctx = new LootContext[1];
+        List<Listener> hits = new ArrayList<>(matched.size());
+        for (var e : matched) if (playerOk(e.criterion(), ctx)) hits.add(e.listener());
+        return hits;
     }
 
     /** 그 트리거를 기다리는 조건이 하나라도 있나(사건 만들기 비용을 아끼는 용도). */

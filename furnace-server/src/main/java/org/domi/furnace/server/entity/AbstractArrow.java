@@ -227,6 +227,7 @@ public abstract class AbstractArrow extends Projectile {
         @Override public Pos blockPosition() { return cart.blockPosition(); }
         @Override public boolean isAlive() { return !cart.isRemoved(); }
         @Override public boolean canBeSeenAsEnemy() { return false; }
+        @Override public boolean canBeSeenByAnyone() { return false; }   // LivingEntity 가 아니라 대상 조건에 들 수 없다
         @Override public double visibilityPercent(Entity looker) { return 1.0; }
         @Override public boolean isPlayer() { return false; }
         @Override public boolean hurtByMob(Entity.Damage source, float amount, Mob attacker) { return cart.hurtBy(source, amount, attacker); }

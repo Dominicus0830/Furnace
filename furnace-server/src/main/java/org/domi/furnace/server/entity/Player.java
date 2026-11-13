@@ -673,6 +673,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
      * 없고, 던지면 종료 직전 틱(끊긴 플레이어 정리 → 다른 플레이어에게 보내기)이 중간에 끊긴다.
      */
     private void runOnLoop(Runnable task) {
+        if (org.domi.furnace.server.net.io.SharedChunkFrames.deferInsideListener(channel, task)) return;   // 리스너 안에서 보냄 — 지금 패킷 앞에
         try {
             channel.eventLoop().execute(task);
         } catch (java.util.concurrent.RejectedExecutionException ignored) {
@@ -2330,6 +2331,11 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private final java.util.Set<ChunkPos> cornerInFlight = java.util.concurrent.ConcurrentHashMap.newKeySet();
     public java.util.Set<ChunkPos> cornerInFlight() { return cornerInFlight; }
 
+    /** 모서리 목록을 다시 모으기까지 쉰 틱(region 스레드만). */
+    private int cornerIdleTicks;
+    public int cornerIdleTicks() { return cornerIdleTicks; }
+    public void cornerIdleTicks(int v) { this.cornerIdleTicks = v; }
+
     /** 요청했지만 아직 끝나지 않은(생성·직렬화 중인) 청크 전송 수 — 완료 콜백은 다른 스레드서 줄인다. */
     private final java.util.concurrent.atomic.AtomicInteger chunkSendsInFlight = new java.util.concurrent.atomic.AtomicInteger();
 
@@ -2340,7 +2346,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     public java.util.Set<org.domi.furnace.server.world.ChunkPos> chunkPrefetches() { return chunkPrefetches; }
 
-    /** chunks-per-tick=auto: 보낸 배치의 Finished 가 아직 안 나갔다(아무 스레드). */
+    /** 보낸 청크 배치의 Finished 가 아직 안 나갔다(auto·숫자 chunks-per-tick 모두, 아무 스레드). 열려 있으면 새 배치를 열지 않는다. */
     private volatile boolean chunkBatchOpen;
 
     public boolean chunkBatchOpen() { return chunkBatchOpen; }
