@@ -20,6 +20,10 @@ public final class EntityStore {
     /** 구역 키 순서(inChunk 의 바닐라 순서용). 조회는 bySection(해시)으로 한다 — 같은 Section 을 가리킨다. */
     private final TreeMap<Long, Section> sections = new TreeMap<>();
     private final LongMap<Section> bySection = new LongMap<>();
+    /** 다음 순번(byId 의 넣은 순서와 같은 차례로 늘어난다 — orderAndDedupe 가 쓴다). */
+    private long nextSeq;
+    private long[] sortScratch = new long[0];
+    private Entity[] orderScratch = new Entity[0];
 
     /**
      * 구역 하나(바닐라 EntitySection + ClassInstanceMultiMap): 넣은 순서 목록과, 한 번이라도 찾은 클래스별 목록.
@@ -80,20 +84,28 @@ public final class EntityStore {
 
     public boolean containsUuid(UUID uuid) { return byUuid.containsKey(uuid); }
 
+    /** contains 와 같은 답을 필드 하나로(추적 후보 거르기용). */
+    public boolean holds(Entity e) { return e.store == this; }
+
     /** entityTickList.contains. */
     public boolean contains(Entity e) { return byId.get(e.id()) == e; }
 
     /** 넣는다. 같은 UUID 가 이미 있으면 넣지 않는다(바닐라 addEntityUuid). */
     public boolean add(Entity e) {
         if (byUuid.containsKey(e.uuid())) return false;
-        byId.put(e.id(), e);
+        Entity prev = byId.put(e.id(), e);
+        e.storeSeq = prev != null ? prev.storeSeq : nextSeq++;   // 같은 id 키를 덮으면 LinkedHashMap 은 옛 자리를 지킨다
+        if (prev != null && prev != e && prev.store == this) prev.store = null;
+        e.store = this;
         byUuid.put(e.uuid(), e);
         sectionOrNew(e.sectionKey()).add(e);
         return true;
     }
 
     public boolean remove(Entity e) {
-        if (byId.remove(e.id()) == null) return false;
+        Entity had = byId.remove(e.id());
+        if (had == null) return false;
+        if (had.store == this) had.store = null;
         byUuid.remove(e.uuid());
         removeFromSection(e, e.sectionKey());
         return true;
@@ -130,6 +142,60 @@ public final class EntityStore {
             for (int i = 0, n = list.size(); i < n; i++) out.accept(list.get(i));
         }
     }
+
+    /**
+     * 청크 열 cx0..cx1 × cz0..cz1 의 모든 높이 구역에 든 엔티티를 훑는다(지워진 것 포함, 순서 없음 — 부른 쪽이 orderAndDedupe 로 맞춘다).
+     * x 마다 구역 TreeMap 의 한두 구간(z 가 0 을 가로지르면 둘)만 본다.
+     */
+    public void forEachInColumns(int cx0, int cx1, int cz0, int cz1, Consumer<Entity> out) {
+        for (int sx = cx0; sx <= cx1; sx++) {
+            if (cz0 < 0 && cz1 >= 0) {   // 마스크한 z 순서로는 [0..cz1] 과 [cz0..-1] 두 구간
+                columnRange(sx, 0, cz1, out);
+                columnRange(sx, cz0, -1, out);
+            } else {
+                columnRange(sx, cz0, cz1, out);
+            }
+        }
+    }
+
+    private void columnRange(int sx, int z0, int z1, Consumer<Entity> out) {
+        long from = Entity.sectionKey(sx, 0, z0), to = Entity.sectionKey(sx, -1, z1);   // y 마스크 0 이 가장 작고 -1 이 가장 크다
+        for (Section sec : sections.subMap(from, true, to, true).values()) {
+            ArrayList<Entity> list = sec.all;
+            for (int i = 0, n = list.size(); i < n; i++) out.accept(list.get(i));
+        }
+    }
+
+    /**
+     * buf[0..n) 을 이 저장소의 틱 목록 순서(all() 순서)로 늘어놓고 겹친 것을 지운다. 모두 이 저장소에 든 엔티티여야 한다. 남은 개수를 돌려준다.
+     */
+    public int orderAndDedupe(Entity[] buf, int n) {
+        if (n <= 1) return n;
+        if (n < (1 << 21) && nextSeq < (1L << 42)) {
+            long[] k = sortScratch.length >= n ? sortScratch : (sortScratch = new long[Math.max(n, sortScratch.length * 2)]);
+            for (int i = 0; i < n; i++) k[i] = buf[i].storeSeq << 21 | i;   // 순번이 같으면(같은 엔티티) 첨자로 — 아무거나 하나 남긴다
+            java.util.Arrays.sort(k, 0, n);
+            Entity[] tmp = orderScratch.length >= n ? orderScratch : (orderScratch = new Entity[Math.max(n, orderScratch.length * 2)]);
+            int m = 0;
+            long last = -1;
+            for (int i = 0; i < n; i++) {
+                long seq = k[i] >>> 21;
+                if (seq == last) continue;
+                last = seq;
+                tmp[m++] = buf[(int) (k[i] & ((1 << 21) - 1))];
+            }
+            System.arraycopy(tmp, 0, buf, 0, m);
+            java.util.Arrays.fill(tmp, 0, m, null);   // 지운 엔티티를 붙잡아 두지 않게
+            return m;
+        }
+        java.util.Arrays.sort(buf, 0, n, java.util.Comparator.comparingLong((Entity e) -> e.storeSeq));
+        int m = 0;
+        for (int i = 0; i < n; i++) if (m == 0 || buf[m - 1].storeSeq != buf[i].storeSeq) buf[m++] = buf[i];
+        return m;
+    }
+
+    /** 틱 목록 순서 비교용 순번(시험·단언용). */
+    public static long orderKey(Entity e) { return e.storeSeq; }
 
     // ------------------------------------------------------------------ 상자 조회(바닐라 EntitySectionStorage.getEntities)
 
@@ -240,7 +306,10 @@ public final class EntityStore {
     // ------------------------------------------------------------------ 합치기·나누기
 
     public void absorb(EntityStore other) {
-        for (Entity e : other.byId.values()) add(e);
+        for (Entity e : other.byId.values()) {
+            e.store = null;   // add 가 이쪽으로 다시 단다(같은 UUID 로 거부되면 어느 저장소에도 없다 — 옛 동작과 같은 뜻)
+            add(e);
+        }
         other.byId.clear();
         other.byUuid.clear();
         other.sections.clear();
