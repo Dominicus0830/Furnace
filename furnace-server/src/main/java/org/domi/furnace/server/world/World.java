@@ -456,6 +456,8 @@ public final class World {
             if (storage != null) storage.saveIfDirty();
             var forced = forcedChunks;
             if (forced != null) forced.saveIfDirty();
+            var stale = lightStale;
+            if (stale != null) stale.saveIfDirty();
             var gen = org.domi.furnace.server.world.gen.NoiseWorldSource.of(worldSource);
             if (gen != null) gen.structureEngine().references().saveIfDirty();   // 탐험 지도 references(A06-06)
             return null;
@@ -520,6 +522,13 @@ public final class World {
         if (snap.light() != null && virtualLights.affects(snap.chunkX(), snap.chunkZ())) snap = snap.withoutLight();   // 가짜 빛은 디스크에 남기지 않는다
         final ChunkSnapshot snapF = snap;
         int cx = snap.chunkX(), cz = snap.chunkZ();
+        // 저장 빛을 믿지 않는 표시 때문에 다시 계산한 빛을 싣는다 — 디스크에 써진 뒤에 표시를 지운다(그 사이 다시 표시됐으면 그대로)
+        long staleSeq = 0;
+        if (col != null && col.lightStaleSeq() != 0) {
+            staleSeq = col.lightStaleSeq();
+            col.lightStaleSeq(0);
+        }
+        final long staleSeqF = staleSeq;
         ioLane(cx, cz).execute(() -> {
             boolean ok;
             try {
@@ -530,6 +539,7 @@ public final class World {
                 ok = false;
             }
             if (!ok) onChunkSaveFailed(new ChunkPos(cx, cz), col);
+            else if (staleSeqF != 0) lightStale().clearIfSeq(cx, cz, staleSeqF);
         });
     }
 
@@ -1703,6 +1713,21 @@ public final class World {
     public void setTickNanos(long nanos) { regionizer.setTickNanos(nanos); }
 
     public long tickNanos() { return regionizer.tickNanos(); }
+
+    private volatile LightStaleChunks lightStale;
+
+    /** 저장 빛을 믿으면 안 되는 청크(T-012, <차원 폴더>/data/furnace_light_stale.dat). 디스크 월드면 처음 쓸 때 읽는다. */
+    public LightStaleChunks lightStale() {
+        var f = lightStale;
+        if (f != null) return f;
+        synchronized (this) {
+            if (lightStale == null) {
+                lightStale = worldSource instanceof AnvilWorldSource && worldDir != null
+                        ? LightStaleChunks.open(dimensionType.storageDir(levelRoot())) : LightStaleChunks.detached();
+            }
+            return lightStale;
+        }
+    }
 
     private volatile ForcedChunks forcedChunks;
 
