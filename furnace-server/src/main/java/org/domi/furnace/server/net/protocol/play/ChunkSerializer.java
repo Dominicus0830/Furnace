@@ -8,6 +8,7 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtWriter;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSnapshot;
+import org.domi.furnace.server.world.FirstSeenIndex;
 import org.domi.furnace.server.world.Palette;
 
 public final class ChunkSerializer {
@@ -46,8 +47,11 @@ public final class ChunkSerializer {
         ByteBuf data = Unpooled.buffer();
         for (ChunkSnapshot.Section s : snap.sections()) {
             data.writeShort(s.nonAirCount());
-            Palette.write(data, s.blocks(), blockDirectBits, 4, 8);  // 블록
-            Palette.write(data, s.biomes(), biomeDirectBits, 1, 3);  // 바이옴
+            // T-015: 묶인 팔레트에서 바로(펼치지 않음). 펼친 배열만 있거나 직접 저장이면 옛 경로 — 바이트는 같다
+            FirstSeenIndex bi = s.blockIndex();
+            if (bi == null || !Palette.writeIndexed(data, bi, 4, 8)) Palette.write(data, s.blocks(), blockDirectBits, 4, 8);  // 블록
+            FirstSeenIndex ci = s.biomeIndex();
+            if (ci == null || !Palette.writeIndexed(data, ci, 1, 3)) Palette.write(data, s.biomes(), biomeDirectBits, 1, 3);  // 바이옴
         }
         Types.writeVarInt(buf, data.readableBytes());
         buf.writeBytes(data);
