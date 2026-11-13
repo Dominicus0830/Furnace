@@ -62,6 +62,12 @@ public interface LevelServices {
     /** 같은 차원의 접속자 전원에게. */
     void forEachPlayer(Consumer<Player> c);
 
+    /**
+     * forEachPlayer 와 같은 플레이어·같은 순서를 근접 색인으로 거를 수 있는 목록(실서버 월드). null 이면 근접 조회도 forEachPlayer 를
+     * 모두 훑는다. forEachPlayer 를 바꿔 쓰는 구현은 이것을 그와 맞게 주거나 null 로 둬야 한다(Delegating 은 넘기지 않는다).
+     */
+    default org.domi.furnace.server.world.PlayerRoster.Level playerIndex() { return null; }
+
     /** MinecraftServer.getLevel(key): 이 서버가 띄운 다른 차원의 레벨. 띄우지 않았으면 null(바닐라도 null 이면 포털이 아무것도 안 한다). */
     default ChunkLevel otherLevel(String dimension) { return null; }
 
