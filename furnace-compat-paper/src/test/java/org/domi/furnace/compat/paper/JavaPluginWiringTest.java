@@ -224,6 +224,7 @@ class JavaPluginWiringTest {
             assertTrue(wire.execute(asSteve, "wire", new String[]{"x"}), "권한이 없으면 거절 문장을 보내고 true");
             assertTrue(WiringProbe.LOG.isEmpty());
             server.tick();
+            steve.sync();   // 메시지는 연결 이벤트 루프가 인코딩할 때 기록된다 — 기다리지 않으면 부하에서 놓친다
             assertTrue(steve.messageLines().contains("no way wiring.use"), () -> steve.messageLines().toString());
             steve.command("wire q");
             server.tick(2);

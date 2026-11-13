@@ -10,4 +10,10 @@ class EntityCollisionSceneGoldenTest {
     void collisionSceneMatchesGolden() {
         SceneHash.assertGoldenInFreshJvm("entity-collision-scene", EntityCollisionScene.class);
     }
+
+    /** 문맥 충돌 길(가루눈·움직이는 피스톤) — 검토 R5. 금 파일은 재작성 전 커밋(7b2d6b77)에서 만들었다. */
+    @Test
+    void powderAndPistonSceneMatchesGolden() {
+        SceneHash.assertGoldenInFreshJvm("entity-collision-scene-powder", EntityCollisionPowderScene.class);
+    }
 }

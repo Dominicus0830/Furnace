@@ -78,6 +78,7 @@ public abstract non-sealed class Entity implements Rider {
         public static final Damage SWEET_BERRY_BUSH = new Damage("sweet_berry_bush", false, false, false);
         public static final Damage EXPLOSION = new Damage("explosion", false, true, false);
         public static final Damage OUT_OF_WORLD = new Damage("out_of_world", false, false, true);
+        public static final Damage GENERIC = new Damage("generic", false, false, false);
         public static final Damage GENERIC_KILL = new Damage("generic_kill", false, false, true);
 
         /** 피해 유형 하나에서(성질은 damage_type 태그). */
@@ -122,6 +123,10 @@ public abstract non-sealed class Entity implements Rider {
     private int inBlockState = -1;
     /** 추적기(region 이 레벨에 넣을 때 만든다). */
     public EntityTracker tracker;
+    /** EntityStore 틱 목록 안 순번(넣을 때 매긴다 — 작을수록 앞). 같은 저장소 안에서만 뜻이 있다. */
+    long storeSeq;
+    /** 이 엔티티를 가진 EntityStore(없으면 null) — contains 를 해시 없이(EntityStore.holds). */
+    EntityStore store;
     // 탑승(바닐라 Entity.vehicle/passengers/boardingCooldown). 승객이 없으면 공유 빈 목록이라 틱 비용이 없다.
     private Entity vehicle;
     private java.util.List<Rider> passengers = java.util.List.of();

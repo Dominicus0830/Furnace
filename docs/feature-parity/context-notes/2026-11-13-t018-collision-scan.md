@@ -44,3 +44,13 @@ O05 보고서 P-O05-07, TASK 표 T-018. PR #291(엔티티·보더 충돌 모양)
 ## 손대지 않은 것(TASK 표의 나머지 생각)
 - `collide` 와 `checkSupportingBlock` 이 같은 칸을 두 번 모으는 것(⑤): 발밑 상자(1e-6 두께)와 이동 상자가 다르고, 재사용하려면 덮는 범위 증명이 필요해 이번에는 뺐다.
 - 변 칸(edges == 2)도 지금은 블록을 읽고 나서 움직이는 피스톤인지 본다(바닐라와 같은 판정). 구역 팔레트에 피스톤이 없으면 읽지 않는 길은 측정 뒤 판단.
+
+## 독립 검토(PR #305, 공유 폴더 `furnace/reviews/t018-pr305.md`) R 항목 반영
+| R | 내용 | 처리 |
+|---|---|---|
+| R1 | `Shape.exactYCoords(ex, ey, ez)` 가 `move` 의 "빈 모양이면 this" 를 안 따름 | 고침 — 빈 모양도 옮기지 않음(`collide` 6인자도 대칭으로) |
+| R2 | `CollisionTable` 초기화가 상태마다 리플렉션(약 0.17초, 첫 충돌 질의 틱에 걸림) | 고침 — 블록 단위 + 동작 클래스 캐시, `FurnaceMain` 시작 때 `ChunkLevel.warmCollisionTable()` |
+| R3 | scratch 열린 섹션의 `hasOnlyAir` 는 낡을 수 있음 | 고침 — `ChunkSection.scratchOpen()` 이면 건너뛰지 않고 칸을 읽는다(주석 포함) |
+| R4 | 차분 생성기가 청크 열 셋 이상(열 배열 길)을 거의 안 만듦 | 고침 — 넓은 상자(x 폭 20~50) 경우, 범위 점검 `wide > 500`(2만 건 중 1400) |
+| R5 | 금 장면이 문맥 충돌 길(가루눈·움직이는 피스톤)을 못 지킴 | 고침 — 새 장면 `entity-collision-scene-powder`(가루눈 밭·떨어지는 몹·토끼·움직이는 피스톤 칸), 금 파일은 7b2d6b77 에서 bless. 변이(DYNAMIC 칸 건너뛰기)로 이 장면이 실패함을 확인 |
+| R6 | 바닐라 문맥 충돌 블록 중 Furnace 동작이 없는 것: 비계(위/아래·웅크림), 액체(스트라이더 `canStandOnFluid`) | 이 PR 범위 밖(기존 공백, 회귀 아님) — 별도 TASK 로 요청. 고치면 `contextualBehaviorsAreDynamic` 개수와 SHAPED 목록을 같이 고친다 |

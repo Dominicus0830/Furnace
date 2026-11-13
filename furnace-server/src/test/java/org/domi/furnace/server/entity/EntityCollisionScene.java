@@ -70,7 +70,7 @@ public final class EntityCollisionScene implements SceneHash.Scene {
         }
     }
 
-    private static IdentityHash hash(Arena level) {
+    static IdentityHash hash(Arena level) {
         List<Entity> list = new ArrayList<>();
         for (Entity e : level.entities().all()) list.add(e);
         list.sort(java.util.Comparator.comparingInt(Entity::id));

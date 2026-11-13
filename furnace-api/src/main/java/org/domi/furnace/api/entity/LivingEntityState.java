@@ -8,6 +8,15 @@ import org.domi.furnace.api.entity.attribute.AttributeInstance;
 
 public interface LivingEntityState extends EntityState {
 
+    /** 지금 체력. LivingEntity.health() 는 핸들을 만든 시점 값이고, 이것은 소유 스레드에서 읽는 지금 값이다. */
+    float health();
+
+    /** 지금 최대 체력(속성 반영). */
+    float maxHealth();
+
+    /** 0..최대 체력으로 잘라 곧바로 적용한다. 0 이하면 죽는다(LivingEntity.updateHealth 와 같다). 사라진 엔티티에는 아무 일도 하지 않는다. */
+    void setHealth(float health);
+
     /** 걸린 효과(걸린 순서). */
     List<MobEffect> effects();
 

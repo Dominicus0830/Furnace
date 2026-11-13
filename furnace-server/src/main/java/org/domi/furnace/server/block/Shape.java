@@ -460,10 +460,10 @@ public final class Shape {
 
     /**
      * move(ex, ey, ez).collide(axis, box, d) 와 같은 값을 옮긴 모양을 만들지 않고 계산한다(T-018 — 충돌 목록이 칸마다 모양을 새로 만들지 않게).
-     * move 가 세 값이 모두 0 이면 자기 자신을 돌려주는 것까지 따라 옮긴 거리를 정한다(합한 거리의 부호 있는 0 이 같도록).
+     * move 가 빈 모양이거나 세 값이 모두 0 이면 자기 자신을 돌려주는 것까지 따라 옮긴 거리를 정한다(합한 거리의 부호 있는 0 이 같도록).
      */
     public double collide(int axis, org.domi.furnace.server.entity.AABB box, double d, double ex, double ey, double ez) {
-        if (ex == 0 && ey == 0 && ez == 0) return collideAt(axis, box, d, ox, oy, oz);
+        if (boxes.length == 0 || ex == 0 && ey == 0 && ez == 0) return collideAt(axis, box, d, ox, oy, oz);
         return collideAt(axis, box, d, ox + ex, oy + ey, oz + ez);
     }
 
@@ -472,7 +472,7 @@ public final class Shape {
 
     /** move(0, ey, 0)… 의 exactYCoords 와 같은 값(옮긴 모양 없이). ex·ez 는 move 가 자기 자신을 돌려주는지 가르는 데만 쓴다. */
     public double[] exactYCoords(double ex, double ey, double ez) {
-        if (ex == 0 && ey == 0 && ez == 0) return exactYCoords();
+        if (boxes.length == 0 || ex == 0 && ey == 0 && ez == 0) return exactYCoords();   // move 가 빈 모양·0 이동이면 자기 자신(T-018 R1)
         if (!base.exactCoords) return null;
         double[] c = base.grid().coords[1].clone();
         double o = oy + ey;

@@ -12,9 +12,29 @@
 //    각 이벤트 문서가 발화 스레드를 적는다.
 package org.domi.furnace.api.event;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+
 public abstract class Event {
 
     private final boolean async;
+
+    /**
+     * 붙임 칸({@link EventSlot}): (열쇠, 값, 열쇠, 값, …) 배열. 처리기들이 나눠 쓰는 파생 값을 전역 맵·잠금 없이 이벤트 객체에 직접 붙인다.
+     * 바꿀 때는 배열을 새로 만들어 CAS 로 끼운다 — 읽기는 volatile 읽기 하나와 짧은 훑기다.
+     */
+    @SuppressWarnings("unused")   // SLOTS 로만 만진다
+    private volatile Object[] slots;
+
+    static final VarHandle SLOTS;
+
+    static {
+        try {
+            SLOTS = MethodHandles.lookup().findVarHandle(Event.class, "slots", Object[].class);
+        } catch (ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
 
     /** 동기 이벤트. */
     protected Event() { this(false); }
