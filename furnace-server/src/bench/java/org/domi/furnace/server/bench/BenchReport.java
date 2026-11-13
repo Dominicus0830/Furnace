@@ -17,7 +17,7 @@ import java.util.Map;
 
 public final class BenchReport {
 
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().serializeSpecialFloatingPointValues().create();
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().serializeNulls().create();
 
     private final String bench;
     private final Map<String, Object> top = new LinkedHashMap<>();
@@ -92,9 +92,10 @@ public final class BenchReport {
         jvm.put("cpus", Runtime.getRuntime().availableProcessors());
         jvm.put("maxHeapBytes", Runtime.getRuntime().maxMemory());
         jvm.put("os", System.getProperty("os.name") + " " + System.getProperty("os.arch"));
-        jvm.put("args", ManagementFactory.getRuntimeMXBean().getInputArguments().stream().filter(a -> !a.startsWith("-Djavax.") && !a.startsWith("-Dhttp") && !a.startsWith("-Djdk.http")).toList());
+        jvm.put("args", ManagementFactory.getRuntimeMXBean().getInputArguments().stream().filter(a -> !a.startsWith("-Djavax.") && !a.startsWith("-Dhttp") && !a.startsWith("-Djdk.http") && !a.startsWith("-Dorg.gradle.") && !a.startsWith("-javaagent:")).toList());
         out.put("jvm", jvm);
-        out.putAll(values);
+        // NaN·무한대는 JSON 에 쓸 수 없다 → null (파서가 거부하지 않게)
+        values.forEach((k, v) -> out.put(k, v instanceof Double d && (d.isNaN() || d.isInfinite()) ? null : v instanceof Float f && (f.isNaN() || f.isInfinite()) ? null : v));
         return GSON.toJson(out);
     }
 

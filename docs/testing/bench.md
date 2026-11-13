@@ -1,6 +1,6 @@
 # 벤치 소스셋과 실행기 (T-002 / O15 T-O15-03)
 
-벤치는 `furnace-server/src/bench/java` 에 둔다. `src/test` 가 아니다. 평소 `:furnace-server:test` 에는 들어가지 않으므로 시험 요약에 "건너뜀"이 섞이지 않는다(옛 `assumeTrue(furnace.bench)` 28곳을 없앴다).
+벤치는 `furnace-server/src/bench/java` 에 둔다. `src/test` 가 아니다. 평소 `:furnace-server:test` 에는 들어가지 않으므로 시험 요약에 "건너뜀"이 섞이지 않는다(옛 `assumeTrue(furnace.bench)` 약 16곳을 없앴다 — 이동한 벤치 파일 기준).
 
 ## 실행
 ```
@@ -9,6 +9,7 @@
 ./gradlew -PskipOracle=true :furnace-server:bench --tests '*RegionTickBench*' -Dfurnace.bench.scene=clock -Dfurnace.bench.ticks=600
 ```
 - 명령줄의 모든 `-Dfurnace.*` 는 벤치 JVM 으로 그대로 넘어간다. 속성 이름은 `furnace.bench.*` 하나다(`furnace.profile`·`furnace.profile.nostruct`·`furnace.profile.pristine` 은 `furnace.bench`·`furnace.bench.nostruct`·`furnace.bench.pristine` 으로 바뀌었다).
+- `PristineHashBench`(이동 전)는 아직 `furnace.profile` 을 읽는다. 옮길 때 같이 `furnace.bench` 로 바꾼다.
 - `furnace.sweep` 은 벤치가 아니라 옵트인 정합 시험(`ChunkSweepParityTest`, `src/test`)이라 그대로다.
 - 소스셋 클래스패스에는 `src/main` 과 `src/test` 출력이 들어 있다. 같은 패키지 이름을 쓰므로 패키지 비공개 멤버·시험 도우미에 닿는다.
 - 시험(`test`)은 `compileBenchJava` 에 의존한다 — 벤치를 돌리지는 않지만 컴파일이 깨지면 바로 알린다.
@@ -27,6 +28,8 @@
 ## JSON 출력
 `build/bench/<벤치>[-<변형>].json`. 도우미 `org.domi.furnace.server.bench.BenchReport`. 공통 칸: `commit`, `bench`, `variant`, `scene`, `seed`, `jvm{version,vm,cpus,maxHeapBytes,os,args}`. 나머지는 벤치가 넣는다: `tick_mean_ms`·`tick_p50_ms`·`tick_p95_ms`·`tick_max_ms`, `allocBytesPerTick`, `phase_*_ms`, `hash` 등(단위는 키 끝).
 지금 JSON 을 내는 벤치: `RegionTickBench`, `PlayerWalkTickBench`, `MultiDimensionTickBench`, `EntityPerfBench`. 나머지 벤치는 아직 `printf` 줄만 낸다(새 벤치와 고치는 벤치부터 `BenchReport` 로).
+
+벤치 JVM 에는 JaCoCo 에이전트를 붙이지 않고(`-Pcoverage` 와 무관) G1 을 명시한다. `allocBytesPerTick` 은 결정적 값이 아니다: 걷는 장면에서 같은 커밋 연속 4회가 825K~1014K(±15%)였다. 게이트로 쓰려면 T-005 에서 예열·반복 규칙을 먼저 잰다.
 
 **절대 시간으로 CI 를 막지 않는다**(`docs/ci.md`, O15 4.2절). 같은 커밋의 같은 벤치가 ±7~15% 흔들린다. 게이트는 해시·틱당 할당 같은 결정적 값만 후보다(T-005 에서 측정 먼저).
 

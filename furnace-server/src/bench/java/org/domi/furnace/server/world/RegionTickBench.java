@@ -203,7 +203,7 @@ class RegionTickBench {
         long allocSum = 0;
         boolean allocOk = true;
         for (int i = from; i < ticks; i++) { if (alloc[i] < 0) allocOk = false; allocSum += alloc[i]; }
-        BenchReport rep = BenchReport.of("RegionTickBench").scene(SCENE.isEmpty() ? "walk" : SCENE).seed(12345L)
+        BenchReport rep = BenchReport.of("RegionTickBench").variant(SCENE.isEmpty() ? "walk" : SCENE.replace(',', '+')).scene(SCENE.isEmpty() ? "walk" : SCENE).seed(12345L)
                 .put("view", view).put("mobs", mobs).put("ticks", ticks).put("skip", skip)
                 .put("realEvents", REAL_EVENTS).put("noise", noise).put("tickstats", Regionizer.STATS)
                 .timesNs("tick_", samples, from, ticks)   // samples 는 위에서 이미 정렬됨(정렬해도 같은 값)

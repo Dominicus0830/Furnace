@@ -99,8 +99,8 @@ configurations["benchRuntimeOnly"].extendsFrom(configurations.testRuntimeOnly.ge
 //  - DebugNonSafepoints: 이게 없으면 JFR 이 자기 시간을 엉뚱한 줄에 몰아 준다(O08 실측: 가짜 36% 가 실제 0.1%). stackdepth=512 는 `jfr print --stack-depth 400` 과 짝이다(기본 64·5 면 단계 분류가 전부 "기타").
 //  - furnace.tickstats: Regionizer.STATS 는 static final 이라 JVM 시작 때 켜야 한다. 꺼져 있으면 RegionTickBench 의 단계별 시간이 전부 0 으로 찍힌다.
 val benchCommit = providers.exec { commandLine("git", "rev-parse", "--short=12", "HEAD"); isIgnoreExitValue = true }
-    .standardOutput.asText.map { it.trim() }.orElse("unknown")
-tasks.register<Test>("bench") {
+    .standardOutput.asText.map { it.trim().ifEmpty { "unknown" } }.orElse("unknown")
+val benchTask = tasks.register<Test>("bench") {
     group = "verification"
     description = "src/bench 의 벤치를 돌린다(평소 test 와 따로). 결과 JSON: build/bench/<벤치>.json"
     testClassesDirs = sourceSets["bench"].output.classesDirs
@@ -110,7 +110,7 @@ tasks.register<Test>("bench") {
     val heap = (findProperty("bench.heap") as String?) ?: "3g"
     minHeapSize = heap
     maxHeapSize = heap
-    jvmArgs("-XX:+UnlockDiagnosticVMOptions", "-XX:+DebugNonSafepoints", "-XX:FlightRecorderOptions:stackdepth=512")
+    jvmArgs("-XX:+UseG1GC", "-XX:+UnlockDiagnosticVMOptions", "-XX:+DebugNonSafepoints", "-XX:FlightRecorderOptions:stackdepth=512")
     testLogging { showStandardStreams = true }
     // 결과는 매번 새로 잰다(입력이 같아도 건너뛰지 않는다)
     outputs.upToDateWhen { false }
@@ -124,6 +124,8 @@ tasks.register<Test>("bench") {
     }
     doFirst { outDir.get().asFile.mkdirs() }
 }
+// jacoco 플러그인은 모든 Test 작업에 에이전트를 붙인다(위 test 의 isEnabled 는 test 에만 걸려 있다). 벤치 JVM 에는 붙이지 않는다 — 측정이 느려진다.
+benchTask.configure { extensions.configure<JacocoTaskExtension> { isEnabled = false } }
 // 벤치 소스가 컴파일은 되게 한다(시험을 돌리면 같이 확인 — 벤치가 몰래 썩지 않게). 벤치를 돌리지는 않는다.
 tasks.test { dependsOn("compileBenchJava") }
 
