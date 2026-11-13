@@ -187,12 +187,20 @@ public final class EventBridge {
             Furnace.server().events().subscribe(owner, org.domi.furnace.api.event.player.PlayerCreateEvent.class,
                     org.domi.furnace.api.event.EventPriority.MONITOR, false, f -> { if (!f.isAllowed()) Compat.forgetDenied(f.player()); });
         }
-        // 접속이 끝나면(Furnace MONITOR — 모든 처리기 뒤) NMS 연결의 가상 채널을 닫는다 — 어떤 Bukkit 이벤트든 듣는 플러그인이 하나라도 있으면 걸린다(플러그인별로 한 번 — 닫기는 멱등이고, 구독은 그 플러그인이 꺼지면 같이 풀리므로 전역 한 번이 아니라 이렇게 둔다)
+        watchQuit(owner);
+        return subs;
+    }
+
+    /**
+     * 접속이 끝나면(Furnace MONITOR — 모든 처리기 뒤) NMS 연결의 가상 채널을 닫고 그 접속의 Bukkit 권한 계산·구독을 걷는다(Paper 퇴장 때 perm.clearPermissions) —
+     * 플러그인이 이벤트를 하나도 안 들어도(권한만 묻는 플러그인) 걸리도록 플러그인을 켤 때와 처리기를 이을 때 모두 부른다(플러그인별로 한 번 — 닫기·정리는 멱등이고,
+     * 구독은 그 플러그인이 꺼지면 같이 풀리므로 전역 한 번이 아니라 이렇게 둔다).
+     */
+    static void watchQuit(BukkitPluginAdapter owner) {
         if (owner.markBridged("quit-channel-close")) {
             Furnace.server().events().subscribe(owner, org.domi.furnace.api.event.player.PlayerQuitEvent.class,
                     org.domi.furnace.api.event.EventPriority.MONITOR, false, f -> Compat.disconnected(f.player()));
         }
-        return subs;
     }
 
     private static <F extends org.domi.furnace.api.event.Event, B extends org.bukkit.event.Event> org.domi.furnace.api.event.EventSubscription subscribe(

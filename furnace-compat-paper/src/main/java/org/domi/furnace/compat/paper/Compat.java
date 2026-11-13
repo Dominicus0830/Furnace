@@ -324,10 +324,20 @@ public final class Compat {
         });
     }
 
-    /** 접속이 끝났다(퇴장 이벤트를 Bukkit 처리기들이 본 뒤) — NMS 연결의 가상 채널을 닫아 패킷 라이브러리가 자기 처리기를 걷게 한다. */
+    /**
+     * 접속이 끝났다(퇴장 이벤트를 Bukkit 처리기들이 본 뒤) — NMS 연결의 가상 채널을 닫아 패킷 라이브러리가 자기 처리기를 걷게 하고,
+     * Paper(PlayerList.remove → CraftPlayer.disconnect)처럼 Bukkit 권한 계산·구독을 걷는다. 권한은 같은 틱 안에서 곧바로 걷지 않고 전역 스케줄러로 한 칸 미룬다 —
+     * 같은 MONITOR 우선순위에서 이 구독보다 늦게 등록된 처리기도 Paper 처럼 퇴장 처리 중에는 권한을 본다(Furnace 는 같은 우선순위를 등록 순으로 부른다).
+     */
     static void disconnected(org.domi.furnace.api.entity.Player p) {
         CraftPlayer c = existingPlayer(p);
-        if (c != null) c.disconnected();
+        if (c == null) return;
+        c.disconnected();
+        try {
+            state().furnace.scheduler().global().execute(c::clearPermissionState);
+        } catch (RuntimeException shuttingDown) {
+            c.clearPermissionState();
+        }
     }
 
     /**
