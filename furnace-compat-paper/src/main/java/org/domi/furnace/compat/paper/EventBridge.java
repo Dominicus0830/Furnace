@@ -4,20 +4,20 @@
 // Furnace 이벤트 버스에 구독한다(A15-07). 구독은 그 플러그인의 것이라 코어가 플러그인을 끌 때 알아서 지우고, 프로파일러·MONITOR 검사도 그 플러그인으로 잡힌다.
 // 처리기마다 구독하는 까닭: Bukkit HandlerList 는 같은 우선순위 안에서 플러그인을 가리지 않고 등록 순으로 부른다 — 플러그인 A 가 B 보다 먼저 켜진 뒤
 // 처리기를 더 달아도 A1 → B1 → A2 순서가 지켜져야 한다. 버스는 (우선순위, 구독 순서)로 부르고 구독은 처리기를 등록하는 그 자리에서 하므로 두 순서가 같다.
-// Furnace 이벤트 하나에 Bukkit 이벤트 객체는 하나만 만들어 플러그인·우선순위가 다른 구독들이 나눠 쓴다(약한 참조 — 이벤트가 끝나면 사라진다).
+// Furnace 이벤트 하나에 Bukkit 이벤트 객체는 짝(Mapping)마다 하나만 만들어 플러그인·우선순위가 다른 구독들이 나눠 쓴다. 그 객체는 Furnace 이벤트의
+// 붙임 칸(EventSlot, 짝마다 열쇠 하나)에 붙어 이벤트와 함께 사라진다 — 전역 맵·잠금이 없어 region 스레드들이 같은 종류를 동시에 내도 줄 서지 않는다(T-032).
 // 우선순위 순서는 Furnace 버스가 지킨다: 같은 이벤트를 Furnace 플러그인이 같은 우선순위로 구독했다면 등록 순이다.
 package org.domi.furnace.compat.paper;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.WeakHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.logging.Level;
 import org.bukkit.event.EventException;
 import org.bukkit.plugin.RegisteredListener;
 import org.domi.furnace.api.Furnace;
+import org.domi.furnace.api.event.EventSlot;
 
 public final class EventBridge {
 
@@ -34,7 +34,8 @@ public final class EventBridge {
         /** Bukkit 이벤트가 Furnace 의 "취소"로 보이는 값과 그 반대 방향. 보통은 Cancellable 그대로, PlayerInteractEvent 처럼 결과가 둘인 이벤트만 따로 정한다. */
         private final java.util.function.Predicate<B> cancelOf;
         private final BiConsumer<B, Boolean> showCancel;
-        private final Map<F, Object> live = Collections.synchronizedMap(new WeakHashMap<>());
+        /** 이 짝이 만든 Bukkit 이벤트(또는 SKIP)를 Furnace 이벤트에 붙이는 칸. 한 Furnace 이벤트가 여러 짝으로 갈 수 있어(예: 사망) 짝마다 따로다. */
+        private final EventSlot<Object> live;
 
         Mapping(Class<B> bukkit, Class<F> furnace, Function<F, B> create, BiConsumer<F, B> push, BiConsumer<F, B> pull) {
             this(bukkit, furnace, create, push, pull, b -> ((org.bukkit.event.Cancellable) b).isCancelled(), (b, c) -> ((org.bukkit.event.Cancellable) b).setCancelled(c));
@@ -49,20 +50,22 @@ public final class EventBridge {
             this.pull = pull;
             this.cancelOf = cancelOf;
             this.showCancel = showCancel;
+            this.live = new EventSlot<>(furnace.getSimpleName() + "->" + bukkit.getSimpleName());
         }
 
-        /** 이 Furnace 이벤트의 Bukkit 이벤트(처음 부르면 만든다). 건너뛰는 이벤트면 null. */
+        /**
+         * 이 Furnace 이벤트의 Bukkit 이벤트(처음 부르면 만든다). 건너뛰는 이벤트면 null. 같은 Furnace 이벤트에는 늘 같은 객체를 돌려준다
+         * (두 스레드가 처음 부르기를 겨루면 만들기는 둘 다 돌 수 있지만 먼저 붙은 객체 하나를 둘 다 받는다).
+         */
         @SuppressWarnings("unchecked")
         B bukkitFor(F f) {
-            synchronized (live) {
-                Object o = live.get(f);
-                if (o == null) {
-                    B b = create.apply(f);
-                    live.put(f, b == null ? SKIP : b);
-                    return b;
-                }
-                return o == SKIP ? null : (B) o;
-            }
+            Object o = live.computeIfAbsent(f, this::make);
+            return o == SKIP ? null : (B) o;
+        }
+
+        private Object make(F f) {
+            B b = create.apply(f);
+            return b == null ? SKIP : b;
         }
     }
 

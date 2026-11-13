@@ -127,6 +127,35 @@ class PluginApiBlockEventsTest {
         assertEquals("minecraft:air", gone, "구독자가 없으면 예전처럼 떨어진다");
     }
 
+    /**
+     * T-032 검토 R4: 실제 입구 PluginGameEvents.blockPhysics 가 게으르게 만든 block()·changedType() 이 옛 서버가 미리 만들던 값
+     * (ApiConvert.block(state)·ApiConvert.block(defaultState(원인)).type())과 같다 — 속성이 여럿인 상태(가루 세기·방향, 반복기, 계단)로.
+     */
+    @Test
+    void physicsEntryLazyContentEqualsEagerConversion() {
+        var blocks = core.world().blockRegistry();
+        List<String> got = new CopyOnWriteArrayList<>();
+        on(BlockPhysicsEvent.class, e -> got.add(e.block() + "|" + e.changedType() + "|" + e.pos() + "|" + e.sourcePos()));
+        String[] names = {"minecraft:redstone_wire", "minecraft:repeater", "minecraft:oak_stairs", "minecraft:note_block", "minecraft:torch"};
+        List<String> want = new java.util.ArrayList<>();
+        int i = 0;
+        for (String n : names) {
+            int def = B.defaultState(n), count = BL.stateCountOf(B.block(def));
+            for (int k = 0; k < count; k += Math.max(1, count / 7)) {
+                int state = BL.firstState(B.block(def)) + k;
+                int source = B.block(B.defaultState(names[(i + 1) % names.length]));
+                Pos pos = new Pos(i, -50, 0), src = new Pos(i, -49, 0);
+                assertTrue(host.gameEvents().blockPhysics("minecraft:overworld", pos, state, src, source));
+                want.add(ApiConvert.block(state, blocks) + "|" + ApiConvert.block(B.defaultState(source), blocks).type()
+                        + "|" + new BlockPos(i, -50, 0) + "|" + new BlockPos(i, -49, 0));
+                i++;
+            }
+        }
+        assertTrue(want.size() > names.length * 3, "속성 있는 상태를 여럿 봐야 한다: " + want.size());
+        assertEquals(want, got);
+        assertTrue(got.stream().anyMatch(s -> s.contains("power=")), got.toString());
+    }
+
     // ------------------------------------------------------------------ 레드스톤
 
     @Test
