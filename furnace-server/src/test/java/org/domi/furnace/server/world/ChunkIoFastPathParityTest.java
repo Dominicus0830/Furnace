@@ -1,13 +1,15 @@
 // 청크 저장·로드 빠른 경로가 예전 경로와 같은 상태를 만드는지:
 // PaletteStorage.loadIndexed == load(펼친 배열)(내부 상태까지), 섹션 단위 기둥 탐색 == 칸별 getBlock 탐색,
 // scratch 를 열지 않는 rebuildHeightmapsAfterSurface == 예전(scratch 여는) 구현.
+// IdentityKit 시범 이관(T-O15-02): 차분은 Differential, 예전 기둥 탐색은 레거시 오라클 LegacyColumnScans(since 7d55ec3a).
 package org.domi.furnace.server.world;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.lang.reflect.Field;
-import java.util.Arrays;
 import java.util.SplittableRandom;
+import org.domi.furnace.server.identity.Differential;
+import org.domi.furnace.server.identity.legacy.chunkio.LegacyColumnScans;
 import org.junit.jupiter.api.Test;
 
 class ChunkIoFastPathParityTest {
@@ -18,49 +20,87 @@ class ChunkIoFastPathParityTest {
         return f.get(o);
     }
 
-    private static void assertSameStorage(PaletteStorage a, PaletteStorage b, String where) throws Exception {
-        for (String f : new String[]{"bits", "paletteSize", "singleValue"}) assertEquals(field(a, f), field(b, f), where + " " + f);
-        for (String f : new String[]{"palette", "lookupKeys", "lookupVals"}) {
-            assertArrayEquals((int[]) field(a, f), (int[]) field(b, f), where + " " + f);
+    /** 상태 전부(내부 필드·펼친 값·비공기 수)를 비교할 수 있게 배열로. */
+    private static Object[] snapshot(PaletteStorage a, int nonAir) throws Exception {
+        BitStorage st = (BitStorage) field(a, "storage");
+        return new Object[]{field(a, "bits"), field(a, "paletteSize"), field(a, "singleValue"),
+                field(a, "palette"), field(a, "lookupKeys"), field(a, "lookupVals"), st == null ? null : st.data(), a.unpack(), nonAir};
+    }
+
+    private static final String[] SNAPSHOT_FIELDS = {"bits", "paletteSize", "singleValue", "palette", "lookupKeys", "lookupVals",
+            "storage data", "unpack", "nonAir"};
+
+    /** 스냅샷 차이를 필드 이름으로(예전 assertSameStorage 메시지 수준). */
+    private static String snapshotDifference(Object[] a, Object[] b) {
+        for (int i = 0; i < SNAPSHOT_FIELDS.length; i++) {
+            String d = Differential.deepDifference(a[i], b[i]);
+            if (d != null) return SNAPSHOT_FIELDS[i] + ": " + d;
         }
-        BitStorage sa = (BitStorage) field(a, "storage"), sb = (BitStorage) field(b, "storage");
-        assertEquals(sa == null, sb == null, where + " storage");
-        if (sa != null) assertArrayEquals(sa.data(), sb.data(), where + " storage data");
-        assertArrayEquals(a.unpack(), b.unpack(), where + " unpack");
+        return null;
     }
 
     private static int ceillog2(int n) { return 32 - Integer.numberOfLeadingZeros(n - 1); }
 
-    @Test
-    void loadIndexed_sameStateAsLoad() throws Exception {
-        SplittableRandom r = new SplittableRandom(0x10AD);
-        for (int iter = 0; iter < 3000; iter++) {
-            // NBT 팔레트: 겹치는 값(모르는 이름 → 공기 둘), 안 쓰는 항목, 간접 경계(16/17, 256/257)와 직접 크기
-            int[] sizes = {1, 2, 15, 16, 17, 100, 255, 256, 257, 300, 1000};
-            int p = sizes[r.nextInt(sizes.length)];
-            int[] vals = new int[p];
-            for (int i = 0; i < p; i++) vals[i] = r.nextInt(4) == 0 ? r.nextInt(3) : r.nextInt(27000);
-            if (r.nextInt(3) == 0 && p > 1) vals[p - 1] = vals[0];
-            int used = 1 + r.nextInt(p);   // 앞 used 개만 칸에 쓴다(뒤는 안 쓰는 항목)
-            int bits = Math.max(4, ceillog2(Math.max(2, p)));
-            BitStorage idx = new BitStorage(bits, 4096);
-            int[] flat = new int[4096];
-            boolean runs = r.nextBoolean();
-            int k = r.nextInt(used);
-            for (int i = 0; i < 4096; i++) {
-                if (!runs || r.nextInt(64) == 0) k = r.nextInt(used);
-                idx.set(i, k);
-                flat[i] = vals[k];
-            }
-            PaletteStorage a = new PaletteStorage(4096, 4, 8, 15, 0);
-            a.load(flat, 0);
-            PaletteStorage b = new PaletteStorage(4096, 4, 8, 15, 0);
-            int nonAir = b.loadIndexed(vals, idx);
-            assertSameStorage(a, b, "iter=" + iter + " p=" + p);
-            int expect = 0;
-            for (int v : flat) if (!ChunkSection.isAir(v)) expect++;
-            assertEquals(expect, nonAir, "iter=" + iter + " nonAir");
+    /** NBT 팔레트 값 + 칸 인덱스 + 같은 내용을 펼친 배열. */
+    private record PaletteInput(int[] vals, BitStorage idx, int[] flat) {
+        String summary() { return "p=" + vals.length + " vals=" + Differential.shortString(vals); }
+    }
+
+    private static PaletteInput randomPalette(SplittableRandom r) {
+        // NBT 팔레트: 겹치는 값(모르는 이름 → 공기 둘), 안 쓰는 항목, 간접 경계(16/17, 256/257)와 직접 크기
+        int[] sizes = {1, 2, 15, 16, 17, 100, 255, 256, 257, 300, 1000};
+        int p = sizes[r.nextInt(sizes.length)];
+        int[] vals = new int[p];
+        for (int i = 0; i < p; i++) vals[i] = r.nextInt(4) == 0 ? r.nextInt(3) : r.nextInt(27000);
+        if (r.nextInt(3) == 0 && p > 1) vals[p - 1] = vals[0];
+        int used = 1 + r.nextInt(p);   // 앞 used 개만 칸에 쓴다(뒤는 안 쓰는 항목)
+        int bits = Math.max(4, ceillog2(Math.max(2, p)));
+        BitStorage idx = new BitStorage(bits, 4096);
+        int[] flat = new int[4096];
+        boolean runs = r.nextBoolean();
+        int k = r.nextInt(used);
+        for (int i = 0; i < 4096; i++) {
+            if (!runs || r.nextInt(64) == 0) k = r.nextInt(used);
+            idx.set(i, k);
+            flat[i] = vals[k];
         }
+        return new PaletteInput(vals, idx, flat);
+    }
+
+    /** 예전 경로: 펼친 배열을 load, 비공기 수는 칸마다 센다. */
+    private static Object[] loadFlat(PaletteInput in) throws Exception {
+        PaletteStorage a = new PaletteStorage(4096, 4, 8, 15, 0);
+        a.load(in.flat, 0);
+        int nonAir = 0;
+        for (int v : in.flat) if (!ChunkSection.isAir(v)) nonAir++;
+        return snapshot(a, nonAir);
+    }
+
+    private static Object[] loadIndexed(PaletteInput in) throws Exception {
+        PaletteStorage b = new PaletteStorage(4096, 4, 8, 15, 0);
+        int nonAir = b.loadIndexed(in.vals, in.idx);
+        return snapshot(b, nonAir);
+    }
+
+    private static Differential<PaletteInput, Object[]> paletteDiff() {
+        return Differential.<PaletteInput, Object[]>of("palette-loadIndexed", ChunkIoFastPathParityTest::randomPalette)
+                .seed(0x10AD).iterations(3000).describe(PaletteInput::summary)
+                .compare(ChunkIoFastPathParityTest::snapshotDifference);
+    }
+
+    @Test
+    void loadIndexed_sameStateAsLoad() {
+        paletteDiff().check(ChunkIoFastPathParityTest::loadFlat, ChunkIoFastPathParityTest::loadIndexed);
+    }
+
+    @Test
+    void loadIndexed_differentialCatchesSwappedPalette() {
+        // 변이 점검: 팔레트 앞 두 항목을 바꿔 넣는 틀린 구현을 이 차분이 잡아야 한다
+        paletteDiff().assertDetects(ChunkIoFastPathParityTest::loadFlat, in -> {
+            int[] v = in.vals.clone();
+            if (v.length > 1) { int t = v[0]; v[0] = v[1]; v[1] = t; }
+            return loadIndexed(new PaletteInput(v, in.idx, in.flat));
+        });
     }
 
     @Test
@@ -69,15 +109,6 @@ class ChunkIoFastPathParityTest {
         idx.set(7, 5);
         PaletteStorage b = new PaletteStorage(4096, 4, 8, 15, 0);
         assertThrows(ArrayIndexOutOfBoundsException.class, () -> b.loadIndexed(new int[]{1, 2}, idx));
-    }
-
-    /** 예전 칸별 탐색 그대로. kind 0 MB_NO_LEAVES(월드 y, 없으면 minY-1) / 1 MB / 2 OCEAN_FLOOR(높이값, 없으면 0). */
-    private static int legacyTop(ChunkColumn col, int x, int z, java.util.function.IntPredicate p, boolean worldY) {
-        int minY = ChunkColumn.MIN_Y;
-        for (int y = minY + ChunkColumn.SECTION_COUNT * 16 - 1; y >= minY; y--) {
-            if (p.test(col.getBlock(x, y, z))) return worldY ? y : (y - minY) + 1;
-        }
-        return worldY ? minY - 1 : 0;
     }
 
     private static ChunkColumn randomColumn(SplittableRandom r, int[] pool) {
@@ -108,71 +139,100 @@ class ChunkIoFastPathParityTest {
         return p;
     }
 
-    @Test
-    void columnScans_matchPerBlockScan() throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        int[] pool = pool(reg);
-        SplittableRandom r = new SplittableRandom(0x70B);
-        java.lang.reflect.Method mb = ChunkColumn.class.getDeclaredMethod("isMotionBlockingBlock", int.class);
-        java.lang.reflect.Method of = ChunkColumn.class.getDeclaredMethod("isOceanFloorBlock", int.class);
-        java.lang.reflect.Method lv = ChunkColumn.class.getDeclaredMethod("isLeaves", int.class);
-        mb.setAccessible(true); of.setAccessible(true); lv.setAccessible(true);
-        java.util.function.IntPredicate isMb = s -> call(mb, s), isOf = s -> call(of, s), isLv = s -> call(lv, s);
-        for (int iter = 0; iter < 200; iter++) {
-            ChunkColumn col = randomColumn(r, pool);
-            if (r.nextBoolean()) col.compactSections();
-            else if (r.nextBoolean()) col.sectionBlocks(r.nextInt(ChunkColumn.SECTION_COUNT));   // scratch 가 열린 섹션 섞기
-            for (int z = 0; z < 16; z++) for (int x = 0; x < 16; x++) {
-                String w = "iter=" + iter + " " + x + "," + z;
-                assertEquals(legacyTop(col, x, z, s -> isMb.test(s) && !isLv.test(s), true), col.motionBlockingNoLeavesBlockY(x, z), w + " MBNL");
-                assertEquals(ChunkColumn.MIN_Y + legacyTop(col, x, z, isMb, false) - 1, col.motionBlockingBlockY(x, z), w + " MB");
-                assertEquals(ChunkColumn.MIN_Y + legacyTop(col, x, z, isOf, false) - 1, col.oceanFloorBlockY(x, z), w + " OF");
-            }
-        }
+    private static java.util.function.IntPredicate predicate(String name) throws Exception {
+        java.lang.reflect.Method m = ChunkColumn.class.getDeclaredMethod(name, int.class);
+        m.setAccessible(true);
+        return s -> call(m, s);
     }
 
     private static boolean call(java.lang.reflect.Method m, int s) {
         try { return (boolean) m.invoke(null, s); } catch (ReflectiveOperationException e) { throw new RuntimeException(e); }
     }
 
-    /** 수정 전 rebuildHeightmapsAfterSurface 의 기둥 계산(섹션마다 scratch 를 열어 칸 배열로 읽음). */
-    private static int[][] legacyRebuild(ChunkColumn col, java.util.function.IntPredicate isOf) {
-        int[] surface = new int[256], ocean = new int[256];
-        for (int lz = 0; lz < 16; lz++) for (int lx = 0; lx < 16; lx++) {
-            int sv = 0, ov = 0;
-            for (int sec = ChunkColumn.SECTION_COUNT - 1; sec >= 0 && (sv == 0 || ov == 0); sec--) {
-                for (int ly = 15; ly >= 0; ly--) {
-                    int st = col.getBlock(lx, ChunkColumn.MIN_Y + sec * 16 + ly, lz);
-                    int y1 = sec * 16 + ly + 1;
-                    if (sv == 0 && !ChunkSection.isAir(st)) sv = y1;
-                    if (ov == 0 && isOf.test(st)) ov = y1;
-                    if (sv != 0 && ov != 0) break;
-                }
-            }
-            surface[lz * 16 + lx] = sv;
-            ocean[lz * 16 + lx] = ov;
+    /** 섹션 상태가 섞인 기둥: 압축된 것, scratch 가 열린 섹션이 있는 것, 그대로. */
+    private static ChunkColumn mixedColumn(SplittableRandom r, int[] pool) {
+        ChunkColumn col = randomColumn(r, pool);
+        if (r.nextBoolean()) col.compactSections();
+        else if (r.nextBoolean()) col.sectionBlocks(r.nextInt(ChunkColumn.SECTION_COUNT));   // scratch 가 열린 섹션 섞기
+        return col;
+    }
+
+    /** 칸마다 (MBNL, MB, OF) 월드 y — 예전 칸별 탐색. leavesExcluded=false 는 변이(잎 제외를 빼먹은 구현). */
+    private static int[] legacyScans(ChunkColumn col, boolean leavesExcluded) throws Exception {
+        var isMb = predicate("isMotionBlockingBlock");
+        var isOf = predicate("isOceanFloorBlock");
+        var isLv = predicate("isLeaves");
+        int[] out = new int[3 * 256];
+        for (int i = 0; i < 256; i++) {
+            int x = i & 15, z = i >> 4;
+            out[3 * i] = LegacyColumnScans.top(col, x, z, st -> isMb.test(st) && !(leavesExcluded && isLv.test(st)), true);
+            out[3 * i + 1] = ChunkColumn.MIN_Y + LegacyColumnScans.top(col, x, z, isMb, false) - 1;
+            out[3 * i + 2] = ChunkColumn.MIN_Y + LegacyColumnScans.top(col, x, z, isOf, false) - 1;
         }
-        return new int[][]{surface, ocean};
+        return out;
+    }
+
+    private static int[] fastScans(ChunkColumn col) {
+        int[] out = new int[3 * 256];
+        for (int i = 0; i < 256; i++) {
+            int x = i & 15, z = i >> 4;
+            out[3 * i] = col.motionBlockingNoLeavesBlockY(x, z);
+            out[3 * i + 1] = col.motionBlockingBlockY(x, z);
+            out[3 * i + 2] = col.oceanFloorBlockY(x, z);
+        }
+        return out;
+    }
+
+    private static Differential<ChunkColumn, int[]> scanDiff() {
+        int[] pool = pool(BlockRegistry.load("blocks/1.21.1.txt"));
+        return Differential.<ChunkColumn, int[]>of("column-scans", r -> mixedColumn(r, pool)).seed(0x70B).iterations(200);
+    }
+
+    @Test
+    void columnScans_matchPerBlockScan() {
+        scanDiff().check(col -> legacyScans(col, true), ChunkIoFastPathParityTest::fastScans);
+    }
+
+    @Test
+    void columnScans_differentialCatchesLeavesNotExcluded() {
+        scanDiff().assertDetects(col -> legacyScans(col, true), col -> legacyScans(col, false));
+    }
+
+    /** 예전 rebuild 결과(월드 y). oceanFloor 술어를 바꿔 변이를 만든다. */
+    private static int[][] legacyRebuild(ChunkColumn col, java.util.function.IntPredicate isOceanFloor) {
+        int[][] e = LegacyColumnScans.rebuild(col, isOceanFloor);
+        for (int i = 0; i < 256; i++) { e[0][i] = ChunkColumn.MIN_Y + e[0][i] - 1; e[1][i] = ChunkColumn.MIN_Y + e[1][i] - 1; }
+        return e;
+    }
+
+    private static Differential<ChunkColumn, int[][]> rebuildDiff() {
+        int[] pool = pool(BlockRegistry.load("blocks/1.21.1.txt"));
+        return Differential.<ChunkColumn, int[][]>of("rebuild-heightmaps", r -> {
+            ChunkColumn col = randomColumn(r, pool);
+            col.compactSections();
+            return col;
+        }).seed(0x5C2).iterations(200);
     }
 
     @Test
     void rebuildHeightmaps_sameValuesWithoutOpeningScratch() throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        int[] pool = pool(reg);
-        java.lang.reflect.Method of = ChunkColumn.class.getDeclaredMethod("isOceanFloorBlock", int.class);
-        of.setAccessible(true);
-        SplittableRandom r = new SplittableRandom(0x5C2);
-        for (int iter = 0; iter < 200; iter++) {
-            ChunkColumn col = randomColumn(r, pool);
-            col.compactSections();
-            int[][] expect = legacyRebuild(col, s -> call(of, s));
+        var isOf = predicate("isOceanFloorBlock");
+        rebuildDiff().check(col -> legacyRebuild(col, isOf), col -> {
             col.rebuildHeightmapsAfterSurface();
-            for (ChunkSection s : col.sections()) assertNull(field(s, "scratch"), "iter=" + iter + " scratch 열림");
-            for (int z = 0; z < 16; z++) for (int x = 0; x < 16; x++) {
-                int i = z * 16 + x;
-                assertEquals(ChunkColumn.MIN_Y + expect[0][i] - 1, col.surfaceBlockY(x, z), "iter=" + iter + " surface");
-                assertEquals(ChunkColumn.MIN_Y + expect[1][i] - 1, col.oceanFloorBlockY(x, z), "iter=" + iter + " ocean");
+            for (ChunkSection s : col.sections()) assertNull(field(s, "scratch"), "scratch 열림");
+            int[][] got = new int[2][256];
+            for (int i = 0; i < 256; i++) {
+                got[0][i] = col.surfaceBlockY(i & 15, i >> 4);
+                got[1][i] = col.oceanFloorBlockY(i & 15, i >> 4);
             }
-        }
+            return got;
+        });
+    }
+
+    @Test
+    void rebuildHeightmaps_differentialCatchesWrongOceanFloorPredicate() throws Exception {
+        var isOf = predicate("isOceanFloorBlock");
+        // 변이: 바다 바닥을 "공기 아님"으로(물·잎도 바닥으로 셈)
+        rebuildDiff().assertDetects(col -> legacyRebuild(col, isOf), col -> legacyRebuild(col, st -> !ChunkSection.isAir(st)));
     }
 }
