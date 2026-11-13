@@ -178,6 +178,15 @@ Furnace 서버 패킷 P (네트워크 스레드, PacketService 리스너 EventPr
 | 값 하나 | `set_score`·`set_objective` 의 styled 숫자 형식 | NBT 스타일 → shim Style 이 없다(그 패킷만 건너뛰고 경고 한 번) |
 
 - 시험: `SchemaPacketReverseTest`(시험 클라이언트가 받은 모든 패킷 — 접속 때 서버가 보내는 것 + 손 코덱·타입 레코드 표본 — 을 `toFurnace(fromFurnace(v)).equals(v)` 로 돌림, 50종 이상), `ProtocolLibBridgeTest`(채널 프록시로 흉내 낸 라이브러리가 Furnace 패킷 API·서버 채팅을 보고 바꾸고 취소하고 다른 종류로 바꿈, 가로채는 동안 주 스레드, 한 번만 봄, 구독 풀림).
-- 바닐라와 다른 점: 속도(1/8000)는 서버 코덱이 읽은 값(short/8000)을 반올림으로 되돌린다(잘라 버리면 2.04775 같은 값이 1 어긋난다). 라이브러리가 손대지 않으면 원래 바이트가 나가므로 결과는 같다.
-- 알려진 서버 쪽 사실(이 PR 범위 밖): 서버 코덱의 속도 쓰기 `(int)(v * 8000)` 는 자기가 읽은 값 `s / 8000.0` 을 374개 값에서 s−1 로 쓴다(예 16380). Furnace 패킷 리스너가 그 패킷을 setPacket 하면 1/8000 어긋날 수 있다.
+- 속도(1/8000, 검토 R4): 플러그인 패킷 코덱 `Protocol767.velocityUnits` 와 다리 `TypedPacketBridge.velocity` 가 같은 식 — 바닐라처럼 ±3.9 로 자르고 버리되, 정수에서 부동소수 오차(1e-6 미만)만큼만 모자란 값은 그 정수. 와이어에서 읽은 `s / 8000.0` 은 374개 값(예 16380)에서 `s·8000` 이 정수보다 아주 조금 작아 예전엔 다시 쓸 때 s−1 이 됐다 — 리스너가 다른 필드만 바꿔도 속도가 1/8000 바뀌던 문제. 서버 자신의 물리 속도 패킷(net/protocol/play)은 이 코덱을 타지 않아 바닐라 버림 그대로다. 플러그인이 직접 만든 double 이 정수 바로 아래(1e-6 안쪽)면 Paper(버림)와 1 다를 수 있다 — 가정상 무시할 만함.
 
+### 10-1. 독립 검토(PR #277) 뒤 고친 것·남은 것
+
+검토 보고서: `/mnt/project-files/furnace/reviews/pr277-protocollib-outbound.md`(진짜 ProtocolLib 5.4.0 탐침).
+
+- **R2·R3 고침 — 리스너 안에서 보낸 패킷의 순서.** Paper+ProtocolLib 은 리스너가 바깥 쓰기 작업 안에서 돌고, 안에서 보낸 것(sendServerPacket·sendMessage)이 먼저 실제 루프로 나간다. Furnace 는 예전에 이벤트 루프 큐 맨 뒤(가로챈 패킷·묶음과 그 뒤 프레임들 다음)로 보내 "스폰 취소 후 바꾼 복제 다시 보내기"가 메타데이터 → 엔티티 순서가 돼 클라이언트가 메타데이터를 버렸다. 이제 `SharedChunkFrames.encode` 가 패킷 리스너를 부르는 동안 같은 연결로 들어온 루프 작업(`Player.runOnLoop`)을 모았다가 지금 패킷을 쓰기 전에 돌린다 — 묶음 안 패킷이면 묶음 앞(묶음 프레임은 다 만든 뒤 한꺼번에 쓰므로). Furnace 자체 패킷 리스너에도 같은 규칙이다. 다른 종류로 바꾼 패킷(`sendInstead`)도 같은 길이라 하나짜리 패킷이면 정확히 그 자리, 묶음 안이면 묶음 바로 앞(ProtocolLib 은 묶음 안 그 자리 — 클라이언트가 한 프레임 먼저 처리하는 차이만 남음).
+- **R4 고침** — 위 속도 항목.
+- **R1 고침 — 리스너 안 엔티티 id 조회.** SPAWN_ENTITY 리스너 안의 `getEntityFromID`·`getEntityModifier(event)` 가 막 생긴 엔티티에서 `ThreadOwnershipException` 을 냈다(ProtocolLib 이 잡고 원래 패킷을 보냄). compat `ServerLevel.getEntity(int)` 는 주인 스레드가 아니면 Bukkit 엔티티 캐시 → 주 스레드가 아니면 region 응답 기다리기인데, 가로채는 동안 네트워크 스레드가 "주 스레드"(D1-A)라 기다리지 않고 새 엔티티는 캐시에도 없었다. 기다리게 하면 네트워크 스레드가 엔티티마다 최대 1틱 멈추므로(홀로그램 수백 개면 수 초) 그 길은 버렸다. 대신 새 API 이벤트 `PlayerTrackEntityEvent`(Paper 같은 자리 — `EntityTracker.addPairing`, 스폰 묶음을 보내기 바로 전, 엔티티 소유 region 스레드, 구독자가 없으면 만들지 않음)를 두고, 다리가 엔티티 번호를 담은 종류(add_entity·움직임·장비·메타데이터 등 20종)를 들을 때만 구독해 그 순간 Bukkit 엔티티를 만들어(Compat 캐시) 10초 붙잡아 둔다. 이벤트는 아직 취소할 수 없고 플레이어가 다른 플레이어를 보기 시작할 때는 부르지 않는다(플레이어는 번호 조회가 어느 스레드에서나 된다). 시험 `ProtocolLibBridgeTest.spawnListenersCanLookUpTheNewEntity`.
+- **R5 정보** — `damage_event` 의 피해 종류, `Holder<Attribute>`·`Holder<DimensionType>` 역변환은 키만 든 `Holder.Reference` 다. 리스너가 `holder.value()` 를 부르면 바닐라처럼 "묶이지 않은 값" 예외가 날 수 있다(키·`is(...)` 는 된다).
+- **R6 정보** — 주 스레드가 아닌 곳에서 섞어 보내면(`sendMessage(A)`·`sendServerPacket(T)`·`sendMessage(B)`) Furnace 는 `A, B, T`(ProtocolLib 이 T 만 다음 틱으로 미룸), Paper 는 셋 다 미뤄 `A, T, B` 로 추정. ProtocolLib 규칙대로의 결과라 고치지 않는다.
+- 시험 추가: `ProtocolLibBridgeTest.spawnListenersCanLookUpTheNewEntity`(R1), `sendsFromInsideListenersGoBeforeTheInterceptedPacket`(Furnace 리스너·라이브러리 리스너 안에서 보낸 것이 앞, 묶음이면 묶음 앞, 다른 종류로 바꾼 것은 그 자리, 다른 필드만 바꾼 속도 16380 그대로·0.0001 은 버림).

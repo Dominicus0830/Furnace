@@ -185,6 +185,130 @@ class ProtocolLibBridgeTest {
         }
     }
 
+    /** 시간·채팅만 받은 순서대로 — "t4242", "c:글". */
+    private static List<String> order(TestPlayer tp) {
+        List<String> out = new java.util.ArrayList<>();
+        for (var p : tp.received()) {
+            if (p instanceof ClientboundSetTimePacket t) out.add("t" + t.gameTime());
+            else if (p instanceof ClientboundSystemChatPacket m) out.add("c:" + m.message().plainText());
+        }
+        return out;
+    }
+
+    /**
+     * 검토 R2·R3: 리스너 안에서 같은 플레이어에게 보낸 것(ProtocolLib sendServerPacket·Bukkit sendMessage·Furnace 리스너의 send)은 가로챈 패킷
+     * 앞에 나간다(Paper+ProtocolLib 과 같은 순서) — 묶음 안 패킷이면 그 묶음 앞. 다른 종류로 바꾼 것도 그 자리. R4: 다른 필드만 바꿔도 속도가 그대로.
+     */
+    @Test
+    void sendsFromInsideListenersGoBeforeTheInterceptedPacket() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            TestPlayer tp = server.join("Nest");
+            server.tick(2);
+            tp.sync();
+            var player = tp.player();
+            // Furnace 자체 리스너(라이브러리 없음)도 같은 규칙
+            var sub = Furnace.server().packets().listen(owner(), PacketTypes.Clientbound.SYSTEM_CHAT, e -> {
+                if (e.packet().message().plainText().equals("own")) Furnace.server().packets().send(e.player(), new ClientboundSetTimePacket(4141L, 1L));
+            });
+            tp.clearReceived();
+            player.sendMessage(Text.text("own"));
+            tp.awaitPacket(PacketTypes.Clientbound.SET_TIME, t -> t.gameTime() == 4141L);
+            assertEquals(List.of("t4141", "c:own"), order(tp).stream().filter(x -> !x.startsWith("t0") && !x.equals("t1")).toList());
+            sub.unsubscribe();
+
+            Set<Class<?>> listened = Set.of(net.minecraft.network.protocol.game.ClientboundSystemChatPacket.class,
+                    net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket.class);
+            ProtocolLibBridge bridge = ProtocolLibBridge.start(owner(), () -> (Collection<Class<?>>) (Collection<?>) listened);
+            try {
+                bridge.resync();
+                Connection c = connectionOf("Nest");
+                List<Integer> motionSeen = new CopyOnWriteArrayList<>();
+                install(c, packet -> {
+                    if (packet instanceof net.minecraft.network.protocol.game.ClientboundSystemChatPacket m) {
+                        String text = net.minecraft.network.chat.Component.furnace(m.content()).plainText();
+                        if (text.equals("nest") || text.equals("b2")) {   // ProtocolLib 리스너 안의 sendServerPacket·sendMessage
+                            ((CraftPlayer) Bukkit.getPlayer("Nest")).getHandle().connection.send(new net.minecraft.network.protocol.game.ClientboundSetTimePacket(4242L, 1L, true));
+                            Bukkit.getPlayer("Nest").sendMessage("echo-" + text);
+                        }
+                        if (text.equals("swap")) {
+                            return new net.minecraft.network.protocol.game.ClientboundSetTimePacket(4343L, 1L, true);
+                        }
+                    }
+                    if (packet instanceof net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket mo) {
+                        motionSeen.add((int) Math.round(mo.getXa() * 8000.0));
+                        // 다른 필드(엔티티 번호)만 바꾼다 — 속도는 본 정수 그대로 나가야 한다
+                        return net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket.ofWire(mo.getId() + 1,
+                                (int) Math.round(mo.getXa() * 8000.0), (int) Math.round(mo.getYa() * 8000.0), (int) Math.round(mo.getZa() * 8000.0));
+                    }
+                    return packet;
+                });
+
+                tp.clearReceived();
+                player.sendMessage(Text.text("nest"));
+                tp.awaitPacket(PacketTypes.Clientbound.SYSTEM_CHAT, m -> m.message().plainText().equals("nest"));
+                assertEquals(List.of("t4242", "c:echo-nest", "c:nest"), order(tp), "리스너 안에서 보낸 것이 먼저");
+
+                tp.clearReceived();
+                player.sendMessage(Text.text("swap"));
+                player.sendMessage(Text.text("after"));
+                tp.awaitPacket(PacketTypes.Clientbound.SYSTEM_CHAT, m -> m.message().plainText().equals("after"));
+                assertEquals(List.of("t4343", "c:after"), order(tp), "다른 종류로 바꾼 것은 그 자리에");
+
+                tp.clearReceived();
+                Furnace.server().packets().sendBundle(player, List.of(new ClientboundSystemChatPacket(Text.text("b1"), false),
+                        new ClientboundSystemChatPacket(Text.text("b2"), false)));
+                tp.awaitPacket(PacketTypes.Clientbound.SYSTEM_CHAT, m -> m.message().plainText().equals("b2"));
+                // b2 에서 보낸 것이 묶음 첫 패킷 b1 보다 앞(시험 클라이언트는 구분자를 모으지 않는다)
+                assertEquals(List.of("t4242", "c:echo-b2", "c:b1", "c:b2"), order(tp), "묶음 안에서 보낸 것은 묶음 앞");
+
+                // R4: 16380/8000 은 (int) 버림이면 16379 — 리스너가 본 정수와 나가는 정수가 같아야 한다
+                tp.clearReceived();
+                Furnace.server().packets().send(player, new org.domi.furnace.api.packet.clientbound.ClientboundSetEntityMotionPacket(70, 16380 / 8000.0, -16380 / 8000.0, 0.0001));
+                var got = tp.awaitPacket(PacketTypes.Clientbound.SET_ENTITY_MOTION, m -> m.entityId() == 71);
+                assertEquals(List.of(16380), motionSeen);
+                assertEquals(16380, (int) Math.round(got.velocityX() * 8000.0));
+                assertEquals(-16380, (int) Math.round(got.velocityY() * 8000.0));
+                assertEquals(0.0, got.velocityZ(), "정수에 가깝지 않은 값은 바닐라처럼 버린다(0.8 → 0)");
+            } finally {
+                bridge.stop();
+            }
+        }
+    }
+
+    /** 검토 R1: 스폰 패킷 리스너 안에서 패킷의 엔티티 번호로 엔티티를 찾는다(ProtocolLib getEntityFromID → ServerLevel#getEntity). */
+    @Test
+    void spawnListenersCanLookUpTheNewEntity() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            TestPlayer tp = server.join("Trk");
+            server.tick(2);
+            tp.sync();
+            ProtocolLibBridge bridge = ProtocolLibBridge.start(owner(), () -> List.of(net.minecraft.network.protocol.game.ClientboundAddEntityPacket.class));
+            try {
+                bridge.resync();
+                net.minecraft.server.level.ServerLevel level = ((org.bukkit.craftbukkit.CraftWorld) Bukkit.getPlayer("Trk").getWorld()).getHandle();
+                List<String> found = new CopyOnWriteArrayList<>();
+                install(connectionOf("Trk"), packet -> {
+                    if (packet instanceof net.minecraft.network.protocol.game.ClientboundAddEntityPacket a) {
+                        try {
+                            net.minecraft.world.entity.Entity e = level.getEntity(a.getId());
+                            found.add(e == null ? "null" : String.valueOf(e.getBukkitEntity().getUniqueId().equals(a.getUUID())));
+                        } catch (RuntimeException ex) {
+                            found.add(ex.getClass().getSimpleName());
+                        }
+                    }
+                    return packet;
+                });
+                var loc = tp.player().location();
+                server.execute("summon minecraft:pig " + loc.x() + " " + loc.y() + " " + (loc.z() + 3));
+                server.tick(3);
+                tp.awaitPacket(PacketTypes.Clientbound.ADD_ENTITY, a -> a.entityType().equals("minecraft:pig"));
+                assertEquals(List.of("true"), found, "막 생긴 엔티티도 찾는다(네트워크 스레드가 주 스레드로 표시된 채)");
+            } finally {
+                bridge.stop();
+            }
+        }
+    }
+
     @Test
     void withoutAnInjectedChannelNothingChanges() throws Exception {
         try (FurnaceTestServer server = start()) {

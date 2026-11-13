@@ -100,8 +100,15 @@ public final class TypedPacketBridge {
         return net.minecraft.network.chat.Component.fromFurnace(t);
     }
 
-    /** 서버 코덱이 읽은 속도(와이어 short / 8000)를 같은 정수로 — 반올림이라 short → double → 정수가 1 어긋나지 않는다. */
-    private static int velocity(double v) { return (int) Math.round(Math.clamp(v, -3.9, 3.9) * 8000.0); }
+    /**
+     * Furnace 속도 → 와이어 정수(1/8000). 플러그인 패킷 코덱(Protocol767.velocityUnits)과 같은 식 — 바닐라 (int) 버림이되, 와이어에서 읽은
+     * {@code s / 8000} 처럼 정수에서 부동소수 오차만큼만 모자란 값은 그 정수(버리면 16380 등 374개 값에서 s−1, 검토 R4).
+     */
+    static int velocity(double v) {
+        double x = Math.clamp(v, -3.9, 3.9) * 8000.0;
+        double r = Math.rint(x);
+        return (int) (Math.abs(x - r) < 1e-6 ? r : x);
+    }
 
     /** 서버 코덱의 writeAngle 과 같다(바닐라 Mth.floor(각 * 256 / 360) 의 아래 8비트). */
     private static byte angle(float degrees) { return (byte) (int) Math.floor(degrees * 256.0f / 360.0f); }

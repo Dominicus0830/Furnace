@@ -673,6 +673,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
      * 없고, 던지면 종료 직전 틱(끊긴 플레이어 정리 → 다른 플레이어에게 보내기)이 중간에 끊긴다.
      */
     private void runOnLoop(Runnable task) {
+        if (org.domi.furnace.server.net.io.SharedChunkFrames.deferInsideListener(channel, task)) return;   // 리스너 안에서 보냄 — 지금 패킷 앞에
         try {
             channel.eventLoop().execute(task);
         } catch (java.util.concurrent.RejectedExecutionException ignored) {

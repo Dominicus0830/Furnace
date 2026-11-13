@@ -55,7 +55,22 @@ public final class ProtocolLibBridge {
     private Set<PacketType<?>> types = Set.of();   // lock 아래
     private EventSubscription subscription;          // lock 아래
     private ScheduledTask periodic;
+    private EventSubscription tracking;              // lock 아래 — 엔티티 번호를 담은 종류를 들을 때만
     private volatile boolean stopped;
+
+    /**
+     * 검토 R1: 플레이어가 엔티티를 보기 시작한 순간(소유 region 스레드) 만든 Bukkit 엔티티를 잠시 붙잡아 둔다. 스폰 묶음이 네트워크 스레드에서 라이브러리를
+     * 지날 때 리스너의 {@code getEntityFromID}·{@code getEntityModifier} 가 막 생긴 엔티티를 찾게(Compat 캐시는 약참조라 붙잡지 않으면 사라질 수 있다).
+     */
+    private final java.util.Map<Integer, Held> held = new ConcurrentHashMap<>();
+
+    private record Held(Object entity, long at) {}
+
+    /** 패킷에 엔티티 번호가 들어 있는 종류(이 중 하나라도 들으면 보기 시작한 엔티티를 붙잡는다). */
+    private static final Set<String> ENTITY_KINDS = Set.of("add_entity", "set_entity_motion", "rotate_head", "animate", "teleport_entity",
+            "move_entity_pos", "move_entity_pos_rot", "move_entity_rot", "set_equipment", "damage_event", "hurt_animation", "entity_event",
+            "take_item_entity", "set_passengers", "set_entity_link", "remove_entities", "update_mob_effect", "remove_mob_effect",
+            "set_entity_data", "update_attributes");
     private final Set<String> warned = ConcurrentHashMap.newKeySet();
 
     private ProtocolLibBridge(BukkitPluginAdapter owner, Supplier<Collection<Class<?>>> listened) {
@@ -107,8 +122,11 @@ public final class ProtocolLibBridge {
         synchronized (lock) {
             if (subscription != null) subscription.unsubscribe();
             subscription = null;
+            if (tracking != null) tracking.unsubscribe();
+            tracking = null;
             types = Set.of();
         }
+        held.clear();
         DeliveredPackets.watch(Set.of());
     }
 
@@ -132,6 +150,8 @@ public final class ProtocolLibBridge {
     void resync() {
         if (stopped) return;
         DeliveredPackets.prune(MARK_TTL_NANOS);
+        long cut = System.nanoTime() - MARK_TTL_NANOS;
+        held.values().removeIf(h -> h.at() - cut < 0);
         Collection<Class<?>> classes;
         try {
             classes = listened.get();
@@ -166,6 +186,27 @@ public final class ProtocolLibBridge {
             if (!want.isEmpty()) {
                 subscription = packets.listen(owner, EventPriority.HIGHEST, this::onPacket, want.toArray(PacketType<?>[]::new));
             }
+            boolean entities = want.stream().anyMatch(t -> ENTITY_KINDS.contains(t.name().substring(t.name().indexOf(':') + 1)));
+            if (entities && tracking == null) {
+                tracking = Furnace.server().events().subscribe(owner, org.domi.furnace.api.event.player.PlayerTrackEntityEvent.class,
+                        EventPriority.MONITOR, false, this::onTrack);
+            } else if (!entities && tracking != null) {
+                tracking.unsubscribe();
+                tracking = null;
+                held.clear();
+            }
+        }
+    }
+
+    /** 엔티티 소유 region 스레드: Bukkit 엔티티를 만들어(Compat 캐시에 들어간다) 스폰 묶음이 지나갈 동안 붙잡는다. */
+    private void onTrack(org.domi.furnace.api.event.player.PlayerTrackEntityEvent e) {
+        if (stopped) return;
+        var entity = e.entity();
+        if (entity instanceof org.domi.furnace.api.entity.Player) return;   // 플레이어는 번호 조회가 어느 스레드에서나 된다
+        try {
+            held.put(entity.entityId(), new Held(Compat.entity(entity), System.nanoTime()));
+        } catch (RuntimeException ex) {
+            warnOnce("track", "ProtocolLib 다리가 보기 시작한 엔티티를 미리 감싸지 못했다(첫 오류): " + ex);
         }
     }
 
