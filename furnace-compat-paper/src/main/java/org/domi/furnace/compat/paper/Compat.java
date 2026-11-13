@@ -324,10 +324,15 @@ public final class Compat {
         });
     }
 
-    /** 접속이 끝났다(퇴장 이벤트를 Bukkit 처리기들이 본 뒤) — NMS 연결의 가상 채널을 닫아 패킷 라이브러리가 자기 처리기를 걷게 한다. */
+    /**
+     * 접속이 끝났다 — NMS 연결의 가상 채널을 닫아 패킷 라이브러리가 자기 처리기를 걷게 하고, Paper(PlayerList.remove → CraftPlayer.disconnect)처럼
+     * Bukkit 권한 계산·구독을 걷는다. 퇴장 정리 구독({@link EventBridge#watchQuit})이 Bukkit 퇴장 처리기들 맨 뒤에 있어, 처리기들은 권한을 아직 본다.
+     */
     static void disconnected(org.domi.furnace.api.entity.Player p) {
         CraftPlayer c = existingPlayer(p);
-        if (c != null) c.disconnected();
+        if (c == null) return;
+        c.disconnected();
+        c.clearPermissionState();
     }
 
     /**
