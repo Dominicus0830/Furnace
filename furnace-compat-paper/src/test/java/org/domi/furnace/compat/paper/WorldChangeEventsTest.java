@@ -198,27 +198,37 @@ class WorldChangeEventsTest {
             server.tick(2);
             var bus = server.api().events();
             var center = new BlockPos(5, 64, 5);
+            // 서버 목록: 돌 셋 + 사이에 낀 공기 한 칸. Paper(CraftBukkit)는 뒤에서부터·공기 제외로 준다
+            for (String sb : List.of("5 63 5 minecraft:stone", "6 64 5 minecraft:stone", "7 64 5 minecraft:stone", "8 64 5 minecraft:air")) server.execute("setblock " + sb);
+            server.tick(2);
+            var a = new BlockPos(5, 63, 5);
+            var bb = new BlockPos(6, 64, 5);
+            var cc = new BlockPos(7, 64, 5);
+            var air = new BlockPos(8, 64, 5);
             java.util.function.Supplier<org.domi.furnace.api.event.block.BlockExplodeEvent> fresh = () -> new org.domi.furnace.api.event.block.BlockExplodeEvent(W, center,
-                    "minecraft:red_bed", new ArrayList<>(List.of(new BlockPos(5, 63, 5), new BlockPos(6, 64, 5), new BlockPos(7, 64, 5))),
+                    "minecraft:red_bed", new ArrayList<>(List.of(a, bb, air, cc)),
                     org.domi.furnace.api.event.cause.CauseChain.NONE, 0.25F, "DESTROY_WITH_DECAY");
 
-            assertFalse(bus.call(fresh.get()).isCancelled());
+            var unmodified = server.onRegion(center, () -> bus.call(fresh.get()));
+            assertFalse(unmodified.isCancelled());
             var b = only(org.bukkit.event.block.BlockExplodeEvent.class);
-            assertEquals(3, b.blockList().size());
+            assertEquals(3, b.blockList().size(), "공기 칸은 Bukkit 목록에서 빠진다");
+            assertEquals(List.of(cc.x(), bb.x(), a.x()), b.blockList().stream().map(org.bukkit.block.Block::getX).toList(), "뒤에서부터");
+            assertEquals(List.of(a, bb, air, cc), unmodified.blocks(), "처리기가 고치지 않았으면 서버 목록은 그대로(공기·원래 순서)");
             assertEquals(0.25F, b.getYield());
             assertEquals(org.bukkit.ExplosionResult.DESTROY_WITH_DECAY, b.getExplosionResult());
             assertEquals(Material.RED_BED, b.getExplodedBlockState().getType());
             assertEquals(5, b.getBlock().getX());
 
-            // blockList 를 고치면 서버가 따른다: 하나 빼고 중심 칸을 넣는다
+            // blockList 를 고치면 서버가 Bukkit 목록(뒤에서부터)을 따른다: 하나 빼고 중심 칸을 넣는다
             RecorderPlugin.ACTIONS.put("BlockExplodeEvent", e -> {
                 var x = (org.bukkit.event.block.BlockExplodeEvent) e;
                 x.blockList().remove(0);
                 x.blockList().add(x.getBlock());
             });
-            var edited = bus.call(fresh.get());
+            var edited = server.onRegion(center, () -> bus.call(fresh.get()));
             assertFalse(edited.isCancelled());
-            assertEquals(List.of(new BlockPos(6, 64, 5), new BlockPos(7, 64, 5), center), edited.blocks());
+            assertEquals(List.of(bb, a, center), edited.blocks());
 
             RecorderPlugin.ACTIONS.put("BlockExplodeEvent", e -> ((org.bukkit.event.block.BlockExplodeEvent) e).setCancelled(true));
             assertTrue(bus.call(fresh.get()).isCancelled());

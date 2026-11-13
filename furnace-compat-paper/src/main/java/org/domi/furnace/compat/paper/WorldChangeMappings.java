@@ -51,25 +51,70 @@ final class WorldChangeMappings {
                 f -> {
                     var type = Compat.furnace().blockTypes().get(f.blockType());
                     if (type.isEmpty()) return null;   // 서버가 모르는 종류 — 다리가 알 수 없는 블록은 건너뛴다
-                    List<Block> blocks = new ArrayList<>(f.blocks().size());
-                    for (BlockPos pos : f.blocks()) blocks.add(Compat.block(f.world(), pos));
                     return new org.bukkit.event.block.BlockExplodeEvent(Compat.block(f.world(), f.pos()),
-                            CompatBlockState.of(f.world(), f.pos(), type.get().defaultData()), blocks, f.yield(),
+                            CompatBlockState.of(f.world(), f.pos(), type.get().defaultData()), explodeList(f, f.world(), f.blocks()), f.yield(),
                             org.bukkit.ExplosionResult.valueOf(f.result()));
                 },
-                // 처리기가 blockList() 를 고쳤으면 서버가 부술 칸 목록을 그것으로(Paper 와 같다 — 넣은 칸도 부서진다)
-                (f, b) -> {
-                    var now = positions(b.blockList());
-                    if (!now.equals(f.blocks())) {
-                        f.blocks().clear();
-                        f.blocks().addAll(now);
-                    }
-                }, (f, b) -> {   // 앞선 Furnace 처리기가 목록을 바꿨다 — 같은 목록으로 맞춘다
-                    if (!positions(b.blockList()).equals(f.blocks())) {
-                        b.blockList().clear();
-                        for (BlockPos pos : f.blocks()) b.blockList().add(Compat.block(f.world(), pos));
-                    }
-                });
+                (f, b) -> pushExplodeList(f, b.blockList(), f.blocks()),
+                (f, b) -> pullExplodeList(f, b.blockList(), f.world(), f.blocks()));
+    }
+
+    // ------------------------------------------------------------------ 폭발 목록(blockList)
+    // Paper(CraftBukkit): 서버의 toBlow 를 *뒤에서부터* 훑으며 *공기를 뺀* 목록을 이벤트에 준다. 처리기가 목록을 고쳤을 때만 서버 목록을 그 목록으로 바꾼다
+    // (안 고쳤으면 서버 목록은 바닐라 순서 그대로 — Furnace 원칙). 두 목록이 오가며 어긋나지 않게 이벤트마다 마지막으로 맞춘 두 목록을 붙임 칸에 둔다.
+
+    /** 이 폭발 이벤트에서 마지막으로 맞춘 Bukkit 쪽 목록과 Furnace 쪽 목록(위치). */
+    private static final class ExplodeSync {
+        List<BlockPos> bukkit;
+        List<BlockPos> furnace;
+    }
+
+    private static final org.domi.furnace.api.event.EventSlot<ExplodeSync> EXPLODE_SYNC = new org.domi.furnace.api.event.EventSlot<>("explode-block-list");
+
+    /** Bukkit 이 주는 목록: 뒤에서부터, 공기 제외(읽을 수 없는 칸은 공기가 아니라고 본다). */
+    private static List<Block> bukkitBlockList(String world, List<BlockPos> blown) {
+        List<Block> out = new ArrayList<>(blown.size());
+        for (int i = blown.size() - 1; i >= 0; i--) {
+            Block block = Compat.block(world, blown.get(i));
+            boolean air;
+            try {
+                air = block.getType().isAir();
+            } catch (RuntimeException unreadable) {
+                air = false;
+            }
+            if (!air) out.add(block);
+        }
+        return out;
+    }
+
+    private static List<Block> explodeList(org.domi.furnace.api.event.Event f, String world, List<BlockPos> blown) {
+        List<Block> list = bukkitBlockList(world, blown);
+        ExplodeSync sync = EXPLODE_SYNC.computeIfAbsent(f, e -> new ExplodeSync());
+        sync.bukkit = positions(list);
+        sync.furnace = List.copyOf(blown);
+        return list;
+    }
+
+    /** 처리기가 Bukkit 목록을 고쳤으면(위치·순서가 마지막으로 맞춘 것과 다르면) 서버 목록을 그 목록으로 바꾼다. */
+    private static void pushExplodeList(org.domi.furnace.api.event.Event f, List<Block> bukkitList, List<BlockPos> blown) {
+        ExplodeSync sync = EXPLODE_SYNC.get(f);
+        if (sync == null) return;
+        var now = positions(bukkitList);
+        if (now.equals(sync.bukkit)) return;
+        blown.clear();
+        blown.addAll(now);
+        sync.bukkit = now;
+        sync.furnace = List.copyOf(blown);
+    }
+
+    /** 앞선 Furnace 처리기가 서버 목록을 바꿨으면 Bukkit 목록을 그것으로 다시 만든다. */
+    private static void pullExplodeList(org.domi.furnace.api.event.Event f, List<Block> bukkitList, String world, List<BlockPos> blown) {
+        ExplodeSync sync = EXPLODE_SYNC.get(f);
+        if (sync == null || blown.equals(sync.furnace)) return;
+        bukkitList.clear();
+        bukkitList.addAll(bukkitBlockList(world, blown));
+        sync.bukkit = positions(bukkitList);
+        sync.furnace = List.copyOf(blown);
     }
 
     /**
@@ -84,23 +129,11 @@ final class WorldChangeMappings {
                 f -> {
                     var who = Compat.entity(f.entity());
                     if (who == null) return null;
-                    List<Block> blocks = new ArrayList<>(f.blocks().size());
-                    for (BlockPos pos : f.blocks()) blocks.add(Compat.block(f.location().world(), pos));
-                    return new org.bukkit.event.entity.EntityExplodeEvent(who, Compat.location(f.location()), blocks, f.yield(),
-                            org.bukkit.ExplosionResult.valueOf(f.result()));
+                    return new org.bukkit.event.entity.EntityExplodeEvent(who, Compat.location(f.location()), explodeList(f, f.location().world(), f.blocks()),
+                            f.yield(), org.bukkit.ExplosionResult.valueOf(f.result()));
                 },
-                (f, b) -> {
-                    var now = positions(b.blockList());
-                    if (!now.equals(f.blocks())) {
-                        f.blocks().clear();
-                        f.blocks().addAll(now);
-                    }
-                }, (f, b) -> {
-                    if (!positions(b.blockList()).equals(f.blocks())) {
-                        b.blockList().clear();
-                        for (BlockPos pos : f.blocks()) b.blockList().add(Compat.block(f.location().world(), pos));
-                    }
-                });
+                (f, b) -> pushExplodeList(f, b.blockList(), f.blocks()),
+                (f, b) -> pullExplodeList(f, b.blockList(), f.location().world(), f.blocks()));
         EventBridge.reg(org.domi.furnace.api.event.block.BlockPistonExtendEvent.class, org.bukkit.event.block.BlockPistonExtendEvent.class,
                 f -> new org.bukkit.event.block.BlockPistonExtendEvent(Compat.block(f.world(), f.pos()), pistonBlocks(f.world(), f.blocks()), Mappings.face(f.direction())),
                 (f, b) -> {});

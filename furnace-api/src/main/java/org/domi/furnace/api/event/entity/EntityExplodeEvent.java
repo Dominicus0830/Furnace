@@ -36,7 +36,6 @@ public final class EntityExplodeEvent extends EntityEvent implements Cancellable
         this.cause = cause;
     }
 
-    /** [터진 엔티티 explode] ← 그 엔티티의 origin(켠 플레이어·앞선 TNT·레드스톤 칸 …). */
     /** 서버가 아는 폭발 정보까지 담는 생성자(BlockExplodeEvent 와 같은 모양). */
     public EntityExplodeEvent(Entity entity, Location location, List<BlockPos> blocks, org.domi.furnace.api.event.cause.CauseChain cause,
                               float yield, String result) {
@@ -51,6 +50,7 @@ public final class EntityExplodeEvent extends EntityEvent implements Cancellable
     /** 폭발의 블록 상호작용(KEEP·DESTROY·DESTROY_WITH_DECAY·TRIGGER_BLOCK). 기본 DESTROY. */
     public String result() { return result; }
 
+    /** [터진 엔티티 explode] ← 그 엔티티의 origin(켠 플레이어·앞선 TNT·레드스톤 칸 …). */
     @Override
     public org.domi.furnace.api.event.cause.CauseChain causeChain() {
         if (cause == null) cause = org.domi.furnace.api.event.cause.CauseChain.of(entity(), org.domi.furnace.api.event.cause.CauseEntry.EXPLODE);

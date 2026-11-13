@@ -39,6 +39,27 @@ public class CraftProjectile extends CraftEntity implements Projectile {
     public void setShooter(ProjectileSource source) { throw new UnsupportedFeature("Projectile#setShooter", "Furnace 핸들은 투사체의 주인을 바꾸는 길이 아직 없다"); }
 
     @Override
+    public boolean hasLeftShooter() { throw new UnsupportedFeature("Projectile#hasLeftShooter", "Furnace 핸들은 투사체가 쏜 쪽을 벗어났는지 알려 주지 않는다"); }
+
+    @Override
+    public void setHasLeftShooter(boolean leftShooter) { throw new UnsupportedFeature("Projectile#setHasLeftShooter", "Furnace 핸들에는 쓰는 길이 아직 없다"); }
+
+    @Override
+    public boolean hasBeenShot() { throw new UnsupportedFeature("Projectile#hasBeenShot", "Furnace 핸들은 쏘아졌는지 알려 주지 않는다"); }
+
+    @Override
+    public void setHasBeenShot(boolean beenShot) { throw new UnsupportedFeature("Projectile#setHasBeenShot", "Furnace 핸들에는 쓰는 길이 아직 없다"); }
+
+    @Override
+    public boolean canHitEntity(org.bukkit.entity.Entity entity) { throw new UnsupportedFeature("Projectile#canHitEntity", "Furnace 핸들에는 맞춤 판정을 묻는 길이 아직 없다"); }
+
+    @Override
+    public void hitEntity(org.bukkit.entity.Entity entity) { throw new UnsupportedFeature("Projectile#hitEntity", "Furnace 핸들에는 투사체를 맞추는 길이 아직 없다"); }
+
+    @Override
+    public void hitEntity(org.bukkit.entity.Entity entity, org.bukkit.util.Vector vector) { throw new UnsupportedFeature("Projectile#hitEntity", "Furnace 핸들에는 투사체를 맞추는 길이 아직 없다"); }
+
+    @Override
     @Deprecated
     public boolean doesBounce() { return false; }
 

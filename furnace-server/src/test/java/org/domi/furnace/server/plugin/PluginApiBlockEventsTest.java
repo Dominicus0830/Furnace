@@ -241,6 +241,37 @@ class PluginApiBlockEventsTest {
         assertEquals("minecraft:stone", after[2], "블록은 끌려오지 않는다");
     }
 
+    /** 일반 피스톤의 빈 수축 이벤트는 Paper 처럼 triggerEvent 의 수축 갈래에서 한 번만 나고, 취소하면 머리가 그대로다(T-040a R2). */
+    @Test
+    void plainRetractEventFiresOnceFromTheBlockEventAndCancelKeepsItExtended() throws Exception {
+        List<String> log = new CopyOnWriteArrayList<>();
+        String[] ext = at(r -> {
+            var l = r.level();
+            Pos p = new Pos(8, -50, 8);
+            l.setBlock(p, B.prop("facing").with(B.defaultState("minecraft:piston"), "east"), 3);
+            l.setBlock(p.west(), B.defaultState("minecraft:redstone_block"), 3);
+            step(l, 6);
+            return new String[] {desc(l, p)};
+        });
+        assertEquals("minecraft:piston[extended=true,facing=east]", ext[0]);
+        on(BlockPistonRetractEvent.class, e -> {
+            log.add("retract:" + e.direction() + ":" + e.isSticky() + ":" + e.blocks());
+            e.setCancelled(true);
+        });
+        String[] cancelled = at(r -> {
+            var l = r.level();
+            Pos p = new Pos(8, -50, 8);
+            l.setBlock(p.west(), AIR, 3);
+            // 같은 틱에 이웃 갱신이 여러 번 와도(Spigot 자리는 그때마다 낸다) 이벤트는 블록 이벤트마다 한 번이다
+            l.blockUpdated(p, B.block(B.defaultState("minecraft:piston")));
+            l.blockUpdated(p, B.block(B.defaultState("minecraft:piston")));
+            step(l, 6);
+            return new String[] {desc(l, p)};
+        });
+        assertEquals("minecraft:piston[extended=true,facing=east]", cancelled[0], "취소하면 수축하지 않는다");
+        assertEquals(List.of("retract:east:false:[]"), log, "한 번만");
+    }
+
     // ------------------------------------------------------------------ 물 흐름
 
     @Test

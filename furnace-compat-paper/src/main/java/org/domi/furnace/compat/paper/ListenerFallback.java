@@ -8,7 +8,7 @@
 // 어떻게: 클래스 파일 바이트를 ASM 으로 읽어 @EventHandler 메서드의 (이름, 서술자, priority, ignoreCancelled)를 얻고, 메서드마다 매개변수 형을
 // 따로 올려 본다. 풀리는 메서드만 MethodHandles.privateLookupIn(...).findVirtual 로 잡는다 — 그 메서드 하나의 서술자만 풀리므로 다른 메서드의
 // 없는 형은 상관없다. 정상 경로(getMethods 가 되는 리스너)는 이 클래스를 거치지 않는다.
-// 한계: 인터페이스의 default 메서드에 붙은 @EventHandler 는 이 길에서 찾지 않는다(상속 사슬의 클래스만 본다).
+// 클래스 사슬을 다 본 뒤 인터페이스의 default 메서드도 같은 규칙으로 본다(getMethods 와 같은 가시성).
 package org.domi.furnace.compat.paper;
 
 import java.io.IOException;
@@ -59,11 +59,8 @@ public final class ListenerFallback {
      * 부모 클래스의 공개 메서드(자식이 덮어쓴 것은 자식 것이 이긴다 — 주석이 없는 덮어쓰기는 처리기를 가린다).
      */
     public static Result collect(Class<?> listener) {
-        ClassLoader loader = listener.getClassLoader();
-        List<Handler> handlers = new ArrayList<>();
-        List<Skipped> skipped = new ArrayList<>();
-        List<String> invalid = new ArrayList<>();
-        Set<String> seen = new HashSet<>();
+        Collector out = new Collector();
+        java.util.LinkedHashSet<Class<?>> interfaces = new java.util.LinkedHashSet<>();
         for (Class<?> c = listener; c != null && c != Object.class; c = c.getSuperclass()) {
             List<Found> methods;
             try {
@@ -72,51 +69,79 @@ public final class ListenerFallback {
                 if (c == listener) throw new IllegalStateException("리스너 클래스 바이트를 읽을 수 없다: " + c.getName(), cannotRead);
                 break;   // 부모 쪽은 읽을 수 없으면(라이브러리·JDK) 거기서 멈춘다
             }
-            boolean inherited = c != listener;
-            for (Found m : methods) {
-                if (inherited && (m.access & (Opcodes.ACC_PRIVATE | Opcodes.ACC_PUBLIC)) != Opcodes.ACC_PUBLIC) continue;   // 부모의 공개가 아닌 메서드는 getMethods 에 없다
-                if (!seen.add(m.name + m.desc)) continue;   // 자식이 덮어썼다
-                if (!m.handler || (m.access & (Opcodes.ACC_BRIDGE | Opcodes.ACC_SYNTHETIC)) != 0) continue;
-                String label = m.name + "(" + paramNames(m.desc) + ")";
-                Type[] args = Type.getArgumentTypes(m.desc);
-                if (args.length != 1 || args[0].getSort() != Type.OBJECT) {
-                    invalid.add(c.getName() + "#" + label);
-                    continue;
-                }
-                Class<?> param;
-                MethodType type;
-                try {
-                    param = Class.forName(args[0].getClassName(), false, loader);
-                    type = MethodType.fromMethodDescriptorString(m.desc, loader);
-                } catch (ClassNotFoundException e) {
-                    skipped.add(new Skipped(label, e.getMessage()));
-                    continue;
-                } catch (TypeNotPresentException e) {
-                    skipped.add(new Skipped(label, e.typeName()));
-                    continue;
-                } catch (LinkageError e) {
-                    skipped.add(new Skipped(label, missingName(e)));
-                    continue;
-                }
-                if (!Event.class.isAssignableFrom(param)) {
-                    invalid.add(c.getName() + "#" + label);
-                    continue;
-                }
-                try {
-                    MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(c, MethodHandles.lookup());
-                    boolean isStatic = (m.access & Opcodes.ACC_STATIC) != 0;
-                    MethodHandle mh = isStatic ? lookup.findStatic(c, m.name, type) : lookup.findVirtual(c, m.name, type);
-                    if (isStatic) mh = MethodHandles.dropArguments(mh, 0, Object.class);
-                    mh = mh.asType(MethodType.methodType(void.class, Object.class, Event.class));
-                    handlers.add(new Handler(label, param.asSubclass(Event.class), m.priority, m.ignoreCancelled, mh));
-                } catch (LinkageError e) {
-                    skipped.add(new Skipped(label, missingName(e)));
-                } catch (ReflectiveOperationException e) {
-                    skipped.add(new Skipped(label, String.valueOf(e)));
-                }
+            addAll(out, c, methods, c != listener, false);
+            collectInterfaces(c, interfaces);
+        }
+        // 인터페이스의 default 메서드(getMethods 에 든다): 클래스 사슬 뒤에 같은 규칙으로
+        for (Class<?> i : interfaces) {
+            try {
+                addAll(out, i, scan(i), true, true);
+            } catch (IOException | RuntimeException cannotRead) {
+                // 읽을 수 없는 인터페이스(JDK 등)는 건너뛴다
             }
         }
-        return new Result(handlers, skipped, invalid);
+        return new Result(out.handlers, out.skipped, out.invalid);
+    }
+
+    private static void collectInterfaces(Class<?> c, Set<Class<?>> into) {
+        for (Class<?> i : c.getInterfaces()) {
+            if (into.add(i)) collectInterfaces(i, into);
+        }
+    }
+
+    private static final class Collector {
+        final List<Handler> handlers = new ArrayList<>();
+        final List<Skipped> skipped = new ArrayList<>();
+        final List<String> invalid = new ArrayList<>();
+        final Set<String> seen = new HashSet<>();
+    }
+
+    /** @param inherited 부모 클래스·인터페이스(공개 메서드만 getMethods 에 든다) @param iface 인터페이스(정적·추상 메서드는 처리기가 아니다) */
+    private static void addAll(Collector out, Class<?> c, List<Found> methods, boolean inherited, boolean iface) {
+        ClassLoader loader = c.getClassLoader();   // 부모가 다른 플러그인(의존 라이브러리)에 있으면 그쪽 로더로 푼다
+        for (Found m : methods) {
+            if (inherited && (m.access & (Opcodes.ACC_PRIVATE | Opcodes.ACC_PUBLIC)) != Opcodes.ACC_PUBLIC) continue;   // 부모의 공개가 아닌 메서드는 getMethods 에 없다
+            if (iface && (m.access & (Opcodes.ACC_STATIC | Opcodes.ACC_ABSTRACT)) != 0) continue;
+            if (!out.seen.add(m.name + m.desc)) continue;   // 자식이 덮어썼다
+            if (!m.handler || (m.access & (Opcodes.ACC_BRIDGE | Opcodes.ACC_SYNTHETIC)) != 0) continue;
+            String label = m.name + "(" + paramNames(m.desc) + ")";
+            Type[] args = Type.getArgumentTypes(m.desc);
+            if (args.length != 1 || args[0].getSort() != Type.OBJECT) {
+                out.invalid.add(c.getName() + "#" + label);
+                continue;
+            }
+            Class<?> param;
+            MethodType type;
+            try {
+                param = Class.forName(args[0].getClassName(), false, loader);
+                type = MethodType.fromMethodDescriptorString(m.desc, loader);
+            } catch (ClassNotFoundException e) {
+                out.skipped.add(new Skipped(label, e.getMessage()));
+                continue;
+            } catch (TypeNotPresentException e) {
+                out.skipped.add(new Skipped(label, e.typeName()));
+                continue;
+            } catch (LinkageError e) {
+                out.skipped.add(new Skipped(label, missingName(e)));
+                continue;
+            }
+            if (!Event.class.isAssignableFrom(param)) {
+                out.invalid.add(c.getName() + "#" + label);
+                continue;
+            }
+            try {
+                MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(c, MethodHandles.lookup());
+                boolean isStatic = (m.access & Opcodes.ACC_STATIC) != 0;
+                MethodHandle mh = isStatic ? lookup.findStatic(c, m.name, type) : lookup.findVirtual(c, m.name, type);
+                if (isStatic) mh = MethodHandles.dropArguments(mh, 0, Object.class);
+                mh = mh.asType(MethodType.methodType(void.class, Object.class, Event.class));
+                out.handlers.add(new Handler(label, param.asSubclass(Event.class), m.priority, m.ignoreCancelled, mh));
+            } catch (LinkageError e) {
+                out.skipped.add(new Skipped(label, missingName(e)));
+            } catch (ReflectiveOperationException e) {
+                out.skipped.add(new Skipped(label, String.valueOf(e)));
+            }
+        }
     }
 
     /** NoClassDefFoundError 의 메시지("a/b/C")를 클래스 이름으로. 다른 링크 오류는 메시지 그대로. */

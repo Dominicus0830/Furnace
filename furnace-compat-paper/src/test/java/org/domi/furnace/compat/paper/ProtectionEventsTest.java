@@ -90,13 +90,25 @@ class ProtectionEventsTest {
             """;
 
     /** 없는 이벤트(GoneEvent)를 쓰는 처리기·그 형이 서명에 든 일반 메서드와, 있는 이벤트 처리기들(공개·비공개·우선순위·ignoreCancelled·정적)이 한 클래스에 있다. */
+    /** 인터페이스 default 메서드의 @EventHandler 도 getMethods 에 든다. */
+    private static final String DEFAULTS = """
+            package fb;
+            import org.bukkit.event.*;
+            import org.bukkit.event.player.*;
+            import org.domi.furnace.compat.paper.fixtures.WiringProbe;
+            public interface Defaults extends Listener {
+                @EventHandler default void viaInterface(PlayerToggleSneakEvent e) { WiringProbe.LOG.add("iface:sneak"); }
+                @EventHandler static void staticInInterface(PlayerKickEvent e) { WiringProbe.LOG.add("iface-static-must-not-register"); }
+            }
+            """;
+
     private static final String MIXED = """
             package fb;
             import org.bukkit.event.*;
             import org.bukkit.event.block.*;
             import org.bukkit.event.player.*;
             import org.domi.furnace.compat.paper.fixtures.WiringProbe;
-            public final class Mixed extends Base implements Listener {
+            public final class Mixed extends Base implements Defaults {
                 @EventHandler public void onGone(fb.gone.GoneEvent e) { WiringProbe.LOG.add("gone"); }
                 public fb.gone.GoneEvent plain(fb.gone.GoneEvent e) { return e; }
                 @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -117,7 +129,7 @@ class ProtectionEventsTest {
 
     private Path fbJar() throws Exception {
         return JarCompiler.jar(tmp.resolve("fb.jar"), YML,
-                Map.of("fb.FbPlugin", PLUGIN, "fb.gone.GoneEvent", GONE, "fb.Base", BASE, "fb.Mixed", MIXED), java.util.Set.of("fb.gone."));
+                Map.of("fb.FbPlugin", PLUGIN, "fb.gone.GoneEvent", GONE, "fb.Base", BASE, "fb.Defaults", DEFAULTS, "fb.Mixed", MIXED), java.util.Set.of("fb.gone."));
     }
 
     /** 플러그인 로거는 핸들러를 거치지 않으므로 필터로 기록을 가로챈다(필터는 늘 통과시킨다). */
@@ -154,12 +166,15 @@ class ProtectionEventsTest {
             assertEquals(0, forPlugin(org.bukkit.event.player.PlayerQuitEvent.getHandlerList(), fb).size(), "주석 없는 덮어쓰기가 부모 처리기를 가린다(getMethods 규칙)");
             assertEquals(0, forPlugin(org.bukkit.event.player.PlayerKickEvent.getHandlerList(), fb).size(), "부모의 비공개 메서드는 getMethods 에 없다");
             assertEquals(1, forPlugin(org.bukkit.event.player.PlayerChangedWorldEvent.getHandlerList(), fb).size());
+            assertEquals(1, forPlugin(org.bukkit.event.player.PlayerToggleSneakEvent.getHandlerList(), fb).size(), "인터페이스 default 메서드의 처리기도 getMethods 에 든다");
 
             // 실제로 불린다(Furnace 이벤트 → 다리 → 메서드 핸들)
             var bus = server.api().events();
             bus.call(new org.domi.furnace.api.event.player.PlayerJoinEvent(dana, org.domi.furnace.api.text.Text.text("hi")));
             bus.call(new org.domi.furnace.api.event.player.PlayerQuitEvent(dana, org.domi.furnace.api.text.Text.text("bye")));
             bus.call(new org.domi.furnace.api.event.player.PlayerChangedWorldEvent(dana, W));
+            bus.call(new org.domi.furnace.api.event.player.PlayerToggleSneakEvent(dana, true));
+            assertTrue(WiringProbe.LOG.contains("iface:sneak"), WiringProbe.LOG.toString());
             bus.call(new org.domi.furnace.api.event.block.BlockBreakEvent(W, new BlockPos(1, 64, 2), "minecraft:stone", dana));
             assertTrue(WiringProbe.LOG.contains("base:join"), WiringProbe.LOG.toString());
             assertTrue(WiringProbe.LOG.contains("break:64"), WiringProbe.LOG.toString());
@@ -228,20 +243,25 @@ class ProtectionEventsTest {
             var at = new org.domi.furnace.api.world.Location(W, 5.5, 64, 5.5, 0f, 0f);
             var a = new BlockPos(5, 64, 5);
             var b = new BlockPos(6, 64, 5);
-            var c = new BlockPos(7, 64, 5);
+            var air = new BlockPos(7, 64, 5);
+            var c = new BlockPos(8, 64, 5);
+            for (String sb : List.of("5 64 5 minecraft:stone", "6 64 5 minecraft:stone", "7 64 5 minecraft:air", "8 64 5 minecraft:stone")) server.execute("setblock " + sb);
+            server.tick(2);
 
-            var ev = bus.call(new org.domi.furnace.api.event.entity.EntityExplodeEvent(pig, at, new ArrayList<>(List.of(a, b)),
-                    org.domi.furnace.api.event.cause.CauseChain.NONE, 0.25f, "DESTROY_WITH_DECAY"));
+            // 목록의 칸 종류를 읽으므로 폭발 이벤트처럼 그 칸의 region 스레드에서 부른다
+            var ev = server.onRegion(a, () -> bus.call(new org.domi.furnace.api.event.entity.EntityExplodeEvent(pig, at, new ArrayList<>(List.of(a, b, air)),
+                    org.domi.furnace.api.event.cause.CauseChain.NONE, 0.25f, "DESTROY_WITH_DECAY")));
             assertFalse(ev.isCancelled());
             var x = only(org.bukkit.event.entity.EntityExplodeEvent.class);
             assertEquals(org.bukkit.entity.EntityType.PIG, x.getEntityType());
             assertEquals(0.25f, x.getYield(), 0f);
             assertEquals(ExplosionResult.DESTROY_WITH_DECAY, x.getExplosionResult());
             assertEquals(5.5, x.getLocation().getX(), 0.0);
-            assertEquals(2, x.blockList().size());
-            assertEquals(b.x(), x.blockList().get(1).getX());
+            assertEquals(2, x.blockList().size(), "공기 칸은 Bukkit 목록에서 빠진다(Paper)");
+            assertEquals(b.x(), x.blockList().get(0).getX(), "뒤에서부터(Paper)");
+            assertEquals(List.of(a, b, air), ev.blocks(), "고치지 않았으면 서버 목록은 그대로");
 
-            // 목록을 고치면(빼기·넣기) 서버가 그 목록을 따른다
+            // 목록을 고치면(빼기·넣기) 서버가 그 목록을 따른다 — Bukkit 순서로 교체
             RecorderPlugin.reset();
             RecorderPlugin.ACTIONS.put("EntityExplodeEvent", e -> {
                 var ee = (org.bukkit.event.entity.EntityExplodeEvent) e;
@@ -249,8 +269,8 @@ class ProtectionEventsTest {
                 ee.blockList().add(ee.blockList().get(0).getWorld().getBlockAt(c.x(), c.y(), c.z()));
             });
             var list = new ArrayList<>(List.of(a, b));
-            var after = bus.call(new org.domi.furnace.api.event.entity.EntityExplodeEvent(pig, at, list, org.domi.furnace.api.event.cause.CauseChain.NONE, 1f, "DESTROY"));
-            assertEquals(List.of(b, c), after.blocks());
+            var after = server.onRegion(a, () -> bus.call(new org.domi.furnace.api.event.entity.EntityExplodeEvent(pig, at, list, org.domi.furnace.api.event.cause.CauseChain.NONE, 1f, "DESTROY")));
+            assertEquals(List.of(a, c), after.blocks());
             assertFalse(after.isCancelled());
 
             // 취소(WorldGuard 처럼 터진 자리를 보호) → 서버도 취소
@@ -363,6 +383,12 @@ class ProtectionEventsTest {
             assertEquals(org.bukkit.entity.EntityType.PIG, byEntity.getHitEntity().getType());
             assertNull(byEntity.getHitBlock());
             assertNull(byEntity.getHitBlockFace());
+
+            // Paper 의 Projectile·ProjectileSource 메서드는 있고, Furnace 에 이을 곳이 없는 것은 큰 소리로 실패한다(AbstractMethodError 가 아니라)
+            assertThrows(UnsupportedFeature.class, () -> hit.getEntity().hasLeftShooter());
+            assertThrows(UnsupportedFeature.class, () -> hit.getEntity().hitEntity(hit.getEntity()));
+            assertThrows(UnsupportedFeature.class, () -> ((org.bukkit.entity.Player) hit.getEntity().getShooter()).launchProjectile(org.bukkit.entity.Projectile.class));
+            assertThrows(UnsupportedFeature.class, () -> ((org.bukkit.entity.Player) hit.getEntity().getShooter()).launchProjectile(org.bukkit.entity.Projectile.class, null, p -> {}));
 
             RecorderPlugin.ACTIONS.put("ProjectileHitEvent", e -> ((org.bukkit.event.entity.ProjectileHitEvent) e).setCancelled(true));
             assertTrue(bus.call(new org.domi.furnace.api.event.entity.ProjectileHitEvent(snowball, pig, null, null)).isCancelled());
