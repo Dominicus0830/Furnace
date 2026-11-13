@@ -64,7 +64,7 @@ class PlayerRosterIdentityTest {
     }
 
     static Scene scene(SplittableRandom r) {
-        int n = r.nextInt(1, 90);
+        int n = r.nextInt(5) == 0 ? r.nextInt(60, 221) : r.nextInt(1, 90);   // 1/5 은 큰 서버(비트 long 2개 이상 경로)
         double[] cx = {r.nextDouble(-500, 500), r.nextDouble(-500, 500), 0.0}, cz = {r.nextDouble(-500, 500), r.nextDouble(-500, 500), 0.0};
         int[] dim = new int[n], mode = new int[n];
         boolean[] dead = new boolean[n];
@@ -167,7 +167,14 @@ class PlayerRosterIdentityTest {
 
         public Player nearest(double x, double y, double z, double dist, boolean ic) { return LegacyPlayerQueries.getNearestPlayer(here(), x, y, z, dist, ic); }
         public Player nearestFrom(Cow from, double dist) { return LegacyPlayerQueries.getNearestPlayerFrom(here(), from.x(), from.y(), from.z(), dist); }
-        public boolean hasAlive(double x, double y, double z, double range) { return LegacyPlayerQueries.hasNearbyAlivePlayer(here(), x, y, z, range); }
+        public boolean hasAlive(double x, double y, double z, double range) {
+            // 의도한 바닐라 수정(PR #308 검토 R1): 음수 거리는 거리 무관(EntityGetter.hasNearbyAlivePlayer 의 range < 0.0 ||). 옛 코드는 d < range².
+            if (range < 0.0) {
+                for (Player p : here()) if (!p.isDisconnected() && !p.isSpectator() && p.isAlive()) return true;
+                return false;
+            }
+            return LegacyPlayerQueries.hasNearbyAlivePlayer(here(), x, y, z, range);
+        }
         public void inBox(AABB box, Consumer<Player> c) { LegacyPlayerQueries.forEachPlayerIn(here(), box, c); }
         public Player nearestCond(TargetingConditions c, Mob source, double x, double y, double z) {
             return LegacyPlayerQueries.getNearestPlayer(here(), c, source, x, y, z);

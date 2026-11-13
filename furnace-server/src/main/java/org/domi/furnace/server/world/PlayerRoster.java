@@ -27,8 +27,11 @@ public final class PlayerRoster {
     public static final int CELL_SHIFT = 7;
     /** 거리 제한 없는 "가장 가까운 플레이어" 조회의 1단계 반경(바닐라 사라짐 거리 128). 이 안에 아무도 없으면 전체를 훑는다. */
     public static final double NEAREST_FIRST_RADIUS = 128.0;
-    /** 이보다 적은 차원은 격자를 쓰지 않고 목록을 그대로 훑는다(PlayerScanBench: 15명까지는 그쪽이 빠르다). -Dfurnace.playerGridMin 로 시험. */
-    public static final int GRID_MIN_PLAYERS = Integer.getInteger("furnace.playerGridMin", 32);
+    /**
+     * 이보다 적은 차원은 격자를 쓰지 않고 목록을 그대로 훑는다(PlayerScanBench: 15명은 목록이 조금 빠르고, 30명은 격자가 약 −25%).
+     * -Dfurnace.playerGridMin 로 바꿔 잴 수 있다.
+     */
+    public static final int GRID_MIN_PLAYERS = Integer.getInteger("furnace.playerGridMin", 16);
 
     final ConcurrentHashMap<Integer, Player> map = new ConcurrentHashMap<>();
     /** 서버 전체 접속자 복사본(접속·퇴장 때만 새로 만든다). */
@@ -154,7 +157,7 @@ public final class PlayerRoster {
             }
             int cx0 = cellCoord(x0), cx1 = cellCoord(x1), cz0 = cellCoord(z0), cz1 = cellCoord(z1);
             long cells = ((long) cx1 - cx0 + 1) * ((long) cz1 - cz0 + 1);
-            if (cells > ps.length || cells > 64) {
+            if (cells > s.cellCount || cells > 64) {   // 볼 칸이 플레이어 있는 칸보다 많으면(몰린 서버의 넓은 조회) 그냥 전부가 싸다
                 for (Player p : ps) c.accept(p);
                 return;
             }
@@ -192,7 +195,16 @@ public final class PlayerRoster {
             }
         }
 
-        /** 플레이어 위치를 쓴 직후(쓴 스레드에서): 격자 칸이 바뀌었으면 스냅샷을 다시 만든다. */
+        /**
+         * 플레이어 위치를 쓴 직후(쓴 스레드에서): 격자 칸이 바뀌었으면 스냅샷을 다시 만든다.
+         *
+         * <p>잠금 없는 빠른 길(칸이 같으면 돌아감)의 정확성은 {@code Player.x/z} 와 {@code gridCell} 이 <b>volatile</b> 인 데 기댄다(Dekker 꼴):
+         * 쓴 쪽은 x/z 쓰기 → gridCell 읽기, 잠금 쪽은 gridCell 을 "모름"으로 쓰기 → x/z 읽기라 둘 중 하나는 반드시 상대를 본다.
+         * 그 volatile 을 떼면 칸이 낡은 채 남을 수 있다(PlayerRosterRaceTest).
+         *
+         * <p>비용: 칸을 넘는 쓰기 한 번 = 스냅샷 전체 재생성(검토 실측 32명 0.56µs, 100명 1.7µs, 300명 7.0µs; 같은 칸 쓰기는 수십 ns).
+         * 잠금은 모든 차원이 같이 쓰는 {@code roster.map} 이다.
+         */
         public void moved(Player p, double x, double z) {
             if (cellOf(x, z) == p.gridCell) return;
             synchronized (roster.map) {
@@ -222,20 +234,23 @@ public final class PlayerRoster {
     /** 불변: 목록 + 칸 → 그 칸 플레이어의 목록 번호 비트 집합(words 개 long). 열린 주소 해시. */
     static final class Snapshot {
         static final long EMPTY_KEY = Long.MIN_VALUE;   // cellCoord 범위(±1e9/128)에서 나올 수 없는 값
-        static final Snapshot EMPTY = new Snapshot(new Player[0], new long[] {EMPTY_KEY}, new long[1][], 0, 1);
+        static final Snapshot EMPTY = new Snapshot(new Player[0], new long[] {EMPTY_KEY}, new long[1][], 0, 1, 0);
 
         final Player[] players;
         private final long[] keys;
         private final long[][] vals;
         private final int mask;
         final int words;
+        /** 플레이어가 있는 칸 수. */
+        final int cellCount;
 
-        private Snapshot(Player[] players, long[] keys, long[][] vals, int mask, int words) {
+        private Snapshot(Player[] players, long[] keys, long[][] vals, int mask, int words, int cellCount) {
             this.players = players;
             this.keys = keys;
             this.vals = vals;
             this.mask = mask;
             this.words = words;
+            this.cellCount = cellCount;
         }
 
         static Snapshot build(Player[] players) {
@@ -246,7 +261,7 @@ public final class PlayerRoster {
             long[] keys = new long[cap];
             Arrays.fill(keys, EMPTY_KEY);
             long[][] vals = new long[cap][];
-            int mask = cap - 1;
+            int mask = cap - 1, cells = 0;
             for (int i = 0; i < n; i++) {
                 long k = players[i].gridCell;
                 int s = slot(k, mask);
@@ -254,10 +269,11 @@ public final class PlayerRoster {
                 if (keys[s] == EMPTY_KEY) {
                     keys[s] = k;
                     vals[s] = new long[words];
+                    cells++;
                 }
                 vals[s][i >>> 6] |= 1L << i;
             }
-            return new Snapshot(players, keys, vals, mask, words);
+            return new Snapshot(players, keys, vals, mask, words, cells);
         }
 
         long[] get(long k) {

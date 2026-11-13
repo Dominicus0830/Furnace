@@ -1306,15 +1306,28 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public boolean isHandlingTick() { return handlingTick; }
 
-    /** EntityGetter.hasNearbyAlivePlayer: 관전자 아니고 살아 있는 플레이어가 (x,y,z) 에서 range 안(< range²). */
+    /**
+     * EntityGetter.hasNearbyAlivePlayer: 관전자 아니고 살아 있는 플레이어가 (x,y,z) 에서 range 안(< range²). 바닐라처럼 range 가 음수면 거리와
+     * 무관하게 그런 플레이어가 하나라도 있으면 참이다(스포너 RequiredPlayerRange 음수 = 늘 켜짐).
+     */
     public boolean hasNearbyAlivePlayer(double x, double y, double z, double range) {
         boolean[] found = {false};
-        double r = Math.abs(range) + NEAR_MARGIN;
-        forEachPlayerNear(x - r, z - r, x + r, z + r, p -> {
+        boolean anyDistance = range < 0.0;
+        java.util.function.Consumer<Player> scan = p -> {
             if (found[0] || p.isDisconnected() || p.isSpectator() || !p.isAlive()) return;
+            if (anyDistance) {
+                found[0] = true;
+                return;
+            }
             double dx = p.x() - x, dy = p.y() - y, dz = p.z() - z;
             if (dx * dx + dy * dy + dz * dz < range * range) found[0] = true;
-        });
+        };
+        if (anyDistance) {
+            services().forEachPlayer(scan);
+        } else {
+            double r = range + NEAR_MARGIN;
+            forEachPlayerNear(x - r, z - r, x + r, z + r, scan);
+        }
         return found[0];
     }
 

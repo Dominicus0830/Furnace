@@ -10,15 +10,23 @@
   ② 차원별 목록마다 128블록 격자(칸 → 목록 번호 비트 집합, 불변 스냅샷). 위치를 쓰는 세 곳(`applyMove`·`setRidingPos`·`setPosRaw`)이 쓴 직후 칸을 맞춘다.
   ③ `ChunkLevel` 의 `hasNearbyAlivePlayer`·`getNearestPlayer`×3·`forEachPlayerIn` 이 거리·상자가 정해진 조회는 격자 후보만 본다(상위 집합 + 목록 순서 → 부르는 쪽 판정은 그대로).
   거리 제한 없는 `getNearestPlayer(…, -1)`(checkDespawn·스폰 거리)는 먼저 반경 128 후보를 보고, 그 안에서 찾으면 그것이 전체의 답(밖은 모두 더 멀다), 못 찾으면 전체를 훑는다.
-  차원 인원 32명 미만은 격자 없이 목록 그대로(`-Dfurnace.playerGridMin`).
-- 결과 동일 증명: `PlayerRosterIdentityTest`(IdentityKit Differential, 400 각본 — 접속·걸음·순간이동·탑승 위치·차원 이동·리스폰·퇴장·재접속·조회 5종 섞음)가
+  차원 인원 16명 미만은 격자 없이 목록 그대로(`-Dfurnace.playerGridMin`, 검토 R2: 30명에서 격자 −25%). 볼 칸 수가 플레이어 있는 칸 수보다 많으면(몰린 서버의 넓은 조회) 그 조회도 목록 그대로 — 몰림 24명에서 격자와 목록이 같은 값, 40명 +10%, 100명 −25%.
+- `hasNearbyAlivePlayer` 음수 거리를 바닐라대로 고침(검토 R1): 바닐라 `EntityGetter.hasNearbyAlivePlayer` 는 `range < 0.0 || d < range²` — 음수면 거리 무관 참
+  (스포너 `RequiredPlayerRange` 음수 = 늘 켜짐). 옛 코드는 `d < range²` 라 음수도 |range| 안만 봤다. 차분 시험의 오라클은 이 경우만 바닐라 규칙으로 비교한다.
+- 결과 동일 증명: `PlayerRosterIdentityTest`(IdentityKit Differential, 400 각본, 1/5 은 60~220명 — 접속·걸음·순간이동·탑승 위치·차원 이동·리스폰·퇴장·재접속·조회 5종 섞음)가
   "바닐라 목록 규칙 + 옛 조회 사본(`identity/legacy/players/LegacyPlayerQueries`, since c470effbd)" 과 목록 순서·고른 플레이어·상자 안 순서를 줄마다 비교. 각 단계에서 목록 집합 = 옛 정의도 확인.
   변이 점검: 옛 eid 순서, 2단계 반경 조건 빼기, 다중 칸 정렬 빼기, 위치 갱신 빼기 — 넷 다 잡힌다.
 - 측정(`PlayerScanBench`, 4코어, 몹 3000, 접속 100(오버월드 75), 몹마다 checkDespawn + 밀기 조회, 틱당): 옛 모양 1.9~2.3ms → 차원별 목록 1.4~1.6ms → 격자 0.54ms(몹이 플레이어 둘레, 실서버 꼴)
   / 0.78ms(모두 흩어짐) / 1.15ms(모두 ±150 몰림). 접속 20명(15명)은 격자를 안 써 차원별 목록 값(옛 대비 −25%).
 - 남은 바닐라 차이(이 작업 범위 밖, 보고): ① 바닐라·Paper 는 죽은 플레이어를 사망 20틱 뒤 `remove(KILLED)` 로 레벨 목록에서 뺀다
   (`LivingEntity.tickDeath` → `onTrackingEnd` → `updateSleepingPlayerList`, Paper `SPIGOT-6876` 줄도 KILLED 플레이어의 onTrackingEnd 를 전제). Furnace 는 리스폰 때까지 남긴다 —
-  죽음 화면의 플레이어가 잠 비율·빈 차원 판정·`checkDespawn`(사라짐)·순찰·팬텀 스포너에 계속 잡힌다. 엔드 크레딧 중(`showEndCredits`)도 같다. 고치려면 목록 소비자 42곳을
+  죽음 화면의 플레이어가 잠 비율·빈 차원 판정·`checkDespawn`(사라짐)·순찰·팬텀 스포너에 계속 잡힌다. 엔드 크레딧은 바닐라가 **즉시** 뺀다
+  (`ServerPlayer.showEndCredits` → `removePlayerImmediately(CHANGED_DIMENSION)`, 20틱 기다림 없음) — Furnace 는 크레딧 중에도 엔드 목록에 남긴다. 고치려면 목록 소비자 42곳을
   "레벨 목록"(바닐라 `level.players()`)과 "같은 차원 접속자"(`PlayerList.broadcast` 꼴 — 소리·입자 방송은 죽은 플레이어도 받는다)로 나눠야 한다 → 결정 항목 `docs/user-todo/entries/2026-11-13-t016-player-roster.md`.
   ② 서버 전체 순서(`PlayerList.players`, 탭 목록·`onlinePlayers()`)는 아직 eid 해시 순이다(바닐라는 접속 순, 리스폰 때 끝으로).
+- 경합(검토 R5): `Level.moved` 의 잠금 없는 빠른 길은 `Player.x/z`·`gridCell` volatile 에 기댄다(Dekker 꼴). `PlayerRosterRaceTest` — 두 스레드가 같은 플레이어
+  위치를 동시에 써도 멈춘 뒤 칸이 맞고, 가만히 있는 플레이어는 다른 쓰기·리스폰·차원 이동·드나듦 중 어느 조회에서도 놓치지 않는다.
+- 쓰기 쪽 비용(검토 R3 실측): 칸을 넘는 위치 쓰기 1번 = 스냅샷 전체 재생성, 32명 0.56µs·100명 1.7µs·300명 7.0µs(같은 칸 쓰기 18~42ns).
+  잠금 `roster.map` 은 모든 차원 공용이다. 실서버 비율(겉날개 100명 ≈ 초당 수십 번)로는 무시할 수준이지만, 인원이 아주 많아지면 목록 쓰기를 차원(Level) 단위
+  잠금으로 나누고 칸 이동만 그 칸 비트를 고치는(복사 후 쓰기) 쪽으로 줄일 여지가 있다.
 - 함정: 다른 region 스레드가 그 순간 위치를 바꾸는 플레이어는 예전에도 "언제 읽느냐"에 따라 답이 달랐다. 격자도 같은 성질이다(칸 갱신은 위치 쓰기 직후라 같은 스레드에서는 늘 새 칸).
