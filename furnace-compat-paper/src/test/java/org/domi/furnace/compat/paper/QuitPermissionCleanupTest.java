@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.paper;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -65,8 +66,13 @@ class QuitPermissionCleanupTest {
                 @EventHandler(priority = EventPriority.MONITOR)
                 public void quit(PlayerQuitEvent e) {
                     Player p = e.getPlayer();
-                    WiringProbe.LOG.add("quit-perm:" + p.hasPermission("qp.everyone") + ":" + p.getEffectivePermissions().size()
-                            + ":" + Bukkit.getPluginManager().getDefaultPermSubscriptions(false).contains(p));
+                    // 구독 표를 직접 본다(getDefaultPermSubscriptions 는 접속 중인 플레이어를 늘 보태므로 정리 여부를 못 가른다)
+                    org.bukkit.plugin.SimplePluginManager pm = (org.bukkit.plugin.SimplePluginManager) Bukkit.getPluginManager();
+                    boolean inDef;
+                    synchronized (pm.defSubs) { var m = pm.defSubs.get(false); inDef = m != null && m.containsKey(p); }
+                    boolean inPerm;
+                    synchronized (pm.permSubs) { var m = pm.permSubs.get("qp.everyone"); inPerm = m != null && m.containsKey(p); }
+                    WiringProbe.LOG.add("quit-perm:" + p.getEffectivePermissions().size() + ":" + inDef + ":" + inPerm);
                 }
             }
             """;
@@ -82,8 +88,13 @@ class QuitPermissionCleanupTest {
         return FurnaceTestServer.builder().failFast(false).pluginJar(jar).start();
     }
 
+    /** 구독 표(defSubs)에 그 플레이어가 있는가 — getDefaultPermSubscriptions 는 접속 중인 플레이어를 늘 보태므로 접속 중에는 쓸 수 없다. */
     private static boolean subscribed(Player p) {
-        return Bukkit.getPluginManager().getDefaultPermSubscriptions(false).contains(p);
+        var pm = (org.bukkit.plugin.SimplePluginManager) Bukkit.getPluginManager();
+        synchronized (pm.defSubs) {
+            var m = pm.defSubs.get(false);
+            return m != null && m.containsKey(p);
+        }
     }
 
     private void quitClears(String plugin) throws Exception {
@@ -114,12 +125,17 @@ class QuitPermissionCleanupTest {
         try (FurnaceTestServer server = start(LISTENING)) {
             TestPlayer tp = server.join("QuitPerm");
             server.tick(2);
+            Player p = Bukkit.getPlayer("QuitPerm");
+            assertNotNull(p);
             tp.close();
             server.tick(5);
             List<String> seen = WiringProbe.LOG.stream().filter(l -> l.startsWith("quit-perm:")).toList();
             assertTrue(seen.size() == 1, String.valueOf(WiringProbe.LOG));
-            assertTrue(seen.get(0).startsWith("quit-perm:true:") && seen.get(0).endsWith(":true"),
-                    "퇴장 처리 중에는 Paper 처럼 권한이 아직 있다: " + seen.get(0));
+            String[] f = seen.get(0).split(":");
+            assertTrue(Integer.parseInt(f[1]) > 0, "퇴장 처리 중에는 Paper 처럼 계산된 권한이 아직 있다: " + seen.get(0));
+            assertEquals("true", f[2], "기본 권한 구독이 아직 있다: " + seen.get(0));
+            assertEquals("true", f[3], "권한 구독이 아직 있다: " + seen.get(0));
+            assertFalse(subscribed(p), "처리기가 끝난 뒤에는 걷힌다");
         }
     }
 
