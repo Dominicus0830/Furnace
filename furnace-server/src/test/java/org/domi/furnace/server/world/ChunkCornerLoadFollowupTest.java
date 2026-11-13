@@ -144,4 +144,37 @@ class ChunkCornerLoadFollowupTest {
             r.close();
         }
     }
+
+    /** 생존 → 제자리 관전자(규칙 꺼짐) → 생존: 관전 중 내려간 모서리가 다시 올라온다(PR #281 검토 R1). */
+    @Test
+    void survivalSpectatorSurvival_inPlace_reloadsCorners() throws Exception {
+        Rig r = rig(GameMode.SURVIVAL, 10, 10, false);
+        try {
+            r.ticks(250);
+            assertEquals(List.of(), missingSquare(r.w, 0, 0, 10), "생존 정사각");
+            r.p.vitals().loadGameTypes(null, GameMode.SPECTATOR, true);
+            r.ticks(80);
+            assertTrue(!missingSquare(r.w, 0, 0, 10).isEmpty(), "관전 중 모서리는 내려간다");
+            r.p.vitals().loadGameTypes(null, GameMode.SURVIVAL, true);
+            r.ticks(300);
+            assertEquals(List.of(), missingSquare(r.w, 0, 0, 10), "다시 생존이면 정사각 전부");
+        } finally {
+            r.close();
+        }
+    }
+
+    /** 실행 중 서버 시야를 늘려도(클라 시야는 더 작다) 새 서버 시야 정사각을 올린다(PR #281 검토 R2). */
+    @Test
+    void serverVdRaisedAtRuntime_clientSmaller_loadsNewSquare() throws Exception {
+        Rig r = rig(GameMode.SURVIVAL, 6, 3, false);
+        try {
+            r.ticks(200);
+            r.w.viewDistance(9);
+            r.p.viewDistance(Math.min(9, 3));
+            r.ticks(350);
+            assertEquals(List.of(), missingSquare(r.w, 0, 0, 9), "서버 시야 9 정사각");
+        } finally {
+            r.close();
+        }
+    }
 }

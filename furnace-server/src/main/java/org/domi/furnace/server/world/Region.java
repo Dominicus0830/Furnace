@@ -2924,16 +2924,15 @@ public final class Region {
 
     /** 모서리 청크(시야 정사각 ∖ 둥근 모양)를 조금씩 올린다. 둥근 모양으로 보낼 청크가 모두 나간 뒤에만 시작한다(보이는 것이 먼저). */
     private void loadCornerChunks(Player p) {
-        if (p.cornerFailed() && p.cornerInFlight().isEmpty()) {
-            // 실패한 모서리는 잠시 뒤 다시 모아 시도한다(바닐라는 티켓이 남아 있는 한 다시 시도). 계속 실패해도 CORNER_RETRY_TICKS 마다 한 번뿐.
-            int cd = p.cornerRetryCooldown();
-            if (cd == 0) p.cornerRetryCooldown(CORNER_RETRY_TICKS);   // 0 = 아직 세기 전
-            else if (cd == 1) {
-                p.cornerRetryCooldown(0);
-                p.cornerFailed(false);
-                p.queuedCenter(null);   // 다음 updateChunks 가 목록을 다시 모은다(이미 올라온 것은 빠진다)
-            } else p.cornerRetryCooldown(cd - 1);
-        }
+        // 다 올렸거나 막 실패한 채 쉬는 동안 CORNER_RECOLLECT_TICKS 마다 목록을 다시 모은다(다음 updateChunks 가 queuedCenter(null) 을 보고 모은다,
+        // 이미 올라온 칸은 빠진다). 모은 뒤 상황이 바뀌는 경로(생존↔관전 왕복으로 내려간 모서리, 실행 중 서버 시야 증가, 로드 실패)를 신호
+        // 하나씩 달지 않고 한꺼번에 덮는다. 바닐라는 티켓이 남아 있는 한 모자라면 다시 올린다.
+        if (!skipsGeneration(p) && p.cornerLoads().isEmpty() && p.pendingChunks().isEmpty() && p.cornerInFlight().isEmpty()) {
+            if (p.cornerIdleTicks() + 1 >= CORNER_RECOLLECT_TICKS) {
+                p.cornerIdleTicks(0);
+                p.queuedCenter(null);
+            } else p.cornerIdleTicks(p.cornerIdleTicks() + 1);
+        } else p.cornerIdleTicks(0);
         var corners = p.cornerLoads();
         if (corners.isEmpty() || !p.pendingChunks().isEmpty() || skipsGeneration(p)) return;
         int slots = cornerLoadSlots() - p.cornerInFlight().size();
@@ -2945,15 +2944,12 @@ public final class Region {
             rz().want(cp.x(), cp.z(), this);   // 구역을 이 region 이 갖는다(다른 region 것이면 합칠 대상)
             p.cornerInFlight().add(cp);
             slots--;
-            startPrefetch(p, cp).whenComplete((col, ex) -> {
-                p.cornerInFlight().remove(cp);
-                if (ex != null) p.cornerFailed(true);
-            });
+            startPrefetch(p, cp).whenComplete((col, ex) -> p.cornerInFlight().remove(cp));
         }
     }
 
-    /** 모서리 청크 로드가 실패한 뒤 다시 시도하기까지의 틱. */
-    private static final int CORNER_RETRY_TICKS = 100;
+    /** 모서리 목록을 다시 모으는 간격(틱). 시야 32 에서도 5초에 한 번 (2·32+1)² 칸 조회. */
+    private static final int CORNER_RECOLLECT_TICKS = 100;
 
     /**
      * 그 청크의 생성·디스크 로드를 건다(구독은 호출한 쪽이 이미 했거나 하지 않는다). 이 region 의 청크면 작업 큐(다음 틱)를 거치지 않고
