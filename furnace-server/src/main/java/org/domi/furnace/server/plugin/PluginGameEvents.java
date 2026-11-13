@@ -579,7 +579,8 @@ public final class PluginGameEvents implements GameEvents {
         boolean cancelled;
         if (byEntity) {
             org.domi.furnace.api.entity.Entity who = source != null ? EntityHandle.of(host, source) : host.player(sourcePlayer);
-            cancelled = bus().call(new EntityExplodeEvent(who, new Location(dimension, x, y, z, 0f, 0f), list, explosion.cause())).isCancelled();
+            float yield = explosion.interactionName().equals("DESTROY_WITH_DECAY") ? 1.0F / explosion.radius() : 1.0F;
+            cancelled = bus().call(new EntityExplodeEvent(who, new Location(dimension, x, y, z, 0f, 0f), list, explosion.cause(), yield, explosion.interactionName())).isCancelled();
         } else {
             var center = new BlockPos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
             String blockType = ApiConvert.block(blockState, host.core().world().blockRegistry()).type();
