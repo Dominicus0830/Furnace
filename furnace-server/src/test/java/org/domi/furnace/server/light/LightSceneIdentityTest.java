@@ -80,8 +80,8 @@ class LightSceneIdentityTest {
             ChunkLight l = loaded.get(key(cx, cz)).light();
             byte[][] c = new byte[2 * count][];
             for (int i = 0; i < count; i++) {
-                c[i] = l.sky[lightBase + i].clone();
-                c[count + i] = l.block[lightBase + i].clone();
+                c[i] = l.sky(lightBase + i).clone();
+                c[count + i] = l.block(lightBase + i).clone();
             }
             client.put(key(cx, cz), c);
         }

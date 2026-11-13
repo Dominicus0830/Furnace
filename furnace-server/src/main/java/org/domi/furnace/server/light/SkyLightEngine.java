@@ -8,7 +8,11 @@ public final class SkyLightEngine extends LightEngine {
 
     public SkyLightEngine(LightWorld world) { super(world); }
 
-    @Override protected byte[][] layers(ChunkLight cl) { return cl.sky; }
+    @Override protected byte[] layer(ChunkLight cl, int section) { return cl.sky(section); }
+
+    @Override protected byte[] writableLayer(ChunkLight cl, int section) { return cl.writableSky(section); }
+
+    @Override protected boolean isSky() { return true; }
 
     // ------------------------------------------------------------------ ChunkSkyLightSources
 
@@ -176,7 +180,10 @@ public final class SkyLightEngine extends LightEngine {
         for (int dir = 0; dir < 6; dir++) {
             if (!shouldPropagateInDirection(flags, dir)) continue;
             long np = offset(pos, dir);
-            if (!storing(np)) continue;
+            if (!storing(np)) {
+                decreaseBlocked(np);
+                continue;
+            }
             int nl = level(np);
             if (nl == 0) continue;
             if (nl <= lvl - 1) {
@@ -195,7 +202,7 @@ public final class SkyLightEngine extends LightEngine {
         int maxStart = ChunkLight.MIN_Y;
         for (int raw : cl.lowestSource) maxStart = Math.max(maxStart, reported(raw));
         int fillBottom = ChunkLight.MIN_Y + ((maxStart - ChunkLight.MIN_Y + 15) >> 4 << 4);
-        for (int y = fillBottom; y < ChunkLight.MAX_Y; y += 16) java.util.Arrays.fill(cl.sky[ChunkLight.sectionIndex(y)], (byte) 0xFF);
+        for (int y = fillBottom; y < ChunkLight.MAX_Y; y += 16) cl.fillSkyFull(ChunkLight.sectionIndex(y));   // 공유 FULL 층
         for (int lz = 0; lz < 16; lz++) {
             for (int lx = 0; lx < 16; lx++) {
                 int x = cx * 16 + lx, z = cz * 16 + lz;
@@ -212,7 +219,7 @@ public final class SkyLightEngine extends LightEngine {
                     }
                 }
                 for (int y = Math.min(ChunkLight.MAX_Y, fillBottom) - 1; y >= start; y--) {
-                    ChunkLight.set(cl.sky[ChunkLight.sectionIndex(y)], x, y, z, 15);
+                    cl.setSky(x, y, z, 15);
                     if (y == lowest || y < neighborMax) {
                         enqueueIncrease(pack(x, y, z), increaseSkySourceInDirections(y == lowest, y < n, y < s, y < w, y < e));
                     }

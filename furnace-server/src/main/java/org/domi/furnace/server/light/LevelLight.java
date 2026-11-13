@@ -70,7 +70,25 @@ public final class LevelLight {
             public int maxY() { return maxY; }
         };
         new LevelLight(w, hasSkyLight).lightChunk(cx, cz);
+        own.compact();   // 다 계산한 뒤 균일해진 층을 공유 상수로
         return own;
+    }
+
+    /**
+     * 디스크에서 읽은 빛(own)의 하늘빛 원천 높이만 블록에서 센다(바닐라도 원천은 저장하지 않고 올릴 때 initializeLightSources 로 센다).
+     * 빛 값은 건드리지 않는다. 생성 스레드에서 부른다 — 월드 상태를 읽지 않는다.
+     */
+    public static void computeStoredSources(ChunkLight own, int cx, int cz, StateReader blocks, int minY, int maxY, boolean hasSkyLight) {
+        if (!hasSkyLight) return;
+        LightWorld w = new LightWorld() {
+            public ChunkLight light(int x, int z) { return x == cx && z == cz ? own : null; }
+            public int state(int x, int y, int z) { return y < minY || y >= maxY ? 12958 : blocks.state(x, y, z); }
+            public int unloadedState() { return 0; }
+            public int uniformSectionState(int x, int sy, int z) { return x == cx && z == cz ? blocks.uniformSectionState(sy) : -1; }
+            public int minY() { return minY; }
+            public int maxY() { return maxY; }
+        };
+        new SkyLightEngine(w).computeSources(cx, cz);
     }
 
     /** 미리 계산한 빛이 올라온 청크를 이웃과 잇는다: 양쪽 가장자리를 서로 민다(이미 켜진 이웃만). */

@@ -500,12 +500,18 @@ public final class Region {
                 // 빈 칸 채우기(DUMMY)는 디스크 청크에도 한다 — 수정 전에 저장된 월드의 침대·종을 되살리고, Anvil+평지처럼 freshlyGenerated 가 안 서는 새 청크도 덮는다.
                 // 비용은 생성 풀에서 구역당 블록 배열 한 번 훑기(POI mayHavePoi 와 같은 꼴).
                 col.promotePendingBlockEntities(cp.x(), cp.z(), true);
+                // 내려가 있는 동안 이웃에서 빛이 줄었던 청크는 저장 빛을 버리고 고립 계산부터(표시는 설치 때 lightNewChunk 가 지운다)
+                if (col.lightStored() && world.lightStale().contains(cp.x(), cp.z())) {
+                    col.light(null);
+                    col.lightStored(false);
+                }
                 try {
                     org.domi.furnace.server.block.ChunkLevel.precomputeLight(col, cp.x(), cp.z(), bedrock, sky);
                 } catch (RuntimeException e) {
                     org.slf4j.LoggerFactory.getLogger(Region.class).warn("[LIGHT] 미리 계산 실패 {} — 올릴 때 다시 계산", cp, e);
                     col.light(null);
                     col.lightPrecomputed(false);
+                    col.lightStored(false);
                 }
             }
             if (ChunkTrace.ON) { traceSrc[1] = System.nanoTime(); ChunkTrace.nanos("light", traceSrc[1] - tl); }

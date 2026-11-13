@@ -456,6 +456,8 @@ public final class World {
             if (storage != null) storage.saveIfDirty();
             var forced = forcedChunks;
             if (forced != null) forced.saveIfDirty();
+            var stale = lightStale;
+            if (stale != null) stale.saveIfDirty();
             var gen = org.domi.furnace.server.world.gen.NoiseWorldSource.of(worldSource);
             if (gen != null) gen.structureEngine().references().saveIfDirty();   // 탐험 지도 references(A06-06)
             return null;
@@ -1606,6 +1608,21 @@ public final class World {
     public void setTickNanos(long nanos) { regionizer.setTickNanos(nanos); }
 
     public long tickNanos() { return regionizer.tickNanos(); }
+
+    private volatile LightStaleChunks lightStale;
+
+    /** 저장 빛을 믿으면 안 되는 청크(T-012, <차원 폴더>/data/furnace_light_stale.dat). 디스크 월드면 처음 쓸 때 읽는다. */
+    public LightStaleChunks lightStale() {
+        var f = lightStale;
+        if (f != null) return f;
+        synchronized (this) {
+            if (lightStale == null) {
+                lightStale = worldSource instanceof AnvilWorldSource && worldDir != null
+                        ? LightStaleChunks.open(dimensionType.storageDir(levelRoot())) : LightStaleChunks.detached();
+            }
+            return lightStale;
+        }
+    }
 
     private volatile ForcedChunks forcedChunks;
 
