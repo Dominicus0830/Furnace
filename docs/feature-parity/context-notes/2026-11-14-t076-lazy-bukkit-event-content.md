@@ -38,3 +38,8 @@ TASK: `docs/roadmap/optimization-tasks.md` T-076 (P-O13-09 (a)(b), 반론 2차 1
 
 - T-075(호환 기준 장면)가 들어오면 `getType`/`getBlockData` 장면과 함께 이 두 경로를 장면에 넣어 실서버 몫을 측정한다(지금 수치는 미니 벤치).
 - (c) `SnapshotInventory` 즉시 복사는 T-033 지연 스냅샷 PR 에서.
+
+## 검토(PR #321) 반영·후속 후보
+
+- R1 `PlainSlot` 의 필드·메서드 집합 고정 시험, R2 실제 다리 push/pull 을 옛 코드와 나란히 돌리는 차분 시험(처리기 12개·사이 Furnace 처리기·ABA·남긴 참조 변경, 2000판) `T076BridgeLegacyDifferentialTest`, R3 생성자 javadoc 에 Paper 에 없음·`null` 인자 모호함 표시.
+- 후속 TASK 후보(범위 밖): (1) Paper 의 `@Deprecated` 5인자 `BlockPhysicsEvent` 생성자 누락, (2) Paper 의 `skipPushModeEventFire`/`skipPullModeEventFire`(처리기가 `getItem`·`setItem` 을 안 부르면 이후 이동 이벤트 생략 — Paper 관측 동작이라 따를지 판정 필요).

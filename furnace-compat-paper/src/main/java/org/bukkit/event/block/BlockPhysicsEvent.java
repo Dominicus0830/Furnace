@@ -32,7 +32,10 @@ public class BlockPhysicsEvent extends BlockEvent implements Cancellable {
         this(block, org.domi.furnace.api.event.LazyValue.ready(changed), sourceBlock);
     }
 
-    /** 호환 모듈 전용(T-076) — 갱신받는 칸의 상태를 처리기가 처음 읽을 때 만든다. 결과는 위 생성자에 미리 만든 값을 준 것과 같다. */
+    /**
+     * 호환 모듈 전용(T-076, Paper 에 없는 생성자) — 갱신받는 칸의 상태를 처리기가 처음 읽을 때 만든다. 결과는 위 생성자에 미리 만든 값을 준 것과 같다.
+     * 주의: 플러그인이 소스에서 둘째 인자로 {@code null} 을 직접 적으면 이 생성자와 모호해진다(이미 컴파일된 jar 는 영향 없음).
+     */
     public BlockPhysicsEvent(Block block, org.domi.furnace.api.event.LazyValue<BlockData> changed, Block sourceBlock) {
         super(block);
         this.changed = java.util.Objects.requireNonNull(changed, "changed");

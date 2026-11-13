@@ -86,6 +86,24 @@ class T076LazyEventContentTest {
         for (String name : READERS) assertTrue(seen.contains(name) || name.equals("getPersistentDataContainer"), "분류표에만 있는 메서드: " + name);
     }
 
+    /**
+     * 변경 번호가 거짓 "같음"을 만들지 않으려면 PlainSlot 의 값 필드를 바꾸는 길이 set·setAmount 둘뿐이어야 한다(PR #321 검토 R1).
+     * 선언된 필드·메서드 집합을 고정해, 새 쓰기 길이 생기면 번호를 올리는지 확인하게 한다.
+     */
+    @Test
+    void plainSlotHasOnlyTheKnownWritePaths() throws Exception {
+        Class<?> c = Class.forName("org.domi.furnace.compat.paper.PlainSlot");
+        Set<String> fields = new TreeSet<>();
+        for (var f : c.getDeclaredFields()) {
+            assertTrue(Modifier.isPrivate(f.getModifiers()), "필드는 private: " + f.getName());
+            fields.add(f.getName());
+        }
+        assertEquals(Set.of("stack", "amount", "stamp"), fields);
+        Set<String> methods = new TreeSet<>();
+        for (var m : c.getDeclaredMethods()) if (!m.isSynthetic()) methods.add(m.getName() + "/" + m.getParameterCount());
+        assertEquals(Set.of("get/0", "set/1", "amount/0", "setAmount/1", "changeStamp/0"), methods);
+    }
+
     private static org.bukkit.inventory.ItemStack fresh() {
         var s = new org.bukkit.inventory.ItemStack(Material.DIAMOND_SWORD, 3);
         s.addUnsafeEnchantment(Enchantment.SHARPNESS, 2);
