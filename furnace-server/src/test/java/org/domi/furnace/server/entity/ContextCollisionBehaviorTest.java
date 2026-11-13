@@ -99,6 +99,32 @@ class ContextCollisionBehaviorTest {
         assertEquals(-0.3, Entity.collideMove(level, s, s.boundingBox(), false, 0.0F, 0.0, -0.3, 0.0)[1], 1e-12);
     }
 
+    /**
+     * 네더 포털 출구 자리(findFreePosition(entity))는 떠나는 엔티티의 문맥 스냅샷으로 블록 충돌을 본다(검토 R1): 스트라이더는 용암 원천 반 칸을 피해
+     * 위로 밀리고, 문맥 없음은 그대로. 스냅샷은 가루눈 값(장화)도 떠 두어 나중에 바뀌어도 그대로다.
+     */
+    @Test
+    void portalExitUsesTravelerContextSnapshot() {
+        put(0, -61, 0, lavaSource);
+        Strider s = new Strider(level, level.nextEntityId());
+        s.moveTo(0.5, -60.4, 0.5, 0, 0);
+        Traveler t = Traveler.of(s);
+        double[] withCtx = org.domi.furnace.server.block.types.PortalShape.findCollisionFreePosition(level, t.collision(), 0.5, -60.9, 0.5, s.bbWidth(), s.bbHeight());
+        assertEquals(-60.5, withCtx[1], 1e-9, "용암 원천 윗면(-60.5)으로 밀린다");
+        double[] none = org.domi.furnace.server.block.types.PortalShape.findCollisionFreePosition(level, CollisionContext.EMPTY, 0.5, -60.9, 0.5, s.bbWidth(), s.bbHeight());
+        assertEquals(-60.9, none[1], 1e-9);
+
+        int snow = B.defaultState("minecraft:powder_snow");
+        put(3, -60, 0, snow);
+        Player p = player(3.5, -59.0, 0.5);
+        p.inventory().set(8, B.stack("minecraft:leather_boots", 1));
+        CollisionContext snap = Traveler.of(p).collision();
+        p.inventory().set(8, org.domi.furnace.server.entity.ItemStack.EMPTY);
+        AABB above = new AABB(3.2, -59.9, 0.2, 3.8, -59.5, 0.8);   // 가루눈 칸(-60..-59) 안, 아래 잔디와는 겹치지 않는다
+        assertFalse(level.blockCollisionsWith(snap, above).isEmpty(), "떠 둔 문맥은 장화를 신은 채");
+        assertTrue(level.blockCollisionsWith(CollisionContext.of(p).snapshot(), above).isEmpty(), "벗은 뒤 뜬 문맥은 빠진다");
+    }
+
     @Test
     void arrowPassesThroughScaffoldingSideways() {
         put(0, -60, 0, scaffolding);

@@ -16,7 +16,6 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.entity.Entity;
 import org.domi.furnace.server.entity.EquipmentSlot;
-import org.domi.furnace.server.entity.FallingBlockEntity;
 import org.domi.furnace.server.entity.LivingEntity;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.Rider;
@@ -33,19 +32,14 @@ public class PowderSnowBlock extends BlockBehavior {
      */
     @Override
     public Shape getCollisionShape(int state, BlockLevel level, Pos pos, CollisionContext ctx) {
-        Rider who = ctx.entity();
-        if (who != null) {
-            if (fallDistance(who) > 2.5F) return FALLING_COLLISION_SHAPE;
+        if (ctx.hasEntity()) {
+            if (ctx.fallDistance() > 2.5F) return FALLING_COLLISION_SHAPE;
             // isAbove(Shapes.block(), pos, false): 발밑이 블록 윗면(1.0) − 1.0E-5F 보다 위
-            if (who instanceof FallingBlockEntity || canEntityWalkOnPowderSnow(who) && ctx.isAbove(1.0, pos, false) && !ctx.isDescending()) {
+            if (ctx.isFallingBlock() || ctx.canWalkOnPowderSnow() && ctx.isAbove(1.0, pos, false) && !ctx.isDescending()) {
                 return Shape.BLOCK;
             }
         }
         return Shape.EMPTY;
-    }
-
-    private static float fallDistance(Rider who) {
-        return who instanceof Entity e ? e.fallDistance : ((Player) who).vitals().fallDistance();
     }
 
     /** canEntityWalkOnPowderSnow(플레이어 포함): #powder_snow_walkable_mobs 에 플레이어는 없다 — 가죽 장화만 본다. */

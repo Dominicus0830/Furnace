@@ -46,3 +46,13 @@ PR #305(T-018) 검토 R6 에서 나눈 정확성 수정. 바닐라 1.21.1 에서
   바닐라 ScaffoldingBlock.getCollisionShape 가 빈 모양을 돌려 지나간다(바닥 판도 distance≠0·bottom 일 때만). 옛 Furnace 는 언제나 데이터 모양(꽉 막힘)이었다.
 - 귀속 확인: 비계 문맥 분기를 "언제나 데이터 모양"으로 되돌리면(나머지 변경은 그대로) 옛 금 파일과 그대로 같다 — 달라진 것은 비계 문맥 하나뿐이다.
 - 갱신 명령 `-Dfurnace.identity.bless=entity-collision-scene`, 결정성 점검(두 번 실행) 통과.
+
+### 독립 검토(PR #316) 반영
+- R1 네더 포털 출구 `PortalShape.findCollisionFreePosition` 은 바닐라 `findFreePosition(entity)` → `getBlockCollisions(entity)` 처럼 떠나는 엔티티의
+  문맥으로 묻는다. 출구 계산은 목적 차원 region 스레드라 `Traveler.collision` 에 출발 자리 문맥 스냅샷(`CollisionContext.snapshot()`)을 담는다 —
+  가루눈이 엔티티에서 늦게 읽던 값(낙하 거리·걸을 수 있음·떨어지는 블록)도 함께 떠 둔다. 스트라이더는 출구 둘레 용암 원천 반 칸을 피한다.
+- R2 월드 스폰 흩뿌리기(`adjustSpawnLocation`)의 noCollision 은 플레이어 문맥: 처음 들어오면 Player 생성자가 놓은 공유 스폰 (x+0.5, y+1, z+0.5) 의
+  갓 만든 플레이어(`CollisionContext.newPlayer`), 리스폰·엔드 귀환이면 그때 플레이어의 스냅샷. 처음 접속 때 보더 판정 위치도 (0, 0) 에서 그 자리로 고쳤다.
+- R3 솔 광선(`Brushing.calculateBlockHit`)은 바닐라 `getHitResultOnViewVector` 처럼 COLLIDER + 플레이어 문맥 — 풀·횃불, 위에 서지 않은 비계를 지나간다.
+- R6 액체 칸은 원천 유체 위에 서지 못하는 문맥이면 칸을 읽자마자(NONE 과 같은 첫 검사에서) 건너뛴다 — 서기 판정은 수집 시작에 한 번.
+- 남김: R4(웅크림이 IO 스레드에서 이동 패킷보다 먼저 반영될 수 있음 — 세로 차이를 보지 않는 검증이라 드물다), R5(안정 모양 Y 격자 — 결과 차이 없음).

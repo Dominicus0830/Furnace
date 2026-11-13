@@ -3112,8 +3112,18 @@ public abstract class ChunkLevel implements BlockLevel {
      * scanCollisions 이되 문맥의 발 높이를 selfBottom 으로(NaN 이면 self.y()) — 바닐라가 엔티티를 옮긴 뒤 묻는 곳(플레이어 이동 검증)용.
      */
     public void scanCollisions(AABB box, Rider self, double selfBottom, CollisionSink out) {
-        CollisionContext ctx = self == null ? CollisionContext.EMPTY : null;   // self 가 있으면 문맥 블록을 처음 만날 때 만든다
-        int standsOnFluid = -1;                                                 // 액체 칸을 처음 만날 때 정한다(1 = 원천 유체 위에 설 수 있다)
+        scanCollisions(box, self, selfBottom, self == null ? CollisionContext.EMPTY : null, out);   // self 가 있으면 문맥 블록을 처음 만날 때 만든다
+    }
+
+    /** scanCollisions 이되 이미 만든 문맥으로(다른 스레드에서 떠 온 스냅샷 — 포털 출구 자리 찾기). */
+    public void scanCollisionsWith(AABB box, CollisionContext ctx, CollisionSink out) { scanCollisions(box, null, Double.NaN, ctx, out); }
+
+    /** ctx 가 null 이면 self 로 처음 쓸 때 만든다(그때 self 는 null 이 아니다). */
+    private void scanCollisions(AABB box, Rider self, double selfBottom, CollisionContext ctx, CollisionSink out) {
+        // 액체는 원천 유체 위에 설 수 있는 문맥(스트라이더)에서만 모양이 생긴다 — 나머지(물속 몹·배·플레이어·문맥 없음)는 액체 칸을 공기처럼
+        // 첫 검사에서 건너뛴다(문맥도 만들지 않는다). CollisionContext.of 와 같은 판정(Mob.canStandOnFluid(원천))
+        boolean standsOnFluid = ctx != null ? ctx.standsOnAnyFluid()
+                : self instanceof org.domi.furnace.server.entity.Mob m && (m.canStandOnFluid(Fluids.WATER_SOURCE) || m.canStandOnFluid(Fluids.LAVA_SOURCE));
         int x0 = Entity.floor(box.minX() - 1.0E-7) - 1, x1 = Entity.floor(box.maxX() + 1.0E-7) + 1;
         int y0 = Entity.floor(box.minY() - 1.0E-7) - 1, y1 = Entity.floor(box.maxY() + 1.0E-7) + 1;
         int z0 = Entity.floor(box.minZ() - 1.0E-7) - 1, z1 = Entity.floor(box.maxZ() + 1.0E-7) + 1;
@@ -3161,19 +3171,12 @@ public abstract class ChunkLevel implements BlockLevel {
                         int state = sec.getBlock(x & 15, ly, lz);
                         int f = flags[state];
                         int kind = f & CollisionTable.KIND;
-                        if (kind == CollisionTable.NONE) continue;
+                        if (kind == CollisionTable.NONE || (f & CollisionTable.FLUID) != 0 && !standsOnFluid) continue;
                         if (edges == 1 && (f & CollisionTable.LARGE) == 0 || edges == 2 && (f & CollisionTable.PISTON) == 0) continue;
                         Shape shape;
                         if (kind == CollisionTable.STATIC) {
                             shape = shapes[state];
                         } else {
-                            // 액체는 유체 위에 설 수 있는 몹(스트라이더)의 문맥에서만 모양이 생긴다 — 나머지(물속 몹·배·플레이어·문맥 없음)는
-                            // 문맥도 만들지 않고 건너뛴다. CollisionContext.of 와 같은 판정(Mob.canStandOnFluid(원천))
-                            if ((f & CollisionTable.FLUID) != 0) {
-                                if (standsOnFluid < 0) standsOnFluid = self instanceof org.domi.furnace.server.entity.Mob m
-                                        && (m.canStandOnFluid(Fluids.WATER_SOURCE) || m.canStandOnFluid(Fluids.LAVA_SOURCE)) ? 1 : 0;
-                                if (standsOnFluid == 0) continue;
-                            }
                             if (ctx == null) ctx = CollisionContext.of(self, Double.isNaN(selfBottom) ? self.y() : selfBottom);
                             shape = BlockBehaviors.of(state).getCollisionShape(state, this, new Pos(x, y, z), ctx);
                             if (shape.isEmpty()) continue;
@@ -3200,6 +3203,13 @@ public abstract class ChunkLevel implements BlockLevel {
     public java.util.List<Shape> blockCollisions(Rider entity, double selfBottom, AABB box) {
         java.util.List<Shape> out = new java.util.ArrayList<>();
         scanCollisions(box, entity, selfBottom, (x, y, z, s) -> out.add(s.move(x, y, z)));
+        return out;
+    }
+
+    /** getBlockCollisions 를 이미 만든 문맥으로(포털 출구 자리 찾기 — 떠나는 엔티티의 출발 쪽 문맥 스냅샷). */
+    public java.util.List<Shape> blockCollisionsWith(CollisionContext ctx, AABB box) {
+        java.util.List<Shape> out = new java.util.ArrayList<>();
+        scanCollisionsWith(box, ctx, (x, y, z, s) -> out.add(s.move(x, y, z)));
         return out;
     }
 
@@ -3242,11 +3252,16 @@ public abstract class ChunkLevel implements BlockLevel {
     public boolean noCollisionIgnoringEntities(Entity self, AABB box) { return noCollisionAt(self, self.x(), Double.NaN, self.z(), box, false); }
 
     /**
-     * noCollision(플레이어, box) 를 Player 객체 없이: 탈것에 타지 않은 플레이어는 canCollideWith 가 canBeCollidedWith 와 같고 블록 문맥도 없으므로
-     * 엔티티 몫은 noCollision(null, box) 와 같다. 보더 가까움은 (sx, sz) 로 본다(스폰 자리 흩뿌리기).
+     * noCollision(플레이어, box) 를 Player 객체 없이: 블록은 플레이어 문맥(ctx — 떠 둔 스냅샷·갓 만든 플레이어), 탈것에 타지 않은 플레이어는
+     * canCollideWith 가 canBeCollidedWith 와 같아 엔티티 몫은 noCollision(null, box) 와 같다. 보더 가까움은 (sx, sz) 로 본다(스폰 자리 흩뿌리기).
      */
-    public boolean noCollisionForUnmountedPlayer(double sx, double sz, AABB box) {
-        if (!noCollisionAt(null, 0.0, Double.NaN, 0.0, box, true)) return false;
+    public boolean noCollisionForUnmountedPlayer(CollisionContext ctx, double sx, double sz, AABB box) {
+        boolean[] hit = {false};
+        scanCollisionsWith(box, ctx, (x, y, z, s) -> {
+            hit[0] = true;
+            return false;
+        });
+        if (hit[0] || !entityCollisions(null, box).isEmpty()) return false;
         return borderClear(sx, sz, box);
     }
 

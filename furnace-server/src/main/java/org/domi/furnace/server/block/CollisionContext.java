@@ -2,9 +2,14 @@
 // EMPTY(문맥 없음)는 isAbove 가 넘긴 기본값을 그대로 돌려주고, 웅크림 아님·유체 위에 서지 못함이다.
 // 엔티티 문맥은 만들 때의 발 높이(getY)와 웅크림(isDescending = isShiftKeyDown)을 붙잡는다 — 바닐라도 BlockCollisions·ClipContext 를 만들 때 한 번 붙잡는다.
 // 들고 있는 아이템(isHoldingItem)은 윤곽 모양(getShape)만 쓰고 충돌 모양은 쓰지 않아 아직 담지 않는다.
+// 다른 스레드에서 쓸 문맥(포털 출구 자리 찾기)은 snapshot() 으로 엔티티에서 늦게 읽던 값(가루눈: 낙하 거리·걸을 수 있음)까지 미리 떠 둔다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.block.types.PowderSnowBlock;
+import org.domi.furnace.server.entity.Entity;
+import org.domi.furnace.server.entity.FallingBlockEntity;
 import org.domi.furnace.server.entity.Mob;
+import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.Rider;
 
 public final class CollisionContext {
@@ -17,13 +22,47 @@ public final class CollisionContext {
     private final double entityBottom;
     // LivingEntity.canStandOnFluid(원천) — 액체 블록 충돌은 level 0(원천)일 때만 묻으므로 원천 두 가지만 미리 구해 둔다.
     private final boolean standsOnWaterSource, standsOnLavaSource;
+    // 스냅샷 문맥(snapshot())만: 떠 둔 엔티티 값. 산 문맥은 entity 에서 그때 읽는다.
+    private final boolean detached, walksOnPowderSnow, fallingBlock;
+    private final float fallDistance;
 
     private CollisionContext(Rider entity, boolean descending, double entityBottom, boolean standsOnWaterSource, boolean standsOnLavaSource) {
+        this(entity, descending, entityBottom, standsOnWaterSource, standsOnLavaSource, false, false, false, 0.0F);
+    }
+
+    private CollisionContext(Rider entity, boolean descending, double entityBottom, boolean standsOnWaterSource, boolean standsOnLavaSource,
+                             boolean detached, boolean walksOnPowderSnow, boolean fallingBlock, float fallDistance) {
         this.entity = entity;
         this.descending = descending;
         this.entityBottom = entityBottom;
         this.standsOnWaterSource = standsOnWaterSource;
         this.standsOnLavaSource = standsOnLavaSource;
+        this.detached = detached;
+        this.walksOnPowderSnow = walksOnPowderSnow;
+        this.fallingBlock = fallingBlock;
+        this.fallDistance = fallDistance;
+    }
+
+    /**
+     * 엔티티를 놓은 문맥: 엔티티에서 늦게 읽던 값(가루눈의 낙하 거리·걸을 수 있음·떨어지는 블록인가)을 지금 떠 둔다.
+     * 엔티티 소유 스레드에서 만들어 다른 스레드(포털 출구 자리 찾기 — 바닐라 findFreePosition(entity) 의 getBlockCollisions(entity))로 넘길 때 쓴다.
+     */
+    public CollisionContext snapshot() {
+        if (entity == null) return this;
+        return new CollisionContext(null, descending, entityBottom, standsOnWaterSource, standsOnLavaSource,
+                true, PowderSnowBlock.canEntityWalkOnPowderSnow(entity), entity instanceof FallingBlockEntity, fallDistanceOf(entity));
+    }
+
+    /**
+     * 갓 만든 플레이어의 문맥(ServerPlayer 생성자 안의 adjustSpawnLocation — Player 생성자가 이미 공유 스폰 (x+0.5, y+1, z+0.5) 로 옮겼다):
+     * 발 높이 bottom, 웅크림 아님, 유체 위에 서지 못함, 낙하 거리 0, 장비 없음(가루눈을 걷지 못함).
+     */
+    public static CollisionContext newPlayer(double bottom) {
+        return new CollisionContext(null, false, bottom, false, false, true, false, false, 0.0F);
+    }
+
+    private static float fallDistanceOf(Rider who) {
+        return who instanceof Entity e ? e.fallDistance : ((Player) who).vitals().fallDistance();
     }
 
     /** CollisionContext.of(entity): 지금 발 높이로. null 이면 EMPTY(바닐라 BlockCollisions 의 entity == null 분기). */
@@ -72,8 +111,20 @@ public final class CollisionContext {
         return new CollisionContext(null, descending, bottom, standsOnWaterSource, standsOnLavaSource);
     }
 
-    /** 문맥 엔티티(EMPTY·본체 없는 행위자면 null). 바닐라 EntityCollisionContext.getEntity. */
+    /** 문맥 엔티티(EMPTY·본체 없는 행위자·스냅샷이면 null). 바닐라 EntityCollisionContext.getEntity. */
     public Rider entity() { return entity; }
+
+    /** 엔티티 문맥인가(산 엔티티이거나 엔티티를 떠 둔 스냅샷) — 가루눈이 getEntity() instanceof EntityCollisionContext 로 가르는 것. */
+    public boolean hasEntity() { return entity != null || detached; }
+
+    /** 문맥 엔티티의 낙하 거리(엔티티 문맥만). */
+    public float fallDistance() { return detached ? fallDistance : fallDistanceOf(entity); }
+
+    /** PowderSnowBlock.canEntityWalkOnPowderSnow(문맥 엔티티)(엔티티 문맥만). */
+    public boolean canWalkOnPowderSnow() { return detached ? walksOnPowderSnow : PowderSnowBlock.canEntityWalkOnPowderSnow(entity); }
+
+    /** 문맥 엔티티가 FallingBlockEntity 인가(엔티티 문맥만). */
+    public boolean isFallingBlock() { return detached ? fallingBlock : entity instanceof FallingBlockEntity; }
 
     /** isDescending(): 엔티티가 웅크리고 있다(비계를 타고 내려가기, 가루눈 빠지기). */
     public boolean isDescending() { return descending; }
