@@ -2327,6 +2327,11 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private final java.util.Set<ChunkPos> cornerInFlight = java.util.concurrent.ConcurrentHashMap.newKeySet();
     public java.util.Set<ChunkPos> cornerInFlight() { return cornerInFlight; }
 
+    /** 모서리 목록을 다시 모으기까지 쉰 틱(region 스레드만). */
+    private int cornerIdleTicks;
+    public int cornerIdleTicks() { return cornerIdleTicks; }
+    public void cornerIdleTicks(int v) { this.cornerIdleTicks = v; }
+
     /** 요청했지만 아직 끝나지 않은(생성·직렬화 중인) 청크 전송 수 — 완료 콜백은 다른 스레드서 줄인다. */
     private final java.util.concurrent.atomic.AtomicInteger chunkSendsInFlight = new java.util.concurrent.atomic.AtomicInteger();
 
