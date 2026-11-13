@@ -129,13 +129,13 @@ public final class SceneEntityReads extends CompatScene {
             if (e.getUniqueId().equals(fh.uniqueId())) sameUuid++;
             if (e.getEntityId() == fh.entityId()) sameId++;
             if (Compat.cachedEntity(fh.uniqueId()) == e) cached++;
-            h.add(e.isValid()).add(e.getClass().getSimpleName());
+            h.add(e.isValid());   // 구현 클래스 이름은 해시에 넣지 않는다(내부 구조) — 관측되는 것은 아래 instanceof
             h.add(safe(() -> e.getType().name())).add(safe(() -> e.getName())).add(safe(() -> e.getCustomName()));
             h.add(safe(() -> e.getWorld().getName()));
             var l = e.getLocation();
             h.add(d(l.getX())).add(d(l.getY())).add(d(l.getZ())).add(d((double) l.getYaw())).add(d((double) l.getPitch()));
             h.add(safe(() -> l.getWorld().getName()));
-            h.add(e instanceof org.bukkit.entity.LivingEntity).add(e instanceof org.bukkit.entity.Pig).add(e instanceof org.bukkit.entity.ArmorStand).add(e instanceof org.bukkit.entity.Item);
+            h.add(e instanceof org.bukkit.entity.LivingEntity).add(e instanceof org.bukkit.entity.Projectile).add(e instanceof org.bukkit.entity.Pig).add(e instanceof org.bukkit.entity.ArmorStand).add(e instanceof org.bukkit.entity.Item);
             h.add(e.equals(again)).add(e.hashCode() == again.hashCode());
             out.add("entity " + fh.type() + " " + IdentityHash.hex(h.value()));
         }
