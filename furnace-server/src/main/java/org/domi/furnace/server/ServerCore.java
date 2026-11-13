@@ -926,7 +926,7 @@ public final class ServerCore {
                 if (ts.globalStepsLeft() == 0) broadcastTickStep(0);
             } else {
                 beginServerTick();   // 바닐라는 정지 중에도 서버 틱 번호가 간다
-                tickEmptyTimes();
+                for (int i = 0; i < n; i++) tickEmptyTimes();   // 레벨 tick 은 정지 중에도 /tick rate 대로 불려 emptyTime 이 는다
             }
             return;
         }
@@ -1037,7 +1037,13 @@ public final class ServerCore {
 
     /** 바닐라 ServerLevel.tick 의 emptyTime(차원마다, 정지 중에도 센다). region 틱보다 먼저 정해 둔다 — 이번 틱 엔티티·블록 엔티티를 돌릴지. */
     private void tickEmptyTimes() {
-        for (World w : worlds()) w.tickEmptyTime();
+        String mode = org.domi.furnace.server.config.OperatorOptions.current().tickWhenEmpty();
+        boolean always = switch (mode) {
+            case org.domi.furnace.server.config.OperatorOptions.TICK_WHEN_EMPTY_ALWAYS -> true;
+            case org.domi.furnace.server.config.OperatorOptions.TICK_WHEN_EMPTY_VANILLA -> false;
+            default -> pluginHost != null && pluginHost.pluginsImpl().foreignPluginsLoaded();   // auto: Bukkit 플러그인이 있으면 Paper 처럼
+        };
+        for (World w : worlds()) w.tickEmptyTime(always);
     }
 
     /**

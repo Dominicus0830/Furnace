@@ -608,8 +608,6 @@ public abstract non-sealed class Entity implements Rider {
             travel.settled();
             throw ex;
         }
-        // 바닐라 changeDimension 은 떠난·닿은 레벨 둘 다 resetEmptyTime(명령 teleportTo(레벨, …) 는 아니다 — targetDimension 이 null)
-        if (targetDimension != null) from.resetEmptyTime();
         final java.util.concurrent.atomic.AtomicBoolean called = new java.util.concurrent.atomic.AtomicBoolean();
         try {
             route.accept((target, t) -> {
@@ -619,7 +617,12 @@ public abstract non-sealed class Entity implements Rider {
                         travel.runAtSource(floor(ox), floor(oz), src -> restore(src, self, travel));
                     } else {
                         Entity made = arrive(target, t, travel, self, place);
-                        if (made != null && targetDimension != null) target.resetEmptyTime();
+                        // 바닐라 changeDimension: 새 엔티티를 만들었으면(entity2 != null) 떠난·닿은 레벨 둘 다 resetEmptyTime.
+                        // 명령 teleportTo(레벨, …)(targetDimension 이 null)·되살림은 부르지 않는다
+                        if (made != null && targetDimension != null) {
+                            from.resetEmptyTime();
+                            target.resetEmptyTime();
+                        }
                     }
                 } finally {
                     travel.settled();

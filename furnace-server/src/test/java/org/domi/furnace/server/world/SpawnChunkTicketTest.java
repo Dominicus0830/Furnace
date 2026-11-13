@@ -202,6 +202,15 @@ class SpawnChunkTicketTest {
         assertFalse(w.emptyIdle(), "놓은 뒤부터 다시 300 틱");
         w.tickEmptyTime();
         assertTrue(w.emptyIdle());
+        // CraftBukkit·Paper 기본(flag1 = true || …): 늘 도는 쪽은 비어도 쉬지 않고, 다시 바닐라로 돌아가면 300 틱부터 센다
+        w.tickEmptyTime(true);
+        assertFalse(w.emptyIdle());
+        for (int i = 0; i < 1000; i++) w.tickEmptyTime(true);
+        assertFalse(w.emptyIdle());
+        for (int i = 0; i < 300; i++) w.tickEmptyTime();
+        assertFalse(w.emptyIdle());
+        w.tickEmptyTime();
+        assertTrue(w.emptyIdle());
     }
 
     /**
@@ -242,6 +251,31 @@ class SpawnChunkTicketTest {
         for (int i = 0; i < 300; i++) core.tick();
         assertFalse(world.emptyIdle());
         core.tick();
-        assertTrue(world.emptyIdle(), "접속자 없는 서버: 301 번째 전역 틱부터 엔티티·블록 엔티티를 쉰다");
+        assertTrue(world.emptyIdle(), "world.tick-when-empty=auto, Bukkit 플러그인 없음: 바닐라대로 301 번째 전역 틱부터 쉰다");
+
+        var d = org.domi.furnace.server.config.OperatorOptions.DEFAULT;
+        try {
+            org.domi.furnace.server.config.OperatorOptions.install(new org.domi.furnace.server.config.OperatorOptions(d.strictChatOrder(),
+                    d.unsignedChatAsSystem(), d.serverBrand(), d.announceSleepStatus(), d.confirmInterrupt(), d.interruptConfirmSeconds(),
+                    d.motdFormat(), d.gravityBlockPortalDupe(), d.sendNamespacedCommands(), "always"));
+            core.tick();
+            assertFalse(world.emptyIdle(), "always(Paper 기본): 비어도 돈다");
+            for (int i = 0; i < 400; i++) core.tick();
+            assertFalse(world.emptyIdle());
+        } finally {
+            org.domi.furnace.server.config.OperatorOptions.install(null);
+        }
+    }
+
+    /** 설정 키 world.tick-when-empty: auto(기본)·vanilla·always, 그 밖은 기동 오류. */
+    @Test
+    void tickWhenEmptyOption() throws Exception {
+        java.nio.file.Path f = tmp.resolve("furnace.properties");
+        java.nio.file.Files.writeString(f, "world.tick-when-empty=Vanilla\n");
+        assertEquals("vanilla", org.domi.furnace.server.config.OperatorOptions.load(f).tickWhenEmpty());
+        java.nio.file.Files.writeString(f, "server-brand=X\n");
+        assertEquals("auto", org.domi.furnace.server.config.OperatorOptions.load(f).tickWhenEmpty());
+        java.nio.file.Files.writeString(f, "world.tick-when-empty=sometimes\n");
+        assertThrows(IllegalArgumentException.class, () -> org.domi.furnace.server.config.OperatorOptions.load(f));
     }
 }

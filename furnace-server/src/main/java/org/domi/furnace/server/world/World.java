@@ -913,17 +913,18 @@ public final class World {
     /** 바닐라 emptyTime: 플레이어도 /forceload 청크도 없이 지난 틱 수. 전역 틱이 늘리고, 엔티티가 차원을 넘으면 어느 스레드든 0 으로. */
     private final java.util.concurrent.atomic.AtomicInteger emptyTime = new java.util.concurrent.atomic.AtomicInteger();
 
-    /** 이번 틱에 엔티티·블록 엔티티·드래곤 전투를 쉬는가(emptyTime 이 300 에 닿았다). 전역 틱이 정하고 region 이 읽는다. */
-    private volatile boolean emptyIdle;
-
     /**
      * 바닐라 ServerLevel.tick: {@code flag = !players.isEmpty() || !getForcedChunks().isEmpty(); if (flag) resetEmptyTime();
      * if (flag || emptyTime++ < 300) { 드래곤 전투·엔티티·블록 엔티티 }}. 전역 틱(서버 틱마다, region 틱보다 먼저)에서 차원마다 부른다.
      * 예약 틱·블록 이벤트·청크 틱은 이와 무관하게 돈다 — 스폰 청크의 중계기·관측기는 계속 돌고 호퍼·움직이는 피스톤은 멈춘다.
+     * keepTicking 이면 비어도 flag 를 참으로 본다(CraftBukkit·Paper 기본 {@code flag1 = true || …}, world.tick-when-empty).
      */
-    public void tickEmptyTime() {
-        var forced = forcedChunks;
-        boolean occupied = forced != null && forced.size() > 0;
+    public void tickEmptyTime(boolean keepTicking) {
+        boolean occupied = keepTicking;
+        if (!occupied) {
+            var forced = forcedChunks;
+            occupied = forced != null && forced.size() > 0;
+        }
         if (!occupied) {
             String dim = dimensionType.levelKey();
             for (Player p : online.array) {
@@ -933,22 +934,21 @@ public final class World {
                 }
             }
         }
-        if (occupied) {
-            emptyTime.set(0);
-            emptyIdle = false;
-        } else {
-            emptyIdle = emptyTime.getAndIncrement() >= 300;
-        }
+        if (occupied) emptyTime.set(0);
+        else emptyTime.incrementAndGet();
     }
+
+    /** 바닐라 규칙대로(Bukkit 의 늘 돌기 없이). */
+    public void tickEmptyTime() { tickEmptyTime(false); }
 
     /** 바닐라 ServerLevel.resetEmptyTime(Entity.changeDimension 이 떠나는·닿는 차원 둘 다 부른다): 다음 300 틱은 다시 엔티티가 돈다. */
-    public void resetEmptyTime() {
-        emptyTime.set(0);
-        emptyIdle = false;
-    }
+    public void resetEmptyTime() { emptyTime.set(0); }
 
-    /** 이 차원이 비어 300 틱이 지나 엔티티·블록 엔티티 틱을 쉬는가. */
-    public boolean emptyIdle() { return emptyIdle; }
+    /**
+     * 이 차원이 비어 300 틱이 지나 엔티티·블록 엔티티 틱을 쉬는가. 바닐라 {@code emptyTime++ < 300} 의 거짓 = 늘린 뒤 값 &gt; 300.
+     * 값 하나에서 유도하므로 resetEmptyTime 과 전역 틱이 겹쳐도 쉼 표시가 남지 않는다.
+     */
+    public boolean emptyIdle() { return emptyTime.get() > 300; }
 
     // 월드 시계: 모든 region 스레드·연결이 같은 값을 보도록 단조 시계(nanoTime)에서 계산한다(스레드별 tickCount는 비교 불가).
     // 시간·날씨: 전역 틱(ServerCore.tick)이 진행한다.
