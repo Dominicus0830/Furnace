@@ -2528,7 +2528,7 @@ public abstract class ChunkLevel implements BlockLevel {
             return false;
         }
         // 처리기가 옮겼으면 구역 목록을 맞춘다 — 추적기가 없는 동안에는 setPosRaw 가 구역 이동을 알리지 않는다(Paper 도 이벤트 뒤 위치로 넣는다)
-        if (e.sectionKey() != addedKey) entities.moved(e, addedKey);
+        if (e.sectionKey() != addedKey) entities.moved(e);
         startTracking(e);
         for (var l : e.dynamicGameEventListeners()) l.add(this);
         indexEntity(e, true);
@@ -2604,10 +2604,13 @@ public abstract class ChunkLevel implements BlockLevel {
         }
     }
 
-    /** 엔티티의 구역이 바뀌었다(setPosRaw). */
-    public void entitySectionChanged(Entity e, long oldKey) {
-        entities.moved(e, oldKey);
-        for (var l : e.dynamicGameEventListeners()) l.move(this);   // onSectionChange
+    /**
+     * 엔티티의 구역이 바뀌었다(setPosRaw). 구역 목록은 추적 여부와 상관없이 맞춘다(바닐라 onMove — 추적 거리 0 인 마커도 옮기면 목록이 따라간다).
+     * 게임 이벤트 리스너는 추적을 시작해 리스너를 단 뒤에만 옮긴다(스폰 이벤트 처리기가 옮기는 동안 미리 등록되지 않게).
+     */
+    public void entitySectionChanged(Entity e) {
+        entities.moved(e);
+        if (e.tracker != null) for (var l : e.dynamicGameEventListeners()) l.move(this);   // onSectionChange
     }
 
     public java.util.List<Entity> getEntities(Entity except, AABB box, java.util.function.Predicate<? super Entity> filter) {

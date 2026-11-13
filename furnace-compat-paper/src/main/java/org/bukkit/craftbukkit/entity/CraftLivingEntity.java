@@ -27,22 +27,30 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
     /** 몹은 소유 스레드면 지금 체력(setHealth 직후 곧바로 바뀐 값), 아니면 핸들 시점 값. 플레이어 핸들은 그 자체가 지금 값이다. */
     @Override
     public double getHealth() {
-        if (!EntityStates.live(furnaceHandle())) return living().health();
-        try {
-            return EntityStates.read(furnaceHandle(), LivingEntityState.class, LivingEntityState::health, living().health(), "LivingEntity#getHealth");
-        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature raced) {
-            return living().health();
+        var h = living();
+        if (EntityStates.live(h)) {
+            try {
+                Float now = EntityStates.read(h, LivingEntityState.class, LivingEntityState::health, null, "LivingEntity#getHealth");   // T-078: 핸들 시점 값을 미리 읽지 않는다
+                if (now != null) return now;
+            } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature raced) {
+                // 핸들 시점 값으로
+            }
         }
+        return h.health();
     }
 
     @Override
     public double getMaxHealth() {
-        if (!EntityStates.live(furnaceHandle())) return living().maxHealth();
-        try {
-            return EntityStates.read(furnaceHandle(), LivingEntityState.class, LivingEntityState::maxHealth, living().maxHealth(), "LivingEntity#getMaxHealth");
-        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature raced) {
-            return living().maxHealth();
+        var h = living();
+        if (EntityStates.live(h)) {
+            try {
+                Float now = EntityStates.read(h, LivingEntityState.class, LivingEntityState::maxHealth, null, "LivingEntity#getMaxHealth");   // T-078: 핸들 시점 값을 미리 읽지 않는다
+                if (now != null) return now;
+            } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature raced) {
+                // 핸들 시점 값으로
+            }
         }
+        return h.maxHealth();
     }
 
     @Override
