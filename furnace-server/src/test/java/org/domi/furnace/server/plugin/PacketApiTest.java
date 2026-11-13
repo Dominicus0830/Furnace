@@ -303,7 +303,7 @@ class PacketApiTest {
     void unreadablePacketsCanBeObservedAndCancelledButNotChanged() {
         Player p = online("P");
         AtomicInteger n = new AtomicInteger();
-        host.packets().listen(a, PacketTypes.Clientbound.LEVEL_PARTICLES, e -> {   // 범용 코덱이 아직 못 읽는 종류(custom)
+        host.packets().listen(a, PacketTypes.Clientbound.LEVEL_PARTICLES, e -> {   // 본문이 깨져 범용 코덱이 못 읽는 패킷
             n.incrementAndGet();
             assertFalse(e.packet().readable());
             assertThrows(UnsupportedOperationException.class, () -> e.setPacket(e.packet()));
