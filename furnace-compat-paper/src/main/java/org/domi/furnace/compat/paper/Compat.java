@@ -24,18 +24,42 @@ import org.domi.furnace.compat.sched.LegacyScheduler;
 
 public final class Compat {
 
+    /** 플레이어 표를 훑어 접속이 끝난 것을 걷는 최소 문턱. 훑은 뒤에는 (남은 수 × 2) 로 올려 놓침마다 O(N) 이 되지 않게 한다. */
     private static final int PRUNE_AT = 1024;
 
     private static volatile State state;
 
     private Compat() {}
 
+    /** 키(UUID)를 아는 약한 참조 — 회수 큐에서 나온 것으로 표 칸을 바로 찾는다. 동일성 비교({@code remove(key, ref)})를 쓰므로 equals 는 그대로. */
+    private static final class EntityRef extends WeakReference<CraftEntity> {
+        final UUID key;
+
+        EntityRef(UUID key, CraftEntity referent, java.lang.ref.ReferenceQueue<CraftEntity> queue) {
+            super(referent, queue);
+            this.key = key;
+        }
+    }
+
     private static final class State {
         final Furnace furnace;
         final ConcurrentHashMap<String, CraftWorld> worlds = new ConcurrentHashMap<>();
         final ConcurrentHashMap<UUID, CraftPlayer> players = new ConcurrentHashMap<>();
+        /** 다음에 플레이어 표를 훑는 크기 문턱(T-073) — 훑은 뒤 남은 수의 2배(최소 {@link #PRUNE_AT}). 경쟁해도 정리 시점만 달라질 뿐이라 volatile 만. */
+        volatile int playerPruneAt = PRUNE_AT;
         /** 플레이어가 아닌 엔티티(H6: 같은 엔티티는 같은 CraftEntity → 같은 getHandle()). 아무도 안 들고 있으면 놓는다. */
-        final ConcurrentHashMap<UUID, WeakReference<CraftEntity>> entities = new ConcurrentHashMap<>();
+        final ConcurrentHashMap<UUID, EntityRef> entities = new ConcurrentHashMap<>();
+        /** 회수된 CraftEntity 의 {@link EntityRef} 가 오는 큐 — 놓칠 때 죽은 키만 걷는다(T-073: 살아 있는 감싸개가 많아도 전체를 훑지 않는다). */
+        final java.lang.ref.ReferenceQueue<CraftEntity> entityQueue = new java.lang.ref.ReferenceQueue<>();
+
+        /** 회수된 엔티티 감싸개의 표 칸을 걷는다 — 그 칸이 아직 그 참조일 때만(그 사이 새 감싸개로 바뀌었으면 건드리지 않는다). */
+        void drainEntityQueue() {
+            java.lang.ref.Reference<? extends CraftEntity> dead;
+            while ((dead = entityQueue.poll()) != null) {
+                EntityRef r = (EntityRef) dead;
+                entities.remove(r.key, r);
+            }
+        }
         /** Bukkit 메타데이터(메모리에만, 서버마다 따로 — Paper 처럼 엔티티는 UUID·플레이어는 이름·월드는 UID·블록은 칸으로 가른다). */
         final org.bukkit.craftbukkit.metadata.EntityMetadataStore entityMetadata = new org.bukkit.craftbukkit.metadata.EntityMetadataStore();
         final org.bukkit.craftbukkit.metadata.PlayerMetadataStore playerMetadata = new org.bukkit.craftbukkit.metadata.PlayerMetadataStore();
@@ -248,10 +272,19 @@ public final class Compat {
 
     /** minecraft:stone → STONE. 모르는 종류(플러그인 블록)는 AIR 가 아니라 null 이 아닌 값을 줄 수 없어 UnsupportedFeature. */
     static Material material(String blockType) {
-        Material m = Material.matchMaterial(blockType);
+        if (blockType == null) throw new UnsupportedFeature("Material null", "블록 종류가 없다");   // 옛 길(matchMaterial(null) == null)과 같은 예외
+        Material m = MATERIALS.get(blockType);
+        if (m != null) return m;
+        m = Material.matchMaterial(blockType);
         if (m == null) throw new UnsupportedFeature("Material " + blockType, "Bukkit Material 열거형에 없는 블록이다(데이터 팩·플러그인 블록)");
+        // 정식 키(minecraft:stone)로 찾은 것만 담는다 — 없는 종류는 지금처럼 부를 때마다 예외이고, matchMaterial 이 받아주는 다른 철자("STONE" 등)는 담지 않아
+        // 플러그인이 만든 임의 문자열로 표가 자라지 않는다. 서버가 상태 번호별로 같은 BlockData(같은 type 문자열)를 주므로 키 해시가 이미 계산돼 있다.
+        if (blockType.equals(m.getKey().toString())) MATERIALS.putIfAbsent(blockType, m);
         return m;
     }
+
+    /** 블록 종류 키 → Material. 정식 키만 담으므로 Material 수(블록 약 1100개)를 넘지 않는다. */
+    private static final java.util.concurrent.ConcurrentHashMap<String, Material> MATERIALS = new java.util.concurrent.ConcurrentHashMap<>(2048);
 
     // ------------------------------------------------------------------ 엔티티·플레이어
 
@@ -260,11 +293,18 @@ public final class Compat {
         State s = state();
         CraftPlayer c = s.players.get(p.uniqueId());
         if (c != null && c.furnaceHandle() == p) return c;
-        if (s.players.size() > PRUNE_AT) s.players.values().removeIf(x -> {
-            if (x.furnaceHandle().isOnline()) return false;
-            x.retire();
-            return true;
-        });
+        int size = s.players.size();
+        if (size > s.playerPruneAt) {
+            s.players.values().removeIf(x -> {
+                if (x.furnaceHandle().isOnline()) return false;
+                x.retire();
+                return true;
+            });
+            // 훑어도 안 줄면(접속 중인 것이 많음) 다음 훑기를 2배 크기로 미룬다 — 놓칠 때마다 O(N) 이 되지 않게(분할 상환)
+            s.playerPruneAt = Math.max(PRUNE_AT, s.players.size() * 2);
+        } else if (size <= PRUNE_AT && s.playerPruneAt != PRUNE_AT) {
+            s.playerPruneAt = PRUNE_AT;
+        }
         // 처음 감싸기·핸들 교체를 원자적으로 — 두 스레드가 동시에 와도 같은 CraftPlayer 를 받는다
         return s.players.compute(p.uniqueId(), (k, cur) -> {
             if (cur != null && cur.furnaceHandle() == p) return cur;
@@ -343,9 +383,18 @@ public final class Compat {
         }
     }
 
+    /** 시험용 — 엔티티 감싸개 표의 칸 수(회수됐어도 아직 안 걷은 칸 포함). */
+    static int entityCacheSize() { return state().entities.size(); }
+
+    /** 시험용 — 플레이어 감싸개 표의 칸 수. */
+    static int playerCacheSize() { return state().players.size(); }
+
+    /** 시험용 — 다음에 플레이어 표를 훑는 크기 문턱. */
+    static int playerPruneAt() { return state().playerPruneAt; }
+
     /** 이미 만들어 둔 그 UUID 의 Bukkit 엔티티(플레이어 아닌 것만, 없으면 null). 새로 만들지 않는다 — 어느 스레드나 된다. */
     public static CraftEntity cachedEntity(UUID id) {
-        WeakReference<CraftEntity> ref = state().entities.get(id);
+        EntityRef ref = state().entities.get(id);
         return ref == null ? null : ref.get();
     }
 
@@ -354,13 +403,13 @@ public final class Compat {
         if (e instanceof org.domi.furnace.api.entity.Player p) return player(p);
         State s = state();
         Class<? extends CraftEntity> kind = craftClass(e);
-        WeakReference<CraftEntity> ref = s.entities.get(e.uniqueId());
+        EntityRef ref = s.entities.get(e.uniqueId());
         CraftEntity c = ref == null ? null : ref.get();
         if (c != null && c.getClass() == kind) {
             c.furnaceHandle(e);   // 같은 엔티티의 새 스냅샷(옛 것이면 버린다)
             return c;
         }
-        if (s.entities.size() > PRUNE_AT) s.entities.values().removeIf(r -> r.get() == null);
+        s.drainEntityQueue();   // 회수된 감싸개의 칸만 걷는다 — 크기와 무관하게 O(회수된 수)
         // 없거나 지워졌을 때만 원자적으로 새로 만든다 — 동시에 처음 감싸도 CraftEntity(=getHandle 정체성)가 하나다
         CraftEntity[] out = new CraftEntity[1];
         s.entities.compute(e.uniqueId(), (k, r) -> {
@@ -371,7 +420,7 @@ public final class Compat {
                 return r;
             }
             out[0] = newCraft(kind, e);
-            return new WeakReference<>(out[0]);
+            return new EntityRef(k, out[0], s.entityQueue);
         });
         return out[0];
     }

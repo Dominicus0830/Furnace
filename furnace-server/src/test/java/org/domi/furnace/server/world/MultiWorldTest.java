@@ -250,6 +250,75 @@ class MultiWorldTest {
         assertFalse(api.isLoaded());
     }
 
+    // ----- T-071: PluginHost.handleFor 빠른 길(get)이 옛 compute 와 같은 결과를 내는지 -----
+
+    @Test
+    void handleForKeepsIdentityAndReplacesStaleHandle() throws Exception {
+        var host = core.plugins();
+        var main = host.worldHandle("minecraft:overworld");
+        assertSame(main, host.worldHandle("minecraft:overworld"), "같은 월드 = 같은 손잡이(여러 번)");
+        assertSame(main, host.world("minecraft:overworld"));
+        assertSame(core.world(), main.handle());
+
+        var a = host.createWorld(WorldCreator.named("hf").generator(WorldGenerator.VOID).build()).get(60, TimeUnit.SECONDS);
+        assertSame(a, host.worldHandle("minecraft:hf"));
+        assertSame(a, host.worldHandle("minecraft:hf"));
+        assertSame(a, host.worldNamed("hf"));
+        assertSame(main, host.worldHandle("minecraft:overworld"), "다른 차원의 손잡이는 그대로");
+
+        assertTrue(host.unloadWorld(a, false).get(60, TimeUnit.SECONDS));
+        assertNull(host.worldHandle("minecraft:hf"), "내린 월드는 조회가 null");
+        assertFalse(a.isLoaded(), "내린 월드의 손잡이는 isLoaded()=false 로 남는다");
+
+        var b = host.createWorld(WorldCreator.named("hf").generator(WorldGenerator.VOID).build()).get(60, TimeUnit.SECONDS);
+        assertNotSame(a, b, "같은 키로 다시 올리면 새 손잡이(낡은 손잡이를 돌려주지 않는다)");
+        assertTrue(b.isLoaded());
+        assertSame(b, host.worldHandle("minecraft:hf"));
+        assertSame(b, host.worldHandle("minecraft:hf"));
+        assertFalse(a.isLoaded());
+    }
+
+    @Test
+    void handleForReplacesHandleAfterUnloadAndReload() throws Exception {
+        // 내림(manager 훅 → worldDetached 로 손잡이가 걷힘) 뒤 같은 키로 다시 올리면 새 손잡이. 걷히기 전 낡은 항목이 남은 경우는 plugin.HandleForStaleEntryTest
+        var host = core.plugins();
+        World w1 = create(WorldCreator.named("stale").generator(WorldGenerator.VOID).build());
+        var h1 = host.worldHandle("minecraft:stale");
+        assertSame(w1, h1.handle());
+        assertTrue(manager.unload(w1, false).get(60, TimeUnit.SECONDS));
+        World w2 = create(WorldCreator.named("stale").generator(WorldGenerator.VOID).build());
+        assertNotSame(w1, w2);
+        var h2 = host.worldHandle("minecraft:stale");
+        assertSame(w2, h2.handle(), "손잡이는 늘 지금 서버 월드를 가리킨다");
+        assertSame(h2, host.worldHandle("minecraft:stale"));
+        assertNotSame(h1, h2);
+    }
+
+    @Test
+    void handleForConvergesUnderConcurrentFirstLookup() throws Exception {
+        // 월드를 manager 로 직접 만들어 손잡이가 아직 없는 상태에서 여러 스레드가 동시에 처음 조회 → 모두 같은 손잡이 하나
+        var host = core.plugins();
+        for (int round = 0; round < 20; round++) {
+            String name = "race" + round;
+            World w = create(WorldCreator.named(name).generator(WorldGenerator.VOID).build());
+            int n = 8;
+            var go = new java.util.concurrent.CountDownLatch(1);
+            var ex = java.util.concurrent.Executors.newFixedThreadPool(n);
+            try {
+                List<java.util.concurrent.Future<Object>> fs = new java.util.ArrayList<>();
+                for (int i = 0; i < n; i++) fs.add(ex.submit(() -> { go.await(); return host.worldHandle("minecraft:" + name); }));
+                go.countDown();
+                Object first = fs.get(0).get(30, TimeUnit.SECONDS);
+                assertNotNull(first);
+                for (var f : fs) assertSame(first, f.get(30, TimeUnit.SECONDS), "동시 첫 조회도 하나로 수렴");
+                assertSame(first, host.worldHandle("minecraft:" + name));
+                assertSame(w, ((org.domi.furnace.server.plugin.WorldHandle) first).handle());
+            } finally {
+                ex.shutdownNow();
+            }
+        }
+    }
+
     @Test
     void pluginApiCreatesAndUnloadsWithEvents() throws Exception {
         var host = core.plugins();
