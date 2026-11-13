@@ -2556,57 +2556,132 @@ public abstract class ChunkLevel implements BlockLevel {
 
     // ------------------------------------------------------------------ 엔티티 충돌(바닐라 BlockCollisions)
 
-    private static final int MOVING_PISTON = B.id("moving_piston"), AIR_STATE = B.defaultState("air");
-    private static byte[] largeCollision;
-
-    /** hasLargeCollisionShape: 충돌 모양이 칸 밖으로 나가거나 모양이 바뀌는 블록. */
-    private boolean hasLargeCollisionShape(int state) {
-        byte[] c = largeCollision;
-        if (c == null) largeCollision = c = new byte[blocks.stateCount];
-        byte v = c[state];
-        if (v == 0) {
-            boolean large = info.dynamicShape(blocks.blockOf(state));
-            double[] b = info.collisionShape(state).bounds();
-            if (b != null) large |= b[0] < 0 || b[1] < 0 || b[2] < 0 || b[3] > 1 || b[4] > 1 || b[5] > 1;
-            c[state] = v = (byte) (large ? 2 : 1);
-        }
-        return v == 2;
+    /**
+     * 칸 하나의 충돌 결과를 받는다. shape 는 칸 원점 기준(옮기지 않은) 모양이고 (x, y, z)만큼 옮긴 것이 월드 모양이다 — 모양 객체를 칸마다
+     * 새로 만들지 않으려고 옮기지 않은 채 넘긴다. false 면 수집을 멈춘다.
+     */
+    @FunctionalInterface
+    public interface CollisionSink {
+        boolean accept(int x, int y, int z, Shape shape);
     }
 
-    /** 칸마다 충돌 모양(월드 좌표, 몸통과 겹치는 것만)을 돌려준다. stopAtFirst 면 첫 것에서 멈춘다. */
-    private void collectCollisions(AABB box, java.util.function.BiPredicate<Pos, Shape> out) { collectCollisions(box, null, out); }
+    /**
+     * 상태별 충돌 분류(T-018). 블록 동작이 getCollisionShape·getEntityCollisionShape 를 덮어쓰지 않으면 모양은 상태만으로 정해진다
+     * (BlockBehavior 기본 = BlockInfo.collisionShape) — 그 모양을 미리 들고, 비었으면 칸을 읽자마자 건너뛴다(공기·동굴 공기·풀·물 등).
+     * 덮어쓰는 동작(움직이는 피스톤, 가루눈)만 칸마다 동작을 부른다. 동작 표는 처음 만든 뒤 바뀌지 않는다(BlockBehaviors).
+     */
+    static final class CollisionTable {
+        static final byte NONE = 0, STATIC = 1, DYNAMIC = 2, KIND = 3, LARGE = 4, PISTON = 8;
+        static final byte[] FLAGS;
+        static final Shape[] SHAPES;
 
-    /** entity 가 있으면 문맥 엔티티 충돌 모양(EntityCollisionContext — 가루눈처럼 엔티티마다 다른 블록)을 쓴다. */
-    private void collectCollisions(AABB box, Entity entity, java.util.function.BiPredicate<Pos, Shape> out) {
+        static {
+            Blocks blocks = Blocks.get();
+            BlockInfo info = BlockInfo.get();
+            int n = blocks.stateCount;
+            byte[] f = new byte[n];
+            Shape[] s = new Shape[n];
+            int piston = B.id("moving_piston");
+            for (int st = 0; st < n; st++) {
+                int block = blocks.blockOf(st);
+                Shape shape = info.collisionShape(st);
+                // hasLargeCollisionShape: 충돌 모양이 칸 밖으로 나가거나 모양이 바뀌는 블록
+                boolean large = info.dynamicShape(block);
+                double[] b = shape.bounds();
+                if (b != null) large |= b[0] < 0 || b[1] < 0 || b[2] < 0 || b[3] > 1 || b[4] > 1 || b[5] > 1;
+                int v;
+                if (contextual(BlockBehaviors.ofBlock(block).getClass())) v = DYNAMIC;
+                else if (shape.isEmpty()) v = NONE;
+                else { v = STATIC; s[st] = shape; }
+                if (large) v |= LARGE;
+                if (block == piston) v |= PISTON;
+                f[st] = (byte) v;
+            }
+            FLAGS = f;
+            SHAPES = s;
+        }
+
+        /** 충돌 모양을 칸·문맥에 따라 정하는 동작인가(BlockBehavior 기본 구현을 덮어썼는가). */
+        static boolean contextual(Class<?> c) {
+            try {
+                return c.getMethod("getCollisionShape", int.class, BlockLevel.class, Pos.class, BlockActor.class).getDeclaringClass() != BlockBehavior.class
+                        || c.getMethod("getEntityCollisionShape", int.class, BlockLevel.class, Pos.class, Entity.class).getDeclaringClass() != BlockBehavior.class;
+            } catch (NoSuchMethodException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+    }
+
+    /**
+     * BlockCollisions(바닐라 Cursor3D: x 가 가장 빨리, 그다음 y, z) 순서로 몸통과 겹치는 칸 충돌 모양을 넘긴다. 모서리 칸(세 축 끝)은 건너뛰고,
+     * 면 칸은 큰 모양 블록만, 변 칸은 움직이는 피스톤만 본다. entity 가 있으면 문맥 엔티티 충돌 모양(가루눈처럼 엔티티마다 다른 블록)을 쓴다.
+     * 칸 순서·판정은 칸마다 읽던 예전 구현(T-018 전)과 같고, 구역 단위로 읽어 공기뿐인 구역은 통째로 건너뛴다.
+     */
+    public void scanCollisions(AABB box, Entity entity, CollisionSink out) {
         int x0 = Entity.floor(box.minX() - 1.0E-7) - 1, x1 = Entity.floor(box.maxX() + 1.0E-7) + 1;
         int y0 = Entity.floor(box.minY() - 1.0E-7) - 1, y1 = Entity.floor(box.maxY() + 1.0E-7) + 1;
         int z0 = Entity.floor(box.minZ() - 1.0E-7) - 1, z1 = Entity.floor(box.maxZ() + 1.0E-7) + 1;
-        int lastCx = Integer.MIN_VALUE, lastCz = Integer.MIN_VALUE;
-        ChunkColumn c = null;
+        int minY = minBuildHeight(), maxY = maxBuildHeight();
+        byte[] flags = CollisionTable.FLAGS;
+        Shape[] shapes = CollisionTable.SHAPES;
+        int cx0 = x0 >> 4, nCols = (x1 >> 4) - cx0 + 1;
+        ChunkColumn c0 = null, c1 = null;              // 흔한 경우(청크 두 개 이하)는 배열 없이
+        ChunkColumn[] cols = nCols > 2 ? new ChunkColumn[nCols] : null;
+        int fetched = 0;                               // 지금 z 청크에서 찾아본 열 수(앞에서부터) — 예전처럼 처음 닿을 때 찾는다
+        int colsCz = Integer.MIN_VALUE;
         for (int z = z0; z <= z1; z++) {
+            int cz = z >> 4;
+            if (cz != colsCz) {
+                colsCz = cz;
+                fetched = 0;
+            }
+            int lz = z & 15;
+            int zEdge = z == z0 || z == z1 ? 1 : 0;
             for (int y = y0; y <= y1; y++) {
-                for (int x = x0; x <= x1; x++) {
-                    int edges = (x == x0 || x == x1 ? 1 : 0) + (y == y0 || y == y1 ? 1 : 0) + (z == z0 || z == z1 ? 1 : 0);
-                    if (edges == 3) continue;
-                    if ((x >> 4) != lastCx || (z >> 4) != lastCz) {
-                        lastCx = x >> 4;
-                        lastCz = z >> 4;
-                        c = chunk(lastCx, lastCz);
+                int yzEdges = zEdge + (y == y0 || y == y1 ? 1 : 0);
+                boolean inWorld = y >= minY && y < maxY;
+                for (int ci = 0; ci < nCols; ci++) {
+                    ChunkColumn c;
+                    if (ci < fetched) {
+                        c = cols != null ? cols[ci] : ci == 0 ? c0 : c1;
+                    } else {
+                        c = chunk(cx0 + ci, cz);
+                        if (cols != null) cols[ci] = c;
+                        else if (ci == 0) c0 = c;
+                        else c1 = c;
+                        fetched = ci + 1;
                     }
-                    if (c == null) continue;
-                    int state = y < minBuildHeight() || y >= maxBuildHeight() ? AIR_STATE : c.getBlock(x & 15, y, z & 15);
-                    if (state == AIR_STATE) continue;   // 공기는 충돌 모양이 비어 있고 칸 밖으로 나가지도 않는다(X1: 칸 대부분이 공기)
-                    if (edges == 1 && !hasLargeCollisionShape(state) || edges == 2 && blocks.blockOf(state) != MOVING_PISTON) continue;
-                    Pos p = new Pos(x, y, z);
-                    Shape shape = entity == null ? BlockBehaviors.of(state).getCollisionShape(state, this, p, null)
-                            : BlockBehaviors.of(state).getEntityCollisionShape(state, this, p, entity);
-                    if (shape.isEmpty()) continue;
-                    if (shape == Shape.BLOCK) {
-                        if (!box.intersects(x, y, z, x + 1.0, y + 1.0, z + 1.0)) continue;
-                    } else if (!shape.overlaps(box, x, y, z)) {
-                        continue;
+                    if (c == null || !inWorld) continue;   // 세계 높이 밖은 공기(충돌 없음)
+                    int local = y - c.minY();
+                    org.domi.furnace.server.world.ChunkSection sec = c.sectionForRead(local >> 4);
+                    if (sec.hasOnlyAir()) continue;       // 공기·동굴 공기·빈 공간 공기뿐 — 충돌 모양이 하나도 없다
+                    int ly = local & 15;
+                    int bx = (cx0 + ci) << 4;
+                    int xs = Math.max(x0, bx), xe = Math.min(x1, bx + 15);
+                    for (int x = xs; x <= xe; x++) {
+                        int edges = yzEdges + (x == x0 || x == x1 ? 1 : 0);
+                        if (edges == 3) continue;
+                        int state = sec.getBlock(x & 15, ly, lz);
+                        int f = flags[state];
+                        int kind = f & CollisionTable.KIND;
+                        if (kind == CollisionTable.NONE) continue;
+                        if (edges == 1 && (f & CollisionTable.LARGE) == 0 || edges == 2 && (f & CollisionTable.PISTON) == 0) continue;
+                        Shape shape;
+                        if (kind == CollisionTable.STATIC) {
+                            shape = shapes[state];
+                        } else {
+                            Pos p = new Pos(x, y, z);
+                            shape = entity == null ? BlockBehaviors.of(state).getCollisionShape(state, this, p, null)
+                                    : BlockBehaviors.of(state).getEntityCollisionShape(state, this, p, entity);
+                            if (shape.isEmpty()) continue;
+                        }
+                        if (shape == Shape.BLOCK) {
+                            if (!box.intersects(x, y, z, x + 1.0, y + 1.0, z + 1.0)) continue;
+                        } else if (!shape.overlaps(box, x, y, z)) {
+                            continue;
+                        }
+                        if (!out.accept(x, y, z, shape)) return;
                     }
-                    if (!out.test(p, shape.move(x, y, z))) return;
                 }
             }
         }
@@ -2615,11 +2690,16 @@ public abstract class ChunkLevel implements BlockLevel {
     /** getBlockCollisions(entity, box): 몸통과 겹치는 블록 충돌 모양들. */
     public java.util.List<Shape> blockCollisions(AABB box) { return blockCollisions(null, box); }
 
-    /** getBlockCollisions(entity, box): 문맥 엔티티가 있으면 그 엔티티 기준 충돌 모양(가루눈 등). */
+    /** getBlockCollisions(entity, box): 문맥 엔티티가 있으면 그 엔티티 기준 충돌 모양(가루눈 등). 월드 좌표로 옮긴 모양 목록. */
     public java.util.List<Shape> blockCollisions(Entity entity, AABB box) {
         java.util.List<Shape> out = new java.util.ArrayList<>();
-        collectCollisions(box, entity, (p, s) -> out.add(s));
+        scanCollisions(box, entity, (x, y, z, s) -> out.add(s.move(x, y, z)));
         return out;
+    }
+
+    /** blockCollisions 를 모양 객체 없이 충돌 목록(옮기지 않은 모양 + 칸)에 덧붙인다 — 엔티티 이동(collide)이 쓴다. */
+    public void blockCollisions(Entity entity, AABB box, Colliders out) {
+        scanCollisions(box, entity, out);
     }
 
     /** BlockGetter.containsAnyLiquid(box): 상자가 유체 칸과 겹치나. */
@@ -2680,7 +2760,7 @@ public abstract class ChunkLevel implements BlockLevel {
     /** CollisionGetter.noBlockCollision(self, box): 블록 충돌 모양(self 가 있으면 그 문맥 — 가루눈 등)이 없는가. 엔티티·보더는 보지 않는다. */
     public boolean noBlockCollision(Entity self, AABB box) {
         boolean[] hit = {false};
-        collectCollisions(box, self, (p, s) -> {
+        scanCollisions(box, self, (x, y, z, s) -> {
             hit[0] = true;
             return false;
         });
@@ -2765,25 +2845,44 @@ public abstract class ChunkLevel implements BlockLevel {
     public Pos findSupportingBlock(AABB box, double ex, double ey, double ez) { return findSupportingBlock(null, box, ex, ey, ez); }
 
     public Pos findSupportingBlock(Entity entity, AABB box, double ex, double ey, double ez) {
-        Pos[] best = {null};
-        double[] bestDist = {Double.MAX_VALUE};
-        collectCollisions(box, entity, (p, s) -> {
-            double dx = p.x() + 0.5 - ex, dy = p.y() + 0.5 - ey, dz = p.z() + 0.5 - ez;
+        SupportSearch s = new SupportSearch(ex, ey, ez);
+        scanCollisions(box, entity, s);
+        return s.found ? new Pos(s.bx, s.by, s.bz) : null;
+    }
+
+    /** findSupportingBlock 의 가장 가까운 칸 찾기(칸 객체 없이). 거리가 같으면 Vec3i.compareTo(y, z, x 순)가 큰 쪽. */
+    private static final class SupportSearch implements CollisionSink {
+        final double ex, ey, ez;
+        boolean found;
+        int bx, by, bz;
+        double bestDist = Double.MAX_VALUE;
+
+        SupportSearch(double ex, double ey, double ez) {
+            this.ex = ex;
+            this.ey = ey;
+            this.ez = ez;
+        }
+
+        @Override
+        public boolean accept(int x, int y, int z, Shape shape) {
+            double dx = x + 0.5 - ex, dy = y + 0.5 - ey, dz = z + 0.5 - ez;
             double d = dx * dx + dy * dy + dz * dz;
-            if (d < bestDist[0] || d == bestDist[0] && (best[0] == null || compareVec(best[0], p) < 0)) {
-                best[0] = p;
-                bestDist[0] = d;
+            if (d < bestDist || d == bestDist && (!found || compareVec(bx, by, bz, x, y, z) < 0)) {
+                found = true;
+                bx = x;
+                by = y;
+                bz = z;
+                bestDist = d;
             }
             return true;
-        });
-        return best[0];
+        }
     }
 
     /** Vec3i.compareTo: y, z, x 순. */
-    private static int compareVec(Pos a, Pos b) {
-        if (a.y() != b.y()) return Integer.compare(a.y(), b.y());
-        if (a.z() != b.z()) return Integer.compare(a.z(), b.z());
-        return Integer.compare(a.x(), b.x());
+    private static int compareVec(int ax, int ay, int az, int bx, int by, int bz) {
+        if (ay != by) return Integer.compare(ay, by);
+        if (az != bz) return Integer.compare(az, bz);
+        return Integer.compare(ax, bx);
     }
 
     @Override
