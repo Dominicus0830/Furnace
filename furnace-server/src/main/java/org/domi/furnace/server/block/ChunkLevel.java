@@ -781,6 +781,7 @@ public abstract class ChunkLevel implements BlockLevel {
         other.pendingTickers.clear();
         for (Entity e : other.entities.all()) e.setLevel(this);
         entities.absorb(other.entities);
+        absorbSeenIndex(other);
         raids.absorb(other.raids, this);
         torchToggles.absorb(other.torchToggles);
         // 빛: 틱 사이에 놓인 블록의 미처리 검사와 방송 전 빛 변경은 합친 쪽이 이어받는다(안 옮기면 빛이 계산·방송되지 않는다)
@@ -824,7 +825,10 @@ public abstract class ChunkLevel implements BlockLevel {
                 }
             }
         }
-        for (Entity e : entities.splitTo(target.entities, inTarget::test)) e.setLevel(target);
+        for (Entity e : entities.splitTo(target.entities, inTarget::test)) {
+            e.setLevel(target);
+            if (e.tracker != null) target.adoptTracker(e);
+        }
         raids.splitTo(target.raids, target, inTarget);
         torchToggles.splitTo(target.torchToggles, byPos);
         var bit = blockEvents.iterator();
@@ -2272,6 +2276,9 @@ public abstract class ChunkLevel implements BlockLevel {
         public int viewDistance(Player p) { return viewDistanceFor(p); }
 
         public boolean chunkTracked(Player p, int cx, int cz) { return chunkTrackedBy(p, cx, cz); }
+
+        @Override
+        public void startedSeeing(Player p, Entity e) { noteSeen(p, e); }
     };
 
     public EntityTracker.Viewers viewers() { return viewers; }
@@ -2283,6 +2290,7 @@ public abstract class ChunkLevel implements BlockLevel {
         if (e.isRemoved()) return false;
         ChunkLevel before = e.level();
         e.setLevel(this);
+        long addedKey = e.sectionKey();
         if (!entities.add(e)) return false;
         if (fireEvent && !gameEvents().entitySpawn(e)) {   // 플러그인 EntitySpawnEvent 취소: 추적·리스너 등록 전이라 목록과 레벨만 되돌린다
             entities.remove(e);
@@ -2290,6 +2298,8 @@ public abstract class ChunkLevel implements BlockLevel {
             retireApiTasks(e);
             return false;
         }
+        // 처리기가 옮겼으면 구역 목록을 맞춘다 — 추적기가 없는 동안에는 setPosRaw 가 구역 이동을 알리지 않는다(Paper 도 이벤트 뒤 위치로 넣는다)
+        if (e.sectionKey() != addedKey) entities.moved(e, addedKey);
         startTracking(e);
         for (var l : e.dynamicGameEventListeners()) l.add(this);
         indexEntity(e, true);
@@ -2330,6 +2340,7 @@ public abstract class ChunkLevel implements BlockLevel {
         int range = e.type().clientTrackingRange() * 16;
         if (range == 0) return;
         e.tracker = new EntityTracker(e, services().entityBroadcastRangePercentage() * range / 100);
+        maxTrackRange = Math.max(maxTrackRange, e.tracker.range());
         e.tracker.updatePlayers(trackingPlayers(), viewers);
     }
 
@@ -2348,6 +2359,7 @@ public abstract class ChunkLevel implements BlockLevel {
             return;
         }
         if (e.tracker == null) startTracking(e);
+        else adoptTracker(e);
         for (var l : e.dynamicGameEventListeners()) l.add(this);
         indexEntity(e, true);
     }
@@ -2465,7 +2477,10 @@ public abstract class ChunkLevel implements BlockLevel {
      * present 는 이 region 에 있는 플레이어인가(없는 보는 사람은 grace 뒤 뺀다).
      */
     public void trackEntities(java.util.function.LongPredicate ticking, java.util.function.Predicate<Player> present) {
-        if (entities.isEmpty()) return;
+        if (entities.isEmpty()) {
+            seenIndex.clear();
+            return;
+        }
         Iterable<Player> players = null;
         for (Entity e : entities.tickSnapshot()) {
             EntityTracker t = e.tracker;
@@ -2479,11 +2494,256 @@ public abstract class ChunkLevel implements BlockLevel {
             }
             if (changed || ticking.test((long) e.chunkX() << 32 | e.chunkZ() & 0xFFFFFFFFL)) t.sendChanges();
         }
+        pruneAbsentSeen(present);
     }
 
-    /** ChunkMap.move(player): 플레이어가 움직였다 — 모든 엔티티에 대해 그 플레이어를 다시 본다. */
+    /**
+     * ChunkMap.move(player): 플레이어가 움직였다 — 엔티티마다 그 플레이어를 다시 본다(바닐라는 모든 엔티티를 돈다).
+     * 결과가 바뀔 수 있는 엔티티는 (a) 지금 p 를 보는 것과 (b) p 에서 추적 거리 안에 있는 것뿐이다 — 둘 다 아니면 updatePlayer 는
+     * 거리 판정에서 "안 보임"이 되고 seenBy 에 p 가 없어 아무것도 하지 않는다. 그래서 엔티티가 많고 p 가 그 일부만 볼 때는
+     * (a)∪(b) 만 틱 목록 순서로 돈다(T-017). 보내는 패킷·순서·seenBy 는 전체 훑기와 같다(EntityTrackerCandidatesIdentityTest).
+     */
     public void playerMoved(Player p) {
-        for (Entity e : entities.all()) if (e.tracker != null && !e.isRemoved()) e.tracker.updatePlayer(p, viewers);
+        if (VERIFY_TRACK_CANDIDATES && !seenIndexCovers(p)) throw new AssertionError("추적 역색인에 빠진 엔티티가 있다: " + p);
+        int n = entities.size();
+        SeenList seen = seenIndex.get(p);
+        // 엔티티가 적거나, p 가 이미 절반 넘게 본다(몰림 — 후보가 거의 전부라 모으고 늘어놓는 값만 더 든다)면 전체 훑기
+        if (n < CANDIDATE_MIN_ENTITIES || seen != null && seen.size * 2 >= n || !playerMovedCandidates(p)) playerMovedFullScan(p);
+    }
+
+    /**
+     * 시험(단언 켬)에서 역색인·후보가 빠짐없는지 매번 전체로 확인한다(O(엔티티)). 운영(단언 꺼짐)과 벤치(furnace.bench — 단언은 켜고 돈다)에서는 끈다.
+     */
+    private static final boolean VERIFY_TRACK_CANDIDATES = assertionsOn() && !Boolean.getBoolean("furnace.bench");
+
+    @SuppressWarnings("AssertWithSideEffects")
+    private static boolean assertionsOn() {
+        boolean on = false;
+        assert on = true;
+        return on;
+    }
+
+    /** 엔티티가 이보다 적으면 후보를 모으는 것보다 다 도는 편이 싸다. */
+    private static final int CANDIDATE_MIN_ENTITIES = 64;
+
+    /**
+     * 옛 길(바닐라 그대로): 이 레벨의 모든 엔티티를 틱 목록 순서로. 후보 길의 비교 기준(시험)이기도 하다.
+     * 도는 김에 p 의 역색인을 정확히 다시 만든다(틱 목록 순서·겹침 없음).
+     */
+    public void playerMovedFullScan(Player p) {
+        SeenList fresh = takeSeenList(p);
+        fresh.size = 0;   // 옛 칸은 덮어쓴다(전체를 도니 옛 목록은 필요 없다)
+        boolean done = false;
+        try {
+            passPlayer = p;
+            for (Entity e : entities.all()) {
+                passEntity = e;
+                if (e.tracker != null && !e.isRemoved() && e.tracker.updatePlayer(p, viewers)) fresh.add(e);
+            }
+            done = true;
+        } finally {
+            passPlayer = null;
+            passEntity = null;
+            if (!done) {   // 도중 예외: 아직 안 본 것 중 p 를 보던 것도 빠짐없이
+                fresh.size = 0;
+                for (Entity e : entities.all()) if (e.tracker != null && e.tracker.isSeenBy(p)) fresh.add(e);
+            }
+            putSeenList(p, fresh);
+        }
+    }
+
+    /**
+     * 후보 길: (a) 역색인 + (b) 추적 거리 안 청크 열의 엔티티를 틱 목록 순서로 늘어놓고 겹친 것을 지워 updatePlayer.
+     * 범위가 너무 넓으면(좌표가 유한하지 않거나 열이 아주 많음) 아무것도 하지 않고 거짓 — 부른 쪽이 전체를 훑는다.
+     */
+    public boolean playerMovedCandidates(Player p) {
+        double px = p.x(), pz = p.z();
+        int vd = viewDistanceFor(p);
+        // updatePlayer 의 거리 r = min(엔티티 추적 거리, 시야 × 16) ≤ 이 값. 1 블록은 부동소수 경계 여유
+        double reach = Math.min(vd * 16.0, maxTrackRange) + 1.0;
+        if (!(Math.abs(px) < 3.0E7) || !(Math.abs(pz) < 3.0E7)) return false;
+        int cx0 = Entity.floor(px - reach) >> 4, cx1 = Entity.floor(px + reach) >> 4;
+        int cz0 = Entity.floor(pz - reach) >> 4, cz1 = Entity.floor(pz + reach) >> 4;
+        if (cx1 - cx0 > MAX_CANDIDATE_COLUMNS || cz1 - cz0 > MAX_CANDIDATE_COLUMNS) return false;
+        SeenList fresh = takeSeenList(p);   // 옛 목록을 후보로 읽은 뒤 같은 배열에 새 목록을 쓴다
+        Entity[] buf = candBuf;
+        int n = 0;
+        boolean done = false;
+        passPlayer = p;
+        try {
+            candN = 0;
+            for (int i = 0; i < fresh.size; i++) {
+                Entity e = fresh.items[i];
+                int ecx = e.chunkX(), ecz = e.chunkZ();
+                if (ecx >= cx0 && ecx <= cx1 && ecz >= cz0 && ecz <= cz1) continue;   // 범위 안이면 열 훑기가 찾는다(저장소에 있다면)
+                if (e.tracker != null && !e.isRemoved() && entities.holds(e)) addCandidate(e);
+            }
+            fresh.size = 0;
+            entities.forEachInColumns(cx0, cx1, cz0, cz1, candidateSink);
+            buf = candBuf;
+            n = entities.orderAndDedupe(buf, candN);
+            candN = 0;
+            if (VERIFY_TRACK_CANDIDATES && !candidatesComplete(p, buf, n)) throw new AssertionError("추적 후보에 빠진 엔티티가 있다: " + p);
+            long mods = entities.modCount();
+            for (int i = 0; i < n; i++) {
+                Entity e = buf[i];
+                passEntity = e;
+                if (e.tracker != null && !e.isRemoved() && e.tracker.updatePlayer(p, viewers)) fresh.add(e);
+                // 판정 도중 처리기(플러그인 PlayerTrackEntityEvent·onStartSeenBy)가 엔티티를 넣고 빼거나 옮겼거나 p 를 옮겼으면
+                // 미리 정한 후보가 더는 맞지 않는다 — 옛 길처럼 이 엔티티 뒤(틱 목록 순서)를 모두 돈다
+                if (entities.modCount() != mods || p.x() != px || p.z() != pz || viewDistanceFor(p) != vd) {
+                    long after = org.domi.furnace.server.entity.EntityStore.orderKey(e);
+                    for (Entity x : entities.all()) {
+                        if (org.domi.furnace.server.entity.EntityStore.orderKey(x) <= after) continue;
+                        passEntity = x;
+                        if (x.tracker != null && !x.isRemoved() && x.tracker.updatePlayer(p, viewers)) fresh.add(x);
+                    }
+                    break;
+                }
+            }
+            done = true;
+        } finally {
+            passPlayer = null;
+            passEntity = null;
+            java.util.Arrays.fill(buf, 0, n, null);
+            candN = 0;
+            if (!done) {   // 도중 예외: p 를 보는 것을 빠짐없이 다시 모은다(역색인을 잃으면 먼 엔티티의 제거 패킷을 놓친다)
+                fresh.size = 0;
+                for (Entity e : entities.all()) if (e.tracker != null && e.tracker.isSeenBy(p)) fresh.add(e);
+            }
+            putSeenList(p, fresh);
+        }
+        return true;
+    }
+
+    /** 시야 32 청크(512 블록) × 2 를 넉넉히 넘는 열 수 — 이보다 넓으면 전체 훑기. */
+    private static final int MAX_CANDIDATE_COLUMNS = 80;
+
+    private Entity[] candBuf = new Entity[64];
+    private int candN;
+    private final java.util.function.Consumer<Entity> candidateSink = e -> {
+        if (e.tracker != null && !e.isRemoved()) addCandidate(e);
+    };
+
+    private void addCandidate(Entity e) {
+        if (candN == candBuf.length) candBuf = java.util.Arrays.copyOf(candBuf, candN * 2);
+        candBuf[candN++] = e;
+    }
+
+    // ---- 플레이어별 "보는 엔티티" 역색인(T-017)
+
+    /** 플레이어 → 그 플레이어를 seenBy 에 넣은 이 레벨 엔티티(상위 집합 — 지금은 안 보거나 다른 레벨로 간 것이 섞일 수 있어 쓸 때 거른다). */
+    private final java.util.IdentityHashMap<Player, SeenList> seenIndex = new java.util.IdentityHashMap<>();
+    /** 지금 판정 중인 (플레이어, 엔티티) — 그 쌍의 콜백은 판정 결과가 대신한다. */
+    private Player passPlayer;
+    private Entity passEntity;
+    /** 이 레벨에 들어온 추적기 거리의 최댓값(블록). 줄지 않는다 — 후보 범위의 상한으로만 쓴다. */
+    private int maxTrackRange;
+
+    private static final class SeenList {
+        Entity[] items = new Entity[8];
+        int size;
+        int compactAt = 32;
+
+        void add(Entity e) {
+            if (size == items.length) items = java.util.Arrays.copyOf(items, size * 2);
+            items[size++] = e;
+        }
+    }
+
+    /** p 의 목록을 떼어 온다(없으면 새로). 판정 중 새로 보기 시작한 것은 noteSeen 이 임시 목록에 붙이고, putSeenList 가 갈아 끼운다. */
+    private SeenList takeSeenList(Player p) {
+        SeenList l = seenIndex.remove(p);
+        return l != null ? l : new SeenList();
+    }
+
+    /**
+     * 판정이 만든 목록을 단다(비었으면 뺀다). 판정 도중 다른 길(플러그인 처리기가 부른 refreshViews 등)로 p 를 보기 시작한 엔티티는
+     * noteSeen 이 임시 목록에 붙였으니 합친다(상위 집합이어도 된다). 쓰지 않는 칸은 비워 엔티티를 붙잡지 않는다.
+     */
+    private void putSeenList(Player p, SeenList l) {
+        SeenList during = seenIndex.get(p);
+        if (during != null) for (int i = 0; i < during.size; i++) l.add(during.items[i]);
+        int cap = l.items.length;
+        if (cap > 64 && l.size * 4 < cap) l.items = java.util.Arrays.copyOf(l.items, Math.max(8, l.size * 2));
+        else java.util.Arrays.fill(l.items, l.size, cap, null);
+        l.compactAt = Math.max(32, l.size * 2);
+        if (l.size == 0) seenIndex.remove(p);
+        else seenIndex.put(p, l);
+    }
+
+    /** p 가 e 를 보기 시작했다. 목록이 쌓이면(안 움직이는 플레이어 곁을 몹이 드나듦) 지금 보는 것만 남긴다. */
+    private void noteSeen(Player p, Entity e) {
+        if (p == passPlayer && e == passEntity) return;   // 판정 중인 바로 그 쌍 — 판정이 결과로 올린다
+        SeenList l = seenIndex.computeIfAbsent(p, k -> new SeenList());
+        l.add(e);
+        if (l.size >= l.compactAt) compactSeen(p, l);
+    }
+
+    /** 지금 이 저장소에 있고 p 를 보는 것만, 겹치지 않게 남긴다. */
+    private void compactSeen(Player p, SeenList l) {
+        int m = 0;
+        for (int i = 0; i < l.size; i++) {
+            Entity e = l.items[i];
+            if (e.tracker != null && e.tracker.isSeenBy(p) && entities.holds(e)) l.items[m++] = e;
+        }
+        m = entities.orderAndDedupe(l.items, m);
+        java.util.Arrays.fill(l.items, m, l.size, null);
+        l.size = m;
+        l.compactAt = Math.max(32, m * 2);
+    }
+
+    /** 다른 레벨에서 추적 상태째 들어온 엔티티: 보는 사람을 이 레벨 색인에 올린다. */
+    private void adoptTracker(Entity e) {
+        maxTrackRange = Math.max(maxTrackRange, e.tracker.range());
+        e.tracker.forEachViewer(p -> noteSeen(p, e));
+    }
+
+    private void absorbSeenIndex(ChunkLevel other) {
+        maxTrackRange = Math.max(maxTrackRange, other.maxTrackRange);
+        for (var en : other.seenIndex.entrySet()) {
+            SeenList src = en.getValue();
+            for (int i = 0; i < src.size; i++) noteSeen(en.getKey(), src.items[i]);
+        }
+        other.seenIndex.clear();
+    }
+
+    /** 이 region 에 없는 플레이어의 목록: grace 동안은 남기고(돌아오면 그대로 쓴다), 아무도 안 보게 되면 지운다. */
+    private void pruneAbsentSeen(java.util.function.Predicate<Player> present) {
+        if (seenIndex.isEmpty()) return;
+        for (var it = seenIndex.entrySet().iterator(); it.hasNext(); ) {
+            var en = it.next();
+            Player p = en.getKey();
+            if (present.test(p) && !p.isDisconnected()) continue;
+            compactSeen(p, en.getValue());
+            if (en.getValue().size == 0) it.remove();
+        }
+    }
+
+    /** 단언용: 이 저장소에서 p 를 보는 엔티티가 모두 역색인에 있는가. */
+    private boolean seenIndexCovers(Player p) {
+        SeenList l = seenIndex.get(p);
+        java.util.Set<Entity> in = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        if (l != null) for (int i = 0; i < l.size; i++) in.add(l.items[i]);
+        for (Entity e : entities.all()) {
+            if (e.tracker != null && !e.isRemoved() && e.tracker.isSeenBy(p) && !in.contains(e)) return false;
+        }
+        return true;
+    }
+
+    /** 단언용: updatePlayer 가 무엇이든 바꿀 수 있는 엔티티(p 를 보거나 시야 거리 안)가 모두 후보(순서대로 정렬됨)에 있는가. */
+    private boolean candidatesComplete(Player p, Entity[] buf, int n) {
+        long[] keys = new long[n];
+        for (int i = 0; i < n; i++) keys[i] = org.domi.furnace.server.entity.EntityStore.orderKey(buf[i]);
+        for (int i = 1; i < n; i++) if (keys[i] <= keys[i - 1]) return false;
+        for (Entity e : entities.all()) {
+            if (e.tracker == null || e.isRemoved()) continue;
+            double r = Math.min(e.tracker.range(), viewDistanceFor(p) * 16);   // updatePlayer 와 같은 식
+            double dx = p.x() - e.x(), dz = p.z() - e.z();
+            boolean mayChange = e.tracker.isSeenBy(p) || dx * dx + dz * dz <= r * r;
+            if (mayChange && java.util.Arrays.binarySearch(keys, org.domi.furnace.server.entity.EntityStore.orderKey(e)) < 0) return false;
+        }
+        return true;
     }
 
     /**
@@ -2502,11 +2762,13 @@ public abstract class ChunkLevel implements BlockLevel {
     /** 플레이어가 나갔다 — 보는 목록에서 뺀다(패킷 없이). */
     public void playerLeft(Player p) {
         for (Entity e : entities.all()) if (e.tracker != null) e.tracker.removePlayer(p);
+        seenIndex.remove(p);
     }
 
     /** 플레이어가 다른 차원으로 갔다 — 추적만 지운다(클라이언트는 리스폰 패킷에서 엔티티를 모두 버리므로 제거 패킷은 보내지 않는다). */
     public void playerChangedDimension(Player p) {
         for (Entity e : entities.all()) if (e.tracker != null) e.tracker.forgetPlayer(p);
+        seenIndex.remove(p);
     }
 
     // ------------------------------------------------------------------ 엔티티 저장(entities/ — 바닐라 EntityStorage)
