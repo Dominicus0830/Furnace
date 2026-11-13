@@ -632,6 +632,9 @@ public final class ChunkColumn {
     public ChunkSnapshot cachedSnapshot() { return cachedSnapshot; }
     public void cachedSnapshot(ChunkSnapshot snapshot) { this.cachedSnapshot = snapshot; }
 
+    /** 읽기 전용(공유 섹션을 복사하지 않음 — getBlock 과 같다): 구역 번호(0 = 맨 아래)의 섹션. 고치지 말 것. scratch 가 열린 섹션의 hasOnlyAir 는 낡을 수 있다. */
+    public ChunkSection sectionForRead(int sectionIndex) { return sections[sectionIndex]; }
+
     /** worldY 가 든 구역이 공기뿐인가(바닐라 LevelChunkSection.hasOnlyAir). */
     public boolean sectionHasOnlyAir(int worldY) { return sections[(worldY - minY) >> 4].hasOnlyAir(); }
 

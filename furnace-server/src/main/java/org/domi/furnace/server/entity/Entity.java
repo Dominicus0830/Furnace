@@ -15,6 +15,7 @@ import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSeeds;
 import org.domi.furnace.server.block.RandomSource;
+import org.domi.furnace.server.block.Colliders;
 import org.domi.furnace.server.block.Shape;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
@@ -1405,9 +1406,10 @@ public abstract non-sealed class Entity implements Rider {
     public static double[] collideMove(org.domi.furnace.server.block.ChunkLevel level, Rider self, AABB box, boolean onGround, float step,
                                        double dx, double dy, double dz) {
         // 엔티티 모양은 처음 이동 상자로 한 번만 모아 오르기 탐색에도 그대로 쓴다(바닐라 collide 의 var3)
-        var entityShapes = level.entityCollisions(self, box.expandTowards(dx, dy, dz));
+        AABB swept = box.expandTowards(dx, dy, dz);
+        var entityShapes = level.entityCollisions(self, swept);
         double[] r = dx * dx + dy * dy + dz * dz == 0.0 ? new double[] {dx, dy, dz}
-                : collideWithShapes(dx, dy, dz, box, collectColliders(level, self, entityShapes, box.expandTowards(dx, dy, dz)));
+                : collideWithShapes(dx, dy, dz, box, collectColliders(level, self, entityShapes, swept));
         boolean cx = dx != r[0], cy = dy != r[1], cz = dz != r[2];
         boolean below = cy && dy < 0.0;
         if (step > 0.0F && (below || onGround) && (cx || cz)) {
@@ -1435,75 +1437,64 @@ public abstract non-sealed class Entity implements Rider {
         return collideWithShapes(dx, dy, dz, box, collectColliders(level, self, level.entityCollisions(self, swept), swept));
     }
 
-    /** Entity.collectColliders(self, level, entityShapes, box): 엔티티 모양 → (self 가 보더 가까이면) 보더 모양 → 블록 모양, 이 순서. */
-    static java.util.List<Shape> collectColliders(org.domi.furnace.server.block.ChunkLevel level, Rider self, java.util.List<Shape> entityShapes, AABB box) {
+    /**
+     * Entity.collectColliders(self, level, entityShapes, box): 엔티티 모양 → (self 가 보더 가까이면) 보더 모양 → 블록 모양, 이 순서.
+     * 블록 모양은 칸마다 옮긴 모양을 만들지 않고 (모양, 칸)으로 든다(Colliders).
+     */
+    static Colliders collectColliders(org.domi.furnace.server.block.ChunkLevel level, Rider self, java.util.List<Shape> entityShapes, AABB box) {
         Shape border = self == null ? null : level.borderCollision(self.x(), self.z(), box);
-        var blocks = level.blockCollisions(self instanceof Entity e ? e : null, box);
-        if (entityShapes.isEmpty() && border == null) return blocks;
-        java.util.List<Shape> out = new java.util.ArrayList<>(entityShapes.size() + 1 + blocks.size());
-        out.addAll(entityShapes);
+        Colliders out = new Colliders(entityShapes.size() + 8);
+        for (int i = 0, n = entityShapes.size(); i < n; i++) out.add(entityShapes.get(i));
         if (border != null) out.add(border);
-        out.addAll(blocks);
+        level.blockCollisions(self instanceof Entity e ? e : null, box, out);
         return out;
+    }
+
+    /** stepHeightCandidates 를 월드 좌표 모양 목록으로(시험용). */
+    static float[] stepHeightCandidates(AABB base, java.util.List<Shape> shapes, float step, float dy) {
+        return stepHeightCandidates(base, Colliders.of(shapes), step, dy);
     }
 
     /**
-     * collectCandidateStepUpHeights: 모양들의 Y 좌표 - base.minY 중 0 이상·step 이하·(float)dy 아닌 값, 오름차순.
+     * collectCandidateStepUpHeights: 모양들의 Y 좌표 - base.minY 중 0 이상·step 이하·(float)dy 아닌 값, 오름차순(같은 값은 하나).
      * 바닐라는 VoxelShape 격자 좌표 전부를 쓴다. 엔티티 상자·보더 모양은 격자가 바닐라와 같아 그대로 쓰고(exactYCoords),
      * 블록 모양은 상자들의 minY/maxY 만 쓴다(오를 높이인 윗면은 둘 다 포함).
      */
-    static float[] stepHeightCandidates(AABB base, java.util.List<Shape> shapes, float step, float dy) {
-        java.util.TreeSet<Float> set = new java.util.TreeSet<>();
-        for (Shape s : shapes) {
-            double[] ys = s.exactYCoords();
-            if (ys != null) {
-                for (double y : ys) {
-                    float h = (float) (y - base.minY());
-                    if (!(h < 0.0F) && h != dy && !(h > step)) set.add(h);
-                }
-                continue;
-            }
-            for (int i = 0; i < s.boxCount(); i++) {
-                double[] b = s.box(i);
-                for (double y : new double[] {b[1], b[4]}) {
-                    float h = (float) (y - base.minY());
-                    if (!(h < 0.0F) && h != dy && !(h > step)) set.add(h);
-                }
-            }
+    static float[] stepHeightCandidates(AABB base, Colliders shapes, float step, float dy) {
+        float[][] buf = {new float[16]};
+        int n = shapes.stepHeights(base.minY(), step, dy, buf, 0);
+        float[] a = buf[0];
+        java.util.Arrays.sort(a, 0, n);   // Float.compare 순서(-0.0 < 0.0) — 예전 TreeSet<Float> 와 같다
+        int m = 0;
+        for (int i = 0; i < n; i++) {
+            if (m == 0 || Float.compare(a[m - 1], a[i]) != 0) a[m++] = a[i];
         }
-        float[] out = new float[set.size()];
-        int i = 0;
-        for (float h : set) out[i++] = h;
-        return out;
+        return java.util.Arrays.copyOf(a, m);
+    }
+
+    /** Entity.collideWithShapes 를 월드 좌표 모양 목록으로. */
+    public static double[] collideWithShapes(double dx, double dy, double dz, AABB box, java.util.List<Shape> shapes) {
+        return collideWithShapes(dx, dy, dz, box, Colliders.of(shapes));
     }
 
     /** Entity.collideWithShapes: y 먼저, 그다음 |x| < |z| 면 z·x, 아니면 x·z. */
-    public static double[] collideWithShapes(double dx, double dy, double dz, AABB box, java.util.List<Shape> shapes) {
+    public static double[] collideWithShapes(double dx, double dy, double dz, AABB box, Colliders shapes) {
         if (shapes.isEmpty()) return new double[] {dx, dy, dz};
         if (dy != 0.0) {
-            dy = collideAxis(1, box, shapes, dy);
+            dy = shapes.collide(1, box, dy);
             if (dy != 0.0) box = box.move(0.0, dy, 0.0);
         }
         boolean zFirst = Math.abs(dx) < Math.abs(dz);
         if (zFirst && dz != 0.0) {
-            dz = collideAxis(2, box, shapes, dz);
+            dz = shapes.collide(2, box, dz);
             if (dz != 0.0) box = box.move(0.0, 0.0, dz);
         }
         if (dx != 0.0) {
-            dx = collideAxis(0, box, shapes, dx);
+            dx = shapes.collide(0, box, dx);
             if (!zFirst && dx != 0.0) box = box.move(dx, 0.0, 0.0);
         }
-        if (!zFirst && dz != 0.0) dz = collideAxis(2, box, shapes, dz);
+        if (!zFirst && dz != 0.0) dz = shapes.collide(2, box, dz);
         return new double[] {dx, dy, dz};
-    }
-
-    /** Shapes.collide(axis, box, shapes, d). */
-    private static double collideAxis(int axis, AABB box, java.util.List<Shape> shapes, double d) {
-        for (Shape s : shapes) {
-            if (Math.abs(d) < 1.0E-7) return 0.0;
-            d = s.collide(axis, box, d);
-        }
-        return d;
     }
 
     /** checkSupportingBlock(onGround, movement): 디딘 블록 위치(가장 가까운 충돌 블록)를 기억한다. */
