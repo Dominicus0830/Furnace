@@ -54,6 +54,7 @@ public final class ChunkColumn {
         this(MIN_Y, SECTION_COUNT);
         for (int i = 0; i < sectionCount; i++) {
             sections[i] = new ChunkSection();
+            sections[i].attach(this, i);
             sections[i].fillBiome(biomeId);
         }
         java.util.Arrays.fill(oceanFloor, UNSET_HEIGHT);
@@ -69,6 +70,7 @@ public final class ChunkColumn {
         this(minY, sectionCount);
         for (int i = 0; i < sectionCount; i++) {
             sections[i] = new ChunkSection(directBits, biomeDirectBits);
+            sections[i].attach(this, i);
             sections[i].fillBiome(biomeId);
         }
         java.util.Arrays.fill(oceanFloor, UNSET_HEIGHT);
@@ -81,6 +83,7 @@ public final class ChunkColumn {
         this.sectionCount = sectionCount;
         this.heightmapBits = 32 - Integer.numberOfLeadingZeros(sectionCount * 16);   // ceil(log2(height + 1))
         this.sections = new ChunkSection[sectionCount];
+        this.randomTickMask = allSectionsMask(sectionCount);
     }
 
     public int minY() { return minY; }
@@ -98,7 +101,7 @@ public final class ChunkColumn {
      */
     public ChunkColumn copy() {
         ChunkColumn c = new ChunkColumn(minY, sectionCount);
-        for (int i = 0; i < sectionCount; i++) c.sections[i] = sections[i].copy();
+        for (int i = 0; i < sectionCount; i++) (c.sections[i] = sections[i].copy()).attach(c, i);
         System.arraycopy(surface, 0, c.surface, 0, surface.length);
         System.arraycopy(surfaceWg, 0, c.surfaceWg, 0, surfaceWg.length);
         System.arraycopy(oceanFloor, 0, c.oceanFloor, 0, oceanFloor.length);
@@ -118,6 +121,7 @@ public final class ChunkColumn {
         System.arraycopy(sections, 0, c.sections, 0, sectionCount);
         c.sharedSections = new boolean[sectionCount];
         java.util.Arrays.fill(c.sharedSections, true);
+        c.randomTickMask = allSectionsMask(sectionCount);   // 공유 구역의 주인은 원본 컬럼이라 이쪽 비트는 켜 둔다(켜진 비트는 훑어 볼 뿐 결과가 같다). 복사해 가지면 그때 맞춘다
         System.arraycopy(surface, 0, c.surface, 0, surface.length);
         System.arraycopy(surfaceWg, 0, c.surfaceWg, 0, surfaceWg.length);
         System.arraycopy(oceanFloor, 0, c.oceanFloor, 0, oceanFloor.length);
@@ -136,10 +140,60 @@ public final class ChunkColumn {
 
     private ChunkSection ownSection(int i) {
         if (sharedSections != null && sharedSections[i]) {
-            sections[i] = sections[i].copy();
+            replaceSection(i, sections[i].copy());
             sharedSections[i] = false;
         }
         return sections[i];
+    }
+
+    /** 자리 i 의 구역 객체를 갈아 끼운다(무작위 틱 마스크 주인도 옮긴다, T-053). */
+    private void replaceSection(int i, ChunkSection fresh) {
+        sections[i].detach(this);
+        sections[i] = fresh;
+        fresh.attach(this, i);
+    }
+
+    // ------------------------------------------------------------------ 무작위 틱 구역 마스크(T-053)
+    // 비트 i(구역 0..63) 가 꺼져 있으면 그 구역은 무작위 틱 받는 칸이 없다(구역의 센 값 = 0). 켜진 비트는 "있을 수도"(센 값 > 0, 모름 -1,
+    // 또는 cowCopy 공유 구역) — 그 구역은 지금처럼 isRandomlyTicking 으로 확인한다. 비트는 구역 자신의 쓰기 메서드가 고치므로
+    // sections() 배열을 받아 구역에 직접 쓰는 바깥 경로도 빠지지 않는다. 64 이상 구역(높이 1024 넘는 데이터 팩 차원)은 비트 없이 늘 확인한다.
+    // 주인 스레드 전용(구역 쓰기와 같은 스레드).
+    private long randomTickMask;
+
+    /** 구역 0..n-1 비트(64 이상은 비트 없음). */
+    private static long allSectionsMask(int n) { return n >= 64 ? -1L : (1L << n) - 1; }
+
+    void sectionTickingChanged(int i, boolean maybeTicking) {
+        if (i >= 64) return;
+        if (maybeTicking) randomTickMask |= 1L << i;
+        else randomTickMask &= ~(1L << i);
+    }
+
+    /** 시험·단언용: 지금 마스크. */
+    public long randomTickMask() { return randomTickMask; }
+
+    /**
+     * from(포함) 이상에서 무작위 틱 받을 수도 있는 첫 구역 번호, 없으면 sectionCount. 마스크를 부를 때마다 새로 읽는다 — 앞 구역의
+     * 무작위 틱이 뒤 구역에 블록을 놓으면(사탕수수가 위 구역으로 자람) 그 구역도 같은 틱에 돈다(바닐라 tickChunk 가 구역마다 그 자리에서 확인하듯).
+     */
+    public int nextRandomTickingSection(int from) {
+        if (from < 64) {
+            long m = randomTickMask & (-1L << from);
+            if (m != 0) return Long.numberOfTrailingZeros(m);
+            from = 64;
+        }
+        return Math.min(from, sectionCount);
+    }
+
+    /** 단언용(-ea): 꺼진 비트의 구역은 모두 이 컬럼이 주인이고 센 값이 0 이다(마스크를 구역 센 값에서 다시 만든 것과 어긋나지 않음). */
+    public boolean randomTickMaskCovers() {
+        int n = Math.min(sectionCount, 64);
+        for (int i = 0; i < n; i++) {
+            if ((randomTickMask & (1L << i)) != 0) continue;
+            if (sharedSections != null && sharedSections[i]) return false;
+            if (!sections[i].knownNotTicking(this)) return false;
+        }
+        return true;
     }
 
     private void ownAllSections() {
