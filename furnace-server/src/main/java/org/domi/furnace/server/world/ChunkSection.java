@@ -17,6 +17,12 @@ public final class ChunkSection {
     private int[] scratch;
     /** 무작위 틱 받는 칸 수(바닐라 tickingBlockCount — 블록 또는 그 유체가 무작위 틱). -1 이면 다시 세야 한다. */
     private int tickingCount = -1;
+    /**
+     * 이 구역을 배열에 가진 컬럼과 그 자리(T-053 무작위 틱 구역 마스크). tickingCount 가 0 ↔ 0 아님으로 바뀔 때 컬럼 마스크 비트를 고친다.
+     * cowCopy 가 공유하는 쪽 컬럼은 주인이 아니다 — 그 컬럼은 공유 구역의 비트를 켜 둔다. 컬럼 밖(시험·빛 작업이 쥔 옛 객체)이면 null.
+     */
+    private ChunkColumn owner;
+    private int ownerIndex;
 
     /** 상태별 무작위 틱 여부(블록 동작 쪽이 건다). 없으면 무작위 틱을 하지 않는다. */
     private static volatile boolean[] randomTicking;
@@ -29,16 +35,53 @@ public final class ChunkSection {
         if (known >= 0) return known > 0;   // 대부분 이미 센 값이다 — 표(volatile)를 읽을 필요 없다(X1)
         boolean[] t = randomTicking;
         if (t == null) return false;
-        if (tickingCount < 0) {
-            int n = 0;
-            if (scratch != null) {
-                for (int v : scratch) if (t[v]) n++;
-            } else if (blocks.maybeHas(v -> t[v])) {   // 팔레트에 무작위 틱 상태가 하나도 없으면 4096칸을 읽을 것 없이 0 (팔레트에 남은 옛 항목은 안전한 쪽으로 true)
-                for (int i = 0; i < 4096; i++) if (t[blocks.get(i)]) n++;
-            }
-            tickingCount = n;
-        }
+        ticking(countTicking(t));
         return tickingCount > 0;
+    }
+
+    /** 지금 블록에서 무작위 틱 받는 칸 수를 센다(캐시를 건드리지 않음). */
+    private int countTicking(boolean[] t) {
+        int n = 0;
+        if (scratch != null) {
+            for (int v : scratch) if (t[v]) n++;
+        } else if (blocks.maybeHas(v -> t[v])) {   // 팔레트에 무작위 틱 상태가 하나도 없으면 4096칸을 읽을 것 없이 0 (팔레트에 남은 옛 항목은 안전한 쪽으로 true)
+            for (int i = 0; i < 4096; i++) if (t[blocks.get(i)]) n++;
+        }
+        return n;
+    }
+
+    /** tickingCount 를 바꾸고, 0 ↔ 0 아님(-1 = 모름은 0 아님 쪽)이 바뀌었으면 주인 컬럼의 마스크 비트를 고친다(T-053). */
+    private void ticking(int n) {
+        int was = tickingCount;
+        tickingCount = n;
+        if ((was == 0) != (n == 0) && owner != null) owner.sectionTickingChanged(ownerIndex, n != 0);
+    }
+
+    /** 이 구역을 컬럼 자리 i 에 놓는다 — 주인을 정하고 그 비트를 지금 값에 맞춘다. ChunkColumn 이 배열에 넣을 때만 부른다. */
+    void attach(ChunkColumn col, int i) {
+        owner = col;
+        ownerIndex = i;
+        col.sectionTickingChanged(i, tickingCount != 0);
+    }
+
+    /** 컬럼 배열에서 빠졌다(복사본으로 갈아 끼움) — 이 객체에 쓰기가 있어도 그 컬럼 마스크를 건드리지 않게. */
+    void detach(ChunkColumn col) {
+        if (owner == col) owner = null;
+    }
+
+    /**
+     * 마스크 단언용(-ea, 틱마다): 비트를 끈 구역은 주인이 그 컬럼이고 센 값이 0 인가. 블록을 다시 세지는 않는다 — 센 값 자체는
+     * 옛 루프도 같이 믿는 값이고(ChunkSectionRandomTickingTest·RandomTickMaskTest 가 칸 전수와 대조), 틱마다 세면 노이즈 지형
+     * 벤치에서 region 틱이 수십 배가 된다(벤치도 -ea).
+     */
+    boolean knownNotTicking(ChunkColumn col) {
+        return owner == col && tickingCount == 0;
+    }
+
+    /** 시험용: 지금 블록을 다시 센 무작위 틱 칸 수(캐시를 건드리지 않음). 표가 없으면 -1. */
+    int recountTicking() {
+        boolean[] t = randomTicking;
+        return t == null ? -1 : countTicking(t);
     }
 
     public ChunkSection() {
@@ -85,10 +128,13 @@ public final class ChunkSection {
         boolean wasAir = isAir(old), nowAir = isAir(stateId);
         if (wasAir && !nowAir) nonAirCount++;
         else if (!wasAir && nowAir) nonAirCount--;
-        if (tickingCount >= 0) {
+        int tc = tickingCount;
+        if (tc >= 0) {
             boolean[] t = randomTicking;
-            if (t[old]) tickingCount--;
-            if (t[stateId]) tickingCount++;
+            int n = tc;
+            if (t[old]) n--;
+            if (t[stateId]) n++;
+            if (n != tc) ticking(n);
         }
         if (scratch != null) scratch[idx] = stateId;
         else blocks.set(idx, stateId);
@@ -128,7 +174,7 @@ public final class ChunkSection {
 
     public void replaceBlocks(int[] source, int sourceOffset) {
         assert !lightFrozen : "빛 작업이 읽는 구역을 그 자리에서 고침";
-        tickingCount = -1;
+        ticking(-1);
         if (scratch != null) {
             System.arraycopy(source, sourceOffset, scratch, 0, 4096);
         } else {
@@ -148,7 +194,7 @@ public final class ChunkSection {
             replaceBlocks(flat, 0);
             return;
         }
-        tickingCount = -1;
+        ticking(-1);
         nonAirCount = (short) blocks.loadIndexed(paletteVals, indices);
     }
 
@@ -186,7 +232,7 @@ public final class ChunkSection {
 
     int[] openScratch() {
         assert !lightFrozen : "빛 작업이 읽는 구역을 그 자리에서 고침";
-        tickingCount = -1;   // 바깥에서 scratch 를 직접 고친다
+        ticking(-1);   // 바깥에서 scratch 를 직접 고친다
         if (scratch == null) scratch = blocks.unpack();
         return scratch;
     }
@@ -194,7 +240,7 @@ public final class ChunkSection {
     void compact() {
         if (scratch == null) return;
         assert !lightFrozen : "빛 작업이 읽는 구역을 그 자리에서 고침";
-        tickingCount = -1;
+        ticking(-1);
         blocks.load(scratch, 0);
         int count = 0;
         for (int value : scratch) if (!isAir(value)) count++;   // 바닐라 recalcBlockCounts 처럼 cave_air·void_air 도 공기

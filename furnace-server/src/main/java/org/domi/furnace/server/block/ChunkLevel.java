@@ -662,7 +662,7 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     /** Level.getBlockRandomPos(x, y, z, 15): randValue = randValue·3 + 1013904223, 그 >> 2 의 비트로 칸 안 위치. */
-    private Pos blockRandomPos(int x, int y, int z) {
+    Pos blockRandomPos(int x, int y, int z) {
         randValue = randValue * 3 + 1013904223;
         int i = randValue >> 2;
         return new Pos(x + (i & 15), y + (i >> 16 & 15), z + (i >> 8 & 15));
@@ -700,8 +700,17 @@ public abstract class ChunkLevel implements BlockLevel {
             if (random.nextInt(48) == 0) tickPrecipitation(col, blockRandomPos(x0, 0, z0));
         }
         if (randomTickSpeed <= 0) return;
+        randomTickSections(col, x0, z0, randomTickSpeed);
+    }
+
+    /**
+     * tickChunk 의 구역 무작위 틱: 무작위 틱 받는 구역마다 randomTickSpeed 칸. 컬럼 마스크(T-053)로 꺼진 구역(센 값 0 — 원래도
+     * isRandomlyTicking 이 거짓)을 건너뛴다. 마스크는 구역마다 새로 읽어 앞 구역의 틱이 켠 뒤 구역도 같은 틱에 돈다(옛 루프와 같음).
+     */
+    void randomTickSections(ChunkColumn col, int x0, int z0, int randomTickSpeed) {
         ChunkSection[] sections = col.sections();
-        for (int si = 0; si < sections.length; si++) {
+        assert col.randomTickMaskCovers() : "무작위 틱 구역 마스크가 무작위 틱 받는 구역을 놓침";
+        for (int si = col.nextRandomTickingSection(0); si < sections.length; si = col.nextRandomTickingSection(si + 1)) {
             ChunkSection sec = sections[si];
             if (sec == null || !sec.isRandomlyTicking()) continue;
             int y0 = col.minY() + (si << 4);
