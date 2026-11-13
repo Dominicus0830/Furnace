@@ -18,7 +18,7 @@
 
 본보기:
 - 차분 + 레거시 오라클: `world/ChunkIoFastPathParityTest`(+ `identity/legacy/chunkio/LegacyColumnScans`)
-- 장면 해시 + 금 파일: `world/gen/NoiseIdentityGoldenTest`(평소 시험, `worldgen-noise-quick`), `NoiseIdentityBench.identityHash`(`-Dfurnace.bench=true`, `worldgen-noise-full`), `PristineHashBench`(`-Dfurnace.profile=true`, `worldgen-pristine`·`worldgen-structure-starts`)
+- 장면 해시 + 금 파일: **공용 장면 라이브러리** `scene/SceneLibrary`(`docs/testing/scenes.md` — 노이즈 짧은 판 `worldgen-noise-quick`·공유 파이프라인·유체·피스톤·폭발·몹·마을·추격·농장, 평소 시험 `SceneLibraryTest`), bench 작업: `NoiseIdentityBench.identityHash`(`worldgen-noise-full`), `PristineHashBench`(`worldgen-pristine`·`worldgen-structure-starts`)
 - 패킷 녹음: `world/ChunkSendPacketOrderGoldenTest`
 
 ## 차분 시험 쓰는 법
@@ -72,7 +72,7 @@ SceneHash.assertGolden("scene-name", rec -> {
 2. **장면 자체를 바꿈**(새 장면 추가, 장면 입력·범위 변경) — 결과가 아니라 질문이 바뀐 것.
 
 절차(도미니코 승인 11-12 — `docs/user-todo/entries/2026-11-12-identitykit-golden-update.md`):
-1. 갱신 명령: `./gradlew :furnace-server:test --tests '<시험>' -Dfurnace.identity.bless=<이름>[,<이름>…]`(bench 장면은 해당 `-Dfurnace.bench=true`/`-Dfurnace.profile=true` 도). 이름을 하나씩 적는다.
+1. 갱신 명령: `./gradlew :furnace-server:test --tests '<시험>' -Dfurnace.identity.bless=<이름>[,<이름>…]`(bench 소스셋 장면은 `:furnace-server:bench --tests '<벤치>'` 로 돌린다 — `-Dfurnace.identity.bless` 는 그대로 넘어간다). 이름을 하나씩 적는다.
 2. PR 본문에 **"금 파일 갱신"** 절: 바뀐 파일, 바뀐 줄 수, 왜 결과가 달라지는지(위 1·2 중 무엇), 바닐라 근거(정확성 수정이면).
 3. **독립 검토자 스레드가 바뀐 줄을 확인하고 승인**해야 병합한다(기존 병합 규칙: CI `test` + 독립 검토 위에 이 확인을 더한다). 금 파일 변경과 최적화를 한 PR 에 섞지 않는다.
 4. 기계 점검은 아직 없다(이 절차는 사람이 지킨다). **T-O15-05(CI)** 가 넘겨받는다: `src/test/resources/identity/*.txt` 가 바뀐 PR 에서 본문에 "금 파일 갱신" 절이 없으면 실패하는 점검 + Step Summary 알림.

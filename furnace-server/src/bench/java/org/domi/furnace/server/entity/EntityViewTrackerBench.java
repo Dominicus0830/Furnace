@@ -29,13 +29,19 @@ class EntityViewTrackerBench {
         int e = Integer.getInteger("furnace.bench.entities", 500), np = Integer.getInteger("furnace.bench.players", 20);
         int iters = Integer.getInteger("furnace.bench.iters", 400), reps = Integer.getInteger("furnace.bench.reps", 5);
         String rules = System.getProperty("furnace.bench.rules", "none");
+        // spread>0: 몹·플레이어를 ±spread 블록에 흩는다(0 = 옛 몰림 배치). path=full 이면 옛 길(전체 훑기)로 잰다(T-017 A/B)
+        int spread = Integer.getInteger("furnace.bench.spread", 0);
+        // path=ab: 같은 JVM 에서 회차마다 full·auto 를 번갈아(JVM 사이 잡음 없이 비교)
+        String pathProp = System.getProperty("furnace.bench.path", "auto");
+        java.util.SplittableRandom rnd = new java.util.SplittableRandom(0x7017L);
         List<Player> players = new ArrayList<>();
         List<EmbeddedChannel> chans = new ArrayList<>();
         for (int i = 0; i < np; i++) {
             EmbeddedChannel ch = new org.domi.furnace.server.InlineEmbeddedChannel();
             Player p = new Player(2_000_000 + i, UUID.randomUUID(), "P" + i, ch);
             p.inventory(new PlayerInventory());
-            p.applyMove(i % 5, -60, i / 5, 0, 0, true);
+            if (spread > 0) p.applyMove(rnd.nextDouble(-spread, spread), -60, rnd.nextDouble(-spread, spread), 0, 0, true);
+            else p.applyMove(i % 5, -60, i / 5, 0, 0, true);
             players.add(p);
             chans.add(ch);
         }
@@ -46,17 +52,22 @@ class EntityViewTrackerBench {
         List<Entity> mobs = new ArrayList<>();
         for (int i = 0; i < e; i++) {
             Zombie z = new Zombie(level, level.nextEntityId());
-            z.moveTo((i % 25) - 12 + 0.5, -60, (i / 25) % 25 - 12 + 0.5, 0, 0);
+            if (spread > 0) z.moveTo(rnd.nextDouble(-spread, spread), -60, rnd.nextDouble(-spread, spread), 0, 0);
+            else z.moveTo((i % 25) - 12 + 0.5, -60, (i / 25) % 25 - 12 + 0.5, 0, 0);
             mobs.add(z);
         }
         installRules(rules, mobs, players);
         for (Entity m : mobs) level.addFreshEntity(m);
         drainAll(chans);
-        for (int rep = 0; rep < reps; rep++) {
+        for (int rep = 0; rep < reps * (pathProp.equals("ab") ? 2 : 1); rep++) {
+            boolean fullScan = pathProp.equals("ab") ? (rep & 1) == 0 : pathProp.equals("full");
             long moveNs = 0, sendNs = 0;
             for (int it = 0; it < iters; it++) {
                 long t0 = System.nanoTime();
-                for (Player p : players) level.playerMoved(p);   // 보임 판정 E × P
+                for (Player p : players) {   // 보임 판정 E × P
+                    if (fullScan) level.playerMovedFullScan(p);
+                    else level.playerMoved(p);
+                }
                 long t1 = System.nanoTime();
                 for (int i = 0; i < mobs.size(); i++) {
                     Entity m = mobs.get(i);
@@ -69,7 +80,8 @@ class EntityViewTrackerBench {
                 moveNs += t1 - t0;
                 sendNs += t2 - t1;
             }
-            System.out.printf("[bench] rules=%s E=%d P=%d rep=%d  playerMoved %.1f ns/쌍   방송+쓰기 %.1f ns/쌍%n", rules, e, np, rep,
+            System.out.printf("[bench] rules=%s path=%s spread=%d E=%d P=%d rep=%d  playerMoved %.1f ns/쌍   방송+쓰기 %.1f ns/쌍%n", rules,
+                    fullScan ? "full" : "auto", spread, e, np, rep,
                     (double) moveNs / iters / (e * np), (double) sendNs / iters / (e * np));
         }
         clearRules();

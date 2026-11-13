@@ -1,0 +1,14 @@
+# 결과 동일 금 파일 — scene-village. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
+village tick 0 entities 70f4c7723ae612bf
+village tick 0 random 702d3386b3a432cf
+village tick 0 villagers=16 employed=0
+village tick 100 entities a334c4373bc53339
+village tick 100 random 276b320efec00da1
+village tick 100 villagers=16 employed=13
+village tick 200 entities 9d69275325e1e4ca
+village tick 200 random 1590cbf300f289a7
+village tick 200 villagers=16 employed=16
+village tick 300 entities 3f0513571d91f03b
+village tick 300 random 329f8e669dba50d9
+village tick 300 villagers=16 employed=16
+TOTAL a6b6cff55c6c138d lines=12

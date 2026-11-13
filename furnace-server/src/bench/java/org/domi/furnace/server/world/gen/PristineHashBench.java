@@ -4,15 +4,13 @@ import org.domi.furnace.server.identity.Golden;
 import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
-// 최적화 전후 동일성 확인용: pristine(지형+표면+카버) 블록·바이옴 해시와 청크당 시간. -Dfurnace.profile=true 일 때만 돈다.
+// 최적화 전후 동일성 확인용: pristine(지형+표면+카버) 블록·바이옴 해시와 청크당 시간. bench 작업(:furnace-server:bench)에서 돈다(T-003 이관 — 예전 -Dfurnace.profile=true 는 없어졌다).
 // 해시는 금 파일(identity/worldgen-pristine.txt, identity/worldgen-structure-starts.txt)과 비교한다(IdentityKit) — 예전처럼 출력만 하지 않는다.
 class PristineHashBench {
     @Test
     void hashAndTime() throws Exception {
-        Assumptions.assumeTrue(Boolean.getBoolean("furnace.profile"));
         BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
         RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
         NoiseWorldSource source = NoiseWorldSource.overworld(12345L, blocks, registries);
@@ -41,7 +39,6 @@ class PristineHashBench {
 
     @Test
     void structureStarts() throws Exception {
-        Assumptions.assumeTrue(Boolean.getBoolean("furnace.profile"));
         BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
         RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
         java.util.List<String> lines = new java.util.ArrayList<>();
