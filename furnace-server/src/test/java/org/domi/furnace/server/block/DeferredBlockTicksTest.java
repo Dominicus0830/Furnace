@@ -134,7 +134,7 @@ class DeferredBlockTicksTest {
         Pos far = new Pos(33, 0, 1);
         a.schedule(far, 7, 1, 0, 0);
         a.tick(1, 65536, ONLY_CHUNK_0_0, (p, t) -> fail("범위 밖"));
-        a.moveTo(b, pos -> true, 0);
+        a.moveTo(b, chunk -> true, 0);
         assertEquals(0, a.size());
         assertTrue(b.hasScheduledTick(far, 7));
         List<Pos> ran = new ArrayList<>();
