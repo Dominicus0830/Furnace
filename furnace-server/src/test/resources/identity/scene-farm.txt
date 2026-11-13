@@ -1,0 +1,18 @@
+# 결과 동일 금 파일 — scene-farm. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
+farm tick 0 blocks 83f78485488f8c3d
+farm tick 0 entities b18ea096fa95c2b9
+farm tick 0 random fce8a231ebbc9a6e
+farm tick 0 count 22 wheat=60
+farm tick 100 blocks 4f22031bec31a6ea
+farm tick 100 entities 43714c2392a1c846
+farm tick 100 random 273dfc83e72dd54f
+farm tick 100 count 22 wheat=60
+farm tick 200 blocks 8486e0c3d9a73b9d
+farm tick 200 entities df0c7c775c389478
+farm tick 200 random d539febc81f79976
+farm tick 200 count 22 wheat=60
+farm tick 300 blocks f2059977345750e1
+farm tick 300 entities f19aec46424e4c40
+farm tick 300 random d1771d3e7d9b9832
+farm tick 300 count 22 wheat=60
+TOTAL c34a1fefe5839c92 lines=16
