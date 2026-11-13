@@ -1,5 +1,5 @@
 // 피스톤 장면(O08-10: "피스톤은 아직 없음"): 레드스톤 블록을 주기로 껐다 켜는 기계 여러 줄. 줄마다 모양이 다르다 —
-// 보통 피스톤이 돌 셋 밀기 / 끈끈이 피스톤이 점액 사슬 당기기 / 꿀 블록 사슬 / 한도 딱 12칸(밀린다) / 13칸(밀지 못한다) / 흑요석에 막힘.
+// 보통 피스톤이 돌 셋 밀기 / 끈끈이 피스톤이 점액 사슬 당기기 / 꿀과 점액이 안 붙음 / 한도 딱 12칸(밀린다) / 13칸(밀지 못한다) / 흑요석에 막힘.
 // 피스톤 이동 구조 해석·이동 중 블록 엔티티·블록 이벤트 순서가 바뀌지 않았는지 칸 단위로 본다. 엔티티 없음 → 같은 JVM 모드.
 package org.domi.furnace.server.scene;
 
@@ -48,18 +48,18 @@ public final class PistonScene extends TickScene {
                     level.setBlock(new Pos(X0, y, z), piston("minecraft:piston", "east"), 3);
                     for (int i = 1; i <= 3; i++) level.setBlock(new Pos(X0 + i, y, z), stone, 3);
                 }
-                case 1 -> {   // 끈끈이 피스톤 + 점액 사슬: 밀고 당긴다
+                case 1 -> {   // 끈끈이 피스톤 + 점액이 바로 앞: 점액 사슬이 매 주기 밀리고 끌려 온다
                     level.setBlock(new Pos(X0, y, z), piston("minecraft:sticky_piston", "east"), 3);
-                    level.setBlock(new Pos(X0 + 1, y, z), stone, 3);
-                    level.setBlock(new Pos(X0 + 2, y, z), slime, 3);
-                    level.setBlock(new Pos(X0 + 3, y, z), stone, 3);
-                    level.setBlock(new Pos(X0 + 2, y, z + 1), glass, 3);   // 점액 옆 이웃: 점액은 (꿀이 아닌) 옆 블록을 달고 간다 — 유리가 사슬에 같이 끌려 나온다
+                    level.setBlock(new Pos(X0 + 1, y, z), slime, 3);
+                    level.setBlock(new Pos(X0 + 2, y, z), stone, 3);
+                    level.setBlock(new Pos(X0 + 1, y, z + 1), glass, 3);   // 점액 옆 이웃: 점액은 (꿀이 아닌) 옆 블록을 달고 간다 — 유리가 사슬에 같이 끌려 나온다
                 }
-                case 2 -> {   // 꿀 블록 사슬(점액과 안 섞인다)
+                case 2 -> {   // 꿀 블록은 점액과 안 붙는다: 꿀 앞 + 꿀 옆의 점액·돌은 따라오지 않는다
                     level.setBlock(new Pos(X0, y, z), piston("minecraft:sticky_piston", "east"), 3);
                     level.setBlock(new Pos(X0 + 1, y, z), honey, 3);
-                    level.setBlock(new Pos(X0 + 2, y, z), slime, 3);
-                    level.setBlock(new Pos(X0 + 3, y, z), stone, 3);
+                    level.setBlock(new Pos(X0 + 2, y, z), stone, 3);
+                    level.setBlock(new Pos(X0 + 1, y, z + 1), slime, 3);
+                    level.setBlock(new Pos(X0 + 1, y, z + 2), stone, 3);
                 }
                 case 3, 4 -> {   // 밀 수 있는 한도: 12칸이면 밀리고(case 3) 13칸이면 못 민다(case 4)
                     level.setBlock(new Pos(X0, y, z), piston("minecraft:piston", "east"), 3);
