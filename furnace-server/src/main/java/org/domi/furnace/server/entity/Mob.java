@@ -883,6 +883,14 @@ public abstract class Mob extends LivingEntity implements Leashable {
 
     protected void customServerAiStep() {}
 
+    /** Paper Mob.inactiveTick: 활성 범위 밖이면 목표 선택·표적 선택을 각자 3번에 한 번만 돌린다. */
+    @Override
+    public void inactiveTick() {
+        super.inactiveTick();
+        if (goalSelector.inactiveTick()) goalSelector.tick();
+        if (targetSelector.inactiveTick()) targetSelector.tick();
+    }
+
     /** Mob.stopInPlace: 길찾기를 멈추고 이동 입력을 0 으로. */
     public void stopInPlace() {
         navigation.stop();

@@ -24,6 +24,31 @@
 | `region-merge-radius` | 수 | 1 | 1 이상 | region 합치기 반경(구역 단위) |  |
 | `light.async` | ON/OFF | false | true\|false | 빛 계산을 빛 스레드에 맡긴다(T-064, 바닐라 ThreadedLevelLightEngine 방식). 켜면 빛 스레드가 밀릴 때 빛이 한두 틱 늦게 보이고 새 청크 전송이 한 틱 늦다(바닐라 과부하와 같은 성질). 저장은 밀린 빛을 기다린다 |  |
 | `light.async-threads` | 수 | 1 | 1 이상 | `light.async` 빛 스레드 수(서버 전체) | `light.async=false` 인데 쓰면 경고 |
+| `entity-activation-range.enabled` | ON/OFF | **true** | true\|false | 엔티티 활성 범위(D11, Spigot·Paper 방식). **기본 켜짐 — 규칙 1(기본=바닐라)의 예외(도미니코 결정 2026-11-14)**. 켜면 먼 몹이 AI·이동을 대부분 쉬어 바닐라와 결과가 다르다. false = 바닐라와 바이트까지 같음 | 켜져 있으면 시작 때 경고 |
+| `entity-activation-range.animals` | 수 | 32 | 정수 | 활성 범위: 동물(PathfinderMob·박쥐 등) |  |
+| `entity-activation-range.monsters` | 수 | 32 | 정수 | 활성 범위: 적대 몹(Enemy) |  |
+| `entity-activation-range.raiders` | 수 | 64 | 정수 | 활성 범위: 습격 몹(Raider) |  |
+| `entity-activation-range.misc` | 수 | 16 | 정수 | 활성 범위: 그 밖(아이템·경험치 구슬·화살·구름 등) |  |
+| `entity-activation-range.water` | 수 | 16 | 정수 | 활성 범위: 물 동물(WaterAnimal) |  |
+| `entity-activation-range.villagers` | 수 | 32 | 정수 | 활성 범위: 주민(키가 없으면 animals 를 기본과 다르게 적었을 때 그 값) |  |
+| `entity-activation-range.flying-monsters` | 수 | 32 | 정수 | 활성 범위: 나는 적대 몹(가스트·팬텀) |  |
+| `entity-activation-range.wake-up-inactive.animals-max-per-tick` | 수 | 4 | 정수 | 활성 범위: 비활성 동물을 깨우는 수(틱마다 1씩 차오르는 상한) |  |
+| `entity-activation-range.wake-up-inactive.animals-every` | 수 | 1200 | 정수 | 활성 범위: 동물이 이 틱보다 오래 비활성이면 깨울 후보 |  |
+| `entity-activation-range.wake-up-inactive.animals-for` | 수 | 100 | 정수 | 활성 범위: 깨운 동물이 활성인 틱 |  |
+| `entity-activation-range.wake-up-inactive.monsters-max-per-tick` | 수 | 8 | 정수 | 활성 범위: 비활성 적대 몹(습격 몹 포함)을 깨우는 수 상한 |  |
+| `entity-activation-range.wake-up-inactive.monsters-every` | 수 | 400 | 정수 | 활성 범위: 적대 몹 깨우기 간격(틱) |  |
+| `entity-activation-range.wake-up-inactive.monsters-for` | 수 | 100 | 정수 | 활성 범위: 깨운 적대 몹이 활성인 틱 |  |
+| `entity-activation-range.wake-up-inactive.villagers-max-per-tick` | 수 | 4 | 정수 | 활성 범위: 비활성 주민을 깨우는 수 상한 |  |
+| `entity-activation-range.wake-up-inactive.villagers-every` | 수 | 600 | 정수 | 활성 범위: 주민 깨우기 간격(틱) |  |
+| `entity-activation-range.wake-up-inactive.villagers-for` | 수 | 100 | 정수 | 활성 범위: 깨운 주민이 활성인 틱 |  |
+| `entity-activation-range.wake-up-inactive.flying-monsters-max-per-tick` | 수 | 8 | 정수 | 활성 범위: 비활성 나는 적대 몹을 깨우는 수 상한 |  |
+| `entity-activation-range.wake-up-inactive.flying-monsters-every` | 수 | 200 | 정수 | 활성 범위: 나는 적대 몹 깨우기 간격(틱) |  |
+| `entity-activation-range.wake-up-inactive.flying-monsters-for` | 수 | 100 | 정수 | 활성 범위: 깨운 나는 적대 몹이 활성인 틱 |  |
+| `entity-activation-range.villagers-work-immunity-after` | 수 | 100 | 정수 | 활성 범위: 주민이 이 틱 넘게 비활성이고 일하는 중이면 잠깐 활성(0 이하 = 끔) |  |
+| `entity-activation-range.villagers-work-immunity-for` | 수 | 20 | 정수 | 활성 범위: 일하는 주민 활성 틱 |  |
+| `entity-activation-range.tick-inactive-villagers` | ON/OFF | true | true\|false | 활성 범위: 비활성 주민도 두뇌(일정·기억)를 돌린다. false 면 두뇌 없이 거래 타이머 등만 |  |
+| `entity-activation-range.ignore-spectators` | ON/OFF | false | true\|false | 활성 범위: 관전자 주변은 활성으로 만들지 않는다 |  |
+| `entity-activation-range.villagers-active-for-panic` | ON/OFF | true | true\|false | 활성 범위: 숨기·습격 전·습격·공황 중인 주민은 5초 활성 |  |
 | `region-threads` | 수 | CPU 수 | 1 이상 | region 작업 스레드 수(공유 풀이면 서버 전체, 끄면 차원마다) | 워커가 코어의 2배를 넘으면 경고 |
 | `shared-region-pool` | ON/OFF | true | true|false | 모든 차원·추가 월드가 region 워커 풀 하나를 쓴다(Q5). false 면 차원마다 region-threads 개 | -D 와 충돌하면 경고 |
 | `region-pool-dim-cap` | 수 | 0 | 0 이상 | 다른 차원 큐에 일이 있을 때 한 차원이 쓸 수 있는 워커 상한(0 = 워커 수−1) | 공유 풀이 꺼져 있으면 쓰이지 않는다고 경고 |

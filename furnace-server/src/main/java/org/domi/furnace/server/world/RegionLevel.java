@@ -264,6 +264,17 @@ public final class RegionLevel extends ChunkLevel {
         if (dim != null) dim.report(this, here);
     }
 
+    /** 엔티티 활성 범위(설정이 켜져 있을 때만 일한다): 이 region 의 플레이어 둘레(Folia 처럼 region 단위). */
+    private void activateRange(java.util.function.Predicate<Player> inRegion) {
+        if (!org.domi.furnace.server.config.EntityActivationSettings.current().enabled()) {
+            activation().off();
+            return;
+        }
+        java.util.List<Player> here = new java.util.ArrayList<>();
+        services().forEachPlayer(pl -> { if (inRegion.test(pl)) here.add(pl); });
+        activateEntities(here);
+    }
+
     /**
      * @param spawnCount 앞쪽 몇 청크가 자연 스폰 대상(플레이어 근처)인가. 나머지(count 까지)는 /forceload 청크라 무작위 틱만 받는다.
      * @param capChunkCount 전역 상한의 청크 수(바닐라 getNaturalSpawnChunkCount — Region.naturalSpawnChunkCount)
@@ -320,6 +331,7 @@ public final class RegionLevel extends ChunkLevel {
         if (frozen) return;   // 정지 중에는 엔티티·블록 엔티티·드래곤 전투를 틱하지 않는다
         if (world.emptyIdle()) return;   // 바닐라 emptyTime: 플레이어·/forceload 없이 300 틱이 지난 차원은 이 셋을 쉰다(위 예약 틱·블록 이벤트는 돈다)
         world.tickDragonFight(region, this);   // 바닐라 ServerLevel.tick: 엔티티 틱 바로 앞
+        activateRange(inRegion);   // Spigot ActivationRange.activateEntities(드래곤 전투 뒤, 엔티티 틱 앞)
         tickEntities(entitySection, entityTick);
         tickBlockEntities(blockTicking);
     }

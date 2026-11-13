@@ -170,6 +170,7 @@ public class PistonMovingBlockEntity extends BlockEntity {
                     default -> vz = Dir.DZ[dir];
                 }
                 e.setDeltaMovement(vx, vy, vz);
+                org.domi.furnace.server.entity.EntityActivation.immunize(e, 10);   // Paper EAR: 점액에 튕긴 엔티티는 10틱 활성(꺼져 있으면 아무것도)
             }
             double d1 = 0.0;
             for (int i = 0, n = shape.boxCount(); i < n; i++) {

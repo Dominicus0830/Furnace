@@ -210,6 +210,32 @@ class PaperConfigImportTest {
     }
 
     @Test
+    void importsSpigotActivationRange(@TempDir Path dir) throws Exception {
+        write(dir, "spigot.yml", """
+                world-settings:
+                  default:
+                    entity-activation-range:
+                      animals: 16
+                      monsters: 32
+                      raiders: 48
+                      tick-inactive-villagers: false
+                      wake-up-inactive:
+                        animals-max-per-tick: 2
+                  nether:
+                    entity-activation-range:
+                      monsters: 8
+                """);
+        Result r = run(dir, new Properties());
+        assertEquals("16", r.toWrite().get("entity-activation-range.animals"));
+        assertEquals("48", r.toWrite().get("entity-activation-range.raiders"));
+        assertEquals("false", r.toWrite().get("entity-activation-range.tick-inactive-villagers"));
+        assertEquals("2", r.toWrite().get("entity-activation-range.wake-up-inactive.animals-max-per-tick"));
+        assertFalse(r.toWrite().containsKey("entity-activation-range.monsters"), "기본과 같은 값은 옮기지 않는다");
+        assertTrue(has(r, Kind.DEFAULT, "spigot.yml", "world-settings.default.entity-activation-range.monsters"));
+        assertTrue(has(r, Kind.MANUAL, "spigot.yml", "world-settings.nether.entity-activation-range.monsters"), "월드별 값은 수동 안내");
+    }
+
+    @Test
     void reportsManualUnsupportedAndUnknown(@TempDir Path dir) throws Exception {
         all(dir);
         Result r = run(dir, new Properties());

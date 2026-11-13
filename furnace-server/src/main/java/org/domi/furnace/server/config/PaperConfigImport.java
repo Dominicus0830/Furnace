@@ -289,6 +289,7 @@ public final class PaperConfigImport {
             chunkUnload();
             ioThreads();
             itemValidation();
+            activationRange();
             manualAndUnsupported();
             versionMarkers();
             unknown();
@@ -439,6 +440,38 @@ public final class PaperConfigImport {
             }
         }
 
+        /**
+         * spigot.yml world-settings.default.entity-activation-range.* → furnace.properties 같은 이름(D11). 기본과 같은 값은 옮기지 않는다.
+         * 다른 월드의 값은 Furnace 에 월드별 키가 없어 수동 안내만.
+         */
+        private void activationRange() {
+            String base = "world-settings.default.entity-activation-range.";
+            String ear = EntityActivationSettings.PREFIX;
+            for (String[] k : EntityActivationSettings.INT_KEYS) {
+                Object v = val(SPIGOT, base + k[0]);
+                if (v == null) continue;
+                Long n = asLong(v);
+                if (n == null || n != (int) (long) n) ignored(SPIGOT, base + k[0], v, "정수가 아니라 옮기지 않는다");
+                else if (String.valueOf(n).equals(k[1])) keptDefault(SPIGOT, base + k[0], v, ear + k[0], k[1], "Furnace 기본과 같다");
+                else imp(SPIGOT, base + k[0], v, ear + k[0], String.valueOf(n), "엔티티 활성 범위");
+            }
+            for (String[] k : EntityActivationSettings.BOOL_KEYS) {
+                Object v = val(SPIGOT, base + k[0]);
+                if (v == null) continue;
+                Boolean b = asBool(v);
+                if (b == null) ignored(SPIGOT, base + k[0], v, "true/false 가 아니라 옮기지 않는다");
+                else if (String.valueOf(b).equals(k[1])) keptDefault(SPIGOT, base + k[0], v, ear + k[0], k[1], "Furnace 기본과 같다");
+                else imp(SPIGOT, base + k[0], v, ear + k[0], String.valueOf(b), "엔티티 활성 범위");
+            }
+            ConfigSection ws = docs.get(SPIGOT) == null ? null : docs.get(SPIGOT).getSection("world-settings");
+            if (ws == null) return;
+            for (String world : ws.keys(false)) {
+                if (world.equals("default")) continue;
+                group(Kind.MANUAL, SPIGOT, "world-settings." + world + ".entity-activation-range", ear + "*",
+                        "Furnace 의 활성 범위는 서버 전체에 한 벌이다(월드별 값 없음)");
+            }
+        }
+
         private void manualAndUnsupported() {
             // ---- 직접 확인: 비슷한 기능이 있다
             Object ip = val(PAPER_GLOBAL, "logging.log-player-ip-addresses");
@@ -517,7 +550,7 @@ public final class PaperConfigImport {
             unsupported(SPIGOT, "stats", "통계 저장 끄기는 비목표다");
             unsupported(SPIGOT, "advancements", "발전 과제 저장 끄기는 비목표다");
             unsupported(SPIGOT, "players", "플레이어 저장 끄기는 비목표다");
-            unsupported(SPIGOT, "world-settings", "월드별 규칙(스폰 범위·성장 속도·병합 거리·추적/활성 범위 등)은 아직 Furnace 에 키가 없다 — 바닐라 값으로 동작한다");
+            unsupported(SPIGOT, "world-settings", "월드별 규칙(스폰 범위·성장 속도·병합 거리·추적 범위 등)은 아직 Furnace 에 키가 없다 — 바닐라 값으로 동작한다");
 
             unsupported(PAPER_GLOBAL, "chunk-system.worker-threads", "청크 작업 스레드는 Furnace 의 region 스케줄러(region-threads)와 모델이 달라 대응이 없다");
             unsupported(PAPER_GLOBAL, "chunk-system", "Paper 청크 시스템 내부 설정 — Furnace 와 구조가 달라 대응이 없다");

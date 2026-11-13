@@ -1,0 +1,29 @@
+# 결과 동일 금 파일 — scene-activation. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
+activation tick 0 entities b4c240aa20188293
+activation tick 0 random bb2ba6d7726fcf04
+activation tick 0 count 160 marked-active 160
+activation tick 50 entities 675addb3faa7908e
+activation tick 50 random bd1683ff72b92739
+activation tick 50 count 160 marked-active 57
+activation tick 100 entities 2bd2032eaf419833
+activation tick 100 random c9d58dc51a7d96f1
+activation tick 100 count 160 marked-active 52
+activation tick 150 entities e84dc34b48303fbb
+activation tick 150 random b94f44becdb3eddb
+activation tick 150 count 155 marked-active 46
+activation tick 200 entities 2aba85540c31b6a1
+activation tick 200 random 2b1b5fc96b1faaae
+activation tick 200 count 155 marked-active 49
+activation tick 250 entities 4cdbd84f597ec035
+activation tick 250 random 98440ea95196bccc
+activation tick 250 count 155 marked-active 99
+activation tick 300 entities 6e82f7cb1a9c2054
+activation tick 300 random 09aa3b81ab178120
+activation tick 300 count 155 marked-active 129
+activation tick 350 entities 43366750e75c88da
+activation tick 350 random 411a7f79acf60db7
+activation tick 350 count 155 marked-active 111
+activation tick 400 entities de948ecf5d7d38c5
+activation tick 400 random 714ab8a7eb28ce5d
+activation tick 400 count 155 marked-active 95
+TOTAL c8ac1dbd19bfb109 lines=27
