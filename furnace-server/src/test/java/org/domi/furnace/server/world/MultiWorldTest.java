@@ -279,8 +279,8 @@ class MultiWorldTest {
     }
 
     @Test
-    void handleForStaleHandleIsReplacedEvenWithoutDetach() throws Exception {
-        // 손잡이를 거두는 호출(worldDetached)이 아직 안 온 틈에 같은 키로 새 월드가 올라온 경우도 새 손잡이를 돌려줘야 한다
+    void handleForReplacesHandleAfterUnloadAndReload() throws Exception {
+        // 내림(manager 훅 → worldDetached 로 손잡이가 걷힘) 뒤 같은 키로 다시 올리면 새 손잡이. 걷히기 전 낡은 항목이 남은 경우는 plugin.HandleForStaleEntryTest
         var host = core.plugins();
         World w1 = create(WorldCreator.named("stale").generator(WorldGenerator.VOID).build());
         var h1 = host.worldHandle("minecraft:stale");
