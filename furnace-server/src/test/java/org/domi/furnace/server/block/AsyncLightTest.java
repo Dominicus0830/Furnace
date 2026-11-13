@@ -15,6 +15,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -298,9 +300,13 @@ class AsyncLightTest {
         Lvl rejected = new Lvl(new HashMap<>(), r -> { throw new java.util.concurrent.RejectedExecutionException("닫힘"); });
         rejected.lightAll();
         rejected.setBlock(p, glow, 2);
-        rejected.lightTickEnd();   // 넘기지 못해도 묶음은 남고
-        rejected.runLightUpdates();   // 기다리는 쪽이 돌린다
+        rejected.lightTickEnd();   // 넘기지 못하면 이 스레드에서 곧바로 돌리고
+        rejected.pollLight();      // 다음 틱 시작에 게시된다(재검토 S1)
         assertEquals(15, rejected.getBlockLight(p));
+        rejected.setBlock(p, air, 2);
+        rejected.lightTickEnd();   // 다음 넘기기도 막히지 않는다
+        rejected.pollLight();
+        assertEquals(0, rejected.getBlockLight(p));
     }
 
     /** 검토 R4: 빛 작업이 실패하면(빛 스레드든 빼앗은 쪽이든) 넘긴 칸·미룬 원천을 그 자리에서 다시 계산해 끈 것과 같은 빛이 된다. */
@@ -404,5 +410,65 @@ class AsyncLightTest {
         ref.lightTickEnd();
         ref.broadcastChanges();
         assertEquals(ref.light.size(), l.light.size(), "그 자리 계산과 같은 청크들");
+    }
+
+    private static void assertSameLoaded(Lvl want, Lvl got, Set<Long> loaded, String where) {
+        for (long k : loaded) {
+            int x = (int) (k >> 32), z = (int) k;
+            ChunkLight a = want.chunk(x, z).light(), b = got.chunk(x, z).light();
+            for (int i = 0; i < ChunkLight.SECTIONS; i++) {
+                assertArrayEquals(a.sky[i], b.sky[i], where + " 하늘빛 청크 " + x + "," + z + " 층 " + i);
+                assertArrayEquals(a.block[i], b.block[i], where + " 블록빛 청크 " + x + "," + z + " 층 " + i);
+            }
+            assertArrayEquals(a.lowestSource, b.lowestSource, where + " 원천 높이 " + x + "," + z);
+        }
+    }
+
+    /** 재검토(독립 검토자 제공): 미룬 하늘빛 원천·칸 검사가 region 엔진에 남아 있을 때(넘기기 전·후) 이웃 청크가 그 자리에서 켜져도 끔과 같은 빛인가. */
+    @Test
+    void loadsInterleavedWithDeferredWorkMatchInPlace() {
+        for (long seed = 1; seed <= 12; seed++) {
+            Manual m = new Manual();
+            Set<Long> loaded = new HashSet<>();
+            Lvl sync = new Lvl(new HashMap<>(), null), async = new Lvl(new HashMap<>(), m);
+            sync.owns = async.owns = (x, z) -> loaded.contains(key(x, z));
+            for (int x = -R; x <= 0; x++) for (int z = -R; z <= R; z++) loaded.add(key(x, z));
+            for (long k : loaded) { sync.lightNewChunk((int) (k >> 32), (int) k); async.lightNewChunk((int) (k >> 32), (int) k); }
+            sync.runLightUpdates();
+            async.runLightUpdates();
+            java.util.List<int[]> toLoad = new java.util.ArrayList<>();
+            for (int x = 1; x <= R; x++) for (int z = -R; z <= R; z++) toLoad.add(new int[] {x, z});
+            Random r = new Random(seed);
+            java.util.Collections.shuffle(toLoad, r);
+            int[] states = {stone, stone, glass, glow, lantern, air, air};
+            for (int tick = 0; tick < 60; tick++) {
+                if (!toLoad.isEmpty() && r.nextInt(2) == 0) {   // 작업 큐(틱 앞): 청크 하나 올라옴
+                    int[] c = toLoad.remove(toLoad.size() - 1);
+                    loaded.add(key(c[0], c[1]));
+                    boolean pre = r.nextBoolean();
+                    for (Lvl l : new Lvl[] {sync, async}) {
+                        if (pre) ChunkLevel.precomputeLight(l.chunk(c[0], c[1]), c[0], c[1], l.lightBedrockState(), true);
+                        l.load(c[0], c[1]);
+                    }
+                }
+                async.pollLight();
+                int edits = r.nextInt(25);
+                for (int i = 0; i < edits; i++) {
+                    int x = r.nextInt(64) - 48, z = r.nextInt(112) - 56;   // 올라온 청크 가장자리 근처 위주
+                    Pos p = new Pos(x, -60 + r.nextInt(24), z);
+                    if (!loaded.contains(key(x >> 4, z >> 4))) continue;
+                    int st = states[r.nextInt(states.length)];
+                    sync.setBlock(p, st, 2);
+                    async.setBlock(p, st, 2);
+                }
+                sync.lightTickEnd();
+                if (r.nextInt(3) != 0) async.lightTickEnd();   // 가끔은 넘기지 않아 미룬 일이 다음 로드까지 남는다
+                if (r.nextInt(2) == 0) m.runAll();
+            }
+            m.runAll();
+            async.drainLight();
+            sync.runLightUpdates();
+            assertSameLoaded(sync, async, loaded, "시드 " + seed);
+        }
     }
 }

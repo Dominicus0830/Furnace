@@ -2241,7 +2241,15 @@ public abstract class ChunkLevel implements BlockLevel {
                 }
             });
         } catch (java.util.concurrent.RejectedExecutionException e) {
-            // 풀이 닫히는 중 — 묶음은 시작 전 그대로 남고, 게시 때 이 스레드가 빼앗아 돌린다
+            // 풀이 닫히는 중 — 이 스레드에서 곧바로 돌려 끝낸다(다음 pollLight 가 게시하고, 다음 넘기기도 막히지 않는다)
+            if (batch.claim()) {
+                try {
+                    runLightBatch(batch);
+                    done.complete(null);
+                } catch (Throwable t) {
+                    done.completeExceptionally(t);
+                }
+            }
         }
     }
 
