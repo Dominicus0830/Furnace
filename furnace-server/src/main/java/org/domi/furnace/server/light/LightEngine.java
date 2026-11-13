@@ -132,13 +132,10 @@ public abstract class LightEngine {
      */
     void moveChecksTo(LightEngine target, java.util.function.LongPredicate sel) {
         if (checks.isEmpty()) return;
-        var it = checks.iterator();
-        while (it.hasNext()) {
-            long p = it.next();
-            if (sel.test(p)) {
-                target.checks.add(p);
-                it.remove();
-            }
+        // 모두 꺼내 순서대로 나눈다 — 남는 것도 옮기는 것도 넣은 순서 그대로(LinkedHashSet 반복자 제거와 같은 결과)
+        for (long p : checks.drain()) {
+            if (sel.test(p)) target.checks.add(p);
+            else checks.add(p);
         }
     }
 
