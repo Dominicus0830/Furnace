@@ -1,4 +1,4 @@
-// 플레이어 N명이 같은 시야 청크를 동시에 요청할 때 본문 직렬화·공유 압축 프레임의 중복을 잰다(기본 꺼짐: -Dfurnace.bench=true).
+// 플레이어 N명이 같은 시야 청크를 동시에 요청할 때 본문 직렬화·공유 압축 프레임의 중복을 잰다(:furnace-server:bench 작업에서만 돈다).
 // C-2 측정용: docs/feature-parity/perf-c2-2026-10-27.md
 package org.domi.furnace.server.world;
 
@@ -19,7 +19,6 @@ import org.domi.furnace.server.net.io.SharedChunkFrames;
 import org.domi.furnace.server.net.protocol.play.LevelChunkWithLight;
 import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 class MultiPlayerChunkSendBench {
@@ -47,7 +46,6 @@ class MultiPlayerChunkSendBench {
 
     @Test
     void playersSameView() throws Exception {
-        Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
         int reps = Integer.getInteger("furnace.bench.reps", 5);
         int vd = Integer.getInteger("furnace.bench.vd", 8);
         String[] pools = System.getProperty("furnace.bench.pools", "").split(",");

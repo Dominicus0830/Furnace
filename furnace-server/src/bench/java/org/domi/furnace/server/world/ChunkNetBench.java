@@ -1,4 +1,4 @@
-// 청크 송출·저장소 경로 마이크로벤치(기본 꺼짐: -Dfurnace.bench=true). 실제 바닐라 청크 본문으로 잰다.
+// 청크 송출·저장소 경로 마이크로벤치(:furnace-server:bench 작업에서만 돈다). 실제 바닐라 청크 본문으로 잰다.
 package org.domi.furnace.server.world;
 
 import io.netty.buffer.ByteBuf;
@@ -14,7 +14,6 @@ import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.protocol.play.ChunkSerializer;
 import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.server.world.anvil.AnvilChunkCodec;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -26,7 +25,6 @@ class ChunkNetBench {
 
     @BeforeAll
     static void load() throws Exception {
-        if (!Boolean.getBoolean("furnace.bench")) return;
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         var biomes = RegistrySet.load("registries/1.21.1.txt").entries("minecraft:worldgen/biome");
         var codec = new AnvilChunkCodec(reg, ItemRegistry.load("items/1.21.1.txt"), biomes,
@@ -50,7 +48,6 @@ class ChunkNetBench {
 
     @Test
     void compressionLevels() {
-        Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
         byte[] out = new byte[body.length * 2];
         for (int level : new int[]{1, 2, 4, 6}) {
             Deflater d = new Deflater(level);
@@ -68,7 +65,6 @@ class ChunkNetBench {
 
     @Test
     void encoderDecoderPerPacket() {
-        Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
         EmbeddedChannel enc = new ConcurrentEmbeddedChannel(new CompressionEncoder(256));
         EmbeddedChannel dec = new ConcurrentEmbeddedChannel(new CompressionDecoder(256));
         ByteBuf[] frame = new ByteBuf[1];
@@ -101,7 +97,6 @@ class ChunkNetBench {
     // 같은 청크 본문을 10명에게 보낼 때 채널당 압축(예전) vs 공유 프레임(새)
     @Test
     void sharedFrameTenPlayers() {
-        Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
         byte[] cached = java.util.Arrays.copyOfRange(body, 1, body.length);
         EmbeddedChannel[] chs = new EmbeddedChannel[10];
         for (int i = 0; i < chs.length; i++) {
@@ -133,7 +128,6 @@ class ChunkNetBench {
 
     @Test
     void bitStorageAndPalette() {
-        Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
         Random rnd = new Random(1);
         for (int bits : new int[]{4, 5, 15}) {
             BitStorage bs = new BitStorage(bits, 4096);
@@ -163,7 +157,6 @@ class ChunkNetBench {
 
     @Test
     void motionBlockingScan() {
-        Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
         double us = timeUs(() -> sink += column.motionBlockingNoLeavesHeightmap()[3], 2000);
         System.out.printf("[BENCH] motionBlockingNoLeavesHeightmap %.1f us/청크%n", us);
     }

@@ -2,13 +2,11 @@ package org.domi.furnace.server.world.gen;
 
 import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.server.world.BlockRegistry;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 class PristineBench {
     @Test
     void bench() throws Exception {
-        Assumptions.assumeTrue(Boolean.getBoolean("furnace.profile"));
         BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
         RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
         NoiseWorldSource source = NoiseWorldSource.overworld(12345L, blocks, registries);

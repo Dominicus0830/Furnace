@@ -71,6 +71,7 @@ public final class FurnacePropertiesFile {
                 opt("commands.send-namespaced", o.sendNamespacedCommands(), "true(기본, Paper 와 같다)면 minecraft:give 같은 바닐라 명령 별칭이 자동완성에 보인다. false 면 안 보이지만 쳐서 실행은 된다."),
                 opt("commands.region-drain", o.commandRegionDrain(), "true(기본)면 함수·명령이 region 의 칸·엔티티를 만질 때 다음 틱을 기다리지 않고 곧바로 처리한다(#tick 함수가 초당 20번 그대로 돈다). 전역 틱당 20ms 예산을 명령 블록과 나눠 쓰고 넘으면 다음 틱. false 면 접근 한 줄이 한 틱씩 걸린다."),
                 opt("announce-sleep-status", o.announceSleepStatus(), "false 면 자는 사람 수 액션바를 보내지 않는다(기본 true = 바닐라)."),
+                opt("world.tick-when-empty", o.tickWhenEmpty(), "플레이어도 /forceload 도 없는 차원의 몹·호퍼: vanilla 면 15초 뒤 쉰다(바닐라), always 면 늘 돈다(Paper·Spigot 기본), auto(기본)면 Bukkit 플러그인이 있을 때만 always."),
                 opt("gravity-block-portal-dupe", o.gravityBlockPortalDupe(), "true(기본 = 바닐라) 면 엔드 포털로 넘어간 모래·자갈 같은 중력 블록이 제자리에도 놓여 복제된다. false 면 복제되지 않는다."),
                 opt("motd-format", o.motdFormat(), "server.properties 의 motd 해석: plain(기본, 바닐라) | legacy(& 색 코드) | markup(<gradient:red:blue>…</gradient> 같은 태그)."),
                 opt("confirm-interrupt", o.confirmInterrupt(), "true 면 콘솔 Ctrl+C 를 한 번 더 눌러야 종료한다."),

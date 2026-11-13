@@ -49,7 +49,9 @@ class SchemaPacketBridgeTest {
                 (SchemaPacketBridge.supports(d) ? bridged : missing).add(d.wireName());
             }
             // 다리 없는 종류는 값 shim 이 아직 빈 껍데기다(BlockEntityType·MessageSignature.Packed·ChatType.Bound·GlobalPos·MenuType·ServerLinks.UntrustedEntry)
-            assertEquals(Set.of("block_entity_data", "delete_chat", "disguised_chat", "login", "open_screen", "respawn", "server_links"), missing,
+            // merchant_offers·update_tags 는 E5 에서 서버 범용 코덱이 읽게 됐으나(손 코덱) 아직 다리가 없다
+            assertEquals(Set.of("block_entity_data", "delete_chat", "disguised_chat", "login", "merchant_offers", "open_screen", "respawn", "server_links",
+                    "update_tags"), missing,
                     "다리 " + bridged.size() + "종: " + bridged);
             // game·common 66(set_score 는 E4c-2 숫자 형식 shim 으로) + cookie_request·pong_response(play 연결로도 나가는 cookie·ping 단계)
             assertEquals(68, bridged.size(), bridged.toString());
@@ -68,7 +70,9 @@ class SchemaPacketBridgeTest {
                 if (t == null || t.typed() || !d.custom() || !packets.isReadable(t)) continue;
                 (SchemaPacketBridge.supports(d) ? bridged : missing).add(d.wireName());
             }
-            assertEquals(Set.of("award_stats", "boss_event"), missing, "다리 " + bridged.size() + "종: " + bridged);
+            // E5 복잡한 종류(입자·폭발·청크·빛·명령 트리·서명 채팅·레시피 둘·발전 과제·번들 구분자)는 서버가 읽게 됐으나 아직 다리가 없다
+            assertEquals(Set.of("award_stats", "boss_event", "bundle_delimiter", "commands", "explode", "level_chunk_with_light", "level_particles", "light_update",
+                    "player_chat", "recipe", "update_advancements", "update_recipes"), missing, "다리 " + bridged.size() + "종: " + bridged);
             assertEquals(Set.of("damage_event", "map_item_data", "move_entity_pos", "move_entity_pos_rot", "move_entity_rot", "player_abilities", "player_look_at",
                     "player_position", "section_blocks_update", "set_equipment", "set_experience", "set_objective", "set_player_team", "stop_sound",
                     "update_attributes"), bridged);

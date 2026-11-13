@@ -220,5 +220,15 @@ public final class B {
     public static boolean isSolid(int state) { return INFO.legacySolid(state); }
 
     /** 상태의 유체. */
-    public static int fluid(int state) { return behavior(state).getFluidState(state); }
+    public static int fluid(int state) {
+        int[] t = FLUID_TABLE;
+        if (t == null) {
+            t = new int[BLOCKS.stateCount()];
+            for (int i = 0; i < t.length; i++) t[i] = behavior(i).getFluidState(i);
+            FLUID_TABLE = t;
+        }
+        return t[state];
+    }
+
+    private static volatile int[] FLUID_TABLE;   // 상태별 유체 표 — 모든 getFluidState 가 상태만의 함수라 첫 호출에 한 번 채운다(T-050)
 }

@@ -219,7 +219,13 @@ public final class Shape {
      * 면 전체(1×1)를 덮는가 — 유체가 두 칸 사이를 지나갈 수 없는지(FlowingFluid.canPassThroughWall).
      */
     public static boolean mergedFaceOccludes(Shape shape, Shape adjacent, int dir) {
-        if (shape == BLOCK && adjacent == BLOCK) return true;
+        // 한쪽 면이 꽉 차면 합도 꽉 찬다(바닐라 Shapes.mergedFaceOccludes 도 같은 첫 줄 — T-050 O07-02).
+        if (shape == BLOCK || adjacent == BLOCK) return true;
+        return mergedFaceOccludesGeneral(shape, adjacent, dir);
+    }
+
+    /** mergedFaceOccludes 의 일반 경로(꽉 찬 모양 빠른 경로를 뺀 것) — 옛 구현 대조 시험이 쓴다. */
+    static boolean mergedFaceOccludesGeneral(Shape shape, Shape adjacent, int dir) {
         if (shape.isEmpty() && adjacent.isEmpty()) return false;
         java.util.List<double[]> rects = new java.util.ArrayList<>();
         shape.faceRects(dir, rects);

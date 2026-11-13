@@ -1,4 +1,4 @@
-// 추적기 성능(기본 꺼짐: -Dfurnace.bench=true): 플레이어가 움직일 때마다 도는 보임 판정(ChunkMap.move = playerMoved)과
+// 추적기 성능(:furnace-server:bench 작업에서만 돈다): 플레이어가 움직일 때마다 도는 보임 판정(ChunkMap.move = playerMoved)과
 // 변화 방송(trackEntities → 연결 쓰기)을 엔티티 E × 플레이어 P 로 잰다. K2(보이기·변장 규칙) 전후 비교용 —
 // 기준 커밋에서도 컴파일되게 규칙은 리플렉션으로 건다(-Dfurnace.bench.rules=none|unrelated|all|disguise).
 //   none      규칙 없음(바닐라 그대로의 빠른 길)
@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.domi.furnace.server.block.BlockPlacementTest;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -27,7 +26,6 @@ class EntityViewTrackerBench {
 
     @Test
     void trackerCost() throws Exception {
-        Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
         int e = Integer.getInteger("furnace.bench.entities", 500), np = Integer.getInteger("furnace.bench.players", 20);
         int iters = Integer.getInteger("furnace.bench.iters", 400), reps = Integer.getInteger("furnace.bench.reps", 5);
         String rules = System.getProperty("furnace.bench.rules", "none");
