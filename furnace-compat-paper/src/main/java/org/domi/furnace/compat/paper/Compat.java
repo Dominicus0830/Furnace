@@ -248,6 +248,7 @@ public final class Compat {
 
     /** minecraft:stone → STONE. 모르는 종류(플러그인 블록)는 AIR 가 아니라 null 이 아닌 값을 줄 수 없어 UnsupportedFeature. */
     static Material material(String blockType) {
+        if (blockType == null) throw new UnsupportedFeature("Material null", "블록 종류가 없다");   // 옛 길(matchMaterial(null) == null)과 같은 예외
         Material m = MATERIALS.get(blockType);
         if (m != null) return m;
         m = Material.matchMaterial(blockType);

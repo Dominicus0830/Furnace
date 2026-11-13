@@ -112,4 +112,18 @@ class BlockTypeTableTest {
         assertTrue(placed[0] > 20_000, "대부분의 상태를 놓아 봤다: " + placed[0]);
         assertEquals(0, mismatches[0]);
     }
+
+    /** 같은 표로 모이는 다른 경로도 고정한다: 상태 객체, 놓일 블록(showing), 비정식 철자의 직접 만든 BlockData, null. */
+    @Test
+    void otherPathsReachTheSameTable() {
+        var dim = "minecraft:overworld";
+        var stairs = new org.domi.furnace.api.world.BlockData("minecraft:oak_stairs", java.util.Map.of("facing", "east"));
+        server.onRegion(pos, () -> {
+            assertEquals(Material.OAK_STAIRS, CompatBlockState.of(dim, pos, stairs).getType());
+            assertEquals(Material.OAK_STAIRS, CompatBlock.showing(dim, pos, stairs).getType());
+            return null;
+        });
+        assertEquals(Material.STONE, new CompatBlockData(new org.domi.furnace.api.world.BlockData("minecraft:STONE", java.util.Map.of()), null).getMaterial());
+        assertThrows(UnsupportedFeature.class, () -> Compat.material(null));
+    }
 }

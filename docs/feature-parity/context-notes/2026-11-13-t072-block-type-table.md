@@ -21,4 +21,6 @@
 ## 측정(region 스레드, 계단, 중앙값, 같은 컨테이너 전/후)
 - `CompatBlock.getType` 약 480ns → 약 130ns. `getBlockData` 약 400~500ns → 약 100~120ns. Furnace `Block.type()` 약 370~450ns → 약 80ns(서버 API 도 같이 빨라짐).
 - 남은 130ns 는 대부분 `WorldHandle` 찾기(`handleFor` CHM compute, T-071)와 `blockNow`(소유 검사·Optional·BlockSnapshot) 몫이다. T-071 이 들어오면 더 줄어든다.
-- 메모리: 처음 읽은 상태마다 BlockData 하나(TreeMap 포함 수백 바이트)가 레지스트리 수명 동안 남는다. 전 상태를 다 읽어도 대략 수 MB 안쪽(추정; 실제론 수천 상태).
+- 메모리(검토 R1 반영): 처음엔 상태마다 종류·속성 문자열을 `substring` 으로 새로 만들어 전 상태를 읽으면 약 19.8MB(상태당 ~780B)였다. 캐시에 넣기 전에 문자열을 `intern` 으로 합쳐(`shareStrings`) **약 7.4MB(상태당 ~290B)** 로 줄였다(전 상태를 읽은 뒤 GC 해 잰 값). 실제로는 읽은 상태만 남는다.
+  레지스트리는 여러 곳에서 `load` 돼 각자 칸을 가진다 — 주 서버 레지스트리 하나만 플러그인 API 가 쓴다(나머지는 폴백·월드젠, 이 캐시를 부르지 않는다고 가정).
+- `Compat.material(null)` 은 옛 길처럼 `UnsupportedFeature`(검토 R2). 없는 종류는 부정 캐시를 두지 않는다 — 옛 길과 같은 동작(검토 R4).
