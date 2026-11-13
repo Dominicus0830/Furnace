@@ -1366,6 +1366,17 @@ public final class World {
 
     /** upcoming: 이 플레이어가 곧 받을(아직 안 올라온 것은 곧 올릴) 청크 — 그 안의 이웃이 아직 없으면 올라오는 중과 같이 본다(T-011). */
     public int chunkBodyReadyOrPrefetch(ChunkPos cp, boolean sendingNow, boolean allowSync, java.util.Set<ChunkPos> upcoming) {
+        return chunkBodyReadyOrPrefetch(cp, sendingNow, allowSync, upcoming, NO_TICK);
+    }
+
+    /** tick 을 모를 때(시험·도구): 이웃 기다림을 부를 때마다 센다. */
+    static final long NO_TICK = Long.MIN_VALUE;
+
+    /**
+     * tick: 부르는 region 의 틱 번호. 이웃 기다림(lightWaits)은 틱당 한 번만 세고, 앞 틱에 세지 않았으면(대기열에서 빠졌다 돌아옴 등)
+     * 1 부터 다시 센다 — 상한 MAX_LIGHT_WAITS 는 "연속으로 보내려다 미룬 틱 수"다.
+     */
+    int chunkBodyReadyOrPrefetch(ChunkPos cp, boolean sendingNow, boolean allowSync, java.util.Set<ChunkPos> upcoming, long tick) {
         ChunkColumn col = loadedChunk(cp.x(), cp.z());
         if (col == null) return BODY_READY;
         if (col.cachedSerializedBody() != null) {
@@ -1382,7 +1393,7 @@ public final class World {
         // 보내는 본문은 여전히 보낼 때의 청크 상태다(바뀌면 캐시가 비워진다) — 바뀌는 것은 직렬화·전송 시점뿐이다.
         // 보내려는 청크는 MAX_LIGHT_WAITS 번까지만 미룬다 — 이웃 생성이 오래 걸리면 예전처럼 보낸다.
         if ((!sendingNow || col.lightWaits() < MAX_LIGHT_WAITS) && neighborLoading(cp.x(), cp.z(), upcoming)) {
-            if (sendingNow) col.lightWaits(col.lightWaits() + 1);
+            if (sendingNow) countLightWait(col, tick);
             bodyLightDeferrals.incrementAndGet();
             if (ChunkTrace.ON) ChunkTrace.value(sendingNow ? "batch.lightwait.send" : "batch.lightwait.prefetch", 1);
             return BODY_PENDING;
@@ -1410,7 +1421,18 @@ public final class World {
         return BODY_PENDING;
     }
 
-    /** 이웃 청크가 올라오는 중이면 보내려는 청크의 직렬화를 미루는 최대 횟수(보내려던 틱 수, T-011). 넘으면 예전처럼 직렬화한다. */
+    private static void countLightWait(ChunkColumn col, long tick) {
+        if (tick == NO_TICK) {
+            col.lightWaits(col.lightWaits() + 1);
+            return;
+        }
+        long last = col.lightWaitTick();
+        if (last == tick) return;   // 이 틱에 이미 셌다(같은 청크를 기다리는 다른 플레이어)
+        col.lightWaits(last == tick - 1 ? col.lightWaits() + 1 : 1);
+        col.lightWaitTick(tick);
+    }
+
+    /** 이웃 청크가 올라오는 중이면 보내려는 청크의 직렬화를 미루는 최대 횟수(연속으로 보내려던 틱 수, T-011). 넘으면 예전처럼 직렬화한다. */
     static final int MAX_LIGHT_WAITS = 20;
 
     /**
@@ -1424,6 +1446,7 @@ public final class World {
                 if ((dx | dz) == 0) continue;
                 long k = mapKey(Regionizer.chunkKey(cx + dx, cz + dz));
                 if (loading.containsKey(k)) return true;
+                // 대기열 조회용 ChunkPos 는 이웃이 아직 안 올라왔을 때만 만든다(대부분은 올라와 있어 할당 없음)
                 if (upcoming != null && !chunks.containsKey(k) && upcoming.contains(new ChunkPos(cx + dx, cz + dz))) return true;
             }
         }

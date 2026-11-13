@@ -44,6 +44,8 @@ public final class ChunkColumn {
     // auto 전송이 이 청크의 본문 직렬화를 "이웃 청크가 올라오는 중"이라 미룬 횟수(보낼 때 0, T-011). 이웃이 올라오면 가장자리 빛이 이 청크로
     // 번져 본문이 낡으므로 그 뒤에 직렬화한다. 이 값이 상한에 닿으면 더 미루지 않는다(World.chunkBodyReadyOrPrefetch). 주인 region 스레드 전용.
     private int lightWaits;
+    // lightWaits 를 마지막으로 센 region 틱(틱당 한 번만 센다 — 여럿이 같은 청크를 기다려도 상한이 줄지 않게). 주인 region 스레드 전용.
+    private long lightWaitTick = Long.MIN_VALUE;
     private long[] cachedMotionBlockingHeightmap;
     private long[] cachedWorldSurfaceHeightmap;
     private ChunkSnapshot cachedSnapshot;
@@ -583,6 +585,8 @@ public final class ChunkColumn {
     public void bodyWaits(int n) { this.bodyWaits = n; }
     public int lightWaits() { return lightWaits; }
     public void lightWaits(int n) { this.lightWaits = n; }
+    public long lightWaitTick() { return lightWaitTick; }
+    public void lightWaitTick(long t) { this.lightWaitTick = t; }
     public ChunkSnapshot cachedSnapshot() { return cachedSnapshot; }
     public void cachedSnapshot(ChunkSnapshot snapshot) { this.cachedSnapshot = snapshot; }
 

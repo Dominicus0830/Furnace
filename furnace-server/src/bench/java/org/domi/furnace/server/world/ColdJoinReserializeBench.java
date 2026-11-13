@@ -140,6 +140,12 @@ class ColdJoinReserializeBench {
             w.submitAtChunk(center(i), r -> { r.adopt(p); return null; }).get(30, TimeUnit.SECONDS);
         }
         int[] got = new int[players];
+        // 가장 가까운 청크가 언제 오나(이웃을 기다리면 늦어지는 몫, PR #301 검토 R4): 가운데 청크, 3×3 모두
+        int[] centerAt = new int[players], near3At = new int[players];
+        Arrays.fill(centerAt, -1);
+        Arrays.fill(near3At, -1);
+        List<java.util.Set<Long>> seen = new ArrayList<>();
+        for (int i = 0; i < players; i++) seen.add(new java.util.HashSet<>());
         int[] doneAt = new int[players];
         Arrays.fill(doneAt, -1);
         long[] tickNs = new long[4000];
@@ -151,7 +157,14 @@ class ColdJoinReserializeBench {
             tickNs[t] = System.nanoTime() - ts;
             boolean all = true;
             for (int i = 0; i < players; i++) {
-                got[i] += drainChunks(chs[i]);
+                got[i] += drainChunks(chs[i], seen.get(i));
+                ChunkPos cc = center(i);
+                if (centerAt[i] < 0 && seen.get(i).contains(key(cc.x(), cc.z()))) centerAt[i] = t;
+                if (near3At[i] < 0) {
+                    boolean ok = true;
+                    for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) ok &= seen.get(i).contains(key(cc.x() + dx, cc.z() + dz));
+                    if (ok) near3At[i] = t;
+                }
                 if (got[i] >= total && doneAt[i] < 0) doneAt[i] = t;
                 all &= doneAt[i] >= 0;
             }
@@ -174,6 +187,12 @@ class ColdJoinReserializeBench {
                 counter(w, "staleBodySkips"), counter(w, "bodyLightDeferrals"),
                 (w1[0] - w0[0]) / 1e6, (r1[0] - r0[0]) / 1e6,
                 used[ticks / 2] / 1e6, used[Math.min(ticks - 1, ticks * 95 / 100)] / 1e6, used[ticks - 1] / 1e6);
+        int[] cs = centerAt.clone(), ns = near3At.clone();
+        Arrays.sort(cs);
+        Arrays.sort(ns);
+        // 틱 시간은 일을 몇 틱에 나눴는지에 따라 달라진다 — 같은 일을 적은 틱에 몰면 틱이 길어진다. 그래서 틱당 region CPU 도 같이 본다.
+        System.out.printf("COLDJOIN-NEAR rep=%d | 가운데 청크 도착 틱 중앙=%d 최대=%d | 3×3 도착 틱 중앙=%d 최대=%d | 틱당 regionCPU=%.1fms%n",
+                rep, cs[players / 2], cs[players - 1], ns[players / 2], ns[players - 1], (r1[0] - r0[0]) / 1e6 / ticks);
         if (ChunkTrace.ON) ChunkTrace.dump();
         System.out.println("COLDJOIN-END rep=" + rep);
         for (EmbeddedChannel c : chs) c.finishAndReleaseAll();
@@ -195,17 +214,23 @@ class ColdJoinReserializeBench {
         }
     }
 
-    private static int drainChunks(EmbeddedChannel ch) {
+    private static int drainChunks(EmbeddedChannel ch, java.util.Set<Long> seen) {
         ch.runPendingTasks();
         int n = 0;
         Object o;
         while ((o = ch.readOutbound()) != null) {
             ByteBuf b = (ByteBuf) o;
-            if (Types.readVarInt(b) == LEVEL_CHUNK) n++;
+            if (Types.readVarInt(b) == LEVEL_CHUNK) {
+                n++;
+                int x = b.readInt(), z = b.readInt();
+                seen.add(key(x, z));
+            }
             b.release();
         }
         return n;
     }
+
+    private static long key(int x, int z) { return ((long) x << 32) | (z & 0xFFFFFFFFL); }
 
     static long[] threadStats(String prefix) {
         var mx = (com.sun.management.ThreadMXBean) java.lang.management.ManagementFactory.getThreadMXBean();

@@ -3069,7 +3069,7 @@ public final class Region {
                 // 바닐라 PlayerChunkSender 처럼 배치는 한 틱 안에 Start → 청크 → Finished 로 끝나야 한다(클라이언트가 그 시간으로 속도를 정한다).
                 // 본문이 아직 없으면 직렬화만 걸어 두고 다음 틱에 보낸다. 다른 region 청크는 예전처럼 배치 안에서 기다린다(드묾).
                 int body = mine(Regionizer.chunkKey(cp.x(), cp.z()))
-                        ? world.chunkBodyReadyOrPrefetch(cp, room, syncBodiesLeft > 0, loadedOnly ? null : p.pendingChunks()) : World.BODY_READY;
+                        ? world.chunkBodyReadyOrPrefetch(cp, room, syncBodiesLeft > 0, loadedOnly ? null : p.pendingChunks(), tickCount) : World.BODY_READY;
                 if (body == World.BODY_SYNC) syncBodiesLeft--;
                 if (room && body != World.BODY_PENDING) {
                     batch.add(cp);

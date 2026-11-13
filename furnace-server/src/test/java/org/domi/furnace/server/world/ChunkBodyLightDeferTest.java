@@ -235,4 +235,69 @@ class ChunkBodyLightDeferTest {
         assertEquals(0, w.staleBodySkips.get());
         assertEquals(1, w.bodySnapshots.get(), "붙은 요청은 새로 직렬화하지 않는다");
     }
+
+    /** 이웃 기다림은 틱당 한 번만 센다(여럿이 같은 청크를 기다려도 상한 20틱 그대로), 한 틱이라도 끊기면 1 부터 다시 센다(PR #301 검토 R1). */
+    @Test
+    void lightWaits_countOncePerTick_andRestartAfterGap() throws Exception {
+        reg = BlockRegistry.load("blocks/1.21.1.txt");
+        world(new SuperflatWorldSource(reg, 0), true);
+        onOwner(() -> w.regionAt(R00).chunkAtBlocking(C00));
+        CompletableFuture<ChunkColumn> fake = new CompletableFuture<>();
+        w.putLoading(Regionizer.chunkKey(1, 0), fake);
+        for (long t = 100; t < 105; t++) {
+            long tick = t;
+            for (int player = 0; player < 3; player++) onOwner(() -> w.chunkBodyReadyOrPrefetch(C00, true, true, null, tick));
+        }
+        assertEquals(5, (int) onOwner(() -> w.loadedChunk(0, 0).lightWaits()), "세 명이 5틱 기다리면 5");
+        onOwner(() -> w.chunkBodyReadyOrPrefetch(C00, true, true, null, 107));   // 105·106 은 대기열에서 빠져 있었다
+        assertEquals(1, (int) onOwner(() -> w.loadedChunk(0, 0).lightWaits()), "끊긴 뒤에는 1 부터");
+        int snaps0 = w.bodySnapshots.get();
+        for (long t = 108; t < 108 + World.MAX_LIGHT_WAITS - 1; t++) {
+            long tick = t;
+            onOwner(() -> w.chunkBodyReadyOrPrefetch(C00, true, true, null, tick));
+        }
+        assertEquals(snaps0, w.bodySnapshots.get(), "연속 20틱까지는 미룬다");
+        onOwner(() -> w.chunkBodyReadyOrPrefetch(C00, true, true, null, 108 + World.MAX_LIGHT_WAITS - 1));
+        assertEquals(snaps0 + 1, w.bodySnapshots.get(), "상한 뒤에는 직렬화를 건다");
+        w.removeLoading(Regionizer.chunkKey(1, 0), fake);
+    }
+
+    /**
+     * 실제 경합(PR #301 검토 R3, 검토자 ReviewPr301RaceTest 를 줄임): 풀 시작 시점을 0~4ms 흔들며 미리 직렬화·붙기·바꾸기를 섞어도
+     * 기다리는 요청은 null(건너뛴 일의 결과)을 받지 않는다. 다른 스레드에서 붙는 경로도 섞는다.
+     */
+    @Test
+    void realRace_waitersNeverGetNull() throws Exception {
+        reg = BlockRegistry.load("blocks/1.21.1.txt");
+        world(new SuperflatWorldSource(reg, 0), true);
+        onOwner(() -> w.regionAt(R00).chunkAtBlocking(C00));
+        java.util.Random rnd = new java.util.Random(301);
+        int stone = reg.defaultStateId("minecraft:stone"), air = reg.defaultStateId("minecraft:air");
+        int nulls = 0;
+        for (int i = 0; i < 100; i++) {
+            int mode = rnd.nextInt(4), x1 = rnd.nextInt(16), z1 = rnd.nextInt(16), x2 = rnd.nextInt(16), z2 = rnd.nextInt(16);
+            int st = (i & 1) == 0 ? stone : air;
+            int blockUs = rnd.nextInt(4000);
+            pool.submit(() -> {
+                long end = System.nanoTime() + blockUs * 1000L;
+                while (System.nanoTime() < end) Thread.onSpinWait();
+                return null;
+            });
+            // 같은 주인 태스크 안에서: 캐시 비우기 → 미리 직렬화 → (가끔) 바꾸기 → 붙기 → (가끔) 바꾸기
+            CompletableFuture<byte[]> waiter = onOwner(() -> {
+                w.loadedChunk(0, 0).setBlock(x1, 12, z2, st);
+                w.chunkBodyReadyOrPrefetch(C00, false, true);
+                if (mode == 0) w.loadedChunk(0, 0).setBlock(x1, 10, z1, st);
+                CompletableFuture<byte[]> f = w.serializedChunkBody(C00, true);
+                if (mode >= 2) w.loadedChunk(0, 0).setBlock(x2, 11, z2, st);
+                return f;
+            });
+            if (waiter.get(10, TimeUnit.SECONDS) == null) nulls++;
+            CompletableFuture<byte[]> ext = w.serializedChunkBody(C00);
+            onOwner(() -> w.chunkBodyReadyOrPrefetch(C00, false, true));
+            if (ext.get(10, TimeUnit.SECONDS) == null) nulls++;
+        }
+        assertEquals(0, nulls, "기다리는 요청이 건너뛴 일의 null 을 받았다");
+        assertTrue(w.staleBodySkips.get() > 0, "건너뛰기 경로가 실제로 돌아야 의미가 있다");
+    }
 }
