@@ -250,4 +250,133 @@ class InventoryChangedIndexTest {
             fail("저장 파일 줄 수 " + la.length + "/" + lb.length);
         }
     }
+
+    // ------------------------------------------------------------------ player 조건(공유 난수)·레지스트리 객체
+
+    /** player 조건이 공유 난수를 쓰므로 판정 순서가 곧 결과다. */
+    static final class RandomHost implements PlayerAdvancements.Host {
+        final LootRegistries regs;
+        final org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource random;
+        final List<String> done = new ArrayList<>();
+
+        RandomHost(LootRegistries regs, long seed) {
+            this.regs = regs;
+            this.random = new org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource(seed);
+        }
+
+        public void send(Packet p) {}
+        public void awardRecipes(List<ResourceId> r) {}
+        public void giveExperience(int points) {}
+        public void giveLoot(String table) {}
+        public void broadcast(Text message) {}
+        public boolean announceAdvancements() { return false; }
+        public Text displayName() { return Text.text("T"); }
+        public LootContext playerContext() { return new LootContext(null, null, new org.domi.furnace.server.loot.LootParams(), random); }
+        public LootRegistries registries() { return regs; }
+        @Override public Text advancementDone(String advancement, Text message) { done.add(advancement); return message; }
+    }
+
+    /** load 를 거치지 않고 발전 과제 몇 개만으로 매니저를 만든다(regs 는 null — 태그 기준은 항상 후보). */
+    static AdvancementManager manager(Map<ResourceId, Advancement> all) throws Exception {
+        var k = AdvancementManager.class.getDeclaredConstructor(Map.class);
+        k.setAccessible(true);
+        AdvancementManager m = k.newInstance(all);
+        var b = AdvancementManager.class.getDeclaredMethod("buildTree");
+        b.setAccessible(true);
+        b.invoke(m);
+        return m;
+    }
+
+    /** 옛 전부 훑기: 표 순서로 매처 → player 조건, 맞은 것을 차례로 달성. */
+    static void referenceWithPlayer(PlayerAdvancements p, AdvancementManager m, RandomHost h, Object ev) throws Exception {
+        LinkedHashSet<Object> set = listenerSet(p, "minecraft:inventory_changed");
+        if (set == null || set.isEmpty()) return;
+        LootContext ctx = null;
+        List<PlayerAdvancements.Listener> hits = new ArrayList<>();
+        for (Object o : set) {
+            var l = (PlayerAdvancements.Listener) o;
+            Criterion c = m.get(l.advancement()).criteria().get(l.criterion());
+            if (!c.matcher().test(ev, h.regs)) continue;
+            if (!c.player().isEmpty()) {
+                if (ctx == null) ctx = h.playerContext();
+                if (!org.domi.furnace.server.loot.LootCondition.allOf(c.player(), ctx)) continue;
+            }
+            hits.add(l);
+        }
+        for (var l : hits) p.award(m.get(l.advancement()), l.criterion());
+    }
+
+    static Advancement adv(String id, String conditions, LootRegistries regs) {
+        return Advancement.parse(ResourceId.parse(id), JsonParser.parseString(
+                "{\"criteria\":{\"c\":{\"trigger\":\"minecraft:inventory_changed\",\"conditions\":" + conditions + "}}}"), regs);
+    }
+
+    /** 리뷰 R1: 후보(색인 아이템 → general 순)가 표 순서와 달라도 player 조건(random_chance)은 표 순서로 판정해야 한다. */
+    @Test
+    void playerConditionsAreEvaluatedInListenerOrder(@TempDir Path dir) throws Exception {
+        LootRegistries[] regsOut = new LootRegistries[1];
+        VanillaAdvancementsTest.vanilla(regsOut);
+        LootRegistries regs = regsOut[0];
+        String rc = "\"player\":[{\"condition\":\"minecraft:random_chance\",\"chance\":0.5}]";
+        Map<ResourceId, Advancement> all = new java.util.LinkedHashMap<>();
+        // 표 순서: general 먼저, dirt 색인 기준 나중 (색인 경로는 dirt 후보를 먼저 만난다)
+        all.put(ResourceId.parse("probe:g"), adv("probe:g", "{" + rc + "}", regs));
+        all.put(ResourceId.parse("probe:d"), adv("probe:d", "{" + rc + ",\"items\":[{\"items\":\"minecraft:dirt\"}]}", regs));
+        AdvancementManager m = manager(all);
+        RandomHost ha = new RandomHost(regs, 42), hb = new RandomHost(regs, 42);
+        UUID id = UUID.randomUUID();
+        PlayerAdvancements a = new PlayerAdvancements(Files.createDirectories(dir.resolve("a")), id, m, ha);
+        PlayerAdvancements b = new PlayerAdvancements(Files.createDirectories(dir.resolve("b")), id, m, hb);
+        LootStack[] inv = new LootStack[41];
+        java.util.Arrays.fill(inv, LootStack.empty());
+        LootStack dirt = new LootStack("minecraft:dirt", 1);
+        int both = 0, single = 0;
+        for (int n = 0; n < 400; n++) {
+            a.trigger("minecraft:inventory_changed", new Criterion.InventoryEvent(inv, dirt));
+            referenceWithPlayer(b, m, hb, new Criterion.InventoryEvent(inv, dirt));
+            assertEquals(hb.done, ha.done, "이벤트 " + n);
+            if (ha.done.size() == 2) both++; else if (ha.done.size() == 1) single++;
+            ha.done.clear();
+            hb.done.clear();
+            for (Advancement x : all.values()) { a.revoke(x, "c"); b.revoke(x, "c"); }
+        }
+        // 둘 다 후보인 사건(정렬 경로)과 난수가 가른 사건이 모두 있어야 시험이 의미 있다
+        assertTrue(both > 50 && single > 50, "정렬 경로·난수 분기가 실제로 일어나야 한다: 둘 다 " + both + ", 하나 " + single);
+    }
+
+    /** 리뷰 R2: 호스트의 레지스트리 객체가 매니저가 읽을 때 쓴 것과 달라도(리로드 사이) 색인이 전부 훑기와 같다. */
+    @Test
+    void indexUsesManagerRegistriesNotHostRegistries(@TempDir Path dir) throws Exception {
+        java.nio.file.Path root = Path.of("../tools/vanilla-data/server-1.21.1");
+        org.junit.jupiter.api.Assumptions.assumeTrue(Files.isDirectory(root.resolve("data/minecraft/advancement")), "로컬 바닐라 데이터 없음");
+        var repo = new org.domi.furnace.server.data.PackRepository(root, null);
+        repo.reload();
+        repo.setSelected(List.of("vanilla"));
+        var tags = new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt"));
+        AdvancementManager m;
+        LootRegistries regs2;
+        try (var rm = repo.openResourceManager()) {
+            var ids = tags.loadAll(rm);
+            LootRegistries regs1 = new LootRegistries(tags, ids);
+            m = AdvancementManager.load(rm, regs1, new org.domi.furnace.server.loot.NetworkComponents(tags));
+            // 리로드가 태그를 바꾼 상황: 아이템 태그에서 oak_log 를 뺀 새 레지스트리 객체
+            int oak = tags.id("minecraft:item", ResourceId.parse("oak_log"));
+            Map<String, Map<String, int[]>> ids2 = new java.util.HashMap<>(ids);
+            Map<String, int[]> items2 = new java.util.HashMap<>();
+            for (var e : ids.get("minecraft:item").entrySet()) items2.put(e.getKey(), java.util.Arrays.stream(e.getValue()).filter(i -> i != oak).toArray());
+            ids2.put("minecraft:item", items2);
+            regs2 = new LootRegistries(tags, ids2);
+        }
+        RandomHost ha = new RandomHost(regs2, 1), hb = new RandomHost(regs2, 1);
+        UUID id = UUID.randomUUID();
+        PlayerAdvancements a = new PlayerAdvancements(Files.createDirectories(dir.resolve("a")), id, m, ha);
+        PlayerAdvancements b = new PlayerAdvancements(Files.createDirectories(dir.resolve("b")), id, m, hb);
+        LootStack[] inv = new LootStack[41];
+        java.util.Arrays.fill(inv, LootStack.empty());
+        LootStack oak = new LootStack("minecraft:oak_log", 1);
+        a.trigger("minecraft:inventory_changed", new Criterion.InventoryEvent(inv, oak));
+        referenceWithPlayer(b, m, hb, new Criterion.InventoryEvent(inv, oak));
+        assertFalse(hb.done.isEmpty(), "oak_log 로 달성되는 것이 있어야 한다(oak_planks 등)");
+        assertEquals(hb.done, ha.done);
+    }
 }

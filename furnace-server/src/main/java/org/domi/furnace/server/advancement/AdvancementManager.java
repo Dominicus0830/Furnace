@@ -43,43 +43,16 @@ public final class AdvancementManager {
     record IndexEntry(PlayerAdvancements.Listener listener, Criterion criterion) {}
 
     /**
-     * inventory_changed 색인(매니저 단위 불변 표): 바뀐 칸의 아이템 → 그 아이템일 때만 맞을 수 있는 기준들.
-     * 아이템 id 로 제한한 기준은 id 별, 태그로 제한한 기준은 태그 이름별로 두고 태그는 쓰는 레지스트리(LootRegistries)로
-     * 처음 쓸 때 풀어 둔다(레지스트리 객체가 바뀌면 다시 푼다). 아이템으로 거를 수 없는 나머지는 general.
+     * inventory_changed 색인(매니저 단위 불변 표): 바뀐 칸의 아이템 → 그 아이템일 때만 맞을 수 있는 기준들(순서 없음).
+     * 아이템 id 로 제한한 기준은 id 별로, 태그로 제한한 기준은 이 매니저가 읽을 때 쓴 LootRegistries(기준의 ItemPredicate 가
+     * 파싱 때 잡아 둔 것과 같은 객체)로 만들 때 바로 풀어 그 태그의 아이템마다 넣는다. 레지스트리를 모르면(load 를 안 거친 매니저)
+     * 태그 기준은 항상 후보(general). 아이템으로 거를 수 없는 나머지도 general.
      * 매니저가 새로 만들어지면(/reload) 색인도 새로 만든다.
      */
-    static final class TriggerIndex {
-        private final Map<String, List<IndexEntry>> byItem;
-        private final Map<String, List<IndexEntry>> byTag;
-        private final List<IndexEntry> general;
-        private volatile Resolved resolved;
+    record TriggerIndex(Map<String, List<IndexEntry>> byItem, List<IndexEntry> general) {}
 
-        private record Resolved(LootRegistries regs, Map<String, List<IndexEntry>> byItem) {}
-
-        TriggerIndex(Map<String, List<IndexEntry>> byItem, Map<String, List<IndexEntry>> byTag, List<IndexEntry> general) {
-            this.byItem = byItem;
-            this.byTag = byTag;
-            this.general = general;
-        }
-
-        List<IndexEntry> general() { return general; }
-
-        /** 그 아이템이 바뀔 때 맞을 수 있는 기준들(순서 없음). 없으면 null. */
-        List<IndexEntry> candidates(String item, LootRegistries regs) {
-            Resolved r = resolved;
-            if (r == null || r.regs != regs) resolved = r = resolve(regs);
-            return r.byItem.get(item);
-        }
-
-        private Resolved resolve(LootRegistries regs) {
-            Map<String, List<IndexEntry>> all = new HashMap<>();
-            for (var e : byItem.entrySet()) all.put(e.getKey(), new ArrayList<>(e.getValue()));
-            for (var t : byTag.entrySet()) {
-                for (String member : regs.tag("minecraft:item", t.getKey())) all.computeIfAbsent(member, k -> new ArrayList<>()).addAll(t.getValue());
-            }
-            return new Resolved(regs, all);
-        }
-    }
+    /** load 가 받은 레지스트리 — 기준 파싱에 쓴 것과 같다(태그 색인용). */
+    private LootRegistries regs;
 
     private volatile TriggerIndex inventoryIndex;
 
@@ -95,7 +68,7 @@ public final class AdvancementManager {
     }
 
     private TriggerIndex buildInventoryIndex() {
-        Map<String, List<IndexEntry>> byItem = new HashMap<>(), byTag = new HashMap<>();
+        Map<String, List<IndexEntry>> byItem = new HashMap<>();
         List<IndexEntry> general = new ArrayList<>();
         for (Advancement a : advancements.values()) {
             for (var e : a.criteria().entrySet()) {
@@ -104,11 +77,16 @@ public final class AdvancementManager {
                 IndexEntry entry = new IndexEntry(new PlayerAdvancements.Listener(a.id(), e.getKey()), c);
                 Criterion.InventoryKey key = c.inventoryKey();
                 if (key == null) general.add(entry);
-                else if (key.tag() != null) byTag.computeIfAbsent(key.tag(), k -> new ArrayList<>()).add(entry);
-                else for (String item : key.items()) byItem.computeIfAbsent(item, k -> new ArrayList<>()).add(entry);
+                else if (key.tag() != null) {
+                    if (regs == null) general.add(entry);
+                    else for (String member : regs.tag("minecraft:item", key.tag())) {
+                        List<IndexEntry> l = byItem.computeIfAbsent(member, k -> new ArrayList<>());
+                        if (l.isEmpty() || l.get(l.size() - 1) != entry) l.add(entry);   // 태그에 같은 아이템이 두 번 있어도 후보는 한 번
+                    }
+                } else for (String item : key.items()) byItem.computeIfAbsent(item, k -> new ArrayList<>()).add(entry);
             }
         }
-        return new TriggerIndex(byItem, byTag, List.copyOf(general));
+        return new TriggerIndex(byItem, List.copyOf(general));
     }
 
     public static AdvancementManager load(ResourceManager rm, LootRegistries regs, org.domi.furnace.server.loot.NetworkComponents items) {
@@ -132,6 +110,7 @@ public final class AdvancementManager {
             }
         }
         AdvancementManager m = new AdvancementManager(all);
+        m.regs = regs;
         m.buildTree();
         for (AdvancementNode root : m.roots) if (root.advancement().display() != null) TreeNodePosition.run(root);
         for (Advancement a : m.advancements.values()) m.encoded.put(a.id(), encode(a, items));
