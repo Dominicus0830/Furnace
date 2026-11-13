@@ -8,7 +8,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPhysicsEvent;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerExpChangeEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -24,6 +26,8 @@ public final class SlotProbePlugin extends JavaPlugin implements Listener {
     public static final AtomicInteger PHYSICS_LOW = new AtomicInteger();
     public static final AtomicInteger PHYSICS_HIGH = new AtomicInteger();
     public static final AtomicInteger MISMATCH = new AtomicInteger();
+    public static final List<Object> BREAK = new CopyOnWriteArrayList<>();
+    public static final AtomicInteger CHAT = new AtomicInteger();
 
     public static void reset() {
         EXP.clear();
@@ -31,6 +35,8 @@ public final class SlotProbePlugin extends JavaPlugin implements Listener {
         PHYSICS_LOW.set(0);
         PHYSICS_HIGH.set(0);
         MISMATCH.set(0);
+        BREAK.clear();
+        CHAT.set(0);
     }
 
     @Override
@@ -41,6 +47,13 @@ public final class SlotProbePlugin extends JavaPlugin implements Listener {
     @EventHandler(priority = EventPriority.NORMAL) public void expNormal(PlayerExpChangeEvent e) { EXP.add(e); }
 
     @EventHandler(priority = EventPriority.HIGH) public void expHigh(PlayerExpChangeEvent e) { EXP.add(e); }
+
+    @EventHandler(priority = EventPriority.LOW) public void breakLow(BlockBreakEvent e) { BREAK.add(e); }
+
+    @EventHandler(priority = EventPriority.HIGH) public void breakHigh(BlockBreakEvent e) { BREAK.add(e); }
+
+    /** 받은 Bukkit 객체를 붙잡지 않는다(다리가 채팅 이벤트를 붙잡는지 보는 시험용). */
+    @EventHandler public void chat(AsyncPlayerChatEvent e) { CHAT.incrementAndGet(); }
 
     @EventHandler(priority = EventPriority.LOW)
     public void physicsLow(BlockPhysicsEvent e) {

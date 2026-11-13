@@ -6,8 +6,9 @@ TASK: `docs/roadmap/optimization-tasks.md` T-032 (O12-01, 반론 C 3.6). 바닐�
 
 - `furnace-api` `Event` 에 붙임 칸 배열(`volatile Object[] slots`, VarHandle CAS)과 열쇠 클래스 `EventSlot<T>`.
 - `EventBridge.Mapping.live`: `synchronizedMap(WeakHashMap)` → 짝(Mapping)마다 `EventSlot` 하나. 칸이 짝마다인 까닭: 한 Furnace 이벤트가 여러 짝으로 간다(`InventoryClickEvent` → Bukkit 클릭·드래그, 한쪽은 SKIP).
-  - 옛 코드는 Bukkit 객체 만들기(`create`)를 전역 잠금 **안에서** 했다(Compat.block 두 번 등). 이제 잠금 없이 만들고 CAS 로 붙인다. 같은 이벤트 객체를 두 스레드가 동시에 처음 부르면 만들기는 두 번 돌 수 있지만 붙는 것은 하나다(실제로는 이벤트가 한 스레드에서 처리되므로 생기지 않는다).
-  - 수명: 옛 맵은 Furnace 이벤트를 약한 키로 잡았다 — 이제 값이 이벤트 객체에 붙어 함께 사라진다. 같은 Furnace 이벤트를 두 번 `call` 하면 같은 Bukkit 객체(옛 동작과 같음).
+  - 옛 잠금은 짝마다 하나였다(그 종류 이벤트 전부가 여러 region 스레드에서 한 줄로 섰다). Bukkit 객체 만들기(`create`, Compat.block 두 번 등)도 그 잠금 **안에서** 했다. 이제 잠금 없이 만들고 CAS 로 붙인다. 같은 이벤트 객체를 두 스레드가 동시에 처음 부르면 만들기는 두 번 돌 수 있지만 붙는 것은 하나다(실제로는 이벤트가 한 스레드에서 처리되므로 생기지 않는다).
+  - 수명: 값이 이벤트 객체에 붙어 함께 사라진다. 같은 Furnace 이벤트를 두 번 `call` 하면 같은 Bukkit 객체(옛 동작과 같음).
+  - **옛 다리의 채팅 누수가 고쳐진다(PR #306 검토 R1)**: 채팅 짝의 `create` 가 `new MappedPlayers(f::recipients)` 로 Furnace 이벤트를 붙잡는 Bukkit 객체를 만들어, 옛 `WeakHashMap` 은 값→키 강참조 때문에 항목을 영영 못 지웠다. Bukkit `AsyncPlayerChatEvent` 처리기가 하나라도 있으면 채팅마다 Furnace·Bukkit 이벤트·받는 사람 집합이 남았다(검토자 실측: 채팅 200번 뒤 GC 에서 옛 200개 남음, 새 0개). 플러그인이 보는 값은 같고 메모리만 다르다. 회귀 시험 `EventBridgeSlotTest.bridgedChatEventsAreCollectable`.
   - 옛 `WeakHashMap` 은 키를 `equals` 로 찾았다. `equals` 를 덮어쓴 Furnace 이벤트는 없다(확인함) — 정체 기준 칸과 결과가 같다.
 - `furnace-api` `LazyValue<T>`: 불변 원본 + 변환 함수, 처음 `get()` 때 변환하고 CAS 로 고정(동시에 읽어도 같은 객체).
 - 첫 적용(O08-07 의 Furnace 쪽): `BlockPhysicsEvent.block()`·`changedType()` 을 게으르게. 서버는 상태 번호(int, 불변)만 잡는다. 공개 생성자(미리 만든 값)는 그대로 두고 게으른 생성자를 더했다.

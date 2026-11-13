@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.lang.ref.WeakReference;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -69,6 +70,56 @@ class EventBridgeSlotTest {
             assertEquals(9, SlotProbePlugin.EXP.size());
             assertNotSame(b1, SlotProbePlugin.EXP.get(6), "다른 Furnace 이벤트는 새 Bukkit 객체");
             assertSame(SlotProbePlugin.EXP.get(6), SlotProbePlugin.EXP.get(8));
+        }
+    }
+
+    /** 실제 다리의 SKIP(짝이 "건너뜀"을 붙임) — 플레이어 없는 블록 부수기는 Bukkit 처리기에 안 가고, 다시 내도 만들기를 다시 하지 않는다. */
+    @Test
+    void skippedMappingStaysSkippedAndReissueKeepsTheSameObject() throws Exception {
+        try (FurnaceTestServer server = server()) {
+            var p = server.join("Dana").player();
+            server.tick(2);
+            var bus = server.api().events();
+            SlotProbePlugin.reset();
+            var none = new org.domi.furnace.api.event.block.BlockBreakEvent("minecraft:overworld", new BlockPos(1, 64, 2), "minecraft:stone", null);
+            bus.call(none);
+            bus.call(none);
+            assertEquals(0, SlotProbePlugin.BREAK.size(), "플레이어 없는 부수기는 Bukkit 처리기에 가지 않는다: " + SlotProbePlugin.BREAK);
+
+            var byPlayer = new org.domi.furnace.api.event.block.BlockBreakEvent("minecraft:overworld", new BlockPos(1, 64, 2), "minecraft:stone", p);
+            bus.call(byPlayer);
+            bus.call(byPlayer);
+            assertEquals(4, SlotProbePlugin.BREAK.size(), SlotProbePlugin.BREAK.toString());
+            for (Object o : SlotProbePlugin.BREAK) assertSame(SlotProbePlugin.BREAK.get(0), o, "LOW·HIGH·재발행 모두 같은 Bukkit 객체");
+        }
+    }
+
+    /**
+     * PR #306 검토 R1: 옛 다리(WeakHashMap)는 채팅 짝의 Bukkit 객체가 MappedPlayers(f::recipients) 로 Furnace 이벤트를 붙잡아
+     * 항목이 지워지지 않았다(채팅마다 누수). 붙임 칸이면 이벤트와 함께 사라진다.
+     */
+    @Test
+    void bridgedChatEventsAreCollectable() throws Exception {
+        try (FurnaceTestServer server = server()) {
+            var p = server.join("Dana").player();
+            server.tick(2);
+            var bus = server.api().events();
+            SlotProbePlugin.reset();
+            List<WeakReference<org.domi.furnace.api.event.player.AsyncChatEvent>> refs = new ArrayList<>();
+            int n = 200;
+            for (int i = 0; i < n; i++) {
+                var f = new org.domi.furnace.api.event.player.AsyncChatEvent(p, "hi" + i, org.domi.furnace.api.text.Text.text("hi" + i));
+                bus.call(f);
+                refs.add(new WeakReference<>(f));
+            }
+            assertEquals(n, SlotProbePlugin.CHAT.get(), "처리기가 불렸다");
+            long alive = n;
+            for (int i = 0; i < 20 && alive > 0; i++) {
+                System.gc();
+                Thread.sleep(50);
+                alive = refs.stream().filter(r -> r.get() != null).count();
+            }
+            assertEquals(0, alive, "다리를 거친 채팅 Furnace 이벤트가 GC 뒤에도 살아 있다(누수)");
         }
     }
 

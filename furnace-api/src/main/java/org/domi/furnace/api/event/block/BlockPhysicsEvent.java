@@ -28,9 +28,9 @@ public final class BlockPhysicsEvent extends BlockEvent implements Cancellable {
     /** 블록 값·종류 이름을 처음 읽을 때 만드는 꼴(서버용). 결과는 위 생성자에 미리 만든 값을 준 것과 같다. */
     public BlockPhysicsEvent(String world, BlockPos pos, LazyValue<BlockData> block, BlockPos sourcePos, LazyValue<String> changedType) {
         super(world, pos);
-        this.block = block;
+        this.block = java.util.Objects.requireNonNull(block, "block");
         this.sourcePos = sourcePos;
-        this.changedType = changedType;
+        this.changedType = java.util.Objects.requireNonNull(changedType, "changedType");
     }
 
     /** 갱신을 받는 블록. */

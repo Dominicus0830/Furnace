@@ -24,7 +24,8 @@ import java.util.function.Supplier;
  */
 public final class LazyValue<T> implements Supplier<T> {
 
-    private static final Object UNSET = new Object();
+    /** null 결과를 고정했다는 표지. 미변환은 필드 기본값 null 이다 — 이 객체가 경합으로 공개되어 생성자 쓰기가 늦게 보여도 "미변환"으로만 보인다. */
+    private static final Object NULL = new Object();
     private static final VarHandle VALUE;
 
     static {
@@ -36,15 +37,18 @@ public final class LazyValue<T> implements Supplier<T> {
     }
 
     private final Object source;
+    /** ready 로 만든 값이면 null(변환 없음 — 값은 ready 에). */
     private final Function<Object, ? extends T> convert;
-    @SuppressWarnings("unused")   // VALUE 로만 만진다
+    /** ready 로 만든 값(null 결과는 NULL). final 이라 경합 공개에서도 보인다. of 로 만들면 null. */
+    private final Object ready;
+    @SuppressWarnings("unused")   // VALUE 로만 만진다. null = 미변환, NULL = null 결과
     private volatile Object value;
 
     @SuppressWarnings("unchecked")
-    private LazyValue(Object source, Function<?, ? extends T> convert, Object value) {
+    private LazyValue(Object source, Function<?, ? extends T> convert, Object ready) {
         this.source = source;
         this.convert = (Function<Object, ? extends T>) convert;
-        this.value = value;
+        this.ready = ready;
     }
 
     /**
@@ -53,27 +57,33 @@ public final class LazyValue<T> implements Supplier<T> {
      * @param source 불변 원본(바뀌지 않는 값, 또는 다른 데서 고치지 않는 사본)
      */
     public static <S, T> LazyValue<T> of(S source, Function<? super S, ? extends T> convert) {
-        return new LazyValue<>(source, Objects.requireNonNull(convert, "convert"), UNSET);
+        return new LazyValue<>(source, Objects.requireNonNull(convert, "convert"), null);
     }
 
     /** 이미 만든 값(변환 없음). 공개 생성자처럼 값을 바로 받는 길과 게으른 길을 한 필드로 다룰 때 쓴다. */
     public static <T> LazyValue<T> ready(T value) {
-        return new LazyValue<>(null, s -> value, value);
+        return new LazyValue<>(null, null, value == null ? NULL : value);
     }
 
     /** 값. 처음 부르면 변환하고, 그 뒤로는 같은 객체를 돌려준다. */
     @Override
     @SuppressWarnings("unchecked")
     public T get() {
-        Object v = VALUE.getVolatile(this);
-        if (v != UNSET) return (T) v;
-        T made = convert.apply(source);
-        Object witness = VALUE.compareAndExchange(this, UNSET, made);
-        return witness == UNSET ? made : (T) witness;
+        Object v = ready;
+        if (v == null) {
+            v = VALUE.getVolatile(this);
+            if (v == null) {
+                T made = convert.apply(source);
+                Object fixed = made == null ? NULL : made;
+                Object witness = VALUE.compareAndExchange(this, null, fixed);
+                v = witness == null ? fixed : witness;
+            }
+        }
+        return v == NULL ? null : (T) v;
     }
 
     /** 이미 변환했는가(시험·진단용). */
-    public boolean isResolved() { return VALUE.getVolatile(this) != UNSET; }
+    public boolean isResolved() { return ready != null || VALUE.getVolatile(this) != null; }
 
     @Override
     public String toString() { return isResolved() ? "LazyValue[" + get() + "]" : "LazyValue[미변환]"; }
