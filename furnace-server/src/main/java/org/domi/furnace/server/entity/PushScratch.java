@@ -25,7 +25,7 @@ public final class PushScratch {
     };
 
     private final Consumer<Player> playerVisitor = p -> {
-        if (p == self || p.isSpectator() || !p.isAlive() || p.onClimbable) return;   // Player.isPushable = LivingEntity.isPushable
+        if (p == self || !p.isPushableByEntities()) return;   // Player.isPushable = LivingEntity.isPushable
         if (!teams || teamAllows(p.team())) players.add(p);
     };
 

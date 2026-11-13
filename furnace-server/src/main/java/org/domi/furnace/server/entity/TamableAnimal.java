@@ -174,7 +174,7 @@ public abstract class TamableAnimal extends Animal {
         int below = level.getBlockState(pos.below());
         if (!canFlyToOwner() && org.domi.furnace.server.block.B.isTag(below, "minecraft:leaves")) return false;
         Pos here = blockPosition();
-        return level.noCollision(boundingBox().move(pos.x() - here.x(), pos.y() - here.y(), pos.z() - here.z()));
+        return level.noCollision(this, boundingBox().move(pos.x() - here.x(), pos.y() - here.y(), pos.z() - here.z()));
     }
 
     protected boolean canFlyToOwner() { return false; }

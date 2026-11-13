@@ -251,7 +251,7 @@ public class Strider extends Animal {
             for (float[] dim : DismountHelper.dismountBounds(r)) {
                 double hw = dim[0] / 2.0F;
                 AABB box = new AABB(at.x() - hw, at.y(), at.z() - hw, at.x() + hw, at.y() + dim[1], at.z() + hw);
-                if (DismountHelper.canDismountTo(level, box)) return at;
+                if (DismountHelper.canDismountTo(level, r, box)) return at;
             }
         }
         return new Vec3(x(), boundingBox().maxY(), z());

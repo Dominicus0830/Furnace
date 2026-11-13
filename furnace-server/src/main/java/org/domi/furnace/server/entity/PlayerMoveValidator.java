@@ -1,5 +1,5 @@
 // 바닐라 ServerGamePacketListenerImpl.handleMovePlayer(1.21.1)의 서버 검증: 너무 빠른 이동(moved too quickly), 충돌로 어긋난 이동(moved wrongly),
-// 이동 후 블록에 끼는 위치 되돌리기(isPlayerCollidingWithBlocks), 떠 있는 틱 세기와 비행 킥(tick 의 clientIsFloating).
+// 이동 후 블록·단단한 엔티티에 끼는 위치 되돌리기(isPlayerCollidingWithAnythingNew), 떠 있는 틱 세기와 비행 킥(tick 의 clientIsFloating).
 // 플레이어를 가진 region 스레드에서만 부른다. 연결(IO) 스레드는 패킷을 Player 의 검증 대기열에 넣기만 한다.
 // 바닐라와 다른 점은 docs/feature-parity/context-notes.md 2026-10-31 항목.
 package org.domi.furnace.server.entity;
@@ -167,7 +167,8 @@ public final class PlayerMoveValidator {
             wrongly = true;
             log.warn("{} moved wrongly!", p.name());
         }
-        if (noPhysics || (!wrongly || !level.noCollision(oldBox)) && !isPlayerCollidingWithBlocks(level, p, oldBox, mv, d, e, f)) {
+        // noCollision(player, 옛 상자): 바닐라는 player.move 뒤라 보더 가까움을 옮긴 자리(mv)에서 본다
+        if (noPhysics || (!wrongly || !level.noCollision(p, mv[0], mv[2], oldBox)) && !isPlayerCollidingWithAnythingNew(level, p, oldBox, mv, d, e, f)) {
             p.applyMove(d, e, f, g, h, packetOnGround);
             boolean autoSpin = p.autoSpinAttackTicks > 0;
             // m 은 위에서 0 으로 만들었으므로 m >= -0.03125 는 언제나 참(바닐라 그대로)
@@ -211,15 +212,15 @@ public final class PlayerMoveValidator {
     }
 
     /**
-     * isPlayerCollidingWithBlocks: 클라이언트가 말한 자리의 몸통(1e-5 줄임)과 겹치는 블록 충돌 모양 중에,
-     * 이동 전 몸통(1e-5 줄임)과는 겹치지 않는 것이 하나라도 있으면 참(= 새로 벽 속으로 들어갔다).
+     * isPlayerCollidingWithAnythingNew: 클라이언트가 말한 자리의 몸통(1e-5 줄임)과 겹치는 충돌 모양(getCollisions — 단단한 엔티티 몸 다음 블록,
+     * 보더 없음) 중에, 이동 전 몸통(1e-5 줄임)과는 겹치지 않는 것이 하나라도 있으면 참(= 새로 벽·배 속으로 들어갔다).
      */
-    static boolean isPlayerCollidingWithBlocks(ChunkLevel level, Player p, AABB oldBox, double[] moved, double d, double e, double f) {
+    static boolean isPlayerCollidingWithAnythingNew(ChunkLevel level, Player p, AABB oldBox, double[] moved, double d, double e, double f) {
         double hw = p.bbWidth() / 2.0;
         AABB box = new AABB(moved[0] - hw, moved[1], moved[2] - hw, moved[0] + hw, moved[1] + height(p), moved[2] + hw)
                 .move(d - moved[0], e - moved[1], f - moved[2]);
         AABB old = oldBox.deflate(1.0E-5F);
-        for (var shape : level.blockCollisions(box.deflate(1.0E-5F))) {
+        for (var shape : level.collisions(p, box.deflate(1.0E-5F))) {
             if (!shape.overlaps(old, 0.0, 0.0, 0.0)) return true;
         }
         return false;
@@ -240,7 +241,7 @@ public final class PlayerMoveValidator {
         double[] back = maybeBackOffFromEdge(level, p, box, onGround, step, dx, dy, dz);
         dx = back[0];
         dz = back[2];
-        double[] r = Entity.collideMove(level, box, onGround, step, dx, dy, dz);
+        double[] r = Entity.collideMove(level, p, box, onGround, step, dx, dy, dz);
         double lenSqr = r[0] * r[0] + r[1] * r[1] + r[2] * r[2];
         if (lenSqr > 1.0E-7) {
             px += r[0];
@@ -257,21 +258,21 @@ public final class PlayerMoveValidator {
             double d = mx, e = mz;
             double h = Math.signum(d) * 0.05;
             double i = Math.signum(e) * 0.05;
-            while (d != 0.0 && canFallAtLeast(level, box, d, 0.0, step)) {
+            while (d != 0.0 && canFallAtLeast(level, p, box, d, 0.0, step)) {
                 if (Math.abs(d) <= 0.05) {
                     d = 0.0;
                     break;
                 }
                 d -= h;
             }
-            while (e != 0.0 && canFallAtLeast(level, box, 0.0, e, step)) {
+            while (e != 0.0 && canFallAtLeast(level, p, box, 0.0, e, step)) {
                 if (Math.abs(e) <= 0.05) {
                     e = 0.0;
                     break;
                 }
                 e -= i;
             }
-            while (d != 0.0 && e != 0.0 && canFallAtLeast(level, box, d, e, step)) {
+            while (d != 0.0 && e != 0.0 && canFallAtLeast(level, p, box, d, e, step)) {
                 d = Math.abs(d) <= 0.05 ? 0.0 : d - h;
                 e = Math.abs(e) <= 0.05 ? 0.0 : e - i;
             }
@@ -283,11 +284,11 @@ public final class PlayerMoveValidator {
     /** isAboveGround(maxDownStep): 땅 위이거나, 떨어진 거리가 걸어 오르기 높이보다 짧고 그 아래(높이 − 떨어진 거리)에 받침이 있다. */
     private static boolean isAboveGround(ChunkLevel level, Player p, AABB box, boolean onGround, float step) {
         float fall = p.vitals().fallDistance();
-        return onGround || fall < step && !canFallAtLeast(level, box, 0.0, 0.0, step - fall);
+        return onGround || fall < step && !canFallAtLeast(level, p, box, 0.0, 0.0, step - fall);
     }
 
-    /** canFallAtLeast(dx, dz, distance): 발밑 얇은 상자(아래로 distance + 1e-5)에 충돌이 없다. */
-    private static boolean canFallAtLeast(ChunkLevel level, AABB b, double x, double z, double distance) {
-        return level.noCollision(new AABB(b.minX() + x, b.minY() - distance - 1.0E-5F, b.minZ() + z, b.maxX() + x, b.minY(), b.maxZ() + z));
+    /** canFallAtLeast(dx, dz, distance): 발밑 얇은 상자(아래로 distance + 1e-5)에 충돌(noCollision(player, …) — 배·셜커·보더 포함)이 없다. */
+    private static boolean canFallAtLeast(ChunkLevel level, Player p, AABB b, double x, double z, double distance) {
+        return level.noCollision(p, new AABB(b.minX() + x, b.minY() - distance - 1.0E-5F, b.minZ() + z, b.maxX() + x, b.minY(), b.maxZ() + z));
     }
 }

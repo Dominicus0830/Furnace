@@ -131,7 +131,7 @@ public class Ghast extends FlyingMob implements Enemy {
             AABB box = ghast.boundingBox();
             for (int i = 1; i < steps; i++) {
                 box = box.move(nx, ny, nz);
-                if (!ghast.level().noCollision(box)) return false;
+                if (!ghast.level().noCollision(ghast, box)) return false;
             }
             return true;
         }
