@@ -2035,14 +2035,31 @@ public final class Region {
     public org.domi.furnace.server.entity.ItemEntity playerDrop(Player p, ItemStack stack, boolean dropAround, boolean includeThrower, boolean callEvent) {
         world.assertOwns(this);
         if (stack.isEmpty()) return null;
-        if (callEvent && !world.levelServices().gameEvents().playerDrop(p, stack)) {
+        var events = callEvent ? world.levelServices().gameEvents() : null;
+        // CraftBukkit 순서: 구독자가 있으면 던질 아이템 엔티티(와 속도)를 먼저 만들어 PlayerDropItemEvent 에 보이고, 취소하면 들어가지 않는다.
+        // 구독자가 없으면 이전과 같이 난수·엔티티 번호를 쓰지 않는다.
+        boolean early = events != null && events.wantsPlayerDrop();
+        RegionLevel l = level();
+        var ie = early ? throwItem(p, stack, dropAround, includeThrower, l) : null;
+        if (events != null && !(early ? events.playerDrop(p, stack, ie) : events.playerDrop(p, stack))) {
             // 플러그인 PlayerDropItemEvent 취소(CraftBukkit): 든 칸으로 돌려놓고 — 안 되면 첫 빈 칸 — 클라이언트가 먼저 비운 칸·커서를 되돌려 보낸다
             stack = org.domi.furnace.server.plugin.ClientResync.returnToSlot(p, p.inventory().heldWindowSlot(), stack);
             if (!stack.isEmpty()) stack = p.inventory().add(stack, false, org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(stack), false);
             org.domi.furnace.server.plugin.ClientResync.inventory(p);
             if (stack.isEmpty()) return null;
+            ie = null;   // 일부만 돌아가면 남은 만큼 아래에서 새로 던진다(이전 동작)
         }
-        RegionLevel l = level();
+        if (ie == null) ie = throwItem(p, stack, dropAround, includeThrower, l);
+        l.addFreshEntity(ie);
+        if (includeThrower) {   // ITEM_DROPPED · DROP 통계
+            p.awardStat("minecraft:dropped:" + org.domi.furnace.server.item.ItemTools.itemName(stack), stack.count());
+            p.awardStat("minecraft:drop", 1);
+        }
+        return ie;
+    }
+
+    /** Player.drop 가 던질 아이템 엔티티(눈 높이 - 0.3, 줍기 지연 40, 속도는 플레이어 난수)를 만든다 — 월드에는 아직 넣지 않는다. */
+    private org.domi.furnace.server.entity.ItemEntity throwItem(Player p, ItemStack stack, boolean dropAround, boolean includeThrower, RegionLevel l) {
         double eye = p.eyeY() - 0.3F;
         var ie = new org.domi.furnace.server.entity.ItemEntity(l, l.nextEntityId(), p.x(), eye, p.z(), stack);
         ie.setPickUpDelay(40);
@@ -2061,11 +2078,6 @@ public final class Region {
             ie.setDeltaMovement((double) (-i * h * 0.3F) + Math.cos(k) * (double) m,
                     (double) (-g * 0.3F + 0.1F + (r.nextFloat() - r.nextFloat()) * 0.1F),
                     (double) (j * h * 0.3F) + Math.sin(k) * (double) m);
-        }
-        l.addFreshEntity(ie);
-        if (includeThrower) {   // ITEM_DROPPED · DROP 통계
-            p.awardStat("minecraft:dropped:" + org.domi.furnace.server.item.ItemTools.itemName(stack), stack.count());
-            p.awardStat("minecraft:drop", 1);
         }
         return ie;
     }
