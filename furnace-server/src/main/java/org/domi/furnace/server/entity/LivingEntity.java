@@ -646,6 +646,29 @@ public abstract class LivingEntity extends Entity implements Targetable {
     @Override
     public void kill() { hurt(Damage.GENERIC_KILL, Float.MAX_VALUE); }
 
+    /**
+     * 플러그인 API 의 setHealth(0): Paper CraftLivingEntity#setHealth 처럼 체력을 0 으로 하고 generic 피해로 죽는다(die). 피해 이벤트·토템·피해 무적을 거치지 않으므로
+     * 피해 이벤트 처리기 안에서 불러도 피해 이벤트가 다시 나지 않는다.
+     */
+    public void dieFromApi() {
+        setHealth(0f);
+        // 바닐라 generic 피해는 원인 엔티티가 없다 — 마지막으로 때린 쪽(lastDamageAttacker)·진행 중인 피해의 직접 원인이 die 안의 killedEntity(감염·killed 통계)로 새지 않게 잠깐 비운다.
+        // 피해 이벤트 처리기 안에서 불리면 바깥 hurt 가 이어지므로 die 뒤 되돌린다.
+        Targetable attacker = lastDamageAttacker;
+        Entity direct = pendingDirect;
+        int directId = pendingDirectId;
+        lastDamageAttacker = null;
+        pendingDirect = null;
+        pendingDirectId = -2;
+        try {
+            die(Damage.GENERIC);
+        } finally {
+            lastDamageAttacker = attacker;
+            pendingDirect = direct;
+            pendingDirectId = directId;
+        }
+    }
+
     // ------------------------------------------------------------------ Targetable
 
     @Override public int id() { return super.id(); }

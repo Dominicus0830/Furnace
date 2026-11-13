@@ -1,8 +1,8 @@
-# 최적화·기능 개선 TASK 목록 (1차, 2026-11-12)
+# 최적화·기능 개선 TASK 목록 (1차 2026-11-12, 2차 O13 2026-11-13)
 
 `docs/audit/optimization-review-plan.md` 의 검토 프로세스(D1 보고서 → D2 반론 → D3 답변 → D4 판정)를 거친 결과다. 기준 커밋은 `07dec3da` 이다. 근거 보고서는 프로젝트 공유 폴더 `furnace/reviews/opt-review/` 에 있다(`O00`~`O15`, 반론 `wave1-rebuttal-core.md`·`wave1-rebuttal-sim.md`·`wave1-rebuttal-api.md`, 각 보고서 끝의 "답변" 절).
 
-코디네이터는 이 표대로 구현 스레드를 연다. 구현 PR 은 기존 규칙대로 독립 검토 → CI `test` → 병합 순서를 따른다. O13(호환·NMS·패킷)은 #267·E4 코덱·ProtocolLib 주입이 병합된 뒤 따로 검토하고, 이 문서에 2차로 덧붙인다.
+코디네이터는 이 표대로 구현 스레드를 연다. 구현 PR 은 기존 규칙대로 독립 검토 → CI `test` → 병합 순서를 따른다. O13(호환·NMS·패킷)은 2차로 따로 검토해 6장에 덧붙였다(2026-11-13, 기준 커밋 `14767c19`). 2차 판정으로 바뀐 1차 행(T-013·016·033·035·040·041·042·059)은 그 자리에서 고쳤다.
 
 ## 0. 읽는 법
 
@@ -34,6 +34,7 @@
 | F7 | `/save-all` 이 전역 스레드를 막지 않게(RCON `save-all flush` 완료 순서 시험 필수) | O14-10 | Opus high | 진행 |
 | H1 | Bukkit 이벤트 다리 6종(BlockPlace 등) 잇기 + NOT_FIRED 낡음 방지 시험 | O12 H1 | Sonnet high | 진행 |
 | T-O15-01 | RandomSource 주인 열쇠 씨앗 이음매 | O15, O05 C3 | Sonnet high | 병합(#272) |
+| F9 | PR #230(A16-01): 플레이어 아닌 엔티티 `getLocation`·`getHealth`·`isValid` 가 감싸개 만든 시점 값(O13 C1). 충돌 풀림(11-13) → 병합만 남음 | O13 C1, 반론 2차 | — | 병합 대기 |
 | F8 | **C-L1** region 합치기·나누기(`ChunkLevel.absorb`·`splitTo`)가 처리 전 빛 검사 집합과 방송 전 `lightChanges` 를 옮기지 않음. 재현: 합친 뒤 발광석 칸 블록빛 0(바닐라 15), 빛 갱신 패킷 6개 사라짐, 나눈 뒤 14. 고침: `absorb` 는 검사 집합을 순서대로 이어 붙이고 `lightChanges` 를 OR, `splitTo` 는 청크 기준으로 나눔. 시험: 세 경우 + 실제 Regionizer 합치기 경로 하나 | O07 빛 풀 설계 5장(`O07MergeLightProbe`) | Sonnet high | 시작 대기 |
 
 ## 3. TASK 표
@@ -56,10 +57,10 @@
 | T-011 | P0 | STR | 재직렬화 폭주: 이웃 빛 가장자리가 본문 캐시를 비우지 않게. ① 미리 직렬화를 이웃 4개 빛 붙인 뒤로 미루기 먼저, ② 블록/빛 부분 캐시 분리는 그 뒤 측정 | O00-05(계수 확정), 반론 A 9.3 | 8명 첫 접속 TPS 11.3 → 회복, 직렬화 3.6회/청크 → 약 1. 증명: 봇이 받은 청크 해시 = 서버 청크 해시 | M | Opus high | T-001 | World, ChunkColumn, ChunkLevel |
 | T-012 | P0 | STR | 빛 묶음: 빛 층 게으른 할당·균일 층 공유(O07-05, O02-02 흡수) → 디스크 청크 저장 빛 읽기(O02-01, `attachPrecomputed` 가장자리 밀기 유지) → `pushEdge` 균일 구역 건너뛰기(O07-06) | O07-05·06, O02-01·02, O00-07, 반론 A 3.1, O02 답변 | 청크 빛 메모리 −96%(실서버 약 0.9GB+), 디스크 로드 CPU −45%, G1 최장 정지 원인 후보. 증명: 빛 SHA-1 같음(이웃 내림·편집·다시 올림, "저장 뒤 이웃이 올라와 번졌는데 다시 저장 안 된 청크" 장면) | L | Opus high | T-001 | light/, ChunkLight, anvil |
 | | | | **위험(보고 필수)**: 가장자리 밀기를 유지하면, 가장자리가 어긋난 채 저장된 월드(가져온 월드 등)에서 바닐라가 디스크 빛을 그대로 쓰는 경우 Furnace 는 이음매를 더 밝게 고칠 수 있다. 바닐라 1.21.1 이 이웃 적재 때 가장자리를 전파하는지 원문으로 먼저 확인하고, 다르면 바닐라 쪽으로 맞추거나 도미니코에게 보고한다. 빛 장면에서 `markLightChanged`·청크 조회가 빛 시간의 약 75%(O07 답변) — 박싱 제거를 이 TASK 에 포함 | | | | | | | | |
-| T-013 | P1 | STR | 송신 경로: 플레이어별 MPSC 큐 + 한 버퍼 인코딩, 큐에 Runnable 입구를 둬 ConnectionHandler 이벤트 루프 작업 26곳을 같은 순서로 | O03-01·02, 반론 A·C 3.3, O03 답변 | 50명×엔티티 200 서버 루프 CPU −69%, 나가는 바이트 동일(PacketTape) | M | Opus high | T-001, O13(ProtocolLib 주입 길) 조율 | ConnectionHandler, Player |
+| T-013 | P1 | STR | 송신 경로: 플레이어별 MPSC 큐 + 한 버퍼 인코딩, 큐에 Runnable 입구를 둬 ConnectionHandler 이벤트 루프 작업 26곳을 같은 순서로 | O03-01·02, 반론 A·C 3.3, O03 답변 | 50명×엔티티 200 서버 루프 CPU −69%, 나가는 바이트 동일(PacketTape) | M | Opus high | T-001, ProtocolLib 순서 계약 = `wave2-rebuttal-compat.md` 2장 A~D 를 수용 기준으로(넣는 입구가 `deferInsideListener` 를 큐보다 먼저 봄, 탭·다리는 루프에서 패킷 단위, `Nested` 는 큐 원소로, 넣을 때 인코딩하지 않음). 증명 PacketTape 5장면(안 바꿈·바꿈·리스너 안 보내기·묶음·취소 후 묶음 + 뒤따르는 메타데이터). 측정에 ProtocolLib 변형(T-075) | ConnectionHandler, Player |
 | T-014 | P1 | STR | 저장 IO: 인코딩·압축 레인 밖(05 → 03) → 청크 단위 쓰기 대기(Paper RegionFileIOThread 식, 04) | O02-03·04·05, O02 답변 순서 | .mca 저장 256개 뒤 읽기 300~404ms → 112~131ms | M~L | Opus high | T-001 | world/storage, anvil |
 | T-015 | P1 | OPT | 팔레트 바로 쓰기 도우미: 전송 직렬화(O00-06) + 저장 펼치기 제거(O02-07) | O00-06, O02-07, 반론 A 9.1 | 저장 86~144µs·391KB/청크, 전송 팔레트 unpack 할당 37%. 증명: 바이트 동일 | M | Sonnet high | T-001 | ChunkSection 직렬화 |
-| T-016 | P1 | OPT | 플레이어 목록을 차원별 배열로(바닐라처럼 도착 순 append, 리스폰 순서 확인) → 청크 격자 플레이어 색인(O05-02) | O05-01·02, O00-03, 반론 A K2 | 실서버 꼴 약 −30%, 격자까지 가야 나머지. 바닐라 순서로 정확성 K2 함께 해결 | M | Opus high | T-001 | World |
+| T-016 | P1 | OPT | 플레이어 목록을 차원별 배열로(바닐라처럼 도착 순 append, 리스폰 순서 확인) + 전체 접속자 도착 순 배열(Bukkit `getOnlinePlayers()` 순서가 지금 CHM 해시 순 = 정확성 C5, Paper 는 접속 순. T-074 가 이 배열을 씀) → 청크 격자 플레이어 색인(O05-02) | O05-01·02, O00-03, 반론 A K2 | 실서버 꼴 약 −30%, 격자까지 가야 나머지. 바닐라 순서로 정확성 K2 함께 해결 | M | Opus high | T-001 | World |
 | T-017 | P1 | OPT | 추적기 `playerMoved` 후보 줄이기 | O05-03 | E2000×P32 틱당 1.5~5ms. 상태 변화 집합 동일 증명 | M | Opus high | T-001 | entity/view |
 | T-018 | P1 | STR | 충돌 수집 재작성(섹션 단위·공기 섹션·cave_air·모양 할당 제거, 모양 목록 순서 보존) | O05-07, O00-10 소 3000 장면 | 충돌 몫 −50% 가설(몹 틱 −8%). 옛/새 수집기 무작위 대조 | L | Opus high | F3, T-001 | ChunkLevel, Entity |
 | T-019 | P1 | OPT | 작은 안전 묶음 A(스케줄러·청크): 곧 될 머리 당겨 꺼내기(O01-03, 스케줄러 CPU −21%), `ownerOf` 이중 조회·박싱·해시 겹침(O01-05②, O00-15), O02-05·06·13·14, O03-03(암호 인코더 배열)·06(직렬화 버퍼 −25%)·13 | 반론 A 7장 T1 | 각 S. 증명 각 항목 | S×여럿 | Sonnet high (O01-05 는 Opus high) | — | sched, world, net |
@@ -89,22 +90,25 @@
 | T-030 | P0 | OPT | `inventory_changed` 트리거: 슬롯 변경 한 번에 세기 한 번 + 아이템 id 색인 | O10-01, 반론 C 3.5 | 370µs → 약 1µs. 옛 매처와 차분 시험 | S~M | Sonnet high | — | ConnectionHandler.fireInventoryChanged (T-033 보다 먼저) |
 | T-031 | P0 | FIX+ | 로그 롤오버 gzip 을 잠금 밖·비동기로 | O14-12 | 100MB 1.4초 동안 모든 로깅 스레드 멈춤 제거 | S | Sonnet medium | — | LatestLogAppender |
 | T-032 | P1 | OPT | Bukkit 이벤트 다리 전역 잠금 제거(다리 칸) + 게으른 이벤트 내용 도우미(O12-07·O08-07 공통) | O12-01, 반론 C 3.6 | 다리 이벤트 처리량 1M/s 상한 제거 | S+M | Sonnet high | H1 | EventBridge (O13 파일) |
-| T-033 | P1 | OPT | 이벤트 구독 시 칸 전체 변환: ① 패치 변환 캐시(먼저) ② 지연 스냅샷(T-032 도우미 뒤) | O09-01, O09 답변 | 54칸 스냅샷 23.5µs → 1/20~1/200(가설, A/B) | S+M | Sonnet high | T-030, T-032 | 메뉴·이벤트 |
+| T-033 | P1 | OPT | 이벤트 구독 시 칸 전체 변환: ① 패치 변환 캐시(먼저) ② 지연 스냅샷(T-032 도우미 뒤). 수용 기준에 어댑터 포함: `InventoryResultMappings.container()` 의 즉시 `snap.contents()` 복사를 없애고 스냅샷 참조를 쥐어 칸별로 읽기, 시험 "처리기가 `getItem(3)` 만 읽으면 다른 칸은 변환 0"(O13 6-2·P-O13-09(c)) | O09-01, O09 답변 | 54칸 스냅샷 23.5µs → 1/20~1/200(가설, A/B) | S+M | Sonnet high | T-030, T-032 | 메뉴·이벤트 |
 | T-034 | P1 | STR | 서버 접속 이벤트(AsyncPlayerPreLogin·Configure)를 플러그인 비동기 실행기에서 분리 + 실행기 기본값(결정 D1) | O12-02 | 가상 스레드 pinning 452ms → 1ms | M | Opus high | — | plugin |
-| T-035 | P1 | STR | 채팅: 연결별 순서 사슬 하나(chat·chat_command·chat_command_signed·chat_session_update 4패킷). 채팅은 사슬에서, 명령은 전역에 넘기고 전역 람다 반환까지 `whenComplete` 로 기다림(join 금지), 큐 상한, 세션 갱신 중간 시험 | O12-03, O11-07, 반론 C 3.3 2라운드 합의, 결정 D2 | 플러그인 블로킹 채팅 처리기가 전역(시간·명령·RCON·#tick)을 막지 않음 | M | Opus high | T-034, T-013 의 순서 계약 | ConnectionHandler:476·536·641-688 |
+| T-035 | P1 | STR | 채팅: 연결별 순서 사슬 하나(chat·chat_command·chat_command_signed·chat_session_update 4패킷). 채팅은 사슬에서, 명령은 전역에 넘기고 전역 람다 반환까지 `whenComplete` 로 기다림(join 금지), 큐 상한, 세션 갱신 중간 시험 | O12-03, O11-07, 반론 C 3.3 2라운드 합의, 결정 D2 | 플러그인 블로킹 채팅 처리기가 전역(시간·명령·RCON·#tick)을 막지 않음 | M | Opus high | T-034, T-013 의 순서 계약. `tap.inbound` 는 루프에서 도착 순으로, 사슬에 넘기기 전에(ProtocolLib 받는 리스너 2b-3 이 Paper 처럼 보게, `wave2-rebuttal-compat.md` 2장 D) | ConnectionHandler:476·536·641-688 |
 | T-036 | P1 | FIX+ | 백업 zip 의 지역 파일 압축 옵션(`backup.compression`, 기본은 결정 D3: STORED 면 CPU −99%·크기 +40~55%, parallel 선택지) | O14-13 + O02-11, 반론 A·C 3.4 | 400MB 11.6초 → 0.69초(STORED) | S | Sonnet medium | — | maintenance/backup |
 | T-037 | P1 | OPT | 플러그인 레시피 등록 일괄 + 방송 합치기 | O10-03 | 등록마다 1.3ms·2.3MB + 108KB 전원 재전송 제거 | S | Sonnet high | — | recipe |
-| T-038 | P1 | ADD | 컨테이너 API: 블록·엔티티 컨테이너 접근(O09-17) → 임의 메뉴 모양 창 열기·`createInventory` 확장·openMerchant(O09-11, 결정 D8) | O09-11·17 | /invsee·가상 모루·작업대 플러그인 | M→L | Sonnet high → Opus high | 결정 D8 | furnace-api, menu |
+| T-038 | P1 | ADD | 컨테이너 API: 블록·엔티티 컨테이너 접근(O09-17) → 임의 메뉴 모양 창 열기·`createInventory` 확장·openMerchant(O09-11, 결정 D16) | O09-11·17 | /invsee·가상 모루·작업대 플러그인 | M→L | Sonnet high → Opus high | 결정 D16 | furnace-api, menu |
 | T-039 | P1 | OPT | 명령 후속(F2 뒤): `execute as/at @e` 리전 단위 묶기(O11-02), 선택자 색인·무관 리전 방문 제거(O11-03·04, 측정 먼저) | O11-02~04, 도미니코 O11 결정 | 엔티티 100개 100ms | M | Opus high | F2 | command/exec |
-| T-040 | P2 | ADD | 이벤트 확충: H1 → 많이 쓰는 10개 → 나머지(결정 D9). 아이템 손상·줍기·화로·거래·발전 과제·전리품·BlockDropItem(플레이어 파괴 경로) 등. 발화 지점 구현은 O09 쪽 TASK | O09-12, O10-A2·A4, O12, 반론 C 3.9 | 호환 | M×여럿 | Sonnet high | H1, T-032 | 발화 지점 |
-| T-041 | P2 | ADD | Bukkit 레시피 API(`ExactChoice` 는 Paper 한계와 같게, 결정 D10) | O10-A1 | 호환 | M | Sonnet high | 결정 D10 | compat (O13 조율) |
-| T-042 | P2 | OPT | 클래스로더 이름 색인(다른 플러그인 jar 찾을 때 CNFE 만들기 제거, 60~90µs → 0.05µs), `PluginTasks.guard` 구간을 프로파일러 꺼짐 때 생략 | O12-05·04 | 플러그인 60개 서버 | S×2 | Sonnet high / medium | — | plugin/library |
+| T-040a | **P0** | FIX+ | 리스너 통째 탈락 막기 + 보호 이벤트: ① `registerEvents` 가 `NoClassDefFoundError` 로 실패할 때만 ASM 으로 리스너 바이트를 읽어 매개변수 클래스가 풀리는 `@EventHandler` 만 `MethodHandles.privateLookupIn` 으로 등록(정상 경로 그대로), 빠진 처리기 이름·없는 클래스를 경고에(A-2) ② 보호 6종 Bukkit 클래스·다리: `EntityExplode`, `BlockPistonExtend/Retract`, `BlockSpread`, `BlockForm`, `ProjectileHit` + `EntityChangeBlock` 발화 지점 확인 | P-O13-06·07, C3·C4, 반론 2차 0장 1·2번 | 어댑터 Bukkit 이벤트 클래스가 92개뿐이라 하나만 없어도 같은 리스너의 `BlockBreak`·`PlayerInteract` 처리기까지 사라짐. 보호 플러그인이 폭발·피스톤 그리핑을 못 막음. 증명: 없는 클래스 + 있는 클래스 한 리스너 시험, 이벤트마다 취소·필드 반영 시험(H1 틀) | S~M | Sonnet high | #306(T-032) 병합 직후(같은 파일 충돌만) | EventBridge, Mappings, SimplePluginManager |
+| T-040b | P1 | ADD | 많이 쓰는 이벤트 클래스·다리: 순서는 jar 훑기 결과(T-079 A-1). 서버가 이미 발화하는 약 20종(`PlayerPickupItem`·`PlayerItemConsume`·`EntityTarget`·`ServerListPing`·`PlayerAdvancementDone`·`PlayerSwapHandItems`·`PlayerFish`·포털·침대·탈것·길들이기·번식·`PlayerEditBook`·탑승 등) 먼저, 아이템 손상·화로·거래·전리품·BlockDropItem 처럼 발화 지점이 없는 것은 O09 쪽 TASK 와 함께(결정 D17) | O09-12, O10-A2·A4, O12, P-O13-06, 반론 C 3.9 | 호환 | M×여럿 | Sonnet high | T-040a | 발화 지점, Mappings |
+| T-040c | P2 | ADD | 없는 Paper 이벤트 껍데기 클래스(처리기 목록만, `NOT_FIRED`): 플러그인 본문이 `instanceof`·`new`·`getHandlerList()` 로 직접 쓰는 경우용. 대상은 A-1 보고로 실제 쓰인 것부터. API 이름·서명만 쓰고 코드는 옮기지 않음 | P-O13-07, 반론 2차 6장 D3 | 호환 | M | Sonnet high | T-040a, T-079 | compat 이벤트 |
+| T-041a | P2 | ADD | Bukkit 레시피 API 클래스·등록·조회(Shaped·Shapeless·Cooking 4종·Stonecutting·Smithing 2종·`RecipeChoice.MaterialChoice`), 변환 한 점 `Compat.recipe`, `Server.addRecipe` 는 묶음 등록(T-037) 위에서. 한 인자 `addRecipe` 의 재전송 여부는 1.21.1 Paper 로 확인(최신 main 은 안 보냄) | O10-A1, O13 6-3, 반론 2차 3장 | 호환 | M | Sonnet high | T-037 | compat (org.bukkit.inventory) |
+| T-041b | P2 | ADD | `RecipeChoice.ExactChoice` 를 Paper 와 같은 한계로(결정 D18) | O10-A1 | 호환 | M | Sonnet high | T-041a, 결정 D18 | compat |
+| T-042 | P2 | OPT | 클래스로더 이름 색인(다른 플러그인 jar 찾을 때 CNFE 만들기 제거, 60~90µs → 0.05µs), `PluginTasks.guard` 구간을 프로파일러 꺼짐 때 생략, `PluginClassLoader.findOwn` 의 `synchronized jar()` 잠금 줄이기(P-O13-10(c), 병렬 클래스 적재 장면을 측정에 추가) | O12-05·04 | 플러그인 60개 서버 | S×2 | Sonnet high / medium | — | plugin/library |
 | T-043 | P2 | OPT | `PlayerAdvancements` 공유 표·비트집합·지연 진행(저장 파일 키 순서 재현 조건) | O10-02 | 플레이어당 647KB·접속 1.16ms. 시제품 측정 먼저 | M | Opus high | M | advancement |
-| T-044 | P2 | FIX+ | 운영 묶음: 비동기 로그(`discardingThreshold=0`·`neverBlock=false`·halt 때 비우기), 메트릭·단계 지표(O00-13·O01-09·O03-12·O14-16 하나로), 진단 명령 묶음(반론 C 3.7), OOM 동작(결정 D5), 바닐라 데이터 없을 때(결정 D6), 설정 다시 읽기(결정 D7) | O14-11·16·17·18·22, 반론 C 3.7 | 운영 | M | Sonnet medium | — | config, metrics |
-| T-045 | P2 | ADD | Spigot 설정 `advancements.disabled`·`*.disable-saving`(기본 꺼짐, 결정 D11) | O10-A5 | 호환 | S | Sonnet medium | 결정 D11 | config |
+| T-044 | P2 | FIX+ | 운영 묶음: 비동기 로그(`discardingThreshold=0`·`neverBlock=false`·halt 때 비우기), 메트릭·단계 지표(O00-13·O01-09·O03-12·O14-16 하나로), 진단 명령 묶음(반론 C 3.7), OOM 동작(결정 D13), 바닐라 데이터 없을 때(결정 D14), 설정 다시 읽기(결정 D15) | O14-11·16·17·18·22, 반론 C 3.7 | 운영 | M | Sonnet medium | — | config, metrics |
+| T-045 | P2 | ADD | Spigot 설정 `advancements.disabled`·`*.disable-saving`(기본 꺼짐, 결정 D19) | O10-A5 | 호환 | S | Sonnet medium | 결정 D19 | config |
 | T-046 | P2 | OPT | 데이터 팩 적재: EntityPredicate 정적 플래그를 문맥 객체로 옮긴 뒤 전리품·발전 과제 병렬 파싱 | O11-06, O10 답변 | `/reload`·기동. KillCredit 결과 동일 | M | Sonnet high | — | loot, advancement |
 | T-047 | P3 | OPT | 콘솔 명령 틱당 하나만 처리 → 바닐라처럼 큐가 빌 때까지(바닐라 `handleConsoleInputs` 확인 먼저) | O00-14 | 정확성 가능성 | S | Sonnet medium | — | ServerCore |
-| M-10 | M | — | 측정: O14-05 데이터 팩 적재(도미니코 PC, Mojang 403), O14-09·14, O10-02 시제품, O12-06/O08-07 레드스톤 이벤트 A/B, 점수판 SetScore 합치기(결정 D12) | 반론 C 7장 | — | — | Sonnet medium~high | — | — |
+| M-10 | M | — | 측정: O14-05 데이터 팩 적재(도미니코 PC, Mojang 403), O14-09·14, O10-02 시제품, O12-06/O08-07 레드스톤 이벤트 A/B, 점수판 SetScore 합치기(결정 D20) | 반론 C 7장 | — | — | Sonnet medium~high | — | — |
 
 ### 3.5 월드 시뮬레이션 (O06~O08)
 
@@ -119,7 +123,7 @@
 | T-056 | P1 | OPT | 상태 표 묶음: 유체·`canHoldFluid` 표(O07-03), `isAir` 표, 레드스톤 동작 정적 표(O08-01①, 클래스 초기화 순환 시험), `facing` 표(O08-02②), O08-05 상수, 직업 블록 비트셋(O06-11), 면 모양 번호(O07-08). 태그 `/reload` 무효화 훅 공용 | 반론 B 4장 6번 | 모든 상태 전수 = 옛 함수. 레드스톤 −6.8% 등 | M | Sonnet high | — | 흩어짐 — 짧게 한 번에 |
 | T-057 | P1 | OPT | 레드스톤 가루 순서 계산 무할당(O08-01②) + `NO_SIGNAL` 레벨 필드(O08-04, BlockLevel 구현 목록 점검) + 횃불 과열 칸별 개수 | O08-01②·04·05 | 가루 6000개 장면 −7%, 순서 대조 20만 좌표 | S | Sonnet high | — | redstone |
 | T-058 | P2 | STR | 길찾기 표를 원시 배열로(바닐라 fastutil 과 같은 모양) | O06-05 | 길 하나 −42%, 경로 200개 서명 같음. 틱 몫 1~2% 라 추격 장면에서 커지면 올림 | M | Sonnet high | T-003 | pathfinding |
-| T-059 | P2 | FIX+ | 게임 비용 진단(몹 AI·예약 틱·레드스톤 폭주·Spark 대체): 계수기·표 하나, 꺼짐이면 비용 0 | O06-16, O07-14, O08-08, O14-19, 반론 B 4장 7번 | 운영 | M | Sonnet high | — | metrics (T-044 와 조율) |
+| T-059 | P2 | FIX+ | 게임 비용 진단(몹 AI·예약 틱·레드스톤 폭주·Spark 대체): 계수기·표 하나, 꺼짐이면 비용 0. + 느린 Bukkit 처리기·`RegionBorrow` 오래 쥠 경고(P-O13-15): 기본은 이벤트 한 번(처리기 묶음) 단위로 재고 처리기 단위는 프로파일러 켬 또는 문턱을 넘은 뒤에만(T-032 뒤 처리기 호출 109~129ns 라 처리기마다 `nanoTime` 두 번은 +20~30%), 빌림 경고는 O01 워치독 조기 경고 장치에 | O06-16, O07-14, O08-08, O14-19, 반론 B 4장 7번 | 운영 | M | Sonnet high | — | metrics (T-044 와 조율) |
 | T-060 | P2 | OPT | 작은 묶음: 시선 기억 박싱(O06-09), POI 범위 질의 ①②(O06-12, ③은 술어 호출 기록 대조 뒤), 빛 검사 집합 박싱·`markLightChanged` 박싱(O07-11 → T-012 에. 11-13 교대 A/B: 빛 청크 캐시+중복 제거 시제품이 `lamps400` −8%·흔들림 안이라 성능 근거는 없음, 할당·정리 이유로만), 게임 규칙 틱당 한 번 읽기(O07-11) | 반론 B | 각 S | S | Sonnet medium | — | 흩어짐 |
 | T-061 | P2 | ADD | Paper 호퍼 설정 중 `hopper.disable-move-event`(처리기 있을 때 이벤트 생략, 결과는 바닐라 같음)만. 나머지 둘은 타이밍이 바뀌어 보류 | O08-09, O09 옵션 표, 결정 D-6 | 호퍼 팜 + 플러그인 | S | Sonnet medium | 결정 D24 | hopper, config |
 | T-062 | P2 | ADD | 길찾기를 월드 보더 밖으로 안 하게 옵션(기본 꺼짐) | O06-17, 결정 D-2 | 보더 서버 | S | Sonnet medium | 결정 D22 | pathfinding |
@@ -139,8 +143,9 @@
 1. **지금 (증명 장치 없이 가능, 서로 파일 안 겹침)**: F8(빛 합치기·나누기 정확성), T-010, T-030, T-031, T-050, T-051, T-054, T-002, T-023 의 AppCDS 부분.
 2. **T-001 IdentityKit 병합 뒤**: T-011, T-012, T-053, T-055, T-015, T-016, T-017, T-003.
 3. **F3 충돌 병합 뒤**: T-018. **F2 #tick 병합 뒤**: T-039. **T-010 뒤**: T-052. **T-054 뒤**: T-032 → T-033. **F8 과 `ChunkSection` 저장소 정리 뒤**: T-064(빛 풀 옵션).
-4. **결정 뒤**: T-034(D1)·T-035(D2)·T-036(D3)·T-038(D16)·T-040(D17)·T-041(D18)·T-045(D19)·T-061(D24)·T-062(D22).
-5. 측정 TASK(M-01~M-21)는 계산·실행이 길어 코디네이터 판단으로 Fable 계산·실행 대기열(한 번에 하나)에 넘길 수 있다. 결과는 이 문서의 해당 행을 다시 판정한다.
+4. **결정 뒤**: T-034(D1)·T-035(D2)·T-036(D3)·T-038(D16)·T-040b(D17)·T-041b(D18)·T-045(D19)·T-061(D24)·T-062(D22).
+5. **2차(O13) 순서**는 6.3 절.
+6. 측정 TASK(M-01~M-21)는 계산·실행이 길어 코디네이터 판단으로 Fable 계산·실행 대기열(한 번에 하나)에 넘길 수 있다. 결과는 이 문서의 해당 행을 다시 판정한다.
 
 ## 5. 도미니코 결정
 
@@ -151,3 +156,59 @@
 - O07: 폭발 가림 비율 기억은 Paper 식 옵션·기본 꺼짐으로 진행(T-063). 빛 계산 풀 분리는 보류하지 말고 해결 방법을 찾을 것(T-064). 결과물이 바닐라와 다르거나 문제가 생길 것 같으면 반드시 보고.
 
 남은 결정은 `docs/user-todo/entries/2026-11-12-opt-review-wave1.md` 에 표로 정리했다.
+
+## 6. 2차 — O13 호환 계층 (2026-11-13)
+
+기준 커밋 `14767c19`(#267·#275·#277 병합 뒤). 보고서 `furnace/reviews/opt-review/O13-compat.md`, 반론 `wave2-rebuttal-compat.md`(재현물 `O13-repro/`, `wave2-rebuttal-compat-repro/`). 반론은 반대 0, 찬성 7, 수정 7이었고, 수정은 모두 코드·측정 근거가 있어 원 검토자 답변(D3) 없이 반론 쪽으로 판정했다.
+
+### 6.1 판정 요약
+
+- **가장 큰 것은 성능이 아니라 호환이다.** 어댑터의 Bukkit 이벤트 클래스가 92개뿐이다. 플러그인 리스너 클래스가 없는 클래스(`EntityExplodeEvent` 등)를 하나만 써도, Bukkit 등록 규칙상 그 리스너 클래스 전체가 등록되지 않는다. 그러면 같은 클래스의 `BlockBreakEvent`·`PlayerInteractEvent` 처리기까지 사라진다. 보호 플러그인이 폭발·피스톤을 못 막는 문제(C4)도 원인이 같다. → **T-040a (P0)**.
+- **고친 것**:
+  - P-O13-06 의 "다리 대응이 없다"는 "클래스 자체가 없다"로 고쳤다.
+  - P-O13-05 는 새 배열 대신 T-016 의 도착 순 배열을 쓴다.
+  - P-O13-10 은 상수 풀 파서 대신 한 번 훑기로 바꿨다. 판정 차이가 0이고 8~10배 빠르다.
+  - P-O13-09(b) 의 동일성 판정은 제자리 수정을 놓치므로 변경 번호로 바꿨다.
+  - P-O13-15 의 처리기마다 `nanoTime` 재기는 T-032 뒤에 +20~30% 라 묶음 단위로 바꿨다.
+- **새 정확성 C5**: Bukkit `getOnlinePlayers()` 순서가 `ConcurrentHashMap<eid>` 값 순서다. Paper 는 접속 순이다. 1차 K2 와 원인이 같아 T-016 에서 함께 고친다.
+- **1차 표 오기 정정**: 결정 번호가 반론 C 의 지역 번호로 남아 있었다. T-038 D8→D16, T-040 D9→D17, T-041 D10→D18, T-044 D5·6·7→D13·14·15, T-045 D11→D19, M-10 D12→D20 으로 고쳤다.
+- **보류**:
+  - 거울 재사용(P-O13-03(b), "끊긴 거울" 의미가 바뀜 — 정확성 판단으로 따로).
+  - 서버 엔티티에 감싸개 칸 두기(P-O13-04(c), NMS 어댑터 모듈 경계 결정 때).
+  - ASM 결과 디스크 캐시(P-O13-10(b), 한 번 훑기 뒤 다시 재서 기동 몫이 남을 때만).
+- **기각**:
+  - ProtocolLib 다리의 얕은 필드 비교(제자리 목록 수정을 놓침).
+  - ASM 상수 풀 파서 안(판정이 달라져 증명이 늘고 이득은 비슷).
+  - `handleFor` 를 서버 `World` 칸에 붙이기(이득이 `get` 한 번).
+- **새 결정 없음.** 보고서의 D1(살아 있는 보기)은 A15-08 에서 이미 정해졌다. D5(#230)는 충돌이 풀려 병합만 남았다. D2·D4 는 보류로 충분하다. D3(껍데기 범위)은 T-040a 대체 길 + A-1 보고로 질문이 사라졌다. 남는 것은 1차 D17(추천 갱신)과 D18 이다.
+- 실제 플러그인 부하:
+  - LuckPerms 는 `PermissibleBase` 를 바꿔 끼워 어댑터 권한 경로를 안 지난다.
+  - ProtocolLib 다리는 패킷당 53~115ns 로 작다. 다만 추적 엔티티 감싸개를 쥐어 T-073 문턱을 상시 넘긴다.
+  - FAWE 는 편집 어댑터가 없어 기동·ASM 만 쟀다. 편집 부하는 E7 위에서 다시 잰다.
+
+### 6.2 TASK 표
+
+1차 행을 고친 것(T-013·016·033·035·040a~c·041a~b·042·059, F9)은 3장·2장의 해당 자리에 있다. 아래는 새 행이다.
+
+| T-ID | 우선 | 관점 | 내용 | 근거 | 기대 이득·증명 | 크기 | 모델 | 의존 | 겹치는 파일 |
+|---|---|---|---|---|---|---|---|---|---|
+| T-070 | **P0** | OPT | `CompatInventory.mirror` 약한 참조 목록 폭주: `ReferenceQueue` 로 죽은 참조만 치우거나 "지난 정리 뒤 길이의 2배를 넘을 때만 정리"(분할 상환). 같은 칸 거울 재사용은 빼고 따로 판단 | P-O13-03, 반론 2차 0장 4번 | `getItemInMainHand()` 17~372µs(최악 장면, 실서버는 µs 대 가설) → 약 200ns. 증명: 같은 조작 열을 옛/새 구현에 주고 단계마다 인벤토리·거울 읽기 값 비교(IdentityKit `Differential`) + 기존 `CompatInventory` 시험 | S | Sonnet high | — | CompatInventory |
+| T-071 | P1 | OPT | `PluginHost.handleFor` 빠른 길: `worldHandles.get` 먼저, `old.handle() == w` 면 바로 돌려주고 놓쳤을 때만 `compute` | P-O13-01 | 어댑터 호출 바닥 비용, 1→4스레드 처리량 17→2.8 M/s 역전 제거. 증명: 같은 월드 = 같은 핸들, 내리기·다시 만들기 = 새 핸들, 내리기와 조회 동시 반복 시험 | S | Sonnet high | T-042 등 O12 계열과 순서만 | PluginHost |
+| T-072 | P1 | OPT | 상태 id 표: 서버 `ApiConvert.block` 불변 `BlockData` 를 상태 id 배열에(기동 때 또는 게으르게, 1.21.1 블록 레지스트리는 데이터 팩으로 안 바뀜), 어댑터 `Material` 표는 블록 번호별(약 1,000칸), Bukkit `BlockData` 는 상태별 불변 + `clone` 으로 내줌 | P-O13-02, 반론 2차 1장 | `Block.getType()` 632ns → 시제품 42.5ns. 증명: 모든 상태 전수 `표 == matchMaterial(...)`(시제품 차이 0) + 스레드 축(소유 region·다른 region·전역 빌림·비동기)에서 결과 종류(값/예외) 같음 | S~M | Sonnet high | #306(T-032) | ApiConvert, CompatBlock, CompatBlockData |
+| T-073 | P1 | OPT | 엔티티·플레이어 감싸개 캐시 정리: 키를 아는 `WeakReference` + `ReferenceQueue`(또는 분할 상환 문턱) | P-O13-04(a·b) | 살아 있는 감싸개 2천/2만에서 놓침당 18/144µs → 상수. ProtocolLib 다리 `held` 가 큰 서버에서 문턱을 상시 넘김. 증명: 같은 엔티티 = 같은 Bukkit 객체, 사라진 뒤 회수, 스폰·제거 열 차분 시험 | S | Sonnet high | — | Compat |
+| T-074 | P1 | OPT | `getOnlinePlayers()` 보기: T-016 의 전체 접속자 도착 순 배열을 읽고, Bukkit 감싸개 배열은 `rosterEpoch` 가 바뀔 때만 다시 만듦. `isDisconnected()` 거르기 유지(끊김은 epoch 를 안 올림). 순회·분할자는 시작 때 배열 하나(C2) | P-O13-05, C2·C5, 반론 2차 0장 3번 | `size()` 704ns → 수 ns, 40명 stream 29.7µs·인덱스 순회 57~76µs(O(N²)) → 선형. 증명 기준은 **Paper 접속 순**과 살아 있는 보기 의미(보관한 참조가 새 접속자를 보여 줌). `for (i<size()) get(i)` 를 region 스레드에서 도는 경합은 남는 한계로 문서에 | S | Sonnet high | T-016 | CraftServer, PluginHost |
+| T-075 | P1 | ADD | 호환 기준 장면: O00 기준선에 흔한 Bukkit 플러그인 모양 시험 플러그인 변형(`BlockPhysicsEvent`·`PlayerMoveEvent`·`InventoryMoveItemEvent` 처리기에서 `getType`·`getLocation`·`getItemInMainHand`, 틱마다 `getOnlinePlayers().stream()`, ProtocolLib 엔티티 패킷 리스너). O13 미니 벤치를 #289 벤치 기반으로. T-013 측정에 ProtocolLib 변형 | P-O13-14, 반론 2차 1장 | T-070~074·T-076 의 실서버 몫 측정(지금은 가설), 회귀 감시. 수동 실행(O15 결정) | M | Sonnet high | #289, T-002 | 벤치, furnace-test |
+| T-076 | P2 | OPT | Bukkit 이벤트 내용 게으르게: (a) `BlockPhysicsEvent` 블록 데이터는 상태 id 만 잡고 첫 `getChangedBlockData()` 때 만듦 (b) 처리기마다 도는 아이템 변환은 어댑터 `ItemStack` 의 **변경 번호**(모든 변경 메서드가 올림)로 "(객체, 번호) 같으면 생략" — 동일성 판정은 제자리 수정을 놓쳐 기각, 대상은 깔때기(`InventoryMoveItem`)만 (c)는 T-033 에 | P-O13-09, 반론 2차 1장 | `BlockPhysics` 다리 비용 약 −50%(가설), 깔때기 처리기당 아이템 변환 제거. 증명: 반사로 `ItemStack` 의 모든 public 변경 메서드가 번호를 올리는지 전수 확인 + 차분 시험(안 고치면 안 되씀, 고치면 반영). 1.21.1 Bukkit `InventoryMoveItemEvent.getItem()` 이 사본인지 확인 한 줄 | M | Sonnet high | T-072, #306 | Mappings, InventoryResultMappings, ItemStack |
+| T-077 | P2 | OPT | 채팅 레거시 렌더러를 받는 사람 무관으로(이벤트당 한 번 계산, Paper `viewerUnaware` 와 같음) + `Mappings.FORMAT_BASE` 를 #306 `EventSlot` 칸으로 | P-O13-08 | 받는 사람당 596ns → 이벤트당 한 번, 두 번째 전역 잠금 제거. 증명: 받는 사람마다 채팅 바이트 비교(PacketTape, 서식 바꾸는 시험 플러그인) | S | Sonnet high | #306, T-035 뒤(렌더 호출 스레드가 바뀜) | Mappings, 채팅 |
+| T-078 | P2 | OPT | 어댑터 감싸개 "지금 값" 읽기를 할당 없이: 엔티티 종류 → `EntityType` 표, 월드는 T-071, 이름은 처음 한 번 | P-O13-13 | 호출당 20~80ns(가설). 주목적은 #230 위에서 비용을 늘리지 않기. 증명: `HeldEntityLiveStateTest` + 종류 표 전수 비교 | S | Sonnet high | F9(#230) | CraftEntity, CraftLivingEntity |
+| T-079 | P2 | OPT+ADD | ASM 사전 거르기를 바늘 14개 한 번 훑기(첫 바이트 분기)로, `VERSIONED_INTERNAL` 바늘 제거(포함됨). 그 김에 **A-1**: 상수 풀의 `org/bukkit/`·`io/papermc/`·`com/destroystokyo/` 이름 중 어댑터에 없는 것을 플러그인마다 한 줄 경고 | P-O13-10(a), 반론 2차 4장 A-1·5장 | 클래스당 45~63µs → 6~7µs(JDK 15,405 클래스, 판정 차이 0), 플러그인 30개 기동 1~3초(가설). 증명: 실제 jar 8개 전체 클래스에서 옛/새 판정 같음. A-1 은 로그만 | S | Sonnet high | — | NmsClassTransformer |
+| T-080 | P3 | OPT | Bukkit 처리기 실행기를 `LambdaMetafactory` 로(Furnace `@Subscribe` 공장 같이 씀), 비공개는 `MethodHandle` | P-O13-11 | 처리기 호출당 약 5ns. 증명: 예외 감싸기(`InvocationTargetException` → `EventException`)·비공개 메서드/클래스 시험. T-040a 대체 길과 같은 PR 이면 실행기 경로 하나 | S | Sonnet medium | T-040a | SimplePluginManager |
+| T-081 | P3 | OPT | ProtocolLib 다리: 왕복이 정확한 종류는 "전" 변환 대신 원래 Furnace 패킷을 기준으로(표는 `SchemaPacketReverseTest` 에 묶음) | P-O13-12 | 패킷당 약 30ns. 증명: PacketTape(안 바꾸는/바꾸는 리스너) | S | Sonnet medium | ProtocolLib 2b-3·2b-4 | ProtocolLibBridge |
+
+### 6.3 여는 순서
+
+1. **지금**: T-070, T-040a(#306 병합 직후 — 같은 파일이라 충돌만 피함), F9 #230 병합. T-070 과 T-040a 는 파일이 달라 동시에 연다.
+2. **#306 병합 뒤**: T-072 → T-076(a). **#230 뒤**: T-078.
+3. **P1 묶음**: T-071, T-073, T-075 는 서로 파일이 안 겹쳐 병렬로 연다. **T-016 뒤**: T-074.
+4. T-013 구현 스레드에는 `wave2-rebuttal-compat.md` 2장 A~D 를 그대로 수용 기준으로 넘긴다.
+5. **P2~P3**: T-079, T-040b(T-079 의 A-1 결과 순), T-040c, T-077(T-035 뒤), T-080(T-040a 와 함께 가능), T-081(2b-3·2b-4 뒤).
