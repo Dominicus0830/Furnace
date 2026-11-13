@@ -50,6 +50,9 @@ public interface Block extends org.bukkit.metadata.Metadatable {
 
     BlockData getBlockData();
 
+    /** 이 칸의 지금 상태 스냅숏(블록 엔티티 내용은 담지 않는다). */
+    BlockState getState();
+
     /** 이웃 갱신을 하며 기본 상태로 바꾼다. 블록이 아닌 종류면 IllegalArgumentException, 청크가 로드돼 있지 않으면 IllegalStateException. */
     void setType(Material type);
 
