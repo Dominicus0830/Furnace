@@ -119,8 +119,8 @@ class AsyncLightTest {
             for (int z = -R; z <= R; z++) {
                 ChunkLight a = want.chunk(x, z).light(), b = got.chunk(x, z).light();
                 for (int i = 0; i < ChunkLight.SECTIONS; i++) {
-                    assertArrayEquals(a.sky[i], b.sky[i], where + " 하늘빛 청크 " + x + "," + z + " 층 " + i);
-                    assertArrayEquals(a.block[i], b.block[i], where + " 블록빛 청크 " + x + "," + z + " 층 " + i);
+                    assertArrayEquals(a.sky(i), b.sky(i), where + " 하늘빛 청크 " + x + "," + z + " 층 " + i);
+                    assertArrayEquals(a.block(i), b.block(i), where + " 블록빛 청크 " + x + "," + z + " 층 " + i);
                 }
                 assertArrayEquals(a.lowestSource, b.lowestSource, where + " 원천 높이 청크 " + x + "," + z);
                 assertEquals(a.lightEnabled, b.lightEnabled);
@@ -417,8 +417,8 @@ class AsyncLightTest {
             int x = (int) (k >> 32), z = (int) k;
             ChunkLight a = want.chunk(x, z).light(), b = got.chunk(x, z).light();
             for (int i = 0; i < ChunkLight.SECTIONS; i++) {
-                assertArrayEquals(a.sky[i], b.sky[i], where + " 하늘빛 청크 " + x + "," + z + " 층 " + i);
-                assertArrayEquals(a.block[i], b.block[i], where + " 블록빛 청크 " + x + "," + z + " 층 " + i);
+                assertArrayEquals(a.sky(i), b.sky(i), where + " 하늘빛 청크 " + x + "," + z + " 층 " + i);
+                assertArrayEquals(a.block(i), b.block(i), where + " 블록빛 청크 " + x + "," + z + " 층 " + i);
             }
             assertArrayEquals(a.lowestSource, b.lowestSource, where + " 원천 높이 " + x + "," + z);
         }

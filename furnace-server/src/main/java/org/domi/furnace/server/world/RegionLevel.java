@@ -77,6 +77,9 @@ public final class RegionLevel extends ChunkLevel {
     protected void markDirty(int chunkX, int chunkZ) { region.markChunkDirty(new ChunkPos(chunkX, chunkZ)); }
 
     @Override
+    protected LightStaleChunks lightStale() { return world.lightStale(); }
+
+    @Override
     protected void broadcastToChunk(int chunkX, int chunkZ, Packet packet) { world.broadcastBlockUpdate(new ChunkPos(chunkX, chunkZ), packet); }
 
     @Override

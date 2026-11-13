@@ -41,7 +41,32 @@ public final class ApiConvert {
 
     // ------------------------------------------------------------------ 블록
 
+    /**
+     * 상태 번호 → 불변 API BlockData. 같은 번호는 같은 객체를 돌려준다(레지스트리가 상태 번호별로 한 번만 만든다 — 속성 문자열 쪼개기·TreeMap 을 호출마다
+     * 하지 않는다). BlockData 는 불변 record 라 공유해도 관측 결과가 같다. 레지스트리 밖 번호는 캐시하지 않고 그때그때 만든다.
+     */
     public static BlockData block(int stateId, BlockRegistry blocks) {
+        BlockData hit = blocks.cachedApiBlock(stateId);
+        if (hit != null) return hit;
+        BlockData made = buildBlock(stateId, blocks);
+        if (stateId >= 0 && stateId < blocks.totalStateCount()) {
+            made = shareStrings(made);
+            blocks.cacheApiBlock(stateId, made);
+        }
+        return made;
+    }
+
+    /** 오래 남는 캐시 값의 종류·속성 이름·값 문자열을 JVM 에서 하나로 합친다(상태마다 substring 으로 새로 만든 문자열이 상태당 수백 바이트였다). 값은 같다. */
+    private static BlockData shareStrings(BlockData d) {
+        String type = d.type().intern();
+        if (d.properties().isEmpty()) return new BlockData(type, Map.of());
+        Map<String, String> props = new TreeMap<>();
+        for (var e : d.properties().entrySet()) props.put(e.getKey().intern(), e.getValue().intern());
+        return new BlockData(type, props);
+    }
+
+    /** 캐시를 거치지 않고 만든다(시험이 캐시 결과와 전수 비교하는 기준). */
+    static BlockData buildBlock(int stateId, BlockRegistry blocks) {
         String key = blocks.canonicalKeyOf(stateId);
         if (key == null) return BlockData.of(blocks.nameOf(stateId));
         int semi = key.indexOf(';');

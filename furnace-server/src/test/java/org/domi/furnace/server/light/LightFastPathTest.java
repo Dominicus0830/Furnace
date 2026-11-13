@@ -52,8 +52,8 @@ class LightFastPathTest {
     private static void assertSameLight(ChunkLight expected, ChunkLight actual, String what) {
         assertArrayEquals(expected.lowestSource, actual.lowestSource, what + " lowestSource");
         for (int s = 0; s < ChunkLight.SECTIONS; s++) {
-            assertArrayEquals(expected.sky[s], actual.sky[s], what + " sky section " + s);
-            assertArrayEquals(expected.block[s], actual.block[s], what + " block section " + s);
+            assertArrayEquals(expected.sky(s), actual.sky(s), what + " sky section " + s);
+            assertArrayEquals(expected.block(s), actual.block(s), what + " block section " + s);
         }
     }
 

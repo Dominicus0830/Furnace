@@ -283,6 +283,23 @@ public final class ChunkColumn {
 
     public void lightPrecomputed(boolean v) { this.lightPrecomputed = v; }
 
+    private boolean lightStored;
+
+    /** 빛을 디스크에서 읽었다(T-012 — 다시 계산하지 않음). 올릴 때 하늘빛 원천만 세고 이웃과 가장자리를 맞춘다. 설치 뒤에는 false. */
+    public boolean lightStored() { return lightStored; }
+
+    public void lightStored(boolean v) { this.lightStored = v; }
+
+    private long lightStaleSeq;
+
+    /**
+     * 저장 빛을 믿지 않는다는 표시(LightStaleChunks) 때문에 빛을 다시 계산했다 — 그 표시 번호. 다음 저장이 디스크에 써지면 표시를 지운다
+     * (World.saveChunkAsync). 0 이면 지울 표시가 없다.
+     */
+    public long lightStaleSeq() { return lightStaleSeq; }
+
+    public void lightStaleSeq(long v) { this.lightStaleSeq = v; }
+
     public void addGeneratedEntity(org.domi.furnace.server.net.io.nbt.NbtCompound nbt) {
         if (generatedEntities == null) generatedEntities = new java.util.ArrayList<>();
         generatedEntities.add(nbt);
@@ -599,8 +616,8 @@ public final class ChunkColumn {
     }
 
     /**
-     * 빛 배열만 바뀌었다(이웃 청크의 블록 변경·가짜 광원): 빛을 담는 캐시(청크 패킷 본문·스냅샷)만 버린다. 블록·높이 지도는 그대로이고
-     * 저장 대상으로 표시하지도 않는다(빛은 읽을 때 다시 계산한다).
+     * 빛 배열만 바뀌었다(이웃 청크의 블록 변경·가짜 광원): 빛을 담는 캐시(청크 패킷 본문·스냅샷)만 버린다. 블록·높이 지도는 그대로다.
+     * 저장 대상 표시는 따로 {@link #markLightDirty}(바닐라 ChunkHolder.sectionLightChanged → setUnsaved).
      */
     public void lightTouched() {
         modCount++;
@@ -612,6 +629,16 @@ public final class ChunkColumn {
     public long modCount() { return modCount; }
 
     public boolean dirty() { return dirty; }
+
+    /**
+     * 빛만 바뀌어 저장해야 한다(바닐라 sectionLightChanged 의 setUnsaved(true) — T-012 부터 디스크 빛을 읽으므로 바뀐 빛도 저장해야 한다).
+     * 캐시는 {@link #lightTouched} 가 버린다. 새로 dirty 가 됐으면 true.
+     */
+    public boolean markLightDirty() {
+        if (dirty) return false;
+        dirty = true;
+        return true;
+    }
     public void clearDirty() { dirty = false; }
 
     /** 블록 자체는 안 바뀌었지만(체스트 아이템 등 블록엔티티 내용 변경) 저장이 필요할 때 호출(§3.6). */
