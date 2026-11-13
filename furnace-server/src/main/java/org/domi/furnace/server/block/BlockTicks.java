@@ -69,6 +69,7 @@ public final class BlockTicks {
         long next = NONE;
         /** waiting 목록에 들어 있는가(항목이 지워져도 다음 훑기까지는 남아 있을 수 있다). */
         boolean listed;
+        Tick fastLast;   // 빠른 길: 이 컨테이너의 이번 시각 예약 중 마지막((우선순위, 순번) 최대)
         /** 이번 틱에 꺼냈다 — 실행이 끝난 뒤 비었으면 내려 놓는다. */
         boolean drained;
 
@@ -239,12 +240,14 @@ public final class BlockTicks {
     }
 
     private final ArrayList<Tick> batch = new ArrayList<>();
+    private final ArrayList<Container> fastOrder = new ArrayList<>();
 
     /**
-     * 빠른 길: 꺼낼 컨테이너의 머리가 모두 이번 시각이고(지난 예약 없음) 그 컨테이너들의 예약을 다 합쳐도 한도 안이면, 바닐라 drainContainers 의
-     * 결과는 "이번 시각 예약 전부를 (우선순위, 순번)으로 정렬한 것"과 같다 — 컨테이너 안이 이미 그 순서이고, 머리끼리 고르는 것은 정렬된 목록들의 병합이다.
-     * 컨테이너마다 같은 순서로 꺼내므로 컨테이너 큐의 모양(저장 순서)도 같다. 다르면 false(바닐라 그대로의 길로).
-     * (우선순위, 순번)이 같은 두 청크 머리(동점)의 순서만 병합과 다를 수 있다 — 바닐라에서도 해시 순회에 달린 정의되지 않은 순서다.
+     * 빠른 길: 꺼낼 컨테이너의 머리가 모두 이번 시각이고(지난 예약 없음) 그 컨테이너들의 예약을 다 합쳐도 한도 안이며, 이번 시각 예약끼리
+     * (우선순위, 순번)이 겹치지 않으면, 바닐라 drainContainers 의 결과는 "이번 시각 예약 전부를 (우선순위, 순번)으로 정렬한 것"과 같다 —
+     * 컨테이너 안이 이미 그 순서이고, 머리끼리 고르는 것은 정렬된 목록들의 병합이다. 컨테이너마다 같은 순서로 꺼내므로 컨테이너 큐의 모양(저장 순서)도 같다.
+     * 겹침(동점)이 있으면 바닐라 drainFromCurrentContainer 는 다음 머리와 같을 때 지금 컨테이너에서 계속 꺼내므로 정렬과 다르다
+     * (예: 같은 틱에 불러온 두 청크의 순번 -n..-1) — 그때와 그 밖의 경우는 false(바닐라 그대로의 길로).
      */
     private boolean drainAllOnTime(long gameTime, int maxAllowed) {
         long total = 0;
@@ -253,19 +256,44 @@ public final class BlockTicks {
             total += c.queue.size();
         }
         if (total > maxAllowed - toRunThisTick.size()) return false;
-        Container c;
-        while ((c = containersToTick.poll()) != null) {
+        // 꺼내기 전에 이번 시각 예약을 모아(큐 배열 순회) 정렬하고 겹침을 본다 — 겹치면 아무것도 건드리지 않고 병합 길로
+        for (Container c : containersToTick) {
+            Tick last = null;
+            for (Tick t : c.queue) {
+                if (t.trigger != gameTime) continue;
+                batch.add(t);
+                if (last == null || INTRA_TICK.compare(t, last) > 0) last = t;
+            }
+            c.fastLast = last;
+            fastOrder.add(c);
+        }
+        batch.sort(INTRA_TICK);
+        for (int i = 1, n = batch.size(); i < n; i++) {
+            if (INTRA_TICK.compare(batch.get(i - 1), batch.get(i)) == 0) {
+                batch.clear();
+                for (Container c : fastOrder) c.fastLast = null;
+                fastOrder.clear();
+                return false;
+            }
+        }
+        // 병합 길은 컨테이너의 이번 시각 예약이 바닥나는 순간(= 그 컨테이너의 마지막 예약을 꺼낼 때) 다음 시각을 건다(nextTickForContainer 에 넣는 순서).
+        // 그 순서를 따라 하려고 마지막 예약 순으로 컨테이너를 비운다 — 다음 틱의 동점 머리 순서가 병합 길과 같아진다.
+        fastOrder.sort((a, b) -> INTRA_TICK.compare(a.fastLast, b.fastLast));
+        containersToTick.clear();
+        for (Container c : fastOrder) {
+            c.fastLast = null;
             if (!c.drained) {
                 c.drained = true;
                 drainedThisTick.add(c);
             }
             Tick t;
             while ((t = c.peek()) != null && t.trigger <= gameTime) {
-                batch.add(c.poll());
+                c.poll();
                 size--;
             }
             if (t != null) setNext(c, t.trigger);
         }
+        fastOrder.clear();
         batch.sort(INTRA_TICK);
         toRunThisTick.addAll(batch);
         batch.clear();
