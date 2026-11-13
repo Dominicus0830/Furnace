@@ -311,7 +311,11 @@ public final class Compat {
         while (true) {
             CraftPlayer cur = s.players.get(p.uniqueId());
             if (cur != null && cur.furnaceHandle() == p) {
-                if (fresh != null) fresh.retire();   // 동시에 만든 쪽이 먼저 올렸다
+                if (fresh != null) {   // 동시에 만든 쪽이 먼저 올렸다
+                    fresh.retire();
+                    // 진 쪽은 이긴 쪽과 equals 가 같아(같은 UUID·핸들) 생성자의 clearPermissions·retire 가 이긴 쪽의 구독 칸을 지웠을 수 있다 — 이긴 객체 키로 다시 건다
+                    cur.recalculatePermissions();
+                }
                 return cur;
             }
             if (fresh == null) fresh = create(p);
@@ -325,10 +329,11 @@ public final class Compat {
     }
 
     /** 이 스레드가 CraftPlayer 를 만드는 중인 핸들들(생성 중 권한 계산이 같은 플레이어를 다시 감싸지 않게). 겹쳐 만드는 일이 드물어 작은 목록이면 된다. */
-    private static final ThreadLocal<java.util.ArrayList<org.domi.furnace.api.entity.Player>> CREATING = ThreadLocal.withInitial(java.util.ArrayList::new);
+    private static final ThreadLocal<java.util.ArrayList<org.domi.furnace.api.entity.Player>> CREATING = new ThreadLocal<>();
 
     private static CraftPlayer create(org.domi.furnace.api.entity.Player p) {
         java.util.ArrayList<org.domi.furnace.api.entity.Player> creating = CREATING.get();
+        if (creating == null) CREATING.set(creating = new java.util.ArrayList<>(2));
         for (var c : creating) {
             if (c == p) throw new IllegalStateException("CraftPlayer 생성 중에 같은 플레이어를 다시 감쌀 수 없다: " + p.name());
         }
@@ -342,18 +347,18 @@ public final class Compat {
     }
 
     /**
-     * 접속자의 CraftPlayer 들 — 이 스레드가 만드는 중인 플레이어는 뺀다. Paper 는 새 플레이어의 CraftPlayer(ServerPlayer 생성)를 접속자 목록에 넣기
-     * 전에 만들므로 생성 중 권한 계산(권한 객체 만들기 → 구독자 다시 계산)이 보는 접속자에 그 플레이어가 없고, 그 플레이어는 생성이 끝날 때 스스로 계산한다.
+     * 접속자의 CraftPlayer 들(권한 구독자 보충용). 생성 밖(플러그인이 부를 때)에는 접속자 전원을 감싼다 — Paper 에서는 접속자 전원이 CraftPlayer 를 가져
+     * 구독 목록에 모두 든다. 이 스레드가 CraftPlayer 를 만드는 중(권한 계산)에는 이미 감싼 것만 본다: Paper 는 새 플레이어의 CraftPlayer 를 접속자 목록에 넣기
+     * 전에 만들므로 그 플레이어는 목록에 없고, 안 감싼 접속자는 Bukkit 권한 상태가 없어 다시 계산할 것이 없으며 감쌀 때 올라간 노드로 처음부터 계산한다.
+     * 생성 중에도 전원을 감싸면 첫 감싸기가 접속자 수만큼 중첩된다(재계산 N², 스택 깊이 N).
      */
     public static java.util.List<org.bukkit.entity.Player> onlinePlayersSettled() {
+        boolean creating = CREATING.get() != null;
         java.util.ArrayList<org.bukkit.entity.Player> out = new java.util.ArrayList<>();
-        java.util.ArrayList<org.domi.furnace.api.entity.Player> creating = CREATING.get();
         for (org.domi.furnace.api.entity.Player p : furnace().onlinePlayers()) {
-            boolean skip = false;
-            for (var c : creating) if (c == p) { skip = true; break; }
-            if (!skip) out.add(player(p));
+            org.bukkit.entity.Player c = creating ? existingPlayer(p) : player(p);
+            if (c != null) out.add(c);
         }
-        if (creating.isEmpty()) CREATING.remove();
         return out;
     }
 

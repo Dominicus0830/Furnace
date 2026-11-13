@@ -2,6 +2,7 @@ package org.domi.furnace.compat.paper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -176,6 +177,106 @@ class FirstPlayerPermissionRecursionTest {
             assertEquals(1, subs.stream().filter(x -> x == a).count());
             assertEquals(1, subs.stream().filter(x -> x == b).count());
             assertTrue(a.hasPermission("fp.everyone") && b.hasPermission("fp.everyone"));
+        }
+    }
+
+    /** 권한 객체 하위 클래스로 재계산 횟수를 잰다: PermissibleBase.recalculatePermissions 가 기본 권한마다 getChildren 을 부른다. */
+    private static final String PROBE = """
+            package fp;
+            import java.util.Map;
+            import java.util.concurrent.atomic.AtomicInteger;
+            import org.bukkit.permissions.Permission;
+            import org.bukkit.permissions.PermissionDefault;
+            import org.bukkit.plugin.java.JavaPlugin;
+            import org.domi.furnace.compat.paper.fixtures.WiringProbe;
+            public final class FirstPerm extends JavaPlugin {
+                public static final AtomicInteger CALLS = new AtomicInteger();
+                static final class Probe extends Permission {
+                    Probe() { super("fp.probe", PermissionDefault.TRUE); }
+                    @Override public Map<String, Boolean> getChildren() { CALLS.incrementAndGet(); return super.getChildren(); }
+                }
+                @Override public void onEnable() {
+                    WiringProbe.plugin = this;
+                    getServer().getPluginManager().addPermission(new Probe());
+                }
+            }
+            """;
+
+    private static org.domi.furnace.api.entity.Player handle(String name) {
+        for (var p : Compat.furnace().onlinePlayers()) if (p.name().equals(name)) return p;
+        throw new AssertionError("no player " + name);
+    }
+
+    private static boolean keyedBy(Map<org.bukkit.permissions.Permissible, Boolean> map, Object who) {
+        if (map == null) return false;
+        synchronized (map) {
+            for (var k : new java.util.ArrayList<>(map.keySet())) if (k == who) return true;
+        }
+        return false;
+    }
+
+    /** 안 감싼 접속자가 많아도 첫 감싸기의 권한 재계산이 접속자 수만큼 중첩되지 않는다(생성 중에는 이미 감싼 것만 본다). 생성 밖에서는 전원이 구독자다. */
+    @Test
+    void firstWrapDoesNotNestPerUnwrappedPlayer() throws Exception {
+        int n = 40;
+        Path jar = JarCompiler.jar(tmp.resolve("fp3.jar"), YML, Map.of("fp.FirstPerm", PROBE));
+        try (FurnaceTestServer server = FurnaceTestServer.builder().failFast(false).maxPlayers(n + 5).pluginJar(jar).start()) {
+            for (int i = 0; i < n; i++) server.join("P" + i);
+            server.tick(2);
+            assertNull(Compat.existingPlayer(handle("P0")), "안 감싼 접속자여야 한다");
+            var calls = (java.util.concurrent.atomic.AtomicInteger) WiringProbe.plugin.getClass().getField("CALLS").get(null);
+            calls.set(0);
+            // 작은 스택 스레드에서 — 접속자 수만큼 중첩하면 넘친다
+            java.util.concurrent.atomic.AtomicReference<Throwable> err = new java.util.concurrent.atomic.AtomicReference<>();
+            Thread t = new Thread(null, () -> {
+                try { Compat.player(handle("P0")); } catch (Throwable e) { err.set(e); }
+            }, "small-stack", 256 * 1024);
+            t.start();
+            t.join(60_000);
+            assertNull(err.get(), String.valueOf(err.get()));
+            assertTrue(calls.get() <= 4, "첫 감싸기의 재계산이 접속자 수에 비례한다: " + calls.get());
+            assertNull(Compat.existingPlayer(handle("P1")), "생성 중에는 다른 안 감싼 접속자를 감싸지 않는다");
+            // 생성 밖: 플러그인이 구독자를 물으면 접속자 전원이 든다(Paper 는 전원이 CraftPlayer 를 가진다)
+            assertTrue(Bukkit.getPluginManager().getDefaultPermSubscriptions(false).size() >= n);
+            for (int i = 0; i < n; i++) assertTrue(Bukkit.getPlayer("P" + i).hasPermission("fp.probe"));
+        }
+    }
+
+    /**
+     * 같은 접속을 두 스레드가 동시에 처음 감싸면 둘 다 CraftPlayer 를 만든다. 진 쪽(같은 핸들이라 equals 참)의 생성자·retire 가 이긴 쪽의 구독 칸을
+     * 지우지 않고, 이긴 객체 키가 두 구독 표에 남는다.
+     */
+    @Test
+    void raceLoserDoesNotDropWinnerSubscriptions() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            server.join("Racer");
+            server.tick(2);
+            var h = handle("Racer");
+            assertNull(Compat.existingPlayer(h), "아직 안 감싼 접속이어야 경합을 만든다");
+            var spm = (org.bukkit.plugin.SimplePluginManager) Bukkit.getPluginManager();
+            java.util.concurrent.atomic.AtomicReference<Player> r1 = new java.util.concurrent.atomic.AtomicReference<>();
+            java.util.concurrent.atomic.AtomicReference<Player> r2 = new java.util.concurrent.atomic.AtomicReference<>();
+            Thread t1 = new Thread(() -> r1.set(Compat.player(h)), "race-1");
+            Thread t2 = new Thread(() -> r2.set(Compat.player(h)), "race-2");
+            synchronized (spm.defSubs) {   // 두 스레드 모두 생성자 안(구독 해제)에서 멈추게 한다
+                t1.start();
+                t2.start();
+                long until = System.nanoTime() + 10_000_000_000L;
+                while ((t1.getState() != Thread.State.BLOCKED || t2.getState() != Thread.State.BLOCKED) && System.nanoTime() < until) Thread.onSpinWait();
+                assertTrue(t1.getState() == Thread.State.BLOCKED && t2.getState() == Thread.State.BLOCKED, "두 스레드 모두 생성 중이어야 한다");
+            }
+            t1.join(30_000);
+            t2.join(30_000);
+            Player winner = r1.get();
+            assertNotNull(winner);
+            assertSame(winner, r2.get());
+            assertSame(winner, Compat.existingPlayer(h));
+            Map<org.bukkit.permissions.Permissible, Boolean> defs;
+            Map<org.bukkit.permissions.Permissible, Boolean> perms;
+            synchronized (spm.defSubs) { defs = spm.defSubs.get(false); }
+            synchronized (spm.permSubs) { perms = spm.permSubs.get("fp.everyone"); }
+            assertTrue(keyedBy(defs, winner), "이긴 CraftPlayer 의 기본 권한 구독이 표에 없다");
+            assertTrue(keyedBy(perms, winner), "이긴 CraftPlayer 의 fp.everyone 구독이 표에 없다");
         }
     }
 }
