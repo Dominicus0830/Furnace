@@ -194,7 +194,7 @@ class EntityTrackerCandidatesIdentityTest {
                 }
                 h.add(-2);
             }
-            out.add(line.append(" seen=").append(Long.toHexString(h.value())).toString());
+            out.add(line.append(" seen=").append(Long.toHexString(h.value())).append(" exc=").append(sim.exceptions).toString());
         }
         for (EmbeddedChannel ch : chans.values()) ch.finishAndReleaseAll();
         return out;
@@ -264,13 +264,24 @@ class EntityTrackerCandidatesIdentityTest {
 
         void moved(Player p) {
             Level lv = levels[memberOf(p)];
-            switch (mode) {
-                case FULL -> lv.playerMovedFullScan(p);
-                case CANDIDATES -> assertTrue(lv.playerMovedCandidates(p), "후보 길이 전체 훑기로 빠짐");
-                case ADAPTIVE -> lv.playerMoved(p);
-                case MUTANT_NEARBY_ONLY, MUTANT_REVERSED -> mutant(lv, p, mode);
+            inMoved = true;
+            try {
+                switch (mode) {
+                    case FULL -> lv.playerMovedFullScan(p);
+                    case CANDIDATES -> assertTrue(lv.playerMovedCandidates(p), "후보 길이 전체 훑기로 빠짐");
+                    case ADAPTIVE -> lv.playerMoved(p);
+                    case MUTANT_NEARBY_ONLY, MUTANT_REVERSED -> mutant(lv, p, mode);
+                }
+            } catch (IllegalStateException ex) {   // 처리기 예외 — 두 길이 같은 엔티티에서 멈춰야 한다(기록에 남긴다)
+                exceptions++;
+            } finally {
+                inMoved = false;
             }
         }
+
+        /** 판정 중인가(처리기 흉내가 예외를 던지는 때) · 지금까지 잡은 처리기 예외 수. */
+        boolean inMoved;
+        int exceptions;
 
         /** 일부러 틀린 길(변이 점검용): 역색인 없이 가까운 것만, 또는 순서를 뒤집어. */
         private static void mutant(Level lv, Player p, Mode mode) {
@@ -359,7 +370,18 @@ class EntityTrackerCandidatesIdentityTest {
                  */
                 @Override
                 public void playerTrackEntity(Player viewer, Entity e) {
-                    if (!sim.trackListener || e.id() % 3 != 0) return;
+                    if (!sim.trackListener) return;
+                    // 보는 사람을 옮기거나 시야를 바꾸거나(후보 범위가 달라짐), 판정 도중 예외(역색인을 잃지 않아야 함) — 검토 R7
+                    if (e.id() % 11 == 4) {
+                        viewer.applyMove(viewer.x() + (e.id() % 2 == 0 ? 150.0 : -40.0), viewer.y(), viewer.z() + 60.0, 0, 0, true);
+                        return;
+                    }
+                    if (e.id() % 11 == 7) {
+                        viewer.viewDistance(viewer.viewDistance() > 6 ? 3 : 12);
+                        return;
+                    }
+                    if (e.id() % 13 == 9 && sim.inMoved) throw new IllegalStateException("처리기 예외(시험)");
+                    if (e.id() % 3 != 0) return;
                     Entity next = Level.this.entities().get(e.id() + 1);
                     if (next == null || next.isRemoved()) return;
                     next.setPos(viewer.x() + 3.0, next.y(), viewer.z() - 2.0);
