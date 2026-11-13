@@ -1,4 +1,4 @@
-// C-5 (F-01 후속): 엔티티 저장을 저장소 전체 잠금 안에서 할 때 IO 레인(서로 다른 region 파일) 사이에 생기는 대기를 잰다(기본 꺼짐: -Dfurnace.bench=true).
+// C-5 (F-01 후속): 엔티티 저장을 저장소 전체 잠금 안에서 할 때 IO 레인(서로 다른 region 파일) 사이에 생기는 대기를 잰다(:furnace-server:bench 작업에서만 돈다).
 package org.domi.furnace.server.world.anvil;
 
 import java.lang.management.ManagementFactory;
@@ -10,7 +10,6 @@ import java.util.concurrent.atomic.AtomicLongArray;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -47,7 +46,6 @@ class EntityStoreLockBench {
 
     @Test
     void bench() throws Exception {
-        Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
         int threads = Integer.getInteger("furnace.bench.lanes", 4);   // 기본 io-threads 4
         int per = Integer.getInteger("furnace.bench.writes", 512);
         int ents = Integer.getInteger("furnace.bench.entities", 30);
