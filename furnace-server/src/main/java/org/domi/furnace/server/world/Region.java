@@ -505,12 +505,18 @@ public final class Region {
                 // 빈 칸 채우기(DUMMY)는 디스크 청크에도 한다 — 수정 전에 저장된 월드의 침대·종을 되살리고, Anvil+평지처럼 freshlyGenerated 가 안 서는 새 청크도 덮는다.
                 // 비용은 생성 풀에서 구역당 블록 배열 한 번 훑기(POI mayHavePoi 와 같은 꼴).
                 col.promotePendingBlockEntities(cp.x(), cp.z(), true);
+                // 내려가 있는 동안 이웃에서 빛이 줄었던 청크는 저장 빛을 버리고 고립 계산부터(표시는 고친 빛이 디스크에 써진 뒤 지운다)
+                if (col.lightStored() && world.lightStale().contains(cp.x(), cp.z())) {
+                    col.light(null);
+                    col.lightStored(false);
+                }
                 try {
                     org.domi.furnace.server.block.ChunkLevel.precomputeLight(col, cp.x(), cp.z(), bedrock, sky);
                 } catch (RuntimeException e) {
                     org.slf4j.LoggerFactory.getLogger(Region.class).warn("[LIGHT] 미리 계산 실패 {} — 올릴 때 다시 계산", cp, e);
                     col.light(null);
                     col.lightPrecomputed(false);
+                    col.lightStored(false);
                 }
             }
             if (ChunkTrace.ON) { traceSrc[1] = System.nanoTime(); ChunkTrace.nanos("light", traceSrc[1] - tl); }
@@ -1044,6 +1050,9 @@ public final class Region {
         autosaveEntityQueue = null;
         autosaveChunkQueue = null;
         if (withEntities) saveEntities();
+        // 마지막 틱의 편집으로 남은 빛 검사를 마저 돈다 — 안 그러면 새 블록 + 옛 빛이 저장되고, 다시 올릴 때 그 저장 빛을 믿는다(PR #304 검토 R2).
+        // 빛이 바뀐 청크는 dirty 가 돼 아래에서 같이 저장된다. 방송은 다음 틱 그대로.
+        if (level != null) level.runLightUpdates();
         if (dirtyChunks.isEmpty()) return 0;
         boolean first = true;
         for (ChunkPos cp : new ArrayList<>(dirtyChunks)) {
@@ -1074,6 +1083,8 @@ public final class Region {
         world.autosaveDragonFight(this);
         var store = world.raidStore();
         if (io != null) io.execute(store::saveIfDirty);   // raids.dat(다른 region 은 마지막으로 올린 스냅샷)
+        var stale = world.lightStale();
+        if (io != null) io.execute(stale::saveIfDirty);   // 저장 빛을 믿지 않을 청크 표시(충돌해도 남게 — PR #304 검토 R3)
         world.logStorageOnce();
         autosaveEntityQueue = new java.util.ArrayDeque<>(present);
         autosaveChunkQueue = new java.util.ArrayDeque<>(dirtyChunks);
@@ -1161,6 +1172,9 @@ public final class Region {
             }
         }
         if (drop == null) return;
+        // 내리기 전에 남은 빛 검사를 마저 돈다 — 내린 청크의 검사는 다음 틱에 버려져 새 블록 + 옛 빛이 저장된다(PR #304 검토 R2).
+        // 빛 작업 모드는 아래 settleLightForSave 가 그 청크에 닿는 밀린 빛만 끝낸다(틱마다 묶음을 다 기다리지 않게)
+        if (level != null && !level.asyncLight()) level.runLightUpdates();
         // 퇴출(저장 포함)도 틱당 시간 예산 안에서 — 생성 청크도 dirty 라(F-14) 한꺼번에 내리면 틱이 수백 ms 튄다. 남은 것은 다음 틱에.
         long deadline = saveDeadline;
         for (long key : drop) {

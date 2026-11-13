@@ -167,16 +167,20 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
     private static Light copyLight(ChunkColumn col) {
         var l = col.light();
         if (l == null) return null;
-        byte[][] sky = new byte[l.sky.length][], block = new byte[l.block.length][];
-        for (int i = 0; i < sky.length; i++) {
-            sky[i] = copyLayer(l.sky[i]);
-            block[i] = copyLayer(l.block[i]);
+        int n = org.domi.furnace.server.light.ChunkLight.SECTIONS;
+        byte[][] sky = new byte[n][], block = new byte[n][];
+        for (int i = 0; i < n; i++) {
+            sky[i] = copyLayer(l.sky(i));
+            block[i] = copyLayer(l.block(i));
         }
         return new Light(sky, block);
     }
 
     /** 균일한 층(0 또는 0xFF)이면 공유 사본, 아니면 복제. 내용은 언제나 원본과 같다. */
     static byte[] copyLayer(byte[] a) {
+        // 살아 있는 청크의 공유 층(T-012)은 훑지 않고 바로 — 내용이 같은 스냅샷 공유 사본으로
+        if (org.domi.furnace.server.light.ChunkLight.isKnownZero(a)) return ZERO_LAYER;
+        if (org.domi.furnace.server.light.ChunkLight.isKnownFull(a)) return FULL_LAYER;
         if (a.length == 2048) {
             byte first = a[0];
             if (first == 0 || first == (byte) 0xFF) {

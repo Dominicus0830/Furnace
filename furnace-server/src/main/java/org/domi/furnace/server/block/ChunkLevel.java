@@ -947,8 +947,14 @@ public abstract class ChunkLevel implements BlockLevel {
     /** 처음 빛을 만드는 청크(lightNewChunk 동안): 아직 안 보낸 청크라 변경을 표시하지 않는다(바닐라 sectionLightChanged 는 보낸 청크만). */
     private long initialLightChunk = Long.MIN_VALUE;
 
+    /** lightNewChunk 동안 그 청크 자신의 빛이 바뀌었다(저장 빛이 이웃과 어긋나 가장자리 맞추기가 고쳤다). */
+    private boolean initialLightChanged;
+
     private void markLightChanged(int sx, int sy, int sz, boolean sky) {
-        if (initialLightChunk != Long.MIN_VALUE && initialLightChunk == ((long) sx << 32 | (sz & 0xFFFFFFFFL))) return;
+        if (initialLightChunk != Long.MIN_VALUE && initialLightChunk == ((long) sx << 32 | (sz & 0xFFFFFFFFL))) {
+            initialLightChanged = true;
+            return;
+        }
         int idx = sy - ((minBuildHeight() >> 4) - 1);
         int count = ((maxBuildHeight() - minBuildHeight()) >> 4) + 2;
         if (idx < 0 || idx >= count) return;
@@ -956,7 +962,11 @@ public abstract class ChunkLevel implements BlockLevel {
         lightChanges.computeIfAbsent(key, k -> new long[2])[sky ? 0 : 1] |= 1L << idx;
         // 나중에 이 청크를 처음 받는 플레이어가 캐시된 옛 빛을 받지 않게(바닐라는 청크 패킷을 보낼 때의 빛을 담는다)
         ChunkColumn col = chunk(sx, sz);
-        if (col != null) col.lightTouched();
+        if (col != null) {
+            col.lightTouched();
+            // 바닐라 ChunkHolder.sectionLightChanged: 빛이 바뀐 청크는 저장 대상(setUnsaved). 디스크 빛을 읽으므로(T-012) 바뀐 빛도 써야 한다
+            if (col.markLightDirty()) markDirty(sx, sz);
+        }
     }
 
     /** 빛 갱신 패킷을 그 청크를 보는 플레이어 중 시야 가장자리인 사람에게(바닐라 getPlayers(pos, true)). 기본은 버린다. */
@@ -2029,7 +2039,10 @@ public abstract class ChunkLevel implements BlockLevel {
         }
 
         public void begin() {
-            if (depth++ == 0) java.util.Arrays.fill(cacheCol, null);
+            if (depth++ == 0) {
+                java.util.Arrays.fill(cacheCol, null);
+                lastBlockedX = Integer.MIN_VALUE;
+            }
         }
 
         public void end() {
@@ -2080,6 +2093,34 @@ public abstract class ChunkLevel implements BlockLevel {
 
         void resetLast() { lastX = Integer.MIN_VALUE; }
 
+        private int lastBlockedX = Integer.MIN_VALUE, lastBlockedZ;
+
+        /**
+         * 감소 전파가 안 올라온 청크 U 의 칸에서 멈췄다: U 와, U 를 거쳐 빛이 닿았을 수 있는(그 칸에서 14칸 안) 안 올라온 이웃을 "저장 빛을
+         * 믿지 말 것"으로 적는다. 올라온 이웃은 고칠 길이 없다(지금도 그렇다 — 감소가 U 를 건너가지 못한다).
+         */
+        @Override
+        public void decreaseBlocked(int x, int y, int z) {
+            if (x == lastBlockedX && z == lastBlockedZ) return;   // 같은 열의 높이만 다른 칸은 같은 표시
+            lastBlockedX = x;
+            lastBlockedZ = z;
+            var stale = lightStale();
+            int ux = x >> 4, uz = z >> 4;
+            stale.mark(ux, uz);
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (dx == 0 && dz == 0) continue;
+                    int nx = ux + dx, nz = uz + dz;
+                    int ddx = Math.max(0, Math.max(nx * 16 - x, x - (nx * 16 + 15)));
+                    int ddz = Math.max(0, Math.max(nz * 16 - z, z - (nz * 16 + 15)));
+                    if (ddx + ddz > 14) continue;   // 그 칸의 빛은 많아야 14 — 14칸 넘게는 못 간다
+                    // 올라와 있는 이웃도 표시한다: 내려간 U 를 돌아 들어온 빛은 그 이웃에서도 줄지 않는다 — 다음에 올릴 때 다시 계산해야
+                    // 지워진다(옛 경로는 올릴 때마다 다시 계산해 지웠다. PR #304 검토 R1)
+                    stale.mark(nx, nz);
+                }
+            }
+        }
+
         public int minY() { return minBuildHeight(); }
 
         public int maxY() { return maxBuildHeight(); }
@@ -2099,13 +2140,31 @@ public abstract class ChunkLevel implements BlockLevel {
         ChunkColumn col = chunk(cx, cz);
         if (col == null) return;
         awaitLightIdle();   // 빛 작업 모드: 그 자리 계산은 빛 작업이 쉴 때만(보이는 빛 배열을 그 자리에서 고친다)
+        // 내려가 있는 동안 이웃에서 빛을 줄이는 전파가 이 청크에서 막혔다 → 디스크 빛은 낡았을 수 있어 믿지 않고 다시 계산한다
+        // 표시 번호를 잡아 두고, 고친 빛이 디스크에 써지면 지운다(World.saveChunkAsync — 그 전에 죽어도 표시가 남는다)
+        var staleSet = lightStale();
+        boolean stale = staleSet.contains(cx, cz);
+        long staleSeq = stale ? staleSet.markSeq(cx, cz) : 0;
+        boolean stored = col.lightStored();
+        col.lightStored(false);
+        if (stored && stale) {
+            // 옛 디스크 경로와 똑같이: 고립 계산 + 가장자리 맞추기(이 청크 칸을 처음부터 다시 쓰는 lightChunk 는 이웃 섹션까지 바뀜으로
+            // 표시해 빛 갱신 패킷이 옛 경로보다 많아진다)
+            col.light(null);
+            col.lightPrecomputed(false);
+            stored = false;
+            precomputeLight(col, cx, cz, bedrockState, hasSkyLight());
+        } else if (stored && !col.lightPrecomputed()) {
+            precomputeLight(col, cx, cz, bedrockState, hasSkyLight());   // 동기 경로(생성 풀을 안 거침): 하늘빛 원천만 센다
+        }
         boolean precomputed = col.lightPrecomputed();
         col.lightPrecomputed(false);
-        lightNewChunk0(col, cx, cz, precomputed);
+        lightNewChunk0(col, cx, cz, precomputed, stored, staleSeq);
     }
 
-    private void lightNewChunk0(ChunkColumn col, int cx, int cz, boolean precomputed) {
+    private void lightNewChunk0(ChunkColumn col, int cx, int cz, boolean precomputed, boolean stored, long staleSeq) {
         initialLightChunk = (long) cx << 32 | (cz & 0xFFFFFFFFL);
+        initialLightChanged = false;
         try {
             if (precomputed) {   // 생성 스레드가 청크 안쪽 빛을 이미 계산했다 — 이웃과 가장자리만 맞춘다
                 lightEngine().attachPrecomputed(cx, cz);
@@ -2116,8 +2175,16 @@ public abstract class ChunkLevel implements BlockLevel {
         } finally {
             initialLightChunk = Long.MIN_VALUE;
         }
+        // 표시 때문에 다시 계산했거나(낡은 디스크 빛) 저장 빛을 가장자리 맞추기가 고쳤으면 디스크도 고치게 저장 대상으로
+        if (staleSeq != 0) col.lightStaleSeq(staleSeq);
+        if ((staleSeq != 0 || stored && initialLightChanged) && col.markLightDirty()) markDirty(cx, cz);
         reapplyVirtualLights(cx, cz);
     }
+
+    private final org.domi.furnace.server.world.LightStaleChunks ownLightStale = org.domi.furnace.server.world.LightStaleChunks.detached();
+
+    /** 저장 빛을 믿으면 안 되는 청크 표(region 레벨은 월드가 가진 하나 — 디스크에 남는다). */
+    protected org.domi.furnace.server.world.LightStaleChunks lightStale() { return ownLightStale; }
 
     /** 다시 올라온 청크의 가짜 광원을 빛 엔진에 다시 건다(생성 스레드의 미리 계산은 그것을 모른다). 이웃으로 번지는 빛은 방송한다. */
     private void reapplyVirtualLights(int cx, int cz) {
@@ -2148,9 +2215,8 @@ public abstract class ChunkLevel implements BlockLevel {
     /** 생성 스레드에서 청크 안쪽 빛을 미리 계산한다(월드 상태를 읽지 않는다). 올릴 때 lightNewChunk 가 가장자리를 맞춘다. */
     public static void precomputeLight(ChunkColumn col, int cx, int cz, int bedrockState, boolean hasSkyLight) {
         col.motionBlockingHeightmap();   // 높이 지도도 첫 사용 때 틱 스레드에서 열마다 훑지 않게 미리 채운다
-        if (col.light() != null) return;
         final int base = col.minY() >> 4;
-        col.light(org.domi.furnace.server.light.LevelLight.computeIsolated(cx, cz, new org.domi.furnace.server.light.LevelLight.StateReader() {
+        var reader = new org.domi.furnace.server.light.LevelLight.StateReader() {
             @Override public int state(int x, int y, int z) { return col.getBlock(x & 15, y, z & 15); }
 
             @Override public int uniformSectionState(int sectionY) { return col.sectionUniformBlock(sectionY - base); }
@@ -2158,7 +2224,16 @@ public abstract class ChunkLevel implements BlockLevel {
             @Override public boolean sectionMayEmit(int sectionY) {
                 return col.sectionMaybeHas(sectionY - base, org.domi.furnace.server.light.LightTables.EMITS);
             }
-        }, bedrockState, col.minY(), col.maxY() + 1, hasSkyLight));
+        };
+        if (col.light() != null) {
+            // 디스크에서 읽은 빛(T-012): 고립 계산은 건너뛰고 하늘빛 원천만 센다(바닐라 initializeLightSources). 가장자리는 올릴 때 맞춘다
+            if (col.lightStored() && !col.lightPrecomputed()) {
+                org.domi.furnace.server.light.LevelLight.computeStoredSources(col.light(), cx, cz, reader, col.minY(), col.maxY() + 1, hasSkyLight);
+                col.lightPrecomputed(true);
+            }
+            return;
+        }
+        col.light(org.domi.furnace.server.light.LevelLight.computeIsolated(cx, cz, reader, bedrockState, col.minY(), col.maxY() + 1, hasSkyLight));
         col.lightPrecomputed(true);
     }
 
@@ -2361,9 +2436,16 @@ public abstract class ChunkLevel implements BlockLevel {
                 long[] m = lightChanges.computeIfAbsent(key, k -> new long[2]);
                 m[0] |= skyMask;
                 m[1] |= blockMask;
-                ChunkColumn col = chunk((int) (key >> 32), (int) key);
-                if (col != null) col.lightTouched();
+                int sx = (int) (key >> 32), sz = (int) key;
+                ChunkColumn col = chunk(sx, sz);
+                if (col != null) {
+                    col.lightTouched();
+                    if (col.markLightDirty()) markDirty(sx, sz);   // markLightChanged 와 같이(바닐라 sectionLightChanged → setUnsaved, T-012)
+                }
             });
+            // 묶음 안에서 안 올라온 청크에 막힌 감소 — 저장 빛을 믿지 않게 표시(T-012). 표시 표는 region 스레드 것이라 여기서
+            batch.forEachBlocked(p -> lightWorld.decreaseBlocked(org.domi.furnace.server.light.LightEngine.px(p),
+                    org.domi.furnace.server.light.LightEngine.py(p), org.domi.furnace.server.light.LightEngine.pz(p)));
         }
         for (ChunkColumn.LightBlocks b : lightFrozen) b.thaw();
         lightFrozen.clear();
