@@ -20,6 +20,12 @@ TASK: `docs/roadmap/optimization-tasks.md` T-076 (P-O13-09 (a)(b), 반론 2차 1
 - **Paper 1.21.1**: 사본 없음. `Optimize-Hoppers.patch`(API)가 Spigot 의 `return itemStack.clone();` 을 `return itemStack; // Paper - Removed clone` 으로 바꾼다(원문: 커밋 `33ff3dff` 의 `patches/api/Optimize-Hoppers.patch`). 최신 main 도 같다. Spigot 은 사본을 돌려준다.
 - 어댑터는 `getItem()` 이 내부 객체를 그대로 돌려주므로 **Paper 와 같다.** 어긋남 없음. `setItem` 은 둘 다 `clone()`.
 
+## 측정 (4코어 컨테이너, 임시 벤치 — 커밋 안 함)
+
+- (b) 처리기 한 번의 앞 또는 뒤 비교(`furnace(b.getItem()).equals(f.item())` vs `moveItemMatches`, 같음일 때): 구성 요소 5개 아이템 **56 → 3 ns**, 구성 요소 없는 아이템 36 → 3.5 ns. 처리기마다 앞뒤 두 번이라 처리기당 약 100 ns 절약. 구성 요소가 많을수록 이득이 크다.
+- 끝에서 끝(`bus.call`, 처리기 하나, 같은 장치로 전·후 두 번씩 번갈아): 물리 이벤트 91~135 ns / 깔때기 350~650 ns 로 **전후 차이가 흔들림 안**이다. 이벤트 만들기·용기 사본이 비용 대부분이라 비교 생략분은 안 보인다.
+- (a)는 기대한 −50% 가 **아니다**: 그 가설은 T-072 앞(미리 `BlockData` 만들기)의 수치다. T-072 로 상태 번호 → `BlockData` 가 공유 캐시가 되어 지금 미리 만드는 비용은 작은 래퍼 하나뿐이다. 이득은 "처리기가 좌표만 볼 때 래퍼·람다 하나 덜 만듦" 수준이고, 실서버 몫은 T-075 장면으로 재야 한다. 그래도 `BlockData` 를 한 번도 안 읽는 흔한 경우 변환 0번이라는 구조는 유지된다.
+
 ## 결과 동일 증명
 
 - 모든 블록 상태(26684개 중 가진 것 전부): 게으른 Bukkit 이벤트의 `getChangedType`·`getChangedBlockData`·`getAsString` = 미리 만든 이벤트의 것 (`lazyBukkitPhysicsEventEqualsTheEagerOneForEveryState`).
