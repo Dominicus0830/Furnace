@@ -218,6 +218,7 @@ public final class BlockTicks {
     }
 
     private void drainContainers(long gameTime, int maxAllowed) {
+        if (drainAllOnTime(gameTime, maxAllowed)) return;
         Container c;
         while (toRunThisTick.size() < maxAllowed && (c = containersToTick.poll()) != null) {
             if (!c.drained) {
@@ -232,6 +233,40 @@ public final class BlockTicks {
                 else setNext(c, n.trigger);
             }
         }
+    }
+
+    private final ArrayList<Tick> batch = new ArrayList<>();
+
+    /**
+     * 빠른 길: 꺼낼 컨테이너의 머리가 모두 이번 시각이고(지난 예약 없음) 그 컨테이너들의 예약을 다 합쳐도 한도 안이면, 바닐라 drainContainers 의
+     * 결과는 "이번 시각 예약 전부를 (우선순위, 순번)으로 정렬한 것"과 같다 — 컨테이너 안이 이미 그 순서이고, 머리끼리 고르는 것은 정렬된 목록들의 병합이다.
+     * 컨테이너마다 같은 순서로 꺼내므로 컨테이너 큐의 모양(저장 순서)도 같다. 다르면 false(바닐라 그대로의 길로).
+     * (우선순위, 순번)이 같은 두 청크 머리(동점)의 순서만 병합과 다를 수 있다 — 바닐라에서도 해시 순회에 달린 정의되지 않은 순서다.
+     */
+    private boolean drainAllOnTime(long gameTime, int maxAllowed) {
+        long total = 0;
+        for (Container c : containersToTick) {
+            if (c.peek().trigger != gameTime) return false;
+            total += c.queue.size();
+        }
+        if (total > maxAllowed - toRunThisTick.size()) return false;
+        Container c;
+        while ((c = containersToTick.poll()) != null) {
+            if (!c.drained) {
+                c.drained = true;
+                drainedThisTick.add(c);
+            }
+            Tick t;
+            while ((t = c.peek()) != null && t.trigger <= gameTime) {
+                batch.add(c.poll());
+                size--;
+            }
+            if (t != null) setNext(c, t.trigger);
+        }
+        batch.sort(INTRA_TICK);
+        toRunThisTick.addAll(batch);
+        batch.clear();
+        return true;
     }
 
     private void drainFromCurrentContainer(Container c, long gameTime, int maxAllowed) {
