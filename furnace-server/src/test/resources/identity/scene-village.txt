@@ -2,13 +2,13 @@
 village tick 0 entities 70f4c7723ae612bf
 village tick 0 random 702d3386b3a432cf
 village tick 0 villagers=16 employed=0
-village tick 100 entities 6c1e6f2a129db312
-village tick 100 random f9db470458de250d
-village tick 100 villagers=16 employed=12
-village tick 200 entities 842f3b3ffa42f934
-village tick 200 random f14f7cd05650a623
-village tick 200 villagers=16 employed=15
-village tick 300 entities 43057d874f7be6a9
-village tick 300 random df3ae879667eb22c
+village tick 100 entities a334c4373bc53339
+village tick 100 random 276b320efec00da1
+village tick 100 villagers=16 employed=13
+village tick 200 entities 9d69275325e1e4ca
+village tick 200 random 1590cbf300f289a7
+village tick 200 villagers=16 employed=16
+village tick 300 entities 3f0513571d91f03b
+village tick 300 random 329f8e669dba50d9
 village tick 300 villagers=16 employed=16
-TOTAL b5e80254b5957314 lines=12
+TOTAL a6b6cff55c6c138d lines=12

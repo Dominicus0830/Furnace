@@ -8,15 +8,15 @@ explosion tick 30 entities c53b6705e5f50b98
 explosion tick 30 random 004fdf20b080ad95
 explosion tick 30 tnt-blocks=48 entities=78
 explosion tick 60 blocks a784ba2aaa6898e7
-explosion tick 60 entities b290881f13a0f65e
+explosion tick 60 entities 8022242cf91a2913
 explosion tick 60 random ddfb525d5dcd70af
 explosion tick 60 tnt-blocks=0 entities=14
 explosion tick 90 blocks 8708b67f043a6e93
-explosion tick 90 entities 0c7779c86f3f15fa
+explosion tick 90 entities 03b985508229197a
 explosion tick 90 random 0970ae9e4d3835a0
-explosion tick 90 tnt-blocks=0 entities=5
+explosion tick 90 tnt-blocks=0 entities=4
 explosion tick 120 blocks e1c197152c3de8c0
-explosion tick 120 entities 3115eee13275416b
+explosion tick 120 entities 097f5e226f9ba7b4
 explosion tick 120 random 5eef4a2c30b02fd1
-explosion tick 120 tnt-blocks=0 entities=5
-TOTAL bbb0617a882b8843 lines=20
+explosion tick 120 tnt-blocks=0 entities=4
+TOTAL ccad343c714db6ed lines=20
