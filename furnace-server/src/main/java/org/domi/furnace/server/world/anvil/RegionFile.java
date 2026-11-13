@@ -256,6 +256,12 @@ public final class RegionFile implements Closeable {
         for (int l : locations) if (l != 0) used.set(l >>> 8, l & 0xFF);
     }
 
+    /** 바닐라 RegionFile.flush(save-all flush·IOWorker.synchronize(true)): 지금까지 쓴 내용을 디스크에 내린다(force(true)). */
+    public synchronized void flush() throws IOException {
+        raf.getChannel().force(true);
+        forceCount++;
+    }
+
     @Override
     public synchronized void close() throws IOException {
         // 바닐라 RegionFile.close: sync 여부와 상관없이 force(true) 후 닫는다
