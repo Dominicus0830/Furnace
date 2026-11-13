@@ -32,6 +32,9 @@ import org.junit.jupiter.api.io.TempDir;
 
 class InventoryChangedIndexTest {
 
+    /** 저장 파일의 시각 값("yyyy-MM-dd HH:mm:ss Z") — 달성 시각은 두 플레이어가 다르므로 지우고 비교한다. */
+    static final String TIME_STRING = "\"\\d{4}-\\d\\d-\\d\\d \\d\\d:\\d\\d:\\d\\d [+-]\\d{4}\"";
+
     static final String[] ITEMS = {"minecraft:iron_ingot", "minecraft:gold_ingot", "minecraft:cobblestone", "minecraft:dirt",
             "minecraft:oak_log", "minecraft:stone_pickaxe", "minecraft:stone", "minecraft:birch_planks"};
 
@@ -239,7 +242,12 @@ class InventoryChangedIndexTest {
         assertTrue(lazyInventoryBuilds <= events, "칸 변환은 필요한 기준이 있을 때만: " + lazyInventoryBuilds + "/" + events);
         a.save();
         b.save();
-        assertEquals(Files.readString(db.resolve("advancements").resolve(id + ".json")).replaceAll("\"[0-9:\\- +]+\"", "T"),
-                Files.readString(da.resolve("advancements").resolve(id + ".json")).replaceAll("\"[0-9:\\- +]+\"", "T"), "저장 파일(시각 제외)");
+        String fb = Files.readString(db.resolve("advancements").resolve(id + ".json")).replaceAll(TIME_STRING, "T");
+        String fa = Files.readString(da.resolve("advancements").resolve(id + ".json")).replaceAll(TIME_STRING, "T");
+        if (!fa.equals(fb)) {
+            String[] la = fa.split("\n"), lb = fb.split("\n");
+            for (int i = 0; i < Math.min(la.length, lb.length); i++) if (!la[i].equals(lb[i])) fail("저장 파일 첫 차이 줄 " + i + ": [" + la[i] + "] vs 기준 [" + lb[i] + "] (줄 수 " + la.length + "/" + lb.length + ")");
+            fail("저장 파일 줄 수 " + la.length + "/" + lb.length);
+        }
     }
 }
