@@ -97,7 +97,7 @@ public final class SceneHeldItem extends CompatScene {
         IdentityHash det = hash();
         for (ItemStack r : refs) det.add(show(r));
         out.add("detached " + IdentityHash.hex(det.value()) + " first=" + show(refs.get(0)) + " slot0=" + show(inv.getItem(0)));
-        refs.get(0).setAmount(2);   // 떨어진 거울에 쓰기: 칸은 그대로
+        refs.get(0).setAmount(2);   // 떨어진 거울에 쓰기: 칸은 그대로, 떨어진 거울들은 사본 하나를 공유해 다른 쪽도 그 값을 본다(T-070 R1, Paper 와 같음)
         out.add("write-to-detached slot0=" + show(inv.getItem(0)) + " ref0=" + show(refs.get(0)) + " ref1=" + show(refs.get(1)));
 
         // 4) GC 로 거울이 치워져도(언제 치워지는지와 무관하게) 새로 꺼낸 것·쥔 것의 의미가 같다

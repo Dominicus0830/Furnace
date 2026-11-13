@@ -6,7 +6,7 @@ after-meta slot0=DIAMONDx5[named] fresh-hand=DIAMONDx5[named]
 slot-side-write hand=DIAMONDx9[named] fresh=DIAMONDx9[named]
 refs 200 mid-write all-see 4fbd72f63c72f575 first=DIAMONDx11[named] last=DIAMONDx11[named]
 detached 4fbd72f63c72f575 first=DIAMONDx11[named] slot0=STONEx1[-]
-write-to-detached slot0=STONEx1[-] ref0=DIAMONDx2[named] ref1=DIAMONDx11[named]
+write-to-detached slot0=STONEx1[-] ref0=DIAMONDx2[named] ref1=DIAMONDx2[named]
 after-gc slot0=STONEx4[-] g=STONEx4[-] kept=DIAMONDx2[named]
 again 200 7134796d235b6e45
 again-after-gc slot0=STONEx8[-] last=STONEx8[-]
@@ -27,4 +27,4 @@ empty-hand-setType slot6=null ref=DIAMOND_SWORDx1[-]
 put-back slot6=DIAMOND_SWORDx1[-]
 off SHIELDx1[-] helmet=IRON_HELMETx1[-] armor=4
 server-inventory 0=minecraft:applex11 1=minecraft:breadx12 2=minecraft:coalx33 3=minecraft:iron_ingotx14 4=minecraft:gold_ingotx15 5=minecraft:emeraldx16 6=minecraft:diamond_swordx1 7=minecraft:sandx18 8=minecraft:netherite_ingotx2 39=minecraft:iron_helmetx1 40=minecraft:shieldx1
-TOTAL 59a0943c6a00c6ce lines=28
+TOTAL 69742e355ff9525d lines=28
