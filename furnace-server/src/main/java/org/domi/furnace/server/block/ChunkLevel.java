@@ -663,7 +663,7 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     /** Level.getBlockRandomPos(x, y, z, 15): randValue = randValue·3 + 1013904223, 그 >> 2 의 비트로 칸 안 위치. */
-    private Pos blockRandomPos(int x, int y, int z) {
+    Pos blockRandomPos(int x, int y, int z) {
         randValue = randValue * 3 + 1013904223;
         int i = randValue >> 2;
         return new Pos(x + (i & 15), y + (i >> 16 & 15), z + (i >> 8 & 15));
@@ -701,8 +701,17 @@ public abstract class ChunkLevel implements BlockLevel {
             if (random.nextInt(48) == 0) tickPrecipitation(col, blockRandomPos(x0, 0, z0));
         }
         if (randomTickSpeed <= 0) return;
+        randomTickSections(col, x0, z0, randomTickSpeed);
+    }
+
+    /**
+     * tickChunk 의 구역 무작위 틱: 무작위 틱 받는 구역마다 randomTickSpeed 칸. 컬럼 마스크(T-053)로 꺼진 구역(센 값 0 — 원래도
+     * isRandomlyTicking 이 거짓)을 건너뛴다. 마스크는 구역마다 새로 읽어 앞 구역의 틱이 켠 뒤 구역도 같은 틱에 돈다(옛 루프와 같음).
+     */
+    void randomTickSections(ChunkColumn col, int x0, int z0, int randomTickSpeed) {
         ChunkSection[] sections = col.sections();
-        for (int si = 0; si < sections.length; si++) {
+        assert col.randomTickMaskCovers() : "무작위 틱 구역 마스크가 무작위 틱 받는 구역을 놓침";
+        for (int si = col.nextRandomTickingSection(0); si < sections.length; si = col.nextRandomTickingSection(si + 1)) {
             ChunkSection sec = sections[si];
             if (sec == null || !sec.isRandomlyTicking()) continue;
             int y0 = col.minY() + (si << 4);
@@ -948,8 +957,14 @@ public abstract class ChunkLevel implements BlockLevel {
     /** 처음 빛을 만드는 청크(lightNewChunk 동안): 아직 안 보낸 청크라 변경을 표시하지 않는다(바닐라 sectionLightChanged 는 보낸 청크만). */
     private long initialLightChunk = Long.MIN_VALUE;
 
+    /** lightNewChunk 동안 그 청크 자신의 빛이 바뀌었다(저장 빛이 이웃과 어긋나 가장자리 맞추기가 고쳤다). */
+    private boolean initialLightChanged;
+
     private void markLightChanged(int sx, int sy, int sz, boolean sky) {
-        if (initialLightChunk != Long.MIN_VALUE && initialLightChunk == ((long) sx << 32 | (sz & 0xFFFFFFFFL))) return;
+        if (initialLightChunk != Long.MIN_VALUE && initialLightChunk == ((long) sx << 32 | (sz & 0xFFFFFFFFL))) {
+            initialLightChanged = true;
+            return;
+        }
         int idx = sy - ((minBuildHeight() >> 4) - 1);
         int count = ((maxBuildHeight() - minBuildHeight()) >> 4) + 2;
         if (idx < 0 || idx >= count) return;
@@ -957,7 +972,11 @@ public abstract class ChunkLevel implements BlockLevel {
         lightChanges.computeIfAbsent(key, k -> new long[2])[sky ? 0 : 1] |= 1L << idx;
         // 나중에 이 청크를 처음 받는 플레이어가 캐시된 옛 빛을 받지 않게(바닐라는 청크 패킷을 보낼 때의 빛을 담는다)
         ChunkColumn col = chunk(sx, sz);
-        if (col != null) col.lightTouched();
+        if (col != null) {
+            col.lightTouched();
+            // 바닐라 ChunkHolder.sectionLightChanged: 빛이 바뀐 청크는 저장 대상(setUnsaved). 디스크 빛을 읽으므로(T-012) 바뀐 빛도 써야 한다
+            if (col.markLightDirty()) markDirty(sx, sz);
+        }
     }
 
     /** 빛 갱신 패킷을 그 청크를 보는 플레이어 중 시야 가장자리인 사람에게(바닐라 getPlayers(pos, true)). 기본은 버린다. */
@@ -1330,14 +1349,28 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public boolean isHandlingTick() { return handlingTick; }
 
-    /** EntityGetter.hasNearbyAlivePlayer: 관전자 아니고 살아 있는 플레이어가 (x,y,z) 에서 range 안(< range²). */
+    /**
+     * EntityGetter.hasNearbyAlivePlayer: 관전자 아니고 살아 있는 플레이어가 (x,y,z) 에서 range 안(< range²). 바닐라처럼 range 가 음수면 거리와
+     * 무관하게 그런 플레이어가 하나라도 있으면 참이다(스포너 RequiredPlayerRange 음수 = 늘 켜짐).
+     */
     public boolean hasNearbyAlivePlayer(double x, double y, double z, double range) {
         boolean[] found = {false};
-        services().forEachPlayer(p -> {
+        boolean anyDistance = range < 0.0;
+        java.util.function.Consumer<Player> scan = p -> {
             if (found[0] || p.isDisconnected() || p.isSpectator() || !p.isAlive()) return;
+            if (anyDistance) {
+                found[0] = true;
+                return;
+            }
             double dx = p.x() - x, dy = p.y() - y, dz = p.z() - z;
             if (dx * dx + dy * dy + dz * dz < range * range) found[0] = true;
-        });
+        };
+        if (anyDistance) {
+            services().forEachPlayer(scan);
+        } else {
+            double r = range + NEAR_MARGIN;
+            forEachPlayerNear(x - r, z - r, x + r, z + r, scan);
+        }
         return found[0];
     }
 
@@ -1558,8 +1591,8 @@ public abstract class ChunkLevel implements BlockLevel {
     /** Level.getNearestPlayer(x, y, z, 거리, ignoreCreativeAndSpectators): 관전자(옵션으로 크리에이티브도) 제외 가장 가까운 플레이어. 거리가 음수면 제한 없음. */
     public Player getNearestPlayer(double x, double y, double z, double dist, boolean ignoreCreative) {
         Player[] best = new Player[1];
-        double[] bestD = {dist < 0.0 ? Double.MAX_VALUE : dist * dist};
-        services().forEachPlayer(p -> {
+        double[] bestD = new double[1];
+        java.util.function.Consumer<Player> scan = p -> {
             if (p.isDisconnected() || p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR) return;
             if (ignoreCreative && p.gameMode() == org.domi.furnace.server.world.GameMode.CREATIVE) return;
             double dx = p.x() - x, dy = p.y() - y, dz = p.z() - z;
@@ -1568,24 +1601,65 @@ public abstract class ChunkLevel implements BlockLevel {
                 bestD[0] = d;
                 best[0] = p;
             }
-        });
+        };
+        nearestScan(x, z, dist, best, bestD, scan);
         return best[0];
     }
 
     /** Level.getNearestPlayer(entity, 거리): 관전자가 아닌 가장 가까운 플레이어(거리 안에서), 없으면 null. */
     public Player getNearestPlayer(Entity from, double dist) {
         Player[] best = new Player[1];
-        double[] bestD = {dist < 0.0 ? Double.MAX_VALUE : dist * dist};
-        services().forEachPlayer(p -> {
+        double[] bestD = new double[1];
+        double fx = from.x(), fy = from.y(), fz = from.z();
+        java.util.function.Consumer<Player> scan = p -> {
             if (p.gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR || p.isDisconnected()) return;
-            double dx = p.x() - from.x(), dy = p.y() - from.y(), dz = p.z() - from.z();
+            double dx = p.x() - fx, dy = p.y() - fy, dz = p.z() - fz;
             double d = dx * dx + dy * dy + dz * dz;
             if (d < bestD[0]) {
                 bestD[0] = d;
                 best[0] = p;
             }
-        });
+        };
+        nearestScan(fx, fz, dist, best, bestD, scan);
         return best[0];
+    }
+
+    /** 근접 후보의 상자 여유(블록) — 거리 비교의 반올림·플레이어 몸 반폭을 덮는다. 격자 칸이 128 이라 거의 공짜다. */
+    static final double NEAR_MARGIN = 2.0;
+
+    /**
+     * 근접 조회 후보: [x0,x1]×[z0,z1] 와 겹칠 수 있는 플레이어를 forEachPlayer 와 같은 순서로(상위 집합 — 부르는 쪽이 원래 판정을
+     * 다시 한다). 색인이 없는 레벨(시험 등)은 forEachPlayer 그대로.
+     */
+    protected final void forEachPlayerNear(double x0, double z0, double x1, double z1, java.util.function.Consumer<Player> c) {
+        var idx = services().playerIndex();
+        if (idx == null) services().forEachPlayer(c);
+        else idx.forEachNear(x0, z0, x1, z1, c);
+    }
+
+    /**
+     * "가장 가까운 플레이어"(엄격한 &lt; 로 먼저 찾은 쪽) 훑기를 전체 훑기와 같은 결과로 줄인다. scan 은 bestD 보다 가까울 때만 고른다.
+     * 거리 제한이 있으면 그 반경 상자 후보만. 없으면(음수) 먼저 반경 128 상자 후보만 보고, 그 안(≤ 128²)에서 찾았으면 그것이 전체의
+     * 답이다 — 상자 밖 플레이어는 모두 128² 보다 멀어 이길 수도 비길 수도 없다. 못 찾았으면 전체를 다시 훑는다.
+     */
+    private void nearestScan(double x, double z, double dist, Player[] best, double[] bestD, java.util.function.Consumer<Player> scan) {
+        if (!(dist < 0.0)) {   // NaN 도 여기(옛 코드처럼 bestD = NaN 이라 아무도 못 고른다 — 상자도 NaN 이라 전부 훑는다)
+            bestD[0] = dist * dist;
+            double r = dist + NEAR_MARGIN;
+            forEachPlayerNear(x - r, z - r, x + r, z + r, scan);
+            return;
+        }
+        bestD[0] = Double.MAX_VALUE;
+        var idx = services().playerIndex();
+        if (idx != null && idx.gridActive()) {
+            double r0 = org.domi.furnace.server.world.PlayerRoster.NEAREST_FIRST_RADIUS;
+            double r = r0 + NEAR_MARGIN;
+            forEachPlayerNear(x - r, z - r, x + r, z + r, scan);
+            if (best[0] != null && bestD[0] <= r0 * r0) return;
+            best[0] = null;
+            bestD[0] = Double.MAX_VALUE;
+        }
+        services().forEachPlayer(scan);
     }
 
     /** Level.getNearestEntity(class, 조건, 출처, x, y, z, 상자): 조건에 맞는 것 중 (x,y,z)에 가장 가까운 엔티티(같은 거리면 먼저 찾은 것). */
@@ -1818,7 +1892,7 @@ public abstract class ChunkLevel implements BlockLevel {
     /** 상자와 겹치는 플레이어들(Level.getEntitiesOfClass(Player.class, box) 의 플레이어 쪽). */
     @Override
     public void forEachPlayerIn(org.domi.furnace.server.entity.AABB box, java.util.function.Consumer<Player> c) {
-        services().forEachPlayer(p -> {
+        forEachPlayerNear(box.minX() - NEAR_MARGIN, box.minZ() - NEAR_MARGIN, box.maxX() + NEAR_MARGIN, box.maxZ() + NEAR_MARGIN, p -> {
             if (!p.isDisconnected() && p.boundingBox().intersects(box)) c.accept(p);
         });
     }
@@ -1830,7 +1904,7 @@ public abstract class ChunkLevel implements BlockLevel {
         double[] bestD = {-1.0};
         // 사거리 밖(조건 검사가 어차피 거짓)인 플레이어는 조건을 부르지 않고 건너뛴다 — 검사 순서의 조건들은 모두 부수 효과 없는 판정이다(X1).
         final double far = source == null ? Double.POSITIVE_INFINITY : conditions.farLimitSqr();
-        services().forEachPlayer(p -> {
+        java.util.function.Consumer<Player> scan = p -> {
             if (p.isDisconnected()) return;
             if (far != Double.POSITIVE_INFINITY) {
                 double fx = source.x() - p.x(), fy = source.y() - p.y(), fz = source.z() - p.z();
@@ -1843,7 +1917,13 @@ public abstract class ChunkLevel implements BlockLevel {
                 bestD[0] = d;
                 best[0] = p;
             }
-        });
+        };
+        if (far != Double.POSITIVE_INFINITY && far >= 0.0) {   // 사거리 밖은 위에서 어차피 건너뛴다 — 그 상자 후보만
+            double r = Math.sqrt(far) + NEAR_MARGIN, sx = source.x(), sz = source.z();
+            forEachPlayerNear(sx - r, sz - r, sx + r, sz + r, scan);
+        } else {
+            services().forEachPlayer(scan);
+        }
         return best[0];
     }
 
@@ -1969,7 +2049,10 @@ public abstract class ChunkLevel implements BlockLevel {
         }
 
         public void begin() {
-            if (depth++ == 0) java.util.Arrays.fill(cacheCol, null);
+            if (depth++ == 0) {
+                java.util.Arrays.fill(cacheCol, null);
+                lastBlockedX = Integer.MIN_VALUE;
+            }
         }
 
         public void end() {
@@ -2020,6 +2103,34 @@ public abstract class ChunkLevel implements BlockLevel {
 
         void resetLast() { lastX = Integer.MIN_VALUE; }
 
+        private int lastBlockedX = Integer.MIN_VALUE, lastBlockedZ;
+
+        /**
+         * 감소 전파가 안 올라온 청크 U 의 칸에서 멈췄다: U 와, U 를 거쳐 빛이 닿았을 수 있는(그 칸에서 14칸 안) 안 올라온 이웃을 "저장 빛을
+         * 믿지 말 것"으로 적는다. 올라온 이웃은 고칠 길이 없다(지금도 그렇다 — 감소가 U 를 건너가지 못한다).
+         */
+        @Override
+        public void decreaseBlocked(int x, int y, int z) {
+            if (x == lastBlockedX && z == lastBlockedZ) return;   // 같은 열의 높이만 다른 칸은 같은 표시
+            lastBlockedX = x;
+            lastBlockedZ = z;
+            var stale = lightStale();
+            int ux = x >> 4, uz = z >> 4;
+            stale.mark(ux, uz);
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (dx == 0 && dz == 0) continue;
+                    int nx = ux + dx, nz = uz + dz;
+                    int ddx = Math.max(0, Math.max(nx * 16 - x, x - (nx * 16 + 15)));
+                    int ddz = Math.max(0, Math.max(nz * 16 - z, z - (nz * 16 + 15)));
+                    if (ddx + ddz > 14) continue;   // 그 칸의 빛은 많아야 14 — 14칸 넘게는 못 간다
+                    // 올라와 있는 이웃도 표시한다: 내려간 U 를 돌아 들어온 빛은 그 이웃에서도 줄지 않는다 — 다음에 올릴 때 다시 계산해야
+                    // 지워진다(옛 경로는 올릴 때마다 다시 계산해 지웠다. PR #304 검토 R1)
+                    stale.mark(nx, nz);
+                }
+            }
+        }
+
         public int minY() { return minBuildHeight(); }
 
         public int maxY() { return maxBuildHeight(); }
@@ -2039,13 +2150,31 @@ public abstract class ChunkLevel implements BlockLevel {
         ChunkColumn col = chunk(cx, cz);
         if (col == null) return;
         awaitLightIdle();   // 빛 작업 모드: 그 자리 계산은 빛 작업이 쉴 때만(보이는 빛 배열을 그 자리에서 고친다)
+        // 내려가 있는 동안 이웃에서 빛을 줄이는 전파가 이 청크에서 막혔다 → 디스크 빛은 낡았을 수 있어 믿지 않고 다시 계산한다
+        // 표시 번호를 잡아 두고, 고친 빛이 디스크에 써지면 지운다(World.saveChunkAsync — 그 전에 죽어도 표시가 남는다)
+        var staleSet = lightStale();
+        boolean stale = staleSet.contains(cx, cz);
+        long staleSeq = stale ? staleSet.markSeq(cx, cz) : 0;
+        boolean stored = col.lightStored();
+        col.lightStored(false);
+        if (stored && stale) {
+            // 옛 디스크 경로와 똑같이: 고립 계산 + 가장자리 맞추기(이 청크 칸을 처음부터 다시 쓰는 lightChunk 는 이웃 섹션까지 바뀜으로
+            // 표시해 빛 갱신 패킷이 옛 경로보다 많아진다)
+            col.light(null);
+            col.lightPrecomputed(false);
+            stored = false;
+            precomputeLight(col, cx, cz, bedrockState, hasSkyLight());
+        } else if (stored && !col.lightPrecomputed()) {
+            precomputeLight(col, cx, cz, bedrockState, hasSkyLight());   // 동기 경로(생성 풀을 안 거침): 하늘빛 원천만 센다
+        }
         boolean precomputed = col.lightPrecomputed();
         col.lightPrecomputed(false);
-        lightNewChunk0(col, cx, cz, precomputed);
+        lightNewChunk0(col, cx, cz, precomputed, stored, staleSeq);
     }
 
-    private void lightNewChunk0(ChunkColumn col, int cx, int cz, boolean precomputed) {
+    private void lightNewChunk0(ChunkColumn col, int cx, int cz, boolean precomputed, boolean stored, long staleSeq) {
         initialLightChunk = (long) cx << 32 | (cz & 0xFFFFFFFFL);
+        initialLightChanged = false;
         try {
             if (precomputed) {   // 생성 스레드가 청크 안쪽 빛을 이미 계산했다 — 이웃과 가장자리만 맞춘다
                 lightEngine().attachPrecomputed(cx, cz);
@@ -2056,8 +2185,16 @@ public abstract class ChunkLevel implements BlockLevel {
         } finally {
             initialLightChunk = Long.MIN_VALUE;
         }
+        // 표시 때문에 다시 계산했거나(낡은 디스크 빛) 저장 빛을 가장자리 맞추기가 고쳤으면 디스크도 고치게 저장 대상으로
+        if (staleSeq != 0) col.lightStaleSeq(staleSeq);
+        if ((staleSeq != 0 || stored && initialLightChanged) && col.markLightDirty()) markDirty(cx, cz);
         reapplyVirtualLights(cx, cz);
     }
+
+    private final org.domi.furnace.server.world.LightStaleChunks ownLightStale = org.domi.furnace.server.world.LightStaleChunks.detached();
+
+    /** 저장 빛을 믿으면 안 되는 청크 표(region 레벨은 월드가 가진 하나 — 디스크에 남는다). */
+    protected org.domi.furnace.server.world.LightStaleChunks lightStale() { return ownLightStale; }
 
     /** 다시 올라온 청크의 가짜 광원을 빛 엔진에 다시 건다(생성 스레드의 미리 계산은 그것을 모른다). 이웃으로 번지는 빛은 방송한다. */
     private void reapplyVirtualLights(int cx, int cz) {
@@ -2088,9 +2225,8 @@ public abstract class ChunkLevel implements BlockLevel {
     /** 생성 스레드에서 청크 안쪽 빛을 미리 계산한다(월드 상태를 읽지 않는다). 올릴 때 lightNewChunk 가 가장자리를 맞춘다. */
     public static void precomputeLight(ChunkColumn col, int cx, int cz, int bedrockState, boolean hasSkyLight) {
         col.motionBlockingHeightmap();   // 높이 지도도 첫 사용 때 틱 스레드에서 열마다 훑지 않게 미리 채운다
-        if (col.light() != null) return;
         final int base = col.minY() >> 4;
-        col.light(org.domi.furnace.server.light.LevelLight.computeIsolated(cx, cz, new org.domi.furnace.server.light.LevelLight.StateReader() {
+        var reader = new org.domi.furnace.server.light.LevelLight.StateReader() {
             @Override public int state(int x, int y, int z) { return col.getBlock(x & 15, y, z & 15); }
 
             @Override public int uniformSectionState(int sectionY) { return col.sectionUniformBlock(sectionY - base); }
@@ -2098,7 +2234,16 @@ public abstract class ChunkLevel implements BlockLevel {
             @Override public boolean sectionMayEmit(int sectionY) {
                 return col.sectionMaybeHas(sectionY - base, org.domi.furnace.server.light.LightTables.EMITS);
             }
-        }, bedrockState, col.minY(), col.maxY() + 1, hasSkyLight));
+        };
+        if (col.light() != null) {
+            // 디스크에서 읽은 빛(T-012): 고립 계산은 건너뛰고 하늘빛 원천만 센다(바닐라 initializeLightSources). 가장자리는 올릴 때 맞춘다
+            if (col.lightStored() && !col.lightPrecomputed()) {
+                org.domi.furnace.server.light.LevelLight.computeStoredSources(col.light(), cx, cz, reader, col.minY(), col.maxY() + 1, hasSkyLight);
+                col.lightPrecomputed(true);
+            }
+            return;
+        }
+        col.light(org.domi.furnace.server.light.LevelLight.computeIsolated(cx, cz, reader, bedrockState, col.minY(), col.maxY() + 1, hasSkyLight));
         col.lightPrecomputed(true);
     }
 
@@ -2301,9 +2446,16 @@ public abstract class ChunkLevel implements BlockLevel {
                 long[] m = lightChanges.computeIfAbsent(key, k -> new long[2]);
                 m[0] |= skyMask;
                 m[1] |= blockMask;
-                ChunkColumn col = chunk((int) (key >> 32), (int) key);
-                if (col != null) col.lightTouched();
+                int sx = (int) (key >> 32), sz = (int) key;
+                ChunkColumn col = chunk(sx, sz);
+                if (col != null) {
+                    col.lightTouched();
+                    if (col.markLightDirty()) markDirty(sx, sz);   // markLightChanged 와 같이(바닐라 sectionLightChanged → setUnsaved, T-012)
+                }
             });
+            // 묶음 안에서 안 올라온 청크에 막힌 감소 — 저장 빛을 믿지 않게 표시(T-012). 표시 표는 region 스레드 것이라 여기서
+            batch.forEachBlocked(p -> lightWorld.decreaseBlocked(org.domi.furnace.server.light.LightEngine.px(p),
+                    org.domi.furnace.server.light.LightEngine.py(p), org.domi.furnace.server.light.LightEngine.pz(p)));
         }
         for (ChunkColumn.LightBlocks b : lightFrozen) b.thaw();
         lightFrozen.clear();
@@ -2468,7 +2620,7 @@ public abstract class ChunkLevel implements BlockLevel {
             return false;
         }
         // 처리기가 옮겼으면 구역 목록을 맞춘다 — 추적기가 없는 동안에는 setPosRaw 가 구역 이동을 알리지 않는다(Paper 도 이벤트 뒤 위치로 넣는다)
-        if (e.sectionKey() != addedKey) entities.moved(e, addedKey);
+        if (e.sectionKey() != addedKey) entities.moved(e);
         startTracking(e);
         for (var l : e.dynamicGameEventListeners()) l.add(this);
         indexEntity(e, true);
@@ -2544,10 +2696,13 @@ public abstract class ChunkLevel implements BlockLevel {
         }
     }
 
-    /** 엔티티의 구역이 바뀌었다(setPosRaw). */
-    public void entitySectionChanged(Entity e, long oldKey) {
-        entities.moved(e, oldKey);
-        for (var l : e.dynamicGameEventListeners()) l.move(this);   // onSectionChange
+    /**
+     * 엔티티의 구역이 바뀌었다(setPosRaw). 구역 목록은 추적 여부와 상관없이 맞춘다(바닐라 onMove — 추적 거리 0 인 마커도 옮기면 목록이 따라간다).
+     * 게임 이벤트 리스너는 추적을 시작해 리스너를 단 뒤에만 옮긴다(스폰 이벤트 처리기가 옮기는 동안 미리 등록되지 않게).
+     */
+    public void entitySectionChanged(Entity e) {
+        entities.moved(e);
+        if (e.tracker != null) for (var l : e.dynamicGameEventListeners()) l.move(this);   // onSectionChange
     }
 
     public java.util.List<Entity> getEntities(Entity except, AABB box, java.util.function.Predicate<? super Entity> filter) {

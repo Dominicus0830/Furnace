@@ -3801,6 +3801,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         boolean keepInventory = core != null && core.gameRules().getBoolean("keepInventory");
         var vitals = p.vitals();
         vitals.respawn();
+        world.playerRespawned(p);   // PlayerList.respawn: 옛 플레이어를 빼고 새 플레이어를 차원 목록 끝에(같은 차원이어도 순서가 바뀐다)
         p.markEntityDataResend();   // 새 ServerPlayer: 클라가 기본값 엔티티를 만든다
         // PlayerList.respawn: 리스폰 블록이 없었으면 새 플레이어는 리스폰 지점을 이어받지 않는다
         if (missingRespawnBlock) vitals.setRespawnPosition("minecraft:overworld", null, 0.0F, false);
@@ -3880,6 +3881,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 org.domi.furnace.server.net.protocol.play.Respawn.KEEP_ATTRIBUTES));
         world = target;
         p.dimension(target.dimension());
+        target.playerRespawned(p);   // PlayerList.respawn: 차원 목록 끝에(같은 차원이어도)
         placeAfterDimensionChange(ctx, p, target, t.x(), t.y(), t.z(), t.yRot(), t.xRot());
         SpawnPoint spawn = target.defaultSpawn();
         send(ctx, new SetDefaultSpawnPosition(spawn.x(), spawn.y(), spawn.z(), spawn.yaw()));

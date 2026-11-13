@@ -456,6 +456,8 @@ public final class World {
             if (storage != null) storage.saveIfDirty();
             var forced = forcedChunks;
             if (forced != null) forced.saveIfDirty();
+            var stale = lightStale;
+            if (stale != null) stale.saveIfDirty();
             var gen = org.domi.furnace.server.world.gen.NoiseWorldSource.of(worldSource);
             if (gen != null) gen.structureEngine().references().saveIfDirty();   // 탐험 지도 references(A06-06)
             return null;
@@ -520,6 +522,13 @@ public final class World {
         if (snap.light() != null && virtualLights.affects(snap.chunkX(), snap.chunkZ())) snap = snap.withoutLight();   // 가짜 빛은 디스크에 남기지 않는다
         final ChunkSnapshot snapF = snap;
         int cx = snap.chunkX(), cz = snap.chunkZ();
+        // 저장 빛을 믿지 않는 표시 때문에 다시 계산한 빛을 싣는다 — 디스크에 써진 뒤에 표시를 지운다(그 사이 다시 표시됐으면 그대로)
+        long staleSeq = 0;
+        if (col != null && col.lightStaleSeq() != 0) {
+            staleSeq = col.lightStaleSeq();
+            col.lightStaleSeq(0);
+        }
+        final long staleSeqF = staleSeq;
         ioLane(cx, cz).execute(() -> {
             boolean ok;
             try {
@@ -530,6 +539,7 @@ public final class World {
                 ok = false;
             }
             if (!ok) onChunkSaveFailed(new ChunkPos(cx, cz), col);
+            else if (staleSeqF != 0) lightStale().clearIfSeq(cx, cz, staleSeqF);
         });
     }
 
@@ -946,15 +956,7 @@ public final class World {
             var forced = forcedChunks;
             occupied = forced != null && forced.size() > 0;
         }
-        if (!occupied) {
-            String dim = dimensionType.levelKey();
-            for (Player p : online.array) {
-                if (dim.equals(p.dimension())) {
-                    occupied = true;
-                    break;
-                }
-            }
-        }
+        if (!occupied) occupied = !playerIndex().isEmpty();   // 바닐라 !this.players.isEmpty()
         if (occupied) emptyTime.set(0);
         else emptyTime.incrementAndGet();
     }
@@ -982,37 +984,28 @@ public final class World {
     public long dayTime() { return clock.dayTime(); }
 
     /**
-     * 접속 중 플레이어(eid→Player) — 서버 전체(모든 차원 월드가 같은 것을 쓴다). 탭 목록은 바닐라처럼 거리·차원과 무관하게
-     * 이 집합 전체를 기준으로 한다. array 는 복사본 — 몹마다·스폰 시도마다 부르는 forEachPlayer 가 맵 반복자를 만들지 않게
-     * (접속·퇴장 때만 새로 만든다).
+     * 접속 중 플레이어 — 서버 전체(모든 차원 월드가 같은 것을 쓴다). 탭 목록은 바닐라처럼 거리·차원과 무관하게 이 집합 전체를
+     * 기준으로 한다. 차원별 목록(바닐라 ServerLevel.players, 도착 순)과 그 근접 색인도 여기서 든다({@link PlayerRoster}).
      */
-    static final class Online {
-        final ConcurrentHashMap<Integer, Player> map = new ConcurrentHashMap<>();
-        volatile Player[] array = new Player[0];
+    private volatile PlayerRoster online = new PlayerRoster();
+    /** 이 차원 목록(online 이 바뀌면 다시 받는다). */
+    private volatile PlayerRoster.Level here;
 
-        void put(Player p) {
-            synchronized (map) {
-                map.put(p.entityId(), p);
-                array = map.values().toArray(new Player[0]);
-                Player.bumpRoster();
-            }
-        }
-
-        void remove(int eid) {
-            synchronized (map) {
-                map.remove(eid);
-                array = map.values().toArray(new Player[0]);
-                Player.bumpRoster();
-            }
-        }
+    /** 이 차원 플레이어 목록(바닐라 ServerLevel.players — 도착 순) + 청크 격자 색인. */
+    public PlayerRoster.Level playerIndex() {
+        PlayerRoster.Level h = here;
+        PlayerRoster o = online;
+        if (h == null || h.roster() != o) here = h = o.level(dimensionType.levelKey());
+        return h;
     }
-
-    private volatile Online online = new Online();
     /** 서버 없이(테스트·도구) 쓸 때: 기본값 + 이 월드의 접속자. */
     private volatile org.domi.furnace.server.block.LevelServices levelServices = new org.domi.furnace.server.block.LevelServices.Delegating(
             org.domi.furnace.server.block.LevelServices.DEFAULT) {
         @Override
         public void forEachPlayer(java.util.function.Consumer<Player> c) { World.this.forEachPlayerHere(c); }
+
+        @Override
+        public PlayerRoster.Level playerIndex() { return World.this.playerIndex(); }
 
         @Override
         public long gameTime() { return clock.gameTime(); }
@@ -1052,12 +1045,8 @@ public final class World {
 
     public SleepStatus sleepStatus() { return sleepStatus; }
 
-    /** 이 차원 접속자 목록(ServerLevel.players). */
-    public java.util.List<Player> playersHere() {
-        java.util.List<Player> list = new java.util.ArrayList<>();
-        forEachPlayerHere(list::add);
-        return list;
-    }
+    /** 이 차원 접속자 목록(ServerLevel.players, 도착 순). */
+    public java.util.List<Player> playersHere() { return new java.util.ArrayList<>(java.util.Arrays.asList(playerIndex().toArray())); }
 
     /** ServerLevel.canSleepThroughNights: playersSleepingPercentage ≤ 100. */
     public boolean canSleepThroughNights() { return levelServices.gameRuleInt("playersSleepingPercentage") <= 100; }
@@ -1094,11 +1083,14 @@ public final class World {
         trackers.remove(eid);
     }
 
-    /** 이 차원에 있는 접속자마다(바닐라 ServerLevel.players — 차원을 옮기는 중인 플레이어는 도착한 쪽). */
-    public void forEachPlayerHere(java.util.function.Consumer<Player> c) {
-        String dim = dimensionType.levelKey();
-        for (Player p : online.array) if (dim.equals(p.dimension())) c.accept(p);
-    }
+    /**
+     * 이 차원에 있는 접속자마다(바닐라 ServerLevel.players — 차원을 옮기는 중인 플레이어는 도착한 쪽). 순서도 바닐라처럼 이 차원에
+     * 들어온 순서(접속·차원 이동·리스폰 때 끝에 붙는다).
+     */
+    public void forEachPlayerHere(java.util.function.Consumer<Player> c) { playerIndex().forEach(c); }
+
+    /** 리스폰(바닐라 PlayerList.respawn → addRespawnedPlayer): 이 플레이어를 지금 차원 목록 끝으로 옮긴다. */
+    public void playerRespawned(Player p) { online.relist(p); }
 
     // 엔티티 → 그 엔티티를 지금 화면에 추적 중인 관찰자들. 관찰자 region 이 추적 시작/끝에 갱신하고,
     // 어느 스레드든 피해·사망 같은 엔티티 이벤트를 보낼 때 읽는다(바닐라 ChunkMap.TrackedEntity.seenBy).
@@ -1131,7 +1123,8 @@ public final class World {
         return pr;
     }
     /** 탭 목록 기준 접속자 뷰(읽기 전용 순회용). */
-    public java.util.Collection<Player> onlinePlayers() { return online.map.values(); }
+    /** 서버 전체 접속자(바닐라 PlayerList.players·Paper getOnlinePlayers 순서 — 접속 순, 리스폰 때 끝으로). 고칠 수 없는 그때의 사본. */
+    public java.util.List<Player> onlinePlayers() { return online.onlineInOrder(); }
     public Player onlinePlayer(int eid) { return online.map.get(eid); }
     public SpawnPoint defaultSpawn() { return defaultSpawn; }
 
@@ -1714,6 +1707,21 @@ public final class World {
     public void setTickNanos(long nanos) { regionizer.setTickNanos(nanos); }
 
     public long tickNanos() { return regionizer.tickNanos(); }
+
+    private volatile LightStaleChunks lightStale;
+
+    /** 저장 빛을 믿으면 안 되는 청크(T-012, <차원 폴더>/data/furnace_light_stale.dat). 디스크 월드면 처음 쓸 때 읽는다. */
+    public LightStaleChunks lightStale() {
+        var f = lightStale;
+        if (f != null) return f;
+        synchronized (this) {
+            if (lightStale == null) {
+                lightStale = worldSource instanceof AnvilWorldSource && worldDir != null
+                        ? LightStaleChunks.open(dimensionType.storageDir(levelRoot())) : LightStaleChunks.detached();
+            }
+            return lightStale;
+        }
+    }
 
     private volatile ForcedChunks forcedChunks;
 

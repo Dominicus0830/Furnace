@@ -72,8 +72,6 @@ public class PistonBaseBlock extends DirectionalBlock {
                     && (m.getProgress(0.0F) < 0.5F || level.gameTime() == m.getLastTicked() || level.isHandlingTick())) {
                 type = TRIGGER_DROP;
             }
-            // 플러그인 BlockPistonRetractEvent: 일반 피스톤은 여기서(끌 블록 없음), 끈끈이는 moveBlocks 에서 — CraftBukkit 과 같은 자리
-            if (!isSticky && !level.gameEvents().piston(level.dimension(), pos, dir, false, false, List.of())) return;
             level.blockEvent(pos, block, type, dir);
         }
     }
@@ -106,6 +104,9 @@ public class PistonBaseBlock extends DirectionalBlock {
         } else {
             if (level.getBlockEntity(pos.relative(dir)) instanceof PistonMovingBlockEntity m) m.finalTick(level);
             int moving = TYPE.with(MovingPistonBlock.FACING.with(B.defaultState(MOVING_PISTON), Dir.NAME[dir]), isSticky ? "sticky" : "normal");
+            // 플러그인 BlockPistonRetractEvent: 일반 피스톤은 여기서(끌 블록 없음 — Paper 가 Spigot 의 checkIfExtend 자리에서 옮긴 곳: 신호 재확인 뒤라
+            // 같은 틱에 여러 번 부르거나 1틱 펄스로 신호가 돌아오면 내지 않는다), 끈끈이는 moveBlocks 에서
+            if (!isSticky && !level.gameEvents().piston(level.dimension(), pos, dir, false, false, List.of())) return false;
             level.setBlock(pos, moving, 20);
             level.setBlockEntity(new PistonMovingBlockEntity(pos, moving, withFacing(defaultState(), data & 7), dir, false, true));
             level.blockUpdated(pos, MOVING_PISTON);

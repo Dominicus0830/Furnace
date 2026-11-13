@@ -107,7 +107,8 @@ public final class EntityStore {
         modCount++;
         byUuid.put(e.uuid(), e);
         if (e instanceof Mob m) mobs.put(e.id(), m);
-        sectionOrNew(e.sectionKey()).add(e);
+        e.storedSection = e.sectionKey();
+        sectionOrNew(e.storedSection).add(e);
         return true;
     }
 
@@ -118,16 +119,20 @@ public final class EntityStore {
         modCount++;
         byUuid.remove(e.uuid());
         if (e instanceof Mob) mobs.remove(e.id());
-        removeFromSection(e, e.sectionKey());
+        // 목록에 넣을 때의 구역 키로 뺀다 — 추적기가 없는 동안(스폰 이벤트 처리기 안 등)에는 setPosRaw 가 구역 이동을 알리지 않아
+        // e.sectionKey() 가 이미 새 구역이면 옛 구역 목록에 지운 엔티티가 남는다
+        removeFromSection(e, e.storedSection);
         return true;
     }
 
-    /** 구역이 바뀌었다 — 옛 구역에서 빼 새 구역 끝에 단다. */
-    public void moved(Entity e, long oldKey) {
+    /** 구역이 바뀌었다 — 옛 구역에서 빼 새 구역 끝에 단다. 옛 구역은 저장소가 기억한 키({@code storedSection})가 기준이다(알림을 놓쳤어도 맞는다). */
+    public void moved(Entity e) {
         if (!byId.containsKey(e.id())) return;
+        if (e.storedSection == e.sectionKey()) return;   // 이미 그 구역 목록에 있다
         modCount++;
-        removeFromSection(e, oldKey);
-        sectionOrNew(e.sectionKey()).add(e);
+        removeFromSection(e, e.storedSection);
+        e.storedSection = e.sectionKey();
+        sectionOrNew(e.storedSection).add(e);
     }
 
     private void removeFromSection(Entity e, long key) {

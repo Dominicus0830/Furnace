@@ -213,8 +213,12 @@ class AsyncLightRegionTest {
                     ChunkColumn col = r.level().chunkCached(cx, cz);
                     if (col == null || col.light() == null) continue;
                     chunks[0]++;
-                    for (byte[][] ls : new byte[][][] {col.light().sky, col.light().block}) {
-                        for (byte[] l : ls) hash[0] = (hash[0] ^ java.util.Arrays.hashCode(l)) * 1099511628211L;
+                    var light = col.light();
+                    for (int i = 0; i < org.domi.furnace.server.light.ChunkLight.SECTIONS; i++) {
+                        hash[0] = (hash[0] ^ java.util.Arrays.hashCode(light.sky(i))) * 1099511628211L;
+                    }
+                    for (int i = 0; i < org.domi.furnace.server.light.ChunkLight.SECTIONS; i++) {
+                        hash[0] = (hash[0] ^ java.util.Arrays.hashCode(light.block(i))) * 1099511628211L;
                     }
                     for (int v : col.light().lowestSource) hash[0] = (hash[0] ^ v) * 1099511628211L;
                 }

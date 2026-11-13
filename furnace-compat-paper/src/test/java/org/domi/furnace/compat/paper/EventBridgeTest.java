@@ -182,6 +182,21 @@ class EventBridgeTest {
             fire.put(org.bukkit.event.entity.EntitySpawnEvent.class, () -> new org.domi.furnace.api.event.entity.EntitySpawnEvent(pig));
             fire.put(org.bukkit.event.player.PlayerDropItemEvent.class, () -> new org.domi.furnace.api.event.player.PlayerDropItemEvent(p, stone, itemEntity));
 
+            // 보호 이벤트 여섯(T-040a)
+            var snowball = server.await(server.overworld().spawnEntity("minecraft:snowball", p.location()));
+            fire.put(org.bukkit.event.entity.EntityExplodeEvent.class, () -> new org.domi.furnace.api.event.entity.EntityExplodeEvent(pig, at,
+                    new ArrayList<>(List.of(new BlockPos(1, 64, 3))), org.domi.furnace.api.event.cause.CauseChain.NONE, 1f, "DESTROY"));
+            fire.put(org.bukkit.event.block.BlockPistonExtendEvent.class, () -> new org.domi.furnace.api.event.block.BlockPistonExtendEvent(w, bp, "up", false,
+                    List.of(new BlockPos(1, 65, 2))));
+            fire.put(org.bukkit.event.block.BlockPistonRetractEvent.class, () -> new org.domi.furnace.api.event.block.BlockPistonRetractEvent(w, bp, "up", true,
+                    List.of(new BlockPos(1, 66, 2))));
+            fire.put(org.bukkit.event.block.BlockFormEvent.class, () -> new org.domi.furnace.api.event.block.BlockFormEvent(w, bp,
+                    org.domi.furnace.api.world.BlockData.of("minecraft:lava"), org.domi.furnace.api.world.BlockData.of("minecraft:obsidian")));
+            fire.put(org.bukkit.event.block.BlockSpreadEvent.class, () -> new org.domi.furnace.api.event.block.BlockSpreadEvent(w, bp, new BlockPos(1, 64, 3),
+                    org.domi.furnace.api.world.BlockData.of("minecraft:dirt"), org.domi.furnace.api.world.BlockData.of("minecraft:grass_block")));
+            fire.put(org.bukkit.event.entity.ProjectileHitEvent.class, () -> new org.domi.furnace.api.event.entity.ProjectileHitEvent(snowball, null,
+                    new org.domi.furnace.api.world.BlockSnapshot(w, bp, stoneData), "up"));
+
             // 시험이 빠뜨린 짝이 없는지: 다리가 아는 이벤트 = 이 시험이 발행한 이벤트
             assertEquals(EventBridge.bridgedEvents(), new HashSet<Class<?>>(fire.keySet()));
 
