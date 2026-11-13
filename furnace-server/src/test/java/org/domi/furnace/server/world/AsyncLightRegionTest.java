@@ -3,7 +3,6 @@
 package org.domi.furnace.server.world;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.UUID;
@@ -37,11 +36,13 @@ class AsyncLightRegionTest {
         Result on = run(true, 120, 4);
         assertEquals(off.lightHash, on.lightHash, "밀린 빛을 기다린 뒤 빛이 같아야 한다");
         assertTrue(on.chunks > 0 && on.chunks == off.chunks, "같은 청크들이 올라와 빛이 있다: " + on.chunks + " / " + off.chunks);
-        assertFalse(on.pending, "첫 빛을 기다리는 청크가 남지 않는다");
         assertTrue(on.sent > 0, "청크·빛 패킷이 플레이어에게 간다");
+        assertEquals(off.playerChunks, on.playerChunks, "올라온 청크가 끈 것과 똑같이 플레이어에게 나갔다(검토 R1 — 전송이 빛을 기다리다 굶지 않는다)");
+        assertTrue(on.playerChunks >= (2 * 4 + 1) * (2 * 4 + 1), "시야 안 청크가 모두 나갔다: " + on.playerChunks);
     }
 
     @Test
+    @org.junit.jupiter.api.Timeout(value = 30, unit = java.util.concurrent.TimeUnit.MINUTES)   // 6회 × 1000틱 — 느린 기계에서 기본 5분을 넘는다(검토 R8)
     void lamps400Bench() throws Exception {
         Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
         for (int round = 0; round < 3; round++) {
@@ -53,7 +54,95 @@ class AsyncLightRegionTest {
         }
     }
 
-    record Result(long lightHash, int chunks, boolean pending, long sent, double avgMs, double p50Ms, double p95Ms, double maxMs) {}
+    /**
+     * 검토 R7: 실제 Regionizer 합치기·나누기(splitLocked → settleLightBeforeSplit, absorb → drain)를 빛 묶음이 도는 중에 되풀이해도 빛이 맞다.
+     * 두 고정 구역(청크 x=8, x=40)에서 발광석을 계속 켜고 끄며 다리 구역(x=24)을 넣었다 빼 합치기·나누기를 일으킨다.
+     */
+    @Test
+    void mergeAndSplitWithLightInFlight() throws Exception {
+        LightSettings.install(new LightSettings(true, 1));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(10_000_000L, 3);
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        var ioPool = Executors.newSingleThreadExecutor();
+        var gen = Executors.newSingleThreadExecutor();
+        try {
+            World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(2), sched, 3, 4, 1, 2, 2, reg.directBits(), 7, ioPool, gen);
+            Regionizer rz = w.regionizer();
+            int[] anchors = {8, 40};
+            for (int a : anchors) rz.want(a, 0, null);
+            int glow = B.defaultState("glowstone"), air = B.defaultState("air");
+            // 청크마다 발광석 두 자리: on 은 끝에 켜진 채, off 는 끝에 꺼진 채(서로 15 칸 넘게 떨어짐)
+            java.util.function.IntFunction<Pos> onPos = a -> new Pos(a * 16 + 2, -58, 2), offPos = a -> new Pos(a * 16 + 13, -58, 13);
+            for (int a : anchors) at(w, a, r -> r.chunkAtBlocking(new ChunkPos(a, 0)));
+            int merges = 0, splits = 0, toggles = 0;
+            for (int cycle = 0; cycle < 3; cycle++) {
+                rz.want(24, 0, null);   // 다리 → 합치기
+                long until = System.currentTimeMillis() + 5_000;
+                while (rz.ownerOf(8, 0) != rz.ownerOf(40, 0) && System.currentTimeMillis() < until) toggles += toggle(w, anchors, onPos, offPos, glow, air, toggles);
+                if (rz.ownerOf(8, 0) == rz.ownerOf(40, 0)) merges++;
+                for (int i = 0; i < 10; i++) toggles += toggle(w, anchors, onPos, offPos, glow, air, toggles);
+                for (int tries = 0; tries < 10; tries++) {
+                    Region o = rz.ownerOf(24, 0);
+                    if (o == null) break;
+                    rz.release(o, 24, 0);
+                    if (!o.present.contains(Regionizer.chunkKey(24, 0))) break;
+                }
+                until = System.currentTimeMillis() + 10_000;   // 유예 1초 + 재계산 → 나누기
+                while (rz.ownerOf(8, 0) == rz.ownerOf(40, 0) && System.currentTimeMillis() < until) toggles += toggle(w, anchors, onPos, offPos, glow, air, toggles);
+                if (rz.ownerOf(8, 0) != rz.ownerOf(40, 0)) splits++;
+            }
+            assertTrue(merges >= 2 && splits >= 2, "합치기 " + merges + " 나누기 " + splits);
+            for (int a : anchors) {
+                at(w, a, r -> {
+                    r.level().setBlock(onPos.apply(a), glow, 2);
+                    r.level().setBlock(offPos.apply(a), air, 2);
+                });
+            }
+            for (int a : anchors) {
+                at(w, a, r -> {
+                    r.level().drainLight();
+                    Pos on = onPos.apply(a), off = offPos.apply(a);
+                    assertEquals(15, r.level().getBlockLight(on), "켜진 발광석 " + on);
+                    assertEquals(14, r.level().getBlockLight(on.east()), "옆 칸");
+                    assertEquals(0, r.level().getBlockLight(off), "꺼진 자리 " + off);
+                    assertEquals(0, r.level().getBlockLight(off.west()), "꺼진 자리 옆");
+                });
+            }
+        } finally {
+            ioPool.shutdown();
+            gen.shutdown();
+            sched.close();
+        }
+    }
+
+    /** 두 자리를 엇갈려 켜고 끈다(빛 묶음이 늘 돌게). 1 을 돌려준다. */
+    private static int toggle(World w, int[] anchors, java.util.function.IntFunction<Pos> onPos, java.util.function.IntFunction<Pos> offPos,
+            int glow, int air, int n) throws Exception {
+        for (int a : anchors) {
+            at(w, a, r -> {
+                r.level().setBlock(onPos.apply(a), n % 2 == 0 ? glow : air, 2);
+                r.level().setBlock(offPos.apply(a), n % 2 == 0 ? air : glow, 2);
+            });
+        }
+        Thread.sleep(15);
+        return 1;
+    }
+
+    private static void at(World w, int cx, java.util.function.Consumer<Region> task) throws Exception {
+        var done = new java.util.concurrent.CompletableFuture<Void>();
+        w.runAtChunk(new ChunkPos(cx, 0), r -> {
+            try {
+                task.accept(r);
+                done.complete(null);
+            } catch (Throwable t) {
+                done.completeExceptionally(t);
+            }
+        });
+        done.get(10, java.util.concurrent.TimeUnit.SECONDS);
+    }
+
+    record Result(long lightHash, int chunks, int playerChunks, long sent, double avgMs, double p50Ms, double p95Ms, double maxMs) {}
 
     private static Result run(boolean async, int ticks, int view) throws Exception {
         LightSettings.install(new LightSettings(async, 1));
@@ -116,7 +205,7 @@ class AsyncLightRegionTest {
             }
             long[] hash = {1469598103934665603L};
             int[] chunks = {0};
-            boolean[] pending = {false};
+            int[] playerChunks = {0};
             sched.region(rp).execute(() -> {
                 Region r = w.regionAt(rp);
                 r.level().drainLight();   // 켬: 밀린 빛을 끝까지. 끔: 할 일 없음
@@ -124,18 +213,18 @@ class AsyncLightRegionTest {
                     ChunkColumn col = r.level().chunkCached(cx, cz);
                     if (col == null || col.light() == null) continue;
                     chunks[0]++;
-                    pending[0] |= col.lightPending();
                     for (byte[][] ls : new byte[][][] {col.light().sky, col.light().block}) {
                         for (byte[] l : ls) hash[0] = (hash[0] ^ java.util.Arrays.hashCode(l)) * 1099511628211L;
                     }
                     for (int v : col.light().lowestSource) hash[0] = (hash[0] ^ v) * 1099511628211L;
                 }
+                playerChunks[0] = p.loadedChunks().size();
             }).get();
             long[] sorted = tickNs.clone();
             java.util.Arrays.sort(sorted);
             long sum = 0;
             for (long v : tickNs) sum += v;
-            return new Result(hash[0], chunks[0], pending[0], sent[0], sum / 1e6 / ticks, sorted[ticks / 2] / 1e6,
+            return new Result(hash[0], chunks[0], playerChunks[0], sent[0], sum / 1e6 / ticks, sorted[ticks / 2] / 1e6,
                     sorted[(int) (ticks * 0.95)] / 1e6, sorted[ticks - 1] / 1e6);
         } finally {
             ioPool.shutdown();

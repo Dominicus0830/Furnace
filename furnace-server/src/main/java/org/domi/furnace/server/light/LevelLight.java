@@ -107,7 +107,7 @@ public final class LevelLight {
     private long[] pendingSources = new long[16];
     private int pendingSourceCount;
 
-    /** 켜면 이후 blockChanged 의 하늘빛 원천 고치기를 미룬다(다음 runUpdates·applyPendingSources 가 순서대로 한다). */
+    /** 켜면 이후 blockChanged 의 하늘빛 원천 고치기를 미룬다(다음 runUpdates 가 넣은 순서대로 먼저 한다). */
     public void deferSources(boolean on) { deferSources = on; }
 
     /** 블록이 바뀐 뒤(LevelChunk.setBlockState): 하늘빛 원천을 고치고 두 엔진에 검사를 건다. 실제 계산은 runUpdates. */
@@ -137,16 +137,6 @@ public final class LevelLight {
     public boolean hasWork() { return pendingSourceCount > 0 || block.hasWork() || sky != null && sky.hasWork(); }
 
     /** 미뤄 둔 하늘빛 원천 고치기를 넣은 순서대로 한다(블록 상태는 지금 것). */
-    public void applyPendingSources() {
-        if (pendingSourceCount == 0) return;
-        world.begin();
-        try {
-            applyPendingSources0();
-        } finally {
-            world.end();
-        }
-    }
-
     private void applyPendingSources0() {
         int n = pendingSourceCount;
         pendingSourceCount = 0;

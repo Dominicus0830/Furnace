@@ -694,7 +694,9 @@ public abstract class ChunkLevel implements BlockLevel {
             int y0 = col.minY() + (si << 4);
             for (int n = 0; n < randomTickSpeed; n++) {
                 Pos p = blockRandomPos(x0, y0, z0);
-                int st = sec.getBlock(p.x() - x0, p.y() - y0, p.z() - z0);
+                // 칸마다 다시 읽는다: 빛 작업 모드(T-064)에서 앞 칸의 randomTick 이 얼린 구역에 쓰면 컬럼은 복사본으로 갈아 끼운다 — 옛 객체는 낡았다
+                // (바닐라는 같은 객체가 그 자리에서 바뀐다)
+                int st = sections[si].getBlock(p.x() - x0, p.y() - y0, p.z() - z0);
                 BlockBehavior b = BlockBehaviors.of(st);
                 if (b.isRandomlyTicking(st)) b.randomTick(st, this, p, random);
                 int f = b.getFluidState(st);
@@ -784,7 +786,7 @@ public abstract class ChunkLevel implements BlockLevel {
         raids.absorb(other.raids, this);
         torchToggles.absorb(other.torchToggles);
         // 빛: 틱 사이에 놓인 블록의 미처리 검사와 방송 전 빛 변경은 합친 쪽이 이어받는다(안 옮기면 빛이 계산·방송되지 않는다).
-        // 빛 작업 모드면 둘 다 먼저 끝까지 계산한다(도는 묶음·새 청크 빛 켜기는 옮기지 않는다 — 아직 각자 청크를 가진 지금).
+        // 빛 작업 모드면 둘 다 먼저 끝까지 계산한다(도는 묶음은 옮기지 않는다 — 아직 각자 청크를 가진 지금).
         if (asyncLight()) {
             drainLight();
             other.drainLight();
@@ -842,7 +844,7 @@ public abstract class ChunkLevel implements BlockLevel {
         }
         // 빛: 청크가 target 쪽인 미처리 검사와 방송 전 빛 변경(키 = sx<<32 | sz). 빛 작업 모드면 나누기 전에(주인을 바꾸기 전에)
         // settleLightBeforeSplit 으로 끝까지 계산해 두었다 — 도는 묶음·새 청크 빛 켜기는 남아 있지 않다.
-        assert lightBatch == null && pendingChunkLights.isEmpty() : "빛 작업이 남은 채 나눔";
+        assert lightBatch == null : "빛 작업이 남은 채 나눔";
         if (lightEngine != null && lightEngine.hasWork()) {
             lightEngine.moveChecksTo(target.lightEngine(),
                     p -> inTarget.test(org.domi.furnace.server.light.LightEngine.px(p) >> 4, org.domi.furnace.server.light.LightEngine.pz(p) >> 4));
@@ -2038,26 +2040,6 @@ public abstract class ChunkLevel implements BlockLevel {
         reapplyVirtualLights(cx, cz);
     }
 
-    /**
-     * 막 올라온 청크의 빛(청크 설치 경로: lightNewChunk 뒤 runLightUpdates 와 같다). 빛 작업 모드면 빛 켜기를 다음 빛 작업 묶음에 넣고
-     * 게시될 때까지 그 청크를 보내지 않는다(바닐라도 빛이 끝나야 청크가 FULL 이 된다). 가짜 광원이 걸린 청크는 그 자리에서 한다.
-     */
-    public void lightLoadedChunk(int cx, int cz) {
-        ChunkColumn col = chunk(cx, cz);
-        if (col == null) return;
-        var vl = virtualLights();
-        if (!asyncLight() || !vl.isEmpty() && (vl.sourcesIn(cx, cz).length > 0 || vl.retiredIn(cx, cz).length > 0)) {
-            lightNewChunk(cx, cz);
-            runLightUpdates();
-            return;
-        }
-        boolean precomputed = col.lightPrecomputed();
-        col.lightPrecomputed(false);
-        if (!precomputed && col.light() == null) col.light(new org.domi.furnace.server.light.ChunkLight());
-        col.lightPending(true);
-        pendingChunkLights.add(new int[] {cx, cz, precomputed ? 1 : 0});
-    }
-
     /** 다시 올라온 청크의 가짜 광원을 빛 엔진에 다시 건다(생성 스레드의 미리 계산은 그것을 모른다). 이웃으로 번지는 빛은 방송한다. */
     private void reapplyVirtualLights(int cx, int cz) {
         var vl = virtualLights();
@@ -2135,54 +2117,35 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     /**
-     * 쌓인 빛 갱신을 지금 이 스레드에서 끝까지 실행(LevelLightEngine.runLightUpdates). 빛 작업 모드면 도는 묶음을 기다려 게시하고 밀린 일
-     * (새 청크 빛 켜기 포함)까지 여기서 한다 — 빛을 곧바로 봐야 하는 경로(가짜 광원 API, 청크째 다시 보내기, 재생성, 시험)용.
-     * 틱 끝은 {@link #lightTickEnd}.
+     * 쌓인 빛 갱신을 지금 이 스레드에서 끝까지 실행(LevelLightEngine.runLightUpdates). 빛 작업 모드면 도는 묶음을 기다려 게시하고 밀린 일까지
+     * 여기서 한다 — 빛을 곧바로 봐야 하는 경로(새 청크, 가짜 광원 API, 청크째 다시 보내기, 재생성, 시험)용. 틱 끝은 {@link #lightTickEnd}.
      */
     public void runLightUpdates() {
-        if (lightBatch != null || !pendingChunkLights.isEmpty()) {
-            drainLight();
-            return;
-        }
+        awaitLightIdle();
         if (lightEngine != null && lightEngine.hasWork()) lightEngine.runUpdates();
     }
 
     // ------------------------------------------------------------------ 빛 작업 모드(T-064, furnace.properties light.async)
     //
-    // 바닐라 ThreadedLevelLightEngine 처럼 region 은 빛 검사·새 청크 빛 켜기를 모으기만 하고, 틱 끝에 한 묶음으로 빛 스레드에 넘긴다.
+    // 바닐라 ThreadedLevelLightEngine 처럼 region 은 블록 변경의 빛 검사를 모으기만 하고, 틱 끝에 한 묶음으로 빛 스레드에 넘긴다.
     // 빛 스레드는 넘길 때의 블록(얼린 구역 — 이후 region 의 쓰기는 구역을 복사해서 한다)과 보이는 빛의 쓰기 사본 위에서 계산하고,
     // region 스레드가 다음 틱 시작(또는 틱 끝)에 결과를 보이는 빛으로 바꿔 건다(게시). 한 레벨에 도는 묶음은 하나뿐이고, 그 동안 보이는
-    // 빛 배열·원천 높이는 아무도 고치지 않는다 — 그 자리 계산이 필요한 경로는 먼저 awaitLightIdle 로 기다린다.
-    // 끈 동안(기본)은 lightBatch 가 늘 null 이고 pendingChunkLights 가 늘 비어 지금과 같다.
+    // 빛 배열·원천 높이는 아무도 고치지 않는다 — 그 자리 계산이 필요한 경로(새 청크 빛 켜기 포함)는 먼저 awaitLightIdle 로 기다린다.
+    // 새 청크 빛은 늘 그 자리에서 한다: 바닐라는 빛이 끝나야 청크가 FULL(틱·전송 대상)이 되므로, 빛 전의 청크가 틱·스폰·전송에 쓰이지 않게.
+    // 끈 동안(기본)은 lightBatch 가 늘 null 이라 지금과 같다.
 
-    /** 한 묶음이 다룰 청크 범위(칸 검사·새 청크에서 체비셰프 거리, 청크). 빛은 15 칸 안에서 퍼지고 이웃 칸을 하나 더 읽어 2 면 넉넉하다. */
+    /** 한 묶음이 다룰 청크 범위(칸 검사에서 체비셰프 거리, 청크). 빛은 15 칸 안에서 퍼지고 이웃 칸을 하나 더 읽어 2 면 넉넉하다. */
     private static final int LIGHT_BATCH_REACH = 2;
 
     private org.domi.furnace.server.light.LightBatch lightBatch;
     private java.util.concurrent.CompletableFuture<Void> lightBatchDone;
+    /** 도는 묶음에 넘긴 미처리 일의 칸(실패하면 그 자리에서 다시 검사한다). */
+    private long[] lightBatchSeeds;
     private final java.util.ArrayList<ChunkColumn.LightBlocks> lightFrozen = new java.util.ArrayList<>();
     private final java.util.HashSet<Long> lightBatchChunks = new java.util.HashSet<>();
-    /** 아직 넘기지 않은 새 청크 빛 켜기 {cx, cz, 미리 계산했는가}. */
-    private final java.util.ArrayList<int[]> pendingChunkLights = new java.util.ArrayList<>();
-    /** 첫 빛을 기다리는 청크를 보내려는 쪽이 기다린다 — 게시·모두 처리 때 끝난다. */
-    private java.util.concurrent.CompletableFuture<Void> lightSettled;
 
     /** 빛 작업 모드인가(빛 계산 풀이 있는가). */
     public boolean asyncLight() { return services().lightExecutor() != null; }
-
-    /** 첫 빛을 기다리는 청크(lightPending)를 보낼 수 있게 되면 끝나는 future(지금 기다릴 것이 없으면 끝난 것). 주인 스레드에서. */
-    public java.util.concurrent.CompletableFuture<Void> lightSettled() {
-        if (lightBatch == null && pendingChunkLights.isEmpty()) return java.util.concurrent.CompletableFuture.completedFuture(null);
-        if (lightSettled == null) lightSettled = new java.util.concurrent.CompletableFuture<>();
-        return lightSettled;
-    }
-
-    private void completeLightSettled() {
-        var f = lightSettled;
-        if (f == null || !pendingChunkLights.isEmpty() || lightBatch != null) return;
-        lightSettled = null;
-        f.complete(null);
-    }
 
     /** region 틱 시작: 끝난 묶음이 있으면 게시한다(그 틱의 무작위 틱·방송이 새 빛을 본다). */
     public void pollLight() {
@@ -2196,44 +2159,30 @@ public abstract class ChunkLevel implements BlockLevel {
             return;
         }
         pollLight();
-        if (lightBatch == null && (!pendingChunkLights.isEmpty() || lightEngine != null && lightEngine.hasWork())) dispatchLight();
+        if (lightBatch == null && lightEngine != null && lightEngine.hasWork()) dispatchLight();
     }
 
-    /** 도는 묶음이 있으면 끝날 때까지 기다려 게시한다(이 스레드를 막는다). 끝나면 보이는 빛을 그 자리에서 고쳐도 된다. */
+    /**
+     * 도는 묶음이 있으면 끝날 때까지 기다려 게시한다(이 스레드를 막는다). 빛 스레드가 아직 시작하지 않았으면(공유 풀에서 남의 묶음 뒤에
+     * 줄 서 있으면) 빼앗아 이 스레드에서 돌린다. 끝나면 보이는 빛을 그 자리에서 고쳐도 된다.
+     */
     public void awaitLightIdle() {
         if (lightBatch != null) publishLight();
     }
 
-    /** 도는 묶음을 기다려 게시하고, 밀린 일(새 청크 빛 켜기·원천 고치기·칸 검사)을 이 스레드에서 끝까지 계산한다. */
+    /** 도는 묶음을 기다려 게시하고, 밀린 일(원천 고치기·칸 검사)을 이 스레드에서 끝까지 계산한다. */
     public void drainLight() {
-        awaitLightIdle();
-        if (!pendingChunkLights.isEmpty()) {
-            var ops = new java.util.ArrayList<>(pendingChunkLights);
-            pendingChunkLights.clear();
-            for (int[] op : ops) {
-                ChunkColumn col = chunk(op[0], op[1]);
-                if (col == null || !col.lightPending()) continue;
-                col.lightPending(false);
-                lightNewChunk0(col, op[0], op[1], op[2] != 0);
-                col.lightTouched();
-            }
-        }
-        if (lightEngine != null && lightEngine.hasWork()) lightEngine.runUpdates();
-        completeLightSettled();
+        runLightUpdates();
     }
 
     /**
-     * 저장 스냅샷 전에: 이 청크의 빛을 바꿀 수 있는 밀린 빛 일(도는 묶음이 다루는 청크이거나, 밀린 칸 검사·새 청크가 가까움)이 있으면 끝까지
+     * 저장 스냅샷 전에: 이 청크의 빛을 바꿀 수 있는 밀린 빛 일(도는 묶음이 다루는 청크이거나, 밀린 칸 검사가 가까움)이 있으면 끝까지
      * 계산한다 — 옛 빛이 디스크에 굳지 않게(바닐라는 기다리지 않아 굳을 수 있다 — 그 결함은 따르지 않는다). 끈 동안은 아무것도 안 한다.
      */
     public void settleLightForSave(int cx, int cz) {
-        if (lightBatch == null && pendingChunkLights.isEmpty() && (lightEngine == null || !lightEngine.hasWork())) return;
+        if (lightBatch == null && (lightEngine == null || !lightEngine.hasWork())) return;
         if (!asyncLight()) return;
         boolean near = lightBatch != null && lightBatchChunks.contains((long) cx << 32 | (cz & 0xFFFFFFFFL));
-        for (int i = 0; !near && i < pendingChunkLights.size(); i++) {
-            int[] op = pendingChunkLights.get(i);
-            near = Math.abs(op[0] - cx) <= LIGHT_BATCH_REACH && Math.abs(op[1] - cz) <= LIGHT_BATCH_REACH;
-        }
         if (!near && lightEngine != null) {
             boolean[] hit = {false};
             lightEngine.forEachPendingPos(p -> {
@@ -2249,12 +2198,15 @@ public abstract class ChunkLevel implements BlockLevel {
     private void dispatchLight() {
         var executor = services().lightExecutor();
         var batch = new org.domi.furnace.server.light.LightBatch(minBuildHeight(), maxBuildHeight(), bedrockState, hasSkyLight(), virtualLights());
+        long[][] seedPos = {new long[64]};
+        int[] seedCount = {0};
         java.util.LinkedHashSet<Long> seeds = new java.util.LinkedHashSet<>();
-        if (lightEngine != null) {
-            lightEngine.forEachPendingPos(p -> seeds.add((long) (org.domi.furnace.server.light.LightEngine.px(p) >> 4) << 32
-                    | ((org.domi.furnace.server.light.LightEngine.pz(p) >> 4) & 0xFFFFFFFFL)));
-        }
-        for (int[] op : pendingChunkLights) seeds.add((long) op[0] << 32 | (op[1] & 0xFFFFFFFFL));
+        lightEngine.forEachPendingPos(p -> {
+            if (seedCount[0] == seedPos[0].length) seedPos[0] = java.util.Arrays.copyOf(seedPos[0], seedCount[0] * 2);
+            seedPos[0][seedCount[0]++] = p;
+            seeds.add((long) (org.domi.furnace.server.light.LightEngine.px(p) >> 4) << 32
+                    | ((org.domi.furnace.server.light.LightEngine.pz(p) >> 4) & 0xFFFFFFFFL));
+        });
         for (long seed : seeds) {
             int sx = (int) (seed >> 32), sz = (int) seed;
             for (int dx = -LIGHT_BATCH_REACH; dx <= LIGHT_BATCH_REACH; dx++) {
@@ -2270,24 +2222,53 @@ public abstract class ChunkLevel implements BlockLevel {
                 }
             }
         }
-        for (int[] op : pendingChunkLights) batch.addChunkOp(op[0], op[1], op[2] != 0);
-        pendingChunkLights.clear();
-        if (lightEngine != null) lightEngine.moveWorkTo(batch.engine());
+        lightEngine.moveWorkTo(batch.engine());
         lightBatch = batch;
-        lightBatchDone = java.util.concurrent.CompletableFuture.runAsync(batch::run, executor);
+        lightBatchSeeds = java.util.Arrays.copyOf(seedPos[0], seedCount[0]);
+        var done = new java.util.concurrent.CompletableFuture<Void>();
+        lightBatchDone = done;
+        try {
+            executor.execute(() -> {
+                if (!batch.claim()) {   // region 스레드가 빼앗아 이미 돌렸다
+                    done.complete(null);
+                    return;
+                }
+                try {
+                    runLightBatch(batch);
+                    done.complete(null);
+                } catch (Throwable t) {
+                    done.completeExceptionally(t);
+                }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            // 풀이 닫히는 중 — 묶음은 시작 전 그대로 남고, 게시 때 이 스레드가 빼앗아 돌린다
+        }
     }
 
-    /** 묶음이 끝나길 기다려(이미 끝났으면 곧바로) 결과를 보이는 빛에 넣고 얼린 구역을 녹인다. 주인 스레드에서. */
+    /** 묶음 계산(빛 스레드 또는 빼앗은 region 스레드에서). 시험이 실패를 흉내 낼 자리. */
+    void runLightBatch(org.domi.furnace.server.light.LightBatch batch) { batch.run(); }
+
+    /** 묶음이 끝나길 기다려(시작 전이면 빼앗아 이 스레드에서 돌려) 결과를 보이는 빛에 넣고 얼린 구역을 녹인다. 주인 스레드에서. */
     private void publishLight() {
         var batch = lightBatch;
         Throwable failed = null;
-        try {
-            lightBatchDone.join();
-        } catch (RuntimeException e) {
-            failed = e;
+        if (batch.claim()) {   // 빛 스레드가 아직 집지 않았다 — 기다리지 않고 여기서
+            try {
+                runLightBatch(batch);
+            } catch (RuntimeException | Error e) {
+                failed = e;
+            }
+        } else {
+            try {
+                lightBatchDone.join();
+            } catch (RuntimeException e) {
+                failed = e;
+            }
         }
+        long[] seeds = lightBatchSeeds;
         lightBatch = null;
         lightBatchDone = null;
+        lightBatchSeeds = null;
         if (failed == null) {
             batch.publish((key, skyMask, blockMask) -> {
                 long[] m = lightChanges.computeIfAbsent(key, k -> new long[2]);
@@ -2296,20 +2277,20 @@ public abstract class ChunkLevel implements BlockLevel {
                 ChunkColumn col = chunk((int) (key >> 32), (int) key);
                 if (col != null) col.lightTouched();
             });
-        } else {
-            org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error("[LIGHT] 빛 작업 실패 — 이 묶음의 빛 변경을 버린다", failed);
         }
         for (ChunkColumn.LightBlocks b : lightFrozen) b.thaw();
         lightFrozen.clear();
         lightBatchChunks.clear();
-        int[] ops = batch.chunkOps();
-        for (int i = 0; i < ops.length; i += 3) {
-            ChunkColumn col = chunk(ops[i], ops[i + 1]);
-            if (col == null) continue;
-            col.lightPending(false);
-            col.lightTouched();   // 첫 빛은 표시하지 않으므로(보내기 전) 캐시만 버린다
+        if (failed != null) {
+            // 묶음의 사본을 버렸으니 보이는 빛은 넘기기 전 그대로다 — 넘겼던 칸을 다시 걸고 그 자리에서 계산한다(끈 것과 같은 결과)
+            org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error("[LIGHT] 빛 작업 실패 — 그 묶음을 이 스레드에서 다시 계산한다", failed);
+            var engine = lightEngine();
+            for (long p : seeds) {
+                engine.blockChanged(org.domi.furnace.server.light.LightEngine.px(p), org.domi.furnace.server.light.LightEngine.py(p),
+                        org.domi.furnace.server.light.LightEngine.pz(p));
+            }
+            engine.runUpdates();
         }
-        completeLightSettled();
     }
 
     @Override

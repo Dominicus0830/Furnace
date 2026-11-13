@@ -53,6 +53,7 @@ class AsyncLightTest {
         final Executor exec;
         final List<Packet> light = new ArrayList<>();
         BiPredicate<Integer, Integer> owns = (x, z) -> true;
+        int failNext;   // >0 이면 그만큼 빛 묶음 계산이 실패한다(R4)
 
         Lvl(Map<Long, ChunkColumn> cols, Executor exec) {
             super(1000000);
@@ -73,6 +74,20 @@ class AsyncLightTest {
             return new LevelServices.Delegating(LevelServices.DEFAULT) {
                 @Override public Executor lightExecutor() { return exec; }
             };
+        }
+
+        @Override void runLightBatch(org.domi.furnace.server.light.LightBatch batch) {
+            if (failNext > 0) {
+                failNext--;
+                throw new IllegalStateException("시험: 빛 작업 실패");
+            }
+            super.runLightBatch(batch);
+        }
+
+        /** Region.finishLoad 와 같은 청크 설치 경로. */
+        void load(int cx, int cz) {
+            lightNewChunk(cx, cz);
+            runLightUpdates();
         }
 
         void lightAll() {
@@ -205,37 +220,113 @@ class AsyncLightTest {
         assertSame(now, col.sections()[(p.y() - col.minY()) >> 4]);
     }
 
-    /** 새 청크: 빛 켜기가 묶음에 걸린 동안은 보내지 않고(lightPending), 게시되면 보낼 수 있다. 끈 동안은 곧바로. */
+    private static long key(int x, int z) { return (long) x << 32 | (z & 0xFFFFFFFFL); }
+
+    /**
+     * 검토 R1·R2: 새 청크 빛은 묶음이 도는 중이어도 올라오는 자리에서 끝난다 — 틱·스폰·밝기 조회·전송이 첫 빛 전의 청크를 보지 않는다
+     * (바닐라: 빛이 끝나야 FULL). 이웃 경계 발광석의 빛이 새 청크(미리 계산한 생성 경로) 가장자리에 곧바로 보인다.
+     */
     @Test
-    void loadedChunkWaitsForLightPublish() {
+    void loadedChunkIsLitImmediately() {
+        Manual manual = new Manual();
+        Lvl l = new Lvl(new HashMap<>(), manual);
+        l.owns = (x, z) -> x != 1;
+        for (int x = -R; x <= R; x++) for (int z = -R; z <= R; z++) if (x != 1) l.lightNewChunk(x, z);
+        l.runLightUpdates();
+        Pos g = new Pos(15, -60, 8);
+        l.setBlock(g, glow, 2);
+        l.lightTickEnd();   // 발광석 빛이 묶음에(아직 안 돌았다)
+        l.setBlock(new Pos(-20, -55, -20), lantern, 2);   // 넘긴 뒤 밀린 검사
+        l.owns = (x, z) -> true;
+        for (int z = -R; z <= R; z++) {
+            ChunkColumn col = l.chunk(1, z);
+            ChunkLevel.precomputeLight(col, 1, z, l.lightBedrockState(), true);   // 생성 풀에서 미리 계산
+            l.load(1, z);
+        }
+        assertEquals(14, l.getBlockLight(new Pos(16, -60, 8)), "새 청크 가장자리에 이웃 빛이 곧바로");
+        assertTrue(manual.q.size() == 1, "넘긴 작업은 큐에 남았지만 region 이 빼앗아 이미 돌렸다");
+        manual.runAll();   // 빛 스레드가 늦게 집어도 아무것도 하지 않는다
+        l.pollLight();
+        Lvl ref = new Lvl(new HashMap<>(), null);
+        ref.lightAll();
+        ref.setBlock(g, glow, 2);
+        ref.setBlock(new Pos(-20, -55, -20), lantern, 2);
+        ref.runLightUpdates();
+        assertSameLight(ref, l, "새 청크");
+    }
+
+    /** 검토 R3: 묶음이 도는 동안 청크가 내려갔다 다시 올라와도 새 컬럼의 빛은 올라오는 자리에서 맞다(좌표로 옛 일을 잘못 풀지 않는다). */
+    @Test
+    void reloadedColumnDuringBatchIsLit() {
         Manual manual = new Manual();
         Map<Long, ChunkColumn> cols = new HashMap<>();
         Lvl l = new Lvl(cols, manual);
-        l.owns = (x, z) -> !(x == 2 && z == 2);
-        for (int x = -R; x <= R; x++) for (int z = -R; z <= R; z++) if (!(x == 2 && z == 2)) l.lightNewChunk(x, z);
-        l.runLightUpdates();
-        l.owns = (x, z) -> true;   // (2,2) 이 올라왔다
-        ChunkColumn col = l.chunk(2, 2);
-        l.lightLoadedChunk(2, 2);
-        assertTrue(col.lightPending());
-        var settled = l.lightSettled();
-        assertFalse(settled.isDone());
-        l.lightTickEnd();
-        assertTrue(col.lightPending(), "도는 중");
+        l.lightAll();
+        Pos g = new Pos(29, -58, 29);   // 청크 (1,1) — 빛이 (2,2) 로 번진다
+        l.setBlock(g, glow, 2);
+        l.lightTickEnd();   // 묶음에 (2,2) 옛 컬럼이 얼려 들어갔다
+        ChunkColumn old = cols.remove(key(2, 2));   // 내려갔다가
+        ChunkColumn again = l.chunk(2, 2);   // 새 컬럼으로 다시
+        assertNotSame(old, again);
+        l.load(2, 2);
+        assertEquals(15, l.getSkyLight(new Pos(40, -50, 40)), "다시 올라온 컬럼 지표 하늘빛");
         manual.runAll();
         l.pollLight();
-        assertFalse(col.lightPending());
-        assertTrue(settled.isDone());
-        assertTrue(l.lightSettled().isDone());
-
-        // 끈 레벨과 빛이 같다
+        assertEquals(9, l.getBlockLight(new Pos(32, -58, 32)), "이웃 발광석 빛이 새 컬럼에 곧바로");
         Lvl ref = new Lvl(new HashMap<>(), null);
         ref.lightAll();
-        assertSameLight(ref, l, "새 청크");
+        ref.setBlock(g, glow, 2);
+        ref.runLightUpdates();
+        assertSameLight(ref, l, "다시 올라온 컬럼");
+    }
 
-        Lvl off = new Lvl(new HashMap<>(), null);
-        off.lightLoadedChunk(0, 0);
-        assertFalse(off.chunk(0, 0).lightPending());
+    /** 검토 R5: 공유 풀에서 아직 시작하지 않은 묶음을 기다릴 때는 빼앗아 이 스레드에서 돌린다(남의 묶음 뒤에 줄 서지 않는다). */
+    @Test
+    void awaitStealsUnstartedBatch() {
+        Manual never = new Manual();   // 빛 스레드가 영영 집지 않는다
+        Lvl l = new Lvl(new HashMap<>(), never);
+        l.lightAll();
+        Pos p = new Pos(3, -55, 3);
+        l.setBlock(p, glow, 2);
+        l.lightTickEnd();
+        l.awaitLightIdle();
+        assertEquals(15, l.getBlockLight(p));
+        never.runAll();   // 늦게 집으면 아무것도 안 한다
+        l.lightTickEnd();
+        assertEquals(15, l.getBlockLight(p));
+
+        Lvl rejected = new Lvl(new HashMap<>(), r -> { throw new java.util.concurrent.RejectedExecutionException("닫힘"); });
+        rejected.lightAll();
+        rejected.setBlock(p, glow, 2);
+        rejected.lightTickEnd();   // 넘기지 못해도 묶음은 남고
+        rejected.runLightUpdates();   // 기다리는 쪽이 돌린다
+        assertEquals(15, rejected.getBlockLight(p));
+    }
+
+    /** 검토 R4: 빛 작업이 실패하면(빛 스레드든 빼앗은 쪽이든) 넘긴 칸·미룬 원천을 그 자리에서 다시 계산해 끈 것과 같은 빛이 된다. */
+    @Test
+    void failedBatchIsRecomputedInPlace() {
+        for (boolean steal : new boolean[] {false, true}) {
+            Manual manual = new Manual();
+            Lvl l = new Lvl(new HashMap<>(), manual);
+            l.lightAll();
+            Random rnd = new Random(7);
+            Lvl ref = new Lvl(new HashMap<>(), null);
+            ref.lightAll();
+            for (int i = 0; i < 60; i++) {
+                Pos p = new Pos(rnd.nextInt(80) - 40, -62 + rnd.nextInt(12), rnd.nextInt(80) - 40);
+                int st = randomState(rnd);
+                l.setBlock(p, st, 2);
+                ref.setBlock(p, st, 2);
+            }
+            ref.runLightUpdates();
+            l.failNext = 1;
+            l.lightTickEnd();
+            if (!steal) manual.runAll();   // 빛 스레드에서 실패
+            l.awaitLightIdle();             // steal 이면 여기서 빼앗아 돌리다 실패
+            l.runLightUpdates();
+            assertSameLight(ref, l, "실패 뒤 다시 계산(steal=" + steal + ")");
+        }
     }
 
     /** 저장 전: 그 청크 근처에 밀린 빛이 있으면 끝까지 계산한다(실제 스레드 기다림 포함). 먼 청크는 기다리지 않는다. */
@@ -259,7 +350,7 @@ class AsyncLightTest {
         assertEquals(15, t.getBlockLight(p));
     }
 
-    /** 합치기: 도는 묶음·밀린 새 청크를 먼저 끝내고 합친다 — 한 레벨에서 같은 일을 한 것과 같다. */
+    /** 합치기: 도는 묶음을 먼저 끝내고 합친다 — 한 레벨에서 같은 일을 한 것과 같다. */
     @Test
     void absorbDrainsBothLevels() {
         Manual ma = new Manual(), mb = new Manual();

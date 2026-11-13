@@ -188,8 +188,8 @@ public final class ChunkSection {
     }
 
     void compact() {
-        assert !lightFrozen : "빛 작업이 읽는 구역을 그 자리에서 고침";
         if (scratch == null) return;
+        assert !lightFrozen : "빛 작업이 읽는 구역을 그 자리에서 고침";
         tickingCount = -1;
         blocks.load(scratch, 0);
         int count = 0;

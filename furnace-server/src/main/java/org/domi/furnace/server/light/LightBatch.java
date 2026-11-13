@@ -38,13 +38,8 @@ public final class LightBatch implements LightWorld {
     private int size;
     private final List<Column> columns = new ArrayList<>();
 
-    // 새 청크 빛 켜기(lightChunk·attachPrecomputed): {cx, cz, 미리 계산했는가} — 넣은 순서대로
-    private int[] chunkOps = new int[12];
-    private int chunkOpCount;
-
     // 바뀐 섹션 표시(작업 안에서 모은다): 키 → {하늘빛, 블록빛}
     private final java.util.HashMap<Long, long[]> marks = new java.util.HashMap<>();
-    private long initialChunk = Long.MIN_VALUE;
     private int lastX = Integer.MIN_VALUE, lastY, lastZ;
     private boolean lastSky;
 
@@ -73,35 +68,18 @@ public final class LightBatch implements LightWorld {
 
     public boolean hasColumn(int cx, int cz) { return find(key(cx, cz)) != null; }
 
-    /** 새로 올라온 청크의 빛 켜기를 넣는다(그 청크는 {@link #addColumn} 으로 이미 들어 있어야 한다). */
-    public void addChunkOp(int cx, int cz, boolean precomputed) {
-        if (chunkOpCount + 3 > chunkOps.length) chunkOps = java.util.Arrays.copyOf(chunkOps, chunkOps.length * 2);
-        chunkOps[chunkOpCount++] = cx;
-        chunkOps[chunkOpCount++] = cz;
-        chunkOps[chunkOpCount++] = precomputed ? 1 : 0;
-    }
-
     public List<Column> columns() { return columns; }
 
     // ------------------------------------------------------------------ 빛 스레드: 계산
 
-    /**
-     * 계산: 미룬 하늘빛 원천 고치기 → 새 청크 빛 켜기(넣은 순서, 바닐라 lightChunk 처럼 그 청크 자신의 변경은 표시하지 않는다) → 칸 검사·전파.
-     * 블록을 하나씩 바꾸며 그 자리에서 계산한 것과 고정점(빛 값)이 같다.
-     */
+    private final java.util.concurrent.atomic.AtomicBoolean claimed = new java.util.concurrent.atomic.AtomicBoolean();
+
+    /** 이 묶음을 돌릴 쪽을 정한다 — 처음 부른 쪽(빛 스레드 또는 기다리다 빼앗는 region 스레드)만 true. */
+    public boolean claim() { return claimed.compareAndSet(false, true); }
+
+    /** 계산: 미룬 하늘빛 원천 고치기 → 칸 검사·전파. 블록을 하나씩 바꾸며 그 자리에서 계산한 것과 고정점(빛 값)이 같다. {@link #claim} 한 쪽만. */
     public void run() {
-        engine.applyPendingSources();
-        for (int i = 0; i < chunkOpCount; i += 3) {
-            int cx = chunkOps[i], cz = chunkOps[i + 1];
-            initialChunk = (long) cx << 32 | (cz & 0xFFFFFFFFL);
-            try {
-                if (chunkOps[i + 2] != 0) engine.attachPrecomputed(cx, cz);
-                else engine.lightChunk(cx, cz);
-            } finally {
-                initialChunk = Long.MIN_VALUE;
-            }
-        }
-        engine.runUpdates();
+        engine.runUpdates();   // runUpdates 가 미룬 원천 고치기를 먼저 한다
     }
 
     // ------------------------------------------------------------------ region 스레드: 결과 넣기
@@ -111,9 +89,6 @@ public final class LightBatch implements LightWorld {
         for (Column c : columns) c.copy.publishTo(c.visible);
         for (var e : marks.entrySet()) out.mark(e.getKey(), e.getValue()[0], e.getValue()[1]);
     }
-
-    /** 새 청크 빛 켜기 목록: {cx, cz, 미리 계산했는가(1/0)} 반복. */
-    public int[] chunkOps() { return java.util.Arrays.copyOf(chunkOps, chunkOpCount); }
 
     // ------------------------------------------------------------------ LightWorld
 
@@ -157,7 +132,6 @@ public final class LightBatch implements LightWorld {
         int base = (minY >> 4) - 1, count = ((maxY - minY) >> 4) + 2;
         for (int sx = x0; sx <= x1; sx++) for (int sy = y0; sy <= y1; sy++) for (int sz = z0; sz <= z1; sz++) {
             long key = (long) sx << 32 | (sz & 0xFFFFFFFFL);
-            if (initialChunk != Long.MIN_VALUE && initialChunk == key) continue;
             int idx = sy - base;
             if (idx < 0 || idx >= count) continue;
             marks.computeIfAbsent(key, k -> new long[2])[sky ? 0 : 1] |= 1L << idx;

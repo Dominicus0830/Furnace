@@ -559,7 +559,8 @@ public final class Region {
         if (col.dirty()) dirtyChunks.add(cp);
         world.putChunk(cp.x(), cp.z(), col);
         long t1 = Regionizer.STATS ? System.nanoTime() : 0L;
-        level().lightLoadedChunk(cp.x(), cp.z());   // = lightNewChunk + runLightUpdates (빛 작업 모드면 다음 묶음에)
+        level().lightNewChunk(cp.x(), cp.z());   // 빛 작업 모드여도 새 청크 빛은 그 자리에서(바닐라: 빛이 끝나야 FULL — 틱·전송 전에 빛이 맞다)
+        level().runLightUpdates();
         long t2 = Regionizer.STATS ? System.nanoTime() : 0L;
         level().raids().claim(cp.x(), cp.z());   // raids.dat 에서 이 청크가 중심인 습격
         loadEntities(cp, col);

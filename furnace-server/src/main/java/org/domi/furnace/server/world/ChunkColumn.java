@@ -496,13 +496,6 @@ public final class ChunkColumn {
 
     public org.domi.furnace.server.light.ChunkLight light() { return light; }
 
-    /** 빛 작업 모드(T-064): 이 청크의 첫 빛 켜기가 빛 작업에 걸려 아직 게시되지 않았다 — 그 사이 플레이어에게 보내지 않는다. 주인 스레드만. */
-    private boolean lightPending;
-
-    public boolean lightPending() { return lightPending; }
-
-    public void lightPending(boolean v) { lightPending = v; }
-
     public void light(org.domi.furnace.server.light.ChunkLight l) { this.light = l; }
 
     public org.domi.furnace.server.net.io.nbt.NbtCompound extraNbt() { return extraNbt; }
