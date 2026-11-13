@@ -187,6 +187,17 @@ public final class EventBusImpl implements EventBus {
     /** 원인 기록이 필요한가(등록이 바뀔 때만 다시 센다 — 발화 경로는 필드 읽기 하나). */
     private volatile boolean wantsCause;
 
+    public boolean wantsCause() { return wantsCause; }
+
+    private boolean computeWantsCause() {
+        for (var en : byType.entrySet()) {
+            if (en.getValue().isEmpty()) continue;
+            Class<?> t = en.getKey();
+            for (Class<?> c : CAUSE_EVENTS) if (t.isAssignableFrom(c) || c.isAssignableFrom(t)) return true;
+        }
+        return false;
+    }
+
     /**
      * 이벤트 종류 하나의 구독 여부 — hasSubscribers(type) 와 늘 같은 값을 volatile 필드 하나로 읽는다(맵 조회 없음).
      * 등록이 바뀔 때만(register·subscribe·해제·핫 리로드) 영향받는 필드만 다시 계산하므로, 그 호출이 돌아온 뒤 처음 읽는 값부터 새 등록을 반영한다.
