@@ -68,9 +68,49 @@ class StoredLightReloadTest {
 
         lv.load(1, 0);
         settle(lv);
-        assertFalse(stale.contains(1, 0), "올릴 때 꺼낸다");
         assertEquals(0, col(lv, 1, 0).light().blockAt(16, 0, 8), "저장 빛(14)이 아니라 새로 센 빛");
         assertTrue(col(lv, 1, 0).dirty(), "고친 빛을 다시 저장한다");
+        assertTrue(stale.contains(1, 0), "고친 빛이 디스크에 써지기 전에는 표시를 지우지 않는다(그 전에 죽어도 남게)");
+        lv.saveAll();
+        assertFalse(stale.contains(1, 0), "써진 뒤 지운다");
+        assertTrue(stale.contains(1, 1), "아직 안 올린 청크의 표시는 그대로");
+    }
+
+    @Test
+    void syncLoadPath_withoutGenPoolCheck_alsoRecomputesStaleChunk() throws Exception {
+        FlatLevel lv = loaded(-1, 2, -1, 1);
+        lv.genPoolStaleCheck = false;   // 생성 풀을 안 거친 동기 올리기: lightNewChunk 가 저장 빛을 버리고 다시 계산
+        LightSceneIdentityTest.put(lv, 15, 0, 8, GLOW);
+        settle(lv);
+        lv.saveAll();
+        lv.unload(1, 0);
+        LightSceneIdentityTest.put(lv, 15, 0, 8, AIR);
+        settle(lv);
+        assertTrue(lv.stale().contains(1, 0));
+        lv.load(1, 0);
+        settle(lv);
+        assertEquals(0, col(lv, 1, 0).light().blockAt(16, 0, 8));
+        assertTrue(col(lv, 1, 0).dirty());
+    }
+
+    @Test
+    void remarkWhileLoaded_survivesTheHealingSave() {
+        FlatLevel lv = loaded(-1, 2, -1, 1);
+        LightSceneIdentityTest.put(lv, 15, 0, 8, GLOW);
+        settle(lv);
+        lv.saveAll();
+        lv.unload(1, 0);
+        LightSceneIdentityTest.put(lv, 15, 0, 8, AIR);
+        settle(lv);
+        lv.load(1, 0);                                   // 다시 계산 — 지울 표시 번호를 잡아 둠
+        settle(lv);
+        lv.unload(2, 0);
+        LightSceneIdentityTest.put(lv, 30, 0, 8, GLOW);  // (1,0) 안 광원 → (2,0) 쪽으로 막히고, 치우면 (1,0) 도 다시 표시(올라와 있는 이웃)
+        settle(lv);
+        LightSceneIdentityTest.put(lv, 30, 0, 8, AIR);
+        settle(lv);
+        lv.saveAll();
+        assertTrue(lv.stale().contains(1, 0), "다시 계산한 뒤 새로 붙은 표시는 그 저장으로 지우지 않는다");
     }
 
     @Test

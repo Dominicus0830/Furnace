@@ -91,6 +91,9 @@ class LightSceneIdentityTest {
         /** 저장 빛을 믿지 않을 청크 표시(시험에서 들여다보기). */
         org.domi.furnace.server.world.LightStaleChunks stale() { return lightStale(); }
 
+        /** 생성 풀의 낡은 저장 빛 버리기(Region.loadChunk)를 흉내 낼까 — 끄면 동기 경로(lightNewChunk 가 다시 계산)를 시험한다. */
+        boolean genPoolStaleCheck = true;
+
         /** 새 청크(디스크에 없으면 생성) 또는 디스크 청크를 생성 풀처럼 준비해 올린다. */
         void load(int cx, int cz) {
             byte[] bytes = disk.get(key(cx, cz));
@@ -105,6 +108,10 @@ class LightSceneIdentityTest {
             } else {
                 col = terrain(cx, cz);
             }
+            if (genPoolStaleCheck && col.lightStored() && lightStale().contains(cx, cz)) {   // Region.loadChunk 생성 풀: 낡은 저장 빛은 버린다
+                col.light(null);
+                col.lightStored(false);
+            }
             ChunkLevel.precomputeLight(col, cx, cz, lightBedrockState(), true);   // 생성 풀
             loaded.put(key(cx, cz), col);                                         // 설치(Region.finishLoad)
             lightNewChunk(cx, cz);
@@ -112,12 +119,21 @@ class LightSceneIdentityTest {
             sendChunk(cx, cz);                                                    // 시야 안 플레이어에게 청크 전송
         }
 
-        /** Region.evictIdleChunks: dirty 면 저장하고 내린다. */
+        /** World.saveChunkAsync: 쓰고, 다시 계산한 빛을 실었으면 저장 빛 표시를 지운다. */
+        void write(int cx, int cz, ChunkColumn col) throws java.io.IOException {
+            long staleSeq = col.lightStaleSeq();
+            col.lightStaleSeq(0);
+            disk.put(key(cx, cz), NbtIo.toBytes(codec.toNbt(ChunkSnapshot.forSave(cx, cz, col)), ""));
+            lightStale().clearIfSeq(cx, cz, staleSeq);
+        }
+
+        /** Region.evictIdleChunks: 남은 빛 검사를 마저 돌고, dirty 면 저장하고 내린다. */
         void unload(int cx, int cz) {
+            runLightUpdates();
             ChunkColumn col = loaded.get(key(cx, cz));
             if (col.dirty() || dirty.contains(key(cx, cz))) {
                 try {
-                    disk.put(key(cx, cz), NbtIo.toBytes(codec.toNbt(ChunkSnapshot.forSave(cx, cz, col)), ""));
+                    write(cx, cz, col);
                 } catch (java.io.IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -128,15 +144,16 @@ class LightSceneIdentityTest {
             client.remove(key(cx, cz));   // 내리는 청크는 구독이 없다(클라이언트도 버렸다)
         }
 
-        /** 자동 저장(Region.autosave): dirty 청크를 저장만 한다. */
+        /** Region.saveDirtyChunks(save-all·종료): 남은 빛 검사를 마저 돌고 dirty 청크를 저장만 한다. */
         void saveAll() {
+            runLightUpdates();
             for (var e : new TreeMap<>(loaded).entrySet()) {
                 long k = e.getKey();
                 ChunkColumn col = e.getValue();
                 if (!col.dirty() && !dirty.contains(k)) continue;
                 int cx = (int) (k >> 32), cz = (int) k;
                 try {
-                    disk.put(k, NbtIo.toBytes(codec.toNbt(ChunkSnapshot.forSave(cx, cz, col)), ""));
+                    write(cx, cz, col);
                 } catch (java.io.IOException ex) {
                     throw new RuntimeException(ex);
                 }

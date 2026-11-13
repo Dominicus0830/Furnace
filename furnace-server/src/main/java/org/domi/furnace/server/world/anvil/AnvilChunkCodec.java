@@ -37,7 +37,7 @@ public final class AnvilChunkCodec {
             AnvilChunkCodec.LIGHT_VERSION_KEY);
     /**
      * Furnace 가 쓴 빛 표시(T-012): 이 판의 빛 엔진으로 계산해 쓴 빛이면 읽을 때 다시 계산하지 않고 그대로 쓴다. 표시가 없거나 다르면
-     * (바닐라·Paper·옛 Furnace 가 쓴 청크, 빛 엔진이 바뀐 뒤) 지금처럼 다시 계산한다. **빛 엔진의 결과가 바뀌는 수정을 하면 올린다.**
+     * (바닐라·Paper·옛 Furnace 가 쓴 청크, 빛 엔진이 바뀐 뒤) 지금처럼 다시 계산한다. **빛 엔진의 결과가 바뀌는 수정을 하면 올린다**(light-batch-scene 빛 줄 bless — docs/testing/identitykit.md).
      */
     public static final String LIGHT_VERSION_KEY = "furnace:light_version";
     public static final int LIGHT_VERSION = 1;

@@ -522,6 +522,13 @@ public final class World {
         if (snap.light() != null && virtualLights.affects(snap.chunkX(), snap.chunkZ())) snap = snap.withoutLight();   // 가짜 빛은 디스크에 남기지 않는다
         final ChunkSnapshot snapF = snap;
         int cx = snap.chunkX(), cz = snap.chunkZ();
+        // 저장 빛을 믿지 않는 표시 때문에 다시 계산한 빛을 싣는다 — 디스크에 써진 뒤에 표시를 지운다(그 사이 다시 표시됐으면 그대로)
+        long staleSeq = 0;
+        if (col != null && col.lightStaleSeq() != 0) {
+            staleSeq = col.lightStaleSeq();
+            col.lightStaleSeq(0);
+        }
+        final long staleSeqF = staleSeq;
         ioLane(cx, cz).execute(() -> {
             boolean ok;
             try {
@@ -532,6 +539,7 @@ public final class World {
                 ok = false;
             }
             if (!ok) onChunkSaveFailed(new ChunkPos(cx, cz), col);
+            else if (staleSeqF != 0) lightStale().clearIfSeq(cx, cz, staleSeqF);
         });
     }
 

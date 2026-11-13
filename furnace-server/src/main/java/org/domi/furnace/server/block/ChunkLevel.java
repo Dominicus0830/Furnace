@@ -2026,7 +2026,8 @@ public abstract class ChunkLevel implements BlockLevel {
                     int ddx = Math.max(0, Math.max(nx * 16 - x, x - (nx * 16 + 15)));
                     int ddz = Math.max(0, Math.max(nz * 16 - z, z - (nz * 16 + 15)));
                     if (ddx + ddz > 14) continue;   // 그 칸의 빛은 많아야 14 — 14칸 넘게는 못 간다
-                    if (col(nx, nz) != null) continue;
+                    // 올라와 있는 이웃도 표시한다: 내려간 U 를 돌아 들어온 빛은 그 이웃에서도 줄지 않는다 — 다음에 올릴 때 다시 계산해야
+                    // 지워진다(옛 경로는 올릴 때마다 다시 계산해 지웠다. PR #304 검토 R1)
                     stale.mark(nx, nz);
                 }
             }
@@ -2048,7 +2049,10 @@ public abstract class ChunkLevel implements BlockLevel {
         ChunkColumn col = chunk(cx, cz);
         if (col == null) return;
         // 내려가 있는 동안 이웃에서 빛을 줄이는 전파가 이 청크에서 막혔다 → 디스크 빛은 낡았을 수 있어 믿지 않고 다시 계산한다
-        boolean stale = lightStale().take(cx, cz);
+        // 표시 번호를 잡아 두고, 고친 빛이 디스크에 써지면 지운다(World.saveChunkAsync — 그 전에 죽어도 표시가 남는다)
+        var staleSet = lightStale();
+        boolean stale = staleSet.contains(cx, cz);
+        long staleSeq = stale ? staleSet.markSeq(cx, cz) : 0;
         boolean stored = col.lightStored();
         col.lightStored(false);
         if (stored && stale) {
@@ -2074,8 +2078,9 @@ public abstract class ChunkLevel implements BlockLevel {
         } finally {
             initialLightChunk = Long.MIN_VALUE;
         }
-        // 다시 계산했거나(낡은 디스크 빛) 저장 빛을 가장자리 맞추기가 고쳤으면 디스크도 고치게 저장 대상으로
-        if ((stale || stored && initialLightChanged) && col.markLightDirty()) markDirty(cx, cz);
+        // 표시 때문에 다시 계산했거나(낡은 디스크 빛) 저장 빛을 가장자리 맞추기가 고쳤으면 디스크도 고치게 저장 대상으로
+        if (staleSeq != 0) col.lightStaleSeq(staleSeq);
+        if ((staleSeq != 0 || stored && initialLightChanged) && col.markLightDirty()) markDirty(cx, cz);
         reapplyVirtualLights(cx, cz);
     }
 

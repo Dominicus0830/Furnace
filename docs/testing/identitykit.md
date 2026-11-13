@@ -79,6 +79,8 @@ SceneHash.assertGolden("scene-name", rec -> {
 
 `ChunkSendPacketOrderGoldenTest` 의 기대 열처럼 시험 코드 안에 적은 기대값도 같은 규칙을 따른다.
 
+**빛 판(T-012):** Furnace 는 자기가 쓴 청크의 저장 빛을 다시 읽는다(`AnvilChunkCodec.LIGHT_VERSION`, 디스크 표시 `furnace:light_version`). 빛 엔진 결과가 바뀌는 PR — `light-batch-scene` 의 빛 줄이 바뀌는 bless — 은 **`LIGHT_VERSION` 도 1 올린다.** 안 올리면 옛 엔진이 쓴 빛을 새 엔진 결과로 믿어 이음매가 어긋난다. "금 파일 갱신" 절에 올렸는지 적는다.
+
 ## 옛 구현 보관 (레거시 오라클)
 
 차분 시험의 옛 구현은 기준 커밋에서 **복사해 얼린 사본**이다. 오래 두면 운영 코드와 따로 놀아 "거짓 오라클"이 되므로 수명을 둔다. `LegacyOracleRulesTest` 가 1·3·4 를 검사한다.

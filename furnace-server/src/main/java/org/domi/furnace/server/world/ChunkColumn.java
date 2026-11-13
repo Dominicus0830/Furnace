@@ -242,6 +242,16 @@ public final class ChunkColumn {
 
     public void lightStored(boolean v) { this.lightStored = v; }
 
+    private long lightStaleSeq;
+
+    /**
+     * 저장 빛을 믿지 않는다는 표시(LightStaleChunks) 때문에 빛을 다시 계산했다 — 그 표시 번호. 다음 저장이 디스크에 써지면 표시를 지운다
+     * (World.saveChunkAsync). 0 이면 지울 표시가 없다.
+     */
+    public long lightStaleSeq() { return lightStaleSeq; }
+
+    public void lightStaleSeq(long v) { this.lightStaleSeq = v; }
+
     public void addGeneratedEntity(org.domi.furnace.server.net.io.nbt.NbtCompound nbt) {
         if (generatedEntities == null) generatedEntities = new java.util.ArrayList<>();
         generatedEntities.add(nbt);
