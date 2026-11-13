@@ -664,8 +664,12 @@ public final class PluginGameEvents implements GameEvents {
     @Override
     public boolean blockPhysics(String dimension, org.domi.furnace.server.block.Pos pos, int state, org.domi.furnace.server.block.Pos sourcePos, int sourceBlock) {
         if (!wBlockPhysics.on()) return true;
-        String changed = data(org.domi.furnace.server.block.B.defaultState(sourceBlock)).type();
-        return !bus().call(new BlockPhysicsEvent(dimension, bp(pos), data(state), bp(sourcePos), changed)).isCancelled();
+        // 상태 번호는 불변이라 변환을 처음 읽을 때로 미뤄도 결과가 같다(T-032 게으른 이벤트 내용). 레지스트리는 지금 것을 잡는다
+        var blocks = host.core().world().blockRegistry();
+        var block = org.domi.furnace.api.event.LazyValue.of(state, s -> ApiConvert.block(s, blocks));
+        var changed = org.domi.furnace.api.event.LazyValue.of(sourceBlock,
+                b -> ApiConvert.block(org.domi.furnace.server.block.B.defaultState(b), blocks).type());
+        return !bus().call(new BlockPhysicsEvent(dimension, bp(pos), block, bp(sourcePos), changed)).isCancelled();
     }
 
     @Override

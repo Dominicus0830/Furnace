@@ -305,6 +305,12 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     // ------------------------------------------------------------------ 지금 상태
 
     @Override
+    public boolean isOwnedByCurrentThread() {
+        if (!(tasks.owner() instanceof Entity e)) return true;   // 사라졌다 — stateNow 는 어느 스레드에서나 빈 값
+        return org.domi.furnace.server.world.RegionBorrow.claimEntity(e) || e.level().isOwnerThread();
+    }
+
+    @Override
     public Optional<org.domi.furnace.api.entity.EntityState> stateNow() {
         // 엔티티를 따라가는 대기열이 지금의 엔티티를 쥐고 있다 — 스폰 이벤트처럼 아직 레벨 목록에 오르기 전에도 찾는다(aiNow 와 같다)
         if (!(tasks.owner() instanceof Entity e)) return Optional.empty();
@@ -439,7 +445,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         public CompletableFuture<Void> updateHealth(float h) {
             return onOwner((r, cur) -> {
                 if (!(cur instanceof LivingEntity le)) return Boolean.FALSE;
-                if (h <= 0f) le.kill();
+                if (h <= 0f) le.dieFromApi();
                 else le.setHealth(h);
                 return Boolean.TRUE;
             }).thenAccept(ok -> {
