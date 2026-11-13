@@ -79,16 +79,16 @@ class CompatWrapperCacheTest {
     void kindChangeReplacesWrapperAndOldReferenceDoesNotRemoveNewOne() throws Exception {
         UUID id = UUID.randomUUID();
         Entity arrow = Compat.entity(fake(id, "minecraft:arrow"));
-        Entity pig = Compat.entity(fake(id, "minecraft:item"));   // 형(CraftEntity → CraftItem)이 달라지면 새 감싸개로 교체
-        assertNotSame(arrow, pig);
-        assertSame(pig, Compat.cachedEntity(id));
+        Entity item = Compat.entity(fake(id, "minecraft:item"));   // 형(CraftEntity → CraftItem)이 달라지면 새 감싸개로 교체
+        assertNotSame(arrow, item);
+        assertSame(item, Compat.cachedEntity(id));
         // 교체된 옛 감싸개가 회수돼 큐에 나와도 새 칸은 지워지지 않는다(remove(key, ref) 는 그 참조일 때만)
         WeakReference<Entity> oldRef = new WeakReference<>(arrow);
         arrow = null;
         assertTrue(await(() -> oldRef.get() == null), "옛 감싸개가 회수돼야 한다");
         for (int i = 0; i < 3; i++) Compat.entity(fake(UUID.randomUUID()));   // 놓침 → 큐를 걷는다
-        assertSame(pig, Compat.cachedEntity(id));
-        assertSame(pig, Compat.entity(fake(id, "minecraft:item")));
+        assertSame(item, Compat.cachedEntity(id));
+        assertSame(item, Compat.entity(fake(id, "minecraft:item")));
     }
 
     @Test
@@ -108,7 +108,7 @@ class CompatWrapperCacheTest {
         // 새로 놓치면 죽은 칸을 걷는다(옛 구현은 1024 를 넘어야 걷었다)
         assertTrue(await(() -> {
             Compat.entity(fake(UUID.randomUUID()));
-            return Compat.entityCacheSize() < base + 200;
+            return Compat.entityCacheSize() < base + 100;   // 200개 중 대부분이 걷혀야 한다(그 사이 놓친 새 칸 몇 개는 허용)
         }), "회수된 칸이 걷혀야 한다");
         // 걷은 UUID 를 다시 감싸면 새 감싸개
         Entity again = Compat.entity(fake(ids.get(0)));
