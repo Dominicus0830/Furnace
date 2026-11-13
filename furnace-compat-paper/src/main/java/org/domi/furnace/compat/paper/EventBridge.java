@@ -232,8 +232,9 @@ public final class EventBridge {
                 continue;
             }
             try {
-                e.getValue().unsubscribe();
-                e.setValue(subscribeQuitWatch(e.getKey()));
+                var old = e.getValue();
+                e.setValue(subscribeQuitWatch(e.getKey()));   // 새 구독을 먼저 건 뒤 옛것을 뗀다 — 그 사이 퇴장이 와도 정리가 빠지지 않는다(정리는 멱등)
+                old.unsubscribe();
             } catch (RuntimeException gone) {
                 it.remove();   // 내려간 서버의 낡은 칸
             }
