@@ -1,6 +1,6 @@
-// LEGACY-ORACLE since 7b2d6b77: ChunkLevel 칸별 블록 충돌 수집(collectCollisions·hasLargeCollisionShape·blockCollisions·noBlockCollision·findSupportingBlock, T-018 이전)
+// LEGACY-ORACLE since 7b2d6b77: ChunkLevel 칸별 블록 충돌 수집(collectCollisions·hasLargeCollisionShape·blockCollisions·noBlockCollision·findSupportingBlock)과 entityCollisions(T-018 이전)
 // 옮길 때 바꾼 것은 클래스 밖에서 돌게 하는 부분뿐이다: 인스턴스 메서드 → 레벨을 첫 인자로 받는 정적 메서드, this → level,
-// largeCollision 정적 캐시 → 이 클래스의 정적 캐시. 칸 순서·판정·모양 계산은 그 커밋 그대로다.
+// largeCollision 정적 캐시 → 이 클래스의 정적 캐시, entities 필드 → level.entities(). 칸 순서·판정·모양 계산은 그 커밋 그대로다.
 package org.domi.furnace.server.block;
 
 import org.domi.furnace.server.entity.AABB;
@@ -9,7 +9,7 @@ import org.domi.furnace.server.identity.LegacyOracle;
 import org.domi.furnace.server.world.ChunkColumn;
 
 @LegacyOracle(since = "7b2d6b77",
-        copyOf = "ChunkLevel#collectCollisions, #hasLargeCollisionShape, #blockCollisions, #noBlockCollision, #findSupportingBlock")
+        copyOf = "ChunkLevel#collectCollisions, #hasLargeCollisionShape, #blockCollisions, #noBlockCollision, #findSupportingBlock, #entityCollisions, #canCollide")
 public final class LegacyBlockCollisions {
 
     private LegacyBlockCollisions() {}
@@ -99,5 +99,38 @@ public final class LegacyBlockCollisions {
         if (a.y() != b.y()) return Integer.compare(a.y(), b.y());
         if (a.z() != b.z()) return Integer.compare(a.z(), b.z());
         return Integer.compare(a.x(), b.x());
+    }
+
+    public static java.util.List<Shape> entityCollisions(ChunkLevel level, org.domi.furnace.server.entity.Rider self, AABB box) {
+        if (box.size() < 1.0E-7) return java.util.List.of();
+        AABB q = box.inflate(1.0E-7);
+        Entity selfEntity = self instanceof Entity e ? e : null;
+        boolean hardOnly = selfEntity == null || selfEntity.collidesOnlyWithHardColliders();
+        java.util.List<Shape> out = new java.util.ArrayList<>(2);
+        if (!level.entities().isEmpty()) {
+            java.util.function.Predicate<Entity> ok = e -> e != self && !e.isSpectator() && canCollide(self, e);
+            var found = hardOnly ? level.entities().getEntitiesOfType(org.domi.furnace.server.entity.HardCollider.class, q, ok)
+                    : level.entities().getEntities(selfEntity, q, ok);
+            for (Entity e : found) {
+                AABB b = e.boundingBox();
+                out.add(Shape.box(b.minX(), b.minY(), b.minZ(), b.maxX(), b.maxY(), b.maxZ()));
+            }
+        }
+        if (!hardOnly) {
+            level.forEachPlayerIn(q, p -> {
+                if (p != self && !p.isSpectator() && selfEntity.canCollideWithPlayer(p)) {
+                    AABB b = p.boundingBox();
+                    out.add(Shape.box(b.minX(), b.minY(), b.minZ(), b.maxX(), b.maxY(), b.maxZ()));
+                }
+            });
+        }
+        return out.isEmpty() ? java.util.List.of() : out;
+    }
+
+    /** self.canCollideWith(e): self 없음 = canBeCollidedWith, 엔티티 = 그 덮어쓰기, 플레이어 = Entity 기본(단단하고 같은 탈것 무리가 아님). */
+    private static boolean canCollide(org.domi.furnace.server.entity.Rider self, Entity e) {
+        if (self == null) return e.canBeCollidedWith();
+        if (self instanceof Entity s) return s.canCollideWith(e);
+        return e.canBeCollidedWith() && !e.isPassengerOfSameVehicle(self);
     }
 }

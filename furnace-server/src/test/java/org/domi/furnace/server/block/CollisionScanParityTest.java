@@ -214,6 +214,16 @@ class CollisionScanParityTest {
     }
 
     @Test
+    void entityCollisionsMatchLegacy() {
+        Differential<Query, Object> d = diff("t018-entity-collisions");
+        d.check(q -> describe(LegacyBlockCollisions.entityCollisions(level, q.self(), q.box().expandTowards(q.dx(), q.dy(), q.dz()))),
+                q -> describe(level.entityCollisions(q.self(), q.box().expandTowards(q.dx(), q.dy(), q.dz()))));
+        // 변이: 엔티티 몸을 빼면 잡아야 한다
+        d.assertDetects(q -> describe(LegacyBlockCollisions.entityCollisions(level, q.self(), q.box().expandTowards(q.dx(), q.dy(), q.dz()))),
+                q -> describe(List.of()));
+    }
+
+    @Test
     void collideMoveMatchesLegacy() {
         Differential<Query, Object> d = diff("t018-collide-move");
         d.check(q -> LegacyEntityCollide.collideMove(level, q.self(), q.box(), q.onGround(), q.step(), q.dx(), q.dy(), q.dz()),

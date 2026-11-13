@@ -1,5 +1,5 @@
 // LEGACY-ORACLE since 7b2d6b77: Entity 이동 충돌(collideMove·collideBoundingBox·collectColliders·stepHeightCandidates·collideWithShapes, T-018 이전)
-// 옮길 때 바꾼 것은 클래스 밖에서 돌게 하는 부분뿐이다: level.blockCollisions(e, box) → LegacyBlockCollisions.blockCollisions(level, e, box)
+// 옮길 때 바꾼 것은 클래스 밖에서 돌게 하는 부분뿐이다: level.blockCollisions(e, box)·level.entityCollisions(self, box) → LegacyBlockCollisions 의 같은 이름(level 첫 인자)
 // (그 커밋의 블록 수집 사본). 모양 목록 순서·충돌·오르기 계산은 그 커밋 그대로다.
 package org.domi.furnace.server.entity;
 
@@ -16,7 +16,7 @@ public final class LegacyEntityCollide {
     public static double[] collideMove(org.domi.furnace.server.block.ChunkLevel level, Rider self, AABB box, boolean onGround, float step,
                                        double dx, double dy, double dz) {
         // 엔티티 모양은 처음 이동 상자로 한 번만 모아 오르기 탐색에도 그대로 쓴다(바닐라 collide 의 var3)
-        var entityShapes = level.entityCollisions(self, box.expandTowards(dx, dy, dz));
+        var entityShapes = LegacyBlockCollisions.entityCollisions(level, self, box.expandTowards(dx, dy, dz));
         double[] r = dx * dx + dy * dy + dz * dz == 0.0 ? new double[] {dx, dy, dz}
                 : collideWithShapes(dx, dy, dz, box, collectColliders(level, self, entityShapes, box.expandTowards(dx, dy, dz)));
         boolean cx = dx != r[0], cy = dy != r[1], cz = dz != r[2];
@@ -43,7 +43,7 @@ public final class LegacyEntityCollide {
      */
     public static double[] collideBoundingBox(org.domi.furnace.server.block.ChunkLevel level, Rider self, AABB box, double dx, double dy, double dz) {
         AABB swept = box.expandTowards(dx, dy, dz);
-        return collideWithShapes(dx, dy, dz, box, collectColliders(level, self, level.entityCollisions(self, swept), swept));
+        return collideWithShapes(dx, dy, dz, box, collectColliders(level, self, LegacyBlockCollisions.entityCollisions(level, self, swept), swept));
     }
 
     /** Entity.collectColliders(self, level, entityShapes, box): 엔티티 모양 → (self 가 보더 가까이면) 보더 모양 → 블록 모양, 이 순서. */

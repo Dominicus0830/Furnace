@@ -2789,17 +2789,27 @@ public abstract class ChunkLevel implements BlockLevel {
         AABB q = box.inflate(1.0E-7);
         Entity selfEntity = self instanceof Entity e ? e : null;
         boolean hardOnly = selfEntity == null || selfEntity.collidesOnlyWithHardColliders();
+        if (hardOnly) {
+            // 몹·투사체 등 대부분: 단단한 엔티티(배·셜커) 구역 목록만, 목록은 찾았을 때만 만든다(getEntitiesOfType 과 같은 순서·조건)
+            if (entities.isEmpty()) return java.util.List.of();
+            java.util.ArrayList<Shape>[] hit = new java.util.ArrayList[1];
+            entities.forEachIn(q, org.domi.furnace.server.entity.HardCollider.class, e -> {
+                if (e instanceof org.domi.furnace.server.entity.HardCollider && e != self && !e.isSpectator() && canCollide(self, e)) {
+                    AABB b = e.boundingBox();
+                    (hit[0] == null ? hit[0] = new java.util.ArrayList<>(2) : hit[0]).add(Shape.box(b.minX(), b.minY(), b.minZ(), b.maxX(), b.maxY(), b.maxZ()));
+                }
+            });
+            return hit[0] == null ? java.util.List.of() : hit[0];
+        }
         java.util.List<Shape> out = new java.util.ArrayList<>(2);
         if (!entities.isEmpty()) {
             java.util.function.Predicate<Entity> ok = e -> e != self && !e.isSpectator() && canCollide(self, e);
-            var found = hardOnly ? entities.getEntitiesOfType(org.domi.furnace.server.entity.HardCollider.class, q, ok)
-                    : entities.getEntities(selfEntity, q, ok);
-            for (Entity e : found) {
+            for (Entity e : entities.getEntities(selfEntity, q, ok)) {
                 AABB b = e.boundingBox();
                 out.add(Shape.box(b.minX(), b.minY(), b.minZ(), b.maxX(), b.maxY(), b.maxZ()));
             }
         }
-        if (!hardOnly) {
+        {
             forEachPlayerIn(q, p -> {
                 if (p != self && !p.isSpectator() && selfEntity.canCollideWithPlayer(p)) {
                     AABB b = p.boundingBox();
