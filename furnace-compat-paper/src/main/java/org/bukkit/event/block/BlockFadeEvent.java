@@ -5,7 +5,7 @@ import org.bukkit.block.BlockState;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.HandlerList;
 
-/** 블록이 저절로 바뀐다(눈·얼음 녹음 등). 새 상태(BlockState) 구현이 없어 아직 잇지 않았다. */
+/** 블록이 저절로 바뀐다(눈·얼음 녹음, 불 꺼짐 등). getNewState() 는 바뀐 뒤의 스냅숏이다. */
 public class BlockFadeEvent extends BlockEvent implements Cancellable {
 
     private static final HandlerList handlers = new HandlerList();

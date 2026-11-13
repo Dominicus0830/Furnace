@@ -87,6 +87,18 @@ public interface GameEvents {
 
     default boolean playerDrop(Player p, ItemStack stack) { return true; }
 
+    /** 던질 아이템 엔티티를 이미 만든 뒤의 PlayerDropItemEvent(CraftBukkit 순서). false 면 취소 — 아이템은 인벤토리로 돌아간다. */
+    default boolean playerDrop(Player p, ItemStack stack, org.domi.furnace.server.entity.ItemEntity entity) { return playerDrop(p, stack); }
+
+    /** 이 플레이어 드롭 이벤트 구독자가 있는가(없으면 아이템 엔티티를 이벤트 전에 만들 필요가 없다). */
+    default boolean wantsPlayerDrop() { return false; }
+
+    /** 블록 설치 직전(플러그인 BlockPlaceEvent). 놓일 상태·놓는 손의 아이템·손을 함께 알린다. false 면 취소. */
+    default boolean blockPlace(Player p, org.domi.furnace.server.block.Pos pos, int state, int replacedState, org.domi.furnace.server.block.Pos against, ItemStack inHand, boolean mainHand) { return true; }
+
+    /** 블록 설치 이벤트 구독자가 있는가. */
+    default boolean wantsBlockPlace() { return false; }
+
     default boolean playerPickup(Player p, ItemStack stack) { return true; }
 
     default boolean inventoryClick(Player p, AbstractContainerMenu menu, int slot, int button, ClickType type) { return true; }

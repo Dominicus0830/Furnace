@@ -294,6 +294,43 @@ public final class RegionFileStore {
     /** 테스트용: 지금 열린 핸들 수. */
     synchronized int openCount() { return open.size(); }
 
+    private final java.util.concurrent.atomic.AtomicLong flushedFiles = new java.util.concurrent.atomic.AtomicLong();
+
+    /**
+     * 바닐라 RegionFileStorage.flush(save-all flush): 열린 지역 파일마다 force(true). 각 파일은 그 키 잠금 안에서 내린다(쓰기와 엇갈리지 않게).
+     * IO 레인의 쓰기가 다 끝난 뒤(World.ioBarrier) 불러야 "지금까지 저장한 것" 이 디스크에 있다. 첫 실패를 던지되 나머지 파일도 내린다.
+     */
+    public void flush() throws IOException {
+        drainClosed();   // LRU 가 내보낸 핸들은 닫으며 force 한다
+        java.util.List<java.util.Map.Entry<Long, RegionFile>> all;
+        synchronized (this) {
+            all = new java.util.ArrayList<>(open.entrySet());
+        }
+        IOException first = null;
+        for (var e : all) {
+            synchronized (lock(e.getKey())) {
+                RegionFile rf;
+                synchronized (this) { rf = open.get(e.getKey()); }
+                if (rf != e.getValue()) continue;   // 그 사이 내보내졌다(아래 drainClosed 의 닫기가 force 한다)
+                try {
+                    rf.flush();
+                    flushedFiles.incrementAndGet();
+                } catch (IOException ex) {
+                    if (first == null) first = ex;
+                }
+            }
+        }
+        try {
+            drainClosed();
+        } catch (IOException ex) {
+            if (first == null) first = ex;
+        }
+        if (first != null) throw first;
+    }
+
+    /** 지표·테스트: {@link #flush} 가 force 한 파일 수 누계. */
+    public long flushedFiles() { return flushedFiles.get(); }
+
     public void closeAll() throws IOException {
         drainClosed();
         java.util.List<java.util.Map.Entry<Long, RegionFile>> all;

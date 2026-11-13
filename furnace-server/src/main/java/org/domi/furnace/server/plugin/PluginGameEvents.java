@@ -361,6 +361,28 @@ public final class PluginGameEvents implements GameEvents {
     }
 
     @Override
+    public boolean playerDrop(Player p, ItemStack stack, org.domi.furnace.server.entity.ItemEntity entity) {
+        if (!bus().hasSubscribers(PlayerDropItemEvent.class)) return true;
+        return !bus().call(new PlayerDropItemEvent(host.player(p), ApiConvert.item(stack, items()), EntityHandle.of(host, entity))).isCancelled();
+    }
+
+    @Override
+    public boolean wantsPlayerDrop() { return bus().hasSubscribers(PlayerDropItemEvent.class); }
+
+    @Override
+    public boolean blockPlace(Player p, org.domi.furnace.server.block.Pos pos, int state, int replacedState, org.domi.furnace.server.block.Pos against, ItemStack inHand, boolean mainHand) {
+        if (!bus().hasSubscribers(org.domi.furnace.api.event.block.BlockPlaceEvent.class)) return true;
+        var ev = bus().call(new org.domi.furnace.api.event.block.BlockPlaceEvent(p.dimension(), new BlockPos(pos.x(), pos.y(), pos.z()),
+                ApiConvert.block(state, host.core().world().blockRegistry()), ApiConvert.block(replacedState, host.core().world().blockRegistry()),
+                new BlockPos(against.x(), against.y(), against.z()), host.player(p),
+                ApiConvert.item(inHand, items()), mainHand));
+        return !ev.isCancelled();
+    }
+
+    @Override
+    public boolean wantsBlockPlace() { return bus().hasSubscribers(org.domi.furnace.api.event.block.BlockPlaceEvent.class); }
+
+    @Override
     public boolean playerPickup(Player p, ItemStack stack) {
         if (!wPlayerPickupItem.on()) return true;
         return !bus().call(new PlayerPickupItemEvent(host.player(p), ApiConvert.item(stack, items()))).isCancelled();
@@ -553,7 +575,8 @@ public final class PluginGameEvents implements GameEvents {
         } else {
             var center = new BlockPos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
             String blockType = ApiConvert.block(blockState, host.core().world().blockRegistry()).type();
-            cancelled = bus().call(new BlockExplodeEvent(dimension, center, blockType, list, explosion.causedBy())).isCancelled();
+            float yield = explosion.interactionName().equals("DESTROY_WITH_DECAY") ? 1.0F / explosion.radius() : 1.0F;
+            cancelled = bus().call(new BlockExplodeEvent(dimension, center, blockType, list, explosion.causedBy(), yield, explosion.interactionName())).isCancelled();
         }
         if (cancelled) return false;
         blocks.clear();
