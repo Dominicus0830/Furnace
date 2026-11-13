@@ -1275,38 +1275,75 @@ public final class World {
                     // 같은 버전이 이미 직렬화 중이면 그 결과를 같이 받는다. 필드 읽기·쓰기·touch 가 모두 주인 region 스레드
                     // 태스크라, 남아 있으면 지금 modCount 와 같은 버전이고 아직 끝나지 않은 것이다.
                     CompletableFuture<byte[]> inflight = col.inflightSerializedBody();
-                    if (inflight != null) return inflight;
-
-                    // 스냅샷(약 390KB)은 본문 직렬화에만 쓰므로 컬럼에 붙들어 두지 않는다 — 본문 캐시가 그 뒤를 대신한다.
-                    ChunkSnapshot snapshot = ChunkSnapshot.of(cp.x(), cp.z(), col);
-                    bodySnapshots.incrementAndGet();
-                    // 스냅샷과 같은 동기 구간에서 수정 카운터를 잡는다 — 풀 직렬화가 도는 동안 편집이 끼면
-                    // 카운터가 달라져 낡은 본문을 캐시에 넣지 않는다.
-                    long version = col.modCount();
-                    ChunkSnapshot finalSnapshot = snapshot;
-                    CompletableFuture<byte[]> f = new CompletableFuture<>();
-                    col.inflightSerializedBody(f);
-                    // 결과(성공·실패)는 주인 스레드 태스크 안에서 진행 표시를 내린 뒤 완료한다 — 그 뒤 요청이 끝난(실패한)
-                    // future 를 물려받지 않는다. 캐시 쓰기도 같은 태스크라 내림과 캐시 사이에 틈이 없다.
-                    final long[] traceSer = ChunkTrace.ON ? new long[2] : null;
-                    if (ChunkTrace.ON) traceSer[0] = System.nanoTime();
-                    chunkPool.submit(() -> {
-                        long ts = ChunkTrace.ON ? System.nanoTime() : 0L;
-                        byte[] out = serializeChunkBody(finalSnapshot);
-                        if (ChunkTrace.ON) { traceSer[1] = System.nanoTime(); ChunkTrace.nanos("ser", traceSer[1] - ts); ChunkTrace.nanos("hop.serpool", ts - traceSer[0]); }
-                        return out;
-                    }).handle((body, ex) -> submitAtChunk(cp, r2 -> {
-                        if (ChunkTrace.ON && traceSer[1] != 0L) ChunkTrace.nanos("hop.ser", System.nanoTime() - traceSer[1]);
-                        if (col.inflightSerializedBody() == f) col.inflightSerializedBody(null);
-                        if (ex == null && col.modCount() == version) col.cachedSerializedBody(body);
-                        return body;
-                    }).whenComplete((body2, ex2) -> {
-                        if (ex != null) f.completeExceptionally(ex);
-                        else if (ex2 != null) f.completeExceptionally(ex2);
-                        else f.complete(body);
-                    }));
-                    return f;
+                    if (inflight != null) {
+                        // 미리 직렬화로 걸린 일에 실제로 기다리는 요청이 붙었다 — 이제 낡아도 건너뛰지 않는다(예전처럼 그 결과를 받는다).
+                        // 진행 표시를 내리기(touch) 전에 이 쓰기가 일어나므로 풀은 "진행 표시가 바뀜"을 본 뒤 이 값을 보면 반드시 본다.
+                        if (inflight instanceof BodyJob job) job.speculative = false;
+                        return inflight;
+                    }
+                    return startBodySerialization(cp, col, false);
                 }).thenCompose(f -> f));
+    }
+
+    /** 본문 직렬화 진행 표시. speculative = auto 전송의 미리 직렬화가 건 일이라 결과를 기다리는 요청이 아직 없다(T-011). */
+    static final class BodyJob extends CompletableFuture<byte[]> {
+        volatile boolean speculative;
+
+        BodyJob(boolean speculative) { this.speculative = speculative; }
+    }
+
+    /** 미리 직렬화 일이 풀에서 시작하기 전에 낡아(청크가 바뀌어) 건너뛴 수 — 결과를 쓸 곳이 없던 일(측정·시험 신호, T-011). */
+    final java.util.concurrent.atomic.AtomicInteger staleBodySkips = new java.util.concurrent.atomic.AtomicInteger();
+    /** auto 전송이 이웃 청크가 올라오는 중이라 본문 직렬화를 미룬 수(측정·시험 신호, T-011). */
+    final java.util.concurrent.atomic.AtomicInteger bodyLightDeferrals = new java.util.concurrent.atomic.AtomicInteger();
+
+    /**
+     * 주인 region 스레드에서: 스냅샷을 뜨고 풀에 직렬화를 건다(캐시·진행 중 본문이 없을 때만 부른다). 결과는 주인 스레드 태스크에서
+     * 진행 표시를 내리고, 그 사이 청크가 안 바뀌었으면 캐시에 넣은 뒤 완료한다.
+     * speculative(미리 직렬화, 기다리는 요청 없음)인 일은 풀에서 시작할 때 이미 낡았으면 직렬화하지 않는다 — 그 결과는 어차피 캐시에 들어가지 않고
+     * 받을 곳도 없다(T-011: 이웃이 올라올 때마다 비워진 본문을 풀이 계속 다시 만들던 낭비).
+     */
+    private CompletableFuture<byte[]> startBodySerialization(ChunkPos cp, ChunkColumn col, boolean speculative) {
+        // 스냅샷(약 390KB)은 본문 직렬화에만 쓰므로 컬럼에 붙들어 두지 않는다 — 본문 캐시가 그 뒤를 대신한다.
+        ChunkSnapshot snapshot = ChunkSnapshot.of(cp.x(), cp.z(), col);
+        bodySnapshots.incrementAndGet();
+        // 스냅샷과 같은 동기 구간에서 수정 카운터를 잡는다 — 풀 직렬화가 도는 동안 편집이 끼면
+        // 카운터가 달라져 낡은 본문을 캐시에 넣지 않는다.
+        long version = col.modCount();
+        BodyJob f = new BodyJob(speculative);
+        col.inflightSerializedBody(f);
+        // 결과(성공·실패)는 주인 스레드 태스크 안에서 진행 표시를 내린 뒤 완료한다 — 그 뒤 요청이 끝난(실패한)
+        // future 를 물려받지 않는다. 캐시 쓰기도 같은 태스크라 내림과 캐시 사이에 틈이 없다.
+        final long[] traceSer = ChunkTrace.ON ? new long[2] : null;
+        if (ChunkTrace.ON) traceSer[0] = System.nanoTime();
+        chunkPool.submit(() -> {
+            // 읽는 순서가 중요하다: 진행 표시 먼저, speculative 나중(BodyJob 주석). 진행 표시가 그대로면 청크가 안 바뀌었다.
+            if (col.inflightSerializedBody() != f && f.speculative) {
+                staleBodySkips.incrementAndGet();
+                if (ChunkTrace.ON) ChunkTrace.value("batch.ser.staleskip", 1);
+                return null;
+            }
+            long ts = ChunkTrace.ON ? System.nanoTime() : 0L;
+            byte[] out = serializeChunkBody(snapshot);
+            if (ChunkTrace.ON) { traceSer[1] = System.nanoTime(); ChunkTrace.nanos("ser", traceSer[1] - ts); ChunkTrace.nanos("hop.serpool", ts - traceSer[0]); }
+            return out;
+        }).handle((body, ex) -> {
+            if (ex == null && body == null) {   // 건너뛴 낡은 미리 직렬화 — 진행 표시는 이미 내려갔고 기다리는 요청이 없다
+                f.complete(null);
+                return null;
+            }
+            return submitAtChunk(cp, r2 -> {
+                if (ChunkTrace.ON && traceSer[1] != 0L) ChunkTrace.nanos("hop.ser", System.nanoTime() - traceSer[1]);
+                if (col.inflightSerializedBody() == f) col.inflightSerializedBody(null);
+                if (ex == null && col.modCount() == version) col.cachedSerializedBody(body);
+                return body;
+            }).whenComplete((body2, ex2) -> {
+                if (ex != null) f.completeExceptionally(ex);
+                else if (ex2 != null) f.completeExceptionally(ex2);
+                else f.complete(body);
+            });
+        });
+        return f;
     }
 
     /** auto 전송이 본문을 기다려 주는 최대 횟수(보내려던 틱 수). 넘으면 바닐라처럼 그 자리에서 직렬화한다. */
@@ -1324,15 +1361,36 @@ public final class World {
      * 틱당 상한으로 준다(이런 청크가 많을 때 한 틱에 몰리지 않게).
      */
     public int chunkBodyReadyOrPrefetch(ChunkPos cp, boolean sendingNow, boolean allowSync) {
+        return chunkBodyReadyOrPrefetch(cp, sendingNow, allowSync, null);
+    }
+
+    /** upcoming: 이 플레이어가 곧 받을(아직 안 올라온 것은 곧 올릴) 청크 — 그 안의 이웃이 아직 없으면 올라오는 중과 같이 본다(T-011). */
+    public int chunkBodyReadyOrPrefetch(ChunkPos cp, boolean sendingNow, boolean allowSync, java.util.Set<ChunkPos> upcoming) {
         ChunkColumn col = loadedChunk(cp.x(), cp.z());
         if (col == null) return BODY_READY;
         if (col.cachedSerializedBody() != null) {
-            if (sendingNow) col.bodyWaits(0);
+            if (sendingNow) {
+                col.bodyWaits(0);
+                col.lightWaits(0);
+            }
             return BODY_READY;
+        }
+        // T-011: 이웃(8칸)이 올라오는 중이면 아직 직렬화하지 않는다. 이웃이 올라와 빛을 붙이면(LevelLight.attachPrecomputed) 가장자리 빛이 이 청크로
+        // 번져 본문 캐시와 진행 중 직렬화가 버려진다 — 8명 냉 접속에서 버린 원인의 98.8%, 청크당 직렬화 3.6번(O00-05 계수).
+        // 바닐라도 청크를 반경 1 이웃이 모두 FULL 이 된 뒤에야 보낸다(ChunkMap.prepareTickingChunk → onChunkReadyToSend).
+        // 이 플레이어의 대기열에 있어 곧 올릴 이웃(upcoming)도 같이 기다린다. 올라오는 중도 대기열도 아닌 이웃(시야 밖)은 기다리지 않는다.
+        // 보내는 본문은 여전히 보낼 때의 청크 상태다(바뀌면 캐시가 비워진다) — 바뀌는 것은 직렬화·전송 시점뿐이다.
+        // 보내려는 청크는 MAX_LIGHT_WAITS 번까지만 미룬다 — 이웃 생성이 오래 걸리면 예전처럼 보낸다.
+        if ((!sendingNow || col.lightWaits() < MAX_LIGHT_WAITS) && neighborLoading(cp.x(), cp.z(), upcoming)) {
+            if (sendingNow) col.lightWaits(col.lightWaits() + 1);
+            bodyLightDeferrals.incrementAndGet();
+            if (ChunkTrace.ON) ChunkTrace.value(sendingNow ? "batch.lightwait.send" : "batch.lightwait.prefetch", 1);
+            return BODY_PENDING;
         }
         if (sendingNow && allowSync && col.bodyWaits() >= MAX_BODY_WAITS) {
             if (ChunkTrace.ON) ChunkTrace.value("batch.syncser", 1);
             col.bodyWaits(0);
+            col.lightWaits(0);
             try {
                 bodySnapshots.incrementAndGet();
                 col.cachedSerializedBody(serializeChunkBody(ChunkSnapshot.of(cp.x(), cp.z(), col)));
@@ -1343,8 +1401,33 @@ public final class World {
             return BODY_SYNC;
         }
         if (sendingNow && col.bodyWaits() < MAX_BODY_WAITS) col.bodyWaits(col.bodyWaits() + 1);
-        if (col.inflightSerializedBody() == null) serializedChunkBody(cp, true);
+        if (col.inflightSerializedBody() == null) {
+            Region owner = regionizer.ownerOf(cp.x(), cp.z());
+            // 미리 직렬화: 결과는 캐시로만 받는다(배치는 다음 틱에 캐시를 본다). 기다리는 요청이 없으니 낡으면 풀이 건너뛴다.
+            if (owner != null && owner.isOwnerThread()) startBodySerialization(cp, col, true);
+            else serializedChunkBody(cp, true);
+        }
         return BODY_PENDING;
+    }
+
+    /** 이웃 청크가 올라오는 중이면 보내려는 청크의 직렬화를 미루는 최대 횟수(보내려던 틱 수, T-011). 넘으면 예전처럼 직렬화한다. */
+    static final int MAX_LIGHT_WAITS = 20;
+
+    /**
+     * (cx, cz) 를 둘러싼 8칸 중 지금 올라오는(디스크 읽기·생성 중) 청크, 또는 upcoming 에 있는데 아직 안 올라온 청크가 있는가.
+     * 빛은 15칸 안에서만 번지므로 반경 1 밖은 이 청크 빛을 못 바꾼다(바닐라 sectionLightChanged 표시 상자 ±1 칸 포함).
+     */
+    boolean neighborLoading(int cx, int cz, java.util.Set<ChunkPos> upcoming) {
+        if (loading.isEmpty() && (upcoming == null || upcoming.isEmpty())) return false;
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if ((dx | dz) == 0) continue;
+                long k = mapKey(Regionizer.chunkKey(cx + dx, cz + dz));
+                if (loading.containsKey(k)) return true;
+                if (upcoming != null && !chunks.containsKey(k) && upcoming.contains(new ChunkPos(cx + dx, cz + dz))) return true;
+            }
+        }
+        return false;
     }
 
     /** inline 이고 지금 스레드가 그 청크 주인 region 이면 바로 돌리고, 아니면 submitAtChunk. */
@@ -1364,6 +1447,8 @@ public final class World {
 
     /** 시험용: 본문 직렬화 실패 주입(null 이면 없음). */
     volatile Runnable serializeFaultHook;
+    /** 시험 전용: 청크 본문을 플레이어에게 보내기 직전에 (좌표, 본문)으로 불린다(본문이 준비돼 있으면 주인 region 스레드에서). 운영에서는 null. */
+    volatile java.util.function.BiConsumer<ChunkPos, byte[]> chunkSendTap;
 
     private byte[] serializeChunkBody(ChunkSnapshot snap) {
         Runnable hook = serializeFaultHook;

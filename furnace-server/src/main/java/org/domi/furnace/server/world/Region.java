@@ -3065,7 +3065,7 @@ public final class Region {
                 // 바닐라 PlayerChunkSender 처럼 배치는 한 틱 안에 Start → 청크 → Finished 로 끝나야 한다(클라이언트가 그 시간으로 속도를 정한다).
                 // 본문이 아직 없으면 직렬화만 걸어 두고 다음 틱에 보낸다. 다른 region 청크는 예전처럼 배치 안에서 기다린다(드묾).
                 int body = mine(Regionizer.chunkKey(cp.x(), cp.z()))
-                        ? world.chunkBodyReadyOrPrefetch(cp, room, syncBodiesLeft > 0) : World.BODY_READY;
+                        ? world.chunkBodyReadyOrPrefetch(cp, room, syncBodiesLeft > 0, loadedOnly ? null : p.pendingChunks()) : World.BODY_READY;
                 if (body == World.BODY_SYNC) syncBodiesLeft--;
                 if (room && body != World.BODY_PENDING) {
                     batch.add(cp);
@@ -3112,6 +3112,8 @@ public final class Region {
                         // gen 지연 동안 플레이어가 시야 밖으로 이동했거나(재구독 포함) 언로드됐으면 보내봐야 클라가
                         // "not in view range"로 버림 → 드롭. 위치는 volatile이라 완료 스레드서 안전하게 읽음.
                         if (inView(p, cp) && world.isSubscribed(cp, p, sub)) {
+                            var tap = world.chunkSendTap;
+                            if (tap != null) tap.accept(cp, body);
                             p.send(LevelChunkWithLight.ofShared(body));
                             sent.incrementAndGet();
                             world.chunkDelivered(cp, p, sub);   // 청크가 채널 큐에 들어간 뒤 보류된 변경을 흘려보낸다
