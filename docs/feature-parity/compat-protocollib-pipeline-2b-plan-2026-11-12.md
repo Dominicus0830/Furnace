@@ -48,7 +48,7 @@ ProtocolLib.sendServerPacket / player.connection.send(packet) / ServerCommonPack
 - 지금까지는 `send` 가 곧바로 변환·전송이라 ProtocolLib 이 끼어들 곳이 없었고, 채널이 비활성이라 `sendServerPacket` 자체가 조용히 버려졌다. 이제 `sendServerPacket` 이 지원 종류(스키마 변환 가능한 clientbound 종류 + 손 shim)에서 실제로 클라이언트에 도착하고, 다른 ProtocolLib 플러그인의 **나가는 리스너가 그 패킷을 본다**(바꾸기·취소 포함).
 - 한계: Furnace 자신이 만든 패킷(채팅·엔티티 생성·월드 상태 등)은 이 경로를 지나지 않는다(§3-2).
 
-### 3-2. Furnace 가 스스로 보내는 패킷 (Furnace → shim → ProtocolLib → Furnace) — **2b-2**
+### 3-2. Furnace 가 스스로 보내는 패킷 (Furnace → shim → ProtocolLib → Furnace) — **2b-2(구현됨, §10)**
 
 바닐라 서버의 거의 모든 패킷은 서버 코드가 만들어 `connection.send` 로 보낸다. Furnace 서버는 자기 레코드·범용 코덱으로 바이트를 만든다. 이 갈래를 ProtocolLib 에 보이게 하려면 **Furnace `PacketService` 리스너**로 건다:
 
@@ -125,9 +125,9 @@ Furnace 서버가 받은 패킷(PacketService 리스너 HIGHEST, ProtocolLib 이
 
 | # | 문제 | 지금 생각 |
 |---|---|---|
-| O1 | `Bukkit.isPrimaryThread()` 의미(호환 모듈). SYNC 리스너 재예약이 무한히 되돌지 않으려면 이 값이 "어느 스레드에서든 일관"해야 한다 | 2b-2 시작 전에 호환 모듈의 정의를 확인하고, 틱 스레드면 그 스레드로 보내는 `Bukkit.getScheduler().runTask` 와 맞춘다 |
+| O1 | `Bukkit.isPrimaryThread()` 의미(호환 모듈). SYNC 리스너 재예약이 무한히 되돌지 않으려면 이 값이 "어느 스레드에서든 일관"해야 한다 | 2b-2 에서 정함(§10): 가로채는 동안 네트워크 스레드를 주 스레드로 표시해 그 자리에서 부른다(미루면 패킷 순서가 바뀐다). 결정 기록 `docs/user-todo/entries/2026-11-12-protocollib-2b2.md` |
 | O2 | `ProtocolManager#getPacketListeners()` 로 구독을 따라잡는 지연(최대 20틱) | 플러그인이 켜질 때(`onEnable`)에 리스너를 붙이는 것이 99% 라 `PluginEnableEvent` 뒤 1틱 동기화로 충분. 런타임 추가는 20틱 주기로 따라잡고, 그 사이 패킷은 못 본다는 한계를 문서에 적는다 |
-| O3 | shim 필드가 바뀌었는지 모를 때 매번 재변환하는 비용 | 듣는 종류에 한정. 측정 후 필요하면 값 해시 비교(`toFurnace` 결과 `equals`)로 원본 재사용 |
+| O3 | shim 필드가 바뀌었는지 모를 때 매번 재변환하는 비용 | 2b-2 에서 정함: 듣는 종류만, 라이브러리에 넘기기 전 shim 을 한 번 Furnace 값으로 바꿔 두고(기준) 돌아온 shim 의 값과 `equals` — 같으면 원래 바이트 그대로 |
 | O4 | 가상 채널 닫기 시점 | 해결: Furnace `PlayerQuitEvent`(MONITOR)·재접속/정리 때 `retire()`·로그인 거부(`forgetDenied` → `retire()`)에서 닫는다. 바닐라는 채널이 먼저 닫히고 퇴장 이벤트가 나중이지만 퇴장 중 보내기는 어느 쪽이든 안 나가므로 관찰 차이 없음 |
 | O5 | 동시에 여러 스레드가 같은 접속에 보낼 때 ProtocolLib 리스너 재진입 | 바닐라와 같은 호출 스레드 가로채기라 ProtocolLib 이 이미 견딘다. 다만 Furnace 쪽 `PacketService` 는 한 플레이어 순서를 보장하므로 변환 단계에서는 잠금이 없다 |
 
@@ -136,7 +136,7 @@ Furnace 서버가 받은 패킷(PacketService 리스너 HIGHEST, ProtocolLib 이
 | 단계 | 내용 | 끝나면 | 상태 |
 |---|---|---|---|
 | **2b-1** | 활성 가상 채널 + `decoder`·`encoder`·`packet_handler` + `Connection#send` 의 이벤트 루프 경로 + 접속 종료 시 닫기. `PacketDelivery` 로 끝처리 분리 | ProtocolLib 이 접속마다 **주입**되고, `sendServerPacket`·플러그인이 보낸 패킷이 도착하고 나가는 리스너가 그 패킷을 보고 바꾸고 취소한다 | 이 PR |
-| 2b-2 | `SchemaPacketBridge.fromFurnace`(값 종류별 역변환) + 손 shim `fromFurnace`(자주 쓰는 종류) + 브리지 리스너(구독 동기화) | Furnace 가 스스로 보내는 패킷을 ProtocolLib 리스너가 본다·바꾼다·취소한다(채팅·엔티티·블록 묶음별 봇 시험) | |
+| 2b-2 | `SchemaPacketReverse`(값 종류별 역변환) + `TypedPacketBridge`(타입 레코드 종류) + `ProtocolLibBridge`(구독 동기화·가로채기) | Furnace 가 스스로 보내는 패킷을 ProtocolLib 리스너가 본다·바꾼다·취소한다 | 구현(§10) |
 | 2b-3 | serverbound 변환 + 들어오는 가로채기 + `receiveClientPacket` | 클라이언트 패킷(이동·채팅·클릭)을 ProtocolLib 리스너가 본다·바꾼다·취소한다. `Connection#read` 가 실제로 동작 | |
 | 2b-4 | 값 종류 확장: 남은 빈 껍데기(`global_pos`·`number_format`·`Holder` 직접 정의)·손 코덱(custom) 종류의 shim | 대부분의 종류가 shim 으로 오간다. 종류별 표를 문서에 | |
 
@@ -152,3 +152,43 @@ Furnace 서버가 받은 패킷(PacketService 리스너 HIGHEST, ProtocolLib 이
 
 검토(PR #269) 반영: 쓰기 끝 처리기(여러 스레드 안전)·`submit`/`schedule`·`channel.writeAndFlush(패킷)` 직접 쓰기·`Send.run` 이 바닐라처럼 `channel.writeAndFlush` 로 써서 ProtocolLib 의 "이미 처리함" 스레드 로컬이 꺼짐·채널 번호·라이브러리 없을 때(`channel == virtual`) 바로 전달하는 빠른 길.
 ProtocolLib 5.4.0 자체 동작(Furnace 버그 아님): `NettyChannelProxy` 에 `id()` 가 없어 주입된 뒤 `connection.channel.id()` 는 `AbstractMethodError`(Paper 도 같음), 묶음 안 패킷을 모두 취소하면 빈 묶음을 쓴다(`PacketDelivery` 는 빈 묶음을 보내지 않아 결과 같음).
+
+## 10. 2b-2 구현 요약
+
+```
+Furnace 서버 패킷 P (네트워크 스레드, PacketService 리스너 EventPriority.HIGHEST, ProtocolLib 이 듣는 종류만)
+  → 표지 확인(DeliveredPackets: 플러그인이 NMS·ProtocolLib 로 보내 이미 라이브러리를 지난 것이면 건너뜀)
+  → S = PacketDelivery.fromFurnace(P)   (GenericPacket → SchemaPacketReverse, 타입 레코드 → TypedPacketBridge)
+  → 기준 B = toFurnace(S)
+  → PrimaryThread 표시 안에서 Connection#compatIntercept(S)
+       channel.eventLoop().execute(Capture{S}) → ProtocolLib processOutbound(리스너) → Capture.run → channel.writeAndFlush(S') → furnace_sink 가 받아 둠
+  → null(취소)이면 setCancelled · 다른 종류·묶음이면 이 패킷 취소 + 그것을 보냄(표지) · toFurnace(S') ≠ B 면 setPacket
+```
+
+- 코드: `compat/nms/SchemaPacketReverse`(스키마 필드 나열·손 코덱 종류의 역변환 — 생성 shim 의 모든 필드 생성자로 만든다), `compat/nms/TypedPacketBridge`(타입 레코드 17종 — 생성 shim 6종은 두 방향), `compat/nms/DeliveredPackets`(무한 되돌기 방지 표지, 10초 지난 것은 버림), `Connection#compatIntercept`(Capture 작업 — Send 와 같은 모양), `compat/paper/ProtocolLibBridge`(켜기·구독·리스너), `BukkitPluginAdapter`(켜고 끈 뒤 알림).
+- 구독: ProtocolLib 플러그인이 켜지면 시작. `ProtocolManager#getPacketListeners()` 의 보내기 허용 목록(서버 쪽 종류)의 `getPacketClass()` → 스키마 `packetByClass` → Furnace 종류. 다른 버킷 플러그인이 켜지고 꺼진 뒤 1틱, 그리고 20틱마다 다시 계산(바뀌었을 때만 구독을 갈아 끼운다). 구독 주인은 ProtocolLib 플러그인이라 ProtocolLib 이 꺼지면 같이 풀린다.
+- 되돌리지 못하는 종류(ProtocolLib 리스너가 들어도 Furnace 가 스스로 보내는 것은 안 보인다 — 플러그인이 보낸 것은 보인다; 처음 한 번 INFO 로 알린다). 시험 `SchemaPacketReverseTest.reversibleKindsTable` 이 이 표를 지킨다:
+
+| 묶음 | 종류 | 까닭 |
+|---|---|---|
+| 타입 레코드 | `set_entity_data`·`player_info_update`·`custom_payload` | shim 이 아직 없다(메타데이터 값 직렬화·GameProfile·페이로드 종류) — 2b-4 |
+| 빈 값 shim | `block_entity_data`·`delete_chat`·`disguised_chat`·`login`·`open_screen`·`respawn`·`server_links` | `toFurnace` 도 없다(값 shim 이 빈 껍데기) |
+| 손 코덱 | `boss_event`·`award_stats` | `toFurnace` 도 없다 |
+| 손 코덱 | `set_player_team`·`set_objective`·`update_attributes`·`map_item_data` | 역변환이 아직 없다 — 2b-4 |
+| 손 코덱 와이어·빈 값 shim | `commands`·`explode`·`level_chunk_with_light`·`level_particles`·`light_update`·`merchant_offers`·`player_chat`·`recipe`·`update_advancements`·`update_recipes`·`update_tags` | 범용 코덱이 읽게 됐지만(기준 브랜치 병합 뒤) shim → Furnace 도 없다 — 2b-4 |
+| 구분자 | `bundle_delimiter` | 서버가 넣는다(취소·바꾸기 금지) |
+| 값 하나 | `set_score`·`set_objective` 의 styled 숫자 형식 | NBT 스타일 → shim Style 이 없다(그 패킷만 건너뛰고 경고 한 번) |
+
+- 시험: `SchemaPacketReverseTest`(시험 클라이언트가 받은 모든 패킷 — 접속 때 서버가 보내는 것 + 손 코덱·타입 레코드 표본 — 을 `toFurnace(fromFurnace(v)).equals(v)` 로 돌림, 50종 이상), `ProtocolLibBridgeTest`(채널 프록시로 흉내 낸 라이브러리가 Furnace 패킷 API·서버 채팅을 보고 바꾸고 취소하고 다른 종류로 바꿈, 가로채는 동안 주 스레드, 한 번만 봄, 구독 풀림).
+- 속도(1/8000, 검토 R4): 플러그인 패킷 코덱 `Protocol767.velocityUnits` 와 다리 `TypedPacketBridge.velocity` 가 같은 식 — 바닐라처럼 ±3.9 로 자르고 버리되, 정수에서 부동소수 오차(1e-6 미만)만큼만 모자란 값은 그 정수. 와이어에서 읽은 `s / 8000.0` 은 374개 값(예 16380)에서 `s·8000` 이 정수보다 아주 조금 작아 예전엔 다시 쓸 때 s−1 이 됐다 — 리스너가 다른 필드만 바꿔도 속도가 1/8000 바뀌던 문제. 서버 자신의 물리 속도 패킷(net/protocol/play)은 이 코덱을 타지 않아 바닐라 버림 그대로다. 플러그인이 직접 만든 double 이 정수 바로 아래(1e-6 안쪽)면 Paper(버림)와 1 다를 수 있다 — 가정상 무시할 만함.
+
+### 10-1. 독립 검토(PR #277) 뒤 고친 것·남은 것
+
+검토 보고서: `/mnt/project-files/furnace/reviews/pr277-protocollib-outbound.md`(진짜 ProtocolLib 5.4.0 탐침).
+
+- **R2·R3 고침 — 리스너 안에서 보낸 패킷의 순서.** Paper+ProtocolLib 은 리스너가 바깥 쓰기 작업 안에서 돌고, 안에서 보낸 것(sendServerPacket·sendMessage)이 먼저 실제 루프로 나간다. Furnace 는 예전에 이벤트 루프 큐 맨 뒤(가로챈 패킷·묶음과 그 뒤 프레임들 다음)로 보내 "스폰 취소 후 바꾼 복제 다시 보내기"가 메타데이터 → 엔티티 순서가 돼 클라이언트가 메타데이터를 버렸다. 이제 `SharedChunkFrames.encode` 가 패킷 리스너를 부르는 동안 같은 연결로 들어온 루프 작업(`Player.runOnLoop`)을 모았다가 지금 패킷을 쓰기 전에 돌린다 — 묶음 안 패킷이면 묶음 앞(묶음 프레임은 다 만든 뒤 한꺼번에 쓰므로). Furnace 자체 패킷 리스너에도 같은 규칙이다. 다른 종류로 바꾼 패킷(`sendInstead`)도 같은 길이라 하나짜리 패킷이면 정확히 그 자리, 묶음 안이면 묶음 바로 앞(ProtocolLib 은 묶음 안 그 자리 — 클라이언트가 한 프레임 먼저 처리하는 차이만 남음).
+- **R4 고침** — 위 속도 항목.
+- **R1 고침 — 리스너 안 엔티티 id 조회.** SPAWN_ENTITY 리스너 안의 `getEntityFromID`·`getEntityModifier(event)` 가 막 생긴 엔티티에서 `ThreadOwnershipException` 을 냈다(ProtocolLib 이 잡고 원래 패킷을 보냄). compat `ServerLevel.getEntity(int)` 는 주인 스레드가 아니면 Bukkit 엔티티 캐시 → 주 스레드가 아니면 region 응답 기다리기인데, 가로채는 동안 네트워크 스레드가 "주 스레드"(D1-A)라 기다리지 않고 새 엔티티는 캐시에도 없었다. 기다리게 하면 네트워크 스레드가 엔티티마다 최대 1틱 멈추므로(홀로그램 수백 개면 수 초) 그 길은 버렸다. 대신 새 API 이벤트 `PlayerTrackEntityEvent`(Paper 같은 자리 — `EntityTracker.addPairing`, 스폰 묶음을 보내기 바로 전, 엔티티 소유 region 스레드, 구독자가 없으면 만들지 않음)를 두고, 다리가 엔티티 번호를 담은 종류(add_entity·움직임·장비·메타데이터 등 20종)를 들을 때만 구독해 그 순간 Bukkit 엔티티를 만들어(Compat 캐시) **그 엔티티가 월드에 있는 동안** 붙잡아 둔다(재검토 R1b — 처음엔 10초만 붙잡아, 오래 보인 엔티티의 텔레포트 등 다른 패킷에서는 GC 뒤 약참조 캐시가 비어 다시 실패했다). 주기 점검(1초)이 번호 → UUID 색인(어느 스레드나 읽힘)으로 없어진 엔티티(제거·청크 내림·차원 이동)를 놓는다. 한계: ProtocolLib 리스너가 생기기 전부터 이미 보이던 엔티티는 다시 보이기 시작할 때까지 붙잡히지 않는다(보통 ProtocolLib 플러그인은 접속 전 켜짐 때 리스너를 건다). 이벤트는 아직 취소할 수 없고 플레이어가 다른 플레이어를 보기 시작할 때는 부르지 않는다(플레이어는 번호 조회가 어느 스레드에서나 된다). 시험 `ProtocolLibBridgeTest.spawnListenersCanLookUpTheNewEntity`.
+- **R5 정보** — `damage_event` 의 피해 종류, `Holder<Attribute>`·`Holder<DimensionType>` 역변환은 키만 든 `Holder.Reference` 다. 리스너가 `holder.value()` 를 부르면 바닐라처럼 "묶이지 않은 값" 예외가 날 수 있다(키·`is(...)` 는 된다).
+- **R6 정보** — 주 스레드가 아닌 곳에서 섞어 보내면(`sendMessage(A)`·`sendServerPacket(T)`·`sendMessage(B)`) Furnace 는 `A, B, T`(ProtocolLib 이 T 만 다음 틱으로 미룸), Paper 는 셋 다 미뤄 `A, T, B` 로 추정. ProtocolLib 규칙대로의 결과라 고치지 않는다.
+- 시험 추가: `ProtocolLibBridgeTest.spawnListenersCanLookUpTheNewEntity`(R1), `sendsFromInsideListenersGoBeforeTheInterceptedPacket`(Furnace 리스너·라이브러리 리스너 안에서 보낸 것이 앞, 묶음이면 묶음 앞, 다른 종류로 바꾼 것은 그 자리, 다른 필드만 바꾼 속도 16380 그대로·0.0001 은 버림).
