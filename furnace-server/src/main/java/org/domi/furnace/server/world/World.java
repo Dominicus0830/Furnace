@@ -177,6 +177,18 @@ public final class World {
         return si == null ? 0L : si.zoomSeed();
     }
 
+    /** 시드를 정했으면 그 시드, 아니면 fallback — SeedInfo 를 한 번만 읽는다. */
+    public long seedOr(long fallback) {
+        SeedInfo si = seedInfo;
+        return si == null ? fallback : si.seed();
+    }
+
+    /** 시드를 정했으면 그 시드의 확대 지터 시드, 아니면 fallback — SeedInfo 를 한 번만 읽는다. */
+    public long zoomSeedOr(long fallback) {
+        SeedInfo si = seedInfo;
+        return si == null ? fallback : si.zoomSeed();
+    }
+
     public void seed(long seed) {
         this.seedInfo = new SeedInfo(seed, BiomeZoom.obfuscateSeed(seed));
     }

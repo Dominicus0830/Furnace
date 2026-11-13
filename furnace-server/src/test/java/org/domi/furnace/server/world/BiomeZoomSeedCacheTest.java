@@ -8,13 +8,19 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.security.MessageDigest;
 import java.util.concurrent.Executors;
+import java.nio.file.Path;
+import org.domi.furnace.server.ServerCore;
+import org.domi.furnace.server.TestServers;
 import org.domi.furnace.server.net.ChunkWorkerPool;
 import org.domi.furnace.server.net.protocol.play.LoginPlay;
 import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class BiomeZoomSeedCacheTest {
+
+    @TempDir Path tmp;
 
     private static final long[][] PYTHON = {
             {0L, 8794265229978523055L},
@@ -68,6 +74,27 @@ class BiomeZoomSeedCacheTest {
             assertEquals(c[0], w.seed());
             assertEquals(c[1], w.zoomSeed());
             assertEquals(c[1], w.zoomSeed(), "두 번째 읽기도 같은 값");
+        }
+    }
+
+    /** ServerCore 두 분기: 시드를 정한 월드는 그 시드의 값, 안 정한 월드는 서버(level.dat) 시드의 값. TestServers 의 서버 시드는 1234. */
+    @Test
+    void serverCoreBiomeZoomSeedBranches() throws Exception {
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        try {
+            ServerCore core = TestServers.core(tmp, sched);
+            World w = core.world();
+            assertFalse(w.hasSeed());
+            assertEquals(1234L, core.seedOf(w));
+            assertEquals(reference(1234L), core.biomeZoomSeed(w));
+            assertEquals(core.biomeZoomSeed(), core.biomeZoomSeed(w));
+            w.seed(777L);
+            assertEquals(777L, core.seedOf(w));
+            assertEquals(reference(777L), core.biomeZoomSeed(w));
+            assertEquals(reference(1234L), core.biomeZoomSeed(), "서버 시드 값은 월드 시드를 따라가지 않는다");
+        } finally {
+            sched.close();
+            TestServers.drainIoPools();
         }
     }
 }

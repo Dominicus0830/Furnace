@@ -327,11 +327,11 @@ public final class ServerCore {
     /** 그 월드의 바이옴 확대 지터 시드 = 클라이언트가 LoginPlay/Respawn 으로 받는 hashed seed(차원별 시드를 정하지 않았으면 서버 시드 — 바닐라). */
     public long biomeZoomSeed(World w) {
         // 월드가 시드를 정할 때 한 번 계산해 둔 값을 읽는다(SHA-256 을 부를 때마다 다시 하지 않는다 — O00-01, T-010)
-        return w.hasSeed() ? w.zoomSeed() : biomeZoomSeed;
+        return w.zoomSeedOr(biomeZoomSeed);
     }
 
     /** 그 월드의 생성 시드(정하지 않았으면 서버 시드). */
-    public long seedOf(World w) { return w.hasSeed() ? w.seed() : levelData.seed; }
+    public long seedOf(World w) { return w.seedOr(levelData.seed); }
 
     /**
      * /execute if predicate: 명령 문맥(origin, 있으면 this_entity)에서 조건 하나를 평가한다. 난수는 월드 난수(바닐라 level.getRandom).
