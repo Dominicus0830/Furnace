@@ -138,6 +138,24 @@ public final class LightBatch implements LightWorld {
         }
     }
 
+    // 안 올라온 청크에 막힌 감소(T-012): 칸 좌표를 모았다가 게시 때 region 스레드가 저장 빛 표시를 한다(같은 열 연속은 한 번)
+    private long[] blocked = new long[8];
+    private int blockedCount;
+    private int lastBlockedX = Integer.MIN_VALUE, lastBlockedZ;
+
+    @Override public void decreaseBlocked(int x, int y, int z) {
+        if (x == lastBlockedX && z == lastBlockedZ) return;
+        lastBlockedX = x;
+        lastBlockedZ = z;
+        if (blockedCount == blocked.length) blocked = java.util.Arrays.copyOf(blocked, blockedCount * 2);
+        blocked[blockedCount++] = LightEngine.pack(x, y, z);
+    }
+
+    /** 계산이 끝난 뒤 region 스레드에서: 막힌 감소 칸(묶은 좌표)을 넣은 순서대로. */
+    public void forEachBlocked(java.util.function.LongConsumer c) {
+        for (int i = 0; i < blockedCount; i++) c.accept(blocked[i]);
+    }
+
     // ------------------------------------------------------------------ 청크 표
 
     private static long key(int cx, int cz) { return (long) cx << 32 | (cz & 0xFFFFFFFFL); }
