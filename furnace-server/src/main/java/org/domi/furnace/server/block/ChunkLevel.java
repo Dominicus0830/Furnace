@@ -743,6 +743,14 @@ public abstract class ChunkLevel implements BlockLevel {
         entities.absorb(other.entities);
         raids.absorb(other.raids, this);
         torchToggles.absorb(other.torchToggles);
+        // 빛: 틱 사이에 놓인 블록의 미처리 검사와 방송 전 빛 변경은 합친 쪽이 이어받는다(안 옮기면 빛이 계산·방송되지 않는다)
+        if (other.lightEngine != null && other.lightEngine.hasWork()) other.lightEngine.moveChecksTo(lightEngine(), p -> true);
+        for (var e : other.lightChanges.entrySet()) {
+            long[] m = lightChanges.computeIfAbsent(e.getKey(), k -> new long[2]);
+            m[0] |= e.getValue()[0];
+            m[1] |= e.getValue()[1];
+        }
+        other.lightChanges.clear();
     }
 
     /** 청크 조건(청크 x, z)에 맞는 자료를 target 으로 옮긴다. target 은 이 레벨의 시계를 이어받는다. */
@@ -784,6 +792,21 @@ public abstract class ChunkLevel implements BlockLevel {
             if (inTarget.test(ev.x() >> 4, ev.z() >> 4)) {
                 target.blockEvents.add(ev);
                 bit.remove();
+            }
+        }
+        // 빛: 청크가 target 쪽인 미처리 검사와 방송 전 빛 변경(키 = sx<<32 | sz)
+        if (lightEngine != null && lightEngine.hasWork()) {
+            lightEngine.moveChecksTo(target.lightEngine(),
+                    p -> inTarget.test(org.domi.furnace.server.light.LightEngine.px(p) >> 4, org.domi.furnace.server.light.LightEngine.pz(p) >> 4));
+        }
+        var lit = lightChanges.entrySet().iterator();
+        while (lit.hasNext()) {
+            var e = lit.next();
+            if (inTarget.test((int) (e.getKey() >> 32), (int) (long) e.getKey())) {
+                long[] m = target.lightChanges.computeIfAbsent(e.getKey(), k -> new long[2]);
+                m[0] |= e.getValue()[0];
+                m[1] |= e.getValue()[1];
+                lit.remove();
             }
         }
     }
