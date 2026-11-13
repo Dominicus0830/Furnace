@@ -2995,6 +2995,9 @@ public final class Region {
     private void sendQueuedChunks(Player p) {
         if (p.pendingChunks().isEmpty()) return;
         if (world.autoChunkRate()) { sendQueuedChunksAuto(p); return; }
+        // 바닐라 PlayerChunkSender 처럼 배치는 겹치지 않는다: 앞 배치의 Finished 가 나가기 전엔 새 배치를 열지 않는다(auto 와 같은 규칙).
+        // 동시 진행 상한은 청크 단위라, 앞 배치 청크 일부만 끝나도 예산이 생겨 Start 가 앞 배치 안에 끼어들었다.
+        if (p.chunkBatchOpen()) return;
         int adaptive = p.chunkSendRate().nextBudget();   // 바닐라 PlayerChunkSender: 클라이언트가 알린 속도·미확인 배치 한도
         if (adaptive <= 0) return;
         int budget = Math.min(Math.min(world.chunksPerTick(), adaptive), world.maxChunkSendsInFlight() - p.chunkSendsInFlight().get());
@@ -3010,7 +3013,8 @@ public final class Region {
             it.remove();
         }
         if (batch.isEmpty()) return;
-        sendBatch(p, batch, false);
+        p.chunkBatchOpen(true);
+        sendBatch(p, batch, false).whenComplete((v, ex) -> p.chunkBatchOpen(false));
     }
 
     /** 매 틱 바뀌는 청크를 region 스레드에서 바로 직렬화하는 틱당 상한(이 region 의 모든 플레이어 합). 넘으면 다음 틱으로 미룬다. */
