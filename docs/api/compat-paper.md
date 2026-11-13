@@ -21,7 +21,7 @@
 
 우선순위(LOWEST~MONITOR), `ignoreCancelled`, 취소 전달은 Furnace 버스가 지킨다. 같은 우선순위의 Furnace 고유 플러그인과는 등록 순이다.
 
-## 지원하는 이벤트 (35)
+## 지원하는 이벤트 (41)
 
 | Bukkit | Furnace | 되돌려 쓰는 값 |
 |---|---|---|
@@ -34,6 +34,11 @@
 | `PlayerCommandPreprocessEvent` | 같은 이름 | 명령 문자열, 취소 |
 | `PlayerLevelChangeEvent`, `PlayerExpChangeEvent` | 같은 이름 | 경험치 양 |
 | `BlockBreakEvent` | `BlockBreakEvent` | 취소 (플레이어가 깬 것만) |
+| `BlockPlaceEvent` | `BlockPlaceEvent` | 취소 또는 `setBuild(false)`(둘 다 막는다), 플레이어가 놓은 것만. `getBlockPlaced()` 가 놓일 상태를 보인다([아래](#세계-변화·스폰·버리기-이벤트-o12-h1-2026-11-12)) |
+| `BlockGrowEvent` / `BlockFadeEvent` | 같은 이름 | 취소. `getNewState()` 는 바뀐 뒤 스냅숏 |
+| `BlockExplodeEvent` | `BlockExplodeEvent` | 취소, `blockList()` 편집(`yield` 는 읽기만) |
+| `EntitySpawnEvent`(`ItemSpawnEvent`·`CreatureSpawnEvent` 같은 처리기 목록) | `EntitySpawnEvent` 와 하위 | 취소 |
+| `PlayerDropItemEvent` | `PlayerDropItemEvent` | 취소(아이템은 인벤토리로 돌아간다) |
 | `EntityDamageEvent` | 같은 이름 | 피해량, 취소 |
 | `PluginEnableEvent` / `PluginDisableEvent` | 같은 이름 | — (Bukkit 플러그인만 알린다) |
 | `ServerCommandEvent` | 같은 이름 | 명령 문자열, 취소 |
@@ -64,7 +69,15 @@
 | 블록 ALLOW/DEFAULT + 아이템 DENY | 상자·문은 열리고 아이템만 안 쓰임 | 둘 다 안 됨 |
 | 블록 DENY + 아이템 ALLOW | 블록은 안 쓰이고 아이템은 쓰임(보호 구역에서 음식 먹기·진주 던지기 허용) | 둘 다 안 됨 |
 
-**클래스만 있고 아직 알리지 않는 이벤트.** `BlockPlaceEvent`·`BlockFadeEvent`·`BlockGrowEvent`·`BlockExplodeEvent`·`BlockCanBuildEvent`·`BlockDamageEvent`·`BlockDispenseEvent`·`BlockExpEvent`·`NotePlayEvent`·`SignChangeEvent`·`EntityChangeBlockEvent`·`EntitySpawnEvent`(`ItemSpawnEvent`)·`PlayerCommandSendEvent`·`PlayerDropItemEvent`·`WorldInitEvent`. 리스너 클래스 하나에 이 이벤트 처리기가 섞여 있어도 나머지 처리기는 등록되도록 클래스를 두었다(Bukkit 은 리스너 클래스의 모든 처리기 서명을 한꺼번에 읽어서, 클래스 하나가 없으면 리스너 전체가 빠진다). 처리기를 달면 플러그인·이벤트마다 한 번 "이 이벤트는 아직 알리지 않는다" 경고를 남긴다(`EventBridge.isKnownButNotFired`). 앞의 넷과 `PlayerDropItemEvent`·`ItemSpawnEvent` 는 Furnace 서버 이벤트가 있지만 Bukkit 쪽 값(놓은 손·아이템, `BlockState` 새 상태, 폭발 위력, 아이템 엔티티 `Item`)을 아직 만들 수 없어 잇지 않았다.
+**세계 변화·스폰·버리기 이벤트 (O12 H1, 2026-11-12).** 서버가 이미 내던 여섯 이벤트가 목록에서 빠져 있어 Bukkit 보호·기록 플러그인(WorldGuard·GriefPrevention·CoreProtect 류)이 설치·자람·사라짐·폭발·스폰·버리기를 막지도 기록하지도 못했다. 이제 잇는다. 규칙은 CraftBukkit/Paper 1.21.1 기준이다.
+
+- `BlockPlaceEvent`: 막는 것은 `isCancelled()` 이거나 `canBuild()` 가 거짓일 때다(`CraftEventFactory.callBlockPlaceEvent`). 푸는 쪽(Furnace 처리기가 취소를 풀면)은 둘 다 되돌린다. CraftBukkit 은 블록을 놓은 *뒤에* 부르고 Furnace 는 *전에* 부르므로 `getBlockPlaced()` 는 "놓일 블록"(종류·속성)을 보이게 만든 블록이다 — 이벤트가 끝나도 그 상태를 계속 보이므로 취소된 뒤에도 월드의 원래 블록으로 돌아가지 않는다(Paper 는 되돌린 뒤 월드를 읽는다). 이벤트 처리기 안에서 `world.getBlockAt(x, y, z)` 로 그 칸을 다시 읽으면 아직 놓기 전이라 원래 블록이다(CraftBukkit 은 놓인 블록) — 보호 플러그인이 쓰는 이벤트 자신의 블록은 놓일 상태다. `getBlockReplacedState()` 는 그 자리의 원래 상태(소유 스레드에서 읽어 알린다), `getItemInHand()` 는 놓는 손의 아이템 복사본, `getHand()` 는 `HAND`/`OFF_HAND`. 침대·문처럼 두 칸을 놓는 `BlockMultiPlaceEvent` 는 아직 없다(한 칸 이벤트로 온다).
+- `BlockGrowEvent`·`BlockFadeEvent`: `getNewState()` 는 이벤트 시점 스냅숏(`CompatBlockState`). `update()` 는 Paper 처럼 종류가 같을 때만(또는 `force`) 월드에 쓴다. 블록 엔티티 내용은 스냅숏에 담지 않는다.
+- `BlockExplodeEvent`: `blockList()` 를 고치면 서버가 그대로 따른다(Paper 와 같다 — 넣은 칸도 부서진다). `getYield()`·`getExplosionResult()` 는 읽을 수 있고(DESTROY_WITH_DECAY 는 1/반지름) `setYield` 는 서버가 적용하지 않는다. `getExplodedBlockState()` 는 터진 블록 종류의 기본 상태다(속성은 서버가 알리지 않는다).
+- `EntitySpawnEvent`: 서버의 하위 이벤트가 같은 처리기 목록으로 온다 — 아이템은 `ItemSpawnEvent`(`getEntity()` 가 `Item`), 살아 있는 것은 `CreatureSpawnEvent`(`getSpawnReason()`), 투사체 등은 `EntitySpawnEvent`. 플레이어는 Bukkit 도 이 이벤트를 내지 않는다.
+- `PlayerDropItemEvent`: CraftBukkit 순서대로 던질 아이템 엔티티(속도·난수까지)를 만든 뒤 이벤트를 부르고, 취소하면 엔티티는 들어가지 않고 아이템은 인벤토리로 돌아간다. 구독자가 없으면 이전과 같이 난수를 쓰지 않는다. `getItemDrop()` 은 `Item`(`CraftItem`)이고 `getItemStack()`·`getPickupDelay()` 는 읽기만 된다 — `setItemStack`·`setPickupDelay` 는 `UnsupportedFeature`(Furnace 핸들에 쓰는 길이 아직 없다).
+
+**클래스만 있고 아직 알리지 않는 이벤트.** `BlockCanBuildEvent`·`BlockDamageEvent`·`BlockDispenseEvent`·`BlockExpEvent`·`NotePlayEvent`·`SignChangeEvent`·`EntityChangeBlockEvent`·`PlayerCommandSendEvent`·`WorldInitEvent`. 리스너 클래스 하나에 이 이벤트 처리기가 섞여 있어도 나머지 처리기는 등록되도록 클래스를 두었다(Bukkit 은 리스너 클래스의 모든 처리기 서명을 한꺼번에 읽어서, 클래스 하나가 없으면 리스너 전체가 빠진다). 처리기를 달면 플러그인·이벤트마다 한 번 "이 이벤트는 아직 알리지 않는다" 경고를 남긴다(`EventBridge.isKnownButNotFired`).
 
 플러그인이 만든 자기 이벤트는 `PluginManager#callEvent` 로 그대로 돈다(Furnace 이벤트와 이어지지 않는 순수 Bukkit 이벤트).
 
