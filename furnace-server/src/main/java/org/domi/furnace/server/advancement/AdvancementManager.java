@@ -39,6 +39,78 @@ public final class AdvancementManager {
 
     byte[] encoded(ResourceId id) { return encoded.get(id); }
 
+    /** 대기 조건 하나: 플레이어 표의 키(Listener)와 그 기준. */
+    record IndexEntry(PlayerAdvancements.Listener listener, Criterion criterion) {}
+
+    /**
+     * inventory_changed 색인(매니저 단위 불변 표): 바뀐 칸의 아이템 → 그 아이템일 때만 맞을 수 있는 기준들.
+     * 아이템 id 로 제한한 기준은 id 별, 태그로 제한한 기준은 태그 이름별로 두고 태그는 쓰는 레지스트리(LootRegistries)로
+     * 처음 쓸 때 풀어 둔다(레지스트리 객체가 바뀌면 다시 푼다). 아이템으로 거를 수 없는 나머지는 general.
+     * 매니저가 새로 만들어지면(/reload) 색인도 새로 만든다.
+     */
+    static final class TriggerIndex {
+        private final Map<String, List<IndexEntry>> byItem;
+        private final Map<String, List<IndexEntry>> byTag;
+        private final List<IndexEntry> general;
+        private volatile Resolved resolved;
+
+        private record Resolved(LootRegistries regs, Map<String, List<IndexEntry>> byItem) {}
+
+        TriggerIndex(Map<String, List<IndexEntry>> byItem, Map<String, List<IndexEntry>> byTag, List<IndexEntry> general) {
+            this.byItem = byItem;
+            this.byTag = byTag;
+            this.general = general;
+        }
+
+        List<IndexEntry> general() { return general; }
+
+        /** 그 아이템이 바뀔 때 맞을 수 있는 기준들(순서 없음). 없으면 null. */
+        List<IndexEntry> candidates(String item, LootRegistries regs) {
+            Resolved r = resolved;
+            if (r == null || r.regs != regs) resolved = r = resolve(regs);
+            return r.byItem.get(item);
+        }
+
+        private Resolved resolve(LootRegistries regs) {
+            Map<String, List<IndexEntry>> all = new HashMap<>();
+            for (var e : byItem.entrySet()) all.put(e.getKey(), new ArrayList<>(e.getValue()));
+            for (var t : byTag.entrySet()) {
+                for (String member : regs.tag("minecraft:item", t.getKey())) all.computeIfAbsent(member, k -> new ArrayList<>()).addAll(t.getValue());
+            }
+            return new Resolved(regs, all);
+        }
+    }
+
+    private volatile TriggerIndex inventoryIndex;
+
+    TriggerIndex inventoryIndex() {
+        TriggerIndex idx = inventoryIndex;
+        if (idx == null) {
+            synchronized (this) {
+                idx = inventoryIndex;
+                if (idx == null) inventoryIndex = idx = buildInventoryIndex();
+            }
+        }
+        return idx;
+    }
+
+    private TriggerIndex buildInventoryIndex() {
+        Map<String, List<IndexEntry>> byItem = new HashMap<>(), byTag = new HashMap<>();
+        List<IndexEntry> general = new ArrayList<>();
+        for (Advancement a : advancements.values()) {
+            for (var e : a.criteria().entrySet()) {
+                Criterion c = e.getValue();
+                if (!c.trigger().equals("minecraft:inventory_changed")) continue;
+                IndexEntry entry = new IndexEntry(new PlayerAdvancements.Listener(a.id(), e.getKey()), c);
+                Criterion.InventoryKey key = c.inventoryKey();
+                if (key == null) general.add(entry);
+                else if (key.tag() != null) byTag.computeIfAbsent(key.tag(), k -> new ArrayList<>()).add(entry);
+                else for (String item : key.items()) byItem.computeIfAbsent(item, k -> new ArrayList<>()).add(entry);
+            }
+        }
+        return new TriggerIndex(byItem, byTag, List.copyOf(general));
+    }
+
     public static AdvancementManager load(ResourceManager rm, LootRegistries regs, org.domi.furnace.server.loot.NetworkComponents items) {
         Map<ResourceId, JsonElement> prepared = new HashMap<>();
         String prefix = "advancement/";

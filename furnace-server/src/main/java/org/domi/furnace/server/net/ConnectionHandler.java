@@ -1562,14 +1562,28 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void fireInventoryChanged(int windowSlot) {
         Player p = player;
         var adv = p == null ? null : p.advancements();
-        if (adv == null || windowSlot < 5 || windowSlot > 45) return;
+        if (adv == null || windowSlot < 5 || windowSlot > 45 || !adv.hasListeners("minecraft:inventory_changed")) return;
         ItemStack[] now = this.inv.snapshot();
-        org.domi.furnace.server.loot.LootStack[] inv = new org.domi.furnace.server.loot.LootStack[41];
-        for (int i = 0; i < inv.length; i++) inv[i] = lootStack(now[inventoryToWindowSlot(i)]);
-        adv.trigger("minecraft:inventory_changed",
-                new org.domi.furnace.server.advancement.Criterion.InventoryEvent(inv, lootStack(now[windowSlot])));
+        ItemStack changed = now[windowSlot];
+        // 스택 변환(깊은 복사)은 후보 기준이 필요로 할 때만(Criterion.InventoryEvent 가 미룬다). 스냅숏의 스택은 바뀌지 않는다.
+        adv.trigger("minecraft:inventory_changed", new org.domi.furnace.server.advancement.Criterion.InventoryEvent(
+                lootItemName(changed), () -> lootStack(changed), () -> {
+                    org.domi.furnace.server.loot.LootStack[] all = new org.domi.furnace.server.loot.LootStack[41];
+                    for (int i = 0; i < all.length; i++) all[i] = lootStack(now[inventoryToWindowSlot(i)]);
+                    return all;
+                }, () -> {
+                    int oc = 0;
+                    for (int i = 0; i < 41; i++) if (lootItemName(now[inventoryToWindowSlot(i)]) != null) oc++;
+                    return oc;
+                }));
     }
 
+    /** lootStack 가 비지 않은 스택을 돌려줄 때의 아이템 이름, 아니면 null. */
+    private String lootItemName(ItemStack s) {
+        var items = world.itemRegistry();
+        if (s == null || s.isEmpty() || items == null) return null;
+        return items.nameOf(s.itemId());
+    }
 
     /** 탭 목록 항목(바닐라 ClientboundPlayerInfoUpdatePacket.createPlayerInitializing 의 한 줄). */
     private static org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry tabEntry(Player b) {

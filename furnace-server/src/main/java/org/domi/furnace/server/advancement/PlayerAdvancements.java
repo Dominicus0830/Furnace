@@ -68,7 +68,7 @@ public final class PlayerAdvancements {
         default void runFunction(String function) {}
     }
 
-    private record Listener(ResourceId advancement, String criterion) {}
+    record Listener(ResourceId advancement, String criterion) {}
 
     private final Path file;
     private final Host host;
@@ -294,23 +294,50 @@ public final class PlayerAdvancements {
         synchronized (this) {
             LinkedHashSet<Listener> set = listeners.get(trigger);
             if (set == null || set.isEmpty()) return;
-            LootContext ctx = null;
-            hits = new ArrayList<>();
-            for (Listener l : set) {
-                Advancement a = manager.get(l.advancement);
-                Criterion c = a == null ? null : a.criteria().get(l.criterion);
-                if (c == null || !c.matcher().test(event, host.registries())) continue;
-                if (!c.player().isEmpty()) {
-                    if (ctx == null) ctx = host.playerContext();
-                    if (!org.domi.furnace.server.loot.LootCondition.allOf(c.player(), ctx)) continue;
+            if (event instanceof Criterion.InventoryEvent ie && trigger.equals("minecraft:inventory_changed")) {
+                hits = inventoryHits(set, ie);
+            } else {
+                LootContext[] ctx = new LootContext[1];
+                hits = new ArrayList<>();
+                for (Listener l : set) {
+                    Advancement a = manager.get(l.advancement);
+                    Criterion c = a == null ? null : a.criteria().get(l.criterion);
+                    if (c != null && accepts(c, event, ctx)) hits.add(l);
                 }
-                hits.add(l);
             }
         }
         for (Listener l : hits) {
             Advancement a = manager.get(l.advancement);
             if (a != null) award(a, l.criterion);
         }
+    }
+
+    /** 사건과 맞고 player 조건도 맞나(플레이어 문맥은 처음 필요할 때 한 번만 만든다). */
+    private boolean accepts(Criterion c, Object event, LootContext[] ctx) {
+        if (!c.matcher().test(event, host.registries())) return false;
+        if (c.player().isEmpty()) return true;
+        if (ctx[0] == null) ctx[0] = host.playerContext();
+        return org.domi.furnace.server.loot.LootCondition.allOf(c.player(), ctx[0]);
+    }
+
+    /**
+     * inventory_changed: 바뀐 칸의 아이템 id 색인으로 후보만 판정한다(나머지 기준은 그 아이템에는 맞을 수 없다).
+     * 결과 순서는 전부 훑을 때와 같게(대기 표 순서) 맞춘다 — 맞은 것이 둘 이상일 때만 표를 한 번 훑는다.
+     */
+    private List<Listener> inventoryHits(LinkedHashSet<Listener> set, Criterion.InventoryEvent ev) {
+        AdvancementManager.TriggerIndex idx = manager.inventoryIndex();
+        LootContext[] ctx = new LootContext[1];
+        List<Listener> hits = new ArrayList<>();
+        String item = ev.changedItem();
+        List<AdvancementManager.IndexEntry> byItem = item == null ? null : idx.candidates(item, host.registries());
+        if (byItem != null) for (var e : byItem) if (set.contains(e.listener()) && accepts(e.criterion(), ev, ctx)) hits.add(e.listener());
+        for (var e : idx.general()) if (set.contains(e.listener()) && accepts(e.criterion(), ev, ctx)) hits.add(e.listener());
+        if (hits.size() > 1) {
+            Set<Listener> want = new HashSet<>(hits);
+            hits.clear();
+            for (Listener l : set) if (want.contains(l)) hits.add(l);
+        }
+        return hits;
     }
 
     /** 그 트리거를 기다리는 조건이 하나라도 있나(사건 만들기 비용을 아끼는 용도). */
