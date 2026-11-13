@@ -139,6 +139,8 @@ public abstract class LightEngine {
         }
     }
 
+    void forEachCheck(java.util.function.LongConsumer c) { checks.forEach(c); }
+
     public boolean hasWork() { return !checks.isEmpty() || !increase.isEmpty() || !decrease.isEmpty(); }
 
     /** runLightUpdates: 검사 → 감소 전파 → 증가 전파. */
@@ -298,6 +300,11 @@ public abstract class LightEngine {
                 t[i] = k;
             }
             table = t;
+        }
+
+        /** 넣은 순서대로 본다(비우지 않는다). */
+        void forEach(java.util.function.LongConsumer c) {
+            for (int n = 0; n < size; n++) c.accept(order[n]);
         }
 
         /** 넣은 순서대로 꺼내고 비운다. 큰 표는 줄여 둔다. */

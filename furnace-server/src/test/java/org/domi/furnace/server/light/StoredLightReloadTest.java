@@ -21,13 +21,18 @@ class StoredLightReloadTest {
     private static final int GLOW = LightSceneIdentityTest.REG.defaultStateId("minecraft:glowstone");
     private static final int AIR = LightSceneIdentityTest.REG.defaultStateId("minecraft:air");
 
+    /** Region.tick 의 빛 자리(끄면 그 자리 계산, 빛 작업 모드면 묶음을 넘기고 기다려 게시) → 방송. */
     private static void settle(FlatLevel lv) {
-        lv.runLightUpdates();
+        lv.lightTickEnd();
+        lv.awaitLightIdle();
         lv.broadcastChanges();
     }
 
-    private static FlatLevel loaded(int minX, int maxX, int minZ, int maxZ) {
+    private static FlatLevel loaded(int minX, int maxX, int minZ, int maxZ) { return loaded(minX, maxX, minZ, maxZ, null); }
+
+    private static FlatLevel loaded(int minX, int maxX, int minZ, int maxZ, java.util.concurrent.Executor lightExec) {
         FlatLevel lv = new FlatLevel();
+        lv.lightExec = lightExec;
         for (int x = minX; x <= maxX; x++) for (int z = minZ; z <= maxZ; z++) lv.load(x, z);
         settle(lv);
         lv.saveAll();
@@ -36,9 +41,23 @@ class StoredLightReloadTest {
 
     private static ChunkColumn col(FlatLevel lv, int x, int z) { return lv.loaded.get(FlatLevel.key(x, z)); }
 
+    private static ChunkColumn read(FlatLevel lv, int x, int z) {
+        try {
+            return lv.codec.fromNbt(NbtIo.read(lv.disk.get(FlatLevel.key(x, z))));
+        } catch (java.io.IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     @Test
-    void neighbourLightChange_marksChunkDirty() {
-        FlatLevel lv = loaded(-1, 2, -1, 1);
+    void neighbourLightChange_marksChunkDirty() { neighbourLightChange_marksChunkDirty(null); }
+
+    /** 빛 작업 모드(T-064): 빛 스레드가 바꾼 빛도 게시 때 저장 대상으로. */
+    @Test
+    void neighbourLightChange_marksChunkDirty_asyncLight() { withLightThread(this::neighbourLightChange_marksChunkDirty); }
+
+    private void neighbourLightChange_marksChunkDirty(java.util.concurrent.Executor exec) {
+        FlatLevel lv = loaded(-1, 2, -1, 1, exec);
         assertFalse(col(lv, 1, 0).dirty());
         LightSceneIdentityTest.put(lv, 15, 0, 8, GLOW);   // (0,0) 동쪽 끝 → (1,0) 로 번진다
         settle(lv);
@@ -49,11 +68,28 @@ class StoredLightReloadTest {
 
     @Test
     void decreaseIntoUnloadedChunk_marksItAndNearDiagonals_thenReloadRecomputes() throws Exception {
-        FlatLevel lv = loaded(-1, 2, -1, 1);
+        decreaseIntoUnloadedChunk(null);
+    }
+
+    /** 빛 작업 모드(T-064): 빛 스레드에서 막힌 감소도 게시 때 표시. */
+    @Test
+    void decreaseIntoUnloadedChunk_asyncLight() { withLightThread(this::decreaseIntoUnloadedChunk); }
+
+    private static void withLightThread(java.util.function.Consumer<java.util.concurrent.Executor> body) {
+        var exec = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            body.accept(exec);
+        } finally {
+            exec.shutdownNow();
+        }
+    }
+
+    private void decreaseIntoUnloadedChunk(java.util.concurrent.Executor exec) {
+        FlatLevel lv = loaded(-1, 2, -1, 1, exec);
         LightSceneIdentityTest.put(lv, 15, 0, 8, GLOW);
         settle(lv);
         lv.saveAll();                                     // (1,0)·(1,1) 은 번진 빛을 담아 저장
-        assertEquals(14, lv.codec.fromNbt(NbtIo.read(lv.disk.get(FlatLevel.key(1, 0)))).light().blockAt(16, 0, 8));
+        assertEquals(14, read(lv, 1, 0).light().blockAt(16, 0, 8));
         lv.unload(1, 0);
         lv.unload(1, 1);
         lv.unload(2, 0);

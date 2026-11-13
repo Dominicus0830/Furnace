@@ -22,18 +22,53 @@ public final class ChunkLight {
         Arrays.fill(FULL, (byte) 0xFF);
     }
 
-    private final byte[][] sky = new byte[SECTIONS][];
-    private final byte[][] block = new byte[SECTIONS][];
+    private final byte[][] sky;
+    private final byte[][] block;
     /** 열(x + z*16)마다 가장 낮은 하늘빛 원천 y(그 y 이상은 모두 원천). */
-    public final int[] lowestSource = new int[256];
+    public final int[] lowestSource;
     /** setLightEnabled — 켜진 청크만 빛이 있다. */
     public boolean lightEnabled;
 
+    /**
+     * 빛 작업용 쓰기 사본(T-064)이면 그 원본(보이는 쪽), 아니면 null. 사본의 층은 처음엔 원본 배열을 그대로 가리키고, 처음 쓸 때 복사한다
+     * (바닐라 DataLayerStorageMap.copyDataLayer). 원본은 빛 작업이 도는 동안 아무도 고치지 않는다 — 게시 때 region 스레드가 바꿔 끼운다.
+     */
+    private final ChunkLight base;
+    private long ownSky, ownBlock;   // 사본이 바꿔 가진 층(비트 = 층 번호) — 복사했거나 FULL 로 바꿔 끼운 층
+
     public ChunkLight() {
+        sky = new byte[SECTIONS][];
+        block = new byte[SECTIONS][];
+        lowestSource = new int[256];
+        base = null;
         Arrays.fill(sky, ZERO);
         Arrays.fill(block, ZERO);
         Arrays.fill(lowestSource, NO_BLOCKER);
     }
+
+    private ChunkLight(ChunkLight base) {
+        this.base = base;
+        this.sky = base.sky.clone();
+        this.block = base.block.clone();
+        this.lowestSource = base.lowestSource.clone();
+        this.lightEnabled = base.lightEnabled;
+    }
+
+    /** 빛 작업용 쓰기 사본: 층은 처음 쓸 때 복사하고, 원천 높이·켜짐은 사본이 따로 가진다. 원본을 가진 스레드에서 만든다. */
+    public static ChunkLight writeCopyOf(ChunkLight visible) { return new ChunkLight(visible); }
+
+    /** 쓰기 사본이 바꾼 것(바꾼 층·원천 높이·켜짐)을 원본에 넣는다 — 원본을 가진 스레드에서, 빛 작업이 끝난 뒤. */
+    public void publishTo(ChunkLight visible) {
+        for (int i = 0; i < SECTIONS; i++) {
+            if ((ownSky & 1L << i) != 0) visible.sky[i] = sky[i];
+            if ((ownBlock & 1L << i) != 0) visible.block[i] = block[i];
+        }
+        System.arraycopy(lowestSource, 0, visible.lowestSource, 0, 256);
+        visible.lightEnabled = lightEnabled;
+    }
+
+    /** 이 사본의 원본(쓰기 사본이 아니면 null). */
+    public ChunkLight base() { return base; }
 
     /**
      * 저장된 층으로 만든다(디스크 빛). null 이거나 길이가 2048 이 아닌 층은 0. 균일 층(모두 0·모두 15)은 공유 상수로 바꾸고, 나머지 배열은
@@ -78,25 +113,40 @@ public final class ChunkLight {
     /** 읽기용 블록빛 층(공유 상수일 수 있다 — 고치지 말 것). */
     public byte[] block(int section) { return block[section]; }
 
-    /** 쓸 하늘빛 층(공유면 이 청크 몫으로 복사). */
+    /**
+     * 쓸 하늘빛 층. 공유 상수면 이 청크 몫으로 복사한다. 쓰기 사본(T-064)이면 아직 바꿔 가진 층이 아닐 때도 복사한다 — 원본 층은 보이는 쪽이
+     * 읽고 있으므로 고치지 않는다.
+     */
     public byte[] writableSky(int section) {
         byte[] l = sky[section];
-        if (isShared(l)) sky[section] = l = l.clone();
+        long bit = 1L << section;
+        if (isShared(l) || base != null && (ownSky & bit) == 0) {
+            sky[section] = l = l.clone();
+            ownSky |= bit;
+        }
         return l;
     }
 
-    /** 쓸 블록빛 층(공유면 이 청크 몫으로 복사). */
+    /** 쓸 블록빛 층({@link #writableSky} 와 같은 규칙). */
     public byte[] writableBlock(int section) {
         byte[] l = block[section];
-        if (isShared(l)) block[section] = l = l.clone();
+        long bit = 1L << section;
+        if (isShared(l) || base != null && (ownBlock & bit) == 0) {
+            block[section] = l = l.clone();
+            ownBlock |= bit;
+        }
         return l;
     }
 
-    /** 하늘빛 층 전체를 15 로(SkyLightEngine 의 Arrays.fill 0xFF). */
-    public void fillSkyFull(int section) { sky[section] = FULL; }
+    /** 하늘빛 층 전체를 15 로(SkyLightEngine 의 Arrays.fill 0xFF) — 공유 FULL 로 바꿔 끼운다(쓰기 사본이면 게시 때 원본에도). */
+    public void fillSkyFull(int section) {
+        sky[section] = FULL;
+        ownSky |= 1L << section;
+    }
 
     /** 균일해진 층을 공유 상수로 되돌린다(내용은 그대로). 생성 풀의 미리 계산 끝에 부른다. */
     public void compact() {
+        assert base == null : "쓰기 사본은 되돌리지 않는다(게시할 층 표시를 잃는다)";
         for (int i = 0; i < SECTIONS; i++) {
             byte[] s = uniform(sky[i]), b = uniform(block[i]);
             if (s != null) sky[i] = s;

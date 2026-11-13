@@ -86,7 +86,16 @@ class LightSceneIdentityTest {
             client.put(key(cx, cz), c);
         }
 
-        @Override protected LevelServices services() { return LevelServices.DEFAULT; }
+        /** 빛 작업 모드(T-064 light.async)로 돌릴 빛 스레드 — null 이면 끈 것(기본). */
+        java.util.concurrent.Executor lightExec;
+
+        @Override protected LevelServices services() {
+            var exec = lightExec;
+            if (exec == null) return LevelServices.DEFAULT;
+            return new LevelServices.Delegating(LevelServices.DEFAULT) {
+                @Override public java.util.concurrent.Executor lightExecutor() { return exec; }
+            };
+        }
 
         /** 저장 빛을 믿지 않을 청크 표시(시험에서 들여다보기). */
         org.domi.furnace.server.world.LightStaleChunks stale() { return lightStale(); }
@@ -269,7 +278,8 @@ class LightSceneIdentityTest {
      * 섹션을 다시 보내는 중복 갱신은 보이지 않고, 빠뜨린 갱신(서버 빛과 클라이언트 빛이 갈림)은 잡힌다.
      */
     static IdentityHash flush(SceneLevel lv) {
-        lv.runLightUpdates();
+        lv.lightTickEnd();     // Region.tick 의 빛 자리(끄면 runLightUpdates, 켜면 빛 스레드에 묶음을 넘김)
+        lv.awaitLightIdle();   // 다음 틱 시작의 pollLight 가 끝난 묶음을 건다 — 여기서는 기다려 건다
         lv.broadcastChanges();
         IdentityHash h = new IdentityHash();
         h.add(lv.client.size());
@@ -280,8 +290,11 @@ class LightSceneIdentityTest {
         return h;
     }
 
-    static void scene(SceneHash.Recorder rec, long seed) {
+    static void scene(SceneHash.Recorder rec, long seed) { scene(rec, seed, null); }
+
+    static void scene(SceneHash.Recorder rec, long seed, java.util.concurrent.Executor lightExec) {
         SceneLevel lv = new SceneLevel(seed);
+        lv.lightExec = lightExec;
         int[] pal = palette();
         Random r = new Random(seed);
         int glow = REG.defaultStateId("minecraft:glowstone"), stone = REG.defaultStateId("minecraft:stone"), air = REG.defaultStateId("minecraft:air");
@@ -391,5 +404,23 @@ class LightSceneIdentityTest {
             scene(rec, 1);
             scene(rec, 2);
         });
+    }
+
+    /** 빛 작업 모드(T-064 light.async 켬)에서도 같은 금 파일 — 빛 스레드 계산·게시가 결과를 바꾸지 않는다. */
+    @Test
+    void lightBatchScene_asyncLight() {
+        var exec = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "scene-light");
+            t.setDaemon(true);
+            return t;
+        });
+        try {
+            SceneHash.assertGolden("light-batch-scene", rec -> {
+                scene(rec, 1, exec);
+                scene(rec, 2, exec);
+            });
+        } finally {
+            exec.shutdownNow();
+        }
     }
 }

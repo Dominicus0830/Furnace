@@ -1088,6 +1088,7 @@ public final class Regionizer {
             return;
         }
         parts.sort((a, b) -> Integer.compare(b.size(), a.size()));   // 가장 큰 성분은 원래 region 이 갖는다
+        r.settleLightBeforeSplit();   // 빛 작업 모드: 주인을 바꾸기 전에 밀린 빛을 끝낸다(끄면 아무것도 안 함)
         Map<Long, Region> target = new HashMap<>();
         List<Region> created = new ArrayList<>();
         for (int i = 1; i < parts.size(); i++) {
