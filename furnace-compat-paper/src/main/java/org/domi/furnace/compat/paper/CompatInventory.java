@@ -84,73 +84,85 @@ public class CompatInventory implements Inventory {
      */
     private final class Mirror implements ItemSlot {
         private final int index;
+        private final Epoch epoch;
         private volatile ItemSlot detached;
 
-        Mirror(int index) { this.index = index; }
+        Mirror(int index, Epoch epoch) {
+            this.index = index;
+            this.epoch = epoch;
+        }
+
+        /** 떨어져 나갔으면 그 거울만의 사본(처음 쓸 때 세대의 값으로 만든다), 아니면 null. */
+        private ItemSlot detachedSlot() {
+            ItemSlot d = detached;
+            if (d != null) return d;
+            org.domi.furnace.api.item.ItemStack snapshot = epoch.get();
+            if (snapshot == null) return null;
+            synchronized (this) {
+                if (detached == null) detached = new PlainSlot(snapshot, snapshot.amount());
+                return detached;
+            }
+        }
 
         @Override
         public org.domi.furnace.api.item.ItemStack get() {
-            ItemSlot d = detached;
+            ItemSlot d = detachedSlot();
             return d != null ? d.get() : readSlot(index);
         }
 
         @Override
         public void set(org.domi.furnace.api.item.ItemStack stack) {
-            ItemSlot d = detached;
+            ItemSlot d = detachedSlot();
             if (d != null) d.set(stack);
             else writeSlot(index, stack, "ItemStack(Inventory slot " + index + ") 쓰기");
         }
 
         @Override
         public int amount() {
-            ItemSlot d = detached;
+            ItemSlot d = detachedSlot();
             return d != null ? d.amount() : get().amount();
         }
 
         @Override
         public void setAmount(int n) {
-            ItemSlot d = detached;
+            ItemSlot d = detachedSlot();
             if (d != null) d.setAmount(n);
             else set(get().withAmount(n));
         }
     }
 
-    /** 칸 번호 → 살아 있는(아직 떨어져 나가지 않은) 거울들. 약한 참조라 버려진 스택은 남지 않는다. */
-    private final java.util.Map<Integer, List<java.lang.ref.WeakReference<Mirror>>> liveMirrors = new HashMap<>();
+    /**
+     * 칸 하나의 "세대": 그 칸을 비추는 거울들이 함께 들고 있다. 값이 비어 있으면 거울들은 살아 있고,
+     * {@link #detachMirrors} 가 그 순간의 값을 넣으면 그 세대의 모든 거울이 한꺼번에 떨어져 나간다(거울마다 자기 사본을 갖는다).
+     * 거울 목록을 따로 들고 있지 않으므로 거울을 만드는 데 드는 일이 칸을 읽은 횟수와 무관하다(약한 참조 목록 폭주 제거, T-070).
+     */
+    private static final class Epoch extends java.util.concurrent.atomic.AtomicReference<org.domi.furnace.api.item.ItemStack> {}
+
+    /** 칸 번호 → 지금 세대(거울이 한 번도 안 만들어졌거나 떼어 낸 직후면 없다). */
+    private final java.util.concurrent.ConcurrentHashMap<Integer, Epoch> epochs = new java.util.concurrent.ConcurrentHashMap<>();
 
     final ItemSlot mirror(int index) {
-        Mirror m = new Mirror(index);
-        synchronized (liveMirrors) {
-            List<java.lang.ref.WeakReference<Mirror>> refs = liveMirrors.computeIfAbsent(index, k -> new java.util.ArrayList<>(2));
-            refs.removeIf(r -> r.get() == null);
-            refs.add(new java.lang.ref.WeakReference<>(m));
+        while (true) {
+            Epoch e = epochs.get(index);
+            if (e == null) e = epochs.computeIfAbsent(index, k -> new Epoch());
+            if (e.get() == null) return new Mirror(index, e);
+            epochs.remove(index, e); // 막 떨어져 나간 세대 — 치우고 새 세대로
         }
-        return m;
     }
 
     /** 거울을 거치지 않는 칸 쓰기 직전에 부른다: 그 칸의 거울을 지금 값의 평범한 사본으로 떼어 낸다. */
     private void detachMirrors(int index) {
-        List<Mirror> mirrors = new java.util.ArrayList<>(2);
-        synchronized (liveMirrors) {
-            List<java.lang.ref.WeakReference<Mirror>> refs = liveMirrors.remove(index);
-            if (refs == null) return;
-            for (var r : refs) {
-                Mirror m = r.get();
-                if (m != null) mirrors.add(m);
-            }
-        }
-        if (mirrors.isEmpty()) return;
+        Epoch e = epochs.get(index);
+        if (e == null) return;
         org.domi.furnace.api.item.ItemStack now;
         try {
             now = readSlot(index);
-        } catch (RuntimeException e) {
+        } catch (RuntimeException ex) {
             // 소유 스레드가 아니라 읽을 수 없다 — 그 거울도 읽을 때마다 같은 예외를 던지므로 떼어 낼 값이 없다
-            synchronized (liveMirrors) {
-                liveMirrors.computeIfAbsent(index, k -> new java.util.ArrayList<>(2)).addAll(mirrors.stream().map(java.lang.ref.WeakReference::new).toList());
-            }
             return;
         }
-        for (Mirror m : mirrors) m.detached = new PlainSlot(now, now.amount());
+        e.compareAndSet(null, now);
+        epochs.remove(index, e);
     }
 
     private void check(int index) {
