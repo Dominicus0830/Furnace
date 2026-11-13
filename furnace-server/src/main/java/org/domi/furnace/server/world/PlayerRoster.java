@@ -34,7 +34,7 @@ public final class PlayerRoster {
     public static final int GRID_MIN_PLAYERS = Integer.getInteger("furnace.playerGridMin", 16);
 
     final ConcurrentHashMap<Integer, Player> map = new ConcurrentHashMap<>();
-    /** 서버 전체 접속자 복사본(접속·퇴장 때만 새로 만든다). */
+    /** 서버 전체 접속자, 바닐라 PlayerList.players 순서(접속 순, 리스폰 때 끝으로). 접속·퇴장·리스폰 때만 새로 만든다. */
     volatile Player[] array = new Player[0];
     private final HashMap<String, Level> levels = new HashMap<>();   // map 모니터 아래
 
@@ -46,13 +46,16 @@ public final class PlayerRoster {
     }
 
     /** 접속 등록(멱등 — 이미 있으면 차원 목록은 건드리지 않는다). 처음이면 그 차원 목록 끝에 붙는다(onTrackingStart). */
-    /** World 전용. */
+    /** World 전용. 처음이면 서버 전체 목록 끝(PlayerList.placeNewPlayer)과 그 차원 목록 끝(onTrackingStart)에 붙는다. 이미 있으면 그대로. */
     public void put(Player p) {
         synchronized (map) {
             Player old = map.put(p.entityId(), p);
-            array = map.values().toArray(new Player[0]);
             if (old != p) {
-                if (old != null) detach(old);
+                if (old != null) {
+                    array = without(array, old);
+                    detach(old);
+                }
+                array = append(array, p);
                 attach(p);
             }
             Player.bumpRoster();
@@ -63,10 +66,31 @@ public final class PlayerRoster {
     public void remove(int eid) {
         synchronized (map) {
             Player old = map.remove(eid);
-            array = map.values().toArray(new Player[0]);
-            if (old != null) detach(old);
+            if (old != null) {
+                array = without(array, old);
+                detach(old);
+            }
             Player.bumpRoster();
         }
+    }
+
+    /** 서버 전체 접속자(바닐라 PlayerList.players 순서 — 접속 순, 리스폰 때 끝으로). 고칠 수 없는 그때의 사본. */
+    public java.util.List<Player> onlineInOrder() { return java.util.Collections.unmodifiableList(Arrays.asList(array)); }
+
+    private static Player[] append(Player[] cur, Player p) {
+        Player[] next = Arrays.copyOf(cur, cur.length + 1);
+        next[cur.length] = p;
+        return next;
+    }
+
+    private static Player[] without(Player[] cur, Player p) {
+        int i = 0;
+        while (i < cur.length && cur[i] != p) i++;
+        if (i == cur.length) return cur;
+        Player[] next = new Player[cur.length - 1];
+        System.arraycopy(cur, 0, next, 0, i);
+        System.arraycopy(cur, i + 1, next, i, cur.length - i - 1);
+        return next;
     }
 
     /** {@code p.dimension()} 가 바뀌었다: 옛 차원 목록에서 빼고 새 차원 목록 끝에 붙인다(removePlayerImmediately → addDuringTeleport). */
@@ -79,10 +103,14 @@ public final class PlayerRoster {
         }
     }
 
-    /** 리스폰(PlayerList.respawn): 지금 차원 목록에서 빼고 끝에 다시 붙인다 — 같은 차원이어도 순서가 끝으로 간다. */
+    /**
+     * 리스폰(PlayerList.respawn): 서버 전체 목록과 지금 차원 목록에서 빼고 끝에 다시 붙인다 — 같은 차원이어도 순서가 끝으로 간다
+     * (바닐라 players.remove(옛) → players.add(새), removePlayerImmediately → addRespawnedPlayer).
+     */
     public void relist(Player p) {
         synchronized (map) {
             if (map.get(p.entityId()) != p) return;
+            array = append(without(array, p), p);
             detach(p);
             attach(p);
         }
@@ -93,24 +121,15 @@ public final class PlayerRoster {
         p.rosterLevel(l);
         p.gridCell = Snapshot.EMPTY_KEY;   // 먼저 "모름" — 이 사이 위치를 쓴 스레드는 moved 에서 잠금 쪽으로 온다
         p.gridCell = Level.cellOf(p.x(), p.z());
-        Player[] cur = l.snap.players;
-        Player[] next = Arrays.copyOf(cur, cur.length + 1);
-        next[cur.length] = p;
-        l.publish(next);
+        l.publish(append(l.snap.players, p));
     }
 
     private void detach(Player p) {
         Level l = p.rosterLevel();
         if (l == null) return;
         p.rosterLevel(null);
-        Player[] cur = l.snap.players;
-        int i = 0;
-        while (i < cur.length && cur[i] != p) i++;
-        if (i == cur.length) return;
-        Player[] next = new Player[cur.length - 1];
-        System.arraycopy(cur, 0, next, 0, i);
-        System.arraycopy(cur, i + 1, next, i, cur.length - i - 1);
-        l.publish(next);
+        Player[] cur = l.snap.players, next = without(cur, p);
+        if (next != cur) l.publish(next);
     }
 
     /** 한 차원의 플레이어 목록(도착 순) + 청크 격자 색인. */

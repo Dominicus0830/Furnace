@@ -13,8 +13,11 @@
   차원 인원 16명 미만은 격자 없이 목록 그대로(`-Dfurnace.playerGridMin`, 검토 R2: 30명에서 격자 −25%). 볼 칸 수가 플레이어 있는 칸 수보다 많으면(몰린 서버의 넓은 조회) 그 조회도 목록 그대로 — 몰림 24명에서 격자와 목록이 같은 값, 40명 +10%, 100명 −25%.
 - `hasNearbyAlivePlayer` 음수 거리를 바닐라대로 고침(검토 R1): 바닐라 `EntityGetter.hasNearbyAlivePlayer` 는 `range < 0.0 || d < range²` — 음수면 거리 무관 참
   (스포너 `RequiredPlayerRange` 음수 = 늘 켜짐). 옛 코드는 `d < range²` 라 음수도 |range| 안만 봤다. 차분 시험의 오라클은 이 경우만 바닐라 규칙으로 비교한다.
+- 서버 전체 순서(O13 판정 C5, 코디네이터 요청으로 같은 PR): `World.onlinePlayers()`(→ 플러그인 `onlinePlayers`, Bukkit `getOnlinePlayers`)가 eid 해시 순
+  (`ConcurrentHashMap.values()`)이었다. 이제 바닐라 `PlayerList.players`·Paper `playerView` 순서 — 접속 때 끝에, 퇴장 때 빠짐, 리스폰(`PlayerList.respawn` = remove → add)
+  때 끝으로, 차원 이동은 그대로. 돌려주는 것은 고칠 수 없는 그때의 사본이다(옛 `map.values()` 는 살아 있는 보기였다 — Bukkit 쪽 `OnlineView` 는 부를 때마다 다시 받으므로 그대로 산 보기).
 - 결과 동일 증명: `PlayerRosterIdentityTest`(IdentityKit Differential, 400 각본, 1/5 은 60~220명 — 접속·걸음·순간이동·탑승 위치·차원 이동·리스폰·퇴장·재접속·조회 5종 섞음)가
-  "바닐라 목록 규칙 + 옛 조회 사본(`identity/legacy/players/LegacyPlayerQueries`, since c470effbd)" 과 목록 순서·고른 플레이어·상자 안 순서를 줄마다 비교. 각 단계에서 목록 집합 = 옛 정의도 확인.
+  "바닐라 목록 규칙 + 옛 조회 사본(`identity/legacy/players/LegacyPlayerQueries`, since c470effbd)" 과 차원별·서버 전체 목록 순서·고른 플레이어·상자 안 순서를 줄마다 비교. 각 단계에서 목록 집합 = 옛 정의도 확인.
   변이 점검: 옛 eid 순서, 2단계 반경 조건 빼기, 다중 칸 정렬 빼기, 위치 갱신 빼기 — 넷 다 잡힌다.
 - 측정(`PlayerScanBench`, 4코어, 몹 3000, 접속 100(오버월드 75), 몹마다 checkDespawn + 밀기 조회, 틱당): 옛 모양 1.9~2.3ms → 차원별 목록 1.4~1.6ms → 격자 0.54ms(몹이 플레이어 둘레, 실서버 꼴)
   / 0.78ms(모두 흩어짐) / 1.15ms(모두 ±150 몰림). 접속 20명(15명)은 격자를 안 써 차원별 목록 값(옛 대비 −25%).
@@ -23,7 +26,6 @@
   죽음 화면의 플레이어가 잠 비율·빈 차원 판정·`checkDespawn`(사라짐)·순찰·팬텀 스포너에 계속 잡힌다. 엔드 크레딧은 바닐라가 **즉시** 뺀다
   (`ServerPlayer.showEndCredits` → `removePlayerImmediately(CHANGED_DIMENSION)`, 20틱 기다림 없음) — Furnace 는 크레딧 중에도 엔드 목록에 남긴다. 고치려면 목록 소비자 42곳을
   "레벨 목록"(바닐라 `level.players()`)과 "같은 차원 접속자"(`PlayerList.broadcast` 꼴 — 소리·입자 방송은 죽은 플레이어도 받는다)로 나눠야 한다 → 결정 항목 `docs/user-todo/entries/2026-11-13-t016-player-roster.md`.
-  ② 서버 전체 순서(`PlayerList.players`, 탭 목록·`onlinePlayers()`)는 아직 eid 해시 순이다(바닐라는 접속 순, 리스폰 때 끝으로).
 - 경합(검토 R5): `Level.moved` 의 잠금 없는 빠른 길은 `Player.x/z`·`gridCell` volatile 에 기댄다(Dekker 꼴). `PlayerRosterRaceTest` — 두 스레드가 같은 플레이어
   위치를 동시에 써도 멈춘 뒤 칸이 맞고, 가만히 있는 플레이어는 다른 쓰기·리스폰·차원 이동·드나듦 중 어느 조회에서도 놓치지 않는다.
 - 쓰기 쪽 비용(검토 R3 실측): 칸을 넘는 위치 쓰기 1번 = 스냅샷 전체 재생성, 32명 0.56µs·100명 1.7µs·300명 7.0µs(같은 칸 쓰기 18~42ns).

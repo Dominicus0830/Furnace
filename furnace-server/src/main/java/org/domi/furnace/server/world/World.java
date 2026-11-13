@@ -1113,7 +1113,8 @@ public final class World {
         return pr;
     }
     /** 탭 목록 기준 접속자 뷰(읽기 전용 순회용). */
-    public java.util.Collection<Player> onlinePlayers() { return online.map.values(); }
+    /** 서버 전체 접속자(바닐라 PlayerList.players·Paper getOnlinePlayers 순서 — 접속 순, 리스폰 때 끝으로). 고칠 수 없는 그때의 사본. */
+    public java.util.List<Player> onlinePlayers() { return online.onlineInOrder(); }
     public Player onlinePlayer(int eid) { return online.map.get(eid); }
     public SpawnPoint defaultSpawn() { return defaultSpawn; }
 

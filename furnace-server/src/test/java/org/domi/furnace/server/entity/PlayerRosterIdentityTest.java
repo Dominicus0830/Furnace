@@ -112,6 +112,8 @@ class PlayerRosterIdentityTest {
         void changeDim(Player p, String d);
         void respawn(Player p);
         List<Player> list(String dim);
+        /** 서버 전체 접속자 순서(바닐라 PlayerList.players). */
+        List<Player> global();
         // 오버월드 레벨 조회
         Player nearest(double x, double y, double z, double dist, boolean ignoreCreative);
         Player nearestFrom(Cow from, double dist);
@@ -125,6 +127,7 @@ class PlayerRosterIdentityTest {
     static final class OracleSide implements Side {
         final Map<String, List<Player>> lists = new HashMap<>();
         final Set<Player> online = new HashSet<>();
+        final List<Player> global = new ArrayList<>();   // placeNewPlayer 끝에, 퇴장 때 빼고, 리스폰은 빼고 끝에
         final BlockPlacementTest.TestLevel level = new BlockPlacementTest.TestLevel();
         final boolean eidOrder;
 
@@ -133,11 +136,17 @@ class PlayerRosterIdentityTest {
         List<Player> l(String d) { return lists.computeIfAbsent(d, k -> new ArrayList<>()); }
 
         public void join(Player p) {
-            if (online.add(p)) l(p.dimension()).add(p);
+            if (online.add(p)) {
+                l(p.dimension()).add(p);
+                global.add(p);
+            }
         }
 
         public void leave(Player p) {
-            if (online.remove(p)) l(p.dimension()).remove(p);
+            if (online.remove(p)) {
+                l(p.dimension()).remove(p);
+                global.remove(p);
+            }
         }
 
         public void changeDim(Player p, String d) {
@@ -155,6 +164,14 @@ class PlayerRosterIdentityTest {
             if (!online.contains(p)) return;
             l(p.dimension()).remove(p);
             l(p.dimension()).add(p);
+            global.remove(p);
+            global.add(p);
+        }
+
+        public List<Player> global() {
+            List<Player> out = new ArrayList<>(global);
+            if (eidOrder) out.sort((a, b) -> Integer.compare(a.entityId(), b.entityId()));
+            return out;
         }
 
         public List<Player> list(String dim) {
@@ -230,6 +247,8 @@ class PlayerRosterIdentityTest {
 
         public List<Player> list(String dim) { return List.of(roster.level(dim).toArray()); }
 
+        public List<Player> global() { return roster.onlineInOrder(); }
+
         public Player nearest(double x, double y, double z, double dist, boolean ic) { return level.getNearestPlayer(x, y, z, dist, ic); }
         public Player nearestFrom(Cow from, double dist) { return level.getNearestPlayer(from, dist); }
         public boolean hasAlive(double x, double y, double z, double range) { return level.hasNearbyAlivePlayer(x, y, z, range); }
@@ -298,7 +317,7 @@ class PlayerRosterIdentityTest {
                     }
                 }
             }
-            if (kind <= 6) out.add("list " + ids(side.list(DIMS[0])) + " | " + ids(side.list(DIMS[1])));
+            if (kind <= 6) out.add("list " + ids(side.list(DIMS[0])) + " | " + ids(side.list(DIMS[1])) + " | 전체 " + ids(side.global()));
         }
         return out;
     }
@@ -374,12 +393,15 @@ class PlayerRosterIdentityTest {
         roster.put(a);
         roster.put(b);
         assertEquals(List.of(c, a, b), List.of(roster.level(DIMS[0]).toArray()), "접속 순");
+        assertEquals(List.of(c, a, b), roster.onlineInOrder(), "서버 전체도 접속 순");
         roster.relist(c);
         assertEquals(List.of(a, b, c), List.of(roster.level(DIMS[0]).toArray()), "리스폰은 끝으로");
+        assertEquals(List.of(a, b, c), roster.onlineInOrder(), "서버 전체도 리스폰은 끝으로(PlayerList.respawn)");
         a.dimension(DIMS[1]);
         assertEquals(List.of(b, c), List.of(roster.level(DIMS[0]).toArray()));
         a.dimension(DIMS[0]);
         assertEquals(List.of(b, c, a), List.of(roster.level(DIMS[0]).toArray()), "돌아오면 끝에");
+        assertEquals(List.of(a, b, c), roster.onlineInOrder(), "차원 이동은 서버 전체 순서를 안 바꾼다");
         roster.put(b);   // 멱등(Region.adopt) — 순서 그대로
         assertEquals(List.of(b, c, a), List.of(roster.level(DIMS[0]).toArray()));
         roster.remove(c.entityId());
