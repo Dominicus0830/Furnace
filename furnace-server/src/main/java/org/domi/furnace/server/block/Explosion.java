@@ -157,6 +157,9 @@ public final class Explosion {
 
     public float radius() { return radius; }
 
+    /** 블록 처리 방식 이름(KEEP·DESTROY·DESTROY_WITH_DECAY·TRIGGER_BLOCK) — 플러그인 BlockExplodeEvent 가 읽는다. */
+    public String interactionName() { return interaction.name(); }
+
     public boolean canTriggerBlocks() { return interaction == BlockInteraction.TRIGGER_BLOCK; }
 
     public List<Pos> toBlow() { return toBlow; }
