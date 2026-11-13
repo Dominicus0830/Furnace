@@ -16,6 +16,14 @@ public final class EntityStates {
 
     private EntityStates() {}
 
+    /**
+     * 이 스레드에서 상태 손잡이로 지금 값을 읽을 수 있는가 — 플레이어(손잡이 없음, 핸들이 곧 지금 값)와 소유 스레드가 아닌 곳은 false.
+     * 예외 없이 가려서, 이동·표시 플러그인이 틱마다 부르는 getLocation 류가 예외 비용을 물지 않게 한다.
+     */
+    public static boolean live(Entity handle) {
+        return !(handle instanceof org.domi.furnace.api.entity.Player) && handle.isOwnedByCurrentThread();
+    }
+
     /** 소유 스레드의 지금 상태(사라졌으면 empty). 상태 손잡이가 없는 엔티티(플레이어)는 UnsupportedFeature. */
     private static Optional<EntityState> now(Entity handle, String what) {
         try {
@@ -39,20 +47,28 @@ public final class EntityStates {
 
     /** 결과가 필요 없는 쓰기: 소유 스레드면 곧바로, 아니면 소유 스레드로 예약한다. 사라진 엔티티·다른 종류에는 아무 일도 하지 않는다(Paper 와 같이 조용히). */
     public static <S extends EntityState> void write(Entity handle, Class<S> kind, Consumer<? super S> op, String what) {
+        if (!(handle instanceof org.domi.furnace.api.entity.Player) && !handle.isOwnedByCurrentThread()) {
+            schedule(handle, kind, op, what);   // 예외를 만들지 않고 곧바로 예약
+            return;
+        }
         Optional<EntityState> s;
         try {
             s = now(handle, what);
-        } catch (ThreadOwnershipException notOwner) {
-            handle.editState(st -> {
-                if (kind.isInstance(st)) op.accept(kind.cast(st));
-                return null;
-            }).whenComplete((v, e) -> {
-                // 그 사이 사라진 엔티티(IllegalStateException)는 Paper 처럼 조용히 넘긴다
-                if (e != null && !(unwrap(e) instanceof IllegalStateException)) LOG.log(System.Logger.Level.WARNING, what + " 예약 작업이 실패했다", e);
-            });
+        } catch (ThreadOwnershipException notOwner) {   // 소유 여부를 확인한 뒤 region 이 바뀐 드문 경주
+            schedule(handle, kind, op, what);
             return;
         }
         if (s.isPresent() && kind.isInstance(s.get())) op.accept(kind.cast(s.get()));
+    }
+
+    private static <S extends EntityState> void schedule(Entity handle, Class<S> kind, Consumer<? super S> op, String what) {
+        handle.editState(st -> {
+            if (kind.isInstance(st)) op.accept(kind.cast(st));
+            return null;
+        }).whenComplete((v, e) -> {
+            // 그 사이 사라진 엔티티(IllegalStateException)는 Paper 처럼 조용히 넘긴다
+            if (e != null && !(unwrap(e) instanceof IllegalStateException)) LOG.log(System.Logger.Level.WARNING, what + " 예약 작업이 실패했다", e);
+        });
     }
 
     private static Throwable unwrap(Throwable e) { return e instanceof java.util.concurrent.CompletionException c && c.getCause() != null ? c.getCause() : e; }

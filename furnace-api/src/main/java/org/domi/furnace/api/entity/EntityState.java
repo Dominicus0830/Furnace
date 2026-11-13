@@ -20,6 +20,15 @@ public interface EntityState {
     /** 아직 월드에 있는가. */
     boolean isValid();
 
+    /** 엔티티를 지운다(바닐라 discard — 곧바로 isValid 가 false). 이미 사라졌으면 아무 일도 하지 않는다. */
+    void remove();
+
+    /** 지금 위치(월드 키·좌표·회전). Entity.location() 은 핸들을 만든 시점 값이고, 이것은 소유 스레드에서 읽는 지금 값이다. */
+    org.domi.furnace.api.world.Location location();
+
+    /** 지금 머리 방향 yaw(살아 있는 몹은 머리, 그 밖은 몸 방향) — Paper getLocation 의 yaw. */
+    default float headYaw() { return location().yaw(); }
+
     /** 사용자 지정 이름(없으면 null). */
     Text customName();
 

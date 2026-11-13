@@ -69,25 +69,52 @@ public class CraftEntity implements Entity {
     @Override
     public UUID getUniqueId() { return handle.uniqueId(); }
 
+    /**
+     * 지금 위치. 소유 스레드(이벤트 처리기·entityScheduler 작업·옛 동기 작업의 빌림 구간)면 엔티티의 지금 값을 읽는다 — CraftBukkit 의 NMS 엔티티는
+     * 살아 있는 객체라 {@code teleport} 직후 {@code getLocation} 이 바뀐 값을 준다. 소유 스레드가 아니거나 상태 손잡이가 없는 플레이어면 핸들 시점 값
+     * (플레이어 핸들은 그 자체가 지금 값이다) — 예외 없이 가려서 자주 불러도 싸다. 사라진 몹은 핸들을 만든 시점 값(마지막 값을 따로 들지 않는다).
+     */
+    private org.domi.furnace.api.world.Location liveLocation() {
+        // Paper: yaw = getBukkitYaw() — 살아 있는 엔티티는 머리 방향(getYHeadRot), 그 밖은 몸 방향
+        var l = handle.location();
+        org.domi.furnace.api.world.Location snapshot = new org.domi.furnace.api.world.Location(l.world(), l.x(), l.y(), l.z(), handle.headYaw(), l.pitch());
+        if (!EntityStates.live(handle)) return snapshot;
+        try {
+            return EntityStates.read(handle, EntityState.class, st -> {
+                var n = st.location();
+                return new org.domi.furnace.api.world.Location(n.world(), n.x(), n.y(), n.z(), st.headYaw(), n.pitch());
+            }, snapshot, "Entity#getLocation");
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature raced) {
+            return snapshot;
+        }
+    }
+
     @Override
     public int getEntityId() { return handle.entityId(); }
 
     @Override
-    public Location getLocation() {
-        // Paper: yaw = getBukkitYaw() — 살아 있는 엔티티는 머리 방향(getYHeadRot), 그 밖은 몸 방향
-        org.domi.furnace.api.entity.Entity h = handle;
-        var l = h.location();
-        return Compat.location(new org.domi.furnace.api.world.Location(l.world(), l.x(), l.y(), l.z(), h.headYaw(), l.pitch()));
+    public Location getLocation() { return Compat.location(liveLocation()); }
+
+    @Override
+    public World getWorld() { return Compat.world(liveLocation().world()); }
+
+    /**
+     * 소유 스레드면 지금 값, 아니면 핸들 시점 값. Paper 처럼 살아 있는 엔티티는 {@code isAlive() && valid} 라 체력이 0 이하인(죽는 중) 몹도 false —
+     * remove 직후·setHealth(0) 직후 곧바로 false 다.
+     */
+    @Override
+    public boolean isValid() {
+        if (!EntityStates.live(handle)) return handle.isValid();
+        try {
+            return EntityStates.read(handle, EntityState.class,
+                    s -> s.isValid() && (!(s instanceof org.domi.furnace.api.entity.LivingEntityState l) || l.health() > 0f), false, "Entity#isValid");
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature raced) {
+            return handle.isValid();
+        }
     }
 
     @Override
-    public World getWorld() { return Compat.world(handle.location().world()); }
-
-    @Override
-    public boolean isValid() { return handle.isValid(); }
-
-    @Override
-    public boolean isDead() { return !handle.isValid(); }
+    public boolean isDead() { return !isValid(); }
 
     /** 소유 스레드면 지금 이름, 아니면(또는 상태 손잡이가 없는 플레이어면) 핸들 시점 이름. */
     @Override
@@ -140,6 +167,7 @@ public class CraftEntity implements Entity {
 
     /** 소유 스레드면 지금 충돌 상자, 아니면(또는 상태 손잡이가 없는 플레이어면) 핸들의 상자(플레이어는 최근 값). */
     private org.domi.furnace.api.world.Aabb currentBox() {
+        if (!EntityStates.live(handle)) return handle.boundingBox();   // 소유 스레드가 아니거나 상태 손잡이가 없는 플레이어: 예외 없이 핸들 값
         try {
             return EntityStates.read(handle, EntityState.class, EntityState::boundingBox, handle.boundingBox(), "Entity#getBoundingBox");
         } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature notNow) {
@@ -282,7 +310,14 @@ public class CraftEntity implements Entity {
     public org.bukkit.persistence.PersistentDataContainer getPersistentDataContainer() { return new EntityPdc(handle); }
 
     @Override
-    public void remove() { handle.remove(); }
+    public void remove() {
+        // 소유 스레드면 곧바로 지운다(Paper 처럼 바로 뒤의 isValid 가 false), 아니면 소유 스레드로 예약. 플레이어는 상태 손잡이가 없어 핸들 경로
+        try {
+            EntityStates.write(handle, EntityState.class, EntityState::remove, "Entity#remove");
+        } catch (UnsupportedFeature noState) {
+            handle.remove();
+        }
+    }
 
     // ---- CommandSender / Permissible: 플레이어가 아닌 엔티티는 메시지를 받지 않고 권한이 없다(Bukkit 과 같다)
 

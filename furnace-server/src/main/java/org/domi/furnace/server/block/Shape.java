@@ -437,6 +437,8 @@ public final class Shape {
 
     private double offset(int axis) { return axis == 0 ? ox : axis == 1 ? oy : oz; }
 
+    private static double pick(int axis, double x, double y, double z) { return axis == 0 ? x : axis == 1 ? y : z; }
+
     /** Mth.binarySearch(0, n, value < coords[i]) - 1 — 값이 든 칸 번호(-1..칸 수). */
     private static int findIndex(double[] coords, double off, double value) {
         int lo = 0, hi = coords.length;
@@ -453,12 +455,38 @@ public final class Shape {
      * 다른 두 축에서 겹치는 칸들 중 움직이는 쪽으로 처음 만나는 찬 칸 층에서 멈춘다.
      */
     public double collide(int axis, org.domi.furnace.server.entity.AABB box, double d) {
+        return collideAt(axis, box, d, ox, oy, oz);
+    }
+
+    /**
+     * move(ex, ey, ez).collide(axis, box, d) 와 같은 값을 옮긴 모양을 만들지 않고 계산한다(T-018 — 충돌 목록이 칸마다 모양을 새로 만들지 않게).
+     * move 가 빈 모양이거나 세 값이 모두 0 이면 자기 자신을 돌려주는 것까지 따라 옮긴 거리를 정한다(합한 거리의 부호 있는 0 이 같도록).
+     */
+    public double collide(int axis, org.domi.furnace.server.entity.AABB box, double d, double ex, double ey, double ez) {
+        if (boxes.length == 0 || ex == 0 && ey == 0 && ez == 0) return collideAt(axis, box, d, ox, oy, oz);
+        return collideAt(axis, box, d, ox + ex, oy + ey, oz + ez);
+    }
+
+    /** 이 모양의 상자 i 의 값 k(0 minX, 1 minY, 2 minZ, 3 maxX, 4 maxY, 5 maxZ) — 옮긴 거리 포함, 복사 없이. */
+    public double boxValue(int i, int k) { return boxes[i * 6 + k]; }
+
+    /** move(0, ey, 0)… 의 exactYCoords 와 같은 값(옮긴 모양 없이). ex·ez 는 move 가 자기 자신을 돌려주는지 가르는 데만 쓴다. */
+    public double[] exactYCoords(double ex, double ey, double ez) {
+        if (boxes.length == 0 || ex == 0 && ey == 0 && ez == 0) return exactYCoords();   // move 가 빈 모양·0 이동이면 자기 자신(T-018 R1)
+        if (!base.exactCoords) return null;
+        double[] c = base.grid().coords[1].clone();
+        double o = oy + ey;
+        if (o != 0) for (int i = 0; i < c.length; i++) c[i] += o;
+        return c;
+    }
+
+    private double collideAt(int axis, org.domi.furnace.server.entity.AABB box, double d, double offX, double offY, double offZ) {
         if (boxes.length == 0) return d;
         if (Math.abs(d) < 1.0E-7) return 0.0;
         Grid g = base.grid();
         int b = (axis + 1) % 3, c = (axis + 2) % 3;
         double[] ca = g.coords[axis], cb = g.coords[b], cc = g.coords[c];
-        double oa = offset(axis), ob = offset(b), oc = offset(c);
+        double oa = pick(axis, offX, offY, offZ), ob = pick(b, offX, offY, offZ), oc = pick(c, offX, offY, offZ);
         double maxA = box.max(axis), minA = box.min(axis);
         int i = findIndex(ca, oa, minA + 1.0E-7), j = findIndex(ca, oa, maxA - 1.0E-7);
         int k = Math.max(0, findIndex(cb, ob, box.min(b) + 1.0E-7)), l = Math.min(cb.length - 1, findIndex(cb, ob, box.max(b) - 1.0E-7) + 1);

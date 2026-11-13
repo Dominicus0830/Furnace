@@ -1,0 +1,17 @@
+# 결과 동일 금 파일 — entity-collision-scene-powder. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
+tick 20 entities ecc41aaef95917fd
+tick 40 entities 7b97c1236f66304d
+tick 60 entities fe83b7fb16d90cce
+tick 80 entities f6149de534277514
+tick 100 entities 0cf817d2f0875ee1
+tick 120 entities 17894e64318c7596
+tick 140 entities 683c8da509fae7e2
+tick 160 entities ae5c7a8e6527a8eb
+tick 180 entities be2d52ec19d4ca51
+tick 200 entities 5a704a0a43da9d9a
+tick 220 entities 3626ac53e8057af1
+tick 240 entities 4ab0ef3236da1e0e
+tick 260 entities fe54f47841c5f79c
+tick 280 entities beece6b596c61748
+tick 300 entities 9b15b0a5b22c3840
+TOTAL bbef7b4409b53398 lines=15
