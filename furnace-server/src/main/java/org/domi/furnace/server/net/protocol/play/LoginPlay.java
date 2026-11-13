@@ -26,13 +26,7 @@ public record LoginPlay(int entityId, boolean hardcore, List<String> levels, int
 
     /** BiomeManager.obfuscateSeed: SHA-256(시드, little-endian long) 앞 8바이트를 little-endian long 으로. */
     public static long obfuscateSeed(long seed) {
-        try {
-            byte[] in = java.nio.ByteBuffer.allocate(8).order(java.nio.ByteOrder.LITTLE_ENDIAN).putLong(seed).array();
-            byte[] h = java.security.MessageDigest.getInstance("SHA-256").digest(in);
-            return java.nio.ByteBuffer.wrap(h, 0, 8).order(java.nio.ByteOrder.LITTLE_ENDIAN).getLong();
-        } catch (java.security.NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
+        return org.domi.furnace.server.world.BiomeZoom.obfuscateSeed(seed);
     }
 
     @Override
