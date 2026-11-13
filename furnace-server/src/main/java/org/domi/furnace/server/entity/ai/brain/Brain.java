@@ -28,7 +28,7 @@ public final class Brain<E extends Mob> {
     private final Map<Activity, Set<Map.Entry<MemoryModuleType<?>, MemoryStatus>>> activityRequirements = new HashMap<>();
     private final Map<Activity, Set<MemoryModuleType<?>>> activityMemoriesToEraseWhenStopped = new HashMap<>();
     private Set<Activity> coreActivities = new HashSet<>();
-    private final Set<Activity> activeActivities = new LinkedHashSet<>();
+    private final Set<Activity> activeActivities = new HashSet<>();   // 바닐라 Sets.newHashSet — 순회 순서는 Activity.hashCode(이름)가 정한다
     private Activity defaultActivity = Activity.IDLE;
     private long lastScheduleUpdate = -9999L;
     /** 플러그인이 붙잡은 활동. 있으면 활동을 바꾸려는 모든 호출이 이 활동으로 머문다. */
@@ -138,7 +138,8 @@ public final class Brain<E extends Mob> {
 
     public void setSchedule(Schedule s) { schedule = s; }
 
-    public void setCoreActivities(Set<Activity> a) { coreActivities = a; }
+    /** 바닐라는 ImmutableSet(넣은 순서)을 그대로 든다 — 호출처의 Set.of 는 JVM 마다 순서가 달라서 넣은 순서로 복사한다. */
+    public void setCoreActivities(Set<Activity> a) { coreActivities = new LinkedHashSet<>(a); }
 
     public Set<Activity> getActiveActivities() { return activeActivities; }
 
