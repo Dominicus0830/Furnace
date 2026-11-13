@@ -103,6 +103,7 @@ public final class PluginGameEvents implements GameEvents {
     private final EventBusImpl.Flag wPlayerInteract;
     private final EventBusImpl.Flag wPlayerInteractEntity;
     private final EventBusImpl.Flag wPlayerDropItem;
+    private final EventBusImpl.Flag wBlockPlace;
     private final EventBusImpl.Flag wPlayerPickupItem;
     private final EventBusImpl.Flag wCraftItem;
     private final EventBusImpl.Flag wInventoryClick;
@@ -171,6 +172,7 @@ public final class PluginGameEvents implements GameEvents {
         wPlayerInteract = b.flag(PlayerInteractEvent.class);
         wPlayerInteractEntity = b.flag(PlayerInteractEntityEvent.class);
         wPlayerDropItem = b.flag(PlayerDropItemEvent.class);
+        wBlockPlace = b.flag(org.domi.furnace.api.event.block.BlockPlaceEvent.class);
         wPlayerPickupItem = b.flag(PlayerPickupItemEvent.class);
         wCraftItem = b.flag(CraftItemEvent.class);
         wInventoryClick = b.flag(InventoryClickEvent.class);
@@ -362,16 +364,16 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public boolean playerDrop(Player p, ItemStack stack, org.domi.furnace.server.entity.ItemEntity entity) {
-        if (!bus().hasSubscribers(PlayerDropItemEvent.class)) return true;
+        if (!wPlayerDropItem.on()) return true;
         return !bus().call(new PlayerDropItemEvent(host.player(p), ApiConvert.item(stack, items()), EntityHandle.of(host, entity))).isCancelled();
     }
 
     @Override
-    public boolean wantsPlayerDrop() { return bus().hasSubscribers(PlayerDropItemEvent.class); }
+    public boolean wantsPlayerDrop() { return wPlayerDropItem.on(); }
 
     @Override
     public boolean blockPlace(Player p, org.domi.furnace.server.block.Pos pos, int state, int replacedState, org.domi.furnace.server.block.Pos against, ItemStack inHand, boolean mainHand) {
-        if (!bus().hasSubscribers(org.domi.furnace.api.event.block.BlockPlaceEvent.class)) return true;
+        if (!wBlockPlace.on()) return true;
         var ev = bus().call(new org.domi.furnace.api.event.block.BlockPlaceEvent(p.dimension(), new BlockPos(pos.x(), pos.y(), pos.z()),
                 ApiConvert.block(state, host.core().world().blockRegistry()), ApiConvert.block(replacedState, host.core().world().blockRegistry()),
                 new BlockPos(against.x(), against.y(), against.z()), host.player(p),
@@ -380,7 +382,7 @@ public final class PluginGameEvents implements GameEvents {
     }
 
     @Override
-    public boolean wantsBlockPlace() { return bus().hasSubscribers(org.domi.furnace.api.event.block.BlockPlaceEvent.class); }
+    public boolean wantsBlockPlace() { return wBlockPlace.on(); }
 
     @Override
     public boolean playerPickup(Player p, ItemStack stack) {

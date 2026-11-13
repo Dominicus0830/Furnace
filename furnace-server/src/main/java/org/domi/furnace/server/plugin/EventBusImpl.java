@@ -160,20 +160,22 @@ public final class EventBusImpl implements EventBus {
             return out;
         });
         baked.clear();
-        refreshFlags();
+        flagsAdded(h.type());
     }
 
     private void remove(java.util.function.Predicate<Handler> p) {
         boolean any = false;
+        Set<Class<?>> removedTypes = new HashSet<>();
         for (var en : byType.entrySet()) {
             if (!en.getValue().removeIf(p)) continue;
             any = true;
+            removedTypes.add(en.getKey());
             // 빈 목록의 키(이벤트 클래스)를 남기지 않는다 — 플러그인이 정의한 이벤트 클래스가 옛 클래스로더를 붙잡는다(A14-07)
             byType.computeIfPresent(en.getKey(), (k, l) -> l.isEmpty() ? null : l);
         }
         if (any) {
             baked.clear();
-            refreshFlags();
+            flagsRemoved(removedTypes);
         }
     }
 
@@ -187,51 +189,69 @@ public final class EventBusImpl implements EventBus {
 
     /**
      * 이벤트 종류 하나의 구독 여부 — hasSubscribers(type) 와 늘 같은 값을 volatile 필드 하나로 읽는다(맵 조회 없음).
-     * 등록이 바뀔 때만(register·subscribe·해제·핫 리로드) 다시 계산하므로, 그 호출이 돌아온 뒤 처음 읽는 값부터 새 등록을 반영한다.
-     * 이벤트를 자주 묻는 호출 지점(이웃 갱신·레드스톤·유체 등)이 서버 시작 때 한 번 받아 두고 쓴다.
+     * 등록이 바뀔 때만(register·subscribe·해제·핫 리로드) 영향받는 필드만 다시 계산하므로, 그 호출이 돌아온 뒤 처음 읽는 값부터 새 등록을 반영한다.
+     * 서버(PluginGameEvents)가 API 이벤트 클래스에 대해서만 만든다 — 플러그인이 정의한 클래스를 여기 쥐면 옛 클래스로더가 남는다(A14-07).
      */
-    public static final class Flag {
+    static final class Flag {
         private final Class<? extends Event> type;
         private volatile boolean on;
 
         private Flag(Class<? extends Event> type) { this.type = type; }
 
         /** hasSubscribers(type) 와 같은 값. */
-        public boolean on() { return on; }
+        boolean on() { return on; }
     }
 
-    // flags 와 refreshFlags 는 flagLock 안에서만 만지고 읽는다 — 동시에 등록이 바뀌어도 마지막 재계산이 모든 등록을 본다
+    // flags 는 flagLock 안에서만 만지고 읽는다 — 동시에 등록이 바뀌어도 마지막 재계산이 모든 등록을 본다
     private final Object flagLock = new Object();
     private final Map<Class<?>, Flag> flags = new java.util.HashMap<>();
 
-    /** type 의 구독 여부 필드. 같은 종류는 같은 객체를 돌려준다. */
-    public Flag flag(Class<? extends Event> type) {
+    /** type 의 구독 여부 필드(API 이벤트 클래스용). 같은 종류는 같은 객체를 돌려준다. */
+    Flag flag(Class<? extends Event> type) {
         synchronized (flagLock) {
             Flag f = flags.get(type);
             if (f == null) {
                 f = new Flag(type);
-                f.on = bake(type).length > 0;
+                f.on = exists(type);
                 flags.put(type, f);
             }
             return f;
         }
     }
 
-    /** 등록 목록이 바뀐 뒤 모든 필드와 원인 기록 여부를 다시 계산한다. */
-    private void refreshFlags() {
+    /** 처리기 하나가 type 에 더해진 뒤: 그 타입이 상위(같음 포함)이고 꺼져 있던 이벤트 필드만 존재 검사로 켠다(복사·정렬 없이 처리기를 하나 찾으면 끝). */
+    private void flagsAdded(Class<?> type) {
         synchronized (flagLock) {
-            for (Flag f : flags.values()) f.on = bake(f.type).length > 0;
+            for (Flag f : flags.values()) if (!f.on && type.isAssignableFrom(f.type)) f.on = exists(f.type);
             wantsCause = computeWantsCause();
         }
     }
 
-    public boolean wantsCause() { return wantsCause; }
+    /** 처리기가 빠진 뒤: 빠진 타입의 하위 이벤트 필드만 존재 검사로 다시 계산한다. */
+    private void flagsRemoved(Set<Class<?>> types) {
+        synchronized (flagLock) {
+            for (Flag f : flags.values()) {
+                if (!f.on) continue;
+                for (Class<?> t : types) {
+                    if (t.isAssignableFrom(f.type)) { f.on = exists(f.type); break; }
+                }
+            }
+            wantsCause = computeWantsCause();
+        }
+    }
 
-    private boolean computeWantsCause() {
-        for (var en : byType.entrySet()) {
-            if (en.getValue().isEmpty()) continue;
-            Class<?> t = en.getKey();
-            for (Class<?> c : CAUSE_EVENTS) if (t.isAssignableFrom(c) || c.isAssignableFrom(t)) return true;
+    /** bake(type).length > 0 과 같은 값 — 처리기를 하나 찾으면 바로 멈춘다(복사·정렬 없음). */
+    private boolean exists(Class<?> type) {
+        Set<Class<?>> seen = new HashSet<>();
+        Deque<Class<?>> todo = new ArrayDeque<>();
+        todo.add(type);
+        while (!todo.isEmpty()) {
+            Class<?> c = todo.poll();
+            if (c == null || !seen.add(c)) continue;
+            List<Handler> l = byType.get(c);
+            if (l != null && !l.isEmpty()) return true;
+            if (c.getSuperclass() != null) todo.add(c.getSuperclass());
+            for (Class<?> i : c.getInterfaces()) todo.add(i);
         }
         return false;
     }
