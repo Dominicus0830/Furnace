@@ -14,7 +14,16 @@
   Region 은 `world.putChunk` 뒤에 `loadChunkTicks` 를 부른다). 적재 중 청크의 저장 예약(`loadChunkTicks`)은 이 문을 타지 않는다.
 - 빈 컨테이너는 그 틱 실행이 끝난 뒤 내려 놓는다(바닐라는 청크가 내려갈 때까지 둔다 — 관측 차이 없음, 메모리만).
 
-## 아직 바닐라와 다를 수 있는 것 (후속)
+## T-055b(후속 PR)에서 맞춘 것
+
+- 저장 목록 순서 = 컨테이너 `PriorityQueue` 배열 순서(`LevelChunkTicks.save`). 바닐라 모델(`BlockTicksVanillaOrderModel`)이 틱마다 청크별 목록 순서까지 대조.
+- 불러온 예약 순번 = 목록마다 `-n..-1`(`unpack`), 레벨 카운터 안 씀. 그 청크 밖 칸은 버림(`loadTickList`), 우선순위는 `-3..3` 으로 가둠(`TickPriority.byValue`).
+- /clone(`copyAreaFrom`): 이미 돈 것 → 남은 것 → 청크 x→z 컨테이너 배열 순서로 모으고 정렬하지 않는다.
+
+## 아직 바닐라와 다를 수 있는 것
+
+(아래 1·2·4 는 T-055b 에서 맞췄다. 기록으로 남김.)
+
 
 1. **저장 목록 순서**: 바닐라 `LevelChunkTicks.save` 는 컨테이너 `PriorityQueue` 를 배열 순서(힙 순서)로 쓴다. Furnace 는 실행 순서로 정렬해 쓴다
    (옛 구현은 `chunkTicks` 는 정렬, 내리기 `removeChunk` 는 전역 힙 순서였다 — 이번 PR 에서 둘 다 정렬로 맞춤). 다시 불러오면 목록 순서가 순번이 되므로,

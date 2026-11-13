@@ -567,7 +567,7 @@ public final class Region {
         if (level().addWorldGenChunkEntities(col)) dirtyChunks.add(cp);
         if (!col.blockEntities().isEmpty()) level().registerBlockEntities(col);
         if (col.extraNbt() != null && (col.extraNbt().contains("block_ticks") || col.extraNbt().contains("fluid_ticks"))) {
-            level().loadChunkTicks(col.extraNbt());   // 저장돼 있던 예약 틱을 다시 건다(남은 틱 기준)
+            level().loadChunkTicks(col.extraNbt(), cp.x(), cp.z());   // 저장돼 있던 예약 틱을 다시 건다(남은 틱 기준)
         }
         if (col.freshlyGenerated()) {
             col.freshlyGenerated(false);
@@ -667,7 +667,7 @@ public final class Region {
         lv.runLightUpdates();
         if (!fresh.blockEntities().isEmpty()) lv.registerBlockEntities(fresh);
         if (fresh.extraNbt() != null && (fresh.extraNbt().contains("block_ticks") || fresh.extraNbt().contains("fluid_ticks"))) {
-            lv.loadChunkTicks(fresh.extraNbt());
+            lv.loadChunkTicks(fresh.extraNbt(), cx, cz);
         }
         if (generationEntities) {
             lv.addWorldGenChunkEntities(fresh);

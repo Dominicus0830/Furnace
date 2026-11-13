@@ -85,11 +85,10 @@ public final class BlockTicks {
             return t;
         }
 
-        List<Scheduled> sortedViews() {
-            Tick[] a = queue.toArray(new Tick[0]);
-            Arrays.sort(a, DRAIN_ORDER);
-            List<Scheduled> out = new ArrayList<>(a.length);
-            for (Tick t : a) out.add(t.view());
+        /** 바닐라 LevelChunkTicks.save 순서 — 큐를 배열 순서(힙 순서)로 훑는다. 실행 순서로 정렬하지 않는다. */
+        List<Scheduled> savedViews() {
+            List<Scheduled> out = new ArrayList<>(queue.size());
+            for (Tick t : queue) out.add(t.view());
             return out;
         }
     }
@@ -99,6 +98,8 @@ public final class BlockTicks {
     private final ArrayList<Container> waiting = new ArrayList<>();
     private final PriorityQueue<Container> containersToTick = new PriorityQueue<>((a, b) -> INTRA_TICK.compare(a.peek(), b.peek()));
     private final ArrayDeque<Tick> toRunThisTick = new ArrayDeque<>();
+    /** 바닐라 alreadyRunThisTick — 이번 틱에 이미 돈 예약(/clone 이 명령 블록 틱 안에서 불리면 이것도 복사한다). */
+    private final ArrayList<Tick> alreadyRunThisTick = new ArrayList<>();
     /** 바닐라 toRunThisTickSet — willTickThisTick 을 처음 물을 때 남은 toRunThisTick 으로 채운다. */
     private final PosTypeSet toRunThisTickSet = new PosTypeSet();
     private final ArrayList<Container> drainedThisTick = new ArrayList<>();
@@ -182,10 +183,12 @@ public final class BlockTicks {
         while (!toRunThisTick.isEmpty()) {
             Tick t = toRunThisTick.poll();
             if (!toRunThisTickSet.isEmpty()) toRunThisTickSet.remove(t.pos, t.type);
+            alreadyRunThisTick.add(t);
             ticker.tick(Pos.of(t.pos), t.type);
         }
         // cleanupAfterTick
         toRunThisTickSet.clear();
+        alreadyRunThisTick.clear();
         for (Container c : drainedThisTick) {
             c.drained = false;
             if (c.owner == this && c.queue.isEmpty() && !c.listed) discard(c);   // 빈 컨테이너는 내려 놓는다(다시 예약하면 새로 만든다)
@@ -326,17 +329,20 @@ public final class BlockTicks {
         waiting.removeIf(c -> c.owner != this);
     }
 
-    /** 그 청크의 예약(실행 순서대로) — 꺼내지 않는다(저장용). */
+    /**
+     * 그 청크의 예약 — 꺼내지 않는다(저장용). 순서는 바닐라 LevelChunkTicks.save 와 같은 컨테이너 큐의 배열 순서다(실행 순서가 아니다).
+     * 다시 불러오면 이 순서가 순번이 되므로(바닐라 unpack), 같은 (시각, 우선순위)끼리의 실행 순서도 바닐라와 같아진다.
+     */
     public List<Scheduled> chunkTicks(int chunkX, int chunkZ) {
         Container c = containers.get(ChunkPredicateMemo.chunkKey(chunkX, chunkZ));
-        return c == null ? new ArrayList<>() : c.sortedViews();
+        return c == null ? new ArrayList<>() : c.savedViews();
     }
 
-    /** 청크를 내릴 때 그 청크의 예약을 꺼낸다(저장용, 실행 순서대로). 컨테이너도 내려 놓는다(바닐라 removeContainer). */
+    /** 청크를 내릴 때 그 청크의 예약을 꺼낸다(저장용, {@link #chunkTicks} 와 같은 순서). 컨테이너도 내려 놓는다(바닐라 removeContainer). */
     public List<Scheduled> removeChunk(int chunkX, int chunkZ) {
         Container c = containers.get(ChunkPredicateMemo.chunkKey(chunkX, chunkZ));
         if (c == null) return new ArrayList<>();
-        List<Scheduled> out = c.sortedViews();
+        List<Scheduled> out = c.savedViews();
         size -= c.queue.size();
         discard(c);
         return out;
@@ -345,17 +351,18 @@ public final class BlockTicks {
     /**
      * 바닐라 LevelTicks.copyAreaFrom: src 에서 상자(포함) 안 칸의 예약을 (dx,dy,dz) 만큼 옮겨 이 쪽에 예약한다. 실행 시각·우선순위는 그대로,
      * 순번은 (원래 순번 - 모은 것 중 최소 + 최대 + 1) 이다(바닐라 식 그대로). 먼저 다 모은 뒤 넣으므로 src 가 this 여도 된다.
+     * 모으는 순서도 바닐라 그대로: 이번 틱에 이미 돈 것(alreadyRunThisTick) → 아직 돌지 않은 것(toRunThisTick) → 청크 x, 그 안에서 z 순의 컨테이너
+     * (큐 배열 순서). 같은 (칸, 종류)가 둘이면 먼저 넣은 쪽이 남고, 넣는 순서가 대상 컨테이너 큐의 모양(다음 저장 순서)을 정한다.
      */
     public void copyAreaFrom(BlockTicks src, int minX, int minY, int minZ, int maxX, int maxY, int maxZ, int dx, int dy, int dz) {
         List<Tick> list = new ArrayList<>();
+        for (Tick t : src.alreadyRunThisTick) if (inside(t.pos, minX, minY, minZ, maxX, maxY, maxZ)) list.add(t);
+        for (Tick t : src.toRunThisTick) if (inside(t.pos, minX, minY, minZ, maxX, maxY, maxZ)) list.add(t);
         for (int cx = minX >> 4; cx <= maxX >> 4; cx++) {
             for (int cz = minZ >> 4; cz <= maxZ >> 4; cz++) {
                 Container c = src.containers.get(ChunkPredicateMemo.chunkKey(cx, cz));
                 if (c == null) continue;
-                for (Tick t : c.queue) {
-                    Pos p = Pos.of(t.pos);
-                    if (p.x() >= minX && p.x() <= maxX && p.y() >= minY && p.y() <= maxY && p.z() >= minZ && p.z() <= maxZ) list.add(t);
-                }
+                for (Tick t : c.queue) if (inside(t.pos, minX, minY, minZ, maxX, maxY, maxZ)) list.add(t);
             }
         }
         if (list.isEmpty()) return;
@@ -364,11 +371,15 @@ public final class BlockTicks {
             min = Math.min(min, t.sub);
             max = Math.max(max, t.sub);
         }
-        list.sort(DRAIN_ORDER);
         for (Tick t : list) {
             Pos p = Pos.of(t.pos);
             schedule(new Pos(p.x() + dx, p.y() + dy, p.z() + dz), t.type, t.trigger, t.priority, t.sub - min + max + 1L);
         }
+    }
+
+    private static boolean inside(long packed, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        Pos p = Pos.of(packed);
+        return p.x() >= minX && p.x() <= maxX && p.y() >= minY && p.y() <= maxY && p.z() >= minZ && p.z() <= maxZ;
     }
 
     // ------------------------------------------------------------------ 원시 자료 구조

@@ -577,14 +577,18 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     /**
-     * 불러온 청크 NBT 의 예약을 다시 건다(목록 순서대로 예약 순번) — 모르는 종류는 건너뛴다. 읽은 목록은 지운다.
+     * 불러온 청크 NBT 의 예약을 다시 건다 — 모르는 종류는 건너뛴다. 읽은 목록은 지운다.
      * 적재 중인 청크의 것이라 로드 여부를 보지 않고 바로 건다(scheduleTick 의 "청크가 없으면 버림"을 타지 않는다).
+     * 순번은 바닐라 LevelChunkTicks.unpack 그대로 목록마다 -n, -n+1, …, -1(n = 읽은 예약 수)이고 레벨 순번 카운터는 쓰지 않는다 —
+     * 같은 (시각, 우선순위)이면 불러온 예약이 이미 있던 예약보다 먼저 돈다. 바닐라 SavedTick.loadTickList·loadTick 처럼 그 청크 밖 칸의 예약은 버리고,
+     * 우선순위는 TickPriority.byValue 로 -3..3 에 가둔다.
      */
-    public void loadChunkTicks(org.domi.furnace.server.net.io.nbt.NbtCompound root) {
+    public void loadChunkTicks(org.domi.furnace.server.net.io.nbt.NbtCompound root, int chunkX, int chunkZ) {
         if (root == null) return;
         for (String key : new String[] {"block_ticks", "fluid_ticks"}) {
             if (!(root.tags().get(key) instanceof org.domi.furnace.server.net.io.nbt.NbtList list)) continue;
             boolean fluid = key.equals("fluid_ticks");
+            java.util.List<Object[]> read = new java.util.ArrayList<>();   // SavedTick.loadTickList: 종류를 아는 것만
             for (Object o : list.items()) {
                 if (!(o instanceof org.domi.furnace.server.net.io.nbt.NbtCompound e)) continue;
                 String id = e.contains("i") ? e.getString("i") : null;
@@ -596,7 +600,12 @@ public abstract class ChunkLevel implements BlockLevel {
                 }
                 if (type < 0) continue;
                 Pos p = new Pos(e.getIntOr0("x"), e.getIntOr0("y"), e.getIntOr0("z"));
-                (fluid ? fluidTicks : blockTicks).schedule(p, type, levelTime + e.getIntOr0("t"), e.getIntOr0("p"), subTickCount++);
+                if (p.x() >> 4 != chunkX || p.z() >> 4 != chunkZ) continue;
+                read.add(new Object[] {p, type, e.getIntOr0("t"), Math.max(-3, Math.min(3, e.getIntOr0("p")))});
+            }
+            long order = -read.size();
+            for (Object[] r : read) {
+                (fluid ? fluidTicks : blockTicks).schedule((Pos) r[0], (int) r[1], levelTime + (int) r[2], (int) r[3], order++);
             }
             root.tags().remove(key);
         }
