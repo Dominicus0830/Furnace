@@ -517,16 +517,26 @@ public abstract class ChunkLevel implements BlockLevel {
 
     // ------------------------------------------------------------------ 예약 틱
 
+    /**
+     * 바닐라 LevelAccessor.scheduleTick → createTick(nextSubTickCount) → LevelTicks.schedule: 순번은 먼저 하나 쓰고, 그 칸의 청크(컨테이너)가
+     * 로드돼 있지 않으면 예약을 버린다(바닐라 Util.pauseInIde 뒤 return). 그래서 버린 예약도 뒤 예약들의 순번을 하나 민다.
+     */
     @Override
     public void scheduleTick(Pos pos, int block, int delay, int priority) {
-        blockTicks.schedule(pos, block, levelTime + delay, priority, subTickCount++);
-        markDirty(pos.x() >> 4, pos.z() >> 4);   // 예약도 청크와 함께 저장한다
+        long order = subTickCount++;
+        int cx = pos.x() >> 4, cz = pos.z() >> 4;
+        if (chunk(cx, cz) == null) return;
+        blockTicks.schedule(pos, block, levelTime + delay, priority, order);
+        markDirty(cx, cz);   // 예약도 청크와 함께 저장한다
     }
 
     @Override
     public void scheduleFluidTick(Pos pos, int fluidType, int delay) {
-        fluidTicks.schedule(pos, fluidType, levelTime + delay, 0, subTickCount++);
-        markDirty(pos.x() >> 4, pos.z() >> 4);
+        long order = subTickCount++;
+        int cx = pos.x() >> 4, cz = pos.z() >> 4;
+        if (chunk(cx, cz) == null) return;
+        fluidTicks.schedule(pos, fluidType, levelTime + delay, 0, order);
+        markDirty(cx, cz);
     }
 
     // ------------------------------------------------------------------ 예약 틱 저장(청크 NBT block_ticks·fluid_ticks — SavedTick)
@@ -535,7 +545,7 @@ public abstract class ChunkLevel implements BlockLevel {
 
     /** 그 청크에 예약이 있는가. */
     public boolean hasChunkTicks(int chunkX, int chunkZ) {
-        return !blockTicks.chunkTicks(chunkX, chunkZ).isEmpty() || !fluidTicks.chunkTicks(chunkX, chunkZ).isEmpty();
+        return blockTicks.hasChunkTicks(chunkX, chunkZ) || fluidTicks.hasChunkTicks(chunkX, chunkZ);
     }
 
     /**
@@ -566,7 +576,10 @@ public abstract class ChunkLevel implements BlockLevel {
         return list;
     }
 
-    /** 불러온 청크 NBT 의 예약을 다시 건다(목록 순서대로 예약 순번) — 모르는 종류는 건너뛴다. 읽은 목록은 지운다. */
+    /**
+     * 불러온 청크 NBT 의 예약을 다시 건다(목록 순서대로 예약 순번) — 모르는 종류는 건너뛴다. 읽은 목록은 지운다.
+     * 적재 중인 청크의 것이라 로드 여부를 보지 않고 바로 건다(scheduleTick 의 "청크가 없으면 버림"을 타지 않는다).
+     */
     public void loadChunkTicks(org.domi.furnace.server.net.io.nbt.NbtCompound root) {
         if (root == null) return;
         for (String key : new String[] {"block_ticks", "fluid_ticks"}) {
@@ -770,8 +783,8 @@ public abstract class ChunkLevel implements BlockLevel {
     /** 다른 레벨의 자료를 모두 흡수한다(그 레벨은 버려진다). 예약 틱은 두 지역 시계 차이만큼 보정한다. */
     public void absorb(ChunkLevel other) {
         long offset = levelTime - other.levelTime;
-        other.blockTicks.moveTo(blockTicks, p -> true, offset);
-        other.fluidTicks.moveTo(fluidTicks, p -> true, offset);
+        other.blockTicks.moveTo(blockTicks, k -> true, offset);
+        other.fluidTicks.moveTo(fluidTicks, k -> true, offset);
         subTickCount = Math.max(subTickCount, other.subTickCount);
         for (var e : other.changed.entrySet()) changed.computeIfAbsent(e.getKey(), k -> new SectionChanges()).addAll(e.getValue());
         other.changed.clear();
@@ -810,8 +823,9 @@ public abstract class ChunkLevel implements BlockLevel {
             Pos p = Pos.of(packed);
             return inTarget.test(p.x() >> 4, p.z() >> 4);
         };
-        blockTicks.moveTo(target.blockTicks, byPos, 0);
-        fluidTicks.moveTo(target.fluidTicks, byPos, 0);
+        java.util.function.LongPredicate byChunk = key -> inTarget.test((int) (key >> 32), (int) key);   // ChunkPredicateMemo.chunkKey
+        blockTicks.moveTo(target.blockTicks, byChunk, 0);
+        fluidTicks.moveTo(target.fluidTicks, byChunk, 0);
         var it = changed.entrySet().iterator();
         while (it.hasNext()) {
             var e = it.next();
