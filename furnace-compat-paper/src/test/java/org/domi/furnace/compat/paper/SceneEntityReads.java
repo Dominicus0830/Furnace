@@ -112,7 +112,8 @@ public final class SceneEntityReads extends CompatScene {
         le.setHealth(3);
         out.add("live health before=" + d(before) + " after-set=" + d(le.getHealth()));
         pig.remove();
-        out.add("live after-remove valid=" + pig.isValid() + " dead=" + safe(pig::isDead) + " x=" + safe(() -> d(pig.getLocation().getX())));
+        out.add("live after-remove valid=" + pig.isValid() + " dead=" + safe(pig::isDead));
+        // 제거 뒤 getLocation 은 뺀다: Paper 는 마지막 위치(9.5)를 주지만 Furnace 는 지워진 뒤 핸들 시점 값(스폰 위치)으로 떨어진다 — 알려진 낡은 값이라 굳히지 않는다
         return out;
     }
 

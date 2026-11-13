@@ -75,6 +75,7 @@ public final class SceneBlockReads extends CompatScene {
         for (int i = 0; i < total; i++) {
             // 놓을 때 onPlace 가 반응해 다른 블록이 된 칸(레드스톤 선·불·용암 등)은 읽기 해시에서 뺀다 — 읽기 경로 시험이 놓기 반응에 묶이지 않게.
             // 몇 개가 빠졌는지는 따로 한 줄(placed-mismatch)에 적는다.
+            // 놓였는지 판정은 ApiConvert.block(i, reg)(놓을 때 쓴 값)과 서버의 지금 블록을 견준다. 물 옆에 깔린 용암 16상태는 굳어 읽히지 않는다(알려진 한계)
             var placed = fw.blockNow(new BlockPos(x(i), y(i), z(i))).map(org.domi.furnace.api.world.BlockSnapshot::data).orElse(null);
             if (placed == null || !placed.equals(ApiConvert.block(i, reg))) {
                 mismatch++;

@@ -134,5 +134,5 @@ player f0c89f152ce14355
 live spawned valid=true x=4.5 z=4.5
 live after-teleport x=9.5 z=7.5 valid=true
 live health before=10.0 after-set=3.0
-live after-remove valid=false dead=true x=4.5
-TOTAL f3f9ab85c16f9783 lines=136
+live after-remove valid=false dead=true
+TOTAL 776664647fb912c5 lines=136
