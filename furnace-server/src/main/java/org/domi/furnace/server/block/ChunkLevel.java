@@ -694,7 +694,9 @@ public abstract class ChunkLevel implements BlockLevel {
             int y0 = col.minY() + (si << 4);
             for (int n = 0; n < randomTickSpeed; n++) {
                 Pos p = blockRandomPos(x0, y0, z0);
-                int st = sec.getBlock(p.x() - x0, p.y() - y0, p.z() - z0);
+                // 칸마다 다시 읽는다: 빛 작업 모드(T-064)에서 앞 칸의 randomTick 이 얼린 구역에 쓰면 컬럼은 복사본으로 갈아 끼운다 — 옛 객체는 낡았다
+                // (바닐라는 같은 객체가 그 자리에서 바뀐다)
+                int st = sections[si].getBlock(p.x() - x0, p.y() - y0, p.z() - z0);
                 BlockBehavior b = BlockBehaviors.of(st);
                 if (b.isRandomlyTicking(st)) b.randomTick(st, this, p, random);
                 int f = b.getFluidState(st);
@@ -784,7 +786,12 @@ public abstract class ChunkLevel implements BlockLevel {
         absorbSeenIndex(other);
         raids.absorb(other.raids, this);
         torchToggles.absorb(other.torchToggles);
-        // 빛: 틱 사이에 놓인 블록의 미처리 검사와 방송 전 빛 변경은 합친 쪽이 이어받는다(안 옮기면 빛이 계산·방송되지 않는다)
+        // 빛: 틱 사이에 놓인 블록의 미처리 검사와 방송 전 빛 변경은 합친 쪽이 이어받는다(안 옮기면 빛이 계산·방송되지 않는다).
+        // 빛 작업 모드면 둘 다 먼저 끝까지 계산한다(도는 묶음은 옮기지 않는다 — 아직 각자 청크를 가진 지금).
+        if (asyncLight()) {
+            drainLight();
+            other.drainLight();
+        }
         if (other.lightEngine != null && other.lightEngine.hasWork()) other.lightEngine.moveChecksTo(lightEngine(), p -> true);
         for (var e : other.lightChanges.entrySet()) {
             long[] m = lightChanges.computeIfAbsent(e.getKey(), k -> new long[2]);
@@ -839,7 +846,9 @@ public abstract class ChunkLevel implements BlockLevel {
                 bit.remove();
             }
         }
-        // 빛: 청크가 target 쪽인 미처리 검사와 방송 전 빛 변경(키 = sx<<32 | sz)
+        // 빛: 청크가 target 쪽인 미처리 검사와 방송 전 빛 변경(키 = sx<<32 | sz). 빛 작업 모드면 나누기 전에(주인을 바꾸기 전에)
+        // settleLightBeforeSplit 으로 끝까지 계산해 두었다 — 도는 묶음·새 청크 빛 켜기는 남아 있지 않다.
+        assert lightBatch == null : "빛 작업이 남은 채 나눔";
         if (lightEngine != null && lightEngine.hasWork()) {
             lightEngine.moveChecksTo(target.lightEngine(),
                     p -> inTarget.test(org.domi.furnace.server.light.LightEngine.px(p) >> 4, org.domi.furnace.server.light.LightEngine.pz(p) >> 4));
@@ -2064,7 +2073,10 @@ public abstract class ChunkLevel implements BlockLevel {
     private final int bedrockState = blocks.defaultState("minecraft:bedrock");
 
     public org.domi.furnace.server.light.LevelLight lightEngine() {
-        if (lightEngine == null) lightEngine = new org.domi.furnace.server.light.LevelLight(lightWorld, hasSkyLight());
+        if (lightEngine == null) {
+            lightEngine = new org.domi.furnace.server.light.LevelLight(lightWorld, hasSkyLight());
+            if (asyncLight()) lightEngine.deferSources(true);   // 빛 작업 모드: 원천 높이는 빛 작업이 고친다
+        }
         return lightEngine;
     }
 
@@ -2072,10 +2084,16 @@ public abstract class ChunkLevel implements BlockLevel {
     public void lightNewChunk(int cx, int cz) {
         ChunkColumn col = chunk(cx, cz);
         if (col == null) return;
+        awaitLightIdle();   // 빛 작업 모드: 그 자리 계산은 빛 작업이 쉴 때만(보이는 빛 배열을 그 자리에서 고친다)
+        boolean precomputed = col.lightPrecomputed();
+        col.lightPrecomputed(false);
+        lightNewChunk0(col, cx, cz, precomputed);
+    }
+
+    private void lightNewChunk0(ChunkColumn col, int cx, int cz, boolean precomputed) {
         initialLightChunk = (long) cx << 32 | (cz & 0xFFFFFFFFL);
         try {
-            if (col.lightPrecomputed()) {   // 생성 스레드가 청크 안쪽 빛을 이미 계산했다 — 이웃과 가장자리만 맞춘다
-                col.lightPrecomputed(false);
+            if (precomputed) {   // 생성 스레드가 청크 안쪽 빛을 이미 계산했다 — 이웃과 가장자리만 맞춘다
                 lightEngine().attachPrecomputed(cx, cz);
             } else {
                 if (col.light() == null) col.light(new org.domi.furnace.server.light.ChunkLight());
@@ -2163,9 +2181,189 @@ public abstract class ChunkLevel implements BlockLevel {
         return true;
     }
 
-    /** 틱 끝: 쌓인 빛 갱신 실행(LevelLightEngine.runLightUpdates). */
+    /**
+     * 쌓인 빛 갱신을 지금 이 스레드에서 끝까지 실행(LevelLightEngine.runLightUpdates). 빛 작업 모드면 도는 묶음을 기다려 게시하고 밀린 일까지
+     * 여기서 한다 — 빛을 곧바로 봐야 하는 경로(새 청크, 가짜 광원 API, 청크째 다시 보내기, 재생성, 시험)용. 틱 끝은 {@link #lightTickEnd}.
+     */
     public void runLightUpdates() {
+        awaitLightIdle();
         if (lightEngine != null && lightEngine.hasWork()) lightEngine.runUpdates();
+    }
+
+    // ------------------------------------------------------------------ 빛 작업 모드(T-064, furnace.properties light.async)
+    //
+    // 바닐라 ThreadedLevelLightEngine 처럼 region 은 블록 변경의 빛 검사를 모으기만 하고, 틱 끝에 한 묶음으로 빛 스레드에 넘긴다.
+    // 빛 스레드는 넘길 때의 블록(얼린 구역 — 이후 region 의 쓰기는 구역을 복사해서 한다)과 보이는 빛의 쓰기 사본 위에서 계산하고,
+    // region 스레드가 다음 틱 시작(또는 틱 끝)에 결과를 보이는 빛으로 바꿔 건다(게시). 한 레벨에 도는 묶음은 하나뿐이고, 그 동안 보이는
+    // 빛 배열·원천 높이는 아무도 고치지 않는다 — 그 자리 계산이 필요한 경로(새 청크 빛 켜기 포함)는 먼저 awaitLightIdle 로 기다린다.
+    // 새 청크 빛은 늘 그 자리에서 한다: 바닐라는 빛이 끝나야 청크가 FULL(틱·전송 대상)이 되므로, 빛 전의 청크가 틱·스폰·전송에 쓰이지 않게.
+    // 끈 동안(기본)은 lightBatch 가 늘 null 이라 지금과 같다.
+
+    /** 한 묶음이 다룰 청크 범위(칸 검사에서 체비셰프 거리, 청크). 빛은 15 칸 안에서 퍼지고 이웃 칸을 하나 더 읽어 2 면 넉넉하다. */
+    private static final int LIGHT_BATCH_REACH = 2;
+
+    private org.domi.furnace.server.light.LightBatch lightBatch;
+    private java.util.concurrent.CompletableFuture<Void> lightBatchDone;
+    /** 도는 묶음에 넘긴 미처리 일의 칸(실패하면 그 자리에서 다시 검사한다). */
+    private long[] lightBatchSeeds;
+    private final java.util.ArrayList<ChunkColumn.LightBlocks> lightFrozen = new java.util.ArrayList<>();
+    private final java.util.HashSet<Long> lightBatchChunks = new java.util.HashSet<>();
+
+    /** 빛 작업 모드인가(빛 계산 풀이 있는가). */
+    public boolean asyncLight() { return services().lightExecutor() != null; }
+
+    /** region 틱 시작: 끝난 묶음이 있으면 게시한다(그 틱의 무작위 틱·방송이 새 빛을 본다). */
+    public void pollLight() {
+        if (lightBatch != null && lightBatchDone.isDone()) publishLight();
+    }
+
+    /** region 틱 끝(바닐라 runLightUpdates 자리): 끈 동안은 그 자리에서 계산, 켜면 끝난 묶음을 게시하고 쉬고 있으면 밀린 일을 넘긴다. */
+    public void lightTickEnd() {
+        if (!asyncLight()) {
+            runLightUpdates();
+            return;
+        }
+        pollLight();
+        if (lightBatch == null && lightEngine != null && lightEngine.hasWork()) dispatchLight();
+    }
+
+    /**
+     * 도는 묶음이 있으면 끝날 때까지 기다려 게시한다(이 스레드를 막는다). 빛 스레드가 아직 시작하지 않았으면(공유 풀에서 남의 묶음 뒤에
+     * 줄 서 있으면) 빼앗아 이 스레드에서 돌린다. 끝나면 보이는 빛을 그 자리에서 고쳐도 된다.
+     */
+    public void awaitLightIdle() {
+        if (lightBatch != null) publishLight();
+    }
+
+    /** 도는 묶음을 기다려 게시하고, 밀린 일(원천 고치기·칸 검사)을 이 스레드에서 끝까지 계산한다. */
+    public void drainLight() {
+        runLightUpdates();
+    }
+
+    /**
+     * 저장 스냅샷 전에: 이 청크의 빛을 바꿀 수 있는 밀린 빛 일(도는 묶음이 다루는 청크이거나, 밀린 칸 검사가 가까움)이 있으면 끝까지
+     * 계산한다 — 옛 빛이 디스크에 굳지 않게(바닐라는 기다리지 않아 굳을 수 있다 — 그 결함은 따르지 않는다). 끈 동안은 아무것도 안 한다.
+     */
+    public void settleLightForSave(int cx, int cz) {
+        if (lightBatch == null && (lightEngine == null || !lightEngine.hasWork())) return;
+        if (!asyncLight()) return;
+        boolean near = lightBatch != null && lightBatchChunks.contains((long) cx << 32 | (cz & 0xFFFFFFFFL));
+        if (!near && lightEngine != null) {
+            boolean[] hit = {false};
+            lightEngine.forEachPendingPos(p -> {
+                if (Math.abs((org.domi.furnace.server.light.LightEngine.px(p) >> 4) - cx) <= LIGHT_BATCH_REACH
+                        && Math.abs((org.domi.furnace.server.light.LightEngine.pz(p) >> 4) - cz) <= LIGHT_BATCH_REACH) hit[0] = true;
+            });
+            near = hit[0];
+        }
+        if (near) drainLight();
+    }
+
+    /** 밀린 일을 한 묶음으로 빛 스레드에 넘긴다(도는 묶음이 없을 때만). */
+    private void dispatchLight() {
+        var executor = services().lightExecutor();
+        var batch = new org.domi.furnace.server.light.LightBatch(minBuildHeight(), maxBuildHeight(), bedrockState, hasSkyLight(), virtualLights());
+        long[][] seedPos = {new long[64]};
+        int[] seedCount = {0};
+        java.util.LinkedHashSet<Long> seeds = new java.util.LinkedHashSet<>();
+        lightEngine.forEachPendingPos(p -> {
+            if (seedCount[0] == seedPos[0].length) seedPos[0] = java.util.Arrays.copyOf(seedPos[0], seedCount[0] * 2);
+            seedPos[0][seedCount[0]++] = p;
+            seeds.add((long) (org.domi.furnace.server.light.LightEngine.px(p) >> 4) << 32
+                    | ((org.domi.furnace.server.light.LightEngine.pz(p) >> 4) & 0xFFFFFFFFL));
+        });
+        for (long seed : seeds) {
+            int sx = (int) (seed >> 32), sz = (int) seed;
+            for (int dx = -LIGHT_BATCH_REACH; dx <= LIGHT_BATCH_REACH; dx++) {
+                for (int dz = -LIGHT_BATCH_REACH; dz <= LIGHT_BATCH_REACH; dz++) {
+                    int cx = sx + dx, cz = sz + dz;
+                    if (batch.hasColumn(cx, cz)) continue;
+                    ChunkColumn col = chunk(cx, cz);
+                    if (col == null || col.light() == null) continue;
+                    ChunkColumn.LightBlocks blocks = col.freezeForLight();
+                    lightFrozen.add(blocks);
+                    batch.addColumn(cx, cz, blocks, col.light());
+                    lightBatchChunks.add((long) cx << 32 | (cz & 0xFFFFFFFFL));
+                }
+            }
+        }
+        lightEngine.moveWorkTo(batch.engine());
+        lightBatch = batch;
+        lightBatchSeeds = java.util.Arrays.copyOf(seedPos[0], seedCount[0]);
+        var done = new java.util.concurrent.CompletableFuture<Void>();
+        lightBatchDone = done;
+        try {
+            executor.execute(() -> {
+                if (!batch.claim()) {   // region 스레드가 빼앗아 이미 돌렸다
+                    done.complete(null);
+                    return;
+                }
+                try {
+                    runLightBatch(batch);
+                    done.complete(null);
+                } catch (Throwable t) {
+                    done.completeExceptionally(t);
+                }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            // 풀이 닫히는 중 — 이 스레드에서 곧바로 돌려 끝낸다(다음 pollLight 가 게시하고, 다음 넘기기도 막히지 않는다)
+            if (batch.claim()) {
+                try {
+                    runLightBatch(batch);
+                    done.complete(null);
+                } catch (Throwable t) {
+                    done.completeExceptionally(t);
+                }
+            }
+        }
+    }
+
+    /** 묶음 계산(빛 스레드 또는 빼앗은 region 스레드에서). 시험이 실패를 흉내 낼 자리. */
+    void runLightBatch(org.domi.furnace.server.light.LightBatch batch) { batch.run(); }
+
+    /** 묶음이 끝나길 기다려(시작 전이면 빼앗아 이 스레드에서 돌려) 결과를 보이는 빛에 넣고 얼린 구역을 녹인다. 주인 스레드에서. */
+    private void publishLight() {
+        var batch = lightBatch;
+        Throwable failed = null;
+        if (batch.claim()) {   // 빛 스레드가 아직 집지 않았다 — 기다리지 않고 여기서
+            try {
+                runLightBatch(batch);
+            } catch (RuntimeException | Error e) {
+                failed = e;
+            }
+        } else {
+            try {
+                lightBatchDone.join();
+            } catch (RuntimeException e) {
+                failed = e;
+            }
+        }
+        long[] seeds = lightBatchSeeds;
+        lightBatch = null;
+        lightBatchDone = null;
+        lightBatchSeeds = null;
+        if (failed == null) {
+            batch.publish((key, skyMask, blockMask) -> {
+                long[] m = lightChanges.computeIfAbsent(key, k -> new long[2]);
+                m[0] |= skyMask;
+                m[1] |= blockMask;
+                ChunkColumn col = chunk((int) (key >> 32), (int) key);
+                if (col != null) col.lightTouched();
+            });
+        }
+        for (ChunkColumn.LightBlocks b : lightFrozen) b.thaw();
+        lightFrozen.clear();
+        lightBatchChunks.clear();
+        if (failed != null) {
+            // 묶음의 사본을 버렸으니 보이는 빛은 넘기기 전 그대로다 — 넘겼던 칸을 다시 걸고 그 자리에서 계산한다(끈 것과 같은 결과)
+            org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error("[LIGHT] 빛 작업 실패 — 그 묶음을 이 스레드에서 다시 계산한다", failed);
+            var engine = lightEngine();
+            for (long p : seeds) {
+                engine.blockChanged(org.domi.furnace.server.light.LightEngine.px(p), org.domi.furnace.server.light.LightEngine.py(p),
+                        org.domi.furnace.server.light.LightEngine.pz(p));
+            }
+            engine.runUpdates();
+        }
     }
 
     @Override
@@ -2879,57 +3077,142 @@ public abstract class ChunkLevel implements BlockLevel {
 
     // ------------------------------------------------------------------ 엔티티 충돌(바닐라 BlockCollisions)
 
-    private static final int MOVING_PISTON = B.id("moving_piston"), AIR_STATE = B.defaultState("air");
-    private static byte[] largeCollision;
-
-    /** hasLargeCollisionShape: 충돌 모양이 칸 밖으로 나가거나 모양이 바뀌는 블록. */
-    private boolean hasLargeCollisionShape(int state) {
-        byte[] c = largeCollision;
-        if (c == null) largeCollision = c = new byte[blocks.stateCount];
-        byte v = c[state];
-        if (v == 0) {
-            boolean large = info.dynamicShape(blocks.blockOf(state));
-            double[] b = info.collisionShape(state).bounds();
-            if (b != null) large |= b[0] < 0 || b[1] < 0 || b[2] < 0 || b[3] > 1 || b[4] > 1 || b[5] > 1;
-            c[state] = v = (byte) (large ? 2 : 1);
-        }
-        return v == 2;
+    /**
+     * 칸 하나의 충돌 결과를 받는다. shape 는 칸 원점 기준(옮기지 않은) 모양이고 (x, y, z)만큼 옮긴 것이 월드 모양이다 — 모양 객체를 칸마다
+     * 새로 만들지 않으려고 옮기지 않은 채 넘긴다. false 면 수집을 멈춘다.
+     */
+    @FunctionalInterface
+    public interface CollisionSink {
+        boolean accept(int x, int y, int z, Shape shape);
     }
 
-    /** 칸마다 충돌 모양(월드 좌표, 몸통과 겹치는 것만)을 돌려준다. stopAtFirst 면 첫 것에서 멈춘다. */
-    private void collectCollisions(AABB box, java.util.function.BiPredicate<Pos, Shape> out) { collectCollisions(box, null, out); }
+    /**
+     * 상태별 충돌 분류(T-018). 블록 동작이 getCollisionShape·getEntityCollisionShape 를 덮어쓰지 않으면 모양은 상태만으로 정해진다
+     * (BlockBehavior 기본 = BlockInfo.collisionShape) — 그 모양을 미리 들고, 비었으면 칸을 읽자마자 건너뛴다(공기·동굴 공기·풀·물 등).
+     * 덮어쓰는 동작(움직이는 피스톤, 가루눈)만 칸마다 동작을 부른다. 동작 표는 처음 만든 뒤 바뀌지 않는다(BlockBehaviors).
+     */
+    static final class CollisionTable {
+        static final byte NONE = 0, STATIC = 1, DYNAMIC = 2, KIND = 3, LARGE = 4, PISTON = 8;
+        static final byte[] FLAGS;
+        static final Shape[] SHAPES;
 
-    /** entity 가 있으면 문맥 엔티티 충돌 모양(EntityCollisionContext — 가루눈처럼 엔티티마다 다른 블록)을 쓴다. */
-    private void collectCollisions(AABB box, Entity entity, java.util.function.BiPredicate<Pos, Shape> out) {
+        static {
+            Blocks blocks = Blocks.get();
+            BlockInfo info = BlockInfo.get();
+            int n = blocks.stateCount;
+            byte[] f = new byte[n];
+            Shape[] s = new Shape[n];
+            int piston = B.id("moving_piston");
+            // 덮어쓰기 판정은 블록마다 한 번(동작 클래스가 같으면 리플렉션도 한 번) — 상태마다 하면 표 만들기가 0.2초 걸렸다(T-018 R2)
+            java.util.Map<Class<?>, Boolean> byClass = new java.util.IdentityHashMap<>();
+            boolean[] ctxBlock = new boolean[blocks.blockCount()];
+            for (int b = 0; b < ctxBlock.length; b++) ctxBlock[b] = byClass.computeIfAbsent(BlockBehaviors.ofBlock(b).getClass(), CollisionTable::contextual);
+            for (int st = 0; st < n; st++) {
+                int block = blocks.blockOf(st);
+                Shape shape = info.collisionShape(st);
+                // hasLargeCollisionShape: 충돌 모양이 칸 밖으로 나가거나 모양이 바뀌는 블록
+                boolean large = info.dynamicShape(block);
+                double[] b = shape.bounds();
+                if (b != null) large |= b[0] < 0 || b[1] < 0 || b[2] < 0 || b[3] > 1 || b[4] > 1 || b[5] > 1;
+                int v;
+                if (ctxBlock[block]) v = DYNAMIC;
+                else if (shape.isEmpty()) v = NONE;
+                else { v = STATIC; s[st] = shape; }
+                if (large) v |= LARGE;
+                if (block == piston) v |= PISTON;
+                f[st] = (byte) v;
+            }
+            FLAGS = f;
+            SHAPES = s;
+        }
+
+        /** 충돌 모양을 칸·문맥에 따라 정하는 동작인가(BlockBehavior 기본 구현을 덮어썼는가). */
+        static boolean contextual(Class<?> c) {
+            try {
+                return c.getMethod("getCollisionShape", int.class, BlockLevel.class, Pos.class, BlockActor.class).getDeclaringClass() != BlockBehavior.class
+                        || c.getMethod("getEntityCollisionShape", int.class, BlockLevel.class, Pos.class, Entity.class).getDeclaringClass() != BlockBehavior.class;
+            } catch (NoSuchMethodException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+    }
+
+    /** 충돌 상태 표를 지금 만든다(서버 시작 때 — 블록 동작 표와 아이템 번호표가 깔린 뒤). */
+    public static void warmCollisionTable() {
+        if (CollisionTable.FLAGS.length == 0) throw new IllegalStateException("충돌 상태 표가 비었다");
+    }
+
+    /**
+     * BlockCollisions(바닐라 Cursor3D: x 가 가장 빨리, 그다음 y, z) 순서로 몸통과 겹치는 칸 충돌 모양을 넘긴다. 모서리 칸(세 축 끝)은 건너뛰고,
+     * 면 칸은 큰 모양 블록만, 변 칸은 움직이는 피스톤만 본다. entity 가 있으면 문맥 엔티티 충돌 모양(가루눈처럼 엔티티마다 다른 블록)을 쓴다.
+     * 칸 순서·판정은 칸마다 읽던 예전 구현(T-018 전)과 같고, 구역 단위로 읽어 공기뿐인 구역은 통째로 건너뛴다.
+     */
+    public void scanCollisions(AABB box, Entity entity, CollisionSink out) {
         int x0 = Entity.floor(box.minX() - 1.0E-7) - 1, x1 = Entity.floor(box.maxX() + 1.0E-7) + 1;
         int y0 = Entity.floor(box.minY() - 1.0E-7) - 1, y1 = Entity.floor(box.maxY() + 1.0E-7) + 1;
         int z0 = Entity.floor(box.minZ() - 1.0E-7) - 1, z1 = Entity.floor(box.maxZ() + 1.0E-7) + 1;
-        int lastCx = Integer.MIN_VALUE, lastCz = Integer.MIN_VALUE;
-        ChunkColumn c = null;
+        int minY = minBuildHeight(), maxY = maxBuildHeight();
+        byte[] flags = CollisionTable.FLAGS;
+        Shape[] shapes = CollisionTable.SHAPES;
+        int cx0 = x0 >> 4, nCols = (x1 >> 4) - cx0 + 1;
+        ChunkColumn c0 = null, c1 = null;              // 흔한 경우(청크 두 개 이하)는 배열 없이
+        ChunkColumn[] cols = nCols > 2 ? new ChunkColumn[nCols] : null;
+        int fetched = 0;                               // 지금 z 청크에서 찾아본 열 수(앞에서부터) — 예전처럼 처음 닿을 때 찾는다
+        int colsCz = Integer.MIN_VALUE;
         for (int z = z0; z <= z1; z++) {
+            int cz = z >> 4;
+            if (cz != colsCz) {
+                colsCz = cz;
+                fetched = 0;
+            }
+            int lz = z & 15;
+            int zEdge = z == z0 || z == z1 ? 1 : 0;
             for (int y = y0; y <= y1; y++) {
-                for (int x = x0; x <= x1; x++) {
-                    int edges = (x == x0 || x == x1 ? 1 : 0) + (y == y0 || y == y1 ? 1 : 0) + (z == z0 || z == z1 ? 1 : 0);
-                    if (edges == 3) continue;
-                    if ((x >> 4) != lastCx || (z >> 4) != lastCz) {
-                        lastCx = x >> 4;
-                        lastCz = z >> 4;
-                        c = chunk(lastCx, lastCz);
+                int yzEdges = zEdge + (y == y0 || y == y1 ? 1 : 0);
+                boolean inWorld = y >= minY && y < maxY;
+                for (int ci = 0; ci < nCols; ci++) {
+                    ChunkColumn c;
+                    if (ci < fetched) {
+                        c = cols != null ? cols[ci] : ci == 0 ? c0 : c1;
+                    } else {
+                        c = chunk(cx0 + ci, cz);
+                        if (cols != null) cols[ci] = c;
+                        else if (ci == 0) c0 = c;
+                        else c1 = c;
+                        fetched = ci + 1;
                     }
-                    if (c == null) continue;
-                    int state = y < minBuildHeight() || y >= maxBuildHeight() ? AIR_STATE : c.getBlock(x & 15, y, z & 15);
-                    if (state == AIR_STATE) continue;   // 공기는 충돌 모양이 비어 있고 칸 밖으로 나가지도 않는다(X1: 칸 대부분이 공기)
-                    if (edges == 1 && !hasLargeCollisionShape(state) || edges == 2 && blocks.blockOf(state) != MOVING_PISTON) continue;
-                    Pos p = new Pos(x, y, z);
-                    Shape shape = entity == null ? BlockBehaviors.of(state).getCollisionShape(state, this, p, null)
-                            : BlockBehaviors.of(state).getEntityCollisionShape(state, this, p, entity);
-                    if (shape.isEmpty()) continue;
-                    if (shape == Shape.BLOCK) {
-                        if (!box.intersects(x, y, z, x + 1.0, y + 1.0, z + 1.0)) continue;
-                    } else if (!shape.overlaps(box, x, y, z)) {
-                        continue;
+                    if (c == null || !inWorld) continue;   // 세계 높이 밖은 공기(충돌 없음)
+                    int local = y - c.minY();
+                    org.domi.furnace.server.world.ChunkSection sec = c.sectionForRead(local >> 4);
+                    // 공기·동굴 공기·빈 공간 공기뿐 — 충돌 모양이 하나도 없다. scratch 가 열린 구역(월드젠 표면 단계)은 비공기 수가 낡았을 수 있어 칸을 읽는다(T-018 R3)
+                    if (sec.hasOnlyAir() && !sec.scratchOpen()) continue;
+                    int ly = local & 15;
+                    int bx = (cx0 + ci) << 4;
+                    int xs = Math.max(x0, bx), xe = Math.min(x1, bx + 15);
+                    for (int x = xs; x <= xe; x++) {
+                        int edges = yzEdges + (x == x0 || x == x1 ? 1 : 0);
+                        if (edges == 3) continue;
+                        int state = sec.getBlock(x & 15, ly, lz);
+                        int f = flags[state];
+                        int kind = f & CollisionTable.KIND;
+                        if (kind == CollisionTable.NONE) continue;
+                        if (edges == 1 && (f & CollisionTable.LARGE) == 0 || edges == 2 && (f & CollisionTable.PISTON) == 0) continue;
+                        Shape shape;
+                        if (kind == CollisionTable.STATIC) {
+                            shape = shapes[state];
+                        } else {
+                            Pos p = new Pos(x, y, z);
+                            shape = entity == null ? BlockBehaviors.of(state).getCollisionShape(state, this, p, null)
+                                    : BlockBehaviors.of(state).getEntityCollisionShape(state, this, p, entity);
+                            if (shape.isEmpty()) continue;
+                        }
+                        if (shape == Shape.BLOCK) {
+                            if (!box.intersects(x, y, z, x + 1.0, y + 1.0, z + 1.0)) continue;
+                        } else if (!shape.overlaps(box, x, y, z)) {
+                            continue;
+                        }
+                        if (!out.accept(x, y, z, shape)) return;
                     }
-                    if (!out.test(p, shape.move(x, y, z))) return;
                 }
             }
         }
@@ -2938,11 +3221,16 @@ public abstract class ChunkLevel implements BlockLevel {
     /** getBlockCollisions(entity, box): 몸통과 겹치는 블록 충돌 모양들. */
     public java.util.List<Shape> blockCollisions(AABB box) { return blockCollisions(null, box); }
 
-    /** getBlockCollisions(entity, box): 문맥 엔티티가 있으면 그 엔티티 기준 충돌 모양(가루눈 등). */
+    /** getBlockCollisions(entity, box): 문맥 엔티티가 있으면 그 엔티티 기준 충돌 모양(가루눈 등). 월드 좌표로 옮긴 모양 목록. */
     public java.util.List<Shape> blockCollisions(Entity entity, AABB box) {
         java.util.List<Shape> out = new java.util.ArrayList<>();
-        collectCollisions(box, entity, (p, s) -> out.add(s));
+        scanCollisions(box, entity, (x, y, z, s) -> out.add(s.move(x, y, z)));
         return out;
+    }
+
+    /** blockCollisions 를 모양 객체 없이 충돌 목록(옮기지 않은 모양 + 칸)에 덧붙인다 — 엔티티 이동(collide)이 쓴다. */
+    public void blockCollisions(Entity entity, AABB box, Colliders out) {
+        scanCollisions(box, entity, out);
     }
 
     /** BlockGetter.containsAnyLiquid(box): 상자가 유체 칸과 겹치나. */
@@ -3003,7 +3291,7 @@ public abstract class ChunkLevel implements BlockLevel {
     /** CollisionGetter.noBlockCollision(self, box): 블록 충돌 모양(self 가 있으면 그 문맥 — 가루눈 등)이 없는가. 엔티티·보더는 보지 않는다. */
     public boolean noBlockCollision(Entity self, AABB box) {
         boolean[] hit = {false};
-        collectCollisions(box, self, (p, s) -> {
+        scanCollisions(box, self, (x, y, z, s) -> {
             hit[0] = true;
             return false;
         });
@@ -3032,17 +3320,27 @@ public abstract class ChunkLevel implements BlockLevel {
         AABB q = box.inflate(1.0E-7);
         Entity selfEntity = self instanceof Entity e ? e : null;
         boolean hardOnly = selfEntity == null || selfEntity.collidesOnlyWithHardColliders();
+        if (hardOnly) {
+            // 몹·투사체 등 대부분: 단단한 엔티티(배·셜커) 구역 목록만, 목록은 찾았을 때만 만든다(getEntitiesOfType 과 같은 순서·조건)
+            if (entities.isEmpty()) return java.util.List.of();
+            java.util.ArrayList<Shape>[] hit = new java.util.ArrayList[1];
+            entities.forEachIn(q, org.domi.furnace.server.entity.HardCollider.class, e -> {
+                if (e instanceof org.domi.furnace.server.entity.HardCollider && e != self && !e.isSpectator() && canCollide(self, e)) {
+                    AABB b = e.boundingBox();
+                    (hit[0] == null ? hit[0] = new java.util.ArrayList<>(2) : hit[0]).add(Shape.box(b.minX(), b.minY(), b.minZ(), b.maxX(), b.maxY(), b.maxZ()));
+                }
+            });
+            return hit[0] == null ? java.util.List.of() : hit[0];
+        }
         java.util.List<Shape> out = new java.util.ArrayList<>(2);
         if (!entities.isEmpty()) {
             java.util.function.Predicate<Entity> ok = e -> e != self && !e.isSpectator() && canCollide(self, e);
-            var found = hardOnly ? entities.getEntitiesOfType(org.domi.furnace.server.entity.HardCollider.class, q, ok)
-                    : entities.getEntities(selfEntity, q, ok);
-            for (Entity e : found) {
+            for (Entity e : entities.getEntities(selfEntity, q, ok)) {
                 AABB b = e.boundingBox();
                 out.add(Shape.box(b.minX(), b.minY(), b.minZ(), b.maxX(), b.maxY(), b.maxZ()));
             }
         }
-        if (!hardOnly) {
+        {
             forEachPlayerIn(q, p -> {
                 if (p != self && !p.isSpectator() && selfEntity.canCollideWithPlayer(p)) {
                     AABB b = p.boundingBox();
@@ -3088,25 +3386,44 @@ public abstract class ChunkLevel implements BlockLevel {
     public Pos findSupportingBlock(AABB box, double ex, double ey, double ez) { return findSupportingBlock(null, box, ex, ey, ez); }
 
     public Pos findSupportingBlock(Entity entity, AABB box, double ex, double ey, double ez) {
-        Pos[] best = {null};
-        double[] bestDist = {Double.MAX_VALUE};
-        collectCollisions(box, entity, (p, s) -> {
-            double dx = p.x() + 0.5 - ex, dy = p.y() + 0.5 - ey, dz = p.z() + 0.5 - ez;
+        SupportSearch s = new SupportSearch(ex, ey, ez);
+        scanCollisions(box, entity, s);
+        return s.found ? new Pos(s.bx, s.by, s.bz) : null;
+    }
+
+    /** findSupportingBlock 의 가장 가까운 칸 찾기(칸 객체 없이). 거리가 같으면 Vec3i.compareTo(y, z, x 순)가 큰 쪽. */
+    private static final class SupportSearch implements CollisionSink {
+        final double ex, ey, ez;
+        boolean found;
+        int bx, by, bz;
+        double bestDist = Double.MAX_VALUE;
+
+        SupportSearch(double ex, double ey, double ez) {
+            this.ex = ex;
+            this.ey = ey;
+            this.ez = ez;
+        }
+
+        @Override
+        public boolean accept(int x, int y, int z, Shape shape) {
+            double dx = x + 0.5 - ex, dy = y + 0.5 - ey, dz = z + 0.5 - ez;
             double d = dx * dx + dy * dy + dz * dz;
-            if (d < bestDist[0] || d == bestDist[0] && (best[0] == null || compareVec(best[0], p) < 0)) {
-                best[0] = p;
-                bestDist[0] = d;
+            if (d < bestDist || d == bestDist && (!found || compareVec(bx, by, bz, x, y, z) < 0)) {
+                found = true;
+                bx = x;
+                by = y;
+                bz = z;
+                bestDist = d;
             }
             return true;
-        });
-        return best[0];
+        }
     }
 
     /** Vec3i.compareTo: y, z, x 순. */
-    private static int compareVec(Pos a, Pos b) {
-        if (a.y() != b.y()) return Integer.compare(a.y(), b.y());
-        if (a.z() != b.z()) return Integer.compare(a.z(), b.z());
-        return Integer.compare(a.x(), b.x());
+    private static int compareVec(int ax, int ay, int az, int bx, int by, int bz) {
+        if (ay != by) return Integer.compare(ay, by);
+        if (az != bz) return Integer.compare(az, bz);
+        return Integer.compare(ax, bx);
     }
 
     @Override

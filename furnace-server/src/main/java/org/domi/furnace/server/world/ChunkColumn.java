@@ -138,8 +138,50 @@ public final class ChunkColumn {
         if (sharedSections != null && sharedSections[i]) {
             sections[i] = sections[i].copy();
             sharedSections[i] = false;
+        } else if (sections[i].lightFrozen) {
+            sections[i] = sections[i].copy();   // 빛 작업이 옛 객체를 읽는 중 — 복사본에 쓴다(복사본은 얼지 않았다)
         }
         return sections[i];
+    }
+
+    /**
+     * 빛 작업(T-064)에 넘길 블록 읽기 사본: 지금 구역 객체들을 그대로 넘기고 얼린다. 이후 이 컬럼의 블록 쓰기는 그 구역을 복사해서 하므로
+     * 넘긴 객체는 {@link LightBlocks#thaw} 까지 바뀌지 않는다(다른 스레드에서 잠금 없이 읽어도 된다). 주인 스레드에서.
+     * 바이옴 쓰기는 얼린 객체에도 그 자리에서 할 수 있다 — 빛 작업은 바이옴을 읽지 않는다.
+     */
+    public LightBlocks freezeForLight() {
+        ChunkSection[] secs = sections.clone();
+        for (ChunkSection cs : secs) cs.lightFrozen = true;
+        return new LightBlocks(secs, minY);
+    }
+
+    /** 얼린 구역 묶음 — 빛 스레드가 읽는다. 월드 높이 안 좌표만 받는다. */
+    public static final class LightBlocks implements org.domi.furnace.server.light.LevelLight.StateReader {
+        private final ChunkSection[] secs;
+        private final int minY;
+
+        LightBlocks(ChunkSection[] secs, int minY) {
+            this.secs = secs;
+            this.minY = minY;
+        }
+
+        @Override public int state(int x, int y, int z) {
+            int local = y - minY;
+            return secs[local >> 4].getBlock(x & 15, local & 15, z & 15);
+        }
+
+        @Override public int uniformSectionState(int sectionY) {
+            int i = sectionY - (minY >> 4);
+            return i < 0 || i >= secs.length ? -1 : secs[i].uniformBlock();
+        }
+
+        @Override public boolean sectionMayEmit(int sectionY) {
+            int i = sectionY - (minY >> 4);
+            return i < 0 || i >= secs.length || secs[i].maybeHasBlock(org.domi.furnace.server.light.LightTables.EMITS);
+        }
+
+        /** 빛 작업이 끝났다 — 넘긴 객체를 녹인다(아직 컬럼에 남아 있는 것은 다시 그 자리에서 고칠 수 있다). 주인 스레드에서. */
+        public void thaw() { for (ChunkSection cs : secs) cs.lightFrozen = false; }
     }
 
     private void ownAllSections() {
@@ -589,6 +631,9 @@ public final class ChunkColumn {
     public void lightWaitTick(long t) { this.lightWaitTick = t; }
     public ChunkSnapshot cachedSnapshot() { return cachedSnapshot; }
     public void cachedSnapshot(ChunkSnapshot snapshot) { this.cachedSnapshot = snapshot; }
+
+    /** 읽기 전용(공유 섹션을 복사하지 않음 — getBlock 과 같다): 구역 번호(0 = 맨 아래)의 섹션. 고치지 말 것. scratch 가 열린 섹션의 hasOnlyAir 는 낡을 수 있다. */
+    public ChunkSection sectionForRead(int sectionIndex) { return sections[sectionIndex]; }
 
     /** worldY 가 든 구역이 공기뿐인가(바닐라 LevelChunkSection.hasOnlyAir). */
     public boolean sectionHasOnlyAir(int worldY) { return sections[(worldY - minY) >> 4].hasOnlyAir(); }

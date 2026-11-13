@@ -22,6 +22,8 @@
 | `entity-view-distance` | 수 | 8 | 1 이상 | 엔티티가 보이는 거리(청크). view-distance 보다 크게 효과 없음 |  |
 | `region-section-shift` | 수 | 4 | 1~8 | 동적 region 구역 크기(2^값 청크) |  |
 | `region-merge-radius` | 수 | 1 | 1 이상 | region 합치기 반경(구역 단위) |  |
+| `light.async` | ON/OFF | false | true\|false | 빛 계산을 빛 스레드에 맡긴다(T-064, 바닐라 ThreadedLevelLightEngine 방식). 켜면 빛 스레드가 밀릴 때 빛이 한두 틱 늦게 보이고 새 청크 전송이 한 틱 늦다(바닐라 과부하와 같은 성질). 저장은 밀린 빛을 기다린다 |  |
+| `light.async-threads` | 수 | 1 | 1 이상 | `light.async` 빛 스레드 수(서버 전체) | `light.async=false` 인데 쓰면 경고 |
 | `region-threads` | 수 | CPU 수 | 1 이상 | region 작업 스레드 수(공유 풀이면 서버 전체, 끄면 차원마다) | 워커가 코어의 2배를 넘으면 경고 |
 | `shared-region-pool` | ON/OFF | true | true|false | 모든 차원·추가 월드가 region 워커 풀 하나를 쓴다(Q5). false 면 차원마다 region-threads 개 | -D 와 충돌하면 경고 |
 | `region-pool-dim-cap` | 수 | 0 | 0 이상 | 다른 차원 큐에 일이 있을 때 한 차원이 쓸 수 있는 워커 상한(0 = 워커 수−1) | 공유 풀이 꺼져 있으면 쓰이지 않는다고 경고 |

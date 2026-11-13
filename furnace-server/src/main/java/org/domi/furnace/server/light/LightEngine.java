@@ -102,7 +102,7 @@ public abstract class LightEngine {
         int x = px(pos), y = py(pos), z = pz(pos);
         ChunkLight cl = world.light(x >> 4, z >> 4);
         byte[][] layers = layers(cl);
-        ChunkLight.set(layers[ChunkLight.sectionIndex(y)], x, y, z, v);
+        ChunkLight.set(cl.writable(layers, ChunkLight.sectionIndex(y)), x, y, z, v);
         world.lightChanged(x, y, z, layers == cl.sky);
     }
 
@@ -127,6 +127,8 @@ public abstract class LightEngine {
             }
         }
     }
+
+    void forEachCheck(java.util.function.LongConsumer c) { for (long p : checks) c.accept(p); }
 
     public boolean hasWork() { return !checks.isEmpty() || !increase.isEmpty() || !decrease.isEmpty(); }
 

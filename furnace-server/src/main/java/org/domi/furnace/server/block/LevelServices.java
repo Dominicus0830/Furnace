@@ -50,6 +50,9 @@ public interface LevelServices {
     /** DimensionType.hasSkyLight. */
     default boolean hasSkyLight() { return true; }
 
+    /** 빛 계산 풀(T-064, furnace.properties light.async). null 이면 끔 — region 스레드가 틱 끝에 그 자리에서 계산한다(기본). */
+    default java.util.concurrent.Executor lightExecutor() { return org.domi.furnace.server.config.LightSettings.executorIfEnabled(); }
+
     /** 이 레벨의 차원 타입(높이·천장·좌표 비). 기본: 차원 키가 바닐라 세 차원이면 그 타입, 아니면 오버월드. */
     default org.domi.furnace.server.world.DimensionType dimensionType() {
         var t = org.domi.furnace.server.world.DimensionType.byLevelKey(dimension());
@@ -311,6 +314,7 @@ public interface LevelServices {
         public String dimension() { return d.dimension(); }
         public boolean ultraWarm() { return d.ultraWarm(); }
         public boolean hasSkyLight() { return d.hasSkyLight(); }
+        public java.util.concurrent.Executor lightExecutor() { return d.lightExecutor(); }
         public org.domi.furnace.server.world.DimensionType dimensionType() { return d.dimensionType(); }
         public int maxChainedNeighborUpdates() { return d.maxChainedNeighborUpdates(); }
         public void forEachPlayer(Consumer<Player> c) { d.forEachPlayer(c); }

@@ -228,6 +228,8 @@ public final class FurnaceMain {
         // 공유 region 풀(S4, 기본 켬): 모든 차원·추가 월드가 워커 풀 하나를 쓰고 region-threads 는 서버 전체 워커 수다.
         // furnace.properties 'shared-region-pool=false'(또는 -Dfurnace.sharedRegionPool=false)면 차원마다 따로(이전 방식).
         var regionPoolSettings = org.domi.furnace.server.config.RegionPoolSettings.load(furnaceProps, log::warn);
+        // 빛 계산 풀(T-064, 기본 꺼짐): light.async=true 면 빛을 빛 스레드에서 계산한다
+        org.domi.furnace.server.config.LightSettings.install(org.domi.furnace.server.config.LightSettings.load(furnaceProps, log::warn));
         org.domi.furnace.server.world.SharedScheduler regionPool = regionPoolSettings.shared()
                 ? org.domi.furnace.server.world.SharedScheduler.startShared(config.regionThreads(), "furnace-region-",
                         regionPoolSettings.dimCap(), regionPoolSettings.starveTicks()) : null;
@@ -385,6 +387,8 @@ public final class FurnaceMain {
         if (!org.domi.furnace.server.item.ItemContext.installed()) {
             org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(registries));
         }
+        // 엔티티 충돌 상태 표(블록 동작 표 뒤에 만든다)를 시작 때 만들어 둔다 — 첫 충돌 질의가 region 틱 하나에 표 만들기를 떠안지 않게(T-018 R2)
+        org.domi.furnace.server.block.ChunkLevel.warmCollisionTable();
         // 마법부여 끄기(운영 설정, 기본 없음) — 레지스트리를 읽은 뒤라 데이터 팩·플러그인 마법부여도 끌 수 있다
         org.domi.furnace.server.loot.EnchantmentToggles.load(furnaceProps,
                 id -> org.domi.furnace.server.net.registry.RegistrySet.current().indexOf("minecraft:enchantment", id) >= 0, log::warn);
