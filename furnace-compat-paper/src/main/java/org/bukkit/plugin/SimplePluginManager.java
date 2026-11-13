@@ -1,6 +1,7 @@
 package org.bukkit.plugin;
 
 import java.io.File;
+import java.lang.invoke.MethodHandle;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.AbstractMap;
@@ -36,6 +37,7 @@ import org.domi.furnace.compat.paper.BukkitPluginAdapter;
 import org.domi.furnace.compat.paper.Compat;
 import org.domi.furnace.compat.paper.CompatPluginManager;
 import org.domi.furnace.compat.paper.EventBridge;
+import org.domi.furnace.compat.paper.ListenerFallback;
 import org.domi.furnace.compat.paper.UnsupportedFeature;
 
 /**
@@ -202,9 +204,9 @@ public final class SimplePluginManager implements PluginManager {
             Collections.addAll(methods, listener.getClass().getMethods());
             Collections.addAll(methods, listener.getClass().getDeclaredMethods());
         } catch (NoClassDefFoundError e) {
-            // Paper 처럼 그 리스너만 건너뛰고 플러그인은 계속 켠다. 대개 호환 어댑터에 없는 이벤트 클래스다
-            plugin.getLogger().severe("Failed to register events for " + listener.getClass() + " because " + e.getMessage() + " does not exist."
-                    + " (Furnace 호환 어댑터가 지원하는 이벤트 목록: docs/api/compat-paper.md)");
+            // 대개 호환 어댑터에 없는 이벤트 클래스다. Paper 는 그 리스너 클래스를 통째로 버리지만(Paper 에는 그 클래스가 있어 일어나지 않는 일),
+            // 여기서는 처리기 메서드를 하나씩 풀어 풀리는 것만 등록한다(T-040a) — 없는 클래스를 쓰는 처리기 하나가 같은 클래스의 다른 처리기를 죽이지 않게
+            registerEventsPerMethod(listener, plugin, e);
             return;
         }
         for (Method method : methods) {
@@ -230,6 +232,48 @@ public final class SimplePluginManager implements PluginManager {
                 }
             };
             registerEvent(eventClass, listener, eh.priority(), executor, plugin, eh.ignoreCancelled());
+        }
+    }
+
+    /** getMethods 가 NoClassDefFoundError 로 실패한 리스너: @EventHandler 메서드를 하나씩 풀어 풀리는 것만 등록하고, 건너뛴 것은 이름·없는 클래스를 경고에 남긴다. */
+    private void registerEventsPerMethod(Listener listener, Plugin plugin, NoClassDefFoundError cause) {
+        ListenerFallback.Result r;
+        try {
+            r = ListenerFallback.collect(listener.getClass());
+        } catch (Throwable t) {
+            plugin.getLogger().severe("Failed to register events for " + listener.getClass() + " because " + cause.getMessage() + " does not exist."
+                    + " (Furnace 호환 어댑터가 지원하는 이벤트 목록: docs/api/compat-paper.md)");
+            return;
+        }
+        for (String bad : r.invalid()) {
+            plugin.getLogger().severe(plugin.getDescription().getFullName() + " attempted to register an invalid EventHandler method signature \"" + bad
+                    + "\" in " + listener.getClass());
+        }
+        int registered = 0;
+        for (ListenerFallback.Handler h : r.handlers()) {
+            MethodHandle handle = h.handle();
+            Class<? extends Event> eventClass = h.event();
+            EventExecutor executor = (l, event) -> {
+                try {
+                    if (!eventClass.isAssignableFrom(event.getClass())) return;
+                    handle.invokeExact((Object) l, event);
+                } catch (Throwable t) {
+                    throw new EventException(t);
+                }
+            };
+            registerEvent(eventClass, listener, h.priority(), executor, plugin, h.ignoreCancelled());
+            registered++;
+        }
+        if (!r.skipped().isEmpty()) {
+            StringBuilder sb = new StringBuilder("Failed to register ").append(r.skipped().size()).append(" event handler(s) of ").append(listener.getClass())
+                    .append(" because the class does not exist:");
+            for (ListenerFallback.Skipped s : r.skipped()) sb.append(" ").append(s.method()).append(" -> ").append(s.missingClass()).append(";");
+            sb.append(" the other ").append(registered).append(" handler(s) of the listener were registered."
+                    + " (Furnace 호환 어댑터가 지원하는 이벤트 목록: docs/api/compat-paper.md)");
+            plugin.getLogger().warning(sb.toString());
+        } else if (r.handlers().isEmpty() && r.invalid().isEmpty()) {
+            plugin.getLogger().severe("Failed to register events for " + listener.getClass() + " because " + cause.getMessage() + " does not exist."
+                    + " (Furnace 호환 어댑터가 지원하는 이벤트 목록: docs/api/compat-paper.md)");
         }
     }
 
