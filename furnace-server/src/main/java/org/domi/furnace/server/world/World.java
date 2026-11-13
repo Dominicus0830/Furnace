@@ -1115,6 +1115,12 @@ public final class World {
     /** 탭 목록 기준 접속자 뷰(읽기 전용 순회용). */
     /** 서버 전체 접속자(바닐라 PlayerList.players·Paper getOnlinePlayers 순서 — 접속 순, 리스폰 때 끝으로). 고칠 수 없는 그때의 사본. */
     public java.util.List<Player> onlinePlayers() { return online.onlineInOrder(); }
+    /**
+     * 서버 전체 접속자 배열 그 자체(복사하지 않는다 — {@link #onlinePlayers} 와 같은 순서). 접속·퇴장·리스폰 때마다 <b>다른 배열</b>로 바뀌므로
+     * 부른 쪽은 배열 동일성(==)으로 "접속자 집합이 그대로인가"를 알 수 있다. 읽기 전용: 고치면 안 된다.
+     * (끊김 표시는 배열을 바꾸지 않는다 — {@link Player#rosterEpoch} 가 오른다.)
+     */
+    public Player[] onlineArray() { return online.array; }
     public Player onlinePlayer(int eid) { return online.map.get(eid); }
     public SpawnPoint defaultSpawn() { return defaultSpawn; }
 
