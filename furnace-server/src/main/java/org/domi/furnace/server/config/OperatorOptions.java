@@ -18,22 +18,33 @@ import java.util.function.Consumer;
  *   false 면 넘어간 뒤 옛 엔티티는 더 돌지 않아 복제되지 않는다. 기본 true.
  * sendNamespacedCommands: true(기본, Paper 와 같다)면 바닐라 명령의 "minecraft:이름" 별칭을 접속자에게 보내 자동완성에 보인다.
  *   false 면 클라이언트 명령 트리와 명령 이름 자동완성에서 빼지만(Paper spigot.yml commands.send-namespaced) 서버에서는 여전히 실행된다.
+ * commandRegionDrain: true(기본)면 명령 큐가 도는 동안 region 에 보낸 급한 작업을 다음 틱을 기다리지 않고 곧바로 돌린다(예산: 전역 틱당 명령 블록 예산 20ms 와 공유,
+ *   넘으면 예전처럼 다음 틱). 결과는 바닐라와 같고 #tick 함수가 리전 접근 때문에 틱을 건너뛰지 않는다. false 면 region 접근 한 줄이 한 틱씩 걸린다(예전 동작).
  * confirmInterrupt: true 면 콘솔 Ctrl+C(SIGINT) 를 한 번 누르면 안내만 하고, interruptConfirmSeconds 안에 한 번 더 눌러야 종료한다. 기본 false(바로 저장 후 종료).
  * tickWhenEmpty: 플레이어도 /forceload 청크도 없는 차원의 엔티티·블록 엔티티(바닐라 ServerLevel.emptyTime). vanilla 면 300 틱 뒤 쉬고(바닐라),
  *   always 면 늘 돈다(CraftBukkit·Paper 기본 — flag1 = true || …). auto(기본)면 Bukkit 형식 플러그인이 올라와 있을 때만 always, 아니면 vanilla.
  */
 public record OperatorOptions(boolean strictChatOrder, boolean unsignedChatAsSystem, String serverBrand,
                               boolean announceSleepStatus, boolean confirmInterrupt, int interruptConfirmSeconds,
-                              String motdFormat, boolean gravityBlockPortalDupe, boolean sendNamespacedCommands, String tickWhenEmpty) {
+                              String motdFormat, boolean gravityBlockPortalDupe, boolean sendNamespacedCommands, boolean commandRegionDrain,
+                              String tickWhenEmpty) {
 
     public static final String TICK_WHEN_EMPTY_AUTO = "auto", TICK_WHEN_EMPTY_VANILLA = "vanilla", TICK_WHEN_EMPTY_ALWAYS = "always";
 
     /** tickWhenEmpty 를 기본(auto)으로 두는 생성자. */
     public OperatorOptions(boolean strictChatOrder, boolean unsignedChatAsSystem, String serverBrand, boolean announceSleepStatus,
                            boolean confirmInterrupt, int interruptConfirmSeconds, String motdFormat, boolean gravityBlockPortalDupe,
+                           boolean sendNamespacedCommands, boolean commandRegionDrain) {
+        this(strictChatOrder, unsignedChatAsSystem, serverBrand, announceSleepStatus, confirmInterrupt, interruptConfirmSeconds, motdFormat,
+                gravityBlockPortalDupe, sendNamespacedCommands, commandRegionDrain, TICK_WHEN_EMPTY_AUTO);
+    }
+
+    /** commandRegionDrain 을 기본(true)으로 두는 생성자. */
+    public OperatorOptions(boolean strictChatOrder, boolean unsignedChatAsSystem, String serverBrand, boolean announceSleepStatus,
+                           boolean confirmInterrupt, int interruptConfirmSeconds, String motdFormat, boolean gravityBlockPortalDupe,
                            boolean sendNamespacedCommands) {
         this(strictChatOrder, unsignedChatAsSystem, serverBrand, announceSleepStatus, confirmInterrupt, interruptConfirmSeconds, motdFormat,
-                gravityBlockPortalDupe, sendNamespacedCommands, TICK_WHEN_EMPTY_AUTO);
+                gravityBlockPortalDupe, sendNamespacedCommands, true, TICK_WHEN_EMPTY_AUTO);
     }
 
     /** sendNamespacedCommands 를 기본(true)으로 두는 짧은 생성자. */
@@ -44,7 +55,8 @@ public record OperatorOptions(boolean strictChatOrder, boolean unsignedChatAsSys
     }
 
     public static final String DEFAULT_BRAND = "Furnace";
-    public static final OperatorOptions DEFAULT = new OperatorOptions(true, false, DEFAULT_BRAND, true, false, 5, "plain", true, true, TICK_WHEN_EMPTY_AUTO);
+    public static final OperatorOptions DEFAULT = new OperatorOptions(true, false, DEFAULT_BRAND, true, false, 5, "plain", true, true, true,
+            TICK_WHEN_EMPTY_AUTO);
 
     private static volatile OperatorOptions current = DEFAULT;
 
@@ -87,12 +99,13 @@ public record OperatorOptions(boolean strictChatOrder, boolean unsignedChatAsSys
         }
         boolean gravityDupe = bool(props, "gravity-block-portal-dupe", DEFAULT.gravityBlockPortalDupe);
         boolean sendNamespaced = bool(props, "commands.send-namespaced", DEFAULT.sendNamespacedCommands);
+        boolean regionDrain = bool(props, "commands.region-drain", DEFAULT.commandRegionDrain);
         String tickWhenEmpty = props.getProperty("world.tick-when-empty", DEFAULT.tickWhenEmpty).strip().toLowerCase(java.util.Locale.ROOT);
         if (!tickWhenEmpty.equals(TICK_WHEN_EMPTY_AUTO) && !tickWhenEmpty.equals(TICK_WHEN_EMPTY_VANILLA) && !tickWhenEmpty.equals(TICK_WHEN_EMPTY_ALWAYS)) {
             throw new IllegalArgumentException("설정 'world.tick-when-empty' 값 '" + tickWhenEmpty + "' 이(가) 잘못됐습니다: auto, vanilla, always 중 하나");
         }
         if (asSystem) warn.accept("chat.unsigned-as-system=true: 채팅이 서명 없는 시스템 메시지로 나갑니다(채팅 신고 불가, 채팅 서명 검증 없음)");
-        return new OperatorOptions(strict, asSystem, brand, announce, confirm, seconds, motdFormat, gravityDupe, sendNamespaced, tickWhenEmpty);
+        return new OperatorOptions(strict, asSystem, brand, announce, confirm, seconds, motdFormat, gravityDupe, sendNamespaced, regionDrain, tickWhenEmpty);
     }
 
     private static boolean bool(Properties props, String key, boolean def) {

@@ -12,6 +12,8 @@ public final class BlockExplodeEvent extends BlockEvent implements Cancellable, 
     private final List<BlockPos> blocks;
     private boolean cancelled;
     private org.domi.furnace.api.event.cause.CauseChain cause;
+    private float yield = 1.0F;
+    private String result = "DESTROY";
 
     @Override
     public boolean isCancelled() { return cancelled; }
@@ -30,6 +32,20 @@ public final class BlockExplodeEvent extends BlockEvent implements Cancellable, 
         this(world, pos, blockType, blocks);
         this.cause = org.domi.furnace.api.event.cause.CauseChain.of(org.domi.furnace.api.event.cause.CauseEntry.block(blockType, world, pos, org.domi.furnace.api.event.cause.CauseEntry.EXPLODE), cause);
     }
+
+    /** 서버가 폭발 위력(드롭 확률 1/yield)과 블록 처리 방식(KEEP·DESTROY·DESTROY_WITH_DECAY·TRIGGER_BLOCK)까지 알리는 생성자. */
+    public BlockExplodeEvent(String world, BlockPos pos, String blockType, List<BlockPos> blocks, org.domi.furnace.api.event.cause.CauseChain cause,
+                             float yield, String result) {
+        this(world, pos, blockType, blocks, cause);
+        this.yield = yield;
+        this.result = result;
+    }
+
+    /** 부서진 블록이 드롭을 남길 확률(1.0 = 전부). DESTROY_WITH_DECAY 폭발은 1/반지름. 서버는 이 값을 바꿔도 적용하지 않는다. */
+    public float yield() { return yield; }
+
+    /** 폭발이 블록을 다루는 방식 이름(KEEP·DESTROY·DESTROY_WITH_DECAY·TRIGGER_BLOCK). */
+    public String result() { return result; }
 
     /** [터진 블록 explode] ← 그 블록을 쓴 플레이어(알 때). */
     @Override

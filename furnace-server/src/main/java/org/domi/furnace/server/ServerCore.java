@@ -1012,6 +1012,7 @@ public final class ServerCore {
     /** 전역 틱(20TPS): 보더 보간 진행, 시간·날씨 진행과 주기적 시간 동기화. */
     public void tick() {
         beginServerTick();
+        org.domi.furnace.server.world.CommandDrainGate.newGlobalTick();   // 명령 큐 즉시 처리 예산을 되살린다
         functions.tick();   // 바닐라 tickChildren: 함수(#tick, 리로드 뒤 #load)가 레벨 틱보다 먼저
         for (World w : worlds()) w.border().tick();   // 바닐라 ServerLevel.tick: 차원마다 자기 보더(보간이 끝나면 정적 크기로)
         java.util.function.Consumer<org.domi.furnace.server.net.protocol.Packet> all = packet -> { for (Player p : players()) p.send(packet); };

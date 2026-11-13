@@ -8,7 +8,10 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
-/** 플레이어가 블록을 놓았다. Furnace 서버의 놓기 이벤트는 어느 손·어떤 아이템인지 알리지 않아 아직 잇지 않았다. */
+/**
+ * 플레이어가 블록을 놓는다. CraftBukkit 은 블록을 놓은 뒤에 부르지만 Furnace 는 놓기 전에 불러, {@link #getBlockPlaced()} 가 "놓일 블록"을 보이고
+ * {@link #getBlockReplacedState()} 는 그 자리의 원래 상태다. 막는 것은 취소거나 {@link #canBuild()} 가 거짓일 때다.
+ */
 public class BlockPlaceEvent extends BlockEvent implements Cancellable {
 
     private static final HandlerList handlers = new HandlerList();

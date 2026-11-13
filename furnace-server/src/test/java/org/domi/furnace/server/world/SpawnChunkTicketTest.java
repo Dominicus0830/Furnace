@@ -257,7 +257,7 @@ class SpawnChunkTicketTest {
         try {
             org.domi.furnace.server.config.OperatorOptions.install(new org.domi.furnace.server.config.OperatorOptions(d.strictChatOrder(),
                     d.unsignedChatAsSystem(), d.serverBrand(), d.announceSleepStatus(), d.confirmInterrupt(), d.interruptConfirmSeconds(),
-                    d.motdFormat(), d.gravityBlockPortalDupe(), d.sendNamespacedCommands(), "always"));
+                    d.motdFormat(), d.gravityBlockPortalDupe(), d.sendNamespacedCommands(), d.commandRegionDrain(), "always"));
             core.tick();
             assertFalse(world.emptyIdle(), "always(Paper 기본): 비어도 돈다");
             for (int i = 0; i < 400; i++) core.tick();
