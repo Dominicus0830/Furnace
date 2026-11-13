@@ -52,6 +52,11 @@ public class DimensionTestLevel extends ChunkLevel {
 
     @Override public org.domi.furnace.server.plugin.GameEvents gameEvents() { return events; }
 
+    /** resetEmptyTime 이 불린 횟수(빈 차원 규칙 시험용). */
+    int emptyResets;
+
+    @Override public void resetEmptyTime() { emptyResets++; }
+
     @Override protected void markDirty(int x, int z) {}
 
     @Override protected void broadcastToChunk(int x, int z, Packet p) {}
