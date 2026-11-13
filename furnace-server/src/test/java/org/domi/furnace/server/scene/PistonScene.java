@@ -57,7 +57,7 @@ public final class PistonScene extends TickScene {
                 case 2 -> {   // 꿀 블록은 점액과 안 붙는다: 꿀 앞 + 꿀 옆의 점액·돌은 따라오지 않는다
                     level.setBlock(new Pos(X0, y, z), piston("minecraft:sticky_piston", "east"), 3);
                     level.setBlock(new Pos(X0 + 1, y, z), honey, 3);
-                    level.setBlock(new Pos(X0 + 2, y, z), stone, 3);
+                    level.setBlock(new Pos(X0 + 2, y, z), slime, 3);   // 꿀 바로 뒤 점액: 당길 때 꿀 뒤 일렬 걷기(HONEY,SLIME)와 가지 검사(SLIME,HONEY)를 다 본다
                     level.setBlock(new Pos(X0 + 1, y, z + 1), slime, 3);
                     level.setBlock(new Pos(X0 + 1, y, z + 2), stone, 3);
                 }
