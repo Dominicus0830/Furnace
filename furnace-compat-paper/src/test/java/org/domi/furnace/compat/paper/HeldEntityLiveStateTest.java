@@ -89,6 +89,23 @@ class HeldEntityLiveStateTest {
         }
     }
 
+    /** 지금 위치를 읽어도 Paper 처럼 yaw 는 머리 방향이다(핸들 시점 경로와 같은 규칙) — 베이스 병합 때 두 경로가 합쳐진 자리. */
+    @Test
+    void liveLocationYawIsHeadYaw() {
+        World world = player.getWorld();
+        Entity pig = spawnPig(world, 3.5, 0.5);
+        try {
+            float[] yaw = owner(() -> {
+                assertTrue(pig.teleport(new Location(world, at.x() + 6.5, at.y() + 1, at.z() + 0.5, 90f, 10f)));
+                return new float[]{pig.getLocation().getYaw(), pig.getLocation().getPitch()};
+            });
+            assertEquals(90f, yaw[0], 1e-3f, "지금 위치의 yaw 가 머리 방향이 아니다");
+            assertEquals(10f, yaw[1], 1e-3f);
+        } finally {
+            owner(() -> { pig.remove(); return null; });
+        }
+    }
+
     @Test
     void removeIsVisibleToIsValidRightAway() {
         World world = player.getWorld();
