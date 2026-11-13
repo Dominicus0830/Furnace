@@ -3,7 +3,8 @@
 // - 높이맵 4종, 상자는 바닐라 형식(id·Items{Slot,id,count}), 생성된 미지원 블록 엔티티·엔티티는 NBT 그대로 보존
 // - 모르는 최상위 키(structures·틱 목록·다른 서버 확장 등)는 읽은 값을 그대로 되돌려 쓴다
 // - 완성되지 않은(Status ≠ full) 청크는 읽지 않고 null — 호출 측이 새로 생성한다
-// 조명은 아직 서버가 계산하지 않으므로 isLightOn=0 으로 써서 바닐라가 열면 다시 계산하게 한다.
+// 빛: 있으면 isLightOn=1 과 섹션 SkyLight·BlockLight(모두 0 인 층은 뺀다)와 furnace:light_version 을 쓴다. 읽을 때는 이 표시가 맞는
+// (Furnace 가 쓴) 빛만 믿고, 바닐라·다른 서버 청크의 빛은 버리고 다시 계산한다(T-012).
 package org.domi.furnace.server.world.anvil;
 
 import org.domi.furnace.server.entity.ItemStack;

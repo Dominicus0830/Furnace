@@ -88,6 +88,9 @@ class LightSceneIdentityTest {
 
         @Override protected LevelServices services() { return LevelServices.DEFAULT; }
 
+        /** 저장 빛을 믿지 않을 청크 표시(시험에서 들여다보기). */
+        org.domi.furnace.server.world.LightStaleChunks stale() { return lightStale(); }
+
         /** 새 청크(디스크에 없으면 생성) 또는 디스크 청크를 생성 풀처럼 준비해 올린다. */
         void load(int cx, int cz) {
             byte[] bytes = disk.get(key(cx, cz));
