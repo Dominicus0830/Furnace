@@ -1,4 +1,4 @@
-// 엔티티 틱 성능 측정(기본 꺼짐: -Dfurnace.bench=true). 많은 몹을 올려 놓고 틱당 평균 시간을 잰다.
+// 엔티티 틱 성능 측정(:furnace-server:bench 작업에서만 돈다). 많은 몹을 올려 놓고 틱당 평균 시간을 잰다.
 package org.domi.furnace.server.entity;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -8,7 +8,6 @@ import java.util.function.Consumer;
 import org.domi.furnace.server.block.BlockPlacementTest;
 import org.domi.furnace.server.block.LevelServices;
 import org.domi.furnace.server.world.GameMode;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -37,7 +36,6 @@ class EntityPerfBench {
 
     @Test
     void walkingMobPackets() {
-        Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
         var level = new Arena();
         var ch = new ConcurrentEmbeddedChannel();
         var p = new Player(5, UUID.randomUUID(), "Bench", ch);
@@ -66,7 +64,6 @@ class EntityPerfBench {
 
     @Test
     void manyMobsTickCost() {
-        Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
         int count = Integer.getInteger("furnace.bench.count", 300);
         var level = new Arena();
         var p = new Player(5, UUID.randomUUID(), "Bench", new ConcurrentEmbeddedChannel());
@@ -92,5 +89,7 @@ class EntityPerfBench {
         long sum = 0;
         for (int i = 100; i < samples.length; i++) sum += samples[i];
         System.out.printf("BENCH count=%d avg=%.2fms p50=%.2fms p95=%.2fms max=%.2fms%n", count, sum / 300.0 / 1e6, samples[250] / 1e6, samples[385] / 1e6, samples[399] / 1e6);
+        org.domi.furnace.server.bench.BenchReport.of("EntityPerfBench").scene("manyMobs").seed(1L).put("count", count)
+                .timesNs("tick_", samples, 100, samples.length).write();
     }
 }

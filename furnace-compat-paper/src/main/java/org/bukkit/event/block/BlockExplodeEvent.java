@@ -7,7 +7,7 @@ import org.bukkit.block.BlockState;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.HandlerList;
 
-/** 블록이 터진다(침대·리스폰 정박기). 폭발 위력(yield)·결과를 Furnace 가 알리지 않아 아직 잇지 않았다. */
+/** 블록이 터진다(침대·리스폰 정박기). blockList() 를 고치면 서버가 따른다. setYield 는 서버가 적용하지 않는다. */
 public class BlockExplodeEvent extends BlockEvent implements Cancellable {
 
     private static final HandlerList handlers = new HandlerList();

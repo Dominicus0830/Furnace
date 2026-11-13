@@ -332,6 +332,9 @@ public abstract class ChunkLevel implements BlockLevel {
     /** 차원 이동 도착 뒤 처리(포털 티켓). 서버 레벨이 티켓을 건다 — 시험 레벨은 아무것도. */
     public void afterDimensionTransition(org.domi.furnace.server.entity.DimensionTransition t) {}
 
+    /** 바닐라 ServerLevel.resetEmptyTime: 엔티티가 차원을 넘으면(changeDimension) 떠난·닿은 차원이 다시 300 틱 엔티티를 돌린다. 시험 레벨은 아무것도. */
+    public void resetEmptyTime() {}
+
     /** 다른 스레드 소유 차원으로 옮기는 경로(시험 레벨이면 null). */
     public LevelServices.DimensionTravel dimensionTravel() { return services().dimensionTravel(); }
 

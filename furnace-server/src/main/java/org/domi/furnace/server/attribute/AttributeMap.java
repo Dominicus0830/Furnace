@@ -145,12 +145,12 @@ public final class AttributeMap {
             AttributeInstance i = a == null ? null : instances.get(a);
             if (i == null) continue;
             if (t.tags().get("base") instanceof Number n) i.setBaseValue(n.doubleValue());
-            i.removeModifiers();
+            i.removeModifiers();   // 바닐라 load 는 비우지 않는다(만들 때 단 기본 수정자는 남는다) — 달라질 수 있는 가정: 저장 목록이 그 상태를 이미 담는다
             if (t.tags().get("modifiers") instanceof NbtList mods) {
                 for (int j = 0; j < mods.size(); j++) {
                     if (mods.get(j) instanceof NbtCompound mt && mt.tags().get("id") instanceof String mid && mt.tags().get("amount") instanceof Number amt) {
                         String op = mt.tags().get("operation") instanceof String o ? o : "add_value";
-                        i.addOrReplaceModifier(new AttributeModifier(mid, amt.doubleValue(), AttributeModifier.operationOf(op)));
+                        i.addOrReplaceModifier(new AttributeModifier(mid.indexOf(':') < 0 ? "minecraft:" + mid : mid, amt.doubleValue(), AttributeModifier.operationOf(op)));
                     }
                 }
             }

@@ -36,7 +36,11 @@ public final class ServerCore {
     /** 오버월드 보더(바닐라 overworld().getWorldBorder()) — 명령·level.dat·접속자 패킷이 이것을 쓴다. 다른 차원 보더는 이것을 따라간다. */
     private final org.domi.furnace.server.world.WorldBorder border;
     private volatile Runnable halt = () -> {};
-    private volatile Runnable saveAll = () -> {};
+    /** /save-all·빈 서버 일시정지 저장(서버가 채운다). 돌려주는 future 는 저장이 끝나면 완료된다 — 부른 스레드를 막지 않는다. */
+    @FunctionalInterface
+    public interface SaveAll { java.util.concurrent.CompletableFuture<Void> save(boolean flush); }
+
+    private volatile SaveAll saveAll = flush -> java.util.concurrent.CompletableFuture.completedFuture(null);
 
     public ServerCore(ServerPropertiesFile settings, PlayerLists lists, GameProfileCache profileCache, World world,
                       LevelData levelData, FurnaceScheduler scheduler) {
@@ -326,11 +330,12 @@ public final class ServerCore {
 
     /** 그 월드의 바이옴 확대 지터 시드 = 클라이언트가 LoginPlay/Respawn 으로 받는 hashed seed(차원별 시드를 정하지 않았으면 서버 시드 — 바닐라). */
     public long biomeZoomSeed(World w) {
-        return w.hasSeed() ? org.domi.furnace.server.net.protocol.play.LoginPlay.obfuscateSeed(w.seed()) : biomeZoomSeed;
+        // 월드가 시드를 정할 때 한 번 계산해 둔 값을 읽는다(SHA-256 을 부를 때마다 다시 하지 않는다 — O00-01, T-010)
+        return w.zoomSeedOr(biomeZoomSeed);
     }
 
     /** 그 월드의 생성 시드(정하지 않았으면 서버 시드). */
-    public long seedOf(World w) { return w.hasSeed() ? w.seed() : levelData.seed; }
+    public long seedOf(World w) { return w.seedOr(levelData.seed); }
 
     /**
      * /execute if predicate: 명령 문맥(origin, 있으면 this_entity)에서 조건 하나를 평가한다. 난수는 월드 난수(바닐라 level.getRandom).
@@ -718,6 +723,9 @@ public final class ServerCore {
      * RCON 명령: IO 스레드가 부른다. 전역 스레드에서 실행하고(performPrefixedCommandAsync) 컨텍스트가 끝날 때까지 기다려 출력을 돌려준다.
      * 전역/region 스레드에서 부르면 데드락이므로 막는다(CommandFuture 가드).
      */
+    /** RCON 명령 대기 한도. 지연 결과가 가장 긴 /save-all(10분 안전망)보다 길어야 응답이 저장 결과를 담는다(바닐라 RCON 은 끝까지 기다린다). */
+    static final long RCON_COMMAND_WAIT_MINUTES = 11;
+
     public String runRconCommand(String command) throws Exception {
         var spawn = world.defaultSpawn();
         var sink = new org.domi.furnace.server.remote.RconConsole(() -> settings.get().broadcastRconToOps, spawn.x(), spawn.y(), spawn.z());
@@ -729,7 +737,7 @@ public final class ServerCore {
             command = ev.command();
         }
         commands.performPrefixedCommandAsync(org.domi.furnace.server.command.CommandSource.rcon(this, sink), command)
-                .get(5, java.util.concurrent.TimeUnit.MINUTES);
+                .get(RCON_COMMAND_WAIT_MINUTES, java.util.concurrent.TimeUnit.MINUTES);
         return sink.takeOutput();
     }
 
@@ -926,6 +934,7 @@ public final class ServerCore {
                 if (ts.globalStepsLeft() == 0) broadcastTickStep(0);
             } else {
                 beginServerTick();   // 바닐라는 정지 중에도 서버 틱 번호가 간다
+                for (int i = 0; i < n; i++) tickEmptyTimes();   // 레벨 tick 은 정지 중에도 /tick rate 대로 불려 emptyTime 이 는다
             }
             return;
         }
@@ -1011,6 +1020,7 @@ public final class ServerCore {
     /** 전역 틱(20TPS): 보더 보간 진행, 시간·날씨 진행과 주기적 시간 동기화. */
     public void tick() {
         beginServerTick();
+        org.domi.furnace.server.world.CommandDrainGate.newGlobalTick();   // 명령 큐 즉시 처리 예산을 되살린다
         functions.tick();   // 바닐라 tickChildren: 함수(#tick, 리로드 뒤 #load)가 레벨 틱보다 먼저
         for (World w : worlds()) w.border().tick();   // 바닐라 ServerLevel.tick: 차원마다 자기 보더(보간이 끝나면 정적 크기로)
         java.util.function.Consumer<org.domi.furnace.server.net.protocol.Packet> all = packet -> { for (Player p : players()) p.send(packet); };
@@ -1031,6 +1041,18 @@ public final class ServerCore {
                 log.error("[SPAWN] 포위·상인 스포너 실패", e);
             }
         }
+        tickEmptyTimes();
+    }
+
+    /** 바닐라 ServerLevel.tick 의 emptyTime(차원마다, 정지 중에도 센다). region 틱보다 먼저 정해 둔다 — 이번 틱 엔티티·블록 엔티티를 돌릴지. */
+    private void tickEmptyTimes() {
+        String mode = org.domi.furnace.server.config.OperatorOptions.current().tickWhenEmpty();
+        boolean always = switch (mode) {
+            case org.domi.furnace.server.config.OperatorOptions.TICK_WHEN_EMPTY_ALWAYS -> true;
+            case org.domi.furnace.server.config.OperatorOptions.TICK_WHEN_EMPTY_VANILLA -> false;
+            default -> pluginHost != null && pluginHost.pluginsImpl().foreignPluginsLoaded();   // auto: Bukkit 플러그인이 있으면 Paper 처럼
+        };
+        for (World w : worlds()) w.tickEmptyTime(always);
     }
 
     /**
@@ -1122,6 +1144,7 @@ public final class ServerCore {
                 for (Player p : players()) p.send(new org.domi.furnace.server.net.protocol.play.GameEvent(
                         org.domi.furnace.server.net.protocol.play.GameEvent.IMMEDIATE_RESPAWN, value != 0 ? 1f : 0f));
             }
+            case "spawnChunkRadius" -> world.refreshSpawnTicket();   // 바닐라 규칙 콜백: overworld.setDefaultSpawnPos(지금 스폰) — 티켓을 새 반경으로
             default -> { }
         }
     }
@@ -1824,12 +1847,19 @@ public final class ServerCore {
 
     public void onHalt(Runnable r) { this.halt = r; }
 
-    public void onSaveAll(Runnable r) { this.saveAll = r; }
+    public void onSaveAll(SaveAll s) { this.saveAll = s; }
 
     /** /stop — 종료 훅을 돈다. */
     public void halt() { halt.run(); }
 
-    public void saveAll() { saveAll.run(); }
+    /**
+     * 바닐라 saveEverything(suppressLogs, flush, forced=true) 을 시작한다. 플레이어 저장 요청·level.dat 값은 부른 스레드에서 바로 뜨고,
+     * 기다림은 저장 스레드에서 한다 — /save-all 이 전역 스레드를 막지 않게(P-O14-10). flush 면 디스크 동기화까지 끝난 뒤 완료된다.
+     */
+    public java.util.concurrent.CompletableFuture<Void> saveAllAsync(boolean flush) { return saveAll.save(flush); }
+
+    /** 끝날 때까지 기다리는 판(flush 없음). 유지보수 스레드 전용 — 전역·region 스레드에서 부르지 않는다. */
+    public void saveAll() { saveAllAsync(false).join(); }
 
     public boolean autosaveEnabled() { return world.autosaveEnabled(); }
 

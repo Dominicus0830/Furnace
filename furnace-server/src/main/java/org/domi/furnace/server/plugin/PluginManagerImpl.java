@@ -89,6 +89,11 @@ public final class PluginManagerImpl implements PluginManager {
         return b == null ? null : b.generationHooks();
     }
 
+    /** 다른 서버 소프트웨어 형식(Bukkit 등) 플러그인을 한 번이라도 올렸는가 — world.tick-when-empty=auto 가 Paper 쪽으로 간다. */
+    private volatile boolean foreignLoaded;
+
+    public boolean foreignPluginsLoaded() { return foreignLoaded; }
+
     public void loadAll(PluginBootstrapper boot) {
         this.boot = boot;
         failures.addAll(boot.failures());   // 찾기·순서·api-version·부트스트랩 단계 실패
@@ -113,6 +118,7 @@ public final class PluginManagerImpl implements PluginManager {
                 plugin = (FurnacePlugin) main.getDeclaredConstructor().newInstance();
             }
             loader.plugin = plugin;
+            if (c.format() != null && c.bootstrap() == null) foreignLoaded = true;
         } catch (Throwable t) {
             log.error("Could not load '{}' in folder '{}'", dir.relativize(c.file()), dir.getFileName(), t);
             failures.add(d.name());

@@ -1,4 +1,4 @@
-// 가짜 차원 N개(평지 월드, 월드마다 Regionizer·작업 스레드 풀)를 동시에 돌릴 때 region 틱 간격의 흔들림을 잰다(기본 꺼짐: -Dfurnace.bench=true).
+// 가짜 차원 N개(평지 월드, 월드마다 Regionizer·작업 스레드 풀)를 동시에 돌릴 때 region 틱 간격의 흔들림을 잰다(:furnace-server:bench 작업에서만 돈다).
 // 각 region 에 매 틱 다시 거는 지연 작업을 두고, 그 작업이 도는 시각의 간격 - 틱 길이 를 "늦음"으로 본다. 부하는 매 틱 바쁜 대기(ms).
 // 공유 스케줄러(B안) 검토용: docs/feature-parity/shared-scheduler-review-2026-10-27.md
 package org.domi.furnace.server.world;
@@ -25,7 +25,6 @@ class MultiDimensionTickBench {
 
     @Test
     void dimensionsTickJitter() throws Exception {
-        Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
         String[] ns = System.getProperty("furnace.bench.dims", "3,6,12").split(",");
         String[] loads = System.getProperty("furnace.bench.loadMs", "0,5").split(",");
         int regionsPerDim = Integer.getInteger("furnace.bench.regions", 2);
@@ -120,6 +119,11 @@ class MultiDimensionTickBench {
                 dims, regionsPerDim, regionThreads, threads, Runtime.getRuntime().availableProcessors(), loadMs, a.length,
                 a[a.length / 2] / 1e6, a[a.length * 95 / 100] / 1e6, a[a.length * 99 / 100] / 1e6, a[a.length - 1] / 1e6, a[0] / 1e6,
                 cpu / 1e6, wall / 1e6, wakes, c1[0] - c0[0], c1[1] - c0[1], c1[2] - c0[2], tickTotal, CPU_LOAD);
+        org.domi.furnace.server.bench.BenchReport.of("MultiDimensionTickBench").variant((shared ? "shared" : "perDim") + "-dims" + dims + "-load" + (long) loadMs).scene(shared ? "shared" : "perDim")
+                .put("dims", dims).put("regionsPerDim", regionsPerDim).put("regionThreads", regionThreads).put("loadMs", loadMs).put("samples", a.length)
+                .put("lateP50_ms", a[a.length / 2] / 1e6).put("lateP95_ms", a[a.length * 95 / 100] / 1e6).put("lateP99_ms", a[a.length * 99 / 100] / 1e6)
+                .put("lateMax_ms", a[a.length - 1] / 1e6).put("cpu_ms", cpu / 1e6).put("wall_ms", wall / 1e6).put("wakeups", wakes).put("regionTicks", tickTotal)
+                .put("cpuLoad", CPU_LOAD).write();
         // 튐 원인 가르기: 늦음이 큰 간격 3 개마다, 같은 구간에서 스케줄러와 무관한 카나리 스레드(1ms 파킹 반복)가 본 가장 큰 늦잠.
         // 카나리도 같이 늦었으면 스케줄러 밖(OS 선점·GC·세이프포인트)이다.
         List<long[]> worst = new ArrayList<>();   // {늦음, 구간 시작, 구간 끝}
@@ -188,7 +192,7 @@ class MultiDimensionTickBench {
         }
     }
 
-    // ===== 과부하 시나리오 (2026-10-27): -Dfurnace.bench=true -Dfurnace.bench.overload=true =====
+    // ===== 과부하 시나리오 (2026-10-27): -Dfurnace.bench.overload=true =====
     // 차원 하나 = (region 수, region 틱당 부하 ms, 측정 대상 여부). 지연 틱 = 간격-50ms 가 LATE_MS 를 넘는 틱.
     private static final double LATE_MS = 10.0;
 
@@ -196,7 +200,7 @@ class MultiDimensionTickBench {
 
     @Test
     void overloadScenarios() throws Exception {
-        Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench") && Boolean.getBoolean("furnace.bench.overload"));
+        Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench.overload"));
         int cores = Runtime.getRuntime().availableProcessors();
         int ticks = Integer.getInteger("furnace.bench.ticks", 60);
         System.out.printf("OVBENCH cores=%d ticks=%d lateThreshold=%.0fms%n", cores, ticks, LATE_MS);

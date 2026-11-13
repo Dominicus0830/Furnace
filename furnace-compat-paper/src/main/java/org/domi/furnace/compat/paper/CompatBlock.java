@@ -15,11 +15,24 @@ public final class CompatBlock implements Block {
 
     private final String dimension;
     private final BlockPos pos;
+    /** 이벤트가 "놓일 블록"처럼 아직 월드에 없는 상태를 보일 때만 값이 있다(없으면 월드의 지금 블록을 읽는다). */
+    private final org.domi.furnace.api.world.BlockData shown;
 
-    public CompatBlock(String dimension, BlockPos pos) {
+    public CompatBlock(String dimension, BlockPos pos) { this(dimension, pos, null); }
+
+    private CompatBlock(String dimension, BlockPos pos, org.domi.furnace.api.world.BlockData shown) {
         this.dimension = dimension;
         this.pos = pos;
+        this.shown = shown;
     }
+
+    /**
+     * 설치 직전 이벤트용 — CraftBukkit 은 블록을 놓은 뒤에 BlockPlaceEvent 를 부르므로 getBlock().getType() 이 놓인 블록이다. Furnace 는 놓기 전에
+     * 부르니 이 칸이 놓일 상태를 보이는 블록을 준다(이벤트가 끝나도 그 상태를 계속 보인다 — 취소돼도 되돌아가지 않는다).
+     */
+    static CompatBlock showing(String dimension, BlockPos pos, org.domi.furnace.api.world.BlockData shown) { return new CompatBlock(dimension, pos, shown); }
+
+    private org.domi.furnace.api.world.BlockData currentData() { return shown != null ? shown : furnaceBlock().data(); }
 
     private org.domi.furnace.api.world.Block furnaceBlock() { return Compat.furnace().world(dimension).block(pos); }
 
@@ -55,10 +68,13 @@ public final class CompatBlock implements Block {
     public Chunk getChunk() { return new CompatChunk(dimension, pos.chunkX(), pos.chunkZ()); }
 
     @Override
-    public Material getType() { return Compat.material(furnaceBlock().type()); }
+    public Material getType() { return Compat.material(shown != null ? shown.type() : furnaceBlock().type()); }
 
     @Override
-    public BlockData getBlockData() { return CompatBlockData.of(furnaceBlock().data()); }
+    public BlockData getBlockData() { return CompatBlockData.of(currentData()); }
+
+    @Override
+    public org.bukkit.block.BlockState getState() { return CompatBlockState.of(dimension, pos, currentData()); }
 
     @Override
     public void setType(Material type) { setBlockData(CompatBlockData.create(type), true); }

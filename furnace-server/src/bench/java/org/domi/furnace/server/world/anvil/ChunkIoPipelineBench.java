@@ -1,4 +1,4 @@
-// 청크 저장·로드 파이프라인 단계별 비용(-Dfurnace.bench=true 일 때만). 노이즈 오버월드 실제 생성 청크(빛 포함)로 잰다.
+// 청크 저장·로드 파이프라인 단계별 비용(:furnace-server:bench 작업에서만 돈다). 노이즈 오버월드 실제 생성 청크(빛 포함)로 잰다.
 // 저장: 스냅샷(forSave) → toNbt → NbtIo.write → 압축 → .mca 기록. 로드: .mca 읽기(압축 본문) → 압축 풀기 → NbtIo.read → fromNbt.
 // 단계마다 한 스레드 CPU ns(ThreadMXBean)·할당 바이트를 청크당으로 적는다. 라운드 5회, 앞 2회는 예열.
 package org.domi.furnace.server.world.anvil;
@@ -16,7 +16,6 @@ import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSnapshot;
 import org.domi.furnace.server.world.ItemRegistry;
 import org.domi.furnace.server.world.gen.NoiseWorldSource;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 class ChunkIoPipelineBench {
@@ -39,7 +38,6 @@ class ChunkIoPipelineBench {
 
     @Test
     void bench() throws Exception {
-        Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
         BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
         RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
         var biomes = registries.entries("minecraft:worldgen/biome");
