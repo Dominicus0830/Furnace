@@ -9,7 +9,7 @@
 ./gradlew -PskipOracle=true :furnace-server:bench --tests '*RegionTickBench*' -Dfurnace.bench.scene=clock -Dfurnace.bench.ticks=600
 ```
 - 명령줄의 모든 `-Dfurnace.*` 는 벤치 JVM 으로 그대로 넘어간다. 속성 이름은 `furnace.bench.*` 하나다(`furnace.profile`·`furnace.profile.nostruct`·`furnace.profile.pristine` 은 `furnace.bench`·`furnace.bench.nostruct`·`furnace.bench.pristine` 으로 바뀌었다).
-- `PristineHashBench`(이동 전)는 아직 `furnace.profile` 을 읽는다. 옮길 때 같이 `furnace.bench` 로 바꾼다.
+- `PristineHashBench`·`NoiseIdentityBench` 는 T-003 에서 `src/bench` 로 옮겼고 `furnace.profile` 대신 bench 작업으로 돈다(`-Dfurnace.bench=true` 를 따로 줄 필요 없음).
 - `furnace.sweep` 은 벤치가 아니라 옵트인 정합 시험(`ChunkSweepParityTest`, `src/test`)이라 그대로다.
 - 소스셋 클래스패스에는 `src/main` 과 `src/test` 출력이 들어 있다. 같은 패키지 이름을 쓰므로 패키지 비공개 멤버·시험 도우미에 닿는다.
 - 시험(`test`)은 `compileBenchJava` 에 의존한다 — 벤치를 돌리지는 않지만 컴파일이 깨지면 바로 알린다.
@@ -27,7 +27,7 @@
 
 ## JSON 출력
 `build/bench/<벤치>[-<변형>].json`. 도우미 `org.domi.furnace.server.bench.BenchReport`. 공통 칸: `commit`, `bench`, `variant`, `scene`, `seed`, `jvm{version,vm,cpus,maxHeapBytes,os,args}`. 나머지는 벤치가 넣는다: `tick_mean_ms`·`tick_p50_ms`·`tick_p95_ms`·`tick_max_ms`, `allocBytesPerTick`, `phase_*_ms`, `hash` 등(단위는 키 끝).
-지금 JSON 을 내는 벤치: `RegionTickBench`, `PlayerWalkTickBench`, `MultiDimensionTickBench`, `EntityPerfBench`. 나머지 벤치는 아직 `printf` 줄만 낸다(새 벤치와 고치는 벤치부터 `BenchReport` 로).
+지금 JSON 을 내는 벤치: `RegionTickBench`, `PlayerWalkTickBench`, `MultiDimensionTickBench`, `EntityPerfBench`, `SceneLibraryBench`(장면마다 `SceneLibrary-<이름>.json`). 나머지 벤치는 아직 `printf` 줄만 낸다(새 벤치와 고치는 벤치부터 `BenchReport` 로).
 
 벤치 JVM 에는 JaCoCo 에이전트를 붙이지 않고(`-Pcoverage` 와 무관) G1 을 명시한다. `allocBytesPerTick` 은 결정적 값이 아니다: 걷는 장면에서 같은 커밋 연속 4회가 825K~1014K(±15%)였다. 게이트로 쓰려면 T-005 에서 예열·반복 규칙을 먼저 잰다.
 
@@ -39,7 +39,9 @@
 - 틱당 region 스레드 할당 바이트(`allocBytesPerTick`)를 잰다.
 - `tickstats` 가 꺼져 있으면 경고를 찍는다.
 
+## 공용 장면 라이브러리 (T-003)
+장면 라이브러리(`docs/testing/scenes.md`)의 벤치 모드는 `SceneLibraryBench`(`--tests '*SceneLibraryBench*'`). `NoiseIdentityBench`·`PristineHashBench` 는 `src/bench` 로 옮겼다: `NoiseIdentityBench` 의 장면 부분(`configs`·`positions`·`hashColumn`·`hashRouter`·`record`)은 시험 소스 `world/gen/NoiseIdentityScene` 로 떼었고(평소 시험 `SceneLibraryTest` 의 `noise-quick` 이 쓴다), 타이밍·`main`·전체 판 금 파일 비교(`identityHash`)만 남았다. 옛 `NoiseIdentityGoldenTest` 는 `noise-quick` 으로 합쳤다.
+
 ## 아직 옮기지 않은 것
-- `NoiseIdentityBench`·`PristineHashBench`: IdentityKit(T-001) 이 같은 파일과 새 평소 시험 `NoiseIdentityGoldenTest` 를 고치므로 그 PR 이 병합된 뒤 옮긴다. 옮길 때는 장면 부분(`configs`·`positions`·`hashColumn`·`hashRouter`·`record`)을 `src/test` 도우미로 떼고 타이밍·`main` 만 `src/bench` 로.
 - `-Dfurnace.bench=true` 로 시험 클래스 안에서 도는 비교 벤치(`PaletteWireParityTest`·`AnvilBulkDecodeParityTest`·`ChunkSnapshotCompactCopyTest`·`RegionDeflateOutsideLockTest`·`EnterPlayAsyncLoadTest`·`ClimateYGateParityTest`)는 정합 시험과 한 클래스라 그대로 둔다(`bench` 작업이 아니라 `test` 에서 `-Dfurnace.bench=true` 를 줘야 돈다).
 - 벤치 JSON 나머지 9개, `tools/bench/` JFR 도우미 스크립트 이관, `bench.yml`(야간·수동)은 T-005 와 후속.

@@ -1,0 +1,14 @@
+# 결과 동일 금 파일 — scene-chase. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
+chase tick 0 entities 652a1010e91c7eed
+chase tick 0 random 751fc30be3f74e62
+chase tick 0 count 24 player-health 20.0
+chase tick 100 entities 7a83b8387a28fa5e
+chase tick 100 random 257467889fffd7b3
+chase tick 100 count 24 player-health 20.0
+chase tick 200 entities a6adc0d9c39d9ce2
+chase tick 200 random bb38eca8c84919e7
+chase tick 200 count 24 player-health 20.0
+chase tick 300 entities 99c7e04f92e78f87
+chase tick 300 random 117870ca1cf2df1c
+chase tick 300 count 24 player-health 20.0
+TOTAL 428a4df9b4b6c549 lines=12
