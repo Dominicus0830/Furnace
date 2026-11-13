@@ -330,7 +330,7 @@ public final class SimplePluginManager implements PluginManager {
             Map<Permissible, Boolean> map = permSubs.get(name);
             if (map != null) out.addAll(map.keySet());
         }
-        for (Player p : server.getOnlinePlayers()) if (p.isPermissionSet(name)) out.add(p);
+        for (Player p : Compat.onlinePlayersSettled()) if (p.isPermissionSet(name)) out.add(p);
         if (furnace().console().isPermissionSet(name)) out.add(server.getConsoleSender());
         return Collections.unmodifiableSet(out);
     }
@@ -361,7 +361,7 @@ public final class SimplePluginManager implements PluginManager {
             Map<Permissible, Boolean> map = defSubs.get(op);
             if (map != null) out.addAll(map.keySet());
         }
-        for (Player p : server.getOnlinePlayers()) if (p.isOp() == op) out.add(p);
+        for (Player p : Compat.onlinePlayersSettled()) if (p.isOp() == op) out.add(p);
         if (op) out.add(server.getConsoleSender());
         return Collections.unmodifiableSet(out);
     }
@@ -398,6 +398,9 @@ public final class SimplePluginManager implements PluginManager {
             w = wrapped.get(name);
             if (w != null && w.node() == node) return w.bukkit();
             Permission b = new Permission(node.name(), node.description(), PermissionDefault.valueOf(node.defaultValue().name()), node.children());
+            // Permission 생성자가 구독자를 다시 계산하다 다른 플레이어를 감싸며 같은 노드를 먼저 올렸을 수 있다 — 같은 노드는 같은 Bukkit 객체로 보여야 한다
+            Wrapped again = wrapped.get(name);
+            if (again != null && again.node() == node) return again.bukkit();
             wrapped.put(name, new Wrapped(node, b));
             return b;
         }

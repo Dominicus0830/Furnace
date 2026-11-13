@@ -305,12 +305,56 @@ public final class Compat {
         } else if (size <= PRUNE_AT && s.playerPruneAt != PRUNE_AT) {
             s.playerPruneAt = PRUNE_AT;
         }
-        // 처음 감싸기·핸들 교체를 원자적으로 — 두 스레드가 동시에 와도 같은 CraftPlayer 를 받는다
-        return s.players.compute(p.uniqueId(), (k, cur) -> {
-            if (cur != null && cur.furnaceHandle() == p) return cur;
-            if (cur != null) cur.retire();   // 옛 접속의 권한 구독·거울을 걷은 뒤 새 객체를 만든다
+        // 새 객체는 표 밖에서 만든다 — CraftPlayer 생성은 권한 계산(플러그인 권한 객체 만들기, 접속자 순회)을 부르므로 표의 칸 잠금 안에서 하면
+        // "Recursive update" 가 나거나 두 스레드가 서로의 칸을 기다린다. 두 스레드가 동시에 와도 putIfAbsent·replace 로 하나만 남기고 진 쪽은 걷는다.
+        CraftPlayer fresh = null;
+        while (true) {
+            CraftPlayer cur = s.players.get(p.uniqueId());
+            if (cur != null && cur.furnaceHandle() == p) {
+                if (fresh != null) fresh.retire();   // 동시에 만든 쪽이 먼저 올렸다
+                return cur;
+            }
+            if (fresh == null) fresh = create(p);
+            if (cur == null) {
+                if (s.players.putIfAbsent(p.uniqueId(), fresh) == null) return fresh;
+            } else if (s.players.replace(p.uniqueId(), cur, fresh)) {
+                cur.retire();   // 옛 접속의 권한 구독·거울을 걷는다(새 객체는 다른 핸들이라 영향 없다)
+                return fresh;
+            }
+        }
+    }
+
+    /** 이 스레드가 CraftPlayer 를 만드는 중인 핸들들(생성 중 권한 계산이 같은 플레이어를 다시 감싸지 않게). 겹쳐 만드는 일이 드물어 작은 목록이면 된다. */
+    private static final ThreadLocal<java.util.ArrayList<org.domi.furnace.api.entity.Player>> CREATING = ThreadLocal.withInitial(java.util.ArrayList::new);
+
+    private static CraftPlayer create(org.domi.furnace.api.entity.Player p) {
+        java.util.ArrayList<org.domi.furnace.api.entity.Player> creating = CREATING.get();
+        for (var c : creating) {
+            if (c == p) throw new IllegalStateException("CraftPlayer 생성 중에 같은 플레이어를 다시 감쌀 수 없다: " + p.name());
+        }
+        creating.add(p);
+        try {
             return new CraftPlayer(p);
-        });
+        } finally {
+            creating.remove(creating.size() - 1);
+            if (creating.isEmpty()) CREATING.remove();
+        }
+    }
+
+    /**
+     * 접속자의 CraftPlayer 들 — 이 스레드가 만드는 중인 플레이어는 뺀다. Paper 는 새 플레이어의 CraftPlayer(ServerPlayer 생성)를 접속자 목록에 넣기
+     * 전에 만들므로 생성 중 권한 계산(권한 객체 만들기 → 구독자 다시 계산)이 보는 접속자에 그 플레이어가 없고, 그 플레이어는 생성이 끝날 때 스스로 계산한다.
+     */
+    public static java.util.List<org.bukkit.entity.Player> onlinePlayersSettled() {
+        java.util.ArrayList<org.bukkit.entity.Player> out = new java.util.ArrayList<>();
+        java.util.ArrayList<org.domi.furnace.api.entity.Player> creating = CREATING.get();
+        for (org.domi.furnace.api.entity.Player p : furnace().onlinePlayers()) {
+            boolean skip = false;
+            for (var c : creating) if (c == p) { skip = true; break; }
+            if (!skip) out.add(player(p));
+        }
+        if (creating.isEmpty()) CREATING.remove();
+        return out;
     }
 
     /** 로그인이 거부된 접속의 CraftPlayer 를 표에서 꺼내 권한 구독·거울을 걷는다(그 접속 것일 때만 — 같은 UUID 의 다른 접속은 두고). */
