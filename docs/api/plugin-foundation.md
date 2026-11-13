@@ -11,6 +11,10 @@
 ## 디스패치
 `@Subscribe` 메서드는 `LambdaMetafactory` 호출 지점으로 만든다(비공개·상위 클래스 메서드 포함, 실패하면 `MethodHandle`). 구독자가 없으면 이벤트 객체를 만들지 않는 기존 규칙은 그대로.
 
+### 이벤트 붙임 칸·게으른 내용 (T-032)
+- `EventSlot<T>` — 이벤트 객체에 파생 값을 붙이는 열쇠. 같은 이벤트를 받는 처리기들이 한 번만 만들어 나눠 쓸 값(무거운 변환 결과 등)을 전역 맵·잠금 없이 이벤트에 붙인다(`computeIfAbsent`·`get`). 열쇠 객체가 곧 접근 권한이라 다른 플러그인의 칸과 섞이지 않고, 값은 이벤트와 함께 사라진다. Bukkit 호환 다리가 Furnace 이벤트 하나에 Bukkit 이벤트 객체 하나를 붙이는 데 쓴다(옛 `synchronizedMap(WeakHashMap)` 전역 잠금 대체).
+- `LazyValue<T>` — 불변 원본(상태 번호·불변 아이템·참조를 복사한 배열)만 잡고 API 형태 변환은 처음 읽을 때 한 번. 결과는 미리 변환한 것과 같다. `BlockPhysicsEvent` 의 `block()`·`changedType()` 이 이것으로 바뀌었다(좌표만 보는 처리기는 변환 비용 약 700 ns 를 안 낸다). 바뀔 수 있는 원본(엔티티 PDC 등)은 받지 않는다 — 이유는 `docs/feature-parity/context-notes/2026-11-13-t032-event-bridge-slots.md`.
+
 ## 자동 정리
 플러그인이 꺼지면 코어가 구독·예약 작업·명령·권한 첨부·플러그인 채널·스폰 필터를 해제한다. 예약 작업은 `tasks()` 로 건 것뿐 아니라 `server().scheduler()`·`entity.scheduler()` 로 바로 건 것도 꺼진 뒤에는 돌지 않고, 반복 작업은 다음 차례에 스스로 취소된다(A14-02). 비동기 실행기(`asyncExecutor()`)에 넘긴 작업은 그대로 돈다. 꺼진 플러그인의 명령은 Bukkit 처럼 "플러그인이 꺼져 있다"며 거부한다(A14-08). 그 밖의 자원(열린 메뉴·핸들)은 `FurnacePlugin.own(AutoCloseable)` 로 맡기면 `onDisable` 뒤 등록 역순으로 닫힌다(꺼진 뒤에 맡기면 바로 닫는다).
 
