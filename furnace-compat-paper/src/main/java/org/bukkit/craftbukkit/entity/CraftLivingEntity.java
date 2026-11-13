@@ -16,6 +16,16 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
     /** 호환 모듈 전용(Compat 캐시가 만든다). */
     public CraftLivingEntity(org.domi.furnace.api.entity.LivingEntity handle) { super(handle); }
 
+    @Override
+    public <T extends org.bukkit.entity.Projectile> T launchProjectile(Class<? extends T> projectile) {
+        throw new UnsupportedFeature("LivingEntity#launchProjectile", "Furnace 핸들에는 투사체를 쏘는 길이 아직 없다");
+    }
+
+    @Override
+    public <T extends org.bukkit.entity.Projectile> T launchProjectile(Class<? extends T> projectile, org.bukkit.util.Vector velocity) {
+        throw new UnsupportedFeature("LivingEntity#launchProjectile", "Furnace 핸들에는 투사체를 쏘는 길이 아직 없다");
+    }
+
     private org.domi.furnace.api.entity.LivingEntity living() { return (org.domi.furnace.api.entity.LivingEntity) furnaceHandle(); }
 
     @Override

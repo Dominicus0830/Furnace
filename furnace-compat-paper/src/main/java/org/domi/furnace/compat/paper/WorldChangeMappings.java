@@ -18,6 +18,7 @@ final class WorldChangeMappings {
     static void register() {
         registerBlocks();
         registerEntities();
+        registerProtection();
     }
 
     private static org.bukkit.entity.Player p(org.domi.furnace.api.entity.Player f) { return Compat.player(f); }
@@ -69,6 +70,67 @@ final class WorldChangeMappings {
                         for (BlockPos pos : f.blocks()) b.blockList().add(Compat.block(f.world(), pos));
                     }
                 });
+    }
+
+    /**
+     * 보호 이벤트(T-040a): 폭발(엔티티)·피스톤·블록 만들어짐·퍼짐·투사체 맞음. 취소는 Furnace 이벤트의 취소와 같다. 규칙(Paper 기준):
+     *  - EntityExplodeEvent: BlockExplodeEvent 와 같다 — blockList() 를 고치면 서버가 그 목록을 부순다, yield 는 읽기만.
+     *  - 피스톤: getBlocks() 는 바꿀 수 없는 목록(밀 블록 + 부술 블록). 방향은 확장이면 피스톤이 바라보는 쪽, 블록을 끄는 수축이면 그 반대(미는 방향),
+     *    끌 블록이 없는 수축(일반 피스톤)은 바라보는 쪽이다 — Paper 의 PistonBaseBlock 패치가 두 자리에서 다르게 넘긴다.
+     *  - BlockFormEvent/BlockSpreadEvent 는 처리기 목록이 따로다. Furnace 쪽은 BlockSpread 가 BlockForm 의 하위라 BlockForm 짝은 하위 이벤트를 건너뛴다.
+     */
+    private static void registerProtection() {
+        EventBridge.reg(org.domi.furnace.api.event.entity.EntityExplodeEvent.class, org.bukkit.event.entity.EntityExplodeEvent.class,
+                f -> {
+                    var who = Compat.entity(f.entity());
+                    if (who == null) return null;
+                    List<Block> blocks = new ArrayList<>(f.blocks().size());
+                    for (BlockPos pos : f.blocks()) blocks.add(Compat.block(f.location().world(), pos));
+                    return new org.bukkit.event.entity.EntityExplodeEvent(who, Compat.location(f.location()), blocks, f.yield(),
+                            org.bukkit.ExplosionResult.valueOf(f.result()));
+                },
+                (f, b) -> {
+                    var now = positions(b.blockList());
+                    if (!now.equals(f.blocks())) {
+                        f.blocks().clear();
+                        f.blocks().addAll(now);
+                    }
+                }, (f, b) -> {
+                    if (!positions(b.blockList()).equals(f.blocks())) {
+                        b.blockList().clear();
+                        for (BlockPos pos : f.blocks()) b.blockList().add(Compat.block(f.location().world(), pos));
+                    }
+                });
+        EventBridge.reg(org.domi.furnace.api.event.block.BlockPistonExtendEvent.class, org.bukkit.event.block.BlockPistonExtendEvent.class,
+                f -> new org.bukkit.event.block.BlockPistonExtendEvent(Compat.block(f.world(), f.pos()), pistonBlocks(f.world(), f.blocks()), Mappings.face(f.direction())),
+                (f, b) -> {});
+        EventBridge.reg(org.domi.furnace.api.event.block.BlockPistonRetractEvent.class, org.bukkit.event.block.BlockPistonRetractEvent.class,
+                f -> {
+                    var facing = Mappings.face(f.direction());
+                    return new org.bukkit.event.block.BlockPistonRetractEvent(Compat.block(f.world(), f.pos()), pistonBlocks(f.world(), f.blocks()),
+                            f.blocks().isEmpty() ? facing : facing.getOppositeFace());
+                }, (f, b) -> {});
+        EventBridge.reg(org.domi.furnace.api.event.block.BlockFormEvent.class, org.bukkit.event.block.BlockFormEvent.class,
+                f -> f instanceof org.domi.furnace.api.event.block.BlockSpreadEvent ? null
+                        : new org.bukkit.event.block.BlockFormEvent(Compat.block(f.world(), f.pos()), CompatBlockState.of(f.world(), f.pos(), f.newData())),
+                (f, b) -> {});
+        EventBridge.reg(org.domi.furnace.api.event.block.BlockSpreadEvent.class, org.bukkit.event.block.BlockSpreadEvent.class,
+                f -> new org.bukkit.event.block.BlockSpreadEvent(Compat.block(f.world(), f.pos()), Compat.block(f.world(), f.source()),
+                        CompatBlockState.of(f.world(), f.pos(), f.newData())), (f, b) -> {});
+        EventBridge.reg(org.domi.furnace.api.event.entity.ProjectileHitEvent.class, org.bukkit.event.entity.ProjectileHitEvent.class,
+                f -> {
+                    if (!(Compat.entity(f.entity()) instanceof org.bukkit.entity.Projectile projectile)) return null;   // 투사체가 아닌 종류는 Bukkit 이 이 이벤트를 내지 않는다
+                    var hitEntity = f.hitEntity() == null ? null : Compat.entity(f.hitEntity());
+                    var hit = f.hitBlock();
+                    return new org.bukkit.event.entity.ProjectileHitEvent(projectile, hitEntity, hit == null ? null : Compat.block(hit.world(), hit.pos()),
+                            hit == null ? null : Mappings.face(f.hitFace()));
+                }, (f, b) -> {});
+    }
+
+    private static List<Block> pistonBlocks(String world, List<BlockPos> positions) {
+        List<Block> out = new ArrayList<>(positions.size());
+        for (BlockPos pos : positions) out.add(Compat.block(world, pos));
+        return java.util.Collections.unmodifiableList(out);   // CraftBukkit 의 목록처럼 바꿀 수 없다
     }
 
     /** 서버가 원래 블록을 알리지 않은 옛 생성자의 이벤트: 소유 스레드면 월드의 지금 블록, 아니면(읽을 수 없으면) 공기로 본다. */

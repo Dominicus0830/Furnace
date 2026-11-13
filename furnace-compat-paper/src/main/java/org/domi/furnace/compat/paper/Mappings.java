@@ -450,7 +450,7 @@ final class Mappings {
 
     // ------------------------------------------------------------------ 블록 클릭·단축 칸·블록 갱신·화로 (FAWE 묶음)
 
-    private static org.bukkit.block.BlockFace face(String f) {
+    static org.bukkit.block.BlockFace face(String f) {
         return f == null ? null : org.bukkit.block.BlockFace.valueOf(f.toUpperCase(java.util.Locale.ROOT));
     }
 
