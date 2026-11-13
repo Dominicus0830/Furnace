@@ -15,10 +15,10 @@ public final class PlayerPose {
     /** 자세별 키(EntityDimensions: 수영 0.6, 웅크림 1.5, 서기 1.8). */
     static double height(int pose) { return pose == SWIMMING ? 0.6 : pose == CROUCHING ? 1.5 : 1.8; }
 
-    /** canPlayerFitWithinBlocksAndEntitiesWhen: 그 자세의 상자(1e-7 줄임)에 충돌이 없다. */
+    /** canPlayerFitWithinBlocksAndEntitiesWhen: 그 자세의 상자(1e-7 줄임)에 충돌(noCollision(player, …) — 블록·배·셜커·보더)이 없다. */
     static boolean canFit(ChunkLevel level, Player p, int pose) {
         double hw = 0.3;
-        return level.noCollision(new AABB(p.x() - hw, p.y(), p.z() - hw, p.x() + hw, p.y() + height(pose), p.z() + hw).deflate(1.0E-7));
+        return level.noCollision(p, new AABB(p.x() - hw, p.y(), p.z() - hw, p.x() + hw, p.y() + height(pose), p.z() + hw).deflate(1.0E-7));
     }
 
     public static void update(Player p, ChunkLevel level, PlayerProbe probe, PlayerProbe.Blocks blocks) {

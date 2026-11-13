@@ -81,7 +81,7 @@ public final class ItemEffects {
         p.addCooldown(ItemContext.id("minecraft:item", "chorus_fruit"), 20);
     }
 
-    /** Entity.randomTeleport 의 판정: 가로(nx,nz)에서 발밑이 움직임을 막는 블록일 때까지 내려가 상자가 비었고 액체가 없으면 {x, y, z}, 아니면 null. */
+    /** LivingEntity.randomTeleport 의 판정: 가로(nx,nz)에서 발밑이 움직임을 막는 블록일 때까지 내려가 상자가 비었고(엔티티·도착 자리 보더 포함) 액체가 없으면 {x, y, z}, 아니면 null. */
     public static double[] randomTeleportTarget(Player p, ChunkLevel level, double nx, double ny, double nz) {
         Pos pos = new Pos((int) Math.floor(nx), (int) Math.floor(ny), (int) Math.floor(nz));
         if (!level.hasChunkAt(pos)) return null;
@@ -98,7 +98,8 @@ public final class ItemEffects {
         }
         if (!found) return null;
         AABB box = p.boundingBox().move(nx - p.x(), d3 - p.y(), nz - p.z());
-        return level.noCollision(box) && !level.containsAnyLiquid(box) ? new double[] {nx, d3, nz} : null;
+        // 바닐라는 teleportTo 뒤 noCollision(this): 플레이어 self 로, 보더는 도착 자리 기준.
+        return level.noCollision(p, nx, nz, box) && !level.containsAnyLiquid(box) ? new double[] {nx, d3, nz} : null;
     }
 
     // ------------------------------------------------------------------ 불길한 병(OminousBottleItem.finishUsingItem)

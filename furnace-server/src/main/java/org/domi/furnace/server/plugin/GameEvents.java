@@ -196,6 +196,12 @@ public interface GameEvents {
 
     // ------------------------------------------------------------------ 3단계 둘째 묶음: 블록(모두 그 블록의 region 스레드)
 
+    /**
+     * BlockPhysicsEvent 를 물어볼 필요가 있는가 — 거짓이면 이웃 갱신 호출 지점이 blockPhysics 와 그 인자(블록 번호 변환)를 건너뛴다(필드 읽기).
+     * 기본은 참(blockPhysics 를 직접 구현한 쪽이 항상 불리게). 서버 구현은 구독자가 있을 때만 참.
+     */
+    default boolean wantsBlockPhysics() { return true; }
+
     /** 이웃·모양 갱신 직전(sourceBlock 은 블록 id, 상태 아님). false 면 이 갱신을 무시한다. 아주 자주 불리므로 구독자가 없으면 곧바로 true. */
     default boolean blockPhysics(String dimension, Pos pos, int state, Pos sourcePos, int sourceBlock) { return true; }
 
@@ -287,6 +293,9 @@ public interface GameEvents {
 
     /** 탈것에 타기 직전(탈것의 region 스레드). false 면 취소. */
     default boolean entityMount(org.domi.furnace.server.entity.Rider rider, Entity vehicle) { return true; }
+
+    /** 플레이어가 엔티티를 보기 시작한다(스폰 묶음을 보내기 바로 전, Paper PlayerTrackEntityEvent 자리). 엔티티 소유 region 스레드에서. */
+    default void playerTrackEntity(Player viewer, Entity e) {}
 
     /** 탈것에서 내리기 직전(cancellable 이 false 면 취소해도 소용없다 — 호출한 쪽이 반환값을 무시한다). false 면 취소. */
     default boolean entityDismount(org.domi.furnace.server.entity.Rider rider, Entity vehicle, boolean cancellable) { return true; }

@@ -720,7 +720,7 @@ public final class SchemaPacketBridge {
     }
 
     @SuppressWarnings("unchecked")
-    private static Optional<Float> fixedRange(net.minecraft.sounds.SoundEvent s) {
+    static Optional<Float> fixedRange(net.minecraft.sounds.SoundEvent s) {
         try {
             return (Optional<Float>) FIXED_RANGE.invoke(s);
         } catch (ReflectiveOperationException e) {

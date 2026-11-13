@@ -793,7 +793,7 @@ public final class ServerCore {
 
     /** 보더 {minX, minZ, maxX, maxZ}(블록 레벨 서비스 꼴). */
     private static double[] bounds(org.domi.furnace.server.world.WorldBorder b) {
-        synchronized (b) { return new double[] {b.getMinX(), b.getMinZ(), b.getMaxX(), b.getMaxZ()}; }
+        return b.bounds();
     }
 
     /** 그 차원의 보더(바닐라 level.getWorldBorder()). 띄우지 않은 차원이면 오버월드 것. */

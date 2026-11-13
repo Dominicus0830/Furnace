@@ -164,9 +164,9 @@ public final class ElytraFlight {
         p.flyVy = v[1];
         p.flyVz = v[2];
         if (level == null) return;
-        // Entity.move(SELF): 블록 충돌만(엔티티 충돌 상자·걸어 오르기·블록 속도 계수는 아직 없다)
+        // Entity.move(SELF): 엔티티(배·셜커)·월드 보더·블록 충돌(걸어 오르기·블록 속도 계수는 아직 없다)
         AABB box = p.boundingBox();
-        double[] m = Entity.collideWithShapes(v[0], v[1], v[2], box, level.blockCollisions(box.expandTowards(v[0], v[1], v[2])));
+        double[] m = Entity.collideBoundingBox(level, p, box, v[0], v[1], v[2]);
         boolean collX = !Entity.equalish(v[0], m[0]), collZ = !Entity.equalish(v[2], m[2]);
         boolean vertical = v[1] != m[1];
         boolean ground = vertical && v[1] < 0.0;
