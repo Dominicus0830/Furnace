@@ -1,6 +1,6 @@
 // T-055b: 바닐라 1.21.1 예약 틱의 세부 — 불러온 예약의 순번(LevelChunkTicks.unpack: -n..-1, 레벨 카운터 안 씀), 불러올 때 거르기
 // (SavedTick.loadTickList: 그 청크 밖 칸 버림, TickPriority.byValue: -3..3 으로 가둠), /clone 복사(LevelTicks.copyAreaFrom: 이번 틱에
-// 이미 돈 것·남은 것도 모음).
+// 이미 돈 것·남은 것도 모음), 저장 예약이 같은 (칸, 종류) 새 예약보다 먼저 자리를 잡음.
 package org.domi.furnace.server.block;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -84,6 +84,18 @@ class ScheduledTickVanillaDetailsTest {
         orders.sort(null);
         assertEquals(List.of(-3, 3), prios);
         assertEquals(List.of(-2L, -1L), orders, "n 은 걸러진 뒤의 수");
+    }
+
+    @Test
+    void savedTickWinsOverALaterScheduleOfTheSamePosAndType() {
+        // 바닐라: 저장 예약(pendingTicks)은 컨테이너가 생길 때부터 ticksPerPosition 에 있어, 그 뒤 같은 (칸, 종류) 예약은 버려진다
+        var level = new BlockPlacementTest.TestLevel();
+        level.loadChunkTicks(root(tick("minecraft:stone", 20, -60, 1, 7, 2)), 1, 0);
+        level.scheduleTick(new Pos(20, -60, 1), STONE, 1);
+        var list = level.blockTicks().chunkTicks(1, 0);
+        assertEquals(1, list.size());
+        assertEquals(level.levelTime() + 7, list.get(0).triggerTick(), "저장 쪽 시각이 남는다");
+        assertEquals(2, list.get(0).priority());
     }
 
     @Test

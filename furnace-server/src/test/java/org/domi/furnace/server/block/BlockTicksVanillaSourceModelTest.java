@@ -1,5 +1,6 @@
 // T-055 독립 검토 R4: 바닐라 1.21.1 LevelTicks·LevelChunkTicks 의 동작을 그대로 옮긴 모델(이 파일의 VLevel·VChunk)과 BlockTicks 를 맞댄다.
-// 빠른 길(이번 시각만·한도 안)과 병합 길 경계, 지난 예약, 틱 범위 술어, 실행 중 예약(지연 0 포함)·조회, 청크 꺼내기·다시 걸기.
+// 빠른 길(이번 시각만·한도 안)과 병합 길 경계, 지난 예약, 틱 범위 술어, 실행 중 예약(지연 0 포함)·조회, 청크 꺼내기·다시 걸기,
+// 저장 목록 순서(바닐라 LevelChunkTicks.save = 큐 배열 순서).
 // 시드 수: -Dfurnace.identity.vanillaModelSeeds (기본 1000).
 package org.domi.furnace.server.block;
 
@@ -107,16 +108,12 @@ class BlockTicksVanillaSourceModelTest {
             VChunk c = all.remove(ck);
             nextTick.remove(ck);
             if (c == null) return List.of();
-            List<ST> l = new ArrayList<>(c.q);
-            l.sort(DRAIN);
-            return l;
+            return new ArrayList<>(c.q);   // LevelChunkTicks.save: 큐 배열(힙) 순서 그대로(T-055b)
         }
-        List<ST> sorted(long ck) {
+        List<ST> saved(long ck) {
             VChunk c = all.get(ck);
             if (c == null) return List.of();
-            List<ST> l = new ArrayList<>(c.q);
-            l.sort(DRAIN);
-            return l;
+            return new ArrayList<>(c.q);
         }
         int size() { int n = 0; for (VChunk c : all.values()) n += c.q.size(); return n; }
     }
@@ -173,7 +170,7 @@ class BlockTicksVanillaSourceModelTest {
                 if (vanilla) v.tick(time, max, check, t -> body.accept(t.pos, t.type));
                 else b.tick(time, max, check, (p, t) -> body.accept(p.asLong(), t));
                 out.append(" n=").append(vanilla ? v.size() : b.size()).append('\n');
-            } else if (op < 96) {   // 청크 꺼냈다가(실행 순서) 곧바로 또는 나중에 다시 걸기
+            } else if (op < 96) {   // 청크 꺼냈다가(저장 순서 = 큐 배열 순서) 곧바로 다시 걸기
                 int cx = r.nextInt(span) - span / 2, cz = r.nextInt(span) - span / 2;
                 long ck = ChunkPredicateMemo.chunkKey(cx, cz);
                 List<ST> l;
@@ -197,7 +194,7 @@ class BlockTicksVanillaSourceModelTest {
             for (int cz = -span; cz <= span; cz++) {
                 long ck = ChunkPredicateMemo.chunkKey(cx, cz);
                 List<ST> l;
-                if (vanilla) l = v.sorted(ck);
+                if (vanilla) l = v.saved(ck);
                 else {
                     l = new ArrayList<>();
                     for (var x : b.chunkTicks(cx, cz)) l.add(new ST(x.pos(), x.type(), x.triggerTick(), x.priority(), x.subTickOrder()));

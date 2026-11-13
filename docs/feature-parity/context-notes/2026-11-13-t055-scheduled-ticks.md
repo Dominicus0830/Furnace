@@ -19,6 +19,9 @@
 - 저장 목록 순서 = 컨테이너 `PriorityQueue` 배열 순서(`LevelChunkTicks.save`). 바닐라 모델(`BlockTicksVanillaOrderModel`)이 틱마다 청크별 목록 순서까지 대조.
 - 불러온 예약 순번 = 목록마다 `-n..-1`(`unpack`), 레벨 카운터 안 씀. 그 청크 밖 칸은 버림(`loadTickList`), 우선순위는 `-3..3` 으로 가둠(`TickPriority.byValue`).
 - /clone(`copyAreaFrom`): 이미 돈 것 → 남은 것 → 청크 x→z 컨테이너 배열 순서로 모으고 정렬하지 않는다.
+- 저장 예약이 먼저 자리를 잡는다(#303 검토 R3): 바닐라는 컨테이너가 생길 때부터 저장 예약(`pendingTicks`)이 `ticksPerPosition` 에 있어, 풀기 전에
+  들어온 같은 (칸, 종류) 새 예약을 버린다. Furnace 는 청크를 넣은 뒤 빛·엔티티·블록 엔티티를 올리고 나서야 저장 예약을 걸어 반대로 저장 쪽이 버려질 수 있었다 →
+  `Region` 의 두 설치 경로(적재·청크 다시 만들기)에서 `putChunk` 바로 뒤에 `loadChunkTicks`.
 
 ## 아직 바닐라와 다를 수 있는 것
 
@@ -52,3 +55,6 @@
 - `ScheduledTickSceneGoldenTest`(`scheduled-ticks-scene`): 물·용암·레드스톤·미뤄 둔 청크·청크 저장/재적재 장면 300틱.
 - `ScheduledTickUnloadedChunkTest`: 버림·순번 건너뜀·이웃 청크·적재 예약 유지.
 - `DeferredBlockTicksTest.matchesVanillaLevelTicksOrderOnRandomScenes`: 바이트코드에서 옮긴 바닐라 모델과 대조(기존).
+- `BlockTicksVanillaSourceModelTest`(#303 검토 R4): 1.21.1 `LevelTicks`·`LevelChunkTicks` 동작을 옮긴 모델과 무작위 대조(시드 1000 + 빠른 길 장면 300).
+  T-055b 부터 저장 목록도 정렬하지 않고 큐 배열 순서 그대로 맞댄다.
+- `ScheduledTickVanillaDetailsTest`(T-055b): 불러온 순번·거르기·우선순위 가두기·/clone 틱 안 복사·저장 예약 우선.
