@@ -35,12 +35,23 @@ for a in "${JVM_ARGS[@]}"; do case "$a" in -Xmx*) HAS_XMX=1 ;; esac; done
 [ "$HAS_XMX" = 0 ] && JVM_ARGS=("-Xmx${FURNACE_XMX:-6G}" "${JVM_ARGS[@]}")
 
 # AppCDS: JDK 19 이상이면 클래스 공유 아카이브를 자동으로 만들고(처음 끌 때 저장) 다음 기동부터 쓴다.
-# 아카이브 파일이 없거나 낡았으면 JVM 이 다시 만든다. 끄려면 FURNACE_CDS=0, 직접 지정한 옵션이 있으면 그대로 둔다.
+# 끄려면 FURNACE_CDS=0, 직접 지정한 옵션이 있으면 그대로 둔다.
+# 아카이브가 lib 의 jar 보다 오래됐으면 지운다(JDK 21 은 낡은 아카이브를 다시 만들지 않는다).
+# 헤더가 깨진 부분 파일(첫 덤프 중 강제 종료)도 지운다. 설치 폴더가 쓸 수 없고 아카이브도 없으면 옵션을 붙이지 않는다.
 CDS_ARGS=()
+CDS_FILE="$APP/furnace.jsa"
 if [ "${FURNACE_CDS:-1}" != 0 ] && ! printf '%s\n' "${JVM_ARGS[@]}" | grep -q -e SharedArchiveFile -e AutoCreateSharedArchive -e 'Xshare'; then
   JMAJOR=$(java -version 2>&1 | sed -n 's/.*version "\([0-9]*\).*/\1/p' | head -1)
   if [ -n "$JMAJOR" ] && [ "$JMAJOR" -ge 19 ] 2>/dev/null; then
-    CDS_ARGS=("-XX:+AutoCreateSharedArchive" "-XX:SharedArchiveFile=$APP/furnace.jsa")
+    if [ -f "$CDS_FILE" ]; then
+      MAGIC=$(od -An -tx1 -N4 "$CDS_FILE" 2>/dev/null | tr -d ' ')
+      if [ "$MAGIC" != "a8ab0bf0" ] || [ -n "$(find "$APP/lib" -newer "$CDS_FILE" -print -quit 2>/dev/null)" ]; then
+        rm -f "$CDS_FILE" 2>/dev/null
+      fi
+    fi
+    if [ -f "$CDS_FILE" ] || [ -w "$APP" ]; then
+      CDS_ARGS=("-XX:+AutoCreateSharedArchive" "-XX:SharedArchiveFile=$CDS_FILE")
+    fi
   fi
 fi
 exec java "${CDS_ARGS[@]}" "${JVM_ARGS[@]}" -cp "$APP/lib/*" org.domi.furnace.server.FurnaceMain "$@"
