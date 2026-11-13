@@ -140,7 +140,13 @@ public final class PluginHost implements Furnace {
 
     /** 서버 월드의 손잡이 — 같은 키로 다시 올린 추가 월드면 새 손잡이(내린 월드의 손잡이는 isLoaded() = false 로 남는다). */
     WorldHandle handleFor(org.domi.furnace.server.world.World w) {
-        return worldHandles.compute(w.dimension(), (k, old) -> old != null && old.handle() == w ? old : new WorldHandle(this, w));
+        // 빠른 길(T-071): 이미 이 월드의 손잡이가 있으면 compute 의 bin 잠금 없이 읽기만 한다. 어댑터 호출 거의 전부가 이 길을
+        // 지나서 compute 는 스레드를 늘릴수록 처리량이 줄었다(O13 보고서 실서버 측정 1→4 스레드 17→2.8 M/s, 이 PR 의 HandleForBench 는 따로 잰 값). 없거나 다른(내린) 월드의 낡은 손잡이일
+        // 때만 compute — 결과는 전과 같다(같은 World 면 늘 같은 손잡이, 새로 올린 월드면 새 손잡이로 교체, 경합해도 하나로 수렴).
+        String dim = w.dimension();
+        WorldHandle cur = worldHandles.get(dim);
+        if (cur != null && cur.handle() == w) return cur;
+        return worldHandles.compute(dim, (k, old) -> old != null && old.handle() == w ? old : new WorldHandle(this, w));
     }
 
     @Override

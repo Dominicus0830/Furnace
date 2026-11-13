@@ -171,6 +171,29 @@ public final class BlockRegistry {
         return ids != null ? ids : Set.of();
     }
 
+    // 플러그인 API 의 불변 BlockData 를 상태 번호별로 게으르게 보관하는 칸(ApiConvert.block 이 채운다). 이 레지스트리는 만든 뒤 바뀌지 않으므로
+    // (데이터 팩 리로드는 새 레지스트리를 만든다) 칸도 레지스트리와 함께 버려진다. 값이 불변 record 라 경합해 두 번 채워도 안전하다.
+    private volatile org.domi.furnace.api.world.BlockData[] apiBlockData;
+
+    /** 상태 번호 → 이미 만든 API BlockData(없으면 null). 범위 밖 번호는 null. ApiConvert 전용. */
+    public org.domi.furnace.api.world.BlockData cachedApiBlock(int stateId) {
+        org.domi.furnace.api.world.BlockData[] t = apiBlockData;
+        return t == null || stateId < 0 || stateId >= t.length ? null : t[stateId];
+    }
+
+    /** {@link #cachedApiBlock} 칸에 넣는다(범위 안 번호만, 그 밖은 무시). ApiConvert 전용. */
+    public void cacheApiBlock(int stateId, org.domi.furnace.api.world.BlockData data) {
+        if (stateId < 0 || stateId >= totalStateCount) return;
+        org.domi.furnace.api.world.BlockData[] t = apiBlockData;
+        if (t == null) {
+            synchronized (this) {
+                t = apiBlockData;
+                if (t == null) apiBlockData = t = new org.domi.furnace.api.world.BlockData[totalStateCount];
+            }
+        }
+        t[stateId] = data;
+    }
+
     /** direct 팰릿 bitsPerEntry = ceil(log2(전체 state 수)). */
     public int directBits() {
         return 32 - Integer.numberOfLeadingZeros(totalStateCount - 1);
