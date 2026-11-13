@@ -45,7 +45,10 @@ public final class Region {
     private static final long DRAIN_BUDGET_NANOS = 25_000_000L;
 
     /** 청크 키가 붙은 작업. urgent: 전역(명령) 스레드가 보냈다 — 명령 블록이 결과를 기다리는 동안 이것만 골라 돌린다. */
-    record Task(long chunkKey, Consumer<Region> run, boolean urgent) {}
+    /** urgent: 전역(명령) 스레드가 보낸 작업. command: 명령 범위(CommandDrainGate)에서 넣은 작업 — 명령 큐 즉시 처리 문의 대상. */
+    record Task(long chunkKey, Consumer<Region> run, boolean urgent, boolean command) {
+        Task(long chunkKey, Consumer<Region> run, boolean urgent) { this(chunkKey, run, urgent, false); }
+    }
 
     private record Delayed(long dueTick, long seq, long chunkKey, Consumer<Region> run) {
         Delayed(long dueTick, long chunkKey, Consumer<Region> run) { this(dueTick, DELAYED_SEQ.getAndIncrement(), chunkKey, run); }
@@ -164,8 +167,8 @@ public final class Region {
         betweenTicks = true;
         try {
             while ((t = inbox.poll()) != null) {
-                if (t.run() instanceof Regionizer.RegionWide || mine(t.chunkKey())) runTask(t.run());
-                else rz().enqueue(t.chunkKey(), t.run(), t.urgent());
+                if (t.run() instanceof Regionizer.RegionWide || mine(t.chunkKey())) runTask(t);
+                else rz().enqueue(t.chunkKey(), t.run(), t.urgent(), t.command());
                 if ((++n & 15) == 0 && System.nanoTime() > deadline) break;
             }
             if (hold) return;
@@ -200,7 +203,7 @@ public final class Region {
         URGENT_WAITERS.incrementAndGet();
         try {
             while (true) {
-                runUrgentTasks();
+                runUrgentTasks(0L);
                 if (done.getAsBoolean()) return true;
                 if (Regionizer.helpDrainAny()) continue;   // 워커가 모자라 못 돈 남의 급한 작업(예: @e 가 도는 다른 region)
                 long now = System.nanoTime();
@@ -215,15 +218,24 @@ public final class Region {
     }
 
     /** 작업 큐에서 급한 작업만 꺼내 돌린다(넣은 순서대로, 나머지는 그대로 둔다). 이 region 이 아닌 칸이면 지금 주인에게. */
-    private void runUrgentTasks() {
-        for (var it = inbox.iterator(); it.hasNext(); ) {
-            Task t = it.next();
-            if (!t.urgent()) continue;
-            it.remove();
-            if (t.run() instanceof Regionizer.RegionWide || mine(t.chunkKey())) runTask(t.run());
-            else rz().enqueue(t.chunkKey(), t.run(), true);
+    private void runUrgentTasks(long deadlineNanos) {
+        long start = System.nanoTime();
+        urgentDepth++;
+        try {
+            for (var it = inbox.iterator(); it.hasNext(); ) {
+                Task t = it.next();
+                if (!t.urgent()) continue;
+                it.remove();
+                if (t.run() instanceof Regionizer.RegionWide || mine(t.chunkKey())) runTask(t);
+                else rz().enqueue(t.chunkKey(), t.run(), true, t.command());
+                if (deadlineNanos != 0L && System.nanoTime() - deadlineNanos >= 0L) break;   // 남은 것은 다음 틱 머리에서
+            }
+        } finally {
+            // 바깥 호출만 센다(기다리는 중 돈 안쪽 호출은 바깥 시간에 들어 있다) — 명령 큐 문과 명령 블록이 한 예산을 나눠 쓴다
+            if (--urgentDepth == 0) CommandDrainGate.charge(System.nanoTime() - start);
         }
     }
+    private int urgentDepth;
 
     /** 작업 큐에 급한 작업이 있는가(아무 스레드, 힌트). */
     boolean hasUrgentTask() {
@@ -231,12 +243,24 @@ public final class Region {
         return false;
     }
 
+    /** 작업 큐에 명령 범위에서 넣은 작업이 있는가(아무 스레드, 힌트). */
+    private boolean hasCommandTask() {
+        for (Task t : inbox) if (t.command()) return true;
+        return false;
+    }
+
+    /** 틱 사이에 drain 차례를 줄 일이 있는가: 명령 블록이 기다리는 중이고 급한 작업이 있거나, 명령 큐 문이 열려 있고 명령 작업이 있다. */
+    boolean drainWanted() {
+        return (URGENT_WAITERS.get() > 0 && hasUrgentTask()) || (CommandDrainGate.open() && hasCommandTask());
+    }
+
     /** drain 차례(틱 사이, 이 region 스레드): 급한 작업만 돌린다. 틱 사이 합치기·나누기가 있었을 수 있어 칸 조회 캐시를 먼저 비운다. */
     void runUrgentDrain() {
         if (level != null) level.chunkUnloaded();
         betweenTicks = true;
         try {
-            runUrgentTasks();
+            // 명령 블록이 기다리지 않는 drain(= 명령 큐 문)은 남은 문 예산을 마감으로 받는다 — 넘으면 멈추고 나머지는 다음 틱 머리로
+            runUrgentTasks(URGENT_WAITERS.get() > 0 ? 0L : System.nanoTime() + CommandDrainGate.remainingNanos());
         } finally {
             betweenTicks = false;
         }
@@ -248,6 +272,17 @@ public final class Region {
      */
     private boolean mine(long chunkKey) {
         return rz().owns(this, Regionizer.chunkX(chunkKey), Regionizer.chunkZ(chunkKey));
+    }
+
+    /** 명령 범위에서 넣은 작업은 명령 범위 안에서 돈다 — 이어서 넣는 두 번째 홉도 문 대상이 되게. */
+    private void runTask(Task t) {
+        boolean command = t.command();
+        if (command) CommandDrainGate.enterScope();
+        try {
+            runTask(t.run());
+        } finally {
+            if (command) CommandDrainGate.exitScope();
+        }
     }
 
     private void runTask(Consumer<Region> task) {
@@ -642,20 +677,30 @@ public final class Region {
         }
         fresh.markDirty();
         dirtyChunks.add(cp);
-        // 보는 플레이어에게 새 청크를 다시 보낸다 — 새 구독(ready=false)으로 바꿔 그 사이 변경은 청크 뒤로 미루고, 아직 옛 청크를
-        // 직렬화하던 전송은 구독이 바뀌어 버려진다(그래서 아직 받지 못한 플레이어에게도 지금 보낸다)
+        resendChunk(cp);
+        return Boolean.TRUE;
+    }
+
+    /**
+     * 그 청크를 보는 플레이어에게 지금 청크를 통째로 다시 보낸다(재생성 교체·빠른 블록 쓰기 CHUNKS). 이 region 스레드에서.
+     * 새 구독(ready=false)으로 바꿔 그 사이 변경은 청크 뒤로 미루고, 아직 옛 청크를 직렬화하던 전송은 구독이 바뀌어 버려진다
+     * (그래서 아직 받지 못한 플레이어에게도 지금 보낸다). 그 사이 구독을 푼 플레이어는 다시 넣지 않는다. 스냅샷은 이 자리에서 뜬다
+     * (inlineOnOwner) — 지금 상태가 실리고, 미뤄 두는 변경이 한 틱 짧아진다.
+     */
+    void resendChunk(ChunkPos cp) {
+        world.assertOwns(this);
         for (Player p : new ArrayList<>(world.subscribers(cp))) {
-            World.Subscription sub = world.subscribeChunk(cp, p);
-            world.serializedChunkBody(cp).thenAccept(body -> {
+            World.Subscription sub = world.resubscribeIfPresent(cp, p);
+            if (sub == null) continue;
+            world.serializedChunkBody(cp, true).thenAccept(body -> {
                 if (!world.isSubscribed(cp, p, sub)) return;
                 p.send(LevelChunkWithLight.ofShared(body));
                 world.chunkDelivered(cp, p, sub);
             }).exceptionally(ex -> {
-                org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 재생성 청크 재전송 실패 {}", cp, ex);
+                org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 청크 재전송 실패 {}", cp, ex);
                 return null;
             });
         }
-        return Boolean.TRUE;
     }
 
     private static boolean carriesPlayer(org.domi.furnace.server.entity.Entity e) {
@@ -1990,14 +2035,31 @@ public final class Region {
     public org.domi.furnace.server.entity.ItemEntity playerDrop(Player p, ItemStack stack, boolean dropAround, boolean includeThrower, boolean callEvent) {
         world.assertOwns(this);
         if (stack.isEmpty()) return null;
-        if (callEvent && !world.levelServices().gameEvents().playerDrop(p, stack)) {
+        var events = callEvent ? world.levelServices().gameEvents() : null;
+        // CraftBukkit 순서: 구독자가 있으면 던질 아이템 엔티티(와 속도)를 먼저 만들어 PlayerDropItemEvent 에 보이고, 취소하면 들어가지 않는다.
+        // 구독자가 없으면 이전과 같이 난수·엔티티 번호를 쓰지 않는다.
+        boolean early = events != null && events.wantsPlayerDrop();
+        RegionLevel l = level();
+        var ie = early ? throwItem(p, stack, dropAround, includeThrower, l) : null;
+        if (events != null && !(early ? events.playerDrop(p, stack, ie) : events.playerDrop(p, stack))) {
             // 플러그인 PlayerDropItemEvent 취소(CraftBukkit): 든 칸으로 돌려놓고 — 안 되면 첫 빈 칸 — 클라이언트가 먼저 비운 칸·커서를 되돌려 보낸다
             stack = org.domi.furnace.server.plugin.ClientResync.returnToSlot(p, p.inventory().heldWindowSlot(), stack);
             if (!stack.isEmpty()) stack = p.inventory().add(stack, false, org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(stack), false);
             org.domi.furnace.server.plugin.ClientResync.inventory(p);
             if (stack.isEmpty()) return null;
+            ie = null;   // 일부만 돌아가면 남은 만큼 아래에서 새로 던진다(이전 동작)
         }
-        RegionLevel l = level();
+        if (ie == null) ie = throwItem(p, stack, dropAround, includeThrower, l);
+        l.addFreshEntity(ie);
+        if (includeThrower) {   // ITEM_DROPPED · DROP 통계
+            p.awardStat("minecraft:dropped:" + org.domi.furnace.server.item.ItemTools.itemName(stack), stack.count());
+            p.awardStat("minecraft:drop", 1);
+        }
+        return ie;
+    }
+
+    /** Player.drop 가 던질 아이템 엔티티(눈 높이 - 0.3, 줍기 지연 40, 속도는 플레이어 난수)를 만든다 — 월드에는 아직 넣지 않는다. */
+    private org.domi.furnace.server.entity.ItemEntity throwItem(Player p, ItemStack stack, boolean dropAround, boolean includeThrower, RegionLevel l) {
         double eye = p.eyeY() - 0.3F;
         var ie = new org.domi.furnace.server.entity.ItemEntity(l, l.nextEntityId(), p.x(), eye, p.z(), stack);
         ie.setPickUpDelay(40);
@@ -2016,11 +2078,6 @@ public final class Region {
             ie.setDeltaMovement((double) (-i * h * 0.3F) + Math.cos(k) * (double) m,
                     (double) (-g * 0.3F + 0.1F + (r.nextFloat() - r.nextFloat()) * 0.1F),
                     (double) (j * h * 0.3F) + Math.sin(k) * (double) m);
-        }
-        l.addFreshEntity(ie);
-        if (includeThrower) {   // ITEM_DROPPED · DROP 통계
-            p.awardStat("minecraft:dropped:" + org.domi.furnace.server.item.ItemTools.itemName(stack), stack.count());
-            p.awardStat("minecraft:drop", 1);
         }
         return ie;
     }

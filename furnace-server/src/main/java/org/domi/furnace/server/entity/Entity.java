@@ -598,6 +598,7 @@ public abstract non-sealed class Entity implements Rider {
             return;
         }
         final double ox = x, oz = z;
+        final ChunkLevel from = level;
         // 떠나서 도착(또는 되돌림 작업 넣기)까지 원천 월드가 센다 — 종료 저장 기준점이 차원·관문 이동 모두 끝나기를 기다린다
         travel.departing();
         final CarriedEntity self;
@@ -615,7 +616,13 @@ public abstract non-sealed class Entity implements Rider {
                     if (target == null || t == null) {   // 갈 곳이 없다 — 원래 자리에 승객째 되살린다
                         travel.runAtSource(floor(ox), floor(oz), src -> restore(src, self, travel));
                     } else {
-                        arrive(target, t, travel, self, place);
+                        Entity made = arrive(target, t, travel, self, place);
+                        // 바닐라 changeDimension: 새 엔티티를 만들었으면(entity2 != null) 떠난·닿은 레벨 둘 다 resetEmptyTime.
+                        // 명령 teleportTo(레벨, …)(targetDimension 이 null)·되살림은 부르지 않는다
+                        if (made != null && targetDimension != null) {
+                            from.resetEmptyTime();
+                            target.resetEmptyTime();
+                        }
                     }
                 } finally {
                     travel.settled();
@@ -740,6 +747,8 @@ public abstract non-sealed class Entity implements Rider {
         e.setDeltaMovement(t.vx(), t.vy(), t.vz());
         if (e != this) target.addFreshEntity(e);
         for (Entity n : moved) n.startRiding(e, true);
+        if (level != null) level.resetEmptyTime();   // 바닐라: serverLevel.resetEmptyTime(); serverLevel2.resetEmptyTime()
+        target.resetEmptyTime();
         target.afterDimensionTransition(t);
         return e;
     }

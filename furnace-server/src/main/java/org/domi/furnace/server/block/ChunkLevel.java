@@ -3,7 +3,6 @@
 package org.domi.furnace.server.block;
 
 import java.util.TreeMap;
-import java.util.TreeSet;
 import org.domi.furnace.server.block.entity.BlockEntity;
 import org.domi.furnace.server.entity.AABB;
 import org.domi.furnace.server.entity.Entity;
@@ -41,7 +40,59 @@ public abstract class ChunkLevel implements BlockLevel {
     /** ServerLevel.handlingTick — 예약 틱을 돌리는 동안 참. */
     private boolean handlingTick;
     /** 방송할 변경: 구역 키(청크 x,z,구역 y) → 구역 안 칸 번호 집합(바닐라 ChunkHolder.changedBlocksPerSection). */
-    private final TreeMap<Long, TreeSet<Short>> changed = new TreeMap<>();
+    private final TreeMap<Long, SectionChanges> changed = new TreeMap<>();
+
+    /**
+     * 한 구역의 바뀐 칸 번호 집합. 번호 오름차순으로 돈다(예전 TreeSet<Short> 과 같은 순서, 칸마다 상자를 만들지 않는다).
+     * 한 칸뿐인 흔한 경우(무작위 틱·레드스톤)는 필드 하나, 둘째 칸부터 4096비트 배열.
+     */
+    static final class SectionChanges {
+        private long[] bits;
+        private int single = -1;
+        int count;
+
+        void add(int local) {
+            if (bits == null) {
+                if (count == 0) {
+                    single = local;
+                    count = 1;
+                    return;
+                }
+                if (single == local) return;
+                bits = new long[64];
+                bits[single >>> 6] |= 1L << single;
+            }
+            long m = 1L << local;
+            int w = local >>> 6;
+            if ((bits[w] & m) == 0) {
+                bits[w] |= m;
+                count++;
+            }
+        }
+
+        void addAll(SectionChanges o) {
+            if (o.bits == null) {
+                if (o.count > 0) add(o.single);
+                return;
+            }
+            for (short l : o.toArray()) add(l);
+        }
+
+        /** 오름차순 칸 번호. */
+        short[] toArray() {
+            if (bits == null) return count == 0 ? new short[0] : new short[] {(short) single};
+            short[] out = new short[count];
+            int k = 0;
+            for (int w = 0; w < 64; w++) {
+                long b = bits[w];
+                while (b != 0) {
+                    out[k++] = (short) (w << 6 | Long.numberOfTrailingZeros(b));
+                    b &= b - 1;
+                }
+            }
+            return out;
+        }
+    }
     /** 바닐라 ObjectLinkedOpenHashSet<BlockEventData>: 넣은 순서대로, 같은 이벤트가 큐에 있으면 다시 넣지 않는다. */
     private final java.util.LinkedHashSet<BlockEventData> blockEvents = new java.util.LinkedHashSet<>();
 
@@ -280,6 +331,9 @@ public abstract class ChunkLevel implements BlockLevel {
 
     /** 차원 이동 도착 뒤 처리(포털 티켓). 서버 레벨이 티켓을 건다 — 시험 레벨은 아무것도. */
     public void afterDimensionTransition(org.domi.furnace.server.entity.DimensionTransition t) {}
+
+    /** 바닐라 ServerLevel.resetEmptyTime: 엔티티가 차원을 넘으면(changeDimension) 떠난·닿은 차원이 다시 300 틱 엔티티를 돌린다. 시험 레벨은 아무것도. */
+    public void resetEmptyTime() {}
 
     /** 다른 스레드 소유 차원으로 옮기는 경로(시험 레벨이면 null). */
     public LevelServices.DimensionTravel dimensionTravel() { return services().dimensionTravel(); }
@@ -677,7 +731,7 @@ public abstract class ChunkLevel implements BlockLevel {
         other.blockTicks.moveTo(blockTicks, p -> true, offset);
         other.fluidTicks.moveTo(fluidTicks, p -> true, offset);
         subTickCount = Math.max(subTickCount, other.subTickCount);
-        for (var e : other.changed.entrySet()) changed.computeIfAbsent(e.getKey(), k -> new TreeSet<>()).addAll(e.getValue());
+        for (var e : other.changed.entrySet()) changed.computeIfAbsent(e.getKey(), k -> new SectionChanges()).addAll(e.getValue());
         other.changed.clear();
         blockEvents.addAll(other.blockEvents);
         other.blockEvents.clear();
@@ -792,7 +846,7 @@ public abstract class ChunkLevel implements BlockLevel {
         int cx = pos.x() >> 4, cz = pos.z() >> 4, sy = pos.y() >> 4;
         long key = ((long) cx & 0x3FFFFF) << 42 | ((long) cz & 0x3FFFFF) << 20 | (long) sy & 0xFFFFF;
         short local = (short) ((pos.x() & 15) << 8 | (pos.z() & 15) << 4 | pos.y() & 15);
-        changed.computeIfAbsent(key, k -> new TreeSet<>()).add(local);
+        changed.computeIfAbsent(key, k -> new SectionChanges()).add(local);
     }
 
     /** 청크 키 → {하늘빛, 블록빛} 바뀐 빛 섹션 마스크(ChunkHolder.sectionLightChanged — 비트 = 섹션 y − 맨 아래 빛 섹션). */
@@ -831,6 +885,15 @@ public abstract class ChunkLevel implements BlockLevel {
         lightWorld.resetLast();
     }
 
+    /** 그 청크의 아직 안 보낸 칸 변경을 버린다 — 청크를 통째로 다시 보낼 때(빠른 블록 쓰기 CHUNKS). 빛 변경은 남긴다. */
+    public void discardChanges(int chunkX, int chunkZ) {
+        if (changed.isEmpty()) return;
+        int lo = (minBuildHeight() >> 4), hi = (maxBuildHeight() - 1) >> 4;
+        for (int sy = lo; sy <= hi; sy++) {
+            changed.remove(((long) chunkX & 0x3FFFFF) << 42 | ((long) chunkZ & 0x3FFFFF) << 20 | (long) sy & 0xFFFFF);
+        }
+    }
+
     /** 틱 끝에 모아 둔 변경을 보낸다: 칸 하나면 블록 갱신, 여럿이면 구역 갱신(그때의 상태로). */
     public void broadcastChanges() {
         if (!lightChanges.isEmpty()) broadcastLightChanges();
@@ -838,23 +901,26 @@ public abstract class ChunkLevel implements BlockLevel {
         for (var e : changed.entrySet()) {
             long key = e.getKey();
             int cx = (int) (key >> 42), cz = (int) (key << 22 >> 42), sy = (int) (key << 44 >> 44);
-            if (chunk(cx, cz) == null) continue;
-            TreeSet<Short> set = e.getValue();
-            if (set.size() == 1) {
-                short l = set.first();
+            ChunkColumn col = chunk(cx, cz);
+            if (col == null) continue;
+            short[] pos = e.getValue().toArray();
+            if (pos.length == 1) {
+                short l = pos[0];
                 int x = cx << 4 | l >> 8 & 15, z = cz << 4 | l >> 4 & 15, y = sy << 4 | l & 15;
                 broadcastToChunk(cx, cz, new BlockUpdate(x, y, z, getBlockState(new Pos(x, y, z))));
                 broadcastBlockEntityIfNeeded(cx, cz, new Pos(x, y, z));
             } else {
-                short[] pos = new short[set.size()];
-                int[] states = new int[set.size()];
-                int i = 0;
-                for (short l : set) {
-                    pos[i] = l;
-                    states[i++] = getBlockState(new Pos(cx << 4 | l >> 8 & 15, sy << 4 | l & 15, cz << 4 | l >> 4 & 15));
+                int[] states = new int[pos.length];
+                // 블록 엔티티가 하나도 없는 청크(생성 상자 NBT 도 없음)는 칸마다 찾지 않는다 — 있으면 예전처럼 칸마다(생성 상자 입양 포함)
+                boolean anyBlockEntity = !col.blockEntities().isEmpty() || !col.generatedBlockEntities().isEmpty();
+                for (int i = 0; i < pos.length; i++) {
+                    short l = pos[i];
+                    states[i] = col.getBlock(l >> 8 & 15, sy << 4 | l & 15, l >> 4 & 15);   // 구역 안 칸 — 높이 안, 그 청크
                 }
                 broadcastToChunk(cx, cz, new SectionBlocksUpdate(cx, sy, cz, pos, states));
-                for (short l : set) broadcastBlockEntityIfNeeded(cx, cz, new Pos(cx << 4 | l >> 8 & 15, sy << 4 | l & 15, cz << 4 | l >> 4 & 15));
+                if (anyBlockEntity) {
+                    for (short l : pos) broadcastBlockEntityIfNeeded(cx, cz, new Pos(cx << 4 | l >> 8 & 15, sy << 4 | l & 15, cz << 4 | l >> 4 & 15));
+                }
             }
         }
         changed.clear();

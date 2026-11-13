@@ -512,7 +512,8 @@ public abstract class LivingEntity extends Entity implements Targetable {
             if (a == null || attributes().get(a) == null) continue;
             var inst = attributes().get(a);
             inst.removeModifier((String) m[1]);
-            inst.addOrReplaceTransientModifier(new org.domi.furnace.server.attribute.AttributeModifier((String) m[1], ((Number) m[2]).doubleValue() * (i.amplifier() + 1), (Integer) m[3]));
+            // 바닐라 MobEffect.addAttributeModifiers = addPermanentModifier: 속성 NBT 에 저장돼 청크를 다시 불러와도 남는다(효과 자체는 효과 목록에서 되살아난다).
+            inst.addOrReplaceModifier(new org.domi.furnace.server.attribute.AttributeModifier((String) m[1], ((Number) m[2]).doubleValue() * (i.amplifier() + 1), (Integer) m[3]));
         }
     }
 

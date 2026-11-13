@@ -160,6 +160,7 @@ public final class FurnaceTestServer implements AutoCloseable {
             org.domi.furnace.server.command.builtin.FurnaceAdminCommands.register(dispatcher);
             org.domi.furnace.server.command.builtin.TpsCommands.register(dispatcher);
             w.startTicking();
+            w.enableSpawnChunks();   // 운영 서버와 같이 게임 규칙 spawnChunkRadius 의 START 티켓(바닐라 prepareLevels)
             // 스폰 청크를 미리 올린다(접속·블록 시험이 곧바로 쓰게)
             for (int dz = -b.spawnChunkRadius; dz <= b.spawnChunkRadius; dz++)
                 for (int dx = -b.spawnChunkRadius; dx <= b.spawnChunkRadius; dx++) loadChunkBlocking(dx, dz);

@@ -37,7 +37,9 @@
 | `chat.unsigned-as-system` | ON/OFF | false | true|false | 채팅을 서명 없는 시스템 메시지로 보낸다(채팅 신고 불가) | true 면 경고 |
 | `server-brand` | 글자 | Furnace | - | F3 서버 브랜드와 level.dat ServerBrands |  |
 | `announce-sleep-status` | ON/OFF | true | true|false | 자는 사람 수·밤 건너뛰기 액션바 |  |
+| `world.tick-when-empty` | auto\|vanilla\|always | auto | auto\|vanilla\|always | 플레이어도 /forceload 도 없는 차원의 몹·블록 엔티티. vanilla=15초 뒤 쉼, always=CraftBukkit·Paper 기본(늘 돎), auto=Bukkit 플러그인이 있으면 always |  |
 | `commands.send-namespaced` | ON/OFF | true | true|false | 바닐라 명령의 minecraft:이름 별칭을 접속자 명령 트리·자동완성에 보낸다(Paper 와 같다). false 면 안 보여도 입력하면 실행된다 |  |
+| `commands.region-drain` | ON/OFF | true | true|false | 명령 큐가 도는 동안 region 에 보낸 급한 작업을 다음 틱을 기다리지 않고 곧바로 돌린다(전역 틱당 명령 블록 예산 20ms 공유, 넘으면 다음 틱). false 면 region 접근 한 줄이 한 틱씩 걸린다 |  |
 | `gravity-block-portal-dupe` | ON/OFF | true | true|false | 엔드 포털로 넘어간 중력 블록(모래·자갈 등)이 제자리에도 놓이는 바닐라 복제 현상. false 면 복제되지 않는다(바닐라와 달라짐) |  |
 | `motd-format` | plain|legacy|markup | plain | plain|legacy|markup | server.properties motd 해석 방식(plain=바닐라) |  |
 | `confirm-interrupt` | ON/OFF | false | true|false | 콘솔 Ctrl+C 를 두 번 눌러야 종료 |  |

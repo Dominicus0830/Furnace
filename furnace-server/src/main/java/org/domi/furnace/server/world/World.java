@@ -54,7 +54,7 @@ public final class World {
     private java.nio.file.Path worldDir = java.nio.file.Path.of("world");
     private BlockRegistry blockRegistry;
     private ItemRegistry itemRegistry;
-    private SpawnPoint defaultSpawn = new SpawnPoint(0, 64, 0, 0.0f);
+    private volatile SpawnPoint defaultSpawn = new SpawnPoint(0, 64, 0, 0.0f);
     // 이 월드의 차원(기본 오버월드 — 단일 차원 테스트·도구 호환). 저장 폴더·높이·하늘빛이 여기서 나온다.
     private volatile DimensionType dimensionType;
     private volatile Dimensions dimensions;
@@ -847,7 +847,108 @@ public final class World {
         }
     }
     public java.nio.file.Path worldDir() { return worldDir; }
-    public void defaultSpawn(SpawnPoint spawn) { this.defaultSpawn = spawn; }
+    public void defaultSpawn(SpawnPoint spawn) {
+        this.defaultSpawn = spawn;
+        if (spawnChunks) refreshSpawnTicket();   // 바닐라 setDefaultSpawnPos: 옛 START 티켓을 놓고 새 자리에 다시 건다
+    }
+
+    // ------------------------------------------------------------------ 스폰 청크(바닐라 ServerLevel.setDefaultSpawnPos 의 START 티켓)
+
+    /** 스폰 청크 티켓을 쓰는 월드인가(주 오버월드만 — 바닐라 prepareLevels 가 오버월드에만 setDefaultSpawnPos 를 부른다). */
+    private volatile boolean spawnChunks;
+
+    /** 지금 걸린 START 티켓(없으면 null): 가운데 청크와 거리(게임 규칙 spawnChunkRadius + 1, 레벨 33 − 거리). */
+    private volatile SpawnTicket spawnTicket;
+
+    /** 스폰 청크 START 티켓. 거리 d 면 체비셰프 ≤ d 청크가 올라와 있고(FULL), ≤ d − 1 은 블록 틱, ≤ d − 2 는 엔티티 틱(바닐라 레벨 33/32/31). */
+    record SpawnTicket(int cx, int cz, int distance) {
+        int chebyshev(int x, int z) { return Math.max(Math.abs(x - cx), Math.abs(z - cz)); }
+    }
+
+    /**
+     * 이 월드에 스폰 청크를 켠다(운영 서버가 주 오버월드에 한 번, 바닐라 MinecraftServer.prepareLevels). 켜는 즉시 지금 스폰 자리에
+     * 티켓을 걸고 그 청크를 올린다. 이후 {@link #defaultSpawn(SpawnPoint)}·게임 규칙 변경({@link #refreshSpawnTicket()})이 따라 옮긴다.
+     */
+    public void enableSpawnChunks() {
+        spawnChunks = true;
+        refreshSpawnTicket();
+    }
+
+    public boolean spawnChunksEnabled() { return spawnChunks; }
+
+    /**
+     * 바닐라 ServerLevel.setDefaultSpawnPos 의 티켓 부분(바이트코드 aqu.a(jd, float)): 옛 START 티켓(거리 &gt; 1 이었으면)을 놓고
+     * 거리 = spawnChunkRadius + 1 이 1 보다 크면 스폰 청크에 새로 건다. 게임 규칙 spawnChunkRadius 를 바꾸면 바닐라처럼 같은 자리로 다시 부른다.
+     * 켜지 않은 월드는 아무것도 안 한다. 어느 스레드에서 불러도 된다.
+     */
+    public synchronized void refreshSpawnTicket() {
+        if (!spawnChunks) return;
+        SpawnPoint sp = defaultSpawn;
+        int distance = levelServices.gameRuleInt("spawnChunkRadius") + 1;
+        SpawnTicket next = distance > 1 ? new SpawnTicket(Math.floorDiv(sp.x(), 16), Math.floorDiv(sp.z(), 16), distance) : null;
+        spawnTicket = next;   // 옛 티켓은 그냥 없어진다 — 그 청크는 구독자·다른 티켓이 없으면 퇴출 유예 뒤 내려간다
+        if (next == null || unloaded) return;
+        for (int dz = -distance; dz <= distance; dz++) {
+            for (int dx = -distance; dx <= distance; dx++) {
+                ChunkPos cp = new ChunkPos(next.cx() + dx, next.cz() + dz);
+                try {
+                    runAtChunk(cp, r -> r.loadChunk(cp));
+                } catch (RuntimeException e) {   // 닫히는 중
+                    log.debug("스폰 청크 {} 올리기 실패", cp, e);
+                }
+            }
+        }
+    }
+
+    /** 지금 START 티켓(시험·관측용, 없으면 null). */
+    SpawnTicket spawnTicket() { return spawnTicket; }
+
+    private boolean spawnTicketWithin(int cx, int cz, int less) {
+        SpawnTicket t = spawnTicket;
+        return t != null && t.chebyshev(cx, cz) <= t.distance() - less;
+    }
+
+    // ------------------------------------------------------------------ 빈 차원(바닐라 ServerLevel.emptyTime)
+
+    /** 바닐라 emptyTime: 플레이어도 /forceload 청크도 없이 지난 틱 수. 전역 틱이 늘리고, 엔티티가 차원을 넘으면 어느 스레드든 0 으로. */
+    private final java.util.concurrent.atomic.AtomicInteger emptyTime = new java.util.concurrent.atomic.AtomicInteger();
+
+    /**
+     * 바닐라 ServerLevel.tick: {@code flag = !players.isEmpty() || !getForcedChunks().isEmpty(); if (flag) resetEmptyTime();
+     * if (flag || emptyTime++ < 300) { 드래곤 전투·엔티티·블록 엔티티 }}. 전역 틱(서버 틱마다, region 틱보다 먼저)에서 차원마다 부른다.
+     * 예약 틱·블록 이벤트·청크 틱은 이와 무관하게 돈다 — 스폰 청크의 중계기·관측기는 계속 돌고 호퍼·움직이는 피스톤은 멈춘다.
+     * keepTicking 이면 비어도 flag 를 참으로 본다(CraftBukkit·Paper 기본 {@code flag1 = true || …}, world.tick-when-empty).
+     */
+    public void tickEmptyTime(boolean keepTicking) {
+        boolean occupied = keepTicking;
+        if (!occupied) {
+            var forced = forcedChunks;
+            occupied = forced != null && forced.size() > 0;
+        }
+        if (!occupied) {
+            String dim = dimensionType.levelKey();
+            for (Player p : online.array) {
+                if (dim.equals(p.dimension())) {
+                    occupied = true;
+                    break;
+                }
+            }
+        }
+        if (occupied) emptyTime.set(0);
+        else emptyTime.incrementAndGet();
+    }
+
+    /** 바닐라 규칙대로(Bukkit 의 늘 돌기 없이). */
+    public void tickEmptyTime() { tickEmptyTime(false); }
+
+    /** 바닐라 ServerLevel.resetEmptyTime(Entity.changeDimension 이 떠나는·닿는 차원 둘 다 부른다): 다음 300 틱은 다시 엔티티가 돈다. */
+    public void resetEmptyTime() { emptyTime.set(0); }
+
+    /**
+     * 이 차원이 비어 300 틱이 지나 엔티티·블록 엔티티 틱을 쉬는가. 바닐라 {@code emptyTime++ < 300} 의 거짓 = 늘린 뒤 값 &gt; 300.
+     * 값 하나에서 유도하므로 resetEmptyTime 과 전역 틱이 겹쳐도 쉼 표시가 남지 않는다.
+     */
+    public boolean emptyIdle() { return emptyTime.get() > 300; }
 
     // 월드 시계: 모든 region 스레드·연결이 같은 값을 보도록 단조 시계(nanoTime)에서 계산한다(스레드별 tickCount는 비교 불가).
     // 시간·날씨: 전역 틱(ServerCore.tick)이 진행한다.
@@ -1294,6 +1395,23 @@ public final class World {
         });
         return sub;
     }
+    /**
+     * 그 플레이어가 지금도 그 청크를 구독하고 있을 때만 새 구독으로 바꾼다(청크 다시 보내기). 그 사이 다른 스레드에서 구독을 풀었으면
+     * 다시 넣지 않고 null — 떠난 플레이어의 구독이 남아 청크가 내려가지 않는 일을 막는다.
+     */
+    public Subscription resubscribeIfPresent(ChunkPos cp, Player p) {
+        Subscription sub = new Subscription();
+        boolean[] done = new boolean[1];
+        chunkSubscribers.computeIfPresent(cp, (k, m) -> {
+            if (m.containsKey(p)) {
+                m.put(p, sub);
+                done[0] = true;
+            }
+            return m;
+        });
+        return done[0] ? sub : null;
+    }
+
     public void unsubscribeChunk(ChunkPos cp, Player p) {
         chunkSubscribers.computeIfPresent(cp, (k, m) -> {
             m.remove(p);
@@ -1417,6 +1535,7 @@ public final class World {
 
     /** 그 청크에 블록 틱 단계의 티켓이 살아 있는가(지난 것은 지운다). 강제 로드·플러그인 티켓은 따로 본다. */
     boolean blockTicketed(int cx, int cz) {
+        if (spawnTicketWithin(cx, cz, 1)) return true;   // 스폰 청크(START, 레벨 ≤ 32)
         if (blockTickets.isEmpty()) return false;
         long key = Regionizer.chunkKey(cx, cz);
         Long until = blockTickets.get(key);
@@ -1443,6 +1562,7 @@ public final class World {
 
     /** 그 청크에 엔티티 틱 단계의 티켓이 살아 있는가(지난 것은 지운다). 강제 로드는 따로 본다. */
     boolean entityTicketed(int cx, int cz) {
+        if (spawnTicketWithin(cx, cz, 2)) return true;   // 스폰 청크(START, 레벨 ≤ 31)
         if (entityTickets.isEmpty()) return false;
         long key = Regionizer.chunkKey(cx, cz);
         Long until = entityTickets.get(key);
@@ -1501,6 +1621,7 @@ public final class World {
         var forced = forcedChunks;
         if (forced != null && forced.size() > 0 && forced.contains(Regionizer.chunkX(chunkKey), Regionizer.chunkZ(chunkKey))) return true;
         if (!pluginHolds.isEmpty() && pluginHolds.containsKey(chunkKey)) return true;   // 플러그인 티켓
+        if (spawnTicketWithin(Regionizer.chunkX(chunkKey), Regionizer.chunkZ(chunkKey), 0)) return true;   // 스폰 청크(START)
         Long until = tickets.get(chunkKey);
         if (until == null) return false;
         if (until < gameTime()) {

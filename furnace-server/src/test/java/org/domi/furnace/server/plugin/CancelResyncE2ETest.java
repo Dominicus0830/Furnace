@@ -300,6 +300,46 @@ class CancelResyncE2ETest {
         assertEquals(4, count(HOT0));
     }
 
+    @Test
+    void blockPlaceEventCarriesPlacedStateReplacedBlockItemAndHand() throws Exception {
+        List<String> log = new java.util.concurrent.CopyOnWriteArrayList<>();
+        on(BlockPlaceEvent.class, e -> log.add(e.placedData().type() + "|" + e.replacedData().type() + "|" + e.item().type() + "x" + e.item().amount()
+                + "|" + e.isMainHand() + "|" + e.against().y()));
+        give(HOT0, "minecraft:stone", 5);
+        useItemOn(0, gx, GY, gz, 1, 7);
+        await(BlockChangedAck.ID, k -> true, "ack");
+        assertEquals(List.of("minecraft:stone|minecraft:air|minecraft:stonex5|true|" + GY), log, "놓일 상태·교체될 블록·손 아이템·손·맞닿은 칸");
+        // 왼손(오프핸드 칸 45)으로 놓으면 손이 거짓이다
+        log.clear();
+        give(45, "minecraft:dirt", 3);
+        useItemOn(1, gx, GY, gz + 1, 1, 8);   // 이미 stone 이 놓인 칸이 아닌 옆 바닥 윗면
+        await(BlockChangedAck.ID, k -> true, "ack 2");
+        assertEquals(1, log.size(), log.toString());
+        assertTrue(log.get(0).startsWith("minecraft:dirt|") && log.get(0).contains("dirtx3|false|"), log.get(0));
+    }
+
+    @Test
+    void dropEventCarriesTheNotYetSpawnedItemEntity() throws Exception {
+        give(HOT0, "minecraft:stick", 3);
+        List<String> log = new java.util.concurrent.CopyOnWriteArrayList<>();
+        on(PlayerDropItemEvent.class, e -> {
+            var it = e.entity();
+            log.add(it.type() + "|" + it.droppedItem().type() + "x" + it.droppedItem().amount() + "|" + it.pickupDelay() + "|" + e.item().amount());
+        });
+        playerAction(4, 0, 0, 0, 0, 0);   // DROP_ITEM(Q)
+        until(() -> !log.isEmpty(), "드롭 이벤트");
+        assertEquals(List.of("minecraft:item|minecraft:stickx1|40|1"), log, "이벤트가 던질 아이템 엔티티(줍기 지연 40)를 보인다");
+        until(() -> {
+            try {
+                return !at(r -> r.level().getEntities(null, new org.domi.furnace.server.entity.AABB(p.x() - 5, p.y() - 5, p.z() - 5, p.x() + 5, p.y() + 5, p.z() + 5),
+                        e -> e instanceof ItemEntity)).isEmpty();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }, "허용하면 그 엔티티가 월드에 들어간다");
+        assertEquals(2, count(HOT0));
+    }
+
     // ------------------------------------------------------------------ 도우미(조건 기다리기)
 
     /** 조건이 참이 될 때까지 region 을 돌리며 기다린다(최대 10초). */
