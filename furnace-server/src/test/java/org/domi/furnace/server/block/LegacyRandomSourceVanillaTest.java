@@ -84,21 +84,11 @@ class LegacyRandomSourceVanillaTest {
         double d = f.nextDouble();
         // 첫 26비트가 전부 1 → 값은 1 에 아주 가깝지만 1.0 보다는 작아야 한다(예전 float 곱은 1.0 이 됐다).
         assertTrue(d < 1.0 && d > 1.0 - 1e-7, "값 " + d);
-        // 같은 상태에서 java.util.Random 도 같은 값
-        Random ref = new Random(0);
-        java.lang.reflect.Field fld;
-        try {
-            fld = Random.class.getDeclaredField("seed");
-            fld.setAccessible(true);
-            ((java.util.concurrent.atomic.AtomicLong) fld.get(ref)).set(state);
-            assertEquals(ref.nextDouble(), d);
-        } catch (ReflectiveOperationException | RuntimeException e) {
-            // 모듈 접근이 막힌 JVM 에서는 위 비교만 건너뛴다. 바닐라 식 직접 계산으로 확인한다.
-            long s1 = (state * 0x5DEECE66DL + 0xBL) & mask;
-            long s2 = (s1 * 0x5DEECE66DL + 0xBL) & mask;
-            long l = (((long) (int) (s1 >> 22)) << 27) + (int) (s2 >> 21);
-            assertEquals((double) l * 1.1102230246251565E-16, d);
-        }
+        // 바닐라 식 직접 계산(2^-53 곱)과 같다
+        long s1 = (state * 0x5DEECE66DL + 0xBL) & mask;
+        long s2 = (s1 * 0x5DEECE66DL + 0xBL) & mask;
+        long l = (((long) (int) (s1 >> 22)) << 27) + (int) (s2 >> 21);
+        assertEquals((double) l * 1.1102230246251565E-16, d);
     }
 
     @Test
