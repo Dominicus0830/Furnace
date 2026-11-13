@@ -221,7 +221,10 @@ class SchemaPacketReverseTest {
                     // 값 shim 이 빈 껍데기(toFurnace 도 없다)
                     "block_entity_data", "delete_chat", "disguised_chat", "login", "open_screen", "respawn", "server_links",
                     // 손 코덱: toFurnace 도 없다(보스바·통계), 역변환이 아직 없다(팀·목표·속성·지도)
-                    "award_stats", "boss_event", "map_item_data", "set_objective", "set_player_team", "update_attributes")), no, "되돌리는 것 " + yes.size() + "종: " + yes);
+                    "award_stats", "boss_event", "map_item_data", "set_objective", "set_player_team", "update_attributes",
+                    // 범용 코덱이 새로 읽게 된 손 코덱 와이어·빈 값 shim(shim → Furnace 도 없다) — 구분자는 서버가 넣는다
+                    "bundle_delimiter", "commands", "explode", "level_chunk_with_light", "level_particles", "light_update", "merchant_offers",
+                    "player_chat", "recipe", "update_advancements", "update_recipes", "update_tags")), no, "되돌리는 것 " + yes.size() + "종: " + yes);
         }
     }
 }

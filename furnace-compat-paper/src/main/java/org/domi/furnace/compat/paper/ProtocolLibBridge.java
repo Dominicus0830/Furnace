@@ -59,12 +59,13 @@ public final class ProtocolLibBridge {
     private volatile boolean stopped;
 
     /**
-     * 검토 R1: 플레이어가 엔티티를 보기 시작한 순간(소유 region 스레드) 만든 Bukkit 엔티티를 잠시 붙잡아 둔다. 스폰 묶음이 네트워크 스레드에서 라이브러리를
-     * 지날 때 리스너의 {@code getEntityFromID}·{@code getEntityModifier} 가 막 생긴 엔티티를 찾게(Compat 캐시는 약참조라 붙잡지 않으면 사라질 수 있다).
+     * 검토 R1·R1b: 플레이어가 엔티티를 보기 시작한 순간(소유 region 스레드) 만든 Bukkit 엔티티를 그 엔티티가 월드에 있는 동안 붙잡아 둔다. 그 엔티티의 패킷이
+     * 네트워크 스레드에서 라이브러리를 지날 때 리스너의 {@code getEntityFromID}·{@code getEntityModifier} 가 찾게 — Compat 캐시는 약참조라 붙잡지 않으면
+     * GC 뒤 사라진다. 엔티티가 없어지거나(제거·청크 내림·차원 이동) 번호가 다른 엔티티 것이 되면 주기 점검(resync)이 놓는다.
      */
     private final java.util.Map<Integer, Held> held = new ConcurrentHashMap<>();
 
-    private record Held(Object entity, long at) {}
+    private record Held(Object entity, String world, java.util.UUID uuid) {}
 
     /** 패킷에 엔티티 번호가 들어 있는 종류(이 중 하나라도 들으면 보기 시작한 엔티티를 붙잡는다). */
     private static final Set<String> ENTITY_KINDS = Set.of("add_entity", "set_entity_motion", "rotate_head", "animate", "teleport_entity",
@@ -150,8 +151,7 @@ public final class ProtocolLibBridge {
     void resync() {
         if (stopped) return;
         DeliveredPackets.prune(MARK_TTL_NANOS);
-        long cut = System.nanoTime() - MARK_TTL_NANOS;
-        held.values().removeIf(h -> h.at() - cut < 0);
+        releaseGone();
         Collection<Class<?>> classes;
         try {
             classes = listened.get();
@@ -198,13 +198,26 @@ public final class ProtocolLibBridge {
         }
     }
 
-    /** 엔티티 소유 region 스레드: Bukkit 엔티티를 만들어(Compat 캐시에 들어간다) 스폰 묶음이 지나갈 동안 붙잡는다. */
+    /** 붙잡고 있는 엔티티 수(시험용). */
+    int heldCount() { return held.size(); }
+
+    /** 월드에서 없어진(또는 번호가 다른 엔티티 것이 된) 엔티티를 놓는다. 번호 → UUID 색인은 어느 스레드에서나 읽힌다. */
+    private void releaseGone() {
+        if (held.isEmpty()) return;
+        var server = Furnace.server();
+        held.entrySet().removeIf(en -> {
+            var w = server.world(en.getValue().world());
+            return w == null || !w.entityUuidById(en.getKey()).map(en.getValue().uuid()::equals).orElse(false);
+        });
+    }
+
+    /** 엔티티 소유 region 스레드: Bukkit 엔티티를 만들어(Compat 캐시에 들어간다) 월드에 있는 동안 붙잡는다. */
     private void onTrack(org.domi.furnace.api.event.player.PlayerTrackEntityEvent e) {
         if (stopped) return;
         var entity = e.entity();
         if (entity instanceof org.domi.furnace.api.entity.Player) return;   // 플레이어는 번호 조회가 어느 스레드에서나 된다
         try {
-            held.put(entity.entityId(), new Held(Compat.entity(entity), System.nanoTime()));
+            held.put(entity.entityId(), new Held(Compat.entity(entity), entity.location().world(), entity.uniqueId()));
         } catch (RuntimeException ex) {
             warnOnce("track", "ProtocolLib 다리가 보기 시작한 엔티티를 미리 감싸지 못했다(첫 오류): " + ex);
         }

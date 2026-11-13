@@ -282,16 +282,19 @@ class ProtocolLibBridgeTest {
             TestPlayer tp = server.join("Trk");
             server.tick(2);
             tp.sync();
-            ProtocolLibBridge bridge = ProtocolLibBridge.start(owner(), () -> List.of(net.minecraft.network.protocol.game.ClientboundAddEntityPacket.class));
+            ProtocolLibBridge bridge = ProtocolLibBridge.start(owner(), () -> List.of(net.minecraft.network.protocol.game.ClientboundAddEntityPacket.class,
+                    net.minecraft.network.protocol.game.ClientboundTeleportEntityPacket.class));
             try {
                 bridge.resync();
                 net.minecraft.server.level.ServerLevel level = ((org.bukkit.craftbukkit.CraftWorld) Bukkit.getPlayer("Trk").getWorld()).getHandle();
                 List<String> found = new CopyOnWriteArrayList<>();
                 install(connectionOf("Trk"), packet -> {
-                    if (packet instanceof net.minecraft.network.protocol.game.ClientboundAddEntityPacket a) {
+                    int id = packet instanceof net.minecraft.network.protocol.game.ClientboundAddEntityPacket a ? a.getId()
+                            : packet instanceof net.minecraft.network.protocol.game.ClientboundTeleportEntityPacket t ? (int) ((org.domi.furnace.compat.nms.SchemaPacket) t).schemaValues()[0] : -1;
+                    if (id >= 0) {
                         try {
-                            net.minecraft.world.entity.Entity e = level.getEntity(a.getId());
-                            found.add(e == null ? "null" : String.valueOf(e.getBukkitEntity().getUniqueId().equals(a.getUUID())));
+                            net.minecraft.world.entity.Entity e = level.getEntity(id);
+                            found.add(packet.getClass().getSimpleName() + ":" + (e == null ? "null" : e.getBukkitEntity().getType().name()));
                         } catch (RuntimeException ex) {
                             found.add(ex.getClass().getSimpleName());
                         }
@@ -302,7 +305,23 @@ class ProtocolLibBridgeTest {
                 server.execute("summon minecraft:pig " + loc.x() + " " + loc.y() + " " + (loc.z() + 3));
                 server.tick(3);
                 tp.awaitPacket(PacketTypes.Clientbound.ADD_ENTITY, a -> a.entityType().equals("minecraft:pig"));
-                assertEquals(List.of("true"), found, "막 생긴 엔티티도 찾는다(네트워크 스레드가 주 스레드로 표시된 채)");
+                assertEquals(List.of("ClientboundAddEntityPacket:PIG"), found, "막 생긴 엔티티도 찾는다(네트워크 스레드가 주 스레드로 표시된 채)");
+                assertEquals(1, bridge.heldCount());
+
+                // 검토 R1b: 한참 뒤(약참조 캐시가 GC 로 비어도) 같은 엔티티의 다른 패킷에서도 찾는다 — 월드에 있는 동안 붙잡는다
+                found.clear();
+                for (int i = 0; i < 3; i++) System.gc();
+                bridge.resync();
+                server.execute("tp @e[type=minecraft:pig,limit=1] " + (loc.x() + 20) + " " + loc.y() + " " + (loc.z() + 3));
+                server.tick(3);
+                tp.awaitPacket(PacketTypes.Clientbound.TELEPORT_ENTITY, t -> true);
+                assertEquals(List.of("ClientboundTeleportEntityPacket:PIG"), found.stream().distinct().toList());
+
+                // 없어지면 놓는다
+                server.execute("kill @e[type=minecraft:pig]");
+                server.tick(30);   // 죽는 모습(20틱) 뒤에 월드에서 빠진다
+                bridge.resync();
+                assertEquals(0, bridge.heldCount(), "월드에서 없어진 엔티티는 놓는다");
             } finally {
                 bridge.stop();
             }
