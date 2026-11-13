@@ -167,8 +167,8 @@ public final class PlayerMoveValidator {
             wrongly = true;
             log.warn("{} moved wrongly!", p.name());
         }
-        // noCollision(player, 옛 상자): 바닐라는 player.move 뒤라 보더 가까움을 옮긴 자리(mv)에서 본다
-        if (noPhysics || (!wrongly || !level.noCollision(p, mv[0], mv[2], oldBox)) && !isPlayerCollidingWithAnythingNew(level, p, oldBox, mv, d, e, f)) {
+        // noCollision(player, 옛 상자): 바닐라는 player.move 뒤라 보더 가까움·블록 문맥 발 높이(비계·가루눈)를 옮긴 자리(mv)에서 본다
+        if (noPhysics || (!wrongly || !level.noCollision(p, mv[0], mv[1], mv[2], oldBox)) && !isPlayerCollidingWithAnythingNew(level, p, oldBox, mv, d, e, f)) {
             p.applyMove(d, e, f, g, h, packetOnGround);
             boolean autoSpin = p.autoSpinAttackTicks > 0;
             // m 은 위에서 0 으로 만들었으므로 m >= -0.03125 는 언제나 참(바닐라 그대로)
@@ -220,7 +220,7 @@ public final class PlayerMoveValidator {
         AABB box = new AABB(moved[0] - hw, moved[1], moved[2] - hw, moved[0] + hw, moved[1] + height(p), moved[2] + hw)
                 .move(d - moved[0], e - moved[1], f - moved[2]);
         AABB old = oldBox.deflate(1.0E-5F);
-        for (var shape : level.collisions(p, box.deflate(1.0E-5F))) {
+        for (var shape : level.collisions(p, moved[1], box.deflate(1.0E-5F))) {   // 문맥 발 높이 = 옮긴 자리(바닐라는 player.move 뒤)
             if (!shape.overlaps(old, 0.0, 0.0, 0.0)) return true;
         }
         return false;

@@ -22,7 +22,7 @@ public final class TryLaySpawnOnWaterNearLand {
                     for (int d : Dir.HORIZONTAL) {
                         Pos adj = below.relative(d);
                         int state = level.getBlockState(adj);
-                        if (B.behavior(state).getCollisionShape(state, level, adj, null).isFaceEmpty(Dir.UP) && level.isWaterAt(adj)) {
+                        if (B.behavior(state).getCollisionShape(state, level, adj, org.domi.furnace.server.block.CollisionContext.EMPTY).isFaceEmpty(Dir.UP) && level.isWaterAt(adj)) {
                             Pos above = adj.above();
                             if (B.isAir(level.getBlockState(above))) {
                                 level.setBlock(above, Blocks.get().defaultState(block), 3);

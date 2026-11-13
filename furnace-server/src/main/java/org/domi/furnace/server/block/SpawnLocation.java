@@ -89,7 +89,7 @@ public final class SpawnLocation {
             Pos p = new Pos(x, y, z);
             int st = level.getBlockState(p);
             if (!Fluids.isEmpty(level.getFluidState(p))) break;
-            if (B.behavior(st).getCollisionShape(st, level, p, null).isFaceFull(Dir.UP)) return p.above();
+            if (B.behavior(st).getCollisionShape(st, level, p, CollisionContext.EMPTY).isFaceFull(Dir.UP)) return p.above();
         }
         return null;
     }

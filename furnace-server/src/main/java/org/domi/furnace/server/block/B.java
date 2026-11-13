@@ -126,6 +126,19 @@ public final class B {
 
     public static boolean isFaceSturdy(int state, BlockLevel level, Pos pos, int dir) { return isFaceSturdy(state, level, pos, dir, BlockInfo.FULL); }
 
+    /**
+     * BlockState.entityCanStandOnFace(level, pos, entity, dir) = Block.isFaceFull(getCollisionShape(level, pos, CollisionContext.of(entity)), dir).
+     * 지지 모양(isFaceSturdy)이 아니라 그 엔티티 문맥의 충돌 모양을 본다 — 잎(지지 모양 빔)·영혼 모래(충돌 14/16)·비계(위에 없으면 빔)에서 갈린다.
+     */
+    public static boolean entityCanStandOnFace(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Rider entity, int dir) {
+        return behavior(state).getCollisionShape(state, level, pos, CollisionContext.of(entity)).isFaceFull(dir);
+    }
+
+    /** BlockState.entityCanStandOn(level, pos, entity): 윗면(entityCanStandOnFace UP). */
+    public static boolean entityCanStandOn(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Rider entity) {
+        return entityCanStandOnFace(state, level, pos, entity, Dir.UP);
+    }
+
     /** Block.canSupportRigidBlock(level, pos) — 그 칸의 윗면이 RIGID. */
     public static boolean canSupportRigidBlock(BlockLevel level, Pos pos) {
         return isFaceSturdy(level.getBlockState(pos), level, pos, Dir.UP, BlockInfo.RIGID);

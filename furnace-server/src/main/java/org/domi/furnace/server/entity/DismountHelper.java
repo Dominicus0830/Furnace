@@ -17,10 +17,10 @@ public final class DismountHelper {
 
     /**
      * canDismountTo(level, passenger, box): 그 상자에 블록 충돌(getBlockCollisions(passenger, …) — 엔티티는 보지 않는다)이 없고 월드 보더
-     * 안이다(getWorldBorder().isWithinBounds(box)). 블록 문맥(가루눈 등)은 승객 엔티티의 것. 플레이어는 Furnace 에서 Entity 가 아니라 문맥 없음(남은 차이).
+     * 안이다(getWorldBorder().isWithinBounds(box)). 블록 문맥(비계·가루눈 등)은 승객(플레이어 포함)의 것 — 아직 탄 자리의 발 높이.
      */
     public static boolean canDismountTo(ChunkLevel level, Rider passenger, AABB box) {
-        return level.noBlockCollision(passenger instanceof Entity e ? e : null, box) && withinBorder(level, box);
+        return level.noBlockCollision(passenger, box) && withinBorder(level, box);
     }
 
     /** WorldBorder.isWithinBounds(AABB): 두 모서리(최대는 1e-5 안쪽)가 모두 보더 안(최소 이상, 최대 미만). */

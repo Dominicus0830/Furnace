@@ -1,9 +1,10 @@
 // 바닐라 SoulSandBlock: 영혼 모래. 놓이거나 위가 물이 되면 20틱 뒤 위로 거품 기둥을 세운다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.block.CollisionContext;
+
 import org.domi.furnace.server.block.Shape;
 
-import org.domi.furnace.server.block.BlockActor;
 
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
@@ -32,5 +33,5 @@ public class SoulSandBlock extends BlockBehavior {
 
     /** getVisualShape: 꽉 찬 블록. */
     @Override
-    public Shape getVisualShape(int state, BlockLevel level, Pos pos, BlockActor entity) { return Shape.BLOCK; }
+    public Shape getVisualShape(int state, BlockLevel level, Pos pos, CollisionContext ctx) { return Shape.BLOCK; }
 }

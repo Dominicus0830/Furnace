@@ -39,23 +39,34 @@ public final class Clip {
 
     private static final int OUTLINE = 0, COLLIDER = 1, VISUAL = 2;
 
-    /** BlockGetter.clip(ClipContext(from, to, VISUAL, NONE)) — 시선 검사(시련 생성기·금고 감지기)처럼 시각 모양으로 본다. */
+    /**
+     * BlockGetter.clip(ClipContext(from, to, VISUAL, NONE, CollisionContext.empty())) — 시선 검사(시련 생성기·금고 감지기)처럼 시각 모양으로 본다.
+     * 바닐라에서 VISUAL 을 쓰는 곳은 모두 문맥 없음이다.
+     */
     public static Result clipVisual(BlockLevel level, double fx, double fy, double fz, double tx, double ty, double tz) {
-        return clip(level, fx, fy, fz, tx, ty, tz, FluidMode.NONE, VISUAL);
+        return clip(level, fx, fy, fz, tx, ty, tz, FluidMode.NONE, VISUAL, CollisionContext.EMPTY);
     }
 
-    /** BlockGetter.clip(ClipContext(from, to, COLLIDER, NONE)) — 몹 시야(hasLineOfSight)처럼 충돌 모양으로 본다. */
-    public static Result clipCollider(BlockLevel level, double fx, double fy, double fz, double tx, double ty, double tz) {
-        return clip(level, fx, fy, fz, tx, ty, tz, FluidMode.NONE, COLLIDER);
+    /**
+     * BlockGetter.clip(ClipContext(from, to, COLLIDER, NONE, entity)) — 몹 시야(hasLineOfSight)·투사체처럼 충돌 모양으로 본다.
+     * ctx 는 ClipContext 를 만든 엔티티의 문맥(CollisionContext.of(entity)) — 비계는 그 엔티티가 위에 있을 때만 막는다.
+     */
+    public static Result clipCollider(BlockLevel level, CollisionContext ctx, double fx, double fy, double fz, double tx, double ty, double tz) {
+        return clip(level, fx, fy, fz, tx, ty, tz, FluidMode.NONE, COLLIDER, ctx);
     }
 
-    /** ClipContext(COLLIDER, fluid): 충돌 모양으로 보되 유체 모드를 고른다(NONE 또는 ANY). */
-    public static Result clipCollider(BlockLevel level, double fx, double fy, double fz, double tx, double ty, double tz, FluidMode fluid) {
-        return clip(level, fx, fy, fz, tx, ty, tz, fluid, COLLIDER);
+    /** ClipContext(COLLIDER, fluid, entity): 충돌 모양으로 보되 유체 모드를 고른다(NONE·SOURCE_ONLY·ANY). */
+    public static Result clipCollider(BlockLevel level, CollisionContext ctx, double fx, double fy, double fz, double tx, double ty, double tz, FluidMode fluid) {
+        return clip(level, fx, fy, fz, tx, ty, tz, fluid, COLLIDER, ctx);
     }
 
     private static Result clip(BlockLevel level, double fx, double fy, double fz, double tx, double ty, double tz, FluidMode fluid, int shapeMode) {
-        return clip(level, fx, fy, fz, tx, ty, tz, fluid, shapeMode, null, false);
+        return clip(level, fx, fy, fz, tx, ty, tz, fluid, shapeMode, CollisionContext.EMPTY);
+    }
+
+    private static Result clip(BlockLevel level, double fx, double fy, double fz, double tx, double ty, double tz, FluidMode fluid, int shapeMode,
+            CollisionContext ctx) {
+        return clip(level, fx, fy, fz, tx, ty, tz, fluid, shapeMode, ctx, null, false);
     }
 
     /**
@@ -65,16 +76,17 @@ public final class Clip {
      */
     public static Result clipApi(BlockLevel level, double fx, double fy, double fz, double tx, double ty, double tz, FluidMode fluid, boolean ignorePassable,
             java.util.function.Predicate<Pos> canCollide) {
-        return clip(level, fx, fy, fz, tx, ty, tz, fluid, ignorePassable ? COLLIDER : OUTLINE, canCollide, true);
+        // Paper: new ClipContext(…, CollisionContext.empty()) — 플러그인 광선은 문맥 없음
+        return clip(level, fx, fy, fz, tx, ty, tz, fluid, ignorePassable ? COLLIDER : OUTLINE, CollisionContext.EMPTY, canCollide, true);
     }
 
     private static Result clip(BlockLevel level, double fx, double fy, double fz, double tx, double ty, double tz, FluidMode fluid, int shapeMode,
-            java.util.function.Predicate<Pos> canCollide, boolean stopUnloaded) {
+            CollisionContext ctx, java.util.function.Predicate<Pos> canCollide, boolean stopUnloaded) {
         if (fx == tx && fy == ty && fz == tz) return miss(fx, fy, fz, tx, ty, tz);
         double ex = lerp(-1.0E-7, tx, fx), ey = lerp(-1.0E-7, ty, fy), ez = lerp(-1.0E-7, tz, fz);
         double sx = lerp(-1.0E-7, fx, tx), sy = lerp(-1.0E-7, fy, ty), sz = lerp(-1.0E-7, fz, tz);
         int i = (int) Math.floor(sx), j = (int) Math.floor(sy), k = (int) Math.floor(sz);
-        Result r = test(level, new Pos(i, j, k), fx, fy, fz, tx, ty, tz, fluid, shapeMode, canCollide, stopUnloaded);
+        Result r = test(level, new Pos(i, j, k), fx, fy, fz, tx, ty, tz, fluid, shapeMode, ctx, canCollide, stopUnloaded);
         if (r != null) return r;
         double dx = ex - sx, dy = ey - sy, dz = ez - sz;
         int lx = sign(dx), ly = sign(dy), lz = sign(dz);
@@ -92,7 +104,7 @@ public final class Clip {
             } else {
                 k += lz; tZ += stepZ;
             }
-            r = test(level, new Pos(i, j, k), fx, fy, fz, tx, ty, tz, fluid, shapeMode, canCollide, stopUnloaded);
+            r = test(level, new Pos(i, j, k), fx, fy, fz, tx, ty, tz, fluid, shapeMode, ctx, canCollide, stopUnloaded);
             if (r != null) return r;
         }
         return miss(fx, fy, fz, tx, ty, tz);
@@ -137,14 +149,14 @@ public final class Clip {
      * 블록 모양은 상호작용 모양이 더 가까우면 그 면으로 바꾼다(clipWithInteractionOverride — 모드와 상관없이).
      */
     private static Result test(BlockLevel level, Pos pos, double fx, double fy, double fz, double tx, double ty, double tz, FluidMode mode, int shapeMode,
-            java.util.function.Predicate<Pos> canCollide, boolean stopUnloaded) {
+            CollisionContext ctx, java.util.function.Predicate<Pos> canCollide, boolean stopUnloaded) {
         if (stopUnloaded && !level.isOutsideBuildHeight(pos.y()) && !level.hasChunkAt(pos)) return miss(fx, fy, fz, tx, ty, tz);
         int state = level.getBlockState(pos);
         if (B.INFO.isAir(state) || canCollide != null && !canCollide.test(pos)) return null;
         BlockBehavior b = B.behavior(state);
         Shape shape = switch (shapeMode) {
-            case COLLIDER -> b.getCollisionShape(state, level, pos, null);
-            case VISUAL -> b.getVisualShape(state, level, pos, null);
+            case COLLIDER -> b.getCollisionShape(state, level, pos, ctx);
+            case VISUAL -> b.getVisualShape(state, level, pos, ctx);
             default -> b.getShape(state, level, pos);
         };
         Result block = clipShape(shape, pos, fx, fy, fz, tx, ty, tz);

@@ -30,7 +30,9 @@ public final class LegacyBlockCollisions {
         return v == 2;
     }
 
-    public static void collectCollisions(ChunkLevel level, AABB box, Entity entity, java.util.function.BiPredicate<Pos, Shape> out) {
+    public static void collectCollisions(ChunkLevel level, AABB box, org.domi.furnace.server.entity.Rider entity, java.util.function.BiPredicate<Pos, Shape> out) {
+        // 문맥 블록 모양은 새 코드와 같은 문맥 의미(비계·액체 문맥 이식 뒤)로 묻는다 — 이 사본은 칸 순서·건너뛰기를 대조하려는 것이다
+        CollisionContext ctx = CollisionContext.of(entity);
         int x0 = Entity.floor(box.minX() - 1.0E-7) - 1, x1 = Entity.floor(box.maxX() + 1.0E-7) + 1;
         int y0 = Entity.floor(box.minY() - 1.0E-7) - 1, y1 = Entity.floor(box.maxY() + 1.0E-7) + 1;
         int z0 = Entity.floor(box.minZ() - 1.0E-7) - 1, z1 = Entity.floor(box.maxZ() + 1.0E-7) + 1;
@@ -51,8 +53,7 @@ public final class LegacyBlockCollisions {
                     if (state == AIR_STATE) continue;
                     if (edges == 1 && !hasLargeCollisionShape(level, state) || edges == 2 && level.blocks.blockOf(state) != MOVING_PISTON) continue;
                     Pos p = new Pos(x, y, z);
-                    Shape shape = entity == null ? BlockBehaviors.of(state).getCollisionShape(state, level, p, null)
-                            : BlockBehaviors.of(state).getEntityCollisionShape(state, level, p, entity);
+                    Shape shape = BlockBehaviors.of(state).getCollisionShape(state, level, p, ctx);
                     if (shape.isEmpty()) continue;
                     if (shape == Shape.BLOCK) {
                         if (!box.intersects(x, y, z, x + 1.0, y + 1.0, z + 1.0)) continue;
@@ -65,7 +66,7 @@ public final class LegacyBlockCollisions {
         }
     }
 
-    public static java.util.List<Shape> blockCollisions(ChunkLevel level, Entity entity, AABB box) {
+    public static java.util.List<Shape> blockCollisions(ChunkLevel level, org.domi.furnace.server.entity.Rider entity, AABB box) {
         java.util.List<Shape> out = new java.util.ArrayList<>();
         collectCollisions(level, box, entity, (p, s) -> out.add(s));
         return out;

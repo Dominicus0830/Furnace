@@ -164,7 +164,7 @@ public class WalkNodeEvaluator extends NodeEvaluator {
     public static double getFloorLevel(org.domi.furnace.server.block.ChunkLevel level, Pos pos) {
         Pos below = pos.below();
         int s = level.getBlockState(below);
-        double[] b = BlockBehaviors.of(s).getCollisionShape(s, level, below, null).bounds();
+        double[] b = BlockBehaviors.of(s).getCollisionShape(s, level, below, org.domi.furnace.server.block.CollisionContext.EMPTY).bounds();
         return below.y() + (b == null ? 0.0 : b[4]);
     }
 
