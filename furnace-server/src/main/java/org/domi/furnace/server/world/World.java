@@ -1269,6 +1269,8 @@ public final class World {
                 .thenCompose(f -> f)
                 // 컬럼 접근(dirty/캐시/스냅샷)은 항상 주인 region 스레드서 — 로드 완료 스레드(IO 풀 등)서 돌지 않게 한다.
                 .thenCompose(col -> atChunk(cp, inlineOnOwner, r -> {
+                    // 빛 작업 모드: 첫 빛이 아직 게시되지 않은 청크는 게시를 기다렸다가 다시(바닐라도 빛이 끝나야 보낸다)
+                    if (col.lightPending()) return r.level().lightSettled().thenCompose(v -> serializedChunkBody(cp, true));
                     // 캐시는 청크가 바뀔 때마다(ChunkColumn.touch) 비워진다 — 새로 생성돼 아직 저장 전(dirty)인 청크도 캐시한다.
                     byte[] cached = col.cachedSerializedBody();
                     if (cached != null) return CompletableFuture.<byte[]>completedFuture(cached);
@@ -1330,7 +1332,7 @@ public final class World {
             if (sendingNow) col.bodyWaits(0);
             return BODY_READY;
         }
-        if (sendingNow && allowSync && col.bodyWaits() >= MAX_BODY_WAITS) {
+        if (sendingNow && allowSync && col.bodyWaits() >= MAX_BODY_WAITS && !col.lightPending()) {
             if (ChunkTrace.ON) ChunkTrace.value("batch.syncser", 1);
             col.bodyWaits(0);
             try {

@@ -393,6 +393,11 @@ public final class Region {
         }
     }
 
+    /** 나누기 직전(구역 주인을 바꾸기 전, 잠금 안, 쉬는 중): 빛 작업 모드면 밀린 빛을 끝까지 계산한다 — 나눈 뒤엔 남의 청크를 못 본다. */
+    void settleLightBeforeSplit() {
+        if (level != null && level.asyncLight()) level.drainLight();
+    }
+
     /** 나누기 뒤 아무것도 없는 region 인가(없애도 되는가). */
     boolean isIdleEmpty() {
         return players.isEmpty() && present.isEmpty() && inbox.isEmpty() && delayed.isEmpty()
@@ -554,8 +559,7 @@ public final class Region {
         if (col.dirty()) dirtyChunks.add(cp);
         world.putChunk(cp.x(), cp.z(), col);
         long t1 = Regionizer.STATS ? System.nanoTime() : 0L;
-        level().lightNewChunk(cp.x(), cp.z());
-        level().runLightUpdates();
+        level().lightLoadedChunk(cp.x(), cp.z());   // = lightNewChunk + runLightUpdates (빛 작업 모드면 다음 묶음에)
         long t2 = Regionizer.STATS ? System.nanoTime() : 0L;
         level().raids().claim(cp.x(), cp.z());   // raids.dat 에서 이 청크가 중심인 습격
         loadEntities(cp, col);
@@ -1048,6 +1052,7 @@ public final class Region {
             first = false;
             if (col != null && col.dirty()) {
                 writeChunkTicks(cp.x(), cp.z(), col, false);
+                if (level != null) level.settleLightForSave(cp.x(), cp.z());   // 빛 작업 모드: 밀린 빛을 끝낸 뒤 저장(끄면 아무것도 안 함)
                 world.saveChunkAsync(ChunkSnapshot.forSave(cp.x(), cp.z(), col), col);
                 col.clearDirty();
             }
@@ -1098,6 +1103,7 @@ public final class Region {
             if (world.ioBackedUp()) { autosaveChunkQueue.addFirst(cp); return; }   // 레인이 밀렸다 — 다음 틱에
             if (col != null && col.dirty()) {
                 writeChunkTicks(cp.x(), cp.z(), col, false);
+                if (level != null) level.settleLightForSave(cp.x(), cp.z());   // 빛 작업 모드: 밀린 빛을 끝낸 뒤 저장(끄면 아무것도 안 함)
                 world.saveChunkAsync(ChunkSnapshot.forSave(cp.x(), cp.z(), col), col);
                 col.clearDirty();
             }
@@ -1170,6 +1176,7 @@ public final class Region {
                 for (var be : col.blockEntities().values()) be.setRemoved();   // 틱 목록에서 빠진다(다시 불러오면 새로 만든다)
                 // 예약 틱이 남아 있으면 바뀐 게 없어도 저장한다(내리면 사라지므로)
                 if (writeChunkTicks(cx, cz, col, true) || col.dirty()) {
+                    if (level != null) level.settleLightForSave(cx, cz);
                     world.saveChunkAsync(ChunkSnapshot.forSave(cx, cz, col), col);
                     col.clearDirty();
                 }
@@ -1350,6 +1357,7 @@ public final class Region {
             frozen = false;
         }
         if (level != null) {   // 바닐라 ServerLevel.tick: 블록·유체 예약 틱 → 청크 틱(무작위 틱) → 청크 변경 방송 → 블록 이벤트 → 엔티티
+            level.pollLight();   // 빛 작업 모드: 끝난 빛 묶음을 이 틱이 보기 전에 건다(끄면 할 일 없음)
             int n = frozen ? 0 : collectTickingChunks();
             // 판정(바닐라 1.21.1): 무작위 틱 = TickingTracker ≤ 32(randomTicking), 예약 틱·블록 엔티티 = blockTicking, 블록 이벤트 = blockEventTicking, 엔티티 섹션 = ChunkHolder
             // ENTITY_TICKING(시야 거리 — 버리기·사라짐 검사), 엔티티 틱 = TickingTracker ≤ 31(시뮬레이션 거리 — 엔티티 tick·추적)
@@ -1357,7 +1365,7 @@ public final class Region {
                     this::blockTicking, this::blockEventTicking, k -> naturalSpawningAllowed(Regionizer.chunkX(k), Regionizer.chunkZ(k)), this::entityTicking,
                     pl -> players.containsKey(pl.entityId()), frozen);
             lap(0);
-            level.runLightUpdates();
+            level.lightTickEnd();   // 끄면 runLightUpdates 그대로, 켜면 빛 작업에 넘긴다
             lap(1);
         }
         List<Player> handoff = new ArrayList<>();
