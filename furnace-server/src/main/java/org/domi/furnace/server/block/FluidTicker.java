@@ -23,7 +23,7 @@ public final class FluidTicker {
     /** getType().isSame(this): 같은 갈래(물/흐르는 물, 용암/흐르는 용암)인가. */
     private static boolean same(int fluid, boolean water) { return water ? Fluids.isWater(fluid) : Fluids.isLava(fluid); }
 
-    private static int flowingType(boolean water) { return water ? Fluids.T_FLOWING_WATER : Fluids.T_FLOWING_LAVA; }
+    static int flowingType(boolean water) { return water ? Fluids.T_FLOWING_WATER : Fluids.T_FLOWING_LAVA; }
 
     private static int source(boolean water) { return water ? Fluids.WATER_SOURCE : Fluids.LAVA_SOURCE; }
 
@@ -31,7 +31,10 @@ public final class FluidTicker {
     private static int dropOff(BlockLevel level, boolean water) { return water || level.ultraWarm() ? 1 : 2; }
 
     /** getSlopeFindDistance: 물 4, 용암 2(울트라웜 4). */
-    private static int slopeFindDistance(BlockLevel level, boolean water) { return water || level.ultraWarm() ? 4 : 2; }
+    /** 구멍 찾는 거리의 최댓값(물, 울트라웜의 용암). SpreadCache 범위가 여기서 나온다. */
+    static final int MAX_SLOPE_FIND = 4;
+
+    static int slopeFindDistance(BlockLevel level, boolean water) { return water || level.ultraWarm() ? MAX_SLOPE_FIND : 2; }
 
     /** canConvertToSource: waterSourceConversion / lavaSourceConversion. */
     private static boolean canConvertToSource(BlockLevel level, boolean water) {
@@ -231,7 +234,7 @@ public final class FluidTicker {
     }
 
     /** canPassThrough: 같은 갈래의 원천이 아니고 벽을 지나며 담을 수 있는가. */
-    private static boolean canPassThrough(BlockLevel level, int fluidType, Pos pos, int state, int dir, Pos np, int ns, int nf, boolean water) {
+    static boolean canPassThrough(BlockLevel level, int fluidType, Pos pos, int state, int dir, Pos np, int ns, int nf, boolean water) {
         return !isSourceOfThisType(nf, water) && canPassThroughWall(dir, level, pos, state, np, ns) && canHoldFluid(level, np, ns, fluidType);
     }
 
@@ -250,7 +253,7 @@ public final class FluidTicker {
     }
 
     /** isWaterHole: 아래로 벽을 지나고, 아래가 같은 갈래이거나 이 유체를 담을 수 있는가. */
-    private static boolean isWaterHole(BlockLevel level, int fluidType, Pos pos, int state, Pos below, int belowState, boolean water) {
+    static boolean isWaterHole(BlockLevel level, int fluidType, Pos pos, int state, Pos below, int belowState, boolean water) {
         if (!canPassThroughWall(Dir.DOWN, level, pos, state, below, belowState)) return false;
         return same(B.fluid(belowState), water) || canHoldFluid(level, below, belowState, fluidType);
     }
@@ -261,9 +264,12 @@ public final class FluidTicker {
         return n;
     }
 
-    /** getSpread·getSlopeDistance 의 칸 기억(바닐라 Short2ObjectMap·Short2BooleanMap 과 같은 내용): 원점 기준 ±8 칸 평면 배열. */
+    /**
+     * getSpread·getSlopeDistance 의 칸 기억(바닐라 Short2ObjectMap·Short2BooleanMap 과 같은 내용): 원점 기준 평면 배열.
+     * 퍼짐 원점에서 찾는 거리 MAX_SLOPE_FIND 만큼 가고 이웃 한 칸을 더 보므로 반경 MAX_SLOPE_FIND + 1 이면 충분하다(범위를 벗어나면 예외).
+     */
     private static final class SpreadCache {
-        static final int R = 8, W = 2 * R + 1;
+        static final int R = MAX_SLOPE_FIND + 1, W = 2 * R + 1;
         final int[] states = new int[W * W];
         final boolean[] hasState = new boolean[W * W];
         final byte[] holes = new byte[W * W];   // 0 모름, 1 아님, 2 구멍
@@ -278,7 +284,8 @@ public final class FluidTicker {
         }
     }
 
-    private static int[] getSpread(BlockLevel level, Pos pos, int state, boolean water) {
+    /** getSpread: 가장 가까운 구멍 쪽(거리가 같으면 모두)으로 퍼질 방향과 그 칸의 새 유체. 결과는 방향 번호로(-1 은 없음). */
+    static int[] getSpread(BlockLevel level, Pos pos, int state, boolean water) {
         int best = 1000;
         int[] out = {-1, -1, -1, -1, -1, -1};
         SpreadCache c = new SpreadCache();
@@ -304,6 +311,7 @@ public final class FluidTicker {
         return out;
     }
 
+    /** getSlopeDistance: 흐름이 지나갈 수 있는 칸을 따라 가장 가까운 구멍까지 거리(찾는 거리 안에 없으면 1000). */
     private static int slopeDistance(BlockLevel level, Pos pos, int depth, int excludedDir, int state, Pos origin, SpreadCache c, boolean water) {
         int best = 1000;
         int flowing = flowingType(water);

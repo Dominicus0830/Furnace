@@ -230,5 +230,5 @@ public final class B {
         return t[state];
     }
 
-    private static volatile int[] FLUID_TABLE;   // O07 시제품: 상태별 유체(getFluidState 는 상태만의 함수)
+    private static volatile int[] FLUID_TABLE;   // 상태별 유체 표 — 모든 getFluidState 가 상태만의 함수라 첫 호출에 한 번 채운다(T-050)
 }
