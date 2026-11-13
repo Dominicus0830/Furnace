@@ -95,6 +95,47 @@ class EntitySpawnRemoveTest {
         assertEquals(false, out[3], "지운 엔티티가 청크 조회에 잡힌다");
     }
 
+    /** 처리기가 옮긴 뒤 취소해도(취소 경로의 목록 빼기) 옛 구역 목록에 남지 않는다 — PR #314 검토 R2. */
+    @Test
+    void moveThenCancelInsideSpawnEventLeavesNoStaleSectionEntry() throws Exception {
+        Cow[] holder = new Cow[1];
+        host.eventsImpl().subscribe(plugin, EntitySpawnEvent.class, e -> {
+            holder[0].moveTo(8, 100, 8, 0, 0);
+            e.setCancelled(true);
+        });
+        Object[] out = core.world().submitAtChunk(C00, r -> {
+            var level = r.level();
+            Cow cow = new Cow(level, level.nextEntityId());
+            holder[0] = cow;
+            cow.moveTo(8, -50, 8, 0, 0);
+            boolean added = level.addFreshEntity(cow);
+            return new Object[] {added, level.entities().inChunk(0, 0).contains(cow)};
+        }).get(30, TimeUnit.SECONDS);
+        assertEquals(false, out[0]);
+        assertEquals(false, out[1], "취소된 엔티티가 옛 구역 목록에 남았다");
+    }
+
+    /** 추적 거리 0 인 마커도 옮기면 구역 목록이 따라간다(바닐라 onMove 는 추적과 무관) — PR #314 검토 R1. */
+    @Test
+    void markerTeleportMovesSectionList() throws Exception {
+        Object[] out = core.world().submitAtChunk(C00, r -> {
+            var level = r.level();
+            var m = new org.domi.furnace.server.entity.Marker(level, level.nextEntityId());
+            m.moveTo(8, -50, 8, 0, 0);
+            level.addFreshEntity(m);
+            m.moveTo(8, 100, 8, 0, 0);
+            java.util.List<org.domi.furnace.server.entity.Entity> atNew = new java.util.ArrayList<>(), atOld = new java.util.ArrayList<>();
+            level.entities().forEachIn(new org.domi.furnace.server.entity.AABB(7, 99, 7, 9, 101, 9), atNew::add);
+            level.entities().forEachIn(new org.domi.furnace.server.entity.AABB(7, -51, 7, 9, -49, 9), atOld::add);
+            m.discard();
+            return new Object[] {m.tracker != null, atNew.contains(m), atOld.contains(m), level.entities().inChunk(0, 0).contains(m)};
+        }).get(30, TimeUnit.SECONDS);
+        assertEquals(false, out[0], "마커는 추적기가 없다(시험 전제)");
+        assertEquals(true, out[1], "옮긴 마커가 새 위치 공간 조회에 안 잡힌다");
+        assertEquals(false, out[2], "옮긴 마커가 옛 위치 공간 조회에 잡힌다");
+        assertEquals(false, out[3], "지운 마커가 남았다");
+    }
+
     /** A16-01 재검토(R6): dieFromApi 는 die(GENERIC) 인데 die 안의 damageSourceEntity()=lastDamageAttacker 가 예전 공격자 그대로라, 좀비가 전에 때린 주민을 setHealth(0) 하면 감염(바닐라 generic 은 원인 엔티티 없음). */
     @Test
     void dieFromApiCreditsStaleAttacker() throws Exception {

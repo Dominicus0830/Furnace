@@ -125,8 +125,8 @@ public final class EntityStore {
         return true;
     }
 
-    /** 구역이 바뀌었다 — 옛 구역에서 빼 새 구역 끝에 단다. 옛 구역은 저장소가 기억한 키가 기준이다(알림을 놓쳤어도 맞는다). */
-    public void moved(Entity e, long oldKey) {
+    /** 구역이 바뀌었다 — 옛 구역에서 빼 새 구역 끝에 단다. 옛 구역은 저장소가 기억한 키({@code storedSection})가 기준이다(알림을 놓쳤어도 맞는다). */
+    public void moved(Entity e) {
         if (!byId.containsKey(e.id())) return;
         if (e.storedSection == e.sectionKey()) return;   // 이미 그 구역 목록에 있다
         modCount++;

@@ -315,9 +315,8 @@ public abstract non-sealed class Entity implements Rider {
         }
         long key = sectionKey(bx >> 4, by >> 4, bz >> 4);
         if (key != sectionKey) {
-            long old = sectionKey;
             sectionKey = key;
-            if (level != null && tracker != null) level.entitySectionChanged(this, old);
+            if (level != null && (tracker != null || store != null)) level.entitySectionChanged(this);
         }
     }
 
