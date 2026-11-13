@@ -112,6 +112,22 @@ public abstract class LightEngine {
 
     public void checkBlock(long pos) { checks.add(pos); }
 
+    /**
+     * 아직 처리하지 않은 칸 검사 중 {@code sel} 에 맞는 것을 순서를 지켜 target 으로 옮긴다(region 합치기·나누기 — 틱 사이에 놓인 블록의 검사가
+     * 사라지지 않게). 증가·감소 대기열은 runUpdates 안에서만 차므로 옮길 것이 없다.
+     */
+    void moveChecksTo(LightEngine target, java.util.function.LongPredicate sel) {
+        if (checks.isEmpty()) return;
+        var it = checks.iterator();
+        while (it.hasNext()) {
+            long p = it.next();
+            if (sel.test(p)) {
+                target.checks.add(p);
+                it.remove();
+            }
+        }
+    }
+
     public boolean hasWork() { return !checks.isEmpty() || !increase.isEmpty() || !decrease.isEmpty(); }
 
     /** runLightUpdates: 검사 → 감소 전파 → 증가 전파. */
