@@ -78,6 +78,16 @@ public final class EntityOps {
         return new IllegalStateException("대상을 가진 region 을 찾지 못했다: " + describe(r));
     }
 
+    /**
+     * 명령 후속 단계를 전역 스레드로 되돌리는 실행기. 그 단계는 **명령 범위**(CommandDrainGate) 안에서 돈다 — 거기서 region 에 넣는
+     * 다음 홉도 명령 큐 즉시 처리 문을 받아, 선택자 명령이 소스·단계마다 한 틱(50ms)씩 밀리지 않는다(T-150).
+     * 실행 순서는 그대로다(전역 스레드에서 넣는 작업은 원래 급한 작업이고, 바뀌는 것은 명령 표시 하나).
+     */
+    public static java.util.concurrent.Executor commandGlobal(CommandSource source) {
+        var global = source.getServer().scheduler().global();
+        return r -> global.execute(() -> org.domi.furnace.server.world.CommandDrainGate.inCommandScope(r));
+    }
+
     /** region 작업: 오류를 던질 수 있다. */
     @FunctionalInterface
     public interface RegionTask<T> {
@@ -128,7 +138,7 @@ public final class EntityOps {
                 return CompletableFuture.failedFuture(unwrap(t));
             }
         }
-        java.util.concurrent.Executor global = r -> source.getServer().scheduler().global().execute(r);
+        java.util.concurrent.Executor global = commandGlobal(source);
         return f.thenApplyAsync(v -> {
             try {
                 return fn.apply(v);
@@ -182,7 +192,7 @@ public final class EntityOps {
             }
             return invoke(action, v);
         }
-        java.util.concurrent.Executor global = r -> source.getServer().scheduler().global().execute(r);
+        java.util.concurrent.Executor global = commandGlobal(source);
         return future.thenComposeAsync(v -> invoke(action, v), global);
     }
 
