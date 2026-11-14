@@ -13,7 +13,7 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 
 /** 월드(차원 하나). Paper 1.21.1 World 의 일부(T-141 로 물결마다 넓힌다). */
-public interface World extends Keyed, org.bukkit.metadata.Metadatable {
+public interface World extends Keyed, org.bukkit.metadata.Metadatable, org.bukkit.generator.WorldInfo {
 
     String getName();
 
@@ -263,6 +263,9 @@ public interface World extends Keyed, org.bukkit.metadata.Metadatable {
     int getMinHeight();
 
     int getMaxHeight();
+
+    /** 이 월드를 만들 때 준 플러그인 바이옴 공급자. Furnace 는 아직 그렇게 월드를 만들지 않아 늘 null(Paper 도 주지 않았으면 null). */
+    default org.bukkit.generator.BiomeProvider getBiomeProvider() { return null; }
 
     /** 게임 규칙 값(문자열), 모르는 이름이면 null. */
     String getGameRuleValue(String rule);

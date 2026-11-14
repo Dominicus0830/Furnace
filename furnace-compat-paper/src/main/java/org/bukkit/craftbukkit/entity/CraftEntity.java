@@ -33,6 +33,24 @@ public class CraftEntity implements Entity {
     /** 호환 모듈 전용 — 지금 들고 있는 Furnace 핸들. */
     public org.domi.furnace.api.entity.Entity furnaceHandle() { return handle; }
 
+    /** Paper CraftEntity: 엔티티에 보낸 컴포넌트는 아무 데도 가지 않는다. 플레이어는 CraftPlayer 가 덮어쓴다. */
+    private static final Spigot SILENT = new Spigot() {
+        @Override
+        public void sendMessage(net.md_5.bungee.api.chat.BaseComponent component) {}
+
+        @Override
+        public void sendMessage(net.md_5.bungee.api.chat.BaseComponent... components) {}
+
+        @Override
+        public void sendMessage(java.util.UUID sender, net.md_5.bungee.api.chat.BaseComponent component) {}
+
+        @Override
+        public void sendMessage(java.util.UUID sender, net.md_5.bungee.api.chat.BaseComponent... components) {}
+    };
+
+    @Override
+    public Spigot spigot() { return SILENT; }
+
     /**
      * 호환 모듈 전용 — 같은 엔티티의 더 새 스냅샷으로 바꾼다(UUID 가 같아야 한다). 지금 것보다 먼저 만든 스냅샷({@code snapshotStamp} 이 작다)은
      * 버린다 — 늦게 도착한 옛 이벤트 객체가 새 위치·체력을 되돌리지 않게. 순번을 모르는(0) 핸들은 늘 받는다.
