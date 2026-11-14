@@ -166,6 +166,13 @@ def bot(script, args, env_extra, timeout, out_jsonl=None):
 # ---------------- 장면 ----------------
 CFGS = [(1, 10), (8, 10), (32, 10), (1, 16), (8, 16), (32, 16)]
 
+# F-R0-01(11-14): A 는 콘솔 tp 를 초당 30~40개만 처리해 8·32명이 계획 속도(10블록/초)를 못 냈다(32명 실제 약 3.4).
+# 1·2판 walk 는 그 조건(계획 10)으로 돌았다. 3판부터는 여러 명이면 A 가 실제로 낼 수 있는 약 3.8블록/초로 A·B 를 맞추고,
+# 봇이 콘솔 명령을 초당 16개 넘게 보내지 않게 했다(o00walk.js STEP_MS). 1명은 10 그대로. R0_SPEED_MULTI 로 바꿀 수 있다.
+def walk_speed(n):
+    if int(os.environ.get("R0_LEGACY_SPEED", "0")): return 10
+    return 10 if n == 1 else float(os.environ.get("R0_SPEED_MULTI", "3.8"))
+
 def scene_walk(r, order):
     xo = 200000
     for ci, (n, vd) in enumerate(CFGS):
@@ -173,8 +180,9 @@ def scene_walk(r, order):
             W = f"w{r}{v}"; s = Server(W)
             if ci == 0: s.new(["view-distance=16", "simulation-distance=10"], fprops_of(v))
             s.start(v, ["-Dfurnace.tickstats=true"], tag=f"r={r} v={v} walk"); time.sleep(3)
-            append(OUT, f"== r={r} v={v} scene=walk n={n} vd={vd} world={W} jfr={s.k} t={int(time.time())}")
-            bot("o00walk.js", [n, vd, 10, 60], {"SRV": s.dir, "XOFF": xo, "NAMEP": f"{v}{r}c{ci}x"}, 320, OUT)
+            sp = walk_speed(n)
+            append(OUT, f"== r={r} v={v} scene=walk n={n} vd={vd} speed={sp} world={W} jfr={s.k} t={int(time.time())}")
+            bot("o00walk.js", [n, vd, sp, 60], {"SRV": s.dir, "XOFF": xo, "NAMEP": f"{v}{r}c{ci}x"}, 320, OUT)
             s.stop(); log("walk done", r, v, n, vd)
         xo += 200000
     append(OUT, f"== r={r} walkdone t={int(time.time())}")

@@ -6,7 +6,10 @@ const mc = require('minecraft-protocol');
 const fs = require('fs');
 const [nArg = '1', vdArg = '10', spArg = '10', secArg = '60', mode = 'new'] = process.argv.slice(2);
 const N = +nArg, vd = +vdArg, speed = +spArg, secs = +secArg;
-const GAP = +(process.env.GAP || 3000), STEP_MS = 250, R = Math.max(2, vd - 2);
+// R0 노트북(11-14): 콘솔 tp 를 모두 합쳐 초당 CMD_RATE(기본 16)개 넘게 보내지 않는다 — A(07dec3da)는 콘솔 명령을 초당 30~40개만
+// 처리해서 32명×4회/초면 실제 이동이 1/3 로 줄었다(F-R0-01 측정 함정). 실제 이동 거리는 결과의 movedZ* 로 적는다.
+const GAP = +(process.env.GAP || 3000), R = Math.max(2, vd - 2);
+const STEP_MS = +(process.env.STEP_MS || Math.max(250, Math.ceil(N * 1000 / +(process.env.CMD_RATE || 16))));
 const SRV = process.env.SRV;
 const cmd = c => fs.appendFileSync(SRV + '/cmds', c + '\n');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -82,16 +85,18 @@ const med = a => { const s = [...a].sort((x, y) => x - y); return s.length ? s[M
     await sleep(STEP_MS);
     z = speed * (now() - t0) / 1000;
     for (const s of sts) cmd(`tp ${s.name} ${x(s.i)} 200 ${z.toFixed(1)}`);
-    if (++k % 4 === 0) for (const s of sts) s.cover.push(cover(s));
+    if (++k % Math.max(1, Math.round(1000 / STEP_MS)) === 0) for (const s of sts) s.cover.push(cover(s));
   }
   const el = (now() - t0) / 1000;
+  await sleep(1500);  // 마지막 tp 가 처리될 틈
+  const moved = sts.map(s => s.pz === null ? 0 : s.pz);
   const recv = sts.map((s, j) => s.chunks - c0[j]);
   // 멈춘 뒤 시야(R) 다 채워지기까지
   const ts = now(); const fill = new Map();
   while (now() - ts < 30000 && fill.size < N) { for (const s of sts) if (!fill.has(s.name) && cover(s) >= 1) fill.set(s.name, now() - ts); await sleep(50); }
   const covAvg = sts.map(s => s.cover.reduce((a, b) => a + b, 0) / Math.max(1, s.cover.length));
   console.log(JSON.stringify({
-    mode, N, vd, speed, secs: +el.toFixed(1), R, newViewMsMedian: med(joinMs), newViewMsMax: joinMs.length ? Math.max(...joinMs) : null, newViewDone: joinMs.length, walkStart: +walkStart.toFixed(1), walkEnd: +(walkStart + el).toFixed(1),
+    mode, N, vd, speed, secs: +el.toFixed(1), R, stepMs: STEP_MS, intendedZ: +z.toFixed(1), movedZMedian: +med(moved).toFixed(1), movedZMin: +Math.min(...moved).toFixed(1), movedZMax: +Math.max(...moved).toFixed(1), realSpeedMedian: +(med(moved) / el).toFixed(2), newViewMsMedian: med(joinMs), newViewMsMax: joinMs.length ? Math.max(...joinMs) : null, newViewDone: joinMs.length, walkStart: +walkStart.toFixed(1), walkEnd: +(walkStart + el).toFixed(1),
     chunksPerSecTotal: +(recv.reduce((a, b) => a + b, 0) / el).toFixed(1),
     chunksPerSecPerPlayerMedian: +(med(recv) / el).toFixed(1),
     needPerPlayerPerSec: +((2 * vd + 1) * speed / 16).toFixed(1),
