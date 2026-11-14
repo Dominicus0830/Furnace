@@ -53,6 +53,9 @@ public final class FurnacePropertiesFile {
                 commented("worldgen-hooks.overworld", "", "오버월드에 걸 플러그인 월드젠 훅 키(namespace:path). 주석이면 바닐라."),
                 commented("worldgen-hooks.the_nether", "", "네더에 걸 플러그인 월드젠 훅 키. 위와 같다."),
                 commented("worldgen-hooks.the_end", "", "엔드에 걸 플러그인 월드젠 훅 키. 위와 같다."),
+                opt(WorldgenGuardSettings.KEY, WorldgenGuardSettings.DEFAULT.tickGuard(),
+                        "생성 조절기. true 면 가장 느린 region 의 1초 TPS 가 19 아래일 때 동시 청크 생성 수를 하나씩 줄이고(1 까지) 19.8 이상이면 다시 늘린다. "
+                                + "새 땅을 많이 만들 때 TPS 바닥을 지키는 대신 생성이 느려진다(실측 1판: TPS 최저 4~6 → 9.8, 생성 −35%). 생성과 무관한 렉(다른 차원의 큰 농장 등)이어도 모든 생성을 1개까지 묶는다. 기본 false(조절 안 함)."),
                 opt("enchantments.disabled", "", "끌 마법부여 id(쉼표로 구분, 예: minecraft:mending). 비우면 모두 켜짐(바닐라).")
         )));
         s.add(new Section("틱·region 스레드", List.of(
