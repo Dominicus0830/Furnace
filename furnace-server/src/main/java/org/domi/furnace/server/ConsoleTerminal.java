@@ -42,7 +42,7 @@ final class ConsoleTerminal implements AutoCloseable {
                 .terminal(terminal)
                 .appName("Furnace")
                 .parser(parser)
-                .completer((r, line, candidates) -> complete(line.line().substring(0, line.cursor()), line.word(), line.wordCursor(), candidates))
+                .completer((r, line, candidates) -> complete(line.line(), line.line().substring(0, line.cursor()), line.word(), line.wordCursor(), candidates))
                 .option(LineReader.Option.DISABLE_EVENT_EXPANSION, true)   // '!' 를 기록 확장으로 해석하지 않는다
                 .option(LineReader.Option.INSERT_TAB, false);
         if (historySize > 0 && historyFile != null) {
@@ -106,9 +106,17 @@ final class ConsoleTerminal implements AutoCloseable {
 
     // ------------------------------------------------------------------ 자동완성
 
-    private void complete(String textBeforeCursor, String word, int wordCursor, List<Candidate> out) {
+    private void complete(String fullLine, String textBeforeCursor, String word, int wordCursor, List<Candidate> out) {
         ServerCore c = core.get();
         if (c == null) return;   // 서버가 준비되기 전에는 명령 트리가 없다
+        // Paper ConsoleCommandCompleter: AsyncTabCompleteEvent(콘솔, "/" + 입력 한 줄 전체). 플레이어와 달리 콘솔은 덮어쓰지 않고 덧붙인다 —
+        // 취소거나 handled 여도 명령 트리 후보(console.enable-brigadier-completions 기본 켬)를 그대로 내고, handled 면 이벤트 후보를 뒤에 더한다(같은 글자는 한 번).
+        // 이 스레드가 콘솔 입력 스레드라 이벤트 이름 그대로 서버 틱과 무관하게 불린다.
+        List<org.domi.furnace.api.event.server.AsyncTabCompleteEvent.Completion> eventCompletions = List.of();
+        if (c.events().hasSubscribers(org.domi.furnace.api.event.server.AsyncTabCompleteEvent.class)) {
+            var ev = c.events().call(new org.domi.furnace.api.event.server.AsyncTabCompleteEvent(c.plugins().console(), "/" + fullLine, true));
+            if (!ev.isCancelled() && ev.isHandled()) eventCompletions = ev.completions();
+        }
         int wordStart = textBeforeCursor.length() - wordCursor;
         CompletableFuture<List<String[]>> future = new CompletableFuture<>();
         try {
@@ -135,7 +143,19 @@ final class ConsoleTerminal implements AutoCloseable {
                 out.add(new Candidate(r[0], r[1], null, r[2], null, null, false));
             }
         } catch (Exception ignored) {
-            // 시간 초과·종료 중 — 후보 없음
+            // 시간 초과·종료 중 — 명령 트리 후보 없음(이벤트 후보는 아래에서 더한다)
+        }
+        appendEventCandidates(out, eventCompletions);
+    }
+
+    /** handled 인 AsyncTabCompleteEvent 의 후보를 명령 트리 후보 뒤에 더한다 — 빈 글자와 이미 있는 글자는 건너뛴다(Paper ConsoleCommandCompleter.addCompletions). */
+    static void appendEventCandidates(List<Candidate> out, List<org.domi.furnace.api.event.server.AsyncTabCompleteEvent.Completion> completions) {
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (Candidate cand : out) seen.add(cand.value());
+        for (var completion : completions) {
+            String text = completion.suggestion();
+            if (text.isEmpty() || !seen.add(text)) continue;
+            out.add(new Candidate(text, text, null, completion.tooltip() == null ? null : completion.tooltip().getString(), null, null, false));
         }
     }
 

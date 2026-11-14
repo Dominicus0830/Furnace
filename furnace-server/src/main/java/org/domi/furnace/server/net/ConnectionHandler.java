@@ -721,9 +721,78 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         Player p = player;
         org.domi.furnace.server.ServerCore core = login.core;
         if (p == null || core == null) return;
+        var events = core.events();
+        if (!events.hasSubscribers(org.domi.furnace.api.event.server.AsyncTabCompleteEvent.class)) {
+            sendServerSuggestions(core, p, transactionId, text);
+            return;
+        }
+        // Paper AsyncTabCompleteEvent: 전용 스레드에서 이벤트를 먼저 부른다. 후보를 채웠거나 handled 면 그 후보만 보내고(명령 트리는 묻지 않는다),
+        // 취소면 아무것도 보내지 않으며, 둘 다 아니면 평소처럼 전역 스레드에서 명령 트리로 후보를 만든다.
+        TAB_COMPLETE_EXECUTOR.execute(() -> {
+            try {
+                var ev = events.call(new org.domi.furnace.api.event.server.AsyncTabCompleteEvent(core.plugins().player(p), text, true));
+                if (!ev.isHandled()) {
+                    if (ev.isCancelled()) return;
+                    sendServerSuggestions(core, p, transactionId, text);
+                } else if (!ev.isCancelled() && !ev.completions().isEmpty()) {
+                    p.send(new org.domi.furnace.server.net.protocol.play.CommandSuggestionsResponse(transactionId, eventSuggestions(text, ev.completions())));
+                }
+            } catch (RuntimeException e) {
+                log.warn("자동완성 이벤트 처리 중 예외: {}", e.toString());
+            }
+        });
+    }
+
+    private static void sendServerSuggestions(org.domi.furnace.server.ServerCore core, Player p, int transactionId, String text) {
         core.scheduler().global().execute(() -> core.commands()
                 .suggestions(org.domi.furnace.server.command.CommandSource.player(core, p), text)
                 .thenAccept(s -> p.send(new org.domi.furnace.server.net.protocol.play.CommandSuggestionsResponse(transactionId, s))));
+    }
+
+    /** 자동완성 전용 스레드(Paper "Async Tab Complete Thread - #n", 고정 4개 — 이벤트 처리기가 느려도 서버 틱·연결 스레드를 막지 않는다). */
+    private static final java.util.concurrent.ExecutorService TAB_COMPLETE_EXECUTOR = java.util.concurrent.Executors.newFixedThreadPool(4, new java.util.concurrent.ThreadFactory() {
+        private final java.util.concurrent.atomic.AtomicInteger n = new java.util.concurrent.atomic.AtomicInteger();
+
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread t = new Thread(r, "Async Tab Complete Thread - #" + n.incrementAndGet());
+            t.setDaemon(true);
+            return t;
+        }
+    });
+
+    /**
+     * AsyncTabCompleteEvent 가 낸 후보를 클라이언트 응답으로 만든다(Paper handleCustomCommandSuggestions0): 마지막 공백 뒤가 바뀔 자리이고,
+     * 후보가 10진 정수 꼴이면 정수 후보로 낸다(Guava Ints.tryParse 와 같다 — 앞의 '+' 는 정수가 아니다).
+     */
+    static org.domi.furnace.server.command.brigadier.Suggestions eventSuggestions(String text, java.util.List<org.domi.furnace.api.event.server.AsyncTabCompleteEvent.Completion> completions) {
+        var builder0 = new org.domi.furnace.server.command.brigadier.SuggestionsBuilder(text, text.length());
+        var builder = builder0.createOffset(builder0.getInput().lastIndexOf(' ') + 1);
+        for (var c : completions) {
+            Integer asInt = tryParseInt(c.suggestion());
+            if (asInt != null) builder.suggest(asInt, c.tooltip());
+            else builder.suggest(c.suggestion(), c.tooltip());
+        }
+        return builder.build();
+    }
+
+    /** Guava Ints.tryParse: ASCII 10진수와 앞의 '-' 만, int 범위 밖이면 null. */
+    private static Integer tryParseInt(String s) {
+        int n = s.length(), i = 0;
+        if (n == 0) return null;
+        if (s.charAt(0) == '-') {
+            if (n == 1) return null;
+            i = 1;
+        }
+        long v = 0;
+        for (; i < n; i++) {
+            char ch = s.charAt(i);
+            if (ch < '0' || ch > '9') return null;
+            v = v * 10 + (ch - '0');
+            if (v > 2147483648L) return null;
+        }
+        if (s.charAt(0) == '-') v = -v;
+        return v >= Integer.MIN_VALUE && v <= Integer.MAX_VALUE ? (int) v : null;
     }
 
     /** Velocity 포워딩 응답: 서명 확인 → 실제 주소·프로필로 로그인 검사 진행. 그 밖의 질의 응답은 바닐라처럼 끊는다. */
@@ -1374,7 +1443,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             int level = core.profilePermissions(new org.domi.furnace.server.players.GameProfile(playerUuid, playerName));
             send(ctx, org.domi.furnace.server.net.protocol.play.EntityEvent.permissionLevel(eid, level));
             // 바닐라 sendCommands 처럼 플레이어 소스로 거른다 — 플러그인 명령의 권한(PlayerCreateEvent 에서 붙인 첨부 포함)이 첫 트리부터 맞다.
-            send(ctx, core.commands().treeFor(org.domi.furnace.server.command.CommandSource.player(core, p)));
+            // PlayerCommandSendEvent 구독자가 있으면 Paper 처럼 PlayerJoinEvent 뒤에 보낸다(Paper 는 트리를 비동기로 만들어 메인에서 이벤트·전송 — Join 뒤).
+            // 거르지 않은 트리를 먼저 보냈다 다시 보내면 숨길 명령이 새므로 구독자가 있으면 여기서는 보내지 않는다.
+            deferCommandTree = core.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerCommandSendEvent.class);
+            if (!deferCommandTree) {
+                send(ctx, core.commands().treeFor(org.domi.furnace.server.command.CommandSource.player(core, p)));
+            }
         }
         if (saved != null && saved.root() != null && saved.root().tags().get("recipeBook") instanceof org.domi.furnace.server.net.io.nbt.NbtCompound book) {
             p.recipeBook().load(book, recipes);
@@ -1538,6 +1612,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // CraftBukkit 은 구성 단계의 REGISTER 마다 PlayerRegisterChannelEvent 를 부른다 — 그때 알린 채널을 접속 알림 직전에 한꺼번에
         if (login.core != null) fireChannelEvents(p, java.util.List.copyOf(pluginChannels.snapshot()), org.domi.furnace.api.event.player.PlayerChannelEvent.Action.REGISTER);
         if (login.core != null) announceJoin(login.core, p);
+        // 구독자가 있어 접속 순서의 트리 전송을 건너뛰었다면 PlayerJoinEvent 뒤에 한 번 보낸다(PlayerCommandSendEvent 가 이때 불린다).
+        if (login.core != null && deferCommandTree) {
+            login.core.commands().sendCommands(p);
+        }
         if (login.core != null) login.core.customBossEvents().onPlayerConnect(p);
     }
 
@@ -3321,6 +3399,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (key.equals("multiplayer.disconnect.server_full")) return org.domi.furnace.api.event.player.PlayerLoginEvent.Result.KICK_FULL;
         return org.domi.furnace.api.event.player.PlayerLoginEvent.Result.KICK_OTHER;
     }
+
+    /** 접속 때 PlayerCommandSendEvent 구독자가 있어 명령 트리 전송을 PlayerJoinEvent 뒤로 미뤘는가(접속 순서에서 한 번만 정한다). */
+    private boolean deferCommandTree;
 
     /** 바닐라 placeNewPlayer 의 접속 알림(PlayerJoinEvent 로 바꿀 수 있다). 접속자 본인도 받는다(Paper 와 같다). */
     private void announceJoin(org.domi.furnace.server.ServerCore core, Player p) {

@@ -103,6 +103,7 @@
 | `FunctionCommandEvent` | `SERVER_DRIVEN` | - | 함수 안 명령 한 줄 실행(그 줄만 건너뜀) |
 | `ServerCommandEvent` | `SERVER_DRIVEN` | - | 콘솔 명령 실행 |
 | `RemoteServerCommandEvent` | `SERVER_DRIVEN` | - | RCON 명령 실행(취소면 빈 응답) |
+| `AsyncTabCompleteEvent` | `SERVER_DRIVEN` | - | 자동완성 응답(취소·후보 없는 handled 면 응답 없음, 콘솔은 명령 트리 후보만) |
 
 ## 5. 알려진 한계
 

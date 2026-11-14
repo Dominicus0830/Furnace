@@ -48,6 +48,12 @@ public final class Bukkit {
     /** 서버가 없어도(시험·정적 초기화) 답한다 — 값이 고정 목록이라서. */
     public static <T extends Keyed> Registry<T> getRegistry(Class<T> tClass) { return org.domi.furnace.compat.paper.CompatRegistries.forType(tClass); }
 
+    /** 태그(Bukkit.getTag) — 없는 태그면 null. 호환 모듈이 Furnace 서버를 쥐고 있을 때 답한다(Bukkit 서버 객체는 필요 없다). */
+    public static <T extends Keyed> Tag<T> getTag(String registry, NamespacedKey tag, Class<T> clazz) { return org.domi.furnace.compat.paper.CompatTags.get(registry, tag, clazz); }
+
+    /** 그 레지스트리의 태그 전부. */
+    public static <T extends Keyed> Iterable<Tag<T>> getTags(String registry, Class<T> clazz) { return org.domi.furnace.compat.paper.CompatTags.all(registry, clazz); }
+
     public static Logger getLogger() { return s().getLogger(); }
 
     public static PluginManager getPluginManager() { return s().getPluginManager(); }

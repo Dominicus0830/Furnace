@@ -116,6 +116,7 @@ class CancelContractTest {
         TABLE.put("FunctionExecuteEvent", new Entry(Kind.SERVER_DRIVEN, "command.exec.FunctionHookTest#cancellingExecuteSkipsWholeFunctionBodyOnly"));
         TABLE.put("FunctionCommandEvent", new Entry(Kind.SERVER_DRIVEN, "command.exec.FunctionHookTest#commandEventSeesEachLineAndCanCancelOne"));
         TABLE.put("ServerCommandEvent", new Entry(Kind.SERVER_DRIVEN, "plugin.PluginSystemTest#eventBusOrdersByPriorityAndHonorsCancellation"));
+        TABLE.put("AsyncTabCompleteEvent", new Entry(Kind.SERVER_DRIVEN, "net.TabCompleteEventTest#handledCancelledAndFallbackFollowPaper"));
         TABLE.put("RemoteServerCommandEvent", new Entry(Kind.SERVER_DRIVEN, "remote.RconCoreTest#remoteServerCommandEventCanRewriteOrCancel"));
     }
 

@@ -110,7 +110,7 @@ public final class EventBridge {
     private static final java.util.Set<String> NOT_FIRED = java.util.Set.of(
             "org.bukkit.event.block.BlockCanBuildEvent", "org.bukkit.event.block.BlockDamageEvent", "org.bukkit.event.block.BlockDispenseEvent",
             "org.bukkit.event.block.BlockExpEvent", "org.bukkit.event.block.NotePlayEvent", "org.bukkit.event.block.SignChangeEvent",
-            "org.bukkit.event.player.PlayerCommandSendEvent", "org.bukkit.event.world.WorldInitEvent");
+            "org.bukkit.event.world.WorldInitEvent");
 
     /** 서버가 아직 알리지 않는 Bukkit 이벤트인가(문서·시험용). */
     public static boolean isKnownButNotFired(Class<? extends org.bukkit.event.Event> owning) { return NOT_FIRED.contains(owning.getName()); }
