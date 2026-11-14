@@ -400,6 +400,42 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     @Override
     public boolean isChunkLoaded(int chunkX, int chunkZ) { return world.isChunkLoaded(chunkX, chunkZ); }
 
+    @Override
+    public CompletableFuture<Boolean> loadChunkAsync(int chunkX, int chunkZ, boolean generate) {
+        ChunkPos cp = new ChunkPos(chunkX, chunkZ);
+        // 그 청크의 region 스레드에서 이미 올라와 있으면 곧바로(Paper: 주 스레드에서 올라와 있으면 완료된 Future)
+        if (((ThreadOwner) world.chunkScheduler(chunkX, chunkZ)).isOwnerThread()) {
+            Region here = world.regionizer().ownerOf(chunkX, chunkZ);
+            if (here != null && here.chunkLoaded(cp)) return CompletableFuture.completedFuture(true);
+        }
+        if (generate) return loadOnOwner(cp);
+        // 생성하지 않음: 올라와 있으면 그대로, 아니면 그 지역 파일 레인에서 디스크에 있는지 본다(앞선 저장 뒤에 줄 선다)
+        return world.submitAtChunk(cp, r -> r.chunkLoaded(cp)).thenCompose(loaded -> {
+            if (loaded) return loadOnOwner(cp);
+            if (!(world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource anvil)) return world.submitAtChunk(cp, r -> false);
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    return anvil.store().hasChunk(chunkX, chunkZ);
+                } catch (java.io.IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+            }, world.ioLane(chunkX, chunkZ)).thenCompose(onDisk -> onDisk ? loadOnOwner(cp) : world.submitAtChunk(cp, r -> false));
+        });
+    }
+
+    @Override
+    public boolean refreshChunk(int chunkX, int chunkZ) {
+        if (!world.isChunkLoaded(chunkX, chunkZ)) return false;
+        ChunkPos cp = new ChunkPos(chunkX, chunkZ);
+        world.runAtChunk(cp, r -> { if (r.chunkLoaded(cp)) r.resendChunk(cp); });
+        return true;
+    }
+
+    /** 주인 region 에서 올리고, 그 region 스레드에서 true 로 완료한다(Region.loadChunk 의 완료는 설치한 주인 region 에서 일어난다). */
+    private CompletableFuture<Boolean> loadOnOwner(ChunkPos cp) {
+        return world.submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(f -> f).thenApply(col -> col != null);
+    }
+
     // ------------------------------------------------------------------ 엔티티
 
     @Override

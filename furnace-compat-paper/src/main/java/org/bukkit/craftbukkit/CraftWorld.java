@@ -302,6 +302,15 @@ public final class CraftWorld implements World {
     public boolean isChunkLoaded(int x, int z) { return handle.isChunkLoaded(x, z); }
 
     @Override
+    public boolean refreshChunk(int x, int z) { return handle.refreshChunk(x, z); }
+
+    /** 결과는 그 청크의 region 스레드에서 완료된다. 저장된 청크가 없고 gen 이 거짓이면 null(Paper 와 같다). */
+    @Override
+    public java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsync(int x, int z, boolean gen, boolean urgent) {
+        return handle.loadChunkAsync(x, z, gen).thenApply(loaded -> loaded ? getChunkAt(x, z) : null);
+    }
+
+    @Override
     public List<Player> getPlayers() {
         List<Player> out = new ArrayList<>();
         for (var p : Furnace.server().onlinePlayers()) {
