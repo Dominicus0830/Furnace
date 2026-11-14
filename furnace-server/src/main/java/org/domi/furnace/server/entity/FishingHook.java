@@ -232,7 +232,7 @@ public class FishingHook extends Projectile {
     /** checkCollision: getHitResultOnMoveVector — 블록, 맞출 수 있는 엔티티, 살아 있는 아이템 엔티티 중 가장 가까운 것. */
     private void checkCollision() {
         double fx = x(), fy = y(), fz = z(), tx = fx + vx(), ty = fy + vy(), tz = fz + vz();
-        Clip.Result r = Clip.clipCollider(level, fx, fy, fz, tx, ty, tz);
+        Clip.Result r = Clip.clipCollider(level, org.domi.furnace.server.block.CollisionContext.of(this), fx, fy, fz, tx, ty, tz);
         Hit block = null;
         if (!r.miss()) {
             block = new Hit(null, r.pos(), r.face(), r.x(), r.y(), r.z());
@@ -403,7 +403,7 @@ public class FishingHook extends Projectile {
         int state = level.getBlockState(pos);
         if (!B.isAir(state) && !B.is(state, LILY_PAD)) {
             int fluid = level.getFluidState(pos);
-            return Fluids.isWater(fluid) && Fluids.isSource(fluid) && BlockBehaviors.of(state).getCollisionShape(state, level, pos, null).isEmpty()
+            return Fluids.isWater(fluid) && Fluids.isSource(fluid) && BlockBehaviors.of(state).getCollisionShape(state, level, pos, org.domi.furnace.server.block.CollisionContext.EMPTY).isEmpty()
                     ? OpenWaterType.INSIDE_WATER : OpenWaterType.INVALID;
         }
         return OpenWaterType.ABOVE_WATER;

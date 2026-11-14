@@ -17,6 +17,11 @@ public final class ComponentPatch {
     private final Map<String, Object> entries;
     private volatile byte[] network;
     private int hash;
+    /**
+     * 플러그인 API 모양 — 처음 {@link #apiForm()} 때 한 번 만든다(T-033). volatile 이 아니어도 되는 까닭: ApiForm 은 final 필드뿐이고
+     * 그 필드가 가리키는 맵·집합은 생성자 전에 다 채워진다 — final 필드 규칙(JLS 17.5)으로 경합 공개된 참조로도 다 채운 내용이 보인다.
+     */
+    private ApiForm api;
 
     private ComponentPatch(LinkedHashMap<String, Object> entries) {
         this.entries = Collections.unmodifiableMap(entries);
@@ -176,6 +181,57 @@ public final class ComponentPatch {
         }
         if (out == null) return this;
         return out.isEmpty() ? EMPTY : new ComponentPatch(out);
+    }
+
+    // ------------------------------------------------------------------ 플러그인 API 모양(T-033, O09-01 (a))
+
+    /**
+     * 플러그인 API 아이템의 컴포넌트 모양: 붙은 것 이름 → SNBT, 지운 것 이름 — 둘 다 이름순, 읽기 전용.
+     * 패치가 불변이라 한 번 만든 모양을 계속 쓴다(인챈트·이름 아이템 변환 때마다 Snbt.write 를 하던 비용).
+     */
+    public record ApiForm(java.util.SortedMap<String, String> components, java.util.SortedSet<String> removed) {
+        static final ApiForm EMPTY = new ApiForm(Collections.emptySortedMap(), Collections.emptySortedSet());
+    }
+
+    /**
+     * 이보다 SNBT 글자 수 합이 크면 모양을 저장하지 않고 부를 때마다 만든다(PR #323 검토 R3). 캐시는 패치 수명 동안 SNBT 를 붙잡으므로
+     * 책 100쪽(SNBT 약 2.6만 자)·책 든 셜커(약 70만 자) 같은 큰 패치가 청크에 남아 있는 내내 메모리를 더 쓰게 된다. 뜨거운 경우(인챈트·이름
+     * 붙은 도구 약 100~300자)는 한참 아래다. 큰 패치는 변환 자체가 비싸 캐시 이득 비율은 같지만, 드물고 메모리 비용이 커서 저장하지 않는다.
+     */
+    static final int API_FORM_CACHE_LIMIT = 8192;
+
+    /**
+     * API 모양. 옛 ApiConvert.item 과 같은 순서로 같은 값을 만든다(값 → 코덱 NBT → SNBT). 변환이 예외를 내면 저장하지 않고 그대로 던진다.
+     * 경합해서 둘이 만들어도 내용이 같으므로 아무 쪽이나 남는다. 큰 모양(API_FORM_CACHE_LIMIT 초과)은 저장하지 않는다.
+     */
+    public ApiForm apiForm() {
+        ApiForm a = api;
+        if (a == null) {
+            if (entries.isEmpty()) return ApiForm.EMPTY;
+            java.util.TreeMap<String, String> comps = new java.util.TreeMap<>();
+            java.util.TreeSet<String> removed = new java.util.TreeSet<>();
+            long chars = 0;
+            for (var e : entries.entrySet()) {
+                if (e.getValue() == null) removed.add(e.getKey());
+                else {
+                    String snbt = Snbt.write(apiNbt(e.getKey(), e.getValue()));
+                    chars += snbt.length();
+                    comps.put(e.getKey(), snbt);
+                }
+            }
+            a = new ApiForm(Collections.unmodifiableSortedMap(comps), Collections.unmodifiableSortedSet(removed));
+            if (chars <= API_FORM_CACHE_LIMIT) api = a;
+        }
+        return a;
+    }
+
+    /**
+     * 패치의 정규 값은 NBT 가 아니라 코덱의 값(마법 부여는 Map 등)일 수 있다 — 저장할 때처럼 그 컴포넌트의 코덱으로 NBT 로 바꾼다.
+     * 저장되지 않는(transient) 컴포넌트는 값이 이미 NBT 꼴이다.
+     */
+    private static Object apiNbt(String component, Object value) {
+        ComponentType t = DataComponents.byName(component);
+        return t == null || t.isTransient() ? value : t.persistent().toNbt(value);
     }
 
     // ------------------------------------------------------------------ 같음

@@ -315,16 +315,16 @@ public final class TrialSpawner {
         return calculatePositionAbove(target, level);
     }
 
-    /** calculatePositionAbove: 엔티티 위 (키 + 2 + nextInt(4)) 까지 충돌 모양으로 쏴서 맞은 칸 가운데의 한 칸 아래. 충돌 모양이 비어 있어야 한다. */
+    /** calculatePositionAbove: 엔티티 위 (키 + 2 + nextInt(4)) 까지 시각 모양(VISUAL)으로 쏴서 맞은 칸 가운데의 한 칸 아래. 충돌 모양이 비어 있어야 한다. */
     private static Optional<double[]> calculatePositionAbove(double[] e, ChunkLevel level) {
         double fx = e[0], fy = e[1], fz = e[2];
         double ty = fy + (((float) e[3]) + 2.0F + level.random().nextInt(4));
-        Clip.Result hit = Clip.clipCollider(level, fx, fy, fz, fx, ty, fz);
+        Clip.Result hit = Clip.clipVisual(level, fx, fy, fz, fx, ty, fz);   // 바닐라: VISUAL, 문맥 없음
         Pos hp = hit.pos();
         double[] v = {hp.x() + 0.5, hp.y() + 0.5 - 1.0, hp.z() + 0.5};
         Pos vp = new Pos((int) Math.floor(v[0]), (int) Math.floor(v[1]), (int) Math.floor(v[2]));
         int st = level.getBlockState(vp);
-        return !B.behavior(st).getCollisionShape(st, level, vp, null).isEmpty() ? Optional.empty() : Optional.of(v);
+        return !B.behavior(st).getCollisionShape(st, level, vp, org.domi.furnace.server.block.CollisionContext.EMPTY).isEmpty() ? Optional.empty() : Optional.of(v);
     }
 
     // ------------------------------------------------------------------ 몹 생성

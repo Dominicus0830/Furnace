@@ -14,6 +14,7 @@
   | `Warden` 분노 관리 | 엔티티 id | WARDEN_ANGER |
   | `Sensor.RANDOM`(정적, 스레드 안전)·`ShufflingList.random`(목록마다) | 지점 이름 | SENSOR_SCAN·SHUFFLING_LIST |
   | `/random`·`/spreadplayers`·드래곤 수정 yaw | 지점 이름·월드·수정 id | COMMAND_RANDOM·SPREAD_PLAYERS·END_CRYSTAL_YAW |
+  | `Explosion` 불 붙이기 난수(불 폭발일 때만 만든다, 2026-11-13) | 폭발 중심 좌표(x·y·z 비트를 `combine`) | EXPLOSION |
 - **꺼짐(운영 기본)**: 씨앗은 바닐라 `RandomSupport.generateUniqueSeed` 와 같은 식(원자 uniquifier × 1181783497276652981 ^ nanoTime). 예측 불가이고 같은 시각에 만든 둘도 다르다 — O05 C3(거친 시계에서 같은 난수열 가능성)도 같이 닫힌다. 바닐라 관측 동작은 그대로(바닐라 씨앗도 예측 불가).
 - **켜짐(`-Dfurnace.test.seeded=true`)**: 씨앗이 (열쇠, 용도)의 순수 함수(`RandomSeeds.derive`, Stafford13 믹스). 호출 순서 카운터를 쓰지 않으므로 난수 객체를 하나 덜 만드는 최적화가 다른 객체의 씨앗을 밀지 않는다. `static final` 이라 꺼짐이면 분기가 접힌다. Gradle 은 `furnace.*` 속성만 시험·벤치 JVM 에 넘기므로 운영 서버에 새지 않는다.
 

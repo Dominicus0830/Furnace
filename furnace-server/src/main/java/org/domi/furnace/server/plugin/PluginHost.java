@@ -386,11 +386,31 @@ public final class PluginHost implements Furnace {
     @Override
     public String minecraftVersion() { return "1.21.1"; }
 
+    /** 접속자 목록 캐시 한 칸: 만든 때의 서버 접속자 배열(동일성)·roster 번호와 그 결과(고칠 수 없는 목록). */
+    private record OnlineSnapshot(Player[] source, long epoch, List<PlayerHandle> handles) {}
+
+    private volatile OnlineSnapshot onlineSnapshot;
+
+    /**
+     * 접속 중(끊기지 않은) 플레이어, 서버 접속 순(Paper getOnlinePlayers 와 같다 — 리스폰한 플레이어는 끝으로).
+     *
+     * <p>고칠 수 없는 목록이고, 접속자 집합이 그대로이면 <b>같은 객체</b>를 돌려준다(부른 쪽이 객체 동일성으로 "안 바뀜"을 알 수 있다).
+     * 접속·퇴장·리스폰은 서버 접속자 배열을 바꾸고, 끊김 표시({@link Player#markDisconnected})는 {@link Player#rosterEpoch} 를 올리므로
+     * 둘 중 하나라도 달라지면 다시 만든다 — 다시 만들기는 번호를 먼저 읽은 뒤 훑으므로 그 사이 바뀐 것은 다음 호출에서 반영된다.
+     * 끊김 표시와 번호 상승 사이의 한 걸음 동안에는 방금 끊긴 플레이어가 한 번 더 보일 수 있다(퇴장 처리가 비동기인 것과 같은 성질).
+     */
     @Override
-    public Collection<PlayerHandle> onlinePlayers() {
-        List<PlayerHandle> out = new ArrayList<>();
-        for (Player p : core.players()) out.add(player(p));
-        return out;
+    public List<PlayerHandle> onlinePlayers() {
+        long epoch = Player.rosterEpoch();   // 먼저 읽는다: 이 뒤에 바뀌면 번호가 앞서가 다음 호출이 다시 만든다
+        Player[] src = core.world().onlineArray();
+        OnlineSnapshot s = onlineSnapshot;
+        if (s != null && s.source == src && s.epoch == epoch) return s.handles;
+        PlayerHandle[] out = new PlayerHandle[src.length];
+        int n = 0;
+        for (Player p : src) if (!p.isDisconnected()) out[n++] = player(p);
+        List<PlayerHandle> handles = java.util.Collections.unmodifiableList(java.util.Arrays.asList(java.util.Arrays.copyOf(out, n)));
+        onlineSnapshot = new OnlineSnapshot(src, epoch, handles);
+        return handles;
     }
 
     @Override

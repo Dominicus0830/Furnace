@@ -70,6 +70,31 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
             if (b == null) biomes = b = biomeSrc.unpack();
             return b;
         }
+
+        /** 섹션 로컬 인덱스(y*256+z*16+x)의 블록 하나 — 섹션 전체를 펼치지 않는다. */
+        public int blockAt(int idx) {
+            int[] b = blocks;
+            if (b != null) return b[idx];
+            return blockSrc.get(idx);
+        }
+
+        /**
+         * T-015: 블록의 첫 등장 순 색인(펼치지 않음). 펼친 배열만 가진 섹션(공개 생성자·scratch 사본)이나 직접 저장이면 null —
+         * 그때는 {@link #blocks()} 로 옛 경로. 돌려준 객체는 스레드별(블록용)이라 이 스레드의 다음 blockIndex 호출 전까지만 쓴다.
+         */
+        public FirstSeenIndex blockIndex() {
+            return index(blockSrc, FirstSeenIndex.forBlocks());
+        }
+
+        /** {@link #blockIndex()} 의 바이옴판(따로 된 스레드별 객체 — 블록 색인과 동시에 쥐어도 된다). */
+        public FirstSeenIndex biomeIndex() {
+            return index(biomeSrc, FirstSeenIndex.forBiomes());
+        }
+
+        private static FirstSeenIndex index(PaletteStorage src, FirstSeenIndex out) {
+            if (src == null) return null;
+            return src.indexFirstSeen(out) ? out : null;
+        }
     }
 
     /** 청크 패킷 block_entities 배열 항목 — localX/localZ는 청크 내부 0..15, y는 절대 월드 y. */

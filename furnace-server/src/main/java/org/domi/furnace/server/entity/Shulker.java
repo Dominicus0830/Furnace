@@ -153,7 +153,8 @@ public class Shulker extends AbstractGolem implements Enemy, HardCollider {
         if (isPositionBlocked(pos)) return false;
         int opposite = Dir.opposite(face);
         Pos support = pos.relative(face);
-        if (!level.hasChunkAt(support) || !B.isFaceSturdy(level.getBlockState(support), level, support, opposite)) return false;
+        // loadedAndEntityCanStandOnFace(support, this, opposite): 셜커 문맥의 충돌 모양 면
+        if (!level.hasChunkAt(support) || !B.entityCanStandOnFace(level.getBlockState(support), level, support, this, opposite)) return false;
         AABB a = progressAabb(1.0F, opposite, 1.0F).move(pos.x(), pos.y(), pos.z()).deflate(1.0E-6);
         return level.noCollision(this, a);
     }

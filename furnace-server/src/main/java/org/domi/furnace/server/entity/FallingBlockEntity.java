@@ -101,7 +101,7 @@ public class FallingBlockEntity extends Entity {
             boolean waterConcrete = concrete && Fluids.isWater(level.getFluidState(pos));
             double speed = vx() * vx() + vy() * vy() + vz() * vz();
             if (concrete && speed > 1.0) {
-                var hit = Clip.clipCollider(level, xo, yo, zo, x(), y(), z(), Clip.FluidMode.SOURCE_ONLY);
+                var hit = Clip.clipCollider(level, org.domi.furnace.server.block.CollisionContext.of(this), xo, yo, zo, x(), y(), z(), Clip.FluidMode.SOURCE_ONLY);
                 if (!hit.miss() && Fluids.isWater(level.getFluidState(hit.pos()))) {
                     pos = hit.pos();
                     waterConcrete = true;

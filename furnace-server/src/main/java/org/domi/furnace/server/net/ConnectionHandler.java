@@ -1098,7 +1098,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                             return;
                         }
                         org.domi.furnace.server.world.RespawnFinder.worldSpawn(over, over.levelServices().gameRuleInt("spawnRadius"),
-                                over.levelServices().worldAdventure(), 0.0, 0.0, spot -> {   // 생성자 안이라 플레이어는 아직 (0, 0)
+                                over.levelServices().worldAdventure(),
+                                // Player 생성자가 이미 공유 스폰 (x+0.5, y+1, z+0.5) 에 놓았다 — 그 자리의 갓 만든 플레이어 문맥·보더 판정
+                                org.domi.furnace.server.block.CollisionContext.newPlayer(ws.y() + 1), ws.x() + 0.5, ws.z() + 0.5, spot -> {
                                     try {
                                         ctx.executor().execute(() -> {
                                             if (!once.compareAndSet(false, true)) return;
@@ -3633,7 +3635,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // 리스폰 블록 없음: 오버월드 월드 스폰에서 흩뿌린 자리(adjustSpawnLocation — 블록을 읽으므로 오버월드 region 에서)
         World over = login.core != null ? login.core.world() : org.domi.furnace.server.world.RespawnFinder.overworld(world);
         org.domi.furnace.server.world.RespawnFinder.worldSpawn(over, over.levelServices().gameRuleInt("spawnRadius"), over.levelServices().worldAdventure(),
-                p.x(), p.z(), s -> ctx.executor().execute(() -> {
+                org.domi.furnace.server.block.CollisionContext.of(p).snapshot(), p.x(), p.z(), s -> ctx.executor().execute(() -> {
                     if (player != p || !ctx.channel().isActive() || world != from) {
                         respawnPending = false;
                         return;

@@ -564,6 +564,11 @@ public final class Region {
         long t0 = Regionizer.STATS ? System.nanoTime() : 0L;
         if (col.dirty()) dirtyChunks.add(cp);
         world.putChunk(cp.x(), cp.z(), col);
+        // 저장돼 있던 예약 틱을 다시 건다(남은 틱 기준). 바닐라는 청크 컨테이너가 생길 때부터 저장 예약(pendingTicks)이 (칸, 종류) 집합에
+        // 들어 있어 그 뒤 같은 (칸, 종류) 새 예약을 버린다 — 그래서 블록 엔티티·엔티티를 올리기 전, 청크를 넣자마자 건다.
+        if (col.extraNbt() != null && (col.extraNbt().contains("block_ticks") || col.extraNbt().contains("fluid_ticks"))) {
+            level().loadChunkTicks(col.extraNbt(), cp.x(), cp.z());
+        }
         long t1 = Regionizer.STATS ? System.nanoTime() : 0L;
         level().lightNewChunk(cp.x(), cp.z());   // 빛 작업 모드여도 새 청크 빛은 그 자리에서(바닐라: 빛이 끝나야 FULL — 틱·전송 전에 빛이 맞다)
         level().runLightUpdates();
@@ -572,9 +577,6 @@ public final class Region {
         loadEntities(cp, col);
         if (level().addWorldGenChunkEntities(col)) dirtyChunks.add(cp);
         if (!col.blockEntities().isEmpty()) level().registerBlockEntities(col);
-        if (col.extraNbt() != null && (col.extraNbt().contains("block_ticks") || col.extraNbt().contains("fluid_ticks"))) {
-            level().loadChunkTicks(col.extraNbt());   // 저장돼 있던 예약 틱을 다시 건다(남은 틱 기준)
-        }
         if (col.freshlyGenerated()) {
             col.freshlyGenerated(false);
             try {
@@ -644,6 +646,9 @@ public final class Region {
         fresh.lightPrecomputed(false);
         world.putChunk(cx, cz, fresh);
         lv.chunkUnloaded();   // 청크 조회 캐시가 옛 객체를 들고 있지 않게
+        if (fresh.extraNbt() != null && (fresh.extraNbt().contains("block_ticks") || fresh.extraNbt().contains("fluid_ticks"))) {
+            lv.loadChunkTicks(fresh.extraNbt(), cx, cz);   // 청크를 넣자마자(위 설치 경로와 같은 이유)
+        }
         // 남긴 엔티티의 진동 리스너(워든·알레이)는 옛 청크의 구역에 걸려 있다 — 새 청크에 다시 건다
         for (org.domi.furnace.server.entity.Entity e : new ArrayList<>(lv.entities().inChunk(cx, cz))) {
             if (e.isRemoved()) continue;
@@ -672,9 +677,6 @@ public final class Region {
         }
         lv.runLightUpdates();
         if (!fresh.blockEntities().isEmpty()) lv.registerBlockEntities(fresh);
-        if (fresh.extraNbt() != null && (fresh.extraNbt().contains("block_ticks") || fresh.extraNbt().contains("fluid_ticks"))) {
-            lv.loadChunkTicks(fresh.extraNbt());
-        }
         if (generationEntities) {
             lv.addWorldGenChunkEntities(fresh);
             if (fresh.freshlyGenerated()) {

@@ -30,6 +30,8 @@ public final class RandomSeeds {
         public static final int COMMAND_RANDOM = 12;
         public static final int SPREAD_PLAYERS = 13;
         public static final int END_CRYSTAL_YAW = 14;
+        /** 폭발 자신의 난수(바닐라 Explosion.random — 불 붙이기). 열쇠 = 폭발 중심 좌표. */
+        public static final int EXPLOSION = 15;
     }
 
     private static final AtomicLong UNIQUIFIER = new AtomicLong(8682522807148012L);   // 바닐라 RandomSupport.SEED_UNIQUIFIER

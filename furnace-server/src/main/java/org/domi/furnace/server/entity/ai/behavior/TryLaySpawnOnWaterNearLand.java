@@ -22,7 +22,7 @@ public final class TryLaySpawnOnWaterNearLand {
                     for (int d : Dir.HORIZONTAL) {
                         Pos adj = below.relative(d);
                         int state = level.getBlockState(adj);
-                        if (B.behavior(state).getCollisionShape(state, level, adj, null).isFaceEmpty(Dir.UP) && org.domi.furnace.server.block.Fluids.isWaterSource(level.getFluidState(adj))) {
+                        if (B.behavior(state).getCollisionShape(state, level, adj, org.domi.furnace.server.block.CollisionContext.EMPTY).isFaceEmpty(Dir.UP) && org.domi.furnace.server.block.Fluids.isWaterSource(level.getFluidState(adj))) {
                             Pos above = adj.above();
                             if (B.isAir(level.getBlockState(above))) {
                                 // CraftBukkit: EntityChangeBlockEvent 를 막으면 알을 놓지 않고 임신만 끝낸다

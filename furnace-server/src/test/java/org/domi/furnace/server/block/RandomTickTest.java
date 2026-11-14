@@ -80,7 +80,7 @@ class RandomTickTest {
         assertEquals(0, root.getList("fluid_ticks").items().size());
 
         var b = new BlockPlacementTest.TestLevel();
-        b.loadChunkTicks(root);
+        b.loadChunkTicks(root, pos.x() >> 4, pos.z() >> 4);
         assertFalse(root.contains("block_ticks"));
         assertTrue(b.hasScheduledTick(pos, sand));
         b.runScheduledTicks();

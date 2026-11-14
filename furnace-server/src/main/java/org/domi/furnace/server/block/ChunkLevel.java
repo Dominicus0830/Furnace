@@ -11,6 +11,7 @@ import org.domi.furnace.server.entity.EntityTracker;
 import org.domi.furnace.server.entity.ItemEntity;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.entity.Player;
+import org.domi.furnace.server.entity.Rider;
 import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.net.protocol.play.BlockEventPacket;
@@ -391,8 +392,8 @@ public abstract class ChunkLevel implements BlockLevel {
     private void updateNavigations(Pos pos, int old, int now) {
         var mobs = entities.mobs();
         if (mobs.isEmpty()) return;
-        Shape before = BlockBehaviors.of(old).getCollisionShape(old, this, pos, null);
-        Shape after = BlockBehaviors.of(now).getCollisionShape(now, this, pos, null);
+        Shape before = BlockBehaviors.of(old).getCollisionShape(old, this, pos, CollisionContext.EMPTY);
+        Shape after = BlockBehaviors.of(now).getCollisionShape(now, this, pos, CollisionContext.EMPTY);
         if (!Shape.differs(before, after)) return;
         java.util.ArrayList<org.domi.furnace.server.entity.ai.navigation.PathNavigation> list = null;
         for (var mob : mobs) {
@@ -577,14 +578,18 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     /**
-     * 불러온 청크 NBT 의 예약을 다시 건다(목록 순서대로 예약 순번) — 모르는 종류는 건너뛴다. 읽은 목록은 지운다.
+     * 불러온 청크 NBT 의 예약을 다시 건다 — 모르는 종류는 건너뛴다. 읽은 목록은 지운다.
      * 적재 중인 청크의 것이라 로드 여부를 보지 않고 바로 건다(scheduleTick 의 "청크가 없으면 버림"을 타지 않는다).
+     * 순번은 바닐라 LevelChunkTicks.unpack 그대로 목록마다 -n, -n+1, …, -1(n = 읽은 예약 수)이고 레벨 순번 카운터는 쓰지 않는다 —
+     * 같은 (시각, 우선순위)이면 불러온 예약이 이미 있던 예약보다 먼저 돈다. 바닐라 SavedTick.loadTickList·loadTick 처럼 그 청크 밖 칸의 예약은 버리고,
+     * 우선순위는 TickPriority.byValue 로 -3..3 에 가둔다.
      */
-    public void loadChunkTicks(org.domi.furnace.server.net.io.nbt.NbtCompound root) {
+    public void loadChunkTicks(org.domi.furnace.server.net.io.nbt.NbtCompound root, int chunkX, int chunkZ) {
         if (root == null) return;
         for (String key : new String[] {"block_ticks", "fluid_ticks"}) {
             if (!(root.tags().get(key) instanceof org.domi.furnace.server.net.io.nbt.NbtList list)) continue;
             boolean fluid = key.equals("fluid_ticks");
+            java.util.List<Object[]> read = new java.util.ArrayList<>();   // SavedTick.loadTickList: 종류를 아는 것만
             for (Object o : list.items()) {
                 if (!(o instanceof org.domi.furnace.server.net.io.nbt.NbtCompound e)) continue;
                 String id = e.contains("i") ? e.getString("i") : null;
@@ -596,7 +601,12 @@ public abstract class ChunkLevel implements BlockLevel {
                 }
                 if (type < 0) continue;
                 Pos p = new Pos(e.getIntOr0("x"), e.getIntOr0("y"), e.getIntOr0("z"));
-                (fluid ? fluidTicks : blockTicks).schedule(p, type, levelTime + e.getIntOr0("t"), e.getIntOr0("p"), subTickCount++);
+                if (p.x() >> 4 != chunkX || p.z() >> 4 != chunkZ) continue;
+                read.add(new Object[] {p, type, e.getIntOr0("t"), Math.max(-3, Math.min(3, e.getIntOr0("p")))});
+            }
+            long order = -read.size();
+            for (Object[] r : read) {
+                (fluid ? fluidTicks : blockTicks).schedule((Pos) r[0], (int) r[1], levelTime + (int) r[2], (int) r[3], order++);
             }
             root.tags().remove(key);
         }
@@ -1711,7 +1721,11 @@ public abstract class ChunkLevel implements BlockLevel {
 
     public void forEachPlayer(java.util.function.Consumer<Player> c) { services().forEachPlayer(c); }
 
-    public boolean isInWorldBounds(Pos pos) { return pos.y() >= minBuildHeight() && pos.y() < maxBuildHeight() && Math.abs(pos.x()) < 30000000 && Math.abs(pos.z()) < 30000000; }
+    /** Level.isInWorldBounds: 높이 안이고 -30000000 <= x,z < 30000000(바닐라 isInWorldBoundsHorizontal — 음수 쪽 경계 칸은 안). */
+    public boolean isInWorldBounds(Pos pos) {
+        return pos.y() >= minBuildHeight() && pos.y() < maxBuildHeight()
+                && pos.x() >= -30000000 && pos.z() >= -30000000 && pos.x() < 30000000 && pos.z() < 30000000;
+    }
 
     @Override
     public void spawnGolem(boolean iron, Pos bottom) {
@@ -1871,8 +1885,8 @@ public abstract class ChunkLevel implements BlockLevel {
      */
     @Override
     public int pushEntitiesUp(int from, int to, Pos pos) {
-        Shape s = Shape.joinOnlySecond(B.behavior(from).getCollisionShape(from, this, pos, null),
-                B.behavior(to).getCollisionShape(to, this, pos, null)).move(pos.x(), pos.y(), pos.z());
+        Shape s = Shape.joinOnlySecond(B.behavior(from).getCollisionShape(from, this, pos, CollisionContext.EMPTY),
+                B.behavior(to).getCollisionShape(to, this, pos, CollisionContext.EMPTY)).move(pos.x(), pos.y(), pos.z());
         if (s.isEmpty()) return to;
         double[] b = s.bounds();
         org.domi.furnace.server.entity.AABB box = new org.domi.furnace.server.entity.AABB(b[0], b[1], b[2], b[3], b[4], b[5]);
@@ -3237,12 +3251,13 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     /**
-     * 상태별 충돌 분류(T-018). 블록 동작이 getCollisionShape·getEntityCollisionShape 를 덮어쓰지 않으면 모양은 상태만으로 정해진다
+     * 상태별 충돌 분류(T-018). 블록 동작이 getCollisionShape(문맥) 를 덮어쓰지 않으면 모양은 상태만으로 정해진다
      * (BlockBehavior 기본 = BlockInfo.collisionShape) — 그 모양을 미리 들고, 비었으면 칸을 읽자마자 건너뛴다(공기·동굴 공기·풀·물 등).
-     * 덮어쓰는 동작(움직이는 피스톤, 가루눈)만 칸마다 동작을 부른다. 동작 표는 처음 만든 뒤 바뀌지 않는다(BlockBehaviors).
+     * 덮어쓰는 동작(움직이는 피스톤, 가루눈, 비계, 물·용암)만 칸마다 동작을 부른다. 동작 표는 처음 만든 뒤 바뀌지 않는다(BlockBehaviors).
+     * 액체(FLUID)는 유체 위에 설 수 있는 문맥(스트라이더)에서만 모양이 생기므로 그 밖의 문맥은 동작을 부르지 않고 건너뛴다.
      */
     static final class CollisionTable {
-        static final byte NONE = 0, STATIC = 1, DYNAMIC = 2, KIND = 3, LARGE = 4, PISTON = 8;
+        static final byte NONE = 0, STATIC = 1, DYNAMIC = 2, KIND = 3, LARGE = 4, PISTON = 8, FLUID = 16;
         static final byte[] FLAGS;
         static final Shape[] SHAPES;
 
@@ -3265,7 +3280,7 @@ public abstract class ChunkLevel implements BlockLevel {
                 double[] b = shape.bounds();
                 if (b != null) large |= b[0] < 0 || b[1] < 0 || b[2] < 0 || b[3] > 1 || b[4] > 1 || b[5] > 1;
                 int v;
-                if (ctxBlock[block]) v = DYNAMIC;
+                if (ctxBlock[block]) v = BlockBehaviors.ofBlock(block) instanceof org.domi.furnace.server.block.types.LiquidBlock ? DYNAMIC | FLUID : DYNAMIC;
                 else if (shape.isEmpty()) v = NONE;
                 else { v = STATIC; s[st] = shape; }
                 if (large) v |= LARGE;
@@ -3279,8 +3294,7 @@ public abstract class ChunkLevel implements BlockLevel {
         /** 충돌 모양을 칸·문맥에 따라 정하는 동작인가(BlockBehavior 기본 구현을 덮어썼는가). */
         static boolean contextual(Class<?> c) {
             try {
-                return c.getMethod("getCollisionShape", int.class, BlockLevel.class, Pos.class, BlockActor.class).getDeclaringClass() != BlockBehavior.class
-                        || c.getMethod("getEntityCollisionShape", int.class, BlockLevel.class, Pos.class, Entity.class).getDeclaringClass() != BlockBehavior.class;
+                return c.getMethod("getCollisionShape", int.class, BlockLevel.class, Pos.class, CollisionContext.class).getDeclaringClass() != BlockBehavior.class;
             } catch (NoSuchMethodException e) {
                 throw new IllegalStateException(e);
             }
@@ -3294,10 +3308,28 @@ public abstract class ChunkLevel implements BlockLevel {
 
     /**
      * BlockCollisions(바닐라 Cursor3D: x 가 가장 빨리, 그다음 y, z) 순서로 몸통과 겹치는 칸 충돌 모양을 넘긴다. 모서리 칸(세 축 끝)은 건너뛰고,
-     * 면 칸은 큰 모양 블록만, 변 칸은 움직이는 피스톤만 본다. entity 가 있으면 문맥 엔티티 충돌 모양(가루눈처럼 엔티티마다 다른 블록)을 쓴다.
+     * 면 칸은 큰 모양 블록만, 변 칸은 움직이는 피스톤만 본다. 문맥에 따라 모양이 다른 블록(비계·액체·가루눈)은 self 의 문맥
+     * (바닐라 BlockCollisions 의 CollisionContext.of(entity), self 가 없으면 empty)으로 묻는다. 문맥은 그런 칸을 처음 만날 때 만든다.
      * 칸 순서·판정은 칸마다 읽던 예전 구현(T-018 전)과 같고, 구역 단위로 읽어 공기뿐인 구역은 통째로 건너뛴다.
      */
-    public void scanCollisions(AABB box, Entity entity, CollisionSink out) {
+    public void scanCollisions(AABB box, Rider self, CollisionSink out) { scanCollisions(box, self, Double.NaN, out); }
+
+    /**
+     * scanCollisions 이되 문맥의 발 높이를 selfBottom 으로(NaN 이면 self.y()) — 바닐라가 엔티티를 옮긴 뒤 묻는 곳(플레이어 이동 검증)용.
+     */
+    public void scanCollisions(AABB box, Rider self, double selfBottom, CollisionSink out) {
+        scanCollisions(box, self, selfBottom, self == null ? CollisionContext.EMPTY : null, out);   // self 가 있으면 문맥 블록을 처음 만날 때 만든다
+    }
+
+    /** scanCollisions 이되 이미 만든 문맥으로(다른 스레드에서 떠 온 스냅샷 — 포털 출구 자리 찾기). */
+    public void scanCollisionsWith(AABB box, CollisionContext ctx, CollisionSink out) { scanCollisions(box, null, Double.NaN, ctx, out); }
+
+    /** ctx 가 null 이면 self 로 처음 쓸 때 만든다(그때 self 는 null 이 아니다). */
+    private void scanCollisions(AABB box, Rider self, double selfBottom, CollisionContext ctx, CollisionSink out) {
+        // 액체는 원천 유체 위에 설 수 있는 문맥(스트라이더)에서만 모양이 생긴다 — 나머지(물속 몹·배·플레이어·문맥 없음)는 액체 칸을 공기처럼
+        // 첫 검사에서 건너뛴다(문맥도 만들지 않는다). CollisionContext.of 와 같은 판정(Mob.canStandOnFluid(원천))
+        boolean standsOnFluid = ctx != null ? ctx.standsOnAnyFluid()
+                : self instanceof org.domi.furnace.server.entity.Mob m && (m.canStandOnFluid(Fluids.WATER_SOURCE) || m.canStandOnFluid(Fluids.LAVA_SOURCE));
         int x0 = Entity.floor(box.minX() - 1.0E-7) - 1, x1 = Entity.floor(box.maxX() + 1.0E-7) + 1;
         int y0 = Entity.floor(box.minY() - 1.0E-7) - 1, y1 = Entity.floor(box.maxY() + 1.0E-7) + 1;
         int z0 = Entity.floor(box.minZ() - 1.0E-7) - 1, z1 = Entity.floor(box.maxZ() + 1.0E-7) + 1;
@@ -3345,15 +3377,14 @@ public abstract class ChunkLevel implements BlockLevel {
                         int state = sec.getBlock(x & 15, ly, lz);
                         int f = flags[state];
                         int kind = f & CollisionTable.KIND;
-                        if (kind == CollisionTable.NONE) continue;
+                        if (kind == CollisionTable.NONE || (f & CollisionTable.FLUID) != 0 && !standsOnFluid) continue;
                         if (edges == 1 && (f & CollisionTable.LARGE) == 0 || edges == 2 && (f & CollisionTable.PISTON) == 0) continue;
                         Shape shape;
                         if (kind == CollisionTable.STATIC) {
                             shape = shapes[state];
                         } else {
-                            Pos p = new Pos(x, y, z);
-                            shape = entity == null ? BlockBehaviors.of(state).getCollisionShape(state, this, p, null)
-                                    : BlockBehaviors.of(state).getEntityCollisionShape(state, this, p, entity);
+                            if (ctx == null) ctx = CollisionContext.of(self, Double.isNaN(selfBottom) ? self.y() : selfBottom);
+                            shape = BlockBehaviors.of(state).getCollisionShape(state, this, new Pos(x, y, z), ctx);
                             if (shape.isEmpty()) continue;
                         }
                         if (shape == Shape.BLOCK) {
@@ -3371,15 +3402,25 @@ public abstract class ChunkLevel implements BlockLevel {
     /** getBlockCollisions(entity, box): 몸통과 겹치는 블록 충돌 모양들. */
     public java.util.List<Shape> blockCollisions(AABB box) { return blockCollisions(null, box); }
 
-    /** getBlockCollisions(entity, box): 문맥 엔티티가 있으면 그 엔티티 기준 충돌 모양(가루눈 등). 월드 좌표로 옮긴 모양 목록. */
-    public java.util.List<Shape> blockCollisions(Entity entity, AABB box) {
+    /** getBlockCollisions(entity, box): 문맥 엔티티가 있으면 그 엔티티 기준 충돌 모양(비계·가루눈 등). 월드 좌표로 옮긴 모양 목록. */
+    public java.util.List<Shape> blockCollisions(Rider entity, AABB box) { return blockCollisions(entity, Double.NaN, box); }
+
+    /** blockCollisions 이되 문맥 발 높이를 selfBottom 으로(NaN 이면 entity.y()). */
+    public java.util.List<Shape> blockCollisions(Rider entity, double selfBottom, AABB box) {
         java.util.List<Shape> out = new java.util.ArrayList<>();
-        scanCollisions(box, entity, (x, y, z, s) -> out.add(s.move(x, y, z)));
+        scanCollisions(box, entity, selfBottom, (x, y, z, s) -> out.add(s.move(x, y, z)));
+        return out;
+    }
+
+    /** getBlockCollisions 를 이미 만든 문맥으로(포털 출구 자리 찾기 — 떠나는 엔티티의 출발 쪽 문맥 스냅샷). */
+    public java.util.List<Shape> blockCollisionsWith(CollisionContext ctx, AABB box) {
+        java.util.List<Shape> out = new java.util.ArrayList<>();
+        scanCollisionsWith(box, ctx, (x, y, z, s) -> out.add(s.move(x, y, z)));
         return out;
     }
 
     /** blockCollisions 를 모양 객체 없이 충돌 목록(옮기지 않은 모양 + 칸)에 덧붙인다 — 엔티티 이동(collide)이 쓴다. */
-    public void blockCollisions(Entity entity, AABB box, Colliders out) {
+    public void blockCollisions(Rider entity, AABB box, Colliders out) {
         scanCollisions(box, entity, out);
     }
 
@@ -3399,34 +3440,39 @@ public abstract class ChunkLevel implements BlockLevel {
 
     /** CollisionGetter.noCollision(self, box): 블록(self 문맥) → 엔티티(self.canCollideWith) → self 가 있으면 월드 보더(self 위치 기준). */
     public boolean noCollision(org.domi.furnace.server.entity.Rider self, AABB box) {
-        return self == null ? noCollisionAt(null, 0.0, 0.0, box, true) : noCollisionAt(self, self.x(), self.z(), box, true);
+        return self == null ? noCollisionAt(null, 0.0, Double.NaN, 0.0, box, true) : noCollisionAt(self, self.x(), Double.NaN, self.z(), box, true);
     }
 
     /**
-     * noCollision(self, box) 이되 보더 가까움(isInsideCloseToBorder)을 self 의 지금 위치 대신 (sx, sz) 로 본다 — 바닐라가 self 를 이미 옮긴 뒤
-     * 부르는 곳(플레이어 이동 검증)에서 Furnace 는 옮기기 전에 계산하기 때문.
+     * noCollision(self, box) 이되 self 가 (sx, sy, sz) 에 있는 것으로 본다 — 보더 가까움(isInsideCloseToBorder)과 블록 문맥의 발 높이(비계·가루눈).
+     * 바닐라가 self 를 이미 옮긴 뒤 부르는 곳(플레이어 이동 검증)에서 Furnace 는 옮기기 전에 계산하기 때문.
      */
-    public boolean noCollision(org.domi.furnace.server.entity.Rider self, double sx, double sz, AABB box) {
-        return noCollisionAt(self, sx, sz, box, true);
+    public boolean noCollision(org.domi.furnace.server.entity.Rider self, double sx, double sy, double sz, AABB box) {
+        return noCollisionAt(self, sx, sy, sz, box, true);
     }
 
     /**
      * 길찾기의 noCollision(mob, box): 바닐라는 PathNavigationRegion 위에서 부르고, 그 getEntityCollisions 는 언제나 빈 목록이다 —
      * 블록(mob 문맥)과 월드 보더만 본다.
      */
-    public boolean noCollisionIgnoringEntities(Entity self, AABB box) { return noCollisionAt(self, self.x(), self.z(), box, false); }
+    public boolean noCollisionIgnoringEntities(Entity self, AABB box) { return noCollisionAt(self, self.x(), Double.NaN, self.z(), box, false); }
 
     /**
-     * noCollision(플레이어, box) 를 Player 객체 없이: 탈것에 타지 않은 플레이어는 canCollideWith 가 canBeCollidedWith 와 같고 블록 문맥도 없으므로
-     * 엔티티 몫은 noCollision(null, box) 와 같다. 보더 가까움은 (sx, sz) 로 본다(스폰 자리 흩뿌리기).
+     * noCollision(플레이어, box) 를 Player 객체 없이: 블록은 플레이어 문맥(ctx — 떠 둔 스냅샷·갓 만든 플레이어), 탈것에 타지 않은 플레이어는
+     * canCollideWith 가 canBeCollidedWith 와 같아 엔티티 몫은 noCollision(null, box) 와 같다. 보더 가까움은 (sx, sz) 로 본다(스폰 자리 흩뿌리기).
      */
-    public boolean noCollisionForUnmountedPlayer(double sx, double sz, AABB box) {
-        if (!noCollisionAt(null, 0.0, 0.0, box, true)) return false;
+    public boolean noCollisionForUnmountedPlayer(CollisionContext ctx, double sx, double sz, AABB box) {
+        boolean[] hit = {false};
+        scanCollisionsWith(box, ctx, (x, y, z, s) -> {
+            hit[0] = true;
+            return false;
+        });
+        if (hit[0] || !entityCollisions(null, box).isEmpty()) return false;
         return borderClear(sx, sz, box);
     }
 
-    private boolean noCollisionAt(org.domi.furnace.server.entity.Rider self, double sx, double sz, AABB box, boolean withEntities) {
-        if (!noBlockCollision(self instanceof Entity e ? e : null, box)) return false;
+    private boolean noCollisionAt(org.domi.furnace.server.entity.Rider self, double sx, double sy, double sz, AABB box, boolean withEntities) {
+        if (!noBlockCollision(self, sy, box)) return false;
         if (withEntities && !entityCollisions(self, box).isEmpty()) return false;
         return self == null || borderClear(sx, sz, box);
     }
@@ -3438,10 +3484,13 @@ public abstract class ChunkLevel implements BlockLevel {
                 || !border.overlaps(box, 0.0, 0.0, 0.0);
     }
 
-    /** CollisionGetter.noBlockCollision(self, box): 블록 충돌 모양(self 가 있으면 그 문맥 — 가루눈 등)이 없는가. 엔티티·보더는 보지 않는다. */
-    public boolean noBlockCollision(Entity self, AABB box) {
+    /** CollisionGetter.noBlockCollision(self, box): 블록 충돌 모양(self 가 있으면 그 문맥 — 비계·가루눈 등)이 없는가. 엔티티·보더는 보지 않는다. */
+    public boolean noBlockCollision(Rider self, AABB box) { return noBlockCollision(self, Double.NaN, box); }
+
+    /** noBlockCollision 이되 문맥 발 높이를 selfBottom 으로(NaN 이면 self.y()). */
+    public boolean noBlockCollision(Rider self, double selfBottom, AABB box) {
         boolean[] hit = {false};
-        scanCollisions(box, self, (x, y, z, s) -> {
+        scanCollisions(box, self, selfBottom, (x, y, z, s) -> {
             hit[0] = true;
             return false;
         });
@@ -3449,9 +3498,12 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     /** CollisionGetter.getCollisions(self, box): 엔티티 충돌 모양 다음 블록 충돌 모양(보더 없음). */
-    public java.util.List<Shape> collisions(org.domi.furnace.server.entity.Rider self, AABB box) {
+    public java.util.List<Shape> collisions(org.domi.furnace.server.entity.Rider self, AABB box) { return collisions(self, Double.NaN, box); }
+
+    /** collisions 이되 블록 문맥의 발 높이를 selfBottom 으로(NaN 이면 self.y()) — 플레이어 이동 검증이 옮긴 자리에서 묻는다. */
+    public java.util.List<Shape> collisions(org.domi.furnace.server.entity.Rider self, double selfBottom, AABB box) {
         java.util.List<Shape> ents = entityCollisions(self, box);
-        java.util.List<Shape> blocks = blockCollisions(self instanceof Entity e ? e : null, box);
+        java.util.List<Shape> blocks = blockCollisions(self, selfBottom, box);
         if (ents.isEmpty()) return blocks;
         java.util.List<Shape> out = new java.util.ArrayList<>(ents.size() + blocks.size());
         out.addAll(ents);
@@ -3535,7 +3587,7 @@ public abstract class ChunkLevel implements BlockLevel {
     /** findSupportingBlock(entity, box): 겹치는 충돌 블록 중 엔티티 위치에서 가운데가 가장 가까운 것(같으면 compareTo 가 큰 쪽). */
     public Pos findSupportingBlock(AABB box, double ex, double ey, double ez) { return findSupportingBlock(null, box, ex, ey, ez); }
 
-    public Pos findSupportingBlock(Entity entity, AABB box, double ex, double ey, double ez) {
+    public Pos findSupportingBlock(Rider entity, AABB box, double ex, double ey, double ez) {
         SupportSearch s = new SupportSearch(ex, ey, ez);
         scanCollisions(box, entity, s);
         return s.found ? new Pos(s.bx, s.by, s.bz) : null;
