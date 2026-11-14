@@ -37,6 +37,25 @@ public abstract class CraftBlockEntityState extends org.domi.furnace.compat.pape
         return snapshot.copy();
     }
 
+    /**
+     * TileStateInventoryHolder#getInventory 의 몸(용기 형만 그 인터페이스를 단다). Paper: 놓인 상태면 그 칸 블록 엔티티의 살아 있는 인벤토리,
+     * 놓이지 않았으면 스냅숏 인벤토리. 스냅숏 인벤토리(NBT Items ↔ 아이템)는 아직 없어 UnsupportedFeature.
+     */
+    public org.bukkit.inventory.Inventory getInventory() {
+        if (!isPlaced()) return getSnapshotInventory();
+        org.bukkit.inventory.Inventory live = org.domi.furnace.compat.paper.BlockInventories.live(dimension(), position());
+        if (live == null) {
+            throw new org.domi.furnace.compat.paper.UnsupportedFeature(getClass().getSimpleName() + "#getInventory",
+                    "Furnace 가 이 블록 엔티티를 아직 용기로 다루지 않는다(또는 블록 엔티티가 사라졌다)");
+        }
+        return live;
+    }
+
+    /** Paper: 이 상태의 사본 인벤토리(update 때 싣는다). NBT 아이템 변환이 아직 없어 UnsupportedFeature. */
+    public org.bukkit.inventory.Inventory getSnapshotInventory() {
+        throw new org.domi.furnace.compat.paper.UnsupportedFeature(getClass().getSimpleName() + "#getSnapshotInventory", "블록 상태의 스냅숏 인벤토리가 아직 없다");
+    }
+
     @Override
     public boolean update(boolean force, boolean applyPhysics) {
         boolean result = super.update(force, applyPhysics);

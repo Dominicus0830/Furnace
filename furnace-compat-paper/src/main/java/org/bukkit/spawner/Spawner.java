@@ -1,6 +1,24 @@
-// 생성됨: tools/compat/gen-bukkit-block-state-classes.py — 손으로 고치려면 이 줄을 지운다.
 package org.bukkit.spawner;
 
-/** Paper 1.21.1 Spawner 의 형(종류 가르기용). 메서드는 아직 없다. */
+/** Paper 1.21.1 Spawner. isActivated·resetTimer·setSpawnedItem(Paper 추가분)은 아직 없다. */
 public interface Spawner extends BaseSpawner {
+
+    @Override
+    void setDelay(int delay);
+
+    int getMinSpawnDelay();
+
+    void setMinSpawnDelay(int delay);
+
+    int getMaxSpawnDelay();
+
+    void setMaxSpawnDelay(int delay);
+
+    int getSpawnCount();
+
+    void setSpawnCount(int spawnCount);
+
+    int getMaxNearbyEntities();
+
+    void setMaxNearbyEntities(int maxNearbyEntities);
 }

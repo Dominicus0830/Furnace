@@ -230,6 +230,12 @@ public interface World {
      */
     CompletableFuture<Optional<Inventory>> inventoryAt(BlockPos pos);
 
+    /**
+     * {@link #inventoryAt} 의 소유 스레드 판: 그 칸을 가진 region 스레드에서만(아니면 ThreadOwnershipException). 돌려준 Inventory 의 읽기·쓰기는
+     * 그 region 스레드에서 부르면 곧바로 끝난 Future 를 준다(Bukkit 블록 인벤토리처럼 동기로 쓸 수 있다).
+     */
+    default Optional<Inventory> inventoryAtNow(BlockPos pos) { throw new UnsupportedOperationException("inventoryAtNow"); }
+
     // ------------------------------------------------------------------ 바이옴
 
     /**
