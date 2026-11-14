@@ -2102,7 +2102,8 @@ public abstract class ChunkLevel implements BlockLevel {
         public boolean sectionHasOnlyAir(int cx, int sy, int cz) {
             ChunkColumn c = col(cx, cz);
             int i = c == null ? -1 : sy - (c.minY() >> 4);
-            return i < 0 || i >= c.sectionCount() ? org.domi.furnace.server.light.LightWorld.super.sectionHasOnlyAir(cx, sy, cz) : c.sectionOnlyAirExact(i);
+            if (c == null) return org.domi.furnace.server.light.LightWorld.super.sectionHasOnlyAir(cx, sy, cz);
+            return i < 0 || i >= c.sectionCount() || c.sectionOnlyAirExact(i);   // 월드 높이 밖 구역은 없다(void_air) — computeSources 는 묻지 않는다
         }
 
         public int extraEmission(int x, int y, int z) { return virtualLights().emission(x, y, z); }

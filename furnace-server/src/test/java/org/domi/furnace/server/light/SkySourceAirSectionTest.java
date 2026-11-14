@@ -20,6 +20,7 @@ class SkySourceAirSectionTest {
     private static final int CAVE_AIR = REG.defaultStateId("minecraft:cave_air");
     private static final int BEDROCK = REG.defaultStateId("minecraft:bedrock");
     private static final int STONE = REG.defaultStateId("minecraft:stone");
+    private static final int VOID_AIR = REG.defaultStateId("minecraft:void_air");
     private static final int SLAB = REG.defaultStateId("minecraft:smooth_stone_slab");   // type=bottom: 아래 면만 꽉 참, 빛은 통과
     private static final String[] SPARSE = {"minecraft:smooth_stone_slab", "minecraft:oak_stairs", "minecraft:glass", "minecraft:stone",
             "minecraft:oak_leaves", "minecraft:water", "minecraft:cobweb", "minecraft:snow", "minecraft:dirt_path", "minecraft:cave_air",
@@ -80,6 +81,37 @@ class SkySourceAirSectionTest {
         for (int y = -32; y < -16; y++) layer(col, y, CAVE_AIR);   // 섹션 -2 를 cave_air 로(바닐라 hasOnlyAir 는 isAir 로 센다)
         col.setBlock(3, -25, 3, AIR);   // 섞인 팔레트(uniform 힌트 없음)
         for (int[] ls : sources(col)) assertEquals(-63, ls[0]);
+    }
+
+    /** 디스크 빛을 읽은 청크처럼 원천만 다시 센다(precomputeLight → computeStoredSources, 구역 공기 판정은 ChunkColumn 이 답한다). */
+    private static int storedLowest(ChunkColumn col, int idx) {
+        col.light(new ChunkLight());
+        col.lightStored(true);
+        col.lightPrecomputed(false);
+        ChunkLevel.precomputeLight(col, 0, 0, BEDROCK, true);
+        return col.light().lowestSource[idx];
+    }
+
+    @Test
+    void scratchOpenStone_makesSectionNotOnlyAir() {
+        ChunkColumn col = flat();
+        layer(col, -16, SLAB);
+        assertEquals(-63, storedLowest(col, 0));
+        int[] s = col.sectionBlocks(2);   // 구역 -2(y -32..-17)의 scratch 를 열고 바깥에서 직접 고친다 → 비공기 수는 낡은 0
+        s[5 * 256 + 3 * 16 + 3] = STONE;
+        assertEquals(-16, storedLowest(col, 0));   // 바닐라: 공기뿐이 아님 → 칸마다 검사 → 반 블록에서 멈춤
+    }
+
+    @Test
+    void scratchOpenAirKindsMix_staysOnlyAir() {
+        ChunkColumn col = flat();
+        layer(col, -16, SLAB);
+        int[] s = col.sectionBlocks(2);
+        s[0] = VOID_AIR;
+        s[100] = CAVE_AIR;   // 공기 종류만 섞임 → 여전히 hasOnlyAir
+        assertEquals(-63, storedLowest(col, 0));
+        col.compactSections();
+        assertEquals(-63, storedLowest(col, 0));
     }
 
     /** 바닐라 findLowestSourceY 를 그대로 옮긴 모형(fillFrom: Math.max(…, minY), 비공기 구역이 없으면 minY). */

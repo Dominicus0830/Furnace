@@ -236,7 +236,7 @@ public final class ChunkColumn {
 
         @Override public boolean sectionHasOnlyAir(int chunkX, int sectionY, int chunkZ) {
             int i = sectionY - (minY >> 4);
-            return i < 0 || i >= secs.length ? org.domi.furnace.server.light.LevelLight.StateReader.super.sectionHasOnlyAir(chunkX, sectionY, chunkZ) : secs[i].onlyAirExact();
+            return i < 0 || i >= secs.length || secs[i].onlyAirExact();   // 월드 높이 밖 구역은 없다(void_air) — computeSources 는 묻지 않는다
         }
 
         /** 빛 작업이 끝났다 — 넘긴 객체를 녹인다(아직 컬럼에 남아 있는 것은 다시 그 자리에서 고칠 수 있다). 주인 스레드에서. */

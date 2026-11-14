@@ -207,8 +207,9 @@ public final class ChunkSection {
 
     /** 지금 블록이 모두 공기인가(바닐라 hasOnlyAir) — scratch 가 열려 있어도 정확하다(그때는 칸을 훑는다). */
     public boolean onlyAirExact() {
-        if (scratch == null) return nonAirCount == 0;
-        for (int v : scratch) if (!isAir(v)) return false;
+        int[] s = scratch;   // 한 번만 읽는다
+        if (s == null) return nonAirCount == 0;
+        for (int v : s) if (!isAir(v)) return false;
         return true;
     }
 
