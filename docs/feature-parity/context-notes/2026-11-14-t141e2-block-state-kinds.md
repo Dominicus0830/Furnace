@@ -27,12 +27,28 @@
 ## E2b: 블록 엔티티 NBT 스냅숏과 표지판
 - `CraftBlockEntityState`(손으로 씀): 만들 때 `World#blockEntityNbtNow`(새 API, 소유 스레드 전용)로 블록 엔티티 NBT 사본을 뜬다(Paper 의 스냅숏 블록 엔티티 자리).
   `update` 는 블록을 쓴 뒤 그 칸의 블록 엔티티 id 가 같으면 사본을 `World#setBlockEntityNbtNow`(/data 쓰기와 같은 길)로 통째로 싣는다 — Paper applyTo·setChanged.
-  놓이지 않은 상태는 빈 사본(읽으면 바닐라 기본값).
+  놓이지 않은 상태와 블록 엔티티 없는 칸은 id 만 든 사본(읽으면 바닐라 기본값). id 가 있어야 update 때 새로 생긴 같은 종류 블록 엔티티에 실린다.
 - `CraftSign`·`CraftSignSide`(손으로 씀): front_text·back_text 의 messages(줄마다 JSON 글)·color·has_glowing_text, is_waxed.
   줄은 처음 읽을 때 풀고, update 때 **바뀐 줄만** 적는다(Paper 와 같다 — 클릭 이벤트 같은 JSON 서식이 레거시 왕복으로 깎이지 않게). filtered_messages 가 있으면
   같은 줄을 같은 값으로(바닐라 SignText.setMessage), 모두 같아지면 지운다. 레거시 변환은 Adventure legacySection 과 같은 `LegacyTextSerializer.section()`.
 - 아직 없는 것: Adventure 판(lines()·line(int)), getTargetSide·getInteractableSideFor(표지판 회전·히트박스 계산이 서버에 있다), getAllowedEditor·
-  setAllowedEditorUniqueId, Colorable 의 getColor/setColor 는 Sign·SignSide 에 직접 둔다(Colorable 이 표시 인터페이스라 Bed 등 다른 형을 깨지 않게).
+  setAllowedEditorUniqueId.
+- `Colorable` 은 getColor/setColor 를 가진다(손으로 씀). 표시 인터페이스로 두면 Paper 로 컴파일한 플러그인의 `Colorable#getColor` 호출이
+  NoSuchMethodError 다(#374 Damageable 과 같은 함정). Paper 에서 이것을 구현하는 블록 상태는 Sign·SignSide·Bed 뿐이다. `CraftBed` 는 블록 종류에서 색을 내고
+  setColor 는 Paper 처럼 `UnsupportedOperationException("Must set block type to appropriate bed colour")`.
+
+## E2b 검토(PR #376)에서 정리한 Paper 와 다른 점
+- `getSnapshotNBT()`: Paper 는 놓이지 않은 상태·블록 엔티티 없는 칸에서 새 블록 엔티티의 전체 NBT(id·x·y·z·기본 front_text 등)를 준다. Furnace 는 id 만.
+- `BlockPlaceEvent#getBlockPlaced().getState()`: Furnace 는 놓기 전에 이벤트를 부르므로 그 칸은 아직 예전 블록이다. 거기서 표지판 글을 쓰고
+  update() 하면 종류가 달라 false 이고 글은 사라진다(Paper 는 블록을 놓은 뒤 이벤트를 부르므로 남는다). 놓기 이벤트 시점 정렬(T-076 계열) 때 함께 시험한다.
+- 블록 엔티티 없이 놓인 칸(FAST 편집·움직이는 피스톤): Paper 는 피스톤 말고는 "Tile is null, asynchronous access?" 로 던지고, Furnace 는 형 있는 상태에
+  id 만 든 사본을 준다. 너그러운 쪽이라 둔다.
+- `CraftSignSide.applyTo` 는 적은 뒤 원래 줄을 새로 맞춘다(Paper 는 안 맞춘다). 줄을 바꾸고 getSnapshotNBT 를 부른 뒤 원래 글로 되돌리고 update 하면
+  Paper 는 중간 값이, Furnace 는 되돌린 값이 남는다. 드문 길이고 Furnace 쪽이 자연스럽다.
+- 이벤트가 보여 주는 블록(`CompatBlock.showing`)의 `getState()` 도 표지판 같은 형이면 사본을 뜨므로 소유 스레드가 필요하다(Paper 도 비동기 접근은 막는다).
+- `untouchedLinesKeepTheirJson` 은 클릭 이벤트 줄로 잰다. API Text 가 그 JSON 을 손실 없이 왕복하므로 "안 바뀐 줄도 적기" 변이는 못 잡는다(동등 변이에 가깝다).
+  nbt·score·selector 성분은 API Text 로 표현되지 않아 시험 줄로 쓸 수 없다.
+- 양조대(BrewingStand)는 E2c 에서 넣는다.
 
 ## 함정
 - **바닐라 `setBlock` 은 같은 상태면 false 다.** `Block#set` 이 그 false 를 그대로 주므로 `CompatBlock#setBlockData` 가 "청크가 안 올라와 있다"로 던졌다

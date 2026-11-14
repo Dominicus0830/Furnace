@@ -37,9 +37,11 @@ public interface Sign extends TileState, org.bukkit.material.Colorable {
     void setGlowingText(boolean glowing);
 
     @Deprecated
+    @Override
     DyeColor getColor();
 
     @Deprecated
+    @Override
     void setColor(DyeColor color);
 
     SignSide getSide(Side side);

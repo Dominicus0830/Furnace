@@ -1,6 +1,11 @@
-// 생성됨: tools/compat/gen-bukkit-block-state-classes.py — 손으로 고치려면 이 줄을 지운다.
 package org.bukkit.material;
 
-/** Paper 1.21.1 Colorable 의 형(종류 가르기용). 메서드는 아직 없다. */
+import org.bukkit.DyeColor;
+
+/** Paper 1.21.1 Colorable. 구현은 Sign·SignSide·Bed 블록 상태뿐(Paper 와 같다). */
 public interface Colorable {
+
+    DyeColor getColor();
+
+    void setColor(DyeColor color);
 }

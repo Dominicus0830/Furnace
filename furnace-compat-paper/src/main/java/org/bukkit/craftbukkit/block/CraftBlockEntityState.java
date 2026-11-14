@@ -7,7 +7,8 @@ import org.domi.furnace.compat.paper.Compat;
 /**
  * Paper CraftBlockEntityState: 블록 엔티티가 있는 블록의 상태. 만들 때 블록 엔티티 NBT 사본(스냅숏)을 떠 두고, 하위 클래스(표지판 등)는
  * 그 사본을 읽고 고친다. {@link #update} 가 블록을 쓴 뒤 같은 종류의 블록 엔티티가 그 칸에 있으면 사본을 통째로 싣는다(Paper applyTo·setChanged).
- * 놓이지 않은 상태는 빈 사본(바닐라 기본값으로 읽힌다)에서 시작한다.
+ * 놓이지 않은 상태와 블록 엔티티가 없는 칸은 id 만 든 사본(나머지는 바닐라 기본값으로 읽힌다)에서 시작한다 — Paper 는 새 블록 엔티티의
+ * 전체 NBT 를 주므로 {@link #getSnapshotNBT} 에 기본값 칸이 빠지는 것만 다르다.
  */
 public abstract class CraftBlockEntityState extends org.domi.furnace.compat.paper.CompatBlockState implements org.bukkit.block.TileState {
 
@@ -16,7 +17,12 @@ public abstract class CraftBlockEntityState extends org.domi.furnace.compat.pape
     protected CraftBlockEntityState(String dimension, BlockPos pos, org.bukkit.block.data.BlockData data) {
         super(dimension, pos, data);
         NbtCompound n = dimension == null ? null : Compat.furnace().world(dimension).blockEntityNbtNow(pos).orElse(null);
-        this.snapshot = n != null ? n : new NbtCompound();
+        if (n == null) {
+            n = new NbtCompound();
+            String id = Compat.furnace().gameRegistries().blockEntityType(((org.domi.furnace.compat.paper.CompatBlockData) data).furnace().type());
+            if (id != null) n.putString("id", id);   // Paper createTileEntity 자리: update 때 새로 생긴 같은 종류 블록 엔티티에 실린다
+        }
+        this.snapshot = n;
     }
 
     /** 블록 엔티티 NBT 사본(바꾸면 update 때 싣는다). */

@@ -136,4 +136,35 @@ class BukkitBlockStateKindsTest {
         tableTypes.add("minecraft:brewing_stand");
         assertEquals(serverTypes, tableTypes);
     }
+
+    /** 같은 자리·같은 데이터라도 형이 다르면 같지 않다(Paper equals 는 getClass 를 본다). */
+    @Test
+    void equalsComparesClass() {
+        server.onRegion(pos, () -> {
+            var w = server.api().world(dim);
+            w.block(pos).set(new BlockData("minecraft:chest", Map.of()));
+            try {
+                BlockState typed = Compat.block(dim, pos).getState();
+                BlockState plain = CompatBlockState.of(dim, pos, w.block(pos).data());
+                assertEquals(((CompatBlockData) typed.getBlockData()).furnace(), ((CompatBlockData) plain.getBlockData()).furnace());
+                assertNotEquals(typed, plain);
+                assertNotEquals(plain, typed);
+                assertEquals(typed, Compat.block(dim, pos).getState());
+            } finally {
+                w.block(pos).set(BlockData.AIR);
+            }
+            return null;
+        });
+    }
+
+    /** 로드 안 된 칸의 setBlockData 는 여전히 던진다(같은 상태 비교로 실패를 삼키지 않는다). */
+    @Test
+    void setBlockDataOnUnloadedCellThrows() {
+        BlockPos far = new BlockPos(1_000_000, -20, 1_000_000);
+        server.onRegion(far, () -> {
+            var b = Compat.block(dim, far);
+            assertThrows(IllegalStateException.class, () -> b.setBlockData(Material.STONE.createBlockData()));
+            return null;
+        });
+    }
 }

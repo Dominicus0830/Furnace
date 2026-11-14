@@ -16,7 +16,9 @@ public interface SignSide extends org.bukkit.material.Colorable {
 
     void setGlowingText(boolean glowing);
 
+    @Override
     DyeColor getColor();
 
+    @Override
     void setColor(DyeColor color);
 }
