@@ -12,6 +12,9 @@
 //  위치 표시가 없는 작업(재생성 등)은 늘 먼저 넣은 순.
 // 생성 결과는 생성 순서에만 기대고(바닐라도 순서 의존 — 1차·B2 기준과 같음), 무엇이 만들어지는지는 바뀌지 않는다.
 // -Dfurnace.gen.order=fifo 면 예전과 같은 동작(넣은 순, 취소 없음, 생성 칸 없음) — 비교 측정·되돌리기용.
+// 생성 조절기(T-172, furnace.properties worldgen.tick-guard, 기본 꺼짐 — 결정 W-2): 켜면 가장 느린 region 의 최근 1초 TPS 가
+//  TICK_GUARD_LOW 아래면 동시에 도는 생성 요청 수를 하나 줄이고(1 까지), TICK_GUARD_HIGH 이상이면 하나 늘린다(스레드 수까지).
+//  위치 없는 작업(빛 미리 계산 등 이어 하기)은 세지 않는다. 끄면 이 갈래는 아무것도 하지 않는다(예전과 같다).
 package org.domi.furnace.server.world;
 
 import java.util.ArrayDeque;
@@ -126,6 +129,8 @@ public final class GenQueue extends AbstractExecutorService {
         final long seq, t0;
         int prio;
         long staleSince;
+        /** 조절기가 세는 생성 요청으로 시작했다(끝날 때 genRunning 을 돌려준다). */
+        boolean counted;
 
         Task(Runnable r, World w, int cx, int cz, Ticket ticket, boolean background, long seq, long t0) {
             this.r = r; this.w = w; this.cx = cx; this.cz = cz; this.ticket = ticket; this.background = background; this.seq = seq; this.t0 = t0;
@@ -148,8 +153,30 @@ public final class GenQueue extends AbstractExecutorService {
     /** strictBudget: 디스크에 없는 미리 불러오기 전체 수(전역 토큰). */
     private final AtomicInteger outstanding = new AtomicInteger();
 
-    public GenQueue(int threads, Settings settings) {
+    /** 생성 조절기 문턱(가장 느린 region 의 1초 TPS): 아래면 줄이고, 이상이면 늘린다. W60 시제품 값. */
+    static final double TICK_GUARD_LOW = 19.0, TICK_GUARD_HIGH = 19.8;
+    /** 조절기가 TPS 를 보는 간격. */
+    static final long TICK_GUARD_PERIOD_MS = 250;
+    private static final long TICK_GUARD_WINDOW = 1_000_000_000L;
+    /** 생성 조절기를 켰나(T-172). 꺼져 있으면 genLimit·genRunning 을 쓰지 않는다. */
+    private final boolean tickGuard;
+    private final int threads;
+    /** 동시에 도는 생성 요청 상한(조절기가 바꾼다, 1..threads). 잠금 안에서 쓰고 읽는다. */
+    private int genLimit;
+    /** 지금 도는 생성 요청 수(조절기를 켰을 때만 센다). 잠금 안. */
+    private int genRunning;
+
+    public GenQueue(int threads, Settings settings) { this(threads, settings, false); }
+
+    /** tickGuard = 생성 조절기(furnace.properties worldgen.tick-guard). */
+    public GenQueue(int threads, Settings settings, boolean tickGuard) { this(threads, settings, tickGuard, true); }
+
+    /** 시험용: guardThread=false 면 조절기 스레드 없이 adjustLimit 을 손으로 부른다. */
+    GenQueue(int threads, Settings settings, boolean tickGuard, boolean guardThread) {
         this.settings = settings;
+        this.tickGuard = tickGuard;
+        this.threads = threads;
+        this.genLimit = threads;
         this.playerCap = settings.distanceOrder() ? initialCap(settings) : Integer.MAX_VALUE;
         this.done = new CountDownLatch(threads);
         for (int i = 0; i < threads; i++) {
@@ -158,6 +185,73 @@ public final class GenQueue extends AbstractExecutorService {
             t.setPriority(Thread.MIN_PRIORITY);
             t.start();
         }
+        if (tickGuard && guardThread) {
+            Thread c = new Thread(this::guardLoop, "furnace-gen-throttle");
+            c.setDaemon(true);
+            c.start();
+        }
+    }
+
+    /** 생성 조절기를 켰나. */
+    public boolean tickGuard() { return tickGuard; }
+
+    /** 지금 동시 생성 상한(조절기가 꺼져 있으면 스레드 수 — 일꾼 수가 곧 상한). */
+    public int genLimit() {
+        lock.lock();
+        try { return genLimit; } finally { lock.unlock(); }
+    }
+
+    /** 조절기 스레드: 가장 느린 region 의 1초 TPS 를 보고 상한을 고친다. */
+    private void guardLoop() {
+        while (!shutdown) {
+            try {
+                Thread.sleep(TICK_GUARD_PERIOD_MS);
+            } catch (InterruptedException e) {
+                return;
+            }
+            try {
+                adjustLimit(worstTps(System.nanoTime()));
+            } catch (RuntimeException e) {   // 조절기가 죽어 상한이 낮은 채로 굳지 않게 — 이번만 건너뛴다
+                LOG.warn("[GEN] 생성 조절기 확인 실패", e);
+            }
+        }
+    }
+
+    /** 모든 차원에서 가장 느린 region 의 최근 1초 TPS(잴 수 있는 region 이 없으면 20). */
+    private double worstTps(long now) {
+        double worst = 20;
+        for (World w : worlds) {
+            Regionizer rz = w.regionizer();
+            if (rz == null) continue;
+            Regionizer.RegionRate r = rz.slowestRegion(now, TICK_GUARD_WINDOW, TICK_GUARD_WINDOW);
+            if (r != null && r.tps() < worst) worst = r.tps();
+        }
+        return worst;
+    }
+
+    /** 한 번 조절한다: worstTps 가 낮으면 하나 줄이고 높으면 하나 늘린다. 바뀐 상한을 돌려준다. 조절기가 꺼져 있으면 아무것도 안 한다. */
+    int adjustLimit(double worstTps) {
+        if (!tickGuard) return threads;
+        lock.lock();
+        try {
+            int p = genLimit;
+            if (worstTps < TICK_GUARD_LOW && p > 1) p--;
+            else if (worstTps >= TICK_GUARD_HIGH && p < threads) p++;
+            if (p != genLimit) {
+                boolean up = p > genLimit;
+                genLimit = p;
+                if (up) ready.signalAll();   // 상한에 막혀 기다리던 일꾼을 깨운다
+                if (ChunkTrace.ON) ChunkTrace.value("gen.limit", p);
+            }
+            return p;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /** 잠금 안: 조절기 상한에 막혀 생성 요청을 지금 시작하면 안 되나. 닫는 중에는 막지 않는다(남은 고정 요청을 끝내야 한다). */
+    private boolean genBlockedLocked() {
+        return tickGuard && !shutdown && genRunning >= genLimit;
     }
 
     private static int initialCap(Settings s) {
@@ -482,6 +576,7 @@ public final class GenQueue extends AbstractExecutorService {
     private Task pickLocked(long now) {
         Task p = plain.poll();
         if (p != null) return p;
+        if (genBlockedLocked()) return null;
         int bi = -1;
         boolean turns = settings.turns();
         long bestKey = Long.MAX_VALUE, bestSeq = Long.MAX_VALUE;
@@ -505,6 +600,10 @@ public final class GenQueue extends AbstractExecutorService {
             Turn turn = turnActive.get(t.ticket.owner);
             if (turn != null && ++turn.starts >= settings.turnQuota()) endTurnLocked(t.ticket.owner, now);
         }
+        if (tickGuard) {
+            genRunning++;
+            t.counted = true;
+        }
         return t;
     }
 
@@ -515,7 +614,7 @@ public final class GenQueue extends AbstractExecutorService {
                 List<Task> cancelled;
                 lock.lock();
                 try {
-                    while (!shutdown && plain.isEmpty() && gen.isEmpty()) ready.awaitUninterruptibly();
+                    while (!shutdown && plain.isEmpty() && (gen.isEmpty() || genBlockedLocked())) ready.awaitUninterruptibly();
                     if (shutdown && plain.isEmpty() && gen.isEmpty()) return;
                     long now = System.nanoTime();
                     t = null;
@@ -531,7 +630,19 @@ public final class GenQueue extends AbstractExecutorService {
                 }
                 if (cancelled != null) for (Task c : cancelled) runCancelled(c);
                 if (t == null) continue;
-                run(t);
+                try {
+                    run(t);
+                } finally {
+                    if (t.counted) {
+                        lock.lock();
+                        try {
+                            genRunning--;
+                            ready.signal();   // 상한에 막혀 기다리던 일꾼 하나가 이어 받는다
+                        } finally {
+                            lock.unlock();
+                        }
+                    }
+                }
             }
         } finally {
             done.countDown();

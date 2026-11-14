@@ -23,6 +23,7 @@
 | `region-section-shift` | 수 | 3 | 1~8 | 동적 region 구역 크기(2^값 청크). 다른 region 까지 띠 2^값×16 블록(3 이면 128, 기본 4 였다 — T-101, 형식 3 마이그레이션이 옛 기본 줄을 옮긴다). 128 이하 반경 읽기만 region 안에서 끝난다: `region-boundary-radii.md` |  |
 | `region-merge-radius` | 수 | 1 | 1 이상 | region 합치기 반경(구역 단위) |  |
 | `light.async` | ON/OFF | false | true\|false | 빛 계산을 빛 스레드에 맡긴다(T-064, 바닐라 ThreadedLevelLightEngine 방식). 켜면 빛 스레드가 밀릴 때 빛이 한두 틱 늦게 보이고 새 청크 전송이 한 틱 늦다(바닐라 과부하와 같은 성질). 저장은 밀린 빛을 기다린다 |  |
+| `worldgen.tick-guard` | ON/OFF | false | true\|false | 생성 조절기(T-172, 결정 W-2 기본 꺼짐). 켜면 가장 느린 region 의 최근 1초 TPS < 19 일 때 동시 청크 생성 수를 하나씩 줄이고(1 까지) ≥ 19.8 이면 늘린다(생성 스레드 수까지). 빛 미리 계산 같은 이어 하기는 세지 않는다. TPS 바닥 보호 ↔ 생성 속도. `-Dfurnace.gen.tickGuard` 가 이긴다 |  |
 | `light.async-threads` | 수 | 1 | 1 이상 | `light.async` 빛 스레드 수(서버 전체) | `light.async=false` 인데 쓰면 경고 |
 | `entity-activation-range.enabled` | ON/OFF | **true** | true\|false | 엔티티 활성 범위(D11, Spigot·Paper 방식). **기본 켜짐 — 규칙 1(기본=바닐라)의 예외(도미니코 결정 2026-11-14)**. 켜면 먼 몹이 AI·이동을 대부분 쉬어 바닐라와 결과가 다르다. false = 바닐라와 바이트까지 같음 | 켜져 있으면 시작 때 경고 |
 | `entity-activation-range.animals` | 수 | 32 | 정수 | 활성 범위: 동물(PathfinderMob·박쥐 등) |  |
