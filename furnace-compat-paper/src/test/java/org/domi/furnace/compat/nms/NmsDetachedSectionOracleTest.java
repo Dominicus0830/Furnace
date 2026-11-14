@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.BufferedReader;
@@ -372,7 +373,7 @@ class NmsDetachedSectionOracleTest {
     }
 
     @Test
-    void copyIsIndependentAndRecreateUsesFirstPaletteEntry() {
+    void copyIsIndependentWithinPaletteCapacityAndRecreateUsesFirstPaletteEntry() {
         var reg = Block.BLOCK_STATE_REGISTRY;
         PalettedContainer<BlockState> pc = new PalettedContainer<>(reg, Blocks.STONE.defaultBlockState(), PalettedContainer.Strategy.SECTION_STATES);
         pc.set(1, 2, 3, Blocks.DIRT.defaultBlockState());
@@ -386,6 +387,16 @@ class NmsDetachedSectionOracleTest {
         // 바닐라: 팔레트는 줄지 않는다 — 지운 값도 maybeHas 에 남는다
         pc.set(1, 2, 3, Blocks.STONE.defaultBlockState());
         assertTrue(pc.maybeHas(st -> st == Blocks.DIRT.defaultBlockState()));
+
+        // 바닐라 1.21.1 특이점(검토 R4, 바닐라 jar 로 확인): 사본의 팔레트는 원본의 resizeHandler 를 쥔다 — 사본을 팔레트 용량 너머로 키우면
+        // 원본이 커지고(새 값이 원본 팔레트에 들어감, 칸은 그대로) 사본 쓰기는 IllegalArgumentException
+        PalettedContainer<BlockState> one = new PalettedContainer<>(reg, Blocks.STONE.defaultBlockState(), PalettedContainer.Strategy.SECTION_STATES);
+        PalettedContainer<BlockState> oneCopy = one.copy();
+        var ex = assertThrows(IllegalArgumentException.class, () -> oneCopy.set(0, 1, 0, Blocks.DIRT.defaultBlockState()));
+        assertEquals("The value 1 is not in the specified inclusive range of 0 to 0", ex.getMessage());
+        assertTrue(one.maybeHas(st -> st == Blocks.DIRT.defaultBlockState()), "원본 팔레트가 커졌다");
+        assertSame(Blocks.STONE.defaultBlockState(), one.get(0, 1, 0), "원본 칸은 그대로");
+        assertFalse(oneCopy.maybeHas(st -> st == Blocks.DIRT.defaultBlockState()), "사본은 그대로");
     }
 
     // ---- 아래 생성기는 tools/vanilla-data/ExportPaletteOracle.java 와 글자 그대로 같아야 한다(해시로 확인) ----

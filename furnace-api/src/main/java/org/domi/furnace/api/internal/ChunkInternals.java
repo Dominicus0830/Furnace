@@ -58,7 +58,8 @@ public interface ChunkInternals {
 
     /**
      * 로드된 청크의 "이번 로드"를 나타내는 불투명 객체 — 같은 로드 동안 같은 객체, 내렸다 다시 올리면 다른 객체. 로드돼 있지 않으면 null. 아무 스레드.
-     * 호환 계층이 청크 shim 의 정체성을 바닐라처럼 로드 동안 하나로 묶는 데 쓴다(N2b). 약한 참조로만 쥐고, 내용을 읽지 않는다.
+     * 호환 계층이 청크 shim 의 정체성을 바닐라처럼 로드 동안 하나로 묶는 데 쓴다(N2b). 청크 객체가 아닌 전용 표시라 쥐어도 청크를 붙잡지 않는다.
+     * 청크 재생성은 표시를 이어받는다(Paper 는 재생성해도 같은 LevelChunk).
      */
     Object loadedChunkToken(World world, int chunkX, int chunkZ);
 

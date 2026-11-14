@@ -650,6 +650,7 @@ public final class Region {
         var light = old.light();
         fresh.light(light);
         fresh.lightPrecomputed(false);
+        fresh.inheritLoadToken(old);   // NMS shim 정체성 유지(Paper 는 재생성해도 같은 LevelChunk)
         world.putChunk(cx, cz, fresh);
         lv.chunkUnloaded();   // 청크 조회 캐시가 옛 객체를 들고 있지 않게
         if (fresh.extraNbt() != null && (fresh.extraNbt().contains("block_ticks") || fresh.extraNbt().contains("fluid_ticks"))) {

@@ -69,6 +69,8 @@ FAWE 2.16.2 `v1_21_R1` 의 실제 쓰기 순서(`PaperweightGetBlocks.internalCa
 - 로드된 청크 한 세대(로드 → 언로드)마다 `LevelChunk` shim 하나, 그 안에 `LevelChunkSection[]` 배열 하나, 칸마다 섹션 객체 하나. 섹션은 `states`·`biomes` 필드를, 컨테이너는 `data` 필드(바닐라처럼 **volatile**)를 실제로 가진다.
 - 캐시는 청크 키 + 로드 세대의 약한 참조. 단 **섹션·컨테이너·`Data` 는 그 세대의 청크 shim 을 강하게 참조**한다 — 플러그인이 섹션 하나만 쥐고 있어도 세대 전체(배열 포함)가 살아 있어 다음 `getSections()` 가 같은 배열을 준다(R14: 아니면 FAWE CAS 의 expected 가 어긋나 "Skipping invalid null section").
 - 언로드 뒤 다시 로드하면 새 객체(바닐라도 새 `LevelChunk`). 죽은 세대의 거울에 쓰면 월드에 닿지 않는다(바닐라도 떨어진 `LevelChunk` 에 써질 뿐).
+- (N2b-1 검토 R3) N2b-1 캐시 값은 약한 참조라 플러그인이 `sections[i]` 를 바꾸고 참조를 모두 놓으면 shim 이 사라진다 — **N2b-4 는 들여오지 않은 쓰기가 있는 거울을 서버 쪽(로드 표시·컬럼)에서 강하게 붙잡아** 훑기가 그 쓰기를 보게 한다.
+- (N2b-1 검토 R3) shim 은 (월드, 좌표)로 읽어 내렸다 올린 뒤의 옛 shim 도 새 로드 값을 읽는다(읽기는 N2a 와 같음). **N2b-4 들여오기는 shim 이 만들어진 로드 표시를 기억해 다른 로드의 거울에서 온 쓰기를 거절**한다.
 
 **Furnace 는 거울 객체의 모니터를 쓰지 않는다**(R12). FAWE 는 `synchronized(nmsChunk)`·(비 Paper 경로) `synchronized(section)` 을 쓴다. Furnace 내부 동기화는 거울마다 따로 둔 원자 변수로만 하고, 플러그인이 볼 수 있는 객체에 `synchronized`·`wait` 를 걸지 않는다.
 

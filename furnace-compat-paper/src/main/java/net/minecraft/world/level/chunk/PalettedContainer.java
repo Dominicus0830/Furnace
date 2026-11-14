@@ -301,7 +301,10 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
         return data.palette().maybeHas(predicate);
     }
 
-    /** 독립 사본(바닐라: 데이터 사본). 보기면 그 순간 값의 진짜 컨테이너. */
+    /**
+     * 사본(바닐라: 데이터 사본). 팔레트 용량 안에서만 독립이다 — 사본의 팔레트는 원본의 resizeHandler 를 쥐어, 사본을 용량 너머로 키우면
+     * 원본이 커지고 사본 쓰기는 IllegalArgumentException(바닐라 1.21.1 그대로). 보기면 그 순간 값의 진짜 컨테이너.
+     */
     public PalettedContainer<T> copy() {
         if (furnaceSource != null) return furnaceMaterialize();
         return new PalettedContainer<>(registry, strategy, data.copy());

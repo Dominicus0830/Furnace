@@ -29,7 +29,7 @@
 - `paletteContainersMatchVanillaOracle` — 240건 모두 직렬화 바이트·크기·예외 위치가 바닐라와 같다.
 - `detachedSectionCountsMatchVanillaOracle` — 섹션 300개(N2b-0 정답표 `section-oracle-1.21.1.txt.gz` 의 같은 입력)에서 생성자 = 다시 세기, `setBlockState` = 하나씩. 음수 `tickingFluidCount` 90개, 다시 센 섹션과 하나씩 놓은 섹션의 판정이 갈리는 경우가 실제로 있는지까지 못 박는다.
 - `stateFlagsThroughShimMatchVanilla` — 26,684개 상태의 `isAir`·`isRandomlyTicking`·유체·용암 판정이 shim 을 거쳐도 바닐라와 같다.
-- `biomeRegistrySizeMatchesVanilla`(64 — 바이옴 전역 비트 수가 여기서 정해진다), `fieldsHaveVanillaNamesAndTypes`(FAWE 처럼 `Field.setShort` 로 개수를 쓰고 `biomes` 필드를 갈아 끼우면 그대로 보인다), `copyIsIndependentAndRecreateUsesFirstPaletteEntry`.
+- `biomeRegistrySizeMatchesVanilla`(64 — 바이옴 전역 비트 수가 여기서 정해진다), `fieldsHaveVanillaNamesAndTypes`(FAWE 처럼 `Field.setShort` 로 개수를 쓰고 `biomes` 필드를 갈아 끼우면 그대로 보인다), `copyIsIndependentWithinPaletteCapacityAndRecreateUsesFirstPaletteEntry`(바닐라 특이점 포함: 사본은 팔레트 용량 안에서만 독립 — 사본을 용량 너머로 키우면 원본 팔레트가 커지고 사본 쓰기는 `IllegalArgumentException`, 검토자가 바닐라 jar 로 바이트·문구까지 같음을 확인).
 - 변이 5개(다시 세기에서 유체 두 번 세기 뺌, 하나씩 놓기에서 물을 tickingFluid 에서 뺌, 선형 팔레트 비트 +2, 해시 팔레트 번호 순서, 바이옴 Configuration 비트)를 넣으면 모두 실패했다.
 
 **개수 규칙**(조사 문서 4장, 되먹임 4): 생성자·`recalcBlockCounts` 는 유체 칸을 nonEmpty 에 두 번, tickingFluid 는 용암만. `setBlockState` 는 ±1, tickingFluid 는 비어 있지 않은 유체 모두(물 포함) — 음수가 될 수 있고 `isRandomlyTicking` 은 `> 0`. Furnace 서버 정의(`nonAirCount`·`tickingCount`)와 따로 둔다.
@@ -41,7 +41,8 @@
 ## 3. 안정 정체성 (설계 3.5)
 
 같은 청크를 다시 달라고 하면 **같은** `LevelChunk` 와 같은 `sections` 배열·같은 섹션·같은 컨테이너 객체가 온다. 청크가 로드돼 있는 동안(서버 `ChunkColumn` 객체가 같은 동안) 유지된다:
-- `NmsChunks` 의 `WeakHashMap<서버 청크 표시, WeakReference<LevelChunk>>`. 서버 표시는 다리 `loadedChunkToken`(서버 `ChunkColumn` 그 자체 — 호환 계층은 `Object` 로만 본다).
+- `NmsChunks` 의 `WeakHashMap<서버 청크 표시, WeakReference<LevelChunk>>`. 서버 표시는 다리 `loadedChunkToken` — `ChunkColumn` 이 로드마다 가진 전용 `new Object()`(검토 R1: 컬럼 자체를 내주면 플러그인이 쥘 때 내린 청크 전체가 풀리지 않고 내부가 열린다).
+- **청크 재생성은 표시를 이어받는다**(검토 R2): `Region.replaceRegenerated` 가 새 컬럼을 넣어도 같은 shim — Paper `regenerateChunk` 도 같은 `LevelChunk` 에 써 넣는다. `RegenerateChunkTest` 가 확인.
 - 섹션은 자기 청크를 **강하게** 쥔다 — 플러그인이 섹션만 들고 있어도 청크 shim 이 사라져 다른 객체가 나오는 일이 없다.
 - 청크가 내려갔다 다시 올라오면 새 `ChunkColumn` 이라 새 shim(바닐라도 새 `LevelChunk`).
 - 월드젠 하이트맵(`WORLD_SURFACE_WG` 등)은 `getOrCreateHeightmapUnprimed` 로 처음 만들면 그 shim 이 살아 있는 동안 `heightmaps` 맵에 남는다(바닐라와 같은 모양).
@@ -63,7 +64,8 @@
 ## 6. 가정·차이 (확인 못 한 것)
 
 - **`acquire`/`release` 는 할 일 없음.** Paper 1.21.1 은 `ThreadingDetector` 를 끈다고 알고 있어 같게 뒀다 — 가정, V6 Paper 대조 때 확인.
-- **`count` 의 호출 순서**: 바닐라는 fastutil `Int2IntOpenHashMap` 순회 순서, 여기서는 처음 나온 순서. 합과 각 값의 수는 같다(시험이 합을 본다). 순서에 기대는 플러그인은 아직 못 봤다.
+- **`count` 의 호출 순서**: 바닐라는 fastutil `Int2IntOpenHashMap` 순회 순서, 여기서는 처음 나온 순서. 합과 각 값의 수는 같다(시험이 합을 보고, 섹션 개수 재계산이 값별 수를 간접 확인). 순서에 기대는 플러그인은 아직 못 봤다. 후속(검토 R5): 정답기에 (값, 수) 정렬 해시 열을 더하면 값별 수가 직접 고정된다.
+- **`NmsChunks.CHUNK_LOCK` 전역 잠금**: 모든 월드·region 스레드의 `getChunk` 가 잠금 하나를 거친다. 지금은 가볍지만 N2b-3(여러 region 동시 읽기)에서 재 보고, 필요하면 로드 표시 객체에 shim 칸을 두어 잠금을 없앤다(검토 R7).
 - 서버 청크 섹션 **보기**의 `data` 필드는 null(진짜 팔레트를 만들지 않는다). 리플렉션으로 `data` 를 읽는 플러그인은 N2b-4(거울)에서 다룬다. `copy()`·`write()` 등은 보기에서도 바닐라 결과(그 자리에서 만들어 냄).
 - 보기의 `write()` nonEmpty 는 지금 칸을 다시 센 값(디스크에서 읽은 섹션과 같음). 칸 쓰기로 바뀐 섹션의 바닐라 nonEmpty(하나씩 놓기 값)를 서버가 따로 갖는 것은 N2b-2(`sectionCountsNow`).
 - 코덱(`codecRW`·`codecRO`)과 `pack` 은 넣지 않았다(DFU 가 필요 — 쓰는 플러그인을 아직 못 봄).
@@ -75,7 +77,7 @@
 
 **원인 사슬**(FAWE 2.16.2 소스로 확인):
 1. FAWE 의 1.21.1 어댑터 `PaperweightFaweAdapter` 가 클래스 초기화에서 죽는다 — 148행 `DataComponentPatch.CODEC.optionalFieldOf(...)`(로그 61행 "미지원 NMS 호출"). 그래서 어댑터 없이 돈다(로그의 "does not fully support your version of Bukkit" 경고가 이 뜻).
-2. 어댑터가 없으면 `BukkitBlockRegistry.values()` 가 `BlockRegistry` 기본값 **빈 목록**을 준다(FAWE 는 어댑터 없이 블록 목록을 얻을 길이 없다 — Paper 에서도 어댑터가 없으면 똑같이 죽는다).
+2. 어댑터가 없으면 `BukkitBlockRegistry.values()` 가 `BlockRegistry` 기본값 **빈 목록**을 준다(FAWE 는 어댑터 없이 블록 목록을 얻을 길이 없다 — 가정: Paper 에서도 어댑터가 없으면 똑같이 죽는다, 실측 안 함). 블록 대체 경로가 `Material.isLegacy` 를 불렀다면 여기서 `NoSuchMethodError` 가 났을 텐데 AIOOBE 였으니 블록 쪽은 빈 목록이 맞다.
 3. `BlockTypesCache` 가 `values = new BlockType[블록 수 + 1]` = 길이 1 을 만들고, 예약 번호(`__RESERVED__`=0, `AIR`=1, `CAVE_AIR`=2, `VOID_AIR`=3)를 넣다가 1 에서 넘친다 — 이것이 "Index 1, length 1". 즉 **AIOOBE 는 결과일 뿐이고 Furnace 데이터가 틀린 것이 아니다**. 바이옴 실패도 같은 원인(어댑터 없음).
 
 **어댑터가 살아나면 FAWE 가 Furnace 에서 기대하는 데이터**(어댑터 소스의 `getRegisteredDefaultBlockStates`·`init`·`adaptToChar`·`getInternalBiomeId`·`getRegisteredBiomes`·`PaperweightBlockMaterial`):
@@ -89,7 +91,7 @@
 | `registryAccess().registryOrThrow(BIOME)` → `WritableRegistry` 로 캐스트, `stream`·`getKey`·`getId` | 바이옴 레지스트리 번호(바닐라 순서, 64개) | 번호 표는 **N2b-1 의 `NmsChunks.BIOME_IDS`**(시험으로 64 확인), `RegistryAccess#registryOrThrow`·`WritableRegistry` 없음 |
 | 어댑터 생성자: `SharedConstants.getCurrentVersion().getDataVersion().getVersion()` 가 3953/3955, `CraftServer.worlds` 필드, `ServerChunkCache` 의 메인 스레드 청크 future 메서드·executor 필드(리플렉션), 데이터 변환기 | 버전 상수(1.21.1 = 3955), CraftServer·ChunkCache 내부 이름 | 없음 |
 | 클래스 초기화: `DataComponentPatch.CODEC`(+ DFU `Codec.optionalFieldOf`) | 아이템 구성 요소 패치 코덱 | 없음(로그 61행) |
-| (어댑터와 별개) `Material.isLegacy()` | Bukkit API 메서드 | 없음 — 호환 계층 Bukkit API 구멍(T-141 API 확장 물결) |
+| (어댑터와 별개) `Material.isLegacy()` — 접속 뒤 `BukkitItemRegistry.values:54` → `ItemTypesCache.<clinit>:19` 에서 `NoSuchMethodError` | Bukkit API 메서드 | 없음 — 호환 계층 Bukkit API 구멍(T-141 API 확장 물결) |
 
 **정리**: N2b-1 은 이 중 상태 번호 표·무작위 틱 판정·바이옴 번호 표를 바닐라와 같게 만들었다. FAWE 가 켜지려면 어댑터 초기화 기호(위 표의 "없음" 줄)가 먼저 있어야 하고, 설계 6장 **N2b-6**(어댑터 선택·초기화 기호 묶음)의 첫 목록이 이 표다. `Material.isLegacy` 는 N2b 가 아니라 Bukkit API 쪽(T-141)이다.
 

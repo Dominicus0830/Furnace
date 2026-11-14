@@ -49,6 +49,17 @@ public final class ChunkColumn {
     private long[] cachedMotionBlockingHeightmap;
     private long[] cachedWorldSurfaceHeightmap;
     private ChunkSnapshot cachedSnapshot;
+    /**
+     * 이번 로드를 나타내는 불투명 표시(NMS 청크 shim 정체성 캐시의 약한 키). 컬럼 자체를 내주면 플러그인이 쥘 때 내린 청크 전체가
+     * 풀리지 않으므로 따로 둔다. 재생성은 옛 표시를 이어받는다(Paper regenerateChunk 는 같은 LevelChunk 에 써 넣는다).
+     */
+    private Object loadToken = new Object();
+
+    /** 이번 로드의 불투명 표시(아무 스레드). */
+    public Object loadToken() { return loadToken; }
+
+    /** 재생성: 바꿔 넣을 새 컬럼이 옛 컬럼의 로드 표시를 이어받는다(설치 전, 주인 스레드). */
+    void inheritLoadToken(ChunkColumn old) { loadToken = old.loadToken; }
 
     public ChunkColumn(int biomeId) {
         this(MIN_Y, SECTION_COUNT);
