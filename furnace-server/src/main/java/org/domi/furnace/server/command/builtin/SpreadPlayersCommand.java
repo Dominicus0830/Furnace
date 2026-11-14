@@ -333,7 +333,7 @@ public final class SpreadPlayersCommand {
                 throw new java.util.concurrent.CompletionException(new org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType(
                         Text.text("/spreadplayers failed: " + e.getMessage())).create());
             }
-        }, r -> Thread.startVirtualThread(r));
+        }, r -> Thread.startVirtualThread(() -> org.domi.furnace.server.world.CommandDrainGate.inCommandScope(r)));   // 땅 읽기 홉도 명령 범위(T-150)
         return org.domi.furnace.server.command.EntityOps.awaitAsync(source, computed, placements -> {
             List<CompletableFuture<Void>> moves = new java.util.ArrayList<>(placements.size());
             for (Placement p : placements) {

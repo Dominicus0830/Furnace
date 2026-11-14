@@ -260,3 +260,11 @@
 | T-177 | P2(측정 먼저) | OPT | `Region.collectTickingChunks` 의 로드 청크 × 플레이어 훑기(장면 R 약 8,000청크 × 60명)를 플레이어 쪽 17×17 칸 모으기로, 청크 순서는 지금과 같게 | 검토 6장 3번 | 같은 집합·같은 순서면 결과 동일. 몫은 아직 안 잼 — dontinline 프로파일 먼저 | S | Sonnet high | — | Region |
 
 메모: 장면 R 의 region 스레드 구성비(자연 스폰 52%·`Regionizer.owns/ownerOf` 자기 시간 20%)는 y200 장면·인라인 미확인 값이라 T-019·자연 스폰 TASK 의 근거로 쓰지 않는다 — 땅 높이 장면과 `-XX:CompileCommand=dontinline` 판으로 다시 잰다.
+
+## 10. 2차 CSP — B5 T-150 후속 (2026-11-14, PR #362 검토)
+
+T-150(①+②)·T-151 은 PR #362 로 끝났다(명령 59종 0.1~17ms, `CommandSelectorStageTest`). 독립 검토(`furnace/reviews/t150-pr362.md`) R2·R3 을 후속으로 둔다.
+
+| 번호 | 우선 | 종류 | 할 일 | 근거 | 수용 조건 | 크기 | 모델 | 선행 | 파일 |
+|---|---|---|---|---|---|---|---|---|---|
+| T-150a | P2(측정 먼저) | OPT | drain 재확인 비용 줄이기: `runDrainPass` 안에서 같은 스레드가 `drainWanted()` 동안 `runUrgentDrain()` 을 몇 번 더 돌린 뒤 내려놓기(예산·마감 그대로, 잠금·워커 넘김 없이 자기 홉을 이어 감). `drainWanted()` 의 `hasCommandTask()` O(inbox) 훑기를 표시 수(카운터)로(R3) | 검토 R2·R3: 소 200마리 `#tick` 3초에 drain 차례 65 → 79,278회(재-drain 15,031). 차례마다 잠금 2번·대기열 remove/add·`pool.wake` 는 문 예산(20ms)에 안 셈 | **먼저 측정**: T-170 60명 시험 또는 M-150 에서 워커 CPU·잠금 대기를 PR #362 전후로. 눈에 띄면 구현, 결과는 drain 시점만 바뀌므로 `CommandSelectorStageTest`·`CommandRegionDrainTest` 그대로 통과 | S | Sonnet high | M-150 | Regionizer, Region |

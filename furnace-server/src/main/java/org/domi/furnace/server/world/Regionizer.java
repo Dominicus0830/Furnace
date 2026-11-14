@@ -548,6 +548,9 @@ public final class Regionizer {
             r.nextTickNanos = r.savedNextTickNanos;
             resolveMerges(r);   // 이 차례 동안 양보하고 기다리는 상대가 있으면 흡수(틱 뒤와 같다)
             if (r.alive && !r.yielded) schedule(r);
+            // drain 중에 들어온 급한 작업(이 region 의 작업이 자기에게 넣은 다음 홉 — 큐 반복자가 마지막 칸 뒤에 붙은 것을 못 볼 수 있다 —
+            // 과 drain 중이라 urgentArrived 가 건너뛴 다른 스레드의 작업)은 다음 틱까지 미루지 않는다(틱 뒤와 같다, T-150)
+            if (r.alive && !r.yielded && r.drainWanted()) urgentArrived(r, true);
         } catch (Throwable t) {
             log.error("[REGION] region #{} drain 뒤 정리 실패", r.id, t);
         } finally {
