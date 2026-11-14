@@ -37,10 +37,27 @@ public final class InternalsImpl implements Internals {
     /** 내부 접근을 쓴 플러그인 이름들(진단용). */
     public Set<String> users() { return Set.copyOf(users); }
 
-    /** 부른 쪽 스택에서 첫 플러그인 클래스로더를 찾아 처음이면 로그. */
+    /**
+     * 부른 쪽 스택에서 첫 플러그인 클래스로더를 찾아 처음이면 로그. 서버 밖 첫 프레임이 호환 계층이면 남기지 않는다 — 호환 계층이 NMS shim 을 위해
+     * 다리를 꺼낼 때 그 순간 스택에 있던 플러그인을 "내부 접근을 쓴다"로 잘못 남기지 않게(그 플러그인은 NMS 호환 보고에 따로 나온다).
+     */
     void noteCaller() {
-        ClassLoader cl = WALKER.walk(s -> s.map(f -> f.getDeclaringClass().getClassLoader())
-                .filter(l -> l instanceof PluginManagerImpl.PluginClassLoader).findFirst().orElse(null));
+        ClassLoader cl = WALKER.walk(s -> {
+            var it = s.iterator();
+            while (it.hasNext()) {
+                var f = it.next();
+                String n = f.getClassName();
+                if (n.startsWith("org.domi.furnace.server.")) continue;
+                if (n.startsWith("org.domi.furnace.compat.")) return null;
+                if (f.getDeclaringClass().getClassLoader() instanceof PluginManagerImpl.PluginClassLoader pl) return pl;
+                while (it.hasNext()) {
+                    ClassLoader l = it.next().getDeclaringClass().getClassLoader();
+                    if (l instanceof PluginManagerImpl.PluginClassLoader) return l;
+                }
+                return null;
+            }
+            return null;
+        });
         if (cl == null) return;
         String name = host.pluginsImpl().pluginNameOf(cl);
         if (name != null && users.add(name)) {
@@ -194,7 +211,7 @@ public final class InternalsImpl implements Internals {
 
     @Override
     public org.domi.furnace.api.internal.ChunkInternals chunks() {
-        noteCaller();   // 플러그인이 다리를 직접 꺼내 쓰는지도 남긴다(호환 계층은 서버마다 한 번 꺼내 둔다)
+        noteCaller();   // 플러그인이 다리를 직접 꺼내 쓰면 남긴다(호환 계층이 꺼낼 때는 남기지 않는다)
         return chunks;
     }
 

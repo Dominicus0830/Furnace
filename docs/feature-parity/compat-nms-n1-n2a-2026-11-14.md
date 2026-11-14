@@ -37,6 +37,7 @@
 - "보기" 읽기는 그 청크를 가진 region 스레드(또는 전역 빌림 구간)에서만. 아니면 `ThreadOwnershipException`(어느 메서드에서 무엇을 했는지가 메시지에).
 - Furnace 는 청크를 동기로 불러오지 않는다. 로드 안 된 청크를 `getChunk(...,create=true)` 로 달라고 하면 이유와 대안(`getChunkIfLoaded`·`getChunkAtIfLoadedImmediately`·Bukkit `getChunkAtAsync`)을 담은 `IllegalStateException`. `create=false` 면 바닐라처럼 null.
 - 섹션·팔레트 보기는 쓰기를 받지 않는다(`UnsupportedNmsCall`, `copy()` 로 사본을 쓰라고 안내). 블록 쓰기는 `Level.setBlock`·`LevelChunk.setBlockState`.
+- 청크가 내려간 뒤 들고 있던 보기(`LevelChunk`·섹션)를 쓰면: 읽기는 "로드돼 있지 않다" `IllegalStateException`, `LevelChunk.setBlockState` 는 조용히 null(바닐라에서는 떨어진 청크 객체에 써질 뿐 월드에 닿지 않는다 — 어느 쪽이든 월드는 바뀌지 않는다).
 - 다리는 소유 검사 전에 로드 여부를 본다 — region 이 없는(로드 안 된) 청크는 "다른 스레드" 예외가 아니라 "로드 안 됨" 표시값.
 
 ## 4. 계획과 다른 점 — 모듈 경계
