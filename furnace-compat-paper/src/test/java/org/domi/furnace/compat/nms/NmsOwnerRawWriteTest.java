@@ -216,7 +216,7 @@ class NmsOwnerRawWriteTest {
     /** 주인 아닌 스레드의 쓰기는 지금은 거절(다른 스레드 쓰기 일지는 N2b-4, D1). */
     @Test
     void offThreadRawWritesThrow() {
-        LevelChunk c = level.getChunkSource().getChunkAtIfLoadedImmediately(cx, cz);
+        LevelChunk c = level.getChunk(cx, cz);   // 기다리는 조회 — 공개 스냅샷이 없으면 주인이 낼 때까지(N2b-3)
         assertNotNull(c);
         BlockState stone = Blocks.STONE.defaultBlockState();
         assertThrows(ThreadOwnershipException.class, () -> c.getSection(0).setBlockState(0, 0, 0, stone));

@@ -59,7 +59,138 @@ public final class ChunkColumn {
     public Object loadToken() { return loadToken; }
 
     /** 재생성: 바꿔 넣을 새 컬럼이 옛 컬럼의 로드 표시를 이어받는다(설치 전, 주인 스레드). */
-    void inheritLoadToken(ChunkColumn old) { loadToken = old.loadToken; }
+    void inheritLoadToken(ChunkColumn old) {
+        loadToken = old.loadToken;
+        viewHolder = old.viewHolder;   // 같은 shim(Paper regenerateChunk 는 같은 LevelChunk) — 공개도 이어 간다
+        viewVersion = old.viewVersion;
+        viewTouched = old.viewTouched || old.readView != null;
+    }
+
+    // ------------------------------------------------------------------ 공개 스냅샷(N2b-3, 설계 3.6)
+    // 다른 스레드(비동기·다른 region)가 NMS 청크 shim 을 기다리지 않고 읽도록 주인이 틱 끝에 내는 불변 사본. 내는 대상은 shim 이 붙어 있거나
+    // 최근에 다른 스레드가 읽었거나 부탁한 청크뿐이다(Region.viewWatch). 바뀌지 않은 섹션은 앞 판을 그대로 쓴다.
+
+    /** 지금 공개된 판(없으면 null). 쓰기는 주인 스레드, 읽기는 아무 스레드. */
+    private volatile ChunkReadView readView;
+    /** 붙은 LevelChunk shim(약한 참조). 아무 스레드가 CAS 로 붙인다. */
+    private volatile java.lang.ref.WeakReference<Object> viewHolder;
+    /** 마지막 공개 뒤 다른 스레드가 읽었다(읽는 쪽이 세우고 주인이 공개 때 내린다). */
+    private volatile boolean viewTouched;
+    /** 공개 부탁이 주인에게 가는 중(중복 작업 막기). 0/1, CAS. */
+    private volatile int viewRequested;
+    /** 주인 전용: 아무도 읽지 않고 붙은 shim 도 없이 지난 공개 횟수, 판 번호. */
+    private int viewIdle;
+    private long viewVersion;
+
+    private static final java.lang.invoke.VarHandle VIEW_HOLDER, VIEW_REQUESTED;
+    static {
+        try {
+            var l = java.lang.invoke.MethodHandles.lookup();
+            VIEW_HOLDER = l.findVarHandle(ChunkColumn.class, "viewHolder", java.lang.ref.WeakReference.class);
+            VIEW_REQUESTED = l.findVarHandle(ChunkColumn.class, "viewRequested", int.class);
+        } catch (ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    /** 공개된 판(아무 스레드, 없으면 null). 읽은 표시를 남긴다(그동안 공개가 이어진다). */
+    public ChunkReadView readViewTouch() {
+        ChunkReadView v = readView;
+        if (v != null && !viewTouched) viewTouched = true;
+        return v;
+    }
+
+    /** 공개된 판(표시 없이 — 시험·주인용). */
+    public ChunkReadView readView() { return readView; }
+
+    /** 붙은 shim(사라졌으면 null). 아무 스레드. */
+    public Object viewHolder() {
+        var r = viewHolder;
+        return r == null ? null : r.get();
+    }
+
+    /** shim 을 붙인다 — 살아 있는 것이 이미 있으면 그것(먼저 붙은 쪽이 이긴다). 아무 스레드. */
+    public Object attachViewHolder(Object shim) {
+        java.util.Objects.requireNonNull(shim, "shim");
+        while (true) {
+            var cur = viewHolder;
+            Object alive = cur == null ? null : cur.get();
+            if (alive != null) return alive;
+            if (VIEW_HOLDER.compareAndSet(this, cur, new java.lang.ref.WeakReference<>(shim))) {
+                viewTouched = true;   // 주인이 받아 볼 때까지 지금 판을 버리지 않게
+                return shim;
+            }
+        }
+    }
+
+    /** 다른 스레드: 주인에게 공개를 부탁해야 하는가(처음 부탁한 스레드만 true — 그 스레드가 작업을 보낸다). */
+    public boolean claimViewRequest() {
+        viewTouched = true;
+        return viewRequested == 0 && VIEW_REQUESTED.compareAndSet(this, 0, 1);
+    }
+
+    /** 부탁 작업을 보내지 못했다(내린 월드) — 표시를 내려 다음 부탁이 다시 보낼 수 있게. */
+    public void publishRequestFailed() { viewRequested = 0; }
+
+    /**
+     * 주인 스레드: 공개를 이어 갈지 정하고(붙은 shim 이 살아 있거나, 최근 keepTicks 번의 공개 안에 누가 읽었거나 부탁했으면 이어 간다) 이어 가면
+     * 지금 판을 낸다(바뀐 것이 없으면 같은 판). 그만두면 판을 거두고 false.
+     */
+    boolean refreshReadView(int chunkX, int chunkZ, int keepTicks) {
+        boolean wanted = viewHolder() != null || viewRequested != 0;
+        if (viewTouched) {
+            viewTouched = false;
+            viewIdle = 0;
+            wanted = true;
+        } else if (!wanted && ++viewIdle < keepTicks) {
+            wanted = true;
+        }
+        if (!wanted) {
+            readView = null;
+            viewIdle = 0;
+            // 거둔 뒤 다시 본다: 다른 스레드가 방금 shim 을 붙이고 공개본이 있다고 본 뒤라면(volatile 순서상 둘 중 하나는 상대를 본다) 거두지 않는다(R16)
+            if (viewHolder() == null && viewRequested == 0) return false;
+        }
+        publishReadView(chunkX, chunkZ);
+        return true;
+    }
+
+    /** 주인 스레드: 지금 판을 낸다(바뀐 것이 없으면 앞 판 그대로). 부탁 표시를 내린다. */
+    ChunkReadView publishReadView(int chunkX, int chunkZ) {
+        ChunkReadView prev = readView;
+        viewRequested = 0;
+        ChunkSection[] secs = sections;
+        if (prev != null && prev.modCount == modCount && prev.loadToken() == loadToken && prev.sectionCount() == secs.length) {
+            boolean same = true;
+            for (int i = 0; i < secs.length && same; i++) same = prev.section(i).reusableFor(secs[i]);
+            if (same) return prev;
+        }
+        ChunkReadView.SectionView[] out = new ChunkReadView.SectionView[secs.length];
+        for (int i = 0; i < secs.length; i++) {
+            ChunkReadView.SectionView old = prev == null || i >= prev.sectionCount() ? null : prev.section(i);
+            out[i] = old != null && old.reusableFor(secs[i]) ? old : new ChunkReadView.SectionView(secs[i]);
+        }
+        int[][] heights = fixedHeights != null ? copyFixed(fixedHeights) : currentHeights();
+        long[] bePos = blockEntityPositions(chunkX, chunkZ);
+        ChunkReadView v = new ChunkReadView(loadToken, ++viewVersion, minY, out, heights, bePos, modCount);
+        readView = v;
+        return v;
+    }
+
+    /** 블록 엔티티 칸(바닐라 getBlockEntitiesPos, BlockPos.asLong 꼴). 주인 스레드. */
+    public long[] blockEntityPositions(int chunkX, int chunkZ) {
+        java.util.ArrayList<Long> be = new java.util.ArrayList<>(blockEntities.keySet());
+        if (generatedBlockEntities != null) {
+            for (long k : generatedBlockEntities.keySet()) {
+                int lx = (int) (k >> 38) & 15, lz = (int) (k >> 12) & 15, y = (int) (k << 52 >> 52);
+                long w = ChunkReadView.packPos((chunkX << 4) + lx, y, (chunkZ << 4) + lz);
+                if (!blockEntities.containsKey(w)) be.add(w);
+            }
+        }
+        long[] out = new long[be.size()];
+        for (int i = 0; i < out.length; i++) out[i] = be.get(i);
+        return out;
+    }
 
     public ChunkColumn(int biomeId) {
         this(MIN_Y, SECTION_COUNT);
@@ -1054,7 +1185,26 @@ public final class ChunkColumn {
     public int motionBlockingNoLeavesBlockY(int x, int z) {
         int[][] f = fixedHeights;
         if (f != null) return minY + f[MBNL][z * 16 + x] - 1;
-        return minY + topLocalY(x, z, TOP_MB_NO_LEAVES);
+        return minY + mbnlLocalY(x, z);
+    }
+
+    /**
+     * MOTION_BLOCKING_NO_LEAVES 꼭대기의 (y - minY), 없으면 -1(PR #373 검토 R6). 술어가 MOTION_BLOCKING 의 부분집합이라 MB 꼭대기(지연 캐시) 위에는
+     * 답이 없다 — MB 꼭대기가 잎이 아니면 그 칸이 답이고, 잎이면 그 아래부터만 훑는다. MB 캐시가 낡았을 수 있는 길(구역 직접 쓰기)에 대비해
+     * MB 꼭대기 칸이 정말 MB 인지 확인하고 아니면 처음부터 훑는다(예전과 같은 답).
+     */
+    private int mbnlLocalY(int x, int z) {
+        int mb = motionBlockingHeightValue(x, z);   // 첫 빈 칸 - minY
+        if (mb <= 0) return topLocalY(x, z, TOP_MB_NO_LEAVES);
+        int top = mb - 1;
+        int st = sections[top >> 4].blockAt(cellIndex(x, top & 15, z));
+        if (!isMotionBlockingBlock(st)) return topLocalY(x, z, TOP_MB_NO_LEAVES);
+        if (!isLeaves(st)) return top;
+        for (int y = top - 1; y >= 0; y--) {
+            int v = sections[y >> 4].blockAt(cellIndex(x, y & 15, z));
+            if (isMotionBlockingBlock(v) && !isLeaves(v)) return y;
+        }
+        return -1;
     }
 
     private static final int TOP_MB_NO_LEAVES = 0, TOP_MB = 1, TOP_OCEAN_FLOOR = 2, TOP_WORLD_SURFACE = 3;
@@ -1186,7 +1336,7 @@ public final class ChunkColumn {
             h[WS][i] = surface[i];
             h[OF][i] = oceanFloorBlockY(x, z) - minY + 1;
             h[MB][i] = motionBlockingHeightValue(x, z);
-            h[MBNL][i] = topLocalY(x, z, TOP_MB_NO_LEAVES) + 1;
+            h[MBNL][i] = mbnlLocalY(x, z) + 1;
         }
         return h;
     }

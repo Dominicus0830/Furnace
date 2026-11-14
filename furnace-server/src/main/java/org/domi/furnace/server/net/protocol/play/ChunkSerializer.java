@@ -93,7 +93,7 @@ public final class ChunkSerializer {
      * 값 수가 한도를 못 넘는다) — 저장소 상한이 바뀔 때를 위한 안전장치.
      */
     public static void writeSection(ByteBuf data, ChunkSnapshot.Section s, int blockDirectBits, int biomeDirectBits) {
-        data.writeShort(s.nonAirCount());
+        data.writeShort(s.packetNonEmpty());   // 바닐라 LevelChunkSection.write: nonEmptyBlockCount 필드 값
         FirstSeenIndex bi = s.blockIndex();
         if (bi == null || !Palette.writeIndexed(data, bi, 4, 8)) Palette.write(data, s.blocks(), blockDirectBits, 4, 8);  // 블록
         FirstSeenIndex ci = s.biomeIndex();

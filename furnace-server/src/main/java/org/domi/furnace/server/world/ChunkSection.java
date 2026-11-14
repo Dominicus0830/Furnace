@@ -41,6 +41,14 @@ public final class ChunkSection {
      */
     private ChunkColumn owner;
     private int ownerIndex;
+    /**
+     * 바뀜 표(N2b-3 공개 스냅샷): 블록·바이옴·바닐라 개수를 바꾸는 메서드마다 하나씩 오른다(지연 재계수는 결과가 블록에서 정해지므로 올리지 않는다).
+     * 주인 스레드가 공개 스냅샷을 낼 때 같은 객체·같은 값이면 앞 판의 섹션 사본을 그대로 쓴다. sections() 로 받아 구역에 직접 쓰는 길도 여기서 잡힌다.
+     */
+    private int version;
+
+    /** 바뀜 표(공개 스냅샷의 재사용 판정). 주인 스레드. */
+    int version() { return version; }
 
     /** 상태별 무작위 틱 여부(블록 동작 쪽이 건다). 없으면 무작위 틱을 하지 않는다. */
     private static volatile boolean[] randomTicking;
@@ -153,6 +161,23 @@ public final class ChunkSection {
         return new int[] {nonEmpty, tickingCount, fluidCount};
     }
 
+    /**
+     * 청크 패킷 섹션 머리의 nonEmptyBlockCount(바닐라 LevelChunkSection.write 는 필드 값을 그대로 쓴다): 바닐라 개수를 고치지 않고 본다 —
+     * 모르면 바닐라 recalcBlockCounts 의 nonEmpty(공기 아닌 칸 + 유체 있는 칸)를 센다. 단 바닐라 값이 0 인데 실제 블록이 있으면(NMS 컨테이너
+     * 원시 쓰기로 빈 섹션에 넣고 다시 세지 않은 섹션) Furnace 서버 읽기와 맞게 Furnace 비공기 수를 쓴다 — 결정 entries/2026-11-14-n2b2-hasonlyair-gap.md
+     * 가 A(그대로)인 동안 클라이언트가 서버와 다른 블록을 보지 않게. 섹션을 바꾸지 않으므로 아무 스레드에서 불러도 된다(주인이 쓰는 중이 아니면).
+     */
+    public int packetNonEmptyCount() {
+        int[] s = scratch;
+        int nonAir = nonAirCount;
+        if (s != null) {
+            nonAir = 0;
+            for (int v : s) if (!isAir(v)) nonAir++;
+        }
+        int v = tickingCount != UNKNOWN ? nonEmpty : nonAir + countFluidPresent(fluidPresent);
+        return v == 0 && nonAir > 0 ? nonAir : v;
+    }
+
     /** 바닐라 hasOnlyAir(nonEmptyBlockCount == 0). 모르면 먼저 센다. */
     public boolean vanillaHasOnlyAir() {
         ensureCounts();
@@ -164,6 +189,7 @@ public final class ChunkSection {
      * 이 값을 따른다. 그 뒤 칸 쓰기는 이 값 위에 ±1 한다(바닐라 그대로).
      */
     public void setVanillaCounts(int nonEmptyBlockCount, int tickingBlockCount, int tickingFluidCount) {
+        version++;
         nonEmpty = (short) nonEmptyBlockCount;
         counts((short) tickingBlockCount, (short) tickingFluidCount);
     }
@@ -247,6 +273,7 @@ public final class ChunkSection {
      */
     int setBlockAt(int idx, int stateId, boolean vanillaCounts) {
         assert !lightFrozen : "빛 작업이 읽는 구역을 그 자리에서 고침";
+        version++;
         int old = scratch != null ? scratch[idx] : blocks.get(idx);
         boolean wasAir = isAir(old), nowAir = isAir(stateId);
         int tc = tickingCount;
@@ -301,6 +328,7 @@ public final class ChunkSection {
     }
 
     public void fillBiome(int biomeId) {
+        version++;
         for (int i = 0; i < 64; i++) biomes.set(i, biomeId);
     }
 
@@ -309,11 +337,13 @@ public final class ChunkSection {
     }
 
     public void setBiome(int x, int y, int z, int biomeId) {
+        version++;
         biomes.set(biomeIndex(x, y, z), biomeId);
     }
 
     /** 바이옴 칸 하나(섹션 로컬 인덱스 y*16+z*4+x)를 바꾸고 옛 값을 돌려준다(바닐라 바이옴 컨테이너 getAndSet). */
     int setBiomeAt(int idx, int biomeId) {
+        version++;
         int old = biomes.get(idx);
         biomes.set(idx, biomeId);
         return old;
@@ -321,6 +351,7 @@ public final class ChunkSection {
 
     public void replaceBlocks(int[] source, int sourceOffset) {
         assert !lightFrozen : "빛 작업이 읽는 구역을 그 자리에서 고침";
+        version++;
         countsUnknown();
         if (scratch != null) {
             System.arraycopy(source, sourceOffset, scratch, 0, 4096);
@@ -341,11 +372,13 @@ public final class ChunkSection {
             replaceBlocks(flat, 0);
             return;
         }
+        version++;
         countsUnknown();
         nonAirCount = (short) blocks.loadIndexed(paletteVals, indices);
     }
 
     public void replaceBiomes(int[] source, int sourceOffset) {
+        version++;
         biomes.load(source, sourceOffset);
     }
 
@@ -387,6 +420,7 @@ public final class ChunkSection {
 
     int[] openScratch() {
         assert !lightFrozen : "빛 작업이 읽는 구역을 그 자리에서 고침";
+        version++;
         countsUnknown();   // 바깥에서 scratch 를 직접 고친다
         if (scratch == null) scratch = blocks.unpack();
         return scratch;
@@ -395,6 +429,7 @@ public final class ChunkSection {
     void compact() {
         if (scratch == null) return;
         assert !lightFrozen : "빛 작업이 읽는 구역을 그 자리에서 고침";
+        version++;
         countsUnknown();
         blocks.load(scratch, 0);
         int count = 0;

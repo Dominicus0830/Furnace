@@ -74,7 +74,7 @@ public final class CompatBlockState implements BlockState {
     }
 
     @Override
-    public Chunk getChunk() { return new CompatChunk(dimension, pos.chunkX(), pos.chunkZ()); }
+    public Chunk getChunk() { return new org.bukkit.craftbukkit.CraftChunk(dimension, pos.chunkX(), pos.chunkZ()); }
 
     @Override
     public void setBlockData(BlockData data) { this.data = Objects.requireNonNull(data, "BlockData cannot be null"); }

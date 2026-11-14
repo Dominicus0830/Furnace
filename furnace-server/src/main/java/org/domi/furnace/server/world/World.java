@@ -308,6 +308,9 @@ public final class World {
 
     ChunkColumn loadedChunk(int cx, int cz) { return chunks.get(mapKey(Regionizer.chunkKey(cx, cz))); }
 
+    /** 로드된 컬럼(아무 스레드, 최근 값). 주인이 아닌 스레드는 공개 스냅샷·shim 칸(ChunkColumn 의 volatile 칸)만 만진다(N2b-3). */
+    public ChunkColumn loadedChunkColumn(int cx, int cz) { return loadedChunk(cx, cz); }
+
     /** 로드된 청크의 이번 로드를 나타내는 불투명 객체(컬럼이 아닌 전용 표시 — 쥐어도 청크 내용을 붙잡지 않는다), 없으면 null. 아무 스레드. */
     public Object loadedChunkToken(int cx, int cz) {
         ChunkColumn c = loadedChunk(cx, cz);

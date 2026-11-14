@@ -84,6 +84,8 @@ public final class Region {
     final Set<Region> pendingMerges = new HashSet<>();
     /** 이 region 구역의 "있는" 청크 키(로드·로드 중·시야). 쓰기는 Regionizer 잠금 안. */
     final ChunkKeySet present = new ChunkKeySet();
+    /** 공개 스냅샷(N2b-3)을 내는 청크 키 — 틱 끝마다 새로 낸다. 이 region 스레드(또는 쉬는 동안 Regionizer 잠금 안의 합치기·나누기)만 만진다. */
+    final ChunkKeySet viewWatch = new ChunkKeySet();
     final ConcurrentLinkedQueue<Task> inbox = new ConcurrentLinkedQueue<>();
 
     // ---- 명령 블록 기다림(awaitUrgent)
@@ -181,10 +183,42 @@ public final class Region {
             betweenTicks = false;
         }
         // 틱 붙잡기(백업 기준점·빈 서버 일시정지)는 작업 큐를 비운 뒤에 본다 — 붙잡은 뒤 넣은 작업(quiesce)이 돈 차례는 틱을 하지 않는다
-        if (gameTick && !world.ticksHeld()) {
-            tick();
-            lastRunTicked = true;
+        try {
+            if (gameTick && !world.ticksHeld()) {
+                tick();
+                lastRunTicked = true;
+            }
+        } finally {
+            publishReadViews();   // 틱 끝: 공개 스냅샷(N2b-3) — 작업 큐에서 바뀐 것까지
         }
+    }
+
+    // ------------------------------------------------------------------ 공개 스냅샷(N2b-3, 설계 3.6)
+
+    /** 붙은 shim 도 없고 아무도 읽지 않으면 이만큼의 틱 끝(5초) 뒤 공개를 멈춘다. */
+    static final int VIEW_KEEP_TICKS = 100;
+
+    /** 이 region 스레드에서: 지켜보는 청크마다 공개 스냅샷을 새로 낸다(바뀐 것이 없으면 같은 판). 내려간 청크·그만둔 청크는 뺀다. */
+    void publishReadViews() {
+        if (viewWatch.isEmpty()) return;
+        for (var it = viewWatch.iterator(); it.hasNext(); ) {
+            long k = it.next();
+            int cx = Regionizer.chunkX(k), cz = Regionizer.chunkZ(k);
+            ChunkColumn col = ownedChunk(cx, cz);
+            if (col == null || !col.refreshReadView(cx, cz, VIEW_KEEP_TICKS)) it.remove();
+        }
+    }
+
+    /**
+     * 이 region 스레드에서: 그 청크의 공개 스냅샷을 지금 내고(바뀐 것이 없으면 같은 판) 틱 끝마다 이어 내게 지켜본다. 로드돼 있지 않으면 null.
+     * 다른 스레드의 부탁(작업)과 주인 스레드의 shim 붙이기·기다리는 조회가 부른다.
+     */
+    public ChunkReadView publishReadViewNow(int cx, int cz) {
+        world.assertOwns(this);
+        ChunkColumn col = ownedChunk(cx, cz);
+        if (col == null) return null;
+        viewWatch.add(Regionizer.chunkKey(cx, cz));
+        return col.publishReadView(cx, cz);
     }
 
     /**
@@ -303,6 +337,8 @@ public final class Region {
     void absorbData(Region o) {
         present.addAll(o.present);
         o.present.clear();
+        viewWatch.addAll(o.viewWatch);
+        o.viewWatch.clear();
         for (Delayed d : o.delayed) delayed.add(new Delayed(tickCount + Math.max(0, d.dueTick - o.tickCount), d.seq, d.chunkKey, d.run));
         o.delayed.clear();
         for (Player p : o.players.values()) players.put(p.entityId(), p);
@@ -347,6 +383,14 @@ public final class Region {
             Region t = targetOf.apply(k);
             if (t != null) {
                 t.present.add(k);
+                it.remove();
+            }
+        }
+        for (var it = viewWatch.iterator(); it.hasNext(); ) {
+            long k = it.next();
+            Region t = targetOf.apply(k);
+            if (t != null) {
+                t.viewWatch.add(k);
                 it.remove();
             }
         }
@@ -689,6 +733,7 @@ public final class Region {
         fresh.lightPrecomputed(false);
         fresh.inheritLoadToken(old);   // NMS shim 정체성 유지(Paper 는 재생성해도 같은 LevelChunk)
         world.putChunk(cx, cz, fresh);
+        if (old.readView() != null) publishReadViewNow(cx, cz);   // 다른 스레드가 읽던 공개본을 새 블록으로 곧바로(N2b-3)
         lv.chunkUnloaded();   // 청크 조회 캐시가 옛 객체를 들고 있지 않게
         if (fresh.extraNbt() != null && (fresh.extraNbt().contains("block_ticks") || fresh.extraNbt().contains("fluid_ticks"))) {
             lv.loadChunkTicks(fresh.extraNbt(), cx, cz);   // 청크를 넣자마자(위 설치 경로와 같은 이유)

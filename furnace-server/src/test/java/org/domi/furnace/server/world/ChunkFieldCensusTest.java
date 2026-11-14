@@ -55,6 +55,10 @@ class ChunkFieldCensusTest {
         e("inflightSerializedBody", Kind.FURNACE_CACHE), e("cachedMotionBlockingHeightmap", Kind.FURNACE_CACHE),
         e("cachedWorldSurfaceHeightmap", Kind.FURNACE_CACHE), e("cachedSnapshot", Kind.FURNACE_CACHE),
         e("sharedSections", Kind.FURNACE_CACHE), e("randomTickMask", Kind.FURNACE_CACHE),
+        // 공개 스냅샷(N2b-3): 재사용 판정이 modCount·섹션 정체성·섹션 판 번호라 들여오기는 touch()·섹션 판 올림을 빠뜨리면 안 된다
+        e("readView", Kind.FURNACE_CACHE),
+        e("viewHolder", Kind.UNRELATED), e("viewTouched", Kind.UNRELATED), e("viewRequested", Kind.UNRELATED),
+        e("viewIdle", Kind.UNRELATED), e("viewVersion", Kind.UNRELATED), e("VIEW_HOLDER", Kind.FIXED), e("VIEW_REQUESTED", Kind.FIXED),
         // 바닐라에도 있는 파생 상태
         e("blockEntities", Kind.VANILLA_DERIVED), e("light", Kind.VANILLA_DERIVED),
         // 블록과 무관
@@ -76,6 +80,8 @@ class ChunkFieldCensusTest {
         // 바닐라 개수 셋(N2b-2): 원시 쓰기·필드 대입 뒤 블록과 어긋날 수 있다 — 들여오기는 거울 섹션의 개수 필드를 옮긴다(다시 세지 않음)
         e("nonEmpty", Kind.VANILLA_COUNTS), e("tickingCount", Kind.VANILLA_COUNTS), e("fluidCount", Kind.VANILLA_COUNTS),
         e("scratch", Kind.FURNACE_CACHE),
+        // 공개 스냅샷의 섹션 재사용 판정(N2b-3) — 들여오기가 섹션 내용을 갈면 반드시 올린다
+        e("version", Kind.FURNACE_CACHE),
         // 컬럼 소속·빛 작업 얼림 — 섹션을 갈아 끼울 때 attach/detach·ownSection 규칙을 따라야 한다
         e("owner", Kind.FURNACE_CACHE), e("ownerIndex", Kind.FURNACE_CACHE), e("lightFrozen", Kind.FURNACE_CACHE)));
 

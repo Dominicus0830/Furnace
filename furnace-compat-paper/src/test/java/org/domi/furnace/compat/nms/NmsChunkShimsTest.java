@@ -384,12 +384,15 @@ class NmsChunkShimsTest {
         assertEquals(-1, (int) on(() -> NmsChunks.bridge().stateIdNow(world, fx * 16, 0, fz * 16)), "region 이 없는 청크도 '로드 안 됨' 표시값");
         assertNull(on(() -> level.getBlockStateIfLoaded(new BlockPos(fx * 16, 0, fz * 16))));
         assertEquals(-64, (int) on(() -> level.getHeight(Heightmap.Types.WORLD_SURFACE, fx * 16, fz * 16)), "로드 안 된 청크 = 최저 높이(바닐라)");
-        // 로드된 청크 보기는 아무 스레드에서 얻지만, 읽기는 소유 region 스레드에서만
+        // 로드된 청크 보기는 아무 스레드에서 얻고, 주인이 아닌 스레드의 읽기는 주인이 틱 끝에 낸 공개 스냅샷(N2b-3, 기다리지 않음)
+        LevelChunk owned = on(() -> level.getChunk(cx, cz));   // 주인 스레드에서 붙이면 그 자리에서 공개
         LevelChunk c = level.getChunkSource().getChunkAtIfLoadedImmediately(cx, cz);
-        assertNotNull(c);
+        assertSame(owned, c, "같은 로드 = 같은 shim(아무 스레드)");
         assertEquals(c, level.getChunk(cx, cz), "같은 청크 보기는 equals");
-        assertThrows(ThreadOwnershipException.class, () -> c.getBlockState(new BlockPos(at.x(), at.y(), at.z())));
-        assertThrows(ThreadOwnershipException.class, () -> c.getSection(0).getStates().get(0, 0, 0));
+        BlockPos p = new BlockPos(at.x(), at.y() - 1, at.z());
+        int want = on(() -> truth(p.getX(), p.getY(), p.getZ()));
+        assertSame(Block.stateById(want), c.getBlockState(p), "시험 스레드 읽기 = 공개 스냅샷");
+        assertNotNull(c.getSection(0).getStates().get(0, 0, 0));
     }
 
     @Test

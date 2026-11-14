@@ -117,4 +117,82 @@ public interface ChunkInternals {
 
     /** 바닐라 Heightmap.update(x, y, z, state) 그대로(주어진 상태로 술어, 내려갈 때 칸을 읽음). 바뀌면 1, 아니면 0, 로드돼 있지 않으면 -1. 고정 모드로 들어간다. */
     int updateHeightmapNow(World world, String heightmap, int x, int y, int z, int stateId);
+
+    // ------------------------------------------------------------------ 다른 스레드 읽기(N2b-3) — 기다리지 않는 공개 스냅샷
+
+    /**
+     * 바닐라 LevelChunk.getBlockState 의 번호판: 섹션이 바닐라 hasOnlyAir(nonEmptyBlockCount == 0)면 공기(0), 아니면 그 칸. 높이 밖은 부르는 쪽이 거른다.
+     * 로드돼 있지 않으면 -1. ({@link #stateIdNow} + {@link #sectionCountsNow} 를 배열 없이 한 번에.)
+     */
+    int vanillaStateIdNow(World world, int x, int y, int z);
+
+    /**
+     * 블록 엔티티가 있는 칸(바닐라 ChunkAccess.getBlockEntitiesPos — 블록 엔티티와 아직 만들지 않은 생성 블록 엔티티), 월드 좌표를 바닐라
+     * BlockPos.asLong 꼴로. 로드돼 있지 않으면 null.
+     */
+    long[] blockEntityPositionsNow(World world, int chunkX, int chunkZ);
+
+    /**
+     * 그 청크의 공개 스냅샷(아무 스레드, 기다리지 않음). 주인 region 이 틱 끝마다(바뀐 것이 있을 때만) 새로 낸다. 없으면 null 을 주고 주인에게
+     * 다음 틱 끝 공개를 부탁한다. 로드돼 있지 않으면 null. 다른 스레드가 이 판을 읽으면 그 청크의 공개가 이어진다(한동안 읽지 않으면 멈춘다).
+     */
+    ChunkView chunkView(World world, int chunkX, int chunkZ);
+
+    /**
+     * {@link #chunkView} 의 기다리는 판(바닐라 ServerChunkCache.getChunk 가 다른 스레드에서 주 스레드를 기다리는 것과 같은 간선): 주인 스레드면 곧바로 공개해
+     * 주고, region 이 아닌 스레드면 주인이 공개할 때까지 기다린다. 다른 region 의 스레드에서는 기다리지 않는다(교착 — 규칙 6) — 그때 공개본이 없으면
+     * IllegalStateException. 로드돼 있지 않으면 null.
+     */
+    ChunkView awaitChunkView(World world, int chunkX, int chunkZ);
+
+    /** 이번 로드에 붙은 호환 계층 청크 객체(LevelChunk shim). 없거나 사라졌으면(약한 참조) null. 아무 스레드. */
+    Object chunkShim(World world, int chunkX, int chunkZ);
+
+    /**
+     * shim 을 이번 로드에 붙인다 — 이미 살아 있는 것이 붙어 있으면 그것을 돌려준다(먼저 붙은 쪽이 이긴다, 아무 스레드에서 같은 객체). 서버는 shim 을
+     * 약하게만 쥔다. 붙은 shim 이 살아 있는 동안 주인이 공개 스냅샷을 이어 낸다(그 shim 이 다른 스레드로 넘어가도 읽히도록, 설계 R16). 주인 스레드에서
+     * 붙이면 그 자리에서 공개한다. 로드돼 있지 않으면 null.
+     */
+    Object attachChunkShim(World world, int chunkX, int chunkZ, Object shim);
+
+    /**
+     * 공개 스냅샷 — 주인 region 이 틱 끝에 낸 그 청크의 불변 사본. 기다리지 않고 아무 스레드에서 읽는다(최대 한 틱 옛 값 — Paper 의 경쟁 읽기와 같은 성질).
+     * 한 판 안의 값은 서로 맞는다(같은 순간). 섹션 번호 0 = 맨 아래, 칸 좌표는 월드 좌표(높이 안).
+     */
+    interface ChunkView {
+        /** 판 번호 — 그 청크 로드 동안 1 부터 오르고, 바뀐 것이 없으면 같은 판이 이어진다. */
+        long version();
+
+        /** 이 판을 낸 로드의 표시({@link #loadedChunkToken} 과 같은 객체). */
+        Object loadToken();
+
+        int sectionCount();
+
+        /** 칸의 상태 번호. */
+        int stateId(int x, int y, int z);
+
+        /** {@link #vanillaStateIdNow} 와 같은 판정(섹션 바닐라 nonEmpty == 0 이면 공기). */
+        int vanillaStateId(int x, int y, int z);
+
+        /** 섹션 칸 4096개(YZX, 새 배열). */
+        int[] sectionStates(int sectionIndex);
+
+        /** Furnace 정확한 비공기 칸 수({@link #sectionNonAirNow} 와 같은 뜻). */
+        int sectionNonAir(int sectionIndex);
+
+        /** 바닐라 개수 셋(새 배열, {@link #sectionCountsNow} 와 같은 뜻). */
+        int[] sectionCounts(int sectionIndex);
+
+        /** {@link #sectionRandomTickingPartsNow} 와 같은 비트. */
+        int sectionRandomTickingParts(int sectionIndex);
+
+        /** 바이옴 번호 64개(새 배열). */
+        int[] sectionBiomes(int sectionIndex);
+
+        /** {@link #firstAvailableNow} 와 같은 값(청크 안 x·z 0~15). 모르는 키면 IllegalArgumentException. */
+        int firstAvailable(String heightmap, int localX, int localZ);
+
+        /** {@link #blockEntityPositionsNow} 와 같은 값(새 배열). */
+        long[] blockEntityPositions();
+    }
 }
