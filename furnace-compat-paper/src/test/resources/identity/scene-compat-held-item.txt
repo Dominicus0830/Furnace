@@ -1,0 +1,30 @@
+# 결과 동일 금 파일 — scene-compat-held-item. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
+empty-hand AIRx0[-] slot0=null
+hand DIAMONDx3[-]
+after-setAmount slot0=DIAMONDx5[-] hand=DIAMONDx5[-]
+after-meta slot0=DIAMONDx5[named] fresh-hand=DIAMONDx5[named]
+slot-side-write hand=DIAMONDx9[named] fresh=DIAMONDx9[named]
+refs 200 mid-write all-see 4fbd72f63c72f575 first=DIAMONDx11[named] last=DIAMONDx11[named]
+detached 4fbd72f63c72f575 first=DIAMONDx11[named] slot0=STONEx1[-]
+write-to-detached slot0=STONEx1[-] ref0=DIAMONDx2[named] ref1=DIAMONDx2[named]
+after-gc slot0=STONEx4[-] g=STONEx4[-] kept=DIAMONDx2[named]
+again 200 7134796d235b6e45
+again-after-gc slot0=STONEx8[-] last=STONEx8[-]
+held 0 APPLEx11[-] slot=APPLEx11[-] main=APPLEx11[-]
+held 1 BREADx12[-] slot=BREADx12[-] main=BREADx12[-]
+held 2 COALx13[-] slot=COALx13[-] main=COALx13[-]
+held 3 IRON_INGOTx14[-] slot=IRON_INGOTx14[-] main=IRON_INGOTx14[-]
+held 4 GOLD_INGOTx15[-] slot=GOLD_INGOTx15[-] main=GOLD_INGOTx15[-]
+held 5 EMERALDx16[-] slot=EMERALDx16[-] main=EMERALDx16[-]
+held 6 OAK_LOGx17[-] slot=OAK_LOGx17[-] main=OAK_LOGx17[-]
+held 7 SANDx18[-] slot=SANDx18[-] main=SANDx18[-]
+held 8 GLASSx19[-] slot=GLASSx19[-] main=GLASSx19[-]
+setItemInMainHand slot8=NETHERITE_INGOTx2[-] hand=NETHERITE_INGOTx2[-]
+contents 41/36 slot2=COALx33[-] storage2=COALx33[-]
+contents-hash 995d2d4c5ee4fbc7
+set-contents-back slot2=COALx33[-] slot3=IRON_INGOTx14[-]
+empty-hand-setType slot6=null ref=DIAMOND_SWORDx1[-]
+put-back slot6=DIAMOND_SWORDx1[-]
+off SHIELDx1[-] helmet=IRON_HELMETx1[-] armor=4
+server-inventory 0=minecraft:applex11 1=minecraft:breadx12 2=minecraft:coalx33 3=minecraft:iron_ingotx14 4=minecraft:gold_ingotx15 5=minecraft:emeraldx16 6=minecraft:diamond_swordx1 7=minecraft:sandx18 8=minecraft:netherite_ingotx2 39=minecraft:iron_helmetx1 40=minecraft:shieldx1
+TOTAL 69742e355ff9525d lines=28
