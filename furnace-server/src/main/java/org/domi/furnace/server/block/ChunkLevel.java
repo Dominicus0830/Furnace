@@ -663,6 +663,9 @@ public abstract class ChunkLevel implements BlockLevel {
         }
     }
 
+    /** 피뢰침 POI 찾기 반경(바닐라 128). region 한정 읽기라 기본 region 띠(129블록) 안이어야 한다 — RegionBandRadiusTest. */
+    public static final int LIGHTNING_ROD_SEARCH_RADIUS = 128;
+
     /**
      * ServerLevel.findLightningTargetAround: 피뢰침 → 하늘이 보이는 생물 하나 → 지표.
      * 피뢰침: findLightningRod — 반경 128 의 LIGHTNING_ROD POI 중 WORLD_SURFACE 바로 아래 칸인 가장 가까운 것의 위 칸.
@@ -670,7 +673,7 @@ public abstract class ChunkLevel implements BlockLevel {
     private Pos findLightningTargetAround(Pos pos) {
         Pos top = new Pos(pos.x(), getMotionBlockingHeight(pos.x(), pos.z()), pos.z());
         Pos rod = poiManager.findClosest(t -> t == org.domi.furnace.server.world.poi.PoiTypes.LIGHTNING_ROD,
-                p -> p.y() == getWorldSurfaceHeight(p.x(), p.z()) - 1, top, 128, org.domi.furnace.server.world.poi.PoiManager.Occupancy.ANY);
+                p -> p.y() == getWorldSurfaceHeight(p.x(), p.z()) - 1, top, LIGHTNING_ROD_SEARCH_RADIUS, org.domi.furnace.server.world.poi.PoiManager.Occupancy.ANY);
         if (rod != null) return rod.above(1);
         org.domi.furnace.server.entity.AABB box = new org.domi.furnace.server.entity.AABB(top.x(), top.y(), top.z(), top.x() + 1, maxBuildHeight() + 1, top.z() + 1).inflate(3.0);
         var list = new java.util.ArrayList<Pos>();

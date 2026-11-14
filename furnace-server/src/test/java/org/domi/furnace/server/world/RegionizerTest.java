@@ -1,4 +1,5 @@
 // 동적 region: 떨어진 청크는 다른 region, 이어지면 합쳐지고, 가운데가 빠지면 다시 나뉜다. 작업은 합치기·나누기 중에도 사라지지 않는다.
+// 구역 크기 shift 3(기본)·4(예전 기본) 둘 다로 돈다(T-004).
 package org.domi.furnace.server.world;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -16,8 +17,16 @@ import org.domi.furnace.server.world.gen.SuperflatWorldSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.Parameter;
+import org.junit.jupiter.params.ParameterizedClass;
+import org.junit.jupiter.params.provider.ValueSource;
 
+@ParameterizedClass(name = "shift {0}")
+@ValueSource(ints = {3, 4})
 class RegionizerTest {
+
+    @Parameter
+    int shift;
 
     private FurnaceSchedulerImpl sched;
     private World w;
@@ -26,7 +35,7 @@ class RegionizerTest {
     void setUp() {
         sched = new FurnaceSchedulerImpl(10_000_000L, 3);
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(2), sched, 3, 4, 1, 2, 2,
+        w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(2), sched, 3, shift, 1, 2, 2,
                 reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor(),
                 java.util.concurrent.Executors.newSingleThreadExecutor());
         w.configurePersistence(Integer.MAX_VALUE, 2);
@@ -49,9 +58,14 @@ class RegionizerTest {
         }
     }
 
-    /** 구역 = 16 청크. 구역 x 번호의 청크 하나를 이 region 의 있는 청크로 만든다. */
+    /** 구역 x 번호의 첫 청크 x(구역 = 2^shift 청크). */
+    private int cx(int sectionX) {
+        return sectionX << shift;
+    }
+
+    /** 구역 x 번호의 청크 하나를 이 region 의 있는 청크로 만든다. */
     private void load(int sectionX) throws Exception {
-        ChunkPos cp = new ChunkPos(sectionX * 16, 0);
+        ChunkPos cp = new ChunkPos(cx(sectionX), 0);
         try {
             w.submitAtChunk(cp, r -> r.chunkAtBlocking(cp)).get(5, TimeUnit.SECONDS);
         } catch (java.util.concurrent.TimeoutException e) {
@@ -66,7 +80,7 @@ class RegionizerTest {
     }
 
     private int ownerId(int sectionX) {
-        Region r = w.regionizer().ownerOf(sectionX * 16, 0);
+        Region r = w.regionizer().ownerOf(cx(sectionX), 0);
         return r == null ? -1 : r.id();
     }
 
@@ -86,11 +100,25 @@ class RegionizerTest {
         // 양 끝 청크는 구독자로 붙잡고, 다리(1·2)는 구독자가 없어 퇴출 → 다시 둘로
         Player keeper = new Player(99, UUID.randomUUID(), "k", new ConcurrentEmbeddedChannel());
         w.subscribeChunk(new ChunkPos(0, 0), keeper);
-        w.subscribeChunk(new ChunkPos(48, 0), keeper);
+        w.subscribeChunk(new ChunkPos(cx(3), 0), keeper);
         w.startTicking();
         await("다리가 사라지면 나뉜다", () -> w.regionCount() == 2);
         assertNotEquals(ownerId(0), ownerId(3));
         assertEquals(-1, ownerId(1));
+    }
+
+    /** 띠: 구역 0 의 마지막 청크와 구역 2 의 첫 청크는 다른 region 이고, 두 region 의 가장 가까운 블록은 축으로 2^shift×16+1 떨어진다(기본 129). */
+    @Test
+    void separateRegions_areAtLeastBandPlusOneBlocksApart() throws Exception {
+        ChunkPos lastOf0 = new ChunkPos(cx(1) - 1, 0), firstOf2 = new ChunkPos(cx(2), 0);
+        for (ChunkPos cp : new ChunkPos[] {lastOf0, firstOf2}) w.submitAtChunk(cp, r -> r.chunkAtBlocking(cp)).get(5, TimeUnit.SECONDS);
+        assertEquals(2, w.regionCount(), "가운데 구역이 비면 다른 region\n" + w.regionizer().debugState());
+        assertNotEquals(w.regionizer().ownerOf(lastOf0.x(), 0).id(), w.regionizer().ownerOf(firstOf2.x(), 0).id());
+        int gap = firstOf2.x() * 16 - (lastOf0.x() * 16 + 15);   // 두 region 의 가장 가까운 블록 x 차
+        assertEquals(RegionBandRadiusTest.bandBlocks(shift, 1) + 1, gap);
+        assertTrue(gap >= 129, "띠 128 이하 반경 읽기는 남의 region 에 닿지 않는다(shift " + shift + ": " + gap + ")");
+        load(1);   // 가운데 구역에 청크가 생기면 합쳐진다
+        await("합쳐진다", () -> w.regionCount() == 1);
     }
 
     @Test
@@ -102,7 +130,7 @@ class RegionizerTest {
         int n = 2000;
         CompletableFuture<?>[] fs = new CompletableFuture<?>[n];
         for (int i = 0; i < n; i++) {
-            ChunkPos cp = new ChunkPos((i % 3) * 16, 0);   // 구역 0·1·2 로 번갈아
+            ChunkPos cp = new ChunkPos(cx(i % 3), 0);   // 구역 0·1·2 로 번갈아
             fs[i] = w.submitAtChunk(cp, r -> {
                 assertTrue(r.isOwnerThread());
                 return ran.incrementAndGet();
@@ -120,16 +148,16 @@ class RegionizerTest {
         load(0);
         load(2);
         assertEquals(2, w.regionCount());
-        org.domi.furnace.server.block.Pos p = new org.domi.furnace.server.block.Pos(32 * 16 + 5, -59, 5);
+        org.domi.furnace.server.block.Pos p = new org.domi.furnace.server.block.Pos(cx(2) * 16 + 5, -59, 5);
         int glow = org.domi.furnace.server.block.B.defaultState("glowstone");
-        w.submitAtChunk(new ChunkPos(32, 0), r -> {
+        w.submitAtChunk(new ChunkPos(cx(2), 0), r -> {
             r.level().runLightUpdates();   // 올라온 청크 빛 정리
             r.level().setBlock(p, glow, 2);   // 틱 끝 계산 전
             return null;
         }).get(5, TimeUnit.SECONDS);
         load(1);   // 다리 → 합치기(둘 다 쉬는 중)
         await("합쳐진다", () -> w.regionCount() == 1);
-        int light = w.submitAtChunk(new ChunkPos(32, 0), r -> {
+        int light = w.submitAtChunk(new ChunkPos(cx(2), 0), r -> {
             r.level().runLightUpdates();
             return r.level().getBlockLight(p);
         }).get(5, TimeUnit.SECONDS);
@@ -140,7 +168,7 @@ class RegionizerTest {
     void delayedTask_followsMerge() throws Exception {
         load(0);
         load(2);
-        CompletableFuture<Void> f = sched.region(new org.domi.furnace.api.sched.RegionPos(32, 0)).executeDelayed(() -> { }, 20);
+        CompletableFuture<Void> f = sched.region(new org.domi.furnace.api.sched.RegionPos(cx(2), 0)).executeDelayed(() -> { }, 20);
         load(1);
         f.get(5, TimeUnit.SECONDS);
         await("합쳐진다", () -> w.regionCount() == 1);
@@ -153,7 +181,7 @@ class RegionizerTest {
         assertEquals(2, w.regionCount());
         java.util.concurrent.CountDownLatch both = new java.util.concurrent.CountDownLatch(2);
         CompletableFuture<Boolean> a = w.submitAtChunk(new ChunkPos(0, 0), r -> await(both));
-        CompletableFuture<Boolean> b = w.submitAtChunk(new ChunkPos(160, 0), r -> await(both));
+        CompletableFuture<Boolean> b = w.submitAtChunk(new ChunkPos(cx(10), 0), r -> await(both));
         assertTrue(a.get(5, TimeUnit.SECONDS) && b.get(5, TimeUnit.SECONDS), "두 region 의 작업이 동시에 돈다");
     }
 
