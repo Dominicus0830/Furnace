@@ -2672,9 +2672,11 @@ public abstract class ChunkLevel implements BlockLevel {
         }
         // 처리기가 옮겼으면 구역 목록을 맞춘다 — 추적기가 없는 동안에는 setPosRaw 가 구역 이동을 알리지 않는다(Paper 도 이벤트 뒤 위치로 넣는다)
         if (e.sectionKey() != addedKey) entities.moved(e);
+        // 번호 색인이 추적 시작(=보는 플레이어에게 스폰 묶음 보내기)보다 먼저다 — 바닐라·Paper 도 visibleEntityStorage(EntityLookup)에 넣은 뒤
+        // onTrackingStart 로 추적한다. 거꾸로면 네트워크 스레드의 패킷 리스너(ProtocolLib getEntityFromID)가 막 생긴 엔티티를 못 찾는다(T-160).
+        indexEntity(e, true);
         startTracking(e);
         for (var l : e.dynamicGameEventListeners()) l.add(this);
-        indexEntity(e, true);
         return true;
     }
 
@@ -2754,10 +2756,10 @@ public abstract class ChunkLevel implements BlockLevel {
             entities.remove(e);
             return;
         }
+        indexEntity(e, true);   // 추적(스폰 묶음)보다 먼저 — addFreshEntity 와 같다(T-160)
         if (e.tracker == null) startTracking(e);
         else adoptTracker(e);
         for (var l : e.dynamicGameEventListeners()) l.add(this);
-        indexEntity(e, true);
     }
 
     /** 엔티티가 지워졌다(setRemoved) — 저장소에서 빼고 보는 사람에게 지운다. */
