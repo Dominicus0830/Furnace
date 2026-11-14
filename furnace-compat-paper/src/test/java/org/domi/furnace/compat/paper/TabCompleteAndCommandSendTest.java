@@ -48,6 +48,24 @@ class TabCompleteAndCommandSendTest {
         });
     }
 
+    /** 처리기를 action 으로 바꾸고 요청을 보낸 뒤, 그 요청의 AsyncTabCompleteEvent 처리기가 끝날 때까지 기다린다(전용 스레드 — 장벽이 덮지 못한다). */
+    private static void suggestHandled(TestPlayer tp, int id, String text, java.util.function.Consumer<com.destroystokyo.paper.event.server.AsyncTabCompleteEvent> action) {
+        java.util.concurrent.atomic.AtomicBoolean done = new java.util.concurrent.atomic.AtomicBoolean();
+        RecorderPlugin.ACTIONS.put("AsyncTabCompleteEvent", e -> {
+            try {
+                action.accept((com.destroystokyo.paper.event.server.AsyncTabCompleteEvent) e);
+            } finally {
+                done.set(true);
+            }
+        });
+        suggest(tp, id, text);
+        long deadline = System.nanoTime() + 10_000_000_000L;
+        while (!done.get()) {
+            if (System.nanoTime() - deadline > 0) throw new AssertionError("자동완성 요청 " + id + " 의 이벤트가 10초 안에 오지 않았다");
+            java.util.concurrent.locks.LockSupport.parkNanos(1_000_000L);
+        }
+    }
+
     private static boolean idIs(GenericPacket p, int id) { return ((Integer) p.get("id")) == id; }
 
     @SuppressWarnings("unchecked")
@@ -101,22 +119,19 @@ class TabCompleteAndCommandSendTest {
             GenericPacket r = tp.awaitPacket(PacketTypes.Clientbound.COMMAND_SUGGESTIONS, p -> idIs(p, 1));
             assertTrue(texts(r).contains("list"), texts(r).toString());
             // 취소 — 응답이 없다(뒤의 요청이 답을 받은 뒤에도)
-            RecorderPlugin.ACTIONS.put("AsyncTabCompleteEvent", e -> ((com.destroystokyo.paper.event.server.AsyncTabCompleteEvent) e).setCancelled(true));
+            // 이벤트는 자동완성 전용 스레드(4개)에서 돌아 sendPacket 의 장벽이 덮지 못한다 — 처리기를 바꾸기 전에 앞 요청의 처리기가 끝났는지 기다린다.
+            // 안 기다리면 앞 요청이 뒤 처리기("done" 채우기)로 처리돼 응답이 하나 더 온다(CI 에서 흔들림, T-160).
             tp.clearReceived();
-            suggest(tp, 2, "/lis");
+            suggestHandled(tp, 2, "/lis", t -> t.setCancelled(true));
             // 후보를 채우고 취소하면 취소가 이긴다(Paper: completions 는 빈 목록으로 본다)
-            RecorderPlugin.ACTIONS.put("AsyncTabCompleteEvent", e -> {
-                var t = (com.destroystokyo.paper.event.server.AsyncTabCompleteEvent) e;
+            suggestHandled(tp, 3, "/lis", t -> {
                 t.setCompletions(List.of("x"));
                 t.setCancelled(true);
             });
-            suggest(tp, 3, "/lis");
             // handled 표시만 하고 후보가 없으면 빈 응답도 없다
-            RecorderPlugin.ACTIONS.put("AsyncTabCompleteEvent", e -> ((com.destroystokyo.paper.event.server.AsyncTabCompleteEvent) e).setHandled(true));
-            suggest(tp, 4, "/lis");
+            suggestHandled(tp, 4, "/lis", t -> t.setHandled(true));
             // 확인용: 마지막으로 후보를 채우는 요청
-            RecorderPlugin.ACTIONS.put("AsyncTabCompleteEvent", e -> ((com.destroystokyo.paper.event.server.AsyncTabCompleteEvent) e).getCompletions().add("done"));
-            suggest(tp, 5, "/lis");
+            suggestHandled(tp, 5, "/lis", t -> t.getCompletions().add("done"));
             tp.awaitPacket(PacketTypes.Clientbound.COMMAND_SUGGESTIONS, p -> idIs(p, 5));
             Thread.sleep(300);
             var got = tp.received(PacketTypes.Clientbound.COMMAND_SUGGESTIONS);
