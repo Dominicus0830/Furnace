@@ -7,6 +7,8 @@
 #   3) 앞쪽 인자 중 -X, -D 로 시작하는 것은 JVM 옵션으로 간다 (그 뒤부터 서버 인자)
 #      예) ./start.sh -Xmx4G -Dfurnace.sharedRegionPool=true --nogui
 # -Xmx 를 아무 데서도 안 주면 기본 6G (FURNACE_XMX=4G 로 기본값만 바꿀 수도 있다).
+# 리눅스에서는 -XX:ThreadPriorityPolicy=1 을 자동으로 붙인다(월드 생성 스레드의 낮은 우선순위가 실제로 적용된다).
+# 끄려면 FURNACE_THREAD_PRIORITY=0, 직접 지정한 ThreadPriorityPolicy 가 있으면 그대로 둔다. 자세한 설명은 jvm.args.example.
 set -e
 cd "$(dirname "$0")"
 APP=furnace-server/build/install/furnace-server
@@ -33,6 +35,16 @@ done
 HAS_XMX=0
 for a in "${JVM_ARGS[@]}"; do case "$a" in -Xmx*) HAS_XMX=1 ;; esac; done
 [ "$HAS_XMX" = 0 ] && JVM_ARGS=("-Xmx${FURNACE_XMX:-6G}" "${JVM_ARGS[@]}")
+
+# 스레드 우선순위: 리눅스 HotSpot 에서 자바 우선순위를 실제 nice 로 옮기는 옵션이다(다른 JVM 은 모르는 옵션일 수 있다).
+# 윈도·맥에서는 효과가 검증되지 않았으므로 리눅스일 때만, 이 JVM 이 옵션을 받아들이는지 먼저 확인한 뒤 붙인다. 못 받으면 조용히 건너뛴다.
+# 루트가 아니면 JVM 이 "권한이 없으면 우선순위 변경을 무시한다"는 경고 한 줄을 내지만 낮추기는 된다.
+if [ "${FURNACE_THREAD_PRIORITY:-1}" != 0 ] && [ "$(uname -s 2>/dev/null)" = Linux ] \
+   && ! printf '%s\n' "${JVM_ARGS[@]}" | grep -q 'ThreadPriorityPolicy'; then
+  if java -XX:ThreadPriorityPolicy=1 -version >/dev/null 2>&1; then
+    JVM_ARGS+=("-XX:ThreadPriorityPolicy=1")
+  fi
+fi
 
 # AppCDS: JDK 19 이상이면 클래스 공유 아카이브를 자동으로 만들고(처음 끌 때 저장) 다음 기동부터 쓴다.
 # 끄려면 FURNACE_CDS=0, 직접 지정한 옵션이 있으면 그대로 둔다.
