@@ -55,21 +55,22 @@ public final class CompatTags {
 
     private static Kind kind(String registry, Class<?> clazz) {
         if (registry == null) throw new IllegalArgumentException("registry cannot be null");
+        if (clazz == null) throw new IllegalArgumentException("Class clazz cannot be null");
         switch (registry) {
             case Tag.REGISTRY_BLOCKS:
-                if (clazz != Material.class) throw new IllegalArgumentException("Block namespace must have material type");
+                if (clazz != Material.class) throw new IllegalArgumentException("Block namespace (" + registry + ") must have material type");
                 return BLOCKS;
             case Tag.REGISTRY_ITEMS:
-                if (clazz != Material.class) throw new IllegalArgumentException("Item namespace must have material type");
+                if (clazz != Material.class) throw new IllegalArgumentException("Item namespace (" + registry + ") must have material type");
                 return ITEMS;
             case Tag.REGISTRY_FLUIDS:
-                if (clazz != Fluid.class) throw new IllegalArgumentException("Fluid namespace must have fluid type");
+                if (clazz != Fluid.class) throw new IllegalArgumentException("Fluid namespace (" + registry + ") must have fluid type");
                 return FLUIDS;
             case Tag.REGISTRY_ENTITY_TYPES:
-                if (clazz != EntityType.class) throw new IllegalArgumentException("Entity namespace must have entity type");
+                if (clazz != EntityType.class) throw new IllegalArgumentException("Entity namespace (" + registry + ") must have entity type");
                 return ENTITY_TYPES;
             case Tag.REGISTRY_GAME_EVENTS:
-                if (clazz != GameEvent.class) throw new IllegalArgumentException("GameEvent namespace must have GameEvent type");
+                if (clazz != GameEvent.class) throw new IllegalArgumentException("GameEvent namespace (" + registry + ") must have GameEvent type");
                 return GAME_EVENTS;
             default:
                 throw new IllegalArgumentException();
@@ -95,7 +96,7 @@ public final class CompatTags {
     private static Fluid fluidOf(NamespacedKey key) {
         if (!NamespacedKey.MINECRAFT.equals(key.getNamespace())) return null;
         for (Fluid f : Fluid.values()) if (f.getKey().equals(key)) return f;
-        return null;   // 빈 유체(empty)는 Bukkit 열거형에 없다
+        return null;
     }
 
     private static final class Impl<T extends Keyed> implements Tag<T> {
@@ -117,7 +118,11 @@ public final class CompatTags {
 
         @Override
         public boolean isTagged(T item) {
-            if (item == null) throw new IllegalArgumentException("item cannot be null");
+            if (item == null) {
+                // Paper: 블록·아이템 태그는 EnumMap 조회라 null 이면 false, 엔티티·유체·게임 이벤트 태그는 예외
+                if (kind == BLOCKS || kind == ITEMS) return false;
+                throw new IllegalArgumentException("item cannot be null");
+            }
             if (!kind.inRegistry.test(item)) return false;
             return registries().isTagged(kind.vanillaRegistry, key.toString(), item.getKey().toString());
         }

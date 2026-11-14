@@ -1443,7 +1443,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             int level = core.profilePermissions(new org.domi.furnace.server.players.GameProfile(playerUuid, playerName));
             send(ctx, org.domi.furnace.server.net.protocol.play.EntityEvent.permissionLevel(eid, level));
             // 바닐라 sendCommands 처럼 플레이어 소스로 거른다 — 플러그인 명령의 권한(PlayerCreateEvent 에서 붙인 첨부 포함)이 첫 트리부터 맞다.
-            send(ctx, core.commands().treeFor(org.domi.furnace.server.command.CommandSource.player(core, p)));
+            // PlayerCommandSendEvent 구독자가 있으면 Paper 처럼 PlayerJoinEvent 뒤에 보낸다(Paper 는 트리를 비동기로 만들어 메인에서 이벤트·전송 — Join 뒤).
+            // 거르지 않은 트리를 먼저 보냈다 다시 보내면 숨길 명령이 새므로 구독자가 있으면 여기서는 보내지 않는다.
+            deferCommandTree = core.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerCommandSendEvent.class);
+            if (!deferCommandTree) {
+                send(ctx, core.commands().treeFor(org.domi.furnace.server.command.CommandSource.player(core, p)));
+            }
         }
         if (saved != null && saved.root() != null && saved.root().tags().get("recipeBook") instanceof org.domi.furnace.server.net.io.nbt.NbtCompound book) {
             p.recipeBook().load(book, recipes);
@@ -1607,6 +1612,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // CraftBukkit 은 구성 단계의 REGISTER 마다 PlayerRegisterChannelEvent 를 부른다 — 그때 알린 채널을 접속 알림 직전에 한꺼번에
         if (login.core != null) fireChannelEvents(p, java.util.List.copyOf(pluginChannels.snapshot()), org.domi.furnace.api.event.player.PlayerChannelEvent.Action.REGISTER);
         if (login.core != null) announceJoin(login.core, p);
+        // 구독자가 있어 접속 순서의 트리 전송을 건너뛰었다면 PlayerJoinEvent 뒤에 한 번 보낸다(PlayerCommandSendEvent 가 이때 불린다).
+        if (login.core != null && deferCommandTree) {
+            login.core.commands().sendCommands(p);
+        }
         if (login.core != null) login.core.customBossEvents().onPlayerConnect(p);
     }
 
@@ -3390,6 +3399,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (key.equals("multiplayer.disconnect.server_full")) return org.domi.furnace.api.event.player.PlayerLoginEvent.Result.KICK_FULL;
         return org.domi.furnace.api.event.player.PlayerLoginEvent.Result.KICK_OTHER;
     }
+
+    /** 접속 때 PlayerCommandSendEvent 구독자가 있어 명령 트리 전송을 PlayerJoinEvent 뒤로 미뤘는가(접속 순서에서 한 번만 정한다). */
+    private boolean deferCommandTree;
 
     /** 바닐라 placeNewPlayer 의 접속 알림(PlayerJoinEvent 로 바꿀 수 있다). 접속자 본인도 받는다(Paper 와 같다). */
     private void announceJoin(org.domi.furnace.server.ServerCore core, Player p) {

@@ -28,8 +28,8 @@
 | `PlayerJoinEvent` / `PlayerQuitEvent` | 같은 이름 | 입·퇴장 메시지 |
 | `PlayerKickEvent` | `PlayerKickEvent` | 사유, 취소 |
 | `AsyncPlayerChatEvent` | `AsyncChatEvent` | 메시지, 서식(`setFormat`), 취소 |
-| `PlayerCommandSendEvent` | `PlayerCommandSendEvent` | 빼낸 최상위 명령 이름(클라이언트 명령 트리에서 사라진다). 접속·권한 변경·명령 등록 변경·`updateCommands` 때. 더한 이름은 무시(Paper 와 같다) |
-| `com.destroystokyo.paper.event.server.AsyncTabCompleteEvent` | `AsyncTabCompleteEvent` | 후보 문자열·handled·취소. 플레이어 Tab 과 콘솔 입력줄. Adventure 판 `Completion`·`completions()` 는 없다(NoSuchMethodError) |
+| `PlayerCommandSendEvent` | `PlayerCommandSendEvent` | 빼낸 최상위 명령 이름(클라이언트 명령 트리에서 사라진다). 접속(구독자가 있으면 `PlayerJoinEvent` 뒤 — Paper 와 같은 순서, 접속 트리는 걸러서 한 번만)·권한 변경·명령 등록 변경·`updateCommands` 때. 더한 이름은 무시(Paper 와 같다) |
+| `com.destroystokyo.paper.event.server.AsyncTabCompleteEvent` | `AsyncTabCompleteEvent` | 후보 문자열·handled·취소. 플레이어 Tab 과 콘솔 입력줄(콘솔은 Paper 처럼 덮어쓰지 않고 명령 트리 후보 뒤에 handled 후보를 덧붙인다). Adventure 판 `Completion`·`completions()` 는 없다(NoSuchMethodError) |
 | `PlayerMoveEvent` / `PlayerTeleportEvent` | 같은 이름 | 취소. `PlayerMoveEvent` 는 CraftBukkit 간격(거리² > 1/256 또는 회전 합 > 10°, 시선만 돌려도 발화)으로 온다 |
 | `PlayerRespawnEvent` | 같은 이름 | 부활 위치 |
 | `PlayerChangedWorldEvent`, `PlayerGameModeChangeEvent`, `PlayerToggleSneak/Sprint/FlightEvent` | 같은 이름 | 취소 |
@@ -180,5 +180,5 @@ Bukkit 은 메인 스레드 하나를 가정한다. 이 1차는 Furnace 이벤�
 `org.bukkit` 클래스의 공개 이름·서명은 호환을 위해 필요한 만큼만 새로 썼다(Bukkit 소스를 복사하지 않았다). `furnace-compat-paper` 는 GPL-3.0-only (확정, `docs/policy/licensing.md`). 이 문서는 법률 자문이 아니다.
 
 ## Tag 와 자동완성 (2026-11-14, FAWE 시작 로그에서)
-- **`org.bukkit.Tag`·`Bukkit.getTag`/`getTags`·`Server.getTag`/`getTags`·`Fluid`·`GameEvent`.** `Tag` 상수는 바닐라 1.21.1 태그마다 하나(블록은 태그 경로 대문자, 아이템 `ITEMS_`·유체 `FLUIDS_`·엔티티 종류 `ENTITY_TYPES_`·게임 이벤트 `GAME_EVENT_`) — `tools/compat/gen-bukkit-tag.py` 가 `tags-1.21.1.txt` 에서 만든다. 구현은 Furnace 게임 레지스트리(`gameRegistries().tag()`)를 그때그때 읽어 데이터 팩 리로드가 잡고 있던 `Tag` 객체에도 보인다. 없는 태그는 `null`, 레지스트리와 클래스가 안 맞으면 `IllegalArgumentException`(CraftServer.getTag 규칙). `Registry.FLUID`·`Registry.GAME_EVENT` 는 아직 없다.
+- **`org.bukkit.Tag`·`Bukkit.getTag`/`getTags`·`Server.getTag`/`getTags`·`Fluid`·`GameEvent`.** `Tag` 상수는 바닐라 1.21.1 태그마다 하나(블록은 태그 경로 대문자, 아이템 `ITEMS_`·유체 `FLUIDS_`·엔티티 종류 `ENTITY_TYPES_`·게임 이벤트 `GAME_EVENT_`) — `tools/compat/gen-bukkit-tag.py` 가 `tags-1.21.1.txt` 에서 만든다. 구현은 Furnace 게임 레지스트리(`gameRegistries().tag()`)를 그때그때 읽어 데이터 팩 리로드가 잡고 있던 `Tag` 객체에도 보인다. 없는 태그는 `null`, 레지스트리와 클래스가 안 맞으면 `IllegalArgumentException`(CraftServer.getTag 규칙). `Fluid` 는 Paper 처럼 `EMPTY` 가 맨 앞, `Tag`·`GameEvent` 에는 1.21.1 의 옛 이름 별칭(`CARPETS`·`BLOCK_PRESS` 등)이 같은 객체로 있고 `GameEvent#getRange`·`getVibrationLevel` 은 바닐라 표 값이다. `isTagged(null)` 은 블록·아이템 태그에서 `false`(Paper EnumMap 조회), `getValues()` 는 순서 있는 집합(Paper 는 순서 없는 집합 — 관측 영향 없음). `damage_types` 레지스트리는 호환 계층에 `DamageType` 이 없어 `IllegalArgumentException`. `Registry.FLUID`·`Registry.GAME_EVENT` 는 아직 없다.
 - **자동완성.** `AsyncTabCompleteEvent` 는 후보를 채웠거나 handled 면 그 후보만 보내고(Brigadier 규칙: 마지막 공백 뒤가 바뀔 자리·정렬 대소문자 무시·10진 정수 꼴은 정수 후보), 취소면 응답 없음, 아무것도 안 하면 평소처럼 명령 트리로 후보를 만든다. 처리기가 없으면 서버는 이벤트를 만들지 않고 스레드도 건너지 않는다. 동기 `TabCompleteEvent`·Paper `MaterialTags`·`EntityTags` 는 아직 없다.

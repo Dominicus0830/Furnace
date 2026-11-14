@@ -153,4 +153,25 @@ class TabCompleteAndCommandSendTest {
             assertEquals(1, RecorderPlugin.SEEN.stream().filter(x -> x instanceof org.bukkit.event.player.PlayerCommandSendEvent).count());
         }
     }
+
+    /** Paper: 접속 때 PlayerCommandSendEvent 는 PlayerJoinEvent 뒤에 불린다(트리 빌드 뒤 메인에서) — 검토 R1. 트리 패킷도 이벤트가 거른 한 번만 간다. */
+    @Test
+    void joinTimeCommandSendEventComesAfterPlayerJoinEvent() throws Exception {
+        try (FurnaceTestServer server = FurnaceTestServer.builder().failFast(false).pluginJar(recorderJar()).start()) {
+            RecorderPlugin.ACTIONS.put("PlayerCommandSendEvent", e -> ((org.bukkit.event.player.PlayerCommandSendEvent) e).getCommands().remove("list"));
+            TestPlayer tp = server.join("Dana");
+            server.tick(4);
+            int join = -1, send = -1;
+            for (int i = 0; i < RecorderPlugin.SEEN.size(); i++) {
+                var e = RecorderPlugin.SEEN.get(i);
+                if (e instanceof org.bukkit.event.player.PlayerJoinEvent && join < 0) join = i;
+                if (e instanceof org.bukkit.event.player.PlayerCommandSendEvent && send < 0) send = i;
+            }
+            assertTrue(join >= 0 && send >= 0, "join=" + join + " send=" + send);
+            assertTrue(send > join, "PlayerJoinEvent 뒤여야 한다: join=" + join + " send=" + send);
+            var trees = tp.received(PacketTypes.Clientbound.COMMANDS);
+            assertEquals(1, trees.size(), "접속 트리는 한 번만(걸러서) 간다");
+            assertFalse(rootNames(trees.get(0)).contains("list"));
+        }
+    }
 }

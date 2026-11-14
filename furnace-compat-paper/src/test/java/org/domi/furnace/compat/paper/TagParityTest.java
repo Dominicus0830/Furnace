@@ -57,6 +57,7 @@ class TagParityTest {
             if (!Modifier.isStatic(f.getModifiers()) || f.getType() != Tag.class) continue;
             Tag<?> t = (Tag<?>) f.get(null);
             assertNotNull(t, "상수 " + f.getName() + " 가 비었다 — 바닐라 1.21.1 에 있는 태그여야 한다");
+            if (f.isAnnotationPresent(Deprecated.class)) continue;   // 옛 이름 별칭은 다른 상수와 같은 객체(legacyTagAliasesPointAtTheSameTag 가 본다)
             constants++;
             String reg = f.getName().startsWith("ITEMS_") ? Tag.REGISTRY_ITEMS : f.getName().startsWith("FLUIDS_") ? Tag.REGISTRY_FLUIDS
                     : f.getName().startsWith("ENTITY_TYPES_") ? Tag.REGISTRY_ENTITY_TYPES : f.getName().startsWith("GAME_EVENT_") ? Tag.REGISTRY_GAME_EVENTS : Tag.REGISTRY_BLOCKS;
@@ -83,7 +84,7 @@ class TagParityTest {
         assertTrue(wool.contains(Material.RED_WOOL));
         assertThrows(UnsupportedOperationException.class, () -> wool.add(Material.STONE));
         assertSame(wool, Tag.WOOL.getValues(), "리로드가 없으면 같은 집합을 돌려준다");
-        assertThrows(IllegalArgumentException.class, () -> Tag.WOOL.isTagged(null));
+        assertFalse(Tag.WOOL.isTagged(null), "Paper 블록 태그는 null 이면 false");
         // 태그 안 태그가 풀려 있다
         assertTrue(Tag.LOGS.isTagged(Material.OAK_LOG));
         assertTrue(Tag.LOGS.getValues().containsAll(Tag.OAK_LOGS.getValues()));
@@ -177,5 +178,57 @@ class TagParityTest {
             ItemContext.installTags(installed);
         }
         assertEquals(16, Tag.WOOL.getValues().size());
+    }
+
+    /** R3: Paper 1.21.1 의 Fluid 는 EMPTY 가 맨 앞이다. */
+    @Test
+    void fluidHasEmptyFirstLikePaper() {
+        assertEquals(List.of("EMPTY", "WATER", "FLOWING_WATER", "LAVA", "FLOWING_LAVA"), java.util.Arrays.stream(Fluid.values()).map(Enum::name).toList());
+        assertEquals(NamespacedKey.minecraft("empty"), Fluid.EMPTY.getKey());
+    }
+
+    /** R4: 1.21.1 Tag 에 있던 별칭 상수는 대상과 같은 객체다. */
+    @Test
+    void legacyTagAliasesPointAtTheSameTag() {
+        assertSame(Tag.WOOL_CARPETS, Tag.CARPETS);
+        assertSame(Tag.ITEMS_PIGLIN_FOOD, Tag.PIGLIN_FOOD);
+        assertSame(Tag.ITEMS_FOX_FOOD, Tag.FOX_FOOD);
+        assertSame(Tag.ITEMS_AXOLOTL_FOOD, Tag.AXOLOTL_TEMPT_ITEMS);
+        assertSame(Tag.ENTITY_TYPES_DEFLECTS_PROJECTILES, Tag.ENTITY_TYPES_DEFLECTS_ARROWS);
+        assertSame(Tag.ITEMS_BREAKS_DECORATED_POTS, Tag.ITEMS_TOOLS);
+        assertSame(Tag.ITEMS_STONE_CRAFTING_MATERIALS, Tag.ITEMS_FURNACE_MATERIALS);
+        assertSame(Tag.DRIPSTONE_REPLACEABLE_BLOCKS, Tag.DRIPSTONE_REPLACEABLE);
+        assertSame(Tag.ITEMS_NOTEBLOCK_TOP_INSTRUMENTS, Tag.ITEMS_NOTE_BLOCK_TOP_INSTRUMENTS);
+        assertTrue(Tag.CARPETS.isTagged(Material.WHITE_CARPET));
+    }
+
+    /** R5: GameEvent 옛 이름 별칭은 같은 객체, getRange·getVibrationLevel 은 서버의 바닐라 표와 같다. */
+    @Test
+    void gameEventAliasesRangeAndVibrationLevel() {
+        assertSame(GameEvent.BLOCK_ACTIVATE, GameEvent.BLOCK_PRESS);
+        assertSame(GameEvent.BLOCK_ACTIVATE, GameEvent.PISTON_EXTEND);
+        assertSame(GameEvent.BLOCK_DEACTIVATE, GameEvent.PISTON_CONTRACT);
+        assertSame(GameEvent.ENTITY_ACTION, GameEvent.WOLF_SHAKING);
+        assertSame(GameEvent.CONTAINER_OPEN, GameEvent.SHULKER_OPEN);
+        assertSame(GameEvent.BLOCK_CHANGE, GameEvent.RING_BELL);
+        for (GameEvent e : GameEvent.values()) {
+            var vanilla = org.domi.furnace.server.world.gameevent.GameEvent.byName(e.getKey().toString());
+            assertNotNull(vanilla, e.toString());
+            assertEquals(vanilla.notificationRadius, e.getRange(), e.toString());
+            assertEquals(vanilla.frequency(), e.getVibrationLevel(), e.toString());
+        }
+        assertEquals(32, GameEvent.SHRIEK.getRange());
+        assertEquals(15, GameEvent.EXPLODE.getVibrationLevel());
+    }
+
+    /** R6: Material 태그에 null 을 물으면 false(Paper EnumMap 조회), 클래스가 null 이면 Paper 문구의 예외. */
+    @Test
+    void nullHandlingLikePaper() {
+        assertFalse(Tag.WOOL.isTagged(null));
+        assertFalse(Tag.ITEMS_SWORDS.isTagged(null));
+        var e = assertThrows(IllegalArgumentException.class, () -> Bukkit.getTag(Tag.REGISTRY_BLOCKS, NamespacedKey.minecraft("wool"), null));
+        assertEquals("Class clazz cannot be null", e.getMessage());
+        e = assertThrows(IllegalArgumentException.class, () -> Bukkit.getTag(Tag.REGISTRY_BLOCKS, NamespacedKey.minecraft("wool"), EntityType.class));
+        assertEquals("Block namespace (blocks) must have material type", e.getMessage());
     }
 }

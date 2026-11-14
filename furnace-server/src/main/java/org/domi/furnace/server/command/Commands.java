@@ -182,7 +182,7 @@ public final class Commands {
 
     /**
      * source 가 쓸 수 있는 명령 트리. 플레이어 소스면 PlayerCommandSendEvent(구독자가 있을 때만)를 부르고 처리기가 뺀 최상위 이름을 트리에서 뺀다 —
-     * 접속 때(연결 스레드)·권한 변경·명령 등록 변경·Player.updateCommands 가 모두 이 길로 온다.
+     * 접속 때(PlayerJoinEvent 뒤, 구독자가 있을 때 — Paper 순서)·권한 변경·명령 등록 변경·Player.updateCommands 가 모두 이 길로 온다.
      */
     public CommandTreePacket treeFor(CommandSource source) {
         Player player = source.getPlayer();

@@ -762,6 +762,42 @@ public interface Tag<T extends Keyed> extends Keyed {
 
     Tag<GameEvent> GAME_EVENT_WARDEN_CAN_LISTEN = Bukkit.getTag(REGISTRY_GAME_EVENTS, NamespacedKey.minecraft("warden_can_listen"), GameEvent.class);
 
+    /** 옛 이름 — WOOL_CARPETS 과 같은 태그. */
+    @Deprecated
+    Tag<Material> CARPETS = WOOL_CARPETS;
+
+    /** 옛 이름 — ITEMS_PIGLIN_FOOD 과 같은 태그. */
+    @Deprecated
+    Tag<Material> PIGLIN_FOOD = ITEMS_PIGLIN_FOOD;
+
+    /** 옛 이름 — ITEMS_FOX_FOOD 과 같은 태그. */
+    @Deprecated
+    Tag<Material> FOX_FOOD = ITEMS_FOX_FOOD;
+
+    /** 옛 이름 — ITEMS_AXOLOTL_FOOD 과 같은 태그. */
+    @Deprecated
+    Tag<Material> AXOLOTL_TEMPT_ITEMS = ITEMS_AXOLOTL_FOOD;
+
+    /** 옛 이름 — ENTITY_TYPES_DEFLECTS_PROJECTILES 과 같은 태그. */
+    @Deprecated
+    Tag<EntityType> ENTITY_TYPES_DEFLECTS_ARROWS = ENTITY_TYPES_DEFLECTS_PROJECTILES;
+
+    /** 옛 이름 — ITEMS_BREAKS_DECORATED_POTS 과 같은 태그. */
+    @Deprecated
+    Tag<Material> ITEMS_TOOLS = ITEMS_BREAKS_DECORATED_POTS;
+
+    /** 옛 이름 — ITEMS_STONE_CRAFTING_MATERIALS 과 같은 태그. */
+    @Deprecated
+    Tag<Material> ITEMS_FURNACE_MATERIALS = ITEMS_STONE_CRAFTING_MATERIALS;
+
+    /** 옛 이름 — DRIPSTONE_REPLACEABLE_BLOCKS 과 같은 태그. */
+    @Deprecated
+    Tag<Material> DRIPSTONE_REPLACEABLE = DRIPSTONE_REPLACEABLE_BLOCKS;
+
+    /** 옛 이름 — ITEMS_NOTEBLOCK_TOP_INSTRUMENTS 과 같은 태그. */
+    @Deprecated
+    Tag<Material> ITEMS_NOTE_BLOCK_TOP_INSTRUMENTS = ITEMS_NOTEBLOCK_TOP_INSTRUMENTS;
+
     /** 이 값이 태그에 들어 있는가. */
     boolean isTagged(T item);
 
