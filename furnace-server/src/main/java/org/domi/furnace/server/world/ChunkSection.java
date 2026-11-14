@@ -65,13 +65,13 @@ public final class ChunkSection {
         return n;
     }
 
-    /** 바닐라 recalcBlockCounts 의 유체 몫: 용암 상태 칸 수. 용암은 블록도 무작위 틱이라 표 t 에 든다 — 팔레트에 t 가 없으면 용암도 없다. */
-    private int countLava(boolean[] t, boolean[] lava) {
+    /** 바닐라 recalcBlockCounts 의 유체 몫: 용암 상태 칸 수. 팔레트에 용암 상태가 없으면 4096칸을 읽지 않는다(풀 등 다른 무작위 틱 블록 때문에 읽지 않게). */
+    private int countLava(boolean[] lava) {
         if (lava == null) return 0;
         int n = 0;
         if (scratch != null) {
             for (int v : scratch) if (v < lava.length && lava[v]) n++;
-        } else if (blocks.maybeHas(v -> v < t.length && t[v])) {
+        } else if (blocks.maybeHas(v -> v < lava.length && lava[v])) {
             for (int i = 0; i < 4096; i++) { int v = blocks.get(i); if (v < lava.length && lava[v]) n++; }
         }
         return n;
@@ -79,7 +79,7 @@ public final class ChunkSection {
 
     /** 바닐라 recalcBlockCounts: 두 센 값을 지금 블록에서 다시 정한다. */
     private void recount(boolean[] t) {
-        counts(countTicking(t), countLava(t, fluidLava));
+        counts(countTicking(t), countLava(fluidLava));
     }
 
     /** 센 값 둘을 바꾸고, "대상일 수 있음"(블록 수 ≠ 0(-1 = 모름 포함) 또는 유체 수 > 0)이 바뀌었으면 주인 컬럼의 마스크 비트를 고친다(T-053). */

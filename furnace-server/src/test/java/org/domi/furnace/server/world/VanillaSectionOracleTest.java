@@ -136,7 +136,7 @@ class VanillaSectionOracleTest {
 
     /**
      * Furnace ChunkSection: 비공기 수는 바닐라 "하나씩 놓기" nonEmpty 와 같고(유체 두 번 세기 없음), 무작위 틱 판정은 바닐라
-     * "다시 세기"와 같다. 다시 센 뒤 물을 놓거나 지운 경우의 바닐라 판정(R17)과는 다를 수 있다 — 여기서 다루지 않는다.
+     * "하나씩 놓기" 와 같다(칸 쓰기는 물도 센다). 통째 교체 구역은 "다시 세기"와 같고, 그 뒤 하나씩 바꾼 결과도 정답표 세 번째 열과 같다(PR #358).
      */
     @Test
     void furnaceSectionMatchesVanillaOnSameInput() throws Exception {
@@ -150,11 +150,19 @@ class VanillaSectionOracleTest {
             for (int i = 0; i < 4096; i++) one.setBlock(i & 15, i >> 8, (i >> 4) & 15, sc.cells[i]);
             int[] a = ints(p, 3), b = ints(p, 6);
             assertEquals(a[0], one.nonAirCount(), "비공기 수 seed=" + seed);
-            assertEquals(b[1] > 0 || b[2] > 0, one.isRandomlyTicking(), "무작위 틱(하나씩 놓은 섹션) seed=" + seed);
+            assertEquals(a[1] > 0 || a[2] > 0, one.isRandomlyTicking(), "무작위 틱(하나씩 놓은 섹션) seed=" + seed);
             ChunkSection bulk = new ChunkSection();
             bulk.replaceBlocks(sc.cells.clone(), 0);
             assertEquals(a[0], bulk.nonAirCount(), "비공기 수(통째) seed=" + seed);
             assertEquals(b[1] > 0 || b[2] > 0, bulk.isRandomlyTicking(), "무작위 틱(통째) seed=" + seed);
+            // 다시 센 뒤 하나씩 바꾸기(정답표 세 번째 열) — 센 값을 모르는(-1) 구역의 첫 쓰기는 먼저 다시 센 뒤 ±1 을 쌓아야 한다(PR #358)
+            int[] c = ints(p, 9);
+            for (int k = 0; k < sc.opIdx.length; k++) {
+                int i = sc.opIdx[k];
+                bulk.setBlock(i & 15, i >> 8, (i >> 4) & 15, sc.opState[k]);
+            }
+            assertEquals(c[1] > 0 || c[2] > 0, bulk.isRandomlyTicking(), "무작위 틱(통째 뒤 하나씩 바꾸기) seed=" + seed);
+            assertArrayEquals(new int[] {c[1], c[2]}, bulk.countsForTest(), "센 값 seed=" + seed);
         }
     }
 
