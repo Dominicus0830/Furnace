@@ -185,16 +185,22 @@ public final class ServerCore {
 
         public boolean isThundering() { return world.dimensionType().hasSkyLight() && clock.thunderLevel() > 0.9f; }
 
-        /** 바닐라 Level.getBiome(pos)(확대 지터 포함). 지금 스레드가 그 region 을 가진 경우에만 — 아니면 null. */
+        /**
+         * 바닐라 Level.getBiome(pos)(확대 지터 포함). 지터로 고른 quart 는 이웃 청크일 수 있다(청크 가장자리 두 칸).
+         * 바닐라 LevelReader.getNoiseBiome 처럼 그 청크가 있으면 저장된 바이옴, 없으면 생성기 바이옴(getUncachedNoiseBiome)이다.
+         * 이웃 청크가 다른 region 이면 그 청크를 읽지 않고 생성기 바이옴을 쓴다 — 생성 뒤 바이옴을 바꾼(/fillbiome·옛 버전) 이웃이 아니면 같다.
+         */
         public String biomeAt(int x, int y, int z) {
             var dp = dataPacks;
             if (dp == null || dp.loot() == null) return null;
             int[] q = org.domi.furnace.server.world.BiomeZoom.quart(biomeZoomSeed(world), x, y, z);
             int cx = q[0] >> 2, cz = q[2] >> 2;
-            if (!world.ownsChunkOnCurrentThread(cx, cz)) return null;
-            int id = world.regionizer().ownerOf(cx, cz).biomeIdAtQuart(q[0], q[1], q[2]);
             var names = dp.loot().registries().entries("minecraft:worldgen/biome");
-            return id >= 0 && id < names.size() ? names.get(id) : null;
+            if (world.ownsChunkOnCurrentThread(cx, cz)) {
+                int id = world.regionizer().ownerOf(cx, cz).biomeIdAtQuart(q[0], q[1], q[2]);
+                if (id >= 0) return id < names.size() ? names.get(id) : null;
+            }
+            return generatorBiome(world, q[0], q[1], q[2], names);
         }
 
         /** NaturalSpawner.getRoughBiome: 확대 지터 없이 ChunkAccess.getNoiseBiome(x>>2, y>>2, z>>2) — 지금 스레드가 그 region 을 가진 경우에만. */
@@ -323,6 +329,27 @@ public final class ServerCore {
             if (is != null && !is.isEmpty()) out.add(is);
         }
         return out;
+    }
+
+    /**
+     * 바닐라 LevelReader.getUncachedNoiseBiome: 청크를 읽지 않고 생성기 바이옴 소스에 quart 좌표를 묻는다(높이는 자르지 않는다 — 바닐라와 같다).
+     * 평지·디버그 월드는 한 가지 바이옴. 모르는 생성기면 null.
+     */
+    static String generatorBiome(World w, int qx, int qy, int qz, java.util.List<String> names) {
+        var src = w.worldSource();
+        if (src instanceof org.domi.furnace.server.world.gen.AnvilWorldSource a) src = a.base();
+        int id;
+        if (src instanceof org.domi.furnace.server.world.gen.NoiseWorldSource n) {
+            String b = n.biomeAt(qx << 2, qy << 2, qz << 2);
+            return b == null || b.isEmpty() ? null : b;
+        } else if (src instanceof org.domi.furnace.server.world.gen.SuperflatWorldSource s) {
+            id = s.biomeId();
+        } else if (src instanceof org.domi.furnace.server.world.gen.DebugWorldSource d) {
+            id = d.biomeId();
+        } else {
+            return null;
+        }
+        return id >= 0 && id < names.size() ? names.get(id) : null;
     }
 
     /** 바이옴 확대 지터 시드(Level.getBiome — 명령의 biome 조건용). */

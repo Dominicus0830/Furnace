@@ -360,6 +360,28 @@ public final class CraftWorld implements World {
         handle.playSound(CompatEffects.sound(sound, category, volume, pitch), fe, seed);
     }
 
+    // ---- 레벨 이벤트(Paper CraftWorld#playEffect) — 같은 월드에서 (int) 거리² ≤ radius² 인 플레이어에게 level_event
+
+    @Override
+    public <T> void playEffect(org.bukkit.Location loc, org.bukkit.Effect effect, T data, int radius) {
+        CraftEffect.checkData(effect, data);
+        playEffect(loc, effect, CraftEffect.getDataValue(effect, data), radius);
+    }
+
+    @Override
+    public void playEffect(org.bukkit.Location location, org.bukkit.Effect effect, int data, int radius) {
+        if (effect == null) throw new IllegalArgumentException("Effect cannot be null");
+        if (location == null) throw new IllegalArgumentException("Location cannot be null");
+        if (location.getWorld() == null) throw new IllegalArgumentException("World of Location cannot be null");
+        var packet = CraftEffect.packet(location, effect, data);
+        int r2 = radius * radius;
+        for (Player player : getPlayers()) {
+            if (!(player instanceof org.bukkit.craftbukkit.entity.CraftPlayer cp) || !cp.furnaceHandle().isOnline()) continue;
+            if (!location.getWorld().equals(player.getWorld())) continue;
+            if ((int) player.getLocation().distanceSquared(location) <= r2) cp.furnaceHandle().sendPacket(packet);
+        }
+    }
+
     @Override
     public <T> void spawnParticle(org.bukkit.Particle particle, List<Player> receivers, Player source, double x, double y, double z, int count,
                                   double offsetX, double offsetY, double offsetZ, double extra, T data, boolean force) {

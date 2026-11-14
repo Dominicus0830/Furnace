@@ -46,6 +46,9 @@ public final class DebugWorldSource implements WorldSource {
         return f > (float) i ? i + 1 : i;
     }
 
+    /** 모든 칸의 바이옴 번호(바닐라 디버그 월드는 평원 하나). */
+    public int biomeId() { return biomeId; }
+
     public int gridWidth() { return gridWidth; }
 
     public int gridHeight() { return gridHeight; }

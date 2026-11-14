@@ -898,13 +898,14 @@ public final class Region {
         return true;
     }
 
+    /** ChunkAccess.getNoiseBiome: quart 높이는 청크 높이 범위로 죈다(지터가 맨 위·맨 아래 밖 quart 를 골라도 끝 칸). 청크가 없으면 -1. */
     public int biomeIdAtQuart(int qx, int qy, int qz) {
         world.assertOwns(this);
         ChunkColumn col = cachedChunk(qx >> 2, qz >> 2);   // 스폰 시도마다 불린다 — 해시 맵 두 번 대신 레벨 조회 캐시
         if (col == null) return -1;
-        int sec = ((qy << 2) - col.minY()) >> 4;
-        if (sec < 0 || sec >= col.sections().length) return -1;
-        return col.sections()[sec].getBiome(qx & 3, qy & 3, qz & 3);
+        int minQ = col.minY() >> 2, maxQ = minQ + col.sections().length * 4 - 1;
+        int y = Math.max(minQ, Math.min(maxQ, qy));
+        return col.sections()[((y << 2) - col.minY()) >> 4].getBiome(qx & 3, y & 3, qz & 3);
     }
 
     /**
