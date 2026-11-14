@@ -4,4 +4,4 @@
 - 수정: 두 가드를 제거. 미프라임 열의 값은 이후 `loadGenerated`/`rebuildHeightmapsAfterSurface` 가 덮어쓰므로 안전하다. `wgOceanFloor` 는 처음부터 `UNSET_HEIGHT` 센티넬이라 같은 문제가 없었다.
 - 영향: 청크 패킷·저장 WORLD_SURFACE, `Region.surfaceHeight`(자연 스폰 높이), `SpawnLocation`, `/execute positioned over world_surface`, 지도 렌더. 월드젠 중 `updateSurfaceWg` 는 비공기만 놓는 흐름에서 값이 이미 > 0 이라 결과 동일(월드젠 골든·IdentityKit 시험 통과로 확인).
 - 시험: `ChunkColumnTest.worldSurface_updatesOnEmptyColumn*`·`worldSurfaceWg_updatesOnEmptyColumnBeforeFreeze`.
-- N2b-0 의 바닐라 jar 정답기(`VanillaSectionOracleTest`)는 이 브랜치 기준에 아직 병합돼 있지 않아 `knownEmptyColumn` 허용 제거는 그 시험이 병합될 때 함께 해야 한다.
+- N2b-0 정답기(`VanillaSectionOracleTest`, PR #355)의 `knownEmptyColumn` 허용(44칸)을 지워 네 하이트맵 엄격 비교로 바꿨다(같은 PR).
