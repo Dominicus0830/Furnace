@@ -39,6 +39,7 @@ python w60-sum.py
 - `--from <이전 꼬리표>`: 그 판의 월드를 복사해 시작(미리 만든 땅 장면, T-175 효과 비교). `--props "view-distance=12;..."` server.properties, `--fprops "k=v;..."` furnace.properties 추가, `--` 뒤는 JVM 옵션(예: `-Dfurnace.proto.genPrio`).
 - `serverCorrections`(되돌림 수)가 수백이어도 `walk_ok` 가 참이면 괜찮다(언덕 모서리 충돌 등 일부 보정). 거짓일 때만 그 판을 버린다.
 - `--person`: 사람별 링 0~2 평균 전체를 결과에 넣는다(`ring02Person`).
+- `--precmd "명령;명령"`: 서버가 뜬 뒤·봇을 들이기 전에 콘솔 명령을 넣는다(예: `--precmd "furnace pregen start 3000 -200000 -200000"` — 먼 곳 미리 생성을 건 채 걷기, T-175).
 - 서버는 `-Dfurnace.chunktrace=true -Dfurnace.tickstats=true` 로 자동 시작, 시드 20261112, 월드는 판마다 새로 만든다(`--from` 제외).
 - 다른 컴퓨터에서 재현할 때 판 순서는 판마다 번갈아 뒤집을 것(컨테이너 속도가 날마다 다름 — 같은 날·같은 컴퓨터에서 전/후 비교). 4코어 한계 약 원형 180개/초, 노트북 10코어는 달라진다.
 

@@ -936,6 +936,21 @@ public final class ServerCore {
 
     public void backup(org.domi.furnace.server.maintenance.WorldBackup b) { this.backup = b; }
 
+    private volatile org.domi.furnace.server.world.Pregen pregen;
+
+    /** 미리 생성(/furnace pregen, T-175). 처음 부를 때 만든다. */
+    public org.domi.furnace.server.world.Pregen pregen() {
+        var p = pregen;
+        if (p != null) return p;
+        synchronized (this) {
+            if (pregen == null) pregen = new org.domi.furnace.server.world.Pregen();
+            return pregen;
+        }
+    }
+
+    /** 만들어 둔 미리 생성 관리자(없으면 null — 종료 때 새로 만들지 않는다). */
+    public org.domi.furnace.server.world.Pregen pregenIfStarted() { return pregen; }
+
     private volatile org.domi.furnace.server.maintenance.IdlePause idlePause;
 
     /** 빈 서버 일시정지(furnace.properties idle-pause.*). null 이면 끔(기본 — 1.21.1 바닐라에는 없다). */

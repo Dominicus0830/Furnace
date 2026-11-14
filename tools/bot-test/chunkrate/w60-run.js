@@ -6,7 +6,7 @@
 // 환경: W60_ROOT(작업 폴더, 기본 <임시폴더>/w60) · VANILLA_DATA(data/·version.json 이 든 바닐라 데이터 폴더, 필수) · RUNAS(리눅스 root 일 때 서버를 돌릴 일반 사용자, 기본 w60 가 있으면 w60)
 // --from: 이전 판의 월드를 복사해 시작(이미 만든 땅 장면, 미리 생성 효과 비교). 없으면 새 월드(시드 20261112).
 const fs = require('fs'), path = require('path'), os = require('os'), cp = require('child_process');
-const argv = process.argv.slice(2), opt = { layout: 'lines', n: 60, speed: 5.6, secs: 90, warm: 20, vd: 10, ymode: 'ground', y: 200, xmx: '8G', props: '', fprops: '' };
+const argv = process.argv.slice(2), opt = { layout: 'lines', n: 60, speed: 5.6, secs: 90, warm: 20, vd: 10, ymode: 'ground', y: 200, xmx: '8G', props: '', fprops: '', precmd: '' };
 let jvm = [];
 for (let i = 0; i < argv.length; i++) {
   if (argv[i] === '--') { jvm = argv.slice(i + 1); break; }
@@ -71,6 +71,8 @@ const logText = () => { try { return fs.readFileSync(logPath, 'utf8'); } catch (
   // 표본 추출기(CPU·Prometheus 메트릭 1초 간격). 파이썬이 없으면 건너뛴다(sum 은 표본 없이 봇·서버 로그 항목만 낸다).
   const sam = cp.spawn(PY, [path.join(HERE, 'w60-sampler.py'), String(srv.pid), path.join(D, `samples-${k}.csv`)], { stdio: 'ignore', uid, gid });
   sam.on('error', () => console.error('경고: 표본 추출기(python) 를 못 띄움 — CPU·TPS 표본 없음'));
+  // --precmd "명령;명령": 봇을 들이기 전에 콘솔 명령(예: 먼 곳 미리 생성을 걸어 둔 채 걷기, T-175)
+  for (const c of opt.precmd.split(';').filter(Boolean)) fs.appendFileSync(path.join(D, 'cmds'), c + '\n');
   await sleep(3000);
   const hdr = `== tag=${opt.tag} jar=${path.basename(opt.jar, '.jar')} layout=${opt.layout} n=${opt.n} speed=${opt.speed} world=w${opt.tag} ymode=${opt.ymode} opts=${jvm.join('+')} t=${Math.floor(Date.now() / 1000)}`;
   fs.appendFileSync(OUT, hdr + '\n');
