@@ -2098,6 +2098,14 @@ public abstract class ChunkLevel implements BlockLevel {
             return i < 0 || i >= c.sectionCount() || c.sectionMaybeHas(i, org.domi.furnace.server.light.LightTables.EMITS);
         }
 
+        @Override
+        public boolean sectionHasOnlyAir(int cx, int sy, int cz) {
+            ChunkColumn c = col(cx, cz);
+            int i = c == null ? -1 : sy - (c.minY() >> 4);
+            if (c == null) return org.domi.furnace.server.light.LightWorld.super.sectionHasOnlyAir(cx, sy, cz);
+            return i < 0 || i >= c.sectionCount() || c.sectionOnlyAirExact(i);   // 월드 높이 밖 구역은 없다(void_air) — computeSources 는 묻지 않는다
+        }
+
         public int extraEmission(int x, int y, int z) { return virtualLights().emission(x, y, z); }
 
         // 같은 섹션 연속 기록은 건너뛴다(전파 중 매 칸 불린다)
@@ -2247,6 +2255,8 @@ public abstract class ChunkLevel implements BlockLevel {
             @Override public boolean sectionMayEmit(int sectionY) {
                 return col.sectionMaybeHas(sectionY - base, org.domi.furnace.server.light.LightTables.EMITS);
             }
+
+            @Override public boolean sectionHasOnlyAir(int chunkX, int sectionY, int chunkZ) { return col.sectionOnlyAirExact(sectionY - base); }
         };
         if (col.light() != null) {
             // 디스크에서 읽은 빛(T-012): 고립 계산은 건너뛰고 하늘빛 원천만 센다(바닐라 initializeLightSources). 가장자리는 올릴 때 맞춘다
