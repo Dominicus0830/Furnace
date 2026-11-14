@@ -174,6 +174,15 @@ public final class AnvilWorldSource implements WorldSource {
      */
     public CompletableFuture<ChunkColumn> loadChunkAsync(int chunkX, int chunkZ, Executor ioExecutor, Executor decodeExecutor,
                                                          Executor genExecutor) {
+        return loadChunkAsync(chunkX, chunkZ, ioExecutor, decodeExecutor, genExecutor, null);
+    }
+
+    /**
+     * startGate: 생성 직전에 부른다(디스크에 없을 때만). 거짓이면 만들지 않고 CancellationException 으로 끝난다 —
+     * 생성 대기열이 시야 밖이 된 미리 불러오기를 시작 전에 취소한 경우(T-170). 원형·장식 중간 상태는 건드리지 않는다.
+     */
+    public CompletableFuture<ChunkColumn> loadChunkAsync(int chunkX, int chunkZ, Executor ioExecutor, Executor decodeExecutor,
+                                                         Executor genExecutor, java.util.function.BooleanSupplier startGate) {
         UnsupportedDataVersionException refused = refusedNewer.get(chunkKey(chunkX, chunkZ));
         if (refused != null) return CompletableFuture.failedFuture(refused);   // 시야 미리 불러오기가 틱마다 다시 걸어도 다시 읽지 않는다
         return CompletableFuture.supplyAsync(() -> readPayload(chunkX, chunkZ), ioExecutor).thenCompose(read -> {
@@ -183,6 +192,7 @@ public final class AnvilWorldSource implements WorldSource {
             return decoded.thenCompose(col -> {
                 if (col != null) return CompletableFuture.supplyAsync(() -> withPoi(chunkX, chunkZ, col), ioExecutor);
                 return CompletableFuture.supplyAsync(() -> {
+                    if (startGate != null && !startGate.getAsBoolean()) throw new java.util.concurrent.CancellationException("시야 밖 생성 요청 취소");
                     ChunkColumn gen = generateFallback(chunkX, chunkZ);
                     gen.markDirty();
                     gen.newlyCreated(true);
