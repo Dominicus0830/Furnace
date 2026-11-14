@@ -295,12 +295,11 @@ public final class FurnaceMain {
         // 생성 호출자 스레드 — 실제 계산은 ChunkPipeline 의 ForkJoin 풀(코어 수)에서 하고 여기서는 대부분 기다린다.
         // 동시에 진행하는 청크 수를 코어 수만큼 둬야 장식(청크마다 직렬 구간)이 겹쳐 돌며 풀이 놀지 않는다.
         int genThreads = Math.max(2, Runtime.getRuntime().availableProcessors());
-        java.util.concurrent.ExecutorService genPool = java.util.concurrent.Executors.newFixedThreadPool(genThreads, r -> {
-            Thread t = new Thread(r, "furnace-gen-wait");
-            t.setDaemon(true);
-            t.setPriority(Thread.MIN_PRIORITY);
-            return t;
-        });
+        // 대기열은 넣은 순이 아니라 플레이어와 가까운 순 + 시야 밖 미리 불러오기 취소 + 플레이어당 생성 칸(T-170, GenQueue 머리말)
+        var genSettings = org.domi.furnace.server.world.GenQueue.Settings.fromSystem(genThreads, World.defaultMaxChunkSendsInFlight());
+        java.util.concurrent.ExecutorService genPool = new org.domi.furnace.server.world.GenQueue(genThreads, genSettings);
+        log.info("[GEN] 생성 대기열: {} (스레드 {}, 전역 예산 {}, 플레이어 칸 {})", genSettings.distanceOrder() ? "거리 순" : "넣은 순(fifo)",
+                genThreads, genSettings.budget(), genSettings.fixedPlayerCap() > 0 ? genSettings.fixedPlayerCap() + "(고정)" : "예산÷탐험 인원");
         World world = regionPool != null
                 ? new World(org.domi.furnace.server.world.DimensionType.OVERWORLD, anvilSource, chunkPool, scheduler, regionPool,
                         config.regionSectionShift(), config.regionMergeRadius(), config.viewDistance(),

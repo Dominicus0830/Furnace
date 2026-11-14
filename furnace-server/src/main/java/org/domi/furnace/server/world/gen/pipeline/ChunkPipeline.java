@@ -399,6 +399,7 @@ public final class ChunkPipeline {
 
     private CompletableFuture<Proto> sharedPristineFor(int cx, int cz) {
         return sharedPristine.computeIfAbsent(chunkKey(cx, cz), k -> CompletableFuture.supplyAsync(() -> {
+            if (org.domi.furnace.server.world.ChunkTrace.ON) org.domi.furnace.server.world.ChunkTrace.value("gen.pristine", 1);   // 원형/완성 비(T-170 측정)
             NoiseWorldSource.Generated g = source.generateWorldChunk(cx, cz);
             ChunkColumn col = g.col();
             source.applyCarvers(g, cx, cz);
@@ -657,5 +658,6 @@ public final class ChunkPipeline {
         long k = chunkKey(p.cx, p.cz);
         store.remove(k);
         sharedPristine.remove(k);
+        if (org.domi.furnace.server.world.ChunkTrace.ON) org.domi.furnace.server.world.ChunkTrace.value("gen.drop", 1);
     }
 }

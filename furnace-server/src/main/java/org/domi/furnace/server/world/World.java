@@ -124,6 +124,7 @@ public final class World {
         this.ioPool = ioPool;
         this.ioLanes = ioPool == null ? null : new org.domi.furnace.server.world.anvil.IoLanes(ioPool, IO_LANES);
         this.genPool = genPool;
+        if (genPool instanceof GenQueue q) q.addWorld(this);
         this.chunkPool = chunkPool;
         this.scheduler = scheduler;
         this.viewDistance = viewDistance;
@@ -315,6 +316,31 @@ public final class World {
     void putLoading(long key, CompletableFuture<ChunkColumn> f) { loading.put(mapKey(key), f); }
 
     void removeLoading(long key, CompletableFuture<ChunkColumn> f) { loading.remove(mapKey(key), f); }
+
+    /** 진행 중 로드의 생성 요청 표(취소·고정, T-170). loading 과 같이 넣고 뺀다. */
+    private final ConcurrentHashMap<Long, GenQueue.Ticket> genTickets = new ConcurrentHashMap<>();
+
+    GenQueue.Ticket genTicket(long key) { return genTickets.get(mapKey(key)); }
+
+    void putGenTicket(long key, GenQueue.Ticket t) { genTickets.put(mapKey(key), t); }
+
+    void removeGenTicket(long key, GenQueue.Ticket t) { genTickets.remove(mapKey(key), t); }
+
+    /** 생성 실행기: 거리 순 대기열이면 위치를 단 실행기, 아니면(시험의 단순 풀) 그대로. */
+    java.util.concurrent.Executor genExecutor(int cx, int cz, GenQueue.Ticket ticket) {
+        return genPool instanceof GenQueue q ? q.tagged(this, cx, cz, ticket) : genPool;
+    }
+
+    /** 거리 순 생성 대기열(없으면 null — 시험의 단순 풀). */
+    public GenQueue genQueue() { return genPool instanceof GenQueue q ? q : null; }
+
+    /**
+     * IO 없이 짐작한 "이 청크가 디스크에 있다"(이미 열린 region 파일의 위치표). 모르면 거짓 — 생성 칸을 쓰는 쪽으로 센다.
+     * 순서·칸 계산에만 쓰고 정확성에는 쓰지 않는다.
+     */
+    boolean knownOnDisk(int cx, int cz) {
+        return worldSource instanceof AnvilWorldSource a && a.store().peekChunk(cx, cz) == 1;
+    }
 
     /** 새 판(DataVersion) 청크를 이미 알렸는가 — 처음이면 true(A05-03, 로그 한 번만). */
     private final java.util.Set<Long> newerChunksWarned = java.util.concurrent.ConcurrentHashMap.newKeySet();
@@ -1634,7 +1660,9 @@ public final class World {
             for (int dx = -radius; dx <= radius; dx++) {
                 ChunkPos cp = new ChunkPos(cx + dx, cz + dz);
                 Long prev = tickets.merge(Regionizer.chunkKey(cp.x(), cp.z()), until, Math::max);
-                if (prev != null && prev.longValue() == until) runAtChunk(cp, r -> r.loadChunk(cp));   // 새로 걸렸거나 늘었다 — 올려 둔다(이미 있으면 그대로)
+                // 새로 걸렸거나 늘었다 — 올려 둔다(이미 있으면 그대로). 티켓이 끝난 뒤 시야 밖이면 생성 대기열이 시작 전에 취소할 수 있다(T-170)
+                long key = Regionizer.chunkKey(cp.x(), cp.z());
+                if (prev != null && prev.longValue() == until) runAtChunk(cp, r -> r.loadChunkForTicket(cp, () -> timedTicketAlive(key)));
             }
         }
         markEntityTicking(cx, cz, radius - 2, until);
@@ -1762,6 +1790,12 @@ public final class World {
             runAtChunk(cp, r -> r.loadChunk(cp));
         }
         return changed;
+    }
+
+    /** 시간 티켓(addTicket)이 아직 살아 있나 — 읽기만(생성 스레드에서 부른다). */
+    boolean timedTicketAlive(long chunkKey) {
+        Long until = tickets.get(chunkKey);
+        return until != null && until >= gameTime();
     }
 
     /** 그 청크에 살아 있는 티켓이 있는가(지난 것은 지운다). 강제 로드 청크는 늘 있다. */
@@ -2320,7 +2354,9 @@ public final class World {
     /** 플레이어당 동시에 진행 중인 청크 전송(생성·직렬화) 상한 — 생성 스레드보다 넉넉히(이미 로드된 청크는 금방 끝난다). */
     public int maxChunkSendsInFlight() { return maxChunkSendsInFlight; }
 
-    private int maxChunkSendsInFlight = Math.max(16, 2 * Runtime.getRuntime().availableProcessors());
+    private int maxChunkSendsInFlight = defaultMaxChunkSendsInFlight();
+
+    public static int defaultMaxChunkSendsInFlight() { return Math.max(16, 2 * Runtime.getRuntime().availableProcessors()); }
 
     /** 살아 있는 region 수(테스트·모니터링용). */
     public int regionCount() { return regionizer.regionCount(); }

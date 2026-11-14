@@ -10,6 +10,8 @@ public final class RegionFileStore {
     /** 바닐라 RegionFileStorage.MAX_CACHE_SIZE. 넘으면 가장 오래 안 쓴 파일을 닫는다(탐험이 길면 fd 가 끝없이 늘던 것, F-12). */
     static final int MAX_OPEN = 256;
     private final java.util.LinkedHashMap<Long, RegionFile> open = new java.util.LinkedHashMap<>(16, 0.75f, true);
+    /** open 의 잠금 없는 거울(peekChunk 용). open 을 바꾸는 곳(synchronized this)에서만 같이 바꾼다. */
+    private final java.util.concurrent.ConcurrentHashMap<Long, RegionFile> openView = new java.util.concurrent.ConcurrentHashMap<>();
 
     public RegionFileStore(Path worldDir) {
         this(worldDir, "region");
@@ -50,10 +52,12 @@ public final class RegionFileStore {
             if (rf != null) return rf;
             rf = new RegionFile(regionDir.resolve("r." + rx + "." + rz + ".mca"), sync);
             open.put(k, rf);
+            openView.put(k, rf);
             if (open.size() > MAX_OPEN) {
                 var it = open.entrySet().iterator();
                 var eldest = it.next();
                 it.remove();
+                openView.remove(eldest.getKey(), eldest.getValue());
                 toClose.add(java.util.Map.entry(eldest.getKey(), eldest.getValue()));
             }
             return rf;
@@ -117,6 +121,15 @@ public final class RegionFileStore {
     /** 압축 본문만(없으면 null). 압축 풀기는 부르는 쪽이 원하는 스레드에서 {@link RegionFile.Payload#decompress()}. */
     public RegionFile.Payload readPayload(int chunkX, int chunkZ) throws IOException {
         return withFile(chunkX, chunkZ, rf -> rf.readPayload(chunkX, chunkZ));
+    }
+
+    /**
+     * IO 없이 짐작: 이미 열린 region 파일의 위치표만 본다. 1 = 있음, 0 = 없음, -1 = 모름(파일이 안 열려 있다).
+     * 생성 대기열이 플레이어 생성 칸을 셀 때 쓴다(디스크 청크는 생성 칸을 안 쓴다, T-170). 정확성에는 쓰지 않는다.
+     */
+    public int peekChunk(int chunkX, int chunkZ) {
+        RegionFile rf = openView.get(key(chunkX >> 5, chunkZ >> 5));
+        return rf == null ? -1 : rf.peekHasChunk(chunkX, chunkZ) ? 1 : 0;
     }
 
     /** 디스크에 그 청크가 있는가(region 파일이 없으면 만들지 않고 거짓). */
@@ -337,6 +350,7 @@ public final class RegionFileStore {
         synchronized (this) {
             all = new java.util.ArrayList<>(open.entrySet());
             open.clear();
+            openView.clear();
         }
         for (var e : all) {
             synchronized (lock(e.getKey())) { e.getValue().close(); }

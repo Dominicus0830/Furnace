@@ -502,6 +502,7 @@ public final class WorldManager {
             log.warn("[WORLD] '{}' 진행 중 save-all 을 기다리지 못했다 — 그대로 내린다", e.name(), ex);
         }
         extras.remove(e.name(), e);
+        if (w.genQueue() != null) w.genQueue().removeWorld(w);
         try {
             hooks.detached(w);
         } catch (Throwable t) {

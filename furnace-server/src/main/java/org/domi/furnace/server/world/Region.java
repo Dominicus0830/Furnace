@@ -478,21 +478,58 @@ public final class Region {
 
     /** 이 region 스레드에서 비동기 청크 로드(IO 풀 read+decode). 진행 중이면 같은 future. */
     public CompletableFuture<ChunkColumn> loadChunk(ChunkPos cp) {
+        return loadChunk(cp, false);
+    }
+
+    /**
+     * prefetch = 플레이어 시야 미리 불러오기(그 플레이어만 기다린다). 이런 요청의 생성은 시작 전에 아무 플레이어 시야에도 없게 되면
+     * 생성 대기열이 취소한다(실패로 끝남, T-170). 그 밖의 요청자는 진행 중 요청을 고정해 취소되지 않게 한다 — 이미 취소된 뒤라면
+     * 그 실패가 끝난 다음 새로 건다(취소가 다른 요청자에게 새지 않는다).
+     */
+    CompletableFuture<ChunkColumn> loadChunk(ChunkPos cp, boolean prefetch) {
+        return loadChunk(cp, prefetch, null);
+    }
+
+    /** 시간 티켓(World.addTicket)의 로드: 티켓이 살아 있는 동안은 취소되지 않고, 끝난 뒤 시야 밖이면 시작 전에 취소될 수 있다. */
+    CompletableFuture<ChunkColumn> loadChunkForTicket(ChunkPos cp, java.util.function.BooleanSupplier ticketAlive) {
+        return loadChunk(cp, true, ticketAlive);
+    }
+
+    private CompletableFuture<ChunkColumn> loadChunk(ChunkPos cp, boolean prefetch, java.util.function.BooleanSupplier keepAlive) {
         world.assertOwns(this);
         ChunkColumn present0 = world.loadedChunk(cp.x(), cp.z());
         if (present0 != null) return CompletableFuture.completedFuture(present0);
         long key = Regionizer.chunkKey(cp.x(), cp.z());
         CompletableFuture<ChunkColumn> inflight = world.loadingChunk(key);
-        if (inflight != null) return inflight;
+        if (inflight != null) {
+            if (!prefetch || keepAlive != null) {   // 미리 불러오기 말고는 진행 중 요청을 고정한다(티켓 로드도 — 드묾)
+                GenQueue.Ticket t = world.genTicket(key);
+                if (t != null && t.cancellable() && GenQueue.TRACE_PINNED > 0 && GenQueue.tracedPinned.incrementAndGet() <= GenQueue.TRACE_PINNED) {
+                    org.slf4j.LoggerFactory.getLogger(Region.class).info("[GEN] 미리 불러오기에 고정 {}", cp, new Throwable("요청 출처"));
+                }
+                if (t != null && !t.pin()) {
+                    return inflight.handle((c, e) -> null)
+                            .thenCompose(v -> world.submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(x -> x));
+                }
+            }
+            return inflight;
+        }
         claim(cp);
+        if (!prefetch && GenQueue.TRACE_PINNED > 0 && GenQueue.tracedPinned.incrementAndGet() <= GenQueue.TRACE_PINNED) {
+            org.slf4j.LoggerFactory.getLogger(Region.class).info("[GEN] 고정 로드 {}", cp, new Throwable("요청 출처"));
+        }
+        final GenQueue.Ticket ticket = new GenQueue.Ticket(prefetch, keepAlive);
+        world.putGenTicket(key, ticket);
+        java.util.concurrent.Executor genExec = world.genExecutor(cp.x(), cp.z(), ticket);
         CompletableFuture<ChunkColumn> sourceFuture =
                 world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource anvil
-                        ? anvil.loadChunkAsync(cp.x(), cp.z(), world.ioLane(cp.x(), cp.z()), world.ioDecodeExecutor(), world.genPool())
+                        ? anvil.loadChunkAsync(cp.x(), cp.z(), world.ioLane(cp.x(), cp.z()), world.ioDecodeExecutor(), genExec, ticket::tryStart)
                         : CompletableFuture.supplyAsync(() -> {
+                            if (!ticket.tryStart()) throw new java.util.concurrent.CancellationException("시야 밖 생성 요청 취소");
                             ChunkColumn made = world.worldSource().generate(cp.x(), cp.z());
                             if (made != null) made.newlyCreated(true);   // 저장소가 없는 월드 소스는 늘 새로 만든다
                             return made;
-                        }, world.genPool());
+                        }, genExec);
         // 청크 안쪽 조명은 생성 스레드에서 미리 계산한다(region 틱 스레드가 청크당 ~2ms 를 쓰던 것) — 이웃과의 가장자리는 올릴 때 맞춘다.
         final boolean sky = level().hasSkyLight();
         final int bedrock = level().lightBedrockState();
@@ -532,6 +569,7 @@ public final class Region {
         world.putLoading(key, f);
         // 완료는 그때의 주인 region 에서(그 사이 합쳐지거나 나뉘었을 수 있다). 실패해도 진행 중 표시는 반드시 지운다.
         sourceFuture.whenComplete((col, err) -> world.runAtChunk(cp, r -> {
+            world.removeGenTicket(key, ticket);   // loading 과 같은 region 스레드에서(고정·취소 판단이 엇갈리지 않게)
             long ti = ChunkTrace.ON ? System.nanoTime() : 0L;
             if (ChunkTrace.ON && traceSrc[1] != 0L) ChunkTrace.nanos("hop.load", ti - traceSrc[1]);
             r.finishLoad(cp, key, col, err, f);
@@ -555,7 +593,7 @@ public final class Region {
                 if (world.warnNewerChunkOnce(key)) {
                     org.slf4j.LoggerFactory.getLogger(Region.class).error("[CHUNK] {} 를 올리지 않는다: {}", cp, newer.getMessage());
                 }
-            } else {
+            } else if (!(root instanceof java.util.concurrent.CancellationException)) {   // 시야 밖이 돼 취소된 미리 불러오기는 실패가 아니다
                 org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 로드 실패 {} — 다음 요청에서 재시도", cp, err);
             }
             rz().release(this, cp.x(), cp.z());
@@ -2994,15 +3032,20 @@ public final class Region {
         var corners = p.cornerLoads();
         if (corners.isEmpty() || !p.pendingChunks().isEmpty() || skipsGeneration(p)) return;
         int slots = cornerLoadSlots() - p.cornerInFlight().size();
+        int genFree = genFree(p);
         var it = corners.iterator();
         while (it.hasNext() && slots > 0) {
             ChunkPos cp = it.next();
+            if (world.isChunkLoaded(cp.x(), cp.z()) || p.chunkPrefetches().contains(cp)) { it.remove(); continue; }
+            boolean gen = !world.knownOnDisk(cp.x(), cp.z());
+            if (gen && (genFree <= 0 || !takeGenToken())) break;   // 생성 칸이 없다 — 남은 모서리는 다음 틱에(T-170)
             it.remove();
-            if (world.isChunkLoaded(cp.x(), cp.z()) || !p.chunkPrefetches().add(cp)) continue;
+            if (!p.chunkPrefetches().add(cp)) { if (gen) releaseGenToken(); continue; }
+            if (gen) { p.genPrefetches().add(cp); genFree--; }
             rz().want(cp.x(), cp.z(), this);   // 구역을 이 region 이 갖는다(다른 region 것이면 합칠 대상)
             p.cornerInFlight().add(cp);
             slots--;
-            startPrefetch(p, cp).whenComplete((col, ex) -> p.cornerInFlight().remove(cp));
+            startPrefetch(p, cp, gen).whenComplete((col, ex) -> p.cornerInFlight().remove(cp));
         }
     }
 
@@ -3013,21 +3056,54 @@ public final class Region {
      * 그 청크의 생성·디스크 로드를 건다(구독은 호출한 쪽이 이미 했거나 하지 않는다). 이 region 의 청크면 작업 큐(다음 틱)를 거치지 않고
      * 바로 건다 — 디스크에 있는 청크는 그만큼 일찍 온다. 끝나면 chunkPrefetches 에서 뺀다(호출한 쪽이 먼저 add 해 둔다).
      */
-    private CompletableFuture<ChunkColumn> startPrefetch(Player p, ChunkPos cp) {
+    private CompletableFuture<ChunkColumn> startPrefetch(Player p, ChunkPos cp, boolean genSlot) {
         CompletableFuture<ChunkColumn> load;
         if (mine(Regionizer.chunkKey(cp.x(), cp.z()))) {
             try {
-                load = loadChunk(cp);
+                load = loadChunk(cp, true);
             } catch (RuntimeException e) {
                 load = CompletableFuture.failedFuture(e);
             }
         } else {
-            load = world.submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(f -> f);
+            load = world.submitAtChunk(cp, r -> r.loadChunk(cp, true)).thenCompose(f -> f);
         }
         return load.whenComplete((col, ex) -> {
             p.chunkPrefetches().remove(cp);
-            if (ex != null) org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 미리 불러오기 실패 {}", cp, ex);
+            if (genSlot) {
+                p.genPrefetches().remove(cp);
+                releaseGenToken();
+            }
+            if (ex != null && !isCancellation(ex)) org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 미리 불러오기 실패 {}", cp, ex);
         });
+    }
+
+    private static boolean isCancellation(Throwable ex) {
+        for (Throwable t = ex; t != null; t = t.getCause()) {
+            if (t instanceof java.util.concurrent.CancellationException) return true;
+            if (t.getCause() == t) break;
+        }
+        return false;
+    }
+
+    /**
+     * 이 플레이어가 더 걸 수 있는 생성 칸(디스크에 없는 청크의 미리 불러오기, T-170). 거리 순 생성 대기열이 없으면(시험의 단순 풀,
+     * fifo 모드) 따로 묶지 않는다 — 예전처럼 전체 동시 진행 상한만.
+     */
+    private int genFree(Player p) {
+        GenQueue q = world.genQueue();
+        if (q == null) return Integer.MAX_VALUE;
+        int cap = q.playerCap();
+        return cap == Integer.MAX_VALUE ? cap : cap - p.genPrefetches().size();
+    }
+
+    private boolean takeGenToken() {
+        GenQueue q = world.genQueue();
+        return q == null || q.tryAcquireGenToken();
+    }
+
+    private void releaseGenToken() {
+        GenQueue q = world.genQueue();
+        if (q != null) q.releaseGenToken();
     }
 
     /** chunks를 중심 거리 오름차순 정렬 — 스폰/근접 청크 먼저 전송해 클라가 즉시 "로드된 청크"에 스폰(낙하 방지). */
@@ -3085,6 +3161,8 @@ public final class Region {
     static final int AUTO_MAX_CHUNKS_PER_TICK = (int) ChunkSendRate.MAX_CHUNKS_PER_TICK;
     /** auto 전송이 한 틱에 대기열에서 훑는 최대 수 — 시야 32(4225청크)에서도 틱 비용을 묶는다. 가까운 것부터 훑는다. */
     static final int AUTO_SCAN_LIMIT = 1024;
+    /** 생성 칸이 찬 뒤 디스크 청크를 찾아 더 훑는 "디스크에 없는 청크" 수(새 땅만 있으면 이만큼 보고 그만, T-170). */
+    static final int GEN_FULL_SCAN = 32;
 
     /**
      * chunks-per-tick=auto: 바닐라 PlayerChunkSender 처럼 이미 로드된(준비된) 청크만, 클라이언트가 알린 속도(최대 64/틱)만큼 배치로 보낸다.
@@ -3098,6 +3176,9 @@ public final class Region {
         int adaptive = p.chunkSendRate().nextBudget();   // 미확인 배치가 한도면 0 — 그래도 생성 요청은 계속 건다
         int budget = batchOpen ? 0 : Math.min(Math.max(adaptive, 0), AUTO_MAX_CHUNKS_PER_TICK);
         int genSlots = world.maxChunkSendsInFlight() - p.chunkPrefetches().size();
+        // 생성 칸(T-170): 디스크에 없는 청크는 이 수까지만 건다. 다 차면 생성 거리를 넘긴 미리 불러오기 몇 개만 더 보고 그만 훑는다.
+        int genFree = genFree(p);
+        int genMisses = 0;
         // 본문 미리 직렬화 창: 이번 배치 다음으로 볼 로드된 청크 수. 클라이언트 속도의 2배쯤 앞만 만든다(느린 클라이언트에 64개씩
         // 미리 만들면 매 틱 바뀌는 청크가 끝없이 다시 직렬화된다). 첫 응답 전에는 auto 상한.
         float rate = p.chunkSendRate().clientReported() ? p.chunkSendRate().desiredChunksPerTick() : AUTO_MAX_CHUNKS_PER_TICK;
@@ -3107,7 +3188,7 @@ public final class Region {
         // 바닐라 ChunkMap.skipPlayer: 청크를 만들지 않는 관전자는 미리 불러오기(생성·디스크 로드)를 걸지 않고 이미 로드된 것만 받는다
         boolean loadedOnly = skipsGeneration(p);
         var it = p.pendingChunks().iterator();
-        while (it.hasNext() && (batch.size() < budget || genSlots > 0 || bodySlots > 0) && scanned++ < AUTO_SCAN_LIMIT) {
+        while (it.hasNext() && (batch.size() < budget || (genSlots > 0 && genMisses < GEN_FULL_SCAN) || bodySlots > 0) && scanned++ < AUTO_SCAN_LIMIT) {
             ChunkPos cp = it.next();
             if (world.isChunkLoaded(cp.x(), cp.z())) {
                 boolean room = batch.size() < budget;
@@ -3123,10 +3204,17 @@ public final class Region {
                 } else {
                     bodySlots--;   // 창은 배치 다음의 로드된 청크 수 — 준비된 것도 센다(예산 0 인 틱에 대기열 끝까지 훑지 않게)
                 }
-            } else if (!loadedOnly && genSlots > 0 && p.chunkPrefetches().add(cp)) {
+            } else if (!loadedOnly && genSlots > 0 && genMisses < GEN_FULL_SCAN && !p.chunkPrefetches().contains(cp)) {
+                boolean gen = !world.knownOnDisk(cp.x(), cp.z());
+                if (gen && (genFree <= 0 || !takeGenToken())) {   // 생성 칸이 없다 — 디스크 청크만 계속 건다
+                    genMisses++;
+                    continue;
+                }
+                if (!p.chunkPrefetches().add(cp)) { if (gen) releaseGenToken(); continue; }
                 genSlots--;
+                if (gen) { p.genPrefetches().add(cp); genFree--; }
                 // 구독은 updateChunks 가 해 두었으므로 로드된 뒤 유휴 정리로 내려가지 않는다(evictIdleChunks 는 구독자가 있으면 건너뛴다).
-                startPrefetch(p, cp);
+                startPrefetch(p, cp, gen);
             }
         }
         if (!batch.isEmpty()) {

@@ -127,6 +127,9 @@ public final class RegionFile implements Closeable {
     /** 헤더에 그 청크 자리가 있는가. */
     public synchronized boolean hasChunk(int chunkX, int chunkZ) { return locations[index(chunkX, chunkZ)] != 0; }
 
+    /** 잠금 없이 본 위치표(생성 대기열의 "디스크에 있나" 짐작용, T-170). 막 쓴 칸은 늦게 보일 수 있다 — 틀려도 순서·칸 계산만 달라진다. */
+    boolean peekHasChunk(int chunkX, int chunkZ) { return locations[index(chunkX, chunkZ)] != 0; }
+
     public byte[] readChunk(int chunkX, int chunkZ) throws IOException {
         Payload p = readPayload(chunkX, chunkZ);
         return p == null ? null : p.decompress();
