@@ -9,6 +9,7 @@
 #   (측정: 32명 새 땅 가장 느린 TPS 최저 15.5~17 -> 18.5, 두 차원 동시 12 -> 17, 받은 청크/초 -3~7%)
 #   - 루트 권한은 필요 없다. 루트가 아니면 JVM 이 "may require system level permission" 경고를 한 줄 내지만
 #     우선순위 낮추기는 된다(올리기만 권한이 필요하다).
-#   - 윈도에서는 효과가 없다(윈도 JVM 은 원래 우선순위를 따른다). 윈도·맥 JVM 은 이 옵션을 모르는 옵션으로 보고
-#     서버가 아예 안 뜨므로 start.bat 에 넣거나 윈도 jvm.args 에 쓰지 말 것(맥은 확인 안 함).
+#   - 윈도·맥은 넣지 말 것. 윈도 JVM 은 원래 우선순위를 따르고, 거기서 정책 1 은 우선순위 매핑을 바꿔(JDK 주석: 성능이
+#     떨어질 수 있다) 검증도 안 했다. 맥도 확인 안 했다. start.sh 는 리눅스에서만 붙인다.
+#   - JAVA_TOOL_OPTIONS 로 준 ThreadPriorityPolicy 는 start.sh 가 못 본다(명령줄의 =1 이 이긴다). 끄려면 FURNACE_THREAD_PRIORITY=0.
 # -XX:ThreadPriorityPolicy=1

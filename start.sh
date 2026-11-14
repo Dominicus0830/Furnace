@@ -36,8 +36,8 @@ HAS_XMX=0
 for a in "${JVM_ARGS[@]}"; do case "$a" in -Xmx*) HAS_XMX=1 ;; esac; done
 [ "$HAS_XMX" = 0 ] && JVM_ARGS=("-Xmx${FURNACE_XMX:-6G}" "${JVM_ARGS[@]}")
 
-# 스레드 우선순위: 리눅스 HotSpot 만 이 옵션을 안다(윈도·맥·다른 JVM 은 "Unrecognized VM option" 으로 못 뜬다).
-# 그래서 리눅스일 때만, 이 JVM 이 옵션을 받아들이는지 먼저 확인한 뒤 붙인다. 못 받으면 조용히 건너뛴다.
+# 스레드 우선순위: 리눅스 HotSpot 에서 자바 우선순위를 실제 nice 로 옮기는 옵션이다(다른 JVM 은 모르는 옵션일 수 있다).
+# 윈도·맥에서는 효과가 검증되지 않았으므로 리눅스일 때만, 이 JVM 이 옵션을 받아들이는지 먼저 확인한 뒤 붙인다. 못 받으면 조용히 건너뛴다.
 # 루트가 아니면 JVM 이 "권한이 없으면 우선순위 변경을 무시한다"는 경고 한 줄을 내지만 낮추기는 된다.
 if [ "${FURNACE_THREAD_PRIORITY:-1}" != 0 ] && [ "$(uname -s 2>/dev/null)" = Linux ] \
    && ! printf '%s\n' "${JVM_ARGS[@]}" | grep -q 'ThreadPriorityPolicy'; then
