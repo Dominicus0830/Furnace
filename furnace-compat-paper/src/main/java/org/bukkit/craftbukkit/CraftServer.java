@@ -386,4 +386,10 @@ public final class CraftServer implements Server {
 
     @Override
     public int getSimulationDistance() { return f().simulationDistance(); }
+
+    @Override
+    public void shutdown() { Compat.furnace().shutdown(); }
+
+    @Override
+    public int getCurrentTick() { return (int) Compat.furnace().currentTick(); }
 }

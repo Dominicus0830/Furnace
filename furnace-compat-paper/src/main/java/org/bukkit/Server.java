@@ -48,6 +48,12 @@ public interface Server extends org.bukkit.plugin.messaging.PluginMessageRecipie
 
     Collection<? extends Player> getOnlinePlayers();
 
+    /** 서버를 정상 종료한다(/stop 과 같다). */
+    void shutdown();
+
+    /** 서버가 시작한 뒤 센 틱(Paper MinecraftServer.currentTick — 0 부터, 틱 머리에서 오른다). int 로 넘친다. */
+    int getCurrentTick();
+
     int getMaxPlayers();
 
     /** 접속 중인 플레이어를 이름(대소문자 무시)으로, 없으면 null. */

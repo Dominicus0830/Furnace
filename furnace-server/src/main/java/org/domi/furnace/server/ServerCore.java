@@ -871,6 +871,9 @@ public final class ServerCore {
         return new long[] {System.nanoTime() - p[0], serverTickCount - p[1]};
     }
 
+    /** 서버 틱 번호(바닐라 tickCount — 틱 머리에서 오른다). 아무 스레드. */
+    public long serverTickCount() { return serverTickCount; }
+
     /** 틱 하나의 머리: 요청이 있으면 프로파일을 시작하고(틱 번호를 올리기 전) 서버 틱 번호를 올린다. */
     private void beginServerTick() {
         if (tickProfileRequested) {

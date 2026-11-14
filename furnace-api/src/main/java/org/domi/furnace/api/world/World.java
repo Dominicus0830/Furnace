@@ -378,4 +378,54 @@ public interface World {
         NbtCompound p = patch.copy();
         return editBlockEntityNbt(pos, n -> n.merge(p));
     }
+
+    // ---- 시간·날씨·스폰·폴더(T-141). 모든 차원(추가 월드 포함)이 오버월드의 시계를 함께 쓴다(바닐라 DerivedLevelData) —
+    // 그래서 오버월드가 아닌 월드에서 바꾸기는 아무 일도 하지 않고 false(바닐라 DerivedLevelData 의 set 이 무시되는 것과 같다).
+    // 읽기·쓰기 모두 아무 스레드.
+
+    /** 하루 시각(바닐라 Level.getDayTime, 24000 을 넘어 계속 는다). */
+    default long dayTime() { throw new UnsupportedOperationException("dayTime"); }
+
+    /** 하루 시각을 바꾸고 이 월드의 접속자에게 곧바로 알린다(Paper CraftWorld#setFullTime). 이 월드가 시계 주인이 아니면 false. */
+    default boolean setDayTime(long time) { throw new UnsupportedOperationException("setDayTime"); }
+
+    /** 월드가 흐른 틱(바닐라 Level.getGameTime). */
+    default long gameTime() { throw new UnsupportedOperationException("gameTime"); }
+
+    /** 이 월드가 시간·날씨의 주인인가(오버월드만 true). */
+    default boolean ownsClock() { return true; }
+
+    /** 날씨 상태(level.dat 의 raining·thundering·rainTime·thunderTime·clearWeatherTime). */
+    default WeatherState weather() { throw new UnsupportedOperationException("weather"); }
+
+    /** 비 깃발·남은 틱들을 바꾼다(null 인 칸은 그대로). 다음 전역 틱의 날씨 순환이 이어받는다. 시계 주인이 아니면 false. */
+    default boolean setWeather(Boolean raining, Boolean thundering, Integer rainTime, Integer thunderTime, Integer clearWeatherTime) {
+        throw new UnsupportedOperationException("setWeather");
+    }
+
+    /** 월드 스폰(바닐라 공유 스폰: 블록 좌표와 바라보는 각도). */
+    default Location spawnLocation() { throw new UnsupportedOperationException("spawnLocation"); }
+
+    /**
+     * 월드 스폰을 바꾼다(바닐라 ServerLevel.setDefaultSpawnPos: 스폰 청크 티켓을 옮기고 모든 접속자에게 알린다). 네더·엔드는 오버월드 스폰을
+     * 함께 쓰므로 false. 추가 월드는 자기 level.dat 의 스폰을 바꾼다.
+     */
+    default boolean setSpawnLocation(int x, int y, int z, float angle) { throw new UnsupportedOperationException("setSpawnLocation"); }
+
+    /** 이 차원의 저장 폴더(오버월드 = 월드 폴더, 네더 = DIM-1, 엔드 = DIM1, 추가 월드 = 그 월드 폴더). */
+    default java.nio.file.Path folder() { throw new UnsupportedOperationException("folder"); }
+
+    /**
+     * 이 월드의 모든 엔티티(플레이어 포함) 핸들 스냅숏 — 아무 스레드. 서버의 엔티티 색인(동시 맵)을 읽을 뿐이라 region 상태를 건드리지 않는다.
+     * 핸들로 상태를 읽고 쓰는 것은 여느 때처럼 소유 스레드 규칙을 따른다.
+     */
+    default List<Entity> entitiesSnapshot() { throw new UnsupportedOperationException("entitiesSnapshot"); }
+
+    /**
+     * 떨어진 아이템을 만든다(Paper CraftWorld#dropItem: 줍기 지연 10틱, 스폰 이유 CUSTOM). naturally 면 바닐라처럼 월드 난수로 각 축
+     * 0.25~0.75 를 더한 자리. beforeSpawn 은 월드에 넣기 전에 부른다(null 가능). 소유 region 스레드 전용. 스폰이 취소되면 null.
+     */
+    default Entity dropItemNow(Location at, org.domi.furnace.api.item.ItemStack stack, boolean naturally, java.util.function.Consumer<Entity> beforeSpawn) {
+        throw new UnsupportedOperationException("dropItemNow");
+    }
 }

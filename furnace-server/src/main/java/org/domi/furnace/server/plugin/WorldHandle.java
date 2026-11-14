@@ -845,4 +845,113 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
             return true;
         });
     }
+
+    // ------------------------------------------------------------------ 시간·날씨·스폰·폴더(T-141)
+
+    /** 시간·날씨의 주인: 주 오버월드(모든 차원이 그 시계를 함께 쓴다 — World.shareServerState). */
+    @Override
+    public boolean ownsClock() { return world == core().world(); }
+
+    @Override
+    public long dayTime() { return world.clock().dayTime(); }
+
+    @Override
+    public long gameTime() { return world.clock().gameTime(); }
+
+    @Override
+    public boolean setDayTime(long time) {
+        if (!ownsClock()) return false;
+        var clock = world.clock();
+        clock.setDayTime(time);
+        // Paper CraftWorld#setFullTime: 이 월드 접속자에게 곧바로 시각을 보낸다(다음 20틱 동기화를 기다리지 않는다)
+        var pkt = clock.timePacket(core().gameRules());
+        for (var p : world.playersHere()) if (!p.isDisconnected()) p.send(pkt);
+        return true;
+    }
+
+    @Override
+    public org.domi.furnace.api.world.WeatherState weather() {
+        var c = world.clock();
+        synchronized (c) {
+            return new org.domi.furnace.api.world.WeatherState(c.rainingFlag(), c.thunderingFlag(), c.rainTime(), c.thunderTime(), c.clearWeatherTime());
+        }
+    }
+
+    @Override
+    public boolean setWeather(Boolean raining, Boolean thundering, Integer rainTime, Integer thunderTime, Integer clearWeatherTime) {
+        if (!ownsClock()) return false;
+        world.clock().setWeather(raining, thundering, rainTime, thunderTime, clearWeatherTime);
+        return true;
+    }
+
+    @Override
+    public Location spawnLocation() {
+        var sp = world.defaultSpawn();
+        return new Location(world.dimension(), sp.x(), sp.y(), sp.z(), sp.yaw(), 0f);
+    }
+
+    @Override
+    public boolean setSpawnLocation(int x, int y, int z, float angle) {
+        if (world == core().world()) {
+            core().setWorldSpawn(x, y, z, angle);
+            return true;
+        }
+        if (!world.isExtraWorld()) return false;   // 네더·엔드: 오버월드 스폰을 함께 쓴다(바닐라 DerivedLevelData)
+        var old = world.defaultSpawn();
+        if (old.x() == x && old.y() == y && old.z() == z && old.yaw() == angle) return true;
+        world.defaultSpawn(new org.domi.furnace.server.world.SpawnPoint(x, y, z, angle));   // level.dat 에는 WorldManager 가 저장 때 옮긴다
+        var pkt = new org.domi.furnace.server.net.protocol.play.SetDefaultSpawnPosition(x, y, z, angle);
+        for (var p : core().players()) p.send(pkt);   // 바닐라 setDefaultSpawnPos: broadcastAll
+        return true;
+    }
+
+    @Override
+    public java.nio.file.Path folder() {
+        java.nio.file.Path root = world.levelRoot();
+        if (world.isExtraWorld()) return root;
+        // 바닐라 DimensionType.getStorageFolder
+        return switch (world.dimension()) {
+            case "minecraft:overworld" -> root;
+            case "minecraft:the_nether" -> root.resolve("DIM-1");
+            case "minecraft:the_end" -> root.resolve("DIM1");
+            default -> {
+                String d = world.dimension();
+                int c = d.indexOf(':');
+                yield root.resolve("dimensions").resolve(c < 0 ? "minecraft" : d.substring(0, c)).resolve(c < 0 ? d : d.substring(c + 1));
+            }
+        };
+    }
+
+    @Override
+    public List<Entity> entitiesSnapshot() {
+        List<Entity> out = new ArrayList<>();
+        for (var e : world.entityIndex().values()) if (!e.isRemoved()) out.add(EntityHandle.of(host, e));
+        for (var p : core().players()) {
+            if (!p.isDisconnected() && world.dimension().equals(p.dimension())) out.add(host.player(p));
+        }
+        return out;
+    }
+
+    @Override
+    public Entity dropItemNow(Location at, org.domi.furnace.api.item.ItemStack stack, boolean naturally, java.util.function.Consumer<Entity> beforeSpawn) {
+        java.util.Objects.requireNonNull(at, "Location cannot be null");
+        java.util.Objects.requireNonNull(stack, "ItemStack cannot be null");
+        if (!at.world().equals(world.dimension())) throw new IllegalArgumentException("다른 차원의 위치: " + at.world());
+        ChunkPos cp = ChunkPos.ofBlock(at.x(), at.z());
+        Region r = ownedRegion(new BlockPos(cp.x() << 4, 0, cp.z() << 4), "dropItemNow");
+        if (r == null || !r.chunkLoaded(cp)) throw new IllegalStateException("청크가 로드돼 있지 않다: " + cp);
+        var level = r.level();
+        double x = at.x(), y = at.y(), z = at.z();
+        if (naturally) {   // Paper CraftWorld#dropItemNaturally: 월드 난수 nextFloat 셋(x·y·z 순)
+            x += level.random().nextFloat() * 0.5F + 0.25D;
+            y += level.random().nextFloat() * 0.5F + 0.25D;
+            z += level.random().nextFloat() * 0.5F + 0.25D;
+        }
+        var item = new org.domi.furnace.server.entity.ItemEntity(level, level.nextEntityId(), x, y, z, ApiConvert.item(stack, world.itemRegistry()));
+        item.setDefaultPickUpDelay();   // Paper: pickupDelay = 10
+        Entity handle = EntityHandle.of(host, item);
+        if (beforeSpawn != null) beforeSpawn.accept(handle);
+        if (!level.addFreshEntityWithPassengers(item.spawnReason("CUSTOM"))) return null;
+        return handle;
+    }
 }
