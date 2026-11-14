@@ -114,7 +114,11 @@ class AnvilBulkDecodeParityTest {
         for (int s = 0; s < ChunkColumn.SECTION_COUNT; s++) {
             assertArrayEquals(a.sections()[s].blocks(), b.sections()[s].blocks(), where + " 섹션 " + s);
             assertEquals(a.sections()[s].nonAirCount(), b.sections()[s].nonAirCount(), where + " nonAir " + s);
-            assertEquals(a.sections()[s].isRandomlyTicking(), b.sections()[s].isRandomlyTicking(), where + " ticking " + s);
+            // 디스크에서 읽은 구역의 무작위 틱 판정은 바닐라 recalcBlockCounts(용암 유체만 셈)다. 옛 디코드는 칸마다 setBlock 이라 물도 세므로
+            // (바닐라 setBlockState 와 같음) 그 구역 객체의 판정이 아니라 블록을 통째로 넣은(재계수) 구역과 비교한다.
+            ChunkSection recounted = new ChunkSection();
+            recounted.replaceBlocks(a.sections()[s].blocks(), 0);
+            assertEquals(recounted.isRandomlyTicking(), b.sections()[s].isRandomlyTicking(), where + " ticking " + s);
         }
         assertArrayEquals(a.worldSurfaceHeightmap(), b.worldSurfaceHeightmap(), where + " WORLD_SURFACE");
         assertArrayEquals(a.motionBlockingHeightmap(), b.motionBlockingHeightmap(), where + " MOTION_BLOCKING");

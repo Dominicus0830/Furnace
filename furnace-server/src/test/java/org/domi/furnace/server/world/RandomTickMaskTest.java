@@ -26,7 +26,8 @@ class RandomTickMaskTest {
         List<Integer> t = new ArrayList<>(), p = new ArrayList<>();
         for (int s = 0; s < bs.stateCount(); s += 7) {
             if (BlockBehaviors.of(s).isRandomlyTicking(s)) t.add(s);
-            else p.add(s);
+            else if (org.domi.furnace.server.block.Fluids.isEmpty(BlockBehaviors.of(s).getFluidState(s))) p.add(s);
+            // 물이 든 상태는 뺀다: 바닐라는 칸 쓰기로 물도 구역을 무작위 틱 대상으로 만든다(블록만 세는 브루트와 달라짐) — SectionTickingVanillaParityTest 가 따로 대조한다
         }
         isTicking = new boolean[bs.stateCount()];
         for (int s = 0; s < bs.stateCount(); s++) isTicking[s] = BlockBehaviors.of(s).isRandomlyTicking(s);
