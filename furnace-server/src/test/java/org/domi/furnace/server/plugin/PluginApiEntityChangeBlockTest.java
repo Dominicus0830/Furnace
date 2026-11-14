@@ -328,4 +328,68 @@ class PluginApiEntityChangeBlockTest {
         assertTrue(again);
         assertNotNull(core.world().entityUuidIndex().get(id));
     }
+
+    /** 검토 R1: 이미 살아 있는 같은 객체를 다른 region 이 addFreshEntity 로 다시 넣으려 해도 거부(넘기기 adoptEntity 만 같은 객체를 받는다). */
+    @Test
+    void sameLiveObjectCannotBeAddedFreshFromAnotherRegion() throws Exception {
+        core.world().submitAtChunk(FAR, r -> r.chunkAtBlocking(FAR)).get(30, TimeUnit.SECONDS);
+        Sheep sheep = at(rg -> {
+            var l = rg.level();
+            var s = new Sheep(l, l.nextEntityId());
+            s.moveTo(7.5, -50, 7.5, 0, 0);
+            assertTrue(l.addFreshEntity(s));
+            return s;
+        });
+        boolean[] r = core.world().submitAtChunk(FAR, rg -> new boolean[] {rg.level().addFreshEntity(sheep), rg.level().entities().contains(sheep)})
+                .get(30, TimeUnit.SECONDS);
+        assertFalse(r[0], "바닐라 knownUuids: 이미 있는 UUID 는 거부");
+        assertFalse(r[1], "다른 저장소에 들어가지 않는다");
+        assertSame(sheep, core.world().entityUuidIndex().get(sheep.uuid()));
+    }
+
+    /** 검토 R2: 스폰 이벤트 처리기 안에서는 아직 레벨에 없다 — UUID 로 id 를 찾아도 비어 있다(Paper 와 같음). */
+    @Test
+    void uuidLookupInsideSpawnEventIsEmpty() throws Exception {
+        UUID id = UUID.randomUUID();
+        var seen = new java.util.concurrent.atomic.AtomicReference<String>("not fired");
+        on(org.domi.furnace.api.event.entity.EntitySpawnEvent.class,
+                e -> seen.set(String.valueOf(host.world("minecraft:overworld").entityIdByUuid(id))));
+        at(rg -> {
+            var l = rg.level();
+            var s = new Sheep(l, l.nextEntityId());
+            s.setUuid(id);
+            s.moveTo(7.5, -50, 7.5, 0, 0);
+            return l.addFreshEntityWithPassengers(s);
+        });
+        assertEquals("OptionalInt.empty", seen.get());
+        assertTrue(host.world("minecraft:overworld").entityIdByUuid(id).isPresent(), "이벤트가 끝나면 찾는다");
+    }
+
+    /** 검토 R3: 승객 묶음은 하나라도 UUID 를 못 잡으면 전부 놓는다 — 앞쪽만 들어가거나 색인에 남지 않는다. */
+    @Test
+    void passengerBundleIsAllOrNothingAcrossRegions() throws Exception {
+        core.world().submitAtChunk(FAR, r -> r.chunkAtBlocking(FAR)).get(30, TimeUnit.SECONDS);
+        UUID rider = UUID.randomUUID();
+        core.world().submitAtChunk(FAR, rg -> {
+            var l = rg.level();
+            var held = new Sheep(l, l.nextEntityId());
+            held.setUuid(rider);
+            held.moveTo(160 * 16 + 0.5, -50, 0.5, 0, 0);
+            return l.addFreshEntity(held);
+        }).get(30, TimeUnit.SECONDS);
+        UUID mountId = UUID.randomUUID();
+        boolean added = at(rg -> {
+            var l = rg.level();
+            var mount = new Sheep(l, l.nextEntityId());
+            mount.setUuid(mountId);
+            mount.moveTo(7.5, -50, 7.5, 0, 0);
+            var dup = new Sheep(l, l.nextEntityId());
+            dup.setUuid(rider);
+            dup.moveTo(7.5, -50, 7.5, 0, 0);
+            dup.startRiding(mount, true);
+            return l.addFreshEntityWithPassengers(mount);
+        });
+        assertFalse(added, "겹치는 승객이 있으면 묶음 전체 거부");
+        assertNull(core.world().entityUuidIndex().get(mountId), "앞쪽 탈것의 UUID 도 색인에 남지 않는다");
+    }
 }

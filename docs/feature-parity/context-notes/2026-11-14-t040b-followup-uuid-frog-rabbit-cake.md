@@ -22,3 +22,12 @@
 
 ### 시험
 `BlockEventGameEventsTest`(3): 개구리 이벤트·소리 순서·분류, 토끼 block_change, `resyncVitals` SetHealth. `PluginApiEntityChangeBlockTest.sameUuidInAnotherRegionIsRejectedAndKeepsTheLiveOne`: 다른 region 같은 UUID 거부(단건·승객 묶음), 거부된 쪽을 지워도 색인 유지, 살아 있는 쪽을 지운 뒤에는 다시 받는다.
+
+### 검토(PR #331) 반영
+- R1: `claimUuid(e, adopting)` — 새로 넣는 `addFreshEntity`/승객 묶음은 이미 색인에 있는 같은 객체도 중복으로 본다(`uuidTakenElsewhere` 도 같은 기준). 넘어오는 `adoptEntity` 만 같은 객체를 통과시킨다.
+- R2: `WorldHandle.entityIdByUuid` 가 id 색인(스폰 이벤트가 끝나야 들어감)도 확인한다 — Paper 처럼 처리기 안에서는 못 찾는다.
+- R3: 승객 묶음은 이벤트 전에 전원의 UUID 를 잡고, 하나라도 못 잡거나 이벤트가 취소·실패하면 전원 놓는다(`addFreshEntity(e, fireEvent, claimed)`).
+- R5: 개구리 알 조건을 바닐라 `getFluidState(adj).is(Fluids.WATER)` 처럼 원천 물만(`Fluids.isWaterSource`).
+- R6: `ConnectionHandler.interactAllowed` — `PlayerInteractEvent` 로 케이크 우클릭을 막으면 SetHealth 재전송(CraftBukkit SPIGOT-1341, `CakeBlock` 만 — 초 케이크 제외).
+- R9: `CakeBlock.useWithoutItem` 실제 경로 시험(ECB 막음 → PASS·케이크 그대로·SetHealth).
+- 넘김: R7(청크 불러오기 승객 묶음을 바닐라처럼 하나씩 — 후속), R8(플레이어 UUID 색인 — 범위 밖 TASK 후보), R4(`isRemoved` 교차 스레드 읽기 — 영구 차단 없음, 그대로).

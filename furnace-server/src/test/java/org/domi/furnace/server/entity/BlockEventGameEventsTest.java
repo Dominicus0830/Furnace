@@ -20,6 +20,16 @@ class BlockEventGameEventsTest {
 
     static final class Level extends BlockPlacementTest.TestLevel {
         final List<String> log = new ArrayList<>();
+        boolean cancelChange;
+
+        @Override
+        public org.domi.furnace.server.plugin.GameEvents gameEvents() {
+            if (!cancelChange) return super.gameEvents();
+            return new org.domi.furnace.server.plugin.GameEvents() {
+                @Override public boolean wantsEntityChangeBlock() { return true; }
+                @Override public boolean entityChangeBlock(String dimension, org.domi.furnace.server.entity.Rider who, Pos pos, int oldState, int newState, boolean cancelled) { return false; }
+            };
+        }
 
         @Override
         public void playSeededSound(BlockActor except, double x, double y, double z, String sound, String source, float volume, float pitch, long seed) {
@@ -120,5 +130,56 @@ class BlockEventGameEventsTest {
         assertTrue(found, "SetHealth 가 간다");
         assertEquals(p.vitals().health(), health);
         assertEquals(20, food);
+    }
+
+    private static Player creativePlayer(io.netty.channel.embedded.EmbeddedChannel ch) {
+        var p = new Player(9, java.util.UUID.randomUUID(), "Alex", ch);
+        p.vitals().env(new PlayerVitalsTest.TestEnv());
+        p.vitals().loadGameTypes(null, org.domi.furnace.server.world.GameMode.CREATIVE, false);   // 크리에이티브는 배고프지 않아도 먹는다(canEat)
+        p.applyMove(0.5, -60, 0.5, 0, 0, true);
+        return p;
+    }
+
+    /** 검토 R9: 실제 CakeBlock 경로 — ECB 를 막으면 케이크는 그대로, PASS, SetHealth 가 간다. */
+    @Test
+    void cancelledCakeEatPassesAndResendsVitals() {
+        var level = new Level();
+        level.cancelChange = true;
+        Pos pos = new Pos(0, -60, 0);
+        int cake = state("cake");
+        level.setBlock(pos, cake, 2);
+        var ch = new io.netty.channel.embedded.EmbeddedChannel();
+        var p = creativePlayer(ch);
+        ch.runPendingTasks();
+        Object o;
+        while ((o = ch.readOutbound()) != null) ((io.netty.buffer.ByteBuf) o).release();
+        var r = B.behavior(cake).useWithoutItem(cake, level, pos, new org.domi.furnace.server.block.PlayerActor(p), null);
+        ch.runPendingTasks();
+        assertEquals(org.domi.furnace.server.block.InteractionResult.PASS, r);
+        assertEquals(cake, level.getBlockState(pos), "막으면 케이크 그대로");
+        boolean sent = false;
+        while ((o = ch.readOutbound()) != null) {
+            var bb = (io.netty.buffer.ByteBuf) o;
+            if (org.domi.furnace.server.net.io.Types.readVarInt(bb) == org.domi.furnace.server.net.protocol.play.SetHealth.ID) sent = true;
+            bb.release();
+        }
+        assertTrue(sent, "체력·허기 SetHealth 재전송");
+    }
+
+    /** 검토 R5: 바닐라 getFluidState(adj).is(Fluids.WATER) — 원천 물만, 흐르는 물 옆에는 알을 낳지 않는다. */
+    @Test
+    void frogDoesNotLayOnFlowingWater() {
+        var level = new Level();
+        level.setBlock(new Pos(1, -61, 0), B.prop("level").withInt(state("water"), 1), 2);
+        level.setBlock(new Pos(1, -60, 0), state("air"), 2);
+        var frog = new Frog(level, level.nextEntityId());
+        frog.moveTo(0.5, -60, 0.5, 0, 0);
+        frog.setOnGround(true);
+        frog.getBrain().setMemory(MemoryModuleType.WALK_TARGET, new WalkTarget(new Pos(1, -60, 0), 1.0F, 1));
+        frog.getBrain().setMemory(MemoryModuleType.IS_PREGNANT, org.domi.furnace.server.entity.ai.brain.Unit.INSTANCE);
+        level.addFreshEntity(frog);
+        TryLaySpawnOnWaterNearLand.create("minecraft:frogspawn").tryStart(level, frog, 0L);
+        assertTrue(B.isAir(level.getBlockState(new Pos(1, -60, 0))));
+        assertTrue(frog.getBrain().hasMemoryValue(MemoryModuleType.IS_PREGNANT), "알을 못 낳았으니 임신은 그대로");
     }
 }

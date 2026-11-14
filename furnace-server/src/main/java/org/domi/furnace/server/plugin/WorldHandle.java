@@ -639,7 +639,8 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     public java.util.OptionalInt entityIdByUuid(java.util.UUID uuid) {
         java.util.Objects.requireNonNull(uuid, "uuid");
         var e = world.entityUuidIndex().get(uuid);
-        if (e != null && !e.isRemoved()) return java.util.OptionalInt.of(e.id());   // id 는 바뀌지 않는다(어느 스레드나 안전)
+        // id 색인 확인: UUID 는 스폰 이벤트 전에 잡히지만 엔티티는 이벤트가 끝나야 레벨에 들어간다(Paper 는 처리기 안에서 못 찾는다)
+        if (e != null && !e.isRemoved() && world.entityIndex().get(e.id()) == e) return java.util.OptionalInt.of(e.id());   // id 는 바뀌지 않는다(어느 스레드나 안전)
         Entity p = playerByUuid(uuid);
         return p == null ? java.util.OptionalInt.empty() : java.util.OptionalInt.of(p.entityId());
     }
