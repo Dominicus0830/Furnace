@@ -27,7 +27,12 @@ public final class InternalsImpl implements Internals {
     private final Set<String> users = ConcurrentHashMap.newKeySet();
     private static final StackWalker WALKER = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
 
-    InternalsImpl(PluginHost host) { this.host = host; }
+    private final ChunkInternalsImpl chunks;
+
+    InternalsImpl(PluginHost host) {
+        this.host = host;
+        this.chunks = new ChunkInternalsImpl(host);
+    }
 
     /** 내부 접근을 쓴 플러그인 이름들(진단용). */
     public Set<String> users() { return Set.copyOf(users); }
@@ -185,6 +190,10 @@ public final class InternalsImpl implements Internals {
         var core = host.core();
         return RegionFuture.wrap(core.scheduler().global().submit(() -> action.apply(cast(core, type, "서버"))));
     }
+
+
+    @Override
+    public org.domi.furnace.api.internal.ChunkInternals chunks() { return chunks; }
 
     @Override
     public org.domi.furnace.api.world.World wrapWorld(Object internalWorld) {

@@ -287,6 +287,9 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         return RegionFuture.wrap(f != null ? f : CompletableFuture.completedFuture(Optional.empty()));
     }
 
+    /** 바이옴 레지스트리 키 목록(번호 순) — 청크 내부 다리(ChunkInternals.biomeKeys)가 쓴다. */
+    List<String> biomeKeyList() { return biomeNames(); }
+
     /** 바이옴 이름의 레지스트리 번호. 모르거나 꺼진 플러그인의 바이옴이면 IllegalArgumentException. */
     int biomeId(String biome) {
         if (biome == null) throw new NullPointerException("biome");

@@ -43,7 +43,7 @@ public final class Registries {
     public static final ResourceKey<Registry<Object>> TRIM_MATERIAL = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("trim_material"));
     public static final ResourceKey<Registry<Object>> TRIM_PATTERN = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("trim_pattern"));
     public static final ResourceKey<Registry<Object>> WOLF_VARIANT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("wolf_variant"));
-    public static final ResourceKey<Registry<Object>> BIOME = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("worldgen/biome"));
-    public static final ResourceKey<Registry<Object>> DIMENSION = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("dimension"));
+    public static final ResourceKey<Registry<net.minecraft.world.level.biome.Biome>> BIOME = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("worldgen/biome"));
+    public static final ResourceKey<Registry<net.minecraft.world.level.Level>> DIMENSION = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("dimension"));
     public static final ResourceKey<Registry<Object>> LEVEL_STEM = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("dimension"));
 }

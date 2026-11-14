@@ -36,17 +36,18 @@ class NmsLinkerTest {
                     package net.minecraft.server.level;
                     public class ServerLevel extends net.minecraft.world.level.Level {
                         protected ServerLevel() { super(null); }
+                        public net.minecraft.world.level.chunk.ChunkSource getChunkSource() { return null; }
                         public long getSeed() { return 0; }
-                        public net.minecraft.world.level.chunk.LevelChunk getChunkAt(net.minecraft.core.BlockPos p) { return null; }
+                        public net.minecraft.world.level.chunk.ProtoChunk getProtoChunkAt(net.minecraft.core.BlockPos p) { return null; }
                         public long mixed(long a, double b, int c) { return 0; }
                         public static int staticCounter;
                         public int instanceCounter;
                     }
                     """,
-            "net.minecraft.world.level.chunk.LevelChunk", """
+            "net.minecraft.world.level.chunk.ProtoChunk", """
                     package net.minecraft.world.level.chunk;
-                    public class LevelChunk {
-                        public LevelChunk(int x, int z) {}
+                    public class ProtoChunk {
+                        public ProtoChunk(int x, int z) {}
                         public int getHeight() { return 0; }
                     }
                     """,
@@ -71,28 +72,28 @@ class NmsLinkerTest {
             package linky;
             import java.util.function.Supplier;
             import net.minecraft.server.level.ServerLevel;
-            import net.minecraft.world.level.chunk.LevelChunk;
+            import net.minecraft.world.level.chunk.ProtoChunk;
             public final class User {
                 public static String present() { return net.minecraft.server.MinecraftServer.getServer().getServerVersion(); }
-                public static Object missingMethod(ServerLevel l) { return l.getChunkAt(null); }
+                public static Object missingMethod(ServerLevel l) { return l.getProtoChunkAt(null); }
                 public static long missingWide(ServerLevel l) { return l.mixed(1L, 2.0, 3) + 5; }
-                public static Object missingClassNew() { return new LevelChunk(1, 2); }
+                public static Object missingClassNew() { return new ProtoChunk(1, 2); }
                 public static Object missingCtor(boolean f) { return new net.minecraft.world.item.ItemStack(f ? "a" : "b"); }
-                public static boolean missingInstanceof(Object o) { return o instanceof LevelChunk; }
-                public static Object missingCast(Object o) { return (LevelChunk) o; }
-                public static Object missingLdc() { return LevelChunk.class; }
+                public static boolean missingInstanceof(Object o) { return o instanceof ProtoChunk; }
+                public static Object missingCast(Object o) { return (ProtoChunk) o; }
+                public static Object missingLdc() { return ProtoChunk.class; }
                 public static int missingStaticField() { return net.minecraft.server.MinecraftServer.currentTick; }
                 public static void missingPutStatic() { ServerLevel.staticCounter = 3; }
                 public static int missingField(ServerLevel l) { return l.instanceCounter; }
                 public static void missingPutField(ServerLevel l) { l.instanceCounter = 4; }
-                public static Object missingMethodRef(ServerLevel l) { Supplier<Object> s = () -> l.getChunkAt(null); return s; }
+                public static Object missingMethodRef(ServerLevel l) { Supplier<Object> s = () -> l.getProtoChunkAt(null); return s; }
                 public static Object missingUnboundRef() { java.util.function.Function<ServerLevel, Object> f = ServerLevel::getSeedBoxed; return f; }
                 public static Object presentStaticField() { return net.minecraft.world.item.ItemStack.EMPTY; }
-                public static Object[] missingArray() { return new LevelChunk[3]; }
+                public static Object[] missingArray() { return new ProtoChunk[3]; }
                 public static String untouched() { return "ok"; }
                 public static long detect(ServerLevel l) { try { return l.mixed(1L, 2.0, 3); } catch (NoSuchMethodError e) { return -1L; } }
                 public static long detectLinkage(ServerLevel l) { try { return l.instanceCounter; } catch (LinkageError e) { return -2L; } }
-                public static Object missingLambdaType() { java.util.function.Function<LevelChunk, String> f = z -> "x"; return f; }
+                public static Object missingLambdaType() { java.util.function.Function<ProtoChunk, String> f = z -> "x"; return f; }
             }
             """;
 
@@ -108,7 +109,7 @@ class NmsLinkerTest {
 
     private static final String SUB_MISSING = """
             package linky;
-            public class MyChunk extends net.minecraft.world.level.chunk.LevelChunk {
+            public class MyChunk extends net.minecraft.world.level.chunk.ProtoChunk {
                 public MyChunk() { super(0, 0); }
             }
             """;
@@ -210,7 +211,7 @@ class NmsLinkerTest {
         Class<?> c = user(true);
         Error e = trapped(c, "missingMethod", level());
         assertInstanceOf(NoSuchMethodError.class, e, "JVM 과 같은 종류");
-        assertTrue(e.getMessage().contains("net.minecraft.server.level.ServerLevel#getChunkAt(BlockPos)"), e.getMessage());
+        assertTrue(e.getMessage().contains("net.minecraft.server.level.ServerLevel#getProtoChunkAt(BlockPos)"), e.getMessage());
         assertTrue(e.getMessage().contains("플러그인=Linky"), e.getMessage());
         assertTrue(e.getMessage().contains("호출 위치=linky.User#missingMethod:7"), e.getMessage());
         // 2칸 인자(long·double)와 2칸 반환값도 스택이 맞는다(검증 통과)
@@ -236,7 +237,7 @@ class NmsLinkerTest {
         Class<?> c = user(true);
         Error chunk = trapped(c, "missingClassNew");
         assertInstanceOf(NoClassDefFoundError.class, chunk);
-        assertTrue(chunk.getMessage().contains("net.minecraft.world.level.chunk.LevelChunk"), chunk.getMessage());
+        assertTrue(chunk.getMessage().contains("net.minecraft.world.level.chunk.ProtoChunk"), chunk.getMessage());
         assertTrue(chunk.getMessage().contains("등급 C"), "청크 내부는 등급 C 이유를 단다: " + chunk.getMessage());
         // 있는 클래스의 없는 생성자 — 인자 계산 중 분기(미초기화 값이 프레임에 걸린다)가 있어도 검증을 통과한다
         Error ctor = trapped(c, "missingCtor", true);
@@ -281,13 +282,13 @@ class NmsLinkerTest {
         UnsupportedNmsCall present = assertThrows(UnsupportedNmsCall.class, () -> loader.loadClass("linky.MyEntity"));
         assertTrue(present.getMessage().contains("상속") && present.getMessage().contains("등급 C"), present.getMessage());
         UnsupportedNmsCall missing = assertThrows(UnsupportedNmsCall.class, () -> loader.loadClass("linky.MyChunk"));
-        assertTrue(missing.getMessage().contains("LevelChunk"), missing.getMessage());
+        assertTrue(missing.getMessage().contains("ProtoChunk"), missing.getMessage());
     }
 
     @Test
     void jarOwnClassesUnderNmsNamesAreNotJudged() throws Throwable {
         // 플러그인이 net.minecraft 이름 클래스를 스스로 싣고 있으면(드묾) 그 클래스는 플러그인 것이다 — 덫을 놓지 않는다
-        NmsClassTransformer t = new NmsClassTransformer("Linky", Set.of("net/minecraft/world/level/chunk/LevelChunk"),
+        NmsClassTransformer t = new NmsClassTransformer("Linky", Set.of("net/minecraft/world/level/chunk/ProtoChunk"),
                 NmsClassTransformer.Options.DEFAULT, NmsSymbols.RUNTIME);
         Class<?> c = new Loader(classes, t).loadClass("linky.User");
         assertThrows(NoClassDefFoundError.class, () -> call(c, "missingClassNew"), "덫이 아니라 JVM 의 링크 오류(이 시험 jar 에는 실제로 없다)");
@@ -299,16 +300,16 @@ class NmsLinkerTest {
         Path jar = JarCompiler.jar(tmp.resolve("report.jar"), "name: R\nversion: '1'\nmain: linky.User\n",
                 Map.of("linky.User", USER, "net.minecraft.server.level.ServerLevel", STUBS.get("net.minecraft.server.level.ServerLevel")
                                 .replace("public static int staticCounter;", "public static int staticCounter; " + SEED_STUB_PATCH),
-                        "net.minecraft.world.level.chunk.LevelChunk", STUBS.get("net.minecraft.world.level.chunk.LevelChunk"),
+                        "net.minecraft.world.level.chunk.ProtoChunk", STUBS.get("net.minecraft.world.level.chunk.ProtoChunk"),
                         "net.minecraft.world.item.ItemStack", STUBS.get("net.minecraft.world.item.ItemStack"),
                         "net.minecraft.server.MinecraftServer", STUBS.get("net.minecraft.server.MinecraftServer")),
                 Set.of("net.minecraft."));
         NmsCompatReport r = NmsCompatReport.scan("R", jar, NmsSymbols.RUNTIME);
         assertTrue(r.namespace().startsWith("Spigot(가정"), "매니페스트가 없으면 Spigot 가정: " + r.namespace());
-        assertTrue(r.missing().contains("net.minecraft.world.level.chunk.LevelChunk"), r.missing().toString());
-        assertTrue(r.missing().contains("net.minecraft.server.level.ServerLevel#getChunkAt(1)"), r.missing().toString());
+        assertTrue(r.missing().contains("net.minecraft.world.level.chunk.ProtoChunk"), r.missing().toString());
+        assertTrue(r.missing().contains("net.minecraft.server.level.ServerLevel#getProtoChunkAt(1)"), r.missing().toString());
         assertTrue(r.missing().stream().noneMatch(m -> m.startsWith("net.minecraft.world.item.ItemStack#EMPTY")), "있는 것은 없음에 들지 않는다");
-        assertEquals(1, r.gradeC(), "LevelChunk 하나가 등급 C");
+        assertEquals(1, r.gradeC(), "ProtoChunk 하나가 등급 C");
         assertEquals(r.missing().size(), r.gradeC() + r.unknown());
         assertTrue(r.present() >= 3, "MinecraftServer·getServer·getServerVersion·ItemStack·EMPTY …: " + r.present());
         assertEquals(r.present() + r.gradeC() + r.unknown(), r.symbols());

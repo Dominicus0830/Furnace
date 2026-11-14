@@ -101,4 +101,12 @@ public interface Internals {
 
     /** 내부 월드 → API 월드(아무 스레드). 모르는 객체면 IllegalArgumentException. */
     World wrapWorld(Object internalWorld);
+
+    // ------------------------------------------------------------------ 청크 내부(N2a)
+
+    /**
+     * 청크 섹션·하이트맵·바이옴의 번호 단위 읽기 다리 — Bukkit·Paper 호환 계층의 NMS 청크 shim 이 쓴다(불안정, 일반 플러그인은 World API).
+     * 이 서버가 다리를 주지 않으면 UnsupportedOperationException.
+     */
+    default ChunkInternals chunks() { throw new UnsupportedOperationException("chunks"); }
 }
