@@ -83,7 +83,7 @@ class TestPlayerPacketsTest {
             handle.kick(Text.text("bye"));
             long dl = System.nanoTime() + 5_000_000_000L;
             while (server.internals().playerByName("Steve") != null && System.nanoTime() < dl) Thread.onSpinWait();
-            assertEquals(200, steve.received(PacketTypes.Clientbound.SET_TITLE_TEXT).size(), "킥 뒤에는 연결 끝까지 읽은 것");
+            assertEquals(200, steve.received(PacketTypes.Clientbound.SET_TITLE_TEXT).size(), "킥 뒤에는 연결 끝까지 읽은 것 reason=" + steve.disconnectReason());
         }
     }
 
