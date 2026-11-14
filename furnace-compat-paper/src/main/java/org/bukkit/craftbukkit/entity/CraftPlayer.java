@@ -230,6 +230,49 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
         return java.util.Collections.unmodifiableSet(out);
     }
 
+    // ---- 비행·제목·가상 블록 (Paper CraftPlayer 와 같은 순서·검사)
+
+    @Override
+    public boolean getAllowFlight() { return handle.allowFlight(); }
+
+    @Override
+    public void setAllowFlight(boolean flight) { handle.setAllowFlight(flight); }
+
+    @Override
+    public boolean isFlying() { return handle.isFlying(); }
+
+    @Override
+    public void setFlying(boolean value) { handle.setFlying(value); }
+
+    /** 다른 월드 위치여도 좌표만 보낸다(Paper 도 월드를 보지 않는다). 접속이 끊겼으면 아무것도 안 한다. */
+    @Override
+    public void sendBlockChange(org.bukkit.Location loc, org.bukkit.block.data.BlockData block) {
+        if (!handle.isOnline()) return;
+        var pos = new org.domi.furnace.api.world.BlockPos(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
+        handle.sendPacket(new org.domi.furnace.api.packet.clientbound.ClientboundBlockUpdatePacket(pos,
+                ((org.domi.furnace.compat.paper.CompatBlockData) block).furnace()));
+    }
+
+    @Override
+    public void sendTitle(String title, String subtitle) { sendTitle(title, subtitle, 10, 70, 20); }
+
+    @Override
+    public void sendTitle(String title, String subtitle, int fadeIn, int stay, int fadeOut) {
+        handle.sendPacket(new org.domi.furnace.api.packet.clientbound.ClientboundSetTitlesAnimationPacket(fadeIn, stay, fadeOut));
+        if (title != null)
+            handle.sendPacket(new org.domi.furnace.api.packet.clientbound.ClientboundSetTitleTextPacket(firstLine(title)));
+        if (subtitle != null)
+            handle.sendPacket(new org.domi.furnace.api.packet.clientbound.ClientboundSetSubtitleTextPacket(firstLine(subtitle)));
+    }
+
+    /** CraftChatMessage.fromString(s)[0] — 레거시 문자열의 첫 줄만. */
+    private static org.domi.furnace.api.text.Text firstLine(String legacy) {
+        return net.minecraft.network.chat.Component.furnace(org.bukkit.craftbukkit.util.CraftChatMessage.fromString(legacy)[0]);
+    }
+
+    @Override
+    public void resetTitle() { handle.sendPacket(new org.domi.furnace.api.packet.clientbound.ClientboundClearTitlesPacket(true)); }
+
     // ---- CommandSender / Permissible
 
     /** 모달 대화 중이면 플러그인 메시지를 보내지 않는다(CraftPlayer.sendMessage — 대화 문구는 sendRawMessage 로 간다). */

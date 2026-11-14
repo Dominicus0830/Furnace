@@ -77,6 +77,49 @@ public final class CompatBlock implements Block {
     public org.bukkit.block.BlockState getState() { return CompatBlockState.of(dimension, pos, currentData()); }
 
     @Override
+    public org.bukkit.block.BlockState getState(boolean useSnapshot) { return getState(); }
+
+    private org.domi.furnace.api.world.World furnaceWorld() { return Compat.furnace().world(dimension); }
+
+    @Override
+    public byte getLightLevel() { return (byte) furnaceWorld().lightLevelNow(pos); }
+
+    @Override
+    public byte getLightFromSky() { return (byte) furnaceWorld().skyLightNow(pos); }
+
+    @Override
+    public byte getLightFromBlocks() { return (byte) furnaceWorld().blockLightNow(pos); }
+
+    /** null 은 "도구 검사 없음"으로 그대로 넘기고, 공기 등 빈 아이템은 빈손으로(Paper asNMSCopy 와 같다). */
+    private static org.domi.furnace.api.item.ItemStack tool(org.bukkit.inventory.ItemStack item) {
+        return item == null ? null : CompatItems.toFurnace(item);
+    }
+
+    @Override
+    public boolean breakNaturally() { return breakNaturally(null); }
+
+    @Override
+    public boolean breakNaturally(org.bukkit.inventory.ItemStack tool) { return breakNaturally(tool, false); }
+
+    @Override
+    public boolean breakNaturally(boolean triggerEffect, boolean dropExperience) { return breakNaturally(null, triggerEffect, dropExperience); }
+
+    @Override
+    public boolean breakNaturally(org.bukkit.inventory.ItemStack tool, boolean triggerEffect, boolean dropExperience) {
+        return furnaceWorld().breakNaturallyNow(pos, tool(tool), triggerEffect, dropExperience);
+    }
+
+    @Override
+    public java.util.Collection<org.bukkit.inventory.ItemStack> getDrops() { return getDrops(null); }
+
+    @Override
+    public java.util.Collection<org.bukkit.inventory.ItemStack> getDrops(org.bukkit.inventory.ItemStack tool) {
+        java.util.List<org.bukkit.inventory.ItemStack> out = new java.util.ArrayList<>();
+        for (var d : furnaceWorld().dropsNow(pos, tool(tool))) out.add(CompatItems.copyOf(d));
+        return out;
+    }
+
+    @Override
     public void setType(Material type) { setBlockData(CompatBlockData.create(type), true); }
 
     @Override

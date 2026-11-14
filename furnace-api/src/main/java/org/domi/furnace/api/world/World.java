@@ -427,6 +427,32 @@ public interface World {
      */
     default List<Entity> entitiesInChunkNow(int chunkX, int chunkZ) { throw new UnsupportedOperationException("entitiesInChunkNow"); }
 
+    /** 그 칸의 밝기: 하늘빛(지금 하늘 어두움을 뺀 값)과 블록빛 중 큰 값(바닐라 getMaxLocalRawBrightness). 소유 스레드 전용, 청크가 없으면 IllegalStateException. */
+    default int lightLevelNow(BlockPos pos) { throw new UnsupportedOperationException("lightLevelNow"); }
+
+    /** 그 칸의 하늘빛(0..15, 낮밤 무관). 소유 스레드 전용. */
+    default int skyLightNow(BlockPos pos) { throw new UnsupportedOperationException("skyLightNow"); }
+
+    /** 그 칸의 블록빛(0..15). 소유 스레드 전용. */
+    default int blockLightNow(BlockPos pos) { throw new UnsupportedOperationException("blockLightNow"); }
+
+    /**
+     * 그 칸을 이 도구로 부수면 나올 드롭(전리품 표를 굴리므로 월드 난수를 쓴다). tool 이 null 이면 도구 검사 없이 빈손으로 굴린다.
+     * 도구가 있는데 맞는 도구가 아니면(도구가 필요한 블록) 빈 목록. 소유 스레드 전용.
+     */
+    default List<org.domi.furnace.api.item.ItemStack> dropsNow(BlockPos pos, org.domi.furnace.api.item.ItemStack tool) {
+        throw new UnsupportedOperationException("dropsNow");
+    }
+
+    /**
+     * 플레이어 없이 그 칸을 부순다(Paper Block#breakNaturally): 공기(air)가 아니고 도구 조건이 맞으면 드롭을 떨구고, triggerEffect 면 부서짐 효과,
+     * dropExperience 면 경험치. 그 뒤 칸을 그 자리 유체(없으면 공기)로 바꾼다. 얼음은 물이 되고 거북알은 하나 줄어든다.
+     * 칸을 바꿨고 드롭 조건도 맞았을 때만 true. 소유 스레드 전용, 청크가 없으면 IllegalStateException.
+     */
+    default boolean breakNaturallyNow(BlockPos pos, org.domi.furnace.api.item.ItemStack tool, boolean triggerEffect, boolean dropExperience) {
+        throw new UnsupportedOperationException("breakNaturallyNow");
+    }
+
     /**
      * 떨어진 아이템을 만든다(Paper CraftWorld#dropItem: 줍기 지연 10틱, 스폰 이유 CUSTOM). naturally 면 바닐라처럼 월드 난수로 각 축
      * 0.25~0.75 를 더한 자리. beforeSpawn 은 월드에 넣기 전에 부른다(null 가능). 소유 region 스레드 전용. 스폰이 취소되면 null.

@@ -21,6 +21,11 @@ public class IceBlock extends HalfTransparentBlock {
     @Override
     public void playerDestroy(BlockLevel level, BlockActor player, Pos pos, int state, Object blockEntity, ItemStack tool) {
         super.playerDestroy(level, player, pos, state, blockEntity, tool);
+        afterDestroy(level, pos, tool);
+    }
+
+    /** playerDestroy 의 뒷부분(Paper 가 Block#breakNaturally 에서 쓰려고 떼어 낸 IceBlock.afterDestroy). */
+    public void afterDestroy(BlockLevel level, Pos pos, ItemStack tool) {
         if (org.domi.furnace.server.item.ItemTools.hasEnchantmentTag(tool, "minecraft:prevents_ice_melting")) return;
         if (level.ultraWarm()) {
             level.removeBlock(pos, false);
