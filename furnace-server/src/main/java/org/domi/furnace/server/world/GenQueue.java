@@ -56,7 +56,7 @@ public final class GenQueue extends AbstractExecutorService {
                     TimeUnit.MILLISECONDS.toNanos(Math.max(1, Long.getLong("furnace.gen.turnMaxMs", 2000L))));
         }
 
-        boolean turns() { return distanceOrder && fixedPlayerCap == 0 && turnOwners > 0; }
+        public boolean turns() { return distanceOrder && fixedPlayerCap == 0 && turnOwners > 0; }
     }
 
     /** 전역 예산 = 생성 스레드 × 이 값(4코어 16). */
@@ -235,12 +235,34 @@ public final class GenQueue extends AbstractExecutorService {
         while (turnActive.size() < settings.turnOwners() && !turnWait.isEmpty()) turnActive.put(turnWait.pollFirst(), new Turn(now));
     }
 
-    /** 잠금 안: 차례를 끝내 줄 뒤로 보낸다. */
+    /**
+     * 잠금 안: 차례를 끝내 줄 뒤로 보낸다. 그 사람이 걸어 두고 아직 시작 안 한 요청은 취소한다 — 다음 차례(수십 초 뒤)에는 이미 지나친
+     * 땅이라 그때 만들면 차례를 헛쓴다. 자리가 돌아오면 그 사람은 칸 하나로 지금 가장 가까운 청크를 다시 건다.
+     */
     private void endTurnLocked(int owner, long now) {
         if (turnActive.remove(owner) != null) {
             turnWait.addLast(owner);
+            for (int i = gen.size() - 1; i >= 0; i--) {
+                Task t = gen.get(i);
+                if (t.ticket != null && t.ticket.owner == owner && t.ticket.keepAlive == null && t.ticket.tryCancel()) {
+                    removeAt(i);
+                    turnCancelled.add(t);
+                }
+            }
             fillTurnsLocked(now);
         }
+    }
+
+    /** 차례가 끝나 취소한 요청(잠금 밖에서 정리한다). */
+    private final ArrayList<Task> turnCancelled = new ArrayList<>();
+
+    /** 잠금 안: 차례 취소분을 꺼낸다. */
+    private List<Task> drainTurnCancelledLocked(List<Task> into) {
+        if (turnCancelled.isEmpty()) return into;
+        if (into == null) into = new ArrayList<>();
+        into.addAll(turnCancelled);
+        turnCancelled.clear();
+        return into;
     }
 
     /** 잠금 안: 지금 차례인 사람의 요청인가(차례가 없거나 주인 없는 요청은 차례인 것과 같게 본다). */
@@ -486,6 +508,7 @@ public final class GenQueue extends AbstractExecutorService {
                     long now = System.nanoTime();
                     cancelled = reprioLocked(now);
                     t = pickLocked(now);
+                    cancelled = drainTurnCancelledLocked(cancelled);
                 } finally {
                     lock.unlock();
                 }
@@ -532,7 +555,7 @@ public final class GenQueue extends AbstractExecutorService {
         lock.lock();
         try {
             lastReprio = Long.MIN_VALUE / 2;
-            cancelled = reprioLocked(System.nanoTime());
+            cancelled = drainTurnCancelledLocked(reprioLocked(System.nanoTime()));
         } finally {
             lock.unlock();
         }

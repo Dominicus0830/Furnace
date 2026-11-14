@@ -299,7 +299,8 @@ public final class FurnaceMain {
         var genSettings = org.domi.furnace.server.world.GenQueue.Settings.fromSystem(genThreads, World.defaultMaxChunkSendsInFlight());
         java.util.concurrent.ExecutorService genPool = new org.domi.furnace.server.world.GenQueue(genThreads, genSettings);
         log.info("[GEN] 생성 대기열: {} (스레드 {}, 전역 예산 {}, 플레이어 칸 {})", genSettings.distanceOrder() ? "거리 순" : "넣은 순(fifo)",
-                genThreads, genSettings.budget(), genSettings.fixedPlayerCap() > 0 ? genSettings.fixedPlayerCap() + "(고정)" : "예산÷탐험 인원");
+                genThreads, genSettings.budget(), genSettings.fixedPlayerCap() > 0 ? genSettings.fixedPlayerCap() + "(고정)"
+                        : genSettings.turns() ? "차례 " + genSettings.turnOwners() + "명×" + genSettings.turnQuota() : "예산÷탐험 인원");
         World world = regionPool != null
                 ? new World(org.domi.furnace.server.world.DimensionType.OVERWORLD, anvilSource, chunkPool, scheduler, regionPool,
                         config.regionSectionShift(), config.regionMergeRadius(), config.viewDistance(),

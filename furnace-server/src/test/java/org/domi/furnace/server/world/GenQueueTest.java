@@ -253,7 +253,7 @@ class GenQueueTest {
         return new GenQueue.Settings(true, 16, 0, 16, 0, 0, TimeUnit.SECONDS.toNanos(3), false, owners, quota, TimeUnit.SECONDS.toNanos(60));
     }
 
-    /** 차례: 차례인 사람 요청이 더 가까운 남의 요청보다 먼저, turnQuota 개를 시작하면 다음 사람 차례. */
+    /** 차례: 차례인 사람 요청이 더 가까운 남의 요청보다 먼저, turnQuota 개를 시작하면 남은 요청은 취소하고 다음 사람 차례. */
     @Test
     void turns_ownerOnTurnFirst_thenRotatesAfterQuota() throws Exception {
         world(turns(1, 2), 1);
@@ -269,11 +269,12 @@ class GenQueueTest {
         for (String[] t : at) {
             int x = Integer.parseInt(t[1]);
             GenQueue.Ticket tk = new GenQueue.Ticket(true, null, t[0].equals("a") ? 1 : 2);
-            q.tagged(w, x, 0, tk).execute(() -> { order.add(t[0] + x); all.countDown(); });
+            q.tagged(w, x, 0, tk).execute(() -> { order.add((tk.tryStart() ? "" : "~") + t[0] + x); all.countDown(); });
         }
         gate.countDown();
         assertTrue(all.await(5, TimeUnit.SECONDS));
-        assertEquals(List.of("a2", "a3", "b0", "b1", "a4"), order);
+        // a 가 두 개를 시작하면 차례가 끝나고, 아직 시작 안 한 a4 는 취소된다(다음 차례엔 지나친 땅) → b 차례
+        assertEquals(List.of("a2", "~a4", "a3", "b0", "b1"), order);
     }
 
     /** 차례인 사람이 더 걸 것이 없으면 잠시 뒤 다음 사람에게 넘긴다. */
