@@ -190,14 +190,14 @@ public final class TestPlayer implements AutoCloseable {
                     switch (id) {
                         case 0x26 -> {   // keep_alive → 그대로 되돌린다
                             long v = f.readLong();
-                            write(0x18, b -> b.writeLong(v));
+                            reply(0x18, b -> b.writeLong(v));
                         }
                         case 0x40 -> {   // player_position → accept_teleportation
                             f.skipBytes(8 * 3 + 4 * 2 + 1);
                             int tp = Types.readVarInt(f);
-                            write(0x00, b -> Types.writeVarInt(b, tp));
+                            reply(0x00, b -> Types.writeVarInt(b, tp));
                         }
-                        case 0x0C -> write(0x08, b -> b.writeFloat(25.0f));   // chunk_batch_finished → chunk_batch_received
+                        case 0x0C -> reply(0x08, b -> b.writeFloat(25.0f));   // chunk_batch_finished → chunk_batch_received
                         case 0x1D -> {   // disconnect
                             disconnectReason = "disconnect";
                             connected = false;
@@ -549,6 +549,18 @@ public final class TestPlayer implements AutoCloseable {
     }
 
     // ------------------------------------------------------------------ 틀(압축 없음 — 시험 서버는 압축을 끈다)
+
+    /**
+     * 읽기 스레드의 자동 답. 서버가 이미 닫았으면 쓰기는 EPIPE/RST 로 실패하는데, 그래도 이미 도착한 패킷은 끝(EOF)까지 읽어야 한다
+     * (킥 직후 답이 실패해 읽기 스레드가 죽으면 서버가 킥 전에 보낸 패킷 일부를 못 읽은 채 끝난다). 끝 판정은 읽기가 한다.
+     */
+    private void reply(int id, Consumer<ByteBuf> body) {
+        try {
+            write(id, body);
+        } catch (IOException ignored) {
+            // 서버가 끊었다 — 남은 패킷을 읽다 보면 EOF/disconnect 로 끝난다
+        }
+    }
 
     private void write(int id, Consumer<ByteBuf> body) throws IOException {
         ByteBuf b = Unpooled.buffer();
