@@ -32,6 +32,16 @@ class WorldgenGuardSettingsTest {
     }
 
     @Test
+    void jvmSwitchConflictWarns() {
+        java.util.List<String> warns = new java.util.ArrayList<>();
+        WorldgenGuardSettings.fromProperties(props("worldgen.tick-guard", "true"), "false", warns::add);
+        assertEquals(1, warns.size());
+        warns.clear();
+        WorldgenGuardSettings.fromProperties(props("worldgen.tick-guard", "true"), "true", warns::add);
+        assertTrue(warns.isEmpty());
+    }
+
+    @Test
     void badValueFails() {
         assertThrows(IllegalArgumentException.class, () -> WorldgenGuardSettings.fromProperties(props("worldgen.tick-guard", "yes"), null, w -> {}));
         assertThrows(IllegalArgumentException.class, () -> WorldgenGuardSettings.fromProperties(props(), "1", w -> {}));

@@ -165,6 +165,11 @@ public final class GenQueue extends AbstractExecutorService {
     private int genLimit;
     /** 지금 도는 생성 요청 수(조절기를 켰을 때만 센다). 잠금 안. */
     private int genRunning;
+    /** 조절기 스레드(닫을 때 깨운다). 없으면 null. */
+    private Thread guard;
+    /** 상한 변경 로그 빈도 제한(마지막으로 남긴 때). */
+    private long lastLimitLog = Long.MIN_VALUE / 2;
+    private static final long LIMIT_LOG_NANOS = 10_000_000_000L;
 
     public GenQueue(int threads, Settings settings) { this(threads, settings, false); }
 
@@ -188,6 +193,7 @@ public final class GenQueue extends AbstractExecutorService {
         if (tickGuard && guardThread) {
             Thread c = new Thread(this::guardLoop, "furnace-gen-throttle");
             c.setDaemon(true);
+            guard = c;
             c.start();
         }
     }
@@ -219,13 +225,18 @@ public final class GenQueue extends AbstractExecutorService {
 
     /** 모든 차원에서 가장 느린 region 의 최근 1초 TPS(잴 수 있는 region 이 없으면 20). */
     private double worstTps(long now) {
-        double worst = 20;
+        List<Regionizer.RegionRate> rates = new ArrayList<>(worlds.size());
         for (World w : worlds) {
             Regionizer rz = w.regionizer();
-            if (rz == null) continue;
-            Regionizer.RegionRate r = rz.slowestRegion(now, TICK_GUARD_WINDOW, TICK_GUARD_WINDOW);
-            if (r != null && r.tps() < worst) worst = r.tps();
+            if (rz != null) rates.add(rz.slowestRegion(now, TICK_GUARD_WINDOW, TICK_GUARD_WINDOW));
         }
+        return worstOf(rates);
+    }
+
+    /** 차원별 가장 느린 region 중 최저 TPS(null = 잴 region 없음). 모두 없으면 20. */
+    static double worstOf(List<Regionizer.RegionRate> perDimension) {
+        double worst = 20;
+        for (Regionizer.RegionRate r : perDimension) if (r != null && r.tps() < worst) worst = r.tps();
         return worst;
     }
 
@@ -242,6 +253,12 @@ public final class GenQueue extends AbstractExecutorService {
                 genLimit = p;
                 if (up) ready.signalAll();   // 상한에 막혀 기다리던 일꾼을 깨운다
                 if (ChunkTrace.ON) ChunkTrace.value("gen.limit", p);
+                long now = System.nanoTime();
+                if (now - lastLimitLog >= LIMIT_LOG_NANOS) {   // 오르내림이 잦아도 10초에 한 줄
+                    lastLimitLog = now;
+                    LOG.info("[GEN] 생성 조절기: 동시 생성 상한 {} → {} (가장 느린 region {} TPS)", up ? p - 1 : p + 1, p,
+                            String.format("%.1f", worstTps));
+                }
             }
             return p;
         } finally {
@@ -614,7 +631,19 @@ public final class GenQueue extends AbstractExecutorService {
                 List<Task> cancelled;
                 lock.lock();
                 try {
-                    while (!shutdown && plain.isEmpty() && (gen.isEmpty() || genBlockedLocked())) ready.awaitUninterruptibly();
+                    while (!shutdown && plain.isEmpty() && (gen.isEmpty() || genBlockedLocked())) {
+                        if (gen.isEmpty()) {
+                            ready.awaitUninterruptibly();
+                            continue;
+                        }
+                        // 조절기 상한에 막혀 기다리는 동안에도 거리 다시 재기·시야 밖 취소·차례 넘기기는 REPRIO 간격으로 돈다
+                        // (도는 생성이 끝나야 다시 재면 상한 1 일 때 플레이어 자리가 생성 한 개 시간만큼 묶인다)
+                        try { ready.awaitNanos(REPRIO_NANOS); } catch (InterruptedException ignored) { }   // 다른 대기처럼 끼어들기는 무시(다시 세우면 바쁜 대기)
+                        if (!shutdown && plain.isEmpty() && !gen.isEmpty() && genBlockedLocked()) {
+                            try { reprioLocked(System.nanoTime()); } catch (RuntimeException e) { LOG.warn("[GEN] 생성 대기열 정리 실패", e); }
+                            if (!turnCancelled.isEmpty()) break;   // 취소분은 아래에서 잠금 밖으로 정리한다
+                        }
+                    }
                     if (shutdown && plain.isEmpty() && gen.isEmpty()) return;
                     long now = System.nanoTime();
                     t = null;
@@ -698,6 +727,7 @@ public final class GenQueue extends AbstractExecutorService {
         try {
             if (shutdown) return;
             shutdown = true;
+            if (guard != null) guard.interrupt();   // 조절기 스레드가 잠든 채 최대 250ms 남지 않게
             // 남은 미리 불러오기는 아무도 기다리지 않는다 — 닫는 동안 수백 개를 만들지 않게 취소한다(고정 요청은 끝까지 돈다)
             for (int i = gen.size() - 1; i >= 0; i--) {
                 Task t = gen.get(i);
