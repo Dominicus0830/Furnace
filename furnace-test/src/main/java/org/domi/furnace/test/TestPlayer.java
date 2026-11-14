@@ -62,6 +62,8 @@ public final class TestPlayer implements AutoCloseable {
     private final AtomicLong pingSeen = new AtomicLong();
     /** 읽을 수 있는 종류인데 풀지 못한 패킷 수(실패 메시지에 보인다). */
     private final AtomicLong decodeFailures = new AtomicLong();
+    /** 풀지 못한 패킷의 최근 몇 개(종류·크기·예외) — 단언 실패 때 어느 패킷인지 보이게. */
+    private final java.util.ArrayDeque<String> decodeFailureLog = new java.util.ArrayDeque<>();
     private volatile boolean connected;
     private volatile String disconnectReason;
     private Thread reader;
@@ -222,10 +224,15 @@ public final class TestPlayer implements AutoCloseable {
         var t = c.clientboundType(id);
         if (t == null || !codec.readable(t)) return;
         org.domi.furnace.api.packet.Packet p;
+        int len = body.readableBytes();
         try {
             p = c.decode(t, id, body);
         } catch (RuntimeException | LinkageError | StackOverflowError e) {   // 코덱 버그·클래스 로딩 실패로 읽기 스레드가 죽어 접속 끊김처럼 보이지 않게
             decodeFailures.incrementAndGet();
+            synchronized (decodeFailureLog) {
+                if (decodeFailureLog.size() >= 8) decodeFailureLog.pollFirst();
+                decodeFailureLog.addLast(t + "(0x" + Integer.toHexString(id) + ", " + len + "B): " + e);
+            }
             return;
         }
         synchronized (received) {
@@ -473,12 +480,25 @@ public final class TestPlayer implements AutoCloseable {
             b.append(']');
         }
         long bad = decodeFailures.get();
-        if (bad > 0) b.append(". 풀지 못한 패킷 ").append(bad).append("개");
+        if (bad > 0) b.append(". 풀지 못한 패킷 ").append(bad).append("개 ").append(recentDecodeFailures());
         return b.toString();
     }
 
-    /** 읽을 수 있는 종류인데 풀지 못해 모으지 못한 패킷 수. */
-    public long decodeFailures() { return decodeFailures.get(); }
+    /**
+     * 읽을 수 있는 종류인데 풀지 못해 모으지 못한 패킷 수. 받은 패킷 장벽({@link #flushReceived()}) 뒤에 센다 — 서버가 지금까지 보낸 것은
+     * 모두 읽은 뒤의 값이다. 장벽 없이 세면 읽기 스레드가 뒤처졌을 때(바쁜 CI) 앞서 보낸 패킷의 실패가 아직 안 세어져 "전/후" 비교가 흔들린다.
+     */
+    public long decodeFailures() {
+        flushReceived();
+        return decodeFailures.get();
+    }
+
+    /** 풀지 못한 최근 패킷(최대 8개, 종류·본문 크기·예외). 단언 메시지용. */
+    public List<String> recentDecodeFailures() {
+        synchronized (decodeFailureLog) {
+            return List.copyOf(decodeFailureLog);
+        }
+    }
 
     /**
      * 받은 패킷 장벽: 서버가 지금까지 이 플레이어 연결에 쓴 패킷을 읽기 스레드가 모두 읽을 때까지 기다린다(서버가 ping 을 보내고 그것이 오면 끝).

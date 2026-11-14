@@ -149,7 +149,7 @@ class SchemaPacketBridgeTest {
             assertNotNull(forget);
             var border = tp.awaitPacket(PacketTypes.Clientbound.SET_CHUNK_CACHE_CENTER, g -> Integer.valueOf(-8).equals(g.get("z")));
             assertEquals(12, border.get("x"));
-            assertEquals(failuresBefore, tp.decodeFailures(), "보낸 것은 모두 바닐라 와이어로 읽혔다");
+            assertEquals(failuresBefore, tp.decodeFailures(), () -> "보낸 것은 모두 바닐라 와이어로 읽혔다 — 최근 실패 " + tp.recentDecodeFailures());
             // 번들은 다른 스레드 패킷이 끼지 않고 붙어 온다(구분자는 시험 클라이언트가 모으지 않는다)
             int bundle = tp.received().indexOf(forget);
             assertTrue(bundle >= 0 && tp.received().get(bundle + 1).equals(border), "묶음 안 둘이 붙어 온다: " + tp.received());
@@ -305,7 +305,7 @@ class SchemaPacketBridgeTest {
             assertEquals("minecraft:haste", tp.awaitPacket(PacketTypes.Clientbound.REMOVE_MOB_EFFECT, g -> Integer.valueOf(p.getEntityId() + 1000).equals(g.get("entity_id"))).get("effect"));
             assertEquals("plug:token", tp.awaitPacket(PacketTypes.Clientbound.COOKIE_REQUEST, g -> true).get("key"));
             assertEquals(4242L, tp.awaitPacket(PacketTypes.Clientbound.PONG_RESPONSE, g -> true).get("time"));
-            assertEquals(failuresBefore, tp.decodeFailures(), "보낸 것은 모두 바닐라 와이어로 읽혔다");
+            assertEquals(failuresBefore, tp.decodeFailures(), () -> "보낸 것은 모두 바닐라 와이어로 읽혔다 — 최근 실패 " + tp.recentDecodeFailures());
 
             // 레지스트리에 없는 Reference 소리(바닐라도 번호를 못 찾는다), 묶음 안 묶음·null 은 아무것도 보내지 않고 IllegalArgumentException
             tp.clearReceived();
@@ -515,7 +515,7 @@ class SchemaPacketBridgeTest {
             assertTrue(java.util.Arrays.equals(new byte[] {1, 2, 3, 4, 5, 6}, (byte[]) patch.get("map_colors")));
             var bare = tp.awaitPacket(PacketTypes.Clientbound.MAP_ITEM_DATA, g -> Integer.valueOf(78).equals(g.get("map_id")));
             assertEquals(List.of(java.util.Optional.empty(), java.util.Optional.empty()), List.of(bare.get("decorations"), bare.get("color_patch")));
-            assertEquals(failuresBefore, tp.decodeFailures(), "보낸 것은 모두 바닐라 와이어로 읽혔다");
+            assertEquals(failuresBefore, tp.decodeFailures(), () -> "보낸 것은 모두 바닐라 와이어로 읽혔다 — 최근 실패 " + tp.recentDecodeFailures());
 
             // 바닐라도 쓰다 실패하는 값은 아무것도 보내지 않고 IllegalArgumentException
             tp.clearReceived();
