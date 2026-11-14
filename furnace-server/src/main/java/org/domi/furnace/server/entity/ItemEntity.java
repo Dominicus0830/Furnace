@@ -108,6 +108,14 @@ public final class ItemEntity extends Entity {
         if (age >= LIFETIME) discard();
     }
 
+    /** Spigot·Paper ItemEntity.inactiveTick: 줍기 지연·나이만 세고 다 되면 사라진다. */
+    @Override
+    public void inactiveTick() {
+        if (pickupDelay > 0 && pickupDelay != INFINITE_PICKUP_DELAY) pickupDelay--;
+        if (age != INFINITE_LIFETIME) age++;
+        if (age >= LIFETIME) discard();
+    }
+
     private void setUnderwaterMovement() {
         setDeltaMovement(vx() * 0.99F, vy() + (double) (vy() < 0.06F ? 5.0E-4F : 0.0F), vz() * 0.99F);
     }

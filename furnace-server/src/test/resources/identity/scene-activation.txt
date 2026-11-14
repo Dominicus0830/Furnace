@@ -1,0 +1,38 @@
+# 결과 동일 금 파일 — scene-activation. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
+activation tick 0 entities 33cf3fc07490b656
+activation tick 0 random c49e2c6f77588685
+activation tick 0 count 178 marked-active 178
+activation tick 0 no-action-time 8e309533a97ce0c5
+activation tick 50 entities f499d2d537323839
+activation tick 50 random 535c2f3ff3b59afc
+activation tick 50 count 178 marked-active 56
+activation tick 50 no-action-time cb4350f5eab237e2
+activation tick 100 entities 8b4d1457d3a3b22a
+activation tick 100 random 9e1e7a0b0a087dc6
+activation tick 100 count 178 marked-active 51
+activation tick 100 no-action-time ce71c73ec748c9b8
+activation tick 150 entities 93244dd00e2156fb
+activation tick 150 random 1480f23ee36ee9e8
+activation tick 150 count 173 marked-active 44
+activation tick 150 no-action-time 275b36b2000d8ef7
+activation tick 200 entities 5c1c0b5d1dd5f8f3
+activation tick 200 random 0ad69d6261da7222
+activation tick 200 count 173 marked-active 43
+activation tick 200 no-action-time c2ef9a69d13420cc
+activation tick 250 entities 5a33cf0ab20d145c
+activation tick 250 random 2fbbcbc80a2e5f37
+activation tick 250 count 173 marked-active 105
+activation tick 250 no-action-time ae96744bf980849e
+activation tick 300 entities 12589eb697a58630
+activation tick 300 random cbc46b209ee9c9cf
+activation tick 300 count 173 marked-active 137
+activation tick 300 no-action-time 3f92c17a8449f399
+activation tick 350 entities 9d75d82936711980
+activation tick 350 random c965465599ee997a
+activation tick 350 count 173 marked-active 120
+activation tick 350 no-action-time e454e6456c84dd40
+activation tick 400 entities 3bf1d22f51593a2d
+activation tick 400 random 9b64fc3a2999bf35
+activation tick 400 count 173 marked-active 102
+activation tick 400 no-action-time 3659b7225e3ecf0c
+TOTAL ce078ac9a480e62d lines=36

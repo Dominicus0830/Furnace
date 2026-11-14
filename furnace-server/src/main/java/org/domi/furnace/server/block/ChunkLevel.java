@@ -2098,6 +2098,14 @@ public abstract class ChunkLevel implements BlockLevel {
             return i < 0 || i >= c.sectionCount() || c.sectionMaybeHas(i, org.domi.furnace.server.light.LightTables.EMITS);
         }
 
+        @Override
+        public boolean sectionHasOnlyAir(int cx, int sy, int cz) {
+            ChunkColumn c = col(cx, cz);
+            int i = c == null ? -1 : sy - (c.minY() >> 4);
+            if (c == null) return org.domi.furnace.server.light.LightWorld.super.sectionHasOnlyAir(cx, sy, cz);
+            return i < 0 || i >= c.sectionCount() || c.sectionOnlyAirExact(i);   // 월드 높이 밖 구역은 없다(void_air) — computeSources 는 묻지 않는다
+        }
+
         public int extraEmission(int x, int y, int z) { return virtualLights().emission(x, y, z); }
 
         // 같은 섹션 연속 기록은 건너뛴다(전파 중 매 칸 불린다)
@@ -2247,6 +2255,8 @@ public abstract class ChunkLevel implements BlockLevel {
             @Override public boolean sectionMayEmit(int sectionY) {
                 return col.sectionMaybeHas(sectionY - base, org.domi.furnace.server.light.LightTables.EMITS);
             }
+
+            @Override public boolean sectionHasOnlyAir(int chunkX, int sectionY, int chunkZ) { return col.sectionOnlyAirExact(sectionY - base); }
         };
         if (col.light() != null) {
             // 디스크에서 읽은 빛(T-012): 고립 계산은 건너뛰고 하늘빛 원천만 센다(바닐라 initializeLightSources). 가장자리는 올릴 때 맞춘다
@@ -2786,6 +2796,19 @@ public abstract class ChunkLevel implements BlockLevel {
      */
     public void tickEntities(java.util.function.LongPredicate ticking) { tickEntities(ticking, ticking); }
 
+    /** 엔티티 활성 범위 상태(Spigot·Paper EAR). 이 레벨의 주인 스레드만. */
+    private final org.domi.furnace.server.entity.EntityActivation.LevelState activation = new org.domi.furnace.server.entity.EntityActivation.LevelState();
+
+    public org.domi.furnace.server.entity.EntityActivation.LevelState activation() { return activation; }
+
+    /**
+     * Spigot ActivationRange.activateEntities(ServerLevel.tick 의 엔티티 틱 바로 앞): 설정이 켜져 있으면 players 둘레의 엔티티를 이번 틱 활성으로
+     * 표시하고, 이번 tickEntities 가 범위 밖 엔티티에 inactiveTick 을 돌리게 한다. 꺼져 있으면 엔티티 틱은 바닐라 그대로다.
+     */
+    public void activateEntities(Iterable<org.domi.furnace.server.entity.Player> players) {
+        org.domi.furnace.server.entity.EntityActivation.activate(this, activation, players, services().simulationDistance());
+    }
+
     /**
      * ServerLevel.tick 의 엔티티 람다(aqu.a(brc,bnf,bsr)): entityTickList(섹션이 ENTITY_TICKING — sectionTicking)의 엔티티마다
      * 버리기(shouldDiscardEntity) → checkDespawn → inEntityTickingRange(ticking)일 때만 탈것 처리·tick. 그래서 시뮬레이션 거리 밖·시야 안의
@@ -2816,9 +2839,12 @@ public abstract class ChunkLevel implements BlockLevel {
                 Entity.stopRidingForced(e);
             }
             try {
+                // Paper EAR: tickCount 를 올리기 전에 정한다. 비활성이면 tick 대신 inactiveTick
+                boolean active = !activation.on() || org.domi.furnace.server.entity.EntityActivation.checkIfActive(e, activation);
                 e.setOldPosAndRot();
                 e.tickCount++;
-                e.tick();
+                if (active) e.tick();
+                else e.inactiveTick();
                 if (e.isVehicle()) for (var r : e.passengers()) tickPassenger(e, r);
             } catch (RuntimeException ex) {
                 org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error("[ENTITY] 엔티티 틱 실패 {} — 지운다", e, ex);
@@ -2840,9 +2866,15 @@ public abstract class ChunkLevel implements BlockLevel {
         if (e.isRemoved() || e.vehicle() != vehicle) {
             Entity.stopRidingForced(e);
         } else if (entities.contains(e)) {
+            boolean active = !activation.on() || org.domi.furnace.server.entity.EntityActivation.checkIfActive(e, activation);   // Paper EAR(승객은 따로)
             e.setOldPosAndRot();
             e.tickCount++;
-            e.rideTick();
+            if (active) e.rideTick();
+            else {   // Paper: 멈추고 inactiveTick, 자리만 탈것에 맞춘다
+                e.setDeltaMovement(0.0, 0.0, 0.0);
+                e.inactiveTick();
+                vehicle.positionRider(e);
+            }
             if (e.isVehicle()) for (var r2 : e.passengers()) tickPassenger(e, r2);
         }
     }

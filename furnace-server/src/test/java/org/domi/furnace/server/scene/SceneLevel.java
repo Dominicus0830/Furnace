@@ -62,12 +62,13 @@ public class SceneLevel extends ChunkLevel {
     /** 바닥 위 첫 칸의 y(슈퍼플랫: 풀 위 -60). 장면 좌표를 정할 때 쓴다. */
     public static final int FLOOR_Y = -60;
 
-    /** 틱 하나: 시계 +1, 예약 틱 → 블록 이벤트 → 엔티티 → 블록 엔티티 → 빛 갱신. */
+    /** 틱 하나: 시계 +1, 예약 틱 → 블록 이벤트 → (활성 범위) → 엔티티 → 블록 엔티티 → 빛 갱신. 활성 범위는 설정이 꺼져 있으면 아무것도 안 한다. */
     public void tick() {
         gameTime++;
         dayTime++;
         runScheduledTicks();
         runBlockEvents();
+        activateEntities(players);
         tickEntities(k -> true);
         tickBlockEntities(k -> true);
         runLightUpdates();

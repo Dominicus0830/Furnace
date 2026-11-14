@@ -2,6 +2,7 @@
 //
 // 규칙(R4, docs/feature-parity/option-keys-2026-11-07.md):
 //   1. 새 옵션의 기본값은 바닐라와 같은 동작이다.
+//      예외: entity-activation-range.enabled(기본 켜짐 — Spigot·Paper 와 같다. 도미니코 결정 D11, 2026-11-14). 끄면 바닐라.
 //   2. 모든 새 옵션은 키로 ON/OFF 또는 수치를 바꿀 수 있다(코드 상수·-D 시스템 속성만으로 두지 않는다).
 //   3. 잘못된 값(true/false 가 아닌 글자, 범위 밖 수)은 조용히 넘기지 않고 기동 때 어느 키가 문제인지 알리며 멈춘다.
 //   4. 위험한 값(보안·바닐라와 다른 게임 속도 등)은 시작 로그에 경고한다 — {@link #audit}.
@@ -133,6 +134,11 @@ public final class OptionKeys {
     /** 접속 방어의 단계별 키는 단계 다섯 개마다 같은 모양이라 펼쳐서 만든다. */
     public static List<Option> all() {
         List<Option> out = new ArrayList<>(FIXED);
+        String ear = EntityActivationSettings.PREFIX;
+        out.add(new Option(ear + "enabled", "ON/OFF", "true", "true|false",
+                "엔티티 활성 범위(Spigot·Paper 와 같은 방식). 켜면(기본) 플레이어에게서 먼 몹이 AI·이동을 대부분 건너뛰어 바닐라와 결과가 다르다. false = 바닐라"));
+        for (String[] k : EntityActivationSettings.INT_KEYS) out.add(new Option(ear + k[0], "수", k[1], "정수", "활성 범위: " + k[2]));
+        for (String[] k : EntityActivationSettings.BOOL_KEYS) out.add(new Option(ear + k[0], "ON/OFF", k[1], "true|false", "활성 범위: " + k[2]));
         for (String s : STATES) {
             out.add(new Option("connection." + s + ".packets-per-second", "수", "200", "0~1000000", s + " 단계 초당 패킷 평균 상한(0 = 제한 없음)"));
             out.add(new Option("connection." + s + ".packets-burst", "수", "400", "1~10000000", s + " 단계 순간 패킷 상한"));

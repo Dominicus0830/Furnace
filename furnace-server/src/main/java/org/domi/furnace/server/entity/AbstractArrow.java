@@ -275,6 +275,13 @@ public abstract class AbstractArrow extends Projectile {
         life = 0;
     }
 
+    /** Spigot AbstractArrow.inactiveTick: 박혀 있으면 사라짐 시계(life)만 센다(사라짐 판정은 다시 활성일 때). */
+    @Override
+    public void inactiveTick() {
+        if (inGround) life += 1;
+        super.inactiveTick();
+    }
+
     protected void tickDespawn() {
         life++;
         if (life >= 1200) discard();
