@@ -12,6 +12,9 @@
 - villagers 범위: `villagers` 키와 `hasAnimalsConfig` 는 Paper 가 더한 것이다. `hasAnimalsConfig` 는 `config.getInt("entity-activation-range.animals")` 로
   **루트 경로**를 읽어 늘 거짓이라 Paper 에서 "animals 를 바꾸면 villagers 도 따른다"는 죽은 규칙이다 → Furnace 도 villagers 기본은 늘 32.
   순수 Spigot 은 주민 종류가 없어 주민이 ANIMAL(animals 범위)이므로, villagers 키 없는 spigot.yml 가져오기만 villagers=animals 로 적는다(검토 R1).
+- 같은 이유로 WATER·FLYING_MONSTER 도 Paper 가 더한 종류다(검토 R8): 순수 Spigot 은 물 동물이 ANIMAL(PathfinderMob), 가스트·팬텀이 MISC(Monster 도 PathfinderMob 도 아님).
+  키 없는 Spigot 파일 가져오기는 water=animals, flying-monsters=misc 를 적는다(Furnace 기본과 같으면 생략). 분류 차이 하나 더: Spigot 은 `Monster || Slime` 만 MONSTER 라
+  호글린·셜커(Enemy 지만 Monster 아님)가 ANIMAL·MISC 쪽인데 Paper 는 `Enemy` 로 MONSTER — Furnace 는 Paper 를 따른다(가져오기로 맞출 수 없는 차이).
 - `MinecartHopper.immunize` 는 옮기지 않았다: 광산 수레는 늘 활성 목록이라 Paper 에서도 효과가 없다. `FireworkRocket.inactiveTick` 도 폭죽이 늘 활성이라 필요 없다(검토 R6).
 - region 단위 깨우기 몫(검토 R7): 몫 총량이 region 수 × 상한으로 늘고, 합치기 때 흡수되는 쪽 몫이 사라지며 나뉜 새 region 은 0 에서 시작한다(상한 8 이라 8틱 안에 참).
   활성으로 만드는 플레이어를 그 region 의 플레이어로만 봐도 놓치는 엔티티는 없다 — 플레이어 시야 청크는 이웃 구역이 늘 합쳐져 그 플레이어 region 에 있고,

@@ -107,6 +107,9 @@ class PaperConfigImportTest {
                 entity-activation-range:
                   animals: 32
                   monsters: 32
+                  water: 16
+                  villagers: 32
+                  flying-monsters: 32
             """;
 
     private static final String PAPER_GLOBAL = """
@@ -231,9 +234,30 @@ class PaperConfigImportTest {
         assertEquals("false", r.toWrite().get("entity-activation-range.tick-inactive-villagers"));
         assertEquals("2", r.toWrite().get("entity-activation-range.wake-up-inactive.animals-max-per-tick"));
         assertEquals("16", r.toWrite().get("entity-activation-range.villagers"), "villagers 키 없는 Spigot 파일: 주민은 animals 범위");
+        assertFalse(r.toWrite().containsKey("entity-activation-range.water"), "water 키 없는 Spigot 파일: 물 동물은 animals 범위(16) — Furnace 기본과 같다");
+        assertEquals("16", r.toWrite().get("entity-activation-range.flying-monsters"), "flying-monsters 키 없는 Spigot 파일: 가스트·팬텀은 misc 범위(Spigot 기본 16)");
         assertFalse(r.toWrite().containsKey("entity-activation-range.monsters"), "기본과 같은 값은 옮기지 않는다");
         assertTrue(has(r, Kind.DEFAULT, "spigot.yml", "world-settings.default.entity-activation-range.monsters"));
         assertTrue(has(r, Kind.MANUAL, "spigot.yml", "world-settings.nether.entity-activation-range.monsters"), "월드별 값은 수동 안내");
+    }
+
+    /** 기본값만 적힌 순수 Spigot 파일: 물 동물은 animals(32), 가스트·팬텀은 misc(16) 범위 — Furnace 기본(16·32)과 달라 옮긴다. 주민은 32 로 같아 옮기지 않는다(PR #326 검토 R8). */
+    @Test
+    void pureSpigotDefaultsMapPaperOnlyKinds(@TempDir Path dir) throws Exception {
+        write(dir, "spigot.yml", """
+                world-settings:
+                  default:
+                    entity-activation-range:
+                      animals: 32
+                      monsters: 32
+                      raiders: 48
+                      misc: 16
+                """);
+        Result r = run(dir, new Properties());
+        assertEquals("32", r.toWrite().get("entity-activation-range.water"));
+        assertEquals("16", r.toWrite().get("entity-activation-range.flying-monsters"));
+        assertFalse(r.toWrite().containsKey("entity-activation-range.villagers"), "Furnace 기본(32)과 같다");
+        assertFalse(r.toWrite().containsKey("entity-activation-range.animals"));
     }
 
     /** Paper 가 만든 spigot.yml 은 기본값(villagers: 32)도 적어 둔다 — animals 만 바꾼 Paper 서버의 주민 범위는 32 로 남아야 한다(PR #326 검토 R1). */
@@ -245,10 +269,14 @@ class PaperConfigImportTest {
                     entity-activation-range:
                       animals: 16
                       monsters: 24
+                      water: 16
                       villagers: 32
+                      flying-monsters: 32
                 """);
         Result r = run(dir, new Properties());
         assertFalse(r.toWrite().containsKey("entity-activation-range.villagers"));
+        assertFalse(r.toWrite().containsKey("entity-activation-range.water"));
+        assertFalse(r.toWrite().containsKey("entity-activation-range.flying-monsters"));
         Properties furnace = new Properties();
         furnace.putAll(r.toWrite());
         EntityActivationSettings s = EntityActivationSettings.fromProperties(furnace, w -> {});

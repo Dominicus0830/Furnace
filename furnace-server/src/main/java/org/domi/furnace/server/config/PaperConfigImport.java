@@ -455,12 +455,14 @@ public final class PaperConfigImport {
                 else if (String.valueOf(n).equals(k[1])) keptDefault(SPIGOT, base + k[0], v, ear + k[0], k[1], "Furnace 기본과 같다");
                 else imp(SPIGOT, base + k[0], v, ear + k[0], String.valueOf(n), "엔티티 활성 범위");
             }
-            // 순수 Spigot 에는 주민 종류(villagers 키)가 없어 주민이 animals 범위를 쓴다. Paper 가 만든 파일은 villagers 를 늘 적어 두므로 위에서 그대로 옮겨진다.
-            Long spigotAnimals = asLong(val(SPIGOT, base + "animals"));
-            if (val(SPIGOT, base + "villagers") == null && spigotAnimals != null && spigotAnimals == (int) (long) spigotAnimals
-                    && spigotAnimals != EntityActivationSettings.DEFAULT.animals()) {
-                imp(SPIGOT, base + "animals", spigotAnimals, ear + "villagers", String.valueOf(spigotAnimals),
-                        "villagers 키가 없는 Spigot 파일 — Spigot 은 주민을 animals 범위로 활성화한다");
+            // 순수 Spigot 에는 주민·물 동물·나는 적대 몹 종류(villagers·water·flying-monsters 키)가 없다: 주민·물 동물은 animals 범위(PathfinderMob),
+            // 가스트·팬텀은 misc 범위(Monster 도 PathfinderMob 도 아님)를 쓴다. Paper 가 만든 파일은 세 키를 늘 적어 두므로 위에서 그대로 옮겨진다.
+            Long animals = asLong(val(SPIGOT, base + "animals")), misc = asLong(val(SPIGOT, base + "misc"));
+            if (animals != null || misc != null || val(SPIGOT, base + "monsters") != null) {   // Spigot 활성 범위 절이 있는 파일만
+                long a = animals != null ? animals : 32, m = misc != null ? misc : 16;   // Spigot 기본
+                spigotOnly(base, "villagers", "animals", a, EntityActivationSettings.DEFAULT.villagers(), "주민을 animals 범위로");
+                spigotOnly(base, "water", "animals", a, EntityActivationSettings.DEFAULT.water(), "물 동물을 animals 범위로");
+                spigotOnly(base, "flying-monsters", "misc", m, EntityActivationSettings.DEFAULT.flyingMonsters(), "가스트·팬텀을 misc 범위로");
             }
             for (String[] k : EntityActivationSettings.BOOL_KEYS) {
                 Object v = val(SPIGOT, base + k[0]);
@@ -477,6 +479,13 @@ public final class PaperConfigImport {
                 group(Kind.MANUAL, SPIGOT, "world-settings." + world + ".entity-activation-range", ear + "*",
                         "Furnace 의 활성 범위는 서버 전체에 한 벌이다(월드별 값 없음)");
             }
+        }
+
+        /** 순수 Spigot 파일에 없는 Paper 종류 키를 Spigot 이 실제로 쓰는 범위(from 키 값)로 적는다 — Furnace 기본과 같으면 적지 않는다. */
+        private void spigotOnly(String base, String key, String from, long value, int furnaceDefault, String why) {
+            if (val(SPIGOT, base + key) != null || value != (int) value || value == furnaceDefault) return;
+            imp(SPIGOT, base + from, value, EntityActivationSettings.PREFIX + key, String.valueOf(value),
+                    key + " 키가 없는 Spigot 파일 — Spigot 은 " + why + " 활성화한다");
         }
 
         private void manualAndUnsupported() {

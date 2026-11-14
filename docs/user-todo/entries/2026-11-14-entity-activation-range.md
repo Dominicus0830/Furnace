@@ -8,7 +8,7 @@ D11 결정(기본 켜짐, 끄는 키 있음)대로 Spigot·Paper 의 엔티티 �
 |---|---|---|
 | 기본값 | **켜짐**(Paper 와 같음). 플레이어에게서 먼 몹은 AI·이동을 대부분 쉬어 바닐라와 결과가 다름 | 없음(결정 D11) |
 | 끄는 법 | `furnace.properties` 에 `entity-activation-range.enabled=false`, 또는 `config.preset=vanilla` | 바닐라와 똑같이 돌리고 싶을 때만 |
-| Paper 설정 가져오기 | `spigot.yml` 의 `world-settings.default.entity-activation-range.*` 가 같은 이름으로 옮겨짐(villagers 키가 없는 순수 Spigot 파일은 주민 범위를 animals 값으로 — Spigot 동작) | 없음 |
+| Paper 설정 가져오기 | `spigot.yml` 의 `world-settings.default.entity-activation-range.*` 가 같은 이름으로 옮겨짐(villagers·water·flying-monsters 키가 없는 순수 Spigot 파일은 주민·물 동물을 animals, 가스트·팬텀을 misc 값으로 — Spigot 동작) | 없음 |
 | E1. Paper 1.21.3 의 EAR 수정 두 가지를 따름 | 아래 설명 | 다르게 원하시면 알려 주세요(추천: 그대로) |
 
 ## E1. Paper 1.21.1 그대로가 아니라 1.21.3 수정 두 가지를 따랐습니다
