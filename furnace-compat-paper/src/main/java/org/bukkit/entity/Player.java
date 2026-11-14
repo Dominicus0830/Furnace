@@ -47,6 +47,19 @@ public interface Player extends HumanEntity, org.bukkit.conversations.Conversabl
      */
     void updateInventory();
 
+    /** 웅크리기 키를 누르고 있는가(Paper CraftPlayer: getHandle().isShiftKeyDown()). */
+    @Override
+    boolean isSneaking();
+
+    /** 달리는 중인가(Paper CraftPlayer: getHandle().isSprinting()). */
+    boolean isSprinting();
+
+    /** 이 플레이어에게만 레벨 이벤트(Paper Player#playEffect(Location, Effect, int)). */
+    void playEffect(org.bukkit.Location loc, org.bukkit.Effect effect, int data);
+
+    /** 이 플레이어에게만 레벨 이벤트, 데이터는 효과마다 정해진 종류(Paper Player#playEffect(Location, Effect, T)). */
+    <T> void playEffect(org.bukkit.Location loc, org.bukkit.Effect effect, T data);
+
     // ---- 소리(H4 묶음 C) — 이 플레이어에게만. 분류를 적지 않으면 MASTER, 씨앗을 적지 않으면 서버 난수.
 
     default void playSound(org.bukkit.Location location, org.bukkit.Sound sound, float volume, float pitch) { playSound(location, sound, org.bukkit.SoundCategory.MASTER, volume, pitch); }

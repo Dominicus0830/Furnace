@@ -147,6 +147,18 @@ public interface World extends Keyed, org.bukkit.metadata.Metadatable {
 
     List<Player> getPlayers();
 
+    /** 레벨 이벤트를 64칸 안 플레이어에게(Paper World#playEffect). */
+    default void playEffect(Location location, Effect effect, int data) { playEffect(location, effect, data, 64); }
+
+    /** 레벨 이벤트를 radius 칸 안 플레이어에게. */
+    void playEffect(Location location, Effect effect, int data, int radius);
+
+    /** 데이터가 효과마다 정해진 종류(Effect#getData)인 레벨 이벤트를 64칸 안 플레이어에게. */
+    default <T> void playEffect(Location location, Effect effect, T data) { playEffect(location, effect, data, 64); }
+
+    /** 데이터가 효과마다 정해진 종류인 레벨 이벤트를 radius 칸 안 플레이어에게. */
+    <T> void playEffect(Location location, Effect effect, T data, int radius);
+
     int getMinHeight();
 
     int getMaxHeight();

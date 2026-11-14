@@ -79,6 +79,13 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     @Override
     public GameMode gameMode() { return GameMode.byId(p.gameMode().id()); }
 
+    /** 웅크리기 키 상태(volatile — 연결 스레드가 쓴다). 바닐라 ServerPlayer.isShiftKeyDown. */
+    @Override
+    public boolean isSneaking() { return p.sneaking(); }
+
+    @Override
+    public boolean isSprinting() { return p.sprinting(); }
+
     @Override
     public boolean setGameMode(GameMode mode) {
         return p.vitals().setGameMode(org.domi.furnace.server.world.GameMode.byId(mode.id()));

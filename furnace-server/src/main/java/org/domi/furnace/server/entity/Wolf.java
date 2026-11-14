@@ -87,7 +87,7 @@ public class Wolf extends TamableAnimal implements NeutralMob {
             String id = order.get(i);
             var def = defs.get(id);
             // 정의가 없는 항목은 바닐라 데이터 없이 돈 내장 변종 — 내장 표로 본다
-            if (def != null ? biomesContain(def.get("biomes"), biome) : id.equals(vanilla) && (!id.equals("minecraft:pale") || biome.equals("minecraft:taiga"))) return i;
+            if (def != null ? biomesContain(def.get("biomes"), biome) : id.equals(vanilla) && (!id.equals("minecraft:pale") || "minecraft:taiga".equals(biome))) return i;
         }
         return paleIndex();
     }
@@ -118,6 +118,7 @@ public class Wolf extends TamableAnimal implements NeutralMob {
 
     /** 바닐라 변종만 있을 때의 결과(데이터 팩을 읽지 않고 돌 때). 바닐라 변종들의 바이옴은 겹치지 않아 순서와 무관하다. */
     static int vanillaVariantForBiome(String biome) {
+        if (biome == null) return VARIANT_PALE;   // 바이옴을 모를 때(데이터 팩 없이 도는 시험 판) — 어느 변종 목록에도 없는 것과 같다
         return switch (biome) {
             case "minecraft:taiga" -> 3;
             case "minecraft:grove" -> 5;

@@ -297,9 +297,8 @@ final class ExecuteConditions {
             return id == null ? CompletableFuture.completedFuture(-1) : id;
         }).thenCompose(f -> f).thenApply(id -> {
             if (id < 0) {
-                // 바닐라 LevelReader.getNoiseBiome: 그 quart 의 청크가 없으면 생성기 바이옴(getUncachedNoiseBiome)
-                var src = org.domi.furnace.server.world.gen.NoiseWorldSource.of(w.worldSource());
-                String gen = src == null ? null : src.biomeAt(q[0] << 2, q[1] << 2, q[2] << 2);
+                // 그 quart 의 청크가 없으면 새로 생성했을 때의 저장 바이옴(ServerCore.generatorBiome — quart y 를 죄고 R-트리 동률은 저장값)
+                String gen = org.domi.furnace.server.ServerCore.generatorBiome(w, q[0], q[1], q[2], names);
                 id = gen == null ? -1 : names.indexOf(gen);
             }
             return id >= 0 && filter.test(id);

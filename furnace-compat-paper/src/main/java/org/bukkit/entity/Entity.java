@@ -44,6 +44,12 @@ public interface Entity extends Metadatable, CommandSender, PersistentDataHolder
 
     boolean isDead();
 
+    /**
+     * 웅크리기 키를 누르고 있는가(Paper Entity#isSneaking = 바닐라 isShiftKeyDown). 몹은 이 플래그를 스스로 켜지 않아 늘 false 다
+     * (Furnace 는 setSneaking 이 아직 없다). 플레이어는 CraftPlayer 가 덮는다.
+     */
+    default boolean isSneaking() { return false; }
+
     String getCustomName();
 
     /** 마인크래프트 종류 키(예: "minecraft:zombie"). */
