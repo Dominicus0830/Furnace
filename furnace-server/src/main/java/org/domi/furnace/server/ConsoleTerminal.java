@@ -42,7 +42,7 @@ final class ConsoleTerminal implements AutoCloseable {
                 .terminal(terminal)
                 .appName("Furnace")
                 .parser(parser)
-                .completer((r, line, candidates) -> complete(line.line().substring(0, line.cursor()), line.word(), line.wordCursor(), candidates))
+                .completer((r, line, candidates) -> complete(line.line(), line.line().substring(0, line.cursor()), line.word(), line.wordCursor(), candidates))
                 .option(LineReader.Option.DISABLE_EVENT_EXPANSION, true)   // '!' 를 기록 확장으로 해석하지 않는다
                 .option(LineReader.Option.INSERT_TAB, false);
         if (historySize > 0 && historyFile != null) {
@@ -106,9 +106,24 @@ final class ConsoleTerminal implements AutoCloseable {
 
     // ------------------------------------------------------------------ 자동완성
 
-    private void complete(String textBeforeCursor, String word, int wordCursor, List<Candidate> out) {
+    private void complete(String fullLine, String textBeforeCursor, String word, int wordCursor, List<Candidate> out) {
         ServerCore c = core.get();
         if (c == null) return;   // 서버가 준비되기 전에는 명령 트리가 없다
+        // Paper ConsoleCommandCompleter: AsyncTabCompleteEvent(콘솔, "/" + 입력 한 줄 전체) — 취소거나 handled 면 이벤트의 후보만 쓰고 명령 트리는 묻지 않는다.
+        // 이 스레드가 콘솔 입력 스레드라 이벤트 이름 그대로 서버 틱과 무관하게 불린다.
+        if (c.events().hasSubscribers(org.domi.furnace.api.event.server.AsyncTabCompleteEvent.class)) {
+            var ev = c.events().call(new org.domi.furnace.api.event.server.AsyncTabCompleteEvent(c.plugins().console(), "/" + fullLine, true));
+            if (ev.isCancelled() || ev.isHandled()) {
+                if (!ev.isCancelled()) {
+                    for (var completion : ev.completions()) {
+                        if (completion.suggestion().isEmpty()) continue;
+                        out.add(new Candidate(completion.suggestion(), completion.suggestion(), null,
+                                completion.tooltip() == null ? null : completion.tooltip().getString(), null, null, false));
+                    }
+                }
+                return;
+            }
+        }
         int wordStart = textBeforeCursor.length() - wordCursor;
         CompletableFuture<List<String[]>> future = new CompletableFuture<>();
         try {

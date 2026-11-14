@@ -177,11 +177,23 @@ public final class Commands {
 
     /** 플레이어가 쓸 수 있는 노드만 담은 명령 트리를 보낸다. */
     public void sendCommands(Player player) {
-        player.send(CommandTreePacket.forSource(dispatcher.getRoot(), CommandSource.player(server, player), sendNamespaced()));
+        player.send(treeFor(CommandSource.player(server, player)));
     }
 
+    /**
+     * source 가 쓸 수 있는 명령 트리. 플레이어 소스면 PlayerCommandSendEvent(구독자가 있을 때만)를 부르고 처리기가 뺀 최상위 이름을 트리에서 뺀다 —
+     * 접속 때(연결 스레드)·권한 변경·명령 등록 변경·Player.updateCommands 가 모두 이 길로 온다.
+     */
     public CommandTreePacket treeFor(CommandSource source) {
-        return CommandTreePacket.forSource(dispatcher.getRoot(), source, sendNamespaced());
+        Player player = source.getPlayer();
+        var events = server.events();
+        if (player == null || !events.hasSubscribers(org.domi.furnace.api.event.player.PlayerCommandSendEvent.class)) {
+            return CommandTreePacket.forSource(dispatcher.getRoot(), source, sendNamespaced());
+        }
+        return CommandTreePacket.forSource(dispatcher.getRoot(), source, sendNamespaced(), names -> {
+            var ev = events.call(new org.domi.furnace.api.event.player.PlayerCommandSendEvent(server.plugins().player(player), names));
+            names.retainAll(ev.commands());   // 처리기가 뺀 이름만 뺀다(더한 이름은 무시)
+        });
     }
 
     private static boolean sendNamespaced() { return org.domi.furnace.server.config.OperatorOptions.current().sendNamespacedCommands(); }

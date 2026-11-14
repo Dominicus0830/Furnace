@@ -21,13 +21,15 @@
 
 우선순위(LOWEST~MONITOR), `ignoreCancelled`, 취소 전달은 Furnace 버스가 지킨다. 같은 우선순위의 Furnace 고유 플러그인과는 등록 순이다.
 
-## 지원하는 이벤트 (47)
+## 지원하는 이벤트 (49)
 
 | Bukkit | Furnace | 되돌려 쓰는 값 |
 |---|---|---|
 | `PlayerJoinEvent` / `PlayerQuitEvent` | 같은 이름 | 입·퇴장 메시지 |
 | `PlayerKickEvent` | `PlayerKickEvent` | 사유, 취소 |
 | `AsyncPlayerChatEvent` | `AsyncChatEvent` | 메시지, 서식(`setFormat`), 취소 |
+| `PlayerCommandSendEvent` | `PlayerCommandSendEvent` | 빼낸 최상위 명령 이름(클라이언트 명령 트리에서 사라진다). 접속·권한 변경·명령 등록 변경·`updateCommands` 때. 더한 이름은 무시(Paper 와 같다) |
+| `com.destroystokyo.paper.event.server.AsyncTabCompleteEvent` | `AsyncTabCompleteEvent` | 후보 문자열·handled·취소. 플레이어 Tab 과 콘솔 입력줄. Adventure 판 `Completion`·`completions()` 는 없다(NoSuchMethodError) |
 | `PlayerMoveEvent` / `PlayerTeleportEvent` | 같은 이름 | 취소. `PlayerMoveEvent` 는 CraftBukkit 간격(거리² > 1/256 또는 회전 합 > 10°, 시선만 돌려도 발화)으로 온다 |
 | `PlayerRespawnEvent` | 같은 이름 | 부활 위치 |
 | `PlayerChangedWorldEvent`, `PlayerGameModeChangeEvent`, `PlayerToggleSneak/Sprint/FlightEvent` | 같은 이름 | 취소 |
@@ -92,7 +94,7 @@
 
 **리스너 통째 탈락 방지 (T-040a).** 리스너 클래스의 메서드 서명을 읽다가 없는 클래스(`NoClassDefFoundError`, 대개 어댑터에 없는 이벤트)를 만나면 Bukkit·Paper 는 그 리스너 클래스를 통째로 버린다(Paper 에서는 그 클래스가 다 있어 일어나지 않는 일). Furnace 는 이때만 클래스 파일을 ASM 으로 읽어 `@EventHandler` 메서드를 하나씩 풀고(`ListenerFallback`), 매개변수 형이 풀리는 것만 `MethodHandles.privateLookupIn(...).findVirtual` 로 등록한다 — 우선순위·`ignoreCancelled`·비공개·정적·부모 클래스의 공개 처리기까지 `getMethods()` 와 같은 가시성이다(자식의 주석 없는 덮어쓰기가 부모 처리기를 가리는 것도 같다). 건너뛴 처리기의 이름과 없는 클래스는 한 줄 경고에 남는다. 정상 경로(서명이 다 풀리는 리스너)는 그대로다. 인터페이스 default 메서드의 `@EventHandler` 도 같은 규칙으로 찾는다.
 
-**클래스만 있고 아직 알리지 않는 이벤트.** `BlockCanBuildEvent`·`BlockDamageEvent`·`BlockDispenseEvent`·`BlockExpEvent`·`NotePlayEvent`·`SignChangeEvent`·`PlayerCommandSendEvent`·`WorldInitEvent`. 리스너 클래스 하나에 이 이벤트 처리기가 섞여 있어도 나머지 처리기는 등록되도록 클래스를 두었다(Bukkit 은 리스너 클래스의 모든 처리기 서명을 한꺼번에 읽어서, 클래스 하나가 없으면 리스너 전체가 빠진다). 처리기를 달면 플러그인·이벤트마다 한 번 "이 이벤트는 아직 알리지 않는다" 경고를 남긴다(`EventBridge.isKnownButNotFired`).
+**클래스만 있고 아직 알리지 않는 이벤트.** `BlockCanBuildEvent`·`BlockDamageEvent`·`BlockDispenseEvent`·`BlockExpEvent`·`NotePlayEvent`·`SignChangeEvent`·`WorldInitEvent`. 리스너 클래스 하나에 이 이벤트 처리기가 섞여 있어도 나머지 처리기는 등록되도록 클래스를 두었다(Bukkit 은 리스너 클래스의 모든 처리기 서명을 한꺼번에 읽어서, 클래스 하나가 없으면 리스너 전체가 빠진다). 처리기를 달면 플러그인·이벤트마다 한 번 "이 이벤트는 아직 알리지 않는다" 경고를 남긴다(`EventBridge.isKnownButNotFired`).
 
 플러그인이 만든 자기 이벤트는 `PluginManager#callEvent` 로 그대로 돈다(Furnace 이벤트와 이어지지 않는 순수 Bukkit 이벤트).
 
@@ -176,3 +178,7 @@ Bukkit 은 메인 스레드 하나를 가정한다. 이 1차는 Furnace 이벤�
 ## 법적 메모
 
 `org.bukkit` 클래스의 공개 이름·서명은 호환을 위해 필요한 만큼만 새로 썼다(Bukkit 소스를 복사하지 않았다). `furnace-compat-paper` 는 GPL-3.0-only (확정, `docs/policy/licensing.md`). 이 문서는 법률 자문이 아니다.
+
+## Tag 와 자동완성 (2026-11-14, FAWE 시작 로그에서)
+- **`org.bukkit.Tag`·`Bukkit.getTag`/`getTags`·`Server.getTag`/`getTags`·`Fluid`·`GameEvent`.** `Tag` 상수는 바닐라 1.21.1 태그마다 하나(블록은 태그 경로 대문자, 아이템 `ITEMS_`·유체 `FLUIDS_`·엔티티 종류 `ENTITY_TYPES_`·게임 이벤트 `GAME_EVENT_`) — `tools/compat/gen-bukkit-tag.py` 가 `tags-1.21.1.txt` 에서 만든다. 구현은 Furnace 게임 레지스트리(`gameRegistries().tag()`)를 그때그때 읽어 데이터 팩 리로드가 잡고 있던 `Tag` 객체에도 보인다. 없는 태그는 `null`, 레지스트리와 클래스가 안 맞으면 `IllegalArgumentException`(CraftServer.getTag 규칙). `Registry.FLUID`·`Registry.GAME_EVENT` 는 아직 없다.
+- **자동완성.** `AsyncTabCompleteEvent` 는 후보를 채웠거나 handled 면 그 후보만 보내고(Brigadier 규칙: 마지막 공백 뒤가 바뀔 자리·정렬 대소문자 무시·10진 정수 꼴은 정수 후보), 취소면 응답 없음, 아무것도 안 하면 평소처럼 명령 트리로 후보를 만든다. 처리기가 없으면 서버는 이벤트를 만들지 않고 스레드도 건너지 않는다. 동기 `TabCompleteEvent`·Paper `MaterialTags`·`EntityTags` 는 아직 없다.

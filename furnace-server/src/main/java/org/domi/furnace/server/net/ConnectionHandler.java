@@ -721,9 +721,78 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         Player p = player;
         org.domi.furnace.server.ServerCore core = login.core;
         if (p == null || core == null) return;
+        var events = core.events();
+        if (!events.hasSubscribers(org.domi.furnace.api.event.server.AsyncTabCompleteEvent.class)) {
+            sendServerSuggestions(core, p, transactionId, text);
+            return;
+        }
+        // Paper AsyncTabCompleteEvent: 전용 스레드에서 이벤트를 먼저 부른다. 후보를 채웠거나 handled 면 그 후보만 보내고(명령 트리는 묻지 않는다),
+        // 취소면 아무것도 보내지 않으며, 둘 다 아니면 평소처럼 전역 스레드에서 명령 트리로 후보를 만든다.
+        TAB_COMPLETE_EXECUTOR.execute(() -> {
+            try {
+                var ev = events.call(new org.domi.furnace.api.event.server.AsyncTabCompleteEvent(core.plugins().player(p), text, true));
+                if (!ev.isHandled()) {
+                    if (ev.isCancelled()) return;
+                    sendServerSuggestions(core, p, transactionId, text);
+                } else if (!ev.isCancelled() && !ev.completions().isEmpty()) {
+                    p.send(new org.domi.furnace.server.net.protocol.play.CommandSuggestionsResponse(transactionId, eventSuggestions(text, ev.completions())));
+                }
+            } catch (RuntimeException e) {
+                log.warn("자동완성 이벤트 처리 중 예외: {}", e.toString());
+            }
+        });
+    }
+
+    private static void sendServerSuggestions(org.domi.furnace.server.ServerCore core, Player p, int transactionId, String text) {
         core.scheduler().global().execute(() -> core.commands()
                 .suggestions(org.domi.furnace.server.command.CommandSource.player(core, p), text)
                 .thenAccept(s -> p.send(new org.domi.furnace.server.net.protocol.play.CommandSuggestionsResponse(transactionId, s))));
+    }
+
+    /** 자동완성 전용 스레드(Paper "Async Tab Complete Thread - #n", 고정 4개 — 이벤트 처리기가 느려도 서버 틱·연결 스레드를 막지 않는다). */
+    private static final java.util.concurrent.ExecutorService TAB_COMPLETE_EXECUTOR = java.util.concurrent.Executors.newFixedThreadPool(4, new java.util.concurrent.ThreadFactory() {
+        private final java.util.concurrent.atomic.AtomicInteger n = new java.util.concurrent.atomic.AtomicInteger();
+
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread t = new Thread(r, "Async Tab Complete Thread - #" + n.incrementAndGet());
+            t.setDaemon(true);
+            return t;
+        }
+    });
+
+    /**
+     * AsyncTabCompleteEvent 가 낸 후보를 클라이언트 응답으로 만든다(Paper handleCustomCommandSuggestions0): 마지막 공백 뒤가 바뀔 자리이고,
+     * 후보가 10진 정수 꼴이면 정수 후보로 낸다(Guava Ints.tryParse 와 같다 — 앞의 '+' 는 정수가 아니다).
+     */
+    static org.domi.furnace.server.command.brigadier.Suggestions eventSuggestions(String text, java.util.List<org.domi.furnace.api.event.server.AsyncTabCompleteEvent.Completion> completions) {
+        var builder0 = new org.domi.furnace.server.command.brigadier.SuggestionsBuilder(text, text.length());
+        var builder = builder0.createOffset(builder0.getInput().lastIndexOf(' ') + 1);
+        for (var c : completions) {
+            Integer asInt = tryParseInt(c.suggestion());
+            if (asInt != null) builder.suggest(asInt, c.tooltip());
+            else builder.suggest(c.suggestion(), c.tooltip());
+        }
+        return builder.build();
+    }
+
+    /** Guava Ints.tryParse: ASCII 10진수와 앞의 '-' 만, int 범위 밖이면 null. */
+    private static Integer tryParseInt(String s) {
+        int n = s.length(), i = 0;
+        if (n == 0) return null;
+        if (s.charAt(0) == '-') {
+            if (n == 1) return null;
+            i = 1;
+        }
+        long v = 0;
+        for (; i < n; i++) {
+            char ch = s.charAt(i);
+            if (ch < '0' || ch > '9') return null;
+            v = v * 10 + (ch - '0');
+            if (v > 2147483648L) return null;
+        }
+        if (s.charAt(0) == '-') v = -v;
+        return v >= Integer.MIN_VALUE && v <= Integer.MAX_VALUE ? (int) v : null;
     }
 
     /** Velocity 포워딩 응답: 서명 확인 → 실제 주소·프로필로 로그인 검사 진행. 그 밖의 질의 응답은 바닐라처럼 끊는다. */
