@@ -43,6 +43,42 @@ class RandomTickTest {
         assertFalse(sec.isRandomlyTicking());
     }
 
+    private static int randValue(ChunkLevel level) throws Exception {
+        var f = ChunkLevel.class.getDeclaredField("randValue");
+        f.setAccessible(true);
+        return f.getInt(level);
+    }
+
+    /**
+     * 바닐라: 양동이로 물을 놓은 구역은 isRandomlyTicking(tickingFluidCount 가 물도 센다)이라 tickChunk 가 그 구역에서 칸을 randomTickSpeed 번 뽑는다 —
+     * 뽑힌 칸이 물이라 아무 일도 없어도 randValue 가 그만큼 나아간다(다른 구역 칸 선택에 이어진다). 물 없는 구역은 뽑지 않는다.
+     */
+    @Test
+    void tickChunk_bucketWaterSectionDrawsRandomPositions() throws Exception {
+        BlockBehaviors.ofBlock(0);   // 무작위 틱·유체 표를 구역에 건다(없으면 구역이 아무것도 세지 않는다)
+        var level = new BlockPlacementTest.TestLevel();
+        var col = level.chunk(0, 0);
+        int speed = 3, start = 12345;
+        var rv = ChunkLevel.class.getDeclaredField("randValue");
+        rv.setAccessible(true);
+        rv.setInt(level, start);
+        level.randomTickSections(col, 0, 0, speed);   // 바탕: 평지의 다른 구역(풀 블록 등)이 뽑는 만큼
+        int base = randValue(level);
+        int baseSteps = -1, v = start;
+        for (int k = 0; k <= 400 && baseSteps < 0; k++, v = v * 3 + 1013904223) if (v == base) baseSteps = k;
+        assertTrue(baseSteps >= 0, "바탕 뽑기 수를 못 찾음");
+        level.setBlock(new Pos(3, 5, 3), B.defaultState("minecraft:water"), 2);   // 구역 y 0..15 는 평지에서 공기뿐
+        rv.setInt(level, start);
+        level.randomTickSections(col, 0, 0, speed);
+        int expect = start;
+        for (int i = 0; i < baseSteps + speed; i++) expect = expect * 3 + 1013904223;
+        assertEquals(expect, randValue(level), "물을 놓은 구역이 칸을 randomTickSpeed 번 더 뽑는다");
+        level.setBlock(new Pos(3, 5, 3), B.defaultState("minecraft:air"), 2);
+        rv.setInt(level, start);
+        level.randomTickSections(col, 0, 0, speed);
+        assertEquals(base, randValue(level), "물을 치우면 다시 뽑지 않음");
+    }
+
     @Test
     void tickChunk_decaysUnconnectedLeaves() {
         var level = new BlockPlacementTest.TestLevel();
