@@ -196,6 +196,22 @@ class CommandSelectorStageTest {
         assertTrue(slow.isEmpty(), "엔티티 선택 명령 한 줄이 한 틱 가까이 걸린다(단계마다 1틱 회귀): " + slow);
     }
 
+    @Test
+    void spreadplayersPerSourceDoesNotWaitATickPerChunkRead() throws Exception {
+        // spreadplayers 는 땅을 가상 스레드에서 읽는다 — 그 스레드도 명령 범위여야 청크 읽기 홉이 틱마다 밀리지 않는다(검토 R1).
+        // 기준 3050ms, 가상 스레드만 범위 밖이면 약 1000ms, 고친 뒤 약 115ms
+        startTicks();
+        long[] ms = new long[3];
+        for (int i = 0; i < ms.length; i++) {
+            long t0 = System.nanoTime();
+            run("execute as @e[type=cow] at @s run spreadplayers ~ ~ 0 1 false @s");
+            ms[i] = (System.nanoTime() - t0) / 1_000_000L;
+        }
+        Arrays.sort(ms);
+        System.out.println("STAGE spreadplayers per source median " + ms[1] + " ms");
+        assertTrue(ms[1] < 500, "소 20마리 spreadplayers 가 소스마다 1틱 이상 걸린다: " + ms[1] + " ms");
+    }
+
     // ---------------------------------------------------------------- 결과 동일성
 
     /** 문을 켜고 끈 두 변형에서 같은 결과(소스 순서·점수·태그·NBT)가 나와야 한다. */
