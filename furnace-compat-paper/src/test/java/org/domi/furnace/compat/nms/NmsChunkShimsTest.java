@@ -131,6 +131,10 @@ class NmsChunkShimsTest {
             Heightmap hm = c.getOrCreateHeightmapUnprimed(Heightmap.Types.MOTION_BLOCKING);
             assertEquals(level.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z), hm.getFirstAvailable(x & 15, z & 15));
             assertEquals(-64, c.getOrCreateHeightmapUnprimed(Heightmap.Types.WORLD_SURFACE_WG).getFirstAvailable(0, 0), "월드젠 종류는 비어 있다");
+            // 바닐라 ChunkAccess.getHeight 는 없는 하이트맵을 primeHeightmaps 로 블록에서 계산한다 — WG 종류는 술어가 같은 살아 있는 종류와 같은 값
+            assertEquals(c.getHeight(Heightmap.Types.WORLD_SURFACE, x & 15, z & 15), c.getHeight(Heightmap.Types.WORLD_SURFACE_WG, x & 15, z & 15));
+            assertEquals(c.getHeight(Heightmap.Types.OCEAN_FLOOR, x & 15, z & 15), c.getHeight(Heightmap.Types.OCEAN_FLOOR_WG, x & 15, z & 15));
+            assertEquals(surface, level.getHeight(Heightmap.Types.WORLD_SURFACE_WG, x, z));
             // getRawData: 9비트(384 → ceillog2(385)), long 당 7칸 — 풀면 첫 빈 y - 최저 높이
             long[] raw = hm.getRawData();
             assertEquals(37, raw.length);
@@ -196,6 +200,7 @@ class NmsChunkShimsTest {
             assertTrue(s.hasOnlyAir());
             assertSame(Blocks.CAVE_AIR.defaultBlockState(), s.getBlockState(1, 2, 3));
             assertSame(Blocks.AIR.defaultBlockState(), c.getBlockState(new BlockPos(x0 + 1, 290, z0 + 3)));
+            assertNull(c.setBlockState(new BlockPos(x0 + 1, 290, z0 + 3), Blocks.AIR.defaultBlockState(), false), "공기뿐인 섹션에 공기류 = null(바닐라)");
             return null;
         });
         on(() -> world.editBlocksNow(org.domi.furnace.api.world.BlockEditOptions.FAST,
@@ -224,12 +229,58 @@ class NmsChunkShimsTest {
                 else assertSame(torchState, left, "플래그 2|16: 횃불이 남는다");
                 on(() -> level.setBlock(torch, air, 2 | 16));
             }
-            assertThrows(UnsupportedNmsCall.class, () -> on(() -> level.setBlock(base, stone, 3 | 64)));
-            assertThrows(UnsupportedNmsCall.class, () -> on(() -> level.setBlock(base, stone, 3 | 32)));
+            // 32 는 바닐라 Level.setBlock 층에서 모양 갱신 플래그에서 지워질 뿐(flags & -34) — 던지지 않고 놓는다. 64(피스톤이 옮김)도 그대로 받는다
+            assertTrue(on(() -> level.setBlock(base, stone, 3 | 32)));
+            assertTrue(on(() -> level.setBlock(base, air, 3 | 64)));
         } finally {
             on(() -> {
                 level.setBlock(torch, air, 2 | 16);
                 return level.setBlock(base, air, 2 | 16);
+            });
+        }
+    }
+
+    /** maxUpdateDepth: 깊이 1 이면 모양 갱신이 이웃 한 칸에서 멈춘다 — 카펫 두 장 중 위 카펫은 남는다(바닐라 Level.setBlock 의 recursionLeft - 1). */
+    @Test
+    void setBlockMaxUpdateDepthLimitsShapeChain() {
+        int x = at.x() - 5, z = at.z() - 5;
+        int y = on(() -> level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z)) + 3;
+        BlockPos base = new BlockPos(x, y, z), c1 = base.above(), c2 = c1.above();
+        BlockState carpet = Blocks.WHITE_CARPET.defaultBlockState(), air = Blocks.AIR.defaultBlockState();
+        try {
+            on(() -> {
+                level.setBlock(base, Blocks.STONE.defaultBlockState(), 2 | 16);
+                level.setBlock(c1, carpet, 2 | 16);
+                level.setBlock(c2, carpet, 2 | 16);
+                return level.setBlock(base, air, 3, 1);
+            });
+            server.tick(2);
+            assertSame(air, on(() -> level.getBlockState(c1)), "아래 카펫은 떨어진다");
+            assertSame(carpet, on(() -> level.getBlockState(c2)), "깊이 0 이라 위 카펫까지 번지지 않는다");
+        } finally {
+            on(() -> { level.setBlock(c2, air, 2 | 16); level.setBlock(c1, air, 2 | 16); return level.setBlock(base, air, 2 | 16); });
+        }
+    }
+
+    /** 플래그 2 의 클라이언트 알림은 바닐라처럼 틱 끝에 섹션별로 모은다 — 한 섹션의 많은 칸은 section_blocks_update 로 간다. */
+    @Test
+    void setBlockClientUpdatesAreBatchedPerSection() {
+        int x0 = (cx << 4), z0 = (cz << 4), y0 = 208;
+        BlockState stone = Blocks.STONE.defaultBlockState(), air = Blocks.AIR.defaultBlockState();
+        try {
+            server.tick(1);
+            tp.clearReceived();
+            on(() -> {
+                for (int dz = 0; dz < 16; dz++) for (int dx = 0; dx < 16; dx++) level.setBlock(new BlockPos(x0 + dx, y0, z0 + dz), stone, 2);
+                return null;
+            });
+            server.tick(2);
+            assertEquals(0, tp.received(PacketTypes.Clientbound.BLOCK_UPDATE).stream().filter(u -> u.pos().y() == y0).count(), "칸마다 보내지 않는다");
+            assertFalse(tp.received(PacketTypes.Clientbound.SECTION_BLOCKS_UPDATE).isEmpty(), "섹션 묶음으로 보낸다");
+        } finally {
+            on(() -> {
+                for (int dz = 0; dz < 16; dz++) for (int dx = 0; dx < 16; dx++) level.setBlock(new BlockPos(x0 + dx, y0, z0 + dz), air, 2 | 16);
+                return null;
             });
         }
     }
@@ -265,6 +316,7 @@ class NmsChunkShimsTest {
         assertNull(level.getChunkSource().getChunkAtIfLoadedImmediately(fx, fz));
         assertNull(level.getChunkSource().getChunk(fx, fz, false));
         assertThrows(IllegalStateException.class, () -> level.getChunk(fx, fz));
+        assertEquals(-1, (int) on(() -> NmsChunks.bridge().stateIdNow(world, fx * 16, 0, fz * 16)), "region 이 없는 청크도 '로드 안 됨' 표시값");
         assertNull(on(() -> level.getBlockStateIfLoaded(new BlockPos(fx * 16, 0, fz * 16))));
         assertEquals(-64, (int) on(() -> level.getHeight(Heightmap.Types.WORLD_SURFACE, fx * 16, fz * 16)), "로드 안 된 청크 = 최저 높이(바닐라)");
         // 로드된 청크 보기는 아무 스레드에서 얻지만, 읽기는 소유 region 스레드에서만

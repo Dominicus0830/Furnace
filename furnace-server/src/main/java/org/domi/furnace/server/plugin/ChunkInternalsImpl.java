@@ -10,6 +10,8 @@ import org.domi.furnace.server.world.ChunkPos;
 import org.domi.furnace.server.world.ChunkSection;
 import org.domi.furnace.server.world.HeightmapType;
 import org.domi.furnace.server.world.Region;
+import org.domi.furnace.server.world.RegionLevel;
+import org.domi.furnace.server.block.Pos;
 
 final class ChunkInternalsImpl implements ChunkInternals {
 
@@ -41,10 +43,19 @@ final class ChunkInternalsImpl implements ChunkInternals {
         return org.domi.furnace.server.world.RegionBorrow.claimChunk(handle(world).handle(), chunkX, chunkZ);
     }
 
+    /**
+     * 그 청크를 가진 region(로드돼 있지 않으면 null — 소유 검사 전에 본다: region 이 없는 청크에서 "다른 스레드"로 오해하지 않게).
+     * 로드돼 있는데 소유 스레드가 아니면 ThreadOwnershipException.
+     */
+    private static Region ownedLoaded(org.domi.furnace.api.world.World world, int cx, int cz, String what) {
+        WorldHandle h = handle(world);
+        if (!h.handle().isChunkLoaded(cx, cz)) return null;
+        return h.ownedRegion(new BlockPos(cx << 4, 0, cz << 4), what);
+    }
+
     /** 소유 스레드 확인(아니면 ThreadOwnershipException) 뒤 그 청크(로드돼 있지 않으면 null). */
     private static ChunkColumn column(org.domi.furnace.api.world.World world, int cx, int cz, String what) {
-        WorldHandle h = handle(world);
-        Region r = h.ownedRegion(new BlockPos(cx << 4, 0, cz << 4), what);
+        Region r = ownedLoaded(world, cx, cz, what);
         return r == null ? null : r.loadedOwnedChunk(cx, cz);
     }
 
@@ -102,18 +113,30 @@ final class ChunkInternalsImpl implements ChunkInternals {
     public int firstAvailableNow(org.domi.furnace.api.world.World world, String heightmap, int x, int z) {
         HeightmapType type = HeightmapType.byKey(heightmap.toLowerCase(java.util.Locale.ROOT));
         if (type == null) throw new IllegalArgumentException("모르는 하이트맵: " + heightmap);
-        WorldHandle h = handle(world);
-        Region r = h.ownedRegion(new BlockPos(x, 0, z), "Heightmap#getFirstAvailable");
+        Region r = ownedLoaded(world, x >> 4, z >> 4, "Heightmap#getFirstAvailable");
         return r == null ? Integer.MIN_VALUE : r.heightAt(type, x, z);
     }
 
     @Override
     public boolean markUnsavedNow(org.domi.furnace.api.world.World world, int chunkX, int chunkZ) {
-        WorldHandle h = handle(world);
-        Region r = h.ownedRegion(new BlockPos(chunkX << 4, 0, chunkZ << 4), "ChunkAccess#setUnsaved");
+        Region r = ownedLoaded(world, chunkX, chunkZ, "ChunkAccess#setUnsaved");
         ChunkPos cp = new ChunkPos(chunkX, chunkZ);
         if (r == null || !r.chunkLoaded(cp)) return false;
         r.markChunkChanged(cp);
         return true;
+    }
+
+    @Override
+    public boolean setBlockNow(org.domi.furnace.api.world.World world, int x, int y, int z, int stateId, int flags, int maxUpdateDepth) {
+        Region r = ownedLoaded(world, x >> 4, z >> 4, "Level#setBlock");
+        RegionLevel lv = r == null || !r.chunkLoaded(new ChunkPos(x >> 4, z >> 4)) ? null : r.level();
+        return lv != null && lv.setBlock(new Pos(x, y, z), stateId, flags, maxUpdateDepth);
+    }
+
+    @Override
+    public int setBlockStateNow(org.domi.furnace.api.world.World world, int x, int y, int z, int stateId, boolean moved) {
+        Region r = ownedLoaded(world, x >> 4, z >> 4, "LevelChunk#setBlockState");
+        RegionLevel lv = r == null || !r.chunkLoaded(new ChunkPos(x >> 4, z >> 4)) ? null : r.level();
+        return lv == null ? -1 : lv.setBlockStateInChunkOnly(new Pos(x, y, z), stateId, moved);
     }
 }

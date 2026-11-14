@@ -1,8 +1,8 @@
 // 청크 내부 읽기 다리(N2a) — Bukkit·Paper 호환 계층의 NMS 청크 shim(LevelChunk·LevelChunkSection·PalettedContainer·Heightmap)이
 // 서버 청크를 "보기"로 읽는 길. 블록 상태 번호(BlockTypes.stateId 와 같은 번호)·바이옴 레지스트리 번호 단위로 다룬다.
 //
-// 불안정 내부 다리다(Internals 와 같은 등급) — 일반 플러그인은 World·Block API 를 쓴다. 쓰기는 여기 없다: 블록 쓰기는
-// World.editBlocksNow(바닐라 setBlock 플래그와 같은 뜻)로 간다.
+// 불안정 내부 다리다(Internals 와 같은 등급, 호환 계층 전용) — 일반 플러그인은 World·Block API 를 쓴다. 쓰기는 단일 칸 두 개뿐이다:
+// 바닐라 Level.setBlock(플래그·깊이 그대로)과 LevelChunk.setBlockState. 섹션·팔레트 직접 쓰기는 없다(N2b).
 package org.domi.furnace.api.internal;
 
 import java.util.List;
@@ -33,7 +33,10 @@ public interface ChunkInternals {
     /** 섹션의 블록 상태 번호 4096개(YZX, 새 배열). 로드돼 있지 않으면 null. */
     int[] sectionStatesNow(World world, int chunkX, int sectionIndex, int chunkZ);
 
-    /** 섹션의 공기 아닌 칸 수(바닐라 nonEmptyBlockCount — air·cave_air·void_air 는 공기). 로드돼 있지 않으면 -1. */
+    /**
+     * 섹션의 공기 아닌 칸 수(air·cave_air·void_air 는 공기). 0 인지(바닐라 hasOnlyAir)는 바닐라와 같지만 값은 바닐라 nonEmptyBlockCount 와
+     * 다를 수 있다(바닐라는 유체 있는 칸을 한 번 더 센다). 로드돼 있지 않으면 -1.
+     */
     int sectionNonAirNow(World world, int chunkX, int sectionIndex, int chunkZ);
 
     /** 섹션에 무작위 틱 받는 칸(블록 또는 그 유체)이 있는가(바닐라 isRandomlyTicking). 로드돼 있지 않으면 false. */
@@ -54,4 +57,16 @@ public interface ChunkInternals {
 
     /** 청크를 저장 대상으로 표시한다(바닐라 setUnsaved(true)). 로드돼 있지 않으면 false. */
     boolean markUnsavedNow(World world, int chunkX, int chunkZ);
+
+    /**
+     * 바닐라 Level.setBlock(pos, state, flags, maxUpdateDepth) 그대로 — 플래그 1·2·16·32·64 와 남은 깊이, 클라이언트 알림은 틱 끝에 모아 보내기,
+     * 길찾기·POI 갱신까지. 바뀌었으면 true, 높이 밖·로드돼 있지 않음·같은 상태면 false.
+     */
+    boolean setBlockNow(World world, int x, int y, int z, int stateId, int flags, int maxUpdateDepth);
+
+    /**
+     * 바닐라 LevelChunk.setBlockState 그대로 — 그 칸만 바꾸고 놓기·치우기 반응·블록 엔티티·빛·하이트맵·저장 표시까지(이웃·모양 갱신, 클라이언트 알림,
+     * POI 없음). 옛 상태 번호, 바뀌지 않았거나(같은 상태·공기뿐인 섹션에 공기) 치우기 반응이 칸을 갈아 치웠거나 높이 밖·로드돼 있지 않으면 -1.
+     */
+    int setBlockStateNow(World world, int x, int y, int z, int stateId, boolean moved);
 }

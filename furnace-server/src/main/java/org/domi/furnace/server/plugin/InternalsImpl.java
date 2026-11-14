@@ -193,7 +193,10 @@ public final class InternalsImpl implements Internals {
 
 
     @Override
-    public org.domi.furnace.api.internal.ChunkInternals chunks() { return chunks; }
+    public org.domi.furnace.api.internal.ChunkInternals chunks() {
+        noteCaller();   // 플러그인이 다리를 직접 꺼내 쓰는지도 남긴다(호환 계층은 서버마다 한 번 꺼내 둔다)
+        return chunks;
+    }
 
     @Override
     public org.domi.furnace.api.world.World wrapWorld(Object internalWorld) {

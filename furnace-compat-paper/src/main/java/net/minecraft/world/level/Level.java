@@ -14,7 +14,6 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
 import org.bukkit.craftbukkit.CraftWorld;
-import org.domi.furnace.api.world.BlockEditOptions;
 import org.domi.furnace.compat.nms.NmsChunks;
 import org.domi.furnace.compat.nms.UnsupportedNmsCall;
 
@@ -123,34 +122,19 @@ public abstract class Level implements LevelAccessor {
 
     // ------------------------------------------------------------------ 블록 쓰기(N1)
 
-    /** 바닐라 Block.UPDATE_* 플래그. */
-    private static final int UPDATE_NEIGHBORS = 1, UPDATE_CLIENTS = 2, UPDATE_KNOWN_SHAPE = 16, UPDATE_SUPPRESS_DROPS = 32, UPDATE_MOVE_BY_PISTON = 64;
+    /** 바닐라 Block.UPDATE_MOVE_BY_PISTON. */
+    private static final int UPDATE_MOVE_BY_PISTON = 64;
 
     /**
-     * 바닐라 Level#setBlock: 플래그 1(이웃 갱신)·2(클라이언트 알림)·16(모양 갱신 안 함)을 같은 뜻으로 서버의 블록 쓰기(World.editBlocksNow)에 옮긴다.
-     * 4·8(클라이언트 쪽 다시 그리기)은 서버에서 뜻이 없어 바닐라처럼 무시한다. 블록 자체의 놓기·치우기 반응·블록 엔티티·빛·저장 표시는 바닐라대로.
-     * 바뀌었으면 true, 같은 상태거나 높이 밖이면 false. 아직 옮기지 못한 것(던진다): 32(모양 갱신으로 부서진 이웃의 아이템 안 떨굼)를
-     * 모양 갱신과 함께 쓰기, 64(피스톤이 옮김). maxUpdateDepth 가 0 이하면 모양 갱신을 하지 않는다(바닐라도 번지지 않는다).
+     * 바닐라 Level#setBlock 그대로(서버의 바닐라 포팅 ChunkLevel.setBlock): 플래그 1(이웃)·2(클라이언트 — 틱 끝에 섹션별로 모아 보낸다)·
+     * 16(모양 갱신 안 함)·32(모양 갱신으로 부서진 이웃의 아이템 안 떨굼)·64(피스톤이 옮김)와 남은 깊이(maxUpdateDepth)를 바닐라 뜻대로 쓴다.
+     * 4·8 은 클라이언트 쪽 다시 그리기라 서버에서 뜻이 없다. 바뀌었으면 true, 같은 상태거나 높이 밖이면 false.
      */
     @Override
     public boolean setBlock(BlockPos pos, BlockState state, int flags, int maxUpdateDepth) {
         if (isOutsideBuildHeight(pos)) return false;
-        boolean shapes = (flags & UPDATE_KNOWN_SHAPE) == 0 && maxUpdateDepth > 0;
-        if ((flags & UPDATE_MOVE_BY_PISTON) != 0) {
-            throw new UnsupportedNmsCall("Level#setBlock(플래그 64)", "피스톤이 옮긴 블록의 놓기·치우기 반응(isMoving)은 아직 잇지 않았다");
-        }
-        if ((flags & UPDATE_SUPPRESS_DROPS) != 0 && shapes) {
-            throw new UnsupportedNmsCall("Level#setBlock(플래그 32)", "모양 갱신으로 부서진 이웃의 아이템을 떨구지 않는 쓰기는 아직 잇지 않았다 — 플래그 16 과 함께 쓰면 된다");
-        }
         if (!hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) throw NmsChunks.notLoaded(furnace(), pos.getX() >> 4, pos.getZ() >> 4, "Level#setBlock");
-        var data = org.domi.furnace.api.Furnace.server().blockTypes().byStateId(state.furnaceStateId())
-                .orElseThrow(() -> new IllegalArgumentException("모르는 블록 상태: " + state));
-        BlockEditOptions o = BlockEditOptions.DEFAULT
-                .neighborUpdates((flags & UPDATE_NEIGHBORS) != 0 ? BlockEditOptions.NeighborUpdates.IMMEDIATE : BlockEditOptions.NeighborUpdates.NONE)
-                .shapeUpdates(shapes)
-                .clientUpdates((flags & UPDATE_CLIENTS) != 0 ? BlockEditOptions.ClientUpdates.BLOCKS : BlockEditOptions.ClientUpdates.NONE);
-        int x = pos.getX(), y = pos.getY(), z = pos.getZ();
-        return furnace().editBlocksNow(o, ed -> ed.set(x, y, z, data)).changed() > 0;
+        return NmsChunks.bridge().setBlockNow(furnace(), pos.getX(), pos.getY(), pos.getZ(), state.furnaceStateId(), flags, maxUpdateDepth);
     }
 
     @Override

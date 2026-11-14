@@ -11,7 +11,7 @@ import org.domi.furnace.api.world.World;
 
 /**
  * NMS 청크 shim(N2a)의 서버 다리 — {@link ChunkInternals}(번호 단위 읽기)를 한 번 꺼내 두고, 바이옴 번호 ↔ {@code Holder<Biome>} 표를 만든다.
- * 쓰기는 여기 없다: 블록 쓰기는 {@code World.editBlocksNow}(바닐라 setBlock 플래그와 같은 뜻)로 간다.
+ * 블록 쓰기는 다리의 단일 칸 쓰기 두 개(바닐라 Level.setBlock·LevelChunk.setBlockState 그대로)로 간다.
  */
 public final class NmsChunks {
 
@@ -31,7 +31,8 @@ public final class NmsChunks {
         return c.bridge;
     }
 
-    private record BiomeTable(org.domi.furnace.api.Furnace server, List<String> keys, List<Holder.Reference<Biome>> holders, java.util.Map<String, Holder.Reference<Biome>> byKey) {}
+    private record BiomeTable(org.domi.furnace.api.Furnace server, List<String> keys, List<Holder.Reference<Biome>> holders,
+                              java.util.Map<String, Holder.Reference<Biome>> byKey, java.util.Map<String, Integer> index) {}
 
     private static BiomeTable biomeTable() {
         BiomeTable t = biomes;
@@ -46,7 +47,10 @@ public final class NmsChunks {
         if (t != null && t.server == server && t.keys.equals(keys)) return t;
         java.util.ArrayList<Holder.Reference<Biome>> hs = new java.util.ArrayList<>(keys.size());
         java.util.HashMap<String, Holder.Reference<Biome>> by = new java.util.HashMap<>();
-        for (String k : keys) {
+        java.util.HashMap<String, Integer> index = new java.util.HashMap<>();
+        for (int n = 0; n < keys.size(); n++) {
+            String k = keys.get(n);
+            index.putIfAbsent(k, n);
             Holder.Reference<Biome> old = t == null ? null : t.byKey.get(k);   // 같은 키는 같은 객체(== 비교)
             if (old == null) {
                 ResourceKey<Biome> key = ResourceKey.create(Registries.BIOME, ResourceLocation.parse(k));
@@ -55,7 +59,7 @@ public final class NmsChunks {
             hs.add(old);
             by.put(k, old);
         }
-        biomes = t = new BiomeTable(server, List.copyOf(keys), List.copyOf(hs), java.util.Map.copyOf(by));
+        biomes = t = new BiomeTable(server, List.copyOf(keys), List.copyOf(hs), java.util.Map.copyOf(by), java.util.Map.copyOf(index));
         return t;
     }
 
@@ -71,9 +75,9 @@ public final class NmsChunks {
     public static int biomeId(Holder<Biome> holder) {
         if (holder != null && holder.value() instanceof Biome b) {
             String k = b.furnaceKey().location().toString();
-            int i = biomeTable().keys.indexOf(k);
-            if (i < 0) i = rebuildBiomes().keys.indexOf(k);
-            if (i >= 0) return i;
+            Integer i = biomeTable().index.get(k);
+            if (i == null) i = rebuildBiomes().index.get(k);
+            if (i != null) return i;
         }
         throw new IllegalArgumentException("이 서버의 바이옴이 아니다: " + holder);
     }

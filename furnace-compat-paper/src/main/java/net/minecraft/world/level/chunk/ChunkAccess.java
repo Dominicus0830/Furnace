@@ -60,8 +60,19 @@ public abstract class ChunkAccess implements BlockGetter {
     /** 바닐라 LevelChunk: 살아 있는 네 종류만 있다. */
     public boolean hasPrimedHeightmap(Heightmap.Types type) { return type.keepAfterWorldgen(); }
 
-    /** 그 칸(청크 안 x·z) 의 가장 높은 해당 블록 y(빈 기둥이면 최저 높이 - 1). */
-    public int getHeight(Heightmap.Types type, int x, int z) { return getOrCreateHeightmapUnprimed(type).getHighestTaken(x & 15, z & 15); }
+    /**
+     * 그 칸(청크 안 x·z) 의 가장 높은 해당 블록 y(빈 기둥이면 최저 높이 - 1). 바닐라는 없는 하이트맵(로드된 청크의 *_WG)을 primeHeightmaps 로
+     * 지금 블록에서 계산한다 — WORLD_SURFACE_WG·OCEAN_FLOOR_WG 는 WORLD_SURFACE·OCEAN_FLOOR 와 술어가 같아 그 값과 같다.
+     * 가정: 바닐라는 처음 계산한 WG 맵을 그 뒤 갱신하지 않아 블록이 바뀌면 낡는다. 여기서는 늘 지금 값이다.
+     */
+    public int getHeight(Heightmap.Types type, int x, int z) {
+        Heightmap.Types live = switch (type) {
+            case WORLD_SURFACE_WG -> Heightmap.Types.WORLD_SURFACE;
+            case OCEAN_FLOOR_WG -> Heightmap.Types.OCEAN_FLOOR;
+            default -> type;
+        };
+        return getOrCreateHeightmapUnprimed(live).getHighestTaken(x & 15, z & 15);
+    }
 
     /** 로드된 청크는 늘 다 만들어진 상태다. */
     public ChunkStatus getPersistedStatus() { return ChunkStatus.FULL; }
