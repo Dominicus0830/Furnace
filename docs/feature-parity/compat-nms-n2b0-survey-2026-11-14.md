@@ -86,13 +86,15 @@
 - 다시 세기(`recalcBlockCounts`)는 유체가 있는 칸을 nonEmpty 에 **두 번** 센다(블록 + 유체). 하나씩 놓기는 한 번. 섹션 300개 중 289개에서 A 와 B 의 nonEmpty 가 다르다.
 - tickingFluid: 다시 세기는 **무작위 틱 유체(용암)만**, 하나씩 놓기는 **유체가 있으면 모두**(물 포함) 센다. 그래서 디스크에서 읽은 섹션에서 물을 지우면 **0 아래로 내려간다**(C 300개 중 90개가 음수). `isRandomlyTicking` 은 `> 0` 이라 음수는 "안 함"이다.
 - 그 결과 **같은 블록인데 "하나씩 놓은 섹션"(월드젠·게임 중)과 "읽은 섹션"의 무작위 틱 여부가 300개 중 103개에서 다르다**(R17 — 양동이 물 스레드가 다루는 문제의 정량 근거).
-- Furnace `ChunkSection.nonAirCount` 는 유체 두 번 세기가 없는 정확한 수, `tickingCount` 는 "블록 무작위 틱 또는 용암" 칸 수다 — 즉 **다시 세기 판정**과 같다(시험으로 확인). 하나씩 놓기 쪽 판정(R17)은 별도 과제. nonEmpty 는 청크 패킷에도 실리지만(바닐라 `LevelChunkSection.write`) 클라이언트는 0 여부만 쓴다 — 바이트 차이는 관측 영향 없음으로 본다(가정, N2b 범위 밖).
+- 위 숫자(289·90·103)는 생성기가 흥미로운 상태(물·용암·무작위 틱)를 70% 고르는 **합성 분포**의 값이다 — 실제 월드 빈도가 아니다. `vanillaCountModelMatchesOracle` 가 정답표에서 세어 못 박는다.
+- **nonEmpty 의 0 여부도 갈린다**(검토 R3): 다시 센 섹션의 nonEmpty 여분(= 읽을 때의 유체 칸 수)은 그 칸을 지워도 1씩만 줄어 다시 셀 때까지 남는다. 물만 있던 섹션을 읽은 뒤 모두 공기로 비우면 바닐라 `hasOnlyAir()`=false, Furnace `nonAirCount`=0. 영향: `LevelChunk.setBlockState` 의 "빈 섹션에 공기면 바로 반환", 빛 `updateSectionStatus`, 청크 패킷 nonEmpty. 무작위 틱 판정과 함께 R17(양동이 물) 과제로 넘겼다. 물 섹션의 "무작위 틱"은 물 자체가 틱을 받지 않아도 `ServerLevel.tickChunk` 가 그 섹션에서 `getBlockRandomPos` 를 randomTickSpeed 번 불러 레벨 공용 난수를 진행시키므로 다른 섹션이 고르는 칸이 바뀐다(검토 R4).
+- Furnace `ChunkSection.nonAirCount` 는 유체 두 번 세기가 없는 정확한 수, `tickingCount` 는 "블록 무작위 틱 또는 용암" 칸 수다 — 즉 **다시 세기 판정**과 같다(시험으로 확인). 하나씩 놓기 쪽 판정과 위 nonEmpty 여분은 R17 과제.
 
 **시험** `VanillaSectionOracleTest`(정답표 46 KB gz):
 - `stateFlagsMatchFurnaceTables` — Furnace 공기 판정·`BlockBehavior.isRandomlyTicking`·유체 상태·용암 판정이 26,684개 모두 바닐라와 같다.
 - `vanillaCountModelMatchesOracle` — 바닐라 개수 규칙의 본 모델(하나씩 놓기·다시 세기)이 300개 모두 정답과 같다. N2b-1 의 떨어진 `LevelChunkSection` 이 이 모델을 쓴다.
 - `furnaceSectionMatchesVanillaOnSameInput` — Furnace 비공기 수 = 바닐라 하나씩 놓기 nonEmpty, 무작위 틱 판정 = 바닐라 다시 세기(하나씩 놓은 섹션·통째 교체 섹션 모두).
-- `furnaceColumnHeightmapsMatchVanilla` — 네 하이트맵이 처음(로드 직후처럼 내용에서 만든 값)과 바꾼 뒤 모두 바닐라와 같다. 단 1장의 빈 열 WORLD_SURFACE 버그 모양만 세어 출력한다(44칸).
+- `furnaceColumnHeightmapsMatchVanilla` — 네 하이트맵이 처음(로드 직후처럼 내용에서 만든 값)과 바꾼 뒤 모두 바닐라와 같다. 단 "바꾼 뒤" 단계의 빈 열 WORLD_SURFACE 버그 모양만 허용하고 그 수를 44칸으로 못 박는다 — 수정(PR #354)이 들어오면 0 이 되어 실패하므로 그때 허용을 지운다.
 
 **비용**: 부트스트랩 4.4초, 깃발 1.5초, 섹션 300개 0.3초, 열 40개 0.2초(이 컨테이너). `ProtoChunk(pos, UpgradeData.EMPTY, sections[24], ticks, ticks, LevelHeightAccessor.create(-64,384), null, null)` — 섹션을 다 넘기면 `replaceMissingSections` 가 레지스트리를 쓰지 않는다. 바이옴 컨테이너는 `null` 로 둬도 개수·하이트맵에는 쓰이지 않는다. **N2b-2 고정 하이트맵의 정답기는 이 도구를 늘리면 된다**(원시 쓰기 → 낡은 값 유지 → 다음 `update` 의 결과까지 같은 방식으로 기록).
 

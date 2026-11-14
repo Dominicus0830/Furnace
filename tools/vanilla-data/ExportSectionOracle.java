@@ -92,6 +92,8 @@ public class ExportSectionOracle {
             for (int k = 0; k < cc.opX.length; k++) {
                 int x = cc.opX[k], y = cc.opY[k], z = cc.opZ[k];
                 dtc st = ids.a(cc.opState[k]);
+                // 바닐라 LevelChunk.setBlockState 의 "빈 섹션(hasOnlyAir)에 공기면 바로 반환" 분기는 뺐다: 빈 섹션 안에는 하이트맵의
+                // 맨 위 칸(h-1)이 올 수 없어(그 위 블록이 있으면 섹션이 비지 않음) update 결과가 같다. N2b-2 로 늘릴 때 주의.
                 dtc old = secs[y >> 4].a(x, y & 15, z, st);
                 if (old == st) continue;
                 for (dyy.a t : types) chunk.a(t).a(x, y - 64, z, st);

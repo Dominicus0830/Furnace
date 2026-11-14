@@ -120,6 +120,18 @@ class VanillaSectionOracleTest {
         }
         // 바닐라 특이점이 정답표에 실제로 들어 있는지(무작위 틱 판정이 내용과 어긋나는 경우 — R17, 별도 스레드가 다룬다)
         assertTrue(quirkTicking > 0, "정답표에 tickingFluid 특이점 사례가 없음");
+        // 조사 문서(compat-nms-n2b0-survey 4장)에 인용한 정답표 통계를 못 박는다 — 생성기가 흥미로운 상태(물·용암·무작위 틱)를
+        // 70% 고르는 합성 분포의 숫자이지 실제 월드 빈도가 아니다.
+        int nonEmptyDiff = 0, tickingDiff = 0, negativeFluid = 0;
+        for (String[] p : sections) {
+            int[] a = ints(p, 3), b = ints(p, 6), c = ints(p, 9);
+            if (a[0] != b[0]) nonEmptyDiff++;
+            if ((a[1] > 0 || a[2] > 0) != (b[1] > 0 || b[2] > 0)) tickingDiff++;
+            if (c[2] < 0) negativeFluid++;
+        }
+        assertEquals(289, nonEmptyDiff, "놓은 섹션과 읽은 섹션의 nonEmpty 가 다른 수");
+        assertEquals(103, tickingDiff, "놓은 섹션과 읽은 섹션의 무작위 틱 판정이 다른 수");
+        assertEquals(90, negativeFluid, "읽은 뒤 바꾼 섹션의 tickingFluid 음수 수");
     }
 
     /**
@@ -164,21 +176,22 @@ class VanillaSectionOracleTest {
                 if (s != 0) col.setBlock(x, y - 64, z, s);
             }
             col.rebuildHeightmapsAfterSurface();   // 디스크에서 읽은 청크처럼 하이트맵을 내용에서 만든다(AnvilChunkCodec 과 같음)
-            assertHeightmaps(prime, col, "처음 seed=" + seed);
+            assertHeightmaps(prime, col, "처음 seed=" + seed, false);
             for (int k = 0; k < cc.opX.length; k++) col.setBlock(cc.opX[k], cc.opY[k] - 64, cc.opZ[k], cc.opState[k]);
-            assertHeightmaps(after, col, "바꾼 뒤 seed=" + seed);
+            assertHeightmaps(after, col, "바꾼 뒤 seed=" + seed, true);
         }
-        System.out.println("[N2b-0] 빈 열 WORLD_SURFACE 알려진 차이 " + knownEmptyColumn + "칸");
+        // 개수를 못 박는다: 빈 열 수정(PR #354)이 들어오면 0 이 되어 여기서 실패한다 — 그때 허용(allowEmptyColumn)을 지우고 엄격 비교로 바꿀 것.
+        assertEquals(44, knownEmptyColumn, "빈 열 WORLD_SURFACE 알려진 차이 칸 수가 바뀜");
     }
 
     /**
      * 알려진 Furnace 차이(N2b-0 에서 발견, 별도 수정 과제): WORLD_SURFACE 가 0(열 전체가 공기)이 된 열은 ChunkColumn.updateSurface 가
      * "프라임 전"으로 보고 갱신을 건너뛰어, 그 뒤 놓은 블록이 반영되지 않는다(바닐라는 갱신). 그 모양(Furnace 0, 바닐라 0 아님)만 세고
-     * 다른 차이는 모두 실패시킨다. 수정되면 knownEmptyColumn 허용을 지우고 엄격 비교로 바꾼다.
+     * 다른 차이는 모두 실패시킨다. 버그는 바꾼 뒤에만 생기므로 허용도 "바꾼 뒤" 단계에만 둔다(처음 = 내용에서 만든 값은 엄격).
      */
     private static int knownEmptyColumn;
 
-    private static void assertHeightmaps(String[] p, ChunkColumn col, String what) {
+    private static void assertHeightmaps(String[] p, ChunkColumn col, String what, boolean allowEmptyColumn) {
         long[][] mine = {col.worldSurfaceHeightmap(), col.oceanFloorHeightmap(), col.motionBlockingHeightmap(),
             col.motionBlockingNoLeavesHeightmap()};
         String[] names = {"WORLD_SURFACE", "OCEAN_FLOOR", "MOTION_BLOCKING", "MOTION_BLOCKING_NO_LEAVES"};
@@ -190,7 +203,7 @@ class VanillaSectionOracleTest {
             for (int i = 0; i < 256; i++) {
                 int v = (int) (want[i / 7] >>> ((i % 7) * 9)) & 511, m = (int) (mine[t][i / 7] >>> ((i % 7) * 9)) & 511;
                 if (v == m) continue;
-                if (t == 0 && m == 0 && v > 0) { knownEmptyColumn++; continue; }
+                if (allowEmptyColumn && t == 0 && m == 0 && v > 0) { knownEmptyColumn++; continue; }
                 fail(names[t] + " " + what + " x=" + (i & 15) + " z=" + (i >> 4) + " 바닐라=" + v + " Furnace=" + m);
             }
         }
