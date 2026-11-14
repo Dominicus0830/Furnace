@@ -226,7 +226,8 @@ public interface World {
     /**
      * 그 칸 블록 엔티티의 칸(상자·통·셜커 상자·깔때기·발사기·공급기·화로류·양조기·제작기). 칸이 없는 블록이거나 로드되지 않았으면 empty.
      * 큰 상자는 그 반쪽(27칸)만 — 두 반쪽을 합친 보기는 다음 단계. 읽기·쓰기는 그 칸을 가진 region 스레드에서 실행되고,
-     * 그 사이 블록이 부서졌으면 IllegalStateException 으로 완료된다.
+     * 그 사이 블록이 부서졌으면 IllegalStateException 으로 완료된다. 그 region 스레드에서 부르면 읽기·쓰기는 곧바로 끝난 Future 를 준다
+     * (이어 붙인 thenAccept 도 그 자리에서 돈다). 다른 스레드에서 부르면 그 region 의 대기열에 들어간다.
      */
     CompletableFuture<Optional<Inventory>> inventoryAt(BlockPos pos);
 

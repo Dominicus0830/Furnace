@@ -126,4 +126,68 @@ class BukkitContainerInventoryTest {
             return null;
         });
     }
+
+    /** 다른 스레드에서 부르면 여전히 대기열 — region 이 바쁘면 곧바로 못 읽고(ThreadOwnershipException) 쓰기는 예약돼 겹쳐 보인다. */
+    @Test
+    void offThreadStaysQueued() throws Exception {
+        Inventory inv = server.onRegion(pos, () -> {
+            server.api().world(dim).block(pos).set(new BlockData("minecraft:barrel", Map.of()));
+            Inventory i = ((Barrel) Compat.block(dim, pos).getState()).getInventory();
+            i.setItem(0, new ItemStack(Material.STONE, 2));
+            return i;
+        });
+        java.util.concurrent.CountDownLatch started = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        var hold = server.api().world(dim).scheduler(pos).submit(() -> {
+            started.countDown();
+            try {
+                release.await(30, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return null;
+        });
+        assertTrue(started.await(30, java.util.concurrent.TimeUnit.SECONDS));
+        try {
+            assertThrows(org.domi.furnace.api.concurrent.ThreadOwnershipException.class, () -> inv.getItem(0), "시험 스레드에서 곧바로 돌면 안 된다");
+            inv.setItem(1, new ItemStack(Material.DIRT, 1));
+            assertEquals(new ItemStack(Material.DIRT, 1), inv.getItem(1), "예약된 쓰기를 겹쳐 본다");
+        } finally {
+            release.countDown();
+        }
+        server.await(hold);
+        server.tick(1);
+        server.onRegion(pos, () -> {
+            assertEquals(new ItemStack(Material.DIRT, 1), inv.getItem(1), "예약된 쓰기가 실렸다");
+            assertEquals(new ItemStack(Material.STONE, 2), inv.getItem(0));
+            server.api().world(dim).block(pos).set(BlockData.AIR);
+            return null;
+        });
+    }
+
+    /** 짝 없는 반쪽 상자(붙여넣기 등): Paper ChestBlock.combine 이 단일로 보고 27칸. 부서진 뒤 쓰기는 IllegalStateException(Paper 는 고아 타일에 조용히). */
+    @Test
+    void loneHalfChestIsSingleAndBrokenContainerThrows() {
+        server.onRegion(pos, () -> {
+            var w = server.api().world(dim);
+            w.block(pos).set(new BlockData("minecraft:chest", Map.of("facing", "north", "type", "left")));
+            try {
+                Chest c = (Chest) Compat.block(dim, pos).getState();
+                assertEquals(27, c.getInventory().getSize());
+                // 짝이 있어도 facing 이 다르면 짝이 아니다
+                w.block(new BlockPos(pos.x() + 1, pos.y(), pos.z())).set(new BlockData("minecraft:chest", Map.of("facing", "south", "type", "right")));
+                assertEquals(27, ((Chest) Compat.block(dim, pos).getState()).getInventory().getSize());
+
+                w.block(new BlockPos(pos.x() + 1, pos.y(), pos.z())).set(BlockData.AIR);
+                w.block(pos).set(new BlockData("minecraft:barrel", Map.of()));
+                Inventory inv = ((Barrel) Compat.block(dim, pos).getState()).getInventory();
+                w.block(pos).set(BlockData.AIR);
+                assertThrows(IllegalStateException.class, () -> inv.getItem(0));
+            } finally {
+                w.block(new BlockPos(pos.x() + 1, pos.y(), pos.z())).set(BlockData.AIR);
+                w.block(pos).set(BlockData.AIR);
+            }
+            return null;
+        });
+    }
 }

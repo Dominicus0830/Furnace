@@ -6,19 +6,57 @@ import org.domi.furnace.api.nbt.NbtList;
 
 /**
  * Paper CraftCreatureSpawner: 생성기 블록 엔티티 NBT(바닐라 BaseSpawner — SpawnData·SpawnPotentials·Delay 등, 값은 short) 사본 위에서 읽고 쓴다.
- * 없는 값은 바닐라 BaseSpawner 의 처음 값(놓이지 않은 상태·빈 사본).
+ * 숫자 값은 int 필드로 들고 update 때 Paper 저장 규칙으로 적는다. 없는 값은 바닐라 BaseSpawner 의 처음 값(놓이지 않은 상태·빈 사본).
  */
 public class CraftCreatureSpawner extends CraftBlockEntityState implements org.bukkit.block.CreatureSpawner {
 
+    private int delay;
+    private int minSpawnDelay;
+    private int maxSpawnDelay;
+    private int spawnCount;
+    private int maxNearbyEntities;
+    private int requiredPlayerRange;
+    private int spawnRange;
+
+    /** 값은 Paper 사본 BaseSpawner 처럼 int 로 든다(Paper 읽기 규칙: Paper.* int 키가 있으면 그것). 없는 값은 바닐라 처음 값. */
     public CraftCreatureSpawner(String dimension, org.domi.furnace.api.world.BlockPos pos, org.bukkit.block.data.BlockData data) {
         super(dimension, pos, data);
+        NbtCompound n = snapshotNbt();
+        delay = n.contains("Paper.Delay") ? n.getInt("Paper.Delay") : n.contains("Delay") ? n.getShort("Delay") : 20;
+        if (n.contains("Paper.MinSpawnDelay")) {
+            minSpawnDelay = n.getInt("Paper.MinSpawnDelay");
+            maxSpawnDelay = n.getInt("Paper.MaxSpawnDelay");
+        } else {
+            minSpawnDelay = n.contains("MinSpawnDelay") ? n.getInt("MinSpawnDelay") : 200;
+            maxSpawnDelay = n.contains("MaxSpawnDelay") ? n.getInt("MaxSpawnDelay") : 800;
+        }
+        spawnCount = n.contains("SpawnCount") ? n.getShort("SpawnCount") : 4;
+        maxNearbyEntities = n.contains("MaxNearbyEntities") ? n.getShort("MaxNearbyEntities") : 6;
+        requiredPlayerRange = n.contains("RequiredPlayerRange") ? n.getShort("RequiredPlayerRange") : 16;
+        spawnRange = n.contains("SpawnRange") ? n.getShort("SpawnRange") : 4;
     }
 
-    private int read(String key, int vanillaDefault) {
-        return snapshotNbt().contains(key) ? snapshotNbt().getShort(key) : vanillaDefault;
+    /** Paper 저장 규칙: 지연 셋은 Short.MAX 로 자르고 넘으면 Paper.* int 키도, 나머지는 short 로 접는다. */
+    @Override
+    protected void applyToSnapshot() {
+        super.applyToSnapshot();
+        NbtCompound n = snapshotNbt();
+        n.remove("Paper.Delay");
+        n.remove("Paper.MinSpawnDelay");
+        n.remove("Paper.MaxSpawnDelay");
+        if (delay > Short.MAX_VALUE) n.putInt("Paper.Delay", delay);
+        n.putShort("Delay", (short) Math.min(Short.MAX_VALUE, delay));
+        if (minSpawnDelay > Short.MAX_VALUE || maxSpawnDelay > Short.MAX_VALUE) {
+            n.putInt("Paper.MinSpawnDelay", minSpawnDelay);
+            n.putInt("Paper.MaxSpawnDelay", maxSpawnDelay);
+        }
+        n.putShort("MinSpawnDelay", (short) Math.min(Short.MAX_VALUE, minSpawnDelay));
+        n.putShort("MaxSpawnDelay", (short) Math.min(Short.MAX_VALUE, maxSpawnDelay));
+        n.putShort("SpawnCount", (short) spawnCount);
+        n.putShort("MaxNearbyEntities", (short) maxNearbyEntities);
+        n.putShort("RequiredPlayerRange", (short) requiredPlayerRange);
+        n.putShort("SpawnRange", (short) spawnRange);
     }
-
-    private void write(String key, int value) { snapshotNbt().putShort(key, (short) value); }
 
     /** nextSpawnData 의 entity 칸(없으면 null). */
     private NbtCompound spawnEntity() {
@@ -71,61 +109,66 @@ public class CraftCreatureSpawner extends CraftBlockEntityState implements org.b
         return sd;
     }
 
+    /** Paper CraftEntityType.bukkitToString: 키 전체("minecraft:zombie"). */
     @Override
     public String getCreatureTypeName() {
         EntityType t = getSpawnedType();
-        return t == null ? null : t.getName();
+        return t == null ? null : t.getKey().toString();
+    }
+
+    /** Paper CraftEntityType.stringToBukkit: null 은 거절, "zombie"·"minecraft:zombie" 모두, 모르면 생성기를 비운다(setSpawnedType(null)). */
+    @Override
+    public void setCreatureTypeByName(String creatureType) {
+        if (creatureType == null) throw new IllegalArgumentException();   // Paper: Preconditions.checkArgument(string != null), 문구 없음
+        setSpawnedType(EntityType.fromKey(creatureType.toLowerCase(java.util.Locale.ROOT)));
     }
 
     @Override
-    public void setCreatureTypeByName(String creatureType) { setSpawnedType(EntityType.fromName(creatureType)); }
+    public int getDelay() { return delay; }
 
     @Override
-    public int getDelay() { return read("Delay", 20); }
+    public void setDelay(int delay) { this.delay = delay; }
 
     @Override
-    public void setDelay(int delay) { write("Delay", delay); }
-
-    @Override
-    public int getMinSpawnDelay() { return read("MinSpawnDelay", 200); }
+    public int getMinSpawnDelay() { return minSpawnDelay; }
 
     @Override
     public void setMinSpawnDelay(int spawnDelay) {
         if (spawnDelay > getMaxSpawnDelay()) throw new IllegalArgumentException("Minimum Spawn Delay must be less than or equal to Maximum Spawn Delay");
-        write("MinSpawnDelay", spawnDelay);
+        minSpawnDelay = spawnDelay;
     }
 
     @Override
-    public int getMaxSpawnDelay() { return read("MaxSpawnDelay", 800); }
+    public int getMaxSpawnDelay() { return maxSpawnDelay; }
 
     @Override
     public void setMaxSpawnDelay(int spawnDelay) {
         if (spawnDelay <= 0) throw new IllegalArgumentException("Maximum Spawn Delay must be greater than 0.");
         if (spawnDelay < getMinSpawnDelay()) throw new IllegalArgumentException("Maximum Spawn Delay must be greater than or equal to Minimum Spawn Delay");
-        write("MaxSpawnDelay", spawnDelay);
+        maxSpawnDelay = spawnDelay;
     }
 
     @Override
-    public int getMaxNearbyEntities() { return read("MaxNearbyEntities", 6); }
+    public int getMaxNearbyEntities() { return maxNearbyEntities; }
 
     @Override
-    public void setMaxNearbyEntities(int maxNearbyEntities) { write("MaxNearbyEntities", maxNearbyEntities); }
+    public void setMaxNearbyEntities(int maxNearbyEntities) { this.maxNearbyEntities = maxNearbyEntities; }
 
     @Override
-    public int getSpawnCount() { return read("SpawnCount", 4); }
+    public int getSpawnCount() { return spawnCount; }
 
     @Override
-    public void setSpawnCount(int count) { write("SpawnCount", count); }
+    public void setSpawnCount(int count) { spawnCount = count; }
 
     @Override
-    public int getRequiredPlayerRange() { return read("RequiredPlayerRange", 16); }
+    public int getRequiredPlayerRange() { return requiredPlayerRange; }
 
     @Override
-    public void setRequiredPlayerRange(int requiredPlayerRange) { write("RequiredPlayerRange", requiredPlayerRange); }
+    public void setRequiredPlayerRange(int requiredPlayerRange) { this.requiredPlayerRange = requiredPlayerRange; }
 
     @Override
-    public int getSpawnRange() { return read("SpawnRange", 4); }
+    public int getSpawnRange() { return spawnRange; }
 
     @Override
-    public void setSpawnRange(int spawnRange) { write("SpawnRange", spawnRange); }
+    public void setSpawnRange(int spawnRange) { this.spawnRange = spawnRange; }
 }
