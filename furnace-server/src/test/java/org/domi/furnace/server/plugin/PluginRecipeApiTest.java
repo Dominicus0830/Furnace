@@ -137,6 +137,24 @@ class PluginRecipeApiTest {
 
     // ------------------------------------------------------------------ 굽기·석재·대장장이
 
+    /** canCook 은 서버 화로의 조회(findCooking) 그대로 — 바닐라 표(태그 재료 포함)·종류 구분·플러그인 레시피. Bukkit FurnaceInventory#canSmelt 가 쓴다. */
+    @Test
+    void canCookFollowsFurnaceLookup() {
+        var reg = host.recipes();
+        assertTrue(reg.canCook(Recipe.CookingKind.SMELTING, new ItemStack("minecraft:raw_iron", 1)));
+        assertTrue(reg.canCook(Recipe.CookingKind.SMELTING, new ItemStack("minecraft:oak_log", 1)), "#logs_that_burn → 숯");
+        assertTrue(reg.canCook(Recipe.CookingKind.BLASTING, new ItemStack("minecraft:raw_iron", 1)));
+        assertFalse(reg.canCook(Recipe.CookingKind.BLASTING, new ItemStack("minecraft:beef", 1)), "용광로는 고기를 못 굽는다");
+        assertTrue(reg.canCook(Recipe.CookingKind.SMOKING, new ItemStack("minecraft:beef", 1)));
+        assertFalse(reg.canCook(Recipe.CookingKind.SMOKING, new ItemStack("minecraft:raw_iron", 1)));
+        assertFalse(reg.canCook(Recipe.CookingKind.SMELTING, new ItemStack("minecraft:diamond", 1)));
+        assertFalse(reg.canCook(Recipe.CookingKind.SMELTING, new ItemStack("minecraft:air", 1)));
+        assertFalse(reg.canCook(Recipe.CookingKind.SMELTING, new ItemStack("minecraft:gravel", 1)));
+        reg.register(plugin, "myplugin:bake2", new Recipe.Cooking(Recipe.CookingKind.SMELTING, RecipeChoice.item("gravel"), new ItemStack("minecraft:bread", 1), 0f));
+        assertTrue(reg.canCook(Recipe.CookingKind.SMELTING, new ItemStack("minecraft:gravel", 1)), "플러그인 레시피도");
+        assertFalse(reg.canCook(Recipe.CookingKind.SMOKING, new ItemStack("minecraft:gravel", 1)));
+    }
+
     @Test
     void cookingStonecuttingSmithingShareTheSameTable() {
         var reg = host.recipes();

@@ -190,4 +190,109 @@ class BukkitContainerInventoryTest {
             return null;
         });
     }
+
+    /** 화로(Paper CraftFurnace): 시간 셋은 사본 NBT, setBurnTime 은 lit 도 맞춘다. 인벤토리는 FurnaceInventory(0 굽는 것·1 연료·2 결과, isFuel·canSmelt). */
+    @Test
+    void furnaceTimesAndInventory() {
+        server.onRegion(pos, () -> {
+            var w = server.api().world(dim);
+            w.block(pos).set(new BlockData("minecraft:furnace", Map.of("facing", "north", "lit", "false")));
+            try {
+                org.bukkit.block.Furnace f = (org.bukkit.block.Furnace) Compat.block(dim, pos).getState();
+                assertEquals(0, f.getBurnTime());
+                assertEquals(1.0, f.getCookSpeedMultiplier());
+                assertThrows(IllegalArgumentException.class, () -> f.setCookSpeedMultiplier(-1));
+                f.setBurnTime((short) 300);
+                f.setCookTime((short) 50);
+                f.setCookTimeTotal(200);
+                assertEquals("true", ((CompatBlockData) f.getBlockData()).furnace().properties().get("lit"), "SPIGOT-844: 불붙이기");
+                assertTrue(f.update());
+                var nbt = w.blockEntityNbtNow(pos).orElseThrow();
+                assertEquals(50, nbt.getShort("CookTime"));
+                assertEquals(200, nbt.getShort("CookTimeTotal"));
+                assertEquals("true", w.block(pos).data().properties().get("lit"));
+                var again = (org.bukkit.block.Furnace) Compat.block(dim, pos).getState();
+                assertEquals(50, again.getCookTime());
+                assertFalse(again.hasRecipeUsedCount(org.bukkit.NamespacedKey.minecraft("iron_ingot_from_smelting_raw_iron")));
+
+                org.bukkit.inventory.FurnaceInventory inv = again.getInventory();
+                assertEquals(org.bukkit.event.inventory.InventoryType.FURNACE, inv.getType());
+                inv.setSmelting(new ItemStack(Material.RAW_IRON));
+                inv.setFuel(new ItemStack(Material.COAL, 3));
+                assertEquals("minecraft:raw_iron", w.inventoryAtNow(pos).orElseThrow().get(0).join().type());
+                assertEquals(new ItemStack(Material.COAL, 3), inv.getFuel());
+                assertTrue(inv.isFuel(new ItemStack(Material.COAL)));
+                // 태그 연료(판자 등)는 서버 FuelRegistry 가 데이터 팩 태그(ItemContext)를 본다 — 시험 서버엔 그 태그가 걸리지 않아 여기선 재지 않는다
+                assertFalse(inv.isFuel(new ItemStack(Material.STONE)));
+                assertFalse(inv.isFuel(null));
+                // canSmelt 는 레시피 표를 본다 — 시험 서버는 데이터 팩 없이 떠 레시피 표가 없어(플러그인 레시피도 못 건다) 여기선 비었을 때만 잰다
+                assertFalse(inv.canSmelt(null));
+                assertFalse(inv.canSmelt(new ItemStack(Material.AIR)));
+                assertInstanceOf(org.bukkit.block.Furnace.class, inv.getHolder());
+            } finally {
+                w.block(pos).set(BlockData.AIR);
+            }
+            return null;
+        });
+        server.onRegion(pos, () -> {
+            var w = server.api().world(dim);
+            w.block(pos).set(new BlockData("minecraft:smoker", Map.of()));
+            try {
+                var inv = ((org.bukkit.block.Smoker) Compat.block(dim, pos).getState()).getInventory();
+                assertEquals(org.bukkit.event.inventory.InventoryType.SMOKER, inv.getType());
+                assertInstanceOf(org.bukkit.block.Furnace.class, inv.getHolder());
+            } finally {
+                w.block(pos).set(BlockData.AIR);
+            }
+            return null;
+        });
+    }
+
+    /** 용광로 한 판(#379 검토 시험): BurnTime NBT, 다시 뜬 세 시간, setBurnTime(0)→lit=false, 배율 검사, RecipesUsed 읽기, 결과 칸. */
+    @Test
+    void blastFurnaceStateRoundTrip() {
+        server.onRegion(pos, () -> {
+            var w = server.api().world(dim);
+            w.block(pos).set(new BlockData("minecraft:blast_furnace", Map.of("facing", "north", "lit", "false")));
+            try {
+                var f = (org.bukkit.block.Furnace) Compat.block(dim, pos).getState();
+                f.setBurnTime((short) 300);
+                f.setCookTime((short) 7);
+                f.setCookTimeTotal(123);
+                assertTrue(f.update());
+                var nbt = w.blockEntityNbtNow(pos).orElseThrow();
+                assertEquals(300, nbt.getShort("BurnTime"), "M01");
+                var again = (org.bukkit.block.Furnace) Compat.block(dim, pos).getState();
+                assertEquals(300, again.getBurnTime());
+                assertEquals(7, again.getCookTime());
+                assertEquals(123, again.getCookTimeTotal(), "M04");
+                // SPIGOT-844 끄기: burnTime 0 이면 lit=false
+                again.setBurnTime((short) 0);
+                assertEquals("false", ((CompatBlockData) again.getBlockData()).furnace().properties().get("lit"), "M02");
+                // 배율 검사 문구·NaN
+                assertThrows(IllegalArgumentException.class, () -> again.setCookSpeedMultiplier(200.5), "M07");
+                assertThrows(IllegalArgumentException.class, () -> again.setCookSpeedMultiplier(Double.NaN), "M08");
+                assertThrows(UnsupportedFeature.class, () -> again.setCookSpeedMultiplier(2));
+                // RecipesUsed 읽기
+                org.domi.furnace.api.nbt.NbtCompound n = w.blockEntityNbtNow(pos).orElseThrow();
+                org.domi.furnace.api.nbt.NbtCompound used = new org.domi.furnace.api.nbt.NbtCompound();
+                used.putInt("minecraft:iron_ingot_from_blasting_raw_iron", 4);
+                n.putCompound("RecipesUsed", used);
+                w.setBlockEntityNbtNow(pos, n);
+                var third = (org.bukkit.block.Furnace) Compat.block(dim, pos).getState();
+                var key = org.bukkit.NamespacedKey.minecraft("iron_ingot_from_blasting_raw_iron");
+                assertTrue(third.hasRecipeUsedCount(key));
+                assertEquals(4, third.getRecipeUsedCount(key), "M10");
+                // 결과 칸
+                var inv = third.getInventory();
+                assertEquals(org.bukkit.event.inventory.InventoryType.BLAST_FURNACE, inv.getType());
+                inv.setResult(new ItemStack(Material.IRON_INGOT, 2));
+                assertEquals("minecraft:iron_ingot", w.inventoryAtNow(pos).orElseThrow().get(2).join().type(), "M14");
+                assertEquals(new ItemStack(Material.IRON_INGOT, 2), inv.getResult(), "M12");
+            } finally {
+                w.block(pos).set(BlockData.AIR);
+            }
+            return null;
+        });
+    }
 }

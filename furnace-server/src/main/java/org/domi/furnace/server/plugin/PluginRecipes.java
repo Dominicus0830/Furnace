@@ -42,6 +42,14 @@ public final class PluginRecipes implements RecipeRegistry {
         return rm;
     }
 
+    @Override
+    public boolean canCook(org.domi.furnace.api.recipe.Recipe.CookingKind kind, org.domi.furnace.api.item.ItemStack input) {
+        java.util.Objects.requireNonNull(kind, "kind");
+        RecipeManager rm = host.core().recipes();
+        if (rm == null || input == null || input.isEmpty()) return false;
+        return rm.findCooking(kind.type(), toServer().apply(input)) != null;
+    }
+
     private ApiRecipes.ToServer toServer() {
         var items = host.core().world().itemRegistry();
         return s -> org.domi.furnace.server.plugin.ApiConvert.item(s, items);

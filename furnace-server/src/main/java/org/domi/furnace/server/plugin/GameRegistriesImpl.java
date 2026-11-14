@@ -138,6 +138,13 @@ final class GameRegistriesImpl implements GameRegistries {
     }
 
     @Override
+    public int fuelBurnTime(String item) {
+        int id = idOf("minecraft:item", normalize(item));
+        if (id <= 0) return 0;   // 없는 아이템·공기
+        return org.domi.furnace.server.item.FuelRegistry.burnTime(new org.domi.furnace.server.entity.ItemStack(id, 1));
+    }
+
+    @Override
     public String blockEntityType(String block) {
         var blocks = org.domi.furnace.server.block.Blocks.get();
         int b = blocks.block(normalize(block));

@@ -22,6 +22,13 @@ public final class BlockInventories {
         };
         var type = InventoryResultMappings.containerType(inv.type());
         if (type == org.bukkit.event.inventory.InventoryType.BREWING) return new Brewer(inv, holder);
+        var kind = switch (type) {
+            case FURNACE -> org.domi.furnace.api.recipe.Recipe.CookingKind.SMELTING;
+            case BLAST_FURNACE -> org.domi.furnace.api.recipe.Recipe.CookingKind.BLASTING;
+            case SMOKER -> org.domi.furnace.api.recipe.Recipe.CookingKind.SMOKING;
+            default -> null;
+        };
+        if (kind != null) return new Furnace(inv, type, kind, holder);
         return new CompatInventory(inv, type, holder);
     }
 
@@ -46,6 +53,52 @@ public final class BlockInventories {
         @Override
         public org.bukkit.block.BrewingStand getHolder() {
             return super.getHolder() instanceof org.bukkit.block.BrewingStand b ? b : null;
+        }
+    }
+
+    /** 화로류의 살아 있는 인벤토리(Paper CraftInventoryFurnace): 0 굽는 것, 1 연료, 2 결과. */
+    static final class Furnace extends CompatInventory implements org.bukkit.inventory.FurnaceInventory {
+        private final org.domi.furnace.api.recipe.Recipe.CookingKind kind;
+
+        Furnace(org.domi.furnace.api.inventory.Inventory handle, org.bukkit.event.inventory.InventoryType type,
+                org.domi.furnace.api.recipe.Recipe.CookingKind kind, java.util.function.Supplier<InventoryHolder> holder) {
+            super(handle, type, holder);
+            this.kind = kind;
+        }
+
+        @Override
+        public org.bukkit.inventory.ItemStack getResult() { return getItem(2); }
+
+        @Override
+        public org.bukkit.inventory.ItemStack getFuel() { return getItem(1); }
+
+        @Override
+        public org.bukkit.inventory.ItemStack getSmelting() { return getItem(0); }
+
+        @Override
+        public void setFuel(org.bukkit.inventory.ItemStack stack) { setItem(1, stack); }
+
+        @Override
+        public void setResult(org.bukkit.inventory.ItemStack stack) { setItem(2, stack); }
+
+        @Override
+        public void setSmelting(org.bukkit.inventory.ItemStack stack) { setItem(0, stack); }
+
+        @Override
+        public boolean isFuel(org.bukkit.inventory.ItemStack item) {
+            return item != null && !item.getType().isAir() && Compat.furnace().gameRegistries().fuelBurnTime(item.getType().getKey().toString()) > 0;
+        }
+
+        /** Paper: RecipeManager.getRecipeFor(이 화로의 레시피 종류, 아이템) — 서버 화로가 쓰는 조회 그대로. */
+        @Override
+        public boolean canSmelt(org.bukkit.inventory.ItemStack item) {
+            if (item == null || item.getType().isAir()) return false;
+            return Compat.furnace().recipes().canCook(kind, CompatItems.toFurnace(item));
+        }
+
+        @Override
+        public org.bukkit.block.Furnace getHolder() {
+            return super.getHolder() instanceof org.bukkit.block.Furnace f ? f : null;
         }
     }
 }
