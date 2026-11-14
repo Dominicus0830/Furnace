@@ -51,6 +51,7 @@ API 는 버전 중립이다: 내부 패킷 타입을 드러내지 않고, 단계
 - `onDisable` 동안 접속자는 아직 접속해 있다(메시지·킥·데이터 저장 가능).
 - `tasks()` 로 맡긴 작업은 `onDisable` 이 끝나면 취소된다. 끝까지 돌아야 하는 작업은 `onDisable` 안에서 기다린다.
 - `onDisable` 에서 리로드와 종료를 가르려면 `server().isStopping()`.
+- **`/stop` 의 단계는 JVM 종료 훅보다 먼저 돈다**(Paper 와 같다). 그래서 `onDisable` 에서 `Runtime.removeShutdownHook` 이 되고(H2 가 DB 를 닫으며 훅을 뗀다), 플러그인이 건 종료 훅이 닫힌 클래스로더를 만나지 않는다. Ctrl+C·kill 같은 JVM 종료는 Furnace 종료 훅이 같은 단계를 돈다(/stop 이 이미 돌고 있으면 끝날 때까지 기다린다) — 이때는 Paper 처럼 플러그인 훅과 동시에 돈다.
 
 ## 4. 구성 단계에서 클라이언트와 주고받기 (`PlayerConnection`)
 

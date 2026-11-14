@@ -487,6 +487,9 @@ public final class PluginHost implements Furnace {
     @Override
     public void shutdown() { core.halt(); }
 
+    @Override
+    public long currentTick() { return core.serverTickCount(); }
+
     private volatile boolean stopping;
 
     @Override

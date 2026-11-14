@@ -33,6 +33,15 @@ public final class CompatChunk implements Chunk {
     public boolean load() { return load(true); }
 
     @Override
+    public org.bukkit.entity.Entity[] getEntities() {
+        var w = Compat.furnace().world(dimension);
+        if (!w.isChunkLoaded(x, z)) return new org.bukkit.entity.Entity[0];
+        java.util.List<org.bukkit.entity.Entity> out = new java.util.ArrayList<>();
+        for (var e : w.entitiesInChunkNow(x, z)) out.add(Compat.entity(e));
+        return out.toArray(new org.bukkit.entity.Entity[0]);
+    }
+
+    @Override
     public boolean equals(Object o) { return o instanceof CompatChunk c && c.x == x && c.z == z && c.dimension.equals(dimension); }
 
     @Override
