@@ -331,6 +331,6 @@ public class PointedDripstoneBlock extends BlockBehavior {
         if (B.isAir(state)) return true;
         if (B.isFullOcclusion(state)) return false;
         if (!Fluids.isEmpty(B.fluid(state))) return false;
-        return !B.behavior(state).getCollisionShape(state, level, pos, null).intersects(6 / 16.0, 0, 6 / 16.0, 10 / 16.0, 1, 10 / 16.0);
+        return !B.behavior(state).getCollisionShape(state, level, pos, org.domi.furnace.server.block.CollisionContext.EMPTY).intersects(6 / 16.0, 0, 6 / 16.0, 10 / 16.0, 1, 10 / 16.0);
     }
 }

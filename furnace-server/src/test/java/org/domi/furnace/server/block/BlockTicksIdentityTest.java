@@ -43,7 +43,11 @@ class BlockTicksIdentityTest {
         public List<String> chunk(int cx, int cz, boolean remove) {
             List<String> out = new ArrayList<>();
             if (!remove) out.add("has=" + t.hasChunkTicks(cx, cz));
-            for (var s : remove ? t.removeChunk(cx, cz) : t.chunkTicks(cx, cz)) out.add(fmt(s.pos(), s.type(), s.triggerTick(), s.priority(), s.subTickOrder()));
+            List<BlockTicks.Scheduled> list = new ArrayList<>(remove ? t.removeChunk(cx, cz) : t.chunkTicks(cx, cz));
+            // 저장 목록은 이제 바닐라처럼 컨테이너 큐 배열 순서다(옛 구현은 정렬) — 순서는 바닐라 모델 대조(DeferredBlockTicksTest)가 보고, 여기서는 내용만 맞댄다
+            list.sort(java.util.Comparator.comparingLong(BlockTicks.Scheduled::triggerTick).thenComparingInt(BlockTicks.Scheduled::priority)
+                    .thenComparingLong(BlockTicks.Scheduled::subTickOrder));
+            for (var s : list) out.add(fmt(s.pos(), s.type(), s.triggerTick(), s.priority(), s.subTickOrder()));
             return out;
         }
         public void moveTo(Ticks target, LongPredicate chunkFilter, long offset) { t.moveTo(((NewTicks) target).t, chunkFilter, offset); }

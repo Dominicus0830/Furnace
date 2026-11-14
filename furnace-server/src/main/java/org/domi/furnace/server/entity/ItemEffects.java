@@ -98,8 +98,8 @@ public final class ItemEffects {
         }
         if (!found) return null;
         AABB box = p.boundingBox().move(nx - p.x(), d3 - p.y(), nz - p.z());
-        // 바닐라는 teleportTo 뒤 noCollision(this): 플레이어 self 로, 보더는 도착 자리 기준.
-        return level.noCollision(p, nx, nz, box) && !level.containsAnyLiquid(box) ? new double[] {nx, d3, nz} : null;
+        // 바닐라는 teleportTo 뒤 noCollision(this): 플레이어 self 로, 보더·블록 문맥 발 높이는 도착 자리 기준.
+        return level.noCollision(p, nx, d3, nz, box) && !level.containsAnyLiquid(box) ? new double[] {nx, d3, nz} : null;
     }
 
     // ------------------------------------------------------------------ 불길한 병(OminousBottleItem.finishUsingItem)

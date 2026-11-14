@@ -24,7 +24,7 @@ public final class Brushing {
 
     /**
      * calculateHitResult(player) = ProjectileUtil.getHitResultOnViewVector(player, !spectator && pickable, blockInteractionRange):
-     * 눈에서 시선 방향으로 블록 판정(OUTLINE, 유체 무시) 후, 그 끝점까지 확장 상자 안 엔티티(여유 0)가 먼저 맞으면 엔티티 맞음.
+     * 눈에서 시선 방향으로 블록 판정(COLLIDER + 플레이어 문맥, 유체 무시 — 풀·횃불처럼 충돌 모양이 없는 블록은 지나간다) 후, 그 끝점까지 확장 상자 안 엔티티(여유 0)가 먼저 맞으면 엔티티 맞음.
      * 블록에 맞았으면 그 결과, 아니면(빗나감·엔티티가 앞) null. 시선은 현재 회전(바닐라는 xRotO/yRotO — 틱 시작 값과 같다고 가정).
      */
     public static Clip.Result calculateBlockHit(ChunkLevel level, BlockActor actor, Player p) {
@@ -33,7 +33,7 @@ public final class Brushing {
         double vx = v[0] * range, vy = v[1] * range, vz = v[2] * range;
         double ex = actor.x(), ey = actor.y() + actor.eyeHeight(), ez = actor.z();
         double tx = ex + vx, ty = ey + vy, tz = ez + vz;
-        Clip.Result hit = Clip.clip(level, ex, ey, ez, tx, ty, tz, Clip.FluidMode.NONE);
+        Clip.Result hit = Clip.clipCollider(level, org.domi.furnace.server.block.CollisionContext.of(p), ex, ey, ez, tx, ty, tz, Clip.FluidMode.NONE);
         if (!hit.miss()) {
             tx = hit.x();
             ty = hit.y();

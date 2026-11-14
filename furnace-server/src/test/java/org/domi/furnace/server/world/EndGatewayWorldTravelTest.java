@@ -61,7 +61,7 @@ class EndGatewayWorldTravelTest {
     }
 
     private static Traveler traveler(boolean pearl) {
-        return new Traveler(96.5, 75.0, 0.5, 0.25, 0.0, 0.0, 12.0F, 5.0F, 0.9, 0.9, false, true, pearl);
+        return new Traveler(96.5, 75.0, 0.5, 0.25, 0.0, 0.0, 12.0F, 5.0F, 0.9, 0.9, false, true, pearl, org.domi.furnace.server.block.CollisionContext.EMPTY);
     }
 
     @Test

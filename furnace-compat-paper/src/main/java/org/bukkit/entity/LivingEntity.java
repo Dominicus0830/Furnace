@@ -5,7 +5,7 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
 /** 살아 있는 엔티티. 효과·AI·밀림은 엔티티를 가진 region 스레드에서 지금 값을 읽고 쓴다(Entity 의 스레드 규칙과 같다). */
-public interface LivingEntity extends Entity {
+public interface LivingEntity extends Entity, org.bukkit.projectiles.ProjectileSource {
 
     double getHealth();
 

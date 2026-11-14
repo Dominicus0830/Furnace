@@ -122,7 +122,7 @@ public class CampfireBlock extends BaseEntityBlock {
             int s = level.getBlockState(p);
             if (isLitCampfire(s)) return true;
             // 바닐라는 이 칸 모양을 pos(원래 칸) 기준으로 묻는다.
-            boolean blocked = B.behavior(s).getCollisionShape(s, level, pos, null).intersects(6 / 16.0, 0, 6 / 16.0, 10 / 16.0, 1, 10 / 16.0);
+            boolean blocked = B.behavior(s).getCollisionShape(s, level, pos, org.domi.furnace.server.block.CollisionContext.EMPTY).intersects(6 / 16.0, 0, 6 / 16.0, 10 / 16.0, 1, 10 / 16.0);
             if (blocked) return isLitCampfire(level.getBlockState(p.below()));
         }
         return false;

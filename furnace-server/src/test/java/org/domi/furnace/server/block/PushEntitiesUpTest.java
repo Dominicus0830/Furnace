@@ -46,7 +46,7 @@ class PushEntitiesUpTest {
 
     @Test
     void joinOnlySecond_farmlandToDirt_isTopSlab() {
-        Shape farm = B.behavior(B.defaultState("minecraft:farmland")).getCollisionShape(B.defaultState("minecraft:farmland"), null, AT, null);
+        Shape farm = B.behavior(B.defaultState("minecraft:farmland")).getCollisionShape(B.defaultState("minecraft:farmland"), null, AT, CollisionContext.EMPTY);
         Shape s = Shape.joinOnlySecond(farm, Shape.BLOCK);
         assertArrayEquals(new double[] {0, 15 / 16.0, 0, 1, 1, 1}, s.bounds(), 1e-12);
         assertTrue(Shape.joinOnlySecond(Shape.BLOCK, Shape.BLOCK).isEmpty());

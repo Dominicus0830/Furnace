@@ -61,7 +61,7 @@ public class WallBlock extends BlockBehavior {
     private static boolean connected(int state, Prop p) { return !NONE.equals(p.valueName(state)); }
 
     private int updateShape(BlockLevel level, int state, Pos abovePos, int aboveState, boolean n, boolean e, boolean s, boolean w) {
-        Shape above = B.behavior(aboveState).getCollisionShape(aboveState, level, abovePos, null);
+        Shape above = B.behavior(aboveState).getCollisionShape(aboveState, level, abovePos, org.domi.furnace.server.block.CollisionContext.EMPTY);
         int st = NORTH.with(state, side(n, above, 7, 0, 9, 9));
         st = EAST.with(st, side(e, above, 7, 7, 16, 9));
         st = SOUTH.with(st, side(s, above, 7, 7, 9, 16));

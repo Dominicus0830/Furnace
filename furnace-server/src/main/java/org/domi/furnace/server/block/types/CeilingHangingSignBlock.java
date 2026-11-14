@@ -45,7 +45,7 @@ public class CeilingHangingSignBlock extends SignBlock {
         int as = level.getBlockState(above);
         boolean allHanging = B.isTag(as, "minecraft:all_hanging_signs");
         int dir = Dir.fromYRot(ctx.rotation());
-        boolean attached = !B.behavior(as).getCollisionShape(as, level, above, null).isFaceFull(Dir.DOWN) || ctx.isSecondaryUseActive();
+        boolean attached = !B.behavior(as).getCollisionShape(as, level, above, org.domi.furnace.server.block.CollisionContext.EMPTY).isFaceFull(Dir.DOWN) || ctx.isSecondaryUseActive();
         if (allHanging && !ctx.isSecondaryUseActive()) {
             if (WallHangingSignBlock.FACING.has(as)) {
                 int f = Dir.byName(WallHangingSignBlock.FACING.valueName(as));

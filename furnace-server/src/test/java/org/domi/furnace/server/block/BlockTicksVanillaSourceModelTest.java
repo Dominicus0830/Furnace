@@ -1,5 +1,6 @@
 // T-055 독립 검토 R4: 바닐라 1.21.1 LevelTicks·LevelChunkTicks 의 동작을 그대로 옮긴 모델(이 파일의 VLevel·VChunk)과 BlockTicks 를 맞댄다.
-// 빠른 길(이번 시각만·한도 안)과 병합 길 경계, 지난 예약, 틱 범위 술어, 실행 중 예약(지연 0 포함)·조회, 청크 꺼내기·다시 걸기.
+// 빠른 길(이번 시각만·한도 안)과 병합 길 경계, 지난 예약, 틱 범위 술어, 실행 중 예약(지연 0 포함)·조회, 청크 꺼내기·다시 걸기,
+// 저장 목록 순서(바닐라 LevelChunkTicks.save = 큐 배열 순서).
 // 시드 수: -Dfurnace.identity.vanillaModelSeeds (기본 1000).
 package org.domi.furnace.server.block;
 
@@ -107,16 +108,12 @@ class BlockTicksVanillaSourceModelTest {
             VChunk c = all.remove(ck);
             nextTick.remove(ck);
             if (c == null) return List.of();
-            List<ST> l = new ArrayList<>(c.q);
-            l.sort(DRAIN);
-            return l;
+            return new ArrayList<>(c.q);   // LevelChunkTicks.save: 큐 배열(힙) 순서 그대로(T-055b)
         }
-        List<ST> sorted(long ck) {
+        List<ST> saved(long ck) {
             VChunk c = all.get(ck);
             if (c == null) return List.of();
-            List<ST> l = new ArrayList<>(c.q);
-            l.sort(DRAIN);
-            return l;
+            return new ArrayList<>(c.q);
         }
         int size() { int n = 0; for (VChunk c : all.values()) n += c.q.size(); return n; }
     }
@@ -173,19 +170,26 @@ class BlockTicksVanillaSourceModelTest {
                 if (vanilla) v.tick(time, max, check, t -> body.accept(t.pos, t.type));
                 else b.tick(time, max, check, (p, t) -> body.accept(p.asLong(), t));
                 out.append(" n=").append(vanilla ? v.size() : b.size()).append('\n');
-            } else if (op < 96) {   // 청크 꺼냈다가(실행 순서) 곧바로 또는 나중에 다시 걸기
-                int cx = r.nextInt(span) - span / 2, cz = r.nextInt(span) - span / 2;
-                long ck = ChunkPredicateMemo.chunkKey(cx, cz);
-                List<ST> l;
-                if (vanilla) l = v.remove(ck);
-                else {
-                    l = new ArrayList<>();
-                    for (var x : b.removeChunk(cx, cz)) l.add(new ST(x.pos(), x.type(), x.triggerTick(), x.priority(), x.subTickOrder()));
-                }
-                out.append("R").append(ck).append(' ').append(l).append('\n');
-                for (ST t : l) {
-                    ST nt = new ST(t.pos, t.type, t.trigger, t.prio, sub[0]++);
-                    if (vanilla) v.schedule(nt); else b.schedule(Pos.of(nt.pos), nt.type, nt.trigger, nt.prio, nt.sub);
+            } else if (op < 96) {
+                // 청크 꺼냈다가(저장 순서 = 큐 배열 순서) 곧바로 다시 걸기. 반은 "같은 틱에 여러 청크를 불러오기"처럼 목록마다 -n..-1
+                // (LevelChunkTicks.unpack) — 청크끼리 (우선순위, 순번) 동점이 생겨 빠른 길의 겹침 검사를 시험한다(#317 검토 R1).
+                boolean asLoad = r.nextBoolean();
+                int count = asLoad ? 1 + r.nextInt(3) : 1;
+                for (int k = 0; k < count; k++) {
+                    int cx = r.nextInt(span) - span / 2, cz = r.nextInt(span) - span / 2;
+                    long ck = ChunkPredicateMemo.chunkKey(cx, cz);
+                    List<ST> l;
+                    if (vanilla) l = v.remove(ck);
+                    else {
+                        l = new ArrayList<>();
+                        for (var x : b.removeChunk(cx, cz)) l.add(new ST(x.pos(), x.type(), x.triggerTick(), x.priority(), x.subTickOrder()));
+                    }
+                    out.append(asLoad ? "L" : "R").append(ck).append(' ').append(l).append('\n');
+                    long loaded = -l.size();
+                    for (ST t : l) {
+                        ST nt = new ST(t.pos, t.type, t.trigger, t.prio, asLoad ? loaded++ : sub[0]++);
+                        if (vanilla) v.schedule(nt); else b.schedule(Pos.of(nt.pos), nt.type, nt.trigger, nt.prio, nt.sub);
+                    }
                 }
             } else {
                 Pos p = rpos(r, span);
@@ -197,7 +201,7 @@ class BlockTicksVanillaSourceModelTest {
             for (int cz = -span; cz <= span; cz++) {
                 long ck = ChunkPredicateMemo.chunkKey(cx, cz);
                 List<ST> l;
-                if (vanilla) l = v.sorted(ck);
+                if (vanilla) l = v.saved(ck);
                 else {
                     l = new ArrayList<>();
                     for (var x : b.chunkTicks(cx, cz)) l.add(new ST(x.pos(), x.type(), x.triggerTick(), x.priority(), x.subTickOrder()));
@@ -219,6 +223,51 @@ class BlockTicksVanillaSourceModelTest {
                 while (i < Math.min(x.length, y.length) && x[i].equals(y[i])) i++;
                 fail("seed " + seed + " line " + i + "\nvanilla: " + (i < x.length ? x[i] : "<end>") + "\nnew:     " + (i < y.length ? y[i] : "<end>"));
             }
+        }
+    }
+
+    /** 두 청크 머리가 (우선순위, 순번) 동점이면 바닐라는 지금 컨테이너에서 계속 꺼낸다 — 빠른 길(정렬)이 아니라 병합 결과(#317 검토 R1). */
+    @Test
+    void tiedHeadsKeepDrainingTheCurrentContainer() {
+        for (int max : new int[] {65536, 4}) {
+            BlockTicks b = new BlockTicks();
+            b.schedule(new Pos(1, 0, 1), 1, 1, 0, -2);
+            b.schedule(new Pos(2, 0, 1), 1, 1, 0, -1);
+            b.schedule(new Pos(17, 0, 1), 1, 1, 0, -2);
+            b.schedule(new Pos(18, 0, 1), 1, 1, 0, -1);
+            b.schedule(new Pos(3, 0, 1), 1, 100, 0, 5);
+            List<Integer> out = new ArrayList<>();
+            b.tick(1, max, (p, t) -> out.add(p.x()));
+            assertEquals(List.of(1, 17, 18, 2), out, "한도 " + max);
+        }
+    }
+
+    /** 청크 여러 개를 같은 틱에 불러온 장면(목록마다 -n..-1, 같은 시각·우선순위)을 바닐라 모델과 맞댄다(#317 검토 재현). */
+    @Test
+    void chunksLoadedTogetherMatchVanillaModel() {
+        for (long seed = 0; seed < 500; seed++) {
+            SplittableRandom r = new SplittableRandom(seed);
+            VLevel v = new VLevel();
+            BlockTicks b = new BlockTicks();
+            int chunks = 2 + r.nextInt(6);
+            for (int c = 0; c < chunks; c++) {
+                int n = 1 + r.nextInt(5);
+                long sub = -n;
+                for (int i = 0; i < n; i++) {
+                    Pos p = new Pos(c * 16 + i, 0, 0);
+                    int prio = r.nextInt(4) == 0 ? -1 : 0;
+                    long trig = 1 + r.nextInt(2);
+                    v.schedule(new ST(p.asLong(), 1, trig, prio, sub));
+                    b.schedule(p, 1, trig, prio, sub++);
+                }
+            }
+            List<String> va = new ArrayList<>(), bb = new ArrayList<>();
+            for (int t = 1; t <= 3; t++) {
+                final int tt = t;
+                v.tick(t, 65536, k -> true, x -> va.add(tt + ":" + Pos.of(x.pos()).x()));
+                b.tick(t, 65536, k -> true, (p, ty) -> bb.add(tt + ":" + p.x()));
+            }
+            assertEquals(va, bb, "seed " + seed);
         }
     }
 
