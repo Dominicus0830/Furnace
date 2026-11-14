@@ -75,7 +75,7 @@ cmd=$!
     # 2분마다 한 줄은 콘솔(=단계 로그)에도
     if [ $((i % (120 / sample))) -eq 0 ]; then echo "[자원] $line"; fi
     i=$((i + 1))
-    sleep "$sample"
+    sleep "$sample" </dev/null >/dev/null 2>&1   # 남은 sleep 이 tee 파이프를 붙잡지 않게
   done
 ) &
 sampler=$!

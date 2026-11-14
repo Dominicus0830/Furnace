@@ -34,6 +34,11 @@ class EntityIndexBeforeSpawnTest {
                 if (e.packet().entityType().equals("minecraft:pig")) seen.add("packet:" + world.entityUuidById(e.packet().entityId()).isPresent());
             });
             var loc = tp.player().location();
+            // 돼지 청크를 Dana 가 받은 뒤에 소환한다(ProtocolLibBridgeTest 와 같은 보정). 안 받았으면 그 틱에 추적하지 않아
+            // ① add_entity 가 안 와 awaitPacket 이 시간 초과하거나 ② 추적이 다음 틱(색인 뒤)에 시작돼 옛 순서여도 통과한다.
+            var dana = server.internals().playerByName("Dana");
+            var pigChunk = new org.domi.furnace.server.world.ChunkPos((int) Math.floor(loc.x()) >> 4, (int) Math.floor(loc.z() + 3) >> 4);
+            for (int i = 0; i < 200 && !server.internals().world().chunkReady(pigChunk, dana); i++) server.tick();
             server.execute("summon minecraft:pig " + loc.x() + " " + loc.y() + " " + (loc.z() + 3));
             server.tick(1);
             tp.awaitPacket(PacketTypes.Clientbound.ADD_ENTITY, a -> a.entityType().equals("minecraft:pig"));
