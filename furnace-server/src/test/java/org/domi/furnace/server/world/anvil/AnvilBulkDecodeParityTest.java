@@ -42,7 +42,9 @@ class AnvilBulkDecodeParityTest {
         Random r = new Random(5);
         while (ids.size() < 400) {
             int id = r.nextInt(1 << reg.directBits());
-            try { if (reg.nameOf(id) != null) ids.add(id); } catch (RuntimeException ignored) {}
+            // 저장·읽기로 같은 상태가 되는 번호만(nameOf 는 모르는 번호에 air 를 돌려줘 늘 참이었다). 모르는 번호는 읽으면 공기가 되는데
+            // 저장된 하이트맵은 그 블록을 셌으므로, 바닐라처럼 저장값을 쓰는 읽기(N2b-2 고정 하이트맵)와 블록에서 다시 센 기준이 갈린다.
+            if (reg.canonicalKeyOf(id) != null) ids.add(id);
         }
         pool = ids.stream().mapToInt(Integer::intValue).toArray();
     }

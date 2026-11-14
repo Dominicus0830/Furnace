@@ -159,7 +159,7 @@ class NmsChunkShimsTest {
     }
 
     @Test
-    void copyIsDetachedAndViewRefusesWrites() {
+    void copyIsDetachedAndViewWritesThrough() {
         on(() -> {
             var s = level.getChunk(cx, cz).getSection(0);
             PalettedContainer<BlockState> view = s.getStates();
@@ -169,7 +169,12 @@ class NmsChunkShimsTest {
             assertSame(before, old);
             assertSame(Blocks.GOLD_BLOCK.defaultBlockState(), copy.get(3, 3, 3));
             assertSame(before, view.get(3, 3, 3), "사본을 고쳐도 청크는 그대로");
-            assertThrows(UnsupportedNmsCall.class, () -> view.set(3, 3, 3, Blocks.STONE.defaultBlockState()));
+            // N2b-2: 주인 스레드에서 보기 컨테이너 set 은 청크에 바로 쓴다(바닐라 컨테이너 set — 개수·하이트맵 그대로). 원래대로 돌려 둔다
+            int[] counts = level.getChunk(cx, cz).furnaceSectionCounts(0);
+            view.set(3, 3, 3, Blocks.STONE.defaultBlockState());
+            assertSame(Blocks.STONE.defaultBlockState(), view.get(3, 3, 3));
+            assertArrayEquals(counts, level.getChunk(cx, cz).furnaceSectionCounts(0), "컨테이너 set 은 개수를 안 고친다");
+            view.set(3, 3, 3, before);
             int[] seen = new int[1];
             view.count((v, n) -> seen[0] += n);
             assertEquals(4096, seen[0]);
@@ -181,7 +186,7 @@ class NmsChunkShimsTest {
 
     /**
      * N2b-1 정체성: 바닐라처럼 로드 동안 LevelChunk 하나, 섹션 배열 하나, 칸마다 섹션 하나, 컨테이너·하이트맵 하나. 섹션 하나만 쥐고 있어도
-     * 청크 shim(그리고 배열)이 살아 있어 다음 getChunk 가 같은 배열을 준다(설계 3.2 R14). 보기 섹션은 쓰기를 거절한다(N2b-2 전).
+     * 청크 shim(그리고 배열)이 살아 있어 다음 getChunk 가 같은 배열을 준다(설계 3.2 R14). 보기 섹션 쓰기는 N2b-2 의 NmsOwnerRawWriteTest 가 본다.
      */
     @Test
     void chunkShimIdentityIsStableWhileHeld() {
@@ -202,7 +207,6 @@ class NmsChunkShimsTest {
             Heightmap wg = c.getOrCreateHeightmapUnprimed(Heightmap.Types.WORLD_SURFACE_WG);
             assertSame(wg, c.getOrCreateHeightmapUnprimed(Heightmap.Types.WORLD_SURFACE_WG), "바닐라: 만들어 넣은 뒤로 같은 객체");
             assertTrue(c.hasPrimedHeightmap(Heightmap.Types.WORLD_SURFACE_WG), "바닐라: 만들어 넣으면 있음");
-            assertThrows(UnsupportedNmsCall.class, () -> secs[3].setBlockState(1, 1, 1, Blocks.STONE.defaultBlockState()));
             return null;
         });
         LevelChunkSection held = on(() -> level.getChunk(cx, cz).getSection(5));

@@ -15,6 +15,7 @@ import org.domi.furnace.server.world.BitStorage;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChestBlockEntity;
 import org.domi.furnace.server.world.ChunkColumn;
+import org.domi.furnace.server.world.HeightmapType;
 import org.domi.furnace.server.world.ChunkSection;
 import org.domi.furnace.server.world.ChunkSnapshot;
 import org.domi.furnace.server.world.FirstSeenIndex;
@@ -391,6 +392,7 @@ public final class AnvilChunkCodec {
         }
         readStoredLight(root, sections, col, minSection);
         col.rebuildHeightmapsAfterSurface();
+        adoptStoredHeightmaps(root, col);
         if (root.contains("block_entities")) {
             for (Object o : root.getList("block_entities").items()) {
                 // 블록 엔티티 하나가 이상해도 청크 전체 로드가 실패하면 안 된다(실패한 청크는 영구 로드 불가가 됐었다).
@@ -599,6 +601,28 @@ public final class AnvilChunkCodec {
         for (int idx = 0; idx < 4096; idx++) {
             int stateId = paletteIds[store.get(idx)];
             if (stateId != ChunkSection.AIR) setFromIndex(col, baseY, idx, stateId);
+        }
+    }
+
+    /**
+     * 바닐라 ChunkSerializer 처럼 저장된 하이트맵(긴 정수 배열 태그)을 쓴다 — 낡았어도 그대로(고정 하이트맵, N2b 설계 3.5·R7). 없는 종류는 지금 블록에서,
+     * 길이가 틀린 종류는 바닐라 Heightmap.setRawData 처럼 경고 뒤 지금 블록에서. 저장값이 지금 블록과 같으면(보통 — Furnace 가 저장한 청크) 할 일이 없다.
+     */
+    private static void adoptStoredHeightmaps(NbtCompound root, ChunkColumn col) {
+        if (!(root.tags().get("Heightmaps") instanceof NbtCompound hm)) return;
+        HeightmapType[] types = HeightmapType.values();
+        long[][] stored = new long[types.length][];
+        boolean any = false;
+        for (int k = 0; k < types.length; k++) {
+            if (hm.tags().get(types[k].name()) instanceof long[] raw) {
+                stored[k] = raw;
+                any = true;
+            }
+        }
+        if (!any) return;
+        for (HeightmapType bad : col.adoptStoredHeightmaps(stored)) {
+            org.slf4j.LoggerFactory.getLogger(AnvilChunkCodec.class).warn("청크 [{}, {}] 하이트맵 {} 길이가 맞지 않아 버리고 다시 계산함(기대 {}, 실제 {})",
+                    root.getInt("xPos"), root.getInt("zPos"), bad.name(), col.heightmapRawLength(), stored[bad.ordinal()].length);
         }
     }
 

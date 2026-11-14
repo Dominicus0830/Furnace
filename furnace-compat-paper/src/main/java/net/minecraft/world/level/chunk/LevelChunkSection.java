@@ -22,8 +22,11 @@ import org.domi.furnace.compat.nms.NmsChunks;
  *     {@link #setBlockState} 는 칸마다 ±1(유체는 <b>비어 있지 않으면 물도</b> tickingFluid), {@link #recalcBlockCounts}(생성자)는 유체가 있는 칸을
  *     nonEmpty 에 <b>두 번</b> 세고 tickingFluid 는 <b>무작위 틱 유체(용암)만</b> 센다. 그래서 다시 센 섹션에서 물을 지우면 tickingFluid 가 0 아래로 간다.
  *     서버 청크와 무관하다(청크 섹션 배열에 넣어도 아직 서버에 닿지 않는다 — 들여오기는 N2b-4).</li>
- * <li><b>보기</b>(N2a, 로드된 청크의 {@code getSections()}): 읽을 때마다 서버 청크의 지금 값을 본다(소유 region 스레드 전용). 쓰기(setBlockState·read)는
- *     UnsupportedNmsCall(살아 있는 섹션 쓰기는 N2b-2). 개수 필드는 0 으로 남는다(보기의 바닐라 개수 보관은 N2b-2·4).</li>
+ * <li><b>보기</b>(N2a, 로드된 청크의 {@code getSections()}): 읽을 때마다 서버 청크의 지금 값을 본다(소유 region 스레드 전용). N2b-2 부터
+ *     {@link #setBlockState} 와 컨테이너 칸 쓰기는 바닐라 원시 의미 그대로 서버 섹션에 바로 쓴다 — 개수는 서버가 바닐라 개수 셋을 들고 같은 규칙으로
+ *     고치고, 하이트맵(청크가 고정 하이트맵 모드로 들어가 낡은 값을 든다)·빛·저장 표시·클라이언트·블록 엔티티는 건드리지 않는다. 주인 region 스레드가 아니면
+ *     ThreadOwnershipException(다른 스레드의 쓰기 일지는 N2b-4). {@link #hasOnlyAir}·{@link #write} 의 nonEmpty 는 서버의 바닐라 nonEmptyBlockCount.
+ *     {@code read} 는 UnsupportedNmsCall. 개수 <b>필드</b>는 0 으로 남는다(필드 대입을 서버에 맞추는 훑기는 N2b-4).</li>
  * </ul>
  * 칸 좌표는 섹션 안(0~15). 좌표를 자르지 않는 것도 바닐라와 같다.
  */
@@ -69,10 +72,12 @@ public class LevelChunkSection {
         int bx = pos.x << 4, bz = pos.z << 4;
         this.states = PalettedContainer.furnaceView(Block.BLOCK_STATE_REGISTRY, PalettedContainer.Strategy.SECTION_STATES,
                 i -> chunk.furnaceStateIdAt(bx + (i & 15), baseY() + (i >> 8), bz + (i >> 4 & 15)),
-                () -> chunk.furnaceSectionStates(index));
+                () -> chunk.furnaceSectionStates(index),
+                (i, id) -> chunk.furnaceSetSectionState(index, i, id, false));   // 컨테이너 칸 쓰기: 바닐라처럼 개수 그대로
         this.biomes = PalettedContainer.furnaceView(NmsChunks.BIOME_IDS, PalettedContainer.Strategy.SECTION_BIOMES,
                 i -> chunk.furnaceSectionBiomes(index)[i],
-                () -> chunk.furnaceSectionBiomes(index));
+                () -> chunk.furnaceSectionBiomes(index),
+                (i, id) -> chunk.furnaceSetSectionBiome(index, i, id));
     }
 
     /** 호환 모듈 전용: 청크의 index 번째(0 = 맨 아래) 섹션 보기. 청크 shim 이 한 번만 만든다. */
@@ -88,7 +93,7 @@ public class LevelChunkSection {
 
     private RuntimeException viewWrite(String what) {
         return new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunkSection#" + what + " (청크 섹션 보기)",
-                "로드된 청크 섹션을 직접 고치는 길은 아직 없다(N2b-2). 블록은 Level#setBlock·LevelChunk#setBlockState 로 바꾸고, 새로 만든 섹션은 고칠 수 있다");
+                "로드된 청크 섹션에 통째로 읽어 넣는 길은 아직 없다(N2b-4). 칸 쓰기(setBlockState)는 되고, 새로 만든 섹션은 고칠 수 있다");
     }
 
     public BlockState getBlockState(int x, int y, int z) { return states.get(x, y, z); }
@@ -104,7 +109,13 @@ public class LevelChunkSection {
 
     /** 바닐라: 칸 하나를 바꾸고 개수를 ±1(유체는 비어 있지 않으면 모두 — 물도). 그 밖 부수 효과는 없다. */
     public BlockState setBlockState(int x, int y, int z, BlockState state, boolean useLocks) {
-        if (furnaceChunk != null) throw viewWrite("setBlockState");
+        if (furnaceChunk != null) {   // 서버 섹션에 바로(바닐라 원시 의미 — 개수 ±1 은 서버가 같은 규칙으로)
+            int cell = PalettedContainer.Strategy.SECTION_STATES.getIndex(x, y, z);
+            if (cell < 0 || cell >= SECTION_SIZE) {
+                throw new IllegalArgumentException(String.format("The value %s is not in the specified inclusive range of %s to %s", (long) cell, 0L, 4095L));
+            }
+            return NmsChunks.state(furnaceChunk.furnaceSetSectionState(furnaceIndex, cell, state.furnaceStateId(), true));
+        }
         BlockState old = useLocks ? states.getAndSet(x, y, z, state) : states.getAndSetUnchecked(x, y, z, state);
         FluidState oldFluid = old.getFluidState();
         FluidState newFluid = state.getFluidState();
@@ -121,9 +132,9 @@ public class LevelChunkSection {
         return old;
     }
 
-    /** 공기 아닌 칸이 없는가. 떨어진 섹션은 바닐라 nonEmptyBlockCount == 0, 보기는 서버의 공기 아닌 칸 수. */
+    /** 바닐라: nonEmptyBlockCount == 0. 보기는 서버 섹션이 가진 바닐라 개수(읽은 섹션에서 물을 지우면 공기뿐이어도 거짓일 수 있다 — 바닐라 그대로). */
     public boolean hasOnlyAir() {
-        if (furnaceChunk != null) return furnaceChunk.furnaceSectionNonAir(furnaceIndex) == 0;
+        if (furnaceChunk != null) return furnaceChunk.furnaceSectionCounts(furnaceIndex)[0] == 0;
         return nonEmptyBlockCount == 0;
     }
 
@@ -149,10 +160,14 @@ public class LevelChunkSection {
 
     /**
      * 바닐라 그대로 다시 센다: 공기 아닌 칸은 nonEmpty(무작위 틱 블록이면 tickingBlock 도), <b>유체가 있는 칸은 nonEmpty 를 한 번 더</b>,
-     * 유체가 무작위 틱(용암)이면 tickingFluid. 보기는 서버가 늘 정확한 수를 가져 할 일이 없다.
+     * 유체가 무작위 틱(용암)이면 tickingFluid. 보기는 서버 섹션의 바닐라 개수를 지금 칸에서 다시 센 값으로 바꾼다(주인 스레드).
      */
     public void recalcBlockCounts() {
-        if (furnaceChunk != null) return;
+        if (furnaceChunk != null) {
+            int[] c = count(states);
+            furnaceChunk.furnaceSetSectionCounts(furnaceIndex, c[0], c[1], c[2]);
+            return;
+        }
         int[] c = count(states);
         nonEmptyBlockCount = (short) c[0];
         tickingBlockCount = (short) c[1];
@@ -198,9 +213,9 @@ public class LevelChunkSection {
         biomes = b;
     }
 
-    /** 바닐라 직렬화. 보기는 nonEmpty 에 지금 칸을 다시 센 값(디스크에서 읽은 섹션과 같은 값)을 쓴다. */
+    /** 바닐라 직렬화. 보기는 nonEmpty 에 서버 섹션의 바닐라 nonEmptyBlockCount 를 쓴다. */
     public void write(FriendlyByteBuf buf) {
-        buf.writeShort(furnaceChunk != null ? count(states)[0] : nonEmptyBlockCount);
+        buf.writeShort(furnaceChunk != null ? furnaceChunk.furnaceSectionCounts(furnaceIndex)[0] : nonEmptyBlockCount);
         states.write(buf);
         biomes.write(buf);
     }

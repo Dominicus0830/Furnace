@@ -121,6 +121,7 @@ public final class ChunkColumn {
         c.blockEntities.putAll(blockEntities);
         c.dirty = dirty;
         c.wgHeightmapsFrozen = wgHeightmapsFrozen;
+        c.fixedHeights = copyFixed(fixedHeights);
         c.structures = structures;
         copyGenerationMarksTo(c);
         return c;
@@ -141,6 +142,7 @@ public final class ChunkColumn {
         c.blockEntities.putAll(blockEntities);
         c.dirty = dirty;
         c.wgHeightmapsFrozen = wgHeightmapsFrozen;
+        c.fixedHeights = copyFixed(fixedHeights);
         c.structures = structures;
         copyGenerationMarksTo(c);
         return c;
@@ -661,7 +663,8 @@ public final class ChunkColumn {
     /** worldY 절대좌표에 블록 설정. */
     public void setBlock(int x, int worldY, int z, int stateId) {
         int local = worldY - minY;
-        ownSection(local >> 4).setBlock(x, local & 15, z, stateId);
+        int old = ownSection(local >> 4).setBlockAt(cellIndex(x, local & 15, z), stateId, true);
+        if (fixedHeights != null && old != stateId) fixedUpdateAll(x, worldY, z, stateId);
         oceanFloor[z * 16 + x] = UNSET_HEIGHT;
         motionBlocking[z * 16 + x] = UNSET_HEIGHT;
         updateWgOceanFloor(x, worldY, z, stateId);
@@ -673,10 +676,42 @@ public final class ChunkColumn {
 
     public void setGeneratedBlock(int x, int worldY, int z, int stateId) {
         int local = worldY - minY;
-        ownSection(local >> 4).setBlock(x, local & 15, z, stateId);
+        int old = ownSection(local >> 4).setBlockAt(cellIndex(x, local & 15, z), stateId, true);
+        if (fixedHeights != null && old != stateId) fixedUpdateAll(x, worldY, z, stateId);
         oceanFloor[z * 16 + x] = UNSET_HEIGHT;
         motionBlocking[z * 16 + x] = UNSET_HEIGHT;
         touch();
+    }
+
+    // ------------------------------------------------------------------ NMS 원시 쓰기(N2b-2, 주인 스레드)
+
+    /**
+     * 섹션 칸 원시 쓰기: vanillaCounts 면 바닐라 LevelChunkSection.setBlockState(개수 ±1), 아니면 살아 있는 블록 컨테이너 set(개수 그대로).
+     * 바닐라처럼 그 칸만 바꾸고 <b>하이트맵·빛·하늘빛 원천·저장 표시·클라이언트·블록 엔티티·POI·이웃</b>은 건드리지 않는다 — 하이트맵은 처음이면 고정 모드로
+     * 들어가 낡은 값을 그대로 든다. Furnace 전용 캐시(직렬화 본문·스냅샷·하이트맵 캐시·비공기 수·무작위 틱 마스크·COW·빛 작업 얼림)만 맞춘다. 옛 상태.
+     */
+    public int setSectionStateRaw(int sectionIndex, int cellIndex, int stateId, boolean vanillaCounts) {
+        fixHeightmaps();
+        int old = ownSection(sectionIndex).setBlockAt(cellIndex, stateId, vanillaCounts);
+        touch();
+        return old;
+    }
+
+    /** 섹션 바이옴 칸 원시 쓰기(바닐라 바이옴 컨테이너 getAndSet — 저장 표시·패킷 없음). 옛 바이옴 번호. */
+    public int setSectionBiomeRaw(int sectionIndex, int cellIndex, int biomeId) {
+        int old = ownSection(sectionIndex).setBiomeAt(cellIndex, biomeId);
+        touch();
+        return old;
+    }
+
+    /** 섹션의 바닐라 개수 {nonEmptyBlockCount, tickingBlockCount, tickingFluidCount}. */
+    public int[] sectionVanillaCounts(int sectionIndex) { return sections[sectionIndex].vanillaCounts(); }
+
+    /** 섹션의 바닐라 개수를 그 값으로(플러그인이 필드에 대입). 블록·하이트맵은 그대로, 무작위 틱 대상이 따라간다. */
+    public void setSectionVanillaCounts(int sectionIndex, int nonEmptyBlockCount, int tickingBlockCount, int tickingFluidCount) {
+        // 바닐라 하이트맵 갱신·prime 은 nonEmpty 0 섹션을 공기로 훑는다 — 블록에서 세는 보통 모드로는 그 뒤를 따라갈 수 없어 지금 값으로 고정한다
+        fixHeightmaps();
+        ownSection(sectionIndex).setVanillaCounts(nonEmptyBlockCount, tickingBlockCount, tickingFluidCount);
     }
 
     /** 청크 내용이 바뀌었음을 기록하고 파생 캐시를 전부 버린다. 모든 변경자는 이 한 곳을 거친다. */
@@ -736,8 +771,11 @@ public final class ChunkColumn {
     /** 읽기 전용(공유 섹션을 복사하지 않음 — getBlock 과 같다): 구역 번호(0 = 맨 아래)의 섹션. 고치지 말 것. scratch 가 열린 섹션의 hasOnlyAir 는 낡을 수 있다. */
     public ChunkSection sectionForRead(int sectionIndex) { return sections[sectionIndex]; }
 
-    /** worldY 가 든 구역이 공기뿐인가(바닐라 LevelChunkSection.hasOnlyAir). */
+    /** worldY 가 든 구역이 공기뿐인가(Furnace 정확한 비공기 수 == 0). 바닐라 개수 판정은 {@link #sectionVanillaHasOnlyAir}. */
     public boolean sectionHasOnlyAir(int worldY) { return sections[(worldY - minY) >> 4].hasOnlyAir(); }
+
+    /** worldY 가 든 구역의 바닐라 LevelChunkSection.hasOnlyAir(nonEmptyBlockCount == 0 — 칸과 어긋날 수 있다, ChunkSection.nonEmpty 참고). */
+    public boolean sectionVanillaHasOnlyAir(int worldY) { return sections[(worldY - minY) >> 4].vanillaHasOnlyAir(); }
 
     /** worldY 절대좌표 블록 조회. */
     public int getBlock(int x, int worldY, int z) {
@@ -871,7 +909,8 @@ public final class ChunkColumn {
     }
 
     public int surfaceBlockY(int x, int z) {
-        return minY + surface[z * 16 + x] - 1;
+        int[][] f = fixedHeights;
+        return minY + (f != null ? f[WS][z * 16 + x] : surface[z * 16 + x]) - 1;
     }
 
     /** WORLD_SURFACE_WG 전용 조회 — carve 완료 이후 값이 얼어붙는다(oceanFloorBlockY의 WG류와 대응). */
@@ -881,6 +920,8 @@ public final class ChunkColumn {
 
     public int oceanFloorBlockY(int x, int z) {
         int index = z * 16 + x;
+        int[][] f = fixedHeights;
+        if (f != null) return minY + f[OF][index] - 1;
         int value = oceanFloor[index];
         if (value == UNSET_HEIGHT) {
             value = recomputeOceanFloorHeight(x, z);
@@ -1011,15 +1052,18 @@ public final class ChunkColumn {
 
     /** vanilla MOTION_BLOCKING_NO_LEAVES 최상단 블록 y (잎 제외) — 구조물 지면 높이용, 매 호출 스캔. */
     public int motionBlockingNoLeavesBlockY(int x, int z) {
+        int[][] f = fixedHeights;
+        if (f != null) return minY + f[MBNL][z * 16 + x] - 1;
         return minY + topLocalY(x, z, TOP_MB_NO_LEAVES);
     }
 
-    private static final int TOP_MB_NO_LEAVES = 0, TOP_MB = 1, TOP_OCEAN_FLOOR = 2;
+    private static final int TOP_MB_NO_LEAVES = 0, TOP_MB = 1, TOP_OCEAN_FLOOR = 2, TOP_WORLD_SURFACE = 3;
 
     private static boolean topMatch(int kind, int st) {
         return switch (kind) {
             case TOP_MB_NO_LEAVES -> isMotionBlockingBlock(st) && !isLeaves(st);
             case TOP_MB -> isMotionBlockingBlock(st);
+            case TOP_WORLD_SURFACE -> !ChunkSection.isAir(st);
             default -> isOceanFloorBlock(st);
         };
     }
@@ -1069,6 +1113,8 @@ public final class ChunkColumn {
 
     private int motionBlockingHeightValue(int x, int z) {
         int index = z * 16 + x;
+        int[][] f = fixedHeights;
+        if (f != null) return f[MB][index];
         int value = motionBlocking[index];
         if (value == UNSET_HEIGHT) {
             value = recomputeMotionBlockingHeight(x, z);
@@ -1088,13 +1134,213 @@ public final class ChunkColumn {
     public long[] worldSurfaceHeightmap() {
         if (cachedWorldSurfaceHeightmap != null) return cachedWorldSurfaceHeightmap;
         BitStorage bs = new BitStorage(heightmapBits, 256);
-        for (int i = 0; i < 256; i++) bs.set(i, surface[i]);
+        int[][] f = fixedHeights;
+        int[] ws = f != null ? f[WS] : surface;
+        for (int i = 0; i < 256; i++) bs.set(i, ws[i]);
         cachedWorldSurfaceHeightmap = bs.data();
         return cachedWorldSurfaceHeightmap;
     }
 
     private int recomputeOceanFloorHeight(int x, int z) {
         return topLocalY(x, z, TOP_OCEAN_FLOOR) + 1;
+    }
+
+    // ------------------------------------------------------------------ 고정 하이트맵(N2b 설계 3.5)
+    // 보통 모드의 하이트맵은 "지금 블록에서" 나온다(WORLD_SURFACE 라이브, OCEAN_FLOOR·MOTION_BLOCKING 지연, MBNL 매번). 블록이 setBlock 으로만
+    // 바뀌면 바닐라 증분 갱신(Heightmap.update)과 같다. 그러나 섹션 원시 쓰기(NMS LevelChunkSection.setBlockState·컨테이너 set·섹션 교체)는
+    // 바닐라에서 하이트맵을 고치지 않고, Heightmap.setRawData 는 아무 값이나 넣으며, 디스크의 낡은 하이트맵은 로드 뒤에도 그대로 쓰인다.
+    // 그런 청크는 고정 모드로 들어가 네 종류를 배열로 들고 바닐라 Heightmap.update 포팅으로만 고친다(저장 → 다시 읽기에도 이어진다).
+    // 주인 스레드 전용. 값 = 첫 빈 y - minY(바닐라 Heightmap.data 와 같은 값).
+
+    /** fixedHeights 의 종류 자리(HeightmapType 순서와 같다). */
+    private static final int WS = 0, OF = 1, MB = 2, MBNL = 3;
+
+    /** 고정 하이트맵 [종류][z*16+x], 보통 모드면 null. */
+    private int[][] fixedHeights;
+
+    private static int[][] copyFixed(int[][] f) {
+        if (f == null) return null;
+        int[][] c = new int[f.length][];
+        for (int i = 0; i < f.length; i++) c[i] = f[i].clone();
+        return c;
+    }
+
+    /** 섹션 로컬 칸 번호(바닐라 YZX). */
+    private static int cellIndex(int x, int localY, int z) { return localY * 256 + z * 16 + x; }
+
+    /** 고정 하이트맵 모드인가. */
+    public boolean heightmapsFixed() { return fixedHeights != null; }
+
+    /** 바닐라 하이트맵 저장 배열의 long 수(SimpleBitStorage: 값 256개, 칸당 heightmapBits 비트, long 을 넘지 않게). */
+    public int heightmapRawLength() {
+        int perLong = 64 / heightmapBits;
+        return (256 + perLong - 1) / perLong;
+    }
+
+    /** 보통 모드(fixedHeights == null)의 네 종류 값 — 지연 계산 칸은 이참에 채워 둔다(로드 때 비교 비용이 나중 조회로 돌아온다). */
+    private int[][] currentHeights() {
+        assert fixedHeights == null;
+        int[][] h = new int[4][256];
+        for (int i = 0; i < 256; i++) {
+            int x = i & 15, z = i >> 4;
+            h[WS][i] = surface[i];
+            h[OF][i] = oceanFloorBlockY(x, z) - minY + 1;
+            h[MB][i] = motionBlockingHeightValue(x, z);
+            h[MBNL][i] = topLocalY(x, z, TOP_MB_NO_LEAVES) + 1;
+        }
+        return h;
+    }
+
+    /**
+     * 고정 모드로 들어간다(이미 고정이면 아무것도 안 함): 지금 값 네 종류를 그대로 실체화한다. 그 순간의 값은 바닐라 하이트맵과 같다 —
+     * 그때까지 블록은 setBlock(= 바닐라 증분 갱신과 같음)으로만 바뀌었고, 낡은 저장값으로 로드된 청크는 이미 고정이다.
+     */
+    public void fixHeightmaps() {
+        if (fixedHeights == null) fixedHeights = currentHeights();
+    }
+
+    /** 바닐라 Heightmap.Types 술어(종류 자리별). */
+    private static boolean heightmapPredicate(int kind, int stateId) {
+        return switch (kind) {
+            case WS -> !ChunkSection.isAir(stateId);                           // NOT_AIR
+            case OF -> isOceanFloorBlock(stateId);                             // blocksMotion
+            case MB -> isMotionBlockingBlock(stateId);                         // blocksMotion || 유체
+            default -> isMotionBlockingBlock(stateId) && !isLeaves(stateId);   // 위에서 잎(LeavesBlock) 제외
+        };
+    }
+
+    /**
+     * 바닐라 LevelChunk.getBlockState 처럼 읽는다 — 섹션이 바닐라 hasOnlyAir(nonEmptyBlockCount == 0)면 칸과 상관없이 공기. 블록 컨테이너 원시 쓰기로
+     * 칸과 개수가 어긋난 섹션에서만 칸 값과 다르다. 하이트맵 갱신·prime 의 아래로 훑기가 쓴다. 높이 밖은 공기(바닐라 — setRawData 로 높이보다 큰 값을
+     * 넣은 뒤 update 가 그 위에서 내려올 수 있다).
+     */
+    private int vanillaChunkBlock(int x, int worldY, int z) {
+        int local = worldY - minY;
+        if (local < 0 || local >= sectionCount * 16) return ChunkSection.AIR;
+        ChunkSection s = sections[local >> 4];
+        return s.vanillaHasOnlyAir() ? ChunkSection.AIR : s.getBlock(x, local & 15, z);
+    }
+
+    /** 바닐라 Heightmap.update(x, y, z, state) 그대로(kind 자리). 값이 바뀌면 true. 고정 모드 전용. */
+    private boolean fixedUpdate(int kind, int x, int worldY, int z, int stateId) {
+        int[] h = fixedHeights[kind];
+        int index = z * 16 + x;
+        int first = h[index];
+        int y = worldY - minY;
+        if (y <= first - 2) return false;
+        if (heightmapPredicate(kind, stateId)) {
+            if (y >= first) {
+                // 바닐라 setHeight → SimpleBitStorage.set 범위 검사(저장 전에 던진다 — 받아 두면 저장·패킷 때 비트가 잘린다)
+                long max = (1L << heightmapBits) - 1L, v = y + 1L;
+                if (v < 0 || v > max) {
+                    throw new IllegalArgumentException(String.format("The value %s is not in the specified inclusive range of %s to %s", v, 0L, max));
+                }
+                h[index] = y + 1;
+                return true;
+            }
+        } else if (first - 1 == y) {
+            for (int j = y - 1; j >= 0; j--) {
+                if (heightmapPredicate(kind, vanillaChunkBlock(x, minY + j, z))) {
+                    h[index] = j + 1;
+                    return true;
+                }
+            }
+            h[index] = 0;
+            return true;
+        }
+        return false;
+    }
+
+    /** 바닐라 LevelChunk.setBlockState 의 하이트맵 넷 갱신(MOTION_BLOCKING, MBNL, OCEAN_FLOOR, WORLD_SURFACE 순 — 서로 독립). */
+    private void fixedUpdateAll(int x, int worldY, int z, int stateId) {
+        fixedUpdate(MB, x, worldY, z, stateId);
+        fixedUpdate(MBNL, x, worldY, z, stateId);
+        fixedUpdate(OF, x, worldY, z, stateId);
+        fixedUpdate(WS, x, worldY, z, stateId);
+    }
+
+    /**
+     * NMS Heightmap.update(x, y, z, state) 를 플러그인이 직접 부를 때(바닐라 그대로 — 주어진 상태로 술어를 보고, 내려갈 때만 칸을 읽는다).
+     * 고정 모드로 들어간다. 값이 바뀌면 true(바닐라 반환값).
+     */
+    public boolean heightmapUpdate(HeightmapType type, int x, int worldY, int z, int stateId) {
+        fixHeightmaps();
+        boolean changed = fixedUpdate(type.ordinal(), x, worldY, z, stateId);
+        if (changed) touch();
+        return changed;
+    }
+
+    /**
+     * 바닐라 primeHeightmaps(그 종류 하나)를 h 에: 바닐라 hasOnlyAir 가 아닌 가장 높은 섹션의 맨 위부터 아래로, 술어를 처음 만족하는 칸 y + 1.
+     * 바닐라 그대로 <b>못 찾은 열은 원래 값을 둔다</b>(prime 은 찾은 열에만 setHeight — 새 하이트맵이면 0, setRawData 길이 틀림이면 옛 값).
+     */
+    private void primeOne(int kind, int[] h) {
+        int top = -1;
+        for (int i = sectionCount - 1; i >= 0; i--) if (!sections[i].vanillaHasOnlyAir()) { top = i; break; }
+        if (top < 0) return;
+        for (int i = 0; i < 256; i++) {
+            int x = i & 15, z = i >> 4;
+            for (int y = top * 16 + 15; y >= 0; y--) {
+                if (heightmapPredicate(kind, vanillaChunkBlock(x, minY + y, z))) {
+                    h[i] = y + 1;
+                    break;
+                }
+            }
+        }
+    }
+
+    /**
+     * NMS Heightmap.setRawData(chunk, type, raw): 길이가 바닐라 배열과 같으면 그 값을 그대로(검사 없이), 다르면 그 종류만 지금 블록에서 prime 하고
+     * false(바닐라는 경고를 남긴다 — 위치를 아는 부르는 쪽이 남긴다). 고정 모드로 들어간다. 저장 표시는 하지 않는다(바닐라도 안 한다).
+     */
+    public boolean setHeightmapRaw(HeightmapType type, long[] raw) {
+        fixHeightmaps();
+        int kind = type.ordinal();
+        boolean ok = raw.length == heightmapRawLength();
+        if (ok) {
+            BitStorage bs = BitStorage.wrap(heightmapBits, 256, raw);
+            int[] h = fixedHeights[kind];
+            for (int i = 0; i < 256; i++) h[i] = bs.get(i);
+        } else {
+            primeOne(kind, fixedHeights[kind]);
+        }
+        touch();
+        return ok;
+    }
+
+    /**
+     * 디스크 청크를 읽은 뒤(블록을 다 넣고 표면을 다시 만든 다음, 공개 전): 저장된 하이트맵(HeightmapType 순서, 없으면 null)을 바닐라 로드처럼 받는다 —
+     * 길이가 맞는 저장값은 그대로, 없거나 길이가 틀린 종류는 지금 블록에서(prime). 그 결과가 지금 블록에서 계산한 값과 하나라도 다르면 고정 모드로
+     * 시작하고(바닐라·Paper 가 남긴 낡은 하이트맵, 원시 쓰기 뒤 저장된 청크), 같으면 보통 모드 그대로(설계 R7). 길이가 틀린 종류를 돌려준다(경고용).
+     */
+    public java.util.List<HeightmapType> adoptStoredHeightmaps(long[][] stored) {
+        java.util.List<HeightmapType> bad = new java.util.ArrayList<>(0);
+        if (fixedHeights != null) throw new IllegalStateException("이미 고정 하이트맵 — 로드 직후에만 부른다");
+        int[][] now = currentHeights();
+        int[][] merged = null;
+        HeightmapType[] types = HeightmapType.values();
+        for (int k = 0; k < 4; k++) {
+            long[] raw = stored == null || k >= stored.length ? null : stored[k];
+            if (raw == null) continue;
+            if (raw.length != heightmapRawLength()) {
+                bad.add(types[k]);
+                continue;
+            }
+            BitStorage bs = BitStorage.wrap(heightmapBits, 256, raw);
+            int[] h = now[k];
+            for (int i = 0; i < 256; i++) {
+                int v = bs.get(i);
+                if (v != h[i]) {
+                    if (merged == null) merged = now;
+                    h[i] = v;
+                }
+            }
+        }
+        if (merged != null) {
+            fixedHeights = merged;
+            touch();
+        }
+        return bad;
     }
 
     /** Heightmap.Types.MOTION_BLOCKING 술어(평지 층 판정 — FlatLevelGeneratorSettings.adjustGenerationSettings 가 쓴다). */

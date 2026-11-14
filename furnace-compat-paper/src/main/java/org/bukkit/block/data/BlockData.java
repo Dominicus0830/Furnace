@@ -19,4 +19,7 @@ public interface BlockData extends Cloneable {
     boolean matches(BlockData other);
 
     BlockData clone();
+
+    /** 이 상태로 놓이지 않은 블록 상태를 만든다(블록 엔티티가 있는 블록이면 Chest·Sign 등 그 형, 위치 0,0,0). Paper 와 같다. */
+    org.bukkit.block.BlockState createBlockState();
 }
