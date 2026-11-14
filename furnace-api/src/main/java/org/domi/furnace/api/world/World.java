@@ -226,9 +226,16 @@ public interface World {
     /**
      * 그 칸 블록 엔티티의 칸(상자·통·셜커 상자·깔때기·발사기·공급기·화로류·양조기·제작기). 칸이 없는 블록이거나 로드되지 않았으면 empty.
      * 큰 상자는 그 반쪽(27칸)만 — 두 반쪽을 합친 보기는 다음 단계. 읽기·쓰기는 그 칸을 가진 region 스레드에서 실행되고,
-     * 그 사이 블록이 부서졌으면 IllegalStateException 으로 완료된다.
+     * 그 사이 블록이 부서졌으면 IllegalStateException 으로 완료된다. 그 region 스레드에서 부르면 읽기·쓰기는 곧바로 끝난 Future 를 준다
+     * (이어 붙인 thenAccept 도 그 자리에서 돈다). 다른 스레드에서 부르면 그 region 의 대기열에 들어간다.
      */
     CompletableFuture<Optional<Inventory>> inventoryAt(BlockPos pos);
+
+    /**
+     * {@link #inventoryAt} 의 소유 스레드 판: 그 칸을 가진 region 스레드에서만(아니면 ThreadOwnershipException). 돌려준 Inventory 의 읽기·쓰기는
+     * 그 region 스레드에서 부르면 곧바로 끝난 Future 를 준다(Bukkit 블록 인벤토리처럼 동기로 쓸 수 있다).
+     */
+    default Optional<Inventory> inventoryAtNow(BlockPos pos) { throw new UnsupportedOperationException("inventoryAtNow"); }
 
     // ------------------------------------------------------------------ 바이옴
 
@@ -390,6 +397,18 @@ public interface World {
      * 위치 키(x·y·z)를 바꿔도 블록 엔티티는 옮겨지지 않는다(바닐라와 같다).
      */
     CompletableFuture<Boolean> editBlockEntityNbt(BlockPos pos, java.util.function.Consumer<NbtCompound> edit);
+
+    /**
+     * {@link #blockEntityNbt} 의 소유 스레드 판: 그 칸을 가진 region 스레드에서만(아니면 ThreadOwnershipException).
+     * 로드되지 않았거나 블록 엔티티가 없으면 empty.
+     */
+    default Optional<NbtCompound> blockEntityNbtNow(BlockPos pos) { throw new UnsupportedOperationException("blockEntityNbtNow"); }
+
+    /**
+     * 소유 스레드에서 블록 엔티티 NBT 를 통째로 싣는다(/data 쓰기와 같은 길: loadWithComponents → setChanged → 클라이언트 갱신, 위치 키는 그 칸으로).
+     * 블록 엔티티가 없거나 로드되지 않았으면 false. 그 칸을 가진 region 스레드에서만(아니면 ThreadOwnershipException).
+     */
+    default boolean setBlockEntityNbtNow(BlockPos pos, NbtCompound nbt) { throw new UnsupportedOperationException("setBlockEntityNbtNow"); }
 
     /** patch 를 합친다(/data merge block). 바뀌었으면 true. */
     default CompletableFuture<Boolean> mergeBlockEntityNbt(BlockPos pos, NbtCompound patch) {
