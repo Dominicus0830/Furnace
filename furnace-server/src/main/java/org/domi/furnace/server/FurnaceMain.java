@@ -451,7 +451,8 @@ public final class FurnaceMain {
         coreRef.set(core);
         loginContext.core(core);
         core.servicesKeys().fetchAsync();
-        core.onHalt(() -> new Thread(() -> System.exit(0), "Server Shutdown Thread").start());
+        // /stop 은 종료 단계(플러그인 끄기·저장)를 다 돈 뒤에 JVM 을 끝낸다(ServerCore.halt) — Paper 처럼 onDisable 이 JVM 종료 훅보다 먼저 돈다.
+        core.onHalt(System::exit);
         // 플러그인: 불러오기(onLoad) — 월드 준비 뒤·접속을 받기 전에 켠다(Bukkit POSTWORLD 와 같은 시점).
         org.domi.furnace.api.Furnace.setServer(core.plugins());
         core.plugins().pluginsImpl().settings(pluginSettings);
@@ -590,14 +591,10 @@ public final class FurnaceMain {
                     core.plugins().pluginsImpl().closeAll();
                     core.plugins().close();
                 });
-        // start() 전에 훅 등록 — start()가 던져도 non-daemon 스케줄러 스레드가 JVM을 붙잡지 않게.
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            try {
-                stop.run();
-            } finally {
-                shutdown.countDown();
-            }
-        }, "furnace-shutdown"));
+        core.shutdownSequence(stop);
+        // start() 전에 훅 등록 — start()가 던져도 non-daemon 스케줄러 스레드가 JVM을 붙잡지 않게. /stop 이 아닌 JVM 종료(Ctrl+C·kill·
+        // System.exit)도 여기서 단계를 돈다(/stop 이 이미 돌고 있으면 그 끝을 기다린다) — Paper ServerShutdownThread 와 같은 자리.
+        Runtime.getRuntime().addShutdownHook(ShutdownSequence.jvmHook(stop, shutdown::countDown));
 
         // 바닐라 prepareLevels → overworld.setDefaultSpawnPos: 게임 규칙 spawnChunkRadius 의 START 티켓 — 플레이어가 없어도 스폰 청크가 올라와 돈다
         world.enableSpawnChunks();
