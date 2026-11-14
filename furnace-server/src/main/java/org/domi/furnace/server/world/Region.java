@@ -502,7 +502,7 @@ public final class Region {
             traceSrc[0] = System.nanoTime();
             if (col != null) ChunkTrace.nanos(col.dirty() ? "src.gen" : "src.disk", traceSrc[0] - traceReq);
         });
-        sourceFuture = sourceFuture.thenApplyAsync(col -> {   // 디스크에서 읽은 청크는 IO 스레드가 아니라 생성 풀에서 계산한다
+        sourceFuture = sourceFuture.thenApplyAsync(col -> {   // 디스크에서 읽은 청크는 IO 스레드가 아니라 빛 전용 풀에서 계산한다
             long tl = ChunkTrace.ON ? System.nanoTime() : 0L;
             if (ChunkTrace.ON) ChunkTrace.nanos("hop.genpool", tl - traceSrc[0]);
             if (col != null) {
@@ -527,7 +527,7 @@ public final class Region {
             }
             if (ChunkTrace.ON) { traceSrc[1] = System.nanoTime(); ChunkTrace.nanos("light", traceSrc[1] - tl); }
             return col;
-        }, world.genPool());
+        }, world.lightPreExecutor());   // 생성 대기열 뒤에 다시 줄서지 않는다(T-170a)
         CompletableFuture<ChunkColumn> f = new CompletableFuture<>();
         world.putLoading(key, f);
         // 완료는 그때의 주인 region 에서(그 사이 합쳐지거나 나뉘었을 수 있다). 실패해도 진행 중 표시는 반드시 지운다.

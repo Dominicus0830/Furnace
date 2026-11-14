@@ -2287,6 +2287,21 @@ public final class World {
     /** 테스트용: 플레이어 데이터 실행기 교체. */
     public void playerIo(java.util.concurrent.Executor executor) { this.playerIo = executor; }
     public ExecutorService genPool() { return genPool; }
+
+    /** 빛 미리 계산 전용 풀(T-170a): 생성 대기열(genPool, FIFO) 뒤에 다시 줄서지 않게 분리. 모든 차원이 공유하는 작은 데몬 풀. */
+    private static final class LightPre {
+        static final ExecutorService POOL = java.util.concurrent.Executors.newFixedThreadPool(
+                Math.max(1, Runtime.getRuntime().availableProcessors() / 2), new java.util.concurrent.ThreadFactory() {
+                    private final java.util.concurrent.atomic.AtomicInteger n = new java.util.concurrent.atomic.AtomicInteger();
+                    @Override public Thread newThread(Runnable r) {
+                        Thread t = new Thread(r, "furnace-light-pre-" + n.incrementAndGet());
+                        t.setDaemon(true);
+                        t.setPriority(Thread.NORM_PRIORITY - 1);
+                        return t;
+                    }
+                });
+    }
+    public ExecutorService lightPreExecutor() { return LightPre.POOL; }
     public FurnaceScheduler scheduler() { return scheduler; }
     public WorldSource worldSource() { return worldSource; }
     public ChunkWorkerPool chunkPool() { return chunkPool; }
