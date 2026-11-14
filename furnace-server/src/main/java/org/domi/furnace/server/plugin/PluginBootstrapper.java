@@ -225,6 +225,31 @@ public final class PluginBootstrapper {
         }
     }
 
+    /** 이 플러그인을 기본 월드 전에 켜야 하는가(만들어 둔 형식 어댑터 중 하나라도 그렇다고 하면). */
+    boolean enablesBeforeWorlds(PluginDescription d) {
+        if (!formats.loaded()) return false;
+        for (PluginFormat f : formats.get()) {
+            try {
+                if (f.enablesBeforeWorlds(d)) return true;
+            } catch (Throwable t) {
+                log.warn("플러그인 형식 '{}' 의 켜기 순서 묻기 실패", f.id(), t);
+            }
+        }
+        return false;
+    }
+
+    /** 이른 켜기 단계의 앞(true)·뒤(false)를 만들어 둔 형식 어댑터에게 알린다. 어댑터 하나가 던져도 나머지는 계속된다. */
+    void enablePhase(org.domi.furnace.api.Furnace server, boolean beforeWorlds) {
+        if (!formats.loaded()) return;
+        for (PluginFormat f : formats.get()) {
+            try {
+                f.enablePhase(server, beforeWorlds);
+            } catch (Throwable t) {
+                log.warn("플러그인 형식 '{}' 의 켜기 단계 알림 실패", f.id(), t);
+            }
+        }
+    }
+
     /**
      * 핫 리로드가 플러그인 몇 개를 끈 직후 — 이미 만들어 둔 형식 어댑터가 그 플러그인의 남은 일을 기다린다(안 만들었다면 그 형식의 플러그인이 없었다).
      * 어댑터 하나가 던져도 나머지와 리로드는 계속된다.

@@ -332,12 +332,24 @@ class NmsLinkerTest {
         // 실제 표본 jar 의 버전 모듈 이름(IF·commandapi·signgui)과 접미사 이름
         for (String n : List.of("com/x/nms/v1_20_1/Inv", "dev/jorel/commandapi/nms/NMS_1_20_R3", "de/rapha149/signgui/version/Wrapper1_8_R3",
                 "com/x/nms/v1_21_2_3/Inv", "com/x/nms/v1_21_0/Inv", "com/x/nms/v1_21_11/Inv", "org/bukkit/craftbukkit/v1_20_R3/CraftServer",
-                "net/minecraft/server/v1_16_R3/World")) {
+                "net/minecraft/server/v1_16_R3/World",
+                // 연도식 새 버전(FAWE 2.16 의 v26_1·v26_3 어댑터 모듈)
+                "com/sk89q/worldedit/bukkit/adapter/impl/fawe/v26_1/PaperweightLevelProxy", "com/x/nms/v26_2_1/Inv")) {
             assertTrue(NmsCompatReport.otherVersion(n), n);
         }
         for (String n : List.of("com/x/nms/v1_21_1/Inv", "dev/jorel/commandapi/nms/NMS_1_21_R1", "com/x/nms/v1_21_0_1/Inv", "com/x/nms/v1_21/Inv",
-                "net/minecraft/server/level/ServerLevel", "com/x/Base64_1", "com/x/nms/v1_21_R1/Inv")) {
+                "net/minecraft/server/level/ServerLevel", "com/x/Base64_1", "com/x/nms/v1_21_R1/Inv",
+                "com/x/Rev26_1/Inv", "com/x/nms/v2_6/Inv")) {
             assertFalse(NmsCompatReport.otherVersion(n), n);
         }
+    }
+
+    /** 다른 버전 모듈 안의 호출 위치는 경고 대신 DEBUG — 같은 대상의 1.21.1 몫 경고는 남는다. */
+    @Test
+    void otherVersionCallSitesAreRecognised() {
+        assertTrue(NmsTrap.otherVersionSite("com.sk89q.worldedit.bukkit.adapter.impl.fawe.v1_21_9.PaperweightFaweAdapter#<clinit>:149"));
+        assertTrue(NmsTrap.otherVersionSite("com.sk89q.worldedit.bukkit.adapter.impl.fawe.v26_1.PaperweightFaweAdapter#<clinit>:10"));
+        assertFalse(NmsTrap.otherVersionSite("com.sk89q.worldedit.bukkit.adapter.impl.fawe.v1_21_R1.PaperweightFaweAdapter#<clinit>:148"));
+        assertFalse(NmsTrap.otherVersionSite(null));
     }
 }

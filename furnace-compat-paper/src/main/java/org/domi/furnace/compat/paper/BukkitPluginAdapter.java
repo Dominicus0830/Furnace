@@ -45,7 +45,11 @@ public final class BukkitPluginAdapter extends FurnacePlugin {
         List<Command> declared = PluginCommandYamlParser.parse(plugin);
         if (!declared.isEmpty()) Compat.commandMap().registerAll(bukkitDescription.getName(), declared);
         EventBridge.watchQuit(this);   // 이벤트를 안 듣는 플러그인도 퇴장 때 권한 구독이 걷히게
-        plugin.onEnable();
+        try {
+            plugin.onEnable();
+        } finally {
+            org.domi.furnace.compat.nms.NmsReflect.pluginEnabled(bukkitDescription.getName());   // 켜는 동안 찔러 본 NMS 클래스를 한 줄로
+        }
         ProtocolLibBridge.pluginEnabled(this);   // ProtocolLib 이면 서버가 보내는 패킷을 리스너에 보이고, 아니면 그 리스너 목록을 다시 맞춘다
     }
 

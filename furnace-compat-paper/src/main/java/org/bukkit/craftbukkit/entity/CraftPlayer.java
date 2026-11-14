@@ -208,8 +208,56 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
 
     // ---- CommandSender / Permissible
 
+    /** 모달 대화 중이면 플러그인 메시지를 보내지 않는다(CraftPlayer.sendMessage — 대화 문구는 sendRawMessage 로 간다). */
     @Override
-    public void sendMessage(String message) { handle.sendMessage(Compat.message(message)); }
+    public void sendMessage(String message) {
+        if (!conversations().isConversingModaly()) sendRawMessage(message);
+    }
+
+    // ---- Conversable (CraftBukkit ConversationTracker)
+
+    private volatile org.domi.furnace.compat.paper.ConversationTracker conversations;
+
+    /** 이 접속의 대화 줄 — 대화가 있는 동안 채팅을 가로챈다(채팅은 연결 스레드에서 오므로 전역 스레드로 넘겨 처리). */
+    private org.domi.furnace.compat.paper.ConversationTracker conversations() {
+        var t = conversations;
+        if (t == null) {
+            synchronized (this) {
+                t = conversations;
+                if (t == null) conversations = t = new org.domi.furnace.compat.paper.ConversationTracker(h -> player().chatInputHandler(h), true);
+            }
+        }
+        return t;
+    }
+
+    @Override
+    public boolean isConversing() { return conversations != null && conversations.isConversing(); }
+
+    @Override
+    public void acceptConversationInput(String input) { conversations().acceptConversationInput(input); }
+
+    @Override
+    public boolean beginConversation(org.bukkit.conversations.Conversation conversation) { return conversations().beginConversation(conversation); }
+
+    @Override
+    public void abandonConversation(org.bukkit.conversations.Conversation conversation) {
+        abandonConversation(conversation, new org.bukkit.conversations.ConversationAbandonedEvent(conversation,
+                new org.bukkit.conversations.ManuallyAbandonedConversationCanceller()));
+    }
+
+    @Override
+    public void abandonConversation(org.bukkit.conversations.Conversation conversation, org.bukkit.conversations.ConversationAbandonedEvent details) {
+        conversations().abandonConversation(conversation, details);
+    }
+
+    @Override
+    public void sendRawMessage(String message) { sendRawMessage(null, message); }
+
+    @Override
+    public void sendRawMessage(java.util.UUID sender, String message) {
+        if (message == null) return;
+        handle.sendMessage(Compat.message(message));
+    }
 
     @Override
     public void sendMessage(String... messages) {
@@ -258,6 +306,8 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
     /** 호환 모듈 전용 — 접속이 끝났다: NMS 연결의 가상 채널을 닫는다(이미 만든 shim 이 있을 때만). */
     public void disconnected() {
         if (peekHandle() instanceof net.minecraft.server.level.ServerPlayer sp) sp.connection.compatDisconnected();
+        var t = conversations;
+        if (t != null) t.abandonAllConversations();   // CraftBukkit PlayerList.remove: 퇴장하면 대화를 모두 끝낸다
     }
 
     /** 호환 모듈 전용 — 이 접속의 객체를 더 쓰지 않는다(재접속으로 바뀜): Bukkit 권한 계산·구독·Furnace 거울을 걷는다(CraftBukkit disconnect 의 perm.clearPermissions). */

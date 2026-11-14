@@ -11,7 +11,55 @@ public final class CompatConsole implements ConsoleCommandSender {
     private CompatConsole() {}
 
     @Override
-    public void sendMessage(String message) { Compat.furnace().console().sendMessage(Compat.text(message)); }
+    public void sendMessage(String message) { sendRawMessage(message); }
+
+    @Override
+    public void sendRawMessage(String message) {
+        if (message != null) Compat.furnace().console().sendMessage(Compat.text(message));
+    }
+
+    @Override
+    public void sendRawMessage(java.util.UUID sender, String message) { sendRawMessage(message); }
+
+    // ---- Conversable: 대화가 있는 동안 콘솔 입력 줄이 명령 대신 대화로 간다(CraftServer.dispatchServerCommand). 콘솔 입력은 이미 전역 스레드다.
+
+    private volatile ConversationTracker conversations;
+    /** 대화 줄을 만든 서버 — 서버를 다시 띄운 시험에서 옛 줄을 쓰지 않게. */
+    private volatile org.domi.furnace.api.Furnace conversationServer;
+
+    private ConversationTracker conversations() {
+        org.domi.furnace.api.Furnace f = Compat.furnace();
+        synchronized (this) {
+            if (conversations == null || conversationServer != f) {
+                conversations = new ConversationTracker(f::consoleInputHandler, false);
+                conversationServer = f;
+            }
+            return conversations;
+        }
+    }
+
+    @Override
+    public boolean isConversing() {
+        var t = conversations;
+        return t != null && conversationServer == Compat.furnace() && t.isConversing();
+    }
+
+    @Override
+    public void acceptConversationInput(String input) { conversations().acceptConversationInput(input); }
+
+    @Override
+    public boolean beginConversation(org.bukkit.conversations.Conversation conversation) { return conversations().beginConversation(conversation); }
+
+    @Override
+    public void abandonConversation(org.bukkit.conversations.Conversation conversation) {
+        abandonConversation(conversation, new org.bukkit.conversations.ConversationAbandonedEvent(conversation,
+                new org.bukkit.conversations.ManuallyAbandonedConversationCanceller()));
+    }
+
+    @Override
+    public void abandonConversation(org.bukkit.conversations.Conversation conversation, org.bukkit.conversations.ConversationAbandonedEvent details) {
+        conversations().abandonConversation(conversation, details);
+    }
 
     @Override
     public void sendMessage(String... messages) {

@@ -49,6 +49,21 @@ public final class CompatFormat implements PluginFormat {
 
     private volatile boolean createdPlugin;
 
+    /** Bukkit {@code load: STARTUP} — Paper 는 월드를 만들기 전에 켠다(paper-plugin.yml 의 {@code load} 도 같은 값). */
+    @Override
+    public boolean enablesBeforeWorlds(PluginDescription description) {
+        PluginDescriptionFile pdf = descriptors.get(key(description.name(), description.main()));
+        return pdf != null && pdf.getLoad() == org.bukkit.plugin.PluginLoadOrder.STARTUP;
+    }
+
+    /** STARTUP 플러그인을 켜는 동안 Bukkit 에 월드를 감추고, 끝나면 Paper 순서로 드러내며 WorldInitEvent·WorldLoadEvent 를 보낸다. */
+    @Override
+    public void enablePhase(org.domi.furnace.api.Furnace server, boolean beforeWorlds) {
+        if (!createdPlugin) return;
+        if (beforeWorlds) Compat.hideWorldsForStartup();
+        else Compat.revealWorldsAfterStartup(server);
+    }
+
     static final long SHUTDOWN_ASYNC_WAIT_MILLIS = 5_000;
 
     /** paper-plugin.yml 이 있으면 그것을 먼저 읽는다(Paper 와 같다). */

@@ -253,9 +253,23 @@ public final class PluginManagerImpl implements PluginManager {
 
     // ------------------------------------------------------------------ 켜기·끄기
 
-    /** 불러온 플러그인을 순서대로 켠다. */
+    /**
+     * 불러온 플러그인을 순서대로 켠다. 형식 어댑터가 "기본 월드 전에 켠다"고 한 플러그인(Bukkit {@code load: STARTUP})이 있으면 Bukkit 처럼
+     * 그 플러그인들을 먼저 순서대로 켜고(앞뒤로 {@link org.domi.furnace.api.plugin.PluginFormat#enablePhase} 알림) 나머지를 켠다. 없으면 한 번에 순서대로.
+     */
     public void enableAll() {
-        for (Loaded l : plugins) enable(l);
+        PluginBootstrapper b = boot;
+        List<Loaded> early = new ArrayList<>();
+        if (b != null) for (Loaded l : plugins) if (b.enablesBeforeWorlds(l.description())) early.add(l);
+        if (!early.isEmpty()) {
+            b.enablePhase(host, true);
+            try {
+                for (Loaded l : early) enable(l);
+            } finally {
+                b.enablePhase(host, false);
+            }
+        }
+        for (Loaded l : plugins) enable(l);   // 이미 켠 것은 건너뛴다
         failFastCheck("켜기");
     }
 

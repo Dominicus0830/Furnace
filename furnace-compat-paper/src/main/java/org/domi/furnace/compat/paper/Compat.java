@@ -2,6 +2,8 @@
 package org.domi.furnace.compat.paper;
 
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -240,11 +242,60 @@ public final class Compat {
 
     public static World world(org.domi.furnace.api.world.World w) { return w == null ? null : world(w.dimension()); }
 
-    /** 월드 이름(world, world_nether)으로. 없으면 null. */
+    /** 월드 이름(world, world_nether)으로. 없으면 null. load: STARTUP 플러그인을 켜는 동안 아직 안 보이는 월드도 null. */
     public static World worldNamed(String name) {
         org.domi.furnace.api.world.World w = state().furnace.worldNamed(name);
-        return world(w);
+        return w == null || !worldVisible(w.dimension()) ? null : world(w);
     }
+
+    // ------------------------------------------------------------------ load: STARTUP 단계의 월드 보이기
+
+    /**
+     * Bukkit 에 보이는 월드(차원 키). null 이면 모두 보인다. Paper 는 {@code load: STARTUP} 플러그인을 월드를 만들기 전에 켜므로 그동안
+     * {@code Bukkit.getWorlds()} 가 비어 있고, 월드를 하나씩 목록에 넣으면서 WorldInitEvent 를 보낸다(Paper "Put world into worldlist
+     * before initing the world"). Furnace 는 월드가 이미 돌고 있으니 그 단계 동안 Bukkit 쪽에서만 감춘다.
+     */
+    private static volatile List<String> visibleWorlds;
+
+    /** 이 차원의 월드가 지금 Bukkit 에 보이는가. */
+    public static boolean worldVisible(String dimension) {
+        List<String> v = visibleWorlds;
+        return v == null || v.contains(dimension);
+    }
+
+    /** load: STARTUP 플러그인을 켜는 중이라 기본 월드의 WorldInitEvent 가 아직 남았는가. */
+    static boolean startupWorldsPending() { return visibleWorlds != null; }
+
+    /** load: STARTUP 플러그인을 켜기 직전 — 월드를 감춘다. */
+    static void hideWorldsForStartup() { visibleWorlds = List.of(); }
+
+    /**
+     * load: STARTUP 플러그인을 다 켠 뒤 — Paper MinecraftServer.loadWorld0 순서로 월드를 드러낸다: 월드마다 목록에 넣고 WorldInitEvent,
+     * 모두 넣은 뒤 월드마다 WorldLoadEvent. 이때 켜져 있는 것은 STARTUP 플러그인뿐이라 그 플러그인만 받는다(Paper 와 같다).
+     * Furnace 는 이 월드들의 Furnace WorldLoadEvent 를 보내지 않으므로(기본 차원) 여기서 Bukkit 이벤트를 직접 부른다.
+     */
+    static void revealWorldsAfterStartup(org.domi.furnace.api.Furnace server) {
+        List<String> dims = new ArrayList<>();
+        for (var w : server.worlds()) dims.add(w.dimension());
+        List<String> shown = new java.util.concurrent.CopyOnWriteArrayList<>();
+        visibleWorlds = shown;
+        try {
+            for (String d : dims) {
+                shown.add(d);
+                World w = world(d);
+                if (w != null) org.bukkit.Bukkit.getPluginManager().callEvent(new org.bukkit.event.world.WorldInitEvent(w));
+            }
+        } finally {
+            visibleWorlds = null;
+        }
+        for (String d : dims) {
+            World w = world(d);
+            if (w != null) org.bukkit.Bukkit.getPluginManager().callEvent(new org.bukkit.event.world.WorldLoadEvent(w));
+        }
+    }
+
+    /** 감추기를 푼다(단계가 예외로 끝났을 때·시험 정리). */
+    static void showAllWorlds() { visibleWorlds = null; }
 
     // ------------------------------------------------------------------ 위치·블록
 

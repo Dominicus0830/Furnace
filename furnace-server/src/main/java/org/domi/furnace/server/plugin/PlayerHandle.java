@@ -123,6 +123,9 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     public void kick(Text reason) { p.kick(new Disconnect(reason)); }
 
     @Override
+    public void chatInputHandler(java.util.function.Consumer<String> handler) { p.chatInputHandler(handler); }
+
+    @Override
     public org.domi.furnace.api.net.PlayerConnection connection() { return p.connection(); }
 
     @Override
