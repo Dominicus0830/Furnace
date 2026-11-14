@@ -330,6 +330,19 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
             }
         };
     }
+    /**
+     * 새로 생성한 청크에 저장될 바이옴(= sampleChunk 결과)의 그 quart — 바닐라가 이웃 청크 바이옴을 읽을 때(WorldGenRegion·로드된 이웃의
+     * ChunkAccess.getNoiseBiome) 보는 값. quart y 는 차원 높이 범위로 죈다. 힌트 없는 R-트리 검색(sampleQuart)은 거리 동률에서 저장값과 다를 수
+     * 있어, 동률이면 그 청크의 sampleChunk 배열을 읽는다(SurfaceSystem.storedBiome 과 같은 방식). 아무 스레드.
+     */
+    public String storedBiomeAtQuart(int qx, int qy, int qz) {
+        int dq0 = dimension.minY >> 2, dqN = dimension.sectionCount * 4;
+        int y = Math.max(dq0, Math.min(dq0 + dqN - 1, qy));
+        int id = biomeSampler.sampleQuartUnique(qx, y, qz, router);
+        if (id == Integer.MIN_VALUE) id = chunkBiomeSource().compute(qx >> 2, qz >> 2)[((y - dq0) * 4 + (qz & 3)) * 4 + (qx & 3)];
+        return id >= 0 && id < registryBiomeNames.length ? registryBiomeNames[id] : null;
+    }
+
     /** 평지 생성기의 층(null 이면 노이즈 생성기). */
     private FlatLayers flatLayers;
     private int flatBiomeId;

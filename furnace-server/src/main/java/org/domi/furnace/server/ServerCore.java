@@ -187,8 +187,8 @@ public final class ServerCore {
 
         /**
          * 바닐라 Level.getBiome(pos)(확대 지터 포함). 지터로 고른 quart 는 이웃 청크일 수 있다(청크 가장자리 두 칸).
-         * 바닐라 LevelReader.getNoiseBiome 처럼 그 청크가 있으면 저장된 바이옴, 없으면 생성기 바이옴(getUncachedNoiseBiome)이다.
-         * 이웃 청크가 다른 region 이면 그 청크를 읽지 않고 생성기 바이옴을 쓴다 — 생성 뒤 바이옴을 바꾼(/fillbiome·옛 버전) 이웃이 아니면 같다.
+         * 바닐라 LevelReader.getNoiseBiome 처럼 그 청크가 있으면 저장된 바이옴을 읽는다. 이 스레드가 그 청크를 읽을 수 없으면(다른 region·미로드)
+         * 새로 생성했을 때의 저장 바이옴({@link #generatorBiome}) — 생성 뒤 바이옴이 바뀐 이웃(/fillbiome·setBiome·생성 훅·옛/들여온 청크)만 다르다.
          */
         public String biomeAt(int x, int y, int z) {
             var dp = dataPacks;
@@ -332,15 +332,17 @@ public final class ServerCore {
     }
 
     /**
-     * 바닐라 LevelReader.getUncachedNoiseBiome: 청크를 읽지 않고 생성기 바이옴 소스에 quart 좌표를 묻는다(높이는 자르지 않는다 — 바닐라와 같다).
+     * 이 스레드가 읽을 수 없는(다른 region·미로드) 청크의 바이옴 대체값: 그 청크를 새로 생성했을 때 저장될 바이옴(quart y 를 죔).
+     * 바닐라가 이 조회를 하는 자리(청크 생성 스폰의 WorldGenRegion, 틱 도는 청크 옆)에서는 이웃 청크가 거의 늘 있어 그 저장 바이옴을 읽으므로,
+     * 생성기 바이옴 소스를 바로 묻는 getUncachedNoiseBiome 보다 이쪽이 맞다(R-트리 거리 동률에서 둘이 다르다 — PR #364 검토 R1).
      * 평지·디버그 월드는 한 가지 바이옴. 모르는 생성기면 null.
      */
-    static String generatorBiome(World w, int qx, int qy, int qz, java.util.List<String> names) {
+    public static String generatorBiome(World w, int qx, int qy, int qz, java.util.List<String> names) {
         var src = w.worldSource();
         if (src instanceof org.domi.furnace.server.world.gen.AnvilWorldSource a) src = a.base();
         int id;
         if (src instanceof org.domi.furnace.server.world.gen.NoiseWorldSource n) {
-            String b = n.biomeAt(qx << 2, qy << 2, qz << 2);
+            String b = n.storedBiomeAtQuart(qx, qy, qz);
             return b == null || b.isEmpty() ? null : b;
         } else if (src instanceof org.domi.furnace.server.world.gen.SuperflatWorldSource s) {
             id = s.biomeId();

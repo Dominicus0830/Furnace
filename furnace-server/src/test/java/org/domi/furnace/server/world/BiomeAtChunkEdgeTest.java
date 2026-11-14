@@ -1,5 +1,5 @@
 // 게임플레이 바이옴 조회(Level.getBiome)가 확대 지터로 이웃 청크·높이 밖 quart 를 고를 때 바닐라처럼 답하는지.
-// 바닐라 LevelReader.getNoiseBiome: 그 청크가 있으면 저장 바이옴(ChunkAccess.getNoiseBiome — quart 높이를 죈다), 없으면 생성기 바이옴.
+// 바닐라 LevelReader.getNoiseBiome: 그 청크가 있으면 저장 바이옴(ChunkAccess.getNoiseBiome — quart 높이를 죈다). 이 스레드가 못 읽는 청크는 새로 생성했을 때의 저장 바이옴으로 대신한다.
 // 예전에는 null 이 나와 늑대 finalizeSpawn 이 NPE 로 죽고(청크 생성 동물 스폰 통째 실패), 청크 생성 스폰이 y=319 조회에서 건너뛰어졌다.
 package org.domi.furnace.server.world;
 
@@ -107,19 +107,42 @@ class BiomeAtChunkEdgeTest {
     }
 
     @Test
-    void noiseWorldEdgeMatchesTheGeneratorBiomeSource() throws Exception {
+    void noiseWorldEdgeMatchesTheFreshChunkStoredBiome() throws Exception {
         start(reg -> NoiseWorldSource.overworld(0L, reg, RegistrySet.load("registries/1.21.1.txt")));
         var src = NoiseWorldSource.of(core.world().worldSource());
         long seed = core.biomeZoomSeed(core.world());
         for (int y : new int[] {-60, 64, 200}) {
             int[] p = edgeBlock(y);
             int[] q = BiomeZoom.quart(seed, p[0], p[1], p[2]);
-            String expected = src.biomeAt(q[0] << 2, q[1] << 2, q[2] << 2);
+            String expected = src.storedBiomeAtQuart(q[0], q[1], q[2]);
             assertFalse(expected == null || expected.isEmpty());
             assertEquals(expected, inRegion(r -> r.level().biomeAt(p[0], p[1], p[2])), "y=" + y);
         }
-        // 안쪽 칸은 저장 바이옴(새로 만든 청크라 생성기와 같다)
+        // 안쪽 칸은 로드된 청크의 저장 바이옴 — 새로 만든 청크라 대체값 계산과 같다
         int[] q = BiomeZoom.quart(seed, 8, 64, 8);
-        assertEquals(src.biomeAt(q[0] << 2, q[1] << 2, q[2] << 2), inRegion(r -> r.level().biomeAt(8, 64, 8)));
+        assertEquals(src.storedBiomeAtQuart(q[0], q[1], q[2]), inRegion(r -> r.level().biomeAt(8, 64, 8)));
+    }
+
+    /**
+     * 대체값은 생성기 바이옴 소스(힌트 없는 R-트리)가 아니라 새로 생성한 청크의 저장 바이옴(sampleChunk)이다 — R-트리 거리 동률에서 둘이 다르다.
+     * 사용자 시드 사례(PR #364 검토 R1): 청크 (2,-3) quart (0,-12,2) 저장 savanna_plateau / 생성기 savanna, 청크 (9,28) 생성 스폰 모서리 저장 flower_forest / 생성기 river.
+     */
+    @Test
+    void fallbackIsTheStoredBiomeOfAFreshChunkEvenOnRTreeTies() {
+        long seed = -8273459608338939987L;
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        RegistrySet regs = RegistrySet.load("registries/1.21.1.txt");
+        var names = regs.entries("minecraft:worldgen/biome");
+        NoiseWorldSource src = NoiseWorldSource.overworld(seed, reg, regs);
+        ChunkColumn col = src.generateIsolated(2, -3);
+        int stored = col.sections()[((-12 << 2) - col.minY()) >> 4].getBiome(0, -12 & 3, 2);
+        assertEquals("minecraft:savanna_plateau", names.get(stored));
+        assertEquals("minecraft:savanna", src.biomeAt(8 << 2, -12 << 2, -10 << 2), "생성기 바이옴 소스는 동률에서 다른 답(이 시험의 전제)");
+        assertEquals("minecraft:savanna_plateau", src.storedBiomeAtQuart(8, -12, -10));
+
+        long zoom = org.domi.furnace.server.net.protocol.play.LoginPlay.obfuscateSeed(seed);
+        int[] q = BiomeZoom.quart(zoom, 9 * 16, 319, 28 * 16);   // 청크 (9,28) 생성 스폰 조회 자리
+        assertEquals("minecraft:flower_forest", src.storedBiomeAtQuart(q[0], q[1], q[2]));
+        assertEquals("minecraft:flower_forest", src.storedBiomeAtQuart(q[0], 1000, q[2]), "quart y 는 차원 범위로 죈다");
     }
 }
