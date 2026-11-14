@@ -1,6 +1,6 @@
 # ProtocolLib 실측 점검 — 도미니코 결정 (2026-11-14)
 
-근거: `docs/feature-parity/compat-protocollib-audit-2026-11-14.md`. TASK 는 `docs/roadmap/optimization-tasks.md` 10장(T-180~T-194).
+근거: `docs/feature-parity/compat-protocollib-audit-2026-11-14.md`. TASK 는 `docs/roadmap/optimization-tasks.md` 10장(T-180~T-195).
 
 ## D1. ProtocolLib 이 클래스 이름을 여러 개 시도할 때 나오는 경고를 어떻게 할까
 
@@ -22,4 +22,4 @@ ProtocolLib 은 1.21.1 클래스를 찾을 때 Spigot 이름, Mojang 이름, 옛
 | 2 | T-184 지워진 라이브러리 타입, T-182 청크 패킷(Orebfuscator) | 1번 뒤에 같은 파일을 쓴다 |
 | 3 | T-185~T-190 (팀·입자·속성·엔티티 감시자·나머지 패킷·다른 플러그인 클래스) | 종류별로 둘씩 |
 
-FAWE 가 계속 내는 Bukkit API 오류 3종(`isSneaking`·`isLegacy`·`Effect`, T-193)은 진행 중인 T-141 API 확장에 바로 넣기를 추천합니다.
+FAWE 가 계속 내던 Bukkit API 오류 3종(`isSneaking`·`isLegacy`·`Effect`, T-193)은 PR #364 로 이미 고쳐졌습니다. 남은 FAWE API 는 T-141 스레드가 맡습니다.

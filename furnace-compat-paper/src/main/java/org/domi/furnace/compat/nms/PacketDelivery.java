@@ -58,6 +58,14 @@ public final class PacketDelivery {
         throw new UnsupportedNmsCall("fromFurnace(" + packet.type() + ")", "clientbound 패킷이 아니다");
     }
 
+    /**
+     * 이 값을 되돌리기 전에 값싸게 알 수 있는 거절 까닭(되면 null). 메타데이터는 못 바꾸는 값 종류가 하나라도 있으면 그 종류 이름을 돌려준다 —
+     * 효과가 걸린 생물(particles)·주민·디스플레이 엔티티 패킷마다 예외를 만들지 않으려는 미리 보기(PR #367 검토 R2).
+     */
+    public static String quickRefusal(org.domi.furnace.api.packet.Packet packet) {
+        return packet instanceof org.domi.furnace.api.packet.clientbound.ClientboundSetEntityDataPacket d ? EntityDataBridge.unbridgedKind(d) : null;
+    }
+
     /** 이 종류를 shim 으로 되돌릴 수 있는가(종류만 본다 — 값에 따라 실패할 수는 있다). */
     public static boolean reversible(org.domi.furnace.api.packet.PacketType<?> t) {
         return t.typed() ? TypedPacketBridge.supports(t) : SchemaPacketReverse.supports(t);

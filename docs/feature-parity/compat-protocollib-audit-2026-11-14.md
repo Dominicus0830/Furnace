@@ -40,6 +40,7 @@
 | G1 | 실제 클라이언트가 보낸 패킷(채팅·명령·이동·블록 파기·설치·상호작용)이 **ProtocolLib 수신 리스너에 하나도 안 보임** | 다리 2b-3(들어오는 패킷) 미구현 | NoCheatPlus(BLOCK_DIG·ENTITY_ACTION·BLOCK_PLACE·PONG·이동), InteractiveChat(CHAT·CHAT_COMMAND), 모든 반치트·채팅 필터 |
 | G2 | `PLAYER_INFO` 를 만들어 보내면 `ClassCastException: …ClientboundPlayerInfoUpdatePacket$Entry not an enum` | ProtocolLib 은 동작 enum 을 `PLAYER_INFO.getPacketClass().getClasses()[1]` 로 찾는다. 바닐라 1.21.1 jar(`aea`)의 InnerClasses 순서는 `Entry`(`aea$b`) → `Action`(`aea$a`)인데 shim 은 javac 가 `Action` → `Entry` 로 적어 `Entry` 를 enum 으로 잡는다. 게다가 `Entry.profile` 이 `Object`(GameProfile 지움). 서버가 보내는 `player_info_update` 는 되돌리기 미구현 | 탭 목록·NPC·변장(LibsDisguises, Citizens) |
 | G3 | `WrappedGameProfile.fromPlayer`, `WrappedServerPing` 정적 초기화 실패 | NMS `Player` 에 `GameProfile` 필드가 없음(shimgen 이 authlib 타입을 지움) | 서버 목록 MOTD·핑 플러그인, 스킨·NPC |
+| G4b | 서버가 보내는 메타데이터 중 못 바꾸는 값 종류가 든 것은 리스너에 안 보임: **효과(물약)가 걸린 모든 생물**(`DATA_EFFECT_PARTICLES` 가 particles 종류), 주민, 고양이·늑대·개구리·그림 변형, 디스플레이 엔티티(vector3·quaternion). 패킷은 그대로 나가고 값 종류마다 경고 한 줄 | 이 PR 의 다리가 맡지 않는 값 종류(T-186·T-187·T-195) | 홀로그램(디스플레이 엔티티), 반치트의 엔티티 상태 추적 |
 | G4 | 서버가 보내는 26종이 리스너에 안 보임: **`level_chunk_with_light`(MAP_CHUNK)**·`light_update`·`player_chat`·`disguised_chat`·`delete_chat`·`player_info_update`·`set_player_team`·`set_objective`·`boss_event`·`commands`·`custom_payload`·`open_screen`·`merchant_offers`·`map_item_data`·`level_particles`·`explode`·`update_attributes`·`block_entity_data`·`login`·`respawn`·`recipe`·`update_recipes`·`update_tags`·`update_advancements`·`award_stats`·`server_links` | 타입 레코드 → shim 되돌리기 미구현(기동 로그에 한 줄로 이미 알림) | Orebfuscator(MAP_CHUNK·MULTI_BLOCK_CHANGE), InteractiveChat(PLAYER_CHAT), 보스바·스코어보드 플러그인 |
 | G5 | 핸드셰이크·상태(핑)·로그인 단계 패킷이 리스너에 안 보임 | 다리가 play 단계만 다룸(2b 설계 6장) | 서버 목록 플러그인, 로그인 보호 |
 | G6 | `ENTITY_DESTROY` 쓰기 `FieldAccessException: Field index 0 is out of bounds` | shimgen 이 fastutil `IntList` 필드를 지움 | NoCheatPlus, 홀로그램, NPC |
@@ -84,10 +85,10 @@
 
 Citizens2(현재 소스는 1.21.1 모듈 없음)·HolographicDisplays(1.21 모듈 없음)·Essentials·AuthMe·TitleManager 는 1.21.1 에서 NMS 를 직접 쓰지 않거나 ProtocolLib·Bukkit API 로만 간다.
 
-**같은 로그에서 본 Bukkit API 구멍(NMS 아님)**: FAWE 가 접속·손 바꾸기·상호작용마다 `NoSuchMethodError: Material.isLegacy()`·`Player.isSneaking()`, `NoClassDefFoundError: org.bukkit.Effect` 를 낸다. Bukkit 어댑터에 세 가지가 없다(T-141 API 확장 물결 대상). LuckPerms 는 종료 때 H2 의 JVM 종료 훅(`OnExitDatabaseCloser`)에서 `NoClassDefFoundError: org/h2/api/ErrorCode` — 플러그인 클래스 로더가 닫힌 뒤 훅이 돈 것으로 보이며 원인은 **가정**이다.
+**같은 로그에서 본 Bukkit API 구멍(NMS 아님)**: FAWE 가 접속·손 바꾸기·상호작용마다 `NoSuchMethodError: Material.isLegacy()`·`Player.isSneaking()`, `NoClassDefFoundError: org.bukkit.Effect` 를 낸다. 점검 기준 커밋에는 세 가지가 없었고, PR #364 로 들어갔다(T-193 끝, 남은 FAWE API 는 T-141). LuckPerms 는 종료 때 H2 의 JVM 종료 훅(`OnExitDatabaseCloser`)에서 `NoClassDefFoundError: org/h2/api/ErrorCode` — 플러그인 클래스 로더가 닫힌 뒤 훅이 돈 것으로 보이며 원인은 **가정**이다.
 
 ## 5. 우선순위 (TASK 는 `docs/roadmap/optimization-tasks.md` 10장)
 
 - **P0**: G1 들어오는 패킷(2b-3) — 반치트·채팅 플러그인 전부가 기댄다. G2+G3 PLAYER_INFO 두 방향 + GameProfile. G4 중 `level_chunk_with_light`·`light_update`(Orebfuscator).
 - **P1**: G5 로그인·상태 단계 + `WrappedServerPing`. G6 fastutil·authlib 타입 살리기(shimgen). G7 팀. G8 입자. G9·G10 속성·주민. G11 엔티티 감시자·추적기. G4 의 채팅·보스바·점수판·명령 등 나머지. G13 복제. 다른 플러그인 모듈의 없는 클래스(발전 과제·지도·점수판·`ChunkMap`).
-- **P2**: G12 NBT 입출력, G14 나머지 클래스, 별명 시도 경고 정리(D1), FAWE 가 부른 Bukkit API 3종(T-141 로).
+- **P2**: G12 NBT 입출력, G14 나머지 클래스, 별명 시도 경고 정리(D1), (FAWE 가 부른 Bukkit API 3종은 PR #364 로 끝남.)

@@ -138,10 +138,21 @@ final class EntityDataBridge {
         };
     }
 
-    /** 시험용: 두 방향 모두 되는 값 종류 이름. */
-    static List<String> bridgedTypes() {
-        return List.of("byte", "int", "long", "float", "string", "boolean", "optional_uuid", "optional_unsigned_int", "component", "optional_component",
+    /** 두 방향 모두 되는 값 종류 이름. */
+    private static final java.util.Set<String> BRIDGED = java.util.Set.of("byte", "int", "long", "float", "string", "boolean", "optional_uuid", "optional_unsigned_int", "component", "optional_component",
                 "item_stack", "rotations", "block_pos", "optional_block_pos", "direction", "block_state", "optional_block_state", "compound_tag", "pose",
                 "sniffer_state", "armadillo_state");
+
+    /** 시험용: 두 방향 모두 되는 값 종류 이름. */
+    static List<String> bridgedTypes() { return List.copyOf(new java.util.TreeSet<>(BRIDGED)); }
+
+    /** Furnace → shim 으로 못 바꾸는 첫 값 종류 이름(모두 되면 null, 서버가 읽지 못한 값은 "unknown"). 값은 건드리지 않는다. */
+    static String unbridgedKind(ClientboundSetEntityDataPacket p) {
+        for (ClientboundSetEntityDataPacket.Entry e : p.entries()) {
+            EntityDataType<?> type = e.value().dataType();
+            if (type == null) return "unknown";
+            if (!BRIDGED.contains(type.name()) || !BY_NAME.containsKey(type.name())) return type.name();
+        }
+        return null;
     }
 }

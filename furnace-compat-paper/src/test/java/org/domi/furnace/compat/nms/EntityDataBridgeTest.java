@@ -113,6 +113,40 @@ class EntityDataBridgeTest {
             var p = new ClientboundSetEntityDataPacket(5, List.of(new Entry(0, Value.of(EntityDataType.BYTE, (byte) 0)),
                     new Entry(18, Value.of(EntityDataType.VILLAGER_DATA, new org.domi.furnace.api.entity.data.VillagerData("minecraft:plains", "minecraft:farmer", 2)))));
             assertThrows(UnsupportedNmsCall.class, () -> PacketDelivery.fromFurnace(p));
+            // 리스너 다리는 예외를 만들기 전에 미리 알아본다(검토 R2) — 다 되는 패킷은 null
+            assertEquals("villager_data", PacketDelivery.quickRefusal(p));
+            assertEquals(null, PacketDelivery.quickRefusal(new ClientboundSetEntityDataPacket(5, everyBridgedType())));
+        }
+    }
+
+    /** 플러그인이 보낸 shim 에 못 바꾸는 칸이 섞이면 호출자가 예외를 받고, 클라이언트에는 그 패킷이 하나도 안 간다(일부 칸만 가지 않는다, 검토 R1). */
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void pluginSentMetadataWithUnbridgedKindIsRefusedWhole() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            TestPlayer tp = server.join("Holo2");
+            server.tick(3);
+            var bad = new ArrayList<SynchedEntityData.DataValue<?>>();
+            bad.add(new SynchedEntityData.DataValue<>(0, EntityDataSerializers.BYTE, (byte) 0x20));
+            bad.add(new SynchedEntityData.DataValue(10, EntityDataSerializers.PARTICLE, new Object()));   // 입자 shim 은 아직 빈 껍데기 — 값 모양과 무관하게 종류에서 거절
+            var good = new ArrayList<SynchedEntityData.DataValue<?>>();
+            good.add(new SynchedEntityData.DataValue<>(0, EntityDataSerializers.BYTE, (byte) 0x40));
+            tp.clearReceived();
+            Object thrown = server.onGlobal(() -> {
+                var conn = ((CraftPlayer) Bukkit.getPlayer("Holo2")).getHandle().connection;
+                Object r = null;
+                try {
+                    conn.send(new net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket(900002, bad));
+                } catch (RuntimeException ex) {
+                    r = ex;
+                }
+                conn.send(new net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket(900003, good));   // 표지: 이것이 오면 앞 것도 왔어야 할 때가 지났다
+                return r;
+            });
+            assertTrue(thrown instanceof UnsupportedNmsCall, "호출자가 UnsupportedNmsCall 을 받아야 한다: " + thrown);
+            tp.awaitPacket(PacketTypes.Clientbound.SET_ENTITY_DATA, x -> x.entityId() == 900003);
+            assertTrue(tp.received(PacketTypes.Clientbound.SET_ENTITY_DATA).stream().noneMatch(x -> x.entityId() == 900002),
+                    "거절한 패킷의 칸 일부라도 클라이언트에 가면 안 된다");
         }
     }
 
