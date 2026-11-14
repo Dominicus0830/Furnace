@@ -77,7 +77,8 @@ class BukkitBlockStateKindsTest {
         assertFalse(stone instanceof org.bukkit.block.TileState, "블록 엔티티가 없으면 일반 상태");
         assertEquals(CompatBlockState.class, stone.getClass());
         BlockState brewing = placedState("minecraft:brewing_stand", Map.of());
-        assertEquals(CompatBlockState.class, brewing.getClass(), "양조대는 아직 일반 상태(손으로 쓴 BrewingStand 메서드가 구현되지 않았다)");
+        assertInstanceOf(org.bukkit.block.BrewingStand.class, brewing);
+        assertInstanceOf(org.bukkit.block.Container.class, brewing);
     }
 
     @Test
@@ -120,7 +121,7 @@ class BukkitBlockStateKindsTest {
         assertInstanceOf(io.papermc.paper.block.MovingPiston.class, Material.MOVING_PISTON.createBlockData().createBlockState());
     }
 
-    /** 생성기 표가 서버 표(바닐라 BlockEntityType)의 모든 종류를 다룬다 — 양조대만 일부러 뺐다. */
+    /** 생성기 표가 서버 표(바닐라 BlockEntityType)의 모든 종류를 다룬다. */
     @Test
     void tableCoversEveryBlockEntityType() throws Exception {
         var g = server.api().gameRegistries();
@@ -133,7 +134,6 @@ class BukkitBlockStateKindsTest {
         for (String line : Files.readAllLines(Path.of("../tools/compat/bukkit-block-state-hierarchy-1.21.1.txt"))) {
             if (line.startsWith("T ")) tableTypes.add("minecraft:" + line.split(" ")[1]);
         }
-        tableTypes.add("minecraft:brewing_stand");
         assertEquals(serverTypes, tableTypes);
     }
 
