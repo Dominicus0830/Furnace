@@ -8,6 +8,7 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtWriter;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSnapshot;
+import org.domi.furnace.server.world.FirstSeenIndex;
 import org.domi.furnace.server.world.Palette;
 
 public final class ChunkSerializer {
@@ -44,11 +45,7 @@ public final class ChunkSerializer {
 
         // 섹션 데이터(별도 버퍼 후 길이 prefix)
         ByteBuf data = Unpooled.buffer();
-        for (ChunkSnapshot.Section s : snap.sections()) {
-            data.writeShort(s.nonAirCount());
-            Palette.write(data, s.blocks(), blockDirectBits, 4, 8);  // 블록
-            Palette.write(data, s.biomes(), biomeDirectBits, 1, 3);  // 바이옴
-        }
+        for (ChunkSnapshot.Section s : snap.sections()) writeSection(data, s, blockDirectBits, biomeDirectBits);
         Types.writeVarInt(buf, data.readableBytes());
         buf.writeBytes(data);
         data.release();
@@ -88,6 +85,19 @@ public final class ChunkSerializer {
         writeBitSet(buf, emptyBlock);
         writeLayers(buf, sky, skyMask, lightBase, LIGHT_SECTIONS);
         writeLayers(buf, blk, blockMask, lightBase, LIGHT_SECTIONS);
+    }
+
+    /**
+     * 섹션 하나: 비공기 수 + 블록·바이옴 paletted container. T-015: 묶인 팔레트에서 바로(펼치지 않음). 펼친 배열만 있거나 직접 저장이면
+     * 옛 경로 — 바이트는 같다. {@code !writeIndexed} 대체는 지금 도달하지 않는다(간접 저장소 비트 상한 = 와이어 간접 상한 8·3이라
+     * 값 수가 한도를 못 넘는다) — 저장소 상한이 바뀔 때를 위한 안전장치.
+     */
+    public static void writeSection(ByteBuf data, ChunkSnapshot.Section s, int blockDirectBits, int biomeDirectBits) {
+        data.writeShort(s.nonAirCount());
+        FirstSeenIndex bi = s.blockIndex();
+        if (bi == null || !Palette.writeIndexed(data, bi, 4, 8)) Palette.write(data, s.blocks(), blockDirectBits, 4, 8);  // 블록
+        FirstSeenIndex ci = s.biomeIndex();
+        if (ci == null || !Palette.writeIndexed(data, ci, 1, 3)) Palette.write(data, s.biomes(), biomeDirectBits, 1, 3);  // 바이옴
     }
 
     private static boolean isZero(byte[] a) {

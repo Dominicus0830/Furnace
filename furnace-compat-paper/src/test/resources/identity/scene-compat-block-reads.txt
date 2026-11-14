@@ -1,0 +1,21 @@
+# 결과 동일 금 파일 — scene-compat-block-reads. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
+states 26684
+states 0-2047 812bd6fc145f08e1
+states 2048-4095 44e516ae4443c6de
+states 4096-6143 e031c1f4821fb0c5
+states 6144-8191 2a8ef2bbea77de68
+states 8192-10239 873d114600e74282
+states 10240-12287 66e0cd56cde221e4
+states 12288-14335 09deee8a69277930
+states 14336-16383 19d382dfb4b07847
+states 16384-18431 567c8648722d6705
+states 18432-20479 d0b134334e2f7ffe
+states 20480-22527 22838df1becd495f
+states 22528-24575 5ab966623917a239
+states 24576-26623 80c55654b126f366
+states 26624-26683 5795ed2e024f74f7
+read 22149 placed-mismatch 4535 5049a106b762a5e3
+state-classes [CompatBlockState]
+unreadable 0
+materials 1051
+TOTAL f1aaaacaec73918f lines=19

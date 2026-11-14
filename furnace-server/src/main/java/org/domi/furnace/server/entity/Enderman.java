@@ -140,7 +140,7 @@ public class Enderman extends Monster implements NeutralMob {
         dz /= len;
         double dot = view[0] * dx + view[1] * dy + view[2] * dz;
         if (!(dot > 1.0 - 0.025 / len)) return false;
-        return Clip.clipCollider(level, p.x(), p.eyeY(), p.z(), x(), eyeY(), z()).miss();
+        return Clip.clipCollider(level, org.domi.furnace.server.block.CollisionContext.of(p), p.x(), p.eyeY(), p.z(), x(), eyeY(), z()).miss();   // player.hasLineOfSight(this): 플레이어 문맥
     }
 
     @Override

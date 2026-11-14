@@ -80,7 +80,7 @@ class ScheduledTickSceneGoldenTest {
             if (t % 50 == 25) {   // 청크 (1,0) 을 내렸다 다시 올리는 흉내: 저장하며 꺼내고 곧바로 다시 건다
                 NbtCompound root = new NbtCompound();
                 level.saveChunkTicks(1, 0, root, true);
-                level.loadChunkTicks(root);
+                level.loadChunkTicks(root, 1, 0);
             }
             boolean deferred = t >= 100 && t < 112;
             LongPredicate ticking = deferred ? k -> k != deferKey : null;

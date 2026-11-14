@@ -1,0 +1,10 @@
+# 첫 CraftPlayer 감싸기 중 "Recursive update" (T-073 사후 검토 R4, 2026-11-13)
+
+- 사슬: `Compat.player` → `players.compute` 안에서 `new CraftPlayer` → `PermissibleBase.recalculatePermissions` → `getDefaultPermissions` → 처음 보는 노드의 `lookup` → `new Permission` → `recalculatePermissibles` → `getPermissionSubscriptions` → `getOnlinePlayers` → 같은 UUID `Compat.player` → compute 재진입. plugin.yml 에 `default: true` 권한을 선언한 평범한 플러그인에서 join·quit 처리기가 매번 실패했다.
+- 수정 ① `Compat.player` 는 새 CraftPlayer 를 **표 밖에서** 만들고 `putIfAbsent`/`replace` 로 올린다(진 쪽은 `retire`). compute 칸 잠금 안에서 권한 계산을 하지 않으니 같은 칸 재진입도, 서로 다른 UUID 두 스레드의 칸 교착도 없다.
+- 수정 ② 권한 계산 경로의 접속자 보충(`getPermissionSubscriptions`·`getDefaultPermSubscriptions`)은 `Compat.onlinePlayersSettled()`. **생성 밖**(플러그인이 부를 때)에는 접속자 전원을 감싼다 — Paper 는 접속자 전원이 CraftPlayer 를 가져 구독 목록·`broadcast(msg, perm)` 받는 사람에 모두 든다(검토자 초안의 `existingPlayer` 만 보기는 이쪽을 빼서 Paper 와 달라진다). **생성 중**(이 스레드의 `CREATING` 이 비지 않음)에는 이미 감싼 것만 본다: Paper 는 새 플레이어의 CraftPlayer 를 접속자 목록에 넣기 전에 만들고, 안 감싼 접속자는 Bukkit 권한 상태가 없어 다시 계산할 것이 없으며 감쌀 때 올라간 노드로 처음부터 계산한다. 생성 중에도 전원을 감싸면 첫 감싸기가 접속자 수만큼 중첩된다(100명: 스택 1701단, 재계산 5050회, 256KB 스택 StackOverflowError — PR #325 검토 R1).
+- 같은 플레이어를 생성 중에 다시 감싸려 하면 무한 재귀 대신 `IllegalStateException`.
+- 경합에서 진 쪽(같은 UUID·핸들이라 `equals` 참)의 생성자 `clearPermissions`·`retire` 가 이긴 쪽의 구독 칸(`WeakHashMap`, equals 로 지움)을 지우므로, 졌을 때 `fresh.retire()` 뒤 이긴 객체 `recalculatePermissions()` 로 키를 다시 건다(검토 R2).
+- 중첩 감싸기에서 같은 노드의 Bukkit `Permission` 이 둘 보이지 않게 `lookup` 이 생성 뒤 다시 확인한다.
+- 범위 밖(검토 보고서 furnace/reviews/t073r4-pr325.md, 기존 동작): O1 `lookup` 느린 길(SPM 모니터) ↔ `PermissibleBase.recalculatePermissions`(PermissibleBase 모니터) 잠금 순서 역전 교착 가능성, O2 `PermissibleBase` 생성자가 `perm` 대입 전에 구독 표에 올라 다른 스레드가 `recalculatePermissions()` 를 부르면 NPE 창, O3 옛 핸들로 `Compat.player` 를 부르면 지금 접속의 객체를 은퇴시킴.
+- 시험 `FirstPlayerPermissionRecursionTest` 7개: 첫 접속자 생성, 둘째가 첫째를 봄, 스레드 8개 동시 첫 감싸기(교착·중복 없음), 평범한 플러그인의 join·quit 처리기, 중첩 감싸기에서 권한 객체 하나, 접속자 40명 첫 감싸기가 256KB 스택·재계산 4회 이내, 경합에서 진 쪽이 이긴 쪽 구독 칸을 안 지움(`defSubs` 모니터로 두 스레드를 생성자 안에 세우는 결정적 시험).

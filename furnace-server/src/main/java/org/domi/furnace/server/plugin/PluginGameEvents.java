@@ -788,9 +788,10 @@ public final class PluginGameEvents implements GameEvents {
     }
 
     private org.domi.furnace.api.inventory.InventorySnapshot snapshot(org.domi.furnace.server.block.entity.HopperBlockEntity.Inv inv) {
-        java.util.List<org.domi.furnace.api.item.ItemStack> list = new java.util.ArrayList<>(inv.size());
-        for (int i = 0; i < inv.size(); i++) list.add(ApiConvert.item(inv.get(i), items()));
-        return new org.domi.furnace.api.inventory.InventorySnapshot(inv.typeKey(), list);
+        // 칸 참조만 지금 잡는다 — 변환은 처리기가 칸을 읽을 때(T-033). 깔때기 이동마다 부르므로 54칸 상자 변환을 미리 하지 않는다
+        ItemStack[] refs = new ItemStack[inv.size()];
+        for (int i = 0; i < refs.length; i++) refs[i] = inv.get(i);
+        return ApiConvert.snapshot(inv.typeKey(), refs, items());
     }
 
     // ------------------------------------------------------------------ 3단계 셋째 묶음: 블록 번짐·형성·소멸
@@ -858,11 +859,9 @@ public final class PluginGameEvents implements GameEvents {
     @Override
     public boolean brew(String dimension, org.domi.furnace.server.block.Pos pos, ItemStack[] stacks, ItemStack[] results, int fuelLevel) {
         if (!wBrew.on()) return true;
-        java.util.List<org.domi.furnace.api.item.ItemStack> list = new java.util.ArrayList<>(stacks.length);
-        for (ItemStack s : stacks) list.add(ApiConvert.item(s, items()));
         java.util.List<org.domi.furnace.api.item.ItemStack> given = new java.util.ArrayList<>(results.length);
         for (ItemStack s : results) given.add(ApiConvert.item(s, items()));
-        var ev = bus().call(new BrewEvent(dimension, bp(pos), new org.domi.furnace.api.inventory.InventorySnapshot("minecraft:brewing_stand", list), given, fuelLevel));
+        var ev = bus().call(new BrewEvent(dimension, bp(pos), ApiConvert.snapshot("minecraft:brewing_stand", stacks, items()), given, fuelLevel));
         if (ev.isCancelled()) return false;
         // Paper: 결과 목록의 i 번째가 병 칸 i 로 들어가고, 목록이 짧으면 남는 칸은 빈다. 바뀌지 않은 칸은 서버 스택을 그대로 둔다(부품이 깎이지 않게)
         var now = ev.results();

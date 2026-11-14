@@ -48,7 +48,7 @@ class FluidFlatArrayEquivalenceTest {
         Map<Shape, Boolean> shapes = new IdentityHashMap<>();
         int n = Blocks.get().stateCount();
         for (int s = 0; s < n; s++) {
-            shapes.put(B.behavior(s).getCollisionShape(s, level, new Pos(0, -60, 0), null), Boolean.TRUE);
+            shapes.put(B.behavior(s).getCollisionShape(s, level, new Pos(0, -60, 0), CollisionContext.EMPTY), Boolean.TRUE);
         }
         shapes.put(Shape.BLOCK, Boolean.TRUE);
         Shape[] all = shapes.keySet().toArray(new Shape[0]);

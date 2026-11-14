@@ -17,6 +17,7 @@ import org.domi.furnace.server.world.ChestBlockEntity;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSection;
 import org.domi.furnace.server.world.ChunkSnapshot;
+import org.domi.furnace.server.world.FirstSeenIndex;
 import org.domi.furnace.server.world.ItemRegistry;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -98,19 +99,20 @@ public final class AnvilChunkCodec {
         int minSection = colMinY >> 4;
         // 빛 배열은 ChunkLight.MIN_SECTION 부터 — 이 차원의 맨 아래 빛 섹션(minSection - 1)의 자리
         int lightBase = minSection - 1 - org.domi.furnace.server.light.ChunkLight.MIN_SECTION;
+        boolean skyColumn = hasAnySky(snap.light(), lightBase, secs.length + 2);
         for (int i = 0; i < secs.length; i++) {
             NbtCompound s = new NbtCompound();
-            s.putCompound("block_states", blockStatesFromArray(secs[i].blocks()));
-            s.putCompound("biomes", biomesFromArray(secs[i].biomes()));
+            s.putCompound("block_states", blockStates(secs[i]));
+            s.putCompound("biomes", biomes(secs[i]));
             s.putByte("Y", (byte) (minSection + i));
-            putLight(s, snap.light(), lightBase + i + 1);
+            putLight(s, snap.light(), lightBase + i + 1, skyColumn);
             sections.add(s);
         }
         if (snap.light() != null) {   // 바닐라처럼 위·아래 빛 전용 섹션도 쓴다(비어 있으면 생략)
             for (int li : new int[]{0, secs.length + 1}) {
                 NbtCompound s = new NbtCompound();
                 s.putByte("Y", (byte) (minSection - 1 + li));
-                putLight(s, snap.light(), lightBase + li);
+                putLight(s, snap.light(), lightBase + li, skyColumn);
                 if (s.contains("SkyLight") || s.contains("BlockLight")) sections.add(s);
             }
         }
@@ -167,7 +169,7 @@ public final class AnvilChunkCodec {
         int sec = (y - colMinY) >> 4;
         ChunkSnapshot.Section[] secs = snap.sections();
         if (sec < 0 || sec >= secs.length) return null;
-        int state = secs[sec].blocks()[((y - colMinY) & 15) * 256 + lz * 16 + lx];
+        int state = secs[sec].blockAt(((y - colMinY) & 15) * 256 + lz * 16 + lx);
         return registry.nameOf(state);
     }
 
@@ -202,6 +204,41 @@ public final class AnvilChunkCodec {
         e.putInt("y", y);
         e.putInt("z", z);
         return e;
+    }
+
+    /**
+     * T-015: 섹션을 int[4096] 으로 펼치지 않고 묶인 팔레트에서 첫 등장 순 색인으로 바로 — {@link #blockStatesFromArray} 와 같은 NBT.
+     * 펼친 배열만 있거나 직접 저장(서로 다른 값 257개 이상)이면 옛 경로.
+     */
+    private NbtCompound blockStates(ChunkSnapshot.Section sec) {
+        FirstSeenIndex ix = sec.blockIndex();
+        if (ix == null) return blockStatesFromArray(sec.blocks());
+        int distinct = ix.size();
+        NbtList paletteList = new NbtList(NbtIo.TAG_COMPOUND);
+        for (int i = 0; i < distinct; i++) paletteList.add(paletteEntryOf(ix.value(i)));
+        NbtCompound bs = new NbtCompound();
+        bs.putList("palette", paletteList);
+        // 원본 묶인 배열을 그대로 받을 수 있다 — 스냅샷 읽기 사본의 것이라 아무도 고치지 않는다.
+        // 이 NBT 를 바깥(플러그인 등)에 넘겨 고칠 수 있게 하려면 data 를 clone 해서 넘긴다
+        if (distinct > 1) bs.putLongArray("data", ix.pack(Math.max(4, ceillog2(distinct))));
+        return bs;
+    }
+
+    /** {@link #blockStates} 의 바이옴판 — {@link #biomesFromArray} 와 같은 NBT. */
+    private NbtCompound biomes(ChunkSnapshot.Section sec) {
+        if (biomeNames == null) return biomesFromArray(null);
+        FirstSeenIndex ix = sec.biomeIndex();
+        if (ix == null) return biomesFromArray(sec.biomes());
+        NbtCompound out = new NbtCompound();
+        NbtList paletteList = new NbtList(NbtIo.TAG_STRING);
+        int distinct = ix.size();
+        for (int i = 0; i < distinct; i++) {
+            int id = ix.value(i);
+            paletteList.add(id >= 0 && id < biomeNames.size() ? biomeNames.get(id) : "minecraft:plains");
+        }
+        out.putList("palette", paletteList);
+        if (distinct > 1) out.putLongArray("data", ix.pack(ceillog2(distinct)));
+        return out;
     }
 
     /** PalettedContainer.pack 의 블록 상태 형식. */
@@ -307,10 +344,23 @@ public final class AnvilChunkCodec {
         return entry;
     }
 
-    private static void putLight(NbtCompound s, ChunkSnapshot.Light l, int idx) {
+    /**
+     * 하늘빛은 하늘이 있는 열(어느 층이든 0 이 아닌 하늘빛)이면 모두 0 인 층도 쓴다. 바닐라는 빠진 하늘빛 층을 0 이 아니라 위쪽 층의 맨 아래 줄로
+     * 채울 수 있다(SkyLightSectionStorage.createDataLayer → repeatFirstLayer, 섹션을 위에서 아래로 만들 때) — 반 블록 지붕 아래 밀폐된
+     * 어두운 방처럼 맨 아래 줄이 밝은 층 밑의 0 층을 빼면 바닐라가 이 월드를 열 때 방 전체가 하늘빛 15 가 된다(바닐라 서버로 확인,
+     * docs/feature-parity/context-notes/2026-11-13-skylight-zero-layers.md). 바닐라도 한 번 빛이 닿았다 0 이 된 층은 0 배열로 쓴다.
+     * 블록빛은 빠진 층을 늘 0 으로 만들므로(BlockLightSectionStorage) 모두 0 이면 뺀다. 하늘 없는 차원은 하늘빛을 쓰지 않는다.
+     */
+    private static void putLight(NbtCompound s, ChunkSnapshot.Light l, int idx, boolean skyColumn) {
         if (l == null) return;
-        if (nonZero(l.sky()[idx])) s.putByteArray("SkyLight", l.sky()[idx]);
+        if (skyColumn || nonZero(l.sky()[idx])) s.putByteArray("SkyLight", l.sky()[idx]);
         if (nonZero(l.block()[idx])) s.putByteArray("BlockLight", l.block()[idx]);
+    }
+
+    private static boolean hasAnySky(ChunkSnapshot.Light l, int from, int count) {
+        if (l == null) return false;
+        for (int i = from; i < from + count; i++) if (nonZero(l.sky()[i])) return true;
+        return false;
     }
 
     private static boolean nonZero(byte[] a) {
@@ -409,7 +459,7 @@ public final class AnvilChunkCodec {
 
     /**
      * Furnace 가 이 판의 빛 엔진으로 쓴 빛이면 읽어 col 에 둔다(col.lightStored). 바닐라 ChunkSerializer.read 처럼 isLightOn 이면 섹션의
-     * SkyLight·BlockLight 를 쓴다 — 없는 층은 0(우리 쓰기는 모두 0 인 층을 뺀다). 표시·판·높이가 하나라도 안 맞으면 읽지 않는다(다시 계산).
+     * SkyLight·BlockLight 를 쓴다 — 없는 층은 0(우리 쓰기는 모두 0 인 블록빛 층과 하늘 없는 열의 하늘빛 층을 뺀다). 표시·판·높이가 하나라도 안 맞으면 읽지 않는다(다시 계산).
      */
     private void readStoredLight(NbtCompound root, NbtList sections, ChunkColumn col, int minSection) {
         if (!(root.tags().get(LIGHT_VERSION_KEY) instanceof Integer v) || v != LIGHT_VERSION) return;

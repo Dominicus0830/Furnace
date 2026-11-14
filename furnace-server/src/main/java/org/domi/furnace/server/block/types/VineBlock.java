@@ -50,7 +50,7 @@ public class VineBlock extends BlockBehavior {
     /** MultifaceBlock.canAttachTo: 지지 모양이나 충돌 모양의 맞닿는 면이 꽉 찼는가. */
     public static boolean canAttachTo(BlockLevel level, int dir, Pos pos, int state) {
         int o = Dir.opposite(dir);
-        return INFO.supportShape(state).isFaceFull(o) || B.behavior(state).getCollisionShape(state, level, pos, null).isFaceFull(o);
+        return INFO.supportShape(state).isFaceFull(o) || B.behavior(state).getCollisionShape(state, level, pos, org.domi.furnace.server.block.CollisionContext.EMPTY).isFaceFull(o);
     }
 
     private int getUpdatedState(int state, BlockLevel level, Pos pos) {

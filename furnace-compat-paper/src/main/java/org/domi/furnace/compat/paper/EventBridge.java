@@ -165,6 +165,7 @@ public final class EventBridge {
         if (classes == null) return java.util.List.of();
         java.util.List<org.domi.furnace.api.event.EventSubscription> out = new java.util.ArrayList<>();
         for (Class<? extends org.bukkit.event.Event> owning : classes) out.addAll(ensure(owner, owning, registered.getPriority(), registered));
+        if (registered.getPriority() == org.bukkit.event.EventPriority.MONITOR && classes.contains(org.bukkit.event.player.PlayerQuitEvent.class)) requeueQuitWatch();
         return out;
     }
 
@@ -187,12 +188,57 @@ public final class EventBridge {
             Furnace.server().events().subscribe(owner, org.domi.furnace.api.event.player.PlayerCreateEvent.class,
                     org.domi.furnace.api.event.EventPriority.MONITOR, false, f -> { if (!f.isAllowed()) Compat.forgetDenied(f.player()); });
         }
-        // 접속이 끝나면(Furnace MONITOR — 모든 처리기 뒤) NMS 연결의 가상 채널을 닫는다 — 어떤 Bukkit 이벤트든 듣는 플러그인이 하나라도 있으면 걸린다(플러그인별로 한 번 — 닫기는 멱등이고, 구독은 그 플러그인이 꺼지면 같이 풀리므로 전역 한 번이 아니라 이렇게 둔다)
-        if (owner.markBridged("quit-channel-close")) {
-            Furnace.server().events().subscribe(owner, org.domi.furnace.api.event.player.PlayerQuitEvent.class,
-                    org.domi.furnace.api.event.EventPriority.MONITOR, false, f -> Compat.disconnected(f.player()));
-        }
+        watchQuit(owner);
         return subs;
+    }
+
+    /** 플러그인별 퇴장 정리 구독(권한 구독·가상 채널을 걷는 것). 같은 우선순위에서는 등록 순으로 불리므로, Bukkit 퇴장 MONITOR 처리기가 이어질 때마다 다시 걸어 맨 뒤에 둔다. */
+    private static final java.util.Map<BukkitPluginAdapter, org.domi.furnace.api.event.EventSubscription> QUIT_WATCH = new java.util.IdentityHashMap<>();
+
+    private static org.domi.furnace.api.event.EventSubscription subscribeQuitWatch(BukkitPluginAdapter owner) {
+        return Furnace.server().events().subscribe(owner, org.domi.furnace.api.event.player.PlayerQuitEvent.class,
+                org.domi.furnace.api.event.EventPriority.MONITOR, false, f -> Compat.disconnected(f.player()));
+    }
+
+    /**
+     * 접속이 끝나면(Furnace MONITOR) NMS 연결의 가상 채널을 닫고 그 접속의 Bukkit 권한 계산·구독을 걷는다(Paper 퇴장 때 perm.clearPermissions) —
+     * 플러그인이 이벤트를 하나도 안 들어도(권한만 묻는 플러그인) 걸리도록 플러그인을 켤 때와 처리기를 이을 때 모두 부른다(플러그인별로 한 번 —
+     * 닫기·정리는 멱등이고, 구독은 그 플러그인이 꺼지면 같이 풀린다).
+     * Bukkit 퇴장 처리기들이 모두 본 뒤에 돌도록 {@link #requeueQuitWatch} 가 처리기가 이어질 때마다 맨 뒤로 옮긴다.
+     */
+    static synchronized void watchQuit(BukkitPluginAdapter owner) {
+        if (!QUIT_WATCH.containsKey(owner)) QUIT_WATCH.put(owner, subscribeQuitWatch(owner));
+    }
+
+    /** 플러그인이 꺼진다 — 그 플러그인의 퇴장 정리 구독을 뗀다. */
+    static synchronized void unwatchQuit(BukkitPluginAdapter owner) {
+        var sub = QUIT_WATCH.remove(owner);
+        if (sub != null) {
+            try {
+                sub.unsubscribe();
+            } catch (RuntimeException ignored) {
+                // 서버가 이미 내려갔다
+            }
+        }
+    }
+
+    /** 퇴장 MONITOR 처리기가 이어졌다 — 모든 퇴장 정리 구독을 떼었다 다시 걸어 같은 우선순위 맨 뒤(= 모든 Bukkit 처리기 뒤, Paper 순서)로 보낸다. */
+    private static synchronized void requeueQuitWatch() {
+        for (var it = QUIT_WATCH.entrySet().iterator(); it.hasNext();) {
+            var e = it.next();
+            var jp = e.getKey().javaPlugin();
+            if (jp != null && !jp.isEnabled()) {   // 꺼졌는데 못 뗀 칸(서버를 다시 띄운 시험 등)
+                it.remove();
+                continue;
+            }
+            try {
+                var old = e.getValue();
+                e.setValue(subscribeQuitWatch(e.getKey()));   // 새 구독을 먼저 건 뒤 옛것을 뗀다 — 그 사이 퇴장이 와도 정리가 빠지지 않는다(정리는 멱등)
+                old.unsubscribe();
+            } catch (RuntimeException gone) {
+                it.remove();   // 내려간 서버의 낡은 칸
+            }
+        }
     }
 
     private static <F extends org.domi.furnace.api.event.Event, B extends org.bukkit.event.Event> org.domi.furnace.api.event.EventSubscription subscribe(
