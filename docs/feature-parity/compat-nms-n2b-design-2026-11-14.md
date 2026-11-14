@@ -196,7 +196,7 @@ D4 설명(R11): 기다리지 않는 스냅샷 읽기와 일지 쓰기는 다른 
 | **N2b-1 떨어진 객체** | 생성자들(`LevelChunkSection` 2종, `PalettedContainer` 공개·Paper 5인자, `Strategy`·`Configuration`, 팔레트 4종, `SimpleBitStorage`·`ZeroBitStorage`, `IdMapper`), 진짜 필드(`data` volatile), 바닐라 개수 두 경로, 안정 정체성 캐시(섹션 → 청크 강한 참조) | V1 통과, 서버 쓰기 없음 | Sonnet high |
 | **N2b-2 W1(주인 스레드) + 고정 하이트맵** | 다리 메서드(`setSectionStateRawNow`·`sectionCountsNow`/`setSectionCountsNow`·`setHeightmapRawNow`), 주인 스레드 원시 쓰기, 바닐라 개수 3개 보관·무작위 틱 대상 유도, 고정 하이트맵(바닐라 `Heightmap.update` 포팅) + **로드 때 저장값 비교로 고정 시작** | V1·V2 | Opus high |
 | **N2b-3 다른 스레드 읽기** | 공개 스냅샷(틱 끝, COW 재사용, 판 번호, 읽기 요청 표시), 기다리지 않는 읽기·한도 대기, 블록 엔티티 목록 스냅샷, D4 에 따라 다른 region 스레드 규칙 | V5(읽기·교착 장면) | Opus high |
-| **N2b-4 거울·들여오기** | 상태 기계(3.2), `ChunkColumn` 대기 표시·`importSection` 단일 진입점·필드 전수 시험, 칸 일지(D1), 구성 요소 단위 들여오기, 훑기(정체성 + 원시 개수), 맞춤 지점(Bukkit·World 읽기 진입 포함), 쓰기 장벽(VarHandle 은 힌트 게이트 밖, Field·GETFIELD/PUTFIELD), 블록 엔티티·하이트맵·빛 일지, 저장·언로드·나누기 훅 | V2·V3·V5 | Opus xhigh(동시성) |
+| **N2b-4 거울·들여오기** | D3 경고 로그(저장 표시 없이 들여온 청크가 내려갈 때), 상태 기계(3.2), `ChunkColumn` 대기 표시·`importSection` 단일 진입점·필드 전수 시험, 칸 일지(D1), 구성 요소 단위 들여오기, 훑기(정체성 + 원시 개수), 맞춤 지점(Bukkit·World 읽기 진입 포함), 쓰기 장벽(VarHandle 은 힌트 게이트 밖, Field·GETFIELD/PUTFIELD), 블록 엔티티·하이트맵·빛 일지, 저장·언로드·나누기 훅 | V2·V3·V5 | Opus xhigh(동시성) |
 | **N2b-5 빛·클라이언트** | `DataLayer`·`LevelLightEngine` 표면, `starlight$serverRelightChunks`·`checkBlock`(하늘빛 원천 포함), 청크 패킷 shim(N3a 와 함께), `setLightCorrect`(저장 표시)·`mustNotSave` | V4 | Opus high |
 | **N2b-6 통합** | FAWE 실제 jar 로 없는 기호 재측정 → 나머지 표면(어댑터 선택·초기화 기호) 묶음, V6 Paper 대조 | V6 차이 0(또는 문서화된 가정만) | Opus high + 노트북 실측 |
 
@@ -220,6 +220,7 @@ N2b-0·1 은 N3a 와 파일이 겹치지 않아 병행할 수 있다. N2b-5 의 
 | R12 | Paper 1.21.1 고유 동작을 소스로 확인 못 함 | 가정이 틀릴 수 있음 | 가정 목록(R15 항목)을 V6 확인 항목으로 |
 
 ## 8. 도미니코 결정 (요약, 상세는 user-todo 항목)
+**확정(2026-11-14 21:48~21:51 KST): D1~D4 모두 A.** D3 에는 결과를 바꾸지 않는 보조로 "저장 표시 없이 들여온 섹션이 있는 청크가 내려갈 때 경고 로그 한 줄"을 붙인다(N2b-4, 같은 청크·같은 원인은 한 번만).
 - **D1** region 이 아닌 스레드의 섹션 메서드 쓰기: A 거울에 칸 일지로 쓰고 주인이 그 칸만 1틱 안에 반영(Paper 처럼 동작, 추천) / B 예외(엄격).
 - **D2** 플러그인이 빛을 다시 계산하지 않을 때: A 바닐라·Paper 처럼 낡은 빛 그대로(추천) / B Furnace 가 들여온 섹션의 빛을 자동 계산(끄는 키, 바닐라와 다름).
 - **D3** 들여오기 뒤 저장 표시: A 바닐라처럼 플러그인이 `setUnsaved`·`setLightCorrect` 해야 저장(추천) / B 들여오면 자동 저장 표시(데이터 잃음 방지, 바닐라와 다름).
