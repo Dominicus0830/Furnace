@@ -425,6 +425,12 @@ public interface World {
      * 떨어진 아이템을 만든다(Paper CraftWorld#dropItem: 줍기 지연 10틱, 스폰 이유 CUSTOM). naturally 면 바닐라처럼 월드 난수로 각 축
      * 0.25~0.75 를 더한 자리. beforeSpawn 은 월드에 넣기 전에 부른다(null 가능). 소유 region 스레드 전용. 스폰이 취소되면 null.
      */
+    /**
+     * 그 청크 안(블록 좌표 기준)에 있는 살아 있는 엔티티와 플레이어(Paper Chunk#getEntities — isValid 로 거름). 그 청크를 가진 region 스레드 전용
+     * (전역 스레드의 region 빌림 구간 포함), 아니면 ThreadOwnershipException.
+     */
+    default List<Entity> entitiesInChunkNow(int chunkX, int chunkZ) { throw new UnsupportedOperationException("entitiesInChunkNow"); }
+
     default Entity dropItemNow(Location at, org.domi.furnace.api.item.ItemStack stack, boolean naturally, java.util.function.Consumer<Entity> beforeSpawn) {
         throw new UnsupportedOperationException("dropItemNow");
     }

@@ -38,6 +38,7 @@ class BukkitWorldStateTest {
     Player player;
     World world;
     BlockPos origin;
+    BlockPos far;
 
     @BeforeAll
     void start() {
@@ -48,6 +49,8 @@ class BukkitWorldStateTest {
         var loc = tp.player().location();
         origin = new BlockPos((int) Math.floor(loc.x()), (int) Math.floor(loc.y()) + 30, (int) Math.floor(loc.z()));
         server.loadChunk(origin.chunkX(), origin.chunkZ());
+        far = new BlockPos(origin.x() + 16 * 200, origin.y(), origin.z());   // 다른 region
+        server.loadChunk(far.chunkX(), far.chunkZ());
         world = Compat.world(server.overworld());
         player = Compat.player(tp.player());
     }
@@ -92,7 +95,9 @@ class BukkitWorldStateTest {
         assertFalse(world.isClearWeather());
         world.setWeatherDuration(777);
         assertEquals(777, world.getWeatherDuration());
+        world.setClearWeatherDuration(500);
         world.setThundering(true);
+        assertEquals(0, world.getClearWeatherDuration(), "setThundering 도 맑음 붙잡기를 0 으로");
         assertTrue(world.isThundering());
         assertEquals(0, world.getThunderDuration());
         world.setThunderDuration(888);
@@ -152,6 +157,48 @@ class BukkitWorldStateTest {
         } finally {
             owner(() -> { pig.remove(); return null; });
         }
+        assertTrue(world.getEntities().stream().noneMatch(e -> e.getUniqueId().equals(pig.getUniqueId())), "지운 엔티티는 빠진다");
+    }
+
+    @Test
+    void chunkEntitiesStayInsideChunk() {
+        // 이웃 청크 경계 바로 안쪽(0.3 블록)의 돼지: 상자는 겹치지만 이 청크 것이 아니다
+        int edgeX = (origin.chunkX() << 4) + 16;
+        Pig pig = owner(() -> (Pig) world.spawnEntity(new Location(world, edgeX + 0.3, origin.y(), origin.z() + 0.5), EntityType.PIG));
+        try {
+            Entity[] here = owner(() -> world.getChunkAt(origin.chunkX(), origin.chunkZ()).getEntities());
+            assertTrue(Arrays.stream(here).noneMatch(e -> e.getUniqueId().equals(pig.getUniqueId())));
+        } finally {
+            owner(() -> { pig.remove(); return null; });
+        }
+    }
+
+    @Test
+    void chunkEntitiesNeedThatChunksRegion() {
+        Pig pig = server.onRegion(far, () -> (Pig) world.spawnEntity(new Location(world, far.x() + 0.5, far.y(), far.z() + 0.5), EntityType.PIG));
+        try {
+            Chunk farChunk = world.getChunkAt(far.chunkX(), far.chunkZ());
+            Entity[] onOwner = server.onRegion(far, farChunk::getEntities);
+            assertTrue(Arrays.stream(onOwner).anyMatch(e -> e.getUniqueId().equals(pig.getUniqueId())));
+            assertThrows(ThreadOwnershipException.class, () -> owner(farChunk::getEntities), "다른 region 스레드면 빈 배열이 아니라 예외");
+        } finally {
+            server.onRegion(far, () -> { pig.remove(); return null; });
+        }
+    }
+
+    @Test
+    void dyingMobsAreNotListed() {
+        Pig pig = owner(() -> (Pig) world.spawnEntity(new Location(world, origin.x() + 0.5, origin.y(), origin.z() + 0.5), EntityType.PIG));
+        try {
+            owner(() -> { pig.setHealth(0); return null; });
+            assertFalse(owner(pig::isValid));
+            assertTrue(world.getEntities().stream().noneMatch(e -> e.getUniqueId().equals(pig.getUniqueId())), "Paper 는 isValid 로 거른다");
+            assertTrue(world.getLivingEntities().stream().noneMatch(e -> e.getUniqueId().equals(pig.getUniqueId())));
+            Entity[] inChunk = owner(() -> world.getChunkAt(origin.chunkX(), origin.chunkZ()).getEntities());
+            assertTrue(Arrays.stream(inChunk).noneMatch(e -> e.getUniqueId().equals(pig.getUniqueId())));
+        } finally {
+            owner(() -> { pig.remove(); return null; });
+        }
     }
 
     @Test
@@ -159,7 +206,13 @@ class BukkitWorldStateTest {
         Location at = new Location(world, origin.x() + 0.5, origin.y(), origin.z() + 0.5);
         assertThrows(ThreadOwnershipException.class, () -> world.dropItem(at, new ItemStack(Material.DIAMOND, 3)));
         Item[] seenInConsumer = new Item[1];
-        Item item = owner(() -> world.dropItem(at, new ItemStack(Material.DIAMOND, 3), i -> seenInConsumer[0] = i));
+        boolean[] listedInConsumer = new boolean[1];
+        Item item = owner(() -> world.dropItem(at, new ItemStack(Material.DIAMOND, 3), i -> {
+            seenInConsumer[0] = i;
+            listedInConsumer[0] = world.getEntities().stream().anyMatch(e -> e.getUniqueId().equals(i.getUniqueId()));
+        }));
+        assertFalse(listedInConsumer[0], "consumer 는 월드에 넣기 전에 돈다");
+        assertTrue(world.getEntities().stream().anyMatch(e -> e.getUniqueId().equals(item.getUniqueId())));
         assertNotNull(item);
         assertSame(item, seenInConsumer[0], "넣기 전 consumer 가 같은 Item 을 받는다");
         assertEquals(Material.DIAMOND, owner(item::getItemStack).getType());

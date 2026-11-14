@@ -329,9 +329,10 @@ public final class CraftWorld implements World {
 
     @Override
     public void setTime(long time) {
-        long margin = (time - getFullTime()) % 24000;
+        long full = getFullTime();   // 한 번만 읽는다(사이에 전역 틱이 끼어도 한 값으로 계산)
+        long margin = (time - full) % 24000;
         if (margin < 0) margin += 24000;
-        setFullTime(getFullTime() + margin);
+        setFullTime(full + margin);
     }
 
     @Override

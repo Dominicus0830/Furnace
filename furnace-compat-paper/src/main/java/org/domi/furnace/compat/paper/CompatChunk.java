@@ -36,13 +36,8 @@ public final class CompatChunk implements Chunk {
     public org.bukkit.entity.Entity[] getEntities() {
         var w = Compat.furnace().world(dimension);
         if (!w.isChunkLoaded(x, z)) return new org.bukkit.entity.Entity[0];
-        double minX = x << 4, minZ = z << 4;
-        var box = new org.domi.furnace.api.world.Aabb(minX - 2, -1.0E7, minZ - 2, minX + 18, 1.0E7, minZ + 18);
         java.util.List<org.bukkit.entity.Entity> out = new java.util.ArrayList<>();
-        for (var e : w.entitiesInBoxNow(box)) {
-            var l = e.location();
-            if (l.blockX() >> 4 == x && l.blockZ() >> 4 == z) out.add(Compat.entity(e));
-        }
+        for (var e : w.entitiesInChunkNow(x, z)) out.add(Compat.entity(e));
         return out.toArray(new org.bukkit.entity.Entity[0]);
     }
 
