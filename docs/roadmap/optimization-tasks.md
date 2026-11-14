@@ -224,3 +224,20 @@
 | T-111 | P0 | OPT(운영) | 리눅스 `start.sh`·`jvm.args.example`·운영 문서에 `-XX:ThreadPriorityPolicy=1`. 지금 코드의 `MIN_PRIORITY`(생성 풀·레인·gen-wait)가 리눅스에서 처음 효과를 낸다. 루트가 아니어도 낮추기는 된다(JVM 경고 한 줄 — 문서에 설명). **윈도에서는 효과 없음(윈도 JVM 은 원래 우선순위를 따름)을 문서에 명시**, `start.bat` 은 바꾸지 않는다 | 2차 B2 5장(M-02) | 32명 새 땅 가장 느린 TPS 최저 15.5~17 → 18.5(루트 아님), 오버+네더 동시 12~13 → 17. 받은 청크/초 −3~7%. 계산 불변이라 결과 동일 증명 불필요 | S | Sonnet medium | — | start.sh, jvm.args.example, docs |
 | T-110 | P1(측정 뒤) | FIX+/OPT | 생성 요청 대기열을 거리 우선으로: `furnace-gen-wait` FIFO → 요청한 플레이어들과의 지금 거리 우선 큐(나이 가산), 시작 안 한 요청이 어느 시야(+2)에도 없으면 뒤로·취소. 미리 생성(P-O04-15)도 같은 큐 | 2차 B2 5.2, R0 F-R0-01 | 32명 새 땅 `gen.queue` 평균 4.4~6초 vs 생성 60ms. **B1 의 T-011 이웃 기다림 판정과 같이 A/B**(시야 채움·걷기 끝 위치·TPS) 뒤 적용. 블록 결과는 생성 순서 의존(바닐라와 같은 기준) | M | Opus high | B1 F-R0-01 판정, T-111 | AnvilWorldSource, FurnaceMain, Region |
 | (P-O04-09) | P1(T-111 뒤) | STR | 생성 풀 차원 공유 + `worldgen-threads` 키(기본 코어−1) | O04-09, 2차 B2 3장 | 두 차원 동시 새 땅 B 기본 TPS 12 안팎. 공정성(차원별 대기 상한) A/B | M | Opus high | T-111 | ChunkPipeline, FurnaceMain |
+
+## 8. 2차 CSP — B3 엔티티·몹 확정분 (2026-11-14)
+
+보고서: 공유 폴더 `furnace/reviews/opt-review-r2/B3-entities-mobs.md`(기준 `a242b1af`). 2차 전체 판정 절은 계획 스레드가 따로 붙인다 — 여기에는 도미니코가 확정한 B3-1 과 그에 딸린 TASK 만 적는다.
+
+**B3-1 확정(2026-11-14, 도미니코 "고쳐")**: 활성 범위(D11) 다음 Spigot·Paper 엔티티 손잡이는 **Paper 1.21.1 기본값과 같게** 둔다(끄는·바꾸는 설정 키는 둠). 기본값은 Paper 원문(`33ff3dff` `Paper-config-files.patch`)으로 확인했다.
+
+| 손잡이 | 바닐라 | Spigot 기본 | Paper·Furnace 기본 | 바닐라와 |
+|---|---|---|---|---|
+| 아이템 합치기 반경 | 0.5(옆으로만) | 2.5 | 0.5 | 같음 |
+| 경험치 구슬 합치기 반경 | 없음 | 3.0 | -1(끔) | 같음 |
+| 몹끼리 밀기 상한 | 없음 | 8(추정) | 8 | **다름**(9마리 넘게 겹치면 미는 대상이 줄어듦) |
+| 추적 거리 | 종류별 `clientTrackingRange`×16(플레이어 512, 몬스터 128, 동물·주민 160, 아이템 96) | 48/48/48/32 | 플레이어 128, 몬스터 96, 동물·주민·물 96, 기타 96, 디스플레이 128, 그 밖 64 | **다름**(보이는 거리만, 월드 상태는 같음) |
+
+| ID | 우선 | 관점 | 내용 | 출처 | 근거·증명 | 크기 | 모델 | 의존 | 파일 |
+|---|---|---|---|---|---|---|---|---|---|
+| T-122 | P1 | ADD | Spigot·Paper 엔티티 손잡이 4종을 위 표의 Paper 기본값으로: `merge-radius.item`·`merge-radius.exp`(spigot.yml 이름), `collisions.max-entity-collisions`(paper-world-defaults 이름), `entity-tracking-range.*`(Paper 의 물·주민=동물 범위, 드래곤 예외 포함). D11 과 같은 설정 클래스·`PaperConfigImport` 규칙·`config.preset=vanilla` 에서 바닐라 값. 바닐라와 다른 두 개(밀기 상한·추적 거리)는 PR 본문에 예외로 명시 | P-O05-17, 2차 B3-1 | 시험 JVM 기본은 바닐라 값(D11 의 `EntityActivationOffExtension` 방식)이라 기존 금 파일 그대로. 새 장면(몹 20마리 한 칸 밀기, 추적 거리 경계)으로 켬/끔 차이 금 파일. 합치기 둘은 기본값이 바닐라와 같음을 시험으로 고정. 측정: 밀기 1.6%·추적 3.8~4.1%(봇 16명 땅), 몹 농장 장면에서 다시 잼 | M | Sonnet high | D11(#326) | entity/, config/EntityActivationSettings 옆, PaperConfigImport |
