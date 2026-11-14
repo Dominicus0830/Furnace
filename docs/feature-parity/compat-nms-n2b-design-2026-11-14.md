@@ -1,6 +1,6 @@
 # NMS 어댑터 N2b 설계 — 필드·배열 수준 청크 쓰기 (2026-11-14)
 
-상태: **설계안 2판(구현 전)** — 독립 검토(`/mnt/project-files/furnace/reviews/n2b-design-pr351.md`, 조건부 승인 R1~R15)를 반영했다.
+상태: **확정 설계(구현 전)** — 독립 검토(`/mnt/project-files/furnace/reviews/n2b-design-pr351.md`, 1판 조건부 승인 R1~R15 → 2판 재검토 승인, R16·R17 반영).
 결정이 필요한 것은 `docs/user-todo/entries/2026-11-14-nms-n2b-design.md`(D1~D4).
 
 근거: 계획 `compat-nms-adapter-plan-2026-11-11.md` 4장 6번, 계획 검토(4.3 "필드·배열 수준은 보기로는 불가능"), N1+N2a 문서
@@ -109,7 +109,7 @@ FAWE 2.16.2 `v1_21_R1` 의 실제 쓰기 순서(`PaperweightGetBlocks.internalCa
 1. **구성 요소 단위**(R3): 일지만 있으면 **그 칸만 재생**(바닐라 `LevelChunkSection.setBlockState` 원시 의미: 개수 ±1, 그 밖 부수 효과 없음 — 그 사이 게임이 바꾼 다른 칸은 그대로). 떨어짐이면 바뀐 구성 요소만: `states`/`data` 가 바뀌었으면 블록, `biomes` 가 바뀌었으면 바이옴, 배열 칸 객체가 바뀌었으면 둘 다, 개수 필드만 바뀌었으면 개수만.
 2. 검사: `storage.getBits()`·`getRaw().length`·palette 기준(**Configuration 은 보지 않는다** — FAWE 바이옴 컨테이너는 `SECTION_STATES.getConfiguration(FakeIdMapBiome, bits)` 로 Configuration 과 실제 storage·palette 가 어긋나도 바닐라에서 정상 동작한다, R13a). 팔레트 항목 null·범위 밖·바이옴 번호 틀림이면 들여오지 않고 (플러그인, 사유)마다 한 번 WARN.
 3. **하이트맵 고정(3.5)** — 블록을 바꾸기 전에.
-4. 섹션 내용 교체(`ownSection` 으로 COW·`lightFrozen` 공유를 끊고), **개수**: 블록 교체면 바닐라 `recalcBlockCounts` 포팅(유체 칸 nonEmpty 이중 셈, tickingFluid 는 무작위 틱 유체만), 일지 재생이면 칸마다 바닐라 ±1(물 포함 tickingFluid), 개수 필드 대입이면 그 값. 거울 섹션의 바닐라 개수 3개를 서버 섹션에 따로 보관하고, **무작위 틱 대상 = `tickingBlock > 0 || tickingFluid > 0`**(바닐라 `isRandomlyTicking`)으로 T-053 구역 마스크를 고친다. 무작위 틱 안에서 칸을 고를 때 쓰는 기존 칸 기준 `tickingCount` 와는 분리한다(이름은 구현 때 정리, 위험 R8).
+4. 섹션 내용 교체(`ownSection` 으로 COW·`lightFrozen` 공유를 끊고), **개수**: 블록 교체면 바닐라 `recalcBlockCounts` 포팅(유체 칸 nonEmpty 이중 셈, tickingFluid 는 무작위 틱 유체만), 일지 재생이면 칸마다 바닐라 ±1(물 포함 tickingFluid), 개수 필드 대입이면 그 값. 바닐라 개수 3개는 들여온 섹션만이 아니라 **모든 서버 섹션에 늘 보관**한다(재검토 R17: 칸 쓰기마다 바닐라 ±1, 로드·생성 때 `recalcBlockCounts` — 물을 놓으면 tickingFluid 가 늘어 그 섹션이 무작위 틱 대상이 되는 차이는 양동이로 물을 놓는 일반 플레이에도 이미 있으므로 **별도 T 항목**으로 고친다). 그리고 **무작위 틱 대상 = `tickingBlock > 0 || tickingFluid > 0`**(바닐라 `isRandomlyTicking`)으로 T-053 구역 마스크를 고친다. 무작위 틱 안에서 칸을 고를 때 쓰는 기존 칸 기준 `tickingCount` 와는 분리한다(이름은 구현 때 정리, 위험 R8).
 5. Furnace 전용 캐시 무효화(아래 목록, 필드 전수 시험으로 지킴).
 6. **하지 않는 것**: 저장 표시, 빛, 하늘빛 원천, 하이트맵 재계산, POI, 블록 엔티티, 패킷, 이웃 갱신, 이벤트(2장 표).
 7. 거울 섹션 `placed` 를 들여온 객체로 갱신, `seq` 비교(3.2 규칙 1).
@@ -133,7 +133,10 @@ Furnace 하이트맵은 일부가 **지연 계산**이다(`MOTION_BLOCKING`·`OC
 **다른 스레드의 읽기는 기다리지 않는다**(R2). Paper 에서 FAWE 는 작업 스레드에서 섹션을 바로 읽는다(경쟁 읽기). 여기서 블로킹으로 주인에게 건너가면 Paper 에 없던 기다림이 생긴다 — FAWE 는 `sectionLock.writeLock()`·`synchronized(nmsChunk)` 를 쥔 채 읽으므로, 그 잠금을 원하는 region·전역 스레드나 **전역이 빌리고 있어 틱을 쉬는 region** 과 서로 기다리는 교착(T-035 꼴)이 나고, 청크마다 틱 경계를 기다리면 큰 편집이 분 단위가 된다.
 
 - **공개 스냅샷**: 거울이 살아 있거나 "읽기 요청" 표시가 있는 청크에 대해, 주인 region 이 틱 끝에 그 청크의 불변 스냅샷(섹션 팔레트 사본 — `blocksReadCopy`·`ChunkSnapshot` 의 COW 재사용, 하이트맵·블록 엔티티 목록 포함)과 판 번호를 volatile 로 내놓는다. 바뀌지 않은 섹션은 앞 스냅샷의 사본을 그대로 공유한다.
-- 다른 스레드의 읽기는 그 스냅샷을 **기다리지 않고** 읽는다. 처음이라 아직 없으면 **한도가 있는 대기**(기본 50ms, 그동안 플러그인 잠금을 기다리는 것이 아님) 뒤에도 없으면 읽기 요청 표시만 남기고 "로드돼 있지 않음"처럼 답한다(FAWE 는 `getChunkAtIfLoadedImmediately` 가 null 이면 비동기 로드 길로 다시 온다). 이 대기 한도·결과는 V5 에서 잰다.
+- 다른 스레드의 읽기는 그 스냅샷을 **기다리지 않고** 읽는다. 불변식: **비 region 스레드에 넘어가는 청크 shim 은 반드시 공개 스냅샷을 가진다**(재검토 R16 — 이미 쥔 shim 의 `getSections`·`getBlockState` 에는 "로드 안 됨"이라고 답할 길이 없으므로, 스냅샷이 없는 shim 을 내주지 않는다).
+  1. 기다리지 않는 조회(`getChunkNow`·`getChunkAtIfLoadedImmediately`·`getChunkAtIfCachedImmediately`)는 스냅샷이 없으면 **바로 null** 을 주고 읽기 요청 표시만 남긴다(다음 틱 끝에 스냅샷이 생긴다).
+  2. Furnace 의 `getChunkAtAsync` 는 Paper 처럼 주인 스레드에서 끝내고, 그 직전에 스냅샷을 공개한다. 그래서 FAWE 의 `thenApply(getHandle)` 도 주인 스레드에서 돈다. FAWE `getChunk()` 는 `levelChunk` 를 캐시하고 `ensureLoaded` 는 조회를 한 번만 한 뒤 future 를 `get()` 하므로 재시도 루프는 생기지 않는다(재검토 확인).
+  3. 기다리는 조회(`getChunk(..., true)`·`CraftChunk.getHandle`)는 바닐라 `ServerChunkCache.getChunk` 의 주 스레드 join 과 같은 간선이라 새 기다림이 아니다(지금처럼 로드 안 된 청크의 동기 로드는 이유를 담은 예외).
 - 자기가 쓴 것은 거울(일지·떨어진 섹션)에서 읽는다.
 
 | 부르는 스레드 | 읽기 | W1 메서드 쓰기·블록 엔티티·하이트맵·빛 쓰기 | W2 객체·필드 교체 |
@@ -224,3 +227,4 @@ N2b-0·1 은 N3a 와 파일이 겹치지 않아 병행할 수 있다. N2b-5 의 
 
 ## 9. 독립 검토 반영 기록 (PR #351, 1판 → 2판)
 보고서 `/mnt/project-files/furnace/reviews/n2b-design-pr351.md`. R1(VarHandle 장벽 게이트 밖·훑기가 정식 경로·AASTORE 제외) → 3.3. R2(기다리지 않는 공개 스냅샷, 단계 순서) → 3.6·6장. R3(칸 일지·구성 요소 단위) → 3.4·3.7. R4(상태 기계) → 3.2. R5(하늘빛 원천·다른 스레드 블록 엔티티 쓰기·`setLightCorrect`·패킷 시점) → 1장·2장·3.4·3.8. R6(바닐라 개수 특이점·원시 개수 훑기) → 2장·3.3·3.4. R7(저장 뒤 고정 하이트맵·`getRawData` W3) → 1장·3.5. R8(청크별 동기화 표시) → 3.4. R9(단일 진입점·필드 전수 시험) → 3.4·V3. R10(Bukkit 읽기 맞춤) → 3.3·3.7. R11 → D4. R12(모니터 금지) → 3.2. R13(Configuration 무시·V 빈틈) → 3.4·5장. R14(강한 참조) → 3.2. R15(Paper 가정) → 1장·V6.
+재검토(2판, 승인): R16(스냅샷 없는 shim 을 비 region 스레드에 내주지 않음, 한도 대기 문장 삭제) → 3.6. R17(바닐라 개수 3개를 모든 섹션에, 물 tickingFluid 차이는 별도 T 항목) → 3.4.
