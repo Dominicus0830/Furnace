@@ -27,6 +27,8 @@ class RandomTickMaskTest {
         for (int s = 0; s < bs.stateCount(); s += 7) {
             if (BlockBehaviors.of(s).isRandomlyTicking(s)) t.add(s);
             else p.add(s);
+            // 물 든 상태도 넣는다(바닐라는 칸 쓰기로 물도 구역을 무작위 틱 대상으로 만든다 — PR #358). 물 몫을 늘려 유체 수가 10개 쓰기 경로를 모두 지나게 한다
+            if (s % 2 == 0) { int w = bs.defaultState("minecraft:water"); p.add(w); p.add(w); }
         }
         isTicking = new boolean[bs.stateCount()];
         for (int s = 0; s < bs.stateCount(); s++) isTicking[s] = BlockBehaviors.of(s).isRandomlyTicking(s);
@@ -131,17 +133,14 @@ class RandomTickMaskTest {
         return col;
     }
 
-    /** 브루트: 칸을 모두 읽어 무작위 틱 받는 칸이 있는 구역. 컬럼을 고치지 않게 공유 구역도 읽기 전용 getBlock 으로. */
+    /**
+     * 브루트: 마스크 없이 모든 구역의 isRandomlyTicking(바닐라 판정 — 블록 수와 유체 수). 컬럼을 고치지 않게 공유 구역도 같은 구역 객체를 읽는다.
+     * 블록만 세는 옛 브루트는 물 든 칸이 구역을 대상으로 만드는 바닐라 판정과 달라 물을 넣을 수 없었다(PR #358 검토 R2).
+     */
     private static BitSet brute(ChunkColumn col) {
         BitSet out = new BitSet();
-        for (int s = 0; s < col.sectionCount(); s++) {
-            if (!col.sectionMaybeHas(s, v -> isTicking[v])) continue;   // 팔레트에 없으면 확실히 없다(ChunkSectionRandomTickingTest 가 따로 지킨다)
-            int y0 = col.minY() + s * 16;
-            scan:
-            for (int y = 0; y < 16; y++) for (int z = 0; z < 16; z++) for (int x = 0; x < 16; x++) {
-                if (isTicking[col.getBlock(x, y0 + y, z)]) { out.set(s); break scan; }
-            }
-        }
+        ChunkSection[] secs = col.sections();
+        for (int s = 0; s < secs.length; s++) if (secs[s].isRandomlyTicking()) out.set(s);
         return out;
     }
 
@@ -172,7 +171,7 @@ class RandomTickMaskTest {
 
     private static Differential<Input, List<BitSet>> diff() {
         return Differential.<Input, List<BitSet>>of("random-tick-section-mask", RandomTickMaskTest::input)
-                .seed(0x7053L).iterations(120).describe(Input::summary);
+                .seed(0x7054L).iterations(300).describe(Input::summary);
     }
 
     @Test

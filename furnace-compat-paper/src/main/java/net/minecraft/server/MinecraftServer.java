@@ -53,6 +53,22 @@ public abstract class MinecraftServer {
 
     public String getMotd() { return CraftServer.INSTANCE.getMotd(); }
 
+    /** 그 차원 키의 월드(없으면 null). */
+    public net.minecraft.server.level.ServerLevel getLevel(net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> key) {
+        for (ServerLevel l : getAllLevels()) if (l.dimension() == key) return l;
+        return null;
+    }
+
+    /** 오버월드. */
+    public net.minecraft.server.level.ServerLevel overworld() { return getLevel(net.minecraft.world.level.Level.OVERWORLD); }
+
+    /** 불러온 월드의 차원 키. */
+    public java.util.Set<net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>> levelKeys() {
+        java.util.Set<net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>> out = new java.util.LinkedHashSet<>();
+        for (ServerLevel l : getAllLevels()) out.add(l.dimension());
+        return out;
+    }
+
     /** 불러온 월드 전부의 shim. */
     public Iterable<ServerLevel> getAllLevels() {
         List<ServerLevel> out = new ArrayList<>();

@@ -27,15 +27,25 @@ public final class InternalsImpl implements Internals {
     private final Set<String> users = ConcurrentHashMap.newKeySet();
     private static final StackWalker WALKER = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
 
-    InternalsImpl(PluginHost host) { this.host = host; }
+    private final ChunkInternalsImpl chunks;
+
+    InternalsImpl(PluginHost host) {
+        this.host = host;
+        this.chunks = new ChunkInternalsImpl(host);
+    }
 
     /** 내부 접근을 쓴 플러그인 이름들(진단용). */
     public Set<String> users() { return Set.copyOf(users); }
 
-    /** 부른 쪽 스택에서 첫 플러그인 클래스로더를 찾아 처음이면 로그. */
+    /**
+     * 부른 쪽이 플러그인이면 처음 한 번 로그. 서버·공개 API 프레임을 건너뛴 첫 프레임이 플러그인 클래스로더의 클래스일 때만 남긴다 — 호환 계층이
+     * NMS shim 을 위해 다리를 꺼낼 때(첫 프레임이 호환 계층) 그 순간 스택 아래에 있던 플러그인을 "내부 접근을 쓴다"로 잘못 남기지 않게.
+     */
     void noteCaller() {
-        ClassLoader cl = WALKER.walk(s -> s.map(f -> f.getDeclaringClass().getClassLoader())
-                .filter(l -> l instanceof PluginManagerImpl.PluginClassLoader).findFirst().orElse(null));
+        ClassLoader cl = WALKER.walk(s -> s.filter(f -> !f.getClassName().startsWith("org.domi.furnace.server.")
+                        && !f.getClassName().startsWith("org.domi.furnace.api."))
+                .findFirst().map(f -> f.getDeclaringClass().getClassLoader())
+                .filter(l -> l instanceof PluginManagerImpl.PluginClassLoader).orElse(null));
         if (cl == null) return;
         String name = host.pluginsImpl().pluginNameOf(cl);
         if (name != null && users.add(name)) {
@@ -184,6 +194,13 @@ public final class InternalsImpl implements Internals {
         java.util.Objects.requireNonNull(action, "action");
         var core = host.core();
         return RegionFuture.wrap(core.scheduler().global().submit(() -> action.apply(cast(core, type, "서버"))));
+    }
+
+
+    @Override
+    public org.domi.furnace.api.internal.ChunkInternals chunks() {
+        noteCaller();   // 플러그인이 다리를 직접 꺼내 쓰면 남긴다(호환 계층이 꺼낼 때는 남기지 않는다)
+        return chunks;
     }
 
     @Override

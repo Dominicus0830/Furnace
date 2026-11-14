@@ -224,3 +224,39 @@
 | T-111 | P0 | OPT(운영) | 리눅스 `start.sh`·`jvm.args.example`·운영 문서에 `-XX:ThreadPriorityPolicy=1`. 지금 코드의 `MIN_PRIORITY`(생성 풀·레인·gen-wait)가 리눅스에서 처음 효과를 낸다. 루트가 아니어도 낮추기는 된다(JVM 경고 한 줄 — 문서에 설명). **윈도에서는 효과 없음(윈도 JVM 은 원래 우선순위를 따름)을 문서에 명시**, `start.bat` 은 바꾸지 않는다 | 2차 B2 5장(M-02) | 32명 새 땅 가장 느린 TPS 최저 15.5~17 → 18.5(루트 아님), 오버+네더 동시 12~13 → 17. 받은 청크/초 −3~7%. 계산 불변이라 결과 동일 증명 불필요 | S | Sonnet medium | — | start.sh, jvm.args.example, docs |
 | T-110 | P1(측정 뒤) | FIX+/OPT | 생성 요청 대기열을 거리 우선으로: `furnace-gen-wait` FIFO → 요청한 플레이어들과의 지금 거리 우선 큐(나이 가산), 시작 안 한 요청이 어느 시야(+2)에도 없으면 뒤로·취소. 미리 생성(P-O04-15)도 같은 큐 | 2차 B2 5.2, R0 F-R0-01 | 32명 새 땅 `gen.queue` 평균 4.4~6초 vs 생성 60ms. **B1 의 T-011 이웃 기다림 판정과 같이 A/B**(시야 채움·걷기 끝 위치·TPS) 뒤 적용. 블록 결과는 생성 순서 의존(바닐라와 같은 기준) | M | Opus high | B1 F-R0-01 판정, T-111 | AnvilWorldSource, FurnaceMain, Region |
 | (P-O04-09) | P1(T-111 뒤) | STR | 생성 풀 차원 공유 + `worldgen-threads` 키(기본 코어−1) | O04-09, 2차 B2 3장 | 두 차원 동시 새 땅 B 기본 TPS 12 안팎. 공정성(차원별 대기 상한) A/B | M | Opus high | T-111 | ChunkPipeline, FurnaceMain |
+
+## 8. 2차 CSP — B3 엔티티·몹 확정분 (2026-11-14)
+
+보고서: 공유 폴더 `furnace/reviews/opt-review-r2/B3-entities-mobs.md`(기준 `a242b1af`). 2차 전체 판정 절은 계획 스레드가 따로 붙인다 — 여기에는 도미니코가 확정한 B3-1 과 그에 딸린 TASK 만 적는다.
+
+**B3-1 확정(2026-11-14, 도미니코 "고쳐")**: 활성 범위(D11) 다음 Spigot·Paper 엔티티 손잡이는 **Paper 1.21.1 기본값과 같게** 둔다(끄는·바꾸는 설정 키는 둠). 기본값은 Paper 원문(`33ff3dff` `Paper-config-files.patch`)으로 확인했다.
+
+| 손잡이 | 바닐라 | Spigot 기본 | Paper·Furnace 기본 | 바닐라와 |
+|---|---|---|---|---|
+| 아이템 합치기 반경 | 0.5(옆으로만) | 2.5 | 0.5 | 같음 |
+| 경험치 구슬 합치기 반경 | 없음 | 3.0 | -1(끔) | 같음 |
+| 몹끼리 밀기 상한 | 없음 | 8(추정) | 8 | **다름**(9마리 넘게 겹치면 미는 대상이 줄어듦) |
+| 추적 거리 | 종류별 `clientTrackingRange`×16(플레이어 512, 몬스터 128, 동물·주민 160, 아이템 96) | 48/48/48/32 | 플레이어 128, 몬스터 96, 동물·주민·물 96, 기타 96, 디스플레이 128, 그 밖 64 | **다름**(보이는 거리만, 월드 상태는 같음) |
+
+| ID | 우선 | 관점 | 내용 | 출처 | 근거·증명 | 크기 | 모델 | 의존 | 파일 |
+|---|---|---|---|---|---|---|---|---|---|
+| T-122 | P1 | ADD | Spigot·Paper 엔티티 손잡이 4종을 위 표의 Paper 기본값으로: `merge-radius.item`·`merge-radius.exp`(spigot.yml 이름), `collisions.max-entity-collisions`(paper-world-defaults 이름), `entity-tracking-range.*`(Paper 의 물·주민=동물 범위, 드래곤 예외 포함). D11 과 같은 설정 클래스·`PaperConfigImport` 규칙·`config.preset=vanilla` 에서 바닐라 값. 바닐라와 다른 두 개(밀기 상한·추적 거리)는 PR 본문에 예외로 명시 | P-O05-17, 2차 B3-1 | 시험 JVM 기본은 바닐라 값(D11 의 `EntityActivationOffExtension` 방식)이라 기존 금 파일 그대로. 새 장면(몹 20마리 한 칸 밀기, 추적 거리 경계)으로 켬/끔 차이 금 파일. 합치기 둘은 기본값이 바닐라와 같음을 시험으로 고정. 측정: 밀기 1.6%·추적 3.8~4.1%(봇 16명 땅), 몹 농장 장면에서 다시 잼 | M | Sonnet high | D11(#326) | entity/, config/EntityActivationSettings 옆, PaperConfigImport |
+
+## 9. 60명 동시 새 땅 탐험 (2026-11-14)
+
+보고서: 공유 폴더 `furnace/reviews/w60-explore/W60-explore.md`(기준 `8af93120`, 시제품 diff `repro/`), 독립 검토 `W60-review.md`(같은 시제품 25판 재현, 9장 이견 해소). 클라우드 4코어·루트 아닌 사용자·위치 패킷 봇. 장면 L = 흩어진 60명(생성 처리량), 장면 R = 스폰에서 퍼지는 60명(region 하나, y200). 결정 W-1~W-4 는 `docs/user-todo/entries/2026-11-14-w60-explore.md`. **W-2·W-3·W-4 확정(2026-11-14, 도미니코 "추천대로"): W-2 기본 꺼짐, W-3 만든다, W-4 굶김 없음. W-1 ① 바로 다음 틱·따라잡기 없음(설명 뒤 확정).**
+
+**T-110(7장) 은 T-170 으로 대체한다.** 반론 X 의 "플레이어당 상한 낮추기"는 FIFO 위에 혼자 넣으면 60명에서 역효과(생성 27~33 → 12~23개/초)라 T-170 ③ 으로 흡수했다.
+
+| ID | 우선 | 관점 | 내용 | 출처 | 근거·증명 | 크기 | 모델 | 의존 | 파일 |
+|---|---|---|---|---|---|---|---|---|---|
+| T-170 | P0 | FIX+/OPT | 생성 요청 대기열 재설계: ① 생성 요청은 그 차원 플레이어들과의 지금 체비셰프 거리 순(주기적으로 다시 잼), 같으면 넣은 순 ② 시야(+여유) 밖이 된 요청은 **시작 전이면 취소하고 플레이어 자리(`chunkPrefetches`) 반납**(원형·장식 중간 상태는 안 버림) ③ 작은 **전역 동시 생성 예산**(생성 스레드 × k, 4코어 8~24)으로 가장 가까운 것만 시작, 플레이어당 상한은 대기 목록에 올리는 수로만. 플레이어 없는 차원의 요청은 FIFO. 미리 생성(T-175)은 맨 뒤 | W60 2-1장, 검토 2장 | 장면 L: 지금 24~33 → 취소·반납 + 작은 상한 31~35개/초(3판), 원형/완성 5.5~6.6 → 3.6~4.3. 시제품 "취소 없음"(45~56)은 지나친 요청이 자리를 막은 사고 값이라 근거 아님(60명 중 약 30명 발밑 0). **통과 조건: 시작 못 한 채 시야 밖에 남은 요청(`batch.gqstale`) 0, 걷는 동안 발밑(링 0~2) 평균 0.05 미만인 사람 0명**, 32명·60명 lines + 1명 첫 시야(반론 X: 고정 상한 4 면 6 → 7.8초 — 나빠지지 않을 것). 측정 칸: 반납 시점 {즉시, 5초} × 예산 {플레이어당 16·4, 전역 8·16·24}. 블록 결과는 생성 순서 의존(1차·B2 기준과 같음) | M | Opus high | W-4 ① 확정 | AnvilWorldSource, FurnaceMain, Region, World |
+| T-170a | P1 | OPT(지연) | 빛 미리 계산(`Region.loadChunk` 의 `thenApplyAsync(…, world.genPool())`)을 생성 대기 풀 밖(작은 전용 풀 또는 IO 해독 풀)으로 | W60 2장 `hop.genpool`, 검토 6장 2번 | 생성이 끝난 청크가 빛 계산 전에 14~20초 다시 줄 서는 것과, 디스크에서 읽은 청크가 남의 새 땅 생성 뒤에 서는 것을 없앤다. 처리량은 그대로(검토: 빛만 먼저 28개/초). 빛 결과는 스레드와 무관 — 증명 불필요. T-170 과 독립 | S | Sonnet medium | — | Region |
+| T-171 | P0 | OPT(스케줄) | `Regionizer.afterTick` 재스케줄: 틱이 간격을 넘기면 `now + tick`(한 칸 쉼) 대신 `now`(바로 다음 틱), 따라잡기 없음(Folia 와 같음) — W-1 결정대로 | W60 3장, 검토 3장 | 장면 R TPS 평균 9.3~11.6 → 12.4~15.0, 땅 높이(y120) 7.78 → 11.09, 미리 만든 땅 13.6 → 17.2. 장면 L 손해 없음. 게임 계산 불변. 확인 장면: 워커 4개에 무거운 region 5개(60~80ms)+가벼운 region 1개 — 가벼운 region TPS ≥ 19.5·틱 간격 p99, `/tick sprint` 끝·병합 직후 분기 그대로 | S | Sonnet high | W-1 ① 확정 | Regionizer, 지표 문서 |
+| T-172 | P2 | OPT(운영) | 생성 조절기: 가장 느린 region 1초 TPS < 19 면 동시 생성 수를 줄이고 회복하면 늘림. 설정 키, **기본 꺼짐(W-2 확정)** | W60 3장 R5thr | TPS 최저 4~6 → 9.8, 생성 −35%(1판). 8코어·반복 필요 | S | Sonnet medium | T-171 | GenPriorityExecutor(또는 T-170 큐) |
+| T-173 | P1 | 측정 도구 | `w60.js`(lines/radial, 사람별 링 0~2 분포·이동 거리·되돌림, **땅 높이를 따라 나는 모드**) + `run1.sh`·`sum.py`(생성/초·원형/완성·`gen.queue`·`hop.genpool`·`batch.gqstale`)를 `tools/bot-test/chunkrate/` 로. B1 T-100 과 합침 | W60 8장, 검토 10장 | 다인원 새 땅 PR 의 공통 장면. `gen.queue` 는 시작한 요청만 잰다(생존자 편향)는 주석 포함. **구현됨(2026-11-14): `tools/bot-test/chunkrate/w60*.{js,py}` + `W60-README.md`, 클라우드에서 3·8명 시험** | S | Sonnet medium | — | tools/bot-test |
+| T-175 | P1 | ADD(운영) | 미리 생성 명령(`/furnace pregen <반경 또는 월드경계>`, T-170 큐 맨 뒤, 진행률·중지·재개, 저장 역압 존중) + 운영 문서 "다인원 탐험 서버: 월드 경계 + 미리 생성" — P-O04-15(D9) 와 같은 것 | W60 3장 R4disk | 같은 길을 미리 만든 땅에서 CPU 278 → 136%, TPS 17.2(T-171 과 함께). 같은 생성기라 결과 동일 | M | Sonnet high | T-170(W-3 확정) | command/, world/ |
+| T-176 | P2 | ADD(호환) | Spigot `mob-spawn-range`(기본 8 = 바닐라 128블록과 같음)를 설정 키로. 낮추면 Spigot 과 같고 바닐라와 다름(문서 명시) | W60 6장 | 땅 높이 장면에서 스폰 몫부터 잰 뒤 우선순위 확정(y200 장면은 몹이 덜 붙음) | S | Sonnet medium | T-173 땅 높이 장면 | config/, NaturalSpawner |
+| T-177 | P2(측정 먼저) | OPT | `Region.collectTickingChunks` 의 로드 청크 × 플레이어 훑기(장면 R 약 8,000청크 × 60명)를 플레이어 쪽 17×17 칸 모으기로, 청크 순서는 지금과 같게 | 검토 6장 3번 | 같은 집합·같은 순서면 결과 동일. 몫은 아직 안 잼 — dontinline 프로파일 먼저 | S | Sonnet high | — | Region |
+
+메모: 장면 R 의 region 스레드 구성비(자연 스폰 52%·`Regionizer.owns/ownerOf` 자기 시간 20%)는 y200 장면·인라인 미확인 값이라 T-019·자연 스폰 TASK 의 근거로 쓰지 않는다 — 땅 높이 장면과 `-XX:CompileCommand=dontinline` 판으로 다시 잰다.

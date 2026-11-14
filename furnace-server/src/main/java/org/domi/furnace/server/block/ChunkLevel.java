@@ -415,6 +415,16 @@ public abstract class ChunkLevel implements BlockLevel {
         }
     }
 
+    /**
+     * 바닐라 LevelChunk.setBlockState 만(이웃·모양 갱신, 클라이언트 알림, POI 없음) — 호환 계층 NMS shim 용. 높이 밖·로드돼 있지 않음·
+     * 바뀌지 않음·onRemove 가 갈아 치움이면 -1, 아니면 이전 상태.
+     */
+    public int setBlockStateInChunkOnly(Pos pos, int state, boolean moved) {
+        if (isOutsideBuildHeight(pos.y())) return -1;
+        ChunkColumn col = chunkAt(pos);
+        return col == null ? -1 : setBlockStateInChunk(col, pos, state, moved);
+    }
+
     /** LevelChunk.setBlockState — 바뀌지 않았거나 onRemove 가 블록을 갈아 치웠으면 -1, 아니면 이전 상태. */
     private int setBlockStateInChunk(ChunkColumn col, Pos pos, int state, boolean moved) {
         int lx = pos.x() & 15, lz = pos.z() & 15;
