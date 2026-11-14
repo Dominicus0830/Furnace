@@ -17,4 +17,12 @@ public interface WorldInfo {
     int getMinHeight();
 
     int getMaxHeight();
+
+    /**
+     * Paper 1.21.1(Expose-vanilla-BiomeProvider-from-WorldInfo): 이 월드의 바닐라 바이옴 공급자. Furnace 바이옴 소스를 Bukkit BiomeProvider 로
+     * 감싸는 것이 아직 없어 UnsupportedFeature.
+     */
+    default BiomeProvider vanillaBiomeProvider() {
+        throw new org.domi.furnace.compat.paper.UnsupportedFeature("WorldInfo#vanillaBiomeProvider", "Furnace 바이옴 소스를 BiomeProvider 로 감싸는 길이 아직 없다");
+    }
 }

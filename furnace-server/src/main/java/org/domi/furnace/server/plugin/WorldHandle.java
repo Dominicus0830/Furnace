@@ -406,7 +406,10 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         // 그 청크의 region 스레드에서 이미 올라와 있으면 곧바로(Paper: 주 스레드에서 올라와 있으면 완료된 Future)
         if (((ThreadOwner) world.chunkScheduler(chunkX, chunkZ)).isOwnerThread()) {
             Region here = world.regionizer().ownerOf(chunkX, chunkZ);
-            if (here != null && here.chunkLoaded(cp)) return CompletableFuture.completedFuture(true);
+            if (here != null && here.chunkLoaded(cp)) {
+                world.addTicket(chunkX, chunkZ, 0, PLUGIN_TICKET_TICKS);
+                return CompletableFuture.completedFuture(true);
+            }
         }
         if (generate) return loadOnOwner(cp);
         // 생성하지 않음: 올라와 있으면 그대로, 아니면 그 지역 파일 레인에서 디스크에 있는지 본다(앞선 저장 뒤에 줄 선다)
@@ -431,9 +434,30 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         return true;
     }
 
-    /** 주인 region 에서 올리고, 그 region 스레드에서 true 로 완료한다(Region.loadChunk 의 완료는 설치한 주인 region 에서 일어난다). */
+    /**
+     * Paper Add-Plugin-Tickets-to-API-Chunk-Methods: getChunkAtAsync 로 얻은 청크는 PLUGIN 티켓(레벨 33 — 올려만 두고 틱은 안 함)을
+     * min(20, chunk-gc 주기) 틱 붙잡는다. 청크 퇴출 유예(chunk-eviction-grace-ticks)가 20 보다 짧아도 그만큼은 남게 같은 시간 티켓을 건다.
+     */
+    private static final long PLUGIN_TICKET_TICKS = 20;
+
+    /**
+     * 주인 region 에서 올리고 그 region 스레드에서 완료한다. 사슬을 주인 작업 안에서 잇는다 — 밖에서 thenCompose 로 이으면
+     * 주인 작업이 붙이기보다 먼저 끝났을 때 돌려준 Future 가 호출 스레드에서 끝난다(CompletableFuture 규칙).
+     */
     private CompletableFuture<Boolean> loadOnOwner(ChunkPos cp) {
-        return world.submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(f -> f).thenApply(col -> col != null);
+        CompletableFuture<Boolean> out = new CompletableFuture<>();
+        world.submitAtChunk(cp, r -> r.loadChunk(cp).whenComplete((col, ex) -> {
+            if (ex != null) {
+                out.completeExceptionally(ex);
+                return;
+            }
+            if (col != null) world.addTicket(cp.x(), cp.z(), 0, PLUGIN_TICKET_TICKS);
+            out.complete(col != null);
+        })).exceptionally(ex -> {   // 내린 월드·주인 작업이 던짐
+            out.completeExceptionally(ex);
+            return null;
+        });
+        return out;
     }
 
     // ------------------------------------------------------------------ 엔티티

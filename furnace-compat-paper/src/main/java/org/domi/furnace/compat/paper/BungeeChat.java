@@ -48,16 +48,25 @@ public final class BungeeChat {
     public static Player.Spigot playerSpigot(CraftPlayer p) {
         return new Player.Spigot() {
             @Override
-            public java.net.InetSocketAddress getRawAddress() { return p.getAddress(); }
+            /** Paper: 소켓 상대 주소 — BungeeCord·Velocity 포워딩이면 프록시 주소(getAddress 는 포워딩된 플레이어 주소). */
+            public java.net.InetSocketAddress getRawAddress() { return p.furnaceHandle().rawAddress(); }
 
+            /** Paper: 접속 중이고 죽어 있을 때만 되살린다 — 살아 있거나 오프라인이면 아무 일도 없다. 되살리기 API 가 아직 없어 그때만 UnsupportedFeature. */
             @Override
             public void respawn() {
+                if (!p.isOnline() || p.getHealth() > 0) return;
                 throw new UnsupportedFeature("Player.Spigot#respawn", "플러그인이 죽은 플레이어를 되살리는 API 가 아직 없다");
             }
 
-            /** Furnace 에는 플레이어 숨기기가 없어 늘 빈 집합(Paper 도 숨긴 사람이 없으면 빈 집합). */
+            /** Paper: 온라인 플레이어 중 이 플레이어가 못 보는 사람(숨기기 규칙 — Furnace EntityViews.canSee), 고칠 수 없는 집합. */
             @Override
-            public Set<Player> getHiddenPlayers() { return Set.of(); }
+            public Set<Player> getHiddenPlayers() {
+                Set<Player> hidden = new java.util.HashSet<>();
+                for (Player other : org.bukkit.Bukkit.getOnlinePlayers()) {
+                    if (other instanceof CraftPlayer cp && !p.furnaceHandle().canSee(cp.furnaceHandle())) hidden.add(other);
+                }
+                return java.util.Collections.unmodifiableSet(hidden);
+            }
 
             @Override
             public void sendMessage(BaseComponent component) { sendMessage(new BaseComponent[] {component}); }

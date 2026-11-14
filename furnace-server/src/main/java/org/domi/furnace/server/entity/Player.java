@@ -1940,6 +1940,9 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         return a != null ? a : channel.remoteAddress();
     }
 
+    /** 소켓 상대 주소(포워딩·PROXY 프로토콜이어도 프록시 쪽, Paper Connection.getRawAddress). 연결 없는 시험용 Player 면 null. */
+    public java.net.SocketAddress rawAddress() { return channel != null ? channel.remoteAddress() : null; }
+
     /** 바닐라 ServerPlayer.getIpAddress — 포트 없는 IP 문자열. */
     public String ipAddress() {
         java.net.SocketAddress a = remoteAddress();

@@ -142,10 +142,55 @@ class BukkitSpigotChatTest {
         assertDoesNotThrow(() -> s.sendMessage(new TextComponent("늦음")));
     }
 
+    /** Paper: getRawAddress 는 소켓 상대(포워딩이면 프록시), getAddress 는 포워딩된 플레이어 주소. */
+    @Test
+    void rawAddressIsSocketPeerUnderForwarding() {
+        var handle = ((org.domi.furnace.server.plugin.PlayerHandle) tp.player()).handle();
+        var raw = player.spigot().getRawAddress();
+        assertNotNull(raw);
+        assertEquals(raw, player.getAddress(), "포워딩이 없으면 같다");
+        var forwarded = new java.net.InetSocketAddress("203.0.113.7", 40000);
+        handle.remoteAddress(forwarded);
+        try {
+            assertEquals(forwarded, player.getAddress());
+            assertEquals(raw, player.spigot().getRawAddress(), "raw 는 프록시(소켓) 쪽 그대로");
+        } finally {
+            handle.remoteAddress(null);
+        }
+    }
+
+    /** Paper: 온라인 플레이어 중 못 보는 사람, 고칠 수 없는 집합. */
+    @Test
+    void hiddenPlayersFollowEntityViews() {
+        TestPlayer other = server.join("Hidden");
+        server.tick(3);
+        var owner = new org.domi.furnace.api.plugin.FurnacePlugin() {};
+        try {
+            assertTrue(player.spigot().getHiddenPlayers().isEmpty());
+            tp.player().hideEntity(owner, other.player());
+            var hidden = player.spigot().getHiddenPlayers();
+            assertEquals(java.util.Set.of(Compat.player(other.player())), hidden);
+            assertThrows(UnsupportedOperationException.class, () -> hidden.clear());
+            tp.player().showEntity(owner, other.player());
+            assertTrue(player.spigot().getHiddenPlayers().isEmpty());
+        } finally {
+            other.close();
+            server.tick(3);
+        }
+    }
+
+    /** Paper: 살아 있거나 오프라인이면 respawn 은 아무 일도 하지 않는다. */
+    @Test
+    void respawnIsNoOpWhenAlive() {
+        assertTrue(player.getHealth() > 0);
+        assertDoesNotThrow(() -> player.spigot().respawn());
+    }
+
     @Test
     void biomeProviderIsNullWithoutPluginProvider() {
         assertNull(player.getWorld().getBiomeProvider());
         org.bukkit.generator.WorldInfo info = player.getWorld();
         assertEquals(player.getWorld().getName(), info.getName());
+        assertThrows(UnsupportedFeature.class, info::vanillaBiomeProvider);
     }
 }

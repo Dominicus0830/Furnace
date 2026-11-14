@@ -11,6 +11,7 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.domi.furnace.api.packet.PacketTypes;
+import org.domi.furnace.api.world.BlockPos;
 import org.domi.furnace.test.FurnaceTestServer;
 import org.domi.furnace.test.TestPlayer;
 import org.junit.jupiter.api.*;
@@ -72,6 +73,11 @@ class BukkitChunkAsyncTest {
         assertNull(await(world.getChunkAtAsync(cx, cz, false)));
         assertFalse(world.isChunkLoaded(cx, cz), "만들지 않는다");
         assertNull(await(world.getChunkAtAsyncUrgently(new org.bukkit.Location(world, cx * 16 + 3, 0, cz * 16 + 3), false)));
+        // 없음(false)도 그 청크 region 스레드에서 완료된다
+        var fw = server.overworld();
+        BlockPos at = new BlockPos(cx * 16, 0, cz * 16);
+        boolean onOwner = await(fw.loadChunkAsync(cx, cz, false).thenApply(loaded -> !loaded && Owned.owns(fw.scheduler(at))));
+        assertTrue(onOwner);
     }
 
     @Test
@@ -81,8 +87,24 @@ class BukkitChunkAsyncTest {
         assertEquals(500, await(got).getX());
         // 콜백이 던져도 Paper 처럼 경고만 남고 퍼지지 않는다
         CompletableFuture<Boolean> ran = new CompletableFuture<>();
-        assertDoesNotThrow(() -> world.getChunkAtAsync(501, 500, true, chunk -> { ran.complete(true); throw new IllegalStateException("콜백 실패"); }));
-        assertTrue(await(ran));
+        CompletableFuture<java.util.logging.LogRecord> warned = new CompletableFuture<>();
+        var handler = new java.util.logging.Handler() {
+            @Override public void publish(java.util.logging.LogRecord r) {
+                if ("Exception in chunk load callback".equals(r.getMessage())) warned.complete(r);
+            }
+            @Override public void flush() {}
+            @Override public void close() {}
+        };
+        Bukkit.getLogger().addHandler(handler);
+        try {
+            assertDoesNotThrow(() -> world.getChunkAtAsync(501, 500, true, chunk -> { ran.complete(true); throw new IllegalStateException("콜백 실패"); }));
+            assertTrue(await(ran));
+            var r = await(warned);
+            assertEquals(java.util.logging.Level.WARNING, r.getLevel());
+            assertEquals("콜백 실패", r.getThrown().getCause() != null ? r.getThrown().getCause().getMessage() : r.getThrown().getMessage());
+        } finally {
+            Bukkit.getLogger().removeHandler(handler);
+        }
     }
 
     /** Paper CraftChunk.getBlock: 청크 안 좌표 검사 문구, y 는 최고 높이까지 받는다. */

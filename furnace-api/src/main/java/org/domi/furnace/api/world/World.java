@@ -103,7 +103,10 @@ public interface World {
     /**
      * 그 청크를 올린다(Paper World#getChunkAtAsync). 이미 올라와 있으면 그대로. generate 가 거짓이면 디스크에 저장된 청크만 올리고,
      * 없으면 false 로 끝난다(새로 만들지 않는다). 결과는 그 청크를 가진 region 스레드에서 완료된다 — 이어 붙인 작업이 거기서 곧바로 청크를 만질 수 있다.
-     * 붙잡는 티켓은 걸지 않는다: 플레이어·티켓이 없는 청크는 퇴출 유예가 지나면 보통 규칙대로 내려간다. 내린 월드면 RejectedExecutionException 으로 끝난다. 아무 스레드.
+     * 단 이미 끝난 Future 에 붙인 작업은 붙인 스레드에서 돈다(CompletableFuture 규칙, Paper 도 같다): 비동기 스레드에서 붙일 때 region 스레드에서
+     * 돌게 하려면 {@code thenAcceptAsync(..., scheduler(pos)::execute)} 처럼 그 칸의 스케줄러를 실행기로 준다.
+     * 올린 청크는 Paper 플러그인 티켓처럼 20틱 붙잡고(레벨 33 — 올려만 둔다), 그 뒤 플레이어·티켓이 없으면 퇴출 유예가 지나 보통 규칙대로 내려간다.
+     * 내린 월드면 RejectedExecutionException 으로 끝난다. 아무 스레드.
      */
     default CompletableFuture<Boolean> loadChunkAsync(int chunkX, int chunkZ, boolean generate) {
         return CompletableFuture.failedFuture(new UnsupportedOperationException("loadChunkAsync"));
