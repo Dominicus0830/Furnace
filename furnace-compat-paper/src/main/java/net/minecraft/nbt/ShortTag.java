@@ -3,6 +3,13 @@ package net.minecraft.nbt;
 /** short 태그. */
 public final class ShortTag extends NumericTag {
 
+    /** 바닐라 {@code ShortTag.TYPE}: 이 클래스 안의 익명 종류(이름·표시 이름·isValue 는 바닐라 1.21.1 jar 와 대조). */
+    public static final TagType<ShortTag> TYPE = new TagType<>() {
+        @Override public String getName() { return "SHORT"; }
+        @Override public String getPrettyName() { return "TAG_Short"; }
+        @Override public boolean isValue() { return true; }
+    };
+
     private final short data;
 
     ShortTag(short data) { this.data = data; }

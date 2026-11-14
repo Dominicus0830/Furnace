@@ -31,7 +31,8 @@ import org.domi.furnace.api.world.SoundCategory;
  * <p>손으로 쓴 shim({@link NmsPacket})은 이미 shim → Furnace 가 있어 반대(Furnace → shim)만 둔다. 스키마로 생성한 shim 중 타입 레코드 종류
  * (엔티티 생성·머리 회전·애니메이션·순간 이동·블록 바꾸기·소리)는 두 방향을 모두 여기서 한다 — 바닐라 와이어 값(1/256 바퀴 각도, 1/8000 속도,
  * 1/8 좌표)을 shim 필드에 그대로 담고, Furnace 쪽은 서버 코덱이 읽는 것과 같은 값으로 바꾼다.
- * 메타데이터·플레이어 정보·플러그인 메시지는 아직 shim 이 없다(2b-4) — {@link #supports} 가 false.
+ * 메타데이터(set_entity_data)는 {@link EntityDataBridge} 가 값 종류별로 두 방향을 맡는다(2026-11-14). 플레이어 정보·플러그인 메시지는 아직(2b-4)
+ * — {@link #supports} 가 false.
  */
 public final class TypedPacketBridge {
 
@@ -44,7 +45,8 @@ public final class TypedPacketBridge {
             PacketTypes.Clientbound.REMOVE_ENTITIES, PacketTypes.Clientbound.SET_ENTITY_MOTION, PacketTypes.Clientbound.SET_TIME,
             PacketTypes.Clientbound.PLAYER_INFO_REMOVE, PacketTypes.Clientbound.DISCONNECT,
             PacketTypes.Clientbound.ADD_ENTITY, PacketTypes.Clientbound.ROTATE_HEAD, PacketTypes.Clientbound.ANIMATE,
-            PacketTypes.Clientbound.TELEPORT_ENTITY, PacketTypes.Clientbound.BLOCK_UPDATE, PacketTypes.Clientbound.SOUND);
+            PacketTypes.Clientbound.TELEPORT_ENTITY, PacketTypes.Clientbound.BLOCK_UPDATE, PacketTypes.Clientbound.SOUND,
+            PacketTypes.Clientbound.SET_ENTITY_DATA);
 
     public static boolean supports(PacketType<?> t) { return SUPPORTED.contains(t); }
 
@@ -52,7 +54,7 @@ public final class TypedPacketBridge {
     static boolean handlesSchema(String schemaKey) {
         return switch (schemaKey) {
             case "game/clientbound/add_entity", "game/clientbound/rotate_head", "game/clientbound/animate", "game/clientbound/teleport_entity",
-                    "game/clientbound/block_update", "game/clientbound/sound" -> true;
+                    "game/clientbound/block_update", "game/clientbound/sound", "game/clientbound/set_entity_data" -> true;
             default -> false;
         };
     }
@@ -92,6 +94,7 @@ public final class TypedPacketBridge {
                     net.minecraft.core.BlockPos.fromFurnace(t.pos()), SchemaPacketReverse.blockState(t.block(), "block_update.block"));
             case ClientboundSoundPacket t -> make(SOUND, sound(t.sound(), t.fixedRange()), net.minecraft.sounds.SoundSource.valueOf(t.category().name()),
                     (int) (t.x() * 8.0), (int) (t.y() * 8.0), (int) (t.z() * 8.0), t.volume(), t.pitch(), t.seed());
+            case org.domi.furnace.api.packet.clientbound.ClientboundSetEntityDataPacket t -> EntityDataBridge.fromFurnace(t);
             default -> throw new UnsupportedNmsCall("fromFurnace(" + p.type() + ")", "이 타입 레코드 종류는 아직 shim 으로 되돌리지 못한다(2b-4)");
         };
     }
@@ -176,6 +179,7 @@ public final class TypedPacketBridge {
                     org.domi.furnace.api.Furnace.server().blockTypes().byStateId(((net.minecraft.world.level.block.state.BlockState) need(v[1], at + ".blockState")).furnaceStateId())
                             .orElseThrow(() -> new IllegalArgumentException(at + ": 모르는 블록 상태")));
             case "game/clientbound/sound" -> soundToFurnace(v, at);
+            case "game/clientbound/set_entity_data" -> EntityDataBridge.toFurnace(v, at);
             default -> throw new IllegalStateException("타입 레코드 다리가 없는 스키마 키: " + at);
         };
     }

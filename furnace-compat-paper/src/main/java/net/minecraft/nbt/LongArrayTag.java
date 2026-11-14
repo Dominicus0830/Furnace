@@ -6,6 +6,12 @@ import java.util.List;
 /** long 배열 태그(가변). 원소는 LongTag 로 보인다. */
 public final class LongArrayTag extends CollectionTag<LongTag> {
 
+    /** 바닐라 {@code LongArrayTag.TYPE}: 이 클래스 안의 익명 종류(이름·표시 이름·isValue 는 바닐라 1.21.1 jar 와 대조). */
+    public static final TagType<LongArrayTag> TYPE = new TagType<>() {
+        @Override public String getName() { return "LONG[]"; }
+        @Override public String getPrettyName() { return "TAG_Long_Array"; }
+    };
+
     private long[] data;
 
     public LongArrayTag(long[] data) { this.data = data; }

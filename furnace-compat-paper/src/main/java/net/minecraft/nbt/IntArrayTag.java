@@ -6,6 +6,12 @@ import java.util.List;
 /** int 배열 태그(가변). 원소는 IntTag 로 보인다. */
 public final class IntArrayTag extends CollectionTag<IntTag> {
 
+    /** 바닐라 {@code IntArrayTag.TYPE}: 이 클래스 안의 익명 종류(이름·표시 이름·isValue 는 바닐라 1.21.1 jar 와 대조). */
+    public static final TagType<IntArrayTag> TYPE = new TagType<>() {
+        @Override public String getName() { return "INT[]"; }
+        @Override public String getPrettyName() { return "TAG_Int_Array"; }
+    };
+
     private int[] data;
 
     public IntArrayTag(int[] data) { this.data = data; }
