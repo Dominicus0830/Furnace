@@ -17,7 +17,7 @@ class ConfigLoaderTest {
         assertEquals(256, c.compressionThreshold());
         assertEquals(5, c.viewDistance());
         assertEquals(8, c.entityViewDistance());
-        assertEquals(4, c.regionSectionShift());   // 기본: 구역 16×16 청크
+        assertEquals(3, c.regionSectionShift());   // 기본: 구역 8×8 청크(T-101, 4 였다)
         assertTrue(c.regionThreads() >= 1);
         assertEquals("world", c.levelName());
         assertEquals(4, c.ioThreads());

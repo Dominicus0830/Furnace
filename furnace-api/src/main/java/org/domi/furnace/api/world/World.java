@@ -145,6 +145,8 @@ public interface World {
      * 돌리는 region 의 엔티티만 본다(상자 가운데가 어디든, 상자가 아무리 커도 예외 없이 — 남의 region 엔티티는 빠진다). 전역 스레드의 빌림 구간
      * ({@code openRegionAccess})에서는 상자와 겹치는 로드된 region 을 모두 빌려 합친다. 그 밖의 스레드는
      * {@link org.domi.furnace.api.concurrent.ThreadOwnershipException}. 사라진 엔티티는 빠진다.
+     * 기본 설정(region-section-shift=3, region-merge-radius=1)에서 다른 region 은 지금 region 의 칸에서 축마다 적어도 129블록 떨어져 있다 —
+     * 지금 region 안의 점에서 128블록 이내 상자는 빠짐없이 보이고, 그보다 크면 빌림 구간을 쓴다(예전 기본 shift 4 에서는 256블록까지였다).
      */
     default List<Entity> entitiesInBoxNow(Aabb box) { throw new UnsupportedOperationException("entitiesInBoxNow"); }
 
@@ -153,6 +155,8 @@ public interface World {
      * ThreadOwnershipException). 안 맞으면 empty. ignorePassable 이면 충돌 모양(지나갈 수 있는 블록은 건너뛴다), 아니면 윤곽 모양.
      * canCollide 가 false 를 주는 칸은 블록도 유체도 건너뛴다(null 이면 모두 본다 — Paper 의 canCollide). canCollide 는 그 region 스레드에서 불린다.
      * 로드되지 않은(또는 그 region 이 갖지 않은) 청크에 닿으면 거기서 빗나간 것으로 끝낸다(청크를 만들지 않는다).
+     * 기본 설정(region-section-shift=3)에서 다른 region 은 시작 region 의 칸에서 축마다 적어도 129블록 떨어져 있어, 128블록 이내 광선은 Paper 와 같고
+     * 그보다 길면 남의 region 에 닿는 곳에서 빗나간 것으로 끝날 수 있다(예전 기본 shift 4 에서는 256블록까지).
      */
     default Optional<BlockHit> rayTraceBlocksNow(double fx, double fy, double fz, double tx, double ty, double tz, FluidPick fluid, boolean ignorePassable,
             java.util.function.Predicate<BlockPos> canCollide) {

@@ -126,6 +126,7 @@ Furnace 이벤트가 알리지 않는 값은 지어내지 않는다. 읽기는 �
 - **인벤토리**: `Player#getInventory`(`PlayerInventory`: 핫바·주 칸·갑옷·왼손·`addItem`·`removeItem`·`getItemInMainHand` 등)는 칸을 거울로 비춘다. 소유 스레드가 아닌 곳의 쓰기는 예약되고 읽기에 겹쳐 보인다. `Bukkit#createInventory` 는 `UnsupportedFeature`.
 - **블록**: `Block#setType/getBlockData/setBlockData/getRelative/getFace/getChunk`, `BlockData`(`Material#createBlockData`, 문자열 `matches`).
 - **엔티티·월드**: `Entity#getType`(`EntityType` 130종 생성)·`getNearbyEntities`·`setCustomName`·엔티티 영속 데이터(소유 region 에서만 읽기), `World#spawnEntity/getNearbyEntities/getChunkAt`. 서버 API 에 동기 쌍 `World#spawnEntityNow`·`nearbyEntitiesNow`, `Entity#editPersistentDataNow`, `Player#heldSlot/setHeldSlot` 을 더했다.
+  - region 스레드에서 부르는 동기 조회(`getNearbyEntities`·`entitiesInBoxNow` 같은 엔티티 상자, `rayTraceBlocks`·`rayTraceBlocksNow` 같은 광선, 블록 읽기)는 지금 region 만 본다. 기본 설정(`region-section-shift=3`)에서 다른 region 은 적어도 129블록 떨어져 있으므로, 부르는 위치 둘레 128블록 이내 조회는 Paper 와 결과가 같다. 그보다 긴 광선(총·레이저 플러그인의 100~300블록 등)은 129블록부터 잘린다(`nearbyEntitiesNow` 는 원래 반경 128 까지만 받는다). 그보다 넓게 찾는 플러그인은 전역 스레드의 `openRegionAccess` 빌림 구간에서 부르거나 서버 운영자가 `region-section-shift=4`(256블록)로 둘 수 있다(2026-11-14 전 기본).
 - 생성 파일(`Material`·`EntityType`·`Enchantment`)은 `tools/compat/gen-bukkit-material.py`·`gen-bukkit-registries.py` 로 다시 만든다.
 - 시험: `InventoryAdapterTest`·`BlockEntityWorldAdapterTest`·`KitPluginTest`(키트 플러그인 jar)·`RegistryValueTypesTest`.
 
