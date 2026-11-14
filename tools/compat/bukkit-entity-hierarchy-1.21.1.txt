@@ -1,0 +1,308 @@
+# Bukkit(Paper 1.21.1) 엔티티 종류 → 인터페이스 → CraftBukkit 클래스 이름, 그리고 org.bukkit.entity 인터페이스 상위 형식.
+# 출처: Paper 1.21.1 CraftEntityTypes 등록표와 paper-api 인터페이스 선언(Youer 1.21.1 사본). 이름·계층만 옮겼다.
+# 'T <EntityType> <인터페이스> <Craft 클래스>' / 'I <인터페이스> <상위...>'(org.bukkit.entity 밖 상위는 뺐다 — 계층을 잇는 io.papermc.paper.entity.SchoolableFish 만 둔다).
+# 생성기: tools/compat/gen-bukkit-entity-classes.py
+T ELDER_GUARDIAN org.bukkit.entity.ElderGuardian CraftElderGuardian
+T WITHER_SKELETON org.bukkit.entity.WitherSkeleton CraftWitherSkeleton
+T STRAY org.bukkit.entity.Stray CraftStray
+T BOGGED org.bukkit.entity.Bogged CraftBogged
+T HUSK org.bukkit.entity.Husk CraftHusk
+T ZOMBIE_VILLAGER org.bukkit.entity.ZombieVillager CraftVillagerZombie
+T SKELETON_HORSE org.bukkit.entity.SkeletonHorse CraftSkeletonHorse
+T ZOMBIE_HORSE org.bukkit.entity.ZombieHorse CraftZombieHorse
+T ARMOR_STAND org.bukkit.entity.ArmorStand CraftArmorStand
+T DONKEY org.bukkit.entity.Donkey CraftDonkey
+T MULE org.bukkit.entity.Mule CraftMule
+T EVOKER org.bukkit.entity.Evoker CraftEvoker
+T VEX org.bukkit.entity.Vex CraftVex
+T VINDICATOR org.bukkit.entity.Vindicator CraftVindicator
+T ILLUSIONER org.bukkit.entity.Illusioner CraftIllusioner
+T CREEPER org.bukkit.entity.Creeper CraftCreeper
+T SKELETON org.bukkit.entity.Skeleton CraftSkeleton
+T SPIDER org.bukkit.entity.Spider CraftSpider
+T GIANT org.bukkit.entity.Giant CraftGiant
+T ZOMBIE org.bukkit.entity.Zombie CraftZombie
+T SLIME org.bukkit.entity.Slime CraftSlime
+T GHAST org.bukkit.entity.Ghast CraftGhast
+T ZOMBIFIED_PIGLIN org.bukkit.entity.PigZombie CraftPigZombie
+T ENDERMAN org.bukkit.entity.Enderman CraftEnderman
+T CAVE_SPIDER org.bukkit.entity.CaveSpider CraftCaveSpider
+T SILVERFISH org.bukkit.entity.Silverfish CraftSilverfish
+T BLAZE org.bukkit.entity.Blaze CraftBlaze
+T MAGMA_CUBE org.bukkit.entity.MagmaCube CraftMagmaCube
+T WITHER org.bukkit.entity.Wither CraftWither
+T BAT org.bukkit.entity.Bat CraftBat
+T WITCH org.bukkit.entity.Witch CraftWitch
+T ENDERMITE org.bukkit.entity.Endermite CraftEndermite
+T GUARDIAN org.bukkit.entity.Guardian CraftGuardian
+T SHULKER org.bukkit.entity.Shulker CraftShulker
+T PIG org.bukkit.entity.Pig CraftPig
+T SHEEP org.bukkit.entity.Sheep CraftSheep
+T COW org.bukkit.entity.Cow CraftCow
+T CHICKEN org.bukkit.entity.Chicken CraftChicken
+T SQUID org.bukkit.entity.Squid CraftSquid
+T WOLF org.bukkit.entity.Wolf CraftWolf
+T MOOSHROOM org.bukkit.entity.MushroomCow CraftMushroomCow
+T SNOW_GOLEM org.bukkit.entity.Snowman CraftSnowman
+T OCELOT org.bukkit.entity.Ocelot CraftOcelot
+T IRON_GOLEM org.bukkit.entity.IronGolem CraftIronGolem
+T HORSE org.bukkit.entity.Horse CraftHorse
+T RABBIT org.bukkit.entity.Rabbit CraftRabbit
+T POLAR_BEAR org.bukkit.entity.PolarBear CraftPolarBear
+T LLAMA org.bukkit.entity.Llama CraftLlama
+T PARROT org.bukkit.entity.Parrot CraftParrot
+T VILLAGER org.bukkit.entity.Villager CraftVillager
+T TURTLE org.bukkit.entity.Turtle CraftTurtle
+T PHANTOM org.bukkit.entity.Phantom CraftPhantom
+T COD org.bukkit.entity.Cod CraftCod
+T SALMON org.bukkit.entity.Salmon CraftSalmon
+T PUFFERFISH org.bukkit.entity.PufferFish CraftPufferFish
+T TROPICAL_FISH org.bukkit.entity.TropicalFish CraftTropicalFish
+T DROWNED org.bukkit.entity.Drowned CraftDrowned
+T DOLPHIN org.bukkit.entity.Dolphin CraftDolphin
+T CAT org.bukkit.entity.Cat CraftCat
+T PANDA org.bukkit.entity.Panda CraftPanda
+T PILLAGER org.bukkit.entity.Pillager CraftPillager
+T RAVAGER org.bukkit.entity.Ravager CraftRavager
+T TRADER_LLAMA org.bukkit.entity.TraderLlama CraftTraderLlama
+T WANDERING_TRADER org.bukkit.entity.WanderingTrader CraftWanderingTrader
+T FOX org.bukkit.entity.Fox CraftFox
+T BEE org.bukkit.entity.Bee CraftBee
+T HOGLIN org.bukkit.entity.Hoglin CraftHoglin
+T PIGLIN org.bukkit.entity.Piglin CraftPiglin
+T STRIDER org.bukkit.entity.Strider CraftStrider
+T ZOGLIN org.bukkit.entity.Zoglin CraftZoglin
+T PIGLIN_BRUTE org.bukkit.entity.PiglinBrute CraftPiglinBrute
+T AXOLOTL org.bukkit.entity.Axolotl CraftAxolotl
+T GLOW_SQUID org.bukkit.entity.GlowSquid CraftGlowSquid
+T GOAT org.bukkit.entity.Goat CraftGoat
+T ALLAY org.bukkit.entity.Allay CraftAllay
+T FROG org.bukkit.entity.Frog CraftFrog
+T TADPOLE org.bukkit.entity.Tadpole CraftTadpole
+T WARDEN org.bukkit.entity.Warden CraftWarden
+T CAMEL org.bukkit.entity.Camel CraftCamel
+T SNIFFER org.bukkit.entity.Sniffer CraftSniffer
+T BREEZE org.bukkit.entity.Breeze CraftBreeze
+T ARMADILLO org.bukkit.entity.Armadillo CraftArmadillo
+T ENDER_DRAGON org.bukkit.entity.EnderDragon CraftEnderDragon
+T FIREBALL org.bukkit.entity.LargeFireball CraftLargeFireball
+T SMALL_FIREBALL org.bukkit.entity.SmallFireball CraftSmallFireball
+T WITHER_SKULL org.bukkit.entity.WitherSkull CraftWitherSkull
+T DRAGON_FIREBALL org.bukkit.entity.DragonFireball CraftDragonFireball
+T WIND_CHARGE org.bukkit.entity.WindCharge CraftWindCharge
+T BREEZE_WIND_CHARGE org.bukkit.entity.BreezeWindCharge CraftBreezeWindCharge
+T PAINTING org.bukkit.entity.Painting CraftPainting
+T ITEM_FRAME org.bukkit.entity.ItemFrame CraftItemFrame
+T GLOW_ITEM_FRAME org.bukkit.entity.GlowItemFrame CraftGlowItemFrame
+T ARROW org.bukkit.entity.Arrow CraftArrow
+T ENDER_PEARL org.bukkit.entity.EnderPearl CraftEnderPearl
+T EXPERIENCE_BOTTLE org.bukkit.entity.ThrownExpBottle CraftThrownExpBottle
+T SPECTRAL_ARROW org.bukkit.entity.SpectralArrow CraftSpectralArrow
+T END_CRYSTAL org.bukkit.entity.EnderCrystal CraftEnderCrystal
+T TRIDENT org.bukkit.entity.Trident CraftTrident
+T LIGHTNING_BOLT org.bukkit.entity.LightningStrike CraftLightningStrike
+T SHULKER_BULLET org.bukkit.entity.ShulkerBullet CraftShulkerBullet
+T BOAT org.bukkit.entity.Boat CraftBoat
+T LLAMA_SPIT org.bukkit.entity.LlamaSpit CraftLlamaSpit
+T CHEST_BOAT org.bukkit.entity.ChestBoat CraftChestBoat
+T OMINOUS_ITEM_SPAWNER org.bukkit.entity.OminousItemSpawner CraftOminousItemSpawner
+T MARKER org.bukkit.entity.Marker CraftMarker
+T BLOCK_DISPLAY org.bukkit.entity.BlockDisplay CraftBlockDisplay
+T INTERACTION org.bukkit.entity.Interaction CraftInteraction
+T ITEM_DISPLAY org.bukkit.entity.ItemDisplay CraftItemDisplay
+T TEXT_DISPLAY org.bukkit.entity.TextDisplay CraftTextDisplay
+T ITEM org.bukkit.entity.Item CraftItem
+T EXPERIENCE_ORB org.bukkit.entity.ExperienceOrb CraftExperienceOrb
+T AREA_EFFECT_CLOUD org.bukkit.entity.AreaEffectCloud CraftAreaEffectCloud
+T EGG org.bukkit.entity.Egg CraftEgg
+T LEASH_KNOT org.bukkit.entity.LeashHitch CraftLeash
+T SNOWBALL org.bukkit.entity.Snowball CraftSnowball
+T EYE_OF_ENDER org.bukkit.entity.EnderSignal CraftEnderSignal
+T POTION org.bukkit.entity.ThrownPotion CraftThrownPotion
+T TNT org.bukkit.entity.TNTPrimed CraftTNTPrimed
+T FALLING_BLOCK org.bukkit.entity.FallingBlock CraftFallingBlock
+T FIREWORK_ROCKET org.bukkit.entity.Firework CraftFirework
+T EVOKER_FANGS org.bukkit.entity.EvokerFangs CraftEvokerFangs
+T COMMAND_BLOCK_MINECART org.bukkit.entity.minecart.CommandMinecart CraftMinecartCommand
+T MINECART org.bukkit.entity.minecart.RideableMinecart CraftMinecartRideable
+T CHEST_MINECART org.bukkit.entity.minecart.StorageMinecart CraftMinecartChest
+T FURNACE_MINECART org.bukkit.entity.minecart.PoweredMinecart CraftMinecartFurnace
+T TNT_MINECART org.bukkit.entity.minecart.ExplosiveMinecart CraftMinecartTNT
+T HOPPER_MINECART org.bukkit.entity.minecart.HopperMinecart CraftMinecartHopper
+T SPAWNER_MINECART org.bukkit.entity.minecart.SpawnerMinecart CraftMinecartMobSpawner
+T FISHING_BOBBER org.bukkit.entity.FishHook CraftFishHook
+T PLAYER org.bukkit.entity.Player CraftPlayer
+I org.bukkit.entity.AbstractArrow org.bukkit.entity.Projectile
+I org.bukkit.entity.AbstractHorse org.bukkit.entity.Vehicle org.bukkit.entity.Tameable
+I org.bukkit.entity.AbstractSkeleton org.bukkit.entity.Monster
+I org.bukkit.entity.AbstractVillager org.bukkit.entity.Breedable org.bukkit.entity.NPC
+I org.bukkit.entity.AbstractWindCharge org.bukkit.entity.Fireball
+I org.bukkit.entity.Ageable org.bukkit.entity.Creature
+I org.bukkit.entity.Allay org.bukkit.entity.Creature
+I org.bukkit.entity.Ambient org.bukkit.entity.Mob
+I org.bukkit.entity.AnimalTamer
+I org.bukkit.entity.Animals org.bukkit.entity.Breedable
+I org.bukkit.entity.AreaEffectCloud org.bukkit.entity.Entity
+I org.bukkit.entity.Armadillo org.bukkit.entity.Animals
+I org.bukkit.entity.ArmorStand org.bukkit.entity.LivingEntity
+I org.bukkit.entity.Arrow org.bukkit.entity.AbstractArrow
+I org.bukkit.entity.Axolotl org.bukkit.entity.Animals
+I org.bukkit.entity.Bat org.bukkit.entity.Ambient
+I org.bukkit.entity.Bee org.bukkit.entity.Animals
+I org.bukkit.entity.Blaze org.bukkit.entity.Monster
+I org.bukkit.entity.BlockDisplay org.bukkit.entity.Display
+I org.bukkit.entity.Boat org.bukkit.entity.Vehicle
+I org.bukkit.entity.Bogged org.bukkit.entity.AbstractSkeleton org.bukkit.entity.Shearable
+I org.bukkit.entity.Boss org.bukkit.entity.Entity
+I org.bukkit.entity.Breedable org.bukkit.entity.Ageable
+I org.bukkit.entity.Breeze org.bukkit.entity.Monster
+I org.bukkit.entity.BreezeWindCharge org.bukkit.entity.AbstractWindCharge
+I org.bukkit.entity.Camel org.bukkit.entity.AbstractHorse org.bukkit.entity.Sittable
+I org.bukkit.entity.Cat org.bukkit.entity.Tameable org.bukkit.entity.Sittable
+I org.bukkit.entity.CaveSpider org.bukkit.entity.Spider
+I org.bukkit.entity.ChestBoat org.bukkit.entity.Boat
+I org.bukkit.entity.ChestedHorse org.bukkit.entity.AbstractHorse
+I org.bukkit.entity.Chicken org.bukkit.entity.Animals
+I org.bukkit.entity.Cod io.papermc.paper.entity.SchoolableFish
+I org.bukkit.entity.ComplexLivingEntity org.bukkit.entity.LivingEntity
+I org.bukkit.entity.Cow org.bukkit.entity.Animals
+I org.bukkit.entity.Creature org.bukkit.entity.Mob
+I org.bukkit.entity.Creeper org.bukkit.entity.Monster
+I org.bukkit.entity.Damageable org.bukkit.entity.Entity
+I org.bukkit.entity.Display org.bukkit.entity.Entity
+I org.bukkit.entity.Dolphin org.bukkit.entity.WaterMob
+I org.bukkit.entity.Donkey org.bukkit.entity.ChestedHorse
+I org.bukkit.entity.DragonFireball org.bukkit.entity.Fireball
+I org.bukkit.entity.Drowned org.bukkit.entity.Zombie
+I org.bukkit.entity.Egg org.bukkit.entity.ThrowableProjectile
+I org.bukkit.entity.ElderGuardian org.bukkit.entity.Guardian
+I org.bukkit.entity.EnderCrystal org.bukkit.entity.Entity
+I org.bukkit.entity.EnderDragon org.bukkit.entity.ComplexLivingEntity org.bukkit.entity.Boss org.bukkit.entity.Mob org.bukkit.entity.Enemy
+I org.bukkit.entity.EnderPearl org.bukkit.entity.ThrowableProjectile
+I org.bukkit.entity.EnderSignal org.bukkit.entity.Entity
+I org.bukkit.entity.Enderman org.bukkit.entity.Monster
+I org.bukkit.entity.Endermite org.bukkit.entity.Monster
+I org.bukkit.entity.Enemy org.bukkit.entity.LivingEntity
+I org.bukkit.entity.Entity
+I org.bukkit.entity.Evoker org.bukkit.entity.Spellcaster
+I org.bukkit.entity.EvokerFangs org.bukkit.entity.Entity
+I org.bukkit.entity.ExperienceOrb org.bukkit.entity.Entity
+I org.bukkit.entity.Explosive org.bukkit.entity.Entity
+I org.bukkit.entity.FallingBlock org.bukkit.entity.Entity
+I org.bukkit.entity.Fireball org.bukkit.entity.Projectile org.bukkit.entity.Explosive
+I org.bukkit.entity.Firework org.bukkit.entity.Projectile
+I org.bukkit.entity.Fish org.bukkit.entity.WaterMob
+I org.bukkit.entity.FishHook org.bukkit.entity.Projectile
+I org.bukkit.entity.Flying org.bukkit.entity.Mob
+I org.bukkit.entity.Fox org.bukkit.entity.Animals org.bukkit.entity.Sittable
+I org.bukkit.entity.Frog org.bukkit.entity.Animals
+I org.bukkit.entity.Ghast org.bukkit.entity.Flying org.bukkit.entity.Enemy
+I org.bukkit.entity.Giant org.bukkit.entity.Monster
+I org.bukkit.entity.GlowItemFrame org.bukkit.entity.ItemFrame
+I org.bukkit.entity.GlowSquid org.bukkit.entity.Squid
+I org.bukkit.entity.Goat org.bukkit.entity.Animals
+I org.bukkit.entity.Golem org.bukkit.entity.Creature
+I org.bukkit.entity.Guardian org.bukkit.entity.Monster
+I org.bukkit.entity.Hanging org.bukkit.entity.Entity
+I org.bukkit.entity.Hoglin org.bukkit.entity.Animals org.bukkit.entity.Enemy
+I org.bukkit.entity.Horse org.bukkit.entity.AbstractHorse
+I org.bukkit.entity.HumanEntity org.bukkit.entity.LivingEntity org.bukkit.entity.AnimalTamer
+I org.bukkit.entity.Husk org.bukkit.entity.Zombie
+I org.bukkit.entity.Illager org.bukkit.entity.Raider
+I org.bukkit.entity.Illusioner org.bukkit.entity.Spellcaster
+I org.bukkit.entity.Interaction org.bukkit.entity.Entity
+I org.bukkit.entity.IronGolem org.bukkit.entity.Golem
+I org.bukkit.entity.Item org.bukkit.entity.Entity
+I org.bukkit.entity.ItemDisplay org.bukkit.entity.Display
+I org.bukkit.entity.ItemFrame org.bukkit.entity.Hanging
+I org.bukkit.entity.LargeFireball org.bukkit.entity.SizedFireball
+I org.bukkit.entity.LeashHitch org.bukkit.entity.Hanging
+I org.bukkit.entity.LightningStrike org.bukkit.entity.Entity
+I org.bukkit.entity.LivingEntity org.bukkit.entity.Damageable
+I org.bukkit.entity.Llama org.bukkit.entity.ChestedHorse
+I org.bukkit.entity.LlamaSpit org.bukkit.entity.Projectile
+I org.bukkit.entity.MagmaCube org.bukkit.entity.Slime
+I org.bukkit.entity.Marker org.bukkit.entity.Entity
+I org.bukkit.entity.Minecart org.bukkit.entity.Vehicle
+I org.bukkit.entity.Mob org.bukkit.entity.LivingEntity
+I org.bukkit.entity.Monster org.bukkit.entity.Creature org.bukkit.entity.Enemy
+I org.bukkit.entity.Mule org.bukkit.entity.ChestedHorse
+I org.bukkit.entity.MushroomCow org.bukkit.entity.Cow
+I org.bukkit.entity.NPC org.bukkit.entity.Creature
+I org.bukkit.entity.Ocelot org.bukkit.entity.Animals
+I org.bukkit.entity.OminousItemSpawner org.bukkit.entity.Entity
+I org.bukkit.entity.Painting org.bukkit.entity.Hanging
+I org.bukkit.entity.Panda org.bukkit.entity.Animals org.bukkit.entity.Sittable
+I org.bukkit.entity.Parrot org.bukkit.entity.Tameable org.bukkit.entity.Sittable
+I org.bukkit.entity.Phantom org.bukkit.entity.Flying org.bukkit.entity.Enemy
+I org.bukkit.entity.Pig org.bukkit.entity.Steerable org.bukkit.entity.Vehicle
+I org.bukkit.entity.PigZombie org.bukkit.entity.Zombie
+I org.bukkit.entity.Piglin org.bukkit.entity.PiglinAbstract
+I org.bukkit.entity.PiglinAbstract org.bukkit.entity.Monster org.bukkit.entity.Ageable
+I org.bukkit.entity.PiglinBrute org.bukkit.entity.PiglinAbstract
+I org.bukkit.entity.Pillager org.bukkit.entity.Illager
+I org.bukkit.entity.Player org.bukkit.entity.HumanEntity
+I org.bukkit.entity.PolarBear org.bukkit.entity.Animals
+I org.bukkit.entity.Projectile org.bukkit.entity.Entity
+I org.bukkit.entity.PufferFish org.bukkit.entity.Fish
+I org.bukkit.entity.Rabbit org.bukkit.entity.Animals
+I org.bukkit.entity.Raider org.bukkit.entity.Monster
+I org.bukkit.entity.Ravager org.bukkit.entity.Raider
+I org.bukkit.entity.Salmon io.papermc.paper.entity.SchoolableFish
+I org.bukkit.entity.Shearable
+I org.bukkit.entity.Sheep org.bukkit.entity.Animals org.bukkit.entity.Shearable
+I org.bukkit.entity.Shulker org.bukkit.entity.Golem org.bukkit.entity.Enemy
+I org.bukkit.entity.ShulkerBullet org.bukkit.entity.Projectile
+I org.bukkit.entity.Silverfish org.bukkit.entity.Monster
+I org.bukkit.entity.Sittable
+I org.bukkit.entity.SizedFireball org.bukkit.entity.Fireball
+I org.bukkit.entity.Skeleton org.bukkit.entity.AbstractSkeleton
+I org.bukkit.entity.SkeletonHorse org.bukkit.entity.AbstractHorse
+I org.bukkit.entity.Slime org.bukkit.entity.Mob org.bukkit.entity.Enemy
+I org.bukkit.entity.SmallFireball org.bukkit.entity.SizedFireball
+I org.bukkit.entity.Sniffer org.bukkit.entity.Animals
+I org.bukkit.entity.Snowball org.bukkit.entity.ThrowableProjectile
+I org.bukkit.entity.Snowman org.bukkit.entity.Golem
+I org.bukkit.entity.SpectralArrow org.bukkit.entity.AbstractArrow
+I org.bukkit.entity.Spellcaster org.bukkit.entity.Illager
+I org.bukkit.entity.Spider org.bukkit.entity.Monster
+I org.bukkit.entity.Squid org.bukkit.entity.WaterMob
+I org.bukkit.entity.Steerable org.bukkit.entity.Animals
+I org.bukkit.entity.Stray org.bukkit.entity.AbstractSkeleton
+I org.bukkit.entity.Strider org.bukkit.entity.Steerable org.bukkit.entity.Vehicle
+I org.bukkit.entity.TNTPrimed org.bukkit.entity.Explosive
+I org.bukkit.entity.Tadpole org.bukkit.entity.Fish
+I org.bukkit.entity.Tameable org.bukkit.entity.Animals
+I org.bukkit.entity.TextDisplay org.bukkit.entity.Display
+I org.bukkit.entity.ThrowableProjectile org.bukkit.entity.Projectile
+I org.bukkit.entity.ThrownExpBottle org.bukkit.entity.ThrowableProjectile
+I org.bukkit.entity.ThrownPotion org.bukkit.entity.ThrowableProjectile
+I org.bukkit.entity.TraderLlama org.bukkit.entity.Llama
+I org.bukkit.entity.Trident org.bukkit.entity.AbstractArrow org.bukkit.entity.ThrowableProjectile
+I org.bukkit.entity.TropicalFish io.papermc.paper.entity.SchoolableFish
+I org.bukkit.entity.Turtle org.bukkit.entity.Animals
+I org.bukkit.entity.Vehicle org.bukkit.entity.Entity
+I org.bukkit.entity.Vex org.bukkit.entity.Monster
+I org.bukkit.entity.Villager org.bukkit.entity.AbstractVillager
+I org.bukkit.entity.Vindicator org.bukkit.entity.Illager
+I org.bukkit.entity.WanderingTrader org.bukkit.entity.AbstractVillager
+I org.bukkit.entity.Warden org.bukkit.entity.Monster
+I org.bukkit.entity.WaterMob org.bukkit.entity.Creature
+I org.bukkit.entity.WindCharge org.bukkit.entity.AbstractWindCharge
+I org.bukkit.entity.Witch org.bukkit.entity.Raider
+I org.bukkit.entity.Wither org.bukkit.entity.Monster org.bukkit.entity.Boss
+I org.bukkit.entity.WitherSkeleton org.bukkit.entity.AbstractSkeleton
+I org.bukkit.entity.WitherSkull org.bukkit.entity.Fireball
+I org.bukkit.entity.Wolf org.bukkit.entity.Tameable org.bukkit.entity.Sittable
+I org.bukkit.entity.Zoglin org.bukkit.entity.Monster org.bukkit.entity.Ageable
+I org.bukkit.entity.Zombie org.bukkit.entity.Monster org.bukkit.entity.Ageable
+I org.bukkit.entity.ZombieHorse org.bukkit.entity.AbstractHorse
+I org.bukkit.entity.ZombieVillager org.bukkit.entity.Zombie
+I org.bukkit.entity.minecart.CommandMinecart org.bukkit.entity.Minecart
+I org.bukkit.entity.minecart.ExplosiveMinecart org.bukkit.entity.Minecart
+I org.bukkit.entity.minecart.HopperMinecart org.bukkit.entity.Minecart
+I org.bukkit.entity.minecart.PoweredMinecart org.bukkit.entity.Minecart
+I org.bukkit.entity.minecart.RideableMinecart org.bukkit.entity.Minecart
+I org.bukkit.entity.minecart.SpawnerMinecart org.bukkit.entity.Minecart
+I org.bukkit.entity.minecart.StorageMinecart org.bukkit.entity.Minecart
+I io.papermc.paper.entity.SchoolableFish org.bukkit.entity.Fish

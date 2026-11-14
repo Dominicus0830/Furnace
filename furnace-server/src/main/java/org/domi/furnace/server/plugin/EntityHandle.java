@@ -457,7 +457,16 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     /** AI 가 있는 몹. AI 는 소유 스레드에서 MobAi 로 다룬다. */
     static class MobHandle extends Living implements org.domi.furnace.api.entity.Mob {
 
-        MobHandle(PluginHost host, org.domi.furnace.server.entity.Mob e) { super(host, e); }
+        private final boolean tamed;
+
+        MobHandle(PluginHost host, org.domi.furnace.server.entity.Mob e) {
+            super(host, e);
+            tamed = e instanceof org.domi.furnace.server.entity.TamableAnimal t ? t.isTame()
+                    : e instanceof org.domi.furnace.server.entity.AbstractHorse h && h.isTamed();
+        }
+
+        @Override
+        public boolean tamed() { return tamed; }
 
         @Override
         public <T> CompletableFuture<T> editAi(Function<? super org.domi.furnace.api.entity.ai.MobAi, ? extends T> action) {
