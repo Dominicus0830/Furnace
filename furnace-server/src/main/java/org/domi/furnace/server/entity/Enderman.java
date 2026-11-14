@@ -307,7 +307,8 @@ public class Enderman extends Monster implements NeutralMob {
             Integer carried = enderman.getCarriedBlock();
             if (carried != null) {
                 int placed = carried;   // TODO(이웃 모양 갱신): Block.updateFromNeighbourShapes
-                if (canPlaceBlock(level, pos, placed, here, belowState, below)) {
+                // CraftBukkit: 놓기 전에 EntityChangeBlockEvent — 막으면 들고 있는 채로 둔다
+                if (canPlaceBlock(level, pos, placed, here, belowState, below) && B.entityChange(level, enderman, pos, placed)) {
                     level.setBlock(pos, placed, 3, 512);
                     level.gameEventFrom("block_place", pos, enderman, placed);
                     enderman.setCarriedBlock(null);
@@ -345,7 +346,8 @@ public class Enderman extends Monster implements NeutralMob {
             double sx = Math.floor(enderman.x()) + 0.5, sz = Math.floor(enderman.z()) + 0.5;
             var hit = Clip.clip(level, sx, y + 0.5, sz, x + 0.5, y + 0.5, z + 0.5, Clip.FluidMode.NONE);
             boolean same = hit.pos().equals(pos) && !hit.miss() || (hit.miss() && hit.pos().equals(pos));
-            if (B.isTag(state, "minecraft:enderman_holdable") && same) {
+            // CraftBukkit(+Paper 새 상태 수정): 집기 전에 EntityChangeBlockEvent(새 상태 = 그 칸의 유체) — 막으면 집지 않는다
+            if (B.isTag(state, "minecraft:enderman_holdable") && same && B.entityChange(level, enderman, pos, B.fluidLeftover(state))) {
                 level.removeBlock(pos, false);
                 level.gameEventFrom("block_destroy", pos, enderman, state);
                 enderman.setCarriedBlock(org.domi.furnace.server.block.Blocks.get().defaultState(org.domi.furnace.server.block.Blocks.get().blockOf(state)));

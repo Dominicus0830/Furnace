@@ -105,7 +105,9 @@ public class DecoratedPotBlock extends BaseEntityBlock {
     public void onProjectileHit(BlockLevel level, int state, org.domi.furnace.server.entity.Projectile.Hit hit,
                                 org.domi.furnace.server.entity.Projectile projectile) {
         Pos pos = hit.blockPos();
-        if (projectile.mayInteract(level, pos) && projectile.mayBreak(level)) {
+        // CraftBukkit: EntityChangeBlockEvent 를 막으면 깨지 않는다(새 상태 = 그 칸의 유체)
+        if (projectile.mayInteract(level, pos) && projectile.mayBreak(level)
+                && org.domi.furnace.server.block.B.entityChange(level, projectile, pos, org.domi.furnace.server.block.B.fluidLeftover(state))) {
             level.setBlock(pos, CRACKED.with(state, true), BlockLevel.UPDATE_INVISIBLE);
             level.destroyBlockByEntity(pos, true, projectile);
         }

@@ -57,7 +57,8 @@ public class ComposterBlock extends BlockBehavior {
         int lvl = LEVEL.intValue(state);
         if (lvl < READY && isCompostable(stack)) {
             if (lvl < MAX_LEVEL) {
-                int ns = addItem(player, state, level, pos, stack);
+                int ns = addItem(player, player == null ? null : player.handle() instanceof org.domi.furnace.server.entity.Rider r ? r : null, state, level, pos, stack);
+                if (ns < 0) return ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;   // Paper: EntityChangeBlockEvent 를 막았다 — 아이템·통계 그대로
                 level.levelEvent(null, 1500, pos, state != ns ? 1 : 0);
                 player.awardStat("minecraft:used:" + org.domi.furnace.server.item.ItemTools.itemName(stack));
                 if (!player.instabuild()) player.setItemInHand(hand, stack.withCount(stack.count() - 1));
@@ -70,7 +71,7 @@ public class ComposterBlock extends BlockBehavior {
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
         if (LEVEL.intValue(state) == READY) {
-            extractProduce(player, state, level, pos);
+            extractProduce(player, null, state, level, pos);   // 플레이어는 CraftBukkit 도 묻지 않는다
             return InteractionResult.sidedSuccess(false);
         }
         return InteractionResult.PASS;
@@ -78,12 +79,23 @@ public class ComposterBlock extends BlockBehavior {
 
     /** insertItem(호퍼 등): 7 미만이고 퇴비 아이템이면 넣고 하나 줄인다(돌려준 상태가 새 상태). */
     public static int insertItem(BlockActor entity, int state, BlockLevel level, ItemStack stack, Pos pos) {
-        if (LEVEL.intValue(state) < MAX_LEVEL && isCompostable(stack)) return addItem(entity, state, level, pos, stack);
+        if (LEVEL.intValue(state) < MAX_LEVEL && isCompostable(stack)) return addItem(entity, null, state, level, pos, stack);
+        return state;
+    }
+
+    /**
+     * 주민이 넣을 때의 insertItem — 단계가 오를 때 EntityChangeBlockEvent(주체 who)를 묻고, 막으면 -1(넣지 않았다 — 부른 쪽은 아이템을 줄이지 않는다,
+     * Paper 의 null). 확률에 진 경우는 바닐라처럼 같은 상태를 돌려준다(아이템은 준다).
+     */
+    public static int insertItemBy(org.domi.furnace.server.entity.Rider who, int state, BlockLevel level, ItemStack stack, Pos pos) {
+        if (LEVEL.intValue(state) < MAX_LEVEL && isCompostable(stack)) return addItem(null, who, state, level, pos, stack);
         return state;
     }
 
     /** extractProduce: 뼛가루 아이템을 위로 내놓고 비운다. */
-    public static int extractProduce(BlockActor entity, int state, BlockLevel level, Pos pos) {
+    public static int extractProduce(BlockActor entity, org.domi.furnace.server.entity.Rider who, int state, BlockLevel level, Pos pos) {
+        // CraftBukkit: 플레이어가 아닌 엔티티(주민)가 비우면 먼저 EntityChangeBlockEvent(빈 퇴비통) — 막으면 그대로
+        if (who != null && !(who instanceof org.domi.furnace.server.entity.Player) && !B.entityChange(level, who, pos, LEVEL.withInt(state, 0))) return state;
         RandomSource r = level.random();
         // Vec3.atLowerCornerWithOffset(pos, 0.5, 1.01, 0.5).offsetRandom(random, 0.7F)
         double x = pos.x() + 0.5 + (double) ((r.nextFloat() - 0.5F) * 0.7F);
@@ -109,12 +121,14 @@ public class ComposterBlock extends BlockBehavior {
         return ns;
     }
 
-    static int addItem(BlockActor entity, int state, BlockLevel level, Pos pos, ItemStack stack) {
+    /** who: 넣는 엔티티·플레이어(호퍼면 null). 단계가 오를 때 그 주체의 EntityChangeBlockEvent 를 막으면 -1(Paper 의 null). */
+    static int addItem(BlockActor entity, org.domi.furnace.server.entity.Rider who, int state, BlockLevel level, Pos pos, ItemStack stack) {
         int lvl = LEVEL.intValue(state);
         float chance = COMPOSTABLES.getOrDefault(stack.itemId(), -1.0F);
         if ((lvl != 0 || !(chance > 0.0F)) && !(level.random().nextDouble() < chance)) return state;
         int nl = lvl + 1;
         int ns = LEVEL.withInt(state, nl);
+        if (who != null && !B.entityChange(level, who, pos, ns)) return -1;
         level.setBlock(pos, ns, 3);
         level.gameEvent("minecraft:block_change", pos, entity, ns);
         if (nl == MAX_LEVEL) level.scheduleTick(pos, B.block(state), 20);

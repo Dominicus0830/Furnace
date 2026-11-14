@@ -77,10 +77,10 @@ class EntityBlockHookTest {
         level.setBlock(AT, state("big_dripleaf"), 3);
         level.setBlock(AT.east(), state("redstone_block"), 3);
         var leaf = (BigDripleafBlock) B.behavior(level.getBlockState(AT));
-        leaf.entityInsideAt(level.getBlockState(AT), level, AT, true, AT.y() + 0.9375);
+        leaf.entityInsideAt(level.getBlockState(AT), level, AT, true, AT.y() + 0.9375, null);
         assertEquals("none", tilt(level), "신호를 받으면 안 기운다");
         level.setBlock(AT.east(), state("air"), 3);
-        leaf.entityInsideAt(level.getBlockState(AT), level, AT, true, AT.y() + 0.9375);
+        leaf.entityInsideAt(level.getBlockState(AT), level, AT, true, AT.y() + 0.9375, null);
         assertEquals("unstable", tilt(level));
     }
 

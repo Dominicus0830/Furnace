@@ -166,6 +166,23 @@ public interface GameEvents {
     /** 투사체 적중 직전(hitEntity 나 hitPlayer, 또는 hitBlock). false 면 무시하고 계속 난다. */
     default boolean projectileHit(Entity projectile, Entity hitEntity, Player hitPlayer, org.domi.furnace.server.block.Pos hitBlock, int blockState, int face) { return true; }
 
+    /**
+     * EntityChangeBlockEvent 를 물어볼 필요가 있는가(구독자가 있을 때만 참) — 거짓이면 {@link org.domi.furnace.server.block.B#entityChange} 가
+     * 지금 블록을 읽지도 않고 바로 답한다(필드 읽기 하나).
+     */
+    default boolean wantsEntityChangeBlock() { return false; }
+
+    /**
+     * 엔티티·플레이어 who 가 pos 의 oldState 를 newState 로 바꾸기 직전(Paper CraftEventFactory.callEntityChangeBlockEvent). cancelled 면 미리 취소한 채로
+     * 묻는다(게임 규칙이 막는 자리). true 면 바꾼다. 블록의 region 스레드에서. 부르는 쪽은 B.entityChange 를 쓴다.
+     */
+    default boolean entityChangeBlock(String dimension, org.domi.furnace.server.entity.Rider who, Pos pos, int oldState, int newState, boolean cancelled) {
+        return !cancelled;
+    }
+
+    /** 좀비류가 문을 부수기 직전(Paper callEntityBreakDoorEvent — EntityChangeBlockEvent 의 하위). false 면 취소. */
+    default boolean entityBreakDoor(String dimension, LivingEntity who, Pos pos, int oldState, int newState) { return true; }
+
     /** 길들이기 직전. false 면 실패. */
     default boolean entityTame(Entity e, Player owner) { return true; }
 

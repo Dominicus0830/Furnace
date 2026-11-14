@@ -156,6 +156,8 @@ public final class PluginGameEvents implements GameEvents {
     private final EventBusImpl.Flag wEntityPortal;
     private final EventBusImpl.Flag wPortalCreate;
     private final EventBusImpl.Flag wPlayerEditBook;
+    private final EventBusImpl.Flag wEntityChangeBlock;
+    private final EventBusImpl.Flag wEntityBreakDoor;
 
     PluginGameEvents(PluginHost host) {
         this.host = host;
@@ -225,6 +227,8 @@ public final class PluginGameEvents implements GameEvents {
         wEntityPortal = b.flag(EntityPortalEvent.class);
         wPortalCreate = b.flag(PortalCreateEvent.class);
         wPlayerEditBook = b.flag(PlayerEditBookEvent.class);
+        wEntityChangeBlock = b.flag(org.domi.furnace.api.event.entity.EntityChangeBlockEvent.class);
+        wEntityBreakDoor = b.flag(org.domi.furnace.api.event.entity.EntityBreakDoorEvent.class);
     }
 
     private EventBusImpl bus() { return host.eventsImpl(); }
@@ -604,6 +608,27 @@ public final class PluginGameEvents implements GameEvents {
                 ApiConvert.block(blockState, host.core().world().blockRegistry()));
         String f = hitBlock == null || face < 0 || face >= FACES.length ? null : FACES[face];
         return !bus().call(new ProjectileHitEvent(EntityHandle.of(host, projectile), target, block, f)).isCancelled();
+    }
+
+    @Override
+    public boolean wantsEntityChangeBlock() { return wEntityChangeBlock.on(); }
+
+    @Override
+    public boolean entityChangeBlock(String dimension, org.domi.furnace.server.entity.Rider who, org.domi.furnace.server.block.Pos pos, int oldState, int newState,
+                                     boolean cancelled) {
+        if (!wEntityChangeBlock.on()) return !cancelled;
+        var handle = riderHandle(who);
+        if (handle == null) return !cancelled;
+        return !bus().call(new org.domi.furnace.api.event.entity.EntityChangeBlockEvent(handle, dimension, bp(pos), data(oldState), data(newState), cancelled))
+                .isCancelled();
+    }
+
+    @Override
+    public boolean entityBreakDoor(String dimension, LivingEntity who, org.domi.furnace.server.block.Pos pos, int oldState, int newState) {
+        // 하위 이벤트라 EntityChangeBlockEvent 구독자도 받는다(버스가 상위 구독을 함께 굽고, 필드도 상위 구독에 켜진다)
+        if (!wEntityBreakDoor.on()) return true;
+        return !bus().call(new org.domi.furnace.api.event.entity.EntityBreakDoorEvent((org.domi.furnace.api.entity.LivingEntity) EntityHandle.of(host, who),
+                dimension, bp(pos), data(oldState), data(newState))).isCancelled();
     }
 
     @Override

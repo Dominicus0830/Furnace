@@ -61,6 +61,29 @@ public final class B {
         return level.gameEvents().blockFade(level.dimension(), pos, level.getBlockState(pos), newState);
     }
 
+    /**
+     * CraftEventFactory.callEntityChangeBlockEvent(who, pos, newState): 플러그인 EntityChangeBlockEvent 가 허락하는가(바꾸는 일은 부른 쪽이).
+     * 구독자가 없으면 블록을 읽지 않고 곧바로 true.
+     */
+    public static boolean entityChange(BlockLevel level, org.domi.furnace.server.entity.Rider who, Pos pos, int newState) {
+        return entityChange(level, who, pos, newState, false);
+    }
+
+    /** 미리 취소한 채로 묻는 판(Paper 가 게임 규칙 거짓을 cancelled 로 넘기는 자리): 구독자가 없으면 !cancelled. */
+    public static boolean entityChange(BlockLevel level, org.domi.furnace.server.entity.Rider who, Pos pos, int newState, boolean cancelled) {
+        var ev = level.gameEvents();
+        if (!ev.wantsEntityChangeBlock()) return !cancelled;
+        return ev.entityChangeBlock(level.dimension(), who, pos, level.getBlockState(pos), newState, cancelled);
+    }
+
+    /** 블록 행위자(플레이어 손잡이)판 — 행위자가 엔티티·플레이어가 아니면(시험용 가짜 등) 묻지 않고 true. */
+    public static boolean entityChange(BlockLevel level, BlockActor actor, Pos pos, int newState) {
+        return actor == null || !(actor.handle() instanceof org.domi.furnace.server.entity.Rider who) || entityChange(level, who, pos, newState, false);
+    }
+
+    /** Paper 의 "state.getFluidState().createLegacyBlock()" — 블록을 없앨 때 이벤트에 알리는 새 상태(잠긴 블록이면 물, 아니면 공기). */
+    public static int fluidLeftover(int state) { return Fluids.createLegacyBlock(behavior(state).getFluidState(state)); }
+
     public static int defaultState(String name) { return BLOCKS.defaultState(id(name)); }
 
     public static Prop prop(String name) { return BLOCKS.prop(name); }

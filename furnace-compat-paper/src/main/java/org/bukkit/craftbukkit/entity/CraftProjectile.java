@@ -26,13 +26,18 @@ public class CraftProjectile extends CraftEntity implements Projectile {
         return shoot.map(CauseEntry::uuid).orElse(null);
     }
 
+    /**
+     * 쏜 쪽: 플레이어는 어디서나, 플레이어가 아닌 쪽은 투사체의 월드에서 UUID 로 찾는다({@link Compat#entityByUuid} — 틱 스레드에서는 그 엔티티를 가진
+     * region 에서만 보이고, 실행 이력과 상관없이 같은 답이다). 쏜 쪽이 사라졌거나 다른 region 에 있으면 null.
+     */
     @Override
     public ProjectileSource getShooter() {
         UUID id = getOwnerUniqueId();
         if (id == null) return null;
         var player = org.bukkit.Bukkit.getPlayer(id);
         if (player != null) return player;
-        return Compat.cachedEntity(id) instanceof ProjectileSource s ? s : null;   // 플레이어 아닌 쏜 쪽은 이미 감싼 적이 있어야 한다(Furnace API 에 UUID 로 찾는 길이 없다)
+        var world = Compat.furnace().world(furnaceHandle().location().world());
+        return Compat.entityByUuid(world, id) instanceof ProjectileSource s ? s : null;
     }
 
     @Override

@@ -150,6 +150,20 @@ final class WorldChangeMappings {
         EventBridge.reg(org.domi.furnace.api.event.block.BlockSpreadEvent.class, org.bukkit.event.block.BlockSpreadEvent.class,
                 f -> new org.bukkit.event.block.BlockSpreadEvent(Compat.block(f.world(), f.pos()), Compat.block(f.world(), f.source()),
                         CompatBlockState.of(f.world(), f.pos(), f.newData())), (f, b) -> {});
+        // EntityChangeBlockEvent(T-040b): 문 부수기는 하위 이벤트 EntityBreakDoorEvent 로 — Bukkit 에서도 처리기 목록이 같아 ECB 처리기가 함께 받는다.
+        // 취소만 오간다(바뀔 상태는 Bukkit 에서도 고칠 수 없다). 게임 규칙이 막는 자리는 취소된 채로 와서 처리기가 풀 수 있다(Paper 와 같다).
+        EventBridge.reg(org.domi.furnace.api.event.entity.EntityChangeBlockEvent.class, org.bukkit.event.entity.EntityChangeBlockEvent.class,
+                f -> {
+                    var who = Compat.entity(f.entity());
+                    if (who == null) return null;
+                    var block = Compat.block(f.world(), f.pos());
+                    var to = CompatBlockData.of(f.newData());
+                    var b = f instanceof org.domi.furnace.api.event.entity.EntityBreakDoorEvent && who instanceof org.bukkit.entity.LivingEntity living
+                            ? new org.bukkit.event.entity.EntityBreakDoorEvent(living, block, to)
+                            : new org.bukkit.event.entity.EntityChangeBlockEvent(who, block, to);
+                    b.setCancelled(f.isCancelled());
+                    return b;
+                }, (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.entity.ProjectileHitEvent.class, org.bukkit.event.entity.ProjectileHitEvent.class,
                 f -> {
                     if (!(Compat.entity(f.entity()) instanceof org.bukkit.entity.Projectile projectile)) return null;   // 투사체가 아닌 종류는 Bukkit 이 이 이벤트를 내지 않는다

@@ -156,8 +156,13 @@ public final class RegionLevel extends ChunkLevel {
 
     @Override
     protected void indexEntity(org.domi.furnace.server.entity.Entity e, boolean add) {
-        if (add) world.entityIndex().put(e.id(), e);
-        else world.entityIndex().remove(e.id(), e);
+        if (add) {
+            world.entityIndex().put(e.id(), e);
+            world.entityUuidIndex().put(e.uuid(), e);
+        } else {
+            world.entityIndex().remove(e.id(), e);
+            world.entityUuidIndex().remove(e.uuid(), e);
+        }
     }
 
     @Override

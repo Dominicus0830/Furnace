@@ -176,7 +176,7 @@ class InteractAndBlockEventsTest {
     @Test
     void notYetFiredEventsAreKnownAndUnbridged() {
         for (String n : List.of("org.bukkit.event.block.BlockDispenseEvent", "org.bukkit.event.block.NotePlayEvent", "org.bukkit.event.world.WorldInitEvent",
-                "org.bukkit.event.player.PlayerCommandSendEvent", "org.bukkit.event.entity.EntityChangeBlockEvent")) {
+                "org.bukkit.event.player.PlayerCommandSendEvent")) {
             Class<? extends org.bukkit.event.Event> c;
             try {
                 c = Class.forName(n).asSubclass(org.bukkit.event.Event.class);

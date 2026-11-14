@@ -33,6 +33,13 @@ public final class CraftWorld implements World {
     /** 호환 모듈 전용 — 이 월드의 Furnace 핸들. */
     public org.domi.furnace.api.world.World furnaceHandle() { return handle; }
 
+    /** Paper World#getEntity(UUID) — 찾는 규칙은 {@link Compat#entityByUuid}. */
+    @Override
+    public org.bukkit.entity.Entity getEntity(java.util.UUID uuid) {
+        if (uuid == null) throw new IllegalArgumentException("UUID cannot be null");
+        return Compat.entityByUuid(handle, uuid);
+    }
+
     /** NMS 월드 shim. 같은 CraftWorld 는 같은 shim 을 준다(== 비교·Map 키). 멤버는 일부만 있다(docs/feature-parity/compat-h6-2026-11-07.md). */
     public ServerLevel getHandle() {
         ServerLevel l = nms;

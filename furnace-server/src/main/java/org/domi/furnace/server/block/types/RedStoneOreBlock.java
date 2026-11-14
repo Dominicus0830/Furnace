@@ -21,29 +21,33 @@ public class RedStoneOreBlock extends BlockBehavior {
     public RedStoneOreBlock(int block) { super(block); }
 
     @Override
-    public void attack(int state, BlockLevel level, Pos pos, BlockActor player) { interact(state, level, pos); }
+    public void attack(int state, BlockLevel level, Pos pos, BlockActor player) { interact(state, level, pos, player == null ? null : player.handle()); }
 
     /** stepOn: 웅크리지 않은 엔티티가 밟으면 켠다(플레이어는 PlayerMovementEmission 이 {@link #stepOnBy} 로). */
     @Override
     public void stepOn(BlockLevel level, Pos pos, int state, org.domi.furnace.server.entity.Entity entity) {
-        stepOnBy(level, pos, state, entity.isSteppingCarefully());
+        stepOnBy(level, pos, state, entity.isSteppingCarefully(), entity);
         super.stepOn(level, pos, state, entity);
     }
 
-    public static void stepOnBy(BlockLevel level, Pos pos, int state, boolean steppingCarefully) {
-        if (!steppingCarefully) interact(state, level, pos);
+    /** who: 밟은 엔티티나 플레이어(EntityChangeBlockEvent 의 주체). */
+    public static void stepOnBy(BlockLevel level, Pos pos, int state, boolean steppingCarefully, org.domi.furnace.server.entity.Rider who) {
+        if (!steppingCarefully) interact(state, level, pos, who);
     }
 
     @Override
     public ItemInteractionResult useItemOn(ItemStack stack, int state, BlockLevel level, Pos pos, BlockActor player, int hand, Hit hit) {
-        interact(state, level, pos);
+        interact(state, level, pos, player == null ? null : player.handle());
         boolean blockItem = !stack.isEmpty() && BlockItems.entry(stack.itemId()) != null;
         return blockItem && new PlaceContext(level, player, hand, stack, hit).canPlace()
                 ? ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION : ItemInteractionResult.SUCCESS;
     }
 
-    private static void interact(int state, BlockLevel level, Pos pos) {
-        if (!LIT.is(state)) level.setBlock(pos, LIT.with(state, true), 3);
+    /** who: 켠 엔티티·플레이어(행위자 본체) — CraftBukkit 은 켜기 전에 EntityChangeBlockEvent 를 묻고, 막으면 켜지 않는다. */
+    private static void interact(int state, BlockLevel level, Pos pos, Object who) {
+        if (LIT.is(state)) return;
+        if (who instanceof org.domi.furnace.server.entity.Rider r && !org.domi.furnace.server.block.B.entityChange(level, r, pos, LIT.with(state, true))) return;
+        level.setBlock(pos, LIT.with(state, true), 3);
     }
 
     @Override

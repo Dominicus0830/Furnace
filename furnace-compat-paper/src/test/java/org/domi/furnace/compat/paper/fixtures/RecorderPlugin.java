@@ -112,6 +112,9 @@ public final class RecorderPlugin extends JavaPlugin implements Listener {
 
     @EventHandler public void on(org.bukkit.event.entity.ProjectileHitEvent e) { rec(e); }
 
+    /** EntityBreakDoorEvent 도 여기로 온다(Bukkit 에서 같은 HandlerList, T-040b). */
+    @EventHandler public void on(org.bukkit.event.entity.EntityChangeBlockEvent e) { rec(e); }
+
     /** ItemSpawnEvent·CreatureSpawnEvent 도 여기로 온다(Bukkit 에서 같은 HandlerList). */
     @EventHandler public void on(org.bukkit.event.entity.EntitySpawnEvent e) { rec(e); }
 

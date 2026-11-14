@@ -139,7 +139,7 @@ public final class PlayerMovementEmission {
             if (!p.sneaking() && org.domi.furnace.server.item.ItemTools.enchantmentLevel(p.equipment(EquipmentSlot.FEET), "minecraft:frost_walker") <= 0)
                 p.vitals().hurt(org.domi.furnace.server.entity.damage.DamageType.byKey("hot_floor"), 1.0F);
         } else if (B.behavior(state) instanceof org.domi.furnace.server.block.types.RedStoneOreBlock) {
-            org.domi.furnace.server.block.types.RedStoneOreBlock.stepOnBy(level, pos, state, p.sneaking());
+            org.domi.furnace.server.block.types.RedStoneOreBlock.stepOnBy(level, pos, state, p.sneaking(), p);
         } else if (B.behavior(state) instanceof org.domi.furnace.server.block.types.TurtleEggBlock egg) {
             egg.stepOnPlayer(level, pos, state, p.sneaking());
         }

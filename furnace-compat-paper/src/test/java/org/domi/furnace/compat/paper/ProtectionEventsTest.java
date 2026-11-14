@@ -399,11 +399,11 @@ class ProtectionEventsTest {
     void protectionEventsAreKnownAndNotMarkedNotFired() {
         for (Class<?> c : List.of(org.bukkit.event.entity.EntityExplodeEvent.class, org.bukkit.event.block.BlockPistonExtendEvent.class,
                 org.bukkit.event.block.BlockPistonRetractEvent.class, org.bukkit.event.block.BlockFormEvent.class, org.bukkit.event.block.BlockSpreadEvent.class,
-                org.bukkit.event.entity.ProjectileHitEvent.class)) {
+                org.bukkit.event.entity.ProjectileHitEvent.class, org.bukkit.event.entity.EntityChangeBlockEvent.class)) {
             assertTrue(EventBridge.isBridged(c.asSubclass(Event.class)), c.getSimpleName());
         }
-        // 서버 발화 지점이 아직 없는 EntityChangeBlock 은 안내만(T-040a 확인 결과)
-        assertTrue(EventBridge.isKnownButNotFired(org.bukkit.event.entity.EntityChangeBlockEvent.class));
+        // EntityChangeBlock 은 T-040b 에서 서버 발화 지점이 생겨 다리가 놓였다
+        assertFalse(EventBridge.isKnownButNotFired(org.bukkit.event.entity.EntityChangeBlockEvent.class));
         assertNotNull(HandlerList.getHandlerLists());
     }
 }

@@ -49,7 +49,10 @@ public class PowderSnowBlock extends BlockBehavior {
         if (!entity.isLiving() || B.is(entity.inBlockState(), block)) entity.makeStuckInBlock(0.9F, 1.5, 0.9F);
         entity.setIsInPowderSnow(true);
         // TODO(플레이어): 바닐라는 플레이어면 mobGriefing 이 꺼져 있어도 녹인다 — 플레이어는 엔티티 계층 밖이라 entityInside 가 오지 않는다.
-        if (entity.isOnFire() && level.gameRule("mobGriefing") && entity.mayInteract(level, pos)) level.destroyBlock(pos, false);
+        // CraftBukkit: mobGriefing 거짓이어도 EntityChangeBlockEvent(새 상태 공기)를 미리 취소한 채로 내고, 처리기가 풀면 녹인다.
+        // Paper 는 막히면 return 해 아래 불 표시 끄기를 건너뛰지만, 처리기가 없을 때도 그러면 바닐라와 달라져 바닐라 흐름을 지킨다
+        if (entity.isOnFire() && entity.mayInteract(level, pos)
+                && B.entityChange(level, entity, pos, B.defaultState("minecraft:air"), !level.gameRule("mobGriefing"))) level.destroyBlock(pos, false);
         entity.setSharedFlagOnFire(false);
     }
 
@@ -59,7 +62,7 @@ public class PowderSnowBlock extends BlockBehavior {
      */
     public void entityInsidePlayer(BlockLevel level, Pos pos, org.domi.furnace.server.entity.Player p, boolean mayInteract) {
         p.markInPowderSnow();   // setIsInPowderSnow(true): 불붙었든 아니든, 눈을 부순 뒤에도 Entity.move 끝의 불 끄기가 본다
-        if (p.isOnFire() && mayInteract) level.destroyBlock(pos, false);
+        if (p.isOnFire() && mayInteract && B.entityChange(level, p, pos, B.defaultState("minecraft:air"))) level.destroyBlock(pos, false);   // CraftBukkit EntityChangeBlockEvent
     }
 
     /**

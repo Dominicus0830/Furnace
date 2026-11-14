@@ -2419,7 +2419,7 @@ public final class Region {
             } else if (insideCauldronOrSnow(p, beh, s, bx, by, bz)) {
                 // 용암·물·가루눈 가마솥, 가루눈
             } else if (beh instanceof org.domi.furnace.server.block.types.BigDripleafBlock bd) {
-                bd.entityInsideAt(s, level, new org.domi.furnace.server.block.Pos(bx, by, bz), p.onGround(), p.y());
+                bd.entityInsideAt(s, level, new org.domi.furnace.server.block.Pos(bx, by, bz), p.onGround(), p.y(), p);
             } else if (beh instanceof org.domi.furnace.server.block.types.SweetBerryBushBlock
                     && org.domi.furnace.server.block.types.SweetBerryBushBlock.hurtsPlayer(s, tickDx, tickDz)) {
                 p.vitals().hurt(org.domi.furnace.server.entity.damage.DamageType.byKey("sweet_berry_bush"), 1.0F);

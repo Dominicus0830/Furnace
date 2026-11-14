@@ -51,7 +51,10 @@ public class FallingBlockEntity extends Entity {
     /** FallingBlockEntity.fall(level, pos, state): 칸을 유체(없으면 공기)로 바꾸고 엔티티를 만든다. */
     public static FallingBlockEntity fall(ChunkLevel level, Pos pos, int state) {
         FallingBlockEntity e = new FallingBlockEntity(level, level.nextEntityId(), pos.x() + 0.5, pos.y(), pos.z() + 0.5, state);
-        level.setBlock(pos, Fluids.createLegacyBlock(level.getFluidState(pos)), 3);
+        int leftover = Fluids.createLegacyBlock(level.getFluidState(pos));
+        // CraftBukkit: 플러그인 EntityChangeBlockEvent 가 막으면 칸을 그대로 두고 엔티티는 월드에 넣지 않은 채 돌려준다
+        if (!B.entityChange(level, e, pos, leftover)) return e;
+        level.setBlock(pos, leftover, 3);
         level.addFreshEntity(e);
         return e;
     }
@@ -120,6 +123,11 @@ public class FallingBlockEntity extends Entity {
                         if (canReplace && canLand) {
                             int place = blockState;
                             if (WATERLOGGED.has(place) && Fluids.isWater(level.getFluidState(pos))) place = WATERLOGGED.with(place, true);
+                            // CraftBukkit: EntityChangeBlockEvent 를 막으면 놓지 않고 엔티티만 사라진다(드롭 없음, SPIGOT-6586)
+                            if (!B.entityChange(level, this, pos, place)) {
+                                discard();
+                                return;
+                            }
                             if (level.setBlock(pos, place, 3)) {
                                 discard();
                                 behavior.onLand(level, pos, place, replaced, isSilent());

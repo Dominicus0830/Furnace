@@ -181,6 +181,17 @@ public final class CraftServer implements Server {
     @Override
     public Player getPlayer(UUID id) { return id == null ? null : Compat.player(f().player(id)); }
 
+    /** 월드 순서대로 찾는다(찾는 규칙은 Compat.entityByUuid — 틱 스레드에서는 그 엔티티를 가진 region 에서만 보인다). */
+    @Override
+    public org.bukkit.entity.Entity getEntity(UUID uuid) {
+        if (uuid == null) throw new IllegalArgumentException("UUID id cannot be null");
+        for (World w : getWorlds()) {
+            var e = w instanceof org.bukkit.craftbukkit.CraftWorld cw ? Compat.entityByUuid(cw.furnaceHandle(), uuid) : null;
+            if (e != null) return e;
+        }
+        return null;
+    }
+
     @Override
     public org.bukkit.OfflinePlayer getOfflinePlayer(UUID id) {
         if (id == null) throw new IllegalArgumentException("UUID id cannot be null");
