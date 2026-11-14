@@ -11,12 +11,24 @@ import org.domi.furnace.compat.paper.Compat;
 
 /**
  * 서버 월드 shim(Mojang 이름, H6 최소 표면): {@code ((CraftWorld) w).getHandle()}. 같은 CraftWorld 는 같은 shim 이다.
- * 블록 읽기·쓰기({@code getBlockState}·{@code setBlock})는 값 shim(BlockPos·BlockState) 뒤 H7 이 더한다.
+ * 블록 읽기·쓰기·청크 얻기(N1·N2a)는 {@link Level} 에 있다.
  */
 public class ServerLevel extends Level {
 
+    private final ServerChunkCache chunkSource = new ServerChunkCache(this);
+
     /** 호환 모듈 전용(CraftWorld 가 만든다). */
     public ServerLevel(CraftWorld world) { super(world); }
+
+    /** 청크 공급원(N2a) — 서버 청크의 보기를 준다. */
+    @Override
+    public ServerChunkCache getChunkSource() { return chunkSource; }
+
+    /** 바닐라 WorldGenLevel#getLevel: 자기 자신. */
+    public ServerLevel getLevel() { return this; }
+
+    /** 바닐라 ServerLevelAccessor#getMinecraftWorld: 자기 자신. */
+    public ServerLevel getMinecraftWorld() { return this; }
 
     public long getSeed() { return getWorld().getSeed(); }
 
@@ -42,6 +54,31 @@ public class ServerLevel extends Level {
             if (org.domi.furnace.compat.thread.PrimaryThread.isPrimary() || org.domi.furnace.api.Furnace.server().scheduler().isTickThread()) throw notOwner;
             try {
                 found = w.entityById(id).get(LOOKUP_WAIT_MILLIS, java.util.concurrent.TimeUnit.MILLISECONDS);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw notOwner;
+            } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException late) {
+                throw notOwner;
+            }
+        }
+        return found.map(e -> ((org.bukkit.craftbukkit.entity.CraftEntity) Compat.entity(e)).getHandle()).orElse(null);
+    }
+
+    /**
+     * 바닐라 ServerLevel#getEntity(UUID): 이 월드의 그 엔티티(플레이어 포함), 없으면 null. 스레드 규칙은 {@link #getEntity(int)} 와 같다
+     * (그 엔티티의 Bukkit 객체를 이미 알면 어느 스레드에서나 그 스냅샷, 처음 보는 것은 소유 region 스레드이거나 틱 스레드가 아닌 스레드가 최대 1초 기다린다).
+     */
+    public Entity getEntity(java.util.UUID uuid) {
+        var w = getWorld().furnaceHandle();
+        java.util.Optional<org.domi.furnace.api.entity.Entity> found;
+        try {
+            found = w.entityByUuidNow(uuid);
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException notOwner) {
+            var cached = Compat.cachedEntity(uuid);
+            if (cached != null) return cached.getWorld() == getWorld() ? cached.getHandle() : null;
+            if (org.domi.furnace.compat.thread.PrimaryThread.isPrimary() || org.domi.furnace.api.Furnace.server().scheduler().isTickThread()) throw notOwner;
+            try {
+                found = w.entityByUuid(uuid).get(LOOKUP_WAIT_MILLIS, java.util.concurrent.TimeUnit.MILLISECONDS);
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
                 throw notOwner;

@@ -43,6 +43,21 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder {
     /** CraftBukkit 이 더한 메서드: Bukkit Location 의 yaw 가 되는 값(살아 있는 엔티티는 머리 방향, 그 밖은 몸 방향). */
     public float getBukkitYaw() { return f().headYaw(); }
 
+    /** 바닐라: 위치(스냅샷 값). */
+    public net.minecraft.world.phys.Vec3 position() {
+        var l = f().location();
+        return new net.minecraft.world.phys.Vec3(l.x(), l.y(), l.z());
+    }
+
+    /** 바닐라: 발 밑 칸 좌표(각 축 내림). */
+    public net.minecraft.core.BlockPos blockPosition() { return net.minecraft.core.BlockPos.containing(getX(), getY(), getZ()); }
+
+    /** 바닐라: 있는 청크 좌표. */
+    public net.minecraft.world.level.ChunkPos chunkPosition() { return new net.minecraft.world.level.ChunkPos(blockPosition()); }
+
+    /** 바닐라: 엔티티 종류(키로 같은 객체). */
+    public EntityType<?> getType() { return EntityType.of(net.minecraft.resources.ResourceLocation.parse(f().type())); }
+
     /** 이 엔티티가 있는 월드의 shim. */
     public Level level() { return ((CraftWorld) bukkit.getWorld()).getHandle(); }
 

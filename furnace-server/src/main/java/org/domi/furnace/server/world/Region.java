@@ -412,6 +412,12 @@ public final class Region {
         return world.loadedChunk(cx, cz);
     }
 
+    /** 이 region 스레드에서: 이 region 구역의 로드된 청크(아니면 null). 호환 계층 청크 shim(ChunkInternals)이 읽기에 쓴다. */
+    public ChunkColumn loadedOwnedChunk(int cx, int cz) {
+        world.assertOwns(this);
+        return ownedChunk(cx, cz);
+    }
+
 
     /**
      * 로드된 청크를 돌려준다. 로드 안 됐으면 region 스레드를 막지 않고 null 을 돌려주며 비동기 로드({@link #loadChunk})를 건다.
