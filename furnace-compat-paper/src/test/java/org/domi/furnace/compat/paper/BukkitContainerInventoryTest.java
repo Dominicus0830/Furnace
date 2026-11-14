@@ -247,4 +247,52 @@ class BukkitContainerInventoryTest {
             return null;
         });
     }
+
+    /** 용광로 한 판(#379 검토 시험): BurnTime NBT, 다시 뜬 세 시간, setBurnTime(0)→lit=false, 배율 검사, RecipesUsed 읽기, 결과 칸. */
+    @Test
+    void blastFurnaceStateRoundTrip() {
+        server.onRegion(pos, () -> {
+            var w = server.api().world(dim);
+            w.block(pos).set(new BlockData("minecraft:blast_furnace", Map.of("facing", "north", "lit", "false")));
+            try {
+                var f = (org.bukkit.block.Furnace) Compat.block(dim, pos).getState();
+                f.setBurnTime((short) 300);
+                f.setCookTime((short) 7);
+                f.setCookTimeTotal(123);
+                assertTrue(f.update());
+                var nbt = w.blockEntityNbtNow(pos).orElseThrow();
+                assertEquals(300, nbt.getShort("BurnTime"), "M01");
+                var again = (org.bukkit.block.Furnace) Compat.block(dim, pos).getState();
+                assertEquals(300, again.getBurnTime());
+                assertEquals(7, again.getCookTime());
+                assertEquals(123, again.getCookTimeTotal(), "M04");
+                // SPIGOT-844 끄기: burnTime 0 이면 lit=false
+                again.setBurnTime((short) 0);
+                assertEquals("false", ((CompatBlockData) again.getBlockData()).furnace().properties().get("lit"), "M02");
+                // 배율 검사 문구·NaN
+                assertThrows(IllegalArgumentException.class, () -> again.setCookSpeedMultiplier(200.5), "M07");
+                assertThrows(IllegalArgumentException.class, () -> again.setCookSpeedMultiplier(Double.NaN), "M08");
+                assertThrows(UnsupportedFeature.class, () -> again.setCookSpeedMultiplier(2));
+                // RecipesUsed 읽기
+                org.domi.furnace.api.nbt.NbtCompound n = w.blockEntityNbtNow(pos).orElseThrow();
+                org.domi.furnace.api.nbt.NbtCompound used = new org.domi.furnace.api.nbt.NbtCompound();
+                used.putInt("minecraft:iron_ingot_from_blasting_raw_iron", 4);
+                n.putCompound("RecipesUsed", used);
+                w.setBlockEntityNbtNow(pos, n);
+                var third = (org.bukkit.block.Furnace) Compat.block(dim, pos).getState();
+                var key = org.bukkit.NamespacedKey.minecraft("iron_ingot_from_blasting_raw_iron");
+                assertTrue(third.hasRecipeUsedCount(key));
+                assertEquals(4, third.getRecipeUsedCount(key), "M10");
+                // 결과 칸
+                var inv = third.getInventory();
+                assertEquals(org.bukkit.event.inventory.InventoryType.BLAST_FURNACE, inv.getType());
+                inv.setResult(new ItemStack(Material.IRON_INGOT, 2));
+                assertEquals("minecraft:iron_ingot", w.inventoryAtNow(pos).orElseThrow().get(2).join().type(), "M14");
+                assertEquals(new ItemStack(Material.IRON_INGOT, 2), inv.getResult(), "M12");
+            } finally {
+                w.block(pos).set(BlockData.AIR);
+            }
+            return null;
+        });
+    }
 }

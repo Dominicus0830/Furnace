@@ -89,24 +89,11 @@ public final class BlockInventories {
             return item != null && !item.getType().isAir() && Compat.furnace().gameRegistries().fuelBurnTime(item.getType().getKey().toString()) > 0;
         }
 
-        /** Paper: 이 화로 종류의 레시피 가운데 재료가 맞는 것이 있는가(레시피 표 = 데이터 팩 + 플러그인 레시피). */
+        /** Paper: RecipeManager.getRecipeFor(이 화로의 레시피 종류, 아이템) — 서버 화로가 쓰는 조회 그대로. */
         @Override
         public boolean canSmelt(org.bukkit.inventory.ItemStack item) {
             if (item == null || item.getType().isAir()) return false;
-            String id = item.getType().getKey().toString();
-            var recipes = Compat.furnace().recipes();
-            for (String key : recipes.keys()) {
-                if (recipes.get(key).orElse(null) instanceof org.domi.furnace.api.recipe.Recipe.Cooking c && c.kind() == kind && matches(c.ingredient(), id)) return true;
-            }
-            return false;
-        }
-
-        private static boolean matches(org.domi.furnace.api.recipe.RecipeChoice choice, String item) {
-            return switch (choice) {
-                case org.domi.furnace.api.recipe.RecipeChoice.Items i -> i.items().contains(item);
-                case org.domi.furnace.api.recipe.RecipeChoice.Tag t -> Compat.furnace().gameRegistries().isTagged("minecraft:item", t.tag(), item);
-                case org.domi.furnace.api.recipe.RecipeChoice.Any a -> a.choices().stream().anyMatch(c -> matches(c, item));
-            };
+            return Compat.furnace().recipes().canCook(kind, CompatItems.toFurnace(item));
         }
 
         @Override
