@@ -83,19 +83,17 @@ class PaletteDirectWriteBench {
                 ns / 1000.0 / iters / chunks, bytes / 1024.0 / iters / chunks);
     }
 
-    /** 옛 경로 그대로: 섹션마다 펼치고(Section.blocks) 펼친 배열을 쓴다. 새 경로: ChunkSerializer 와 같은 색인 갈래. */
+    /** 옛 경로 그대로: 섹션마다 펼치고(Section.blocks) 펼친 배열을 쓴다. 새 경로: ChunkSerializer.writeSection. */
     static byte[] sections(ChunkSnapshot snap, int direct, boolean old) {
+        int biomeDirect = ChunkColumn.DEFAULT_BIOME_DIRECT_BITS;
         ByteBuf data = Unpooled.buffer(16384);
         for (ChunkSnapshot.Section s : snap.sections()) {
-            data.writeShort(s.nonAirCount());
             if (old) {
+                data.writeShort(s.nonAirCount());
                 Palette.write(data, s.blocks(), direct, 4, 8);
-                Palette.write(data, s.biomes(), 7, 1, 3);
+                Palette.write(data, s.biomes(), biomeDirect, 1, 3);
             } else {
-                FirstSeenIndex bi = s.blockIndex();
-                if (bi == null || !Palette.writeIndexed(data, bi, 4, 8)) Palette.write(data, s.blocks(), direct, 4, 8);
-                FirstSeenIndex ci = s.biomeIndex();
-                if (ci == null || !Palette.writeIndexed(data, ci, 1, 3)) Palette.write(data, s.biomes(), 7, 1, 3);
+                org.domi.furnace.server.net.protocol.play.ChunkSerializer.writeSection(data, s, direct, biomeDirect);   // 운영과 같은 메서드
             }
         }
         byte[] out = new byte[data.readableBytes()];

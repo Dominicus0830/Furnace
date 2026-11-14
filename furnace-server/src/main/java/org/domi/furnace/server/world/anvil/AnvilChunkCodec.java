@@ -217,7 +217,8 @@ public final class AnvilChunkCodec {
         for (int i = 0; i < distinct; i++) paletteList.add(paletteEntryOf(ix.value(i)));
         NbtCompound bs = new NbtCompound();
         bs.putList("palette", paletteList);
-        // 원본 묶인 배열을 그대로 받을 수 있다 — 스냅샷 읽기 사본의 것이라 아무도 고치지 않는다
+        // 원본 묶인 배열을 그대로 받을 수 있다 — 스냅샷 읽기 사본의 것이라 아무도 고치지 않는다.
+        // 이 NBT 를 바깥(플러그인 등)에 넘겨 고칠 수 있게 하려면 data 를 clone 해서 넘긴다
         if (distinct > 1) bs.putLongArray("data", ix.pack(Math.max(4, ceillog2(distinct))));
         return bs;
     }

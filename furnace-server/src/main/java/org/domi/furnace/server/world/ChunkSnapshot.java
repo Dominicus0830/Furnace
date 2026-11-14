@@ -80,20 +80,19 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
 
         /**
          * T-015: 블록의 첫 등장 순 색인(펼치지 않음). 펼친 배열만 가진 섹션(공개 생성자·scratch 사본)이나 직접 저장이면 null —
-         * 그때는 {@link #blocks()} 로 옛 경로. 돌려준 객체는 스레드별이라 이 스레드의 다음 색인 호출 전까지만 쓴다.
+         * 그때는 {@link #blocks()} 로 옛 경로. 돌려준 객체는 스레드별(블록용)이라 이 스레드의 다음 blockIndex 호출 전까지만 쓴다.
          */
         public FirstSeenIndex blockIndex() {
-            return index(blockSrc);
+            return index(blockSrc, FirstSeenIndex.forBlocks());
         }
 
-        /** {@link #blockIndex()} 의 바이옴판. */
+        /** {@link #blockIndex()} 의 바이옴판(따로 된 스레드별 객체 — 블록 색인과 동시에 쥐어도 된다). */
         public FirstSeenIndex biomeIndex() {
-            return index(biomeSrc);
+            return index(biomeSrc, FirstSeenIndex.forBiomes());
         }
 
-        private static FirstSeenIndex index(PaletteStorage src) {
+        private static FirstSeenIndex index(PaletteStorage src, FirstSeenIndex out) {
             if (src == null) return null;
-            FirstSeenIndex out = FirstSeenIndex.get();
             return src.indexFirstSeen(out) ? out : null;
         }
     }

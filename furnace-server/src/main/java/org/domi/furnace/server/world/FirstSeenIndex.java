@@ -9,20 +9,27 @@ import java.util.Arrays;
  * 저장소의 팔레트 번호 → 첫 등장 번호 표(최대 256칸)만 쓰므로 칸마다 해시가 없고, 저장소 팔레트가 이미 첫 등장 순이며
  * 비트 수가 같으면 묶인 배열을 그대로 돌려준다(복사 없음).
  *
- * <p>스레드마다 하나({@link #get()})이고, 다음 {@link PaletteStorage#indexFirstSeen} 호출 전까지만 유효하다. 재진입하지 않는다.
+ * <p>스레드마다 블록용·바이옴용 하나씩({@link #forBlocks()}·{@link #forBiomes()})이라 블록 색인을 쥔 채 바이옴 색인을 불러도 된다.
+ * 같은 종류의 다음 색인 호출 전까지만 유효하다. 재진입하지 않는다.
  */
 public final class FirstSeenIndex {
 
-    private static final ThreadLocal<FirstSeenIndex> LOCAL = ThreadLocal.withInitial(FirstSeenIndex::new);
+    private static final ThreadLocal<FirstSeenIndex> BLOCKS = ThreadLocal.withInitial(FirstSeenIndex::new);
+    private static final ThreadLocal<FirstSeenIndex> BIOMES = ThreadLocal.withInitial(FirstSeenIndex::new);
 
-    static FirstSeenIndex get() { return LOCAL.get(); }
+    static FirstSeenIndex forBlocks() { return BLOCKS.get(); }
+
+    static FirstSeenIndex forBiomes() { return BIOMES.get(); }
 
     /** 간접 저장소 비트 수 상한은 8(블록) — 팔레트 번호는 256 미만. */
     private final int[] remap = new int[256];
     private final int[] values = new int[256];
     private int n;
     private int cells;
-    /** 원본 묶인 배열(단일값이면 null)과 그 비트 수. 읽기 사본의 배열이라 고치지 않는다. */
+    /**
+     * 원본 묶인 배열(단일값이면 null)과 그 비트 수. 읽기 사본의 배열이라 고치지 않는다. 다 쓴 뒤에도 다음 색인 때까지 붙잡는다
+     * (스레드·종류당 최대 2KB — pack 이 공유 갈래로 돌려준 배열을 받은 쪽이 쓰는 동안 비울 이유가 없다).
+     */
     private long[] src;
     private int srcBits;
     /** 쓰인 저장소 번호가 정확히 0..n-1 이고 칸마다 번호 그대로인가(첫 등장 순 = 저장 순). */
@@ -79,6 +86,13 @@ public final class FirstSeenIndex {
         src = data;
         srcBits = bits;
         identity = id;
+        assert distinct(values, count) : "저장소 팔레트에 같은 값이 둘 — 첫 등장 순 색인이 옛 경로와 달라진다";
+    }
+
+    /** 불변식 가드(-ea): 값이 서로 겹치지 않는가. n ≤ 256. */
+    private static boolean distinct(int[] v, int n) {
+        for (int i = 1; i < n; i++) for (int j = 0; j < i; j++) if (v[i] == v[j]) return false;
+        return true;
     }
 
     /**

@@ -277,7 +277,7 @@ class PaletteDirectWriteParityTest {
                     BitStorage st = new BitStorage(srcBits, size);
                     int[] flat = new int[size];
                     for (int i = 0; i < size; i++) { int k = r.nextInt(used); st.set(i, k); flat[i] = palette[k]; }
-                    FirstSeenIndex ix = FirstSeenIndex.get();
+                    FirstSeenIndex ix = FirstSeenIndex.forBlocks();
                     ix.indirect(palette, st.data(), srcBits, size);
                     if (ix.size() < 2) continue;
                     // 기대: 펼친 값의 첫 등장 순
