@@ -61,8 +61,8 @@ class ContainerEntityOrderTest {
     void airCollisionShapeIsEmpty() {
         var level = new BlockPlacementTest.TestLevel();
         int air = B.defaultState("air");
-        assertTrue(BlockBehaviors.of(air).getCollisionShape(air, level, new Pos(0, 0, 0), null).isEmpty());
+        assertTrue(BlockBehaviors.of(air).getCollisionShape(air, level, new Pos(0, 0, 0), CollisionContext.EMPTY).isEmpty());
         var cow = new Cow(level, level.nextEntityId());
-        assertTrue(BlockBehaviors.of(air).getEntityCollisionShape(air, level, new Pos(0, 0, 0), cow).isEmpty());
+        assertTrue(BlockBehaviors.of(air).getCollisionShape(air, level, new Pos(0, 0, 0), org.domi.furnace.server.block.CollisionContext.of(cow)).isEmpty());
     }
 }

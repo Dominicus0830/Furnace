@@ -37,7 +37,9 @@ class CollisionScanParityTest {
     private static Cow cow;
     private static Rabbit rabbit;
     private static Boat selfBoat;
+    private static org.domi.furnace.server.entity.Strider strider;
     private static final List<int[]> SHAPED_STATES = new ArrayList<>();
+    private static final int LAVA_POOL_Y = -40;
 
     /** 평지 시험 레벨 + 보더 바꾸기. */
     static final class ParityLevel extends BlockPlacementTest.TestLevel {
@@ -96,6 +98,14 @@ class CollisionScanParityTest {
                 }
             }
         }
+        // 용암 원천 웅덩이(위 두 칸은 공기) — 스트라이더가 설 자리. 질의 일부가 이 위로 온다(LAVA_POOL_Y)
+        int lavaSrc = B.defaultState("minecraft:lava");
+        for (int x = 0; x <= 5; x++) for (int z = 0; z <= 5; z++) {
+            ChunkColumn col = level.chunk(x >> 4, z >> 4);
+            col.setBlock(x, LAVA_POOL_Y, z, lavaSrc);
+            col.setBlock(x, LAVA_POOL_Y + 1, z, air);
+            col.setBlock(x, LAVA_POOL_Y + 2, z, air);
+        }
         // 엔티티 충돌 모양(배·셜커 몸) — 블록 모양보다 목록 앞에 온다
         for (int i = 0; i < 25; i++) {
             Entity e = i % 3 == 0 ? new Shulker(level, level.nextEntityId()) : new Boat(level, level.nextEntityId());
@@ -105,21 +115,27 @@ class CollisionScanParityTest {
         cow = new Cow(level, level.nextEntityId());
         rabbit = new Rabbit(level, level.nextEntityId());
         selfBoat = new Boat(level, level.nextEntityId());
+        strider = new org.domi.furnace.server.entity.Strider(level, level.nextEntityId());
     }
 
-    /** 한 번의 질의. who: 0 없음, 1 소, 2 토끼(가루눈 위를 걷는다), 3 배(밀 수 있는 몹과도 부딪힌다). */
+    /**
+     * 한 번의 질의. who: 0 없음, 1 소, 2 토끼(가루눈 위를 걷는다), 3 배(밀 수 있는 몹과도 부딪힌다), 4 스트라이더(용암 원천 위에 선다).
+     * sneak 은 웅크림(비계를 타고 내려가기·가루눈 빠지기).
+     */
     record Query(int who, double ex, double ey, double ez, float fall, AABB box, double dx, double dy, double dz, boolean onGround, float step,
-                 double[] border) {
+                 double[] border, boolean sneak) {
         Entity self() {
             Entity e = switch (who) {
                 case 1 -> cow;
                 case 2 -> rabbit;
                 case 3 -> selfBoat;
+                case 4 -> strider;
                 default -> null;
             };
             if (e != null) {
                 e.moveTo(ex, ey, ez, 0, 0);
                 e.fallDistance = fall;
+                e.setShiftKeyDown(sneak);
             }
             level.border = border.clone();
             return e;
@@ -127,7 +143,7 @@ class CollisionScanParityTest {
 
         String summary() {
             return "who=" + who + " at=(" + ex + "," + ey + "," + ez + ") fall=" + fall + " box=" + box + " d=(" + dx + "," + dy + "," + dz + ")"
-                    + " ground=" + onGround + " step=" + step + " border=" + java.util.Arrays.toString(border);
+                    + " ground=" + onGround + " step=" + step + " border=" + java.util.Arrays.toString(border) + " sneak=" + sneak;
         }
     }
 
@@ -153,7 +169,12 @@ class CollisionScanParityTest {
     static Query query(SplittableRandom r) {
         boolean far = r.nextInt(8) == 0;   // 로드된 끝(없는 청크 옆)
         double cx = far ? coord(r, -36, -24) : coord(r, -7, 23), cy = coord(r, -66, -18), cz = far ? coord(r, -7, 7) : coord(r, -7, 23);
-        int who = r.nextInt(4);
+        if (!far && r.nextInt(10) == 0) {   // 용암 웅덩이 위 — 원천 반 칸(+0.5) 문턱 근처
+            cx = coord(r, 0.5, 5.5);
+            cz = coord(r, 0.5, 5.5);
+            cy = LAVA_POOL_Y + 0.5 + (r.nextInt(3) - 1) * (r.nextBoolean() ? 1.0E-5 : r.nextDouble() * 0.3);
+        }
+        int who = r.nextInt(5);
         double w, h;
         switch (r.nextInt(5)) {
             case 0 -> { w = 0.9; h = 1.4; }                 // 소
@@ -176,7 +197,9 @@ class CollisionScanParityTest {
         float fall = r.nextInt(3) == 0 ? 3.0F : 0.0F;
         float step = r.nextInt(3) == 0 ? 0.0F : r.nextBoolean() ? 0.6F : 1.0F;
         double ex = (box.minX() + box.maxX()) / 2, ez = (box.minZ() + box.maxZ()) / 2;
-        return new Query(who, ex, box.minY() + (r.nextBoolean() ? 0.0 : r.nextDouble()), ez, fall, box, move(r), move(r), move(r), r.nextBoolean(), step, border);
+        boolean sneak = r.nextInt(4) == 0;
+        return new Query(who, ex, box.minY() + (r.nextBoolean() ? 0.0 : r.nextDouble()), ez, fall, box, move(r), move(r), move(r), r.nextBoolean(), step, border,
+                sneak);
     }
 
     /** 모양 목록을 비교할 문자열로: 상자 값(-0.0 구분)과 오르기 후보 격자. */
@@ -239,35 +262,60 @@ class CollisionScanParityTest {
                 q -> Entity.collideMove(level, q.self(), q.box(), q.onGround(), 0.0F, q.dx(), q.dy(), q.dz()));
     }
 
-    /** 상태별 표가 덮어쓴 동작(칸·문맥 모양)을 고른다 — 움직이는 피스톤·가루눈. 표에 새 동작이 빠지면 여기서 잡는다. */
+    /** 상태별 표가 덮어쓴 동작(칸·문맥 모양)을 고른다 — 움직이는 피스톤·가루눈·비계·물·용암. 표에 새 동작이 빠지면 여기서 잡는다. */
     @Test
     void contextualBehaviorsAreDynamic() {
-        assertTrue(ChunkLevel.CollisionTable.contextual(BlockBehaviors.ofBlock(B.id("moving_piston")).getClass()));
-        assertTrue(ChunkLevel.CollisionTable.contextual(BlockBehaviors.ofBlock(B.id("powder_snow")).getClass()));
+        for (String n : CONTEXTUAL) assertTrue(ChunkLevel.CollisionTable.contextual(BlockBehaviors.ofBlock(B.id(n)).getClass()), n);
         assertFalse(ChunkLevel.CollisionTable.contextual(BlockBehaviors.ofBlock(B.id("oak_stairs")).getClass()));
         Blocks blocks = Blocks.get();
         int dynamic = 0;
         for (int b = 0; b < blocks.blockCount(); b++) if (ChunkLevel.CollisionTable.contextual(BlockBehaviors.ofBlock(b).getClass())) dynamic++;
-        assertEquals(2, dynamic, "덮어쓴 동작이 늘었다 — 이 시험과 SHAPED 목록에 넣는다");
+        assertEquals(CONTEXTUAL.length, dynamic, "덮어쓴 동작이 늘었다 — CONTEXTUAL 과 SHAPED 목록에 넣는다");
+        // 액체 표시(FLUID)는 물·용암만: 유체 위에 서지 못하는 문맥은 동작을 부르지 않고 건너뛴다
+        for (int st = 0; st < blocks.stateCount(); st++) {
+            boolean fluid = (ChunkLevel.CollisionTable.FLAGS[st] & ChunkLevel.CollisionTable.FLUID) != 0;
+            int b = blocks.blockOf(st);
+            assertEquals(b == B.id("water") || b == B.id("lava"), fluid, "상태 " + st);
+        }
+        for (String n : CONTEXTUAL) assertTrue(java.util.Arrays.asList(SHAPED).contains(n), "SHAPED 에 없다: " + n);
     }
+
+    /** 충돌 모양을 덮어쓰는(칸·문맥에 따라 다른) 블록. */
+    private static final String[] CONTEXTUAL = {"moving_piston", "powder_snow", "scaffolding", "water", "lava"};
 
     /** 생성기가 볼 만한 경우를 실제로 만드는지(빈 시험 막기): 충돌 있음·문맥 블록·엔티티 몸·보더·오르기·가장자리 청크. */
     @Test
     void generatorCoversInterestingCases() {
-        int piston = B.id("moving_piston"), snow = B.id("powder_snow");
+        int piston = B.id("moving_piston"), snow = B.id("powder_snow"), scaffolding = B.id("scaffolding"), lava = B.id("lava");
         int n = 20000, nonEmpty = 0, dynamicHits = 0, entityShapes = 0, borders = 0, stepped = 0, blocked = 0, wide = 0;
+        int scaffoldStable = 0, scaffoldBottom = 0, scaffoldPassed = 0, lavaStood = 0;
         for (int k = 0; k < n; k++) {
             Query q = query(Differential.randomFor(0x7018_0001L, k));
             Entity self = q.self();
             if ((Entity.floor(q.box().maxX() + 1.0E-7) + 1 >> 4) - (Entity.floor(q.box().minX() - 1.0E-7) - 1 >> 4) >= 2) wide++;
             int[] dyn = {0};
             boolean[] any = {false};
+            int[] ctx = {0, 0, 0};   // 비계 안정·바닥 판, 용암 위
             level.scanCollisions(q.box(), self, (x, y, z, sh) -> {
                 any[0] = true;
                 int b = Blocks.get().blockOf(level.getBlockState(new Pos(x, y, z)));
-                if (b == piston || b == snow) dyn[0]++;
+                if (b == piston || b == snow || b == scaffolding || b == lava) dyn[0]++;
+                if (b == scaffolding) ctx[sh == org.domi.furnace.server.block.types.ScaffoldingBlock.UNSTABLE_SHAPE_BOTTOM ? 1 : 0]++;
+                if (b == lava) ctx[2]++;
                 return true;
             });
+            scaffoldStable += ctx[0];
+            scaffoldBottom += ctx[1];
+            lavaStood += ctx[2];
+            // 몸과 겹치는 비계 칸 중 문맥 때문에 빠진 것(문맥 없는 모양은 겹친다)
+            int[] passed = {0};
+            level.scanCollisions(q.box(), null, (x, y, z, sh) -> {
+                if (Blocks.get().blockOf(level.getBlockState(new Pos(x, y, z))) == scaffolding && self != null
+                        && BlockBehaviors.of(level.getBlockState(new Pos(x, y, z))).getCollisionShape(level.getBlockState(new Pos(x, y, z)), level,
+                                new Pos(x, y, z), CollisionContext.of(self)).isEmpty()) passed[0]++;
+                return true;
+            });
+            scaffoldPassed += passed[0];
             if (any[0]) nonEmpty++;
             if (dyn[0] > 0) dynamicHits++;
             if (!level.entityCollisions(self, q.box().expandTowards(q.dx(), q.dy(), q.dz())).isEmpty()) entityShapes++;
@@ -277,10 +325,12 @@ class CollisionScanParityTest {
             if (!java.util.Arrays.equals(with, without)) stepped++;
             if (with[0] != q.dx() || with[1] != q.dy() || with[2] != q.dz()) blocked++;
         }
-        System.out.printf("T018 coverage n=%d nonEmpty=%d dynamic=%d entityShapes=%d border=%d stepped=%d blocked=%d wide=%d%n",
-                n, nonEmpty, dynamicHits, entityShapes, borders, stepped, blocked, wide);
+        System.out.printf("T018 coverage n=%d nonEmpty=%d dynamic=%d entityShapes=%d border=%d stepped=%d blocked=%d wide=%d"
+                + " scaffoldStable=%d scaffoldBottom=%d scaffoldPassed=%d lavaStood=%d%n",
+                n, nonEmpty, dynamicHits, entityShapes, borders, stepped, blocked, wide, scaffoldStable, scaffoldBottom, scaffoldPassed, lavaStood);
         assertTrue(nonEmpty > n / 4 && dynamicHits > 50 && entityShapes > 50 && borders > 50 && stepped > 50 && blocked > n / 10 && wide > 500,
                 "생성기가 경우를 고루 만들지 못한다");
+        assertTrue(scaffoldStable > 20 && scaffoldBottom > 5 && scaffoldPassed > 20 && lavaStood > 5, "생성기가 비계·용암 문맥 경우를 만들지 못한다");
     }
 
     private static Object firstSupporting(Query q) {

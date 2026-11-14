@@ -240,7 +240,7 @@ public abstract class Projectile extends Entity {
     /** 이동 선분에서 맞은 것(블록 → 엔티티 순으로 가장 가까운 것). */
     protected Hit findHit(double fx, double fy, double fz, double tx, double ty, double tz) {
         Hit best = null;
-        Clip.Result r = Clip.clipCollider(level, fx, fy, fz, tx, ty, tz);
+        Clip.Result r = Clip.clipCollider(level, org.domi.furnace.server.block.CollisionContext.of(this), fx, fy, fz, tx, ty, tz);   // ProjectileUtil: 투사체 문맥
         double limit = 1.0;
         if (!r.miss()) {
             best = new Hit(null, r.pos(), r.face(), r.x(), r.y(), r.z());

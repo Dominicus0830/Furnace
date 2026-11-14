@@ -1,9 +1,10 @@
 // 바닐라 SnowLayerBlock: 눈(layers 1..8). 같은 것을 들고 윗면을 누르면 한 겹씩 쌓이고, 블록빛이 11 넘으면 녹는다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.block.CollisionContext;
+
 import org.domi.furnace.server.block.Shape;
 
-import org.domi.furnace.server.block.BlockActor;
 
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
@@ -27,7 +28,7 @@ public class SnowLayerBlock extends BlockBehavior {
         int below = level.getBlockState(bp);
         if (B.isTag(below, "minecraft:snow_layer_cannot_survive_on")) return false;
         if (B.isTag(below, "minecraft:snow_layer_can_survive_on")) return true;
-        return B.behavior(below).getCollisionShape(below, level, bp, null).isFaceFull(Dir.UP) || B.is(below, block) && LAYERS.intValue(below) == MAX_HEIGHT;
+        return B.behavior(below).getCollisionShape(below, level, bp, org.domi.furnace.server.block.CollisionContext.EMPTY).isFaceFull(Dir.UP) || B.is(below, block) && LAYERS.intValue(below) == MAX_HEIGHT;
     }
 
     @Override
@@ -59,5 +60,5 @@ public class SnowLayerBlock extends BlockBehavior {
 
     /** getVisualShape: 층수 모양(충돌 모양보다 한 층 높다) = 외곽 모양. */
     @Override
-    public Shape getVisualShape(int state, BlockLevel level, Pos pos, BlockActor entity) { return getShape(state, level, pos); }
+    public Shape getVisualShape(int state, BlockLevel level, Pos pos, CollisionContext ctx) { return getShape(state, level, pos); }
 }
