@@ -913,6 +913,33 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         });
     }
 
+    @Override
+    public Optional<org.domi.furnace.api.nbt.NbtCompound> blockEntityNbtNow(BlockPos pos) {
+        Pos p = new Pos(pos.x(), pos.y(), pos.z());
+        var level = ownedLevelAt(pos, "blockEntityNbtNow(" + pos + ")");
+        if (level == null || !(level.getBlockEntity(p) instanceof org.domi.furnace.server.block.entity.BlockEntity be)) return Optional.empty();
+        return Optional.of(ApiNbt.toApi(org.domi.furnace.server.command.builtin.DataCommands.blockEntityData(level, be, p)));
+    }
+
+    @Override
+    public boolean setBlockEntityNbtNow(BlockPos pos, org.domi.furnace.api.nbt.NbtCompound nbt) {
+        java.util.Objects.requireNonNull(nbt, "nbt");
+        Pos p = new Pos(pos.x(), pos.y(), pos.z());
+        var level = ownedLevelAt(pos, "setBlockEntityNbtNow(" + pos + ")");
+        if (level == null || !(level.getBlockEntity(p) instanceof org.domi.furnace.server.block.entity.BlockEntity be)) return false;
+        org.domi.furnace.server.command.builtin.DataCommands.setBlockEntityData(level, be, p, ApiNbt.toServer(nbt));
+        level.broadcastChanges();
+        return true;
+    }
+
+    /** 소유 스레드 확인 뒤 그 칸의 레벨(높이 밖·로드 안 됨이면 null). */
+    private org.domi.furnace.server.world.RegionLevel ownedLevelAt(BlockPos pos, String what) {
+        Region r = ownedRegion(pos, what);
+        var level = r == null ? null : r.level();
+        if (level == null || !inHeight(pos.y()) || !level.hasChunkAt(new Pos(pos.x(), pos.y(), pos.z()))) return null;
+        return level;
+    }
+
     // ------------------------------------------------------------------ 시간·날씨·스폰·폴더(T-141)
 
     /** 시간·날씨의 주인: 주 오버월드(모든 차원이 그 시계를 함께 쓴다 — World.shareServerState). */

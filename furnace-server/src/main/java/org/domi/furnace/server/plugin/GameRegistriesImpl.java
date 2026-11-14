@@ -138,6 +138,36 @@ final class GameRegistriesImpl implements GameRegistries {
     }
 
     @Override
+    public String blockEntityType(String block) {
+        var blocks = org.domi.furnace.server.block.Blocks.get();
+        int b = blocks.block(normalize(block));
+        if (b < 0) return null;
+        return blockEntityTypes()[b];
+    }
+
+    /** 블록 번호 → 블록 엔티티 종류(없으면 null). 바닐라 BlockEntityType.getValidBlocks 를 거꾸로 본 표. */
+    private static volatile String[] BE_TYPES;
+
+    private static String[] blockEntityTypes() {
+        String[] t = BE_TYPES;
+        if (t != null) return t;
+        var blocks = org.domi.furnace.server.block.Blocks.get();
+        t = new String[blocks.blockCount()];
+        var origin = new org.domi.furnace.server.block.Pos(0, 0, 0);
+        for (int b = 0; b < t.length; b++) {
+            var be = org.domi.furnace.server.block.BlockBehaviors.ofBlock(b).newBlockEntity(origin, blocks.defaultState(b));
+            if (be != null) t[b] = be.type();
+        }
+        // 상자는 Furnace 에서 자기 틀(ChestBlockEntity)로 만들고, 움직이는 피스톤의 블록 엔티티는 피스톤이 밀 때만 생긴다(바닐라 newBlockEntity 도 null).
+        t[blocks.block("minecraft:chest")] = "minecraft:chest";
+        t[blocks.block("minecraft:trapped_chest")] = "minecraft:trapped_chest";
+        t[blocks.block("minecraft:moving_piston")] = "minecraft:piston";
+        // 마법 부여대: 바닐라는 EnchantingTableBlockEntity(이름·책 돌리기)를 두지만 Furnace 는 아직 만들지 않는다 — 표는 바닐라대로.
+        t[blocks.block("minecraft:enchanting_table")] = "minecraft:enchanting_table";
+        return BE_TYPES = t;
+    }
+
+    @Override
     public Optional<String> source(String registry, String key) {
         DynamicRegistries d = DynamicRegistries.current();
         return Optional.ofNullable(d == null ? null : d.source(normalize(registry), normalize(key)));

@@ -391,6 +391,18 @@ public interface World {
      */
     CompletableFuture<Boolean> editBlockEntityNbt(BlockPos pos, java.util.function.Consumer<NbtCompound> edit);
 
+    /**
+     * {@link #blockEntityNbt} 의 소유 스레드 판: 그 칸을 가진 region 스레드에서만(아니면 ThreadOwnershipException).
+     * 로드되지 않았거나 블록 엔티티가 없으면 empty.
+     */
+    default Optional<NbtCompound> blockEntityNbtNow(BlockPos pos) { throw new UnsupportedOperationException("blockEntityNbtNow"); }
+
+    /**
+     * 소유 스레드에서 블록 엔티티 NBT 를 통째로 싣는다(/data 쓰기와 같은 길: loadWithComponents → setChanged → 클라이언트 갱신, 위치 키는 그 칸으로).
+     * 블록 엔티티가 없거나 로드되지 않았으면 false. 그 칸을 가진 region 스레드에서만(아니면 ThreadOwnershipException).
+     */
+    default boolean setBlockEntityNbtNow(BlockPos pos, NbtCompound nbt) { throw new UnsupportedOperationException("setBlockEntityNbtNow"); }
+
     /** patch 를 합친다(/data merge block). 바뀌었으면 true. */
     default CompletableFuture<Boolean> mergeBlockEntityNbt(BlockPos pos, NbtCompound patch) {
         NbtCompound p = patch.copy();
