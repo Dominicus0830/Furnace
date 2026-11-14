@@ -4,11 +4,11 @@
 (context-notes/2026-11-14-wolf-biome-edge-fawe-api.md 3장). 같은 표에서 나오는 성질을 한꺼번에 넣었다.
 
 ## Paper 1.21.1 동작(원문 대조: MohistMC/Youer 1.21.1 사본 + Paper 저장소 paper-api a47a008c)
-- `Material.isSolid/isFlammable/isBurnable/isOccluding/hasGravity/getHardness/getBlastResistance/getSlipperiness` 와 Paper `hasCollision` 은
+- `Material.isSolid/isFlammable/isBurnable/isOccluding/hasGravity/getHardness/getBlastResistance/getSlipperiness` 와 Paper `isCollidable` 은
   `asBlockType()` → `CraftBlockType` 이 바닐라 블록 **기본 상태**를 읽는다:
   isSolid = `blocksMotion()`, isFlammable = `ignitedByLava()`, isBurnable = `FireBlock.igniteOdds > 0`, isOccluding = `isRedstoneConductor`,
-  hasGravity = `block instanceof Fallable`, hardness = `destroySpeed`, blast = `getExplosionResistance()`, slip = `getFriction()`, hasCollision = `Block.hasCollision`.
-  블록이 아니면 boolean 은 false, 수치 셋은 `IllegalArgumentException("The Material is not a block!")`.
+  hasGravity = `block instanceof Fallable`, hardness = `destroySpeed`, blast = `getExplosionResistance()`, slip = `getFriction()`, isCollidable = `Block.hasCollision`.
+  블록이 아니면 boolean 은 false(isCollidable 만 `IllegalArgumentException("<이름> isn't a block type")` — Paper `Add-hasCollision-methods-to-various-places.patch`. Material 에 hasCollision 은 없다), 수치 셋은 `IllegalArgumentException("The Material is not a block!")`.
 - `isTransparent()` 는 @Deprecated 손 관리 목록(바닐라 값이 아님). 이름 집합만 `tools/compat/bukkit-transparent-1.21.1.txt` 에 옮겨 적었다(LEGACY_ 50개 제외 127개). 유리·물은 목록에 없다(Paper 와 같다).
 - `EntityType.isAlive` = Bukkit 클래스가 LivingEntity 하위, `isSpawnable` = `independent`(낚시찌·플레이어·UNKNOWN 만 false).
 

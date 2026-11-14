@@ -194,8 +194,11 @@ out.append("""
     @Deprecated
     public boolean isTransparent() { return (flags & TRANSPARENT) != 0; }
 
-    /** 충돌 상자가 있는가(Paper hasCollision API: 바닐라 Block.hasCollision). 블록이 아니면 false. */
-    public boolean hasCollision() { return (flags & COLLISION) != 0; }
+    /** 충돌 상자가 있는가(Paper isCollidable API: 바닐라 Block.hasCollision). 블록이 아니면 IllegalArgumentException. */
+    public boolean isCollidable() {
+        if (!block) throw new IllegalArgumentException(this + " isn't a block type");
+        return (flags & COLLISION) != 0;
+    }
 
     /** 단단함(부수는 시간의 바탕, -1 = 부술 수 없음). 블록이 아니면 IllegalArgumentException. */
     public float getHardness() {

@@ -81,12 +81,13 @@ class MaterialBlockPropertiesTest {
 
     @Test
     void collision() {
-        assertTrue(Material.STONE.hasCollision());
-        assertTrue(Material.OAK_DOOR.hasCollision());
-        assertFalse(Material.TORCH.hasCollision());
-        assertFalse(Material.AIR.hasCollision());
-        assertFalse(Material.OAK_SIGN.hasCollision());
-        assertFalse(Material.STICK.hasCollision());
+        assertTrue(Material.STONE.isCollidable());
+        assertTrue(Material.OAK_DOOR.isCollidable());
+        assertFalse(Material.TORCH.isCollidable());
+        assertFalse(Material.AIR.isCollidable());
+        assertFalse(Material.OAK_SIGN.isCollidable());
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, Material.STICK::isCollidable);
+        assertEquals("STICK isn't a block type", e.getMessage());
     }
 
     @Test
