@@ -248,7 +248,7 @@ public final class GenQueue extends AbstractExecutorService {
             turnWait.addLast(owner);
             for (int i = gen.size() - 1; i >= 0; i--) {
                 Task t = gen.get(i);
-                if (t.ticket != null && t.ticket.owner == owner && t.ticket.keepAlive == null && t.ticket.tryCancel()) {
+                if (t.ticket != null && t.ticket.owner == owner && t.ticket.keepAlive == null && t.ticket.tryCancel()) {   // 시간 티켓 로드는 owner −1 이라 지금은 늘 참(검토 R11)
                     removeAt(i);
                     turnCancelled.add(t);
                 }

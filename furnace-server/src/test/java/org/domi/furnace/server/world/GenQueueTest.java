@@ -291,4 +291,44 @@ class GenQueueTest {
         assertEquals(16, q.capFor(2, false), "요청 없는 차례는 넘어간다");
         assertEquals(1, q.capFor(1, false));
     }
+
+    /** 닫을 때 기다리던 미리 불러오기는 취소하고, 고정 요청은 끝까지 돈다(검토 M24). */
+    @Test
+    void shutdown_cancelsQueuedPrefetches_runsPinned() throws Exception {
+        world(settings(true, 16, 0, 0), 1);
+        join(1, 8, 8);
+        CountDownLatch gate = block();
+        GenQueue.Ticket pre = new GenQueue.Ticket(true), pinned = new GenQueue.Ticket(false);
+        CompletableFuture<String> fPre = CompletableFuture.supplyAsync(() -> gated(pre, "pre"), q.tagged(w, 1, 0, pre));
+        CompletableFuture<String> fPin = CompletableFuture.supplyAsync(() -> gated(pinned, "pin"), q.tagged(w, 2, 0, pinned));
+        q.shutdown();
+        assertTrue(pre.cancelled(), "닫으면 미리 불러오기는 취소");
+        assertThrows(ExecutionException.class, () -> fPre.get(5, TimeUnit.SECONDS));
+        gate.countDown();
+        assertEquals("pin", fPin.get(5, TimeUnit.SECONDS), "고정 요청은 닫는 중에도 돈다");
+    }
+
+    /** 모서리(서버 시야 정사각 ∖ 클라 둥근 모양) 미리 불러오기도 생성 칸을 지킨다(검토 M20). */
+    @Test
+    void cornerLoads_respectGenCap() throws Exception {
+        sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        io = Executors.newSingleThreadExecutor();
+        q = new GenQueue(2, settings(true, 16, 2, 0));
+        w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, sched.regionThreadCount(), 16, 8, 8,
+                reg.directBits(), 7, io, q);
+        w.configureStreaming(0, Config.CHUNKS_PER_TICK_AUTO);
+        Player p = new Player(1, UUID.randomUUID(), "P1", new ConcurrentEmbeddedChannel());
+        p.viewDistance(3);
+        p.applyMove(8, -60, 8, 0, 0, true);
+        sched.region(rp).execute(() -> w.regionAt(rp).adopt(p)).get();
+        boolean corner = false;
+        for (int i = 0; i < 600; i++) {
+            tick();
+            assertTrue(p.genPrefetches().size() <= 2, "생성 칸 2 를 넘으면 안 된다: " + p.genPrefetches().size());
+            if (w.isChunkLoaded(8, 8)) { corner = true; break; }   // 서버 시야 8 정사각 모서리
+            Thread.sleep(3);
+        }
+        assertTrue(corner, "모서리 청크까지 온다");
+    }
 }
