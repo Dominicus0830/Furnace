@@ -305,12 +305,61 @@ public final class Compat {
         } else if (size <= PRUNE_AT && s.playerPruneAt != PRUNE_AT) {
             s.playerPruneAt = PRUNE_AT;
         }
-        // 처음 감싸기·핸들 교체를 원자적으로 — 두 스레드가 동시에 와도 같은 CraftPlayer 를 받는다
-        return s.players.compute(p.uniqueId(), (k, cur) -> {
-            if (cur != null && cur.furnaceHandle() == p) return cur;
-            if (cur != null) cur.retire();   // 옛 접속의 권한 구독·거울을 걷은 뒤 새 객체를 만든다
+        // 새 객체는 표 밖에서 만든다 — CraftPlayer 생성은 권한 계산(플러그인 권한 객체 만들기, 접속자 순회)을 부르므로 표의 칸 잠금 안에서 하면
+        // "Recursive update" 가 나거나 두 스레드가 서로의 칸을 기다린다. 두 스레드가 동시에 와도 putIfAbsent·replace 로 하나만 남기고 진 쪽은 걷는다.
+        CraftPlayer fresh = null;
+        while (true) {
+            CraftPlayer cur = s.players.get(p.uniqueId());
+            if (cur != null && cur.furnaceHandle() == p) {
+                if (fresh != null) {   // 동시에 만든 쪽이 먼저 올렸다
+                    fresh.retire();
+                    // 진 쪽은 이긴 쪽과 equals 가 같아(같은 UUID·핸들) 생성자의 clearPermissions·retire 가 이긴 쪽의 구독 칸을 지웠을 수 있다 — 이긴 객체 키로 다시 건다
+                    cur.recalculatePermissions();
+                }
+                return cur;
+            }
+            if (fresh == null) fresh = create(p);
+            if (cur == null) {
+                if (s.players.putIfAbsent(p.uniqueId(), fresh) == null) return fresh;
+            } else if (s.players.replace(p.uniqueId(), cur, fresh)) {
+                cur.retire();   // 옛 접속의 권한 구독·거울을 걷는다(새 객체는 다른 핸들이라 영향 없다)
+                return fresh;
+            }
+        }
+    }
+
+    /** 이 스레드가 CraftPlayer 를 만드는 중인 핸들들(생성 중 권한 계산이 같은 플레이어를 다시 감싸지 않게). 겹쳐 만드는 일이 드물어 작은 목록이면 된다. */
+    private static final ThreadLocal<java.util.ArrayList<org.domi.furnace.api.entity.Player>> CREATING = new ThreadLocal<>();
+
+    private static CraftPlayer create(org.domi.furnace.api.entity.Player p) {
+        java.util.ArrayList<org.domi.furnace.api.entity.Player> creating = CREATING.get();
+        if (creating == null) CREATING.set(creating = new java.util.ArrayList<>(2));
+        for (var c : creating) {
+            if (c == p) throw new IllegalStateException("CraftPlayer 생성 중에 같은 플레이어를 다시 감쌀 수 없다: " + p.name());
+        }
+        creating.add(p);
+        try {
             return new CraftPlayer(p);
-        });
+        } finally {
+            creating.remove(creating.size() - 1);
+            if (creating.isEmpty()) CREATING.remove();
+        }
+    }
+
+    /**
+     * 접속자의 CraftPlayer 들(권한 구독자 보충용). 생성 밖(플러그인이 부를 때)에는 접속자 전원을 감싼다 — Paper 에서는 접속자 전원이 CraftPlayer 를 가져
+     * 구독 목록에 모두 든다. 이 스레드가 CraftPlayer 를 만드는 중(권한 계산)에는 이미 감싼 것만 본다: Paper 는 새 플레이어의 CraftPlayer 를 접속자 목록에 넣기
+     * 전에 만들므로 그 플레이어는 목록에 없고, 안 감싼 접속자는 Bukkit 권한 상태가 없어 다시 계산할 것이 없으며 감쌀 때 올라간 노드로 처음부터 계산한다.
+     * 생성 중에도 전원을 감싸면 첫 감싸기가 접속자 수만큼 중첩된다(재계산 N², 스택 깊이 N).
+     */
+    public static java.util.List<org.bukkit.entity.Player> onlinePlayersSettled() {
+        boolean creating = CREATING.get() != null;
+        java.util.ArrayList<org.bukkit.entity.Player> out = new java.util.ArrayList<>();
+        for (org.domi.furnace.api.entity.Player p : furnace().onlinePlayers()) {
+            org.bukkit.entity.Player c = creating ? existingPlayer(p) : player(p);
+            if (c != null) out.add(c);
+        }
+        return out;
     }
 
     /** 로그인이 거부된 접속의 CraftPlayer 를 표에서 꺼내 권한 구독·거울을 걷는다(그 접속 것일 때만 — 같은 UUID 의 다른 접속은 두고). */
@@ -324,10 +373,15 @@ public final class Compat {
         });
     }
 
-    /** 접속이 끝났다(퇴장 이벤트를 Bukkit 처리기들이 본 뒤) — NMS 연결의 가상 채널을 닫아 패킷 라이브러리가 자기 처리기를 걷게 한다. */
+    /**
+     * 접속이 끝났다 — NMS 연결의 가상 채널을 닫아 패킷 라이브러리가 자기 처리기를 걷게 하고, Paper(PlayerList.remove → CraftPlayer.disconnect)처럼
+     * Bukkit 권한 계산·구독을 걷는다. 퇴장 정리 구독({@link EventBridge#watchQuit})이 Bukkit 퇴장 처리기들 맨 뒤에 있어, 처리기들은 권한을 아직 본다.
+     */
     static void disconnected(org.domi.furnace.api.entity.Player p) {
         CraftPlayer c = existingPlayer(p);
-        if (c != null) c.disconnected();
+        if (c == null) return;
+        c.disconnected();
+        c.clearPermissionState();
     }
 
     /**
@@ -427,7 +481,10 @@ public final class Compat {
 
     /** 이 핸들을 감쌀 CraftEntity 종류 — Bukkit 이 따로 형을 두는 종류(갑옷 거치대·돼지)는 그 형, 나머지는 살아 있는지로. */
     private static Class<? extends CraftEntity> craftClass(org.domi.furnace.api.entity.Entity e) {
-        if (!(e instanceof org.domi.furnace.api.entity.LivingEntity)) return "minecraft:item".equals(e.type()) ? org.bukkit.craftbukkit.entity.CraftItem.class : CraftEntity.class;
+        if (!(e instanceof org.domi.furnace.api.entity.LivingEntity)) {
+            if ("minecraft:item".equals(e.type())) return org.bukkit.craftbukkit.entity.CraftItem.class;
+            return org.bukkit.craftbukkit.entity.CraftProjectile.TYPES.contains(e.type()) ? org.bukkit.craftbukkit.entity.CraftProjectile.class : CraftEntity.class;
+        }
         return switch (e.type()) {
             case "minecraft:armor_stand" -> org.bukkit.craftbukkit.entity.CraftArmorStand.class;
             case "minecraft:pig" -> e instanceof org.domi.furnace.api.entity.Mob ? org.bukkit.craftbukkit.entity.CraftPig.class : CraftLivingEntity.class;
@@ -438,6 +495,7 @@ public final class Compat {
     private static CraftEntity newCraft(Class<? extends CraftEntity> kind, org.domi.furnace.api.entity.Entity e) {
         if (kind == CraftEntity.class) return new CraftEntity(e);
         if (kind == org.bukkit.craftbukkit.entity.CraftItem.class) return new org.bukkit.craftbukkit.entity.CraftItem(e);
+        if (kind == org.bukkit.craftbukkit.entity.CraftProjectile.class) return new org.bukkit.craftbukkit.entity.CraftProjectile(e);
         var living = (org.domi.furnace.api.entity.LivingEntity) e;
         if (kind == org.bukkit.craftbukkit.entity.CraftArmorStand.class) return new org.bukkit.craftbukkit.entity.CraftArmorStand(living);
         if (kind == org.bukkit.craftbukkit.entity.CraftPig.class) return new org.bukkit.craftbukkit.entity.CraftPig((org.domi.furnace.api.entity.Mob) e);

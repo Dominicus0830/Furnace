@@ -180,7 +180,7 @@ public class FireworkRocketEntity extends Projectile {
         }
     }
 
-    private boolean canSee(double tx, double ty, double tz) { return org.domi.furnace.server.block.Clip.clipCollider(level, x(), y(), z(), tx, ty, tz).miss(); }
+    private boolean canSee(double tx, double ty, double tz) { return org.domi.furnace.server.block.Clip.clipCollider(level, org.domi.furnace.server.block.CollisionContext.of(this), x(), y(), z(), tx, ty, tz).miss(); }
 
     @Override
     protected void addAdditionalSaveData(NbtCompound tag) {

@@ -26,6 +26,7 @@ public final class TryFindLand {
                     return true;
                 }
                 Pos here = mob.blockPosition();
+                var ctx = org.domi.furnace.server.block.CollisionContext.of(mob);   // 바닐라: 훑기 전에 한 번(몹 문맥 — 비계 등)
                 BlockPosIter.withinManhattan(here.x(), here.y(), here.z(), range, range, range, (x, y, z) -> {
                     if (x != here.x() || z != here.z()) {
                         Pos p = new Pos(x, y, z);
@@ -33,7 +34,7 @@ public final class TryFindLand {
                         Pos below = p.relative(Dir.DOWN);
                         int belowState = level.getBlockState(below);
                         if (!B.is(state, "minecraft:water") && level.getFluidState(p) == 0
-                                && B.behavior(state).getCollisionShape(state, level, p, null).isEmpty() && B.isFaceSturdy(belowState, level, below, Dir.UP)) {
+                                && B.behavior(state).getCollisionShape(state, level, p, ctx).isEmpty() && B.isFaceSturdy(belowState, level, below, Dir.UP)) {
                             mob.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new BlockPosTracker(p));
                             mob.getBrain().setMemory(MemoryModuleType.WALK_TARGET, new WalkTarget(new BlockPosTracker(p), speed, 1));
                             return false;

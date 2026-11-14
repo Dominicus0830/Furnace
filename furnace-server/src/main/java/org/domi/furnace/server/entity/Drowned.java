@@ -195,7 +195,7 @@ public class Drowned extends Zombie implements RangedAttackMob {
             Pos above = pos.above();
             if (!level.isEmptyBlock(above) || !level.isEmptyBlock(above.above())) return false;
             int state = level.getBlockState(pos);
-            return B.isFaceSturdy(state, level, pos, org.domi.furnace.server.block.Dir.UP);
+            return B.entityCanStandOn(state, (org.domi.furnace.server.block.BlockLevel) level, pos, drowned);   // entityCanStandOn(물에 빠진 좀비 문맥)
         }
 
         @Override

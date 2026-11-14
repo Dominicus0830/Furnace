@@ -82,7 +82,7 @@ class ScheduledTickUnloadedChunkTest {
         NbtCompound root = new NbtCompound();
         level.saveChunkTicks(1, 0, root, true);   // 내릴 때 저장하며 꺼낸다
         assertFalse(level.hasScheduledTick(p, STONE));
-        level.loadChunkTicks(root);   // 다시 올릴 때(Region 은 청크를 월드에 넣은 뒤 부른다)
+        level.loadChunkTicks(root, 1, 0);   // 다시 올릴 때(Region 은 청크를 월드에 넣은 뒤 부른다)
         assertTrue(level.hasScheduledTick(p, STONE));
         assertTrue(level.hasChunkTicks(1, 0));
     }

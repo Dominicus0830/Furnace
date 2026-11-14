@@ -35,4 +35,10 @@ public interface LightWorld {
 
     /** 칸의 빛 값을 썼다(LayerLightSectionStorage.setStoredLevel → sectionsAffectedByLightUpdates). sky 면 하늘빛. */
     default void lightChanged(int x, int y, int z, boolean sky) {}
+
+    /**
+     * 감소 전파가 올라오지 않은 청크의 칸 (x, y, z) 에서 멈췄다. 그 청크(와 그 청크를 거쳐 빛이 닿았을 수 있는 이웃)의 디스크 빛은 지운 빛을
+     * 아직 담고 있을 수 있다 — 구현은 그 청크들을 "저장 빛을 믿지 말 것"으로 표시한다. 기본은 아무것도 안 한다(고립 계산·시험 세계).
+     */
+    default void decreaseBlocked(int x, int y, int z) {}
 }

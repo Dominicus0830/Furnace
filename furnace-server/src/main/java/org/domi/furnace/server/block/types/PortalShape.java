@@ -139,9 +139,10 @@ public final class PortalShape {
     /**
      * findCollisionFreePosition: 몸이 4 이하면 발 위치를 몸 가운데로 올려 둘레 블록 충돌(보더 안의 것만, 몸 반만큼 부풀림)을 뺀 빈 곳에서
      * 가장 가까운 점(CollisionGetter.findFreePosition — VoxelShape.closestPointTo)을 찾아 다시 발 위치로 내린다. 빈 곳이 없으면 그대로.
+     * 블록 충돌은 떠나는 엔티티의 문맥(바닐라 findFreePosition(entity) → getBlockCollisions(entity) — 아직 출발 차원 자리에 있다)으로 묻는다.
      */
-    public static double[] findCollisionFreePosition(org.domi.furnace.server.block.ChunkLevel level, double x, double y, double z,
-                                                     double width, double height) {
+    public static double[] findCollisionFreePosition(org.domi.furnace.server.block.ChunkLevel level, org.domi.furnace.server.block.CollisionContext ctx,
+                                                     double x, double y, double z, double width, double height) {
         if (width > 4.0 || height > 4.0) return new double[] {x, y, z};
         double half = height / 2.0;
         double cx = x, cy = y + half, cz = z;
@@ -151,7 +152,7 @@ public final class PortalShape {
         var search = new org.domi.furnace.server.entity.AABB(start[0], start[1], start[2], start[3], start[4], start[5]).inflate(width, height, width);
         java.util.List<double[]> free = new java.util.ArrayList<>();
         free.add(start);
-        for (org.domi.furnace.server.block.Shape s : level.blockCollisions(search)) {
+        for (org.domi.furnace.server.block.Shape s : level.blockCollisionsWith(ctx, search)) {
             double[] b = s.bounds();
             if (b == null || !withinBorder(level, b)) continue;
             for (int i = 0; i < s.boxCount(); i++) {

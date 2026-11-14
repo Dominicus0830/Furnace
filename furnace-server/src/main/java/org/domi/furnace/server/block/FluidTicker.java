@@ -218,8 +218,8 @@ public final class FluidTicker {
 
     /** canPassThroughWall: 두 칸의 맞닿은 충돌 모양 면을 합쳐도 면 전체를 막지 않는가. */
     private static boolean canPassThroughWall(int dir, BlockLevel level, Pos pos, int state, Pos np, int ns) {
-        Shape a = B.behavior(state).getCollisionShape(state, level, pos, null);
-        Shape b = B.behavior(ns).getCollisionShape(ns, level, np, null);
+        Shape a = B.behavior(state).getCollisionShape(state, level, pos, CollisionContext.EMPTY);
+        Shape b = B.behavior(ns).getCollisionShape(ns, level, np, CollisionContext.EMPTY);
         return !Shape.mergedFaceOccludes(a, b, dir);
     }
 

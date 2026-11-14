@@ -298,6 +298,42 @@ class InventoryResultEventsTest {
         });
     }
 
+    /**
+     * T-033: 서버가 넘기는 게으른 스냅샷(LazyList)이면 Bukkit 용기 사본도 칸을 받을 때 복사하지 않는다 — 처리기가 읽은 칸만 변환된다.
+     * 쓸 수 있는 칸에 쓰면 그때 사본을 만들어, 이벤트 스냅샷은 그대로다.
+     */
+    @Test
+    void lazySnapshotsStayLazyThroughBukkitContainers() throws Exception {
+        withServer((server, p) -> {
+            String w = "minecraft:overworld";
+            ItemStack[] chestSlots = new ItemStack[27];
+            java.util.Arrays.fill(chestSlots, ItemStack.EMPTY);
+            chestSlots[0] = item("minecraft:stone", 3);
+            chestSlots[4] = item("minecraft:dirt", 2);
+            var chest = org.domi.furnace.api.event.LazyList.of(chestSlots, s -> s);
+            var hopper = org.domi.furnace.api.event.LazyList.of(Collections.nCopies(5, ItemStack.EMPTY).toArray(new ItemStack[0]), s -> s);
+            List<String> log = new CopyOnWriteArrayList<>();
+            RecorderPlugin.ACTIONS.put("InventoryMoveItemEvent", e -> {
+                var m = (org.bukkit.event.inventory.InventoryMoveItemEvent) e;
+                log.add(m.getSource().getItem(0).getType() + "," + m.getSource().getSize() + "," + m.getDestination().getType());
+            });
+            var f = new org.domi.furnace.api.event.inventory.InventoryMoveItemEvent(new InventorySnapshot("minecraft:chest", chest), new Location(w, 1.5, 65.5, 2.5),
+                    new InventorySnapshot("minecraft:hopper", hopper), new Location(w, 1.5, 64.5, 2.5), item("minecraft:stone", 1), false);
+            server.api().events().call(f);
+            assertEquals(List.of("STONE,27,HOPPER"), log);
+            assertEquals(1, chest.resolvedCount(), "Bukkit 처리기가 읽은 칸 하나만 변환한다");
+            assertEquals(0, hopper.resolvedCount());
+
+            // 쓸 수 있는 칸: 처음 쓸 때 사본 — 이벤트 스냅샷은 바뀌지 않는다
+            var inv = new SnapshotInventory(InventoryType.CHEST, chest, 27, "minecraft:chest", i -> i == 4, null);
+            inv.setItem(4, new org.bukkit.inventory.ItemStack(Material.DIAMOND, 5));
+            assertEquals(Material.DIAMOND, inv.getItem(4).getType());
+            assertEquals(5, inv.getItem(4).getAmount());
+            assertEquals(Material.STONE, inv.getItem(0).getType());
+            assertEquals(item("minecraft:dirt", 2), chest.get(4), "이벤트 스냅샷 원본은 그대로");
+        });
+    }
+
     @Test
     void closeReasonIsCarried() throws Exception {
         withServer((server, p) -> {

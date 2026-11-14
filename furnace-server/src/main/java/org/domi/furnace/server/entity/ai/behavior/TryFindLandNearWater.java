@@ -26,13 +26,15 @@ public final class TryFindLandNearWater {
                     return true;
                 }
                 Pos here = mob.blockPosition();
+                var ctx = org.domi.furnace.server.block.CollisionContext.of(mob);   // 바닐라: 훑기 전에 한 번(몹 문맥 — 비계 등)
                 BlockPosIter.withinManhattan(here.x(), here.y(), here.z(), range, range, range, (x, y, z) -> {
                     if (x == here.x() && z == here.z()) return true;
                     Pos p = new Pos(x, y, z);
                     int state = level.getBlockState(p);
                     int belowState = level.getBlockState(p.relative(Dir.DOWN));
-                    if (B.behavior(state).getCollisionShape(state, level, p, null).isEmpty()
-                            && !B.behavior(belowState).getCollisionShape(belowState, level, p.relative(Dir.DOWN), null).isEmpty()) {
+                    // 바닐라 그대로: 아래 칸 상태의 모양도 위 칸 자리(p)에서 묻는다(문맥 블록 — 비계의 isAbove 가 p 기준)
+                    if (B.behavior(state).getCollisionShape(state, level, p, ctx).isEmpty()
+                            && !B.behavior(belowState).getCollisionShape(belowState, level, p, ctx).isEmpty()) {
                         for (int d : Dir.HORIZONTAL) {
                             Pos side = p.relative(d);
                             if (B.isAir(level.getBlockState(side)) && B.is(level.getBlockState(side.relative(Dir.DOWN)), "minecraft:water")) {

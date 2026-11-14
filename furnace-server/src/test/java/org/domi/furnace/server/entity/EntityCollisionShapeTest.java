@@ -256,7 +256,7 @@ class EntityCollisionShapeTest {
         assertTrue(l.noCollision(zb, inside), "실제 보더(5.5)를 넘어도 정수 보더(6) 안이면 괜찮다");
         assertTrue(l.noCollision(across));
         assertFalse(l.noCollisionIgnoringEntities(zb, across));
-        assertTrue(l.noCollision(zb, 0.5, 0.5, across), "보더 가까움은 넘겨준 위치로 본다");
+        assertTrue(l.noCollision(zb, 0.5, zb.y(), 0.5, across), "보더 가까움은 넘겨준 위치로 본다");
     }
 
     /** 보더 모양은 오르기 후보를 만들지 않는다(Y 격자가 ±무한) — 모양 Y 좌표 확인. */

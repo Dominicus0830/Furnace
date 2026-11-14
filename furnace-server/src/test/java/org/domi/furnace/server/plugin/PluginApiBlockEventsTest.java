@@ -241,6 +241,37 @@ class PluginApiBlockEventsTest {
         assertEquals("minecraft:stone", after[2], "블록은 끌려오지 않는다");
     }
 
+    /** 일반 피스톤의 빈 수축 이벤트는 Paper 처럼 triggerEvent 의 수축 갈래에서 한 번만 나고, 취소하면 머리가 그대로다(T-040a R2). */
+    @Test
+    void plainRetractEventFiresOnceFromTheBlockEventAndCancelKeepsItExtended() throws Exception {
+        List<String> log = new CopyOnWriteArrayList<>();
+        String[] ext = at(r -> {
+            var l = r.level();
+            Pos p = new Pos(8, -50, 8);
+            l.setBlock(p, B.prop("facing").with(B.defaultState("minecraft:piston"), "east"), 3);
+            l.setBlock(p.west(), B.defaultState("minecraft:redstone_block"), 3);
+            step(l, 6);
+            return new String[] {desc(l, p)};
+        });
+        assertEquals("minecraft:piston[extended=true,facing=east]", ext[0]);
+        on(BlockPistonRetractEvent.class, e -> {
+            log.add("retract:" + e.direction() + ":" + e.isSticky() + ":" + e.blocks());
+            e.setCancelled(true);
+        });
+        String[] cancelled = at(r -> {
+            var l = r.level();
+            Pos p = new Pos(8, -50, 8);
+            l.setBlock(p.west(), AIR, 3);
+            // 같은 틱에 이웃 갱신이 여러 번 와도(Spigot 자리는 그때마다 낸다) 이벤트는 블록 이벤트마다 한 번이다
+            l.blockUpdated(p, B.block(B.defaultState("minecraft:piston")));
+            l.blockUpdated(p, B.block(B.defaultState("minecraft:piston")));
+            step(l, 6);
+            return new String[] {desc(l, p)};
+        });
+        assertEquals("minecraft:piston[extended=true,facing=east]", cancelled[0], "취소하면 수축하지 않는다");
+        assertEquals(List.of("retract:east:false:[]"), log, "한 번만");
+    }
+
     // ------------------------------------------------------------------ 물 흐름
 
     @Test
@@ -378,6 +409,55 @@ class PluginApiBlockEventsTest {
         assertEquals(0, after[0], "취소하면 옮기지 않는다");
         assertEquals(2, after[1], "꺼낸 것을 되돌린다");
         assertEquals(HopperBlockEntity.MOVE_ITEM_SPEED, after[2], "취소된 깔때기는 쉰다");
+    }
+
+    /**
+     * T-033: 깔때기 이벤트의 용기 스냅샷은 칸 참조만 잡고 칸을 처음 읽을 때 변환한다. 처리기가 칸을 읽지 않으면 변환하지 않고,
+     * 이벤트가 끝나 용기가 바뀐 뒤에 읽어도 이벤트 시점의 내용(옛 즉시 변환과 같은 값)이다.
+     */
+    @Test
+    void hopperMoveSnapshotIsLazyAndEventTime() throws Exception {
+        List<InventoryMoveItemEvent> seen = new CopyOnWriteArrayList<>();
+        List<org.domi.furnace.api.inventory.InventorySnapshot[]> expected = new CopyOnWriteArrayList<>();
+        java.util.concurrent.atomic.AtomicReference<HopperBlockEntity> hopperRef = new java.util.concurrent.atomic.AtomicReference<>();
+        java.util.concurrent.atomic.AtomicReference<org.domi.furnace.server.block.entity.ContainerBlockEntity> chestRef = new java.util.concurrent.atomic.AtomicReference<>();
+        var reg = core.world().itemRegistry();
+        on(InventoryMoveItemEvent.class, e -> {
+            // 칸은 읽지 않는다 — 이벤트 시점의 기대값은 서버 배열에서 옛 즉시 변환으로 만든다
+            seen.add(e);
+            expected.add(new org.domi.furnace.api.inventory.InventorySnapshot[] {
+                    org.domi.furnace.server.identity.legacy.plugin.LegacyApiConvert.snapshot(e.source().type(), hopperRef.get().items.clone(), reg),
+                    org.domi.furnace.server.identity.legacy.plugin.LegacyApiConvert.snapshot(e.destination().type(), chestRef.get().items.clone(), reg)});
+        });
+        at(r -> {
+            var l = r.level();
+            Pos h = new Pos(8, -50, 8);
+            l.setBlock(h.below(), B.defaultState("minecraft:chest"), 3);
+            l.setBlock(h, B.defaultState("minecraft:hopper"), 3);
+            var hopper = (HopperBlockEntity) l.getBlockEntity(h);
+            var chest = (org.domi.furnace.server.block.entity.ContainerBlockEntity) l.getBlockEntity(h.below());
+            hopperRef.set(hopper);
+            chestRef.set(chest);
+            hopper.items[0] = B.stack("minecraft:stick", 2);
+            chest.items[0] = new org.domi.furnace.server.entity.ItemStack(reg.idOf("minecraft:diamond_sword"), 1, org.domi.furnace.server.item.ComponentPatch.of(
+                    java.util.Map.of("minecraft:enchantments", java.util.Map.of("sharpness", 5), "minecraft:custom_name", "\"검\"", "minecraft:damage", 3)));
+            chest.items[5] = B.stack("minecraft:stone", 7);
+            hopper.tick(l);
+            return null;
+        });
+        assertEquals(1, seen.size());
+        var e = seen.get(0);
+        var src = (org.domi.furnace.api.event.LazyList<?>) e.source().contents();
+        var dst = (org.domi.furnace.api.event.LazyList<?>) e.destination().contents();
+        assertEquals(0, src.resolvedCount(), "처리기가 칸을 읽지 않으면 변환하지 않는다");
+        assertEquals(0, dst.resolvedCount());
+        // 용기는 이벤트 뒤에 바뀌었다(막대가 상자로 갔다) — 그래도 스냅샷은 이벤트 시점 내용
+        assertEquals("minecraft:stick", org.domi.furnace.server.item.ItemTools.itemName(chestRef.get().items[1]));
+        assertEquals(expected.get(0)[0], e.source());
+        assertEquals(expected.get(0)[1], e.destination());
+        assertEquals("minecraft:air", e.destination().get(1).type(), "이벤트 시점에 상자 칸 1 은 비어 있었다");
+        assertEquals("minecraft:diamond_sword", e.destination().get(0).type());
+        assertTrue(e.destination().get(0).components().get("minecraft:enchantments").contains("sharpness"), e.destination().get(0).toString());
     }
 
     @Test

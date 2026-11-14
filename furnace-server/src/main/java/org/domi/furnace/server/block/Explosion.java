@@ -164,8 +164,8 @@ public final class Explosion {
 
     public List<Pos> toBlow() { return toBlow; }
 
-    /** Explosion.getSeenPercent(center, entity): 상자 안 격자점에서 폭발 중심이 보이는 비율. */
-    public static float getSeenPercent(ChunkLevel level, double cx, double cy, double cz, AABB bb) {
+    /** Explosion.getSeenPercent(center, entity): 상자 안 격자점에서 폭발 중심이 보이는 비율. 광선은 맞는 엔티티의 문맥(ctx)으로 본다. */
+    public static float getSeenPercent(ChunkLevel level, double cx, double cy, double cz, AABB bb, CollisionContext ctx) {
         double d0 = 1.0 / ((bb.maxX() - bb.minX()) * 2.0 + 1.0);
         double d1 = 1.0 / ((bb.maxY() - bb.minY()) * 2.0 + 1.0);
         double d2 = 1.0 / ((bb.maxZ() - bb.minZ()) * 2.0 + 1.0);
@@ -177,7 +177,7 @@ public final class Explosion {
             for (double f1 = 0.0; f1 <= 1.0; f1 += d1) {
                 for (double f2 = 0.0; f2 <= 1.0; f2 += d2) {
                     double px = lerp(f, bb.minX(), bb.maxX()), py = lerp(f1, bb.minY(), bb.maxY()), pz = lerp(f2, bb.minZ(), bb.maxZ());
-                    if (Clip.clipCollider(level, px + d3, py, pz + d4, cx, cy, cz).miss()) i++;
+                    if (Clip.clipCollider(level, ctx, px + d3, py, pz + d4, cx, cy, cz).miss()) i++;
                     j++;
                 }
             }
@@ -286,7 +286,10 @@ public final class Explosion {
         dx /= len;
         dy /= len;
         dz /= len;
-        float seen = getSeenPercent(level, x, y, z, bb);
+        // ClipContext(…, entity): 맞는 엔티티(엔더 드래곤 부위면 부위 — 생물이 아니라 발 높이만 문맥)
+        CollisionContext ctx = target instanceof org.domi.furnace.server.entity.Rider r ? CollisionContext.of(r)
+                : target instanceof org.domi.furnace.server.entity.EnderDragonPart part ? CollisionContext.atBottom(part.y()) : CollisionContext.EMPTY;
+        float seen = getSeenPercent(level, x, y, z, bb, ctx);
         double d10 = (1.0 - dist) * seen;
         float damage = (float) ((d10 * d10 + d10) / 2.0 * 7.0 * f2 + 1.0);
         Object dmgTarget = target instanceof org.domi.furnace.server.entity.EnderDragonPart part ? part.parent : target;   // 파트는 부모 종류로 판정

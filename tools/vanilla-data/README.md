@@ -27,6 +27,7 @@
 | `ExportPathfindable.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `blocks/pathfindable_1.21.1.txt` (상태마다 한 글자: 비트 1 땅·2 물·4 공중 `BlockState.isPathfindable`) |
 | `ExportBlockLight.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**) | `blocks/blocklight_1.21.1.txt` (3줄: 빛 차단 0~15 / 빛 가림에 모양 사용 / canOcclude — 상태마다 한 글자) |
 | `ExportBlockAttrs.java` | 서버 클래스(난독화 이름 사용 — **1.21.1 전용**) | `blocks/blockattrs_1.21.1.txt` (state별 air/occlude/replaceable/liquid/blocksMotion/solid/solidRender/collisionEmpty/발광/면지지 마스크) |
+| `ExportContextCollisionShapes.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**, 패키지 `furnacetools`) | 시험 정답표 `furnace-server/src/test/resources/collision/context-shapes-1.21.1.tsv` (비계·물·용암의 문맥별 충돌 모양 — 발 높이·웅크림·유체 위 서기·위 칸 유체, `ContextCollisionShapeVanillaTest`) |
 | `ExportMapColors.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**, 실행에 guava 필요) | `blocks/mapcolors_1.21.1.txt` (MapColor 번호 → RGB 62개. `stateflags` 의 상태별 mapColor 칸은 RGB 값이라 지도 알고리즘의 색 번호로 되돌릴 때 쓴다) |
 | `extract_block_sound_types.py <서버 클래스 폴더> <출력>` | 서버 클래스(난독화 이름 — **1.21.1 전용**, `javap` 필요, 서버 실행 없이 바이트코드만 읽는다) | `blocks/soundtypes_1.21.1.txt` (블록별 SoundType: 크기·높이·break/step/place/hit/fall. BlockSetType/WoodType 경유 소리 포함) |
 

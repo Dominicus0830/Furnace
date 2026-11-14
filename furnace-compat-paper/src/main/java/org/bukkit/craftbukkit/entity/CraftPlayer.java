@@ -263,6 +263,11 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
     /** 호환 모듈 전용 — 이 접속의 객체를 더 쓰지 않는다(재접속으로 바뀜): Bukkit 권한 계산·구독·Furnace 거울을 걷는다(CraftBukkit disconnect 의 perm.clearPermissions). */
     public void retire() {
         disconnected();
+        clearPermissionState();
+    }
+
+    /** 호환 모듈 전용 — Bukkit 권한 계산·구독·Furnace 거울만 걷는다(멱등). 퇴장 때도 부른다(CraftBukkit disconnect). */
+    public void clearPermissionState() {
         try {
             perm.clearPermissions();
         } catch (RuntimeException ignored) {

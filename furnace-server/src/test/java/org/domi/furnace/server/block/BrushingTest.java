@@ -280,6 +280,32 @@ class BrushingTest {
         assertFalse(Brushing.onUseTick(level, actor, p, 0, -1));
     }
 
+    /** BrushItem.calculateHitResult 는 COLLIDER(플레이어 문맥): 충돌 모양 없는 풀·위에 서지 않은 비계는 지나 뒤 블록을 솔질한다(검토 R3). */
+    @Test
+    void brushRayPassesThroughGrassAndScaffolding() {
+        var level = new BlockPlacementTest.TestLevel();   // 평지: 잔디 블록 y=-61
+        var actor = new BlockPlacementTest.Actor();
+        actor.x = 0.5;
+        actor.y = -59;
+        actor.z = 0.5;
+        actor.xRot = 90;   // 아래를 본다
+        Player p = new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
+        p.applyMove(0.5, -59, 0.5, 0f, 90f, false);
+        level.column(0, 0).setBlock(0, -60, 0, B.defaultState("minecraft:short_grass"));
+        Clip.Result hit = Brushing.calculateBlockHit(level, actor, p);
+        assertNotNull(hit);
+        assertEquals(new Pos(0, -61, 0), hit.pos(), "풀(윤곽만 있음)을 지나 잔디 블록에 맞는다");
+        // 발밑 아래 칸의 비계(발이 윗면 위가 아니다 — 플레이어가 비계 안)도 지나간다
+        level.column(0, 0).setBlock(0, -60, 0, B.prop("distance").withInt(B.defaultState("minecraft:scaffolding"), 0));
+        p.applyMove(0.5, -59.5, 0.5, 0f, 90f, false);
+        actor.y = -59.5;
+        assertEquals(new Pos(0, -61, 0), Brushing.calculateBlockHit(level, actor, p).pos());
+        // 위에 서 있으면 비계 윗판에 맞는다
+        p.applyMove(0.5, -59, 0.5, 0f, 90f, false);
+        actor.y = -59;
+        assertEquals(new Pos(0, -60, 0), Brushing.calculateBlockHit(level, actor, p).pos());
+    }
+
     @Test
     void spawnsDustMatchesRenderShapeAndTerrainParticleFlags() {
         assertTrue(Brushing.spawnsDust(B.defaultState("stone")));

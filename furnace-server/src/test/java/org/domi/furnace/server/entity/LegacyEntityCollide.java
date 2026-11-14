@@ -49,7 +49,7 @@ public final class LegacyEntityCollide {
     /** Entity.collectColliders(self, level, entityShapes, box): 엔티티 모양 → (self 가 보더 가까이면) 보더 모양 → 블록 모양, 이 순서. */
     static java.util.List<Shape> collectColliders(org.domi.furnace.server.block.ChunkLevel level, Rider self, java.util.List<Shape> entityShapes, AABB box) {
         Shape border = self == null ? null : level.borderCollision(self.x(), self.z(), box);
-        var blocks = LegacyBlockCollisions.blockCollisions(level, self instanceof Entity e ? e : null, box);
+        var blocks = LegacyBlockCollisions.blockCollisions(level, self, box);
         if (entityShapes.isEmpty() && border == null) return blocks;
         java.util.List<Shape> out = new java.util.ArrayList<>(entityShapes.size() + 1 + blocks.size());
         out.addAll(entityShapes);

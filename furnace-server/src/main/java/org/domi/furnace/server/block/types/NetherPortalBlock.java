@@ -133,7 +133,7 @@ public class NetherPortalBlock extends BlockBehavior implements Portal {
         double d4 = 0.5 + rel[2];
         boolean xAxis = exitAxis == Dir.AXIS_X;
         double px = min.x() + (xAxis ? d2 : d4), py = min.y() + d3, pz = min.z() + (xAxis ? d4 : d2);
-        double[] p = PortalShape.findCollisionFreePosition(target, px, py, pz, t.width(), t.height());
+        double[] p = PortalShape.findCollisionFreePosition(target, t.collision(), px, py, pz, t.width(), t.height());
         // 찾았으면 PLAY_PORTAL_SOUND.then(placePortalTicket(found)), 만들었으면 .then(PLACE_PORTAL_TICKET) — 도착 칸
         Pos ticket = found != null ? found : new Pos(Entity.floor(p[0]), Entity.floor(p[1]), Entity.floor(p[2]));
         return new DimensionTransition(target, p[0], p[1], p[2], vx, t.vy(), vz, t.yRot() + rot, t.xRot(), true, ticket, false);
