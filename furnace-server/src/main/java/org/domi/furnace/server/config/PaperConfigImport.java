@@ -289,6 +289,7 @@ public final class PaperConfigImport {
             chunkUnload();
             ioThreads();
             itemValidation();
+            activationRange();
             manualAndUnsupported();
             versionMarkers();
             unknown();
@@ -439,6 +440,54 @@ public final class PaperConfigImport {
             }
         }
 
+        /**
+         * spigot.yml world-settings.default.entity-activation-range.* → furnace.properties 같은 이름(D11). 기본과 같은 값은 옮기지 않는다.
+         * 다른 월드의 값은 Furnace 에 월드별 키가 없어 수동 안내만.
+         */
+        private void activationRange() {
+            String base = "world-settings.default.entity-activation-range.";
+            String ear = EntityActivationSettings.PREFIX;
+            for (String[] k : EntityActivationSettings.INT_KEYS) {
+                Object v = val(SPIGOT, base + k[0]);
+                if (v == null) continue;
+                Long n = asLong(v);
+                if (n == null || n != (int) (long) n) ignored(SPIGOT, base + k[0], v, "정수가 아니라 옮기지 않는다");
+                else if (String.valueOf(n).equals(k[1])) keptDefault(SPIGOT, base + k[0], v, ear + k[0], k[1], "Furnace 기본과 같다");
+                else imp(SPIGOT, base + k[0], v, ear + k[0], String.valueOf(n), "엔티티 활성 범위");
+            }
+            // 순수 Spigot 에는 주민·물 동물·나는 적대 몹 종류(villagers·water·flying-monsters 키)가 없다: 주민·물 동물은 animals 범위(PathfinderMob),
+            // 가스트·팬텀은 misc 범위(Monster 도 PathfinderMob 도 아님)를 쓴다. Paper 가 만든 파일은 세 키를 늘 적어 두므로 위에서 그대로 옮겨진다.
+            Long animals = asLong(val(SPIGOT, base + "animals")), misc = asLong(val(SPIGOT, base + "misc"));
+            if (animals != null || misc != null || val(SPIGOT, base + "monsters") != null) {   // Spigot 활성 범위 절이 있는 파일만
+                long a = animals != null ? animals : 32, m = misc != null ? misc : 16;   // Spigot 기본
+                spigotOnly(base, "villagers", "animals", a, EntityActivationSettings.DEFAULT.villagers(), "주민을 animals 범위로");
+                spigotOnly(base, "water", "animals", a, EntityActivationSettings.DEFAULT.water(), "물 동물을 animals 범위로");
+                spigotOnly(base, "flying-monsters", "misc", m, EntityActivationSettings.DEFAULT.flyingMonsters(), "가스트·팬텀을 misc 범위로");
+            }
+            for (String[] k : EntityActivationSettings.BOOL_KEYS) {
+                Object v = val(SPIGOT, base + k[0]);
+                if (v == null) continue;
+                Boolean b = asBool(v);
+                if (b == null) ignored(SPIGOT, base + k[0], v, "true/false 가 아니라 옮기지 않는다");
+                else if (String.valueOf(b).equals(k[1])) keptDefault(SPIGOT, base + k[0], v, ear + k[0], k[1], "Furnace 기본과 같다");
+                else imp(SPIGOT, base + k[0], v, ear + k[0], String.valueOf(b), "엔티티 활성 범위");
+            }
+            ConfigSection ws = docs.get(SPIGOT) == null ? null : docs.get(SPIGOT).getSection("world-settings");
+            if (ws == null) return;
+            for (String world : ws.keys(false)) {
+                if (world.equals("default")) continue;
+                group(Kind.MANUAL, SPIGOT, "world-settings." + world + ".entity-activation-range", ear + "*",
+                        "Furnace 의 활성 범위는 서버 전체에 한 벌이다(월드별 값 없음)");
+            }
+        }
+
+        /** 순수 Spigot 파일에 없는 Paper 종류 키를 Spigot 이 실제로 쓰는 범위(from 키 값)로 적는다 — Furnace 기본과 같으면 적지 않는다. */
+        private void spigotOnly(String base, String key, String from, long value, int furnaceDefault, String why) {
+            if (val(SPIGOT, base + key) != null || value != (int) value || value == furnaceDefault) return;
+            imp(SPIGOT, base + from, value, EntityActivationSettings.PREFIX + key, String.valueOf(value),
+                    key + " 키가 없는 Spigot 파일 — Spigot 은 " + why + " 활성화한다");
+        }
+
         private void manualAndUnsupported() {
             // ---- 직접 확인: 비슷한 기능이 있다
             Object ip = val(PAPER_GLOBAL, "logging.log-player-ip-addresses");
@@ -517,7 +566,7 @@ public final class PaperConfigImport {
             unsupported(SPIGOT, "stats", "통계 저장 끄기는 비목표다");
             unsupported(SPIGOT, "advancements", "발전 과제 저장 끄기는 비목표다");
             unsupported(SPIGOT, "players", "플레이어 저장 끄기는 비목표다");
-            unsupported(SPIGOT, "world-settings", "월드별 규칙(스폰 범위·성장 속도·병합 거리·추적/활성 범위 등)은 아직 Furnace 에 키가 없다 — 바닐라 값으로 동작한다");
+            unsupported(SPIGOT, "world-settings", "월드별 규칙(스폰 범위·성장 속도·병합 거리·추적 범위 등)은 아직 Furnace 에 키가 없다 — 바닐라 값으로 동작한다");
 
             unsupported(PAPER_GLOBAL, "chunk-system.worker-threads", "청크 작업 스레드는 Furnace 의 region 스케줄러(region-threads)와 모델이 달라 대응이 없다");
             unsupported(PAPER_GLOBAL, "chunk-system", "Paper 청크 시스템 내부 설정 — Furnace 와 구조가 달라 대응이 없다");

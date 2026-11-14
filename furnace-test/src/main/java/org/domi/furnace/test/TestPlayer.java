@@ -62,6 +62,8 @@ public final class TestPlayer implements AutoCloseable {
     private final AtomicLong pingSeen = new AtomicLong();
     /** 읽을 수 있는 종류인데 풀지 못한 패킷 수(실패 메시지에 보인다). */
     private final AtomicLong decodeFailures = new AtomicLong();
+    /** 풀지 못한 패킷의 최근 몇 개(종류·크기·예외) — 단언 실패 때 어느 패킷인지 보이게. */
+    private final java.util.ArrayDeque<String> decodeFailureLog = new java.util.ArrayDeque<>();
     private volatile boolean connected;
     private volatile String disconnectReason;
     private Thread reader;
@@ -190,14 +192,14 @@ public final class TestPlayer implements AutoCloseable {
                     switch (id) {
                         case 0x26 -> {   // keep_alive → 그대로 되돌린다
                             long v = f.readLong();
-                            write(0x18, b -> b.writeLong(v));
+                            reply(0x18, b -> b.writeLong(v));
                         }
                         case 0x40 -> {   // player_position → accept_teleportation
                             f.skipBytes(8 * 3 + 4 * 2 + 1);
                             int tp = Types.readVarInt(f);
-                            write(0x00, b -> Types.writeVarInt(b, tp));
+                            reply(0x00, b -> Types.writeVarInt(b, tp));
                         }
-                        case 0x0C -> write(0x08, b -> b.writeFloat(25.0f));   // chunk_batch_finished → chunk_batch_received
+                        case 0x0C -> reply(0x08, b -> b.writeFloat(25.0f));   // chunk_batch_finished → chunk_batch_received
                         case 0x1D -> {   // disconnect
                             disconnectReason = "disconnect";
                             connected = false;
@@ -222,10 +224,15 @@ public final class TestPlayer implements AutoCloseable {
         var t = c.clientboundType(id);
         if (t == null || !codec.readable(t)) return;
         org.domi.furnace.api.packet.Packet p;
+        int len = body.readableBytes();
         try {
             p = c.decode(t, id, body);
         } catch (RuntimeException | LinkageError | StackOverflowError e) {   // 코덱 버그·클래스 로딩 실패로 읽기 스레드가 죽어 접속 끊김처럼 보이지 않게
             decodeFailures.incrementAndGet();
+            synchronized (decodeFailureLog) {
+                if (decodeFailureLog.size() >= 8) decodeFailureLog.pollFirst();
+                decodeFailureLog.addLast(t + "(0x" + Integer.toHexString(id) + ", " + len + "B): " + e);
+            }
             return;
         }
         synchronized (received) {
@@ -473,12 +480,25 @@ public final class TestPlayer implements AutoCloseable {
             b.append(']');
         }
         long bad = decodeFailures.get();
-        if (bad > 0) b.append(". 풀지 못한 패킷 ").append(bad).append("개");
+        if (bad > 0) b.append(". 풀지 못한 패킷 ").append(bad).append("개 ").append(recentDecodeFailures());
         return b.toString();
     }
 
-    /** 읽을 수 있는 종류인데 풀지 못해 모으지 못한 패킷 수. */
-    public long decodeFailures() { return decodeFailures.get(); }
+    /**
+     * 읽을 수 있는 종류인데 풀지 못해 모으지 못한 패킷 수. 받은 패킷 장벽({@link #flushReceived()}) 뒤에 센다 — 서버가 지금까지 보낸 것은
+     * 모두 읽은 뒤의 값이다. 장벽 없이 세면 읽기 스레드가 뒤처졌을 때(바쁜 CI) 앞서 보낸 패킷의 실패가 아직 안 세어져 "전/후" 비교가 흔들린다.
+     */
+    public long decodeFailures() {
+        flushReceived();
+        return decodeFailures.get();
+    }
+
+    /** 풀지 못한 최근 패킷(최대 8개, 종류·본문 크기·예외). 단언 메시지용. */
+    public List<String> recentDecodeFailures() {
+        synchronized (decodeFailureLog) {
+            return List.copyOf(decodeFailureLog);
+        }
+    }
 
     /**
      * 받은 패킷 장벽: 서버가 지금까지 이 플레이어 연결에 쓴 패킷을 읽기 스레드가 모두 읽을 때까지 기다린다(서버가 ping 을 보내고 그것이 오면 끝).
@@ -549,6 +569,18 @@ public final class TestPlayer implements AutoCloseable {
     }
 
     // ------------------------------------------------------------------ 틀(압축 없음 — 시험 서버는 압축을 끈다)
+
+    /**
+     * 읽기 스레드의 자동 답. 서버가 이미 닫았으면 쓰기는 EPIPE/RST 로 실패하는데, 그래도 이미 도착한 패킷은 끝(EOF)까지 읽어야 한다
+     * (킥 직후 답이 실패해 읽기 스레드가 죽으면 서버가 킥 전에 보낸 패킷 일부를 못 읽은 채 끝난다). 끝 판정은 읽기가 한다.
+     */
+    private void reply(int id, Consumer<ByteBuf> body) {
+        try {
+            write(id, body);
+        } catch (IOException ignored) {
+            // 서버가 끊었다 — 남은 패킷을 읽다 보면 EOF/disconnect 로 끝난다
+        }
+    }
 
     private void write(int id, Consumer<ByteBuf> body) throws IOException {
         ByteBuf b = Unpooled.buffer();

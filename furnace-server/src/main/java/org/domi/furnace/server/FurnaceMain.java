@@ -230,6 +230,7 @@ public final class FurnaceMain {
         var regionPoolSettings = org.domi.furnace.server.config.RegionPoolSettings.load(furnaceProps, log::warn);
         // 빛 계산 풀(T-064, 기본 꺼짐): light.async=true 면 빛을 빛 스레드에서 계산한다
         org.domi.furnace.server.config.LightSettings.install(org.domi.furnace.server.config.LightSettings.load(furnaceProps, log::warn));
+        org.domi.furnace.server.config.EntityActivationSettings.install(org.domi.furnace.server.config.EntityActivationSettings.load(furnaceProps, log::warn));
         org.domi.furnace.server.world.SharedScheduler regionPool = regionPoolSettings.shared()
                 ? org.domi.furnace.server.world.SharedScheduler.startShared(config.regionThreads(), "furnace-region-",
                         regionPoolSettings.dimCap(), regionPoolSettings.starveTicks()) : null;

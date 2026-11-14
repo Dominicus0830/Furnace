@@ -115,6 +115,13 @@ public abstract non-sealed class Entity implements Rider {
     private int remainingFireTicks = -FIRE_IMMUNE_TICKS;
     public int tickCount;
     private boolean isInPowderSnow, wasInPowderSnow;
+    // 엔티티 활성 범위(EntityActivation, Spigot·Paper EAR). 설정이 꺼져 있으면 읽지도 쓰지도 않는다.
+    final byte activationType = EntityActivation.typeOf(this);
+    /** 엔티티 활성 범위: 설정과 상관없이 늘 도는 종류인가(생성 때 한 번 — 매 틱 instanceof 열네 번을 피한다). */
+    final boolean alwaysActiveKind = EntityActivation.alwaysActiveKind(this);
+    long activatedTick = Integer.MIN_VALUE, activatedImmunityTick = Integer.MIN_VALUE;
+    /** 비활성인데 20틱 면역 검사로 이번 틱만 돈다 — 제 속도로 움직이는 이동(move SELF)은 건너뛴다(Paper). */
+    boolean isTemporarilyActive;
     private boolean invulnerable;
     private RemovalReason removalReason;
     /** mainSupportingBlockPos 와 onGroundNoBlocks(바닐라 checkSupportingBlock). */
@@ -386,6 +393,9 @@ public abstract non-sealed class Entity implements Rider {
     // ------------------------------------------------------------------ 틱
 
     public void tick() { baseTick(); }
+
+    /** 활성 범위 밖이라 tick 대신 도는 틱(Spigot inactiveTick). 기본은 아무것도 안 한다. */
+    public void inactiveTick() {}
 
     /** Entity.checkDespawn: 기본은 아무것도 안 한다(Mob 이 덮는다). 엔티티 틱 앞에서 섹션 판정만으로 불린다(ChunkLevel.tickEntities). */
     public void checkDespawn() {}
@@ -1035,7 +1045,10 @@ public abstract non-sealed class Entity implements Rider {
             return;
         }
         boolean wasOnFire = isOnFire();
+        // Paper EAR: 이동 값이 제 속도 그대로인가(바닐라 코드의 movement == getDeltaMovement() — 호출부가 move(SELF, vx(), vy(), vz()) 를 넘긴다)
+        boolean ownVelocity = isTemporarilyActive && mover == MOVER_SELF && dx == vx && dy == vy && dz == vz;
         if (mover == MOVER_PISTON) {
+            EntityActivation.immunize(this, 20);   // Paper EAR: 피스톤에 밀리면 20틱 활성(꺼져 있으면 아무것도)
             double[] lim = limitPistonMovement(dx, dy, dz);
             if (lim == null) return;
             dx = lim[0];
@@ -1050,6 +1063,12 @@ public abstract non-sealed class Entity implements Rider {
             dz *= stuckZ;
             stuckX = stuckY = stuckZ = 0.0;
             setDeltaMovement(0.0, 0.0, 0.0);
+            ownVelocity = false;   // 바닐라는 movement 를 새 벡터로 바꾼다
+        }
+        // Paper EAR: 잠깐 깨운 비활성 엔티티는 제 속도 이동을 하지 않고 멈춘다(아이템 빼고)
+        if (ownVelocity && !(this instanceof ItemEntity)) {
+            setDeltaMovement(0.0, 0.0, 0.0);
+            return;
         }
         double[] m = collide(dx, dy, dz);
         double mx = m[0], my = m[1], mz = m[2];
@@ -1332,6 +1351,9 @@ public abstract non-sealed class Entity implements Rider {
     public void setIsInPowderSnow(boolean v) { isInPowderSnow = v; }
 
     public boolean wasInPowderSnow() { return wasInPowderSnow; }
+
+    /** Entity.isFreezing. */
+    public boolean isFreezing() { return (isInPowderSnow || wasInPowderSnow) && canFreeze(); }
 
     /** 바닐라 Entity.TICKS_REQUIRED_TO_FREEZE(getTicksRequiredToFreeze): 140틱이면 완전히 언다. */
     public static final int TICKS_REQUIRED_TO_FREEZE = 140;

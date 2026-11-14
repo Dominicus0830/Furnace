@@ -1382,7 +1382,7 @@ public final class Region {
             // ENTITY_TICKING(시야 거리 — 버리기·사라짐 검사), 엔티티 틱 = TickingTracker ≤ 31(시뮬레이션 거리 — 엔티티 tick·추적)
             level.tickBlocks(tickingChunks, n, frozen ? 0 : spawnChunkCount, frozen || n == 0 ? 0 : naturalSpawnChunkCount(), this::randomTicking,
                     this::blockTicking, this::blockEventTicking, k -> naturalSpawningAllowed(Regionizer.chunkX(k), Regionizer.chunkZ(k)), this::entityTicking,
-                    pl -> players.containsKey(pl.entityId()), frozen);
+                    pl -> players.containsKey(pl.entityId()), players.values(), frozen);
             lap(0);
             level.lightTickEnd();   // 끄면 runLightUpdates 그대로, 켜면 빛 작업에 넘긴다
             lap(1);

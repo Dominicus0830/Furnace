@@ -66,6 +66,16 @@ public final class FurnacePropertiesFile {
                 opt("light.async", LightSettings.DEFAULT.async(), "true 면 빛 계산을 region 스레드 대신 빛 스레드가 한다(바닐라 방식). 램프 시계 같은 큰 빛 장치가 TPS 를 먹지 않는 대신, 빛 스레드가 밀리면 바닐라 과부하 때처럼 빛이 한두 틱 늦게 보이고 새 청크 전송이 한 틱 늦다. 기본 false(지금 동작)."),
                 opt("light.async-threads", LightSettings.DEFAULT.threads(), "light.async 의 빛 스레드 수(서버 전체). 1 이상.")
         )));
+        {   // 엔티티 활성 범위(D11) — 키 이름은 Spigot spigot.yml 과 같다
+            EntityActivationSettings ear = EntityActivationSettings.DEFAULT;
+            List<Option> l = new ArrayList<>();
+            l.add(opt(EntityActivationSettings.PREFIX + "enabled", ear.enabled(),
+                    "엔티티 활성 범위(Spigot·Paper 와 같은 방식). true(기본)면 플레이어에게서 먼 몹은 AI·길찾기·이동을 대부분 쉬어 서버가 가벼워지지만 "
+                            + "바닐라와 결과가 달라진다(먼 곳 농장·몹 이동이 느려짐). false 면 바닐라와 똑같다. 아래 값은 Paper 기본값이다(범위 단위: 블록, 0 이하 = 그 종류는 늘 활성)."));
+            for (String[] k : EntityActivationSettings.INT_KEYS) l.add(opt(EntityActivationSettings.PREFIX + k[0], k[1], k[2] + "."));
+            for (String[] k : EntityActivationSettings.BOOL_KEYS) l.add(opt(EntityActivationSettings.PREFIX + k[0], k[1], k[2] + "."));
+            s.add(new Section("엔티티 활성 범위(기본 켜짐 — 바닐라와 다름)", l));
+        }
         s.add(new Section("채팅·운영", List.of(
                 opt("chat.strict-order", o.strictChatOrder(), "true(바닐라)면 순서가 어긋난 채팅에서 서명 체인을 끊는다. false 면 그 메시지만 버린다."),
                 opt("chat.unsigned-as-system", o.unsignedChatAsSystem(), "true 면 채팅을 서명 없는 시스템 메시지로 보낸다(채팅 신고 불가)."),
