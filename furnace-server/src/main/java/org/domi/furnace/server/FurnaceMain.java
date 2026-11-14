@@ -563,8 +563,10 @@ public final class FurnaceMain {
                     try {
                         ioPool.shutdown();
                         genPool.shutdown();
+                        World.lightPre().shutdown();
                         ioPool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);
                         genPool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);
+                        World.lightPre().awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);
                         long failed = 0;
                         for (World w : dimensions.all()) failed += w.saveFailures();
                         if (failed > 0) log.error("[STOP] 재시도 끝에 실패한 저장 {}건 — 해당 청크/엔티티는 디스크에 최신이 아닐 수 있다", failed);
