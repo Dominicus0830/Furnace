@@ -170,4 +170,34 @@ class ConversationTest {
             assertTrue(server.consoleMessages().stream().anyMatch(t -> t.plainText().equals("players only")));
         }
     }
+
+    /** CraftBukkit ConversationTracker.beginConversation 은 줄 선 대화·이미 있는 대화에도 true(검토 R2). 맨 앞만 시작한다. */
+    @Test
+    void beginConversationReturnsTrueWhenQueued() {
+        List<Boolean> captured = new CopyOnWriteArrayList<>();
+        var tracker = new ConversationTracker(h -> captured.add(h != null));
+        List<String> said = new CopyOnWriteArrayList<>();
+        var who = new org.bukkit.conversations.Conversable() {
+            public boolean isConversing() { return tracker.isConversing(); }
+            public void acceptConversationInput(String input) { tracker.acceptConversationInput(input); }
+            public boolean beginConversation(Conversation c) { return tracker.beginConversation(c); }
+            public void abandonConversation(Conversation c) {
+                tracker.abandonConversation(c, new ConversationAbandonedEvent(c, new org.bukkit.conversations.ManuallyAbandonedConversationCanceller()));
+            }
+            public void abandonConversation(Conversation c, ConversationAbandonedEvent d) { tracker.abandonConversation(c, d); }
+            public void sendRawMessage(String m) { said.add(m); }
+            public void sendRawMessage(java.util.UUID s, String m) { said.add(m); }
+        };
+        Prompt p = new StringPrompt() {
+            public String getPromptText(ConversationContext c) { return "q"; }
+            public Prompt acceptInput(ConversationContext c, String in) { return END_OF_CONVERSATION; }
+        };
+        Conversation a = new Conversation(null, who, p);
+        Conversation b = new Conversation(null, who, p);
+        assertTrue(tracker.beginConversation(a));
+        assertTrue(tracker.beginConversation(b), "줄 선 대화");
+        assertTrue(tracker.beginConversation(a), "이미 있는 대화");
+        assertEquals(List.of("q"), said, "맨 앞 대화만 문구를 보인다");
+        assertEquals(List.of(true), captured, "대화가 있는 동안 한 번만 가로채기를 건다");
+    }
 }

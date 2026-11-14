@@ -16,6 +16,8 @@
 | 첫 실행 `server.properties` ERROR | 잡음이지만 바닐라와 같음 | 바닐라 1.21.1 `Settings.loadFromFile` 도 `Logger.error("Failed to load properties from file: {}")` 로 남긴다. 그대로 둔다. |
 
 ### 함정
-- Paper 의 `getWorlds()` 는 STARTUP 플러그인 `onEnable` 에서 빈 목록이다. 이걸 보고 FAWE·ProtocolLib 은 "월드가 이미 있으면 리로드" 로 판단한다.
+- Paper 의 `getWorlds()` 는 모든 플러그인 `onLoad` 와 STARTUP 플러그인 `onEnable` 에서 빈 목록이다. 이걸 보고 FAWE·ProtocolLib 은 "월드가 이미 있으면 리로드" 로 판단한다.
 - FAWE 의 옛 리로드 경로는 `setupWorldData` 예외를 try/catch 로 삼켰지만 `WorldInitListener` 경로는 삼키지 않는다 — 어댑터가 없으면 Paper 에서도 SEVERE 한 줄.
 - Vault `plugin.yml` 의 `load: startup`(소문자)도 STARTUP 이다.
+- Bukkit `NumericPrompt` 는 commons-lang 2 가 아니라 commons-lang3 3.14.0 `NumberUtils` 를 쓴다(Paper API 의존성에 lang2 없음). `+1` 유효, `08` 무효, 접미사 없는 소수는 Float 와 Double 의 문자열이 같을 때만 Float. 실제 jar 결과 99개를 `NumericPromptTest` 에 표로 둠.
+- CraftBukkit `ConversationTracker.beginConversation` 은 줄 선 대화에도 true.

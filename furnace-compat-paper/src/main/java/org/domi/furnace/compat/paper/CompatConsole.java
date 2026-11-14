@@ -31,7 +31,7 @@ public final class CompatConsole implements ConsoleCommandSender {
         org.domi.furnace.api.Furnace f = Compat.furnace();
         synchronized (this) {
             if (conversations == null || conversationServer != f) {
-                conversations = new ConversationTracker(f::consoleInputHandler, false);
+                conversations = new ConversationTracker(f::consoleInputHandler);
                 conversationServer = f;
             }
             return conversations;

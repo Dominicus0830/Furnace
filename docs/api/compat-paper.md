@@ -98,13 +98,13 @@
 
 ## 기동 순서·대화·Spigot 설정 (2026-11-14, 시작 로그 FAWE·ProtocolLib 묶음)
 
-**기동 순서.** Paper 처럼 `load: STARTUP` 플러그인은 월드보다 먼저 켜진다. 이 동안 `Bukkit.getWorlds()` 는 빈 목록이고 `Bukkit.getWorld(..)` 는 null 이다. 켜기가 끝나면 기본 차원(overworld·nether·end) 하나씩 목록에 넣으며 `WorldInitEvent` 를 알리고, 셋을 다 넣은 뒤 차례로 `WorldLoadEvent` 를 알린 다음 `POSTWORLD`(기본) 플러그인을 켠다(Paper `MinecraftServer.loadWorld0` 순서). Furnace 의 월드는 이때 이미 올라와 있으므로 순서만 Paper 와 같게 보여 준다. 이 덕에 FAWE·ProtocolLib 등이 "서버 리로드 감지" 오탐을 내지 않는다. 그 밖의 플랫폼(Furnace 플러그인)은 영향이 없다(`PluginFormat#enablesBeforeWorlds`·`enablePhase`).
+**기동 순서.** Paper 처럼 모든 플러그인의 `onLoad` 와 `load: STARTUP` 플러그인의 `onEnable` 은 월드보다 먼저다. 이 동안 `Bukkit.getWorlds()` 는 빈 목록이고 `Bukkit.getWorld(..)` 는 null 이다. STARTUP 켜기가 끝나면(없으면 나머지 플러그인을 켜기 직전) 기본 차원(overworld·nether·end, 데이터 팩 차원 포함) 하나씩 목록에 넣으며 `WorldInitEvent` 를 알리고, 다 넣은 뒤 차례로 `WorldLoadEvent` 를 알린 다음 `POSTWORLD`(기본) 플러그인을 켠다(Paper `MinecraftServer.loadWorld0` 순서). 받는 것은 그때 처리기를 단 플러그인(onLoad 에서 단 것·STARTUP 플러그인)뿐이다. `worlds.autoload` 추가 월드는 그 뒤 보이게 되며 `WorldLoadEvent` 를 한 번 받는다. Furnace 의 월드는 이때 이미 올라와 있으므로 순서만 Paper 와 같게 보여 준다. 이 덕에 FAWE·ProtocolLib 등이 "서버 리로드 감지" 오탐을 내지 않는다. 그 밖의 플랫폼(Furnace 플러그인)은 영향이 없다(`PluginFormat#beforePluginsLoad`·`enablesBeforeWorlds`·`worldsReady`).
 
-**대화(`org.bukkit.conversations`).** Bukkit 대화 API 전체(`Conversation`·`ConversationFactory`·각종 `Prompt`·취소자·접두사)를 둔다. 플레이어가 대화 중이면 채팅 입력은 채팅 이벤트·방송 없이 대화로 가고(Paper `broadcastChatMessage` 와 같은 자리: 빈 메시지 무시, 스팸 계산은 그대로), 모달 대화 중에는 `sendMessage` 가 숨겨진다(`sendRawMessage` 는 보인다). 콘솔도 `ServerCommandEvent` 뒤에 대화가 입력을 가져간다. 대화 처리는 Paper 처럼 전역 스레드(콘솔은 콘솔 스레드)에서 돈다. Furnace API 쪽 다리는 `Player#chatInputHandler`·`Furnace#consoleInputHandler`.
+**대화(`org.bukkit.conversations`).** Bukkit 대화 API 전체(숫자 대답은 Paper 처럼 commons-lang3 3.14.0 `NumberUtils` 규칙)(`Conversation`·`ConversationFactory`·각종 `Prompt`·취소자·접두사)를 둔다. 플레이어가 대화 중이면 채팅 입력은 채팅 이벤트·방송 없이 대화로 가고(Paper `broadcastChatMessage` 와 같은 자리: 빈 메시지 무시, 스팸 계산은 그대로), 모달 대화 중에는 `sendMessage` 가 숨겨진다(`sendRawMessage` 는 보인다). 콘솔도 `ServerCommandEvent` 뒤에 대화가 입력을 가져간다. 대화 처리는 Paper 처럼 전역 스레드(Bukkit 주 스레드)에서 돈다. Furnace API 쪽 다리는 `Player#chatInputHandler`·`Furnace#consoleInputHandler`.
 
 **`org.spigotmc.SpigotConfig`.** 플러그인들이 "Spigot 위에서 도는가" 를 이 클래스의 존재로 판별한다(ProtocolLib 업데이트 확인 등). `bungee` 는 서버 설정 `bungeecord`, `config` 는 그 값만 담은 YAML 이다.
 
-**다른 버전 NMS 탐색 잡음.** 플러그인이 다른 버전 어댑터(`v1_20_R3`, `v26_1` 같은 이름)를 정의·호출하는 것은 버전 고르기라 DEBUG 로 내린다. 플러그인이 켜지는 동안 리플렉션으로 찾다가 없는 NMS 클래스(Paper 1.21.1 에도 없는 것)는 켜기가 끝날 때 한 줄 INFO 로 모아 보인다.
+**다른 버전 NMS 탐색 잡음.** 플러그인이 다른 버전 어댑터(`v1_20_R3`, `v26_1` 같은 이름)를 정의·호출하는 것은 버전 고르기라 DEBUG 로 내린다. 플러그인이 켜지는 동안(onLoad·onEnable) 리플렉션으로 찾다가 없는 NMS 클래스(대개 Paper 1.21.1 에도 없는 것)는 켜기가 끝날 때(실패했거나 켜기 전에 꺼졌으면 끌 때) WARN 한 줄로 모아 보인다.
 
 ## 지원하지 않는 것과 실패 방식
 

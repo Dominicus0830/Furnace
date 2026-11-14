@@ -97,6 +97,8 @@ public final class PluginManagerImpl implements PluginManager {
     public void loadAll(PluginBootstrapper boot) {
         this.boot = boot;
         failures.addAll(boot.failures());   // 찾기·순서·api-version·부트스트랩 단계 실패
+        boot.worldsPhase(host, true);       // 형식 어댑터가 onLoad·STARTUP 동안 월드를 감춘다(Paper 는 그때 월드가 없다) — enableAll 이 드러낸다
+        worldsPending = true;
         for (PluginBootstrapper.Prepared p : List.copyOf(boot.prepared())) load(p);
         failFastCheck("불러오기");
     }
@@ -253,20 +255,21 @@ public final class PluginManagerImpl implements PluginManager {
 
     // ------------------------------------------------------------------ 켜기·끄기
 
+    /** loadAll 이 형식 어댑터에게 월드를 감추라고 알렸고 아직 드러내라고 알리지 않았다. */
+    private volatile boolean worldsPending;
+
     /**
-     * 불러온 플러그인을 순서대로 켠다. 형식 어댑터가 "기본 월드 전에 켠다"고 한 플러그인(Bukkit {@code load: STARTUP})이 있으면 Bukkit 처럼
-     * 그 플러그인들을 먼저 순서대로 켜고(앞뒤로 {@link org.domi.furnace.api.plugin.PluginFormat#enablePhase} 알림) 나머지를 켠다. 없으면 한 번에 순서대로.
+     * 불러온 플러그인을 순서대로 켠다. 형식 어댑터가 "기본 월드 전에 켠다"고 한 플러그인(Bukkit {@code load: STARTUP})을 Bukkit 처럼 먼저
+     * 순서대로 켜고, {@link org.domi.furnace.api.plugin.PluginFormat#worldsReady} 를 알린 뒤 나머지를 켠다.
      */
     public void enableAll() {
         PluginBootstrapper b = boot;
-        List<Loaded> early = new ArrayList<>();
-        if (b != null) for (Loaded l : plugins) if (b.enablesBeforeWorlds(l.description())) early.add(l);
-        if (!early.isEmpty()) {
-            b.enablePhase(host, true);
-            try {
-                for (Loaded l : early) enable(l);
-            } finally {
-                b.enablePhase(host, false);
+        try {
+            if (b != null) for (Loaded l : plugins) if (b.enablesBeforeWorlds(l.description())) enable(l);
+        } finally {
+            if (b != null && worldsPending) {
+                worldsPending = false;
+                b.worldsPhase(host, false);
             }
         }
         for (Loaded l : plugins) enable(l);   // 이미 켠 것은 건너뛴다

@@ -47,6 +47,10 @@ public final class Compat {
         final Furnace furnace;
         final ConcurrentHashMap<String, CraftWorld> worlds = new ConcurrentHashMap<>();
         final ConcurrentHashMap<UUID, CraftPlayer> players = new ConcurrentHashMap<>();
+        /** Bukkit 에 보이는 월드(차원 키). null 이면 모두 보인다 — {@link Compat#hideWorldsForStartup}. 서버마다 따로(시험이 서버를 다시 띄워도 새지 않게). */
+        volatile List<String> visibleWorlds;
+        /** 감출 때 이미 있던 월드(기본 차원·데이터 팩 차원) — Paper 가 loadWorld0 에서 만드는 몫. 그 뒤에 올라온 월드는 추가 월드. */
+        volatile List<String> startupWorlds = List.of();
         /** 다음에 플레이어 표를 훑는 크기 문턱(T-073) — 훑은 뒤 남은 수의 2배(최소 {@link #PRUNE_AT}). 경쟁해도 정리 시점만 달라질 뿐이라 volatile 만. */
         volatile int playerPruneAt = PRUNE_AT;
         /** 플레이어가 아닌 엔티티(H6: 같은 엔티티는 같은 CraftEntity → 같은 getHandle()). 아무도 안 들고 있으면 놓는다. */
@@ -250,52 +254,64 @@ public final class Compat {
 
     // ------------------------------------------------------------------ load: STARTUP 단계의 월드 보이기
 
-    /**
-     * Bukkit 에 보이는 월드(차원 키). null 이면 모두 보인다. Paper 는 {@code load: STARTUP} 플러그인을 월드를 만들기 전에 켜므로 그동안
-     * {@code Bukkit.getWorlds()} 가 비어 있고, 월드를 하나씩 목록에 넣으면서 WorldInitEvent 를 보낸다(Paper "Put world into worldlist
-     * before initing the world"). Furnace 는 월드가 이미 돌고 있으니 그 단계 동안 Bukkit 쪽에서만 감춘다.
+    /*
+     * Paper 는 모든 플러그인의 onLoad 와 load: STARTUP 플러그인의 onEnable 을 월드를 만들기 전에 부르므로 그동안 Bukkit.getWorlds() 가
+     * 비어 있고, 그 뒤 월드를 하나씩 목록에 넣으면서 WorldInitEvent 를 보낸다(Paper "Put world into worldlist before initing the world").
+     * Furnace 는 월드가 이미 돌고 있으니 그 단계 동안 Bukkit 쪽에서만 감춘다.
      */
-    private static volatile List<String> visibleWorlds;
 
     /** 이 차원의 월드가 지금 Bukkit 에 보이는가. */
     public static boolean worldVisible(String dimension) {
-        List<String> v = visibleWorlds;
+        List<String> v = state().visibleWorlds;
         return v == null || v.contains(dimension);
     }
 
-    /** load: STARTUP 플러그인을 켜는 중이라 기본 월드의 WorldInitEvent 가 아직 남았는가. */
-    static boolean startupWorldsPending() { return visibleWorlds != null; }
+    /** 플러그인 onLoad·STARTUP onEnable 단계라 월드를 감춘 중인가. */
+    static boolean startupWorldsPending() { return state().visibleWorlds != null; }
 
-    /** load: STARTUP 플러그인을 켜기 직전 — 월드를 감춘다. */
-    static void hideWorldsForStartup() { visibleWorlds = List.of(); }
-
-    /**
-     * load: STARTUP 플러그인을 다 켠 뒤 — Paper MinecraftServer.loadWorld0 순서로 월드를 드러낸다: 월드마다 목록에 넣고 WorldInitEvent,
-     * 모두 넣은 뒤 월드마다 WorldLoadEvent. 이때 켜져 있는 것은 STARTUP 플러그인뿐이라 그 플러그인만 받는다(Paper 와 같다).
-     * Furnace 는 이 월드들의 Furnace WorldLoadEvent 를 보내지 않으므로(기본 차원) 여기서 Bukkit 이벤트를 직접 부른다.
-     */
-    static void revealWorldsAfterStartup(org.domi.furnace.api.Furnace server) {
+    /** 서버 시작에서 플러그인 onLoad 직전 — 월드를 감추고, 지금 있는 월드를 Paper 가 처음 만드는 몫으로 기억한다. */
+    static void hideWorldsForStartup(org.domi.furnace.api.Furnace server) {
+        State st = state();
         List<String> dims = new ArrayList<>();
         for (var w : server.worlds()) dims.add(w.dimension());
+        st.startupWorlds = List.copyOf(dims);
+        st.visibleWorlds = List.of();
+    }
+
+    /**
+     * load: STARTUP 플러그인을 다 켠 뒤(없으면 나머지 플러그인을 켜기 직전) — Paper MinecraftServer.loadWorld0 순서로 월드를 드러낸다:
+     * 처음 만드는 몫의 월드마다 목록에 넣고 WorldInitEvent, 모두 넣은 뒤 월드마다 WorldLoadEvent. 받는 것은 그때 처리기를 단 플러그인
+     * (onLoad 에서 단 것과 STARTUP 플러그인)뿐이다(Paper 와 같다). Furnace 는 이 월드들의 Furnace WorldLoadEvent 를 보내지 않으므로
+     * Bukkit 이벤트를 여기서 직접 부른다. 감춘 사이 올라온 추가 월드(worlds.autoload)는 그 뒤 보이게 하며 WorldLoadEvent 를 한 번 보낸다
+     * (감춘 동안의 Furnace WorldLoadEvent 는 Bukkit 에 넘기지 않았다).
+     */
+    static void revealWorldsAfterStartup(org.domi.furnace.api.Furnace server) {
+        State st = state();
+        if (st.visibleWorlds == null) return;
+        List<String> first = st.startupWorlds;
+        List<String> extra = new ArrayList<>();
+        for (var w : server.worlds()) if (!first.contains(w.dimension())) extra.add(w.dimension());
         List<String> shown = new java.util.concurrent.CopyOnWriteArrayList<>();
-        visibleWorlds = shown;
+        st.visibleWorlds = shown;
         try {
-            for (String d : dims) {
+            for (String d : first) {
                 shown.add(d);
                 World w = world(d);
                 if (w != null) org.bukkit.Bukkit.getPluginManager().callEvent(new org.bukkit.event.world.WorldInitEvent(w));
             }
         } finally {
-            visibleWorlds = null;
+            st.visibleWorlds = null;
+            st.startupWorlds = List.of();
         }
-        for (String d : dims) {
+        for (String d : first) {
+            World w = world(d);
+            if (w != null) org.bukkit.Bukkit.getPluginManager().callEvent(new org.bukkit.event.world.WorldLoadEvent(w));
+        }
+        for (String d : extra) {
             World w = world(d);
             if (w != null) org.bukkit.Bukkit.getPluginManager().callEvent(new org.bukkit.event.world.WorldLoadEvent(w));
         }
     }
-
-    /** 감추기를 푼다(단계가 예외로 끝났을 때·시험 정리). */
-    static void showAllWorlds() { visibleWorlds = null; }
 
     // ------------------------------------------------------------------ 위치·블록
 

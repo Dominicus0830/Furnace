@@ -1,6 +1,6 @@
 // 한 상대(플레이어·콘솔)의 Bukkit 대화 줄(CraftBukkit ConversationTracker 와 같은 규칙). 맨 앞 대화만 돌고, 끝나면 다음 대화의 문구를 보여 준다.
 // 대화가 하나라도 있는 동안만 Furnace 입력 가로채기(Player.chatInputHandler·Furnace.consoleInputHandler)를 걸어 둔다 — 대화가 없으면
-// 채팅·콘솔 경로에 아무것도 끼우지 않는다. 대화 처리는 Bukkit 주 스레드(Furnace 전역 스레드)에서 돈다.
+// 채팅·콘솔 경로에 아무것도 끼우지 않는다. 대화 처리는 입력이 온 Furnace 전역 스레드(Bukkit 주 스레드)에서 바로 돈다.
 package org.domi.furnace.compat.paper;
 
 import java.util.ArrayDeque;
@@ -17,27 +17,24 @@ public final class ConversationTracker {
     private Deque<Conversation> queue = new ArrayDeque<>();
     /** 입력 가로채기를 걸고(처리기)·푼다(null). */
     private final Consumer<Consumer<String>> capture;
-    private final Consumer<String> handler;
+    private final Consumer<String> handler = this::acceptConversationInput;
     private boolean capturing;
 
-    /**
-     * @param capture   Furnace 쪽 가로채기 걸기·풀기
-     * @param onGlobal  가로챈 입력이 전역 스레드가 아닌 곳(채팅 연결 스레드)에서 오면 참 — 전역 스레드로 넘겨 처리한다(CraftBukkit processQueue)
-     */
-    public ConversationTracker(Consumer<Consumer<String>> capture, boolean onGlobal) {
+    /** @param capture Furnace 쪽 가로채기 걸기·풀기. 가로챈 입력은 전역 스레드(Bukkit 주 스레드)에서 온다. */
+    public ConversationTracker(Consumer<Consumer<String>> capture) {
         this.capture = capture;
-        this.handler = onGlobal
-                ? input -> org.domi.furnace.api.Furnace.server().scheduler().global().execute(() -> acceptConversationInput(input))
-                : this::acceptConversationInput;
     }
 
+    /** CraftBukkit 과 같다 — 줄을 섰거나 이미 줄에 있는 대화도 true. 맨 앞이 된 대화만 바로 시작한다. */
     public synchronized boolean beginConversation(Conversation conversation) {
-        if (queue.contains(conversation)) return false;
-        queue.addLast(conversation);
-        updateCapture();
-        if (queue.peekFirst() != conversation) return false;   // 앞 대화가 끝나면 시작한다
-        conversation.begin();
-        conversation.outputNextPrompt();
+        if (!queue.contains(conversation)) {
+            queue.addLast(conversation);
+            updateCapture();
+            if (queue.peekFirst() == conversation) {
+                conversation.begin();
+                conversation.outputNextPrompt();
+            }
+        }
         return true;
     }
 
@@ -74,7 +71,9 @@ public final class ConversationTracker {
             c.acceptInput(input);
         } catch (Throwable t) {
             var p = c.getContext().getPlugin();
-            (p != null ? p.getLogger() : org.bukkit.Bukkit.getLogger()).log(Level.WARNING, "Error while handling conversation input", t);
+            if (p != null) p.getLogger().log(Level.WARNING,
+                    String.format("Plugin %s generated an exception whilst handling conversation input", p.getDescription().getFullName()), t);
+            else org.bukkit.Bukkit.getLogger().log(Level.WARNING, "Exception whilst handling conversation input", t);
         }
     }
 

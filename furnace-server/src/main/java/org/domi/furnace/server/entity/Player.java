@@ -707,14 +707,14 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 서버가 끊은 사유(퇴장 로그용), 없으면 null. */
     public org.domi.furnace.api.text.Text kickReason() { return kickReason; }
 
-    /** 사유 패킷을 보낸 뒤 연결을 닫는다(중복 로그인 킥 등). 어느 스레드에서든 안전. */
-    /** 플러그인이 가로챈 채팅 입력 처리기(API Player.chatInputHandler). 연결 스레드가 읽는다. 퇴장한 객체는 다시 쓰이지 않으니 따로 지우지 않는다. */
+    /** 플러그인이 가로챈 채팅 입력 처리기(API Player.chatInputHandler). 채팅을 처리하는 전역 스레드가 읽는다. 퇴장한 객체는 다시 쓰이지 않으니 따로 지우지 않는다. */
     private volatile java.util.function.Consumer<String> chatInputHandler;
 
     public void chatInputHandler(java.util.function.Consumer<String> handler) { this.chatInputHandler = handler; }
 
     public java.util.function.Consumer<String> chatInputHandler() { return chatInputHandler; }
 
+    /** 사유 패킷을 보낸 뒤 연결을 닫는다(중복 로그인 킥 등). 어느 스레드에서든 안전. */
     public void kick(Packet packet) {
         if (packet instanceof org.domi.furnace.server.net.protocol.play.Disconnect d && !isDisconnected()) {   // 플러그인 PlayerKickEvent: 사유 바꾸기·취소
             org.domi.furnace.api.text.Text reason = vitals().env().gameEvents().playerKick(this, d.reason());

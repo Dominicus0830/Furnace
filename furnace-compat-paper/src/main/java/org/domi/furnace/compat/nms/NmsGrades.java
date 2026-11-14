@@ -27,7 +27,7 @@ public final class NmsGrades {
     /** 등급 C 로 알려진 표면인가. */
     public static boolean isGradeC(String internalName) { return gradeC(internalName) != null; }
 
-    private static String gradeC(String internalName) {
+    static String gradeC(String internalName) {
         String n = NmsSymbols.element(internalName);
         if (n == null) return null;
         for (String[] c : C) if (n.startsWith(c[0])) return c[1];

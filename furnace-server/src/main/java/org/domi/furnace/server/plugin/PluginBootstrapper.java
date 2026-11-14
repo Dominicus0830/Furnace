@@ -238,14 +238,15 @@ public final class PluginBootstrapper {
         return false;
     }
 
-    /** 이른 켜기 단계의 앞(true)·뒤(false)를 만들어 둔 형식 어댑터에게 알린다. 어댑터 하나가 던져도 나머지는 계속된다. */
-    void enablePhase(org.domi.furnace.api.Furnace server, boolean beforeWorlds) {
+    /** 플러그인 onLoad 직전(true)·월드 전 플러그인을 다 켠 직후(false)를 만들어 둔 형식 어댑터에게 알린다. 어댑터 하나가 던져도 나머지는 계속된다. */
+    void worldsPhase(org.domi.furnace.api.Furnace server, boolean beforeLoad) {
         if (!formats.loaded()) return;
         for (PluginFormat f : formats.get()) {
             try {
-                f.enablePhase(server, beforeWorlds);
+                if (beforeLoad) f.beforePluginsLoad(server);
+                else f.worldsReady(server);
             } catch (Throwable t) {
-                log.warn("플러그인 형식 '{}' 의 켜기 단계 알림 실패", f.id(), t);
+                log.warn("플러그인 형식 '{}' 의 월드 단계 알림 실패", f.id(), t);
             }
         }
     }

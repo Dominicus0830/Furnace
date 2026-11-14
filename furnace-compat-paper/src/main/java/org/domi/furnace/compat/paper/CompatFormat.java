@@ -56,13 +56,13 @@ public final class CompatFormat implements PluginFormat {
         return pdf != null && pdf.getLoad() == org.bukkit.plugin.PluginLoadOrder.STARTUP;
     }
 
-    /** STARTUP 플러그인을 켜는 동안 Bukkit 에 월드를 감추고, 끝나면 Paper 순서로 드러내며 WorldInitEvent·WorldLoadEvent 를 보낸다. */
+    /** 플러그인 onLoad·STARTUP onEnable 동안 Bukkit 에 월드를 감춘다(Paper 는 그때 월드를 아직 만들지 않았다). */
     @Override
-    public void enablePhase(org.domi.furnace.api.Furnace server, boolean beforeWorlds) {
-        if (!createdPlugin) return;
-        if (beforeWorlds) Compat.hideWorldsForStartup();
-        else Compat.revealWorldsAfterStartup(server);
-    }
+    public void beforePluginsLoad(org.domi.furnace.api.Furnace server) { Compat.hideWorldsForStartup(server); }
+
+    /** STARTUP 플러그인을 다 켠 뒤 Paper 순서로 월드를 드러내며 WorldInitEvent·WorldLoadEvent 를 보낸다. */
+    @Override
+    public void worldsReady(org.domi.furnace.api.Furnace server) { Compat.revealWorldsAfterStartup(server); }
 
     static final long SHUTDOWN_ASYNC_WAIT_MILLIS = 5_000;
 

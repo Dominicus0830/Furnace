@@ -211,20 +211,21 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
     /** 모달 대화 중이면 플러그인 메시지를 보내지 않는다(CraftPlayer.sendMessage — 대화 문구는 sendRawMessage 로 간다). */
     @Override
     public void sendMessage(String message) {
-        if (!conversations().isConversingModaly()) sendRawMessage(message);
+        var t = conversations;
+        if (t == null || !t.isConversingModaly()) sendRawMessage(message);
     }
 
     // ---- Conversable (CraftBukkit ConversationTracker)
 
     private volatile org.domi.furnace.compat.paper.ConversationTracker conversations;
 
-    /** 이 접속의 대화 줄 — 대화가 있는 동안 채팅을 가로챈다(채팅은 연결 스레드에서 오므로 전역 스레드로 넘겨 처리). */
+    /** 이 접속의 대화 줄 — 대화가 있는 동안 채팅을 가로챈다(가로챈 채팅은 전역 스레드에서 온다). 처음 대화를 쓸 때 만든다. */
     private org.domi.furnace.compat.paper.ConversationTracker conversations() {
         var t = conversations;
         if (t == null) {
             synchronized (this) {
                 t = conversations;
-                if (t == null) conversations = t = new org.domi.furnace.compat.paper.ConversationTracker(h -> player().chatInputHandler(h), true);
+                if (t == null) conversations = t = new org.domi.furnace.compat.paper.ConversationTracker(h -> player().chatInputHandler(h));
             }
         }
         return t;
@@ -255,7 +256,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
 
     @Override
     public void sendRawMessage(java.util.UUID sender, String message) {
-        if (message == null) return;
+        if (message == null) throw new IllegalArgumentException("message cannot be null");   // CraftPlayer 와 같다
         handle.sendMessage(Compat.message(message));
     }
 

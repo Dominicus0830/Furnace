@@ -62,19 +62,23 @@ public interface PluginFormat {
     }
 
     /**
-     * 이 플러그인을 기본 월드가 "올라오기 전"에 켜야 하는가 — Bukkit {@code load: STARTUP}. 서버는 이런 플러그인을 먼저 모두 켜고
-     * ({@link #enablePhase} 의 앞뒤 알림 사이), 그다음 나머지를 켠다(Bukkit {@code POSTWORLD}). 기본은 false.
-     * 어댑터를 아직 만들지 않았으면 불리지 않는다.
+     * 이 플러그인을 기본 월드가 "올라오기 전"에 켜야 하는가 — Bukkit {@code load: STARTUP}. 서버는 이런 플러그인을 먼저 모두 켜고, 그다음
+     * {@link #worldsReady} 를 알린 뒤 나머지를 켠다(Bukkit {@code POSTWORLD}). 기본은 false. 어댑터를 아직 만들지 않았으면 불리지 않는다.
      */
     default boolean enablesBeforeWorlds(PluginDescription description) { return false; }
 
     /**
-     * {@link #enablesBeforeWorlds} 가 참인 플러그인이 하나라도 있을 때, 그 플러그인들을 켜기 직전({@code beforeWorlds=true})과 다 켠 직후
-     * ({@code false})에 한 번씩 불린다(서버 시작의 플러그인 켜기에서만, 주 스레드). 어댑터가 그 사이 자기 형식에 기본 월드를 감추고, 끝날 때
-     * 기본 월드의 "월드가 올라왔다" 이벤트를 자기 형식으로 알리는 자리다(Paper 는 STARTUP 플러그인을 켠 뒤 기본 월드를 만들며
+     * 서버 시작에서 플러그인 onLoad 를 부르기 직전에 한 번(주 스레드, 핫 리로드에서는 안 불린다). 이 형식에 월드를 감추는 자리다 — Paper 는
+     * 플러그인 onLoad 와 {@code load: STARTUP} 의 onEnable 을 월드를 만들기 전에 부른다. 짝인 {@link #worldsReady} 가 언제나 뒤따른다.
+     */
+    default void beforePluginsLoad(org.domi.furnace.api.Furnace server) {}
+
+    /**
+     * 서버 시작에서 {@link #enablesBeforeWorlds} 가 참인 플러그인을 다 켠 직후(없으면 플러그인 켜기 맨 앞)에 한 번 — 나머지 플러그인을 켜기 전.
+     * 어댑터가 감춘 월드를 드러내며 자기 형식의 "월드가 올라왔다" 이벤트를 보내는 자리다(Paper 는 STARTUP 플러그인을 켠 뒤 기본 월드를 만들며
      * WorldInitEvent·WorldLoadEvent 를 보낸다).
      */
-    default void enablePhase(org.domi.furnace.api.Furnace server, boolean beforeWorlds) {}
+    default void worldsReady(org.domi.furnace.api.Furnace server) {}
 
     /**
      * 서버 종료 중 모든 플러그인의 onDisable 이 끝난 직후에 한 번 불린다(리로드·플러그인 하나 끄기에서는 안 불린다). 어댑터가 자기 형식의

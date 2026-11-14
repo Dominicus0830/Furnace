@@ -42,10 +42,10 @@ public final class BukkitPluginAdapter extends FurnacePlugin {
     /** Bukkit 처럼 켜기 직전에 plugin.yml 의 명령을 만들어 명령 지도에 올린다 — 그래서 onLoad 에서는 getCommand 가 null 이다. */
     @Override
     public void onEnable() {
-        List<Command> declared = PluginCommandYamlParser.parse(plugin);
-        if (!declared.isEmpty()) Compat.commandMap().registerAll(bukkitDescription.getName(), declared);
-        EventBridge.watchQuit(this);   // 이벤트를 안 듣는 플러그인도 퇴장 때 권한 구독이 걷히게
         try {
+            List<Command> declared = PluginCommandYamlParser.parse(plugin);
+            if (!declared.isEmpty()) Compat.commandMap().registerAll(bukkitDescription.getName(), declared);
+            EventBridge.watchQuit(this);   // 이벤트를 안 듣는 플러그인도 퇴장 때 권한 구독이 걷히게
             plugin.onEnable();
         } finally {
             org.domi.furnace.compat.nms.NmsReflect.pluginEnabled(bukkitDescription.getName());   // 켜는 동안 찔러 본 NMS 클래스를 한 줄로
@@ -62,6 +62,7 @@ public final class BukkitPluginAdapter extends FurnacePlugin {
             bridged.clear();
             EventBridge.unwatchQuit(this);
             ProtocolLibBridge.pluginDisabled(this);
+            org.domi.furnace.compat.nms.NmsReflect.pluginDisabled(bukkitDescription.getName());   // 다시 켜면 다시 켜는 중으로 모은다
         }
     }
 }

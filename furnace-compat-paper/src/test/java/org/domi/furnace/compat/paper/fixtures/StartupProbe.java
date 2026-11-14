@@ -14,6 +14,10 @@ public final class StartupProbe extends JavaPlugin implements Listener {
 
     public static final List<String> LOG = new CopyOnWriteArrayList<>();
 
+    /** Paper 는 모든 플러그인의 onLoad 를 월드를 만들기 전에 부른다 — 0·false 여야 한다. */
+    @Override
+    public void onLoad() { LOG.add(getName() + ":onload worlds=" + Bukkit.getWorlds().size() + " byName=" + (Bukkit.getWorld("world") != null)); }
+
     @Override
     public void onEnable() {
         LOG.add(getName() + ":enable worlds=" + Bukkit.getWorlds().size() + " byName=" + (Bukkit.getWorld("world") != null));

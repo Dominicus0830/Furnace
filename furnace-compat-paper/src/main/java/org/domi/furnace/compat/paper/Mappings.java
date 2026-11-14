@@ -138,6 +138,8 @@ final class Mappings {
                 f -> f.player() == null ? null : new org.bukkit.event.block.BlockBreakEvent(Compat.block(f.world(), f.pos()), p(f.player())), (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.world.WorldLoadEvent.class, org.bukkit.event.world.WorldLoadEvent.class,
                 f -> {
+                    // 플러그인 onLoad·STARTUP 단계에 올라온 추가 월드는 Bukkit 에 아직 안 보인다 — 드러낼 때 한 번 보낸다(Compat.revealWorldsAfterStartup)
+                    if (!Compat.worldVisible(f.world())) return null;
                     var w = Compat.world(f.world());
                     return w == null ? null : new org.bukkit.event.world.WorldLoadEvent(w);
                 }, (f, b) -> {});
