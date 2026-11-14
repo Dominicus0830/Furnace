@@ -430,7 +430,8 @@ public abstract class ChunkLevel implements BlockLevel {
         int lx = pos.x() & 15, lz = pos.z() & 15;
         int old = col.getBlock(lx, pos.y(), lz);
         if (old == state) return -1;
-        if (info.isAir(state) && col.sectionHasOnlyAir(pos.y())) return -1;
+        // 바닐라 hasOnlyAir 는 nonEmptyBlockCount == 0 — 읽은 섹션에서 물을 지워 공기뿐이어도 거짓일 수 있고, NMS 컨테이너 원시 쓰기로 블록이 있어도 참일 수 있다(N2b-2)
+        if (info.isAir(state) && col.sectionVanillaHasOnlyAir(pos.y())) return -1;
         col.setBlock(lx, pos.y(), lz, state);
         markDirty(pos.x() >> 4, pos.z() >> 4);
         if (col.light() != null && org.domi.furnace.server.light.LightTables.hasDifferentLightProperties(old, state)) {

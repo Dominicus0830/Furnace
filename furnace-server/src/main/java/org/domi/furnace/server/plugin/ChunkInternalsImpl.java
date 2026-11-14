@@ -1,4 +1,4 @@
-// 청크 내부 읽기 다리(N2a) 구현 — 호환 계층의 NMS 청크 shim 이 서버 청크를 번호 단위로 읽는다. 소유 검사는 WorldHandle.ownedRegion
+// 청크 내부 읽기 다리(N2a) 구현 — 호환 계층의 NMS 청크 shim 이 서버 청크를 번호 단위로 읽는다(N2b-2 부터 주인 스레드 원시 쓰기도). 소유 검사는 WorldHandle.ownedRegion
 // (전역 빌림 구간이면 그 region 을 빌린다)과 같다. 공유 구역을 복사하지 않는 읽기 길(sectionForRead)만 쓴다.
 package org.domi.furnace.server.plugin;
 
@@ -148,6 +148,82 @@ final class ChunkInternalsImpl implements ChunkInternals {
         Region r = ownedLoaded(world, x >> 4, z >> 4, "Level#setBlock");
         RegionLevel lv = r == null || !r.chunkLoaded(new ChunkPos(x >> 4, z >> 4)) ? null : r.level();
         return lv != null && lv.setBlock(new Pos(x, y, z), stateId, flags, maxUpdateDepth);
+    }
+
+    private static HeightmapType heightmapType(String key) {
+        HeightmapType type = HeightmapType.byKey(key.toLowerCase(java.util.Locale.ROOT));
+        if (type == null) throw new IllegalArgumentException("모르는 하이트맵: " + key);
+        return type;
+    }
+
+    private static void checkState(int stateId) {
+        if (stateId < 0 || stateId >= org.domi.furnace.server.block.Blocks.get().stateCount()) {
+            throw new IllegalArgumentException("블록 상태 번호 범위 밖: " + stateId);
+        }
+    }
+
+    private static int checkSection(ChunkColumn col, int index) {
+        int count = col.sectionCount();
+        if (index < 0 || index >= count) throw new IndexOutOfBoundsException("섹션 번호 " + index + " (0.." + (count - 1) + ")");
+        return index;
+    }
+
+    @Override
+    public int setSectionStateRawNow(org.domi.furnace.api.world.World world, int chunkX, int sectionIndex, int chunkZ, int cellIndex, int stateId,
+                                     boolean vanillaCounts) {
+        if (cellIndex < 0 || cellIndex >= 4096) throw new IllegalArgumentException("섹션 칸 번호 범위 밖: " + cellIndex);
+        checkState(stateId);
+        ChunkColumn col = column(world, chunkX, chunkZ, "LevelChunkSection#setBlockState");
+        if (col == null) return -1;
+        return col.setSectionStateRaw(checkSection(col, sectionIndex), cellIndex, stateId, vanillaCounts);
+    }
+
+    @Override
+    public int setSectionBiomeRawNow(org.domi.furnace.api.world.World world, int chunkX, int sectionIndex, int chunkZ, int cellIndex, int biomeId) {
+        if (cellIndex < 0 || cellIndex >= 64) throw new IllegalArgumentException("바이옴 칸 번호 범위 밖: " + cellIndex);
+        int biomes = biomeKeys().size();
+        if (biomeId < 0 || (biomes > 0 && biomeId >= biomes)) throw new IllegalArgumentException("바이옴 번호 범위 밖: " + biomeId);
+        ChunkColumn col = column(world, chunkX, chunkZ, "PalettedContainer#set (바이옴)");
+        if (col == null) return -1;
+        return col.setSectionBiomeRaw(checkSection(col, sectionIndex), cellIndex, biomeId);
+    }
+
+    @Override
+    public int[] sectionCountsNow(org.domi.furnace.api.world.World world, int chunkX, int sectionIndex, int chunkZ) {
+        ChunkColumn col = column(world, chunkX, chunkZ, "LevelChunkSection 개수");
+        return col == null ? null : col.sectionVanillaCounts(checkSection(col, sectionIndex));
+    }
+
+    @Override
+    public boolean setSectionCountsNow(org.domi.furnace.api.world.World world, int chunkX, int sectionIndex, int chunkZ,
+                                       int nonEmptyBlockCount, int tickingBlockCount, int tickingFluidCount) {
+        ChunkColumn col = column(world, chunkX, chunkZ, "LevelChunkSection 개수 대입");
+        if (col == null) return false;
+        col.setSectionVanillaCounts(checkSection(col, sectionIndex), nonEmptyBlockCount, tickingBlockCount, tickingFluidCount);
+        return true;
+    }
+
+    @Override
+    public int setHeightmapRawNow(org.domi.furnace.api.world.World world, int chunkX, int chunkZ, String heightmap, long[] raw) {
+        HeightmapType type = heightmapType(heightmap);
+        java.util.Objects.requireNonNull(raw, "raw");
+        ChunkColumn col = column(world, chunkX, chunkZ, "Heightmap#setRawData");
+        if (col == null) return -1;
+        boolean ok = col.setHeightmapRaw(type, raw.clone());
+        if (!ok) {
+            org.slf4j.LoggerFactory.getLogger(ChunkInternalsImpl.class).warn("Ignoring heightmap data for chunk [{}, {}], size does not match; expected: {}, got: {}",
+                    chunkX, chunkZ, col.heightmapRawLength(), raw.length);
+        }
+        return ok ? 1 : 0;
+    }
+
+    @Override
+    public int updateHeightmapNow(org.domi.furnace.api.world.World world, String heightmap, int x, int y, int z, int stateId) {
+        HeightmapType type = heightmapType(heightmap);
+        checkState(stateId);
+        ChunkColumn col = column(world, x >> 4, z >> 4, "Heightmap#update");
+        if (col == null) return -1;
+        return col.heightmapUpdate(type, x & 15, y, z & 15, stateId) ? 1 : 0;
     }
 
     @Override

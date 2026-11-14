@@ -25,7 +25,10 @@ public abstract class ChunkAccess implements BlockGetter {
     private final ChunkPos pos;
     /** 바닐라 필드: 섹션 배열(0 = 맨 아래). 처음엔 서버 섹션의 보기들. */
     protected final LevelChunkSection[] sections;
-    /** 바닐라 필드(Paper 처럼 공개): 하이트맵. 로드된 청크는 살아 있는 네 종류의 보기를 가진다(고정 하이트맵 모드는 N2b-2). */
+    /**
+     * 바닐라 필드(Paper 처럼 공개): 하이트맵. 로드된 청크는 살아 있는 네 종류의 보기를 가진다 — 서버가 고정 하이트맵 모드(원시 쓰기·setRawData·낡은
+     * 저장값, N2b-2)면 그 고정 값을 그대로 비춘다.
+     */
     public final java.util.Map<Heightmap.Types, Heightmap> heightmaps = new java.util.EnumMap<>(Heightmap.Types.class);
 
     protected ChunkAccess(World furnaceWorld, int chunkX, int chunkZ) {
@@ -139,6 +142,50 @@ public abstract class ChunkAccess implements BlockGetter {
 
     private Holder<Biome> furnaceSectionBiomeAt(int index, int x, int y, int z) {
         return NmsChunks.biome(furnaceSectionBiomes(index)[(y << 2 | z) << 2 | x]);
+    }
+
+    // ---- N2b-2 원시 쓰기(주인 region 스레드 — 아니면 ThreadOwnershipException)
+
+    /** 섹션 칸 원시 쓰기(칸 = y*256+z*16+x). vanillaCounts 면 LevelChunkSection.setBlockState, 아니면 컨테이너 set. 옛 상태 번호. */
+    public int furnaceSetSectionState(int index, int cell, int stateId, boolean vanillaCounts) {
+        int old = NmsChunks.bridge().setSectionStateRawNow(furnaceWorld, pos.x, index, pos.z, cell, stateId, vanillaCounts);
+        if (old < 0) throw notLoaded("LevelChunkSection#setBlockState");
+        return old;
+    }
+
+    /** 섹션 바이옴 칸 원시 쓰기(칸 = y*16+z*4+x). 옛 바이옴 번호. */
+    public int furnaceSetSectionBiome(int index, int cell, int biomeId) {
+        int old = NmsChunks.bridge().setSectionBiomeRawNow(furnaceWorld, pos.x, index, pos.z, cell, biomeId);
+        if (old < 0) throw notLoaded("PalettedContainer#set (바이옴)");
+        return old;
+    }
+
+    /** 섹션의 바닐라 개수 {nonEmpty, tickingBlock, tickingFluid}. */
+    public int[] furnaceSectionCounts(int index) {
+        int[] c = NmsChunks.bridge().sectionCountsNow(furnaceWorld, pos.x, index, pos.z);
+        if (c == null) throw notLoaded("LevelChunkSection 개수");
+        return c;
+    }
+
+    /** 섹션의 바닐라 개수 대입. */
+    public void furnaceSetSectionCounts(int index, int nonEmpty, int tickingBlock, int tickingFluid) {
+        if (!NmsChunks.bridge().setSectionCountsNow(furnaceWorld, pos.x, index, pos.z, nonEmpty, tickingBlock, tickingFluid)) {
+            throw notLoaded("LevelChunkSection 개수");
+        }
+    }
+
+    /** 하이트맵 setRawData(살아 있는 종류). 길이가 맞아 그대로 들어갔으면 true. */
+    public boolean furnaceSetHeightmapRaw(Heightmap.Types type, long[] raw) {
+        int r = NmsChunks.bridge().setHeightmapRawNow(furnaceWorld, pos.x, pos.z, type.getSerializationKey(), raw);
+        if (r < 0) throw notLoaded("Heightmap#setRawData");
+        return r == 1;
+    }
+
+    /** 하이트맵 update(청크 안 x·z, 월드 y). 바뀌면 true. */
+    public boolean furnaceHeightmapUpdate(Heightmap.Types type, int x, int y, int z, int stateId) {
+        int r = NmsChunks.bridge().updateHeightmapNow(furnaceWorld, type.getSerializationKey(), (pos.x << 4) + x, y, (pos.z << 4) + z, stateId);
+        if (r < 0) throw notLoaded("Heightmap#update");
+        return r == 1;
     }
 
     /** 하이트맵 첫 빈 y(청크 안 x·z). */

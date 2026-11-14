@@ -22,7 +22,9 @@ import net.minecraft.util.ZeroBitStorage;
  *     {@code strategy}, 팔레트 늘리기·줄이지 않기·번호 매기는 순서, {@code getRaw()} 배치, 직렬화({@code read}·{@code write}·{@code getSerializedSize})가 같다.
  *     서버 청크와 무관한 떨어진 객체다(플러그인이 청크 섹션 배열에 넣어도 아직 서버에 닿지 않는다 — 거울·들여오기는 N2b-4).</li>
  * <li><b>보기</b>(N2a, {@code LevelChunkSection#getStates()}·{@code getBiomes()} of 로드된 청크): 읽을 때마다 서버 청크의 지금 값을 본다(소유 region
- *     스레드 전용). 쓰기({@code set}·{@code getAndSet}·{@code read})는 UnsupportedNmsCall(살아 있는 섹션 쓰기는 N2b-2). 필드 {@code data} 는 null 이다
+ *     스레드 전용). 칸 쓰기({@code set}·{@code getAndSet}·{@code getAndSetUnchecked}, N2b-2)는 바닐라 살아 있는 컨테이너처럼 그 칸만 서버에 바로 쓴다 —
+ *     섹션 개수·하이트맵·빛·저장 표시·클라이언트는 그대로(바닐라도 컨테이너 쓰기는 아무것도 맞추지 않는다). 주인 region 스레드가 아니면
+ *     ThreadOwnershipException(다른 스레드의 쓰기 일지는 N2b-4). {@code read} 는 UnsupportedNmsCall. 필드 {@code data} 는 null 이다
  *     (보기의 바닐라 배치 실체화는 N2b-4). copy() 는 디스크에서 읽은 바닐라 섹션처럼(팔레트 = 처음 나온 순서, 비트 수 = 직렬화 규칙) 진짜 컨테이너를 만든다.</li>
  * </ul>
  * 바닐라와 다를 수 있는 것: {@link #count} 가 값마다 부르는 순서(바닐라는 fastutil 해시 순서, 여기는 처음 나온 순서 — 개수는 같다),
@@ -46,6 +48,9 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
         int idAt(int index);
 
         int[] ids();
+
+        /** 칸 하나를 서버에 쓰고 옛 번호(N2b-2). 쓸 수 없는 보기면 null 대신 예외. */
+        int setId(int index, int id);
     }
 
     // ------------------------------------------------------------------ 생성자(바닐라)
@@ -85,19 +90,46 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
      * 호환 모듈 전용: 서버 섹션 보기. idAt 은 한 칸(칸 번호는 바닐라 {@link Strategy#getIndex}), ids 는 모든 칸(새 배열)의 레지스트리 번호를 서버에서 읽는다.
      */
     public static <T> PalettedContainer<T> furnaceView(IdMap<T> registry, Strategy strategy, IntUnaryOperator idAt, Supplier<int[]> ids) {
+        return furnaceView(registry, strategy, idAt, ids, null);
+    }
+
+    /**
+     * 호환 모듈 전용: 쓸 수 있는 서버 섹션 보기 — setId(칸, 레지스트리 번호) 는 그 칸을 서버에 쓰고 옛 번호를 준다(null 이면 쓰기는 UnsupportedNmsCall).
+     */
+    public static <T> PalettedContainer<T> furnaceView(IdMap<T> registry, Strategy strategy, IntUnaryOperator idAt, Supplier<int[]> ids,
+                                                       java.util.function.IntBinaryOperator setId) {
         int size = strategy.size();
         return new PalettedContainer<>(registry, strategy, new FurnaceSource() {
             @Override
             public int idAt(int index) {
-                if (index < 0 || index >= size) {
-                    throw new IllegalArgumentException(String.format("The value %s is not in the specified inclusive range of %s to %s", (long) index, 0L, (long) (size - 1)));
-                }
+                checkIndex(index, size);
                 return idAt.applyAsInt(index);
             }
 
             @Override
             public int[] ids() { return ids.get(); }
+
+            @Override
+            public int setId(int index, int id) {
+                if (setId == null) throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("PalettedContainer#set (보기)", "이 보기는 쓸 수 없다");
+                checkIndex(index, size);
+                return setId.applyAsInt(index, id);
+            }
         });
+    }
+
+    /** 바닐라 SimpleBitStorage 의 칸 번호 검사(commons-lang3 Validate.inclusiveBetween 문구). */
+    private static void checkIndex(int index, int size) {
+        if (index < 0 || index >= size) {
+            throw new IllegalArgumentException(String.format("The value %s is not in the specified inclusive range of %s to %s", (long) index, 0L, (long) (size - 1)));
+        }
+    }
+
+    /** 보기 칸 쓰기: 값의 레지스트리 번호로 서버에 쓰고 옛 값. 이 서버 레지스트리에 없는 값은 IllegalArgumentException(서버 칸에 넣을 수 없다). */
+    private T furnaceSet(int x, int y, int z, T value) {
+        int id = registry.getId(value);
+        if (id < 0) throw new IllegalArgumentException("이 서버 레지스트리에 없는 값이라 로드된 청크에 쓸 수 없다: " + value);
+        return registry.byId(furnaceSource.setId(strategy.getIndex(x, y, z), id));
     }
 
     /**
@@ -140,7 +172,7 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
 
     private RuntimeException viewWrite(String what) {
         return new org.domi.furnace.compat.nms.UnsupportedNmsCall("PalettedContainer#" + what + " (청크 섹션 보기)",
-                "로드된 청크 섹션을 직접 고치는 길은 아직 없다(N2b-2). 블록은 Level#setBlock·LevelChunk#setBlockState 로 바꾸고, 사본(copy())·새로 만든 컨테이너는 고칠 수 있다");
+                "로드된 청크 섹션 컨테이너에 통째로 읽어 넣는 길은 아직 없다(N2b-4). 칸 쓰기(set·getAndSet)는 되고, 사본(copy())·새로 만든 컨테이너는 고칠 수 있다");
     }
 
     /** 보기의 그 순간 값으로 만든 진짜 컨테이너(바닐라 배치가 필요한 읽기용). */
@@ -169,7 +201,7 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
     }
 
     public T getAndSet(int x, int y, int z, T value) {
-        if (furnaceSource != null) throw viewWrite("getAndSet");
+        if (furnaceSource != null) return furnaceSet(x, y, z, value);
         acquire();
         try {
             return getAndSet(strategy.getIndex(x, y, z), value);
@@ -179,7 +211,7 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
     }
 
     public T getAndSetUnchecked(int x, int y, int z, T value) {
-        if (furnaceSource != null) throw viewWrite("getAndSetUnchecked");
+        if (furnaceSource != null) return furnaceSet(x, y, z, value);
         return getAndSet(strategy.getIndex(x, y, z), value);
     }
 
@@ -190,7 +222,10 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
     }
 
     public void set(int x, int y, int z, T value) {
-        if (furnaceSource != null) throw viewWrite("set");
+        if (furnaceSource != null) {
+            furnaceSet(x, y, z, value);
+            return;
+        }
         acquire();
         try {
             set(strategy.getIndex(x, y, z), value);

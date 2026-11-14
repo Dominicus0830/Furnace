@@ -15,12 +15,24 @@ public final class ChunkSection {
     private final PaletteStorage biomes;
     private short nonAirCount = 0;
     private int[] scratch;
-    /** 무작위 틱 받는 칸 수(바닐라 tickingBlockCount — 블록 또는 그 유체가 무작위 틱). -1 이면 다시 세야 한다. */
-    private int tickingCount = -1;
+    /** 바닐라 개수 셋이 아직 정해지지 않았다(적재·통째 교체 뒤 — 처음 필요할 때 바닐라 recalcBlockCounts 로 센다). */
+    private static final int UNKNOWN = Integer.MIN_VALUE;
+    /**
+     * 바닐라 tickingBlockCount(무작위 틱 받는 블록 상태 칸 — 용암 블록도 블록 쪽에서 센다). {@link #UNKNOWN} 이면 다시 세야 한다.
+     * 칸 수가 아니라 바닐라 개수다: 블록 컨테이너 원시 쓰기(N2b-2)·개수 대입(FAWE clearCounts)은 칸과 어긋나게 하고, 대입으로 음수도 된다.
+     * 무작위 틱 대상 판정(&gt; 0)과 T-053 마스크만 이 값을 본다 — 칸 고르기는 칸을 직접 읽는다(ChunkLevel.randomTickSections).
+     */
+    private int tickingCount = UNKNOWN;
+    /**
+     * 바닐라 nonEmptyBlockCount. 칸 쓰기는 공기 아닌 상태만 ±1, 재계수는 공기 아닌 칸 + 유체 있는 칸(유체 칸을 두 번 센다). 그래서 읽은 섹션에서
+     * 물을 지우면 공기뿐이어도 0 이 아닐 수 있다(바닐라 hasOnlyAir 거짓). Furnace 정확한 비공기 수 {@link #nonAirCount} 와 따로 둔다 — 서버 내부는
+     * 그 값을 쓰고, 이 값은 NMS 섹션 보기(hasOnlyAir·write)와 다리가 바닐라 값으로 내준다. tickingCount 가 UNKNOWN 이면 뜻이 없다.
+     */
+    private int nonEmpty;
     /**
      * 바닐라 tickingFluidCount. 칸 쓰기(setBlockState)는 비어 있지 않은 유체(물 포함)를 ±1 하지만, 재계수(recalcBlockCounts — 적재·생성 결과 통째 넣기)는
      * 무작위 틱 받는 유체(용암)만 센다. 그래서 양동이로 물을 놓은 구역은 대상이 되고 디스크에서 다시 읽은 구역은 아니다(바닐라 그대로). 칸 쓰기로 음수가 될 수 있다.
-     * tickingCount 가 -1(모름) 이면 뜻이 없다 — 다시 셀 때 함께 정한다.
+     * tickingCount 가 UNKNOWN(모름) 이면 뜻이 없다 — 다시 셀 때 함께 정한다.
      */
     private int fluidCount;
     /**
@@ -47,7 +59,7 @@ public final class ChunkSection {
     /** LevelChunkSection.isRandomlyTicking: tickingBlockCount > 0 또는 tickingFluidCount > 0. */
     public boolean isRandomlyTicking() {
         int known = tickingCount;
-        if (known >= 0) return known > 0 || fluidCount > 0;   // 대부분 이미 센 값이다 — 표(volatile)를 읽을 필요 없다(X1)
+        if (known != UNKNOWN) return known > 0 || fluidCount > 0;   // 대부분 이미 센 값이다 — 표(volatile)를 읽을 필요 없다(X1)
         boolean[] t = randomTicking;
         if (t == null) return false;
         recount(t);
@@ -56,7 +68,7 @@ public final class ChunkSection {
 
     /** 바닐라 isRandomlyTickingBlocks(1) · isRandomlyTickingFluids(2) 비트(NMS 섹션 보기용). 모르면 먼저 다시 센다. */
     public int randomTickingParts() {
-        if (tickingCount < 0) {
+        if (tickingCount == UNKNOWN) {
             boolean[] t = randomTicking;
             if (t == null) return 0;
             recount(t);
@@ -64,8 +76,9 @@ public final class ChunkSection {
         return (tickingCount > 0 ? 1 : 0) | (fluidCount > 0 ? 2 : 0);
     }
 
-    /** 지금 블록에서 무작위 틱 받는 칸 수를 센다(캐시를 건드리지 않음). */
+    /** 지금 블록에서 무작위 틱 받는 칸 수를 센다(캐시를 건드리지 않음). 표가 없으면 0. */
     private int countTicking(boolean[] t) {
+        if (t == null) return 0;
         int n = 0;
         if (scratch != null) {
             for (int v : scratch) if (v < t.length && t[v]) n++;
@@ -87,30 +100,79 @@ public final class ChunkSection {
         return n;
     }
 
-    /** 바닐라 recalcBlockCounts: 두 센 값을 지금 블록에서 다시 정한다. */
+    /** 바닐라 recalcBlockCounts 의 nonEmpty 유체 몫: 유체가 비어 있지 않은 칸 수(물·용암·물 머금은 블록 …). 표가 없으면 0. */
+    private int countFluidPresent(boolean[] fp) {
+        if (fp == null) return 0;
+        int n = 0;
+        if (scratch != null) {
+            for (int v : scratch) if (v < fp.length && fp[v]) n++;
+        } else if (blocks.maybeHas(v -> v < fp.length && fp[v])) {
+            for (int i = 0; i < 4096; i++) { int v = blocks.get(i); if (v < fp.length && fp[v]) n++; }
+        }
+        return n;
+    }
+
+    /** 바닐라 recalcBlockCounts: 개수 셋을 지금 블록에서 다시 정한다. 표가 없으면(t == null) 무작위 틱·유체 몫은 0. */
     private void recount(boolean[] t) {
+        int nonAir = nonAirCount;
+        if (scratch != null) {   // 열린 scratch 는 바깥이 직접 고쳐 nonAirCount 가 낡았을 수 있다
+            nonAir = 0;
+            for (int v : scratch) if (!isAir(v)) nonAir++;
+        }
+        nonEmpty = nonAir + countFluidPresent(fluidPresent);
         counts(countTicking(t), countLava(fluidLava));
     }
 
-    /** 센 값 둘을 바꾸고, "대상일 수 있음"(블록 수 ≠ 0(-1 = 모름 포함) 또는 유체 수 > 0)이 바뀌었으면 주인 컬럼의 마스크 비트를 고친다(T-053). */
+    /** "무작위 틱 대상일 수 있음": 모름이거나 블록 수 > 0 이거나 유체 수 > 0(바닐라 isRandomlyTicking, 음수는 아님). */
+    private static boolean maybeTicking(int blockN, int fluidN) {
+        return blockN == UNKNOWN || blockN > 0 || fluidN > 0;
+    }
+
+    /** 센 값 둘을 바꾸고, "대상일 수 있음"이 바뀌었으면 주인 컬럼의 마스크 비트를 고친다(T-053). */
     private void counts(int blockN, int fluidN) {
-        boolean was = tickingCount != 0 || fluidCount > 0;
+        boolean was = maybeTicking(tickingCount, fluidCount);
         tickingCount = blockN;
         fluidCount = fluidN;
-        boolean now = blockN != 0 || fluidN > 0;
+        boolean now = maybeTicking(blockN, fluidN);
         if (was != now && owner != null) owner.sectionTickingChanged(ownerIndex, now);
     }
 
-    /** 블록 수를 -1(모름)로 — 바깥이 블록을 통째로 바꾼다. 다시 셀 때 유체 수도 새로 정한다. */
-    private void ticking(int n) {
-        counts(n, 0);
+    /** 개수를 모름으로 — 바깥이 블록을 통째로 바꾼다. 다시 셀 때 셋을 새로 정한다. */
+    private void countsUnknown() {
+        counts(UNKNOWN, 0);
+    }
+
+    /** 바닐라 개수 셋이 정해져 있게 한다(모르면 지금 블록에서 recalcBlockCounts). */
+    private void ensureCounts() {
+        if (tickingCount == UNKNOWN) recount(randomTicking);
+    }
+
+    /** 바닐라 개수 {nonEmptyBlockCount, tickingBlockCount, tickingFluidCount}(N2b-2 — NMS 섹션 보기·다리). 모르면 먼저 센다. */
+    public int[] vanillaCounts() {
+        ensureCounts();
+        return new int[] {nonEmpty, tickingCount, fluidCount};
+    }
+
+    /** 바닐라 hasOnlyAir(nonEmptyBlockCount == 0). 모르면 먼저 센다. */
+    public boolean vanillaHasOnlyAir() {
+        ensureCounts();
+        return nonEmpty == 0;
+    }
+
+    /**
+     * 바닐라 개수 셋을 그 값으로(플러그인이 필드에 대입한 값 — FAWE clearCounts 의 0, 음수 포함 short 범위). 블록은 그대로다. 무작위 틱 대상·T-053 마스크가
+     * 이 값을 따른다. 그 뒤 칸 쓰기는 이 값 위에 ±1 한다(바닐라 그대로).
+     */
+    public void setVanillaCounts(int nonEmptyBlockCount, int tickingBlockCount, int tickingFluidCount) {
+        nonEmpty = (short) nonEmptyBlockCount;
+        counts((short) tickingBlockCount, (short) tickingFluidCount);
     }
 
     /** 이 구역을 컬럼 자리 i 에 놓는다 — 주인을 정하고 그 비트를 지금 값에 맞춘다. ChunkColumn 이 배열에 넣을 때만 부른다. */
     void attach(ChunkColumn col, int i) {
         owner = col;
         ownerIndex = i;
-        col.sectionTickingChanged(i, tickingCount != 0 || fluidCount > 0);
+        col.sectionTickingChanged(i, maybeTicking(tickingCount, fluidCount));
     }
 
     /** 컬럼 배열에서 빠졌다(복사본으로 갈아 끼움) — 이 객체에 쓰기가 있어도 그 컬럼 마스크를 건드리지 않게. */
@@ -124,7 +186,7 @@ public final class ChunkSection {
      * 벤치에서 region 틱이 수십 배가 된다(벤치도 -ea).
      */
     boolean knownNotTicking(ChunkColumn col) {
-        return owner == col && tickingCount == 0 && fluidCount <= 0;
+        return owner == col && !maybeTicking(tickingCount, fluidCount);
     }
 
     /** 시험용: 지금 블록을 다시 센 무작위 틱 칸 수(캐시를 건드리지 않음). 표가 없으면 -1. */
@@ -133,8 +195,8 @@ public final class ChunkSection {
         return t == null ? -1 : countTicking(t);
     }
 
-    /** 시험용: 센 값(블록 수, 유체 수) — 블록 수 -1 이면 모름. */
-    int[] countsForTest() { return new int[] {tickingCount, fluidCount}; }
+    /** 시험용: 센 값(블록 수, 유체 수) — 모르면 블록 수 -1. */
+    int[] countsForTest() { return new int[] {tickingCount == UNKNOWN ? -1 : tickingCount, fluidCount}; }
 
     public ChunkSection() {
         this(DEFAULT_DIRECT_BITS, DEFAULT_BIOME_DIRECT_BITS);
@@ -157,6 +219,7 @@ public final class ChunkSection {
         ChunkSection c = new ChunkSection(blocks.copy(), biomes.copy(), nonAirCount, scratch == null ? null : scratch.clone());
         c.tickingCount = tickingCount;
         c.fluidCount = fluidCount;
+        c.nonEmpty = nonEmpty;
         return c;
     }
 
@@ -175,33 +238,46 @@ public final class ChunkSection {
     }
 
     public void setBlock(int x, int y, int z, int stateId) {
+        setBlockAt(blockIndex(x, y, z), stateId, true);
+    }
+
+    /**
+     * 칸 하나(섹션 로컬 인덱스 y*256+z*16+x)를 바꾸고 옛 상태를 돌려준다. Furnace 비공기 수는 늘 정확하게 고친다. vanillaCounts 면 바닐라
+     * LevelChunkSection.setBlockState 처럼 개수 셋을 ±1(유체는 비어 있지 않으면 물도), 아니면 바닐라 블록 컨테이너 set 처럼 개수를 그대로 둔다(N2b-2).
+     */
+    int setBlockAt(int idx, int stateId, boolean vanillaCounts) {
         assert !lightFrozen : "빛 작업이 읽는 구역을 그 자리에서 고침";
-        int idx = blockIndex(x, y, z);
         int old = scratch != null ? scratch[idx] : blocks.get(idx);
         boolean wasAir = isAir(old), nowAir = isAir(stateId);
-        if (wasAir && !nowAir) nonAirCount++;
-        else if (!wasAir && nowAir) nonAirCount--;
         int tc = tickingCount;
         boolean[] t = randomTicking;
-        if (tc < 0 && t != null && scratch == null) {   // 모르면(scratch 가 열려 있으면 바깥이 직접 고치므로 건드리지 않는다) 쓰기 전 블록으로 바닐라 재계수 값부터 정한다 — 그 위에 ±1 이 쌓여야 바닐라 열과 같다
+        // 모르면 쓰기 전 블록으로 바닐라 재계수 값부터 정한다 — 그 위에 ±1 이 쌓여야(또는 그대로 남아야) 바닐라 열과 같다.
+        // scratch 가 열려 있으면 바깥이 직접 고치므로 건드리지 않는다(닫을 때 다시 센다). 표가 없는 시험은 개수 쪽을 모르는 채로 둔다.
+        if (tc == UNKNOWN && scratch == null && (t != null || !vanillaCounts)) {
             recount(t);
             tc = tickingCount;
         }
-        if (tc >= 0) {
+        if (tc != UNKNOWN && vanillaCounts) {
             int n = tc;
             // 표 밖 상태 번호(시험이 아무 숫자나 쓴다)는 무작위 틱 아님·유체 없음으로 본다
-            if (old < t.length && t[old]) n--;
-            if (stateId < t.length && t[stateId]) n++;
+            if (t != null && old < t.length && t[old]) n--;
+            if (t != null && stateId < t.length && t[stateId]) n++;
             int fc = fluidCount, f = fc;
             boolean[] fp = fluidPresent;
             if (fp != null) {
                 if (old < fp.length && fp[old]) f--;
                 if (stateId < fp.length && fp[stateId]) f++;
             }
+            if (!wasAir) nonEmpty--;
+            if (!nowAir) nonEmpty++;
             if (n != tc || f != fc) counts(n, f);
         }
+        // 비공기 수는 재계수 뒤에 고친다 — 재계수가 쓰기 전 블록과 쓰기 전 비공기 수를 함께 봐야 한다
+        if (wasAir && !nowAir) nonAirCount++;
+        else if (!wasAir && nowAir) nonAirCount--;
         if (scratch != null) scratch[idx] = stateId;
         else blocks.set(idx, stateId);
+        return old;
     }
 
     public int getBlock(int x, int y, int z) {
@@ -236,9 +312,16 @@ public final class ChunkSection {
         biomes.set(biomeIndex(x, y, z), biomeId);
     }
 
+    /** 바이옴 칸 하나(섹션 로컬 인덱스 y*16+z*4+x)를 바꾸고 옛 값을 돌려준다(바닐라 바이옴 컨테이너 getAndSet). */
+    int setBiomeAt(int idx, int biomeId) {
+        int old = biomes.get(idx);
+        biomes.set(idx, biomeId);
+        return old;
+    }
+
     public void replaceBlocks(int[] source, int sourceOffset) {
         assert !lightFrozen : "빛 작업이 읽는 구역을 그 자리에서 고침";
-        ticking(-1);
+        countsUnknown();
         if (scratch != null) {
             System.arraycopy(source, sourceOffset, scratch, 0, 4096);
         } else {
@@ -258,7 +341,7 @@ public final class ChunkSection {
             replaceBlocks(flat, 0);
             return;
         }
-        ticking(-1);
+        countsUnknown();
         nonAirCount = (short) blocks.loadIndexed(paletteVals, indices);
     }
 
@@ -304,7 +387,7 @@ public final class ChunkSection {
 
     int[] openScratch() {
         assert !lightFrozen : "빛 작업이 읽는 구역을 그 자리에서 고침";
-        ticking(-1);   // 바깥에서 scratch 를 직접 고친다
+        countsUnknown();   // 바깥에서 scratch 를 직접 고친다
         if (scratch == null) scratch = blocks.unpack();
         return scratch;
     }
@@ -312,7 +395,7 @@ public final class ChunkSection {
     void compact() {
         if (scratch == null) return;
         assert !lightFrozen : "빛 작업이 읽는 구역을 그 자리에서 고침";
-        ticking(-1);
+        countsUnknown();
         blocks.load(scratch, 0);
         int count = 0;
         for (int value : scratch) if (!isAir(value)) count++;   // 바닐라 recalcBlockCounts 처럼 cave_air·void_air 도 공기
