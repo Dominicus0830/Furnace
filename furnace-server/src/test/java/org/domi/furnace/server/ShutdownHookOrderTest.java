@@ -48,11 +48,14 @@ class ShutdownHookOrderTest {
         assertTrue(out.contains("CLOSED-PLUGINS"), "JVM 이 종료 단계 도중에 끝났다:\n" + out);
     }
 
-    /** 종료 단계 안에서 System.exit 를 불러도(플러그인 onDisable 등) 서로 기다리며 멈추지 않는다. */
+    /** 종료 단계 안에서 System.exit 를 불러도(플러그인 onDisable 등) 서로 기다리며 멈추지 않고, 남은 단계는 돈다. */
     @Test
     void exitInsideStepDoesNotDeadlock() throws Exception {
         String out = probe("exit-in-step");
         assertTrue(out.contains("EXIT-IN-STEP"), out);
+        // 남은 단계(저장·닫기)는 종료 훅이 이어 돈다
+        assertTrue(out.contains("FLUSHED"), "단계 안 exit 뒤 저장 단계가 돌지 않았다:\n" + out);
+        assertTrue(out.contains("CLOSED-PLUGINS"), out);
     }
 
     private String probe(String mode) throws Exception {
@@ -87,7 +90,7 @@ class ShutdownHookOrderTest {
         return jar;
     }
 
-    /** 별도 JVM: FurnaceMain 과 같은 배선(종료 훅이 단계를 돌고, /stop 은 runThenExit). */
+    /** 별도 JVM: FurnaceMain·ServerCore.halt 와 같은 배선(ShutdownSequence.jvmHook·stopThread). */
     public static final class Probe {
         public static void main(String[] args) throws Exception {
             String mode = args[0];
@@ -125,6 +128,7 @@ class ShutdownHookOrderTest {
             });
             java.util.concurrent.CountDownLatch slowStarted = new java.util.concurrent.CountDownLatch(1);
             seq.on(ShutdownSequence.Step.FLUSH_WORLDS, () -> {
+                System.out.println("FLUSHED");
                 if (!mode.equals("signal-during-stop")) return;
                 slowStarted.countDown();
                 try {
@@ -137,17 +141,17 @@ class ShutdownHookOrderTest {
                 System.out.println("CLOSED-PLUGINS");
                 System.out.flush();
             });
-            Runtime.getRuntime().addShutdownHook(new Thread(seq::run, "furnace-shutdown"));
+            Runtime.getRuntime().addShutdownHook(ShutdownSequence.jvmHook(seq, () -> {}));
 
             switch (mode) {
                 case "exit-first" -> System.exit(0);
                 case "signal-during-stop" -> {
-                    new Thread(() -> ShutdownSequence.runThenExit(seq, System::exit), "Server Shutdown Thread").start();
+                    ShutdownSequence.stopThread(() -> seq, System::exit).start();
                     slowStarted.await();
                     System.exit(0);   // Ctrl+C 흉내
                 }
                 default -> {
-                    new Thread(() -> ShutdownSequence.runThenExit(seq, System::exit), "Server Shutdown Thread").start();
+                    ShutdownSequence.stopThread(() -> seq, System::exit).start();
                     Thread.sleep(Long.MAX_VALUE);
                 }
             }
