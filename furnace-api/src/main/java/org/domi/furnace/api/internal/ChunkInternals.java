@@ -1,8 +1,8 @@
 // 청크 내부 읽기 다리(N2a) — Bukkit·Paper 호환 계층의 NMS 청크 shim(LevelChunk·LevelChunkSection·PalettedContainer·Heightmap)이
 // 서버 청크를 "보기"로 읽는 길. 블록 상태 번호(BlockTypes.stateId 와 같은 번호)·바이옴 레지스트리 번호 단위로 다룬다.
 //
-// 불안정 내부 다리다(Internals 와 같은 등급, 호환 계층 전용) — 일반 플러그인은 World·Block API 를 쓴다. 쓰기는 단일 칸 두 개뿐이다:
-// 바닐라 Level.setBlock(플래그·깊이 그대로)과 LevelChunk.setBlockState. 섹션·팔레트 직접 쓰기는 없다(N2b-2 부터).
+// 불안정 내부 다리다(Internals 와 같은 등급, 호환 계층 전용) — 일반 플러그인은 World·Block API 를 쓴다. 쓰기는 단일 칸 두 개
+// (바닐라 Level.setBlock(플래그·깊이 그대로)과 LevelChunk.setBlockState)와, N2b-2 의 주인 스레드 원시 쓰기(섹션 칸·바이옴 칸·바닐라 개수·하이트맵)다.
 package org.domi.furnace.api.internal;
 
 import java.util.List;
@@ -87,4 +87,34 @@ public interface ChunkInternals {
      * POI 없음). 옛 상태 번호, 바뀌지 않았거나(같은 상태·공기뿐인 섹션에 공기) 치우기 반응이 칸을 갈아 치웠거나 높이 밖·로드돼 있지 않으면 -1.
      */
     int setBlockStateNow(World world, int x, int y, int z, int stateId, boolean moved);
+
+    // ------------------------------------------------------------------ 원시 쓰기(N2b-2) — 바닐라처럼 그 값만 바꾸고 부수 효과가 없다
+
+    /**
+     * 섹션 칸 원시 쓰기(cellIndex = y*256+z*16+x, 섹션 안). vanillaCounts 면 바닐라 LevelChunkSection.setBlockState(개수 셋 ±1), 아니면 살아 있는
+     * 블록 컨테이너 PalettedContainer.set/getAndSet(개수 그대로). 하이트맵(처음이면 고정 하이트맵 모드로 들어가 낡은 값을 든다)·빛·하늘빛 원천·
+     * 저장 표시·클라이언트·블록 엔티티·POI·이웃은 건드리지 않는다. 옛 상태 번호, 로드돼 있지 않으면 -1. 범위 밖 번호는 IllegalArgumentException.
+     */
+    int setSectionStateRawNow(World world, int chunkX, int sectionIndex, int chunkZ, int cellIndex, int stateId, boolean vanillaCounts);
+
+    /** 섹션 바이옴 칸 원시 쓰기(cellIndex = y*16+z*4+x, 4×4×4) — 바닐라 바이옴 컨테이너 set/getAndSet. 옛 바이옴 번호, 로드돼 있지 않으면 -1. */
+    int setSectionBiomeRawNow(World world, int chunkX, int sectionIndex, int chunkZ, int cellIndex, int biomeId);
+
+    /**
+     * 섹션의 바닐라 개수 {nonEmptyBlockCount, tickingBlockCount, tickingFluidCount}(바닐라 그대로 — 읽은 섹션은 유체 칸을 nonEmpty 에 두 번 세고,
+     * 칸 쓰기는 하나씩 ±1, 컨테이너 원시 쓰기는 그대로, 대입하면 그 값). 로드돼 있지 않으면 null.
+     */
+    int[] sectionCountsNow(World world, int chunkX, int sectionIndex, int chunkZ);
+
+    /** 섹션의 바닐라 개수를 그 값으로(short 범위, 플러그인이 필드에 대입한 값). 무작위 틱 대상이 따라간다. 로드돼 있지 않으면 false. */
+    boolean setSectionCountsNow(World world, int chunkX, int sectionIndex, int chunkZ, int nonEmptyBlockCount, int tickingBlockCount, int tickingFluidCount);
+
+    /**
+     * 바닐라 Heightmap.setRawData: 길이가 바닐라 배열과 같으면 그 값을 그대로(1), 다르면 경고를 남기고 그 종류만 지금 블록에서 prime(0). 고정 하이트맵 모드로
+     * 들어간다. 저장 표시는 하지 않는다. heightmap 은 바닐라 직렬화 키(살아 있는 네 종류). 로드돼 있지 않으면 -1.
+     */
+    int setHeightmapRawNow(World world, int chunkX, int chunkZ, String heightmap, long[] raw);
+
+    /** 바닐라 Heightmap.update(x, y, z, state) 그대로(주어진 상태로 술어, 내려갈 때 칸을 읽음). 바뀌면 1, 아니면 0, 로드돼 있지 않으면 -1. 고정 모드로 들어간다. */
+    int updateHeightmapNow(World world, String heightmap, int x, int y, int z, int stateId);
 }

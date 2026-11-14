@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
  * N1·N2a 표면의 서술자가 바닐라 1.21.1(Mojang 이름)과 같은가 — 플러그인 바이트코드는 이름 + 서술자(반환형 포함)로 링크한다.
  * 서술자는 바닐라 서버 jar 를 javap 로 읽어 맞췄다(난독화 이름 → 형: dvi LevelChunk, duy ChunkAccess, dvj LevelChunkSection, dvq PalettedContainer,
  * dvr PalettedContainerRO, dvz ChunkStatus, dyy Heightmap, dcw Level, aqu ServerLevel, aqs ServerChunkCache, dvc ChunkSource).
- * N2b-1(떨어진 섹션 객체)은 있어야 하고, N2b-2 이후(따로 만드는 하이트맵·setRawData)는 아직 없어서 덫에 걸려야 한다 — 그것도 확인한다.
+ * N2b-1(떨어진 섹션 객체)·N2b-2(살아 있는 하이트맵 setRawData·update)는 있어야 하고, 따로 만드는 하이트맵(N2b-4)은 아직 없어서 덫에 걸려야 한다 — 그것도 확인한다.
  */
 class NmsChunkSymbolsTest {
 
@@ -134,12 +134,14 @@ class NmsChunkSymbolsTest {
             {"net/minecraft/world/level/chunk/GlobalPalette", "<init>", "(Lnet/minecraft/core/IdMap;)V"},
             {"net/minecraft/core/IdMapper", "getId", "(Ljava/lang/Object;)I"},
             {"net/minecraft/world/level/block/state/BlockState", "isRandomlyTicking", "()Z"},
+            // N2b-2: 살아 있는 하이트맵 쓰기
+            {"net/minecraft/world/level/levelgen/Heightmap", "setRawData", "(" + ACCESS + TYPES + "[J)V"},
+            {"net/minecraft/world/level/levelgen/Heightmap", "update", "(III" + STATE + ")Z"},
     };
 
-    /** N2b-2 이후 — 아직 없어야 하는 것(플러그인 호출 위치에서 덫이 걸린다). */
+    /** N2b-4 이후 — 아직 없어야 하는 것(플러그인 호출 위치에서 덫이 걸린다). 따로 만드는 하이트맵은 거울(N2b-4)과 함께. */
     static final String[][] ABSENT = {
             {"net/minecraft/world/level/levelgen/Heightmap", "<init>", "(" + ACCESS + TYPES + ")V"},
-            {"net/minecraft/world/level/levelgen/Heightmap", "setRawData", "(" + ACCESS + TYPES + "[J)V"},
     };
 
     @Test

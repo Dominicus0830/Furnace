@@ -27,13 +27,14 @@ public class LevelChunk extends ChunkAccess {
     public Level getLevel() { return level; }
 
     /**
-     * 높이 밖·공기뿐인 섹션은 minecraft:air(바닐라 LevelChunk.getBlockState — 동굴 공기만 있는 섹션도 hasOnlyAir 라 air 를 준다).
+     * 높이 밖·공기뿐인 섹션은 minecraft:air(바닐라 LevelChunk.getBlockState — 섹션의 바닐라 hasOnlyAir(nonEmptyBlockCount == 0)를 본다. 동굴 공기만
+     * 있는 섹션도 air 를 주고, 컨테이너 원시 쓰기로 개수가 0 인 채 블록이 든 섹션도 바닐라처럼 air 를 준다).
      */
     @Override
     public BlockState getBlockState(BlockPos pos) {
         int y = pos.getY();
         if (isOutsideBuildHeight(y)) return Blocks.AIR.defaultBlockState();
-        if (furnaceSectionNonAir(getSectionIndex(y)) == 0) return Blocks.AIR.defaultBlockState();
+        if (furnaceSectionCounts(getSectionIndex(y))[0] == 0) return Blocks.AIR.defaultBlockState();
         return NmsChunks.state(furnaceStateIdAt(pos.getX(), y, pos.getZ()));
     }
 

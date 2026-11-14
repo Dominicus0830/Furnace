@@ -36,13 +36,16 @@ class ChunkFieldCensusTest {
         e("SECTION_COUNT", Kind.FIXED), e("MIN_Y", Kind.FIXED), e("MAX_Y", Kind.FIXED), e("HEIGHTMAP_BITS", Kind.FIXED),
         e("DEFAULT_BIOME_DIRECT_BITS", Kind.FIXED), e("UNSET_HEIGHT", Kind.FIXED), e("CAVE_AIR_STATE", Kind.FIXED),
         e("VOID_AIR_STATE", Kind.FIXED), e("HAS_BE", Kind.FIXED), e("TOP_MB_NO_LEAVES", Kind.FIXED), e("TOP_MB", Kind.FIXED),
-        e("TOP_OCEAN_FLOOR", Kind.FIXED), e("leavesTable", Kind.FIXED), e("motionBlockingTable", Kind.FIXED),
+        e("TOP_OCEAN_FLOOR", Kind.FIXED), e("TOP_WORLD_SURFACE", Kind.FIXED),
+        e("WS", Kind.FIXED), e("OF", Kind.FIXED), e("MB", Kind.FIXED), e("MBNL", Kind.FIXED), e("leavesTable", Kind.FIXED), e("motionBlockingTable", Kind.FIXED),
         e("blocksMotionTable", Kind.FIXED), e("hasFluidTable", Kind.FIXED), e("fluidRegistry", Kind.FIXED),
         e("minY", Kind.FIXED), e("sectionCount", Kind.FIXED), e("heightmapBits", Kind.FIXED),
         // 내용
         e("sections", Kind.CONTENT),
         // 하이트맵(surface·motionBlocking 는 라이브, oceanFloor·motionBlocking 은 칸별 UNSET 지연 — 고정 모드 대상)
         e("surface", Kind.HEIGHTMAP), e("oceanFloor", Kind.HEIGHTMAP), e("motionBlocking", Kind.HEIGHTMAP),
+        // 고정 하이트맵(N2b-2): 원시 쓰기·setRawData 뒤 바닐라처럼 낡은 값을 든다 — 들여오기도 블록에서 다시 만들지 않는다
+        e("fixedHeights", Kind.HEIGHTMAP),
         // 월드젠 하이트맵(얼린 뒤엔 바뀌지 않음 — 바닐라 WG 하이트맵도 생성 뒤 갱신 안 함)
         e("surfaceWg", Kind.UNRELATED), e("wgOceanFloor", Kind.UNRELATED), e("wgHeightmapsFrozen", Kind.UNRELATED),
         // Furnace 전용 캐시 — touch() 가 버리는 것들과 섹션 공유·무작위 틱 마스크
@@ -67,7 +70,8 @@ class ChunkFieldCensusTest {
         e("DEFAULT_BIOME_DIRECT_BITS", Kind.FIXED), e("randomTicking", Kind.FIXED), e("fluidPresent", Kind.FIXED), e("fluidLava", Kind.FIXED),
         e("blocks", Kind.CONTENT), e("biomes", Kind.CONTENT),
         // 개수·평평한 사본은 블록에서 파생 — 들여오기가 다시 센다(nonAirCount 는 바닐라 개수와 다른 Furnace 정의다, VanillaSectionOracleTest)
-        e("nonAirCount", Kind.FURNACE_CACHE), e("tickingCount", Kind.FURNACE_CACHE), e("fluidCount", Kind.FURNACE_CACHE), e("scratch", Kind.FURNACE_CACHE),
+        // nonEmpty·tickingCount·fluidCount 는 바닐라 개수 셋(N2b-2, 원시 쓰기·필드 대입 뒤 블록과 어긋날 수 있음) — 들여오기는 거울 섹션의 개수 필드를 옮긴다
+        e("nonAirCount", Kind.FURNACE_CACHE), e("nonEmpty", Kind.FURNACE_CACHE), e("UNKNOWN", Kind.FIXED), e("tickingCount", Kind.FURNACE_CACHE), e("fluidCount", Kind.FURNACE_CACHE), e("scratch", Kind.FURNACE_CACHE),
         // 컬럼 소속·빛 작업 얼림 — 섹션을 갈아 끼울 때 attach/detach·ownSection 규칙을 따라야 한다
         e("owner", Kind.FURNACE_CACHE), e("ownerIndex", Kind.FURNACE_CACHE), e("lightFrozen", Kind.FURNACE_CACHE)));
 
