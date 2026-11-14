@@ -1,3 +1,15 @@
 # 한 줄에 JVM 옵션 하나. 예:
 # -Xmx4G
 # -Dfurnace.sharedRegionPool=true
+#
+# -XX:ThreadPriorityPolicy=1 (리눅스 전용)
+#   start.sh 가 리눅스에서 자동으로 붙인다(끄려면 FURNACE_THREAD_PRIORITY=0). 직접 쓸 때만 아래 줄의 # 를 지운다.
+#   월드 생성 스레드(Thread.MIN_PRIORITY)의 낮은 우선순위를 리눅스가 실제로 따르게 한다. 이 옵션이 없으면
+#   리눅스 JVM 은 자바 스레드 우선순위를 무시해서, 새 땅을 많이 걸을 때 생성 계산이 틱 스레드와 CPU 를 똑같이 다툰다.
+#   (측정: 32명 새 땅 가장 느린 TPS 최저 15.5~17 -> 18.5, 두 차원 동시 12 -> 17, 받은 청크/초 -3~7%)
+#   - 루트 권한은 필요 없다. 루트가 아니면 JVM 이 "may require system level permission" 경고를 한 줄 내지만
+#     우선순위 낮추기는 된다(올리기만 권한이 필요하다).
+#   - 윈도·맥은 넣지 말 것. 윈도 JVM 은 원래 우선순위를 따르고, 거기서 정책 1 은 우선순위 매핑을 바꿔(JDK 주석: 성능이
+#     떨어질 수 있다) 검증도 안 했다. 맥도 확인 안 했다. start.sh 는 리눅스에서만 붙인다.
+#   - JAVA_TOOL_OPTIONS 로 준 ThreadPriorityPolicy 는 start.sh 가 못 본다(명령줄의 =1 이 이긴다). 끄려면 FURNACE_THREAD_PRIORITY=0.
+# -XX:ThreadPriorityPolicy=1
