@@ -136,7 +136,7 @@ class VanillaSectionOracleTest {
 
     /**
      * Furnace ChunkSection: 비공기 수는 바닐라 "하나씩 놓기" nonEmpty 와 같고(유체 두 번 세기 없음), 무작위 틱 판정은 바닐라
-     * "다시 세기"와 같다. 다시 센 뒤 물을 놓거나 지운 경우의 바닐라 판정(R17)과는 다를 수 있다 — 여기서 다루지 않는다.
+     * "하나씩 놓기" 와 같다(칸 쓰기는 물도 센다). 통째 교체 구역은 "다시 세기"와 같고, 그 뒤 하나씩 바꾼 결과도 정답표 세 번째 열과 같다(PR #358).
      */
     @Test
     void furnaceSectionMatchesVanillaOnSameInput() throws Exception {
@@ -150,11 +150,19 @@ class VanillaSectionOracleTest {
             for (int i = 0; i < 4096; i++) one.setBlock(i & 15, i >> 8, (i >> 4) & 15, sc.cells[i]);
             int[] a = ints(p, 3), b = ints(p, 6);
             assertEquals(a[0], one.nonAirCount(), "비공기 수 seed=" + seed);
-            assertEquals(b[1] > 0 || b[2] > 0, one.isRandomlyTicking(), "무작위 틱(하나씩 놓은 섹션) seed=" + seed);
+            assertEquals(a[1] > 0 || a[2] > 0, one.isRandomlyTicking(), "무작위 틱(하나씩 놓은 섹션) seed=" + seed);
             ChunkSection bulk = new ChunkSection();
             bulk.replaceBlocks(sc.cells.clone(), 0);
             assertEquals(a[0], bulk.nonAirCount(), "비공기 수(통째) seed=" + seed);
             assertEquals(b[1] > 0 || b[2] > 0, bulk.isRandomlyTicking(), "무작위 틱(통째) seed=" + seed);
+            // 다시 센 뒤 하나씩 바꾸기(정답표 세 번째 열) — 센 값을 모르는(-1) 구역의 첫 쓰기는 먼저 다시 센 뒤 ±1 을 쌓아야 한다(PR #358)
+            int[] c = ints(p, 9);
+            for (int k = 0; k < sc.opIdx.length; k++) {
+                int i = sc.opIdx[k];
+                bulk.setBlock(i & 15, i >> 8, (i >> 4) & 15, sc.opState[k]);
+            }
+            assertEquals(c[1] > 0 || c[2] > 0, bulk.isRandomlyTicking(), "무작위 틱(통째 뒤 하나씩 바꾸기) seed=" + seed);
+            assertArrayEquals(new int[] {c[1], c[2]}, bulk.countsForTest(), "센 값 seed=" + seed);
         }
     }
 
@@ -176,22 +184,13 @@ class VanillaSectionOracleTest {
                 if (s != 0) col.setBlock(x, y - 64, z, s);
             }
             col.rebuildHeightmapsAfterSurface();   // 디스크에서 읽은 청크처럼 하이트맵을 내용에서 만든다(AnvilChunkCodec 과 같음)
-            assertHeightmaps(prime, col, "처음 seed=" + seed, false);
+            assertHeightmaps(prime, col, "처음 seed=" + seed);
             for (int k = 0; k < cc.opX.length; k++) col.setBlock(cc.opX[k], cc.opY[k] - 64, cc.opZ[k], cc.opState[k]);
-            assertHeightmaps(after, col, "바꾼 뒤 seed=" + seed, true);
+            assertHeightmaps(after, col, "바꾼 뒤 seed=" + seed);
         }
-        // 개수를 못 박는다: 빈 열 수정(PR #354)이 들어오면 0 이 되어 여기서 실패한다 — 그때 허용(allowEmptyColumn)을 지우고 엄격 비교로 바꿀 것.
-        assertEquals(44, knownEmptyColumn, "빈 열 WORLD_SURFACE 알려진 차이 칸 수가 바뀜");
     }
 
-    /**
-     * 알려진 Furnace 차이(N2b-0 에서 발견, 별도 수정 과제): WORLD_SURFACE 가 0(열 전체가 공기)이 된 열은 ChunkColumn.updateSurface 가
-     * "프라임 전"으로 보고 갱신을 건너뛰어, 그 뒤 놓은 블록이 반영되지 않는다(바닐라는 갱신). 그 모양(Furnace 0, 바닐라 0 아님)만 세고
-     * 다른 차이는 모두 실패시킨다. 버그는 바꾼 뒤에만 생기므로 허용도 "바꾼 뒤" 단계에만 둔다(처음 = 내용에서 만든 값은 엄격).
-     */
-    private static int knownEmptyColumn;
-
-    private static void assertHeightmaps(String[] p, ChunkColumn col, String what, boolean allowEmptyColumn) {
+    private static void assertHeightmaps(String[] p, ChunkColumn col, String what) {
         long[][] mine = {col.worldSurfaceHeightmap(), col.oceanFloorHeightmap(), col.motionBlockingHeightmap(),
             col.motionBlockingNoLeavesHeightmap()};
         String[] names = {"WORLD_SURFACE", "OCEAN_FLOOR", "MOTION_BLOCKING", "MOTION_BLOCKING_NO_LEAVES"};
@@ -203,7 +202,6 @@ class VanillaSectionOracleTest {
             for (int i = 0; i < 256; i++) {
                 int v = (int) (want[i / 7] >>> ((i % 7) * 9)) & 511, m = (int) (mine[t][i / 7] >>> ((i % 7) * 9)) & 511;
                 if (v == m) continue;
-                if (allowEmptyColumn && t == 0 && m == 0 && v > 0) { knownEmptyColumn++; continue; }
                 fail(names[t] + " " + what + " x=" + (i & 15) + " z=" + (i >> 4) + " 바닐라=" + v + " Furnace=" + m);
             }
         }

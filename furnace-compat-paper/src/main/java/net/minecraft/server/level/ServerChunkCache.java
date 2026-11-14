@@ -21,7 +21,8 @@ public class ServerChunkCache extends ChunkSource {
 
     @Override
     public ChunkAccess getChunk(int x, int z, ChunkStatus status, boolean create) {
-        if (NmsChunks.bridge().isLoaded(level.getWorld().furnaceHandle(), x, z)) return LevelChunk.furnaceView(level, x, z);
+        LevelChunk c = NmsChunks.loadedChunk(level, x, z);   // 이번 로드 동안 같은 객체
+        if (c != null) return c;
         if (create) throw NmsChunks.notLoaded(level.getWorld().furnaceHandle(), x, z, "ServerChunkCache#getChunk");
         return null;
     }

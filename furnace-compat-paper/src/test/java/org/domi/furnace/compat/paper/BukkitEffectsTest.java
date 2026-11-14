@@ -209,4 +209,95 @@ class BukkitEffectsTest {
         assertThrows(IllegalArgumentException.class, () -> owner(() -> { w.setBiome(at.x(), at.y(), at.z(), Biome.CUSTOM); return null; }));
         owner(() -> { w.setBiome(at.x(), at.y(), at.z(), before); return null; });
     }
+
+    // ---- 레벨 이벤트(Effect·playEffect)와 웅크림 — FAWE 2.16.2 가 BukkitWorld 초기화·브러시 리스너에서 쓴다(사용자 로그 11-14)
+
+    private static List<org.domi.furnace.api.packet.GenericPacket> events(TestPlayer t) {
+        return t.received(PacketTypes.Clientbound.LEVEL_EVENT);
+    }
+
+    @Test
+    void effectTableMatchesPaper() {
+        assertEquals(95, org.bukkit.Effect.values().length);
+        assertEquals(2001, org.bukkit.Effect.STEP_SOUND.getId());
+        assertEquals(org.bukkit.block.data.BlockData.class, org.bukkit.Effect.STEP_SOUND.getData());
+        assertTrue(org.bukkit.Effect.STEP_SOUND.isApplicable(org.bukkit.Material.STONE));   // Paper: 재료도 받는다
+        // Paper getById 는 @Deprecated 상수를 뺀다 — 1011 은 옛 IRON_DOOR_CLOSE 가 아니라 SOUND_STOP_JUKEBOX_SONG
+        assertEquals(org.bukkit.Effect.SOUND_STOP_JUKEBOX_SONG, org.bukkit.Effect.getById(1011));
+        assertNull(org.bukkit.Effect.getById(1006));   // DOOR_TOGGLE(사용 중단)뿐인 번호
+        assertEquals(org.bukkit.Effect.CLICK1, org.bukkit.Effect.getById(1001));
+    }
+
+    @Test
+    void worldPlayEffectSendsLevelEventToPlayersInRadius() {
+        World w = a.getWorld();
+        ta.clearReceived();
+        tb.clearReceived();
+        w.playEffect(here(0), org.bukkit.Effect.STEP_SOUND, org.bukkit.Material.STONE);
+        sync();
+        for (TestPlayer t : List.of(ta, tb)) {
+            var e = events(t);
+            assertEquals(1, e.size(), t.name());
+            assertEquals(2001, e.get(0).get("type"));
+            assertEquals(new BlockPos(at.x(), at.y() + 1, at.z()), e.get(0).get("pos"));
+            assertEquals(1, e.get(0).get("data"));   // 돌 기본 상태 번호
+            assertEquals(false, e.get(0).get("global_event"));
+        }
+        ta.clearReceived();
+        tb.clearReceived();
+        w.playEffect(here(20), org.bukkit.Effect.CLICK1, 0, 10);   // 10칸 반경 밖
+        w.playEffect(here(0), org.bukkit.Effect.ELECTRIC_SPARK, (Object) null);   // 축은 생략 가능 → -1
+        sync();
+        assertEquals(List.of(-1), events(ta).stream().map(p -> p.get("data")).toList());
+        assertThrows(IllegalArgumentException.class, () -> w.playEffect(here(0), org.bukkit.Effect.SMOKE, (Object) null));       // Wrong kind of data
+        assertThrows(IllegalArgumentException.class, () -> w.playEffect(here(0), org.bukkit.Effect.CLICK1, Color.RED));         // does not have a valid Data
+        assertThrows(IllegalArgumentException.class, () -> w.playEffect(here(0), org.bukkit.Effect.SMOKE, Color.RED));          // cannot be used
+        assertThrows(IllegalArgumentException.class, () -> w.playEffect(here(0), org.bukkit.Effect.RECORD_PLAY, org.bukkit.Material.STONE));
+    }
+
+    @Test
+    void playerPlayEffectGoesOnlyToThatPlayer() {
+        ta.clearReceived();
+        tb.clearReceived();
+        a.playEffect(here(300), org.bukkit.Effect.POTION_BREAK, Color.fromRGB(0x123456));   // 거리와 관계없이
+        a.playEffect(here(0), org.bukkit.Effect.SMOKE, org.bukkit.block.BlockFace.WEST);
+        sync();
+        assertEquals(List.of(0x123456, 4), events(ta).stream().map(p -> p.get("data")).toList());
+        assertEquals(List.of(2002, 2000), events(ta).stream().map(p -> p.get("type")).toList());
+        assertEquals(List.of(), events(tb));
+    }
+
+    @Test
+    void sneakingAndSprintingFollowPlayerCommands() {
+        assertFalse(a.isSneaking());
+        int id = a.getEntityId();
+        java.util.function.IntConsumer command = action -> ta.sendPacket(0x25, buf -> {   // player_command: 엔티티 번호, 동작, 점프 세기
+            org.domi.furnace.server.net.io.Types.writeVarInt(buf, id);
+            org.domi.furnace.server.net.io.Types.writeVarInt(buf, action);
+            org.domi.furnace.server.net.io.Types.writeVarInt(buf, 0);
+        });
+        command.accept(0);   // PRESS_SHIFT_KEY
+        sync();
+        assertTrue(a.isSneaking());
+        assertTrue(((org.bukkit.entity.Entity) a).isSneaking(), "Entity 로 불러도 플레이어 값");
+        assertFalse(b.isSneaking());
+        command.accept(1);   // RELEASE_SHIFT_KEY
+        command.accept(3);   // START_SPRINTING
+        sync();
+        assertFalse(a.isSneaking());
+        assertTrue(a.isSprinting());
+        command.accept(4);
+        sync();
+        assertFalse(a.isSprinting());
+    }
+
+    @Test
+    void materialLegacyAndRecordFlags() {
+        for (org.bukkit.Material m : org.bukkit.Material.values()) assertFalse(m.isLegacy(), m.name());   // LEGACY_ 상수가 없다
+        assertEquals("LEGACY_", org.bukkit.Material.LEGACY_PREFIX);
+        assertTrue(org.bukkit.Material.MUSIC_DISC_CAT.isRecord());
+        assertTrue(org.bukkit.Material.MUSIC_DISC_CREATOR_MUSIC_BOX.isRecord());
+        assertFalse(org.bukkit.Material.JUKEBOX.isRecord());
+        assertFalse(org.bukkit.Material.DISC_FRAGMENT_5.isRecord());
+    }
 }

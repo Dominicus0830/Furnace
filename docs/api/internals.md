@@ -138,9 +138,9 @@ Entity api = in.wrapEntity(internalZombie);
 ### 3.4 청크 내부 다리 `ChunkInternals` (호환 계층 전용)
 
 `Internals#chunks()` 는 Bukkit·Paper 호환 계층의 NMS 청크 shim(`LevelChunk`·`LevelChunkSection`·`PalettedContainer`·`Heightmap`)이 쓰는 번호 단위 다리다
-(블록 상태 번호·바이옴 번호 읽기 12개, 바닐라 `Level.setBlock`·`LevelChunk.setBlockState` 그대로인 단일 칸 쓰기 2개). **호환 계층 전용이고 버전 중립 보장이 없다** —
+(블록 상태 번호·바이옴 번호 읽기 15개, 바닐라 `Level.setBlock`·`LevelChunk.setBlockState` 그대로인 단일 칸 쓰기 2개 — N2b-1 에서 상태별 무작위 틱·섹션 무작위 틱 판정 나눔·청크 정체성 표시 셋을 더함). **호환 계층 전용이고 버전 중립 보장이 없다** —
 일반 플러그인은 `World`·블록 API 나 위의 `withLevel` 을 쓴다. "Now" 메서드는 그 청크를 가진 region 스레드에서만 되고, 로드되지 않은 청크는 표시값(-1·null·`Integer.MIN_VALUE`)을
-돌려줄 뿐 불러오지 않는다. 플러그인이 직접 꺼내면 `Internals` 처럼 로그에 남는다. 상세: `docs/feature-parity/compat-nms-n1-n2a-2026-11-14.md`.
+돌려줄 뿐 불러오지 않는다. 플러그인이 직접 꺼내면 `Internals` 처럼 로그에 남는다. 상세: `docs/feature-parity/compat-nms-n1-n2a-2026-11-14.md`, `compat-nms-n2b1-2026-11-14.md`.
 
 ## 4. 버전 정책 (D5 와 1.21.1 이후 버전 지원)
 

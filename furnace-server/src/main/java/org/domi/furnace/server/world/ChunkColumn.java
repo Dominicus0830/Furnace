@@ -49,6 +49,17 @@ public final class ChunkColumn {
     private long[] cachedMotionBlockingHeightmap;
     private long[] cachedWorldSurfaceHeightmap;
     private ChunkSnapshot cachedSnapshot;
+    /**
+     * 이번 로드를 나타내는 불투명 표시(NMS 청크 shim 정체성 캐시의 약한 키). 컬럼 자체를 내주면 플러그인이 쥘 때 내린 청크 전체가
+     * 풀리지 않으므로 따로 둔다. 재생성은 옛 표시를 이어받는다(Paper regenerateChunk 는 같은 LevelChunk 에 써 넣는다).
+     */
+    private Object loadToken = new Object();
+
+    /** 이번 로드의 불투명 표시(아무 스레드). */
+    public Object loadToken() { return loadToken; }
+
+    /** 재생성: 바꿔 넣을 새 컬럼이 옛 컬럼의 로드 표시를 이어받는다(설치 전, 주인 스레드). */
+    void inheritLoadToken(ChunkColumn old) { loadToken = old.loadToken; }
 
     public ChunkColumn(int biomeId) {
         this(MIN_Y, SECTION_COUNT);
@@ -918,7 +929,7 @@ public final class ChunkColumn {
     private void updateSurface(int x, int worldY, int z, int stateId) {
         int index = z * 16 + x;
         int first = surface[index];
-        if (first == 0) return; // rebuildSurface 이전(미프라임) — 갱신 대상 아님
+        // first==0 은 "열 전체가 공기"다 — 바닐라 Heightmap.update 처럼 그대로 갱신한다(공허·스카이블록·파낸 열). 미프라임 열은 이후 rebuild 가 덮어쓴다.
         int y = worldY - minY;
         if (y <= first - 2) return;
         boolean isAir = stateId == ChunkSection.AIR || stateId == CAVE_AIR_STATE || stateId == VOID_AIR_STATE;
@@ -941,7 +952,7 @@ public final class ChunkColumn {
         if (wgHeightmapsFrozen) return;
         int index = z * 16 + x;
         int first = surfaceWg[index];
-        if (first == 0) return; // rebuildSurface 이전(미프라임) — 갱신 대상 아님
+        // first==0 은 "열 전체가 공기"다 — 바닐라 Heightmap.update 처럼 그대로 갱신한다(공허·스카이블록·파낸 열). 미프라임 열은 이후 rebuild 가 덮어쓴다.
         int y = worldY - minY;
         if (y <= first - 2) return;
         boolean isAir = stateId == ChunkSection.AIR || stateId == CAVE_AIR_STATE || stateId == VOID_AIR_STATE;

@@ -185,16 +185,22 @@ public final class ServerCore {
 
         public boolean isThundering() { return world.dimensionType().hasSkyLight() && clock.thunderLevel() > 0.9f; }
 
-        /** 바닐라 Level.getBiome(pos)(확대 지터 포함). 지금 스레드가 그 region 을 가진 경우에만 — 아니면 null. */
+        /**
+         * 바닐라 Level.getBiome(pos)(확대 지터 포함). 지터로 고른 quart 는 이웃 청크일 수 있다(청크 가장자리 두 칸).
+         * 바닐라 LevelReader.getNoiseBiome 처럼 그 청크가 있으면 저장된 바이옴을 읽는다. 이 스레드가 그 청크를 읽을 수 없으면(다른 region·미로드)
+         * 새로 생성했을 때의 저장 바이옴({@link #generatorBiome}) — 생성 뒤 바이옴이 바뀐 이웃(/fillbiome·setBiome·생성 훅·옛/들여온 청크)만 다르다.
+         */
         public String biomeAt(int x, int y, int z) {
             var dp = dataPacks;
             if (dp == null || dp.loot() == null) return null;
             int[] q = org.domi.furnace.server.world.BiomeZoom.quart(biomeZoomSeed(world), x, y, z);
             int cx = q[0] >> 2, cz = q[2] >> 2;
-            if (!world.ownsChunkOnCurrentThread(cx, cz)) return null;
-            int id = world.regionizer().ownerOf(cx, cz).biomeIdAtQuart(q[0], q[1], q[2]);
             var names = dp.loot().registries().entries("minecraft:worldgen/biome");
-            return id >= 0 && id < names.size() ? names.get(id) : null;
+            if (world.ownsChunkOnCurrentThread(cx, cz)) {
+                int id = world.regionizer().ownerOf(cx, cz).biomeIdAtQuart(q[0], q[1], q[2]);
+                if (id >= 0) return id < names.size() ? names.get(id) : null;
+            }
+            return generatorBiome(world, q[0], q[1], q[2], names);
         }
 
         /** NaturalSpawner.getRoughBiome: 확대 지터 없이 ChunkAccess.getNoiseBiome(x>>2, y>>2, z>>2) — 지금 스레드가 그 region 을 가진 경우에만. */
@@ -323,6 +329,29 @@ public final class ServerCore {
             if (is != null && !is.isEmpty()) out.add(is);
         }
         return out;
+    }
+
+    /**
+     * 이 스레드가 읽을 수 없는(다른 region·미로드) 청크의 바이옴 대체값: 그 청크를 새로 생성했을 때 저장될 바이옴(quart y 를 죔).
+     * 바닐라가 이 조회를 하는 자리(청크 생성 스폰의 WorldGenRegion, 틱 도는 청크 옆)에서는 이웃 청크가 거의 늘 있어 그 저장 바이옴을 읽으므로,
+     * 생성기 바이옴 소스를 바로 묻는 getUncachedNoiseBiome 보다 이쪽이 맞다(R-트리 거리 동률에서 둘이 다르다 — PR #364 검토 R1).
+     * 평지·디버그 월드는 한 가지 바이옴. 모르는 생성기면 null.
+     */
+    public static String generatorBiome(World w, int qx, int qy, int qz, java.util.List<String> names) {
+        var src = w.worldSource();
+        if (src instanceof org.domi.furnace.server.world.gen.AnvilWorldSource a) src = a.base();
+        int id;
+        if (src instanceof org.domi.furnace.server.world.gen.NoiseWorldSource n) {
+            String b = n.storedBiomeAtQuart(qx, qy, qz);
+            return b == null || b.isEmpty() ? null : b;
+        } else if (src instanceof org.domi.furnace.server.world.gen.SuperflatWorldSource s) {
+            id = s.biomeId();
+        } else if (src instanceof org.domi.furnace.server.world.gen.DebugWorldSource d) {
+            id = d.biomeId();
+        } else {
+            return null;
+        }
+        return id >= 0 && id < names.size() ? names.get(id) : null;
     }
 
     /** 바이옴 확대 지터 시드(Level.getBiome — 명령의 biome 조건용). */
@@ -2011,8 +2040,30 @@ public final class ServerCore {
             receiver.send(new org.domi.furnace.server.net.protocol.play.PlayerChatPacket(message, cache, bound));
             return null;
         });
-        if (!ok) receiver.kick(new org.domi.furnace.server.net.protocol.play.Disconnect(
-                Text.translatable("multiplayer.disconnect.too_many_pending_chats")));
+        if (!ok) kickOnGlobal(receiver, Text.translatable("multiplayer.disconnect.too_many_pending_chats"));
+    }
+
+    /**
+     * Paper disconnectAsync: PlayerKickEvent 는 주(전역) 스레드에서 낸다. 전역이면 곧바로 킥하고, 아니면(채팅 스레드 등) 그 연결의 읽기를
+     * 멈춘 채 전역에 넘긴다 — 그사이 들어온 패킷이 킥 이벤트를 또 부르지 않게. 플러그인이 취소하면 다시 읽는다.
+     */
+    public void kickOnGlobal(Player p, Text reason) {
+        var global = scheduler().global();
+        if (global instanceof org.domi.furnace.api.concurrent.ThreadOwner o && o.isOwnerThread()) {
+            p.kick(new org.domi.furnace.server.net.protocol.play.Disconnect(reason));
+            return;
+        }
+        io.netty.channel.Channel ch = p.channel();
+        if (ch != null) ch.config().setAutoRead(false);
+        try {
+            global.execute(() -> {
+                if (!p.kick(new org.domi.furnace.server.net.protocol.play.Disconnect(reason)) && ch != null && !p.isDisconnected()) {
+                    ch.config().setAutoRead(true);   // 취소됐다 — Paper 처럼 다시 읽는다
+                }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException closing) {   // 서버가 닫히는 중 — 이벤트 없이 끊는다
+            p.kickForced(new org.domi.furnace.server.net.protocol.play.Disconnect(reason));
+        }
     }
 
     public int operatorUserPermissionLevel() { return settings.get().opPermissionLevel; }

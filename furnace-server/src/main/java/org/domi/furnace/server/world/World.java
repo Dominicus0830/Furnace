@@ -81,11 +81,12 @@ public final class World {
     // 청크별 구독자(그 청크를 로드한 플레이어)와 구독 상태. 블록 변경 시 이들에게만 전송.
     private final ConcurrentHashMap<ChunkPos, ConcurrentHashMap<Player, Subscription>> chunkSubscribers = new ConcurrentHashMap<>();
 
-    /** 기본 region 설정(구역 16×16 청크, 합치기 반경 1 구역). regionSize 인자는 예전 고정 격자용이라 쓰지 않는다. */
+    /** 기본 region 설정(Config.DEFAULT 의 구역 크기·합치기 반경). regionSize 인자는 예전 고정 격자용이라 쓰지 않는다. */
     public World(WorldSource worldSource, ChunkWorkerPool chunkPool, FurnaceScheduler scheduler,
                  int regionThreads, int regionSize, int viewDistance, int entityViewDistance,
                  int blockDirectBits, int biomeDirectBits, ExecutorService ioPool, ExecutorService genPool) {
-        this(worldSource, chunkPool, scheduler, regionThreads, 4, 1, viewDistance, entityViewDistance,
+        this(worldSource, chunkPool, scheduler, regionThreads, org.domi.furnace.server.config.Config.DEFAULT.regionSectionShift(),
+                org.domi.furnace.server.config.Config.DEFAULT.regionMergeRadius(), viewDistance, entityViewDistance,
                 blockDirectBits, biomeDirectBits, ioPool, genPool);
     }
 
@@ -306,6 +307,12 @@ public final class World {
     public boolean isChunkLoaded(int cx, int cz) { return loadedChunk(cx, cz) != null; }
 
     ChunkColumn loadedChunk(int cx, int cz) { return chunks.get(mapKey(Regionizer.chunkKey(cx, cz))); }
+
+    /** 로드된 청크의 이번 로드를 나타내는 불투명 객체(컬럼이 아닌 전용 표시 — 쥐어도 청크 내용을 붙잡지 않는다), 없으면 null. 아무 스레드. */
+    public Object loadedChunkToken(int cx, int cz) {
+        ChunkColumn c = loadedChunk(cx, cz);
+        return c == null ? null : c.loadToken();
+    }
 
     void putChunk(int cx, int cz, ChunkColumn c) { chunks.put(mapKey(Regionizer.chunkKey(cx, cz)), c); }
 

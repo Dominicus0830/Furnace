@@ -61,7 +61,7 @@ public final class FurnacePropertiesFile {
                 opt("shared-region-pool", RegionPoolSettings.DEFAULT.shared(), "true 면 모든 차원·추가 월드가 region 워커 풀 하나를 함께 쓴다. false 면 차원마다 region-threads 개."),
                 opt("region-pool-dim-cap", RegionPoolSettings.DEFAULT.dimCap(), "공유 풀에서 다른 차원에 일이 있을 때 한 차원이 쓸 수 있는 워커 상한(0 = 워커 수−1)."),
                 opt("region-pool-starve-ticks", RegionPoolSettings.DEFAULT.starveTicks(), "차원의 가장 이른 일이 이 틱 수만큼 밀리면 그 차원을 먼저 돌린다. 1 이상."),
-                opt("region-section-shift", d.regionSectionShift(), "구역 크기 = 2^값 청크(4 → 16×16 청크). 1~8."),
+                opt("region-section-shift", d.regionSectionShift(), "구역 크기 = 2^값 청크(3 → 8×8 청크). 다른 region 사이는 적어도 2^값×16+1 블록(3 이면 129) 떨어진다. 1~8."),
                 opt("region-merge-radius", d.regionMergeRadius(), "이 반경(구역 단위) 안의 구역은 같은 region 으로 합친다. 1 이상."),
                 opt("light.async", LightSettings.DEFAULT.async(), "true 면 빛 계산을 region 스레드 대신 빛 스레드가 한다(바닐라 방식). 램프 시계 같은 큰 빛 장치가 TPS 를 먹지 않는 대신, 빛 스레드가 밀리면 바닐라 과부하 때처럼 빛이 한두 틱 늦게 보이고 새 청크 전송이 한 틱 늦다. 기본 false(지금 동작)."),
                 opt("light.async-threads", LightSettings.DEFAULT.threads(), "light.async 의 빛 스레드 수(서버 전체). 1 이상.")

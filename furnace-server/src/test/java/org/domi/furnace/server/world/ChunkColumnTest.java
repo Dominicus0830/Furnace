@@ -119,6 +119,42 @@ class ChunkColumnTest {
         assertEquals(4, bs.get(0)); // surfaceValue = (y - MIN_Y) + 1 = 4
     }
 
+    /** 바닐라 Heightmap.update: 열 전체가 공기여도(첫 값 0) 블록을 놓으면 WORLD_SURFACE 가 갱신된다(공허 월드·스카이블록·파낸 열). */
+    @Test
+    void worldSurface_updatesOnEmptyColumnAfterPrime() {
+        ChunkColumn c = new ChunkColumn(6);
+        c.rebuildHeightmapsAfterSurface(); // 전부 공기로 프라임 — surface[] 전부 0
+        assertEquals(ChunkColumn.MIN_Y - 1, c.surfaceBlockY(0, 0), "빈 열은 바닥 아래(-65)");
+
+        c.setBlock(0, 64, 0, 1);
+        assertEquals(64, c.surfaceBlockY(0, 0), "빈 열에 놓은 블록도 WORLD_SURFACE 를 올린다");
+        assertEquals(ChunkColumn.MIN_Y - 1, c.surfaceBlockY(1, 0), "옆 열은 그대로 빈 열");
+        assertEquals(65 - ChunkColumn.MIN_Y, BitStorage.wrap(9, 256, c.worldSurfaceHeightmap()).get(0));
+
+        c.setBlock(0, 64, 0, 0); // 다시 지우면 빈 열로
+        assertEquals(ChunkColumn.MIN_Y - 1, c.surfaceBlockY(0, 0));
+    }
+
+    /** 맨 아래 칸(y=MIN_Y)에 놓는 경계 — 값 1. */
+    @Test
+    void worldSurface_updatesOnEmptyColumn_bottomAndTop() {
+        ChunkColumn c = new ChunkColumn(6);
+        c.rebuildHeightmapsAfterSurface();
+        c.setBlock(2, ChunkColumn.MIN_Y, 3, 1);
+        assertEquals(ChunkColumn.MIN_Y, c.surfaceBlockY(2, 3));
+        c.setBlock(4, ChunkColumn.MAX_Y, 5, 1);
+        assertEquals(ChunkColumn.MAX_Y, c.surfaceBlockY(4, 5));
+    }
+
+    /** WORLD_SURFACE_WG 도 같은 가드를 갖고 있었다 — 월드젠 중 빈 열(carve 전)에 놓아도 갱신돼야 한다. */
+    @Test
+    void worldSurfaceWg_updatesOnEmptyColumnBeforeFreeze() {
+        ChunkColumn c = new ChunkColumn(6);
+        c.rebuildHeightmapsAfterSurface();
+        c.setBlock(0, 64, 0, 1);
+        assertEquals(64, c.worldSurfaceWgBlockY(0, 0));
+    }
+
     @Test
     void worldSurfaceHeightmap_isCached_untilSurfaceChanges() {
         ChunkColumn c = new ChunkColumn(6);

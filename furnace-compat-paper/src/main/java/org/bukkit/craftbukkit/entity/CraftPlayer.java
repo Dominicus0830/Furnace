@@ -154,6 +154,30 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
         handle.playSound(org.domi.furnace.compat.paper.CompatEffects.sound(sound, category, volume, pitch), ce.furnaceHandle(), seed);
     }
 
+    // ---- 레벨 이벤트(Paper CraftPlayer#playEffect) — 이 사람에게만, 거리와 관계없이
+
+    @Override
+    public void playEffect(org.bukkit.Location loc, org.bukkit.Effect effect, int data) {
+        if (effect == null) throw new IllegalArgumentException("Effect cannot be null");
+        if (loc == null) throw new IllegalArgumentException("Location cannot be null");
+        if (!handle.isOnline()) return;
+        handle.sendPacket(org.bukkit.craftbukkit.CraftEffect.packet(loc, effect, data));
+    }
+
+    @Override
+    public <T> void playEffect(org.bukkit.Location loc, org.bukkit.Effect effect, T data) {
+        org.bukkit.craftbukkit.CraftEffect.checkData(effect, data);
+        playEffect(loc, effect, org.bukkit.craftbukkit.CraftEffect.getDataValue(effect, data));
+    }
+
+    // ---- 웅크림·달리기(Paper CraftPlayer: isShiftKeyDown·isSprinting)
+
+    @Override
+    public boolean isSneaking() { return handle.isSneaking(); }
+
+    @Override
+    public boolean isSprinting() { return handle.isSprinting(); }
+
     /** category 가 null 이면 MASTER(CraftPlayer 와 같다 — 모든 분류가 아니다). */
     @Override
     public void stopSound(String sound, org.bukkit.SoundCategory category) {

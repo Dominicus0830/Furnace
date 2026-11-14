@@ -357,11 +357,11 @@ public final class NaturalSpawner {
 
     /**
      * NaturalSpawner.spawnMobsForChunkGeneration: 새로 만든 청크에 동물을 놓는다(청크 좌표·세계 시드로 정한 난수 — 바닐라와 같은 수열).
-     * 바이옴은 청크 왼쪽 위 모서리 맨 위 칸, 확률은 바이옴의 creature_spawn_probability.
+     * 바이옴은 청크 왼쪽 위 모서리 맨 위 칸(maxBuildHeight - 1), 확률은 바이옴의 creature_spawn_probability.
      */
     public static void spawnMobsForChunkGeneration(ChunkLevel level, int cx, int cz, long worldSeed) {
         int minX = cx * 16, minZ = cz * 16;
-        String biome = biomeName(level, new Pos(minX, 319, minZ));
+        String biome = biomeName(level, new Pos(minX, level.maxBuildHeight() - 1, minZ));   // 바닐라 getMaxBuildHeight() - 1(네더·엔드 255)
         if (biome == null) return;
         List<BiomeSpawns.SpawnerData> list = BiomeSpawns.mobs(biome, MobCategory.CREATURE);
         if (list.isEmpty()) return;

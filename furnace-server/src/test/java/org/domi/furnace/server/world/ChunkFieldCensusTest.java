@@ -60,14 +60,14 @@ class ChunkFieldCensusTest {
         e("lightStaleSeq", Kind.UNRELATED), e("listenerRegistries", Kind.UNRELATED), e("extraNbt", Kind.UNRELATED),
         e("inhabitedTime", Kind.UNRELATED), e("poiNbt", Kind.UNRELATED), e("poi", Kind.UNRELATED),
         e("structures", Kind.UNRELATED), e("foreignEntities", Kind.UNRELATED), e("entitiesOnDisk", Kind.UNRELATED),
-        e("entitiesLoaded", Kind.UNRELATED), e("pendingEntityLoad", Kind.UNRELATED)));
+        e("entitiesLoaded", Kind.UNRELATED), e("pendingEntityLoad", Kind.UNRELATED), e("loadToken", Kind.UNRELATED)));
 
     private static final Map<String, Kind> SECTION = new TreeMap<>(Map.ofEntries(
         e("AIR", Kind.FIXED), e("VOID_AIR", Kind.FIXED), e("CAVE_AIR", Kind.FIXED), e("DEFAULT_DIRECT_BITS", Kind.FIXED),
-        e("DEFAULT_BIOME_DIRECT_BITS", Kind.FIXED), e("randomTicking", Kind.FIXED),
+        e("DEFAULT_BIOME_DIRECT_BITS", Kind.FIXED), e("randomTicking", Kind.FIXED), e("fluidPresent", Kind.FIXED), e("fluidLava", Kind.FIXED),
         e("blocks", Kind.CONTENT), e("biomes", Kind.CONTENT),
         // 개수·평평한 사본은 블록에서 파생 — 들여오기가 다시 센다(nonAirCount 는 바닐라 개수와 다른 Furnace 정의다, VanillaSectionOracleTest)
-        e("nonAirCount", Kind.FURNACE_CACHE), e("tickingCount", Kind.FURNACE_CACHE), e("scratch", Kind.FURNACE_CACHE),
+        e("nonAirCount", Kind.FURNACE_CACHE), e("tickingCount", Kind.FURNACE_CACHE), e("fluidCount", Kind.FURNACE_CACHE), e("scratch", Kind.FURNACE_CACHE),
         // 컬럼 소속·빛 작업 얼림 — 섹션을 갈아 끼울 때 attach/detach·ownSection 규칙을 따라야 한다
         e("owner", Kind.FURNACE_CACHE), e("ownerIndex", Kind.FURNACE_CACHE), e("lightFrozen", Kind.FURNACE_CACHE)));
 

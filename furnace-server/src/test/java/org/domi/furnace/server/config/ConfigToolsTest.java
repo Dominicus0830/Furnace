@@ -191,12 +191,34 @@ class ConfigToolsTest {
         assertTrue(after.contains("#plugins.compat.nms.spigot-mappings=off"), "주석 줄은 그대로: " + after);
     }
 
+    /** 형식 3(2026-11-14, T-101): 옛 기본 4 로 자동 기록된 region-section-shift 줄만 3 으로, 직접 고른 값은 그대로. */
+    @Test
+    void version3MovesTheOldRegionSectionShiftDefaultOnly() throws IOException {
+        Path f = write("config-version=2\nregion-section-shift=4\nregion-merge-radius=1\n");
+        ConfigMigration.Result r = ConfigMigration.run(f, warn());
+        assertNotNull(r);
+        assertEquals(2, r.from());
+        assertEquals("3", FurnaceProps.readRaw(f).getProperty("region-section-shift"));
+        assertEquals("1", FurnaceProps.readRaw(f).getProperty("region-merge-radius"));
+        assertTrue(Files.readString(r.backup(), StandardCharsets.UTF_8).contains("region-section-shift=4"), "백업은 원본");
+
+        Path chosen = write("config-version=2\nregion-section-shift=5\n");
+        ConfigMigration.run(chosen, warn());
+        assertEquals("5", FurnaceProps.readRaw(chosen).getProperty("region-section-shift"), "옛 기본과 다른 값은 그대로");
+
+        Path v1 = write("region-section-shift=4\nplugins.compat.nms.spigot-mappings=off\n");   // 형식 1 → 3 두 단계
+        ConfigMigration.run(v1, warn());
+        assertEquals("3", FurnaceProps.readRaw(v1).getProperty("region-section-shift"));
+        assertEquals("download", FurnaceProps.readRaw(v1).getProperty("plugins.compat.nms.spigot-mappings"));
+    }
+
     @Test
     void freshlyCreatedPropertiesFileIsAlreadyCurrent() throws IOException {
         Path f = dir.resolve("fresh.properties");
         FurnacePropertiesFile.ensure(f);
         assertNull(ConfigMigration.run(f, warn()), "새로 만든 파일은 다음 기동에 마이그레이션(백업)이 돌지 않는다");
         assertEquals("download", FurnaceProps.readRaw(f).getProperty("plugins.compat.nms.spigot-mappings"));
+        assertEquals("3", FurnaceProps.readRaw(f).getProperty("region-section-shift"));
     }
 
     @Test
