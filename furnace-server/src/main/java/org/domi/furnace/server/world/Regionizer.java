@@ -1102,13 +1102,14 @@ public final class Regionizer {
         r.settleLightBeforeSplit();   // 빛 작업 모드: 주인을 바꾸기 전에 밀린 빛을 끝낸다(끄면 아무것도 안 함)
         Map<Long, Region> target = new HashMap<>();
         List<Region> created = new ArrayList<>();
+        long splitNow = System.nanoTime();
         for (int i = 1; i < parts.size(); i++) {
             Region n = new Region(++nextId, world);
             n.manualDone = r.manualDone;   // 수동 시계: 부모가 마친 시험 틱 수
             n.inheritSteps(r.stepGeneration(), r.stepsLeft(), r.stepJoined());   // 나뉜 조각은 부모의 남은 걸음·참여 여부를 물려받는다
             n.inheritSprint(r.sprintGeneration(), r.sprintLeft(), r.sprintJoined());   // sprint 틱도
-            // 방금 돈 틱의 다음 — 나뉜 조각이 곧바로 한 번 더 돌지 않게. sprint 중이면 부모처럼 곧바로
-            n.nextTickNanos = r.sprintLeft() > 0 || manualClock ? r.nextTickNanos : r.nextTickNanos + tickNanos;
+            // 방금 돈 틱의 다음 — 나뉜 조각이 곧바로 한 번 더 돌지 않게(부모가 밀렸으면 부모처럼 지금). sprint 중이면 부모처럼 곧바로
+            n.nextTickNanos = r.sprintLeft() > 0 || manualClock ? r.nextTickNanos : nextDueAfterTick(r.nextTickNanos, tickNanos, splitNow);
             regions.add(n);
             created.add(n);
             for (long sk : parts.get(i)) {
