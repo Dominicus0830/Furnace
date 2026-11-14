@@ -526,12 +526,13 @@ public final class GenQueue extends AbstractExecutorService {
             Task t = gen.get(i);
             long key;
             boolean back = bg(t);
-            if (!settings.distanceOrder()) key = 0;
+            if (t.ticket != null && t.ticket.cancelled()) key = Long.MIN_VALUE;   // 취소된 요청(멈춘 미리 생성 등)은 만들지 않고 바로 끝낸다 — 붙은 요청자가 맨 뒤까지 기다리지 않게
+            else if (!settings.distanceOrder()) key = 0;
             else if (!back && (t.ticket == null || !t.ticket.cancellable()) && now - t.t0 >= settings.pinnedMaxWaitNanos()) key = -1;
             else if (t.ticket != null && t.ticket.keepAlive != null && t.ticket.cancellable() && alive(t.ticket)) key = 0;   // 살아 있는 시간 티켓(바닐라 티켓 레벨이 플레이어 것보다 높다)
             else if (turns && !back && !onTurn(t)) key = (1L << 32) + t.prio;   // 줄 선 사람 요청은 차례인 요청 뒤
             else key = t.prio;
-            if (back && settings.distanceOrder()) key = (2L << 32) + key;   // 미리 생성은 줄 선 요청보다도 뒤
+            if (back && settings.distanceOrder() && key != Long.MIN_VALUE) key = (2L << 32) + key;   // 미리 생성은 줄 선 요청보다도 뒤
             if (key < bestKey || (key == bestKey && t.seq < bestSeq)) {
                 bestKey = key; bestSeq = t.seq; bi = i;
             }

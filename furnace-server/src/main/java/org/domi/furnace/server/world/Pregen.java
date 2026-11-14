@@ -171,6 +171,12 @@ public final class Pregen {
         /** 이번 실행에서 만든 청크(내려가길 기다리는 것 셈): {키, 끝난 때}. */
         private final ArrayDeque<long[]> resident = new ArrayDeque<>();
         private long processed, generated, skipped, failed;
+        /** 이어 할 번호(진행 중 가장 작은 것) 뒤에서 먼저 끝난 청크: 번호 → 0 만듦·1 건너뜀·2 실패. 진행 파일의 수에서 빼 둔다 —
+         *  이어 하면 그 청크들을 다시 보므로 두 번 세지 않게(검토 R4). */
+        private final java.util.TreeMap<Long, Integer> aheadDone = new java.util.TreeMap<>();
+        /** 진행 파일 쓰기 순번(잠금 밖에서 써도 옛 내용이 새 내용을 덮지 않게, 검토 R5). */
+        private long saveSeq, writtenSeq;
+        private final Object fileLock = new Object();
         private final long processedAtStart;
         private final long startNanos = System.nanoTime();
         private final long elapsedBefore;
@@ -215,11 +221,13 @@ public final class Pregen {
 
         private void report() {
             Progress pr;
+            Snapshot snap;
             synchronized (this) {
                 if (state != State.RUNNING) return;
                 pr = progress();
-                saveQuietly();
+                snap = snapshot(resumeIndex(), pr.elapsedNanos());
             }
+            write(snap);   // 파일 쓰기는 잠금 밖에서 — region 스레드가 finished→pump 로 같은 잠금을 잡는다(검토 R5)
             say(pr.line());
         }
 
@@ -317,29 +325,38 @@ public final class Pregen {
                 while (root instanceof java.util.concurrent.CompletionException && root.getCause() != null) root = root.getCause();
                 if (root instanceof java.util.concurrent.CancellationException) {
                     GenQueue q = world.genQueue();
-                    if ((q == null || !q.isShutdown()) && attempt < MAX_RETRY) {
+                    if (q != null && q.isShutdown()) {
+                        // 생성 대기열이 닫힌다(서버 종료) — 이 청크부터 이어 하게 남기고 멈춘다
+                        end(State.STOPPED, "생성 대기열이 닫혀 멈춘다");
+                        inflight.remove(idx);
+                        inflightKeys.remove(key, idx);
+                        return;
+                    }
+                    if (attempt < MAX_RETRY) {
                         // 멈췄다 이어 한 직후 등: 취소된 옛 미리 생성 요청(아직 끝나지 않은 것)에 붙었다 — 그것이 끝났으니 다시 건다
                         submit(idx, key, cp, attempt + 1);
                         return;
                     }
-                    // 생성 대기열이 닫힌다(서버 종료) — 이 청크부터 이어 하게 남기고 멈춘다
-                    end(State.STOPPED, "생성 대기열이 닫혀 멈춘다");
-                    inflight.remove(idx);
-                    inflightKeys.remove(key, idx);
-                    return;
+                    // 다시 걸어도 계속 취소됐다 — 이 청크만 실패로 세고 계속한다(검토 R3)
                 }
                 inflight.remove(idx);
                 inflightKeys.remove(key, idx);
                 processed++;
+                int kind;
                 if (err != null) {
                     failed++;
+                    kind = 2;
                     LOG.warn("[PREGEN] 청크 {} 생성 실패 — 건너뛴다", cp, err);
                 } else if (Boolean.TRUE.equals(made)) {
                     generated++;
+                    kind = 0;
                     resident.addLast(new long[] {key, System.nanoTime()});
                 } else {
                     skipped++;
+                    kind = 1;
                 }
+                aheadDone.put(idx, kind);
+                aheadDone.headMap(resumeIndex()).clear();   // 이어 할 곳 앞은 확정 — 더는 뺄 필요 없다
             }
             pump();
         }
@@ -362,24 +379,32 @@ public final class Pregen {
             }
             jobs.remove(world, this);
             if (s == State.DONE) {
-                deleteQuietly(world);
+                deleteFile();
                 say(pr.line());
                 say("[미리 생성] " + world.dimension() + " 끝: " + area.total() + " 청크, 새로 만든 " + generated + " · 건너뛴 " + skipped
                         + (failed > 0 ? " · 실패 " + failed : "") + ", 걸린 시간 " + hms(pr.elapsedNanos() / 1_000_000_000L));
             } else {
-                saveAt(resume, pr.elapsedNanos());
+                write(snapshot(resume, pr.elapsedNanos()));
                 say("[미리 생성] " + world.dimension() + " 멈춤" + (why != null ? "(" + why + ")" : "") + ": " + resume + "/" + area.total()
                         + " 청크까지 — '/furnace pregen resume' 으로 이어 한다");
             }
         }
 
+        /** 잠금 안에서. */
         private void saveQuietly() {
-            saveAt(resumeIndex(), progress().elapsedNanos());
+            write(snapshot(resumeIndex(), progress().elapsedNanos()));
         }
 
-        private void saveAt(long resume, long elapsed) {
-            Path f = file(world);
-            if (f == null) return;
+        private record Snapshot(long seq, Properties props) {}
+
+        /** 잠금 안에서: 진행 파일 내용. 수는 이어 할 번호 뒤에서 먼저 끝난 청크를 뺀다(이어 하면 다시 보므로). */
+        private Snapshot snapshot(long resume, long elapsed) {
+            long g = generated, sk = skipped, fl = failed;
+            for (var e : aheadDone.tailMap(resume, true).values()) {
+                if (e == 0) g--;
+                else if (e == 1) sk--;
+                else fl--;
+            }
             Properties p = new Properties();
             p.setProperty("centerX", Integer.toString(area.centerX()));
             p.setProperty("centerZ", Integer.toString(area.centerZ()));
@@ -389,10 +414,33 @@ public final class Pregen {
             p.setProperty("maxZ", Integer.toString(area.maxZ()));
             p.setProperty("label", area.label());
             p.setProperty("next", Long.toString(resume));
-            p.setProperty("generated", Long.toString(generated));
-            p.setProperty("skipped", Long.toString(skipped));
-            p.setProperty("failed", Long.toString(failed));
+            p.setProperty("generated", Long.toString(g));
+            p.setProperty("skipped", Long.toString(sk));
+            p.setProperty("failed", Long.toString(fl));
             p.setProperty("elapsedMs", Long.toString(elapsed / 1_000_000L));
+            return new Snapshot(++saveSeq, p);
+        }
+
+        /** 진행 파일을 지우고 이 작업의 늦은 쓰기(잠금 밖 보고)가 다시 만들지 않게 막는다. */
+        void deleteFile() {
+            synchronized (fileLock) {
+                writtenSeq = Long.MAX_VALUE;
+                deleteQuietly(world);
+            }
+        }
+
+        /** 진행 파일을 쓴다(잠금 밖에서도). 더 새 내용이 이미 써졌으면 버린다. */
+        private void write(Snapshot snap) {
+            Path f = file(world);
+            if (f == null) return;
+            synchronized (fileLock) {
+                if (snap.seq() <= writtenSeq) return;
+                writtenSeq = snap.seq();
+                store(f, snap.props());
+            }
+        }
+
+        private void store(Path f, Properties p) {
             try {
                 Files.createDirectories(f.getParent());
                 Path tmp = f.resolveSibling(FILE + ".tmp");
@@ -495,6 +543,7 @@ public final class Pregen {
     public synchronized boolean cancel(World w) {
         Job j = jobs.get(w);
         boolean any = j != null && j.stop("취소");
+        if (j != null) j.deleteFile();
         Path f = file(w);
         if (f != null && Files.exists(f)) any = true;
         deleteQuietly(w);

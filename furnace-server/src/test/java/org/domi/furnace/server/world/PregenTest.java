@@ -297,6 +297,7 @@ class PregenTest {
         Pregen.Progress p = awaitEnd(r.job());
         assertEquals(Pregen.State.DONE, p.state());
         assertEquals(25, p.processed());
+        assertEquals(25, p.generated() + p.skipped() + p.failed(), p.line());
         assertEquals(25, gen.order.size());
         assertNull(Pregen.loadSaved(w));
         assertNotNull(pregen.resume(w, null).refused(), "끝난 뒤엔 이어 할 것이 없다");
