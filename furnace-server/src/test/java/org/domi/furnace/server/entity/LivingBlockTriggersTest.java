@@ -149,6 +149,50 @@ class LivingBlockTriggersTest {
         }
     }
 
+    /** 바닐라 Motion[1]: 유리 기둥 안 좀비(AI 있음)를 슬라임·침대 위 4칸에서 떨어뜨린 30틱(독립 검토가 바닐라 서버로 기록). */
+    private static final double[] SLIME_ZOMBIE = {
+        -0.0784000015258789, -0.1552320045166016, -0.230527368912964, -0.30431682745754424, -0.37663049823865513,
+        -0.44749789698341763, -0.5169479491049732, -0.5850090015087522, -0.6517088341626173, -0.7170746714356033,
+        0.6243331901581264, 0.5334465367372956, 0.444377614651356, 0.3570900693082803, 0.27154827320718833,
+        0.1877173113965379, 0.10556296722315182, 0.025051708366263692, -0.05384932684911707, -0.13117234286510804,
+        -0.20694890003559868, -0.28120992750800267, -0.35398573584737525, -0.42530602940804874, -0.49519991845783534,
+        -0.5636959310597465, -0.6308220247160771, 0.539805594727852, 0.4506094916033906, 0.36319730884013784};
+    private static final double[] BED_ZOMBIE = {
+        -0.0784000015258789, -0.1552320045166016, -0.230527368912964, -0.30431682745754424, -0.37663049823865513,
+        -0.44749789698341763, -0.5169479491049732, -0.5850090015087522, -0.6517088341626173, -0.7170746714356033,
+        -0.7811331932098841, 0.426836977751883, 0.3399002448122357, 0.2547022448731947, 0.17120820330791167,
+        0.08938404098141185, 0.009196360340769991, -0.06938756821651766, -0.14639981970152904, -0.22187182762573235,
+        -0.29583439683096585, -0.36831771606281877, -0.43935137029254423, 0.20577248160211337, 0.1232570343689908,
+        0.04239189450667343, -0.03685594410077772, -0.11451882744761242, -0.19062845460881236, -0.26521589067846424};
+
+    /** 좀비가 걸어 나가지 못하게 둘레를 유리로 막은 기둥(가운데 cx, cz 만 비움). */
+    private static void glassShaft(ChunkLevel level, int x0, int z0, int x1, int z1, int cx, int cz) {
+        int glass = BL.defaultState("minecraft:glass");
+        for (int x = x0; x <= x1; x++) for (int z = z0; z <= z1; z++) for (int y = -60; y <= -50; y++) {
+            if (!(x == cx && z == cz)) level.setBlock(new Pos(x, y, z), glass, 2);
+        }
+    }
+
+    @Test
+    void zombieBounceOnSlimeAndBedMatchesVanilla() {
+        var level = new BlockPlacementTest.TestLevel();
+        glassShaft(level, 19, 19, 21, 21, 20, 20);
+        glassShaft(level, 29, 19, 31, 22, 30, 20);
+        level.setBlock(new Pos(30, -60, 21), BL.defaultState("minecraft:glass"), 2);
+        level.setBlock(new Pos(20, -61, 20), BL.defaultState("minecraft:slime_block"), 3);
+        int foot = B.prop("facing").with(B.prop("part").with(BL.defaultState("minecraft:red_bed"), "foot"), "south");
+        int head = B.prop("facing").with(B.prop("part").with(BL.defaultState("minecraft:red_bed"), "head"), "south");
+        level.setBlock(new Pos(30, -61, 20), foot, 2);
+        level.setBlock(new Pos(30, -61, 21), head, 2);
+        var slime = spawn(level, "zombie", 20.5, -56, 20.5);
+        var bed = spawn(level, "zombie", 30.5, -56, 20.5);
+        for (int i = 0; i < SLIME_ZOMBIE.length; i++) {
+            tick(level, 1);
+            assertEquals(SLIME_ZOMBIE[i], slime.vy(), 0.0, "슬라임 좀비 틱 " + (i + 1));
+            assertEquals(BED_ZOMBIE[i], bed.vy(), 0.0, "침대 좀비 틱 " + (i + 1));
+        }
+    }
+
     // ------------------------------------------------------------------ 가루눈
 
     /** 바닐라 Pos[0]: 발 칸은 공기, 위 칸에 가루눈 — 생물은 발 칸이 가루눈일 때만 끼인다(갑옷 거치대는 안 느려진다). */

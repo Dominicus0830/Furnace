@@ -2406,6 +2406,8 @@ public final class Region {
         var adv = p.advancements();
         boolean enterBlock = adv != null && adv.hasListeners("minecraft:enter_block");
         boolean slide = adv != null && adv.hasListeners("minecraft:slide_down_block");
+        // 바닐라는 첫 꿀 칸의 doSlideMovement 가 vy 를 -0.05 로 묶어 다음 칸은 isSlidingDown 이 거짓 — 한 move 에 한 칸만 미끄러진다
+        boolean slid = false;
         for (int bx = x0; bx <= x1; bx++) for (int by = y0; by <= y1; by++) for (int bz = z0; bz <= z1; bz++) {
             int s = level.getBlockState(new org.domi.furnace.server.block.Pos(bx, by, bz));
             var beh = org.domi.furnace.server.block.B.behavior(s);
@@ -2429,9 +2431,10 @@ public final class Region {
             if (enterBlock) adv.trigger("minecraft:enter_block", org.domi.furnace.server.loot.LootBlockState.of(world.blockRegistry(), s));
             // HoneyBlock.entityInside: 미끄러지는 중이면 maybeDoSlideAchievement(20틱마다 slide_down_block) → maybeDoSlideEffects
             // (플레이어 이동은 서버가 아는 변위로)
-            if (beh instanceof org.domi.furnace.server.block.types.HoneyBlock
+            if (!slid && beh instanceof org.domi.furnace.server.block.types.HoneyBlock
                     && org.domi.furnace.server.block.types.HoneyBlock.isSlidingDown(new org.domi.furnace.server.block.Pos(bx, by, bz), p.onGround(),
                             p.x(), p.y(), p.z(), p.serverMovement()[1], 0.6)) {
+                slid = true;
                 if (slide && level.gameTime() % 20L == 0L) {
                     adv.trigger("minecraft:slide_down_block", org.domi.furnace.server.loot.LootBlockState.of(world.blockRegistry(), s));
                 }

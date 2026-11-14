@@ -44,7 +44,9 @@ class RegionPlayerHoneySlideTest {
                 p.pushMove(x, y, 8.5, false);   // 이동 패킷(서버 move → checkInsideBlocks)
                 p.publishPosition(x, y, 8.5, 0, 0, false);
                 sched.region(rp).execute(() -> w.regionAt(rp).tick()).get();
-                n += drain(ch, p.entityId());
+                int k = drain(ch, p.entityId());
+                assertTrue(k <= 1, "틱 " + (i + 1) + ": 꿀 칸 여러 개에 걸쳐도 한 move 에 한 번만(바닐라 첫 칸이 vy 를 -0.05 로 묶음) — " + k);
+                n += k;
             }
             return n;
         } finally {
