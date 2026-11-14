@@ -78,6 +78,9 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     @Override public float yHeadRot() { return yHeadRot; }
 
+    /** 바닐라 `entity instanceof LivingEntity` 자리(돌 압력판·밭 밟기·가루눈 끼임·침대·슬라임 튕김): 모든 생물은 참. */
+    @Override public final boolean isLiving() { return true; }
+
     public void setYHeadRot(float v) { if (Float.isFinite(v)) yHeadRot = v; }
 
     public float yBodyRot() { return yBodyRot; }

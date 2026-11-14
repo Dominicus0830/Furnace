@@ -213,14 +213,14 @@ class PluginApiEntityChangeBlockTest {
 
     // ------------------------------------------------------------------ 밭 밟기(검토 R1)
 
-    /** 좀비가 밭에 떨어진다 — 피해량과 밭이 흙이 됐는지. isLiving 은 기존 버그(R2, 별도 PR)를 피해 시험 안에서만 참으로 둔다. */
+    /** 좀비가 밭에 떨어진다 — 피해량과 밭이 흙이 됐는지. */
     private String[] fallOnFarmland() throws Exception {
         return at(rg -> {
             var l = rg.level();
             Pos p = new Pos(9, -51, 9);
             int farm = B.defaultState("minecraft:farmland");
             l.setBlock(p, farm, 2);
-            var z = new Zombie(l, l.nextEntityId()) { @Override public boolean isLiving() { return true; } };
+            var z = new Zombie(l, l.nextEntityId());
             z.moveTo(9.5, -50, 9.5, 0, 0);
             l.addFreshEntity(z);
             float before = z.health();

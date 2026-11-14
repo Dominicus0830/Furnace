@@ -1390,7 +1390,7 @@ public abstract non-sealed class Entity implements Rider {
         resetFallDistance();
     }
 
-    /** LivingEntity 인가(압력판 감도·블록 동작 대상). */
+    /** 바닐라 `instanceof LivingEntity`(압력판 감도·블록 동작 대상). {@link LivingEntity} 가 참으로 덮어쓴다. */
     public boolean isLiving() { return false; }
 
     /** mayInteract(level, pos): 플레이어가 아니면 언제나 참. */
