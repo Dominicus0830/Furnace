@@ -56,6 +56,14 @@ class ExtraWorldStateApiTest {
         var o = host.createWorld(WorldCreator.named("ro").generator(WorldGenerator.VOID).build()).get(60, TimeUnit.SECONDS);
         assertEquals(tmp.resolve("ro"), o.folder());
         assertEquals(core.world().levelRoot(), core.plugins().world("minecraft:overworld").folder());
+
+        // 하늘이 없는 차원은 하늘빛이 늘 0(바닐라 DUMMY 층, Paper getLightFromSky 와 같다) — 높이 위쪽 끝 너머도
+        World nether = core.world("minecraft:rn");
+        var cp = new ChunkPos(0, 0);
+        assertEquals(0, (int) nether.submitAtChunk(cp, r -> r.level().getSkyLight(new org.domi.furnace.server.block.Pos(0, 100, 0))).join());
+        assertEquals(0, (int) nether.submitAtChunk(cp, r -> r.level().getSkyLight(new org.domi.furnace.server.block.Pos(0, 400, 0))).join());
+        World plain = core.world("minecraft:ro");
+        assertEquals(15, (int) plain.submitAtChunk(cp, r -> r.level().getSkyLight(new org.domi.furnace.server.block.Pos(0, 400, 0))).join());
     }
 
     @Test

@@ -977,4 +977,78 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         if (!level.addFreshEntityWithPassengers(item.spawnReason("CUSTOM"))) return null;
         return handle;
     }
+
+    // ------------------------------------------------------------------ 블록 빛·드롭·부수기(T-141 C, Paper CraftBlock)
+
+    /** 소유 스레드이고 청크가 로드된 칸의 레벨(아니면 ThreadOwnershipException / IllegalStateException). */
+    private org.domi.furnace.server.world.RegionLevel loadedLevel(BlockPos pos, String what) {
+        Region r = ownedRegion(pos, what + "(" + pos + ")");
+        if (r == null || !r.chunkLoaded(new ChunkPos(pos.chunkX(), pos.chunkZ()))) throw new IllegalStateException("청크가 로드돼 있지 않다: " + pos);
+        return r.level();
+    }
+
+    @Override
+    public int lightLevelNow(BlockPos pos) { return loadedLevel(pos, "lightLevelNow").getMaxLocalRawBrightness(new Pos(pos.x(), pos.y(), pos.z())); }
+
+    @Override
+    public int skyLightNow(BlockPos pos) { return loadedLevel(pos, "skyLightNow").getSkyLight(new Pos(pos.x(), pos.y(), pos.z())); }
+
+    @Override
+    public int blockLightNow(BlockPos pos) { return loadedLevel(pos, "blockLightNow").getBlockLight(new Pos(pos.x(), pos.y(), pos.z())); }
+
+    /** CraftBlockData.isPreferredTool: 도구가 필요 없는 블록이거나 맞는 도구. */
+    private static boolean preferredTool(int state, org.domi.furnace.server.entity.ItemStack tool) {
+        return !org.domi.furnace.server.block.BlockInfo.get().requiresCorrectToolForDrops(org.domi.furnace.server.block.Blocks.get().blockOf(state))
+                || org.domi.furnace.server.item.ItemTools.isCorrectToolForDrops(tool, state);
+    }
+
+    private org.domi.furnace.server.entity.ItemStack serverTool(org.domi.furnace.api.item.ItemStack tool) {
+        return tool == null ? org.domi.furnace.server.entity.ItemStack.EMPTY : ApiConvert.item(tool, world.itemRegistry());
+    }
+
+    @Override
+    public List<org.domi.furnace.api.item.ItemStack> dropsNow(BlockPos pos, org.domi.furnace.api.item.ItemStack tool) {
+        var level = loadedLevel(pos, "dropsNow");
+        Pos p = new Pos(pos.x(), pos.y(), pos.z());
+        int state = level.getBlockState(p);
+        var nms = serverTool(tool);
+        if (tool != null && !preferredTool(state, nms)) return List.of();
+        var drops = org.domi.furnace.server.block.BlockBehaviors.of(state).getDrops(state, level, p, level.getBlockEntity(p), null, nms);
+        List<org.domi.furnace.api.item.ItemStack> out = new ArrayList<>(drops.size());
+        for (var d : drops) out.add(ApiConvert.item(d, world.itemRegistry()));
+        return out;
+    }
+
+    /**
+     * Paper 1.21.1 CraftBlock#breakNaturally(item, triggerEffect, dropExperience) 순서 그대로: 드롭(경험치 빼고) → 효과 → 경험치 →
+     * removeBlock → destroy → 얼음·거북알 뒷처리. 드롭 조건의 "공기"는 minecraft:air 하나뿐이다(동굴 공기는 조건을 통과한다).
+     */
+    @Override
+    public boolean breakNaturallyNow(BlockPos pos, org.domi.furnace.api.item.ItemStack tool, boolean triggerEffect, boolean dropExperience) {
+        var level = loadedLevel(pos, "breakNaturallyNow");
+        Pos p = new Pos(pos.x(), pos.y(), pos.z());
+        int state = level.getBlockState(p);
+        var behavior = org.domi.furnace.server.block.BlockBehaviors.of(state);
+        var nms = serverTool(tool);
+        boolean result = false;
+        if (org.domi.furnace.server.block.Blocks.get().blockOf(state) != AIR_BLOCK && (tool == null || preferredTool(state, nms))) {
+            level.dropResources(state, p, level.getBlockEntity(p), null, nms, false);
+            if (triggerEffect) {
+                if (behavior instanceof org.domi.furnace.server.block.types.BaseFireBlock) level.levelEvent(null, 1009, p, 0);   // SOUND_EXTINGUISH_FIRE
+                else level.levelEvent(null, 2001, p, state);                                                                  // PARTICLES_DESTROY_BLOCK
+            }
+            if (dropExperience) level.popExperience(p, behavior.expDrop(state, level, p, nms));
+            result = true;
+        }
+        boolean destroyed = level.removeBlock(p, false);
+        if (destroyed) behavior.destroy(level, p, state);
+        if (result) {
+            if (behavior instanceof org.domi.furnace.server.block.types.IceBlock ice) ice.afterDestroy(level, p, nms);
+            else if (behavior instanceof org.domi.furnace.server.block.types.TurtleEggBlock egg) egg.decreaseEggs(level, p, state);
+        }
+        level.broadcastChanges();
+        return destroyed && result;
+    }
+
+    private static final int AIR_BLOCK = org.domi.furnace.server.block.Blocks.get().block("air");
 }

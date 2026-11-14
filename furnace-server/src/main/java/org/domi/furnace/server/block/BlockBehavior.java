@@ -125,16 +125,29 @@ public class BlockBehavior {
     /** Block.handlePrecipitation(state, level, pos, "rain"|"snow"): 비·눈이 내린 칸(가마솥만 반응). */
     public void handlePrecipitation(int state, BlockLevel level, Pos pos, String precipitation) {}
 
-    /** BlockBehaviour.spawnAfterBreak(state, level, pos, tool, dropExperience): 경험치·좀벌레 등. */
+    /**
+     * BlockBehaviour.spawnAfterBreak(state, level, pos, tool, dropExperience): 경험치·좀벌레 등. 경험치를 주는 블록은
+     * dropExperience 일 때 {@link #expDrop} 만큼 popExperience 한다(바닐라 tryDropExperience 와 같은 난수·순서).
+     */
     public void spawnAfterBreak(int state, BlockLevel level, Pos pos, ItemStack tool, boolean dropExperience) {}
 
     /**
-     * Block.tryDropExperience(level, pos, tool, IntProvider[min..max]): 표본(uniform 이면 레벨 난수 nextInt) → 섬세한 손길이면 0
-     * (EnchantmentHelper.processBlockExperience — block_experience 효과) → 0 보다 크면 popExperience.
+     * 부서질 때 줄 경험치(Paper Block.getExpDrop(state, level, pos, tool, true)). 기본 0. 표본을 뽑으므로 레벨 난수를 쓴다.
+     * Block#breakNaturally(…, dropExperience) 가 드롭과 효과 뒤에 따로 부른다.
      */
-    protected static void tryDropExperience(BlockLevel level, Pos pos, ItemStack tool, int min, int max) {
+    public int expDrop(int state, BlockLevel level, Pos pos, ItemStack tool) { return 0; }
+
+    /**
+     * Block.tryDropExperience 의 양 계산(IntProvider[min..max]): 표본(uniform 이면 레벨 난수 nextInt) → 섬세한 손길이면 0
+     * (EnchantmentHelper.processBlockExperience — block_experience 효과).
+     */
+    protected static int experienceSample(BlockLevel level, ItemStack tool, int min, int max) {
         int sample = min == max ? min : level.random().nextInt(max - min + 1) + min;
-        int xp = org.domi.furnace.server.item.ItemTools.enchantmentLevel(tool, "minecraft:silk_touch") > 0 ? 0 : sample;
+        return org.domi.furnace.server.item.ItemTools.enchantmentLevel(tool, "minecraft:silk_touch") > 0 ? 0 : sample;
+    }
+
+    /** Block.tryDropExperience 의 마무리: 0 보다 크면 popExperience. */
+    protected static void popExperienceIfAny(BlockLevel level, Pos pos, int xp) {
         if (xp > 0) level.popExperience(pos, xp);
     }
 

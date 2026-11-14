@@ -54,6 +54,30 @@ public interface Player extends HumanEntity, org.bukkit.conversations.Conversabl
     /** 달리는 중인가(Paper CraftPlayer: getHandle().isSprinting()). */
     boolean isSprinting();
 
+    /** 비행 허가. */
+    boolean getAllowFlight();
+
+    /** 비행 허가를 바꾼다. false 면 날고 있던 것도 멈춘다. */
+    void setAllowFlight(boolean flight);
+
+    boolean isFlying();
+
+    /** 허가 없이 true 면 IllegalArgumentException. */
+    void setFlying(boolean value);
+
+    /** 이 플레이어에게만 보이는 블록 변경(서버 세상은 그대로). */
+    void sendBlockChange(org.bukkit.Location loc, org.bukkit.block.data.BlockData block);
+
+    /** 기본 시간(나타남 10, 머묾 70, 사라짐 20 틱)으로 제목을 띄운다. */
+    @Deprecated
+    void sendTitle(String title, String subtitle);
+
+    /** 시간 패킷을 먼저, 그다음 null 이 아닌 제목·부제목을 보낸다. */
+    void sendTitle(String title, String subtitle, int fadeIn, int stay, int fadeOut);
+
+    /** 제목을 지우고 시간을 기본값으로 되돌린다. */
+    void resetTitle();
+
     /** 이 플레이어에게만 레벨 이벤트(Paper Player#playEffect(Location, Effect, int)). */
     void playEffect(org.bukkit.Location loc, org.bukkit.Effect effect, int data);
 
