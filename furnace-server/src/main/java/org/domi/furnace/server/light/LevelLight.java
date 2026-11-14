@@ -52,6 +52,15 @@ public final class LevelLight {
         default int uniformSectionState(int sectionY) { return -1; }
 
         default boolean sectionMayEmit(int sectionY) { return true; }
+
+        /** 그 구역이 공기뿐인가({@link LightWorld#sectionHasOnlyAir} — 결과를 정한다). 기본은 칸을 훑는다. */
+        default boolean sectionHasOnlyAir(int chunkX, int sectionY, int chunkZ) {
+            int x0 = chunkX << 4, y0 = sectionY << 4, z0 = chunkZ << 4;
+            for (int y = y0; y < y0 + 16; y++) for (int z = z0; z < z0 + 16; z++) for (int x = x0; x < x0 + 16; x++) {
+                if (!org.domi.furnace.server.world.ChunkSection.isAir(state(x, y, z))) return false;
+            }
+            return true;
+        }
     }
 
     /**
@@ -66,6 +75,7 @@ public final class LevelLight {
             public int unloadedState() { return bedrockState; }
             public int uniformSectionState(int x, int sy, int z) { return x == cx && z == cz ? blocks.uniformSectionState(sy) : -1; }
             public boolean sectionMayEmit(int x, int sy, int z) { return x != cx || z != cz || blocks.sectionMayEmit(sy); }
+            public boolean sectionHasOnlyAir(int x, int sy, int z) { return x == cx && z == cz ? blocks.sectionHasOnlyAir(x, sy, z) : LightWorld.super.sectionHasOnlyAir(x, sy, z); }
             public int minY() { return minY; }
             public int maxY() { return maxY; }
         };
@@ -85,6 +95,7 @@ public final class LevelLight {
             public int state(int x, int y, int z) { return y < minY || y >= maxY ? 12958 : blocks.state(x, y, z); }
             public int unloadedState() { return 0; }
             public int uniformSectionState(int x, int sy, int z) { return x == cx && z == cz ? blocks.uniformSectionState(sy) : -1; }
+            public boolean sectionHasOnlyAir(int x, int sy, int z) { return x == cx && z == cz ? blocks.sectionHasOnlyAir(x, sy, z) : LightWorld.super.sectionHasOnlyAir(x, sy, z); }
             public int minY() { return minY; }
             public int maxY() { return maxY; }
         };

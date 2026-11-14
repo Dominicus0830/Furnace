@@ -76,6 +76,15 @@ public abstract class AgeableMob extends PathfinderMob {
     @Override
     protected void setBabyForConversion(boolean baby) { setBaby(baby); }
 
+    /** Spigot AgeableMob.inactiveTick: 활성 범위 밖에서도 자란다(Furnace 에는 나이 고정 API 가 없어 그 갈래는 없다). */
+    @Override
+    public void inactiveTick() {
+        super.inactiveTick();
+        int a = getAge();
+        if (a < 0) setAge(a + 1);
+        else if (a > 0) setAge(a - 1);
+    }
+
     @Override
     protected void aiStep() {
         super.aiStep();

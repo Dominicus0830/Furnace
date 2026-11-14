@@ -52,6 +52,9 @@ public interface Server extends org.bukkit.plugin.messaging.PluginMessageRecipie
 
     Player getPlayer(UUID id);
 
+    /** Bukkit Server#getEntity(UUID): 모든 월드에서 찾는다(없으면 null). */
+    default org.bukkit.entity.Entity getEntity(UUID uuid) { return null; }
+
     /** 접속 중이면 그 Player, 아니면 UUID 로 가리키는 OfflinePlayer(한 번도 못 본 UUID 도). */
     org.bukkit.OfflinePlayer getOfflinePlayer(UUID id);
 

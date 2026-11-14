@@ -446,6 +446,36 @@ public final class Compat {
     /** 시험용 — 다음에 플레이어 표를 훑는 크기 문턱. */
     static int playerPruneAt() { return state().playerPruneAt; }
 
+    /** UUID 조회가 소유 region 의 답을 기다리는 한도(ms) — 틱 스레드가 아닌 쪽만 기다린다. */
+    private static final long UUID_LOOKUP_WAIT_MILLIS = Long.getLong("furnace.compat.entityLookupWaitMillis", 1_000L);
+
+    /**
+     * 그 월드에서 UUID 로 엔티티·플레이어를 찾는다(Paper ServerLevel#getEntity(UUID) / World#getEntity(UUID) 자리, T-040b). 결과는 그 순간 월드에 무엇이
+     * 있는가와 부른 스레드로만 정해진다 — 전에 감싼 적이 있는가(약한 캐시)에는 기대지 않는다:
+     *  - 틱 스레드(region·전역 빌림 구간): 그 엔티티를 가진 region 에서 부르면 찾는다. 다른 region 에 있으면 null — 서버 자신의 투사체 주인 찾기
+     *    (ChunkLevel.getTargetableByUuid)도 다른 region 은 보지 않으므로 게임 판정과 같은 답이다.
+     *  - 그 밖의 스레드(비동기 작업 등): 소유 region 의 답을 잠깐 기다린다(한도 넘으면 null).
+     * 플레이어는 어느 스레드에서나 찾는다.
+     */
+    public static org.bukkit.entity.Entity entityByUuid(org.domi.furnace.api.world.World w, UUID id) {
+        if (w == null || id == null) return null;
+        java.util.Optional<org.domi.furnace.api.entity.Entity> found;
+        try {
+            found = w.entityByUuidNow(id);
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException notOwner) {
+            if (org.domi.furnace.compat.thread.PrimaryThread.isPrimary() || org.domi.furnace.api.Furnace.server().scheduler().isTickThread()) return null;
+            try {
+                found = w.entityByUuid(id).get(UUID_LOOKUP_WAIT_MILLIS, java.util.concurrent.TimeUnit.MILLISECONDS);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                return null;
+            } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException late) {
+                return null;
+            }
+        }
+        return found.map(Compat::entity).orElse(null);
+    }
+
     /** 이미 만들어 둔 그 UUID 의 Bukkit 엔티티(플레이어 아닌 것만, 없으면 null). 새로 만들지 않는다 — 어느 스레드나 된다. */
     public static CraftEntity cachedEntity(UUID id) {
         EntityRef ref = state().entities.get(id);

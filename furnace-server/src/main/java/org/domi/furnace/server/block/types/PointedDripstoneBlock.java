@@ -66,6 +66,8 @@ public class PointedDripstoneBlock extends BlockBehavior {
         Pos pos = hit.blockPos();
         if (projectile.mayInteract(level, pos) && projectile.mayBreak(level) && projectile instanceof org.domi.furnace.server.entity.ThrownTrident
                 && Math.sqrt(projectile.vx() * projectile.vx() + projectile.vy() * projectile.vy() + projectile.vz() * projectile.vz()) > 0.6) {
+            // CraftBukkit(+Paper 새 상태): EntityChangeBlockEvent 를 막으면 부수지 않는다
+            if (!org.domi.furnace.server.block.B.entityChange(level, projectile, pos, org.domi.furnace.server.block.B.fluidLeftover(state))) return;
             level.destroyBlock(pos, true);
         }
     }

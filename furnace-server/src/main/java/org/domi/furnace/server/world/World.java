@@ -816,6 +816,11 @@ public final class World {
 
     private final java.util.concurrent.ConcurrentMap<Integer, org.domi.furnace.server.entity.Entity> entityIndex = new java.util.concurrent.ConcurrentHashMap<>();
 
+    /** entityIndex 와 같은 규칙의 UUID → 엔티티 색인(ServerLevel#getEntity(UUID) 용, T-040b). 플레이어는 없다. */
+    public java.util.concurrent.ConcurrentMap<java.util.UUID, org.domi.furnace.server.entity.Entity> entityUuidIndex() { return entityUuidIndex; }
+
+    private final java.util.concurrent.ConcurrentMap<java.util.UUID, org.domi.furnace.server.entity.Entity> entityUuidIndex = new java.util.concurrent.ConcurrentHashMap<>();
+
     public void entityIds(org.domi.furnace.server.entity.EntityIdAllocator a) { this.entityIds = a; }
 
     public void configurePersistence(int autosaveTicks, int graceTicks) {

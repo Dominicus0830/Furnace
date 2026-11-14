@@ -99,19 +99,20 @@ public final class AnvilChunkCodec {
         int minSection = colMinY >> 4;
         // 빛 배열은 ChunkLight.MIN_SECTION 부터 — 이 차원의 맨 아래 빛 섹션(minSection - 1)의 자리
         int lightBase = minSection - 1 - org.domi.furnace.server.light.ChunkLight.MIN_SECTION;
+        boolean skyColumn = hasAnySky(snap.light(), lightBase, secs.length + 2);
         for (int i = 0; i < secs.length; i++) {
             NbtCompound s = new NbtCompound();
             s.putCompound("block_states", blockStates(secs[i]));
             s.putCompound("biomes", biomes(secs[i]));
             s.putByte("Y", (byte) (minSection + i));
-            putLight(s, snap.light(), lightBase + i + 1);
+            putLight(s, snap.light(), lightBase + i + 1, skyColumn);
             sections.add(s);
         }
         if (snap.light() != null) {   // 바닐라처럼 위·아래 빛 전용 섹션도 쓴다(비어 있으면 생략)
             for (int li : new int[]{0, secs.length + 1}) {
                 NbtCompound s = new NbtCompound();
                 s.putByte("Y", (byte) (minSection - 1 + li));
-                putLight(s, snap.light(), lightBase + li);
+                putLight(s, snap.light(), lightBase + li, skyColumn);
                 if (s.contains("SkyLight") || s.contains("BlockLight")) sections.add(s);
             }
         }
@@ -343,10 +344,23 @@ public final class AnvilChunkCodec {
         return entry;
     }
 
-    private static void putLight(NbtCompound s, ChunkSnapshot.Light l, int idx) {
+    /**
+     * 하늘빛은 하늘이 있는 열(어느 층이든 0 이 아닌 하늘빛)이면 모두 0 인 층도 쓴다. 바닐라는 빠진 하늘빛 층을 0 이 아니라 위쪽 층의 맨 아래 줄로
+     * 채울 수 있다(SkyLightSectionStorage.createDataLayer → repeatFirstLayer, 섹션을 위에서 아래로 만들 때) — 반 블록 지붕 아래 밀폐된
+     * 어두운 방처럼 맨 아래 줄이 밝은 층 밑의 0 층을 빼면 바닐라가 이 월드를 열 때 방 전체가 하늘빛 15 가 된다(바닐라 서버로 확인,
+     * docs/feature-parity/context-notes/2026-11-13-skylight-zero-layers.md). 바닐라도 한 번 빛이 닿았다 0 이 된 층은 0 배열로 쓴다.
+     * 블록빛은 빠진 층을 늘 0 으로 만들므로(BlockLightSectionStorage) 모두 0 이면 뺀다. 하늘 없는 차원은 하늘빛을 쓰지 않는다.
+     */
+    private static void putLight(NbtCompound s, ChunkSnapshot.Light l, int idx, boolean skyColumn) {
         if (l == null) return;
-        if (nonZero(l.sky()[idx])) s.putByteArray("SkyLight", l.sky()[idx]);
+        if (skyColumn || nonZero(l.sky()[idx])) s.putByteArray("SkyLight", l.sky()[idx]);
         if (nonZero(l.block()[idx])) s.putByteArray("BlockLight", l.block()[idx]);
+    }
+
+    private static boolean hasAnySky(ChunkSnapshot.Light l, int from, int count) {
+        if (l == null) return false;
+        for (int i = from; i < from + count; i++) if (nonZero(l.sky()[i])) return true;
+        return false;
     }
 
     private static boolean nonZero(byte[] a) {
@@ -445,7 +459,7 @@ public final class AnvilChunkCodec {
 
     /**
      * Furnace 가 이 판의 빛 엔진으로 쓴 빛이면 읽어 col 에 둔다(col.lightStored). 바닐라 ChunkSerializer.read 처럼 isLightOn 이면 섹션의
-     * SkyLight·BlockLight 를 쓴다 — 없는 층은 0(우리 쓰기는 모두 0 인 층을 뺀다). 표시·판·높이가 하나라도 안 맞으면 읽지 않는다(다시 계산).
+     * SkyLight·BlockLight 를 쓴다 — 없는 층은 0(우리 쓰기는 모두 0 인 블록빛 층과 하늘 없는 열의 하늘빛 층을 뺀다). 표시·판·높이가 하나라도 안 맞으면 읽지 않는다(다시 계산).
      */
     private void readStoredLight(NbtCompound root, NbtList sections, ChunkColumn col, int minSection) {
         if (!(root.tags().get(LIGHT_VERSION_KEY) instanceof Integer v) || v != LIGHT_VERSION) return;

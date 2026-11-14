@@ -52,6 +52,7 @@
 | `LeavesDecayEvent` | `SERVER_DRIVEN` | - | 잎 |
 | `EntitySpawnEvent` | `CLIENT_PREDICTED` | 플레이어가 아이템으로 만든 경우(던지기·배·수레·거치대·액자·불꽃·수정·엔더의 눈·활·쇠뇌·삼지창·낚싯대): 손 칸 또는 전체 인벤토리 | 엔티티, 아이템 소모(활·쇠뇌는 뽑은 탄약과 내구도, 쇠뇌는 장전 상태), 낚시찌 연결 |
 | `EntityBreedEvent` | `SERVER_DRIVEN` | - | 새끼, 사랑 상태 |
+| `EntityChangeBlockEvent` | `SERVER_DRIVEN` | - | 엔티티가 바꾸려던 블록(떨어지는 블록·엔더맨·문 부수기 등, 하위 `EntityBreakDoorEvent` 포함). 플레이어 도구 쓰기(삽·도끼 등)는 클라이언트가 먼저 그렸어도 use_item_on 순번 응답(block changed ack)으로 되돌아간다 — 가정, 봇 시험 전 |
 | `EntityDamageEvent` | `SERVER_DRIVEN` | - | 체력, 피격 효과 |
 | `EntityDeathEvent` | `SERVER_DRIVEN` | - | 죽음(체력은 reviveHealth), 드롭·경험치·사망 소리 없음, 장비 그대로 |
 | `EntityExplodeEvent` | `SERVER_DRIVEN` | - | 블록, 불, 폭발 패킷 |

@@ -61,6 +61,13 @@ public abstract class LivingEntity extends Entity implements Targetable {
     public int getNoActionTime() { return noActionTime; }
 
     public void setNoActionTime(int t) { noActionTime = t; }
+
+    /** Spigot LivingEntity.inactiveTick: 활성 범위 밖 틱에도 noActionTime 은 센다. */
+    @Override
+    public void inactiveTick() {
+        super.inactiveTick();
+        ++noActionTime;
+    }
     protected float yHeadRot, yHeadRotO, yBodyRot, yBodyRotO;
     /** 이동 입력(vanilla xxa 옆·yya 위·zza 앞)과 점프 입력. */
     protected float xxa, yya, zza;

@@ -1382,7 +1382,7 @@ public final class Region {
             // ENTITY_TICKING(시야 거리 — 버리기·사라짐 검사), 엔티티 틱 = TickingTracker ≤ 31(시뮬레이션 거리 — 엔티티 tick·추적)
             level.tickBlocks(tickingChunks, n, frozen ? 0 : spawnChunkCount, frozen || n == 0 ? 0 : naturalSpawnChunkCount(), this::randomTicking,
                     this::blockTicking, this::blockEventTicking, k -> naturalSpawningAllowed(Regionizer.chunkX(k), Regionizer.chunkZ(k)), this::entityTicking,
-                    pl -> players.containsKey(pl.entityId()), frozen);
+                    pl -> players.containsKey(pl.entityId()), players.values(), frozen);
             lap(0);
             level.lightTickEnd();   // 끄면 runLightUpdates 그대로, 켜면 빛 작업에 넘긴다
             lap(1);
@@ -2423,7 +2423,7 @@ public final class Region {
             } else if (insideCauldronOrSnow(p, beh, s, bx, by, bz)) {
                 // 용암·물·가루눈 가마솥, 가루눈
             } else if (beh instanceof org.domi.furnace.server.block.types.BigDripleafBlock bd) {
-                bd.entityInsideAt(s, level, new org.domi.furnace.server.block.Pos(bx, by, bz), p.onGround(), p.y());
+                bd.entityInsideAt(s, level, new org.domi.furnace.server.block.Pos(bx, by, bz), p.onGround(), p.y(), p);
             } else if (beh instanceof org.domi.furnace.server.block.types.SweetBerryBushBlock
                     && org.domi.furnace.server.block.types.SweetBerryBushBlock.hurtsPlayer(s, tickDx, tickDz)) {
                 p.vitals().hurt(org.domi.furnace.server.entity.damage.DamageType.byKey("sweet_berry_bush"), 1.0F);

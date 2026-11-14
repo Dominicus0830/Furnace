@@ -25,6 +25,11 @@ public final class TryLaySpawnOnWaterNearLand {
                         if (B.behavior(state).getCollisionShape(state, level, adj, org.domi.furnace.server.block.CollisionContext.EMPTY).isFaceEmpty(Dir.UP) && level.isWaterAt(adj)) {
                             Pos above = adj.above();
                             if (B.isAir(level.getBlockState(above))) {
+                                // CraftBukkit: EntityChangeBlockEvent 를 막으면 알을 놓지 않고 임신만 끝낸다
+                                if (!B.entityChange(level, mob, above, Blocks.get().defaultState(block))) {
+                                    mob.getBrain().eraseMemory(MemoryModuleType.IS_PREGNANT);
+                                    return true;
+                                }
                                 level.setBlock(above, Blocks.get().defaultState(block), 3);
                                 level.playSound(null, mob, "entity.frog.lay_spawn", "neutral", 1.0F, 1.0F);
                                 mob.getBrain().eraseMemory(MemoryModuleType.IS_PREGNANT);

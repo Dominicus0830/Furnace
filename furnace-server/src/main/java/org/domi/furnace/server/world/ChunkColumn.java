@@ -234,6 +234,11 @@ public final class ChunkColumn {
             return i < 0 || i >= secs.length || secs[i].maybeHasBlock(org.domi.furnace.server.light.LightTables.EMITS);
         }
 
+        @Override public boolean sectionHasOnlyAir(int chunkX, int sectionY, int chunkZ) {
+            int i = sectionY - (minY >> 4);
+            return i < 0 || i >= secs.length || secs[i].onlyAirExact();   // 월드 높이 밖 구역은 없다(void_air) — computeSources 는 묻지 않는다
+        }
+
         /** 빛 작업이 끝났다 — 넘긴 객체를 녹인다(아직 컬럼에 남아 있는 것은 다시 그 자리에서 고칠 수 있다). 주인 스레드에서. */
         public void thaw() { for (ChunkSection cs : secs) cs.lightFrozen = false; }
     }
@@ -250,6 +255,9 @@ public final class ChunkColumn {
 
     /** 읽기 전용(공유 섹션을 복사하지 않음): 그 구역(0 = 맨 아래)의 모든 칸이 한 상태면 그 상태, 아니면 -1. */
     public int sectionUniformBlock(int sectionIndex) { return sections[sectionIndex].uniformBlock(); }
+
+    /** 읽기 전용(공유 섹션을 복사하지 않음): 그 구역(0 = 맨 아래)이 공기뿐인가 — scratch 가 열려 있어도 정확하다(빛 원천 계산용). */
+    public boolean sectionOnlyAirExact(int sectionIndex) { return sections[sectionIndex].onlyAirExact(); }
 
     /** 읽기 전용: 그 구역에 조건을 만족하는 상태가 있을 수도 있는가(바닐라 maybeHas — 팔레트만 본다). false 면 확실히 없다. */
     public boolean sectionMaybeHas(int sectionIndex, java.util.function.IntPredicate p) { return sections[sectionIndex].maybeHasBlock(p); }
