@@ -68,6 +68,17 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public boolean stateRandomlyTicking(int stateId) {
+        if (stateId < 0 || stateId >= org.domi.furnace.server.block.Blocks.get().stateCount()) return false;
+        return org.domi.furnace.server.block.BlockBehaviors.of(stateId).isRandomlyTicking(stateId);
+    }
+
+    @Override
+    public Object loadedChunkToken(org.domi.furnace.api.world.World world, int chunkX, int chunkZ) {
+        return handle(world).handle().loadedChunkToken(chunkX, chunkZ);
+    }
+
+    @Override
     public int stateIdNow(org.domi.furnace.api.world.World world, int x, int y, int z) {
         ChunkColumn col = column(world, x >> 4, z >> 4, "LevelChunk#getBlockState");
         return col == null ? -1 : col.getBlock(x & 15, y, z & 15);
@@ -93,6 +104,12 @@ final class ChunkInternalsImpl implements ChunkInternals {
     public boolean sectionRandomlyTickingNow(org.domi.furnace.api.world.World world, int chunkX, int sectionIndex, int chunkZ) {
         ChunkSection s = section(world, chunkX, sectionIndex, chunkZ, "LevelChunkSection#isRandomlyTicking");
         return s != null && s.isRandomlyTicking();
+    }
+
+    @Override
+    public int sectionRandomTickingPartsNow(org.domi.furnace.api.world.World world, int chunkX, int sectionIndex, int chunkZ) {
+        ChunkSection s = section(world, chunkX, sectionIndex, chunkZ, "LevelChunkSection#isRandomlyTickingBlocks/Fluids");
+        return s == null ? 0 : s.randomTickingParts();
     }
 
     @Override

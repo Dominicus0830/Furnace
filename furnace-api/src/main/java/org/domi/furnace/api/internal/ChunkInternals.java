@@ -2,7 +2,7 @@
 // 서버 청크를 "보기"로 읽는 길. 블록 상태 번호(BlockTypes.stateId 와 같은 번호)·바이옴 레지스트리 번호 단위로 다룬다.
 //
 // 불안정 내부 다리다(Internals 와 같은 등급, 호환 계층 전용) — 일반 플러그인은 World·Block API 를 쓴다. 쓰기는 단일 칸 두 개뿐이다:
-// 바닐라 Level.setBlock(플래그·깊이 그대로)과 LevelChunk.setBlockState. 섹션·팔레트 직접 쓰기는 없다(N2b).
+// 바닐라 Level.setBlock(플래그·깊이 그대로)과 LevelChunk.setBlockState. 섹션·팔레트 직접 쓰기는 없다(N2b-2 부터).
 package org.domi.furnace.api.internal;
 
 import java.util.List;
@@ -42,8 +42,25 @@ public interface ChunkInternals {
     /** 섹션에 무작위 틱 받는 칸(블록 또는 그 유체)이 있는가(바닐라 isRandomlyTicking). 로드돼 있지 않으면 false. */
     boolean sectionRandomlyTickingNow(World world, int chunkX, int sectionIndex, int chunkZ);
 
+    /**
+     * 섹션의 바닐라 무작위 틱 판정을 나눠서: 비트 1 = isRandomlyTickingBlocks(tickingBlockCount > 0), 비트 2 = isRandomlyTickingFluids
+     * (tickingFluidCount > 0 — 칸 쓰기로 놓은 물도 센다, 바닐라 그대로). 로드돼 있지 않으면 0.
+     */
+    int sectionRandomTickingPartsNow(World world, int chunkX, int sectionIndex, int chunkZ);
+
     /** 섹션의 바이옴 레지스트리 번호 64개(4×4×4, YZX). 로드돼 있지 않으면 null. */
     int[] sectionBiomesNow(World world, int chunkX, int sectionIndex, int chunkZ);
+
+    /**
+     * 그 블록 상태가 무작위 틱을 받는가(바닐라 BlockState.isRandomlyTicking — 블록 자체만, 유체 쪽은 제외). 모르는 번호면 false. 아무 스레드(고정 표).
+     */
+    boolean stateRandomlyTicking(int stateId);
+
+    /**
+     * 로드된 청크의 "이번 로드"를 나타내는 불투명 객체 — 같은 로드 동안 같은 객체, 내렸다 다시 올리면 다른 객체. 로드돼 있지 않으면 null. 아무 스레드.
+     * 호환 계층이 청크 shim 의 정체성을 바닐라처럼 로드 동안 하나로 묶는 데 쓴다(N2b). 약한 참조로만 쥐고, 내용을 읽지 않는다.
+     */
+    Object loadedChunkToken(World world, int chunkX, int chunkZ);
 
     /** 바이옴 레지스트리의 키 목록(번호 순, 데이터 팩 바이옴 포함). 아무 스레드. */
     List<String> biomeKeys();
