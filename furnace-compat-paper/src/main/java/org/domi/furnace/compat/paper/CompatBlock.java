@@ -141,7 +141,16 @@ public final class CompatBlock implements Block {
             Owned.write(block.setAsync(d.furnace()), "Block#setBlockData" + pos);
             return;
         }
-        if (!set) throw new IllegalStateException("블록을 바꾸지 못했다 — 청크가 로드돼 있지 않거나 높이 밖이다(Furnace 는 동기로 청크를 불러오지 않는다): " + pos);
+        // 바닐라 setBlock 은 같은 상태면 false 다 — 이미 그 상태면 할 일이 없는 것(Paper 도 조용히 끝난다)
+        if (!set && !sameAsNow(block, d.furnace())) throw new IllegalStateException("블록을 바꾸지 못했다 — 청크가 로드돼 있지 않거나 높이 밖이다(Furnace 는 동기로 청크를 불러오지 않는다): " + pos);
+    }
+
+    private static boolean sameAsNow(org.domi.furnace.api.world.Block block, org.domi.furnace.api.world.BlockData want) {
+        try {
+            return block.data().equals(want);
+        } catch (IllegalStateException notLoaded) {
+            return false;
+        }
     }
 
     @Override

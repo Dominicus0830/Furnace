@@ -41,6 +41,9 @@ public class CompatBlockState implements BlockState {
     /** 놓인 상태의 차원 이름(놓이지 않았으면 null). */
     protected final String dimension() { return dimension; }
 
+    /** 이 상태의 칸(놓이지 않았으면 0,0,0). */
+    protected final BlockPos position() { return pos; }
+
     /** Paper CraftBlockState.requirePlaced 와 같은 문구. */
     protected final void requirePlaced() {
         if (dimension == null) throw new IllegalStateException("The blockState must be placed to call this method");
