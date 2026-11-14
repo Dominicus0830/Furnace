@@ -16,12 +16,12 @@
 
 - `CompatFormat` — 설명 파일 해석. `paper-plugin.yml` 의 `dependencies.server.<이름>.load(BEFORE/AFTER/OMIT)·required` 를 Furnace 의 `depend/softdepend/loadbefore` 로 옮긴다. `api-version` 이 1.21.1 보다 새로우면(예 1.21.4) 로드를 거절한다(서버의 `ApiVersion` 검사와 같은 뜻). `api-version` 이 없으면 경고 후 로드(옛 플러그인). 플러그인 이름이 `bukkit`·`minecraft`·`mojang`·`spigot`·`paper`(대소문자 무시)이거나 공백이 들어 있으면 Paper 처럼 불러오지 않는다(`Restricted name, cannot use … as a plugin name.`). 예약 이름은 Furnace 플러그인 설명 파일도 같이 거부한다(`PluginDescription.RESERVED_NAMES` — 이름공간이 바닐라·서버와 겹친다).
 - `BukkitPluginAdapter` — Bukkit `JavaPlugin` 한 개를 감싸는 `FurnacePlugin`. `onLoad/onEnable/onDisable` 를 그대로 잇고, 꺼질 때 `HandlerList.unregisterAll` 을 한다.
-- `EventBridge`·`Mappings` — Furnace 이벤트 ↔ Bukkit 이벤트. Bukkit 처리기가 등록될 때 해당 Furnace 이벤트를 (플러그인, 우선순위)마다 버스에 구독한다. Furnace 이벤트 하나에 Bukkit 이벤트 객체는 하나만 만들어 나눠 쓰고, 처리기가 바꾼 값(취소·메시지·피해량 등)은 Furnace 이벤트에 되돌려 쓴다.
+- `EventBridge`·`Mappings` — Furnace 이벤트 ↔ Bukkit 이벤트. Bukkit 처리기가 등록될 때 해당 Furnace 이벤트를 (플러그인, 우선순위)마다 버스에 구독한다. Furnace 이벤트 하나에 Bukkit 이벤트 객체는 짝마다 하나만 만들어(이벤트의 붙임 칸 `EventSlot` 에 붙인다 — 전역 잠금 없음, T-032) 나눠 쓰고, 처리기가 바꾼 값(취소·메시지·피해량 등)은 Furnace 이벤트에 되돌려 쓴다.
 - `Compat*` — `Player/World/Block/Entity/Server/Chunk/CommandSender` 의 Bukkit 보기. 값은 호출 때마다 Furnace 객체에서 읽는다(복사해 두지 않는다).
 
 우선순위(LOWEST~MONITOR), `ignoreCancelled`, 취소 전달은 Furnace 버스가 지킨다. 같은 우선순위의 Furnace 고유 플러그인과는 등록 순이다.
 
-## 지원하는 이벤트 (35)
+## 지원하는 이벤트 (47)
 
 | Bukkit | Furnace | 되돌려 쓰는 값 |
 |---|---|---|
@@ -34,6 +34,15 @@
 | `PlayerCommandPreprocessEvent` | 같은 이름 | 명령 문자열, 취소 |
 | `PlayerLevelChangeEvent`, `PlayerExpChangeEvent` | 같은 이름 | 경험치 양 |
 | `BlockBreakEvent` | `BlockBreakEvent` | 취소 (플레이어가 깬 것만) |
+| `BlockPlaceEvent` | `BlockPlaceEvent` | 취소 또는 `setBuild(false)`(둘 다 막는다), 플레이어가 놓은 것만. `getBlockPlaced()` 가 놓일 상태를 보인다([아래](#세계-변화·스폰·버리기-이벤트-o12-h1-2026-11-12)) |
+| `BlockGrowEvent` / `BlockFadeEvent` | 같은 이름 | 취소. `getNewState()` 는 바뀐 뒤 스냅숏 |
+| `BlockExplodeEvent` | `BlockExplodeEvent` | 취소, `blockList()` 편집(`yield` 는 읽기만) |
+| `EntityExplodeEvent` | `EntityExplodeEvent` | 취소, `blockList()` 편집(`yield` 는 읽기만) |
+| `BlockPistonExtendEvent` / `BlockPistonRetractEvent` | 같은 이름 | 취소 |
+| `BlockFormEvent` / `BlockSpreadEvent` (처리기 목록은 각각 따로) | 같은 이름 | 취소 |
+| `ProjectileHitEvent` | `ProjectileHitEvent` | 취소 |
+| `EntitySpawnEvent`(`ItemSpawnEvent`·`CreatureSpawnEvent` 같은 처리기 목록) | `EntitySpawnEvent` 와 하위 | 취소 |
+| `PlayerDropItemEvent` | `PlayerDropItemEvent` | 취소(아이템은 인벤토리로 돌아간다) |
 | `EntityDamageEvent` | 같은 이름 | 피해량, 취소 |
 | `PluginEnableEvent` / `PluginDisableEvent` | 같은 이름 | — (Bukkit 플러그인만 알린다) |
 | `ServerCommandEvent` | 같은 이름 | 명령 문자열, 취소 |
@@ -64,7 +73,26 @@
 | 블록 ALLOW/DEFAULT + 아이템 DENY | 상자·문은 열리고 아이템만 안 쓰임 | 둘 다 안 됨 |
 | 블록 DENY + 아이템 ALLOW | 블록은 안 쓰이고 아이템은 쓰임(보호 구역에서 음식 먹기·진주 던지기 허용) | 둘 다 안 됨 |
 
-**클래스만 있고 아직 알리지 않는 이벤트.** `BlockPlaceEvent`·`BlockFadeEvent`·`BlockGrowEvent`·`BlockExplodeEvent`·`BlockCanBuildEvent`·`BlockDamageEvent`·`BlockDispenseEvent`·`BlockExpEvent`·`NotePlayEvent`·`SignChangeEvent`·`EntityChangeBlockEvent`·`EntitySpawnEvent`(`ItemSpawnEvent`)·`PlayerCommandSendEvent`·`PlayerDropItemEvent`·`WorldInitEvent`. 리스너 클래스 하나에 이 이벤트 처리기가 섞여 있어도 나머지 처리기는 등록되도록 클래스를 두었다(Bukkit 은 리스너 클래스의 모든 처리기 서명을 한꺼번에 읽어서, 클래스 하나가 없으면 리스너 전체가 빠진다). 처리기를 달면 플러그인·이벤트마다 한 번 "이 이벤트는 아직 알리지 않는다" 경고를 남긴다(`EventBridge.isKnownButNotFired`). 앞의 넷과 `PlayerDropItemEvent`·`ItemSpawnEvent` 는 Furnace 서버 이벤트가 있지만 Bukkit 쪽 값(놓은 손·아이템, `BlockState` 새 상태, 폭발 위력, 아이템 엔티티 `Item`)을 아직 만들 수 없어 잇지 않았다.
+**세계 변화·스폰·버리기 이벤트 (O12 H1, 2026-11-12).** 서버가 이미 내던 여섯 이벤트가 목록에서 빠져 있어 Bukkit 보호·기록 플러그인(WorldGuard·GriefPrevention·CoreProtect 류)이 설치·자람·사라짐·폭발·스폰·버리기를 막지도 기록하지도 못했다. 이제 잇는다. 규칙은 CraftBukkit/Paper 1.21.1 기준이다.
+
+- `BlockPlaceEvent`: 막는 것은 `isCancelled()` 이거나 `canBuild()` 가 거짓일 때다(`CraftEventFactory.callBlockPlaceEvent`). 푸는 쪽(Furnace 처리기가 취소를 풀면)은 둘 다 되돌린다. CraftBukkit 은 블록을 놓은 *뒤에* 부르고 Furnace 는 *전에* 부르므로 `getBlockPlaced()` 는 "놓일 블록"(종류·속성)을 보이게 만든 블록이다 — 이벤트가 끝나도 그 상태를 계속 보이므로 취소된 뒤에도 월드의 원래 블록으로 돌아가지 않는다(Paper 는 되돌린 뒤 월드를 읽는다). 이벤트 처리기 안에서 `world.getBlockAt(x, y, z)` 로 그 칸을 다시 읽으면 아직 놓기 전이라 원래 블록이다(CraftBukkit 은 놓인 블록) — 보호 플러그인이 쓰는 이벤트 자신의 블록은 놓일 상태다. `getBlockReplacedState()` 는 그 자리의 원래 상태(소유 스레드에서 읽어 알린다), `getItemInHand()` 는 놓는 손의 아이템 복사본, `getHand()` 는 `HAND`/`OFF_HAND`. 침대·문처럼 두 칸을 놓는 `BlockMultiPlaceEvent` 는 아직 없다(한 칸 이벤트로 온다).
+- `BlockGrowEvent`·`BlockFadeEvent`: `getNewState()` 는 이벤트 시점 스냅숏(`CompatBlockState`). `update()` 는 Paper 처럼 종류가 같을 때만(또는 `force`) 월드에 쓴다. 블록 엔티티 내용은 스냅숏에 담지 않는다.
+- `BlockExplodeEvent`: `blockList()` 는 Paper 처럼 서버 목록의 뒤에서부터·공기를 뺀 목록이다. 고치면 서버가 그 목록 순서로 따른다(Paper 와 같다 — 넣은 칸도 부서진다. 고치지 않았으면 서버는 바닐라 목록 그대로). `getYield()`·`getExplosionResult()` 는 읽을 수 있고(DESTROY_WITH_DECAY 는 1/반지름) `setYield` 는 서버가 적용하지 않는다. `getExplodedBlockState()` 는 터진 블록 종류의 기본 상태다(속성은 서버가 알리지 않는다).
+- `EntitySpawnEvent`: 서버의 하위 이벤트가 같은 처리기 목록으로 온다 — 아이템은 `ItemSpawnEvent`(`getEntity()` 가 `Item`), 살아 있는 것은 `CreatureSpawnEvent`(`getSpawnReason()`), 투사체 등은 `EntitySpawnEvent`. 플레이어는 Bukkit 도 이 이벤트를 내지 않는다.
+- `PlayerDropItemEvent`: CraftBukkit 순서대로 던질 아이템 엔티티(속도·난수까지)를 만든 뒤 이벤트를 부르고, 취소하면 엔티티는 들어가지 않고 아이템은 인벤토리로 돌아간다. 구독자가 없으면 이전과 같이 난수를 쓰지 않는다. `getItemDrop()` 은 `Item`(`CraftItem`)이고 `getItemStack()`·`getPickupDelay()` 는 읽기만 된다 — `setItemStack`·`setPickupDelay` 는 `UnsupportedFeature`(Furnace 핸들에 쓰는 길이 아직 없다).
+
+**보호 이벤트 여섯 (T-040a, 2026-11-13).** 어댑터에 클래스가 없어 보호 플러그인이 폭발·피스톤·퍼짐·투사체를 막지 못했다. 규칙은 Paper 기준이다.
+
+- `EntityExplodeEvent`: `BlockExplodeEvent` 와 같다 — `blockList()` 는 Paper 처럼 서버 목록의 뒤에서부터·공기를 뺀 목록이고(처리기가 고치지 않았으면 서버는 바닐라 목록 그대로), 고치면 서버가 그 목록(순서 포함)으로 부수고, 취소하면 블록·불·패킷이 모두 없다. `getYield()`(DESTROY_WITH_DECAY 는 1/반지름)·`getExplosionResult()` 는 읽기만, `setYield` 는 서버가 적용하지 않는다.
+- `BlockPistonExtendEvent`/`BlockPistonRetractEvent`: `getBlocks()` 는 밀리거나 부서질 블록(바꿀 수 없는 목록). `getDirection()` 은 Paper 가 넘기는 값 그대로 — 확장은 피스톤이 바라보는 쪽, 블록을 끄는 수축은 그 반대(미는 방향), 끌 블록이 없는 수축(일반 피스톤)은 바라보는 쪽이다.
+- `BlockFormEvent`(콘크리트 굳음·흑요석·조약돌·현무암)/`BlockSpreadEvent`(잔디·균사체·버섯·덩굴·불): 둘 다 `BlockGrowEvent` 의 하위 클래스지만 처리기 목록이 각자라 서로의 처리기에는 오지 않는다(Bukkit 과 같다). `getNewState()` 는 이벤트 시점 스냅숏.
+- `ProjectileHitEvent`: `getEntity()` 는 `org.bukkit.entity.Projectile`(새로 둠 — 종류 서브 인터페이스 `Arrow`·`Snowball` 등은 아직 없다). `getShooter()` 는 Furnace 원인 사슬의 SHOOT 항목에서 읽는다 — 플레이어는 늘, 그 밖의 쏜 엔티티는 투사체의 월드에서 UUID 로 찾는다(T-040b, `World#entityByUuidNow`/`entityByUuid` — 틱 스레드에서는 그 엔티티를 가진 region 에서만 보여 서버의 투사체 주인 찾기와 같은 답이고, 그 밖의 스레드는 소유 region 의 답을 최대 `furnace.compat.entityLookupWaitMillis`(기본 1000ms) 기다린다. 실행 이력·캐시와 상관없다. Paper 는 곧바로 돌려주므로, Netty 스레드(ProtocolLib 수신기 등)에서 부르면 부를 때마다 최대 한 틱쯤 막힐 수 있다 — 그런 곳에서는 부르지 말 것), 디스펜서가 쏜 것은 null. `setShooter`·`launchProjectile`(Paper 의 Consumer 판 포함)·`hasLeftShooter`·`hitEntity` 등은 `UnsupportedFeature`.
+- `EntityChangeBlockEvent`(T-040b): 서버가 Paper 1.21.1 과 같은 자리에서 낸다(떨어지는 블록 시작·착지, 엔더맨 들기·놓기, 좀벌레, 양·염소 풀 먹기, 주민 농사·퇴비통, 개구리 알, 벌·벌집, 여우·동굴 덩굴 열매, 토끼, 거북 알, 위더, 파괴수, 번개, 투사체가 맞힌 블록(후렴꽃·장식 단지·뾰족 점적석·TNT), 가루눈, 수련잎, 레드스톤 광석, 큰 흘림잎, 밭 밟기, 도구·꿀벌집 조각·물병·엔더의 눈·케이크·퇴비통 손 쓰기 등 — 표는 `docs/feature-parity/context-notes/2026-11-14-t040b-entity-change-block.md`). 문 부수기는 하위 `EntityBreakDoorEvent`(처리기 목록을 같이 쓴다). 취소만 오간다(바뀔 상태는 Bukkit 에서도 못 고친다). `mobGriefing` 이 막는 자리(양·파괴수 작물·가루눈 불)는 Paper 처럼 취소된 채로 와서 처리기가 풀 수 있다. `getBlockData()` 는 사본.
+- `Bukkit.getEntity(UUID)`·`Server#getEntity(UUID)`·`World#getEntity(UUID)`: 위 getShooter 와 같은 규칙으로 찾는다.
+
+**리스너 통째 탈락 방지 (T-040a).** 리스너 클래스의 메서드 서명을 읽다가 없는 클래스(`NoClassDefFoundError`, 대개 어댑터에 없는 이벤트)를 만나면 Bukkit·Paper 는 그 리스너 클래스를 통째로 버린다(Paper 에서는 그 클래스가 다 있어 일어나지 않는 일). Furnace 는 이때만 클래스 파일을 ASM 으로 읽어 `@EventHandler` 메서드를 하나씩 풀고(`ListenerFallback`), 매개변수 형이 풀리는 것만 `MethodHandles.privateLookupIn(...).findVirtual` 로 등록한다 — 우선순위·`ignoreCancelled`·비공개·정적·부모 클래스의 공개 처리기까지 `getMethods()` 와 같은 가시성이다(자식의 주석 없는 덮어쓰기가 부모 처리기를 가리는 것도 같다). 건너뛴 처리기의 이름과 없는 클래스는 한 줄 경고에 남는다. 정상 경로(서명이 다 풀리는 리스너)는 그대로다. 인터페이스 default 메서드의 `@EventHandler` 도 같은 규칙으로 찾는다.
+
+**클래스만 있고 아직 알리지 않는 이벤트.** `BlockCanBuildEvent`·`BlockDamageEvent`·`BlockDispenseEvent`·`BlockExpEvent`·`NotePlayEvent`·`SignChangeEvent`·`PlayerCommandSendEvent`·`WorldInitEvent`. 리스너 클래스 하나에 이 이벤트 처리기가 섞여 있어도 나머지 처리기는 등록되도록 클래스를 두었다(Bukkit 은 리스너 클래스의 모든 처리기 서명을 한꺼번에 읽어서, 클래스 하나가 없으면 리스너 전체가 빠진다). 처리기를 달면 플러그인·이벤트마다 한 번 "이 이벤트는 아직 알리지 않는다" 경고를 남긴다(`EventBridge.isKnownButNotFired`).
 
 플러그인이 만든 자기 이벤트는 `PluginManager#callEvent` 로 그대로 돈다(Furnace 이벤트와 이어지지 않는 순수 Bukkit 이벤트).
 

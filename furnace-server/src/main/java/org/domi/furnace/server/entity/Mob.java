@@ -734,14 +734,14 @@ public abstract class Mob extends LivingEntity implements Leashable {
     public boolean hasLineOfSightToEntity(Entity e) {
         double dx = e.x() - x(), dy = e.eyeY() - eyeY(), dz = e.z() - z();
         if (Math.sqrt(dx * dx + dy * dy + dz * dz) > 128.0) return false;
-        return org.domi.furnace.server.block.Clip.clipCollider(level, x(), eyeY(), z(), e.x(), e.eyeY(), e.z()).miss();
+        return org.domi.furnace.server.block.Clip.clipCollider(level, org.domi.furnace.server.block.CollisionContext.of(this), x(), eyeY(), z(), e.x(), e.eyeY(), e.z()).miss();
     }
 
     /** LivingEntity.hasLineOfSight: 눈에서 눈까지(128칸 안) 충돌 모양에 안 막힌다. */
     private boolean rayHasLineOfSight(Targetable t) {
         double dx = t.x() - x(), dy = t.eyeY() - eyeY(), dz = t.z() - z();
         if (Math.sqrt(dx * dx + dy * dy + dz * dz) > 128.0) return false;
-        return org.domi.furnace.server.block.Clip.clipCollider(level, x(), eyeY(), z(), t.x(), t.eyeY(), t.z()).miss();
+        return org.domi.furnace.server.block.Clip.clipCollider(level, org.domi.furnace.server.block.CollisionContext.of(this), x(), eyeY(), z(), t.x(), t.eyeY(), t.z()).miss();
     }
 
     private static final double MELEE_REACH = Math.sqrt(2.04F) - 0.6F;
@@ -882,6 +882,14 @@ public abstract class Mob extends LivingEntity implements Leashable {
     }
 
     protected void customServerAiStep() {}
+
+    /** Paper Mob.inactiveTick: 활성 범위 밖이면 목표 선택·표적 선택을 각자 3번에 한 번만 돌린다. */
+    @Override
+    public void inactiveTick() {
+        super.inactiveTick();
+        if (goalSelector.inactiveTick()) goalSelector.tick();
+        if (targetSelector.inactiveTick()) targetSelector.tick();
+    }
 
     /** Mob.stopInPlace: 길찾기를 멈추고 이동 입력을 0 으로. */
     public void stopInPlace() {

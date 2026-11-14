@@ -237,15 +237,45 @@ final class InventoryResultMappings {
         return new SnapshotInventory(t, snap.contents(), snap.size(), snap.type(), i -> false, loc);
     }
 
+    /**
+     * "이 Bukkit 아이템 스택(이 번호일 때)의 Furnace 값이 이 Furnace 아이템과 같다"는 것을 마지막으로 확인한 결과(T-076).
+     * 처리기마다 앞뒤로 도는 비교(종류 이름 찾기 + 구성 요소 깊은 비교)를, 스택이 안 바뀌었고 Furnace 쪽 아이템도 그대로면 생략한다.
+     */
+    private record Synced(org.bukkit.inventory.ItemStack bukkit, long stamp, ItemStack furnace) {}
+
+    private static final org.domi.furnace.api.event.EventSlot<java.util.concurrent.atomic.AtomicReference<Synced>> MOVE_SYNC =
+            new org.domi.furnace.api.event.EventSlot<>("InventoryMoveItem.synced");
+
+    /**
+     * 옛 비교 {@code furnace(b.getItem()).equals(f.item())} 와 같은 결과를 돌려준다. 확인된 같음을 (스택 객체, 변경 번호, Furnace 아이템 참조) 로 기억하고,
+     * 셋이 모두 그대로면 다시 계산하지 않는다 — 스택은 모든 변경이 번호를 올리고 Furnace 아이템은 불변이라 값이 같다. 다르면 늘 값으로 비교한다.
+     */
+    static boolean moveItemMatches(org.domi.furnace.api.event.inventory.InventoryMoveItemEvent f, org.bukkit.event.inventory.InventoryMoveItemEvent b) {
+        org.bukkit.inventory.ItemStack bukkit = b.getItem();
+        ItemStack held = f.item();
+        // 하위 클래스는 getAmount 등을 덮어써 값이 번호 밖에서 바뀔 수 있다 — 추적하지 않고 늘 값으로 비교
+        long stamp = bukkit.getClass() == org.bukkit.inventory.ItemStack.class ? bukkit.changeStamp() : -1;
+        if (stamp >= 0) {
+            var cell = MOVE_SYNC.get(f);
+            Synced last = cell == null ? null : cell.get();
+            if (last != null && last.bukkit == bukkit && last.stamp == stamp && last.furnace == held) return true;
+        }
+        boolean same = furnace(bukkit).equals(held);
+        if (same && stamp >= 0) {
+            MOVE_SYNC.computeIfAbsent(f, e -> new java.util.concurrent.atomic.AtomicReference<>()).set(new Synced(bukkit, stamp, held));
+        }
+        return same;
+    }
+
     private static void registerMove() {
         EventBridge.reg(org.domi.furnace.api.event.inventory.InventoryMoveItemEvent.class, org.bukkit.event.inventory.InventoryMoveItemEvent.class,
                 f -> new org.bukkit.event.inventory.InventoryMoveItemEvent(container(f.source(), f.sourceLocation()), CompatItems.copyOf(f.item()),
                         container(f.destination(), f.destinationLocation()), f.initiatorIsSource()),
                 (f, b) -> {
-                    ItemStack now = furnace(b.getItem());
-                    if (!now.equals(f.item())) f.setItem(now);
+                    if (moveItemMatches(f, b)) return;
+                    f.setItem(furnace(b.getItem()));
                 }, (f, b) -> {
-                    if (!furnace(b.getItem()).equals(f.item())) b.setItem(CompatItems.copyOf(f.item()));
+                    if (!moveItemMatches(f, b)) b.setItem(CompatItems.copyOf(f.item()));
                 });
     }
 }

@@ -15,6 +15,7 @@ import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSeeds;
 import org.domi.furnace.server.block.RandomSource;
+import org.domi.furnace.server.block.Colliders;
 import org.domi.furnace.server.block.Shape;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
@@ -77,6 +78,7 @@ public abstract non-sealed class Entity implements Rider {
         public static final Damage SWEET_BERRY_BUSH = new Damage("sweet_berry_bush", false, false, false);
         public static final Damage EXPLOSION = new Damage("explosion", false, true, false);
         public static final Damage OUT_OF_WORLD = new Damage("out_of_world", false, false, true);
+        public static final Damage GENERIC = new Damage("generic", false, false, false);
         public static final Damage GENERIC_KILL = new Damage("generic_kill", false, false, true);
 
         /** 피해 유형 하나에서(성질은 damage_type 태그). */
@@ -113,6 +115,13 @@ public abstract non-sealed class Entity implements Rider {
     private int remainingFireTicks = -FIRE_IMMUNE_TICKS;
     public int tickCount;
     private boolean isInPowderSnow, wasInPowderSnow;
+    // 엔티티 활성 범위(EntityActivation, Spigot·Paper EAR). 설정이 꺼져 있으면 읽지도 쓰지도 않는다.
+    final byte activationType = EntityActivation.typeOf(this);
+    /** 엔티티 활성 범위: 설정과 상관없이 늘 도는 종류인가(생성 때 한 번 — 매 틱 instanceof 열네 번을 피한다). */
+    final boolean alwaysActiveKind = EntityActivation.alwaysActiveKind(this);
+    long activatedTick = Integer.MIN_VALUE, activatedImmunityTick = Integer.MIN_VALUE;
+    /** 비활성인데 20틱 면역 검사로 이번 틱만 돈다 — 제 속도로 움직이는 이동(move SELF)은 건너뛴다(Paper). */
+    boolean isTemporarilyActive;
     private boolean invulnerable;
     private RemovalReason removalReason;
     /** mainSupportingBlockPos 와 onGroundNoBlocks(바닐라 checkSupportingBlock). */
@@ -121,6 +130,12 @@ public abstract non-sealed class Entity implements Rider {
     private int inBlockState = -1;
     /** 추적기(region 이 레벨에 넣을 때 만든다). */
     public EntityTracker tracker;
+    /** EntityStore 틱 목록 안 순번(넣을 때 매긴다 — 작을수록 앞). 같은 저장소 안에서만 뜻이 있다. */
+    long storeSeq;
+    /** 저장소의 구역 목록에 실제로 들어 있는 구역 키(EntityStore 만 쓴다). */
+    long storedSection;
+    /** 이 엔티티를 가진 EntityStore(없으면 null) — contains 를 해시 없이(EntityStore.holds). */
+    EntityStore store;
     // 탑승(바닐라 Entity.vehicle/passengers/boardingCooldown). 승객이 없으면 공유 빈 목록이라 틱 비용이 없다.
     private Entity vehicle;
     private java.util.List<Rider> passengers = java.util.List.of();
@@ -307,9 +322,8 @@ public abstract non-sealed class Entity implements Rider {
         }
         long key = sectionKey(bx >> 4, by >> 4, bz >> 4);
         if (key != sectionKey) {
-            long old = sectionKey;
             sectionKey = key;
-            if (level != null && tracker != null) level.entitySectionChanged(this, old);
+            if (level != null && (tracker != null || store != null)) level.entitySectionChanged(this);
         }
     }
 
@@ -379,6 +393,9 @@ public abstract non-sealed class Entity implements Rider {
     // ------------------------------------------------------------------ 틱
 
     public void tick() { baseTick(); }
+
+    /** 활성 범위 밖이라 tick 대신 도는 틱(Spigot inactiveTick). 기본은 아무것도 안 한다. */
+    public void inactiveTick() {}
 
     /** Entity.checkDespawn: 기본은 아무것도 안 한다(Mob 이 덮는다). 엔티티 틱 앞에서 섹션 판정만으로 불린다(ChunkLevel.tickEntities). */
     public void checkDespawn() {}
@@ -598,6 +615,7 @@ public abstract non-sealed class Entity implements Rider {
             return;
         }
         final double ox = x, oz = z;
+        final ChunkLevel from = level;
         // 떠나서 도착(또는 되돌림 작업 넣기)까지 원천 월드가 센다 — 종료 저장 기준점이 차원·관문 이동 모두 끝나기를 기다린다
         travel.departing();
         final CarriedEntity self;
@@ -615,7 +633,13 @@ public abstract non-sealed class Entity implements Rider {
                     if (target == null || t == null) {   // 갈 곳이 없다 — 원래 자리에 승객째 되살린다
                         travel.runAtSource(floor(ox), floor(oz), src -> restore(src, self, travel));
                     } else {
-                        arrive(target, t, travel, self, place);
+                        Entity made = arrive(target, t, travel, self, place);
+                        // 바닐라 changeDimension: 새 엔티티를 만들었으면(entity2 != null) 떠난·닿은 레벨 둘 다 resetEmptyTime.
+                        // 명령 teleportTo(레벨, …)(targetDimension 이 null)·되살림은 부르지 않는다
+                        if (made != null && targetDimension != null) {
+                            from.resetEmptyTime();
+                            target.resetEmptyTime();
+                        }
                     }
                 } finally {
                     travel.settled();
@@ -740,6 +764,8 @@ public abstract non-sealed class Entity implements Rider {
         e.setDeltaMovement(t.vx(), t.vy(), t.vz());
         if (e != this) target.addFreshEntity(e);
         for (Entity n : moved) n.startRiding(e, true);
+        if (level != null) level.resetEmptyTime();   // 바닐라: serverLevel.resetEmptyTime(); serverLevel2.resetEmptyTime()
+        target.resetEmptyTime();
         target.afterDimensionTransition(t);
         return e;
     }
@@ -906,8 +932,20 @@ public abstract non-sealed class Entity implements Rider {
     /** isPushable: 다른 엔티티가 밀 수 있다(기본 아니오). */
     public boolean isPushable() { return false; }
 
-    /** canBeCollidedWith: 단단한 엔티티(보트 등). */
+    /**
+     * canBeCollidedWith: 다른 엔티티가 올라서고 부딪히는 단단한 몸(바닐라 1.21.1: 배·셜커). 덮어쓰는 종류는 HardCollider 를 달아야 한다 —
+     * 충돌 후보 훑기가 그 구역 목록만 본다(HardColliderTest 가 확인).
+     */
     public boolean canBeCollidedWith() { return false; }
+
+    /** canCollideWith(other): 상대가 단단하고 같은 탈것 무리가 아니면 부딪힌다. 배·수레(canVehicleCollide)·윈드 차지가 덮어쓴다. */
+    public boolean canCollideWith(Entity other) { return other.canBeCollidedWith() && !isPassengerOfSameVehicle(other); }
+
+    /** canCollideWith(플레이어): 플레이어는 canBeCollidedWith 가 거짓이라 기본은 거짓. 배·수레는 밀 수 있는 플레이어에 막힌다. */
+    public boolean canCollideWithPlayer(Player p) { return false; }
+
+    /** canCollideWith 가 상대의 canBeCollidedWith 가 참일 때만 참일 수 있는가(배·수레만 아니다) — 충돌 후보를 HardCollider 만 훑는다. */
+    public boolean collidesOnlyWithHardColliders() { return true; }
 
     /** push(dx, dy, dz): 속도에 더하고 이번 갱신을 앞당긴다. */
     public void push(double dx, double dy, double dz) {
@@ -1007,7 +1045,10 @@ public abstract non-sealed class Entity implements Rider {
             return;
         }
         boolean wasOnFire = isOnFire();
+        // Paper EAR: 이동 값이 제 속도 그대로인가(바닐라 코드의 movement == getDeltaMovement() — 호출부가 move(SELF, vx(), vy(), vz()) 를 넘긴다)
+        boolean ownVelocity = isTemporarilyActive && mover == MOVER_SELF && dx == vx && dy == vy && dz == vz;
         if (mover == MOVER_PISTON) {
+            EntityActivation.immunize(this, 20);   // Paper EAR: 피스톤에 밀리면 20틱 활성(꺼져 있으면 아무것도)
             double[] lim = limitPistonMovement(dx, dy, dz);
             if (lim == null) return;
             dx = lim[0];
@@ -1022,6 +1063,12 @@ public abstract non-sealed class Entity implements Rider {
             dz *= stuckZ;
             stuckX = stuckY = stuckZ = 0.0;
             setDeltaMovement(0.0, 0.0, 0.0);
+            ownVelocity = false;   // 바닐라는 movement 를 새 벡터로 바꾼다
+        }
+        // Paper EAR: 잠깐 깨운 비활성 엔티티는 제 속도 이동을 하지 않고 멈춘다(아이템 빼고)
+        if (ownVelocity && !(this instanceof ItemEntity)) {
+            setDeltaMovement(0.0, 0.0, 0.0);
+            return;
         }
         double[] m = collide(dx, dy, dz);
         double mx = m[0], my = m[1], mz = m[2];
@@ -1305,6 +1352,9 @@ public abstract non-sealed class Entity implements Rider {
 
     public boolean wasInPowderSnow() { return wasInPowderSnow; }
 
+    /** Entity.isFreezing. */
+    public boolean isFreezing() { return (isInPowderSnow || wasInPowderSnow) && canFreeze(); }
+
     /** 바닐라 Entity.TICKS_REQUIRED_TO_FREEZE(getTicksRequiredToFreeze): 140틱이면 완전히 언다. */
     public static final int TICKS_REQUIRED_TO_FREEZE = 140;
 
@@ -1340,7 +1390,7 @@ public abstract non-sealed class Entity implements Rider {
         resetFallDistance();
     }
 
-    /** LivingEntity 인가(압력판 감도·블록 동작 대상). */
+    /** 바닐라 `instanceof LivingEntity`(압력판 감도·블록 동작 대상). {@link LivingEntity} 가 참으로 덮어쓴다. */
     public boolean isLiving() { return false; }
 
     /** mayInteract(level, pos): 플레이어가 아니면 언제나 참. */
@@ -1366,32 +1416,31 @@ public abstract non-sealed class Entity implements Rider {
     public float maxUpStep() { return 0.0F; }
 
     /**
-     * Entity.collide(movement) 1.21.1: 블록 충돌로 줄인 이동. 바닥(또는 낙하 착지)에서 옆으로 막히면
-     * 충돌 모양의 Y 좌표로 만든 후보 높이(step 이하)를 낮은 것부터 시도해 더 멀리 가는 첫 높이로 오른다.
-     * 엔티티 충돌(보트·셜커)·월드 보더 모양은 아직 목록에 없다(블록 충돌만).
+     * Entity.collide(movement) 1.21.1: 엔티티 충돌(배·셜커 등 getEntityCollisions)·월드 보더·블록 충돌로 줄인 이동. 바닥(또는 낙하 착지)에서
+     * 옆으로 막히면 충돌 모양의 Y 좌표로 만든 후보 높이(step 이하)를 낮은 것부터 시도해 더 멀리 가는 첫 높이로 오른다.
      */
     protected double[] collide(double dx, double dy, double dz) {
         return collideMove(level, this, bb, onGround(), maxUpStep(), dx, dy, dz);
     }
 
-    /** Entity.collide 본체 — 엔티티 없이 상자·땅 위 여부·오르기 높이만으로 부른다(플레이어 이동 검증도 쓴다). */
-    public static double[] collideMove(org.domi.furnace.server.block.ChunkLevel level, AABB box, boolean onGround, float step,
+    /**
+     * Entity.collide 본체 — self(엔티티 또는 플레이어)의 상자·땅 위 여부·오르기 높이로 부른다(플레이어 이동 검증도 쓴다). self 는 엔티티 충돌 후보
+     * (canCollideWith)·월드 보더 가까움(self 위치)·블록 문맥(엔티티일 때, 가루눈)에 쓰인다.
+     */
+    public static double[] collideMove(org.domi.furnace.server.block.ChunkLevel level, Rider self, AABB box, boolean onGround, float step,
                                        double dx, double dy, double dz) {
-        return collideMove(level, null, box, onGround, step, dx, dy, dz);
-    }
-
-    /** 같되 문맥 엔티티가 있으면 블록 충돌 모양이 그 엔티티 기준이 된다(가루눈). */
-    public static double[] collideMove(org.domi.furnace.server.block.ChunkLevel level, Entity self, AABB box, boolean onGround, float step,
-                                       double dx, double dy, double dz) {
-        var shapes = level.blockCollisions(self, box.expandTowards(dx, dy, dz));
-        double[] r = dx * dx + dy * dy + dz * dz == 0.0 ? new double[] {dx, dy, dz} : collideWithShapes(dx, dy, dz, box, shapes);
+        // 엔티티 모양은 처음 이동 상자로 한 번만 모아 오르기 탐색에도 그대로 쓴다(바닐라 collide 의 var3)
+        AABB swept = box.expandTowards(dx, dy, dz);
+        var entityShapes = level.entityCollisions(self, swept);
+        double[] r = dx * dx + dy * dy + dz * dz == 0.0 ? new double[] {dx, dy, dz}
+                : collideWithShapes(dx, dy, dz, box, collectColliders(level, self, entityShapes, swept));
         boolean cx = dx != r[0], cy = dy != r[1], cz = dz != r[2];
         boolean below = cy && dy < 0.0;
         if (step > 0.0F && (below || onGround) && (cx || cz)) {
             AABB base = below ? box.move(0.0, r[1], 0.0) : box;
             AABB search = base.expandTowards(dx, step, dz);
             if (!below) search = search.expandTowards(0.0, -1.0E-5F, 0.0);
-            var stepShapes = level.blockCollisions(self, search);
+            var stepShapes = collectColliders(level, self, entityShapes, search);
             for (float h : stepHeightCandidates(base, stepShapes, step, (float) r[1])) {
                 double[] c = collideWithShapes(dx, h, dz, base, stepShapes);
                 if (c[0] * c[0] + c[2] * c[2] > r[0] * r[0] + r[2] * r[2]) {
@@ -1404,53 +1453,72 @@ public abstract non-sealed class Entity implements Rider {
     }
 
     /**
-     * collectCandidateStepUpHeights: 모양들의 Y 좌표 - base.minY 중 0 이상·step 이하·(float)dy 아닌 값, 오름차순.
-     * 바닐라는 VoxelShape 격자 좌표 전부를 쓰지만 여기서는 상자들의 minY/maxY 만 쓴다(오를 높이인 윗면은 둘 다 포함).
+     * Entity.collideBoundingBox(self, movement, box, level, getEntityCollisions(self, box + movement)): 오르기 없이 엔티티·보더·블록 충돌만
+     * (플레이어 겉날개 비행이 쓴다).
      */
-    static float[] stepHeightCandidates(AABB base, java.util.List<Shape> shapes, float step, float dy) {
-        java.util.TreeSet<Float> set = new java.util.TreeSet<>();
-        for (Shape s : shapes) {
-            for (int i = 0; i < s.boxCount(); i++) {
-                double[] b = s.box(i);
-                for (double y : new double[] {b[1], b[4]}) {
-                    float h = (float) (y - base.minY());
-                    if (!(h < 0.0F) && h != dy && !(h > step)) set.add(h);
-                }
-            }
-        }
-        float[] out = new float[set.size()];
-        int i = 0;
-        for (float h : set) out[i++] = h;
+    public static double[] collideBoundingBox(org.domi.furnace.server.block.ChunkLevel level, Rider self, AABB box, double dx, double dy, double dz) {
+        AABB swept = box.expandTowards(dx, dy, dz);
+        return collideWithShapes(dx, dy, dz, box, collectColliders(level, self, level.entityCollisions(self, swept), swept));
+    }
+
+    /**
+     * Entity.collectColliders(self, level, entityShapes, box): 엔티티 모양 → (self 가 보더 가까이면) 보더 모양 → 블록 모양, 이 순서.
+     * 블록 모양은 칸마다 옮긴 모양을 만들지 않고 (모양, 칸)으로 든다(Colliders).
+     */
+    static Colliders collectColliders(org.domi.furnace.server.block.ChunkLevel level, Rider self, java.util.List<Shape> entityShapes, AABB box) {
+        Shape border = self == null ? null : level.borderCollision(self.x(), self.z(), box);
+        Colliders out = new Colliders(entityShapes.size() + 8);
+        for (int i = 0, n = entityShapes.size(); i < n; i++) out.add(entityShapes.get(i));
+        if (border != null) out.add(border);
+        level.blockCollisions(self, box, out);   // 플레이어도 자기 문맥(비계·가루눈)으로
         return out;
     }
 
-    /** Entity.collideWithShapes: y 먼저, 그다음 |x| < |z| 면 z·x, 아니면 x·z. */
+    /** stepHeightCandidates 를 월드 좌표 모양 목록으로(시험용). */
+    static float[] stepHeightCandidates(AABB base, java.util.List<Shape> shapes, float step, float dy) {
+        return stepHeightCandidates(base, Colliders.of(shapes), step, dy);
+    }
+
+    /**
+     * collectCandidateStepUpHeights: 모양들의 Y 좌표 - base.minY 중 0 이상·step 이하·(float)dy 아닌 값, 오름차순(같은 값은 하나).
+     * 바닐라는 VoxelShape 격자 좌표 전부를 쓴다. 엔티티 상자·보더 모양은 격자가 바닐라와 같아 그대로 쓰고(exactYCoords),
+     * 블록 모양은 상자들의 minY/maxY 만 쓴다(오를 높이인 윗면은 둘 다 포함).
+     */
+    static float[] stepHeightCandidates(AABB base, Colliders shapes, float step, float dy) {
+        float[][] buf = {new float[16]};
+        int n = shapes.stepHeights(base.minY(), step, dy, buf, 0);
+        float[] a = buf[0];
+        java.util.Arrays.sort(a, 0, n);   // Float.compare 순서(-0.0 < 0.0) — 예전 TreeSet<Float> 와 같다
+        int m = 0;
+        for (int i = 0; i < n; i++) {
+            if (m == 0 || Float.compare(a[m - 1], a[i]) != 0) a[m++] = a[i];
+        }
+        return java.util.Arrays.copyOf(a, m);
+    }
+
+    /** Entity.collideWithShapes 를 월드 좌표 모양 목록으로. */
     public static double[] collideWithShapes(double dx, double dy, double dz, AABB box, java.util.List<Shape> shapes) {
+        return collideWithShapes(dx, dy, dz, box, Colliders.of(shapes));
+    }
+
+    /** Entity.collideWithShapes: y 먼저, 그다음 |x| < |z| 면 z·x, 아니면 x·z. */
+    public static double[] collideWithShapes(double dx, double dy, double dz, AABB box, Colliders shapes) {
         if (shapes.isEmpty()) return new double[] {dx, dy, dz};
         if (dy != 0.0) {
-            dy = collideAxis(1, box, shapes, dy);
+            dy = shapes.collide(1, box, dy);
             if (dy != 0.0) box = box.move(0.0, dy, 0.0);
         }
         boolean zFirst = Math.abs(dx) < Math.abs(dz);
         if (zFirst && dz != 0.0) {
-            dz = collideAxis(2, box, shapes, dz);
+            dz = shapes.collide(2, box, dz);
             if (dz != 0.0) box = box.move(0.0, 0.0, dz);
         }
         if (dx != 0.0) {
-            dx = collideAxis(0, box, shapes, dx);
+            dx = shapes.collide(0, box, dx);
             if (!zFirst && dx != 0.0) box = box.move(dx, 0.0, 0.0);
         }
-        if (!zFirst && dz != 0.0) dz = collideAxis(2, box, shapes, dz);
+        if (!zFirst && dz != 0.0) dz = shapes.collide(2, box, dz);
         return new double[] {dx, dy, dz};
-    }
-
-    /** Shapes.collide(axis, box, shapes, d). */
-    private static double collideAxis(int axis, AABB box, java.util.List<Shape> shapes, double d) {
-        for (Shape s : shapes) {
-            if (Math.abs(d) < 1.0E-7) return 0.0;
-            d = s.collide(axis, box, d);
-        }
-        return d;
     }
 
     /** checkSupportingBlock(onGround, movement): 디딘 블록 위치(가장 가까운 충돌 블록)를 기억한다. */

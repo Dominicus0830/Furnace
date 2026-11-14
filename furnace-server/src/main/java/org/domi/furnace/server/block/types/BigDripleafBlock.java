@@ -61,7 +61,7 @@ public class BigDripleafBlock extends HorizontalDirectionalBlock implements Bone
     @Override
     public void onProjectileHit(BlockLevel level, int state, org.domi.furnace.server.entity.Projectile.Hit hit,
                                 org.domi.furnace.server.entity.Projectile projectile) {
-        setTiltAndScheduleTick(state, level, hit.blockPos(), "full", true);
+        setTiltAndScheduleTick(state, level, hit.blockPos(), "full", true, projectile);
     }
 
     @Override
@@ -98,13 +98,13 @@ public class BigDripleafBlock extends HorizontalDirectionalBlock implements Bone
     /** entityInside: 기울지 않았고, 잎 위(y + 0.6875 초과)에 땅을 디딘 엔티티가 있고, 신호가 없으면 불안정으로(소리 없음). */
     @Override
     public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
-        entityInsideAt(state, level, pos, entity.onGround(), entity.y());
+        entityInsideAt(state, level, pos, entity.onGround(), entity.y(), entity);
     }
 
     /** entityInside 본문 — 플레이어(Entity 가 아니다)는 Region 이 땅 디딤·발 높이로 부른다. */
-    public void entityInsideAt(int state, BlockLevel level, Pos pos, boolean onGround, double y) {
+    public void entityInsideAt(int state, BlockLevel level, Pos pos, boolean onGround, double y, org.domi.furnace.server.entity.Rider who) {
         if ("none".equals(TILT.valueName(state)) && canEntityTilt(pos, onGround, y) && !level.hasNeighborSignal(pos)) {
-            setTiltAndScheduleTick(state, level, pos, "unstable", false);
+            setTiltAndScheduleTick(state, level, pos, "unstable", false, who);
         }
     }
 
@@ -118,8 +118,8 @@ public class BigDripleafBlock extends HorizontalDirectionalBlock implements Bone
             return;
         }
         switch (TILT.valueName(state)) {
-            case "unstable" -> setTiltAndScheduleTick(state, level, pos, "partial", true);
-            case "partial" -> setTiltAndScheduleTick(state, level, pos, "full", true);
+            case "unstable" -> setTiltAndScheduleTick(state, level, pos, "partial", true, null);
+            case "partial" -> setTiltAndScheduleTick(state, level, pos, "full", true, null);
             case "full" -> resetTilt(state, level, pos);
             default -> {}
         }
@@ -135,7 +135,9 @@ public class BigDripleafBlock extends HorizontalDirectionalBlock implements Bone
         level.playSound(null, pos, sound, "blocks", 1.0F, pitch);
     }
 
-    private void setTiltAndScheduleTick(int state, BlockLevel level, Pos pos, String tilt, boolean sound) {
+    /** who: 기울인 엔티티·플레이어·투사체(틱이 기울이면 null) — CraftBukkit 은 있을 때 EntityChangeBlockEvent 를 묻고, 막으면 소리·예약 틱도 없다. */
+    private void setTiltAndScheduleTick(int state, BlockLevel level, Pos pos, String tilt, boolean sound, org.domi.furnace.server.entity.Rider who) {
+        if (who != null && !B.entityChange(level, who, pos, TILT.with(state, tilt))) return;
         setTilt(state, level, pos, tilt);
         if (sound) playTiltSound(level, pos, "minecraft:block.big_dripleaf.tilt_down");
         int delay = delayAfter(tilt);

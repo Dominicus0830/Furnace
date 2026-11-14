@@ -127,6 +127,13 @@ public class AreaEffectCloud extends Entity {
 
     private boolean isWaiting() { return (Boolean) entityData.get(DATA_WAITING); }
 
+    /** Spigot AreaEffectCloud.inactiveTick: 시간이 다 되면 사라진다. */
+    @Override
+    public void inactiveTick() {
+        super.inactiveTick();
+        if (tickCount >= waitTime + duration) discard();
+    }
+
     @Override
     public void tick() {
         double px = x(), py = y(), pz = z();

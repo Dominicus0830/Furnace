@@ -52,8 +52,8 @@ class LightFastPathTest {
     private static void assertSameLight(ChunkLight expected, ChunkLight actual, String what) {
         assertArrayEquals(expected.lowestSource, actual.lowestSource, what + " lowestSource");
         for (int s = 0; s < ChunkLight.SECTIONS; s++) {
-            assertArrayEquals(expected.sky[s], actual.sky[s], what + " sky section " + s);
-            assertArrayEquals(expected.block[s], actual.block[s], what + " block section " + s);
+            assertArrayEquals(expected.sky(s), actual.sky(s), what + " sky section " + s);
+            assertArrayEquals(expected.block(s), actual.block(s), what + " block section " + s);
         }
     }
 
@@ -137,6 +137,11 @@ class LightFastPathTest {
         public boolean sectionMayEmit(int cx, int sy, int cz) {
             int i = idx(cx, cz);
             return !hints || i < 0 || cols[i].sectionMaybeHas(sy + 4, LightTables.EMITS);
+        }
+
+        public boolean sectionHasOnlyAir(int cx, int sy, int cz) {
+            int i = idx(cx, cz);
+            return !hints || i < 0 ? LightWorld.super.sectionHasOnlyAir(cx, sy, cz) : cols[i].sectionOnlyAirExact(sy + 4);
         }
 
         public int unloadedState() { return BEDROCK; }

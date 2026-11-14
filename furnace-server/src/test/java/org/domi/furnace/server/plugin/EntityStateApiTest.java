@@ -153,4 +153,30 @@ class EntityStateApiTest {
         }));
         assertTrue(onRegion(() -> s.rawPig().isPushable()));
     }
+    /** A16-01: 위치·체력·지움이 소유 스레드의 지금 값으로 곧바로 읽힌다(핸들의 location()·health() 는 만든 시점 값). */
+    @Test
+    void locationHealthAndRemoveAreLiveOnTheOwnerThread() throws Exception {
+        Spawned s = spawn();
+        double x0 = s.pig().location().x();
+        var seen = onRegion(() -> {
+            var st = (LivingEntityState) s.pig().stateNow().orElseThrow();
+            Pig p = s.rawPig();
+            p.moveTo(p.x() + 2.0, p.y(), p.z(), p.yRot(), p.xRot());
+            float before = st.health();
+            st.setHealth(st.maxHealth() + 100f);   // 최대 체력으로 잘린다
+            float clamped = st.health();
+            st.setHealth(3f);
+            return new double[]{st.location().x(), before, clamped, st.health(), st.maxHealth()};
+        });
+        assertEquals(x0 + 2.0, seen[0], 1e-6, "핸들 스냅샷이 아니라 지금 위치");
+        assertEquals(seen[4], seen[2], 1e-6);
+        assertEquals(3.0, seen[3], 1e-6);
+        assertEquals(x0, s.pig().location().x(), 1e-6, "핸들의 location() 은 만든 시점 값");
+        assertEquals(List.of(true, false), onRegion(() -> {
+            var st = s.pig().stateNow().orElseThrow();
+            boolean before = st.isValid();
+            st.remove();
+            return List.of(before, st.isValid());
+        }));
+    }
 }

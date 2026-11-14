@@ -60,7 +60,9 @@ public class FarmBlock extends BlockBehavior {
     public void fallOn(BlockLevel level, int state, Pos pos, org.domi.furnace.server.entity.Entity entity, float fallDistance) {
         if (level.random().nextFloat() < fallDistance - 0.5F && entity.isLiving() && level.gameRule("mobGriefing")
                 && entity.bbWidth() * entity.bbWidth() * entity.bbHeight() > 0.512F) {
-            turnToDirt(null, state, level, pos);
+            // CraftBukkit: EntityChangeBlockEvent(새 상태 흙)를 막으면 밟지 않는다. 낙하 피해는 그대로 — CraftBukkit 은 super.fallOn 을 맨 위로 옮겨
+            // 이벤트가 피해를 바꾸지 못하게 했다(피해 계산엔 난수가 없어 바닐라 순서대로 뒤에서 불러도 결과가 같다)
+            if (B.entityChange(level, entity, pos, B.defaultState(DIRT))) turnToDirt(null, state, level, pos);
         }
         super.fallOn(level, state, pos, entity, fallDistance);
     }
@@ -71,7 +73,9 @@ public class FarmBlock extends BlockBehavior {
      */
     public static void playerFallOn(BlockLevel level, int state, Pos pos, org.domi.furnace.server.block.BlockActor player, float fallDistance,
                                     double bbWidth, double bbHeight) {
-        if (level.random().nextFloat() < fallDistance - 0.5F && (float) (bbWidth * bbWidth * bbHeight) > 0.512F) {
+        // CraftBukkit: EntityChangeBlockEvent(새 상태 흙)를 막으면 밟지 않는다(낙하 피해는 따로 처리된다 — Paper 도 막혀도 피해를 준다)
+        if (level.random().nextFloat() < fallDistance - 0.5F && (float) (bbWidth * bbWidth * bbHeight) > 0.512F
+                && B.entityChange(level, player, pos, B.defaultState(DIRT))) {
             turnToDirt(player, state, level, pos);
         }
     }

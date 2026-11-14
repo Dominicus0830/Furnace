@@ -16,6 +16,12 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
     /** 호환 모듈 전용(Compat 캐시가 만든다). */
     public CraftLivingEntity(org.domi.furnace.api.entity.LivingEntity handle) { super(handle); }
 
+    @Override
+    public <T extends org.bukkit.entity.Projectile> T launchProjectile(Class<? extends T> projectile, org.bukkit.util.Vector velocity,
+                                                                       java.util.function.Consumer<? super T> function) {
+        throw new UnsupportedFeature("LivingEntity#launchProjectile", "Furnace 핸들에는 투사체를 쏘는 길이 아직 없다");
+    }
+
     private org.domi.furnace.api.entity.LivingEntity living() { return (org.domi.furnace.api.entity.LivingEntity) furnaceHandle(); }
 
     @Override
@@ -24,16 +30,44 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
     @Override
     protected net.minecraft.world.entity.Entity createHandle() { return new net.minecraft.world.entity.LivingEntity(this); }
 
+    /** 몹은 소유 스레드면 지금 체력(setHealth 직후 곧바로 바뀐 값), 아니면 핸들 시점 값. 플레이어 핸들은 그 자체가 지금 값이다. */
     @Override
-    public double getHealth() { return living().health(); }
+    public double getHealth() {
+        var h = living();
+        if (EntityStates.live(h)) {
+            try {
+                Float now = EntityStates.read(h, LivingEntityState.class, LivingEntityState::health, null, "LivingEntity#getHealth");   // T-078: 핸들 시점 값을 미리 읽지 않는다
+                if (now != null) return now;
+            } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature raced) {
+                // 핸들 시점 값으로
+            }
+        }
+        return h.health();
+    }
 
     @Override
-    public double getMaxHealth() { return living().maxHealth(); }
+    public double getMaxHealth() {
+        var h = living();
+        if (EntityStates.live(h)) {
+            try {
+                Float now = EntityStates.read(h, LivingEntityState.class, LivingEntityState::maxHealth, null, "LivingEntity#getMaxHealth");   // T-078: 핸들 시점 값을 미리 읽지 않는다
+                if (now != null) return now;
+            } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature raced) {
+                // 핸들 시점 값으로
+            }
+        }
+        return h.maxHealth();
+    }
 
     @Override
     public void setHealth(double health) {
         if (health < 0 || health > getMaxHealth()) throw new IllegalArgumentException("Health must be between 0 and " + getMaxHealth() + ", but was " + health);
-        living().updateHealth((float) health);
+        if (furnaceHandle() instanceof org.domi.furnace.api.entity.Player) {
+            living().updateHealth((float) health);   // 플레이어는 상태 손잡이가 없다 — 핸들이 곧바로 적용한다
+            return;
+        }
+        // 소유 스레드면 곧바로(바로 뒤의 getHealth 가 바뀐 값을 본다), 아니면 소유 스레드로 예약
+        EntityStates.write(furnaceHandle(), LivingEntityState.class, s -> s.setHealth((float) health), "LivingEntity#setHealth");
     }
 
     // ---- 상태 효과

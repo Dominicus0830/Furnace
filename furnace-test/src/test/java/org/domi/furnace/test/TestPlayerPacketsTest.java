@@ -49,7 +49,8 @@ class TestPlayerPacketsTest {
 
             steve.clearReceived();
             assertEquals(List.of(), steve.received(PacketTypes.Clientbound.SET_TITLE_TEXT));
-            assertThrows(IllegalArgumentException.class, () -> steve.received(PacketTypes.Clientbound.BUNDLE_DELIMITER), "이 버전에서 내용을 못 읽는 종류");
+            // E5 부터 1.21.1 의 범용 종류는 모두 읽힌다(못 읽는 종류였던 번들 구분자도 이제 모인다)
+            assertDoesNotThrow(() -> steve.received(PacketTypes.Clientbound.BUNDLE_DELIMITER));
         }
     }
 
@@ -82,7 +83,7 @@ class TestPlayerPacketsTest {
             handle.kick(Text.text("bye"));
             long dl = System.nanoTime() + 5_000_000_000L;
             while (server.internals().playerByName("Steve") != null && System.nanoTime() < dl) Thread.onSpinWait();
-            assertEquals(200, steve.received(PacketTypes.Clientbound.SET_TITLE_TEXT).size(), "킥 뒤에는 연결 끝까지 읽은 것");
+            assertEquals(200, steve.received(PacketTypes.Clientbound.SET_TITLE_TEXT).size(), "킥 뒤에는 연결 끝까지 읽은 것 reason=" + steve.disconnectReason());
         }
     }
 
@@ -109,6 +110,32 @@ class TestPlayerPacketsTest {
             var e = assertThrows(IllegalStateException.class, () -> steve.awaitPacket(PacketTypes.Clientbound.SET_TITLE_TEXT, t -> true));
             assertEquals(before + 1, steve.decodeFailures());
             assertTrue(e.getMessage().contains("풀지 못한 패킷"), e.getMessage());
+        }
+    }
+
+    /**
+     * 실패 수는 받은 패킷 장벽 뒤에 센다: 읽기 스레드가 뒤처져도(바쁜 CI) 서버가 앞서 보낸 패킷의 실패가 빠지지 않는다.
+     * 접속 때 player_info_update(채팅 세션 초기화)는 시험 클라이언트가 읽지 않는 패킷이다 — 그 프레임에서 읽기 스레드를 일부러 늦춘다.
+     * 장벽 없이 세던 때는 sync() 직후 0 이 나와 "전/후" 비교 시험(SchemaPacketBridgeTest)이 가끔 2 차이로 깨졌다.
+     */
+    @Test
+    void decodeFailuresCountEverythingTheServerSentBefore() {
+        try (var server = FurnaceTestServer.builder().plugin(CounterPlugin.class).start()) {
+            int infoId = server.internals().plugins().packetsImpl().codec().ids(PacketTypes.Clientbound.PLAYER_INFO_UPDATE)[0];
+            TestPlayer.frameTap = (id, body) -> {
+                if (id == infoId) java.util.concurrent.locks.LockSupport.parkNanos(300_000_000L);
+            };
+            try {
+                TestPlayer steve = server.join("Steve");
+                server.tick(2);
+                steve.sync();
+                long n = steve.decodeFailures();
+                assertTrue(n >= 1, "접속 때 받은 채팅 세션 초기화가 세어져 있다: " + n);
+                assertTrue(steve.recentDecodeFailures().stream().allMatch(f -> f.contains("player_info_update")), steve.recentDecodeFailures().toString());
+                assertEquals(n, steve.decodeFailures(), "더 보낸 것이 없으면 그대로");
+            } finally {
+                TestPlayer.frameTap = null;
+            }
         }
     }
 }

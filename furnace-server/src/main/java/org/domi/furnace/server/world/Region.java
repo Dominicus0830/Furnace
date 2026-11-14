@@ -393,6 +393,11 @@ public final class Region {
         }
     }
 
+    /** 나누기 직전(구역 주인을 바꾸기 전, 잠금 안, 쉬는 중): 빛 작업 모드면 밀린 빛을 끝까지 계산한다 — 나눈 뒤엔 남의 청크를 못 본다. */
+    void settleLightBeforeSplit() {
+        if (level != null && level.asyncLight()) level.drainLight();
+    }
+
     /** 나누기 뒤 아무것도 없는 region 인가(없애도 되는가). */
     boolean isIdleEmpty() {
         return players.isEmpty() && present.isEmpty() && inbox.isEmpty() && delayed.isEmpty()
@@ -500,12 +505,18 @@ public final class Region {
                 // 빈 칸 채우기(DUMMY)는 디스크 청크에도 한다 — 수정 전에 저장된 월드의 침대·종을 되살리고, Anvil+평지처럼 freshlyGenerated 가 안 서는 새 청크도 덮는다.
                 // 비용은 생성 풀에서 구역당 블록 배열 한 번 훑기(POI mayHavePoi 와 같은 꼴).
                 col.promotePendingBlockEntities(cp.x(), cp.z(), true);
+                // 내려가 있는 동안 이웃에서 빛이 줄었던 청크는 저장 빛을 버리고 고립 계산부터(표시는 고친 빛이 디스크에 써진 뒤 지운다)
+                if (col.lightStored() && world.lightStale().contains(cp.x(), cp.z())) {
+                    col.light(null);
+                    col.lightStored(false);
+                }
                 try {
                     org.domi.furnace.server.block.ChunkLevel.precomputeLight(col, cp.x(), cp.z(), bedrock, sky);
                 } catch (RuntimeException e) {
                     org.slf4j.LoggerFactory.getLogger(Region.class).warn("[LIGHT] 미리 계산 실패 {} — 올릴 때 다시 계산", cp, e);
                     col.light(null);
                     col.lightPrecomputed(false);
+                    col.lightStored(false);
                 }
             }
             if (ChunkTrace.ON) { traceSrc[1] = System.nanoTime(); ChunkTrace.nanos("light", traceSrc[1] - tl); }
@@ -553,17 +564,19 @@ public final class Region {
         long t0 = Regionizer.STATS ? System.nanoTime() : 0L;
         if (col.dirty()) dirtyChunks.add(cp);
         world.putChunk(cp.x(), cp.z(), col);
+        // 저장돼 있던 예약 틱을 다시 건다(남은 틱 기준). 바닐라는 청크 컨테이너가 생길 때부터 저장 예약(pendingTicks)이 (칸, 종류) 집합에
+        // 들어 있어 그 뒤 같은 (칸, 종류) 새 예약을 버린다 — 그래서 블록 엔티티·엔티티를 올리기 전, 청크를 넣자마자 건다.
+        if (col.extraNbt() != null && (col.extraNbt().contains("block_ticks") || col.extraNbt().contains("fluid_ticks"))) {
+            level().loadChunkTicks(col.extraNbt(), cp.x(), cp.z());
+        }
         long t1 = Regionizer.STATS ? System.nanoTime() : 0L;
-        level().lightNewChunk(cp.x(), cp.z());
+        level().lightNewChunk(cp.x(), cp.z());   // 빛 작업 모드여도 새 청크 빛은 그 자리에서(바닐라: 빛이 끝나야 FULL — 틱·전송 전에 빛이 맞다)
         level().runLightUpdates();
         long t2 = Regionizer.STATS ? System.nanoTime() : 0L;
         level().raids().claim(cp.x(), cp.z());   // raids.dat 에서 이 청크가 중심인 습격
         loadEntities(cp, col);
         if (level().addWorldGenChunkEntities(col)) dirtyChunks.add(cp);
         if (!col.blockEntities().isEmpty()) level().registerBlockEntities(col);
-        if (col.extraNbt() != null && (col.extraNbt().contains("block_ticks") || col.extraNbt().contains("fluid_ticks"))) {
-            level().loadChunkTicks(col.extraNbt());   // 저장돼 있던 예약 틱을 다시 건다(남은 틱 기준)
-        }
         if (col.freshlyGenerated()) {
             col.freshlyGenerated(false);
             try {
@@ -633,6 +646,9 @@ public final class Region {
         fresh.lightPrecomputed(false);
         world.putChunk(cx, cz, fresh);
         lv.chunkUnloaded();   // 청크 조회 캐시가 옛 객체를 들고 있지 않게
+        if (fresh.extraNbt() != null && (fresh.extraNbt().contains("block_ticks") || fresh.extraNbt().contains("fluid_ticks"))) {
+            lv.loadChunkTicks(fresh.extraNbt(), cx, cz);   // 청크를 넣자마자(위 설치 경로와 같은 이유)
+        }
         // 남긴 엔티티의 진동 리스너(워든·알레이)는 옛 청크의 구역에 걸려 있다 — 새 청크에 다시 건다
         for (org.domi.furnace.server.entity.Entity e : new ArrayList<>(lv.entities().inChunk(cx, cz))) {
             if (e.isRemoved()) continue;
@@ -661,9 +677,6 @@ public final class Region {
         }
         lv.runLightUpdates();
         if (!fresh.blockEntities().isEmpty()) lv.registerBlockEntities(fresh);
-        if (fresh.extraNbt() != null && (fresh.extraNbt().contains("block_ticks") || fresh.extraNbt().contains("fluid_ticks"))) {
-            lv.loadChunkTicks(fresh.extraNbt());
-        }
         if (generationEntities) {
             lv.addWorldGenChunkEntities(fresh);
             if (fresh.freshlyGenerated()) {
@@ -1039,6 +1052,9 @@ public final class Region {
         autosaveEntityQueue = null;
         autosaveChunkQueue = null;
         if (withEntities) saveEntities();
+        // 마지막 틱의 편집으로 남은 빛 검사를 마저 돈다 — 안 그러면 새 블록 + 옛 빛이 저장되고, 다시 올릴 때 그 저장 빛을 믿는다(PR #304 검토 R2).
+        // 빛이 바뀐 청크는 dirty 가 돼 아래에서 같이 저장된다. 방송은 다음 틱 그대로.
+        if (level != null) level.runLightUpdates();
         if (dirtyChunks.isEmpty()) return 0;
         boolean first = true;
         for (ChunkPos cp : new ArrayList<>(dirtyChunks)) {
@@ -1048,6 +1064,7 @@ public final class Region {
             first = false;
             if (col != null && col.dirty()) {
                 writeChunkTicks(cp.x(), cp.z(), col, false);
+                if (level != null) level.settleLightForSave(cp.x(), cp.z());   // 빛 작업 모드: 밀린 빛을 끝낸 뒤 저장(끄면 아무것도 안 함)
                 world.saveChunkAsync(ChunkSnapshot.forSave(cp.x(), cp.z(), col), col);
                 col.clearDirty();
             }
@@ -1068,6 +1085,8 @@ public final class Region {
         world.autosaveDragonFight(this);
         var store = world.raidStore();
         if (io != null) io.execute(store::saveIfDirty);   // raids.dat(다른 region 은 마지막으로 올린 스냅샷)
+        var stale = world.lightStale();
+        if (io != null) io.execute(stale::saveIfDirty);   // 저장 빛을 믿지 않을 청크 표시(충돌해도 남게 — PR #304 검토 R3)
         world.logStorageOnce();
         autosaveEntityQueue = new java.util.ArrayDeque<>(present);
         autosaveChunkQueue = new java.util.ArrayDeque<>(dirtyChunks);
@@ -1098,6 +1117,7 @@ public final class Region {
             if (world.ioBackedUp()) { autosaveChunkQueue.addFirst(cp); return; }   // 레인이 밀렸다 — 다음 틱에
             if (col != null && col.dirty()) {
                 writeChunkTicks(cp.x(), cp.z(), col, false);
+                if (level != null) level.settleLightForSave(cp.x(), cp.z());   // 빛 작업 모드: 밀린 빛을 끝낸 뒤 저장(끄면 아무것도 안 함)
                 world.saveChunkAsync(ChunkSnapshot.forSave(cp.x(), cp.z(), col), col);
                 col.clearDirty();
             }
@@ -1154,6 +1174,9 @@ public final class Region {
             }
         }
         if (drop == null) return;
+        // 내리기 전에 남은 빛 검사를 마저 돈다 — 내린 청크의 검사는 다음 틱에 버려져 새 블록 + 옛 빛이 저장된다(PR #304 검토 R2).
+        // 빛 작업 모드는 아래 settleLightForSave 가 그 청크에 닿는 밀린 빛만 끝낸다(틱마다 묶음을 다 기다리지 않게)
+        if (level != null && !level.asyncLight()) level.runLightUpdates();
         // 퇴출(저장 포함)도 틱당 시간 예산 안에서 — 생성 청크도 dirty 라(F-14) 한꺼번에 내리면 틱이 수백 ms 튄다. 남은 것은 다음 틱에.
         long deadline = saveDeadline;
         for (long key : drop) {
@@ -1170,10 +1193,13 @@ public final class Region {
                 for (var be : col.blockEntities().values()) be.setRemoved();   // 틱 목록에서 빠진다(다시 불러오면 새로 만든다)
                 // 예약 틱이 남아 있으면 바뀐 게 없어도 저장한다(내리면 사라지므로)
                 if (writeChunkTicks(cx, cz, col, true) || col.dirty()) {
+                    if (level != null) level.settleLightForSave(cx, cz);
                     world.saveChunkAsync(ChunkSnapshot.forSave(cx, cz, col), col);
                     col.clearDirty();
                 }
                 world.removeChunk(cx, cz);
+                // 이벤트 처리기 안의 조회·예약(scheduleTick 의 청크 있음 검사)이 내린 청크를 캐시로 보지 않게 먼저 비운다
+                if (level != null) level.chunkUnloaded();
                 world.levelServices().gameEvents().chunkUnload(world.dimension(), cx, cz);   // 플러그인 ChunkUnloadEvent
             }
             if (level != null) level.raids().park(cx, cz);   // 중심 청크가 내려간 습격은 저장소로
@@ -1350,14 +1376,15 @@ public final class Region {
             frozen = false;
         }
         if (level != null) {   // 바닐라 ServerLevel.tick: 블록·유체 예약 틱 → 청크 틱(무작위 틱) → 청크 변경 방송 → 블록 이벤트 → 엔티티
+            level.pollLight();   // 빛 작업 모드: 끝난 빛 묶음을 이 틱이 보기 전에 건다(끄면 할 일 없음)
             int n = frozen ? 0 : collectTickingChunks();
             // 판정(바닐라 1.21.1): 무작위 틱 = TickingTracker ≤ 32(randomTicking), 예약 틱·블록 엔티티 = blockTicking, 블록 이벤트 = blockEventTicking, 엔티티 섹션 = ChunkHolder
             // ENTITY_TICKING(시야 거리 — 버리기·사라짐 검사), 엔티티 틱 = TickingTracker ≤ 31(시뮬레이션 거리 — 엔티티 tick·추적)
             level.tickBlocks(tickingChunks, n, frozen ? 0 : spawnChunkCount, frozen || n == 0 ? 0 : naturalSpawnChunkCount(), this::randomTicking,
                     this::blockTicking, this::blockEventTicking, k -> naturalSpawningAllowed(Regionizer.chunkX(k), Regionizer.chunkZ(k)), this::entityTicking,
-                    pl -> players.containsKey(pl.entityId()), frozen);
+                    pl -> players.containsKey(pl.entityId()), players.values(), frozen);
             lap(0);
-            level.runLightUpdates();
+            level.lightTickEnd();   // 끄면 runLightUpdates 그대로, 켜면 빛 작업에 넘긴다
             lap(1);
         }
         List<Player> handoff = new ArrayList<>();
@@ -2035,14 +2062,31 @@ public final class Region {
     public org.domi.furnace.server.entity.ItemEntity playerDrop(Player p, ItemStack stack, boolean dropAround, boolean includeThrower, boolean callEvent) {
         world.assertOwns(this);
         if (stack.isEmpty()) return null;
-        if (callEvent && !world.levelServices().gameEvents().playerDrop(p, stack)) {
+        var events = callEvent ? world.levelServices().gameEvents() : null;
+        // CraftBukkit 순서: 구독자가 있으면 던질 아이템 엔티티(와 속도)를 먼저 만들어 PlayerDropItemEvent 에 보이고, 취소하면 들어가지 않는다.
+        // 구독자가 없으면 이전과 같이 난수·엔티티 번호를 쓰지 않는다.
+        boolean early = events != null && events.wantsPlayerDrop();
+        RegionLevel l = level();
+        var ie = early ? throwItem(p, stack, dropAround, includeThrower, l) : null;
+        if (events != null && !(early ? events.playerDrop(p, stack, ie) : events.playerDrop(p, stack))) {
             // 플러그인 PlayerDropItemEvent 취소(CraftBukkit): 든 칸으로 돌려놓고 — 안 되면 첫 빈 칸 — 클라이언트가 먼저 비운 칸·커서를 되돌려 보낸다
             stack = org.domi.furnace.server.plugin.ClientResync.returnToSlot(p, p.inventory().heldWindowSlot(), stack);
             if (!stack.isEmpty()) stack = p.inventory().add(stack, false, org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(stack), false);
             org.domi.furnace.server.plugin.ClientResync.inventory(p);
             if (stack.isEmpty()) return null;
+            ie = null;   // 일부만 돌아가면 남은 만큼 아래에서 새로 던진다(이전 동작)
         }
-        RegionLevel l = level();
+        if (ie == null) ie = throwItem(p, stack, dropAround, includeThrower, l);
+        l.addFreshEntity(ie);
+        if (includeThrower) {   // ITEM_DROPPED · DROP 통계
+            p.awardStat("minecraft:dropped:" + org.domi.furnace.server.item.ItemTools.itemName(stack), stack.count());
+            p.awardStat("minecraft:drop", 1);
+        }
+        return ie;
+    }
+
+    /** Player.drop 가 던질 아이템 엔티티(눈 높이 - 0.3, 줍기 지연 40, 속도는 플레이어 난수)를 만든다 — 월드에는 아직 넣지 않는다. */
+    private org.domi.furnace.server.entity.ItemEntity throwItem(Player p, ItemStack stack, boolean dropAround, boolean includeThrower, RegionLevel l) {
         double eye = p.eyeY() - 0.3F;
         var ie = new org.domi.furnace.server.entity.ItemEntity(l, l.nextEntityId(), p.x(), eye, p.z(), stack);
         ie.setPickUpDelay(40);
@@ -2061,11 +2105,6 @@ public final class Region {
             ie.setDeltaMovement((double) (-i * h * 0.3F) + Math.cos(k) * (double) m,
                     (double) (-g * 0.3F + 0.1F + (r.nextFloat() - r.nextFloat()) * 0.1F),
                     (double) (j * h * 0.3F) + Math.sin(k) * (double) m);
-        }
-        l.addFreshEntity(ie);
-        if (includeThrower) {   // ITEM_DROPPED · DROP 통계
-            p.awardStat("minecraft:dropped:" + org.domi.furnace.server.item.ItemTools.itemName(stack), stack.count());
-            p.awardStat("minecraft:drop", 1);
         }
         return ie;
     }
@@ -2367,6 +2406,8 @@ public final class Region {
         var adv = p.advancements();
         boolean enterBlock = adv != null && adv.hasListeners("minecraft:enter_block");
         boolean slide = adv != null && adv.hasListeners("minecraft:slide_down_block");
+        // 바닐라는 첫 꿀 칸의 doSlideMovement 가 vy 를 -0.05 로 묶어 다음 칸은 isSlidingDown 이 거짓 — 한 move 에 한 칸만 미끄러진다
+        boolean slid = false;
         for (int bx = x0; bx <= x1; bx++) for (int by = y0; by <= y1; by++) for (int bz = z0; bz <= z1; bz++) {
             int s = level.getBlockState(new org.domi.furnace.server.block.Pos(bx, by, bz));
             var beh = org.domi.furnace.server.block.B.behavior(s);
@@ -2382,17 +2423,28 @@ public final class Region {
             } else if (insideCauldronOrSnow(p, beh, s, bx, by, bz)) {
                 // 용암·물·가루눈 가마솥, 가루눈
             } else if (beh instanceof org.domi.furnace.server.block.types.BigDripleafBlock bd) {
-                bd.entityInsideAt(s, level, new org.domi.furnace.server.block.Pos(bx, by, bz), p.onGround(), p.y());
+                bd.entityInsideAt(s, level, new org.domi.furnace.server.block.Pos(bx, by, bz), p.onGround(), p.y(), p);
             } else if (beh instanceof org.domi.furnace.server.block.types.SweetBerryBushBlock
                     && org.domi.furnace.server.block.types.SweetBerryBushBlock.hurtsPlayer(s, tickDx, tickDz)) {
                 p.vitals().hurt(org.domi.furnace.server.entity.damage.DamageType.byKey("sweet_berry_bush"), 1.0F);
             }
             if (enterBlock) adv.trigger("minecraft:enter_block", org.domi.furnace.server.loot.LootBlockState.of(world.blockRegistry(), s));
-            // HoneyBlock.entityInside → maybeDoSlideAchievement: 미끄러지는 중이면 20틱마다 slide_down_block (플레이어 이동은 서버가 아는 변위로)
-            if (slide && level.gameTime() % 20L == 0L && org.domi.furnace.server.block.B.behavior(s) instanceof org.domi.furnace.server.block.types.HoneyBlock
+            // HoneyBlock.entityInside: 미끄러지는 중이면 maybeDoSlideAchievement(20틱마다 slide_down_block) → maybeDoSlideEffects
+            // (플레이어 이동은 서버가 아는 변위로)
+            if (!slid && beh instanceof org.domi.furnace.server.block.types.HoneyBlock
                     && org.domi.furnace.server.block.types.HoneyBlock.isSlidingDown(new org.domi.furnace.server.block.Pos(bx, by, bz), p.onGround(),
                             p.x(), p.y(), p.z(), p.serverMovement()[1], 0.6)) {
-                adv.trigger("minecraft:slide_down_block", org.domi.furnace.server.loot.LootBlockState.of(world.blockRegistry(), s));
+                slid = true;
+                if (slide && level.gameTime() % 20L == 0L) {
+                    adv.trigger("minecraft:slide_down_block", org.domi.furnace.server.loot.LootBlockState.of(world.blockRegistry(), s));
+                }
+                org.domi.furnace.server.block.types.HoneyBlock.playerSlideEffects(level,
+                        () -> org.domi.furnace.server.entity.Shields.playSoundExceptSelf(p, level, "minecraft:block.honey_block.slide", 1.0F, 1.0F),
+                        () -> {
+                            var ev = new org.domi.furnace.server.net.protocol.play.EntityEvent(p.entityId(), (byte) 53);
+                            p.send(ev);
+                            p.vitals().broadcastToTrackers(ev);
+                        });
             }
         }
     }
@@ -2901,20 +2953,20 @@ public final class Region {
     private void collectCornerLoads(Player p, ChunkPos center, int vd) {
         var corners = p.cornerLoads();
         corners.clear();
-        if (skipsGeneration(p)) return;
+        // 관전자(규칙 꺼짐)여도 모은다 — 올릴 때(loadCornerChunks)만 거른다. 제자리에서 모드·게임룰이 바뀌어도 이 목록이 이미 있어 모서리가
+        // 올라온다(바닐라는 skipPlayer 변화를 보고 티켓을 단다). 구역 확보(want)도 올릴 때 한다 — 관전자에게 구역을 걸지 않으려고.
+        // 범위는 바닐라 플레이어 티켓처럼 *서버* 시야 정사각이다(클라 시야가 더 작아도 — heldByPlayerTicket·naturalSpawningAllowed 와 같은 판정).
+        int sq = Math.max(vd, Math.clamp(world.viewDistance(), 2, 32));
         List<ChunkPos> list = new ArrayList<>();
-        for (int dx = -vd; dx <= vd; dx++) {
-            for (int dz = -vd; dz <= vd; dz++) {
+        for (int dx = -sq; dx <= sq; dx++) {
+            for (int dz = -sq; dz <= sq; dz++) {
                 int x = center.x() + dx, z = center.z() + dz;
                 if (ChunkTrackingView.contains(center.x(), center.z(), vd, x, z) || world.isChunkLoaded(x, z)) continue;
                 list.add(new ChunkPos(x, z));
             }
         }
         orderNearestFirst(center, list);
-        for (ChunkPos cp : list) {
-            rz().want(cp.x(), cp.z(), this);   // 구역을 이 region 이 갖는다(다른 region 것이면 합칠 대상)
-            corners.add(cp);
-        }
+        corners.addAll(list);
     }
 
     /** 모서리 청크 올리기의 동시 상한: 보이는 청크의 생성 요청을 밀지 않게 동시 진행 상한의 4분의 1(최소 2). */
@@ -2924,6 +2976,15 @@ public final class Region {
 
     /** 모서리 청크(시야 정사각 ∖ 둥근 모양)를 조금씩 올린다. 둥근 모양으로 보낼 청크가 모두 나간 뒤에만 시작한다(보이는 것이 먼저). */
     private void loadCornerChunks(Player p) {
+        // 다 올렸거나 막 실패한 채 쉬는 동안 CORNER_RECOLLECT_TICKS 마다 목록을 다시 모은다(다음 updateChunks 가 queuedCenter(null) 을 보고 모은다,
+        // 이미 올라온 칸은 빠진다). 모은 뒤 상황이 바뀌는 경로(생존↔관전 왕복으로 내려간 모서리, 실행 중 서버 시야 증가, 로드 실패)를 신호
+        // 하나씩 달지 않고 한꺼번에 덮는다. 바닐라는 티켓이 남아 있는 한 모자라면 다시 올린다.
+        if (!skipsGeneration(p) && p.cornerLoads().isEmpty() && p.pendingChunks().isEmpty() && p.cornerInFlight().isEmpty()) {
+            if (p.cornerIdleTicks() + 1 >= CORNER_RECOLLECT_TICKS) {
+                p.cornerIdleTicks(0);
+                p.queuedCenter(null);
+            } else p.cornerIdleTicks(p.cornerIdleTicks() + 1);
+        } else p.cornerIdleTicks(0);
         var corners = p.cornerLoads();
         if (corners.isEmpty() || !p.pendingChunks().isEmpty() || skipsGeneration(p)) return;
         int slots = cornerLoadSlots() - p.cornerInFlight().size();
@@ -2932,11 +2993,15 @@ public final class Region {
             ChunkPos cp = it.next();
             it.remove();
             if (world.isChunkLoaded(cp.x(), cp.z()) || !p.chunkPrefetches().add(cp)) continue;
+            rz().want(cp.x(), cp.z(), this);   // 구역을 이 region 이 갖는다(다른 region 것이면 합칠 대상)
             p.cornerInFlight().add(cp);
             slots--;
             startPrefetch(p, cp).whenComplete((col, ex) -> p.cornerInFlight().remove(cp));
         }
     }
+
+    /** 모서리 목록을 다시 모으는 간격(틱). 시야 32 에서도 5초에 한 번 (2·32+1)² 칸 조회. */
+    private static final int CORNER_RECOLLECT_TICKS = 100;
 
     /**
      * 그 청크의 생성·디스크 로드를 건다(구독은 호출한 쪽이 이미 했거나 하지 않는다). 이 region 의 청크면 작업 큐(다음 틱)를 거치지 않고
@@ -2979,10 +3044,14 @@ public final class Region {
      *  스폰 청크가 첫 틱 소량 배치에 들어가 빨리 도착 → 클라가 즉시 안착(289개 일괄 async fan-out 회피).
      *  아직 끝나지 않은 요청이 상한(world.maxChunkSendsInFlight)에 닿으면 더 꺼내지 않는다 — 생성이 수요를 못 따라갈 때
      *  요청이 생성 큐에 한없이 쌓여(FIFO) 플레이어 바로 옆 청크까지 수십 초 밀리는 것을 막는다. 남은 청크는 대기열에 남아
-     *  플레이어가 움직이면 새 중심 기준으로 다시 정렬되므로, 다음에 꺼내는 것은 언제나 지금 위치에서 가장 가까운 청크다. */
+     *  플레이어가 움직이면 새 중심 기준으로 다시 정렬되므로, 다음에 꺼내는 것은 언제나 지금 위치에서 가장 가까운 청크다.
+     *  배치는 겹치지 않는다(앞 배치 Finished 전엔 새 배치를 열지 않음) — 한 배치의 가장 느린 청크가 끝나야 다음 배치가 열린다. */
     private void sendQueuedChunks(Player p) {
         if (p.pendingChunks().isEmpty()) return;
         if (world.autoChunkRate()) { sendQueuedChunksAuto(p); return; }
+        // 바닐라 PlayerChunkSender 처럼 배치는 겹치지 않는다: 앞 배치의 Finished 가 나가기 전엔 새 배치를 열지 않는다(auto 와 같은 규칙).
+        // 동시 진행 상한은 청크 단위라, 앞 배치 청크 일부만 끝나도 예산이 생겨 Start 가 앞 배치 안에 끼어들었다.
+        if (p.chunkBatchOpen()) return;
         int adaptive = p.chunkSendRate().nextBudget();   // 바닐라 PlayerChunkSender: 클라이언트가 알린 속도·미확인 배치 한도
         if (adaptive <= 0) return;
         int budget = Math.min(Math.min(world.chunksPerTick(), adaptive), world.maxChunkSendsInFlight() - p.chunkSendsInFlight().get());
@@ -2998,7 +3067,7 @@ public final class Region {
             it.remove();
         }
         if (batch.isEmpty()) return;
-        sendBatch(p, batch, false);
+        sendBatchGuarded(p, batch, false);
     }
 
     /** 매 틱 바뀌는 청크를 region 스레드에서 바로 직렬화하는 틱당 상한(이 region 의 모든 플레이어 합). 넘으면 다음 틱으로 미룬다. */
@@ -3040,7 +3109,7 @@ public final class Region {
                 // 바닐라 PlayerChunkSender 처럼 배치는 한 틱 안에 Start → 청크 → Finished 로 끝나야 한다(클라이언트가 그 시간으로 속도를 정한다).
                 // 본문이 아직 없으면 직렬화만 걸어 두고 다음 틱에 보낸다. 다른 region 청크는 예전처럼 배치 안에서 기다린다(드묾).
                 int body = mine(Regionizer.chunkKey(cp.x(), cp.z()))
-                        ? world.chunkBodyReadyOrPrefetch(cp, room, syncBodiesLeft > 0) : World.BODY_READY;
+                        ? world.chunkBodyReadyOrPrefetch(cp, room, syncBodiesLeft > 0, loadedOnly ? null : p.pendingChunks(), tickCount) : World.BODY_READY;
                 if (body == World.BODY_SYNC) syncBodiesLeft--;
                 if (room && body != World.BODY_PENDING) {
                     batch.add(cp);
@@ -3055,8 +3124,18 @@ public final class Region {
             }
         }
         if (!batch.isEmpty()) {
-            p.chunkBatchOpen(true);
-            sendBatch(p, batch, true).whenComplete((v, ex) -> p.chunkBatchOpen(false));
+            sendBatchGuarded(p, batch, true);
+        }
+    }
+
+    /** 배치를 연 표시를 하고 보낸다. Finished 가 나가면(또는 실패하면) 닫는다 — 동기 예외로 영영 열린 채 남지 않게. */
+    private void sendBatchGuarded(Player p, List<ChunkPos> batch, boolean inline) {
+        p.chunkBatchOpen(true);
+        try {
+            sendBatch(p, batch, inline).whenComplete((v, ex) -> p.chunkBatchOpen(false));
+        } catch (RuntimeException | Error e) {
+            p.chunkBatchOpen(false);
+            throw e;
         }
     }
 
@@ -3087,6 +3166,8 @@ public final class Region {
                         // gen 지연 동안 플레이어가 시야 밖으로 이동했거나(재구독 포함) 언로드됐으면 보내봐야 클라가
                         // "not in view range"로 버림 → 드롭. 위치는 volatile이라 완료 스레드서 안전하게 읽음.
                         if (inView(p, cp) && world.isSubscribed(cp, p, sub)) {
+                            var tap = world.chunkSendTap;
+                            if (tap != null) tap.accept(cp, body);
                             p.send(LevelChunkWithLight.ofShared(body));
                             sent.incrementAndGet();
                             world.chunkDelivered(cp, p, sub);   // 청크가 채널 큐에 들어간 뒤 보류된 변경을 흘려보낸다

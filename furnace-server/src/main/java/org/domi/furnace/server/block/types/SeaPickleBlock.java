@@ -28,7 +28,7 @@ public class SeaPickleBlock extends BushBlock implements BonemealableBlock {
 
     @Override
     protected boolean mayPlaceOn(int state, BlockLevel level, Pos pos) {
-        return !B.behavior(state).getCollisionShape(state, level, pos, null).isFaceEmpty(Dir.UP) || B.isFaceSturdy(state, level, pos, Dir.UP);
+        return !B.behavior(state).getCollisionShape(state, level, pos, org.domi.furnace.server.block.CollisionContext.EMPTY).isFaceEmpty(Dir.UP) || B.isFaceSturdy(state, level, pos, Dir.UP);
     }
 
     @Override

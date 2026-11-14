@@ -19,7 +19,7 @@ import org.domi.furnace.server.entity.ai.goal.*;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
-public class Shulker extends AbstractGolem implements Enemy {
+public class Shulker extends AbstractGolem implements Enemy, HardCollider {
 
     @Override
     protected MovementEmission getMovementEmission() { return MovementEmission.NONE; }
@@ -153,9 +153,10 @@ public class Shulker extends AbstractGolem implements Enemy {
         if (isPositionBlocked(pos)) return false;
         int opposite = Dir.opposite(face);
         Pos support = pos.relative(face);
-        if (!level.hasChunkAt(support) || !B.isFaceSturdy(level.getBlockState(support), level, support, opposite)) return false;
+        // loadedAndEntityCanStandOnFace(support, this, opposite): 셜커 문맥의 충돌 모양 면
+        if (!level.hasChunkAt(support) || !B.entityCanStandOnFace(level.getBlockState(support), level, support, this, opposite)) return false;
         AABB a = progressAabb(1.0F, opposite, 1.0F).move(pos.x(), pos.y(), pos.z()).deflate(1.0E-6);
-        return level.noCollision(a);
+        return level.noCollision(this, a);
     }
 
     private int findAttachableSurface(Pos pos) {
@@ -239,7 +240,7 @@ public class Shulker extends AbstractGolem implements Enemy {
             for (int i = 0; i < 5; i++) {
                 Pos p = pos.offset(random.nextInt(17) - 8, random.nextInt(17) - 8, random.nextInt(17) - 8);
                 if (p.y() > level.minBuildHeight() && level.isEmptyBlock(p) && level.isInWorldBounds(p)
-                        && level.noCollision(new AABB(p.x(), p.y(), p.z(), p.x() + 1.0, p.y() + 1.0, p.z() + 1.0).deflate(1.0E-6))) {
+                        && level.noCollision(this, new AABB(p.x(), p.y(), p.z(), p.x() + 1.0, p.y() + 1.0, p.z() + 1.0).deflate(1.0E-6))) {
                     int d = findAttachableSurface(p);
                     if (d >= 0) {
                         setAttachFace(d);
@@ -311,6 +312,9 @@ public class Shulker extends AbstractGolem implements Enemy {
     }
 
     @Override public boolean isPickable() { return isAlive(); }
+
+    /** 살아 있는 셜커는 단단해 다른 엔티티가 위에 서고 부딪힌다. */
+    @Override public boolean canBeCollidedWith() { return isAlive(); }
 
     // ------------------------------------------------------------------ 목표
 

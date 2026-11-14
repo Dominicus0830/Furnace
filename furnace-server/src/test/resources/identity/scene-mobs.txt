@@ -1,0 +1,11 @@
+# 결과 동일 금 파일 — scene-mobs. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
+mobs tick 0 entities 499c99fa88efe015
+mobs tick 0 random 4d7fb84ecc98c8a3
+mobs tick 0 count 120
+mobs tick 50 entities 8a642ab6158116ff
+mobs tick 50 random 6919c0f6fe5765f5
+mobs tick 50 count 120
+mobs tick 100 entities bc3fcda9d0fe5fe5
+mobs tick 100 random ad7f0ca151150f5f
+mobs tick 100 count 113
+TOTAL db3d009e026676c9 lines=9

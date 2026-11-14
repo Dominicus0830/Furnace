@@ -165,7 +165,7 @@ public abstract class AbstractArrow extends Projectile {
         inGroundTime = 0;
         double sx = x(), sy = y(), sz = z();
         double ex = sx + dmx, ey = sy + dmy, ez = sz + dmz;
-        var br = org.domi.furnace.server.block.Clip.clipCollider(level, sx, sy, sz, ex, ey, ez);
+        var br = org.domi.furnace.server.block.Clip.clipCollider(level, org.domi.furnace.server.block.CollisionContext.of(this), sx, sy, sz, ex, ey, ez);
         if (!br.miss()) {
             ex = br.x();
             ey = br.y();
@@ -227,6 +227,7 @@ public abstract class AbstractArrow extends Projectile {
         @Override public Pos blockPosition() { return cart.blockPosition(); }
         @Override public boolean isAlive() { return !cart.isRemoved(); }
         @Override public boolean canBeSeenAsEnemy() { return false; }
+        @Override public boolean canBeSeenByAnyone() { return false; }   // LivingEntity 가 아니라 대상 조건에 들 수 없다
         @Override public double visibilityPercent(Entity looker) { return 1.0; }
         @Override public boolean isPlayer() { return false; }
         @Override public boolean hurtByMob(Entity.Damage source, float amount, Mob attacker) { return cart.hurtBy(source, amount, attacker); }
@@ -265,13 +266,20 @@ public abstract class AbstractArrow extends Projectile {
     }
 
     private boolean shouldFall() {
-        return inGround && level.noCollision(boundingBox().inflate(0.06));
+        return inGround && level.noCollision(new AABB(x(), y(), z(), x(), y(), z()).inflate(0.06));   // 바닐라: 위치 점을 0.06 넓힌 상자(몸 상자 아님)
     }
 
     private void startFalling() {
         inGround = false;
         setDeltaMovement(vx() * random.nextFloat() * 0.2F, vy() * random.nextFloat() * 0.2F, vz() * random.nextFloat() * 0.2F);
         life = 0;
+    }
+
+    /** Spigot AbstractArrow.inactiveTick: 박혀 있으면 사라짐 시계(life)만 센다(사라짐 판정은 다시 활성일 때). */
+    @Override
+    public void inactiveTick() {
+        if (inGround) life += 1;
+        super.inactiveTick();
     }
 
     protected void tickDespawn() {

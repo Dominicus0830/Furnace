@@ -61,6 +61,29 @@ public final class B {
         return level.gameEvents().blockFade(level.dimension(), pos, level.getBlockState(pos), newState);
     }
 
+    /**
+     * CraftEventFactory.callEntityChangeBlockEvent(who, pos, newState): 플러그인 EntityChangeBlockEvent 가 허락하는가(바꾸는 일은 부른 쪽이).
+     * 구독자가 없으면 블록을 읽지 않고 곧바로 true.
+     */
+    public static boolean entityChange(BlockLevel level, org.domi.furnace.server.entity.Rider who, Pos pos, int newState) {
+        return entityChange(level, who, pos, newState, false);
+    }
+
+    /** 미리 취소한 채로 묻는 판(Paper 가 게임 규칙 거짓을 cancelled 로 넘기는 자리): 구독자가 없으면 !cancelled. */
+    public static boolean entityChange(BlockLevel level, org.domi.furnace.server.entity.Rider who, Pos pos, int newState, boolean cancelled) {
+        var ev = level.gameEvents();
+        if (!ev.wantsEntityChangeBlock()) return !cancelled;
+        return ev.entityChangeBlock(level.dimension(), who, pos, level.getBlockState(pos), newState, cancelled);
+    }
+
+    /** 블록 행위자(플레이어 손잡이)판 — 행위자가 엔티티·플레이어가 아니면(시험용 가짜 등) 묻지 않고 true. */
+    public static boolean entityChange(BlockLevel level, BlockActor actor, Pos pos, int newState) {
+        return actor == null || !(actor.handle() instanceof org.domi.furnace.server.entity.Rider who) || entityChange(level, who, pos, newState, false);
+    }
+
+    /** Paper 의 "state.getFluidState().createLegacyBlock()" — 블록을 없앨 때 이벤트에 알리는 새 상태(잠긴 블록이면 물, 아니면 공기). */
+    public static int fluidLeftover(int state) { return Fluids.createLegacyBlock(behavior(state).getFluidState(state)); }
+
     public static int defaultState(String name) { return BLOCKS.defaultState(id(name)); }
 
     public static Prop prop(String name) { return BLOCKS.prop(name); }
@@ -125,6 +148,19 @@ public final class B {
     }
 
     public static boolean isFaceSturdy(int state, BlockLevel level, Pos pos, int dir) { return isFaceSturdy(state, level, pos, dir, BlockInfo.FULL); }
+
+    /**
+     * BlockState.entityCanStandOnFace(level, pos, entity, dir) = Block.isFaceFull(getCollisionShape(level, pos, CollisionContext.of(entity)), dir).
+     * 지지 모양(isFaceSturdy)이 아니라 그 엔티티 문맥의 충돌 모양을 본다 — 잎(지지 모양 빔)·영혼 모래(충돌 14/16)·비계(위에 없으면 빔)에서 갈린다.
+     */
+    public static boolean entityCanStandOnFace(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Rider entity, int dir) {
+        return behavior(state).getCollisionShape(state, level, pos, CollisionContext.of(entity)).isFaceFull(dir);
+    }
+
+    /** BlockState.entityCanStandOn(level, pos, entity): 윗면(entityCanStandOnFace UP). */
+    public static boolean entityCanStandOn(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Rider entity) {
+        return entityCanStandOnFace(state, level, pos, entity, Dir.UP);
+    }
 
     /** Block.canSupportRigidBlock(level, pos) — 그 칸의 윗면이 RIGID. */
     public static boolean canSupportRigidBlock(BlockLevel level, Pos pos) {
@@ -220,5 +256,15 @@ public final class B {
     public static boolean isSolid(int state) { return INFO.legacySolid(state); }
 
     /** 상태의 유체. */
-    public static int fluid(int state) { return behavior(state).getFluidState(state); }
+    public static int fluid(int state) {
+        int[] t = FLUID_TABLE;
+        if (t == null) {
+            t = new int[BLOCKS.stateCount()];
+            for (int i = 0; i < t.length; i++) t[i] = behavior(i).getFluidState(i);
+            FLUID_TABLE = t;
+        }
+        return t[state];
+    }
+
+    private static volatile int[] FLUID_TABLE;   // 상태별 유체 표 — 모든 getFluidState 가 상태만의 함수라 첫 호출에 한 번 채운다(T-050)
 }

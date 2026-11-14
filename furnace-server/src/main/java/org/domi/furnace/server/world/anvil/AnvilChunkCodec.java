@@ -3,7 +3,8 @@
 // - 높이맵 4종, 상자는 바닐라 형식(id·Items{Slot,id,count}), 생성된 미지원 블록 엔티티·엔티티는 NBT 그대로 보존
 // - 모르는 최상위 키(structures·틱 목록·다른 서버 확장 등)는 읽은 값을 그대로 되돌려 쓴다
 // - 완성되지 않은(Status ≠ full) 청크는 읽지 않고 null — 호출 측이 새로 생성한다
-// 조명은 아직 서버가 계산하지 않으므로 isLightOn=0 으로 써서 바닐라가 열면 다시 계산하게 한다.
+// 빛: 있으면 isLightOn=1 과 섹션 SkyLight·BlockLight(모두 0 인 층은 뺀다)와 furnace:light_version 을 쓴다. 읽을 때는 이 표시가 맞는
+// (Furnace 가 쓴) 빛만 믿고, 바닐라·다른 서버 청크의 빛은 버리고 다시 계산한다(T-012).
 package org.domi.furnace.server.world.anvil;
 
 import org.domi.furnace.server.entity.ItemStack;
@@ -16,6 +17,7 @@ import org.domi.furnace.server.world.ChestBlockEntity;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSection;
 import org.domi.furnace.server.world.ChunkSnapshot;
+import org.domi.furnace.server.world.FirstSeenIndex;
 import org.domi.furnace.server.world.ItemRegistry;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -32,7 +34,14 @@ public final class AnvilChunkCodec {
     private static final String FURNACE_COMPONENTS = "furnace:components";
     /** 서버가 직접 해석·재작성하는 최상위 키. 나머지는 extraNbt 로 보존된다. */
     private static final Set<String> KNOWN_KEYS = Set.of("DataVersion", "xPos", "zPos", "yPos", "Status", "LastUpdate",
-            "sections", "Heightmaps", "block_entities", "entities", "isLightOn", "InhabitedTime", "PostProcessing", "structures");
+            "sections", "Heightmaps", "block_entities", "entities", "isLightOn", "InhabitedTime", "PostProcessing", "structures",
+            AnvilChunkCodec.LIGHT_VERSION_KEY);
+    /**
+     * Furnace 가 쓴 빛 표시(T-012): 이 판의 빛 엔진으로 계산해 쓴 빛이면 읽을 때 다시 계산하지 않고 그대로 쓴다. 표시가 없거나 다르면
+     * (바닐라·Paper·옛 Furnace 가 쓴 청크, 빛 엔진이 바뀐 뒤) 지금처럼 다시 계산한다. **빛 엔진의 결과가 바뀌는 수정을 하면 올린다**(light-batch-scene 빛 줄 bless — docs/testing/identitykit.md).
+     */
+    public static final String LIGHT_VERSION_KEY = "furnace:light_version";
+    public static final int LIGHT_VERSION = 1;
 
     private final BlockRegistry registry;
     private final ItemRegistry items; // null 이면 상자를 초기 Furnace 형식으로 쓴다(바닐라 문자열 id 를 모름)
@@ -83,25 +92,27 @@ public final class AnvilChunkCodec {
         root.putLong("LastUpdate", gameTime.getAsLong());
         root.putLong("InhabitedTime", save != null ? save.inhabitedTime() : 0L);
         root.put("isLightOn", (byte) (snap.light() != null ? 1 : 0));
+        if (snap.light() != null) root.putInt(LIGHT_VERSION_KEY, LIGHT_VERSION);
 
         ChunkSnapshot.Section[] secs = snap.sections();
         NbtList sections = new NbtList(NbtIo.TAG_COMPOUND);
         int minSection = colMinY >> 4;
         // 빛 배열은 ChunkLight.MIN_SECTION 부터 — 이 차원의 맨 아래 빛 섹션(minSection - 1)의 자리
         int lightBase = minSection - 1 - org.domi.furnace.server.light.ChunkLight.MIN_SECTION;
+        boolean skyColumn = hasAnySky(snap.light(), lightBase, secs.length + 2);
         for (int i = 0; i < secs.length; i++) {
             NbtCompound s = new NbtCompound();
-            s.putCompound("block_states", blockStatesFromArray(secs[i].blocks()));
-            s.putCompound("biomes", biomesFromArray(secs[i].biomes()));
+            s.putCompound("block_states", blockStates(secs[i]));
+            s.putCompound("biomes", biomes(secs[i]));
             s.putByte("Y", (byte) (minSection + i));
-            putLight(s, snap.light(), lightBase + i + 1);
+            putLight(s, snap.light(), lightBase + i + 1, skyColumn);
             sections.add(s);
         }
         if (snap.light() != null) {   // 바닐라처럼 위·아래 빛 전용 섹션도 쓴다(비어 있으면 생략)
             for (int li : new int[]{0, secs.length + 1}) {
                 NbtCompound s = new NbtCompound();
                 s.putByte("Y", (byte) (minSection - 1 + li));
-                putLight(s, snap.light(), lightBase + li);
+                putLight(s, snap.light(), lightBase + li, skyColumn);
                 if (s.contains("SkyLight") || s.contains("BlockLight")) sections.add(s);
             }
         }
@@ -158,7 +169,7 @@ public final class AnvilChunkCodec {
         int sec = (y - colMinY) >> 4;
         ChunkSnapshot.Section[] secs = snap.sections();
         if (sec < 0 || sec >= secs.length) return null;
-        int state = secs[sec].blocks()[((y - colMinY) & 15) * 256 + lz * 16 + lx];
+        int state = secs[sec].blockAt(((y - colMinY) & 15) * 256 + lz * 16 + lx);
         return registry.nameOf(state);
     }
 
@@ -193,6 +204,41 @@ public final class AnvilChunkCodec {
         e.putInt("y", y);
         e.putInt("z", z);
         return e;
+    }
+
+    /**
+     * T-015: 섹션을 int[4096] 으로 펼치지 않고 묶인 팔레트에서 첫 등장 순 색인으로 바로 — {@link #blockStatesFromArray} 와 같은 NBT.
+     * 펼친 배열만 있거나 직접 저장(서로 다른 값 257개 이상)이면 옛 경로.
+     */
+    private NbtCompound blockStates(ChunkSnapshot.Section sec) {
+        FirstSeenIndex ix = sec.blockIndex();
+        if (ix == null) return blockStatesFromArray(sec.blocks());
+        int distinct = ix.size();
+        NbtList paletteList = new NbtList(NbtIo.TAG_COMPOUND);
+        for (int i = 0; i < distinct; i++) paletteList.add(paletteEntryOf(ix.value(i)));
+        NbtCompound bs = new NbtCompound();
+        bs.putList("palette", paletteList);
+        // 원본 묶인 배열을 그대로 받을 수 있다 — 스냅샷 읽기 사본의 것이라 아무도 고치지 않는다.
+        // 이 NBT 를 바깥(플러그인 등)에 넘겨 고칠 수 있게 하려면 data 를 clone 해서 넘긴다
+        if (distinct > 1) bs.putLongArray("data", ix.pack(Math.max(4, ceillog2(distinct))));
+        return bs;
+    }
+
+    /** {@link #blockStates} 의 바이옴판 — {@link #biomesFromArray} 와 같은 NBT. */
+    private NbtCompound biomes(ChunkSnapshot.Section sec) {
+        if (biomeNames == null) return biomesFromArray(null);
+        FirstSeenIndex ix = sec.biomeIndex();
+        if (ix == null) return biomesFromArray(sec.biomes());
+        NbtCompound out = new NbtCompound();
+        NbtList paletteList = new NbtList(NbtIo.TAG_STRING);
+        int distinct = ix.size();
+        for (int i = 0; i < distinct; i++) {
+            int id = ix.value(i);
+            paletteList.add(id >= 0 && id < biomeNames.size() ? biomeNames.get(id) : "minecraft:plains");
+        }
+        out.putList("palette", paletteList);
+        if (distinct > 1) out.putLongArray("data", ix.pack(ceillog2(distinct)));
+        return out;
     }
 
     /** PalettedContainer.pack 의 블록 상태 형식. */
@@ -298,10 +344,23 @@ public final class AnvilChunkCodec {
         return entry;
     }
 
-    private static void putLight(NbtCompound s, ChunkSnapshot.Light l, int idx) {
+    /**
+     * 하늘빛은 하늘이 있는 열(어느 층이든 0 이 아닌 하늘빛)이면 모두 0 인 층도 쓴다. 바닐라는 빠진 하늘빛 층을 0 이 아니라 위쪽 층의 맨 아래 줄로
+     * 채울 수 있다(SkyLightSectionStorage.createDataLayer → repeatFirstLayer, 섹션을 위에서 아래로 만들 때) — 반 블록 지붕 아래 밀폐된
+     * 어두운 방처럼 맨 아래 줄이 밝은 층 밑의 0 층을 빼면 바닐라가 이 월드를 열 때 방 전체가 하늘빛 15 가 된다(바닐라 서버로 확인,
+     * docs/feature-parity/context-notes/2026-11-13-skylight-zero-layers.md). 바닐라도 한 번 빛이 닿았다 0 이 된 층은 0 배열로 쓴다.
+     * 블록빛은 빠진 층을 늘 0 으로 만들므로(BlockLightSectionStorage) 모두 0 이면 뺀다. 하늘 없는 차원은 하늘빛을 쓰지 않는다.
+     */
+    private static void putLight(NbtCompound s, ChunkSnapshot.Light l, int idx, boolean skyColumn) {
         if (l == null) return;
-        if (nonZero(l.sky()[idx])) s.putByteArray("SkyLight", l.sky()[idx]);
+        if (skyColumn || nonZero(l.sky()[idx])) s.putByteArray("SkyLight", l.sky()[idx]);
         if (nonZero(l.block()[idx])) s.putByteArray("BlockLight", l.block()[idx]);
+    }
+
+    private static boolean hasAnySky(ChunkSnapshot.Light l, int from, int count) {
+        if (l == null) return false;
+        for (int i = from; i < from + count; i++) if (nonZero(l.sky()[i])) return true;
+        return false;
     }
 
     private static boolean nonZero(byte[] a) {
@@ -330,6 +389,7 @@ public final class AnvilChunkCodec {
             }
             if (biomeNames != null && s.contains("biomes")) applyBiomes(col, sectionIdx, s.getCompound("biomes"));
         }
+        readStoredLight(root, sections, col, minSection);
         col.rebuildHeightmapsAfterSurface();
         if (root.contains("block_entities")) {
             for (Object o : root.getList("block_entities").items()) {
@@ -395,6 +455,36 @@ public final class AnvilChunkCodec {
         if (extraStructures != null) extra.put("structures", extraStructures);
         if (!extra.tags().isEmpty()) col.extraNbt(extra);
         return col;
+    }
+
+    /**
+     * Furnace 가 이 판의 빛 엔진으로 쓴 빛이면 읽어 col 에 둔다(col.lightStored). 바닐라 ChunkSerializer.read 처럼 isLightOn 이면 섹션의
+     * SkyLight·BlockLight 를 쓴다 — 없는 층은 0(우리 쓰기는 모두 0 인 블록빛 층과 하늘 없는 열의 하늘빛 층을 뺀다). 표시·판·높이가 하나라도 안 맞으면 읽지 않는다(다시 계산).
+     */
+    private void readStoredLight(NbtCompound root, NbtList sections, ChunkColumn col, int minSection) {
+        if (!(root.tags().get(LIGHT_VERSION_KEY) instanceof Integer v) || v != LIGHT_VERSION) return;
+        if (!(root.tags().get("isLightOn") instanceof Byte on) || on != 1) return;
+        if (!(root.tags().get("DataVersion") instanceof Integer dv) || dv != DATA_VERSION) return;
+        if (root.tags().get("yPos") instanceof Integer yPos && yPos != minSection) return;
+        int n = org.domi.furnace.server.light.ChunkLight.SECTIONS;
+        byte[][] sky = new byte[n][], block = new byte[n][];
+        for (Object o : sections.items()) {
+            NbtCompound s = (NbtCompound) o;
+            int y = s.getByte("Y");
+            if (y < minSection - 1 || y > minSection + sectionCount) continue;   // 이 차원의 빛 섹션(위·아래 한 칸 포함)만
+            int idx = y - org.domi.furnace.server.light.ChunkLight.MIN_SECTION;
+            if (idx < 0 || idx >= n) continue;
+            if (s.tags().get("SkyLight") instanceof byte[] a) {
+                if (a.length != org.domi.furnace.server.light.ChunkLight.LAYER_BYTES) return;
+                sky[idx] = a;
+            }
+            if (s.tags().get("BlockLight") instanceof byte[] a) {
+                if (a.length != org.domi.furnace.server.light.ChunkLight.LAYER_BYTES) return;
+                block[idx] = a;
+            }
+        }
+        col.light(org.domi.furnace.server.light.ChunkLight.fromLayers(sky, block));
+        col.lightStored(true);
     }
 
     /** 바닐라 1.21 상자: Items[{Slot:byte, id:"minecraft:..", count:int, components?}]. components 는 바닐라 코덱으로 읽는다. */

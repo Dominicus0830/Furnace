@@ -82,6 +82,9 @@ class EventBridgeTest {
             Location at = new Location(w, 1, 64, 2);
             Location to = new Location(w, 5, 64, 6);
             var recorder = server.plugin("Recorder");
+            // 스폰·버리기 이벤트는 월드에 있는 엔티티 핸들이 필요하다(몹과 떨어진 아이템 엔티티)
+            var pig = server.await(server.overworld().spawnEntity("minecraft:pig", p.location()));
+            var itemEntity = server.await(server.overworld().spawnEntity("minecraft:item", p.location()));
             Map<Class<?>, Supplier<org.domi.furnace.api.event.Event>> fire = new java.util.LinkedHashMap<>();
             fire.put(org.bukkit.event.player.PlayerChannelEvent.class, () -> new org.domi.furnace.api.event.player.PlayerChannelEvent(p, "mod:a",
                     org.domi.furnace.api.event.player.PlayerChannelEvent.Action.REGISTER));
@@ -166,6 +169,36 @@ class EventBridgeTest {
                     new Location(w, 1.5, 65.5, 2.5),
                     new org.domi.furnace.api.inventory.InventorySnapshot("minecraft:hopper", java.util.Collections.nCopies(5, org.domi.furnace.api.item.ItemStack.EMPTY)),
                     new Location(w, 1.5, 64.5, 2.5), stone, false));
+
+            // 서버가 이미 내던 이벤트 여섯(O12 H1)
+            fire.put(org.bukkit.event.block.BlockPlaceEvent.class, () -> new org.domi.furnace.api.event.block.BlockPlaceEvent(w, bp,
+                    org.domi.furnace.api.world.BlockData.of("minecraft:stone"), org.domi.furnace.api.world.BlockData.AIR, new BlockPos(1, 63, 2), p, stone, true));
+            fire.put(org.bukkit.event.block.BlockGrowEvent.class, () -> new org.domi.furnace.api.event.block.BlockGrowEvent(w, bp,
+                    org.domi.furnace.api.world.BlockData.of("minecraft:wheat"), org.domi.furnace.api.world.BlockData.of("minecraft:wheat")));
+            fire.put(org.bukkit.event.block.BlockFadeEvent.class, () -> new org.domi.furnace.api.event.block.BlockFadeEvent(w, bp, stoneData,
+                    org.domi.furnace.api.world.BlockData.AIR));
+            fire.put(org.bukkit.event.block.BlockExplodeEvent.class, () -> new org.domi.furnace.api.event.block.BlockExplodeEvent(w, bp, "minecraft:red_bed",
+                    new ArrayList<>(List.of(new BlockPos(1, 64, 3))), org.domi.furnace.api.event.cause.CauseChain.NONE, 1f, "DESTROY"));
+            fire.put(org.bukkit.event.entity.EntitySpawnEvent.class, () -> new org.domi.furnace.api.event.entity.EntitySpawnEvent(pig));
+            fire.put(org.bukkit.event.player.PlayerDropItemEvent.class, () -> new org.domi.furnace.api.event.player.PlayerDropItemEvent(p, stone, itemEntity));
+
+            // 보호 이벤트 여섯(T-040a)
+            var snowball = server.await(server.overworld().spawnEntity("minecraft:snowball", p.location()));
+            fire.put(org.bukkit.event.entity.EntityExplodeEvent.class, () -> new org.domi.furnace.api.event.entity.EntityExplodeEvent(pig, at,
+                    new ArrayList<>(List.of(new BlockPos(1, 64, 3))), org.domi.furnace.api.event.cause.CauseChain.NONE, 1f, "DESTROY"));
+            fire.put(org.bukkit.event.block.BlockPistonExtendEvent.class, () -> new org.domi.furnace.api.event.block.BlockPistonExtendEvent(w, bp, "up", false,
+                    List.of(new BlockPos(1, 65, 2))));
+            fire.put(org.bukkit.event.block.BlockPistonRetractEvent.class, () -> new org.domi.furnace.api.event.block.BlockPistonRetractEvent(w, bp, "up", true,
+                    List.of(new BlockPos(1, 66, 2))));
+            fire.put(org.bukkit.event.block.BlockFormEvent.class, () -> new org.domi.furnace.api.event.block.BlockFormEvent(w, bp,
+                    org.domi.furnace.api.world.BlockData.of("minecraft:lava"), org.domi.furnace.api.world.BlockData.of("minecraft:obsidian")));
+            fire.put(org.bukkit.event.block.BlockSpreadEvent.class, () -> new org.domi.furnace.api.event.block.BlockSpreadEvent(w, bp, new BlockPos(1, 64, 3),
+                    org.domi.furnace.api.world.BlockData.of("minecraft:dirt"), org.domi.furnace.api.world.BlockData.of("minecraft:grass_block")));
+            fire.put(org.bukkit.event.entity.ProjectileHitEvent.class, () -> new org.domi.furnace.api.event.entity.ProjectileHitEvent(snowball, null,
+                    new org.domi.furnace.api.world.BlockSnapshot(w, bp, stoneData), "up"));
+            // EntityChangeBlock(T-040b)
+            fire.put(org.bukkit.event.entity.EntityChangeBlockEvent.class, () -> new org.domi.furnace.api.event.entity.EntityChangeBlockEvent(pig, w, bp,
+                    org.domi.furnace.api.world.BlockData.of("minecraft:grass_block"), org.domi.furnace.api.world.BlockData.of("minecraft:dirt")));
 
             // 시험이 빠뜨린 짝이 없는지: 다리가 아는 이벤트 = 이 시험이 발행한 이벤트
             assertEquals(EventBridge.bridgedEvents(), new HashSet<Class<?>>(fire.keySet()));

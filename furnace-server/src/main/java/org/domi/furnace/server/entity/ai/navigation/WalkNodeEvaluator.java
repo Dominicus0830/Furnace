@@ -164,7 +164,7 @@ public class WalkNodeEvaluator extends NodeEvaluator {
     public static double getFloorLevel(org.domi.furnace.server.block.ChunkLevel level, Pos pos) {
         Pos below = pos.below();
         int s = level.getBlockState(below);
-        double[] b = BlockBehaviors.of(s).getCollisionShape(s, level, below, null).bounds();
+        double[] b = BlockBehaviors.of(s).getCollisionShape(s, level, below, org.domi.furnace.server.block.CollisionContext.EMPTY).bounds();
         return below.y() + (b == null ? 0.0 : b[4]);
     }
 
@@ -253,7 +253,8 @@ public class WalkNodeEvaluator extends NodeEvaluator {
         return getBlockedNode(x, y, z);
     }
 
-    private boolean hasCollisions(AABB box) { return collisionCache.computeIfAbsent(box, b -> !level.noCollision(b)); }
+    /** 바닐라 noCollision(mob, box) — PathNavigationRegion 위라 엔티티 충돌은 없고 블록(mob 문맥)·월드 보더만 본다. */
+    private boolean hasCollisions(AABB box) { return collisionCache.computeIfAbsent(box, b -> !level.noCollisionIgnoringEntities(mob, b)); }
 
     protected PathType getCachedPathType(int x, int y, int z) {
         long key = new Pos(x, y, z).asLong();

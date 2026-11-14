@@ -14,7 +14,9 @@ public class WaterlilyBlock extends BushBlock {
     @Override
     public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
         super.entityInside(state, level, pos, entity);
-        if (entity instanceof org.domi.furnace.server.entity.Boat) level.destroyBlockByEntity(pos, true, entity);
+        // CraftBukkit(+Paper 새 상태): EntityChangeBlockEvent 를 막으면 부수지 않는다
+        if (entity instanceof org.domi.furnace.server.entity.Boat
+                && org.domi.furnace.server.block.B.entityChange(level, entity, pos, org.domi.furnace.server.block.B.fluidLeftover(state))) level.destroyBlockByEntity(pos, true, entity);
     }
 
     @Override

@@ -1,0 +1,201 @@
+// 빛 작업 한 묶음(T-064, 바닐라 ThreadedLevelLightEngine 의 빛 스레드 몫). region 스레드가 넘긴 블록 읽기 사본(얼린 구역)과
+// 보이는 빛의 쓰기 사본 위에서 빛 스레드가 계산한다. 결과(복사해 고친 층·원천 높이·바뀐 섹션 표시)는 region 스레드가 넣는다.
+package org.domi.furnace.server.light;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public final class LightBatch implements LightWorld {
+
+    /** 이 묶음이 아는 청크 하나: 블록 읽기 사본, 보이는 빛, 그 쓰기 사본. */
+    public static final class Column {
+        public final int cx, cz;
+        final LevelLight.StateReader blocks;
+        public final ChunkLight visible;
+        final ChunkLight copy;
+
+        Column(int cx, int cz, LevelLight.StateReader blocks, ChunkLight visible) {
+            this.cx = cx;
+            this.cz = cz;
+            this.blocks = blocks;
+            this.visible = visible;
+            this.copy = ChunkLight.writeCopyOf(visible);
+        }
+    }
+
+    /** 바뀐 빛 섹션 표시를 받는 쪽(ChunkHolder.sectionLightChanged 와 같은 꼴 — 키 = sx<<32 | sz, {하늘빛, 블록빛} 마스크). */
+    public interface Marks {
+        void mark(long chunkKey, long skyMask, long blockMask);
+    }
+
+    private final int minY, maxY, unloadedState;
+    private final VirtualLights virtualLights;
+    private final LevelLight engine;
+
+    // 청크 키 → Column (열린 주소법, 키 0 도 쓰므로 쓰임 표시를 따로 둔다)
+    private long[] keys = new long[64];
+    private Column[] vals = new Column[64];
+    private int size;
+    private final List<Column> columns = new ArrayList<>();
+
+    // 바뀐 섹션 표시(작업 안에서 모은다): 키 → {하늘빛, 블록빛}
+    private final java.util.HashMap<Long, long[]> marks = new java.util.HashMap<>();
+    private int lastX = Integer.MIN_VALUE, lastY, lastZ;
+    private boolean lastSky;
+
+    public LightBatch(int minY, int maxY, int unloadedState, boolean hasSkyLight, VirtualLights virtualLights) {
+        this.minY = minY;
+        this.maxY = maxY;
+        this.unloadedState = unloadedState;
+        this.virtualLights = virtualLights;
+        this.engine = new LevelLight(this, hasSkyLight);
+    }
+
+    /** 이 묶음의 엔진 — region 의 미처리 일을 {@link LevelLight#moveWorkTo} 로 받는다. */
+    public LevelLight engine() { return engine; }
+
+    // ------------------------------------------------------------------ region 스레드: 묶음 채우기
+
+    /** 빛이 있는 청크 하나를 이 묶음 세계에 넣는다(이미 있으면 무시). blocks 는 계산이 끝날 때까지 바뀌지 않아야 한다. */
+    public boolean addColumn(int cx, int cz, LevelLight.StateReader blocks, ChunkLight visible) {
+        long key = key(cx, cz);
+        if (find(key) != null) return false;
+        Column c = new Column(cx, cz, blocks, visible);
+        put(key, c);
+        columns.add(c);
+        return true;
+    }
+
+    public boolean hasColumn(int cx, int cz) { return find(key(cx, cz)) != null; }
+
+    public List<Column> columns() { return columns; }
+
+    // ------------------------------------------------------------------ 빛 스레드: 계산
+
+    private final java.util.concurrent.atomic.AtomicBoolean claimed = new java.util.concurrent.atomic.AtomicBoolean();
+
+    /** 이 묶음을 돌릴 쪽을 정한다 — 처음 부른 쪽(빛 스레드 또는 기다리다 빼앗는 region 스레드)만 true. */
+    public boolean claim() { return claimed.compareAndSet(false, true); }
+
+    /** 계산: 미룬 하늘빛 원천 고치기 → 칸 검사·전파. 블록을 하나씩 바꾸며 그 자리에서 계산한 것과 고정점(빛 값)이 같다. {@link #claim} 한 쪽만. */
+    public void run() {
+        engine.runUpdates();   // runUpdates 가 미룬 원천 고치기를 먼저 한다
+    }
+
+    // ------------------------------------------------------------------ region 스레드: 결과 넣기
+
+    /** 계산이 끝난 뒤 region 스레드에서: 바꾼 빛을 보이는 쪽에 넣고 바뀐 섹션 표시를 넘긴다. */
+    public void publish(Marks out) {
+        for (Column c : columns) c.copy.publishTo(c.visible);
+        for (var e : marks.entrySet()) out.mark(e.getKey(), e.getValue()[0], e.getValue()[1]);
+    }
+
+    // ------------------------------------------------------------------ LightWorld
+
+    private Column col(int cx, int cz) { return find(key(cx, cz)); }
+
+    @Override public ChunkLight light(int cx, int cz) {
+        Column c = col(cx, cz);
+        return c == null ? null : c.copy;
+    }
+
+    @Override public int state(int x, int y, int z) {
+        if (y < minY || y >= maxY) return 12958;   // void_air
+        return col(x >> 4, z >> 4).blocks.state(x, y, z);
+    }
+
+    @Override public int uniformSectionState(int cx, int sy, int cz) {
+        Column c = col(cx, cz);
+        return c == null ? -1 : c.blocks.uniformSectionState(sy);
+    }
+
+    @Override public boolean sectionMayEmit(int cx, int sy, int cz) {
+        Column c = col(cx, cz);
+        return c == null || c.blocks.sectionMayEmit(sy);
+    }
+
+    @Override public boolean sectionHasOnlyAir(int cx, int sy, int cz) {
+        Column c = col(cx, cz);
+        return c == null ? LightWorld.super.sectionHasOnlyAir(cx, sy, cz) : c.blocks.sectionHasOnlyAir(cx, sy, cz);
+    }
+
+    @Override public int unloadedState() { return unloadedState; }
+
+    @Override public int minY() { return minY; }
+
+    @Override public int maxY() { return maxY; }
+
+    @Override public int extraEmission(int x, int y, int z) { return virtualLights == null ? 0 : virtualLights.emission(x, y, z); }
+
+    /** ChunkLevel.LightWorldImpl.lightChanged + markLightChanged 와 같은 표시(같은 섹션 연속 기록 건너뛰기 포함). */
+    @Override public void lightChanged(int x, int y, int z, boolean sky) {
+        int x0 = (x - 1) >> 4, x1 = (x + 1) >> 4, y0 = (y - 1) >> 4, y1 = (y + 1) >> 4, z0 = (z - 1) >> 4, z1 = (z + 1) >> 4;
+        if (x0 == x1 && y0 == y1 && z0 == z1) {
+            if (x0 == lastX && y0 == lastY && z0 == lastZ && sky == lastSky) return;
+            lastX = x0; lastY = y0; lastZ = z0; lastSky = sky;
+        }
+        int base = (minY >> 4) - 1, count = ((maxY - minY) >> 4) + 2;
+        for (int sx = x0; sx <= x1; sx++) for (int sy = y0; sy <= y1; sy++) for (int sz = z0; sz <= z1; sz++) {
+            long key = (long) sx << 32 | (sz & 0xFFFFFFFFL);
+            int idx = sy - base;
+            if (idx < 0 || idx >= count) continue;
+            marks.computeIfAbsent(key, k -> new long[2])[sky ? 0 : 1] |= 1L << idx;
+        }
+    }
+
+    // 안 올라온 청크에 막힌 감소(T-012): 칸 좌표를 모았다가 게시 때 region 스레드가 저장 빛 표시를 한다(같은 열 연속은 한 번)
+    private long[] blocked = new long[8];
+    private int blockedCount;
+    private int lastBlockedX = Integer.MIN_VALUE, lastBlockedZ;
+
+    @Override public void decreaseBlocked(int x, int y, int z) {
+        if (x == lastBlockedX && z == lastBlockedZ) return;
+        lastBlockedX = x;
+        lastBlockedZ = z;
+        if (blockedCount == blocked.length) blocked = java.util.Arrays.copyOf(blocked, blockedCount * 2);
+        blocked[blockedCount++] = LightEngine.pack(x, y, z);
+    }
+
+    /** 계산이 끝난 뒤 region 스레드에서: 막힌 감소 칸(묶은 좌표)을 넣은 순서대로. */
+    public void forEachBlocked(java.util.function.LongConsumer c) {
+        for (int i = 0; i < blockedCount; i++) c.accept(blocked[i]);
+    }
+
+    // ------------------------------------------------------------------ 청크 표
+
+    private static long key(int cx, int cz) { return (long) cx << 32 | (cz & 0xFFFFFFFFL); }
+
+    private static int slot(long key, int mask) {
+        long h = key * 0x9E3779B97F4A7C15L;
+        return (int) (h ^ h >>> 32) & mask;
+    }
+
+    private Column find(long key) {
+        int mask = keys.length - 1;
+        for (int i = slot(key, mask); ; i = i + 1 & mask) {
+            Column c = vals[i];
+            if (c == null) return null;
+            if (keys[i] == key) return c;
+        }
+    }
+
+    private void put(long key, Column c) {
+        if ((size + 1) * 2 > keys.length) {
+            long[] ok = keys;
+            Column[] ov = vals;
+            keys = new long[ok.length * 2];
+            vals = new Column[ok.length * 2];
+            for (int i = 0; i < ok.length; i++) if (ov[i] != null) insert(ok[i], ov[i]);
+        }
+        insert(key, c);
+        size++;
+    }
+
+    private void insert(long key, Column c) {
+        int mask = keys.length - 1;
+        int i = slot(key, mask);
+        while (vals[i] != null) i = i + 1 & mask;
+        keys[i] = key;
+        vals[i] = c;
+    }
+}

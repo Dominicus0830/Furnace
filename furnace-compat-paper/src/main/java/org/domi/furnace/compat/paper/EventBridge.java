@@ -4,20 +4,20 @@
 // Furnace 이벤트 버스에 구독한다(A15-07). 구독은 그 플러그인의 것이라 코어가 플러그인을 끌 때 알아서 지우고, 프로파일러·MONITOR 검사도 그 플러그인으로 잡힌다.
 // 처리기마다 구독하는 까닭: Bukkit HandlerList 는 같은 우선순위 안에서 플러그인을 가리지 않고 등록 순으로 부른다 — 플러그인 A 가 B 보다 먼저 켜진 뒤
 // 처리기를 더 달아도 A1 → B1 → A2 순서가 지켜져야 한다. 버스는 (우선순위, 구독 순서)로 부르고 구독은 처리기를 등록하는 그 자리에서 하므로 두 순서가 같다.
-// Furnace 이벤트 하나에 Bukkit 이벤트 객체는 하나만 만들어 플러그인·우선순위가 다른 구독들이 나눠 쓴다(약한 참조 — 이벤트가 끝나면 사라진다).
+// Furnace 이벤트 하나에 Bukkit 이벤트 객체는 짝(Mapping)마다 하나만 만들어 플러그인·우선순위가 다른 구독들이 나눠 쓴다. 그 객체는 Furnace 이벤트의
+// 붙임 칸(EventSlot, 짝마다 열쇠 하나)에 붙어 이벤트와 함께 사라진다 — 전역 맵·잠금이 없어 region 스레드들이 같은 종류를 동시에 내도 줄 서지 않는다(T-032).
 // 우선순위 순서는 Furnace 버스가 지킨다: 같은 이벤트를 Furnace 플러그인이 같은 우선순위로 구독했다면 등록 순이다.
 package org.domi.furnace.compat.paper;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.WeakHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.logging.Level;
 import org.bukkit.event.EventException;
 import org.bukkit.plugin.RegisteredListener;
 import org.domi.furnace.api.Furnace;
+import org.domi.furnace.api.event.EventSlot;
 
 public final class EventBridge {
 
@@ -34,7 +34,8 @@ public final class EventBridge {
         /** Bukkit 이벤트가 Furnace 의 "취소"로 보이는 값과 그 반대 방향. 보통은 Cancellable 그대로, PlayerInteractEvent 처럼 결과가 둘인 이벤트만 따로 정한다. */
         private final java.util.function.Predicate<B> cancelOf;
         private final BiConsumer<B, Boolean> showCancel;
-        private final Map<F, Object> live = Collections.synchronizedMap(new WeakHashMap<>());
+        /** 이 짝이 만든 Bukkit 이벤트(또는 SKIP)를 Furnace 이벤트에 붙이는 칸. 한 Furnace 이벤트가 여러 짝으로 갈 수 있어(예: 사망) 짝마다 따로다. */
+        private final EventSlot<Object> live;
 
         Mapping(Class<B> bukkit, Class<F> furnace, Function<F, B> create, BiConsumer<F, B> push, BiConsumer<F, B> pull) {
             this(bukkit, furnace, create, push, pull, b -> ((org.bukkit.event.Cancellable) b).isCancelled(), (b, c) -> ((org.bukkit.event.Cancellable) b).setCancelled(c));
@@ -49,20 +50,22 @@ public final class EventBridge {
             this.pull = pull;
             this.cancelOf = cancelOf;
             this.showCancel = showCancel;
+            this.live = new EventSlot<>(furnace.getSimpleName() + "->" + bukkit.getSimpleName());
         }
 
-        /** 이 Furnace 이벤트의 Bukkit 이벤트(처음 부르면 만든다). 건너뛰는 이벤트면 null. */
+        /**
+         * 이 Furnace 이벤트의 Bukkit 이벤트(처음 부르면 만든다). 건너뛰는 이벤트면 null. 같은 Furnace 이벤트에는 늘 같은 객체를 돌려준다
+         * (두 스레드가 처음 부르기를 겨루면 만들기는 둘 다 돌 수 있지만 먼저 붙은 객체 하나를 둘 다 받는다).
+         */
         @SuppressWarnings("unchecked")
         B bukkitFor(F f) {
-            synchronized (live) {
-                Object o = live.get(f);
-                if (o == null) {
-                    B b = create.apply(f);
-                    live.put(f, b == null ? SKIP : b);
-                    return b;
-                }
-                return o == SKIP ? null : (B) o;
-            }
+            Object o = live.computeIfAbsent(f, this::make);
+            return o == SKIP ? null : (B) o;
+        }
+
+        private Object make(F f) {
+            B b = create.apply(f);
+            return b == null ? SKIP : b;
         }
     }
 
@@ -107,9 +110,7 @@ public final class EventBridge {
     private static final java.util.Set<String> NOT_FIRED = java.util.Set.of(
             "org.bukkit.event.block.BlockCanBuildEvent", "org.bukkit.event.block.BlockDamageEvent", "org.bukkit.event.block.BlockDispenseEvent",
             "org.bukkit.event.block.BlockExpEvent", "org.bukkit.event.block.NotePlayEvent", "org.bukkit.event.block.SignChangeEvent",
-            "org.bukkit.event.block.BlockPlaceEvent", "org.bukkit.event.block.BlockFadeEvent", "org.bukkit.event.block.BlockGrowEvent",
-            "org.bukkit.event.block.BlockExplodeEvent", "org.bukkit.event.entity.EntityChangeBlockEvent", "org.bukkit.event.entity.EntitySpawnEvent",
-            "org.bukkit.event.player.PlayerCommandSendEvent", "org.bukkit.event.player.PlayerDropItemEvent", "org.bukkit.event.world.WorldInitEvent");
+            "org.bukkit.event.player.PlayerCommandSendEvent", "org.bukkit.event.world.WorldInitEvent");
 
     /** 서버가 아직 알리지 않는 Bukkit 이벤트인가(문서·시험용). */
     public static boolean isKnownButNotFired(Class<? extends org.bukkit.event.Event> owning) { return NOT_FIRED.contains(owning.getName()); }
@@ -164,6 +165,7 @@ public final class EventBridge {
         if (classes == null) return java.util.List.of();
         java.util.List<org.domi.furnace.api.event.EventSubscription> out = new java.util.ArrayList<>();
         for (Class<? extends org.bukkit.event.Event> owning : classes) out.addAll(ensure(owner, owning, registered.getPriority(), registered));
+        if (registered.getPriority() == org.bukkit.event.EventPriority.MONITOR && classes.contains(org.bukkit.event.player.PlayerQuitEvent.class)) requeueQuitWatch();
         return out;
     }
 
@@ -186,12 +188,57 @@ public final class EventBridge {
             Furnace.server().events().subscribe(owner, org.domi.furnace.api.event.player.PlayerCreateEvent.class,
                     org.domi.furnace.api.event.EventPriority.MONITOR, false, f -> { if (!f.isAllowed()) Compat.forgetDenied(f.player()); });
         }
-        // 접속이 끝나면(Furnace MONITOR — 모든 처리기 뒤) NMS 연결의 가상 채널을 닫는다 — 어떤 Bukkit 이벤트든 듣는 플러그인이 하나라도 있으면 걸린다(플러그인별로 한 번 — 닫기는 멱등이고, 구독은 그 플러그인이 꺼지면 같이 풀리므로 전역 한 번이 아니라 이렇게 둔다)
-        if (owner.markBridged("quit-channel-close")) {
-            Furnace.server().events().subscribe(owner, org.domi.furnace.api.event.player.PlayerQuitEvent.class,
-                    org.domi.furnace.api.event.EventPriority.MONITOR, false, f -> Compat.disconnected(f.player()));
-        }
+        watchQuit(owner);
         return subs;
+    }
+
+    /** 플러그인별 퇴장 정리 구독(권한 구독·가상 채널을 걷는 것). 같은 우선순위에서는 등록 순으로 불리므로, Bukkit 퇴장 MONITOR 처리기가 이어질 때마다 다시 걸어 맨 뒤에 둔다. */
+    private static final java.util.Map<BukkitPluginAdapter, org.domi.furnace.api.event.EventSubscription> QUIT_WATCH = new java.util.IdentityHashMap<>();
+
+    private static org.domi.furnace.api.event.EventSubscription subscribeQuitWatch(BukkitPluginAdapter owner) {
+        return Furnace.server().events().subscribe(owner, org.domi.furnace.api.event.player.PlayerQuitEvent.class,
+                org.domi.furnace.api.event.EventPriority.MONITOR, false, f -> Compat.disconnected(f.player()));
+    }
+
+    /**
+     * 접속이 끝나면(Furnace MONITOR) NMS 연결의 가상 채널을 닫고 그 접속의 Bukkit 권한 계산·구독을 걷는다(Paper 퇴장 때 perm.clearPermissions) —
+     * 플러그인이 이벤트를 하나도 안 들어도(권한만 묻는 플러그인) 걸리도록 플러그인을 켤 때와 처리기를 이을 때 모두 부른다(플러그인별로 한 번 —
+     * 닫기·정리는 멱등이고, 구독은 그 플러그인이 꺼지면 같이 풀린다).
+     * Bukkit 퇴장 처리기들이 모두 본 뒤에 돌도록 {@link #requeueQuitWatch} 가 처리기가 이어질 때마다 맨 뒤로 옮긴다.
+     */
+    static synchronized void watchQuit(BukkitPluginAdapter owner) {
+        if (!QUIT_WATCH.containsKey(owner)) QUIT_WATCH.put(owner, subscribeQuitWatch(owner));
+    }
+
+    /** 플러그인이 꺼진다 — 그 플러그인의 퇴장 정리 구독을 뗀다. */
+    static synchronized void unwatchQuit(BukkitPluginAdapter owner) {
+        var sub = QUIT_WATCH.remove(owner);
+        if (sub != null) {
+            try {
+                sub.unsubscribe();
+            } catch (RuntimeException ignored) {
+                // 서버가 이미 내려갔다
+            }
+        }
+    }
+
+    /** 퇴장 MONITOR 처리기가 이어졌다 — 모든 퇴장 정리 구독을 떼었다 다시 걸어 같은 우선순위 맨 뒤(= 모든 Bukkit 처리기 뒤, Paper 순서)로 보낸다. */
+    private static synchronized void requeueQuitWatch() {
+        for (var it = QUIT_WATCH.entrySet().iterator(); it.hasNext();) {
+            var e = it.next();
+            var jp = e.getKey().javaPlugin();
+            if (jp != null && !jp.isEnabled()) {   // 꺼졌는데 못 뗀 칸(서버를 다시 띄운 시험 등)
+                it.remove();
+                continue;
+            }
+            try {
+                var old = e.getValue();
+                e.setValue(subscribeQuitWatch(e.getKey()));   // 새 구독을 먼저 건 뒤 옛것을 뗀다 — 그 사이 퇴장이 와도 정리가 빠지지 않는다(정리는 멱등)
+                old.unsubscribe();
+            } catch (RuntimeException gone) {
+                it.remove();   // 내려간 서버의 낡은 칸
+            }
+        }
     }
 
     private static <F extends org.domi.furnace.api.event.Event, B extends org.bukkit.event.Event> org.domi.furnace.api.event.EventSubscription subscribe(

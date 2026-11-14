@@ -333,13 +333,13 @@ class BlockRemainderM17Test {
 
         // 걷지 못하는 소는 빠진다(충돌 없음), 위에 있어도
         Entity cow = spawn(level, "cow", 5.5, -59.0, 5.5);
-        assertEquals(Shape.EMPTY, behavior.getEntityCollisionShape(ps, level, snow, cow));
+        assertEquals(Shape.EMPTY, behavior.getCollisionShape(ps, level, snow, org.domi.furnace.server.block.CollisionContext.of(cow)));
 
         // 토끼(powder_snow_walkable_mobs)는 위에 있으면 단단하고, 안에 있으면(발이 블록 윗면보다 아래) 빠진다
         Entity rabbit = spawn(level, "rabbit", 5.5, -59.0, 5.5);
-        assertEquals(Shape.BLOCK, behavior.getEntityCollisionShape(ps, level, snow, rabbit));
+        assertEquals(Shape.BLOCK, behavior.getCollisionShape(ps, level, snow, org.domi.furnace.server.block.CollisionContext.of(rabbit)));
         rabbit.moveTo(5.5, -59.5, 5.5, 0, 0);
-        assertEquals(Shape.EMPTY, behavior.getEntityCollisionShape(ps, level, snow, rabbit));
+        assertEquals(Shape.EMPTY, behavior.getCollisionShape(ps, level, snow, org.domi.furnace.server.block.CollisionContext.of(rabbit)));
 
         // 웅크리기(isDescending)는 생물에게는 늘 거짓(LivingEntity.isShiftKeyDown) — 플레이어는 이 경로를 타지 않는다
         rabbit.moveTo(5.5, -59.0, 5.5, 0, 0);
@@ -351,7 +351,7 @@ class BlockRemainderM17Test {
 
         // 2.5 넘게 떨어지는 중이면 누구든 높이 0.9 상자
         cow.fallDistance = 3.0F;
-        Shape fall = behavior.getEntityCollisionShape(ps, level, snow, cow);
+        Shape fall = behavior.getCollisionShape(ps, level, snow, org.domi.furnace.server.block.CollisionContext.of(cow));
         assertEquals((double) 0.9F, fall.bounds()[4], 0.0);
         assertTrue(collides(level, cow, snow), "높이 0.5~0.7 상자는 0.9 높이 모양과 겹친다");
 
@@ -359,7 +359,7 @@ class BlockRemainderM17Test {
         Entity sand = Entities.create(level, "minecraft:falling_block");
         sand.moveTo(5.5, -60.0, 5.5, 0, 0);
         level.addFreshEntity(sand);
-        assertEquals(Shape.BLOCK, behavior.getEntityCollisionShape(ps, level, snow, sand));
+        assertEquals(Shape.BLOCK, behavior.getCollisionShape(ps, level, snow, org.domi.furnace.server.block.CollisionContext.of(sand)));
     }
 
     @Test
@@ -369,11 +369,11 @@ class BlockRemainderM17Test {
         int ps = state("powder_snow");
         level.setBlock(snow, ps, 3);
         var zombie = (org.domi.furnace.server.entity.Mob) spawn(level, "zombie", 5.5, -59.0, 5.5);
-        assertEquals(Shape.EMPTY, B.behavior(ps).getEntityCollisionShape(ps, level, snow, zombie));
+        assertEquals(Shape.EMPTY, B.behavior(ps).getCollisionShape(ps, level, snow, org.domi.furnace.server.block.CollisionContext.of(zombie)));
         zombie.setItemSlot(org.domi.furnace.server.entity.EquipmentSlot.FEET, stack("leather_boots", 1));
-        assertEquals(Shape.BLOCK, B.behavior(ps).getEntityCollisionShape(ps, level, snow, zombie));
+        assertEquals(Shape.BLOCK, B.behavior(ps).getCollisionShape(ps, level, snow, org.domi.furnace.server.block.CollisionContext.of(zombie)));
         zombie.setItemSlot(org.domi.furnace.server.entity.EquipmentSlot.FEET, stack("iron_boots", 1));
-        assertEquals(Shape.EMPTY, B.behavior(ps).getEntityCollisionShape(ps, level, snow, zombie));
+        assertEquals(Shape.EMPTY, B.behavior(ps).getCollisionShape(ps, level, snow, org.domi.furnace.server.block.CollisionContext.of(zombie)));
     }
 
     @Test

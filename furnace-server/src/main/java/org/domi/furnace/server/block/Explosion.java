@@ -157,12 +157,15 @@ public final class Explosion {
 
     public float radius() { return radius; }
 
+    /** 블록 처리 방식 이름(KEEP·DESTROY·DESTROY_WITH_DECAY·TRIGGER_BLOCK) — 플러그인 BlockExplodeEvent 가 읽는다. */
+    public String interactionName() { return interaction.name(); }
+
     public boolean canTriggerBlocks() { return interaction == BlockInteraction.TRIGGER_BLOCK; }
 
     public List<Pos> toBlow() { return toBlow; }
 
-    /** Explosion.getSeenPercent(center, entity): 상자 안 격자점에서 폭발 중심이 보이는 비율. */
-    public static float getSeenPercent(ChunkLevel level, double cx, double cy, double cz, AABB bb) {
+    /** Explosion.getSeenPercent(center, entity): 상자 안 격자점에서 폭발 중심이 보이는 비율. 광선은 맞는 엔티티의 문맥(ctx)으로 본다. */
+    public static float getSeenPercent(ChunkLevel level, double cx, double cy, double cz, AABB bb, CollisionContext ctx) {
         double d0 = 1.0 / ((bb.maxX() - bb.minX()) * 2.0 + 1.0);
         double d1 = 1.0 / ((bb.maxY() - bb.minY()) * 2.0 + 1.0);
         double d2 = 1.0 / ((bb.maxZ() - bb.minZ()) * 2.0 + 1.0);
@@ -174,7 +177,7 @@ public final class Explosion {
             for (double f1 = 0.0; f1 <= 1.0; f1 += d1) {
                 for (double f2 = 0.0; f2 <= 1.0; f2 += d2) {
                     double px = lerp(f, bb.minX(), bb.maxX()), py = lerp(f1, bb.minY(), bb.maxY()), pz = lerp(f2, bb.minZ(), bb.maxZ());
-                    if (Clip.clipCollider(level, px + d3, py, pz + d4, cx, cy, cz).miss()) i++;
+                    if (Clip.clipCollider(level, ctx, px + d3, py, pz + d4, cx, cy, cz).miss()) i++;
                     j++;
                 }
             }
@@ -201,8 +204,9 @@ public final class Explosion {
     /** Explosion.explode(): 부서질 칸과 엔티티 피해·밀림. */
     public void explode() {
         level.gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.EXPLODE, new org.domi.furnace.server.entity.Vec3(x, y, z), org.domi.furnace.server.world.gameevent.GameEventContext.of(source != null ? source : sourcePlayer));   // dco:128 계산 전에 원인 엔티티로
-        Set<Pos> set = new HashSet<>();
-        List<Pos> ordered = new ArrayList<>();
+        // 바닐라는 Sets.newHashSet() 에 BlockPos 를 모은 뒤 그 반복 순서대로 toBlow 에 넣는다 — 섞기(Util.shuffle) 전 순서가 곧
+        // 부수기·드롭 순서를 정하므로, BlockPos(Vec3i) 해시를 쓰는 HashSet 으로 같은 반복 순서를 만든다(Pos 레코드 해시는 다르다).
+        Set<VanillaPos> set = new HashSet<>();
         for (int j = 0; j < 16; j++) {
             for (int k = 0; k < 16; k++) {
                 for (int l = 0; l < 16; l++) {
@@ -224,7 +228,7 @@ public final class Explosion {
                             float res = blockResistance(pos, state, fluid);
                             if (res >= 0.0F) f -= (res + 0.3F) * 0.3F;
                             if (f > 0.0F && shouldBlockExplode(pos, state, f)) {
-                                if (set.add(pos)) ordered.add(pos);
+                                set.add(new VanillaPos(pos));
                             }
                             px += d0 * 0.3F;
                             py += d1 * 0.3F;
@@ -234,7 +238,7 @@ public final class Explosion {
                 }
             }
         }
-        toBlow.addAll(ordered);
+        for (VanillaPos v : set) toBlow.add(v.pos);
         float f2 = radius * 2.0F;
         int k1 = (int) Math.floor(x - f2 - 1.0), l1 = (int) Math.floor(x + f2 + 1.0);
         int i2 = (int) Math.floor(y - f2 - 1.0), i1 = (int) Math.floor(y + f2 + 1.0);
@@ -282,7 +286,10 @@ public final class Explosion {
         dx /= len;
         dy /= len;
         dz /= len;
-        float seen = getSeenPercent(level, x, y, z, bb);
+        // ClipContext(…, entity): 맞는 엔티티(엔더 드래곤 부위면 부위 — 생물이 아니라 발 높이만 문맥)
+        CollisionContext ctx = target instanceof org.domi.furnace.server.entity.Rider r ? CollisionContext.of(r)
+                : target instanceof org.domi.furnace.server.entity.EnderDragonPart part ? CollisionContext.atBottom(part.y()) : CollisionContext.EMPTY;
+        float seen = getSeenPercent(level, x, y, z, bb, ctx);
         double d10 = (1.0 - dist) * seen;
         float damage = (float) ((d10 * d10 + d10) / 2.0 * 7.0 * f2 + 1.0);
         Object dmgTarget = target instanceof org.domi.furnace.server.entity.EnderDragonPart part ? part.parent : target;   // 파트는 부모 종류로 판정
@@ -315,11 +322,14 @@ public final class Explosion {
 
     /** Explosion.finalizeExplosion(particles): 소리·패킷, 블록 부수기·불. */
     public void finalizeExplosion(boolean particles) {
-        level.playSound(null, x, y, z, soundName, "blocks", 4.0F, (1.0F + (level.random().nextFloat() - level.random().nextFloat()) * 0.2F) * 0.7F);
-        boolean destroy = interaction != BlockInteraction.KEEP;
+        // 소리: 바닐라 1.21.1 은 finalizeExplosion 의 소리를 isClientSide 일 때만 낸다(그 소리 높이가 레벨 난수 두 번을 쓴다). 서버는
+        // ClientboundExplodePacket 에 소리를 실어 보내고 클라이언트가 그 패킷으로 소리를 낸다 — 서버에서 따로 재생하면 레벨 난수가 밀리고
+        // (뒤의 섞기 순서가 바뀜) 클라이언트는 소리를 두 번 듣고, 취소된 폭발도 소리가 남는다.
+        boolean destroy = interaction != BlockInteraction.KEEP;   // 바닐라 interactsWithBlocks()
         boolean breaking = destroy && interaction != BlockInteraction.TRIGGER_BLOCK;
+        // 바닐라는 interactsWithBlocks 면 TRIGGER_BLOCK(윈드 차지)도 섞은 뒤 onExplosionHit 을 부른다.
         // 바닐라는 섞은 뒤 패킷을 보낸다(ServerLevel.explode) — 패킷은 난수를 쓰지 않으므로 앞당겨도 난수 순서는 같다
-        if (breaking) shuffle(toBlow, level.random());
+        if (destroy) shuffle(toBlow, level.random());
         // 플러그인 EntityExplodeEvent/BlockExplodeEvent(CraftBukkit 처럼 섞은 뒤): 목록을 고치거나, 취소하면 블록·불·패킷 모두 없음
         if (destroy && !level.gameEvents().explode(level.dimension(), source, sourcePlayer, x, y, z,
                 explodedState != 0 ? explodedState : level.getBlockState(new Pos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z))), toBlow, this)) {
@@ -332,8 +342,9 @@ public final class Explosion {
             double dx = p.x() - x, dy = p.y() - y, dz = p.z() - z;
             if (dx * dx + dy * dy + dz * dz < 4096.0) {
                 double[] kb = hitPlayers.get(p);
-                p.send(new ExplodePacket(x, y, z, radius, new ArrayList<>(toBlow), kb == null ? 0 : (float) kb[0], kb == null ? 0 : (float) kb[1],
-                        kb == null ? 0 : (float) kb[2], interaction.ordinal(), smallParticle, radius >= 2.0F && destroy ? largeParticle : smallParticle, sound));
+                // 바닐라 ServerLevel.explode: KEEP 이면 clearToBlow() 뒤에 보내 빈 목록. 입자는 small·large 를 그대로 보내고 클라이언트가 고른다
+                p.send(new ExplodePacket(x, y, z, radius, destroy ? new ArrayList<>(toBlow) : new ArrayList<>(), kb == null ? 0 : (float) kb[0], kb == null ? 0 : (float) kb[1],
+                        kb == null ? 0 : (float) kb[2], interaction.ordinal(), smallParticle, largeParticle, sound));
             }
         });
         if (interaction == BlockInteraction.TRIGGER_BLOCK) {
@@ -360,12 +371,17 @@ public final class Explosion {
             for (Object[] d : drops) level.popResource((Pos) d[1], (ItemStack) d[0]);
         }
         if (fire) {
+            // 바닐라는 레벨 난수가 아니라 폭발 자신의 난수(Explosion.random = RandomSource.create())로 불 자리를 고른다
+            RandomSource fireRandom = RandomSource.createFor(RandomSeeds.combine(Double.doubleToLongBits(x),
+                    RandomSeeds.combine(Double.doubleToLongBits(y), Double.doubleToLongBits(z))), RandomSeeds.Purpose.EXPLOSION);
             for (Pos pos : toBlow) {
-                if (level.random().nextInt(3) == 0 && BlockInfo.get().isAir(level.getBlockState(pos)) && isSolidRender(level.getBlockState(pos.below()))) {
+                if (fireRandom.nextInt(3) == 0 && BlockInfo.get().isAir(level.getBlockState(pos)) && isSolidRender(level.getBlockState(pos.below()))) {
                     level.setBlock(pos, org.domi.furnace.server.block.types.BaseFireBlock.getState(level, pos), 3, 512);
                 }
             }
         }
+        // 바닐라는 finalizeExplosion 뒤 KEEP 이면 목록을 비운다(그래서 KEEP + 불은 비우기 전 목록으로 불을 놓는다)
+        if (!destroy) toBlow.clear();
     }
 
     /** BlockState.isSolidRender: 가리는 블록이고 가림 모양이 꽉 찬 상자. */
@@ -376,6 +392,17 @@ public final class Explosion {
     }
 
     private boolean interactionTriggerOnly() { return interaction == BlockInteraction.TRIGGER_BLOCK; }
+
+    /**
+     * 바닐라 BlockPos 와 같은 해시(Vec3i.hashCode)를 가진 열쇠 — HashSet 반복 순서를 바닐라와 맞춘다. Comparable 로 만들지 않는다:
+     * BlockPos 는 Comparable<Vec3i> 를 물려받아 HashMap 이 "자기 자신과 비교 가능한 키"로 보지 않으므로(comparableClassFor = null),
+     * 트리 칸에서도 같은 길(해시 → tieBreakOrder)을 타야 한다. 해시가 같은 두 칸이 트리 칸(한 칸 8개 이상, 표 64 이상)에 들어가면
+     * 순서가 identityHashCode 로 갈리는데, 그때는 바닐라 자신도 실행마다 다르다(검토 측정: 반경 48 까지 트리 칸 없음).
+     */
+    private record VanillaPos(Pos pos) {
+        @Override public int hashCode() { return (pos.y() + pos.z() * 31) * 31 + pos.x(); }
+        @Override public boolean equals(Object o) { return o instanceof VanillaPos v && v.pos.equals(pos); }
+    }
 
     private static void shuffle(List<Pos> list, org.domi.furnace.server.block.RandomSource r) {
         for (int i = list.size(); i > 1; i--) {   // Util.shuffle: Collections.shuffle 과 같은 방식(뒤에서부터 교환)

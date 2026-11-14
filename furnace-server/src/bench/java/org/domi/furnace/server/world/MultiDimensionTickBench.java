@@ -1,0 +1,354 @@
+// 가짜 차원 N개(평지 월드, 월드마다 Regionizer·작업 스레드 풀)를 동시에 돌릴 때 region 틱 간격의 흔들림을 잰다(:furnace-server:bench 작업에서만 돈다).
+// 각 region 에 매 틱 다시 거는 지연 작업을 두고, 그 작업이 도는 시각의 간격 - 틱 길이 를 "늦음"으로 본다. 부하는 매 틱 바쁜 대기(ms).
+// 공유 스케줄러(B안) 검토용: docs/feature-parity/shared-scheduler-review-2026-10-27.md
+package org.domi.furnace.server.world;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.domi.furnace.server.net.ChunkWorkerPool;
+import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
+import org.domi.furnace.server.world.gen.SuperflatWorldSource;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.Test;
+
+class MultiDimensionTickBench {
+
+    private static final long TICK = 50_000_000L;
+    /** -Dfurnace.bench.cpuLoad=true: 부하를 벽시계가 아니라 스레드 CPU 시간으로 잰다(모드끼리 CPU 를 같은 일량으로 비교). */
+    private static final boolean CPU_LOAD = Boolean.getBoolean("furnace.bench.cpuLoad");
+    private static final java.lang.management.ThreadMXBean TMX = java.lang.management.ManagementFactory.getThreadMXBean();
+
+    @Test
+    void dimensionsTickJitter() throws Exception {
+        String[] ns = System.getProperty("furnace.bench.dims", "3,6,12").split(",");
+        String[] loads = System.getProperty("furnace.bench.loadMs", "0,5").split(",");
+        int regionsPerDim = Integer.getInteger("furnace.bench.regions", 2);
+        int ticks = Integer.getInteger("furnace.bench.ticks", 100);
+        int threads = Integer.getInteger("furnace.bench.threads", Runtime.getRuntime().availableProcessors());
+        // 모드: perDim(차원별 풀, 현행) / shared(실제 SharedScheduler 하나를 모든 차원이 공유, S4). reps 번 모드를 번갈아 돈다
+        String[] modes = System.getProperty("furnace.bench.modes", "perDim").split(",");
+        int reps = Integer.getInteger("furnace.bench.reps", 1);
+        for (int rep = 0; rep < reps; rep++) {
+            for (String n : ns) {
+                for (String l : loads) {
+                    for (String m : modes) {
+                        System.out.printf("MDBENCH rep=%d mode=%s%n", rep, m.trim());
+                        run(Integer.parseInt(n.trim()), regionsPerDim, Double.parseDouble(l.trim()), ticks, threads, m.trim().equals("shared"));
+                    }
+                }
+            }
+        }
+    }
+
+    private void run(int dims, int regionsPerDim, double loadMs, int ticks, int threads, boolean shared) throws Exception {
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(TICK, 1);
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        List<ExecutorService> pools = new ArrayList<>();
+        List<World> worlds = new ArrayList<>();
+        long beforeThreads = Thread.getAllStackTraces().keySet().stream().filter(t -> t.getName().startsWith("furnace-region")).count();
+        SharedScheduler pool = shared ? SharedScheduler.startShared(threads, "furnace-region-") : null;
+        for (int d = 0; d < dims; d++) {
+            ExecutorService io = Executors.newSingleThreadExecutor(), gen = Executors.newSingleThreadExecutor();
+            pools.add(io);
+            pools.add(gen);
+            World w = pool == null
+                    ? new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, threads, 4, 1, 2, 2, reg.directBits(), 7, io, gen)
+                    : new World(DimensionType.OVERWORLD, new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, pool, 4, 1, 2, 2,
+                            reg.directBits(), 7, io, gen);
+            w.configurePersistence(Integer.MAX_VALUE, Integer.MAX_VALUE);
+            worlds.add(w);
+        }
+        long regionThreads = Thread.getAllStackTraces().keySet().stream().filter(t -> t.getName().startsWith("furnace-region")).count() - beforeThreads;
+        int total = dims * regionsPerDim;
+        long[][] starts = new long[total][ticks + 1];
+        int[] count = new int[total];
+        long spin = (long) (loadMs * 1_000_000L);
+        List<CompletableFuture<Void>> done = new ArrayList<>();
+        Canary canary = Canary.start();
+        long gc0 = gcMillis();
+        long cpu0 = processCpuNanos(), wall0 = System.nanoTime(), wake0 = wakeups(worlds);
+        long[] c0 = poolCounters(worlds);
+        int idx = 0;
+        for (World w : worlds) {
+            for (int k = 0; k < regionsPerDim; k++) {
+                final int slot = idx++;
+                ChunkPos cp = new ChunkPos(k * 4096, 0);   // 서로 멀리 — region 이 나뉜다
+                CompletableFuture<Void> f = new CompletableFuture<>();
+                done.add(f);
+                long key = Regionizer.chunkKey(cp.x(), cp.z());
+                w.runAtChunk(cp, r -> {
+                    r.chunkAtBlocking(cp);
+                    r.schedule(key, new java.util.function.Consumer<Region>() {
+                        @Override public void accept(Region r2) {
+                            long now = System.nanoTime();
+                            int c = count[slot];
+                            starts[slot][c] = now;
+                            count[slot] = c + 1;
+                            if (spin > 0) {
+                                if (CPU_LOAD) {   // 같은 일량: 이 스레드 CPU 시간이 spin 만큼 늘 때까지(선점돼도 일량이 같다)
+                                    long c0 = TMX.getCurrentThreadCpuTime();
+                                    while (TMX.getCurrentThreadCpuTime() - c0 < spin) Thread.onSpinWait();
+                                } else { long end = now + spin; while (System.nanoTime() < end) Thread.onSpinWait(); }
+                            }
+                            if (c + 1 > ticks) f.complete(null);
+                            else r2.schedule(key, this, 1);
+                        }
+                    }, 1);
+                });
+            }
+        }
+        CompletableFuture.allOf(done.toArray(new CompletableFuture[0])).get(ticks * 200L + 60_000L, TimeUnit.MILLISECONDS);
+        long cpu = processCpuNanos() - cpu0, wall = System.nanoTime() - wall0, wakes = wakeups(worlds) - wake0;
+        long gcMs = gcMillis() - gc0;
+        canary.stop();
+        long[] c1 = poolCounters(worlds);
+        long tickTotal = 0;
+        for (World w : worlds) for (var rs : w.regionizer().schedStats().regions()) tickTotal += rs.ticks();
+        // 첫 5 간격(예열) 제외, 늦음 = 간격 - 틱
+        List<Long> late = new ArrayList<>();
+        for (int s = 0; s < total; s++) for (int i = 6; i <= ticks; i++) late.add(starts[s][i] - starts[s][i - 1] - TICK);
+        long[] a = late.stream().mapToLong(Long::longValue).sorted().toArray();
+        System.out.printf("MDBENCH " + (shared ? "shared" : "perDim") + " dims=%d regions/dim=%d regionThreads=%d (per-dim %d) cores=%d loadMs=%.1f samples=%d"
+                        + " | 간격-50ms p50=%.3fms p95=%.3fms p99=%.3fms max=%.3fms min=%.3fms | cpu=%.0fms wall=%.0fms wakeups=%d"
+                        + " timeouts=%d missed=%d takeMiss=%d regionTicks=%d cpuLoad=%b%n",
+                dims, regionsPerDim, regionThreads, threads, Runtime.getRuntime().availableProcessors(), loadMs, a.length,
+                a[a.length / 2] / 1e6, a[a.length * 95 / 100] / 1e6, a[a.length * 99 / 100] / 1e6, a[a.length - 1] / 1e6, a[0] / 1e6,
+                cpu / 1e6, wall / 1e6, wakes, c1[0] - c0[0], c1[1] - c0[1], c1[2] - c0[2], tickTotal, CPU_LOAD);
+        org.domi.furnace.server.bench.BenchReport.of("MultiDimensionTickBench").variant((shared ? "shared" : "perDim") + "-dims" + dims + "-load" + (long) loadMs).scene(shared ? "shared" : "perDim")
+                .put("dims", dims).put("regionsPerDim", regionsPerDim).put("regionThreads", regionThreads).put("loadMs", loadMs).put("samples", a.length)
+                .put("lateP50_ms", a[a.length / 2] / 1e6).put("lateP95_ms", a[a.length * 95 / 100] / 1e6).put("lateP99_ms", a[a.length * 99 / 100] / 1e6)
+                .put("lateMax_ms", a[a.length - 1] / 1e6).put("cpu_ms", cpu / 1e6).put("wall_ms", wall / 1e6).put("wakeups", wakes).put("regionTicks", tickTotal)
+                .put("cpuLoad", CPU_LOAD).write();
+        // 튐 원인 가르기: 늦음이 큰 간격 3 개마다, 같은 구간에서 스케줄러와 무관한 카나리 스레드(1ms 파킹 반복)가 본 가장 큰 늦잠.
+        // 카나리도 같이 늦었으면 스케줄러 밖(OS 선점·GC·세이프포인트)이다.
+        List<long[]> worst = new ArrayList<>();   // {늦음, 구간 시작, 구간 끝}
+        for (int s = 0; s < total; s++) for (int i = 6; i <= ticks; i++)
+            worst.add(new long[]{starts[s][i] - starts[s][i - 1] - TICK, starts[s][i - 1], starts[s][i]});
+        worst.sort((x, y) -> Long.compare(y[0], x[0]));
+        StringBuilder top = new StringBuilder();
+        for (int k = 0; k < Math.min(3, worst.size()); k++) {
+            long[] w = worst.get(k);
+            top.append(String.format(" %.1f/%.1f", w[0] / 1e6, canary.maxOversleep(w[1], w[2]) / 1e6));
+        }
+        System.out.printf("MDBENCH-CAUSE %s dims=%d loadMs=%.1f gcMs=%d canaryP99=%.3fms canaryMax=%.3fms worst(늦음/카나리ms):%s%n",
+                shared ? "shared" : "perDim", dims, loadMs, gcMs, canary.percentile(99) / 1e6, canary.percentile(100) / 1e6, top);
+        sched.close();
+        for (World w : worlds) w.regionizer().close();
+        if (pool != null) pool.close();
+        for (ExecutorService e : pools) e.shutdownNow();
+    }
+
+    private static long gcMillis() {
+        long t = 0;
+        for (var gc : java.lang.management.ManagementFactory.getGarbageCollectorMXBeans()) t += Math.max(0, gc.getCollectionTime());
+        return t;
+    }
+
+    /** 스케줄러와 무관한 스레드가 1ms 파킹을 반복하며 늦잠(깬 시각 - 예정 시각)을 기록한다 — 기계·JVM 쪽 멈춤 탐지기. */
+    private static final class Canary implements Runnable {
+        private static final long PERIOD = 1_000_000L;
+        private final long[] at = new long[2_000_000], over = new long[2_000_000];
+        private volatile boolean running = true;
+        private int n;
+        private Thread thread;
+
+        static Canary start() {
+            Canary c = new Canary();
+            c.thread = new Thread(c, "bench-canary");
+            c.thread.setDaemon(true);
+            c.thread.start();
+            return c;
+        }
+
+        @Override public void run() {
+            while (running && n < at.length) {
+                long due = System.nanoTime() + PERIOD;
+                java.util.concurrent.locks.LockSupport.parkNanos(PERIOD);
+                long now = System.nanoTime();
+                at[n] = now;
+                over[n] = Math.max(0, now - due);
+                n++;
+            }
+        }
+
+        void stop() throws InterruptedException { running = false; thread.join(); }
+
+        long maxOversleep(long from, long to) {
+            long m = 0;
+            for (int i = 0; i < n; i++) if (at[i] >= from && at[i] <= to + PERIOD) m = Math.max(m, over[i]);
+            return m;
+        }
+
+        long percentile(int p) {
+            if (n == 0) return 0;
+            long[] a = java.util.Arrays.copyOf(over, n);
+            java.util.Arrays.sort(a);
+            return a[Math.min(n - 1, (int) ((long) n * p / 100))];
+        }
+    }
+
+    // ===== 과부하 시나리오 (2026-10-27): -Dfurnace.bench.overload=true =====
+    // 차원 하나 = (region 수, region 틱당 부하 ms, 측정 대상 여부). 지연 틱 = 간격-50ms 가 LATE_MS 를 넘는 틱.
+    private static final double LATE_MS = 10.0;
+
+    private record Dim(int regions, double loadMs, boolean measured) {}
+
+    @Test
+    void overloadScenarios() throws Exception {
+        Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench.overload"));
+        int cores = Runtime.getRuntime().availableProcessors();
+        int ticks = Integer.getInteger("furnace.bench.ticks", 60);
+        System.out.printf("OVBENCH cores=%d ticks=%d lateThreshold=%.0fms%n", cores, ticks, LATE_MS);
+        // (1) 합계 부하 100/150/200% : 3차원 x 8 region, 부하는 균등
+        for (int pct : new int[] {100, 150, 200}) {
+            double per = cores * 50.0 * pct / 100.0 / 24;
+            List<Dim> ds = List.of(new Dim(8, per, true), new Dim(8, per, true), new Dim(8, per, true));
+            runOv("load" + pct + "%", ds, cores, ticks, false);
+            runOv("load" + pct + "%", ds, cores, ticks, true);
+        }
+        // (2) 비대칭 : 차원 0 무거움(틱 40/60/80ms, region 많음), 나머지 2차원 가벼움(region 2, 1ms)
+        for (int heavy : new int[] {40, 60, 80}) {
+            for (int hr : new int[] {cores, cores * 3}) {
+                List<Dim> ds = List.of(new Dim(hr, heavy, false), new Dim(2, 1.0, true), new Dim(2, 1.0, true));
+                String nm = "asym heavy=" + heavy + "ms x" + hr;
+                runOv(nm, ds, cores, ticks, false);
+                runOv(nm, ds, cores, ticks, true);
+            }
+        }
+        // (3) 차원 수 N, region-threads 변화 : 총 부하 약 150%, 차원 0 만 2배 무거움
+        for (int n : new int[] {3, 6, 12}) {
+            for (int th : new int[] {Math.max(1, cores / 2), cores, cores * 2}) {
+                int per = 4;
+                double base = cores * 50.0 * 1.5 / (per * (n + 1));
+                List<Dim> ds = new ArrayList<>();
+                ds.add(new Dim(per, base * 2, true));
+                for (int d = 1; d < n; d++) ds.add(new Dim(per, base, true));
+                String nm = "N=" + n + " th=" + th;
+                runOv(nm, ds, th, ticks, false);
+                runOv(nm, ds, th, ticks, true);
+            }
+        }
+    }
+
+    /**
+     * shared=true : 차원마다 월드 하나, 모두 실제 공유 풀(SharedScheduler) 하나에 건다(S4, 2026-11-07 — 이전에는 한 월드 근사).
+     * shared=false : 차원마다 threads 개짜리 풀.
+     */
+    private void runOv(String name, List<Dim> dims, int threads, int ticks, boolean shared) throws Exception {
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(TICK, 1);
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        List<ExecutorService> pools = new ArrayList<>();
+        List<World> worlds = new ArrayList<>();
+        SharedScheduler pool = shared ? SharedScheduler.startShared(threads, "furnace-region-") : null;
+        for (int d = 0; d < dims.size(); d++) {
+            ExecutorService io = Executors.newSingleThreadExecutor(), gen = Executors.newSingleThreadExecutor();
+            pools.add(io);
+            pools.add(gen);
+            World w = pool == null
+                    ? new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, threads, 4, 1, 2, 2,
+                            reg.directBits(), 7, io, gen)
+                    : new World(DimensionType.OVERWORLD, new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, pool, 4, 1, 2, 2,
+                            reg.directBits(), 7, io, gen);
+            w.configurePersistence(Integer.MAX_VALUE, Integer.MAX_VALUE);
+            worlds.add(w);
+        }
+        int total = dims.stream().mapToInt(Dim::regions).sum();
+        long[][] starts = new long[total][ticks + 1];
+        int[] count = new int[total];
+        int[] dimOf = new int[total];
+        AtomicBoolean stop = new AtomicBoolean();
+        List<CompletableFuture<Void>> done = new ArrayList<>();
+        int idx = 0;
+        for (int d = 0; d < dims.size(); d++) {
+            Dim dim = dims.get(d);
+            World w = worlds.get(d);
+            long spin = (long) (dim.loadMs() * 1_000_000L);
+            for (int k = 0; k < dim.regions(); k++) {
+                final int slot = idx++;
+                dimOf[slot] = d;
+                ChunkPos cp = new ChunkPos(k * 4096, 0);
+                CompletableFuture<Void> f = new CompletableFuture<>();
+                if (dim.measured()) done.add(f);
+                long key = Regionizer.chunkKey(cp.x(), cp.z());
+                w.runAtChunk(cp, r -> {
+                    r.chunkAt(cp);
+                    r.schedule(key, new java.util.function.Consumer<Region>() {
+                        @Override public void accept(Region r2) {
+                            long now = System.nanoTime();
+                            int c = count[slot];
+                            if (c <= ticks) starts[slot][c] = now;
+                            count[slot] = c + 1;
+                            if (spin > 0) {
+                                if (CPU_LOAD) {   // 같은 일량: 이 스레드 CPU 시간이 spin 만큼 늘 때까지(선점돼도 일량이 같다)
+                                    long c0 = TMX.getCurrentThreadCpuTime();
+                                    while (TMX.getCurrentThreadCpuTime() - c0 < spin) Thread.onSpinWait();
+                                } else { long end = now + spin; while (System.nanoTime() < end) Thread.onSpinWait(); }
+                            }
+                            if (c + 1 > ticks) f.complete(null);
+                            if (!stop.get()) r2.schedule(key, this, 1);
+                        }
+                    }, 1);
+                });
+            }
+        }
+        CompletableFuture.allOf(done.toArray(new CompletableFuture[0])).get(ticks * 1000L + 60_000L, TimeUnit.MILLISECONDS);
+        stop.set(true);
+        // 차원별 통계 : 첫 5 간격 제외
+        StringBuilder sb = new StringBuilder();
+        for (int d = 0; d < dims.size(); d++) {
+            if (!dims.get(d).measured()) continue;
+            List<Long> late = new ArrayList<>();
+            int maxRun = 0, lateTicks = 0;
+            for (int s = 0; s < total; s++) {
+                if (dimOf[s] != d) continue;
+                int run = 0;
+                for (int i = 6; i <= ticks; i++) {
+                    long l = starts[s][i] - starts[s][i - 1] - TICK;
+                    late.add(l);
+                    if (l / 1e6 > LATE_MS) { run++; lateTicks++; maxRun = Math.max(maxRun, run); } else run = 0;
+                }
+            }
+            long[] a = late.stream().mapToLong(Long::longValue).sorted().toArray();
+            sb.append(String.format(" | d%d p50=%.1f p95=%.1f max=%.1f late=%.0f%% maxRun=%d", d,
+                    a[a.length / 2] / 1e6, a[a.length * 95 / 100] / 1e6, a[a.length - 1] / 1e6, 100.0 * lateTicks / a.length, maxRun));
+        }
+        System.out.printf("OVBENCH %-24s %-7s threads=%d%s%n", name, shared ? "shared" : "perDim", threads, sb);
+        sched.close();
+        for (World w : worlds) w.regionizer().close();
+        if (pool != null) pool.close();
+        for (ExecutorService e : pools) e.shutdownNow();
+    }
+
+    /** 프로세스 CPU 시간(ns). 공유 머신이라 다른 프로세스는 빠지지만 이 JVM 의 다른 스레드(GC·JIT)는 들어간다. */
+    static long processCpuNanos() {
+        var os = java.lang.management.ManagementFactory.getOperatingSystemMXBean();
+        return os instanceof com.sun.management.OperatingSystemMXBean s ? s.getProcessCpuTime() : 0L;
+    }
+
+    /** 풀별(중복 제외) 만료 복귀·깨우기 유실 의심·tryTake 실패 합. */
+    private static long[] poolCounters(List<World> worlds) {
+        long[] r = new long[3];
+        java.util.Set<SharedScheduler> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        for (World w : worlds) {
+            SharedScheduler p = w.regionizer().pool();
+            if (!seen.add(p)) continue;
+            r[0] += p.timeouts();
+            r[1] += p.missedWakeups();
+            r[2] += p.takeMisses();
+        }
+        return r;
+    }
+
+    /** 모든 월드 워커가 기다림에서 돌아온 횟수 합(계측). */
+    private static long wakeups(List<World> worlds) {
+        long n = 0;
+        java.util.Set<SharedScheduler> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        for (World w : worlds) if (seen.add(w.regionizer().pool())) n += w.regionizer().schedStats().wakeups();   // 공유 풀은 한 번만
+        return n;
+    }
+}

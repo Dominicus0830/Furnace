@@ -62,8 +62,20 @@ public final class FurnacePropertiesFile {
                 opt("region-pool-dim-cap", RegionPoolSettings.DEFAULT.dimCap(), "공유 풀에서 다른 차원에 일이 있을 때 한 차원이 쓸 수 있는 워커 상한(0 = 워커 수−1)."),
                 opt("region-pool-starve-ticks", RegionPoolSettings.DEFAULT.starveTicks(), "차원의 가장 이른 일이 이 틱 수만큼 밀리면 그 차원을 먼저 돌린다. 1 이상."),
                 opt("region-section-shift", d.regionSectionShift(), "구역 크기 = 2^값 청크(4 → 16×16 청크). 1~8."),
-                opt("region-merge-radius", d.regionMergeRadius(), "이 반경(구역 단위) 안의 구역은 같은 region 으로 합친다. 1 이상.")
+                opt("region-merge-radius", d.regionMergeRadius(), "이 반경(구역 단위) 안의 구역은 같은 region 으로 합친다. 1 이상."),
+                opt("light.async", LightSettings.DEFAULT.async(), "true 면 빛 계산을 region 스레드 대신 빛 스레드가 한다(바닐라 방식). 램프 시계 같은 큰 빛 장치가 TPS 를 먹지 않는 대신, 빛 스레드가 밀리면 바닐라 과부하 때처럼 빛이 한두 틱 늦게 보이고 새 청크 전송이 한 틱 늦다. 기본 false(지금 동작)."),
+                opt("light.async-threads", LightSettings.DEFAULT.threads(), "light.async 의 빛 스레드 수(서버 전체). 1 이상.")
         )));
+        {   // 엔티티 활성 범위(D11) — 키 이름은 Spigot spigot.yml 과 같다
+            EntityActivationSettings ear = EntityActivationSettings.DEFAULT;
+            List<Option> l = new ArrayList<>();
+            l.add(opt(EntityActivationSettings.PREFIX + "enabled", ear.enabled(),
+                    "엔티티 활성 범위(Spigot·Paper 와 같은 방식). true(기본)면 플레이어에게서 먼 몹은 AI·길찾기·이동을 대부분 쉬어 서버가 가벼워지지만 "
+                            + "바닐라와 결과가 달라진다(먼 곳 농장·몹 이동이 느려짐). false 면 바닐라와 똑같다. 아래 값은 Paper 기본값이다(범위 단위: 블록, 0 이하 = 그 종류는 늘 활성)."));
+            for (String[] k : EntityActivationSettings.INT_KEYS) l.add(opt(EntityActivationSettings.PREFIX + k[0], k[1], k[2] + "."));
+            for (String[] k : EntityActivationSettings.BOOL_KEYS) l.add(opt(EntityActivationSettings.PREFIX + k[0], k[1], k[2] + "."));
+            s.add(new Section("엔티티 활성 범위(기본 켜짐 — 바닐라와 다름)", l));
+        }
         s.add(new Section("채팅·운영", List.of(
                 opt("chat.strict-order", o.strictChatOrder(), "true(바닐라)면 순서가 어긋난 채팅에서 서명 체인을 끊는다. false 면 그 메시지만 버린다."),
                 opt("chat.unsigned-as-system", o.unsignedChatAsSystem(), "true 면 채팅을 서명 없는 시스템 메시지로 보낸다(채팅 신고 불가)."),
@@ -71,6 +83,7 @@ public final class FurnacePropertiesFile {
                 opt("commands.send-namespaced", o.sendNamespacedCommands(), "true(기본, Paper 와 같다)면 minecraft:give 같은 바닐라 명령 별칭이 자동완성에 보인다. false 면 안 보이지만 쳐서 실행은 된다."),
                 opt("commands.region-drain", o.commandRegionDrain(), "true(기본)면 함수·명령이 region 의 칸·엔티티를 만질 때 다음 틱을 기다리지 않고 곧바로 처리한다(#tick 함수가 초당 20번 그대로 돈다). 전역 틱당 20ms 예산을 명령 블록과 나눠 쓰고 넘으면 다음 틱. false 면 접근 한 줄이 한 틱씩 걸린다."),
                 opt("announce-sleep-status", o.announceSleepStatus(), "false 면 자는 사람 수 액션바를 보내지 않는다(기본 true = 바닐라)."),
+                opt("world.tick-when-empty", o.tickWhenEmpty(), "플레이어도 /forceload 도 없는 차원의 몹·호퍼: vanilla 면 15초 뒤 쉰다(바닐라), always 면 늘 돈다(Paper·Spigot 기본), auto(기본)면 Bukkit 플러그인이 있을 때만 always."),
                 opt("gravity-block-portal-dupe", o.gravityBlockPortalDupe(), "true(기본 = 바닐라) 면 엔드 포털로 넘어간 모래·자갈 같은 중력 블록이 제자리에도 놓여 복제된다. false 면 복제되지 않는다."),
                 opt("motd-format", o.motdFormat(), "server.properties 의 motd 해석: plain(기본, 바닐라) | legacy(& 색 코드) | markup(<gradient:red:blue>…</gradient> 같은 태그)."),
                 opt("confirm-interrupt", o.confirmInterrupt(), "true 면 콘솔 Ctrl+C 를 한 번 더 눌러야 종료한다."),

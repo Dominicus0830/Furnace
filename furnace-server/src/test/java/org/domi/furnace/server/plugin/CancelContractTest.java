@@ -58,6 +58,8 @@ class CancelContractTest {
                 E2E + "entitySpawnCancelKeepsArmorStandItemAndResendsHand", E2E + "entitySpawnCancelClearsFishingHook",
                 STAGE3 + "projectileAndItemSpawnAreSubEventsOfEntitySpawn"));
         TABLE.put("EntityBreedEvent", new Entry(Kind.SERVER_DRIVEN, STAGE3 + "breedCancelKeepsParentsInLoveAndNoChild"));
+        TABLE.put("EntityChangeBlockEvent", new Entry(Kind.SERVER_DRIVEN, "plugin.PluginApiEntityChangeBlockTest#fallingBlockStartCancelKeepsBlockAndAddsNoEntity",
+                "plugin.PluginApiEntityChangeBlockTest#fallingBlockLandingCancelDiscardsWithoutPlacing", "plugin.PluginApiEntityChangeBlockTest#breakDoorReachesChangeBlockSubscriberAndCancels"));
         TABLE.put("EntityDamageEvent", new Entry(Kind.SERVER_DRIVEN, WORLD + "spawnDamageDeathEventsAndCancellation"));
         TABLE.put("EntityDeathEvent", new Entry(Kind.SERVER_DRIVEN, WORLD + "entityDeathEventCarriesDropsAndCancelKeepsMobAliveWithGear"));
         TABLE.put("EntityExplodeEvent", new Entry(Kind.SERVER_DRIVEN, STAGE3 + "entityExplodeCanEditListAndCancel"));

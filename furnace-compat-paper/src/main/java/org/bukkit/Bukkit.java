@@ -62,6 +62,8 @@ public final class Bukkit {
 
     public static Player getPlayer(UUID id) { return s().getPlayer(id); }
 
+    public static org.bukkit.entity.Entity getEntity(UUID uuid) { return s().getEntity(uuid); }
+
     public static OfflinePlayer getOfflinePlayer(UUID id) { return s().getOfflinePlayer(id); }
 
     @Deprecated

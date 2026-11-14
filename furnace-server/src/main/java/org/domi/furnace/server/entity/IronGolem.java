@@ -28,7 +28,7 @@ public class IronGolem extends AbstractGolem implements NeutralMob {
     @Override
     public boolean checkSpawnObstruction(ChunkLevel level) {
         org.domi.furnace.server.block.Pos p = blockPosition(), below = p.below();
-        if (!org.domi.furnace.server.block.B.isFaceSturdy(level.getBlockState(below), level, below, org.domi.furnace.server.block.Dir.UP)) return false;
+        if (!org.domi.furnace.server.block.B.entityCanStandOn(level.getBlockState(below), level, below, this)) return false;   // entityCanStandOn(골렘 문맥)
         for (int i = 1; i < 3; i++) {
             org.domi.furnace.server.block.Pos q = p.above(i);
             if (!org.domi.furnace.server.entity.spawn.SpawnPlacements.isValidEmptySpawnBlock(level, q, type().name())) return false;

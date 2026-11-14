@@ -90,7 +90,146 @@ public final class PluginGameEvents implements GameEvents {
 
     private final PluginHost host;
 
-    PluginGameEvents(PluginHost host) { this.host = host; }
+    // 이벤트 종류별 구독 여부 — hasSubscribers 의 맵 조회 대신 등록이 바뀔 때만 갱신되는 필드 하나를 읽는다(T-054)
+    private final EventBusImpl.Flag wEntityDamage;
+    private final EventBusImpl.Flag wEntityDamageCalculate;
+    private final EventBusImpl.Flag wEntityDeath;
+    private final EventBusImpl.Flag wProjectileLaunch;
+    private final EventBusImpl.Flag wItemSpawn;
+    private final EventBusImpl.Flag wCreatureSpawn;
+    private final EventBusImpl.Flag wEntitySpawn;
+    private final EventBusImpl.Flag wPlayerMove;
+    private final EventBusImpl.Flag wPlayerTeleport;
+    private final EventBusImpl.Flag wPlayerInteract;
+    private final EventBusImpl.Flag wPlayerInteractEntity;
+    private final EventBusImpl.Flag wPlayerDropItem;
+    private final EventBusImpl.Flag wBlockPlace;
+    private final EventBusImpl.Flag wPlayerPickupItem;
+    private final EventBusImpl.Flag wCraftItem;
+    private final EventBusImpl.Flag wInventoryClick;
+    private final EventBusImpl.Flag wInventoryOpen;
+    private final EventBusImpl.Flag wInventoryClose;
+    private final EventBusImpl.Flag wChunkLoad;
+    private final EventBusImpl.Flag wChunkUnload;
+    private final EventBusImpl.Flag wPlayerItemHeld;
+    private final EventBusImpl.Flag wPlayerSwapHandItems;
+    private final EventBusImpl.Flag wPlayerItemConsume;
+    private final EventBusImpl.Flag wPlayerChangedWorld;
+    private final EventBusImpl.Flag wPlayerKick;
+    private final EventBusImpl.Flag wPlayerExpChange;
+    private final EventBusImpl.Flag wPlayerLevelChange;
+    private final EventBusImpl.Flag wPlayerAdvancementDone;
+    private final EventBusImpl.Flag wPlayerBedEnter;
+    private final EventBusImpl.Flag wPlayerBedLeave;
+    private final EventBusImpl.Flag wProjectileHit;
+    private final EventBusImpl.Flag wEntityTame;
+    private final EventBusImpl.Flag wEntityBreed;
+    private final EventBusImpl.Flag wEntityTarget;
+    private final EventBusImpl.Flag wFunctionExecute;
+    private final EventBusImpl.Flag wFunctionCommand;
+    private final EventBusImpl.Flag wServerListPing;
+    private final EventBusImpl.Flag wBlockPhysics;
+    private final EventBusImpl.Flag wBlockRedstone;
+    private final EventBusImpl.Flag wBlockFromTo;
+    private final EventBusImpl.Flag wBlockGrow;
+    private final EventBusImpl.Flag wBlockBurn;
+    private final EventBusImpl.Flag wBlockIgnite;
+    private final EventBusImpl.Flag wLeavesDecay;
+    private final EventBusImpl.Flag wPrepareItemCraft;
+    private final EventBusImpl.Flag wFurnaceBurn;
+    private final EventBusImpl.Flag wFurnaceSmelt;
+    private final EventBusImpl.Flag wInventoryMoveItem;
+    private final EventBusImpl.Flag wBlockForm;
+    private final EventBusImpl.Flag wBlockSpread;
+    private final EventBusImpl.Flag wBlockFade;
+    private final EventBusImpl.Flag wPrepareItemEnchant;
+    private final EventBusImpl.Flag wEnchantItem;
+    private final EventBusImpl.Flag wPrepareAnvil;
+    private final EventBusImpl.Flag wBrew;
+    private final EventBusImpl.Flag wBrewingStandFuel;
+    private final EventBusImpl.Flag wVehicleEnter;
+    private final EventBusImpl.Flag wEntityMount;
+    private final EventBusImpl.Flag wVehicleExit;
+    private final EventBusImpl.Flag wEntityDismount;
+    private final EventBusImpl.Flag wPlayerFish;
+    private final EventBusImpl.Flag wPlayerPortal;
+    private final EventBusImpl.Flag wEntityPortal;
+    private final EventBusImpl.Flag wPortalCreate;
+    private final EventBusImpl.Flag wPlayerEditBook;
+    private final EventBusImpl.Flag wEntityChangeBlock;
+    private final EventBusImpl.Flag wEntityBreakDoor;
+
+    PluginGameEvents(PluginHost host) {
+        this.host = host;
+        EventBusImpl b = host.eventsImpl();
+        wEntityDamage = b.flag(EntityDamageEvent.class);
+        wEntityDamageCalculate = b.flag(EntityDamageCalculateEvent.class);
+        wEntityDeath = b.flag(EntityDeathEvent.class);
+        wProjectileLaunch = b.flag(ProjectileLaunchEvent.class);
+        wItemSpawn = b.flag(ItemSpawnEvent.class);
+        wCreatureSpawn = b.flag(CreatureSpawnEvent.class);
+        wEntitySpawn = b.flag(EntitySpawnEvent.class);
+        wPlayerMove = b.flag(PlayerMoveEvent.class);
+        wPlayerTeleport = b.flag(PlayerTeleportEvent.class);
+        wPlayerInteract = b.flag(PlayerInteractEvent.class);
+        wPlayerInteractEntity = b.flag(PlayerInteractEntityEvent.class);
+        wPlayerDropItem = b.flag(PlayerDropItemEvent.class);
+        wBlockPlace = b.flag(org.domi.furnace.api.event.block.BlockPlaceEvent.class);
+        wPlayerPickupItem = b.flag(PlayerPickupItemEvent.class);
+        wCraftItem = b.flag(CraftItemEvent.class);
+        wInventoryClick = b.flag(InventoryClickEvent.class);
+        wInventoryOpen = b.flag(InventoryOpenEvent.class);
+        wInventoryClose = b.flag(InventoryCloseEvent.class);
+        wChunkLoad = b.flag(ChunkLoadEvent.class);
+        wChunkUnload = b.flag(ChunkUnloadEvent.class);
+        wPlayerItemHeld = b.flag(PlayerItemHeldEvent.class);
+        wPlayerSwapHandItems = b.flag(PlayerSwapHandItemsEvent.class);
+        wPlayerItemConsume = b.flag(PlayerItemConsumeEvent.class);
+        wPlayerChangedWorld = b.flag(PlayerChangedWorldEvent.class);
+        wPlayerKick = b.flag(PlayerKickEvent.class);
+        wPlayerExpChange = b.flag(PlayerExpChangeEvent.class);
+        wPlayerLevelChange = b.flag(PlayerLevelChangeEvent.class);
+        wPlayerAdvancementDone = b.flag(PlayerAdvancementDoneEvent.class);
+        wPlayerBedEnter = b.flag(PlayerBedEnterEvent.class);
+        wPlayerBedLeave = b.flag(PlayerBedLeaveEvent.class);
+        wProjectileHit = b.flag(ProjectileHitEvent.class);
+        wEntityTame = b.flag(EntityTameEvent.class);
+        wEntityBreed = b.flag(EntityBreedEvent.class);
+        wEntityTarget = b.flag(EntityTargetEvent.class);
+        wFunctionExecute = b.flag(FunctionExecuteEvent.class);
+        wFunctionCommand = b.flag(FunctionCommandEvent.class);
+        wServerListPing = b.flag(ServerListPingEvent.class);
+        wBlockPhysics = b.flag(BlockPhysicsEvent.class);
+        wBlockRedstone = b.flag(BlockRedstoneEvent.class);
+        wBlockFromTo = b.flag(BlockFromToEvent.class);
+        wBlockGrow = b.flag(BlockGrowEvent.class);
+        wBlockBurn = b.flag(BlockBurnEvent.class);
+        wBlockIgnite = b.flag(BlockIgniteEvent.class);
+        wLeavesDecay = b.flag(LeavesDecayEvent.class);
+        wPrepareItemCraft = b.flag(PrepareItemCraftEvent.class);
+        wFurnaceBurn = b.flag(FurnaceBurnEvent.class);
+        wFurnaceSmelt = b.flag(FurnaceSmeltEvent.class);
+        wInventoryMoveItem = b.flag(InventoryMoveItemEvent.class);
+        wBlockForm = b.flag(BlockFormEvent.class);
+        wBlockSpread = b.flag(BlockSpreadEvent.class);
+        wBlockFade = b.flag(BlockFadeEvent.class);
+        wPrepareItemEnchant = b.flag(PrepareItemEnchantEvent.class);
+        wEnchantItem = b.flag(EnchantItemEvent.class);
+        wPrepareAnvil = b.flag(PrepareAnvilEvent.class);
+        wBrew = b.flag(BrewEvent.class);
+        wBrewingStandFuel = b.flag(BrewingStandFuelEvent.class);
+        wVehicleEnter = b.flag(VehicleEnterEvent.class);
+        wEntityMount = b.flag(EntityMountEvent.class);
+        wVehicleExit = b.flag(VehicleExitEvent.class);
+        wEntityDismount = b.flag(EntityDismountEvent.class);
+        wPlayerFish = b.flag(PlayerFishEvent.class);
+        wPlayerPortal = b.flag(PlayerPortalEvent.class);
+        wEntityPortal = b.flag(EntityPortalEvent.class);
+        wPortalCreate = b.flag(PortalCreateEvent.class);
+        wPlayerEditBook = b.flag(PlayerEditBookEvent.class);
+        wEntityChangeBlock = b.flag(org.domi.furnace.api.event.entity.EntityChangeBlockEvent.class);
+        wEntityBreakDoor = b.flag(org.domi.furnace.api.event.entity.EntityBreakDoorEvent.class);
+    }
 
     private EventBusImpl bus() { return host.eventsImpl(); }
 
@@ -99,7 +238,7 @@ public final class PluginGameEvents implements GameEvents {
     @Override
     public float entityDamage(LivingEntity e, String cause, float amount, org.domi.furnace.server.entity.Rider causing,
                               org.domi.furnace.server.entity.Rider direct) {
-        if (!bus().hasSubscribers(EntityDamageEvent.class)) return amount;
+        if (!wEntityDamage.on()) return amount;
         var ev = bus().call(new EntityDamageEvent(EntityHandle.of(host, e), cause.indexOf(':') < 0 ? "minecraft:" + cause : cause, amount,
                 Causes.damage(causing, direct), riderHandle(direct), riderHandle(causing)));
         return ev.isCancelled() ? -1f : ev.damage();
@@ -108,14 +247,14 @@ public final class PluginGameEvents implements GameEvents {
     @Override
     public float playerDamage(Player p, String cause, float amount, org.domi.furnace.server.entity.Rider causing,
                               org.domi.furnace.server.entity.Rider direct) {
-        if (!bus().hasSubscribers(EntityDamageEvent.class)) return amount;
+        if (!wEntityDamage.on()) return amount;
         var ev = bus().call(new EntityDamageEvent(host.player(p), cause.indexOf(':') < 0 ? "minecraft:" + cause : cause, amount,
                 Causes.damage(causing, direct), riderHandle(direct), riderHandle(causing)));
         return ev.isCancelled() ? -1f : ev.damage();
     }
 
     @Override
-    public boolean wantsDamageCalc() { return bus().hasSubscribers(EntityDamageCalculateEvent.class); }
+    public boolean wantsDamageCalc() { return wEntityDamageCalculate.on(); }
 
     @Override
     public EntityDamageCalculateEvent entityDamageCalc(LivingEntity e, String cause, org.domi.furnace.server.entity.Rider causing,
@@ -136,7 +275,7 @@ public final class PluginGameEvents implements GameEvents {
     }
 
     @Override
-    public boolean wantsEntityDeath() { return bus().hasSubscribers(EntityDeathEvent.class); }
+    public boolean wantsEntityDeath() { return wEntityDeath.on(); }
 
     @Override
     public EntityDeathOutcome entityDeath(LivingEntity e, java.util.List<ItemStack> drops, int droppedExp) {
@@ -150,15 +289,15 @@ public final class PluginGameEvents implements GameEvents {
     public boolean entitySpawn(Entity e) {
         // Bukkit 처럼 투사체·떨어진 아이템은 하위 이벤트로(EntitySpawnEvent 구독자도 받는다)
         if (e instanceof org.domi.furnace.server.entity.Projectile) {
-            if (!bus().hasSubscribers(ProjectileLaunchEvent.class)) return true;
+            if (!wProjectileLaunch.on()) return true;
             return !bus().call(new ProjectileLaunchEvent(EntityHandle.of(host, e))).isCancelled();
         }
         if (e instanceof org.domi.furnace.server.entity.ItemEntity) {
-            if (!bus().hasSubscribers(ItemSpawnEvent.class)) return true;
+            if (!wItemSpawn.on()) return true;
             return !bus().call(new ItemSpawnEvent(EntityHandle.of(host, e))).isCancelled();
         }
         if (e instanceof LivingEntity) {   // CraftBukkit 처럼 살아 있는 것은 스폰 이유가 붙은 CreatureSpawnEvent(EntitySpawnEvent 구독자도 받는다)
-            if (!bus().hasSubscribers(CreatureSpawnEvent.class)) return true;
+            if (!wCreatureSpawn.on()) return true;
             CreatureSpawnEvent.SpawnReason reason;
             try {
                 reason = CreatureSpawnEvent.SpawnReason.valueOf(e.spawnReason());
@@ -167,14 +306,20 @@ public final class PluginGameEvents implements GameEvents {
             }
             return !bus().call(new CreatureSpawnEvent(EntityHandle.of(host, e), reason)).isCancelled();
         }
-        if (!bus().hasSubscribers(EntitySpawnEvent.class)) return true;
+        if (!wEntitySpawn.on()) return true;
         return !bus().call(new EntitySpawnEvent(EntityHandle.of(host, e))).isCancelled();
+    }
+
+    @Override
+    public void playerTrackEntity(Player viewer, Entity e) {
+        if (!bus().hasSubscribers(org.domi.furnace.api.event.player.PlayerTrackEntityEvent.class)) return;
+        bus().call(new org.domi.furnace.api.event.player.PlayerTrackEntityEvent(host.player(viewer), EntityHandle.of(host, e)));
     }
 
     @Override
     public boolean playerMove(Player p, double fx, double fy, double fz, float fyaw, float fpitch,
                               double tx, double ty, double tz, float tyaw, float tpitch) {
-        if (!bus().hasSubscribers(PlayerMoveEvent.class)) return true;
+        if (!wPlayerMove.on()) return true;
         String w = p.dimension();
         return !bus().call(new PlayerMoveEvent(host.player(p), new Location(w, fx, fy, fz, fyaw, fpitch), new Location(w, tx, ty, tz, tyaw, tpitch))).isCancelled();
     }
@@ -186,7 +331,7 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public boolean playerTeleport(Player p, double x, double y, double z, float yaw, float pitch) {
-        if (!bus().hasSubscribers(PlayerTeleportEvent.class)) return true;
+        if (!wPlayerTeleport.on()) return true;
         String w = p.dimension();
         return !bus().call(new PlayerTeleportEvent(host.player(p), new Location(w, p.x(), p.y(), p.z(), p.yaw(), p.pitch()),
                 new Location(w, x, y, z, yaw, pitch))).isCancelled();
@@ -194,7 +339,7 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public boolean playerInteract(Player p, int hand, int[] blockPos, int blockState, int face, ItemStack inHand) {
-        if (!bus().hasSubscribers(PlayerInteractEvent.class)) return true;
+        if (!wPlayerInteract.on()) return true;
         var reg = host.core().world().blockRegistry();
         BlockSnapshot block = blockPos == null ? null : new BlockSnapshot(p.dimension(), new BlockPos(blockPos[0], blockPos[1], blockPos[2]), ApiConvert.block(blockState, reg));
         var action = blockPos == null ? PlayerInteractEvent.Action.RIGHT_CLICK_AIR : PlayerInteractEvent.Action.RIGHT_CLICK_BLOCK;
@@ -203,11 +348,11 @@ public final class PluginGameEvents implements GameEvents {
     }
 
     @Override
-    public boolean wantsInteract() { return bus().hasSubscribers(PlayerInteractEvent.class); }
+    public boolean wantsInteract() { return wPlayerInteract.on(); }
 
     @Override
     public boolean playerLeftClick(Player p, int[] blockPos, int blockState, int face, ItemStack inHand) {
-        if (!bus().hasSubscribers(PlayerInteractEvent.class)) return true;
+        if (!wPlayerInteract.on()) return true;
         BlockSnapshot block = blockPos == null ? null
                 : new BlockSnapshot(p.dimension(), new BlockPos(blockPos[0], blockPos[1], blockPos[2]), ApiConvert.block(blockState, host.core().world().blockRegistry()));
         var action = blockPos == null ? PlayerInteractEvent.Action.LEFT_CLICK_AIR : PlayerInteractEvent.Action.LEFT_CLICK_BLOCK;
@@ -217,19 +362,41 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public boolean playerInteractEntity(Player p, Entity target, int hand, ItemStack inHand) {
-        if (!bus().hasSubscribers(PlayerInteractEntityEvent.class)) return true;
+        if (!wPlayerInteractEntity.on()) return true;
         return !bus().call(new PlayerInteractEntityEvent(host.player(p), EntityHandle.of(host, target), ApiConvert.item(inHand, items()), hand == 0)).isCancelled();
     }
 
     @Override
     public boolean playerDrop(Player p, ItemStack stack) {
-        if (!bus().hasSubscribers(PlayerDropItemEvent.class)) return true;
+        if (!wPlayerDropItem.on()) return true;
         return !bus().call(new PlayerDropItemEvent(host.player(p), ApiConvert.item(stack, items()))).isCancelled();
     }
 
     @Override
+    public boolean playerDrop(Player p, ItemStack stack, org.domi.furnace.server.entity.ItemEntity entity) {
+        if (!wPlayerDropItem.on()) return true;
+        return !bus().call(new PlayerDropItemEvent(host.player(p), ApiConvert.item(stack, items()), EntityHandle.of(host, entity))).isCancelled();
+    }
+
+    @Override
+    public boolean wantsPlayerDrop() { return wPlayerDropItem.on(); }
+
+    @Override
+    public boolean blockPlace(Player p, org.domi.furnace.server.block.Pos pos, int state, int replacedState, org.domi.furnace.server.block.Pos against, ItemStack inHand, boolean mainHand) {
+        if (!wBlockPlace.on()) return true;
+        var ev = bus().call(new org.domi.furnace.api.event.block.BlockPlaceEvent(p.dimension(), new BlockPos(pos.x(), pos.y(), pos.z()),
+                ApiConvert.block(state, host.core().world().blockRegistry()), ApiConvert.block(replacedState, host.core().world().blockRegistry()),
+                new BlockPos(against.x(), against.y(), against.z()), host.player(p),
+                ApiConvert.item(inHand, items()), mainHand));
+        return !ev.isCancelled();
+    }
+
+    @Override
+    public boolean wantsBlockPlace() { return wBlockPlace.on(); }
+
+    @Override
     public boolean playerPickup(Player p, ItemStack stack) {
-        if (!bus().hasSubscribers(PlayerPickupItemEvent.class)) return true;
+        if (!wPlayerPickupItem.on()) return true;
         return !bus().call(new PlayerPickupItemEvent(host.player(p), ApiConvert.item(stack, items()))).isCancelled();
     }
 
@@ -238,12 +405,12 @@ public final class PluginGameEvents implements GameEvents {
         if (menu.pluginOwner() instanceof MenuSession ms && !ms.click(menu, slot, button, type)) return false;   // 플러그인 Menu 처리기
         String recipe = craftRecipe(menu, slot, type);
         if (recipe != null) {   // 제작 결과 칸을 꺼내는 클릭은 하위 CraftItemEvent(InventoryClickEvent 구독자도 받는다)
-            if (!bus().hasSubscribers(CraftItemEvent.class)) return true;
+            if (!wCraftItem.on()) return true;
             var cursor = ApiConvert.item(menu.getCarried(), items());
             return !bus().call(new CraftItemEvent(host.player(p), ApiConvert.snapshot(menu, items()), slot, button,
                     type.name().toLowerCase(java.util.Locale.ROOT), cursor, recipe.isEmpty() ? null : recipe)).isCancelled();
         }
-        if (!bus().hasSubscribers(InventoryClickEvent.class)) return true;
+        if (!wInventoryClick.on()) return true;
         var cursor = ApiConvert.item(menu.getCarried(), items());
         return !bus().call(new InventoryClickEvent(host.player(p), ApiConvert.snapshot(menu, items()), slot, button,
                 type.name().toLowerCase(java.util.Locale.ROOT), cursor, pluginMenu(menu))).isCancelled();
@@ -261,7 +428,7 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public boolean inventoryOpen(Player p, AbstractContainerMenu menu) {
-        if (!bus().hasSubscribers(InventoryOpenEvent.class)) return true;
+        if (!wInventoryOpen.on()) return true;
         return !bus().call(new InventoryOpenEvent(host.player(p), ApiConvert.snapshot(menu, items()), pluginMenu(menu))).isCancelled();
     }
 
@@ -269,7 +436,7 @@ public final class PluginGameEvents implements GameEvents {
     public void inventoryClose(Player p, AbstractContainerMenu menu, InventoryCloseEvent.Reason reason) {
         // Paper 처럼 닫는 사람은 이벤트 동안 아직 그 메뉴의 보는 사람이다 — 메뉴 세션은 이벤트 뒤에 끝낸다
         try {
-            if (bus().hasSubscribers(InventoryCloseEvent.class)) {
+            if (wInventoryClose.on()) {
                 bus().call(new InventoryCloseEvent(host.player(p), ApiConvert.snapshot(menu, items()), pluginMenu(menu), reason));
             }
         } finally {
@@ -287,13 +454,13 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public void chunkLoad(String dimension, int cx, int cz, boolean newChunk) {
-        if (!bus().hasSubscribers(ChunkLoadEvent.class)) return;
+        if (!wChunkLoad.on()) return;
         bus().call(new ChunkLoadEvent(dimension, cx, cz, newChunk));
     }
 
     @Override
     public void chunkUnload(String dimension, int cx, int cz) {
-        if (!bus().hasSubscribers(ChunkUnloadEvent.class)) return;
+        if (!wChunkUnload.on()) return;
         bus().call(new ChunkUnloadEvent(dimension, cx, cz));
     }
 
@@ -324,13 +491,13 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public boolean playerItemHeld(Player p, int previous, int next) {
-        if (!bus().hasSubscribers(PlayerItemHeldEvent.class)) return true;
+        if (!wPlayerItemHeld.on()) return true;
         return !bus().call(new PlayerItemHeldEvent(host.player(p), previous, next)).isCancelled();
     }
 
     @Override
     public ItemStack[] playerSwapHands(Player p, ItemStack newMain, ItemStack newOff) {
-        if (!bus().hasSubscribers(PlayerSwapHandItemsEvent.class)) return new ItemStack[] {newMain, newOff};
+        if (!wPlayerSwapHandItems.on()) return new ItemStack[] {newMain, newOff};
         var apiMain = ApiConvert.item(newMain, items());
         var apiOff = ApiConvert.item(newOff, items());
         var ev = bus().call(new PlayerSwapHandItemsEvent(host.player(p), apiMain, apiOff));
@@ -353,19 +520,19 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public boolean playerConsume(Player p, ItemStack item, int hand) {
-        if (!bus().hasSubscribers(PlayerItemConsumeEvent.class)) return true;
+        if (!wPlayerItemConsume.on()) return true;
         return !bus().call(new PlayerItemConsumeEvent(host.player(p), ApiConvert.item(item, items()), hand == 0)).isCancelled();
     }
 
     @Override
     public void playerChangedWorld(Player p, String from) {
-        if (!bus().hasSubscribers(PlayerChangedWorldEvent.class)) return;
+        if (!wPlayerChangedWorld.on()) return;
         bus().call(new PlayerChangedWorldEvent(host.player(p), from));
     }
 
     @Override
     public org.domi.furnace.api.text.Text playerKick(Player p, org.domi.furnace.api.text.Text reason) {
-        if (!bus().hasSubscribers(PlayerKickEvent.class)) return reason;
+        if (!wPlayerKick.on()) return reason;
         var ev = bus().call(new PlayerKickEvent(host.player(p), reason));
         if (ev.isCancelled()) return null;
         if (ev.hasLeaveMessage()) p.kickLeaveMessage(ev.leaveMessage());   // 퇴장 처리에서 PlayerQuitEvent 의 처음 메시지로 쓴다
@@ -374,32 +541,32 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public int playerExpChange(Player p, int amount) {
-        if (!bus().hasSubscribers(PlayerExpChangeEvent.class)) return amount;
+        if (!wPlayerExpChange.on()) return amount;
         return bus().call(new PlayerExpChangeEvent(host.player(p), amount)).amount();
     }
 
     @Override
     public void playerLevelChange(Player p, int oldLevel, int newLevel) {
-        if (!bus().hasSubscribers(PlayerLevelChangeEvent.class)) return;
+        if (!wPlayerLevelChange.on()) return;
         bus().call(new PlayerLevelChangeEvent(host.player(p), oldLevel, newLevel));
     }
 
     @Override
     public org.domi.furnace.api.text.Text playerAdvancementDone(Player p, String advancement, org.domi.furnace.api.text.Text message) {
-        if (!bus().hasSubscribers(PlayerAdvancementDoneEvent.class)) return message;
+        if (!wPlayerAdvancementDone.on()) return message;
         return bus().call(new PlayerAdvancementDoneEvent(host.player(p), advancement, message)).message();
     }
 
     @Override
     public boolean playerBedEnter(Player p, String dimension, int x, int y, int z, int bedState) {
-        if (!bus().hasSubscribers(PlayerBedEnterEvent.class)) return true;
+        if (!wPlayerBedEnter.on()) return true;
         var bed = new BlockSnapshot(dimension, new BlockPos(x, y, z), ApiConvert.block(bedState, host.core().world().blockRegistry()));
         return !bus().call(new PlayerBedEnterEvent(host.player(p), bed)).isCancelled();
     }
 
     @Override
     public void playerBedLeave(Player p, String dimension, org.domi.furnace.server.block.Pos pos) {
-        if (!bus().hasSubscribers(PlayerBedLeaveEvent.class)) return;
+        if (!wPlayerBedLeave.on()) return;
         bus().call(new PlayerBedLeaveEvent(host.player(p), dimension, pos == null ? null : new BlockPos(pos.x(), pos.y(), pos.z())));
     }
 
@@ -416,11 +583,13 @@ public final class PluginGameEvents implements GameEvents {
         boolean cancelled;
         if (byEntity) {
             org.domi.furnace.api.entity.Entity who = source != null ? EntityHandle.of(host, source) : host.player(sourcePlayer);
-            cancelled = bus().call(new EntityExplodeEvent(who, new Location(dimension, x, y, z, 0f, 0f), list, explosion.cause())).isCancelled();
+            float yield = explosion.interactionName().equals("DESTROY_WITH_DECAY") ? 1.0F / explosion.radius() : 1.0F;
+            cancelled = bus().call(new EntityExplodeEvent(who, new Location(dimension, x, y, z, 0f, 0f), list, explosion.cause(), yield, explosion.interactionName())).isCancelled();
         } else {
             var center = new BlockPos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
             String blockType = ApiConvert.block(blockState, host.core().world().blockRegistry()).type();
-            cancelled = bus().call(new BlockExplodeEvent(dimension, center, blockType, list, explosion.causedBy())).isCancelled();
+            float yield = explosion.interactionName().equals("DESTROY_WITH_DECAY") ? 1.0F / explosion.radius() : 1.0F;
+            cancelled = bus().call(new BlockExplodeEvent(dimension, center, blockType, list, explosion.causedBy(), yield, explosion.interactionName())).isCancelled();
         }
         if (cancelled) return false;
         blocks.clear();
@@ -433,7 +602,7 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public boolean projectileHit(Entity projectile, Entity hitEntity, Player hitPlayer, org.domi.furnace.server.block.Pos hitBlock, int blockState, int face) {
-        if (!bus().hasSubscribers(ProjectileHitEvent.class)) return true;
+        if (!wProjectileHit.on()) return true;
         org.domi.furnace.api.entity.Entity target = hitPlayer != null ? host.player(hitPlayer) : hitEntity != null ? EntityHandle.of(host, hitEntity) : null;
         BlockSnapshot block = hitBlock == null ? null : new BlockSnapshot(projectile.dimensionKey(), new BlockPos(hitBlock.x(), hitBlock.y(), hitBlock.z()),
                 ApiConvert.block(blockState, host.core().world().blockRegistry()));
@@ -442,46 +611,67 @@ public final class PluginGameEvents implements GameEvents {
     }
 
     @Override
+    public boolean wantsEntityChangeBlock() { return wEntityChangeBlock.on(); }
+
+    @Override
+    public boolean entityChangeBlock(String dimension, org.domi.furnace.server.entity.Rider who, org.domi.furnace.server.block.Pos pos, int oldState, int newState,
+                                     boolean cancelled) {
+        if (!wEntityChangeBlock.on()) return !cancelled;
+        var handle = riderHandle(who);
+        if (handle == null) return !cancelled;
+        return !bus().call(new org.domi.furnace.api.event.entity.EntityChangeBlockEvent(handle, dimension, bp(pos), data(oldState), data(newState), cancelled))
+                .isCancelled();
+    }
+
+    @Override
+    public boolean entityBreakDoor(String dimension, LivingEntity who, org.domi.furnace.server.block.Pos pos, int oldState, int newState) {
+        // 하위 이벤트라 EntityChangeBlockEvent 구독자도 받는다(버스가 상위 구독을 함께 굽고, 필드도 상위 구독에 켜진다)
+        if (!wEntityBreakDoor.on()) return true;
+        return !bus().call(new org.domi.furnace.api.event.entity.EntityBreakDoorEvent((org.domi.furnace.api.entity.LivingEntity) EntityHandle.of(host, who),
+                dimension, bp(pos), data(oldState), data(newState))).isCancelled();
+    }
+
+    @Override
     public boolean entityTame(Entity e, Player owner) {
-        if (!bus().hasSubscribers(EntityTameEvent.class)) return true;
+        if (!wEntityTame.on()) return true;
         return !bus().call(new EntityTameEvent(EntityHandle.of(host, e), host.player(owner))).isCancelled();
     }
 
     @Override
     public boolean entityBreed(Entity child, LivingEntity mother, LivingEntity father, Player breeder) {
-        if (!bus().hasSubscribers(EntityBreedEvent.class)) return true;
+        if (!wEntityBreed.on()) return true;
         return !bus().call(new EntityBreedEvent(EntityHandle.of(host, child), (org.domi.furnace.api.entity.LivingEntity) EntityHandle.of(host, mother),
                 (org.domi.furnace.api.entity.LivingEntity) EntityHandle.of(host, father), breeder == null ? null : host.player(breeder))).isCancelled();
     }
 
     @Override
     public boolean entityTarget(Entity e, Entity targetEntity, Player targetPlayer) {
-        if (!bus().hasSubscribers(EntityTargetEvent.class)) return true;
+        if (!wEntityTarget.on()) return true;
         org.domi.furnace.api.entity.Entity t = targetPlayer != null ? host.player(targetPlayer) : targetEntity != null ? EntityHandle.of(host, targetEntity) : null;
         return !bus().call(new EntityTargetEvent(EntityHandle.of(host, e), t)).isCancelled();
     }
 
     @Override
     public boolean functionExecute(org.domi.furnace.server.command.CommandSource source, String function, FunctionExecuteEvent.Trigger trigger, int depth) {
-        if (!bus().hasSubscribers(FunctionExecuteEvent.class)) return true;
+        if (!wFunctionExecute.on()) return true;
         return !bus().call(new FunctionExecuteEvent(function, trigger, host.sender(source), depth)).isCancelled();
     }
 
     @Override
     public boolean functionCommand(org.domi.furnace.server.command.CommandSource source, String command, int depth) {
-        if (!bus().hasSubscribers(FunctionCommandEvent.class)) return true;
+        if (!wFunctionCommand.on()) return true;
         return !bus().call(new FunctionCommandEvent(host.sender(source), command, depth)).isCancelled();
     }
 
     @Override
-    public boolean wantsFunctionExecute() { return bus().hasSubscribers(FunctionExecuteEvent.class); }
+    public boolean wantsFunctionExecute() { return wFunctionExecute.on(); }
 
     @Override
-    public boolean wantsFunctionCommands() { return bus().hasSubscribers(FunctionCommandEvent.class); }
+    public boolean wantsFunctionCommands() { return wFunctionCommand.on(); }
 
     @Override
     public StatusOverride serverListPing(java.net.InetAddress address, String motd, int online, int max, boolean hidePlayers) {
-        if (!bus().hasSubscribers(ServerListPingEvent.class)) return null;
+        if (!wServerListPing.on()) return null;
         var motdText = org.domi.furnace.server.net.Motd.parse(motd);
         var ev = bus().call(new ServerListPingEvent(address, motdText, online, max, hidePlayers));
         if (ev.motd() == motdText && ev.numPlayers() == online && ev.maxPlayers() == max && ev.hidePlayers() == hidePlayers) return null;
@@ -495,15 +685,22 @@ public final class PluginGameEvents implements GameEvents {
     private static BlockPos bp(org.domi.furnace.server.block.Pos p) { return new BlockPos(p.x(), p.y(), p.z()); }
 
     @Override
+    public boolean wantsBlockPhysics() { return wBlockPhysics.on(); }
+
+    @Override
     public boolean blockPhysics(String dimension, org.domi.furnace.server.block.Pos pos, int state, org.domi.furnace.server.block.Pos sourcePos, int sourceBlock) {
-        if (!bus().hasSubscribers(BlockPhysicsEvent.class)) return true;
-        String changed = data(org.domi.furnace.server.block.B.defaultState(sourceBlock)).type();
-        return !bus().call(new BlockPhysicsEvent(dimension, bp(pos), data(state), bp(sourcePos), changed)).isCancelled();
+        if (!wBlockPhysics.on()) return true;
+        // 상태 번호는 불변이라 변환을 처음 읽을 때로 미뤄도 결과가 같다(T-032 게으른 이벤트 내용). 레지스트리는 지금 것을 잡는다
+        var blocks = host.core().world().blockRegistry();
+        var block = org.domi.furnace.api.event.LazyValue.of(state, s -> ApiConvert.block(s, blocks));
+        var changed = org.domi.furnace.api.event.LazyValue.of(sourceBlock,
+                b -> ApiConvert.block(org.domi.furnace.server.block.B.defaultState(b), blocks).type());
+        return !bus().call(new BlockPhysicsEvent(dimension, bp(pos), block, bp(sourcePos), changed)).isCancelled();
     }
 
     @Override
     public int blockRedstone(String dimension, org.domi.furnace.server.block.Pos pos, int state, int oldCurrent, int newCurrent) {
-        if (!bus().hasSubscribers(BlockRedstoneEvent.class)) return newCurrent;
+        if (!wBlockRedstone.on()) return newCurrent;
         return bus().call(new BlockRedstoneEvent(dimension, bp(pos), data(state).type(), oldCurrent, newCurrent)).newCurrent();
     }
 
@@ -522,19 +719,19 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public boolean blockFromTo(String dimension, org.domi.furnace.server.block.Pos pos, int state, org.domi.furnace.server.block.Pos to, int dir) {
-        if (!bus().hasSubscribers(BlockFromToEvent.class)) return true;
+        if (!wBlockFromTo.on()) return true;
         return !bus().call(new BlockFromToEvent(dimension, bp(pos), data(state).type(), bp(to), org.domi.furnace.server.block.Dir.NAME[dir])).isCancelled();
     }
 
     @Override
     public boolean blockGrow(String dimension, org.domi.furnace.server.block.Pos pos, int oldState, int newState) {
-        if (!bus().hasSubscribers(BlockGrowEvent.class)) return true;
+        if (!wBlockGrow.on()) return true;
         return !bus().call(new BlockGrowEvent(dimension, bp(pos), data(oldState), data(newState))).isCancelled();
     }
 
     @Override
     public boolean blockBurn(String dimension, org.domi.furnace.server.block.Pos pos, int state, org.domi.furnace.server.block.Pos fire) {
-        if (!bus().hasSubscribers(BlockBurnEvent.class)) return true;
+        if (!wBlockBurn.on()) return true;
         return !bus().call(new BlockBurnEvent(dimension, bp(pos), data(state).type(), bp(fire))).isCancelled();
     }
 
@@ -543,14 +740,14 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public boolean blockIgnite(String dimension, org.domi.furnace.server.block.Pos pos, int cause, org.domi.furnace.server.block.Pos ignitingPos, Player player) {
-        if (!bus().hasSubscribers(BlockIgniteEvent.class)) return true;
+        if (!wBlockIgnite.on()) return true;
         return !bus().call(new BlockIgniteEvent(dimension, bp(pos), IGNITE_CAUSES[cause], ignitingPos == null ? null : bp(ignitingPos),
                 player == null ? null : host.player(player))).isCancelled();
     }
 
     @Override
     public boolean leavesDecay(String dimension, org.domi.furnace.server.block.Pos pos, int state) {
-        if (!bus().hasSubscribers(LeavesDecayEvent.class)) return true;
+        if (!wLeavesDecay.on()) return true;
         return !bus().call(new LeavesDecayEvent(dimension, bp(pos), data(state))).isCancelled();
     }
 
@@ -558,7 +755,7 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public ItemStack prepareCraft(Player p, AbstractContainerMenu menu, String recipe, ItemStack result) {
-        if (!bus().hasSubscribers(PrepareItemCraftEvent.class)) return result;
+        if (!wPrepareItemCraft.on()) return result;
         var given = ApiConvert.item(result, items());
         var ev = bus().call(new PrepareItemCraftEvent(host.player(p), ApiConvert.snapshot(menu, items()), recipe, given));
         return fromApi(ev.result(), given, result);
@@ -566,14 +763,14 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public FurnaceBurn furnaceBurn(String dimension, org.domi.furnace.server.block.Pos pos, int state, ItemStack fuel, int burnTime) {
-        if (!bus().hasSubscribers(FurnaceBurnEvent.class)) return new FurnaceBurn(burnTime, true);
+        if (!wFurnaceBurn.on()) return new FurnaceBurn(burnTime, true);
         var ev = bus().call(new FurnaceBurnEvent(dimension, bp(pos), data(state).type(), ApiConvert.item(fuel, items()), burnTime));
         return ev.isCancelled() ? null : new FurnaceBurn(ev.burnTime(), ev.isBurning());
     }
 
     @Override
     public ItemStack furnaceSmelt(String dimension, org.domi.furnace.server.block.Pos pos, int state, ItemStack source, ItemStack result) {
-        if (!bus().hasSubscribers(FurnaceSmeltEvent.class)) return result;
+        if (!wFurnaceSmelt.on()) return result;
         var given = ApiConvert.item(result, items());
         var ev = bus().call(new FurnaceSmeltEvent(dimension, bp(pos), data(state).type(), ApiConvert.item(source, items()), given));
         return ev.isCancelled() ? null : fromApi(ev.result(), given, result);
@@ -583,7 +780,7 @@ public final class PluginGameEvents implements GameEvents {
     public ItemStack inventoryMove(String dimension, org.domi.furnace.server.block.entity.HopperBlockEntity.Inv source, double sx, double sy, double sz,
                                    org.domi.furnace.server.block.entity.HopperBlockEntity.Inv destination, double dx, double dy, double dz,
                                    ItemStack item, boolean initiatorIsSource) {
-        if (!bus().hasSubscribers(InventoryMoveItemEvent.class)) return item;
+        if (!wInventoryMoveItem.on()) return item;
         var given = ApiConvert.item(item, items());
         var ev = bus().call(new InventoryMoveItemEvent(snapshot(source), new Location(dimension, sx, sy, sz), snapshot(destination),
                 new Location(dimension, dx, dy, dz), given, initiatorIsSource));
@@ -591,28 +788,29 @@ public final class PluginGameEvents implements GameEvents {
     }
 
     private org.domi.furnace.api.inventory.InventorySnapshot snapshot(org.domi.furnace.server.block.entity.HopperBlockEntity.Inv inv) {
-        java.util.List<org.domi.furnace.api.item.ItemStack> list = new java.util.ArrayList<>(inv.size());
-        for (int i = 0; i < inv.size(); i++) list.add(ApiConvert.item(inv.get(i), items()));
-        return new org.domi.furnace.api.inventory.InventorySnapshot(inv.typeKey(), list);
+        // 칸 참조만 지금 잡는다 — 변환은 처리기가 칸을 읽을 때(T-033). 깔때기 이동마다 부르므로 54칸 상자 변환을 미리 하지 않는다
+        ItemStack[] refs = new ItemStack[inv.size()];
+        for (int i = 0; i < refs.length; i++) refs[i] = inv.get(i);
+        return ApiConvert.snapshot(inv.typeKey(), refs, items());
     }
 
     // ------------------------------------------------------------------ 3단계 셋째 묶음: 블록 번짐·형성·소멸
 
     @Override
     public boolean blockForm(String dimension, org.domi.furnace.server.block.Pos pos, int oldState, int newState) {
-        if (!bus().hasSubscribers(BlockFormEvent.class)) return true;
+        if (!wBlockForm.on()) return true;
         return !bus().call(new BlockFormEvent(dimension, bp(pos), data(oldState), data(newState))).isCancelled();
     }
 
     @Override
     public boolean blockSpread(String dimension, org.domi.furnace.server.block.Pos pos, org.domi.furnace.server.block.Pos source, int oldState, int newState) {
-        if (!bus().hasSubscribers(BlockSpreadEvent.class)) return true;
+        if (!wBlockSpread.on()) return true;
         return !bus().call(new BlockSpreadEvent(dimension, bp(pos), bp(source), data(oldState), data(newState))).isCancelled();
     }
 
     @Override
     public boolean blockFade(String dimension, org.domi.furnace.server.block.Pos pos, int oldState, int newState) {
-        if (!bus().hasSubscribers(BlockFadeEvent.class)) return true;
+        if (!wBlockFade.on()) return true;
         return !bus().call(new BlockFadeEvent(dimension, bp(pos), data(oldState), data(newState))).isCancelled();
     }
 
@@ -622,7 +820,7 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public EnchantOffer[] prepareEnchant(Player p, AbstractContainerMenu menu, int[] table, ItemStack item, int bookshelves, EnchantOffer[] offers) {
-        if (!bus().hasSubscribers(PrepareItemEnchantEvent.class)) return offers;
+        if (!wPrepareItemEnchant.on()) return offers;
         java.util.List<org.domi.furnace.api.inventory.EnchantmentOffer> list = new java.util.ArrayList<>(3);
         for (EnchantOffer o : offers) list.add(o == null ? null : new org.domi.furnace.api.inventory.EnchantmentOffer(o.enchantment(), o.level(), o.cost()));
         var ev = bus().call(new PrepareItemEnchantEvent(host.player(p), ApiConvert.snapshot(menu, items()), tablePos(table), ApiConvert.item(item, items()), bookshelves, list));
@@ -637,7 +835,7 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public EnchantApply enchantItem(Player p, AbstractContainerMenu menu, int[] table, ItemStack item, int button, int cost, java.util.Map<String, Integer> enchants) {
-        if (!bus().hasSubscribers(EnchantItemEvent.class)) return new EnchantApply(cost, enchants);
+        if (!wEnchantItem.on()) return new EnchantApply(cost, enchants);
         var map = new java.util.LinkedHashMap<>(enchants);
         String hint = null;
         int levelHint = -1;
@@ -652,7 +850,7 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public AnvilPrepared prepareAnvil(Player p, AbstractContainerMenu menu, ItemStack result, int repairCost, int maximumRepairCost, String renameText) {
-        if (!bus().hasSubscribers(PrepareAnvilEvent.class)) return null;
+        if (!wPrepareAnvil.on()) return null;
         var given = ApiConvert.item(result, items());
         var ev = bus().call(new PrepareAnvilEvent(host.player(p), ApiConvert.snapshot(menu, items()), given, repairCost, maximumRepairCost, renameText));
         return new AnvilPrepared(fromApi(ev.result(), given, result), ev.repairCost(), ev.maximumRepairCost());
@@ -660,12 +858,10 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public boolean brew(String dimension, org.domi.furnace.server.block.Pos pos, ItemStack[] stacks, ItemStack[] results, int fuelLevel) {
-        if (!bus().hasSubscribers(BrewEvent.class)) return true;
-        java.util.List<org.domi.furnace.api.item.ItemStack> list = new java.util.ArrayList<>(stacks.length);
-        for (ItemStack s : stacks) list.add(ApiConvert.item(s, items()));
+        if (!wBrew.on()) return true;
         java.util.List<org.domi.furnace.api.item.ItemStack> given = new java.util.ArrayList<>(results.length);
         for (ItemStack s : results) given.add(ApiConvert.item(s, items()));
-        var ev = bus().call(new BrewEvent(dimension, bp(pos), new org.domi.furnace.api.inventory.InventorySnapshot("minecraft:brewing_stand", list), given, fuelLevel));
+        var ev = bus().call(new BrewEvent(dimension, bp(pos), ApiConvert.snapshot("minecraft:brewing_stand", stacks, items()), given, fuelLevel));
         if (ev.isCancelled()) return false;
         // Paper: 결과 목록의 i 번째가 병 칸 i 로 들어가고, 목록이 짧으면 남는 칸은 빈다. 바뀌지 않은 칸은 서버 스택을 그대로 둔다(부품이 깎이지 않게)
         var now = ev.results();
@@ -678,7 +874,7 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public BrewFuel brewingFuel(String dimension, org.domi.furnace.server.block.Pos pos, ItemStack fuel, int fuelPower) {
-        if (!bus().hasSubscribers(BrewingStandFuelEvent.class)) return new BrewFuel(fuelPower, true);
+        if (!wBrewingStandFuel.on()) return new BrewFuel(fuelPower, true);
         var ev = bus().call(new BrewingStandFuelEvent(dimension, bp(pos), ApiConvert.item(fuel, items()), fuelPower));
         return ev.isCancelled() ? null : new BrewFuel(ev.fuelPower(), ev.isConsuming());
     }
@@ -697,8 +893,8 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public boolean entityMount(org.domi.furnace.server.entity.Rider rider, Entity vehicle) {
-        boolean ve = bus().hasSubscribers(VehicleEnterEvent.class) && isVehicleEvent(rider, vehicle);
-        boolean me = bus().hasSubscribers(EntityMountEvent.class);
+        boolean ve = wVehicleEnter.on() && isVehicleEvent(rider, vehicle);
+        boolean me = wEntityMount.on();
         if (!ve && !me) return true;
         var who = api(rider);
         var mount = EntityHandle.of(host, vehicle);
@@ -708,8 +904,8 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public boolean entityDismount(org.domi.furnace.server.entity.Rider rider, Entity vehicle, boolean cancellable) {
-        boolean ve = bus().hasSubscribers(VehicleExitEvent.class) && isVehicleEvent(rider, vehicle);
-        boolean me = bus().hasSubscribers(EntityDismountEvent.class);
+        boolean ve = wVehicleExit.on() && isVehicleEvent(rider, vehicle);
+        boolean me = wEntityDismount.on();
         if (!ve && !me) return true;
         var who = api(rider);
         var mount = EntityHandle.of(host, vehicle);
@@ -724,7 +920,7 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public int playerFish(Player p, Entity hook, Entity caughtEntity, Player caughtPlayer, int state, int exp) {
-        if (!bus().hasSubscribers(PlayerFishEvent.class)) return exp;
+        if (!wPlayerFish.on()) return exp;
         org.domi.furnace.api.entity.Entity caught = caughtPlayer != null ? host.player(caughtPlayer) : caughtEntity != null ? EntityHandle.of(host, caughtEntity) : null;
         var ev = bus().call(new PlayerFishEvent(host.player(p), caught, EntityHandle.of(host, hook), FISH_STATES[state], exp));
         return ev.isCancelled() ? -1 : ev.expToDrop();
@@ -734,19 +930,19 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public boolean playerPortal(Player p, String toDimension, int cause) {
-        if (!bus().hasSubscribers(PlayerPortalEvent.class)) return true;
+        if (!wPlayerPortal.on()) return true;
         return !bus().call(new PlayerPortalEvent(host.player(p), new Location(p.dimension(), p.x(), p.y(), p.z(), p.yaw(), p.pitch()), toDimension, PORTAL_CAUSES[cause])).isCancelled();
     }
 
     @Override
     public boolean entityPortal(Entity e, String toDimension, int cause) {
-        if (!bus().hasSubscribers(EntityPortalEvent.class)) return true;
+        if (!wEntityPortal.on()) return true;
         return !bus().call(new EntityPortalEvent(EntityHandle.of(host, e), new Location(e.dimensionKey(), e.x(), e.y(), e.z(), e.yRot(), e.xRot()), toDimension, PORTAL_CAUSES[cause])).isCancelled();
     }
 
     @Override
     public boolean portalCreate(String dimension, java.util.List<org.domi.furnace.server.block.Pos> blocks) {
-        if (!bus().hasSubscribers(PortalCreateEvent.class)) return true;
+        if (!wPortalCreate.on()) return true;
         java.util.List<BlockPos> list = new java.util.ArrayList<>(blocks.size());
         for (var b : blocks) list.add(bp(b));
         return !bus().call(new PortalCreateEvent(dimension, list, PortalCreateEvent.Reason.FIRE)).isCancelled();
@@ -754,7 +950,7 @@ public final class PluginGameEvents implements GameEvents {
 
     @Override
     public BookEdit editBook(Player p, int slot, java.util.List<String> previousPages, java.util.List<String> pages, String title) {
-        if (!bus().hasSubscribers(PlayerEditBookEvent.class)) return new BookEdit(pages, title);
+        if (!wPlayerEditBook.on()) return new BookEdit(pages, title);
         var ev = bus().call(new PlayerEditBookEvent(host.player(p), slot, previousPages, pages, title));
         return ev.isCancelled() ? null : new BookEdit(ev.pages(), ev.title());
     }

@@ -170,6 +170,7 @@ public class PistonMovingBlockEntity extends BlockEntity {
                     default -> vz = Dir.DZ[dir];
                 }
                 e.setDeltaMovement(vx, vy, vz);
+                org.domi.furnace.server.entity.EntityActivation.immunize(e, 10);   // Paper EAR: 점액에 튕긴 엔티티는 10틱 활성(꺼져 있으면 아무것도)
             }
             double d1 = 0.0;
             for (int i = 0, n = shape.boxCount(); i < n; i++) {
@@ -264,7 +265,7 @@ public class PistonMovingBlockEntity extends BlockEntity {
 
     private static AABB toAabb(double[] b) { return new AABB(b[0], b[1], b[2], b[3], b[4], b[5]); }
 
-    private static Shape collision(int state, BlockLevel level, Pos at) { return B.behavior(state).getCollisionShape(state, level, at, null); }
+    private static Shape collision(int state, BlockLevel level, Pos at) { return B.behavior(state).getCollisionShape(state, level, at, org.domi.furnace.server.block.CollisionContext.EMPTY); }
 
     @Override
     public void load(NbtCompound tag) {

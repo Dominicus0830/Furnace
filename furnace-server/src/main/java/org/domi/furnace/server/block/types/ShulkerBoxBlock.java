@@ -37,7 +37,7 @@ public class ShulkerBoxBlock extends BaseEntityBlock {
 
     /**
      * canOpen: 닫혀 있지 않으면 열 수 있다. 닫혀 있으면 Shulker.getProgressDeltaAabb(1, facing, 0, 0.5) — 뚜껑 쪽 반 칸 — 를 옮겨
-     * 1e-6 줄인 상자에 충돌이 없어야 한다. 가정: 충돌 검사는 블록만(엔티티 충돌·월드 보더는 ChunkLevel.noCollision 에 아직 없다).
+     * 1e-6 줄인 상자에 충돌이 없어야 한다. 충돌 검사는 noCollision(null, box) — 블록과 단단한 엔티티(배·셜커), 보더는 보지 않는다.
      */
     public static boolean canOpen(int state, BlockLevel level, Pos pos, ShulkerBoxBlockEntity be) {
         if (be.animationStatus() != ShulkerBoxBlockEntity.AnimationStatus.CLOSED) return true;

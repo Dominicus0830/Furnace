@@ -49,9 +49,12 @@ public interface BlockLevel {
     /** EntityGetter.isUnobstructed(null, shape): 건설을 막는 엔티티(관전자 제외)의 상자와 겹치지 않는가. shape 는 월드 좌표. */
     boolean isUnobstructed(Shape worldShape);
 
-    /** CollisionGetter.isUnobstructed(state, pos, ctx): 충돌 모양이 비었거나 엔티티와 겹치지 않으면. */
+    /**
+     * CollisionGetter.isUnobstructed(state, pos, ctx): 충돌 모양이 비었거나 엔티티와 겹치지 않으면. 문맥은 설치하는 행위자
+     * (바닐라 BlockItem.canPlace: player == null ? empty : of(player)) — 비계는 행위자가 위에 없으면 빈 모양이라 몸 자리에도 놓인다.
+     */
     default boolean isUnobstructed(int state, Pos pos, BlockActor collisionEntity) {
-        Shape s = BlockBehaviors.of(state).getCollisionShape(state, this, pos, collisionEntity);
+        Shape s = BlockBehaviors.of(state).getCollisionShape(state, this, pos, CollisionContext.of(collisionEntity));
         return s.isEmpty() || isUnobstructed(s.move(pos.x(), pos.y(), pos.z()));
     }
 

@@ -23,7 +23,7 @@ public class HoneyBlock extends HalfTransparentBlock {
     @Override
     public void entityInside(int state, BlockLevel level, Pos pos, Entity entity) {
         if (isSlidingDown(pos, entity)) {
-            // maybeDoSlideAchievement·maybeDoSlideEffects 는 생물·광산 수레·TNT·보트만
+            // maybeDoSlideAchievement 는 플레이어만(Region 의 플레이어 쪽) — 여기는 doSlideMovement → maybeDoSlideEffects
             if (entity.vy() < -0.13) {
                 double f = -0.05 / entity.vy();
                 entity.setDeltaMovement(entity.vx() * f, -0.05, entity.vz() * f);
@@ -31,8 +31,27 @@ public class HoneyBlock extends HalfTransparentBlock {
                 entity.setDeltaMovement(entity.vx(), -0.05, entity.vz());
             }
             entity.resetFallDistance();
+            if (doesEntityDoHoneyBlockSlideEffects(entity)) {
+                if (level.random().nextInt(5) == 0) entity.playSound("minecraft:block.honey_block.slide", 1.0F, 1.0F);
+                if (level.random().nextInt(5) == 0) entity.broadcastEntityEvent((byte) 53);   // 꿀 미끄럼 입자
+            }
         }
         super.entityInside(state, level, pos, entity);
+    }
+
+    /** doesEntityDoHoneyBlockSlideEffects: 생물·광산 수레·점화된 TNT·보트(플레이어는 따로 — 생물이라 늘 참). */
+    public static boolean doesEntityDoHoneyBlockSlideEffects(Entity entity) {
+        return entity.isLiving() || entity instanceof org.domi.furnace.server.entity.AbstractMinecart
+                || entity instanceof org.domi.furnace.server.entity.PrimedTnt || entity instanceof org.domi.furnace.server.entity.Boat;
+    }
+
+    /**
+     * maybeDoSlideEffects 의 플레이어 쪽: 레벨 난수 nextInt(5) 두 번 — 미끄럼 소리(자기 말고 주변에), 엔티티 이벤트 53(자기 포함).
+     * 미끄러지는지는 {@link #isSlidingDown(Pos, boolean, double, double, double, double, double)} 로 부르는 쪽이 판정한다.
+     */
+    public static void playerSlideEffects(BlockLevel level, Runnable sound, Runnable particles) {
+        if (level.random().nextInt(5) == 0) sound.run();
+        if (level.random().nextInt(5) == 0) particles.run();
     }
 
     private static boolean isSlidingDown(Pos pos, Entity entity) {

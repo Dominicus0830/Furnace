@@ -159,6 +159,12 @@ public interface Entity {
     default Optional<EntityState> stateNow() { throw new UnsupportedOperationException("stateNow"); }
 
     /**
+     * 지금 이 스레드가 그 엔티티를 가진 region 스레드(빌림 구간 포함)면 true — {@link #stateNow()} 가 예외 없이 돌려줄 수 있는가.
+     * 사라진 엔티티는 어느 스레드에서나 true(stateNow 가 빈 값). 상태 손잡이가 없는 엔티티(플레이어)는 false. 예외를 만들지 않아 자주 불러도 싸다.
+     */
+    default boolean isOwnedByCurrentThread() { return false; }
+
+    /**
      * 그 엔티티를 가진 region 스레드에서 다음 틱에 action 을 돈다(엔티티가 region 을 옮겨 가도 따라간다). action 의 결과로 완료하고,
      * 엔티티가 이미 사라졌거나 그 전에 사라지면 IllegalStateException 으로 완료. 손잡이를 밖으로 들고 나가 다른 스레드에서 쓰지 않는다.
      */
@@ -173,6 +179,12 @@ public interface Entity {
      * 엔티티 자신은 들어 있지 않다. 모르면 {@link org.domi.furnace.api.event.cause.CauseChain#NONE}. 저장되지 않는다(다시 읽은 엔티티는 바닐라 주인만).
      */
     default org.domi.furnace.api.event.cause.CauseChain origin() { return org.domi.furnace.api.event.cause.CauseChain.NONE; }
+
+    /** 떨어진 아이템 엔티티(minecraft:item)가 든 아이템(만든 순간 값). 아이템 엔티티가 아니면 null. */
+    default org.domi.furnace.api.item.ItemStack droppedItem() { return null; }
+
+    /** 떨어진 아이템 엔티티의 줍기 지연(틱, 만든 순간 값). 아이템 엔티티가 아니면 0. */
+    default int pickupDelay() { return 0; }
 
     /**
      * 핸들(스냅샷)을 만든 순번 — 같은 엔티티의 두 핸들 중 값이 큰 쪽이 나중에 만든 것이다. 서버 전체에서 늘어나기만 한다.

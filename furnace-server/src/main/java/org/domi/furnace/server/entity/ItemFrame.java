@@ -55,7 +55,7 @@ public class ItemFrame extends HangingEntity {
     @Override
     public boolean survives() {
         if (fixed) return true;
-        if (!level.noCollision(boundingBox())) return false;
+        if (!level.noCollision(this, boundingBox())) return false;
         int behind = level.getBlockState(blockPos.relative(Dir.opposite(direction)));
         boolean solid = org.domi.furnace.server.block.B.isSolid(behind)
                 || Dir.axis(direction) != Dir.AXIS_Y && org.domi.furnace.server.block.types.DiodeBlock.isDiode(behind);

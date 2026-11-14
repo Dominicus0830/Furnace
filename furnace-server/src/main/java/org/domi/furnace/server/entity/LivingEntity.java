@@ -61,6 +61,13 @@ public abstract class LivingEntity extends Entity implements Targetable {
     public int getNoActionTime() { return noActionTime; }
 
     public void setNoActionTime(int t) { noActionTime = t; }
+
+    /** Spigot LivingEntity.inactiveTick: 활성 범위 밖 틱에도 noActionTime 은 센다. */
+    @Override
+    public void inactiveTick() {
+        super.inactiveTick();
+        ++noActionTime;
+    }
     protected float yHeadRot, yHeadRotO, yBodyRot, yBodyRotO;
     /** 이동 입력(vanilla xxa 옆·yya 위·zza 앞)과 점프 입력. */
     protected float xxa, yya, zza;
@@ -70,6 +77,9 @@ public abstract class LivingEntity extends Entity implements Targetable {
     protected float speed;
 
     @Override public float yHeadRot() { return yHeadRot; }
+
+    /** 바닐라 `entity instanceof LivingEntity` 자리(돌 압력판·밭 밟기·가루눈 끼임·침대·슬라임 튕김): 모든 생물은 참. */
+    @Override public final boolean isLiving() { return true; }
 
     public void setYHeadRot(float v) { if (Float.isFinite(v)) yHeadRot = v; }
 
@@ -512,7 +522,8 @@ public abstract class LivingEntity extends Entity implements Targetable {
             if (a == null || attributes().get(a) == null) continue;
             var inst = attributes().get(a);
             inst.removeModifier((String) m[1]);
-            inst.addOrReplaceTransientModifier(new org.domi.furnace.server.attribute.AttributeModifier((String) m[1], ((Number) m[2]).doubleValue() * (i.amplifier() + 1), (Integer) m[3]));
+            // 바닐라 MobEffect.addAttributeModifiers = addPermanentModifier: 속성 NBT 에 저장돼 청크를 다시 불러와도 남는다(효과 자체는 효과 목록에서 되살아난다).
+            inst.addOrReplaceModifier(new org.domi.furnace.server.attribute.AttributeModifier((String) m[1], ((Number) m[2]).doubleValue() * (i.amplifier() + 1), (Integer) m[3]));
         }
     }
 
@@ -645,11 +656,34 @@ public abstract class LivingEntity extends Entity implements Targetable {
     @Override
     public void kill() { hurt(Damage.GENERIC_KILL, Float.MAX_VALUE); }
 
+    /**
+     * 플러그인 API 의 setHealth(0): Paper CraftLivingEntity#setHealth 처럼 체력을 0 으로 하고 generic 피해로 죽는다(die). 피해 이벤트·토템·피해 무적을 거치지 않으므로
+     * 피해 이벤트 처리기 안에서 불러도 피해 이벤트가 다시 나지 않는다.
+     */
+    public void dieFromApi() {
+        setHealth(0f);
+        // 바닐라 generic 피해는 원인 엔티티가 없다 — 마지막으로 때린 쪽(lastDamageAttacker)·진행 중인 피해의 직접 원인이 die 안의 killedEntity(감염·killed 통계)로 새지 않게 잠깐 비운다.
+        // 피해 이벤트 처리기 안에서 불리면 바깥 hurt 가 이어지므로 die 뒤 되돌린다.
+        Targetable attacker = lastDamageAttacker;
+        Entity direct = pendingDirect;
+        int directId = pendingDirectId;
+        lastDamageAttacker = null;
+        pendingDirect = null;
+        pendingDirectId = -2;
+        try {
+            die(Damage.GENERIC);
+        } finally {
+            lastDamageAttacker = attacker;
+            pendingDirect = direct;
+            pendingDirectId = directId;
+        }
+    }
+
     // ------------------------------------------------------------------ Targetable
 
     @Override public int id() { return super.id(); }
 
-    @Override public boolean canBeSeenAsEnemy() { return !isInvulnerable() && isAlive(); }
+    @Override public boolean canBeSeenAsEnemy() { return !isInvulnerable() && canBeSeenByAnyone(); }
 
     /** getVisibilityPercent: 웅크림 ×0.8, 투명 ×0.7×방어구 가림, 같은 종류 머리 아이템 ×0.5. */
     @Override
@@ -1677,7 +1711,7 @@ public abstract class LivingEntity extends Entity implements Targetable {
             }
             if (found) {
                 teleportTo(nx, d3, nz);
-                if (level.noCollision(boundingBox()) && !level.containsAnyLiquid(boundingBox())) ok = true;
+                if (level.noCollision(this, boundingBox()) && !level.containsAnyLiquid(boundingBox())) ok = true;
             }
         }
         if (!ok) {
@@ -1773,7 +1807,11 @@ public abstract class LivingEntity extends Entity implements Targetable {
         return new double[] {mx, my, mz};
     }
 
-    private boolean isFree(double dx, double dy, double dz) { return level.noCollision(boundingBox().move(dx, dy, dz)); }
+    /** Entity.isFree(dx, dy, dz): 옮긴 상자에 충돌(블록·엔티티·보더)이 없고 액체도 없다. */
+    private boolean isFree(double dx, double dy, double dz) {
+        AABB b = boundingBox().move(dx, dy, dz);
+        return level.noCollision(this, b) && !level.containsAnyLiquid(b);
+    }
 
     /** Entity.moveRelative(speed, input): 입력을 바라보는 방향으로 돌려 속도에 더한다(길이가 1을 넘으면 정규화). */
     public void moveRelative(float speed, float ix, float iy, float iz) {

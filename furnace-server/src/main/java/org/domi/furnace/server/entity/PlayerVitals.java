@@ -425,6 +425,9 @@ public final class PlayerVitals {
 
     public synchronized float health() { return health; }
 
+    /** 지금 체력·허기·포화를 그대로 담은 SetHealth(Paper CraftPlayer.sendHealthUpdate — 마지막 보낸 값 기록은 건드리지 않는다). */
+    public synchronized SetHealth currentHealthPacket() { return new SetHealth(health, food.foodLevel(), food.saturationLevel()); }
+
     public boolean isDeadOrDying() { return health <= 0.0f; }
 
     public synchronized boolean removedAfterDeath() { return removedAfterDeath; }

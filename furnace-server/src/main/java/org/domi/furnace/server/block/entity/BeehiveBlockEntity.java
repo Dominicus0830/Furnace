@@ -194,7 +194,7 @@ public class BeehiveBlockEntity extends BlockEntity {
         int dir = Dir.byName(FACING.valueName(state));
         Pos front = pos.relative(dir);
         int fs = level.getBlockState(front);
-        boolean blocked = !BlockBehaviors.of(fs).getCollisionShape(fs, level, front, null).isEmpty();
+        boolean blocked = !BlockBehaviors.of(fs).getCollisionShape(fs, level, front, org.domi.furnace.server.block.CollisionContext.EMPTY).isEmpty();
         if (blocked && status != BeeReleaseStatus.EMERGENCY) return false;
         Entity e = occupant.createEntity(cl, pos);
         if (e == null) return false;
@@ -207,7 +207,9 @@ public class BeehiveBlockEntity extends BlockEntity {
                     if (honey < 5) {
                         int inc = level.random().nextInt(100) == 0 ? 2 : 1;
                         if (honey + inc > 5) inc--;
-                        level.setBlockAndUpdate(pos, HONEY_LEVEL.withInt(state, honey + inc));
+                        // Paper(EntityChangeBlockEvent 더 많은 자리): 나오는 벌이 꿀 단계를 올리기 전에 묻는다 — 막으면 그대로
+                        int filled = HONEY_LEVEL.withInt(state, honey + inc);
+                        if (B.entityChange(level, bee, pos, filled)) level.setBlockAndUpdate(pos, filled);
                     }
                 }
             }

@@ -34,16 +34,38 @@ public final class PacketDelivery {
                 }
                 out.add(convert(sub));
             }
+            for (ClientboundPacket c : out) DeliveredPackets.mark(c);
             p.sendPacketBundle(out.toArray(ClientboundPacket[]::new));
             return;
         }
-        p.sendPacket(convert(packet));
+        ClientboundPacket c = convert(packet);
+        DeliveredPackets.mark(c);
+        p.sendPacket(c);
     }
 
-    private static ClientboundPacket convert(Packet<?> packet) {
+    /** shim 패킷 하나(묶음 아님) → Furnace 패킷. 바꿀 수 없으면 UnsupportedNmsCall, 값이 바닐라 모양이 아니면 IllegalArgumentException. */
+    public static ClientboundPacket convert(Packet<?> packet) {
         if (packet instanceof NmsPacket n) return n.toFurnace();
-        if (packet instanceof SchemaPacket s) return SchemaPacketBridge.toFurnace(s);
+        if (packet instanceof SchemaPacket s) return TypedPacketBridge.handlesSchema(s.schemaKey()) ? TypedPacketBridge.toFurnace(s) : SchemaPacketBridge.toFurnace(s);
         throw new UnsupportedNmsCall("ServerCommonPacketListenerImpl#send(" + packet.getClass().getName() + ")",
                 "이 패킷 종류는 아직 shim 이 없다 — Furnace 패킷 API(docs/api/packets.md)를 쓴다");
+    }
+
+    /** Furnace 패킷 → shim(ProtocolLib 다리 2b-2: Furnace 가 스스로 보내는 패킷을 라이브러리에 보여 줄 때). 못 바꾸면 UnsupportedNmsCall·IllegalArgumentException. */
+    public static Packet<?> fromFurnace(org.domi.furnace.api.packet.Packet packet) {
+        if (packet instanceof org.domi.furnace.api.packet.GenericPacket g) return SchemaPacketReverse.fromFurnace(g);
+        if (packet instanceof ClientboundPacket c) return TypedPacketBridge.fromFurnace(c);
+        throw new UnsupportedNmsCall("fromFurnace(" + packet.type() + ")", "clientbound 패킷이 아니다");
+    }
+
+    /** 이 종류를 shim 으로 되돌릴 수 있는가(종류만 본다 — 값에 따라 실패할 수는 있다). */
+    public static boolean reversible(org.domi.furnace.api.packet.PacketType<?> t) {
+        return t.typed() ? TypedPacketBridge.supports(t) : SchemaPacketReverse.supports(t);
+    }
+
+    /** 되돌리지 못하는 까닭(되면 null). */
+    public static String irreversibleReason(org.domi.furnace.api.packet.PacketType<?> t) {
+        if (t.typed()) return TypedPacketBridge.supports(t) ? null : "이 타입 레코드 종류는 아직 shim 으로 되돌리지 못한다(2b-4)";
+        return SchemaPacketReverse.refusal(t);
     }
 }

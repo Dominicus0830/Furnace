@@ -23,10 +23,10 @@ class ChunkSnapshotCompactCopyTest {
         ChunkSnapshot.Light light = null;
         ChunkLight l = col.light();
         if (l != null) {
-            byte[][] sky = new byte[l.sky.length][], block = new byte[l.block.length][];
+            byte[][] sky = new byte[ChunkLight.SECTIONS][], block = new byte[ChunkLight.SECTIONS][];
             for (int i = 0; i < sky.length; i++) {
-                sky[i] = l.sky[i].clone();
-                block[i] = l.block[i].clone();
+                sky[i] = l.sky(i).clone();
+                block[i] = l.block(i).clone();
             }
             light = new ChunkSnapshot.Light(sky, block);
         }
@@ -83,8 +83,8 @@ class ChunkSnapshotCompactCopyTest {
         if (r.nextInt(6) != 0) {
             ChunkLight l = new ChunkLight();
             for (int i = 0; i < ChunkLight.SECTIONS; i++) {
-                randomLayer(r, l.sky[i]);
-                randomLayer(r, l.block[i]);
+                randomLayer(r, l.writableSky(i));
+                randomLayer(r, l.writableBlock(i));
             }
             col.light(l);
         }
@@ -121,7 +121,7 @@ class ChunkSnapshotCompactCopyTest {
         BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
         ChunkColumn flat = new org.domi.furnace.server.world.gen.SuperflatWorldSource(reg, 0).generate(0, 0);
         ChunkLight fl = new ChunkLight();
-        for (int i = 0; i < ChunkLight.SECTIONS; i++) if (i >= 6) java.util.Arrays.fill(fl.sky[i], (byte) 0xFF);
+        for (int i = 0; i < ChunkLight.SECTIONS; i++) if (i >= 6) fl.fillSkyFull(i);
         flat.light(fl);
         SplittableRandom r = new SplittableRandom(7);
         ChunkColumn[] rnd = new ChunkColumn[64];
@@ -167,8 +167,8 @@ class ChunkSnapshotCompactCopyTest {
             col.sectionBlocks(r.nextInt(col.sections().length))[0] = 5;
             if (col.light() != null) {
                 for (int i = 0; i < ChunkLight.SECTIONS; i++) {
-                    col.light().sky[i][r.nextInt(2048)] ^= 0x11;
-                    col.light().block[i][r.nextInt(2048)] ^= 0x22;
+                    col.light().writableSky(i)[r.nextInt(2048)] ^= 0x11;
+                    col.light().writableBlock(i)[r.nextInt(2048)] ^= 0x22;
                 }
             }
             assertArrayEquals(expected, bytes(now, true), "청크 " + n);

@@ -49,7 +49,9 @@ class SchemaPacketBridgeTest {
                 (SchemaPacketBridge.supports(d) ? bridged : missing).add(d.wireName());
             }
             // 다리 없는 종류는 값 shim 이 아직 빈 껍데기다(BlockEntityType·MessageSignature.Packed·ChatType.Bound·GlobalPos·MenuType·ServerLinks.UntrustedEntry)
-            assertEquals(Set.of("block_entity_data", "delete_chat", "disguised_chat", "login", "open_screen", "respawn", "server_links"), missing,
+            // merchant_offers·update_tags 는 E5 에서 서버 범용 코덱이 읽게 됐으나(손 코덱) 아직 다리가 없다
+            assertEquals(Set.of("block_entity_data", "delete_chat", "disguised_chat", "login", "merchant_offers", "open_screen", "respawn", "server_links",
+                    "update_tags"), missing,
                     "다리 " + bridged.size() + "종: " + bridged);
             // game·common 66(set_score 는 E4c-2 숫자 형식 shim 으로) + cookie_request·pong_response(play 연결로도 나가는 cookie·ping 단계)
             assertEquals(68, bridged.size(), bridged.toString());
@@ -68,7 +70,9 @@ class SchemaPacketBridgeTest {
                 if (t == null || t.typed() || !d.custom() || !packets.isReadable(t)) continue;
                 (SchemaPacketBridge.supports(d) ? bridged : missing).add(d.wireName());
             }
-            assertEquals(Set.of("award_stats", "boss_event"), missing, "다리 " + bridged.size() + "종: " + bridged);
+            // E5 복잡한 종류(입자·폭발·청크·빛·명령 트리·서명 채팅·레시피 둘·발전 과제·번들 구분자)는 서버가 읽게 됐으나 아직 다리가 없다
+            assertEquals(Set.of("award_stats", "boss_event", "bundle_delimiter", "commands", "explode", "level_chunk_with_light", "level_particles", "light_update",
+                    "player_chat", "recipe", "update_advancements", "update_recipes"), missing, "다리 " + bridged.size() + "종: " + bridged);
             assertEquals(Set.of("damage_event", "map_item_data", "move_entity_pos", "move_entity_pos_rot", "move_entity_rot", "player_abilities", "player_look_at",
                     "player_position", "section_blocks_update", "set_equipment", "set_experience", "set_objective", "set_player_team", "stop_sound",
                     "update_attributes"), bridged);
@@ -145,7 +149,7 @@ class SchemaPacketBridgeTest {
             assertNotNull(forget);
             var border = tp.awaitPacket(PacketTypes.Clientbound.SET_CHUNK_CACHE_CENTER, g -> Integer.valueOf(-8).equals(g.get("z")));
             assertEquals(12, border.get("x"));
-            assertEquals(failuresBefore, tp.decodeFailures(), "보낸 것은 모두 바닐라 와이어로 읽혔다");
+            assertEquals(failuresBefore, tp.decodeFailures(), () -> "보낸 것은 모두 바닐라 와이어로 읽혔다 — 최근 실패 " + tp.recentDecodeFailures());
             // 번들은 다른 스레드 패킷이 끼지 않고 붙어 온다(구분자는 시험 클라이언트가 모으지 않는다)
             int bundle = tp.received().indexOf(forget);
             assertTrue(bundle >= 0 && tp.received().get(bundle + 1).equals(border), "묶음 안 둘이 붙어 온다: " + tp.received());
@@ -301,7 +305,7 @@ class SchemaPacketBridgeTest {
             assertEquals("minecraft:haste", tp.awaitPacket(PacketTypes.Clientbound.REMOVE_MOB_EFFECT, g -> Integer.valueOf(p.getEntityId() + 1000).equals(g.get("entity_id"))).get("effect"));
             assertEquals("plug:token", tp.awaitPacket(PacketTypes.Clientbound.COOKIE_REQUEST, g -> true).get("key"));
             assertEquals(4242L, tp.awaitPacket(PacketTypes.Clientbound.PONG_RESPONSE, g -> true).get("time"));
-            assertEquals(failuresBefore, tp.decodeFailures(), "보낸 것은 모두 바닐라 와이어로 읽혔다");
+            assertEquals(failuresBefore, tp.decodeFailures(), () -> "보낸 것은 모두 바닐라 와이어로 읽혔다 — 최근 실패 " + tp.recentDecodeFailures());
 
             // 레지스트리에 없는 Reference 소리(바닐라도 번호를 못 찾는다), 묶음 안 묶음·null 은 아무것도 보내지 않고 IllegalArgumentException
             tp.clearReceived();
@@ -511,7 +515,7 @@ class SchemaPacketBridgeTest {
             assertTrue(java.util.Arrays.equals(new byte[] {1, 2, 3, 4, 5, 6}, (byte[]) patch.get("map_colors")));
             var bare = tp.awaitPacket(PacketTypes.Clientbound.MAP_ITEM_DATA, g -> Integer.valueOf(78).equals(g.get("map_id")));
             assertEquals(List.of(java.util.Optional.empty(), java.util.Optional.empty()), List.of(bare.get("decorations"), bare.get("color_patch")));
-            assertEquals(failuresBefore, tp.decodeFailures(), "보낸 것은 모두 바닐라 와이어로 읽혔다");
+            assertEquals(failuresBefore, tp.decodeFailures(), () -> "보낸 것은 모두 바닐라 와이어로 읽혔다 — 최근 실패 " + tp.recentDecodeFailures());
 
             // 바닐라도 쓰다 실패하는 값은 아무것도 보내지 않고 IllegalArgumentException
             tp.clearReceived();

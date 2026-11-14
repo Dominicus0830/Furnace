@@ -306,8 +306,8 @@ public class Warden extends Monster implements VibrationSystem {
             y--;
             Pos pos = new Pos(x, y, z), above = new Pos(x, y + 1, z);
             int state = level.getBlockState(pos);
-            if (B.behavior(aboveState).getCollisionShape(aboveState, level, above, null).isEmpty()
-                    && B.behavior(state).getCollisionShape(state, level, pos, null).isFaceFull(org.domi.furnace.server.block.Dir.UP)) {
+            if (B.behavior(aboveState).getCollisionShape(aboveState, level, above, org.domi.furnace.server.block.CollisionContext.EMPTY).isEmpty()
+                    && B.behavior(state).getCollisionShape(state, level, pos, org.domi.furnace.server.block.CollisionContext.EMPTY).isFaceFull(org.domi.furnace.server.block.Dir.UP)) {
                 return above;
             }
             aboveState = state;
@@ -336,7 +336,7 @@ public class Warden extends Monster implements VibrationSystem {
     }
 
     @Override
-    public boolean checkSpawnObstruction(ChunkLevel level) { return super.checkSpawnObstruction(level) && level.noCollision(boundingBox()); }
+    public boolean checkSpawnObstruction(ChunkLevel level) { return super.checkSpawnObstruction(level) && level.noCollision(this, boundingBox()); }
 
     // ------------------------------------------------------------------ 진동
 

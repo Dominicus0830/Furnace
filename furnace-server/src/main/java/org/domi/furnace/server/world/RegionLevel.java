@@ -77,6 +77,9 @@ public final class RegionLevel extends ChunkLevel {
     protected void markDirty(int chunkX, int chunkZ) { region.markChunkDirty(new ChunkPos(chunkX, chunkZ)); }
 
     @Override
+    protected LightStaleChunks lightStale() { return world.lightStale(); }
+
+    @Override
     protected void broadcastToChunk(int chunkX, int chunkZ, Packet packet) { world.broadcastBlockUpdate(new ChunkPos(chunkX, chunkZ), packet); }
 
     @Override
@@ -146,12 +149,39 @@ public final class RegionLevel extends ChunkLevel {
         if (t.ticketPos() != null) world.placePortalTicket(t.ticketPos().x(), t.ticketPos().z());
     }
 
+    @Override
+    public void resetEmptyTime() { world.resetEmptyTime(); }
+
     // ------------------------------------------------------------------ 엔티티
 
     @Override
     protected void indexEntity(org.domi.furnace.server.entity.Entity e, boolean add) {
-        if (add) world.entityIndex().put(e.id(), e);
-        else world.entityIndex().remove(e.id(), e);
+        if (add) {
+            world.entityIndex().put(e.id(), e);
+            world.entityUuidIndex().put(e.uuid(), e);
+        } else {
+            world.entityIndex().remove(e.id(), e);
+            world.entityUuidIndex().remove(e.uuid(), e);
+        }
+    }
+
+    @Override
+    protected boolean claimUuid(org.domi.furnace.server.entity.Entity e, boolean adopting) {
+        var index = world.entityUuidIndex();
+        while (true) {
+            var prev = index.putIfAbsent(e.uuid(), e);
+            if (prev == null) return true;
+            if (prev == e) return adopting;   // 넘어오는 중인 같은 객체만 통과 — 새로 넣는 객체가 이미 색인에 있으면 어딘가에 살아 있다(바닐라 knownUuids)
+            // 지워진 엔티티가 남긴 칸은 갈아 끼운다(경쟁에 졌으면 다시 본다)
+            if (!prev.isRemoved()) return false;
+            if (index.replace(e.uuid(), prev, e)) return true;
+        }
+    }
+
+    @Override
+    protected boolean uuidTakenElsewhere(org.domi.furnace.server.entity.Entity e) {
+        var prev = world.entityUuidIndex().get(e.uuid());
+        return prev != null && !prev.isRemoved();   // 새로 넣는 쪽: 같은 객체가 이미 색인에 있어도 중복(claimUuid(e,false) 와 같은 기준)
     }
 
     @Override
@@ -261,6 +291,15 @@ public final class RegionLevel extends ChunkLevel {
         if (dim != null) dim.report(this, here);
     }
 
+    /** 엔티티 활성 범위(설정이 켜져 있을 때만 일한다): 이 region 의 플레이어 둘레(Folia 처럼 region 단위). */
+    private void activateRange(Iterable<Player> regionPlayers) {
+        if (!org.domi.furnace.server.config.EntityActivationSettings.current().enabled()) {
+            activation().off();
+            return;
+        }
+        activateEntities(regionPlayers);   // 순서는 상관없다(표시만 한다)
+    }
+
     /**
      * @param spawnCount 앞쪽 몇 청크가 자연 스폰 대상(플레이어 근처)인가. 나머지(count 까지)는 /forceload 청크라 무작위 틱만 받는다.
      * @param capChunkCount 전역 상한의 청크 수(바닐라 getNaturalSpawnChunkCount — Region.naturalSpawnChunkCount)
@@ -270,11 +309,12 @@ public final class RegionLevel extends ChunkLevel {
      * @param blockEventTicking 청크가 블록 이벤트를 처리하는가 — 바닐라 shouldTickBlocksAt(TickingTracker 레벨 ≤ 32 만, 청크 단계·엔티티 로드는 보지 않는다).
      * @param entitySectionTicking 그 청크의 엔티티 섹션이 ENTITY_TICKING(시야 거리)인가 — 엔티티 버리기·사라짐 검사
      * @param entityTicking 그 청크의 엔티티가 tick 을 받는가(inEntityTickingRange — 시뮬레이션 거리) — 엔티티 tick·추적
+     * @param regionPlayers 이 region 의 플레이어(inRegion 을 만족하는 것과 같다) — 엔티티 활성 범위
      */
     void tickBlocks(long[] tickingChunks, int count, int spawnCount, int capChunkCount, java.util.function.LongPredicate randomTicking,
                     java.util.function.LongPredicate blockTicking, java.util.function.LongPredicate blockEventTicking,
                     java.util.function.LongPredicate entitySectionTicking,
-                    java.util.function.LongPredicate entityTicking, java.util.function.Predicate<Player> inRegion, boolean frozen) {
+                    java.util.function.LongPredicate entityTicking, java.util.function.Predicate<Player> inRegion, Iterable<Player> regionPlayers, boolean frozen) {
         clearChunkCache();   // 틱 사이에 합치기·나누기가 있었을 수 있다
         // 예약 틱(·아래 블록 이벤트): 이 region 이 갖지 않은(내려간) 청크의 것은 예전처럼 그대로 돌려 버린다(블록이 달라 아무 일도 없다) — 남겨 두면 쌓이기만 한다.
         java.util.function.LongPredicate runHere = k -> chunk((int) (k >> 32), (int) k) == null || blockTicking.test(k);
@@ -315,7 +355,9 @@ public final class RegionLevel extends ChunkLevel {
         runBlockEvents(k -> chunk((int) (k >> 32), (int) k) == null || blockEventTicking.test(k));
         runEntityTasks();   // 플러그인 EntityScheduler — /tick freeze 중에도 돈다(플러그인 논리는 게임 틱 정지와 무관)
         if (frozen) return;   // 정지 중에는 엔티티·블록 엔티티·드래곤 전투를 틱하지 않는다
+        if (world.emptyIdle()) return;   // 바닐라 emptyTime: 플레이어·/forceload 없이 300 틱이 지난 차원은 이 셋을 쉰다(위 예약 틱·블록 이벤트는 돈다)
         world.tickDragonFight(region, this);   // 바닐라 ServerLevel.tick: 엔티티 틱 바로 앞
+        activateRange(regionPlayers);   // Spigot ActivationRange.activateEntities(드래곤 전투 뒤, 엔티티 틱 앞)
         tickEntities(entitySection, entityTick);
         tickBlockEntities(blockTicking);
     }

@@ -241,11 +241,9 @@ public final class GenericCodec767 {
     // ------------------------------------------------------------------ 컴파일
 
     private Compiled compile(PacketDef d) {
-        if (d.custom()) {
-            Compiled h = GenericHand767.compile(this, d);
-            if (h == null) throw new Unsupported("손으로 다뤄야 하는 와이어(custom) — 손 코덱이 아직 없다");
-            return h;
-        }
+        Compiled h = GenericHand767.compile(this, d);   // custom 종류, 그리고 값 타입이 필드 나열로 안 떨어지는 종류(E5: update_tags·merchant_offers)
+        if (h != null) return h;
+        if (d.custom()) throw new Unsupported("손으로 다뤄야 하는 와이어(custom) — 손 코덱이 아직 없다");
         if (d.superType() != null) throw new Unsupported("부모 클래스 필드");
         return compileFields(d.fields(), d.javaPackage(), d.binaryName());
     }
@@ -352,6 +350,8 @@ public final class GenericCodec767 {
     }
 
     BlockData blockData(int stateId) { return ApiConvert.block(stateId, blocks.get()); }
+
+    ItemRegistry itemRegistry() { return items.get(); }
 
     int stateId(BlockData b) { return ApiConvert.stateId(b, blocks.get()); }
 

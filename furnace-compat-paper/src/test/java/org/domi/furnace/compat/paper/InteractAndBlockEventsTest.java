@@ -175,8 +175,8 @@ class InteractAndBlockEventsTest {
 
     @Test
     void notYetFiredEventsAreKnownAndUnbridged() {
-        for (String n : List.of("org.bukkit.event.block.BlockPlaceEvent", "org.bukkit.event.block.NotePlayEvent", "org.bukkit.event.world.WorldInitEvent",
-                "org.bukkit.event.player.PlayerCommandSendEvent", "org.bukkit.event.entity.EntityChangeBlockEvent")) {
+        for (String n : List.of("org.bukkit.event.block.BlockDispenseEvent", "org.bukkit.event.block.NotePlayEvent", "org.bukkit.event.world.WorldInitEvent",
+                "org.bukkit.event.player.PlayerCommandSendEvent")) {
             Class<? extends org.bukkit.event.Event> c;
             try {
                 c = Class.forName(n).asSubclass(org.bukkit.event.Event.class);
@@ -188,7 +188,13 @@ class InteractAndBlockEventsTest {
         }
         // ItemSpawnEvent 는 Bukkit 처럼 EntitySpawnEvent 의 처리기 목록을 같이 쓴다(그래서 등록 시 "안 알림" 경고도 받는다)
         assertThrows(NoSuchMethodException.class, () -> org.bukkit.event.entity.ItemSpawnEvent.class.getDeclaredMethod("getHandlerList"));
-        assertTrue(EventBridge.isKnownButNotFired(org.bukkit.event.entity.EntitySpawnEvent.class));
+        // O12 H1: 서버가 이미 내던 여섯은 이제 다리가 있고 "안 알림" 목록에서 빠졌다
+        for (Class<? extends org.bukkit.event.Event> c : List.of(org.bukkit.event.block.BlockPlaceEvent.class, org.bukkit.event.block.BlockGrowEvent.class,
+                org.bukkit.event.block.BlockFadeEvent.class, org.bukkit.event.block.BlockExplodeEvent.class, org.bukkit.event.entity.EntitySpawnEvent.class,
+                org.bukkit.event.player.PlayerDropItemEvent.class)) {
+            assertTrue(EventBridge.isBridged(c), c.getName());
+            assertFalse(EventBridge.isKnownButNotFired(c), c.getName());
+        }
         // 다리가 있는 이벤트는 "안 알림" 목록에 없어야 한다
         for (Class<?> c : EventBridge.bridgedEvents()) assertFalse(EventBridge.isKnownButNotFired(c.asSubclass(org.bukkit.event.Event.class)), c.getName());
     }

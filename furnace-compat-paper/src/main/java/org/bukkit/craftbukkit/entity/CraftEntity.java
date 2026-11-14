@@ -69,35 +69,91 @@ public class CraftEntity implements Entity {
     @Override
     public UUID getUniqueId() { return handle.uniqueId(); }
 
-    @Override
-    public int getEntityId() { return handle.entityId(); }
-
+    /**
+     * 지금 위치. 소유 스레드(이벤트 처리기·entityScheduler 작업·옛 동기 작업의 빌림 구간)면 엔티티의 지금 값을 읽는다 — CraftBukkit 의 NMS 엔티티는
+     * 살아 있는 객체라 {@code teleport} 직후 {@code getLocation} 이 바뀐 값을 준다. 소유 스레드가 아니거나 상태 손잡이가 없는 플레이어면 핸들 시점 값
+     * (플레이어 핸들은 그 자체가 지금 값이다) — 예외 없이 가려서 자주 불러도 싸다. 사라진 몹은 핸들을 만든 시점 값(마지막 값을 따로 들지 않는다).
+     * T-078: 중간 Furnace 위치·캡처 람다·핸들 시점 값의 미리 만들기를 없애 Bukkit {@link Location} 하나만 만든다.
+     */
     @Override
     public Location getLocation() {
+        var h = handle;
+        if (EntityStates.live(h)) {
+            try {
+                Location now = EntityStates.read(h, EntityState.class, CraftEntity::liveBukkitLocation, null, "Entity#getLocation");
+                if (now != null) return now;
+            } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature raced) {
+                // 핸들 시점 값으로
+            }
+        }
         // Paper: yaw = getBukkitYaw() — 살아 있는 엔티티는 머리 방향(getYHeadRot), 그 밖은 몸 방향
-        org.domi.furnace.api.entity.Entity h = handle;
         var l = h.location();
-        return Compat.location(new org.domi.furnace.api.world.Location(l.world(), l.x(), l.y(), l.z(), h.headYaw(), l.pitch()));
+        return new Location(Compat.world(l.world()), l.x(), l.y(), l.z(), h.headYaw(), l.pitch());
+    }
+
+    private static Location liveBukkitLocation(EntityState st) {
+        var n = st.location();
+        return new Location(Compat.world(n.world()), n.x(), n.y(), n.z(), st.headYaw(), n.pitch());
     }
 
     @Override
-    public World getWorld() { return Compat.world(handle.location().world()); }
+    public int getEntityId() { return handle.entityId(); }
+
+    /** 지금 월드(소유 스레드면 지금 값, 아니면 핸들 시점 값). 위치를 만들지 않는다. */
+    @Override
+    public World getWorld() {
+        var h = handle;
+        if (EntityStates.live(h)) {
+            try {
+                String dim = EntityStates.read(h, EntityState.class, CraftEntity::liveDimension, null, "Entity#getWorld");
+                if (dim != null) return Compat.world(dim);
+            } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature raced) {
+                // 핸들 시점 값으로
+            }
+        }
+        return Compat.world(h.location().world());
+    }
+
+    private static String liveDimension(EntityState st) { return st.location().world(); }
+
+    /**
+     * 소유 스레드면 지금 값, 아니면 핸들 시점 값. Paper 처럼 살아 있는 엔티티는 {@code isAlive() && valid} 라 체력이 0 이하인(죽는 중) 몹도 false —
+     * remove 직후·setHealth(0) 직후 곧바로 false 다.
+     */
+    @Override
+    public boolean isValid() {
+        if (!EntityStates.live(handle)) return handle.isValid();
+        try {
+            return EntityStates.read(handle, EntityState.class,
+                    s -> s.isValid() && (!(s instanceof org.domi.furnace.api.entity.LivingEntityState l) || l.health() > 0f), false, "Entity#isValid");
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature raced) {
+            return handle.isValid();
+        }
+    }
 
     @Override
-    public boolean isValid() { return handle.isValid(); }
-
-    @Override
-    public boolean isDead() { return !handle.isValid(); }
+    public boolean isDead() { return !isValid(); }
 
     /** 소유 스레드면 지금 이름, 아니면(또는 상태 손잡이가 없는 플레이어면) 핸들 시점 이름. */
     @Override
     public String getCustomName() {
-        try {
-            return EntityStates.read(handle, EntityState.class, s -> Compat.legacy(s.customName()), Compat.legacy(handle.customName()), "Entity#getCustomName");
-        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature notNow) {
-            return Compat.legacy(handle.customName());
+        var h = handle;
+        if (EntityStates.live(h)) {
+            try {
+                String now = EntityStates.read(h, EntityState.class, CraftEntity::liveCustomName, GONE, "Entity#getCustomName");
+                if (now != GONE) return now;
+            } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature notNow) {
+                // 핸들 시점 이름으로
+            }
         }
+        return Compat.legacy(h.customName());
     }
+
+    /** "사라졌다"를 뜻하는 표지(null 은 이름 없음이라 값과 구별해야 한다). 문자열 내용이 아니라 동일성으로만 비교한다. */
+    @SuppressWarnings("StringOperationCanBeSimplified")
+    private static final String GONE = new String("\0gone");
+
+    private static String liveCustomName(EntityState s) { return Compat.legacy(s.customName()); }
 
     @Override
     public String getTypeKey() { return handle.type(); }
@@ -131,15 +187,22 @@ public class CraftEntity implements Entity {
         }
     }
 
+    /** 종류는 엔티티가 사는 동안 안 바뀐다 — 처음 한 번만 문자열을 정규화해 찾고 객체에 붙여 둔다(T-078). 없는 종류는 붙이지 않고 매번 같은 예외. */
+    private volatile org.bukkit.entity.EntityType kind;
+
     @Override
     public org.bukkit.entity.EntityType getType() {
-        org.bukkit.entity.EntityType t = org.bukkit.entity.EntityType.fromKey(handle.type());
-        if (t == null) throw new UnsupportedFeature("Entity#getType(" + handle.type() + ")", "Bukkit EntityType 열거형에 없는 종류다(플러그인이 더한 엔티티)");
-        return t;
+        org.bukkit.entity.EntityType t = kind;
+        if (t != null) return t;
+        String key = handle.type();
+        t = org.bukkit.entity.EntityType.fromKey(key);
+        if (t == null) throw new UnsupportedFeature("Entity#getType(" + key + ")", "Bukkit EntityType 열거형에 없는 종류다(플러그인이 더한 엔티티)");
+        return kind = t;
     }
 
     /** 소유 스레드면 지금 충돌 상자, 아니면(또는 상태 손잡이가 없는 플레이어면) 핸들의 상자(플레이어는 최근 값). */
     private org.domi.furnace.api.world.Aabb currentBox() {
+        if (!EntityStates.live(handle)) return handle.boundingBox();   // 소유 스레드가 아니거나 상태 손잡이가 없는 플레이어: 예외 없이 핸들 값
         try {
             return EntityStates.read(handle, EntityState.class, EntityState::boundingBox, handle.boundingBox(), "Entity#getBoundingBox");
         } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException | UnsupportedFeature notNow) {
@@ -282,7 +345,14 @@ public class CraftEntity implements Entity {
     public org.bukkit.persistence.PersistentDataContainer getPersistentDataContainer() { return new EntityPdc(handle); }
 
     @Override
-    public void remove() { handle.remove(); }
+    public void remove() {
+        // 소유 스레드면 곧바로 지운다(Paper 처럼 바로 뒤의 isValid 가 false), 아니면 소유 스레드로 예약. 플레이어는 상태 손잡이가 없어 핸들 경로
+        try {
+            EntityStates.write(handle, EntityState.class, EntityState::remove, "Entity#remove");
+        } catch (UnsupportedFeature noState) {
+            handle.remove();
+        }
+    }
 
     // ---- CommandSender / Permissible: 플레이어가 아닌 엔티티는 메시지를 받지 않고 권한이 없다(Bukkit 과 같다)
 
@@ -295,11 +365,21 @@ public class CraftEntity implements Entity {
     @Override
     public Server getServer() { return org.bukkit.Bukkit.getServer(); }
 
+    /** 이름 없는 몹의 기본 이름 — 종류 키만으로 정해지므로 처음 한 번만 만든다(T-078). */
+    private volatile String defaultName;
+
     @Override
     public String getName() {
         String custom = getCustomName();
         if (custom != null) return custom;
-        String path = handle.type().substring(handle.type().indexOf(':') + 1);
+        String d = defaultName;
+        if (d == null) defaultName = d = defaultName(handle.type());
+        return d;
+    }
+
+    /** 종류 키 → 기본 이름("minecraft:iron_golem" → "Iron Golem"). */
+    static String defaultName(String type) {
+        String path = type.substring(type.indexOf(':') + 1);
         StringBuilder sb = new StringBuilder();
         for (String w : path.split("_")) {
             if (w.isEmpty()) continue;

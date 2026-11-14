@@ -1098,7 +1098,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                             return;
                         }
                         org.domi.furnace.server.world.RespawnFinder.worldSpawn(over, over.levelServices().gameRuleInt("spawnRadius"),
-                                over.levelServices().worldAdventure(), spot -> {
+                                over.levelServices().worldAdventure(),
+                                // Player 생성자가 이미 공유 스폰 (x+0.5, y+1, z+0.5) 에 놓았다 — 그 자리의 갓 만든 플레이어 문맥·보더 판정
+                                org.domi.furnace.server.block.CollisionContext.newPlayer(ws.y() + 1), ws.x() + 0.5, ws.z() + 0.5, spot -> {
                                     try {
                                         ctx.executor().execute(() -> {
                                             if (!once.compareAndSet(false, true)) return;
@@ -1562,14 +1564,28 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void fireInventoryChanged(int windowSlot) {
         Player p = player;
         var adv = p == null ? null : p.advancements();
-        if (adv == null || windowSlot < 5 || windowSlot > 45) return;
+        if (adv == null || windowSlot < 5 || windowSlot > 45 || !adv.hasListeners("minecraft:inventory_changed")) return;
         ItemStack[] now = this.inv.snapshot();
-        org.domi.furnace.server.loot.LootStack[] inv = new org.domi.furnace.server.loot.LootStack[41];
-        for (int i = 0; i < inv.length; i++) inv[i] = lootStack(now[inventoryToWindowSlot(i)]);
-        adv.trigger("minecraft:inventory_changed",
-                new org.domi.furnace.server.advancement.Criterion.InventoryEvent(inv, lootStack(now[windowSlot])));
+        ItemStack changed = now[windowSlot];
+        // 스택 변환(깊은 복사)은 후보 기준이 필요로 할 때만(Criterion.InventoryEvent 가 미룬다). 스냅숏의 스택은 바뀌지 않는다.
+        adv.trigger("minecraft:inventory_changed", new org.domi.furnace.server.advancement.Criterion.InventoryEvent(
+                lootItemName(changed), () -> lootStack(changed), () -> {
+                    org.domi.furnace.server.loot.LootStack[] all = new org.domi.furnace.server.loot.LootStack[41];
+                    for (int i = 0; i < all.length; i++) all[i] = lootStack(now[inventoryToWindowSlot(i)]);
+                    return all;
+                }, () -> {
+                    int oc = 0;
+                    for (int i = 0; i < 41; i++) if (lootItemName(now[inventoryToWindowSlot(i)]) != null) oc++;
+                    return oc;
+                }));
     }
 
+    /** lootStack 가 비지 않은 스택을 돌려줄 때의 아이템 이름, 아니면 null. */
+    private String lootItemName(ItemStack s) {
+        var items = world.itemRegistry();
+        if (s == null || s.isEmpty() || items == null) return null;
+        return items.nameOf(s.itemId());
+    }
 
     /** 탭 목록 항목(바닐라 ClientboundPlayerInfoUpdatePacket.createPlayerInitializing 의 한 줄). */
     private static org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry tabEntry(Player b) {
@@ -3619,7 +3635,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // 리스폰 블록 없음: 오버월드 월드 스폰에서 흩뿌린 자리(adjustSpawnLocation — 블록을 읽으므로 오버월드 region 에서)
         World over = login.core != null ? login.core.world() : org.domi.furnace.server.world.RespawnFinder.overworld(world);
         org.domi.furnace.server.world.RespawnFinder.worldSpawn(over, over.levelServices().gameRuleInt("spawnRadius"), over.levelServices().worldAdventure(),
-                s -> ctx.executor().execute(() -> {
+                org.domi.furnace.server.block.CollisionContext.of(p).snapshot(), p.x(), p.z(), s -> ctx.executor().execute(() -> {
                     if (player != p || !ctx.channel().isActive() || world != from) {
                         respawnPending = false;
                         return;
@@ -3785,6 +3801,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         boolean keepInventory = core != null && core.gameRules().getBoolean("keepInventory");
         var vitals = p.vitals();
         vitals.respawn();
+        world.playerRespawned(p);   // PlayerList.respawn: 옛 플레이어를 빼고 새 플레이어를 차원 목록 끝에(같은 차원이어도 순서가 바뀐다)
         p.markEntityDataResend();   // 새 ServerPlayer: 클라가 기본값 엔티티를 만든다
         // PlayerList.respawn: 리스폰 블록이 없었으면 새 플레이어는 리스폰 지점을 이어받지 않는다
         if (missingRespawnBlock) vitals.setRespawnPosition("minecraft:overworld", null, 0.0F, false);
@@ -3864,6 +3881,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 org.domi.furnace.server.net.protocol.play.Respawn.KEEP_ATTRIBUTES));
         world = target;
         p.dimension(target.dimension());
+        target.playerRespawned(p);   // PlayerList.respawn: 차원 목록 끝에(같은 차원이어도)
         placeAfterDimensionChange(ctx, p, target, t.x(), t.y(), t.z(), t.yRot(), t.xRot());
         SpawnPoint spawn = target.defaultSpawn();
         send(ctx, new SetDefaultSpawnPosition(spawn.x(), spawn.y(), spawn.z(), spawn.yaw()));
@@ -4228,12 +4246,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 @Override
                 public boolean allowPlace(org.domi.furnace.server.block.Pos p, int state, org.domi.furnace.server.block.Pos against) {
                     org.domi.furnace.server.ServerCore pc = login.core;
-                    if (pc == null || !pc.events().hasSubscribers(org.domi.furnace.api.event.block.BlockPlaceEvent.class)) return true;
-                    var ev = pc.events().call(new org.domi.furnace.api.event.block.BlockPlaceEvent(actor.dimension(),
-                            new org.domi.furnace.api.world.BlockPos(p.x(), p.y(), p.z()), world.blockRegistry().nameOf(state),
-                            new org.domi.furnace.api.world.BlockPos(against.x(), against.y(), against.z()), pc.plugins().player(actor)));
-                    if (ev.isCancelled()) org.domi.furnace.server.plugin.ClientResync.hands(actor);   // 클라이언트가 먼저 줄인 손 아이템을 되돌린다(칸은 호출 뒤 sendBlockState)
-                    return !ev.isCancelled();
+                    if (pc == null || !pc.gameEvents().wantsBlockPlace()) return true;
+                    boolean ok = pc.gameEvents().blockPlace(actor, p, state, level.getBlockState(p), against, before, hand == 0);
+                    if (!ok) org.domi.furnace.server.plugin.ClientResync.hands(actor);   // 클라이언트가 먼저 줄인 손 아이템을 되돌린다(칸은 호출 뒤 sendBlockState)
+                    return ok;
                 }
             };
             pa.withInventory(actor.inventoryHost());
@@ -4296,8 +4312,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private boolean interactAllowed(org.domi.furnace.server.ServerCore c, Player actor, int hand, int[] bp, int face, ItemStack held, int handSlot,
             org.domi.furnace.server.block.ChunkLevel level, org.domi.furnace.server.block.Pos pos) {
         if (c == null || !c.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerInteractEvent.class)) return true;
-        if (c.gameEvents().playerInteract(actor, hand, bp, level.getBlockState(pos), face, held)) return true;
+        int state = level.getBlockState(pos);
+        if (c.gameEvents().playerInteract(actor, hand, bp, state, face, held)) return true;
         org.domi.furnace.server.plugin.ClientResync.slot(actor, handSlot);
+        // CraftBukkit SPIGOT-1341: 케이크 우클릭을 막으면 클라이언트가 미리 올린 허기를 되돌린다(초 케이크는 CakeBlock 이 아니라 제외)
+        if (org.domi.furnace.server.block.B.behavior(state) instanceof org.domi.furnace.server.block.types.CakeBlock) actor.send(actor.vitals().currentHealthPacket());
         return false;
     }
 

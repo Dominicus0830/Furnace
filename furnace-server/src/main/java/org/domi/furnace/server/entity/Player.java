@@ -228,6 +228,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         this.moveDx = x - this.x; this.moveDy = y - this.y; this.moveDz = z - this.z;
         this.x = x; this.y = y; this.z = z;
         this.yaw = yaw; this.pitch = pitch; this.onGround = onGround;
+        positionWritten(x, z);
     }
 
     public void applyRotation(float yaw, float pitch, boolean onGround) {
@@ -355,6 +356,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public void setRidingPos(double nx, double ny, double nz) {
         this.moveDx = nx - this.x; this.moveDy = ny - this.y; this.moveDz = nz - this.z;
         this.x = nx; this.y = ny; this.z = nz;
+        positionWritten(nx, nz);
     }
 
     public boolean startRiding(Entity v, boolean force) { return Entity.mount(this, v, force); }
@@ -673,6 +675,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
      * 없고, 던지면 종료 직전 틱(끊긴 플레이어 정리 → 다른 플레이어에게 보내기)이 중간에 끊긴다.
      */
     private void runOnLoop(Runnable task) {
+        if (org.domi.furnace.server.net.io.SharedChunkFrames.deferInsideListener(channel, task)) return;   // 리스너 안에서 보냄 — 지금 패킷 앞에
         try {
             channel.eventLoop().execute(task);
         } catch (java.util.concurrent.RejectedExecutionException ignored) {
@@ -878,6 +881,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 서버 쪽 위치만 바꾼다(패킷 없음 — 바닐라 setPos). 소유 region 스레드. */
     public void setPosRaw(double x, double y, double z) {
         this.x = x; this.y = y; this.z = z;
+        positionWritten(x, z);
     }
 
     /** 서버 쪽 회전만 바꾼다(setYRot·setXRot). */
@@ -1065,6 +1069,9 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public boolean waterStateKnown;
     /** 지난 생존 틱 기준 사다리·덩굴 위인가(onClimbable). */
     public boolean onClimbable;
+
+    /** LivingEntity.isPushable(플레이어는 덮어쓰지 않는다): 살아 있고 관전자가 아니고 사다리 위가 아니다. 밀기·배·수레 충돌 후보. */
+    public boolean isPushableByEntities() { return isAlive() && !isSpectator() && !onClimbable; }
 
     /** getCurrentItemAttackStrengthDelay: 1 / 공격 속도 × 20. 공격 속도 = attack_speed 속성(기본 4 + 주 손 아이템, 성급함 +10%·피로 −10% × (증폭+1)). */
     public float attackStrengthDelay() {
@@ -1975,7 +1982,28 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     @Override public String dimension() { return dimension; }
 
-    public void dimension(String d) { this.dimension = d; }
+    /** 차원을 바꾼다. 접속자 목록에 올라 있으면 차원별 목록도 바로 옮긴다(옛 차원에서 빼고 새 차원 끝에 — 바닐라 changeDimension). */
+    public void dimension(String d) {
+        this.dimension = d;
+        var l = rosterLevel;
+        if (l != null) l.roster().dimensionChanged(this);
+    }
+
+    /** 이 플레이어가 든 차원별 목록(접속자 집합 PlayerRoster 가 잠금 안에서 바꾼다, 없으면 null). */
+    private volatile org.domi.furnace.server.world.PlayerRoster.Level rosterLevel;
+    /** 차원별 목록의 격자 칸(PlayerRoster 전용 — 잠금 안에서 쓴다). */
+    public volatile long gridCell;
+
+    public org.domi.furnace.server.world.PlayerRoster.Level rosterLevel() { return rosterLevel; }
+
+    /** PlayerRoster 전용. */
+    public void rosterLevel(org.domi.furnace.server.world.PlayerRoster.Level l) { this.rosterLevel = l; }
+
+    /** 위치를 쓴 직후: 격자 칸이 바뀌었으면 색인을 맞춘다(같은 스레드의 다음 조회가 새 칸으로 찾게). */
+    private void positionWritten(double nx, double nz) {
+        var l = rosterLevel;
+        if (l != null) l.moved(this, nx, nz);
+    }
 
     /** Inventory.contains(predicate): 칸 전체(주·핫바·갑옷·왼손 — 제작 칸 제외). */
     @Override public boolean holdsMap(java.util.function.Predicate<ItemStack> predicate) {
@@ -2327,6 +2355,11 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private final java.util.Set<ChunkPos> cornerInFlight = java.util.concurrent.ConcurrentHashMap.newKeySet();
     public java.util.Set<ChunkPos> cornerInFlight() { return cornerInFlight; }
 
+    /** 모서리 목록을 다시 모으기까지 쉰 틱(region 스레드만). */
+    private int cornerIdleTicks;
+    public int cornerIdleTicks() { return cornerIdleTicks; }
+    public void cornerIdleTicks(int v) { this.cornerIdleTicks = v; }
+
     /** 요청했지만 아직 끝나지 않은(생성·직렬화 중인) 청크 전송 수 — 완료 콜백은 다른 스레드서 줄인다. */
     private final java.util.concurrent.atomic.AtomicInteger chunkSendsInFlight = new java.util.concurrent.atomic.AtomicInteger();
 
@@ -2337,7 +2370,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     public java.util.Set<org.domi.furnace.server.world.ChunkPos> chunkPrefetches() { return chunkPrefetches; }
 
-    /** chunks-per-tick=auto: 보낸 배치의 Finished 가 아직 안 나갔다(아무 스레드). */
+    /** 보낸 청크 배치의 Finished 가 아직 안 나갔다(auto·숫자 chunks-per-tick 모두, 아무 스레드). 열려 있으면 새 배치를 열지 않는다. */
     private volatile boolean chunkBatchOpen;
 
     public boolean chunkBatchOpen() { return chunkBatchOpen; }

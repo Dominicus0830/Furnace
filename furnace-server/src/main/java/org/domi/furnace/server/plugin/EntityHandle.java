@@ -54,6 +54,9 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     private final boolean noPhysics;
     /** 충돌 상자(만든 순간 값). */
     private final org.domi.furnace.api.world.Aabb boundingBox;
+    /** 떨어진 아이템 엔티티의 아이템(불변이라 참조만 복사, API 값은 처음 물을 때 만든다)·줍기 지연. 아이템 엔티티가 아니면 null·0. */
+    private final org.domi.furnace.server.entity.ItemStack droppedStack;
+    private final int pickupDelay;
     /** 스냅샷 순번(서버 전체에서 늘어난다 — 값을 읽기 전에 매긴다). */
     private static final java.util.concurrent.atomic.AtomicLong STAMPS = new java.util.concurrent.atomic.AtomicLong();
     private final long stamp = STAMPS.incrementAndGet();
@@ -73,6 +76,13 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         this.pose = org.domi.furnace.api.entity.Pose.byId(e.getPose());
         this.noPhysics = e.noPhysics;
         this.boundingBox = ApiBoxes.of(e.boundingBox());
+        if (e instanceof org.domi.furnace.server.entity.ItemEntity ie) {
+            droppedStack = ie.getItem();
+            pickupDelay = ie.pickupDelay();
+        } else {
+            droppedStack = null;
+            pickupDelay = 0;
+        }
         if (e instanceof ContainerEntity ce) {
             containerType = type;
             containerSize = ce.chestVehicleItems().length;
@@ -101,6 +111,14 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
 
     @Override
     public long snapshotStamp() { return stamp; }
+
+    @Override
+    public org.domi.furnace.api.item.ItemStack droppedItem() {
+        return droppedStack == null ? null : ApiConvert.item(droppedStack, host.core().world().itemRegistry());
+    }
+
+    @Override
+    public int pickupDelay() { return pickupDelay; }
 
     @Override
     public org.domi.furnace.api.event.cause.CauseChain origin() { return origin; }
@@ -287,6 +305,12 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     // ------------------------------------------------------------------ 지금 상태
 
     @Override
+    public boolean isOwnedByCurrentThread() {
+        if (!(tasks.owner() instanceof Entity e)) return true;   // 사라졌다 — stateNow 는 어느 스레드에서나 빈 값
+        return org.domi.furnace.server.world.RegionBorrow.claimEntity(e) || e.level().isOwnerThread();
+    }
+
+    @Override
     public Optional<org.domi.furnace.api.entity.EntityState> stateNow() {
         // 엔티티를 따라가는 대기열이 지금의 엔티티를 쥐고 있다 — 스폰 이벤트처럼 아직 레벨 목록에 오르기 전에도 찾는다(aiNow 와 같다)
         if (!(tasks.owner() instanceof Entity e)) return Optional.empty();
@@ -421,7 +445,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         public CompletableFuture<Void> updateHealth(float h) {
             return onOwner((r, cur) -> {
                 if (!(cur instanceof LivingEntity le)) return Boolean.FALSE;
-                if (h <= 0f) le.kill();
+                if (h <= 0f) le.dieFromApi();
                 else le.setHealth(h);
                 return Boolean.TRUE;
             }).thenAccept(ok -> {

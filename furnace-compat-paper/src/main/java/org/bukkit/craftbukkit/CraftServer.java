@@ -105,27 +105,65 @@ public final class CraftServer implements Server {
     private final List<Player> onlineView = new OnlineView();
 
     private final class OnlineView extends java.util.AbstractList<Player> implements java.util.RandomAccess {
-        @Override
-        public Player get(int index) {
-            var all = f().onlinePlayers();
-            if (all instanceof List<?> l) return Compat.player((org.domi.furnace.api.entity.Player) l.get(index));
-            return Compat.player(List.copyOf(all).get(index));
+        /** 감싼 배열 캐시: 서버가 준 접속자 목록(동일성)과 그것을 Bukkit 객체로 감싼 배열. 서버가 같은 목록 객체를 주는 동안 다시 만들지 않는다. */
+        private record Wrapped(Collection<?> source, Player[] players) {}
+
+        private volatile Wrapped wrapped;
+
+        /**
+         * 지금 접속자(접속 순)를 감싼 배열. 읽기 전용 — 고치거나 밖으로 내보내지 않는다.
+         * 접속자 집합이 그대로이면 서버가 같은 목록 객체를 주므로 바로 돌려준다(size·get 이 O(1)).
+         */
+        private Player[] array() {
+            Collection<? extends org.domi.furnace.api.entity.Player> all = f().onlinePlayers();
+            Wrapped w = wrapped;
+            if (w != null && w.source == all) return w.players;
+            Player[] out = new Player[all.size()];
+            int n = 0;
+            for (var p : all) {
+                if (n == out.length) out = java.util.Arrays.copyOf(out, n + 1);   // 세는 사이 늘었다(서버가 같은 목록을 안 줄 때만)
+                out[n++] = Compat.player(p);
+            }
+            if (n != out.length) out = java.util.Arrays.copyOf(out, n);
+            wrapped = new Wrapped(all, out);
+            return out;
         }
 
         @Override
+        public Player get(int index) {
+            Player[] a = array();
+            java.util.Objects.checkIndex(index, a.length);
+            return a[index];
+        }
+
+        /** 순회는 시작 때의 배열 하나를 끝까지 본다(도중에 접속·퇴장이 있어도 건너뛰거나 겹치지 않는다). */
+        @Override
         public java.util.Iterator<Player> iterator() {
-            var it = f().onlinePlayers().iterator();
+            Player[] a = array();
             return new java.util.Iterator<>() {
-                @Override
-                public boolean hasNext() { return it.hasNext(); }
+                private int i;
 
                 @Override
-                public Player next() { return Compat.player(it.next()); }
+                public boolean hasNext() { return i < a.length; }
+
+                @Override
+                public Player next() {
+                    if (i >= a.length) throw new java.util.NoSuchElementException();
+                    return a[i++];
+                }
             };
         }
 
         @Override
-        public int size() { return f().onlinePlayers().size(); }
+        public java.util.Spliterator<Player> spliterator() {
+            return java.util.Spliterators.spliterator(array(), java.util.Spliterator.ORDERED | java.util.Spliterator.NONNULL);
+        }
+
+        @Override
+        public Object[] toArray() { return array().clone(); }
+
+        @Override
+        public int size() { return array().length; }
 
         private static UnsupportedOperationException ro() { return new UnsupportedOperationException(); }
 
@@ -180,6 +218,17 @@ public final class CraftServer implements Server {
 
     @Override
     public Player getPlayer(UUID id) { return id == null ? null : Compat.player(f().player(id)); }
+
+    /** 월드 순서대로 찾는다(찾는 규칙은 Compat.entityByUuid — 틱 스레드에서는 그 엔티티를 가진 region 에서만 보인다). */
+    @Override
+    public org.bukkit.entity.Entity getEntity(UUID uuid) {
+        if (uuid == null) throw new IllegalArgumentException("UUID id cannot be null");
+        for (World w : getWorlds()) {
+            var e = w instanceof org.bukkit.craftbukkit.CraftWorld cw ? Compat.entityByUuid(cw.furnaceHandle(), uuid) : null;
+            if (e != null) return e;
+        }
+        return null;
+    }
 
     @Override
     public org.bukkit.OfflinePlayer getOfflinePlayer(UUID id) {

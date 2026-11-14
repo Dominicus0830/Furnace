@@ -2,6 +2,7 @@
 //
 // 규칙(R4, docs/feature-parity/option-keys-2026-11-07.md):
 //   1. 새 옵션의 기본값은 바닐라와 같은 동작이다.
+//      예외: entity-activation-range.enabled(기본 켜짐 — Spigot·Paper 와 같다. 도미니코 결정 D11, 2026-11-14). 끄면 바닐라.
 //   2. 모든 새 옵션은 키로 ON/OFF 또는 수치를 바꿀 수 있다(코드 상수·-D 시스템 속성만으로 두지 않는다).
 //   3. 잘못된 값(true/false 가 아닌 글자, 범위 밖 수)은 조용히 넘기지 않고 기동 때 어느 키가 문제인지 알리며 멈춘다.
 //   4. 위험한 값(보안·바닐라와 다른 게임 속도 등)은 시작 로그에 경고한다 — {@link #audit}.
@@ -38,6 +39,8 @@ public final class OptionKeys {
             new Option("entity-view-distance", "수", "8", "1 이상", "엔티티가 보이는 거리(청크). view-distance 보다 크게 효과 없음"),
             new Option("region-section-shift", "수", "4", "1~8", "동적 region 구역 크기(2^값 청크)"),
             new Option("region-merge-radius", "수", "1", "1 이상", "region 합치기 반경(구역 단위)"),
+            new Option("light.async", "ON/OFF", "false", "true|false", "빛 계산을 따로 도는 빛 스레드에 맡긴다(바닐라 방식). 과부하 때 빛이 한두 틱 늦게 보인다"),
+            new Option("light.async-threads", "수", "1", "1 이상", "light.async 빛 스레드 수(서버 전체)"),
             new Option("region-threads", "수", "CPU 수", "1 이상", "region 작업 스레드 수(공유 풀이면 서버 전체, 끄면 차원마다)"),
             new Option("shared-region-pool", "ON/OFF", "true", "true|false", "모든 차원·추가 월드가 region 워커 풀 하나를 쓴다. false 면 차원마다 region-threads 개"),
             new Option("region-pool-dim-cap", "수", "0", "0 이상", "다른 차원 큐에 일이 있을 때 한 차원이 쓸 수 있는 워커 상한(0 = 워커 수−1)"),
@@ -57,6 +60,7 @@ public final class OptionKeys {
             new Option("commands.send-namespaced", "ON/OFF", "true", "true|false", "바닐라 명령의 minecraft:이름 별칭을 접속자 명령 트리·자동완성에 보낸다(Paper 와 같다). false 면 안 보여도 입력하면 실행된다"),
             new Option("commands.region-drain", "ON/OFF", "true", "true|false", "명령 큐가 도는 동안 region 에 보낸 급한 작업을 다음 틱을 기다리지 않고 곧바로 돌린다(전역 틱당 명령 블록 예산 20ms 공유, 넘으면 다음 틱). false 면 region 접근 한 줄이 한 틱씩 걸린다"),
             new Option("announce-sleep-status", "ON/OFF", "true", "true|false", "자는 사람 수·밤 건너뛰기 액션바"),
+            new Option("world.tick-when-empty", "auto|vanilla|always", "auto", "auto|vanilla|always", "빈 차원의 몹·블록 엔티티(vanilla=15초 뒤 쉼, always=Paper 기본)"),
             new Option("motd-format", "plain|legacy|markup", "plain", "plain|legacy|markup", "server.properties motd 해석 방식(plain=바닐라)"),
             new Option("confirm-interrupt", "ON/OFF", "false", "true|false", "콘솔 Ctrl+C 를 두 번 눌러야 종료"),
             new Option("confirm-interrupt-seconds", "수", "5", "1~60", "두 번째 Ctrl+C 를 기다리는 초"),
@@ -130,6 +134,11 @@ public final class OptionKeys {
     /** 접속 방어의 단계별 키는 단계 다섯 개마다 같은 모양이라 펼쳐서 만든다. */
     public static List<Option> all() {
         List<Option> out = new ArrayList<>(FIXED);
+        String ear = EntityActivationSettings.PREFIX;
+        out.add(new Option(ear + "enabled", "ON/OFF", "true", "true|false",
+                "엔티티 활성 범위(Spigot·Paper 와 같은 방식). 켜면(기본) 플레이어에게서 먼 몹이 AI·이동을 대부분 건너뛰어 바닐라와 결과가 다르다. false = 바닐라"));
+        for (String[] k : EntityActivationSettings.INT_KEYS) out.add(new Option(ear + k[0], "수", k[1], "정수", "활성 범위: " + k[2]));
+        for (String[] k : EntityActivationSettings.BOOL_KEYS) out.add(new Option(ear + k[0], "ON/OFF", k[1], "true|false", "활성 범위: " + k[2]));
         for (String s : STATES) {
             out.add(new Option("connection." + s + ".packets-per-second", "수", "200", "0~1000000", s + " 단계 초당 패킷 평균 상한(0 = 제한 없음)"));
             out.add(new Option("connection." + s + ".packets-burst", "수", "400", "1~10000000", s + " 단계 순간 패킷 상한"));
