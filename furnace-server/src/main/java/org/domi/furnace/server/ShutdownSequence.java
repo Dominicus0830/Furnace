@@ -35,6 +35,9 @@ public final class ShutdownSequence {
 
     private final Map<Step, Runnable> steps = new EnumMap<>(Step.class);
     private final AtomicBoolean ran = new AtomicBoolean();
+    private final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+    /** 지금 단계를 도는 스레드(아직 안 돌았으면 null). */
+    private volatile Thread runner;
 
     /** 단계에 할 일을 정한다(같은 단계에 다시 부르면 이어 붙인다). */
     public synchronized ShutdownSequence on(Step step, Runnable action) {
@@ -46,9 +49,63 @@ public final class ShutdownSequence {
         return this;
     }
 
-    /** 단계를 순서대로 한 번만 돈다. 두 번째 호출은 아무것도 안 한다. */
+    /**
+     * 단계를 순서대로 한 번만 돈다. 다른 스레드가 이미 돌고 있으면 그것이 끝날 때까지 기다린다 — /stop 이 도는 중에 JVM 종료(Ctrl+C·kill)가
+     * 와도 종료 훅이 먼저 끝나 JVM 이 저장 도중에 멈추지 않게. 단, 도는 스레드가 단계 안에서 System.exit 를 불러(종료 훅을 기다리며) 멈췄으면
+     * 기다리지 않는다(서로 기다리는 교착).
+     */
     public void run() {
-        if (!ran.compareAndSet(false, true)) return;
+        if (!ran.compareAndSet(false, true)) {
+            awaitOther();
+            return;
+        }
+        runner = Thread.currentThread();
+        try {
+            runSteps();
+        } finally {
+            done.countDown();
+        }
+    }
+
+    /**
+     * /stop: 단계를 다 돈 뒤 JVM 을 끝낸다(seq 가 아직 없으면 바로 끝낸다 — 그때는 종료 훅도 할 일이 없다). Paper 도 /stop 은 서버 스레드가
+     * stopServer(플러그인 끄기·저장)를 마친 뒤 JVM 이 끝나고, JVM 종료 훅(ServerShutdownThread)은 신호로 끝날 때만 그 일을 한다.
+     */
+    public static void runThenExit(ShutdownSequence seq, java.util.function.IntConsumer exit) {
+        try {
+            if (seq != null) seq.run();
+        } finally {
+            exit.accept(0);
+        }
+    }
+
+    /** 단계가 모두 끝났는가. */
+    public boolean finished() { return done.getCount() == 0; }
+
+    private void awaitOther() {
+        if (Thread.currentThread() == runner) return;   // 단계 안에서 다시 부름
+        try {
+            while (!done.await(200, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                Thread r = runner;
+                if (r != null && inSystemExit(r)) {
+                    log.warn("[STOP] 종료 단계 안에서 System.exit 가 불렸다 — 남은 단계를 기다리지 않는다");
+                    return;
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /** t 가 Runtime.exit/halt 안에서 종료 훅을 기다리는 중인가. */
+    static boolean inSystemExit(Thread t) {
+        for (StackTraceElement e : t.getStackTrace()) {
+            if ("java.lang.Shutdown".equals(e.getClassName())) return true;
+        }
+        return false;
+    }
+
+    private void runSteps() {
         Map<Step, Runnable> snapshot;
         synchronized (this) {
             snapshot = new EnumMap<>(steps);
