@@ -3,7 +3,8 @@
 # 사용:
 #   python r0win.py check                      → 도구·jar·포트 확인
 #   python r0win.py round <판> <변형...>        → ② 새 땅 6구성(구성마다 변형 교대) + ③ 만든 땅(냉+⑦ 힙, chunktrace 냉, 온)
-#   python r0win.py walk <판> <변형...>         → ② 만
+#   python r0win.py walk <판> <변형...>         → ② 만 (옛 콘솔 tp 봇 — F-R0-01 함정, 쓰지 말 것)
+#   python r0win.py walk2 <판> <변형...>        → ② v2 봇(위치 패킷 20Hz), 클라우드 r0walk2.sh 와 같음
 #   python r0win.py old <판> <변형...>          → ③·⑦ 만 (같은 판의 walk 가 만든 월드 w<판><변형> 이 있어야 함)
 #   python r0win.py misc <판> <변형...>         → ① 유휴+⑥ 기동, ④ 소 1000·3000, ⑤ 레드스톤
 #   python r0win.py sum                        → runs/summary.json (결과 줄 + 1초 표본 창 요약)
@@ -187,6 +188,21 @@ def scene_walk(r, order):
         xo += 200000
     append(OUT, f"== r={r} walkdone t={int(time.time())}")
 
+def scene_walk2(r, order):
+    # 클라우드 r0walk2.sh 와 같다: v2 봇(o00walk2.js, 봇이 위치 패킷을 20Hz 로 직접 보냄 → A·B 실제 속도 같음), 계획 속도 10,
+    # 구성마다 변형 순서를 번갈아 뒤집는다(짝수 구성 = 주어진 순서, 홀수 = 거꾸로). 월드 v<판><변형>.
+    xo = 200000; rev = list(reversed(order))
+    for ci, (n, vd) in enumerate(CFGS):
+        for v in (order if ci % 2 == 0 else rev):
+            W = f"v{r}{v}"; s = Server(W)
+            if ci == 0: s.new(["view-distance=16", "simulation-distance=10"], fprops_of(v))
+            s.start(v, ["-Dfurnace.tickstats=true"], tag=f"r={r} v={v} walk2"); time.sleep(3)
+            append(OUT, f"== r={r} v={v} scene=walk2 n={n} vd={vd} speed=10 world={W} jfr={s.k} t={int(time.time())}")
+            bot("o00walk2.js", [n, vd, 10, 60], {"SRV": s.dir, "XOFF": xo, "NAMEP": f"{v}{r}m{ci}x"}, 340, OUT)
+            s.stop(); log("walk2 done", r, v, n, vd)
+        xo += 200000
+    append(OUT, f"== r={r} walk2done t={int(time.time())}")
+
 def jcmd_path():
     j = shutil.which(JAVA) or JAVA
     cand = os.path.join(os.path.dirname(j), "jcmd" + (".exe" if os.name == "nt" else ""))
@@ -288,7 +304,7 @@ def summarize():
             if l.startswith("{") and head:
                 d = json.loads(l); d.update(head); rows.append(d); head = None
     for d in rows:
-        if d["scene"] == "walk": d.update(window(d["world"], d["jfr"], d["walkStart"], d["walkEnd"]))
+        if d["scene"] in ("walk", "walk2"): d.update(window(d["world"], d["jfr"], d["walkStart"], d["walkEnd"]))
         else:
             t0 = float(d["t"]) + 4; dur = (d.get("fullViewMsMax") or 60000) / 1000
             d.update(window(d["world"], d["jfr"], t0, t0 + dur))
@@ -341,6 +357,7 @@ if __name__ == "__main__":
     if c == "check": check()
     elif c == "round": scene_walk(sys.argv[2], sys.argv[3:]); scene_old(sys.argv[2], sys.argv[3:]); summarize()
     elif c == "walk": scene_walk(sys.argv[2], sys.argv[3:]); summarize()
+    elif c == "walk2": scene_walk2(sys.argv[2], sys.argv[3:]); summarize()
     elif c == "old": scene_old(sys.argv[2], sys.argv[3:]); summarize()
     elif c == "misc": scene_misc(sys.argv[2], sys.argv[3:]); summarize()
     elif c == "sum": summarize()
