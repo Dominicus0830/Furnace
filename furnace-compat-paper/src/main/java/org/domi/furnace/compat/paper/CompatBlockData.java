@@ -75,7 +75,7 @@ public final class CompatBlockData extends CraftBlockData {
         return new CompatBlockData(new org.domi.furnace.api.world.BlockData(type, all), Set.copyOf(given.keySet()));
     }
 
-    static BlockData of(org.domi.furnace.api.world.BlockData data) { return new CompatBlockData(data, null); }
+    public static BlockData of(org.domi.furnace.api.world.BlockData data) { return new CompatBlockData(data, null); }
 
     /** NMS 상태 → 모든 속성이 적힌 BlockData. */
     public static CompatBlockData ofState(net.minecraft.world.level.block.state.BlockState state) {

@@ -190,4 +190,61 @@ class BukkitContainerInventoryTest {
             return null;
         });
     }
+
+    /** 화로(Paper CraftFurnace): 시간 셋은 사본 NBT, setBurnTime 은 lit 도 맞춘다. 인벤토리는 FurnaceInventory(0 굽는 것·1 연료·2 결과, isFuel·canSmelt). */
+    @Test
+    void furnaceTimesAndInventory() {
+        server.onRegion(pos, () -> {
+            var w = server.api().world(dim);
+            w.block(pos).set(new BlockData("minecraft:furnace", Map.of("facing", "north", "lit", "false")));
+            try {
+                org.bukkit.block.Furnace f = (org.bukkit.block.Furnace) Compat.block(dim, pos).getState();
+                assertEquals(0, f.getBurnTime());
+                assertEquals(1.0, f.getCookSpeedMultiplier());
+                assertThrows(IllegalArgumentException.class, () -> f.setCookSpeedMultiplier(-1));
+                f.setBurnTime((short) 300);
+                f.setCookTime((short) 50);
+                f.setCookTimeTotal(200);
+                assertEquals("true", ((CompatBlockData) f.getBlockData()).furnace().properties().get("lit"), "SPIGOT-844: 불붙이기");
+                assertTrue(f.update());
+                var nbt = w.blockEntityNbtNow(pos).orElseThrow();
+                assertEquals(50, nbt.getShort("CookTime"));
+                assertEquals(200, nbt.getShort("CookTimeTotal"));
+                assertEquals("true", w.block(pos).data().properties().get("lit"));
+                var again = (org.bukkit.block.Furnace) Compat.block(dim, pos).getState();
+                assertEquals(50, again.getCookTime());
+                assertFalse(again.hasRecipeUsedCount(org.bukkit.NamespacedKey.minecraft("iron_ingot_from_smelting_raw_iron")));
+
+                org.bukkit.inventory.FurnaceInventory inv = again.getInventory();
+                assertEquals(org.bukkit.event.inventory.InventoryType.FURNACE, inv.getType());
+                inv.setSmelting(new ItemStack(Material.RAW_IRON));
+                inv.setFuel(new ItemStack(Material.COAL, 3));
+                assertEquals("minecraft:raw_iron", w.inventoryAtNow(pos).orElseThrow().get(0).join().type());
+                assertEquals(new ItemStack(Material.COAL, 3), inv.getFuel());
+                assertTrue(inv.isFuel(new ItemStack(Material.COAL)));
+                // 태그 연료(판자 등)는 서버 FuelRegistry 가 데이터 팩 태그(ItemContext)를 본다 — 시험 서버엔 그 태그가 걸리지 않아 여기선 재지 않는다
+                assertFalse(inv.isFuel(new ItemStack(Material.STONE)));
+                assertFalse(inv.isFuel(null));
+                // canSmelt 는 레시피 표를 본다 — 시험 서버는 데이터 팩 없이 떠 레시피 표가 없어(플러그인 레시피도 못 건다) 여기선 비었을 때만 잰다
+                assertFalse(inv.canSmelt(null));
+                assertFalse(inv.canSmelt(new ItemStack(Material.AIR)));
+                assertInstanceOf(org.bukkit.block.Furnace.class, inv.getHolder());
+            } finally {
+                w.block(pos).set(BlockData.AIR);
+            }
+            return null;
+        });
+        server.onRegion(pos, () -> {
+            var w = server.api().world(dim);
+            w.block(pos).set(new BlockData("minecraft:smoker", Map.of()));
+            try {
+                var inv = ((org.bukkit.block.Smoker) Compat.block(dim, pos).getState()).getInventory();
+                assertEquals(org.bukkit.event.inventory.InventoryType.SMOKER, inv.getType());
+                assertInstanceOf(org.bukkit.block.Furnace.class, inv.getHolder());
+            } finally {
+                w.block(pos).set(BlockData.AIR);
+            }
+            return null;
+        });
+    }
 }
