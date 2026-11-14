@@ -7,11 +7,7 @@ import org.bukkit.potion.PotionEffectType;
 /** 살아 있는 엔티티. 효과·AI·밀림은 엔티티를 가진 region 스레드에서 지금 값을 읽고 쓴다(Entity 의 스레드 규칙과 같다). */
 public interface LivingEntity extends Entity, Damageable, org.bukkit.projectiles.ProjectileSource {
 
-    double getHealth();
-
-    double getMaxHealth();
-
-    void setHealth(double health);
+    // getHealth·getMaxHealth·setHealth 는 Paper 처럼 Damageable 에 선언돼 있다.
 
     /** 효과를 건다(바닐라 addEffect — 더 센·더 긴 쪽으로 갱신). Paper 처럼 늘 true. */
     boolean addPotionEffect(PotionEffect effect);

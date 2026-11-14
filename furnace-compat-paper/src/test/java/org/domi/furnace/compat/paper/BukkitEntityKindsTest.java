@@ -108,6 +108,71 @@ class BukkitEntityKindsTest {
         }
     }
 
+    /** 길들인 뒤 새 스냅숏으로 다시 감싸면(getEntities) 같은 감싸개의 핸들이 바뀌어, 소유 스레드 밖에서도 새 값을 읽는다. */
+    @Test
+    void tamedOffThreadFollowsFreshHandle() {
+        Wolf wolf = (Wolf) spawn(EntityType.WOLF);
+        Horse horse = (Horse) spawn(EntityType.HORSE);
+        try {
+            assertFalse(horse.isTamed(), "말: 밖에서 핸들 값 false");
+            owner(() -> {
+                ((org.domi.furnace.server.entity.TamableAnimal) serverEntity(wolf)).setTame(true, false);
+                ((org.domi.furnace.server.entity.AbstractHorse) serverEntity(horse)).setTamed(true);
+                return null;
+            });
+            for (Entity e : world.getEntities()) {
+                if (e.getUniqueId().equals(wolf.getUniqueId())) assertSame(wolf, e, "늑대는 같은 감싸개");
+                if (e.getUniqueId().equals(horse.getUniqueId())) assertSame(horse, e, "말은 같은 감싸개");
+            }
+            assertTrue(wolf.isTamed(), "늑대: 새 핸들 시점 값");
+            assertTrue(horse.isTamed(), "말: 새 핸들 시점 값");
+        } finally {
+            owner(() -> { wolf.remove(); horse.remove(); return null; });
+        }
+    }
+
+    /** 이름 표의 모든 줄이 컴파일된 계층과 맞는가(손으로 쓴 인터페이스가 표와 어긋나도 잡는다). 서버를 쓰지 않는다. */
+    @Test
+    void tableMatchesCompiledHierarchy() throws Exception {
+        java.nio.file.Path table = java.nio.file.Path.of("..", "tools", "compat", "bukkit-entity-hierarchy-1.21.1.txt");
+        java.util.List<String> bad = new java.util.ArrayList<>();
+        int rows = 0;
+        for (String l : java.nio.file.Files.readAllLines(table)) {
+            if (l.isBlank() || l.startsWith("#")) continue;
+            String[] r = l.trim().split("\\s+");
+            rows++;
+            if (r[0].equals("T")) {
+                if (r[1].equals("UNKNOWN")) continue;
+                Class<?> iface = Class.forName(r[2]);
+                Class<?> craft;
+                try {
+                    craft = Class.forName("org.bukkit.craftbukkit.entity." + r[3]);
+                } catch (ClassNotFoundException e) {
+                    bad.add("클래스 없음 " + r[3]);
+                    continue;
+                }
+                if (!iface.isAssignableFrom(craft)) bad.add(r[3] + " 은 " + r[2] + " 가 아니다");
+                if (java.lang.reflect.Modifier.isAbstract(craft.getModifiers())) bad.add(r[3] + " 이 추상");
+            } else {
+                Class<?> c = Class.forName(r[1]);
+                if (!c.isInterface()) bad.add(r[1] + " 이 인터페이스가 아니다");
+                for (int i = 2; i < r.length; i++) if (!Class.forName(r[i]).isAssignableFrom(c)) bad.add(r[1] + " 은 " + r[i] + " 가 아니다");
+            }
+        }
+        assertTrue(rows > 250, "표 줄 수 " + rows);
+        assertEquals(java.util.List.of(), bad);
+    }
+
+    /** Paper 처럼 체력 메서드는 Damageable 에, 이름·UUID 는 AnimalTamer 에 선언된다(그 형으로 컴파일한 플러그인이 메서드를 찾는다). */
+    @Test
+    void methodsDeclaredWherePaperDeclaresThem() throws Exception {
+        for (String m : new String[] {"getHealth", "getMaxHealth"}) assertEquals(Damageable.class, Damageable.class.getMethod(m).getDeclaringClass(), m);
+        assertEquals(Damageable.class, Damageable.class.getMethod("setHealth", double.class).getDeclaringClass());
+        assertEquals(AnimalTamer.class, AnimalTamer.class.getMethod("getName").getDeclaringClass());
+        assertEquals(AnimalTamer.class, AnimalTamer.class.getMethod("getUniqueId").getDeclaringClass());
+        assertTrue(AnimalTamer.class.isAssignableFrom(org.bukkit.OfflinePlayer.class), "OfflinePlayer 도 AnimalTamer");
+    }
+
     org.domi.furnace.server.entity.Entity serverEntity(Entity b) {
         var l = b.getLocation();
         var cp = org.domi.furnace.server.world.ChunkPos.ofBlock(l.getX(), l.getZ());

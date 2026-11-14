@@ -1,6 +1,10 @@
 # Bukkit(Paper 1.21.1) 엔티티 종류 → 인터페이스 → CraftBukkit 클래스 이름, 그리고 org.bukkit.entity 인터페이스 상위 형식.
 # 출처: Paper 1.21.1 CraftEntityTypes 등록표와 paper-api 인터페이스 선언(Youer 1.21.1 사본). 이름·계층만 옮겼다.
 # 'T <EntityType> <인터페이스> <Craft 클래스>' / 'I <인터페이스> <상위...>'(org.bukkit.entity 밖 상위는 뺐다 — 계층을 잇는 io.papermc.paper.entity.SchoolableFish 만 둔다).
+# 뺀 org.bukkit.entity 밖 상위 형(아직 없음, 쓰는 플러그인이 생기면 손으로): com.destroystokyo.paper.entity.RangedEntity(스켈레톤 무리·마녀·위더·라마 등),
+#   io.papermc.paper.entity.Shearable(양·버섯소·눈골렘·보그드), Bucketable(물고기·아홀로틀), CollarColorable(늑대·고양이),
+#   Leashable(Mob·Boat), Frictional(LivingEntity·Item), org.bukkit.loot.LootableEntityInventory, CommandBlockHolder.
+# 손으로 쓴 인터페이스(머리말 없음): Entity·LivingEntity·HumanEntity·Player·Damageable·AnimalTamer·Tameable 등 — 표의 상위 형과 맞는지는 BukkitEntityKindsTest 가 본다.
 # 생성기: tools/compat/gen-bukkit-entity-classes.py
 T ELDER_GUARDIAN org.bukkit.entity.ElderGuardian CraftElderGuardian
 T WITHER_SKELETON org.bukkit.entity.WitherSkeleton CraftWitherSkeleton
