@@ -22,14 +22,30 @@ public final class BlockInventories {
         };
         var type = InventoryResultMappings.containerType(inv.type());
         if (type == org.bukkit.event.inventory.InventoryType.BREWING) return new Brewer(inv, holder);
-        var kind = switch (type) {
+        var kind = cookingKind(type);
+        if (kind != null) return new Furnace(inv, type, kind, holder);
+        return new CompatInventory(inv, type, holder);
+    }
+
+    /** 화로류 인벤토리 종류 → 레시피 종류(화로류가 아니면 null). */
+    static org.domi.furnace.api.recipe.Recipe.CookingKind cookingKind(org.bukkit.event.inventory.InventoryType type) {
+        return switch (type) {
             case FURNACE -> org.domi.furnace.api.recipe.Recipe.CookingKind.SMELTING;
             case BLAST_FURNACE -> org.domi.furnace.api.recipe.Recipe.CookingKind.BLASTING;
             case SMOKER -> org.domi.furnace.api.recipe.Recipe.CookingKind.SMOKING;
             default -> null;
         };
-        if (kind != null) return new Furnace(inv, type, kind, holder);
-        return new CompatInventory(inv, type, holder);
+    }
+
+    /** Paper CraftInventoryFurnace#isFuel: 비었으면 거짓, 아니면 바닐라 연료 표. */
+    static boolean isFuel(org.bukkit.inventory.ItemStack item) {
+        return item != null && !item.getType().isAir() && Compat.furnace().gameRegistries().fuelBurnTime(item.getType().getKey().toString()) > 0;
+    }
+
+    /** Paper CraftInventoryFurnace#canSmelt: RecipeManager.getRecipeFor(이 화로의 레시피 종류, 아이템) — 서버 화로가 쓰는 조회 그대로. */
+    static boolean canSmelt(org.domi.furnace.api.recipe.Recipe.CookingKind kind, org.bukkit.inventory.ItemStack item) {
+        if (item == null || item.getType().isAir()) return false;
+        return Compat.furnace().recipes().canCook(kind, CompatItems.toFurnace(item));
     }
 
     /** 양조대의 살아 있는 인벤토리(Paper CraftInventoryBrewer): 0~2 병, 3 재료, 4 연료. */
@@ -85,16 +101,10 @@ public final class BlockInventories {
         public void setSmelting(org.bukkit.inventory.ItemStack stack) { setItem(0, stack); }
 
         @Override
-        public boolean isFuel(org.bukkit.inventory.ItemStack item) {
-            return item != null && !item.getType().isAir() && Compat.furnace().gameRegistries().fuelBurnTime(item.getType().getKey().toString()) > 0;
-        }
+        public boolean isFuel(org.bukkit.inventory.ItemStack item) { return BlockInventories.isFuel(item); }
 
-        /** Paper: RecipeManager.getRecipeFor(이 화로의 레시피 종류, 아이템) — 서버 화로가 쓰는 조회 그대로. */
         @Override
-        public boolean canSmelt(org.bukkit.inventory.ItemStack item) {
-            if (item == null || item.getType().isAir()) return false;
-            return Compat.furnace().recipes().canCook(kind, CompatItems.toFurnace(item));
-        }
+        public boolean canSmelt(org.bukkit.inventory.ItemStack item) { return BlockInventories.canSmelt(kind, item); }
 
         @Override
         public org.bukkit.block.Furnace getHolder() {

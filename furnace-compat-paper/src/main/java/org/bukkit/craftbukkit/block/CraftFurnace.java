@@ -15,6 +15,7 @@ public abstract class CraftFurnace extends CraftContainer implements org.bukkit.
     private int litTime;
     private int cookingProgress;
     private int cookingTotalTime;
+    private double cookSpeedMultiplier;
 
     protected CraftFurnace(String dimension, org.domi.furnace.api.world.BlockPos pos, org.bukkit.block.data.BlockData data) {
         super(dimension, pos, data);
@@ -22,6 +23,7 @@ public abstract class CraftFurnace extends CraftContainer implements org.bukkit.
         litTime = n.getShort("BurnTime");
         cookingProgress = n.getShort("CookTime");
         cookingTotalTime = n.getShort("CookTimeTotal");
+        cookSpeedMultiplier = n.contains("Paper.CookSpeedMultiplier") ? n.getDouble("Paper.CookSpeedMultiplier") : 1.0;
     }
 
     @Override
@@ -31,6 +33,8 @@ public abstract class CraftFurnace extends CraftContainer implements org.bukkit.
         n.putShort("BurnTime", (short) litTime);
         n.putShort("CookTime", (short) cookingProgress);
         n.putShort("CookTimeTotal", (short) cookingTotalTime);
+        if (cookSpeedMultiplier != 1.0) n.putDouble("Paper.CookSpeedMultiplier", cookSpeedMultiplier);
+        else n.remove("Paper.CookSpeedMultiplier");
     }
 
     @Override
@@ -59,17 +63,49 @@ public abstract class CraftFurnace extends CraftContainer implements org.bukkit.
     @Override
     public void setCookTimeTotal(int cookTimeTotal) { cookingTotalTime = cookTimeTotal; }
 
-    /** Paper 는 블록 엔티티 필드로 들고 NBT Paper.CookSpeedMultiplier 로 저장한다. Furnace 서버 화로는 배율을 아직 모른다 — 읽기만 된다. */
+    /** Paper 굽기 속도 배율(서버 화로가 NBT Paper.CookSpeedMultiplier 로 읽는다). */
     @Override
-    public double getCookSpeedMultiplier() {
-        return snapshotNbt().contains("Paper.CookSpeedMultiplier") ? snapshotNbt().getDouble("Paper.CookSpeedMultiplier") : 1.0;
-    }
+    public double getCookSpeedMultiplier() { return cookSpeedMultiplier; }
 
+    /**
+     * Paper: 검사 뒤 배율을 바꾸고 사본의 굽는 총 시간을 새 배율로 다시 잰다 — ceil(재료 칸 레시피 시간(없으면 200) / 배율).
+     * 재료는 사본 NBT Items 의 0 번 칸(아이템 종류만 본다 — 바닐라 Ingredient 도 종류만 본다).
+     */
     @Override
     public void setCookSpeedMultiplier(double multiplier) {
         if (!(multiplier >= 0)) throw new IllegalArgumentException("Furnace speed multiplier cannot be negative");
         if (multiplier > 200) throw new IllegalArgumentException("Furnace speed multiplier cannot more than 200");
-        throw new org.domi.furnace.compat.paper.UnsupportedFeature("Furnace#setCookSpeedMultiplier", "Furnace 서버 화로가 굽기 속도 배율을 아직 모른다");
+        cookSpeedMultiplier = multiplier;
+        int base = 200;
+        String input = smeltingId();
+        var kind = recipeKind();
+        if (input != null && kind != null) {
+            try {
+                base = org.domi.furnace.compat.paper.Compat.furnace().recipes()
+                        .cookingTime(kind, org.domi.furnace.api.item.ItemStack.of(input)).orElse(200);
+            } catch (IllegalStateException noRecipes) {
+                base = 200;
+            }
+        }
+        cookingTotalTime = (int) Math.ceil(base / multiplier);
+    }
+
+    private String smeltingId() {
+        var items = snapshotNbt().getList("Items");
+        for (int i = 0; i < items.size(); i++) {
+            NbtCompound it = items.getCompound(i);
+            if (it.getByte("Slot") == 0 && it.contains("id")) return it.getString("id");
+        }
+        return null;
+    }
+
+    private org.domi.furnace.api.recipe.Recipe.CookingKind recipeKind() {
+        return switch (((CompatBlockData) getBlockData()).furnace().type()) {
+            case "minecraft:furnace" -> org.domi.furnace.api.recipe.Recipe.CookingKind.SMELTING;
+            case "minecraft:blast_furnace" -> org.domi.furnace.api.recipe.Recipe.CookingKind.BLASTING;
+            case "minecraft:smoker" -> org.domi.furnace.api.recipe.Recipe.CookingKind.SMOKING;
+            default -> null;
+        };
     }
 
     @Override

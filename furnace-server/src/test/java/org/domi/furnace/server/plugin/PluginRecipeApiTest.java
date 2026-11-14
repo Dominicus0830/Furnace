@@ -155,6 +155,19 @@ class PluginRecipeApiTest {
         assertFalse(reg.canCook(Recipe.CookingKind.SMOKING, new ItemStack("minecraft:gravel", 1)));
     }
 
+    /** cookingTime 은 찾은 레시피의 시간 — 화로 200·용광로 100·훈연기 100·플러그인 레시피 값·없으면 empty. */
+    @Test
+    void cookingTimeIsFoundRecipeTime() {
+        var reg = host.recipes();
+        assertEquals(java.util.OptionalInt.of(200), reg.cookingTime(Recipe.CookingKind.SMELTING, new ItemStack("minecraft:raw_iron", 1)));
+        assertEquals(java.util.OptionalInt.of(100), reg.cookingTime(Recipe.CookingKind.BLASTING, new ItemStack("minecraft:raw_iron", 1)));
+        assertEquals(java.util.OptionalInt.of(100), reg.cookingTime(Recipe.CookingKind.SMOKING, new ItemStack("minecraft:beef", 1)));
+        assertEquals(java.util.OptionalInt.empty(), reg.cookingTime(Recipe.CookingKind.BLASTING, new ItemStack("minecraft:beef", 1)));
+        reg.register(plugin, "myplugin:bake3", new Recipe.Cooking(Recipe.CookingKind.SMELTING, "", RecipeCategory.MISC, RecipeChoice.item("gravel"),
+                new ItemStack("minecraft:bread", 1), 0f, 37));
+        assertEquals(java.util.OptionalInt.of(37), reg.cookingTime(Recipe.CookingKind.SMELTING, new ItemStack("minecraft:gravel", 1)));
+    }
+
     @Test
     void cookingStonecuttingSmithingShareTheSameTable() {
         var reg = host.recipes();

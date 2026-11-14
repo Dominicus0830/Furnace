@@ -272,7 +272,17 @@ class BukkitContainerInventoryTest {
                 // 배율 검사 문구·NaN
                 assertThrows(IllegalArgumentException.class, () -> again.setCookSpeedMultiplier(200.5), "M07");
                 assertThrows(IllegalArgumentException.class, () -> again.setCookSpeedMultiplier(Double.NaN), "M08");
-                assertThrows(UnsupportedFeature.class, () -> again.setCookSpeedMultiplier(2));
+                // 배율: 사본의 총 시간을 다시 잰다(시험 서버엔 레시피가 없어 기본 200) — ceil(200 / 2.5) = 80
+                again.setCookSpeedMultiplier(2.5);
+                assertEquals(2.5, again.getCookSpeedMultiplier());
+                assertEquals(80, again.getCookTimeTotal());
+                assertTrue(again.update());
+                assertEquals(2.5, w.blockEntityNbtNow(pos).orElseThrow().getDouble("Paper.CookSpeedMultiplier"), "서버 화로가 배율을 들고 저장한다");
+                var reread = (org.bukkit.block.Furnace) Compat.block(dim, pos).getState();
+                assertEquals(2.5, reread.getCookSpeedMultiplier());
+                reread.setCookSpeedMultiplier(1.0);
+                assertTrue(reread.update());
+                assertFalse(w.blockEntityNbtNow(pos).orElseThrow().contains("Paper.CookSpeedMultiplier"), "1.0 이면 바닐라 저장 그대로");
                 // RecipesUsed 읽기
                 org.domi.furnace.api.nbt.NbtCompound n = w.blockEntityNbtNow(pos).orElseThrow();
                 org.domi.furnace.api.nbt.NbtCompound used = new org.domi.furnace.api.nbt.NbtCompound();
@@ -294,5 +304,19 @@ class BukkitContainerInventoryTest {
             }
             return null;
         });
+    }
+
+    /** 창 이벤트의 위쪽 화로 인벤토리(사본)도 Paper 처럼 FurnaceInventory 다(#379 검토 R3). */
+    @Test
+    void eventFurnaceInventoryIsTyped() {
+        var contents = java.util.List.of(org.domi.furnace.api.item.ItemStack.of("minecraft:raw_iron"), org.domi.furnace.api.item.ItemStack.of("minecraft:coal"),
+                org.domi.furnace.api.item.ItemStack.EMPTY);
+        org.bukkit.inventory.Inventory top = new EventInventories.Furnace(org.bukkit.event.inventory.InventoryType.BLAST_FURNACE, contents, 3, "minecraft:blast_furnace", null);
+        var f = assertInstanceOf(org.bukkit.inventory.FurnaceInventory.class, top);
+        assertEquals(Material.RAW_IRON, f.getSmelting().getType());
+        assertEquals(Material.COAL, f.getFuel().getType());
+        assertTrue(f.isFuel(f.getFuel()));
+        assertFalse(f.canSmelt(null));
+        assertNull(f.getHolder());
     }
 }
