@@ -1,4 +1,4 @@
-// 엔티티 활성 범위 설정(D11): 기본 켜짐·Paper 기본값, villagers 가 animals 를 따르는 Spigot 규칙, 잘못된 값, 키 표·바닐라 프리셋.
+// 엔티티 활성 범위 설정(D11): 기본 켜짐·Paper 기본값, villagers 는 animals 를 따르지 않음(Paper 와 같다), 잘못된 값, 키 표·바닐라 프리셋.
 package org.domi.furnace.server.config;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -36,8 +36,9 @@ class EntityActivationSettingsTest {
     void canTurnOff() { assertFalse(parse("entity-activation-range.enabled", "false").enabled()); }
 
     @Test
-    void villagersFollowAnimalsLikeSpigot() {
-        assertEquals(24, parse("entity-activation-range.animals", "24").villagers());
+    void villagersDoNotFollowAnimalsLikePaper() {
+        // Paper 의 hasAnimalsConfig 는 루트 경로를 읽어 늘 거짓 — animals 만 바꿔도 villagers 는 32
+        assertEquals(32, parse("entity-activation-range.animals", "24").villagers());
         assertEquals(40, parse("entity-activation-range.animals", "24", "entity-activation-range.villagers", "40").villagers());
         assertEquals(32, parse("entity-activation-range.animals", "32").villagers());
     }

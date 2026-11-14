@@ -1,29 +1,38 @@
 # 결과 동일 금 파일 — scene-activation. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
-activation tick 0 entities b4c240aa20188293
-activation tick 0 random bb2ba6d7726fcf04
-activation tick 0 count 160 marked-active 160
-activation tick 50 entities 675addb3faa7908e
-activation tick 50 random bd1683ff72b92739
-activation tick 50 count 160 marked-active 57
-activation tick 100 entities 2bd2032eaf419833
-activation tick 100 random c9d58dc51a7d96f1
-activation tick 100 count 160 marked-active 52
-activation tick 150 entities e84dc34b48303fbb
-activation tick 150 random b94f44becdb3eddb
-activation tick 150 count 155 marked-active 46
-activation tick 200 entities 2aba85540c31b6a1
-activation tick 200 random 2b1b5fc96b1faaae
-activation tick 200 count 155 marked-active 49
-activation tick 250 entities 4cdbd84f597ec035
-activation tick 250 random 98440ea95196bccc
-activation tick 250 count 155 marked-active 99
-activation tick 300 entities 6e82f7cb1a9c2054
-activation tick 300 random 09aa3b81ab178120
-activation tick 300 count 155 marked-active 129
-activation tick 350 entities 43366750e75c88da
-activation tick 350 random 411a7f79acf60db7
-activation tick 350 count 155 marked-active 111
-activation tick 400 entities de948ecf5d7d38c5
-activation tick 400 random 714ab8a7eb28ce5d
-activation tick 400 count 155 marked-active 95
-TOTAL c8ac1dbd19bfb109 lines=27
+activation tick 0 entities 33cf3fc07490b656
+activation tick 0 random c49e2c6f77588685
+activation tick 0 count 178 marked-active 178
+activation tick 0 no-action-time 8e309533a97ce0c5
+activation tick 50 entities f499d2d537323839
+activation tick 50 random 535c2f3ff3b59afc
+activation tick 50 count 178 marked-active 56
+activation tick 50 no-action-time cb4350f5eab237e2
+activation tick 100 entities 8b4d1457d3a3b22a
+activation tick 100 random 9e1e7a0b0a087dc6
+activation tick 100 count 178 marked-active 51
+activation tick 100 no-action-time ce71c73ec748c9b8
+activation tick 150 entities 96a97728228ed034
+activation tick 150 random 8f853463572492aa
+activation tick 150 count 173 marked-active 44
+activation tick 150 no-action-time 275b36b2000d8ef7
+activation tick 200 entities 1f9c7a17f88d4e74
+activation tick 200 random c7d381d912df9bf4
+activation tick 200 count 173 marked-active 44
+activation tick 200 no-action-time d1239e64ceada20b
+activation tick 250 entities 36b63b97ac1ed14d
+activation tick 250 random f0111459f5871b8d
+activation tick 250 count 173 marked-active 104
+activation tick 250 no-action-time 40c64498ed06bae3
+activation tick 300 entities 9f4cc54c636531b5
+activation tick 300 random fea339a0d0a8fbaa
+activation tick 300 count 173 marked-active 135
+activation tick 300 no-action-time 9993ec9e9a7ef2bc
+activation tick 350 entities 1abb4f26bf2e85b7
+activation tick 350 random 7d3280da34d5a50c
+activation tick 350 count 173 marked-active 116
+activation tick 350 no-action-time 13f7af314d0ad5b1
+activation tick 400 entities 199f7a3745c5b5aa
+activation tick 400 random be0c4e23168998a2
+activation tick 400 count 173 marked-active 101
+activation tick 400 no-action-time 81c151980696c977
+TOTAL 28aa9b7b1b96d85e lines=36

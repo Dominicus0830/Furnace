@@ -30,7 +30,7 @@
 | `entity-activation-range.raiders` | 수 | 64 | 정수 | 활성 범위: 습격 몹(Raider) |  |
 | `entity-activation-range.misc` | 수 | 16 | 정수 | 활성 범위: 그 밖(아이템·경험치 구슬·화살·구름 등) |  |
 | `entity-activation-range.water` | 수 | 16 | 정수 | 활성 범위: 물 동물(WaterAnimal) |  |
-| `entity-activation-range.villagers` | 수 | 32 | 정수 | 활성 범위: 주민(키가 없으면 animals 를 기본과 다르게 적었을 때 그 값) |  |
+| `entity-activation-range.villagers` | 수 | 32 | 정수 | 활성 범위: 주민 |  |
 | `entity-activation-range.flying-monsters` | 수 | 32 | 정수 | 활성 범위: 나는 적대 몹(가스트·팬텀) |  |
 | `entity-activation-range.wake-up-inactive.animals-max-per-tick` | 수 | 4 | 정수 | 활성 범위: 비활성 동물을 깨우는 수(틱마다 1씩 차오르는 상한) |  |
 | `entity-activation-range.wake-up-inactive.animals-every` | 수 | 1200 | 정수 | 활성 범위: 동물이 이 틱보다 오래 비활성이면 깨울 후보 |  |

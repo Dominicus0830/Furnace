@@ -1,11 +1,14 @@
-// 엔티티 활성 범위(D11, Paper 1.21.1 EAR) 단위 시험: 종류 분류, 늘 도는 엔티티, 범위 상자, 20틱 면역 검사 주기, 깨우기 몫, 잠깐 깨운 엔티티의 이동 건너뛰기,
+// 엔티티 활성 범위(D11, Paper 1.21.1 EAR) 단위 시험: 종류 분류, 늘 도는 엔티티, 먼 아이템 낙하 시작 틱, 범위 상자, 20틱 면역 검사 주기, 깨우기 몫, 잠깐 깨운 엔티티의 이동 건너뛰기,
 // 피스톤 면역, 꺼졌을 때 아무것도 안 하는 것.
 package org.domi.furnace.server.entity;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
+import org.domi.furnace.server.block.B;
+import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.config.EntityActivationSettings;
+import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.scene.SceneKit;
 import org.domi.furnace.server.scene.SceneLevel;
 import org.junit.jupiter.api.AfterEach;
@@ -19,13 +22,14 @@ class EntityActivationTest {
 
     @BeforeEach
     void setUp() {
+        EntityActivationSettings.install(EntityActivationSettings.DEFAULT);   // 시험 JVM 기본은 꺼짐(EntityActivationOffExtension)
         SceneKit.install();
         level = new SceneLevel("ear-test", 6);
         player = SceneKit.addPlayer(level, "A", 0.5, SceneLevel.FLOOR_Y, 0.5);
     }
 
     @AfterEach
-    void restore() { EntityActivationSettings.install(EntityActivationSettings.DEFAULT); }
+    void restore() { EntityActivationSettings.install(EntityActivationSettings.OFF); }
 
     private Entity spawn(String type, double x, double z) {
         Entity e = Entities.create(level, type);
@@ -206,17 +210,44 @@ class EntityActivationTest {
         assertEquals(3020, cow.activatedImmunityTick);
     }
 
+    /**
+     * 기둥 위 먼 아이템(플레이어에게서 80칸): 300틱 뒤 기둥을 지우고 y 가 처음 내려간 틱(지운 뒤 몇 틱째)과, 지운 뒤 첫 중력 틱을 돌려준다.
+     * extraIds 로 아이템 id 를 밀어 중력 틱 위상((tickCount + id) % 4)을 바꾼다.
+     */
+    private static int[] farItemFall(EntityActivationSettings s, int extraIds) {
+        EntityActivationSettings.install(s);
+        SceneLevel lv = new SceneLevel("ear-item", 7);
+        SceneKit.addPlayer(lv, "A", 0.5, SceneLevel.FLOOR_Y, 0.5);
+        int stone = B.defaultState("minecraft:stone"), air = B.defaultState("minecraft:air");
+        Pos pillar = new Pos(80, SceneLevel.FLOOR_Y, 0);
+        lv.setBlock(pillar, stone, 2);
+        for (int i = 0; i < extraIds; i++) lv.nextEntityId();
+        ItemEntity item = new ItemEntity(lv, lv.nextEntityId(), 80.5, SceneLevel.FLOOR_Y + 1, 0.5,
+                new ItemStack(ItemContext.id("minecraft:item", "diamond"), 1));
+        item.setNeverPickUp();
+        item.setDeltaMovement(0, 0, 0);
+        lv.addFreshEntity(item);
+        for (int t = 0; t < 300; t++) lv.tick();
+        assertTrue(item.onGround(), "기둥 위에 앉아 있어야 한다");
+        lv.setBlock(pillar, air, 2);
+        int first = -1, firstGravity = -1;
+        double last = item.y();
+        for (int t = 1; t <= 20; t++) {
+            if (firstGravity < 0 && (item.tickCount + 1 + item.id()) % 4 == 0) firstGravity = t;   // 이번 틱의 tickCount++ 뒤 중력 틱인가
+            lv.tick();
+            if (first < 0 && item.y() < last - 1e-9) first = t;
+            last = item.y();
+        }
+        return new int[]{first, firstGravity};
+    }
+
+    /** 먼 아이템도 바닐라처럼 받침이 사라진 뒤 첫 중력 틱에 떨어지기 시작한다(Spigot 1.21.3 식 +1 — 빼면 20틱 동안 안 떨어진다). id 위상 4가지 모두. */
     @Test
-    void itemsAreActiveOnTheirGravityTick() {
-        EntityActivationSettings.install(noWake());
-        Entity item = spawn("minecraft:item", 80.5, 0.5);
-        item.tickCount = 400;
-        level.gameTime = 4000;
-        level.activateEntities(level.players);
-        for (int t = 0; t < 8; t++) {
-            item.tickCount = 400 + t;
-            boolean gravity = (item.tickCount + 1 + item.id()) % 4 == 0;
-            if (gravity) assertTrue(EntityActivation.checkIfActive(item, level.activation()));
+    void farItemStartsFallingOnItsFirstGravityTick() {
+        for (int k = 0; k < 4; k++) {
+            int[] off = farItemFall(EntityActivationSettings.OFF, k), on = farItemFall(noWake(), k);
+            assertEquals(off[1], off[0], "바닐라: 첫 중력 틱에 떨어지기 시작 (위상 " + k + ")");
+            assertEquals(on[1], on[0], "EAR 켬: 바닐라처럼 첫 중력 틱에 떨어지기 시작 (위상 " + k + ")");
         }
     }
 }

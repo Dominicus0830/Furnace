@@ -10,7 +10,9 @@ import java.util.function.Consumer;
 /**
  * furnace.properties 키는 Spigot spigot.yml {@code world-settings.default.entity-activation-range.*} 와 같은 이름에 {@code enabled} 하나를 더했다
  * (Paper 서버의 spigot.yml 을 가져오면 값이 그대로 옮겨진다 — {@link PaperConfigImport}). 범위가 0 이하인 종류는 늘 활성(Paper 와 같다).
- * 기본값은 Paper 1.21.1 의 SpigotWorldConfig 와 같다. villagers 는 키가 없고 animals 를 기본(32)과 다르게 적었으면 animals 값을 따른다(Spigot 과 같다).
+ * 기본값은 Paper 1.21.1 의 SpigotWorldConfig 와 같다. villagers 는 Paper 가 더한 키로, 없으면 32 다 — Paper 의 "animals 를 바꾸면 villagers 도 따른다"
+ * (hasAnimalsConfig)는 루트 경로를 읽어 늘 거짓이라 실제로는 죽은 규칙이고, Furnace 도 따르지 않는다. 순수 Spigot(주민 종류가 없어 주민이 animals 범위)의
+ * spigot.yml 을 가져올 때는 {@link PaperConfigImport} 가 villagers 를 animals 값으로 적는다.
  */
 public record EntityActivationSettings(boolean enabled,
                                        int animals, int monsters, int raiders, int misc, int water, int villagers, int flyingMonsters,
@@ -56,7 +58,7 @@ public record EntityActivationSettings(boolean enabled,
             {"raiders", "64", "습격 몹(Raider)"},
             {"misc", "16", "그 밖(아이템·경험치 구슬·화살·구름 등)"},
             {"water", "16", "물 동물(WaterAnimal)"},
-            {"villagers", "32", "주민(키가 없으면 animals 를 기본과 다르게 적었을 때 그 값)"},
+            {"villagers", "32", "주민"},
             {"flying-monsters", "32", "나는 적대 몹(가스트·팬텀)"},
             {"wake-up-inactive.animals-max-per-tick", "4", "비활성 동물을 깨우는 수(틱마다 1씩 차오르는 상한)"},
             {"wake-up-inactive.animals-every", "1200", "동물이 이 틱보다 오래 비활성이면 깨울 후보"},
@@ -86,11 +88,9 @@ public record EntityActivationSettings(boolean enabled,
         EntityActivationSettings d = DEFAULT;
         boolean enabled = bool(p, "enabled", d.enabled);
         int animals = num(p, "animals", d.animals);
-        // SpigotWorldConfig: hasAnimalsConfig = animals 가 기본과 다르면 villagers 기본을 animals 로
-        int villagersDefault = animals != d.animals ? animals : d.villagers;
         EntityActivationSettings s = new EntityActivationSettings(enabled,
                 animals, num(p, "monsters", d.monsters), num(p, "raiders", d.raiders), num(p, "misc", d.misc), num(p, "water", d.water),
-                num(p, "villagers", villagersDefault), num(p, "flying-monsters", d.flyingMonsters),
+                num(p, "villagers", d.villagers), num(p, "flying-monsters", d.flyingMonsters),
                 bool(p, "tick-inactive-villagers", d.tickInactiveVillagers), bool(p, "ignore-spectators", d.ignoreSpectators),
                 num(p, "wake-up-inactive.animals-max-per-tick", d.wakeAnimalsMax), num(p, "wake-up-inactive.animals-every", d.wakeAnimalsEvery),
                 num(p, "wake-up-inactive.animals-for", d.wakeAnimalsFor),

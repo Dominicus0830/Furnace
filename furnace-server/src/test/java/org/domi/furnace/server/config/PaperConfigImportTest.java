@@ -230,9 +230,30 @@ class PaperConfigImportTest {
         assertEquals("48", r.toWrite().get("entity-activation-range.raiders"));
         assertEquals("false", r.toWrite().get("entity-activation-range.tick-inactive-villagers"));
         assertEquals("2", r.toWrite().get("entity-activation-range.wake-up-inactive.animals-max-per-tick"));
+        assertEquals("16", r.toWrite().get("entity-activation-range.villagers"), "villagers 키 없는 Spigot 파일: 주민은 animals 범위");
         assertFalse(r.toWrite().containsKey("entity-activation-range.monsters"), "기본과 같은 값은 옮기지 않는다");
         assertTrue(has(r, Kind.DEFAULT, "spigot.yml", "world-settings.default.entity-activation-range.monsters"));
         assertTrue(has(r, Kind.MANUAL, "spigot.yml", "world-settings.nether.entity-activation-range.monsters"), "월드별 값은 수동 안내");
+    }
+
+    /** Paper 가 만든 spigot.yml 은 기본값(villagers: 32)도 적어 둔다 — animals 만 바꾼 Paper 서버의 주민 범위는 32 로 남아야 한다(PR #326 검토 R1). */
+    @Test
+    void importedPaperSpigotYmlKeepsVillagerRange(@TempDir Path dir) throws Exception {
+        write(dir, "spigot.yml", """
+                world-settings:
+                  default:
+                    entity-activation-range:
+                      animals: 16
+                      monsters: 24
+                      villagers: 32
+                """);
+        Result r = run(dir, new Properties());
+        assertFalse(r.toWrite().containsKey("entity-activation-range.villagers"));
+        Properties furnace = new Properties();
+        furnace.putAll(r.toWrite());
+        EntityActivationSettings s = EntityActivationSettings.fromProperties(furnace, w -> {});
+        assertEquals(16, s.animals());
+        assertEquals(32, s.villagers());
     }
 
     @Test

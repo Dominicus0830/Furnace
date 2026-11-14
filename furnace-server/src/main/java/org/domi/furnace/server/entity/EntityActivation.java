@@ -65,10 +65,14 @@ public final class EntityActivation {
         };
     }
 
-    /** Paper initializeEntityActivationState: 늘 도는 엔티티(범위 0 이하인 종류, 투사체·탈것·폭발물·보스 등). */
+    /** Paper initializeEntityActivationState: 늘 도는 엔티티(범위 0 이하인 종류, 투사체·탈것·폭발물·보스 등). 종류 판정은 생성 때 한 번(Entity.alwaysActiveKind). */
     static boolean alwaysActive(Entity e, EntityActivationSettings s) {
-        return range(s, e.activationType) <= 0
-                || e instanceof EyeOfEnder
+        return e.alwaysActiveKind || range(s, e.activationType) <= 0;
+    }
+
+    /** 설정과 상관없이 늘 도는 엔티티 종류(Paper 목록 — 투사체·탈것·폭발물·보스 등). Entity 생성 때 한 번 부른다. */
+    static boolean alwaysActiveKind(Entity e) {
+        return e instanceof EyeOfEnder
                 || e instanceof ThrowableProjectile
                 || e instanceof EnderDragon
                 || e instanceof WitherBoss

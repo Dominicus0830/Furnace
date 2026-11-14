@@ -117,6 +117,8 @@ public abstract non-sealed class Entity implements Rider {
     private boolean isInPowderSnow, wasInPowderSnow;
     // 엔티티 활성 범위(EntityActivation, Spigot·Paper EAR). 설정이 꺼져 있으면 읽지도 쓰지도 않는다.
     final byte activationType = EntityActivation.typeOf(this);
+    /** 엔티티 활성 범위: 설정과 상관없이 늘 도는 종류인가(생성 때 한 번 — 매 틱 instanceof 열네 번을 피한다). */
+    final boolean alwaysActiveKind = EntityActivation.alwaysActiveKind(this);
     long activatedTick = Integer.MIN_VALUE, activatedImmunityTick = Integer.MIN_VALUE;
     /** 비활성인데 20틱 면역 검사로 이번 틱만 돈다 — 제 속도로 움직이는 이동(move SELF)은 건너뛴다(Paper). */
     boolean isTemporarilyActive;

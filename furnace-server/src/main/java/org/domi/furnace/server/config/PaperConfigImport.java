@@ -455,6 +455,13 @@ public final class PaperConfigImport {
                 else if (String.valueOf(n).equals(k[1])) keptDefault(SPIGOT, base + k[0], v, ear + k[0], k[1], "Furnace 기본과 같다");
                 else imp(SPIGOT, base + k[0], v, ear + k[0], String.valueOf(n), "엔티티 활성 범위");
             }
+            // 순수 Spigot 에는 주민 종류(villagers 키)가 없어 주민이 animals 범위를 쓴다. Paper 가 만든 파일은 villagers 를 늘 적어 두므로 위에서 그대로 옮겨진다.
+            Long spigotAnimals = asLong(val(SPIGOT, base + "animals"));
+            if (val(SPIGOT, base + "villagers") == null && spigotAnimals != null && spigotAnimals == (int) (long) spigotAnimals
+                    && spigotAnimals != EntityActivationSettings.DEFAULT.animals()) {
+                imp(SPIGOT, base + "animals", spigotAnimals, ear + "villagers", String.valueOf(spigotAnimals),
+                        "villagers 키가 없는 Spigot 파일 — Spigot 은 주민을 animals 범위로 활성화한다");
+            }
             for (String[] k : EntityActivationSettings.BOOL_KEYS) {
                 Object v = val(SPIGOT, base + k[0]);
                 if (v == null) continue;
