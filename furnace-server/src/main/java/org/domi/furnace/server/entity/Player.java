@@ -707,7 +707,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 서버가 끊은 사유(퇴장 로그용), 없으면 null. */
     public org.domi.furnace.api.text.Text kickReason() { return kickReason; }
 
-    /** 플러그인이 가로챈 채팅 입력 처리기(API Player.chatInputHandler). 채팅을 처리하는 전역 스레드가 읽는다. 퇴장한 객체는 다시 쓰이지 않으니 따로 지우지 않는다. */
+    /** 플러그인이 가로챈 채팅 입력 처리기(API Player.chatInputHandler). 채팅 사슬(채팅 실행기 스레드)이 읽는다. 퇴장한 객체는 다시 쓰이지 않으니 따로 지우지 않는다. */
     private volatile java.util.function.Consumer<String> chatInputHandler;
 
     public void chatInputHandler(java.util.function.Consumer<String> handler) { this.chatInputHandler = handler; }
