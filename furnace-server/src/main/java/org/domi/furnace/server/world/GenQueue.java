@@ -4,6 +4,9 @@
 //     — 취소된 요청은 실패로 끝나 플레이어 자리(chunkPrefetches)가 돌아간다. 이미 시작한 생성(원형·장식 중간 상태)은 건드리지 않는다.
 //  ③ 플레이어당 생성 칸 = clamp(전역 예산 ÷ 생성 칸을 쓰는 플레이어 수, 1, 상한) — 인원이 적으면 한 사람이 다 쓰고, 많으면 나눠 쓴다.
 //     (Region.sendQueuedChunksAuto 가 디스크에 없는 청크에만 이 칸을 쓴다. 디스크 청크는 예전 상한 그대로.)
+//  ④ 차례(turnOwners>0): 생성 칸을 쓰는 사람을 줄 세워 앞의 K 명만 큰 칸(turnQuota)을 받고 그 사람들 요청을 먼저 뽑는다.
+//     한 사람이 turnQuota 개를 시작하면(또는 오래 걸리거나 더 원하지 않으면) 줄 뒤로 가고 다음 사람이 받는다. 생성은 이웃 원형(7×7)을
+//     함께 쓰므로 한 사람 둘레를 몰아 만드는 쪽이 같은 일로 청크를 더 많이 끝낸다 — 몰아 주되 돌아가며 몰아 줘서 아무도 굶지 않는다.
 //  시간 티켓(순간 이동 뒤·포털, World.addTicket)으로 걸린 요청은 티켓이 살아 있는 동안은 시야 밖이어도 남기고, 끝나면 시야 밖일 때 취소한다
 //  (바닐라: 티켓이 빠지면 대기 작업이 내려간다). 그 밖의 요청(플러그인·스폰 청크·영구 티켓 등, "고정")은 취소하지 않고, 오래 기다리면(pinnedMaxWait) 거리와 상관없이 먼저 뽑는다.
 //  위치 표시가 없는 작업(재생성 등)은 늘 먼저 넣은 순.
@@ -32,20 +35,34 @@ public final class GenQueue extends AbstractExecutorService {
 
     /** 운영 손잡이(시스템 속성). 기본값은 T-170 측정으로 정했다(docs/feature-parity/context-notes/2026-11-14-t170-gen-queue.md). */
     public record Settings(boolean distanceOrder, int budget, int fixedPlayerCap, int maxPlayerCap, long cancelDelayNanos,
-                           int cancelMargin, long pinnedMaxWaitNanos, boolean strictBudget) {
+                           int cancelMargin, long pinnedMaxWaitNanos, boolean strictBudget, int turnOwners, int turnQuota, long turnMaxNanos) {
+        /** 차례 없이(시험·예전 판). */
+        public Settings(boolean distanceOrder, int budget, int fixedPlayerCap, int maxPlayerCap, long cancelDelayNanos,
+                        int cancelMargin, long pinnedMaxWaitNanos, boolean strictBudget) {
+            this(distanceOrder, budget, fixedPlayerCap, maxPlayerCap, cancelDelayNanos, cancelMargin, pinnedMaxWaitNanos, strictBudget, 0, 0, 0);
+        }
+
         public static Settings fromSystem(int threads, int maxPlayerCap) {
             boolean fifo = "fifo".equalsIgnoreCase(System.getProperty("furnace.gen.order", "distance"));
-            int budget = Integer.getInteger("furnace.gen.budget", threads * DEFAULT_BUDGET_PER_THREAD);
-            return new Settings(!fifo, Math.max(1, budget), Math.max(0, Integer.getInteger("furnace.gen.playerCap", 0)), maxPlayerCap,
+            int budget = Math.max(1, Integer.getInteger("furnace.gen.budget", threads * DEFAULT_BUDGET_PER_THREAD));
+            int quota = Math.max(1, Integer.getInteger("furnace.gen.turnQuota", maxPlayerCap));
+            // 차례 인원 기본 = 예산을 차례 칸으로 나눈 수(적어도 2 — 한 사람 차례가 끝나 다음 사람이 걸기 전까지 스레드가 놀지 않게)
+            int owners = Integer.getInteger("furnace.gen.turnOwners", Math.max(2, budget / quota));
+            return new Settings(!fifo, budget, Math.max(0, Integer.getInteger("furnace.gen.playerCap", 0)), maxPlayerCap,
                     TimeUnit.MILLISECONDS.toNanos(Math.max(0, Long.getLong("furnace.gen.cancelDelayMs", 0L))),
                     Math.max(0, Integer.getInteger("furnace.gen.cancelMargin", 0)),
                     TimeUnit.MILLISECONDS.toNanos(Math.max(0, Long.getLong("furnace.gen.pinnedMaxWaitMs", 3000L))),
-                    Boolean.getBoolean("furnace.gen.strictBudget"));
+                    Boolean.getBoolean("furnace.gen.strictBudget"), Math.max(0, owners), quota,
+                    TimeUnit.MILLISECONDS.toNanos(Math.max(1, Long.getLong("furnace.gen.turnMaxMs", 2000L))));
         }
+
+        boolean turns() { return distanceOrder && fixedPlayerCap == 0 && turnOwners > 0; }
     }
 
     /** 전역 예산 = 생성 스레드 × 이 값(4코어 16). */
     static final int DEFAULT_BUDGET_PER_THREAD = 4;
+    /** 생성 칸을 원한 지 이만큼 안이면 "탐험 중"으로 센다. */
+    static final long WANT_WINDOW_NANOS = 1_000_000_000L;
     /** 거리를 다시 재는 간격. */
     static final long REPRIO_NANOS = 50_000_000L;
     /** 대기열 길이·시야 밖 수를 ChunkTrace 에 남기는 간격. */
@@ -64,12 +81,17 @@ public final class GenQueue extends AbstractExecutorService {
         private final AtomicInteger state;
         /** 시야 밖이어도 살려 둘 조건(시간 티켓 — 바닐라처럼 티켓이 살아 있는 동안만 올린다). null 이면 시야만 본다. 생성 스레드에서 부른다. */
         final java.util.function.BooleanSupplier keepAlive;
+        /** 이 요청을 건 플레이어(entityId, 차례 계산용). 없으면 -1. */
+        final int owner;
 
-        public Ticket(boolean cancellable) { this(cancellable, null); }
+        public Ticket(boolean cancellable) { this(cancellable, null, -1); }
 
-        public Ticket(boolean cancellable, java.util.function.BooleanSupplier keepAlive) {
+        public Ticket(boolean cancellable, java.util.function.BooleanSupplier keepAlive) { this(cancellable, keepAlive, -1); }
+
+        public Ticket(boolean cancellable, java.util.function.BooleanSupplier keepAlive, int owner) {
             state = new AtomicInteger(cancellable ? QUEUED : PINNED);
             this.keepAlive = keepAlive;
+            this.owner = owner;
         }
 
         /** 다른 요청자가 붙는다: 취소 못 하게. 이미 취소됐으면 거짓(그 로드는 실패로 끝난다 — 다시 걸어야 한다). */
@@ -155,6 +177,77 @@ public final class GenQueue extends AbstractExecutorService {
      * 50ms 마다 다시 잰다 — 생성 칸을 쓰는 사람 수가 바뀌면 다음 계산에서 따라간다.
      */
     public int playerCap() { return playerCap; }
+
+    /** 생성 칸을 쓰는 사람 수(50ms 마다 다시 세고, 그 사이 새로 원하기 시작한 사람은 capFor 가 바로 더한다). */
+    private final AtomicInteger exploringCount = new AtomicInteger();
+
+    private int capOf(int exploring) {
+        return Math.clamp(settings.budget() / Math.max(1, exploring), 1, settings.maxPlayerCap());
+    }
+
+    /**
+     * 플레이어가 지금 쓸 생성 칸. newcomer = 방금 디스크에 없는 청크를 원하기 시작했다(1초 안에 원한 적도, 걸어 둔 생성도 없음) —
+     * 그 사람을 곧바로 인원에 더해 나눈다. 모두가 한꺼번에 순간 이동하거나 접속해도 첫 사람들만 조금 더 받고(합 ≈ 예산 × ln 인원)
+     * 예산 전부를 저마다 걸지 않는다.
+     */
+    public int capFor(boolean newcomer) { return capFor(-1, newcomer); }
+
+    /** 차례가 켜져 있으면 차례인 사람은 turnQuota, 줄 선 사람은 1(시야 밖 취소로 자리가 돌아오고, 차례가 오면 바로 시작할 하나). */
+    public int capFor(int owner, boolean newcomer) {
+        if (!settings.distanceOrder()) return Integer.MAX_VALUE;
+        if (settings.fixedPlayerCap() > 0) return settings.fixedPlayerCap();
+        if (settings.turns() && owner >= 0) {
+            lock.lock();
+            try {
+                Turn t = turnActive.get(owner);
+                if (t != null) return settings.turnQuota();
+                if (turnQueued.add(owner)) {
+                    turnWait.addLast(owner);
+                    fillTurnsLocked(System.nanoTime());
+                    if (turnActive.containsKey(owner)) return settings.turnQuota();
+                }
+                return 1;
+            } finally {
+                lock.unlock();
+            }
+        }
+        return capOf(newcomer ? exploringCount.incrementAndGet() : Math.max(1, exploringCount.get()));
+    }
+
+    /** 차례 하나: 시작한 수와 받은 때, 마지막으로 대기열에 요청이 있던 때. */
+    private static final class Turn {
+        int starts;
+        final long since;
+        long lastQueued;
+        Turn(long now) { since = now; lastQueued = now; }
+    }
+
+    /** 차례인 사람(entityId → 차례). */
+    private final java.util.HashMap<Integer, Turn> turnActive = new java.util.HashMap<>();
+    /** 줄(차례 기다리는 사람, 앞이 먼저). turnQueued 는 줄 또는 차례에 있는 사람 전부. */
+    private final ArrayDeque<Integer> turnWait = new ArrayDeque<>();
+    private final java.util.HashSet<Integer> turnQueued = new java.util.HashSet<>();
+    /** 요청이 없어 차례를 넘기기까지 기다리는 시간(다음 틱 요청을 걸 틈). */
+    static final long TURN_IDLE_NANOS = 150_000_000L;
+
+    /** 잠금 안: 빈 차례 자리를 줄 앞사람으로 채운다. */
+    private void fillTurnsLocked(long now) {
+        while (turnActive.size() < settings.turnOwners() && !turnWait.isEmpty()) turnActive.put(turnWait.pollFirst(), new Turn(now));
+    }
+
+    /** 잠금 안: 차례를 끝내 줄 뒤로 보낸다. */
+    private void endTurnLocked(int owner, long now) {
+        if (turnActive.remove(owner) != null) {
+            turnWait.addLast(owner);
+            fillTurnsLocked(now);
+        }
+    }
+
+    /** 잠금 안: 지금 차례인 사람의 요청인가(차례가 없거나 주인 없는 요청은 차례인 것과 같게 본다). */
+    private boolean onTurn(Task t) {
+        int o = t.ticket == null ? -1 : t.ticket.owner;
+        return o < 0 || turnActive.containsKey(o);
+    }
 
     /** strictBudget 일 때 전역 토큰 하나(없으면 거짓). 아니면 늘 참. */
     public boolean tryAcquireGenToken() {
@@ -290,20 +383,61 @@ public final class GenQueue extends AbstractExecutorService {
         if (settings.fixedPlayerCap() > 0) {
             playerCap = settings.fixedPlayerCap();
         } else {
+            // 생성 칸을 쓰는 사람 = 지금 걸어 둔 생성이 있거나, 최근 1초 안에 디스크에 없는 청크를 원했던 사람(칸이 차서 못 건 사람 포함).
+            // 걸어 둔 것만 세면 한꺼번에 순간 이동한 직후(옛 요청이 모두 취소돼 0명) 모두가 예산 전부를 한 번에 걸어 버린다.
             int exploring = 0;
-            for (World w : worlds) for (Player p : w.playerIndex().toArray()) if (!p.genPrefetches().isEmpty()) exploring++;
-            playerCap = Math.clamp(settings.budget() / Math.max(1, exploring), 1, settings.maxPlayerCap());
+            java.util.HashSet<Integer> ids = settings.turns() ? new java.util.HashSet<>() : null;
+            for (World w : worlds) for (Player p : w.playerIndex().toArray()) {
+                long want = p.genWantNanos();
+                if (!p.genPrefetches().isEmpty() || (want != 0 && now - want < WANT_WINDOW_NANOS)) {
+                    exploring++;
+                    if (ids != null) ids.add(p.entityId());
+                }
+            }
+            exploringCount.set(exploring);
+            playerCap = capOf(exploring);
+            if (ids != null) rotateLocked(ids, now);
         }
         if (ChunkTrace.ON && now - lastMetric >= METRIC_NANOS) {
             lastMetric = now;
             ChunkTrace.value("batch.gqlen", gen.size());
             ChunkTrace.value("batch.gqstale", stale);
             ChunkTrace.value("batch.gqcap", playerCap);
-            int pinned = 0;
-            for (Task t : gen) if (t.ticket == null || !t.ticket.cancellable()) pinned++;
+            int pinned = 0, noOwner = 0, maxPer = 0;
+            java.util.HashMap<Integer, Integer> per = new java.util.HashMap<>();
+            for (Task t : gen) {
+                if (t.ticket == null || !t.ticket.cancellable()) pinned++;
+                if (t.ticket == null || t.ticket.owner < 0) noOwner++;
+                else maxPer = Math.max(maxPer, per.merge(t.ticket.owner, 1, Integer::sum));
+            }
             ChunkTrace.value("batch.gqpin", pinned);
+            ChunkTrace.value("batch.gqnoown", noOwner);
+            ChunkTrace.value("batch.gqowners", per.size());
+            ChunkTrace.value("batch.gqmaxper", maxPer);
         }
         return cancelled;
+    }
+
+    /** 잠금 안: 더는 생성 칸을 쓰지 않는 사람을 빼고, 오래 걸렸거나 요청이 없는 차례를 넘긴다. */
+    private void rotateLocked(java.util.Set<Integer> exploring, long now) {
+        turnQueued.retainAll(exploring);
+        turnWait.removeIf(o -> !turnQueued.contains(o));
+        turnActive.keySet().removeIf(o -> !turnQueued.contains(o));
+        for (Task t : gen) {
+            if (t.ticket == null || t.ticket.owner < 0) continue;
+            Turn turn = turnActive.get(t.ticket.owner);
+            if (turn != null) turn.lastQueued = now;
+        }
+        List<Integer> done = null;
+        for (var e : turnActive.entrySet()) {
+            Turn turn = e.getValue();
+            if (now - turn.since >= settings.turnMaxNanos() || now - turn.lastQueued >= TURN_IDLE_NANOS) {
+                if (done == null) done = new ArrayList<>();
+                done.add(e.getKey());
+            }
+        }
+        if (done != null) for (int o : done) endTurnLocked(o, now);
+        fillTurnsLocked(now);
     }
 
     private void removeAt(int i) {
@@ -316,13 +450,16 @@ public final class GenQueue extends AbstractExecutorService {
         Task p = plain.poll();
         if (p != null) return p;
         int bi = -1;
+        boolean turns = settings.turns();
         long bestKey = Long.MAX_VALUE, bestSeq = Long.MAX_VALUE;
         for (int i = 0, n = gen.size(); i < n; i++) {
             Task t = gen.get(i);
             long key;
             if (!settings.distanceOrder()) key = 0;
             else if (!t.background && (t.ticket == null || !t.ticket.cancellable()) && now - t.t0 >= settings.pinnedMaxWaitNanos()) key = -1;
+            else if (turns && !t.background && !onTurn(t)) key = (1L << 32) + t.prio;   // 줄 선 사람 요청은 차례인 요청 뒤
             else key = t.prio;
+            if (t.background && settings.distanceOrder()) key = (2L << 32) + key;   // 미리 생성은 줄 선 요청보다도 뒤
             if (key < bestKey || (key == bestKey && t.seq < bestSeq)) {
                 bestKey = key; bestSeq = t.seq; bi = i;
             }
@@ -330,6 +467,10 @@ public final class GenQueue extends AbstractExecutorService {
         if (bi < 0) return null;
         Task t = gen.get(bi);
         removeAt(bi);
+        if (turns && t.ticket != null && t.ticket.owner >= 0) {
+            Turn turn = turnActive.get(t.ticket.owner);
+            if (turn != null && ++turn.starts >= settings.turnQuota()) endTurnLocked(t.ticket.owner, now);
+        }
         return t;
     }
 

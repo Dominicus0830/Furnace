@@ -487,15 +487,20 @@ public final class Region {
      * 그 실패가 끝난 다음 새로 건다(취소가 다른 요청자에게 새지 않는다).
      */
     CompletableFuture<ChunkColumn> loadChunk(ChunkPos cp, boolean prefetch) {
-        return loadChunk(cp, prefetch, null);
+        return loadChunk(cp, prefetch, null, -1);
+    }
+
+    /** 플레이어 미리 불러오기(owner = 그 플레이어 entityId — 생성 대기열 차례 계산용). */
+    CompletableFuture<ChunkColumn> loadChunkForPlayer(ChunkPos cp, int owner) {
+        return loadChunk(cp, true, null, owner);
     }
 
     /** 시간 티켓(World.addTicket)의 로드: 티켓이 살아 있는 동안은 취소되지 않고, 끝난 뒤 시야 밖이면 시작 전에 취소될 수 있다. */
     CompletableFuture<ChunkColumn> loadChunkForTicket(ChunkPos cp, java.util.function.BooleanSupplier ticketAlive) {
-        return loadChunk(cp, true, ticketAlive);
+        return loadChunk(cp, true, ticketAlive, -1);
     }
 
-    private CompletableFuture<ChunkColumn> loadChunk(ChunkPos cp, boolean prefetch, java.util.function.BooleanSupplier keepAlive) {
+    private CompletableFuture<ChunkColumn> loadChunk(ChunkPos cp, boolean prefetch, java.util.function.BooleanSupplier keepAlive, int owner) {
         world.assertOwns(this);
         ChunkColumn present0 = world.loadedChunk(cp.x(), cp.z());
         if (present0 != null) return CompletableFuture.completedFuture(present0);
@@ -518,7 +523,7 @@ public final class Region {
         if (!prefetch && GenQueue.TRACE_PINNED > 0 && GenQueue.tracedPinned.incrementAndGet() <= GenQueue.TRACE_PINNED) {
             org.slf4j.LoggerFactory.getLogger(Region.class).info("[GEN] 고정 로드 {}", cp, new Throwable("요청 출처"));
         }
-        final GenQueue.Ticket ticket = new GenQueue.Ticket(prefetch, keepAlive);
+        final GenQueue.Ticket ticket = new GenQueue.Ticket(prefetch, keepAlive, owner);
         world.putGenTicket(key, ticket);
         java.util.concurrent.Executor genExec = world.genExecutor(cp.x(), cp.z(), ticket);
         CompletableFuture<ChunkColumn> sourceFuture =
@@ -3032,12 +3037,13 @@ public final class Region {
         var corners = p.cornerLoads();
         if (corners.isEmpty() || !p.pendingChunks().isEmpty() || skipsGeneration(p)) return;
         int slots = cornerLoadSlots() - p.cornerInFlight().size();
-        int genFree = genFree(p);
+        int genFree = Integer.MIN_VALUE;
         var it = corners.iterator();
         while (it.hasNext() && slots > 0) {
             ChunkPos cp = it.next();
             if (world.isChunkLoaded(cp.x(), cp.z()) || p.chunkPrefetches().contains(cp)) { it.remove(); continue; }
             boolean gen = !world.knownOnDisk(cp.x(), cp.z());
+            if (gen && genFree == Integer.MIN_VALUE) genFree = genFree(p);
             if (gen && (genFree <= 0 || !takeGenToken())) break;   // 생성 칸이 없다 — 남은 모서리는 다음 틱에(T-170)
             it.remove();
             if (!p.chunkPrefetches().add(cp)) { if (gen) releaseGenToken(); continue; }
@@ -3057,22 +3063,20 @@ public final class Region {
      * 바로 건다 — 디스크에 있는 청크는 그만큼 일찍 온다. 끝나면 chunkPrefetches 에서 뺀다(호출한 쪽이 먼저 add 해 둔다).
      */
     private CompletableFuture<ChunkColumn> startPrefetch(Player p, ChunkPos cp, boolean genSlot) {
+        final int owner = p.entityId();
         CompletableFuture<ChunkColumn> load;
         if (mine(Regionizer.chunkKey(cp.x(), cp.z()))) {
             try {
-                load = loadChunk(cp, true);
+                load = loadChunkForPlayer(cp, owner);
             } catch (RuntimeException e) {
                 load = CompletableFuture.failedFuture(e);
             }
         } else {
-            load = world.submitAtChunk(cp, r -> r.loadChunk(cp, true)).thenCompose(f -> f);
+            load = world.submitAtChunk(cp, r -> r.loadChunkForPlayer(cp, owner)).thenCompose(f -> f);
         }
         return load.whenComplete((col, ex) -> {
             p.chunkPrefetches().remove(cp);
-            if (genSlot) {
-                p.genPrefetches().remove(cp);
-                releaseGenToken();
-            }
+            if (genSlot && p.genPrefetches().remove(cp)) releaseGenToken();
             if (ex != null && !isCancellation(ex)) org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 미리 불러오기 실패 {}", cp, ex);
         });
     }
@@ -3091,8 +3095,12 @@ public final class Region {
      */
     private int genFree(Player p) {
         GenQueue q = world.genQueue();
+        long now = System.nanoTime();
+        long want = p.genWantNanos();
+        boolean newcomer = p.genPrefetches().isEmpty() && (want == 0 || now - want >= GenQueue.WANT_WINDOW_NANOS);
+        p.genWantNanos(now);
         if (q == null) return Integer.MAX_VALUE;
-        int cap = q.playerCap();
+        int cap = q.capFor(p.entityId(), newcomer);
         return cap == Integer.MAX_VALUE ? cap : cap - p.genPrefetches().size();
     }
 
@@ -3177,7 +3185,7 @@ public final class Region {
         int budget = batchOpen ? 0 : Math.min(Math.max(adaptive, 0), AUTO_MAX_CHUNKS_PER_TICK);
         int genSlots = world.maxChunkSendsInFlight() - p.chunkPrefetches().size();
         // 생성 칸(T-170): 디스크에 없는 청크는 이 수까지만 건다. 다 차면 생성 거리를 넘긴 미리 불러오기 몇 개만 더 보고 그만 훑는다.
-        int genFree = genFree(p);
+        int genFree = Integer.MIN_VALUE;   // 디스크에 없는 청크를 처음 만날 때 센다(원하기 시작한 사람을 바로 인원에 넣으려고)
         int genMisses = 0;
         // 본문 미리 직렬화 창: 이번 배치 다음으로 볼 로드된 청크 수. 클라이언트 속도의 2배쯤 앞만 만든다(느린 클라이언트에 64개씩
         // 미리 만들면 매 틱 바뀌는 청크가 끝없이 다시 직렬화된다). 첫 응답 전에는 auto 상한.
@@ -3206,6 +3214,7 @@ public final class Region {
                 }
             } else if (!loadedOnly && genSlots > 0 && genMisses < GEN_FULL_SCAN && !p.chunkPrefetches().contains(cp)) {
                 boolean gen = !world.knownOnDisk(cp.x(), cp.z());
+                if (gen && genFree == Integer.MIN_VALUE) genFree = genFree(p);
                 if (gen && (genFree <= 0 || !takeGenToken())) {   // 생성 칸이 없다 — 디스크 청크만 계속 건다
                     genMisses++;
                     continue;

@@ -248,4 +248,46 @@ class GenQueueTest {
         assertEquals(2, q.playerCap());
         gate.countDown();
     }
+
+    private static GenQueue.Settings turns(int owners, int quota) {
+        return new GenQueue.Settings(true, 16, 0, 16, 0, 0, TimeUnit.SECONDS.toNanos(3), false, owners, quota, TimeUnit.SECONDS.toNanos(60));
+    }
+
+    /** 차례: 차례인 사람 요청이 더 가까운 남의 요청보다 먼저, turnQuota 개를 시작하면 다음 사람 차례. */
+    @Test
+    void turns_ownerOnTurnFirst_thenRotatesAfterQuota() throws Exception {
+        world(turns(1, 2), 1);
+        Player a = join(1, 8, 8), b = join(2, 8, 8);
+        a.genWantNanos(System.nanoTime());
+        b.genWantNanos(System.nanoTime());
+        CountDownLatch gate = block();
+        assertEquals(2, q.capFor(1, true), "첫 사람은 바로 차례 — 큰 칸");
+        assertEquals(1, q.capFor(2, true), "줄 선 사람은 칸 하나");
+        List<String> order = Collections.synchronizedList(new ArrayList<>());
+        String[][] at = {{"b", "0"}, {"b", "1"}, {"a", "2"}, {"a", "3"}, {"a", "4"}};
+        CountDownLatch all = new CountDownLatch(at.length);
+        for (String[] t : at) {
+            int x = Integer.parseInt(t[1]);
+            GenQueue.Ticket tk = new GenQueue.Ticket(true, null, t[0].equals("a") ? 1 : 2);
+            q.tagged(w, x, 0, tk).execute(() -> { order.add(t[0] + x); all.countDown(); });
+        }
+        gate.countDown();
+        assertTrue(all.await(5, TimeUnit.SECONDS));
+        assertEquals(List.of("a2", "a3", "b0", "b1", "a4"), order);
+    }
+
+    /** 차례인 사람이 더 걸 것이 없으면 잠시 뒤 다음 사람에게 넘긴다. */
+    @Test
+    void turns_idleOwnerPassesTurn() throws Exception {
+        world(turns(1, 16), 1);
+        Player a = join(1, 8, 8), b = join(2, 8, 8);
+        a.genWantNanos(System.nanoTime());
+        b.genWantNanos(System.nanoTime());
+        assertEquals(16, q.capFor(1, true));
+        assertEquals(1, q.capFor(2, true));
+        Thread.sleep(TimeUnit.NANOSECONDS.toMillis(GenQueue.TURN_IDLE_NANOS) + 50);
+        q.reprioNow();
+        assertEquals(16, q.capFor(2, false), "요청 없는 차례는 넘어간다");
+        assertEquals(1, q.capFor(1, false));
+    }
 }
