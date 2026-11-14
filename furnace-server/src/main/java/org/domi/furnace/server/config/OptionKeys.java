@@ -37,7 +37,7 @@ public final class OptionKeys {
             // 기본 틀
             new Option("tick-nanos", "수", "50000000", "1 이상", "한 틱 길이(나노초). 바꾸면 게임 속도가 바닐라와 달라진다"),
             new Option("entity-view-distance", "수", "8", "1 이상", "엔티티가 보이는 거리(청크). view-distance 보다 크게 효과 없음"),
-            new Option("region-section-shift", "수", "4", "1~8", "동적 region 구역 크기(2^값 청크)"),
+            new Option("region-section-shift", "수", "3", "1~8", "동적 region 구역 크기(2^값 청크)"),
             new Option("region-merge-radius", "수", "1", "1 이상", "region 합치기 반경(구역 단위)"),
             new Option("light.async", "ON/OFF", "false", "true|false", "빛 계산을 따로 도는 빛 스레드에 맡긴다(바닐라 방식). 과부하 때 빛이 한두 틱 늦게 보인다"),
             new Option("light.async-threads", "수", "1", "1 이상", "light.async 빛 스레드 수(서버 전체)"),

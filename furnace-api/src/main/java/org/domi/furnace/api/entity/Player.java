@@ -39,6 +39,12 @@ public interface Player extends CommandSender, LivingEntity {
 
     GameMode gameMode();
 
+    /** 웅크리기 키를 누르고 있는가(바닐라 isShiftKeyDown — 클라이언트 player_command 로 바뀐다. 자세 CROUCHING 과 다르다). 아무 스레드. */
+    default boolean isSneaking() { return false; }
+
+    /** 달리는 중인가(바닐라 isSprinting — 클라이언트 player_command 로 바뀐다). 아무 스레드. */
+    default boolean isSprinting() { return false; }
+
     /** 바닐라 setGameMode: 같으면 false. PlayerGameModeChangeEvent 를 거친다. */
     boolean setGameMode(GameMode mode);
 

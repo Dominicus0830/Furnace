@@ -1488,6 +1488,9 @@ public enum Material implements Keyed {
     ZOMBIE_WALL_HEAD(true, false, 64, 0),
     ZOMBIFIED_PIGLIN_SPAWN_EGG(false, true, 64, 0);
 
+    /** Paper 의 옛(1.13 전) 상수 이름 앞붙이. Furnace 의 Material 에는 LEGACY_ 상수가 없다. */
+    public static final String LEGACY_PREFIX = "LEGACY_";
+
     private static final Map<String, Material> BY_KEY = new HashMap<>();
 
     static {
@@ -1525,6 +1528,15 @@ public enum Material implements Keyed {
     public boolean isItem() { return item; }
 
     public boolean isAir() { return this == AIR || this == CAVE_AIR || this == VOID_AIR; }
+
+    /**
+     * 옛(1.13 전) 상수인가 — Paper 는 이름이 LEGACY_ 로 시작하는 상수만 참. Furnace 는 LEGACY_ 상수를 두지 않아 늘 false
+     * (Paper 의 지금 상수와 같은 답이다).
+     */
+    public boolean isLegacy() { return false; }
+
+    /** 음반인가(Paper: 아이템이 jukebox_playable 을 가짐). 1.21.1 바닐라에서 그 구성 요소를 가진 아이템은 MUSIC_DISC_* 뿐이다. */
+    public boolean isRecord() { return item && name().startsWith("MUSIC_DISC_"); }
 
     @Override
     public NamespacedKey getKey() { return NamespacedKey.minecraft(name().toLowerCase(Locale.ROOT)); }
