@@ -67,6 +67,9 @@ final class CompatInventories {
             case BREWING -> {
                 return new CompatInventoryView(p, new EventInventories.Brewer(contents, top, key, null), type, title, cursor);
             }
+            case FURNACE, BLAST_FURNACE, SMOKER -> {
+                return new CompatInventoryView(p, new EventInventories.Furnace(type, contents, top, key, null), type, title, cursor);
+            }
             default -> {
                 return new CompatInventoryView(p, new SnapshotInventory(type, contents, top, key), type, title, cursor);
             }

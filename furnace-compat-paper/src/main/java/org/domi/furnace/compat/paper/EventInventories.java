@@ -150,6 +150,40 @@ final class EventInventories {
         public org.bukkit.block.BrewingStand getHolder() { return null; }
     }
 
+    /** 화로·용광로·훈연기 창(이벤트 사본): 0 굽는 것, 1 연료, 2 결과 — Paper 처럼 instanceof FurnaceInventory 가 참이다. */
+    static final class Furnace extends SnapshotInventory implements org.bukkit.inventory.FurnaceInventory {
+        Furnace(InventoryType type, List<org.domi.furnace.api.item.ItemStack> contents, int size, String key, org.bukkit.Location location) {
+            super(type, contents, size, key, i -> false, location);
+        }
+
+        @Override
+        public ItemStack getResult() { return getItem(2); }
+
+        @Override
+        public ItemStack getFuel() { return getItem(1); }
+
+        @Override
+        public ItemStack getSmelting() { return getItem(0); }
+
+        @Override
+        public void setFuel(ItemStack stack) { setItem(1, stack); }
+
+        @Override
+        public void setResult(ItemStack stack) { setItem(2, stack); }
+
+        @Override
+        public void setSmelting(ItemStack stack) { setItem(0, stack); }
+
+        @Override
+        public boolean isFuel(ItemStack item) { return BlockInventories.isFuel(item); }
+
+        @Override
+        public boolean canSmelt(ItemStack item) { return BlockInventories.canSmelt(BlockInventories.cookingKind(getType()), item); }
+
+        @Override
+        public org.bukkit.block.Furnace getHolder() { return null; }
+    }
+
     /** 마법 부여대: 0 아이템, 1 청금석. */
     static final class Enchanting extends SnapshotInventory implements org.bukkit.inventory.EnchantingInventory {
         Enchanting(List<org.domi.furnace.api.item.ItemStack> contents, int size, String key) {

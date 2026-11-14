@@ -27,6 +27,11 @@ public class FurnaceBlockEntity extends ContainerBlockEntity {
     /** 태우는 시간(남은 틱) · 이번 연료의 총 틱 · 굽는 진행 · 굽는 데 걸리는 틱 (바닐라 data 0..3). */
     public int litTime, litDuration, cookingProgress, cookingTotalTime;
     private final Map<ResourceId, Integer> recipesUsed = new LinkedHashMap<>();
+    /**
+     * Paper 굽기 속도 배율(Implement-furnace-cook-speed-multiplier-API): 굽는 시간 = ceil(레시피 시간 / 배율). 바닐라 화로는 1.0 이라 관측 동작이 같다.
+     * NBT Paper.CookSpeedMultiplier 는 1.0 이 아닐 때만 적는다(Paper 는 늘 적는다 — 바닐라 저장물과 바이트까지 같게 둔 차이).
+     */
+    public double cookSpeedMultiplier = 1.0;
     private final String recipeType;
     private final String blockName;
     private final String titleKey;
@@ -66,6 +71,7 @@ public class FurnaceBlockEntity extends ContainerBlockEntity {
         litTime = tag.getIntOr0("BurnTime");
         cookingProgress = tag.getIntOr0("CookTime");
         cookingTotalTime = tag.getIntOr0("CookTimeTotal");
+        cookSpeedMultiplier = tag.contains("Paper.CookSpeedMultiplier") ? tag.getDouble("Paper.CookSpeedMultiplier") : 1.0;
         litDuration = burnDuration(items[1]);
         recipesUsed.clear();
         if (tag.contains("RecipesUsed")) {
@@ -80,6 +86,7 @@ public class FurnaceBlockEntity extends ContainerBlockEntity {
         tag.putShort("BurnTime", (short) litTime);
         tag.putShort("CookTime", (short) cookingProgress);
         tag.putShort("CookTimeTotal", (short) cookingTotalTime);
+        if (cookSpeedMultiplier != 1.0) tag.putDouble("Paper.CookSpeedMultiplier", cookSpeedMultiplier);
         NbtCompound used = new NbtCompound();
         for (var e : recipesUsed.entrySet()) used.putInt(e.getKey().toString(), e.getValue());
         tag.putCompound("RecipesUsed", used);
@@ -122,7 +129,8 @@ public class FurnaceBlockEntity extends ContainerBlockEntity {
 
     private int cookTime(RecipeManager rm) {
         var e = find(rm, items[0]);
-        return e == null ? 200 : e.recipe().cookingTime();
+        int base = e == null ? 200 : e.recipe().cookingTime();
+        return (int) Math.ceil(base / cookSpeedMultiplier);   // 배율 1.0 이면 바닐라 그대로, 0 이면 Integer.MAX_VALUE(Paper 와 같다)
     }
 
     @Override
@@ -153,7 +161,8 @@ public class FurnaceBlockEntity extends ContainerBlockEntity {
             }
             if (isLit() && burnable) {
                 cookingProgress++;
-                if (cookingProgress == cookingTotalTime) {
+                // Paper 는 배율 때문에 총 시간이 진행보다 작아질 수 있어 >= 로 비교한다. 배율 1.0 이면 바닐라 == 그대로
+                if (cookingProgress == cookingTotalTime || (cookSpeedMultiplier != 1.0 && cookingProgress > cookingTotalTime)) {
                     cookingProgress = 0;
                     cookingTotalTime = cookTime(rm);
                     if (burn(level, recipe, items, maxStack, rm)) recipesUsed.merge(recipe.id(), 1, Integer::sum);
