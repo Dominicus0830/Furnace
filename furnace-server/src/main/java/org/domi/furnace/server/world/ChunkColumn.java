@@ -918,7 +918,7 @@ public final class ChunkColumn {
     private void updateSurface(int x, int worldY, int z, int stateId) {
         int index = z * 16 + x;
         int first = surface[index];
-        if (first == 0) return; // rebuildSurface 이전(미프라임) — 갱신 대상 아님
+        // first==0 은 "열 전체가 공기"다 — 바닐라 Heightmap.update 처럼 그대로 갱신한다(공허·스카이블록·파낸 열). 미프라임 열은 이후 rebuild 가 덮어쓴다.
         int y = worldY - minY;
         if (y <= first - 2) return;
         boolean isAir = stateId == ChunkSection.AIR || stateId == CAVE_AIR_STATE || stateId == VOID_AIR_STATE;
@@ -941,7 +941,7 @@ public final class ChunkColumn {
         if (wgHeightmapsFrozen) return;
         int index = z * 16 + x;
         int first = surfaceWg[index];
-        if (first == 0) return; // rebuildSurface 이전(미프라임) — 갱신 대상 아님
+        // first==0 은 "열 전체가 공기"다 — 바닐라 Heightmap.update 처럼 그대로 갱신한다(공허·스카이블록·파낸 열). 미프라임 열은 이후 rebuild 가 덮어쓴다.
         int y = worldY - minY;
         if (y <= first - 2) return;
         boolean isAir = stateId == ChunkSection.AIR || stateId == CAVE_AIR_STATE || stateId == VOID_AIR_STATE;
