@@ -32,6 +32,8 @@ public class FurnaceBlockEntity extends ContainerBlockEntity {
      * NBT Paper.CookSpeedMultiplier 는 1.0 이 아닐 때만 적는다(Paper 는 늘 적는다 — 바닐라 저장물과 바이트까지 같게 둔 차이).
      */
     public double cookSpeedMultiplier = 1.0;
+    /** 불러오기(load)로 배율이 바뀐 화로 — 다음 굽기까지 진행 > 총 시간도 완료로 본다(배율을 1.0 으로 되돌린 화로가 멈추지 않게). 저장하지 않는다. */
+    private boolean multiplierChanged;
     private final String recipeType;
     private final String blockName;
     private final String titleKey;
@@ -71,7 +73,9 @@ public class FurnaceBlockEntity extends ContainerBlockEntity {
         litTime = tag.getIntOr0("BurnTime");
         cookingProgress = tag.getIntOr0("CookTime");
         cookingTotalTime = tag.getIntOr0("CookTimeTotal");
-        cookSpeedMultiplier = tag.contains("Paper.CookSpeedMultiplier") ? tag.getDouble("Paper.CookSpeedMultiplier") : 1.0;
+        double loaded = tag.contains("Paper.CookSpeedMultiplier") ? tag.getDouble("Paper.CookSpeedMultiplier") : 1.0;
+        if (loaded != cookSpeedMultiplier) multiplierChanged = true;
+        cookSpeedMultiplier = loaded;
         litDuration = burnDuration(items[1]);
         recipesUsed.clear();
         if (tag.contains("RecipesUsed")) {
@@ -161,9 +165,12 @@ public class FurnaceBlockEntity extends ContainerBlockEntity {
             }
             if (isLit() && burnable) {
                 cookingProgress++;
-                // Paper 는 배율 때문에 총 시간이 진행보다 작아질 수 있어 >= 로 비교한다. 배율 1.0 이면 바닐라 == 그대로
-                if (cookingProgress == cookingTotalTime || (cookSpeedMultiplier != 1.0 && cookingProgress > cookingTotalTime)) {
+                // Paper 는 배율 때문에 총 시간이 진행보다 작아질 수 있어 >= 로 비교한다. 배율이 1.0 이고 바뀐 적도 없으면 바닐라 == 그대로
+                // (배율 1.0 에서 진행 > 총 시간은 /data 로만 생기고 바닐라는 멈춘다 — T141E2e-D1)
+                if (cookingProgress == cookingTotalTime
+                        || ((cookSpeedMultiplier != 1.0 || multiplierChanged) && cookingProgress > cookingTotalTime)) {
                     cookingProgress = 0;
+                    multiplierChanged = false;
                     cookingTotalTime = cookTime(rm);
                     if (burn(level, recipe, items, maxStack, rm)) recipesUsed.merge(recipe.id(), 1, Integer::sum);
                     changed = true;
