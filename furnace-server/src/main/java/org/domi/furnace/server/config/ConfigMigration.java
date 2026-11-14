@@ -28,8 +28,9 @@ public final class ConfigMigration {
     /**
      * 이 서버가 쓰는 설정 형식 버전.
      * 2: plugins.compat.nms.spigot-mappings 기본 off → download(2026-11-12 도미니코 결정 — Bukkit 플러그인 폴더에 넣으면 바로 돈다).
+     * 3: region-section-shift 기본 4 → 3(T-101, 2026-11-14 도미니코 결정).
      */
-    public static final int CURRENT = 2;
+    public static final int CURRENT = 3;
 
     /** 옛 기본값으로 적힌 줄을 새 기본값으로 바꾼다(옛 값과 정확히 같은 줄만 — 다른 값을 적은 사람은 그대로). */
     public record DefaultChange(String key, String oldValue, String newValue) {}
@@ -42,7 +43,9 @@ public final class ConfigMigration {
     /** 키 이름 바꾸기·기본값 바꾸기가 생기면 여기에 더한다(CURRENT 도 함께 올린다). */
     static final List<Step> STEPS = List.of(
             new Step(1, Map.of(), List.of(), List.of(
-                    new DefaultChange("plugins.compat.nms.spigot-mappings", "off", "download"))));
+                    new DefaultChange("plugins.compat.nms.spigot-mappings", "off", "download"))),
+            new Step(2, Map.of(), List.of(), List.of(
+                    new DefaultChange("region-section-shift", "4", "3"))));
 
     /** changes: 파일에 한 일을 사람 말로, backup: 옛 파일을 복사해 둔 곳. */
     public record Result(int from, int to, List<String> changes, Path backup) {}

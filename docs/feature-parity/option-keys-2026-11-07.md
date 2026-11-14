@@ -20,7 +20,7 @@
 |---|---|---|---|---|---|
 | `tick-nanos` | 수 | 50000000 | 1 이상 | 한 틱 길이(나노초). 바꾸면 게임 속도가 바닐라와 달라진다 | 50000000 이 아니면 경고 |
 | `entity-view-distance` | 수 | 8 | 1 이상 | 엔티티가 보이는 거리(청크). view-distance 보다 크게 효과 없음 |  |
-| `region-section-shift` | 수 | 4 | 1~8 | 동적 region 구역 크기(2^값 청크) |  |
+| `region-section-shift` | 수 | 3 | 1~8 | 동적 region 구역 크기(2^값 청크). 다른 region 까지 띠 2^값×16 블록(3 이면 128, 기본 4 였다 — T-101, 형식 3 마이그레이션이 옛 기본 줄을 옮긴다). 128 이하 반경 읽기만 region 안에서 끝난다: `region-boundary-radii.md` |  |
 | `region-merge-radius` | 수 | 1 | 1 이상 | region 합치기 반경(구역 단위) |  |
 | `light.async` | ON/OFF | false | true\|false | 빛 계산을 빛 스레드에 맡긴다(T-064, 바닐라 ThreadedLevelLightEngine 방식). 켜면 빛 스레드가 밀릴 때 빛이 한두 틱 늦게 보이고 새 청크 전송이 한 틱 늦다(바닐라 과부하와 같은 성질). 저장은 밀린 빛을 기다린다 |  |
 | `light.async-threads` | 수 | 1 | 1 이상 | `light.async` 빛 스레드 수(서버 전체) | `light.async=false` 인데 쓰면 경고 |

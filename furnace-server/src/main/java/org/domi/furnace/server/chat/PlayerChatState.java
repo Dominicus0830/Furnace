@@ -1,5 +1,5 @@
 // 플레이어 연결별 채팅 상태(바닐라 ServerGamePacketListenerImpl 의 채팅 필드) — 채팅 세션·디코더·last seen 검증기·
-// 시그니처 캐시·채팅 표시 설정·스팸 카운터.
+// 시그니처 캐시·채팅 표시 설정·스팸 카운터·채팅 순서 사슬(T-035).
 package org.domi.furnace.server.chat;
 
 import java.util.UUID;
@@ -17,6 +17,8 @@ public final class PlayerChatState {
     private volatile RemoteChatSession session;
     private volatile SignedMessageChain.Decoder decoder;
     private volatile int visibility = VISIBILITY_FULL;
+    /** 이 연결의 채팅·명령·세션 갱신을 도착 순서대로 처리하는 사슬. 디코더(decoder)는 이 사슬의 단계에서만 쓴다. */
+    private final ChatChain chain = new ChatChain();
     // 바닐라 chatSpamThrottler: 메시지마다 +20, 틱마다 -1, 200 초과면(OP 제외) 킥.
     private int spamTicks;
     private long spamUpdatedNanos = System.nanoTime();
@@ -30,6 +32,8 @@ public final class PlayerChatState {
     public RemoteChatSession session() { return session; }
 
     public SignedMessageChain.Decoder decoder() { return decoder; }
+
+    public ChatChain chain() { return chain; }
 
     /** 바닐라 resetPlayerChatState. */
     public void resetSession(RemoteChatSession s) {
