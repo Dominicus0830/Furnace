@@ -23,6 +23,7 @@ final class CompatBlockStates {
             case "minecraft:beehive" -> new org.bukkit.craftbukkit.block.CraftBeehive(dimension, pos, data);
             case "minecraft:campfire" -> new org.bukkit.craftbukkit.block.CraftCampfire(dimension, pos, data);
             case "minecraft:barrel" -> new org.bukkit.craftbukkit.block.CraftBarrel(dimension, pos, data);
+            case "minecraft:brewing_stand" -> new org.bukkit.craftbukkit.block.CraftBrewingStand(dimension, pos, data);
             case "minecraft:beacon" -> new org.bukkit.craftbukkit.block.CraftBeacon(dimension, pos, data);
             case "minecraft:bell" -> new org.bukkit.craftbukkit.block.CraftBell(dimension, pos, data);
             case "minecraft:blast_furnace" -> new org.bukkit.craftbukkit.block.CraftBlastFurnace(dimension, pos, data);

@@ -736,16 +736,24 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     @Override
     public CompletableFuture<Optional<Inventory>> inventoryAt(BlockPos pos) {
         ChunkPos cp = new ChunkPos(pos.chunkX(), pos.chunkZ());
-        CompletableFuture<Optional<Inventory>> f = world.submitAtOwnedChunk(cp, r -> {
-            if (!inHeight(pos.y())) return Optional.empty();
-            var col = r.ownedColumn(cp);
-            if (col == null || !(col.blockEntityAt(pos.x(), pos.y(), pos.z()) instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity be)
-                    || be instanceof org.domi.furnace.server.block.entity.CampfireBlockEntity) {   // 모닥불은 Bukkit 에서도 Inventory 가 아니다
-                return Optional.empty();
-            }
-            return Optional.<Inventory>of(new OwnedInventory(host, be.type(), be.size(), blockRunner(pos, be)));
-        });
+        CompletableFuture<Optional<Inventory>> f = world.submitAtOwnedChunk(cp, r -> inventoryOn(r, pos));
         return RegionFuture.wrap(f != null ? f : CompletableFuture.completedFuture(Optional.empty()));
+    }
+
+    @Override
+    public Optional<Inventory> inventoryAtNow(BlockPos pos) {
+        Region r = ownedRegion(pos, "inventoryAtNow(" + pos + ")");
+        return r == null ? Optional.empty() : inventoryOn(r, pos);
+    }
+
+    private Optional<Inventory> inventoryOn(Region r, BlockPos pos) {
+        if (!inHeight(pos.y())) return Optional.empty();
+        var col = r.ownedColumn(new ChunkPos(pos.chunkX(), pos.chunkZ()));
+        if (col == null || !(col.blockEntityAt(pos.x(), pos.y(), pos.z()) instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity be)
+                || be instanceof org.domi.furnace.server.block.entity.CampfireBlockEntity) {   // 모닥불은 Bukkit 에서도 Inventory 가 아니다
+            return Optional.empty();
+        }
+        return Optional.<Inventory>of(new OwnedInventory(host, be.type(), be.size(), blockRunner(pos, be)));
     }
 
     /** 그 칸의 region 에서 처음 찾은 그 블록 엔티티가 아직 있으면 메뉴 문맥(MenuBlockContext) 안에서 op 를 돌린다 — 바뀐 칸은 저장 표시·비교기 갱신까지 메뉴 클릭과 같다. */
@@ -754,7 +762,22 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         return new OwnedInventory.Runner() {
             @Override
             public <T> CompletableFuture<T> run(java.util.function.Function<OwnedInventory.Slots, T> op) {
-                CompletableFuture<T> f = world.submitAtOwnedChunk(cp, r -> {
+                // 그 칸을 가진 region 스레드면 곧바로(Bukkit 블록 인벤토리처럼 동기로 읽고 쓰는 호출자용) — 결과는 끝난 Future
+                if (((ThreadOwner) world.chunkScheduler(cp.x(), cp.z())).isOwnerThread()) {
+                    Region here = world.regionizer().ownerOf(cp.x(), cp.z());
+                    if (here == null) return CompletableFuture.failedFuture(new IllegalStateException("청크가 로드돼 있지 않다: " + cp));
+                    try {
+                        return CompletableFuture.completedFuture(applyOn(here, op));
+                    } catch (RuntimeException e) {
+                        return CompletableFuture.failedFuture(e);
+                    }
+                }
+                CompletableFuture<T> f = world.submitAtOwnedChunk(cp, r -> applyOn(r, op));
+                return f != null ? f : CompletableFuture.failedFuture(new IllegalStateException("청크가 로드돼 있지 않다: " + cp));
+            }
+
+            private <T> T applyOn(Region r, java.util.function.Function<OwnedInventory.Slots, T> op) {
+                {
                     var col = r.ownedColumn(cp);
                     if (col == null || col.blockEntityAt(pos.x(), pos.y(), pos.z()) != original) throw new IllegalStateException("그 칸의 용기가 사라졌다: " + pos);
                     var c = new org.domi.furnace.server.world.BlockEntityContainer(original);
@@ -768,8 +791,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
                     }));
                     @SuppressWarnings("unchecked") T t = (T) out[0];
                     return t;
-                });
-                return f != null ? f : CompletableFuture.failedFuture(new IllegalStateException("청크가 로드돼 있지 않다: " + cp));
+                }
             }
         };
     }

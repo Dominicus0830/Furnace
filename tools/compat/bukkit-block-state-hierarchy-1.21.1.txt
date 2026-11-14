@@ -2,8 +2,8 @@
 # 출처: Paper 1.21.1 CraftBlockStates 등록표·Craft*State 클래스 선언과 paper-api 인터페이스 선언(Youer 1.21.1 사본). 이름·계층만 옮겼다.
 # 'T <블록 엔티티 종류> <Craft 클래스> <상위 Craft 클래스> <인터페이스>' / 'A <추상 Craft 클래스> <상위 Craft 클래스> <인터페이스...>' / 'I <인터페이스> <상위...>'.
 # 뺀 상위 형(아직 메서드를 구현하지 않아 표시 인터페이스로 둘 수 없다): TileState 의 PersistentDataHolder,
-#   TileStateInventoryHolder 의 org.bukkit.inventory.BlockInventoryHolder(→ InventoryHolder.getInventory), Lootable 류의 PaperLootableBlockInventory.
-# 손으로 쓴 인터페이스(머리말 없음)는 생성기가 건드리지 않는다: BlockState·BrewingStand(이벤트 서명용, 메서드 있음 — 그래서 brewing_stand 는 생성하지 않는다).
+#   Lootable 류의 PaperLootableBlockInventory. (TileStateInventoryHolder 는 손으로 써서 BlockInventoryHolder 를 넓힌다.)
+# 손으로 쓴 인터페이스·클래스(머리말 없음)는 생성기가 건드리지 않는다: BlockState·BrewingStand·Sign·CraftBrewingStand 등.
 # 생성기: tools/compat/gen-bukkit-block-state-classes.py
 A CraftBlockEntityState CompatBlockState org.bukkit.block.TileState
 A CraftContainer CraftBlockEntityState org.bukkit.block.Container
@@ -19,6 +19,7 @@ T bed CraftBed CraftBlockEntityState org.bukkit.block.Bed
 T beehive CraftBeehive CraftBlockEntityState org.bukkit.block.Beehive
 T campfire CraftCampfire CraftBlockEntityState org.bukkit.block.Campfire
 T barrel CraftBarrel CraftLootable org.bukkit.block.Barrel
+T brewing_stand CraftBrewingStand CraftContainer org.bukkit.block.BrewingStand
 T beacon CraftBeacon CraftBlockEntityState org.bukkit.block.Beacon
 T bell CraftBell CraftBlockEntityState org.bukkit.block.Bell
 T blast_furnace CraftBlastFurnace CraftFurnace org.bukkit.block.BlastFurnace
