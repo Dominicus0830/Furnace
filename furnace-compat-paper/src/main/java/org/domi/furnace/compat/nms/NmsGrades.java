@@ -16,7 +16,7 @@ public final class NmsGrades {
             new String[] {"net/minecraft/world/level/lighting/", "빛 엔진 내부가 다르다. 대체: Furnace 빛 API(docs/api/light-sources.md)"},
             new String[] {"net/minecraft/server/level/ChunkMap", "청크 적재·추적 내부가 다르다. 대체: 청크 티켓 API(docs/api/chunk-tickets.md)"},
             new String[] {"net/minecraft/server/level/ServerChunkCache", "청크 적재·추적 내부가 다르다(로드된 청크 얻기 getChunk·getChunkNow 는 있다). 대체: 청크 티켓 API(docs/api/chunk-tickets.md)"},
-            new String[] {"net/minecraft/world/level/levelgen/", "월드 생성 내부가 다르다(Heightmap 읽기는 있다). 대체: W3 월드젠 훅(docs/api/worldgen-hooks.md)"},
+            new String[] {"net/minecraft/world/level/levelgen/", "월드 생성 내부가 다르다. 대체: W3 월드젠 훅(docs/api/worldgen-hooks.md)"},
             new String[] {"net/minecraft/world/entity/ai/", "몹 AI 내부(목표·뇌)가 다르다. 대체: Furnace 몹 AI API(docs/api/mob-ai.md)"},
             new String[] {"net/minecraft/world/inventory/", "메뉴 내부가 Furnace 메뉴 프레임워크와 모양이 다르다. 대체: Furnace 메뉴 API"},
             new String[] {"net/minecraft/server/ReloadableServerResources", "데이터 팩 재적재 내부가 다르다. 대체: C2 함수 훅·W2 레지스트리(docs/api/function-hooks.md)"},
