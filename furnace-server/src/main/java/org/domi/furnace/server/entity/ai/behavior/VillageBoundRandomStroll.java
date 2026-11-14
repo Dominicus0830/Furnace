@@ -43,22 +43,6 @@ public final class VillageBoundRandomStroll {
         };
     }
 
-    /** BehaviorUtils.findSectionClosestToVillage: 둘레 섹션(x → y → z 순) 중 지금보다 마을에 가까운 것의 최솟값(같으면 먼저 것). */
-    public static int[] findSectionClosestToVillage(PoiManager poi, int[] sp, int radius) {
-        int cur = poi.sectionsToVillage(sp[0], sp[1], sp[2]);
-        int[] best = null;
-        int bestD = Integer.MAX_VALUE;
-        for (int z = sp[2] - radius; z <= sp[2] + radius; z++) {
-            for (int y = sp[1] - radius; y <= sp[1] + radius; y++) {
-                for (int x = sp[0] - radius; x <= sp[0] + radius; x++) {
-                    int d = poi.sectionsToVillage(x, y, z);
-                    if (d < cur && d < bestD) {
-                        bestD = d;
-                        best = new int[] {x, y, z};
-                    }
-                }
-            }
-        }
-        return best == null ? sp : best;
-    }
+    /** BehaviorUtils.findSectionClosestToVillage: 둘레 섹션(z → y → x 순) 중 지금보다 마을에 가까운 것의 최솟값(같으면 먼저 것). 창 한 번 읽기(PoiManager.closestVillageSection). */
+    public static int[] findSectionClosestToVillage(PoiManager poi, int[] sp, int radius) { return poi.closestVillageSection(sp, radius); }
 }

@@ -197,6 +197,16 @@ class RegionTickBench {
             loadedEntities[1] = r.level().entities().size();
             System.out.printf("RBENCH loaded=%d entities=%d%n", loadedEntities[0], loadedEntities[1]);
         }).get();
+        if (System.getProperty("furnace.bench.scene", "").contains("village")) {
+            sched.region(new RegionPos(p.chunkPos().x(), p.chunkPos().z())).execute(() -> {
+                Region r = w.regionAt(new RegionPos(p.chunkPos().x(), p.chunkPos().z()));
+                int centers = 0, poiSections = 0;
+                for (int x = ((int) cx0 >> 4) - 6; x <= ((int) cx0 >> 4) + 6; x++) for (int z = ((int) cz0 >> 4) - 6; z <= ((int) cz0 >> 4) + 6; z++) for (int y = -4; y < 20; y++) {
+                    if (r.level().poiManager().isVillageCenterSection(x, y, z)) centers++;
+                }
+                System.out.printf("RBENCH villageCenterSections=%d%n", centers);
+            }).get();
+        }
         long[] is = new long[4];   // region 별 표의 합(흡수·없어진 region 몫은 빠진다)
         for (Region rr : w.regionizer().regionsSnapshot()) for (int i = 0; i < 4; i++) is[i] += rr.installStats[i];
         System.out.printf("RBENCH install(누적, 100틱 리셋 없음) count=%d put=%dms light=%dms ent=%dms%n", is[0], is[1] / 1000000, is[2] / 1000000, is[3] / 1000000);
@@ -250,6 +260,32 @@ class RegionTickBench {
                             level.setBlock(pos, org.domi.furnace.server.block.B.defaultState(rails ? "powered_rail" : "redstone_wire"), 3);
                         }
                     }
+                }
+                case "village" -> {
+                    // 마을: 6×6 집(12 칸 간격) — 집마다 침대 2·직업 블록 1, 가운데 종. 주민이 티켓을 잡으면 마을 중심(점유된 마을 POI 섹션)이 된다(T-051 재측정용).
+                    int bedHead = org.domi.furnace.server.block.B.prop("part").with(org.domi.furnace.server.block.B.defaultState("red_bed"), "head");
+                    String[] jobs = {"composter", "blast_furnace", "smoker", "barrel", "lectern", "cartography_table", "fletching_table", "grindstone", "smithing_table", "stonecutter", "loom", "brewing_stand"};
+                    int houses = 0;
+                    for (int hx = -3; hx < 3; hx++) for (int hz = -3; hz < 3; hz++) {
+                        int x = cx + hx * 12 + 3, z = cz + hz * 12 + 3;
+                        level.setBlock(new org.domi.furnace.server.block.Pos(x, cy, z), bedHead, 3);
+                        level.setBlock(new org.domi.furnace.server.block.Pos(x + 2, cy, z), bedHead, 3);
+                        level.setBlock(new org.domi.furnace.server.block.Pos(x + 4, cy, z + 2), org.domi.furnace.server.block.B.defaultState(jobs[houses % jobs.length]), 3);
+                        houses++;
+                    }
+                    level.setBlock(new org.domi.furnace.server.block.Pos(cx, cy, cz), org.domi.furnace.server.block.B.defaultState("bell"), 3);
+                    // 주민이 이미 침대·종을 잡은 마을을 흉내 낸다(티켓을 미리 잡아 마을 중심 섹션을 만든다)
+                    int taken = 0;
+                    for (int hx = -3; hx < 3; hx++) for (int hz = -3; hz < 3; hz++) {
+                        int x = cx + hx * 12 + 3, z = cz + hz * 12 + 3;
+                        for (int dx : new int[] {0, 2}) {
+                            var bp = new org.domi.furnace.server.block.Pos(x + dx, cy, z);
+                            if (level.poiManager().take(org.domi.furnace.server.world.poi.PoiTypes.VILLAGE, (t, q) -> q.equals(bp), bp, 0) != null) taken++;
+                        }
+                    }
+                    var bell = new org.domi.furnace.server.block.Pos(cx, cy, cz);
+                    if (level.poiManager().take(org.domi.furnace.server.world.poi.PoiTypes.VILLAGE, (t, q) -> q.equals(bell), bell, 0) != null) taken++;
+                    System.out.println("RBENCH villageTicketsTaken=" + taken);
                 }
                 default -> {}
             }
