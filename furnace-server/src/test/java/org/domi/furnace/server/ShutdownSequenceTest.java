@@ -91,4 +91,43 @@ class ShutdownSequenceTest {
         host.beginShutdown();   // 두 번째 호출은 이벤트를 다시 부르지 않는다
         assertEquals(1, log.stream().filter(s -> s.startsWith("ServerShutdownEvent")).count());
     }
+
+    /** /stop(ServerCore.halt): 종료 단계를 다 돈 뒤에야 JVM 을 끝낸다(LuckPerms H2 회귀 — 예전엔 exit 먼저, 단계는 JVM 종료 훅 안). */
+    @Test
+    void haltRunsStepsBeforeExit() throws Exception {
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        try {
+            ServerCore core = TestServers.core(tmp, sched);
+            List<String> log = new CopyOnWriteArrayList<>();
+            java.util.concurrent.CountDownLatch exited = new java.util.concurrent.CountDownLatch(1);
+            core.onHalt(code -> {
+                log.add("exit " + code + " " + Thread.currentThread().getName());
+                exited.countDown();
+            });
+            core.shutdownSequence(new ShutdownSequence()
+                    .on(ShutdownSequence.Step.DISABLE_PLUGINS, () -> log.add("disable"))
+                    .on(ShutdownSequence.Step.FLUSH_WORLDS, () -> log.add("flush"))
+                    .on(ShutdownSequence.Step.CLOSE_PLUGINS, () -> log.add("close-plugins")));
+            core.halt();
+            assertTrue(exited.await(10, TimeUnit.SECONDS));
+            assertEquals(List.of("disable", "flush", "close-plugins", "exit 0 Server Shutdown Thread"), log);
+        } finally {
+            sched.close();
+        }
+    }
+
+    /** 단계 안에서 run() 을 다시 불러도(종료 처리기가 다시 종료를 부르는 경우) 자기 끝을 기다리며 멈추지 않는다. */
+    @Test
+    void reentrantRunReturnsImmediately() {
+        List<String> log = new CopyOnWriteArrayList<>();
+        ShutdownSequence s = new ShutdownSequence();
+        s.on(ShutdownSequence.Step.DISABLE_PLUGINS, () -> {
+            s.run();
+            log.add("after-reentry");
+        });
+        s.on(ShutdownSequence.Step.CLOSE_PLUGINS, () -> log.add("close-plugins"));
+        assertTimeoutPreemptively(java.time.Duration.ofSeconds(10), s::run);
+        assertEquals(List.of("after-reentry", "close-plugins"), log);
+        assertTrue(s.finished());
+    }
 }

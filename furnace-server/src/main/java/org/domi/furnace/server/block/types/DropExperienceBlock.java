@@ -31,6 +31,12 @@ public class DropExperienceBlock extends org.domi.furnace.server.block.BlockBeha
     public void spawnAfterBreak(int state, org.domi.furnace.server.block.BlockLevel level, org.domi.furnace.server.block.Pos pos,
                                 org.domi.furnace.server.entity.ItemStack tool, boolean dropExperience) {
         super.spawnAfterBreak(state, level, pos, tool, dropExperience);
-        if (dropExperience) tryDropExperience(level, pos, tool, xpMin, xpMax);
+        if (dropExperience) popExperienceIfAny(level, pos, expDrop(state, level, pos, tool));
+    }
+
+    @Override
+    public int expDrop(int state, org.domi.furnace.server.block.BlockLevel level, org.domi.furnace.server.block.Pos pos,
+                       org.domi.furnace.server.entity.ItemStack tool) {
+        return experienceSample(level, tool, xpMin, xpMax);
     }
 }

@@ -302,9 +302,15 @@ class ProtocolLibBridgeTest {
                     return packet;
                 });
                 var loc = tp.player().location();
+                // 돼지를 놓을 청크를 Trk 가 받은 뒤에 놓는다 — 아직 안 받았으면(부하에서 청크 보내기가 밀림) 바닐라처럼 추적하지 않아 틱을 더 돌기 전에는
+                // add_entity 가 오지 않는다(부하 반복 80번 중 1번).
+                var trk = server.internals().playerByName("Trk");
+                var pigChunk = new org.domi.furnace.server.world.ChunkPos((int) Math.floor(loc.x()) >> 4, (int) Math.floor(loc.z() + 3) >> 4);
+                for (int i = 0; i < 200 && !server.internals().world().chunkReady(pigChunk, trk); i++) server.tick();
                 server.execute("summon minecraft:pig " + loc.x() + " " + loc.y() + " " + (loc.z() + 3));
                 server.tick(3);
                 tp.awaitPacket(PacketTypes.Clientbound.ADD_ENTITY, a -> a.entityType().equals("minecraft:pig"));
+                // 전에는 서버가 스폰 묶음을 보낸 뒤에야 엔티티를 번호 색인에 넣어 가끔 "ClientboundAddEntityPacket:null" 이었다(T-160, ChunkLevel.addFreshEntity)
                 assertEquals(List.of("ClientboundAddEntityPacket:PIG"), found, "막 생긴 엔티티도 찾는다(네트워크 스레드가 주 스레드로 표시된 채)");
                 assertEquals(1, bridge.heldCount());
 

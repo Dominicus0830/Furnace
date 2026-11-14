@@ -17,6 +17,10 @@ public class SpawnerBlock extends BaseEntityBlock {
     @Override
     public void spawnAfterBreak(int state, BlockLevel level, Pos pos, ItemStack tool, boolean dropExperience) {
         super.spawnAfterBreak(state, level, pos, tool, dropExperience);
-        if (dropExperience) level.popExperience(pos, 15 + level.random().nextInt(15) + level.random().nextInt(15));
+        if (dropExperience) popExperienceIfAny(level, pos, expDrop(state, level, pos, tool));
     }
+
+    /** 섬세한 손길과 무관하게 15 + nextInt(15) + nextInt(15). */
+    @Override
+    public int expDrop(int state, BlockLevel level, Pos pos, ItemStack tool) { return 15 + level.random().nextInt(15) + level.random().nextInt(15); }
 }

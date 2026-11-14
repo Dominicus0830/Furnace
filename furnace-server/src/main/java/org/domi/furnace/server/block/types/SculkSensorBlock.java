@@ -161,6 +161,9 @@ public class SculkSensorBlock extends BaseEntityBlock {
     @Override
     public void spawnAfterBreak(int state, BlockLevel level, Pos pos, ItemStack tool, boolean dropExperience) {
         super.spawnAfterBreak(state, level, pos, tool, dropExperience);
-        if (dropExperience) tryDropExperience(level, pos, tool, 5, 5);
+        if (dropExperience) popExperienceIfAny(level, pos, expDrop(state, level, pos, tool));
     }
+
+    @Override
+    public int expDrop(int state, BlockLevel level, Pos pos, ItemStack tool) { return experienceSample(level, tool, 5, 5); }
 }

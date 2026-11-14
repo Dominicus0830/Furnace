@@ -275,6 +275,13 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
         }
 
         @Override
+        public boolean tamed() {
+            check();
+            return le instanceof org.domi.furnace.server.entity.TamableAnimal t ? t.isTame()
+                    : le instanceof org.domi.furnace.server.entity.AbstractHorse h && h.isTamed();
+        }
+
+        @Override
         public void setHealth(float health) {
             if (!writable()) return;
             if (health <= 0f) le.dieFromApi();

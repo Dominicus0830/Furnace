@@ -48,6 +48,18 @@ public interface Player extends CommandSender, LivingEntity {
     /** 바닐라 setGameMode: 같으면 false. PlayerGameModeChangeEvent 를 거친다. */
     boolean setGameMode(GameMode mode);
 
+    /** 비행 허가(바닐라 Abilities.mayfly). 게임 모드를 바꾸면 그 모드의 값으로 돌아간다. */
+    default boolean allowFlight() { throw new UnsupportedOperationException("allowFlight"); }
+
+    /** 비행 허가를 바꾼다. false 면 날고 있던 것도 멈춘다. */
+    default void setAllowFlight(boolean allow) { throw new UnsupportedOperationException("setAllowFlight"); }
+
+    /** 지금 날고 있나(바닐라 Abilities.flying). */
+    default boolean isFlying() { throw new UnsupportedOperationException("isFlying"); }
+
+    /** 비행을 켜거나 끈다. 허가 없이 true 면 IllegalArgumentException. */
+    default void setFlying(boolean flying) { throw new UnsupportedOperationException("setFlying"); }
+
     @Override
     float health();
 
@@ -74,6 +86,12 @@ public interface Player extends CommandSender, LivingEntity {
     int ping();
 
     InetSocketAddress address();
+
+    /**
+     * 소켓 상대 주소(연결 그 자체). BungeeCord·Velocity 포워딩이나 PROXY 프로토콜이면 프록시의 주소이고, {@link #address()} 는 프록시가 알려 준 플레이어 주소다.
+     * 포워딩이 없으면 둘이 같다.
+     */
+    default InetSocketAddress rawAddress() { return address(); }
 
     /** 사유를 보여 주고 연결을 끊는다. */
     void kick(Text reason);

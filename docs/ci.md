@@ -21,7 +21,8 @@
 - `server-tests (1/3~3/3)`: 서버 시험을 시험 클래스 이름 해시로 3조각으로 나눠 동시에 돈다(`-PtestShard=i/3`, `furnace-server/build.gradle.kts`).
   한 조각이 실패하면 **처음에 실패한 시험 클래스만** 한 번 다시 돌린다(전체 재실행 12분 → 1분 안팎). 다시 돌려도 실패하면 진짜 실패다.
   재시도에서 통과한 시험은 "흔들린 시험" 주석(PR 의 Checks 화면)·실행 요약·산출물 `flaky-tests-N`(30일 보관)에 이름이 남는다 — 이 목록이 흔들리는 시험을 고칠 우선순위다(아래 "재시도 정책").
-- `light`: API 시험, 샘플 플러그인 컴파일, 시험 서버 모듈, fatJar. 기준 브랜치 실행에서는 `user-todo-combined` 산출물도 올린다.
+- `light`: API 시험, 샘플 플러그인 컴파일, 시험 서버 모듈, 호환 계층 모듈, fatJar. 기준 브랜치 실행에서는 `user-todo-combined` 산출물도 올린다.
+  시험 단계 셋은 하나가 실패해도 나머지를 돌고(`continue-on-error`), 실패하면 `light-test-reports` 산출물을 올린 뒤 맨 끝 "light 시험 판정"이 작업을 실패시킨다. **재시도는 없다**(아래 "light 작업 (T-160)").
 - `test`: 위 둘을 합친 판정(점검 이름은 예전과 같은 `test`). **병합 판단은 `test` 하나만 본다** — `light` 는 1~2분이면 초록이 되지만 `test` 는 서버 시험 3조각이 모두 끝나야 생긴다.
 - `push` 는 기준 브랜치(`claude/quirky-wright-lra834`, `main`)에서만 돈다. 작업 브랜치는 PR 을 열면 `pull_request` 로 한 번 돈다.
   충돌이 있는 PR 은 `pull_request` 실행이 만들어지지 않는다 — 기준 브랜치를 합쳐 충돌을 풀면 다시 돈다.
@@ -47,6 +48,35 @@
 - 재시도 로직은 `tools/ci/retry-failed-tests.sh`(워크플로에서 직접 부른다)에 있다: 시험 JVM 이상 종료·제한시간 초과·`@NoRetry` 실패면 재시도하지 않는다. 재시도에서 통과하면 시험마다 `::warning title=흔들린 시험::`, 실행 요약, 산출물 `flaky-tests-N` 을 남긴다.
 - **흔들린 시험 기록 읽는 법**: 기준 브랜치 실행의 `flaky-tests-N` 산출물과 PR 의 주석을 본다. 같은 시험이 두 번 이상 나오면 위 표에 올리고 고친다. (기록을 자동으로 모아 표를 만드는 도구는 아직 없다.)
 - 아직 없는 것: 시험 수 합계 출력, 조각 간 흔들림 비교. `@NoRetry` 를 기존 시험에 일괄로 붙이지 않았다(지금 `@RepeatedTest` 를 쓰는 시험은 `ChunkSendPacketOrderGoldenTest` 뿐이고 결정적 순서 시험이다).
+
+## light 작업 실패 보기 (2026-11-14, T-160)
+- 11-12~14 실행 400개 중 `light` 시험 실패 28건(호환 계층 23, 시험 서버 모듈 5). 로그에는 `AssertionFailedError at X.java:227` 한 줄뿐이라 원인을 볼 수 없었다
+  (Gradle 기본 `exceptionFormat=SHORT`, 보고서 올리기 없음).
+- 이제 모든 모듈의 시험 작업이 실패 때 **단언 메시지·기대값/실제값·원인·스택 전체**를 콘솔에 찍는다(루트 `build.gradle.kts` 의 `tasks.withType<Test>` — 로컬도 같다).
+  `light` 는 실패하면 모듈별 HTML·XML 보고서(시험 표준 출력 포함)를 `light-test-reports`(7일)로 올린다.
+- `light` 에 재시도를 넣지 않았다: 재시도는 흔들리는 시험이 숨긴 제품 경합(예: 패킷 리스너 안 엔티티 조회)을 조용히 초록으로 바꿔 그대로 병합되게 한다.
+  `light` 는 3분 남짓이라 실패하면 그 실행의 메시지로 원인을 고친다. 고친 흔들림은 아래 표에 적는다.
+
+| 시험 | 횟수(11-12~14) | 원인 | 조치 |
+|---|---|---|---|
+| `ProtocolLibBridgeTest.spawnListenersCanLookUpTheNewEntity` (:308) | 5 | **서버 결함**: 새 엔티티를 스폰 묶음을 보낸 뒤에야 번호 색인에 넣어, 패킷 리스너의 `getEntity(id)` 가 가끔 null(부하 반복 13/80) | `ChunkLevel.addFreshEntity`·`adoptEntity` 에서 색인 → 추적 순서(바닐라·Paper 와 같음), 회귀 `EntityIndexBeforeSpawnTest`. 고친 뒤 0/80 |
+| `TabCompleteAndCommandSendTest.unhandledEvent…` (:123) | 1 | 시험 경합: `AsyncTabCompleteEvent` 는 전용 스레드라 장벽이 못 덮는데 처리기를 미리 바꿈(옛 시험 부하 반복 4/60) | 요청마다 처리기가 끝날 때까지 기다림(`suggestHandled`), 0/60 |
+| `ChatAdapterTest.recipientsStartAsEveryoneOnline…` (:75) | 이 PR 의 첫 CI(새 FULL 형식으로 바로 원인이 보임: `[Dana, Kim]`) | 시험 경합: 채팅은 받는 사람마다 그 연결 이벤트 루프에서 기록되는데 보낸 사람 연결만 비우고 단언 — "안 받았다" 단언은 헛통과할 수 있었다 | 단언 전에 받는 사람 모두 `sync()`(`flushAll`) |
+| `TestPlayerPacketsTest.afterKick…` (:86), `SchemaPacketBridgeTest` decodeFailures | 5, 3 | 가짜 플레이어 읽기 스레드·decodeFailures 경합 | 11-14 f700bee5e·6eb9eee32 에서 고쳐짐(그 뒤 재발 없음) |
+| `JavaPluginWiringTest.permissionAndExceptions…` (:227) | 7 | 확정 못 함 — 11-13 17:43 UTC 뒤 약 110회 재발 없음, 부하 반복 0/60 | 다시 나오면 이제 로그에 받은 메시지 목록이 찍힌다 |
+
+## 로그 없이 취소된 조각 (2026-11-14, T-160)
+- PR #362 의 `server-tests (2/3)` 첫 시도(작업 132469604114): 서버 시험 단계가 13:57 에 시작해 **40분 뒤 취소**, 단계 로그는 404(올라가지 않음), 보고서 올리기(`always()`)도
+  돌지 않았다. 주석은 "The job has exceeded the maximum execution time of 35m0s" 하나. 같은 커밋 두 번째 시도는 12.7분에 통과.
+- 단계 제한(`timeout-minutes: 20`)은 러너 프로그램이 건다. 20분에 발동하지 않았고 로그도 못 올렸으니 **그때 러너 프로그램이 응답하지 못했다**
+  (서버 쪽 작업 제한 35분 + 취소 유예 5분 = 40분에 GitHub 이 강제로 닫음). 같은 모양은 400개 실행 중 이 한 번뿐이다.
+  러너가 멈추는 흔한 원인은 메모리 고갈(OOM 킬러가 러너를 죽이거나 스왑 없는 VM 이 멈춤)과 디스크 고갈(러너가 로그를 못 씀)이다 — 확인할 기록이 남지 않아 **원인은 확정하지 못했다**.
+- 대응: 서버 시험 단계를 `tools/ci/run-guarded.sh 18 -- ./gradlew …` 로 돌린다.
+  1. `oom_score_adj=1000` 을 gradle·시험 JVM 이 물려받는다 → 메모리가 모자라면 러너 대신 시험 JVM 이 죽고(`exit value 137`), 로그·보고서가 남는다.
+  2. 30초마다 메모리·스왑·디스크 남은 칸·부하·java RSS 를 `/tmp/ci-resources.log` 에(2분마다 한 줄은 콘솔에도 `[자원]`) 적고, 끝에 가장 적었던 남은 메모리를 찍는다.
+  3. 18분(단계 제한 20분보다 먼저)에 스스로 멈추며 시험 JVM·gradle 데몬 스레드 덤프를 `/tmp/ci-thread-dumps` 와 콘솔(시험 스레드만)에 남기고 종료 코드 124 로 끝난다.
+     재시도하지 않는다(로그에 "There were failing tests" 가 없다). 자원 기록·덤프는 `server-test-reports-N` 산출물로 올라간다.
+- 다시 생기면: 산출물이 있으면 `ci-resources.log` 의 마지막 줄들과 덤프를 본다. 산출물마저 없으면(러너가 또 멈춤) 이 문서에 날짜·작업 번호를 적는다 — 두 번 이상이면 시험 JVM 힙·조각 수를 다시 본다.
 
 ## 로컬에서
 - 전체: `./gradlew -PskipOracle=true :furnace-api:test :furnace-server:test` (조각 속성 없음 = 전부).

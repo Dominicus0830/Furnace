@@ -101,6 +101,24 @@ public interface World {
     boolean isChunkLoaded(int chunkX, int chunkZ);
 
     /**
+     * 그 청크를 올린다(Paper World#getChunkAtAsync). 이미 올라와 있으면 그대로. generate 가 거짓이면 디스크에 저장된 청크만 올리고,
+     * 없으면 false 로 끝난다(새로 만들지 않는다). 결과는 그 청크를 가진 region 스레드에서 완료된다 — 이어 붙인 작업이 거기서 곧바로 청크를 만질 수 있다.
+     * 단 이미 끝난 Future 에 붙인 작업은 붙인 스레드에서 돈다(CompletableFuture 규칙, Paper 도 같다): 비동기 스레드에서 붙일 때 region 스레드에서
+     * 돌게 하려면 {@code thenAcceptAsync(..., scheduler(pos)::execute)} 처럼 그 칸의 스케줄러를 실행기로 준다.
+     * 올린 청크는 Paper 플러그인 티켓처럼 20틱 붙잡고(레벨 33 — 올려만 둔다), 그 뒤 플레이어·티켓이 없으면 퇴출 유예가 지나 보통 규칙대로 내려간다.
+     * 내린 월드면 RejectedExecutionException 으로 끝난다. 아무 스레드.
+     */
+    default CompletableFuture<Boolean> loadChunkAsync(int chunkX, int chunkZ, boolean generate) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("loadChunkAsync"));
+    }
+
+    /**
+     * 그 청크를 보고 있는 플레이어에게 청크를 통째로 다시 보낸다(Paper World#refreshChunk). 올라와 있지 않으면 false.
+     * 보내기는 그 청크를 가진 region 스레드에서 곧 일어난다(지금 상태가 실린다). 아무 스레드.
+     */
+    default boolean refreshChunk(int chunkX, int chunkZ) { throw new UnsupportedOperationException("refreshChunk"); }
+
+    /**
      * 그 청크를 이 월드의 생성기(시드·월드젠 훅 포함)로 처음부터 다시 만들어 바꾼다(불만 표 41번). 결과 블록은 같은 시드의 새 월드에서
      * 그 청크가 처음 만들어질 때와 같다 — 이웃 청크에서 넘어오는 나무·구조물 조각도 포함하고, 이 청크에서 이웃으로 넘치는 장식은
      * 이웃을 바꾸지 않는다. 블록·바이옴·블록 엔티티·예약 틱·구조물 참조·POI 를 바꾸고, 빛을 다시 계산하고, 그 청크를 보는
@@ -377,5 +395,87 @@ public interface World {
     default CompletableFuture<Boolean> mergeBlockEntityNbt(BlockPos pos, NbtCompound patch) {
         NbtCompound p = patch.copy();
         return editBlockEntityNbt(pos, n -> n.merge(p));
+    }
+
+    // ---- 시간·날씨·스폰·폴더(T-141). 모든 차원(추가 월드 포함)이 오버월드의 시계를 함께 쓴다(바닐라 DerivedLevelData) —
+    // 그래서 오버월드가 아닌 월드에서 바꾸기는 아무 일도 하지 않고 false(바닐라 DerivedLevelData 의 set 이 무시되는 것과 같다).
+    // 읽기·쓰기 모두 아무 스레드.
+
+    /** 하루 시각(바닐라 Level.getDayTime, 24000 을 넘어 계속 는다). */
+    default long dayTime() { throw new UnsupportedOperationException("dayTime"); }
+
+    /** 하루 시각을 바꾸고 이 월드의 접속자에게 곧바로 알린다(Paper CraftWorld#setFullTime). 이 월드가 시계 주인이 아니면 false. */
+    default boolean setDayTime(long time) { throw new UnsupportedOperationException("setDayTime"); }
+
+    /** 월드가 흐른 틱(바닐라 Level.getGameTime). */
+    default long gameTime() { throw new UnsupportedOperationException("gameTime"); }
+
+    /** 이 월드가 시간·날씨의 주인인가(오버월드만 true). */
+    default boolean ownsClock() { return true; }
+
+    /** 날씨 상태(level.dat 의 raining·thundering·rainTime·thunderTime·clearWeatherTime). */
+    default WeatherState weather() { throw new UnsupportedOperationException("weather"); }
+
+    /** 비 깃발·남은 틱들을 바꾼다(null 인 칸은 그대로). 다음 전역 틱의 날씨 순환이 이어받는다. 시계 주인이 아니면 false. */
+    default boolean setWeather(Boolean raining, Boolean thundering, Integer rainTime, Integer thunderTime, Integer clearWeatherTime) {
+        throw new UnsupportedOperationException("setWeather");
+    }
+
+    /** 월드 스폰(바닐라 공유 스폰: 블록 좌표와 바라보는 각도). */
+    default Location spawnLocation() { throw new UnsupportedOperationException("spawnLocation"); }
+
+    /**
+     * 월드 스폰을 바꾼다(바닐라 ServerLevel.setDefaultSpawnPos: 스폰 청크 티켓을 옮기고 모든 접속자에게 알린다). 네더·엔드는 오버월드 스폰을
+     * 함께 쓰므로 false. 추가 월드는 자기 level.dat 의 스폰을 바꾼다.
+     */
+    default boolean setSpawnLocation(int x, int y, int z, float angle) { throw new UnsupportedOperationException("setSpawnLocation"); }
+
+    /** 이 차원의 저장 폴더(오버월드 = 월드 폴더, 네더 = DIM-1, 엔드 = DIM1, 추가 월드 = 그 월드 폴더). */
+    default java.nio.file.Path folder() { throw new UnsupportedOperationException("folder"); }
+
+    /**
+     * 이 월드의 모든 엔티티(플레이어 포함) 핸들 스냅숏 — 아무 스레드. 서버의 엔티티 색인(동시 맵)을 읽을 뿐이라 region 상태를 건드리지 않는다.
+     * 핸들로 상태를 읽고 쓰는 것은 여느 때처럼 소유 스레드 규칙을 따른다.
+     */
+    default List<Entity> entitiesSnapshot() { throw new UnsupportedOperationException("entitiesSnapshot"); }
+
+    /**
+     * 그 청크 안(블록 좌표 기준)에 있는 살아 있는 엔티티와 플레이어(Paper Chunk#getEntities — isValid 로 거름). 그 청크를 가진 region 스레드 전용
+     * (전역 스레드의 region 빌림 구간 포함), 아니면 ThreadOwnershipException.
+     */
+    default List<Entity> entitiesInChunkNow(int chunkX, int chunkZ) { throw new UnsupportedOperationException("entitiesInChunkNow"); }
+
+    /** 그 칸의 밝기: 하늘빛(지금 하늘 어두움을 뺀 값)과 블록빛 중 큰 값(바닐라 getMaxLocalRawBrightness). 소유 스레드 전용, 청크가 없으면 IllegalStateException. */
+    default int lightLevelNow(BlockPos pos) { throw new UnsupportedOperationException("lightLevelNow"); }
+
+    /** 그 칸의 하늘빛(0..15, 낮밤 무관). 소유 스레드 전용. */
+    default int skyLightNow(BlockPos pos) { throw new UnsupportedOperationException("skyLightNow"); }
+
+    /** 그 칸의 블록빛(0..15). 소유 스레드 전용. */
+    default int blockLightNow(BlockPos pos) { throw new UnsupportedOperationException("blockLightNow"); }
+
+    /**
+     * 그 칸을 이 도구로 부수면 나올 드롭(전리품 표를 굴리므로 월드 난수를 쓴다). tool 이 null 이면 도구 검사 없이 빈손으로 굴린다.
+     * 도구가 있는데 맞는 도구가 아니면(도구가 필요한 블록) 빈 목록. 소유 스레드 전용.
+     */
+    default List<org.domi.furnace.api.item.ItemStack> dropsNow(BlockPos pos, org.domi.furnace.api.item.ItemStack tool) {
+        throw new UnsupportedOperationException("dropsNow");
+    }
+
+    /**
+     * 플레이어 없이 그 칸을 부순다(Paper Block#breakNaturally): 공기(air)가 아니고 도구 조건이 맞으면 드롭을 떨구고, triggerEffect 면 부서짐 효과,
+     * dropExperience 면 경험치. 그 뒤 칸을 그 자리 유체(없으면 공기)로 바꾼다. 얼음은 물이 되고 거북알은 하나 줄어든다.
+     * 칸을 바꿨고 드롭 조건도 맞았을 때만 true. 소유 스레드 전용, 청크가 없으면 IllegalStateException.
+     */
+    default boolean breakNaturallyNow(BlockPos pos, org.domi.furnace.api.item.ItemStack tool, boolean triggerEffect, boolean dropExperience) {
+        throw new UnsupportedOperationException("breakNaturallyNow");
+    }
+
+    /**
+     * 떨어진 아이템을 만든다(Paper CraftWorld#dropItem: 줍기 지연 10틱, 스폰 이유 CUSTOM). naturally 면 바닐라처럼 월드 난수로 각 축
+     * 0.25~0.75 를 더한 자리. beforeSpawn 은 월드에 넣기 전에 부른다(null 가능). 소유 region 스레드 전용. 스폰이 취소되면 null.
+     */
+    default Entity dropItemNow(Location at, org.domi.furnace.api.item.ItemStack stack, boolean naturally, java.util.function.Consumer<Entity> beforeSpawn) {
+        throw new UnsupportedOperationException("dropItemNow");
     }
 }

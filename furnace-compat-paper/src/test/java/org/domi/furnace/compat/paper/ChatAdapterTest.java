@@ -59,6 +59,14 @@ class ChatAdapterTest {
         return got;
     }
 
+    /**
+     * 받는 사람마다 장벽: 채팅은 각 받는 사람 연결의 이벤트 루프에서 인코딩될 때 기록된다. 보낸 사람의 chat()·tick() 은 보낸 사람 연결만 비우므로,
+     * 다른 사람의 이벤트 루프가 아직 못 쓴 채로 단언하면 "받았다"는 흔들리고 "안 받았다"는 헛통과한다(CI 에서 [Dana, Kim] 만 보임, T-160).
+     */
+    private static void flushAll(TestPlayer... players) {
+        for (TestPlayer p : players) p.sync();
+    }
+
     private static boolean saw(TestPlayer p, String text) { return p.messageLines().stream().anyMatch(s -> s.contains(text)); }
 
     @Test
@@ -71,6 +79,7 @@ class ChatAdapterTest {
             RecorderPlugin.ACTIONS.put("AsyncPlayerChatEvent", e -> size[0] = ((AsyncPlayerChatEvent) e).getRecipients().size());
             dana.chat("hello");
             server.tick(2);
+            flushAll(dana, lee, kim);
             assertEquals(3, size[0]);
             assertTrue(got.containsAll(List.of("Dana", "Lee", "Kim")), "만지기만 하면 전원이 받는다: " + got);
         }
@@ -88,6 +97,7 @@ class ChatAdapterTest {
             });
             dana.chat("hello");
             server.tick(2);
+            flushAll(dana, lee, kim);
             assertTrue(got.contains("Dana") && got.contains("Kim"), got.toString());
             assertFalse(got.contains("Lee"), "뺀 사람은 받지 않는다: " + got);
         }
@@ -109,6 +119,7 @@ class ChatAdapterTest {
             });
             dana.chat("hi");
             server.tick(2);
+            flushAll(dana, lee, kim);
             assertTrue(saw(dana, "[team] Dana: hi"), dana.messageLines().toString());
             assertTrue(saw(kim, "[team] Dana: hi"), kim.messageLines().toString());
             assertFalse(saw(lee, "hi"), "채널 밖 사람은 받지 않는다: " + lee.messageLines());
@@ -126,6 +137,7 @@ class ChatAdapterTest {
             RecorderPlugin.ACTIONS.put("AsyncPlayerChatEvent", e -> ((AsyncPlayerChatEvent) e).getRecipients().clear());
             dana.chat("shh");
             server.tick(2);
+            flushAll(dana, lee);
             assertTrue(got.isEmpty(), "아무도 받지 않는다: " + got);
             assertFalse(saw(lee, "shh") || saw(dana, "shh"));
         }
