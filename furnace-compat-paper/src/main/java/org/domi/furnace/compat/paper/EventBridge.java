@@ -110,7 +110,7 @@ public final class EventBridge {
     private static final java.util.Set<String> NOT_FIRED = java.util.Set.of(
             "org.bukkit.event.block.BlockCanBuildEvent", "org.bukkit.event.block.BlockDamageEvent", "org.bukkit.event.block.BlockDispenseEvent",
             "org.bukkit.event.block.BlockExpEvent", "org.bukkit.event.block.NotePlayEvent", "org.bukkit.event.block.SignChangeEvent",
-            "org.bukkit.event.player.PlayerCommandSendEvent", "org.bukkit.event.world.WorldInitEvent");
+            "org.bukkit.event.world.WorldInitEvent");
 
     /** 서버가 아직 알리지 않는 Bukkit 이벤트인가(문서·시험용). */
     public static boolean isKnownButNotFired(Class<? extends org.bukkit.event.Event> owning) { return NOT_FIRED.contains(owning.getName()); }
@@ -171,7 +171,7 @@ public final class EventBridge {
 
     /** 서버가 알리지 않는 이벤트의 처리기를 등록하면 플러그인·이벤트마다 한 번 경고한다. */
     public static void warnIfNotFired(BukkitPluginAdapter owner, Class<? extends org.bukkit.event.Event> owning) {
-        // WorldInitEvent 는 load: STARTUP 플러그인을 켜는 동안 단 처리기만 기본 월드 몫을 받는다(Compat.revealWorldsAfterStartup) — 그때는 경고하지 않는다
+        // WorldInitEvent 는 플러그인 onLoad·load: STARTUP 켜기 동안 단 처리기만 기본 월드 몫을 받는다(Compat.revealWorldsAfterStartup) — 그때는 경고하지 않는다
         if (owning == org.bukkit.event.world.WorldInitEvent.class && Compat.startupWorldsPending()) return;
         if (!BY_BUKKIT.containsKey(owning) && NOT_FIRED.contains(owning.getName()) && owner.markBridged("unfired:" + owning.getName())) {
             owner.logger().warning(owning.getSimpleName() + " 처리기를 등록했지만 Furnace 서버는 아직 이 이벤트를 알리지 않는다 — 그 처리기는 불리지 않는다"

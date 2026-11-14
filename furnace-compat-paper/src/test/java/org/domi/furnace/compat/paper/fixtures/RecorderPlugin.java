@@ -102,6 +102,11 @@ public final class RecorderPlugin extends JavaPlugin implements Listener {
     // 보호 이벤트(T-040a)
     @EventHandler public void on(org.bukkit.event.entity.EntityExplodeEvent e) { rec(e); }
 
+    // 명령 트리·자동완성
+    @EventHandler public void on(org.bukkit.event.player.PlayerCommandSendEvent e) { rec(e); }
+
+    @EventHandler public void on(com.destroystokyo.paper.event.server.AsyncTabCompleteEvent e) { rec(e); }
+
     @EventHandler public void on(org.bukkit.event.block.BlockPistonExtendEvent e) { rec(e); }
 
     @EventHandler public void on(org.bukkit.event.block.BlockPistonRetractEvent e) { rec(e); }

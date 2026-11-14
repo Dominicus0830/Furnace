@@ -196,6 +196,9 @@ class EventBridgeTest {
                     org.domi.furnace.api.world.BlockData.of("minecraft:dirt"), org.domi.furnace.api.world.BlockData.of("minecraft:grass_block")));
             fire.put(org.bukkit.event.entity.ProjectileHitEvent.class, () -> new org.domi.furnace.api.event.entity.ProjectileHitEvent(snowball, null,
                     new org.domi.furnace.api.world.BlockSnapshot(w, bp, stoneData), "up"));
+            // 명령 트리 전송·자동완성
+            fire.put(org.bukkit.event.player.PlayerCommandSendEvent.class, () -> new org.domi.furnace.api.event.player.PlayerCommandSendEvent(p, List.of("list", "say")));
+            fire.put(com.destroystokyo.paper.event.server.AsyncTabCompleteEvent.class, () -> new org.domi.furnace.api.event.server.AsyncTabCompleteEvent(p, "/li", true));
             // EntityChangeBlock(T-040b)
             fire.put(org.bukkit.event.entity.EntityChangeBlockEvent.class, () -> new org.domi.furnace.api.event.entity.EntityChangeBlockEvent(pig, w, bp,
                     org.domi.furnace.api.world.BlockData.of("minecraft:grass_block"), org.domi.furnace.api.world.BlockData.of("minecraft:dirt")));

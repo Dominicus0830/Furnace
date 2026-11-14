@@ -174,6 +174,41 @@ final class Mappings {
                 });
         EventBridge.reg(org.domi.furnace.api.event.server.ServerLoadEvent.class, org.bukkit.event.server.ServerLoadEvent.class,
                 f -> new org.bukkit.event.server.ServerLoadEvent(org.bukkit.event.server.ServerLoadEvent.LoadType.STARTUP), (f, b) -> {});
+        // Paper 1.21.1: Commands.sendCommands — 이벤트에는 쓸 수 있는 최상위 이름의 사본(LinkedHashSet)이 가고, 처리기가 뺀 이름이 트리에서 빠진다(더한 이름은 무시).
+        EventBridge.reg(org.domi.furnace.api.event.player.PlayerCommandSendEvent.class, org.bukkit.event.player.PlayerCommandSendEvent.class,
+                f -> new org.bukkit.event.player.PlayerCommandSendEvent(p(f.player()), new java.util.LinkedHashSet<>(f.commands())),
+                (f, b) -> f.commands().retainAll(b.getCommands()),
+                (f, b) -> b.getCommands().retainAll(f.commands()));
+        // Paper AsyncTabCompleteEvent: 후보(문자열)·handled 표시를 두 이벤트가 맞춘다. 설명 글(Adventure)은 호환 이벤트에 없어, 처리기가 후보 문자열을 그대로 두면 Furnace 쪽 설명 글을 지키고
+        // 바꾼 후보는 설명 글 없이 올린다(같은 문자열이 이미 있었다면 그 설명 글을 이어 준다).
+        EventBridge.reg(org.domi.furnace.api.event.server.AsyncTabCompleteEvent.class, com.destroystokyo.paper.event.server.AsyncTabCompleteEvent.class,
+                f -> new com.destroystokyo.paper.event.server.AsyncTabCompleteEvent(Compat.sender(f.sender()), f.buffer(), f.isCommand(), null),
+                (f, b) -> {
+                    var current = f.completions();
+                    if (!sameSuggestions(current, b.getCompletions())) {
+                        java.util.Map<String, org.domi.furnace.api.text.Text> tips = new java.util.HashMap<>();
+                        for (var c : current) if (c.tooltip() != null) tips.putIfAbsent(c.suggestion(), c.tooltip());
+                        var next = new java.util.ArrayList<org.domi.furnace.api.event.server.AsyncTabCompleteEvent.Completion>(b.getCompletions().size());
+                        for (String sug : b.getCompletions()) next.add(new org.domi.furnace.api.event.server.AsyncTabCompleteEvent.Completion(sug, tips.get(sug)));
+                        current.clear();
+                        current.addAll(next);
+                    }
+                    if (f.handledFlag() != b.handledFlag()) f.setHandled(b.handledFlag());
+                }, (f, b) -> {
+                    if (!sameSuggestions(f.completions(), b.getCompletions())) {
+                        var strings = new java.util.ArrayList<String>(f.completions().size());
+                        for (var c : f.completions()) strings.add(c.suggestion());
+                        b.getCompletions().clear();
+                        b.getCompletions().addAll(strings);
+                    }
+                    if (f.handledFlag() != b.handledFlag()) b.setHandled(f.handledFlag());
+                });
+    }
+
+    private static boolean sameSuggestions(java.util.List<org.domi.furnace.api.event.server.AsyncTabCompleteEvent.Completion> furnace, java.util.List<String> bukkit) {
+        if (furnace.size() != bukkit.size()) return false;
+        for (int i = 0; i < furnace.size(); i++) if (!furnace.get(i).suggestion().equals(bukkit.get(i))) return false;
+        return true;
     }
 
     /**

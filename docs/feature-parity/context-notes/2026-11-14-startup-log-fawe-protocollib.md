@@ -12,7 +12,7 @@
 | ProtocolLib "unable to check for updates" SEVERE | Furnace 결함 | `org.spigotmc.SpigotConfig` 가 없어 Spigot 판별이 실패. 클래스를 둠. |
 | ProtocolLib `EnumProtocol` 등 NMS 클래스 없음 경고 9줄, 파이프라인(`ServerConnectionListener`) 안내 | 잡음(리플렉션 기능 감지) | Paper 1.21.1 에도 없는 이름을 찾는 것. 켜기 동안 모아 INFO 한 줄로. 파이프라인 주입은 이미 Furnace 쪽 다리가 맡는다. |
 | FAWE 다른 버전 어댑터(`v1_20_R3`… `v26_x`) 정의 경고 약 65줄 | 잡음 | 버전 고르기. DEBUG 로 내림(연도 버전 `v26_1` 이름도 다른 버전으로 인식). |
-| `PlayerCommandSendEvent` 알리지 않음, `AsyncTabCompleteEvent` 없음 | Furnace 미구현 | 다음 후보(user-todo 엔트리). |
+| `PlayerCommandSendEvent` 알리지 않음, `AsyncTabCompleteEvent` 없음, "doesn't support Tags" | Furnace 미구현 | PR #337 이 넣음. |
 | 첫 실행 `server.properties` ERROR | 잡음이지만 바닐라와 같음 | 바닐라 1.21.1 `Settings.loadFromFile` 도 `Logger.error("Failed to load properties from file: {}")` 로 남긴다. 그대로 둔다. |
 
 ### 함정
