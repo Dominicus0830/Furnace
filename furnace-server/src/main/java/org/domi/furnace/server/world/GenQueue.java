@@ -240,6 +240,10 @@ public final class GenQueue extends AbstractExecutorService {
      * 땅이라 그때 만들면 차례를 헛쓴다. 자리가 돌아오면 그 사람은 칸 하나로 지금 가장 가까운 청크를 다시 건다.
      */
     private void endTurnLocked(int owner, long now) {
+        if (turnWait.isEmpty() && turnActive.containsKey(owner)) {   // 기다리는 사람이 없으면 차례를 새로 줄 뿐 — 시야 안 요청을 취소하지 않는다(검토 R3)
+            turnActive.put(owner, new Turn(now));
+            return;
+        }
         if (turnActive.remove(owner) != null) {
             turnWait.addLast(owner);
             for (int i = gen.size() - 1; i >= 0; i--) {
@@ -253,7 +257,17 @@ public final class GenQueue extends AbstractExecutorService {
         }
     }
 
-    /** 차례가 끝나 취소한 요청(잠금 밖에서 정리한다). */
+    /** 시간 티켓이 살아 있나(던지면 끝난 것으로 — 대기열 일꾼이 죽지 않게). */
+    private static boolean alive(Ticket t) {
+        try {
+            return t.keepAlive.getAsBoolean();
+        } catch (RuntimeException e) {
+            LOG.warn("[GEN] 시간 티켓 확인 실패", e);
+            return false;
+        }
+    }
+
+    /** 취소해 대기열에서 뺀 요청(차례 끝·시야 밖, 잠금 밖에서 정리한다). 예외가 나도 잃지 않게 필드에 모은다. */
     private final ArrayList<Task> turnCancelled = new ArrayList<>();
 
     /** 잠금 안: 차례 취소분을 꺼낸다. */
@@ -297,9 +311,9 @@ public final class GenQueue extends AbstractExecutorService {
 
     @Override
     public void execute(Runnable command) {
-        if (shutdown) throw new RejectedExecutionException("생성 대기열이 닫혔다");
         lock.lock();
         try {
+            if (shutdown) throw new RejectedExecutionException("생성 대기열이 닫혔다");
             plain.add(new Task(command, null, 0, 0, null, false, seq++, System.nanoTime()));
             ready.signal();
         } finally {
@@ -308,11 +322,11 @@ public final class GenQueue extends AbstractExecutorService {
     }
 
     private void submit(Runnable r, World w, int cx, int cz, Ticket ticket, boolean background) {
-        if (shutdown) throw new RejectedExecutionException("생성 대기열이 닫혔다");
         long now = System.nanoTime();
         int prio = background ? PRIO_BACKGROUND : settings.distanceOrder() ? nearestNow(w, cx, cz) : 0;
         lock.lock();
         try {
+            if (shutdown) throw new RejectedExecutionException("생성 대기열이 닫혔다");
             Task t = new Task(r, w, cx, cz, ticket, background, seq++, now);
             t.prio = prio;
             gen.add(t);
@@ -342,8 +356,10 @@ public final class GenQueue extends AbstractExecutorService {
             for (int i = 0; i < ps.length; i++) {
                 ChunkPos c = ps[i].chunkPos();
                 x[i] = c.x(); z[i] = c.z();
-                // Region.trackingDistance 와 같은 값 + 바깥 한 겹(ChunkTrackingView.contains 는 축 방향으로 시야+1 칸까지 넣는다)
-                keep[i] = Math.clamp(ps[i].viewDistance(), 2, Math.max(2, serverVd)) + 1 + margin;
+                // Region.trackingDistance 와 같은 값 + 바깥 한 겹(ChunkTrackingView.contains 는 축 방향으로 시야+1 칸까지 넣는다).
+                // 바닐라 플레이어 티켓은 서버 시야 정사각(Region.collectCornerLoads 의 모서리) — 클라 시야가 작아도 그만큼은 남긴다(검토 R1)
+                int track = Math.clamp(ps[i].viewDistance(), 2, Math.max(2, serverVd));
+                keep[i] = Math.max(track, Math.clamp(serverVd, 2, 32)) + 1 + margin;
             }
         }
 
@@ -353,9 +369,9 @@ public final class GenQueue extends AbstractExecutorService {
         }
     }
 
-    /** 잠금 안: 거리를 다시 재고, 취소할 것은 대기열에서 빼 돌려준다. 생성 칸 계산과 지표도 여기서. */
-    private List<Task> reprioLocked(long now) {
-        if (now - lastReprio < REPRIO_NANOS) return null;
+    /** 잠금 안: 거리를 다시 재고, 취소할 것은 대기열에서 빼 turnCancelled 에 모은다. 생성 칸 계산과 지표도 여기서. */
+    private void reprioLocked(long now) {
+        if (now - lastReprio < REPRIO_NANOS) return;
         lastReprio = now;
         if (!settings.distanceOrder()) {   // 넣은 순(예전): 취소·칸 없이 비교용 지표만
             if (ChunkTrace.ON && now - lastMetric >= METRIC_NANOS) {
@@ -370,10 +386,9 @@ public final class GenQueue extends AbstractExecutorService {
                 ChunkTrace.value("batch.gqlen", gen.size());
                 ChunkTrace.value("batch.gqstale", stale);
             }
-            return null;
+            return;
         }
         IdentityHashMap<World, Snap> snaps = new IdentityHashMap<>();
-        List<Task> cancelled = null;
         int stale = 0;
         for (int i = gen.size() - 1; i >= 0; i--) {
             Task t = gen.get(i);
@@ -387,13 +402,12 @@ public final class GenQueue extends AbstractExecutorService {
                 if (d <= s.keep[k]) kept = true;
             }
             t.prio = best;
-            if (!kept && t.ticket != null && t.ticket.keepAlive != null && t.ticket.cancellable()) kept = t.ticket.keepAlive.getAsBoolean();
+            if (!kept && t.ticket != null && t.ticket.keepAlive != null && t.ticket.cancellable()) kept = alive(t.ticket);
             if (kept) { t.staleSince = 0; continue; }
             if (t.staleSince == 0) t.staleSince = now;
             if (now - t.staleSince >= settings.cancelDelayNanos() && t.ticket != null && t.ticket.tryCancel()) {
                 removeAt(i);
-                if (cancelled == null) cancelled = new ArrayList<>();
-                cancelled.add(t);
+                turnCancelled.add(t);
             } else if (t.ticket == null || !t.ticket.cancelled()) {
                 stale++;
             }
@@ -434,7 +448,7 @@ public final class GenQueue extends AbstractExecutorService {
             ChunkTrace.value("batch.gqowners", per.size());
             ChunkTrace.value("batch.gqmaxper", maxPer);
         }
-        return cancelled;
+        return;
     }
 
     /** 잠금 안: 더는 생성 칸을 쓰지 않는 사람을 빼고, 오래 걸렸거나 요청이 없는 차례를 넘긴다. */
@@ -476,6 +490,7 @@ public final class GenQueue extends AbstractExecutorService {
             long key;
             if (!settings.distanceOrder()) key = 0;
             else if (!t.background && (t.ticket == null || !t.ticket.cancellable()) && now - t.t0 >= settings.pinnedMaxWaitNanos()) key = -1;
+            else if (t.ticket != null && t.ticket.keepAlive != null && t.ticket.cancellable() && alive(t.ticket)) key = 0;   // 살아 있는 시간 티켓(바닐라 티켓 레벨이 플레이어 것보다 높다)
             else if (turns && !t.background && !onTurn(t)) key = (1L << 32) + t.prio;   // 줄 선 사람 요청은 차례인 요청 뒤
             else key = t.prio;
             if (t.background && settings.distanceOrder()) key = (2L << 32) + key;   // 미리 생성은 줄 선 요청보다도 뒤
@@ -503,9 +518,14 @@ public final class GenQueue extends AbstractExecutorService {
                     while (!shutdown && plain.isEmpty() && gen.isEmpty()) ready.awaitUninterruptibly();
                     if (shutdown && plain.isEmpty() && gen.isEmpty()) return;
                     long now = System.nanoTime();
-                    cancelled = reprioLocked(now);
-                    t = pickLocked(now);
-                    cancelled = drainTurnCancelledLocked(cancelled);
+                    t = null;
+                    try {
+                        reprioLocked(now);
+                        t = pickLocked(now);
+                    } catch (RuntimeException e) {   // 일꾼이 죽으면 대기열이 영영 멈춘다 — 이번 차례만 버리고 계속
+                        LOG.warn("[GEN] 생성 대기열 정리 실패", e);
+                    }
+                    cancelled = drainTurnCancelledLocked(null);
                 } finally {
                     lock.unlock();
                 }
@@ -552,7 +572,8 @@ public final class GenQueue extends AbstractExecutorService {
         lock.lock();
         try {
             lastReprio = Long.MIN_VALUE / 2;
-            cancelled = drainTurnCancelledLocked(reprioLocked(System.nanoTime()));
+            reprioLocked(System.nanoTime());
+            cancelled = drainTurnCancelledLocked(null);
         } finally {
             lock.unlock();
         }
