@@ -2427,11 +2427,21 @@ public final class Region {
                 p.vitals().hurt(org.domi.furnace.server.entity.damage.DamageType.byKey("sweet_berry_bush"), 1.0F);
             }
             if (enterBlock) adv.trigger("minecraft:enter_block", org.domi.furnace.server.loot.LootBlockState.of(world.blockRegistry(), s));
-            // HoneyBlock.entityInside → maybeDoSlideAchievement: 미끄러지는 중이면 20틱마다 slide_down_block (플레이어 이동은 서버가 아는 변위로)
-            if (slide && level.gameTime() % 20L == 0L && org.domi.furnace.server.block.B.behavior(s) instanceof org.domi.furnace.server.block.types.HoneyBlock
+            // HoneyBlock.entityInside: 미끄러지는 중이면 maybeDoSlideAchievement(20틱마다 slide_down_block) → maybeDoSlideEffects
+            // (플레이어 이동은 서버가 아는 변위로)
+            if (beh instanceof org.domi.furnace.server.block.types.HoneyBlock
                     && org.domi.furnace.server.block.types.HoneyBlock.isSlidingDown(new org.domi.furnace.server.block.Pos(bx, by, bz), p.onGround(),
                             p.x(), p.y(), p.z(), p.serverMovement()[1], 0.6)) {
-                adv.trigger("minecraft:slide_down_block", org.domi.furnace.server.loot.LootBlockState.of(world.blockRegistry(), s));
+                if (slide && level.gameTime() % 20L == 0L) {
+                    adv.trigger("minecraft:slide_down_block", org.domi.furnace.server.loot.LootBlockState.of(world.blockRegistry(), s));
+                }
+                org.domi.furnace.server.block.types.HoneyBlock.playerSlideEffects(level,
+                        () -> org.domi.furnace.server.entity.Shields.playSoundExceptSelf(p, level, "minecraft:block.honey_block.slide", 1.0F, 1.0F),
+                        () -> {
+                            var ev = new org.domi.furnace.server.net.protocol.play.EntityEvent(p.entityId(), (byte) 53);
+                            p.send(ev);
+                            p.vitals().broadcastToTrackers(ev);
+                        });
             }
         }
     }
