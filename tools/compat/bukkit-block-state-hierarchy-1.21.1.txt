@@ -1,0 +1,110 @@
+# Bukkit(Paper 1.21.1) 블록 엔티티 종류 → CraftBukkit 블록 상태 클래스 → 인터페이스, 그리고 블록 상태 인터페이스 상위 형식.
+# 출처: Paper 1.21.1 CraftBlockStates 등록표·Craft*State 클래스 선언과 paper-api 인터페이스 선언(Youer 1.21.1 사본). 이름·계층만 옮겼다.
+# 'T <블록 엔티티 종류> <Craft 클래스> <상위 Craft 클래스> <인터페이스>' / 'A <추상 Craft 클래스> <상위 Craft 클래스> <인터페이스...>' / 'I <인터페이스> <상위...>'.
+# 뺀 상위 형(아직 메서드를 구현하지 않아 표시 인터페이스로 둘 수 없다): TileState 의 PersistentDataHolder,
+#   TileStateInventoryHolder 의 org.bukkit.inventory.BlockInventoryHolder(→ InventoryHolder.getInventory), Lootable 류의 PaperLootableBlockInventory.
+# 손으로 쓴 인터페이스(머리말 없음)는 생성기가 건드리지 않는다: BlockState·BrewingStand(이벤트 서명용, 메서드 있음 — 그래서 brewing_stand 는 생성하지 않는다).
+# 생성기: tools/compat/gen-bukkit-block-state-classes.py
+A CraftBlockEntityState CompatBlockState org.bukkit.block.TileState
+A CraftContainer CraftBlockEntityState org.bukkit.block.Container
+A CraftLootable CraftContainer org.bukkit.Nameable org.bukkit.loot.Lootable
+A CraftFurnace CraftContainer org.bukkit.block.Furnace
+T sign CraftSign CraftBlockEntityState org.bukkit.block.Sign
+T hanging_sign CraftHangingSign CraftSign org.bukkit.block.HangingSign
+T skull CraftSkull CraftBlockEntityState org.bukkit.block.Skull
+T command_block CraftCommandBlock CraftBlockEntityState org.bukkit.block.CommandBlock
+T banner CraftBanner CraftBlockEntityState org.bukkit.block.Banner
+T shulker_box CraftShulkerBox CraftLootable org.bukkit.block.ShulkerBox
+T bed CraftBed CraftBlockEntityState org.bukkit.block.Bed
+T beehive CraftBeehive CraftBlockEntityState org.bukkit.block.Beehive
+T campfire CraftCampfire CraftBlockEntityState org.bukkit.block.Campfire
+T barrel CraftBarrel CraftLootable org.bukkit.block.Barrel
+T beacon CraftBeacon CraftBlockEntityState org.bukkit.block.Beacon
+T bell CraftBell CraftBlockEntityState org.bukkit.block.Bell
+T blast_furnace CraftBlastFurnace CraftFurnace org.bukkit.block.BlastFurnace
+T chest CraftChest CraftLootable org.bukkit.block.Chest
+T trapped_chest CraftChest CraftLootable org.bukkit.block.Chest
+T chiseled_bookshelf CraftChiseledBookshelf CraftBlockEntityState org.bukkit.block.ChiseledBookshelf
+T comparator CraftComparator CraftBlockEntityState org.bukkit.block.Comparator
+T conduit CraftConduit CraftBlockEntityState org.bukkit.block.Conduit
+T daylight_detector CraftDaylightDetector CraftBlockEntityState org.bukkit.block.DaylightDetector
+T decorated_pot CraftDecoratedPot CraftBlockEntityState org.bukkit.block.DecoratedPot
+T dispenser CraftDispenser CraftLootable org.bukkit.block.Dispenser
+T dropper CraftDropper CraftLootable org.bukkit.block.Dropper
+T enchanting_table CraftEnchantingTable CraftBlockEntityState org.bukkit.block.EnchantingTable
+T ender_chest CraftEnderChest CraftBlockEntityState org.bukkit.block.EnderChest
+T end_gateway CraftEndGateway CraftBlockEntityState org.bukkit.block.EndGateway
+T end_portal CraftEndPortal CraftBlockEntityState org.bukkit.block.TileState
+T furnace CraftFurnaceFurnace CraftFurnace org.bukkit.block.Furnace
+T hopper CraftHopper CraftLootable org.bukkit.block.Hopper
+T jigsaw CraftJigsaw CraftBlockEntityState org.bukkit.block.Jigsaw
+T jukebox CraftJukebox CraftBlockEntityState org.bukkit.block.Jukebox
+T lectern CraftLectern CraftBlockEntityState org.bukkit.block.Lectern
+T piston CraftMovingPiston CraftBlockEntityState io.papermc.paper.block.MovingPiston
+T sculk_catalyst CraftSculkCatalyst CraftBlockEntityState org.bukkit.block.SculkCatalyst
+T sculk_sensor CraftSculkSensor CraftBlockEntityState org.bukkit.block.SculkSensor
+T calibrated_sculk_sensor CraftCalibratedSculkSensor CraftSculkSensor org.bukkit.block.CalibratedSculkSensor
+T sculk_shrieker CraftSculkShrieker CraftBlockEntityState org.bukkit.block.SculkShrieker
+T smoker CraftSmoker CraftFurnace org.bukkit.block.Smoker
+T mob_spawner CraftCreatureSpawner CraftBlockEntityState org.bukkit.block.CreatureSpawner
+T structure_block CraftStructureBlock CraftBlockEntityState org.bukkit.block.Structure
+T brushable_block CraftBrushableBlock CraftBlockEntityState org.bukkit.block.BrushableBlock
+T crafter CraftCrafter CraftLootable org.bukkit.block.Crafter
+T trial_spawner CraftTrialSpawner CraftBlockEntityState org.bukkit.block.TrialSpawner
+T vault CraftVault CraftBlockEntityState org.bukkit.block.Vault
+I org.bukkit.block.TileState org.bukkit.block.BlockState
+I org.bukkit.block.Lockable
+I org.bukkit.block.Lidded
+I org.bukkit.Nameable
+I org.bukkit.material.Colorable
+I org.bukkit.loot.Lootable
+I com.destroystokyo.paper.loottable.LootableInventory org.bukkit.loot.Lootable
+I com.destroystokyo.paper.loottable.LootableBlockInventory com.destroystokyo.paper.loottable.LootableInventory
+I org.bukkit.spawner.BaseSpawner
+I org.bukkit.spawner.Spawner org.bukkit.spawner.BaseSpawner
+I io.papermc.paper.command.CommandBlockHolder
+I io.papermc.paper.block.LockableTileState org.bukkit.block.TileState org.bukkit.block.Lockable org.bukkit.Nameable
+I io.papermc.paper.block.TileStateInventoryHolder org.bukkit.block.TileState
+I io.papermc.paper.block.MovingPiston org.bukkit.block.TileState
+I org.bukkit.block.Container io.papermc.paper.block.LockableTileState io.papermc.paper.block.TileStateInventoryHolder
+I org.bukkit.block.EntityBlockStorage org.bukkit.block.TileState
+I org.bukkit.block.Banner org.bukkit.block.TileState org.bukkit.Nameable
+I org.bukkit.block.Barrel org.bukkit.block.Container org.bukkit.loot.Lootable org.bukkit.block.Lidded
+I org.bukkit.block.Beacon io.papermc.paper.block.LockableTileState
+I org.bukkit.block.Bed org.bukkit.block.TileState org.bukkit.material.Colorable
+I org.bukkit.block.Beehive org.bukkit.block.EntityBlockStorage
+I org.bukkit.block.Bell org.bukkit.block.TileState
+I org.bukkit.block.Furnace org.bukkit.block.Container
+I org.bukkit.block.BlastFurnace org.bukkit.block.Furnace
+I org.bukkit.block.Smoker org.bukkit.block.Furnace
+I org.bukkit.block.BrushableBlock org.bukkit.loot.Lootable org.bukkit.block.TileState
+I org.bukkit.block.SculkSensor org.bukkit.block.TileState
+I org.bukkit.block.CalibratedSculkSensor org.bukkit.block.SculkSensor
+I org.bukkit.block.Campfire org.bukkit.block.TileState
+I org.bukkit.block.Chest org.bukkit.block.Container com.destroystokyo.paper.loottable.LootableBlockInventory org.bukkit.block.Lidded
+I org.bukkit.block.ChiseledBookshelf io.papermc.paper.block.TileStateInventoryHolder
+I org.bukkit.block.CommandBlock org.bukkit.block.TileState io.papermc.paper.command.CommandBlockHolder
+I org.bukkit.block.Comparator org.bukkit.block.TileState
+I org.bukkit.block.Conduit org.bukkit.block.TileState
+I org.bukkit.block.Crafter org.bukkit.block.Container com.destroystokyo.paper.loottable.LootableBlockInventory
+I org.bukkit.block.CreatureSpawner org.bukkit.block.TileState org.bukkit.spawner.Spawner
+I org.bukkit.block.DaylightDetector org.bukkit.block.TileState
+I org.bukkit.block.DecoratedPot io.papermc.paper.block.TileStateInventoryHolder org.bukkit.loot.Lootable
+I org.bukkit.block.Dispenser org.bukkit.block.Container org.bukkit.Nameable com.destroystokyo.paper.loottable.LootableBlockInventory
+I org.bukkit.block.Dropper org.bukkit.block.Container com.destroystokyo.paper.loottable.LootableBlockInventory
+I org.bukkit.block.EnchantingTable org.bukkit.block.TileState org.bukkit.Nameable
+I org.bukkit.block.EndGateway org.bukkit.block.TileState
+I org.bukkit.block.EnderChest org.bukkit.block.Lidded org.bukkit.block.TileState
+I org.bukkit.block.Sign org.bukkit.block.TileState org.bukkit.material.Colorable
+I org.bukkit.block.HangingSign org.bukkit.block.Sign
+I org.bukkit.block.Hopper org.bukkit.block.Container com.destroystokyo.paper.loottable.LootableBlockInventory
+I org.bukkit.block.Jigsaw org.bukkit.block.TileState
+I org.bukkit.block.Jukebox io.papermc.paper.block.TileStateInventoryHolder
+I org.bukkit.block.Lectern io.papermc.paper.block.TileStateInventoryHolder
+I org.bukkit.block.SculkCatalyst org.bukkit.block.TileState
+I org.bukkit.block.SculkShrieker org.bukkit.block.TileState
+I org.bukkit.block.ShulkerBox org.bukkit.block.Container com.destroystokyo.paper.loottable.LootableBlockInventory org.bukkit.block.Lidded
+I org.bukkit.block.Skull org.bukkit.block.TileState
+I org.bukkit.block.Structure org.bukkit.block.TileState
+I org.bukkit.block.TrialSpawner org.bukkit.block.TileState
+I org.bukkit.block.Vault org.bukkit.block.TileState

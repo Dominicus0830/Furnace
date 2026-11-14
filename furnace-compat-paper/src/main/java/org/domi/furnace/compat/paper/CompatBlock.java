@@ -74,7 +74,7 @@ public final class CompatBlock implements Block {
     public BlockData getBlockData() { return CompatBlockData.of(currentData()); }
 
     @Override
-    public org.bukkit.block.BlockState getState() { return CompatBlockState.of(dimension, pos, currentData()); }
+    public org.bukkit.block.BlockState getState() { return CompatBlockStates.create(dimension, pos, CompatBlockData.of(currentData())); }
 
     @Override
     public org.bukkit.block.BlockState getState(boolean useSnapshot) { return getState(); }

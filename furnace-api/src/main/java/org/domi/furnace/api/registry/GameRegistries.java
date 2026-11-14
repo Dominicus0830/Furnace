@@ -43,6 +43,12 @@ public interface GameRegistries {
     /** entry 가 태그에 들어 있는가. 없는 태그·모르는 항목이면 거짓. 블록마다 불러도 되게 가볍다. */
     default boolean isTagged(String registry, String tag, String entry) { throw new UnsupportedOperationException("isTagged"); }
 
+    /**
+     * 그 블록이 만드는 블록 엔티티 종류 id(바닐라 1.21.1 BlockEntityType 의 유효 블록 표, 예: minecraft:oak_sign → minecraft:sign,
+     * minecraft:moving_piston → minecraft:piston). 블록 엔티티가 없는 블록·모르는 블록이면 null. 아무 스레드에서 불러도 된다.
+     */
+    default String blockEntityType(String block) { throw new UnsupportedOperationException("blockEntityType"); }
+
     /** 항목을 낸 곳: "vanilla", 데이터 팩 id(예: "file/mypack"), "plugin:<이름>". 없거나 내장 목록이면 empty. */
     java.util.Optional<String> source(String registry, String key);
 
