@@ -6,6 +6,14 @@ import org.domi.furnace.server.identity.SceneHash;
 
 public abstract class TickScene implements LibraryScene {
 
+    /**
+     * 엔티티 활성 범위(D11) 설정 — 장면 정의의 일부. 기본은 꺼짐(바닐라): 기존 장면의 금 파일은 "활성 범위를 끄면 결과가 바이트까지 같다"는 증명이다.
+     * 켜는 장면(activation)만 덮는다.
+     */
+    protected org.domi.furnace.server.config.EntityActivationSettings entityActivation() {
+        return org.domi.furnace.server.config.EntityActivationSettings.OFF;
+    }
+
     /** 같은 장면을 시드만 바꿔 되풀이하는 횟수(기본 1). round 는 0부터. */
     protected int rounds(Size size) { return 1; }
 
@@ -37,6 +45,16 @@ public abstract class TickScene implements LibraryScene {
     @Override
     public final void play(Size size, SceneHash.Recorder rec, Probe probe) {
         SceneKit.install();
+        var earBefore = org.domi.furnace.server.config.EntityActivationSettings.current();
+        org.domi.furnace.server.config.EntityActivationSettings.install(entityActivation());
+        try {
+            playRounds(size, rec, probe);
+        } finally {
+            org.domi.furnace.server.config.EntityActivationSettings.install(earBefore);
+        }
+    }
+
+    private void playRounds(Size size, SceneHash.Recorder rec, Probe probe) {
         int n = ticks(size), every = checkEvery(size), rounds = rounds(size);
         for (int round = 0; round < rounds; round++) {
             String prefix = rounds > 1 ? "round " + round + " " : "";

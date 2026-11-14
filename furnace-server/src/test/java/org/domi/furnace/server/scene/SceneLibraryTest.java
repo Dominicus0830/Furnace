@@ -35,6 +35,31 @@ class SceneLibraryTest {
         assertFalse(names.isEmpty());
     }
 
+    /**
+     * 활성 범위(D11)를 끈 같은 장면은 처음 200틱(새 엔티티 면역 — 모두 활성) 동안 켠 장면(금 파일)과 줄이 같고, 그 뒤에는 엔티티 줄이 달라야 한다.
+     * 같으면 켠 쪽이 실제로 아무것도 안 하거나(갈래가 안 걸림) 끈 쪽이 새는 것이다.
+     */
+    @Test
+    void activationOffMatchesOnUntilImmunityEndsThenDiffers() {
+        List<String> on = Golden.expected("scene-activation");
+        assertNotNull(on, "금 파일 identity/scene-activation.txt 가 없다");
+        List<String> off = SceneHash.recordInFreshJvm(ActivationScene.Off.class);
+        int sameUntil = -1, diffAfter = 0;
+        for (int i = 0; i < Math.min(on.size(), off.size()); i++) {
+            String a = on.get(i), b = off.get(i);
+            if (a.startsWith("TOTAL") || !a.contains(" entities")) continue;
+            int tick = Integer.parseInt(a.replaceAll(".* tick (\\d+) .*", "$1"));
+            if (tick <= 200) {
+                assertEquals(a, b, "첫 200틱은 모두 활성이라 켜고 끈 결과가 같아야 한다");
+                sameUntil = tick;
+            } else if (!a.equals(b)) {
+                diffAfter++;
+            }
+        }
+        assertEquals(200, sameUntil, "200틱 점검까지 비교했어야 한다");
+        assertTrue(diffAfter > 0, "200틱 뒤에는 활성 범위가 결과를 바꿔야 한다(바뀌지 않으면 갈래가 걸리지 않은 것)");
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("scenes")
     void proofMatchesGolden(LibraryScene scene) {
