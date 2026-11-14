@@ -36,6 +36,12 @@ public interface Server extends org.bukkit.plugin.messaging.PluginMessageRecipie
     /** 그 형의 레지스트리(이 호환 계층에 없는 형이면 null). */
     default <T extends Keyed> Registry<T> getRegistry(Class<T> tClass) { return org.domi.furnace.compat.paper.CompatRegistries.forType(tClass); }
 
+    /** 태그(없는 태그면 null). */
+    default <T extends Keyed> Tag<T> getTag(String registry, NamespacedKey tag, Class<T> clazz) { return org.domi.furnace.compat.paper.CompatTags.get(registry, tag, clazz); }
+
+    /** 그 레지스트리의 태그 전부. */
+    default <T extends Keyed> Iterable<Tag<T>> getTags(String registry, Class<T> clazz) { return org.domi.furnace.compat.paper.CompatTags.all(registry, clazz); }
+
     Logger getLogger();
 
     PluginManager getPluginManager();
