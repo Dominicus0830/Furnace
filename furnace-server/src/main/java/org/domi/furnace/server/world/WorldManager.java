@@ -530,12 +530,22 @@ public final class WorldManager {
         if (save) {
             e.levelData().gameTime = w.gameTime();
             e.levelData().dayTime = w.dayTime();
+            copySpawn(e.levelData(), w);
             e.storage().saveLevelData(e.levelData());
         }
         e.storage().close();
         if (w.saveFailures() > 0) log.error("[WORLD] '{}' 저장 실패 {}건", e.name(), w.saveFailures());
         log.info("[WORLD] 추가 월드 '{}' 내림{}", e.name(), save ? "(저장)" : "(저장 안 함)");
         return true;
+    }
+
+    /** 플러그인이 바꾼 추가 월드 스폰(World#setSpawnLocation)을 level.dat 칸으로 옮긴다. */
+    private static void copySpawn(LevelData ld, World w) {
+        var sp = w.defaultSpawn();
+        ld.spawnX = sp.x();
+        ld.spawnY = sp.y();
+        ld.spawnZ = sp.z();
+        ld.spawnAngle = sp.yaw();
     }
 
     private static void awaitAll(List<CompletableFuture<Void>> fs, String what) throws InterruptedException {
@@ -559,6 +569,7 @@ public final class WorldManager {
                 e.built().closeStores();
                 e.levelData().gameTime = e.world().gameTime();
                 e.levelData().dayTime = e.world().dayTime();
+                copySpawn(e.levelData(), e.world());
                 e.storage().saveLevelData(e.levelData());
                 e.storage().close();
             } catch (Exception ex) {
@@ -574,6 +585,7 @@ public final class WorldManager {
             synchronized (e.levelData()) {
                 e.levelData().gameTime = e.world().gameTime();
                 e.levelData().dayTime = e.world().dayTime();
+                copySpawn(e.levelData(), e.world());
                 try {
                     e.storage().saveLevelData(e.levelData());
                 } catch (java.io.IOException ex) {

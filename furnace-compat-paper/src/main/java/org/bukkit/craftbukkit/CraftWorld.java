@@ -310,6 +310,131 @@ public final class CraftWorld implements World {
         return out;
     }
 
+    // ---- 시간·날씨·스폰·폴더(T-141) — Paper CraftWorld 와 같은 계산. 시계 주인(오버월드)이 아닌 월드의 쓰기는 경고 한 번 뒤 무시.
+
+    private static final java.util.Set<String> WARNED_CLOCK = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    private void sharedClockWrite(boolean applied, String what) {
+        if (applied || !WARNED_CLOCK.add(handle.dimension() + "|" + what)) return;
+        System.getLogger("FurnaceCompat").log(System.Logger.Level.WARNING, "World#" + what + "(" + getName()
+                + "): Furnace 는 모든 월드가 오버월드의 시간·날씨·스폰을 함께 쓴다 — 오버월드가 아닌 월드에서 바꾸는 것은 무시했다");
+    }
+
+    @Override
+    public long getTime() {
+        long time = getFullTime() % 24000;
+        if (time < 0) time += 24000;
+        return time;
+    }
+
+    @Override
+    public void setTime(long time) {
+        long full = getFullTime();   // 한 번만 읽는다(사이에 전역 틱이 끼어도 한 값으로 계산)
+        long margin = (time - full) % 24000;
+        if (margin < 0) margin += 24000;
+        setFullTime(full + margin);
+    }
+
+    @Override
+    public long getFullTime() { return handle.dayTime(); }
+
+    @Override
+    public void setFullTime(long time) { sharedClockWrite(handle.setDayTime(time), "setFullTime"); }
+
+    @Override
+    public long getGameTime() { return handle.gameTime(); }
+
+    @Override
+    public boolean hasStorm() { return handle.weather().raining(); }
+
+    @Override
+    public void setStorm(boolean hasStorm) { sharedClockWrite(handle.setWeather(hasStorm, null, 0, null, 0), "setStorm"); }
+
+    @Override
+    public int getWeatherDuration() { return handle.weather().rainTime(); }
+
+    @Override
+    public void setWeatherDuration(int duration) { sharedClockWrite(handle.setWeather(null, null, duration, null, null), "setWeatherDuration"); }
+
+    @Override
+    public boolean isThundering() { return handle.weather().thundering(); }
+
+    @Override
+    public void setThundering(boolean thundering) { sharedClockWrite(handle.setWeather(null, thundering, null, 0, 0), "setThundering"); }
+
+    @Override
+    public int getThunderDuration() { return handle.weather().thunderTime(); }
+
+    @Override
+    public void setThunderDuration(int duration) { sharedClockWrite(handle.setWeather(null, null, null, duration, null), "setThunderDuration"); }
+
+    @Override
+    public boolean isClearWeather() { return !hasStorm() && !isThundering(); }
+
+    @Override
+    public void setClearWeatherDuration(int duration) { sharedClockWrite(handle.setWeather(null, null, null, null, duration), "setClearWeatherDuration"); }
+
+    @Override
+    public int getClearWeatherDuration() { return handle.weather().clearWeatherTime(); }
+
+    @Override
+    public org.bukkit.Location getSpawnLocation() {
+        org.domi.furnace.api.world.Location l = handle.spawnLocation();
+        return new org.bukkit.Location(this, l.x(), l.y(), l.z(), l.yaw(), 0.0F);
+    }
+
+    @Override
+    public boolean setSpawnLocation(org.bukkit.Location location) {
+        if (location == null) throw new IllegalArgumentException("location");
+        return equals(location.getWorld()) && setSpawnLocation(location.getBlockX(), location.getBlockY(), location.getBlockZ(), location.getYaw());
+    }
+
+    @Override
+    public boolean setSpawnLocation(int x, int y, int z, float angle) {
+        boolean ok = handle.setSpawnLocation(x, y, z, angle);
+        sharedClockWrite(ok, "setSpawnLocation");
+        return ok;
+    }
+
+    @Override
+    public java.io.File getWorldFolder() { return handle.folder().toFile(); }
+
+    @Override
+    public List<org.bukkit.entity.Entity> getEntities() {
+        List<org.bukkit.entity.Entity> out = new ArrayList<>();
+        for (var e : handle.entitiesSnapshot()) out.add(Compat.entity(e));
+        return out;
+    }
+
+    @Override
+    public List<org.bukkit.entity.LivingEntity> getLivingEntities() {
+        List<org.bukkit.entity.LivingEntity> out = new ArrayList<>();
+        for (var e : handle.entitiesSnapshot()) if (Compat.entity(e) instanceof org.bukkit.entity.LivingEntity l) out.add(l);
+        return out;
+    }
+
+    @Override
+    public org.bukkit.entity.Item dropItem(org.bukkit.Location loc, org.bukkit.inventory.ItemStack item, java.util.function.Consumer<? super org.bukkit.entity.Item> function) {
+        return drop(loc, item, false, function);
+    }
+
+    @Override
+    public org.bukkit.entity.Item dropItemNaturally(org.bukkit.Location loc, org.bukkit.inventory.ItemStack item, java.util.function.Consumer<? super org.bukkit.entity.Item> function) {
+        return drop(loc, item, true, function);
+    }
+
+    private org.bukkit.entity.Item drop(org.bukkit.Location loc, org.bukkit.inventory.ItemStack item, boolean naturally, java.util.function.Consumer<? super org.bukkit.entity.Item> function) {
+        if (loc == null) throw new IllegalArgumentException("Location cannot be null");
+        if (item == null) throw new IllegalArgumentException("ItemStack cannot be null");
+        org.bukkit.entity.Item[] out = new org.bukkit.entity.Item[1];
+        org.domi.furnace.api.entity.Entity e = handle.dropItemNow(Compat.location(loc), org.domi.furnace.compat.paper.CompatItems.toFurnace(item), naturally, h -> {
+            out[0] = (org.bukkit.entity.Item) Compat.entity(h);
+            if (function != null) function.accept(out[0]);
+        });
+        // Paper 는 스폰이 취소돼도 만든 Item 을 돌려준다(isValid 거짓)
+        return out[0] != null ? out[0] : e == null ? null : (org.bukkit.entity.Item) Compat.entity(e);
+    }
+
     @Override
     public int getMinHeight() {
         return switch (handle.dimensionType()) {

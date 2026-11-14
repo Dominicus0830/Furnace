@@ -12,7 +12,7 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 
-/** 월드(차원 하나). 1차 호환 범위의 조회 메서드만 있다 — 스폰·시간·블록 쓰기·엔티티 목록은 H3. */
+/** 월드(차원 하나). Paper 1.21.1 World 의 일부(T-141 로 물결마다 넓힌다). */
 public interface World extends Keyed, org.bukkit.metadata.Metadatable {
 
     String getName();
@@ -158,6 +158,107 @@ public interface World extends Keyed, org.bukkit.metadata.Metadatable {
 
     /** 데이터가 효과마다 정해진 종류인 레벨 이벤트를 radius 칸 안 플레이어에게. */
     <T> void playEffect(Location location, Effect effect, T data, int radius);
+
+    // ---- 시간·날씨·스폰·폴더(T-141). Furnace 는 모든 차원이 오버월드의 시계와 날씨를 함께 쓴다(바닐라 DerivedLevelData) —
+    // 오버월드가 아닌 월드에서 바꾸면 아무 일도 하지 않는다(경고 한 번). Paper 는 월드마다 따로 가진다.
+
+    /** 하루 시각 0..23999(getFullTime 의 24000 나머지). */
+    long getTime();
+
+    /** 하루 안의 시각을 바꾼다 — 앞으로만 간다(Paper: 차이를 24000 나머지로 더한다). */
+    void setTime(long time);
+
+    /** 하루 시각(계속 는다, /time set 이 바꾸는 값). */
+    long getFullTime();
+
+    /** 하루 시각을 바꾸고 이 월드 접속자에게 곧바로 알린다. */
+    void setFullTime(long time);
+
+    /** 월드가 흐른 틱(바꿀 수 없다). */
+    long getGameTime();
+
+    /** 비가 오는가(날씨 깃발 — 비 세기가 아니다). */
+    boolean hasStorm();
+
+    /** 비 깃발을 바꾸고 남은 비 시간·맑음 붙잡기를 0 으로(Paper 와 같다 — 다음 틱에 날씨 순환이 새 시간을 뽑는다). */
+    void setStorm(boolean hasStorm);
+
+    /** 비 깃발이 바뀔 때까지 남은 틱. */
+    int getWeatherDuration();
+
+    void setWeatherDuration(int duration);
+
+    boolean isThundering();
+
+    /** 천둥 깃발을 바꾸고 남은 천둥 시간·맑음 붙잡기를 0 으로. */
+    void setThundering(boolean thundering);
+
+    int getThunderDuration();
+
+    void setThunderDuration(int duration);
+
+    /** 비도 천둥도 아닌가. */
+    boolean isClearWeather();
+
+    /** /weather clear 처럼 맑음을 붙잡는 남은 틱. */
+    void setClearWeatherDuration(int duration);
+
+    int getClearWeatherDuration();
+
+    /** 월드 스폰(블록 좌표, 바라보는 각도). */
+    Location getSpawnLocation();
+
+    /** 이 월드의 위치가 아니면 false. */
+    boolean setSpawnLocation(Location location);
+
+    /** 월드 스폰을 바꾼다. 네더·엔드는 오버월드 스폰을 함께 써서 false. */
+    boolean setSpawnLocation(int x, int y, int z, float angle);
+
+    default boolean setSpawnLocation(int x, int y, int z) { return setSpawnLocation(x, y, z, 0.0F); }
+
+    /** 이 차원의 저장 폴더(Furnace 배치: 네더 = 월드/DIM-1, 엔드 = 월드/DIM1, 추가 월드 = 그 폴더). */
+    java.io.File getWorldFolder();
+
+    /**
+     * 이 월드의 모든 엔티티(플레이어 포함) 스냅숏 — 아무 스레드에서 부를 수 있다. 엔티티를 읽고 고치는 것은 그 엔티티를 가진 region 스레드에서만
+     * (Folia 와 같은 규칙).
+     */
+    List<Entity> getEntities();
+
+    List<LivingEntity> getLivingEntities();
+
+    /** 그 형인 엔티티만. */
+    @SuppressWarnings("unchecked")
+    default <T extends Entity> Collection<T> getEntitiesByClass(Class<T> cls) {
+        List<T> out = new ArrayList<>();
+        for (Entity e : getEntities()) if (cls.isAssignableFrom(e.getClass())) out.add((T) e);
+        return out;
+    }
+
+    /** 주어진 형 가운데 하나인 엔티티만. */
+    default Collection<Entity> getEntitiesByClasses(Class<?>... classes) {
+        List<Entity> out = new ArrayList<>();
+        for (Entity e : getEntities()) {
+            for (Class<?> c : classes) {
+                if (c.isAssignableFrom(e.getClass())) {
+                    out.add(e);
+                    break;
+                }
+            }
+        }
+        return out;
+    }
+
+    /** 그 자리에 떨어진 아이템을 만든다(줍기 지연 10틱). 그 자리를 가진 region 스레드에서만. */
+    default org.bukkit.entity.Item dropItem(Location location, org.bukkit.inventory.ItemStack item) { return dropItem(location, item, null); }
+
+    /** function 은 월드에 넣기 전에 부른다. */
+    org.bukkit.entity.Item dropItem(Location location, org.bukkit.inventory.ItemStack item, java.util.function.Consumer<? super org.bukkit.entity.Item> function);
+
+    /** 각 축 0.25~0.75 를 무작위로 더한 자리에 떨군다. */
+    default org.bukkit.entity.Item dropItemNaturally(Location location, org.bukkit.inventory.ItemStack item) { return dropItemNaturally(location, item, null); }
+
+    org.bukkit.entity.Item dropItemNaturally(Location location, org.bukkit.inventory.ItemStack item, java.util.function.Consumer<? super org.bukkit.entity.Item> function);
 
     int getMinHeight();
 

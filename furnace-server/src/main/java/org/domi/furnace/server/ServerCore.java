@@ -874,6 +874,9 @@ public final class ServerCore {
         return new long[] {System.nanoTime() - p[0], serverTickCount - p[1]};
     }
 
+    /** 서버 틱 번호(바닐라 tickCount — 틱 머리에서 오른다). 아무 스레드. */
+    public long serverTickCount() { return serverTickCount; }
+
     /** 틱 하나의 머리: 요청이 있으면 프로파일을 시작하고(틱 번호를 올리기 전) 서버 틱 번호를 올린다. */
     private void beginServerTick() {
         if (tickProfileRequested) {
@@ -1276,11 +1279,13 @@ public final class ServerCore {
     public void setWorldSpawn(int x, int y, int z, float angle) {
         var old = world.defaultSpawn();
         if (old.x() == x && old.y() == y && old.z() == z && old.yaw() == angle) return;
-        levelData.spawnX = x;
-        levelData.spawnY = y;
-        levelData.spawnZ = z;
-        levelData.spawnAngle = angle;
         var spawn = new org.domi.furnace.server.world.SpawnPoint(x, y, z, angle);
+        synchronized (levelData) {   // level.dat 옮기기·쓰기(synchronized(level))와 엇갈려 네 칸이 찢어지지 않게 — 플러그인은 아무 스레드에서 부른다
+            levelData.spawnX = x;
+            levelData.spawnY = y;
+            levelData.spawnZ = z;
+            levelData.spawnAngle = angle;
+        }
         world.defaultSpawn(spawn);
         // 네더·엔드는 공유 스폰(DerivedLevelData — 오버월드 것)이라 따라간다. 따로 level.dat 을 가진 추가 월드는 자기 스폰을 유지한다.
         for (World w : worlds()) if (w != world && !w.isExtraWorld()) w.defaultSpawn(spawn);

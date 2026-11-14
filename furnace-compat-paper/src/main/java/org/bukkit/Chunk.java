@@ -19,4 +19,10 @@ public interface Chunk {
 
     /** load(true). */
     boolean load();
+
+    /**
+     * 이 청크 안(엔티티 위치 기준)의 엔티티(플레이어 포함). 이 청크를 가진 region 스레드에서만(아니면 ThreadOwnershipException — 전역 스레드의
+     * 동기 작업은 region 을 빌려 읽는다). 로드되지 않았으면 빈 배열(Paper 는 불러온다).
+     */
+    org.bukkit.entity.Entity[] getEntities();
 }
