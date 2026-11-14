@@ -16,6 +16,7 @@ public abstract class BlockBehaviour {
 
         private final int furnaceStateId;
         private net.minecraft.world.level.material.FluidState fluidState;   // 처음 물을 때 채운다(같은 객체라 경합해도 결과가 같다)
+        private byte randomlyTicking;   // 0 = 아직 모름, 1 = 아니오, 2 = 예(경합해도 결과가 같다)
 
         protected BlockStateBase(Block owner, Map<Property<?>, Comparable<?>> values, int furnaceStateId) {
             super(owner, values);
@@ -54,5 +55,12 @@ public abstract class BlockBehaviour {
 
         /** 바닐라 isAir: air·cave_air·void_air. */
         public boolean isAir() { return owner.furnaceIsAir(); }
+
+        /** 바닐라: 블록 자체가 무작위 틱을 받는가(유체 쪽은 {@code getFluidState().isRandomlyTicking()}). 서버 블록 동작 표에서 처음 물을 때 채운다. */
+        public boolean isRandomlyTicking() {
+            byte t = randomlyTicking;
+            if (t == 0) randomlyTicking = t = org.domi.furnace.compat.nms.NmsChunks.bridge().stateRandomlyTicking(furnaceStateId) ? (byte) 2 : (byte) 1;
+            return t == 2;
+        }
     }
 }

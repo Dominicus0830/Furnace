@@ -117,6 +117,9 @@ FAWE 2.16.2 `v1_21_R1` 의 실제 쓰기 순서(`PaperweightGetBlocks.internalCa
 **전용 캐시 후보 목록**(N2b-0 에서 확정, 검토 R9 가 찾은 것 포함): `cachedSerializedBody`·`inflightSerializedBody`·`cachedMotionBlockingHeightmap`·`cachedWorldSurfaceHeightmap`·`cachedSnapshot`(`touch`), `bodyWaits`/`lightWaits`, `ChunkSection.tickingCount`·T-053 마스크, `scratch`, `lightFrozen`·COW(`ownSection`), `PristineChunk`(ChunkPipeline 사본), `surface`·`oceanFloor`·`motionBlocking`(고정 모드가 다룸), N2a `NmsChunks` 캐시, 붙은 거울의 실체화 `Data`, 공개 스냅샷(3.6). `ChunkLight.lowestSource` 는 바닐라 파생 상태라 낡은 채로 둔다(2장). 방송 목록 `ChunkLevel.changed` 는 보낼 때 현재 블록을 읽으므로 그대로.
 **필드 전수 시험**: `ChunkColumn`·`ChunkSection`·`ChunkLight` 의 필드를 리플렉션으로 나열해 "들여오기가 다룸 / 블록 파생 아님" 표에 없는 필드가 있으면 실패 — 앞으로 생길 캐시도 잡는다.
 
+**바이옴 컨테이너도 같은 규칙**(N2b-0 되먹임 1, Denizen): 섹션의 `biomes` 컨테이너에 대한 `getAndSet(Unchecked)`·`set`(바이옴 칸 4³)도 블록 칸과 같이 다룬다 —
+주인 스레드면 바로 서버에(N2b-2), 아니면 거울 칸 일지에 (바이옴 칸, 값)으로 쌓아 주인이 재생(N2b-4). 훑기는 바이옴 컨테이너의 `data` 정체성도 본다(`biomes` 필드 대입과 별개).
+
 **블록 엔티티·하이트맵·빛의 다른 스레드 쓰기**(R5b): `removeBlockEntity`·`blockEntities` 맵 쓰기·private `removeBlockEntityTicker`/`removeGameEventListener`·`BlockEntity.remove` 대입, `setRawData`, `DataLayer.set`·`queueSectionData` 도 그 청크의 거울에 **한 줄 순서 일지**로 쌓고, 주인이 섹션 들여오기와 같은 순서로 적용한다. `blockEntities` 맵은 거울 맵(주인 스냅샷에서 실체화)이고, 그 맵의 `remove`·`put` 이 일지에 들어간다.
 
 ### 3.5 고정 하이트맵 — 낡은 값을 바닐라처럼 유지하기
@@ -127,6 +130,7 @@ Furnace 하이트맵은 일부가 **지연 계산**이다(`MOTION_BLOCKING`·`OC
 - `setRawData` 는 바닐라처럼 길이가 맞으면 그대로 복사, 다르면 경고 + 그 종류만 다시 계산(`primeHeightmaps`).
 - **저장 → 다시 읽기**(R7): 바닐라는 디스크 `Heightmaps` 를 읽어 낡은 값을 그대로 쓰고 없는 종류만 prime 한다. Furnace 는 지금 로드 때 다시 계산한다. 그래서 로드 때 **저장된 하이트맵을 다시 계산한 값과 비교해 다르면 그 청크를 고정 모드로 시작**한다(비용은 비교 한 번). 바닐라·Paper 가 만든 낡은 하이트맵 월드를 가져올 때도 같은 이득이 있다.
 - 비용은 원시 쓰기를 받았거나 저장값이 다른 청크에만 든다.
+- 거울 `ChunkAccess.heightmaps` 필드(N2b-0 되먹임 2, Denizen 이 GETFIELD 로 읽음): N2b-1 에서 바닐라 모양 `EnumMap`(Paper 처럼 공개)으로 넣었다. 값은 살아 있는 네 종류의 보기라 고정 모드가 되면 그대로 고정 값을 비춘다(N2b-2).
 
 ### 3.6 스레드별 규칙 — 기다리지 않는 읽기
 
@@ -193,12 +197,12 @@ D4 설명(R11): 기다리지 않는 스냅샷 읽기와 일지 쓰기는 다른 
 | 단계 | 내용 | 끝 기준 | 모델·노력치 제안 |
 |---|---|---|---|
 | **N2b-0 조사** | Furnace 블록 파생 캐시 전수 목록·필드 전수 시험 뼈대, 여러 플러그인(FAWE·WorldEdit·squaremap·Denizen + 빠른 블록 놓기 라이브러리 표본)의 필드·배열 수준 기호 표(`nms-source-survey.py` 확장), V1 정답기 뼈대·`ProtoChunk` 부트스트랩 비용 | 목록·표·정답기 시험 1개 | Sonnet high |
-| **N2b-1 떨어진 객체** | 생성자들(`LevelChunkSection` 2종, `PalettedContainer` 공개·Paper 5인자, `Strategy`·`Configuration`, 팔레트 4종, `SimpleBitStorage`·`ZeroBitStorage`, `IdMapper`), 진짜 필드(`data` volatile), 바닐라 개수 두 경로, 안정 정체성 캐시(섹션 → 청크 강한 참조) | V1 통과, 서버 쓰기 없음 | Sonnet high |
-| **N2b-2 W1(주인 스레드) + 고정 하이트맵** | 다리 메서드(`setSectionStateRawNow`·`sectionCountsNow`/`setSectionCountsNow`·`setHeightmapRawNow`), 주인 스레드 원시 쓰기, 바닐라 개수 3개 보관·무작위 틱 대상 유도, 고정 하이트맵(바닐라 `Heightmap.update` 포팅) + **로드 때 저장값 비교로 고정 시작** | V1·V2 | Opus high |
+| **N2b-1 떨어진 객체** | 생성자들(`LevelChunkSection` 2종, `PalettedContainer` 공개·Paper 5인자, `Strategy`·`Configuration`, 팔레트 4종, `SimpleBitStorage`·`ZeroBitStorage`, `IdMapper`), 진짜 필드(`data` volatile), 바닐라 개수 두 경로, 안정 정체성 캐시(섹션 → 청크 강한 참조), `heightmaps` 필드 | V1 통과, 서버 쓰기 없음 — **구현됨**(`compat-nms-n2b1-2026-11-14.md`) | Sonnet high |
+| **N2b-2 W1(주인 스레드) + 고정 하이트맵** | 다리 메서드(`setSectionStateRawNow`·`sectionCountsNow`/`setSectionCountsNow`·`setHeightmapRawNow`), 주인 스레드 원시 쓰기(블록 칸과 **바이옴 칸**), 바닐라 개수 3개 보관·무작위 틱 대상 유도, 고정 하이트맵(바닐라 `Heightmap.update` 포팅) + **로드 때 저장값 비교로 고정 시작** | V1·V2 | Opus high |
 | **N2b-3 다른 스레드 읽기** | 공개 스냅샷(틱 끝, COW 재사용, 판 번호, 읽기 요청 표시), 기다리지 않는 읽기·한도 대기, 블록 엔티티 목록 스냅샷, D4 에 따라 다른 region 스레드 규칙 | V5(읽기·교착 장면) | Opus high |
-| **N2b-4 거울·들여오기** | D3 경고 로그(저장 표시 없이 들여온 청크가 내려갈 때), 상태 기계(3.2), `ChunkColumn` 대기 표시·`importSection` 단일 진입점·필드 전수 시험, 칸 일지(D1), 구성 요소 단위 들여오기, 훑기(정체성 + 원시 개수), 맞춤 지점(Bukkit·World 읽기 진입 포함), 쓰기 장벽(VarHandle 은 힌트 게이트 밖, Field·GETFIELD/PUTFIELD), 블록 엔티티·하이트맵·빛 일지, 저장·언로드·나누기 훅 | V2·V3·V5 | Opus xhigh(동시성) |
+| **N2b-4 거울·들여오기** | D3 경고 로그(저장 표시 없이 들여온 청크가 내려갈 때), 상태 기계(3.2), `ChunkColumn` 대기 표시·`importSection` 단일 진입점·필드 전수 시험, 칸 일지(D1 — 블록·바이옴 칸), 구성 요소 단위 들여오기, 훑기(정체성 + 원시 개수), 맞춤 지점(Bukkit·World 읽기 진입 포함), 쓰기 장벽(VarHandle 은 힌트 게이트 밖, Field·GETFIELD/PUTFIELD), 블록 엔티티·하이트맵·빛 일지, 저장·언로드·나누기 훅 | V2·V3·V5 | Opus xhigh(동시성) |
 | **N2b-5 빛·클라이언트** | `DataLayer`·`LevelLightEngine` 표면, `starlight$serverRelightChunks`·`checkBlock`(하늘빛 원천 포함), 청크 패킷 shim(N3a 와 함께), `setLightCorrect`(저장 표시)·`mustNotSave` | V4 | Opus high |
-| **N2b-6 통합** | FAWE 실제 jar 로 없는 기호 재측정 → 나머지 표면(어댑터 선택·초기화 기호) 묶음, V6 Paper 대조 | V6 차이 0(또는 문서화된 가정만) | Opus high + 노트북 실측 |
+| **N2b-6 통합** | FAWE 실제 jar 로 없는 기호 재측정 → 나머지 표면(어댑터 선택·초기화 기호 — 첫 목록은 `compat-nms-n2b1-2026-11-14.md` 7장, 사용자 로그의 `BlockTypesCache` AIOOBE 원인) 묶음, V6 Paper 대조 | V6 차이 0(또는 문서화된 가정만) | Opus high + 노트북 실측 |
 
 N2b-0·1 은 N3a 와 파일이 겹치지 않아 병행할 수 있다. N2b-5 의 패킷 부분과 N2b-6 은 N3a 뒤.
 

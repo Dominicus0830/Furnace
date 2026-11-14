@@ -109,6 +109,9 @@ gzip -9 -c oracle.txt > furnace-server/src/test/resources/n2b/section-oracle-1.2
 
 ## 5. 설계에 되먹일 것(N2b-1 이후 단계가 반영)
 
+반영 상태(2026-11-14, N2b-1 PR): 1 → 설계 3.4 에 적음(구현은 N2b-2 주인 스레드·N2b-4 일지), 2 → N2b-1 에서 `ChunkAccess.heightmaps` 필드 구현(고정 값 비추기는 N2b-2),
+3 → PR #354 로 수정됨, 4 → N2b-1 에서 구현·정답 시험(`NmsDetachedSectionOracleTest`). 상세는 `compat-nms-n2b1-2026-11-14.md`.
+
 1. **바이옴 컨테이너도 칸 일지·훑기 대상**(Denizen ①): 설계 3.7 의 W1 일지가 블록 컨테이너만 말한다. 바이옴 `getAndSet(Unchecked)` 와 `acquire/release` 도 같은 규칙(주인은 바로, 비동기는 일지)으로 다룬다.
 2. **거울 `ChunkAccess` 의 `heightmaps` 필드**(Denizen ③): GETFIELD 로 읽히므로 바닐라 모양 `Map<Types, Heightmap>` 필드가 있어야 하고, 그 값은 Furnace 하이트맵(고정 모드면 고정 값)을 비춰야 한다.
 3. **WORLD_SURFACE raw 는 플러그인이 직접 읽는다**(squaremap): 빈 열 버그가 고쳐지기 전에는 Furnace 지도 결과가 바닐라와 다르다. N2b-6 대조 전에 수정 필요.

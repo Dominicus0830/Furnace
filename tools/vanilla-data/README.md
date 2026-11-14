@@ -30,6 +30,7 @@
 | `ExportContextCollisionShapes.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**, 패키지 `furnacetools`) | 시험 정답표 `furnace-server/src/test/resources/collision/context-shapes-1.21.1.tsv` (비계·물·용암의 문맥별 충돌 모양 — 발 높이·웅크림·유체 위 서기·위 칸 유체, `ContextCollisionShapeVanillaTest`) |
 | `ExportMapColors.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**, 실행에 guava 필요) | `blocks/mapcolors_1.21.1.txt` (MapColor 번호 → RGB 62개. `stateflags` 의 상태별 mapColor 칸은 RGB 값이라 지도 알고리즘의 색 번호로 되돌릴 때 쓴다) |
 | `ExportSectionOracle.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**, 서명 파일 지운 내부 jar) | 시험 정답표 `furnace-server/src/test/resources/n2b/section-oracle-1.21.1.txt.gz` (상태별 섹션 개수 깃발, 무작위 섹션의 개수 3개, 무작위 열의 하이트맵 raw — `VanillaSectionOracleTest`, 다시 만드는 법은 `docs/feature-parity/compat-nms-n2b0-survey-2026-11-14.md` 4장) |
+| `ExportPaletteOracle.java` | 서버 클래스(난독화 이름 — **1.21.1 전용**, 서명 파일 지운 내부 jar) | 시험 정답표 `furnace-compat-paper/src/test/resources/n2b/palette-oracle-1.21.1.txt.gz` (떨어진 `PalettedContainer`·`LevelChunkSection` 240건의 직렬화 해시·크기·예외 위치·개수 3개 — `NmsDetachedSectionOracleTest`, 다시 만드는 법은 `docs/feature-parity/compat-nms-n2b1-2026-11-14.md` 8장, 인자 `<출력> s.jar`) |
 | `extract_block_sound_types.py <서버 클래스 폴더> <출력>` | 서버 클래스(난독화 이름 — **1.21.1 전용**, `javap` 필요, 서버 실행 없이 바이트코드만 읽는다) | `blocks/soundtypes_1.21.1.txt` (블록별 SoundType: 크기·높이·break/step/place/hit/fall. BlockSetType/WoodType 경유 소리 포함) |
 
 `ExportBlockAttrs`는 난독화된 클래스 이름(`akt`, `dfy`, `dtc`, `dcl` …)을 직접 참조한다. 다른 버전에는 그대로 쓸 수 없고, Vineflower로 디컴파일해 이름을 다시 찾아야 한다.

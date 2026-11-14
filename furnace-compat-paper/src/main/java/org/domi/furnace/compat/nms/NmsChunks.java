@@ -82,6 +82,60 @@ public final class NmsChunks {
         throw new IllegalArgumentException("이 서버의 바이옴이 아니다: " + holder);
     }
 
+    /**
+     * 바이옴 손잡이 ↔ 레지스트리 번호 표(바닐라 {@code registryOrThrow(BIOME).asHolderIdMap()} 와 같은 번호). 없는 값은 -1, 없는 번호는 null.
+     * 데이터 팩 바이옴이 늘면 다음 물음에서 표를 다시 만든다. 하나뿐인 객체라 팔레트 컨테이너가 쥐고 있어도 된다.
+     */
+    public static final net.minecraft.core.IdMap<Holder<Biome>> BIOME_IDS = new net.minecraft.core.IdMap<>() {
+        @Override
+        public int getId(Holder<Biome> holder) {
+            if (holder == null || !(holder.value() instanceof Biome b)) return -1;
+            String k = b.furnaceKey().location().toString();
+            Integer i = biomeTable().index.get(k);
+            if (i == null) i = rebuildBiomes().index.get(k);
+            return i == null ? -1 : i;
+        }
+
+        @Override
+        public Holder<Biome> byId(int id) {
+            var hs = biomeTable().holders;
+            if (id >= hs.size()) hs = rebuildBiomes().holders;
+            return id < 0 || id >= hs.size() ? null : hs.get(id);
+        }
+
+        @Override
+        public int size() { return biomeTable().holders.size(); }
+
+        @Override
+        public java.util.Iterator<Holder<Biome>> iterator() { return biomeTable().holders.stream().<Holder<Biome>>map(h -> h).iterator(); }
+    };
+
+    // ------------------------------------------------------------------ 청크 shim 정체성(N2b-1)
+
+    /**
+     * 로드 한 번 = LevelChunk shim 하나(바닐라처럼). 키는 서버가 준 로드 표(약한 키 — 청크가 내려가 사라지면 항목도 사라진다), 값은 shim 의 약한 참조
+     * (아무도 쥐지 않은 shim 은 버려지고 다음에 새로 만든다 — 쥔 동안은 같은 객체). 섹션·컨테이너·하이트맵 보기가 청크 shim 을 강하게 쥐므로
+     * 플러그인이 섹션 하나만 쥐어도 같은 섹션 배열이 유지된다(설계 3.2, R14). 잠금은 이 모듈 안의 객체로만 건다(플러그인이 보는 객체의 모니터는 쓰지 않는다, R12).
+     */
+    private static final Object CHUNK_LOCK = new Object();
+    private static final java.util.WeakHashMap<Object, java.lang.ref.WeakReference<net.minecraft.world.level.chunk.LevelChunk>> CHUNKS = new java.util.WeakHashMap<>();
+
+    /** 로드된 청크의 shim(이번 로드 동안 같은 객체), 로드돼 있지 않으면 null. 아무 스레드(읽기는 shim 이 소유 스레드를 확인한다). */
+    public static net.minecraft.world.level.chunk.LevelChunk loadedChunk(net.minecraft.world.level.Level level, int chunkX, int chunkZ) {
+        World w = level.getWorld().furnaceHandle();
+        Object token = bridge().loadedChunkToken(w, chunkX, chunkZ);
+        if (token == null) return null;
+        synchronized (CHUNK_LOCK) {
+            var ref = CHUNKS.get(token);
+            var c = ref == null ? null : ref.get();
+            if (c == null) {
+                c = net.minecraft.world.level.chunk.LevelChunk.furnaceView(level, chunkX, chunkZ);
+                CHUNKS.put(token, new java.lang.ref.WeakReference<>(c));
+            }
+            return c;
+        }
+    }
+
     /** 바이옴 키의 holder(없으면 null). */
     public static Holder.Reference<Biome> biome(String key) { return biomeTable().byKey.get(key); }
 

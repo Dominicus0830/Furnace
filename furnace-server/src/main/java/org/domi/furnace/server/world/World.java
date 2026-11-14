@@ -306,6 +306,9 @@ public final class World {
 
     ChunkColumn loadedChunk(int cx, int cz) { return chunks.get(mapKey(Regionizer.chunkKey(cx, cz))); }
 
+    /** 로드된 청크의 이번 로드를 나타내는 불투명 객체(청크 객체 그 자체 — 부르는 쪽은 내용을 읽지 않고 약한 키로만 쓴다), 없으면 null. 아무 스레드. */
+    public Object loadedChunkToken(int cx, int cz) { return loadedChunk(cx, cz); }
+
     void putChunk(int cx, int cz, ChunkColumn c) { chunks.put(mapKey(Regionizer.chunkKey(cx, cz)), c); }
 
     void removeChunk(int cx, int cz) { chunks.remove(mapKey(Regionizer.chunkKey(cx, cz))); }

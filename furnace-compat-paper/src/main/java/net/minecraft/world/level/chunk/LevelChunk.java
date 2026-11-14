@@ -21,7 +21,7 @@ public class LevelChunk extends ChunkAccess {
         this.level = level;
     }
 
-    /** 호환 모듈 전용: 로드된 청크의 보기(로드 여부는 부르는 쪽이 확인한다). */
+    /** 호환 모듈 전용: 로드된 청크의 새 보기(로드 여부는 부르는 쪽이 확인한다). 정체성 캐시({@code NmsChunks.loadedChunk})만 부른다. */
     public static LevelChunk furnaceView(Level level, int chunkX, int chunkZ) { return new LevelChunk(level, chunkX, chunkZ); }
 
     public Level getLevel() { return level; }

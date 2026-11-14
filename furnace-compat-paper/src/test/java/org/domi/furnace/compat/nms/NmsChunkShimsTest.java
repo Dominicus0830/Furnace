@@ -102,6 +102,7 @@ class NmsChunkShimsTest {
                 int baseY = -64 + si * 16;
                 List<BlockState> all = new ArrayList<>();
                 states.getAll(all::add);
+                List<BlockState> firstSeen = new ArrayList<>();
                 boolean onlyAir = true;
                 for (int i = 0; i < 4096; i++) {
                     int x = i & 15, z = i >> 4 & 15, y = i >> 8;
@@ -109,10 +110,11 @@ class NmsChunkShimsTest {
                     BlockState want = Block.stateById(id);
                     assertSame(want, states.get(x, y, z), "칸 " + x + "," + y + "," + z);
                     assertSame(want, s.getBlockState(x, y, z));
-                    assertSame(want, all.get(i), "getAll 순서 = 칸 번호 순");
+                    if (!firstSeen.contains(want)) firstSeen.add(want);
                     if (!want.isAir()) onlyAir = false;
                     checked++;
                 }
+                assertEquals(firstSeen, all, "getAll = 칸에 있는 값마다 한 번, 처음 나온 순서(바닐라: 저장소에서 처음 나온 팔레트 번호 순)");
                 assertEquals(onlyAir, s.hasOnlyAir(), "섹션 " + si);
             }
             return "ok " + checked;
@@ -177,6 +179,40 @@ class NmsChunkShimsTest {
         });
     }
 
+    /**
+     * N2b-1 정체성: 바닐라처럼 로드 동안 LevelChunk 하나, 섹션 배열 하나, 칸마다 섹션 하나, 컨테이너·하이트맵 하나. 섹션 하나만 쥐고 있어도
+     * 청크 shim(그리고 배열)이 살아 있어 다음 getChunk 가 같은 배열을 준다(설계 3.2 R14). 보기 섹션은 쓰기를 거절한다(N2b-2 전).
+     */
+    @Test
+    void chunkShimIdentityIsStableWhileHeld() {
+        on(() -> {
+            LevelChunk c = level.getChunk(cx, cz);
+            assertSame(c, level.getChunk(cx, cz));
+            assertSame(c, level.getChunkSource().getChunkNow(cx, cz));
+            LevelChunkSection[] secs = c.getSections();
+            assertSame(secs, c.getSections());
+            assertSame(secs[3], c.getSection(3));
+            assertSame(secs[3].getStates(), secs[3].getStates());
+            assertSame(secs[3].getBiomes(), secs[3].getBiomes());
+            for (Heightmap.Types t : Heightmap.Types.values()) {
+                if (t.keepAfterWorldgen()) assertNotNull(c.heightmaps.get(t), "로드된 청크의 하이트맵 필드는 살아 있는 네 종류를 늘 가진다: " + t);
+            }
+            assertSame(c.heightmaps.get(Heightmap.Types.MOTION_BLOCKING), c.getOrCreateHeightmapUnprimed(Heightmap.Types.MOTION_BLOCKING));
+            assertEquals(c.getHeight(Heightmap.Types.MOTION_BLOCKING, 5, 6) + 1, c.heightmaps.get(Heightmap.Types.MOTION_BLOCKING).getFirstAvailable(5, 6));
+            Heightmap wg = c.getOrCreateHeightmapUnprimed(Heightmap.Types.WORLD_SURFACE_WG);
+            assertSame(wg, c.getOrCreateHeightmapUnprimed(Heightmap.Types.WORLD_SURFACE_WG), "바닐라: 만들어 넣은 뒤로 같은 객체");
+            assertTrue(c.hasPrimedHeightmap(Heightmap.Types.WORLD_SURFACE_WG), "바닐라: 만들어 넣으면 있음");
+            assertThrows(UnsupportedNmsCall.class, () -> secs[3].setBlockState(1, 1, 1, Blocks.STONE.defaultBlockState()));
+            return null;
+        });
+        LevelChunkSection held = on(() -> level.getChunk(cx, cz).getSection(5));
+        for (int i = 0; i < 3; i++) System.gc();
+        on(() -> {
+            assertSame(held, level.getChunk(cx, cz).getSection(5), "섹션을 쥐고 있으면 같은 청크 shim·배열");
+            return null;
+        });
+    }
+
     /** 바닐라: 동굴 공기만 있는 섹션은 hasOnlyAir(공기 아닌 칸 0)라 LevelChunk.getBlockState 는 air, 섹션 직접 읽기는 cave_air. */
     @Test
     void caveAirOnlySectionReadsAsAirThroughChunk() {
@@ -205,6 +241,31 @@ class NmsChunkShimsTest {
         });
         on(() -> world.editBlocksNow(org.domi.furnace.api.world.BlockEditOptions.FAST,
                 ed -> ed.fill(new org.domi.furnace.api.world.BlockPos(x0, 288, z0), new org.domi.furnace.api.world.BlockPos(x0 + 15, 303, z0 + 15), BlockData.AIR)));
+    }
+
+    /**
+     * 보기의 무작위 틱 판정은 서버 섹션의 바닐라 개수를 따른다(PR #358): 칸 쓰기로 놓은 물은 tickingFluidCount 를 올려
+     * isRandomlyTickingFluids·isRandomlyTicking 이 참, 물 블록 자체는 무작위 틱이 아니라 isRandomlyTickingBlocks 는 거짓. 지우면 다시 거짓.
+     */
+    @Test
+    void viewRandomTickPartsFollowServerVanillaCounts() {
+        int x0 = cx * 16, z0 = cz * 16;
+        BlockPos p = new BlockPos(x0 + 4, 312, z0 + 4);
+        BlockState water = Blocks.WATER.defaultBlockState(), air = Blocks.AIR.defaultBlockState();
+        on(() -> {
+            LevelChunk c = level.getChunk(cx, cz);
+            LevelChunkSection s = c.getSection(c.getSectionIndex(312));
+            assertTrue(s.hasOnlyAir(), "맨 위 섹션은 비어 있어야 한다");
+            assertFalse(s.isRandomlyTicking());
+            assertTrue(level.setBlock(p, water, 2 | 16));
+            assertTrue(s.isRandomlyTickingFluids(), "칸 쓰기로 놓은 물 = tickingFluid 1(바닐라)");
+            assertFalse(s.isRandomlyTickingBlocks());
+            assertTrue(s.isRandomlyTicking());
+            assertTrue(level.setBlock(p, air, 2 | 16));
+            assertFalse(s.isRandomlyTickingFluids());
+            assertFalse(s.isRandomlyTicking());
+            return null;
+        });
     }
 
     /** 플래그 3 은 이웃 갱신(받침 잃은 횃불이 떨어짐), 2|16 은 이웃·모양 갱신 없음(횃불이 남음). */

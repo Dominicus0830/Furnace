@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
  * N1·N2a 표면의 서술자가 바닐라 1.21.1(Mojang 이름)과 같은가 — 플러그인 바이트코드는 이름 + 서술자(반환형 포함)로 링크한다.
  * 서술자는 바닐라 서버 jar 를 javap 로 읽어 맞췄다(난독화 이름 → 형: dvi LevelChunk, duy ChunkAccess, dvj LevelChunkSection, dvq PalettedContainer,
  * dvr PalettedContainerRO, dvz ChunkStatus, dyy Heightmap, dcw Level, aqu ServerLevel, aqs ServerChunkCache, dvc ChunkSource).
- * N2b(섹션 쓰기·새 섹션·따로 만드는 하이트맵)는 아직 없어서 덫에 걸려야 한다 — 그것도 확인한다.
+ * N2b-1(떨어진 섹션 객체)은 있어야 하고, N2b-2 이후(따로 만드는 하이트맵·setRawData)는 아직 없어서 덫에 걸려야 한다 — 그것도 확인한다.
  */
 class NmsChunkSymbolsTest {
 
@@ -107,14 +107,39 @@ class NmsChunkSymbolsTest {
             {"net/minecraft/world/level/levelgen/Heightmap$Types", "keepAfterWorldgen", "()Z"},
     };
 
-    /** N2b — 아직 없어야 하는 것(플러그인 호출 위치에서 덫이 걸린다). */
-    static final String[][] ABSENT = {
+    /** N2b-1: 떨어진 섹션 객체 표면(바닐라 1.21.1 서술자 — javap 로 확인한 dvj·dvq·dvq$d·azd·azu·dfy.q 의 Mojang 이름). */
+    static final String[][] N2B1 = {
             {"net/minecraft/world/level/chunk/LevelChunkSection", "setBlockState", "(III" + STATE + ")" + STATE},
             {"net/minecraft/world/level/chunk/LevelChunkSection", "setBlockState", "(III" + STATE + "Z)" + STATE},
             {"net/minecraft/world/level/chunk/LevelChunkSection", "<init>", "(" + PC + "Lnet/minecraft/world/level/chunk/PalettedContainerRO;)V"},
+            {"net/minecraft/world/level/chunk/LevelChunkSection", "<init>", "(Lnet/minecraft/core/Registry;)V"},
+            {"net/minecraft/world/level/chunk/LevelChunkSection", "isRandomlyTickingBlocks", "()Z"},
+            {"net/minecraft/world/level/chunk/LevelChunkSection", "isRandomlyTickingFluids", "()Z"},
+            {"net/minecraft/world/level/chunk/LevelChunkSection", "write", "(Lnet/minecraft/network/FriendlyByteBuf;)V"},
+            {"net/minecraft/world/level/chunk/LevelChunkSection", "read", "(Lnet/minecraft/network/FriendlyByteBuf;)V"},
+            {"net/minecraft/world/level/chunk/LevelChunkSection", "getSerializedSize", "()I"},
+            {"net/minecraft/world/level/chunk/PalettedContainer", "<init>", "(Lnet/minecraft/core/IdMap;Ljava/lang/Object;Lnet/minecraft/world/level/chunk/PalettedContainer$Strategy;)V"},
+            {"net/minecraft/world/level/chunk/PalettedContainer", "<init>", "(Lnet/minecraft/core/IdMap;Lnet/minecraft/world/level/chunk/PalettedContainer$Strategy;"
+                    + "Lnet/minecraft/world/level/chunk/PalettedContainer$Configuration;Lnet/minecraft/util/BitStorage;Ljava/util/List;)V"},
+            {"net/minecraft/world/level/chunk/PalettedContainer", "recreate", "()" + PC},
+            {"net/minecraft/world/level/chunk/PalettedContainer", "onResize", "(ILjava/lang/Object;)I"},
+            {"net/minecraft/world/level/chunk/PalettedContainer$Strategy", "getConfiguration",
+                    "(Lnet/minecraft/core/IdMap;I)Lnet/minecraft/world/level/chunk/PalettedContainer$Configuration;"},
+            {"net/minecraft/world/level/chunk/PalettedContainer$Strategy", "getIndex", "(III)I"},
+            {"net/minecraft/util/SimpleBitStorage", "<init>", "(II[J)V"},
+            {"net/minecraft/util/SimpleBitStorage", "<init>", "(II[I)V"},
+            {"net/minecraft/util/SimpleBitStorage", "getRaw", "()[J"},
+            {"net/minecraft/util/ZeroBitStorage", "<init>", "(I)V"},
+            {"net/minecraft/world/level/chunk/HashMapPalette", "<init>", "(Lnet/minecraft/core/IdMap;ILnet/minecraft/world/level/chunk/PaletteResize;Ljava/util/List;)V"},
+            {"net/minecraft/world/level/chunk/GlobalPalette", "<init>", "(Lnet/minecraft/core/IdMap;)V"},
+            {"net/minecraft/core/IdMapper", "getId", "(Ljava/lang/Object;)I"},
+            {"net/minecraft/world/level/block/state/BlockState", "isRandomlyTicking", "()Z"},
+    };
+
+    /** N2b-2 이후 — 아직 없어야 하는 것(플러그인 호출 위치에서 덫이 걸린다). */
+    static final String[][] ABSENT = {
             {"net/minecraft/world/level/levelgen/Heightmap", "<init>", "(" + ACCESS + TYPES + ")V"},
             {"net/minecraft/world/level/levelgen/Heightmap", "setRawData", "(" + ACCESS + TYPES + "[J)V"},
-            {"net/minecraft/world/level/chunk/PalettedContainer", "<init>", "(Lnet/minecraft/core/IdMap;Ljava/lang/Object;Lnet/minecraft/world/level/chunk/PalettedContainer$Strategy;)V"},
     };
 
     @Test
@@ -125,6 +150,17 @@ class NmsChunkSymbolsTest {
         assertTrue(NmsSymbols.RUNTIME.hasField("net/minecraft/world/level/chunk/LevelChunkSection", "SECTION_SIZE", "I"));
         assertTrue(NmsSymbols.RUNTIME.hasField("net/minecraft/world/level/chunk/status/ChunkStatus", "FULL", STATUS));
         assertTrue(NmsSymbols.RUNTIME.hasField("net/minecraft/world/level/Level", "OVERWORLD", "Lnet/minecraft/resources/ResourceKey;"));
+    }
+
+    @Test
+    void n2b1DetachedSurfaceIsPresent() {
+        List<String> missing = new ArrayList<>();
+        for (String[] m : N2B1) if (!NmsSymbols.RUNTIME.hasMethod(m[0], m[1], m[2])) missing.add(m[0] + "#" + m[1] + m[2]);
+        assertEquals(List.of(), missing);
+        assertTrue(NmsSymbols.RUNTIME.hasField("net/minecraft/world/level/block/Block", "BLOCK_STATE_REGISTRY", "Lnet/minecraft/core/IdMapper;"));
+        assertTrue(NmsSymbols.RUNTIME.hasField("net/minecraft/world/level/chunk/PalettedContainer$Strategy", "SECTION_STATES",
+                "Lnet/minecraft/world/level/chunk/PalettedContainer$Strategy;"));
+        assertTrue(NmsSymbols.RUNTIME.hasField("net/minecraft/world/level/chunk/ChunkAccess", "heightmaps", "Ljava/util/Map;"));
     }
 
     @Test
