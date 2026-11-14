@@ -1,4 +1,6 @@
-// 채팅 — 그 플레이어의 연결 스레드에서(서버 틱과 무관하게) 불린다. 취소하면 아무에게도 가지 않는다.
+// 채팅 — 채팅 실행기 스레드("Async Chat Thread")에서 서버 틱과 무관하게 불린다. 한 플레이어의 채팅은 보낸 순서대로 하나씩 온다.
+// 전역·region 스레드가 아니므로 처리기가 오래 걸려도 서버가 멈추지 않고, 전역에 맡긴 일(Bukkit callSyncMethod 등)을 기다려도 된다.
+// 취소하면 아무에게도 가지 않는다.
 // renderer 를 정하면 받는 사람마다 따로 만든 줄을 시스템 메시지로 보낸다.
 // recipients() 는 받는 사람(처음엔 그 시점의 접속자 전원)이고 바꿀 수 있다 — 빼면 그 사람은 이 채팅을 받지 않는다(채널·무시·근거리 채팅 플러그인).
 // 콘솔 로그는 받는 사람과 상관없이 남는다. 한 번도 건드리지 않으면 서버는 보내는 시점의 접속자 전원에게 보낸다.
@@ -41,7 +43,7 @@ public final class AsyncChatEvent extends PlayerEvent implements Cancellable {
      * @param online 처음 받는 사람 — recipients() 를 처음 부를 때 한 번 읽는다(건드리지 않는 채팅은 사본을 만들지 않는다)
      */
     public AsyncChatEvent(Player player, String originalMessage, Text message, byte[] signature, Supplier<? extends Collection<? extends Player>> online) {
-        super(player, true);   // 연결 스레드에서 불린다 — Paper AsyncChatEvent 처럼 비동기
+        super(player, true);   // 채팅 실행기 스레드에서 불린다 — Paper AsyncChatEvent 처럼 비동기
         this.online = online;
         this.originalMessage = originalMessage;
         this.message = message;
@@ -58,7 +60,7 @@ public final class AsyncChatEvent extends PlayerEvent implements Cancellable {
 
     /**
      * 받는 사람마다 다른 서식을 쓰려면 정한다(null = 바닐라 서식). 정하면 서명 없는 시스템 메시지로 보낸다 —
-     * 채팅 신고 대상이 되지 않고, 채팅을 숨긴 사람은 받지 않는다. 불리는 스레드는 이 이벤트와 같은 연결 스레드이므로 오래 걸리는 일은 하지 않는다.
+     * 채팅 신고 대상이 되지 않고, 채팅을 숨긴 사람은 받지 않는다. 불리는 스레드는 이 이벤트와 같은 채팅 실행기 스레드다(받는 사람마다 불리니 무거운 일은 피한다).
      */
     public void renderer(ChatRenderer renderer) { this.renderer = renderer; }
 
@@ -69,7 +71,7 @@ public final class AsyncChatEvent extends PlayerEvent implements Cancellable {
 
     /**
      * 받는 사람(변경 가능한 집합, 플레이어는 UUID 로 구분한다). 처음 부르면 그 시점의 접속자 전원이 들어 있다.
-     * 빼면 그 사람은 이 채팅을 받지 않고, 더하면(접속 중인 사람만 뜻이 있다) 받는다. 이 이벤트가 불리는 연결 스레드에서만 만진다.
+     * 빼면 그 사람은 이 채팅을 받지 않고, 더하면(접속 중인 사람만 뜻이 있다) 받는다. 이 이벤트가 불리는 채팅 실행기 스레드에서만 만진다.
      */
     public Set<Player> recipients() {
         if (recipients == null) recipients = new RecipientSet(online.get());

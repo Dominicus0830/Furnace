@@ -74,7 +74,7 @@ public interface Player extends CommandSender, LivingEntity {
 
     /**
      * 이 플레이어의 채팅 입력을 가로챈다(Bukkit Conversation 처럼 플러그인이 다음 채팅 줄을 대답으로 받을 때). handler 가 있으면 채팅 줄은 채팅이 아니다 —
-     * {@code AsyncChatEvent}·방송·콘솔 로그 없이 handler 가 원문을 받는다(전역 스레드에서, 채팅 이벤트가 돌 자리에서 — 무거운 일은 스케줄러로 넘긴다). 빈 줄은 오지 않는다.
+     * {@code AsyncChatEvent}·방송·콘솔 로그 없이 handler 가 원문을 받는다(전역 스레드에서, 그 플레이어의 채팅 순서대로 — 무거운 일은 스케줄러로 넘긴다). 빈 줄은 오지 않는다.
      * 명령({@code /...})은 가로채지 않는다. null 이면 푼다. 퇴장하면 저절로 풀린다. 마지막에 정한 handler 하나만 쓴다.
      */
     default void chatInputHandler(java.util.function.Consumer<String> handler) { throw new UnsupportedOperationException("chatInputHandler"); }

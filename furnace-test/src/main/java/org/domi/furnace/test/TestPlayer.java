@@ -3,7 +3,7 @@
 // 받은 시스템 메시지·액션바는 서버 쪽 패킷 구독으로 Text 그대로 모은다(직렬화 전 값 — NBT 를 다시 풀지 않는다).
 // 받은 패킷: 읽기 스레드가 내용을 읽을 수 있는 종류(타입 레코드·GenericPacket)를 버전 중립 값으로 풀어 모은다 — received(type)·awaitPacket.
 // 다른 플러그인 리스너가 바꾸거나 취소한 뒤, 실제로 소켓으로 온 그대로다.
-// command()/chat() 은 패킷을 보낸 뒤 동기화 장벽(같은 연결의 다음 패킷 → 전역 스레드 → 플레이어 region)을 거쳐, 서버가 그 패킷을
+// command()/chat() 은 패킷을 보낸 뒤 동기화 장벽(같은 연결의 다음 패킷 → 그 연결의 채팅 사슬 → 전역 스레드 → 플레이어 region)을 거쳐, 서버가 그 패킷을
 // 처리한 뒤에 돌아온다. 그래서 바로 다음 줄에서 결과(메시지·블록·플러그인 상태)를 확인해도 된다. 틱은 진행하지 않는다.
 package org.domi.furnace.test;
 
@@ -322,8 +322,10 @@ public final class TestPlayer implements AutoCloseable {
             if (System.nanoTime() - deadline > 0) throw new IllegalStateException("서버가 패킷을 처리하지 않았다(장벽 " + n + ")");
             java.util.concurrent.locks.LockSupport.parkNanos(200_000L);
         }
-        server.onGlobal(() -> null);
         var p = server.internals().playerByName(name);
+        // 채팅·명령은 연결별 채팅 사슬(채팅 실행기 → 전역)을 거친다 — 앞서 보낸 것이 사슬에서 다 끝날 때까지
+        if (p != null) server.await(p.chat().chain().barrier());
+        server.onGlobal(() -> null);
         if (p != null) {
             var cp = p.chunkPos();
             server.await(server.internals().world().submitAtChunk(cp, r -> null));

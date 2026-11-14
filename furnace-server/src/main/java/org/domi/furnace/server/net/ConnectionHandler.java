@@ -465,8 +465,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         return false;
     }
 
-    /** 바닐라 tryHandleChat: 금지 문자면 끊고, 채팅을 숨긴 설정이면 알리고, 아니면 전역 스레드에서 실행. */
-    private void tryHandleChat(String message, Runnable action) {
+    /**
+     * 바닐라 tryHandleChat: 금지 문자면 끊고, 채팅을 숨긴 설정이면 알리고, 아니면 이 연결의 채팅 사슬(T-035)에 넣는다.
+     * 넣기(enqueue)는 사슬의 append·appendGlobal 중 하나 — 채팅은 채팅 실행기에서, 명령은 전역 스레드에서 돈다. 한 연결 안의
+     * 채팅·명령·세션 갱신은 도착 순서대로 하나씩 끝난다(Paper: 채팅은 비동기 채팅 스레드, 명령은 주 스레드).
+     */
+    private void tryHandleChat(String message, java.util.function.Predicate<org.domi.furnace.server.chat.ChatChain> enqueue) {
         Player p = player;
         if (isChatMessageIllegal(message)) {
             kick(ctx, Text.translatable("multiplayer.disconnect.illegal_characters"));
@@ -474,8 +478,14 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             p.send(new org.domi.furnace.server.net.protocol.play.SystemChat(Text.translatable("chat.disabled.options").color(org.domi.furnace.api.text.NamedTextColor.RED), false));
         } else {
             p.resetLastActionTime();   // 바닐라 resetLastActionTime — 채팅·명령도 "행동"
-            login.core.scheduler().global().execute(action);
+            if (!enqueue.test(p.chat().chain())) chatChainOverflow(p);
         }
+    }
+
+    /** 채팅 사슬이 넘쳤다(처리기가 막힌 채 수백 개를 보냄) — 바닐라 스팸 킥과 같은 사유로 끊는다. */
+    private void chatChainOverflow(Player p) {
+        log.warn("{} 의 채팅·명령이 처리되지 않은 채 {}개 넘게 쌓였다 — 연결을 끊는다", p.name(), org.domi.furnace.server.chat.ChatChain.MAX_PENDING);
+        p.kick(new Disconnect(Text.translatable("disconnect.spam")));
     }
 
     /** 바닐라 detectRateSpam. */
@@ -531,26 +541,29 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var update = org.domi.furnace.server.chat.LastSeenMessages.Update.read(frame);
         var lastSeen = unpackAndApplyLastSeen(update);
         if (lastSeen.isEmpty()) return;
-        tryHandleChat(message, () -> {
+        // 채팅 실행기 스레드에서: 서명 풀기 → AsyncChatEvent → 방송. 처리기가 막혀도 전역 틱은 멈추지 않는다(T-035).
+        tryHandleChat(message, chain -> chain.appendThen(() -> {
             org.domi.furnace.server.chat.PlayerChatMessage msg;
             try {
                 msg = p.chat().decoder().unpack(signature,
                         new org.domi.furnace.server.chat.SignedMessageBody(message, timeStamp, salt, lastSeen.get()));
             } catch (org.domi.furnace.server.chat.SignedMessageChain.DecodeException e) {
                 handleMessageDecodeFailure(e);
-                return;
+                return null;
             }
-            if (dropIfOutOfOrder()) return;
-            // 플러그인이 이 플레이어의 채팅 입력을 가로챘다(Bukkit Conversation) — CraftBukkit chat() 처럼 채팅 이벤트·방송 없이 넘긴다
+            if (dropIfOutOfOrder()) return null;
+            // 플러그인이 이 플레이어의 채팅 입력을 가로챘다(Bukkit Conversation) — CraftBukkit chat() 처럼 채팅 이벤트·방송 없이,
+            // 주 스레드(전역)에서 넘긴다(CraftBukkit processQueue). 사슬은 그 처리가 끝난 뒤 다음 채팅으로 간다.
             java.util.function.Consumer<String> capture = p.chatInputHandler();
             if (capture != null && !message.isEmpty()) {
-                try {
-                    capture.accept(message);
-                } catch (Throwable t) {
-                    log.error("채팅 입력 처리기 실패({})", p.name(), t);
-                }
-                detectRateSpam();
-                return;
+                return core.scheduler().global().execute(() -> {
+                    try {
+                        capture.accept(message);
+                    } catch (Throwable t) {
+                        log.error("채팅 입력 처리기 실패({})", p.name(), t);
+                    }
+                    detectRateSpam();
+                });
             }
             msg = msg.withUnsignedContent(msg.decoratedContent()); // 채팅 꾸밈(decorator)은 없다
             var events = core.events();
@@ -562,7 +575,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                         msg.signature() == null ? null : msg.signature().bytes(), () -> core.plugins().onlinePlayers()));
                 if (ev.isCancelled()) {
                     detectRateSpam();
-                    return;
+                    return null;
                 }
                 if (!ev.message().equals(original)) msg = msg.withUnsignedContent(ev.message());
                 renderer = ev.renderer();
@@ -576,12 +589,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             if (renderer != null) {
                 core.broadcastRenderedChat(p, bound.name(), msg.decoratedContent(), renderer, recipients);
                 detectRateSpam();
-                return;
+                return null;
             }
             if (org.domi.furnace.server.config.OperatorOptions.current().unsignedChatAsSystem()) core.broadcastChatAsSystem(msg, bound, recipients);
             else core.broadcastChatMessage(msg, p, bound, recipients);
             detectRateSpam();
-        });
+            return null;
+        }));
     }
 
     /** 바닐라 handleChatSessionUpdate: 키가 바뀌었으면 Mojang 서비스 키로 검증하고 세션을 바꾼 뒤 모두에게 알린다. */
@@ -604,11 +618,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
         try {
             var session = data.validate(p.uuid(), validator);
-            core.scheduler().global().execute(() -> {
+            // 채팅 사슬에서(전역 스레드) — 앞서 온 채팅은 옛 세션으로, 뒤에 온 채팅은 새 세션으로 풀린다(T-035)
+            boolean queued = p.chat().chain().appendGlobal(core.scheduler().global(), () -> {
                 p.chat().resetSession(session);
                 var packet = org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.initializeChat(p.uuid(), session.asData());
                 for (Player other : core.players()) other.send(packet);
             });
+            if (!queued) chatChainOverflow(p);
         } catch (org.domi.furnace.server.chat.ProfilePublicKey.ValidationException e) {
             log.error("Failed to validate profile key: {}", e.getMessage());
             kick(ctx, e.component());
@@ -631,7 +647,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         Player p = player;
         org.domi.furnace.server.ServerCore core = login.core;
         if (p == null || core == null) return;
-        tryHandleChat(rawCommand, () -> {
+        tryHandleChat(rawCommand, chain -> chain.appendGlobal(core.scheduler().global(), () -> {
             log.info("{} issued server command: /{}", p.name(), rawCommand);   // Paper: 이벤트 전에 원문으로 남긴다(취소돼도 남음)
             String command = preprocessCommand(core, p, rawCommand);
             if (command == null) {
@@ -647,7 +663,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 core.commands().performCommand(parse, command);
             }
             detectRateSpam();
-        });
+        }));
     }
 
     /** chat_command_signed: 바닐라 performSignedChatCommand — 인자 서명을 검증해 서명된 메시지로 명령에 넘긴다. */
@@ -665,7 +681,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var update = org.domi.furnace.server.chat.LastSeenMessages.Update.read(frame);
         var lastSeen = unpackAndApplyLastSeen(update);
         if (lastSeen.isEmpty()) return;
-        tryHandleChat(command, () -> {
+        tryHandleChat(command, chain -> chain.appendGlobal(core.scheduler().global(), () -> {
             log.info("{} issued server command: /{}", p.name(), command);   // Paper: 이벤트 전에 원문으로 남긴다(취소돼도 남음)
             String changed = preprocessCommand(core, p, command);
             var source = org.domi.furnace.server.command.CommandSource.player(core, p);
@@ -690,7 +706,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 core.commands().performCommand(core.commands().getDispatcher().parse(command, source.withSignedArguments(signed)), command);
             }
             detectRateSpam();
-        });
+        }));
     }
 
     private java.util.Map<String, org.domi.furnace.server.chat.PlayerChatMessage> collectSignedArguments(
