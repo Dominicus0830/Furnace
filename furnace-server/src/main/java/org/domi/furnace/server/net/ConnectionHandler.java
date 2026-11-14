@@ -4312,8 +4312,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private boolean interactAllowed(org.domi.furnace.server.ServerCore c, Player actor, int hand, int[] bp, int face, ItemStack held, int handSlot,
             org.domi.furnace.server.block.ChunkLevel level, org.domi.furnace.server.block.Pos pos) {
         if (c == null || !c.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerInteractEvent.class)) return true;
-        if (c.gameEvents().playerInteract(actor, hand, bp, level.getBlockState(pos), face, held)) return true;
+        int state = level.getBlockState(pos);
+        if (c.gameEvents().playerInteract(actor, hand, bp, state, face, held)) return true;
         org.domi.furnace.server.plugin.ClientResync.slot(actor, handSlot);
+        // CraftBukkit SPIGOT-1341: 케이크 우클릭을 막으면 클라이언트가 미리 올린 허기를 되돌린다(초 케이크는 CakeBlock 이 아니라 제외)
+        if (org.domi.furnace.server.block.B.behavior(state) instanceof org.domi.furnace.server.block.types.CakeBlock) actor.send(actor.vitals().currentHealthPacket());
         return false;
     }
 

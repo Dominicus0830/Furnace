@@ -98,6 +98,9 @@ public interface BlockActor {
     /** 플러그인이 아이템 사용 결과(엔티티 스폰 등)를 취소했을 때: 클라이언트가 먼저 줄인 손 아이템을 서버 값으로 되돌려 보낸다. */
     default void resyncHands() {}
 
+    /** 플러그인이 먹기를 취소했을 때: 클라이언트가 미리 올린 체력·허기·포화를 서버 값으로 되돌려 보낸다(Paper sendHealthUpdate). */
+    default void resyncVitals() {}
+
     /** 그 칸 용기(상자·통·셜커 상자·깔때기·발사기·공급기)의 화면 열기(바닐라 openMenu(getMenuProvider)). */
     default void openContainer(Pos pos) {}
 

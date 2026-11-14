@@ -50,6 +50,7 @@ public class CakeBlock extends org.domi.furnace.server.block.BlockBehavior {
         int bites = BITES.intValue(state);
         // Paper: 먹기 전에 EntityChangeBlockEvent(다음 조각, 마지막이면 그 칸의 유체) — 막으면 PASS(초 케이크는 초를 떨구지 않는다)
         if (!B.entityChange(level, player, pos, bites < 6 ? BITES.withInt(state, bites + 1) : org.domi.furnace.server.block.Fluids.createLegacyBlock(level.getFluidState(pos)))) {
+            player.resyncVitals();   // Paper: 막으면 클라이언트가 미리 올린 체력·허기를 다시 보낸다
             return InteractionResult.PASS;
         }
         player.awardStat("minecraft:eat_cake_slice");
