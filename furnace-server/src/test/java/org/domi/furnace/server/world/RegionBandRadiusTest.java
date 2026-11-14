@@ -1,5 +1,6 @@
 // 기본 region 설정의 띠(다른 region 까지 최소 거리)가 region 한정으로 읽는 바닐라 반경보다 커야 결과가 바닐라와 같다(T-101).
 // 반경을 늘리거나 기본 shift·merge-radius 를 줄이는 변경이 이 조건을 깨면 여기서 잡는다. 목록: docs/feature-parity/region-boundary-radii.md
+// 합치기 대기 창(새 구역이 생기고 합쳐지기 전, 청크 사이 112블록)은 이 시험이 다루지 않는다 — 목록 문서 참조.
 package org.domi.furnace.server.world;
 
 import static org.junit.jupiter.api.Assertions.*;
