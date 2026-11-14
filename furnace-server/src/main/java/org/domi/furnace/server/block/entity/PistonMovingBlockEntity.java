@@ -265,7 +265,7 @@ public class PistonMovingBlockEntity extends BlockEntity {
 
     private static AABB toAabb(double[] b) { return new AABB(b[0], b[1], b[2], b[3], b[4], b[5]); }
 
-    private static Shape collision(int state, BlockLevel level, Pos at) { return B.behavior(state).getCollisionShape(state, level, at, null); }
+    private static Shape collision(int state, BlockLevel level, Pos at) { return B.behavior(state).getCollisionShape(state, level, at, org.domi.furnace.server.block.CollisionContext.EMPTY); }
 
     @Override
     public void load(NbtCompound tag) {

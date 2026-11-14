@@ -165,7 +165,7 @@ public abstract class AbstractArrow extends Projectile {
         inGroundTime = 0;
         double sx = x(), sy = y(), sz = z();
         double ex = sx + dmx, ey = sy + dmy, ez = sz + dmz;
-        var br = org.domi.furnace.server.block.Clip.clipCollider(level, sx, sy, sz, ex, ey, ez);
+        var br = org.domi.furnace.server.block.Clip.clipCollider(level, org.domi.furnace.server.block.CollisionContext.of(this), sx, sy, sz, ex, ey, ez);
         if (!br.miss()) {
             ex = br.x();
             ey = br.y();

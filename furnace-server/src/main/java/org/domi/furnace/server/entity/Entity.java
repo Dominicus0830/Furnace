@@ -1470,7 +1470,7 @@ public abstract non-sealed class Entity implements Rider {
         Colliders out = new Colliders(entityShapes.size() + 8);
         for (int i = 0, n = entityShapes.size(); i < n; i++) out.add(entityShapes.get(i));
         if (border != null) out.add(border);
-        level.blockCollisions(self instanceof Entity e ? e : null, box, out);
+        level.blockCollisions(self, box, out);   // 플레이어도 자기 문맥(비계·가루눈)으로
         return out;
     }
 

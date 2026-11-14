@@ -1,15 +1,18 @@
 // 바닐라 LiquidBlock: 물·용암 블록. level 0 = 원천, 1~7 = 흐름(양 8-level), 8 이상 = 떨어지는 흐름.
 // 놓이거나 이웃이 바뀌면 용암·물이 만나 흑요석·조약돌·현무암이 되는지 보고 유체 틱을 건다. 흐름 계산은 FluidTicker.
+// 충돌 모양은 보통 비었지만, 그 유체 위에 설 수 있는 엔티티(스트라이더 — 용암)가 원천 반 칸 높이 위에 있으면 STABLE_SHAPE(아래 반 칸).
 package org.domi.furnace.server.block.types;
 
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
+import org.domi.furnace.server.block.CollisionContext;
 import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
+import org.domi.furnace.server.block.Shape;
 
 public class LiquidBlock extends BlockBehavior {
 
@@ -23,6 +26,19 @@ public class LiquidBlock extends BlockBehavior {
     public LiquidBlock(int block) {
         super(block);
         this.water = block == WATER;
+    }
+
+    /** STABLE_SHAPE = Block.box(0, 0, 0, 16, 8, 16) — Shapes.box 격자(1/2)까지 같게. */
+    public static final Shape STABLE_SHAPE = Shape.box(0.0, 0.0, 0.0, 1.0, 0.5, 1.0);
+
+    /**
+     * getCollisionShape: isAbove(STABLE_SHAPE, pos, true) && level == 0 && canStandOnFluid(위 칸 유체, 이 칸 유체) → STABLE_SHAPE, 아니면 빈 모양.
+     * 조건은 부수 효과가 없어 순서를 바꿔도 결과가 같다 — 거의 언제나 거짓인 "설 수 있는 유체인가"를 먼저 본다(위 칸 읽기를 아낀다).
+     */
+    @Override
+    public Shape getCollisionShape(int state, BlockLevel level, Pos pos, CollisionContext ctx) {
+        if (!ctx.standsOnAnyFluid() || LEVEL.intValue(state) != 0 || !ctx.isAbove(0.5, pos, true)) return Shape.EMPTY;
+        return ctx.canStandOnFluid(level.getFluidState(pos.above()), getFluidState(state)) ? STABLE_SHAPE : Shape.EMPTY;
     }
 
     @Override

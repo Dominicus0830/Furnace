@@ -505,12 +505,18 @@ public final class Region {
                 // 빈 칸 채우기(DUMMY)는 디스크 청크에도 한다 — 수정 전에 저장된 월드의 침대·종을 되살리고, Anvil+평지처럼 freshlyGenerated 가 안 서는 새 청크도 덮는다.
                 // 비용은 생성 풀에서 구역당 블록 배열 한 번 훑기(POI mayHavePoi 와 같은 꼴).
                 col.promotePendingBlockEntities(cp.x(), cp.z(), true);
+                // 내려가 있는 동안 이웃에서 빛이 줄었던 청크는 저장 빛을 버리고 고립 계산부터(표시는 고친 빛이 디스크에 써진 뒤 지운다)
+                if (col.lightStored() && world.lightStale().contains(cp.x(), cp.z())) {
+                    col.light(null);
+                    col.lightStored(false);
+                }
                 try {
                     org.domi.furnace.server.block.ChunkLevel.precomputeLight(col, cp.x(), cp.z(), bedrock, sky);
                 } catch (RuntimeException e) {
                     org.slf4j.LoggerFactory.getLogger(Region.class).warn("[LIGHT] 미리 계산 실패 {} — 올릴 때 다시 계산", cp, e);
                     col.light(null);
                     col.lightPrecomputed(false);
+                    col.lightStored(false);
                 }
             }
             if (ChunkTrace.ON) { traceSrc[1] = System.nanoTime(); ChunkTrace.nanos("light", traceSrc[1] - tl); }
@@ -558,6 +564,11 @@ public final class Region {
         long t0 = Regionizer.STATS ? System.nanoTime() : 0L;
         if (col.dirty()) dirtyChunks.add(cp);
         world.putChunk(cp.x(), cp.z(), col);
+        // 저장돼 있던 예약 틱을 다시 건다(남은 틱 기준). 바닐라는 청크 컨테이너가 생길 때부터 저장 예약(pendingTicks)이 (칸, 종류) 집합에
+        // 들어 있어 그 뒤 같은 (칸, 종류) 새 예약을 버린다 — 그래서 블록 엔티티·엔티티를 올리기 전, 청크를 넣자마자 건다.
+        if (col.extraNbt() != null && (col.extraNbt().contains("block_ticks") || col.extraNbt().contains("fluid_ticks"))) {
+            level().loadChunkTicks(col.extraNbt(), cp.x(), cp.z());
+        }
         long t1 = Regionizer.STATS ? System.nanoTime() : 0L;
         level().lightNewChunk(cp.x(), cp.z());   // 빛 작업 모드여도 새 청크 빛은 그 자리에서(바닐라: 빛이 끝나야 FULL — 틱·전송 전에 빛이 맞다)
         level().runLightUpdates();
@@ -566,9 +577,6 @@ public final class Region {
         loadEntities(cp, col);
         if (level().addWorldGenChunkEntities(col)) dirtyChunks.add(cp);
         if (!col.blockEntities().isEmpty()) level().registerBlockEntities(col);
-        if (col.extraNbt() != null && (col.extraNbt().contains("block_ticks") || col.extraNbt().contains("fluid_ticks"))) {
-            level().loadChunkTicks(col.extraNbt());   // 저장돼 있던 예약 틱을 다시 건다(남은 틱 기준)
-        }
         if (col.freshlyGenerated()) {
             col.freshlyGenerated(false);
             try {
@@ -638,6 +646,9 @@ public final class Region {
         fresh.lightPrecomputed(false);
         world.putChunk(cx, cz, fresh);
         lv.chunkUnloaded();   // 청크 조회 캐시가 옛 객체를 들고 있지 않게
+        if (fresh.extraNbt() != null && (fresh.extraNbt().contains("block_ticks") || fresh.extraNbt().contains("fluid_ticks"))) {
+            lv.loadChunkTicks(fresh.extraNbt(), cx, cz);   // 청크를 넣자마자(위 설치 경로와 같은 이유)
+        }
         // 남긴 엔티티의 진동 리스너(워든·알레이)는 옛 청크의 구역에 걸려 있다 — 새 청크에 다시 건다
         for (org.domi.furnace.server.entity.Entity e : new ArrayList<>(lv.entities().inChunk(cx, cz))) {
             if (e.isRemoved()) continue;
@@ -666,9 +677,6 @@ public final class Region {
         }
         lv.runLightUpdates();
         if (!fresh.blockEntities().isEmpty()) lv.registerBlockEntities(fresh);
-        if (fresh.extraNbt() != null && (fresh.extraNbt().contains("block_ticks") || fresh.extraNbt().contains("fluid_ticks"))) {
-            lv.loadChunkTicks(fresh.extraNbt());
-        }
         if (generationEntities) {
             lv.addWorldGenChunkEntities(fresh);
             if (fresh.freshlyGenerated()) {
@@ -1044,6 +1052,9 @@ public final class Region {
         autosaveEntityQueue = null;
         autosaveChunkQueue = null;
         if (withEntities) saveEntities();
+        // 마지막 틱의 편집으로 남은 빛 검사를 마저 돈다 — 안 그러면 새 블록 + 옛 빛이 저장되고, 다시 올릴 때 그 저장 빛을 믿는다(PR #304 검토 R2).
+        // 빛이 바뀐 청크는 dirty 가 돼 아래에서 같이 저장된다. 방송은 다음 틱 그대로.
+        if (level != null) level.runLightUpdates();
         if (dirtyChunks.isEmpty()) return 0;
         boolean first = true;
         for (ChunkPos cp : new ArrayList<>(dirtyChunks)) {
@@ -1074,6 +1085,8 @@ public final class Region {
         world.autosaveDragonFight(this);
         var store = world.raidStore();
         if (io != null) io.execute(store::saveIfDirty);   // raids.dat(다른 region 은 마지막으로 올린 스냅샷)
+        var stale = world.lightStale();
+        if (io != null) io.execute(stale::saveIfDirty);   // 저장 빛을 믿지 않을 청크 표시(충돌해도 남게 — PR #304 검토 R3)
         world.logStorageOnce();
         autosaveEntityQueue = new java.util.ArrayDeque<>(present);
         autosaveChunkQueue = new java.util.ArrayDeque<>(dirtyChunks);
@@ -1161,6 +1174,9 @@ public final class Region {
             }
         }
         if (drop == null) return;
+        // 내리기 전에 남은 빛 검사를 마저 돈다 — 내린 청크의 검사는 다음 틱에 버려져 새 블록 + 옛 빛이 저장된다(PR #304 검토 R2).
+        // 빛 작업 모드는 아래 settleLightForSave 가 그 청크에 닿는 밀린 빛만 끝낸다(틱마다 묶음을 다 기다리지 않게)
+        if (level != null && !level.asyncLight()) level.runLightUpdates();
         // 퇴출(저장 포함)도 틱당 시간 예산 안에서 — 생성 청크도 dirty 라(F-14) 한꺼번에 내리면 틱이 수백 ms 튄다. 남은 것은 다음 틱에.
         long deadline = saveDeadline;
         for (long key : drop) {

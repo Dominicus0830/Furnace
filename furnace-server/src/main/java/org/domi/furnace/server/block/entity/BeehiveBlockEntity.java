@@ -194,7 +194,7 @@ public class BeehiveBlockEntity extends BlockEntity {
         int dir = Dir.byName(FACING.valueName(state));
         Pos front = pos.relative(dir);
         int fs = level.getBlockState(front);
-        boolean blocked = !BlockBehaviors.of(fs).getCollisionShape(fs, level, front, null).isEmpty();
+        boolean blocked = !BlockBehaviors.of(fs).getCollisionShape(fs, level, front, org.domi.furnace.server.block.CollisionContext.EMPTY).isEmpty();
         if (blocked && status != BeeReleaseStatus.EMERGENCY) return false;
         Entity e = occupant.createEntity(cl, pos);
         if (e == null) return false;

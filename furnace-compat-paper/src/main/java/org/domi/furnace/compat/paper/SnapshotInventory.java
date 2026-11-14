@@ -24,7 +24,7 @@ class SnapshotInventory extends CompatInventory {
     /** writable: 쓸 수 있는 칸, location: getLocation()(모르면 null). */
     SnapshotInventory(InventoryType type, List<org.domi.furnace.api.item.ItemStack> contents, int size, String key, IntPredicate writable,
                       org.bukkit.Location location) {
-        super(new Slots(key, contents == null ? null : new ArrayList<>(contents), size, writable), type, () -> null);
+        super(new Slots(key, contents, size, writable), type, () -> null);
         this.location = location;
     }
 
@@ -42,15 +42,32 @@ class SnapshotInventory extends CompatInventory {
 
     private static final class Slots implements org.domi.furnace.api.inventory.Inventory {
         private final String type;
-        private final List<org.domi.furnace.api.item.ItemStack> items;
+        /**
+         * 읽는 칸 목록(null = 내용 모름). 이벤트 스냅샷의 게으른 목록(LazyList, 불변)이면 그대로 들고 처음 쓸 때 복사한다 — 처리기가 읽는 칸만
+         * Furnace 아이템으로 바뀐다(T-033). 그 밖의 목록은 예전처럼 받을 때 복사한다. this 로 잠근다.
+         */
+        private List<org.domi.furnace.api.item.ItemStack> items;
+        private boolean copied;
+        private final boolean known;
         private final int size;
         private final IntPredicate writable;
 
-        Slots(String type, List<org.domi.furnace.api.item.ItemStack> items, int size, IntPredicate writable) {
+        Slots(String type, List<org.domi.furnace.api.item.ItemStack> contents, int size, IntPredicate writable) {
             this.type = type;
-            this.items = items;
+            this.copied = !(contents instanceof org.domi.furnace.api.event.LazyList<?>);
+            this.known = contents != null;
+            this.items = contents == null ? null : copied ? new ArrayList<>(contents) : contents;
             this.size = size;
             this.writable = writable;
+        }
+
+        /** 쓸 수 있는 사본(처음 쓸 때 만든다). this 를 잡고 부른다. */
+        private List<org.domi.furnace.api.item.ItemStack> writableItems() {
+            if (!copied) {
+                items = new ArrayList<>(items);
+                copied = true;
+            }
+            return items;
         }
 
         private UnsupportedFeature unknown() {
@@ -65,19 +82,20 @@ class SnapshotInventory extends CompatInventory {
 
         @Override
         public CompletableFuture<org.domi.furnace.api.item.ItemStack> get(int slot) {
-            if (items == null) return CompletableFuture.failedFuture(unknown());
+            if (!known) return CompletableFuture.failedFuture(unknown());
             if (slot < 0 || slot >= size) return CompletableFuture.failedFuture(new IndexOutOfBoundsException("Index " + slot + " out of bounds for length " + size));
-            synchronized (items) {
+            synchronized (this) {
                 return CompletableFuture.completedFuture(slot < items.size() ? items.get(slot) : org.domi.furnace.api.item.ItemStack.EMPTY);
             }
         }
 
         @Override
         public CompletableFuture<Void> set(int slot, org.domi.furnace.api.item.ItemStack item) {
-            if (items != null && slot >= 0 && slot < size && writable.test(slot)) {
-                synchronized (items) {
-                    while (items.size() <= slot) items.add(org.domi.furnace.api.item.ItemStack.EMPTY);
-                    items.set(slot, item);
+            if (known && slot >= 0 && slot < size && writable.test(slot)) {
+                synchronized (this) {
+                    var w = writableItems();
+                    while (w.size() <= slot) w.add(org.domi.furnace.api.item.ItemStack.EMPTY);
+                    w.set(slot, item);
                 }
                 return CompletableFuture.completedFuture(null);
             }
@@ -87,9 +105,9 @@ class SnapshotInventory extends CompatInventory {
 
         @Override
         public CompletableFuture<List<org.domi.furnace.api.item.ItemStack>> contents() {
-            if (items == null) return CompletableFuture.failedFuture(unknown());
+            if (!known) return CompletableFuture.failedFuture(unknown());
             List<org.domi.furnace.api.item.ItemStack> out = new ArrayList<>(size);
-            synchronized (items) {
+            synchronized (this) {
                 for (int i = 0; i < size; i++) out.add(i < items.size() ? items.get(i) : org.domi.furnace.api.item.ItemStack.EMPTY);
             }
             return CompletableFuture.completedFuture(out);

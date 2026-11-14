@@ -118,7 +118,7 @@ public class Evoker extends SpellcasterIllager {
                 if (B.isFaceSturdy(belowState, level, below, Dir.UP)) {
                     if (!level.isEmptyBlock(pos)) {
                         int state = level.getBlockState(pos);
-                        double[] b = B.behavior(state).getCollisionShape(state, level, pos, null).bounds();
+                        double[] b = B.behavior(state).getCollisionShape(state, level, pos, org.domi.furnace.server.block.CollisionContext.EMPTY).bounds();
                         if (b != null) yOffset = b[4];
                     }
                     found = true;
