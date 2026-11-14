@@ -168,6 +168,37 @@ class BukkitBlockBreakTest {
     }
 
     @Test
+    void noEffectWhenTriggerEffectFalse() {
+        Block glass = fresh();
+        set(glass, "minecraft:glass");
+        server.tick(1);
+        tp.clearReceived();
+        assertTrue(owner(() -> glass.breakNaturally(false, false)));
+        server.tick(1);
+        tp.flushReceived();
+        BlockPos at = new BlockPos(glass.getX(), glass.getY(), glass.getZ());
+        assertTrue(tp.received(PacketTypes.Clientbound.LEVEL_EVENT).stream().noneMatch(p -> at.equals(p.get("pos"))), "triggerEffect=false 면 2001 없음");
+    }
+
+    /** 경험치는 한 번만: 스컬크 촉매(고정 5)를 부수면 구슬 값 합이 정확히 5(드롭 쪽에도 경험치를 켜면 10). */
+    @Test
+    void experienceGivenOnce() {
+        Block cat = fresh();
+        set(cat, "minecraft:sculk_catalyst");
+        assertTrue(owner(() -> cat.breakNaturally(false, true)));
+        List<Entity> orbs = near(cat).stream().filter(e -> e.getType() == EntityType.EXPERIENCE_ORB).toList();
+        int total = 0;
+        for (Entity o : orbs) {
+            var f = ((org.bukkit.craftbukkit.entity.CraftEntity) o).furnaceHandle().readNbt();
+            for (int i = 0; i < 20 && !f.isDone(); i++) server.tick(1);   // 읽기는 그 region 의 다음 틱에 돈다
+            var nbt = f.join();
+            total += nbt.getShort("Value") * Math.max(1, nbt.getInt("Count"));
+        }
+        assertEquals(5, total, orbs.toString());
+        clear(orbs);
+    }
+
+    @Test
     void effectSendsLevelEvent() {
         Block glass = fresh();
         set(glass, "minecraft:glass");

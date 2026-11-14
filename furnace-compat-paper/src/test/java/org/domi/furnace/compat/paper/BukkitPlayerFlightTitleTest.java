@@ -69,6 +69,28 @@ class BukkitPlayerFlightTitleTest {
     }
 
     @Test
+    void setFlyingSameValueSendsNoAbilities() {
+        player.setGameMode(GameMode.SURVIVAL);
+        player.setAllowFlight(true);
+        player.setFlying(true);
+        tp.flushReceived();
+        tp.clearReceived();
+        player.setFlying(true);        // 같은 값: Paper "Only refresh abilities if needed"
+        player.setAllowFlight(true);   // 같은 값이어도 setAllowFlight 는 보낸다
+        tp.flushReceived();
+        assertEquals(1, tp.received(PacketTypes.Clientbound.PLAYER_ABILITIES).size());
+        player.setAllowFlight(false);
+    }
+
+    @Test
+    void blockChangeRejectsNulls() {
+        IllegalArgumentException a = assertThrows(IllegalArgumentException.class, () -> player.sendBlockChange(null, Material.STONE.createBlockData()));
+        assertEquals("Location cannot be null", a.getMessage());
+        IllegalArgumentException b = assertThrows(IllegalArgumentException.class, () -> player.sendBlockChange(player.getLocation(), null));
+        assertEquals("BlockData cannot be null", b.getMessage());
+    }
+
+    @Test
     void titleSendsTimesThenTextInOrder() {
         tp.clearReceived();
         player.sendTitle("§a제목\n둘째 줄", "부제목", 1, 2, 3);

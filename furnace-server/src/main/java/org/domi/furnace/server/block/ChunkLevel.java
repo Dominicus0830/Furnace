@@ -2518,6 +2518,7 @@ public abstract class ChunkLevel implements BlockLevel {
 
     @Override
     public int getSkyLight(Pos pos) {
+        if (!hasSkyLight()) return 0;   // 바닐라: 하늘이 없는 차원(네더·엔드)은 하늘빛 층이 DUMMY 라 늘 0
         ChunkColumn col = chunkAt(pos);
         if (col == null || col.light() == null) return BlockLevel.super.getSkyLight(pos);
         if (pos.y() >= org.domi.furnace.server.light.ChunkLight.MAX_Y) return 15;

@@ -24,4 +24,7 @@ FAWE 2.16.2 가 부르는데 Furnace 에 없던 Player·Block 메서드. 기준�
 - 모두 소유 region 스레드 전용(아니면 ThreadOwnershipException), 청크가 없으면 IllegalStateException.
 
 ## 시험의 한계
-- 시험 서버에는 바닐라 전리품 표가 없어 드롭 내용은 늘 비어 있다. 드롭 조건은 반환값으로 재고, 내용은 서버 VanillaBlockLootTest(로컬 바닐라 데이터)가 같은 길을 잰다.
+- 시험 서버에는 바닐라 전리품 표가 없어 드롭 내용은 늘 비어 있다. breakNaturally 의 도구 조건은 반환값으로 재고, 내용은 서버 VanillaBlockLootTest(로컬 바닐라 데이터)가 같은 길을 잰다.
+  **getDrops 의 도구 조건(맞지 않는 도구면 빈 목록)은 어느 시험도 재지 못한다**(전리품 표가 없으면 맞는 도구도 빈 목록) — PR #370 검토 R5, 바닐라 데이터를 시험 서버에 붙일 수 있을 때 보강.
+- 경험치 양·난수 순서는 서버 BlockExperienceDropTest(고정 시드, 바닐라 공식과 대조)가, "한 번만 준다"는 compat experienceGivenOnce(스컬크 촉매 합 5)가 잰다.
+- 하늘빛: 하늘이 없는 차원(네더·엔드)은 ChunkLevel.getSkyLight 가 늘 0(바닐라 DUMMY 층) — 전에는 빛 자료가 없거나 높이 위 끝이면 15 였다(검토 R4).

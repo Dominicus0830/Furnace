@@ -247,6 +247,8 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
     /** 다른 월드 위치여도 좌표만 보낸다(Paper 도 월드를 보지 않는다). 접속이 끊겼으면 아무것도 안 한다. */
     @Override
     public void sendBlockChange(org.bukkit.Location loc, org.bukkit.block.data.BlockData block) {
+        if (loc == null) throw new IllegalArgumentException("Location cannot be null");
+        if (block == null) throw new IllegalArgumentException("BlockData cannot be null");
         if (!handle.isOnline()) return;
         var pos = new org.domi.furnace.api.world.BlockPos(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
         handle.sendPacket(new org.domi.furnace.api.packet.clientbound.ClientboundBlockUpdatePacket(pos,
