@@ -13,8 +13,7 @@ def cpu():
         f = open(f"/proc/{pid}/stat").read().rsplit(")", 1)[1].split()
         return (int(f[11]) + int(f[12])) / hz
     if PS: t = PS.cpu_times(); return t.user + t.system
-    if not os.path.exists("."): raise OSError
-    return 0.0
+    return None
 def rss():
     if LINUX:
         for l in open(f"/proc/{pid}/status"):
@@ -59,6 +58,6 @@ with open(out, "w") as fo:
         time.sleep(1)
         try: c1 = cpu()
         except Exception: break
-        m = metrics(); m["t"] = round(time.time() - t0, 1); m["ts"] = round(time.time(), 1); m["cpu_pct"] = round((c1 - c0) * 100, 1); m["rss_mb"] = rss(); c0 = c1
+        m = metrics(); m["t"] = round(time.time() - t0, 1); m["ts"] = round(time.time(), 1); m["cpu_pct"] = round((c1 - c0) * 100, 1) if c1 is not None and c0 is not None else ""; m["rss_mb"] = rss() or ""; c0 = c1
         g1 = groups(); m["grp"] = "|".join(f"{k}={(g1[k]-g0.get(k,0))*100:.0f}" for k in sorted(g1) if g1[k]-g0.get(k,0) > 0.005); g0 = g1
         fo.write(",".join(str(m.get(c, "")) for c in cols) + "\n"); fo.flush()

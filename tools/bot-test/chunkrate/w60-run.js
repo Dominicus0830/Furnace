@@ -29,7 +29,7 @@ if (process.platform !== 'win32' && process.getuid && process.getuid() === 0) {
   try { uid = +cp.execSync(`id -u ${user}`).toString(); gid = +cp.execSync(`id -g ${user}`).toString(); }
   catch (e) { console.error(`root 로 실행 중입니다: useradd -m ${user} 로 사용자를 만들거나 RUNAS=<사용자> 를 지정하세요`); process.exit(2); }
 }
-const chown = p => { if (uid !== undefined) { try { fs.chownSync(p, uid, gid); } catch (e) {} } };
+const chown = p => { if (uid !== undefined && !fs.lstatSync(p).isSymbolicLink()) { try { fs.chownSync(p, uid, gid); } catch (e) {} } };
 const chownR = p => { chown(p); if (fs.statSync(p).isDirectory() && !fs.lstatSync(p).isSymbolicLink()) for (const f of fs.readdirSync(p)) chownR(path.join(p, f)); };
 
 // 1) 월드 폴더
@@ -55,6 +55,7 @@ const jvmArgs = [`-Xmx${opt.xmx}`, `-Dfurnace.w60=${opt.tag}`, '-Dfurnace.tickst
 const t0 = Date.now();
 const srv = cp.spawn('java', jvmArgs, { cwd: D, stdio: ['pipe', logFd, logFd], uid, gid });
 srv.on('error', e => { console.error('java 실행 실패: ' + e.message); process.exit(1); });
+srv.stdin.on('error', () => {});   // 서버가 먼저 죽어도 러너가 EPIPE 로 죽지 않게
 // cmds 파일 지켜보기: 봇이 한 줄씩 덧붙이면 표준입력으로 넣는다.
 let cmdPos = 0;
 const pump = () => { try { const b = fs.readFileSync(path.join(D, 'cmds')); if (b.length > cmdPos) { srv.stdin.write(b.subarray(cmdPos)); cmdPos = b.length; } } catch (e) {} };
