@@ -868,10 +868,21 @@ public final class Regionizer {
             // /tick sprint: 기다리지 않고 곧바로 다음 틱(같은 풀의 다른 region 과는 마감 순서로 번갈아). 전역을 기다린 틱이면 잠깐 뒤에.
             r.nextTickNanos = r.sprintHeld() ? now + SPRINT_HOLD_NANOS : now;
         } else {
-            r.nextTickNanos += tickNanos;
-            if (r.nextTickNanos - now < 0) r.nextTickNanos = now + tickNanos;   // 너무 밀렸으면 재동기(따라잡기 폭주 방지) — sprint 끝도 여기로 돌아온다
+            r.nextTickNanos = nextDueAfterTick(r.nextTickNanos, tickNanos, now);   // sprint 끝도 여기로 돌아온다
         }
         schedule(r);
+    }
+
+    /**
+     * 평상시 틱 뒤의 다음 마감(T-171). 마감을 한 주기 앞으로 옮기되, 이미 지났으면(틱이 주기보다 길었거나 큐에서 오래 기다렸다)
+     * 지금으로 잡는다 — 바로 다음 틱을 돈다. 예전에는 {@code now + tickNanos} 라 50ms 를 조금만 넘겨도(53ms 틱) 한 주기를 통째로 쉬어
+     * TPS 가 절반(10)이 됐다. 따라잡기 몰아치기는 여전히 없다(밀린 만큼 틱을 연달아 돌지 않고 마감은 항상 지금 이후로 한 번만 앞당겨진다).
+     * 같은 풀의 다른 region 과는 마감 순(가장 오래 기다린 것 먼저)으로 번갈아 돌아 공정성은 그대로다.
+     * 틱 수(게임 시간)는 틱을 돈 횟수라 마감이 바뀌어도 순서·내용은 변하지 않는다.
+     */
+    static long nextDueAfterTick(long due, long tickNanos, long now) {
+        long next = due + tickNanos;
+        return next - now < 0 ? now : next;   // nanoTime 오버플로에 안전한 차이 비교
     }
 
     private void schedule(Region r) {
@@ -1091,13 +1102,14 @@ public final class Regionizer {
         r.settleLightBeforeSplit();   // 빛 작업 모드: 주인을 바꾸기 전에 밀린 빛을 끝낸다(끄면 아무것도 안 함)
         Map<Long, Region> target = new HashMap<>();
         List<Region> created = new ArrayList<>();
+        long splitNow = System.nanoTime();
         for (int i = 1; i < parts.size(); i++) {
             Region n = new Region(++nextId, world);
             n.manualDone = r.manualDone;   // 수동 시계: 부모가 마친 시험 틱 수
             n.inheritSteps(r.stepGeneration(), r.stepsLeft(), r.stepJoined());   // 나뉜 조각은 부모의 남은 걸음·참여 여부를 물려받는다
             n.inheritSprint(r.sprintGeneration(), r.sprintLeft(), r.sprintJoined());   // sprint 틱도
-            // 방금 돈 틱의 다음 — 나뉜 조각이 곧바로 한 번 더 돌지 않게. sprint 중이면 부모처럼 곧바로
-            n.nextTickNanos = r.sprintLeft() > 0 || manualClock ? r.nextTickNanos : r.nextTickNanos + tickNanos;
+            // 방금 돈 틱의 다음 — 나뉜 조각이 곧바로 한 번 더 돌지 않게(부모가 밀렸으면 부모처럼 지금). sprint 중이면 부모처럼 곧바로
+            n.nextTickNanos = r.sprintLeft() > 0 || manualClock ? r.nextTickNanos : nextDueAfterTick(r.nextTickNanos, tickNanos, splitNow);
             regions.add(n);
             created.add(n);
             for (long sk : parts.get(i)) {
