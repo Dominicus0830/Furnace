@@ -114,6 +114,11 @@ public final class LightBatch implements LightWorld {
         return c == null || c.blocks.sectionMayEmit(sy);
     }
 
+    @Override public boolean sectionHasOnlyAir(int cx, int sy, int cz) {
+        Column c = col(cx, cz);
+        return c == null ? LightWorld.super.sectionHasOnlyAir(cx, sy, cz) : c.blocks.sectionHasOnlyAir(cx, sy, cz);
+    }
+
     @Override public int unloadedState() { return unloadedState; }
 
     @Override public int minY() { return minY; }

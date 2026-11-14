@@ -205,6 +205,13 @@ public final class ChunkSection {
     /** 비공기 수가 0 인가. scratch 가 열린 동안에는 바깥이 scratch 를 직접 고쳐 낡을 수 있다(닫을 때 compact 가 다시 센다) — scratchOpen 참고. */
     public boolean hasOnlyAir() { return nonAirCount == 0; }
 
+    /** 지금 블록이 모두 공기인가(바닐라 hasOnlyAir) — scratch 가 열려 있어도 정확하다(그때는 칸을 훑는다). */
+    public boolean onlyAirExact() {
+        if (scratch == null) return nonAirCount == 0;
+        for (int v : scratch) if (!isAir(v)) return false;
+        return true;
+    }
+
     /** scratch(펼친 배열)가 열려 있는가 — 열려 있으면 hasOnlyAir 를 믿지 말고 칸을 읽는다. */
     public boolean scratchOpen() { return scratch != null; }
 

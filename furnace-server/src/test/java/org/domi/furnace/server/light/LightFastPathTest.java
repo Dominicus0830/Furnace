@@ -139,6 +139,11 @@ class LightFastPathTest {
             return !hints || i < 0 || cols[i].sectionMaybeHas(sy + 4, LightTables.EMITS);
         }
 
+        public boolean sectionHasOnlyAir(int cx, int sy, int cz) {
+            int i = idx(cx, cz);
+            return !hints || i < 0 ? LightWorld.super.sectionHasOnlyAir(cx, sy, cz) : cols[i].sectionOnlyAirExact(sy + 4);
+        }
+
         public int unloadedState() { return BEDROCK; }
 
         public int minY() { return -64; }

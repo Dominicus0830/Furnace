@@ -1,6 +1,8 @@
 // 바닐라 SkyLightEngine: 하늘빛. 열마다 "가장 낮은 원천 y"(ChunkSkyLightSources) 이상은 15, 그 아래는 옆·아래로 퍼지며 줄어든다.
 package org.domi.furnace.server.light;
 
+import org.domi.furnace.server.world.ChunkSection;
+
 public final class SkyLightEngine extends LightEngine {
     private static final long DECREASE_ALL_15 = decreaseAllDirections(15);
     private static final long DECREASE_SKIP_UP_15 = decreaseSkipOneDirection(15, UP);
@@ -26,21 +28,38 @@ public final class SkyLightEngine extends LightEngine {
         return world.state(x, y, z);
     }
 
-    /** 처음부터 모든 열의 원천 높이를 센다(ChunkSkyLightSources.fillFrom). */
+    /**
+     * 처음부터 모든 열의 원천 높이를 센다(ChunkSkyLightSources.fillFrom → findLowestSourceY). 생성 때와 청크를 올릴 때마다 돈다.
+     * 바닐라 특이점: 공기뿐인 구역(hasOnlyAir)을 만나면 위 칸 상태를 AIR 로 되돌리고 구역을 통째로 건너뛴다. 그래서 공기뿐인 구역 바로 위
+     * 구역의 맨 아래 줄 블록은 아래 면이 막혀 있어도(바닥 반 블록 등) 원천을 멈추지 않는다. 블록이 바뀔 때의 update·findLowestSourceBelow 는
+     * 칸마다 검사해서 이 특이점이 없다({@link #updateSource}).
+     */
     public void computeSources(int cx, int cz) {
         ChunkLight cl = world.light(cx, cz);
         int minSection = world.minY() >> 4, maxSection = (world.maxY() - 1) >> 4;
         int[] uniform = new int[maxSection - minSection + 1];
-        for (int s = minSection; s <= maxSection; s++) uniform[s - minSection] = world.uniformSectionState(cx, s, cz);
+        boolean[] onlyAir = new boolean[uniform.length];
+        for (int s = minSection; s <= maxSection; s++) {
+            int u = world.uniformSectionState(cx, s, cz);
+            uniform[s - minSection] = u;
+            onlyAir[s - minSection] = u >= 0 ? ChunkSection.isAir(u) : world.sectionHasOnlyAir(cx, s, cz);
+        }
         for (int lz = 0; lz < 16; lz++) {
             for (int lx = 0; lx < 16; lx++) {
                 int x = cx * 16 + lx, z = cz * 16 + lz;
-                int above = 0;   // air
+                int above = ChunkSection.AIR;
                 int result = ChunkLight.NO_BLOCKER;
                 for (int y = world.maxY() - 1; y >= world.minY(); y--) {
                     if ((y & 15) == 15 && y - 15 >= world.minY()) {
+                        int si = (y >> 4) - minSection;
+                        if (onlyAir[si]) {
+                            // 바닐라 hasOnlyAir 분기: 위 칸과의 면을 검사하지 않고 위 칸 상태를 AIR 로 되돌린 채 구역을 건너뛴다
+                            above = ChunkSection.AIR;
+                            y -= 15;
+                            continue;
+                        }
                         // 한 상태로만 찬 구역: 그 칸들은 모두 같은 상태라, 맨 위 칸도 그 아래 칸들도 막지 않으면 구역 전체를 그대로 지난다
-                        int u = uniform[(y >> 4) - minSection];
+                        int u = uniform[si];
                         if (u >= 0 && !blocks(above, u) && !blocks(u, u)) {
                             above = u;
                             y -= 15;   // for 의 y-- 가 아래 구역 맨 위로
