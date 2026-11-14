@@ -270,7 +270,7 @@ public final class CraftServer implements Server {
     @Override
     public List<World> getWorlds() {
         List<World> out = new ArrayList<>();
-        for (var w : f().worlds()) out.add(Compat.world(w));
+        for (var w : f().worlds()) if (Compat.worldVisible(w.dimension())) out.add(Compat.world(w));   // load: STARTUP 단계엔 아직 안 보인다
         return out;
     }
 

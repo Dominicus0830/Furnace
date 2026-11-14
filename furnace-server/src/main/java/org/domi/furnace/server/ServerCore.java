@@ -749,8 +749,19 @@ public final class ServerCore {
             if (ev.isCancelled()) return;
             command = ev.command();
         }
+        // 플러그인이 콘솔 입력을 가로챘다(Bukkit 콘솔 Conversation) — CraftServer.dispatchServerCommand 처럼 ServerCommandEvent 뒤, 명령 실행 대신
+        java.util.function.Consumer<String> capture = consoleInputHandler;
+        if (capture != null) {
+            capture.accept(command);
+            return;
+        }
         commands.performPrefixedCommand(org.domi.furnace.server.command.CommandSource.console(this), command);
     }
+
+    /** 플러그인이 가로챈 콘솔 입력 처리기(API Furnace.consoleInputHandler). 전역 스레드에서 부른다. */
+    private volatile java.util.function.Consumer<String> consoleInputHandler;
+
+    public void consoleInputHandler(java.util.function.Consumer<String> handler) { this.consoleInputHandler = handler; }
 
     public ServerPropertiesFile settings() { return settings; }
 
@@ -1500,6 +1511,13 @@ public final class ServerCore {
         var pkt = new org.domi.furnace.server.net.protocol.play.SetSimulationDistance(v);
         for (Player p : players()) p.send(pkt);
     }
+
+    /** furnace.properties bungeecord — 플러그인 API 가 알려 준다(Spigot SpigotConfig.bungee). 기동 때 한 번 정한다. */
+    private volatile boolean bungeeCordForwarding;
+
+    public void bungeeCordForwarding(boolean on) { this.bungeeCordForwarding = on; }
+
+    public boolean bungeeCordForwarding() { return bungeeCordForwarding; }
 
     public List<World> worlds() {
         var d = dimensions;

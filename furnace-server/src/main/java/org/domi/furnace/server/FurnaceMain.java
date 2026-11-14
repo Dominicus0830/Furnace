@@ -444,6 +444,7 @@ public final class FurnaceMain {
         ServerCore core = new ServerCore(settings, playerLists, profileCache, world, levelData, scheduler);
         core.dimensions(dimensions);
         core.worldManager(worldManager);
+        core.bungeeCordForwarding(config.bungeecord());
         // 클라에 보내는 세트: 데이터 팩을 읽었으면 데이터 주도 레지스트리(변종·마법부여 등)를 다시 만든 것, 아니면 플러그인 바이옴·차원 타입까지
         core.registries(dataPacks != null ? dataPacks.dynamicRegistries().registries() : registries);
         if (dataPacks != null) core.dataPacks(dataPacks);

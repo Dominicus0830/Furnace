@@ -541,6 +541,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 return;
             }
             if (dropIfOutOfOrder()) return;
+            // 플러그인이 이 플레이어의 채팅 입력을 가로챘다(Bukkit Conversation) — CraftBukkit chat() 처럼 채팅 이벤트·방송 없이 넘긴다
+            java.util.function.Consumer<String> capture = p.chatInputHandler();
+            if (capture != null && !message.isEmpty()) {
+                try {
+                    capture.accept(message);
+                } catch (Throwable t) {
+                    log.error("채팅 입력 처리기 실패({})", p.name(), t);
+                }
+                detectRateSpam();
+                return;
+            }
             msg = msg.withUnsignedContent(msg.decoratedContent()); // 채팅 꾸밈(decorator)은 없다
             var events = core.events();
             org.domi.furnace.api.event.player.ChatRenderer renderer = null;

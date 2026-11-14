@@ -456,6 +456,12 @@ public final class PluginHost implements Furnace {
     public ExecutorService asyncExecutor() { return profiledAsync; }
 
     @Override
+    public boolean bungeeCordForwarding() { return core.bungeeCordForwarding(); }
+
+    @Override
+    public void consoleInputHandler(java.util.function.Consumer<String> handler) { core.consoleInputHandler(handler); }
+
+    @Override
     public boolean onlineMode() {
         var s = core.settings();
         return s != null && s.get().onlineMode;   // server.properties 가 없는 시험 서버는 오프라인 접속만 받는다

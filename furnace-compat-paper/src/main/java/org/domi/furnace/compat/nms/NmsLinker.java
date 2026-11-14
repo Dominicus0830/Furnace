@@ -86,7 +86,11 @@ final class NmsLinker extends ClassVisitor {
         String target = "상속 " + dots(cls) + " → " + dots(parent);
         // 정의 거부는 LinkageError 가 아니라 JVM 이 실패를 기억하지 않는다 — 다시 가리킬 때마다 오므로 WARN 은 (플러그인, 클래스)당 한 번
         var log = org.slf4j.LoggerFactory.getLogger("Furnace");
-        if (REFUSAL_WARNED.add(plugin + '\0' + cls)) {
+        if (NmsCompatReport.otherVersion(cls)) {
+            // 다른 버전용 모듈(예: FAWE 의 v1_21_4·v26_1 어댑터)은 1.21.1 에서 쓰이지 않는다 — 버전 고르기가 차례로 찔러 보는 것이라 경고하지 않는다
+            // (Paper 1.21.1 에서도 그 클래스는 링크에 실패한다). 시작 보고서도 이 클래스들을 "다른 버전"으로 빼고 센다.
+            log.debug("플러그인 {}: 다른 버전 모듈 클래스 {} 정의 거부 — {} 상속", plugin, dots(cls), dots(parent));
+        } else if (REFUSAL_WARNED.add(plugin + '\0' + cls)) {
             log.warn("플러그인 {}: 클래스 {} 를 정의하지 않는다 — {} 를 상속한다: {}", plugin, dots(cls), dots(parent), why);
         } else {
             log.debug("플러그인 {}: 클래스 {} 정의 거부(다시)", plugin, dots(cls));

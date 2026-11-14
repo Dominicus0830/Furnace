@@ -94,9 +94,19 @@
 
 **리스너 통째 탈락 방지 (T-040a).** 리스너 클래스의 메서드 서명을 읽다가 없는 클래스(`NoClassDefFoundError`, 대개 어댑터에 없는 이벤트)를 만나면 Bukkit·Paper 는 그 리스너 클래스를 통째로 버린다(Paper 에서는 그 클래스가 다 있어 일어나지 않는 일). Furnace 는 이때만 클래스 파일을 ASM 으로 읽어 `@EventHandler` 메서드를 하나씩 풀고(`ListenerFallback`), 매개변수 형이 풀리는 것만 `MethodHandles.privateLookupIn(...).findVirtual` 로 등록한다 — 우선순위·`ignoreCancelled`·비공개·정적·부모 클래스의 공개 처리기까지 `getMethods()` 와 같은 가시성이다(자식의 주석 없는 덮어쓰기가 부모 처리기를 가리는 것도 같다). 건너뛴 처리기의 이름과 없는 클래스는 한 줄 경고에 남는다. 정상 경로(서명이 다 풀리는 리스너)는 그대로다. 인터페이스 default 메서드의 `@EventHandler` 도 같은 규칙으로 찾는다.
 
-**클래스만 있고 아직 알리지 않는 이벤트.** `BlockCanBuildEvent`·`BlockDamageEvent`·`BlockDispenseEvent`·`BlockExpEvent`·`NotePlayEvent`·`SignChangeEvent`·`WorldInitEvent`. 리스너 클래스 하나에 이 이벤트 처리기가 섞여 있어도 나머지 처리기는 등록되도록 클래스를 두었다(Bukkit 은 리스너 클래스의 모든 처리기 서명을 한꺼번에 읽어서, 클래스 하나가 없으면 리스너 전체가 빠진다). 처리기를 달면 플러그인·이벤트마다 한 번 "이 이벤트는 아직 알리지 않는다" 경고를 남긴다(`EventBridge.isKnownButNotFired`).
+**클래스만 있고 아직 알리지 않는 이벤트.** `BlockCanBuildEvent`·`BlockDamageEvent`·`BlockDispenseEvent`·`BlockExpEvent`·`NotePlayEvent`·`SignChangeEvent`·`WorldInitEvent`(기동 때 기본 차원은 아래 "기동 순서" 대로 알린다. 추가 월드에는 아직 알리지 않는다). 리스너 클래스 하나에 이 이벤트 처리기가 섞여 있어도 나머지 처리기는 등록되도록 클래스를 두었다(Bukkit 은 리스너 클래스의 모든 처리기 서명을 한꺼번에 읽어서, 클래스 하나가 없으면 리스너 전체가 빠진다). 처리기를 달면 플러그인·이벤트마다 한 번 "이 이벤트는 아직 알리지 않는다" 경고를 남긴다(`EventBridge.isKnownButNotFired`).
 
 플러그인이 만든 자기 이벤트는 `PluginManager#callEvent` 로 그대로 돈다(Furnace 이벤트와 이어지지 않는 순수 Bukkit 이벤트).
+
+## 기동 순서·대화·Spigot 설정 (2026-11-14, 시작 로그 FAWE·ProtocolLib 묶음)
+
+**기동 순서.** Paper 처럼 모든 플러그인의 `onLoad` 와 `load: STARTUP` 플러그인의 `onEnable` 은 월드보다 먼저다. 이 동안 `Bukkit.getWorlds()` 는 빈 목록이고 `Bukkit.getWorld(..)` 는 null 이다. STARTUP 켜기가 끝나면(없으면 나머지 플러그인을 켜기 직전) 기본 차원(overworld·nether·end, 데이터 팩 차원 포함) 하나씩 목록에 넣으며 `WorldInitEvent` 를 알리고, 다 넣은 뒤 차례로 `WorldLoadEvent` 를 알린 다음 `POSTWORLD`(기본) 플러그인을 켠다(Paper `MinecraftServer.loadWorld0` 순서). 받는 것은 그때 처리기를 단 플러그인(onLoad 에서 단 것·STARTUP 플러그인)뿐이다. `worlds.autoload` 추가 월드는 그 뒤 보이게 되며 `WorldLoadEvent` 를 한 번 받는다. Furnace 의 월드는 이때 이미 올라와 있으므로 순서만 Paper 와 같게 보여 준다. 이 덕에 FAWE·ProtocolLib 등이 "서버 리로드 감지" 오탐을 내지 않는다. 그 밖의 플랫폼(Furnace 플러그인)은 영향이 없다(`PluginFormat#beforePluginsLoad`·`enablesBeforeWorlds`·`worldsReady`).
+
+**대화(`org.bukkit.conversations`).** Bukkit 대화 API 전체(숫자 대답은 Paper 처럼 commons-lang3 3.14.0 `NumberUtils` 규칙)(`Conversation`·`ConversationFactory`·각종 `Prompt`·취소자·접두사)를 둔다. 플레이어가 대화 중이면 채팅 입력은 채팅 이벤트·방송 없이 대화로 가고(Paper `broadcastChatMessage` 와 같은 자리: 빈 메시지 무시, 스팸 계산은 그대로), 모달 대화 중에는 `sendMessage` 가 숨겨진다(`sendRawMessage` 는 보인다). 콘솔도 `ServerCommandEvent` 뒤에 대화가 입력을 가져간다. 대화 처리는 Paper 처럼 전역 스레드(Bukkit 주 스레드)에서 돈다. Furnace API 쪽 다리는 `Player#chatInputHandler`·`Furnace#consoleInputHandler`.
+
+**`org.spigotmc.SpigotConfig`.** 플러그인들이 "Spigot 위에서 도는가" 를 이 클래스의 존재로 판별한다(ProtocolLib 업데이트 확인 등). `bungee` 는 서버 설정 `bungeecord`, `config` 는 그 값만 담은 YAML 이다.
+
+**다른 버전 NMS 탐색 잡음.** 플러그인이 다른 버전 어댑터(`v1_20_R3`, `v26_1` 같은 이름)를 정의·호출하는 것은 버전 고르기라 DEBUG 로 내린다. 플러그인이 켜지는 동안(onLoad·onEnable) 리플렉션으로 찾다가 없는 NMS 클래스(대개 Paper 1.21.1 에도 없는 것)는 켜기가 끝날 때(실패했거나 켜기 전에 꺼졌으면 끌 때) WARN 한 줄로 모아 보인다.
 
 ## 지원하지 않는 것과 실패 방식
 

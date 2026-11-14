@@ -234,6 +234,15 @@ public interface Furnace {
         throw new UnsupportedOperationException("knownPlayers");
     }
 
+    /**
+     * 콘솔 입력 줄을 가로챈다(Bukkit 콘솔 Conversation). handler 가 있으면 콘솔에 친 줄은 명령으로 실행되지 않고 handler 가 받는다 — 전역 스레드에서,
+     * {@code ServerCommandEvent} 뒤에(취소되지 않은 줄만, 이벤트가 바꾼 줄로). null 이면 푼다. 마지막에 정한 handler 하나만 쓴다. RCON 은 가로채지 않는다.
+     */
+    default void consoleInputHandler(java.util.function.Consumer<String> handler) { throw new UnsupportedOperationException("consoleInputHandler"); }
+
+    /** furnace.properties 의 bungeecord(BungeeCord 레거시 IP 포워딩, Spigot settings.bungeecord)가 켜졌는가. */
+    default boolean bungeeCordForwarding() { return false; }
+
     /** server.properties 의 online-mode(접속할 때 Mojang 세션 인증을 하는가). 프록시 뒤라 false 로 둔 서버면 false. */
     default boolean onlineMode() { throw new UnsupportedOperationException("onlineMode"); }
 

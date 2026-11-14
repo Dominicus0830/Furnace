@@ -54,6 +54,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
      * 1.21.1 표지({@code 1_21_R1}, {@code 1_21_1}, 범위 {@code 1_21_0_1})나 부 버전 없는 {@code 1_21} 은 다른 버전이 아니다.
      */
     static boolean otherVersion(String internalName) {
+        if (YEAR_VERSION_TOKEN.matcher(internalName).find()) return true;   // 연도식 새 버전(26.1 = v26_1) — 1.21.1 보다 새롭다
         java.util.regex.Matcher m = VERSION_TOKEN.matcher(internalName);
         boolean other = false;
         while (m.find()) {
@@ -76,6 +77,10 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
         }
         return other;
     }
+
+    /** 연도식 버전 이름의 패키지·클래스 조각: {@code v26_1}, {@code v26_2_1}(앞이 글자·숫자가 아닌 'v' 로 시작). */
+    private static final java.util.regex.Pattern YEAR_VERSION_TOKEN =
+            java.util.regex.Pattern.compile("(?<![0-9A-Za-z])v(?:2[6-9]|[3-9][0-9])_\\d{1,2}(?:_\\d{1,2})?(?![0-9])");
 
     private static final java.util.regex.Pattern VERSION_TOKEN =
             java.util.regex.Pattern.compile("(?<![0-9])1_(\\d{1,2})(?:_R(\\d+)|((?:_\\d{1,2})+))?(?![0-9])");

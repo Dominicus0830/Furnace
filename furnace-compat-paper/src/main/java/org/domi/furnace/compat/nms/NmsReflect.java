@@ -34,12 +34,55 @@ public final class NmsReflect {
         String n = name.replace('.', '/');
         if (!NmsSymbols.isNms(n)) return;
         boolean probe = n.startsWith("net/minecraft/server/v1_") || n.startsWith("org/bukkit/craftbukkit/v1_");
-        if (!probe && WARNED.add(plugin + "\0" + name)) {
+        if (!probe && !ENABLED.contains(plugin) && NmsGrades.gradeC(n) == null) {
+            // 켜기가 끝나기 전(onLoad·onEnable)의 실패는 대개 기능 감지(다른 버전·Spigot 이름을 차례로 찔러 봄)다 — 켜기 끝에 한 줄로 모은다.
+            // 등급 C(Paper 1.21.1 에 있지만 Furnace 가 일부러 주지 않는 클래스)는 진짜 차이라 그대로 하나씩 경고한다
+            STARTUP_MISSES.computeIfAbsent(plugin, k -> java.util.Collections.synchronizedSet(new java.util.LinkedHashSet<>())).add(name);
+            LOG.debug("플러그인 {}: NMS 클래스 {} 없음(켜는 중)", plugin, name);
+        } else if (!probe && WARNED.add(plugin + "\0" + name)) {
             LOG.warn("플러그인 {} 이(가) NMS 클래스 {} 를 리플렉션으로 찾았으나 이 서버에 없다 — {} (ClassNotFoundException 을 그대로 준다)",
                     plugin, name, NmsGrades.reason(n));
         } else {
             LOG.debug("플러그인 {}: NMS 클래스 {} 없음", plugin, name);
         }
+    }
+
+    /** 켜기를 마친 플러그인 — 그 뒤의 클래스 찾기 실패는 하나씩 경고한다. */
+    private static final Set<String> ENABLED = ConcurrentHashMap.newKeySet();
+    private static final java.util.Map<String, Set<String>> STARTUP_MISSES = new ConcurrentHashMap<>();
+
+    /**
+     * 플러그인이 켜기(onEnable)를 마쳤다(실패했어도). 그때까지 리플렉션으로 찾다 없던 NMS 클래스를 WARN 한 줄로 알린다 — ProtocolLib 처럼 이름을
+     * 차례로 찔러 보는 플러그인은 Paper 1.21.1 에서도 같은 ClassNotFoundException 을 받으므로 하나씩 경고하면 소음이지만, 기능이 안 될 때 운영자가
+     * 볼 목록이라 한 줄은 남긴다. 그 뒤의 실패는 전처럼 하나씩 경고한다.
+     */
+    public static void pluginEnabled(String plugin) {
+        if (plugin == null) return;
+        ENABLED.add(plugin);
+        flush(plugin);
+    }
+
+    /** 플러그인을 껐다(켜기에 이르지 못하고 꺼진 것 포함) — 남은 목록을 알리고, 다시 켜면(핫 리로드) 다시 켜는 중으로 모은다. */
+    public static void pluginDisabled(String plugin) {
+        if (plugin == null) return;
+        flush(plugin);
+        ENABLED.remove(plugin);
+    }
+
+    private static void flush(String plugin) {
+        Set<String> misses = STARTUP_MISSES.remove(plugin);
+        if (misses == null || misses.isEmpty()) return;
+        java.util.List<String> names;
+        synchronized (misses) { names = java.util.List.copyOf(misses); }
+        LOG.warn("플러그인 {} 이(가) 켜지는 동안 리플렉션으로 찾은 NMS 클래스 {}개가 이 서버에 없어 ClassNotFoundException 을 그대로 줬다: {} — "
+                + "대부분 다른 버전·Spigot 이름을 차례로 찔러 보는 기능 감지라 Paper 1.21.1 에서도 없다. 그 플러그인 기능이 안 되면 이 목록과 "
+                + "docs/feature-parity/compat-h7-2026-11-08.md 를 보라", plugin, names.size(), names);
+    }
+
+    /** 시험용. */
+    static void resetStartupMisses() {
+        ENABLED.clear();
+        STARTUP_MISSES.clear();
     }
 
     private static void memberMissing(String plugin, Class<?> owner, String member) {

@@ -29,12 +29,22 @@ public final class NmsTrap {
     public static void call(String plugin, String site, String target, String why, int kind) {
         Error e = UnsupportedNmsLink.of(kind, target,
                 "Furnace NMS shim 에 없다: " + target + " — " + why + " (플러그인=" + plugin + ", 호출 위치=" + site + ")");
-        if (WARNED.add(plugin + '\0' + target)) {
+        if (otherVersionSite(site)) {
+            // 다른 버전용 모듈(버전 고르기가 찔러 보는 v1_21_9·v26_1 어댑터 등) 안의 호출은 1.21.1 몫이 아니다 — 같은 대상의 1.21.1 몫 경고는 남겨 둔다
+            LOG.debug("미지원 NMS 호출(다른 버전 모듈): 플러그인={}, 호출 위치={}, 대상={}", plugin, site, target);
+        } else if (WARNED.add(plugin + '\0' + target)) {
             LOG.warn("미지원 NMS 호출: 플러그인={}, 호출 위치={}, 대상={} — {} (같은 대상의 다음 호출은 DEBUG)", plugin, site, target, why);
         } else {
             LOG.debug("미지원 NMS 호출: 플러그인={}, 호출 위치={}, 대상={}", plugin, site, target);
         }
         throw e;
+    }
+
+    /** 호출 위치({@code 점.이름.클래스#메서드:줄})의 클래스가 다른 버전용 모듈인가. */
+    static boolean otherVersionSite(String site) {
+        if (site == null) return false;
+        int hash = site.indexOf('#');
+        return NmsCompatReport.otherVersion((hash < 0 ? site : site.substring(0, hash)).replace('.', '/'));
     }
 
     /** 없는 클래스로의 {@code checkcast}: JVM 처럼 null 은 클래스를 찾지 않고 통과한다(호출 뒤에 aconst_null 이 결과 자리를 채운다). */

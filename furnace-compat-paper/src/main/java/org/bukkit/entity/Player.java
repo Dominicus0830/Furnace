@@ -4,7 +4,7 @@ import java.net.InetSocketAddress;
 import org.bukkit.OfflinePlayer;
 
 /** 접속 중인 플레이어. 소리·입자는 H4 묶음 C. */
-public interface Player extends HumanEntity, OfflinePlayer, org.bukkit.plugin.messaging.PluginMessageRecipient {
+public interface Player extends HumanEntity, org.bukkit.conversations.Conversable, OfflinePlayer, org.bukkit.plugin.messaging.PluginMessageRecipient {
 
     /** 채팅 서식 %1$s 에 쓰는 이름 — 정하지 않았으면 플레이어 이름 그대로(Paper·Spigot 과 같다, 바닐라 팀 서식은 붙지 않는다). */
     String getDisplayName();
