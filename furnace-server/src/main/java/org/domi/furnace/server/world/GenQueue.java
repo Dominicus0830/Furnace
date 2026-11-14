@@ -307,9 +307,6 @@ public final class GenQueue extends AbstractExecutorService {
         }
     }
 
-    static final int TRACE_PINNED = Integer.getInteger("furnace.gen.tracePinned", 0);
-    static final AtomicInteger tracedPinned = new AtomicInteger();
-
     private void submit(Runnable r, World w, int cx, int cz, Ticket ticket, boolean background) {
         if (shutdown) throw new RejectedExecutionException("생성 대기열이 닫혔다");
         long now = System.nanoTime();

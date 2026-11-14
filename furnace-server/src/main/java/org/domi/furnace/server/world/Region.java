@@ -509,9 +509,6 @@ public final class Region {
         if (inflight != null) {
             if (!prefetch || keepAlive != null) {   // 미리 불러오기 말고는 진행 중 요청을 고정한다(티켓 로드도 — 드묾)
                 GenQueue.Ticket t = world.genTicket(key);
-                if (t != null && t.cancellable() && GenQueue.TRACE_PINNED > 0 && GenQueue.tracedPinned.incrementAndGet() <= GenQueue.TRACE_PINNED) {
-                    org.slf4j.LoggerFactory.getLogger(Region.class).info("[GEN] 미리 불러오기에 고정 {}", cp, new Throwable("요청 출처"));
-                }
                 if (t != null && !t.pin()) {
                     return inflight.handle((c, e) -> null)
                             .thenCompose(v -> world.submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(x -> x));
@@ -520,9 +517,6 @@ public final class Region {
             return inflight;
         }
         claim(cp);
-        if (!prefetch && GenQueue.TRACE_PINNED > 0 && GenQueue.tracedPinned.incrementAndGet() <= GenQueue.TRACE_PINNED) {
-            org.slf4j.LoggerFactory.getLogger(Region.class).info("[GEN] 고정 로드 {}", cp, new Throwable("요청 출처"));
-        }
         final GenQueue.Ticket ticket = new GenQueue.Ticket(prefetch, keepAlive, owner);
         world.putGenTicket(key, ticket);
         java.util.concurrent.Executor genExec = world.genExecutor(cp.x(), cp.z(), ticket);
