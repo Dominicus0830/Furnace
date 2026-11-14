@@ -183,4 +183,40 @@ public interface Player extends HumanEntity, org.bukkit.conversations.Conversabl
 
     /** data 형이 {@link org.bukkit.Particle#getDataType()} 과 맞지 않거나 필요한데 null 이면 IllegalArgumentException. */
     <T> void spawnParticle(org.bukkit.Particle particle, double x, double y, double z, int count, double offsetX, double offsetY, double offsetZ, double extra, T data, boolean force);
+
+    /** Paper 1.21.1 Player.Spigot. 기본 몸은 Paper 처럼 UnsupportedOperationException — CraftPlayer 가 채운다. */
+    class Spigot extends Entity.Spigot {
+
+        public java.net.InetSocketAddress getRawAddress() { throw new UnsupportedOperationException("Not supported yet."); }
+
+        public void respawn() { throw new UnsupportedOperationException("Not supported yet."); }
+
+        public java.util.Set<Player> getHiddenPlayers() { throw new UnsupportedOperationException("Not supported yet."); }
+
+        @Deprecated
+        @Override
+        public void sendMessage(net.md_5.bungee.api.chat.BaseComponent component) { throw new UnsupportedOperationException("Not supported yet."); }
+
+        @Deprecated
+        @Override
+        public void sendMessage(net.md_5.bungee.api.chat.BaseComponent... components) { throw new UnsupportedOperationException("Not supported yet."); }
+
+        @Deprecated
+        public void sendMessage(net.md_5.bungee.api.ChatMessageType position, net.md_5.bungee.api.chat.BaseComponent component) { throw new UnsupportedOperationException("Not supported yet."); }
+
+        @Deprecated
+        public void sendMessage(net.md_5.bungee.api.ChatMessageType position, net.md_5.bungee.api.chat.BaseComponent... components) { throw new UnsupportedOperationException("Not supported yet."); }
+
+        @Deprecated
+        public void sendMessage(net.md_5.bungee.api.ChatMessageType position, java.util.UUID sender, net.md_5.bungee.api.chat.BaseComponent component) { throw new UnsupportedOperationException("Not supported yet."); }
+
+        @Deprecated
+        public void sendMessage(net.md_5.bungee.api.ChatMessageType position, java.util.UUID sender, net.md_5.bungee.api.chat.BaseComponent... components) { throw new UnsupportedOperationException("Not supported yet."); }
+
+        @Deprecated
+        public int getPing() { throw new UnsupportedOperationException("Not supported yet."); }
+    }
+
+    @Override
+    Spigot spigot();
 }

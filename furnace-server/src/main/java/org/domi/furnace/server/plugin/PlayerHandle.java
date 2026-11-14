@@ -139,6 +139,11 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     }
 
     @Override
+    public InetSocketAddress rawAddress() {
+        return p.rawAddress() instanceof InetSocketAddress a ? a : null;
+    }
+
+    @Override
     public void kick(Text reason) { p.kick(new Disconnect(reason)); }
 
     @Override

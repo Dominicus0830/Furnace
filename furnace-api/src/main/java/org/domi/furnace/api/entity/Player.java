@@ -87,6 +87,12 @@ public interface Player extends CommandSender, LivingEntity {
 
     InetSocketAddress address();
 
+    /**
+     * 소켓 상대 주소(연결 그 자체). BungeeCord·Velocity 포워딩이나 PROXY 프로토콜이면 프록시의 주소이고, {@link #address()} 는 프록시가 알려 준 플레이어 주소다.
+     * 포워딩이 없으면 둘이 같다.
+     */
+    default InetSocketAddress rawAddress() { return address(); }
+
     /** 사유를 보여 주고 연결을 끊는다. */
     void kick(Text reason);
 

@@ -101,6 +101,24 @@ public interface World {
     boolean isChunkLoaded(int chunkX, int chunkZ);
 
     /**
+     * 그 청크를 올린다(Paper World#getChunkAtAsync). 이미 올라와 있으면 그대로. generate 가 거짓이면 디스크에 저장된 청크만 올리고,
+     * 없으면 false 로 끝난다(새로 만들지 않는다). 결과는 그 청크를 가진 region 스레드에서 완료된다 — 이어 붙인 작업이 거기서 곧바로 청크를 만질 수 있다.
+     * 단 이미 끝난 Future 에 붙인 작업은 붙인 스레드에서 돈다(CompletableFuture 규칙, Paper 도 같다): 비동기 스레드에서 붙일 때 region 스레드에서
+     * 돌게 하려면 {@code thenAcceptAsync(..., scheduler(pos)::execute)} 처럼 그 칸의 스케줄러를 실행기로 준다.
+     * 올린 청크는 Paper 플러그인 티켓처럼 20틱 붙잡고(레벨 33 — 올려만 둔다), 그 뒤 플레이어·티켓이 없으면 퇴출 유예가 지나 보통 규칙대로 내려간다.
+     * 내린 월드면 RejectedExecutionException 으로 끝난다. 아무 스레드.
+     */
+    default CompletableFuture<Boolean> loadChunkAsync(int chunkX, int chunkZ, boolean generate) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("loadChunkAsync"));
+    }
+
+    /**
+     * 그 청크를 보고 있는 플레이어에게 청크를 통째로 다시 보낸다(Paper World#refreshChunk). 올라와 있지 않으면 false.
+     * 보내기는 그 청크를 가진 region 스레드에서 곧 일어난다(지금 상태가 실린다). 아무 스레드.
+     */
+    default boolean refreshChunk(int chunkX, int chunkZ) { throw new UnsupportedOperationException("refreshChunk"); }
+
+    /**
      * 그 청크를 이 월드의 생성기(시드·월드젠 훅 포함)로 처음부터 다시 만들어 바꾼다(불만 표 41번). 결과 블록은 같은 시드의 새 월드에서
      * 그 청크가 처음 만들어질 때와 같다 — 이웃 청크에서 넘어오는 나무·구조물 조각도 포함하고, 이 청크에서 이웃으로 넘치는 장식은
      * 이웃을 바꾸지 않는다. 블록·바이옴·블록 엔티티·예약 틱·구조물 참조·POI 를 바꾸고, 빛을 다시 계산하고, 그 청크를 보는

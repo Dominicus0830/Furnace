@@ -13,7 +13,7 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 
 /** 월드(차원 하나). Paper 1.21.1 World 의 일부(T-141 로 물결마다 넓힌다). */
-public interface World extends Keyed, org.bukkit.metadata.Metadatable {
+public interface World extends Keyed, org.bukkit.metadata.Metadatable, org.bukkit.generator.WorldInfo {
 
     String getName();
 
@@ -145,6 +145,69 @@ public interface World extends Keyed, org.bukkit.metadata.Metadatable {
 
     boolean isChunkLoaded(int x, int z);
 
+    /** 그 청크를 보는 플레이어에게 청크를 다시 보낸다. 올라와 있지 않으면 false(Paper 와 같다). */
+    boolean refreshChunk(int x, int z);
+
+    // ---- 비동기 청크(Paper async chunks API). 결과는 그 청크를 가진 region 스레드에서 완료된다(Paper 는 주 스레드).
+
+    /**
+     * 그 청크를 올린다. gen 이 거짓이면 저장된 청크만(없으면 null). urgent 는 Furnace 에 우선순위 줄이 없어 무시한다.
+     */
+    java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsync(int x, int z, boolean gen, boolean urgent);
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsync(int x, int z, boolean gen) { return getChunkAtAsync(x, z, gen, false); }
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsync(int x, int z) { return getChunkAtAsync(x, z, true); }
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsync(Location loc) { return getChunkAtAsync((int) Math.floor(loc.getX()) >> 4, (int) Math.floor(loc.getZ()) >> 4, true); }
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsync(Location loc, boolean gen) { return getChunkAtAsync((int) Math.floor(loc.getX()) >> 4, (int) Math.floor(loc.getZ()) >> 4, gen); }
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsync(Block block) { return getChunkAtAsync(block.getX() >> 4, block.getZ() >> 4, true); }
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsync(Block block, boolean gen) { return getChunkAtAsync(block.getX() >> 4, block.getZ() >> 4, gen); }
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsyncUrgently(int x, int z) { return getChunkAtAsync(x, z, true, true); }
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsyncUrgently(Location loc) { return getChunkAtAsync((int) Math.floor(loc.getX()) >> 4, (int) Math.floor(loc.getZ()) >> 4, true, true); }
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsyncUrgently(Location loc, boolean gen) { return getChunkAtAsync((int) Math.floor(loc.getX()) >> 4, (int) Math.floor(loc.getZ()) >> 4, gen, true); }
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsyncUrgently(Block block) { return getChunkAtAsync(block.getX() >> 4, block.getZ() >> 4, true, true); }
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsyncUrgently(Block block, boolean gen) { return getChunkAtAsync(block.getX() >> 4, block.getZ() >> 4, gen, true); }
+
+    /** 콜백판: 예외는 Paper 처럼 "Exception in chunk load callback" 경고로 남긴다. */
+    default void getChunkAtAsync(int x, int z, java.util.function.Consumer<? super Chunk> cb) { org.domi.furnace.compat.paper.ChunkCallbacks.run(getChunkAtAsync(x, z, true), cb); }
+
+    default void getChunkAtAsync(int x, int z, boolean gen, java.util.function.Consumer<? super Chunk> cb) { org.domi.furnace.compat.paper.ChunkCallbacks.run(getChunkAtAsync(x, z, gen), cb); }
+
+    default void getChunkAtAsync(Location loc, java.util.function.Consumer<? super Chunk> cb) { getChunkAtAsync((int) Math.floor(loc.getX()) >> 4, (int) Math.floor(loc.getZ()) >> 4, true, cb); }
+
+    default void getChunkAtAsync(Location loc, boolean gen, java.util.function.Consumer<? super Chunk> cb) { getChunkAtAsync((int) Math.floor(loc.getX()) >> 4, (int) Math.floor(loc.getZ()) >> 4, gen, cb); }
+
+    default void getChunkAtAsync(Block block, java.util.function.Consumer<? super Chunk> cb) { getChunkAtAsync(block.getX() >> 4, block.getZ() >> 4, true, cb); }
+
+    default void getChunkAtAsync(Block block, boolean gen, java.util.function.Consumer<? super Chunk> cb) { getChunkAtAsync(block.getX() >> 4, block.getZ() >> 4, gen, cb); }
+
+    /** @deprecated Paper 1.13.1 부터. Consumer 판과 같다. */
+    @Deprecated
+    interface ChunkLoadCallback extends java.util.function.Consumer<Chunk> {
+        void onLoad(Chunk chunk);
+
+        @Override
+        default void accept(Chunk chunk) { onLoad(chunk); }
+    }
+
+    @Deprecated
+    default void getChunkAtAsync(int x, int z, ChunkLoadCallback cb) { org.domi.furnace.compat.paper.ChunkCallbacks.run(getChunkAtAsync(x, z, true), cb); }
+
+    @Deprecated
+    default void getChunkAtAsync(Location loc, ChunkLoadCallback cb) { org.domi.furnace.compat.paper.ChunkCallbacks.run(getChunkAtAsync(loc, true), cb); }
+
+    @Deprecated
+    default void getChunkAtAsync(Block block, ChunkLoadCallback cb) { org.domi.furnace.compat.paper.ChunkCallbacks.run(getChunkAtAsync(block, true), cb); }
+
     List<Player> getPlayers();
 
     /** 레벨 이벤트를 64칸 안 플레이어에게(Paper World#playEffect). */
@@ -263,6 +326,9 @@ public interface World extends Keyed, org.bukkit.metadata.Metadatable {
     int getMinHeight();
 
     int getMaxHeight();
+
+    /** 이 월드를 만들 때 준 플러그인 바이옴 공급자. Furnace 는 아직 그렇게 월드를 만들지 않아 늘 null(Paper 도 주지 않았으면 null). */
+    default org.bukkit.generator.BiomeProvider getBiomeProvider() { return null; }
 
     /** 게임 규칙 값(문자열), 모르는 이름이면 null. */
     String getGameRuleValue(String rule);

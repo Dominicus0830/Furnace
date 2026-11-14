@@ -275,6 +275,18 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
     @Override
     public void resetTitle() { handle.sendPacket(new org.domi.furnace.api.packet.clientbound.ClientboundClearTitlesPacket(true)); }
 
+    // ---- Spigot(BungeeCord 채팅 컴포넌트)
+
+    private volatile Player.Spigot spigot;
+
+    /** 처음 부를 때 만든다 — 컴포넌트 클래스(net.md_5)는 그 라이브러리를 쓰는 플러그인이 있을 때만 있다. */
+    @Override
+    public Player.Spigot spigot() {
+        Player.Spigot s = spigot;
+        if (s == null) spigot = s = org.domi.furnace.compat.paper.BungeeChat.playerSpigot(this);
+        return s;
+    }
+
     // ---- CommandSender / Permissible
 
     /** 모달 대화 중이면 플러그인 메시지를 보내지 않는다(CraftPlayer.sendMessage — 대화 문구는 sendRawMessage 로 간다). */

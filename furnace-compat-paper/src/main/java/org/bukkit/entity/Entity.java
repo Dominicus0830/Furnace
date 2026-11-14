@@ -148,4 +148,11 @@ public interface Entity extends Metadatable, CommandSender, PersistentDataHolder
 
     /** 탈것에서 내린다. 타고 있었으면 true. */
     boolean leaveVehicle();
+
+    /** Paper 1.21.1 Entity.Spigot(더한 것 없음). */
+    class Spigot extends CommandSender.Spigot {
+    }
+
+    @Override
+    Spigot spigot();
 }

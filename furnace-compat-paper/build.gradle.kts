@@ -90,6 +90,8 @@ dependencies {
     implementation("org.ow2.asm:asm-commons:9.7.1")
     // H7a: 없는 NMS 심볼 호출을 덫으로 바꿀 때 메서드 하나를 트리로 다룬다(asm-commons 가 이미 끌어오는 것을 명시)
     implementation("org.ow2.asm:asm-tree:9.7.1")
+    // T-141 E: Player.spigot() 의 BungeeCord 채팅 컴포넌트. 서버에 싣지 않는다 — 쓰는 플러그인이 있으면 서버 라이브러리 묶음 bungeecord-chat 으로 받는다
+    compileOnly("net.md-5:bungeecord-chat:1.20-R0.2")
 
     // 시험은 실제 서버(헤드리스)에 플러그인 jar 를 올려 돌린다
     testImplementation(project(":furnace-server"))
@@ -97,6 +99,7 @@ dependencies {
     testImplementation(serverTest)
     testImplementation(project(":furnace-test"))
     testImplementation("org.slf4j:slf4j-api:2.0.16")
+    testImplementation("net.md-5:bungeecord-chat:1.20-R0.2")
     testImplementation("ch.qos.logback:logback-classic:1.5.12")   // H4: 서버 로그의 예외를 모아 플러그인 실패 원인을 읽는다
     testImplementation(platform("org.junit:junit-bom:6.0.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
