@@ -2301,6 +2301,7 @@ public final class World {
                     }
                 });
     }
+    public static ExecutorService lightPre() { return LightPre.POOL; }
     public ExecutorService lightPreExecutor() { return LightPre.POOL; }
     public FurnaceScheduler scheduler() { return scheduler; }
     public WorldSource worldSource() { return worldSource; }

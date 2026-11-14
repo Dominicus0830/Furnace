@@ -504,12 +504,12 @@ public final class Region {
         });
         sourceFuture = sourceFuture.thenApplyAsync(col -> {   // 디스크에서 읽은 청크는 IO 스레드가 아니라 빛 전용 풀에서 계산한다
             long tl = ChunkTrace.ON ? System.nanoTime() : 0L;
-            if (ChunkTrace.ON) ChunkTrace.nanos("hop.genpool", tl - traceSrc[0]);
+            if (ChunkTrace.ON) ChunkTrace.nanos("hop.lightpool", tl - traceSrc[0]);
             if (col != null) {
                 if (col.poi() == null) col.poi(org.domi.furnace.server.world.poi.PoiManager.restore(col, cp.x(), cp.z(), col.poiNbt()));
                 // registerAllBlockEntitiesAfterLevelLoad: 남은 NBT·월드젠 칸을 블록 엔티티로(침대·종·상자는 없으면 클라이언트가 안 그린다).
                 // 빈 칸 채우기(DUMMY)는 디스크 청크에도 한다 — 수정 전에 저장된 월드의 침대·종을 되살리고, Anvil+평지처럼 freshlyGenerated 가 안 서는 새 청크도 덮는다.
-                // 비용은 생성 풀에서 구역당 블록 배열 한 번 훑기(POI mayHavePoi 와 같은 꼴).
+                // 비용은 빛 전용 풀에서 구역당 블록 배열 한 번 훑기(POI mayHavePoi 와 같은 꼴).
                 col.promotePendingBlockEntities(cp.x(), cp.z(), true);
                 // 내려가 있는 동안 이웃에서 빛이 줄었던 청크는 저장 빛을 버리고 고립 계산부터(표시는 고친 빛이 디스크에 써진 뒤 지운다)
                 if (col.lightStored() && world.lightStale().contains(cp.x(), cp.z())) {
