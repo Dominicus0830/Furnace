@@ -368,10 +368,13 @@ public class Rabbit extends Animal {
                 int state = level.getBlockState(above);
                 if (canRaid && B.is(state, "minecraft:carrots")) {
                     int age = B.prop("age").intValue(state);
+                    // CraftBukkit(+Paper 새 상태): EntityChangeBlockEvent 를 막으면 그 자리에서 끝낸다(canRaid·대기 틱도 그대로)
                     if (age == 0) {
+                        if (!B.entityChange(level, rabbit, above, B.fluidLeftover(state))) return;
                         level.setBlock(above, org.domi.furnace.server.block.Blocks.get().defaultState("minecraft:air"), 2, 512);
                         level.destroyBlock(above, true, null, 512);
                     } else {
+                        if (!B.entityChange(level, rabbit, above, B.prop("age").withInt(state, age - 1))) return;
                         level.setBlock(above, B.prop("age").withInt(state, age - 1), 2, 512);
                         level.levelEvent(null, 2001, above, state);
                     }

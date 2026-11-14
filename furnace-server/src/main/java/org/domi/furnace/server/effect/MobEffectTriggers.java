@@ -87,14 +87,15 @@ public final class MobEffectTriggers {
     /** 플레이어이거나 mobGriefing 이면 둘레 3×3×3 에 거미줄 2~3 개(randomBetweenInclusive(2, 3)). */
     private static void weaving(Target t) {
         if (t.player() == null && !t.level().gameRule("mobGriefing")) return;
-        spawnCobwebsRandomlyAround(t.level(), t.random(), t.blockPosition());
+        spawnCobwebsRandomlyAround(t.level(), t.random(), t.blockPosition(), t.entity() != null ? t.entity() : t.player());
     }
 
     /**
      * spawnCobwebsRandomlyAround: BlockPos.randomInCube(random, 15, center, 1) 를 하나씩 뽑아(뽑을 때마다 x·y·z 난수 셋 — 다 차면 더 뽑지 않는다)
      * 바꿀 수 있는 칸이고 아래 칸 윗면이 튼튼하면 모은다. HashSet 순서로 거미줄을 놓고 levelEvent 3018.
      */
-    static void spawnCobwebsRandomlyAround(ChunkLevel level, RandomSource random, Pos center) {
+    /** who: 죽은 엔티티·플레이어 — Paper 는 거미줄 칸마다 EntityChangeBlockEvent 를 묻고 막은 칸은 건너뛴다(이미 고른 칸·난수는 그대로). */
+    static void spawnCobwebsRandomlyAround(ChunkLevel level, RandomSource random, Pos center, org.domi.furnace.server.entity.Rider who) {
         Set<VanillaPos> set = new HashSet<>();
         int max = random.nextIntBetweenInclusive(2, 3);
         for (int n = 0; n < 15; n++) {
@@ -112,6 +113,7 @@ public final class MobEffectTriggers {
         int cobweb = B.defaultState("minecraft:cobweb");
         for (VanillaPos p : set) {
             Pos pos = new Pos(p.x, p.y, p.z);
+            if (who != null && !B.entityChange(level, who, pos, cobweb)) continue;
             level.setBlock(pos, cobweb, 3);
             level.levelEvent(null, 3018, pos, 0);
         }

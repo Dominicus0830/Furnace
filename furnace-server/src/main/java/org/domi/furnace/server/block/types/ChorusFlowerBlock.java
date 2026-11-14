@@ -160,6 +160,10 @@ public class ChorusFlowerBlock extends BlockBehavior {
     public void onProjectileHit(BlockLevel level, int state, org.domi.furnace.server.entity.Projectile.Hit hit,
                                 org.domi.furnace.server.entity.Projectile projectile) {
         Pos pos = hit.blockPos();
-        if (projectile.mayInteract(level, pos) && projectile.mayBreak(level)) level.destroyBlockByEntity(pos, true, projectile);
+        // CraftBukkit(+Paper 새 상태): EntityChangeBlockEvent 를 막으면 부수지 않는다
+        if (projectile.mayInteract(level, pos) && projectile.mayBreak(level)
+                && org.domi.furnace.server.block.B.entityChange(level, projectile, pos, org.domi.furnace.server.block.B.fluidLeftover(state))) {
+            level.destroyBlockByEntity(pos, true, projectile);
+        }
     }
 }

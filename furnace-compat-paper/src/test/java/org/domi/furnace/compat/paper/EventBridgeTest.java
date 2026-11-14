@@ -196,6 +196,9 @@ class EventBridgeTest {
                     org.domi.furnace.api.world.BlockData.of("minecraft:dirt"), org.domi.furnace.api.world.BlockData.of("minecraft:grass_block")));
             fire.put(org.bukkit.event.entity.ProjectileHitEvent.class, () -> new org.domi.furnace.api.event.entity.ProjectileHitEvent(snowball, null,
                     new org.domi.furnace.api.world.BlockSnapshot(w, bp, stoneData), "up"));
+            // EntityChangeBlock(T-040b)
+            fire.put(org.bukkit.event.entity.EntityChangeBlockEvent.class, () -> new org.domi.furnace.api.event.entity.EntityChangeBlockEvent(pig, w, bp,
+                    org.domi.furnace.api.world.BlockData.of("minecraft:grass_block"), org.domi.furnace.api.world.BlockData.of("minecraft:dirt")));
 
             // 시험이 빠뜨린 짝이 없는지: 다리가 아는 이벤트 = 이 시험이 발행한 이벤트
             assertEquals(EventBridge.bridgedEvents(), new HashSet<Class<?>>(fire.keySet()));

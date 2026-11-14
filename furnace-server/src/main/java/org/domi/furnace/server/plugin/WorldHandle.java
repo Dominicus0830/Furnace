@@ -625,6 +625,41 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
 
     private static final int MAX_LOOKUP_ATTEMPTS = 3;
 
+    // ------------------------------------------------------------------ UUID 로 찾기(T-040b)
+
+    /** 이 월드에 접속해 있는 그 UUID 의 플레이어. */
+    private Entity playerByUuid(java.util.UUID uuid) {
+        for (var p : host.core().players()) {
+            if (uuid.equals(p.uuid()) && !p.isDisconnected() && world.dimension().equals(p.dimension())) return host.player(p);
+        }
+        return null;
+    }
+
+    @Override
+    public java.util.OptionalInt entityIdByUuid(java.util.UUID uuid) {
+        java.util.Objects.requireNonNull(uuid, "uuid");
+        var e = world.entityUuidIndex().get(uuid);
+        if (e != null && !e.isRemoved()) return java.util.OptionalInt.of(e.id());   // id 는 바뀌지 않는다(어느 스레드나 안전)
+        Entity p = playerByUuid(uuid);
+        return p == null ? java.util.OptionalInt.empty() : java.util.OptionalInt.of(p.entityId());
+    }
+
+    @Override
+    public Optional<Entity> entityByUuidNow(java.util.UUID uuid) {
+        java.util.Objects.requireNonNull(uuid, "uuid");
+        var e = world.entityUuidIndex().get(uuid);
+        if (e == null || e.isRemoved()) return Optional.ofNullable(playerByUuid(uuid));
+        return entityByIdNow(e.id());   // 같은 소유 검사(빌림 구간 포함)·저장소 소속 검사
+    }
+
+    @Override
+    public CompletableFuture<Optional<Entity>> entityByUuid(java.util.UUID uuid) {
+        java.util.Objects.requireNonNull(uuid, "uuid");
+        var e = world.entityUuidIndex().get(uuid);
+        if (e == null || e.isRemoved()) return RegionFuture.wrap(CompletableFuture.completedFuture(Optional.ofNullable(playerByUuid(uuid))));
+        return entityById(e.id());
+    }
+
     // ------------------------------------------------------------------ 블록 칸
 
     @Override

@@ -78,7 +78,9 @@ public class Ravager extends Raider {
             int x1 = (int) Math.floor(box.maxX()), y1 = (int) Math.floor(box.maxY()), z1 = (int) Math.floor(box.maxZ());
             for (int bx = x0; bx <= x1; bx++) for (int by = y0; by <= y1; by++) for (int bz = z0; bz <= z1; bz++) {
                 Pos p = new Pos(bx, by, bz);
-                if (B.isTag(level.getBlockState(p), "minecraft:leaves")) destroyed = level.destroyBlock(p, true, null, 512) || destroyed;
+                int st = level.getBlockState(p);
+                // CraftBukkit(+Paper 새 상태): EntityChangeBlockEvent 를 막은 잎은 건너뛴다
+                if (B.isTag(st, "minecraft:leaves") && B.entityChange(level, this, p, B.fluidLeftover(st))) destroyed = level.destroyBlock(p, true, null, 512) || destroyed;
             }
             if (!destroyed && onGround()) jumpFromGround();
         }

@@ -181,6 +181,24 @@ public interface World {
      */
     default Optional<Entity> entityByIdNow(int entityId) { throw new UnsupportedOperationException("entityByIdNow"); }
 
+    /**
+     * UUID 로 이 월드의 엔티티나 플레이어를 찾는다(Paper 의 ServerLevel#getEntity(UUID)). {@link #entityById} 와 같은 규칙 — 그 엔티티를 가진
+     * region 에서 읽은 새 핸들로 완료하고, 없거나 다른 월드에 있거나 사라졌으면 empty. 아무 스레드.
+     */
+    default CompletableFuture<Optional<Entity>> entityByUuid(java.util.UUID uuid) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("entityByUuid"));
+    }
+
+    /**
+     * entityByUuid 의 동기판 — 그 엔티티를 가진 region 스레드에서만(옛 동기 작업의 빌림 구간 포함, 아니면
+     * {@link org.domi.furnace.api.concurrent.ThreadOwnershipException}) 곧바로 핸들을 돌려준다. 없으면 empty. 플레이어는 어느 스레드에서나 된다.
+     * 결과는 실행 이력(그 엔티티를 전에 본 적이 있는가)과 상관없이 그 순간 월드에 있는가로만 정해진다.
+     */
+    default Optional<Entity> entityByUuidNow(java.util.UUID uuid) { throw new UnsupportedOperationException("entityByUuidNow"); }
+
+    /** 그 UUID 엔티티·플레이어의 네트워크 id(없으면 empty). 엔티티 상태는 읽지 않으므로 어느 스레드에서나 기다림 없이 된다. */
+    default java.util.OptionalInt entityIdByUuid(java.util.UUID uuid) { throw new UnsupportedOperationException("entityIdByUuid"); }
+
     // ------------------------------------------------------------------ 블록 칸
 
     /**

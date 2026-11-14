@@ -17,6 +17,9 @@ public interface World extends Keyed, org.bukkit.metadata.Metadatable {
 
     String getName();
 
+    /** 이 월드에서 UUID 로 엔티티를 찾는다(Paper World#getEntity(UUID)). 없으면 null. */
+    default org.bukkit.entity.Entity getEntity(UUID uuid) { return null; }
+
     UUID getUID();
 
     Environment getEnvironment();

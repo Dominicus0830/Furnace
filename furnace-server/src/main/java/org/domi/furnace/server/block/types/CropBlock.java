@@ -86,7 +86,9 @@ public class CropBlock extends BushBlock implements BonemealableBlock {
     /** entityInside: 파괴수가 지나가고 mobGriefing 이면 부순다(떨굼, 부순 엔티티 = 파괴수). */
     @Override
     public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
-        if (entity instanceof org.domi.furnace.server.entity.Ravager && level.gameRule("mobGriefing")) level.destroyBlockByEntity(pos, true, entity);
+        // CraftBukkit: mobGriefing 거짓이어도 EntityChangeBlockEvent(새 상태 공기 — 1.21.1 Paper 그대로)를 미리 취소한 채로 내고, 처리기가 풀면 부순다
+        if (entity instanceof org.domi.furnace.server.entity.Ravager
+                && B.entityChange(level, entity, pos, B.defaultState("minecraft:air"), !level.gameRule("mobGriefing"))) level.destroyBlockByEntity(pos, true, entity);
     }
 
     @Override

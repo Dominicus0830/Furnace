@@ -16,6 +16,8 @@ final class CaveVines {
     /** use: 열매가 있으면 발광 열매 1개를 떨구고 열매를 없앤다. */
     static InteractionResult use(BlockActor entity, int state, BlockLevel level, Pos pos) {
         if (!BERRIES.is(state)) return InteractionResult.PASS;
+        // CraftBukkit: EntityChangeBlockEvent 를 막으면 따지 않고 SUCCESS
+        if (!B.entityChange(level, entity, pos, BERRIES.with(state, false))) return InteractionResult.SUCCESS;
         level.popResource(pos, B.stack("minecraft:glow_berries", 1));
         float pitch = level.random().nextFloat() * (1.2F - 0.8F) + 0.8F;
         level.playSound(null, pos, "minecraft:block.cave_vines.pick_berries", "blocks", 1.0F, pitch);
