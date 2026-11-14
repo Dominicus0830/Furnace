@@ -578,6 +578,8 @@ public final class Compat {
 
     /** 이 핸들을 감쌀 CraftEntity 종류 — Bukkit 이 따로 형을 두는 종류(갑옷 거치대·돼지)는 그 형, 나머지는 살아 있는지로. */
     private static Class<? extends CraftEntity> craftClass(org.domi.furnace.api.entity.Entity e) {
+        Class<? extends CraftEntity> generated = CompatEntityKinds.kindOf(e);   // Paper 와 같은 종류별 형(instanceof Villager·Minecart 등)
+        if (generated != null) return generated;
         if (!(e instanceof org.domi.furnace.api.entity.LivingEntity)) {
             if ("minecraft:item".equals(e.type())) return org.bukkit.craftbukkit.entity.CraftItem.class;
             return org.bukkit.craftbukkit.entity.CraftProjectile.TYPES.contains(e.type()) ? org.bukkit.craftbukkit.entity.CraftProjectile.class : CraftEntity.class;
@@ -590,6 +592,8 @@ public final class Compat {
     }
 
     private static CraftEntity newCraft(Class<? extends CraftEntity> kind, org.domi.furnace.api.entity.Entity e) {
+        CraftEntity generated = CompatEntityKinds.create(e);
+        if (generated != null && generated.getClass() == kind) return generated;
         if (kind == CraftEntity.class) return new CraftEntity(e);
         if (kind == org.bukkit.craftbukkit.entity.CraftItem.class) return new org.bukkit.craftbukkit.entity.CraftItem(e);
         if (kind == org.bukkit.craftbukkit.entity.CraftProjectile.class) return new org.bukkit.craftbukkit.entity.CraftProjectile(e);

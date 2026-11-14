@@ -19,4 +19,7 @@ public interface Mob extends LivingEntity {
      * 몹이 사라졌으면 빈 값.
      */
     Optional<MobAi> aiNow();
+
+    /** 길들었나(길들이는 동물·말 무리). 핸들을 만든 시점의 값. 길들일 수 없는 몹은 false. */
+    default boolean tamed() { return false; }
 }

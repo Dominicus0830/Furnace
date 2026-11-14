@@ -14,6 +14,9 @@ public interface LivingEntityState extends EntityState {
     /** 지금 최대 체력(속성 반영). */
     float maxHealth();
 
+    /** 지금 길들었나(길들이는 동물·말 무리). 길들일 수 없는 엔티티는 false. */
+    default boolean tamed() { return false; }
+
     /** 0..최대 체력으로 잘라 곧바로 적용한다. 0 이하면 죽는다(LivingEntity.updateHealth 와 같다). 사라진 엔티티에는 아무 일도 하지 않는다. */
     void setHealth(float health);
 
