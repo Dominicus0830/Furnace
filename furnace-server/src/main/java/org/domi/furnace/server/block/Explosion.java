@@ -339,8 +339,9 @@ public final class Explosion {
             double dx = p.x() - x, dy = p.y() - y, dz = p.z() - z;
             if (dx * dx + dy * dy + dz * dz < 4096.0) {
                 double[] kb = hitPlayers.get(p);
-                p.send(new ExplodePacket(x, y, z, radius, new ArrayList<>(toBlow), kb == null ? 0 : (float) kb[0], kb == null ? 0 : (float) kb[1],
-                        kb == null ? 0 : (float) kb[2], interaction.ordinal(), smallParticle, radius >= 2.0F && destroy ? largeParticle : smallParticle, sound));
+                // 바닐라 ServerLevel.explode: KEEP 이면 clearToBlow() 뒤에 보내 빈 목록. 입자는 small·large 를 그대로 보내고 클라이언트가 고른다
+                p.send(new ExplodePacket(x, y, z, radius, destroy ? new ArrayList<>(toBlow) : new ArrayList<>(), kb == null ? 0 : (float) kb[0], kb == null ? 0 : (float) kb[1],
+                        kb == null ? 0 : (float) kb[2], interaction.ordinal(), smallParticle, largeParticle, sound));
             }
         });
         if (interaction == BlockInteraction.TRIGGER_BLOCK) {
@@ -376,6 +377,8 @@ public final class Explosion {
                 }
             }
         }
+        // 바닐라는 finalizeExplosion 뒤 KEEP 이면 목록을 비운다(그래서 KEEP + 불은 비우기 전 목록으로 불을 놓는다)
+        if (!destroy) toBlow.clear();
     }
 
     /** BlockState.isSolidRender: 가리는 블록이고 가림 모양이 꽉 찬 상자. */
@@ -390,7 +393,8 @@ public final class Explosion {
     /**
      * 바닐라 BlockPos 와 같은 해시(Vec3i.hashCode)를 가진 열쇠 — HashSet 반복 순서를 바닐라와 맞춘다. Comparable 로 만들지 않는다:
      * BlockPos 는 Comparable<Vec3i> 를 물려받아 HashMap 이 "자기 자신과 비교 가능한 키"로 보지 않으므로(comparableClassFor = null),
-     * 트리 칸에서도 같은 길(해시 → tieBreakOrder)을 타야 한다.
+     * 트리 칸에서도 같은 길(해시 → tieBreakOrder)을 타야 한다. 해시가 같은 두 칸이 트리 칸(한 칸 8개 이상, 표 64 이상)에 들어가면
+     * 순서가 identityHashCode 로 갈리는데, 그때는 바닐라 자신도 실행마다 다르다(검토 측정: 반경 48 까지 트리 칸 없음).
      */
     private record VanillaPos(Pos pos) {
         @Override public int hashCode() { return (pos.y() + pos.z() * 31) * 31 + pos.x(); }

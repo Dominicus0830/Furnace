@@ -153,4 +153,24 @@ class ExplosionVanillaRandomTest {
         vanillaToBlow(model, x, y, z, 3.0F);
         assertEquals(model.nextInt(), level.random().nextInt());
     }
+
+    @Test
+    void keepExplosion_clearsToBlowAfterFinalize() {
+        // 바닐라 ServerLevel.explode: interactsWithBlocks() 가 거짓이면 clearToBlow() — 패킷도 빈 목록으로 나간다
+        SeededLevel level = new SeededLevel(5L);
+        Explosion e = level.explode(null, 8.5, 100.5, 8.5, 3.0F, false, Explosion.BlockInteraction.KEEP);
+        assertEquals(List.of(), e.toBlow());
+    }
+
+    @Test
+    void worldBounds_matchVanillaHorizontalEdges() {
+        // 바닐라 Level.isInWorldBoundsHorizontal: -30000000 <= x,z < 30000000
+        SeededLevel level = new SeededLevel(1L);
+        assertTrue(level.isInWorldBounds(new Pos(-30000000, 0, 0)));
+        assertTrue(level.isInWorldBounds(new Pos(0, 0, -30000000)));
+        assertFalse(level.isInWorldBounds(new Pos(30000000, 0, 0)));
+        assertFalse(level.isInWorldBounds(new Pos(0, 0, 30000000)));
+        assertFalse(level.isInWorldBounds(new Pos(-30000001, 0, 0)));
+        assertTrue(level.isInWorldBounds(new Pos(29999999, 0, 29999999)));
+    }
 }
