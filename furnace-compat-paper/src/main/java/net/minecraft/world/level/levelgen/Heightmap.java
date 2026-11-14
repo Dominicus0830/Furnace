@@ -44,11 +44,18 @@ public class Heightmap {
 
     /**
      * 바닐라 Heightmap.setRawData: 길이가 바닐라 배열과 같으면 값을 그대로 복사(검사 없음), 다르면 경고를 남기고 이 종류를 지금 블록에서 다시 채운다
-     * (찾지 못한 기둥은 옛 값 그대로 — 바닐라 primeHeightmaps). 인자 chunk·type 은 바닐라처럼 경고·다시 채우기에만 쓰이고 쓰는 곳은 이 하이트맵이다.
+     * (찾지 못한 기둥은 옛 값 그대로 — 바닐라 primeHeightmaps). 바닐라처럼 복사는 이 하이트맵에, 다시 채우기는 <b>인자로 받은</b> 청크·종류에 한다.
      */
     public void setRawData(ChunkAccess chunk, Types type, long[] rawData) {
         if (!this.type.keepAfterWorldgen()) throw wgWrite("setRawData");
-        this.chunk.furnaceSetHeightmapRaw(this.type, rawData);
+        int bits = 32 - Integer.numberOfLeadingZeros(this.chunk.getHeight());   // getRawData 와 같은 배치
+        int perLong = 64 / bits;
+        if (rawData.length == (256 + perLong - 1) / perLong || (chunk == this.chunk && type == this.type)) {
+            this.chunk.furnaceSetHeightmapRaw(this.type, rawData);
+        } else {
+            if (!type.keepAfterWorldgen()) throw wgWrite("setRawData");
+            chunk.furnaceSetHeightmapRaw(type, rawData);   // 길이가 틀려 서버가 그 청크의 그 종류를 prime(경고 포함)
+        }
     }
 
     private RuntimeException wgWrite(String what) {

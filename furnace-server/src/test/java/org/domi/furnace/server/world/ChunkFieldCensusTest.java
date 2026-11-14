@@ -27,6 +27,8 @@ class ChunkFieldCensusTest {
         HEIGHTMAP,
         /** 바닐라에도 있는 파생 상태(빛·하늘빛 원천·블록 엔티티) — 바닐라처럼 플러그인 몫, 들여오기가 고치지 않는다(설계 2장). */
         VANILLA_DERIVED,
+        /** 바닐라 섹션 개수 셋(nonEmpty·tickingBlock·tickingFluid) — 원시 쓰기·필드 대입 뒤 블록과 어긋날 수 있는 바닐라 상태라 들여오기는 다시 세지 말고 거울 섹션의 필드를 옮긴다. */
+        VANILLA_COUNTS,
         /** 블록에서 파생되지 않는 상태(저장 표시·월드젠 단계·엔티티·POI 원본·보내기 대기 등). */
         UNRELATED,
     }
@@ -70,8 +72,10 @@ class ChunkFieldCensusTest {
         e("DEFAULT_BIOME_DIRECT_BITS", Kind.FIXED), e("randomTicking", Kind.FIXED), e("fluidPresent", Kind.FIXED), e("fluidLava", Kind.FIXED),
         e("blocks", Kind.CONTENT), e("biomes", Kind.CONTENT),
         // 개수·평평한 사본은 블록에서 파생 — 들여오기가 다시 센다(nonAirCount 는 바닐라 개수와 다른 Furnace 정의다, VanillaSectionOracleTest)
-        // nonEmpty·tickingCount·fluidCount 는 바닐라 개수 셋(N2b-2, 원시 쓰기·필드 대입 뒤 블록과 어긋날 수 있음) — 들여오기는 거울 섹션의 개수 필드를 옮긴다
-        e("nonAirCount", Kind.FURNACE_CACHE), e("nonEmpty", Kind.FURNACE_CACHE), e("UNKNOWN", Kind.FIXED), e("tickingCount", Kind.FURNACE_CACHE), e("fluidCount", Kind.FURNACE_CACHE), e("scratch", Kind.FURNACE_CACHE),
+        e("nonAirCount", Kind.FURNACE_CACHE), e("UNKNOWN", Kind.FIXED),
+        // 바닐라 개수 셋(N2b-2): 원시 쓰기·필드 대입 뒤 블록과 어긋날 수 있다 — 들여오기는 거울 섹션의 개수 필드를 옮긴다(다시 세지 않음)
+        e("nonEmpty", Kind.VANILLA_COUNTS), e("tickingCount", Kind.VANILLA_COUNTS), e("fluidCount", Kind.VANILLA_COUNTS),
+        e("scratch", Kind.FURNACE_CACHE),
         // 컬럼 소속·빛 작업 얼림 — 섹션을 갈아 끼울 때 attach/detach·ownSection 규칙을 따라야 한다
         e("owner", Kind.FURNACE_CACHE), e("ownerIndex", Kind.FURNACE_CACHE), e("lightFrozen", Kind.FURNACE_CACHE)));
 
@@ -113,6 +117,7 @@ class ChunkFieldCensusTest {
     void cacheListIsNotEmpty() {
         // 분류표가 형식만 남지 않게: 지금 확인된 Furnace 전용 캐시가 표에 있는가
         assertEquals(Kind.FURNACE_CACHE, COLUMN.get("cachedSerializedBody"));
-        assertEquals(Kind.FURNACE_CACHE, SECTION.get("tickingCount"));
+        assertEquals(Kind.FURNACE_CACHE, SECTION.get("nonAirCount"));
+        assertEquals(Kind.VANILLA_COUNTS, SECTION.get("nonEmpty"));
     }
 }

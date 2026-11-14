@@ -155,6 +155,39 @@ class NmsOwnerRawWriteTest {
         });
     }
 
+    /**
+     * 컨테이너 쓰기로 바닐라 개수 0 섹션에 블록을 넣으면(다시 세지 않음) 바닐라 hasOnlyAir 가 참이라 LevelChunk 읽기는 공기이고,
+     * LevelChunk.setBlockState 로 공기를 놓는 것은 아무것도 안 한다(그 블록이 남음). recalcBlockCounts 뒤에야 보인다(PR #373 검토 R4).
+     */
+    @Test
+    void emptySectionContainerWriteIsHiddenUntilRecount() {
+        int si = 22;
+        BlockPos p = new BlockPos(cx * 16 + 5, level.getMinBuildHeight() + si * 16 + 7, cz * 16 + 6);
+        BlockState stone = Blocks.STONE.defaultBlockState(), air = Blocks.AIR.defaultBlockState();
+        on(() -> {
+            LevelChunk c = level.getChunk(cx, cz);
+            LevelChunkSection sec = c.getSection(si);
+            assertTrue(sec.hasOnlyAir(), "높은 섹션은 공기뿐");
+            try {
+                sec.getStates().set(5, 7, 6, stone);
+                assertEquals(stone.furnaceStateId(), truth(p.getX(), p.getY(), p.getZ()), "서버 칸에는 돌");
+                assertTrue(sec.hasOnlyAir(), "컨테이너 set 은 개수를 안 고친다 — 바닐라 hasOnlyAir 참");
+                assertSame(air, c.getBlockState(p), "바닐라 LevelChunk.getBlockState: hasOnlyAir 섹션은 공기");
+                assertSame(null, c.setBlockState(p, air, false), "hasOnlyAir 섹션에 공기류 = 아무것도 안 함(바닐라)");
+                assertEquals(stone.furnaceStateId(), truth(p.getX(), p.getY(), p.getZ()), "돌이 남는다");
+                sec.recalcBlockCounts();
+                assertFalse(sec.hasOnlyAir());
+                assertSame(stone, c.getBlockState(p), "다시 센 뒤에는 보인다");
+            } finally {
+                sec.getStates().set(5, 7, 6, air);
+                sec.recalcBlockCounts();
+            }
+            assertTrue(sec.hasOnlyAir());
+            assertEquals(0, truth(p.getX(), p.getY(), p.getZ()));
+            return null;
+        });
+    }
+
     /** 바이옴 컨테이너 getAndSet 은 서버 바이옴 칸에 바로 쓴다. */
     @Test
     @SuppressWarnings("unchecked")

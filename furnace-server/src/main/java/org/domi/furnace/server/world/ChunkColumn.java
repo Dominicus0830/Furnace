@@ -709,6 +709,8 @@ public final class ChunkColumn {
 
     /** 섹션의 바닐라 개수를 그 값으로(플러그인이 필드에 대입). 블록·하이트맵은 그대로, 무작위 틱 대상이 따라간다. */
     public void setSectionVanillaCounts(int sectionIndex, int nonEmptyBlockCount, int tickingBlockCount, int tickingFluidCount) {
+        // 바닐라 하이트맵 갱신·prime 은 nonEmpty 0 섹션을 공기로 훑는다 — 블록에서 세는 보통 모드로는 그 뒤를 따라갈 수 없어 지금 값으로 고정한다
+        fixHeightmaps();
         ownSection(sectionIndex).setVanillaCounts(nonEmptyBlockCount, tickingBlockCount, tickingFluidCount);
     }
 
@@ -1209,10 +1211,12 @@ public final class ChunkColumn {
 
     /**
      * 바닐라 LevelChunk.getBlockState 처럼 읽는다 — 섹션이 바닐라 hasOnlyAir(nonEmptyBlockCount == 0)면 칸과 상관없이 공기. 블록 컨테이너 원시 쓰기로
-     * 칸과 개수가 어긋난 섹션에서만 칸 값과 다르다. 하이트맵 갱신·prime 의 아래로 훑기가 쓴다.
+     * 칸과 개수가 어긋난 섹션에서만 칸 값과 다르다. 하이트맵 갱신·prime 의 아래로 훑기가 쓴다. 높이 밖은 공기(바닐라 — setRawData 로 높이보다 큰 값을
+     * 넣은 뒤 update 가 그 위에서 내려올 수 있다).
      */
     private int vanillaChunkBlock(int x, int worldY, int z) {
         int local = worldY - minY;
+        if (local < 0 || local >= sectionCount * 16) return ChunkSection.AIR;
         ChunkSection s = sections[local >> 4];
         return s.vanillaHasOnlyAir() ? ChunkSection.AIR : s.getBlock(x, local & 15, z);
     }
@@ -1226,6 +1230,11 @@ public final class ChunkColumn {
         if (y <= first - 2) return false;
         if (heightmapPredicate(kind, stateId)) {
             if (y >= first) {
+                // 바닐라 setHeight → SimpleBitStorage.set 범위 검사(저장 전에 던진다 — 받아 두면 저장·패킷 때 비트가 잘린다)
+                long max = (1L << heightmapBits) - 1L, v = y + 1L;
+                if (v < 0 || v > max) {
+                    throw new IllegalArgumentException(String.format("The value %s is not in the specified inclusive range of %s to %s", v, 0L, max));
+                }
                 h[index] = y + 1;
                 return true;
             }

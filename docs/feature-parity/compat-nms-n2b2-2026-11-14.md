@@ -90,3 +90,18 @@ javac -d out -cp "$CP" tools/vanilla-data/ExportRawWriteOracle.java && java -cp 
 gzip -9 -c oracle.txt > furnace-server/src/test/resources/n2b/rawwrite-oracle-1.21.1.txt.gz
 ```
 생성기(`RawCase`·`pool`·`pick`·`packHeights`)는 도구와 시험에 같은 글자로 있고 입력 해시로 서로 확인한다.
+
+## 7. 독립 검토 반영(PR #373, 보고서 `furnace/reviews/n2b2-pr373.md`)
+
+판정 승인. 정답기 재생성 바이트 일치, 바닐라 서버가 만든 월드 400청크를 읽어도 고정 모드 0개(하이트맵 409,600값 일치), 읽기 비용 청크당 대개 +60~70µs(디코드 일꾼 스레드).
+
+| 항목 | 반영 |
+|---|---|
+| R1 개수 대입이 고정 모드로 안 들어감(바닐라 61, Furnace 81) | `setSectionVanillaCounts` 가 먼저 `fixHeightmaps()`. 시험 `FixedHeightmapTest.countAssignmentFixesHeightmapsLikeVanilla`(61) |
+| R2 높이 밖 값에서 update 훑기 → AIOOBE(바닐라 101) | `vanillaChunkBlock` 이 높이 밖을 공기로. 시험 `updateDescendsFromAboveWorld`(101) |
+| R3 9비트 넘는 update 값을 받아 둠(바닐라 IAE) | 올리기 전에 바닐라 문구로 `IllegalArgumentException`. 시험 `updateBeyondNineBitsThrowsLikeVanilla` |
+| R4 변이 생존(M8·M12~14·M18·M22) | `NmsOwnerRawWriteTest.emptySectionContainerWriteIsHiddenUntilRecount`(실제 ChunkLevel·보기 getBlockState·hasOnlyAir·recalcBlockCounts — M8 되돌림으로 실패 확인), `FixedHeightmapTest.copiesKeepFixedHeights`(M18)·`directUpdateRefreshesCachedRaw`(M22). M21(`setGeneratedBlock`)은 부르는 곳 없음 |
+| R5 census 분류 | 새 종류 `VANILLA_COUNTS`(nonEmpty·tickingCount·fluidCount — 들여오기는 다시 세지 않고 거울 필드를 옮김) |
+| N1 shim setRawData 인자 무시 | 바닐라처럼 복사는 이 하이트맵에, 길이가 틀리면 인자로 받은 청크·종류를 prime |
+| 결정 항목 | `docs/user-todo/entries/2026-11-14-n2b2-hasonlyair-gap.md`(5장 1·2, 추천 A 그대로 둔다) |
+| 하지 않음(선택) | R6 MBNL 훑기 줄이기, N3 보기 `getBlockState` 의 `int[3]` 할당, N2 x 범위 밖 update 열(현실성 낮음), short 감김(현실성 없음) — 후속 |
