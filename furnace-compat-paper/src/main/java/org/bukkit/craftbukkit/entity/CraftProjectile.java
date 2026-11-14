@@ -36,7 +36,8 @@ public class CraftProjectile extends CraftEntity implements Projectile {
         if (id == null) return null;
         var player = org.bukkit.Bukkit.getPlayer(id);
         if (player != null) return player;
-        var world = Compat.furnace().world(furnaceHandle().location().world());
+        // 투사체의 지금 월드(getWorld 와 같은 길 — 오래된 감싸개도 차원을 옮긴 뒤의 월드에서 찾는다, 바닐라 Projectile.getOwner 와 같다)
+        var world = getWorld() instanceof org.bukkit.craftbukkit.CraftWorld cw ? cw.furnaceHandle() : Compat.furnace().world(furnaceHandle().location().world());
         return Compat.entityByUuid(world, id) instanceof ProjectileSource s ? s : null;
     }
 

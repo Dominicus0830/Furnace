@@ -31,13 +31,14 @@
 | 투사체 맞힘: 후렴꽃·장식 단지·뾰족 점적석·TNT | 유체 잔여 | 건너뜀(장식 단지는 main 에서만 확인 — 가정) |
 | 가루눈(몹, 미리 취소=`!mobGriefing`·플레이어) | 공기 | 아래 3장 |
 | 수련잎(배), 레드스톤 광석(밟기·맞기), 큰 흘림잎(밟기·투사체) | 각 상태 | 건너뜀 |
-| 밭 밟기(몹·플레이어) | 흙 | 몹: `super.fallOn` 도 건너뜀(Paper). 플레이어: 흙으로 안 바뀜 |
+| 밭 밟기(몹·플레이어) | 흙 | 흙으로 안 바뀜, 낙하 피해는 그대로(CraftBukkit 이 `super.fallOn` 을 맨 위로 옮겼다 — 검토 R1) |
 | 손 쓰기: 삽 길·불 끄기, 도끼, 꿀벌집 조각, 물병→진흙, 엔더의 눈, 케이크(먹기·양초), 퇴비통(넣기·꺼내기, 주민 포함) | 각 상태 | PASS 계열 결과(Paper 와 같은 값) |
 | 거미줄 효과(Weaving) | 거미줄 | 그 칸 건너뜀 |
 
 ## 3. Paper 와 일부러 다르게 둔 것·못 한 것
 - **가루눈 불 끄기**: Paper 는 막히면 `return` 해 불 플래그를 지우지 않는다. 미리 취소된 자리(`!mobGriefing`)에서 처리기가 없을 때도 그 `return` 이 타면 바닐라와 결과가 달라지므로, 바닐라 흐름(불은 끄고 블록만 안 바꿈)을 지켰다.
-- **플레이어 밭 밟기**: 막혀도 낙하 피해는 이미 들어간다(Paper 는 `EntityInteractEvent`/PHYSICAL 상호작용으로 먼저 막는다 — Furnace 에 그 이벤트가 없다).
+- **밭 밟기**: 막혀도 낙하 피해는 들어간다 — Paper 와 같다. 남는 차이는 Paper 가 그 앞에서 내는 PHYSICAL `PlayerInteractEvent`/`EntityInteractEvent` 가 Furnace 에 없다는 것뿐.
+- **몹 밭 밟기는 지금 죽은 자리**: `Entity.isLiving()` 을 `LivingEntity` 가 덮어쓰지 않아 몹이 밭을 밟지 않는다(기존 버그, 검토 R2 — 별도 PR).
 - 없음: 물약 병의 불 끄기(Furnace 에 그 동작 자체가 아직 없다, TODO), `BrushableBlockEntity`(1.21.1 Paper 에 그 지점이 없다), `TNTPrimeEvent`·`EntityInteractEvent`.
 - 원인 사슬은 싣지 않는다(바꾸는 엔티티 하나).
 

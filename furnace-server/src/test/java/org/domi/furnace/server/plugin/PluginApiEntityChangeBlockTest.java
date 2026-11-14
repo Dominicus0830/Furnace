@@ -211,6 +211,40 @@ class PluginApiEntityChangeBlockTest {
         assertEquals(List.of("door"), log);
     }
 
+    // ------------------------------------------------------------------ 밭 밟기(검토 R1)
+
+    /** 좀비가 밭에 떨어진다 — 피해량과 밭이 흙이 됐는지. isLiving 은 기존 버그(R2, 별도 PR)를 피해 시험 안에서만 참으로 둔다. */
+    private String[] fallOnFarmland() throws Exception {
+        return at(rg -> {
+            var l = rg.level();
+            Pos p = new Pos(9, -51, 9);
+            int farm = B.defaultState("minecraft:farmland");
+            l.setBlock(p, farm, 2);
+            var z = new Zombie(l, l.nextEntityId()) { @Override public boolean isLiving() { return true; } };
+            z.moveTo(9.5, -50, 9.5, 0, 0);
+            l.addFreshEntity(z);
+            float before = z.health();
+            B.behavior(farm).fallOn(l, farm, p, z, 10.0F);
+            return new String[] {String.valueOf(before - z.health()), BL.describe(l.getBlockState(p))};
+        });
+    }
+
+    @Test
+    void farmlandTrampleCancelKeepsFallDamage() throws Exception {
+        String[] free = fallOnFarmland();
+        assertTrue(Float.parseFloat(free[0]) > 0, "바닐라: 밭에 떨어지면 낙하 피해");
+        assertEquals("minecraft:dirt", free[1]);
+        List<String> asked = new CopyOnWriteArrayList<>();
+        on(EntityChangeBlockEvent.class, e -> {
+            asked.add(e.newData().type());
+            e.setCancelled(true);
+        });
+        String[] blocked = fallOnFarmland();
+        assertEquals(List.of("minecraft:dirt"), asked);
+        assertEquals(free[0], blocked[0], "막아도 낙하 피해는 같다(CraftBukkit 이 super.fallOn 을 맨 위로 옮겼다)");
+        assertTrue(blocked[1].startsWith("minecraft:farmland"), "막으면 밭 그대로: " + blocked[1]);
+    }
+
     // ------------------------------------------------------------------ UUID 로 찾기
 
     @Test

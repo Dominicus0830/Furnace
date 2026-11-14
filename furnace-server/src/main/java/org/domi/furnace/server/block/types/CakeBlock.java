@@ -25,7 +25,10 @@ public class CakeBlock extends org.domi.furnace.server.block.BlockBehavior {
             var e = BlockItems.entry(stack.itemId());
             int candleCake = e == null ? -1 : B.id(B.BLOCKS.name(e.block()) + "_cake");
             // Paper: EntityChangeBlockEvent 를 막으면 초를 쓰지 않고 기본 상호작용(먹기)으로 넘긴다
-            if (candleCake >= 0 && !B.entityChange(level, player, pos, B.defaultState(candleCake))) return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+            if (candleCake >= 0 && !B.entityChange(level, player, pos, B.defaultState(candleCake))) {
+                player.resyncHands();   // Paper: 막으면 클라이언트가 미리 줄인 초를 다시 보낸다
+                return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+            }
             if (candleCake >= 0) {
                 if (!player.instabuild()) player.setItemInHand(hand, stack.withCount(stack.count() - 1));
                 level.playSound(null, pos, "minecraft:block.cake.add_candle", "blocks", 1.0F, 1.0F);

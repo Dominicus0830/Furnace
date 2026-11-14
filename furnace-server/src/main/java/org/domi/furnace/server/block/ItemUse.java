@@ -1134,7 +1134,10 @@ public final class ItemUse {
         Integer waxed = WAX_ON.get(B.block(state));
         if (waxed == null) return InteractionResult.PASS;
         int to = B.withPropertiesOf(waxed, state);
-        if (!B.entityChange(level, player, pos, to)) return InteractionResult.PASS;   // Paper: EntityChangeBlockEvent 를 막으면 PASS(꿀벌집 조각은 그대로)
+        if (!B.entityChange(level, player, pos, to)) {   // Paper: EntityChangeBlockEvent 를 막으면 PASS(꿀벌집 조각은 그대로) — 창작이 아니면 클라이언트가 미리 줄인 손을 다시 보낸다
+            if (!player.isCreative()) player.resyncHands();
+            return InteractionResult.PASS;
+        }
         player.trigger("minecraft:item_used_on_block", pos, stack);
         player.setItemInHand(hand, stack.withCount(stack.count() - 1));
         level.setBlock(pos, to, 11);
@@ -1166,7 +1169,10 @@ public final class ItemUse {
         Object contents = stack.patch().entries().get("minecraft:potion_contents");
         boolean water = contents instanceof Map<?, ?> m && "minecraft:water".equals(m.get("potion")) && m.size() == 1;
         if (hit.face() == Dir.DOWN || !B.isTag(state, "minecraft:convertable_to_mud") || !water) return InteractionResult.PASS;
-        if (!B.entityChange(level, player, pos, B.defaultState(MUD))) return InteractionResult.PASS;   // Paper: EntityChangeBlockEvent 를 막으면 PASS
+        if (!B.entityChange(level, player, pos, B.defaultState(MUD))) {   // Paper: EntityChangeBlockEvent 를 막으면 PASS — 클라이언트가 미리 바꾼 손을 다시 보낸다
+            player.resyncHands();
+            return InteractionResult.PASS;
+        }
         level.playSound(null, pos, "minecraft:entity.generic.splash", "blocks", 1.0F, 1.0F);
         player.setItemInHand(hand, player.createFilledResult(stack, stack("minecraft:glass_bottle")));
         player.awardStat("minecraft:used:minecraft:potion");
