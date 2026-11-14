@@ -31,6 +31,7 @@ public final class ConfigPresets {
         for (String k : new String[]{"display-name", "item-name", "lore-line", "book-page", "book-author"}) vanilla.put("limits.item." + k, "0");
         vanilla.put("plugins.dev-mode", "false");
         vanilla.put("idle-pause.empty-seconds", "0");
+        vanilla.put("entity-activation-range.enabled", "false");   // 기본은 켜짐(D11) — 바닐라 프리셋은 끈다
         PRESETS.put("vanilla", vanilla);
         Map<String, String> perf = new LinkedHashMap<>();
         perf.put("entity-view-distance", "6");

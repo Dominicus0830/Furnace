@@ -9,6 +9,6 @@ public final class SceneLibrary {
     /** 모든 장면. 이름은 서로 달라야 한다(SceneLibraryTest 가 검사). */
     public static List<LibraryScene> all() {
         return List.of(new NoiseQuickScene(), new SharedPipelineScene(), new FluidScene(), new PistonScene(), new ExplosionScene(),
-                new MobsScene(), new VillageScene(), new ChaseScene(), new FarmScene());
+                new MobsScene(), new VillageScene(), new ChaseScene(), new FarmScene(), new ActivationScene());
     }
 }
