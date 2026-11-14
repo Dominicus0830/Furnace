@@ -51,10 +51,12 @@ class ChatChainTest {
     void waitingForGlobalDoesNotHoldAChatThread() throws Exception {
         ExecutorService one = Executors.newSingleThreadExecutor();   // 채팅 실행기 스레드가 하나뿐이어도
         CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch globalStarted = new CountDownLatch(1);
         try (GlobalThread global = new GlobalThread("chain-test-global")) {
             ChatChain a = new ChatChain(one), b = new ChatChain(one);
             List<String> seen = new CopyOnWriteArrayList<>();
             a.appendGlobal(global, () -> {
+                globalStarted.countDown();
                 try {
                     release.await(10, TimeUnit.SECONDS);   // 전역에서 오래 걸리는 명령
                 } catch (InterruptedException e) {
@@ -62,7 +64,8 @@ class ChatChainTest {
                 }
                 seen.add("a-global");
             });
-            a.append(() -> seen.add("a-after"));
+            assertTrue(globalStarted.await(5, TimeUnit.SECONDS));
+            a.append(() -> seen.add("a-after"));   // 전역 단계가 돌고 있을 때 넣는다 — 기다리는 동안 사슬을 놓으면(running=false) 이것이 먼저 돈다
             CompletableFuture<Void> aDone = a.barrier();
             b.append(() -> seen.add("b-chat"));
             b.barrier().get(5, TimeUnit.SECONDS);   // a 가 전역을 기다리는 동안 b 는 같은 스레드에서 돈다

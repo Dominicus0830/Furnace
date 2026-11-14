@@ -482,10 +482,15 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
     }
 
-    /** 채팅 사슬이 넘쳤다(처리기가 막힌 채 수백 개를 보냄) — 바닐라 스팸 킥과 같은 사유로 끊는다. */
+    /** 넘침 킥을 이미 넘겼다(루프에서만 읽고 쓴다) — 이미 읽힌 뒤 패킷마다 경고·킥 이벤트를 또 내지 않게. */
+    private boolean chatChainOverflowKicked;
+
+    /** 채팅 사슬이 넘쳤다(처리기가 막힌 채 수백 개를 보냄) — 바닐라 스팸 킥과 같은 사유로, 킥 이벤트는 전역에서 한 번만. */
     private void chatChainOverflow(Player p) {
+        if (chatChainOverflowKicked) return;
+        chatChainOverflowKicked = true;
         log.warn("{} 의 채팅·명령이 처리되지 않은 채 {}개 넘게 쌓였다 — 연결을 끊는다", p.name(), org.domi.furnace.server.chat.ChatChain.MAX_PENDING);
-        p.kick(new Disconnect(Text.translatable("disconnect.spam")));
+        login.core.kickOnGlobal(p, Text.translatable("disconnect.spam"));
     }
 
     /** 바닐라 detectRateSpam. */
@@ -493,7 +498,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         Player p = player;
         org.domi.furnace.server.ServerCore core = login.core;
         if (p.chat().incrementSpamAndCheck() && !core.lists().isOp(org.domi.furnace.server.ServerCore.profileOf(p))) {
-            p.kick(new Disconnect(Text.translatable("disconnect.spam")));
+            core.kickOnGlobal(p, Text.translatable("disconnect.spam"));   // 채팅 스레드에서 불릴 수 있다 — 킥 이벤트는 전역에서(Paper disconnectAsync)
         }
     }
 
@@ -648,6 +653,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         org.domi.furnace.server.ServerCore core = login.core;
         if (p == null || core == null) return;
         tryHandleChat(rawCommand, chain -> chain.appendGlobal(core.scheduler().global(), () -> {
+            if (p.isDisconnected()) return;   // 막힌 채팅 뒤에 줄 섰다가 그사이 나갔다 — 실행하지 않는다(CraftBukkit SPIGOT-7346)
             log.info("{} issued server command: /{}", p.name(), rawCommand);   // Paper: 이벤트 전에 원문으로 남긴다(취소돼도 남음)
             String command = preprocessCommand(core, p, rawCommand);
             if (command == null) {
@@ -682,6 +688,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var lastSeen = unpackAndApplyLastSeen(update);
         if (lastSeen.isEmpty()) return;
         tryHandleChat(command, chain -> chain.appendGlobal(core.scheduler().global(), () -> {
+            if (p.isDisconnected()) return;   // 막힌 채팅 뒤에 줄 섰다가 그사이 나갔다 — 실행하지 않는다(CraftBukkit SPIGOT-7346)
             log.info("{} issued server command: /{}", p.name(), command);   // Paper: 이벤트 전에 원문으로 남긴다(취소돼도 남음)
             String changed = preprocessCommand(core, p, command);
             var source = org.domi.furnace.server.command.CommandSource.player(core, p);

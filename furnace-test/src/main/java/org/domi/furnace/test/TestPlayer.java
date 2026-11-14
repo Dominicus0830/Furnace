@@ -252,7 +252,10 @@ public final class TestPlayer implements AutoCloseable {
         return this;
     }
 
-    /** 채팅을 보낸다(서명 없음). 서버가 처리한 뒤 돌아온다. */
+    /**
+     * 채팅을 보낸다(서명 없음). 서버가 처리한 뒤 돌아온다. 채팅 처리기가 틱을 기다리면(callSyncMethod(...).get() 등) 이 메서드는
+     * 틱을 내지 않으므로 시간 초과까지 막힌다 — 그런 시험은 다른 스레드에서 보내고 시험 스레드가 tick() 을 낸다(ChatThreadDeadlockTest).
+     */
     public TestPlayer chat(String message) {
         send(0x06, b -> {
             Types.writeString(b, message);
@@ -296,6 +299,15 @@ public final class TestPlayer implements AutoCloseable {
     /** minecraft:unregister 로 채널을 거둔다. */
     public TestPlayer unregisterChannels(String... channels) {
         return sendPluginMessage("minecraft:unregister", String.join("\0", channels).getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * 원시 serverbound play 패킷을 보내기만 하고 서버 처리를 기다리지 않는다(장벽 없음). 처리기가 막혀 있는 동안 뒤 패킷을 줄 세우는
+     * 시험용 — 결과는 tick()·awaitMessage·서버 내부 장벽으로 본다.
+     */
+    public TestPlayer sendPacketNoWait(int id, Consumer<ByteBuf> body) {
+        send(id, body);
+        return this;
     }
 
     /** 원시 serverbound play 패킷(id + 본문). 다른 방법이 없을 때만. */

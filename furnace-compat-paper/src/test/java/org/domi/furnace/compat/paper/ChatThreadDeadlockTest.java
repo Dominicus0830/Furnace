@@ -12,8 +12,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.bukkit.Bukkit;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.domi.furnace.compat.paper.fixtures.Jars;
 import org.domi.furnace.compat.paper.fixtures.RecorderPlugin;
+import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.test.FurnaceTestServer;
 import org.domi.furnace.test.TestPlayer;
 import org.junit.jupiter.api.BeforeEach;
@@ -134,6 +136,79 @@ class ChatThreadDeadlockTest {
             assertFalse(sender.isAlive(), "chat() 이 돌아오지 않았다");
             if (failure.get() != null) throw new AssertionError(failure.get());
             assertTrue(consoleHas(server, "<Dana> slow"), server.consoleMessages().toString());
+        }
+    }
+
+    private static void rawChat(TestPlayer p, String message) {
+        p.sendPacketNoWait(0x06, b -> {
+            Types.writeString(b, message);
+            b.writeLong(System.currentTimeMillis());
+            b.writeLong(0L);
+            b.writeBoolean(false);
+            Types.writeVarInt(b, 0);
+            b.writeBytes(new byte[3]);
+        });
+    }
+
+    /** 스팸 킥(채팅 스레드에서 감지)의 PlayerKickEvent 는 Paper disconnectAsync 처럼 주(전역) 스레드에서 난다(PR #363 검토 R1). */
+    @Test
+    void spamKickEventFiresOnPrimaryThread() throws Exception {
+        var out = new CopyOnWriteArrayList<String>();
+        var kicked = new CountDownLatch(1);
+        try (FurnaceTestServer server = FurnaceTestServer.builder().failFast(false).timeout(30_000).pluginJar(recorderJar()).start()) {
+            TestPlayer dana = server.join("Dana");
+            server.tick(2);
+            RecorderPlugin.ACTIONS.put("PlayerKickEvent", e -> {
+                out.add("thread=" + Thread.currentThread().getName() + " primary=" + Bukkit.isPrimaryThread());
+                kicked.countDown();
+            });
+            for (int i = 0; i < 15; i++) rawChat(dana, "spam" + i);   // op 가 아니면 바닐라 스팸 감지가 11번째쯤 끊는다
+            assertTrue(kicked.await(10, TimeUnit.SECONDS), "킥이 없었다");
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (dana.isConnected() && System.nanoTime() < deadline) Thread.sleep(10);
+            assertFalse(dana.isConnected(), "스팸으로 끊겨야 한다");
+            assertFalse(out.isEmpty());
+            for (String s : out) assertTrue(s.contains("primary=true") && s.contains("furnace-global"), out.toString());
+        }
+    }
+
+    /** 막힌 채팅 처리기 뒤에 줄 선 명령은 그사이 플레이어가 나갔으면 돌지 않는다(CraftBukkit SPIGOT-7346, 검토 R2). */
+    @Test
+    void commandQueuedBehindBlockedChatIsSkippedAfterQuit() throws Exception {
+        var out = new CopyOnWriteArrayList<String>();
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        try (FurnaceTestServer server = FurnaceTestServer.builder().failFast(false).timeout(30_000).pluginJar(recorderJar()).start()) {
+            TestPlayer dana = server.join("Dana");
+            server.tick(2);
+            RecorderPlugin.ACTIONS.put("AsyncPlayerChatEvent", e -> {
+                entered.countDown();
+                try {
+                    release.await(20, TimeUnit.SECONDS);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            RecorderPlugin.ACTIONS.put("PlayerQuitEvent", e -> out.add("quit"));
+            RecorderPlugin.ACTIONS.put("PlayerCommandPreprocessEvent", e -> out.add("cmd " + ((PlayerCommandPreprocessEvent) e).getMessage()));
+            var sp = server.internals().playerByName("Dana");
+            try {
+                rawChat(dana, "slow");
+                assertTrue(entered.await(10, TimeUnit.SECONDS));
+                dana.sendPacketNoWait(0x04, b -> Types.writeString(b, "list"));
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+                while (sp.chat().chain().pending() < 1 && System.nanoTime() < deadline) Thread.sleep(5);
+                assertEquals(1, sp.chat().chain().pending(), "명령이 채팅 뒤에 줄 서야 한다");
+                dana.close();
+                deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+                while (!sp.isDisconnected() && System.nanoTime() < deadline) Thread.sleep(5);
+                assertTrue(sp.isDisconnected());
+            } finally {
+                release.countDown();
+            }
+            server.await(sp.chat().chain().barrier());
+            server.onGlobal(() -> null);
+            assertTrue(out.stream().noneMatch(s -> s.startsWith("cmd")), "나간 뒤 명령이 실행됐다: " + out);
         }
     }
 

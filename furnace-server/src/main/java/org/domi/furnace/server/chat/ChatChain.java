@@ -120,7 +120,9 @@ public final class ChatChain {
     private void schedule() {
         try {
             executor.execute(this::drain);
-        } catch (java.util.concurrent.RejectedExecutionException e) {   // 시험용 실행기가 닫혔다 — 그 자리에서 돈다
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            // 시험용 실행기가 닫혔을 때만 닿는다(운영 EXECUTOR 는 상한 없는 캐시 풀이라 거절하지 않는다). 그 자리에서 돌리므로
+            // 이 길은 부른 스레드(전역 콜백·넷티)에서 단계를 돌린다 — 운영 실행기를 거절할 수 있게 바꾸면 여기를 먼저 고칠 것.
             drain();
         }
     }
