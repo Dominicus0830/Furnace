@@ -1721,7 +1721,11 @@ public abstract class ChunkLevel implements BlockLevel {
 
     public void forEachPlayer(java.util.function.Consumer<Player> c) { services().forEachPlayer(c); }
 
-    public boolean isInWorldBounds(Pos pos) { return pos.y() >= minBuildHeight() && pos.y() < maxBuildHeight() && Math.abs(pos.x()) < 30000000 && Math.abs(pos.z()) < 30000000; }
+    /** Level.isInWorldBounds: 높이 안이고 -30000000 <= x,z < 30000000(바닐라 isInWorldBoundsHorizontal — 음수 쪽 경계 칸은 안). */
+    public boolean isInWorldBounds(Pos pos) {
+        return pos.y() >= minBuildHeight() && pos.y() < maxBuildHeight()
+                && pos.x() >= -30000000 && pos.z() >= -30000000 && pos.x() < 30000000 && pos.z() < 30000000;
+    }
 
     @Override
     public void spawnGolem(boolean iron, Pos bottom) {
