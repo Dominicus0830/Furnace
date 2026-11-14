@@ -61,6 +61,7 @@
 |---|---|---|---|
 | `ProtocolLibBridgeTest.spawnListenersCanLookUpTheNewEntity` (:308) | 5 | **서버 결함**: 새 엔티티를 스폰 묶음을 보낸 뒤에야 번호 색인에 넣어, 패킷 리스너의 `getEntity(id)` 가 가끔 null(부하 반복 13/80) | `ChunkLevel.addFreshEntity`·`adoptEntity` 에서 색인 → 추적 순서(바닐라·Paper 와 같음), 회귀 `EntityIndexBeforeSpawnTest`. 고친 뒤 0/80 |
 | `TabCompleteAndCommandSendTest.unhandledEvent…` (:123) | 1 | 시험 경합: `AsyncTabCompleteEvent` 는 전용 스레드라 장벽이 못 덮는데 처리기를 미리 바꿈(옛 시험 부하 반복 4/60) | 요청마다 처리기가 끝날 때까지 기다림(`suggestHandled`), 0/60 |
+| `ChatAdapterTest.recipientsStartAsEveryoneOnline…` (:75) | 이 PR 의 첫 CI(새 FULL 형식으로 바로 원인이 보임: `[Dana, Kim]`) | 시험 경합: 채팅은 받는 사람마다 그 연결 이벤트 루프에서 기록되는데 보낸 사람 연결만 비우고 단언 — "안 받았다" 단언은 헛통과할 수 있었다 | 단언 전에 받는 사람 모두 `sync()`(`flushAll`) |
 | `TestPlayerPacketsTest.afterKick…` (:86), `SchemaPacketBridgeTest` decodeFailures | 5, 3 | 가짜 플레이어 읽기 스레드·decodeFailures 경합 | 11-14 f700bee5e·6eb9eee32 에서 고쳐짐(그 뒤 재발 없음) |
 | `JavaPluginWiringTest.permissionAndExceptions…` (:227) | 7 | 확정 못 함 — 11-13 17:43 UTC 뒤 약 110회 재발 없음, 부하 반복 0/60 | 다시 나오면 이제 로그에 받은 메시지 목록이 찍힌다 |
 
