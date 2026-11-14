@@ -153,12 +153,15 @@ class StoredLightCodecTest {
 
     @Test
     void zeroSkyLayer_underLitSlabRow_isWritten_soVanillaKeepsItDark() {
-        // 열 전체를 y=112(섹션 7 의 맨 아래 줄)의 아래 반 블록으로 덮는다 — 반 블록 칸은 하늘빛 15, 그 아래 섹션 6 은 모두 0.
+        // 열 전체를 y=112(섹션 7 의 맨 아래 줄)의 아래 반 블록으로 덮는다 — 반 블록 칸은 하늘빛 15, 그 아래 섹션 6(돌 하나)은 모두 0.
         // 바닐라 서버로 확인한 장면(밀폐된 어두운 방 위 반 블록 지붕)과 같은 꼴: 0 층을 빼면 바닐라는 섹션 6 을 15 로 채운다.
         ChunkColumn col = new SuperflatWorldSource(REG, 0).generate(0, 0);
         int slab = REG.stateIdOrAir("minecraft:smooth_stone_slab", java.util.Map.of("type", "bottom", "waterlogged", "false"));
         assertNotEquals(REG.defaultStateId("minecraft:air"), slab);
         for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) col.setBlock(x, 112, z, slab);
+        // 섹션 6 을 공기뿐이 아니게 한다 — 바닐라 ChunkSkyLightSources.fillFrom 은 공기뿐인 섹션을 만나면 위 칸 아래 면을 보지 않고
+        // 건너뛰어, 처음 빛 계산 때 반 블록 아래를 15 로 만든다(검토 S1). 그 특이점에 기대지 않는 장면으로 둔다.
+        col.setBlock(0, 96, 0, REG.defaultStateId("minecraft:stone"));
         ChunkLevel.precomputeLight(col, 0, 0, REG.defaultStateId("minecraft:bedrock"), true);
         ChunkLight light = col.light();
         int s6 = ChunkLight.sectionIndex(96), s7 = ChunkLight.sectionIndex(112);
