@@ -10,7 +10,7 @@
 - **플러그인 7종 중 필드·배열 수준으로 섹션을 바꾸는 것은 FAWE 뿐이다.** 나머지는 메서드 수준(WorldEdit·BentoBox·BlockChanger 의 `setBlockState`), 바이옴 컨테이너 제자리 쓰기(Denizen), 읽기 전용 복사(squaremap), 월드젠(Iris)이다. 다만 BlockChanger 의 `MethodHandles.arrayElementSetter(LevelChunkSection[])` 와 Denizen 의 바이옴 `getAndSetUnchecked` 는 설계의 쓰기 장벽이 못 보는 모양이라 **훑기(정식 경로)** 가 필요하다는 설계 판단을 뒷받침한다(3장).
 - **바닐라 jar 정답기는 클라우드에서 6초 안에 돈다**(부트스트랩 4.4초, 상태 26,684개 깃발 1.5초, 섹션 300개·열 40개 0.6초). 하이트맵 정답기에 쓸 `ProtoChunk` 는 **섹션 배열을 다 채워 넘기면 바이옴 레지스트리 없이(null) 만들어진다** — 설계가 걱정한 부트스트랩 비용(데이터 팩 레지스트리)은 필요 없다(4장).
 - **Furnace 표 26,684개 상태 전부가 바닐라 개수 깃발과 같다**(공기·블록 무작위 틱·유체 있음·용암). 섹션 비공기 수·무작위 틱 판정·하이트맵 넷도 같은 입력에서 바닐라와 같다 — **하나만 빼고**: 아래 버그.
-- **발견한 버그(N2b 와 무관, 별도 수정 과제로 넘김)**: `ChunkColumn.updateSurface` 는 `surface[열]==0` 을 "프라임 전"으로 보고 갱신을 건너뛴다. 하이트맵을 만든 뒤 열 전체가 공기여도 0 이라, **빈 열(공허 월드·스카이블록·엔드 공허, 바닥까지 판 열)에 놓은 블록이 WORLD_SURFACE 에 영영 반영되지 않는다.** 바닐라 `Heightmap.update` 는 반영한다. 정답기 열 40개에서 44칸이 정확히 이 모양으로 다르다. 영향: 청크 패킷·저장 WORLD_SURFACE, 자연 스폰 높이 범위(`Region.surfaceHeight`), `SpawnLocation`, `/execute positioned over world_surface`. 시험은 이 모양만 세고(`knownEmptyColumn`) 다른 차이는 실패시킨다 — 수정되면 엄격 비교로 바꾼다.
+- **발견한 버그(N2b 와 무관, 수정됨 — PR #354)**: `ChunkColumn.updateSurface` 는 `surface[열]==0` 을 "프라임 전"으로 보고 갱신을 건너뛴다. 하이트맵을 만든 뒤 열 전체가 공기여도 0 이라, **빈 열(공허 월드·스카이블록·엔드 공허, 바닥까지 판 열)에 놓은 블록이 WORLD_SURFACE 에 영영 반영되지 않는다.** 바닐라 `Heightmap.update` 는 반영한다. 정답기 열 40개에서 44칸이 정확히 이 모양으로 달랐다(수정 후 0). 영향: 청크 패킷·저장 WORLD_SURFACE, 자연 스폰 높이 범위(`Region.surfaceHeight`), `SpawnLocation`, `/execute positioned over world_surface`. 수정 후 시험은 네 하이트맵을 모두 엄격 비교한다.
 
 ## 2. Furnace 블록 파생 캐시 전수 목록(V3 의 바탕)
 
@@ -94,7 +94,7 @@
 - `stateFlagsMatchFurnaceTables` — Furnace 공기 판정·`BlockBehavior.isRandomlyTicking`·유체 상태·용암 판정이 26,684개 모두 바닐라와 같다.
 - `vanillaCountModelMatchesOracle` — 바닐라 개수 규칙의 본 모델(하나씩 놓기·다시 세기)이 300개 모두 정답과 같다. N2b-1 의 떨어진 `LevelChunkSection` 이 이 모델을 쓴다.
 - `furnaceSectionMatchesVanillaOnSameInput` — Furnace 비공기 수 = 바닐라 하나씩 놓기 nonEmpty, 무작위 틱 판정 = 바닐라 다시 세기(하나씩 놓은 섹션·통째 교체 섹션 모두).
-- `furnaceColumnHeightmapsMatchVanilla` — 네 하이트맵이 처음(로드 직후처럼 내용에서 만든 값)과 바꾼 뒤 모두 바닐라와 같다. 단 "바꾼 뒤" 단계의 빈 열 WORLD_SURFACE 버그 모양만 허용하고 그 수를 44칸으로 못 박는다 — 수정(PR #354)이 들어오면 0 이 되어 실패하므로 그때 허용을 지운다.
+- `furnaceColumnHeightmapsMatchVanilla` — 네 하이트맵이 처음(로드 직후처럼 내용에서 만든 값)과 바꾼 뒤 모두 바닐라와 같다. 빈 열 WORLD_SURFACE 버그(PR #354 로 수정)의 허용은 지워 엄격 비교다.
 
 **비용**: 부트스트랩 4.4초, 깃발 1.5초, 섹션 300개 0.3초, 열 40개 0.2초(이 컨테이너). `ProtoChunk(pos, UpgradeData.EMPTY, sections[24], ticks, ticks, LevelHeightAccessor.create(-64,384), null, null)` — 섹션을 다 넘기면 `replaceMissingSections` 가 레지스트리를 쓰지 않는다. 바이옴 컨테이너는 `null` 로 둬도 개수·하이트맵에는 쓰이지 않는다. **N2b-2 고정 하이트맵의 정답기는 이 도구를 늘리면 된다**(원시 쓰기 → 낡은 값 유지 → 다음 `update` 의 결과까지 같은 방식으로 기록).
 
