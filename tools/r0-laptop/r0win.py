@@ -264,7 +264,7 @@ def window(world, k, a, b):
     p = os.path.join(RUNS, world, f"samples-{k}.csv")
     if not os.path.exists(p): return {}
     rs = [x for x in csv.DictReader(open(p, encoding="utf-8")) if x["ts"] and a <= float(x["ts"]) <= b]
-    out = {"n": len(rs)}
+    out = {"samples": len(rs)}
     for key in ["cpu_pct", "mspt_region_ow", "tps_slow_ow", "heap_mb", "chunks", "rss_mb"]:
         v = sorted(float(x[key]) for x in rs if x.get(key))
         if not v: continue
