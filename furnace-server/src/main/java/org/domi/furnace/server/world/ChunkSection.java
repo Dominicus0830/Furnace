@@ -54,6 +54,16 @@ public final class ChunkSection {
         return tickingCount > 0 || fluidCount > 0;
     }
 
+    /** 바닐라 isRandomlyTickingBlocks(1) · isRandomlyTickingFluids(2) 비트(NMS 섹션 보기용). 모르면 먼저 다시 센다. */
+    public int randomTickingParts() {
+        if (tickingCount < 0) {
+            boolean[] t = randomTicking;
+            if (t == null) return 0;
+            recount(t);
+        }
+        return (tickingCount > 0 ? 1 : 0) | (fluidCount > 0 ? 2 : 0);
+    }
+
     /** 지금 블록에서 무작위 틱 받는 칸 수를 센다(캐시를 건드리지 않음). */
     private int countTicking(boolean[] t) {
         int n = 0;

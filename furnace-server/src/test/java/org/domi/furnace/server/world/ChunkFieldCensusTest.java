@@ -60,7 +60,7 @@ class ChunkFieldCensusTest {
         e("lightStaleSeq", Kind.UNRELATED), e("listenerRegistries", Kind.UNRELATED), e("extraNbt", Kind.UNRELATED),
         e("inhabitedTime", Kind.UNRELATED), e("poiNbt", Kind.UNRELATED), e("poi", Kind.UNRELATED),
         e("structures", Kind.UNRELATED), e("foreignEntities", Kind.UNRELATED), e("entitiesOnDisk", Kind.UNRELATED),
-        e("entitiesLoaded", Kind.UNRELATED), e("pendingEntityLoad", Kind.UNRELATED)));
+        e("entitiesLoaded", Kind.UNRELATED), e("pendingEntityLoad", Kind.UNRELATED), e("loadToken", Kind.UNRELATED)));
 
     private static final Map<String, Kind> SECTION = new TreeMap<>(Map.ofEntries(
         e("AIR", Kind.FIXED), e("VOID_AIR", Kind.FIXED), e("CAVE_AIR", Kind.FIXED), e("DEFAULT_DIRECT_BITS", Kind.FIXED),

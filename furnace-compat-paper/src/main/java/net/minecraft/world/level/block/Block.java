@@ -128,6 +128,10 @@ public class Block extends BlockBehaviour implements ItemLike {
     /** 호환 모듈 전용 — 공기 종류(air·cave_air·void_air)인가. */
     public boolean furnaceIsAir() { return air; }
 
+    /** 바닐라: 블록 상태 번호 표(팔레트 컨테이너의 블록 표). 서버 상태 표를 비추는 고정 표다(더할 수 없다). */
+    public static final net.minecraft.core.IdMapper<BlockState> BLOCK_STATE_REGISTRY = net.minecraft.core.IdMapper.furnaceFixed(
+            BlockState::furnaceStateId, org.domi.furnace.compat.nms.NmsBlocks::state, org.domi.furnace.compat.nms.NmsBlocks::stateCount);
+
     /** 바닐라: null 이면 0. */
     public static int getId(BlockState state) { return state == null ? 0 : state.furnaceStateId(); }
 
