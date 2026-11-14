@@ -2608,13 +2608,20 @@ public abstract class ChunkLevel implements BlockLevel {
         e.setLevel(this);
         long addedKey = e.sectionKey();
         if (!entities.add(e)) return false;
+        if (!claimUuid(e)) {   // 바닐라 "UUID of added entity already exists": 다른 region 이 같은 UUID 를 이미 쥐고 있다
+            entities.remove(e);
+            e.setLevel(before);
+            return false;
+        }
         if (fireEvent && !gameEvents().entitySpawn(e)) {   // 플러그인 EntitySpawnEvent 취소: 추적·리스너 등록 전이라 목록과 레벨만 되돌린다
             entities.remove(e);
+            indexEntity(e, false);   // 위에서 잡은 UUID 자리를 놓는다
             e.setLevel(before);
             retireApiTasks(e);
             return false;
         }
         if (e.isRemoved()) {   // 스폰 이벤트 처리기가 지웠다: 이미 목록에서 빠졌으니 추적·리스너를 붙이지 않는다(유령 엔티티 방지)
+            indexEntity(e, false);
             retireApiTasks(e);
             return false;
         }
@@ -2629,12 +2636,21 @@ public abstract class ChunkLevel implements BlockLevel {
     /** id → 엔티티 색인(월드마다 하나, 어느 스레드에서나 읽는다)에 넣거나 뺀다. 색인이 없는 레벨(시험 레벨)은 아무것도 안 한다. */
     protected void indexEntity(Entity e, boolean add) {}
 
+    /**
+     * 월드 전체에서 e 의 UUID 를 e 가 쥔다(바닐라 PersistentEntitySectionManager.knownUuids — 레벨 단위 중복 거부). 이미 다른 살아 있는 엔티티가 쥐고 있으면 거짓.
+     * 성공하면 UUID 색인에 e 가 들어가 있다. 색인이 없는 레벨(시험 레벨)은 늘 참.
+     */
+    protected boolean claimUuid(Entity e) { return true; }
+
+    /** claimUuid 가 실패할 상태인가(넣지 않고 미리 보기만 — 승객 묶음 검사용). */
+    protected boolean uuidTakenElsewhere(Entity e) { return false; }
+
     /** tryAddFreshEntityWithPassengers: 승객의 승객까지 하나라도 UUID 가 겹치면 아무것도 넣지 않는다. */
     public boolean addFreshEntityWithPassengers(Entity e) {
         java.util.List<org.domi.furnace.server.entity.Rider> all = new java.util.ArrayList<>();
         all.add(e);
         e.collectIndirectPassengers(all);
-        for (var r : all) if (r instanceof Entity x && entities.containsUuid(x.uuid())) return false;
+        for (var r : all) if (r instanceof Entity x && (entities.containsUuid(x.uuid()) || uuidTakenElsewhere(x))) return false;
         // 플러그인 EntitySpawnEvent: 하나라도 취소하면 전부 넣지 않는다(전부 아니면 전무)
         java.util.List<Entity> fired = new java.util.ArrayList<>();
         java.util.List<ChunkLevel> before = new java.util.ArrayList<>();
@@ -2676,6 +2692,10 @@ public abstract class ChunkLevel implements BlockLevel {
         e.setLevel(this);
         if (!entities.add(e)) {
             if (!entities.contains(e)) indexEntity(e, false);   // 같은 UUID 가 이미 있어 못 받았다 — 색인에 유령을 남기지 않는다
+            return;
+        }
+        if (!claimUuid(e)) {   // 같은 UUID 의 다른 엔티티가 다른 region 에 살아 있다 — 받지 않는다(조건부 remove 라 그쪽 색인은 그대로)
+            entities.remove(e);
             return;
         }
         if (e.tracker == null) startTracking(e);

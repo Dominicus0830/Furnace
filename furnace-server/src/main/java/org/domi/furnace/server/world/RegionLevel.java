@@ -166,6 +166,24 @@ public final class RegionLevel extends ChunkLevel {
     }
 
     @Override
+    protected boolean claimUuid(org.domi.furnace.server.entity.Entity e) {
+        var index = world.entityUuidIndex();
+        while (true) {
+            var prev = index.putIfAbsent(e.uuid(), e);
+            if (prev == null || prev == e) return true;
+            // 지워진 엔티티가 남긴 칸은 갈아 끼운다(경쟁에 졌으면 다시 본다)
+            if (!prev.isRemoved()) return false;
+            if (index.replace(e.uuid(), prev, e)) return true;
+        }
+    }
+
+    @Override
+    protected boolean uuidTakenElsewhere(org.domi.furnace.server.entity.Entity e) {
+        var prev = world.entityUuidIndex().get(e.uuid());
+        return prev != null && prev != e && !prev.isRemoved();
+    }
+
+    @Override
     public int nextEntityId() { return world.entityIds().next(); }
 
     @Override

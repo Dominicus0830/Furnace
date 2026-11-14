@@ -279,4 +279,53 @@ class PluginApiEntityChangeBlockTest {
         assertTrue(at(rg -> w.entityByUuidNow(id)).isEmpty());
         assertNull(core.world().entityUuidIndex().get(id), "색인에서도 빠진다");
     }
+
+    private static final ChunkPos FAR = new ChunkPos(160, 0);
+
+    /** 바닐라 "UUID of added entity already exists": 레벨(월드) 전체에서 같은 UUID 를 거부한다 — region 이 달라도. */
+    @Test
+    void sameUuidInAnotherRegionIsRejectedAndKeepsTheLiveOne() throws Exception {
+        core.world().submitAtChunk(FAR, r -> r.chunkAtBlocking(FAR)).get(30, TimeUnit.SECONDS);
+        UUID id = UUID.randomUUID();
+        int first = at(rg -> {
+            var l = rg.level();
+            var sheep = new Sheep(l, l.nextEntityId());
+            sheep.setUuid(id);
+            sheep.moveTo(7.5, -50, 7.5, 0, 0);
+            assertTrue(l.addFreshEntity(sheep));
+            return sheep.id();
+        });
+        boolean[] second = core.world().submitAtChunk(FAR, rg -> {
+            var l = rg.level();
+            var dup = new Sheep(l, l.nextEntityId());
+            dup.setUuid(id);
+            dup.moveTo(160 * 16 + 0.5, -50, 0.5, 0, 0);
+            boolean added = l.addFreshEntity(dup);
+            boolean passengers = l.addFreshEntityWithPassengers(dup);
+            dup.discard();   // 못 들어간 쪽이 지워져도 살아 있는 쪽의 색인을 지우지 않는다
+            return new boolean[] {added, passengers};
+        }).get(30, TimeUnit.SECONDS);
+        assertFalse(second[0], "다른 region 의 같은 UUID 는 거부");
+        assertFalse(second[1], "승객 묶음 경로도 거부");
+        var held = core.world().entityUuidIndex().get(id);
+        assertNotNull(held, "살아 있는 쪽이 색인에 그대로");
+        assertEquals(first, held.id());
+        assertEquals(first, host.world("minecraft:overworld").entityIdByUuid(id).orElseThrow());
+
+        // 살아 있는 쪽이 지워지면 같은 UUID 를 다시 받을 수 있다
+        at(rg -> {
+            ((org.domi.furnace.server.entity.Entity) rg.level().entities().get(first)).discard();
+            return null;
+        });
+        assertNull(core.world().entityUuidIndex().get(id));
+        boolean again = core.world().submitAtChunk(FAR, rg -> {
+            var l = rg.level();
+            var sheep = new Sheep(l, l.nextEntityId());
+            sheep.setUuid(id);
+            sheep.moveTo(160 * 16 + 0.5, -50, 0.5, 0, 0);
+            return l.addFreshEntity(sheep);
+        }).get(30, TimeUnit.SECONDS);
+        assertTrue(again);
+        assertNotNull(core.world().entityUuidIndex().get(id));
+    }
 }
