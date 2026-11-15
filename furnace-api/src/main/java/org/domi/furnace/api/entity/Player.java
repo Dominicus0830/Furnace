@@ -180,7 +180,7 @@ public interface Player extends CommandSender, LivingEntity {
      * 메뉴 화면을 연다(열린 다른 화면은 닫힌다). 어느 스레드에서 불러도 되며 연결 스레드에서 이뤄진다.
      * InventoryOpenEvent 가 취소되면 열리지 않는다.
      */
-    default void openMenu(org.domi.furnace.api.menu.Menu menu) { throw new UnsupportedOperationException("a player that cannot open menus"); }
+    default void openMenu(org.domi.furnace.api.menu.Menu menu) { throw new UnsupportedOperationException("this player cannot open menus"); }
 
     /** 열린 메뉴 화면이 이 플레이어의 것이면 닫는다(다른 화면이면 건드리지 않는다). */
     default void closeMenu() {}

@@ -29,7 +29,7 @@ public enum MenuType {
 
     /** 줄 수(1~6)로 상자 모양을 고른다. */
     public static MenuType chest(int rows) {
-        if (rows < 1 || rows > 6) throw new IllegalArgumentException("a chest has 1~6 rows: " + rows);
+        if (rows < 1 || rows > 6) throw new IllegalArgumentException("chest rows must be 1~6: " + rows);
         return values()[rows - 1];
     }
 }

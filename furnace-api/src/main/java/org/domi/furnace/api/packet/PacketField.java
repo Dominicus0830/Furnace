@@ -11,7 +11,7 @@ public record PacketField<T>(String name, Class<T> valueClass) {
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(valueClass, "valueClass");
         if (!PacketStruct.VALUE_KINDS.contains(valueClass)) {
-            throw new IllegalArgumentException("not a field value kind: " + valueClass.getName() + " (allowed: see the GenericPacket header)");
+            throw new IllegalArgumentException("not a field value kind: " + valueClass.getName() + " (allowed kinds are listed in the GenericPacket class documentation)");
         }
     }
 

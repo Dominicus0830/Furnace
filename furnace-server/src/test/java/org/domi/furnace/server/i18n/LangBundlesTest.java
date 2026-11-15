@@ -122,15 +122,43 @@ class LangBundlesTest {
      * 아직 한글이 남은 파일은 `파일 줄수` 로 lang-exception-english-pending.txt 에 있다(작업 목록 겸용). 줄 수가 늘면 실패하고(새 한글 진단 금지),
      * 줄어들었는데 목록을 안 고쳐도 실패한다(옮긴 만큼 낮춘다, 0 이 되면 줄을 지운다).
      */
-    @Test
-    void noNewHangulDeveloperDiagnostics() throws IOException {
+    /** 대기 목록 파싱. 중복 경로·숫자 아닌 값·0 이하는 상한을 몰래 올리거나 목록을 망가뜨리므로 바로 실패시킨다. */
+    static java.util.Map<String, Integer> parseEnglishPending(List<String> lines) {
         java.util.Map<String, Integer> cap = new java.util.TreeMap<>();
-        for (String l : Files.readAllLines(Path.of("src/test/resources/lang-exception-english-pending.txt"), StandardCharsets.UTF_8)) {
-            l = l.strip();
+        int no = 0;
+        for (String raw : lines) {
+            no++;
+            String l = raw.strip();
             if (l.isEmpty() || l.startsWith("#")) continue;
             int sp = l.lastIndexOf(' ');
-            cap.put(l.substring(0, sp).strip(), Integer.parseInt(l.substring(sp + 1)));
+            if (sp < 0) throw new AssertionError("line " + no + ": expected '<path> <count>': " + raw);
+            String path = l.substring(0, sp).strip();
+            int count;
+            try {
+                count = Integer.parseInt(l.substring(sp + 1));
+            } catch (NumberFormatException e) {
+                throw new AssertionError("line " + no + ": the count is not a number: " + raw);
+            }
+            if (count <= 0) throw new AssertionError("line " + no + ": the count must be positive (delete the line at 0): " + raw);
+            if (cap.put(path, count) != null) throw new AssertionError("line " + no + ": duplicate path (a later line would silently override the earlier one): " + path);
         }
+        return cap;
+    }
+
+    @Test
+    void englishPendingListRejectsDuplicateNegativeAndNonNumericLines() {
+        assertEquals(java.util.Map.of("m/A.java", 2), parseEnglishPending(List.of("# c", "", "m/A.java 2")));
+        assertThrows(AssertionError.class, () -> parseEnglishPending(List.of("m/A.java 2", "m/A.java 5")));
+        assertThrows(AssertionError.class, () -> parseEnglishPending(List.of("m/A.java -1")));
+        assertThrows(AssertionError.class, () -> parseEnglishPending(List.of("m/A.java 0")));
+        assertThrows(AssertionError.class, () -> parseEnglishPending(List.of("m/A.java many")));
+        assertThrows(AssertionError.class, () -> parseEnglishPending(List.of("m/A.java")));
+    }
+
+    @Test
+    void noNewHangulDeveloperDiagnostics() throws IOException {
+        java.util.Map<String, Integer> cap = parseEnglishPending(
+                Files.readAllLines(Path.of("src/test/resources/lang-exception-english-pending.txt"), StandardCharsets.UTF_8));
         java.util.Map<String, Integer> found = new java.util.TreeMap<>();
         for (Path root : SOURCE_ROOTS) {
             if (!Files.isDirectory(root)) continue;

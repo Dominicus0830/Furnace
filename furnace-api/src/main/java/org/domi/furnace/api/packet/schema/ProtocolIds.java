@@ -75,7 +75,7 @@ public final class ProtocolIds {
                     default -> throw new IllegalArgumentException("unknown line kind: " + p[0]);
                 }
             } catch (RuntimeException e) {
-                throw new IllegalArgumentException("id table line " + lineNo + ": " + line + " — " + e.getMessage(), e);
+                throw new IllegalArgumentException("id table line " + lineNo + ": " + line + " - " + e.getMessage(), e);
             }
         }
         return new ProtocolIds(types, entries);

@@ -301,7 +301,7 @@ public final class PacketSchema {
             List<String> params = List.of();
             int lt = name.indexOf('<');
             if (lt >= 0) {
-                if (!name.endsWith(">")) throw new IllegalArgumentException("type variable brackets: " + name);
+                if (!name.endsWith(">")) throw new IllegalArgumentException("malformed type variable brackets: " + name);
                 params = List.of(name.substring(lt + 1, name.length() - 1).split(","));
                 name = name.substring(0, lt);
             }
@@ -347,7 +347,7 @@ public final class PacketSchema {
             int at = lineNo;
             open = new Block(fields -> {
                 if (kind == PacketDef.Kind.SINGLETON && !fields.isEmpty()) {
-                    throw new IllegalArgumentException("schema line " + at + ": a singleton packet has fields: " + cls);
+                    throw new IllegalArgumentException("schema line " + at + ": a singleton packet cannot have fields: " + cls);
                 }
                 PacketDef p = new PacketDef(st, dir, wire, pkg, cls, kind, fCtor, fCustom, fSup, fields);
                 lineOf.put(p, at);
@@ -410,7 +410,7 @@ public final class PacketSchema {
         }
 
         private void field(String line) {
-            if (open == null) throw new IllegalArgumentException("a field is outside a block");
+            if (open == null) throw new IllegalArgumentException("a field must be inside a packet or type block");
             // 타입 식은 꺾쇠 안의 공백(? extends)을 품을 수 있다 — 깊이 0 의 공백까지가 타입
             int depth = 0, i = 0;
             for (; i < line.length(); i++) {
@@ -433,7 +433,7 @@ public final class PacketSchema {
                 else if (o.startsWith("get=")) {
                     if (!open.isClassLike) throw new IllegalArgumentException("get= is only allowed on a class shape (a record uses the name as the accessor): " + name);
                     accessor = o.substring(4);
-                    if (!isIdentifier(accessor)) throw new IllegalArgumentException("accessor name: " + accessor);
+                    if (!isIdentifier(accessor)) throw new IllegalArgumentException("invalid accessor name: " + accessor);
                 } else if (EXPLICIT_WIRES.contains(o)) {
                     if (wire != null) throw new IllegalArgumentException("wire given twice: " + name);
                     wire = o;
