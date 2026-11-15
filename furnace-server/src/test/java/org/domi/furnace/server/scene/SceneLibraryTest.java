@@ -60,6 +60,22 @@ class SceneLibraryTest {
         assertTrue(diffAfter > 0, "200틱 뒤에는 활성 범위가 결과를 바꿔야 한다(바뀌지 않으면 갈래가 걸리지 않은 것)");
     }
 
+    /** 밀기 상한(T-122)을 끈 같은 장면은 금 파일(켬)과 엔티티 줄이 달라야 한다 — 같으면 상한 갈래가 걸리지 않은 것. 몹 수는 같다(cramming 아래). */
+    @Test
+    void collisionsOffDiffersFromCapped() {
+        List<String> on = Golden.expected("scene-collisions");
+        assertNotNull(on, "금 파일 identity/scene-collisions.txt 가 없다");
+        List<String> off = SceneHash.recordInFreshJvm(CollisionScene.Off.class);
+        assertEquals(on.size(), off.size());
+        int diff = 0;
+        for (int i = 0; i < on.size(); i++) {
+            String a = on.get(i), b = off.get(i);
+            if (a.contains(" count ")) assertEquals(a, b, "죽은 몹이 없어야 한다(cramming 아래)");
+            if (a.contains(" entities") && !a.contains("tick 0 ") && !a.equals(b)) diff++;
+        }
+        assertTrue(diff > 0, "밀기 상한이 결과를 바꿔야 한다");
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("scenes")
     void proofMatchesGolden(LibraryScene scene) {

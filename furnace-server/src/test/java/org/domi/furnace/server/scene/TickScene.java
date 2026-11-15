@@ -14,6 +14,14 @@ public abstract class TickScene implements LibraryScene {
         return org.domi.furnace.server.config.EntityActivationSettings.OFF;
     }
 
+    /**
+     * 엔티티 손잡이(T-122) 설정 — 장면 정의의 일부. 기본은 바닐라 값: 운영 기본(Paper 값)은 새 JVM 장면에서도 그대로 들어오므로 여기서 못 박는다.
+     * 켜는 장면(collisions)만 덮는다.
+     */
+    protected org.domi.furnace.server.config.EntityHandleSettings entityHandles() {
+        return org.domi.furnace.server.config.EntityHandleSettings.VANILLA;
+    }
+
     /** 같은 장면을 시드만 바꿔 되풀이하는 횟수(기본 1). round 는 0부터. */
     protected int rounds(Size size) { return 1; }
 
@@ -46,11 +54,14 @@ public abstract class TickScene implements LibraryScene {
     public final void play(Size size, SceneHash.Recorder rec, Probe probe) {
         SceneKit.install();
         var earBefore = org.domi.furnace.server.config.EntityActivationSettings.current();
+        var handlesBefore = org.domi.furnace.server.config.EntityHandleSettings.current();
         org.domi.furnace.server.config.EntityActivationSettings.install(entityActivation());
+        org.domi.furnace.server.config.EntityHandleSettings.install(entityHandles());
         try {
             playRounds(size, rec, probe);
         } finally {
             org.domi.furnace.server.config.EntityActivationSettings.install(earBefore);
+            org.domi.furnace.server.config.EntityHandleSettings.install(handlesBefore);
         }
     }
 

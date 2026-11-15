@@ -1340,6 +1340,9 @@ public abstract class LivingEntity extends Entity implements Targetable {
      */
     protected void pushEntities() {
         if (level == null) return;
+        // Paper "Don't run entity collision code if not needed"(collisions.skip-unpushable, 기본 켬 — T122-1): 밀 수 없으면 밀기·cramming 없음.
+        // (같은 패치의 팀 NEVER·"cramming 과 상한 둘 다 0 이하" 조건은 바닐라에서도 결과가 같아 따로 두지 않는다.)
+        if (!isPushable() && org.domi.furnace.server.config.EntityHandleSettings.current().skipUnpushableCollisions()) return;
         var s = level.pushScratch;
         s.collect(level, this, boundingBox());
         int n = s.size();
@@ -1348,7 +1351,9 @@ public abstract class LivingEntity extends Entity implements Targetable {
         if (rule > 0 && n > rule - 1 && random.nextInt(4) == 0) {
             if (s.countNonPassengers() > rule - 1) hurt(Damage.CRAMMING, 6.0F);
         }
-        s.pushAllBy(this);
+        int max = org.domi.furnace.server.config.EntityHandleSettings.current().maxEntityCollisions();   // T-122: Paper 기본 8, -1 = 바닐라
+        if (max < 0) s.pushAllBy(this);
+        else s.pushCappedBy(this, max);
         s.clear();
     }
 

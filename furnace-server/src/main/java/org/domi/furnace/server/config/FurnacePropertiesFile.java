@@ -79,6 +79,30 @@ public final class FurnacePropertiesFile {
             for (String[] k : EntityActivationSettings.BOOL_KEYS) l.add(opt(EntityActivationSettings.PREFIX + k[0], k[1], k[2] + "."));
             s.add(new Section("엔티티 활성 범위(기본 켜짐 — 바닐라와 다름)", l));
         }
+        {   // 엔티티 손잡이(T-122) — 키 이름은 spigot.yml·paper-world-defaults.yml 과 같다
+            EntityHandleSettings h = EntityHandleSettings.DEFAULT;
+            List<Option> l = new ArrayList<>();
+            l.add(opt(EntityHandleSettings.ITEM_MERGE, h.itemMerge(),
+                    "떨어진 아이템을 합치는 반경(블록, Spigot 식). 0.5(기본) = 바닐라. 키우면 멀리 떨어진 아이템도 합쳐진다."));
+            l.add(opt(EntityHandleSettings.EXP_MERGE, (int) h.expMerge(),
+                    "경험치 구슬을 합치는 반경(블록). 0 이하(기본) = 바닐라. 켜면 새 구슬이 반경 안의 같은 묶음 수 구슬 값을 흡수한다(Spigot·Paper)."));
+            l.add(opt(EntityHandleSettings.MAX_COLLISIONS, h.maxEntityCollisions(),
+                    "생물 하나가 한 틱에 미는 엔티티 수 상한(Paper 기본 8). 좁은 우리에 몹을 몰아넣은 농장이 가벼워지지만 바닐라와 결과가 다르다. "
+                            + "-1 = 제한 없음(바닐라), 0 = 밀지 않음. maxEntityCramming 피해는 이 값과 상관없이 바닐라대로."));
+            l.add(opt(EntityHandleSettings.TRACKING + "enabled", h.trackingEnabled(),
+                    "종류별 추적 거리(이 거리 안 플레이어에게만 엔티티를 보낸다). true(기본) = 아래 Paper 기본값, false = 바닐라(종류마다 다름). "
+                            + "실제 거리는 min(이 값 × entity-broadcast-range-percentage/100, 시야 × 16)."));
+            for (String[] k : EntityHandleSettings.TRACKING_KEYS) {
+                l.add(opt(EntityHandleSettings.TRACKING + k[0], k[1], k[2] + ". 블록, 0 = 아무에게도 보내지 않음."));
+            }
+            l.add(opt(EntityHandleSettings.ITEM_MERGE_INTO_TICKING, h.itemMergeIntoTicking(),
+                    "아이템을 합칠 때 늘 지금 틱을 도는 아이템 쪽으로 모은다(Spigot·Paper). false = 바닐라(개수가 적은 쪽을 많은 쪽에) — 어느 아이템이 남는지가 달라진다."));
+            l.add(opt(EntityHandleSettings.SKIP_UNPUSHABLE, h.skipUnpushableCollisions(),
+                    "밀 수 없는 생물(사다리·덩굴에 매달린 몹, 관전자 등)은 남을 밀지 않고 maxEntityCramming 피해도 받지 않는다(Paper). false = 바닐라."));
+            l.add(opt(EntityHandleSettings.PLAYER_CRAMMING, h.allowPlayerCrammingDamage(),
+                    "플레이어가 maxEntityCramming 피해를 받는가. false(기본, Paper) = 한곳에 플레이어를 많이 모아도 죽지 않는다. true = 바닐라."));
+            s.add(new Section("엔티티 손잡이(Paper 기본값 — 밀기 상한·추적 거리·합치는 방향·밀 수 없는 생물·플레이어 cramming 피해는 바닐라와 다름)", l));
+        }
         s.add(new Section("채팅·운영", List.of(
                 opt("chat.strict-order", o.strictChatOrder(), "true(바닐라)면 순서가 어긋난 채팅에서 서명 체인을 끊는다. false 면 그 메시지만 버린다."),
                 opt("chat.unsigned-as-system", o.unsignedChatAsSystem(), "true 면 채팅을 서명 없는 시스템 메시지로 보낸다(채팅 신고 불가)."),

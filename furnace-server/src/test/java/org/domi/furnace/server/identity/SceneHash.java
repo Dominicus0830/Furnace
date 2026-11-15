@@ -189,6 +189,9 @@ public final class SceneHash {
     public static final class ForkMain {
         public static void main(String[] args) throws Exception {
             Scene scene = Class.forName(args[0]).asSubclass(Scene.class).getDeclaredConstructor().newInstance();
+            // 새 JVM 에는 시험 확장(EntityHandlesVanillaExtension)이 없다 — 시험 JVM 과 같게 엔티티 손잡이를 바닐라 값으로(T-122).
+            // 손잡이를 켜는 장면은 TickScene.entityHandles() 로 스스로 바꾼다.
+            org.domi.furnace.server.config.EntityHandleSettings.install(org.domi.furnace.server.config.EntityHandleSettings.VANILLA);
             List<String> lines = record(scene);
             java.nio.file.Files.write(java.nio.file.Path.of(args[1]), lines, java.nio.charset.StandardCharsets.UTF_8);
             System.exit(0);   // 장면이 남긴 비데몬 스레드(스케줄러 등)를 기다리지 않는다

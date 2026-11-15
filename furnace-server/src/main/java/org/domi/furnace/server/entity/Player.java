@@ -259,6 +259,8 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     private volatile Entity vehicle;
     private int boardingCooldown;
+    /** Paper Cap Entity Collisions(T-122) — Entity.numCollisions 와 같다(PushScratch 만 쓴다). */
+    int numCollisions;
     /** ServerPlayer.setPlayerInput 이 정하는 xxa·zza·jumping(탄 동안만 바뀐다). */
     private volatile float inputXxa, inputZza;
     private volatile boolean inputJumping;

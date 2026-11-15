@@ -240,7 +240,7 @@
 
 | ID | 우선 | 관점 | 내용 | 출처 | 근거·증명 | 크기 | 모델 | 의존 | 파일 |
 |---|---|---|---|---|---|---|---|---|---|
-| T-122 | P1 | ADD | Spigot·Paper 엔티티 손잡이 4종을 위 표의 Paper 기본값으로: `merge-radius.item`·`merge-radius.exp`(spigot.yml 이름), `collisions.max-entity-collisions`(paper-world-defaults 이름), `entity-tracking-range.*`(Paper 의 물·주민=동물 범위, 드래곤 예외 포함). D11 과 같은 설정 클래스·`PaperConfigImport` 규칙·`config.preset=vanilla` 에서 바닐라 값. 바닐라와 다른 두 개(밀기 상한·추적 거리)는 PR 본문에 예외로 명시 | P-O05-17, 2차 B3-1 | 시험 JVM 기본은 바닐라 값(D11 의 `EntityActivationOffExtension` 방식)이라 기존 금 파일 그대로. 새 장면(몹 20마리 한 칸 밀기, 추적 거리 경계)으로 켬/끔 차이 금 파일. 합치기 둘은 기본값이 바닐라와 같음을 시험으로 고정. 측정: 밀기 1.6%·추적 3.8~4.1%(봇 16명 땅), 몹 농장 장면에서 다시 잼 | M | Sonnet high | D11(#326) | entity/, config/EntityActivationSettings 옆, PaperConfigImport |
+| T-122 | P1(**구현 — PR, 2026-11-15**) | ADD | Spigot·Paper 엔티티 손잡이 4종을 위 표의 Paper 기본값으로: `merge-radius.item`·`merge-radius.exp`(spigot.yml 이름), `collisions.max-entity-collisions`(paper-world-defaults 이름), `entity-tracking-range.*`(Paper 의 물·주민=동물 범위, 드래곤 예외 포함). D11 과 같은 설정 클래스·`PaperConfigImport` 규칙·`config.preset=vanilla` 에서 바닐라 값. 바닐라와 다른 두 개(밀기 상한·추적 거리)는 PR 본문에 예외로 명시 | P-O05-17, 2차 B3-1 | 시험 JVM 기본은 바닐라 값(D11 의 `EntityActivationOffExtension` 방식)이라 기존 금 파일 그대로. 새 장면(몹 20마리 한 칸 밀기, 추적 거리 경계)으로 켬/끔 차이 금 파일. 합치기 둘은 기본값이 바닐라와 같음을 시험으로 고정. 측정: 밀기 1.6%·추적 3.8~4.1%(봇 16명 땅), 몹 농장 장면에서 다시 잼 | M | Sonnet high | D11(#326) | entity/, config/EntityActivationSettings 옆, PaperConfigImport |
 
 ## 9. 60명 동시 새 땅 탐험 (2026-11-14)
 
