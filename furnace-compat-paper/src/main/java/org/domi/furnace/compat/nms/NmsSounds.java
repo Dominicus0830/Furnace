@@ -27,7 +27,7 @@ public final class NmsSounds {
                 if (r == null) {
                     r = new NmsMappedRegistry<>(Registries.SOUND_EVENT);
                     var ids = Furnace.server().gameRegistries().builtIn("minecraft:sound_event");
-                    if (ids.isEmpty()) throw new IllegalStateException("서버가 소리 레지스트리 목록을 주지 않았다");
+                    if (ids.isEmpty()) throw new IllegalStateException("the server did not provide the sound registry list");
                     for (String id : ids) {
                         ResourceLocation loc = ResourceLocation.parse(id);
                         r.add(loc, SoundEvent.createVariableRangeEvent(loc));
@@ -45,6 +45,6 @@ public final class NmsSounds {
     /** SoundEvents 상수용: 이름의 등록된 손잡이. */
     public static Holder.Reference<SoundEvent> reference(String path) {
         return mapped().getHolder(ResourceLocation.withDefaultNamespace(path))
-                .orElseThrow(() -> new IllegalStateException("서버 소리 레지스트리에 없는 이름: " + path));
+                .orElseThrow(() -> new IllegalStateException("name missing from the server sound registry: " + path));
     }
 }

@@ -52,7 +52,7 @@ public class SimpleCommandMap implements CommandMap {
 
     @Override
     public boolean register(String label, String fallbackPrefix, Command command) {
-        if (label == null || command == null) throw new IllegalArgumentException("label/command 가 null");
+        if (label == null || command == null) throw new IllegalArgumentException("label and command must not be null");
         String lower = label.toLowerCase(Locale.ROOT).trim();
         CompatCommands.Attached at;
         synchronized (this) {
@@ -224,7 +224,7 @@ public class SimpleCommandMap implements CommandMap {
             bare = key.substring(colon + 1);
         }
         if (bare.isEmpty() || bare.indexOf(' ') >= 0 || bare.indexOf(':') >= 0) {
-            throw new IllegalArgumentException("명령 트리에 올릴 수 없는 이름: '" + key + "'");
+            throw new IllegalArgumentException("name that cannot be put on the command tree: '" + key + "'");
         }
         if (current != null) removeName(key);
         CompatCommands.Attached at = attached.get(command);
@@ -281,7 +281,7 @@ public class SimpleCommandMap implements CommandMap {
         /** 이름 하나를 그 명령으로 트리에 붙인다(Paper 의 knownCommands 도 넣으면 명령 트리에 붙는다 — helper 가 별칭을 이렇게 올린다). */
         @Override
         public Command put(String key, Command value) {
-            if (key == null || value == null) throw new NullPointerException("knownCommands 에는 null 을 넣을 수 없다");
+            if (key == null || value == null) throw new NullPointerException("knownCommands cannot hold null");
             return putName(key.toLowerCase(Locale.ROOT), value);
         }
 

@@ -22,7 +22,7 @@ public class SimpleServicesManager implements ServicesManager {
 
     @Override
     public <T> void register(Class<T> service, T provider, Plugin plugin, ServicePriority priority) {
-        if (service == null || provider == null || plugin == null || priority == null) throw new IllegalArgumentException("register 인자가 null");
+        if (service == null || provider == null || plugin == null || priority == null) throw new IllegalArgumentException("register arguments must not be null");
         RegisteredServiceProvider<T> registered;
         synchronized (providers) {
             List<RegisteredServiceProvider<?>> list = providers.computeIfAbsent(service, k -> new ArrayList<>());

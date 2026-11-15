@@ -20,7 +20,7 @@ public class EntityDamageEvent extends EntityEvent implements Cancellable {
 
     /** 받은 피해(0 이상). 방어·효과 계산 뒤의 최종 값은 Furnace 의 EntityDamageCalculateEvent 단계가 따로 있다. */
     public void setDamage(double damage) {
-        if (!(damage >= 0)) throw new IllegalArgumentException("damage 는 0 이상: " + damage);
+        if (!(damage >= 0)) throw new IllegalArgumentException("damage must be at least 0: " + damage);
         this.damage = damage;
     }
 

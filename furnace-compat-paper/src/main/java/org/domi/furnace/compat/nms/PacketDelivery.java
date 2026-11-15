@@ -28,9 +28,9 @@ public final class PacketDelivery {
         if (packet instanceof BundlePacket<?> bundle) {
             List<ClientboundPacket> out = new ArrayList<>();
             for (Packet<?> sub : bundle.subPackets()) {
-                if (sub == null) throw new IllegalArgumentException("묶음 안에 null 패킷이 있다(바닐라도 인코딩이 실패해 연결이 끊긴다)");
+                if (sub == null) throw new IllegalArgumentException("a bundle contains a null packet (vanilla also fails to encode it and drops the connection)");
                 if (sub instanceof BundlePacket<?>) {
-                    throw new IllegalArgumentException("묶음 안에 묶음을 넣을 수 없다(바닐라도 안쪽 묶음을 인코딩하지 못해 연결이 끊긴다)");
+                    throw new IllegalArgumentException("a bundle cannot contain a bundle (vanilla also fails to encode the inner bundle and drops the connection)");
                 }
                 out.add(convert(sub));
             }

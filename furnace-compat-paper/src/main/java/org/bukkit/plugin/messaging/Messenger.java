@@ -6,7 +6,7 @@ import org.bukkit.plugin.Plugin;
 
 /**
  * 플러그인 채널(custom_payload) 등록·전달 창구. 서버마다 하나({@code Bukkit.getMessenger()}).
- * 채널 이름은 "네임스페이스:이름" 소문자이고, 옛 이름 "BungeeCord" 는 "bungeecord:main" 으로 바뀐다({@link StandardMessenger#validateAndCorrectChannel}).
+ * 채널 이름은 "네임스페이스:이름" 소문자이고, 옛 이름 "BungeeCord" must have "bungeecord:main" 으로 바뀐다({@link StandardMessenger#validateAndCorrectChannel}).
  */
 public interface Messenger {
 

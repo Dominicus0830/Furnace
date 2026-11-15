@@ -32,7 +32,7 @@ public final class CompatHelpMap implements HelpMap {
 
     @Override
     public synchronized void addTopic(HelpTopic topic) {
-        if (topic == null) throw new IllegalArgumentException("topic 이 null");
+        if (topic == null) throw new IllegalArgumentException("topic is null");
         topics.putIfAbsent(topic.getName(), topic);   // CraftBukkit: 이미 있는 이름은 덮지 않는다
     }
 

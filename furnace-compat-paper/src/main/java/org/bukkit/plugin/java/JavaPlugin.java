@@ -90,7 +90,7 @@ public abstract class JavaPlugin extends PluginBase {
         try {
             if (!outFile.getCanonicalPath().startsWith(getDataFolder().getCanonicalPath() + File.separator)) {
                 in.close();
-                throw new IllegalArgumentException("resourcePath 가 데이터 폴더 밖이다: " + resourcePath);
+                throw new IllegalArgumentException("resourcePath is outside the data folder: " + resourcePath);
             }
             if (outFile.exists() && !replace) {
                 getLogger().log(Level.WARNING, "Could not save " + outFile.getName() + " to " + outFile + " because " + outFile.getName() + " already exists.");

@@ -72,7 +72,7 @@ public final class NmsBlockProperties {
         List<String> vs = info.values();
         int min = Integer.parseInt(vs.get(0)), max = Integer.parseInt(vs.get(vs.size() - 1));
         IntegerProperty p = IntegerProperty.create(info.name(), min, max);
-        if (!names(p).equals(vs)) throw new IllegalStateException("정수 속성 값이 연속이 아니다: " + info);
+        if (!names(p).equals(vs)) throw new IllegalStateException("integer property values are not contiguous: " + info);
         return p;
     }
 
@@ -91,14 +91,14 @@ public final class NmsBlockProperties {
             }
         }
         Class<? extends Enum<?>> c = exact != null ? exact : containing == 1 ? only : null;
-        if (c == null) throw new IllegalStateException("값 종류를 정할 수 없는 열거 속성: " + info);
+        if (c == null) throw new IllegalStateException("enum property whose value type cannot be determined: " + info);
         List values = new ArrayList<>();
         for (String v : info.values()) {
             for (Enum<?> e : c.getEnumConstants()) if (((StringRepresentable) e).getSerializedName().equals(v)) values.add(e);
         }
         Property<?> p = c == Direction.class ? DirectionProperty.create(info.name(), (List<Direction>) values)
                 : EnumProperty.create(info.name(), (Class) c, (java.util.Collection) values);
-        if (!names(p).equals(info.values())) throw new IllegalStateException("열거 속성 값이 어긋난다: " + info);
+        if (!names(p).equals(info.values())) throw new IllegalStateException("enum property values do not match: " + info);
         return p;
     }
 

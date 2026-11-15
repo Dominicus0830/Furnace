@@ -60,7 +60,7 @@ public final class ItemStack {
 
     /** 호환 모듈 전용 — 종류·컴포넌트·개수를 Furnace 값으로 바꾼다(CraftItemStack 거울의 쓰기). EMPTY 는 바꾸지 않는다. */
     public void furnaceSet(org.domi.furnace.api.item.ItemStack value) {
-        if (this == EMPTY) throw new IllegalStateException("ItemStack.EMPTY 는 바꿀 수 없다");
+        if (this == EMPTY) throw new IllegalStateException("ItemStack.EMPTY cannot be modified");
         this.item = Item.byKey(value.type());
         this.count = value.amount();
         this.components = value.components();
@@ -69,7 +69,7 @@ public final class ItemStack {
 
     /** 호환 모듈 전용 — 종류만 바꾼다(개수·컴포넌트 패치는 그대로, CraftBukkit 의 setItem 자리). EMPTY 는 바꾸지 않는다. */
     public void furnaceSetItem(Item item) {
-        if (this == EMPTY) throw new IllegalStateException("ItemStack.EMPTY 는 바꿀 수 없다");
+        if (this == EMPTY) throw new IllegalStateException("ItemStack.EMPTY cannot be modified");
         this.item = java.util.Objects.requireNonNull(item, "item");
     }
 
@@ -174,7 +174,7 @@ public final class ItemStack {
     /** 값을 넣고 이전 값을 돌려준다(null 을 넣으면 지운다 — 바닐라 PatchedDataComponentMap.set 과 같다). */
     @SuppressWarnings("unchecked")
     public <T> T set(net.minecraft.core.component.DataComponentType<? super T> t, T value) {
-        if (this == EMPTY) throw new IllegalStateException("ItemStack.EMPTY 는 바꿀 수 없다");
+        if (this == EMPTY) throw new IllegalStateException("ItemStack.EMPTY cannot be modified");
         var k = (net.minecraft.core.component.DataComponents.Type<Object, Object>) type(t);
         T old = (T) get((net.minecraft.core.component.DataComponentType<Object>) t);
         var v = componentView();
@@ -186,7 +186,7 @@ public final class ItemStack {
 
     /** 지우고 이전 값을 돌려준다. */
     public <T> T remove(net.minecraft.core.component.DataComponentType<? extends T> t) {
-        if (this == EMPTY) throw new IllegalStateException("ItemStack.EMPTY 는 바꿀 수 없다");
+        if (this == EMPTY) throw new IllegalStateException("ItemStack.EMPTY cannot be modified");
         @SuppressWarnings("unchecked") var k = (net.minecraft.core.component.DataComponents.Type<Object, T>) type(t);
         T old = get(t);
         var next = componentView().without(k.furnace());

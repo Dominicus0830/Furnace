@@ -44,7 +44,7 @@ public class YamlConfigurationOptions extends FileConfigurationOptions {
     public int indent() { return indent; }
 
     public YamlConfigurationOptions indent(int value) {
-        if (value < 2 || value > 9) throw new IllegalArgumentException("indent 는 2~9");
+        if (value < 2 || value > 9) throw new IllegalArgumentException("indent must be 2..9");
         this.indent = value;
         return this;
     }

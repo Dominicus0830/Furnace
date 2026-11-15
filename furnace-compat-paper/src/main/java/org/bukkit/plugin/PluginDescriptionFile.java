@@ -59,7 +59,7 @@ public final class PluginDescriptionFile {
         this.name = pluginName.replace(' ', '_');
         this.version = pluginVersion;
         this.main = mainClass;
-        if (!VALID_NAME.matcher(pluginName).matches()) throw new IllegalArgumentException("플러그인 이름에 쓸 수 없는 글자가 있다: " + pluginName);
+        if (!VALID_NAME.matcher(pluginName).matches()) throw new IllegalArgumentException("the plugin name contains invalid characters: " + pluginName);
     }
 
     /** 이미 읽은 YAML 맵에서 만든다(호환 모듈이 paper-plugin.yml 을 plugin.yml 모양으로 바꿔 넘길 때). */

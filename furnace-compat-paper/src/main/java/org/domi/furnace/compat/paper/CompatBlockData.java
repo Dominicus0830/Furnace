@@ -81,14 +81,14 @@ public final class CompatBlockData extends CraftBlockData {
     public static CompatBlockData ofState(net.minecraft.world.level.block.state.BlockState state) {
         Objects.requireNonNull(state, "state");
         int id = state.furnaceStateId();
-        var d = Compat.furnace().blockTypes().byStateId(id).orElseThrow(() -> new IllegalStateException("서버가 모르는 상태 번호 " + id));
+        var d = Compat.furnace().blockTypes().byStateId(id).orElseThrow(() -> new IllegalStateException("state id unknown to the server " + id));
         return new CompatBlockData(d, null);
     }
 
     @Override
     public net.minecraft.world.level.block.state.BlockState getState() {
         int id = Compat.furnace().blockTypes().stateId(data);
-        if (id < 0) throw new IllegalStateException("서버가 모르는 상태 " + data);
+        if (id < 0) throw new IllegalStateException("state unknown to the server " + data);
         return net.minecraft.world.level.block.Block.stateById(id);
     }
 

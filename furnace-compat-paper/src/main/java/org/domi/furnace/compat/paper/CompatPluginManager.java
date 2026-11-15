@@ -20,7 +20,7 @@ public final class CompatPluginManager {
     /** 이 서버가 불러온 Bukkit 플러그인의 껍데기. 모르는 플러그인이면 IllegalPluginAccessException. */
     public static BukkitPluginAdapter adapter(Plugin plugin) {
         BukkitPluginAdapter a = adapterOrNull(plugin);
-        if (a == null) throw new IllegalPluginAccessException("Furnace 호환 어댑터가 모르는 플러그인이다: " + plugin);
+        if (a == null) throw new IllegalPluginAccessException("plugin unknown to the Furnace compat adapter: " + plugin);
         return a;
     }
 

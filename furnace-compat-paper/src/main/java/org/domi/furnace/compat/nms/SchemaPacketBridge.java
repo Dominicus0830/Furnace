@@ -186,7 +186,7 @@ public final class SchemaPacketBridge {
     /** 스키마 필드 i 를 범용 변환으로. */
     private static Object g(Object[] v, Plan p, int i, String at) {
         Conv c = p.convs().get(i);
-        if (c == null) throw new IllegalStateException(p.def().wireName() + "." + p.fields().get(i) + " 은 범용 변환이 없다");
+        if (c == null) throw new IllegalStateException(p.def().wireName() + "." + p.fields().get(i) + " has no generic conversion");
         return c.apply(v[i], at + "." + p.fields().get(i));
     }
 
@@ -196,7 +196,7 @@ public final class SchemaPacketBridge {
             LinkedHashMap<String, Object> m = new LinkedHashMap<>();
             for (String n : order) {
                 int i = p.names().indexOf(n);
-                if (i < 0) throw new IllegalStateException(p.def().wireName() + " 스키마에 " + n + " 이 없다");
+                if (i < 0) throw new IllegalStateException(p.def().wireName() + " schema has no field " + n);
                 m.put(n, g(v, p, i, at));
             }
             return m;
@@ -288,8 +288,8 @@ public final class SchemaPacketBridge {
         for (Object pair : (Collection<?>) need(v[1], at + ".slots")) {
             String here = at + ".slots[" + i++ + "]";
             Object slot = pairPart(need(pair, here), "getFirst", here), item = pairPart(pair, "getSecond", here);
-            if (!(slot instanceof net.minecraft.world.entity.EquipmentSlot es)) throw new IllegalArgumentException(here + ".first 는 EquipmentSlot 이어야 한다: " + slot);
-            if (!(item instanceof net.minecraft.world.item.ItemStack is)) throw new IllegalArgumentException(here + ".second 는 ItemStack 이어야 한다: " + item);
+            if (!(slot instanceof net.minecraft.world.entity.EquipmentSlot es)) throw new IllegalArgumentException(here + ".first must be an EquipmentSlot: " + slot);
+            if (!(item instanceof net.minecraft.world.item.ItemStack is)) throw new IllegalArgumentException(here + ".second must be an ItemStack: " + item);
             LinkedHashMap<String, Object> e = new LinkedHashMap<>();
             e.put("slot", es.name());
             e.put("item", is.furnaceValue());
@@ -313,7 +313,7 @@ public final class SchemaPacketBridge {
 
     private static Object pairPart(Object pair, String method, String at) {
         java.lang.reflect.Method[] ms = PAIR_METHODS.get(pair.getClass());
-        if (ms == null) throw new IllegalArgumentException(at + " 은 DataFixerUpper Pair(getFirst·getSecond)이어야 한다: " + pair.getClass().getName());
+        if (ms == null) throw new IllegalArgumentException(at + " must be a DataFixerUpper Pair (getFirst/getSecond): " + pair.getClass().getName());
         try {
             return ms[method.equals("getFirst") ? 0 : 1].invoke(pair);
         } catch (ReflectiveOperationException e) {
@@ -328,7 +328,7 @@ public final class SchemaPacketBridge {
     private static LinkedHashMap<String, Object> sectionBlocks(Object[] v, Plan p, String at) {
         short[] pos = (short[]) need(v[1], at + ".positions");
         net.minecraft.world.level.block.state.BlockState[] st = (net.minecraft.world.level.block.state.BlockState[]) need(v[2], at + ".states");
-        if (st.length < pos.length) throw new IllegalArgumentException(at + ": states(" + st.length + ") 가 positions(" + pos.length + ") 보다 짧다(바닐라도 쓰다 실패한다)");
+        if (st.length < pos.length) throw new IllegalArgumentException(at + ": states(" + st.length + ") is shorter than positions(" + pos.length + ") (vanilla also fails to write it)");
         List<Object> ps = new ArrayList<>(pos.length), ss = new ArrayList<>(pos.length);
         for (int i = 0; i < pos.length; i++) {
             ps.add(pos[i]);
@@ -363,7 +363,7 @@ public final class SchemaPacketBridge {
         m.put("method", method);
         if (method == 0 || method == 2) {
             Optional<?> o = (Optional<?>) need(v[3], at + ".parameters");
-            if (o.isEmpty()) throw new IllegalArgumentException(at + ": method " + method + " 인데 parameters 가 없다(바닐라도 쓰다 실패한다)");
+            if (o.isEmpty()) throw new IllegalArgumentException(at + ": method " + method + " but there are no parameters (vanilla also fails to write it)");
             PacketStruct ps = (PacketStruct) ((Optional<?>) g(v, p, 3, at)).orElseThrow();
             LinkedHashMap<String, Object> q = new LinkedHashMap<>();
             for (String n : List.of("display_name", "options", "nametag_visibility", "collision_rule", "color", "player_prefix", "player_suffix")) {
@@ -425,7 +425,7 @@ public final class SchemaPacketBridge {
             m.put("type", "minecraft:fixed");
             m.put("value", net.minecraft.network.chat.Component.furnace((net.minecraft.network.chat.Component) need(get(FIXED_VALUE, f), at + ".value")));
         } else {
-            throw new IllegalArgumentException(at + ": 바닐라 숫자 형식(BlankFormat·StyledFormat·FixedFormat)이 아니다(바닐라도 형식 종류가 없어 쓰다 실패한다): " + f);
+            throw new IllegalArgumentException(at + ": not a vanilla number format (BlankFormat, StyledFormat or FixedFormat; vanilla also fails to write it without a format type): " + f);
         }
         return PacketStruct.of(m);
     }
@@ -441,7 +441,7 @@ public final class SchemaPacketBridge {
             var a = (net.minecraft.network.protocol.game.ClientboundUpdateAttributesPacket.AttributeSnapshot) need(o, here);
             List<Object> mods = new ArrayList<>();
             int j = 0;
-            if (a.modifiers() == null) throw new IllegalArgumentException(here + ".modifiers 이 null 이다(바닐라도 이 패킷을 쓰다 실패한다)");
+            if (a.modifiers() == null) throw new IllegalArgumentException(here + ".modifiers is null (vanilla also fails to write this packet)");
             for (var mod : a.modifiers()) {
                 String mh = here + ".modifiers[" + j++ + "]";
                 need(mod, mh);
@@ -507,7 +507,7 @@ public final class SchemaPacketBridge {
         if (h instanceof net.minecraft.core.Holder<?> holder && holder.unwrapKey().isEmpty()
                 && holder.value() instanceof net.minecraft.world.level.saveddata.maps.MapDecorationType t) {
             var loc = net.minecraft.core.registries.BuiltInRegistries.MAP_DECORATION_TYPE.getKey(t);
-            if (loc == null) throw new IllegalArgumentException(at + ": 지도 표시 종류 레지스트리에 없는 값이다(바닐라도 번호를 못 찾아 쓰다 실패한다): " + t);
+            if (loc == null) throw new IllegalArgumentException(at + ": value missing from the map decoration type registry (vanilla also fails to write it without an id): " + t);
             return loc.toString();
         }
         return referenceName(h, "MapDecorationType", at);
@@ -518,9 +518,9 @@ public final class SchemaPacketBridge {
         if (h instanceof net.minecraft.core.Holder<?> holder) {
             var key = holder.unwrapKey();
             if (key.isPresent()) return key.get().location().toString();
-            throw new IllegalArgumentException(at + ": " + registry + " 직접 정의 — Furnace 는 아직 이 레지스트리 값을 찾지 못한다. Holder.Reference 로 보낸다: " + h);
+            throw new IllegalArgumentException(at + ": " + registry + " direct definition - Furnace cannot look up this registry value yet. Send a Holder.Reference: " + h);
         }
-        throw new IllegalArgumentException(at + ": " + registry + " Holder 가 아니거나 null 이다: " + h);
+        throw new IllegalArgumentException(at + ": " + registry + " is not a Holder or is null: " + h);
     }
 
     /**
@@ -718,7 +718,7 @@ public final class SchemaPacketBridge {
         if (p.refusal() != null) throw new UnsupportedNmsCall(call, p.refusal());
         if (!Furnace.server().packets().isReadable(p.type())) throw new UnsupportedNmsCall(call, "this server version cannot use this packet");
         Object[] values = packet.schemaValues();
-        if (values.length != p.convs().size()) throw new IllegalStateException(d.binaryName() + " shim 값 수가 스키마와 다르다");
+        if (values.length != p.convs().size()) throw new IllegalStateException(d.binaryName() + " shim value count differs from the schema");
         LinkedHashMap<String, Object> m;
         if (p.custom() != null) {
             m = p.custom().apply(values, p, d.wireName());
@@ -755,7 +755,7 @@ public final class SchemaPacketBridge {
             }
             if (registry.equals("MobEffect") && h.value() instanceof net.minecraft.world.effect.MobEffect e) {
                 var loc = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getKey(e);
-                if (loc == null) throw new IllegalArgumentException(at + ": 효과 레지스트리에 없는 효과다(바닐라도 번호를 못 찾아 인코딩이 실패한다): " + e);
+                if (loc == null) throw new IllegalArgumentException(at + ": effect missing from the effect registry (vanilla also fails to encode it without an id): " + e);
                 return loc.toString();
             }
             if (h.value() != null) {
@@ -763,7 +763,7 @@ public final class SchemaPacketBridge {
                         + " Send it as a Holder.Reference: " + v);
             }
         }
-        throw new IllegalArgumentException(at + ": " + registry + " Holder 가 아니거나 값이 없다: " + v);
+        throw new IllegalArgumentException(at + ": " + registry + " is not a Holder or has no value: " + v);
     }
 
     /** SoundEvent 의 private fixedRange()(바닐라와 같은 private 멤버라 반사로 읽는다). */
@@ -803,7 +803,7 @@ public final class SchemaPacketBridge {
     }
 
     private static Object need(Object v, String at) {
-        if (v == null) throw new IllegalArgumentException(at + " 이 null 이다(바닐라도 이 패킷을 쓰다 실패한다)");
+        if (v == null) throw new IllegalArgumentException(at + " is null (vanilla also fails to write this packet)");
         return v;
     }
 
@@ -811,12 +811,12 @@ public final class SchemaPacketBridge {
         if (x instanceof net.minecraft.world.item.Item i) return i.furnaceKey();
         if (x instanceof net.minecraft.world.level.block.Block b) return net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(b).toString();
         if (x instanceof net.minecraft.world.entity.EntityType<?> e) return e.furnaceKey().toString();
-        throw new IllegalStateException("레지스트리 번호 타입: " + x.getClass().getName());
+        throw new IllegalStateException("registry id type: " + x.getClass().getName());
     }
 
     private static org.domi.furnace.api.world.BlockData blockData(net.minecraft.world.level.block.state.BlockState s) {
         return Furnace.server().blockTypes().byStateId(s.furnaceStateId())
-                .orElseThrow(() -> new IllegalArgumentException("모르는 블록 상태 번호: " + s.furnaceStateId()));
+                .orElseThrow(() -> new IllegalArgumentException("unknown block state id: " + s.furnaceStateId()));
     }
 
     /** Mojang camelCase → snake_case(서버 GenericCodec767.snake 와 같은 규칙). */

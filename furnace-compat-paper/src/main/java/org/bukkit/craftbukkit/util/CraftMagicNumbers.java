@@ -91,7 +91,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
     @Override
     public String getMainLevelName() {
         for (var w : f().worlds()) if ("minecraft:overworld".equals(w.dimension())) return w.name();
-        throw new IllegalStateException("오버월드가 아직 없다");
+        throw new IllegalStateException("the overworld does not exist yet");
     }
 
     @Override

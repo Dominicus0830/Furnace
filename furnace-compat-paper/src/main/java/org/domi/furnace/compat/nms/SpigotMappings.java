@@ -85,7 +85,7 @@ public final class SpigotMappings {
                 + Files.getLastModifiedTime(spigotClasses) + "|" + spigotMembers.toAbsolutePath() + "|" + Files.getLastModifiedTime(spigotMembers);
         SpigotMappings cached = LOADED.get(key);
         if (cached != null) return cached;
-        if (key.equals(failedKey)) throw new IOException("앞서 읽지 못한 대응표(" + failedError.getMessage() + ")", failedError);
+        if (key.equals(failedKey)) throw new IOException("mapping that failed to load earlier (" + failedError.getMessage() + ")", failedError);
         SpigotMappings m;
         try (Reader a = Files.newBufferedReader(mojang, StandardCharsets.UTF_8);
              Reader b = Files.newBufferedReader(spigotClasses, StandardCharsets.UTF_8);
@@ -110,8 +110,8 @@ public final class SpigotMappings {
         m.readClasses(new BufferedReader(spigotClasses));
         m.indexMojangMembers(raw);
         m.readMembers(new BufferedReader(spigotMembers));
-        if (m.obfToMojang.isEmpty()) throw new IOException("Mojang 매핑에 클래스가 하나도 없다(ProGuard 형식이 아니다)");
-        if (m.spigotToObf.isEmpty()) throw new IOException("Spigot 클래스 매핑에 줄이 하나도 없다(csrg 형식이 아니다)");
+        if (m.obfToMojang.isEmpty()) throw new IOException("the Mojang mappings contain no classes (not in ProGuard format)");
+        if (m.spigotToObf.isEmpty()) throw new IOException("the Spigot class mappings contain no lines (not in csrg format)");
         return m;
     }
 

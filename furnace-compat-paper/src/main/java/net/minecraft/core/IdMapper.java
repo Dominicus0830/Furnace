@@ -56,7 +56,7 @@ public class IdMapper<T> implements IdMap<T> {
     public static <T> IdMapper<T> furnaceFixed(ToIntFunction<T> getId, IntFunction<T> byId, IntSupplier size) {
         return new IdMapper<>(0) {
             @Override
-            public void addMapping(T value, int id) { throw new UnsupportedOperationException("Furnace 의 고정 번호 표에는 더할 수 없다"); }
+            public void addMapping(T value, int id) { throw new UnsupportedOperationException("cannot add to Furnace's fixed id table"); }
 
             @Override
             public int getId(T value) { return value == null ? -1 : getId.applyAsInt(value); }

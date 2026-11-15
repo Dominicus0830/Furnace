@@ -100,7 +100,7 @@ public class ItemStack implements Cloneable, ConfigurationSerializable, io.paper
             slot.set(new org.domi.furnace.api.item.ItemStack(cur.type(), cur.amount()));
             return true;
         }
-        if (!(meta instanceof CompatItemMeta cm)) throw new IllegalArgumentException("Furnace 가 만든 ItemMeta 가 아니다: " + meta.getClass().getName());
+        if (!(meta instanceof CompatItemMeta cm)) throw new IllegalArgumentException("not an ItemMeta created by Furnace: " + meta.getClass().getName());
         slot.set(cm.applyTo(cur));
         return true;
     }
