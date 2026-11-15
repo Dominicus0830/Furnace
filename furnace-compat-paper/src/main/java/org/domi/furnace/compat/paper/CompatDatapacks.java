@@ -26,7 +26,7 @@ public final class CompatDatapacks implements DatapackManager {
 
     @Override
     public Datapack getPack(String name) {
-        if (name == null) throw new NullPointerException("name");
+        if (name == null) return null;   // Paper: repository.getPack(null) → null
         return packs().find(name).map(Pack::new).orElse(null);
     }
 

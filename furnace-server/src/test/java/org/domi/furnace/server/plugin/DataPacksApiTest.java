@@ -75,8 +75,16 @@ class DataPacksApiTest {
         List<String> before = ids(api.enabled());
         assertTrue(before.contains("vanilla"), before.toString());
 
+        assertTrue(api.find("file/mine").orElseThrow().enabled());
+        assertTrue(api.available().stream().filter(p -> p.id().equals("file/mine")).findFirst().orElseThrow().enabled());
+        assertTrue(api.available().stream().filter(p -> p.id().equals("vanilla")).findFirst().orElseThrow().enabled());
+        assertTrue(api.enabled().stream().allMatch(DataPacks.Pack::enabled));
+
         api.setEnabled("file/mine", false).get(20, TimeUnit.SECONDS);
         assertFalse(ids(api.enabled()).contains("file/mine"));
+        assertFalse(api.available().stream().filter(p -> p.id().equals("file/mine")).findFirst().orElseThrow().enabled(), "available 의 켜짐 표시");
+        assertTrue(api.available().stream().filter(p -> p.id().equals("vanilla")).findFirst().orElseThrow().enabled());
+        assertTrue(api.enabled().stream().allMatch(DataPacks.Pack::enabled));
         assertFalse(api.find("file/mine").orElseThrow().enabled());
         assertTrue(api.setEnabled("file/mine", false).isDone(), "이미 꺼져 있으면 바로 끝난다");
 

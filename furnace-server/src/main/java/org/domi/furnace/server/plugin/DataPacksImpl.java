@@ -75,6 +75,12 @@ final class DataPacksImpl implements DataPacks {
             if (enabled) org.domi.furnace.server.data.Pack.insert(list, p, false);   // /datapack enable 기본 자리
             else list.remove(p);
         }
-        return m.reload(list.stream().map(org.domi.furnace.server.data.Pack::id).toList(), ForkJoinPool.commonPool());
+        var done = m.reload(list.stream().map(org.domi.furnace.server.data.Pack::id).toList(), ForkJoinPool.commonPool());
+        // /reload 처럼 실패는 경고 한 줄(Paper setEnabled 는 결과를 버린다 — future 는 그대로 실패로 끝난다)
+        done.exceptionally(e -> {
+            org.slf4j.LoggerFactory.getLogger("Furnace").warn("Failed to execute reload", e);
+            return null;
+        });
+        return done;
     }
 }

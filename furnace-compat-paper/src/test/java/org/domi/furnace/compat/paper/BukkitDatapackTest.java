@@ -36,7 +36,9 @@ class BukkitDatapackTest {
         assertThrows(UnsupportedOperationException.class, () -> p.getRequiredFeatures().add(FeatureFlag.VANILLA));
 
         assertSame(DatapackSource.BUILT_IN, new CompatDatapacks.Pack(pack("vanilla", DataPacks.Source.BUILT_IN, Set.of(), true)).getSource());
-        assertEquals("plugin", new CompatDatapacks.Pack(pack("p", DataPacks.Source.PLUGIN, Set.of(), false)).getSource().toString());
+        var off = new CompatDatapacks.Pack(pack("p", DataPacks.Source.PLUGIN, Set.of(), false));
+        assertEquals("plugin", off.getSource().toString());
+        assertFalse(off.isEnabled(), "꺼진 사본");
         assertEquals("minecraft:bundle", FeatureFlag.BUNDLE.getKey().toString());
         assertEquals("minecraft:update_1_21", FeatureFlag.UPDATE_121.getKey().toString());
     }
@@ -50,7 +52,7 @@ class BukkitDatapackTest {
             assertTrue(m.getEnabledPacks().isEmpty());
             assertTrue(m.getPacks().isEmpty());
             assertNull(m.getPack("vanilla"));
-            assertThrows(NullPointerException.class, () -> m.getPack(null));
+            assertNull(m.getPack(null), "Paper: 저장소 Map.get(null) 은 null");
             assertThrows(UnsupportedOperationException.class, () -> m.getEnabledPacks().add(null));
             m.refreshPacks();
         }
