@@ -439,11 +439,9 @@ public record EntityType(String name, int id, float width, float height, float e
     /** WITCH: sized(0.6, 1.95).eyeHeight(1.62).clientTrackingRange(8). */
     public static final EntityType WITCH = of("minecraft:witch", 0.6F, 1.95F, 1.62F, 8, 3, true, false);
 
-    private static final org.domi.furnace.server.net.registry.TagSet TAGS = org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt");
-
     /** 엔티티 종류 태그(entity_type 태그)에 들어 있나. */
     public boolean is(String tag) {
-        int[] ids = TAGS.ids("minecraft:entity_type", tag);
+        int[] ids = org.domi.furnace.server.item.ItemContext.gameplayTags().ids("minecraft:entity_type", tag);
         if (ids == null) return false;
         for (int i : ids) if (i == this.id) return true;
         return false;

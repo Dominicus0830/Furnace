@@ -46,10 +46,12 @@ public final class BlockShapes {
 
     public static BlockShapes of(BlockRegistry registry) {
         BlockShapes s = INSTANCE;
-        if (s == null || s.registry != registry) {
+        var tagSrc = org.domi.furnace.server.item.ItemContext.gameplayTags();
+        // 데이터 팩 리로드로 태그 표가 바뀌면(표 객체가 다름) 태그에서 만든 표를 새로 만든다
+        if (s == null || s.registry != registry || s.tagSrc != tagSrc) {
             synchronized (BlockShapes.class) {
                 s = INSTANCE;
-                if (s == null || s.registry != registry) INSTANCE = s = new BlockShapes(registry);
+                if (s == null || s.registry != registry || s.tagSrc != tagSrc) INSTANCE = s = new BlockShapes(registry, tagSrc);
             }
         }
         return s;
@@ -76,8 +78,11 @@ public final class BlockShapes {
     private final byte[] wallTests;
     private final byte[] centerMask, rigidMask, nonEmptyMask;
 
-    private BlockShapes(BlockRegistry registry) {
+    private final org.domi.furnace.server.net.registry.TagSet tagSrc;
+
+    private BlockShapes(BlockRegistry registry, org.domi.furnace.server.net.registry.TagSet tagSrc) {
         this.registry = registry;
+        this.tagSrc = tagSrc;
         this.table = BlockStateTable.of(registry);
         this.attrs = BlockAttrs.get();
         int n = registry.totalStateCount();
