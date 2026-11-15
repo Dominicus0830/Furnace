@@ -240,6 +240,22 @@ class LoginPhaseEventsTest {
         assertEquals(List.of("Steve"), later, "취소된 연결은 로그인 단계 이벤트까지 가지 않는다");
     }
 
+    /** 종료 중(접속 이벤트 실행기가 닫힘)에 사전 로그인까지 온 연결은 "Server closed" 로 끊긴다(#402 검토 O1). */
+    @Test
+    void preLoginAfterLoginEventPoolClosedDisconnectsWithServerClosed() throws Exception {
+        List<String> seen = new CopyOnWriteArrayList<>();
+        on(AsyncPlayerPreLoginEvent.class, e -> seen.add(e.name()));
+        core.plugins().close();   // PluginHost.close 가 접속 이벤트 실행기도 닫는다
+        assertTrue(core.plugins().loginEventExecutor().isShutdown());
+        try (TestClient c = TestClient.open(port)) {
+            handshake(c, "localhost", port);
+            c.write(0x00, b -> { Types.writeString(b, "Late"); Types.writeUuid(b, new UUID(0, 0)); });
+            ByteBuf d = c.await(0x00);   // Login Disconnect
+            assertTrue(Types.readString(d, 262144).contains("multiplayer.disconnect.server_shutdown"));
+        }
+        assertEquals(List.of(), seen, "닫힌 뒤에는 처리기가 불리지 않는다");
+    }
+
     @Test
     void configureMayBlockThenDisallow() throws Exception {
         on(AsyncPlayerConfigureEvent.class, e -> {

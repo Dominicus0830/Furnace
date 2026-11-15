@@ -99,6 +99,33 @@ class PluginAsyncExecutorTest {
         }
     }
 
+    /** #402 검토 R1: 플러그인 작업의 Error(옛 플러그인의 NoClassDefFoundError 등)도 서버 로그에 남고 일꾼이 죽지 않는다. */
+    @Test
+    void errorFromTaskIsLoggedAndThreadSurvives() throws Exception {
+        for (int i = 0; i < PluginAsyncExecutor.CORE_THREADS * 2; i++) runAndGetThread();   // 코어 스레드를 다 띄워 다음 작업이 같은 스레드로 가게
+        var logger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger("Furnace");
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            AtomicReference<Thread> thrower = new AtomicReference<>();
+            CountDownLatch thrown = new CountDownLatch(1);
+            ex.execute(() -> {
+                thrower.set(Thread.currentThread());
+                thrown.countDown();
+                throw new NoClassDefFoundError("org/bukkit/Missing-t034");
+            });
+            assertTrue(thrown.await(5, TimeUnit.SECONDS));
+            for (int i = 0; i < 100 && appender.list.isEmpty(); i++) Thread.sleep(20);
+            assertTrue(appender.list.stream().anyMatch(e -> e.getThrowableProxy() != null
+                    && "org/bukkit/Missing-t034".equals(e.getThrowableProxy().getMessage())), "오류가 서버 로그에 남는다: " + appender.list);
+            Thread.sleep(50);
+            assertTrue(thrower.get().isAlive(), "일꾼 스레드가 죽지 않는다");
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
+
     @Test
     void rejectsAfterShutdown() throws Exception {
         runAndGetThread();
@@ -113,6 +140,8 @@ class PluginAsyncExecutorTest {
     void neverUsedPoolTerminatesOnShutdown() {
         ex.shutdown();
         assertTrue(ex.isTerminated(), "처음 쓰기 전에 닫으면 바로 끝난다");
+        assertThrows(RejectedExecutionException.class, () -> ex.execute(() -> { }), "닫은 뒤 처음 쓰여도 새 풀을 만들지 않는다");
+        assertTrue(ex.isTerminated());
     }
 
     /**

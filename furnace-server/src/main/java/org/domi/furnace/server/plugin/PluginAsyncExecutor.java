@@ -82,7 +82,7 @@ public final class PluginAsyncExecutor extends AbstractExecutorService {
         return ex;
     }
 
-    /** 작업 하나: 잡히지 않은 예외는 스레드 이름과 함께 서버 로그에 남기고, 끝나면 인터럽트 표시·이름을 되돌린다(플랫폼 스레드는 다시 쓰인다). */
+    /** 작업 하나: 잡히지 않은 예외·오류(Throwable)는 스레드 이름과 함께 서버 로그에 남기고, 끝나면 인터럽트 표시·이름을 되돌린다(플랫폼 스레드는 다시 쓰인다). */
     private record Reusable(Runnable task) implements Runnable {
         @Override
         public void run() {
@@ -90,7 +90,7 @@ public final class PluginAsyncExecutor extends AbstractExecutorService {
             String name = t.getName();
             try {
                 task.run();
-            } catch (RuntimeException e) {
+            } catch (Throwable e) {   // Paper CraftAsyncTask 처럼 Error(NoClassDefFoundError·StackOverflowError 등)까지 — 일꾼이 죽고 크래시 리포트가 쌓이지 않게
                 log.error("플러그인 비동기 작업에서 잡히지 않은 예외(스레드 {})", name, e);
             } finally {
                 Thread.interrupted();
