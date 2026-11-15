@@ -4,7 +4,6 @@
 package io.papermc.paper.event.block;
 
 import io.papermc.paper.block.LockableTileState;
-import java.util.Objects;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
 import org.bukkit.entity.Player;
@@ -38,7 +37,7 @@ public class BlockLockCheckEvent extends BlockEvent {
 
     public Player getPlayer() { return player; }
 
-    /** 검사에 쓸 열쇠 — 따로 정하지 않았으면 주 손에 든 것. */
+    /** 검사에 쓸 열쇠 — 따로 정하지 않았으면 블록을 누를 때 주 손에 든 것의 사본(고쳐도 손 아이템은 바뀌지 않는다 — 바꾸려면 setKeyItem). */
     public ItemStack getKeyItem() {
         if (itemStack != null) return itemStack;
         return heldKey != null ? heldKey : player.getInventory().getItemInMainHand();
@@ -55,7 +54,8 @@ public class BlockLockCheckEvent extends BlockEvent {
 
     public Result getResult() { return result; }
 
-    public void setResult(Result result) { this.result = Objects.requireNonNull(result, "result"); }
+    /** null 은 DEFAULT 로 본다(Paper 는 null 을 그대로 두고 ALLOW·DENY 가 아니면 바닐라 검사를 한다 — 같은 결과). */
+    public void setResult(Result result) { this.result = result == null ? Result.DEFAULT : result; }
 
     @Override
     public HandlerList getHandlers() { return HANDLER_LIST; }

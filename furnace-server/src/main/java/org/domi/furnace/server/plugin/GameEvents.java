@@ -77,6 +77,9 @@ public interface GameEvents {
      * Paper BlockLockCheckEvent — 용기·신호기 잠금 검사 직전, 블록의 region 스레드에서. 구독자가 없으면 null(호출하는 쪽이 바닐라 검사).
      * 돌려준 이벤트의 결과·열쇠·알림 글·소리로 호출하는 쪽이 검사한다. heldKey 는 누를 때의 주 손, lockedMessage 는 바닐라 알림.
      */
+    /** BlockLockCheckEvent 구독자가 있는가 — 없으면 호출하는 쪽이 알림 글·이벤트를 만들지 않는다. */
+    default boolean wantsBlockLockCheck() { return false; }
+
     default org.domi.furnace.api.event.block.BlockLockCheckEvent blockLockCheck(Player p, String world, Pos pos, String lock, ItemStack heldKey,
             org.domi.furnace.api.text.Text lockedMessage, org.domi.furnace.api.audience.Sound lockedSound) { return null; }
 

@@ -342,6 +342,9 @@ public final class PluginGameEvents implements GameEvents {
     }
 
     @Override
+    public boolean wantsBlockLockCheck() { return wBlockLockCheck.on(); }
+
+    @Override
     public org.domi.furnace.api.event.block.BlockLockCheckEvent blockLockCheck(Player p, String world, org.domi.furnace.server.block.Pos pos, String lock,
             ItemStack heldKey, org.domi.furnace.api.text.Text lockedMessage, org.domi.furnace.api.audience.Sound lockedSound) {
         if (!wBlockLockCheck.on()) return null;

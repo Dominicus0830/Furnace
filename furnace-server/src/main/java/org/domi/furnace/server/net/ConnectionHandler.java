@@ -5239,12 +5239,14 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
      */
     private boolean canUnlock(Player p, ItemStack held, String dim, org.domi.furnace.server.block.Pos pos, String lock, Text displayName) {
         ItemStack key = held != null ? held : p.inventory().get(p.inventory().heldWindowSlot());
-        Text message = Text.translatable("container.isLocked", displayName);
         var c = login.core;
-        var ev = c == null ? null : c.gameEvents().blockLockCheck(p, dim, pos, lock, key, message, CHEST_LOCKED);
+        var events = c == null ? null : c.gameEvents();
+        // 구독자가 없으면 이벤트도 알림 글도 만들지 않는다(막힐 때만 글을 만든다)
+        var ev = events == null || !events.wantsBlockLockCheck() ? null
+                : events.blockLockCheck(p, dim, pos, lock, key, Text.translatable("container.isLocked", displayName), CHEST_LOCKED);
         if (ev == null) {
             if (p.isSpectator() || org.domi.furnace.server.block.entity.ContainerBlockEntity.unlocksWith(lock, key)) return true;
-            denyLocked(p, message, CHEST_LOCKED);
+            denyLocked(p, Text.translatable("container.isLocked", displayName), CHEST_LOCKED);
             return false;
         }
         var result = ev.result();
