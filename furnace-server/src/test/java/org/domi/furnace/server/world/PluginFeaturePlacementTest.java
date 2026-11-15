@@ -189,6 +189,68 @@ class PluginFeaturePlacementTest {
     }
 
     @Test
+    void captureKeepsFirstWriteOrderWithLastState() throws Exception {
+        // CraftBukkit capturedBlockStates: 처음 쓸 때 자리를 잡고 뒤 쓰기는 상태만 바꾼다(마지막 쓴 차례가 아니다)
+        Pos o = new Pos(40, 250, 88);
+        List<String> got = onRegion(l -> {
+            var r = LiveFeatures.run(l, o, 0L, false, 3, new JavaRandomWorldgen(new Random(1L)), view -> {
+                view.setBlock(o.x(), o.y(), o.z(), B.defaultState("minecraft:stone"));
+                view.setBlock(o.x() + 1, o.y(), o.z(), B.defaultState("minecraft:dirt"));
+                view.setBlock(o.x(), o.y(), o.z(), B.defaultState("minecraft:cobblestone"));
+                return true;
+            });
+            List<String> out = new ArrayList<>();
+            for (long[] w : r.writes()) out.add((w[0] - o.x()) + " " + Blocks.get().describe((int) w[3]));
+            return out;
+        });
+        assertEquals(List.of("0 minecraft:cobblestone", "1 minecraft:dirt"), got);
+    }
+
+    @Test
+    void captureSkipsIndestructibleBlocksLikePaper() throws Exception {
+        // Paper Protect-Bedrock 패치: 나무 생성 기록 중 부술 수 없는 칸에는 쓰지 않는다. azalea_tree 는 force_dirt 라 원점 아래를 rooted_dirt 로 쓴다
+        Pos o = new Pos(72, 250, 40);
+        List<String> hits = onRegion(l -> {
+            List<String> out = new ArrayList<>();
+            for (String under : List.of("bedrock", "barrier", "end_portal_frame", "command_block", "jigsaw")) {
+                clear(l, o, 4, 10);
+                ground(l, o, "minecraft:" + under);
+                for (long seed = 1; seed <= 4; seed++) {
+                    var cap = l.placeFeatureWith("minecraft:azalea_tree", o, new JavaRandomWorldgen(new Random(seed)), false);
+                    assertTrue(cap.placed());
+                    for (long[] w : cap.writes())
+                        if (w[0] == o.x() && w[1] == o.y() - 1 && w[2] == o.z()) out.add(under + " seed " + seed + " → " + Blocks.get().describe((int) w[3]));
+                }
+            }
+            // 흙이 아닌 보통 블록이면 기록에 rooted_dirt 가 있다(거르기가 너무 넓지 않다)
+            clear(l, o, 4, 10);
+            ground(l, o, "minecraft:stone");
+            var cap = l.placeFeatureWith("minecraft:azalea_tree", o, new JavaRandomWorldgen(new Random(1L)), false);
+            assertTrue(cap.writes().stream().anyMatch(w -> w[0] == o.x() && w[1] == o.y() - 1 && w[2] == o.z()
+                    && Blocks.get().describe((int) w[3]).equals("minecraft:rooted_dirt")));
+            return out;
+        });
+        assertEquals(List.of(), hits);
+    }
+
+    @Test
+    void chorusPlantWritesWithoutNeighborUpdates() throws Exception {
+        // flag 2: 이웃 neighborChanged 가 없다 — 켜진 채 신호 없는 레드스톤 램프는 neighborChanged 를 받으면 끄기 틱을 예약한다
+        Pos p = new Pos(88, 230, 72);
+        onRegion(l -> {
+            ground(l, p, "minecraft:end_stone");
+            Pos lamp = p.offset(1, 0, 0);
+            int lit = B.prop("lit").with(B.defaultState("minecraft:redstone_lamp"), true);
+            l.setBlock(lamp, lit, 2 | 16);
+            assertFalse(l.hasScheduledTick(lamp, B.block(lit)));
+            assertTrue(l.chorusPlantWith(p, new JavaRandomWorldgen(new Random(5L)), true).placed());
+            assertTrue(Blocks.get().describe(l.getBlockState(p)).startsWith("minecraft:chorus_plant"));
+            assertFalse(l.hasScheduledTick(lamp, B.block(lit)), "flag 2 라 이웃 갱신이 없다");
+            return null;
+        });
+    }
+
+    @Test
     void consumeCountAndForkFollowPaperWrapper() {
         Random r = new Random(3L), ref = new Random(3L);
         var w = new JavaRandomWorldgen(r);

@@ -9,6 +9,9 @@ FAWE 2.16.2 남은 구멍 `World#generateTree(Location, TreeType)`·`generateTre
   - 난수: 플러그인이 준 `java.util.Random` 을 `JavaRandomWorldgen`(WorldgenRandom 하위)이 그대로 쓴다. Paper `RandomSourceWrapper` 와 같이 모든 뽑기·setSeed 를 넘기고,
     consumeCount 는 바닐라 RandomSource 기본(nextInt() 반복), forkPositional 은 UnsupportedOperationException. 그래서 플러그인 Random 의 상태도 Paper 처럼 나아간다.
   - apply=false(기록 판): 월드를 바꾸지 않고 칸마다 처음 쓴 차례로 마지막 상태. 바뀌지 않은 쓰기도 남긴다(CraftBukkit `capturedBlockStates` 와 같은 모양).
+  - 기록 판은 부술 수 없는 블록 10종(barrier, bedrock, end_portal_frame, end_portal, end_gateway, 명령 블록 3종, structure_block, jigsaw) 칸을 뺀다.
+    Paper `Protect-Bedrock-and-End-Portal-Frames` 패치가 `captureTreeGeneration` 분기에서 그 칸 쓰기를 막는다(allow-permanent-block-break-exploits 기본 false).
+    예: azalea_tree 는 force_dirt 라 원점 아래를 rooted_dirt 로 쓰는데, 기반암 위면 delegate 가 그 칸을 받지 않는다. 반영 판은 Paper 도 막지 않으니 그대로 쓴다.
 - 호환 `org.bukkit.TreeType`(25 상수, Paper 순서), `World#generateTree` 3종(`(loc, type)`, `(loc, type, delegate)`, `(loc, Random, type)`).
   - 표: BIG_TREE=fancy_oak, REDWOOD=spruce, TALL_REDWOOD=pine, JUNGLE=mega_jungle_tree, SMALL_JUNGLE=jungle_tree_no_vine, COCOA_TREE=jungle_tree,
     SWAMP=swamp_oak, MEGA_REDWOOD=mega_spruce, TALL_BIRCH=super_birch_bees_0002, 균류=*_fungus_planted(플러그인 월드는 늘 "보통 월드"), TREE·CUSTOM=oak 등.
@@ -16,6 +19,8 @@ FAWE 2.16.2 남은 구멍 `World#generateTree(Location, TreeType)`·`generateTre
   - `(loc, type)` 는 서버 공용 `java.util.Random`(CraftWorld.rand, 시드 없음).
   - delegate 판: 기록 판으로 키우고, 키웠으면 기록한 칸마다 `delegate.setBlockData`, true. getBlockData·getHeight·isEmpty 는 Paper 처럼 부르지 않는다.
 - 미구현(Noop) feature 면 다른 나무로 바꾸지 않고 false + 종류마다 경고 한 줄(AGENTS.md 규칙 3). 지금 1.21.1 configured feature 는 Noop 이 없다(NoopFeatureAuditTest).
+  CraftWorld 는 UnsupportedOperationException 을 모두 잡으므로 forkPositional 의 UOE 도 경고로 바뀐다(Paper 는 밖으로 던짐). 나무 feature 는 forkPositional 을 부르지 않아 지금은 닿지 않는다.
+- 함께 고침: `WorldHandle.breakNaturallyNow` 의 공기 블록 번호를 "air" 로 찾아 -1 이던 것(블록 이름 표는 "minecraft:" 가 붙는다) — 공기를 효과 켜고 부수면 2001 부서짐 효과를 보냈다. `Blocks#block` 은 늘 이름공간을 붙여 부른다.
 
 ## 함정
 - **잎 거리는 자리마다 다를 수 있다.** 바닐라 `TreeFeature.updateLeaves` 는 HashSet 순서로 거리를 매기고, 이미 채운 칸을 더 큰 거리로 다시 쓰는 일이 있어
@@ -24,12 +29,16 @@ FAWE 2.16.2 남은 구멍 `World#generateTree(Location, TreeType)`·`generateTre
 
 ## Paper 와 다른 점(알고 둔 것)
 - **닿지 못한 청크**: Paper 는 ServerLevel 에 바로 써서 로드 안 된 청크를 동기로 불러온다. Furnace 는 그 칸 3×3 청크 밖·로드 안 된·다른 region 청크에 닿으면
-  아무것도 하지 않고 false(묘목 성장과 같은 규칙). 그 칸 청크가 없으면 IllegalStateException, 소유 스레드가 아니면 ThreadOwnershipException.
+  아무것도 하지 않고 false(묘목 성장과 같은 규칙). 그 칸 청크가 로드돼 있지 않아도 호환 계층은 false + 경고 한 줄(furnace-api 는 IllegalStateException).
+  소유 스레드가 아니면 ThreadOwnershipException.
 - **delegate 판 뒤 물리 갱신**: Paper 는 delegate.setBlockData 뒤 실제 월드 칸에 `notifyAndUpdatePhysics`(대개 delegate 가 아직 월드를 안 바꿔 옛 상태=새 상태)를 부른다.
   Furnace 는 부르지 않는다. 바뀌지 않은 칸의 이웃 갱신이라 보이는 차이는 거의 없다.
-- **delegate 판 가장자리 모양 갱신**: Paper 는 기록 중에도 TreeFeature 의 `updateShapeAtEdge` 를 기록에 담는다(잎은 틱 예약만, 덩굴만 실제로 바뀐다).
+- **delegate 판 가장자리 모양 갱신**: Paper 는 기록 중에도 TreeFeature 의 `updateShapeAtEdge` 를 기록에 담는다(잎은 틱 예약만이지만,
+  덩굴과 나무 바깥 이웃 — 울타리·벽·판유리 등 — 은 updateShape 로 실제로 바뀌어 delegate 에 넘어간다).
   Furnace 기록 판은 이 갱신을 빼고(블록 엔티티 NBT 도 빠진다), apply 판은 실제 월드에서 한다.
-- Paper 기록 중 "부술 수 없는 블록(기반암 등) 보호"는 나무 feature 가 그런 칸을 바꾸지 않으므로 따로 두지 않았다.
+- Paper 의 기록 분기는 높이 검사보다 앞이라 빌드 높이 밖 쓰기도 delegate 에 넘긴다. Furnace 는 버린다(꼭대기 근처에서만).
+- delegate 뒤 `notifyAndUpdatePhysics`: 옛=새여도 flag bit 1 이면 이웃 neighborChanged 가 돌고, flag 3 feature(버섯·균류)는 이웃 모양 갱신과
+  BlockPhysicsEvent 도 난다. Furnace 는 하지 않는다.
 
 ## 뒤 조각
 - `generateTree(Location, Random, TreeType, Consumer<? super BlockState>)`·`Predicate` 판(RegionAccessor): Paper `BlockStateListPopulator` 는

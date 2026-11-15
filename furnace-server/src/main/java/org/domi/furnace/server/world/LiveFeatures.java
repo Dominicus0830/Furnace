@@ -163,8 +163,8 @@ public final class LiveFeatures {
     }
 
     /** 사본 격자에 body 를 돌리고, 닿지 못한 청크가 없으면 apply 일 때 실제 월드에 옮긴다. */
-    private static Placement run(ChunkLevel level, Pos pos, long worldSeed, boolean apply, int flags, WorldgenRandom wr,
-                                 java.util.function.Predicate<FeatureWorldView> body) {
+    static Placement run(ChunkLevel level, Pos pos, long worldSeed, boolean apply, int flags, WorldgenRandom wr,
+                         java.util.function.Predicate<FeatureWorldView> body) {
         int cx = pos.x() >> 4, cz = pos.z() >> 4, size = 2 * RADIUS + 1;
         ChunkColumn[] live = new ChunkColumn[size * size], copy = new ChunkColumn[size * size];
         boolean[] tried = new boolean[size * size];
@@ -191,22 +191,44 @@ public final class LiveFeatures {
             commit(level, cx, cz, size, live, copy, writes);
             updateShapeAtEdge(level, edges, 3);
         }
-        return new Placement(placed, apply ? List.of() : captured(cx, cz, size, copy, writes));
+        return new Placement(placed, apply ? List.of() : captured(cx, cz, size, live, copy, writes));
     }
 
-    /** 쓴 칸마다 처음 쓴 차례로 {x, y, z, 사본의 마지막 상태}. */
-    private static List<long[]> captured(int cx, int cz, int size, ChunkColumn[] copy, List<long[]> writes) {
+    /**
+     * 쓴 칸마다 처음 쓴 차례로 {x, y, z, 사본의 마지막 상태}. Paper 의 나무 생성 기록(captureTreeGeneration)처럼 부술 수 없는 블록
+     * (Protect-Bedrock 패치, allow-permanent-block-break-exploits 기본 false) 칸은 기록하지 않는다 — 나무 feature 는 그 블록을 스스로
+     * 놓지 않으므로 쓰기 때 검사와 옛 상태로 거르기는 같다.
+     */
+    private static List<long[]> captured(int cx, int cz, int size, ChunkColumn[] live, ChunkColumn[] copy, List<long[]> writes) {
         Map<Long, long[]> order = new LinkedHashMap<>();
         for (long[] w : writes) {
             int x = (int) w[0], y = (int) w[1], z = (int) w[2];
             order.computeIfAbsent(new Pos(x, y, z).asLong(), k -> new long[]{x, y, z, 0});
         }
+        List<long[]> out = new ArrayList<>(order.size());
         for (long[] w : order.values()) {
             int x = (int) w[0], y = (int) w[1], z = (int) w[2];
-            w[3] = copy[index(cx, cz, size, x >> 4, z >> 4)].getBlock(x & 15, y, z & 15);
+            int i = index(cx, cz, size, x >> 4, z >> 4);
+            if (!isDestroyable(live[i].getBlock(x & 15, y, z & 15))) continue;
+            w[3] = copy[i].getBlock(x & 15, y, z & 15);
+            out.add(w);
         }
-        return new ArrayList<>(order.values());
+        return out;
     }
+
+    /** Paper Block#isDestroyable(allowPermanentBlockBreakExploits 꺼짐): 이 10종이 아니면 부술 수 있다. */
+    private static final class Indestructible {
+        static final java.util.Set<Integer> BLOCKS = java.util.stream.Stream.of("barrier", "bedrock", "end_portal_frame", "end_portal",
+                        "end_gateway", "command_block", "repeating_command_block", "chain_command_block", "structure_block", "jigsaw")
+                .map(n -> {
+                    int b = org.domi.furnace.server.block.Blocks.get().block("minecraft:" + n);
+                    if (b < 0) throw new IllegalStateException("블록 없음: " + n);
+                    return b;
+                })
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+    }
+
+    private static boolean isDestroyable(int state) { return !Indestructible.BLOCKS.contains(org.domi.furnace.server.block.B.block(state)); }
 
     /** 쓴 칸을 쓴 순서대로(칸마다 처음 쓴 차례) 실제 월드에 놓는다(flag 3 = Feature.setBlock 기본). 생성 NBT·엔티티도 옮긴다. */
     private static void commit(ChunkLevel level, int cx, int cz, int size, ChunkColumn[] live, ChunkColumn[] copy, List<long[]> writes) {

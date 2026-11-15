@@ -1186,5 +1186,5 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         return new org.domi.furnace.api.world.FeaturePlacement(r.placed(), out);
     }
 
-    private static final int AIR_BLOCK = org.domi.furnace.server.block.Blocks.get().block("air");
+    private static final int AIR_BLOCK = org.domi.furnace.server.block.Blocks.get().block("minecraft:air");
 }

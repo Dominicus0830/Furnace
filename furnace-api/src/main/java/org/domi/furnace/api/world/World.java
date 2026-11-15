@@ -493,7 +493,7 @@ public interface World {
     /**
      * 지형 생성 configured feature(예: "minecraft:oak") 하나를 pos 에 놓는다(Paper CraftRegionAccessor#generateTree 의 feature place).
      * random 이 feature 난수로 그대로 쓰여 그 Random 의 상태도 나아간다. apply 면 월드에 바로 반영하고(쓰기 flag 는 바닐라와 같다),
-     * 아니면 월드를 바꾸지 않고 쓸 칸만 {@link FeaturePlacement#writes()} 로 돌려준다(가장자리 모양 갱신·블록 엔티티는 빠진다).
+     * 아니면 월드를 바꾸지 않고 쓸 칸만 {@link FeaturePlacement#writes()} 로 돌려준다(가장자리 모양 갱신·블록 엔티티와, Paper 처럼 부술 수 없는 블록 칸은 빠진다).
      * 그 칸의 3×3 청크 밖이나 로드되지 않은·다른 region 청크에 닿으면 아무것도 하지 않고 placed=false.
      * 모르는 id 면 IllegalArgumentException, Furnace 가 아직 구현하지 않은 feature 면 UnsupportedOperationException.
      * 소유 스레드 전용, 그 칸 청크가 없으면 IllegalStateException.

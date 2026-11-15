@@ -83,6 +83,42 @@ class BukkitGenerateTreeTest {
     }
 
     @Test
+    void treeTableIsPapers() {
+        // Paper 1.21.1 CraftRegionAccessor#generateTree switch 그대로(CHORUS_PLANT 는 따로)
+        java.util.Map<TreeType, String> want = new java.util.EnumMap<>(TreeType.class);
+        String[][] rows = {{"TREE", "oak"}, {"BIG_TREE", "fancy_oak"}, {"REDWOOD", "spruce"}, {"TALL_REDWOOD", "pine"}, {"BIRCH", "birch"},
+                {"JUNGLE", "mega_jungle_tree"}, {"SMALL_JUNGLE", "jungle_tree_no_vine"}, {"COCOA_TREE", "jungle_tree"}, {"JUNGLE_BUSH", "jungle_bush"},
+                {"RED_MUSHROOM", "huge_red_mushroom"}, {"BROWN_MUSHROOM", "huge_brown_mushroom"}, {"SWAMP", "swamp_oak"}, {"ACACIA", "acacia"},
+                {"DARK_OAK", "dark_oak"}, {"MEGA_REDWOOD", "mega_spruce"}, {"MEGA_PINE", "mega_pine"}, {"TALL_BIRCH", "super_birch_bees_0002"},
+                {"CRIMSON_FUNGUS", "crimson_fungus_planted"}, {"WARPED_FUNGUS", "warped_fungus_planted"}, {"AZALEA", "azalea_tree"},
+                {"MANGROVE", "mangrove"}, {"TALL_MANGROVE", "tall_mangrove"}, {"CHERRY", "cherry"}, {"CUSTOM", "oak"}};
+        for (String[] r : rows) want.put(TreeType.valueOf(r[0]), "minecraft:" + r[1]);
+        assertEquals(25, TreeType.values().length);
+        for (TreeType t : TreeType.values()) assertEquals(want.get(t), org.bukkit.craftbukkit.CraftWorld.treeFeature(t), t.name());
+    }
+
+    @Test
+    void pluginRandomIsUsedDirectly() {
+        // 같은 시드로 기록 판을 먼저 돌려 얻은 Random 상태와, generateTree 가 플러그인 Random 을 같은 만큼 나아가게 했는지
+        Location at = fresh();
+        BlockPos p = new BlockPos(at.getBlockX(), at.getBlockY(), at.getBlockZ());
+        var handle = ((org.bukkit.craftbukkit.CraftWorld) world).furnaceHandle();
+        Random ref = new Random(77L), r = new Random(77L);
+        assertTrue(owner(() -> handle.placeFeatureNow("minecraft:spruce", p, ref, false)).placed());
+        assertTrue(owner(() -> world.generateTree(at, r, TreeType.REDWOOD)));
+        assertEquals(ref.nextLong(), r.nextLong());
+    }
+
+    @Test
+    void unloadedChunkReturnsFalse() {
+        // 불러온 청크(4±1)에서 멀리 떨어진 칸 — 그 칸을 가진 region 스레드에서 부른다
+        Location far = new Location(world, 40 * 16 + 8, -20, 40 * 16 + 8);
+        BlockPos p = new BlockPos(far.getBlockX(), far.getBlockY(), far.getBlockZ());
+        assertFalse(world.isChunkLoaded(40, 40));
+        assertFalse(server.onRegion(p, () -> world.generateTree(far, new Random(1L), TreeType.TREE)));
+    }
+
+    @Test
     void seededRandomGrowsTheSameTreeAndAdvancesTheRandom() {
         Location a = fresh();
         Random r1 = new Random(2024L);

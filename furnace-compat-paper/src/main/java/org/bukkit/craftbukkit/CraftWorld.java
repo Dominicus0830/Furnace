@@ -607,6 +607,11 @@ public final class CraftWorld implements World {
     private org.domi.furnace.api.world.FeaturePlacement placeTree(org.bukkit.Location location, java.util.Random random, org.bukkit.TreeType type, boolean apply) {
         BlockPos pos = new BlockPos(location.getBlockX(), location.getBlockY(), location.getBlockZ());
         String id = treeFeature(type);
+        if (!handle.isChunkLoaded(pos.chunkX(), pos.chunkZ())) {
+            // Paper 는 동기로 불러와 키운다. Furnace 는 나무가 닿지 못한 청크와 같이 실패로 둔다(맥락 노트)
+            if (WARNED.add("unloaded")) LOG.warn("World#generateTree: 로드되지 않은 청크({}, {})라 나무를 키우지 않고 false 를 준다", pos.chunkX(), pos.chunkZ());
+            return new org.domi.furnace.api.world.FeaturePlacement(false, List.of());
+        }
         try {
             return id == null ? handle.growChorusPlantNow(pos, random, apply) : handle.placeFeatureNow(id, pos, random, apply);
         } catch (UnsupportedOperationException e) {
