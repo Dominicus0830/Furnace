@@ -52,6 +52,7 @@ class DatapackTagsDriveGameplayTest {
         write(vanilla.resolve("data/minecraft/tags/entity_type/non_controlling_rider.json"), tag(false, "minecraft:slime"));
         write(vanilla.resolve("data/minecraft/tags/damage_type/is_fire.json"), tag(false, "minecraft:lava"));
         write(vanilla.resolve("data/minecraft/tags/game_event/vibrations.json"), tag(false, "minecraft:step"));
+        write(vanilla.resolve("data/minecraft/tags/block/dead_bush_may_place_on.json"), tag(false, "minecraft:sand"));
         // 월드 데이터 팩 "tagger": 각 태그를 고친다
         Path pack = tmp.resolve("datapacks/tagger");
         write(pack.resolve("pack.mcmeta"), "{\"pack\":{\"description\":\"t\",\"pack_format\":48}}");
@@ -61,6 +62,7 @@ class DatapackTagsDriveGameplayTest {
         write(pack.resolve("data/minecraft/tags/entity_type/non_controlling_rider.json"), tag(false, "minecraft:pig"));
         write(pack.resolve("data/minecraft/tags/damage_type/is_fire.json"), tag(false, "minecraft:fall"));
         write(pack.resolve("data/minecraft/tags/game_event/vibrations.json"), tag(false, "minecraft:swim"));
+        write(pack.resolve("data/minecraft/tags/block/dead_bush_may_place_on.json"), tag(false, "minecraft:stone"));
         // 새 이름 태그(바닐라에 없는 것)도 질문할 수 있다
         write(pack.resolve("data/custom/tags/block/rope.json"), tag(false, "minecraft:dirt"));
         packs = DataPackManager.start(vanilla, tmp, LevelData.create("world", 1L, true, false, org.domi.furnace.server.world.GameMode.SURVIVAL,
@@ -144,5 +146,30 @@ class DatapackTagsDriveGameplayTest {
         assertTrue(wolf.onClimbable(), "팩이 climbable 에 넣은 돌 칸에 매달린다");
         reload("vanilla");
         assertFalse(wolf.onClimbable(), "팩을 끄고 /reload 하면 더는 안 매달린다");
+    }
+
+    static final org.domi.furnace.server.world.BlockRegistry REG = org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt");
+
+    /** 플레이어가 오르는 길(Region.probe.climbable): 팩이 climbable 에 넣은 돌에 오르고, 팩을 끄고 /reload 하면 못 오른다. */
+    @Test
+    void playerProbeFollowsReload() throws Exception {
+        var probe = new org.domi.furnace.server.world.PlayerProbe(REG);
+        int stone = REG.defaultStateId("minecraft:stone");
+        org.domi.furnace.server.world.PlayerProbe.Blocks b = (x, y, z) -> stone;
+        assertNotNull(probe.climbable(b, 0.5, 0, 0.5), "팩이 넣은 돌에 오른다");
+        reload("vanilla");
+        assertNull(probe.climbable(b, 0.5, 0, 0.5), "팩을 끄고 /reload 하면 못 오른다");
+    }
+
+    /** BlockShapes(구조물·화석 등의 지지 판정)가 /reload 뒤 새 태그 표로 다시 만들어진다(dead_bush_may_place_on). */
+    @Test
+    void blockShapesFollowReload() throws Exception {
+        var shapes = org.domi.furnace.server.world.block.BlockShapes.of(REG);
+        int bush = REG.defaultStateId("minecraft:dead_bush"), stone = REG.defaultStateId("minecraft:stone"), sand = REG.defaultStateId("minecraft:sand");
+        assertTrue(shapes.canSurvive((x, y, z) -> stone, bush, 0, 1, 0), "팩이 더한 돌 위");
+        reload("vanilla");
+        var shapes2 = org.domi.furnace.server.world.block.BlockShapes.of(REG);
+        assertFalse(shapes2.canSurvive((x, y, z) -> stone, bush, 0, 1, 0), "팩을 끄면 돌 위에서는 못 산다");
+        assertTrue(shapes2.canSurvive((x, y, z) -> sand, bush, 0, 1, 0));
     }
 }

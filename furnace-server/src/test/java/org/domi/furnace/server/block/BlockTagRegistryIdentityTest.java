@@ -5,9 +5,7 @@ package org.domi.furnace.server.block;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import org.domi.furnace.server.net.registry.TagSet;
 import org.domi.furnace.server.world.gen.feature.BlockTags;
 import org.junit.jupiter.api.Test;
@@ -38,9 +36,9 @@ class BlockTagRegistryIdentityTest {
         var tags = set.tagsOf("minecraft:block");
         assertFalse(tags.isEmpty());
         for (var e : tags.entrySet()) {
-            Set<String> fromTable = new HashSet<>();
+            List<String> fromTable = new ArrayList<>();
             for (int id : e.getValue()) fromTable.add(reg.get(id));
-            assertEquals(fromTable, new HashSet<>(BlockTags.get().blocksOf(e.getKey())), e.getKey());
+            assertEquals(fromTable, BlockTags.get().blocksOf(e.getKey()), e.getKey()); // 내용·순서 모두
         }
     }
 }
