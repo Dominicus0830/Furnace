@@ -106,12 +106,12 @@
 - 6조각을 고른 까닭: 4 → 6 에서 PR 한 건당 약 4분(11.6 → 7분대)을 얻고 러너 분은 5% 늘 뿐이다. 6 → 8 은 약 1.5분을 더 얻지만 PR 당 작업이 8+2 개가 되고 `light`(약 4분)가 곧 하한이 된다.
   동시 실행 한도(무료 20개)에서 PR 하나가 `changes` 1 + 조각 6 + `light` 1 + `test` 1 = 9개라 PR 둘까지는 대기가 없고 셋이 겹치면 일부가 기다린다. 총 러너 분은 거의 같아 처리량은 같고 PR 하나의 대기만 짧아진다.
   병합 대기가 CI 때문에 길어지면 여기서 다시 판단한다(조각 수는 `matrix.shard` 와 `-PtestShard=…/6`, `retry` 문구, `shard-balance.py --shards` 기본값).
-- 이번 갱신으로 알게 된 것: `ContainerLockE2ETest` 가 82초 → 222초로 느려졌다(시험마다 `setUp` 에서 약 6초, 스택 출력이 있음). 시간 파일을 고치지 않았을 때 그 조각이 혼자 8분대로 튀었다. 이 시험 줄이기가 6 → 8조각보다 먼저다(후속).
+- 이번 갱신으로 알게 된 것: `ContainerLockE2ETest` 가 82초 → 223초로 느려졌다(시험마다 `setUp` 에서 약 6초, 스택 출력이 있음). 시간 파일을 고치지 않았을 때 그 조각이 혼자 8분대로 튀었다. 이 시험 줄이기가 6 → 8조각보다 먼저다(후속).
 - 커버리지(`coverage-tests`)는 3조각 그대로다(기준 브랜치 push 에서만 돌고 판정과 무관. 조각 번호가 `-PtestShard=i/3` 이라 판정용 6조각과 배정이 다르다).
 - **문서만 바뀐 PR 은 서버 시험·`light` 를 건너뛴다.** 가장 앞의 `changes` 작업이 PR 의 바뀐 파일(`base...head`)을 보고, 전부 `docs/` 아래이거나 저장소 맨 위의 `*.md` 일 때만 `code=false` 로 둔다. 단 **시험이 읽는 문서는 코드로 본다**: `docs/api/`(`CancelContractTest` 가 계약 문서를 읽음), `docs/feature-parity/`(`OptionKeysTest` 키 표, 호환 모듈 `compatReport`·`nmsReport` 입출력). 이름 바꾸기는 풀어서 본다(`--no-renames`).
   이때 `server-tests`·`light` 는 `skipped` 이고 `test` 판정은 "둘 다 skipped" 일 때 초록이다(필수 점검 `test` 는 그대로 생긴다). 하나라도 실패·취소면 빨갛다.
   `.github/`·`tools/`·`*.gradle*`·다른 폴더의 `.md`(예: 모듈 안 README) 는 코드로 본다(안전 쪽). 파일 목록을 못 읽거나 비면 `code=true` 로 시험이 돈다. 기준 브랜치 push 는 항상 돈다.
-- 가장 오래 걸리는 시험 클래스 5개(2026-11-15, 클래스 시간 실측 `test-shard-times.tsv`): `CancelResyncE2ETest` 173초, `GeneratedChunkSaveTest` 124초, `ChunkCornerLoadFollowupTest` 117초, `A04InventoryLineTest` 89초, `ContainerLockE2ETest` 223초(합 726초, 전체의 33%).
+- 가장 오래 걸리는 시험 클래스 5개(2026-11-15, 클래스 시간 실측 `test-shard-times.tsv`): `ContainerLockE2ETest` 223초, `CancelResyncE2ETest` 173초, `GeneratedChunkSaveTest` 124초, `ChunkCornerLoadFollowupTest` 117초, `A04InventoryLineTest` 89초(합 726초, 전체의 33%).
   이 시험들을 건드릴 때만 돌리고, 줄이는 것은 후속 작업이다(각 절반이면 전체 약 5분 감소).
 
 ## 조각 균형 (2026-11-15, T-162)
