@@ -330,6 +330,18 @@ public interface World extends Keyed, org.bukkit.metadata.Metadatable, org.bukki
     /** 이 월드를 만들 때 준 플러그인 바이옴 공급자. Furnace 는 아직 그렇게 월드를 만들지 않아 늘 null(Paper 도 주지 않았으면 null). */
     default org.bukkit.generator.BiomeProvider getBiomeProvider() { return null; }
 
+    /** 이 월드를 만들 때 준 플러그인 생성기. Furnace 는 아직 Bukkit 생성기로 월드를 만들지 않아 늘 null(Paper 도 주지 않았으면 null). */
+    default org.bukkit.generator.ChunkGenerator getGenerator() { return null; }
+
+    /** Paper CraftWorld: level.dat 생성기가 평지면 FLAT, 아니면 NORMAL(큰 바이옴·증폭도 NORMAL). */
+    WorldType getWorldType();
+
+    /** level.dat 의 구조물 생성 깃발(Paper CraftWorld#canGenerateStructures). */
+    boolean canGenerateStructures();
+
+    /** 하드코어 월드인가(Paper CraftWorld#isHardcore). */
+    boolean isHardcore();
+
     // ---- 게임 규칙(T-141 E4a, Paper 1.21.1 CraftWorld). Furnace 게임 규칙은 서버 전체에 하나다 — 어느 월드로 읽고 바꿔도 같은 값이다
     // (Paper 는 플러그인이 만든 월드마다 따로 둔다). 바닐라 규칙만 보인다(Furnace 플러그인 규칙 "ns:이름"은 없는 이름).
 

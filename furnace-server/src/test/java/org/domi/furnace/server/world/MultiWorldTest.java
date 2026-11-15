@@ -339,6 +339,63 @@ class MultiWorldTest {
         assertEquals(List.of("load minecraft:api api", "unload api false"), seen);
     }
 
+    /** T-141 E4d: 동기판은 돌아올 때 Init → Load 가 지나갔고, 같은 이름을 다시 부르면 이벤트 없이 같은 손잡이. 실패는 원래 예외. */
+    @Test
+    void createWorldNowWaitsForInitThenLoad() throws Exception {
+        var host = core.plugins();
+        var plugin = testPlugin();
+        List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        host.eventsImpl().subscribe(plugin, org.domi.furnace.api.event.world.WorldInitEvent.class, e -> seen.add("init " + e.name()));
+        host.eventsImpl().subscribe(plugin, org.domi.furnace.api.event.world.WorldLoadEvent.class, e -> seen.add("load " + e.name()));
+        var api = host.createWorldNow(WorldCreator.named("now1").generator(WorldGenerator.VOID).build());
+        assertEquals(List.of("init now1", "load now1"), seen, "돌아올 때 이미 지나갔다");
+        assertTrue(api.isLoaded());
+        assertTrue(api.isFlat(), "빈 월드는 평지 표시(바닐라 isFlatWorld)");
+        assertSame(api, host.createWorldNow(WorldCreator.named("now1").generator(WorldGenerator.VOID).build()));
+        assertSame(api, host.createWorld(WorldCreator.named("now1").generator(WorldGenerator.VOID).build()).get(60, TimeUnit.SECONDS));
+        assertEquals(List.of("init now1", "load now1"), seen, "이미 올라온 월드는 다시 알리지 않는다(Paper 도 그 월드를 돌려줄 뿐)");
+        assertThrows(IllegalArgumentException.class, () -> host.createWorldNow(WorldCreator.named("world").build()), "감싸지 않은 원래 예외");
+        var off = host.createWorldNow(WorldCreator.named("nostruct").generator(WorldGenerator.FLAT).generateStructures(false).build());
+        assertFalse(off.generatesStructures());
+        assertTrue(api.generatesStructures());
+        assertFalse(host.world("minecraft:overworld").isHardcore());
+    }
+
+    /** 전역 스레드에서 부르면 이벤트도 그 스레드에서, 돌아오기 전에. */
+    @Test
+    void createWorldNowOnGlobalThreadFiresInline() throws Exception {
+        var host = core.plugins();
+        var plugin = testPlugin();
+        List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        host.eventsImpl().subscribe(plugin, org.domi.furnace.api.event.world.WorldLoadEvent.class,
+                e -> seen.add("load " + org.domi.furnace.server.sched.GlobalThread.isGlobalThread()));
+        String r = sched.global().submit(() -> {
+            var w = host.createWorldNow(WorldCreator.named("g1").generator(WorldGenerator.VOID).build());
+            return w.name() + " " + seen;
+        }).get(60, TimeUnit.SECONDS);
+        assertEquals("g1 [load true]", r);
+    }
+
+    /**
+     * 전역 스레드가 동기판으로 막혀 있는 동안 월드 스레드가 앞선 내리기(전역에서 플레이어 확인)를 하고 있으면 서로 기다린다 —
+     * 막힌 전역 스레드가 그 일을 대신 돌려 둘 다 바로 끝난다(예전 길이면 내리기가 30초 뒤 실패).
+     */
+    @Test
+    void createWorldNowOnGlobalHelpsPendingUnload() throws Exception {
+        var host = core.plugins();
+        World first = create(WorldCreator.named("old1").generator(WorldGenerator.VOID).build());
+        long t0 = System.nanoTime();
+        var unloaded = sched.global().submit(() -> {
+            var u = manager.unload(first, false);   // 월드 스레드에 먼저 줄 선다 — 곧 전역 확인을 기다린다
+            host.createWorldNow(WorldCreator.named("new1").generator(WorldGenerator.VOID).build());
+            return u;
+        }).get(60, TimeUnit.SECONDS);
+        assertTrue(unloaded.get(60, TimeUnit.SECONDS));
+        assertTrue(System.nanoTime() - t0 < TimeUnit.SECONDS.toNanos(20), "30초 기다림 없이");
+        assertNull(core.world("minecraft:old1"));
+        assertNotNull(core.world("minecraft:new1"));
+    }
+
     @Test
     void settingsAndStoredSpecRoundTrip() {
         Properties p = new Properties();

@@ -89,6 +89,12 @@ public interface Server extends org.bukkit.plugin.messaging.PluginMessageRecipie
 
     World getWorld(UUID id);
 
+    /**
+     * 새 월드를 만들거나 그 폴더를 불러온다(Paper CraftServer#createWorld). 같은 이름의 월드가 이미 있으면 그 월드. 돌아올 때 월드가 돌고 있고
+     * WorldInitEvent·WorldLoadEvent 가 지나갔다.
+     */
+    World createWorld(WorldCreator creator);
+
     int broadcastMessage(String message);
 
     /** 그 권한을 가진(값이 정해져 참인) 접속자·콘솔에게 보낸다. 받은 수를 돌려준다. */

@@ -70,6 +70,7 @@ public final class FurnaceTestServer implements AutoCloseable {
     private ExecutorService ioPool;
     private ExecutorService genPool;
     private org.domi.furnace.server.world.World world;
+    private org.domi.furnace.server.world.WorldManager worldManager;
     private ServerCore core;
     private PluginHost host;
     private final List<Text> consoleLog = new ArrayList<>();
@@ -149,6 +150,15 @@ public final class FurnaceTestServer implements AutoCloseable {
             PlayerLists lists = new PlayerLists(root, settings);
             this.core = new ServerCore(settings, lists, new GameProfileCache(ProfileLookup.NONE, root.resolve("usercache.json")), w, level, sched);
             core.registries(registries);   // 바이옴 API(WorldHandle.biomeNames)·접속 레지스트리가 보는 세트(FurnaceMain 은 데이터 팩 판을 건다)
+            if (b.multiWorld) {   // 추가 월드(createWorld) — FurnaceMain 처럼 플러그인을 불러오기 전에 붙인다. 추가 월드 폴더는 시험 폴더 안
+                var dims = new org.domi.furnace.server.world.Dimensions();
+                dims.register(w);
+                core.dimensions(dims);
+                var m = new org.domi.furnace.server.world.WorldManager(new org.domi.furnace.server.world.WorldManager.Parts(root, blocks, items, registries,
+                        plains, biomeBits, chunks, sched, null, org.domi.furnace.server.config.Config.DEFAULT, false, io, gen), dims, level, "world");
+                core.worldManager(m);
+                this.worldManager = m;
+            }
             this.host = core.plugins();
             core.addConsoleListener(t -> { synchronized (consoleLog) { consoleLog.add(t); } });
             this.ownsFurnaceHolder = TestHolder.claim(host);
@@ -393,6 +403,7 @@ public final class FurnaceTestServer implements AutoCloseable {
                 Thread.currentThread().interrupt();
             }
         });
+        step(first, () -> { if (worldManager != null) worldManager.closeAllForShutdown(); });
         step(first, chunkPool::shutdown);
         step(first, scheduler::close);
         step(first, () -> host.pluginsImpl().closeAll());
@@ -447,6 +458,7 @@ public final class FurnaceTestServer implements AutoCloseable {
         private boolean failFast = true;
         private boolean compatNms = true;
         private boolean exposeCompatToNative = false;
+        private boolean multiWorld = false;
         private boolean devMode = false;
         /** 시험은 기본으로 네트워크에 나가지 않는다 — Spigot 이름 대응표(실제 서버 기본 download)도 끈다. 켜려면 compatOption 으로 덮어쓴다. */
         private final java.util.Map<String, String> compatOptions = new java.util.HashMap<>(
@@ -533,6 +545,9 @@ public final class FurnaceTestServer implements AutoCloseable {
          * 호환 코어를 네이티브 시험 플러그인으로 직접 부리는 호환 모듈 시험만 켠다.
          */
         public Builder exposeCompatToNative(boolean v) { this.exposeCompatToNative = v; return this; }
+
+        /** 추가 월드(Furnace#createWorld·Bukkit createWorld)를 쓸 수 있게 다중 월드 관리자를 붙인다. 추가 월드는 실제 시계로 돈다. 기본 끔. */
+        public Builder multiWorld(boolean v) { this.multiWorld = v; return this; }
 
         /** 호환 어댑터가 읽는 서버 설정(furnace.properties 의 plugins.compat.* 키, 예: plugins.compat.scheduler.async-threads=virtual). */
         public Builder compatOption(String key, String value) { this.compatOptions.put(key, value); return this; }

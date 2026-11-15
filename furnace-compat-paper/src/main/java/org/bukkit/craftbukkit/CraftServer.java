@@ -277,6 +277,76 @@ public final class CraftServer implements Server {
     @Override
     public World getWorld(String name) { return name == null ? null : Compat.worldNamed(name); }
 
+    /**
+     * Paper CraftServer#createWorld 를 Furnace {@code createWorldNow} 위에: 같은 이름이 있으면 그 월드, 환경은 NORMAL·NETHER·THE_END,
+     * 생성기 종류(type)는 오버월드에만 쓰인다(Paper 도 네더·엔드는 바닐라 그대로). FLAT 의 generatorSettings 는 바닐라 평지 JSON(층·바이옴).
+     * Bukkit 생성기·바이옴 공급자는 아직 길이 없어 UnsupportedFeature. 하드코어 깃발은 서버 값만 쓴다(다르면 경고 한 번).
+     */
+    @Override
+    public World createWorld(org.bukkit.WorldCreator creator) {
+        if (creator == null) throw new IllegalArgumentException("WorldCreator cannot be null");
+        if (Compat.startupWorldsPending()) throw new IllegalStateException("Cannot create additional worlds on STARTUP");
+        String name = creator.name();
+        World existing = getWorld(name);
+        if (existing != null) return existing;
+        if (creator.generator() != null) {
+            throw new org.domi.furnace.compat.paper.UnsupportedFeature("WorldCreator#generator(" + creator.generator().getClass().getName() + ")",
+                    "Bukkit ChunkGenerator 로 월드를 만드는 길이 아직 없다 — Furnace WorldCreator.Builder#generationHooks 를 쓴다(docs/api/worlds.md)");
+        }
+        if (creator.biomeProvider() != null) {
+            throw new org.domi.furnace.compat.paper.UnsupportedFeature("WorldCreator#biomeProvider(" + creator.biomeProvider().getClass().getName() + ")",
+                    "Bukkit BiomeProvider 로 월드를 만드는 길이 아직 없다 — Furnace WorldCreator.Builder#generationHooks 를 쓴다(docs/api/worlds.md)");
+        }
+        var env = switch (creator.environment()) {
+            case NORMAL -> org.domi.furnace.api.world.WorldEnvironment.NORMAL;
+            case NETHER -> org.domi.furnace.api.world.WorldEnvironment.NETHER;
+            case THE_END -> org.domi.furnace.api.world.WorldEnvironment.THE_END;
+            default -> throw new IllegalArgumentException("Illegal dimension (" + creator.environment() + ")");
+        };
+        var b = org.domi.furnace.api.world.WorldCreator.named(name).key(creator.key().toString()).environment(env)
+                .seed(creator.seed()).generateStructures(creator.generateStructures());
+        if (env == org.domi.furnace.api.world.WorldEnvironment.NORMAL) {
+            switch (creator.type()) {
+                case FLAT -> flatSettings(b, name, creator.generatorSettings());
+                case LARGE_BIOMES -> b.generator(org.domi.furnace.api.world.WorldGenerator.LARGE_BIOMES);
+                case AMPLIFIED -> b.generator(org.domi.furnace.api.world.WorldGenerator.AMPLIFIED);
+                default -> { }
+            }
+        }
+        if (creator.hardcore() && !f().worlds().get(0).isHardcore() && WARNED_CREATE.add(name + "|hardcore")) {
+            LOG.warning("[Furnace] createWorld('" + name + "'): hardcore(true) 는 무시한다 — Furnace 추가 월드는 주 월드의 하드코어 값(server.properties hardcore)을 따른다");
+        }
+        return Compat.world(f().createWorldNow(b.build()));
+    }
+
+    private static final java.util.Set<String> WARNED_CREATE = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /**
+     * 바닐라 평지 설정 JSON(DedicatedServerProperties.WorldDimensionData → FlatLevelGeneratorSettings.CODEC): layers 가 없으면 코덱이 실패해
+     * 프리셋 기본 평지(Paper 는 오류 로그 뒤 기본값)다. biome 이 없으면 plains. features·lakes 는 Furnace 평지가 아직 안 만든다(경고 한 번).
+     */
+    private static void flatSettings(org.domi.furnace.api.world.WorldCreator.Builder b, String name, String json) {
+        b.generator(org.domi.furnace.api.world.WorldGenerator.FLAT);
+        if (json == null || json.isBlank()) return;
+        org.domi.furnace.api.config.ConfigSection c;
+        try {
+            c = org.domi.furnace.api.config.ConfigFormat.JSON.parse(json);
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException("createWorld('" + name + "'): generatorSettings 가 JSON 객체가 아니다 — " + e.getMessage(), e);
+        }
+        if (!c.isList("layers")) {
+            if (!c.isEmpty()) LOG.warning("[Furnace] createWorld('" + name + "'): 평지 generatorSettings 에 layers 가 없다 — 기본 평지로 만든다(Paper 와 같다)");
+            return;
+        }
+        java.util.List<org.domi.furnace.api.world.WorldCreator.FlatLayer> layers = new ArrayList<>();
+        for (var l : c.getSectionList("layers")) layers.add(new org.domi.furnace.api.world.WorldCreator.FlatLayer(l.getString("block"), l.getInt("height")));
+        b.flatLayers(layers);
+        if (c.isString("biome")) b.flatBiome(c.getString("biome"));
+        if ((c.getBoolean("features") || c.getBoolean("lakes")) && WARNED_CREATE.add(name + "|flat-features")) {
+            LOG.warning("[Furnace] createWorld('" + name + "'): 평지 features·lakes 는 아직 만들지 않는다 — 층만 깐다");
+        }
+    }
+
     @Override
     public World getWorld(UUID id) {
         for (World w : getWorlds()) if (w.getUID().equals(id)) return w;

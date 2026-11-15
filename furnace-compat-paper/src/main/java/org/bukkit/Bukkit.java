@@ -87,6 +87,8 @@ public final class Bukkit {
 
     public static World getWorld(String name) { return s().getWorld(name); }
 
+    public static World createWorld(WorldCreator creator) { return s().createWorld(creator); }
+
     public static World getWorld(UUID id) { return s().getWorld(id); }
 
     public static int broadcastMessage(String message) { return s().broadcastMessage(message); }

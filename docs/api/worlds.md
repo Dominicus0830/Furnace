@@ -29,11 +29,12 @@ server.unloadWorld(world, true).thenAccept(ok -> { /* 플레이어가 있거나 
 | 높이 | 노이즈 생성기(DEFAULT·LARGE_BIOMES·AMPLIFIED)는 그 계열 원래 높이(오버월드 -64..320, 네더·엔드 0..256) 타입만 받는다(바닐라와 같은 지형을 지키려고). FLAT·VOID 는 아무 높이나 된다 |
 | 월드 타입 | `SINGLE_BIOME_SURFACE` 는 오버월드 노이즈 지형에 바이옴이 `minecraft:plains` 하나(바닐라 `FixedBiomeSource`). `DEBUG_ALL_BLOCK_STATES` 는 바닐라 `DebugLevelSource` 와 같은 격자(y=60 장벽, y=70 모든 블록 상태, 스폰 0,80,0, 바이옴 plains). 둘 다 NORMAL 환경만. `server.properties` 의 `level-type` 도 같은 값(`minecraft:single_biome_surface`·`minecraft:debug_all_block_states`)을 받고, 접속 패킷의 `is_debug`·`is_flat` 도 바닐라처럼 보낸다 |
 | 스레드 | `createWorld`·`unloadWorld` 는 아무 스레드에서 불러도 되고 바로 future 를 돌려준다. 준비(폴더 잠금·level.dat·생성기)는 월드 전용 스레드에서 차례로 돈다. 결과 future 는 전역 스레드에서 끝난다 |
-| 이벤트 | `WorldLoadEvent`(틱을 켠 뒤), `WorldUnloadEvent`(취소 가능, 이때 월드 안에 플레이어는 없다). 기본 세 차원에는 오지 않는다(그때는 `ServerLoadEvent`) |
+| 동기판 | `createWorldNow(spec)` 은 월드가 돌고 이벤트가 지나갈 때까지 기다린 뒤 월드를 돌려준다(Bukkit `createWorld` 와 같다 — 호환 어댑터가 쓴다). 전역 스레드에서 부르면 이벤트를 그 스레드에서 바로 보내고, 준비 동안 전역 스레드가 멈춘다. 실패는 원래 예외를 그대로 던진다. 이미 올라온 월드면 이벤트 없이 그 월드 |
+| 이벤트 | `WorldInitEvent` → `WorldLoadEvent`(틱을 켠 뒤, Paper 순서), `WorldUnloadEvent`(취소 가능, 이때 월드 안에 플레이어는 없다). 기본 세 차원에는 오지 않는다(그때는 `ServerLoadEvent`). 이미 올라온 이름으로 다시 만들면 이벤트 없이 그 월드로 끝난다 |
 | 내린 월드 | 그 손잡이의 `isLoaded()` 는 false, 블록·엔티티 작업은 실패로 끝난다. 같은 이름을 다시 올리면 새 손잡이다 |
 | 찾기 | `server.world("minecraft:mining")`(키), `server.worldNamed("mining")`(폴더 이름), `server.worlds()`(오버월드 → 네더 → 엔드 → 추가 월드 올린 순서) |
 
-`World` 손잡이에 `seed()`(그 월드 시드), `dimensionType()`(타입 키), `environment()`, `isLoaded()` 가 있다.
+`World` 손잡이에 `seed()`(그 월드 시드), `dimensionType()`(타입 키), `environment()`, `isLoaded()`, `isFlat()`(평지·빈 월드), `generatesStructures()`, `isHardcore()` 가 있다.
 
 월드는 만든 플러그인이 꺼져도(핫 리로드 포함) 그대로 올라와 있다(Bukkit 과 같다). 월드가 플러그인 코드를 쥐지 않으므로 클래스로더가 새지 않는다.
 플러그인 차원 타입으로 만든 월드도 그 플러그인이 꺼진 뒤 계속 돈다(타입은 비활성으로만 표시되고 지워지지 않는다 — W2 규칙).

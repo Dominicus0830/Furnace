@@ -82,6 +82,16 @@ public interface Furnace {
     }
 
     /**
+     * {@link #createWorld} 를 끝까지 기다리는 동기판(Bukkit {@code Server#createWorld} 처럼 돌아올 때 월드가 돌고 있다). 반환 전에
+     * {@link org.domi.furnace.api.event.world.WorldInitEvent}·{@link org.domi.furnace.api.event.world.WorldLoadEvent} 를 보낸다(이미 올라온 월드면 보내지 않는다).
+     * 전역 스레드에서 부르면 그 이벤트를 이 스레드에서 바로 보내고(월드 준비 동안 전역 스레드는 멈춘다 — Paper 의 주 스레드와 같다), 다른 스레드면
+     * 전역 스레드가 보낼 때까지 기다린다. 실패는 {@link #createWorld} 와 같은 예외를 그대로 던진다(감싸지 않는다). 5분 안에 못 끝내면 IllegalStateException.
+     */
+    default World createWorldNow(org.domi.furnace.api.world.WorldCreator creator) {
+        throw new UnsupportedOperationException("createWorldNow");
+    }
+
+    /**
      * 추가 월드를 내린다(Bukkit unloadWorld). 기본 세 차원(오버월드·네더·엔드)은 내릴 수 없고, 월드 안에 플레이어가 있거나
      * {@link org.domi.furnace.api.event.world.WorldUnloadEvent} 가 취소되면 false 로 완료된다. save 면 청크·엔티티·level.dat 을 다 쓴 뒤 닫는다.
      * 내린 월드의 손잡이는 더 쓸 수 없다(블록 접근은 실패로 완료). 아무 스레드.

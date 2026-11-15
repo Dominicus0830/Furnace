@@ -267,7 +267,7 @@ public final class Compat {
     }
 
     /** 플러그인 onLoad·STARTUP onEnable 단계라 월드를 감춘 중인가. */
-    static boolean startupWorldsPending() { return state().visibleWorlds != null; }
+    public static boolean startupWorldsPending() { return state().visibleWorlds != null; }
 
     /** 서버 시작에서 플러그인 onLoad 직전 — 월드를 감추고, 지금 있는 월드를 Paper 가 처음 만드는 몫으로 기억한다. */
     static void hideWorldsForStartup(org.domi.furnace.api.Furnace server) {
@@ -307,9 +307,11 @@ public final class Compat {
             World w = world(d);
             if (w != null) org.bukkit.Bukkit.getPluginManager().callEvent(new org.bukkit.event.world.WorldLoadEvent(w));
         }
-        for (String d : extra) {
+        for (String d : extra) {   // 감춘 사이 올라온 추가 월드: Furnace WorldInitEvent·WorldLoadEvent 를 넘기지 않았으니 여기서 한 번(Paper 순서)
             World w = world(d);
-            if (w != null) org.bukkit.Bukkit.getPluginManager().callEvent(new org.bukkit.event.world.WorldLoadEvent(w));
+            if (w == null) continue;
+            org.bukkit.Bukkit.getPluginManager().callEvent(new org.bukkit.event.world.WorldInitEvent(w));
+            org.bukkit.Bukkit.getPluginManager().callEvent(new org.bukkit.event.world.WorldLoadEvent(w));
         }
     }
 
