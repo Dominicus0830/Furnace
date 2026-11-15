@@ -1,7 +1,7 @@
 name: CI
 
 # 실행 구조 (2026-11-07 병합 병목 개선)
-#  - 서버 시험(약 12분, 3500개)은 시험 클래스 해시로 3조각(-PtestShard=i/3)으로 나눠 러너 3대에서 동시에 돌린다.
+#  - 서버 시험은 3조각(-PtestShard=i/3)으로 나눠 러너 3대에서 동시에 돌린다. 배정은 클래스별 실측 시간(furnace-server/test-shard-times.tsv)으로 고르게 맞춘다(T-162).
 #  - 실패한 조각은 전체가 아니라 "처음에 실패한 시험 클래스만" 한 번 다시 돌린다(부하에서만 실패하는 시간 민감 시험 대응, 재시도 비용 12분 → 1분 안팎).
 #    다시 돌려도 실패하면 진짜 실패로 처리하고, 재시도에서 통과한 시험은 "흔들린 시험" 주석·실행 요약·산출물(flaky-tests-N)로 남긴다.
 #    제한시간을 넘긴 시험·@NoRetry 시험의 실패는 재시도하지 않는다(멈춘 시험·확률 실패를 가리지 않게). 자세한 규칙은 docs/ci.md.
@@ -59,6 +59,21 @@ jobs:
         run: |
           set -o pipefail
           tools/ci/run-guarded.sh 18 -- ./gradlew -PskipOracle=true -PtestShard=${{ matrix.shard }}/3 :furnace-server:test 2>&1 | tee /tmp/shard-run.log
+      # T-162: 한 번에 통과한 조각의 클래스별 시험 시간을 남긴다(CI 러너 실측). 조각이 한쪽으로 쏠리면 이 산출물로 시간 파일을 갱신한다(docs/ci.md "조각 균형").
+      # 재시도 전에 둔다 — 재시도는 결과 XML 을 덮어쓴다. 판정과 무관하다(continue-on-error).
+      - name: 조각 시간 기록
+        if: steps.server-test.outcome == 'success'
+        continue-on-error: true
+        run: python3 -I tools/ci/shard-balance.py --export /tmp/shard-times-${{ matrix.shard }}.tsv
+      - name: 조각 시간 기록 올리기
+        if: steps.server-test.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: shard-times-${{ matrix.shard }}
+          path: /tmp/shard-times-${{ matrix.shard }}.tsv
+          if-no-files-found: ignore
+          retention-days: 30
       # 부하에서 가끔 실패하는 시간 민감 시험(CommandBlockOneTickTest 등): 처음에 실패한 시험 클래스만 한 번 다시 돌린다.
       # 재시도하지 않는 경우(JVM 이상 종료, 제한시간 초과, @NoRetry 실패)와 흔들린 시험 기록은 tools/ci/retry-failed-tests.sh 에 있다.
       - name: 실패한 시험만 재시도(1회)
