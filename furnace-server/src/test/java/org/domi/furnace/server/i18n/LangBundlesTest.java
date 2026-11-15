@@ -20,7 +20,6 @@ class LangBundlesTest {
 
     private static final Pattern SLOT = Pattern.compile("\\{(\\d*)}");
     private static final Pattern HANGUL = Pattern.compile("[\\uAC00-\\uD7A3]");
-    private static final Pattern LOG_CALL = Pattern.compile("(?:\\b\\w*(?:log|LOG|logger|LOGGER)\\w*|getLogger\\([^()]*\\))\\s*\\.\\s*(?:info|warn|error|severe|warning)\\(|\\bwarn(?:ings)?\\.(?:accept|add)\\(|\\.\\s*(?:info|warn|warning|severe)\\(|\\b(?:warnOnce|logOnce)\\(");
     private static final Pattern LANG_KEY = Pattern.compile("(?<![A-Za-z])Lang\\.t\\(\\s*\"([^\"]+)\"");
     private static final List<Path> SOURCE_ROOTS = List.of(
             Path.of("src/main/java"), Path.of("../furnace-compat-paper/src/main/java"), Path.of("../furnace-api/src/main/java"));
@@ -86,16 +85,25 @@ class LangBundlesTest {
         assertTrue(unused.isEmpty(), "keys in en.properties that no code uses (typo in a Lang.t call, or leftover): " + unused);
     }
 
+    /**
+     * 운영자·플러그인 개발자에게 보일 수 있는 문구(로그·명령 응답·콘솔 출력·보고서·메트릭 설명 등)에 한글을 코드에 직접 적지 않는다 —
+     * 예외 메시지·assert·DEBUG 수준 호출·requireNonNull 밖에서 한글 문자열이 나오는 파일을 {@link HangulTextScanner} 로 찾는다(server·compat·api 전체).
+     * 아직 안 옮긴 파일은 lang-migration-pending.txt 에 있고, 옮기면 지운다(남아 있으면 그것도 실패).
+     * 한계: 문자열을 변수·상수에 담았다 나중에 예외로 보내는 흐름은 따라가지 않는다(스캐너 머리말). 예외 메시지 자체의 번역 여부는 이 가드 밖이다.
+     */
     @Test
-    void noNewHangulLiteralsInLogCalls() throws IOException {
+    void noHangulUserTextOutsideExceptions() throws IOException {
         Set<String> pending = new TreeSet<>(Files.readAllLines(Path.of("src/test/resources/lang-migration-pending.txt"), StandardCharsets.UTF_8)
                 .stream().map(String::strip).filter(l -> !l.isEmpty() && !l.startsWith("#")).toList());
         Set<String> found = new TreeSet<>();
         for (Path root : SOURCE_ROOTS) {
             if (!Files.isDirectory(root)) continue;
+            String module = root.toAbsolutePath().normalize().getParent().getParent().getParent().getFileName().toString();
             try (Stream<Path> files = Files.walk(root)) {
                 for (Path f : (Iterable<Path>) files.filter(p -> p.toString().endsWith(".java"))::iterator) {
-                    if (hasHangulLog(Files.readString(f, StandardCharsets.UTF_8))) found.add(f.getFileName().toString());
+                    if (!HangulTextScanner.userTextLines(Files.readString(f, StandardCharsets.UTF_8)).isEmpty()) {
+                        found.add(module + "/" + root.relativize(f).toString().replace('\\', '/'));
+                    }
                 }
             }
         }
@@ -103,8 +111,9 @@ class LangBundlesTest {
         added.removeAll(pending);
         Set<String> stale = new TreeSet<>(pending);
         stale.removeAll(found);
-        assertTrue(added.isEmpty(), "Korean text hard-coded in a log.info/warn/error call - put it in furnace-lang/{en,ko}.properties and use Lang.t(): " + added);
-        assertTrue(stale.isEmpty(), "Already migrated - remove from src/test/resources/lang-migration-pending.txt: " + stale);
+        assertTrue(added.isEmpty(), "Korean text hard-coded outside an exception/assert/debug call - put it in furnace-lang/{en,ko}.properties "
+                + "(server: Lang.t, compat: CompatLang.t) or, if it is an exception message, pass it straight to the exception constructor:\n" + String.join("\n", added));
+        assertTrue(stale.isEmpty(), "Already migrated - remove from src/test/resources/lang-migration-pending.txt:\n" + String.join("\n", stale));
     }
 
     /**
@@ -126,48 +135,6 @@ class LangBundlesTest {
             }
         }
         assertTrue(bad.isEmpty(), "Korean text hard-coded in a settings validation exception - use Lang.t(): " + bad);
-    }
-
-    /**
-     * 명령 결과 문장(Text.text·sendSuccess·문자열 반환 등)에 한글을 직접 적지 않는다 — command 패키지의 한글 문자열 가운데 예외 메시지·assert·DEBUG 가 아닌 것.
-     * 아직 안 옮긴 파일은 lang-migration-pending-commands.txt 에 있고, 옮기면 지운다.
-     */
-    @Test
-    void noHangulUserTextInCommandOutput() throws IOException {
-        Set<String> pending = new TreeSet<>(Files.readAllLines(Path.of("src/test/resources/lang-migration-pending-commands.txt"), StandardCharsets.UTF_8)
-                .stream().map(String::strip).filter(l -> !l.isEmpty() && !l.startsWith("#")).toList());
-        Set<String> found = new TreeSet<>();
-        try (Stream<Path> files = Files.walk(Path.of("src/main/java/org/domi/furnace/server/command"))) {
-            for (Path f : (Iterable<Path>) files.filter(p -> p.toString().endsWith(".java"))::iterator) {
-                if (hasHangulUserText(Files.readString(f, StandardCharsets.UTF_8))) found.add(f.getFileName().toString());
-            }
-        }
-        Set<String> added = new TreeSet<>(found);
-        added.removeAll(pending);
-        Set<String> stale = new TreeSet<>(pending);
-        stale.removeAll(found);
-        assertTrue(added.isEmpty(), "Korean text hard-coded in command output - put it in furnace-lang/{en,ko}.properties (cmd.* keys) and use Lang.t(): " + added);
-        assertTrue(stale.isEmpty(), "Already migrated - remove from src/test/resources/lang-migration-pending-commands.txt: " + stale);
-    }
-
-    private static final Pattern STRING_LITERAL = Pattern.compile("\"((?:[^\"\\\\\n]|\\\\.)*)\"");
-    private static final Pattern NOT_USER_TEXT = Pattern.compile("new \\w*(?:Exception|Error)\\w*\\(|\\bassert\\b|\\.(?:debug|trace)\\(");
-
-    /** 줄 단위로: 주석이 아니고, 예외 메시지·assert·DEBUG 가 아닌 줄에 한글이 든 문자열 리터럴이 있는가. */
-    static boolean hasHangulUserText(String source) {
-        for (String line : source.split("\n")) {
-            String st = line.strip();
-            if (st.startsWith("//") || st.startsWith("*") || st.startsWith("/*")) continue;
-            if (NOT_USER_TEXT.matcher(line).find()) continue;
-            Matcher m = STRING_LITERAL.matcher(line);
-            while (m.find()) if (HANGUL.matcher(m.group(1)).find()) return true;
-        }
-        return false;
-    }
-
-    /** log.info/warn/error( ... ) 호출 안(괄호가 닫힐 때까지)에 한글이 든 문자열이 있는가. */
-    static boolean hasHangulLog(String source) {
-        return hasHangulCall(LOG_CALL, source);
     }
 
     static boolean hasHangulCall(Pattern call, String source) {

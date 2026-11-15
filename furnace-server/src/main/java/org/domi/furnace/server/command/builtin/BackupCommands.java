@@ -27,7 +27,7 @@ public final class BackupCommands {
             return 0;
         }
         if (backup.running()) {
-            source.sendFailure(Text.text(Lang.t("cmd.backup.already-running")));
+            source.sendFailure(Text.text(Lang.t("backup.already-running")));
             return 0;
         }
         source.sendSuccess(() -> Text.text(Lang.t("cmd.backup.starting", backup.options().backupDirectory().toAbsolutePath())), true);

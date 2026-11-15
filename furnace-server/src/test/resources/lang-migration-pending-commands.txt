@@ -1,5 +1,0 @@
-# 명령 결과 문장(command 패키지)에 한글을 그대로 적은 파일 — 한 파일씩 furnace-lang/{en,ko}.properties(cmd.* 키) + Lang.t() 로 옮기면서 이 목록에서 지운다.
-# 목록에 없는 파일에 새로 쓰면 LangBundlesTest 가 실패한다. 목록에 있는데 이미 옮겼으면 그것도 실패한다(지울 것).
-FurnaceAdminCommands.java
-TimingsCommands.java
-TpsCommands.java

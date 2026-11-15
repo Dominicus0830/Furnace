@@ -80,6 +80,13 @@ public final class Pregen {
      * size 는 radius 면 반경, border 면 경계 크기(블록).
      */
     public record Label(String kind, long size, int x, int z, String literal) {
+        public Label {
+            if (!"radius".equals(kind) && !"border".equals(kind)) {   // 모르는 종류(손으로 고친 파일)는 글 그대로로 본다 — "null" 이 찍히지 않게
+                if (literal == null) literal = String.valueOf(kind);
+                kind = "literal";
+            }
+        }
+
         public static Label radius(long radius, int cx, int cz) { return new Label("radius", radius, cx, cz, null); }
 
         public static Label border(long size, int cx, int cz) { return new Label("border", size, cx, cz, null); }
@@ -632,7 +639,36 @@ public final class Pregen {
             return new Label(kind, Long.parseLong(p.getProperty("labelSize", "0")), Integer.parseInt(p.getProperty("labelX", "0")),
                     Integer.parseInt(p.getProperty("labelZ", "0")), null);
         }
-        return Label.literal(p.getProperty("label", "?"));
+        String legacy = p.getProperty("label", "?");   // 이름표를 문장으로 적던 옛 파일: 알아볼 수 있으면 종류+숫자로 올려 읽는다
+        for (String known : new String[] {"radius", "border"}) {
+            long[] v = matchOldSentence(Lang.pattern("ko", "pregen.label." + known), legacy);   // 옛 문장은 지금 한국어 문장틀과 같은 모양이었다
+            if (v != null) return new Label(known, v[0], (int) v[1], (int) v[2], null);
+        }
+        return Label.literal(legacy);
+    }
+
+    /** 문장틀({0} {1} {2} 자리)로 문장을 읽어 자리 번호 순서대로 숫자를 돌려준다(안 맞으면 null). */
+    private static long[] matchOldSentence(String pattern, String sentence) {
+        if (pattern == null) return null;
+        StringBuilder regex = new StringBuilder();
+        java.util.List<Integer> slots = new java.util.ArrayList<>();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\{(\\d+)}").matcher(pattern);
+        int last = 0;
+        while (m.find()) {
+            regex.append(java.util.regex.Pattern.quote(pattern.substring(last, m.start()))).append("(-?\\d+)");
+            slots.add(Integer.parseInt(m.group(1)));
+            last = m.end();
+        }
+        regex.append(java.util.regex.Pattern.quote(pattern.substring(last)));
+        java.util.regex.Matcher sm = java.util.regex.Pattern.compile(regex.toString()).matcher(sentence);
+        if (!sm.matches() || slots.size() != 3) return null;
+        long[] out = new long[3];
+        try {
+            for (int g = 0; g < 3; g++) out[slots.get(g)] = Long.parseLong(sm.group(g + 1));
+        } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
+            return null;
+        }
+        return out;
     }
 
     /** 진행 파일(없거나 못 읽으면 null). */
