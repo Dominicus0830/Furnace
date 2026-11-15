@@ -70,7 +70,7 @@ final class NmsLinker extends ClassVisitor {
         if (superName != null && !own.contains(superName) && NmsSymbols.isNms(superName)
                 && (superName.startsWith("net/minecraft/") || !symbols.hasClass(superName))) {
             throw refusal(name, superName, superName.startsWith("net/minecraft/") && symbols.hasClass(superName)
-                    ? "등급 C — NMS 클래스 상속은 지원하지 않는다(서버가 그 가상 메서드를 부르지 않는다). 대체: Furnace 엔티티·몹 AI·메뉴 API"
+                    ? CompatLang.t("nms.grade-c", CompatLang.t("nms.grade-c.inherit"))
                     : NmsGrades.reason(superName));
         }
         if (interfaces != null) {
@@ -84,7 +84,7 @@ final class NmsLinker extends ClassVisitor {
     private static final java.util.Set<String> REFUSAL_WARNED = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private UnsupportedNmsCall refusal(String cls, String parent, String why) {
-        String target = "상속 " + dots(cls) + " → " + dots(parent);
+        String target = "extends " + dots(cls) + " -> " + dots(parent);
         // 정의 거부는 LinkageError 가 아니라 JVM 이 실패를 기억하지 않는다 — 다시 가리킬 때마다 오므로 WARN 은 (플러그인, 클래스)당 한 번
         var log = org.slf4j.LoggerFactory.getLogger("Furnace");
         if (NmsCompatReport.otherVersion(cls)) {
@@ -96,7 +96,7 @@ final class NmsLinker extends ClassVisitor {
         } else {
             log.debug("플러그인 {}: 클래스 {} 정의 거부(다시)", plugin, dots(cls));
         }
-        return new UnsupportedNmsCall(target, why + " (플러그인=" + plugin + ")");
+        return new UnsupportedNmsCall(target, why + " (plugin=" + plugin + ")");
     }
 
     /** 시험용. */

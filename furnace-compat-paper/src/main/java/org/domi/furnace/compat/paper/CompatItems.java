@@ -50,7 +50,7 @@ public final class CompatItems {
     /** Furnace 종류 키 → Material. */
     public static Material material(String itemType) {
         Material m = Material.matchMaterial(itemType);
-        if (m == null) throw new UnsupportedFeature("Material " + itemType, "Bukkit Material 열거형에 없는 아이템이다(데이터 팩·플러그인 아이템)");
+        if (m == null) throw new UnsupportedFeature("Material " + itemType, "item is not in the Bukkit Material enum (data pack or plugin item)");
         return m;
     }
 }

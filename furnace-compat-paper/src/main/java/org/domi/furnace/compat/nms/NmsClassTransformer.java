@@ -121,9 +121,8 @@ public final class NmsClassTransformer implements ClassTransformer {
         SpigotMappings.register(plugin, options.spigot());
         report.log();
         if (options.strict() && report.unsupported() > 0) {
-            throw new UnsupportedNmsCall("플러그인 " + plugin + " 로드",
-                    "plugins.compat.nms.strict=true 이고 미지원 NMS 심볼이 " + report.unsupported() + "개 있다(처음 것: "
-                            + report.missing().subList(0, Math.min(5, report.missing().size())) + "). strict 를 끄면 그 기능만 실패하고 나머지는 돈다");
+            throw new UnsupportedNmsCall("loading plugin " + plugin,
+                    CompatLang.t("nms.strict-refused", report.unsupported(), report.missing().subList(0, Math.min(5, report.missing().size()))));
         }
         return new NmsClassTransformer(plugin, report.ownClasses(), options, NmsSymbols.RUNTIME);
     }

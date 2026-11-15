@@ -212,8 +212,8 @@ class NmsLinkerTest {
         Error e = trapped(c, "missingMethod", level());
         assertInstanceOf(NoSuchMethodError.class, e, "JVM 과 같은 종류");
         assertTrue(e.getMessage().contains("net.minecraft.server.level.ServerLevel#getProtoChunkAt(BlockPos)"), e.getMessage());
-        assertTrue(e.getMessage().contains("플러그인=Linky"), e.getMessage());
-        assertTrue(e.getMessage().contains("호출 위치=linky.User#missingMethod:7"), e.getMessage());
+        assertTrue(e.getMessage().contains("plugin=Linky"), e.getMessage());
+        assertTrue(e.getMessage().contains("call site=linky.User#missingMethod:7"), e.getMessage());
         // 2칸 인자(long·double)와 2칸 반환값도 스택이 맞는다(검증 통과)
         assertTrue(trapped(c, "missingWide", level()).getMessage().contains("#mixed(long, double, int)"));
         Error f = trapped(c, "missingStaticField");
@@ -238,7 +238,7 @@ class NmsLinkerTest {
         Error chunk = trapped(c, "missingClassNew");
         assertInstanceOf(NoClassDefFoundError.class, chunk);
         assertTrue(chunk.getMessage().contains("net.minecraft.world.level.chunk.ProtoChunk"), chunk.getMessage());
-        assertTrue(chunk.getMessage().contains("등급 C"), "청크 내부는 등급 C 이유를 단다: " + chunk.getMessage());
+        assertTrue(chunk.getMessage().contains("Grade C"), "청크 내부는 등급 C 이유를 단다: " + chunk.getMessage());
         // 있는 클래스의 없는 생성자 — 인자 계산 중 분기(미초기화 값이 프레임에 걸린다)가 있어도 검증을 통과한다
         Error ctor = trapped(c, "missingCtor", true);
         assertInstanceOf(NoSuchMethodError.class, ctor);
@@ -280,7 +280,7 @@ class NmsLinkerTest {
         NmsClassTransformer t = new NmsClassTransformer("Linky", Set.of(), NmsClassTransformer.Options.DEFAULT, NmsSymbols.RUNTIME);
         Loader loader = new Loader(classes, t);
         UnsupportedNmsCall present = assertThrows(UnsupportedNmsCall.class, () -> loader.loadClass("linky.MyEntity"));
-        assertTrue(present.getMessage().contains("상속") && present.getMessage().contains("등급 C"), present.getMessage());
+        assertTrue(present.getMessage().contains("extends") && present.getMessage().contains("Grade C"), present.getMessage());
         UnsupportedNmsCall missing = assertThrows(UnsupportedNmsCall.class, () -> loader.loadClass("linky.MyChunk"));
         assertTrue(missing.getMessage().contains("ProtoChunk"), missing.getMessage());
     }
@@ -322,7 +322,7 @@ class NmsLinkerTest {
         Path jar = JarCompiler.jar(tmp.resolve("sub.jar"), "name: S\nversion: '1'\nmain: linky.MyEntity\n",
                 Map.of("linky.MyEntity", SUB), Set.of("net.minecraft."));
         NmsCompatReport r = NmsCompatReport.scan("S", jar, NmsSymbols.RUNTIME);
-        assertTrue(r.missing().contains("상속 linky.MyEntity → net.minecraft.world.entity.LivingEntity"), r.missing().toString());
+        assertTrue(r.missing().contains("extends linky.MyEntity -> net.minecraft.world.entity.LivingEntity"), r.missing().toString());
         assertEquals(1, r.gradeC());
         assertThrows(UnsupportedNmsCall.class, () -> NmsClassTransformer.forJar("S", jar, new NmsClassTransformer.Options(true, false)),
                 "strict 는 정의 거부될 클래스가 있는 jar 를 로드 전에 거절한다");

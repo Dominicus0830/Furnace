@@ -28,10 +28,10 @@ public final class PlayerInfoBridge {
     private PlayerInfoBridge() {}
 
     /** 되돌리지 못하는 까닭(되면 null). */
-    static String irreversibleReason() { return Profiles.available() ? null : Profiles.MISSING; }
+    static String irreversibleReason() { return Profiles.available() ? null : Profiles.missing(); }
 
     public static net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket fromFurnace(ClientboundPlayerInfoUpdatePacket p) {
-        if (!Profiles.available()) throw new UnsupportedNmsCall("fromFurnace(" + p.type() + ")", Profiles.MISSING);
+        if (!Profiles.available()) throw new UnsupportedNmsCall("fromFurnace(" + p.type() + ")", Profiles.missing());
         EnumSet<net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket.Action> actions =
                 EnumSet.noneOf(net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket.Action.class);
         for (ClientboundPlayerInfoUpdatePacket.Action a : p.actions()) {

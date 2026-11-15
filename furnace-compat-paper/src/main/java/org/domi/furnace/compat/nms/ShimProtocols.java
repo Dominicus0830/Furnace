@@ -81,7 +81,7 @@ public final class ShimProtocols {
 
     private static <B, V> StreamCodec<B, V> unsupportedSerializer(PacketType<?> type) {
         return StreamCodec.of(
-                (out, v) -> { throw new UnsupportedNmsCall("packet codec " + type, "패킷 바이트 변환은 아직 연결되지 않았다(ProtocolLib 다리 3단계)"); },
-                in -> { throw new UnsupportedNmsCall("packet codec " + type, "패킷 바이트 변환은 아직 연결되지 않았다(ProtocolLib 다리 3단계)"); });
+                (out, v) -> { throw new UnsupportedNmsCall("packet codec " + type, "packet byte conversion is not connected yet (ProtocolLib bridge stage 3)"); },
+                in -> { throw new UnsupportedNmsCall("packet codec " + type, "packet byte conversion is not connected yet (ProtocolLib bridge stage 3)"); });
     }
 }

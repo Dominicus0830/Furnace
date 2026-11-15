@@ -111,7 +111,7 @@ class PacketShimVanillaBehaviorTest {
         // 보내기 다리가 없는 생성 패킷(값 shim 이 빈 껍데기인 open_screen)의 생성자만 미지원 — 손으로 쓴 제목 패킷, 범용 다리로 가는 체력 패킷,
         // 손 코덱 다리로 가는 경험치 패킷(E4c-2)은 있음
         assertEquals(1, r.unsupported(), r.toString());
-        assertTrue(r.missing().stream().anyMatch(m -> m.contains("ClientboundOpenScreenPacket#<init>") && m.contains("보내기 미지원")), r.missing().toString());
+        assertTrue(r.missing().stream().anyMatch(m -> m.contains("ClientboundOpenScreenPacket#<init>") && m.contains("sending is not supported")), r.missing().toString());
         assertTrue(r.missing().stream().noneMatch(m -> m.contains("ClientboundSetTitleTextPacket") || m.contains("ClientboundSetHealthPacket")
                 || m.contains("ClientboundSetExperiencePacket")), r.missing().toString());
     }

@@ -166,7 +166,7 @@ class NmsH7PluginTest {
             List<String> log = messages();
             assertTrue(log.stream().anyMatch(m -> m.startsWith("Plugin H7User: of ") && m.contains("Naming scheme=Spigot (assumed")), () -> String.join("\n", log));
             assertTrue(log.stream().anyMatch(m -> m.startsWith("Plugin H7User: ") && m.contains("unsupported NMS symbols") && m.contains("ServerLevel#nopeStatic(0)")), () -> String.join("\n", log));
-            assertTrue(log.stream().anyMatch(m -> m.contains("looked up the NMS class net.minecraft.world.level.levelgen.NoiseChunk") && m.contains("등급 C")),
+            assertTrue(log.stream().anyMatch(m -> m.contains("looked up the NMS class net.minecraft.world.level.levelgen.NoiseChunk") && m.contains("Grade C")),
                     () -> String.join("\n", log));
             assertTrue(log.stream().anyMatch(m -> m.contains("looked up the NMS member net.minecraft.server.level.ServerPlayer#nope")), () -> String.join("\n", log));
 

@@ -100,11 +100,11 @@ public final class Enchantment implements Keyed {
     /** 모든 마법 부여(키 순). */
     public static Iterable<Enchantment> all() { return Collections.unmodifiableCollection(BY_KEY.values()); }
 
-    public int getMaxLevel() { throw new org.domi.furnace.compat.paper.UnsupportedFeature("Enchantment#getMaxLevel", "최대 레벨은 서버 데이터에서 오며 API 가 아직 알려 주지 않는다"); }
+    public int getMaxLevel() { throw new org.domi.furnace.compat.paper.UnsupportedFeature("Enchantment#getMaxLevel", "the maximum level comes from server data and the API does not tell it yet"); }
 
-    public int getStartLevel() { throw new org.domi.furnace.compat.paper.UnsupportedFeature("Enchantment#getStartLevel", "시작 레벨은 서버 데이터에서 오며 API 가 아직 알려 주지 않는다"); }
+    public int getStartLevel() { throw new org.domi.furnace.compat.paper.UnsupportedFeature("Enchantment#getStartLevel", "the start level comes from server data and the API does not tell it yet"); }
 
-    public boolean canEnchantItem(org.bukkit.inventory.ItemStack item) { throw new org.domi.furnace.compat.paper.UnsupportedFeature("Enchantment#canEnchantItem", "적용 가능한 아이템은 서버 데이터에서 오며 API 가 아직 알려 주지 않는다"); }
+    public boolean canEnchantItem(org.bukkit.inventory.ItemStack item) { throw new org.domi.furnace.compat.paper.UnsupportedFeature("Enchantment#canEnchantItem", "the applicable items come from server data and the API does not expose them yet"); }
 
     @Override
     public boolean equals(Object o) { return o instanceof Enchantment e && e.key.equals(key); }

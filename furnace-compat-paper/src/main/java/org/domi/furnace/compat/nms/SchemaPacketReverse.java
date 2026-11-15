@@ -88,17 +88,17 @@ final class SchemaPacketReverse {
 
     private static Back compile(PacketType<?> t) {
         PacketDef d = def(t).orElse(null);
-        if (d == null) return refuse(null, "play 연결 스키마에 없는 종류다");
+        if (d == null) return refuse(null, "a kind not in the play connection schema");
         boolean in = d.direction() == PacketDirection.SERVERBOUND;
-        if (t.typed()) return refuse(d, "Furnace 타입 레코드 종류다(" + (in ? "ServerboundBridge" : "TypedPacketBridge") + " 가 다룬다)");
+        if (t.typed()) return refuse(d, "a Furnace typed record kind (" + (in ? "ServerboundBridge" : "TypedPacketBridge") + " handles it)");
         if (!in && ChunkPacketBridge.handles(d.wireName())) return new Back(d, List.of(), List.of(), null, null, null);   // 손으로 쓴 shim(T-182)
         String no = in ? SchemaPacketBridge.receivedRefusal(d) : SchemaPacketBridge.refusal(d);
-        if (no != null) return refuse(d, "shim → Furnace 변환이 없는 종류다: " + no);
+        if (no != null) return refuse(d, "a kind with no shim -> Furnace conversion: " + no);
         Class<?> cls;
         try {
             cls = Class.forName(d.binaryName(), false, SchemaPacketReverse.class.getClassLoader());
         } catch (ClassNotFoundException | LinkageError e) {
-            return refuse(d, "shim 클래스가 없다");
+            return refuse(d, "no shim class");
         }
         try {
             List<FieldDef> all = new ArrayList<>();
@@ -106,7 +106,7 @@ final class SchemaPacketReverse {
             if (d.superType() != null) {
                 String base = SCHEMA.resolve(d.superType().name(), pkg);
                 StructDef st = base == null ? null : SCHEMA.struct(base).orElse(null);
-                if (st == null) return refuse(d, "부모 클래스 " + d.superType() + " 를 스키마에서 찾지 못했다");
+                if (st == null) return refuse(d, "parent class " + d.superType() + " was not found in the schema");
                 all.addAll(st.fields());
             }
             all.addAll(d.fields());
@@ -124,7 +124,7 @@ final class SchemaPacketReverse {
                 invs.add(iv);
             }
             Unpack u = d.custom() ? customUnpack(SchemaPacketBridge.customKey(d)) : SchemaPacketReverse::byName;
-            if (u == null) return refuse(d, "손 코덱 종류의 역변환이 아직 없다");
+            if (u == null) return refuse(d, "there is no reverse conversion for hand codec kinds yet");
             Maker mk = maker(d, cls, all);
             return new Back(d, List.copyOf(names), java.util.Collections.unmodifiableList(invs), u, mk, null);
         } catch (NoBridge e) {
@@ -154,7 +154,7 @@ final class SchemaPacketReverse {
             default:
                 break;
         }
-        if (d.superType() != null) throw new NoBridge("부모 클래스가 있는 종류의 생성자를 모른다");
+        if (d.superType() != null) throw new NoBridge("the constructor of a kind with a parent class is unknown");
         Class<?>[] types = new Class<?>[all.size()];
         for (int i = 0; i < types.length; i++) types[i] = fieldType(cls, all.get(i).name());
         Constructor<?> c = ctor(cls, types);
@@ -167,7 +167,7 @@ final class SchemaPacketReverse {
             c.setAccessible(true);
             return c;
         } catch (NoSuchMethodException | RuntimeException e) {
-            throw new NoBridge(cls.getSimpleName() + " shim 에 모든 필드 생성자가 없다");
+            throw new NoBridge(cls.getSimpleName() + " shim has no all-fields constructor");
         }
     }
 
@@ -179,7 +179,7 @@ final class SchemaPacketReverse {
                 // 부모에서 찾는다
             }
         }
-        throw new NoBridge(cls.getSimpleName() + " shim 에 스키마 필드 " + name + " 이 없다");
+        throw new NoBridge("the " + cls.getSimpleName() + " shim has no schema field " + name);
     }
 
     private static Object staticField(Class<?> cls, String name) {
@@ -188,7 +188,7 @@ final class SchemaPacketReverse {
             f.setAccessible(true);
             return f.get(null);
         } catch (ReflectiveOperationException | RuntimeException e) {
-            throw new NoBridge(cls.getSimpleName() + "." + name + " 이 없다");
+            throw new NoBridge(cls.getSimpleName() + "." + name + " does not exist");
         }
     }
 
@@ -200,7 +200,7 @@ final class SchemaPacketReverse {
         Back b = back(g.type());
         String call = "fromFurnace(" + g.type() + ")";
         if (b.refusal() != null) throw new UnsupportedNmsCall(call, b.refusal());
-        if (!g.readable()) throw new UnsupportedNmsCall(call, "내용을 읽지 못한 패킷이다");
+        if (!g.readable()) throw new UnsupportedNmsCall(call, "a packet whose content could not be read");
         if (b.unpack() == null) return ChunkPacketBridge.fromFurnace(g);
         Object[] v = b.unpack().apply(g.fields(), b, b.def().wireName());
         try {
@@ -336,7 +336,7 @@ final class SchemaPacketReverse {
             Class<?> c = Class.forName("com.mojang.datafixers.util.Pair", false, SchemaPacketReverse.class.getClassLoader());
             return c.getMethod("of", Object.class, Object.class);
         } catch (ClassNotFoundException | NoSuchMethodException | LinkageError e) {
-            throw new UnsupportedNmsCall("fromFurnace(set_equipment)", "DataFixerUpper Pair 가 서버 라이브러리로 올라와 있지 않다(장비 패킷 shim 의 원소 타입)");
+            throw new UnsupportedNmsCall("fromFurnace(set_equipment)", "DataFixerUpper Pair is not on the server library path (element type of the equipment packet shim)");
         }
     }
 
@@ -372,11 +372,11 @@ final class SchemaPacketReverse {
             "Level", net.minecraft.core.registries.Registries.DIMENSION);
 
     private static Inv inv(TypeRef t, String wire, String pkg, int depth) {
-        if (depth > 8) throw new NoBridge("타입이 너무 깊다: " + t);
-        if (t.bound() != TypeRef.Bound.NONE) throw new NoBridge("와일드카드 타입 " + t);
+        if (depth > 8) throw new NoBridge("type is nested too deep: " + t);
+        if (t.bound() != TypeRef.Bound.NONE) throw new NoBridge("wildcard type " + t);
         if (t.arrayDimensions() > 0) {
             if (t.arrayDimensions() == 1 && wire == null && Set.of("byte", "long", "int").contains(t.name())) return SchemaPacketReverse::need;
-            throw new NoBridge("배열 " + t);
+            throw new NoBridge("array " + t);
         }
         switch (t.name()) {
             case "int":
@@ -394,7 +394,7 @@ final class SchemaPacketReverse {
             case "boolean", "String", "UUID":
                 return SchemaPacketReverse::need;
             case "List", "Set", "Collection": {
-                if (wire != null) throw new NoBridge("목록 명시 와이어 " + wire);
+                if (wire != null) throw new NoBridge("explicit list wire " + wire);
                 Inv e = inv(t.arguments().get(0), null, pkg, depth + 1);
                 boolean set = t.name().equals("Set");
                 return (v, at) -> {
@@ -405,7 +405,7 @@ final class SchemaPacketReverse {
                 };
             }
             case "Optional": {
-                if (wire != null) throw new NoBridge("Optional 명시 와이어 " + wire);
+                if (wire != null) throw new NoBridge("explicit Optional wire " + wire);
                 Inv e = inv(t.arguments().get(0), null, pkg, depth + 1);
                 return (v, at) -> ((Optional<?>) need(v, at)).map(x -> e.apply(x, at));
             }
@@ -415,7 +415,7 @@ final class SchemaPacketReverse {
             }
             case "ResourceKey": {
                 net.minecraft.resources.ResourceKey<?> reg = t.arguments().isEmpty() ? null : RESOURCE_KEY_REGISTRIES.get(t.arguments().get(0).name());
-                if (reg == null) throw new NoBridge("ResourceKey 의 레지스트리를 모른다: " + t);
+                if (reg == null) throw new NoBridge("the registry of ResourceKey is unknown: " + t);
                 return (v, at) -> resourceKey(reg, (String) need(v, at));
             }
             case "Instant":
@@ -439,7 +439,7 @@ final class SchemaPacketReverse {
         } catch (IllegalArgumentException e) {
             throw new NoBridge(e.getMessage());
         }
-        if (bin == null) throw new NoBridge("타입 " + t);
+        if (bin == null) throw new NoBridge("type " + t);
         TypeDecl decl = SCHEMA.type(bin).orElse(null);
         StructDef struct = SCHEMA.struct(bin).orElse(null);
         if ((decl != null && decl.kind() == TypeDecl.Kind.ENUM) || (struct != null && struct.kind() == StructDef.Kind.ENUM)) {
@@ -451,7 +451,7 @@ final class SchemaPacketReverse {
         }
         if (wire != null) {   // 명시 와이어 자리의 보조 클래스(game_event Type): 바닐라 상수 중 같은 번호, 없으면 새로
             if (struct == null || struct.fields().size() != 1 || !struct.fields().get(0).type().name().equals("int")) {
-                throw new NoBridge("명시 와이어 " + wire + " 자리의 " + bin);
+                throw new NoBridge("explicit wire " + wire + " on " + bin);
             }
             Class<?> sc = shimClass(bin);
             Field idf = declaredField(sc, struct.fields().get(0).name());
@@ -491,7 +491,7 @@ final class SchemaPacketReverse {
                 case "i64" -> {
                     if (bin.equals("net.minecraft.core.SectionPos")) yield (v, at) -> net.minecraft.core.SectionPos.of(num(v, at).longValue());
                     if (bin.equals("net.minecraft.world.level.ChunkPos")) yield (v, at) -> new net.minecraft.world.level.ChunkPos(num(v, at).longValue());
-                    throw new NoBridge("i64 자리의 " + bin);
+                    throw new NoBridge("i64 on " + bin);
                 }
                 case "vec3" -> (v, at) -> {
                     PacketStruct s = (PacketStruct) need(v, at);
@@ -503,10 +503,10 @@ final class SchemaPacketReverse {
                 case "argument_signatures" -> ChatValues::argumentSignaturesFrom;
                 case "chat_session" -> ChatValues::chatSessionFrom;
                 case "last_seen_update" -> ChatValues::lastSeenFrom;
-                default -> throw new NoBridge(bin.substring(bin.lastIndexOf('.') + 1) + " 값 shim 이 아직 빈 껍데기다");
+                default -> throw new NoBridge(bin.substring(bin.lastIndexOf('.') + 1) + " value shim is still an empty shell");
             };
         }
-        if (struct == null || !(struct.kind() == StructDef.Kind.RECORD || struct.kind() == StructDef.Kind.CLASS)) throw new NoBridge("타입 " + bin);
+        if (struct == null || !(struct.kind() == StructDef.Kind.RECORD || struct.kind() == StructDef.Kind.CLASS)) throw new NoBridge("type " + bin);
         Class<?> sc = shimClass(bin);
         List<String> names = new ArrayList<>();
         List<Inv> invs = new ArrayList<>();
@@ -537,7 +537,7 @@ final class SchemaPacketReverse {
         try {
             return Class.forName(bin, false, SchemaPacketReverse.class.getClassLoader());
         } catch (ClassNotFoundException | LinkageError e) {
-            throw new NoBridge(bin.substring(bin.lastIndexOf('.') + 1) + " shim 클래스가 없다");
+            throw new NoBridge("no shim class for " + bin.substring(bin.lastIndexOf('.') + 1));
         }
     }
 
@@ -547,7 +547,7 @@ final class SchemaPacketReverse {
             f.setAccessible(true);
             return f;
         } catch (NoSuchFieldException e) {
-            throw new NoBridge(c.getSimpleName() + " shim 에 " + name + " 이 없다");
+            throw new NoBridge("the " + c.getSimpleName() + " shim has no " + name);
         }
     }
 
@@ -567,7 +567,7 @@ final class SchemaPacketReverse {
                     (v, at) -> net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(net.minecraft.resources.ResourceLocation.parse((String) need(v, at)));
             case "net.minecraft.world.entity.EntityType" -> (v, at) -> net.minecraft.world.entity.EntityType.byString((String) need(v, at))
                     .orElseThrow(() -> new IllegalArgumentException(at + ": 모르는 엔티티 종류 " + v));
-            default -> throw new NoBridge("레지스트리 번호 " + bin);
+            default -> throw new NoBridge("registry id " + bin);
         };
     }
 
@@ -590,7 +590,7 @@ final class SchemaPacketReverse {
             case "minecraft:blank" -> net.minecraft.network.chat.numbers.BlankFormat.INSTANCE;
             case "minecraft:fixed" -> new net.minecraft.network.chat.numbers.FixedFormat(
                     net.minecraft.network.chat.Component.fromFurnace((org.domi.furnace.api.text.Text) need(s.get("value"), at + ".value")));
-            case "minecraft:styled" -> throw new UnsupportedNmsCall("fromFurnace(number_format)", "styled 숫자 형식의 NBT 스타일을 shim Style 로 되돌리는 길이 아직 없다");
+            case "minecraft:styled" -> throw new UnsupportedNmsCall("fromFurnace(number_format)", "there is no way yet to convert the NBT style of the styled number format back to a shim Style");
             default -> throw new IllegalArgumentException(at + ": 모르는 숫자 형식 " + type);
         };
     }

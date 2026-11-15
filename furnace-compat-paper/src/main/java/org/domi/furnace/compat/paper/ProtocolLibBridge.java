@@ -103,7 +103,7 @@ public final class ProtocolLibBridge {
             ProtocolLibBridge b = active;
             if (b != null) b.resyncSoon();
         } catch (RuntimeException | LinkageError e) {
-            a.logger().log(Level.WARNING, "ProtocolLib 다리(서버가 보내는 패킷 보이기)를 켜지 못했다", e);
+            a.logger().log(Level.WARNING, org.domi.furnace.compat.i18n.CompatLang.t("compat.protocollib-bridge-failed"), e);
         }
     }
 
@@ -178,7 +178,7 @@ public final class ProtocolLibBridge {
         try {
             classes = listened.get();
         } catch (RuntimeException | LinkageError e) {
-            if (warned.add("listeners")) owner.logger().log(Level.WARNING, "ProtocolLib 리스너 목록을 읽지 못했다 — 서버가 보내는 패킷은 리스너에 보이지 않는다", e);
+            if (warned.add("listeners")) owner.logger().log(Level.WARNING, org.domi.furnace.compat.i18n.CompatLang.t("compat.protocollib-listeners-failed"), e);
             return;
         }
         Set<PacketType<?>> want = new LinkedHashSet<>();
@@ -192,7 +192,7 @@ public final class ProtocolLibBridge {
             if (in != null) {   // 클라이언트가 보내는 패킷(2b-3)
                 if (!packets.isSupported(in)) continue;
                 String why = ServerboundBridge.refusal(in);
-                if (why == null && !in.typed() && !packets.isReadable(in)) why = "이 서버가 내용을 읽지 못하는 종류";
+                if (why == null && !in.typed() && !packets.isReadable(in)) why = org.domi.furnace.compat.i18n.CompatLang.t("compat.unreadable-kind");
                 if (why != null) missingIn.add(in.name());
                 else wantIn.add(in);
                 continue;
@@ -201,7 +201,7 @@ public final class ProtocolLibBridge {
             if (t == null) continue;   // play 단계 패킷이 아닌 것(로그인·상태·번들 등) — Furnace 패킷 API 범위 밖
             if (!packets.isSupported(t)) continue;
             String why = PacketDelivery.irreversibleReason(t);
-            if (why == null && !t.typed() && !packets.isReadable(t)) why = "이 서버가 내용을 읽지 못하는 종류";
+            if (why == null && !t.typed() && !packets.isReadable(t)) why = org.domi.furnace.compat.i18n.CompatLang.t("compat.unreadable-kind");
             if (why != null) {
                 // 서버 설정으로 풀 수 있는 까닭(authlib 없음 등)은 따로 이름 — 까닭으로 적는다: 운영자가 무엇을 켜면 되는지 알게(PR #390 검토 R2)
                 if (org.domi.furnace.compat.nms.PacketDelivery.fixableBySetting(why)) needsSetting.add(t.name() + " — " + why);

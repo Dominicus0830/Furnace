@@ -240,11 +240,11 @@ public final class LegacyCommands {
                 if (PrimaryThread.isPrimary()) return complete(sender, label, args);
                 return server.scheduler().global().submit(() -> complete(sender, label, args)).get(tabTimeoutMillis, TimeUnit.MILLISECONDS);
             } catch (TimeoutException e) {
-                cmd.plugin().logger().log(Level.WARNING, "자동완성이 " + tabTimeoutMillis + "ms 안에 끝나지 않아 건너뛴다: /" + label);
+                cmd.plugin().logger().log(Level.WARNING, org.domi.furnace.compat.i18n.CompatLang.t("compat.tab-timeout", tabTimeoutMillis, label));
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (Exception e) {
-                cmd.plugin().logger().log(Level.WARNING, "자동완성 실패: /" + label, e);
+                cmd.plugin().logger().log(Level.WARNING, org.domi.furnace.compat.i18n.CompatLang.t("compat.tab-failed", label), e);
             }
             return List.of();
         }

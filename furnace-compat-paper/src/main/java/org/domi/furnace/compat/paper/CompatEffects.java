@@ -82,6 +82,6 @@ public final class CompatEffects {
             return ParticleEffect.Vibration.toBlock(new BlockPos(l.getBlockX(), l.getBlockY(), l.getBlockZ()), v.getArrivalTime());
         }
         // 엔티티로 가는 진동은 엔티티 네트워크 번호·눈높이가 필요한데 Furnace API 가 아직 내주지 않는다
-        throw new UnsupportedFeature("Vibration.Destination.EntityDestination", "엔티티로 가는 진동 입자는 아직 없다 — BlockDestination 을 쓴다");
+        throw new UnsupportedFeature("Vibration.Destination.EntityDestination", "there is no vibration particle towards an entity yet - use BlockDestination");
     }
 }

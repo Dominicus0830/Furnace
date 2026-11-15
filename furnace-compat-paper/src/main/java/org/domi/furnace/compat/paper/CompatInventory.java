@@ -68,7 +68,7 @@ public class CompatInventory implements Inventory {
                 Pending cur = pending.get(index);
                 if (cur != null && cur.seq() == mine) pending.remove(index);
             }
-            if (e != null) System.getLogger("FurnaceCompat").log(System.Logger.Level.WARNING, what + " 예약 작업이 실패했다", e);
+            if (e != null) System.getLogger("FurnaceCompat").log(System.Logger.Level.WARNING, org.domi.furnace.compat.i18n.CompatLang.t("compat.scheduled-task-failed", what), e);
         });
     }
 
@@ -102,7 +102,7 @@ public class CompatInventory implements Inventory {
         public void set(org.domi.furnace.api.item.ItemStack stack) {
             PlainSlot d = epoch.get();
             if (d != null) d.set(stack);
-            else writeSlot(index, stack, "ItemStack(Inventory slot " + index + ") 쓰기");
+            else writeSlot(index, stack, "writing ItemStack(Inventory slot " + index + ")");
         }
 
         @Override

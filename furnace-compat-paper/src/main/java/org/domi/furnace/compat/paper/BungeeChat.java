@@ -55,7 +55,7 @@ public final class BungeeChat {
             @Override
             public void respawn() {
                 if (!p.isOnline() || p.getHealth() > 0) return;
-                throw new UnsupportedFeature("Player.Spigot#respawn", "플러그인이 죽은 플레이어를 되살리는 API 가 아직 없다");
+                throw new UnsupportedFeature("Player.Spigot#respawn", "there is no API yet for a plugin to respawn a dead player");
             }
 
             /** Paper: 온라인 플레이어 중 이 플레이어가 못 보는 사람(숨기기 규칙 — Furnace EntityViews.canSee), 고칠 수 없는 집합. */

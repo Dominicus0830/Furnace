@@ -48,14 +48,14 @@ public final class PacketDelivery {
         if (packet instanceof NmsPacket n) return n.toFurnace();
         if (packet instanceof SchemaPacket s) return TypedPacketBridge.handlesSchema(s.schemaKey()) ? TypedPacketBridge.toFurnace(s) : SchemaPacketBridge.toFurnace(s);
         throw new UnsupportedNmsCall("ServerCommonPacketListenerImpl#send(" + packet.getClass().getName() + ")",
-                "이 패킷 종류는 아직 shim 이 없다 — Furnace 패킷 API(docs/api/packets.md)를 쓴다");
+                "there is no shim for this packet kind yet - use the Furnace packet API (docs/api/packets.md)");
     }
 
     /** Furnace 패킷 → shim(ProtocolLib 다리 2b-2: Furnace 가 스스로 보내는 패킷을 라이브러리에 보여 줄 때). 못 바꾸면 UnsupportedNmsCall·IllegalArgumentException. */
     public static Packet<?> fromFurnace(org.domi.furnace.api.packet.Packet packet) {
         if (packet instanceof org.domi.furnace.api.packet.GenericPacket g) return SchemaPacketReverse.fromFurnace(g);
         if (packet instanceof ClientboundPacket c) return TypedPacketBridge.fromFurnace(c);
-        throw new UnsupportedNmsCall("fromFurnace(" + packet.type() + ")", "clientbound 패킷이 아니다");
+        throw new UnsupportedNmsCall("fromFurnace(" + packet.type() + ")", "not a clientbound packet");
     }
 
     /**
@@ -81,7 +81,7 @@ public final class PacketDelivery {
     }
 
     /** 되돌리지 못하는 까닭이 서버 설정으로 풀리는 것인가(로그에 까닭까지 적을 것). 지금은 authlib 없음 하나. */
-    public static boolean fixableBySetting(String why) { return Profiles.MISSING.equals(why); }
+    public static boolean fixableBySetting(String why) { return Profiles.missing().equals(why); }
 
     /** 되돌리지 못하는 까닭(되면 null). */
     public static String irreversibleReason(org.domi.furnace.api.packet.PacketType<?> t) {

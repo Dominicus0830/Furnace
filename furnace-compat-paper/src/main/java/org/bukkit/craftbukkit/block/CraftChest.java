@@ -30,8 +30,8 @@ public class CraftChest extends CraftLootable implements org.bukkit.block.Chest 
         } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException e) {
             // Paper 에는 없는 경우(Furnace region 경계) — 서버 내부 문구 대신 이 API 로 무엇을 하면 되는지 알려 준다
             var p = position();
-            var ex = new org.domi.furnace.api.concurrent.ThreadOwnershipException("Chest#getInventory: 큰 상자 (" + p.x() + "," + p.y() + "," + p.z()
-                    + ")의 짝 칸이 다른 region 이라 이 스레드에서 읽을 수 없다 — getBlockInventory() 로 이 반쪽만 쓰거나, 짝 칸 region 스케줄러에서 부른다");
+            var ex = new org.domi.furnace.api.concurrent.ThreadOwnershipException("Chest#getInventory: the other half of the double chest at (" + p.x() + "," + p.y() + "," + p.z()
+                    + ") is in another region and cannot be read from this thread - use getBlockInventory() for this half only, or call it from the region scheduler of the other half");
             ex.initCause(e);
             throw ex;
         }

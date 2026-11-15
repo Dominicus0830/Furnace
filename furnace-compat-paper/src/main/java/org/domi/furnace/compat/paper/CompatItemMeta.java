@@ -210,7 +210,7 @@ public final class CompatItemMeta implements ItemMeta, Damageable, Repairable {
         for (ItemFlag f : itemFlags) {
             String c = unsupportedComponent(f);
             if (c != null && work.components().containsKey(c)) {
-                throw new UnsupportedFeature("ItemMeta#addItemFlags(" + f + ")", c + " 컴포넌트의 표시 여부를 API 가 아직 바꾸지 못한다");
+                throw new UnsupportedFeature("ItemMeta#addItemFlags(" + f + ")", "the API cannot change the visibility of the " + c + " component yet");
             }
             flags.add(f);
         }
@@ -221,7 +221,7 @@ public final class CompatItemMeta implements ItemMeta, Damageable, Repairable {
         for (ItemFlag f : itemFlags) {
             String c = unsupportedComponent(f);
             if (c != null && work.components().containsKey(c) && flags.contains(f)) {
-                throw new UnsupportedFeature("ItemMeta#removeItemFlags(" + f + ")", c + " 컴포넌트의 표시 여부를 API 가 아직 바꾸지 못한다");
+                throw new UnsupportedFeature("ItemMeta#removeItemFlags(" + f + ")", "the API cannot change the visibility of the " + c + " component yet");
             }
             flags.remove(f);
         }

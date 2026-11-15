@@ -298,11 +298,11 @@ public final class CraftServer implements Server {
         }
         if (creator.generator() != null) {
             throw new org.domi.furnace.compat.paper.UnsupportedFeature("WorldCreator#generator(" + creator.generator().getClass().getName() + ")",
-                    "Bukkit ChunkGenerator 로 월드를 만드는 길이 아직 없다 — Furnace WorldCreator.Builder#generationHooks 를 쓴다(docs/api/worlds.md)");
+                    "there is no way yet to create a world with a Bukkit ChunkGenerator - use Furnace WorldCreator.Builder#generationHooks (docs/api/worlds.md)");
         }
         if (creator.biomeProvider() != null) {
             throw new org.domi.furnace.compat.paper.UnsupportedFeature("WorldCreator#biomeProvider(" + creator.biomeProvider().getClass().getName() + ")",
-                    "Bukkit BiomeProvider 로 월드를 만드는 길이 아직 없다 — Furnace WorldCreator.Builder#generationHooks 를 쓴다(docs/api/worlds.md)");
+                    "there is no way yet to create a world with a Bukkit BiomeProvider - use Furnace WorldCreator.Builder#generationHooks (docs/api/worlds.md)");
         }
         var env = switch (creator.environment()) {
             case NORMAL -> org.domi.furnace.api.world.WorldEnvironment.NORMAL;

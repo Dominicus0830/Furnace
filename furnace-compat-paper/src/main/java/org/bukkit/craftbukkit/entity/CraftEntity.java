@@ -214,7 +214,7 @@ public class CraftEntity implements Entity {
         if (t != null) return t;
         String key = handle.type();
         t = org.bukkit.entity.EntityType.fromKey(key);
-        if (t == null) throw new UnsupportedFeature("Entity#getType(" + key + ")", "Bukkit EntityType 열거형에 없는 종류다(플러그인이 더한 엔티티)");
+        if (t == null) throw new UnsupportedFeature("Entity#getType(" + key + ")", "kind is not in the Bukkit EntityType enum (an entity added by a plugin)");
         return kind = t;
     }
 
