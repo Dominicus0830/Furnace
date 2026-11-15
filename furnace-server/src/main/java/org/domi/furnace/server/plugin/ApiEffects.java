@@ -10,7 +10,7 @@ import org.domi.furnace.server.net.protocol.play.SoundPacket;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ItemRegistry;
 
-final class ApiEffects {
+public final class ApiEffects {
 
     private ApiEffects() {}
 
@@ -22,7 +22,7 @@ final class ApiEffects {
         return id == null ? -1 : id;
     }
 
-    static SoundPacket soundAt(Sound s, double x, double y, double z, long seed) {
+    public static SoundPacket soundAt(Sound s, double x, double y, double z, long seed) {
         String key = soundKey(s.key());
         return new SoundPacket(soundId(key), key, s.source().ordinal(), x, y, z, s.volume(), s.pitch(), seed);
     }

@@ -89,6 +89,8 @@ public final class RecorderPlugin extends JavaPlugin implements Listener {
 
     @EventHandler public void on(org.bukkit.event.block.LeavesDecayEvent e) { rec(e); }
 
+    @EventHandler public void on(io.papermc.paper.event.block.BlockLockCheckEvent e) { rec(e); }
+
     @EventHandler public void on(org.bukkit.event.inventory.FurnaceBurnEvent e) { rec(e); }
 
     @EventHandler public void on(org.bukkit.event.block.BlockCookEvent e) { rec(e); }
