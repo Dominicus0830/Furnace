@@ -36,7 +36,7 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
     public record FlatLayer(String block, int height) {
         public FlatLayer {
             block = full("block", block);
-            if (height < 1 || height > 4064) throw new IllegalArgumentException("층 높이는 1..4064: " + height);
+            if (height < 1 || height > 4064) throw new IllegalArgumentException("layer height must be 1..4064: " + height);
         }
     }
 
@@ -55,7 +55,7 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
         Objects.requireNonNull(generator, "generator");
         if ((generator == WorldGenerator.LARGE_BIOMES || generator == WorldGenerator.AMPLIFIED || generator == WorldGenerator.SINGLE_BIOME_SURFACE
                 || generator == WorldGenerator.DEBUG_ALL_BLOCK_STATES) && environment != WorldEnvironment.NORMAL) {
-            throw new IllegalArgumentException(generator + " 생성기는 NORMAL 환경에서만 쓸 수 있다");
+            throw new IllegalArgumentException("the " + generator + " generator can only be used in the NORMAL environment");
         }
         dimensionType = full("dimensionType", dimensionType == null ? environment.defaultDimensionType() : dimensionType);
         Objects.requireNonNull(seed, "seed");
@@ -67,7 +67,7 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
     private static String full(String what, String id) {
         if (id == null) throw new NullPointerException(what);
         String f = id.indexOf(':') < 0 ? "minecraft:" + id : id;
-        if (!KEY.matcher(f).matches()) throw new IllegalArgumentException(what + " 형식이 잘못됐다(namespace:path): " + id);
+        if (!KEY.matcher(f).matches()) throw new IllegalArgumentException(what + " has an invalid format (namespace:path): " + id);
         return f;
     }
 

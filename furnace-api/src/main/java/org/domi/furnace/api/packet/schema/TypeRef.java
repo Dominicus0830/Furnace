@@ -27,7 +27,7 @@ public record TypeRef(String name, List<TypeRef> arguments, int arrayDimensions,
 
     /** 배열 한 겹을 벗긴 원소 타입. */
     public TypeRef component() {
-        if (arrayDimensions == 0) throw new IllegalStateException("배열이 아니다: " + this);
+        if (arrayDimensions == 0) throw new IllegalStateException("not an array: " + this);
         return new TypeRef(name, arguments, arrayDimensions - 1, bound);
     }
 
@@ -58,7 +58,7 @@ public record TypeRef(String name, List<TypeRef> arguments, int arrayDimensions,
     public static TypeRef parse(String text) {
         Parser p = new Parser(text.replace(" ", ""));
         TypeRef t = p.type();
-        if (p.pos != p.s.length()) throw new IllegalArgumentException("타입 식 끝에 남은 글자: " + text);
+        if (p.pos != p.s.length()) throw new IllegalArgumentException("leftover characters at the end of the type expression: " + text);
         return t;
     }
 
@@ -77,7 +77,7 @@ public record TypeRef(String name, List<TypeRef> arguments, int arrayDimensions,
             }
             int start = pos;
             while (pos < s.length() && (Character.isJavaIdentifierPart(s.charAt(pos)) || s.charAt(pos) == '.')) pos++;
-            if (start == pos) throw new IllegalArgumentException("타입 이름이 없다(" + pos + "): " + s);
+            if (start == pos) throw new IllegalArgumentException("missing type name (" + pos + "): " + s);
             String name = s.substring(start, pos);
             List<TypeRef> args = new ArrayList<>();
             if (peek('<')) {
@@ -96,7 +96,7 @@ public record TypeRef(String name, List<TypeRef> arguments, int arrayDimensions,
         boolean peek(char c) { return pos < s.length() && s.charAt(pos) == c; }
 
         void expect(char c) {
-            if (!peek(c)) throw new IllegalArgumentException("'" + c + "' 가 와야 한다(" + pos + "): " + s);
+            if (!peek(c)) throw new IllegalArgumentException("'" + c + "' expected (" + pos + "): " + s);
             pos++;
         }
     }

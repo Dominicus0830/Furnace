@@ -25,7 +25,7 @@ public record AttributeModifiers(List<Entry> modifiers, boolean showInTooltip) {
 
         public static Operation byId(String id) {
             for (Operation o : values()) if (o.id.equals(id)) return o;
-            throw new IllegalArgumentException("알 수 없는 연산: " + id);
+            throw new IllegalArgumentException("unknown operation: " + id);
         }
     }
 

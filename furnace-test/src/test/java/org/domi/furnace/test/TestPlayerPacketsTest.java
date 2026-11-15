@@ -109,7 +109,7 @@ class TestPlayerPacketsTest {
             core.playerByName("Steve").send(new RawPacket(titleId, new byte[0], null, true));
             var e = assertThrows(IllegalStateException.class, () -> steve.awaitPacket(PacketTypes.Clientbound.SET_TITLE_TEXT, t -> true));
             assertEquals(before + 1, steve.decodeFailures());
-            assertTrue(e.getMessage().contains("풀지 못한 패킷"), e.getMessage());
+            assertTrue(e.getMessage().contains("Undecodable packets"), e.getMessage());
         }
     }
 

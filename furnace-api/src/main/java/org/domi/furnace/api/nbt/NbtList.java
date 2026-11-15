@@ -40,9 +40,9 @@ public final class NbtList {
 
     private void check(Object v) {
         NbtType t = NbtType.of(v);
-        if (v == this) throw new IllegalArgumentException("자기 자신을 넣을 수 없다");
+        if (v == this) throw new IllegalArgumentException("cannot insert itself");
         if (!items.isEmpty() && t != elementType) {
-            throw new IllegalArgumentException("리스트 원소 종류가 다르다: " + elementType + " 리스트에 " + t + " 를 넣을 수 없다");
+            throw new IllegalArgumentException("list element kinds differ: cannot put " + t + " in a " + elementType + " list");
         }
     }
 

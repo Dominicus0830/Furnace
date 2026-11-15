@@ -16,7 +16,7 @@ public record ServerboundChatPacket(String message, Instant timestamp, long salt
         Objects.requireNonNull(message, "message");
         Objects.requireNonNull(timestamp, "timestamp");
         if (signature != null) {
-            if (signature.length != 256) throw new IllegalArgumentException("서명은 256바이트: " + signature.length);
+            if (signature.length != 256) throw new IllegalArgumentException("the signature must be 256 bytes: " + signature.length);
             signature = signature.clone();
         }
     }

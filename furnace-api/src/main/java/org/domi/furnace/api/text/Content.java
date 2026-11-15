@@ -21,7 +21,7 @@ public sealed interface Content {
             Objects.requireNonNull(key, "key");
             for (Object a : args) {
                 if (!(a instanceof Text || a instanceof String || a instanceof Number || a instanceof Boolean)) {
-                    throw new IllegalArgumentException("번역 인자는 Text·String·Number·Boolean 이어야 한다: " + a);
+                    throw new IllegalArgumentException("translation arguments must be Text, String, Number or Boolean: " + a);
                 }
             }
             args = List.copyOf(args);

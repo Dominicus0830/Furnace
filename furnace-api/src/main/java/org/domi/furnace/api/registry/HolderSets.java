@@ -12,11 +12,11 @@ final class HolderSets {
     static List<String> check(String what, List<String> set, boolean allowEmpty) {
         if (set == null) throw new NullPointerException(what);
         List<String> copy = List.copyOf(set);
-        if (copy.isEmpty() && !allowEmpty) throw new IllegalArgumentException(what + " 이(가) 비었다");
+        if (copy.isEmpty() && !allowEmpty) throw new IllegalArgumentException(what + " is empty");
         for (String s : copy) {
             String id = s.startsWith("#") ? s.substring(1) : s;
-            if (!KEY.matcher(id).matches()) throw new IllegalArgumentException(what + ": 잘못된 id " + s);
-            if (s.startsWith("#") && copy.size() != 1) throw new IllegalArgumentException(what + ": 태그(#)는 혼자만 쓸 수 있다");
+            if (!KEY.matcher(id).matches()) throw new IllegalArgumentException(what + ": invalid id " + s);
+            if (s.startsWith("#") && copy.size() != 1) throw new IllegalArgumentException(what + ": a tag (#) can only be used alone");
         }
         return copy;
     }

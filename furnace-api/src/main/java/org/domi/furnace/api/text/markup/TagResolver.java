@@ -70,11 +70,11 @@ public interface TagResolver {
 
     /** 태그 이름 규칙 검사 + 소문자화: 영문 소문자·숫자·_ ! ? - 만 허용. */
     static String checkName(String name) {
-        if (name.isEmpty()) throw new IllegalArgumentException("태그 이름이 비었다");
+        if (name.isEmpty()) throw new IllegalArgumentException("the tag name is empty");
         for (int i = 0; i < name.length(); i++) {
             char c = name.charAt(i);
             boolean ok = c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '_' || c == '!' || c == '?' || c == '-';
-            if (!ok) throw new IllegalArgumentException("태그 이름은 소문자·숫자·_!?- 만 쓸 수 있다: " + name);
+            if (!ok) throw new IllegalArgumentException("a tag name may only contain lowercase letters, digits and _!?-: " + name);
         }
         return name;
     }

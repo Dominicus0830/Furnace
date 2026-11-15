@@ -73,7 +73,7 @@ final class JsonWriter {
             writeArray(sb, l, indent);
         } else if (v instanceof Double d) {
             if (d.isNaN() || d.isInfinite()) {
-                throw new IllegalArgumentException("JSON 은 NaN/Infinity 를 표현할 수 없다: " + d);
+                throw new IllegalArgumentException("JSON cannot represent NaN/Infinity: " + d);
             }
             sb.append(d.toString());
         } else if (v instanceof OffsetDateTime o) {

@@ -46,7 +46,7 @@ public final class ProtocolIds {
 
     private static ProtocolIds load(String resource) {
         try (InputStream in = ProtocolIds.class.getResourceAsStream(resource)) {
-            if (in == null) throw new IllegalStateException("번호 표 리소스가 없다: " + resource);
+            if (in == null) throw new IllegalStateException("id table resource is missing: " + resource);
             return parse(new String(in.readAllBytes(), StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -69,13 +69,13 @@ public final class ProtocolIds {
                         String[] hw = p[4].split(":", 2);
                         List<Entry> list = entries.computeIfAbsent(p[1] + "/" + p[2], k -> new ArrayList<>());
                         int id = Integer.parseInt(p[3]);
-                        if (id != list.size()) throw new IllegalArgumentException("번호가 이어지지 않는다: " + id + " (기대 " + list.size() + ")");
+                        if (id != list.size()) throw new IllegalArgumentException("ids are not consecutive: " + id + " (expected " + list.size() + ")");
                         list.add(new Entry(id, hw[0], hw[1]));
                     }
-                    default -> throw new IllegalArgumentException("모르는 줄 종류: " + p[0]);
+                    default -> throw new IllegalArgumentException("unknown line kind: " + p[0]);
                 }
             } catch (RuntimeException e) {
-                throw new IllegalArgumentException("번호 표 " + lineNo + "째 줄: " + line + " — " + e.getMessage(), e);
+                throw new IllegalArgumentException("id table line " + lineNo + ": " + line + " - " + e.getMessage(), e);
             }
         }
         return new ProtocolIds(types, entries);
@@ -85,7 +85,7 @@ public final class ProtocolIds {
         return switch (s) {
             case "clientbound" -> PacketDirection.CLIENTBOUND;
             case "serverbound" -> PacketDirection.SERVERBOUND;
-            default -> throw new IllegalArgumentException("모르는 방향: " + s);
+            default -> throw new IllegalArgumentException("unknown direction: " + s);
         };
     }
 

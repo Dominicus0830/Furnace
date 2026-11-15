@@ -51,7 +51,7 @@ public final class PacketStruct {
     /** 필드 값. 없는 이름이면 IllegalArgumentException. 배열은 복사본을 준다. */
     public Object get(String name) {
         Objects.requireNonNull(name, "name");
-        if (!fields.containsKey(name)) throw new IllegalArgumentException("없는 필드: " + name + " (있는 것: " + fields.keySet() + ")");
+        if (!fields.containsKey(name)) throw new IllegalArgumentException("no such field: " + name + " (available: " + fields.keySet() + ")");
         return copyOut(fields.get(name));
     }
 
@@ -59,7 +59,7 @@ public final class PacketStruct {
     public <T> T get(PacketField<T> field) {
         Object v = get(field.name());
         if (!field.valueClass().isInstance(v)) {
-            throw new IllegalArgumentException(field.name() + " 은 " + kindName(v) + " 값이다(" + field.valueClass().getSimpleName() + " 로 읽으려 함)");
+            throw new IllegalArgumentException(field.name() + " is a " + kindName(v) + " value (tried to read it as " + field.valueClass().getSimpleName() + ")");
         }
         return field.valueClass().cast(v);
     }
@@ -73,7 +73,7 @@ public final class PacketStruct {
         Object v = copyIn(name, value);
         if (fields.containsKey(name)) {
             Class<?> was = kindOf(fields.get(name)), now = kindOf(v);
-            if (was != now) throw new IllegalArgumentException(name + " 은 " + was.getSimpleName() + " 값이어야 한다: " + now.getSimpleName());
+            if (was != now) throw new IllegalArgumentException(name + " must be a " + was.getSimpleName() + " value: " + now.getSimpleName());
         }
         LinkedHashMap<String, Object> m = new LinkedHashMap<>(fields);
         m.put(name, v);
@@ -90,7 +90,7 @@ public final class PacketStruct {
     /** 값의 종류(VALUE_KINDS 중 하나). 쓸 수 없는 값이면 IllegalArgumentException. */
     static Class<?> kindOf(Object v) {
         for (Class<?> c : VALUE_KINDS) if (c.isInstance(v)) return c;
-        throw new IllegalArgumentException("패킷 필드 값으로 쓸 수 없는 종류: " + (v == null ? "null" : v.getClass().getName()));
+        throw new IllegalArgumentException("kind that cannot be a packet field value: " + (v == null ? "null" : v.getClass().getName()));
     }
 
     private static String kindName(Object v) {
@@ -102,7 +102,7 @@ public final class PacketStruct {
     }
 
     private static Object copyIn(String name, Object v) {
-        if (v == null) throw new IllegalArgumentException(name + ": null 은 못 쓴다(없을 수 있는 값은 Optional)");
+        if (v == null) throw new IllegalArgumentException(name + ": null is not allowed (use Optional for values that may be absent)");
         try {
             kindOf(v);
         } catch (IllegalArgumentException e) {

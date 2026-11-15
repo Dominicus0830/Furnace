@@ -35,14 +35,14 @@ final class PluginJars {
         Set<String> names = new HashSet<>();
         for (Path jar : jars) {
             Path target = pluginsDir.resolve(jar.getFileName().toString());
-            if (!names.add(target.getFileName().toString())) throw new IllegalArgumentException("같은 이름의 플러그인 jar: " + jar);
+            if (!names.add(target.getFileName().toString())) throw new IllegalArgumentException("plugin jars with the same file name: " + jar);
             Files.copy(jar, target, StandardCopyOption.REPLACE_EXISTING);
         }
         for (Class<? extends FurnacePlugin> main : classpath) {
             Found f = find(main);
             String name = f != null ? f.description.name() : main.getSimpleName();
             String file = "classpath-" + name + ".jar";
-            if (!names.add(file)) throw new IllegalArgumentException("같은 이름의 플러그인을 두 번 넣었다: " + name);
+            if (!names.add(file)) throw new IllegalArgumentException("the plugin with the same name was added twice: " + name);
             writeJar(pluginsDir.resolve(file), main, f);
         }
     }

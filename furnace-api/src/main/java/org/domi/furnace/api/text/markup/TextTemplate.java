@@ -160,9 +160,9 @@ public final class TextTemplate {
         List<Text> kids = fillKids(p, v);
         if (p.slot != null) {
             Object val = v.get(p.slot);
-            if (val == null) throw new IllegalArgumentException("슬롯 값이 없다: " + p.slot);
+            if (val == null) throw new IllegalArgumentException("missing slot value: " + p.slot);
             if (p.styleSlot) {
-                if (!(val instanceof Style st)) throw new IllegalArgumentException("스타일 슬롯에는 Style 이 필요하다: " + p.slot);
+                if (!(val instanceof Style st)) throw new IllegalArgumentException("a style slot needs a Style: " + p.slot);
                 return Text.of(new Content.Literal(""), st.applyTo(n.style()), kids);
             }
             Text r = toText(val, p.slot);
@@ -199,7 +199,7 @@ public final class TextTemplate {
     private Text toText(Object val, String slot) {
         if (val instanceof Text t) return t;
         if (val instanceof Parsed pr) return markup.deserialize(pr.markup(), extra);
-        if (val instanceof Style) throw new IllegalArgumentException("Style 은 스타일 슬롯에만 쓸 수 있다: " + slot);
+        if (val instanceof Style) throw new IllegalArgumentException("a Style can only be used in a style slot: " + slot);
         return Text.text(String.valueOf(val));
     }
 

@@ -52,7 +52,7 @@ public final class BossBar {
     }
 
     private static float clamp(float p) {
-        if (Float.isNaN(p)) throw new IllegalArgumentException("진행도가 NaN");
+        if (Float.isNaN(p)) throw new IllegalArgumentException("progress is NaN");
         return p < 0f ? 0f : Math.min(p, 1f);
     }
 

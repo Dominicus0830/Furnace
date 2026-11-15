@@ -8,8 +8,8 @@ public record MerchantRecipe(ItemStack ingredient1, ItemStack ingredient2, ItemS
                              int uses, int maxUses, int xp, float priceMultiplier, boolean rewardExp) {
 
     public MerchantRecipe {
-        if (ingredient1 == null || ingredient1.isEmpty()) throw new IllegalArgumentException("첫 재료가 비었다");
-        if (result == null || result.isEmpty()) throw new IllegalArgumentException("결과가 비었다");
+        if (ingredient1 == null || ingredient1.isEmpty()) throw new IllegalArgumentException("the first ingredient is empty");
+        if (result == null || result.isEmpty()) throw new IllegalArgumentException("the result is empty");
         if (ingredient2 == null) ingredient2 = ItemStack.EMPTY;
         if (uses < 0 || maxUses < 1) throw new IllegalArgumentException("uses >= 0, maxUses >= 1: " + uses + "/" + maxUses);
     }

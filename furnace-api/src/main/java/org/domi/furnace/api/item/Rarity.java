@@ -9,6 +9,6 @@ public enum Rarity {
 
     public static Rarity byId(String id) {
         for (Rarity r : values()) if (r.id().equals(id)) return r;
-        throw new IllegalArgumentException("알 수 없는 희귀도: " + id);
+        throw new IllegalArgumentException("unknown rarity: " + id);
     }
 }

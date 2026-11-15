@@ -33,7 +33,7 @@ public sealed interface ParticleEffect {
     record Simple(String type) implements ParticleEffect {
         public Simple {
             type = key(type);
-            if (WITH_OPTIONS.contains(type)) throw new IllegalArgumentException(type + " 는 옵션이 필요하다");
+            if (WITH_OPTIONS.contains(type)) throw new IllegalArgumentException(type + " needs options");
         }
     }
 
@@ -42,7 +42,7 @@ public sealed interface ParticleEffect {
         public BlockState {
             type = key(type);
             Objects.requireNonNull(block, "block");
-            if (!BLOCK_TYPES.contains(type)) throw new IllegalArgumentException(type + " 는 블록 상태를 받지 않는다");
+            if (!BLOCK_TYPES.contains(type)) throw new IllegalArgumentException(type + " does not take a block state");
         }
     }
 
@@ -67,7 +67,7 @@ public sealed interface ParticleEffect {
     record Item(ItemStack item) implements ParticleEffect {
         public Item {
             Objects.requireNonNull(item, "item");
-            if (item.isEmpty()) throw new IllegalArgumentException("빈 아이템으로는 item 입자를 만들 수 없다");
+            if (item.isEmpty()) throw new IllegalArgumentException("an item particle cannot be made from an empty item");
         }
         @Override public String type() { return "minecraft:item"; }
     }
