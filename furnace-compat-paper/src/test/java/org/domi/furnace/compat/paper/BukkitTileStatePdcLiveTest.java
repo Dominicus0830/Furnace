@@ -241,4 +241,24 @@ class BukkitTileStatePdcLiveTest {
             });
         }
     }
+
+    /** 그 칸이 다른 블록 엔티티로 바뀌면(통→화로) 옛 상태의 쓰기가 새 블록에 들어가지 않는다(Paper: 떨어져 나간 옛 블록 엔티티에 쓴다). */
+    @Test
+    void liveStateDoesNotLeakIntoReplacementBlockEntity() {
+        server.onRegion(pos, () -> {
+            var w = server.api().world(dim);
+            w.block(pos).set(new BlockData("minecraft:barrel", Map.of()));
+            try {
+                TileState s = (TileState) Compat.block(dim, pos).getState(false);
+                w.block(pos).set(BlockData.AIR);
+                w.block(pos).set(new BlockData("minecraft:furnace", Map.of("facing", "north", "lit", "false")));
+                s.getPersistentDataContainer().set(k("owner"), PersistentDataType.STRING, "Dana");
+                assertEquals("Dana", s.getPersistentDataContainer().get(k("owner"), PersistentDataType.STRING), "떨어져 나간 컨테이너에는 있다");
+                assertFalse(((TileState) Compat.block(dim, pos).getState()).getPersistentDataContainer().has(k("owner")), "새 화로에는 없다");
+            } finally {
+                w.block(pos).set(BlockData.AIR);
+            }
+            return null;
+        });
+    }
 }

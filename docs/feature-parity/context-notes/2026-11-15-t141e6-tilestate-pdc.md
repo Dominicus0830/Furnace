@@ -21,3 +21,5 @@
   다른 값(이름·표지판 글)은 Furnace 상태가 NBT 사본 위라 여전히 `update` 가 필요 — `setCustomName` 에 경고 한 번. 살아 있는 상태의 `update`·`getSnapshotNBT` 는 지금 블록 엔티티의 영속 데이터를 싣는다.
 - R3: 실제 패킷 길 시험 — 청크 패킷·되돌림(`BukkitValuesNotSentE2ETest`), block_entity_data 방송·명령 블록 화면·아이템 block_entity_data(`BlockEntityBukkitValuesTest`). 각 길을 updateTag/plain load 로 되돌리면 실패하는 것을 확인했다.
 - S1: 구조물 템플릿 상자(`ChunkColumn.adoptGeneratedChest`)도 CustomName·Lock·components·PublicBukkitValues 를 옮긴다. S2: update 뒤에도 블록 엔티티가 없으면(마법 부여대) 경고 한 번.
+- 재검토 N1: 살아 있는 PDC 는 좌표 기준이라, 그 칸이 다른 종류의 블록으로 바뀌면 떨어져 나간 것으로 본다(만들 때 블록 종류를 기억, 예약 쓰기도 돌 때 확인).
+  같은 종류로 다시 놓인 경우는 구별하지 못한다 — 서버 블록 엔티티 세대 번호가 필요한 후속(T-141 후속 목록).

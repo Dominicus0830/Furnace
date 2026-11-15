@@ -66,8 +66,13 @@ public abstract class CraftBlockEntityState extends org.domi.furnace.compat.pape
      * {@link #update} 때 실린다 — Paper 는 그것들도 곧바로 블록 엔티티를 고치지만 Furnace 상태는 NBT 사본 위라 update 가 필요하다.
      */
     public final void makeLive() {
-        if (isPlaced()) live = true;
+        if (!isPlaced()) return;
+        live = true;
+        liveType = ((org.domi.furnace.compat.paper.CompatBlockData) getBlockData()).furnace().type();
     }
+
+    /** 살아 있는 상태를 만들 때 그 칸의 블록 종류(그 칸이 다른 블록으로 바뀌면 영속 데이터가 떨어져 나간 것으로 본다). */
+    private String liveType;
 
     /**
      * Paper: 이 상태의 영속 데이터. 스냅숏이면 바꾼 것이 {@link #update} 때 블록 엔티티에 실리고, getState(false) 로 만든 상태면
@@ -76,7 +81,7 @@ public abstract class CraftBlockEntityState extends org.domi.furnace.compat.pape
     @Override
     public org.bukkit.persistence.PersistentDataContainer getPersistentDataContainer() {
         if (pdc == null) {
-            pdc = live ? new org.domi.furnace.compat.paper.BlockEntityPdc(dimension(), position())
+            pdc = live ? new org.domi.furnace.compat.paper.BlockEntityPdc(dimension(), position(), liveType)
                     : org.domi.furnace.compat.paper.TileStatePdc.of(snapshot.getCompound(PUBLIC_BUKKIT_VALUES));
         }
         return pdc;
