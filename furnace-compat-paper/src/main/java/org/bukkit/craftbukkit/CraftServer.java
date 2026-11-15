@@ -34,6 +34,12 @@ public final class CraftServer implements Server {
 
     private static final Logger LOG = Logger.getLogger("Minecraft");
 
+    /**
+     * CraftBukkit 의 월드 표(이름 소문자 → 월드) 자리(N2b-6). Furnace 는 월드 목록을 서버가 들고 있어 이 필드는 쓰이지 않는 빈 표다 —
+     * FAWE 어댑터가 리플렉션으로 이 필드가 있는지 보고(임시 재생성 월드를 지울 때만 쓴다) 없으면 어댑터를 올리지 못한다.
+     */
+    private final java.util.Map<String, org.bukkit.World> worlds = new java.util.concurrent.ConcurrentHashMap<>();
+
     private CraftServer() {}
 
     /** NMS 서버 shim(Paper·CraftBukkit 의 {@code getServer()} 처럼 DedicatedServer). 늘 같은 객체다. */

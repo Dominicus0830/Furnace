@@ -17,6 +17,10 @@ public abstract class StateHolder<O, S> {
     public static final String NAME_TAG = "Name";
     public static final String PROPERTIES_TAG = "Properties";
 
+    /**
+     * 바닐라: 속성 값 코덱. Furnace shim 에는 상태 코덱이 없어 null 이다(N2b-6 — FAWE 어댑터가 리플렉션으로 이 필드가 있는지만 본다).
+     */
+    protected final com.mojang.serialization.MapCodec<S> propertiesCodec = null;
     protected final O owner;
     private final Map<Property<?>, Comparable<?>> values;
 

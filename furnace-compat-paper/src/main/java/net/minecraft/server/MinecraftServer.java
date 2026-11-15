@@ -19,6 +19,28 @@ public abstract class MinecraftServer {
 
     protected MinecraftServer() {}
 
+    /**
+     * Paper·CraftBukkit 의 틱 수(정적 필드, N2b-6). 이 클래스를 처음 쓸 때부터 전역 스레드가 틱마다 서버 틱 수로 고쳐 쓴다
+     * ({@code Bukkit.getCurrentTick()} 과 같은 값 — 그 전 틱 동안은 한 틱 늦을 수 있다).
+     */
+    public static int currentTick = furnaceStartTickMirror();
+
+    private static int furnaceStartTickMirror() {
+        try {
+            var server = org.domi.furnace.api.Furnace.server();
+            server.scheduler().global().runAtFixedRate(() -> currentTick = (int) server.currentTick(), 0, 1);
+            return (int) server.currentTick();
+        } catch (RuntimeException | LinkageError notRunning) {
+            return 0;   // 서버 없이 올린 시험
+        }
+    }
+
+    /** 바닐라: 주 스레드에 맡기는 실행기 — Furnace 는 전역 스레드(N2b-6). */
+    public final java.util.concurrent.Executor executor = task -> org.domi.furnace.api.Furnace.server().scheduler().global().execute(task);
+
+    /** 바닐라 BlockableEventLoop#execute: 주 스레드에 맡긴다 — Furnace 는 전역 스레드에서 돈다(Bukkit 주 스레드 작업과 같은 곳, N2b-6). */
+    public void execute(Runnable task) { executor.execute(task); }
+
     /** CraftBukkit 이 더한 정적 입구: 지금 서버. */
     public static MinecraftServer getServer() { return DedicatedServer.INSTANCE; }
 
