@@ -491,6 +491,23 @@ public interface World {
     }
 
     /**
+     * 지형 생성 configured feature(예: "minecraft:oak") 하나를 pos 에 놓는다(Paper CraftRegionAccessor#generateTree 의 feature place).
+     * random 이 feature 난수로 그대로 쓰여 그 Random 의 상태도 나아간다. apply 면 월드에 바로 반영하고(쓰기 flag 는 바닐라와 같다),
+     * 아니면 월드를 바꾸지 않고 쓸 칸만 {@link FeaturePlacement#writes()} 로 돌려준다(가장자리 모양 갱신·블록 엔티티와, Paper 처럼 부술 수 없는 블록 칸은 빠진다).
+     * 그 칸의 3×3 청크 밖이나 로드되지 않은·다른 region 청크에 닿으면 아무것도 하지 않고 placed=false.
+     * 모르는 id 면 IllegalArgumentException, Furnace 가 아직 구현하지 않은 feature 면 UnsupportedOperationException.
+     * 소유 스레드 전용, 그 칸 청크가 없으면 IllegalStateException.
+     */
+    default FeaturePlacement placeFeatureNow(String configuredFeature, BlockPos pos, java.util.Random random, boolean apply) {
+        throw new UnsupportedOperationException("placeFeatureNow");
+    }
+
+    /** 후렴 식물을 키운다(바닐라 ChorusFlowerBlock.generatePlant(…, 8), flag 2). 바닥·주변을 검사하지 않고 항상 placed=true(닿지 못하면 false). 나머지는 placeFeatureNow 와 같다. */
+    default FeaturePlacement growChorusPlantNow(BlockPos pos, java.util.Random random, boolean apply) {
+        throw new UnsupportedOperationException("growChorusPlantNow");
+    }
+
+    /**
      * 떨어진 아이템을 만든다(Paper CraftWorld#dropItem: 줍기 지연 10틱, 스폰 이유 CUSTOM). naturally 면 바닐라처럼 월드 난수로 각 축
      * 0.25~0.75 를 더한 자리. beforeSpawn 은 월드에 넣기 전에 부른다(null 가능). 소유 region 스레드 전용. 스폰이 취소되면 null.
      */

@@ -358,6 +358,17 @@ public interface World extends Keyed, org.bukkit.metadata.Metadatable, org.bukki
     /** true 면 spawnChunkRadius 를 기본값(2)으로, false 면 0 으로(Paper 1.21.1). */
     void setKeepSpawnInMemory(boolean keepLoaded);
 
+    // ---- 나무 생성(T-141 E5, Paper CraftWorld·CraftRegionAccessor#generateTree). 소유 region 스레드 전용.
+
+    /** 서버 공용 난수로 나무를 키운다. 키웠으면 true. */
+    boolean generateTree(Location location, TreeType type);
+
+    /** 월드를 바꾸지 않고, 키웠으면 쓴 칸마다(처음 쓴 차례) delegate.setBlockData 를 부른 뒤 true. */
+    boolean generateTree(Location location, TreeType type, BlockChangeDelegate delegate);
+
+    /** 주어진 난수로 나무를 키운다(그 Random 의 상태가 나아간다). */
+    boolean generateTree(Location location, java.util.Random random, TreeType type);
+
     // ---- 소리(H4 묶음 C). 분류를 적지 않으면 MASTER, 씨앗을 적지 않으면 서버 난수(Paper 와 같다).
 
     default void playSound(Location location, Sound sound, float volume, float pitch) { playSound(location, sound, SoundCategory.MASTER, volume, pitch); }

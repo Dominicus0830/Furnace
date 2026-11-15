@@ -551,6 +551,76 @@ public final class CraftWorld implements World {
         else setGameRule(org.bukkit.GameRule.SPAWN_CHUNK_RADIUS, 0);
     }
 
+    // ---- 나무 생성(T-141 E5) — Paper 1.21.1 CraftWorld·CraftRegionAccessor#generateTree
+
+    /** CraftWorld.rand: generateTree(loc, type) 가 쓰는 서버 공용 난수(시드 없음). */
+    private static final java.util.Random RAND = new java.util.Random();
+    private static final java.util.Set<String> WARNED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /** CraftRegionAccessor#generateTree 의 TreeType → TreeFeatures 표(CHORUS_PLANT 는 따로). 플러그인 월드는 늘 "보통 월드"라 균류는 planted. */
+    public static String treeFeature(org.bukkit.TreeType type) {   // 호환 모듈 전용(시험이 표를 확인한다)
+        return switch (type) {
+            case BIG_TREE -> "minecraft:fancy_oak";
+            case BIRCH -> "minecraft:birch";
+            case REDWOOD -> "minecraft:spruce";
+            case TALL_REDWOOD -> "minecraft:pine";
+            case JUNGLE -> "minecraft:mega_jungle_tree";
+            case SMALL_JUNGLE -> "minecraft:jungle_tree_no_vine";
+            case COCOA_TREE -> "minecraft:jungle_tree";
+            case JUNGLE_BUSH -> "minecraft:jungle_bush";
+            case RED_MUSHROOM -> "minecraft:huge_red_mushroom";
+            case BROWN_MUSHROOM -> "minecraft:huge_brown_mushroom";
+            case SWAMP -> "minecraft:swamp_oak";
+            case ACACIA -> "minecraft:acacia";
+            case DARK_OAK -> "minecraft:dark_oak";
+            case MEGA_REDWOOD -> "minecraft:mega_spruce";
+            case MEGA_PINE -> "minecraft:mega_pine";
+            case TALL_BIRCH -> "minecraft:super_birch_bees_0002";
+            case CHORUS_PLANT -> null;
+            case CRIMSON_FUNGUS -> "minecraft:crimson_fungus_planted";
+            case WARPED_FUNGUS -> "minecraft:warped_fungus_planted";
+            case AZALEA -> "minecraft:azalea_tree";
+            case MANGROVE -> "minecraft:mangrove";
+            case TALL_MANGROVE -> "minecraft:tall_mangrove";
+            case CHERRY -> "minecraft:cherry";
+            case TREE, CUSTOM -> "minecraft:oak";
+        };
+    }
+
+    @Override
+    public boolean generateTree(org.bukkit.Location location, org.bukkit.TreeType type) { return generateTree(location, RAND, type); }
+
+    @Override
+    public boolean generateTree(org.bukkit.Location location, java.util.Random random, org.bukkit.TreeType type) {
+        return placeTree(location, random, type, true).placed();
+    }
+
+    @Override
+    public boolean generateTree(org.bukkit.Location location, org.bukkit.TreeType type, org.bukkit.BlockChangeDelegate delegate) {
+        var r = placeTree(location, RAND, type, false);
+        if (!r.placed()) return false;
+        // Paper: 기록한 칸마다 delegate.setBlockData 뒤 실제 월드 칸에 notifyAndUpdatePhysics — 그 칸이 안 바뀌었으면 Furnace 는 이웃 갱신을 하지 않는다(맥락 노트)
+        for (var w : r.writes()) delegate.setBlockData(w.pos().x(), w.pos().y(), w.pos().z(), org.domi.furnace.compat.paper.CompatBlockData.of(w.data()));
+        return true;
+    }
+
+    private org.domi.furnace.api.world.FeaturePlacement placeTree(org.bukkit.Location location, java.util.Random random, org.bukkit.TreeType type, boolean apply) {
+        BlockPos pos = new BlockPos(location.getBlockX(), location.getBlockY(), location.getBlockZ());
+        String id = treeFeature(type);
+        if (!handle.isChunkLoaded(pos.chunkX(), pos.chunkZ())) {
+            // Paper 는 동기로 불러와 키운다. Furnace 는 나무가 닿지 못한 청크와 같이 실패로 둔다(맥락 노트)
+            if (WARNED.add("unloaded")) LOG.warn("World#generateTree: 로드되지 않은 청크({}, {})라 나무를 키우지 않고 false 를 준다", pos.chunkX(), pos.chunkZ());
+            return new org.domi.furnace.api.world.FeaturePlacement(false, List.of());
+        }
+        try {
+            return id == null ? handle.growChorusPlantNow(pos, random, apply) : handle.placeFeatureNow(id, pos, random, apply);
+        } catch (UnsupportedOperationException e) {
+            // Furnace 가 아직 구현하지 않은 feature(Noop): 다른 나무로 바꿔 키우지 않고 실패로 둔다(AGENTS.md 규칙 3)
+            if (WARNED.add(type.name())) LOG.warn("World#generateTree({}): {} — 나무를 키우지 않고 false 를 준다", type, e.getMessage());
+            return new org.domi.furnace.api.world.FeaturePlacement(false, List.of());
+        }
+    }
+
     // ---- 소리·입자(H4 묶음 C) — Paper CraftWorld 와 같이 null 인자는 조용히 넘어간다
 
     @Override

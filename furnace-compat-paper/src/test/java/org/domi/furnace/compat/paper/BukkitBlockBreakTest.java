@@ -180,6 +180,19 @@ class BukkitBlockBreakTest {
         assertTrue(tp.received(PacketTypes.Clientbound.LEVEL_EVENT).stream().noneMatch(p -> at.equals(p.get("pos"))), "triggerEffect=false 면 2001 없음");
     }
 
+    /** 공기(minecraft:air)는 드롭 조건에서 빠지므로 부서짐 효과(2001)도 없다(Paper: block != Blocks.AIR 일 때만 드롭·효과). */
+    @Test
+    void airHasNoBreakEffect() {
+        Block air = fresh();
+        server.tick(1);
+        tp.clearReceived();
+        assertFalse(owner(() -> air.breakNaturally(true, false)), "효과를 켜도");
+        server.tick(1);
+        tp.flushReceived();
+        BlockPos at = new BlockPos(air.getX(), air.getY(), air.getZ());
+        assertTrue(tp.received(PacketTypes.Clientbound.LEVEL_EVENT).stream().noneMatch(p -> at.equals(p.get("pos"))), "공기에는 2001 없음");
+    }
+
     /** 경험치는 한 번만: 스컬크 촉매(고정 5)를 부수면 구슬 값 합이 정확히 5(드롭 쪽에도 경험치를 켜면 10). */
     @Test
     void experienceGivenOnce() {
