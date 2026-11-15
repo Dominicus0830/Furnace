@@ -47,6 +47,9 @@ public final class NmsTrap {
         return NmsCompatReport.otherVersion((hash < 0 ? site : site.substring(0, hash)).replace('.', '/'));
     }
 
+    /** 껍데기 클래스(NMS 를 상속해 정의만 한 플러그인 클래스 — NmsLinker)의 생성자: 정의 거부 때와 같은 문구의 UnsupportedNmsCall. */
+    public static RuntimeException husk(String message) { return new UnsupportedNmsCall("껍데기 생성", message); }
+
     /** 없는 클래스로의 {@code checkcast}: JVM 처럼 null 은 클래스를 찾지 않고 통과한다(호출 뒤에 aconst_null 이 결과 자리를 채운다). */
     public static void castNull(Object value, String plugin, String site, String target, String why) {
         if (value != null) call(plugin, site, target, why, UnsupportedNmsLink.CLASS);

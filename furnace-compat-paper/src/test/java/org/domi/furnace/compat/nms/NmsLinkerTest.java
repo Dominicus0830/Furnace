@@ -63,7 +63,7 @@ class NmsLinkerTest {
                     package net.minecraft.server;
                     public abstract class MinecraftServer {
                         public static MinecraftServer getServer() { return null; }
-                        public static int currentTick;
+                        public static int tickCount;
                         public String getServerVersion() { return null; }
                     }
                     """);
@@ -82,7 +82,7 @@ class NmsLinkerTest {
                 public static boolean missingInstanceof(Object o) { return o instanceof ProtoChunk; }
                 public static Object missingCast(Object o) { return (ProtoChunk) o; }
                 public static Object missingLdc() { return ProtoChunk.class; }
-                public static int missingStaticField() { return net.minecraft.server.MinecraftServer.currentTick; }
+                public static int missingStaticField() { return net.minecraft.server.MinecraftServer.tickCount; }
                 public static void missingPutStatic() { ServerLevel.staticCounter = 3; }
                 public static int missingField(ServerLevel l) { return l.instanceCounter; }
                 public static void missingPutField(ServerLevel l) { l.instanceCounter = 4; }
@@ -218,7 +218,7 @@ class NmsLinkerTest {
         assertTrue(trapped(c, "missingWide", level()).getMessage().contains("#mixed(long, double, int)"));
         Error f = trapped(c, "missingStaticField");
         assertInstanceOf(NoSuchFieldError.class, f);
-        assertTrue(f.getMessage().contains("MinecraftServer#currentTick"));
+        assertTrue(f.getMessage().contains("MinecraftServer#tickCount"));
         trapped(c, "missingPutStatic");
         trapped(c, "missingField", level());
         trapped(c, "missingPutField", level());
@@ -276,13 +276,21 @@ class NmsLinkerTest {
     }
 
     @Test
-    void subclassingNmsIsRefusedAtDefinitionWithTheRealException() {
+    void subclassingNmsDefinesAHuskThatRefusesConstruction() throws Throwable {
+        // N2b-6: 예전에는 정의를 거부했다. 이제 껍데기로 정의하고(가리키는 코드 — 람다·메서드 참조·instanceof — 는 된다) 만들 때 같은 문구로 거부한다
         NmsClassTransformer t = new NmsClassTransformer("Linky", Set.of(), NmsClassTransformer.Options.DEFAULT, NmsSymbols.RUNTIME);
         Loader loader = new Loader(classes, t);
-        UnsupportedNmsCall present = assertThrows(UnsupportedNmsCall.class, () -> loader.loadClass("linky.MyEntity"));
-        assertTrue(present.getMessage().contains("상속") && present.getMessage().contains("등급 C"), present.getMessage());
-        UnsupportedNmsCall missing = assertThrows(UnsupportedNmsCall.class, () -> loader.loadClass("linky.MyChunk"));
-        assertTrue(missing.getMessage().contains("ProtoChunk"), missing.getMessage());
+        Class<?> present = loader.loadClass("linky.MyEntity");
+        assertEquals(net.minecraft.world.entity.LivingEntity.class, present.getSuperclass(), "상위 shim 위에 정의");
+        assertEquals(0, java.util.Arrays.stream(present.getDeclaredMethods()).filter(m -> !java.lang.reflect.Modifier.isStatic(m.getModifiers())).count(),
+                "인스턴스 메서드는 지운다");
+        var e = assertThrows(java.lang.reflect.InvocationTargetException.class, () -> present.getDeclaredConstructors()[0].newInstance(new Object[present.getDeclaredConstructors()[0].getParameterCount()]));
+        assertInstanceOf(UnsupportedNmsCall.class, e.getCause());
+        assertTrue(e.getCause().getMessage().contains("상속") && e.getCause().getMessage().contains("등급 C"), e.getCause().getMessage());
+        Class<?> missing = loader.loadClass("linky.MyChunk");
+        assertEquals(Object.class, missing.getSuperclass(), "상위 shim 이 없으면 Object 위에");
+        var e2 = assertThrows(java.lang.reflect.InvocationTargetException.class, () -> missing.getDeclaredConstructor().newInstance());
+        assertTrue(e2.getCause().getMessage().contains("ProtoChunk"), e2.getCause().getMessage());
     }
 
     @Test
