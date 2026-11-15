@@ -669,7 +669,7 @@ public final class PluginGameEvents implements GameEvents {
     public String gameRuleChange(org.domi.furnace.server.command.CommandSource source, String rule, String value) {
         if (!wGameRuleChange.on()) return value;
         var e = bus().call(new org.domi.furnace.api.event.world.GameRuleChangeEvent(source.level().dimension(), host.sender(source), rule, value));
-        return e.isCancelled() ? null : e.value();
+        return e.isCancelled() ? null : String.valueOf(e.value());   // null 값은 취소가 아니다(Paper: parseBoolean(null)=false, parseInt(null) 예외)
     }
 
     @Override

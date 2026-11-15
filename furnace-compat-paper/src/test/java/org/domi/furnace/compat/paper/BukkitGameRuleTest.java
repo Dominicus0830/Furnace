@@ -182,4 +182,32 @@ class BukkitGameRuleTest {
         assertFalse(out.success(), out.text());
         assertEquals(9, rules.getInt("randomTickSpeed"));
     }
+
+    @Test
+    void nullValueIsNotCancel() {
+        // PR #383 검토 R1: Paper 는 setValue(null) 을 취소로 보지 않는다 — 불리언은 Boolean.parseBoolean(null)=false, 정수는 parseInt 예외로 명령 실패
+        rules.set("doFireTick", 1);
+        RecorderPlugin.ACTIONS.put("WorldGameRuleChangeEvent", ev -> ((WorldGameRuleChangeEvent) ev).setValue(null));
+        var out = server.execute("gamerule doFireTick true");
+        assertTrue(out.success(), out.text());
+        assertFalse(rules.getBoolean("doFireTick"));
+
+        rules.set("randomTickSpeed", 3);
+        out = server.execute("gamerule randomTickSpeed 5");
+        assertFalse(out.success(), out.text());
+        assertEquals(3, rules.getInt("randomTickSpeed"));
+    }
+
+    @Test
+    void cancelledGameruleStillRunsOnChanged() {
+        // Paper 패치: 취소돼도 onChanged 는 돈다 — doImmediateRespawn 이면 지금 값(false)으로 게임 이벤트 11 을 다시 보낸다(PR #383 검토 S1)
+        var tp = server.join("Ivo");
+        server.tick(2);
+        tp.clearReceived();
+        RecorderPlugin.ACTIONS.put("WorldGameRuleChangeEvent", ev -> ((WorldGameRuleChangeEvent) ev).setCancelled(true));
+        assertTrue(server.execute("gamerule doImmediateRespawn true").success());
+        assertFalse(rules.getBoolean("doImmediateRespawn"));
+        server.tick(1);
+        assertNotNull(tp.awaitPacket(org.domi.furnace.api.packet.PacketTypes.Clientbound.GAME_EVENT, g -> Integer.valueOf(11).equals(g.get("event"))));
+    }
 }
