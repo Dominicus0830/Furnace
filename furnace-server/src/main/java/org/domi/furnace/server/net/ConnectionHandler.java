@@ -5224,6 +5224,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // BaseContainerBlockEntity.canOpen(잠금) — 큰 상자는 첫째부터(DoubleInventory.createMenu 의 &&), 막히면 전리품도 풀지 않는다
         if (!canUnlock(p, held, level.world().dimension(), first.pos(), first.lock, first.displayName())) return null;
         if (second != null && !canUnlock(p, held, level.world().dimension(), second.pos(), second.lock, second.displayName())) return null;
+        // RandomizableContainerBlockEntity.canOpen: 전리품 표가 남은 용기는 관전자가 못 연다(풀지도 않는다) →
+        // ServerPlayer.openMenu 가 메뉴 없음 + 관전자면 빨간 container.spectatorCantOpen 액션 바
+        if (p.isSpectator() && (first.lootTable != null || second != null && second.lootTable != null)) {
+            p.sendSystemMessage(Text.translatable("container.spectatorCantOpen").color(org.domi.furnace.api.text.NamedTextColor.RED), true);
+            return null;
+        }
         var core = login.core;
         for (var c : second == null ? java.util.List.of(first) : java.util.List.of(first, second)) {
             if (c.lootTable != null && core != null) {

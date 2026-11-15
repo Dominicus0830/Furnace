@@ -16,12 +16,12 @@ public final class BlockPlacement {
 
     // ------------------------------------------------------------------ ServerPlayerGameMode.useItemOn
 
-    /** useItemOn(player, level, stack, hand, hit). 관전자는 메뉴가 있는 블록만(상자 엿보기) — 블록 엔티티 체계 전에는 PASS. */
+    /** useItemOn(player, level, stack, hand, hit). 관전자는 메뉴가 있는 블록만 연다(getMenuProvider → openMenu, 읽기 전용 엿보기). */
     public static InteractionResult useItemOn(BlockLevel level, BlockActor player, int hand, Hit hit) {
         ItemStack stack = player.itemInHand(hand);
         Pos pos = hit.pos();
         int state = level.getBlockState(pos);
-        if (player.isSpectator()) return InteractionResult.PASS;
+        if (player.isSpectator()) return openSpectatorMenu(level, player, pos, state) ? InteractionResult.SUCCESS : InteractionResult.PASS;
         boolean haveItem = !player.itemInHand(BlockActor.MAIN_HAND).isEmpty() || !player.itemInHand(BlockActor.OFF_HAND).isEmpty();
         boolean suppressBlockUse = player.isSecondaryUseActive() && haveItem;
         ItemStack copy = stack;
@@ -53,6 +53,39 @@ public final class BlockPlacement {
             return r;
         }
         return InteractionResult.PASS;
+    }
+
+    /** 바닐라 getMenuProvider 가 블록 엔티티 자체인 용기 종류(BaseEntityBlock: 블록 엔티티가 MenuProvider). 엔더 상자·모닥불·책장·항아리는 아니다. */
+    private static final java.util.Set<String> MENU_CONTAINERS = java.util.Set.of(
+            "minecraft:chest", "minecraft:trapped_chest", "minecraft:barrel", "minecraft:shulker_box",
+            "minecraft:furnace", "minecraft:blast_furnace", "minecraft:smoker", "minecraft:hopper",
+            "minecraft:dispenser", "minecraft:dropper", "minecraft:brewing_stand", "minecraft:crafter");
+
+    /**
+     * ServerPlayerGameMode.useItemOn 의 관전자 길: getMenuProvider(level, pos) 가 있으면 openMenu 하고 참(SUCCESS), 없으면 거짓(PASS).
+     * 블록의 useWithoutItem 을 거치지 않으므로 통계·피글린 분노·셜커 상자 뚜껑 검사가 없다. 상자는 (짝까지) 막혔으면 메뉴가 없다.
+     * 잠금(관전자는 늘 통과)·전리품 표(관전자는 못 엶, container.spectatorCantOpen)는 열기 쪽(createMenu)이 본다.
+     */
+    static boolean openSpectatorMenu(BlockLevel level, BlockActor player, Pos pos, int state) {
+        BlockBehavior b = BlockBehaviors.of(state);
+        if (b instanceof org.domi.furnace.server.block.types.SmithingTableBlock) player.openSmithing(pos);   // CraftingTableBlock 의 하위라 먼저
+        else if (b instanceof org.domi.furnace.server.block.types.CraftingTableBlock) player.openCraftingTable(pos);
+        else if (b instanceof org.domi.furnace.server.block.types.StonecutterBlock) player.openStonecutter(pos);
+        else if (b instanceof org.domi.furnace.server.block.types.GrindstoneBlock) player.openGrindstone(pos);
+        else if (b instanceof org.domi.furnace.server.block.types.AnvilBlock) player.openAnvil(pos);
+        else if (b instanceof org.domi.furnace.server.block.types.EnchantingTableBlock) player.openEnchanting(pos);
+        else if (b instanceof org.domi.furnace.server.block.types.LoomBlock) player.openLoom(pos);
+        else if (b instanceof org.domi.furnace.server.block.types.CartographyTableBlock) player.openCartography(pos);
+        else {
+            var be = level.getBlockEntity(pos);
+            boolean menu = be instanceof org.domi.furnace.server.block.entity.BeaconBlockEntity
+                    || be instanceof org.domi.furnace.server.block.entity.LecternBlockEntity lec && lec.hasBook()   // LecternBlock.getMenuProvider: 책 없으면 null
+                    || be instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity c && MENU_CONTAINERS.contains(c.type());
+            if (!menu) return false;
+            if (b instanceof org.domi.furnace.server.block.types.ChestBlock chest && chest.menuBlocked(state, level, pos)) return false;
+            player.openContainer(pos);
+        }
+        return true;
     }
 
     /** ItemStack.useOn: 모험 모드는 can_place_on 이 클릭한 블록과 맞아야 한다. 쓰였으면(SUCCESS·CONSUME) 통계 used. */
