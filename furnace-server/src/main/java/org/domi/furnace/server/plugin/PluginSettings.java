@@ -10,6 +10,7 @@
 //   plugins.compat.scheduler.async-threads=platform  Bukkit 비동기 작업(runTaskAsynchronously 등)을 이름 붙은 플랫폼 스레드 풀(Paper 모양)에서 돌린다 — virtual 이면 가상 스레드
 //   plugins.compat.nms.enabled=true  호환 플러그인 클래스를 올릴 때 NMS·CraftBukkit 이름 변환(버전 접미사 v1_21_R1 풀기 등)을 한다 — false 면 바이트 그대로 올린다
 //   plugins.compat.nms.strict=false   미지원 NMS 심볼이 있는 플러그인은 불러오지 않는다(기본: 그 호출만 실패)
+//   plugins.compat.nms.missing-class-log=summary  플러그인이 리플렉션으로 찾다 없는 NMS 클래스를 플러그인마다 한 줄로(each = 이름마다 한 줄)
 //   plugins.compat.nms.version-package=plain  플러그인이 읽는 CraftBukkit 패키지 이름(plain = Paper 처럼 접미사 없음, versioned = Spigot 처럼 v1_21_R1)
 //   plugins.compat.nms.spigot-mappings=download  Spigot 이름 NMS 플러그인이 있을 때만 Mojang·Spigot 매핑을 받아 Spigot → Mojang 이름으로 바꿔 올린다(H7d,
 //                                             2026-11-12 결정: 폴더에 넣으면 바로 돈다, 없으면 아무것도 안 받는다). files 면 받지 않고
@@ -147,6 +148,15 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
             }
             if (!v.equals("plain")) out.put(NMS_VERSION_PACKAGE_KEY, v);
         }
+        // D1(2026-11-15): 리플렉션으로 찾다 없는 NMS 클래스 알림 — summary(기본, 플러그인마다 한 줄) | each(이름마다)
+        String ml = p.getProperty(NMS_MISSING_CLASS_LOG_KEY);
+        if (ml != null) {
+            String v = ml.strip().toLowerCase(Locale.ROOT);
+            if (!v.equals("summary") && !v.equals("each")) {
+                throw new IllegalArgumentException("설정 '" + NMS_MISSING_CLASS_LOG_KEY + "' 값 '" + ml.strip() + "' 이(가) 잘못됐습니다: summary 또는 each");
+            }
+            if (!v.equals("summary")) out.put(NMS_MISSING_CLASS_LOG_KEY, v);
+        }
         // H7d: Spigot 이름 대응표(download 기본 — 안 적은 것과 같으면 빠진다)
         String sm = p.getProperty(SPIGOT_MAPPINGS_KEY);
         String files = p.getProperty(SPIGOT_MAPPING_FILES_KEY, "").strip();
@@ -182,6 +192,9 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
 
     /** 플러그인이 읽는 CraftBukkit 패키지 이름: plain(기본) | versioned. */
     public static final String NMS_VERSION_PACKAGE_KEY = "plugins.compat.nms.version-package";
+
+    /** 리플렉션으로 찾다 없는 NMS 클래스 알림: summary(기본) | each. */
+    public static final String NMS_MISSING_CLASS_LOG_KEY = "plugins.compat.nms.missing-class-log";
 
     /** addDefault 기본값 트리를 Paper 처럼 언제나 '.' 로 쪼갠다(기본 false) — 호환 어댑터가 읽는다. */
     public static final String PAPER_DEFAULT_SEPARATOR_KEY = "plugins.compat.config.paper-default-separator";

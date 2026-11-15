@@ -190,6 +190,9 @@ public final class CompatFormat implements PluginFormat {
     @Override
     public org.domi.furnace.api.plugin.ClassTransformer transformer(PluginDescription description, java.nio.file.Path jar, Map<String, String> settings,
                                                                      java.util.function.Supplier<String> spigotMappingFiles) {
+        // D1(2026-11-15): 리플렉션으로 찾다 없는 NMS 클래스 알림 방식(summary 기본 | each)
+        org.domi.furnace.compat.nms.NmsReflect.missingClassLog(description.name(),
+                org.domi.furnace.compat.nms.NmsReflect.MissingClassLog.parse(settings.get(org.domi.furnace.compat.nms.NmsReflect.MISSING_CLASS_LOG_KEY)));
         var options = new org.domi.furnace.compat.nms.NmsClassTransformer.Options(
                 Boolean.parseBoolean(settings.getOrDefault("plugins.compat.nms.strict", "false")),
                 "versioned".equalsIgnoreCase(settings.getOrDefault("plugins.compat.nms.version-package", "plain")),

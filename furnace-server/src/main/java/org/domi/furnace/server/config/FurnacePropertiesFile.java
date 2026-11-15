@@ -144,6 +144,7 @@ public final class FurnacePropertiesFile {
                 opt("plugins.compat.bukkit", true, "Bukkit·Paper 플러그인(plugin.yml) 호환 어댑터. 끄면 plugins/bukkit-plugins/ 와 plugin.yml jar 를 읽지 않는다."),
                 opt("plugins.compat.nms.enabled", true, "Bukkit 호환 플러그인의 NMS·CraftBukkit 이름 변환(CraftBukkit 버전 접미사 v1_21_R1 을 접미사 없는 이름으로). 끄면 그런 이름을 쓰는 플러그인은 그 자리에서 실패한다."),
                 opt("plugins.compat.nms.strict", false, "미지원 NMS 심볼을 쓰는 Bukkit 호환 플러그인은 불러오지 않는다. 끄면 그 호출만 실행 때 실패하고 나머지는 돈다."),
+                opt("plugins.compat.nms.missing-class-log", "summary", "summary | each. 플러그인이 리플렉션으로 찾다 이 서버에 없는 NMS 클래스를 summary 는 플러그인마다 한 줄로(개수·앞 5개 이름), each 는 이름마다 한 줄로 알린다(ProtocolLib 처럼 이름을 차례로 시도하는 플러그인은 대개 정상)."),
                 opt("plugins.compat.nms.version-package", "plain", "plain | versioned. 플러그인이 읽는 CraftBukkit 패키지 이름(plain = Paper 처럼 접미사 없음, versioned = Spigot 처럼 v1_21_R1)."),
                 opt("plugins.compat.nms.spigot-mappings", org.domi.furnace.server.plugin.PluginSettings.SPIGOT_MAPPINGS_DEFAULT, "download | files | off. download(기본)면 Spigot 이름 NMS 플러그인이 있을 때만 Mojang·Spigot 매핑을 처음 한 번 받아 Spigot → Mojang 이름으로 바꿔 올린다(받은 파일은 캐시에만 남는다, 그런 플러그인이 없으면 받지 않는다). files 면 받지 않고 아래 키의 세 파일을 쓴다. off 면 바꾸지 않는다(그 NMS 호출은 실패)."),
                 opt("plugins.compat.nms.spigot-mappings.files", "", "spigot-mappings=files 일 때: Mojang server.txt, Spigot 클래스 csrg, Spigot 멤버 csrg 경로를 경로 구분자(윈도 ; 그 밖 :)로 이어 적는다."),

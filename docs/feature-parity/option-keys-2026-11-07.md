@@ -112,6 +112,7 @@
 | `plugins.compat.bukkit` | ON/OFF | true | true\|false | Bukkit·Paper 플러그인(plugin.yml) 호환 어댑터 — 끄면 plugin.yml jar 를 읽지 않는다(호환 모듈이 있을 때) |  |
 | `plugins.compat.nms.enabled` | ON/OFF | true | true\|false | Bukkit 호환 플러그인을 올릴 때 NMS·CraftBukkit 이름 변환(CraftBukkit 버전 접미사 v1_21_R1 풀기)을 한다 — 끄면 그런 플러그인은 그 이름에서 실패한다 |  |
 | `plugins.compat.nms.strict` | ON/OFF | false | true\|false | 미지원 NMS·CraftBukkit 심볼을 쓰는 Bukkit 호환 플러그인은 불러오지 않는다(끄면 그 호출만 실행 때 실패하고 나머지는 돈다) |  |
+| `plugins.compat.nms.missing-class-log` | 글자 | summary | summary\|each | 플러그인이 리플렉션으로 찾다 이 서버에 없는 NMS 클래스를 알리는 방식 — summary 는 모아서 플러그인마다 한 줄(개수·앞 5개 이름), each 는 켜는 중·켠 뒤 모두 이름마다 WARN 한 줄(플러그인 개발자가 어느 이름에서 실패하는지 볼 때). ProtocolLib 처럼 여러 이름을 차례로 시도하는 플러그인은 Paper 에서도 같은 실패라 대개 정상 |  |
 | `plugins.compat.nms.version-package` | 글자 | plain | plain\|versioned | 플러그인이 읽는 CraftBukkit 패키지 이름 — plain 은 Paper 처럼 접미사 없음, versioned 는 Spigot 처럼 v1_21_R1 을 붙인다(두 이름 모두 클래스는 풀린다) |  |
 | `plugins.compat.nms.spigot-mappings` | 글자 | download | download\|files\|off | Spigot 이름으로 컴파일된 NMS 플러그인(매니페스트에 `paperweight-mappings-namespace: mojang` 이 없는 jar)의 NMS 이름을 Mojang 이름으로 바꿔 올린다(H7d). download: 그런 플러그인이 있을 때만 Mojang·Spigot 매핑을 처음 한 번 받아 캐시에 둔다. files: 받지 않고 아래 키의 파일을 쓴다. off: 바꾸지 않는다(그 NMS 호출은 실패) |  |
 | `plugins.compat.nms.spigot-mappings.files` | 글자 | (빈칸) | 경로 구분자로 이은 세 파일 | files 모드의 Mojang server.txt, Spigot 클래스 csrg, Spigot 멤버 csrg 경로 |  |
