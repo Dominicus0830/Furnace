@@ -114,6 +114,7 @@ class CancelContractTest {
         TABLE.put("PlayerHandshakeEvent", new Entry(Kind.SERVER_DRIVEN, "net.LoginPhaseEventsTest#cancelledHandshakeDisconnectsBeforeLogin"));
         // --- 서버
         TABLE.put("FunctionExecuteEvent", new Entry(Kind.SERVER_DRIVEN, "command.exec.FunctionHookTest#cancellingExecuteSkipsWholeFunctionBodyOnly"));
+        TABLE.put("GameRuleChangeEvent", new Entry(Kind.SERVER_DRIVEN, "command.builtin.GameRuleEventTest#cancelledGameruleKeepsValueAndStillSucceeds"));
         TABLE.put("FunctionCommandEvent", new Entry(Kind.SERVER_DRIVEN, "command.exec.FunctionHookTest#commandEventSeesEachLineAndCanCancelOne"));
         TABLE.put("ServerCommandEvent", new Entry(Kind.SERVER_DRIVEN, "plugin.PluginSystemTest#eventBusOrdersByPriorityAndHonorsCancellation"));
         TABLE.put("AsyncTabCompleteEvent", new Entry(Kind.SERVER_DRIVEN, "net.TabCompleteEventTest#handledCancelledAndFallbackFollowPaper"));

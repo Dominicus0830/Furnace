@@ -100,6 +100,7 @@
 | `PlayerFishEvent` | `SERVER_DRIVEN` | - | 낚시찌 연결·낚싯대 내구도 |
 | `PlayerHandshakeEvent` | `SERVER_DRIVEN` | - | 로그인(끊기 패킷만 나가고 Player 도 만들어지지 않는다) |
 | `FunctionExecuteEvent` | `SERVER_DRIVEN` | - | 데이터 팩 함수 본문 실행(통째로 건너뜀) |
+| `GameRuleChangeEvent` | `SERVER_DRIVEN` | - | /gamerule 규칙 값(명령은 성공하고 지금 값을 알린다, 값 바뀜 처리는 지금 값으로 한 번 돈다) |
 | `FunctionCommandEvent` | `SERVER_DRIVEN` | - | 함수 안 명령 한 줄 실행(그 줄만 건너뜀) |
 | `ServerCommandEvent` | `SERVER_DRIVEN` | - | 콘솔 명령 실행 |
 | `RemoteServerCommandEvent` | `SERVER_DRIVEN` | - | RCON 명령 실행(취소면 빈 응답) |
