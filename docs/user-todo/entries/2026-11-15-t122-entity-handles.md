@@ -16,3 +16,9 @@ B3-1 결정(Paper 1.21.1 기본값과 같게)대로 손잡이 넷을 넣었습�
   2. 밀 수 없는 생물은 밀기 코드를 건너뜀(Paper "Don't run entity collision code if not needed"): 사다리·덩굴에 매달린 몹·관전자는 바닐라에서 남을 밀고 cramming 피해도 받지만 Paper 에서는 둘 다 없습니다. 키 `collisions.skip-unpushable`(기본 true).
 - **처음 추천**은 바닐라 유지였으나, 위임 결정으로 Paper 와 같게 켰습니다. 끄면 바닐라와 같습니다. 기동 경고에 이 둘도 나옵니다.
 - **근거**: Paper 1.21.1 패치 `Cap-Entity-Collisions`·`Don-t-run-entity-collision-code-if-not-needed`, Paper ver/1.21.4 `ItemEntity.java.patch`.
+
+## T122-2. 플레이어 cramming 피해 (확정 — 2026-11-15 위임 결정, 검토 N1)
+
+- **무엇**: Paper 1.21.1 은 `collisions.allow-player-cramming-damage` 기본 false 라, 한곳에 플레이어를 많이 모아도(텔레포트 집합 등) cramming 피해로 죽지 않습니다. 바닐라는 피해를 줍니다.
+- **결정**: Paper 와 같게 기본 false. 키 `collisions.allow-player-cramming-damage=true`(또는 `config.preset=vanilla`)면 바닐라. Paper `paper-world-defaults.yml` 값은 가져오기가 옮깁니다. 기동 경고에 나옵니다.
+- **근거**: Paper 1.21.1 패치 `Don-t-apply-cramming-damage-to-players`(ServerPlayer.isInvulnerableTo), `Paper-config-files`(WorldConfiguration.Collisions).

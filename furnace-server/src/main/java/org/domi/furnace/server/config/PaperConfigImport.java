@@ -483,7 +483,7 @@ public final class PaperConfigImport {
         }
 
         /**
-         * 엔티티 손잡이(T-122): spigot.yml merge-radius.*·entity-tracking-range.*, paper-world-defaults.yml collisions.max-entity-collisions
+         * 엔티티 손잡이(T-122): spigot.yml merge-radius.*·entity-tracking-range.*, paper-world-defaults.yml collisions.max-entity-collisions·allow-player-cramming-damage
          * (없으면 옛 spigot.yml max-entity-collisions — Paper MaxEntityCollisionsInitializer 와 같은 순서) → furnace.properties 같은 이름.
          * Furnace 기본(= Paper 1.21.1 기본)과 같은 값은 옮기지 않는다. 다른 월드의 값은 월드별 키가 없어 수동 안내만.
          */
@@ -516,6 +516,13 @@ public final class PaperConfigImport {
                 else if (n == EntityHandleSettings.DEFAULT.maxEntityCollisions()) keptDefault(file, key, v, col, String.valueOf(n), "Furnace 기본(Paper 기본 8)과 같다");
                 else if (n <= 0) imp(file, key, v, col, "0", "Paper 는 0 이하면 생물이 서로 밀지 않는다 — Furnace 는 0 이 같은 뜻(-1 은 Furnace 에서 '제한 없음 = 바닐라')");
                 else imp(file, key, v, col, String.valueOf(n), "밀기 상한");
+            }
+            Object cv = val(PAPER_WORLD, EntityHandleSettings.PLAYER_CRAMMING);
+            if (cv != null) {
+                Boolean b = asBool(cv);
+                if (b == null) ignored(PAPER_WORLD, EntityHandleSettings.PLAYER_CRAMMING, cv, "true/false 가 아니라 옮기지 않는다");
+                else if (!b) keptDefault(PAPER_WORLD, EntityHandleSettings.PLAYER_CRAMMING, cv, EntityHandleSettings.PLAYER_CRAMMING, "false", "Furnace 기본(Paper 기본 false)과 같다");
+                else imp(PAPER_WORLD, EntityHandleSettings.PLAYER_CRAMMING, cv, EntityHandleSettings.PLAYER_CRAMMING, "true", "플레이어도 cramming 피해를 받는다(바닐라)");
             }
             for (String[] k : EntityHandleSettings.TRACKING_KEYS) {
                 String sk = base + "entity-tracking-range." + k[0];
@@ -666,7 +673,7 @@ public final class PaperConfigImport {
             unsupported(PAPER_WORLD, "unsupported-settings", "익스플로잇 허용 스위치는 바닐라와 결과가 달라져 비목표다");
             unsupported(PAPER_WORLD, "entities", "몹 스폰·행동·디스폰 규칙 — 아직 Furnace 에 키가 없다(바닐라 값으로 동작)");
             unsupported(PAPER_WORLD, "environment", "환경 규칙(폭발·눈·번개 등) — 아직 Furnace 에 키가 없다");
-            unsupported(PAPER_WORLD, "collisions", "max-entity-collisions 밖의 충돌 규칙 — 아직 Furnace 에 키가 없다");
+            unsupported(PAPER_WORLD, "collisions", "max-entity-collisions·allow-player-cramming-damage 밖의 충돌 규칙 — 아직 Furnace 에 키가 없다");
             unsupported(PAPER_WORLD, "hopper", "호퍼 규칙 — 아직 Furnace 에 키가 없다");
             unsupported(PAPER_WORLD, "tick-rates", "틱 간격 조절 — 결과가 달라질 수 있어 아직 키가 없다");
             unsupported(PAPER_WORLD, "misc", "월드별 기타 규칙 — 아직 Furnace 에 키가 없다");

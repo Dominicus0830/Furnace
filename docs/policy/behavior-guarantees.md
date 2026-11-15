@@ -42,6 +42,7 @@
 | 몹 밀기 상한(`collisions.max-entity-collisions`) | Paper 와 같게 생물 하나가 한 틱에 미는 수를 8 로 자른다(좁은 우리 농장이 가벼워진다). 도미니코 결정 B3-1(2026-11-14, T-122)로 **기본 8 = Paper 1.21.1**. `-1`(또는 `config.preset=vanilla`)이면 바닐라와 같다. cramming 피해는 바닐라 그대로 | **8** |
 | 종류별 추적 거리(`entity-tracking-range.*`) | Paper 와 같게 엔티티를 보내는 거리를 종류로 묶는다(플레이어 128·동물/몬스터/기타 96·디스플레이 128·그 밖 64 블록 — 바닐라는 종류마다, 플레이어 512). 결정 B3-1 로 **기본 켜짐**. `entity-tracking-range.enabled=false`(또는 `config.preset=vanilla`)면 바닐라 | **켜짐** |
 | Paper 고정 변경 둘(`item-merge.always-into-ticking`, `collisions.skip-unpushable`) | 아이템을 합칠 때 늘 틱을 도는 쪽으로 모으고(Spigot), 사다리에 매달린 몹·관전자처럼 밀 수 없는 생물은 밀기·cramming 을 건너뛴다(Paper). T122-1(2026-11-15, 위임 결정)로 **기본 켬 = Paper**. false(또는 `config.preset=vanilla`)면 바닐라 | **켜짐** |
+| 플레이어 cramming 피해(`collisions.allow-player-cramming-damage`) | Paper 기본처럼 플레이어는 maxEntityCramming 피해를 받지 않는다(1/4 굴림은 그대로). 2026-11-15 위임 결정(검토 N1). true(또는 `config.preset=vanilla`)면 바닐라 | **꺼짐(피해 없음)** |
 | 운영 편의 옵션 전반 | 바닐라 결과를 바꾸는 옵션은 모두 기본 꺼짐(위 활성 범위·밀기 상한·추적 거리·Paper 고정 변경 둘만 예외). 합치기 반경(`merge-radius.*`)은 기본이 바닐라와 같다 | 꺼짐 |
 
 게임플레이를 바꾸는 옵션(엔티티 제한 등)을 더 넣게 되면 이 목록의 제외 항목에 먼저 적는다.

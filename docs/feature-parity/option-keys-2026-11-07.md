@@ -62,6 +62,7 @@
 | `entity-tracking-range.other` | 수 | 64 | 0 이상 | 추적 거리: 그 밖(화살·탈것·폭발물·갑옷 거치대 등). 0 = 그 종류는 아무에게도 보내지 않음(Paper 와 같다) |  |
 | `item-merge.always-into-ticking` | ON/OFF | **true** | true\|false | 아이템을 합칠 때 늘 틱을 도는 쪽으로 모은다(T-122, Spigot·Paper 고정 변경 `if (true \|\| …)`). **기본 켬 — 규칙 1 의 예외(T122-1, 2026-11-15 위임 결정)**. false = 바닐라(적은 쪽을 많은 쪽에) | 켜져 있으면 시작 때 경고 |
 | `collisions.skip-unpushable` | ON/OFF | **true** | true\|false | 밀 수 없는 생물(사다리·덩굴에 매달림·관전자 등)은 남을 밀지 않고 cramming 피해도 없음(T-122, Paper "Don't run entity collision code if not needed"). **기본 켬 — 규칙 1 의 예외(T122-1)**. false = 바닐라 | 켜져 있으면 시작 때 경고 |
+| `collisions.allow-player-cramming-damage` | ON/OFF | **false** | true\|false | 플레이어가 maxEntityCramming 피해를 받는가(T-122 검토 N1, Paper "Don't apply cramming damage to players", 1/4 굴림은 그대로). **기본 false = Paper — 규칙 1 의 예외**. true = 바닐라 | false 면 시작 때 경고 |
 | `region-threads` | 수 | CPU 수 | 1 이상 | region 작업 스레드 수(공유 풀이면 서버 전체, 끄면 차원마다) | 워커가 코어의 2배를 넘으면 경고 |
 | `shared-region-pool` | ON/OFF | true | true|false | 모든 차원·추가 월드가 region 워커 풀 하나를 쓴다(Q5). false 면 차원마다 region-threads 개 | -D 와 충돌하면 경고 |
 | `region-pool-dim-cap` | 수 | 0 | 0 이상 | 다른 차원 큐에 일이 있을 때 한 차원이 쓸 수 있는 워커 상한(0 = 워커 수−1) | 공유 풀이 꺼져 있으면 쓰이지 않는다고 경고 |

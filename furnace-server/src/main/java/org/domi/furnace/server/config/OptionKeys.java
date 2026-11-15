@@ -3,7 +3,7 @@
 // 규칙(R4, docs/feature-parity/option-keys-2026-11-07.md):
 //   1. 새 옵션의 기본값은 바닐라와 같은 동작이다.
 //      예외: entity-activation-range.enabled(기본 켜짐 — Spigot·Paper 와 같다. 도미니코 결정 D11, 2026-11-14). 끄면 바닐라.
-//      예외: collisions.max-entity-collisions(기본 8)·entity-tracking-range.enabled·item-merge.always-into-ticking·collisions.skip-unpushable(기본 켜짐)
+//      예외: collisions.max-entity-collisions(기본 8)·entity-tracking-range.enabled·item-merge.always-into-ticking·collisions.skip-unpushable(기본 켜짐)·collisions.allow-player-cramming-damage(기본 꺼짐)
 //      — Paper 1.21.1 과 같다(결정 B3-1·T122-1, T-122). -1·false 면 바닐라.
 //   2. 모든 새 옵션은 키로 ON/OFF 또는 수치를 바꿀 수 있다(코드 상수·-D 시스템 속성만으로 두지 않는다).
 //   3. 잘못된 값(true/false 가 아닌 글자, 범위 밖 수)은 조용히 넘기지 않고 기동 때 어느 키가 문제인지 알리며 멈춘다.
@@ -159,6 +159,8 @@ public final class OptionKeys {
                 "아이템을 합칠 때 늘 틱을 도는 쪽으로 모은다(Spigot·Paper, 기본 켬 — 바닐라와 다름). false = 바닐라(적은 쪽을 많은 쪽에)"));
         out.add(new Option(EntityHandleSettings.SKIP_UNPUSHABLE, "ON/OFF", "true", "true|false",
                 "밀 수 없는 생물(사다리에 매달림·관전자 등)은 남을 밀지 않고 cramming 피해도 없음(Paper, 기본 켬 — 바닐라와 다름). false = 바닐라"));
+        out.add(new Option(EntityHandleSettings.PLAYER_CRAMMING, "ON/OFF", "false", "true|false",
+                "플레이어가 maxEntityCramming 피해를 받는가(Paper 기본 false — 바닐라와 다름). true = 바닐라"));
         for (String s : STATES) {
             out.add(new Option("connection." + s + ".packets-per-second", "수", "200", "0~1000000", s + " 단계 초당 패킷 평균 상한(0 = 제한 없음)"));
             out.add(new Option("connection." + s + ".packets-burst", "수", "400", "1~10000000", s + " 단계 순간 패킷 상한"));

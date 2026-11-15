@@ -2,8 +2,9 @@
 // 기본값은 Paper 1.21.1 과 같다(도미니코 결정 B3-1, 2026-11-14). 그중 합치기 둘은 Paper 기본이 바닐라와 같아 결과가 바닐라 그대로고,
 // 밀기 상한(8)과 추적 거리(플레이어 128·동물/몬스터/기타 96·디스플레이 128·그 밖 64)는 **바닐라와 다르다**(D11 과 같은 예외).
 // 손잡이 옆의 Paper 고정 변경 둘(아이템 합치는 방향, 밀 수 없는 생물 밀기 건너뜀)도 Paper 와 같게 켠다(T122-1, 2026-11-15 위임 결정).
+// 플레이어 cramming 피해도 Paper 기본(false = 안 받음)과 같다(T-122 검토 N1, 2026-11-15 위임 결정).
 // 바닐라와 같게: collisions.max-entity-collisions=-1, entity-tracking-range.enabled=false, item-merge.always-into-ticking=false,
-// collisions.skip-unpushable=false (또는 config.preset=vanilla).
+// collisions.skip-unpushable=false, collisions.allow-player-cramming-damage=true (또는 config.preset=vanilla).
 package org.domi.furnace.server.config;
 
 import java.nio.file.Path;
@@ -24,11 +25,14 @@ import java.util.function.Consumer;
  *                           모은다. false = 바닐라(개수가 적은 쪽을 많은 쪽에, 같으면 상대 쪽에)
  * @param skipUnpushableCollisions Paper 고정 변경("Don't run entity collision code if not needed"): 밀 수 없는 생물(사다리·덩굴에 매달림·관전자 등,
  *                           isPushable 거짓)은 남을 밀지 않고 cramming 피해도 안 받는다. false = 바닐라
+ * @param allowPlayerCrammingDamage Paper {@code collisions.allow-player-cramming-damage}(기본 false, "Don't apply cramming damage to players"):
+ *                           false 면 플레이어는 maxEntityCramming 피해를 받지 않는다(1/4 굴림은 그대로). true = 바닐라
  */
 public record EntityHandleSettings(double itemMerge, double expMerge, int maxEntityCollisions,
                                    boolean trackingEnabled, int trackPlayers, int trackAnimals, int trackMonsters, int trackMisc,
                                    int trackDisplay, int trackOther,
-                                   boolean itemMergeIntoTicking, boolean skipUnpushableCollisions) {
+                                   boolean itemMergeIntoTicking, boolean skipUnpushableCollisions,
+                                   boolean allowPlayerCrammingDamage) {
 
     public static final String ITEM_MERGE = "merge-radius.item";
     public static final String EXP_MERGE = "merge-radius.exp";
@@ -36,15 +40,16 @@ public record EntityHandleSettings(double itemMerge, double expMerge, int maxEnt
     public static final String TRACKING = "entity-tracking-range.";
     public static final String ITEM_MERGE_INTO_TICKING = "item-merge.always-into-ticking";
     public static final String SKIP_UNPUSHABLE = "collisions.skip-unpushable";
+    public static final String PLAYER_CRAMMING = "collisions.allow-player-cramming-damage";
 
     /** maxEntityCollisions 의 "제한 없음"(바닐라). Paper 에는 없는 값이다(Paper 는 0 이하 = 밀지 않음). */
     public static final int UNLIMITED = -1;
 
     /** 기본: Paper 1.21.1 기본값(SpigotWorldConfig·WorldConfiguration.Collisions, Paper-config-files.patch). */
-    public static final EntityHandleSettings DEFAULT = new EntityHandleSettings(0.5, -1.0, 8, true, 128, 96, 96, 96, 128, 64, true, true);
+    public static final EntityHandleSettings DEFAULT = new EntityHandleSettings(0.5, -1.0, 8, true, 128, 96, 96, 96, 128, 64, true, true, false);
 
-    /** 바닐라: 합치기 반경은 기본과 같고, 밀기 제한 없음·추적 거리 바닐라·Paper 고정 변경 둘 끔. */
-    public static final EntityHandleSettings VANILLA = new EntityHandleSettings(0.5, -1.0, UNLIMITED, false, 128, 96, 96, 96, 128, 64, false, false);
+    /** 바닐라: 합치기 반경은 기본과 같고, 밀기 제한 없음·추적 거리 바닐라·Paper 고정 변경 둘 끔·플레이어 cramming 피해 있음. */
+    public static final EntityHandleSettings VANILLA = new EntityHandleSettings(0.5, -1.0, UNLIMITED, false, 128, 96, 96, 96, 128, 64, false, false, true);
 
     /** 바닐라 Player clientTrackingRange(32) × 16. */
     public static final int VANILLA_PLAYER_RANGE = 32 * 16;
@@ -87,13 +92,14 @@ public record EntityHandleSettings(double itemMerge, double expMerge, int maxEnt
         }
         boolean intoTicking = bool(p, ITEM_MERGE_INTO_TICKING, d.itemMergeIntoTicking);
         boolean skipUnpushable = bool(p, SKIP_UNPUSHABLE, d.skipUnpushableCollisions);
-        EntityHandleSettings s = new EntityHandleSettings(item, exp, max, on, r[0], r[1], r[2], r[3], r[4], r[5], intoTicking, skipUnpushable);
+        boolean playerCramming = bool(p, PLAYER_CRAMMING, d.allowPlayerCrammingDamage);
+        EntityHandleSettings s = new EntityHandleSettings(item, exp, max, on, r[0], r[1], r[2], r[3], r[4], r[5], intoTicking, skipUnpushable, playerCramming);
         if (warn != null) {
             List<String> diff = s.vanillaDifferences();
             if (!diff.isEmpty()) {
                 warn.accept("엔티티 손잡이가 Paper 기본값으로 켜져 있어 바닐라와 결과가 다릅니다: " + String.join(", ", diff)
                         + ". 바닐라와 같게 하려면 furnace.properties 에 " + MAX_COLLISIONS + "=-1, " + TRACKING + "enabled=false, "
-                        + ITEM_MERGE_INTO_TICKING + "=false, " + SKIP_UNPUSHABLE + "=false (또는 config.preset=vanilla)");
+                        + ITEM_MERGE_INTO_TICKING + "=false, " + SKIP_UNPUSHABLE + "=false, " + PLAYER_CRAMMING + "=true (또는 config.preset=vanilla)");
             }
         }
         return s;
@@ -108,6 +114,7 @@ public record EntityHandleSettings(double itemMerge, double expMerge, int maxEnt
         if (trackingEnabled) out.add("추적 거리 " + TRACKING + "*(플레이어 " + trackPlayers + "·몬스터 " + trackMonsters + "블록 등)");
         if (itemMergeIntoTicking) out.add("아이템은 늘 틱 도는 쪽으로 합침(Spigot, " + ITEM_MERGE_INTO_TICKING + ")");
         if (skipUnpushableCollisions) out.add("사다리에 매달린 몹 등 밀 수 없는 생물은 밀기·cramming 없음(Paper, " + SKIP_UNPUSHABLE + ")");
+        if (!allowPlayerCrammingDamage) out.add("플레이어는 cramming 피해 없음(Paper, " + PLAYER_CRAMMING + "=false)");
         return out;
     }
 

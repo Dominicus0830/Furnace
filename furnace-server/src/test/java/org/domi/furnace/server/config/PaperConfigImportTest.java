@@ -297,6 +297,35 @@ class PaperConfigImportTest {
         assertTrue(has(r, Kind.UNSUPPORTED, "paper-world-defaults.yml", "collisions.only-players-collide"));
     }
 
+    @Test
+    void playerCrammingDamageImportsAndLegacyNegativeCollisionsIgnored(@TempDir Path dir) throws Exception {
+        write(dir, "spigot.yml", """
+                world-settings:
+                  default:
+                    max-entity-collisions: -1
+                """);
+        write(dir, "config/paper-world-defaults.yml", """
+                _version: 31
+                collisions:
+                  allow-player-cramming-damage: true
+                """);
+        Result r = run(dir, new Properties());
+        assertEquals("true", r.toWrite().get("collisions.allow-player-cramming-damage"), "켜 둔 서버는 바닐라처럼 플레이어도 피해");
+        assertFalse(r.toWrite().containsKey("collisions.max-entity-collisions"), "Paper 도 옛 키 음수는 무시하고 기본 8");
+        assertTrue(has(r, Kind.IGNORED, "spigot.yml", "world-settings.default.max-entity-collisions"));
+
+        Path d2 = dir.resolve("b");
+        java.nio.file.Files.createDirectories(d2);
+        write(d2, "config/paper-world-defaults.yml", """
+                _version: 31
+                collisions:
+                  allow-player-cramming-damage: false
+                """);
+        Result r2 = run(d2, new Properties());
+        assertFalse(r2.toWrite().containsKey("collisions.allow-player-cramming-damage"), "Furnace 기본(Paper false)과 같다");
+        assertTrue(has(r2, Kind.DEFAULT, "paper-world-defaults.yml", "collisions.allow-player-cramming-damage"));
+    }
+
     /** 기본값만 적힌 순수 Spigot 파일: 물 동물은 animals(32), 가스트·팬텀은 misc(16) 범위 — Furnace 기본(16·32)과 달라 옮긴다. 주민은 32 로 같아 옮기지 않는다(PR #326 검토 R8). */
     @Test
     void pureSpigotDefaultsMapPaperOnlyKinds(@TempDir Path dir) throws Exception {

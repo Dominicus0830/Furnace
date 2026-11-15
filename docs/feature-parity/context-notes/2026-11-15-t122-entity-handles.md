@@ -11,3 +11,5 @@
   거리 0 은 그 종류를 아예 추적하지 않는다(Paper 와 같음). 플레이어끼리는 Region 의 보임 판정이 `min(시야, 플레이어 거리 × 방송 비율)` — 방송 비율도 이번에 넣었다(전엔 빠져 있었다).
 - 바닐라 `getEffectiveRange` 의 "승객 중 가장 긴 거리" 규칙은 Furnace 에 아직 없다(손잡이와 별개 구멍 — 탄 플레이어가 있는 탈것이 바닐라는 512, Furnace 는 탈것 거리). 후속으로 남긴다.
 - 시험 JVM 은 `EntityHandlesVanillaExtension` 으로 바닐라 값, 장면은 `TickScene.entityHandles()`(기본 바닐라)로 못 박는다 — 새 JVM 장면은 확장이 없어 운영 기본(Paper 값)이 들어오기 때문이다.
+- 검토(PR #395) 반영: ① Furnace `AABB` 는 바닐라 생성자처럼 min/max 를 정렬하지 않는다 — Spigot 아이템 상자 inflate(r, r-0.5, r) 는 r < 0.375 면 y 가 뒤집혀 아무것도 못 찾았다. `AABB.of` 로 정렬(바닐라에서 음수 inflate 를 옮길 때 같은 함정). ② `PushScratch` 후보 플레이어는 차원 전체 색인에서 오므로 다른 region 소유일 수 있다 — 상한 횟수는 그 플레이어의 소유 스레드일 때만 센다.
+- `collisions.allow-player-cramming-damage`(Paper 기본 false): Paper 는 `ServerPlayer.isInvulnerableTo` 에서 캐시된 cramming 피해 원본과 **같은 객체**일 때만 막는다 — 1/4 굴림은 그대로이고, `/damage … minecraft:cramming` 은 새 원본이라 막히지 않는다. Furnace 는 플레이어 cramming 호출 자리에서만 건너뛴다.

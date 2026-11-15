@@ -33,7 +33,7 @@ class EntityHandlesTest {
     private static EntityHandleSettings with(double item, double exp, int max, boolean intoTicking, boolean skipUnpushable) {
         EntityHandleSettings d = EntityHandleSettings.DEFAULT;
         return new EntityHandleSettings(item, exp, max, d.trackingEnabled(), d.trackPlayers(), d.trackAnimals(), d.trackMonsters(), d.trackMisc(),
-                d.trackDisplay(), d.trackOther(), intoTicking, skipUnpushable);
+                d.trackDisplay(), d.trackOther(), intoTicking, skipUnpushable, true);
     }
 
     // ------------------------------------------------------------------ 추적 거리

@@ -131,12 +131,17 @@ public final class ItemEntity extends Entity {
     private void mergeWithNeighbours() {
         if (!isMergable()) return;
         double r = org.domi.furnace.server.config.EntityHandleSettings.current().itemMerge();
-        for (ItemEntity other : level.getEntitiesOfClass(ItemEntity.class, boundingBox().inflate(r, r - 0.5, r), e -> e != this && e.isMergable())) {
+        for (ItemEntity other : level.getEntitiesOfClass(ItemEntity.class, sortedInflate(boundingBox(), r, r - 0.5, r), e -> e != this && e.isMergable())) {
             if (other.isMergable()) {
                 tryToMerge(other);
                 if (isRemoved()) break;
             }
         }
+    }
+
+    /** 바닐라 AABB 생성자는 min/max 를 정렬한다 — merge-radius.item < 0.375 면 y 가 뒤집히므로 Paper 처럼 정렬된 상자로(T-122 검토 R1). */
+    private static AABB sortedInflate(AABB b, double dx, double dy, double dz) {
+        return AABB.of(b.minX() - dx, b.minY() - dy, b.minZ() - dz, b.maxX() + dx, b.maxY() + dy, b.maxZ() + dz);
     }
 
     private boolean isMergable() {

@@ -38,6 +38,7 @@ public final class ConfigPresets {
         vanilla.put(EntityHandleSettings.EXP_MERGE, "-1");
         vanilla.put(EntityHandleSettings.ITEM_MERGE_INTO_TICKING, "false");
         vanilla.put(EntityHandleSettings.SKIP_UNPUSHABLE, "false");
+        vanilla.put(EntityHandleSettings.PLAYER_CRAMMING, "true");
         PRESETS.put("vanilla", vanilla);
         Map<String, String> perf = new LinkedHashMap<>();
         perf.put("entity-view-distance", "6");
