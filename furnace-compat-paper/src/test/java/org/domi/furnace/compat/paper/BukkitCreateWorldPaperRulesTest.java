@@ -89,4 +89,19 @@ class BukkitCreateWorldPaperRulesTest {
             assertEquals("type=FLAT structures=false far(-61)=GRASS_BLOCK", r);
         }
     }
+
+    /** 저장된 월드를 다른 환경으로 부르면 그 환경의 바닐라 생성기(평지 층을 네더에 쓰지 않는다). */
+    @Test
+    void existingFlatFolderOpenedAsNether() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            World flat = Bukkit.createWorld(new WorldCreator("lob2").type(WorldType.FLAT));
+            assertTrue(server.api().unloadWorld(((org.bukkit.craftbukkit.CraftWorld) flat).furnaceHandle(), true).get(60, java.util.concurrent.TimeUnit.SECONDS));
+            World n = Bukkit.createWorld(new WorldCreator("lob2").environment(World.Environment.NETHER));
+            Material m = onRegion(n, 0, 0, () -> n.getBlockAt(0, 5, 0).getType());
+            String r = n.getEnvironment() + " " + n.getWorldType() + " y5=" + m;
+            System.out.println("[R388bC] " + r);
+            assertEquals(World.Environment.NETHER, n.getEnvironment());
+            assertNotEquals(Material.AIR, m, r);
+        }
+    }
 }
