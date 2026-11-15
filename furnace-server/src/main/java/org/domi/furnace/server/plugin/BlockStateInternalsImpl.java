@@ -47,6 +47,7 @@ final class BlockStateInternalsImpl implements BlockStateInternals {
             if (attrs.isReplaceable(s)) f |= REPLACEABLE;
             if (attrs.blocksMotion(s)) f |= BLOCKS_MOTION;
             if (BlockBehaviors.of(s).isSignalSource(s)) f |= SIGNAL_SOURCE;
+            if (info.hasBlockEntity(s)) f |= HAS_BLOCK_ENTITY;
             flags[s] = (short) f;
             destroy[s] = info.destroyTime(b);
             resistance[s] = info.explosionResistance(b);
@@ -94,5 +95,47 @@ final class BlockStateInternalsImpl implements BlockStateInternals {
         double[] out = new double[c * 6];
         for (int i = 0; i < c; i++) System.arraycopy(s.box(i), 0, out, i * 6, 6);
         return out;
+    }
+
+    @Override
+    public String blockEntityType(int stateId) {
+        Blocks blocks = Blocks.get();
+        if (stateId < 0 || stateId >= blocks.stateCount() || !BlockInfo.get().hasBlockEntity(stateId)) return null;
+        String name = blocks.nameOfState(stateId);
+        // 상자·덫 상자는 Furnace 에서 자기 틀로 만들고, 마법 부여대는 아직 블록 엔티티 틀이 없다 — 종류는 바닐라대로.
+        return switch (name) {
+            case "minecraft:chest" -> "minecraft:chest";
+            case "minecraft:trapped_chest" -> "minecraft:trapped_chest";
+            case "minecraft:enchanting_table" -> "minecraft:enchanting_table";
+            case "minecraft:moving_piston" -> "minecraft:piston";
+            default -> {
+                var be = BlockBehaviors.of(stateId).newBlockEntity(new org.domi.furnace.server.block.Pos(0, 0, 0), stateId);
+                yield be == null ? null : be.type();
+            }
+        };
+    }
+
+    @Override
+    public org.domi.furnace.api.nbt.NbtCompound defaultBlockEntityNbt(int stateId) {
+        Blocks blocks = Blocks.get();
+        if (stateId < 0 || stateId >= blocks.stateCount() || !BlockInfo.get().hasBlockEntity(stateId)) return null;
+        var origin = new org.domi.furnace.server.block.Pos(0, 0, 0);
+        String name = blocks.nameOfState(stateId);
+        org.domi.furnace.server.block.entity.BlockEntity be = switch (name) {
+            case "minecraft:chest", "minecraft:trapped_chest" -> org.domi.furnace.server.world.ChestBlockEntity.empty(name, 0, 0, 0);
+            case "minecraft:enchanting_table" -> null;   // 바닐라 EnchantingTableBlockEntity: 이름이 없으면 저장할 것이 없다
+            case "minecraft:moving_piston" -> null;      // 바닐라 MovingPistonBlock.newBlockEntity 는 null
+            default -> BlockBehaviors.of(stateId).newBlockEntity(origin, stateId);
+        };
+        org.domi.furnace.server.net.io.nbt.NbtCompound tag;
+        if (be == null) {
+            if (!name.equals("minecraft:enchanting_table")) return null;
+            tag = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+            tag.putString("id", "minecraft:enchanting_table");
+        } else {
+            tag = be.saveWithoutMetadata();
+            tag.putString("id", be.type());
+        }
+        return ApiNbt.toApi(tag);
     }
 }

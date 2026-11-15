@@ -31,7 +31,15 @@ public final class NmsBlocks {
 
         Table(BlockTypes types) {
             List<Block> blocks = new ArrayList<>();
-            for (String id : types.ids()) blocks.add(new Block(types.get(id).orElseThrow(), types));
+            var flags = NmsBlockStates.table().flags();
+            for (String id : types.ids()) {
+                var type = types.get(id).orElseThrow();
+                java.util.Map<String, String> first = new java.util.LinkedHashMap<>();
+                for (var info : type.properties()) first.put(info.name(), info.values().get(0));
+                int base = types.stateId(new org.domi.furnace.api.world.BlockData(type.id(), first));
+                boolean entity = (flags[base] & org.domi.furnace.api.internal.BlockStateInternals.HAS_BLOCK_ENTITY) != 0;   // 바닐라 EntityBlock 구현 블록
+                blocks.add(entity ? new net.minecraft.world.level.block.FurnaceEntityBlock(type, types) : new Block(type, types));
+            }
             blocks.sort(Comparator.comparingInt(Block::furnaceBaseStateId));
             byBase = blocks.toArray(Block[]::new);
             baseIds = new int[byBase.length];

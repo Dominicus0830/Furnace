@@ -6,7 +6,7 @@ package org.domi.furnace.api.internal;
 public interface BlockStateInternals {
 
     /** {@link Table#flags} 비트. */
-    int CAN_OCCLUDE = 1, SOLID_RENDER = 2, REPLACEABLE = 4, BLOCKS_MOTION = 8, SIGNAL_SOURCE = 16;
+    int CAN_OCCLUDE = 1, SOLID_RENDER = 2, REPLACEABLE = 4, BLOCKS_MOTION = 8, SIGNAL_SOURCE = 16, HAS_BLOCK_ENTITY = 32;
 
     /**
      * 상태 번호로 인덱스하는 표(배열 길이 = 상태 수). pushReaction 은 바닐라 PushReaction 서수(NORMAL, DESTROY, BLOCK, IGNORE, PUSH_ONLY).
@@ -21,4 +21,13 @@ public interface BlockStateInternals {
 
     /** 그 상태의 바닐라 getShape(빈 세계, 원점) 상자 목록: 상자마다 minX,minY,minZ,maxX,maxY,maxZ. 빈 모양이면 길이 0. 모르는 번호면 길이 0. */
     double[] outlineBoxes(int stateId);
+
+    /** 그 상태의 블록이 바닐라 EntityBlock 인가의 블록 엔티티 종류(예 "minecraft:chest"), 아니면 null. 움직이는 피스톤은 종류는 있으나 newBlockEntity 가 null 이다. */
+    String blockEntityType(int stateId);
+
+    /**
+     * 바닐라 {@code EntityBlock.newBlockEntity(BlockPos.ZERO, state)} 로 갓 만든 블록 엔티티의 saveWithId 꼴(종류별 필드 + "id", x·y·z 없음).
+     * 블록 엔티티를 만들지 않는 블록(EntityBlock 이 아님, 움직이는 피스톤)이면 null. 새 객체. 아무 스레드(월드에 닿지 않는다).
+     */
+    org.domi.furnace.api.nbt.NbtCompound defaultBlockEntityNbt(int stateId);
 }
