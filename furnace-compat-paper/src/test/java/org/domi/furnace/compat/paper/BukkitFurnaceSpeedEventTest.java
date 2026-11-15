@@ -71,6 +71,45 @@ class BukkitFurnaceSpeedEventTest {
         }
     }
 
+    /**
+     * T141E2e-D1 결정 B+: 서버는 바닐라 == 로 굽으므로, 플러그인이 진행 ≥ 총 시간을 적으면 update 가 진행을 총 시간 − 1 로 적는다
+     * (다음 틱에 굽혀 Paper >= 와 같은 결과). 진행 < 총 시간이나 재료 칸이 빈 화로는 손대지 않는다.
+     */
+    @Test
+    void overshootIsWrittenAsTotalMinusOne() {
+        try (FurnaceTestServer server = FurnaceTestServer.builder().failFast(false).start()) {
+            Bukkit.setServer(org.bukkit.craftbukkit.CraftServer.INSTANCE);
+            server.tick(3);
+            BlockPos pos = new BlockPos(13, -20, 29);
+            String dim = "minecraft:overworld";
+            server.loadChunk(pos.chunkX(), pos.chunkZ());
+            server.onRegion(pos, () -> {
+                var w = server.api().world(dim);
+                w.block(pos).set(new BlockData("minecraft:furnace", Map.of("facing", "north", "lit", "false")));
+                try {
+                    java.util.function.IntUnaryOperator write = cook -> {
+                        var f = (org.bukkit.block.Furnace) Compat.block(dim, pos).getState();
+                        f.setCookTimeTotal(200);
+                        f.setCookTime((short) cook);
+                        assertTrue(f.update());
+                        assertEquals(cook, f.getCookTime(), "이 상태 객체의 값은 플러그인이 적은 그대로");
+                        return w.blockEntityNbtNow(pos).orElseThrow().getShort("CookTime");
+                    };
+                    assertEquals(250, write.applyAsInt(250), "재료가 없으면 굽을 것이 없어 그대로");
+                    ((org.bukkit.block.Furnace) Compat.block(dim, pos).getState()).getInventory()
+                            .setItem(0, new org.bukkit.inventory.ItemStack(Material.RAW_IRON));
+                    assertEquals(199, write.applyAsInt(250), "넘치면 총 시간 − 1");
+                    assertEquals(199, ((org.bukkit.block.Furnace) Compat.block(dim, pos).getState()).getCookTime(), "새로 읽으면 적힌 값");
+                    assertEquals(199, write.applyAsInt(200), "같아도 총 시간 − 1(바닐라는 ++ 뒤에 비교)");
+                    assertEquals(150, write.applyAsInt(150), "모자라면 그대로");
+                } finally {
+                    w.block(pos).set(BlockData.AIR);
+                }
+                return null;
+            });
+        }
+    }
+
     /** InventoryOpenEvent 위쪽 인벤토리(typedView)와 InventoryMoveItemEvent 의 화로 쪽(container)이 FurnaceInventory 다(Paper CraftInventoryFurnace). */
     @Test
     void eventTopInventoryIsFurnaceInventory() throws Exception {

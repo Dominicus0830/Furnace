@@ -547,6 +547,14 @@ public final class CraftWorld implements World {
 
     @Override
     public void setKeepSpawnInMemory(boolean keepLoaded) {
+        // T141E4a-D1 결정 B: 게임 규칙은 서버 전체 하나라 주 오버월드(시계 주인)가 아닌 월드에서 바꾸면 무시하고 경고 한 번(시간·날씨와 같은 방침)
+        if (!handle.ownsClock()) {
+            if (WARNED_CLOCK.add(handle.dimension() + "|setKeepSpawnInMemory")) {
+                System.getLogger("FurnaceCompat").log(System.Logger.Level.WARNING, "World#setKeepSpawnInMemory(" + getName()
+                        + "): Furnace 는 게임 규칙(spawnChunkRadius)이 서버 전체에 하나라 주 오버월드가 아닌 월드에서 바꾸는 것은 무시했다");
+            }
+            return;
+        }
         if (keepLoaded) setGameRule(org.bukkit.GameRule.SPAWN_CHUNK_RADIUS, getGameRuleDefault(org.bukkit.GameRule.SPAWN_CHUNK_RADIUS));
         else setGameRule(org.bukkit.GameRule.SPAWN_CHUNK_RADIUS, 0);
     }

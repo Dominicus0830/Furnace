@@ -31,10 +31,20 @@ public abstract class CraftFurnace extends CraftContainer implements org.bukkit.
         super.applyToSnapshot();
         NbtCompound n = snapshotNbt();
         n.putShort("BurnTime", (short) litTime);
-        n.putShort("CookTime", (short) cookingProgress);
+        n.putShort("CookTime", (short) writtenCookTime());
         n.putShort("CookTimeTotal", (short) cookingTotalTime);
         if (cookSpeedMultiplier != 1.0) n.putDouble("Paper.CookSpeedMultiplier", cookSpeedMultiplier);
         else n.remove("Paper.CookSpeedMultiplier");
+    }
+
+    /**
+     * T141E2e-D1 결정 B+: 서버 화로는 바닐라처럼 진행 == 총 시간에 굽는다(Paper 는 >=). 플러그인이 진행을 총 시간 이상으로 적으면
+     * 바닐라 비교로는 영영 굽지 않으므로, 굽을 재료가 있을 때 진행을 총 시간 − 1 로 적는다 — 다음 틱에 == 로 굽혀 Paper 와 같은 결과.
+     * 재료 칸이 비었으면(빈 화로 기본값 0/0 등) 굽을 것이 없고 넣을 때 진행이 0 으로 돌아가므로 그대로 적는다.
+     */
+    private int writtenCookTime() {
+        if (cookingProgress >= cookingTotalTime && smeltingId() != null) return cookingTotalTime - 1;
+        return cookingProgress;
     }
 
     @Override

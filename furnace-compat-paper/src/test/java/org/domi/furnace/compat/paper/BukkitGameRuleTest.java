@@ -144,6 +144,29 @@ class BukkitGameRuleTest {
         assertTrue(world.getKeepSpawnInMemory());
     }
 
+    /** T141E4a-D1 결정 B: 주 오버월드(시계 주인)가 아닌 월드에서 바꾸면 무시한다(게임 규칙은 서버 전체 하나). 읽기는 전체 값. */
+    @Test
+    void keepSpawnInMemoryFromOtherWorldIsIgnored() {
+        var real = ((org.bukkit.craftbukkit.CraftWorld) world).furnaceHandle();
+        var other = (org.domi.furnace.api.world.World) java.lang.reflect.Proxy.newProxyInstance(getClass().getClassLoader(),
+                new Class<?>[]{org.domi.furnace.api.world.World.class}, (proxy, m, args) -> switch (m.getName()) {
+                    case "ownsClock" -> false;
+                    case "dimension" -> "minecraft:the_nether";
+                    case "name" -> "world_nether";
+                    default -> m.invoke(real, args);
+                });
+        var nether = new org.bukkit.craftbukkit.CraftWorld(other);
+        int before = events().size();
+        assertTrue(nether.getKeepSpawnInMemory());
+        nether.setKeepSpawnInMemory(false);
+        assertEquals(2, rules.getInt("spawnChunkRadius"), "무시");
+        assertTrue(nether.getKeepSpawnInMemory());
+        assertEquals(before, events().size(), "무시하면 WorldGameRuleChangeEvent 도 없다");
+        world.setKeepSpawnInMemory(false);
+        assertFalse(nether.getKeepSpawnInMemory(), "읽기는 서버 전체 값");
+        world.setKeepSpawnInMemory(true);
+    }
+
     @Test
     void gameruleCommandFiresEventWithSender() {
         String[] before = new String[1];
