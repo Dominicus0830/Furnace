@@ -588,4 +588,107 @@ class NmsMirrorRaceTest {
         eventually("되돌림", () -> truth(qx * 16 + 3, y0(si) + 3, qz * 16 + 3) == 0);
         server.tick(1);
     }
+
+    // ------------------------------------------------------------------ 재검토(C1·C2)
+
+    /**
+     * 재검토 C1: 떨어진 컨테이너에 잠금 없이 쓰던 스레드가 "떨어짐·안 잡힘" 을 본 뒤 선점되고, 그동안 주인이 잡고·들여오고·붙인다. 돌아와 쓴 칸이 팔레트를
+     * 키우면(data 가 새 객체) 그 data 는 붙일 때 사본에서 나온 것이다 — 기준으로 옮기고 그 칸은 일지로(다음 훑기가 통째로 들여와 붙인 뒤 서버 변경을 되돌리지 않게).
+     * 선점 지점은 furnaceWrite 가 그 순서에서 부르는 비공개 메서드(getAndSet → lateWrite)를 바로 불러 흉내 낸다. Paper: 같은 컨테이너라 서버 변경과 그 쓰기가 다 남는다.
+     */
+    void lateWriteAfterAttach(boolean resize) throws Exception {
+        int qx = cx, qz = cz - 1, si = resize ? 16 : 15;
+        LevelChunk c = level.getChunk(qx, qz);
+        int y = y0(si);
+        server.tick(1);
+        LevelChunkSection existing = c.getSections()[si];
+        LevelChunkSection fresh = emptySection(existing);
+        if (!resize) fresh.setBlockState(9, 9, 9, GOLD);   // 대조군: 팔레트에 금이 이미 있다
+        assertTrue(cas(c, si, existing, fresh));
+        server.tick(2);
+        PalettedContainer<BlockState> st = fresh.getStates();
+        assertTrue(st.furnaceIsView(), "들여와 붙은 보기");
+        Object d0 = DATA.get(st);   // 붙일 때 기준(placed) — 장벽 없이(실체화 안 함)
+        on(qx, qz, () -> {   // 붙은 뒤 서버(게임)가 같은 섹션 칸을 바꾼다
+            for (int x = 0; x < 16; x++) column(qx, qz).setBlock(x, y + 3, 0, GLASS.furnaceStateId());
+            return null;
+        });
+        server.tick(1);
+        java.lang.reflect.Method getAndSet = PalettedContainer.class.getDeclaredMethod("getAndSet", int.class, Object.class);
+        getAndSet.setAccessible(true);
+        Object mirror = c.furnaceMirror();
+        java.lang.reflect.Method lateWrite = mirror.getClass().getDeclaredMethod("lateWrite", PalettedContainer.class, Object.class, int.class, Object.class);
+        lateWrite.setAccessible(true);
+        int cell = (10 << 8) | (4 << 4) | 4;
+        getAndSet.invoke(st, cell, GOLD);   // 선점됐던 스레드의 칸 쓰기(떨어졌다고 본 채로)
+        Object after = DATA.get(st);
+        lateWrite.invoke(mirror, st, d0, cell, GOLD);   // 다시 보니 잡혀(붙어) 있다 — 쓰기 전 data 를 넘긴다
+        if (resize) assertNotSame(d0, after, "전제: 그 쓰기가 팔레트 크기 바꿈을 일으켰다");
+        else assertSame(d0, after, "대조군: 크기 바꿈 없음");
+        server.tick(2);
+        int[] row = on(qx, qz, () -> {
+            int[] out = new int[17];
+            for (int x = 0; x < 16; x++) out[x] = truthHere(qx * 16 + x, y + 3, qz * 16);
+            out[16] = truthHere(qx * 16 + 4, y + 10, qz * 16 + 4);
+            return out;
+        });
+        LevelChunkSection cur = c.getSections()[si];
+        assertTrue(cas(c, si, cur, emptySection(cur)));
+        server.tick(2);
+        assertEquals(GOLD.furnaceStateId(), row[16], "늦은 쓰기가 월드에 있다");
+        for (int x = 0; x < 16; x++) assertEquals(GLASS.furnaceStateId(), row[x], "붙인 뒤 서버가 바꾼 칸 " + x + " 이 붙일 때 사본으로 되돌려졌다");
+    }
+
+    @Test
+    void lateWriteAfterAttachWithoutResizeIsJournaled() throws Exception { lateWriteAfterAttach(false); }
+
+    @Test
+    void lateWriteAfterAttachWithResizeKeepsServerChanges() throws Exception { lateWriteAfterAttach(true); }
+
+    /** 재검토 C2(검토 s3): r2 를 컨테이너 set 길로 — 옛 섹션의 컨테이너에 쓰는 동안 교체. Paper: 교체된 컨테이너에 쓴 칸은 월드에 없다. */
+    @Test
+    void containerWritesToReplacedSectionDoNotReachWorld() throws Exception {
+        int qx = cx - 1, qz = cz, si = 21;
+        LevelChunk c = level.getChunk(qx, qz);
+        int goldId = GOLD.furnaceStateId();
+        int leakedTotal = 0;
+        for (int trial = 0; trial < 8; trial++) {
+            server.tick(1);
+            LevelChunkSection existing = c.getSections()[si];
+            PalettedContainer<BlockState> oldStates = existing.getStates();
+            AtomicBoolean stop = new AtomicBoolean();
+            AtomicLong n = new AtomicLong();
+            AtomicReference<Throwable> err = new AtomicReference<>();
+            Thread w = new Thread(() -> {
+                try {
+                    long k = 0;
+                    while (!stop.get() && k < 400_000) {
+                        int cell = 2048 + (int) (k % 2048);   // 위쪽 절반(y 8..15)
+                        oldStates.set(cell & 15, cell >> 8, (cell >> 4) & 15, GOLD);
+                        n.set(++k);
+                    }
+                } catch (Throwable t) {
+                    err.set(t);
+                }
+            }, "mirror-race-s3");
+            w.start();
+            while (n.get() < 3000 && err.get() == null) Thread.onSpinWait();
+            LevelChunkSection fresh = emptySection(existing);
+            fresh.setBlockState(1, 1, 1, STONE);   // 아래쪽 절반에 표지 하나
+            assertTrue(cas(c, si, existing, fresh));
+            eventually("들여오기", () -> truth(qx * 16 + 1, y0(si) + 1, qz * 16 + 1) == STONE.furnaceStateId());
+            Thread.sleep(30);
+            stop.set(true);
+            w.join();
+            if (err.get() != null) throw new AssertionError("쓰는 스레드 예외", err.get());
+            server.tick(2);
+            int leaked = 0;
+            for (int v : truthSection(qx, qz, si)) if (v == goldId) leaked++;
+            leakedTotal += leaked;
+            LevelChunkSection cur = c.getSections()[si];
+            assertTrue(cas(c, si, cur, emptySection(cur)));
+            server.tick(2);
+        }
+        assertEquals(0, leakedTotal, "교체된 옛 컨테이너에 쓴 칸이 새 섹션 자리(월드)에 들어왔다");
+    }
 }

@@ -178,9 +178,10 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
                 }
             }
         }
+        Data<T> before = data;   // 검토 재검토 C1: 쓰기 전 data — 크기 바꿈으로 바뀌어도 그 쓰기가 붙은 기준에 든 것인지 안다
         T old = wantOld ? getAndSet(index, value) : setAndNull(index, value);
         m = furnaceClaimant();
-        if (m != null) m.lateWrite(this, data, index, value);   // 쓰는 사이 잡혔다 — 거울이 그 data 가 기준이 됐는지 본다
+        if (m != null) m.lateWrite(this, before, index, value);   // 쓰는 사이 잡혔다 — 거울이 그 data 가 기준이 됐는지 본다
         return old;
     }
 

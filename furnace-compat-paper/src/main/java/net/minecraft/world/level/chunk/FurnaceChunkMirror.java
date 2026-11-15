@@ -526,12 +526,15 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
 
     /**
      * 잡힌 컨테이너에 잠금 없이 쓴 직후 잡혔다(드문 경쟁, {@code PalettedContainer#furnaceWrite}): 그 사이 붙어 그 data 가 기준이 됐으면 서버에 닿게 일지로
-     * 넘긴다(들여오기가 읽었으면 같은 값을 한 번 더 쓴다). 아직 들여오는 중이면 들여오기가 그 data 를 읽는다.
+     * 넘긴다(들여오기가 읽었으면 같은 값을 한 번 더 쓴다). 아직 들여오는 중이면 들여오기가 그 data 를 읽는다. writtenData 는 쓰기 <b>전</b> data 다 — 그 쓰기가
+     * 팔레트를 키워 data 가 바뀌었으면 새 data 를 기준으로 옮긴다(붙일 때 사본에서 나온 것이라 플러그인 대입이 아니다 — 들여오면 붙인 뒤 서버 변경을 되돌린다, 재검토 C1).
      */
     @SuppressWarnings("unchecked")
     void lateWrite(PalettedContainer<?> c, Object writtenData, int index, Object value) {
         synchronized (lock) {
             if (dead || !(c.furnaceSourceObject() instanceof FurnaceSectionSource src) || src.chunk != chunk || writtenData != c.furnacePlaced()) return;
+            // 검토 재검토 C1: 늦은 쓰기가 팔레트를 키워 data 가 바뀌었다 — 붙일 때 사본에서 나온 것이라 들여오지 않는다(이 칸은 아래 일지로, 읽기는 다시 공급원으로)
+            if (c.furnaceData() != writtenData) c.furnaceMarkPlaced(c.furnaceData(), Long.MIN_VALUE);
             int id = src.biome ? (value instanceof Holder<?> h ? NmsChunks.BIOME_IDS.getId((Holder<Biome>) h) : -1)
                     : (value instanceof BlockState st ? st.furnaceStateId() : -1);
             if (id < 0) return;
