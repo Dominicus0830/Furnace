@@ -114,7 +114,7 @@ class FurnaceCookSpeedMultiplierTest {
         assertEquals(2.0, be.saveWithoutMetadata().getDouble("Paper.CookSpeedMultiplier"));
     }
 
-    /** 배율이 늘 1.0 인 화로에 /data 로 진행 > 총 시간을 적으면 바닐라처럼 멈춘다(T141E2e-D1 결정 전 바닐라 규칙). */
+    /** 배율이 늘 1.0 인 화로에 /data 로 진행 > 총 시간을 적으면 바닐라처럼 멈춘다(T141E2e-D1 결정 B+: 서버는 바닐라 그대로, 플러그인 쓰기만 호환 계층이 맞춘다). */
     @Test
     void vanillaOvershootAtOneStaysLikeVanilla() throws Exception {
         Rig r = rig("furnace");
@@ -127,5 +127,21 @@ class FurnaceCookSpeedMultiplierTest {
         be.load(tag);
         for (int i = 0; i < 5; i++) be.tick(r.level());
         assertTrue(be.items[2].isEmpty(), "바닐라 == 비교: 진행이 총 시간을 넘으면 굽지 않는다");
+    }
+
+    /** T141E2e-D1 B+: 호환 CraftFurnace 는 플러그인의 진행 ≥ 총 시간을 총 시간 − 1 로 적는다 — 그 NBT 면 배율 1.0(바닐라 ==)에서도 다음 틱에 굽는다. */
+    @Test
+    void compatClampedOvershootCooksNextTick() throws Exception {
+        Rig r = rig("furnace");
+        var be = r.be();
+        setInput(r, item("raw_iron", 2));
+        be.items[1] = item("coal", 1);
+        be.tick(r.level());
+        var tag = be.saveWithoutMetadata();
+        tag.putShort("CookTime", (short) 199);   // 플러그인이 250 을 적은 update 결과
+        be.load(tag);
+        be.tick(r.level());
+        assertEquals("minecraft:iron_ingot", ItemTools.itemName(be.items[2]));
+        assertEquals(0, be.cookingProgress);
     }
 }
