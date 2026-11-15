@@ -191,7 +191,7 @@ class SchemaPacketReverseTest {
             // 바닐라 Animate 의 1(맞음 — 1.21.1 에서는 hurt_animation)은 Furnace 레코드에 없다 — 지어내지 않고 까닭을 밝힌다
             var hurt = construct(net.minecraft.network.protocol.game.ClientboundAnimatePacket.class, 3, 1);
             var refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> PacketDelivery.convert(hurt));
-            assertTrue(refused.getMessage().contains("애니메이션"), refused.getMessage());
+            assertTrue(refused.getMessage().contains("animation"), refused.getMessage());
             assertEquals(Map.of(), failures, "되돌린 값이 달라진 종류");
             // 접속 때 서버가 보내는 것(청크·엔티티·시간 등)과 위 표본을 모두 돌렸다
             for (String must : List.of("minecraft:set_health", "minecraft:game_event", "minecraft:container_set_slot", "minecraft:sound_entity", "minecraft:player_abilities",

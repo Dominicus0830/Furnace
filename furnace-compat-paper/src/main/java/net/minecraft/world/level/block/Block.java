@@ -72,7 +72,7 @@ public class Block extends BlockBehaviour implements ItemLike {
             }
             int id = types.stateId(new org.domi.furnace.api.world.BlockData(type.id(), names));
             if (id != baseStateId + local) {
-                throw new IllegalStateException("상태 번호가 바닐라 순서와 다르다: " + type.id() + names + " 서버=" + id + " 계산=" + (baseStateId + local));
+                throw new IllegalStateException("state ids differ from the vanilla order: " + type.id() + names + " server=" + id + " computed=" + (baseStateId + local));
             }
             states[local] = new BlockState(this, values, id);
             for (int i = n - 1; i >= 0; i--) {

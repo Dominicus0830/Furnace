@@ -31,7 +31,7 @@ public final class NbtWire {
             int t = buf.readByte();
             if (t == 0) return null;
             DataInput in = new DataInputStream(new ByteBufInputStream(buf));
-            if (t != 10) throw new IllegalArgumentException("패킷 NBT 뿌리가 compound(10)가 아니다: " + t);
+            if (t != 10) throw new IllegalArgumentException("the packet NBT root is not a compound (10): " + t);
             return compound(in, 0);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -54,7 +54,7 @@ public final class NbtWire {
     }
 
     private static NbtCompound compound(DataInput in, int depth) throws IOException {
-        if (depth > MAX_DEPTH) throw new IllegalArgumentException("NBT 깊이가 " + MAX_DEPTH + " 을 넘는다");
+        if (depth > MAX_DEPTH) throw new IllegalArgumentException("NBT depth exceeds " + MAX_DEPTH);
         NbtCompound c = new NbtCompound();
         while (true) {
             int t = in.readByte();
@@ -79,10 +79,10 @@ public final class NbtWire {
             }
             case 8 -> in.readUTF();
             case 9 -> {
-                if (depth > MAX_DEPTH) throw new IllegalArgumentException("NBT 깊이가 " + MAX_DEPTH + " 을 넘는다");
+                if (depth > MAX_DEPTH) throw new IllegalArgumentException("NBT depth exceeds " + MAX_DEPTH);
                 int et = in.readByte();
                 int n = in.readInt();
-                if (et == 0 && n > 0) throw new IllegalArgumentException("NBT 목록 원소 종류가 END 인데 길이가 " + n);
+                if (et == 0 && n > 0) throw new IllegalArgumentException("NBT list has element type END but length " + n);
                 NbtList l = new NbtList();
                 for (int i = 0; i < Math.max(n, 0); i++) l.add(payload(in, et, depth + 1));
                 yield l;
@@ -98,13 +98,13 @@ public final class NbtWire {
                 for (int i = 0; i < a.length; i++) a[i] = in.readLong();
                 yield a;
             }
-            default -> throw new IllegalArgumentException("모르는 NBT 태그 종류: " + t);
+            default -> throw new IllegalArgumentException("unknown NBT tag type: " + t);
         };
     }
 
     private static int length(DataInput in) throws IOException {
         int n = in.readInt();
-        if (n < 0) throw new IllegalArgumentException("NBT 배열 길이가 음수: " + n);
+        if (n < 0) throw new IllegalArgumentException("negative NBT array length: " + n);
         return n;
     }
 
@@ -145,7 +145,7 @@ public final class NbtWire {
                 out.writeInt(a.length);
                 for (long x : a) out.writeLong(x);
             }
-            default -> throw new IllegalArgumentException("NBT 값이 아니다: " + v);
+            default -> throw new IllegalArgumentException("not an NBT value: " + v);
         }
     }
 }

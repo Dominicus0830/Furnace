@@ -56,7 +56,7 @@ final class EntityDataBridge {
         for (Object o : items) {
             var dv = (SynchedEntityData.DataValue<?>) SchemaPacketReverse.need(o, at + ".packedItems[]");
             String name = dv.serializer() == null ? null : NAMES.get(dv.serializer());
-            if (name == null) throw new IllegalArgumentException(at + ": 칸 " + dv.id() + " 의 값 종류가 바닐라 직렬화 표에 없다: " + dv.serializer());
+            if (name == null) throw new IllegalArgumentException(at + ": slot " + dv.id() + " has a value type missing from the vanilla serializer table: " + dv.serializer());
             EntityDataType<?> type = EntityDataType.byName(name);
             if (type == null) throw new UnsupportedNmsCall("set_entity_data(" + name + ")", "metadata value kind that Furnace does not have");
             String vat = at + "[" + dv.id() + "]";
@@ -97,7 +97,7 @@ final class EntityDataBridge {
     private static org.domi.furnace.api.world.BlockData blockData(Object s, String at) {
         int id = ((net.minecraft.world.level.block.state.BlockState) s).furnaceStateId();
         return org.domi.furnace.api.Furnace.server().blockTypes().byStateId(id)
-                .orElseThrow(() -> new IllegalArgumentException(at + ": 모르는 블록 상태 번호 " + id));
+                .orElseThrow(() -> new IllegalArgumentException(at + ": unknown block state id " + id));
     }
 
     // ------------------------------------------------------------------ Furnace → shim

@@ -402,12 +402,12 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
         if (container instanceof PalettedContainer<?> pc) {
             return ((PalettedContainer<Holder<Biome>>) pc).furnaceReadIds(NmsChunks.BIOME_IDS::getId, dataOut);
         }
-        if (!(container instanceof PalettedContainerRO<?> ro)) throw new IllegalStateException("biomes 가 null 이다");
+        if (!(container instanceof PalettedContainerRO<?> ro)) throw new IllegalStateException("biomes is null");
         int[] out = new int[64];
         for (int i = 0; i < 64; i++) {
             Object v = ro.get(i & 3, i >> 4, i >> 2 & 3);
             int id = v instanceof Holder<?> h ? NmsChunks.BIOME_IDS.getId((Holder<Biome>) h) : -1;
-            if (id < 0) throw new IllegalStateException("서버 바이옴 레지스트리에 없는 값이다: " + v + " (칸 " + i + ")");
+            if (id < 0) throw new IllegalStateException("value missing from the server biome registry: " + v + " (slot " + i + ")");
             out[i] = id;
         }
         return out;
@@ -425,7 +425,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
                 case HM_RAW -> b.setHeightmapRawNow(world, cx, cz, op.type.getSerializationKey(), op.raw);
                 case HM_UPDATE -> b.updateHeightmapNow(world, op.type.getSerializationKey(), (cx << 4) + op.x, op.y, (cz << 4) + op.z, op.id);
                 case UNSAVED -> b.markUnsavedNow(world, cx, cz);
-                default -> throw new IllegalStateException("일지 종류 " + op.kind);
+                default -> throw new IllegalStateException("unknown journal kind " + op.kind);
             }
         } catch (RuntimeException e) {
             warnOnce("replay:" + op.kind + ":" + e.getClass().getName(), CompatLang.t("compat.mirror.replay-failed", e));

@@ -43,7 +43,7 @@ public final class ChunkPacketBridge {
             return ClientboundLightUpdatePacket.of(i(g.get("x"), at + ".x"), i(g.get("z"), at + ".z"),
                     lightData((PacketStruct) need(g.get("light_data"), at + ".light_data"), at + ".light_data"));
         }
-        throw new IllegalArgumentException("청크·빛 패킷이 아니다: " + g.type());
+        throw new IllegalArgumentException("not a chunk or light packet: " + g.type());
     }
 
     private static ClientboundLevelChunkPacketData chunkData(PacketStruct s, String at) {
@@ -133,7 +133,7 @@ public final class ChunkPacketBridge {
         int n = 0;
         for (byte[] a : in) {
             String lat = at + "[" + n++ + "]";
-            if (need(a, lat).length != 2048) throw new IllegalArgumentException(lat + " 빛 배열은 2048 바이트여야 한다(바닐라 DataLayer): " + a.length);
+            if (need(a, lat).length != 2048) throw new IllegalArgumentException(lat + " light array must be 2048 bytes (vanilla DataLayer): " + a.length);
             out.add(a);
         }
         return out;
@@ -142,7 +142,7 @@ public final class ChunkPacketBridge {
     private static int i(Object o, String at) { return ((Number) need(o, at)).intValue(); }
 
     static <T> T need(T v, String at) {
-        if (v == null) throw new IllegalArgumentException(at + " 가 null 이다(바닐라도 쓰다 실패한다)");
+        if (v == null) throw new IllegalArgumentException(at + " is null (vanilla also fails to write it)");
         return v;
     }
 }

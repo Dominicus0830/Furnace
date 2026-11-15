@@ -474,7 +474,7 @@ public final class ProtocolLibBridge {
                 }
             };
         } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("ProtocolLib 공개 API 를 찾지 못했다: " + e, e);
+            throw new IllegalStateException("could not find the ProtocolLib public API: " + e, e);
         }
     }
 }

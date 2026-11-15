@@ -225,13 +225,13 @@ final class SchemaPacketReverse {
 
     private static Object inv(Back b, int i, Object v, String at) {
         Inv iv = b.invs().get(i);
-        if (iv == null) throw new IllegalStateException(b.def().wireName() + "." + b.names().get(i) + " 은 범용 역변환이 없다");
+        if (iv == null) throw new IllegalStateException(b.def().wireName() + "." + b.names().get(i) + " has no generic reverse conversion");
         return iv.apply(v, at + "." + b.names().get(i));
     }
 
     private static int idx(Back b, String name) {
         int i = b.names().indexOf(name);
-        if (i < 0) throw new IllegalStateException(b.def().wireName() + " 스키마에 " + name + " 이 없다");
+        if (i < 0) throw new IllegalStateException(b.def().wireName() + " schema has no field " + name);
         return i;
     }
 
@@ -556,7 +556,7 @@ final class SchemaPacketReverse {
         try {
             return Enum.valueOf((Class) enumClass, name);
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(at + ": " + enumClass.getSimpleName() + " 에 " + name + " 상수가 없다");
+            throw new IllegalArgumentException(at + ": " + enumClass.getSimpleName() + " has no constant " + name);
         }
     }
 
@@ -566,7 +566,7 @@ final class SchemaPacketReverse {
             case "net.minecraft.world.level.block.Block" ->
                     (v, at) -> net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(net.minecraft.resources.ResourceLocation.parse((String) need(v, at)));
             case "net.minecraft.world.entity.EntityType" -> (v, at) -> net.minecraft.world.entity.EntityType.byString((String) need(v, at))
-                    .orElseThrow(() -> new IllegalArgumentException(at + ": 모르는 엔티티 종류 " + v));
+                    .orElseThrow(() -> new IllegalArgumentException(at + ": unknown entity type " + v));
             default -> throw new NoBridge("registry id " + bin);
         };
     }
@@ -591,7 +591,7 @@ final class SchemaPacketReverse {
             case "minecraft:fixed" -> new net.minecraft.network.chat.numbers.FixedFormat(
                     net.minecraft.network.chat.Component.fromFurnace((org.domi.furnace.api.text.Text) need(s.get("value"), at + ".value")));
             case "minecraft:styled" -> throw new UnsupportedNmsCall("fromFurnace(number_format)", "there is no way yet to convert the NBT style of the styled number format back to a shim Style");
-            default -> throw new IllegalArgumentException(at + ": 모르는 숫자 형식 " + type);
+            default -> throw new IllegalArgumentException(at + ": unknown number format " + type);
         };
     }
 
@@ -607,16 +607,16 @@ final class SchemaPacketReverse {
                     : net.minecraft.sounds.SoundEvent.createVariableRangeEvent(loc);
             return net.minecraft.core.Holder.direct(ev);
         }
-        if (!(v instanceof String name)) throw new IllegalArgumentException(at + ": " + registry + " 값은 이름이어야 한다: " + v);
+        if (!(v instanceof String name)) throw new IllegalArgumentException(at + ": " + registry + " value must be a name: " + v);
         var loc = net.minecraft.resources.ResourceLocation.parse(name);
         return switch (registry) {
             case "SoundEvent" -> net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.getHolder(loc)
-                    .orElseThrow(() -> new IllegalArgumentException(at + ": 소리 레지스트리에 없는 이름 " + name));
+                    .orElseThrow(() -> new IllegalArgumentException(at + ": name missing from the sound registry " + name));
             case "MobEffect" -> net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getHolder(loc)
-                    .orElseThrow(() -> new IllegalArgumentException(at + ": 효과 레지스트리에 없는 이름 " + name));
+                    .orElseThrow(() -> new IllegalArgumentException(at + ": name missing from the effect registry " + name));
             case "Attribute" -> reference(net.minecraft.core.registries.Registries.ATTRIBUTE, name, null);
             case "DimensionType" -> reference(net.minecraft.core.registries.Registries.DIMENSION_TYPE, name, null);
-            default -> throw new IllegalArgumentException(at + ": Holder<" + registry + "> 는 아직 다루지 않는다");
+            default -> throw new IllegalArgumentException(at + ": Holder<" + registry + "> is not handled yet");
         };
     }
 
@@ -632,11 +632,11 @@ final class SchemaPacketReverse {
 
     static Number num(Object v, String at) {
         if (v instanceof Number n) return n;
-        throw new IllegalArgumentException(at + " 은 수여야 한다: " + v);
+        throw new IllegalArgumentException(at + " must be a number: " + v);
     }
 
     static Object need(Object v, String at) {
-        if (v == null) throw new IllegalArgumentException(at + " 이 null 이다");
+        if (v == null) throw new IllegalArgumentException(at + " is null");
         return v;
     }
 }

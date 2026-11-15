@@ -146,7 +146,7 @@ public final class ServerboundBridge {
      */
     public static ServerboundPacket toFurnace(Packet<?> shim) {
         String call = "Connection#read(" + (shim == null ? "null" : shim.getClass().getName()) + ")";
-        if (shim == null) throw new IllegalArgumentException("패킷이 null 이다");
+        if (shim == null) throw new IllegalArgumentException("the packet is null");
         PacketType<?> t = furnaceType(shim.getClass());
         if (t == null) {
             throw new UnsupportedNmsCall(call, "not a packet shim this server receives on a play connection (clientbound, login stage, a class made by a plugin, etc.) - to inject it as received, use Furnace PacketService.receive");
@@ -170,7 +170,7 @@ public final class ServerboundBridge {
             case net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket c -> new ServerboundSetCarriedItemPacket(c.getSlot());
             case net.minecraft.network.protocol.game.ServerboundSignUpdatePacket c -> {
                 String[] lines = need(c.getLines(), "lines");
-                if (lines.length != 4) throw new IllegalArgumentException("표지판 줄은 4개여야 한다(바닐라도 4줄만 쓴다): " + lines.length);
+                if (lines.length != 4) throw new IllegalArgumentException("a sign must have exactly 4 lines (vanilla also writes only 4): " + lines.length);
                 for (int i = 0; i < 4; i++) need(lines[i], "lines[" + i + "]");
                 yield new ServerboundSignUpdatePacket(need(c.getPos(), "pos").furnace(), c.isFrontText(), List.of(lines));
             }
@@ -245,7 +245,7 @@ public final class ServerboundBridge {
                         yield new ServerboundInteractPacket(id, ServerboundInteractPacket.Action.INTERACT_AT, hand((InteractionHand) value(action, "hand"), "action.hand"),
                                 (float) at.x, (float) at.y, (float) at.z, sneaking);
                     }
-                    default -> throw new IllegalArgumentException("모르는 상호작용 동작 " + type);
+                    default -> throw new IllegalArgumentException("unknown interaction action " + type);
                 };
             } catch (ReflectiveOperationException e) {
                 throw new IllegalStateException(e);
@@ -254,7 +254,7 @@ public final class ServerboundBridge {
 
         private static Class<?> nested(String simple) {
             for (Class<?> c : PACKET.getDeclaredClasses()) if (c.getSimpleName().equals(simple)) return c;
-            throw new IllegalStateException("ServerboundInteractPacket shim 에 " + simple + " 이 없다");
+            throw new IllegalStateException("ServerboundInteractPacket shim has no " + simple);
         }
 
         private static Object value(Object owner, String name) throws ReflectiveOperationException {
@@ -294,7 +294,7 @@ public final class ServerboundBridge {
             k.setAccessible(true);
             return k;
         } catch (NoSuchMethodException e) {
-            throw new IllegalStateException(c.getName() + " shim 생성자가 바닐라 모양이 아니다", e);
+            throw new IllegalStateException(c.getName() + " shim constructor does not have the vanilla shape", e);
         }
     }
 
@@ -304,7 +304,7 @@ public final class ServerboundBridge {
             f.setAccessible(true);
             return f;
         } catch (NoSuchFieldException e) {
-            throw new IllegalStateException(c.getName() + " shim 에 " + name + " 이 없다", e);
+            throw new IllegalStateException(c.getName() + " shim has no " + name, e);
         }
     }
 
@@ -314,7 +314,7 @@ public final class ServerboundBridge {
             m.setAccessible(true);
             return m;
         } catch (NoSuchMethodException e) {
-            throw new IllegalStateException(c.getName() + " shim 에 " + name + " 이 없다", e);
+            throw new IllegalStateException(c.getName() + " shim has no " + name, e);
         }
     }
 
@@ -327,7 +327,7 @@ public final class ServerboundBridge {
     }
 
     private static <T> T need(T v, String at) {
-        if (v == null) throw new IllegalArgumentException(at + " 이 null 이다");
+        if (v == null) throw new IllegalArgumentException(at + " is null");
         return v;
     }
 

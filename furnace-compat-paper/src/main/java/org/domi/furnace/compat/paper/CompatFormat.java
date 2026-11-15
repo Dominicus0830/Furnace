@@ -77,7 +77,7 @@ public final class CompatFormat implements PluginFormat {
         try {
             map = ConfigFormat.YAML.parse(text).toMap();
         } catch (RuntimeException e) {
-            throw new IllegalArgumentException(fileName + " 을 읽을 수 없다: " + e.getMessage(), e);
+            throw new IllegalArgumentException(fileName + " cannot be read: " + e.getMessage(), e);
         }
         if (fileName.equals("paper-plugin.yml")) map = fromPaper(map);
         PluginDescriptionFile pdf;
@@ -107,7 +107,7 @@ public final class CompatFormat implements PluginFormat {
     static void checkApiVersion(PluginDescriptionFile pdf) {
         String v = pdf.getAPIVersion();
         if (v == null) return;
-        if (isNewerThanServerApi(v)) throw new IllegalArgumentException("Unsupported API version " + v + " (이 서버는 Bukkit API 1." + SUPPORTED_MINOR + "." + SUPPORTED_PATCH + " 까지 받는다)");
+        if (isNewerThanServerApi(v)) throw new IllegalArgumentException("Unsupported API version " + v + " (this server accepts up to Bukkit API 1." + SUPPORTED_MINOR + "." + SUPPORTED_PATCH + ")");
     }
 
     /** api-version 문자열("1.21", "1.20.6")이 이 서버의 Bukkit API(1.21.1)보다 새로운가. 읽을 수 없으면 IllegalArgumentException. */
@@ -119,7 +119,7 @@ public final class CompatFormat implements PluginFormat {
             int patch = p.length > 2 ? Integer.parseInt(p[2]) : 0;
             return major > 1 || (major == 1 && (minor > SUPPORTED_MINOR || (minor == SUPPORTED_MINOR && patch > SUPPORTED_PATCH)));
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("api-version '" + v + "' 을 읽을 수 없다");
+            throw new IllegalArgumentException("api-version '" + v + "' cannot be parsed");
         }
     }
 
@@ -226,7 +226,7 @@ public final class CompatFormat implements PluginFormat {
     @Override
     public FurnacePlugin create(PluginContext context, Class<?> main) throws ReflectiveOperationException {
         if (!JavaPlugin.class.isAssignableFrom(main)) {
-            throw new IllegalArgumentException("main 클래스가 org.bukkit.plugin.java.JavaPlugin 을 상속하지 않는다: " + main.getName());
+            throw new IllegalArgumentException("the main class does not extend org.bukkit.plugin.java.JavaPlugin: " + main.getName());
         }
         createdPlugin = true;
         Bukkit.setServer(org.bukkit.craftbukkit.CraftServer.INSTANCE);

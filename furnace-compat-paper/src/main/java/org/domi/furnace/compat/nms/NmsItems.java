@@ -24,7 +24,7 @@ public final class NmsItems {
                 if (r == null) {
                     r = new NmsDefaultedRegistry<>(Registries.ITEM, ResourceLocation.withDefaultNamespace("air"));
                     var ids = Furnace.server().gameRegistries().builtIn("minecraft:item");
-                    if (ids.isEmpty()) throw new IllegalStateException("서버가 아이템 레지스트리 목록을 주지 않았다");
+                    if (ids.isEmpty()) throw new IllegalStateException("the server did not provide the item registry list");
                     for (String id : ids) r.add(ResourceLocation.parse(id), Item.byKey(id));
                     registry = r;
                 }

@@ -95,7 +95,7 @@ public final class CraftWorld implements World {
     public org.bukkit.entity.Entity spawnEntity(org.bukkit.Location loc, org.bukkit.entity.EntityType type) {
         if (type == null || type == org.bukkit.entity.EntityType.UNKNOWN) throw new IllegalArgumentException("Cannot spawn an entity of type " + type);
         org.domi.furnace.api.entity.Entity e = handle.spawnEntityNow(type.getKey().toString(), Compat.location(loc));
-        if (e == null) throw new IllegalStateException("엔티티 스폰이 취소됐다(스폰 이벤트를 취소한 플러그인이 있다): " + type);
+        if (e == null) throw new IllegalStateException("entity spawn was cancelled (a plugin cancelled the spawn event): " + type);
         return Compat.entity(e);
     }
 
@@ -121,7 +121,7 @@ public final class CraftWorld implements World {
             throw new UnsupportedFeature("World#spawn(" + clazz.getSimpleName() + ")", "there is no adapter yet that wraps this Bukkit entity type (only ArmorStand and Pig)");
         }
         org.domi.furnace.api.entity.Entity e = handle.spawnEntityNow(key, Compat.location(location));
-        if (e == null) throw new IllegalStateException("엔티티 스폰이 취소됐다(스폰 이벤트를 취소한 플러그인이 있다): " + clazz.getSimpleName());
+        if (e == null) throw new IllegalStateException("entity spawn was cancelled (a plugin cancelled the spawn event): " + clazz.getSimpleName());
         T out = clazz.cast(Compat.entity(e));
         if (function != null) function.accept(out);
         return out;

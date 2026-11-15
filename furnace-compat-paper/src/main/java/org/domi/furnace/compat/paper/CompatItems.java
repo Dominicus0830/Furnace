@@ -12,7 +12,7 @@ public final class CompatItems {
 
     /** 평범한 ItemStack 의 새 칸(ItemStack 생성자용). */
     public static ItemSlot plainSlot(Material type, int amount) {
-        if (type == null) throw new IllegalArgumentException("Material 이 null");
+        if (type == null) throw new IllegalArgumentException("Material is null");
         return new PlainSlot(new org.domi.furnace.api.item.ItemStack(type.getKey().toString(), Math.max(0, amount), Map.of(), Set.of()), amount);
     }
 

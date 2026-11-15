@@ -21,14 +21,14 @@ public final class NmsBlockEntityTypes {
     /** 이름 → 종류(모르면 IllegalArgumentException — 어디서 왔는지 at 에 적는다). */
     public static BlockEntityType<?> byName(String name, String at) {
         BlockEntityType<?> t = mapped().get(ResourceLocation.parse(name));
-        if (t == null) throw new IllegalArgumentException(at + " 은 모르는 블록 엔티티 종류다: " + name);
+        if (t == null) throw new IllegalArgumentException(at + " is an unknown block entity type: " + name);
         return t;
     }
 
     /** 종류 → 이름(레지스트리에 없는 것이면 IllegalArgumentException). */
     public static String name(BlockEntityType<?> type, String at) {
         ResourceLocation k = mapped().getKey(type);
-        if (k == null) throw new IllegalArgumentException(at + " 은 레지스트리에 없는 블록 엔티티 종류다: " + type);
+        if (k == null) throw new IllegalArgumentException(at + " is a block entity type missing from the registry: " + type);
         return k.toString();
     }
 
@@ -40,7 +40,7 @@ public final class NmsBlockEntityTypes {
                 if (r == null) {
                     r = new NmsMappedRegistry<>(Registries.BLOCK_ENTITY_TYPE);
                     var ids = Furnace.server().gameRegistries().builtIn("minecraft:block_entity_type");
-                    if (ids.isEmpty()) throw new IllegalStateException("서버가 블록 엔티티 종류 레지스트리 목록을 주지 않았다");
+                    if (ids.isEmpty()) throw new IllegalStateException("the server did not provide the block entity type registry list");
                     for (String id : ids) {
                         ResourceLocation loc = ResourceLocation.parse(id);
                         r.add(loc, new BlockEntityType<>(loc));

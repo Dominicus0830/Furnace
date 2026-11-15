@@ -89,9 +89,9 @@ public class CraftBanner extends CraftBlockEntityState implements org.bukkit.blo
         NbtList out = new NbtList();
         for (int i = 0; i < patterns.size(); i++) {
             Pattern p = patterns.get(i);
-            if (p == null) throw new IllegalArgumentException("Banner 무늬 " + i + "번째가 null 이다");
-            if (p.getPattern() == null) throw new IllegalArgumentException("Banner 무늬 " + i + "번째의 무늬 종류(PatternType)가 null 이다");
-            if (p.getColor() == null) throw new IllegalArgumentException("Banner 무늬 " + i + "번째의 색(DyeColor)이 null 이다");
+            if (p == null) throw new IllegalArgumentException("Banner pattern " + i + " is null");
+            if (p.getPattern() == null) throw new IllegalArgumentException("Banner pattern " + i + " has a null PatternType");
+            if (p.getColor() == null) throw new IllegalArgumentException("Banner pattern " + i + " has a null DyeColor");
             NamespacedKey key = p.getPattern().getKey();
             if (Registry.BANNER_PATTERN.get(key) == null) {
                 throw new IllegalArgumentException("No Reference holder found for " + p.getPattern()

@@ -87,7 +87,7 @@ final class ChatValues {
     static int ackMask(BitSet bits, String at) {
         need(bits, at);
         if (bits.length() > LAST_SEEN_BITS) {
-            throw new IllegalArgumentException(at + " 는 " + LAST_SEEN_BITS + "칸이다(바닐라도 더 큰 비트는 쓰다 실패한다): " + bits);
+            throw new IllegalArgumentException(at + " must have " + LAST_SEEN_BITS + " bits (vanilla also fails to write more bits): " + bits);
         }
         long[] words = bits.toLongArray();
         return words.length == 0 ? 0 : (int) words[0];
@@ -101,12 +101,12 @@ final class ChatValues {
         try {
             return KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(need(a, at)));
         } catch (GeneralSecurityException e) {
-            throw new IllegalArgumentException(at + " 가 RSA 공개 키(X.509)가 아니다: " + e.getMessage(), e);
+            throw new IllegalArgumentException(at + " is not an RSA public key (X.509): " + e.getMessage(), e);
         }
     }
 
     private static <T> T need(T v, String at) {
-        if (v == null) throw new IllegalArgumentException(at + " 가 null 이다(바닐라 패킷에는 반드시 있는 값)");
+        if (v == null) throw new IllegalArgumentException(at + " is null (vanilla packets always carry this value)");
         return v;
     }
 }

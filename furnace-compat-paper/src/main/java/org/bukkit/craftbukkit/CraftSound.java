@@ -17,28 +17,28 @@ public class CraftSound {
     private CraftSound() {}
 
     public static Sound minecraftToBukkit(SoundEvent minecraft) {
-        if (minecraft == null) throw new IllegalArgumentException("minecraft 가 null");
+        if (minecraft == null) throw new IllegalArgumentException("minecraft is null");
         ResourceLocation loc = BuiltInRegistries.SOUND_EVENT.getResourceKey(minecraft).orElseThrow().location();
         Sound bukkit = Sound.byKey(new NamespacedKey(loc.getNamespace(), loc.getPath()));
-        if (bukkit == null) throw new IllegalArgumentException("Bukkit 소리에 없는 소리: " + loc);
+        if (bukkit == null) throw new IllegalArgumentException("sound missing from the Bukkit sounds: " + loc);
         return bukkit;
     }
 
     public static SoundEvent bukkitToMinecraft(Sound bukkit) {
-        if (bukkit == null) throw new IllegalArgumentException("bukkit 가 null");
+        if (bukkit == null) throw new IllegalArgumentException("bukkit is null");
         NamespacedKey k = bukkit.getKey();
         return BuiltInRegistries.SOUND_EVENT.getOptional(ResourceLocation.fromNamespaceAndPath(k.getNamespace(), k.getKey())).orElseThrow();
     }
 
     public static Holder<SoundEvent> bukkitToMinecraftHolder(Sound bukkit) {
-        if (bukkit == null) throw new IllegalArgumentException("bukkit 가 null");
+        if (bukkit == null) throw new IllegalArgumentException("bukkit is null");
         if (BuiltInRegistries.SOUND_EVENT.wrapAsHolder(bukkitToMinecraft(bukkit)) instanceof Holder.Reference<SoundEvent> holder) return holder;
         throw new IllegalArgumentException("No Reference holder found for " + bukkit
                 + ", this can happen if a plugin creates its own sound effect with out properly registering it.");
     }
 
     public static Sound minecraftHolderToBukkit(Holder<SoundEvent> minecraft) {
-        if (minecraft == null) throw new IllegalArgumentException("minecraft 가 null");
+        if (minecraft == null) throw new IllegalArgumentException("minecraft is null");
         return minecraftToBukkit(minecraft.value());
     }
 }

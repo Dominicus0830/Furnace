@@ -336,7 +336,7 @@ public final class Compat {
     public static org.domi.furnace.api.world.Location location(org.bukkit.Location l) {
         if (l == null) return null;
         World w = l.getWorld();
-        if (w == null) throw new IllegalArgumentException("월드가 없는 Location 은 옮길 수 없다: " + l);
+        if (w == null) throw new IllegalArgumentException("a Location without a world cannot be converted: " + l);
         return new org.domi.furnace.api.world.Location(dimension(w), l.getX(), l.getY(), l.getZ(), l.getYaw(), l.getPitch());
     }
 
@@ -344,7 +344,7 @@ public final class Compat {
     public static String dimension(World w) {
         if (w instanceof CraftWorld c) return c.furnaceHandle().dimension();
         org.domi.furnace.api.world.World f = state().furnace.worldNamed(w.getName());
-        if (f == null) throw new IllegalArgumentException("Furnace 에 없는 월드: " + w.getName());
+        if (f == null) throw new IllegalArgumentException("world unknown to Furnace: " + w.getName());
         return f.dimension();
     }
 
@@ -415,7 +415,7 @@ public final class Compat {
         java.util.ArrayList<org.domi.furnace.api.entity.Player> creating = CREATING.get();
         if (creating == null) CREATING.set(creating = new java.util.ArrayList<>(2));
         for (var c : creating) {
-            if (c == p) throw new IllegalStateException("CraftPlayer 생성 중에 같은 플레이어를 다시 감쌀 수 없다: " + p.name());
+            if (c == p) throw new IllegalStateException("the same player cannot be wrapped again while a CraftPlayer is being created: " + p.name());
         }
         creating.add(p);
         try {
@@ -631,7 +631,7 @@ public final class Compat {
         if (s instanceof CompatConsole) return state().furnace.console();
         if (s instanceof CompatSender c) return c.handle();
         if (s instanceof CraftEntity e && e.furnaceHandle() instanceof org.domi.furnace.api.command.CommandSender cs) return cs;
-        throw new IllegalArgumentException("Furnace 가 모르는 CommandSender 구현이다: " + s.getClass().getName());
+        throw new IllegalArgumentException("CommandSender implementation unknown to Furnace: " + s.getClass().getName());
     }
 
     // ------------------------------------------------------------------ 글

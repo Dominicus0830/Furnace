@@ -65,10 +65,10 @@ public final class NmsMapDecorations {
                 if (r == null) {
                     r = new NmsMappedRegistry<>(Registries.MAP_DECORATION_TYPE);
                     var ids = Furnace.server().gameRegistries().builtIn("minecraft:map_decoration_type");
-                    if (ids.isEmpty()) throw new IllegalStateException("서버가 지도 표시 종류 레지스트리 목록을 주지 않았다");
+                    if (ids.isEmpty()) throw new IllegalStateException("the server did not provide the map decoration type registry list");
                     for (String id : ids) {
                         MapDecorationType row = ROWS.get(id);
-                        if (row == null) throw new IllegalStateException("정의가 없는 서버 지도 표시 종류: " + id);
+                        if (row == null) throw new IllegalStateException("server map decoration type without a definition: " + id);
                         r.add(ResourceLocation.parse(id), row);
                     }
                     registry = r;
@@ -81,6 +81,6 @@ public final class NmsMapDecorations {
     /** MapDecorationTypes 상수용: 이름의 등록된 손잡이. */
     public static Holder<MapDecorationType> holder(String name) {
         return mapped().getHolder(ResourceLocation.withDefaultNamespace(name))
-                .orElseThrow(() -> new IllegalStateException("서버 지도 표시 종류 레지스트리에 없는 이름: " + name));
+                .orElseThrow(() -> new IllegalStateException("name missing from the server map decoration type registry: " + name));
     }
 }

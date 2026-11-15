@@ -353,7 +353,7 @@ public final class CraftServer implements Server {
         try {
             c = org.domi.furnace.api.config.ConfigFormat.JSON.parse(json);
         } catch (RuntimeException e) {
-            throw new IllegalArgumentException("createWorld('" + name + "'): generatorSettings 가 JSON 객체가 아니다 — " + e.getMessage(), e);
+            throw new IllegalArgumentException("createWorld('" + name + "'): generatorSettings is not a JSON object - " + e.getMessage(), e);
         }
         if (!c.isList("layers")) {
             if (!c.isEmpty()) LOG.warning(CompatLang.t("compat.create-world-flat-no-layers", name));

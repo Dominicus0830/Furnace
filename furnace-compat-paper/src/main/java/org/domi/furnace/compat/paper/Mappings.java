@@ -477,7 +477,7 @@ final class Mappings {
         private static org.domi.furnace.api.entity.Player handle(Player p) {
             Objects.requireNonNull(p, "player");
             if (p instanceof org.bukkit.craftbukkit.entity.CraftPlayer c) return c.furnaceHandle();
-            throw new IllegalArgumentException("Furnace 가 모르는 Player 구현이다: " + p.getClass().getName());
+            throw new IllegalArgumentException("Player implementation unknown to Furnace: " + p.getClass().getName());
         }
     }
 

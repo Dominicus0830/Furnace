@@ -114,7 +114,7 @@ public class YamlConfiguration extends FileConfiguration {
 
     @Override
     public void loadFromString(String contents) throws InvalidConfigurationException {
-        if (contents == null) throw new IllegalArgumentException("contents 가 null");
+        if (contents == null) throw new IllegalArgumentException("contents is null");
         ConfigSection fresh;
         try {
             fresh = contents.isBlank() ? new ConfigSection() : ConfigFormat.YAML.parse(contents);
@@ -150,7 +150,7 @@ public class YamlConfiguration extends FileConfiguration {
     void setFooterLines(List<String> lines) { furnaceRoot().setFooter(lines); }
 
     public static YamlConfiguration loadConfiguration(File file) {
-        if (file == null) throw new IllegalArgumentException("File 이 null");
+        if (file == null) throw new IllegalArgumentException("File is null");
         YamlConfiguration config = new YamlConfiguration();
         try {
             config.load(file);
@@ -163,7 +163,7 @@ public class YamlConfiguration extends FileConfiguration {
     }
 
     public static YamlConfiguration loadConfiguration(Reader reader) {
-        if (reader == null) throw new IllegalArgumentException("Reader 가 null");
+        if (reader == null) throw new IllegalArgumentException("Reader is null");
         YamlConfiguration config = new YamlConfiguration();
         try {
             config.load(reader);

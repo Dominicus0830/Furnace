@@ -22,7 +22,7 @@ public abstract class FileConfiguration extends MemoryConfiguration {
     public FileConfiguration(Configuration defaults) { super(defaults); }
 
     public void save(File file) throws IOException {
-        if (file == null) throw new IllegalArgumentException("File 이 null");
+        if (file == null) throw new IllegalArgumentException("File is null");
         File parent = file.getAbsoluteFile().getParentFile();
         if (parent != null) Files.createDirectories(parent.toPath());
         Files.writeString(file.toPath(), saveToString(), StandardCharsets.UTF_8);
@@ -33,7 +33,7 @@ public abstract class FileConfiguration extends MemoryConfiguration {
     public abstract String saveToString();
 
     public void load(File file) throws FileNotFoundException, IOException, InvalidConfigurationException {
-        if (file == null) throw new IllegalArgumentException("File 이 null");
+        if (file == null) throw new IllegalArgumentException("File is null");
         if (!file.exists()) throw new FileNotFoundException(file.getPath());
         loadFromString(Files.readString(file.toPath(), StandardCharsets.UTF_8));
     }
