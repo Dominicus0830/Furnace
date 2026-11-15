@@ -33,7 +33,7 @@ public final class GenericPacket implements ClientboundPacket, ServerboundPacket
     private GenericPacket(PacketType<GenericPacket> type, PacketStruct fields) {
         this.type = Objects.requireNonNull(type, "type");
         if (type.packetClass() != GenericPacket.class) {
-            throw new IllegalArgumentException(type + " 은 타입 레코드(" + type.packetClass().getSimpleName() + ")로 다룬다");
+            throw new IllegalArgumentException(type + " is handled as a typed record (" + type.packetClass().getSimpleName() + ")");
         }
         this.fields = fields;
     }
@@ -57,7 +57,7 @@ public final class GenericPacket implements ClientboundPacket, ServerboundPacket
 
     /** 모든 필드. */
     public PacketStruct fields() {
-        if (fields == null) throw new IllegalStateException(type + " 은 이 서버 버전에서 내용을 읽을 수 없다(관찰·취소만)");
+        if (fields == null) throw new IllegalStateException(type + " has content that cannot be read in this server version (observe and cancel only)");
         return fields;
     }
 
@@ -85,5 +85,5 @@ public final class GenericPacket implements ClientboundPacket, ServerboundPacket
     public int hashCode() { return type.hashCode() * 31 + Objects.hashCode(fields); }
 
     @Override
-    public String toString() { return "GenericPacket[" + type + (fields == null ? ", 읽을 수 없음" : ", " + fields) + "]"; }
+    public String toString() { return "GenericPacket[" + type + (fields == null ? ", unreadable" : ", " + fields) + "]"; }
 }

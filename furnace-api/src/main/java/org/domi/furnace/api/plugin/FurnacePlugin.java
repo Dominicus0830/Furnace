@@ -24,7 +24,7 @@ public abstract class FurnacePlugin {
 
     /** 로더 전용 — 한 번만 부를 수 있다. */
     public final void init(PluginContext ctx) {
-        if (context != null) throw new IllegalStateException("이미 초기화된 플러그인: " + ctx.description().name());
+        if (context != null) throw new IllegalStateException("plugin is already initialized: " + ctx.description().name());
         this.context = ctx;
         this.tasks = new PluginTasks(this, ctx.server().scheduler(), ctx.server().asyncExecutor(), ctx.server().profiler());
     }
@@ -129,7 +129,7 @@ public abstract class FurnacePlugin {
         try {
             c.close();
         } catch (Throwable t) {
-            logger().log(java.util.logging.Level.WARNING, "자원을 닫다가 예외", t);
+            logger().log(java.util.logging.Level.WARNING, "Exception while closing a resource", t);
         }
     }
 
@@ -143,7 +143,7 @@ public abstract class FurnacePlugin {
         Path target = dataFolder().resolve(name);
         if (!replace && Files.exists(target)) return;
         try (InputStream in = resource(name)) {
-            if (in == null) throw new IllegalArgumentException("jar 에 리소스가 없다: " + name);
+            if (in == null) throw new IllegalArgumentException("no such resource in the jar: " + name);
             Files.createDirectories(target.getParent());
             Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {

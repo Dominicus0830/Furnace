@@ -70,7 +70,7 @@ public final class PacketServiceImpl implements PacketService {
     @Override
     public EventSubscription listen(FurnacePlugin owner, EventPriority priority, PacketListener<Packet> listener, PacketType<?>... types) {
         Objects.requireNonNull(owner, "owner");
-        if (types.length == 0) throw new IllegalArgumentException("종류가 하나는 있어야 한다");
+        if (types.length == 0) throw new IllegalArgumentException("at least one type is required");
         for (PacketType<?> t : types) Objects.requireNonNull(t, "type");
         return add(owner, priority, listener, List.of(types));
     }
@@ -145,11 +145,11 @@ public final class PacketServiceImpl implements PacketService {
     /** 번들 안 패킷을 모두 먼저 인코딩한다 — 하나라도 실패하면 아무것도 보내지 않는다. 리스너는 보낼 때(이벤트 루프) 하나씩 본다. */
     public java.util.List<RawPacket> encodeBundle(java.util.List<? extends ClientboundPacket> packets, boolean silent) {
         Objects.requireNonNull(packets, "packets");
-        if (packets.size() > BUNDLE_MAX) throw new IllegalArgumentException("번들에 패킷이 너무 많다: " + packets.size() + " > " + BUNDLE_MAX);
+        if (packets.size() > BUNDLE_MAX) throw new IllegalArgumentException("too many packets in the bundle: " + packets.size() + " > " + BUNDLE_MAX);
         java.util.List<RawPacket> out = new ArrayList<>(packets.size());
         for (ClientboundPacket p : packets) {
             Objects.requireNonNull(p, "packet");
-            if (p.type() == org.domi.furnace.api.packet.PacketTypes.Clientbound.BUNDLE_DELIMITER) throw new IllegalArgumentException("번들 구분자는 서버가 넣는다");
+            if (p.type() == org.domi.furnace.api.packet.PacketTypes.Clientbound.BUNDLE_DELIMITER) throw new IllegalArgumentException("the bundle delimiter is added by the server");
             out.add(encodeOutbound(p, silent));
         }
         return out;
@@ -172,9 +172,9 @@ public final class PacketServiceImpl implements PacketService {
 
     private RawPacket encodeOutbound(ClientboundPacket packet, boolean silent) {
         Objects.requireNonNull(packet, "packet");
-        if (packet.type().direction() != PacketDirection.CLIENTBOUND) throw new IllegalArgumentException("서버→클라이언트 패킷이 아니다: " + packet.type());
+        if (packet.type().direction() != PacketDirection.CLIENTBOUND) throw new IllegalArgumentException("not a server-to-client packet: " + packet.type());
         if (packet.type() == org.domi.furnace.api.packet.PacketTypes.Clientbound.BUNDLE_DELIMITER) {   // 혼자 보내면 짝이 어긋나 클라이언트가 뒤 패킷을 묶음으로 쌓다 끊긴다
-            throw new IllegalArgumentException("번들 구분자는 서버가 넣는다 — sendBundle 을 쓴다");
+            throw new IllegalArgumentException("the bundle delimiter is added by the server - use sendBundle");
         }
         ByteBuf b = Unpooled.buffer();
         try {
@@ -187,7 +187,7 @@ public final class PacketServiceImpl implements PacketService {
 
     private void inject(Player player, ServerboundPacket packet, boolean silent) {
         Objects.requireNonNull(packet, "packet");
-        if (packet.type().direction() != PacketDirection.SERVERBOUND) throw new IllegalArgumentException("클라이언트→서버 패킷이 아니다: " + packet.type());
+        if (packet.type().direction() != PacketDirection.SERVERBOUND) throw new IllegalArgumentException("not a client-to-server packet: " + packet.type());
         org.domi.furnace.server.entity.Player p = serverPlayer(player);
         ByteBuf body = Unpooled.buffer();
         ByteBuf frame;
@@ -210,7 +210,7 @@ public final class PacketServiceImpl implements PacketService {
     private static org.domi.furnace.server.entity.Player serverPlayer(Player player) {
         Objects.requireNonNull(player, "player");
         if (player instanceof PlayerHandle ph) return ph.handle();
-        throw new IllegalArgumentException("이 서버의 플레이어가 아니다: " + player);
+        throw new IllegalArgumentException("not a player of this server: " + player);
     }
 
     @Override
@@ -388,7 +388,7 @@ public final class PacketServiceImpl implements PacketService {
     private static final class EventImpl implements PacketEvent {
 
         /** 구분자 하나만 빠지면 짝이 어긋나 클라이언트가 뒤 패킷을 묶음으로 쌓다가(4096개) 끊긴다. */
-        private static final String BUNDLE_PAIR = "번들 구분자는 취소·바꾸기를 할 수 없다(짝이 어긋나면 클라이언트가 끊긴다) — 묶음 안의 패킷을 취소한다";
+        private static final String BUNDLE_PAIR = "A bundle delimiter cannot be cancelled or replaced (the client disconnects when the pair is broken) - cancel the packets inside the bundle instead";
 
         private final Player player;
         private final PacketType<?> type;
@@ -417,12 +417,12 @@ public final class PacketServiceImpl implements PacketService {
 
         @Override
         public void setPacket(Packet packet) {
-            if (monitor) throw new IllegalStateException("MONITOR 리스너는 패킷을 바꿀 수 없다");
+            if (monitor) throw new IllegalStateException("a MONITOR listener cannot change the packet");
             Objects.requireNonNull(packet, "packet");
-            if (!readable) throw new UnsupportedOperationException("내용을 읽지 못한 패킷은 바꿀 수 없다: " + type);
+            if (!readable) throw new UnsupportedOperationException("a packet whose content could not be read cannot be replaced: " + type);
             if (type == org.domi.furnace.api.packet.PacketTypes.Clientbound.BUNDLE_DELIMITER) throw new UnsupportedOperationException(BUNDLE_PAIR);
-            if (packet.type() != type) throw new IllegalArgumentException("같은 종류여야 한다: " + type + " ← " + packet.type());
-            if (packet instanceof GenericPacket g && !g.readable()) throw new IllegalArgumentException("내용 없는 패킷으로는 바꿀 수 없다: " + type);
+            if (packet.type() != type) throw new IllegalArgumentException("must be the same type: " + type + " ← " + packet.type());
+            if (packet instanceof GenericPacket g && !g.readable()) throw new IllegalArgumentException("cannot be replaced by a packet without content: " + type);
             // 쓸 수 없는 값(빠진·모르는 필드, 범위 밖, 없는 이름)은 여기서 리스너에게 바로 알린다 — 나중에 실패하면 원래 패킷이 나가 버린다
             ByteBuf check = Unpooled.buffer();
             try {
@@ -439,7 +439,7 @@ public final class PacketServiceImpl implements PacketService {
 
         @Override
         public void setCancelled(boolean c) {
-            if (monitor) throw new IllegalStateException("MONITOR 리스너는 취소할 수 없다");
+            if (monitor) throw new IllegalStateException("a MONITOR listener cannot cancel");
             if (c && type == org.domi.furnace.api.packet.PacketTypes.Clientbound.BUNDLE_DELIMITER) throw new UnsupportedOperationException(BUNDLE_PAIR);
             cancelled = c;
         }

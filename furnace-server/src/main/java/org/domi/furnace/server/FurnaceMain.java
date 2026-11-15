@@ -784,7 +784,7 @@ public final class FurnaceMain {
             try {
                 task.run();
             } catch (Throwable t) {
-                GLOBAL_ERRORS.report("자동 저장(level.dat)", t);
+                GLOBAL_ERRORS.report(Lang.t("error.label.autosave-level-dat"), t);
             } finally {
                 scheduler.global().executeDelayed(this, period);
             }
@@ -858,7 +858,7 @@ public final class FurnaceMain {
                 next += period;
                 task.run();
             } catch (Throwable t) {
-                errors.report("전역 박동", t);   // 예전엔 future 에 담겨 사라졌다
+                errors.report(Lang.t("error.label.global-tick"), t);   // 예전엔 future 에 담겨 사라졌다
             } finally {
                 schedule();
             }

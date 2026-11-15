@@ -85,7 +85,7 @@ public final class EntityData767 {
 
     public static int serializerId(EntityDataType<?> type) {
         Integer i = SERIALIZER_IDS.get(type);
-        if (i == null) throw new IllegalArgumentException("이 서버 버전에 없는 값 종류: " + type);
+        if (i == null) throw new IllegalArgumentException("value kind that does not exist in this server version: " + type);
         return i;
     }
 
@@ -139,7 +139,7 @@ public final class EntityData767 {
     private static Map<String, java.util.Set<String>> loadOwners() {
         Map<String, java.util.Set<String>> m = new HashMap<>();
         try (var in = EntityData767.class.getClassLoader().getResourceAsStream("entity_data/owners-1.21.1.txt")) {
-            if (in == null) throw new IllegalStateException("entity_data/owners-1.21.1.txt 없음");
+            if (in == null) throw new IllegalStateException("entity_data/owners-1.21.1.txt is missing");
             var r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             for (String line; (line = r.readLine()) != null; ) {
                 line = line.strip();
@@ -156,7 +156,7 @@ public final class EntityData767 {
     private static Map<String, EntityDataType<?>[]> loadLayouts() {
         Map<String, EntityDataType<?>[]> m = new HashMap<>();
         try (var in = EntityData767.class.getClassLoader().getResourceAsStream("entity_data/layouts-1.21.1.txt")) {
-            if (in == null) throw new IllegalStateException("entity_data/layouts-1.21.1.txt 없음");
+            if (in == null) throw new IllegalStateException("entity_data/layouts-1.21.1.txt is missing");
             var r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             for (String line; (line = r.readLine()) != null; ) {
                 line = line.strip();
@@ -165,7 +165,7 @@ public final class EntityData767 {
                 EntityDataType<?>[] l = new EntityDataType<?>[p.length - 1];
                 for (int i = 1; i < p.length; i++) {
                     l[i - 1] = EntityDataType.byName(p[i]);
-                    if (l[i - 1] == null) throw new IllegalStateException("모르는 값 종류 " + p[i] + " (" + p[0] + ")");
+                    if (l[i - 1] == null) throw new IllegalStateException("unknown value kind " + p[i] + " (" + p[0] + ")");
                 }
                 m.put(p[0], l);
             }
@@ -204,7 +204,7 @@ public final class EntityData767 {
             case "rotations" -> new Rotations(b.readFloat(), b.readFloat(), b.readFloat());
             case "block_pos" -> pos(b);
             case "optional_block_pos" -> b.readBoolean() ? Optional.of(pos(b)) : Optional.empty();
-            case "direction" -> enumAt(Direction.values(), Types.readVarInt(b), "방향");
+            case "direction" -> enumAt(Direction.values(), Types.readVarInt(b), "direction");
             case "optional_uuid" -> b.readBoolean() ? Optional.of(Types.readUuid(b)) : Optional.empty();
             case "block_state" -> ApiConvert.block(Types.readVarInt(b), blocks());
             case "optional_block_state" -> {
@@ -215,36 +215,36 @@ public final class EntityData767 {
             case "particle" -> readParticle(b);
             case "particles" -> {
                 int n = Types.readVarInt(b);
-                if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("입자 수 오류: " + n);
+                if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("invalid particle count: " + n);
                 List<Particle> l = new ArrayList<>(n);
                 for (int i = 0; i < n; i++) l.add(readParticle(b));
                 yield List.copyOf(l);
             }
-            case "villager_data" -> new VillagerData(nameAt(Villager.TYPES, Types.readVarInt(b), "주민 종류"),
-                    nameAt(Villager.PROFESSIONS, Types.readVarInt(b), "주민 직업"), Types.readVarInt(b));
+            case "villager_data" -> new VillagerData(nameAt(Villager.TYPES, Types.readVarInt(b), "villager type"),
+                    nameAt(Villager.PROFESSIONS, Types.readVarInt(b), "villager profession"), Types.readVarInt(b));
             case "optional_unsigned_int" -> {
                 int v = Types.readVarInt(b);
                 yield v == 0 ? OptionalInt.empty() : OptionalInt.of(v - 1);
             }
-            case "pose" -> enumAt(Pose.values(), Types.readVarInt(b), "자세");
+            case "pose" -> enumAt(Pose.values(), Types.readVarInt(b), "pose");
             case "cat_variant" -> registryName("minecraft:cat_variant", Types.readVarInt(b));
             case "wolf_variant" -> {   // 바닐라 holder(WOLF_VARIANT, 직접 코덱): 0 = 직접 정의, 등록된 종류 = 번호 + 1
                 int v = Types.readVarInt(b);
-                if (v == 0) throw new IllegalArgumentException("직접 정의된 늑대 종류는 읽지 않는다");
+                if (v == 0) throw new IllegalArgumentException("directly defined wolf variants are not read");
                 yield dataRegistryName("minecraft:wolf_variant", v - 1);
             }
-            case "frog_variant" -> nameAt(List.of(Frog.VARIANTS), Types.readVarInt(b), "개구리 종류");
+            case "frog_variant" -> nameAt(List.of(Frog.VARIANTS), Types.readVarInt(b), "frog variant");
             case "optional_global_pos" -> b.readBoolean() ? Optional.of(new GlobalPos(Types.readString(b, STRING_MAX), pos(b))) : Optional.empty();
             case "painting_variant" -> {
                 int v = Types.readVarInt(b);
-                if (v == 0) throw new IllegalArgumentException("직접 정의된 그림 종류는 읽지 않는다");
+                if (v == 0) throw new IllegalArgumentException("directly defined painting variants are not read");
                 yield dataRegistryName("minecraft:painting_variant", v - 1);
             }
             case "sniffer_state" -> stateAt(SNIFFER_STATES, Types.readVarInt(b));
             case "armadillo_state" -> stateAt(ARMADILLO_STATES, Types.readVarInt(b));
             case "vector3" -> new Vector3f(b.readFloat(), b.readFloat(), b.readFloat());
             case "quaternion" -> new Quaternionf(b.readFloat(), b.readFloat(), b.readFloat(), b.readFloat());
-            default -> throw new IllegalStateException("값 종류 " + t);
+            default -> throw new IllegalStateException("value kind " + t);
         };
     }
 
@@ -298,8 +298,8 @@ public final class EntityData767 {
             }
             case "villager_data" -> {
                 VillagerData d = (VillagerData) v;
-                Types.writeVarInt(o, indexIn(Villager.TYPES, d.type(), "주민 종류"));
-                Types.writeVarInt(o, indexIn(Villager.PROFESSIONS, d.profession(), "주민 직업"));
+                Types.writeVarInt(o, indexIn(Villager.TYPES, d.type(), "villager type"));
+                Types.writeVarInt(o, indexIn(Villager.PROFESSIONS, d.profession(), "villager profession"));
                 Types.writeVarInt(o, d.level());
             }
             case "optional_unsigned_int" -> {
@@ -309,7 +309,7 @@ public final class EntityData767 {
             case "pose" -> Types.writeVarInt(o, ((Pose) v).id());
             case "cat_variant" -> Types.writeVarInt(o, registryId("minecraft:cat_variant", (String) v));
             case "wolf_variant" -> Types.writeVarInt(o, dataRegistryId("minecraft:wolf_variant", (String) v) + 1);   // 등록된 종류 = 번호 + 1(그림과 같음)
-            case "frog_variant" -> Types.writeVarInt(o, indexIn(List.of(Frog.VARIANTS), (String) v, "개구리 종류"));
+            case "frog_variant" -> Types.writeVarInt(o, indexIn(List.of(Frog.VARIANTS), (String) v, "frog variant"));
             case "optional_global_pos" -> {
                 Optional<?> opt = (Optional<?>) v;
                 o.writeBoolean(opt.isPresent());
@@ -320,8 +320,8 @@ public final class EntityData767 {
                 });
             }
             case "painting_variant" -> Types.writeVarInt(o, dataRegistryId("minecraft:painting_variant", (String) v) + 1);   // 등록된 종류 = 번호 + 1
-            case "sniffer_state" -> Types.writeVarInt(o, indexIn(SNIFFER_STATES, (String) v, "스니퍼 상태"));
-            case "armadillo_state" -> Types.writeVarInt(o, indexIn(ARMADILLO_STATES, (String) v, "아르마딜로 상태"));
+            case "sniffer_state" -> Types.writeVarInt(o, indexIn(SNIFFER_STATES, (String) v, "sniffer state"));
+            case "armadillo_state" -> Types.writeVarInt(o, indexIn(ARMADILLO_STATES, (String) v, "armadillo state"));
             case "vector3" -> {
                 Vector3f x = (Vector3f) v;
                 o.writeFloat(x.x());
@@ -335,7 +335,7 @@ public final class EntityData767 {
                 o.writeFloat(q.z());
                 o.writeFloat(q.w());
             }
-            default -> throw new IllegalStateException("값 종류 " + t);
+            default -> throw new IllegalStateException("value kind " + t);
         }
     }
 
@@ -343,7 +343,7 @@ public final class EntityData767 {
 
     /** API 입자 → 서버 입자 옵션(없는 종류·블록·아이템이면 IllegalArgumentException). */
     ParticleOptions particle(Particle p) {
-        if (!ParticleOptions.Registry.has(p.type())) throw new IllegalArgumentException("알 수 없는 입자 종류: " + p.type());
+        if (!ParticleOptions.Registry.has(p.type())) throw new IllegalArgumentException("unknown particle type: " + p.type());
         return switch (p) {
             case Particle.Simple s -> new ParticleOptions.Simple(s.type());
             case Particle.Block bl -> new ParticleOptions.Block(bl.type(), ApiConvert.stateId(bl.block(), blocks()));
@@ -364,7 +364,7 @@ public final class EntityData767 {
     Particle readParticle(ByteBuf b) {
         int id = Types.readVarInt(b);
         List<String> names = ParticleOptions.Registry.names();
-        if (id < 0 || id >= names.size()) throw new IllegalArgumentException("입자 종류 번호 범위 밖: " + id);
+        if (id < 0 || id >= names.size()) throw new IllegalArgumentException("particle type id out of range: " + id);
         String type = names.get(id);
         if (Particle.BLOCK_TYPES.contains(type)) return new Particle.Block(type, ApiConvert.block(Types.readVarInt(b), blocks()));
         return switch (type) {
@@ -380,7 +380,7 @@ public final class EntityData767 {
                 Particle.Vibration.Destination d = switch (src) {
                     case 0 -> new Particle.Vibration.BlockDestination(pos(b));
                     case 1 -> new Particle.Vibration.EntityDestination(Types.readVarInt(b), b.readFloat());
-                    default -> throw new IllegalArgumentException("진동 위치 소스 종류 범위 밖: " + src);
+                    default -> throw new IllegalArgumentException("vibration position source kind out of range: " + src);
                 };
                 yield new Particle.Vibration(d, Types.readVarInt(b));
             }
@@ -408,53 +408,53 @@ public final class EntityData767 {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        if (!(tag instanceof NbtCompound c)) throw new IllegalArgumentException("compound 가 아닌 NBT: " + tag);
+        if (!(tag instanceof NbtCompound c)) throw new IllegalArgumentException("NBT that is not a compound: " + tag);
         return c;
     }
 
     private static <E> E enumAt(E[] values, int i, String what) {
-        if (i < 0 || i >= values.length) throw new IllegalArgumentException(what + " 범위 밖: " + i);
+        if (i < 0 || i >= values.length) throw new IllegalArgumentException(what + " out of range: " + i);
         return values[i];
     }
 
     private static String nameAt(List<String> names, int i, String what) {
-        if (i < 0 || i >= names.size()) throw new IllegalArgumentException(what + " 범위 밖: " + i);
+        if (i < 0 || i >= names.size()) throw new IllegalArgumentException(what + " out of range: " + i);
         return "minecraft:" + names.get(i);
     }
 
     private static int indexIn(List<String> names, String name, String what) {
         int i = names.indexOf(name.startsWith("minecraft:") ? name.substring(10) : name);
-        if (i < 0) throw new IllegalArgumentException("알 수 없는 " + what + ": " + name);
+        if (i < 0) throw new IllegalArgumentException("unknown " + what + ": " + name);
         return i;
     }
 
     private static String stateAt(List<String> names, int i) {
-        if (i < 0 || i >= names.size()) throw new IllegalArgumentException("상태 번호 범위 밖: " + i);
+        if (i < 0 || i >= names.size()) throw new IllegalArgumentException("state id out of range: " + i);
         return names.get(i);
     }
 
     private static String registryName(String registry, int id) {
         String n = ItemContext.installed() ? ItemContext.name(registry, id) : null;
-        if (n == null) throw new IllegalArgumentException(registry + " 에 없는 번호: " + id);
+        if (n == null) throw new IllegalArgumentException(registry + " has no id: " + id);
         return n;
     }
 
     private static int registryId(String registry, String name) {
         Integer id = ItemContext.installed() ? ItemContext.id(registry, name.indexOf(':') < 0 ? "minecraft:" + name : name) : null;
-        if (id == null) throw new IllegalArgumentException(registry + " 에 없는 이름: " + name);
+        if (id == null) throw new IllegalArgumentException(registry + " has no name: " + name);
         return id;
     }
 
     /** 데이터 팩으로 정해지는 레지스트리(늑대·그림 종류) — 접속자에게 보낸 순서가 번호다. */
     private static String dataRegistryName(String registry, int id) {
         List<String> l = RegistrySet.current().entries(registry);
-        if (id < 0 || id >= l.size()) throw new IllegalArgumentException(registry + " 에 없는 번호: " + id);
+        if (id < 0 || id >= l.size()) throw new IllegalArgumentException(registry + " has no id: " + id);
         return l.get(id);
     }
 
     private static int dataRegistryId(String registry, String name) {
         int i = RegistrySet.current().indexOf(registry, name.indexOf(':') < 0 ? "minecraft:" + name : name);
-        if (i < 0) throw new IllegalArgumentException(registry + " 에 없는 이름: " + name);
+        if (i < 0) throw new IllegalArgumentException(registry + " has no name: " + name);
         return i;
     }
 }

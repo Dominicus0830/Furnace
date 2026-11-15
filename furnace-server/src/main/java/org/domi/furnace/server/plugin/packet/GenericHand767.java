@@ -171,14 +171,14 @@ final class GenericHand767 {
     /** 바닐라가 readUtf(128) 로 읽는 문자열(구조물 블록 data — 검토 R1). 129자 넘으면 바닐라 서버가 디코드에 실패한다. */
     private static final Node STRING_128 = node(String.class, b -> Types.readString(b, 128), (o, v) -> {
         String str = (String) v;
-        if (str.length() > 128) throw new IllegalArgumentException("128자를 넘는다(" + str.length() + ")");
+        if (str.length() > 128) throw new IllegalArgumentException("longer than 128 characters (" + str.length() + ")");
         Types.writeString(o, str);
     });
 
     /** id + 1 로 나가는 엔티티 번호(필드 값 -1 = 없음 = 와이어 0). */
     private static final Node PLUS_ONE = node(Integer.class, b -> Types.readVarInt(b) - 1, (o, v) -> {
         int i = (Integer) v;
-        if (i < -1) throw new IllegalArgumentException("엔티티 번호는 -1(없음) 이상: " + i);
+        if (i < -1) throw new IllegalArgumentException("entity id must be at least -1 (none): " + i);
         Types.writeVarInt(o, i + 1);
     });
 
@@ -186,7 +186,7 @@ final class GenericHand767 {
     private static final Node BYTE_POS = node(BlockPos.class, b -> new BlockPos(b.readByte(), b.readByte(), b.readByte()), (o, v) -> {
         BlockPos p = (BlockPos) v;
         for (int x : new int[]{p.x(), p.y(), p.z()}) {
-            if (x < Byte.MIN_VALUE || x > Byte.MAX_VALUE) throw new IllegalArgumentException("좌표는 i8 범위(-128~127): " + p);
+            if (x < Byte.MIN_VALUE || x > Byte.MAX_VALUE) throw new IllegalArgumentException("coordinate must be in the i8 range (-128~127): " + p);
         }
         o.writeByte(p.x());
         o.writeByte(p.y());
@@ -204,8 +204,8 @@ final class GenericHand767 {
             int bits = 0;
             for (Object x : (List<?>) v) {
                 int i = x instanceof String s ? constants.indexOf(s) : -1;
-                if (i < 0) throw new IllegalArgumentException("상수가 아니다: " + x + " " + constants);
-                if ((bits & (1 << i)) != 0) throw new IllegalArgumentException("같은 상수가 두 번 있다: " + x);
+                if (i < 0) throw new IllegalArgumentException("not a constant: " + x + " " + constants);
+                if ((bits & (1 << i)) != 0) throw new IllegalArgumentException("the same constant appears twice: " + x);
                 bits |= 1 << i;
             }
             o.writeByte(bits);
@@ -231,7 +231,7 @@ final class GenericHand767 {
     private static Compiled stopSound(GenericCodec767 c, PacketDef d) {
         Node source = c.fieldNode(d, "source"), name = c.fieldNode(d, "name");
         Node optSource = GenericCodec767.optional(source, false), optName = GenericCodec767.optional(IDENTIFIER, false);
-        if (name != IDENTIFIER) throw new GenericCodec767.Unsupported("stop_sound name 이 identifier 가 아니다");
+        if (name != IDENTIFIER) throw new GenericCodec767.Unsupported("the stop_sound name is not an identifier");
         return GenericCodec767.shape(List.of("source", "name"), List.of(optSource, optName), hand((b, m) -> {
             int flags = b.readUnsignedByte();
             m.put("source", (flags & 1) != 0 ? Optional.of(source.read(b)) : Optional.empty());
@@ -259,7 +259,7 @@ final class GenericHand767 {
             Optional<?> p = (Optional<?>) m.get("parameters");
             boolean wants = method == 0 || method == 2;
             if (p.isPresent() != wants) {
-                throw new IllegalArgumentException("parameters 는 method 가 0(추가)·2(바꿈)일 때만 있어야 한다: method=" + method + ", parameters=" + p);
+                throw new IllegalArgumentException("parameters must only be present when method is 0 (add) or 2 (change): method=" + method + ", parameters=" + p);
             }
             STRING.write(o, m.get("objective_name"));
             I8_INT.write(o, method);
@@ -288,13 +288,13 @@ final class GenericHand767 {
             m.put("slots", Collections.unmodifiableList(l));
         }, (o, m) -> {
             List<?> l = (List<?>) m.get("slots");
-            if (l.isEmpty()) throw new IllegalArgumentException("slots 가 비었다(바닐라는 적어도 한 칸을 읽는다)");
+            if (l.isEmpty()) throw new IllegalArgumentException("slots is empty (vanilla reads at least one slot)");
             VARINT.write(o, m.get("entity"));
             for (int i = 0; i < l.size(); i++) {
-                if (!(l.get(i) instanceof PacketStruct s)) throw new IllegalArgumentException("slots[" + i + "] 은 {slot, item} 이어야 한다: " + l.get(i));
+                if (!(l.get(i) instanceof PacketStruct s)) throw new IllegalArgumentException("slots[" + i + "] must be {slot, item}: " + l.get(i));
                 Map<String, Object> e = GenericCodec767.checked(entry, s, "slots[" + i + "]");
                 int ord = slots.indexOf(e.get("slot"));
-                if (ord < 0) throw new IllegalArgumentException("slots[" + i + "].slot 은 EquipmentSlot 상수여야 한다: " + e.get("slot") + " " + slots);
+                if (ord < 0) throw new IllegalArgumentException("slots[" + i + "].slot must be an EquipmentSlot constant: " + e.get("slot") + " " + slots);
                 o.writeByte(ord | (i < l.size() - 1 ? 0x80 : 0));
                 item.write(o, (ItemStack) e.get("item"));
             }
@@ -308,7 +308,7 @@ final class GenericHand767 {
                 hand((b, m) -> {
                     m.put("section_pos", b.readLong());
                     int n = Types.readVarInt(b);
-                    if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("칸 수 오류: " + n);
+                    if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("invalid cell count: " + n);
                     List<Object> pos = new ArrayList<>(n), states = new ArrayList<>(n);
                     for (int i = 0; i < n; i++) {
                         long v = Types.readVarLong(b);
@@ -319,14 +319,14 @@ final class GenericHand767 {
                     m.put("states", Collections.unmodifiableList(states));
                 }, (o, m) -> {
                     List<?> pos = (List<?>) m.get("positions"), states = (List<?>) m.get("states");
-                    if (pos.size() != states.size()) throw new IllegalArgumentException("positions(" + pos.size() + ") 와 states(" + states.size() + ") 길이가 다르다");
+                    if (pos.size() != states.size()) throw new IllegalArgumentException("positions (" + pos.size() + ") and states (" + states.size() + ") have different lengths");
                     o.writeLong((Long) m.get("section_pos"));
                     Types.writeVarInt(o, pos.size());
                     for (int i = 0; i < pos.size(); i++) {
                         if (!(pos.get(i) instanceof Short p) || p < 0 || p > 0xFFF) {
-                            throw new IllegalArgumentException("positions[" + i + "] 은 0~4095 Short 이어야 한다: " + pos.get(i));
+                            throw new IllegalArgumentException("positions[" + i + "] must be a Short in 0~4095: " + pos.get(i));
                         }
-                        if (!(states.get(i) instanceof BlockData s)) throw new IllegalArgumentException("states[" + i + "] 은 BlockData 이어야 한다: " + states.get(i));
+                        if (!(states.get(i) instanceof BlockData s)) throw new IllegalArgumentException("states[" + i + "] must be BlockData: " + states.get(i));
                         Types.writeVarLong(o, (long) c.stateId(s) << 12 | p);
                     }
                 }));
@@ -342,7 +342,7 @@ final class GenericHand767 {
         }, (o, m) -> {
             Object a = m.get("action");
             Optional<?> tab = (Optional<?>) m.get("tab");
-            if (tab.isPresent() != "OPENED_TAB".equals(a)) throw new IllegalArgumentException("tab 은 action 이 OPENED_TAB 일 때만 있어야 한다: " + a + ", " + tab);
+            if (tab.isPresent() != "OPENED_TAB".equals(a)) throw new IllegalArgumentException("tab must only be present when action is OPENED_TAB: " + a + ", " + tab);
             action.write(o, a);
             if (tab.isPresent()) IDENTIFIER.write(o, tab.get());
         }));
@@ -354,7 +354,7 @@ final class GenericHand767 {
         Compiled entry = GenericCodec767.shape(List.of("slot", "item"), List.of(I16_INT, item), null);
         return node(List.class, b -> {
             int n = Types.readVarInt(b);
-            if (n < 0 || n > 128) throw new IllegalArgumentException("바뀐 칸이 너무 많다: " + n + " > 128");
+            if (n < 0 || n > 128) throw new IllegalArgumentException("too many changed slots: " + n + " > 128");
             // 바닐라·서버는 Int2ObjectMap 이라 같은 칸 번호가 다시 오면 마지막 값만 남는다 — 읽기도 그렇게 합친다(검토 R3)
             LinkedHashMap<Object, Object> bySlot = new LinkedHashMap<>();
             for (int i = 0; i < n; i++) {
@@ -364,11 +364,11 @@ final class GenericHand767 {
             return List.copyOf(bySlot.values());
         }, (o, v) -> {
             List<?> l = (List<?>) v;
-            if (l.size() > 128) throw new IllegalArgumentException("바뀐 칸이 너무 많다: " + l.size() + " > 128");
+            if (l.size() > 128) throw new IllegalArgumentException("too many changed slots: " + l.size() + " > 128");
             HashSet<Object> seen = new HashSet<>();
             for (int i = 0; i < l.size(); i++) {
-                if (!(l.get(i) instanceof PacketStruct s)) throw new IllegalArgumentException("[" + i + "] 은 {slot, item} 이어야 한다: " + l.get(i));
-                if (!seen.add(GenericCodec767.checked(entry, s, "[" + i + "]").get("slot"))) throw new IllegalArgumentException("같은 칸 번호가 두 번 있다: " + s);
+                if (!(l.get(i) instanceof PacketStruct s)) throw new IllegalArgumentException("[" + i + "] must be {slot, item}: " + l.get(i));
+                if (!seen.add(GenericCodec767.checked(entry, s, "[" + i + "]").get("slot"))) throw new IllegalArgumentException("the same slot number appears twice: " + s);
             }
             Types.writeVarInt(o, l.size());
             for (int i = 0; i < l.size(); i++) GenericCodec767.writeStruct(entry, (PacketStruct) l.get(i), o, "[" + i + "]");
@@ -376,7 +376,7 @@ final class GenericHand767 {
     }
 
     private static String constantAt(List<String> constants, int i) {
-        if (i < 0 || i >= constants.size()) throw new IllegalArgumentException("범위 밖 서수: " + i);
+        if (i < 0 || i >= constants.size()) throw new IllegalArgumentException("ordinal out of range: " + i);
         return constants.get(i);
     }
 
@@ -385,7 +385,7 @@ final class GenericHand767 {
     static Node string(int max) {
         return node(String.class, b -> Types.readString(b, max), (o, v) -> {
             String str = (String) v;
-            if (str.length() > max) throw new IllegalArgumentException(max + "자를 넘는다(" + str.length() + ")");
+            if (str.length() > max) throw new IllegalArgumentException("longer than " + max + " characters (" + str.length() + ")");
             Types.writeString(o, str);
         });
     }
@@ -398,7 +398,7 @@ final class GenericHand767 {
             return a;
         }, (o, v) -> {
             byte[] a = (byte[]) v;
-            if (a.length != n) throw new IllegalArgumentException(n + "바이트여야 한다: " + a.length);
+            if (a.length != n) throw new IllegalArgumentException("must be " + n + " bytes: " + a.length);
             o.writeBytes(a);
         });
     }
@@ -407,13 +407,13 @@ final class GenericHand767 {
     static Node bytes(int max) {
         return node(byte[].class, b -> {
             int n = Types.readVarInt(b);
-            if (n < 0 || n > max || n > b.readableBytes()) throw new IllegalArgumentException("바이트 길이 오류: " + n + " (상한 " + max + ")");
+            if (n < 0 || n > max || n > b.readableBytes()) throw new IllegalArgumentException("invalid byte length: " + n + " (max " + max + ")");
             byte[] a = new byte[n];
             b.readBytes(a);
             return a;
         }, (o, v) -> {
             byte[] a = (byte[]) v;
-            if (a.length > max) throw new IllegalArgumentException(max + "바이트를 넘는다(" + a.length + ")");
+            if (a.length > max) throw new IllegalArgumentException("longer than " + max + " bytes (" + a.length + ")");
             Types.writeVarInt(o, a.length);
             o.writeBytes(a);
         });
@@ -428,10 +428,10 @@ final class GenericHand767 {
         Node l = GenericCodec767.list(elem, false);
         return node(List.class, b -> {
             int n = Types.readVarInt(b.duplicate());
-            if (n > max) throw new IllegalArgumentException("원소가 너무 많다: " + n + " > " + max);
+            if (n > max) throw new IllegalArgumentException("too many elements: " + n + " > " + max);
             return l.read(b);
         }, (o, v) -> {
-            if (((List<?>) v).size() > max) throw new IllegalArgumentException("원소가 너무 많다: " + ((List<?>) v).size() + " > " + max);
+            if (((List<?>) v).size() > max) throw new IllegalArgumentException("too many elements: " + ((List<?>) v).size() + " > " + max);
             l.write(o, v);
         });
     }
@@ -440,7 +440,7 @@ final class GenericHand767 {
     private static Node registeredPlusOne(String registry) {
         return node(String.class, b -> {
             int v = Types.readVarInt(b);
-            if (v == 0) throw new IllegalArgumentException(registry + " 직접 정의는 아직 읽지 않는다");
+            if (v == 0) throw new IllegalArgumentException(registry + " direct definitions are not read yet");
             return GenericCodec767.registryName(registry, v - 1);
         }, (o, v) -> Types.writeVarInt(o, GenericCodec767.registryNumber(registry, (String) v) + 1));
     }
@@ -456,15 +456,15 @@ final class GenericHand767 {
         PacketStruct s = (PacketStruct) v;
         if (!s.names().equals(List.of("id", "full_signature")) || !(s.asMap().get("id") instanceof Integer id)
                 || !(s.asMap().get("full_signature") instanceof Optional<?> sig)) {
-            throw new IllegalArgumentException("서명은 {id: Integer, full_signature: Optional<byte[]>} 이어야 한다: " + s);
+            throw new IllegalArgumentException("the signature must be {id: Integer, full_signature: Optional<byte[]>}: " + s);
         }
-        if (id < -1) throw new IllegalArgumentException("id 는 -1(서명 전체) 이상: " + id);
+        if (id < -1) throw new IllegalArgumentException("id must be at least -1 (full signature): " + id);
         // 받은 클라이언트 MessageSignatureCache 는 128칸이고 unpack 이 배열을 바로 읽는다(128 이상이면 AIOOBE 로 끊긴다)
-        if (id > 127) throw new IllegalArgumentException("id 는 127 이하(바닐라 서명 캐시 128칸): " + id);
-        if ((id == -1) != sig.isPresent()) throw new IllegalArgumentException("full_signature 는 id 가 -1 일 때만 있어야 한다: " + s);
+        if (id > 127) throw new IllegalArgumentException("id must be at most 127 (the vanilla signature cache has 128 slots): " + id);
+        if ((id == -1) != sig.isPresent()) throw new IllegalArgumentException("full_signature must only be present when id is -1: " + s);
         Types.writeVarInt(o, id + 1);
         if (sig.isPresent()) {
-            if (!(sig.get() instanceof byte[] a)) throw new IllegalArgumentException("full_signature 는 byte[] 이어야 한다");
+            if (!(sig.get() instanceof byte[] a)) throw new IllegalArgumentException("full_signature must be a byte[]");
             fixedBytes(256).write(o, a);
         }
     });
@@ -484,7 +484,7 @@ final class GenericHand767 {
         try {
             java.security.KeyFactory.getInstance("RSA").generatePublic(new java.security.spec.X509EncodedKeySpec(a));
         } catch (java.security.GeneralSecurityException e) {
-            throw new IllegalArgumentException("RSA 공개 키(X.509)가 아니다: " + e.getMessage());
+            throw new IllegalArgumentException("not an RSA public key (X.509): " + e.getMessage());
         }
         return a;
     }
@@ -510,9 +510,9 @@ final class GenericHand767 {
         PacketStruct s = (PacketStruct) v;
         if (!s.names().equals(List.of("offset", "acknowledged")) || !(s.asMap().get("offset") instanceof Integer off)
                 || !(s.asMap().get("acknowledged") instanceof Integer mask)) {
-            throw new IllegalArgumentException("{offset: Integer, acknowledged: Integer} 이어야 한다: " + s);
+            throw new IllegalArgumentException("must be {offset: Integer, acknowledged: Integer}: " + s);
         }
-        if (mask < 0 || mask > 0xFFFFF) throw new IllegalArgumentException("acknowledged 는 20비트(0~0xFFFFF): " + mask);
+        if (mask < 0 || mask > 0xFFFFF) throw new IllegalArgumentException("acknowledged must be 20 bits (0~0xFFFFF): " + mask);
         Types.writeVarInt(o, off);
         o.writeByte(mask);
         o.writeByte(mask >> 8);
@@ -536,29 +536,29 @@ final class GenericHand767 {
         PacketStruct s = (PacketStruct) v;
         if (!s.names().equals(List.of("known_type", "label", "url")) || !(s.asMap().get("known_type") instanceof Optional<?> k)
                 || !(s.asMap().get("label") instanceof Optional<?> l) || !(s.asMap().get("url") instanceof String url)) {
-            throw new IllegalArgumentException("링크는 {known_type: Optional<String>, label: Optional<Text>, url: String} 이어야 한다: " + s);
+            throw new IllegalArgumentException("a link must be {known_type: Optional<String>, label: Optional<Text>, url: String}: " + s);
         }
-        if (k.isPresent() == l.isPresent()) throw new IllegalArgumentException("known_type 과 label 가운데 하나만 있어야 한다: " + s);
+        if (k.isPresent() == l.isPresent()) throw new IllegalArgumentException("exactly one of known_type and label must be present: " + s);
         o.writeBoolean(k.isPresent());
         if (k.isPresent()) KNOWN_LINK.write(o, k.get());
         else if (l.get() instanceof org.domi.furnace.api.text.Text t) TEXT.write(o, t);
-        else throw new IllegalArgumentException("label 은 Text 이어야 한다: " + l.get());
+        else throw new IllegalArgumentException("label must be a Text: " + l.get());
         STRING.write(o, url);
     });
 
     /** custom_report_details 의 Map&lt;String,String&gt; — 이름이 키인 PacketStruct(값 String). 바닐라 상한: 32개, 키 128자, 값 4096자. */
     static final Node REPORT_DETAILS = node(PacketStruct.class, b -> {
         int n = Types.readVarInt(b);
-        if (n < 0 || n > 32) throw new IllegalArgumentException("항목이 너무 많다: " + n + " > 32");
+        if (n < 0 || n > 32) throw new IllegalArgumentException("too many entries: " + n + " > 32");
         LinkedHashMap<String, Object> m = new LinkedHashMap<>();
         for (int i = 0; i < n; i++) m.put(Types.readString(b, 128), Types.readString(b, 4096));
         return PacketStruct.of(m);
     }, (o, v) -> {
         Map<String, Object> m = ((PacketStruct) v).asMap();
-        if (m.size() > 32) throw new IllegalArgumentException("항목이 너무 많다: " + m.size() + " > 32");
+        if (m.size() > 32) throw new IllegalArgumentException("too many entries: " + m.size() + " > 32");
         Node key = string(128), value = string(4096);
         for (var e : m.entrySet()) {
-            if (!(e.getValue() instanceof String)) throw new IllegalArgumentException(e.getKey() + " 값은 String 이어야 한다: " + e.getValue());
+            if (!(e.getValue() instanceof String)) throw new IllegalArgumentException(e.getKey() + " value must be a String: " + e.getValue());
         }
         Types.writeVarInt(o, m.size());
         for (var e : m.entrySet()) {
@@ -576,7 +576,7 @@ final class GenericHand767 {
     /** award_stats: Object2IntMap&lt;Stat&gt; — 목록 {type(stat_type), value(그 레지스트리 이름), amount}. 같은 통계 두 번은 거부(바닐라는 맵). */
     static final Node STATS = node(List.class, b -> {
         int n = Types.readVarInt(b);
-        if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("통계 수 오류: " + n);
+        if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("invalid statistic count: " + n);
         LinkedHashMap<List<String>, PacketStruct> m = new LinkedHashMap<>();
         for (int i = 0; i < n; i++) {
             String type = GenericCodec767.registryName("minecraft:stat_type", Types.readVarInt(b));
@@ -593,10 +593,10 @@ final class GenericHand767 {
         Compiled entry = GenericCodec767.shape(List.of("type", "value", "amount"), List.of(STRING, STRING, VARINT), null);
         HashSet<List<Object>> seen = new HashSet<>();
         for (int i = 0; i < l.size(); i++) {
-            if (!(l.get(i) instanceof PacketStruct s)) throw new IllegalArgumentException("[" + i + "] 은 {type, value, amount} 이어야 한다: " + l.get(i));
+            if (!(l.get(i) instanceof PacketStruct s)) throw new IllegalArgumentException("[" + i + "] must be {type, value, amount}: " + l.get(i));
             Map<String, Object> e = GenericCodec767.checked(entry, s, "[" + i + "]");
             String type = GenericCodec767.identifier((String) e.get("type"));
-            if (!seen.add(List.of(type, GenericCodec767.identifier((String) e.get("value"))))) throw new IllegalArgumentException("같은 통계가 두 번 있다: " + s);
+            if (!seen.add(List.of(type, GenericCodec767.identifier((String) e.get("value"))))) throw new IllegalArgumentException("the same statistic appears twice: " + s);
         }
         Types.writeVarInt(o, l.size());
         for (Object x : l) {
@@ -610,7 +610,7 @@ final class GenericHand767 {
 
     private static String statRegistry(String type) {
         String r = STAT_VALUE_REGISTRY.get(type);
-        if (r == null) throw new IllegalArgumentException("모르는 통계 종류: " + type);
+        if (r == null) throw new IllegalArgumentException("unknown statistic type: " + type);
         return r;
     }
 
@@ -644,7 +644,7 @@ final class GenericHand767 {
         }, (o, v) -> {
             PacketStruct s = (PacketStruct) v;
             if (!(s.asMap().get("type") instanceof String type) || !ops.containsKey(type)) {
-                throw new IllegalArgumentException("operation.type 은 " + BOSS_OPS + " 가운데 하나: " + s.asMap().get("type"));
+                throw new IllegalArgumentException("operation.type must be one of " + BOSS_OPS + ": " + s.asMap().get("type"));
             }
             LinkedHashMap<String, Object> rest = new LinkedHashMap<>(s.asMap());
             rest.remove("type");
@@ -678,13 +678,13 @@ final class GenericHand767 {
             m.put("players", method == 0 || method == 3 || method == 4 ? Optional.of(players.read(b)) : Optional.empty());
         }, (o, m) -> {
             int method = (Integer) m.get("method");
-            if (method < 0 || method > 4) throw new IllegalArgumentException("method 는 0~4(추가·제거·바꿈·선수 넣기·선수 빼기)여야 한다: " + method);
+            if (method < 0 || method > 4) throw new IllegalArgumentException("method must be 0~4 (add, remove, change, add player, remove player): " + method);
             Optional<?> p = (Optional<?>) m.get("parameters"), pl = (Optional<?>) m.get("players");
-            if (p.isPresent() != (method == 0 || method == 2)) throw new IllegalArgumentException("parameters 는 method 0·2 일 때만 있어야 한다: method=" + method);
+            if (p.isPresent() != (method == 0 || method == 2)) throw new IllegalArgumentException("parameters must only be present when method is 0 or 2: method=" + method);
             if (p.isPresent() && !(p.get() instanceof PacketStruct)) throw new IllegalArgumentException(
-                    "parameters 는 {display_name, options, nametag_visibility, collision_rule, color, player_prefix, player_suffix} 이어야 한다: " + p.get().getClass().getName());
-            if (pl.isPresent() != (method == 0 || method == 3 || method == 4)) throw new IllegalArgumentException("players 는 method 0·3·4 일 때만 있어야 한다: method=" + method);
-            if (pl.isPresent() && !(pl.get() instanceof List<?>)) throw new IllegalArgumentException("players 는 List<String> 이어야 한다");
+                    "parameters must be {display_name, options, nametag_visibility, collision_rule, color, player_prefix, player_suffix}: " + p.get().getClass().getName());
+            if (pl.isPresent() != (method == 0 || method == 3 || method == 4)) throw new IllegalArgumentException("players must only be present when method is 0, 3 or 4: method=" + method);
+            if (pl.isPresent() && !(pl.get() instanceof List<?>)) throw new IllegalArgumentException("players must be a List<String>");
             STRING.write(o, m.get("name"));
             I8_INT.write(o, method);
             if (p.isPresent()) GenericCodec767.writeStruct(params, (PacketStruct) p.get(), o, "parameters");
@@ -712,14 +712,14 @@ final class GenericHand767 {
                 o.writeByte(0);
                 return;
             }
-            if (!(p.get() instanceof PacketStruct s)) throw new IllegalArgumentException("color_patch 는 {width, height, start_x, start_y, map_colors}");
-            if (Integer.valueOf(0).equals(s.asMap().get("width"))) throw new IllegalArgumentException("width 0 은 '없음' 이다 — Optional.empty() 를 쓴다");
+            if (!(p.get() instanceof PacketStruct s)) throw new IllegalArgumentException("color_patch must be {width, height, start_x, start_y, map_colors}");
+            if (Integer.valueOf(0).equals(s.asMap().get("width"))) throw new IllegalArgumentException("width 0 means 'none' - use Optional.empty()");
             // 바닐라 코덱은 통과시키지만 받은 쪽 MapPatch.applyToMap 이 colors[i + j*width]·지도[x + y*128] 를 넘겨 읽고 써서 끊긴다.
             if (s.asMap().get("width") instanceof Integer w && s.asMap().get("height") instanceof Integer h
                     && s.asMap().get("start_x") instanceof Integer x && s.asMap().get("start_y") instanceof Integer y
                     && s.asMap().get("map_colors") instanceof byte[] c) {
-                if (c.length != w * h) throw new IllegalArgumentException("map_colors 길이는 width*height(" + w * h + ")여야 한다: " + c.length);
-                if (x + w > 128 || y + h > 128) throw new IllegalArgumentException("색 조각이 지도(128×128) 밖으로 나간다: start=(" + x + "," + y + "), 크기 " + w + "×" + h);
+                if (c.length != w * h) throw new IllegalArgumentException("map_colors length must be width*height (" + w * h + "): " + c.length);
+                if (x + w > 128 || y + h > 128) throw new IllegalArgumentException("the color patch goes outside the map (128×128): start=(" + x + "," + y + "), size " + w + "×" + h);
             }
             GenericCodec767.writeStruct(patch, s, o, "color_patch");
         });

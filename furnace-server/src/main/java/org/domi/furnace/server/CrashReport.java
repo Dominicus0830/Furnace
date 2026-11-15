@@ -57,7 +57,7 @@ public final class CrashReport {
     static String render(LocalDateTime now, String description, Throwable cause, Thread thread, String threadDump) {
         StringBuilder sb = new StringBuilder();
         sb.append("---- Minecraft Crash Report ----\n");
-        sb.append("// Furnace 서버가 예기치 않게 실패했다.\n\n");
+        sb.append("// The Furnace server failed unexpectedly.\n\n");
         sb.append("Time: ").append(BODY_TIME.format(now)).append('\n');
         sb.append("Description: ").append(description).append("\n\n");
         StringWriter sw = new StringWriter();

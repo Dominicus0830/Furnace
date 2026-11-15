@@ -29,6 +29,6 @@ public class MarkupParseException extends IllegalArgumentException {
     public String getMessage() {
         String m = super.getMessage();
         if (markup == null) return m;
-        return position >= 0 ? m + " (위치 " + position + "): " + markup : m + ": " + markup;
+        return position >= 0 ? m + " (position " + position + "): " + markup : m + ": " + markup;
     }
 }

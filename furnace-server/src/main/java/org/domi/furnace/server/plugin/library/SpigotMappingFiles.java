@@ -55,6 +55,8 @@ public final class SpigotMappingFiles {
     private static final Pattern COMMIT = Pattern.compile("[0-9a-f]{40}");
     private static final Pattern FILE_NAME = Pattern.compile("[A-Za-z0-9._-]+");
     private static final long SMALL = 1024L * 1024L;   // 버전 파일·info.json 상한
+    /** 옛 버전이 잠금 파일에 적던 한국어 값("수동") — 코드 점으로 적어 소스에 한글을 두지 않는다. */
+    private static final String LEGACY_MANUAL = new String(new int[] {0xC218, 0xB3D9}, 0, 2);
 
     /** 받은 세 파일. */
     public record Files3(Path mojang, Path classes, Path members) {
@@ -231,7 +233,7 @@ public final class SpigotMappingFiles {
         offlineCheck(Lang.t("spigot.put-builddata", MINECRAFT, classes, members));
         String commit = buildDataCommit();
         String lockedCommit = lock.get("buildData");
-        if (lockedCommit != null && !lockedCommit.equals("manual") && !lockedCommit.equals("수동") && !lockedCommit.equals(commit)) {   // "수동": 예전 버전이 적던 값
+        if (lockedCommit != null && !lockedCommit.equals("manual") && !lockedCommit.equals(LEGACY_MANUAL) && !lockedCommit.equals(commit)) {   // "수동": 예전 버전이 적던 값
             throw new LibraryResolver.LibraryException(Lang.t("spigot.commit-changed", lockedCommit, commit, MINECRAFT, dir.resolve(LOCK)));
         }
         JsonObject info = json(raw("info.json", commit), "BuildData info.json");

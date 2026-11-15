@@ -61,7 +61,7 @@ public final class PluginManagerImpl implements PluginManager {
     /** plugins.fail-fast=true 이고 실패가 있었으면 던진다 — 서버 시작이 멈춘다. */
     private void failFastCheck(String stage) {
         if (settings.failFast() && !failures.isEmpty()) {
-            throw new IllegalStateException("plugins.fail-fast: 플러그인 " + stage + " 실패 — " + failures);
+            throw new IllegalStateException(Lang.t("plugin.fail-fast", Lang.t(stage), failures));
         }
     }
 
@@ -104,7 +104,7 @@ public final class PluginManagerImpl implements PluginManager {
         boot.worldsPhase(host, true);       // 형식 어댑터가 onLoad·STARTUP 동안 월드를 감춘다(Paper 는 그때 월드가 없다) — enableAll 이 드러낸다
         worldsPending = true;
         for (PluginBootstrapper.Prepared p : List.copyOf(boot.prepared())) load(p);
-        failFastCheck("불러오기");
+        failFastCheck("plugin.stage-load");
     }
 
     private Loaded load(PluginBootstrapper.Prepared c) {
@@ -120,7 +120,7 @@ public final class PluginManagerImpl implements PluginManager {
             }
             if (plugin == null) {
                 Class<?> main = Class.forName(d.main(), true, loader);
-                if (!FurnacePlugin.class.isAssignableFrom(main)) throw new IllegalArgumentException("main 클래스가 FurnacePlugin 을 상속하지 않는다: " + d.main());
+                if (!FurnacePlugin.class.isAssignableFrom(main)) throw new IllegalArgumentException("the main class does not extend FurnacePlugin: " + d.main());
                 plugin = (FurnacePlugin) main.getDeclaredConstructor().newInstance();
             }
             loader.plugin = plugin;
@@ -277,7 +277,7 @@ public final class PluginManagerImpl implements PluginManager {
             }
         }
         for (Loaded l : plugins) enable(l);   // 이미 켠 것은 건너뛴다
-        failFastCheck("켜기");
+        failFastCheck("plugin.stage-enable");
     }
 
     @Override
@@ -406,7 +406,7 @@ public final class PluginManagerImpl implements PluginManager {
     @Override
     public CompletableFuture<List<String>> reload(String name) {
         if (!settings.devMode()) return PluginManager.super.reload(name);
-        if (name == null || name.isBlank()) return CompletableFuture.failedFuture(new IllegalArgumentException("플러그인 이름이 없다"));
+        if (name == null || name.isBlank()) return CompletableFuture.failedFuture(new IllegalArgumentException("no plugin name given"));
         // 전역 스레드의 다음 차례에 돈다 — 플러그인이 자기 명령 처리기 안에서 자기를 다시 읽게 해도 자기 코드가 스택에 없을 때 바뀐다
         return host.scheduler().global().submit(() -> reloadNow(name));
     }
@@ -449,17 +449,17 @@ public final class PluginManagerImpl implements PluginManager {
      * → 옛 클래스로더는 retireDelayTicks 뒤에 닫는다.
      */
     List<String> reloadNow(String name) {
-        if (!settings.devMode()) throw new IllegalStateException("핫 리로드는 개발 모드(plugins.dev-mode=true)에서만 된다");
+        if (!settings.devMode()) throw new IllegalStateException("hot reload only works in development mode (plugins.dev-mode=true)");
         PluginBootstrapper b = boot;
-        if (b == null) throw new IllegalStateException("아직 플러그인을 불러오지 않았다");
+        if (b == null) throw new IllegalStateException("plugins have not been loaded yet");
         synchronized (reloadLock) {
             long t0 = System.nanoTime();
             Loaded target = findLoaded(name);
             PluginBootstrapper.Candidate fresh = b.findOnDisk(name);
-            if (target == null && fresh == null) throw new IllegalArgumentException("그런 플러그인이 없다: " + name);
+            if (target == null && fresh == null) throw new IllegalArgumentException("no such plugin: " + name);
             if (target != null && fresh == null && Files.exists(target.file())) {
                 // 덮어쓰는 도중이거나 깨진 jar — 옛 것을 그대로 둔다
-                throw new IllegalStateException(target.file().getFileName() + " 에서 " + name + " 의 설명 파일을 읽을 수 없다 — 지금 것을 그대로 둔다");
+                throw new IllegalStateException(target.file().getFileName() + ": cannot read the descriptor of " + name + " - keeping the current one");
             }
             // 1. 다시 읽을 묶음: 대상 + 그것에 (연쇄로) 기대는 플러그인, 켠 순서대로
             List<Loaded> group = target == null ? List.of() : dependentsOf(target);
@@ -580,7 +580,7 @@ public final class PluginManagerImpl implements PluginManager {
     @Override
     public void setLogLevel(String pluginName, Level level) {
         FurnacePlugin p = plugin(pluginName);
-        if (p == null) throw new IllegalArgumentException("그런 플러그인이 없다: " + pluginName);
+        if (p == null) throw new IllegalArgumentException("no such plugin: " + pluginName);
         p.logger().setLevel(level);
     }
 
@@ -681,7 +681,7 @@ public final class PluginManagerImpl implements PluginManager {
         private volatile boolean transformWarned;
 
         private synchronized java.util.jar.JarFile jar() throws IOException {
-            if (closed) throw new IOException("닫힌 플러그인 로더: " + jarPath.getFileName());
+            if (closed) throw new IOException("closed plugin loader: " + jarPath.getFileName());
             if (jarFile == null) jarFile = new java.util.jar.JarFile(jarPath.toFile(), true, java.util.zip.ZipFile.OPEN_READ, Runtime.version());
             return jarFile;
         }

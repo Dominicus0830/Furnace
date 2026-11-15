@@ -192,7 +192,7 @@ public final class AnvilWorldSource implements WorldSource {
             return decoded.thenCompose(col -> {
                 if (col != null) return CompletableFuture.supplyAsync(() -> withPoi(chunkX, chunkZ, col), ioExecutor);
                 return CompletableFuture.supplyAsync(() -> {
-                    if (startGate != null && !startGate.getAsBoolean()) throw new java.util.concurrent.CancellationException("시야 밖 생성 요청 취소");
+                    if (startGate != null && !startGate.getAsBoolean()) throw new java.util.concurrent.CancellationException("generation request outside the view was cancelled");
                     ChunkColumn gen = generateFallback(chunkX, chunkZ);
                     gen.markDirty();
                     gen.newlyCreated(true);
@@ -214,7 +214,7 @@ public final class AnvilWorldSource implements WorldSource {
     private ChunkColumn decodeChunk(byte[] nbtBytes) throws IOException {
         NbtCompound nbt = NbtIo.read(nbtBytes);
         NewerDataVersionException.check(nbt);
-        OlderDataVersionException.check(nbt, "청크 " + (nbt.tags().get("xPos") instanceof Number x ? x.intValue() : 0) + "," + (nbt.tags().get("zPos") instanceof Number z ? z.intValue() : 0));
+        OlderDataVersionException.check(nbt, Lang.t("anvil.what-chunk", nbt.tags().get("xPos") instanceof Number x ? x.intValue() : 0, nbt.tags().get("zPos") instanceof Number z ? z.intValue() : 0));
         ChunkColumn col = codec.fromNbt(nbt);
         if (col != null && base instanceof NoiseWorldSource n) col.structures().attach(n.structureEngine().references());
         if (col != null) col.clearDirty();

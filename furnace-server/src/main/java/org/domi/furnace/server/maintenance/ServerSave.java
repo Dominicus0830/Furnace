@@ -126,24 +126,24 @@ public final class ServerSave implements AutoCloseable {
         String incomplete = null;
         // 바닐라 순서: 플레이어(동기 기록) → 차원마다 청크 → level.dat. 플레이어 기록은 전용 실행기에서 함께 돌고 맨 끝에서 기다린다.
         for (World w : worlds) {
-            if (stopping) throw new IncompleteSaveException("서버 종료 중");
+            if (stopping) throw new IncompleteSaveException("the server is stopping");
             if (w.isUnloaded()) continue;   // 그 사이 내린 추가 월드(내리기가 저장했다)
             long budget = Math.max(1, deadline - System.nanoTime());
             int left = w.flushAllDrained(flush ? budget : Math.min(CHUNK_TIMEOUT_NANOS, budget));
             if (left != 0) {
                 if (flush) {
-                    if (incomplete == null) incomplete = w.dimension() + " 청크 " + (left < 0 ? "?" : left) + "개를 IO 레인에 넣지 못했다";
+                    if (incomplete == null) incomplete = Lang.t("save.lane-not-queued", w.dimension(), left < 0 ? "?" : left);
                 } else {
                     log.warn(Lang.t("save.chunks-left", w.dimension(), left));
                 }
             }
         }
         if (flush) {
-            if (stopping) throw new IncompleteSaveException("서버 종료 중");
+            if (stopping) throw new IncompleteSaveException("the server is stopping");
             String f = flushToDisk(worlds, deadline);
             if (incomplete == null) incomplete = f;
         }
-        if (stopping) throw new IncompleteSaveException("서버 종료 중");
+        if (stopping) throw new IncompleteSaveException("the server is stopping");
         hooks.writeLevelData();
         try {
             long wait = Math.max(1, Math.min(PLAYER_TIMEOUT_NANOS, deadline - System.nanoTime()));
@@ -176,10 +176,10 @@ public final class ServerSave implements AutoCloseable {
             try {
                 w.ioBarrier().get(Math.max(1, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
             } catch (TimeoutException e) {
-                if (incomplete == null) incomplete = w.dimension() + " IO 레인이 마감 안에 비지 않았다";
+                if (incomplete == null) incomplete = Lang.t("save.lane-not-drained", w.dimension());
                 continue;
             } catch (ExecutionException | RejectedExecutionException e) {
-                if (incomplete == null) incomplete = w.dimension() + " IO 레인 대기 실패: " + e;
+                if (incomplete == null) incomplete = Lang.t("save.lane-wait-failed", w.dimension(), e);
                 continue;
             }
             for (RegionFileStore st : w.regionFileStores()) {

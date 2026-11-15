@@ -79,7 +79,7 @@ public interface ArgumentQueue {
 
         @Override public Argument peek() { return pos < count ? new Arg(values[pos]) : null; }
 
-        @Override public Argument pop() { return popOr("인자가 더 필요하다"); }
+        @Override public Argument pop() { return popOr("more arguments are required"); }
 
         @Override
         public Argument popOr(String errorMessage) {

@@ -61,7 +61,7 @@ final class CommandRegistryImpl implements CommandRegistry {
 
     @Override
     public synchronized Collection<String> register(FurnacePlugin plugin, CommandBuilder root, String description, List<String> aliases) {
-        if (!root.isLiteral()) throw new IllegalArgumentException("명령 트리의 루트는 literal 이어야 한다");
+        if (!root.isLiteral()) throw new IllegalArgumentException("the root of a command tree must be a literal");
         String name = normalize(root.name());
         return registerNames(plugin, name, aliases, (n, ns) -> treeNode(plugin, ns, n, root));
     }
@@ -103,7 +103,7 @@ final class CommandRegistryImpl implements CommandRegistry {
 
     private LiteralArgumentBuilder<CommandSource> treeNode(FurnacePlugin plugin, String name, String label, CommandBuilder spec) {
         Timing exec = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label);
-        Timing tab = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label + " (자동완성)");
+        Timing tab = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label + " " + Lang.t("plugin.tab-completion-timing"));
         LiteralArgumentBuilder<CommandSource> b = literal(name);
         fill(plugin, b, spec, exec, tab);
         return b;
@@ -225,14 +225,14 @@ final class CommandRegistryImpl implements CommandRegistry {
 
     private static String normalize(String label) {
         String n = label.toLowerCase(Locale.ROOT).trim();
-        if (n.isEmpty() || n.indexOf(' ') >= 0 || n.indexOf(':') >= 0) throw new IllegalArgumentException("명령 이름이 잘못됐다: '" + label + "'");
+        if (n.isEmpty() || n.indexOf(' ') >= 0 || n.indexOf(':') >= 0) throw new IllegalArgumentException("invalid command name: '" + label + "'");
         return n;
     }
 
     /** name 은 트리에 붙는 이름, label 은 /timings 에 보일 이름(플러그인: 접두어 없이 — 두 이름의 시간을 한 줄로 모은다). */
     private LiteralArgumentBuilder<CommandSource> node(FurnacePlugin plugin, String name, String label, BasicCommand cmd) {
         Timing exec = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label);
-        Timing tab = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label + " (자동완성)");
+        Timing tab = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label + " " + Lang.t("plugin.tab-completion-timing"));
         return literal(name)
                 .requires(src -> cmd.canUse(host.sender(src)))
                 .executes(ctx -> run(plugin, cmd, name, exec, ctx, new String[0]))

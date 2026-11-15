@@ -150,12 +150,12 @@ public final class CauseChain implements Iterable<CauseEntry> {
     /** "minecraft:tnt explode ← minecraft:player ignite name=Steve" 꼴. */
     @Override
     public String toString() {
-        if (head == null) return "(원인 없음)";
+        if (head == null) return "(no cause)";
         StringBuilder sb = new StringBuilder();
         for (CauseEntry e : this) {
             if (!sb.isEmpty()) sb.append(" ← ");
             sb.append(e);
         }
-        return truncated ? sb.append(" (잘림)").toString() : sb.toString();
+        return truncated ? sb.append(" (truncated)").toString() : sb.toString();
     }
 }
