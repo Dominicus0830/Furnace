@@ -78,6 +78,15 @@ dependencies {
     testRuntimeOnly(authlibStub.output)
 }
 
+// N2b-6: DataFixerUpper(Codec·DataResult·DynamicOps) 대역 — authlib 과 같은 방식(Mojang 저장소에만 있어 컴파일 경로에 받지 않는다). NMS shim 의
+// Codec 상수(DataComponentPatch.CODEC 등)가 쓰는 모양만 손으로 썼고 jar 에는 넣지 않는다(서버는 쓰는 플러그인이 있으면 묶음 datafixerupper 를 받는다).
+val dfuStub: SourceSet = the<SourceSetContainer>().create("dfu")
+dependencies {
+    compileOnly(dfuStub.output)
+    testCompileOnly(dfuStub.output)
+    testRuntimeOnly(dfuStub.output)
+}
+
 // 경로 목록은 태스크 실행 때 푼다 — 설정 단계에서 풀면 다른 모듈의 시험(:furnace-server:test)도 jar 13개를 받으려 든다.
 class RealWorldJars(@get:InputFiles @get:PathSensitive(PathSensitivity.NONE) val jars: FileCollection) : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String> =
@@ -144,8 +153,8 @@ tasks.test {
     enableAssertions = true
     maxHeapSize = "2g"
     jvmArgumentProviders.add(RealWorldJars(realWorld))
-    // CompatLinkTest 가 authlib 대역을 뺀 클래스패스로 링크를 본다
-    val stubDirs = authlibStub.output.classesDirs
+    // CompatLinkTest 가 authlib·DataFixerUpper 대역을 뺀 클래스패스로 링크를 본다
+    val stubDirs = authlibStub.output.classesDirs + dfuStub.output.classesDirs
     jvmArgumentProviders.add(CommandLineArgumentProvider { listOf("-Dfurnace.test.authlibStub=" + stubDirs.asPath) })
     // T-075: -Dfurnace.identity.bless=<금 파일 이름> 등 furnace.* 속성을 시험 JVM 에 넘긴다(서버 시험과 같다)
     System.getProperties().forEach { k, v ->
