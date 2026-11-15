@@ -200,11 +200,13 @@ public class Connection extends ChannelInboundHandlerAdapter {
     public Packet<?> compatReceive(Packet<?> packet) {
         if (packet == null || channel == virtual) return packet;
         Receive r = new Receive();
+        Receive outer = RECEIVE.get();   // 리스너 안에서 넣은 패킷이 그 자리에서 다시 받기를 부를 때 바깥 것을 지킨다
         RECEIVE.set(r);
         try {
             virtual.pipeline().fireChannelRead(packet);
         } finally {
-            RECEIVE.remove();
+            if (outer == null) RECEIVE.remove();
+            else RECEIVE.set(outer);
         }
         return r.reached ? r.result : null;
     }
@@ -227,9 +229,8 @@ public class Connection extends ChannelInboundHandlerAdapter {
     public void read(ChannelHandlerContext ctx, Packet<?> packet) {
         Receive r = RECEIVE.get();
         if (r != null && ctx != null && !r.reached) {
-            r.reached = true;
+            r.reached = true;   // 한 번만 — 그 뒤 이 스레드에서 읽히는 것(리스너가 넣는 다른 패킷 등)은 보통대로 서버에 간다
             r.result = packet;
-            RECEIVE.remove();   // 한 번만 — 리스너가 이 안에서 넣는 다른 패킷은 보통대로 서버에 간다
             return;
         }
         if (packet == null) return;

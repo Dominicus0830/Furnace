@@ -219,7 +219,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             handlePlay(ctx, packetId, frame);
             return;
         }
-        ByteBuf r = tap.inbound(packetId, frame, fromPlugin);
+        ByteBuf r;
+        inboundListeners++;
+        try {
+            r = tap.inbound(packetId, frame, fromPlugin);
+        } finally {
+            inboundListeners--;
+        }
         if (r == null) return;
         if (r == frame) {
             handlePlay(ctx, packetId, frame);
@@ -242,23 +248,36 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             frame.release();
             return;
         }
+        Runnable task = () -> {
+            try {
+                if (state != ConnectionState.PLAY || player == null || pendingPlayFrames != null || !c.channel().isActive()) return;
+                int id = Types.readVarInt(frame);
+                if (silent) handlePlay(c, id, frame);
+                else dispatchPlay(c, id, frame, true);
+            } catch (RuntimeException e) {
+                log.warn("플러그인이 넣은 패킷 처리 실패: {}", e.toString());
+            } finally {
+                frame.release();
+            }
+        };
+        // 이 연결의 받는 패킷 리스너 안(이벤트 루프)에서 넣은 것은 그 자리에서 — 지금 패킷과 같은 읽기의 뒤 패킷보다 먼저 처리된다
+        // (Paper 에서 ProtocolLib receiveClientPacket·바꾼 패킷이 그 자리에서 읽히는 것과 같다, PR #389 검토 R2). 깊이는 끝없는 되넣기를 막는다.
+        if (inboundListeners > 0 && inboundListeners < MAX_INLINE_INJECT_DEPTH && c.executor().inEventLoop()) {
+            task.run();
+            return;
+        }
         try {
-            c.executor().execute(() -> {
-                try {
-                    if (state != ConnectionState.PLAY || player == null || pendingPlayFrames != null || !c.channel().isActive()) return;
-                    int id = Types.readVarInt(frame);
-                    if (silent) handlePlay(c, id, frame);
-                    else dispatchPlay(c, id, frame, true);
-                } catch (RuntimeException e) {
-                    log.warn("플러그인이 넣은 패킷 처리 실패: {}", e.toString());
-                } finally {
-                    frame.release();
-                }
-            });
+            c.executor().execute(task);
         } catch (java.util.concurrent.RejectedExecutionException closed) {
             frame.release();
         }
     }
+
+    /** 받는 패킷 리스너가 도는 중인 깊이(이벤트 루프에서만 바뀐다). */
+    private int inboundListeners;
+
+    /** 리스너 안에서 넣은 패킷을 그 자리에서 처리하는 깊이 상한(넘으면 예전처럼 줄 끝에). */
+    static final int MAX_INLINE_INJECT_DEPTH = 8;
 
     // 단계별 프레임 상한(1.21.1 기준). 핸드셰이크: id(1) + 프로토콜 VarInt(5) + 주소 문자열(255자 → 최대 765B + 길이 3)
     // + 포트(2) + 다음 단계 VarInt(5) = 781B. 상태: 요청(id 만)·핑(id + long) = 9B. 로그인·구성은 바닐라가 받는 가장 큰 패킷,

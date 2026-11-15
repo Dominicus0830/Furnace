@@ -107,9 +107,10 @@ Furnace 서버가 받은 패킷(PacketService 리스너 HIGHEST, ProtocolLib 이
 - **못 보여 주는 종류**: `custom_payload`(페이로드 shim 없음 — Bukkit `registerIncomingPluginChannel` 은 된다), `container_click`(fastutil `Int2ObjectMap` 이 지워짐 — Bukkit `InventoryClickEvent` 는 된다). 처음 한 번 INFO. 시험 `ServerboundBridgeTest.unsupportedKindsSayWhy` 가 표를 지킨다.
 - **결과 되돌리기**: 리스너가 손대지 않았으면(`toFurnace(S') == toFurnace(S)`) 아무것도 안 함 → 서버는 원래 바이트를 처리. 취소 → `setCancelled`. 같은 종류로 바꿈 → `setPacket`. 다른 종류로 바꿈 → 원래 취소 + `PacketService.receive`(바뀐 것).
 - **`receiveClientPacket`**·라이브러리가 나중으로 미뤘다가 흘린 패킷: `Connection#read` 가 `PacketService.receive`(**receiveSilently 아님** — Furnace 패킷 리스너는 보게, 플러그인 패킷 표시라 다리가 라이브러리에 다시 보이지 않는다). 위 설계의 receiveSilently 는 Furnace 플러그인이 그 패킷을 못 보는 차이가 있어 바꿨다.
-- **스레드**: 가로채는 동안 네트워크 스레드를 주 스레드로 표시(2b-2 D1-A 와 같음). Paper 는 받는 쪽 주 스레드 리스너를 다음 틱 주 스레드에서 부르고 패킷을 그때 처리한다 — 결정 기록 `docs/user-todo/entries/2026-11-15-protocollib-t180.md`.
+- **스레드**: 받는 쪽은 주 스레드 표시를 **하지 않는다**(PR #389 검토 R1, 진짜 ProtocolLib 5.4.0 실측). ProtocolLib `PacketListenerSet` 은 받는 리스너를 `ListenerOptions.SYNC` 가 있을 때만 주 스레드 리스너로 등록한다 — 보내는 쪽(기본 동기)과 반대. 그래서 기본 받는 리스너는 네트워크 스레드에서 `isAsync()==true` 로 불리고(Paper 와 같음), SYNC 리스너가 있는 종류는 라이브러리가 `runTask` 로 미뤄 전역 스레드에서 부른 뒤 `ctx.fireChannelRead` 로 넘긴다 — 그때 `compatReceive` 는 null(원래 패킷 취소)이고 나중의 `Connection#read(ctx, …)` 가 `PacketService.receive` 로 한 번 넣는다. 그 종류는 Furnace 패킷 리스너에 "원래 것 취소 + 나중에 플러그인 패킷으로 다시"로 보인다. 결정 기록 `docs/user-todo/entries/2026-11-15-protocollib-t180.md`.
+- **넣은 패킷의 순서**: 리스너가 다른 종류로 바꾼 패킷과 리스너 안 `receiveClientPacket`(→ `read(null, …)`)은 `PacketService.receive` 로 들어가고, 서버는 **그 플레이어의 받는 리스너 안에서 넣은 것을 그 자리에서** 처리한다(`ConnectionHandler.injectPlay`, 깊이 8 까지). 그래서 같은 읽기의 뒤 패킷보다 먼저다 — Paper 에서 바꾼 패킷이 그 자리에서 `fireChannelRead` 되고 `readServerboundPacket` 이 그 자리에서 `read` 하는 것과 같다(검토 R2).
 - **Furnace 플러그인이 `PacketService.receive` 로 넣은 패킷**은 라이브러리에 보이지 않는다(Paper 에는 같은 길이 없다 — ProtocolLib 자신의 `receiveClientPacket` 만 있고 그것은 넣을 때 리스너를 이미 부른다).
-- 시험: `ServerboundBridgeTest`(타입 레코드 21표본·범용 11종 왕복, 서버 코덱이 쓸 수 있는 값, 거절 표), `ProtocolLibInboundTest`(채널 프록시 + `"decoder"` 뒤 처리기로 흉내 낸 라이브러리가 명령·채팅·이동·범용 종류를 보고·바꾸고·취소하고·다른 종류로 바꿈, 주 스레드, `read(null, …)` 가 서버에 가고 다시 보이지 않음, 구독 풀림).
+- 시험: `ServerboundBridgeTest`(타입 레코드 21표본·범용 11종 왕복, 서버 코덱이 쓸 수 있는 값, 거절 표), `ProtocolLibInboundTest`(채널 프록시 + `"decoder"` 뒤 처리기로 흉내 낸 라이브러리가 명령·채팅·이동·범용 종류를 보고·바꾸고·취소하고·다른 종류로 바꿈, 기본 리스너는 주 스레드가 아님, SYNC 흉내는 미룬 뒤 한 번 처리, 리스너 안에서 넣은 패킷과 원래 패킷이 둘 다 한 번씩·그 순서로 처리, 다른 종류로 바꾼 것이 뒤 패킷보다 먼저, `read(null, …)` 가 서버에 가고 다시 보이지 않음, 구독 풀림).
 
 ## 5. 가상 채널 사양 (2b-1 에서 구현)
 

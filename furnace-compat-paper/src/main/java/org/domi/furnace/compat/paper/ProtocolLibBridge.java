@@ -13,8 +13,9 @@
 //
 // 2b-3(T-180): 클라이언트가 보낸 패킷도 같은 방식으로 보여 준다(반치트·채팅 필터). Furnace 받는 패킷 리스너(EventPriority.LOWEST — 서버가 처리하기 전, 바이트에 가장 가깝게)에서
 //   Furnace 패킷 → shim(ServerboundBridge.fromFurnace) → 연결 파이프라인 머리에서 읽기(Connection#compatReceive) → ProtocolLib 받는 처리기 → shim' → Furnace 패킷
-// 으로 돌려 바꾸기·취소를 되돌린다. 받는 리스너도 주 스레드 리스너면 같은 까닭(순서·지연)으로 주 스레드로 표시한다 — Paper 는 다음 틱 주 스레드에서 부른다
-// (결정 기록 docs/user-todo/entries/2026-11-15-protocollib-t180.md).
+// 으로 돌려 바꾸기·취소를 되돌린다. 받는 쪽은 주 스레드 표시를 하지 않는다 — ProtocolLib 받는 리스너는 기본이 Netty 스레드(isAsync)이고
+// SYNC 리스너만 라이브러리가 스스로 주 스레드로 미룬다(Paper 와 같다, 결정 기록 docs/user-todo/entries/2026-11-15-protocollib-t180.md).
+// 리스너가 다른 종류로 바꾼 패킷·receiveClientPacket 은 PacketService.receive 로 넣고, 리스너 안이라 서버가 그 자리에서 처리한다(뒤 패킷보다 먼저).
 package org.domi.furnace.compat.paper;
 
 import java.util.Collection;
@@ -359,7 +360,9 @@ public final class ProtocolLibBridge {
             return;
         }
         net.minecraft.network.protocol.Packet<?> after;
-        try (PrimaryThread.Scope scope = PrimaryThread.enter()) {
+        // 주 스레드 표시를 하지 않는다: ProtocolLib 받는 리스너는 기본이 Netty 스레드(isAsync)이고, SYNC 리스너만 라이브러리가 스스로 주 스레드로
+        // 미룬다(그때 compatReceive 는 null — 나중에 Connection#read 가 넣는다). 보내는 쪽(기본이 동기)과 반대다(PR #389 검토 R1).
+        try {
             after = c.compatReceive(shim);
         } catch (RuntimeException ex) {
             warnOnce("in-intercept:" + value.type(), "ProtocolLib 받는 쪽 가로채기 중 오류(" + value.type().name() + ", 원래 패킷을 처리한다): " + ex);
@@ -377,7 +380,7 @@ public final class ProtocolLibBridge {
                     + ex.getMessage());
             return;
         }
-        if (out.equals(before)) return;   // 리스너가 손대지 않았다
+        if (sameInbound(out, before)) return;   // 리스너가 손대지 않았다
         if (out.type() != value.type()) {   // 다른 종류로 바꿨다 — 이 패킷 대신 그것을 넣는다
             e.setCancelled(true);
             try {
@@ -392,6 +395,16 @@ public final class ProtocolLibBridge {
         } catch (RuntimeException ex) {
             warnOnce("in-set:" + value.type(), "ProtocolLib 리스너가 바꾼 " + value.type().name() + " 패킷을 쓸 수 없어 원래 패킷을 처리한다(첫 오류): " + ex.getMessage());
         }
+    }
+
+    /** 손대지 않았나: 서명 있는 채팅은 레코드 equals 가 byte[] 를 객체로 비교하므로 내용으로 본다(PR #389 검토 S2). */
+    static boolean sameInbound(ServerboundPacket a, ServerboundPacket b) {
+        if (a instanceof org.domi.furnace.api.packet.serverbound.ServerboundChatPacket x && b instanceof org.domi.furnace.api.packet.serverbound.ServerboundChatPacket y) {
+            return x.message().equals(y.message()) && x.timestamp().equals(y.timestamp()) && x.salt() == y.salt()
+                    && java.util.Arrays.equals(x.signature(), y.signature()) && x.lastSeenOffset() == y.lastSeenOffset()
+                    && x.lastSeenAcknowledged() == y.lastSeenAcknowledged();
+        }
+        return a.equals(b);
     }
 
     /** 리스너가 다른 종류·묶음으로 바꾼 패킷을 그 자리에 보낸다(다시 라이브러리를 지나지 않게 표지를 붙여). */

@@ -38,6 +38,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * ProtocolLib 다리 2b-3(T-180): 클라이언트가 보낸 패킷이 패킷 라이브러리의 받는 처리기("decoder" 뒤)를 지나 리스너가 보고·바꾸고·취소하고·다른 종류로 바꾼다.
  * 라이브러리는 진짜 ProtocolLib 처럼 연결의 channel 필드를 프록시로 바꾸고, 가상 채널 파이프라인의 "decoder" 뒤에 받는 처리기를 끼운다.
+ * 받는 쪽은 주 스레드 표시를 하지 않는다(ProtocolLib 받는 리스너는 기본이 Netty 스레드, SYNC 만 라이브러리가 미룬다 — PR #389 검토 R1).
  */
 class ProtocolLibInboundTest {
 
@@ -64,9 +65,17 @@ class ProtocolLibInboundTest {
 
     /**
      * 진짜 ProtocolLib 처럼 주입한다: channel 필드를 프록시로(보내는 쪽은 그대로 통과), 파이프라인 "decoder" 뒤에 받는 처리기. hook 은 받은 패킷을
-     * 바꿀 패킷(같은 것이면 그대로)이나 null(취소)로.
+     * 바꿀 패킷(같은 것이면 그대로)이나 null(취소, 또는 hook 이 나중에 ctx 로 직접 넘김)로.
      */
+    interface Hook {
+        Object apply(ChannelHandlerContext ctx, Object packet);
+    }
+
     private static List<Seen> inject(Connection c, Function<Object, Object> hook) throws Exception {
+        return inject(c, (Hook) (ctx, p) -> hook.apply(p));
+    }
+
+    private static List<Seen> inject(Connection c, Hook hook) throws Exception {
         Channel real = c.channel;
         EventLoop realLoop = real.eventLoop();
         Channel proxy = (Channel) Proxy.newProxyInstance(Channel.class.getClassLoader(), new Class<?>[] {Channel.class}, (p, m, a) ->
@@ -79,7 +88,7 @@ class ProtocolLibInboundTest {
             @Override
             public void channelRead(ChannelHandlerContext ctx, Object msg) {
                 seen.add(new Seen(msg, Bukkit.isPrimaryThread()));
-                Object out = hook.apply(msg);
+                Object out = hook.apply(ctx, msg);
                 if (out != null) ctx.fireChannelRead(out);
             }
         });
@@ -145,7 +154,7 @@ class ProtocolLibInboundTest {
                         "범용 종류도 바꾼 값이 간다: " + got);
                 assertTrue(seen.stream().anyMatch(s -> s.packet() instanceof net.minecraft.network.protocol.game.ServerboundMovePlayerPacket.Pos p
                         && p.getX(Double.NaN) == at.x() && p.isOnGround()), "이동 패킷을 바닐라 shim 으로 본다: " + seen);
-                assertTrue(seen.stream().allMatch(Seen::primary), "가로채는 동안은 주 스레드다(ProtocolLib 이 1틱 미루지 않게)");
+                assertTrue(seen.stream().noneMatch(Seen::primary), "기본 받는 리스너는 네트워크 스레드다(Paper 의 ProtocolLib 처럼 isAsync): " + seen);
                 assertFalse(tp.messageLines().stream().anyMatch(l -> l.contains("swap")), "취소된 채팅은 퍼지지 않는다: " + tp.messageLines());
 
                 // receiveClientPacket(라이브러리가 이미 리스너를 불렀다) → Connection#read(null, 패킷) → 서버. 라이브러리에 다시 보이지 않는다
@@ -190,5 +199,97 @@ class ProtocolLibInboundTest {
                 bridge.stop();
             }
         }
+    }
+
+    /** 서버가 처리한 명령(MONITOR, 취소 안 된 것) 순서. */
+    private static List<String> commands(List<Got> got) {
+        return got.stream().filter(g -> !g.cancelled() && g.packet() instanceof org.domi.furnace.api.packet.serverbound.ServerboundChatCommandPacket)
+                .map(g -> ((org.domi.furnace.api.packet.serverbound.ServerboundChatCommandPacket) g.packet()).command()).toList();
+    }
+
+    /**
+     * 리스너 안에서 넣은 패킷(receiveClientPacket → read(null, …))과 다른 종류로 바꾼 패킷은 그 자리에서 처리된다 — 원래 패킷과 뒤이어 온 패킷보다 먼저,
+     * 원래 패킷도 한 번(PR #389 검토 R2·R3). SYNC 리스너처럼 라이브러리가 주 스레드로 미뤘다가 넘긴 패킷은 나중에 한 번 처리된다.
+     */
+    @Test
+    void packetsInjectedByTheLibraryKeepPaperOrderAndDelayedOnesArriveOnce() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            TestPlayer tp = server.join("Order");
+            server.tick(2);
+            tp.sync();
+            ProtocolLibBridge bridge = ProtocolLibBridge.start(owner(), () -> List.of(net.minecraft.network.protocol.game.ServerboundChatCommandPacket.class,
+                    net.minecraft.network.protocol.game.ServerboundChatPacket.class));
+            try {
+                bridge.resync();
+                List<Got> got = new CopyOnWriteArrayList<>();
+                Furnace.server().packets().listen(owner(), EventPriority.MONITOR, e -> got.add(new Got(e.packet(), e.isCancelled(), e.isPluginPacket())),
+                        PacketTypes.Serverbound.CHAT_COMMAND, PacketTypes.Serverbound.CHAT);
+                Connection c = ((CraftPlayer) Bukkit.getPlayer("Order")).getHandle().connection.compatConnection();
+                List<Boolean> laterPrimary = new CopyOnWriteArrayList<>();
+                inject(c, (Hook) (ctx, packet) -> {
+                    if (packet instanceof net.minecraft.network.protocol.game.ServerboundChatCommandPacket cmd) {
+                        switch (cmd.command()) {
+                            case "inject" -> c.read(null, new net.minecraft.network.protocol.game.ServerboundChatCommandPacket("injected"));   // receiveClientPacket
+                            case "later" -> {   // SYNC 리스너: 주 스레드로 미뤘다가 넘긴다(ProtocolLib processInboundInternal)
+                                Bukkit.getScheduler().runTask(Bukkit.getPluginManager().getPlugin("Plin"), () -> {
+                                    laterPrimary.add(Bukkit.isPrimaryThread());
+                                    ctx.channel().eventLoop().execute(() -> ctx.fireChannelRead(packet));
+                                });
+                                return null;
+                            }
+                            default -> { }
+                        }
+                    }
+                    if (packet instanceof net.minecraft.network.protocol.game.ServerboundChatPacket chat && chat.message().equals("swap")) {
+                        try {
+                            Thread.sleep(300);   // 뒤 프레임이 그동안 도착한다
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                        }
+                        return new net.minecraft.network.protocol.game.ServerboundChatCommandPacket("swapped");
+                    }
+                    return packet;
+                });
+
+                tp.command("inject");
+                assertEquals(List.of("injected", "inject"), commands(got), "넣은 것이 먼저, 원래 것도 한 번: " + got);
+
+                got.clear();
+                tp.sendPacketNoWait(0x06, b -> {   // 채팅 "swap"
+                    org.domi.furnace.server.net.io.Types.writeString(b, "swap");
+                    b.writeLong(System.currentTimeMillis());
+                    b.writeLong(0L);
+                    b.writeBoolean(false);
+                    org.domi.furnace.server.net.io.Types.writeVarInt(b, 0);
+                    b.writeBytes(new byte[3]);
+                });
+                tp.sendPacketNoWait(0x04, b -> org.domi.furnace.server.net.io.Types.writeString(b, "after"));
+                tp.sync();
+                assertEquals(List.of("swapped", "after"), commands(got), "다른 종류로 바꾼 것이 뒤이어 온 패킷보다 먼저: " + got);
+
+                got.clear();
+                tp.command("later");
+                server.tick(2);
+                tp.sync();
+                assertEquals(List.of(true), laterPrimary, "미룬 리스너는 주 스레드에서");
+                assertEquals(List.of("later"), commands(got), "미룬 패킷은 나중에 한 번 처리된다: " + got);
+                assertTrue(got.stream().anyMatch(g -> g.cancelled() && !g.plugin()), "원래 것은 취소로 보이고 다시 넣은 것은 플러그인 패킷이다: " + got);
+            } finally {
+                bridge.stop();
+            }
+        }
+    }
+
+    /** 서명 있는 채팅은 서명 내용이 같으면 손대지 않은 것으로 본다(배열 객체가 달라도 — 검토 S2). */
+    @Test
+    void signedChatWithTheSameSignatureBytesIsUntouched() {
+        byte[] sig = new byte[256];
+        var a = new org.domi.furnace.api.packet.serverbound.ServerboundChatPacket("x", java.time.Instant.EPOCH, 1L, sig, 0, 5);
+        var b = new org.domi.furnace.api.packet.serverbound.ServerboundChatPacket("x", java.time.Instant.EPOCH, 1L, sig.clone(), 0, 5);
+        assertTrue(ProtocolLibBridge.sameInbound(a, b));
+        byte[] other = sig.clone();
+        other[0] = 1;
+        assertFalse(ProtocolLibBridge.sameInbound(a, new org.domi.furnace.api.packet.serverbound.ServerboundChatPacket("x", java.time.Instant.EPOCH, 1L, other, 0, 5)));
+        assertFalse(ProtocolLibBridge.sameInbound(a, new org.domi.furnace.api.packet.serverbound.ServerboundChatPacket("y", java.time.Instant.EPOCH, 1L, sig, 0, 5)));
     }
 }
