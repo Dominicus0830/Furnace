@@ -62,6 +62,64 @@ public abstract class BlockEntity {
     /** loadAdditional: 종류별 필드 읽기. */
     public void load(NbtCompound tag) {}
 
+    /** CraftBukkit 블록 엔티티 영속 데이터(Bukkit TileState#getPersistentDataContainer)의 NBT 키. */
+    public static final String BUKKIT_VALUES = "PublicBukkitValues";
+
+    /** 플러그인 영속 데이터(비었으면 null). 저장·/data 에는 실리고 클라이언트에는 보내지 않는다(Paper Sanitize-sent-BlockEntity-NBT). */
+    private NbtCompound bukkitValues;
+
+    /** CraftBukkit loadAdditional 의 영속 데이터 부분: 비우고 PublicBukkitValues 를 읽는다. */
+    public final void readBukkitValues(NbtCompound tag) {
+        bukkitValues = tag.tags().get(BUKKIT_VALUES) instanceof NbtCompound c && !c.tags().isEmpty() ? c.copy() : null;
+    }
+
+    /** {@link #load} + 영속 데이터(CraftBukkit 은 기본 loadAdditional 에서 읽는다 — 종류별 load 가 super 를 부르지 않아도 되게 여기서). */
+    public final void loadWithBukkitValues(NbtCompound tag) {
+        load(tag);
+        readBukkitValues(tag);
+    }
+
+    /**
+     * 살아 있는 영속 데이터 compound(Paper: 블록 엔티티의 persistentDataContainer). create 면 없을 때 빈 것을 만든다.
+     * 소유 region 스레드에서만. 고친 뒤 {@link #settleBukkitValues} 를 부른다.
+     */
+    public final NbtCompound bukkitValues(boolean create) {
+        if (bukkitValues == null && create) bukkitValues = new NbtCompound();
+        return bukkitValues;
+    }
+
+    /**
+     * 영속 데이터를 고친 뒤: 비었으면 떼고(저장 꼴에 빈 키를 쓰지 않게) changed 면 청크를 저장 대상으로 표시한다. 비교기 갱신·클라이언트 전송은
+     * 하지 않는다(영속 데이터는 둘 다에 안 보인다).
+     */
+    public final void settleBukkitValues(org.domi.furnace.server.block.BlockLevel level, boolean changed) {
+        if (bukkitValues != null && bukkitValues.tags().isEmpty()) bukkitValues = null;
+        if (changed) level.blockEntityChanged(pos);
+    }
+
+    /** 저장 꼴에 영속 데이터를 붙인다(있을 때만). */
+    public final void writeBukkitValues(NbtCompound tag) {
+        NbtCompound v = bukkitValues;
+        if (v != null) tag.putCompound(BUKKIT_VALUES, v.copy());
+    }
+
+    /** 클라이언트로 보내는 갱신 태그(청크 패킷·block_entity_data): {@link #updateTag} 에서 영속 데이터를 뺀다. */
+    public final NbtCompound sentUpdateTag() {
+        return sanitizeSentNbt(updateTag());
+    }
+
+    /**
+     * Paper sanitizeSentNbt: 클라이언트로 나가는 블록 엔티티 태그에서 영속 데이터를 뺀다. 블록 엔티티 태그를 보내는 곳(청크 패킷·
+     * block_entity_data·명령 블록 화면)은 모두 이것을 거친다. 넘긴 태그를 바꾸지 않고, 뺄 것이 있으면 사본을 돌려준다.
+     */
+    public static NbtCompound sanitizeSentNbt(NbtCompound t) {
+        if (t != null && t.contains(BUKKIT_VALUES)) {
+            t = t.copy();
+            t.tags().remove(BUKKIT_VALUES);
+        }
+        return t;
+    }
+
     /** saveAdditional: 종류별 필드 쓰기. */
     protected void saveAdditional(NbtCompound tag) {}
 
@@ -86,6 +144,7 @@ public abstract class BlockEntity {
     public NbtCompound saveCustomOnly() {
         NbtCompound tag = new NbtCompound();
         saveAdditional(tag);
+        writeBukkitValues(tag);   // CraftBukkit saveWithoutMetadata·Paper saveCustomOnly 둘 다 싣는다
         return tag;
     }
 
@@ -191,7 +250,7 @@ public abstract class BlockEntity {
         NbtCompound before = saved.copy();
         org.domi.furnace.server.net.io.nbt.NbtTags.merge(saved, data);
         if (org.domi.furnace.server.net.io.nbt.NbtTags.equal(saved, before)) return false;
-        load(saved);
+        loadWithBukkitValues(saved);
         afterLoad(level);
         setChanged(level);
         return true;
@@ -208,7 +267,7 @@ public abstract class BlockEntity {
      * setChanged·블록 갱신 방송은 부르는 쪽이 정한다.
      */
     public final void loadWithComponentsInLevel(BlockLevel level, NbtCompound tag) {
-        load(tag);
+        loadWithBukkitValues(tag);
         afterLoad(level);
         loadComponents(tag);
     }

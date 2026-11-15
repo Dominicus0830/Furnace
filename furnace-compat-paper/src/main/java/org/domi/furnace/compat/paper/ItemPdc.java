@@ -346,6 +346,49 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
     }
 
 
+    // ------------------------------------------------------------------ Furnace NBT compound (블록 엔티티 PublicBukkitValues)
+
+    /** Furnace NBT compound(블록 엔티티 PublicBukkitValues 사본) → 메모리 컨테이너. */
+    static ItemPdc fromNbt(org.domi.furnace.api.nbt.NbtCompound c) {
+        ItemPdc out = new ItemPdc(null);
+        for (var e : c.entries()) {
+            Object v = fromNbtValue(e.getValue());
+            out.changes.put(e.getKey(), new Value(typeOf(v), v));
+        }
+        return out;
+    }
+
+    private static Object fromNbtValue(Object v) {
+        if (v instanceof org.domi.furnace.api.nbt.NbtCompound c) return fromNbt(c);
+        if (v instanceof org.domi.furnace.api.nbt.NbtList l) {
+            List<Object> out = new ArrayList<>(l.size());
+            for (Object x : l.values()) out.add(fromNbtValue(x));
+            return out;
+        }
+        return copyPrim(v);
+    }
+
+    /** 지금 내용 → Furnace NBT compound. */
+    org.domi.furnace.api.nbt.NbtCompound toNbt() {
+        var out = new org.domi.furnace.api.nbt.NbtCompound();
+        for (String k : rawKeys()) {
+            Value v = lookup(k);
+            if (v != null) out.put(k, toNbtValue(v.value()));
+        }
+        return out;
+    }
+
+    private static Object toNbtValue(Object o) {
+        if (o instanceof ItemPdc p) return p.toNbt();
+        if (o instanceof PersistentDataContainer c) return copyNested(c).toNbt();
+        if (o instanceof List<?> l) {
+            var out = new org.domi.furnace.api.nbt.NbtList();
+            for (Object e : l) out.add(toNbtValue(e));
+            return out;
+        }
+        return copyPrim(o);
+    }
+
     // ------------------------------------------------------------------ NBT 바이트 (serializeToBytes / readFromBytes)
 
     private static final int TAG_END = 0, TAG_BYTE = 1, TAG_SHORT = 2, TAG_INT = 3, TAG_LONG = 4, TAG_FLOAT = 5, TAG_DOUBLE = 6,

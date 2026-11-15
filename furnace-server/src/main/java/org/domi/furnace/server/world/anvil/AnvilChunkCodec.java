@@ -201,6 +201,11 @@ public final class AnvilChunkCodec {
             e.putString("LootTable", table);
             if (furnaceTag.tags().get("LootTableSeed") instanceof Long seed) e.putLong("LootTableSeed", seed);
         }
+        if (furnaceTag != null) {   // 이름·잠금·남은 컴포넌트·플러그인 영속 데이터(예전엔 스냅숏에만 있고 디스크에 안 적혔다)
+            for (String k : new String[] {"CustomName", "Lock", "components", org.domi.furnace.server.block.entity.BlockEntity.BUKKIT_VALUES}) {
+                if (furnaceTag.contains(k)) e.put(k, furnaceTag.tags().get(k));
+            }
+        }
         e.putInt("x", x);
         e.putInt("y", y);
         e.putInt("z", z);
@@ -521,6 +526,7 @@ public final class AnvilChunkCodec {
         }
         chest.customName = e.tags().get("CustomName") instanceof String n ? n : null;
         chest.lock = e.tags().get("Lock") instanceof String l ? l : null;
+        chest.readBukkitValues(e);
         chest.loadComponents(e);
         return chest;
     }
@@ -543,6 +549,7 @@ public final class AnvilChunkCodec {
             }
         }
         ChestBlockEntity chest = new ChestBlockEntity(x, y, z, stacks);
+        chest.readBukkitValues(e);
         chest.loadComponents(e);
         return chest;
     }

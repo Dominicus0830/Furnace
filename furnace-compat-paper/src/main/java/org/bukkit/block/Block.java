@@ -53,7 +53,10 @@ public interface Block extends org.bukkit.metadata.Metadatable {
     /** 이 칸의 지금 상태 스냅숏(블록 엔티티 내용은 담지 않는다). */
     BlockState getState();
 
-    /** Paper getState(useSnapshot). Furnace 의 BlockState 는 블록 엔티티 내용을 담지 않으므로 두 값 모두 getState() 와 같다. */
+    /**
+     * Paper getState(useSnapshot). false 면 블록 엔티티 상태(TileState)의 isSnapshot()=false 이고 영속 데이터를 그 칸 블록 엔티티에서 곧바로
+     * 읽고 쓴다(update 불필요). 이름·표지판 글 같은 다른 값은 Furnace 에서는 여전히 update 때 실린다.
+     */
     BlockState getState(boolean useSnapshot);
 
     /** 밝기(하늘빛은 지금 하늘 어두움을 뺀 값, 블록빛과 큰 값). 소유 스레드 전용. */

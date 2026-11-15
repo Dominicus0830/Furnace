@@ -34,4 +34,24 @@ class GeneratedLootChestTest {
         assertNull(col.chestAt(1, 10, 1));
         assertEquals(1, col.generatedBlockEntities().size());
     }
+
+    /** 구조물 템플릿 상자의 이름·잠금·영속 데이터도 옮겨진다(디스크 읽기와 같은 필드). */
+    @Test
+    void generatedChestKeepsNameLockAndBukkitValues() {
+        ChunkColumn col = new ChunkColumn(0);
+        NbtCompound nbt = new NbtCompound();
+        nbt.putString("id", "minecraft:chest");
+        nbt.putString("CustomName", "\"Box\"");
+        nbt.putString("Lock", "key");
+        NbtCompound pdc = new NbtCompound();
+        pdc.putString("demo:owner", "Dana");
+        nbt.putCompound("PublicBukkitValues", pdc);
+        col.putGeneratedBlockEntity(3, 40, 5, nbt);
+
+        ChestBlockEntity chest = col.chestAt(3, 40, 5);
+        assertNotNull(chest);
+        assertEquals("\"Box\"", chest.customName);
+        assertEquals("key", chest.lock);
+        assertEquals("Dana", chest.saveCustomOnly().getCompound("PublicBukkitValues").getString("demo:owner"));
+    }
 }

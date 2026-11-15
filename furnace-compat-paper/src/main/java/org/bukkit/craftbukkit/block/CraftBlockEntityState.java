@@ -33,8 +33,89 @@ public abstract class CraftBlockEntityState extends org.domi.furnace.compat.pape
 
     /** 지금 사본(미뤄 둔 값까지 적은 것)의 복사본 — Paper getSnapshotNBT. */
     public NbtCompound getSnapshotNBT() {
-        applyToSnapshot();
+        applyAll();
         return snapshot.copy();
+    }
+
+    /** 하위 클래스 값과 영속 데이터를 사본에 적는다. 스냅숏이 아닌 상태는 영속 데이터를 지금 블록 엔티티 값으로 맞춘다(그쪽이 원본). */
+    private void applyAll() {
+        applyToSnapshot();
+        if (live) {
+            var now = Compat.furnace().world(dimension()).blockEntityNbtNow(position());
+            if (now.isPresent() && now.get().get(PUBLIC_BUKKIT_VALUES) instanceof NbtCompound v) snapshot.putCompound(PUBLIC_BUKKIT_VALUES, v.copy());
+            else snapshot.remove(PUBLIC_BUKKIT_VALUES);
+        } else if (pdc != null) {
+            NbtCompound v = org.domi.furnace.compat.paper.TileStatePdc.toNbt(pdc);
+            if (v.isEmpty()) snapshot.remove(PUBLIC_BUKKIT_VALUES);
+            else snapshot.putCompound(PUBLIC_BUKKIT_VALUES, v);
+        }
+    }
+
+    // ------------------------------------------------------------------ 영속 데이터(TileState)·이름(Nameable)
+
+    /** CraftBukkit 이 블록 엔티티 영속 데이터를 두는 NBT 키(저장·/data 에는 있고 클라이언트로는 안 간다). */
+    private static final String PUBLIC_BUKKIT_VALUES = "PublicBukkitValues";
+
+    private org.bukkit.persistence.PersistentDataContainer pdc;
+
+    /** Block#getState(false) 로 만든 상태: 영속 데이터가 살아 있는 블록 엔티티의 것(Paper API-to-get-a-BlockState-without-a-snapshot). */
+    private boolean live;
+
+    /**
+     * 스냅숏이 아닌 상태로 바꾼다(놓인 상태만). 영속 데이터는 고치는 즉시 블록 엔티티에 반영되고, 다른 값(이름·표지판 글 등)은 지금처럼
+     * {@link #update} 때 실린다 — Paper 는 그것들도 곧바로 블록 엔티티를 고치지만 Furnace 상태는 NBT 사본 위라 update 가 필요하다.
+     */
+    public final void makeLive() {
+        if (!isPlaced()) return;
+        live = true;
+        liveType = ((org.domi.furnace.compat.paper.CompatBlockData) getBlockData()).furnace().type();
+    }
+
+    /** 살아 있는 상태를 만들 때 그 칸의 블록 종류(그 칸이 다른 블록으로 바뀌면 영속 데이터가 떨어져 나간 것으로 본다). */
+    private String liveType;
+
+    /**
+     * Paper: 이 상태의 영속 데이터. 스냅숏이면 바꾼 것이 {@link #update} 때 블록 엔티티에 실리고, getState(false) 로 만든 상태면
+     * 그 칸 블록 엔티티의 것을 곧바로 읽고 쓴다.
+     */
+    @Override
+    public org.bukkit.persistence.PersistentDataContainer getPersistentDataContainer() {
+        if (pdc == null) {
+            pdc = live ? new org.domi.furnace.compat.paper.BlockEntityPdc(dimension(), position(), liveType)
+                    : org.domi.furnace.compat.paper.TileStatePdc.of(snapshot.getCompound(PUBLIC_BUKKIT_VALUES));
+        }
+        return pdc;
+    }
+
+    @Override
+    public boolean isSnapshot() { return !live; }
+
+    /**
+     * Nameable#getCustomName 의 몸(이름을 가진 형 — 용기·신호기·현수막·마법 부여대 — 만 그 인터페이스를 단다): 사본 CustomName(JSON) 을 § 레거시로.
+     * Paper CraftChatMessage.fromComponent.
+     */
+    public String getCustomName() {
+        if (!(snapshot.get("CustomName") instanceof String json)) return null;
+        try {
+            return org.domi.furnace.api.text.serializer.LegacyTextSerializer.section()
+                    .serialize(org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize(json));
+        } catch (RuntimeException badJson) {
+            return null;   // 바닐라도 읽지 못한 이름은 버린다(parseCustomNameSafe)
+        }
+    }
+
+    /** Nameable#setCustomName 의 몸: null·빈 문자열이면 뗀다(Paper CraftChatMessage.fromStringOrNull). update 때 실린다. */
+    public void setCustomName(String name) {
+        if (live) {
+            org.domi.furnace.compat.nms.NmsCaller.warnOnce("TileState.live.setCustomName",
+                    "플러그인 {} 이(가) getState(false) 상태의 이름을 바꿨다 — Furnace 에서는 update() 를 불러야 블록에 실린다(Paper 는 곧바로 반영).");
+        }
+        if (name == null || name.isEmpty()) {
+            snapshot.remove("CustomName");
+            return;
+        }
+        snapshot.putString("CustomName", org.domi.furnace.api.text.serializer.JsonTextSerializer.json()
+                .serialize(org.domi.furnace.api.text.serializer.LegacyTextSerializer.section().deserialize(name)));
     }
 
     /**
@@ -60,12 +141,16 @@ public abstract class CraftBlockEntityState extends org.domi.furnace.compat.pape
     public boolean update(boolean force, boolean applyPhysics) {
         boolean result = super.update(force, applyPhysics);
         if (result && isPlaced()) {
-            applyToSnapshot();
+            applyAll();
             var world = Compat.furnace().world(dimension());
             var live = world.blockEntityNbtNow(position());
             // Paper isApplicable: 그 칸의 블록 엔티티가 같은 종류일 때만
             if (live.isPresent() && live.get().getString("id").equals(snapshot.getString("id"))) {
                 world.setBlockEntityNbtNow(position(), snapshot.copy());
+            } else if (live.isEmpty()) {
+                // 블록을 쓴 뒤에도 블록 엔티티가 없다 = Furnace 가 아직 이 종류의 블록 엔티티를 만들지 않는다(마법 부여대 등)
+                org.domi.furnace.compat.nms.NmsCaller.warnOnce("TileState.update.noBlockEntity." + snapshot.getString("id"),
+                        "플러그인 {} 이(가) " + snapshot.getString("id") + " 블록 상태를 update 했지만 Furnace 에는 그 블록 엔티티가 없어 이름·영속 데이터가 실리지 않았다.");
             }
         }
         return result;

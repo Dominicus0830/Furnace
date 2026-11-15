@@ -410,6 +410,20 @@ public interface World {
      */
     default boolean setBlockEntityNbtNow(BlockPos pos, NbtCompound nbt) { throw new UnsupportedOperationException("setBlockEntityNbtNow"); }
 
+    /**
+     * 그 칸 블록 엔티티의 플러그인 영속 데이터(저장 위치는 Paper 와 같은 블록 엔티티 NBT 의 PublicBukkitValues — 클라이언트로는 안 나간다)를
+     * 소유 region 스레드에서 곧바로 고친다. 컨테이너는 콜백 안에서만 쓴다. 나머지 블록 엔티티 필드는 건드리지 않고(전체 NBT 를 다시 싣지 않음)
+     * 블록 엔티티를 바뀜으로 표시한다. 로드되지 않았거나 블록 엔티티가 없으면 false. 그 칸을 가진 region 스레드에서만(아니면 ThreadOwnershipException).
+     */
+    default boolean editBlockEntityPersistentDataNow(BlockPos pos, java.util.function.Consumer<org.domi.furnace.api.persistence.PersistentDataContainer> edit) {
+        throw new UnsupportedOperationException("editBlockEntityPersistentDataNow");
+    }
+
+    /** {@link #editBlockEntityPersistentDataNow} 를 그 칸을 가진 region 스레드에서 돌린다. 블록 엔티티가 없거나 로드되지 않았으면 false. */
+    default CompletableFuture<Boolean> editBlockEntityPersistentData(BlockPos pos, java.util.function.Consumer<org.domi.furnace.api.persistence.PersistentDataContainer> edit) {
+        throw new UnsupportedOperationException("editBlockEntityPersistentData");
+    }
+
     /** patch 를 합친다(/data merge block). 바뀌었으면 true. */
     default CompletableFuture<Boolean> mergeBlockEntityNbt(BlockPos pos, NbtCompound patch) {
         NbtCompound p = patch.copy();

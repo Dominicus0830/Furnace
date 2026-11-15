@@ -209,5 +209,5 @@ public class CommandBlockEntity extends BlockEntity {
     }
 
     /** openCommandBlock 이 보내는 태그와 같다(saveCustomOnly). */
-    public NbtCompound screenTag() { return saveCustomOnly(); }
+    public NbtCompound screenTag() { return sanitizeSentNbt(saveCustomOnly()); }   // Paper: ClientboundBlockEntityDataPacket.create 가 sanitizeSentNbt
 }

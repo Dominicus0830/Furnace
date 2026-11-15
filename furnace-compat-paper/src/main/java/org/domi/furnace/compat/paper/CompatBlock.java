@@ -77,7 +77,12 @@ public final class CompatBlock implements Block {
     public org.bukkit.block.BlockState getState() { return CompatBlockStates.create(dimension, pos, CompatBlockData.of(currentData())); }
 
     @Override
-    public org.bukkit.block.BlockState getState(boolean useSnapshot) { return getState(); }
+    public org.bukkit.block.BlockState getState(boolean useSnapshot) {
+        org.bukkit.block.BlockState s = getState();
+        // Paper getState(false): 블록 엔티티를 사본 없이 감싼다 — Furnace 는 영속 데이터만 살아 있는 블록 엔티티로 읽고 쓴다
+        if (!useSnapshot && s instanceof org.bukkit.craftbukkit.block.CraftBlockEntityState t) t.makeLive();
+        return s;
+    }
 
     private org.domi.furnace.api.world.World furnaceWorld() { return Compat.furnace().world(dimension); }
 
