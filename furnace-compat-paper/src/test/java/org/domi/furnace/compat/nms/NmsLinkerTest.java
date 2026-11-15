@@ -305,7 +305,7 @@ class NmsLinkerTest {
                         "net.minecraft.server.MinecraftServer", STUBS.get("net.minecraft.server.MinecraftServer")),
                 Set.of("net.minecraft."));
         NmsCompatReport r = NmsCompatReport.scan("R", jar, NmsSymbols.RUNTIME);
-        assertTrue(r.namespace().startsWith("Spigot(가정"), "매니페스트가 없으면 Spigot 가정: " + r.namespace());
+        assertTrue(NmsCompatReport.NAMESPACE_ASSUMED.equals(r.namespace()), "매니페스트가 없으면 Spigot 가정: " + r.namespace());
         assertTrue(r.missing().contains("net.minecraft.world.level.chunk.ProtoChunk"), r.missing().toString());
         assertTrue(r.missing().contains("net.minecraft.server.level.ServerLevel#getProtoChunkAt(1)"), r.missing().toString());
         assertTrue(r.missing().stream().noneMatch(m -> m.startsWith("net.minecraft.world.item.ItemStack#EMPTY")), "있는 것은 없음에 들지 않는다");

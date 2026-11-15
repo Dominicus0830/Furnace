@@ -74,7 +74,7 @@ class NmsMissingClassLogPluginTest {
         try (FurnaceTestServer server = start(FurnaceTestServer.builder())) {
             List<String> w = probeWarnings();
             assertEquals(1, w.size(), () -> String.join("\n", w));
-            assertTrue(w.get(0).contains("켜지는 동안") && w.get(0).contains("2개") && w.get(0).contains("FurnaceProbeAlpha"), w.get(0));
+            assertTrue(w.get(0).contains("while starting") && w.get(0).contains("looked up 2 NMS classes") && w.get(0).contains("FurnaceProbeAlpha"), w.get(0));
         }
     }
 
@@ -84,7 +84,7 @@ class NmsMissingClassLogPluginTest {
             List<String> w = probeWarnings();
             assertEquals(2, w.size(), () -> String.join("\n", w));
             assertTrue(w.get(0).contains("FurnaceProbeAlpha") && w.get(1).contains("FurnaceProbeBeta"), String.join("\n", w));
-            assertTrue(w.stream().noneMatch(m -> m.contains("켜지는 동안")), "요약 줄이 없다");
+            assertTrue(w.stream().noneMatch(m -> m.contains("while starting")), "요약 줄이 없다");
         }
     }
 }

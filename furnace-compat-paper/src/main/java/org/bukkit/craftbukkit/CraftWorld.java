@@ -1,5 +1,6 @@
 package org.bukkit.craftbukkit;
 
+import org.domi.furnace.compat.i18n.CompatLang;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -668,14 +669,14 @@ public final class CraftWorld implements World {
         String id = treeFeature(type);
         if (!handle.isChunkLoaded(pos.chunkX(), pos.chunkZ())) {
             // Paper 는 동기로 불러와 키운다. Furnace 는 나무가 닿지 못한 청크와 같이 실패로 둔다(맥락 노트)
-            if (WARNED.add("unloaded")) LOG.warn("World#generateTree: 로드되지 않은 청크({}, {})라 나무를 키우지 않고 false 를 준다", pos.chunkX(), pos.chunkZ());
+            if (WARNED.add("unloaded")) LOG.warn(CompatLang.t("compat.generate-tree-unloaded", pos.chunkX(), pos.chunkZ()));
             return new org.domi.furnace.api.world.FeaturePlacement(false, List.of());
         }
         try {
             return id == null ? handle.growChorusPlantNow(pos, random, apply) : handle.placeFeatureNow(id, pos, random, apply);
         } catch (UnsupportedOperationException e) {
             // Furnace 가 아직 구현하지 않은 feature(Noop): 다른 나무로 바꿔 키우지 않고 실패로 둔다(AGENTS.md 규칙 3)
-            if (WARNED.add(type.name())) LOG.warn("World#generateTree({}): {} — 나무를 키우지 않고 false 를 준다", type, e.getMessage());
+            if (WARNED.add(type.name())) LOG.warn(CompatLang.t("compat.generate-tree-failed", type, e.getMessage()));
             return new org.domi.furnace.api.world.FeaturePlacement(false, List.of());
         }
     }

@@ -158,7 +158,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         synchronized (p.distanceLock) {
             p.apiDistances(p.apiTickDistance(), chunks + 1, p.apiSendDistance());
         }
-        warnAbove("view", chunks, core().viewDistance(), "server.properties 의 view-distance");
+        warnAbove("view", chunks, core().viewDistance(), Lang.t("player.setting-view-distance"));
         core().applyPlayerDistances(p, false);
     }
 
@@ -170,7 +170,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         synchronized (p.distanceLock) {
             p.apiDistances(p.apiTickDistance(), p.apiLoadDistance(), chunks);
         }
-        warnAbove("send", chunks, core().viewDistance(), "server.properties 의 view-distance");
+        warnAbove("send", chunks, core().viewDistance(), Lang.t("player.setting-view-distance"));
         core().applyPlayerDistances(p, false);
     }
 
@@ -184,7 +184,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         }
         int sim = core().simulationDistance();
         if (chunks >= 0 && chunks > sim) {
-            warnAbove("simulation", chunks, sim, "server.properties 의 simulation-distance");
+            warnAbove("simulation", chunks, sim, Lang.t("player.setting-simulation-distance"));
         } else if (chunks >= 0 && chunks < sim && DIST_WARNED.add("simulation-lower")) {
             DIST_LOG.warn(Lang.t("player.simulation-lowered", chunks, sim));
         }

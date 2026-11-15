@@ -173,7 +173,7 @@ public class Connection extends ChannelInboundHandlerAdapter {
                 } catch (RuntimeException | Error e) {
                     promise.tryFailure(e);
                     if (SENDING.get() == null) {
-                        NmsCaller.warnOnce("channel-write", "{} 가 connection.channel 로 쓴 패킷을 보내지 못했다(첫 오류): " + String.valueOf(e.getMessage()).replace("{", "(").replace("}", ")"));
+                        NmsCaller.warnOnce("channel-write", "compat.channel-write-failed", String.valueOf(e.getMessage()));
                     }
                 }
                 return;
@@ -182,7 +182,7 @@ public class Connection extends ChannelInboundHandlerAdapter {
             io.netty.util.ReferenceCountUtil.release(msg);
             String what = bytes ? "바이트 와이어 패킷(ProtocolLib sendWirePacket 등)" : "패킷이 아닌 값 " + (msg == null ? "null" : msg.getClass().getName());
             promise.tryFailure(new UnsupportedNmsCall("Channel#write", what + " 은 아직 지원하지 않는다 — Furnace 패킷 API(docs/api/packets.md)를 쓴다"));
-            NmsCaller.warnOnce(bytes ? "wire-packet" : "channel-write-other", "{} 가 보낸 " + what + " 은 아직 지원하지 않아 버렸다 — Furnace 패킷 API(docs/api/packets.md)를 쓴다");
+            NmsCaller.warnOnce(bytes ? "wire-packet" : "channel-write-other", bytes ? "compat.channel-write-wire" : "compat.channel-write-other", msg == null ? "null" : msg.getClass().getName());
         }
 
         @Override

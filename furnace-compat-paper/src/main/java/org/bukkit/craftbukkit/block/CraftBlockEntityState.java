@@ -111,8 +111,7 @@ public abstract class CraftBlockEntityState extends org.domi.furnace.compat.pape
     /** Nameable#setCustomName 의 몸: null·빈 문자열이면 뗀다(Paper CraftChatMessage.fromStringOrNull). update 때 실린다. */
     public void setCustomName(String name) {
         if (live) {
-            org.domi.furnace.compat.nms.NmsCaller.warnOnce("TileState.live.setCustomName",
-                    "플러그인 {} 이(가) getState(false) 상태의 이름을 바꿨다 — Furnace 에서는 update() 를 불러야 블록에 실린다(Paper 는 곧바로 반영).");
+            org.domi.furnace.compat.nms.NmsCaller.warnOnce("TileState.live.setCustomName", "compat.tilestate-live-name");
         }
         if (name == null || name.isEmpty()) {
             snapshot.remove("CustomName");
@@ -184,7 +183,7 @@ public abstract class CraftBlockEntityState extends org.domi.furnace.compat.pape
             } else if (live.isEmpty()) {
                 // 블록을 쓴 뒤에도 블록 엔티티가 없다 = Furnace 가 아직 이 종류의 블록 엔티티를 만들지 않는다(마법 부여대 등)
                 org.domi.furnace.compat.nms.NmsCaller.warnOnce("TileState.update.noBlockEntity." + snapshot.getString("id"),
-                        "플러그인 {} 이(가) " + snapshot.getString("id") + " 블록 상태를 update 했지만 Furnace 에는 그 블록 엔티티가 없어 이름·영속 데이터가 실리지 않았다.");
+                        "compat.tilestate-no-block-entity", snapshot.getString("id"));
             }
         }
         return result;
