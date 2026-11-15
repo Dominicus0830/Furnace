@@ -144,6 +144,9 @@ public final class NmsChunks {
         return loadedChunk(level, chunkX, chunkZ);
     }
 
+    /** 바이옴 레지스트리 번호 순 손잡이 전부(서버 바이옴 목록이 바뀌었으면 표를 다시 만든다). 레지스트리 shim 이 같은 손잡이 객체를 쓰게 한다. */
+    public static List<Holder.Reference<Biome>> biomeHolders() { return rebuildBiomes().holders; }
+
     /** 바이옴 키의 holder(없으면 null). */
     public static Holder.Reference<Biome> biome(String key) { return biomeTable().byKey.get(key); }
 
