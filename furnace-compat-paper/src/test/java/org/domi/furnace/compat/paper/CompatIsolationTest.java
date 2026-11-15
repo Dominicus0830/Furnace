@@ -45,7 +45,7 @@ class CompatIsolationTest {
         for (String e : System.getProperty("java.class.path").split(File.pathSeparator)) if (classpathFilter.test(e)) cp.add(e);
         Path classLog = tmp.resolve("class-load-" + System.nanoTime() + ".log");
         Path java = Path.of(System.getProperty("java.home"), "bin", "java");
-        List<String> cmd = List.of(java.toString(), "-Xmx512m", "-Xlog:class+load=info:file=" + classLog,
+        List<String> cmd = List.of(java.toString(), "-Xmx512m", "-Dfurnace.language=en", "-Xlog:class+load=info:file=" + classLog,
                 "-cp", String.join(File.pathSeparator, cp), "org.domi.furnace.isolationcheck.IsolationMain", serverDir.toString());
         // 출력은 파일로 받는다 — 파이프를 읽으며 막히면 아래 제한 시간이 듣지 않는다
         Path outFile = tmp.resolve("out-" + System.nanoTime() + ".log");
@@ -138,7 +138,7 @@ class CompatIsolationTest {
         assertEquals(0, r.exit(), r.output());
         assertTrue(r.output().contains("PROBE compatOnClasspath=false"), r.output());
         assertTrue(r.output().contains("plugins=[]"), r.output());
-        assertTrue(r.output().contains("클래스패스에 없어"), "호환 모듈이 없어 Bukkit 플러그인을 못 불러온다는 안내가 있어야 한다:\n" + r.output());
+        assertTrue(r.output().contains("is not on the classpath"), "호환 모듈이 없어 Bukkit 플러그인을 못 불러온다는 안내가 있어야 한다:\n" + r.output());
         assertEquals(List.of(), r.compatClasses());
     }
 
