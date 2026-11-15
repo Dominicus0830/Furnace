@@ -95,7 +95,7 @@ public final class PaperConfigImport {
             Result r = analyzeAndApply(serverDir, furnaceProps, report);
             if (r != null) logSummary(r, report);
         } catch (IOException | RuntimeException e) {
-            log.warn(Lang.t("paperimport.note-08"), e);
+            log.warn(Lang.t("paperimport.import-failed"), e);
         }
     }
 
@@ -313,13 +313,13 @@ public final class PaperConfigImport {
             if (Boolean.TRUE.equals(velEnabled)) {
                 if (!secret.isEmpty() && existingBungee) {
                     manual(PAPER_GLOBAL, "proxies.velocity.secret", secretRaw, "velocity-secret",
-                            Lang.t("paperimport.velocity-secret"));
+                            Lang.t("paperimport.bungee-present-blocks-velocity"));
                 } else if (secret.isEmpty()) {
                     manual(PAPER_GLOBAL, "proxies.velocity.secret", secretRaw, "velocity-secret",
-                            Lang.t("paperimport.velocity-secret-2"));
+                            Lang.t("paperimport.velocity-secret-empty"));
                 } else {
                     imp(PAPER_GLOBAL, "proxies.velocity.secret", secretRaw, "velocity-secret", secret,
-                            Lang.t("paperimport.velocity-secret-3"));
+                            Lang.t("paperimport.velocity-modern-forwarding"));
                 }
             } else if (velEnabled != null && !secret.isEmpty()) {
                 ignored(PAPER_GLOBAL, "proxies.velocity.secret", secretRaw, Lang.t("paperimport.proxies-velocity-secret"));
@@ -330,20 +330,20 @@ public final class PaperConfigImport {
                 boolean velocityActive = !curSecret.isEmpty() || toWrite.containsKey("velocity-secret") || velocityWanted;
                 if (velocityActive) {
                     manual(SPIGOT, "settings.bungeecord", true, "bungeecord",
-                            Lang.t("paperimport.bungeecord"));
+                            Lang.t("paperimport.velocity-and-bungee-conflict"));
                 } else {
                     imp(SPIGOT, "settings.bungeecord", true, "bungeecord", "true",
-                            Lang.t("paperimport.bungeecord-2"));
+                            Lang.t("paperimport.bungee-legacy-forwarding"));
                 }
             } else if (bungee != null) {
-                keptDefault(SPIGOT, "settings.bungeecord", bungee, "bungeecord", "false", Lang.t("paperimport.bungeecord-3"));
+                keptDefault(SPIGOT, "settings.bungeecord", bungee, "bungeecord", "false", Lang.t("paperimport.bungee-off-default"));
             }
 
             if (Boolean.TRUE.equals(proxyProtocol)) {
                 imp(PAPER_GLOBAL, "proxies.proxy-protocol", true, "proxy-protocol", "true",
-                        Lang.t("paperimport.proxy-protocol"));
+                        Lang.t("paperimport.proxy-protocol-trusted-hint"));
             } else if (proxyProtocol != null) {
-                keptDefault(PAPER_GLOBAL, "proxies.proxy-protocol", proxyProtocol, "proxy-protocol", "false", Lang.t("paperimport.proxy-protocol-2"));
+                keptDefault(PAPER_GLOBAL, "proxies.proxy-protocol", proxyProtocol, "proxy-protocol", "false", Lang.t("paperimport.proxy-protocol-off-default"));
             }
 
             if (bungeeOnline != null) {
@@ -369,21 +369,21 @@ public final class PaperConfigImport {
             long ticks;
             if (p != null && p > 0) {
                 key = "chunks.auto-save-interval"; file = PAPER_WORLD; raw = pv; ticks = p;
-                if (bv != null) ignored(BUKKIT, "ticks-per.autosave", bv, Lang.t("paperimport.ticks-per-autosave"));
+                if (bv != null) ignored(BUKKIT, "ticks-per.autosave", bv, Lang.t("paperimport.autosave-world-wins"));
             } else if (b != null && b > 0) {
                 key = "ticks-per.autosave"; file = BUKKIT; raw = bv; ticks = b;
-                if (pv != null && p == null) ignored(PAPER_WORLD, "chunks.auto-save-interval", pv, Lang.t("paperimport.chunks-auto-save-interval"));
+                if (pv != null && p == null) ignored(PAPER_WORLD, "chunks.auto-save-interval", pv, Lang.t("paperimport.autosave-follows-bukkit"));
             } else {
-                if (pv != null) ignored(PAPER_WORLD, "chunks.auto-save-interval", pv, Lang.t("paperimport.chunks-auto-save-interval-2"));
-                if (bv != null) ignored(BUKKIT, "ticks-per.autosave", bv, Lang.t("paperimport.ticks-per-autosave-2"));
+                if (pv != null) ignored(PAPER_WORLD, "chunks.auto-save-interval", pv, Lang.t("paperimport.autosave-bad-world-value"));
+                if (bv != null) ignored(BUKKIT, "ticks-per.autosave", bv, Lang.t("paperimport.autosave-bad-bukkit-value"));
                 return;
             }
             if (ticks > Integer.MAX_VALUE) {
-                ignored(file, key, raw, Lang.t("paperimport.note-13"));
+                ignored(file, key, raw, Lang.t("paperimport.too-large"));
             } else if (ticks == PAPER_DEFAULT_AUTOSAVE_TICKS) {
-                keptDefault(file, key, raw, "autosave-ticks", "6000", Lang.t("paperimport.autosave-ticks"));
+                keptDefault(file, key, raw, "autosave-ticks", "6000", Lang.t("paperimport.autosave-same-default"));
             } else {
-                imp(file, key, raw, "autosave-ticks", Long.toString(ticks), Lang.t("paperimport.autosave-ticks-2"));
+                imp(file, key, raw, "autosave-ticks", Long.toString(ticks), Lang.t("paperimport.autosave-label"));
             }
         }
 
@@ -393,13 +393,13 @@ public final class PaperConfigImport {
             Long ticks = durationTicks(raw);
             if (ticks == null || ticks < 1 || ticks > Integer.MAX_VALUE) {
                 manual(PAPER_WORLD, "chunks.delay-chunk-unloads-by", raw, "chunk-eviction-grace-ticks",
-                        Lang.t("paperimport.chunk-eviction-grace-ticks"));
+                        Lang.t("paperimport.grace-bad-duration"));
             } else if (ticks == PAPER_DEFAULT_UNLOAD_DELAY_TICKS) {
                 keptDefault(PAPER_WORLD, "chunks.delay-chunk-unloads-by", raw, "chunk-eviction-grace-ticks", "200",
-                        Lang.t("paperimport.chunk-eviction-grace-ticks-2"));
+                        Lang.t("paperimport.grace-same-default"));
             } else {
                 imp(PAPER_WORLD, "chunks.delay-chunk-unloads-by", raw, "chunk-eviction-grace-ticks", Long.toString(ticks),
-                        Lang.t("paperimport.chunk-eviction-grace-ticks-3"));
+                        Lang.t("paperimport.grace-label"));
             }
         }
 
@@ -408,13 +408,13 @@ public final class PaperConfigImport {
             if (raw == null) return;
             Long n = asLong(raw);
             if (n == null) {
-                manual(PAPER_GLOBAL, "chunk-system.io-threads", raw, "io-threads", Lang.t("paperimport.io-threads"));
+                manual(PAPER_GLOBAL, "chunk-system.io-threads", raw, "io-threads", Lang.t("paperimport.io-threads-not-number"));
             } else if (n <= 0) {
-                keptDefault(PAPER_GLOBAL, "chunk-system.io-threads", raw, "io-threads", "4", Lang.t("paperimport.io-threads-2"));
+                keptDefault(PAPER_GLOBAL, "chunk-system.io-threads", raw, "io-threads", "4", Lang.t("paperimport.io-threads-auto"));
             } else if (n > Integer.MAX_VALUE) {
-                ignored(PAPER_GLOBAL, "chunk-system.io-threads", raw, Lang.t("paperimport.chunk-system-io-threads"));
+                ignored(PAPER_GLOBAL, "chunk-system.io-threads", raw, Lang.t("paperimport.io-threads-too-large"));
             } else {
-                imp(PAPER_GLOBAL, "chunk-system.io-threads", raw, "io-threads", Long.toString(n), Lang.t("paperimport.io-threads-3"));
+                imp(PAPER_GLOBAL, "chunk-system.io-threads", raw, "io-threads", Long.toString(n), Lang.t("paperimport.io-threads-label"));
             }
         }
 
@@ -433,10 +433,10 @@ public final class PaperConfigImport {
             if (raw == null) return;
             Long n = asLong(raw);
             if (n == null) {
-                manual(PAPER_GLOBAL, key, raw, furnaceKey, Lang.t("paperimport.note-14"));
+                manual(PAPER_GLOBAL, key, raw, furnaceKey, Lang.t("paperimport.not-a-number"));
             } else if (n == paperDefault) {
                 keptDefault(PAPER_GLOBAL, key, raw, furnaceKey, Long.toString(n),
-                        Lang.t("paperimport.note-15"));
+                        Lang.t("paperimport.item-limit-same-default"));
             } else if (n <= 0 || n > MAX_ITEM_LIMIT) {
                 ignored(PAPER_GLOBAL, key, raw, Lang.t("paperimport.item-limit-range", MAX_ITEM_LIMIT));
             } else {
@@ -455,26 +455,26 @@ public final class PaperConfigImport {
                 Object v = val(SPIGOT, base + k[0]);
                 if (v == null) continue;
                 Long n = asLong(v);
-                if (n == null || n != (int) (long) n) ignored(SPIGOT, base + k[0], v, Lang.t("paperimport.note-16"));
-                else if (String.valueOf(n).equals(k[1])) keptDefault(SPIGOT, base + k[0], v, ear + k[0], k[1], Lang.t("paperimport.note-17"));
-                else imp(SPIGOT, base + k[0], v, ear + k[0], String.valueOf(n), Lang.t("paperimport.note-18"));
+                if (n == null || n != (int) (long) n) ignored(SPIGOT, base + k[0], v, Lang.t("paperimport.not-an-integer"));
+                else if (String.valueOf(n).equals(k[1])) keptDefault(SPIGOT, base + k[0], v, ear + k[0], k[1], Lang.t("paperimport.same-as-furnace-default"));
+                else imp(SPIGOT, base + k[0], v, ear + k[0], String.valueOf(n), Lang.t("paperimport.activation-range-label"));
             }
             // 순수 Spigot 에는 주민·물 동물·나는 적대 몹 종류(villagers·water·flying-monsters 키)가 없다: 주민·물 동물은 animals 범위(PathfinderMob),
             // 가스트·팬텀은 misc 범위(Monster 도 PathfinderMob 도 아님)를 쓴다. Paper 가 만든 파일은 세 키를 늘 적어 두므로 위에서 그대로 옮겨진다.
             Long animals = asLong(val(SPIGOT, base + "animals")), misc = asLong(val(SPIGOT, base + "misc"));
             if (animals != null || misc != null || val(SPIGOT, base + "monsters") != null) {   // Spigot 활성 범위 절이 있는 파일만
                 long a = animals != null ? animals : 32, m = misc != null ? misc : 16;   // Spigot 기본
-                spigotOnly(base, "villagers", "animals", a, EntityActivationSettings.DEFAULT.villagers(), Lang.t("paperimport.animals"));
-                spigotOnly(base, "water", "animals", a, EntityActivationSettings.DEFAULT.water(), Lang.t("paperimport.animals-2"));
-                spigotOnly(base, "flying-monsters", "misc", m, EntityActivationSettings.DEFAULT.flyingMonsters(), Lang.t("paperimport.misc"));
+                spigotOnly(base, "villagers", "animals", a, EntityActivationSettings.DEFAULT.villagers(), Lang.t("paperimport.spigot-villagers-by-animals"));
+                spigotOnly(base, "water", "animals", a, EntityActivationSettings.DEFAULT.water(), Lang.t("paperimport.spigot-water-by-animals"));
+                spigotOnly(base, "flying-monsters", "misc", m, EntityActivationSettings.DEFAULT.flyingMonsters(), Lang.t("paperimport.spigot-flying-by-misc"));
             }
             for (String[] k : EntityActivationSettings.BOOL_KEYS) {
                 Object v = val(SPIGOT, base + k[0]);
                 if (v == null) continue;
                 Boolean b = asBool(v);
-                if (b == null) ignored(SPIGOT, base + k[0], v, Lang.t("paperimport.note-19"));
-                else if (String.valueOf(b).equals(k[1])) keptDefault(SPIGOT, base + k[0], v, ear + k[0], k[1], Lang.t("paperimport.note-20"));
-                else imp(SPIGOT, base + k[0], v, ear + k[0], String.valueOf(b), Lang.t("paperimport.note-21"));
+                if (b == null) ignored(SPIGOT, base + k[0], v, Lang.t("paperimport.not-a-bool"));
+                else if (String.valueOf(b).equals(k[1])) keptDefault(SPIGOT, base + k[0], v, ear + k[0], k[1], Lang.t("paperimport.activation-bool-same-default"));
+                else imp(SPIGOT, base + k[0], v, ear + k[0], String.valueOf(b), Lang.t("paperimport.activation-bool-label"));
             }
             ConfigSection ws = docs.get(SPIGOT) == null ? null : docs.get(SPIGOT).getSection("world-settings");
             if (ws == null) return;
@@ -498,9 +498,9 @@ public final class PaperConfigImport {
                 Double d = asDouble(v);
                 double def = k.equals(EntityHandleSettings.ITEM_MERGE) ? EntityHandleSettings.DEFAULT.itemMerge() : EntityHandleSettings.DEFAULT.expMerge();
                 String defText = k.equals(EntityHandleSettings.ITEM_MERGE) ? "0.5" : "-1";
-                if (d == null || (k.equals(EntityHandleSettings.ITEM_MERGE) && d < 0)) ignored(SPIGOT, base + k, v, Lang.t("paperimport.note-22"));
-                else if (d == def || (k.equals(EntityHandleSettings.EXP_MERGE) && d <= 0)) keptDefault(SPIGOT, base + k, v, k, defText, Lang.t("paperimport.note-23"));
-                else imp(SPIGOT, base + k, v, k, fmtNum(d), Lang.t("paperimport.note-24"));
+                if (d == null || (k.equals(EntityHandleSettings.ITEM_MERGE) && d < 0)) ignored(SPIGOT, base + k, v, Lang.t("paperimport.merge-bad-value"));
+                else if (d == def || (k.equals(EntityHandleSettings.EXP_MERGE) && d <= 0)) keptDefault(SPIGOT, base + k, v, k, defText, Lang.t("paperimport.merge-same-default"));
+                else imp(SPIGOT, base + k, v, k, fmtNum(d), Lang.t("paperimport.merge-label"));
             }
             String col = EntityHandleSettings.MAX_COLLISIONS;
             Object pv = val(PAPER_WORLD, col);
@@ -509,32 +509,32 @@ public final class PaperConfigImport {
             String key = pv != null ? col : base + "max-entity-collisions";
             Object v = pv != null ? pv : sv;
             if (pv == null && sv != null && asLong(sv) != null && asLong(sv) < 0) {
-                ignored(SPIGOT, key, sv, Lang.t("paperimport.note-25"));
+                ignored(SPIGOT, key, sv, Lang.t("paperimport.collisions-old-key-negative"));
             } else if (pv != null && sv != null) {
                 ignored(SPIGOT, base + "max-entity-collisions", sv, Lang.t("paperimport.world-defaults-wins", col));
             }
             if (v != null && !(pv == null && sv != null && asLong(sv) != null && asLong(sv) < 0)) {
                 Long n = asLong(v);
-                if (n == null || n != (int) (long) n) ignored(file, key, v, Lang.t("paperimport.note-26"));
-                else if (n == EntityHandleSettings.DEFAULT.maxEntityCollisions()) keptDefault(file, key, v, col, String.valueOf(n), Lang.t("paperimport.note-27"));
-                else if (n <= 0) imp(file, key, v, col, "0", Lang.t("paperimport.note-28"));
-                else imp(file, key, v, col, String.valueOf(n), Lang.t("paperimport.note-29"));
+                if (n == null || n != (int) (long) n) ignored(file, key, v, Lang.t("paperimport.collisions-not-integer"));
+                else if (n == EntityHandleSettings.DEFAULT.maxEntityCollisions()) keptDefault(file, key, v, col, String.valueOf(n), Lang.t("paperimport.collisions-same-default"));
+                else if (n <= 0) imp(file, key, v, col, "0", Lang.t("paperimport.collisions-zero-means-no-push"));
+                else imp(file, key, v, col, String.valueOf(n), Lang.t("paperimport.collisions-label"));
             }
             Object cv = val(PAPER_WORLD, EntityHandleSettings.PLAYER_CRAMMING);
             if (cv != null) {
                 Boolean b = asBool(cv);
-                if (b == null) ignored(PAPER_WORLD, EntityHandleSettings.PLAYER_CRAMMING, cv, Lang.t("paperimport.note-30"));
-                else if (!b) keptDefault(PAPER_WORLD, EntityHandleSettings.PLAYER_CRAMMING, cv, EntityHandleSettings.PLAYER_CRAMMING, "false", Lang.t("paperimport.note-31"));
-                else imp(PAPER_WORLD, EntityHandleSettings.PLAYER_CRAMMING, cv, EntityHandleSettings.PLAYER_CRAMMING, "true", Lang.t("paperimport.note-32"));
+                if (b == null) ignored(PAPER_WORLD, EntityHandleSettings.PLAYER_CRAMMING, cv, Lang.t("paperimport.cramming-not-bool"));
+                else if (!b) keptDefault(PAPER_WORLD, EntityHandleSettings.PLAYER_CRAMMING, cv, EntityHandleSettings.PLAYER_CRAMMING, "false", Lang.t("paperimport.cramming-same-default"));
+                else imp(PAPER_WORLD, EntityHandleSettings.PLAYER_CRAMMING, cv, EntityHandleSettings.PLAYER_CRAMMING, "true", Lang.t("paperimport.cramming-label"));
             }
             for (String[] k : EntityHandleSettings.TRACKING_KEYS) {
                 String sk = base + "entity-tracking-range." + k[0];
                 Object tv = val(SPIGOT, sk);
                 if (tv == null) continue;
                 Long n = asLong(tv);
-                if (n == null || n != (int) (long) n || n < 0) ignored(SPIGOT, sk, tv, Lang.t("paperimport.note-33"));
-                else if (String.valueOf(n).equals(k[1])) keptDefault(SPIGOT, sk, tv, EntityHandleSettings.TRACKING + k[0], k[1], Lang.t("paperimport.note-34"));
-                else imp(SPIGOT, sk, tv, EntityHandleSettings.TRACKING + k[0], String.valueOf(n), Lang.t("paperimport.note-35"));
+                if (n == null || n != (int) (long) n || n < 0) ignored(SPIGOT, sk, tv, Lang.t("paperimport.tracking-bad-value"));
+                else if (String.valueOf(n).equals(k[1])) keptDefault(SPIGOT, sk, tv, EntityHandleSettings.TRACKING + k[0], k[1], Lang.t("paperimport.tracking-same-default"));
+                else imp(SPIGOT, sk, tv, EntityHandleSettings.TRACKING + k[0], String.valueOf(n), Lang.t("paperimport.tracking-label"));
             }
             ConfigSection ws = docs.get(SPIGOT) == null ? null : docs.get(SPIGOT).getSection("world-settings");
             if (ws == null) return;
@@ -608,7 +608,7 @@ public final class PaperConfigImport {
             group(Kind.MANUAL, PAPER_GLOBAL, "packet-limiter", Lang.t("paperimport.packet-limiter"),
                     Lang.t("paperimport.packet-limiter-2"));
             unsupported(PAPER_GLOBAL, "spam-limiter", Lang.t("paperimport.spam-limiter"));
-            group(Kind.MANUAL, BUKKIT, "chunk-gc", "chunk-eviction-grace-ticks", Lang.t("paperimport.chunk-eviction-grace-ticks-4"));
+            group(Kind.MANUAL, BUKKIT, "chunk-gc", "chunk-eviction-grace-ticks", Lang.t("paperimport.bukkit-chunk-gc-note"));
             Object container = val(BUKKIT, "settings.world-container");
             if (container != null) {
                 manual(BUKKIT, "settings.world-container", container, Lang.t("paperimport.settings-world-container"), Lang.t("paperimport.settings-world-container-2"));
@@ -624,7 +624,7 @@ public final class PaperConfigImport {
                             manual(SPIGOT, path, v, "server.properties " + k + "=" + asLong(v),
                                     Lang.t("paperimport.server-properties"));
                         } else if (v != null) {
-                            ignored(SPIGOT, path, v, Lang.t("paperimport.note-36"));
+                            ignored(SPIGOT, path, v, Lang.t("paperimport.defers-to-server-properties"));
                         }
                     }
                 }
@@ -689,7 +689,7 @@ public final class PaperConfigImport {
                 for (String k : new String[] {"_version", "config-version", "version"}) {
                     if (has(f, k) && !isCovered(f, k)) {
                         Object v = val(f, k);
-                        if (v != null) ignored(f, k, v, Lang.t("paperimport.note-37"));
+                        if (v != null) ignored(f, k, v, Lang.t("paperimport.version-marker"));
                     }
                 }
             }
@@ -708,7 +708,7 @@ public final class PaperConfigImport {
                 for (var g : byTop.entrySet()) {
                     List<String> ks = g.getValue();
                     if (ks.size() == 1) {
-                        add(Kind.UNKNOWN, file, ks.get(0), d.get(ks.get(0)), "", Lang.t("paperimport.note-38"));
+                        add(Kind.UNKNOWN, file, ks.get(0), d.get(ks.get(0)), "", Lang.t("paperimport.unknown-key-single"));
                     } else {
                         List<String> sample = ks.subList(0, Math.min(3, ks.size()));
                         add(Kind.UNKNOWN, file, g.getKey() + ".*", Lang.t("paperimport.count-items", ks.size()), "", Lang.t("paperimport.unknown-keys-sample", String.join(", ", sample)));
@@ -749,7 +749,7 @@ public final class PaperConfigImport {
     }
 
     private static String fmt(String key, Object v) {
-        if (v == null) return Lang.t("paperimport.note-39");
+        if (v == null) return Lang.t("paperimport.none");
         if (isSecret(key)) return "****";
         String s = v instanceof ConfigSection ? "{…}" : String.valueOf(v);
         s = s.replace('\n', ' ');
@@ -805,7 +805,7 @@ public final class PaperConfigImport {
         StringBuilder sb = new StringBuilder();
         sb.append(Lang.t("paperimport.report-title")).append('\n');
         sb.append(Lang.t("paperimport.report-created", Instant.now().toString().substring(0, 19) + "Z")).append('\n');
-        sb.append(Lang.t("paperimport.report-read", r.filesRead().isEmpty() ? Lang.t("paperimport.note-39") : String.join(", ", r.filesRead()))).append('\n');
+        sb.append(Lang.t("paperimport.report-read", r.filesRead().isEmpty() ? Lang.t("paperimport.none") : String.join(", ", r.filesRead()))).append('\n');
         for (var f : r.filesFailed().entrySet()) sb.append(Lang.t("paperimport.report-failed", f.getKey(), f.getValue())).append('\n');
         for (String n : notes) sb.append(Lang.t("paperimport.report-note", n)).append('\n');
         sb.append('\n').append(Lang.t("paperimport.report-intro")).append('\n');

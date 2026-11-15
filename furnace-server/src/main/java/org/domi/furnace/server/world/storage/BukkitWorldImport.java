@@ -152,7 +152,7 @@ public final class BukkitWorldImport {
         WorldEnvironment env = layoutEnvironment(worldFolder);
         if (env == null) env = WorldEnvironment.NORMAL;
         var b = WorldCreator.named(name).environment(env);
-        b.build();   // 이름 규칙 위반은 여기서 "월드 이름은 …" 로 먼저 걸러낸다
+        b.build();   // 이름 규칙 위반은 여기서 IllegalArgumentException 으로 먼저 걸러낸다(부르는 쪽은 WorldCreator.isValidName 으로 미리 본다)
         try {
             NbtCompound wgs = data.contains("WorldGenSettings") ? data.getCompound("WorldGenSettings") : new NbtCompound();
             if (wgs.contains("generate_features")) b.generateStructures(wgs.getBoolean("generate_features"));
