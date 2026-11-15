@@ -25,7 +25,7 @@ import org.domi.furnace.compat.nms.NmsChunks;
  * <li><b>보기</b>(N2a, 로드된 청크의 {@code getSections()}): 읽을 때마다 서버 청크의 지금 값을 본다(소유 region 스레드 전용). N2b-2 부터
  *     {@link #setBlockState} 와 컨테이너 칸 쓰기는 바닐라 원시 의미 그대로 서버 섹션에 바로 쓴다 — 개수는 서버가 바닐라 개수 셋을 들고 같은 규칙으로
  *     고치고, 하이트맵(청크가 고정 하이트맵 모드로 들어가 낡은 값을 든다)·빛·저장 표시·클라이언트·블록 엔티티는 건드리지 않는다. 주인 region 스레드가 아니면
- *     ThreadOwnershipException(다른 스레드의 쓰기 일지는 N2b-4). {@link #hasOnlyAir}·{@link #write} 의 nonEmpty 는 서버의 바닐라 nonEmptyBlockCount.
+ *     ThreadOwnershipException(다른 스레드의 쓰기 일지는 N2b-4). 다른 스레드의 읽기는 주인이 낸 공개 스냅샷(N2b-3). {@link #hasOnlyAir}·{@link #write} 의 nonEmpty 는 서버의 바닐라 nonEmptyBlockCount.
  *     {@code read} 는 UnsupportedNmsCall. 개수 <b>필드</b>는 0 으로 남는다(필드 대입을 서버에 맞추는 훑기는 N2b-4).</li>
  * </ul>
  * 칸 좌표는 섹션 안(0~15). 좌표를 자르지 않는 것도 바닐라와 같다.
@@ -215,7 +215,14 @@ public class LevelChunkSection {
 
     /** 바닐라 직렬화. 보기는 nonEmpty 에 서버 섹션의 바닐라 nonEmptyBlockCount 를 쓴다. */
     public void write(FriendlyByteBuf buf) {
-        buf.writeShort(furnaceChunk != null ? furnaceChunk.furnaceSectionCounts(furnaceIndex)[0] : nonEmptyBlockCount);
+        if (furnaceChunk != null) {   // 개수·블록·바이옴을 한 판에서(다른 스레드면 공개 스냅샷 하나에서)
+            int[][] d = furnaceChunk.furnaceSectionData(furnaceIndex);
+            buf.writeShort(d[0][0]);
+            PalettedContainer.furnaceFromIds(Block.BLOCK_STATE_REGISTRY, PalettedContainer.Strategy.SECTION_STATES, d[1]).write(buf);
+            PalettedContainer.furnaceFromIds(NmsChunks.BIOME_IDS, PalettedContainer.Strategy.SECTION_BIOMES, d[2]).write(buf);
+            return;
+        }
+        buf.writeShort(nonEmptyBlockCount);
         states.write(buf);
         biomes.write(buf);
     }

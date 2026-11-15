@@ -19,7 +19,7 @@ class ChunkSnapshotCompactCopyTest {
     private static ChunkSnapshot legacyOf(int cx, int cz, ChunkColumn col) {
         ChunkSection[] src = col.sections();
         ChunkSnapshot.Section[] out = new ChunkSnapshot.Section[src.length];
-        for (int i = 0; i < src.length; i++) out[i] = new ChunkSnapshot.Section(src[i].nonAirCount(), src[i].blocks(), src[i].biomes());
+        for (int i = 0; i < src.length; i++) out[i] = new ChunkSnapshot.Section(src[i].nonAirCount(), (short) src[i].packetNonEmptyCount(), src[i].blocks(), src[i].biomes());
         ChunkSnapshot.Light light = null;
         ChunkLight l = col.light();
         if (l != null) {
@@ -105,6 +105,7 @@ class ChunkSnapshotCompactCopyTest {
                 assertArrayEquals(legacy.sections()[s].blocks(), now.sections()[s].blocks(), "청크 " + n + " 섹션 " + s);
                 assertArrayEquals(legacy.sections()[s].biomes(), now.sections()[s].biomes(), "청크 " + n + " 바이옴 " + s);
                 assertEquals(legacy.sections()[s].nonAirCount(), now.sections()[s].nonAirCount());
+                assertEquals(legacy.sections()[s].packetNonEmpty(), now.sections()[s].packetNonEmpty());
             }
         }
     }

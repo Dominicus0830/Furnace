@@ -65,7 +65,7 @@ public final class CompatBlock implements Block {
     }
 
     @Override
-    public Chunk getChunk() { return new CompatChunk(dimension, pos.chunkX(), pos.chunkZ()); }
+    public Chunk getChunk() { return new org.bukkit.craftbukkit.CraftChunk(dimension, pos.chunkX(), pos.chunkZ()); }
 
     @Override
     public Material getType() { return Compat.material(shown != null ? shown.type() : furnaceBlock().type()); }

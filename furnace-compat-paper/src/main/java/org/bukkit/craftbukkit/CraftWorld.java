@@ -14,7 +14,6 @@ import org.domi.furnace.api.Furnace;
 import org.domi.furnace.api.world.BlockPos;
 import org.domi.furnace.compat.paper.Compat;
 import org.domi.furnace.compat.paper.CompatBlock;
-import org.domi.furnace.compat.paper.CompatChunk;
 import org.domi.furnace.compat.paper.CompatEffects;
 import org.domi.furnace.compat.paper.UnsupportedFeature;
 
@@ -80,7 +79,7 @@ public final class CraftWorld implements World {
     public Block getBlockAt(int x, int y, int z) { return new CompatBlock(handle.dimension(), new BlockPos(x, y, z)); }
 
     @Override
-    public Chunk getChunkAt(int x, int z) { return new CompatChunk(handle.dimension(), x, z); }
+    public Chunk getChunkAt(int x, int z) { return new CraftChunk(handle.dimension(), x, z); }
 
     @Override
     public org.bukkit.entity.Entity spawnEntity(org.bukkit.Location loc, org.bukkit.entity.EntityType type) {

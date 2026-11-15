@@ -98,7 +98,7 @@ public class CompatBlockState implements BlockState {
     @Override
     public Chunk getChunk() {
         requirePlaced();
-        return new CompatChunk(dimension, pos.chunkX(), pos.chunkZ());
+        return new org.bukkit.craftbukkit.CraftChunk(dimension, pos.chunkX(), pos.chunkZ());
     }
 
     @Override

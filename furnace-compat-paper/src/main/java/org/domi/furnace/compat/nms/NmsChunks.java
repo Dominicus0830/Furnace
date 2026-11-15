@@ -113,27 +113,35 @@ public final class NmsChunks {
     // ------------------------------------------------------------------ 청크 shim 정체성(N2b-1)
 
     /**
-     * 로드 한 번 = LevelChunk shim 하나(바닐라처럼). 키는 서버가 준 로드 표(약한 키 — 청크가 내려가 사라지면 항목도 사라진다), 값은 shim 의 약한 참조
-     * (아무도 쥐지 않은 shim 은 버려지고 다음에 새로 만든다 — 쥔 동안은 같은 객체). 섹션·컨테이너·하이트맵 보기가 청크 shim 을 강하게 쥐므로
-     * 플러그인이 섹션 하나만 쥐어도 같은 섹션 배열이 유지된다(설계 3.2, R14). 잠금은 이 모듈 안의 객체로만 건다(플러그인이 보는 객체의 모니터는 쓰지 않는다, R12).
+     * 로드 한 번 = LevelChunk shim 하나(바닐라처럼). shim 은 서버 컬럼이 약하게 쥔다(아무도 쥐지 않은 shim 은 버려지고 다음에 새로 만든다 — 쥔 동안은
+     * 같은 객체, 붙이기는 CAS 라 먼저 붙은 쪽이 이긴다). 섹션·컨테이너·하이트맵 보기가 청크 shim 을 강하게 쥐므로 플러그인이 섹션 하나만 쥐어도 같은
+     * 섹션 배열이 유지된다(설계 3.2, R14). 전역 잠금·약한 맵이 없다(N2b-3, PR #365 검토 R7).
+     * <p>주인 스레드가 아니면(비동기 작업·다른 region, 결정 D4) 공개 스냅샷이 있을 때만 준다 — 다른 스레드가 받은 shim 은 늘 읽힌다(설계 R16).
+     * 공개본이 아직 없으면 null 을 주고 주인에게 공개를 부탁한다(다음 틱부터 보인다 — Paper getChunkAtIfLoadedImmediately 가 경쟁 중에 null 을 주는 것과 같은 꼴).
      */
-    private static final Object CHUNK_LOCK = new Object();
-    private static final java.util.WeakHashMap<Object, java.lang.ref.WeakReference<net.minecraft.world.level.chunk.LevelChunk>> CHUNKS = new java.util.WeakHashMap<>();
-
-    /** 로드된 청크의 shim(이번 로드 동안 같은 객체), 로드돼 있지 않으면 null. 아무 스레드(읽기는 shim 이 소유 스레드를 확인한다). */
     public static net.minecraft.world.level.chunk.LevelChunk loadedChunk(net.minecraft.world.level.Level level, int chunkX, int chunkZ) {
         World w = level.getWorld().furnaceHandle();
-        Object token = bridge().loadedChunkToken(w, chunkX, chunkZ);
-        if (token == null) return null;
-        synchronized (CHUNK_LOCK) {
-            var ref = CHUNKS.get(token);
-            var c = ref == null ? null : ref.get();
-            if (c == null) {
-                c = net.minecraft.world.level.chunk.LevelChunk.furnaceView(level, chunkX, chunkZ);
-                CHUNKS.put(token, new java.lang.ref.WeakReference<>(c));
-            }
-            return c;
-        }
+        ChunkInternals b = bridge();
+        boolean owner = b.ownsChunk(w, chunkX, chunkZ);
+        if (!owner && b.chunkView(w, chunkX, chunkZ) == null) return null;   // 로드 안 됨, 또는 공개본 없음(부탁해 둠)
+        if (b.chunkShim(w, chunkX, chunkZ) instanceof net.minecraft.world.level.chunk.LevelChunk c) return c;
+        var made = net.minecraft.world.level.chunk.LevelChunk.furnaceView(level, chunkX, chunkZ);
+        if (!(b.attachChunkShim(w, chunkX, chunkZ, made) instanceof net.minecraft.world.level.chunk.LevelChunk c)) return null;
+        // 붙는 사이 주인이 오래 안 읽힌 공개본을 내렸을 수 있다 — 이제 shim 이 붙어 있으니 주인이 다시 낸다(그때까지는 없는 것으로)
+        return owner || b.chunkView(w, chunkX, chunkZ) != null ? c : null;
+    }
+
+    /**
+     * {@link #loadedChunk} 의 기다리는 판(바닐라 ServerChunkCache.getChunk 가 주 스레드가 아닌 곳에서 주 스레드를 기다리는 것과 같은 간선): 로드돼 있는데
+     * 공개본이 없으면 region 이 아닌 스레드는 주인이 공개할 때까지 기다린다. 다른 region 스레드·전역 스레드는 기다리지 않고 IllegalStateException(교착 방지).
+     * 로드돼 있지 않으면 null.
+     */
+    public static net.minecraft.world.level.chunk.LevelChunk awaitLoadedChunk(net.minecraft.world.level.Level level, int chunkX, int chunkZ) {
+        var c = loadedChunk(level, chunkX, chunkZ);
+        if (c != null) return c;
+        World w = level.getWorld().furnaceHandle();
+        if (bridge().awaitChunkView(w, chunkX, chunkZ) == null) return null;
+        return loadedChunk(level, chunkX, chunkZ);
     }
 
     /** 바이옴 키의 holder(없으면 null). */

@@ -73,8 +73,10 @@ public class Heightmap {
         int perLong = 64 / bits;
         long[] out = new long[(256 + perLong - 1) / perLong];
         long mask = (1L << bits) - 1L;
+        if (!type.keepAfterWorldgen()) return out;   // 월드젠 종류는 비어 있다(모든 칸 = 최저 높이 → 0)
+        int[] first = chunk.furnaceFirstAvailableAll(type);   // 한 판에서(다른 스레드면 공개 스냅샷 하나)
         for (int i = 0; i < 256; i++) {
-            long v = (getFirstAvailable(i & 15, i >> 4) - min) & mask;
+            long v = (first[i] - min) & mask;
             out[i / perLong] |= v << ((i % perLong) * bits);
         }
         return out;

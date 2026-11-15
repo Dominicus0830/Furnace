@@ -80,8 +80,8 @@ public abstract class Level implements LevelAccessor {
 
     public boolean isLoaded(BlockPos pos) { return !isOutsideBuildHeight(pos) && hasChunkAt(pos); }
 
-    /** Paper: 로드된 청크면 그 보기, 아니면 null(불러오지 않는다). 아무 스레드. */
-    public LevelChunk getChunkIfLoaded(int x, int z) { return (LevelChunk) getChunk(x, z, ChunkStatus.FULL, false); }
+    /** Paper: 로드된 청크면 그 보기, 아니면 null(불러오지 않고 기다리지 않는다 — 주인이 아닌 스레드는 공개본이 생긴 뒤부터 보인다). 아무 스레드. */
+    public LevelChunk getChunkIfLoaded(int x, int z) { return getChunkSource().getChunkNow(x, z); }
 
     // ------------------------------------------------------------------ 블록 읽기(N1)
 
