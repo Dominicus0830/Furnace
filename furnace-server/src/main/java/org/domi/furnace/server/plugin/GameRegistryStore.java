@@ -4,6 +4,7 @@
 // 그 항목이 서버 쪽에 켜 둔 상태(날씨 성질·스폰 목록)는 걷어 낸다. 핫 리로드로 다시 켜지면 같은 키가 다시 활성이 된다.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -167,7 +168,7 @@ public final class GameRegistryStore {
                         throw new IllegalStateException("레지스트리가 고정돼 새 바이옴 '" + full + "' 을 더할 수 없다 — 서버를 다시 시작해야 한다");
                     }
                     if (!old.definition.equals(definition)) {
-                        logger.warning("바이옴 '" + full + "' 정의가 바뀌었다 — 서버 쪽은 지금부터 새 정의를 쓰지만 이미 접속한 클라이언트는 다시 접속해야 바뀐 색·소리를 받는다");
+                        logger.warning(Lang.t("registry.biome-changed", full));
                     }
                     old.definition = definition;
                     old.active = true;
@@ -192,7 +193,7 @@ public final class GameRegistryStore {
                         throw new IllegalStateException("레지스트리가 고정돼 새 차원 타입 '" + full + "' 을 더할 수 없다 — 서버를 다시 시작해야 한다");
                     }
                     if (!old.definition.equals(definition)) {
-                        logger.warning("차원 타입 '" + full + "' 정의가 바뀌었다 — 이미 접속한 클라이언트는 다시 접속해야 받는다");
+                        logger.warning(Lang.t("registry.dimension-type-changed", full));
                     }
                     old.definition = definition;
                     old.active = true;

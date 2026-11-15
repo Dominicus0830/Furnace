@@ -20,7 +20,7 @@ class LangBundlesTest {
 
     private static final Pattern SLOT = Pattern.compile("\\{(\\d*)}");
     private static final Pattern HANGUL = Pattern.compile("[\\uAC00-\\uD7A3]");
-    private static final Pattern LOG_CALL = Pattern.compile("\\b(?:log|LOG|logger|LOGGER)\\w*\\.(?:info|warn|error|severe|warning)\\(");
+    private static final Pattern LOG_CALL = Pattern.compile("\\b\\w*(?:log|LOG|logger|LOGGER)\\w*\\.(?:info|warn|error|severe|warning)\\(");
     private static final Pattern LANG_KEY = Pattern.compile("Lang\\.t\\(\\s*\"([^\"]+)\"");
     private static final List<Path> SOURCE_ROOTS = List.of(
             Path.of("src/main/java"), Path.of("../furnace-compat-paper/src/main/java"), Path.of("../furnace-api/src/main/java"));
@@ -69,6 +69,21 @@ class LangBundlesTest {
             }
         }
         assertTrue(missing.isEmpty(), "Lang.t keys missing from en.properties: " + missing);
+    }
+
+    @Test
+    void everyKeyIsUsedByTheCode() throws IOException {
+        StringBuilder all = new StringBuilder();
+        for (Path root : SOURCE_ROOTS) {
+            if (!Files.isDirectory(root)) continue;
+            try (Stream<Path> files = Files.walk(root)) {
+                for (Path f : (Iterable<Path>) files.filter(p -> p.toString().endsWith(".java"))::iterator) all.append(Files.readString(f, StandardCharsets.UTF_8));
+            }
+        }
+        String source = all.toString();
+        List<String> unused = new ArrayList<>();
+        for (String key : Lang.keys("en")) if (!source.contains("\"" + key + "\"")) unused.add(key);
+        assertTrue(unused.isEmpty(), "keys in en.properties that no code uses (typo in a Lang.t call, or leftover): " + unused);
     }
 
     @Test

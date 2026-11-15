@@ -32,6 +32,7 @@ import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.RawPacket;
 import org.domi.furnace.server.plugin.PlayerHandle;
 import org.domi.furnace.server.plugin.PluginHost;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,7 +81,7 @@ public final class PacketServiceImpl implements PacketService {
         Object token = new Object();
         synchronized (lock) {
             for (PacketType<?> t : types) {
-                if (!isSupported(t)) log.debug("[{}] 이 서버 버전에 없는 패킷을 구독: {}", name(owner), t);
+                if (!isSupported(t)) log.debug("[{}] Subscribed to a packet this server version does not have: {}", name(owner), t);
                 regs.add(new Reg(owner, t, priority, fn, order.getAndIncrement(), token));
             }
             rebuild();
@@ -299,10 +300,10 @@ public final class PacketServiceImpl implements PacketService {
                 }
             } catch (RuntimeException e) {
                 if (type.typed()) {
-                    log.warn("패킷 디코드 실패({}), 리스너를 건너뛴다: {}", type, e.toString());
+                    log.warn(Lang.t("packet.decode-failed", type, e.toString()));
                     return unchanged(packet, id, bytes);
                 }
-                log.debug("범용 디코드 실패({}), 내용 없이 리스너에 넘긴다: {}", type, e.toString());
+                log.debug("Generic decode failed ({}), passing it to the listener without content: {}", type, e.toString());
                 value = unreadable(type);
             }
             EventImpl ev = fire(rs, type, value, raw != null);
@@ -312,7 +313,7 @@ public final class PacketServiceImpl implements PacketService {
             try {
                 replaced = encodeOutbound((ClientboundPacket) ev.value, true);
             } catch (RuntimeException e) {
-                log.warn("리스너가 바꾼 패킷을 인코딩하지 못했다({}), 원래 패킷을 보낸다: {}", type, e.toString());
+                log.warn(Lang.t("packet.encode-failed-send-original", type, e.toString()));
                 return unchanged(packet, id, bytes);
             }
             packet.discard();   // 바꾼 것을 보낸다 — 원래 패킷이 든 본문(청크)은 여기서 놓는다
@@ -350,7 +351,7 @@ public final class PacketServiceImpl implements PacketService {
                 frame.writeBytes(b);
                 return frame;
             } catch (RuntimeException e) {
-                log.warn("리스너가 바꾼 패킷을 인코딩하지 못했다({}), 원래 패킷을 처리한다: {}", type, e.toString());
+                log.warn(Lang.t("packet.encode-failed-handle-original", type, e.toString()));
                 return body;
             } finally {
                 b.release();
@@ -364,7 +365,7 @@ public final class PacketServiceImpl implements PacketService {
                 try {
                     r.fn.onPacket(ev);
                 } catch (Throwable t) {
-                    log.error("[{}] 패킷 리스너 오류({})", name(r.plugin), type, t);
+                    log.error(Lang.t("packet.listener-error", name(r.plugin), type), t);
                 }
             }
             return ev;

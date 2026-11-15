@@ -1,6 +1,7 @@
 // 플러그인이 보는 플레이어 — 서버 Player 를 감싼다. 상태 변경은 스레드 안전한 PlayerVitals·패킷 전송으로 간다.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.net.InetSocketAddress;
 import java.util.Locale;
 import java.util.UUID;
@@ -185,8 +186,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         if (chunks >= 0 && chunks > sim) {
             warnAbove("simulation", chunks, sim, "server.properties 의 simulation-distance");
         } else if (chunks >= 0 && chunks < sim && DIST_WARNED.add("simulation-lower")) {
-            DIST_LOG.warn("[Furnace] 플러그인이 플레이어별 시뮬레이션 거리를 {}로 줄였다 — 보내는 거리 계산에는 반영하지만 서버 틱 범위는 아직 서버 값({})이다"
-                    + "(플레이어별 틱 거리는 후속 T-141v, docs/api/view-distance.md). 이 알림은 한 번만 남긴다", chunks, sim);
+            DIST_LOG.warn(Lang.t("player.simulation-lowered", chunks, sim));
         }
         core().applyPlayerDistances(p, false);
     }
@@ -194,8 +194,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     /** 서버 값보다 큰 플레이어 거리는 아직 못 한다 — 종류마다 한 번, 무엇을 올리면 되는지와 함께. */
     private static void warnAbove(String kind, int asked, int server, String setting) {
         if (asked > server && DIST_WARNED.add(kind + "-above")) {
-            DIST_LOG.warn("[Furnace] 플러그인이 플레이어별 {} 거리를 {}로 요청했지만 서버 값 {}보다 크게는 아직 못 한다 — {} 로 잘린다. 더 멀리 보이게 하려면 {} 를 올린다"
-                    + "(플레이어별로 서버 값보다 크게는 후속 T-141v, docs/api/view-distance.md). 이 알림은 한 번만 남긴다", kind, asked, server, server, setting);
+            DIST_LOG.warn(Lang.t("player.distance-above", kind, asked, server, server, setting));
         }
     }
 

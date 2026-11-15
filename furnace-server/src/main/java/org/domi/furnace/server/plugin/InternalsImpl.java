@@ -14,6 +14,7 @@ import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.world.ChunkPos;
 import org.domi.furnace.server.world.Region;
 import org.domi.furnace.server.world.World;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,7 +50,7 @@ public final class InternalsImpl implements Internals {
         if (cl == null) return;
         String name = host.pluginsImpl().pluginNameOf(cl);
         if (name != null && users.add(name)) {
-            log.info("플러그인 {} 가 서버 내부 접근(Internals)을 쓴다 — 마인크래프트·Furnace 버전을 올리면 그 플러그인도 새 버전에 맞는지 확인한다", name);
+            log.info(Lang.t("internals.used", name));
         }
     }
 

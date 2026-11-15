@@ -77,7 +77,7 @@ class SpigotMappingFilesTest {
         standardRepo("jh a/B\n", "");
         repo.put(MOJANG_URI.toString(), "tampered".getBytes(StandardCharsets.UTF_8));
         var e = assertThrows(LibraryResolver.LibraryException.class, () -> files(online()).ensure());
-        assertTrue(e.getMessage().contains("고정값과 다르다"), e.getMessage());
+        assertTrue(e.getMessage().contains("differ from the pinned value"), e.getMessage());
         assertFalse(Files.exists(tmp.resolve("cache/spigot-mappings/1.21.1/server.txt")), "틀린 바이트는 캐시에 남기지 않는다");
     }
 
@@ -87,11 +87,11 @@ class SpigotMappingFilesTest {
         repo.put(RAW + "info.json?at=" + COMMIT, ("{\"mappingsUrl\":\"https://piston-data.mojang.com/v1/objects/ffff/server.txt\","
                 + "\"classMappings\":\"c.csrg\",\"memberMappings\":\"m.csrg\"}").getBytes(StandardCharsets.UTF_8));
         var e = assertThrows(LibraryResolver.LibraryException.class, () -> files(online()).ensure());
-        assertTrue(e.getMessage().contains("1.21.1 서버 매핑"), e.getMessage());
+        assertTrue(e.getMessage().contains("1.21.1 server mappings"), e.getMessage());
         // mappingsUrl 이 빠져 있어도 어느 Mojang 매핑용인지 모르므로 거부(검토 3)
         repo.put(RAW + "info.json?at=" + COMMIT, "{\"classMappings\":\"c.csrg\",\"memberMappings\":\"m.csrg\"}".getBytes(StandardCharsets.UTF_8));
         e = assertThrows(LibraryResolver.LibraryException.class, () -> files(online()).ensure());
-        assertTrue(e.getMessage().contains("1.21.1 서버 매핑"), e.getMessage());
+        assertTrue(e.getMessage().contains("1.21.1 server mappings"), e.getMessage());
     }
 
     @Test
@@ -102,11 +102,11 @@ class SpigotMappingFilesTest {
         Files.delete(f.classes());
         standardRepo("jh net/minecraft/core/Evil\n", "");
         var e = assertThrows(LibraryResolver.LibraryException.class, () -> files(online()).ensure());
-        assertTrue(e.getMessage().contains("잠금 파일"), e.getMessage());
+        assertTrue(e.getMessage().contains("lock file"), e.getMessage());
         // 커밋이 바뀌어도 거부
         repo.put(VERSION_URI.toString(), "{\"refs\":{\"BuildData\":\"ffffffffffffffffffffffffffffffffffffffff\"}}".getBytes(StandardCharsets.UTF_8));
         e = assertThrows(LibraryResolver.LibraryException.class, () -> files(online()).ensure());
-        assertTrue(e.getMessage().contains("커밋이 잠금 파일"), e.getMessage());
+        assertTrue(e.getMessage().contains("BuildData commit differs from the record in the lock file"), e.getMessage());
     }
 
     @Test
@@ -122,7 +122,7 @@ class SpigotMappingFilesTest {
         Files.writeString(dir.resolve(SpigotMappingFiles.MEMBERS_FILE), "");
         SpigotMappingFiles.Files3 f = files(online().withOffline(true)).ensure();
         assertEquals(dir.resolve(SpigotMappingFiles.CLASSES_FILE), f.classes());
-        assertTrue(Files.readString(dir.resolve(SpigotMappingFiles.LOCK)).contains("buildData=수동"));
+        assertTrue(Files.readString(dir.resolve(SpigotMappingFiles.LOCK)).contains("buildData=manual"));
         assertTrue(asked.isEmpty());
     }
 
@@ -153,7 +153,7 @@ class SpigotMappingFilesTest {
         // 5분 뒤 다음 시작 — 아직 10분 안이라 네트워크에 나가지 않고 한 줄 안내(Backoff)만
         var e = assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t0.plusSeconds(5 * 60)).ensure());
         assertEquals(1, networkCalls.get(), "기다림 안에는 나가지 않는다");
-        assertTrue(e.getMessage().contains("1번 연속") && e.getMessage().contains("다음 시도는 약 5분 뒤") && e.getMessage().contains(record.toString()), e.getMessage());
+        assertTrue(e.getMessage().contains("1 times in a row") && e.getMessage().contains("the next attempt is in about 5 minutes") && e.getMessage().contains(record.toString()), e.getMessage());
         assertFalse(e.getMessage().contains("\n"), "한 줄");
 
         // 10분이 지나면 다시 시도(순간 실패는 오래 잠그지 않는다), 또 실패하면 1시간 → 6시간 → 24시간으로 늘어난다
@@ -166,7 +166,7 @@ class SpigotMappingFilesTest {
         assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t2).ensure());
         assertEquals(3, networkCalls.get());
         var six = assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t2.plusSeconds(3 * 3600)).ensure());
-        assertTrue(six.getMessage().contains("약 3시간 뒤"), "2시간이 넘으면 시간 단위로: " + six.getMessage());
+        assertTrue(six.getMessage().contains("about 3 hours"), "2시간이 넘으면 시간 단위로: " + six.getMessage());
         assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t2.plusSeconds(5 * 3600)).ensure());
         java.time.Instant t3 = t2.plusSeconds(6 * 3600 + 60);
         assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t3).ensure());

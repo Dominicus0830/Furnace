@@ -34,6 +34,7 @@ import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.domi.furnace.api.plugin.PluginDescription.Library;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 
 public final class LibraryResolver {
@@ -137,7 +138,7 @@ public final class LibraryResolver {
                 try {
                     eff = load(new MavenPom.Coord(lib.group(), lib.artifact(), lib.version()), 0);
                 } catch (NotFound e) {
-                    log.warn("[{}] {} 의 pom 이 없어 전이 의존은 건너뛴다", plugin, lib.coordinate());
+                    log.warn(Lang.t("lib.pom-missing-skip", plugin, lib.coordinate()));
                 }
             }
             boolean hasJar = eff == null || !eff.packaging.equals("pom");
@@ -146,7 +147,7 @@ public final class LibraryResolver {
                     jars.add(ensureJar(plugin, lib));
                 } catch (NotFound e) {
                     if (it.direct()) throw e;
-                    log.warn("[{}] 전이 의존 {} 의 jar 가 Maven Central 에 없어 건너뛴다", plugin, lib.coordinate());
+                    log.warn(Lang.t("lib.transitive-missing-skip", plugin, lib.coordinate()));
                     continue;
                 }
             }
@@ -170,11 +171,11 @@ public final class LibraryResolver {
         Library lib = a.library();
         String coord = lib.coordinate();
         String pin = lib.sha256();
-        if (pin == null) throw new LibraryException(coord + " 에 고정 sha256 이 없다");
+        if (pin == null) throw new LibraryException(Lang.t("lib.no-pin", coord));
         Path file = fileOf(lib, "jar");
         if (Files.isRegularFile(file)) {
             if (pin.equals(sha256(file))) return file;
-            log.warn("캐시된 서버 제공 라이브러리 {} 의 해시가 고정값과 다르다 — 지우고 다시 받는다", coord);
+            log.warn(Lang.t("lib.cached-server-lib-hash", coord));
             deleteQuietly(file);
         }
         if (a.bundled()) {
@@ -183,20 +184,20 @@ public final class LibraryResolver {
                 String got = sha256(body);
                 if (pin.equals(got)) {
                     store(file, body);
-                    log.info("서버 제공 라이브러리 {} 를 서버 jar 에서 꺼냈다", coord);
+                    log.info(Lang.t("lib.server-lib-from-jar", coord));
                     return file;
                 }
-                log.warn("서버 jar 에 실린 {} 의 sha256 이 고정값과 다르다(기대 {}, 실제 {}) — 쓰지 않는다", coord, pin, got);
+                log.warn(Lang.t("lib.server-jar-hash", coord, pin, got));
             }
         }
-        if (settings.offline()) throw new LibraryException("plugins.libraries.offline=true 인데 캐시에 없다");
+        if (settings.offline()) throw new LibraryException(Lang.t("lib.offline-not-cached"));
         URI base = a.repo() == ServerLibraries.Repo.MOJANG ? mojangRepo : repo;
         URI uri = base.resolve(relative(lib, "jar"));
-        log.info("서버 제공 라이브러리 {} 를 {} 에서 받는다", coord, a.repo().label);
+        log.info(Lang.t("lib.server-lib-download", coord, a.repo().label));
         byte[] body = fetch(uri, settings.maxSizeMb() * 1024L * 1024L, coord);
-        if (body == null) throw new NotFound(a.repo().label + " 에 없다(" + uri + ")");
+        if (body == null) throw new NotFound(Lang.t("lib.not-found-in", a.repo().label, uri));
         String got = sha256(body);
-        if (!pin.equals(got)) throw new LibraryException("받은 파일의 sha256 이 고정값과 다르다 (기대 " + pin + ", 실제 " + got + ", " + uri + ")");
+        if (!pin.equals(got)) throw new LibraryException(Lang.t("lib.sha256-mismatch-pinned", pin, got, uri));
         store(file, body);
         return file;
     }
@@ -207,7 +208,7 @@ public final class LibraryResolver {
         try (InputStream in = bundleSource.getResourceAsStream(a.bundleResource())) {
             return in == null ? null : in.readAllBytes();
         } catch (IOException e) {
-            log.warn("서버 jar 에 실린 {} 를 읽지 못했다: {}", a.coordinate(), e.getMessage());
+            log.warn(Lang.t("lib.server-jar-read-failed", a.coordinate(), e.getMessage()));
             return null;
         }
     }
@@ -235,8 +236,7 @@ public final class LibraryResolver {
         String locked = lock.get(coord);
         String pin = lib.sha256();
         if (pin != null && locked != null && !pin.equals(locked)) {
-            throw new LibraryException("라이브러리 " + coord + " 의 설명 파일 sha256 이 잠금 파일(" + lockFile + ")의 기록과 다르다 — "
-                    + "의도한 변경이면 잠금 파일에서 그 줄을 지워라");
+            throw new LibraryException(Lang.t("lib.lock-mismatch", coord, lockFile));
         }
         String expected = pin != null ? pin : locked;
         if (Files.isRegularFile(file)) {
@@ -250,19 +250,19 @@ public final class LibraryResolver {
                 }
                 return file;
             }
-            log.warn("[{}] 캐시된 {} 의 해시가 기록과 다르다 — 지우고 다시 받는다", plugin, coord);
+            log.warn(Lang.t("lib.cached-hash", plugin, coord));
             deleteQuietly(file);
         }
-        if (settings.offline()) throw new LibraryException("plugins.libraries.offline=true 인데 캐시에 " + coord + " 가 없다(" + file + ")");
+        if (settings.offline()) throw new LibraryException(Lang.t("lib.offline-coord-missing", coord, file));
         if (expected == null) requireRecorded(coord);
         URI uri = repo.resolve(relative(lib, "jar"));
-        log.info("[{}] 라이브러리 {} 를 받는다", plugin, coord);
+        log.info(Lang.t("lib.download", plugin, coord));
         byte[] body = fetch(uri, settings.maxSizeMb() * 1024L * 1024L, coord);
-        if (body == null) throw new NotFound("Maven Central 에 " + coord + " 가 없다(" + uri + ")");
+        if (body == null) throw new NotFound(Lang.t("lib.not-on-central", coord, uri));
         String got = sha256(body);
         if (expected != null) {
             if (!expected.equals(got)) {
-                throw new LibraryException("라이브러리 " + coord + " 의 sha256 이 " + (pin != null ? "설명 파일" : "잠금 파일") + "의 값과 다르다 (기대 " + expected + ", 실제 " + got + ")");
+                throw new LibraryException(Lang.t(pin != null ? "lib.sha256-mismatch-descriptor" : "lib.sha256-mismatch-lock", coord, expected, got));
             }
         } else {
             verifySha1(coord, uri, body);
@@ -274,31 +274,30 @@ public final class LibraryResolver {
 
     private void requireRecorded(String coord) throws LibraryException {
         if (settings.requireChecksum()) {
-            throw new LibraryException("plugins.libraries.require-checksum=true 인데 " + coord + " 의 sha256 기록이 없다 — 설명 파일 libraries 항목에 sha256 을 적거나 "
-                    + lockFile + " 에 \"" + coord + "=<sha256>\" 을 더해라");
+            throw new LibraryException(Lang.t("lib.checksum-required", coord, lockFile));
         }
     }
 
     private void verifySha1(String coord, URI jarUri, byte[] body) throws LibraryException {
         byte[] sum = fetch(URI.create(jarUri + ".sha1"), 4096, coord + ".sha1");
-        if (sum == null) throw new LibraryException(coord + " 의 .sha1 체크섬이 Maven Central 에 없어 검증할 수 없다");
+        if (sum == null) throw new LibraryException(Lang.t("lib.no-sha1", coord));
         String want = new String(sum, StandardCharsets.UTF_8).strip().split("\\s+")[0].toLowerCase(Locale.ROOT);
         String got = hex(digest("SHA-1").digest(body));
-        if (!want.equals(got)) throw new LibraryException(coord + " 가 Maven Central 의 .sha1 과 다르다 (기대 " + want + ", 실제 " + got + ")");
+        if (!want.equals(got)) throw new LibraryException(Lang.t("lib.sha1-mismatch", coord, want, got));
     }
 
     private byte[] fetch(URI uri, long max, String what) throws LibraryException {
         String host = String.valueOf(uri.getHost());
         String down = unreachable.get(host);
-        if (down != null) throw new Unreachable(host + " 에 이번 시작에서 이미 닿지 못해(" + down + ") 건너뛴다");
+        if (down != null) throw new Unreachable(Lang.t("lib.host-unreachable", host, down));
         try {
             return fetcher.get(uri, max);
         } catch (HttpStatusException e) {
-            throw new LibraryException(what + " 를 받지 못했다: " + e.getMessage(), e);
+            throw new LibraryException(Lang.t("lib.download-failed", what, e.getMessage()), e);
         } catch (IOException e) {
             // 연결·제한 시간·이름 풀이 실패 — 같은 호스트의 남은 받기는 이번 시작에서 건너뛴다
             unreachable.putIfAbsent(host, String.valueOf(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
-            throw new LibraryException(what + " 를 받지 못했다: " + e, e);
+            throw new LibraryException(Lang.t("lib.download-failed", what, e), e);
         }
     }
 
@@ -313,7 +312,7 @@ public final class LibraryResolver {
     }
 
     private Effective load(MavenPom.Coord c, int depth) throws LibraryException {
-        if (depth > MAX_POM_DEPTH) throw new LibraryException("pom 의 부모·가져오기 단계가 너무 깊다: " + c);
+        if (depth > MAX_POM_DEPTH) throw new LibraryException(Lang.t("lib.pom-too-deep", c));
         String key = c.group() + ":" + c.artifact() + ":" + c.version();
         Effective cached = poms.get(key);
         if (cached != null) return cached;
@@ -322,7 +321,7 @@ public final class LibraryResolver {
         try {
             pom = MavenPom.parse(xml);
         } catch (Exception e) {
-            throw new LibraryException(key + " 의 pom 을 읽지 못했다: " + e.getMessage(), e);
+            throw new LibraryException(Lang.t("lib.pom-read-failed", key, e.getMessage()), e);
         }
         Effective parent = pom.parent == null ? null : load(pom.parent, depth + 1);
         Effective eff = new Effective();
@@ -381,16 +380,16 @@ public final class LibraryResolver {
         try {
             if (Files.isRegularFile(file)) return Files.readAllBytes(file);
         } catch (IOException e) {
-            throw new LibraryException(file + " 를 읽지 못했다: " + e.getMessage(), e);
+            throw new LibraryException(Lang.t("lib.read-failed", file, e.getMessage()), e);
         }
         String coord = c.group() + ":" + c.artifact() + ":" + c.version();
         for (String part : new String[]{c.group(), c.artifact(), c.version()}) {
-            if (part == null || !part.matches("[A-Za-z0-9_.+-]+") || part.contains("..")) throw new LibraryException("pom 좌표가 올바르지 않다: " + coord);
+            if (part == null || !part.matches("[A-Za-z0-9_.+-]+") || part.contains("..")) throw new LibraryException(Lang.t("lib.pom-coord-invalid", coord));
         }
-        if (settings.offline()) throw new NotFound("plugins.libraries.offline=true 인데 캐시에 " + coord + " 의 pom 이 없다");
+        if (settings.offline()) throw new NotFound(Lang.t("lib.offline-pom-missing", coord));
         URI uri = repo.resolve(c.group().replace('.', '/') + "/" + c.artifact() + "/" + c.version() + "/" + c.artifact() + "-" + c.version() + ".pom");
         byte[] body = fetch(uri, MAX_POM_BYTES, coord + " pom");
-        if (body == null) throw new NotFound("Maven Central 에 " + coord + " 의 pom 이 없다");
+        if (body == null) throw new NotFound(Lang.t("lib.pom-not-on-central", coord));
         verifySha1(coord + " pom", uri, body);
         store(file, body);
         return body;
@@ -413,12 +412,12 @@ public final class LibraryResolver {
             String version = interpolate(d.version(), eff.props);
             if (version == null && m != null) version = interpolate(m.version(), eff.props);
             if (version == null || version.contains("${")) {
-                log.warn("[{}] {} 의 의존 {}:{} 의 버전을 알 수 없어 건너뛴다", plugin, from.coordinate(), g, a);
+                log.warn(Lang.t("lib.dep-version-unknown", plugin, from.coordinate(), g, a));
                 continue;
             }
             version = lowerBound(version);
             if (version == null) {
-                log.warn("[{}] {} 의 의존 {}:{} 의 버전 범위를 해석할 수 없어 건너뛴다 — 설명 파일 libraries 에 직접 적어라", plugin, from.coordinate(), g, a);
+                log.warn(Lang.t("lib.dep-range-unresolved", plugin, from.coordinate(), g, a));
                 continue;
             }
             if (excluded(inherited, g, a)) continue;
@@ -427,7 +426,7 @@ public final class LibraryResolver {
             try {
                 lib = new Library(g + ":" + a + ":" + version + (classifier == null ? "" : ":" + classifier));
             } catch (IllegalArgumentException e) {
-                log.warn("[{}] {} 의 의존 {}:{}:{} 의 좌표가 올바르지 않아 건너뛴다", plugin, from.coordinate(), g, a, version);
+                log.warn(Lang.t("lib.dep-coord-invalid", plugin, from.coordinate(), g, a, version));
                 continue;
             }
             List<String> ex = new ArrayList<>(inherited);
@@ -501,14 +500,14 @@ public final class LibraryResolver {
                 lock.put(line.substring(0, i).strip(), line.substring(i + 1).strip().toLowerCase(Locale.ROOT));
             }
         } catch (IOException e) {
-            log.warn("{} 를 읽지 못했다 — 기록이 없는 것으로 본다: {}", lockFile, e.getMessage());
+            log.warn(Lang.t("lib.records-read-failed", lockFile, e.getMessage()));
         }
     }
 
     private synchronized void record(String coord, String sha) throws LibraryException {
         if (sha.equals(lock.get(coord))) return;
         lock.put(coord, sha);
-        StringBuilder sb = new StringBuilder("# 라이브러리 자동 로딩이 받은 jar 의 sha256 — 이 값과 다른 파일은 받지도 쓰지도 않는다. 의도한 업데이트라면 해당 줄을 지워라.\n");
+        StringBuilder sb = new StringBuilder("# sha256 of the jars downloaded by automatic library loading - a different file is neither downloaded nor used. If the update is intended, delete the line.\n");
         lock.forEach((k, v) -> sb.append(k).append('=').append(v).append('\n'));
         try {
             store(lockFile, sb.toString().getBytes(StandardCharsets.UTF_8));
@@ -531,7 +530,7 @@ public final class LibraryResolver {
             }
         } catch (IOException e) {
             if (tmp != null) deleteQuietly(tmp);
-            throw new LibraryException(target + " 를 쓰지 못했다: " + e.getMessage(), e);
+            throw new LibraryException(Lang.t("lib.write-failed", target, e.getMessage()), e);
         }
     }
 
@@ -561,7 +560,7 @@ public final class LibraryResolver {
             byte[] buf = new byte[64 * 1024];
             for (int n; (n = in.read(buf)) > 0; ) md.update(buf, 0, n);
         } catch (IOException e) {
-            throw new LibraryException(file + " 를 읽지 못했다: " + e.getMessage(), e);
+            throw new LibraryException(Lang.t("lib.read-failed", file, e.getMessage()), e);
         }
         return hex(md.digest());
     }
@@ -595,7 +594,7 @@ public final class LibraryResolver {
                         Thread.sleep(retryDelayMillis << (attempt - 1));
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
-                        throw new IOException("중단됨");
+                        throw new IOException("interrupted");
                     }
                 }
                 try {
@@ -610,17 +609,17 @@ public final class LibraryResolver {
                         }
                         if (code != 200) throw new HttpStatusException("HTTP " + code + " (" + uri + ")");
                         long len = r.headers().firstValueAsLong("Content-Length").orElse(-1);
-                        if (len > maxBytes) throw new HttpStatusException("크기 상한(" + maxBytes + "바이트)을 넘는다: " + uri);
+                        if (len > maxBytes) throw new HttpStatusException(Lang.t("lib.too-big", maxBytes, uri));
                         byte[] data = in.readNBytes((int) Math.min(maxBytes + 1, Integer.MAX_VALUE - 8));
-                        if (data.length > maxBytes) throw new HttpStatusException("크기 상한(" + maxBytes + "바이트)을 넘는다: " + uri);
+                        if (data.length > maxBytes) throw new HttpStatusException(Lang.t("lib.too-big", maxBytes, uri));
                         return data;
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    throw new IOException("중단됨");
+                    throw new IOException("interrupted");
                 }
             }
-            throw last != null ? last : new IOException("받지 못했다: " + uri);
+            throw last != null ? last : new IOException("download failed: " + uri);
         }
     }
 }

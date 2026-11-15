@@ -30,6 +30,7 @@ import org.domi.furnace.api.plugin.PluginDescription;
 import org.domi.furnace.api.plugin.PluginManager;
 import org.domi.furnace.api.profiler.PluginProfiler;
 import org.domi.furnace.api.profiler.Timing;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -355,17 +356,17 @@ public final class PluginManagerImpl implements PluginManager {
         try {
             for (var w : host.core().worlds()) w.spawnPolicy().removeFiltersOf(p);   // 스폰 필터(A14-06)
         } catch (RuntimeException e) {
-            log.warn("{} 의 스폰 필터 정리 실패", l.description().name(), e);
+            log.warn(Lang.t("plugin.cleanup-spawn-filter-failed", l.description().name()), e);
         }
         try {
             host.lightSourcesImpl().removeAll(p);   // 가짜 광원
         } catch (RuntimeException e) {
-            log.warn("{} 의 가짜 광원 정리 실패", l.description().name(), e);
+            log.warn(Lang.t("plugin.cleanup-fake-light-failed", l.description().name()), e);
         }
         try {
             host.chunkTicketsImpl().releaseAll(p);   // 청크 티켓
         } catch (RuntimeException e) {
-            log.warn("{} 의 청크 티켓 정리 실패", l.description().name(), e);
+            log.warn(Lang.t("plugin.cleanup-chunk-tickets-failed", l.description().name()), e);
         }
         // 설명 파일의 그 노드가 아직 올라 있을 때만 지운다 — 다른 플러그인이 같은 이름을 갈아 끼웠으면 그것은 남긴다
         for (Permission perm : l.description().permissions()) host.permissionsImpl().unregister(perm);
@@ -418,7 +419,7 @@ public final class PluginManagerImpl implements PluginManager {
         HotReload.Watcher w = new HotReload.Watcher(dir, periodMillis, this::jarChanged);
         watcher = w;
         w.start();
-        log.info("[핫 리로드] plugins/*.jar 변경을 감시한다");
+        log.info(Lang.t("hotreload.watching"));
     }
 
     HotReload.Watcher watcher() { return watcher; }
@@ -435,9 +436,9 @@ public final class PluginManagerImpl implements PluginManager {
         }
         if (name == null) return;
         String n = name;
-        log.info("[핫 리로드] {} 가 바뀌었다 — {} 를 다시 읽는다", dir.relativize(jar), n);
+        log.info(Lang.t("hotreload.changed", dir.relativize(jar), n));
         reload(n).exceptionally(t -> {
-            log.error("[핫 리로드] {} 다시 읽기 실패", n, t);
+            log.error(Lang.t("hotreload.failed", n), t);
             return List.of();
         });
     }
@@ -482,7 +483,7 @@ public final class PluginManagerImpl implements PluginManager {
             for (String n : names) {
                 PluginBootstrapper.Candidate c = n.equalsIgnoreCase(name) ? fresh : b.findOnDisk(n);
                 if (c == null) {
-                    log.warn("[핫 리로드] {} 의 jar 가 plugins/ 에 없다 — 내리기만 한다", n);
+                    log.warn(Lang.t("hotreload.jar-missing", n));
                     continue;
                 }
                 PluginBootstrapper.Prepared prep = b.reprepare(c);
@@ -494,7 +495,7 @@ public final class PluginManagerImpl implements PluginManager {
             }
             // 4. 옛 클래스로더 정리(늦게 — 다른 스레드에서 끝나 가는 옛 작업이 있을 수 있다)
             for (Loaded l : group) retireLater(l);
-            log.info("[핫 리로드] {} 다시 읽음 — 켜짐 {} ({} ms)", names, back, (System.nanoTime() - t0) / 1_000_000);
+            log.info(Lang.t("hotreload.reloaded", names, back, (System.nanoTime() - t0) / 1_000_000));
             return back;
         }
     }
@@ -715,9 +716,9 @@ public final class PluginManagerImpl implements PluginManager {
                 // 변환기가 못 읽는 클래스(이상한 바이트코드)는 원래 바이트로 — 그 클래스가 변환이 필요한 이름을 쓰면 그 자리에서 실패한다
                 if (!transformWarned) {
                     transformWarned = true;
-                    log.warn("플러그인 jar {} 의 클래스 {} 를 변환하지 못해 원래 바이트로 올린다(이 jar 의 다음 실패는 DEBUG)", jarPath.getFileName(), name, e);
+                    log.warn(Lang.t("plugin.class-transform-failed", jarPath.getFileName(), name), e);
                 } else {
-                    log.debug("클래스 {} 변환 실패 — 원래 바이트로", name, e);
+                    log.debug("Transforming class {} failed - using the original bytes", name, e);
                 }
             }
             int dot = name.lastIndexOf('.');

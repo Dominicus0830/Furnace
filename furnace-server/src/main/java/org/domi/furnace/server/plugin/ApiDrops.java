@@ -3,6 +3,7 @@
 // 달라질 수 있는 컴포넌트를 지키고, 부른 쪽이 신원(==)으로 원래 드롭(이미 만든 아이템 엔티티 등)과 짝지을 수 있게.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -72,7 +73,7 @@ public final class ApiDrops {
             ItemStack s = ApiConvert.item(a, items);
             return s.isEmpty() ? null : s;
         } catch (IllegalArgumentException ex) {
-            log.warn("{} 아이템 목록의 아이템을 버린다(알 수 없는 아이템·컴포넌트): {} — {}", eventName, a.type(), ex.getMessage());
+            log.warn(Lang.t("drops.item-dropped", eventName, a.type(), ex.getMessage()));
             return null;
         }
     }

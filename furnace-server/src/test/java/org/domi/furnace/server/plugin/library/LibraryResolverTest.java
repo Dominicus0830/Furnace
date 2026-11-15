@@ -193,7 +193,7 @@ class LibraryResolverTest {
         Files.delete(cache.resolve("a/b/1/b-1.jar"));
         publishJar("a", "b", "1", "second");
         LibraryException e = assertThrows(LibraryException.class, () -> resolver(on()).resolve("P", List.of(new Library("a:b:1"))));
-        assertTrue(e.getMessage().contains("잠금 파일"), e.getMessage());
+        assertTrue(e.getMessage().contains("lock file"), e.getMessage());
         assertFalse(Files.exists(cache.resolve("a/b/1/b-1.jar")));
     }
 
@@ -220,7 +220,7 @@ class LibraryResolverTest {
         resolver(on()).resolve("P", List.of(new Library("a:b:1")));
         LibraryException e = assertThrows(LibraryException.class,
                 () -> resolver(on()).resolve("P", List.of(new Library("a:b:1", "1".repeat(64)))));
-        assertTrue(e.getMessage().contains("잠금"), e.getMessage());
+        assertTrue(e.getMessage().contains("lock file"), e.getMessage());
     }
 
     @Test

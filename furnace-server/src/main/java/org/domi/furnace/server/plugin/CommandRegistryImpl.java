@@ -32,6 +32,7 @@ import org.domi.furnace.server.command.brigadier.LiteralArgumentBuilder;
 import org.domi.furnace.server.command.brigadier.Suggestions;
 import org.domi.furnace.server.command.brigadier.SuggestionsBuilder;
 import org.domi.furnace.server.entity.Player;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,10 +88,10 @@ final class CommandRegistryImpl implements CommandRegistry {
                 dispatcher().register(build.apply(n, n));
                 registered.add(n);
             } else if (nsFree) {
-                log.warn("[{}] 명령 '{}' 은(는) 이미 있어 '{}' 로만 등록한다", plugin.name(), n, ns);
+                log.warn(Lang.t("cmd.only-namespaced", plugin.name(), n, ns));
             } else {
                 // 플러그인 이름이 minecraft 이면 '플러그인:이름' 이 바닐라 별칭(minecraft:give)과 겹쳐 둘 다 못 쓴다
-                log.warn("[{}] 명령 '{}' 과(와) '{}' 이(가) 둘 다 이미 있어 등록하지 않는다", plugin.name(), n, ns);
+                log.warn(Lang.t("cmd.not-registered", plugin.name(), n, ns));
             }
         }
         owned.computeIfAbsent(plugin, k -> ConcurrentHashMap.newKeySet()).addAll(registered);
@@ -127,7 +128,7 @@ final class CommandRegistryImpl implements CommandRegistry {
                                 if (c.toLowerCase(Locale.ROOT).startsWith(sb.getRemainingLowerCase())) sb.suggest(c);
                             }
                         } catch (Throwable t) {
-                            log.error("자동완성 실패: /{}", ctx.getInput(), t);
+                            log.error(Lang.t("cmd.complete-failed", ctx.getInput()), t);
                         } finally {
                             tab.stop(t0);
                         }
@@ -265,7 +266,7 @@ final class CommandRegistryImpl implements CommandRegistry {
         try {
             candidates = cmd.suggest(host.sender(ctx.getSource()), label, args);
         } catch (Throwable t) {
-            log.error("자동완성 실패: /{}", ctx.getInput(), t);
+            log.error(Lang.t("cmd.complete-failed", ctx.getInput()), t);
             return Suggestions.empty();
         } finally {
             timing.stop(t0);

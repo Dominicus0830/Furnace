@@ -44,6 +44,7 @@ import org.domi.furnace.server.world.gen.structure.template.Processors;
 import org.domi.furnace.server.world.gen.structure.template.StructureTemplate;
 import org.domi.furnace.server.world.gen.structure.template.TemplateManager;
 import org.domi.furnace.server.world.gen.structure.template.TemplatePlacer;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -385,7 +386,7 @@ public final class StructuresImpl implements Structures {
                 var f = gen.structureLocator().findNearest(ids, from.x(), from.y(), from.z(), r);
                 return f == null ? Optional.<StructureLocation>empty() : Optional.of(new StructureLocation(f.structureId(), f.x(), f.y(), f.z()));
             } catch (RuntimeException e) {
-                log.warn("구조물 찾기 실패", e);
+                log.warn(Lang.t("structures.find-failed"), e);
                 throw e;
             }
         }, LOCATE));
