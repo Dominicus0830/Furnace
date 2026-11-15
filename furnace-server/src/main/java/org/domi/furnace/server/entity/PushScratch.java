@@ -72,6 +72,43 @@ public final class PushScratch {
         for (int i = 0, c = players.size(); i < c; i++) pusher.doPush(players.get(i));
     }
 
+    /**
+     * Paper Cap Entity Collisions(collisions.max-entity-collisions = max ≥ 0, T-122): 내 횟수를 max 만큼 덜고, 후보를 차례로 보며 내 횟수가 max 미만인
+     * 동안만 후보·나의 횟수를 하나씩 올리고 doPush. 상한이 없으면(-1) 바닐라 {@link #pushAllBy(LivingEntity)}.
+     * 차례는 엔티티 다음 플레이어다 — 바닐라 getEntities 는 둘을 구역 목록 순서로 섞으므로, 플레이어가 후보에 끼고 상한에 닿은 틱에는 누가 밀리는지가
+     * 다를 수 있다(플레이어 쪽 속도는 클라이언트 권위라 보이는 것은 몹 쪽 밀림뿐).
+     */
+    public void pushCappedBy(LivingEntity pusher, int max) {
+        pusher.numCollisions = Math.max(0, pusher.numCollisions - max);
+        for (int i = 0, c = entities.size(); i < c && pusher.numCollisions < max; i++) {
+            Entity e = entities.get(i);
+            e.numCollisions++;
+            pusher.numCollisions++;
+            pusher.doPush(e);
+        }
+        for (int i = 0, c = players.size(); i < c && pusher.numCollisions < max; i++) {
+            Player p = players.get(i);
+            p.numCollisions++;
+            pusher.numCollisions++;
+            pusher.doPush(p);
+        }
+    }
+
+    /** 플레이어 pusher 의 상한 판(위와 같다). 다른 플레이어 후보는 횟수만 센다(밀림은 클라이언트 권위). */
+    public void pushCappedBy(Player pusher, int max) {
+        pusher.numCollisions = Math.max(0, pusher.numCollisions - max);
+        for (int i = 0, c = entities.size(); i < c && pusher.numCollisions < max; i++) {
+            Entity e = entities.get(i);
+            e.numCollisions++;
+            pusher.numCollisions++;
+            e.pushByPlayer(pusher);
+        }
+        for (int i = 0, c = players.size(); i < c && pusher.numCollisions < max; i++) {
+            players.get(i).numCollisions++;
+            pusher.numCollisions++;
+        }
+    }
+
     /** 플레이어 pusher 가 후보 엔티티마다 후보.push(플레이어). */
     public void pushAllBy(Player pusher) {
         for (int i = 0, c = entities.size(); i < c; i++) entities.get(i).pushByPlayer(pusher);
@@ -89,7 +126,11 @@ public final class PushScratch {
         if (rule > 0 && n > rule - 1 && p.random().nextInt(4) == 0) {
             if (countNonPassengers() > rule - 1) p.vitals().hurt(org.domi.furnace.server.entity.damage.DamageType.CRAMMING, 6.0F);
         }
-        if (!p.isSpectator()) pushAllBy(p);
+        if (!p.isSpectator()) {   // 관전자는 Paper 에서 isPushable 이 거짓이라 아예 이 루프에 오지 않는다 — 상한 횟수도 세지 않는다
+            int max = org.domi.furnace.server.config.EntityHandleSettings.current().maxEntityCollisions();
+            if (max < 0) pushAllBy(p);
+            else pushCappedBy(p, max);
+        }
         clear();
     }
 

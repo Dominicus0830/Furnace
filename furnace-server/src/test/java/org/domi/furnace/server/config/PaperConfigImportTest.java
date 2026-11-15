@@ -241,6 +241,62 @@ class PaperConfigImportTest {
         assertTrue(has(r, Kind.MANUAL, "spigot.yml", "world-settings.nether.entity-activation-range.monsters"), "월드별 값은 수동 안내");
     }
 
+    /** 엔티티 손잡이(T-122): Spigot 기본(2.5·3.0·48/48/48/32)은 Furnace 기본(Paper 값)과 달라 옮기고, Paper 기본은 그대로 둔다. */
+    @Test
+    void importsEntityHandles(@TempDir Path dir) throws Exception {
+        write(dir, "spigot.yml", """
+                world-settings:
+                  default:
+                    merge-radius:
+                      item: 2.5
+                      exp: 3.0
+                    max-entity-collisions: 4
+                    entity-tracking-range:
+                      players: 48
+                      animals: 48
+                      monsters: 48
+                      misc: 32
+                      display: 128
+                      other: 64
+                  nether:
+                    entity-tracking-range:
+                      players: 32
+                """);
+        Result r = run(dir, new Properties());
+        assertEquals("2.5", r.toWrite().get("merge-radius.item"));
+        assertEquals("3", r.toWrite().get("merge-radius.exp"));
+        assertEquals("4", r.toWrite().get("collisions.max-entity-collisions"), "paper-world-defaults 가 없으면 옛 spigot.yml 키");
+        assertEquals("48", r.toWrite().get("entity-tracking-range.players"));
+        assertEquals("32", r.toWrite().get("entity-tracking-range.misc"));
+        assertFalse(r.toWrite().containsKey("entity-tracking-range.display"), "Paper 기본과 같다");
+        assertTrue(has(r, Kind.DEFAULT, "spigot.yml", "world-settings.default.entity-tracking-range.other"));
+        assertTrue(has(r, Kind.MANUAL, "spigot.yml", "world-settings.nether.entity-tracking-range.players"), "월드별 값은 수동 안내");
+    }
+
+    @Test
+    void paperWorldCollisionsWinAndZeroStaysZero(@TempDir Path dir) throws Exception {
+        write(dir, "spigot.yml", """
+                world-settings:
+                  default:
+                    merge-radius:
+                      item: 0.5
+                      exp: -1.0
+                    max-entity-collisions: 4
+                """);
+        write(dir, "config/paper-world-defaults.yml", """
+                _version: 31
+                collisions:
+                  max-entity-collisions: -1
+                  only-players-collide: false
+                """);
+        Result r = run(dir, new Properties());
+        assertEquals("0", r.toWrite().get("collisions.max-entity-collisions"), "Paper 의 0 이하는 '밀지 않음' — Furnace -1(제한 없음)과 뜻이 달라 0 으로");
+        assertFalse(r.toWrite().containsKey("merge-radius.item"));
+        assertFalse(r.toWrite().containsKey("merge-radius.exp"));
+        assertTrue(has(r, Kind.IGNORED, "spigot.yml", "world-settings.default.max-entity-collisions"));
+        assertTrue(has(r, Kind.UNSUPPORTED, "paper-world-defaults.yml", "collisions.only-players-collide"));
+    }
+
     /** 기본값만 적힌 순수 Spigot 파일: 물 동물은 animals(32), 가스트·팬텀은 misc(16) 범위 — Furnace 기본(16·32)과 달라 옮긴다. 주민은 32 로 같아 옮기지 않는다(PR #326 검토 R8). */
     @Test
     void pureSpigotDefaultsMapPaperOnlyKinds(@TempDir Path dir) throws Exception {

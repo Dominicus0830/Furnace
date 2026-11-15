@@ -79,6 +79,24 @@ public final class FurnacePropertiesFile {
             for (String[] k : EntityActivationSettings.BOOL_KEYS) l.add(opt(EntityActivationSettings.PREFIX + k[0], k[1], k[2] + "."));
             s.add(new Section("엔티티 활성 범위(기본 켜짐 — 바닐라와 다름)", l));
         }
+        {   // 엔티티 손잡이(T-122) — 키 이름은 spigot.yml·paper-world-defaults.yml 과 같다
+            EntityHandleSettings h = EntityHandleSettings.DEFAULT;
+            List<Option> l = new ArrayList<>();
+            l.add(opt(EntityHandleSettings.ITEM_MERGE, h.itemMerge(),
+                    "떨어진 아이템을 합치는 반경(블록, Spigot 식). 0.5(기본) = 바닐라. 키우면 멀리 떨어진 아이템도 합쳐진다."));
+            l.add(opt(EntityHandleSettings.EXP_MERGE, (int) h.expMerge(),
+                    "경험치 구슬을 합치는 반경(블록). 0 이하(기본) = 바닐라. 켜면 새 구슬이 반경 안의 같은 묶음 수 구슬 값을 흡수한다(Spigot·Paper)."));
+            l.add(opt(EntityHandleSettings.MAX_COLLISIONS, h.maxEntityCollisions(),
+                    "생물 하나가 한 틱에 미는 엔티티 수 상한(Paper 기본 8). 좁은 우리에 몹을 몰아넣은 농장이 가벼워지지만 바닐라와 결과가 다르다. "
+                            + "-1 = 제한 없음(바닐라), 0 = 밀지 않음. maxEntityCramming 피해는 이 값과 상관없이 바닐라대로."));
+            l.add(opt(EntityHandleSettings.TRACKING + "enabled", h.trackingEnabled(),
+                    "종류별 추적 거리(이 거리 안 플레이어에게만 엔티티를 보낸다). true(기본) = 아래 Paper 기본값, false = 바닐라(종류마다 다름). "
+                            + "실제 거리는 min(이 값 × entity-broadcast-range-percentage/100, 시야 × 16)."));
+            for (String[] k : EntityHandleSettings.TRACKING_KEYS) {
+                l.add(opt(EntityHandleSettings.TRACKING + k[0], k[1], k[2] + ". 블록, 0 = 아무에게도 보내지 않음."));
+            }
+            s.add(new Section("엔티티 손잡이(Paper 기본값 — 밀기 상한·추적 거리는 바닐라와 다름)", l));
+        }
         s.add(new Section("채팅·운영", List.of(
                 opt("chat.strict-order", o.strictChatOrder(), "true(바닐라)면 순서가 어긋난 채팅에서 서명 체인을 끊는다. false 면 그 메시지만 버린다."),
                 opt("chat.unsigned-as-system", o.unsignedChatAsSystem(), "true 면 채팅을 서명 없는 시스템 메시지로 보낸다(채팅 신고 불가)."),

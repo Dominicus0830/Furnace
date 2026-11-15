@@ -290,6 +290,7 @@ public final class PaperConfigImport {
             ioThreads();
             itemValidation();
             activationRange();
+            entityHandles();
             manualAndUnsupported();
             versionMarkers();
             unknown();
@@ -481,6 +482,79 @@ public final class PaperConfigImport {
             }
         }
 
+        /**
+         * 엔티티 손잡이(T-122): spigot.yml merge-radius.*·entity-tracking-range.*, paper-world-defaults.yml collisions.max-entity-collisions
+         * (없으면 옛 spigot.yml max-entity-collisions — Paper MaxEntityCollisionsInitializer 와 같은 순서) → furnace.properties 같은 이름.
+         * Furnace 기본(= Paper 1.21.1 기본)과 같은 값은 옮기지 않는다. 다른 월드의 값은 월드별 키가 없어 수동 안내만.
+         */
+        private void entityHandles() {
+            String base = "world-settings.default.";
+            for (String k : new String[]{EntityHandleSettings.ITEM_MERGE, EntityHandleSettings.EXP_MERGE}) {
+                Object v = val(SPIGOT, base + k);
+                if (v == null) continue;
+                Double d = asDouble(v);
+                double def = k.equals(EntityHandleSettings.ITEM_MERGE) ? EntityHandleSettings.DEFAULT.itemMerge() : EntityHandleSettings.DEFAULT.expMerge();
+                String defText = k.equals(EntityHandleSettings.ITEM_MERGE) ? "0.5" : "-1";
+                if (d == null || (k.equals(EntityHandleSettings.ITEM_MERGE) && d < 0)) ignored(SPIGOT, base + k, v, "0 이상의 수가 아니라 옮기지 않는다");
+                else if (d == def || (k.equals(EntityHandleSettings.EXP_MERGE) && d <= 0)) keptDefault(SPIGOT, base + k, v, k, defText, "Furnace 기본(바닐라)과 같다");
+                else imp(SPIGOT, base + k, v, k, fmtNum(d), "합치기 반경 — 바닐라와 결과가 다르다");
+            }
+            String col = EntityHandleSettings.MAX_COLLISIONS;
+            Object pv = val(PAPER_WORLD, col);
+            Object sv = val(SPIGOT, base + "max-entity-collisions");
+            String file = pv != null ? PAPER_WORLD : SPIGOT;
+            String key = pv != null ? col : base + "max-entity-collisions";
+            Object v = pv != null ? pv : sv;
+            if (pv == null && sv != null && asLong(sv) != null && asLong(sv) < 0) {
+                ignored(SPIGOT, key, sv, "Paper 도 옛 키가 음수면 무시하고 기본 8 을 쓴다");
+            } else if (pv != null && sv != null) {
+                ignored(SPIGOT, base + "max-entity-collisions", sv, "paper-world-defaults.yml 의 " + col + " 가 이긴다(Paper 와 같다)");
+            }
+            if (v != null && !(pv == null && sv != null && asLong(sv) != null && asLong(sv) < 0)) {
+                Long n = asLong(v);
+                if (n == null || n != (int) (long) n) ignored(file, key, v, "정수가 아니라 옮기지 않는다");
+                else if (n == EntityHandleSettings.DEFAULT.maxEntityCollisions()) keptDefault(file, key, v, col, String.valueOf(n), "Furnace 기본(Paper 기본 8)과 같다");
+                else if (n <= 0) imp(file, key, v, col, "0", "Paper 는 0 이하면 생물이 서로 밀지 않는다 — Furnace 는 0 이 같은 뜻(-1 은 Furnace 에서 '제한 없음 = 바닐라')");
+                else imp(file, key, v, col, String.valueOf(n), "밀기 상한");
+            }
+            for (String[] k : EntityHandleSettings.TRACKING_KEYS) {
+                String sk = base + "entity-tracking-range." + k[0];
+                Object tv = val(SPIGOT, sk);
+                if (tv == null) continue;
+                Long n = asLong(tv);
+                if (n == null || n != (int) (long) n || n < 0) ignored(SPIGOT, sk, tv, "0 이상의 정수가 아니라 옮기지 않는다");
+                else if (String.valueOf(n).equals(k[1])) keptDefault(SPIGOT, sk, tv, EntityHandleSettings.TRACKING + k[0], k[1], "Furnace 기본(Paper 기본)과 같다");
+                else imp(SPIGOT, sk, tv, EntityHandleSettings.TRACKING + k[0], String.valueOf(n), "추적 거리");
+            }
+            ConfigSection ws = docs.get(SPIGOT) == null ? null : docs.get(SPIGOT).getSection("world-settings");
+            if (ws == null) return;
+            for (String world : ws.keys(false)) {
+                if (world.equals("default")) continue;
+                for (String g : new String[]{"merge-radius", "entity-tracking-range", "max-entity-collisions"}) {
+                    group(Kind.MANUAL, SPIGOT, "world-settings." + world + "." + g, "merge-radius.*·entity-tracking-range.*·" + col,
+                            "Furnace 의 엔티티 손잡이는 서버 전체에 한 벌이다(월드별 값 없음)");
+                }
+            }
+        }
+
+        static Double asDouble(Object v) {
+            if (v instanceof Number n) return Double.isFinite(n.doubleValue()) ? n.doubleValue() : null;
+            if (v instanceof String str) {
+                try {
+                    double d = Double.parseDouble(str.strip());
+                    return Double.isFinite(d) ? d : null;
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            }
+            return null;
+        }
+
+        /** 2.5 → "2.5", 3.0 → "3" (furnace.properties 에 읽기 쉽게). */
+        static String fmtNum(double d) {
+            return d == Math.rint(d) && Math.abs(d) < 1e15 ? Long.toString((long) d) : Double.toString(d);
+        }
+
         /** 순수 Spigot 파일에 없는 Paper 종류 키를 Spigot 이 실제로 쓰는 범위(from 키 값)로 적는다 — Furnace 기본과 같으면 적지 않는다. */
         private void spigotOnly(String base, String key, String from, long value, int furnaceDefault, String why) {
             if (val(SPIGOT, base + key) != null || value != (int) value || value == furnaceDefault) return;
@@ -566,7 +640,7 @@ public final class PaperConfigImport {
             unsupported(SPIGOT, "stats", "통계 저장 끄기는 비목표다");
             unsupported(SPIGOT, "advancements", "발전 과제 저장 끄기는 비목표다");
             unsupported(SPIGOT, "players", "플레이어 저장 끄기는 비목표다");
-            unsupported(SPIGOT, "world-settings", "월드별 규칙(스폰 범위·성장 속도·병합 거리·추적 범위 등)은 아직 Furnace 에 키가 없다 — 바닐라 값으로 동작한다");
+            unsupported(SPIGOT, "world-settings", "월드별 규칙(스폰 범위·성장 속도 등)은 아직 Furnace 에 키가 없다 — 바닐라 값으로 동작한다");
 
             unsupported(PAPER_GLOBAL, "chunk-system.worker-threads", "청크 작업 스레드는 Furnace 의 region 스케줄러(region-threads)와 모델이 달라 대응이 없다");
             unsupported(PAPER_GLOBAL, "chunk-system", "Paper 청크 시스템 내부 설정 — Furnace 와 구조가 달라 대응이 없다");
@@ -592,7 +666,7 @@ public final class PaperConfigImport {
             unsupported(PAPER_WORLD, "unsupported-settings", "익스플로잇 허용 스위치는 바닐라와 결과가 달라져 비목표다");
             unsupported(PAPER_WORLD, "entities", "몹 스폰·행동·디스폰 규칙 — 아직 Furnace 에 키가 없다(바닐라 값으로 동작)");
             unsupported(PAPER_WORLD, "environment", "환경 규칙(폭발·눈·번개 등) — 아직 Furnace 에 키가 없다");
-            unsupported(PAPER_WORLD, "collisions", "충돌 규칙 — 아직 Furnace 에 키가 없다");
+            unsupported(PAPER_WORLD, "collisions", "max-entity-collisions 밖의 충돌 규칙 — 아직 Furnace 에 키가 없다");
             unsupported(PAPER_WORLD, "hopper", "호퍼 규칙 — 아직 Furnace 에 키가 없다");
             unsupported(PAPER_WORLD, "tick-rates", "틱 간격 조절 — 결과가 달라질 수 있어 아직 키가 없다");
             unsupported(PAPER_WORLD, "misc", "월드별 기타 규칙 — 아직 Furnace 에 키가 없다");

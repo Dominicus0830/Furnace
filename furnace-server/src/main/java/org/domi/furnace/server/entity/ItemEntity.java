@@ -124,9 +124,14 @@ public final class ItemEntity extends Entity {
         setDeltaMovement(vx() * 0.95F, vy() + (double) (vy() < 0.06F ? 5.0E-4F : 0.0F), vz() * 0.95F);
     }
 
+    /**
+     * mergeWithNeighbours: 상자는 Spigot 식 inflate(r, r - 0.5, r)(merge-radius.item, T-122). 기본 0.5 는 바닐라 inflate(0.5, 0.0, 0.5) 와 같다.
+     * (Spigot 의 tryToMerge "늘 이쪽으로 합침"(if (true || …)) 은 따르지 않는다 — 손잡이가 아니라 바닐라와 다른 고정 변경이다.)
+     */
     private void mergeWithNeighbours() {
         if (!isMergable()) return;
-        for (ItemEntity other : level.getEntitiesOfClass(ItemEntity.class, boundingBox().inflate(0.5, 0.0, 0.5), e -> e != this && e.isMergable())) {
+        double r = org.domi.furnace.server.config.EntityHandleSettings.current().itemMerge();
+        for (ItemEntity other : level.getEntitiesOfClass(ItemEntity.class, boundingBox().inflate(r, r - 0.5, r), e -> e != this && e.isMergable())) {
             if (other.isMergable()) {
                 tryToMerge(other);
                 if (isRemoved()) break;

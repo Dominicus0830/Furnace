@@ -1348,7 +1348,9 @@ public abstract class LivingEntity extends Entity implements Targetable {
         if (rule > 0 && n > rule - 1 && random.nextInt(4) == 0) {
             if (s.countNonPassengers() > rule - 1) hurt(Damage.CRAMMING, 6.0F);
         }
-        s.pushAllBy(this);
+        int max = org.domi.furnace.server.config.EntityHandleSettings.current().maxEntityCollisions();   // T-122: Paper 기본 8, -1 = 바닐라
+        if (max < 0) s.pushAllBy(this);
+        else s.pushCappedBy(this, max);
         s.clear();
     }
 
