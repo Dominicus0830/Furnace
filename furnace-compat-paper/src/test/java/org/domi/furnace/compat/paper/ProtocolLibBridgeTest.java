@@ -3,6 +3,7 @@ package org.domi.furnace.compat.paper;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.netty.channel.Channel;
@@ -385,8 +386,56 @@ class ProtocolLibBridgeTest {
                         .findFirst().orElseThrow(() -> new AssertionError("라이브러리가 새 플레이어의 탭 목록 패킷을 봐야 한다: " + seen));
                 assertTrue(lib.actions().contains(net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket.Action.INITIALIZE_CHAT));
                 assertEquals(other.player().uniqueId(), lib.newEntries().getFirst().profile().getId());
+                var newbieHandle = ((CraftPlayer) Bukkit.getPlayer("Newbie")).getHandle();
+                assertSame(newbieHandle.getGameProfile(), lib.newEntries().getFirst().profile(), "Paper 처럼 그 플레이어의 같은 GameProfile 객체");
+
+                // 검토 R1: 게임 모드만 바꾸는 갱신 패킷도 Paper Entry(ServerPlayer) 처럼 이름·listed=true·지연이 채워져 보인다
+                seen.clear();
+                Bukkit.getPlayer("Newbie").setGameMode(org.bukkit.GameMode.CREATIVE);
+                server.tick(2);
+                tp.awaitPacket(PacketTypes.Clientbound.PLAYER_INFO_UPDATE,
+                        u -> u.actions().contains(org.domi.furnace.api.packet.clientbound.ClientboundPlayerInfoUpdatePacket.Action.UPDATE_GAME_MODE));
+                var mode = seen.stream().map(Seen::packet).filter(shimClass::isInstance).map(shimClass::cast)
+                        .filter(q -> q.actions().equals(java.util.EnumSet.of(net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket.Action.UPDATE_GAME_MODE)))
+                        .findFirst().orElseThrow(() -> new AssertionError("라이브러리가 게임 모드 갱신을 봐야 한다: " + seen));
+                var me = mode.entries().getFirst();
+                assertSame(newbieHandle.getGameProfile(), me.profile());
+                assertEquals("Newbie", me.profile().getName());
+                assertTrue(me.listed(), "Paper: 접속자는 listed=true");
+                assertEquals(other.player().ping(), me.latency());
+                assertEquals(net.minecraft.world.level.GameType.CREATIVE, me.gameMode());
+                assertTrue(mode.newEntries().isEmpty());
             } finally {
                 bridge.stop();
+            }
+        }
+    }
+
+    /** 검토 R2: authlib 이 없으면 다리가 종류 이름과 함께 켜는 법(설정 키·호스트)을 INFO 로 한 번 남긴다. */
+    @Test
+    void withoutAuthlibTheBridgeLogsHowToEnableTabListPackets() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            List<String> logged = new java.util.concurrent.CopyOnWriteArrayList<>();
+            // 플러그인 로거는 핸들러를 거치지 않고 서버 로그로 바로 넘긴다 — 거르개 자리에서 본다
+            var logger = owner().logger();
+            var oldFilter = logger.getFilter();
+            logger.setFilter(r -> { logged.add(r.getMessage()); return true; });
+            org.domi.furnace.compat.nms.Profiles.simulateMissingForTest(true);
+            ProtocolLibBridge bridge = ProtocolLibBridge.start(owner(), () -> List.of(net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket.class));
+            try {
+                bridge.resync();
+                assertEquals(Set.of(), bridge.types(), "되돌리지 못하는 종류는 듣지 않는다");
+                String line = logged.stream().filter(m -> m.contains("minecraft:player_info_update")).findFirst()
+                        .orElseThrow(() -> new AssertionError("탭 목록 종류를 적은 줄이 있어야 한다: " + logged));
+                assertTrue(line.contains("minecraft:player_info_update — " + org.domi.furnace.compat.nms.Profiles.MISSING), line);
+                assertTrue(line.contains("plugins.compat.libraries.mojang=true") && line.contains("libraries.minecraft.net"), line);
+                assertFalse(line.contains("플러그인이 보낸 것은 보인다"), line);
+                bridge.resync();
+                assertEquals(1, logged.stream().filter(m -> m.contains("minecraft:player_info_update")).count(), "한 번만");
+            } finally {
+                bridge.stop();
+                org.domi.furnace.compat.nms.Profiles.simulateMissingForTest(false);
+                logger.setFilter(oldFilter);
             }
         }
     }

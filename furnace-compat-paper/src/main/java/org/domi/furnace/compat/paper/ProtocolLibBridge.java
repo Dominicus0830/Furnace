@@ -184,6 +184,7 @@ public final class ProtocolLibBridge {
         Set<PacketType<?>> wantIn = new LinkedHashSet<>();
         Set<String> missing = new TreeSet<>();
         Set<String> missingIn = new TreeSet<>();
+        Set<String> needsSetting = new TreeSet<>();
         var packets = Furnace.server().packets();
         for (Class<?> c : classes) {
             PacketType<?> in = ServerboundBridge.furnaceType(c);
@@ -201,13 +202,19 @@ public final class ProtocolLibBridge {
             String why = PacketDelivery.irreversibleReason(t);
             if (why == null && !t.typed() && !packets.isReadable(t)) why = "이 서버가 내용을 읽지 못하는 종류";
             if (why != null) {
-                missing.add(t.name());
+                // 서버 설정으로 풀 수 있는 까닭(authlib 없음 등)은 따로 이름 — 까닭으로 적는다: 운영자가 무엇을 켜면 되는지 알게(PR #390 검토 R2)
+                if (org.domi.furnace.compat.nms.PacketDelivery.fixableBySetting(why)) needsSetting.add(t.name() + " — " + why);
+                else missing.add(t.name());
                 continue;
             }
             want.add(t);
         }
         if (!missing.isEmpty() && warned.add("missing:" + missing)) {
             owner.logger().info("ProtocolLib 리스너가 듣는 종류 중 Furnace 가 스스로 보내는 패킷을 아직 보여 주지 못하는 것(플러그인이 보낸 것은 보인다): " + missing);
+        }
+        if (!needsSetting.isEmpty() && warned.add("needsSetting:" + needsSetting)) {
+            owner.logger().info("ProtocolLib 리스너가 듣는 종류 중 서버 설정이 있어야 보여 줄 수 있는 것(그때까지 Furnace 가 보내는 이 종류는 리스너를 거치지 않는다): "
+                    + String.join("; ", needsSetting));
         }
         if (!missingIn.isEmpty() && warned.add("missingIn:" + missingIn)) {
             owner.logger().info("ProtocolLib 리스너가 듣는 종류 중 클라이언트가 보낸 패킷을 아직 보여 주지 못하는 것(서버는 그대로 처리한다): " + missingIn);

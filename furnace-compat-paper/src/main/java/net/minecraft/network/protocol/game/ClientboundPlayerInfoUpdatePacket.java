@@ -15,8 +15,9 @@ import org.domi.furnace.compat.nms.NmsPacket;
 /**
  * 탭 목록 갱신 shim(Mojang 이름, T-181). 바닐라 1.21.1 과 같은 모양: 동작 집합(actions)과 항목 목록(entries), 항목의 프로필은 authlib GameProfile.
  * <p>안쪽 클래스 순서가 바닐라 jar 와 같아야 한다: {@code getClasses()} 가 {@code [Entry, Action]} — ProtocolLib 은 항목 클래스를
- * {@code getClasses()[0]}, 동작 enum 을 {@code getClasses()[1]} 로 찾는다. javac 는 멤버 클래스를 <b>선언의 거꾸로</b> InnerClasses 에 적으므로
- * 이 파일에서는 {@code Action} 을 {@code Entry} 보다 먼저 선언한다(순서를 바꾸지 말 것 — 시험 PlayerInfoShimTest 가 지킨다).
+ * {@code getClasses()[0]}, 동작 enum 을 {@code getClasses()[1]} 로 찾는다. javac 는 InnerClasses 를 <b>상수 풀에서 처음 참조된 순서</b>로 적고
+ * 참조되지 않은 멤버만 선언의 거꾸로 붙인다. 이 파일에서는 첫 생성자의 {@code Entry::new} 가 {@code Action} 보다 먼저 참조돼 {@code [Entry, Action]} 이 된다
+ * — 선언 순서만으로 정해지지 않으니 참조 순서를 바꾸는 수정 뒤에는 시험 PlayerInfoShimTest 로 확인한다(PR #390 검토 R3).
  */
 public class ClientboundPlayerInfoUpdatePacket implements Packet<ClientGamePacketListener>, NmsPacket {
 
@@ -65,7 +66,7 @@ public class ClientboundPlayerInfoUpdatePacket implements Packet<ClientGamePacke
     @Override
     public String toString() { return "ClientboundPlayerInfoUpdatePacket{actions=" + actions + ", entries=" + entries + "}"; }
 
-    // Action 을 Entry 보다 먼저 선언한다(위 설명: getClasses() 가 [Entry, Action] 이 되게)
+    // 안쪽 클래스 순서는 상수 풀 첫 참조 순서다(위 설명) — PlayerInfoShimTest 가 [Entry, Action] 을 지킨다
 
     /** 바닐라: 동작(와이어 비트 순서). */
     public enum Action {

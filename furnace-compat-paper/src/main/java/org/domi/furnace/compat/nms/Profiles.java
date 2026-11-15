@@ -16,28 +16,30 @@ public final class Profiles {
 
     private Profiles() {}
 
-    private static volatile Boolean available;
+    private static volatile boolean found;
+    private static volatile boolean simulatedMissing;
 
-    /** authlib 을 이 호환 계층 로더에서 쓸 수 있는가(한 번 보고 기억한다). */
+    /**
+     * authlib 을 이 호환 계층 로더에서 쓸 수 있는가. 있음만 기억한다 — 없음은 기억하지 않아, 서버가 나중에 authlib 을 받아 오면(그것을 쓰는
+     * 플러그인이 늦게 올라온 경우) 다음 물음부터 보인다(PR #390 검토 S2). 없을 때 찾기 비용은 탭 목록 패킷마다가 아니라 리스너 다시 맞추기 때뿐이다.
+     */
     public static boolean available() {
-        Boolean a = available;
-        if (a == null) {
-            try {
-                Class.forName("com.mojang.authlib.GameProfile", false, Profiles.class.getClassLoader());
-                a = true;
-            } catch (ClassNotFoundException | LinkageError e) {
-                a = false;
-            }
-            available = a;
+        if (simulatedMissing) return false;
+        if (found) return true;
+        try {
+            Class.forName("com.mojang.authlib.GameProfile", false, Profiles.class.getClassLoader());
+            found = true;
+            return true;
+        } catch (ClassNotFoundException | LinkageError e) {
+            return false;
         }
-        return a;
     }
 
     /** 시험 전용: authlib 이 없는 서버처럼(true) 또는 원래대로(false). */
-    static void simulateMissingForTest(boolean missing) { available = missing ? Boolean.FALSE : null; }
+    public static void simulateMissingForTest(boolean missing) { simulatedMissing = missing; }
 
     /** authlib 이 없을 때 쓰는 까닭 글. */
-    static final String MISSING = "authlib(GameProfile)이 서버에 없다 — authlib 을 쓰는 플러그인이 있으면 서버가 받는다"
+    public static final String MISSING = "authlib(GameProfile)이 서버에 없다 — authlib 을 쓰는 플러그인이 있으면 서버가 받는다"
             + "(furnace.properties plugins.compat.libraries.mojang=true, libraries.minecraft.net 에 닿아야 한다)";
 
     /** 프로필(authlib 이 없으면 null). 이름은 바닐라처럼 null 이면 빈 글. */

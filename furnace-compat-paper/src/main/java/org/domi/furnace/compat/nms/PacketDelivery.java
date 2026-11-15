@@ -71,6 +71,9 @@ public final class PacketDelivery {
         return t.typed() ? TypedPacketBridge.supports(t) : SchemaPacketReverse.supports(t);
     }
 
+    /** 되돌리지 못하는 까닭이 서버 설정으로 풀리는 것인가(로그에 까닭까지 적을 것). 지금은 authlib 없음 하나. */
+    public static boolean fixableBySetting(String why) { return Profiles.MISSING.equals(why); }
+
     /** 되돌리지 못하는 까닭(되면 null). */
     public static String irreversibleReason(org.domi.furnace.api.packet.PacketType<?> t) {
         if (t.typed()) return TypedPacketBridge.refusal(t);

@@ -260,6 +260,27 @@ class PacketApiTest {
                         UUID.randomUUID(), java.time.Instant.EPOCH, new byte[] {1, 2}, new byte[0]))));
         var e = assertThrows(IllegalArgumentException.class, () -> codec.encode(bad, Unpooled.buffer()));
         assertTrue(e.getMessage().contains("RSA"), e.getMessage());
+        // 바닐라 RemoteChatSession.Data 읽기 상한: 공개 키 512, 키 서명 4096 바이트(넘으면 읽기 거절, PR #390 검토 S5)
+        for (int[] len : new int[][] {{513, 0, 512}, {512, 4097, 4096}}) {
+            ByteBuf over = Unpooled.buffer();
+            over.writeByte(1 << ClientboundPlayerInfoUpdatePacket.Action.INITIALIZE_CHAT.ordinal());
+            Types.writeVarInt(over, 1);
+            Types.writeUuid(over, u);
+            over.writeBoolean(true);
+            Types.writeUuid(over, UUID.randomUUID());
+            over.writeLong(1_800_000_000_000L);
+            Types.writeVarInt(over, len[0]);
+            over.writeBytes(new byte[len[0]]);
+            Types.writeVarInt(over, len[1]);
+            over.writeBytes(new byte[len[1]]);
+            var ex = assertThrows(IllegalArgumentException.class, () -> codec.decode(PacketTypes.Clientbound.PLAYER_INFO_UPDATE,
+                    org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.ID, over));
+            assertTrue(ex.getMessage().contains("상한 " + len[2]), ex.getMessage());
+        }
+        assertThrows(IllegalArgumentException.class, () -> new ClientboundPlayerInfoUpdatePacket.ChatSession(UUID.randomUUID(), java.time.Instant.EPOCH,
+                new byte[513], new byte[0]));
+        assertThrows(IllegalArgumentException.class, () -> new ClientboundPlayerInfoUpdatePacket.ChatSession(UUID.randomUUID(), java.time.Instant.EPOCH,
+                new byte[512], new byte[4097]));
     }
 
     @Test

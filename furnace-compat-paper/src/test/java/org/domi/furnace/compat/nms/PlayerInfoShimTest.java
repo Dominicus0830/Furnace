@@ -110,10 +110,41 @@ class PlayerInfoShimTest {
         var api = new ClientboundPlayerInfoUpdatePacket(EnumSet.of(Action.UPDATE_LATENCY), List.of(
                 new ClientboundPlayerInfoUpdatePacket.Entry(id, null, List.of(), GameMode.SURVIVAL, false, 7, null)));
         var shim = (net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket) PacketDelivery.fromFurnace(api);
-        // 바닐라 클라이언트가 이 동작만 읽을 때와 같다: GameProfile(uuid, "")
+        // 접속자가 아닌 uuid: 바닐라 클라이언트가 이 동작만 읽을 때와 같다 — GameProfile(uuid, ""). 접속자는 ProtocolLibBridgeTest 가 본다
         assertEquals("", shim.entries().getFirst().profile().getName());
         assertTrue(shim.newEntries().isEmpty());
         assertEquals(api, shim.toFurnace());
+    }
+
+    /** 접속자가 아닌 uuid(NPC): 동작 밖 칸은 기본값으로 정규화돼 리스너가 동작 밖 칸을 고쳐도 바뀜으로 보지 않는다(PR #390 검토 R1). */
+    @Test
+    void fieldsOutsideTheActionsAreNormalizedOnTheWayBack() {
+        UUID id = UUID.randomUUID();
+        var shim = net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket.of(
+                EnumSet.of(net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket.Action.UPDATE_LATENCY),
+                List.of(new net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket.Entry(id, Profiles.of(id, "Npc", List.of()), true, 9,
+                        GameType.CREATIVE, Component.literal("x"), null)));
+        var back = (ClientboundPlayerInfoUpdatePacket) shim.toFurnace();
+        assertEquals(new ClientboundPlayerInfoUpdatePacket(EnumSet.of(Action.UPDATE_LATENCY), List.of(
+                new ClientboundPlayerInfoUpdatePacket.Entry(id, null, List.of(), GameMode.SURVIVAL, false, 9, null))), back);
+    }
+
+    /** 접속한 플레이어의 프로필은 그 플레이어의 uuid·이름·속성(스킨)을 싣는다(PR #390 검토 S5). */
+    @Test
+    void playerProfileCarriesTheSkinProperties() {
+        UUID id = UUID.randomUUID();
+        var props = List.of(new ProfileProperty("textures", "dmFsdWU=", "c2ln"));
+        var player = (org.domi.furnace.api.entity.Player) java.lang.reflect.Proxy.newProxyInstance(getClass().getClassLoader(),
+                new Class<?>[] {org.domi.furnace.api.entity.Player.class}, (o, m, a) -> switch (m.getName()) {
+                    case "uniqueId" -> id;
+                    case "name" -> "Skin";
+                    case "profileProperties" -> props;
+                    default -> throw new UnsupportedOperationException(m.getName());
+                });
+        var gp = Profiles.of(player);
+        assertEquals(id, gp.getId());
+        assertEquals("Skin", gp.getName());
+        assertEquals(props, Profiles.properties(gp));
     }
 
     @Test
