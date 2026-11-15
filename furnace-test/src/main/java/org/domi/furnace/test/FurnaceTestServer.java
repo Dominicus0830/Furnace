@@ -525,6 +525,9 @@ public final class FurnaceTestServer implements AutoCloseable {
         /** 미지원 NMS 심볼이 있는 호환 플러그인은 불러오지 않는다(plugins.compat.nms.strict, 기본 거짓). */
         public Builder compatNmsStrict(boolean v) { return compatOption("plugins.compat.nms.strict", String.valueOf(v)); }
 
+        /** 리플렉션으로 찾다 없는 NMS 클래스 알림: summary(기본) 또는 each — plugins.compat.nms.missing-class-log. */
+        public Builder compatNmsMissingClassLog(String v) { return compatOption("plugins.compat.nms.missing-class-log", java.util.Objects.requireNonNull(v)); }
+
         /** 플러그인이 읽는 CraftBukkit 패키지 이름: plain(기본, Paper) 또는 versioned(Spigot, v1_21_R1) — plugins.compat.nms.version-package. */
         public Builder compatNmsVersionPackage(String v) { return compatOption("plugins.compat.nms.version-package", java.util.Objects.requireNonNull(v)); }
 

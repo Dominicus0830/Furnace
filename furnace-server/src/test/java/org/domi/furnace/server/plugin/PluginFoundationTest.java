@@ -346,6 +346,13 @@ class PluginFoundationTest {
         Properties bad = new Properties();
         bad.setProperty("plugins.compat.nms.version-package", "spigot");
         assertThrows(IllegalArgumentException.class, () -> PluginSettings.from(bad, log), "잘못된 값은 기동을 멈춘다");
+        Properties miss = new Properties();
+        miss.setProperty("plugins.compat.nms.missing-class-log", " Each ");
+        assertEquals("each", PluginSettings.from(miss, log).compatOption("plugins.compat.nms.missing-class-log"));
+        miss.setProperty("plugins.compat.nms.missing-class-log", "summary");
+        assertEquals(PluginSettings.DEFAULT, PluginSettings.from(miss, log), "기본값(summary)은 안 적은 것과 같다");
+        miss.setProperty("plugins.compat.nms.missing-class-log", "loud");
+        assertThrows(IllegalArgumentException.class, () -> PluginSettings.from(miss, log), "잘못된 값은 기동을 멈춘다");
         Properties badBool = new Properties();
         badBool.setProperty("plugins.compat.nms.strict", "yes");
         assertThrows(IllegalArgumentException.class, () -> PluginSettings.from(badBool, log));
