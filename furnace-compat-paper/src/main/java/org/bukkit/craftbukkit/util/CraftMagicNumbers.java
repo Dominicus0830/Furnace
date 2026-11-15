@@ -47,9 +47,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
      */
     public static net.minecraft.world.level.block.state.BlockState getBlock(Material material, byte data) {
         if (data != 0) {
-            org.domi.furnace.compat.nms.NmsCaller.warnOnce("legacy-block-data",
-                    "플러그인 {} 가 옛 블록 데이터 값(0 아님)으로 블록 상태를 만들었다 — Furnace 는 옛 데이터 값(평탄화 표)을 지원하지 않아 무시하고 기본 상태를 쓴다."
-                            + " (예: 빨간 양털 WOOL,14 는 흰 양털이 된다) BlockData 를 쓰는 방식으로 바꾼다.");
+            org.domi.furnace.compat.nms.NmsCaller.warnOnce("legacy-block-data", "compat.legacy-block-data");
         }
         Block b = getBlock(material);
         return (b == null ? net.minecraft.world.level.block.Blocks.AIR : b).defaultBlockState();
