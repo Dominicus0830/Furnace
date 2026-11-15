@@ -338,6 +338,70 @@ class ContainerLockE2ETest {
         assertEquals("minecraft:chests/simple_dungeon", be.lootTable, "관전자는 전리품을 풀지 않는다");
     }
 
+    /** 관전자가 블록을 눌렀을 때 열리는 메뉴 클래스 이름(없으면 "none"). 열렸으면 닫는다. */
+    private String spectatorMenuAt(String block, java.util.function.Consumer<Region> setup, int seq) throws Exception {
+        at(r -> {
+            r.level().setBlock(spot, B.defaultState("minecraft:air"), 3);
+            r.level().setBlock(spot, B.defaultState(block), 3);
+            if (setup != null) setup.accept(r);
+            return null;
+        });
+        out.clear();
+        useItemOn(spot, seq);
+        settle();
+        if (count(OpenScreen.ID) == 0) return "none";
+        var menu = p.containerMenu();
+        int cid = menu.containerId;
+        ch.writeInbound(frame(0x0F, b -> Types.writeVarInt(b, cid)));
+        settle();
+        return menu.getClass().getSimpleName();
+    }
+
+    /** 관전자 블록 → 메뉴 표(getMenuProvider): 대장장이 작업대는 제작대의 하위지만 대장장이 화면, 책 없는 독서대는 없음, 메뉴 제공자 아닌 용기는 없음. */
+    @Test
+    void spectatorMenuPerBlock() throws Exception {
+        p.vitals().setGameMode(org.domi.furnace.server.world.GameMode.SPECTATOR);
+        hold(null);
+        var expect = new java.util.LinkedHashMap<String, String>();
+        expect.put("crafting_table", "CraftingMenu");
+        expect.put("smithing_table", "SmithingMenu");
+        expect.put("stonecutter", "StonecutterMenu");
+        expect.put("grindstone", "GrindstoneMenu");
+        expect.put("anvil", "AnvilMenu");
+        expect.put("chipped_anvil", "AnvilMenu");
+        expect.put("damaged_anvil", "AnvilMenu");
+        expect.put("enchanting_table", "EnchantmentMenu");
+        expect.put("loom", "LoomMenu");
+        expect.put("cartography_table", "CartographyMenu");
+        expect.put("lectern", "none");
+        expect.put("beacon", "BeaconMenu");
+        expect.put("furnace", "FurnaceMenu");
+        expect.put("blast_furnace", "FurnaceMenu");
+        expect.put("smoker", "FurnaceMenu");
+        expect.put("hopper", "HopperMenu");
+        expect.put("dispenser", "DispenserMenu");
+        expect.put("dropper", "DispenserMenu");
+        expect.put("brewing_stand", "BrewingStandMenu");
+        expect.put("crafter", "CrafterMenu");
+        expect.put("shulker_box", "ShulkerBoxMenu");
+        expect.put("trapped_chest", "ChestMenu");
+        expect.put("chest", "ChestMenu");
+        expect.put("barrel", "ChestMenu");
+        expect.put("ender_chest", "none");
+        expect.put("campfire", "none");
+        expect.put("chiseled_bookshelf", "none");
+        expect.put("decorated_pot", "none");
+        expect.put("jukebox", "none");
+        int seq = 1;
+        var got = new java.util.LinkedHashMap<String, String>();
+        for (String b : expect.keySet()) got.put(b, spectatorMenuAt("minecraft:" + b, null, seq++));
+        assertEquals(expect, got);
+        // 책이 있는 독서대는 연다
+        String withBook = spectatorMenuAt("minecraft:lectern", r -> ((org.domi.furnace.server.block.entity.LecternBlockEntity) r.level().getBlockEntity(spot))
+                .setBook(B.stack("minecraft:written_book", 1), r.level()), seq);
+        assertEquals("LecternMenu", withBook);
+    }
+
     /** 관전자 길은 getMenuProvider 가 있는 블록만: 엔더 상자(메뉴 제공자 아님)·위가 막힌 상자는 안 열리고, 제작대는 열린다. */
     @Test
     void spectatorMenuProviderBlocksOnly() throws Exception {

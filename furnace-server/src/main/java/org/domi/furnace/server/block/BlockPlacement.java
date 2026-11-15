@@ -68,18 +68,18 @@ public final class BlockPlacement {
      */
     static boolean openSpectatorMenu(BlockLevel level, BlockActor player, Pos pos, int state) {
         BlockBehavior b = BlockBehaviors.of(state);
-        if (b instanceof org.domi.furnace.server.block.types.CraftingTableBlock) player.openCraftingTable(pos);
+        if (b instanceof org.domi.furnace.server.block.types.SmithingTableBlock) player.openSmithing(pos);   // CraftingTableBlock 의 하위라 먼저
+        else if (b instanceof org.domi.furnace.server.block.types.CraftingTableBlock) player.openCraftingTable(pos);
         else if (b instanceof org.domi.furnace.server.block.types.StonecutterBlock) player.openStonecutter(pos);
         else if (b instanceof org.domi.furnace.server.block.types.GrindstoneBlock) player.openGrindstone(pos);
         else if (b instanceof org.domi.furnace.server.block.types.AnvilBlock) player.openAnvil(pos);
         else if (b instanceof org.domi.furnace.server.block.types.EnchantingTableBlock) player.openEnchanting(pos);
-        else if (b instanceof org.domi.furnace.server.block.types.SmithingTableBlock) player.openSmithing(pos);
         else if (b instanceof org.domi.furnace.server.block.types.LoomBlock) player.openLoom(pos);
         else if (b instanceof org.domi.furnace.server.block.types.CartographyTableBlock) player.openCartography(pos);
         else {
             var be = level.getBlockEntity(pos);
             boolean menu = be instanceof org.domi.furnace.server.block.entity.BeaconBlockEntity
-                    || be instanceof org.domi.furnace.server.block.entity.LecternBlockEntity   // 책이 없어도(BaseEntityBlock 기본)
+                    || be instanceof org.domi.furnace.server.block.entity.LecternBlockEntity lec && lec.hasBook()   // LecternBlock.getMenuProvider: 책 없으면 null
                     || be instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity c && MENU_CONTAINERS.contains(c.type());
             if (!menu) return false;
             if (b instanceof org.domi.furnace.server.block.types.ChestBlock chest && chest.menuBlocked(state, level, pos)) return false;
