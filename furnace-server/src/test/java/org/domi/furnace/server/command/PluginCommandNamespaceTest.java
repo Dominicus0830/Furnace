@@ -89,7 +89,7 @@ class PluginCommandNamespaceTest {
         assertTrue(registered.isEmpty(), registered.toString());
         assertEquals(1, warnings().size(), warnings().toString());
         String w = warnings().get(0);
-        assertTrue(w.contains("so it is not registered") && !w.contains("only registered as"), w);
+        assertTrue(w.contains("so the plugin's command is not registered") && !w.contains("only registered as"), w);
         // 바닐라 /give 는 그대로
         assertNotNull(core.commands().getDispatcher().getRoot().getChild("minecraft:give"));
     }

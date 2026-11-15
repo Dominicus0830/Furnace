@@ -718,7 +718,7 @@ public final class PluginManagerImpl implements PluginManager {
                     transformWarned = true;
                     log.warn(Lang.t("plugin.class-transform-failed", jarPath.getFileName(), name), e);
                 } else {
-                    log.debug("클래스 {} 변환 실패 — 원래 바이트로", name, e);
+                    log.debug("Transforming class {} failed - using the original bytes", name, e);
                 }
             }
             int dot = name.lastIndexOf('.');

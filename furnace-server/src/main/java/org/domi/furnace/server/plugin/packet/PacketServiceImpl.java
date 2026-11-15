@@ -81,7 +81,7 @@ public final class PacketServiceImpl implements PacketService {
         Object token = new Object();
         synchronized (lock) {
             for (PacketType<?> t : types) {
-                if (!isSupported(t)) log.debug("[{}] 이 서버 버전에 없는 패킷을 구독: {}", name(owner), t);
+                if (!isSupported(t)) log.debug("[{}] Subscribed to a packet this server version does not have: {}", name(owner), t);
                 regs.add(new Reg(owner, t, priority, fn, order.getAndIncrement(), token));
             }
             rebuild();
@@ -303,7 +303,7 @@ public final class PacketServiceImpl implements PacketService {
                     log.warn(Lang.t("packet.decode-failed", type, e.toString()));
                     return unchanged(packet, id, bytes);
                 }
-                log.debug("범용 디코드 실패({}), 내용 없이 리스너에 넘긴다: {}", type, e.toString());
+                log.debug("Generic decode failed ({}), passing it to the listener without content: {}", type, e.toString());
                 value = unreadable(type);
             }
             EventImpl ev = fire(rs, type, value, raw != null);

@@ -3,7 +3,7 @@
 // 어떤 언어로 찍을지는 이 순서로 정한다:
 //   1) JVM 속성 -Dfurnace.language=ko  2) 환경변수 FURNACE_LANGUAGE  3) furnace.properties 의 language 키
 //   4) 위가 없거나 auto 면 JVM 기본 로케일(user.language — 리눅스는 LANG, 윈도는 지역 설정)  5) 그 언어 파일이 없으면 영어.
-// 번역하지 않는 것: 바닐라·Paper 문구 그대로인 줄(호스팅 패널·플러그인이 읽는다), 스택 트레이스·예외 메시지, DEBUG 로그, 설정 키·명령 이름.
+// 번역하지 않는 것: 바닐라·Paper 문구 그대로인 줄(호스팅 패널·플러그인이 읽는다), 스택 트레이스, DEBUG 로그, 설정 키·명령 이름. 운영자가 로그에서 읽는 실패 이유(예외 메시지)는 던지는 자리에서 Lang.t 로 번역한다.
 // 문장 속 자리는 {} (왼쪽부터 차례로) 또는 {0} {1} (번호 — 언어마다 어순이 달라 필요할 때). 예: Lang.t("pause.close-failed", dir)
 package org.domi.furnace.server.i18n;
 

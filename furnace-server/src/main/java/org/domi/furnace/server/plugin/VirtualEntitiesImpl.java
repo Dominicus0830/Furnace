@@ -72,7 +72,7 @@ public final class VirtualEntitiesImpl implements VirtualEntities {
             try {
                 tick();
             } catch (Throwable t) {
-                log.error(Lang.t("vent.tracking-error"), t);
+                log.error(Lang.t("virtual-entity.tracking-error"), t);
             }
         }, TRACK_PERIOD_TICKS, TRACK_PERIOD_TICKS);
     }
@@ -94,7 +94,7 @@ public final class VirtualEntitiesImpl implements VirtualEntities {
         try {
             host.packets().send(host.player(sp), packet);
         } catch (RuntimeException e) {
-            log.warn(Lang.t("vent.packet-failed", packet.type(), e.toString()));
+            log.warn(Lang.t("virtual-entity.packet-failed", packet.type(), e.toString()));
         }
     }
 
@@ -173,7 +173,7 @@ public final class VirtualEntitiesImpl implements VirtualEntities {
             try {
                 h.accept(vi);
             } catch (Throwable t) {
-                log.error(Lang.t("vent.click-error", e.owner.name()), t);
+                log.error(Lang.t("virtual-entity.click-error", e.owner.name()), t);
             }
         });
     }
@@ -365,7 +365,7 @@ public final class VirtualEntitiesImpl implements VirtualEntities {
                 out.add(host.packetsImpl().encode(packet));
                 return true;
             } catch (RuntimeException e) {
-                log.warn(Lang.t("vent.packet-failed", packet.type(), e.toString()));
+                log.warn(Lang.t("virtual-entity.packet-failed", packet.type(), e.toString()));
                 return false;
             }
         }

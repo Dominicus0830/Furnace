@@ -757,7 +757,7 @@ public final class PluginBootstrapper {
         try {
             sharedLoader.close();
         } catch (IOException e) {
-            log.debug("서버 제공 라이브러리 로더를 닫지 못했다", e);
+            log.debug("Could not close the server-provided library loader", e);
         }
         sharedLoader = null;
         sharedTried.clear();   // 같은 부트스트래퍼를 다시 쓰면 새 로더에 다시 붙인다
