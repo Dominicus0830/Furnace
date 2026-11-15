@@ -117,9 +117,7 @@ public final class ConfigDump {
             }
         }
         List<String> warnings = new ArrayList<>();
-        OptionKeys.audit(s.effective(), s.lines(), w -> {
-            if (!w.contains("는 모르는 키라 무시합니다")) warnings.add(w);
-        });
+        OptionKeys.auditValues(s.effective(), warnings::add);   // 모르는 키는 위에서 따로 보여 준다
         if (!warnings.isEmpty() && !byName) {
             out.add("경고 " + warnings.size() + "개:");
             for (String w : warnings) out.add("  ! " + w);

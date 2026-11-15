@@ -11,6 +11,7 @@
 //   5. 모르는 키(오타)는 가장 비슷한 키를 알려 주며 경고한다.
 package org.domi.furnace.server.config;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -255,27 +256,32 @@ public final class OptionKeys {
         for (String k : unknownKeys(p)) {
             String near = suggest(k);
             Integer line = lines.get(k);
-            warn.accept("furnace.properties 의 '" + k + "'" + (line == null ? "" : "(" + line + "번째 줄)") + " 는 모르는 키라 무시합니다"
-                    + (near == null ? "" : " — '" + near + "' 를 말한 건가요?"));
+            warn.accept(Lang.t(line == null ? "cfg.unknown-key" : "cfg.unknown-key-line", k, line)
+                    + (near == null ? "" : " " + Lang.t("cfg.unknown-key-suggest", near)));
         }
+        auditValues(p, warn);
+    }
+
+    /** 모르는 키를 뺀 위험한 값 경고(/furnace config 가 모르는 키를 따로 보여 주므로 따로 뗐다). */
+    public static void auditValues(Properties p, Consumer<String> warn) {
         if (isTrue(p, "proxy-protocol") && p.getProperty("proxy-protocol.trusted", "").isBlank()) {
-            warn.accept("proxy-protocol=true 인데 proxy-protocol.trusted 가 비어 있습니다: 누구든 PROXY 헤더로 접속 주소를 꾸밀 수 있습니다(밴·접속 제한 우회). 앞단 주소만 적고, 서버 포트는 방화벽으로 앞단에만 열어 두세요");
+            warn.accept(Lang.t("cfg.proxy-trusted-empty"));
         }
         if (isTrue(p, "plugins.dev-mode")) {
-            warn.accept("plugins.dev-mode=true: 플러그인 핫 리로드가 열려 있습니다. 개발용이니 운영 서버에서는 끄세요");
+            warn.accept(Lang.t("cfg.dev-mode"));
         }
         String tick = p.getProperty("tick-nanos");
         if (tick != null && !tick.strip().equals("50000000")) {
-            warn.accept("tick-nanos=" + tick.strip() + ": 틱 길이가 바닐라(50000000 = 20 TPS)와 다르면 게임 속도가 바닐라와 달라집니다");
+            warn.accept(Lang.t("cfg.tick-nanos", tick.strip()));
         }
         for (String s : STATES) {
             String k = "connection." + s + ".packets-per-second";
             if ("0".equals(p.getProperty(k, "").strip())) {
-                warn.accept(k + "=0: " + s + " 단계 패킷 속도 제한이 꺼져 있습니다(접속 폭주에 취약)");
+                warn.accept(Lang.t("cfg.rate-limit-off", k, s));
             }
         }
         if ("0".equals(p.getProperty("connection.login.timeout-seconds", "").strip())) {
-            warn.accept("connection.login.timeout-seconds=0: 로그인을 끝내지 않고 붙들고 있는 접속을 끊지 않습니다(바닐라는 30초)");
+            warn.accept(Lang.t("cfg.login-timeout-off"));
         }
     }
 
