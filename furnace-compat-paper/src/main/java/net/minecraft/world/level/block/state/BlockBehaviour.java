@@ -17,10 +17,15 @@ public abstract class BlockBehaviour {
         private final int furnaceStateId;
         private net.minecraft.world.level.material.FluidState fluidState;   // 처음 물을 때 채운다(같은 객체라 경합해도 결과가 같다)
         private byte randomlyTicking;   // 0 = 아직 모름, 1 = 아니오, 2 = 예(경합해도 결과가 같다)
+        private net.minecraft.world.phys.shapes.VoxelShape shape;   // 처음 물을 때 채운다(경합해도 값이 같다)
+
+        /** 바닐라 private final 이지만 Paper 가 열어 FAWE 가 필드로 읽는다. 블록 파괴 시간(-1 = 못 부순다). */
+        public final float destroySpeed;
 
         protected BlockStateBase(Block owner, Map<Property<?>, Comparable<?>> values, int furnaceStateId) {
             super(owner, values);
             this.furnaceStateId = furnaceStateId;
+            this.destroySpeed = org.domi.furnace.compat.nms.NmsBlockStates.table().destroySpeed()[furnaceStateId];
         }
 
         /** 호환 모듈 전용 — 바닐라 상태 번호(= {@code Block.getId(this)}). */
@@ -62,5 +67,39 @@ public abstract class BlockBehaviour {
             if (t == 0) randomlyTicking = t = org.domi.furnace.compat.nms.NmsChunks.bridge().stateRandomlyTicking(furnaceStateId) ? (byte) 2 : (byte) 1;
             return t == 2;
         }
+
+        private int flagBits() { return org.domi.furnace.compat.nms.NmsBlockStates.table().flags()[furnaceStateId]; }
+
+        /** 바닐라 캐시값: 빛이 지나갈 때 줄어드는 정도(꽉 찬 가림 15, 하늘빛 통과 0, 아니면 1 …). 위치·세계는 보지 않는다(바닐라도 캐시). */
+        public int getLightBlock(net.minecraft.world.level.BlockGetter level, net.minecraft.core.BlockPos pos) {
+            return org.domi.furnace.compat.nms.NmsBlockStates.table().lightBlock()[furnaceStateId];
+        }
+
+        /** 바닐라 getShape(level, pos) 의 빈 세계 값(바깥 모양, 서버가 바닐라에서 뽑은 상자들). */
+        public net.minecraft.world.phys.shapes.VoxelShape getShape(net.minecraft.world.level.BlockGetter level, net.minecraft.core.BlockPos pos) {
+            var s = shape;
+            if (s == null) shape = s = net.minecraft.world.phys.shapes.VoxelShape.furnaceOf(org.domi.furnace.compat.nms.NmsBlockStates.bridge().outlineBoxes(furnaceStateId));
+            return s;
+        }
+
+        public boolean canOcclude() { return (flagBits() & org.domi.furnace.api.internal.BlockStateInternals.CAN_OCCLUDE) != 0; }
+
+        /** 바닐라 캐시 solidRender: 가리는 블록이고 가림 모양이 꽉 참. */
+        public boolean isSolidRender(net.minecraft.world.level.BlockGetter level, net.minecraft.core.BlockPos pos) {
+            return (flagBits() & org.domi.furnace.api.internal.BlockStateInternals.SOLID_RENDER) != 0;
+        }
+
+        /** 바닐라: 블록 클래스의 isSignalSource 재정의(레드스톤 가루·횃불·레버·단추 …). */
+        public boolean isSignalSource() { return (flagBits() & org.domi.furnace.api.internal.BlockStateInternals.SIGNAL_SOURCE) != 0; }
+
+        public int getLightEmission() { return org.domi.furnace.compat.nms.NmsBlockStates.table().lightEmission()[furnaceStateId]; }
+
+        public net.minecraft.world.level.material.PushReaction getPistonPushReaction() {
+            return net.minecraft.world.level.material.PushReaction.values()[org.domi.furnace.compat.nms.NmsBlockStates.table().pushReaction()[furnaceStateId]];
+        }
+
+        public boolean blocksMotion() { return (flagBits() & org.domi.furnace.api.internal.BlockStateInternals.BLOCKS_MOTION) != 0; }
+
+        public boolean canBeReplaced() { return (flagBits() & org.domi.furnace.api.internal.BlockStateInternals.REPLACEABLE) != 0; }
     }
 }

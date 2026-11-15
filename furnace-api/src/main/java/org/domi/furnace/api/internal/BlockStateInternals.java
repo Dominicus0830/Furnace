@@ -1,0 +1,24 @@
+// 블록 상태 속성 다리(N2b-6) — 호환 계층의 NMS BlockState shim 이 바닐라 BlockStateBase 의 캐시값(빛 막는 정도·모양·마찰·저항 등)을 읽는 길.
+// 값은 서버가 바닐라 1.21.1 에서 뽑아 둔 표 그대로다. 상태 번호는 BlockTypes.stateId 와 같다. 불안정 내부 다리(호환 계층 전용).
+package org.domi.furnace.api.internal;
+
+/** 상태 번호 단위 블록 속성 표. 모든 값은 고정 표라 아무 스레드에서 읽는다. */
+public interface BlockStateInternals {
+
+    /** {@link Table#flags} 비트. */
+    int CAN_OCCLUDE = 1, SOLID_RENDER = 2, REPLACEABLE = 4, BLOCKS_MOTION = 8, SIGNAL_SOURCE = 16;
+
+    /**
+     * 상태 번호로 인덱스하는 표(배열 길이 = 상태 수). pushReaction 은 바닐라 PushReaction 서수(NORMAL, DESTROY, BLOCK, IGNORE, PUSH_ONLY).
+     * mapColorCols 는 바닐라 MapColor 번호 → RGB(번호 = 인덱스). destroySpeed·explosionResistance·friction 은 상태가 속한 블록의 값.
+     * mapColor 는 상태별 RGB(바닐라 properties.mapColor.apply(state)).
+     */
+    record Table(byte[] lightBlock, byte[] lightEmission, byte[] pushReaction, short[] flags, float[] destroySpeed,
+                 float[] explosionResistance, float[] friction, int[] mapColor, int[] mapColorCols) {}
+
+    /** 전체 상태 표(처음 한 번 만들어 둔다). */
+    Table table();
+
+    /** 그 상태의 바닐라 getShape(빈 세계, 원점) 상자 목록: 상자마다 minX,minY,minZ,maxX,maxY,maxZ. 빈 모양이면 길이 0. 모르는 번호면 길이 0. */
+    double[] outlineBoxes(int stateId);
+}
