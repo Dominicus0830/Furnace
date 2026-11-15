@@ -1,7 +1,7 @@
 # 설정 키 점검과 규칙 (Q1, 2026-11-07)
 
 도미니코 결정 R4(2026-11-07): "새 옵션은 모두 지원하되 사용자가 ON/OFF 또는 수치로 바꿀 수 있게. 기본값은 바닐라와 같게. 위험한 설정은 경고."
-이 문서는 그 규칙과, 지금 있는 `furnace.properties` 키 전부의 표다. 표의 원본은 코드의 `OptionKeys`(`furnace-server/.../config/OptionKeys.java`)이고,
+이 문서는 그 규칙과, 지금 있는 `furnace.properties` 키 전부의 표다. 코드의 `OptionKeys`(`furnace-server/.../config/OptionKeys.java`)는 키·형식·기본값만 갖고(범위·설명 칸은 없앴다 — 설명의 원본은 생성되는 `furnace.properties` 주석, 즉 `furnace-lang` 의 `cfg.help.*`),
 `OptionKeysTest` 가 표 ↔ 코드 기본값 ↔ 이 문서의 어긋남을 잡는다. 키를 더하면 `OptionKeys` 와 이 표에 한 줄씩 넣는다.
 
 ## 1. 규칙

@@ -100,24 +100,24 @@ public final class SchemaPacketBridge {
      */
     private static Plan compile(PacketDef d, boolean received) {
         if (!received && d.direction() != PacketDirection.CLIENTBOUND) {
-            return refuse(d, null, "serverbound 패킷이다 — 서버가 클라이언트에 보낼 수 없다(바닐라도 play 연결에서 인코딩이 실패한다). 받은 것처럼 넣으려면 Furnace PacketService.receive 를 쓴다");
+            return refuse(d, null, "a serverbound packet - the server cannot send it to a client (vanilla fails to encode it on a play connection too). To inject it as received, use Furnace PacketService.receive");
         }
-        if (received && d.direction() != PacketDirection.SERVERBOUND) return refuse(d, null, "clientbound 패킷이다 — 서버가 받는 패킷이 아니다");
+        if (received && d.direction() != PacketDirection.SERVERBOUND) return refuse(d, null, "a clientbound packet - not a packet the server receives");
         if (!PLAY_STATES.contains(d.state())) {
-            return refuse(d, null, d.state() + " 단계 패킷이다 — " + (received ? "Furnace 패킷 API 는 play 연결 패킷만 다룬다"
-                    : "play 연결로는 보낼 수 없다(바닐라도 인코딩이 실패한다)"));
+            return refuse(d, null, "a " + d.state() + " stage packet - " + (received ? "the Furnace packet API only handles play connection packets"
+                    : "it cannot be sent on a play connection (vanilla fails to encode it too)"));
         }
         PacketType<?> t = PacketTypes.byName(d.direction(), "minecraft:" + d.wireName());
-        if (t == null) return refuse(d, null, "Furnace 패킷 종류 표에 없다");
+        if (t == null) return refuse(d, null, "not in the Furnace packet kind table");
         if (t.typed()) {
-            return refuse(d, t, received ? "Furnace 타입 레코드 종류다(ServerboundBridge 가 다룬다)"
-                    : "Furnace 타입 레코드 종류라 shim 변환이 아직 없다 — Furnace 패킷 API 의 레코드(docs/api/packets.md)를 쓴다");
+            return refuse(d, t, received ? "a Furnace typed record kind (ServerboundBridge handles it)"
+                    : "a Furnace typed record kind, so there is no shim conversion yet - use the records of the Furnace packet API (docs/api/packets.md)");
         }
         if (!received && ChunkPacketBridge.handles(d.wireName())) {
-            return refuse(d, t, "손으로 쓴 shim 이 직접 다룬다(ChunkPacketBridge — 범용 shim 이 아니다)");
+            return refuse(d, t, "handled directly by a hand-written shim (ChunkPacketBridge - not a generic shim)");
         }
         if (d.custom()) return compileCustom(d, t);
-        if (d.superType() != null) return refuse(d, t, "부모 클래스 필드가 있는 종류는 아직 다루지 않는다");
+        if (d.superType() != null) return refuse(d, t, "kinds with parent class fields are not handled yet");
         try {
             List<String> names = new ArrayList<>();
             List<Conv> convs = new ArrayList<>();
@@ -129,7 +129,7 @@ public final class SchemaPacketBridge {
             }
             return new Plan(d, t, List.copyOf(names), List.copyOf(convs), List.copyOf(fields), null, null);
         } catch (NoBridge e) {
-            return refuse(d, t, e.getMessage() + " — Furnace 패킷 API(docs/api/packets.md)의 GenericPacket 을 쓴다");
+            return refuse(d, t, e.getMessage() + " - use GenericPacket of the Furnace packet API (docs/api/packets.md)");
         }
     }
 
@@ -143,17 +143,17 @@ public final class SchemaPacketBridge {
     private static Plan compileCustom(PacketDef d, PacketType<?> t) {
         String key = customKey(d);
         String no = CUSTOM_REFUSALS.get(key);
-        if (no != null) return refuse(d, t, no + " — Furnace 패킷 API(docs/api/packets.md)의 GenericPacket 을 쓴다");
+        if (no != null) return refuse(d, t, no + " - use GenericPacket of the Furnace packet API (docs/api/packets.md)");
         Custom c = custom(key);
         if (c == null) {
-            return refuse(d, t, "와이어가 필드 나열이 아니라(손 코덱) 아직 shim 에서 바꾸지 못한다 — Furnace 패킷 API(docs/api/packets.md)의 GenericPacket 을 쓴다");
+            return refuse(d, t, "the wire is not a field list (hand codec) and cannot be converted from the shim yet - use GenericPacket of the Furnace packet API (docs/api/packets.md)");
         }
         List<FieldDef> all = new ArrayList<>();
         String pkg = d.javaPackage();
         if (d.superType() != null) {
             String base = SCHEMA.resolve(d.superType().name(), pkg);
             StructDef st = base == null ? null : SCHEMA.struct(base).orElse(null);
-            if (st == null) return refuse(d, t, "부모 클래스 " + d.superType() + " 를 스키마에서 찾지 못했다");
+            if (st == null) return refuse(d, t, "parent class " + d.superType() + " was not found in the schema");
             all.addAll(st.fields());
         }
         all.addAll(d.fields());
@@ -179,9 +179,9 @@ public final class SchemaPacketBridge {
 
     /** 대응표를 두지 않은 손 코덱 종류(play)와 까닭. 타입 레코드 종류(add_entity 등)는 그 앞에서 따로 거절된다. */
     private static final Map<String, String> CUSTOM_REFUSALS = Map.of(
-            "boss_event", "보스바 operation 은 바닐라에서도 package-private 인터페이스(Operation)이고 BossEvent shim 이 아직 비어 있어 shim 값을 읽을 수 없다",
-            "award_stats", "통계 맵(fastutil Object2IntMap<Stat<?>>)은 라이브러리 타입이 지워졌고 Stat shim 이 아직 비어 있다",
-            "s:container_click", "바뀐 칸 맵(fastutil Int2ObjectMap<ItemStack>)은 라이브러리 타입이 지워져 shim 값을 만들고 읽을 수 없다(Bukkit InventoryClickEvent 는 그대로 된다)");
+            "boss_event", "the boss bar operation is a package-private interface (Operation) in vanilla too and the BossEvent shim is still empty, so the shim value cannot be read",
+            "award_stats", "the stats map (fastutil Object2IntMap<Stat<?>>) has its library type erased and the Stat shim is still empty",
+            "s:container_click", "the changed slots map (fastutil Int2ObjectMap<ItemStack>) has its library type erased, so shim values cannot be made or read (Bukkit InventoryClickEvent works as before)");
 
     /** 스키마 필드 i 를 범용 변환으로. */
     private static Object g(Object[] v, Plan p, int i, String at) {
@@ -545,11 +545,11 @@ public final class SchemaPacketBridge {
     }
 
     private static Conv conv(TypeRef t, String wire, String pkg, int depth) {
-        if (depth > 8) throw new NoBridge("타입이 너무 깊다: " + t);
-        if (t.bound() != TypeRef.Bound.NONE) throw new NoBridge("와일드카드 타입 " + t);
+        if (depth > 8) throw new NoBridge("type is nested too deep: " + t);
+        if (t.bound() != TypeRef.Bound.NONE) throw new NoBridge("wildcard type " + t);
         if (t.arrayDimensions() > 0) {
             if (t.arrayDimensions() == 1 && wire == null && Set.of("byte", "long", "int").contains(t.name())) return SchemaPacketBridge::need;
-            throw new NoBridge("배열 " + t);
+            throw new NoBridge("array " + t);
         }
         switch (t.name()) {
             case "int":
@@ -557,7 +557,7 @@ public final class SchemaPacketBridge {
             case "short", "byte", "long", "float", "double", "boolean", "String", "UUID":
                 return SchemaPacketBridge::need;
             case "List", "Set", "Collection": {
-                if (wire != null) throw new NoBridge("목록 명시 와이어 " + wire);
+                if (wire != null) throw new NoBridge("explicit list wire " + wire);
                 Conv e = conv(t.arguments().get(0), null, pkg, depth + 1);
                 return (v, at) -> {
                     List<Object> out = new ArrayList<>();
@@ -567,13 +567,13 @@ public final class SchemaPacketBridge {
                 };
             }
             case "Optional": {
-                if (wire != null) throw new NoBridge("Optional 명시 와이어 " + wire);
+                if (wire != null) throw new NoBridge("explicit Optional wire " + wire);
                 Conv e = conv(t.arguments().get(0), null, pkg, depth + 1);
                 return (v, at) -> ((Optional<?>) need(v, at)).map(x -> e.apply(x, at));
             }
             case "Holder": {
                 String arg = t.arguments().get(0).name();
-                if (!HOLDERS.contains(arg)) throw new NoBridge("Holder<" + arg + "> 는 서버 코덱도 아직 쓰지 못한다");
+                if (!HOLDERS.contains(arg)) throw new NoBridge("Holder<" + arg + "> cannot be used by the server codec yet either");
                 return (v, at) -> holder(need(v, at), arg, at);
             }
             case "ResourceKey":
@@ -599,7 +599,7 @@ public final class SchemaPacketBridge {
         } catch (IllegalArgumentException e) {
             throw new NoBridge(e.getMessage());
         }
-        if (bin == null) throw new NoBridge("타입 " + t);
+        if (bin == null) throw new NoBridge("type " + t);
         TypeDecl decl = SCHEMA.type(bin).orElse(null);
         StructDef struct = SCHEMA.struct(bin).orElse(null);
         if ((decl != null && decl.kind() == TypeDecl.Kind.ENUM) || (struct != null && struct.kind() == StructDef.Kind.ENUM)) {
@@ -608,14 +608,14 @@ public final class SchemaPacketBridge {
         }
         if (wire != null) {   // 명시 와이어(예: game_event 의 Type u8) = 보조 클래스가 들고 있는 바닐라 번호
             String idField = intField(struct);
-            if (idField == null) throw new NoBridge("명시 와이어 " + wire + " 자리의 " + simple(bin));
+            if (idField == null) throw new NoBridge("explicit wire " + wire + " on " + simple(bin));
             Field fld = reflectField(bin, idField);
             return (v, at) -> narrow((Integer) get(fld, need(v, at)), wire);
         }
         if (decl != null) {
             String w = String.valueOf(decl.wire());
             if (!WIRES.contains(w) || ("registry_id".equals(w) && !REGISTRY_IDS.contains(bin))) {
-                throw new NoBridge(simple(bin) + " 값 shim 이 아직 빈 껍데기다");
+                throw new NoBridge(simple(bin) + " value shim is still an empty shell");
             }
             return switch (w) {
                 case "component" -> (v, at) -> net.minecraft.network.chat.Component.furnace((net.minecraft.network.chat.Component) need(v, at));
@@ -638,10 +638,10 @@ public final class SchemaPacketBridge {
                 case "argument_signatures" -> ChatValues::argumentSignatures;
                 case "chat_session" -> ChatValues::chatSession;
                 case "last_seen_update" -> ChatValues::lastSeen;
-                default -> throw new NoBridge("와이어 " + w);
+                default -> throw new NoBridge("wire " + w);
             };
         }
-        if (struct == null || !(struct.kind() == StructDef.Kind.RECORD || struct.kind() == StructDef.Kind.CLASS)) throw new NoBridge("타입 " + simple(bin));
+        if (struct == null || !(struct.kind() == StructDef.Kind.RECORD || struct.kind() == StructDef.Kind.CLASS)) throw new NoBridge("type " + simple(bin));
         List<String> names = new ArrayList<>();
         List<Conv> convs = new ArrayList<>();
         List<Field> refl = new ArrayList<>();
@@ -671,7 +671,7 @@ public final class SchemaPacketBridge {
         try {
             c = Class.forName(bin, false, SchemaPacketBridge.class.getClassLoader());
         } catch (ClassNotFoundException | LinkageError e) {
-            throw new NoBridge(simple(bin) + " shim 클래스가 없다");
+            throw new NoBridge("no shim class for " + simple(bin));
         }
         for (Class<?> k = c; k != null && k != Object.class; k = k.getSuperclass()) {
             try {
@@ -682,7 +682,7 @@ public final class SchemaPacketBridge {
                 // 부모에서 찾는다
             }
         }
-        throw new NoBridge(simple(bin) + " shim 에 스키마 필드 " + name + " 이 없다");
+        throw new NoBridge("the " + simple(bin) + " shim has no schema field " + name);
     }
 
     private static Object get(Field f, Object owner) {
@@ -700,7 +700,7 @@ public final class SchemaPacketBridge {
      * 값이 바닐라 모양이 아니면(필수 필드가 null 등) IllegalArgumentException.
      */
     public static GenericPacket toFurnace(SchemaPacket packet) {
-        PacketDef d = def(packet.schemaKey()).orElseThrow(() -> new UnsupportedNmsCall("send(" + packet.getClass().getName() + ")", "스키마에 없는 패킷"));
+        PacketDef d = def(packet.schemaKey()).orElseThrow(() -> new UnsupportedNmsCall("send(" + packet.getClass().getName() + ")", "packet not in the schema"));
         return convert(packet, d, plan(d), "ServerCommonPacketListenerImpl#send(" + d.binaryName() + ")");
     }
 
@@ -709,14 +709,14 @@ public final class SchemaPacketBridge {
      * {@link UnsupportedNmsCall}, 값이 바닐라 모양이 아니면 IllegalArgumentException.
      */
     public static GenericPacket toFurnaceReceived(SchemaPacket packet) {
-        PacketDef d = def(packet.schemaKey()).orElseThrow(() -> new UnsupportedNmsCall("read(" + packet.getClass().getName() + ")", "스키마에 없는 패킷"));
+        PacketDef d = def(packet.schemaKey()).orElseThrow(() -> new UnsupportedNmsCall("read(" + packet.getClass().getName() + ")", "packet not in the schema"));
         return convert(packet, d, planReceived(d), "Connection#read(" + d.binaryName() + ")");
     }
 
     @SuppressWarnings("unchecked")
     private static GenericPacket convert(SchemaPacket packet, PacketDef d, Plan p, String call) {
         if (p.refusal() != null) throw new UnsupportedNmsCall(call, p.refusal());
-        if (!Furnace.server().packets().isReadable(p.type())) throw new UnsupportedNmsCall(call, "이 서버 버전이 이 패킷을 쓰지 못한다");
+        if (!Furnace.server().packets().isReadable(p.type())) throw new UnsupportedNmsCall(call, "this server version cannot use this packet");
         Object[] values = packet.schemaValues();
         if (values.length != p.convs().size()) throw new IllegalStateException(d.binaryName() + " shim 값 수가 스키마와 다르다");
         LinkedHashMap<String, Object> m;

@@ -313,6 +313,16 @@ class ConfigToolsTest {
         }
     }
 
+    /** cpu-count·per-stage 표지는 기본값 표시에서만 문구로 바뀐다 — 사용자가 같은 글자를 값으로 적으면 그대로 보인다. */
+    @Test
+    void dumpOnlyReplacesDefaultMarkersNotUserValues() throws IOException {
+        Path f = write("server-brand=per-stage\nregion-threads=cpu-count\n");
+        ConfigDump.Snapshot s = ConfigDump.take(f);
+        String all = String.join("\n", ConfigDump.render(s, "all", s.size(), s.modified()));
+        assertTrue(all.contains("server-brand = per-stage"), all);
+        assertTrue(all.contains("region-threads = cpu-count"), all);
+    }
+
     @Test
     void secretsAreMaskedByName() {
         assertTrue(ConfigDump.isSecret("velocity-secret"));

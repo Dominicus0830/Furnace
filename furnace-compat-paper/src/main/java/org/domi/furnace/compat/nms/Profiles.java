@@ -38,9 +38,8 @@ public final class Profiles {
     /** 시험 전용: authlib 이 없는 서버처럼(true) 또는 원래대로(false). */
     public static void simulateMissingForTest(boolean missing) { simulatedMissing = missing; }
 
-    /** authlib 이 없을 때 쓰는 까닭 글. */
-    public static final String MISSING = "authlib(GameProfile)이 서버에 없다 — authlib 을 쓰는 플러그인이 있으면 서버가 받는다"
-            + "(furnace.properties plugins.compat.libraries.mojang=true, libraries.minecraft.net 에 닿아야 한다)";
+    /** authlib 이 없을 때 쓰는 까닭 글(서버 언어로). */
+    public static String missing() { return org.domi.furnace.compat.i18n.CompatLang.t("nms.authlib-missing"); }
 
     /** 프로필(authlib 이 없으면 null). 이름은 바닐라처럼 null 이면 빈 글. */
     public static GameProfile of(UUID id, String name, List<ProfileProperty> properties) {

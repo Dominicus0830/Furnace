@@ -219,7 +219,7 @@ public class SimpleCommandMap implements CommandMap {
         if (colon >= 0) {
             if (!key.substring(0, colon).equals(ns)) {
                 throw new UnsupportedFeature("SimpleCommandMap#knownCommands.put(" + key + ")",
-                        "Furnace 명령 트리는 다른 플러그인 접두어로 명령을 붙이지 못한다(이 명령의 접두어는 '" + ns + "')");
+                        "the Furnace command tree cannot register a command under the prefix of another plugin (the prefix of this command is '" + ns + "')");
             }
             bare = key.substring(colon + 1);
         }

@@ -13,8 +13,8 @@ public final class TagParser {
         try {
             return CompoundTag.fromFurnace(org.domi.furnace.api.nbt.NbtCompound.parse(snbt));
         } catch (org.domi.furnace.api.nbt.SnbtParseException e) {
-            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("TagParser#parseTag 의 CommandSyntaxException",
-                    "틀린 SNBT 다(" + e.getMessage() + ") — 바닐라는 brigadier CommandSyntaxException 을 던지지만 이 서버에는 brigadier 가 없다");
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("CommandSyntaxException of TagParser#parseTag",
+                    "Invalid SNBT (" + e.getMessage() + ") - vanilla throws a brigadier CommandSyntaxException, but this server has no brigadier");
         }
     }
 }

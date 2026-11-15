@@ -118,7 +118,7 @@ public final class CraftWorld implements World {
             if (!clazz.isInterface() || clazz.getPackageName().equals("org.bukkit.entity") && isAbstractKind(clazz)) {
                 throw new IllegalArgumentException("Cannot spawn an entity for " + clazz.getName());
             }
-            throw new UnsupportedFeature("World#spawn(" + clazz.getSimpleName() + ")", "이 Bukkit 엔티티 형으로 감싸는 어댑터가 아직 없다(ArmorStand·Pig 만)");
+            throw new UnsupportedFeature("World#spawn(" + clazz.getSimpleName() + ")", "there is no adapter yet that wraps this Bukkit entity type (only ArmorStand and Pig)");
         }
         org.domi.furnace.api.entity.Entity e = handle.spawnEntityNow(key, Compat.location(location));
         if (e == null) throw new IllegalStateException("엔티티 스폰이 취소됐다(스폰 이벤트를 취소한 플러그인이 있다): " + clazz.getSimpleName());
@@ -334,8 +334,7 @@ public final class CraftWorld implements World {
 
     private void sharedClockWrite(boolean applied, String what) {
         if (applied || !WARNED_CLOCK.add(handle.dimension() + "|" + what)) return;
-        System.getLogger("FurnaceCompat").log(System.Logger.Level.WARNING, "World#" + what + "(" + getName()
-                + "): Furnace 는 모든 월드가 오버월드의 시간·날씨·스폰을 함께 쓴다 — 오버월드가 아닌 월드에서 바꾸는 것은 무시했다");
+        System.getLogger("FurnaceCompat").log(System.Logger.Level.WARNING, org.domi.furnace.compat.i18n.CompatLang.t("compat.clock-shared", what, getName()));
     }
 
     // ---- 거리(T-141 E4c): Paper RegionizedPlayerChunkLoader 의 월드 값(tick = 시뮬레이션 거리, load = 시야 거리 + 1)
@@ -369,15 +368,13 @@ public final class CraftWorld implements World {
     @Override
     public void setSendViewDistance(int viewDistance) {
         if (WARNED_CLOCK.add(handle.dimension() + "|setSendViewDistance")) {
-            System.getLogger("FurnaceCompat").log(System.Logger.Level.WARNING, "World#setSendViewDistance(" + getName()
-                    + "): Furnace 에는 월드별 보내는 거리가 없다 — 무시했다. 플레이어마다는 Player#setSendViewDistance, 전체는 server.properties 의 view-distance");
+            System.getLogger("FurnaceCompat").log(System.Logger.Level.WARNING, org.domi.furnace.compat.i18n.CompatLang.t("compat.send-distance-ignored", getName()));
         }
     }
 
     private void serverWideWrite(String what) {
         if (!WARNED_CLOCK.add(handle.dimension() + "|" + what)) return;
-        System.getLogger("FurnaceCompat").log(System.Logger.Level.WARNING, "World#" + what + "(" + getName()
-                + "): Furnace 의 시야·시뮬레이션 거리는 서버 전체에 하나다 — 주 오버월드가 아닌 월드에서 바꾸는 것은 무시했다(주 오버월드에서 부르면 모든 월드가 바뀐다)");
+        System.getLogger("FurnaceCompat").log(System.Logger.Level.WARNING, org.domi.furnace.compat.i18n.CompatLang.t("compat.distance-shared", what, getName()));
     }
 
     @Override
@@ -500,7 +497,7 @@ public final class CraftWorld implements World {
         return switch (handle.dimensionType()) {
             case "minecraft:overworld" -> -64;
             case "minecraft:the_nether", "minecraft:the_end" -> 0;
-            default -> throw new UnsupportedFeature("World#getMinHeight(" + handle.dimensionType() + ")", "플러그인이 만든 차원 타입의 높이는 아직 노출하지 않는다");
+            default -> throw new UnsupportedFeature("World#getMinHeight(" + handle.dimensionType() + ")", "the height of a dimension type made by a plugin is not exposed yet");
         };
     }
 
@@ -510,7 +507,7 @@ public final class CraftWorld implements World {
             case "minecraft:overworld" -> 320;
             case "minecraft:the_nether" -> 256;
             case "minecraft:the_end" -> 256;
-            default -> throw new UnsupportedFeature("World#getMaxHeight(" + handle.dimensionType() + ")", "플러그인이 만든 차원 타입의 높이는 아직 노출하지 않는다");
+            default -> throw new UnsupportedFeature("World#getMaxHeight(" + handle.dimensionType() + ")", "the height of a dimension type made by a plugin is not exposed yet");
         };
     }
 
@@ -602,8 +599,7 @@ public final class CraftWorld implements World {
         // T141E4a-D1 결정 B: 게임 규칙은 서버 전체 하나라 주 오버월드(시계 주인)가 아닌 월드에서 바꾸면 무시하고 경고 한 번(시간·날씨와 같은 방침)
         if (!handle.ownsClock()) {
             if (WARNED_CLOCK.add(handle.dimension() + "|setKeepSpawnInMemory")) {
-                System.getLogger("FurnaceCompat").log(System.Logger.Level.WARNING, "World#setKeepSpawnInMemory(" + getName()
-                        + "): Furnace 는 게임 규칙(spawnChunkRadius)이 서버 전체에 하나라 주 오버월드가 아닌 월드에서 바꾸는 것은 무시했다");
+                System.getLogger("FurnaceCompat").log(System.Logger.Level.WARNING, org.domi.furnace.compat.i18n.CompatLang.t("compat.keep-spawn-shared", getName()));
             }
             return;
         }
@@ -750,7 +746,7 @@ public final class CraftWorld implements World {
     @Override
     public org.bukkit.block.Biome getBiome(int x, int y, int z) {
         String key = handle.biomeNow(new BlockPos(x, y, z))
-                .orElseThrow(() -> new UnsupportedFeature("World#getBiome(로드되지 않은 청크)", "Furnace 는 바이옴을 읽으려고 청크를 동기로 불러오지 않는다 — 로드된 청크에서 부른다"));
+                .orElseThrow(() -> new UnsupportedFeature("World#getBiome(unloaded chunk)", "Furnace does not load a chunk synchronously to read a biome - call it on a loaded chunk"));
         NamespacedKey k = NamespacedKey.fromString(key);
         org.bukkit.block.Biome b = k == null ? null : org.bukkit.block.Biome.byKey(k);
         return b != null ? b : org.bukkit.block.Biome.CUSTOM;   // CraftBlock.biomeBaseToBiome: 레지스트리에 없는 바이옴은 CUSTOM

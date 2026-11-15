@@ -146,7 +146,7 @@ public final class ConfigDump {
     }
 
     private static String line(Snapshot s, String key, String eff, String def, boolean differs) {
-        String shownValue = eff == null ? Lang.t("cfg.dump.not-set", show(key, def)) : show(key, eff);
+        String shownValue = eff == null ? Lang.t("cfg.dump.not-set", show(key, def, true)) : show(key, eff, false);
         String raw = s.raw().getProperty(key);
         String source;
         if (raw == null) source = eff == null ? Lang.t("cfg.dump.src-default") : Lang.t("cfg.dump.src-preset", ConfigPresets.name(s.effective()));
@@ -154,13 +154,14 @@ public final class ConfigDump {
             Integer ln = s.lines().get(key);
             source = (ln == null ? Lang.t("cfg.dump.src-file") : Lang.t("cfg.dump.src-file-line", ln)) + (FurnaceProps.usesEnv(raw) ? Lang.t("cfg.dump.src-env") : "");
         }
-        return "  " + (differs ? "* " : "  ") + key + " = " + shownValue + (differs && !def.isEmpty() ? "  " + Lang.t("cfg.dump.default-part", show(key, def)) : "") + "  [" + source + "]";
+        return "  " + (differs ? "* " : "  ") + key + " = " + shownValue + (differs && !def.isEmpty() ? "  " + Lang.t("cfg.dump.default-part", show(key, def, true)) : "") + "  [" + source + "]";
     }
 
-    private static String show(String key, String value) {
+    /** 값을 보여 줄 글로. 기본값 표시(isDefault)만 cpu-count·per-stage 표지를 문구로 바꾼다 — 사용자가 적은 값은 그대로 보인다. */
+    private static String show(String key, String value, boolean isDefault) {
         if (isSecret(key) && !value.isEmpty()) return Lang.t("cfg.dump.secret", value.length());
-        if (value.equals(OptionKeys.DEF_CPU_COUNT)) return Lang.t("cfg.dump.def-cpu-count");
-        if (value.equals(OptionKeys.DEF_PER_STAGE)) return Lang.t("cfg.dump.def-per-stage");
+        if (isDefault && value.equals(OptionKeys.DEF_CPU_COUNT)) return Lang.t("cfg.dump.def-cpu-count");
+        if (isDefault && value.equals(OptionKeys.DEF_PER_STAGE)) return Lang.t("cfg.dump.def-per-stage");
         return value.isEmpty() ? "\"\"" : value;
     }
 

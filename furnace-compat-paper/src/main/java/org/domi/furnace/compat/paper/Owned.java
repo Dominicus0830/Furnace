@@ -31,7 +31,7 @@ final class Owned {
             return;
         }
         f.whenComplete((v, e) -> {
-            if (e != null) LOG.log(System.Logger.Level.WARNING, what + " 예약 작업이 실패했다", e);
+            if (e != null) LOG.log(System.Logger.Level.WARNING, org.domi.furnace.compat.i18n.CompatLang.t("compat.scheduled-task-failed", what), e);
         });
     }
 

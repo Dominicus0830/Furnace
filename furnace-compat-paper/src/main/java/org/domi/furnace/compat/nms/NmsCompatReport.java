@@ -312,7 +312,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
             boolean ok = field ? index.hasField(owner, name, desc) : index.hasMethod(owner, name, desc);
             if (ok && !field && name.equals("<init>") && sendUnsupported(e)) {
                 // 생성 패킷 중 보내기 다리가 아직 없는 것: 만들 수는 있지만 보내면 UnsupportedNmsCall — 보고·strict 에서 미지원으로 센다
-                miss(owner, NmsLinker.dots(owner) + "#<init>(" + Type.getArgumentTypes(desc).length + ") — 생성 패킷, 보내기 미지원", false);
+                miss(owner, CompatLang.t("nms.report.packet-ctor", NmsLinker.dots(owner), Type.getArgumentTypes(desc).length), false);
                 return;
             }
             if (ok) counts[0]++;
@@ -352,7 +352,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
                     && index.hasClass(superName)) {
                 if (seen.add("S " + name)) {
                     counts[1]++;
-                    missing.add("상속 " + NmsLinker.dots(name) + " → " + NmsLinker.dots(superName));
+                    missing.add(CompatLang.t("nms.report.extends", NmsLinker.dots(name), NmsLinker.dots(superName)));
                 }
             } else if (superName != null) {
                 cls(superName);

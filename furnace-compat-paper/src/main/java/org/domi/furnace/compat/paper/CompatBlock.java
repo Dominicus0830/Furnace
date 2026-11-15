@@ -136,7 +136,7 @@ public final class CompatBlock implements Block {
     @Override
     public void setBlockData(BlockData data, boolean applyPhysics) {
         Objects.requireNonNull(data, "BlockData cannot be null");
-        if (!applyPhysics) throw new UnsupportedFeature("Block#setBlockData(applyPhysics=false)", "Furnace 의 setBlock 은 항상 이웃을 갱신한다");
+        if (!applyPhysics) throw new UnsupportedFeature("Block#setBlockData(applyPhysics=false)", "Furnace setBlock always updates the neighbours");
         if (!(data instanceof CompatBlockData d)) throw new IllegalArgumentException("Furnace 가 만든 BlockData 가 아니다: " + data.getClass().getName());
         var block = furnaceBlock();
         boolean set;

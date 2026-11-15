@@ -47,7 +47,7 @@ public class AsyncPlayerChatEvent extends PlayerEvent implements Cancellable {
     public void setCancelled(boolean cancel) { this.cancel = cancel; }
 
     private static final class IllegalFormatConversionRuntime extends IllegalArgumentException {
-        IllegalFormatConversionRuntime(Throwable cause) { super("서식이 올바르지 않다", cause); }
+        IllegalFormatConversionRuntime(Throwable cause) { super("the format is not valid", cause); }
     }
 
     private static final HandlerList handlers = new HandlerList();

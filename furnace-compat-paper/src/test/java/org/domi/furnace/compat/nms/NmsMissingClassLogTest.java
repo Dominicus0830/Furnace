@@ -135,7 +135,7 @@ class NmsMissingClassLogTest {
         NmsReflect.classMissing(PLUGIN, gradeC);
         List<String> w = warnings();
         assertEquals(1, w.size(), "Paper 에는 있는 클래스라 바로 하나씩 경고한다");
-        assertTrue(w.get(0).contains(gradeC) && w.get(0).contains("등급 C"), w.get(0));
+        assertTrue(w.get(0).contains(gradeC) && w.get(0).contains("Grade C"), w.get(0));
     }
 
     @Test

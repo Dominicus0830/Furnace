@@ -157,7 +157,7 @@ public final class SimplePluginManager implements PluginManager {
 
     @Override
     public void clearPlugins() {
-        throw new UnsupportedFeature("PluginManager#clearPlugins", "Furnace 에는 /reload 처럼 플러그인 목록을 비우는 일이 없다 — disablePlugins 로 끌 수는 있다");
+        throw new UnsupportedFeature("PluginManager#clearPlugins", "Furnace has no way to clear the plugin list like /reload - disablePlugins can turn them off");
     }
 
     /** 꺼진 플러그인을 켠다(Bukkit 처럼 plugin.yml 명령을 다시 올리고 onEnable·PluginEnableEvent). 켜져 있으면 아무 일도 없다. */

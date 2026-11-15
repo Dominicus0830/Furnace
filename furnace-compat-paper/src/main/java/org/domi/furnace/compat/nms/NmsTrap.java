@@ -29,7 +29,7 @@ public final class NmsTrap {
      */
     public static void call(String plugin, String site, String target, String why, int kind) {
         Error e = UnsupportedNmsLink.of(kind, target,
-                "Furnace NMS shim 에 없다: " + target + " — " + why + " (플러그인=" + plugin + ", 호출 위치=" + site + ")");
+                "Not in the Furnace NMS shim: " + target + " - " + why + " (plugin=" + plugin + ", call site=" + site + ")");
         if (otherVersionSite(site)) {
             // 다른 버전용 모듈(버전 고르기가 찔러 보는 v1_21_9·v26_1 어댑터 등) 안의 호출은 1.21.1 몫이 아니다 — 같은 대상의 1.21.1 몫 경고는 남겨 둔다
             LOG.debug("미지원 NMS 호출(다른 버전 모듈): 플러그인={}, 호출 위치={}, 대상={}", plugin, site, target);

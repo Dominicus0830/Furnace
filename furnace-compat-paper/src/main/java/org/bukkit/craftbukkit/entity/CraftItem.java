@@ -20,11 +20,11 @@ public class CraftItem extends CraftEntity implements Item {
     }
 
     @Override
-    public void setItemStack(ItemStack stack) { throw new UnsupportedFeature("Item#setItemStack", "Furnace 핸들은 떨어진 아이템을 바꾸는 길이 아직 없다"); }
+    public void setItemStack(ItemStack stack) { throw new UnsupportedFeature("Item#setItemStack", "the Furnace handle has no way yet to change a dropped item"); }
 
     @Override
     public int getPickupDelay() { return Math.max(0, furnaceHandle().pickupDelay()); }
 
     @Override
-    public void setPickupDelay(int delay) { throw new UnsupportedFeature("Item#setPickupDelay", "Furnace 핸들은 줍기 지연을 바꾸는 길이 아직 없다"); }
+    public void setPickupDelay(int delay) { throw new UnsupportedFeature("Item#setPickupDelay", "the Furnace handle has no way yet to change the pickup delay"); }
 }

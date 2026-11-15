@@ -44,7 +44,7 @@ public class CompatInventoryView implements InventoryView {
     public void setItem(int slot, ItemStack item) {
         Inventory inv = getInventory(slot);
         if (inv != null) inv.setItem(convertSlot(slot), item);
-        else if (item != null) throw new UnsupportedFeature("InventoryView#setItem(OUTSIDE)", "창 밖 칸에 두면 Bukkit 은 아이템을 떨어뜨린다 — Furnace 는 아직 그 자리 떨어뜨리기 API 가 없다");
+        else if (item != null) throw new UnsupportedFeature("InventoryView#setItem(OUTSIDE)", "Bukkit drops the item when it is put in the outside slot - Furnace has no API yet to drop it there");
     }
 
     @Override
@@ -55,13 +55,13 @@ public class CompatInventoryView implements InventoryView {
 
     @Override
     public void setCursor(ItemStack item) {
-        throw new UnsupportedFeature("InventoryView#setCursor", "커서 아이템을 바꾸는 Furnace API 가 없다");
+        throw new UnsupportedFeature("InventoryView#setCursor", "there is no Furnace API to change the cursor item");
     }
 
     /** 커서 아이템(비었으면 AIR). 이벤트 밖에서 얻은 창은 UnsupportedFeature. */
     @Override
     public ItemStack getCursor() {
-        if (cursor == null) throw new UnsupportedFeature("InventoryView#getCursor", "커서 아이템은 인벤토리 이벤트 안에서만 알 수 있다");
+        if (cursor == null) throw new UnsupportedFeature("InventoryView#getCursor", "the cursor item is only known inside an inventory event");
         return CompatItems.copyOf(cursor);
     }
 
@@ -148,7 +148,7 @@ public class CompatInventoryView implements InventoryView {
             player.furnaceHandle().retitleMenu(t);
             return;
         }
-        throw new UnsupportedFeature("InventoryView#setTitle", "플러그인이 만든 인벤토리(createInventory)의 창만 제목을 바꿀 수 있다");
+        throw new UnsupportedFeature("InventoryView#setTitle", "only the window of an inventory made by a plugin (createInventory) can change its title");
     }
 
     // ------------------------------------------------------------------ 창 종류별 뷰(Paper 1.21.1 org.bukkit.inventory.view)
@@ -218,16 +218,16 @@ public class CompatInventoryView implements InventoryView {
 
         @Override
         public int getEnchantmentSeed() {
-            throw new UnsupportedFeature("EnchantmentView#getEnchantmentSeed", "Furnace API 가 플레이어의 마법 부여 씨앗을 알리지 않는다");
+            throw new UnsupportedFeature("EnchantmentView#getEnchantmentSeed", "the Furnace API does not tell the enchantment seed of the player");
         }
 
         @Override
         public void setEnchantmentSeed(int seed) {
-            throw new UnsupportedFeature("EnchantmentView#setEnchantmentSeed", "Furnace API 가 플레이어의 마법 부여 씨앗을 바꾸지 못한다");
+            throw new UnsupportedFeature("EnchantmentView#setEnchantmentSeed", "the Furnace API cannot change the enchantment seed of the player");
         }
 
         private org.bukkit.enchantments.EnchantmentOffer[] offers(String what) {
-            if (offers == null) throw new UnsupportedFeature(what, "제안은 Furnace 가 제안을 정할 때(PrepareItemEnchantEvent)만 알린다");
+            if (offers == null) throw new UnsupportedFeature(what, "offers are only told while Furnace decides them (PrepareItemEnchantEvent)");
             return offers;
         }
 

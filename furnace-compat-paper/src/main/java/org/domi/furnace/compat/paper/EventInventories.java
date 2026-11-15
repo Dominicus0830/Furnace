@@ -78,11 +78,11 @@ final class EventInventories {
     }
 
     static UnsupportedFeature anvilUnknown(String what) {
-        return new UnsupportedFeature(what, "모루 비용·이름은 Furnace 가 모루 결과를 정할 때(PrepareAnvilEvent)만 알린다");
+        return new UnsupportedFeature(what, "anvil cost and name are only told while Furnace decides the anvil result (PrepareAnvilEvent)");
     }
 
     static UnsupportedFeature anvilFixed(String what) {
-        return new UnsupportedFeature(what, "Furnace 모루 이벤트는 재료 소모 개수·재료 수준 제한 풀기를 바꾸지 못한다");
+        return new UnsupportedFeature(what, "the Furnace anvil event cannot change the number of materials used or lift the material level limit");
     }
 
     /** 모루: 0 첫째, 1 둘째, 2 결과. */

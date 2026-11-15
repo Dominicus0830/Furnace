@@ -427,7 +427,7 @@ class ProtocolLibBridgeTest {
                 assertEquals(Set.of(), bridge.types(), "되돌리지 못하는 종류는 듣지 않는다");
                 String line = logged.stream().filter(m -> m.contains("minecraft:player_info_update")).findFirst()
                         .orElseThrow(() -> new AssertionError("탭 목록 종류를 적은 줄이 있어야 한다: " + logged));
-                assertTrue(line.contains("minecraft:player_info_update — " + org.domi.furnace.compat.nms.Profiles.MISSING), line);
+                assertTrue(line.contains("minecraft:player_info_update — " + org.domi.furnace.compat.nms.Profiles.missing()), line);
                 assertTrue(line.contains("plugins.compat.libraries.mojang=true") && line.contains("libraries.minecraft.net"), line);
                 assertFalse(line.contains("플러그인이 보낸 것은 보인다"), line);
                 bridge.resync();

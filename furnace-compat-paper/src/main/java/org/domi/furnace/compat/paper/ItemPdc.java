@@ -60,7 +60,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
         if (o instanceof long[] a) return a.clone();
         if (o instanceof List<?> l) {
             List<Object> out = new ArrayList<>(l.size());
-            for (Object e : l) out.add(copyPrim(Objects.requireNonNull(e, "목록에 null 을 넣을 수 없다")));
+            for (Object e : l) out.add(copyPrim(Objects.requireNonNull(e, "a list cannot contain null")));
             return out;
         }
         return o;
@@ -207,7 +207,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
         var ft = furnaceType(type);
         P prim = type.toPrimitive(value, context);
         Object stored = prim instanceof PersistentDataContainer[] arr ? java.util.Arrays.asList(arr) : prim;
-        return new Prepared(ft, copyPrim(Objects.requireNonNull(stored, "toPrimitive 가 null")));
+        return new Prepared(ft, copyPrim(Objects.requireNonNull(stored, "toPrimitive returned null")));
     }
 
     void put(String key, Prepared p) { changes.put(key, new Value(p.type(), p.stored())); }
@@ -289,7 +289,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
             for (String k : rawKeys()) {
                 if (!replace && o.exists(k)) continue;
                 Value v = lookup(k);
-                if (v == null) throw new org.domi.furnace.compat.paper.UnsupportedFeature("PersistentDataContainer#copyTo(" + k + ")", "이 키의 값 종류(목록의 목록 등)를 호환 계층이 읽지 못한다");
+                if (v == null) throw new org.domi.furnace.compat.paper.UnsupportedFeature("PersistentDataContainer#copyTo(" + k + ")", "the compat layer cannot read the value kind of this key (list of lists, etc.)");
                 o.changes.put(k, copyValue(v));
             }
             return;
@@ -297,7 +297,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
         for (NamespacedKey k : getKeys()) {
             if (!replace && other.has(k)) continue;
             Value v = lookup(k.toString());
-            if (v == null) throw new org.domi.furnace.compat.paper.UnsupportedFeature("PersistentDataContainer#copyTo(" + k + ")", "이 키의 값 종류(목록의 목록 등)를 호환 계층이 읽지 못한다");
+            if (v == null) throw new org.domi.furnace.compat.paper.UnsupportedFeature("PersistentDataContainer#copyTo(" + k + ")", "the compat layer cannot read the value kind of this key (list of lists, etc.)");
             other.set(k, (PersistentDataType) bukkitType(v.type()), v.value());
         }
     }

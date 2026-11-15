@@ -153,7 +153,7 @@ public final class ItemStack {
 
     private static net.minecraft.core.component.DataComponents.Type<?, ?> type(net.minecraft.core.component.DataComponentType<?> t) {
         if (t instanceof net.minecraft.core.component.DataComponents.Type<?, ?> k) return k;
-        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("DataComponentType " + t, "shim 이 값 변환을 가진 종류가 아니다(DataComponents 의 상수만 된다)");
+        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("DataComponentType " + t, "the shim has no value conversion for this kind (only the constants of DataComponents work)");
     }
 
     /** 종류 기본값 위에 패치를 얹은 값(바닐라 get — EMPTY 는 늘 null). */

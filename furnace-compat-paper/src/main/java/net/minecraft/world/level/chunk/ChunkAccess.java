@@ -227,7 +227,7 @@ public abstract class ChunkAccess implements BlockGetter {
 
     /** 실체화용(N2b-4): 섹션 칸 번호 전부와 그 판 번호(stampOut[0]) — 한 출처에서. 다른 스레드의 덧칠이 있으면 판 번호는 MIN(늘 다시 실체화). */
     int[] furnaceSectionIdsStamped(int index, boolean biome, long[] stampOut) {
-        var src = furnaceForeignView(biome ? "PalettedContainer.data (바이옴)" : "PalettedContainer.data");
+        var src = furnaceForeignView(biome ? "PalettedContainer.data (biomes)" : "PalettedContainer.data");
         if (src != null) {
             int[] ids = biome ? src.sectionBiomes(index) : src.sectionStates(index);
             int[] over = biome ? furnaceMirror.overlayBiomes(index, ids.clone()) : furnaceMirror.overlayCells(index, ids.clone());
@@ -337,7 +337,7 @@ public abstract class ChunkAccess implements BlockGetter {
 
     /** 섹션 바이옴 칸 쓰기(칸 = y*16+z*4+x, 붙은 보기 self — 공급원 src). 옛 바이옴 번호. 그 사이 떼어 내졌으면 FURNACE_DETACHED. */
     int furnaceSetSectionBiome(PalettedContainer<?> self, Object src, int index, int cell, int biomeId) {
-        var v = furnaceForeignView("PalettedContainer#set (바이옴)");
+        var v = furnaceForeignView("PalettedContainer#set (biomes)");
         if (v != null) {
             int old = furnaceMirror.overlayBiomes(index, v.sectionBiomes(index))[cell];
             return furnaceMirror.biomeSet(self, src, index, cell, biomeId) ? old : PalettedContainer.FURNACE_DETACHED;
@@ -345,16 +345,16 @@ public abstract class ChunkAccess implements BlockGetter {
         furnaceMirror.ownerSync(index);
         if (self.furnaceSourceObject() != src) return PalettedContainer.FURNACE_DETACHED;
         int old = NmsChunks.bridge().setSectionBiomeRawNow(furnaceWorld, pos.x, index, pos.z, cell, biomeId);
-        if (old < 0) throw notLoaded("PalettedContainer#set (바이옴)");
+        if (old < 0) throw notLoaded("PalettedContainer#set (biomes)");
         return old;
     }
 
     /** 섹션의 바닐라 개수 {nonEmpty, tickingBlock, tickingFluid}(주인은 살아 있는 값, 그 밖은 공개 스냅샷). */
     public int[] furnaceSectionCounts(int index) {
-        var src = furnaceForeignView("LevelChunkSection 개수");
+        var src = furnaceForeignView("LevelChunkSection count");
         if (src == null) furnaceMirror.ownerSync(index);
         int[] c = src != null ? src.sectionCounts(index) : NmsChunks.bridge().sectionCountsNow(furnaceWorld, pos.x, index, pos.z);
-        if (c == null) throw notLoaded("LevelChunkSection 개수");
+        if (c == null) throw notLoaded("LevelChunkSection count");
         return c;
     }
 
@@ -362,7 +362,7 @@ public abstract class ChunkAccess implements BlockGetter {
     public void furnaceSetSectionCounts(int index, int nonEmpty, int tickingBlock, int tickingFluid) {
         furnaceMirror.ownerSync(index);
         if (!NmsChunks.bridge().setSectionCountsNow(furnaceWorld, pos.x, index, pos.z, nonEmpty, tickingBlock, tickingFluid)) {
-            throw notLoaded("LevelChunkSection 개수");
+            throw notLoaded("LevelChunkSection count");
         }
     }
 

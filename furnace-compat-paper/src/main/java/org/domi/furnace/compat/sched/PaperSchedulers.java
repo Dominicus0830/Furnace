@@ -239,7 +239,7 @@ public final class PaperSchedulers implements AutoCloseable {
                     try {
                         retired.run();
                     } catch (Throwable t) {
-                        h.plugin.logger().log(Level.WARNING, "retired 콜백 예외", t);
+                        h.plugin.logger().log(Level.WARNING, "retired callback threw an exception", t);
                     }
                 }
             };

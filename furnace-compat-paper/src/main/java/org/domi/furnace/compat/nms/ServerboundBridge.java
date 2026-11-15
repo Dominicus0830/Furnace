@@ -70,11 +70,11 @@ public final class ServerboundBridge {
 
     /** 이 종류를 shim 으로 오갈 수 없는 까닭(되면 null). 종류만 본다 — 값에 따라 실패할 수는 있다. */
     public static String refusal(PacketType<?> t) {
-        if (t.direction() != PacketDirection.SERVERBOUND) return "serverbound 종류가 아니다";
+        if (t.direction() != PacketDirection.SERVERBOUND) return "not a serverbound kind";
         if (t == PacketTypes.Serverbound.CUSTOM_PAYLOAD) {
-            return "플러그인 메시지 본문(CustomPacketPayload) shim 이 아직 없다 — Bukkit registerIncomingPluginChannel 이나 Furnace 패킷 API 로 받는다";
+            return "there is no shim yet for the plugin message body (CustomPacketPayload) - receive it with Bukkit registerIncomingPluginChannel or the Furnace packet API";
         }
-        if (t.typed()) return TYPED.contains(t) ? null : "이 타입 레코드 종류는 아직 shim 다리가 없다";
+        if (t.typed()) return TYPED.contains(t) ? null : "there is no shim bridge for this typed record kind yet";
         return SchemaPacketReverse.refusal(t);
     }
 
@@ -122,7 +122,7 @@ public final class ServerboundBridge {
                         new BlockHitResult(at, Direction.valueOf(c.face().name()), pos, c.insideBlock()), c.sequence());
             }
             case ServerboundUseItemPacket c -> new net.minecraft.network.protocol.game.ServerboundUseItemPacket(hand(c.hand()), c.sequence(), c.yaw(), c.pitch());
-            default -> throw new UnsupportedNmsCall("fromFurnace(" + p.type() + ")", "이 타입 레코드 종류는 아직 shim 다리가 없다");
+            default -> throw new UnsupportedNmsCall("fromFurnace(" + p.type() + ")", "there is no shim bridge for this typed record kind yet");
         };
     }
 
@@ -149,7 +149,7 @@ public final class ServerboundBridge {
         if (shim == null) throw new IllegalArgumentException("패킷이 null 이다");
         PacketType<?> t = furnaceType(shim.getClass());
         if (t == null) {
-            throw new UnsupportedNmsCall(call, "이 서버가 play 연결로 받는 패킷 shim 이 아니다(clientbound·로그인 단계·플러그인이 만든 클래스 등) — 받은 것처럼 넣으려면 Furnace PacketService.receive 를 쓴다");
+            throw new UnsupportedNmsCall(call, "not a packet shim this server receives on a play connection (clientbound, login stage, a class made by a plugin, etc.) - to inject it as received, use Furnace PacketService.receive");
         }
         String why = refusal(t);
         if (why != null) throw new UnsupportedNmsCall(call, why);
@@ -178,7 +178,7 @@ public final class ServerboundBridge {
             case net.minecraft.network.protocol.game.ServerboundUseItemOnPacket c -> useItemOn(c);
             case net.minecraft.network.protocol.game.ServerboundUseItemPacket c ->
                     new ServerboundUseItemPacket(hand(c.getHand(), "hand"), c.getSequence(), c.getYRot(), c.getXRot());
-            default -> throw new UnsupportedNmsCall(call, "이 패킷 종류는 아직 shim 다리가 없다");
+            default -> throw new UnsupportedNmsCall(call, "there is no shim bridge for this packet kind yet");
         };
     }
 

@@ -55,7 +55,7 @@ public final class TypedPacketBridge {
     static String refusal(PacketType<?> t) {
         if (SUPPORTED.contains(t)) return null;
         if (t == PacketTypes.Clientbound.PLAYER_INFO_UPDATE) return PlayerInfoBridge.irreversibleReason();
-        return "이 타입 레코드 종류는 아직 shim 으로 되돌리지 못한다(2b-4)";
+        return "this typed record kind cannot be converted back to the shim yet (2b-4)";
     }
 
     /** 스키마 키가 이 다리가 두 방향을 맡는 타입 레코드 종류인가(생성 shim → Furnace). */
@@ -104,7 +104,7 @@ public final class TypedPacketBridge {
                     (int) (t.x() * 8.0), (int) (t.y() * 8.0), (int) (t.z() * 8.0), t.volume(), t.pitch(), t.seed());
             case org.domi.furnace.api.packet.clientbound.ClientboundSetEntityDataPacket t -> EntityDataBridge.fromFurnace(t);
             case org.domi.furnace.api.packet.clientbound.ClientboundPlayerInfoUpdatePacket t -> PlayerInfoBridge.fromFurnace(t);
-            default -> throw new UnsupportedNmsCall("fromFurnace(" + p.type() + ")", "이 타입 레코드 종류는 아직 shim 으로 되돌리지 못한다(2b-4)");
+            default -> throw new UnsupportedNmsCall("fromFurnace(" + p.type() + ")", "this typed record kind cannot be converted back to the shim yet (2b-4)");
         };
     }
 

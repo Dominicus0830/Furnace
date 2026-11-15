@@ -31,7 +31,7 @@ public final class EntityStates {
         } catch (ThreadOwnershipException e) {
             throw e;
         } catch (UnsupportedOperationException e) {
-            throw new UnsupportedFeature(what, handle.type() + " 의 상태 쓰기 API 가 아직 없다");
+            throw new UnsupportedFeature(what, "there is no state write API for " + handle.type() + " yet");
         }
     }
 
@@ -67,7 +67,7 @@ public final class EntityStates {
             return null;
         }).whenComplete((v, e) -> {
             // 그 사이 사라진 엔티티(IllegalStateException)는 Paper 처럼 조용히 넘긴다
-            if (e != null && !(unwrap(e) instanceof IllegalStateException)) LOG.log(System.Logger.Level.WARNING, what + " 예약 작업이 실패했다", e);
+            if (e != null && !(unwrap(e) instanceof IllegalStateException)) LOG.log(System.Logger.Level.WARNING, org.domi.furnace.compat.i18n.CompatLang.t("compat.scheduled-task-failed", what), e);
         });
     }
 

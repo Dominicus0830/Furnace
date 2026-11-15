@@ -142,7 +142,7 @@ public abstract class CraftBlockEntityState extends org.domi.furnace.compat.pape
         org.bukkit.inventory.Inventory live = org.domi.furnace.compat.paper.BlockInventories.live(dimension(), position());
         if (live == null) {
             throw new org.domi.furnace.compat.paper.UnsupportedFeature(getClass().getSimpleName() + "#getInventory",
-                    "Furnace 가 이 블록 엔티티를 아직 용기로 다루지 않는다(또는 블록 엔티티가 사라졌다)");
+                    "Furnace does not treat this block entity as a container yet (or the block entity is gone)");
         }
         return live;
     }
@@ -163,7 +163,7 @@ public abstract class CraftBlockEntityState extends org.domi.furnace.compat.pape
         if (snapshotInventory == null) {
             String id = snapshot.getString("id");
             if (!ITEMS_CONTAINERS.contains(id)) {
-                throw new org.domi.furnace.compat.paper.UnsupportedFeature(getClass().getSimpleName() + "#getSnapshotInventory", id + " 의 사본 인벤토리는 아직 없다");
+                throw new org.domi.furnace.compat.paper.UnsupportedFeature(getClass().getSimpleName() + "#getSnapshotInventory", "there is no snapshot inventory for " + id + " yet");
             }
             snapshotInventory = org.domi.furnace.compat.paper.BlockInventories.snapshot(id, snapshot, () -> null, null);   // Paper: 사본 블록 엔티티는 레벨이 없어 위치도 null
         }
