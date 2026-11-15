@@ -53,7 +53,13 @@ class BukkitContainerInventoryTest {
                 assertEquals(new ItemStack(Material.DIAMOND, 3), ((Container) Compat.block(dim, pos).getState()).getInventory().getItem(4));
                 assertEquals("minecraft:diamond", w.inventoryAtNow(pos).orElseThrow().get(4).join().type());
                 assertInstanceOf(Barrel.class, inv.getHolder(), "주인은 그 칸의 새 블록 상태");
-                assertThrows(UnsupportedFeature.class, b::getSnapshotInventory);
+                // 사본 인벤토리는 상태를 뜰 때의 칸(그 뒤 살아 있는 쪽에 넣은 것은 없다), 주인은 Paper 스냅숏처럼 없다
+                Inventory snap = b.getSnapshotInventory();
+                assertEquals(27, snap.getSize());
+                assertEquals(org.bukkit.event.inventory.InventoryType.BARREL, snap.getType());
+                assertNull(snap.getItem(4));
+                assertNull(snap.getHolder());
+                assertEquals(pos.x(), inv.getLocation().getBlockX(), "살아 있는 인벤토리 위치는 그 칸");
             } finally {
                 w.block(pos).set(BlockData.AIR);
             }
@@ -61,8 +67,9 @@ class BukkitContainerInventoryTest {
         });
     }
 
+    /** 큰 상자: getInventory 는 54칸(왼쪽 = type=right 상자, 바닐라 CompoundContainer 첫째), getBlockInventory 는 이 칸의 27칸. */
     @Test
-    void doubleChestHalfOnlyThroughBlockInventory() {
+    void doubleChestInventoryJoinsHalves() {
         BlockPos right = new BlockPos(pos.x() + 1, pos.y(), pos.z());
         server.onRegion(pos, () -> {
             var w = server.api().world(dim);
@@ -72,9 +79,28 @@ class BukkitContainerInventoryTest {
                 assertEquals(27, single.getInventory().getSize());
                 w.block(pos).set(new BlockData("minecraft:chest", Map.of("facing", "north", "type", "left")));
                 w.block(right).set(new BlockData("minecraft:chest", Map.of("facing", "north", "type", "right")));
-                Chest half = (Chest) Compat.block(dim, pos).getState();
-                assertThrows(UnsupportedFeature.class, half::getInventory, "두 칸을 합친 인벤토리는 아직 없다");
-                assertEquals(27, half.getBlockInventory().getSize());
+                Chest leftTyped = (Chest) Compat.block(dim, pos).getState();
+                Chest rightTyped = (Chest) Compat.block(dim, right).getState();
+                assertEquals(27, leftTyped.getBlockInventory().getSize());
+                Inventory big = leftTyped.getInventory();
+                assertEquals(54, big.getSize());
+                var dbl = assertInstanceOf(org.bukkit.inventory.DoubleChestInventory.class, big);
+                rightTyped.getBlockInventory().setItem(0, new ItemStack(Material.DIAMOND, 1));
+                leftTyped.getBlockInventory().setItem(0, new ItemStack(Material.EMERALD, 2));
+                assertEquals(new ItemStack(Material.DIAMOND, 1), big.getItem(0), "칸 0..26 = type=right 상자");
+                assertEquals(new ItemStack(Material.EMERALD, 2), big.getItem(27), "칸 27..53 = type=left 상자");
+                big.setItem(30, new ItemStack(Material.GOLD_INGOT, 5));
+                assertEquals(new ItemStack(Material.GOLD_INGOT, 5), leftTyped.getBlockInventory().getItem(3));
+                assertEquals("minecraft:gold_ingot", w.inventoryAtNow(pos).orElseThrow().get(3).join().type(), "살아 있는 블록 엔티티에 들어갔다");
+                assertEquals(54, rightTyped.getInventory().getSize(), "어느 반쪽에서 열어도 같은 합친 인벤토리");
+                assertEquals(new ItemStack(Material.GOLD_INGOT, 5), rightTyped.getInventory().getItem(30));
+                var holder = assertInstanceOf(org.bukkit.block.DoubleChest.class, dbl.getHolder());
+                assertInstanceOf(Chest.class, holder.getLeftSide());
+                assertEquals(right.x(), ((Chest) holder.getLeftSide()).getX());
+                assertEquals(pos.x() + 0.5, dbl.getLocation().getX(), 1e-9, "두 칸의 가운데");
+                big.clear();
+                assertNull(leftTyped.getBlockInventory().getItem(0));
+                assertNull(rightTyped.getBlockInventory().getItem(0));
             } finally {
                 w.block(right).set(BlockData.AIR);
                 w.block(pos).set(BlockData.AIR);
@@ -83,10 +109,66 @@ class BukkitContainerInventoryTest {
         });
     }
 
+    /** 놓이지 않은 용기 상태: getInventory 는 사본 인벤토리(Paper CraftContainer — 놓이지 않았으면 getSnapshotInventory). */
     @Test
-    void unplacedContainerHasNoSnapshotInventoryYet() {
+    void unplacedContainerUsesSnapshotInventory() {
         Container c = (Container) Material.HOPPER.createBlockData().createBlockState();
-        assertThrows(UnsupportedFeature.class, c::getInventory);
+        Inventory inv = c.getInventory();
+        assertEquals(5, inv.getSize());
+        assertEquals(org.bukkit.event.inventory.InventoryType.HOPPER, inv.getType());
+        inv.setItem(2, new ItemStack(Material.STONE, 4));
+        assertSame(inv, c.getSnapshotInventory());
+        assertEquals(new ItemStack(Material.STONE, 4), c.getSnapshotInventory().getItem(2));
+        assertNull(inv.getLocation());
+    }
+
+    /** 사본 인벤토리를 고치고 update 하면 블록 엔티티 Items 로 실린다(컴포넌트 포함). update 전에는 블록 그대로. */
+    @Test
+    void snapshotInventoryAppliesOnUpdate() {
+        server.onRegion(pos, () -> {
+            var w = server.api().world(dim);
+            w.block(pos).set(new BlockData("minecraft:barrel", Map.of()));
+            try {
+                Barrel b = (Barrel) Compat.block(dim, pos).getState();
+                b.getInventory().setItem(1, new ItemStack(Material.DIAMOND, 1));   // 살아 있는 쪽
+                Barrel s = (Barrel) Compat.block(dim, pos).getState();
+                ItemStack named = new ItemStack(Material.STICK, 2);
+                var meta = named.getItemMeta();
+                meta.setDisplayName("Key");
+                named.setItemMeta(meta);
+                s.getSnapshotInventory().setItem(5, named);
+                assertEquals(new ItemStack(Material.DIAMOND, 1), s.getSnapshotInventory().getItem(1), "사본은 뜰 때의 칸");
+                assertTrue(w.inventoryAtNow(pos).orElseThrow().get(5).join().isEmpty(), "update 전에는 블록 그대로");
+                assertTrue(s.update());
+                var live = ((Barrel) Compat.block(dim, pos).getState()).getInventory();
+                assertEquals(named, live.getItem(5), "이름 컴포넌트까지 실렸다");
+                assertEquals(new ItemStack(Material.DIAMOND, 1), live.getItem(1));
+                // 다 비우고 update 하면 블록도 빈다
+                Barrel e = (Barrel) Compat.block(dim, pos).getState();
+                e.getSnapshotInventory().clear();
+                assertTrue(e.update());
+                assertTrue(((Barrel) Compat.block(dim, pos).getState()).getInventory().isEmpty());
+            } finally {
+                w.block(pos).set(BlockData.AIR);
+            }
+            return null;
+        });
+    }
+
+    /** 화로의 사본 인벤토리는 Paper 처럼 FurnaceInventory. */
+    @Test
+    void snapshotInventoryOfFurnaceIsTyped() {
+        server.onRegion(pos, () -> {
+            var w = server.api().world(dim);
+            w.block(pos).set(new BlockData("minecraft:furnace", Map.of("facing", "north", "lit", "false")));
+            try {
+                var f = (org.bukkit.block.Furnace) Compat.block(dim, pos).getState();
+                assertInstanceOf(org.bukkit.inventory.FurnaceInventory.class, f.getSnapshotInventory(), "Paper CraftInventoryFurnace");
+            } finally {
+                w.block(pos).set(BlockData.AIR);
+            }
+            return null;
+        });
     }
 
     /** 양조대(Paper CraftBrewingStand): BrewTime·Fuel 은 사본 NBT 로 update 때 실리고, 인벤토리는 BrewerInventory(3 재료·4 연료). */
