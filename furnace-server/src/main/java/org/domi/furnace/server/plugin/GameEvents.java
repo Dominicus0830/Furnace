@@ -208,6 +208,9 @@ public interface GameEvents {
     /** 구독자가 있는가 — 함수 줄마다 부르는 길목의 빠른 검사. */
     default boolean wantsFunctionCommands() { return false; }
 
+    /** /gamerule 로 값을 바꾸기 직전(value 는 문자열): 쓸 값을 돌려준다, null 이면 취소(값은 그대로). 명령 스레드에서. */
+    default String gameRuleChange(org.domi.furnace.server.command.CommandSource source, String rule, String value) { return value; }
+
     /** 서버 목록 응답 덮어쓰기(motdJson 이 null 이면 MOTD 는 그대로). */
     record StatusOverride(String motdJson, int online, int max, boolean hidePlayers) {}
 

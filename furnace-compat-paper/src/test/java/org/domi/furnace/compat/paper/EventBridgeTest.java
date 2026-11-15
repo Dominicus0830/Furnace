@@ -118,6 +118,7 @@ class EventBridgeTest {
             fire.put(org.bukkit.event.world.WorldUnloadEvent.class, () -> new org.domi.furnace.api.event.world.WorldUnloadEvent(w, "world", false));
             fire.put(org.bukkit.event.world.ChunkLoadEvent.class, () -> new org.domi.furnace.api.event.world.ChunkLoadEvent(w, 3, 4, true));
             fire.put(org.bukkit.event.world.ChunkUnloadEvent.class, () -> new org.domi.furnace.api.event.world.ChunkUnloadEvent(w, 3, 4));
+            fire.put(io.papermc.paper.event.world.WorldGameRuleChangeEvent.class, () -> new org.domi.furnace.api.event.world.GameRuleChangeEvent(w, server.api().console(), "doFireTick", "false"));
             var chest = new org.domi.furnace.api.inventory.InventorySnapshot("minecraft:generic_9x3", java.util.Collections.nCopies(63, org.domi.furnace.api.item.ItemStack.EMPTY));
             var stone = org.domi.furnace.api.item.ItemStack.of("minecraft:stone").withAmount(4);
             fire.put(org.bukkit.event.inventory.InventoryClickEvent.class, () -> new org.domi.furnace.api.event.inventory.InventoryClickEvent(p, chest, 3, 0, "pickup", org.domi.furnace.api.item.ItemStack.EMPTY));

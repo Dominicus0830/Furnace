@@ -127,6 +127,7 @@ public final class PluginGameEvents implements GameEvents {
     private final EventBusImpl.Flag wEntityTarget;
     private final EventBusImpl.Flag wFunctionExecute;
     private final EventBusImpl.Flag wFunctionCommand;
+    private final EventBusImpl.Flag wGameRuleChange;
     private final EventBusImpl.Flag wServerListPing;
     private final EventBusImpl.Flag wBlockPhysics;
     private final EventBusImpl.Flag wBlockRedstone;
@@ -198,6 +199,7 @@ public final class PluginGameEvents implements GameEvents {
         wEntityTarget = b.flag(EntityTargetEvent.class);
         wFunctionExecute = b.flag(FunctionExecuteEvent.class);
         wFunctionCommand = b.flag(FunctionCommandEvent.class);
+        wGameRuleChange = b.flag(org.domi.furnace.api.event.world.GameRuleChangeEvent.class);
         wServerListPing = b.flag(ServerListPingEvent.class);
         wBlockPhysics = b.flag(BlockPhysicsEvent.class);
         wBlockRedstone = b.flag(BlockRedstoneEvent.class);
@@ -661,6 +663,13 @@ public final class PluginGameEvents implements GameEvents {
     public boolean functionCommand(org.domi.furnace.server.command.CommandSource source, String command, int depth) {
         if (!wFunctionCommand.on()) return true;
         return !bus().call(new FunctionCommandEvent(host.sender(source), command, depth)).isCancelled();
+    }
+
+    @Override
+    public String gameRuleChange(org.domi.furnace.server.command.CommandSource source, String rule, String value) {
+        if (!wGameRuleChange.on()) return value;
+        var e = bus().call(new org.domi.furnace.api.event.world.GameRuleChangeEvent(source.level().dimension(), host.sender(source), rule, value));
+        return e.isCancelled() ? null : e.value();
     }
 
     @Override

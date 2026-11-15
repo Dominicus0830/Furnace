@@ -330,8 +330,33 @@ public interface World extends Keyed, org.bukkit.metadata.Metadatable, org.bukki
     /** 이 월드를 만들 때 준 플러그인 바이옴 공급자. Furnace 는 아직 그렇게 월드를 만들지 않아 늘 null(Paper 도 주지 않았으면 null). */
     default org.bukkit.generator.BiomeProvider getBiomeProvider() { return null; }
 
-    /** 게임 규칙 값(문자열), 모르는 이름이면 null. */
+    // ---- 게임 규칙(T-141 E4a, Paper 1.21.1 CraftWorld). Furnace 게임 규칙은 서버 전체에 하나다 — 어느 월드로 읽고 바꿔도 같은 값이다
+    // (Paper 는 플러그인이 만든 월드마다 따로 둔다). 바닐라 규칙만 보인다(Furnace 플러그인 규칙 "ns:이름"은 없는 이름).
+
+    /** 게임 규칙 값(문자열 true/false/숫자). null 이면 null, 모르는 이름이면 빈 문자열(Paper 와 같다). */
     String getGameRuleValue(String rule);
+
+    /** 문자열로 값을 바꾼다. null 인자·모르는 이름·이벤트 취소면 false. 정수 규칙에 숫자가 아니면 0(바닐라 deserialize, 경고 한 줄). 빈 이름은 IllegalArgumentException. */
+    boolean setGameRuleValue(String rule, String value);
+
+    /** 바닐라 규칙 이름 전부. */
+    String[] getGameRules();
+
+    /** 바닐라 규칙 이름인가. null·빈 문자열은 IllegalArgumentException. */
+    boolean isGameRule(String rule);
+
+    <T> T getGameRuleValue(GameRule<T> rule);
+
+    <T> T getGameRuleDefault(GameRule<T> rule);
+
+    /** 값을 바꾼다(WorldGameRuleChangeEvent 를 부르고, 취소되면 false). 범위 검사는 하지 않는다(Paper 와 같다). */
+    <T> boolean setGameRule(GameRule<T> rule, T newValue);
+
+    /** spawnChunkRadius 가 0 보다 큰가(Paper 1.21.1). */
+    boolean getKeepSpawnInMemory();
+
+    /** true 면 spawnChunkRadius 를 기본값(2)으로, false 면 0 으로(Paper 1.21.1). */
+    void setKeepSpawnInMemory(boolean keepLoaded);
 
     // ---- 소리(H4 묶음 C). 분류를 적지 않으면 MASTER, 씨앗을 적지 않으면 서버 난수(Paper 와 같다).
 
