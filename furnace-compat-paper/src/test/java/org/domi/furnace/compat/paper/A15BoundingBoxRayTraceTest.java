@@ -81,7 +81,8 @@ class A15BoundingBoxRayTraceTest {
                 return made;
             });
             if (type != EntityType.ZOMBIE || owner(() -> e.getBoundingBox().getWidthX()) > 0.5) return e;
-            owner(() -> { e.remove(); return null; });
+            // 아기 좀비는 바닐라처럼 닭 기수(chicken jockey)로 닭을 함께 만들 수 있다 — 탄 닭도 지워야 광선 경로에 남지 않는다(CI 흔들림 원인).
+            owner(() -> { Entity v = e.getVehicle(); e.remove(); if (v != null) v.remove(); return null; });
             if (attempt >= 200) throw new AssertionError("어른 좀비가 나오지 않는다");
         }
     }
