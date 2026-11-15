@@ -33,8 +33,59 @@ public abstract class CraftBlockEntityState extends org.domi.furnace.compat.pape
 
     /** 지금 사본(미뤄 둔 값까지 적은 것)의 복사본 — Paper getSnapshotNBT. */
     public NbtCompound getSnapshotNBT() {
-        applyToSnapshot();
+        applyAll();
         return snapshot.copy();
+    }
+
+    /** 하위 클래스 값과 영속 데이터를 사본에 적는다. */
+    private void applyAll() {
+        applyToSnapshot();
+        if (pdc != null) {
+            NbtCompound v = org.domi.furnace.compat.paper.TileStatePdc.toNbt(pdc);
+            if (v.isEmpty()) snapshot.remove(PUBLIC_BUKKIT_VALUES);
+            else snapshot.putCompound(PUBLIC_BUKKIT_VALUES, v);
+        }
+    }
+
+    // ------------------------------------------------------------------ 영속 데이터(TileState)·이름(Nameable)
+
+    /** CraftBukkit 이 블록 엔티티 영속 데이터를 두는 NBT 키(저장·/data 에는 있고 클라이언트로는 안 간다). */
+    private static final String PUBLIC_BUKKIT_VALUES = "PublicBukkitValues";
+
+    private org.bukkit.persistence.PersistentDataContainer pdc;
+
+    /** Paper: 이 상태(스냅숏)의 영속 데이터. 바꾼 것은 {@link #update} 때 블록 엔티티에 실린다. */
+    @Override
+    public org.bukkit.persistence.PersistentDataContainer getPersistentDataContainer() {
+        if (pdc == null) pdc = org.domi.furnace.compat.paper.TileStatePdc.of(snapshot.getCompound(PUBLIC_BUKKIT_VALUES));
+        return pdc;
+    }
+
+    @Override
+    public boolean isSnapshot() { return true; }
+
+    /**
+     * Nameable#getCustomName 의 몸(이름을 가진 형 — 용기·신호기·현수막·마법 부여대 — 만 그 인터페이스를 단다): 사본 CustomName(JSON) 을 § 레거시로.
+     * Paper CraftChatMessage.fromComponent.
+     */
+    public String getCustomName() {
+        if (!(snapshot.get("CustomName") instanceof String json)) return null;
+        try {
+            return org.domi.furnace.api.text.serializer.LegacyTextSerializer.section()
+                    .serialize(org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize(json));
+        } catch (RuntimeException badJson) {
+            return null;   // 바닐라도 읽지 못한 이름은 버린다(parseCustomNameSafe)
+        }
+    }
+
+    /** Nameable#setCustomName 의 몸: null·빈 문자열이면 뗀다(Paper CraftChatMessage.fromStringOrNull). update 때 실린다. */
+    public void setCustomName(String name) {
+        if (name == null || name.isEmpty()) {
+            snapshot.remove("CustomName");
+            return;
+        }
+        snapshot.putString("CustomName", org.domi.furnace.api.text.serializer.JsonTextSerializer.json()
+                .serialize(org.domi.furnace.api.text.serializer.LegacyTextSerializer.section().deserialize(name)));
     }
 
     /**
@@ -60,7 +111,7 @@ public abstract class CraftBlockEntityState extends org.domi.furnace.compat.pape
     public boolean update(boolean force, boolean applyPhysics) {
         boolean result = super.update(force, applyPhysics);
         if (result && isPlaced()) {
-            applyToSnapshot();
+            applyAll();
             var world = Compat.furnace().world(dimension());
             var live = world.blockEntityNbtNow(position());
             // Paper isApplicable: 그 칸의 블록 엔티티가 같은 종류일 때만

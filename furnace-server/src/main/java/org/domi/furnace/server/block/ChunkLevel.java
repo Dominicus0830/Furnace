@@ -1064,7 +1064,7 @@ public abstract class ChunkLevel implements BlockLevel {
     /** ChunkHolder.broadcastBlockEntityIfNeeded: 그 칸의 블록 엔티티가 갱신 패킷(getUpdatePacket)을 내면 보낸다. */
     private void broadcastBlockEntityIfNeeded(int cx, int cz, Pos p) {
         if (!(getBlockEntity(p) instanceof BlockEntity be) || !be.hasUpdatePacket()) return;
-        broadcastToChunk(cx, cz, new org.domi.furnace.server.net.protocol.play.BlockEntityDataPacket(p.x(), p.y(), p.z(), be.typeId(), be.updateTag()));
+        broadcastToChunk(cx, cz, new org.domi.furnace.server.net.protocol.play.BlockEntityDataPacket(p.x(), p.y(), p.z(), be.typeId(), be.sentUpdateTag()));
     }
 
     // ------------------------------------------------------------------ 소리·이벤트

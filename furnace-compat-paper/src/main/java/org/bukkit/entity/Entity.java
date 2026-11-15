@@ -13,7 +13,7 @@ import org.bukkit.persistence.PersistentDataHolder;
  * 엔티티. 위치는 이벤트가 만든 시점의 값일 수 있다(Furnace 엔티티 핸들 규칙). 이름·플래그·탑승은 엔티티를 가진 region 스레드에서
  * 지금 값을 읽고 쓴다 — 다른 스레드에서는 읽기가 ThreadOwnershipException, 쓰기는 소유 스레드로 예약된다.
  */
-public interface Entity extends Metadatable, CommandSender, PersistentDataHolder {
+public interface Entity extends Metadatable, CommandSender, PersistentDataHolder, org.bukkit.Nameable {
 
     UUID getUniqueId();
 

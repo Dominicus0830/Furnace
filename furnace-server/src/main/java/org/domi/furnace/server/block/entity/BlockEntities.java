@@ -66,7 +66,7 @@ public final class BlockEntities {
         var f = FACTORIES.get(id);
         if (f == null) return null;
         BlockEntity be = f.apply(pos, state);
-        be.load(tag);
+        be.loadWithBukkitValues(tag);
         be.loadComponents(tag);   // loadWithComponents
         return be;
     }

@@ -652,7 +652,7 @@ public final class ChunkColumn {
                     // StructureTemplate.placeInWorld: 블록이 만든 블록 엔티티에 loadWithComponents(nbt)
                     be = org.domi.furnace.server.block.BlockBehaviors.of(state).newBlockEntity(pos, state);
                     if (be == null || !org.domi.furnace.server.block.entity.BlockEntities.known(be.type())) continue;
-                    be.load(nbt);
+                    be.loadWithBukkitValues(nbt);
                     be.loadComponents(nbt);
                 } else {
                     be = org.domi.furnace.server.block.entity.BlockEntities.loadStatic(pos, state, nbt);

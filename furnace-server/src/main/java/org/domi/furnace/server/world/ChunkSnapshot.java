@@ -127,7 +127,7 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
                 beOut.add(new BlockEntitySnapshot(p.x() & 15, p.y(), p.z() & 15, be.typeId(), null));
             } else {
                 // ClientboundLevelChunkPacketData.BlockEntityInfo: getUpdateTag 가 비면 null
-                NbtCompound tag = be.updateTag();
+                NbtCompound tag = be.sentUpdateTag();
                 beOut.add(new BlockEntitySnapshot(p.x() & 15, p.y(), p.z() & 15, be.typeId(), tag == null || tag.tags().isEmpty() ? null : tag));
             }
         }
@@ -159,6 +159,12 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
                 if (ce.lock != null) tag.putString("Lock", ce.lock);
                 NbtCompound full = ce.saveWithoutMetadata();
                 if (full.tags().get("components") instanceof NbtCompound c) tag.putCompound("components", c);
+            }
+            NbtCompound bukkit = new NbtCompound();
+            ce.writeBukkitValues(bukkit);
+            if (!bukkit.tags().isEmpty()) {   // 플러그인 영속 데이터(Bukkit TileState PDC)
+                if (tag == null) tag = new NbtCompound();
+                tag.putCompound(org.domi.furnace.server.block.entity.BlockEntity.BUKKIT_VALUES, bukkit.getCompound(org.domi.furnace.server.block.entity.BlockEntity.BUKKIT_VALUES));
             }
             chests.add(new BlockEntitySnapshot(ce.x & 15, ce.y, ce.z & 15, CHEST_TYPE_ID, tag));
         }
