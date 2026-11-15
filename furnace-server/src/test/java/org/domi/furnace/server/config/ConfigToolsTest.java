@@ -14,6 +14,7 @@ import org.domi.furnace.server.net.ConnectionLimits;
 import org.domi.furnace.server.plugin.library.LibrarySettings;
 import org.domi.furnace.server.remote.RconLimits;
 import org.junit.jupiter.api.AfterEach;
+import org.domi.furnace.server.i18n.Lang;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -286,14 +287,30 @@ class ConfigToolsTest {
         List<String> out = ConfigDump.render(s, null, s.size(), s.modified());
         String all = String.join("\n", out);
         assertTrue(all.contains("autosave-ticks = 100"), all);
-        assertTrue(all.contains("(기본 6000)"), all);
-        assertTrue(all.contains("[파일 2번째 줄]"), all);
-        assertTrue(all.contains("velocity-secret = ****(16자)"), all);
+        assertTrue(all.contains("(default 6000)"), all);
+        assertTrue(all.contains("[file, line 2]"), all);
+        assertTrue(all.contains("velocity-secret = ****(16 characters)"), all);
         assertFalse(all.contains("supersecretvalue"), "비밀값이 덤프에 나오면 안 된다");
-        assertTrue(all.contains("환경 변수에서"), all);
+        assertTrue(all.contains("from an environment variable"), all);
         assertFalse(all.contains("backup.keep"), "기본값과 같은 키는 숨긴다");
-        assertTrue(all.contains("entity-view-distance = 6") && all.contains("프리셋 performance"), all);
-        assertTrue(all.contains("autosve-ticks (5번째 줄) — 'autosave-ticks' 를 말한 건가요?"), all);
+        assertTrue(all.contains("entity-view-distance = 6") && all.contains("preset performance"), all);
+        assertTrue(all.contains("autosve-ticks (line 5) - did you mean 'autosave-ticks'?"), all);
+    }
+
+    @Test
+    void dumpFollowsTheServerLanguage() throws IOException {
+        Path f = write("autosave-ticks=100\nvelocity-secret=0123456789abcdef\nautosve-ticks=5\nregion-threads=3\n");
+        ConfigDump.Snapshot s = ConfigDump.take(f);
+        try {
+            Lang.forceForTest("ko");
+            String all = String.join("\n", ConfigDump.render(s, null, s.size(), s.modified()));
+            assertTrue(all.contains("(기본 6000)") && all.contains("[파일 1번째 줄]"), all);
+            assertTrue(all.contains("velocity-secret = ****(16자)"), all);
+            assertTrue(all.contains("autosve-ticks (3번째 줄) — 'autosave-ticks' 를 말한 건가요?"), all);
+            assertTrue(all.contains("region-threads = 3"), "a key whose default is the CPU count is always shown as set: " + all);
+        } finally {
+            Lang.forceForTest("en");
+        }
     }
 
     @Test
@@ -310,7 +327,7 @@ class ConfigToolsTest {
         ConfigDump.Snapshot s = ConfigDump.take(f);
         String all = String.join("\n", ConfigDump.render(s, "all", s.size(), s.modified()));
         assertTrue(all.contains("backup.keep"));
-        assertTrue(all.contains("(없음 → 기본값 10)"));
+        assertTrue(all.contains("(not set -> default 10)"));
         String filtered = String.join("\n", ConfigDump.render(s, "BACKUP", s.size(), s.modified()));
         assertTrue(filtered.contains("backup.interval-minutes"));
         assertFalse(filtered.contains("autosave-ticks"));
@@ -321,15 +338,15 @@ class ConfigToolsTest {
         Path f = write("autosave-ticks=100\n");
         ConfigDump.Snapshot s = ConfigDump.take(f);
         String text = String.join("\n", ConfigDump.render(s, null, s.size() + 5, s.modified()));
-        assertTrue(text.contains("시작한 뒤 파일이 바뀌었습니다"));
+        assertTrue(text.contains("the file changed after startup"));
     }
 
     @Test
     void dumpWithoutFile() {
         ConfigDump.Snapshot s = ConfigDump.take(dir.resolve("none.properties"));
         String text = String.join("\n", ConfigDump.render(s, null, 0, 0));
-        assertTrue(text.contains("파일 없음"));
-        assertTrue(text.contains("기본값과 다른 키 0개"));
+        assertTrue(text.contains("no file"));
+        assertTrue(text.contains("0 keys differ from the default"));
     }
 
     @Test
@@ -337,8 +354,8 @@ class ConfigToolsTest {
         Path f = write("tick-nanos=40000000\nfoo=1\n");
         ConfigDump.Snapshot s = ConfigDump.take(f);
         String text = String.join("\n", ConfigDump.render(s, null, s.size(), s.modified()));
-        assertTrue(text.contains("경고 1개"), text);
-        assertTrue(text.contains("모르는 키 1개"), text);
+        assertTrue(text.contains("1 warnings"), text);
+        assertTrue(text.contains("1 unknown keys"), text);
     }
 
     @Test

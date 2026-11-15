@@ -137,8 +137,8 @@ class FurnaceAdminCommandsTest {
                 assertFalse(out.contains("0123456789abcdef"), "비밀값이 새면 안 된다: " + out);
                 if (sub.equals("config")) {
                     assertTrue(out.contains("autosave-ticks = 100"), out);
-                    assertTrue(out.contains("****(16자)"), out);
-                    assertTrue(out.contains("autosve-ticks (3번째 줄)"), out);
+                    assertTrue(out.contains("****(16 characters)"), out);
+                    assertTrue(out.contains("autosve-ticks (line 3)"), out);
                 }
                 if (sub.equals("config backup")) assertTrue(out.contains("backup.interval-minutes") && !out.contains("autosave-ticks"), out);
             }

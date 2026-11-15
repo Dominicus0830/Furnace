@@ -82,12 +82,10 @@ furnace-compat-paper/org/domi/furnace/compat/paper/UnsupportedFeature.java
 furnace-compat-paper/org/domi/furnace/compat/sched/PaperSchedulers.java
 furnace-server/org/domi/furnace/server/CrashReport.java
 furnace-server/org/domi/furnace/server/FurnaceMain.java
-furnace-server/org/domi/furnace/server/config/ConfigDump.java
 furnace-server/org/domi/furnace/server/config/ConfigMigration.java
 furnace-server/org/domi/furnace/server/config/EntityActivationSettings.java
 furnace-server/org/domi/furnace/server/config/EntityHandleSettings.java
 furnace-server/org/domi/furnace/server/config/FurnacePropertiesFile.java
-furnace-server/org/domi/furnace/server/config/OptionKeys.java
 furnace-server/org/domi/furnace/server/log/LatestLogAppender.java
 furnace-server/org/domi/furnace/server/maintenance/ServerSave.java
 furnace-server/org/domi/furnace/server/metrics/ServerMetrics.java
