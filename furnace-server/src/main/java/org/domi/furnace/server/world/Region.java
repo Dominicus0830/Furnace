@@ -264,7 +264,7 @@ public final class Region {
     /** 거울 맞추기가 예외를 냈다 — 처음 몇 번만 쌓임까지 남긴다(그 뒤로는 100번마다 한 줄). */
     private void mirrorFailed(int cx, int cz, Throwable e) {
         int n = MIRROR_FAILURES.incrementAndGet();
-        String where = cx == Integer.MIN_VALUE ? "" : " (청크 " + cx + ", " + cz + ")";
+        String where = cx == Integer.MIN_VALUE ? "" : " " + Lang.t("nms.where-chunk", cx, cz);
         if (n <= 5) {
             LOG.warn(Lang.t("nms.mirror-failed", where), e);
         } else if (n % 100 == 0) {
@@ -294,7 +294,7 @@ public final class Region {
         if (col.importedUnsaved() && !col.dirty()) {
             int n = UNSAVED_IMPORT_WARNINGS.incrementAndGet();
             if (n <= 20 || n % 1000 == 0) {
-                String nth = n > 20 ? " [같은 경고 " + n + "번째]" : "";
+                String nth = n > 20 ? " " + Lang.t("nms.nth-warning", n) : "";
                 if (level != null && level.hasChunkTicks(cx, cz)) {
                     // 예약 틱이 남은 청크는 저장 표시가 없어도 저장한다(아래 writeChunkTicks) — 그 변경도 함께 저장된다(PR #396 검토 R5, Paper 와 다를 수 있다)
                     LOG.warn(Lang.t("nms.unsaved-section-kept", cx, cz, world.dimension(), nth));
@@ -424,7 +424,7 @@ public final class Region {
         try {
             task.accept(this);
         } catch (Throwable e) {
-            org.slf4j.LoggerFactory.getLogger(Region.class).error("[TASK] region #{} 작업 실패", id, e);
+            org.slf4j.LoggerFactory.getLogger(Region.class).error(Lang.t("world.task-failed", id), e);
         }
     }
 
@@ -716,7 +716,7 @@ public final class Region {
                 try {
                     org.domi.furnace.server.block.ChunkLevel.precomputeLight(col, cp.x(), cp.z(), bedrock, sky);
                 } catch (RuntimeException e) {
-                    org.slf4j.LoggerFactory.getLogger(Region.class).warn("[LIGHT] 미리 계산 실패 {} — 올릴 때 다시 계산", cp, e);
+                    org.slf4j.LoggerFactory.getLogger(Region.class).warn(Lang.t("world.light-precompute-failed", cp), e);
                     col.light(null);
                     col.lightPrecomputed(false);
                     col.lightStored(false);
@@ -751,10 +751,10 @@ public final class Region {
             if (root instanceof org.domi.furnace.server.world.anvil.UnsupportedDataVersionException newer) {
                 // 새 판·옛 판 청크는 올리지도 덮지도 않는다(A05-03·04). 시야 미리 불러오기가 틱마다 다시 걸므로 청크마다 한 번만 크게 남긴다.
                 if (world.warnNewerChunkOnce(key)) {
-                    org.slf4j.LoggerFactory.getLogger(Region.class).error("[CHUNK] {} 를 올리지 않는다: {}", cp, newer.getMessage());
+                    org.slf4j.LoggerFactory.getLogger(Region.class).error(Lang.t("world.chunk-not-loaded-newer", cp, newer.getMessage()));
                 }
             } else if (!(root instanceof java.util.concurrent.CancellationException)) {   // 시야 밖이 돼 취소된 미리 불러오기는 실패가 아니다
-                org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 로드 실패 {} — 다음 요청에서 재시도", cp, err);
+                org.slf4j.LoggerFactory.getLogger(Region.class).warn(Lang.t("world.chunk-load-failed", cp), err);
             }
             rz().release(this, cp.x(), cp.z());
             f.completeExceptionally(err);
@@ -786,7 +786,7 @@ public final class Region {
             try {
                 org.domi.furnace.server.entity.spawn.NaturalSpawner.spawnMobsForChunkGeneration(level(), cp.x(), cp.z(), level().worldSeed());
             } catch (RuntimeException e) {
-                org.slf4j.LoggerFactory.getLogger(Region.class).warn("[SPAWN] 청크 생성 동물 스폰 실패 {}", cp, e);
+                org.slf4j.LoggerFactory.getLogger(Region.class).warn(Lang.t("world.spawn-generated-failed", cp), e);
             }
         }
         if (Regionizer.STATS) {
@@ -891,7 +891,7 @@ public final class Region {
                 try {
                     org.domi.furnace.server.entity.spawn.NaturalSpawner.spawnMobsForChunkGeneration(lv, cx, cz, lv.worldSeed());
                 } catch (RuntimeException e) {
-                    org.slf4j.LoggerFactory.getLogger(Region.class).warn("[SPAWN] 재생성 청크 동물 스폰 실패 {}", cp, e);
+                    org.slf4j.LoggerFactory.getLogger(Region.class).warn(Lang.t("world.spawn-regenerated-failed", cp), e);
                 }
             }
         }
@@ -917,7 +917,7 @@ public final class Region {
                 p.send(LevelChunkWithLight.ofShared(body));
                 world.chunkDelivered(cp, p, sub);
             }).exceptionally(ex -> {
-                org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 청크 재전송 실패 {}", cp, ex);
+                org.slf4j.LoggerFactory.getLogger(Region.class).warn(Lang.t("world.chunk-resend-failed", cp), ex);
                 return null;
             });
         }
@@ -1434,7 +1434,7 @@ public final class Region {
     /** 저장이 끝내 실패했다 — 그 청크가 아직 이 region 에 그대로 있으면 다시 dirty 로(다음 저장에 다시 싣는다). */
     void restoreDirtyAfterFailedSave(ChunkPos cp, ChunkColumn col) {
         if (world.loadedChunk(cp.x(), cp.z()) != col) {
-            org.slf4j.LoggerFactory.getLogger(Region.class).error("[SAVE] 청크 {} 저장 실패 — 이미 내려가 되돌릴 수 없음(유실)", cp);
+            org.slf4j.LoggerFactory.getLogger(Region.class).error(Lang.t("world.chunk-save-lost-unloaded", cp));
             return;
         }
         col.markDirty();
@@ -3266,7 +3266,7 @@ public final class Region {
         return load.whenComplete((col, ex) -> {
             p.chunkPrefetches().remove(cp);
             if (genSlot && p.genPrefetches().remove(cp)) releaseGenToken();
-            if (ex != null && !isCancellation(ex)) org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 미리 불러오기 실패 {}", cp, ex);
+            if (ex != null && !isCancellation(ex)) org.slf4j.LoggerFactory.getLogger(Region.class).warn(Lang.t("world.chunk-preload-failed", cp), ex);
         });
     }
 

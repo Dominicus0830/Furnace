@@ -606,7 +606,7 @@ public final class WorldManager {
         java.util.concurrent.atomic.AtomicInteger state = new java.util.concurrent.atomic.AtomicInteger();
         boolean go;
         try {
-            go = onGlobal("월드 내리기 알림(WorldUnloadEvent) 처리기", () -> {
+            go = onGlobal(Lang.t("world.what-unload-handler"), () -> {
                 if (!w.playersHere().isEmpty() || w.incomingTravels() > 0) return false;
                 if (!hooks.beforeUnload(w, save)) return false;
                 if (!w.playersHere().isEmpty() || w.incomingTravels() > 0) return false;   // 알림 처리기가 누군가 들여보냈다
@@ -644,11 +644,11 @@ public final class WorldManager {
         while (w.incomingTravels() + w.outgoingTravels() > 0 && System.nanoTime() - arriveBy < 0) Thread.sleep(5);   // 나간 이동의 되돌림까지
         if (save) {
             w.forceSave(true);
-            awaitAll(w.flushAll(), "저장");
+            awaitAll(w.flushAll(), Lang.t("world.what-save"));
             // 저장 중 끝난 청크 읽기·생성이 다시 dirty 를 만들 수 있다 — 진행 중 로드가 빠질 때까지 잠깐 기다린 뒤 한 번 더
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
             while (w.pendingChunkLoads() > 0 && System.nanoTime() < deadline) Thread.sleep(20);
-            awaitAll(w.flushAll(), "저장(마무리)");
+            awaitAll(w.flushAll(), Lang.t("world.what-save-final"));
         }
         try {
             w.ioBarrier().get(60, TimeUnit.SECONDS);

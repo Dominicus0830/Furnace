@@ -20,7 +20,6 @@ import java.util.stream.Stream;
 import org.domi.furnace.api.world.WorldCreator;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
-import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,7 +62,7 @@ public final class BukkitWorldReport {
             Files.writeString(file, render(r, universe.resolve(levelName), imported), StandardCharsets.UTF_8);
             logSummary(r, file);
         } catch (IOException | RuntimeException e) {
-            log.warn(Lang.t("import.report-failed"), e);
+            log.warn("Paper/Spigot 월드 가져오기 보고서를 만들지 못했다 — 월드 가져오기 자체와는 무관하다", e);
         }
     }
 
@@ -155,14 +154,16 @@ public final class BukkitWorldReport {
 
     private static void logSummary(Report r, Path file) {
         if (r.isEmpty()) {
-            log.info(Lang.t("import.report-clean", file.toAbsolutePath().normalize()));
+            log.info("Paper/Spigot 월드 가져오기 보고: 가져오지 않은 것도, 추가 월드도 없다 — {}", file.toAbsolutePath().normalize());
             return;
         }
-        log.info(Lang.t("import.report-summary", r.notImported().size(), r.extras().size(), file.toAbsolutePath().normalize()));
-        for (String l : r.notImported()) log.info(Lang.t("import.report-not-imported", l));
+        log.info("Paper/Spigot 월드 가져오기 보고: 가져오지 않은 것 {}건, 추가 Bukkit 월드 {}개 — 자세한 내용: {}",
+                r.notImported().size(), r.extras().size(), file.toAbsolutePath().normalize());
+        for (String l : r.notImported()) log.info("  가져오지 않음: {}", l);
         List<String> loadable = loadableNames(r);
         if (!loadable.isEmpty()) {
-            log.info(Lang.t("import.report-extra-worlds", String.join(", ", loadable), String.join(",", loadable)));
+            log.info("  서버 폴더에 추가 Bukkit 월드가 있다: {} — 올리려면 /worlds load <이름> 또는 furnace.properties 에 worlds.autoload={}",
+                    String.join(", ", loadable), String.join(",", loadable));
         }
     }
 
