@@ -155,6 +155,45 @@ public interface ChunkInternals {
      */
     Object attachChunkShim(World world, int chunkX, int chunkZ, Object shim);
 
+    // ------------------------------------------------------------------ 거울·들여오기(N2b-4) — 플러그인이 고친 거울을 주인이 서버 청크로 맞춘다
+
+    /**
+     * {@link #attachChunkShim(World, int, int, Object)} 에 거울을 함께 붙인다. 서버는 shim 과 거울을 약하게 쥐고(둘은 서로를 강하게 쥐어 함께 사라진다),
+     * 들여오지 않은 쓰기가 있는 동안({@link #requestMirrorSync})만 거울을 강하게 쥔다. 주인 region 은 그 청크의 맞춤 지점(틱 끝 훑기·주인 스레드 읽기·저장·언로드)
+     * 마다 {@link ChunkMirror#sync} 를 부른다.
+     */
+    Object attachChunkShim(World world, int chunkX, int chunkZ, Object shim, ChunkMirror mirror);
+
+    /**
+     * 아무 스레드: 이 로드에 붙은 거울에 들여오지 않은 쓰기가 생겼다 — 거울을 강하게 쥐고 주인에게 맞추기를 부탁한다(다음 맞춤 지점, 늦어도 그 틱 끝).
+     * 같은 청크의 부탁은 주인이 맞출 때까지 한 번만 간다. 이 로드에 붙은 거울이 아니면(내린 청크·옛 로드의 거울) false — 그 쓰기는 월드에 닿지 않는다.
+     */
+    boolean requestMirrorSync(World world, int chunkX, int chunkZ, ChunkMirror mirror);
+
+    /**
+     * 주인 스레드: 섹션 통째 들여오기(바닐라에 없는 단일 입구, 설계 3.4). states(4096, YZX 상태 번호)·biomes(64, 바이옴 번호)·counts(바닐라 개수 셋) 중
+     * null 은 그대로 둔다 — 블록만 바꾸면 바닐라처럼 개수는 그대로(바닐라는 컨테이너 데이터를 갈아도 다시 세지 않는다). 저장 표시·빛·하이트맵 재계산
+     * (블록을 바꾸면 고정 모드로 들어가 낡은 값을 든다)·블록 엔티티·POI·패킷·이웃은 건드리지 않는다. 로드돼 있지 않으면 false. 범위 밖 번호는 IllegalArgumentException.
+     */
+    boolean importSectionNow(World world, int chunkX, int sectionIndex, int chunkZ, int[] states, int[] biomes, int[] counts);
+
+    /** 주인 스레드: 그 청크 내용의 판 번호(블록·바이옴·빛이 바뀌면 오른다, {@link ChunkView#contentStamp} 와 같은 수). 로드돼 있지 않으면 -1. */
+    long contentStampNow(World world, int chunkX, int chunkZ);
+
+    /**
+     * 청크 shim 의 거울(호환 계층이 만든다, 플러그인이 볼 수 없는 내부 객체). 서버는 그 청크의 주인 region 스레드에서만 부르고, 이 객체의 모니터를 쓰지 않는다.
+     */
+    interface ChunkMirror {
+        /** 맞추기: 거울의 바뀐 부분(칸 일지·교체된 섹션·필드 대입)을 서버 청크로 들여온다. 맞추는 동안 들어온 쓰기가 남았으면 true. */
+        boolean sync();
+
+        /** 틱 끝 공개 뒤(view = 방금 낸 판): 붙은 섹션의 개수 필드와 자기 쓰기 덧칠을 새 판에 맞춘다. */
+        void published(ChunkView view);
+
+        /** 청크가 내려가기 직전(맞춘 뒤, 아직 로드돼 있다): 섹션을 떼어 내 그 뒤 쓰기가 월드에 닿지 않게 한다(바닐라: 떨어진 LevelChunk 에 써질 뿐). */
+        void unloaded();
+    }
+
     /**
      * 공개 스냅샷 — 주인 region 이 틱 끝에 낸 그 청크의 불변 사본. 기다리지 않고 아무 스레드에서 읽는다(최대 한 틱 옛 값 — Paper 의 경쟁 읽기와 같은 성질).
      * 한 판 안의 값은 서로 맞는다(같은 순간). 섹션 번호 0 = 맨 아래, 칸 좌표는 월드 좌표(높이 안).
@@ -165,6 +204,9 @@ public interface ChunkInternals {
 
         /** 이 판을 낸 로드의 표시({@link #loadedChunkToken} 과 같은 객체). */
         Object loadToken();
+
+        /** 이 판을 낸 순간의 내용 판 번호({@link #contentStampNow} 와 같은 수). */
+        long contentStamp();
 
         int sectionCount();
 

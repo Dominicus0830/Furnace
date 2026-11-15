@@ -74,6 +74,8 @@ public final class ChunkReadView implements ChunkInternals.ChunkView {
 
     @Override public Object loadToken() { return loadToken; }
 
+    @Override public long contentStamp() { return modCount; }
+
     @Override public int sectionCount() { return sections.length; }
 
     private SectionView at(int y) {

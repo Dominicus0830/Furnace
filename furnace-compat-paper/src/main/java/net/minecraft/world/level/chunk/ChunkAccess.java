@@ -9,6 +9,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.material.FluidState;
+import org.domi.furnace.api.internal.ChunkInternals;
 import org.domi.furnace.api.world.World;
 import org.domi.furnace.compat.nms.NmsChunks;
 
@@ -16,10 +17,11 @@ import org.domi.furnace.compat.nms.NmsChunks;
  * 청크 shim 의 바탕(Mojang 이름, N2a): 로드된 서버 청크의 <b>보기</b>. 블록 값을 들고 있지 않고 읽을 때마다 서버 청크를 본다 —
  * 그 청크를 가진 region 스레드(이벤트 처리기·entityScheduler·전역 빌림 구간)에서는 살아 있는 값을, 다른 스레드(비동기 작업·플러그인 일꾼·
  * 다른 region — 결정 D4)에서는 주인이 틱 끝에 낸 <b>공개 스냅샷</b>을 기다리지 않고 읽는다(N2b-3, 설계 3.6 — 최대 한 틱 옛 값, Paper 의 경쟁 읽기와
- * 같은 성질). 한 번의 읽기 메서드 안의 값은 한 판에서 나온다. 쓰기는 여전히 주인 스레드만(다른 스레드의 쓰기 일지는 N2b-4).
+ * 같은 성질). 한 번의 읽기 메서드 안의 값은 한 판에서 나온다. 다른 스레드의 쓰기는 거울 칸 일지에 쌓여 주인이 1틱 안에 재생하고(결정 D1), 쓴 스레드는
+ * 자기 쓰기를 곧바로 읽는다(N2b-4).
  * <p>정체성(N2b-1): 바닐라처럼 로드 한 번에 shim 하나({@code NmsChunks.loadedChunk}), 그 안에 섹션 배열 {@code sections} 하나와 칸마다 섹션 객체 하나,
- * 하이트맵 맵 {@code heightmaps} 하나. {@link #getSections()} 는 늘 같은 배열이다. 배열 칸에 플러그인이 새 섹션을 넣으면 그 배열에는 남지만
- * 아직 서버 청크에는 닿지 않는다(거울·들여오기는 N2b-4). 생성 중 청크(ProtoChunk) 표면은 없다.
+ * 하이트맵 맵 {@code heightmaps} 하나. {@link #getSections()} 는 늘 같은 배열이다. 배열 칸에 플러그인이 새 섹션을 넣으면(FAWE 의 VarHandle CAS 포함)
+ * 주인 region 이 그 내용을 서버 섹션으로 들여오고 그 섹션을 그 자리의 보기로 붙인다(N2b-4 거울 — {@code FurnaceChunkMirror}). 생성 중 청크(ProtoChunk) 표면은 없다.
  */
 public abstract class ChunkAccess implements BlockGetter {
 
@@ -33,13 +35,42 @@ public abstract class ChunkAccess implements BlockGetter {
      */
     public final java.util.Map<Heightmap.Types, Heightmap> heightmaps = new java.util.EnumMap<>(Heightmap.Types.class);
 
+    /** Furnace: 이 shim 의 거울(N2b-4 — 플러그인 쓰기를 주인이 서버로 들여온다). */
+    final FurnaceChunkMirror furnaceMirror;
+
     protected ChunkAccess(World furnaceWorld, int chunkX, int chunkZ) {
         this.furnaceWorld = java.util.Objects.requireNonNull(furnaceWorld, "world");
         this.pos = new ChunkPos(chunkX, chunkZ);
         this.sections = new LevelChunkSection[NmsChunks.bridge().height(furnaceWorld) >> 4];
-        for (int i = 0; i < sections.length; i++) sections[i] = LevelChunkSection.furnaceView(this, i);
+        int[][] counts = initialCounts(sections.length);
+        for (int i = 0; i < sections.length; i++) sections[i] = LevelChunkSection.furnaceView(this, i, counts == null ? null : counts[i]);
         for (Heightmap.Types t : Heightmap.Types.values()) if (t.keepAfterWorldgen()) heightmaps.put(t, Heightmap.furnaceView(this, t));
+        this.furnaceMirror = new FurnaceChunkMirror(this, sections);
     }
+
+    /** 섹션 개수 필드의 처음 값(서버 바닐라 개수 — 주인은 살아 있는 값, 그 밖은 공개 스냅샷). 읽을 수 없으면 null(0 으로 둔다). */
+    private int[][] initialCounts(int n) {
+        try {
+            var b = NmsChunks.bridge();
+            int[][] out = new int[n][];
+            if (b.ownsChunk(furnaceWorld, pos.x, pos.z)) {
+                for (int i = 0; i < n; i++) out[i] = b.sectionCountsNow(furnaceWorld, pos.x, i, pos.z);
+            } else {
+                var v = b.chunkView(furnaceWorld, pos.x, pos.z);
+                if (v == null) return null;
+                for (int i = 0; i < n && i < v.sectionCount(); i++) out[i] = v.sectionCounts(i);
+            }
+            return out;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Furnace: 이 shim 의 거울(서버 다리에 붙인다 — {@code NmsChunks.loadedChunk}). 거울의 맞추기는 그 청크의 주인 region 스레드에서만 일한다(다른 스레드가
+     * 불러도 아무것도 하지 않는다).
+     */
+    public org.domi.furnace.api.internal.ChunkInternals.ChunkMirror furnaceMirror() { return furnaceMirror; }
 
     public ChunkPos getPos() { return pos; }
 
@@ -88,7 +119,13 @@ public abstract class ChunkAccess implements BlockGetter {
      * 저장 대상 표시. true 면 서버가 이 청크를 저장 대상으로 표시한다. false(이미 저장됐다고 알림)는 Furnace 가 따로 저장 시점을 관리해 무시한다.
      */
     public void setUnsaved(boolean unsaved) {
-        if (unsaved && !NmsChunks.bridge().markUnsavedNow(furnaceWorld, pos.x, pos.z)) throw notLoaded("ChunkAccess#setUnsaved");
+        if (!unsaved || furnaceMirror.dead()) return;   // 내린 청크의 shim — 바닐라: 죽은 LevelChunk 의 표시는 월드에 닿지 않는다
+        if (!furnaceOwner()) {   // 다른 스레드(FAWE 작업 스레드 등): 거울 일지 — 주인이 앞선 쓰기를 들여온 뒤 그 순서대로 저장 표시(N2b-4)
+            furnaceMirror.unsaved();
+            return;
+        }
+        furnaceMirror.ownerSyncAll();   // 맞춤 지점: 거울을 먼저 들여온 뒤 저장 표시(D3 — 들여온 섹션이 저장된다)
+        if (!NmsChunks.bridge().markUnsavedNow(furnaceWorld, pos.x, pos.z)) throw notLoaded("ChunkAccess#setUnsaved");
     }
 
     /** 바이옴 칸 좌표(블록 좌표 >> 2)의 바이옴 — 높이는 끝 칸으로 죈다(바닐라 ChunkAccess.getNoiseBiome). */
@@ -105,6 +142,7 @@ public abstract class ChunkAccess implements BlockGetter {
      */
     public java.util.Set<BlockPos> getBlockEntitiesPos() {
         var v = furnaceForeignView("ChunkAccess#getBlockEntitiesPos");
+        if (v == null) furnaceMirror.ownerSyncIfDirty();
         long[] packed = v != null ? v.blockEntityPositions() : NmsChunks.bridge().blockEntityPositionsNow(furnaceWorld, pos.x, pos.z);
         if (packed == null) throw notLoaded("ChunkAccess#getBlockEntitiesPos");
         java.util.Set<BlockPos> out = new java.util.HashSet<>(packed.length * 2);
@@ -144,19 +182,35 @@ public abstract class ChunkAccess implements BlockGetter {
                 + " (현재 " + Thread.currentThread().getName() + ")");
     }
 
-    /** 월드 좌표의 상태 번호(높이 안). 청크가 로드돼 있지 않으면 IllegalStateException. */
+    /** 지금 스레드가 이 청크의 주인 region 스레드(전역 빌림 구간 포함)인가. */
+    public boolean furnaceOwner() { return NmsChunks.bridge().ownsChunk(furnaceWorld, pos.x, pos.z); }
+
+    private int slotOf(int y) { return (y - getMinBuildHeight()) >> 4; }
+
+    /** 월드 좌표의 상태 번호(높이 안). 다른 스레드는 자기 쓰기 덧칠이 먼저. 청크가 로드돼 있지 않으면 IllegalStateException. */
     public int furnaceStateIdAt(int x, int y, int z) {
         var v = furnaceForeignView("getBlockState");
-        if (v != null) return v.stateId(x, y, z);
+        int slot = slotOf(y);
+        if (v != null) {
+            int o = furnaceMirror.overlayCellAt(slot, (y & 15) << 8 | (z & 15) << 4 | (x & 15));
+            return o >= 0 ? o : v.stateId(x, y, z);
+        }
+        furnaceMirror.ownerSync(slot);
         int id = NmsChunks.bridge().stateIdNow(furnaceWorld, x, y, z);
         if (id < 0) throw notLoaded("getBlockState");
         return id;
     }
 
-    /** 바닐라 LevelChunk.getBlockState 의 번호(높이 안): 섹션 바닐라 nonEmpty == 0 이면 공기 — 배열 없이 한 번에(PR #373 검토 N3). */
+    /** 섹션 칸 하나(칸 = y*256+z*16+x)의 상태 번호. */
+    int furnaceSectionCell(int index, int cell) {
+        return furnaceStateIdAt((pos.x << 4) + (cell & 15), getMinBuildHeight() + (index << 4) + (cell >> 8), (pos.z << 4) + (cell >> 4 & 15));
+    }
+
+    /** 바닐라 LevelChunk.getBlockState 의 번호(높이 안, 주인 스레드): 섹션 바닐라 nonEmpty == 0 이면 공기 — 배열 없이 한 번에(PR #373 검토 N3). */
     public int furnaceVanillaStateIdAt(int x, int y, int z) {
         var v = furnaceForeignView("LevelChunk#getBlockState");
         if (v != null) return v.vanillaStateId(x, y, z);
+        furnaceMirror.ownerSync(slotOf(y));
         int id = NmsChunks.bridge().vanillaStateIdNow(furnaceWorld, x, y, z);
         if (id < 0) throw notLoaded("LevelChunk#getBlockState");
         return id;
@@ -164,13 +218,33 @@ public abstract class ChunkAccess implements BlockGetter {
 
     public int[] furnaceSectionStates(int index) {
         var src = furnaceForeignView("LevelChunkSection#getStates");
-        int[] v = src != null ? src.sectionStates(index) : NmsChunks.bridge().sectionStatesNow(furnaceWorld, pos.x, index, pos.z);
+        if (src != null) return furnaceMirror.overlayCells(index, src.sectionStates(index));
+        furnaceMirror.ownerSync(index);
+        int[] v = NmsChunks.bridge().sectionStatesNow(furnaceWorld, pos.x, index, pos.z);
         if (v == null) throw notLoaded("LevelChunkSection#getStates");
+        return v;
+    }
+
+    /** 실체화용(N2b-4): 섹션 칸 번호 전부와 그 판 번호(stampOut[0]) — 한 출처에서. 다른 스레드의 덧칠이 있으면 판 번호는 MIN(늘 다시 실체화). */
+    int[] furnaceSectionIdsStamped(int index, boolean biome, long[] stampOut) {
+        var src = furnaceForeignView(biome ? "PalettedContainer.data (바이옴)" : "PalettedContainer.data");
+        if (src != null) {
+            int[] ids = biome ? src.sectionBiomes(index) : src.sectionStates(index);
+            int[] over = biome ? furnaceMirror.overlayBiomes(index, ids.clone()) : furnaceMirror.overlayCells(index, ids.clone());
+            stampOut[0] = java.util.Arrays.equals(over, ids) ? src.contentStamp() : Long.MIN_VALUE;
+            return over;
+        }
+        furnaceMirror.ownerSync(index);
+        var b = NmsChunks.bridge();
+        stampOut[0] = b.contentStampNow(furnaceWorld, pos.x, pos.z);
+        int[] v = biome ? b.sectionBiomesNow(furnaceWorld, pos.x, index, pos.z) : b.sectionStatesNow(furnaceWorld, pos.x, index, pos.z);
+        if (v == null) throw notLoaded("PalettedContainer.data");
         return v;
     }
 
     public int furnaceSectionNonAir(int index) {
         var src = furnaceForeignView("LevelChunkSection#hasOnlyAir");
+        if (src == null) furnaceMirror.ownerSync(index);
         int n = src != null ? src.sectionNonAir(index) : NmsChunks.bridge().sectionNonAirNow(furnaceWorld, pos.x, index, pos.z);
         if (n < 0) throw notLoaded("LevelChunkSection#hasOnlyAir");
         return n;
@@ -185,20 +259,26 @@ public abstract class ChunkAccess implements BlockGetter {
         var src = furnaceForeignView("LevelChunkSection#isRandomlyTicking");
         if (src != null) return src.sectionRandomTickingParts(index);
         if (!NmsChunks.bridge().isLoaded(furnaceWorld, pos.x, pos.z)) throw notLoaded("LevelChunkSection#isRandomlyTicking");
+        furnaceMirror.ownerSync(index);
         return NmsChunks.bridge().sectionRandomTickingPartsNow(furnaceWorld, pos.x, index, pos.z);
     }
 
     public int[] furnaceSectionBiomes(int index) {
         var src = furnaceForeignView("LevelChunkSection#getBiomes");
-        int[] v = src != null ? src.sectionBiomes(index) : NmsChunks.bridge().sectionBiomesNow(furnaceWorld, pos.x, index, pos.z);
+        if (src != null) return furnaceMirror.overlayBiomes(index, src.sectionBiomes(index));
+        furnaceMirror.ownerSync(index);
+        int[] v = NmsChunks.bridge().sectionBiomesNow(furnaceWorld, pos.x, index, pos.z);
         if (v == null) throw notLoaded("LevelChunkSection#getBiomes");
         return v;
     }
 
-    /** 섹션 직렬화용 {개수 셋, 블록 번호 4096, 바이옴 번호 64} — 한 출처(한 판)에서 함께 읽는다. */
+    /** 섹션 직렬화용 {개수 셋, 블록 번호 4096, 바이옴 번호 64} — 한 출처(한 판)에서 함께 읽는다(다른 스레드는 자기 쓰기 덧칠을 입혀). */
     public int[][] furnaceSectionData(int index) {
         var src = furnaceForeignView("LevelChunkSection#write");
-        if (src != null) return new int[][] {src.sectionCounts(index), src.sectionStates(index), src.sectionBiomes(index)};
+        if (src != null) {
+            return new int[][] {src.sectionCounts(index), furnaceMirror.overlayCells(index, src.sectionStates(index)),
+                furnaceMirror.overlayBiomes(index, src.sectionBiomes(index))};
+        }
         return new int[][] {furnaceSectionCounts(index), furnaceSectionStates(index), furnaceSectionBiomes(index)};
     }
 
@@ -206,46 +286,100 @@ public abstract class ChunkAccess implements BlockGetter {
         return NmsChunks.biome(furnaceSectionBiomes(index)[(y << 2 | z) << 2 | x]);
     }
 
-    // ---- N2b-2 원시 쓰기(주인 region 스레드 — 아니면 ThreadOwnershipException)
+    // ---- 칸 쓰기: 주인 region 스레드는 서버에 바로(N2b-2 원시 쓰기), 그 밖은 거울 칸 일지(N2b-4, 결정 D1 — 주인이 1틱 안에 그 칸만 재생)
 
-    /** 섹션 칸 원시 쓰기(칸 = y*256+z*16+x). vanillaCounts 면 LevelChunkSection.setBlockState, 아니면 컨테이너 set. 옛 상태 번호. */
-    public int furnaceSetSectionState(int index, int cell, int stateId, boolean vanillaCounts) {
-        int old = NmsChunks.bridge().setSectionStateRawNow(furnaceWorld, pos.x, index, pos.z, cell, stateId, vanillaCounts);
+    /** 섹션 칸 쓰기의 옛 번호(다른 스레드: 자기 덧칠 → 공개 스냅샷). */
+    private int foreignCellId(ChunkInternals.ChunkView v, int index, int cell) {
+        int o = furnaceMirror.overlayCellAt(index, cell);
+        if (o >= 0) return o;
+        return v.stateId((pos.x << 4) + (cell & 15), getMinBuildHeight() + (index << 4) + (cell >> 8), (pos.z << 4) + (cell >> 4 & 15));
+    }
+
+    /** LevelChunkSection#setBlockState(붙은 보기, 칸 = y*256+z*16+x): 개수 ±1 — 주인은 서버가, 그 밖은 섹션 필드에 곧바로. 옛 상태 번호. */
+    int furnaceSectionSet(LevelChunkSection section, int index, int cell, int stateId) {
+        var v = furnaceForeignView("LevelChunkSection#setBlockState");
+        if (v != null) return furnaceMirror.sectionSet(section, index, cell, stateId, foreignCellId(v, index, cell));
+        furnaceMirror.ownerSync(index);
+        int old = NmsChunks.bridge().setSectionStateRawNow(furnaceWorld, pos.x, index, pos.z, cell, stateId, true);
         if (old < 0) throw notLoaded("LevelChunkSection#setBlockState");
         return old;
     }
 
-    /** 섹션 바이옴 칸 원시 쓰기(칸 = y*16+z*4+x). 옛 바이옴 번호. */
+    /** 블록 컨테이너 칸 쓰기(개수 그대로). 옛 상태 번호. */
+    int furnaceContainerSet(int index, int cell, int stateId) {
+        var v = furnaceForeignView("PalettedContainer#set");
+        if (v != null) {
+            int old = foreignCellId(v, index, cell);
+            furnaceMirror.containerSet(index, cell, stateId);
+            return old;
+        }
+        furnaceMirror.ownerSync(index);
+        int old = NmsChunks.bridge().setSectionStateRawNow(furnaceWorld, pos.x, index, pos.z, cell, stateId, false);
+        if (old < 0) throw notLoaded("PalettedContainer#set");
+        return old;
+    }
+
+    /** 섹션 칸 원시 쓰기(칸 = y*256+z*16+x). vanillaCounts 면 LevelChunkSection.setBlockState(주인 스레드 — 개수는 서버가), 아니면 컨테이너 set. 옛 상태 번호. */
+    public int furnaceSetSectionState(int index, int cell, int stateId, boolean vanillaCounts) {
+        if (!vanillaCounts) return furnaceContainerSet(index, cell, stateId);
+        LevelChunkSection s = sections[index];
+        return furnaceSectionSet(s, index, cell, stateId);
+    }
+
+    /** 섹션 바이옴 칸 쓰기(칸 = y*16+z*4+x). 옛 바이옴 번호. */
     public int furnaceSetSectionBiome(int index, int cell, int biomeId) {
+        var v = furnaceForeignView("PalettedContainer#set (바이옴)");
+        if (v != null) {
+            int old = furnaceMirror.overlayBiomes(index, v.sectionBiomes(index))[cell];
+            furnaceMirror.biomeSet(index, cell, biomeId);
+            return old;
+        }
+        furnaceMirror.ownerSync(index);
         int old = NmsChunks.bridge().setSectionBiomeRawNow(furnaceWorld, pos.x, index, pos.z, cell, biomeId);
         if (old < 0) throw notLoaded("PalettedContainer#set (바이옴)");
         return old;
     }
 
-    /** 섹션의 바닐라 개수 {nonEmpty, tickingBlock, tickingFluid}. */
+    /** 섹션의 바닐라 개수 {nonEmpty, tickingBlock, tickingFluid}(주인은 살아 있는 값, 그 밖은 공개 스냅샷). */
     public int[] furnaceSectionCounts(int index) {
         var src = furnaceForeignView("LevelChunkSection 개수");
+        if (src == null) furnaceMirror.ownerSync(index);
         int[] c = src != null ? src.sectionCounts(index) : NmsChunks.bridge().sectionCountsNow(furnaceWorld, pos.x, index, pos.z);
         if (c == null) throw notLoaded("LevelChunkSection 개수");
         return c;
     }
 
-    /** 섹션의 바닐라 개수 대입. */
+    /** 섹션의 바닐라 개수 대입(주인 스레드). */
     public void furnaceSetSectionCounts(int index, int nonEmpty, int tickingBlock, int tickingFluid) {
+        furnaceMirror.ownerSync(index);
         if (!NmsChunks.bridge().setSectionCountsNow(furnaceWorld, pos.x, index, pos.z, nonEmpty, tickingBlock, tickingFluid)) {
             throw notLoaded("LevelChunkSection 개수");
         }
     }
 
-    /** 하이트맵 setRawData(살아 있는 종류). 길이가 맞아 그대로 들어갔으면 true. */
+    /** 하이트맵 setRawData(살아 있는 종류). 길이가 맞아 그대로 들어갔으면(다른 스레드는 들어갈 것이면) true. */
     public boolean furnaceSetHeightmapRaw(Heightmap.Types type, long[] raw) {
+        boolean dead = furnaceMirror.dead();   // 내린 청크의 shim: 쓰기는 월드(같은 좌표의 새 로드)에 닿지 않는다
+        if (dead || !furnaceOwner()) {
+            if (!dead) furnaceMirror.heightmapRaw(type, raw);   // 주인이 순서대로 재생(길이가 틀리면 그때 경고 + prime)
+            int bits = 32 - Integer.numberOfLeadingZeros(getHeight());
+            int perLong = 64 / bits;
+            return raw.length == (256 + perLong - 1) / perLong;
+        }
+        furnaceMirror.ownerSyncIfDirty();
         int r = NmsChunks.bridge().setHeightmapRawNow(furnaceWorld, pos.x, pos.z, type.getSerializationKey(), raw);
         if (r < 0) throw notLoaded("Heightmap#setRawData");
         return r == 1;
     }
 
-    /** 하이트맵 update(청크 안 x·z, 월드 y). 바뀌면 true. */
+    /** 하이트맵 update(청크 안 x·z, 월드 y). 바뀌면 true — 다른 스레드는 일지에 쌓고 false(결과는 주인이 재생할 때 정해진다). */
     public boolean furnaceHeightmapUpdate(Heightmap.Types type, int x, int y, int z, int stateId) {
+        if (furnaceMirror.dead()) return false;   // 내린 청크의 shim
+        if (!furnaceOwner()) {
+            furnaceMirror.heightmapUpdate(type, x, y, z, stateId);
+            return false;
+        }
+        furnaceMirror.ownerSyncIfDirty();
         int r = NmsChunks.bridge().updateHeightmapNow(furnaceWorld, type.getSerializationKey(), (pos.x << 4) + x, y, (pos.z << 4) + z, stateId);
         if (r < 0) throw notLoaded("Heightmap#update");
         return r == 1;
@@ -255,6 +389,7 @@ public abstract class ChunkAccess implements BlockGetter {
     public int furnaceFirstAvailable(Heightmap.Types type, int x, int z) {
         var src = furnaceForeignView("Heightmap#getFirstAvailable");
         if (src != null) return src.firstAvailable(type.getSerializationKey(), x, z);
+        furnaceMirror.ownerSyncIfDirty();
         int v = NmsChunks.bridge().firstAvailableNow(furnaceWorld, type.getSerializationKey(), (pos.x << 4) + x, (pos.z << 4) + z);
         if (v == Integer.MIN_VALUE) throw notLoaded("Heightmap#getFirstAvailable");
         return v;
@@ -263,6 +398,7 @@ public abstract class ChunkAccess implements BlockGetter {
     /** 하이트맵 256칸(i = z*16+x)의 첫 빈 y — 한 출처(한 판)에서. */
     public int[] furnaceFirstAvailableAll(Heightmap.Types type) {
         var src = furnaceForeignView("Heightmap#getRawData");
+        if (src == null) furnaceMirror.ownerSyncIfDirty();
         int[] out = new int[256];
         String key = type.getSerializationKey();
         for (int i = 0; i < 256; i++) {
@@ -276,6 +412,29 @@ public abstract class ChunkAccess implements BlockGetter {
         }
         return out;
     }
+
+    // ---- 쓰기 장벽 입구(N2b-4, 호환 모듈 전용 — 변환된 플러그인 바이트코드가 NmsReflect·NmsArrays 를 거쳐 부른다)
+
+    /** Field.get 앞: 붙은 보기 컨테이너의 data 를 읽으면 실체화. */
+    public static void furnaceBarrierFieldGet(java.lang.reflect.Field field, Object target) {
+        if (target instanceof PalettedContainer<?> pc && pc.furnaceAttached() && field.getDeclaringClass() == PalettedContainer.class
+                && field.getName().equals("data")) {
+            pc.furnaceMaterializeData();
+        }
+    }
+
+    /** Field.set 뒤: 붙은 섹션·컨테이너면 거울에 알린다. */
+    public static void furnaceBarrierFieldSet(Object target) {
+        if (target instanceof LevelChunkSection s) {
+            ChunkAccess c = s.furnaceChunk();
+            if (c != null) c.furnaceMirror.noteWrite();
+        } else if (target instanceof PalettedContainer<?> pc) {
+            pc.furnaceFieldWritten();
+        }
+    }
+
+    /** VarHandle 배열 칸 쓰기 뒤: 거울 섹션 배열이면 알린다. */
+    public static void furnaceBarrierArrayWritten(Object[] array) { FurnaceChunkMirror.arrayWritten(array); }
 
     @Override
     public boolean equals(Object o) {

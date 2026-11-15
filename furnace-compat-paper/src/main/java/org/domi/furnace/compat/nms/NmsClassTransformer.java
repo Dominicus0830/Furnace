@@ -29,6 +29,9 @@ import org.slf4j.LoggerFactory;
  *   <li>Paper 가 옛 플러그인을 위해 바꿔 주는 Bukkit 필드 이름({@link ApiRenames} — 예: {@code ItemFlag.HIDE_POTION_EFFECTS} →
  *       {@code HIDE_ADDITIONAL_TOOLTIP})과 그 {@code valueOf}.</li>
  *   <li>옵션 {@code version-package=versioned} 이면 {@code Class#getName}·{@code getPackageName}·{@code Package#getName} → 접미사를 붙여 읽는 다리.</li>
+ *   <li>NMS 청크 거울 쓰기 장벽(N2b-4): 참조 배열 {@code VarHandle} 쓰기({@link NmsArrays} — NMS 이름 힌트가 없는 클래스에도, FAWE 의 섹션 CAS 는
+ *       worldedit-core 에 있다)와, NMS 이름 힌트가 있는 클래스의 {@code Field.get}(앞)·{@code Field.set*}(뒤, 범주 1 값)({@link NmsReflect#beforeFieldGet}·
+ *       {@link NmsReflect#afterFieldSet}). 원래 호출은 그대로 플러그인 메서드에서 한다(호출자 민감성 유지).</li>
  * </ol>
  * 바꿀 것이 없는 클래스는 null(원래 바이트)이다. 덫·다리는 분기·지역 변수와 프레임 지점의 스택 모양을 바꾸지 않으므로 스택 맵 프레임은 그대로
  * 옮기고 최대 스택만 다시 센다(COMPUTE_FRAMES 의 공통 상위 클래스 계산이 클래스를 로딩하는 문제를 피한다).
@@ -42,6 +45,8 @@ public final class NmsClassTransformer implements ClassTransformer {
 
     static final String BRIDGE = Type.getInternalName(CraftNames.class);
     static final String REFLECT = Type.getInternalName(NmsReflect.class);
+    static final String ARRAYS = Type.getInternalName(NmsArrays.class);
+    static final String VARHANDLE = "java/lang/invoke/VarHandle";
 
     /**
      * 서버 옵션.
@@ -60,7 +65,7 @@ public final class NmsClassTransformer implements ClassTransformer {
 
     /** 이 바이트 조각이 하나도 없으면 바꿀 것이 없다(상수 풀의 UTF-8 이름을 바로 훑는다). */
     private static final byte[][] NEEDLES = utf8(concat(new String[]{CraftNames.VERSIONED_INTERNAL, "forName", "loadClass", "findClass", "net/minecraft/",
-            "org/bukkit/craftbukkit/"}, ApiRenames.OWNERS));
+            "org/bukkit/craftbukkit/", VARHANDLE}, ApiRenames.OWNERS));
     /** 리플렉션 멤버 다리는 NMS 이름(리터럴 조각 포함)을 담은 클래스에만 건다 — 일반 플러그인 코드의 리플렉션은 건드리지 않는다. */
     private static final byte[][] NMS_HINTS = utf8("minecraft", "craftbukkit");
     private static final byte[][] NAME_READS = utf8("getName", "getPackageName");
@@ -209,6 +214,10 @@ public final class NmsClassTransformer implements ClassTransformer {
     /** 리플렉션·이름 읽기 호출을 다리로 돌린다. 이름은 이미 ClassRemapper 를 거친 것이다. */
     private static final class ReflectionRewriter extends ClassVisitor {
         private static final String S = "Ljava/lang/String;";
+        /** 알림을 다는 Field 쓰기(이름 + 서술자) — 값이 범주 1(참조·int 이하·float)인 것만. */
+        private static final Set<String> FIELD_SETS = Set.of("set(Ljava/lang/Object;Ljava/lang/Object;)V", "setShort(Ljava/lang/Object;S)V",
+                "setInt(Ljava/lang/Object;I)V", "setByte(Ljava/lang/Object;B)V", "setChar(Ljava/lang/Object;C)V", "setBoolean(Ljava/lang/Object;Z)V",
+                "setFloat(Ljava/lang/Object;F)V");
         private final boolean[] changed;
         private final String plugin;
         private final boolean members;
@@ -251,6 +260,38 @@ public final class NmsClassTransformer implements ClassTransformer {
 
                 @Override
                 public void visitMethodInsn(int opcode, String owner, String mname, String desc, boolean itf) {
+                    // 거울 쓰기 장벽(N2b-4): 참조 배열 VarHandle 쓰기 — 힌트 게이트 밖
+                    String arrayDesc = opcode == Opcodes.INVOKEVIRTUAL && owner.equals(VARHANDLE) ? NmsArrays.normalize(desc) : null;
+                    if (arrayDesc != null && NmsArrays.rewrites(mname, arrayDesc)) {
+                        super.visitMethodInsn(Opcodes.INVOKESTATIC, ARRAYS, mname, "(Ljava/lang/invoke/VarHandle;" + arrayDesc.substring(1), false);
+                        Type ret = Type.getReturnType(desc);
+                        if ((ret.getSort() == Type.OBJECT || ret.getSort() == Type.ARRAY) && !ret.getInternalName().equals("java/lang/Object")) {
+                            super.visitTypeInsn(Opcodes.CHECKCAST, ret.getInternalName());   // NMS 원소 형 꼴: 원래 반환 형으로
+                        }
+                        changed[1] = true;
+                        return;
+                    }
+                    if (members && opcode == Opcodes.INVOKEVIRTUAL && owner.equals("java/lang/reflect/Field")) {
+                        if (mname.equals("get") && desc.equals("(Ljava/lang/Object;)Ljava/lang/Object;")) {
+                            super.visitInsn(Opcodes.DUP2);   // [f, t] → [f, t, f, t]
+                            super.visitMethodInsn(Opcodes.INVOKESTATIC, REFLECT, "beforeFieldGet", "(Ljava/lang/reflect/Field;Ljava/lang/Object;)V", false);
+                            super.visitMethodInsn(opcode, owner, mname, desc, itf);
+                            changed[1] = true;
+                            return;
+                        }
+                        if (FIELD_SETS.contains(mname + desc)) {
+                            // [f, t, v] → [f, t, f, t, v] (값은 범주 1) — 원래 set 뒤에 [f, t] 로 알린다
+                            super.visitInsn(Opcodes.DUP_X2);
+                            super.visitInsn(Opcodes.POP);
+                            super.visitInsn(Opcodes.DUP2_X1);
+                            super.visitInsn(Opcodes.DUP2_X1);
+                            super.visitInsn(Opcodes.POP2);
+                            super.visitMethodInsn(opcode, owner, mname, desc, itf);
+                            super.visitMethodInsn(Opcodes.INVOKESTATIC, REFLECT, "afterFieldSet", "(Ljava/lang/reflect/Field;Ljava/lang/Object;)V", false);
+                            changed[1] = true;
+                            return;
+                        }
+                    }
                     if (opcode == Opcodes.INVOKESTATIC && mname.equals("valueOf") && ApiRenames.reroutesValueOf(owner, desc)) {
                         super.visitMethodInsn(Opcodes.INVOKESTATIC, ApiRenames.INTERNAL, ApiRenames.valueOfName(owner), desc, false);
                         changed[1] = true;

@@ -245,7 +245,10 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         if (!owner.isOwnerThread()) {
             throw new ThreadOwnershipException(what + " 는 그 칸을 가진 region 스레드에서만 부를 수 있다 (현재 " + Thread.currentThread().getName() + ") — Async 판을 쓴다");
         }
-        return world.regionizer().ownerOf(pos.chunkX(), pos.chunkZ());
+        Region r = world.regionizer().ownerOf(pos.chunkX(), pos.chunkZ());
+        // 맞춤 지점(N2b-4, 설계 3.3-2 R10): 플러그인이 NMS 거울에 쓴 것이 들여오기를 기다리면 먼저 맞춘 뒤 읽고 쓴다 — 대기가 없으면 volatile 읽기 하나
+        world.syncMirrorIfPending(r, pos.chunkX(), pos.chunkZ());
+        return r;
     }
 
     /** 소유 스레드 전용 동기 쓰기(Block.set). */

@@ -198,14 +198,110 @@ public final class Region {
     /** 붙은 shim 도 없고 아무도 읽지 않으면 이만큼의 틱 끝(5초) 뒤 공개를 멈춘다. */
     static final int VIEW_KEEP_TICKS = 100;
 
-    /** 이 region 스레드에서: 지켜보는 청크마다 공개 스냅샷을 새로 낸다(바뀐 것이 없으면 같은 판). 내려간 청크·그만둔 청크는 뺀다. */
+    /**
+     * 이 region 스레드에서: 지켜보는 청크마다 공개 스냅샷을 새로 낸다(바뀐 것이 없으면 같은 판). 내려간 청크·그만둔 청크는 뺀다.
+     * 거울이 붙은 청크(N2b-4)는 내기 전에 훑어 맞추고(정식 경로 — 장벽이 못 본 배열·필드 대입을 1틱 안에 잡는다, 설계 3.3-1), 낸 뒤 거울에 알린다.
+     */
     void publishReadViews() {
         if (viewWatch.isEmpty()) return;
         for (var it = viewWatch.iterator(); it.hasNext(); ) {
             long k = it.next();
             int cx = Regionizer.chunkX(k), cz = Regionizer.chunkZ(k);
             ChunkColumn col = ownedChunk(cx, cz);
-            if (col == null || !col.refreshReadView(cx, cz, VIEW_KEEP_TICKS)) it.remove();
+            if (col == null) {
+                it.remove();
+                continue;
+            }
+            boolean mirrored = col.mirror() != null;
+            if (mirrored) syncMirror(col, true);
+            if (!col.refreshReadView(cx, cz, VIEW_KEEP_TICKS)) {
+                it.remove();
+                continue;
+            }
+            if (mirrored) {
+                try {
+                    col.mirrorPublished();
+                } catch (RuntimeException | LinkageError e) {
+                    mirrorFailed(cx, cz, e);
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ 거울 맞추기(N2b-4, 설계 3.4)
+
+    /**
+     * 다른 스레드의 거울 맞추기 부탁(작업): 부탁한 컬럼이 아직 로드돼 있으면 맞추고, 그 사이 내려갔거나 바뀌었으면(재생성 — 새 컬럼이 대기를 이어받아
+     * 틱 끝 훑기가 맞춘다) 옛 컬럼의 표시를 거둔다. keep 은 작업이 도는 동안 거울을 쥐는 자리다.
+     */
+    public void syncMirrorTask(ChunkColumn col, int cx, int cz, Object keep) {
+        ChunkColumn now = ownedChunk(cx, cz);
+        if (now == col) {
+            syncMirror(col, false);
+        } else {
+            if (col.dropMirrorPending()) world.mirrorPendingChunks.decrementAndGet();
+            if (now != null && now.mirrorPending()) syncMirror(now, false);
+        }
+        java.lang.ref.Reference.reachabilityFence(keep);
+    }
+
+    /** 이 region 스레드에서: 그 청크의 거울을 맞춘다(대기 표시가 있을 때만). 다른 스레드의 부탁 작업과 맞춤 지점이 부른다. */
+    public void syncMirror(ChunkColumn col) { syncMirror(col, false); }
+
+    /** force 면 대기 표시가 없어도 훑는다(틱 끝·저장·언로드). 호환 계층의 예외는 틱을 깨지 않게 경고로 남긴다. */
+    void syncMirror(ChunkColumn col, boolean force) {
+        try {
+            col.syncMirror(force, world.mirrorPendingChunks);
+        } catch (RuntimeException | LinkageError e) {
+            mirrorFailed(Integer.MIN_VALUE, Integer.MIN_VALUE, e);
+        }
+    }
+
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(Region.class);
+    private static final java.util.concurrent.atomic.AtomicInteger MIRROR_FAILURES = new java.util.concurrent.atomic.AtomicInteger();
+
+    /** 거울 맞추기가 예외를 냈다 — 처음 몇 번만 쌓임까지 남긴다(그 뒤로는 100번마다 한 줄). */
+    private void mirrorFailed(int cx, int cz, Throwable e) {
+        int n = MIRROR_FAILURES.incrementAndGet();
+        String where = cx == Integer.MIN_VALUE ? "" : " (청크 " + cx + ", " + cz + ")";
+        if (n <= 5) {
+            LOG.warn("[NMS] 청크 거울 맞추기가 실패했다{} — 그 거울의 남은 쓰기는 월드에 닿지 않았다. 호환 계층 버그일 수 있으니 이 쌓임을 알려 주세요", where, e);
+        } else if (n % 100 == 0) {
+            LOG.warn("[NMS] 청크 거울 맞추기 실패가 {}번째다{}: {}", n, where, e.toString());
+        }
+    }
+
+    /** 이 region 의 거울이 붙은 청크를 모두 훑어 맞춘다(전체 저장·종료 직전). */
+    void syncAllMirrors() {
+        if (viewWatch.isEmpty()) return;
+        for (var it = viewWatch.iterator(); it.hasNext(); ) {
+            long k = it.next();
+            ChunkColumn col = ownedChunk(Regionizer.chunkX(k), Regionizer.chunkZ(k));
+            if (col != null && col.mirror() != null) syncMirror(col, true);
+        }
+    }
+
+    /** 저장 표시 없이 들여온 내용이 남은 채 내려간 청크 수(D3 경고, 서버 전체). */
+    private static final java.util.concurrent.atomic.AtomicInteger UNSAVED_IMPORT_WARNINGS = new java.util.concurrent.atomic.AtomicInteger();
+
+    /**
+     * 내리기 직전(D3): 거울을 맞추고, 저장 표시 없이 들여온 내용이 있으면 경고 한 줄(같은 청크·같은 원인은 이 내림에서 한 번 — 서버 전체로는 처음 20건,
+     * 그 뒤 1000건마다), 거울을 떼어 낸다. 바닐라처럼 그 내용은 저장하지 않는다(결정 D3-A).
+     */
+    private void unloadMirror(int cx, int cz, ChunkColumn col) {
+        if (col.mirror() != null || col.mirrorPending()) syncMirror(col, true);
+        if (col.importedUnsaved() && !col.dirty()) {
+            int n = UNSAVED_IMPORT_WARNINGS.incrementAndGet();
+            if (n <= 20 || n % 1000 == 0) {
+                LOG.warn("[NMS] 청크 {}, {} ({}) 가 저장 표시 없이 플러그인이 바꾼 섹션을 든 채 내려간다 — 바닐라·Paper 처럼 그 변경은 저장하지 않는다(다시 불러오면 옛 블록)."
+                        + " 남기려면 플러그인이 LevelChunk#setUnsaved(true)(또는 markUnsaved)를 불러야 한다{}",
+                        cx, cz, world.dimension(), n > 20 ? " [같은 경고 " + n + "번째]" : "");
+            }
+        }
+        try {
+            col.mirrorUnloaded(world.mirrorPendingChunks);
+        } catch (RuntimeException | LinkageError e) {
+            mirrorFailed(cx, cz, e);
         }
     }
 
@@ -1159,6 +1255,7 @@ public final class Region {
         autosaveEntityQueue = null;
         autosaveChunkQueue = null;
         if (withEntities) saveEntities();
+        syncAllMirrors();   // 플러그인이 고친 거울을 먼저 들여온다(N2b-4 — 그 사이 setUnsaved 일지가 저장 대상에 넣는다)
         // 마지막 틱의 편집으로 남은 빛 검사를 마저 돈다 — 안 그러면 새 블록 + 옛 빛이 저장되고, 다시 올릴 때 그 저장 빛을 믿는다(PR #304 검토 R2).
         // 빛이 바뀐 청크는 dirty 가 돼 아래에서 같이 저장된다. 방송은 다음 틱 그대로.
         if (level != null) level.runLightUpdates();
@@ -1222,6 +1319,7 @@ public final class Region {
         while (autosaveChunkQueue != null && (cp = autosaveChunkQueue.poll()) != null) {
             ChunkColumn col = ownedChunk(cp.x(), cp.z());
             if (world.ioBackedUp()) { autosaveChunkQueue.addFirst(cp); return; }   // 레인이 밀렸다 — 다음 틱에
+            if (col != null && col.mirror() != null) syncMirror(col, true);   // 저장 직전 맞춤 지점(N2b-4 — 플러그인이 섹션 배열에 넣은 것도 이 저장에)
             if (col != null && col.dirty()) {
                 writeChunkTicks(cp.x(), cp.z(), col, false);
                 if (level != null) level.settleLightForSave(cp.x(), cp.z());   // 빛 작업 모드: 밀린 빛을 끝낸 뒤 저장(끄면 아무것도 안 함)
@@ -1297,6 +1395,7 @@ public final class Region {
                     if (root != null) world.saveEntitiesAsync(cx, cz, root);
                 }
                 savePoi(cx, cz, col);
+                unloadMirror(cx, cz, col);   // 거울을 맞추고 떼어 낸 뒤 저장 판단(N2b-4, D3 경고)
                 for (var be : col.blockEntities().values()) be.setRemoved();   // 틱 목록에서 빠진다(다시 불러오면 새로 만든다)
                 // 예약 틱이 남아 있으면 바뀐 게 없어도 저장한다(내리면 사라지므로)
                 if (writeChunkTicks(cx, cz, col, true) || col.dirty()) {

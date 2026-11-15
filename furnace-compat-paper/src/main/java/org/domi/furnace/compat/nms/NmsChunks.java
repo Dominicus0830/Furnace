@@ -126,7 +126,7 @@ public final class NmsChunks {
         if (!owner && b.chunkView(w, chunkX, chunkZ) == null) return null;   // 로드 안 됨, 또는 공개본 없음(부탁해 둠)
         if (b.chunkShim(w, chunkX, chunkZ) instanceof net.minecraft.world.level.chunk.LevelChunk c) return c;
         var made = net.minecraft.world.level.chunk.LevelChunk.furnaceView(level, chunkX, chunkZ);
-        if (!(b.attachChunkShim(w, chunkX, chunkZ, made) instanceof net.minecraft.world.level.chunk.LevelChunk c)) return null;
+        if (!(b.attachChunkShim(w, chunkX, chunkZ, made, made.furnaceMirror()) instanceof net.minecraft.world.level.chunk.LevelChunk c)) return null;
         // 붙는 사이 주인이 오래 안 읽힌 공개본을 내렸을 수 있다 — 이제 shim 이 붙어 있으니 주인이 다시 낸다(그때까지는 없는 것으로)
         return owner || b.chunkView(w, chunkX, chunkZ) != null ? c : null;
     }

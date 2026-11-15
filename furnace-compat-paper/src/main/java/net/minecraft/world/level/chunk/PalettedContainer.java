@@ -6,9 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.IntUnaryOperator;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import net.minecraft.core.IdMap;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.util.BitStorage;
@@ -20,12 +18,13 @@ import net.minecraft.util.ZeroBitStorage;
  * <ul>
  * <li><b>진짜 컨테이너</b>(N2b-1): 생성자로 만든 것과 {@link #copy()}. 바닐라 1.21.1 포팅 그대로 — 필드 {@code registry}·{@code data}(volatile)·
  *     {@code strategy}, 팔레트 늘리기·줄이지 않기·번호 매기는 순서, {@code getRaw()} 배치, 직렬화({@code read}·{@code write}·{@code getSerializedSize})가 같다.
- *     서버 청크와 무관한 떨어진 객체다(플러그인이 청크 섹션 배열에 넣어도 아직 서버에 닿지 않는다 — 거울·들여오기는 N2b-4).</li>
- * <li><b>보기</b>(N2a, {@code LevelChunkSection#getStates()}·{@code getBiomes()} of 로드된 청크): 읽을 때마다 서버 청크의 지금 값을 본다(소유 region
- *     스레드 전용). 칸 쓰기({@code set}·{@code getAndSet}·{@code getAndSetUnchecked}, N2b-2)는 바닐라 살아 있는 컨테이너처럼 그 칸만 서버에 바로 쓴다 —
- *     섹션 개수·하이트맵·빛·저장 표시·클라이언트는 그대로(바닐라도 컨테이너 쓰기는 아무것도 맞추지 않는다). 주인 region 스레드가 아니면
- *     ThreadOwnershipException(다른 스레드의 쓰기 일지는 N2b-4). {@code read} 는 UnsupportedNmsCall. 필드 {@code data} 는 null 이다
- *     (보기의 바닐라 배치 실체화는 N2b-4). copy() 는 디스크에서 읽은 바닐라 섹션처럼(팔레트 = 처음 나온 순서, 비트 수 = 직렬화 규칙) 진짜 컨테이너를 만든다.</li>
+ *     서버 청크와 무관한 떨어진 객체다. 플러그인이 로드된 청크의 섹션에 넣으면 주인이 그 내용을 들여오고(N2b-4) 그 자리의 보기로 붙인다.</li>
+ * <li><b>보기</b>(N2a, {@code LevelChunkSection#getStates()}·{@code getBiomes()} of 로드된 청크): 읽을 때마다 서버 청크의 지금 값을 본다(주인 region
+ *     스레드는 살아 있는 값, 그 밖은 공개 스냅샷 + 자기 쓰기). 칸 쓰기({@code set}·{@code getAndSet}·{@code getAndSetUnchecked}, N2b-2)는 바닐라 살아 있는
+ *     컨테이너처럼 그 칸만 쓴다 — 주인 스레드는 서버에 바로, 그 밖은 거울 칸 일지에 쌓아 주인이 1틱 안에 재생한다(N2b-4, 결정 D1). 섹션 개수·하이트맵·빛·
+ *     저장 표시·클라이언트는 그대로(바닐라도 컨테이너 쓰기는 아무것도 맞추지 않는다). 필드 {@code data} 는 리플렉션으로 처음 읽힐 때 그 순간 내용으로
+ *     바닐라 배치를 실체화한다(N2b-4 장벽, 내용이 바뀌면 다시). 플러그인이 {@code data} 를 바꾸거나 {@code read} 하면 들여오기 전까지 그 data 를 바닐라처럼
+ *     읽고 쓰고, 주인이 그 내용을 서버로 들여온다. copy() 는 디스크에서 읽은 바닐라 섹션처럼(팔레트 = 처음 나온 순서, 비트 수 = 직렬화 규칙) 진짜 컨테이너를 만든다.</li>
  * </ul>
  * 바닐라와 다를 수 있는 것: {@link #count} 가 값마다 부르는 순서(바닐라는 fastutil 해시 순서, 여기는 처음 나온 순서 — 개수는 같다),
  * 보기의 팔레트 자체(항목 순서·비트 수 — 살아 있는 섹션의 바닐라 팔레트는 쓰기 이력에 달려 있다). 디버그 잠금(ThreadingDetector)은 두지 않는다 —
@@ -40,17 +39,46 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
     private final IdMap<T> registry;
     private volatile Data<T> data;
     private final Strategy strategy;
-    /** Furnace: 서버 섹션 보기면 번호 공급원(진짜 컨테이너면 null). */
-    private final FurnaceSource furnaceSource;
+    /**
+     * Furnace: 서버 섹션에 붙은 보기면 번호 공급원(진짜·떨어진 컨테이너면 null). 거울 들여오기(N2b-4)가 플러그인이 만든 컨테이너를 그 자리에 붙이고
+     * (그 뒤로 서버 섹션의 보기), 배열에서 빠진 옛 보기를 떼어 낸다(그 뒤로 떨어진 컨테이너).
+     */
+    private volatile FurnaceSource furnaceSource;
+    /**
+     * Furnace: 붙은 보기에서 Furnace 가 마지막으로 놓은 {@code data}(실체화했거나 들여온 것, 설계 3.2 placed). {@code data} 가 이것과 다르면 플러그인이
+     * 필드를 바꾼 것이다 — 들여오기 전까지 이 컨테이너는 그 data 를 그대로 읽고 쓴다(바닐라처럼). 형을 Object 로 둔다(형으로 Data 필드를 찾는 플러그인이
+     * 이 칸을 고르지 않게). 쓰기는 거울 잠금 아래.
+     */
+    private volatile Object furnacePlaced;
+    /** Furnace: furnacePlaced 를 실체화한 판(서버 내용 판 번호, 다른 스레드는 공개 스냅샷의 것). 거울 잠금 아래. */
+    private long furnacePlacedStamp = Long.MIN_VALUE;
 
-    /** 보기의 서버 번호 공급원. */
-    private interface FurnaceSource {
+    private static final java.lang.invoke.VarHandle DATA;
+    static {
+        try {
+            DATA = java.lang.invoke.MethodHandles.lookup().findVarHandle(PalettedContainer.class, "data", Data.class);
+        } catch (ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    /** 붙은 보기의 서버 번호 공급원(호환 모듈 전용 — 청크 shim 의 거울을 거쳐 주인 스레드는 살아 있는 값, 그 밖은 공개 스냅샷 + 자기 쓰기). */
+    interface FurnaceSource {
         int idAt(int index);
 
         int[] ids();
 
-        /** 칸 하나를 서버에 쓰고 옛 번호(N2b-2). 쓸 수 없는 보기면 null 대신 예외. */
+        /** 칸 하나를 쓰고 옛 번호(주인 스레드는 서버에 바로, 그 밖은 거울 칸 일지 — N2b-4). */
         int setId(int index, int id);
+
+        /** 실체화용: 그 순간의 칸 번호 전부와 그 판 번호(stampOut[0]) — 한 출처에서. */
+        int[] idsStamped(long[] stampOut);
+
+        /** 거울 잠금(Furnace 전용 객체 — 플러그인이 볼 수 있는 객체의 모니터를 쓰지 않는다, 설계 R12). */
+        Object lock();
+
+        /** 플러그인이 이 컨테이너의 필드를 바꿨다(장벽 알림) — 거울이 다음 맞춤 지점에서 본다. */
+        void fieldWritten();
     }
 
     // ------------------------------------------------------------------ 생성자(바닐라)
@@ -86,36 +114,9 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
         this.data = null;
     }
 
-    /**
-     * 호환 모듈 전용: 서버 섹션 보기. idAt 은 한 칸(칸 번호는 바닐라 {@link Strategy#getIndex}), ids 는 모든 칸(새 배열)의 레지스트리 번호를 서버에서 읽는다.
-     */
-    public static <T> PalettedContainer<T> furnaceView(IdMap<T> registry, Strategy strategy, IntUnaryOperator idAt, Supplier<int[]> ids) {
-        return furnaceView(registry, strategy, idAt, ids, null);
-    }
-
-    /**
-     * 호환 모듈 전용: 쓸 수 있는 서버 섹션 보기 — setId(칸, 레지스트리 번호) 는 그 칸을 서버에 쓰고 옛 번호를 준다(null 이면 쓰기는 UnsupportedNmsCall).
-     */
-    public static <T> PalettedContainer<T> furnaceView(IdMap<T> registry, Strategy strategy, IntUnaryOperator idAt, Supplier<int[]> ids,
-                                                       java.util.function.IntBinaryOperator setId) {
-        int size = strategy.size();
-        return new PalettedContainer<>(registry, strategy, new FurnaceSource() {
-            @Override
-            public int idAt(int index) {
-                checkIndex(index, size);
-                return idAt.applyAsInt(index);
-            }
-
-            @Override
-            public int[] ids() { return ids.get(); }
-
-            @Override
-            public int setId(int index, int id) {
-                if (setId == null) throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("PalettedContainer#set (보기)", "이 보기는 쓸 수 없다");
-                checkIndex(index, size);
-                return setId.applyAsInt(index, id);
-            }
-        });
+    /** 호환 모듈 전용: 서버 섹션 보기(칸 번호는 바닐라 {@link Strategy#getIndex}). data 필드는 처음 읽힐 때 실체화한다. */
+    static <T> PalettedContainer<T> furnaceView(IdMap<T> registry, Strategy strategy, FurnaceSource source) {
+        return new PalettedContainer<>(registry, strategy, source);
     }
 
     /** 바닐라 SimpleBitStorage 의 칸 번호 검사(commons-lang3 Validate.inclusiveBetween 문구). */
@@ -125,11 +126,122 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
         }
     }
 
-    /** 보기 칸 쓰기: 값의 레지스트리 번호로 서버에 쓰고 옛 값. 이 서버 레지스트리에 없는 값은 IllegalArgumentException(서버 칸에 넣을 수 없다). */
-    private T furnaceSet(int x, int y, int z, T value) {
+    /** 보기 칸 쓰기: 값의 레지스트리 번호로 쓰고 옛 값. 이 서버 레지스트리에 없는 값은 IllegalArgumentException(서버 칸에 넣을 수 없다). */
+    private T furnaceSet(FurnaceSource src, int index, T value) {
+        checkIndex(index, strategy.size());
         int id = registry.getId(value);
         if (id < 0) throw new IllegalArgumentException("이 서버 레지스트리에 없는 값이라 로드된 청크에 쓸 수 없다: " + value);
-        return registry.byId(furnaceSource.setId(strategy.getIndex(x, y, z), id));
+        return registry.byId(src.setId(index, id));
+    }
+
+    /**
+     * 붙은 보기의 읽기·쓰기 출처: 플러그인이 {@code data} 필드를 바꿨으면(들여오기 전) null — 이 컨테이너는 그 data 를 바닐라처럼 읽고 쓴다(자기 쓰기를 읽고,
+     * 들여오기가 그 내용을 가져간다). 아니면 서버 공급원. 떨어진 컨테이너도 null.
+     */
+    private FurnaceSource liveSource() {
+        FurnaceSource src = furnaceSource;
+        if (src == null) return null;
+        Data<T> d = data;
+        return d == null || d == furnacePlaced ? src : null;
+    }
+
+    // ------------------------------------------------------------------ 거울 상태(N2b-4, 호환 모듈 전용)
+
+    /** 붙은 보기인가. */
+    boolean furnaceAttached() { return furnaceSource != null; }
+
+    /** 칸 읽기·쓰기가 서버로 가는가(붙은 보기이고 플러그인이 data 를 바꾸지 않았다). */
+    boolean furnaceLiveNow() { return liveSource() != null; }
+
+    /** 공급원(없으면 null). */
+    Object furnaceSourceObject() { return furnaceSource; }
+
+    /** 거울 기준: Furnace 가 놓은 data(없으면 null). */
+    Object furnacePlaced() { return furnacePlaced; }
+
+    /** 지금 data(volatile 읽기). */
+    Data<T> furnaceData() { return data; }
+
+    /**
+     * 장벽(Field.get 앞, {@code NmsReflect}) — 붙은 보기의 {@code data} 필드를 그 순간 서버 내용(다른 스레드는 공개 스냅샷 + 자기 쓰기)으로 실체화한다.
+     * 바닐라 배치(디스크에서 읽은 섹션과 같은 팔레트·비트 수)다. 내용 판이 그대로면 앞서 만든 것을 그대로 둔다. 플러그인이 data 를 바꿨으면 손대지 않는다.
+     * 바꿔 넣기는 CAS 라 플러그인의 대입을 덮지 않는다(설계 3.2 규칙 2).
+     */
+    void furnaceMaterializeData() {
+        FurnaceSource src = furnaceSource;
+        if (src == null) return;
+        Data<T> cur = data;
+        if (cur != furnacePlaced) return;   // 플러그인이 바꾼 data — 그대로
+        long[] stamp = {Long.MIN_VALUE};
+        int[] ids = src.idsStamped(stamp);
+        synchronized (src.lock()) {
+            if (cur != null && stamp[0] == furnacePlacedStamp && stamp[0] != Long.MIN_VALUE) return;
+            if (data != cur || furnacePlaced != cur || furnaceSource != src) return;   // 그 사이 바뀌었다 — 다음 읽기가 다시 본다
+            Data<T> next = furnaceDataFromIds(registry, strategy, ids, this);
+            if (DATA.compareAndSet(this, cur, next)) {
+                furnacePlaced = next;
+                furnacePlacedStamp = stamp[0];
+            }
+        }
+    }
+
+    /** 들여온 뒤(주인, 거울 잠금 아래): 지금 data 를 기준으로 삼는다. */
+    void furnaceMarkPlaced(Object placed, long stamp) {
+        furnacePlaced = placed;
+        furnacePlacedStamp = stamp;
+    }
+
+    /** 들여오기가 이 컨테이너를 서버 섹션의 보기로 붙인다(주인, 거울 잠금 아래). 지금 data(들여온 내용)가 기준이 된다. */
+    void furnaceAttach(FurnaceSource src, long stamp) {
+        furnacePlaced = data;
+        furnacePlacedStamp = stamp;
+        furnaceSource = src;
+    }
+
+    /**
+     * 배열·필드에서 빠진 보기를 떼어 낸다(주인, 거울 잠금 아래): 그 순간의 내용을 data 로 실체화하고(플러그인이 바꾼 data 면 그것 그대로) 공급원을 버린다 —
+     * 그 뒤 쓰기는 이 컨테이너에만 남는다(바닐라: 청크에서 빠진 컨테이너).
+     */
+    void furnaceDetach() {
+        FurnaceSource src = furnaceSource;
+        if (src == null) return;
+        Data<T> d = data;
+        if (d == null || d == furnacePlaced) {
+            Data<T> next = furnaceDataFromIds(registry, strategy, src.ids(), this);
+            DATA.compareAndSet(this, d, next);
+        }
+        furnacePlaced = null;
+        furnaceSource = null;
+    }
+
+    /**
+     * 들여오기용: 칸마다 서버 번호(값 → 서버 레지스트리 번호는 toId). 값이 null 이거나 번호가 없으면 IllegalStateException(그 섹션은 들여오지 않는다).
+     * 붙은 보기면 그 공급원(또는 플러그인이 바꾼 data)에서.
+     */
+    int[] furnaceReadIds(java.util.function.ToIntFunction<T> toId) {
+        FurnaceSource src = liveSource();
+        if (src != null) return src.ids();
+        Data<T> d = data;
+        if (d == null) throw new IllegalStateException("data 가 null 이다");
+        int size = strategy.size();
+        if (d.storage().getSize() != size) throw new IllegalStateException("저장소 칸 수가 " + d.storage().getSize() + " 이다(바닐라 " + size + ")");
+        int[] out = new int[size];
+        Palette<T> p = d.palette();
+        BitStorage st = d.storage();
+        for (int i = 0; i < size; i++) {
+            T v = p.valueFor(st.get(i));
+            if (v == null) throw new IllegalStateException("팔레트 항목이 null 이다(칸 " + i + ")");
+            int id = toId.applyAsInt(v);
+            if (id < 0) throw new IllegalStateException("서버 레지스트리에 없는 값이다: " + v + " (칸 " + i + ")");
+            out[i] = id;
+        }
+        return out;
+    }
+
+    /** 장벽(Field.set 뒤): 붙은 보기의 필드를 플러그인이 바꿨다 — 거울에 알린다. */
+    void furnaceFieldWritten() {
+        FurnaceSource src = furnaceSource;
+        if (src != null) src.fieldWritten();
     }
 
     /**
@@ -137,6 +249,13 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
      * 순서, 비트 수는 {@code calculateBitsForSerialization}, 전역 팔레트면 저장소에 레지스트리 번호.
      */
     public static <T> PalettedContainer<T> furnaceFromIds(IdMap<T> registry, Strategy strategy, int[] registryIds) {
+        PalettedContainer<T> c = new PalettedContainer<>(registry, strategy, (Data<T>) null);
+        c.data = furnaceDataFromIds(registry, strategy, registryIds, c);
+        return c;
+    }
+
+    /** 서버 번호 배열 → 바닐라 배치의 data. 팔레트 크기 바꿈 처리기는 owner(그 data 를 쥘 컨테이너 — 다른 컨테이너면 커질 때 그쪽이 커진다). */
+    private static <T> Data<T> furnaceDataFromIds(IdMap<T> registry, Strategy strategy, int[] registryIds, PalettedContainer<T> owner) {
         int size = strategy.size();
         List<T> entries = new ArrayList<>();
         Map<Integer, Integer> local = new HashMap<>();
@@ -164,19 +283,14 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
         } else {
             storage = new SimpleBitStorage(c.bits(), size, cells);
         }
-        return new PalettedContainer<>(registry, strategy, c, storage, entries);
+        return new Data<>(c, storage, c.factory().create(c.bits(), registry, owner, entries));
     }
 
     /** Furnace: 보기(서버 청크를 읽는 것)인가, 진짜 컨테이너인가. */
     public boolean furnaceIsView() { return furnaceSource != null; }
 
-    private RuntimeException viewWrite(String what) {
-        return new org.domi.furnace.compat.nms.UnsupportedNmsCall("PalettedContainer#" + what + " (청크 섹션 보기)",
-                "로드된 청크 섹션 컨테이너에 통째로 읽어 넣는 길은 아직 없다(N2b-4). 칸 쓰기(set·getAndSet)는 되고, 사본(copy())·새로 만든 컨테이너는 고칠 수 있다");
-    }
-
     /** 보기의 그 순간 값으로 만든 진짜 컨테이너(바닐라 배치가 필요한 읽기용). */
-    private PalettedContainer<T> furnaceMaterialize() { return furnaceFromIds(registry, strategy, furnaceSource.ids()); }
+    private PalettedContainer<T> furnaceMaterialize(FurnaceSource src) { return furnaceFromIds(registry, strategy, src.ids()); }
 
     // ------------------------------------------------------------------ 바닐라 동작
 
@@ -201,7 +315,8 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
     }
 
     public T getAndSet(int x, int y, int z, T value) {
-        if (furnaceSource != null) return furnaceSet(x, y, z, value);
+        FurnaceSource src = liveSource();
+        if (src != null) return furnaceSet(src, strategy.getIndex(x, y, z), value);
         acquire();
         try {
             return getAndSet(strategy.getIndex(x, y, z), value);
@@ -211,7 +326,8 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
     }
 
     public T getAndSetUnchecked(int x, int y, int z, T value) {
-        if (furnaceSource != null) return furnaceSet(x, y, z, value);
+        FurnaceSource src = liveSource();
+        if (src != null) return furnaceSet(src, strategy.getIndex(x, y, z), value);
         return getAndSet(strategy.getIndex(x, y, z), value);
     }
 
@@ -222,8 +338,9 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
     }
 
     public void set(int x, int y, int z, T value) {
-        if (furnaceSource != null) {
-            furnaceSet(x, y, z, value);
+        FurnaceSource src = liveSource();
+        if (src != null) {
+            furnaceSet(src, strategy.getIndex(x, y, z), value);
             return;
         }
         acquire();
@@ -243,7 +360,11 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
     public T get(int x, int y, int z) { return get(strategy.getIndex(x, y, z)); }
 
     protected T get(int index) {
-        if (furnaceSource != null) return registry.byId(furnaceSource.idAt(index));
+        FurnaceSource src = liveSource();
+        if (src != null) {
+            checkIndex(index, strategy.size());
+            return registry.byId(src.idAt(index));
+        }
         Data<T> d = data;
         return d.palette().valueFor(d.storage().get(index));
     }
@@ -251,8 +372,9 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
     /** 칸에 실제로 있는 값마다 한 번(바닐라: 저장소에서 처음 나온 팔레트 번호 순서). */
     @Override
     public void getAll(Consumer<T> consumer) {
-        if (furnaceSource != null) {
-            int[] v = furnaceSource.ids();
+        FurnaceSource src = liveSource();
+        if (src != null) {
+            int[] v = src.ids();
             java.util.BitSet seen = new java.util.BitSet();
             for (int id : v) {
                 if (seen.get(id)) continue;
@@ -273,19 +395,23 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
         for (int id : order) consumer.accept(palette.valueFor(id));
     }
 
-    /** 바닐라: 비트 수 한 바이트로 설정을 고르고(같으면 데이터 재사용), 팔레트와 long 배열을 읽는다. 길이가 다른 배열은 바닐라처럼 버려진다. */
+    /**
+     * 바닐라: 비트 수 한 바이트로 설정을 고르고(같으면 데이터 재사용), 팔레트와 long 배열을 읽는다. 길이가 다른 배열은 바닐라처럼 버려진다.
+     * 붙은 보기는 늘 새 data 에 읽는다(N2b-4 — data 필드가 바뀌어 들여오기가 그 내용을 서버로 가져간다, 그때까지 이 컨테이너는 그 data 를 읽는다).
+     */
     public void read(FriendlyByteBuf buf) {
-        if (furnaceSource != null) throw viewWrite("read");
+        FurnaceSource src = furnaceSource;
         acquire();
         try {
             int bits = buf.readByte();
-            Data<T> d = createOrReuseData(data, bits);
+            Data<T> d = createOrReuseData(src != null && data == furnacePlaced ? null : data, bits);
             d.palette().read(buf);
             readLongArray(buf, d.storage().getRaw());
             data = d;
         } finally {
             release();
         }
+        if (src != null) src.fieldWritten();
     }
 
     /** 바닐라 FriendlyByteBuf.readLongArray(long[]) — 길이가 같으면 그 배열에, 다르면 새 배열에 읽는다(새 배열은 버려진다). */
@@ -302,8 +428,9 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
 
     @Override
     public void write(FriendlyByteBuf buf) {
-        if (furnaceSource != null) {
-            furnaceMaterialize().write(buf);
+        FurnaceSource src = liveSource();
+        if (src != null) {
+            furnaceMaterialize(src).write(buf);
             return;
         }
         acquire();
@@ -316,15 +443,17 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
 
     @Override
     public int getSerializedSize() {
-        if (furnaceSource != null) return furnaceMaterialize().getSerializedSize();
+        FurnaceSource src = liveSource();
+        if (src != null) return furnaceMaterialize(src).getSerializedSize();
         return data.getSerializedSize();
     }
 
     /** 바닐라: 팔레트에 들어 있는 값 중 하나라도 맞는가(지워진 칸의 옛 항목도 남아 있으면 참). 보기는 지금 칸에 실제로 있는지로 답한다. */
     @Override
     public boolean maybeHas(Predicate<T> predicate) {
-        if (furnaceSource != null) {
-            int[] v = furnaceSource.ids();
+        FurnaceSource src = liveSource();
+        if (src != null) {
+            int[] v = src.ids();
             java.util.BitSet seen = new java.util.BitSet();
             for (int id : v) {
                 if (seen.get(id)) continue;
@@ -341,22 +470,25 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
      * 원본이 커지고 사본 쓰기는 IllegalArgumentException(바닐라 1.21.1 그대로). 보기면 그 순간 값의 진짜 컨테이너.
      */
     public PalettedContainer<T> copy() {
-        if (furnaceSource != null) return furnaceMaterialize();
+        FurnaceSource src = liveSource();
+        if (src != null) return furnaceMaterialize(src);
         return new PalettedContainer<>(registry, strategy, data.copy());
     }
 
     /** 바닐라: 팔레트 0번 값으로 채운 새 컨테이너. */
     @Override
     public PalettedContainer<T> recreate() {
-        if (furnaceSource != null) return furnaceMaterialize().recreate();
+        FurnaceSource src = liveSource();
+        if (src != null) return furnaceMaterialize(src).recreate();
         return new PalettedContainer<>(registry, data.palette().valueFor(0), strategy);
     }
 
     /** 값마다 칸 수(0 인 값은 알리지 않는다). 부르는 순서는 처음 나온 순서다(바닐라는 해시 순서). */
     @Override
     public void count(CountConsumer<T> consumer) {
-        if (furnaceSource != null) {
-            int[] v = furnaceSource.ids();
+        FurnaceSource src = liveSource();
+        if (src != null) {
+            int[] v = src.ids();
             LinkedHashMap<Integer, int[]> counts = new LinkedHashMap<>();
             for (int id : v) counts.computeIfAbsent(id, k -> new int[1])[0]++;
             for (var e : counts.entrySet()) consumer.accept(registry.byId(e.getKey()), e.getValue()[0]);
