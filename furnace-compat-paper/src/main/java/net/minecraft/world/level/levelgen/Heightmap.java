@@ -6,7 +6,9 @@ import net.minecraft.world.level.chunk.ChunkAccess;
  * 하이트맵 shim(Mojang 이름, N2a): 로드된 청크의 하이트맵 <b>보기</b> — 읽을 때마다 서버 청크의 지금 값을 본다(소유 region 스레드 전용).
  * 월드젠 전용 종류(*_WG)는 바닐라 LevelChunk 처럼 남아 있지 않아 비어 있는(모든 칸 = 최저 높이) 하이트맵이다.
  * 살아 있는 네 종류의 {@link #setRawData}·{@link #update}(N2b-2)는 바닐라 그대로 서버 하이트맵에 쓴다 — 서버 청크는 고정 하이트맵 모드로 들어가 그 뒤로는
- * 바닐라 증분 갱신으로만 바뀐다(블록에서 다시 계산하지 않는다). 저장 표시는 하지 않는다. 월드젠 종류에 쓰기와 따로 만드는 생성자는 아직 없다(N2b-4).
+ * 바닐라 증분 갱신으로만 바뀐다(블록에서 다시 계산하지 않는다). 저장 표시는 하지 않는다. 주인이 아닌 스레드의 쓰기는 거울 일지에 쌓여 주인이 섹션 쓰기와 같은
+ * 순서로 재생한다(N2b-4, 보통 같은 틱 안). 그 스레드의 하이트맵 읽기는 재생·공개 전까지 공개 스냅샷이고(하이트맵 덧칠은 없다), {@code update} 의 돌려줌은
+ * false 다(주인이 재생할 때의 결과를 그 자리에서 알 수 없다). 월드젠 종류에 쓰기와 따로 만드는 생성자는 없다(N2b-6 — FAWE 는 쓰지 않는다).
  */
 public class Heightmap {
 
@@ -60,7 +62,7 @@ public class Heightmap {
 
     private RuntimeException wgWrite(String what) {
         return new org.domi.furnace.compat.nms.UnsupportedNmsCall("Heightmap#" + what + " (" + type.getSerializationKey() + ")",
-                "로드된 청크의 월드젠 하이트맵에 쓰는 길은 아직 없다(N2b-4) — 살아 있는 네 종류는 된다");
+                "로드된 청크의 월드젠 하이트맵(*_WG)은 바닐라에서도 생성이 끝나면 남지 않는다 — 살아 있는 네 종류는 된다");
     }
 
     /**

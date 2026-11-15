@@ -113,6 +113,9 @@ public final class SchemaPacketBridge {
             return refuse(d, t, received ? "Furnace 타입 레코드 종류다(ServerboundBridge 가 다룬다)"
                     : "Furnace 타입 레코드 종류라 shim 변환이 아직 없다 — Furnace 패킷 API 의 레코드(docs/api/packets.md)를 쓴다");
         }
+        if (!received && ChunkPacketBridge.handles(d.wireName())) {
+            return refuse(d, t, "손으로 쓴 shim 이 직접 다룬다(ChunkPacketBridge — 범용 shim 이 아니다)");
+        }
         if (d.custom()) return compileCustom(d, t);
         if (d.superType() != null) return refuse(d, t, "부모 클래스 필드가 있는 종류는 아직 다루지 않는다");
         try {

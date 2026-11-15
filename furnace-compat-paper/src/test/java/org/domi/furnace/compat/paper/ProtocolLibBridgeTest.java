@@ -440,6 +440,98 @@ class ProtocolLibBridgeTest {
         }
     }
 
+    /**
+     * T-182: 서버가 보내는 청크 패킷이 라이브러리를 지난다(ProtocolLib MAP_CHUNK — 블록 숨기기 플러그인의 길). 손대지 않으면 원래 바이트 그대로,
+     * 구역 데이터(buffer)를 바꿔 넣으면 클라이언트가 바뀐 바이트를 받는다. 변환 비용(되돌리기 + 비교)을 한 번 재서 남긴다.
+     */
+    @Test
+    void chunkPacketsPassTheLibraryWhichCanRewriteTheSections() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            TestPlayer tp = server.join("Lib");
+            server.tick(2);
+            tp.sync();
+            var world = Bukkit.getWorlds().getFirst();
+            var loc = Bukkit.getPlayer("Lib").getLocation();
+            int cx = loc.getBlockX() >> 4, cz = loc.getBlockZ() >> 4;
+            // 접속 직후라 주변 청크가 아직 흘러 들어온다: 다시 보낸 그 청크만 본다
+            java.util.function.Predicate<GenericPacket> here = p -> Integer.valueOf(cx).equals(p.get("x")) && Integer.valueOf(cz).equals(p.get("z"));
+
+            // 바탕: 라이브러리 없이 다시 보낸 청크
+            tp.clearReceived();
+            assertTrue(world.refreshChunk(cx, cz));
+            server.tick(2);
+            GenericPacket plain = tp.awaitPacket(PacketTypes.Clientbound.LEVEL_CHUNK_WITH_LIGHT, here);
+
+            var shimClass = net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket.class;
+            ProtocolLibBridge bridge = ProtocolLibBridge.start(owner(), () -> List.of(shimClass));
+            try {
+                bridge.resync();
+                assertEquals(Set.of(PacketTypes.Clientbound.LEVEL_CHUNK_WITH_LIGHT), bridge.types());
+                byte[][] rewrite = {null};
+                List<Seen> seen = install(connectionOf("Lib"), packet -> {
+                    if (rewrite[0] == null || !shimClass.isInstance(packet)) return packet;
+                    // ProtocolLib WrappedLevelChunkData.ChunkData.setBuffer 처럼 byte[] 필드를 반사로 바꾼다
+                    var data = shimClass.cast(packet).getChunkData();
+                    try {
+                        for (Field f : data.getClass().getDeclaredFields()) {
+                            if (f.getType() == byte[].class) {
+                                f.setAccessible(true);
+                                f.set(data, rewrite[0]);
+                            }
+                        }
+                    } catch (ReflectiveOperationException e) {
+                        throw new AssertionError(e);
+                    }
+                    return packet;
+                });
+
+                // 손대지 않는 리스너: 같은 청크가 같은 값으로
+                tp.clearReceived();
+                assertTrue(world.refreshChunk(cx, cz));
+                server.tick(2);
+                GenericPacket same = tp.awaitPacket(PacketTypes.Clientbound.LEVEL_CHUNK_WITH_LIGHT, here);
+                assertEquals(plain, same, "손대지 않으면 원래 값 그대로");
+                assertTrue(seen.stream().anyMatch(s -> shimClass.isInstance(s.packet())), "라이브러리가 청크 패킷을 본다");
+
+                // 구역 데이터를 바꾸는 리스너(블록 숨기기처럼): 모든 구역을 돌 하나짜리 팔레트로
+                int sections = (world.getMaxHeight() - world.getMinHeight()) >> 4;
+                int stone = net.minecraft.world.level.block.Block.getId(net.minecraft.world.level.block.Blocks.STONE.defaultBlockState());
+                var out = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
+                for (int i = 0; i < sections; i++) {
+                    out.writeShort(4096);                 // 블록 수
+                    out.writeByte(0);                     // 블록 상태: 값 하나(비트 0, 값, 긴 배열 길이 0)
+                    out.writeVarInt(stone);
+                    out.writeVarInt(0);
+                    out.writeByte(0);                     // 생물 군계: 값 하나
+                    out.writeVarInt(0);
+                    out.writeVarInt(0);
+                }
+                rewrite[0] = new byte[out.readableBytes()];
+                out.readBytes(rewrite[0]);
+                tp.clearReceived();
+                assertTrue(world.refreshChunk(cx, cz));
+                server.tick(2);
+                GenericPacket changed = tp.awaitPacket(PacketTypes.Clientbound.LEVEL_CHUNK_WITH_LIGHT, here);
+                var chunkData = (PacketStruct) changed.get("chunk_data");
+                org.junit.jupiter.api.Assertions.assertArrayEquals(rewrite[0], (byte[]) chunkData.get("buffer"), "라이브러리가 바꾼 구역 데이터가 나간다");
+                assertEquals(((PacketStruct) plain.get("chunk_data")).get("heightmaps"), chunkData.get("heightmaps"), "다른 값은 그대로");
+                assertEquals(plain.get("light_data"), changed.get("light_data"));
+
+                // 변환 비용: 되돌리기(Furnace → shim) + 비교용 변환(shim → Furnace) 한 번씩
+                int n = 50;
+                long t0 = System.nanoTime();
+                for (int i = 0; i < n; i++) {
+                    var s = org.domi.furnace.compat.nms.PacketDelivery.fromFurnace(plain);
+                    org.domi.furnace.compat.nms.PacketDelivery.convert(s);
+                }
+                System.out.printf("[T-182] 청크 패킷 하나 변환(되돌리기+비교 변환) 평균 %.1f µs, buffer %d 바이트%n",
+                        (System.nanoTime() - t0) / 1000.0 / n, ((byte[]) ((PacketStruct) plain.get("chunk_data")).get("buffer")).length);
+            } finally {
+                bridge.stop();
+            }
+        }
+    }
+
     @Test
     void withoutAnInjectedChannelNothingChanges() throws Exception {
         try (FurnaceTestServer server = start()) {

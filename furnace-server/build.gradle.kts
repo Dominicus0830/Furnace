@@ -61,17 +61,38 @@ tasks.test {
     System.getProperties().forEach { k, v ->
         if (k.toString().startsWith("furnace.")) systemProperty(k.toString(), v.toString())
     }
-    // CI 분할 실행: -PtestShard=2/3 → 시험 클래스 이름 해시가 (2-1) % 3 인 클래스만 돌린다(서버 시험 3천 개를 러너 여러 대로 나눈다).
-    // 같은 이름은 항상 같은 조각에 들어가고(@Nested·내부 클래스는 바깥 클래스를 따른다) 조각을 모두 합치면 전체와 같다. 속성이 없으면 전부 돌린다.
-    // shardSalt 는 조각 시간이 고르게 나뉘도록 tools/ci/shard-balance.py 로 고른 값이다(바꿔도 정확성에는 영향 없고 균형만 달라진다).
+    // CI 분할 실행: -PtestShard=2/3 → 2번째 조각의 시험 클래스만 돌린다(서버 시험을 러너 여러 대로 나눈다). 속성이 없으면 전부 돌린다.
+    // 같은 클래스는 항상 같은 조각에 들어가고(@Nested·내부 클래스는 바깥 클래스를 따른다) 조각을 모두 합치면 전체와 같다.
+    // 배정(T-162): test-shard-times.tsv(클래스별 시험 시간 실측)에 있는 클래스는 오래 걸리는 것부터 지금 가장 가벼운 조각에 넣는다(LPT).
+    // 파일에 없는 새 클래스만 이름 해시로 나눈다. 배정은 정확성에 영향이 없고 균형만 달라진다. 시간 파일 갱신은 tools/ci/shard-balance.py --write(docs/ci.md).
+    // 이 규칙을 바꾸면 tools/ci/shard-balance.py 의 assign() 도 같이 바꾼다(두 곳이 같은 배정을 내야 균형 계산이 맞다).
     (findProperty("testShard") as String?)?.let { spec ->
         val m = Regex("""(\d+)/(\d+)""").matchEntire(spec.trim()) ?: error("testShard 는 '번호/전체' 꼴이다(예: 2/3): $spec")
         val total = m.groupValues[2].toInt()
         val index = m.groupValues[1].toInt()
-        val shardSalt = "100"
         require(total >= 1 && index in 1..total) { "testShard 범위 오류: $spec" }
+        val shardSalt = "100"   // 해시 몫(시간 파일에 없는 클래스) 전용
+        val timesFile = file("test-shard-times.tsv")
+        inputs.file(timesFile).optional()
+        val known = HashMap<String, Int>()
+        if (timesFile.isFile) {
+            val rows = timesFile.readLines().filter { it.isNotBlank() && !it.startsWith("#") }.map { line ->
+                val parts = line.split('\t')
+                require(parts.size == 2) { "${timesFile.name}: '클래스<TAB>초' 꼴이 아니다: $line" }
+                parts[0] to parts[1].toDouble()
+            }
+            val load = DoubleArray(total)
+            for ((name, sec) in rows.sortedWith(compareByDescending<Pair<String, Double>> { it.second }.thenBy { it.first })) {
+                var best = 0
+                for (i in 1 until total) if (load[i] < load[best]) best = i
+                load[best] += sec
+                known[name] = best
+            }
+        }
         include(Spec<FileTreeElement> { el ->
-            el.isDirectory || Math.floorMod((el.path.substringBefore('$').removeSuffix(".class") + shardSalt).hashCode(), total) == index - 1
+            if (el.isDirectory) return@Spec true
+            val key = el.path.substringBefore('$').removeSuffix(".class")
+            (known[key] ?: Math.floorMod((key + shardSalt).hashCode(), total)) == index - 1
         })
     }
 }

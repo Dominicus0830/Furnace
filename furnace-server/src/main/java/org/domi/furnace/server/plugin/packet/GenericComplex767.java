@@ -323,14 +323,15 @@ final class GenericComplex767 {
 
     /**
      * ClientboundLightUpdatePacketData: 마스크 넷(long[] — 비트 i = 맨 아래 빛 구역에서 i 번째), 하늘·블록 빛 배열 목록.
-     * 클라이언트는 마스크에 선 비트마다 배열을 하나씩 꺼내므로(모자라면 NoSuchElementException 으로 끊긴다) 배열 수 = 마스크 비트 수여야 쓴다.
+     * 클라이언트는 마스크에 선 비트마다 배열을 하나씩 꺼내므로(모자라면 NoSuchElementException 으로 끊긴다) 배열이 마스크 비트 수보다 적으면 쓰지 않는다.
+     * 남는 배열은 클라이언트가 읽고 버린다 — 바닐라·Paper 도 그대로 보내므로 받아 쓴다(PR #399 검토 S1: 예전엔 거절해 리스너가 바꾼 청크 대신 원래 청크가 나갔다).
      */
     private static final Node LIGHT_DATA = node(PacketStruct.class, b -> GenericCodec767.readStruct(LIGHT, b), (o, v) -> {
         PacketStruct s = (PacketStruct) v;
         Map<String, Object> m = GenericCodec767.checked(LIGHT, s, "light_data");
         for (String layer : List.of("sky", "block")) {
             int bits = bitCount(trim((long[]) m.get(layer + "_y_mask"))), arrays = ((List<?>) m.get(layer + "_updates")).size();
-            if (bits != arrays) throw bad("light_data." + layer + "_updates 는 " + layer + "_y_mask 의 비트 수(" + bits + ")만큼 있어야 한다: " + arrays);
+            if (arrays < bits) throw bad("light_data." + layer + "_updates 는 " + layer + "_y_mask 의 비트 수(" + bits + ") 이상 있어야 한다(모자라면 클라이언트가 끊긴다): " + arrays);
         }
         GenericCodec767.writeStruct(LIGHT, s, o, "light_data");
     });

@@ -163,6 +163,11 @@ class GenericComplexPacketTest {
         PacketStruct light = s("sky_y_mask", new long[]{3}, "block_y_mask", new long[0], "empty_sky_y_mask", new long[0], "empty_block_y_mask", new long[0],
                 "sky_updates", List.of(new byte[2048]), "block_updates", List.of());
         assertTrue(rejected(g(Clientbound.LIGHT_UPDATE, "x", 0, "z", 0, "light_data", light)).contains("비트 수"));
+        // 남는 배열은 클라이언트가 읽고 버린다 — 바닐라·Paper 처럼 쓴다(PR #399 검토 S1)
+        PacketStruct extra = s("sky_y_mask", new long[]{1}, "block_y_mask", new long[0], "empty_sky_y_mask", new long[0], "empty_block_y_mask", new long[0],
+                "sky_updates", List.of(new byte[2048], new byte[2048]), "block_updates", List.of());
+        GenericPacket more = g(Clientbound.LIGHT_UPDATE, "x", 0, "z", 0, "light_data", extra);
+        assertEquals(more, decode(Clientbound.LIGHT_UPDATE, hex(more)));
         light = s("sky_y_mask", new long[]{1}, "block_y_mask", new long[0], "empty_sky_y_mask", new long[0], "empty_block_y_mask", new long[0],
                 "sky_updates", List.of(new byte[10]), "block_updates", List.of());
         assertTrue(rejected(g(Clientbound.LIGHT_UPDATE, "x", 0, "z", 0, "light_data", light)).contains("2048"));

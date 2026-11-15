@@ -132,6 +132,8 @@ final class GameRegistriesImpl implements GameRegistries {
             } catch (java.io.IOException e) {
                 throw new java.io.UncheckedIOException(e);
             }
+            // 블록 엔티티 종류는 reports/registries.json 에 없어 코드 표(1.21.1 등록 순서)를 쓴다 — 패킷 코덱과 같은 표
+            out.putIfAbsent("minecraft:block_entity_type", List.of(org.domi.furnace.server.block.entity.BlockEntity.TYPES));
             out.replaceAll((k, v) -> List.copyOf(v));
             return java.util.Map.copyOf(out);
         }

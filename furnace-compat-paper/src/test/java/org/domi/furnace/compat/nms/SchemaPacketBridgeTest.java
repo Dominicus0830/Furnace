@@ -70,7 +70,8 @@ class SchemaPacketBridgeTest {
                 if (t == null || t.typed() || !d.custom() || !packets.isReadable(t)) continue;
                 (SchemaPacketBridge.supports(d) ? bridged : missing).add(d.wireName());
             }
-            // E5 복잡한 종류(입자·폭발·청크·빛·명령 트리·서명 채팅·레시피 둘·발전 과제·번들 구분자)는 서버가 읽게 됐으나 아직 다리가 없다
+            // E5 복잡한 종류(입자·폭발·명령 트리·서명 채팅·레시피 둘·발전 과제·번들 구분자)는 서버가 읽게 됐으나 아직 다리가 없다.
+            // 청크·빛은 범용 다리가 아니라 손으로 쓴 shim(ChunkPacketBridge, T-182)이 다룬다 — 시험 ChunkPacketShimTest
             assertEquals(Set.of("award_stats", "boss_event", "bundle_delimiter", "commands", "explode", "level_chunk_with_light", "level_particles", "light_update",
                     "player_chat", "recipe", "update_advancements", "update_recipes"), missing, "다리 " + bridged.size() + "종: " + bridged);
             assertEquals(Set.of("damage_event", "map_item_data", "move_entity_pos", "move_entity_pos_rot", "move_entity_rot", "player_abilities", "player_look_at",

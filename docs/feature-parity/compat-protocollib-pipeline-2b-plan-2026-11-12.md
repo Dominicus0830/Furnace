@@ -189,7 +189,7 @@ Furnace 서버 패킷 P (네트워크 스레드, PacketService 리스너 EventPr
 | 빈 값 shim | `block_entity_data`·`delete_chat`·`disguised_chat`·`login`·`open_screen`·`respawn`·`server_links` | `toFurnace` 도 없다(값 shim 이 빈 껍데기) |
 | 손 코덱 | `boss_event`·`award_stats` | `toFurnace` 도 없다 |
 | 손 코덱 | `set_player_team`·`set_objective`·`update_attributes`·`map_item_data` | 역변환이 아직 없다 — 2b-4 |
-| 손 코덱 와이어·빈 값 shim | `commands`·`explode`·`level_chunk_with_light`·`level_particles`·`light_update`·`merchant_offers`·`player_chat`·`recipe`·`update_advancements`·`update_recipes`·`update_tags` | 범용 코덱이 읽게 됐지만(기준 브랜치 병합 뒤) shim → Furnace 도 없다 — 2b-4 |
+| 손 코덱 와이어·빈 값 shim | `commands`·`explode`·`level_particles`·`merchant_offers`·`player_chat`·`recipe`·`update_advancements`·`update_recipes`·`update_tags` (청크·빛은 T-182 로 됨, §12) | 범용 코덱이 읽게 됐지만(기준 브랜치 병합 뒤) shim → Furnace 도 없다 — 2b-4 |
 | 구분자 | `bundle_delimiter` | 서버가 넣는다(취소·바꾸기 금지) |
 | 값 하나 | `set_score`·`set_objective` 의 styled 숫자 형식 | NBT 스타일 → shim Style 이 없다(그 패킷만 건너뛰고 경고 한 번) |
 
@@ -219,3 +219,20 @@ Furnace 서버 패킷 P (네트워크 스레드, PacketService 리스너 EventPr
 - **시험**: `PlayerInfoShimTest`(안쪽 클래스 순서, 공개 항목 생성자, 빈 패킷 만들기, 동작 6개 왕복·속성·채팅 세션, ADD_PLAYER 없는 갱신의 빈 이름 프로필, 프로필 없는 ADD_PLAYER 의 오류 문구, authlib 없을 때의 까닭), `ProtocolLibBridgeTest.tabListPacketsAtJoinPassTheLibraryWithTheProfile`(NMS 플레이어 GameProfile 필드 하나, 새 플레이어 접속 때 기존 플레이어에게 가는 탭 목록 패킷을 라이브러리가 보고 표시 이름을 바꾸면 클라이언트가 바뀐 이름을 받음), `CompatLinkTest`(authlib 대역을 뺀 로더에서 호환 클래스가 이어짐), `SchemaPacketReverseTest.reversibleKindsTable`.
 - **시험용 authlib 대역**: `libraries.minecraft.net` 은 샌드박스·CI 에서 막혀 있어 `furnace-compat-paper/src/authlib/java` 에 시험·컴파일 전용 대역(`GameProfile`·`Property`·`PropertyMap`, 쓰는 멤버만)을 둔다. jar 에는 들어가지 않는다(compileOnly·testRuntimeOnly). `CompatLinkTest` 는 이 대역을 뺀 로더로 authlib 없는 서버를 흉내 낸다.
 
+## 12. 청크·빛 패킷 (T-182, 2026-11-15)
+
+- **무엇이 되나**: 서버가 보내는 `level_chunk_with_light`(ProtocolLib `MAP_CHUNK`)·`light_update`(`LIGHT_UPDATE`)가 ProtocolLib 보내는 리스너를 지난다. 블록을 숨기는 플러그인(Orebfuscator)처럼 `getLevelChunkData()` 로 구역 데이터(buffer)·하이트맵·블록 엔티티를 읽고 바꿔 넣으면 클라이언트가 바뀐 것을 받는다. 리스너가 그 종류를 듣지 않으면 구독 자체가 없어 비용이 없다(2b-2 구독 규칙 그대로).
+- **shim**: `ClientboundLevelChunkWithLightPacket`·`ClientboundLightUpdatePacket`·`ClientboundLevelChunkPacketData`(+ private `BlockEntityInfo`)·`ClientboundLightUpdatePacketData` 를 손으로 썼다. ProtocolLib `WrappedLevelChunkData` 가 찾는 모양: ChunkData 는 `CompoundTag`·`byte[]`·`List<BlockEntityInfo>` 필드가 하나씩(항목 클래스는 List 의 형식 인자에서 찾는다), `(RegistryFriendlyByteBuf, int, int)` 생성자. BlockEntityInfo 는 int 둘(packedXZ, y 순서)·`BlockEntityType`·`CompoundTag` 와 네 값 생성자. LightData 는 BitSet 넷(하늘·블록·빈 하늘·빈 블록 순서)·`List<byte[]>` 둘(바꿀 수 있는 ArrayList — 라이브러리가 `addAll` 로 채운다), `(FriendlyByteBuf, int, int)` 생성자. 바닐라에 없는 값 생성자는 공개하지 않는다(정적 `furnace(...)`).
+- **바이트 생성자**: 하이트맵 NBT·구역 데이터·블록 엔티티를 바닐라 순서로 읽는다(새 `compat/nms/NbtWire` — 1.20.2+ 네트워크 NBT). 하이트맵 태그가 0(없음)이면 빈 compound — ProtocolLib `fromValues` 가 0 버퍼로 빈 자료를 만들 때 Paper 에서는 ProtocolLib 이 `readNbt` 를 가로채 빈 compound 를 주므로 결과가 같다. `write(...)` 도 바닐라 모양.
+- **블록 엔티티 종류**: 새 `BlockEntityType` shim 과 `BuiltInRegistries.BLOCK_ENTITY_TYPE`(`Registry<BlockEntityType<?>>` — ProtocolLib `WrappedRegistry` 가 형식 인자의 원시 형식으로 찾는다). 순서는 서버 표 `BlockEntity.TYPES`(1.21.1 등록 순서, 패킷 코덱과 같은 표) — `GameRegistries.builtIn("minecraft:block_entity_type")` 에도 넣었다. 종류 상수(CHEST 등)는 아직 없다.
+- **변환** `compat/nms/ChunkPacketBridge`: 범용 패킷(서버 손 코덱 `GenericComplex767` 모양) ↔ shim. buffer 는 해석하지 않고 그대로 넘긴다. 빛 배열은 2048 바이트가 아니면 위치를 담은 `IllegalArgumentException`. 마스크 비트보다 배열이 많으면 바닐라처럼 받아들이고(클라이언트는 남는 배열을 무시), 모자라면 거절한다(클라이언트가 끊긴다). 범용 다리(`SchemaPacketBridge`)는 이 둘을 "손으로 쓴 shim 이 다룬다"로 거절하고 `SchemaPacketReverse` 가 이 다리로 넘긴다.
+- **비용**: 리스너가 들을 때 청크 하나에 되돌리기 + 비교 변환. 시험 서버(평평한 세계, buffer 2245 바이트)에서 평균 약 64µs(JIT 데우기 전 50회 평균, 참고값). 독립 검토의 따로 잰 값은 JIT 데운 뒤 약 95~120µs 이고, 그중 비교용 `before` 변환(약 30µs)은 이 종류에서 건너뛴다(아래 12-1). 리스너가 손대지 않으면 원래 패킷(여러 플레이어가 나누는 압축 프레임 포함)이 그대로 나간다.
+- **한계**: `ClientboundLevelChunkWithLightPacket(LevelChunk, LevelLightEngine, BitSet, BitSet)`·`ClientboundLightUpdatePacketData(ChunkPos, LevelLightEngine, …)` 처럼 서버 청크·빛 엔진에서 만드는 바닐라 생성자는 없다(플러그인이 청크 패킷을 새로 만들려면 ProtocolLib `fromValues` 또는 Furnace 패킷 API). 블록 엔티티 종류의 상수·`create` 는 없다.
+- **시험**: `ChunkPacketShimTest`(라이브러리가 찾는 모양·레지스트리 필드 형식, 0 버퍼 빈 자료·바꿀 수 있는 목록, 범용 ↔ shim 왕복과 바이트 쓰기·읽기 왕복, 위치를 담은 오류), `ProtocolLibBridgeTest.chunkPacketsPassTheLibraryWhichCanRewriteTheSections`(`refreshChunk` 로 다시 보낸 청크: 손대지 않으면 같은 값, buffer 를 반사로 바꾸면 클라이언트가 그 바이트를 받음, 변환 비용 출력), `SchemaPacketReverseTest`(접속 때 받은 청크 패킷 왕복·되돌리기 표).
+
+### 12-1. 독립 검토(PR #399) 뒤 고친 것
+
+- **R1 라이브러리가 청크·빛 자료를 만들 때**: ProtocolLib `StructureCache.initTrickDataSerializer` 는 `net.minecraft.nbt.NbtAccounter` 를 찾고, 없으면 조용히 실패해 `ZeroBuffer` 로 만드는 길(`LightData.fromValues`, 빈 `ChunkData`)이 NPE 로 끝났다. `NbtAccounter` shim(바닐라 생성자·`create`·`unlimitedHeap`)을 두었고, `NbtWire` 는 태그 0 을 먼저 읽어 0 버퍼에서 null(→ 빈 compound)을 준다. `ZeroBuffer` 를 흉내 낸 버퍼로 두 자료 생성자를 시험한다. `ChunkData.fromValues` 는 ProtocolLib 5.4.0 자체 버그로 Paper 에서도 실패한다(검토 재현) — Furnace 가 고칠 것이 아니다.
+- **R2 취소·미루기 때 두 번 해제**: 서버 `Tap.outbound` 가 청크 본문을 쓰면서(`write`) 해제한 뒤 호출자가 다시 `discard` 해 예외가 났다. 이제 청크 패킷은 본문을 복사만 하고 해제하지 않는다. 손대지 않으면 원래 패킷 객체를 돌려줘(공유 압축 프레임 유지), 바꾸면 새 패킷을 만든 뒤 원래 것을 한 번 해제, 취소하면 null 을 돌려 호출자가 한 번 해제한다. `PacketApiTest.chunkListenersKeepCancelAndChangeWithoutReleasingTwice` 가 세 경우의 참조 수를 본다.
+- **S2 비교 변환 건너뛰기**: 청크·빛처럼 shim 왕복이 손실 없는 종류(`PacketDelivery.losslessRoundTrip`)는 리스너 전 값을 다시 변환하지 않고 원래 범용 패킷과 비교한다.
+- **S4 시험 보강**: 빛 목록을 바꿀 수 있는지, 블록 엔티티 종류 레지스트리 번호(화로 0·상자 1·표지판 7), `NbtWire` 빈 목록 바이트와 깊이 한도(512).

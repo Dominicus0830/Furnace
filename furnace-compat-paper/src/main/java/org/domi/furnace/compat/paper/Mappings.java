@@ -541,6 +541,27 @@ final class Mappings {
         if (b.hasBlock() && b.useInteractedBlock() == deny) b.setUseInteractedBlock(org.bukkit.event.Event.Result.DEFAULT);
     }
 
+    private static void lockCheckToFurnace(org.domi.furnace.api.event.block.BlockLockCheckEvent f, io.papermc.paper.event.block.BlockLockCheckEvent b) {
+        var r = org.domi.furnace.api.event.block.BlockLockCheckEvent.Result.valueOf(b.getResult().name());
+        if (r != f.result()) f.setResult(r);
+        if (b.isUsingCustomKeyItemStack()) {
+            var key = CompatItems.toFurnace(b.getKeyItem());
+            if (!f.isUsingCustomKeyItem() || !Objects.equals(key, f.keyItem())) f.setKeyItem(key);
+        } else if (f.isUsingCustomKeyItem()) {
+            f.resetKeyItem();
+        }
+    }
+
+    private static void lockCheckToBukkit(org.domi.furnace.api.event.block.BlockLockCheckEvent f, io.papermc.paper.event.block.BlockLockCheckEvent b) {
+        var r = org.bukkit.event.Event.Result.valueOf(f.result().name());
+        if (r != b.getResult()) b.setResult(r);
+        if (f.isUsingCustomKeyItem()) {
+            if (!b.isUsingCustomKeyItemStack() || !Objects.equals(f.keyItem(), CompatItems.toFurnace(b.getKeyItem()))) b.setKeyItem(CompatItems.copyOf(f.keyItem()));
+        } else if (b.isUsingCustomKeyItemStack()) {
+            b.resetKeyItem();
+        }
+    }
+
     private static void registerInteractAndBlocks() {
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerInteractEvent.class, org.bukkit.event.player.PlayerInteractEvent.class,
                 f -> {
@@ -580,6 +601,14 @@ final class Mappings {
                 }, (f, b) -> {
                     if (b.getNewCurrent() != f.newCurrent()) b.setNewCurrent(f.newCurrent());
                 });
+        // Paper BlockLockCheckEvent: 결과(ALLOW·DEFAULT·DENY)와 따로 정한 열쇠를 주고받는다. 알림 글·소리(Adventure)는 Furnace 이벤트에서만
+        EventBridge.reg(org.domi.furnace.api.event.block.BlockLockCheckEvent.class, io.papermc.paper.event.block.BlockLockCheckEvent.class,
+                f -> {
+                    var b = new io.papermc.paper.event.block.BlockLockCheckEvent(Compat.block(f.world(), f.pos()), p(f.player()), CompatItems.copyOf(f.heldItem()));
+                    lockCheckToBukkit(f, b);
+                    return b;
+                },
+                Mappings::lockCheckToFurnace, Mappings::lockCheckToBukkit);
         EventBridge.reg(org.domi.furnace.api.event.block.LeavesDecayEvent.class, org.bukkit.event.block.LeavesDecayEvent.class,
                 f -> new org.bukkit.event.block.LeavesDecayEvent(Compat.block(f.world(), f.pos())), (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.inventory.FurnaceBurnEvent.class, org.bukkit.event.inventory.FurnaceBurnEvent.class,

@@ -55,6 +55,7 @@
 | `PlayerItemHeldEvent` | 같은 이름 | 취소 |
 | `BlockPhysicsEvent`, `BlockFromToEvent`, `BlockBurnEvent`, `BlockIgniteEvent`, `LeavesDecayEvent` | 같은 이름 | 취소 |
 | `BlockRedstoneEvent` | 같은 이름 | 새 세기 |
+| `io.papermc.paper.event.block.BlockLockCheckEvent` | `BlockLockCheckEvent` | 결과(`ALLOW`·`DEFAULT`·`DENY`), 따로 정한 열쇠(`setKeyItem`·`resetKeyItem`). 용기·신호기를 열 때 잠기지 않았어도 불리고, 큰 상자는 반쪽마다(type=right 부터). 기본 열쇠는 누를 때 주 손. Adventure 판 알림 글·소리(`getLockedMessage`·`setLockedSound`·`denyWithMessageAndSound`)는 없다(NoSuchMethodError) — Furnace 이벤트의 `setLockedMessage`·`setLockedSound` 를 쓴다 |
 | `FurnaceBurnEvent` | 같은 이름 | 태우는 시간, 불붙음, 취소 |
 | `FurnaceSmeltEvent` (처리기 목록은 `BlockCookEvent`) | `FurnaceSmeltEvent` | 결과 아이템, 취소 |
 | `CraftItemEvent` (처리기 목록은 `InventoryClickEvent` — 클릭 처리기도 받는다) | `CraftItemEvent` | 취소. `getRecipe()` 는 키(`Keyed`)와 결과만 아는 레시피 |
