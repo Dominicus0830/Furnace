@@ -1,6 +1,7 @@
 // OfflinePlayer 구현 — 접속 중이면 접속자 핸들로 넘기고, 아니면 playerdata 파일과 서버 목록(ops/banned-players/whitelist)을 직접 다룬다.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
@@ -120,7 +121,7 @@ final class OfflinePlayerImpl implements OfflinePlayer {
             root = PlayerData.readRoot(core().world().worldDir(), id);
         } catch (RuntimeException e) {
             // Paper 처럼 읽지 못하는 파일은 경고만 남기고 빈 보기로 — 한 파일 때문에 플레이어를 훑는 플러그인이 끊기지 않게
-            org.slf4j.LoggerFactory.getLogger(OfflinePlayerImpl.class).warn("플레이어 데이터를 읽지 못해 영속 데이터를 빈 값으로 본다 ({}): {}", id, e.toString());
+            org.slf4j.LoggerFactory.getLogger(OfflinePlayerImpl.class).warn(Lang.t("plugin.offline-data-unreadable", id, e.toString()));
             return null;
         }
         if (root == null) return null;

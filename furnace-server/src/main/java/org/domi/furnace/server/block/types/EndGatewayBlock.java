@@ -4,6 +4,7 @@
 // Furnace 는 출구 쪽 청크가 다른 region 스레드 소유이고 아직 없을 수 있어 청크를 비동기로 올린 뒤 그 region 스레드에서 계산한다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.function.BiConsumer;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.ChunkLevel;
@@ -91,7 +92,7 @@ public class EndGatewayBlock extends BaseEntityBlock implements Portal {
                 try {
                     d = transition(lvl, ex ? exit : EndGatewayBlockEntity.findExitPosition(lvl, exit), t);
                 } catch (RuntimeException e) {
-                    log.error("[GATEWAY] 도착 칸 계산 실패 {}", exit, e);
+                    log.error(Lang.t("gateway.arrival-failed", exit), e);
                     d = null;
                 }
                 arrive.accept(d == null ? null : lvl, d);
@@ -120,7 +121,7 @@ public class EndGatewayBlock extends BaseEntityBlock implements Portal {
             try {
                 finished = walk.feed(EndGatewayBlockEntity.isChunkEmpty(lvl, cx, cz));
             } catch (RuntimeException e) {
-                log.error("[GATEWAY] 출구 청크 찾기 실패 {}", gateway, e);
+                log.error(Lang.t("gateway.exit-chunk-failed", gateway), e);
                 done.accept(null);
                 return;
             }
@@ -138,7 +139,7 @@ public class EndGatewayBlock extends BaseEntityBlock implements Portal {
                 try {
                     exit = EndGatewayBlockEntity.buildExit(lvl2, walk, gateway);
                 } catch (RuntimeException e) {
-                    log.error("[GATEWAY] 출구 관문 만들기 실패 {}", gateway, e);
+                    log.error(Lang.t("gateway.exit-create-failed", gateway), e);
                     exit = null;
                 }
                 done.accept(exit);

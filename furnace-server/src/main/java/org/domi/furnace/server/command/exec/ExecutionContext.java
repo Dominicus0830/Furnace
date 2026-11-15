@@ -15,6 +15,7 @@ import java.util.function.Consumer;
 import org.domi.furnace.api.concurrent.ThreadOwner;
 import org.domi.furnace.server.command.CommandSource;
 import org.domi.furnace.server.command.brigadier.ContextChain;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -241,7 +242,7 @@ public final class ExecutionContext {
             try {
                 tracer.close();
             } catch (RuntimeException e) {
-                log.warn("추적기 닫기 실패", e);
+                log.warn(Lang.t("cmd.tracer-close-failed"), e);
             }
         }
         done.complete(null);

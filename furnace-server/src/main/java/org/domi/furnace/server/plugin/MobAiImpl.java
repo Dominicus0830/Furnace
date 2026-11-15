@@ -1,6 +1,7 @@
 // API MobAi: 서버 몹을 직접 잡고 소유 region 스레드에서만 다룬다. 호출마다 소유 스레드인지 확인한다(얇은 포장이라 필요할 때마다 만든다).
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -273,14 +274,14 @@ final class MobAiImpl implements MobAi {
             try {
                 r = hook.classify(x, y, z, toApi(vanilla));
             } catch (Throwable t) {
-                LoggerFactory.getLogger(MobAiImpl.class).warn("플러그인 {} 의 길찾기 훅이 예외를 던져 뗀다", owner, t);
+                LoggerFactory.getLogger(MobAiImpl.class).warn(Lang.t("plugin.pathfinding-hook-threw", owner), t);
                 detach();
                 return vanilla;
             }
             if (r == null) return vanilla;
             PathType s = BY_KEY.get(r.key());
             if (s == null) {
-                LoggerFactory.getLogger(MobAiImpl.class).warn("플러그인 {} 의 길찾기 훅이 모르는 종류 {} 를 돌려줘 뗀다", owner, r.key());
+                LoggerFactory.getLogger(MobAiImpl.class).warn(Lang.t("plugin.pathfinding-hook-unknown-kind", owner, r.key()));
                 detach();
                 return vanilla;
             }

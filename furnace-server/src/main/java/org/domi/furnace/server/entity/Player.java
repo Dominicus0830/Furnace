@@ -1,6 +1,7 @@
 // 플레이어 엔티티 상태(region 스레드 소유). 채널로 패킷 전송(eventLoop 마샬).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.server.i18n.Lang;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import java.util.HashMap;
@@ -2361,7 +2362,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
                 try {
                     adopt.accept(r);
                 } catch (RuntimeException e) {   // 편입 실패가 차원 이동 콜백(되돌리기 판단) 위로 올라가지 않게
-                    org.slf4j.LoggerFactory.getLogger(Player.class).error("[PORTAL] 도착 편입 실패", e);
+                    org.slf4j.LoggerFactory.getLogger(Player.class).error(Lang.t("portal.arrival-failed"), e);
                 }
             } else {
                 w.runAt(x, z, adopt);

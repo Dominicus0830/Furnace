@@ -2,6 +2,7 @@
 // 패킷마다 독립된 zlib 스트림이라 결과 바이트는 연결별 CompressionEncoder 출력과 똑같다.
 package org.domi.furnace.server.net.io;
 
+import org.domi.furnace.server.i18n.Lang;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
@@ -76,7 +77,7 @@ public final class SharedChunkFrames {
                 try {
                     t.run();
                 } catch (RuntimeException e) {   // 루프 작업 하나가 던진 것처럼 — 바깥 쓰기는 계속
-                    org.slf4j.LoggerFactory.getLogger(SharedChunkFrames.class).warn("[NET] 패킷 리스너 안에서 보낸 작업 실패", e);
+                    org.slf4j.LoggerFactory.getLogger(SharedChunkFrames.class).warn(Lang.t("net.listener-task-failed"), e);
                 }
             }
             tasks = null;
@@ -148,7 +149,7 @@ public final class SharedChunkFrames {
             compressAndCache(pe.enc, body);
         } catch (RuntimeException e) {
             // 미리 압축은 최적화일 뿐이다 — 실패해도 본문 직렬화는 성공해야 하고, 보낼 때 이벤트 루프가 예전처럼 압축한다.
-            org.slf4j.LoggerFactory.getLogger(SharedChunkFrames.class).warn("[NET] 청크 미리 압축 실패 — 보낼 때 압축한다", e);
+            org.slf4j.LoggerFactory.getLogger(SharedChunkFrames.class).warn(Lang.t("net.chunk-precompress-failed"), e);
         }
     }
 }

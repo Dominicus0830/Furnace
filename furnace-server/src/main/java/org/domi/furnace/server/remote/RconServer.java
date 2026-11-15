@@ -14,6 +14,7 @@ import java.net.SocketException;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -114,7 +115,7 @@ public final class RconServer implements AutoCloseable {
         try {
             ServerSocket s = new ServerSocket(port, 0, InetAddress.getByName(ip));
             if (ip.equals("0.0.0.0") || ip.equals("::")) {
-                log.warn("RCON 은 암호화되지 않은 평문 프로토콜이다 — 모든 주소({})로 열렸다. 방화벽으로 막거나 server-ip 를 loopback 으로 제한하는 것을 권장한다", ip);
+                log.warn(Lang.t("rcon.plaintext-open", ip));
             }
             RconServer r = open(s, password, runner, limits);
             log.info("RCON running on {}:{} (max {} clients, {} per IP)", ip, port, limits.maxClients(), limits.maxClientsPerIp());

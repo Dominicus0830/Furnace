@@ -3467,7 +3467,7 @@ public final class Region {
                     })
                     .exceptionally(ex -> {           // 실패해도 배치 닫아 클라 무한 로딩 방지
                         org.slf4j.LoggerFactory.getLogger(Region.class)
-                                .warn("[CHUNK] 전송 실패 {}", cp, ex);
+                                .warn(Lang.t("region.chunk-send-failed", cp), ex);
                         return null;
                     });
             sends.add(f);

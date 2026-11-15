@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.domi.furnace.server.sched.PreciseWait;
 import java.util.concurrent.locks.LockSupport;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -451,7 +452,7 @@ public final class SharedScheduler implements AutoCloseable {
                 }
                 best.runOne(r);
             } catch (Throwable t) {
-                log.error("[TICK] region 워커 루프 오류", t);
+                log.error(Lang.t("tick.worker-loop-error"), t);
             }
         }
     }

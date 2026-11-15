@@ -14,6 +14,7 @@ import org.domi.furnace.server.net.io.FrameDecoder;
 import org.domi.furnace.server.net.io.FrameEncoder;
 import org.domi.furnace.server.entity.EntityIdAllocator;
 import org.domi.furnace.server.world.World;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -106,7 +107,7 @@ public final class NetworkServer {
         boolean uring = false;
         if (useIoUring) {
             uring = ioUringAvailable();
-            if (!uring) log.warn("io-uring=true 이지만 이 환경에서 io_uring 을 쓸 수 없습니다({}) — epoll/NIO 로 되돌아갑니다", ioUringUnavailableReason());
+            if (!uring) log.warn(Lang.t("net.io-uring-unavailable", ioUringUnavailableReason()));
         }
         boolean epoll = !uring && useNativeTransport && io.netty.channel.epoll.Epoll.isAvailable();
         Class<? extends io.netty.channel.ServerChannel> channelType;
@@ -130,8 +131,7 @@ public final class NetworkServer {
             log.info("Using default channel type");
         }
         if (loginContext.limits().proxyProtocol()) {
-            log.warn("PROXY 프로토콜이 켜져 있습니다(proxy-protocol=true): 모든 접속이 PROXY 헤더를 보내야 하며, 앞단 밖에서 직접 접속할 수 있으면 주소를 속일 수 있습니다.{}",
-                    loginContext.limits().proxyTrusted().isEmpty() ? " 'proxy-protocol.trusted' 로 앞단 주소를 제한하세요." : "");
+            log.warn(Lang.t(loginContext.limits().proxyTrusted().isEmpty() ? "net.proxy-protocol-on-open" : "net.proxy-protocol-on"));
         }
         ServerBootstrap b = new ServerBootstrap();
         b.group(bossGroup, workerGroup)

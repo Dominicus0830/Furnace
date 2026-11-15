@@ -15,6 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -104,7 +105,7 @@ public final class StructureReferences {
                 }
             }
         } catch (IOException | RuntimeException e) {
-            LOG.warn("{} 읽기 실패 — 탐험 지도 표시 없이 시작", f.getFileName(), e);
+            LOG.warn(Lang.t("structref.read-failed", f.getFileName()), e);
         }
     }
 
@@ -137,7 +138,7 @@ public final class StructureReferences {
                 Files.move(tmp, f, StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException e) {
                 dirty = true;
-                LOG.error("{} 저장 실패", f.getFileName(), e);
+                LOG.error(Lang.t("structref.save-failed", f.getFileName()), e);
             }
         }
     }

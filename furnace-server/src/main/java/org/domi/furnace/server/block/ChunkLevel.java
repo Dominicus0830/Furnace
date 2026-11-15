@@ -2,6 +2,7 @@
 // 청크를 어디서 얻는지(소유 region 의 로드된 청크)와 변경 방송·저장 표시는 하위 클래스가 정한다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.TreeMap;
 import org.domi.furnace.server.block.entity.BlockEntity;
 import org.domi.furnace.server.entity.AABB;
@@ -2517,7 +2518,7 @@ public abstract class ChunkLevel implements BlockLevel {
         lightBatchChunks.clear();
         if (failed != null) {
             // 묶음의 사본을 버렸으니 보이는 빛은 넘기기 전 그대로다 — 넘겼던 칸을 다시 걸고 그 자리에서 계산한다(끈 것과 같은 결과)
-            org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error("[LIGHT] 빛 작업 실패 — 그 묶음을 이 스레드에서 다시 계산한다", failed);
+            org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error(Lang.t("level.light-task-failed"), failed);
             var engine = lightEngine();
             for (long p : seeds) {
                 engine.blockChanged(org.domi.furnace.server.light.LightEngine.px(p), org.domi.furnace.server.light.LightEngine.py(p),
@@ -2871,7 +2872,7 @@ public abstract class ChunkLevel implements BlockLevel {
             try {
                 e.checkDespawn();   // 바닐라도 범위 검사 앞에서 부르고, 지워져도 그 틱의 tick 은 그대로 간다
             } catch (RuntimeException ex) {
-                org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error("[ENTITY] 사라짐 검사 실패 {} — 지운다", e, ex);
+                org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error(Lang.t("level.entity-check-failed", e), ex);
                 e.discard();
                 continue;
             }
@@ -2890,7 +2891,7 @@ public abstract class ChunkLevel implements BlockLevel {
                 else e.inactiveTick();
                 if (e.isVehicle()) for (var r : e.passengers()) tickPassenger(e, r);
             } catch (RuntimeException ex) {
-                org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error("[ENTITY] 엔티티 틱 실패 {} — 지운다", e, ex);
+                org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error(Lang.t("level.entity-tick-failed", e), ex);
                 e.discard();
             }
         }

@@ -2,6 +2,7 @@
 // 월드를 읽는 조건은 그 칸 청크를 가진 스레드에서만 답이 나온다(아니면 거짓 — 바닐라의 isLoaded 검사 자리).
 package org.domi.furnace.server.loot;
 
+import org.domi.furnace.server.i18n.Lang;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.LinkedHashMap;
@@ -64,7 +65,7 @@ public record LocationPredicate(Bounds x, Bounds y, Bounds z, HolderSet biomes, 
                 default -> unsupported = true;
             }
         }
-        if (unsupported) org.slf4j.LoggerFactory.getLogger(LocationPredicate.class).warn("아직 지원하지 않는 위치 조건 필드: {}", o.keySet());
+        if (unsupported) org.slf4j.LoggerFactory.getLogger(LocationPredicate.class).warn(Lang.t("loot.location-condition-unsupported", o.keySet()));
         return new LocationPredicate(x, y, z, biomes, dimension, blocks, state, unsupported, structures, light, smokey, canSeeSky,
                 fluids, fluidState, blockNbt);
     }
