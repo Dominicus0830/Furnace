@@ -11,9 +11,9 @@
 | FAWE 1.21.1 어댑터(`PaperweightFaweAdapter`) | **올라온다** — 전에는 클래스 초기화(`DataComponentPatch`)에서 죽어 어댑터 없이 돌았다(블록 표 AIOOBE, 편집 명령 전부 실패) |
 | 대표 편집 7가지(아래 2장) | **예외 없이 끝나고 FAWE 가 낸 바뀐 칸 수가 Paper 와 모두 같다** |
 | 저장 파일 대조(16×16 청크) | **블록 0칸, 바이옴 0칸, 하이트맵 4종 0칸 차이** |
-| 빛 | 다르다 — Paper 는 FAWE 부탁으로 Starlight 가 다시 계산, Furnace 는 결정 D2 대로 다시 계산하지 않는다(편집한 41청크에서 하늘빛 126,006칸·블록빛 3,151칸). 다시 계산은 N2b-5(T-196) |
+| 빛 | 다르다 — Paper 는 FAWE 부탁으로 Starlight 가 다시 계산, Furnace 는 결정 D2 대로 다시 계산하지 않는다(편집한 41청크에서 하늘빛 126,006칸·블록빛 3,151칸). 다시 계산은 N2b-5(T-197) |
 | 블록 엔티티 | FAWE 편집과 무관한 차이뿐 — Paper 고유 `keepPacked` 키(바닐라에 없음)와 키 순서 |
-| 남은 구멍 | 블록 엔티티가 든 섹션을 FAWE 가 바꾸면 그 청크 편집이 `UnsupportedNmsCall` 로 실패한다(블록 엔티티 지우기·넣기 길 없음, T-197). 이번 시나리오에는 그런 섹션이 없다 |
+| 남은 구멍 | 블록 엔티티가 든 섹션을 FAWE 가 바꾸면 그 청크 편집이 `UnsupportedNmsCall` 로 실패한다(블록 엔티티 지우기·넣기 길 없음, T-198). 이번 시나리오에는 그런 섹션이 없다 |
 
 ## 2. 어떻게 쟀나
 
@@ -29,10 +29,10 @@ FAWE 출력(두 서버 같음): E1 `Operation completed (1000)`, E2 `8353 blocks
 ## 3. 결과 자세히
 
 - **블록·바이옴·하이트맵**: 256청크 모두 0칸. 하이트맵은 FAWE 가 스스로 셈해 `setRawData` 로 넣는 값이고(N2b-4 일지·고정 하이트맵), 그 셈이 블록 술어(아래 4장)에 기대므로 이 결과가 술어가 Paper 와 같다는 실측 증거다.
-- **빛**: 편집한 41청크 하늘빛 126,006칸·블록빛 3,151칸 다름(Furnace = 편집 전 빛). 편집하지 않은 122청크의 차이(하늘빛 섹션 유무 2,638·블록빛 2,668칸·하늘빛 110칸)는 대조군에도 있는 Furnace 빛 엔진 대 Starlight 의 저장 꼴·값 차이로, FAWE 와 상관없다(T-201 측정).
+- **빛**: 편집한 41청크 하늘빛 126,006칸·블록빛 3,151칸 다름(Furnace = 편집 전 빛). 편집하지 않은 122청크의 차이(하늘빛 섹션 유무 2,638·블록빛 2,668칸·하늘빛 110칸)는 대조군에도 있는 Furnace 빛 엔진 대 Starlight 의 저장 꼴·값 차이로, FAWE 와 상관없다(T-202 측정).
 - **최상위 태그**: Furnace 가 다시 저장한 청크마다 `isLightOn` 1(Paper 0 — Starlight 는 0 으로 쓰고 자기 키를 둔다)과 `furnace:light_version`. Furnace 는 Paper 월드의 청크를 올릴 때 빛을 다시 계산해 저장 대상으로 삼는다(바닐라도 `isLightOn` 0 이면 다시 계산).
 - **블록 엔티티**: 3청크(던전 상자·스포너) — Paper 고유 `keepPacked:0` 이 Furnace 에 없음. 내용은 같다.
-- **콘솔**: Paper 콘솔은 앞 `/` 를 떼지 않아 `/pos1`, Furnace 콘솔은 바닐라처럼 하나 떼서 `//pos1` 로 쳐야 한다(T-200).
+- **콘솔**: Paper 콘솔은 앞 `/` 를 떼지 않아 `/pos1`, Furnace 콘솔은 바닐라처럼 하나 떼서 `//pos1` 로 쳐야 한다(T-201).
 
 ## 4. 고친 것 — FAWE 어댑터가 올라오고 편집하는 데 필요했던 것
 
@@ -40,7 +40,7 @@ FAWE 출력(두 서버 같음): E1 `Operation completed (1000)`, E2 `8353 blocks
 
 | 묶음 | 내용 |
 |---|---|
-| 판·코덱 | `SharedConstants`·`WorldVersion`·`DetectedVersion`·`DataVersion`(3955). `DataComponentPatch`(`CODEC` 은 진짜 DFU Codec 이지만 인코딩·디코딩은 오류 결과 — T-199), `References`·`DataFixers`(판을 올리지 않는 고치기 — T-198), `NbtOps`(상수만 — T-191). DataFixerUpper 컴파일 대역(`src/dfu`, authlib 과 같은 방식) |
+| 판·코덱 | `SharedConstants`·`WorldVersion`·`DetectedVersion`·`DataVersion`(3955). `DataComponentPatch`(`CODEC` 은 진짜 DFU Codec 이지만 인코딩·디코딩은 오류 결과 — T-200), `References`·`DataFixers`(판을 올리지 않는 고치기 — T-199), `NbtOps`(상수만 — T-191). DataFixerUpper 컴파일 대역(`src/dfu`, authlib 과 같은 방식) |
 | 난수 | `RandomSource`·`LegacyRandomSource`·`SingleThreadedRandomSource`·`BitRandomSource`·`MarsagliaPolarGaussian`·`RandomSupport` — Paper 와 같은 수열(시험) |
 | 블록 술어(보조 작업자) | `getLightBlock`·`getShape`/`isShapeFullBlock`·`canOcclude`·`isSolidRender`·`isSignalSource`·`destroySpeed`·`getExplosionResistance`·`getFriction`·`getLightEmission`·`getPistonPushReaction`·`blocksMotion`·`canBeReplaced`·`defaultMapColor`(`MapColor` 62종)·`EmptyBlockGetter`·`VoxelShape`, 다리 `BlockStateInternals`. **상태 26,684개 모두 Paper 와 같다**(`blockMaterialPredicatesMatchPaperForEveryState`). Paper 는 부술 수 없는 블록 10종(기반암 등)의 피스톤 반응을 늘 BLOCK 으로 주므로 그대로 따랐다(`Block#isDestroyable`) |
 | 블록 엔티티(보조 작업자) | `EntityBlock`(바닐라와 같은 블록 집합), `BlockEntity`·`BeaconBlockEntity`·`BlockEntityType`, 새 블록 엔티티의 `saveWithId` = 서버가 새로 만든 블록 엔티티 저장값(FAWE 의 블록별 기본 타일), 살아 있는 블록 엔티티 보기 `BlockEntity#furnaceInWorld`, `LevelChunk#getBlockEntities`·`getBlockEntity`(읽기) |
@@ -56,13 +56,13 @@ FAWE 출력(두 서버 같음): E1 `Operation completed (1000)`, E2 `8353 blocks
 
 ## 5. 남은 것·가정
 
-1. **빛 다시 계산 없음(D2)** — Paper 는 FAWE 편집 뒤 빛이 맞고 Furnace 는 옛 빛. `starlight$serverRelightChunks` 를 Furnace 빛 엔진으로(N2b-5, T-196).
-2. **블록 엔티티 쓰기 없음** — `LevelChunk#removeBlockEntity`·`Level#getBlockEntity`(만들기)·`BlockEntity#loadWithComponents` 가 없어, 블록 엔티티가 든 섹션을 바꾸거나 상자를 붙여 넣으면 그 청크 편집이 실패한다(T-197, 거울 일지에 블록 엔티티 넣기).
-3. **옛 판 데이터 고치기 없음** — 켤 때 FAWE `LegacyMapper` 가 `minecraft:grass`·`sign` 등 30줄 "Unknown block" 오류를 낸다(Paper 는 DFU 로 고친다). 옛 스케매틱도 안 올라간다(T-198).
-4. **아이템 구성 요소 코덱 없음** — `//wand` 아이템 주기·브러시 등 아이템 변환이 실패한다(T-199, NbtOps 는 T-191).
+1. **빛 다시 계산 없음(D2)** — Paper 는 FAWE 편집 뒤 빛이 맞고 Furnace 는 옛 빛. `starlight$serverRelightChunks` 를 Furnace 빛 엔진으로(N2b-5, T-197).
+2. **블록 엔티티 쓰기 없음** — `LevelChunk#removeBlockEntity`·`Level#getBlockEntity`(만들기)·`BlockEntity#loadWithComponents` 가 없어, 블록 엔티티가 든 섹션을 바꾸거나 상자를 붙여 넣으면 그 청크 편집이 실패한다(T-198, 거울 일지에 블록 엔티티 넣기).
+3. **옛 판 데이터 고치기 없음** — 켤 때 FAWE `LegacyMapper` 가 `minecraft:grass`·`sign` 등 30줄 "Unknown block" 오류를 낸다(Paper 는 DFU 로 고친다). 옛 스케매틱도 안 올라간다(T-199).
+4. **아이템 구성 요소 코덱 없음** — `//wand` 아이템 주기·브러시 등 아이템 변환이 실패한다(T-200, NbtOps 는 T-191).
 5. 가정: `ChunkMap#getPlayers` 는 체비셰프 시야 거리 안의 플레이어(바닐라는 실제로 보낸 청크), 티켓 수준 32(블록 틱만)는 Furnace 에 해당 등급이 없어 로드만, `ChunkHolder` 의 틱 미래는 로드된 청크면 끝난 미래.
-6. 이번에 안 잰 V6 항목: 편집 직후 같은 틱 Bukkit 읽기(다른 플러그인 표본), 물 섹션의 무작위 틱 진행(시나리오는 randomTickSpeed 0), 빠른 블록 놓기 표본·squaremap. FAWE 의 다른 기능(`//regen`·`//forest`·엔티티 복사·`//biome`)도 안 돌렸다 — 남은 없는 기호 목록은 시작 로그(T-202).
-7. 콘솔 앞 `/` 처리(T-200), 편집 안 한 청크의 빛 값 차이(T-201).
+6. 이번에 안 잰 V6 항목: 편집 직후 같은 틱 Bukkit 읽기(다른 플러그인 표본), 물 섹션의 무작위 틱 진행(시나리오는 randomTickSpeed 0), 빠른 블록 놓기 표본·squaremap. FAWE 의 다른 기능(`//regen`·`//forest`·엔티티 복사·`//biome`)도 안 돌렸다 — 남은 없는 기호 목록은 시작 로그(T-203).
+7. 콘솔 앞 `/` 처리(T-201), 편집 안 한 청크의 빛 값 차이(T-202).
 
 ## 6. 시험
 
