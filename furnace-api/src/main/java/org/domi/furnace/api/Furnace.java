@@ -92,6 +92,15 @@ public interface Furnace {
     }
 
     /**
+     * {@code <이름>/} 폴더의 level.dat 에 남은 월드 설명서(Furnace 가 만든 월드는 저장된 설명서, Paper·Spigot·Multiverse 가 만든 폴더는
+     * level.dat 생성기 설정과 폴더 배치로 추론한 것). 폴더나 level.dat 이 없으면 null, 읽기 실패는 {@link java.io.UncheckedIOException}.
+     * 있는 월드를 다시 불러올 때 생성기·구조물·평지 층을 그대로 쓰려면 이것을 바탕으로 {@link #createWorld} 한다. 아무 스레드.
+     */
+    default org.domi.furnace.api.world.WorldCreator storedWorldCreator(String name) {
+        return null;
+    }
+
+    /**
      * 추가 월드를 내린다(Bukkit unloadWorld). 기본 세 차원(오버월드·네더·엔드)은 내릴 수 없고, 월드 안에 플레이어가 있거나
      * {@link org.domi.furnace.api.event.world.WorldUnloadEvent} 가 취소되면 false 로 완료된다. save 면 청크·엔티티·level.dat 을 다 쓴 뒤 닫는다.
      * 내린 월드의 손잡이는 더 쓸 수 없다(블록 접근은 실패로 완료). 아무 스레드.

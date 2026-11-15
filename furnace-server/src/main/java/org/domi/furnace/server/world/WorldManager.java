@@ -205,6 +205,11 @@ public final class WorldManager {
                 return unwrap(() -> create(spec).get(5, TimeUnit.MINUTES), spec.name());
             }
         }
+        if (WORKER_WAITING.get() != null) {
+            // 월드 스레드가 이 전역 일(내리기 알림 등)이 끝나길 기다리는 중이라, 여기서 월드 스레드 차례를 기다리면 서로 멈춘다
+            throw new IllegalStateException("월드 '" + spec.name() + "' 를 " + WORKER_WAITING.get()
+                    + " 안에서 동기로 만들 수 없다 — createWorld(..) 의 future 를 쓰거나 다음 틱에(스케줄러 runTask) 만든다");
+        }
         CompletableFuture<Created> made = submitCreate(spec);
         long deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(5);
         while (!made.isDone()) {
@@ -274,21 +279,38 @@ public final class WorldManager {
 
     /**
      * 월드 스레드가 전역 스레드에서 돌려야 하는 일. 전역 대기열에 넣고, 전역 스레드가 {@link #createAndWait} 로 막혀 있으면 그쪽이 대신 돌린다
-     * (FutureTask 라 먼저 잡은 쪽만 돈다).
+     * (FutureTask 라 먼저 잡은 쪽만 돈다). 도는 동안 전역 스레드에 {@code what} 을 표시해, 그 안의 동기 월드 만들기를 곧바로 거절한다.
+     * 시간 초과면 아직 안 돈 일은 취소한다(늦게 돌지 않는다). 이미 도는 중인 몸체는 스스로 {@code abandoned} 를 보고 그만둬야 한다.
      */
-    private <T> T onGlobal(java.util.concurrent.Callable<T> body, long timeout, TimeUnit unit) throws Exception {
-        java.util.concurrent.FutureTask<T> task = new java.util.concurrent.FutureTask<>(body);
+    private <T> T onGlobal(String what, java.util.concurrent.Callable<T> body, long timeout, TimeUnit unit) throws Exception {
+        java.util.concurrent.FutureTask<T> task = new java.util.concurrent.FutureTask<>(() -> {
+            String prev = WORKER_WAITING.get();
+            WORKER_WAITING.set(what);
+            try {
+                return body.call();
+            } finally {
+                WORKER_WAITING.set(prev);
+            }
+        });
         globalHelp.add(task);
         try {
             parts.scheduler().global().execute(() -> {
                 globalHelp.remove(task);
                 task.run();
             });
-            return task.get(timeout, unit);
+            try {
+                return task.get(timeout, unit);
+            } catch (java.util.concurrent.TimeoutException te) {
+                task.cancel(false);
+                throw te;
+            }
         } finally {
             globalHelp.remove(task);
         }
     }
+
+    /** 전역 스레드가 지금 월드 스레드가 기다리는 일({@link #onGlobal})을 돌리는 중이면 그 이름. */
+    private static final ThreadLocal<String> WORKER_WAITING = new ThreadLocal<>();
 
     private final java.util.concurrent.LinkedBlockingQueue<Runnable> globalHelp = new java.util.concurrent.LinkedBlockingQueue<>();
 
@@ -580,13 +602,27 @@ public final class WorldManager {
         Extra e = extras.get(w.levelName());
         if (e == null || e.world() != w) return false;   // 이미 내렸다
         // 전역 스레드에서: 플레이어 확인과 알림, 목록에서 떼기를 한 번에(그 사이 명령이 이 월드로 보내지 못하게)
-        boolean go = onGlobal(() -> {
-            if (!w.playersHere().isEmpty() || w.incomingTravels() > 0) return false;
-            if (!hooks.beforeUnload(w, save)) return false;
-            if (!w.playersHere().isEmpty() || w.incomingTravels() > 0) return false;   // 알림 처리기가 누군가 들여보냈다
-            dimensions.unregister(w);
-            return true;
-        }, 30, TimeUnit.SECONDS);
+        // 0=기다림, 1·3=전역이 목록에서 떼는 중·뗌, 2=월드 스레드가 시간 초과로 포기 — 포기한 뒤 늦게 돈 몸체가 반쯤 내린 월드를 남기지 않게
+        java.util.concurrent.atomic.AtomicInteger state = new java.util.concurrent.atomic.AtomicInteger();
+        boolean go;
+        try {
+            go = onGlobal("월드 내리기 알림(WorldUnloadEvent) 처리기", () -> {
+                if (!w.playersHere().isEmpty() || w.incomingTravels() > 0) return false;
+                if (!hooks.beforeUnload(w, save)) return false;
+                if (!w.playersHere().isEmpty() || w.incomingTravels() > 0) return false;   // 알림 처리기가 누군가 들여보냈다
+                if (!state.compareAndSet(0, 1)) return false;
+                try {
+                    dimensions.unregister(w);
+                } finally {
+                    state.set(3);
+                }
+                return true;
+            }, 30, TimeUnit.SECONDS);
+        } catch (java.util.concurrent.TimeoutException te) {
+            if (state.compareAndSet(0, 2)) throw te;
+            while (state.get() != 3) Thread.onSpinWait();   // 시간 초과와 같은 순간에 목록에서 떼는 중 — 끝나면 내리기를 마저 한다
+            go = true;
+        }
         if (!go) return false;
         // 목록에서 뗐으니 새 save-all 은 이 월드를 고르지 않는다. 이미 고른 저장(진행 중·대기 중)이 끝나길 기다린다
         try {

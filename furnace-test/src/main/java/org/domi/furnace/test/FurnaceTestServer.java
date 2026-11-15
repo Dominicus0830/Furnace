@@ -165,6 +165,14 @@ public final class FurnaceTestServer implements AutoCloseable {
             host.pluginsImpl().directory(pluginsDir);
             host.pluginsImpl().settings(pluginSettings);
             host.pluginsImpl().loadAll(boot);
+            // FurnaceMain 의 worlds.autoload 처럼 onLoad 뒤·onEnable 앞에 추가 월드를 올린다
+            for (var c : b.autoloadWorlds) {
+                try {
+                    worldManager.create(c).get(5, java.util.concurrent.TimeUnit.MINUTES);
+                } catch (Exception e) {
+                    throw new IllegalStateException("자동 불러오기 월드 '" + c.name() + "' 실패", e);
+                }
+            }
             var dispatcher = core.commands().getDispatcher();
             org.domi.furnace.server.command.builtin.FurnaceCommands.register(dispatcher, host);
             org.domi.furnace.server.command.builtin.FurnaceAdminCommands.register(dispatcher);
@@ -548,6 +556,15 @@ public final class FurnaceTestServer implements AutoCloseable {
 
         /** 추가 월드(Furnace#createWorld·Bukkit createWorld)를 쓸 수 있게 다중 월드 관리자를 붙인다. 추가 월드는 실제 시계로 돈다. 기본 끔. */
         public Builder multiWorld(boolean v) { this.multiWorld = v; return this; }
+
+        /** 서버 기동 때(플러그인 onLoad 뒤·onEnable 앞, furnace.properties worlds.autoload 와 같은 때) 함께 올릴 추가 월드. 다중 월드를 켠다. */
+        public Builder autoloadWorld(org.domi.furnace.api.world.WorldCreator c) {
+            this.autoloadWorlds.add(java.util.Objects.requireNonNull(c));
+            this.multiWorld = true;
+            return this;
+        }
+
+        private final List<org.domi.furnace.api.world.WorldCreator> autoloadWorlds = new java.util.ArrayList<>();
 
         /** 호환 어댑터가 읽는 서버 설정(furnace.properties 의 plugins.compat.* 키, 예: plugins.compat.scheduler.async-threads=virtual). */
         public Builder compatOption(String key, String value) { this.compatOptions.put(key, value); return this; }

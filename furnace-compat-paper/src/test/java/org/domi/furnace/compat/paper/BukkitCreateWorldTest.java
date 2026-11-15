@@ -57,7 +57,7 @@ class BukkitCreateWorldTest {
             RecorderPlugin.ACTIONS.put("WorldLoadEvent", e -> log.add("load " + ((org.bukkit.event.world.WorldLoadEvent) e).getWorld().getName()));
             World w = new WorldCreator("Mine").seed(42L).type(WorldType.FLAT).createWorld();
             assertNotNull(w);
-            assertEquals(List.of("init Mine listed=false", "load Mine"), log, "Init·Load 가 돌아오기 전에, Init 이 먼저");
+            assertEquals(List.of("init Mine listed=true", "load Mine"), log, "Init·Load 가 돌아오기 전에, Init 이 먼저");
             assertEquals("Mine", w.getName());
             assertEquals(new NamespacedKey("minecraft", "mine"), w.getKey(), "키 = minecraft:<소문자 이름>");
             assertEquals(42L, w.getSeed());
@@ -90,7 +90,8 @@ class BukkitCreateWorldTest {
 
             World nether = Bukkit.createWorld(new WorldCreator("nflat").environment(World.Environment.NETHER).type(WorldType.FLAT));
             assertEquals(World.Environment.NETHER, nether.getEnvironment());
-            assertEquals(WorldType.NORMAL, nether.getWorldType(), "네더 환경에 FLAT 은 쓰이지 않는다");
+            // 지형은 바닐라 네더(평지라면 y5 는 공기). 평지 표시(getWorldType)는 Paper 가 FLAT 이라 다르다 — context note "다른 점"
+            assertNotEquals(Material.AIR, onRegion(nether, 0, 0, () -> nether.getBlockAt(0, 5, 0).getType()));
 
             var copy = new WorldCreator("copy").copy(flat);
             assertEquals(flat.getSeed(), copy.seed());

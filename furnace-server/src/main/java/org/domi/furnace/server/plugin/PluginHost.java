@@ -176,6 +176,18 @@ public final class PluginHost implements Furnace {
     }
 
     @Override
+    public org.domi.furnace.api.world.WorldCreator storedWorldCreator(String name) {
+        if (name == null) throw new NullPointerException("name");
+        var m = core.worldManager();
+        if (m == null || !name.matches("[A-Za-z0-9_.-]{1,64}") || name.equals(".") || name.equals("..")) return null;   // 폴더 밖을 읽지 않게
+        try {
+            return m.storedCreator(name);
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException("월드 '" + name + "' 의 level.dat 를 읽지 못했다", e);
+        }
+    }
+
+    @Override
     public java.util.concurrent.CompletableFuture<Boolean> unloadWorld(org.domi.furnace.api.world.World world, boolean save) {
         if (world == null) throw new NullPointerException("world");
         var m = core.worldManager();

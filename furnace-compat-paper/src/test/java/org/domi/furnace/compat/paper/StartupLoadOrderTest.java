@@ -24,7 +24,10 @@ class StartupLoadOrderTest {
     Path tmp;
 
     @BeforeEach
-    void reset() { StartupProbe.LOG.clear(); }
+    void reset() {
+        StartupProbe.LOG.clear();
+        StartupProbe.CREATE_ON_ENABLE = null;
+    }
 
     private Path jar(String name, String load) throws Exception {
         return Jars.bukkit(tmp.resolve(name + ".jar"), "plugin.yml", "name: " + name + "\nversion: 1\nmain: " + StartupProbe.class.getName()
@@ -56,6 +59,39 @@ class StartupLoadOrderTest {
             int n = server.api().worlds().size();
             assertEquals(List.of("Only:onload worlds=0 byName=false",
                     "Only:enable worlds=" + n + " byName=" + (server.api().worldNamed("world") != null)), StartupProbe.LOG);
+        }
+    }
+
+    /** worlds.autoload 추가 월드도 감춘 단계 뒤 드러낼 때 기본 차원 다음에 Init → Load, 각 한 번(검토 S1 — 드러내기 Init 빠짐·감춘 동안 다리 걸러내기 삭제를 잡는다). */
+    @Test
+    void autoloadWorldIsRevealedWithInitThenLoad() throws Exception {
+        try (FurnaceTestServer server = FurnaceTestServer.builder().failFast(true)
+                .autoloadWorld(org.domi.furnace.api.world.WorldCreator.named("auto").generator(org.domi.furnace.api.world.WorldGenerator.VOID).build())
+                .pluginJar(jar("BEarly", "STARTUP")).start()) {
+            List<String> names = new ArrayList<>();
+            for (var w : server.api().worlds()) names.add(w.name());
+            assertEquals(true, names.contains("auto"), names.toString());
+            List<String> expected = new ArrayList<>();
+            expected.add("BEarly:onload worlds=0 byName=false");
+            expected.add("BEarly:enable worlds=0 byName=false");
+            List<String> base = names.subList(0, names.indexOf("auto"));
+            for (int i = 0; i < base.size(); i++) expected.add("BEarly:init " + base.get(i) + " visible=" + (i + 1));
+            // 기본 차원을 다 드러낸 뒤에는 모두 보인다. 추가 월드는 그다음 Init → Load(Multiverse 가 켤 때 createWorld 하는 Paper 순서와 같은 꼴)
+            for (String n : base) expected.add("BEarly:load " + n + " visible=" + names.size());
+            expected.add("BEarly:init auto visible=" + names.size());
+            expected.add("BEarly:load auto visible=" + names.size());
+            assertEquals(expected, StartupProbe.LOG);
+        }
+    }
+
+    /** Paper: load: STARTUP 플러그인이 onEnable 에서 createWorld 를 부르면 IllegalStateException("Cannot create additional worlds on STARTUP"). */
+    @Test
+    void startupPluginCannotCreateWorld() throws Exception {
+        StartupProbe.CREATE_ON_ENABLE = "early";
+        try (FurnaceTestServer server = FurnaceTestServer.builder().failFast(true).multiWorld(true)
+                .pluginJar(jar("BEarly", "STARTUP")).start()) {
+            assertEquals("BEarly:create IllegalStateException Cannot create additional worlds on STARTUP", StartupProbe.LOG.get(2));
+            assertEquals(null, server.api().worldNamed("early"));
         }
     }
 }

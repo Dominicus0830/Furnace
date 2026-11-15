@@ -287,8 +287,15 @@ public final class CraftServer implements Server {
         if (creator == null) throw new IllegalArgumentException("WorldCreator cannot be null");
         if (Compat.startupWorldsPending()) throw new IllegalStateException("Cannot create additional worlds on STARTUP");
         String name = creator.name();
+        // Paper(Expand-world-key-API): 이름(대소문자 무시)이나 키가 이미 있으면, 둘이 같은 월드일 때만 그 월드
         World existing = getWorld(name);
-        if (existing != null) return existing;
+        World byKey = Compat.world(f().world(creator.key().toString()));
+        if (byKey != null && !Compat.worldVisible(byKey.getKey().toString())) byKey = null;
+        if (existing != null || byKey != null) {
+            if (existing == byKey) return existing;
+            throw new IllegalArgumentException("Cannot create a world with key " + creator.key() + " and name " + name
+                    + " one (or both) already match a world that exists");
+        }
         if (creator.generator() != null) {
             throw new org.domi.furnace.compat.paper.UnsupportedFeature("WorldCreator#generator(" + creator.generator().getClass().getName() + ")",
                     "Bukkit ChunkGenerator 로 월드를 만드는 길이 아직 없다 — Furnace WorldCreator.Builder#generationHooks 를 쓴다(docs/api/worlds.md)");
@@ -303,6 +310,16 @@ public final class CraftServer implements Server {
             case THE_END -> org.domi.furnace.api.world.WorldEnvironment.THE_END;
             default -> throw new IllegalArgumentException("Illegal dimension (" + creator.environment() + ")");
         };
+        // Paper: 폴더에 level.dat 이 있으면 저장된 생성기·구조물·시드를 쓴다(설명서의 type·generatorSettings·generateStructures·seed 는 새 월드만)
+        var stored = f().storedWorldCreator(name);
+        if (stored != null) {
+            var b = stored.toBuilder().key(creator.key().toString()).environment(env);
+            if (stored.environment() != env) {
+                b.generator(org.domi.furnace.api.world.WorldGenerator.DEFAULT).dimensionType(null).flatLayers(java.util.List.of());   // 그 환경의 바닐라 줄기
+            }
+            warnHardcore(creator, name);
+            return Compat.world(f().createWorldNow(b.build()));
+        }
         var b = org.domi.furnace.api.world.WorldCreator.named(name).key(creator.key().toString()).environment(env)
                 .seed(creator.seed()).generateStructures(creator.generateStructures());
         if (env == org.domi.furnace.api.world.WorldEnvironment.NORMAL) {
@@ -313,10 +330,14 @@ public final class CraftServer implements Server {
                 default -> { }
             }
         }
+        warnHardcore(creator, name);
+        return Compat.world(f().createWorldNow(b.build()));
+    }
+
+    private void warnHardcore(org.bukkit.WorldCreator creator, String name) {
         if (creator.hardcore() && !f().worlds().get(0).isHardcore() && WARNED_CREATE.add(name + "|hardcore")) {
             LOG.warning("[Furnace] createWorld('" + name + "'): hardcore(true) 는 무시한다 — Furnace 추가 월드는 주 월드의 하드코어 값(server.properties hardcore)을 따른다");
         }
-        return Compat.world(f().createWorldNow(b.build()));
     }
 
     private static final java.util.Set<String> WARNED_CREATE = java.util.concurrent.ConcurrentHashMap.newKeySet();

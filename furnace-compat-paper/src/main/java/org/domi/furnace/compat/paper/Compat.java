@@ -246,9 +246,20 @@ public final class Compat {
 
     public static World world(org.domi.furnace.api.world.World w) { return w == null ? null : world(w.dimension()); }
 
-    /** 월드 이름(world, world_nether)으로. 없으면 null. load: STARTUP 플러그인을 켜는 동안 아직 안 보이는 월드도 null. */
+    /**
+     * 월드 이름(world, world_nether)으로, 대소문자 무시(Paper CraftServer#getWorld 는 소문자로 찾는다 — 서버는 대소문자만 다른 두 월드를 막는다).
+     * 없으면 null. load: STARTUP 플러그인을 켜는 동안 아직 안 보이는 월드도 null.
+     */
     public static World worldNamed(String name) {
         org.domi.furnace.api.world.World w = state().furnace.worldNamed(name);
+        if (w == null) {
+            for (var c : state().furnace.worlds()) {
+                if (c.name().equalsIgnoreCase(name)) {
+                    w = c;
+                    break;
+                }
+            }
+        }
         return w == null || !worldVisible(w.dimension()) ? null : world(w);
     }
 
