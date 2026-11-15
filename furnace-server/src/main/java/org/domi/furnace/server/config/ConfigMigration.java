@@ -153,7 +153,7 @@ public final class ConfigMigration {
     }
 
     /** 기본값을 옮긴 변경 줄의 머리 — 일부러 옛 값을 적었던 운영자가 알아차리게 기동 로그에서 경고로 올린다. */
-    public static final String DEFAULT_CHANGE_MARK = "[default changed] ";
+    public static String defaultChangeMark() { return Lang.t("cfg.default-changed-mark") + " "; }
 
     private static void resetDefault(List<String> lines, DefaultChange d, List<String> changes) {
         Pattern p = Pattern.compile("^(\\s*" + Pattern.quote(d.key()) + "\\s*[=:]\\s*)" + Pattern.quote(d.oldValue()) + "\\s*$");
@@ -161,7 +161,7 @@ public final class ConfigMigration {
             Matcher m = p.matcher(lines.get(i));
             if (!m.matches()) continue;
             lines.set(i, m.group(1) + d.newValue());
-            changes.add(DEFAULT_CHANGE_MARK + Lang.t("cfg.change-default", d.key(), d.oldValue(), d.newValue()));
+            changes.add(defaultChangeMark() + Lang.t("cfg.change-default", d.key(), d.oldValue(), d.newValue()));
         }
     }
 

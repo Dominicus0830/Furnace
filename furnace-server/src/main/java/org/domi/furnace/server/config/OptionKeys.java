@@ -297,9 +297,9 @@ public final class OptionKeys {
         try {
             n = Integer.parseInt(v.strip());
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("설정 '" + key + "' 가 숫자가 아님: " + v, e);
+            throw new IllegalArgumentException(Lang.t("cfg.not-number", key, v), e);
         }
-        if (n < min || n > max) throw new IllegalArgumentException("설정 '" + key + "' 값 " + n + " 이(가) 잘못됐습니다: " + min + "~" + max);
+        if (n < min || n > max) throw new IllegalArgumentException(Lang.t("cfg.out-of-range", key, n, min, max));
         return n;
     }
 
@@ -310,6 +310,6 @@ public final class OptionKeys {
         String t = v.strip();
         if (t.equalsIgnoreCase("true")) return true;
         if (t.equalsIgnoreCase("false")) return false;
-        throw new IllegalArgumentException("설정 '" + key + "' 값 '" + t + "' 이(가) 잘못됐습니다: true 또는 false");
+        throw new IllegalArgumentException(Lang.t("cfg.invalid-bool", key, t));
     }
 }

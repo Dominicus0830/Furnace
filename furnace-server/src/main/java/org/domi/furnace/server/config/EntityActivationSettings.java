@@ -3,6 +3,7 @@
 // 끄면(entity-activation-range.enabled=false) 엔티티 틱은 바닐라와 바이트까지 같다(EntityActivationIdentityTest·장면 금 파일).
 package org.domi.furnace.server.config;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.nio.file.Path;
 import java.util.Properties;
 import java.util.function.Consumer;
@@ -114,7 +115,7 @@ public record EntityActivationSettings(boolean enabled,
         try {
             return Integer.parseInt(v.strip());
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("설정 '" + PREFIX + key + "' 가 정수가 아님: " + v, e);
+            throw new IllegalArgumentException(Lang.t("cfg.not-number", PREFIX + key, v), e);
         }
     }
 
@@ -123,7 +124,7 @@ public record EntityActivationSettings(boolean enabled,
         if (v == null) return def;
         v = v.strip();
         if (!v.equalsIgnoreCase("true") && !v.equalsIgnoreCase("false")) {
-            throw new IllegalArgumentException("설정 '" + PREFIX + key + "' 값 '" + v + "' 이(가) 잘못됐습니다: true 또는 false");
+            throw new IllegalArgumentException(Lang.t("cfg.invalid-bool", PREFIX + key, v));
         }
         return Boolean.parseBoolean(v);
     }

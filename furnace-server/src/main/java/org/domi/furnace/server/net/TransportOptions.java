@@ -2,6 +2,7 @@
 // io_uring 을 쓸 수 없으면(커널 5.9 미만·seccomp/컨테이너가 막음·리눅스 아님) 경고하고 epoll/NIO 로 되돌아간다.
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,7 +22,7 @@ public record TransportOptions(boolean ioUring) {
         if (v == null) return DEFAULT;
         v = v.strip();
         if (!v.equalsIgnoreCase("true") && !v.equalsIgnoreCase("false")) {
-            throw new IllegalArgumentException("설정 'io-uring' 값 '" + v + "' 이(가) 잘못됐습니다: true 또는 false");
+            throw new IllegalArgumentException(Lang.t("cfg.invalid-bool", "io-uring", v));
         }
         return new TransportOptions(Boolean.parseBoolean(v));
     }
