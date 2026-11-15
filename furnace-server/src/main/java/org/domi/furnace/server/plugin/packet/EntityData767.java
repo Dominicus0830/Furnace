@@ -85,7 +85,7 @@ public final class EntityData767 {
 
     public static int serializerId(EntityDataType<?> type) {
         Integer i = SERIALIZER_IDS.get(type);
-        if (i == null) throw new IllegalArgumentException("value kind that does not exist in this server version: " + type);
+        if (i == null) throw new IllegalArgumentException("no such value kind in this server version: " + type);
         return i;
     }
 

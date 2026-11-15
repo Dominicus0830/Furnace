@@ -232,7 +232,7 @@ final class MobAiImpl implements MobAi {
 
     static PathType toServer(PathNodeType t) {
         PathType s = BY_KEY.get(t.key());
-        if (s == null) throw new IllegalArgumentException("path type that does not exist in this version: " + t.key());
+        if (s == null) throw new IllegalArgumentException("no such path type in this version: " + t.key());
         return s;
     }
 

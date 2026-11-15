@@ -82,7 +82,7 @@ final class GameRegistryHooks {
 
         public void json(String registry, String key, String json) {
             String reg = ResourceId.parse(registry).toString();
-            if (!DynamicRegistries.DATA_DRIVEN.contains(reg)) throw new IllegalArgumentException("registry that does not accept entries: " + registry);
+            if (!DynamicRegistries.DATA_DRIVEN.contains(reg)) throw new IllegalArgumentException("this registry does not accept entries: " + registry);
             JsonElement e;
             try {
                 e = JsonParser.parseString(json);
@@ -96,7 +96,7 @@ final class GameRegistryHooks {
         public void addToTag(String registry, String tag, String... entries) {
             String reg = ResourceId.parse(registry).toString();
             if (!org.domi.furnace.server.data.TagRegistries.SYNCED.contains(reg)) {
-                throw new IllegalArgumentException("registry that does not send tags: " + registry);
+                throw new IllegalArgumentException("this registry does not send tags: " + registry);
             }
             ResourceId t = ResourceId.tryParse(tag.startsWith("#") ? tag.substring(1) : tag);
             if (t == null) throw new IllegalArgumentException("invalid tag id: " + tag);

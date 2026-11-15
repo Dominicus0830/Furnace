@@ -396,7 +396,7 @@ public final class VirtualEntitiesImpl implements VirtualEntities {
         public synchronized void setMetadata(int index, Value value) {
             if (removed) return;
             Objects.requireNonNull(value, "value");
-            if (value instanceof ClientboundSetEntityDataPacket.Unsupported) throw new IllegalArgumentException("a value of an unread kind cannot be set");
+            if (value instanceof ClientboundSetEntityDataPacket.Unsupported) throw new IllegalArgumentException("an entity data value of an undecoded kind cannot be sent");
             var entry = new ClientboundSetEntityDataPacket.Entry(index, value);
             validateEncodable(entry);   // 보낼 수 없는 값(없는 종류 이름·아이템 등)을 쌓아 두면 이후 새 시청자의 메타데이터 묶음 전체가 안 간다
             if (index == 0 && value instanceof ClientboundSetEntityDataPacket.ByteValue b) flags = b.value() & 0xFF;

@@ -25,7 +25,7 @@ final class SpawnPolicyImpl implements SpawnPolicy {
 
     private static MobCategory spawning(SpawnCategory c) {
         MobCategory m = server(c);
-        if (m == MobCategory.MISC) throw new IllegalArgumentException("category without natural spawning: " + c);
+        if (m == MobCategory.MISC) throw new IllegalArgumentException("this category has no natural spawning: " + c);
         return m;
     }
 

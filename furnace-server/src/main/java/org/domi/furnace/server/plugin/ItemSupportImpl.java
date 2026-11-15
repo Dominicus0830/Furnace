@@ -167,7 +167,7 @@ public final class ItemSupportImpl implements ItemSupport {
     @SuppressWarnings("unchecked")
     private static <T> Adapter<T> adapter(ItemComponent<T> c) {
         Adapter<?> a = ADAPTERS.get(c.id());
-        if (a == null) throw new IllegalArgumentException("component without typed value support: " + c.id() + " - use ItemComponent.raw");
+        if (a == null) throw new IllegalArgumentException("this component has no typed value support: " + c.id() + " - use ItemComponent.raw");
         return (Adapter<T>) a;
     }
 

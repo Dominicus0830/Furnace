@@ -64,7 +64,7 @@ final class MobBrainImpl implements MobBrain {
 
     static Activity toServer(ActivityKey key) {
         Activity a = Activity.byKey(key.toString());
-        if (a == null) throw new IllegalArgumentException("vanilla activity that does not exist in this version: " + key);
+        if (a == null) throw new IllegalArgumentException("no such vanilla activity in this version: " + key);
         return a;
     }
 
@@ -115,7 +115,7 @@ final class MobBrainImpl implements MobBrain {
             Optional<ExpirableValue<?>> v = b.extraMemoryEntries().get(key.key());
             if (v == null || v.isEmpty()) return Optional.empty();
             Object o = v.get().getValue();
-            if (!key.type().javaType().isInstance(o)) throw new IllegalArgumentException(key.key() + " does not accept a value of " + o.getClass().getName());
+            if (!key.type().javaType().isInstance(o)) throw new IllegalArgumentException(key.key() + " holds a " + o.getClass().getName() + ", which is not its declared value type");
             return Optional.of((T) o);
         }
         MemoryModuleType<?> t = vanilla(key);
@@ -190,7 +190,7 @@ final class MobBrainImpl implements MobBrain {
             return;
         }
         MemoryModuleType<?> t = vanilla(key);
-        if (t == null) throw new IllegalArgumentException("vanilla memory that does not exist in this version: " + key.key());
+        if (t == null) throw new IllegalArgumentException("no such vanilla memory in this version: " + key.key());
         shapeFor(t, key);
         b.registerMemory(t);
     }

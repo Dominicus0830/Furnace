@@ -57,7 +57,7 @@ public final class WorldSpawnPolicy {
 
     private static MobCategory spawning(MobCategory c) {
         if (c == null) throw new NullPointerException("category");
-        if (!SpawnConfig.spawns(c)) throw new IllegalArgumentException("category without natural spawning: " + c.key());
+        if (!SpawnConfig.spawns(c)) throw new IllegalArgumentException("this category has no natural spawning: " + c.key());
         return c;
     }
 
