@@ -109,4 +109,7 @@ public interface Internals {
      * 이 서버가 다리를 주지 않으면 UnsupportedOperationException.
      */
     default ChunkInternals chunks() { throw new UnsupportedOperationException("chunks"); }
+
+    /** 블록 상태 속성 표 다리(N2b-6) — 호환 계층의 NMS BlockState shim 용(불안정). */
+    default BlockStateInternals blockStates() { throw new UnsupportedOperationException("blockStates"); }
 }

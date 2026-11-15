@@ -145,6 +145,20 @@ public class Block extends BlockBehaviour implements ItemLike {
 
     public final BlockState defaultBlockState() { return defaultState; }
 
+    /** 바닐라: 폭발 저항(블록 속성). */
+    public float getExplosionResistance() { return org.domi.furnace.compat.nms.NmsBlockStates.table().explosionResistance()[defaultState.furnaceStateId()]; }
+
+    /** 바닐라: 마찰(블록 속성, 기본 0.6). */
+    public float getFriction() { return org.domi.furnace.compat.nms.NmsBlockStates.table().friction()[defaultState.furnaceStateId()]; }
+
+    /** 바닐라: 기본 상태의 지도 색. */
+    public net.minecraft.world.level.material.MapColor defaultMapColor() {
+        return net.minecraft.world.level.material.MapColor.furnaceByCol(org.domi.furnace.compat.nms.NmsBlockStates.table().mapColor()[defaultState.furnaceStateId()]);
+    }
+
+    /** 바닐라: 모양이 한 칸 블록 전체를 덮는가. */
+    public static boolean isShapeFullBlock(net.minecraft.world.phys.shapes.VoxelShape shape) { return net.minecraft.world.phys.shapes.Shapes.furnaceIsFullBlock(shape); }
+
     public StateDefinition<Block, BlockState> getStateDefinition() { return stateDefinition; }
 
     @Override
