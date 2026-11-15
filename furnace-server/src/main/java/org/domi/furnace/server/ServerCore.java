@@ -1549,11 +1549,9 @@ public final class ServerCore {
     public synchronized void setViewDistance(int vd) {   // 동시 호출이 섞이면 월드 값과 클라이언트에 보낸 값이 어긋난다 — 한 번에 하나
         int v = Math.clamp(vd, org.domi.furnace.server.config.Config.MIN_VIEW_DISTANCE, org.domi.furnace.server.config.Config.MAX_VIEW_DISTANCE);
         for (World w : worlds()) w.viewDistance(v);
-        var pkt = new org.domi.furnace.server.net.protocol.play.SetChunkCacheRadius(v);
         for (Player p : players()) {
             p.viewDistance(Math.min(v, p.clientViewDistance()));
-            if (p.sendCap() == Integer.MAX_VALUE) p.send(pkt);
-            else applyPlayerDistances(p, true);   // 플러그인 거리가 있으면 새 월드 값으로 다시 풀어 그 값을 보낸다
+            applyPlayerDistances(p, true);   // 잠금 안에서 상한을 다시 풀고 반경을 보낸다(플러그인 값이 없으면 서버 값 v)
         }
     }
 
@@ -1580,7 +1578,7 @@ public final class ServerCore {
      * set_chunk_cache_radius(Paper 처럼 보내는 거리)를 보낸다. region 은 다음 틱에 추적 범위를 다시 잡는다. 아무 스레드.
      */
     public void applyPlayerDistances(Player p, boolean force) {
-        synchronized (p) {
+        synchronized (p.distanceLock) {
             boolean none = p.apiTickDistance() < 0 && p.apiLoadDistance() < 0 && p.apiSendDistance() < 0;
             int before = p.viewDistance();
             int cap;

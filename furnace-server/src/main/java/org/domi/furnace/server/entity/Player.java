@@ -95,7 +95,6 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private volatile boolean disconnected;
     // 유효 view distance = min(서버 view-distance, 클라 요청). ClientInformation(config 0x00/play 0x0A)서 갱신.
     // 게임중 클라가 렌더거리 바꾸면 0x0A로 다시 옴 → 갱신. onEnterPlay서 초기 설정.
-    private volatile int viewDistance = 10;
     // 열어둔 체스트 세션(M4c-3 슬라이스 B) — netty 스레드가 쓰고 region 스레드(breakBlock 강제닫기)가 읽음.
     // 메뉴: 인벤토리 창(containerId 0)은 항상 있고, 열린 창(상자 등)이 있으면 containerMenu 가 그것이다(바닐라 containerMenu/inventoryMenu).
     private volatile org.domi.furnace.server.menu.InventoryMenu inventoryMenu;
@@ -565,17 +564,20 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 이 플레이어의 탭 목록을 마지막으로 맞춘 번호(-1 = 다시 훑어야 함). 소유 region 스레드 전용. */
     public long tabEpoch = -1;
     public boolean isDisconnected() { return disconnected; }
-    public int viewDistance() { return viewDistance; }
+    /** 실제 보내는 거리 = max(2, min(바탕 거리, 플러그인 상한)) — 읽을 때 계산해 두 값을 따로 쓰는 스레드끼리 갱신이 사라지지 않는다. */
+    public int viewDistance() { return Math.max(Config.MIN_VIEW_DISTANCE, Math.min(baseViewDistance, sendCap)); }
 
     /** 서버 시야 거리와 클라이언트 렌더 거리로 정한 바탕 거리. 실제 거리는 플러그인 상한({@link #sendCap})과의 최솟값. */
     public void viewDistance(int vd) {
         this.baseViewDistance = Math.max(Config.MIN_VIEW_DISTANCE, vd);
-        this.viewDistance = Math.max(Config.MIN_VIEW_DISTANCE, Math.min(baseViewDistance, sendCap));
     }
 
     // Paper Moonrise ViewDistanceHolder: 플러그인이 정한 이 플레이어의 거리(-1 = 월드 값). 서버는 ServerCore.applyPlayerDistances 로
     // 공식(RegionizedPlayerChunkLoader)을 풀어 보내는 거리의 상한(sendCap)만 쓴다 — 월드 값보다 크게는 아직 못 한다.
     private volatile int baseViewDistance = 10;
+
+    /** 플러그인 거리 값(apiDistances·sendCap)을 함께 고칠 때 쥐는 잠금(ServerCore.applyPlayerDistances·PlayerHandle) — 이 객체 모니터와 나누지 않게 따로. */
+    public final Object distanceLock = new Object();
     private volatile int sendCap = Integer.MAX_VALUE;
     private volatile int apiTickDistance = -1, apiLoadDistance = -1, apiSendDistance = -1;
 
@@ -594,7 +596,6 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     public void sendCap(int cap) {
         this.sendCap = cap;
-        viewDistance(baseViewDistance);
     }
 
     private volatile int clientViewDistance = Config.MAX_VIEW_DISTANCE;

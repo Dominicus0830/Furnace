@@ -147,7 +147,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
 
     @Override
     public void setViewDistance(int chunks) {
-        synchronized (p) {
+        synchronized (p.distanceLock) {
             p.apiDistances(p.apiTickDistance(), chunks + 1, p.apiSendDistance());
         }
         warnAbove("view", chunks, core().viewDistance(), "server.properties 의 view-distance");
@@ -159,7 +159,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
 
     @Override
     public void setSendViewDistance(int chunks) {
-        synchronized (p) {
+        synchronized (p.distanceLock) {
             p.apiDistances(p.apiTickDistance(), p.apiLoadDistance(), chunks);
         }
         warnAbove("send", chunks, core().viewDistance(), "server.properties 의 view-distance");
@@ -167,11 +167,11 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     }
 
     @Override
-    public int simulationDistance() { return core().simulationDistance(); }
+    public int simulationDistance() { return Math.min(core().simulationDistance(), core().viewDistance() + 1); }   // Paper lastTickDistance(플레이어 값 없음) = World#getSimulationDistance
 
     @Override
     public void setSimulationDistance(int chunks) {
-        synchronized (p) {
+        synchronized (p.distanceLock) {
             p.apiDistances(chunks, p.apiLoadDistance(), p.apiSendDistance());
         }
         int sim = core().simulationDistance();

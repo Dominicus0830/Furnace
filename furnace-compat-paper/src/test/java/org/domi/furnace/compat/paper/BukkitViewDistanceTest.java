@@ -39,6 +39,11 @@ class BukkitViewDistanceTest {
         return ((org.domi.furnace.server.plugin.PlayerHandle) ((org.bukkit.craftbukkit.entity.CraftPlayer) p).furnaceHandle()).handle();
     }
 
+    /** region 이 그 플레이어를 처음 맡기까지 몇 틱 걸릴 수 있다(접속 직후 청크 준비) — 추적 거리가 그 값이 될 때까지 틱을 돌린다. */
+    private static void awaitTracked(FurnaceTestServer server, org.domi.furnace.server.entity.Player h, int want) {
+        for (int i = 0; i < 200 && h.trackedViewDistance() != want; i++) server.tick(1);
+    }
+
     @Test
     void lowerDistancesFollowPaperFormula() throws Exception {
         try (FurnaceTestServer server = start()) {
@@ -53,12 +58,12 @@ class BukkitViewDistanceTest {
             p.setViewDistance(4);   // load 5 → tick min(6,5)=5 → load max(6,5)=6 → 보내기 ≤ 5
             assertEquals(4, p.getViewDistance());
             assertEquals(5, p.getSendViewDistance());
-            server.tick(2);
+            awaitTracked(server, h, 5);
             assertEquals(5, h.trackedViewDistance(), "region 이 다음 틱에 추적 범위를 다시 잡는다");
 
             p.setSendViewDistance(3);
             assertEquals(3, p.getSendViewDistance());
-            server.tick(2);
+            awaitTracked(server, h, 3);
             assertEquals(3, h.trackedViewDistance());
 
             server.api().setViewDistance(6);   // 서버 값이 바뀌어도 플레이어 값은 남는다
@@ -67,7 +72,7 @@ class BukkitViewDistanceTest {
             assertEquals(5, p.getSendViewDistance());
             p.setViewDistance(-2);   // Paper: 불러오는 거리 −1 = 정하지 않음
             assertEquals(6, p.getSendViewDistance(), "모두 풀면 서버 값");
-            server.tick(2);
+            awaitTracked(server, h, 6);
             assertEquals(6, h.trackedViewDistance());
             assertEquals(Integer.MAX_VALUE, h.sendCap());
             tp.close();

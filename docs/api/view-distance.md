@@ -32,6 +32,7 @@ Bukkit `World#getViewDistance`·`getSendViewDistance` 는 서버 시야 거리, 
 ## 아직 안 되는 것 (후속 T-141v, `docs/roadmap/optimization-tasks.md`)
 
 - **서버 값보다 크게**: 플레이어 값이 서버 시야 거리보다 크면 서버 값으로 잘리고 종류마다 경고를 한 번 남긴다(무엇을 올리면 되는지 함께). Paper 는 그 플레이어 둘레만 더 불러와 보낸다 — 청크 티켓·불러오기 반경이 플레이어마다 달라져야 해서 생성 대기열(T-170) 뒤에 한다.
-- **플레이어별 틱 거리**: 블록·엔티티 틱 범위는 서버 시뮬레이션 거리 그대로다. 그래서 `getSimulationDistance` 도 서버 값이고, `setSimulationDistance` 로 서버 값과 다른 값을 주면 경고를 한 번 남긴다(보내는 거리 계산에는 Paper 처럼 쓰인다). Paper 는 `setViewDistance` 로도 틱 거리가 줄어든다(tick ≤ load).
+- **플레이어별 틱 거리**: 블록·엔티티 틱 범위는 서버 시뮬레이션 거리 그대로다. 그래서 `getSimulationDistance` 도 서버 값(Paper 처럼 min(시뮬레이션, 시야 + 1))이고, `setSimulationDistance` 로 서버 값과 다른 값을 주면 경고를 한 번 남긴다(보내는 거리 계산에는 Paper 처럼 쓰인다). Paper 는 `setViewDistance` 로도 틱 거리가 줄어든다(tick ≤ load).
 - 플레이어가 시야를 낮춰도 서버가 불러 둔 청크(서버 시야 거리)는 그대로 남는다(보내지만 않는다). 바깥에서 보이는 것은 같고 메모리만 다르다.
 - 클라이언트 몫: Paper 기본(`auto-config-send-distance`)은 클라이언트 렌더 거리 + 1 까지 보낸다. Furnace 는 바닐라처럼 렌더 거리까지다(원래 동작).
+- **시뮬레이션 > 시야 설정**(예: 시야 6·시뮬레이션 10): Paper 는 tick + 1 까지 불러와 보내므로 `World#getViewDistance`·`getSendViewDistance` 가 7, `Player#getViewDistance` 가 6 이다. Furnace 는 바닐라처럼 시야 거리까지만 보내므로 6·5 로 하나씩 작다(실제로 보내는 거리를 그대로 알린다).
