@@ -7,6 +7,8 @@
 //   ./gradlew :vanilla-extract:run -Pmc=1.21.1 -Pmode=verify      같은 결과를 저장소의 커밋된 리소스와 견준다(.gz 는 푼 내용 비교)
 //   ./gradlew :vanilla-extract:run -Pmc=1.21.2 -Pmode=install     저장소 resources 에 바로 덮어쓴다(새 판으로 올릴 때)
 //   ./gradlew :vanilla-extract:run -Pmc=1.21.1 -Pmode=proof -PlegacyRef=<이전 도구가 있던 커밋>   전·후·커밋 비교 + 포팅 점검(V-05 증명)
+//   -Pmode=verify -Ptools=tags,builtin-registries,block-tags,item-components,block-definitions,damage-types   옛 Java 도구가 없던 파이썬 6개만 커밋 파일과 견줌
+//   -PtoolArgs="shape-vectors=<블록들>;shape-vectors=<이웃 블록들>;shape-vectors=<시도 수>;shape-vectors=<시드>"   shape-vectors 처럼 재료를 받는 도구의 인자
 //   -Ptools=block-attrs,block-light   일부 도구만   -Plist=true   도구 목록   -Pcache=<폴더>   내려받기 캐시   -PjavaHome=<JAVA_HOME>   실행 JDK
 // 바닐라 jar·대응표·내려받은 결과는 캐시 폴더에만 둔다(EULA — 커밋하지 않는다).
 plugins {
@@ -51,6 +53,8 @@ tasks.named<JavaExec>("run") {
     (findProperty("serverJar") as String?)?.let { a += listOf("--server-jar", it) }
     (findProperty("mappings") as String?)?.let { a += listOf("--mappings", it) }
     (findProperty("legacyRef") as String?)?.let { a += listOf("--legacy-ref", it) }
+    // 도구별 추가 인자: -PtoolArgs="shape-vectors=a,b;shape-vectors=c,d;shape-vectors=50;shape-vectors=1" (세미콜론으로 여러 개)
+    (findProperty("toolArgs") as String?)?.split(";")?.filter { it.isNotBlank() }?.forEach { a += listOf("--tool-arg", it.trim()) }
     (findProperty("protocol") as String?)?.let { a += listOf("--protocol", it) }
     (findProperty("list") as String?)?.let { if (it != "false") a += "--list" }
     args = a

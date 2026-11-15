@@ -111,6 +111,17 @@ public final class Legacy {
                     List<String> cmd = new ArrayList<>(List.of(Procs.exe(o.javaHome, "java"), "-cp", classpath(true), main));
                     for (Path x : toolPaths) cmd.add(x.toString());
                     Procs.run(cmd, null);
+                } else if (t.id().equals("shape-vectors")) {
+                    // 새 도구와 같은 출력 이름(scratch/)·같은 인자·같은 block_tags 로 돌린다. 이전 도구는 태그 파일 기본값이 한 사람의 경로로 박혀 있어 6번째 인자로 줘야 한다.
+                    List<String> extra = o.toolArgs.getOrDefault("shape-vectors", List.of());
+                    if (extra.size() < 4) throw new IOException("shape-vectors 는 --tool-arg 네 개가 필요하다");
+                    Path out = legacyOut.resolve("scratch").resolve("shape-vectors-" + o.mc + ".txt");
+                    Files.createDirectories(out.getParent());
+                    List<String> cmd = new ArrayList<>(List.of(Procs.exe(o.javaHome, "java"), "-cp", classpath(true), main, out.toString()));
+                    cmd.addAll(extra);
+                    if (extra.size() < 5) cmd.add(o.repo.resolve("furnace-server/src/main/resources/worldgen/" + o.mc + "/block_tags.txt").toString());
+                    Procs.run(cmd, null);
+                    return List.of(out);
                 } else {
                     return List.of();
                 }

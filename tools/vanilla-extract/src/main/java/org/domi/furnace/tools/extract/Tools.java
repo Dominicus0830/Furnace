@@ -64,8 +64,8 @@ public final class Tools {
         python("damage-types", "extract_damage_types.py", List.of("{generated}/data/minecraft/damage_type", "{out0}", "{mc}"),
                 "피해 유형 표", Output.of(S + "registries/damage_types-{mc}.txt"));
         // 재료를 따로 받는 도구(전체 실행에 넣지 않는다)
-        ALL.put("shape-vectors", new Tool("shape-vectors", Kind.JAVA, "furnacetools.ShapeVectors", List.of(), List.of("{tool-args}"), false,
-                "BlockState.updateShape 차분 시험 벡터(인자를 --tool-arg shape-vectors=<값> 으로 차례로: 출력 파일, 블록들, 이웃 블록들, 시도 수, 시드)"));
+        ALL.put("shape-vectors", new Tool("shape-vectors", Kind.JAVA, "furnacetools.ShapeVectors", List.of(), List.of("{scratch}/shape-vectors-{mc}.txt", "{tool-args}"), false,
+                "BlockState.updateShape 차분 시험 벡터(--tool-arg shape-vectors=<값> 을 차례로 4개: 블록들, 이웃 블록들, 상태당 시도 수, 시드. 출력은 build/out/<판>/scratch/ 에 쓴다)"));
     }
 
     private Tools() {}

@@ -33,6 +33,22 @@ final class Procs {
         }
     }
 
+    /** 자식 프로세스를 돌려 종료 코드와 (표준 출력+오류) 를 받는다. 출력이 길어도 다 읽는다. */
+    record Captured(int code, String output) {}
+
+    static Captured capture(List<String> cmd, Path workDir) throws IOException {
+        ProcessBuilder pb = new ProcessBuilder(cmd).redirectErrorStream(true);
+        if (workDir != null) pb.directory(workDir.toFile());
+        Process pr = pb.start();
+        byte[] out = pr.getInputStream().readAllBytes();
+        try {
+            return new Captured(pr.waitFor(), new String(out, java.nio.charset.StandardCharsets.UTF_8));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("중단: " + String.join(" ", cmd), e);
+        }
+    }
+
     /** 표준 출력을 파일로 받는다(출력을 stdout 으로 내는 이전 도구용). */
     static void runToFile(List<String> cmd, Path out, java.util.Map<String, String> env) throws IOException {
         ProcessBuilder pb = new ProcessBuilder(cmd).redirectOutput(out.toFile()).redirectError(ProcessBuilder.Redirect.INHERIT);

@@ -9,44 +9,103 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.GZIPOutputStream;
 
-/** 도구를 실제로 돌린다: Java 도구는 한 번에 컴파일(javac)해 도구마다 새 JVM 으로, 파이썬 도구는 python 으로. */
+/** 도구를 실제로 돌린다: Java 도구는 도구마다 컴파일(javac)해 도구마다 새 JVM 으로, 파이썬 도구는 python 으로. */
 public final class Runner {
+    /** 도구 한 개의 결과 상태. */
+    public enum Status {
+        OK("성공"), COMPILE_FAILED("컴파일 실패"), RUN_FAILED("실행 실패");
+
+        private final String label;
+
+        Status(String label) {
+            this.label = label;
+        }
+
+        public String label() {
+            return label;
+        }
+    }
+
     /** 도구 한 개의 실행 결과. */
-    public record Result(Tool tool, boolean ok, List<Path> outputs, String error) {}
+    public record Result(Tool tool, Status status, List<Path> outputs, String error) {
+        public boolean ok() {
+            return status == Status.OK;
+        }
+    }
+
+    private static final int ERROR_LINES_SHOWN = 40;
 
     private final Options o;
     private final Prepared p;
     private Path classes;
     private String python;
+    /** 컴파일에 실패한 Java 도구(id → 오류 요약). */
+    private final java.util.Map<String, String> compileFailures = new java.util.LinkedHashMap<>();
+
+    /** 도구 소스 이름(확장자 뺀 것)으로 소스 스트림을 준다. 기본은 이 모듈의 resources/exporters/furnacetools. 시험이 바꿔 끼운다. */
+    private final java.util.function.Function<String, InputStream> sources;
 
     public Runner(Options o, Prepared p) {
-        this.o = o;
-        this.p = p;
+        this(o, p, name -> Runner.class.getResourceAsStream("/exporters/furnacetools/" + name + ".java"));
     }
 
-    /** 선택된 도구들의 Java 소스를 한 번에 컴파일한다(소스는 이 모듈의 resources/exporters). */
+    Runner(Options o, Prepared p, java.util.function.Function<String, InputStream> sources) {
+        this.o = o;
+        this.p = p;
+        this.sources = sources;
+    }
+
+    /** 컴파일에 실패한 도구(id → 오류 요약). 점검·실행 결과에 도구별로 적는다. */
+    public java.util.Map<String, String> compileFailures() {
+        return compileFailures;
+    }
+
+    /**
+     * 주어진 Java 도구들의 소스를 도구마다 따로 컴파일한다(소스는 이 모듈의 resources/exporters).
+     * 한 도구가 깨져도 다른 도구는 그대로 컴파일·실행되고, 실패한 도구는 compileFailures() 에 도구별로 남는다.
+     * 공용 도우미(Vanilla)가 깨지면 모든 도구가 같은 이유로 실패한다. 전체 오류는 캐시 폴더의 exporter-compile-<id>.log 에 쓰고 화면에는 앞부분만 보인다.
+     */
     public void compile(List<Tool> tools) throws IOException {
-        List<String> names = new ArrayList<>(List.of("Vanilla"));
-        for (Tool t : tools) if (t.kind() == Tool.Kind.JAVA) names.add(t.entry().substring("furnacetools.".length()));
+        compileFailures.clear();
         Path src = o.cache.resolve(o.mc).resolve("exporter-src");
+        Path logs = o.cache.resolve(o.mc);
         classes = o.cache.resolve(o.mc).resolve("exporter-classes");
         Preparer.deleteTree(src);
         Preparer.deleteTree(classes);
         Files.createDirectories(src);
         Files.createDirectories(classes);
-        List<String> files = new ArrayList<>();
-        for (String n : names) {
-            Path f = src.resolve(n + ".java");
-            try (InputStream in = Runner.class.getResourceAsStream("/exporters/furnacetools/" + n + ".java")) {
-                if (in == null) throw new IOException("도구 소스가 없다: exporters/furnacetools/" + n + ".java");
+        String vanillaError = compileOne("Vanilla", src, logs);
+        for (Tool t : tools) {
+            if (t.kind() != Tool.Kind.JAVA) continue;
+            String simple = t.entry().substring("furnacetools.".length());
+            String err = vanillaError != null ? "공용 도우미 Vanilla 컴파일 실패 — " + vanillaError : compileOne(simple, src, logs);
+            if (err != null) {
+                compileFailures.put(t.id(), err);
+                System.out.println("컴파일 실패  " + t.id() + ": " + err);
+            }
+        }
+    }
+
+    /** 소스 한 개를 컴파일하고, 실패하면 오류 요약(앞부분 + 로그 위치)을 돌려준다. 성공하면 null. */
+    private String compileOne(String simple, Path src, Path logs) throws IOException {
+        Path f = src.resolve(simple + ".java");
+        if (!Files.exists(f)) {
+            try (InputStream in = sources.apply(simple)) {
+                if (in == null) throw new IOException("도구 소스가 없다: exporters/furnacetools/" + simple + ".java");
                 Files.copy(in, f);
             }
-            files.add(f.toString());
         }
-        List<String> cmd = new ArrayList<>(List.of(Procs.exe(o.javaHome, "javac"), "-proc:none", "-nowarn", "-encoding", "UTF-8",
-                "-cp", classpath(false), "-d", classes.toString()));
-        cmd.addAll(files);
-        Procs.run(cmd, null);
+        List<String> cmd = new ArrayList<>(List.of(Procs.exe(o.javaHome, "javac"), "-proc:none", "-nowarn", "-encoding", "UTF-8", "-Xmaxerrs", "1000",
+                "-cp", classpath(true), "-d", classes.toString(), f.toString()));
+        Procs.Captured c = Procs.capture(cmd, null);
+        if (c.code() == 0) return null;
+        Path log = logs.resolve("exporter-compile-" + simple + ".log");
+        Files.writeString(log, c.output(), java.nio.charset.StandardCharsets.UTF_8);
+        String[] lines = c.output().split("\\R");
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < Math.min(lines.length, ERROR_LINES_SHOWN); i++) sb.append("\n    ").append(lines[i]);
+        if (lines.length > ERROR_LINES_SHOWN) sb.append("\n    … (").append(lines.length - ERROR_LINES_SHOWN).append("줄 더)");
+        return "오류 전체: " + log + sb;
     }
 
     /** compile() 이 만든 클래스 폴더. */
@@ -64,6 +123,8 @@ public final class Runner {
 
     public Result run(Tool t) {
         List<Path> outs = new ArrayList<>();
+        String compileError = compileFailures.get(t.id());
+        if (compileError != null) return new Result(t, Status.COMPILE_FAILED, outs, compileError);
         try {
             for (Tool.Output out : t.outputs()) {
                 Path staged = o.out.resolve(Tools.fill(out.dest(), o.mc, p.protocol()));
@@ -98,9 +159,9 @@ public final class Runner {
                 gzip(toolPaths.get(i), outs.get(i));
                 Files.delete(toolPaths.get(i));
             }
-            return new Result(t, true, outs, null);
+            return new Result(t, Status.OK, outs, null);
         } catch (IOException | RuntimeException e) {
-            return new Result(t, false, outs, e.getMessage());
+            return new Result(t, Status.RUN_FAILED, outs, e.getMessage());
         }
     }
 
@@ -119,6 +180,7 @@ public final class Runner {
             String v = a.replace("{serverJar}", p.serverJar().toString())
                     .replace("{generated}", p.generated().toString())
                     .replace("{repo}", o.repo.toString().replace('\\', '/'))
+                    .replace("{scratch}", o.out.resolve("scratch").toString().replace('\\', '/'))
                     .replace("{mc}", o.mc)
                     .replace("{protocol}", Integer.toString(p.protocol()));
             for (int i = 0; i < toolPaths.size(); i++) v = v.replace("{out" + i + "}", toolPaths.get(i).toString());
