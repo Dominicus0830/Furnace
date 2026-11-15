@@ -60,7 +60,7 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
                     if (typeSpecific.has("entity_struck")) struck = parse(typeSpecific.get("entity_struck"), regs);
                     for (String k : new String[] {"stats", "looking_at"}) {
                         if (typeSpecific.has(k)) org.slf4j.LoggerFactory.getLogger(EntityPredicate.class)
-                                .warn("아직 지원하지 않는 player 조건 필드(늘 거짓으로 본다): {}", k);
+                                .warn(Lang.t("loot.player-condition-unsupported", k));
                     }
                 }
                 case "location" -> location = LocationPredicate.parse(f.getValue(), regs);
