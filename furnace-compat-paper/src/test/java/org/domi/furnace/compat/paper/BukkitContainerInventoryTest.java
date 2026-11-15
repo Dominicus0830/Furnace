@@ -518,6 +518,8 @@ class BukkitContainerInventoryTest {
             try {
                 Barrel b = (Barrel) Compat.block(dim, pos).getState();
                 b.getSnapshotInventory().setItem(4, new org.bukkit.inventory.ItemStack(org.bukkit.Material.DIRT, 2));
+                var sent = ((org.bukkit.craftbukkit.block.CraftBlockEntityState) b).getSnapshotNBT().getList("Items").values();
+                assertEquals(1, sent.size(), "사본 NBT 에도 빈 칸은 없다(Paper getSnapshotNBT): " + sent);
                 assertTrue(b.update());
                 var items = w.blockEntityNbtNow(pos).orElseThrow().getList("Items").values();
                 assertEquals(1, items.size(), "빈 칸은 쓰지 않는다: " + items);
