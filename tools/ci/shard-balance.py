@@ -13,7 +13,7 @@
 
 표본 하나 = 서버 시험 전체를 한 번 돈 시간 기록이다. 표본은 다음 중 하나로 준다.
   - 폴더: 안(하위 폴더 포함)의 TEST-*.xml 과 *.tsv 를 모두 합쳐 한 표본으로 본다.
-    CI 실행 하나의 산출물 shard-times-1·2·3 을 한 폴더에 풀면 그 실행 전체가 한 표본이다.
+    CI 실행 하나의 산출물 shard-times-1~4 을 한 폴더에 풀면 그 실행 전체가 한 표본이다.
   - .tsv 파일 하나(--export 가 쓴 꼴: "클래스 경로<TAB>초").
   표본을 안 주면 furnace-server/build/test-results/test(로컬에서 :furnace-server:test 를 돌린 결과) 하나를 쓴다.
 --write 는 표본마다 합을 같게 맞춘 뒤(컴퓨터 빠르기 차이를 지움) 클래스별 평균을 낸다. 여러 실행을 줄수록 흔들림이 준다.
@@ -121,7 +121,7 @@ def report(label, shard_of, samples, shards):
 def main():
     ap = argparse.ArgumentParser(description='서버 시험 조각 균형 보기·시간 파일 갱신')
     ap.add_argument('samples', nargs='*', help='표본 폴더 또는 .tsv(없으면 로컬 시험 결과 하나)')
-    ap.add_argument('--shards', type=int, default=3)
+    ap.add_argument('--shards', type=int, default=4)
     ap.add_argument('--write', action='store_true', help=f'표본들로 {TIMES} 를 새로 쓴다')
     ap.add_argument('--export', metavar='TSV', help='로컬 시험 결과 XML 을 클래스별 시간 TSV 로 쓰고 끝낸다(CI 산출물용)')
     a = ap.parse_args()

@@ -63,7 +63,7 @@ for c in $classes; do args+=(--tests "$c"); done
 # 여기까지 왔으면 재시도에서 통과한 것이다 — 처음에 실패했다는 기록을 남긴다(초록 뒤에 가려지지 않게).
 printf '%s\n' "$failed" > "$out/flaky-tests.txt"
 while IFS= read -r t; do
-  [ -n "$t" ] && echo "::warning title=흔들린 시험 (조각 ${shard}/3)::${t} — 처음 실패, 재시도에서 통과"
+  [ -n "$t" ] && echo "::warning title=흔들린 시험 (조각 ${shard}/4)::${t} — 처음 실패, 재시도에서 통과"
 done <<< "$failed"
 {
   echo "### 흔들린 시험 (조각 ${shard}/3: 처음 실패, 재시도에서 통과)"
