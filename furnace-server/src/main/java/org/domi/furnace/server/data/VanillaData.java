@@ -40,6 +40,11 @@ public final class VanillaData {
 
     private VanillaData() {}
 
+    /** 직접 받은 바닐라 서버 jar 를 두는 곳(오류 안내용). */
+    public static Path expectedJar(Path serverDir) {
+        return serverDir.toAbsolutePath().normalize().resolve("cache").resolve("mojang_" + VERSION + ".jar");
+    }
+
     /** data/ 를 담은 폴더를 돌려준다(필요하면 jar 를 구해 풀어 둔다). */
     public static Path ensure(Path serverDir) throws IOException {
         // 절대 경로로 정규화 — 추출 경로 검사(대상이 작업 폴더 안인가)가 "./" 같은 상대 경로에서 어긋나지 않게.
@@ -55,7 +60,7 @@ public final class VanillaData {
             if (given != null) {
                 Path src = Path.of(given);
                 String h = sha1(src);
-                if (!SERVER_JAR_SHA1.equals(h)) throw new IOException("furnace.vanillaJar 가 바닐라 " + VERSION + " 서버 jar 가 아니다(sha1 " + h + ")");
+                if (!SERVER_JAR_SHA1.equals(h)) throw new IOException("furnace.vanillaJar is not the vanilla " + VERSION + " server jar (sha1 " + h + ")");
                 Files.copy(src, jar, StandardCopyOption.REPLACE_EXISTING);
             } else {
                 download(jar);
@@ -77,24 +82,23 @@ public final class VanillaData {
                 JsonObject o = v.getAsJsonObject();
                 if (VERSION.equals(o.get("id").getAsString())) { versionUrl = o.get("url").getAsString(); break; }
             }
-            if (versionUrl == null) throw new IOException("Mojang 버전 목록에 " + VERSION + " 이 없다");
+            if (versionUrl == null) throw new IOException("Mojang's version list has no " + VERSION);
             JsonObject server = JsonParser.parseString(get(http, versionUrl)).getAsJsonObject()
                 .getAsJsonObject("downloads").getAsJsonObject("server");
             if (!SERVER_JAR_SHA1.equals(server.get("sha1").getAsString()))
-                throw new IOException("Mojang 이 알려 준 서버 jar sha1 이 예상과 다르다: " + server.get("sha1").getAsString());
+                throw new IOException("the server jar sha1 Mojang reported is not the expected one: " + server.get("sha1").getAsString());
             Path tmp = jar.resolveSibling(jar.getFileName() + ".part");
             HttpResponse<Path> r = http.send(HttpRequest.newBuilder(URI.create(server.get("url").getAsString()))
                 .timeout(Duration.ofMinutes(5)).build(), HttpResponse.BodyHandlers.ofFile(tmp));
-            if (r.statusCode() != 200) throw new IOException("서버 jar 다운로드 실패: HTTP " + r.statusCode());
+            if (r.statusCode() != 200) throw new IOException("downloading the server jar failed: HTTP " + r.statusCode());
             String h = sha1(tmp);
-            if (!SERVER_JAR_SHA1.equals(h)) { Files.deleteIfExists(tmp); throw new IOException("받은 서버 jar 의 sha1 이 다르다: " + h); }
+            if (!SERVER_JAR_SHA1.equals(h)) { Files.deleteIfExists(tmp); throw new IOException("the downloaded server jar has the wrong sha1: " + h); }
             Files.move(tmp, jar, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IOException("다운로드 중단", e);
+            throw new IOException("download interrupted", e);
         } catch (IOException e) {
-            throw new IOException("바닐라 " + VERSION + " 서버 jar 를 구하지 못했다 — 직접 받아 " + jar
-                + " 에 두거나 -Dfurnace.vanillaJar=<경로> 로 지정하라 (" + e.getMessage() + ")", e);
+            throw new IOException("could not get the vanilla " + VERSION + " server jar (" + e.getMessage() + ")", e);
         }
     }
 

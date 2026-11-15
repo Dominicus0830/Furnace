@@ -1,5 +1,5 @@
 // Mojang 서비스 공개키(authlib ServicesKeySet) — 플레이어 채팅 키 서명 검증용 playerCertificateKeys.
-// 기동 시 비동기로 받아 오며, 실패하면 바닐라처럼 "Failed to request yggdrasil public key" 를 남기고 서명 채팅 검증을 못 한다.
+// 기동 시 비동기로 받아 오며, 실패하면 "Failed to request yggdrasil public key: 원인" 한 줄 경고(스택은 DEBUG)를 남기고 서명 채팅 검증을 못 한다.
 package org.domi.furnace.server.chat;
 
 import com.google.gson.JsonArray;
@@ -17,6 +17,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,7 +50,8 @@ public final class ServicesKeys {
                 if (resp.statusCode() != 200) throw new IllegalStateException("HTTP " + resp.statusCode());
                 profileKeys = parse(resp.body());
             } catch (Exception e) {
-                log.error("Failed to request yggdrasil public key", e);
+                log.warn(Lang.t("services.keys-failed", e.toString(), host));
+                log.debug("Failed to request yggdrasil public key", e);
             }
         }, "Yggdrasil Key Fetcher");
         t.setDaemon(true);

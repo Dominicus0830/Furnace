@@ -48,7 +48,7 @@ public record LightSettings(boolean async, int threads) {
                 throw new IllegalArgumentException("설정 'light.async-threads' 가 숫자가 아님: " + t, e);
             }
             if (threads < 1) throw new IllegalArgumentException("설정 'light.async-threads' 값 " + threads + " 이(가) 잘못됐습니다: 1 이상");
-            if (!async) warn.accept("설정 'light.async-threads' 는 'light.async=true' 일 때만 쓰입니다");
+            if (!async) warn.accept(org.domi.furnace.server.i18n.Lang.t("config.light-threads-unused"));
         }
         return new LightSettings(async, threads);
     }

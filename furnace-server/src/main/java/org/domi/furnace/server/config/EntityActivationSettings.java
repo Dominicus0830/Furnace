@@ -103,8 +103,7 @@ public record EntityActivationSettings(boolean enabled,
                 num(p, "villagers-work-immunity-after", d.villagersWorkImmunityAfter), num(p, "villagers-work-immunity-for", d.villagersWorkImmunityFor),
                 bool(p, "villagers-active-for-panic", d.villagersActiveForPanic));
         if (enabled && warn != null) {
-            warn.accept("엔티티 활성 범위가 켜져 있습니다(Spigot·Paper 와 같은 방식, 기본값): 플레이어에게서 먼 몹은 AI·이동을 대부분 건너뛰어 "
-                    + "바닐라와 결과가 다릅니다. 바닐라와 같게 하려면 furnace.properties 에 " + PREFIX + "enabled=false");
+            warn.accept(org.domi.furnace.server.i18n.Lang.t("config.entity-activation-on", PREFIX + "enabled"));
         }
         return s;
     }

@@ -157,7 +157,8 @@ public final class FurnacePropertiesFile {
                 opt("config.preset", "none", "none | vanilla | performance. 기본값 그대로인 키를 프리셋 값으로 바꾼다(기본값과 다르게 적은 키가 이긴다)."),
                 opt("jvm.check", true, "기동 때 Java 버전·힙·GC 옵션을 점검해 경고한다."),
                 opt("console.jline", true, "콘솔 줄 편집·기록·Tab 자동완성(터미널이 아니면 자동으로 꺼진다)."),
-                opt("console.history-size", org.domi.furnace.server.ConsoleInput.DEFAULT_HISTORY_SIZE, "콘솔 명령 기록 줄 수. 0 이면 .console_history 파일에 남기지 않는다.")
+                opt("console.history-size", org.domi.furnace.server.ConsoleInput.DEFAULT_HISTORY_SIZE, "콘솔 명령 기록 줄 수. 0 이면 .console_history 파일에 남기지 않는다."),
+                opt(org.domi.furnace.server.i18n.Lang.KEY, "auto", "서버 메시지(콘솔 로그·콘솔 명령 결과) 언어: auto | en | ko. auto 는 실행 환경(JVM user.language, 리눅스는 LANG)을 따르고, 번역이 없으면 영어. -Dfurnace.language=ko 나 환경변수 FURNACE_LANGUAGE 가 있으면 그쪽이 이긴다. 바닐라·Paper 와 같은 줄(Done (…)! 등)은 늘 영어.")
         )));
         s.add(new Section("플러그인", List.of(
                 opt("plugins.fail-fast", false, "플러그인 하나라도 불러오기·켜기에 실패하면 서버 시작을 멈춘다."),

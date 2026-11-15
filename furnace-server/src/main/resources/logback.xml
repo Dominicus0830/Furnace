@@ -1,10 +1,14 @@
-<!-- 바닐라 log4j2.xml 과 같은 형식: [HH:mm:ss] [스레드/레벨]: 메시지, logs/latest.log + 날짜별 gz 보관 -->
+<!-- 콘솔은 Paper 형식 [HH:mm:ss LEVEL]: 메시지 (라이브러리 로거는 [이름] 접두, WARN 노랑·ERROR 빨강 — 터미널일 때만),
+     logs/latest.log 는 바닐라·Paper 파일 형식 [HH:mm:ss] [스레드/레벨]: 메시지 + 날짜별 gz 보관 -->
 <configuration>
     <!-- 콘솔은 텍스트 메시지를 ANSI 색으로(Paper 콘솔과 같음), 파일은 평문 -->
     <conversionRule conversionWord="fmsg" class="org.domi.furnace.server.log.AnsiMessageConverter"/>
+    <conversionRule conversionWord="fprefix" class="org.domi.furnace.server.log.ConsolePrefixConverter"/>
+    <conversionRule conversionWord="fcolor" class="org.domi.furnace.server.log.LevelColorConverters$Start"/>
+    <conversionRule conversionWord="fcolorend" class="org.domi.furnace.server.log.LevelColorConverters$End"/>
     <appender name="SysOut" class="org.domi.furnace.server.log.RoutedConsoleAppender">
         <encoder>
-            <pattern>[%d{HH:mm:ss}] [%thread/%level]: %fmsg%n</pattern>
+            <pattern>%fcolor[%d{HH:mm:ss} %level]: %fprefix%fmsg%fcolorend%n</pattern>
         </encoder>
     </appender>
     <appender name="File" class="org.domi.furnace.server.log.LatestLogAppender">
