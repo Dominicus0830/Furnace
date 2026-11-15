@@ -18,7 +18,7 @@
 | `GeneratedVillageProfessionTest`, `DispenserBlockTest.arrowIsShotWithPickupAllowed` | 각 1 | 난수 | CI 재시도로 흡수 |
 
 ## 지금 구조
-- `server-tests (1/3~3/3)`: 서버 시험을 시험 클래스 이름 해시로 3조각으로 나눠 동시에 돈다(`-PtestShard=i/3`, `furnace-server/build.gradle.kts`).
+- `server-tests (1/3~3/3)`: 서버 시험을 3조각으로 나눠 동시에 돈다(`-PtestShard=i/3`, `furnace-server/build.gradle.kts`). 배정은 클래스별 실측 시간으로 고르게 맞춘다(아래 "조각 균형").
   한 조각이 실패하면 **처음에 실패한 시험 클래스만** 한 번 다시 돌린다(전체 재실행 12분 → 1분 안팎). 다시 돌려도 실패하면 진짜 실패다.
   재시도에서 통과한 시험은 "흔들린 시험" 주석(PR 의 Checks 화면)·실행 요약·산출물 `flaky-tests-N`(30일 보관)에 이름이 남는다 — 이 목록이 흔들리는 시험을 고칠 우선순위다(아래 "재시도 정책").
 - `light`: API 시험, 샘플 플러그인 컴파일, 시험 서버 모듈, 호환 계층 모듈, fatJar. 기준 브랜치 실행에서는 `user-todo-combined` 산출물도 올린다.
@@ -81,8 +81,24 @@
 ## 로컬에서
 - 전체: `./gradlew -PskipOracle=true :furnace-api:test :furnace-server:test` (조각 속성 없음 = 전부).
 - CI 와 같은 조각 하나만: `./gradlew -PskipOracle=true -PtestShard=2/3 :furnace-server:test` (조각 3개가 합쳐서 전체와 같다 — 4코어 로컬 기준 조각당 4~6분, 전체 13분).
-- 조각 시간이 한쪽으로 쏠리면 `python3 -I tools/ci/shard-balance.py` 로 새 `shardSalt` 를 구해 `furnace-server/build.gradle.kts` 에 넣는다(안 해도 정확성은 같고 균형만 달라진다).
+- 조각 시간이 한쪽으로 쏠리면 아래 "조각 균형" 대로 시간 파일을 갱신한다.
 - 시험 하나가 흔들리면: `./gradlew -PskipOracle=true :furnace-server:test --tests '패키지.클래스'` 를 여러 번 돌려 재현한다.
+
+## 조각 균형 (2026-11-15, T-162)
+- 실행 시간은 가장 느린 조각이 정한다. 배정 규칙(`furnace-server/build.gradle.kts`, `tools/ci/shard-balance.py` 의 `assign()` 과 같다):
+  `furnace-server/test-shard-times.tsv`(클래스별 시험 시간 실측)에 있는 클래스는 **오래 걸리는 것부터 지금 가장 가벼운 조각에** 넣고(LPT),
+  파일에 없는 새 클래스만 이름 해시(`shardSalt`)로 나눈다. 배정은 정확성과 무관하다(조각을 합치면 전체와 같다).
+- 해시 + `shardSalt` 고르기를 버린 까닭: 접미사 salt 는 조각 수 3 에서 **salt 길이마다 같은 나눔**(조각 이름표만 바뀜)을 낸다 —
+  0~19999 를 뒤져도 서로 다른 나눔은 다섯 개뿐이었다. 그래서 큰 클래스(`CancelResyncE2ETest` 173초, `GeneratedChunkSaveTest` 124초 …)가
+  몰린 조각을 풀 수 없었다. 11-15 기준 전체 1회 실측(851클래스, 2,101초)에서 해시 배정은 가장 느린 조각이 이상값의 1.23배,
+  가장 나은 salt 도 1.13배였다. 시간 파일 배정은 **다른 날 표본으로 만든 파일로 재도** 1.07배였다(같은 표본이면 1.004배).
+- 시간 기록: 한 번에 통과한 서버 시험 조각은 산출물 `shard-times-N`(클래스별 시간 TSV, 30일)을 올린다. CI 러너 실측이다.
+- **갱신하는 법**(조각 작업 시간이 눈에 띄게 벌어지거나, 해시로 가는 새 클래스 몫이 커질 때):
+  1. 최근 성공한 기준 브랜치 실행 몇 개에서 `shard-times-1~3` 을 받아 실행마다 한 폴더에 푼다(예: `runs/1617/`, `runs/1620/`).
+     로컬 전체 시험 결과(`furnace-server/build/test-results/test`)도 표본이 된다.
+  2. `python3 -I tools/ci/shard-balance.py runs/*` 로 지금 배정의 균형과 "시간 파일에 없는 클래스" 몫을 본다.
+  3. `python3 -I tools/ci/shard-balance.py --write runs/*` 로 시간 파일을 새로 쓰고 커밋한다(표본마다 합을 맞춘 뒤 클래스별 평균).
+- 안 해도 정확성은 같고 균형만 나빠진다. 시간 파일은 손으로 고치지 않는다.
 
 ## 기준 브랜치가 바뀌면
 `ci.yml` 의 `on.push.branches` 와 `env.BASE_BRANCH` 두 곳을 새 이름으로 바꾼다.
