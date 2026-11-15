@@ -57,7 +57,8 @@ public interface PacketService {
 
     /**
      * 그 플레이어의 클라이언트가 보낸 것처럼 서버에 넣는다(리스너를 거친다). 서버는 진짜 패킷과 똑같이 검사하고 처리한다.
-     * 그 연결의 네트워크 스레드에서 차례대로 처리된다.
+     * 그 연결의 네트워크 스레드에서 차례대로 처리된다. 그 플레이어의 받는 패킷 리스너 안에서 부르면 그 자리에서 처리된다 —
+     * 지금 패킷보다, 그리고 클라이언트가 뒤이어 보낸 패킷보다 먼저(ProtocolLib receiveClientPacket 과 같다).
      */
     void receive(Player player, ServerboundPacket packet);
 

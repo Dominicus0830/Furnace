@@ -10,6 +10,12 @@
 // 주 스레드가 아니면 패킷을 버리고 주 스레드에서 다시 보내는데, 그러면 Furnace 가 보낸 패킷이 1틱 늦게·다른 패킷 뒤에 도착한다(엔티티 생성이 메타데이터 뒤로 가는 등).
 // 바닐라·Paper 에서 서버 패킷은 거의 모두 주 스레드에서 보내져 리스너가 그 자리에서 불리므로, 같은 결과를 위해 가로채는 동안 이 스레드를 주 스레드로 표시한다
 // (PrimaryThread — region 빌림은 열지 않는다). 결정 기록: docs/user-todo/entries/2026-11-12-protocollib-2b2.md.
+//
+// 2b-3(T-180): 클라이언트가 보낸 패킷도 같은 방식으로 보여 준다(반치트·채팅 필터). Furnace 받는 패킷 리스너(EventPriority.LOWEST — 서버가 처리하기 전, 바이트에 가장 가깝게)에서
+//   Furnace 패킷 → shim(ServerboundBridge.fromFurnace) → 연결 파이프라인 머리에서 읽기(Connection#compatReceive) → ProtocolLib 받는 처리기 → shim' → Furnace 패킷
+// 으로 돌려 바꾸기·취소를 되돌린다. 받는 쪽은 주 스레드 표시를 하지 않는다 — ProtocolLib 받는 리스너는 기본이 Netty 스레드(isAsync)이고
+// SYNC 리스너만 라이브러리가 스스로 주 스레드로 미룬다(Paper 와 같다, 결정 기록 docs/user-todo/entries/2026-11-15-protocollib-t180.md).
+// 리스너가 다른 종류로 바꾼 패킷·receiveClientPacket 은 PacketService.receive 로 넣고, 리스너 안이라 서버가 그 자리에서 처리한다(뒤 패킷보다 먼저).
 package org.domi.furnace.compat.paper;
 
 import java.util.Collection;
@@ -34,6 +40,9 @@ import org.domi.furnace.api.packet.schema.PacketSchema;
 import org.domi.furnace.api.sched.ScheduledTask;
 import org.domi.furnace.compat.nms.DeliveredPackets;
 import org.domi.furnace.compat.nms.PacketDelivery;
+import org.domi.furnace.compat.nms.ServerboundBridge;
+import org.domi.furnace.api.packet.GenericPacket;
+import org.domi.furnace.api.packet.ServerboundPacket;
 import org.domi.furnace.compat.thread.PrimaryThread;
 
 public final class ProtocolLibBridge {
@@ -49,13 +58,15 @@ public final class ProtocolLibBridge {
     private static volatile ProtocolLibBridge active;
 
     private final BukkitPluginAdapter owner;
-    /** ProtocolLib 나가는 리스너가 듣는 패킷 클래스(shim 클래스). 전역 스레드에서 부른다. */
+    /** ProtocolLib 리스너가 듣는 패킷 클래스(shim 클래스 — 보내는 쪽·받는 쪽이 클래스 방향으로 나뉜다). 전역 스레드에서 부른다. */
     private final Supplier<Collection<Class<?>>> listened;
     private final Object lock = new Object();
     private Set<PacketType<?>> types = Set.of();   // lock 아래
     private EventSubscription subscription;          // lock 아래
     private ScheduledTask periodic;
     private EventSubscription tracking;              // lock 아래 — 엔티티 번호를 담은 종류를 들을 때만
+    private Set<PacketType<?>> inTypes = Set.of();   // lock 아래 — 받는 쪽(serverbound)
+    private EventSubscription inSubscription;        // lock 아래
     private volatile boolean stopped;
 
     /**
@@ -126,6 +137,9 @@ public final class ProtocolLibBridge {
             if (tracking != null) tracking.unsubscribe();
             tracking = null;
             types = Set.of();
+            if (inSubscription != null) inSubscription.unsubscribe();
+            inSubscription = null;
+            inTypes = Set.of();
         }
         held.clear();
         DeliveredPackets.watch(Set.of());
@@ -147,6 +161,13 @@ public final class ProtocolLibBridge {
         }
     }
 
+    /** 지금 듣는 받는 쪽 Furnace 종류(시험용). */
+    Set<PacketType<?>> inboundTypes() {
+        synchronized (lock) {
+            return inTypes;
+        }
+    }
+
     /** ProtocolLib 이 듣는 종류에 맞춰 Furnace 패킷 구독을 다시 건다(바뀌었을 때만). 전역 스레드에서. */
     void resync() {
         if (stopped) return;
@@ -160,11 +181,22 @@ public final class ProtocolLibBridge {
             return;
         }
         Set<PacketType<?>> want = new LinkedHashSet<>();
+        Set<PacketType<?>> wantIn = new LinkedHashSet<>();
         Set<String> missing = new TreeSet<>();
+        Set<String> missingIn = new TreeSet<>();
         var packets = Furnace.server().packets();
         for (Class<?> c : classes) {
+            PacketType<?> in = ServerboundBridge.furnaceType(c);
+            if (in != null) {   // 클라이언트가 보내는 패킷(2b-3)
+                if (!packets.isSupported(in)) continue;
+                String why = ServerboundBridge.refusal(in);
+                if (why == null && !in.typed() && !packets.isReadable(in)) why = "이 서버가 내용을 읽지 못하는 종류";
+                if (why != null) missingIn.add(in.name());
+                else wantIn.add(in);
+                continue;
+            }
             PacketType<?> t = furnaceType(c);
-            if (t == null) continue;   // play 단계 clientbound 가 아닌 것(로그인·상태·번들 등) — Furnace 패킷 API 범위 밖
+            if (t == null) continue;   // play 단계 패킷이 아닌 것(로그인·상태·번들 등) — Furnace 패킷 API 범위 밖
             if (!packets.isSupported(t)) continue;
             String why = PacketDelivery.irreversibleReason(t);
             if (why == null && !t.typed() && !packets.isReadable(t)) why = "이 서버가 내용을 읽지 못하는 종류";
@@ -177,6 +209,10 @@ public final class ProtocolLibBridge {
         if (!missing.isEmpty() && warned.add("missing:" + missing)) {
             owner.logger().info("ProtocolLib 리스너가 듣는 종류 중 Furnace 가 스스로 보내는 패킷을 아직 보여 주지 못하는 것(플러그인이 보낸 것은 보인다): " + missing);
         }
+        if (!missingIn.isEmpty() && warned.add("missingIn:" + missingIn)) {
+            owner.logger().info("ProtocolLib 리스너가 듣는 종류 중 클라이언트가 보낸 패킷을 아직 보여 주지 못하는 것(서버는 그대로 처리한다): " + missingIn);
+        }
+        resyncInbound(packets, wantIn);
         synchronized (lock) {
             if (stopped || want.equals(types)) return;
             if (subscription != null) subscription.unsubscribe();
@@ -194,6 +230,19 @@ public final class ProtocolLibBridge {
                 tracking.unsubscribe();
                 tracking = null;
                 held.clear();
+            }
+        }
+    }
+
+    /** 받는 쪽 구독을 맞춘다(바뀌었을 때만). */
+    private void resyncInbound(org.domi.furnace.api.packet.PacketService packets, Set<PacketType<?>> want) {
+        synchronized (lock) {
+            if (stopped || want.equals(inTypes)) return;
+            if (inSubscription != null) inSubscription.unsubscribe();
+            inSubscription = null;
+            inTypes = Set.copyOf(want);
+            if (!want.isEmpty()) {
+                inSubscription = packets.listen(owner, EventPriority.LOWEST, this::onInbound, want.toArray(PacketType<?>[]::new));
             }
         }
     }
@@ -290,6 +339,74 @@ public final class ProtocolLibBridge {
         }
     }
 
+    /**
+     * 클라이언트가 보낸 패킷 하나(그 플레이어의 네트워크 스레드, 서버가 처리하기 전). 플러그인이 넣은 것(PacketService.receive·라이브러리 receiveClientPacket 이
+     * {@code Connection#read} 로 넣은 것)은 건너뛴다 — 라이브러리는 넣을 때 이미 리스너를 불렀다(receiveClientPacket 의 filters).
+     */
+    private void onInbound(PacketEvent<Packet> e) {
+        if (e.isPluginPacket() || e.isCancelled() || stopped) return;
+        Packet value = e.packet();
+        if (value instanceof GenericPacket g && !g.readable()) return;   // 읽지 못한 것(잘못된 패킷) — 서버 본래 처리에 맡긴다
+        net.minecraft.network.Connection c = connection(e.player());
+        if (c == null) return;
+        net.minecraft.network.protocol.Packet<?> shim;
+        ServerboundPacket before;
+        try {
+            shim = ServerboundBridge.fromFurnace((ServerboundPacket) value);
+            before = ServerboundBridge.toFurnace(shim);   // 비교 기준
+        } catch (RuntimeException ex) {
+            warnOnce("in-from:" + value.type(), "클라이언트가 보낸 " + value.type().name() + " 패킷 하나를 ProtocolLib 리스너에 보여 주지 못했다(서버는 그대로 처리한다, 첫 오류): "
+                    + ex.getMessage());
+            return;
+        }
+        net.minecraft.network.protocol.Packet<?> after;
+        // 주 스레드 표시를 하지 않는다: ProtocolLib 받는 리스너는 기본이 Netty 스레드(isAsync)이고, SYNC 리스너만 라이브러리가 스스로 주 스레드로
+        // 미룬다(그때 compatReceive 는 null — 나중에 Connection#read 가 넣는다). 보내는 쪽(기본이 동기)과 반대다(PR #389 검토 R1).
+        try {
+            after = c.compatReceive(shim);
+        } catch (RuntimeException ex) {
+            warnOnce("in-intercept:" + value.type(), "ProtocolLib 받는 쪽 가로채기 중 오류(" + value.type().name() + ", 원래 패킷을 처리한다): " + ex);
+            return;
+        }
+        if (after == null) {   // 리스너가 취소했다(또는 라이브러리가 나중으로 미뤘다 — 그때는 나중에 Connection#read 가 넣는다)
+            e.setCancelled(true);
+            return;
+        }
+        ServerboundPacket out;
+        try {
+            out = ServerboundBridge.toFurnace(after);
+        } catch (RuntimeException ex) {
+            warnOnce("in-to:" + value.type(), "ProtocolLib 리스너가 바꾼 " + value.type().name() + " 패킷을 Furnace 패킷으로 되돌리지 못해 원래 패킷을 처리한다(첫 오류): "
+                    + ex.getMessage());
+            return;
+        }
+        if (sameInbound(out, before)) return;   // 리스너가 손대지 않았다
+        if (out.type() != value.type()) {   // 다른 종류로 바꿨다 — 이 패킷 대신 그것을 넣는다
+            e.setCancelled(true);
+            try {
+                Furnace.server().packets().receive(e.player(), out);
+            } catch (RuntimeException ex) {
+                warnOnce("in-instead:" + out.type(), "ProtocolLib 리스너가 바꾼 패킷(" + out.type().name() + ")을 서버에 넣지 못했다(첫 오류): " + ex.getMessage());
+            }
+            return;
+        }
+        try {
+            e.setPacket(out);
+        } catch (RuntimeException ex) {
+            warnOnce("in-set:" + value.type(), "ProtocolLib 리스너가 바꾼 " + value.type().name() + " 패킷을 쓸 수 없어 원래 패킷을 처리한다(첫 오류): " + ex.getMessage());
+        }
+    }
+
+    /** 손대지 않았나: 서명 있는 채팅은 레코드 equals 가 byte[] 를 객체로 비교하므로 내용으로 본다(PR #389 검토 S2). */
+    static boolean sameInbound(ServerboundPacket a, ServerboundPacket b) {
+        if (a instanceof org.domi.furnace.api.packet.serverbound.ServerboundChatPacket x && b instanceof org.domi.furnace.api.packet.serverbound.ServerboundChatPacket y) {
+            return x.message().equals(y.message()) && x.timestamp().equals(y.timestamp()) && x.salt() == y.salt()
+                    && java.util.Arrays.equals(x.signature(), y.signature()) && x.lastSeenOffset() == y.lastSeenOffset()
+                    && x.lastSeenAcknowledged() == y.lastSeenAcknowledged();
+        }
+        return a.equals(b);
+    }
+
     /** 리스너가 다른 종류·묶음으로 바꾼 패킷을 그 자리에 보낸다(다시 라이브러리를 지나지 않게 표지를 붙여). */
     private void sendInstead(PacketEvent<Packet> e, net.minecraft.network.protocol.Packet<?> p) {
         try {
@@ -311,7 +428,7 @@ public final class ProtocolLibBridge {
 
     // ------------------------------------------------------------------ 진짜 ProtocolLib
 
-    /** ProtocolLib 공개 API 로 나가는 리스너의 패킷 클래스를 모은다(반사 — 호환 모듈은 ProtocolLib 없이 컴파일된다). */
+    /** ProtocolLib 공개 API 로 리스너의 패킷 클래스(보내는 쪽·받는 쪽)를 모은다(반사 — 호환 모듈은 ProtocolLib 없이 컴파일된다). */
     private static Supplier<Collection<Class<?>>> reflectiveSource(ClassLoader cl) {
         try {
             Class<?> library = Class.forName("com.comphenix.protocol.ProtocolLibrary", true, cl);
@@ -322,21 +439,28 @@ public final class ProtocolLibBridge {
             var getManager = library.getMethod("getProtocolManager");
             var getListeners = manager.getMethod("getPacketListeners");
             var getSending = listener.getMethod("getSendingWhitelist");
+            var getReceiving = listener.getMethod("getReceivingWhitelist");
             var getTypes = whitelist.getMethod("getTypes");
             var getPacketClass = type.getMethod("getPacketClass");
             var isServer = type.getMethod("isServer");
+            var isClient = type.getMethod("isClient");
             return () -> {
                 try {
                     Object pm = getManager.invoke(null);
                     if (pm == null) return List.of();
                     Set<Class<?>> out = new LinkedHashSet<>();
                     for (Object l : (Iterable<?>) getListeners.invoke(pm)) {
-                        Object wl = getSending.invoke(l);
-                        if (wl == null) continue;
-                        for (Object t : (Collection<?>) getTypes.invoke(wl)) {
-                            if (!Boolean.TRUE.equals(isServer.invoke(t))) continue;
-                            Object c = getPacketClass.invoke(t);
-                            if (c instanceof Class<?> k) out.add(k);
+                        // 보내는 쪽(서버 패킷)과 받는 쪽(클라이언트 패킷, 2b-3) — 클래스 방향으로 나뉜다
+                        Object[][] sides = {{getSending.invoke(l), isServer}, {getReceiving.invoke(l), isClient}};
+                        for (Object[] side : sides) {
+                            Object wl = side[0];
+                            if (wl == null) continue;
+                            var dir = (java.lang.reflect.Method) side[1];
+                            for (Object t : (Collection<?>) getTypes.invoke(wl)) {
+                                if (!Boolean.TRUE.equals(dir.invoke(t))) continue;
+                                Object c = getPacketClass.invoke(t);
+                                if (c instanceof Class<?> k) out.add(k);
+                            }
                         }
                     }
                     return out;

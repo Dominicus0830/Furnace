@@ -25,8 +25,8 @@ import org.domi.furnace.api.packet.schema.TypeDecl;
 import org.domi.furnace.api.packet.schema.TypeRef;
 
 /**
- * {@link SchemaPacketBridge} 의 반대 방향(ProtocolLib 다리 2b-2): Furnace {@link GenericPacket} → 스키마로 생성한 clientbound 패킷 shim.
- * Furnace 서버가 스스로 보내는 패킷을 패킷 라이브러리 리스너에 보여 줄 때 쓴다. 플러그인용이 아니다.
+ * {@link SchemaPacketBridge} 의 반대 방향(ProtocolLib 다리 2b-2): Furnace {@link GenericPacket} → 스키마로 생성한 패킷 shim.
+ * Furnace 서버가 스스로 보내는 패킷(clientbound)과 클라이언트가 보낸 패킷(serverbound, 2b-3)을 패킷 라이브러리 리스너에 보여 줄 때 쓴다. 플러그인용이 아니다.
  *
  * <p>값 하나하나가 {@code SchemaPacketBridge.toFurnace} 의 값 변환의 역이다: {@code toFurnace(fromFurnace(g)).equals(g)}(왕복).
  * shim 은 스키마 필드 순서의 모든 필드 생성자(생성기가 늘 만든다 — 바닐라에 없으면 private)로 만든다. 부모 클래스가 있는 이동 패킷 셋은 바닐라 생성자로.
@@ -65,12 +65,12 @@ final class SchemaPacketReverse {
         NoBridge(String why) { super(why, null, false, false); }
     }
 
-    /** 이 Furnace 종류의 play 연결 clientbound 스키마 정의. */
+    /** 이 Furnace 종류의 play 연결 스키마 정의(같은 방향). */
     static Optional<PacketDef> def(PacketType<?> t) {
-        if (t.direction() != PacketDirection.CLIENTBOUND || !t.name().startsWith("minecraft:")) return Optional.empty();
+        if (!t.name().startsWith("minecraft:")) return Optional.empty();
         String wire = t.name().substring("minecraft:".length());
         for (String st : PLAY_STATES) {
-            Optional<PacketDef> d = SCHEMA.packet(st, PacketDirection.CLIENTBOUND, wire);
+            Optional<PacketDef> d = SCHEMA.packet(st, t.direction(), wire);
             if (d.isPresent()) return d;
         }
         return Optional.empty();
@@ -88,9 +88,11 @@ final class SchemaPacketReverse {
 
     private static Back compile(PacketType<?> t) {
         PacketDef d = def(t).orElse(null);
-        if (d == null) return refuse(null, "play 연결 clientbound 스키마에 없는 종류다");
-        if (t.typed()) return refuse(d, "Furnace 타입 레코드 종류다(TypedPacketBridge 가 다룬다)");
-        if (!SchemaPacketBridge.supports(d)) return refuse(d, "shim → Furnace 변환이 없는 종류다: " + SchemaPacketBridge.refusal(d));
+        if (d == null) return refuse(null, "play 연결 스키마에 없는 종류다");
+        boolean in = d.direction() == PacketDirection.SERVERBOUND;
+        if (t.typed()) return refuse(d, "Furnace 타입 레코드 종류다(" + (in ? "ServerboundBridge" : "TypedPacketBridge") + " 가 다룬다)");
+        String no = in ? SchemaPacketBridge.receivedRefusal(d) : SchemaPacketBridge.refusal(d);
+        if (no != null) return refuse(d, "shim → Furnace 변환이 없는 종류다: " + no);
         Class<?> cls;
         try {
             cls = Class.forName(d.binaryName(), false, SchemaPacketReverse.class.getClassLoader());
@@ -120,7 +122,7 @@ final class SchemaPacketReverse {
                 }
                 invs.add(iv);
             }
-            Unpack u = d.custom() ? customUnpack(d.wireName()) : SchemaPacketReverse::byName;
+            Unpack u = d.custom() ? customUnpack(SchemaPacketBridge.customKey(d)) : SchemaPacketReverse::byName;
             if (u == null) return refuse(d, "손 코덱 종류의 역변환이 아직 없다");
             Maker mk = maker(d, cls, all);
             return new Back(d, List.copyOf(names), java.util.Collections.unmodifiableList(invs), u, mk, null);
@@ -232,8 +234,11 @@ final class SchemaPacketReverse {
     }
 
     /** 손 코덱 종류의 역(SchemaPacketBridge.custom 의 반대). 대응이 없으면 null. */
-    private static Unpack customUnpack(String wire) {
-        return switch (wire) {
+    private static Unpack customUnpack(String key) {
+        return switch (key) {
+            // serverbound(받은 패킷, 2b-3): 이름이 스키마 필드와 같다
+            case "s:player_abilities", "s:player_input", "s:seen_advancements", "s:set_command_block" -> SchemaPacketReverse::byName;
+            case "s:set_structure_block" -> SchemaPacketReverse::structureBlock;
             // 범용으로 바꾼 필드를 이름만 다시 맞춘 것 — 이름으로 찾으면 된다
             case "player_abilities", "set_experience", "stop_sound", "player_position" -> SchemaPacketReverse::byName;
             case "move_entity_pos" -> move(true, false);
@@ -245,6 +250,21 @@ final class SchemaPacketReverse {
             case "damage_event" -> SchemaPacketReverse::damageEvent;
             default -> null;   // set_player_team·set_objective·update_attributes·map_item_data 는 2b-4
         };
+    }
+
+    /** 구조물 블록 설정: size 는 Vec3i(값 shim 이 없는 타입)로 직접, 나머지는 이름으로. */
+    private static Object[] structureBlock(PacketStruct m, Back b, String at) {
+        Object[] out = new Object[b.names().size()];
+        for (int i = 0; i < out.length; i++) {
+            String n = b.names().get(i);
+            if (n.equals("size")) {
+                var p = (org.domi.furnace.api.world.BlockPos) need(m.get("size"), at + ".size");
+                out[i] = new net.minecraft.core.Vec3i(p.x(), p.y(), p.z());
+            } else {
+                out[i] = inv(b, i, m.get(n), at);
+            }
+        }
+        return out;
     }
 
     /** 부모 필드(entityId, xa, ya, za, yRot, xRot, onGround, hasRot, hasPos) 순서로 — 안 쓰는 칸은 0(바닐라 생성자와 같다). */
@@ -478,6 +498,9 @@ final class SchemaPacketReverse {
                 };
                 case "registry_id" -> registryValue(bin);
                 case "number_format" -> SchemaPacketReverse::numberFormat;
+                case "argument_signatures" -> ChatValues::argumentSignaturesFrom;
+                case "chat_session" -> ChatValues::chatSessionFrom;
+                case "last_seen_update" -> ChatValues::lastSeenFrom;
                 default -> throw new NoBridge(bin.substring(bin.lastIndexOf('.') + 1) + " 값 shim 이 아직 빈 껍데기다");
             };
         }

@@ -46,7 +46,7 @@ public final class SchemaPacketBridge {
 
     /** 이 다리가 값을 바꿀 줄 아는 타입 와이어(나머지 — global_pos 등 — 는 shim 이 아직 빈 껍데기다). */
     private static final Set<String> WIRES = Set.of("component", "identifier", "block_pos", "item_stack", "block_state", "nbt", "i64", "vec3", "registry_id",
-            "number_format");
+            "number_format", "argument_signatures", "chat_session", "last_seen_update");
 
     private static final Set<String> REGISTRY_IDS = Set.of("net.minecraft.world.item.Item", "net.minecraft.world.level.block.Block",
             "net.minecraft.world.entity.EntityType");
@@ -83,22 +83,35 @@ public final class SchemaPacketBridge {
     }
 
     private static Plan plan(PacketDef d) {
-        return PLANS.computeIfAbsent(d.state() + "/" + d.direction() + "/" + d.wireName(), k -> compile(d));
+        return PLANS.computeIfAbsent(d.state() + "/" + d.direction() + "/" + d.wireName(), k -> compile(d, false));
+    }
+
+    /** 받은 패킷(serverbound) 계획 — 보내기 계획과 따로 둔다(보내기에서는 serverbound 를 거절한다). */
+    private static final Map<String, Plan> RECEIVED = new ConcurrentHashMap<>();
+
+    private static Plan planReceived(PacketDef d) {
+        return RECEIVED.computeIfAbsent(d.state() + "/" + d.direction() + "/" + d.wireName(), k -> compile(d, true));
     }
 
     private static Plan refuse(PacketDef d, PacketType<?> t, String why) { return new Plan(d, t, null, null, null, null, why); }
 
-    private static Plan compile(PacketDef d) {
-        if (d.direction() != PacketDirection.CLIENTBOUND) {
+    /**
+     * @param received 받은 패킷(serverbound — 클라이언트가 보낸 것을 패킷 라이브러리에 보여 주고 되돌릴 때, 2b-3). false 면 보내기(clientbound 만).
+     */
+    private static Plan compile(PacketDef d, boolean received) {
+        if (!received && d.direction() != PacketDirection.CLIENTBOUND) {
             return refuse(d, null, "serverbound 패킷이다 — 서버가 클라이언트에 보낼 수 없다(바닐라도 play 연결에서 인코딩이 실패한다). 받은 것처럼 넣으려면 Furnace PacketService.receive 를 쓴다");
         }
+        if (received && d.direction() != PacketDirection.SERVERBOUND) return refuse(d, null, "clientbound 패킷이다 — 서버가 받는 패킷이 아니다");
         if (!PLAY_STATES.contains(d.state())) {
-            return refuse(d, null, d.state() + " 단계 패킷이다 — play 연결로는 보낼 수 없다(바닐라도 인코딩이 실패한다)");
+            return refuse(d, null, d.state() + " 단계 패킷이다 — " + (received ? "Furnace 패킷 API 는 play 연결 패킷만 다룬다"
+                    : "play 연결로는 보낼 수 없다(바닐라도 인코딩이 실패한다)"));
         }
-        PacketType<?> t = PacketTypes.byName(PacketDirection.CLIENTBOUND, "minecraft:" + d.wireName());
+        PacketType<?> t = PacketTypes.byName(d.direction(), "minecraft:" + d.wireName());
         if (t == null) return refuse(d, null, "Furnace 패킷 종류 표에 없다");
         if (t.typed()) {
-            return refuse(d, t, "Furnace 타입 레코드 종류라 shim 변환이 아직 없다 — Furnace 패킷 API 의 레코드(docs/api/packets.md)를 쓴다");
+            return refuse(d, t, received ? "Furnace 타입 레코드 종류다(ServerboundBridge 가 다룬다)"
+                    : "Furnace 타입 레코드 종류라 shim 변환이 아직 없다 — Furnace 패킷 API 의 레코드(docs/api/packets.md)를 쓴다");
         }
         if (d.custom()) return compileCustom(d, t);
         if (d.superType() != null) return refuse(d, t, "부모 클래스 필드가 있는 종류는 아직 다루지 않는다");
@@ -125,9 +138,10 @@ public final class SchemaPacketBridge {
      * 대응표가 없는 종류는 까닭과 함께 거절한다(docs/feature-parity/compat-nms-packets-2026-11-12.md).
      */
     private static Plan compileCustom(PacketDef d, PacketType<?> t) {
-        String no = CUSTOM_REFUSALS.get(d.wireName());
+        String key = customKey(d);
+        String no = CUSTOM_REFUSALS.get(key);
         if (no != null) return refuse(d, t, no + " — Furnace 패킷 API(docs/api/packets.md)의 GenericPacket 을 쓴다");
-        Custom c = custom(d.wireName());
+        Custom c = custom(key);
         if (c == null) {
             return refuse(d, t, "와이어가 필드 나열이 아니라(손 코덱) 아직 shim 에서 바꾸지 못한다 — Furnace 패킷 API(docs/api/packets.md)의 GenericPacket 을 쓴다");
         }
@@ -157,10 +171,14 @@ public final class SchemaPacketBridge {
         return new Plan(d, t, List.copyOf(names), java.util.Collections.unmodifiableList(convs), List.copyOf(fields), c, null);
     }
 
-    /** 대응표를 두지 않은 손 코덱 종류(clientbound play)와 까닭. 타입 레코드 종류(add_entity 등)는 그 앞에서 따로 거절된다. */
+    /** 손 코덱 표의 열쇠: clientbound 는 와이어 이름, serverbound 는 "s:" + 와이어 이름(player_abilities 처럼 두 방향에 같은 이름이 있다). */
+    static String customKey(PacketDef d) { return (d.direction() == PacketDirection.SERVERBOUND ? "s:" : "") + d.wireName(); }
+
+    /** 대응표를 두지 않은 손 코덱 종류(play)와 까닭. 타입 레코드 종류(add_entity 등)는 그 앞에서 따로 거절된다. */
     private static final Map<String, String> CUSTOM_REFUSALS = Map.of(
             "boss_event", "보스바 operation 은 바닐라에서도 package-private 인터페이스(Operation)이고 BossEvent shim 이 아직 비어 있어 shim 값을 읽을 수 없다",
-            "award_stats", "통계 맵(fastutil Object2IntMap<Stat<?>>)은 라이브러리 타입이 지워졌고 Stat shim 이 아직 비어 있다");
+            "award_stats", "통계 맵(fastutil Object2IntMap<Stat<?>>)은 라이브러리 타입이 지워졌고 Stat shim 이 아직 비어 있다",
+            "s:container_click", "바뀐 칸 맵(fastutil Int2ObjectMap<ItemStack>)은 라이브러리 타입이 지워져 shim 값을 만들고 읽을 수 없다(Bukkit InventoryClickEvent 는 그대로 된다)");
 
     /** 스키마 필드 i 를 범용 변환으로. */
     private static Object g(Object[] v, Plan p, int i, String at) {
@@ -201,8 +219,14 @@ public final class SchemaPacketBridge {
         };
     }
 
-    private static Custom custom(String wire) {
-        return switch (wire) {
+    private static Custom custom(String key) {
+        return switch (key) {
+            // serverbound(받은 패킷, 2b-3) — 서버 손 코덱(GenericHand767)의 필드 순서
+            case "s:player_abilities" -> reorder("is_flying");
+            case "s:player_input" -> reorder("xxa", "zza", "is_jumping", "is_shift_key_down");
+            case "s:seen_advancements" -> reorder("action", "tab");
+            case "s:set_command_block" -> reorder("pos", "command", "mode", "track_output", "conditional", "automatic");
+            case "s:set_structure_block" -> SchemaPacketBridge::structureBlock;
             case "player_abilities" -> reorder("invulnerable", "is_flying", "can_fly", "instabuild", "flying_speed", "walking_speed");
             case "set_experience" -> reorder("experience_progress", "experience_level", "total_experience");
             case "stop_sound" -> reorder("source", "name");   // 둘 다 null 이면 바닐라처럼 플래그 0(모든 소리 멈춤)
@@ -220,6 +244,18 @@ public final class SchemaPacketBridge {
             case "map_item_data" -> SchemaPacketBridge::mapItemData;
             default -> null;
         };
+    }
+
+    /** 구조물 블록 설정: size(Vec3i — 값 shim 이 없는 타입)만 직접, 나머지는 범용. offset·size 는 서버 코덱의 BlockPos(i8 셋). */
+    private static LinkedHashMap<String, Object> structureBlock(Object[] v, Plan p, String at) {
+        LinkedHashMap<String, Object> m = new LinkedHashMap<>();
+        for (String n : List.of("pos", "update_type", "mode", "name", "offset")) m.put(n, g(v, p, p.names().indexOf(n), at));
+        var size = (net.minecraft.core.Vec3i) need(v[p.names().indexOf("size")], at + ".size");
+        m.put("size", new org.domi.furnace.api.world.BlockPos(size.getX(), size.getY(), size.getZ()));
+        for (String n : List.of("mirror", "rotation", "data", "integrity", "seed", "ignore_entities", "show_air", "show_bounding_box")) {
+            m.put(n, g(v, p, p.names().indexOf(n), at));
+        }
+        return m;
     }
 
     /** x, y, z, entity, fromAnchor, toAnchor, atEntity → from_anchor x y z at_entity Optional<{entity, to_anchor}>(atEntity 일 때만, 바닐라 write 와 같다). */
@@ -493,6 +529,12 @@ public final class SchemaPacketBridge {
     /** 보낼 수 없는 까닭(보낼 수 있으면 null). 시험용. */
     static String refusal(PacketDef d) { return plan(d).refusal(); }
 
+    /** 받은 serverbound 패킷 정의를 이 다리가 Furnace 패킷으로 바꿀 수 있는가(2b-3). */
+    static boolean supportsReceived(PacketDef d) { return planReceived(d).refusal() == null; }
+
+    /** 받은 패킷을 바꿀 수 없는 까닭(되면 null). */
+    static String receivedRefusal(PacketDef d) { return planReceived(d).refusal(); }
+
     private static Conv field(FieldDef f, String pkg, int depth) {
         Conv c = conv(f.type(), f.wire(), pkg, depth);
         if (!f.nullable()) return c;
@@ -590,6 +632,9 @@ public final class SchemaPacketBridge {
                 };
                 case "registry_id" -> (v, at) -> registryName(need(v, at));
                 case "number_format" -> (v, at) -> numberFormat(need(v, at), at);
+                case "argument_signatures" -> ChatValues::argumentSignatures;
+                case "chat_session" -> ChatValues::chatSession;
+                case "last_seen_update" -> ChatValues::lastSeen;
                 default -> throw new NoBridge("와이어 " + w);
             };
         }
@@ -651,11 +696,22 @@ public final class SchemaPacketBridge {
      * shim → GenericPacket. 보낼 수 없는 종류이거나 이 서버가 그 종류를 읽고 쓰지 못하면 까닭을 밝힌 {@link UnsupportedNmsCall},
      * 값이 바닐라 모양이 아니면(필수 필드가 null 등) IllegalArgumentException.
      */
-    @SuppressWarnings("unchecked")
     public static GenericPacket toFurnace(SchemaPacket packet) {
         PacketDef d = def(packet.schemaKey()).orElseThrow(() -> new UnsupportedNmsCall("send(" + packet.getClass().getName() + ")", "스키마에 없는 패킷"));
-        Plan p = plan(d);
-        String call = "ServerCommonPacketListenerImpl#send(" + d.binaryName() + ")";
+        return convert(packet, d, plan(d), "ServerCommonPacketListenerImpl#send(" + d.binaryName() + ")");
+    }
+
+    /**
+     * 받은(serverbound) shim → GenericPacket(ProtocolLib 다리 2b-3: 라이브러리 리스너가 본·바꾼 클라이언트 패킷을 서버에 넣을 때). 바꿀 수 없는 종류면
+     * {@link UnsupportedNmsCall}, 값이 바닐라 모양이 아니면 IllegalArgumentException.
+     */
+    public static GenericPacket toFurnaceReceived(SchemaPacket packet) {
+        PacketDef d = def(packet.schemaKey()).orElseThrow(() -> new UnsupportedNmsCall("read(" + packet.getClass().getName() + ")", "스키마에 없는 패킷"));
+        return convert(packet, d, planReceived(d), "Connection#read(" + d.binaryName() + ")");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static GenericPacket convert(SchemaPacket packet, PacketDef d, Plan p, String call) {
         if (p.refusal() != null) throw new UnsupportedNmsCall(call, p.refusal());
         if (!Furnace.server().packets().isReadable(p.type())) throw new UnsupportedNmsCall(call, "이 서버 버전이 이 패킷을 쓰지 못한다");
         Object[] values = packet.schemaValues();
