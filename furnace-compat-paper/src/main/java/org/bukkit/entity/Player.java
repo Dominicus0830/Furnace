@@ -35,6 +35,30 @@ public interface Player extends HumanEntity, org.bukkit.conversations.Conversabl
 
     String getLocale();
 
+    // ---- 플레이어별 거리(Paper 1.21.1, T-141 E4c). 서버 시야 거리보다 크게는 아직 잘린다 — docs/api/view-distance.md
+
+    /** 클라이언트 렌더 거리. */
+    int getClientViewDistance();
+
+    /** Paper 와 같은 값(불러오는 거리 − 2, 기본은 서버 시야 거리 − 1). */
+    int getViewDistance();
+
+    void setViewDistance(int viewDistance);
+
+    int getSimulationDistance();
+
+    void setSimulationDistance(int simulationDistance);
+
+    @Deprecated
+    default int getNoTickViewDistance() { return getViewDistance(); }
+
+    @Deprecated
+    default void setNoTickViewDistance(int viewDistance) { setViewDistance(viewDistance); }
+
+    int getSendViewDistance();
+
+    void setSendViewDistance(int viewDistance);
+
     /** 클라이언트 언어(Paper). 클라이언트가 아직 알리지 않았으면 en_US. */
     java.util.Locale locale();
 

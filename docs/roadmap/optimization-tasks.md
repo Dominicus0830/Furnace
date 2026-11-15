@@ -258,6 +258,7 @@
 | T-175 | P1 | ADD(운영) | 미리 생성 명령(`/furnace pregen <반경 또는 월드경계>`, T-170 큐 맨 뒤, 진행률·중지·재개, 저장 역압 존중) + 운영 문서 "다인원 탐험 서버: 월드 경계 + 미리 생성" — P-O04-15(D9) 와 같은 것 | W60 3장 R4disk | 같은 길을 미리 만든 땅에서 CPU 278 → 136%, TPS 17.2(T-171 과 함께). 같은 생성기라 결과 동일 | M | Sonnet high | T-170(W-3 확정) | command/, world/ |
 | T-176 | P2 | ADD(호환) | Spigot `mob-spawn-range`(기본 8 = 바닐라 128블록과 같음)를 설정 키로. 낮추면 Spigot 과 같고 바닐라와 다름(문서 명시) | W60 6장 | 땅 높이 장면에서 스폰 몫부터 잰 뒤 우선순위 확정(y200 장면은 몹이 덜 붙음) | S | Sonnet medium | T-173 땅 높이 장면 | config/, NaturalSpawner |
 | T-177 | P2(측정 먼저) | OPT | `Region.collectTickingChunks` 의 로드 청크 × 플레이어 훑기(장면 R 약 8,000청크 × 60명)를 플레이어 쪽 17×17 칸 모으기로, 청크 순서는 지금과 같게 | 검토 6장 3번 | 같은 집합·같은 순서면 결과 동일. 몫은 아직 안 잼 — dontinline 프로파일 먼저 | S | Sonnet high | — | Region |
+| T-141v | P2 | ADD(호환) | 플레이어별 거리를 서버 값보다 크게(Paper Moonrise: 그 플레이어 둘레만 load = 값+1 티켓·보내기) + 플레이어별 틱 거리(블록·엔티티 틱 범위를 min(서버 sim, 플레이어 tick)) — T-141 E4c 는 낮추기만 하고 넘는 값은 잘라 경고 | T-141 E4c(docs/api/view-distance.md "아직 안 되는 것") | Paper 와 같은 관측(FAWE 동적 렌더는 낮추기만 써서 이미 됨). 기본(플레이어 값 없음)은 결과·성능 불변이어야 함 — `ticketPlayerWithin`·`trackingDistance` 를 플레이어별 값으로 | M | Opus high | T-170 | Region, Player, ServerCore |
 
 메모: 장면 R 의 region 스레드 구성비(자연 스폰 52%·`Regionizer.owns/ownerOf` 자기 시간 20%)는 y200 장면·인라인 미확인 값이라 T-019·자연 스폰 TASK 의 근거로 쓰지 않는다 — 땅 높이 장면과 `-XX:CompileCommand=dontinline` 판으로 다시 잰다.
 

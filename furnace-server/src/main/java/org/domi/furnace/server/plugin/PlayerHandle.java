@@ -130,6 +130,68 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     @Override
     public Locale locale() { return p.javaLocale(); }
 
+    // ------------------------------------------------------------------ 플레이어별 거리(T-141 E4c, Paper Moonrise ViewDistanceHolder)
+
+    private static final org.slf4j.Logger DIST_LOG = org.slf4j.LoggerFactory.getLogger("Furnace");
+    private static final java.util.Set<String> DIST_WARNED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    @Override
+    public int clientViewDistance() { return p.clientViewDistance(); }
+
+    /** Paper CraftPlayer#getViewDistance = ChunkSystem.getLoadViewDistance(player) − 1 = (불러오는 거리 − 1) − 1. Furnace 는 서버 시야 거리 + 1 보다 멀리 불러오지 않는다. */
+    @Override
+    public int viewDistance() {
+        var d = core().playerDistances(p);
+        return Math.min(d.load(), core().viewDistance() + 1) - 2;
+    }
+
+    @Override
+    public void setViewDistance(int chunks) {
+        synchronized (p.distanceLock) {
+            p.apiDistances(p.apiTickDistance(), chunks + 1, p.apiSendDistance());
+        }
+        warnAbove("view", chunks, core().viewDistance(), "server.properties 의 view-distance");
+        core().applyPlayerDistances(p, false);
+    }
+
+    @Override
+    public int sendViewDistance() { return p.viewDistance(); }
+
+    @Override
+    public void setSendViewDistance(int chunks) {
+        synchronized (p.distanceLock) {
+            p.apiDistances(p.apiTickDistance(), p.apiLoadDistance(), chunks);
+        }
+        warnAbove("send", chunks, core().viewDistance(), "server.properties 의 view-distance");
+        core().applyPlayerDistances(p, false);
+    }
+
+    @Override
+    public int simulationDistance() { return Math.min(core().simulationDistance(), core().viewDistance() + 1); }   // Paper lastTickDistance(플레이어 값 없음) = World#getSimulationDistance
+
+    @Override
+    public void setSimulationDistance(int chunks) {
+        synchronized (p.distanceLock) {
+            p.apiDistances(chunks, p.apiLoadDistance(), p.apiSendDistance());
+        }
+        int sim = core().simulationDistance();
+        if (chunks >= 0 && chunks > sim) {
+            warnAbove("simulation", chunks, sim, "server.properties 의 simulation-distance");
+        } else if (chunks >= 0 && chunks < sim && DIST_WARNED.add("simulation-lower")) {
+            DIST_LOG.warn("[Furnace] 플러그인이 플레이어별 시뮬레이션 거리를 {}로 줄였다 — 보내는 거리 계산에는 반영하지만 서버 틱 범위는 아직 서버 값({})이다"
+                    + "(플레이어별 틱 거리는 후속 T-141v, docs/api/view-distance.md). 이 알림은 한 번만 남긴다", chunks, sim);
+        }
+        core().applyPlayerDistances(p, false);
+    }
+
+    /** 서버 값보다 큰 플레이어 거리는 아직 못 한다 — 종류마다 한 번, 무엇을 올리면 되는지와 함께. */
+    private static void warnAbove(String kind, int asked, int server, String setting) {
+        if (asked > server && DIST_WARNED.add(kind + "-above")) {
+            DIST_LOG.warn("[Furnace] 플러그인이 플레이어별 {} 거리를 {}로 요청했지만 서버 값 {}보다 크게는 아직 못 한다 — {} 로 잘린다. 더 멀리 보이게 하려면 {} 를 올린다"
+                    + "(플레이어별로 서버 값보다 크게는 후속 T-141v, docs/api/view-distance.md). 이 알림은 한 번만 남긴다", kind, asked, server, server, setting);
+        }
+    }
+
     @Override
     public int ping() { return p.latencyMs(); }
 

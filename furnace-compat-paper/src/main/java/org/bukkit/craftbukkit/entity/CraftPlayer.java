@@ -113,6 +113,28 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
     public String getLocale() { return handle.locale() == null ? "en_us" : handle.locale().toString().toLowerCase(Locale.ROOT); }
 
     @Override
+    public int getClientViewDistance() { return handle.clientViewDistance(); }
+
+    @Override
+    public int getViewDistance() { return handle.viewDistance(); }
+
+    /** Paper: 불러오는 거리를 값 + 1 로(검사 없음). */
+    @Override
+    public void setViewDistance(int viewDistance) { handle.setViewDistance(viewDistance); }
+
+    @Override
+    public int getSimulationDistance() { return handle.simulationDistance(); }
+
+    @Override
+    public void setSimulationDistance(int simulationDistance) { handle.setSimulationDistance(simulationDistance); }
+
+    @Override
+    public int getSendViewDistance() { return handle.sendViewDistance(); }
+
+    @Override
+    public void setSendViewDistance(int viewDistance) { handle.setSendViewDistance(viewDistance); }
+
+    @Override
     public Locale locale() { return handle.locale() == null ? Locale.US : handle.locale(); }   // Paper ServerPlayer.adventure$locale 기본값 Locale.US
 
     @Override

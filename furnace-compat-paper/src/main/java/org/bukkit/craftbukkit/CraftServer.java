@@ -289,8 +289,7 @@ public final class CraftServer implements Server {
         String name = creator.name();
         // Paper(Expand-world-key-API): 이름(대소문자 무시)이나 키가 이미 있으면, 둘이 같은 월드일 때만 그 월드
         World existing = getWorld(name);
-        World byKey = Compat.world(f().world(creator.key().toString()));
-        if (byKey != null && !Compat.worldVisible(byKey.getKey().toString())) byKey = null;
+        World byKey = Compat.world(f().world(creator.key().toString()));   // 감춘 단계(STARTUP)는 위에서 이미 막혀 보이기 검사가 필요 없다
         if (existing != null || byKey != null) {
             if (existing == byKey) return existing;
             throw new IllegalArgumentException("Cannot create a world with key " + creator.key() + " and name " + name

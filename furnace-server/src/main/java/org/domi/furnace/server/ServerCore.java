@@ -1549,10 +1549,51 @@ public final class ServerCore {
     public synchronized void setViewDistance(int vd) {   // 동시 호출이 섞이면 월드 값과 클라이언트에 보낸 값이 어긋난다 — 한 번에 하나
         int v = Math.clamp(vd, org.domi.furnace.server.config.Config.MIN_VIEW_DISTANCE, org.domi.furnace.server.config.Config.MAX_VIEW_DISTANCE);
         for (World w : worlds()) w.viewDistance(v);
-        var pkt = new org.domi.furnace.server.net.protocol.play.SetChunkCacheRadius(v);
         for (Player p : players()) {
             p.viewDistance(Math.min(v, p.clientViewDistance()));
-            p.send(pkt);
+            applyPlayerDistances(p, true);   // 잠금 안에서 상한을 다시 풀고 반경을 보낸다(플러그인 값이 없으면 서버 값 v)
+        }
+    }
+
+    /** Paper RegionizedPlayerChunkLoader 의 세 거리(플러그인 값이 없으면 -1 대신 월드 값). load 는 바닐라 시야 거리 + 1. */
+    public record PlayerDistances(int tick, int load, int send) {}
+
+    /**
+     * Paper PlayerChunkLoaderData.getTickDistance·getLoadViewDistance·getSendViewDistance 를 그대로 푼다(월드 쪽: tick = 시뮬레이션 거리,
+     * load = 시야 거리 + 1, send = 정하지 않음). send 의 클라이언트 몫은 바닐라처럼 렌더 거리 그대로다(Paper 기본 auto-config 의 +1 은 쓰지 않는다 —
+     * 원래 Furnace 가 바닐라 값을 보낸다).
+     */
+    public PlayerDistances playerDistances(Player p) {
+        int worldTick = simulationDistance(), worldLoad = viewDistance() + 1;
+        int pTick = p.apiTickDistance(), pLoad = p.apiLoadDistance(), pSend = p.apiSendDistance();
+        int tick = Math.min(pTick < 0 ? worldTick : pTick, pLoad < 0 ? worldLoad : pLoad);
+        int load = Math.max(tick + 1, pLoad < 0 ? worldLoad : pLoad);
+        int client = p.clientViewDistance();
+        int send = Math.min(load - 1, pSend < 0 ? (client < 0 ? load - 1 : client) : pSend);
+        return new PlayerDistances(tick, load, send);
+    }
+
+    /**
+     * 플러그인이 플레이어 거리를 바꾼 뒤(또는 월드 값이 바뀐 뒤) 보내는 거리 상한을 다시 잡는다. 실제 보내는 거리가 바뀌었거나 force 면
+     * set_chunk_cache_radius(Paper 처럼 보내는 거리)를 보낸다. region 은 다음 틱에 추적 범위를 다시 잡는다. 아무 스레드.
+     */
+    public void applyPlayerDistances(Player p, boolean force) {
+        synchronized (p.distanceLock) {
+            boolean none = p.apiTickDistance() < 0 && p.apiLoadDistance() < 0 && p.apiSendDistance() < 0;
+            int before = p.viewDistance();
+            int cap;
+            if (none) {
+                cap = Integer.MAX_VALUE;
+            } else {
+                var d = playerDistances(p);
+                cap = Math.min(d.load() - 1, p.apiSendDistance() < 0 ? Integer.MAX_VALUE : p.apiSendDistance());
+            }
+            boolean had = p.sendCap() != Integer.MAX_VALUE;
+            p.sendCap(cap);
+            if (force || p.viewDistance() != before || had == none) {
+                int radius = none ? viewDistance() : Math.max(org.domi.furnace.server.config.Config.MIN_VIEW_DISTANCE, Math.min(viewDistance(), cap));
+                p.send(new org.domi.furnace.server.net.protocol.play.SetChunkCacheRadius(radius));
+            }
         }
     }
 
@@ -1561,7 +1602,10 @@ public final class ServerCore {
         int v = Math.clamp(sd, org.domi.furnace.server.config.Config.MIN_VIEW_DISTANCE, org.domi.furnace.server.config.Config.MAX_VIEW_DISTANCE);
         simulationDistanceOverride = v;
         var pkt = new org.domi.furnace.server.net.protocol.play.SetSimulationDistance(v);
-        for (Player p : players()) p.send(pkt);
+        for (Player p : players()) {
+            p.send(pkt);
+            if (p.sendCap() != Integer.MAX_VALUE) applyPlayerDistances(p, false);   // 틱 거리가 load 몫을 바꿀 수 있다
+        }
     }
 
     /** furnace.properties bungeecord — 플러그인 API 가 알려 준다(Spigot SpigotConfig.bungee). 기동 때 한 번 정한다. */

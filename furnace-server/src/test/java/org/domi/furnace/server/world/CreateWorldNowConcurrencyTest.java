@@ -201,4 +201,36 @@ class CreateWorldNowConcurrencyTest {
         }
         System.out.println("[R388] order " + order);
     }
+
+    /** 내리기 알림 처리기가 30초를 넘기면 내리기는 시간 초과로 실패하고, 늦게 끝난 몸체는 목록에서 떼지 않는다(반쯤 내림 없음). */
+    @Test
+    void timedOutUnloadBodyDoesNotHalfUnload() throws Exception {
+        var host = core.plugins();
+        var plugin = testPlugin();
+        World a = create(WorldCreator.named("slow").generator(WorldGenerator.VOID).build());
+        java.util.concurrent.atomic.AtomicBoolean slow = new java.util.concurrent.atomic.AtomicBoolean(true);
+        var done = new java.util.concurrent.CountDownLatch(1);
+        host.eventsImpl().subscribe(plugin, org.domi.furnace.api.event.world.WorldUnloadEvent.class, e -> {
+            if (slow.getAndSet(false)) {
+                try { Thread.sleep(32_000); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                done.countDown();
+            }
+        });
+        String result;
+        try {
+            result = "unload=" + manager.unload(a, false).get(90, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            result = "failed " + e.getCause().getClass().getSimpleName();
+        }
+        assertTrue(done.await(30, TimeUnit.SECONDS));
+        Thread.sleep(500);
+        String state = result + " inDims=" + (core.world("minecraft:slow") != null) + " inExtras=" + (manager.extraWorld("slow") != null)
+                + " isUnloaded=" + a.isUnloaded();
+        System.out.println("[R388b] " + state);
+        assertEquals("failed TimeoutException inDims=true inExtras=true isUnloaded=false", state);
+        assertTrue(manager.unload(a, false).get(60, TimeUnit.SECONDS), "다시 내리면 끝까지");
+        assertTrue(a.isUnloaded());
+        assertNull(core.world("minecraft:slow"));
+        assertNull(manager.extraWorld("slow"));
+    }
 }
