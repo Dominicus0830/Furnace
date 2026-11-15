@@ -73,11 +73,30 @@ class BukkitChunkAsyncTest {
         assertNull(await(world.getChunkAtAsync(cx, cz, false)));
         assertFalse(world.isChunkLoaded(cx, cz), "만들지 않는다");
         assertNull(await(world.getChunkAtAsyncUrgently(new org.bukkit.Location(world, cx * 16 + 3, 0, cz * 16 + 3), false)));
-        // 없음(false)도 그 청크 region 스레드에서 완료된다
+        // 없음(false)도 그 청크 region 스레드에서 완료된다. 이미 끝난 Future 에 붙인 단계는 붙인 스레드에서 돌므로(문서화된 CompletableFuture 규칙)
+        // 그 region 을 잠깐 붙잡아 두고 단계를 붙인 뒤 놓는다 — 붙이기 전에 끝나 시험 스레드에서 도는 경합을 없앤다
         var fw = server.overworld();
         BlockPos at = new BlockPos(cx * 16, 0, cz * 16);
-        boolean onOwner = await(fw.loadChunkAsync(cx, cz, false).thenApply(loaded -> !loaded && Owned.owns(fw.scheduler(at))));
-        assertTrue(onOwner);
+        var gate = new java.util.concurrent.CountDownLatch(1);
+        var held = new CompletableFuture<Void>();
+        var released = fw.scheduler(at).execute(() -> {
+            held.complete(null);
+            try {
+                gate.await(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        server.await(held);   // 틱을 돌리지 않고 기다린다(틱은 붙잡힌 region 을 기다리게 된다)
+        CompletableFuture<Boolean> onOwnerF;
+        try {
+            onOwnerF = fw.loadChunkAsync(cx, cz, false).thenApply(loaded -> !loaded && Owned.owns(fw.scheduler(at)));
+            assertFalse(onOwnerF.isDone(), "region 을 붙잡고 있는 동안은 끝나지 않는다");
+        } finally {
+            gate.countDown();
+        }
+        server.await(released);
+        assertTrue(server.await(onOwnerF));
     }
 
     @Test
