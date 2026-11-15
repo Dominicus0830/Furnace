@@ -525,7 +525,7 @@ public final class AnvilChunkCodec {
             chest.lootSeed = e.tags().get("LootTableSeed") instanceof Long seed ? seed : 0L;
         }
         chest.customName = e.tags().get("CustomName") instanceof String n ? n : null;
-        chest.lock = e.tags().get("Lock") instanceof String l ? l : null;
+        chest.lock = e.tags().get("Lock") instanceof String l && !l.isEmpty() ? l : null;
         chest.readBukkitValues(e);
         chest.loadComponents(e);
         return chest;

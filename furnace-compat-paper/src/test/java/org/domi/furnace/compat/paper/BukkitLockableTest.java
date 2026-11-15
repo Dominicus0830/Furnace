@@ -32,7 +32,10 @@ class BukkitLockableTest {
     @BeforeEach
     void load() { server.loadChunk(pos.chunkX(), pos.chunkZ()); }
 
-    private void lockRoundTrip(String block, Map<String, String> props) {
+    private void lockRoundTrip(String block, Map<String, String> props) { lockRoundTrip(block, props, ""); }
+
+    /** unlockWith: 풀 때 쓰는 값("" 또는 null — Paper setLock(null)=LockCode.NO_LOCK). */
+    private void lockRoundTrip(String block, Map<String, String> props, String unlockWith) {
         server.onRegion(pos, () -> {
             var w = server.api().world(dim);
             w.block(pos).set(new BlockData(block, props));
@@ -46,7 +49,7 @@ class BukkitLockableTest {
                 assertEquals("key", w.blockEntityNbtNow(pos).orElseThrow().getString("Lock"), block + ": 블록에 실렸다");
                 Lockable again = (Lockable) Compat.block(dim, pos).getState();
                 assertEquals("key", again.getLock());
-                again.setLock("");
+                again.setLock(unlockWith);
                 assertTrue(((org.bukkit.block.BlockState) again).update());
                 assertFalse(w.blockEntityNbtNow(pos).orElseThrow().contains("Lock"), "빈 열쇠는 쓰지 않는다");
                 assertFalse(((Lockable) Compat.block(dim, pos).getState()).isLocked());
@@ -59,6 +62,9 @@ class BukkitLockableTest {
 
     @Test
     void barrelLock() { lockRoundTrip("minecraft:barrel", Map.of()); }
+
+    @Test
+    void barrelUnlockWithNull() { lockRoundTrip("minecraft:barrel", Map.of(), null); }
 
     @Test
     void chestLock() { lockRoundTrip("minecraft:chest", Map.of("facing", "north", "type", "single")); }

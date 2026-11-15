@@ -4334,7 +4334,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
                 @Override
                 public void openContainer(org.domi.furnace.server.block.Pos p) {
-                    ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openContainer(p.x(), p.y(), p.z()));
+                    // 바닐라 canUnlock 은 누르는 그 순간의 주 손을 본다 — 열기가 다른 차례로 넘어가는 사이 칸을 바꿔도 같게 지금 손을 들고 간다
+                    final ItemStack heldNow = itemInHand(org.domi.furnace.server.block.BlockActor.MAIN_HAND);
+                    ctx.channel().eventLoop().execute(() -> ConnectionHandler.this.openContainer(p.x(), p.y(), p.z(), heldNow));
                 }
 
                 @Override
@@ -5110,11 +5112,14 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
      * 열지 않은 전리품을 채운 뒤, 같은 region 작업 안에서 열려 있던 창을 닫고 → 번호를 올리고 → 메뉴를 만들어 open_screen → 첫 container_set_content.
      * 메뉴 생성(제작기 결과 미리보기)과 첫 내용은 블록 엔티티를 읽으므로 이벤트 루프가 아니라 소유 region 에서 한다(틱 도중의 반쯤 바뀐 칸을 보내지 않게).
      */
-    private void openContainer(int x, int y, int z) {
+    private void openContainer(int x, int y, int z) { openContainer(x, y, z, null); }
+
+    /** heldAtUse: 누를 때의 주 손(null 이면 지금 손). */
+    private void openContainer(int x, int y, int z, ItemStack heldAtUse) {
         Player p = player;
         if (p == null) return;
         world.submitAtChunk(ChunkPos.ofBlock(x, z), region -> {
-            OpenSpec spec = resolveOpenSpec(region, p, new org.domi.furnace.server.block.Pos(x, y, z));
+            OpenSpec spec = resolveOpenSpec(region, p, new org.domi.furnace.server.block.Pos(x, y, z), heldAtUse);
             if (spec != null) org.domi.furnace.server.world.MenuBlockContext.runIn(region, () -> openResolved(p, spec, x, y, z));
             return null;
         });
@@ -5175,7 +5180,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     }
 
     /** region 스레드: 그 칸 용기와 짝(더블 상자)을 찾고 전리품을 풀어 OpenSpec 을 만든다(막혔거나 용기가 없으면 null). */
-    private OpenSpec resolveOpenSpec(org.domi.furnace.server.world.Region region, Player p, org.domi.furnace.server.block.Pos pos) {
+    private OpenSpec resolveOpenSpec(org.domi.furnace.server.world.Region region, Player p, org.domi.furnace.server.block.Pos pos, ItemStack held) {
         var level = region.level();
         if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.EnderChestBlockEntity ender) {
             if (org.domi.furnace.server.block.types.ChestBlock.isBlockedChestByBlock(level, pos)) return null;
@@ -5188,7 +5193,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             } catch (RuntimeException e) {
                 title = Text.translatable("container.beacon");
             }
-            if (!canUnlock(p, beacon.lock, title)) return null;   // BeaconBlockEntity.createMenu
+            if (!canUnlock(p, held, beacon.lock, title)) return null;   // BeaconBlockEntity.createMenu
             return new OpenSpec(null, null, null, title, null, beacon);
         }
         if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.LecternBlockEntity lectern) {
@@ -5211,8 +5216,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             }
         }
         // BaseContainerBlockEntity.canOpen(잠금) — 큰 상자는 첫째부터(DoubleInventory.createMenu 의 &&), 막히면 전리품도 풀지 않는다
-        if (!canUnlock(p, first.lock, first.displayName())) return null;
-        if (second != null && !canUnlock(p, second.lock, second.displayName())) return null;
+        if (!canUnlock(p, held, first.lock, first.displayName())) return null;
+        if (second != null && !canUnlock(p, held, second.lock, second.displayName())) return null;
         var core = login.core;
         for (var c : second == null ? java.util.List.of(first) : java.util.List.of(first, second)) {
             if (c.lootTable != null && core != null) {
@@ -5227,8 +5232,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
      * BaseContainerBlockEntity.canUnlock: 관전자이거나 든 아이템이 열쇠면 연다. 아니면 "container.isLocked"(액션 바)와 block.chest.locked 소리를
      * 그 플레이어에게만(playNotifySound — 씨앗은 플레이어 난수) 보내고 막는다.
      */
-    private static boolean canUnlock(Player p, String lock, Text displayName) {
-        if (p.isSpectator() || org.domi.furnace.server.block.entity.ContainerBlockEntity.unlocksWith(lock, p.inventory().get(p.inventory().heldWindowSlot()))) return true;
+    private static boolean canUnlock(Player p, ItemStack held, String lock, Text displayName) {
+        if (p.isSpectator() || org.domi.furnace.server.block.entity.ContainerBlockEntity.unlocksWith(lock, held != null ? held : p.inventory().get(p.inventory().heldWindowSlot()))) return true;
         p.sendSystemMessage(Text.translatable("container.isLocked", displayName), true);
         // 플레이어 난수는 그 플레이어의 region 스레드에서만 — 큰 상자를 경계 너머에서 연 드문 경우는 씨앗만 따로(소리 한 가지라 들리는 것은 같다)
         long seed = p.onOwnerThread() ? p.random().nextLong() : java.util.concurrent.ThreadLocalRandom.current().nextLong();

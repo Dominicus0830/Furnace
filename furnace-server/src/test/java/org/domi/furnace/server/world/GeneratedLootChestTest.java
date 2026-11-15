@@ -54,4 +54,15 @@ class GeneratedLootChestTest {
         assertEquals("key", chest.lock);
         assertEquals("Dana", chest.saveCustomOnly().getCompound("PublicBukkitValues").getString("demo:owner"));
     }
+
+    /** 구조물 템플릿의 빈 Lock("")은 잠금이 아니다(바닐라 LockCode.fromTag). */
+    @Test
+    void generatedChestEmptyLockIsNoLock() {
+        ChunkColumn col = new ChunkColumn(0);
+        NbtCompound nbt = new NbtCompound();
+        nbt.putString("id", "minecraft:chest");
+        nbt.putString("Lock", "");
+        col.putGeneratedBlockEntity(3, 40, 5, nbt);
+        assertNull(col.chestAt(3, 40, 5).lock);
+    }
 }
