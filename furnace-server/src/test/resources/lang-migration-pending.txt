@@ -82,9 +82,6 @@ furnace-compat-paper/org/domi/furnace/compat/paper/UnsupportedFeature.java
 furnace-compat-paper/org/domi/furnace/compat/sched/PaperSchedulers.java
 furnace-server/org/domi/furnace/server/CrashReport.java
 furnace-server/org/domi/furnace/server/FurnaceMain.java
-furnace-server/org/domi/furnace/server/command/builtin/FurnaceAdminCommands.java
-furnace-server/org/domi/furnace/server/command/builtin/TimingsCommands.java
-furnace-server/org/domi/furnace/server/command/builtin/TpsCommands.java
 furnace-server/org/domi/furnace/server/config/ConfigDump.java
 furnace-server/org/domi/furnace/server/config/ConfigMigration.java
 furnace-server/org/domi/furnace/server/config/EntityActivationSettings.java

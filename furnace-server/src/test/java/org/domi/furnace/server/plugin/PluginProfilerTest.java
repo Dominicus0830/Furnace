@@ -286,13 +286,13 @@ class PluginProfilerTest {
         var p = new PluginStats("Alpha", 100_000_000L, 4, 90_000_000L, 10_000_000L, 0, List.of(sec));
         var r = new Report(10_000_000_000L, true, 50_000_000L, List.of(p));
         List<String> lines = TimingsCommands.summary(r).stream().map(t -> t.getString()).toList();
-        assertTrue(lines.get(0).contains("측정 10.0초") && lines.get(0).contains("측정 중"), lines.get(0));
+        assertTrue(lines.get(0).contains("measured 10.0 s") && lines.get(0).contains("measuring"), lines.get(0));
         // 10초 = 틱 200개 → 100ms / 200 = 0.5ms
-        assertEquals("1. Alpha: 100.00 ms (틱당 0.500 ms), 호출 4 — region 90.00 / 전역 10.00 / 그 밖 0.00", lines.get(1));
-        assertEquals("   리스너 PlayerMoveEvent a.B.on: 호출 4, 자기 100.00 ms (안쪽 포함 120.00), 평균 25000.0 µs, 최대 60.00 ms, 50ms 넘음 1번",
+        assertEquals("1. Alpha: 100.00 ms (0.500 ms per tick), calls 4 - region 90.00 / global 10.00 / other 0.00", lines.get(1));
+        assertEquals("   listener PlayerMoveEvent a.B.on: calls 4, self 100.00 ms (including inner 120.00), average 25000.0 µs, max 60.00 ms, over 50 ms: 1",
                 lines.get(2));
         assertEquals(lines.subList(1, 3), TimingsCommands.detail(r, "alpha").stream().map(t -> t.getString()).toList().subList(1, 3), "이름은 대소문자 무시");
-        assertTrue(TimingsCommands.detail(r, "none").get(1).getString().contains("기록이 없다"));
+        assertTrue(TimingsCommands.detail(r, "none").get(1).getString().contains("No record for"));
         assertTrue(TimingsCommands.summary(new Report(0, false, 50_000_000L, List.of())).get(1).getString().contains("/timings on"));
         assertEquals(3, TimingsCommands.fullText(r).size() - 1, "머리 + 빈 줄 + 플러그인 + 구간");
     }
