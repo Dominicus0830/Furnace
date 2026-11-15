@@ -342,6 +342,30 @@ public interface World extends Keyed, org.bukkit.metadata.Metadatable, org.bukki
     /** 하드코어 월드인가(Paper CraftWorld#isHardcore). */
     boolean isHardcore();
 
+    // ---- 거리(Paper 1.21.1 CraftWorld, T-141 E4c). Furnace 시야·시뮬레이션 거리는 서버 전체에 하나다 — 주 오버월드가 아닌 월드의 쓰기는 경고 한 번 뒤 무시.
+
+    /** Paper: 불러오는 거리 − 1(기본은 서버 시야 거리). */
+    int getViewDistance();
+
+    /** Paper: min(시뮬레이션 거리, 시야 거리 + 1). */
+    int getSimulationDistance();
+
+    /** 2~32 밖이면 IllegalArgumentException. */
+    void setViewDistance(int viewDistance);
+
+    /** 2~32 밖이면 IllegalArgumentException. */
+    void setSimulationDistance(int simulationDistance);
+
+    @Deprecated
+    default int getNoTickViewDistance() { return getViewDistance(); }
+
+    @Deprecated
+    default void setNoTickViewDistance(int viewDistance) { setViewDistance(viewDistance); }
+
+    int getSendViewDistance();
+
+    void setSendViewDistance(int viewDistance);
+
     // ---- 게임 규칙(T-141 E4a, Paper 1.21.1 CraftWorld). Furnace 게임 규칙은 서버 전체에 하나다 — 어느 월드로 읽고 바꿔도 같은 값이다
     // (Paper 는 플러그인이 만든 월드마다 따로 둔다). 바닐라 규칙만 보인다(Furnace 플러그인 규칙 "ns:이름"은 없는 이름).
 

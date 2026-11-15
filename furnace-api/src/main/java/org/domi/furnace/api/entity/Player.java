@@ -82,6 +82,36 @@ public interface Player extends CommandSender, LivingEntity {
     /** 클라이언트 언어(client_information). */
     Locale locale();
 
+    /** 클라이언트가 알린 렌더 거리(client_information, 2~32). 아직 모르면 32. */
+    default int clientViewDistance() { throw new UnsupportedOperationException("clientViewDistance"); }
+
+    /**
+     * 이 플레이어의 시야 거리(Paper 1.21.1 Player#getViewDistance 와 같은 값: 불러오는 거리 − 2 — Paper 그대로라 기본은 서버 시야 거리 − 1).
+     * 플러그인 값이 없으면 서버 값에서 나온다. 거리 규칙은 docs/api/view-distance.md.
+     */
+    default int viewDistance() { throw new UnsupportedOperationException("viewDistance"); }
+
+    /**
+     * 이 플레이어만의 시야 거리(Paper setViewDistance: 불러오는 거리 = 값 + 1, 음수 − 1 이하면 서버 값으로 돌림). 서버 시야 거리보다 작게만
+     * 지금 반영된다 — 크게 주면 서버 값으로 잘리고 경고를 한 번 남긴다. 보내는 거리가 바뀌면 다음 틱에 청크를 더 보내거나 내린다. 아무 스레드.
+     */
+    default void setViewDistance(int chunks) { throw new UnsupportedOperationException("setViewDistance"); }
+
+    /** 지금 이 플레이어에게 청크를 보내는 거리(서버 시야·클라이언트 렌더 거리·플러그인 값의 최솟값, 2 이상). */
+    default int sendViewDistance() { throw new UnsupportedOperationException("sendViewDistance"); }
+
+    /** 이 플레이어만의 보내는 거리(Paper setSendViewDistance, 음수면 정하지 않음). 서버 시야 거리보다 크면 잘리고 경고 한 번. 아무 스레드. */
+    default void setSendViewDistance(int chunks) { throw new UnsupportedOperationException("setSendViewDistance"); }
+
+    /** 이 플레이어 둘레에서 블록·엔티티가 틱하는 거리 — 지금은 늘 서버 시뮬레이션 거리(플레이어별 틱 거리는 아직 없다). */
+    default int simulationDistance() { throw new UnsupportedOperationException("simulationDistance"); }
+
+    /**
+     * 이 플레이어만의 시뮬레이션 거리(Paper setSimulationDistance, 음수면 정하지 않음). 불러오는·보내는 거리 계산(Paper 공식)에는 쓰이지만
+     * 서버 틱 범위는 아직 서버 값 그대로라, 다른 값을 주면 경고를 한 번 남긴다. 아무 스레드.
+     */
+    default void setSimulationDistance(int chunks) { throw new UnsupportedOperationException("setSimulationDistance"); }
+
     /** 핑(ms, 탭 목록 값). */
     int ping();
 

@@ -566,7 +566,36 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public long tabEpoch = -1;
     public boolean isDisconnected() { return disconnected; }
     public int viewDistance() { return viewDistance; }
-    public void viewDistance(int vd) { this.viewDistance = Math.max(Config.MIN_VIEW_DISTANCE, vd); }
+
+    /** 서버 시야 거리와 클라이언트 렌더 거리로 정한 바탕 거리. 실제 거리는 플러그인 상한({@link #sendCap})과의 최솟값. */
+    public void viewDistance(int vd) {
+        this.baseViewDistance = Math.max(Config.MIN_VIEW_DISTANCE, vd);
+        this.viewDistance = Math.max(Config.MIN_VIEW_DISTANCE, Math.min(baseViewDistance, sendCap));
+    }
+
+    // Paper Moonrise ViewDistanceHolder: 플러그인이 정한 이 플레이어의 거리(-1 = 월드 값). 서버는 ServerCore.applyPlayerDistances 로
+    // 공식(RegionizedPlayerChunkLoader)을 풀어 보내는 거리의 상한(sendCap)만 쓴다 — 월드 값보다 크게는 아직 못 한다.
+    private volatile int baseViewDistance = 10;
+    private volatile int sendCap = Integer.MAX_VALUE;
+    private volatile int apiTickDistance = -1, apiLoadDistance = -1, apiSendDistance = -1;
+
+    public int apiTickDistance() { return apiTickDistance; }
+    public int apiLoadDistance() { return apiLoadDistance; }
+    public int apiSendDistance() { return apiSendDistance; }
+
+    public void apiDistances(int tick, int load, int send) {
+        this.apiTickDistance = tick;
+        this.apiLoadDistance = load;
+        this.apiSendDistance = send;
+    }
+
+    /** 플러그인 거리에서 나온 보내는 거리 상한(없으면 Integer.MAX_VALUE). */
+    public int sendCap() { return sendCap; }
+
+    public void sendCap(int cap) {
+        this.sendCap = cap;
+        viewDistance(baseViewDistance);
+    }
 
     private volatile int clientViewDistance = Config.MAX_VIEW_DISTANCE;
 

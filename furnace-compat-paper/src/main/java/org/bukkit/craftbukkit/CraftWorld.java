@@ -337,6 +337,48 @@ public final class CraftWorld implements World {
                 + "): Furnace 는 모든 월드가 오버월드의 시간·날씨·스폰을 함께 쓴다 — 오버월드가 아닌 월드에서 바꾸는 것은 무시했다");
     }
 
+    // ---- 거리(T-141 E4c): Paper RegionizedPlayerChunkLoader 의 월드 값(tick = 시뮬레이션 거리, load = 시야 거리 + 1)
+
+    @Override
+    public int getViewDistance() { return Compat.furnace().viewDistance(); }
+
+    @Override
+    public int getSimulationDistance() { return Math.min(Compat.furnace().simulationDistance(), Compat.furnace().viewDistance() + 1); }
+
+    @Override
+    public int getSendViewDistance() { return Compat.furnace().viewDistance(); }
+
+    @Override
+    public void setViewDistance(int viewDistance) {
+        if (viewDistance < 2 || viewDistance > 32) throw new IllegalArgumentException("View distance " + viewDistance + " is out of range of [2, 32]");
+        if (handle.ownsClock()) Compat.furnace().setViewDistance(viewDistance);
+        else serverWideWrite("setViewDistance");
+    }
+
+    @Override
+    public void setSimulationDistance(int simulationDistance) {
+        if (simulationDistance < 2 || simulationDistance > 32) {
+            throw new IllegalArgumentException("Simulation distance " + simulationDistance + " is out of range of [2, 32]");
+        }
+        if (handle.ownsClock()) Compat.furnace().setSimulationDistance(simulationDistance);
+        else serverWideWrite("setSimulationDistance");
+    }
+
+    /** Paper 는 월드별 보내는 거리를 둔다. Furnace 는 아직 없다(플레이어별 Player#setSendViewDistance 는 있다) — 경고 한 번 뒤 무시. */
+    @Override
+    public void setSendViewDistance(int viewDistance) {
+        if (WARNED_CLOCK.add(handle.dimension() + "|setSendViewDistance")) {
+            System.getLogger("FurnaceCompat").log(System.Logger.Level.WARNING, "World#setSendViewDistance(" + getName()
+                    + "): Furnace 에는 월드별 보내는 거리가 없다 — 무시했다. 플레이어마다는 Player#setSendViewDistance, 전체는 server.properties 의 view-distance");
+        }
+    }
+
+    private void serverWideWrite(String what) {
+        if (!WARNED_CLOCK.add(handle.dimension() + "|" + what)) return;
+        System.getLogger("FurnaceCompat").log(System.Logger.Level.WARNING, "World#" + what + "(" + getName()
+                + "): Furnace 의 시야·시뮬레이션 거리는 서버 전체에 하나다 — 주 오버월드가 아닌 월드에서 바꾸는 것은 무시했다(주 오버월드에서 부르면 모든 월드가 바뀐다)");
+    }
+
     @Override
     public long getTime() {
         long time = getFullTime() % 24000;
