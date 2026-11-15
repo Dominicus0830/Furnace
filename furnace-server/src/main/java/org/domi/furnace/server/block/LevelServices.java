@@ -62,8 +62,17 @@ public interface LevelServices {
     /** server.properties max-chained-neighbor-updates. */
     int maxChainedNeighborUpdates();
 
-    /** 같은 차원의 접속자 전원에게. */
+    /**
+     * 같은 차원의 플레이어 목록(바닐라 {@code level.players()}): 죽고 20틱이 지났거나 엔드 크레딧을 보는 플레이어는 빠진다(엔티티가 제거됐다).
+     * 잠 비율·사라짐·스폰·근접 조회·입자·폭발 같은 "레벨 안 엔티티" 판정용.
+     */
     void forEachPlayer(Consumer<Player> c);
+
+    /**
+     * 같은 차원에 접속한 플레이어 전원(바닐라 {@code PlayerList.broadcast} 가 보는 서버 전체 목록에서 차원이 같은 것) — 죽음 화면·크레딧 중인
+     * 플레이어 포함. 소리·레벨 이벤트·블록 이벤트 방송용. 기본은 {@link #forEachPlayer} 와 같다(제거 개념이 없는 구현).
+     */
+    default void forEachConnectedPlayer(Consumer<Player> c) { forEachPlayer(c); }
 
     /**
      * forEachPlayer 와 같은 플레이어·같은 순서를 근접 색인으로 거를 수 있는 목록(실서버 월드). null 이면 근접 조회도 forEachPlayer 를

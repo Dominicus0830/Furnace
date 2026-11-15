@@ -1418,6 +1418,7 @@ public final class ServerCore {
         public boolean ultraWarm() { return false; }
         public int maxChainedNeighborUpdates() { return settings.get().maxChainedNeighborUpdates; }
         public void forEachPlayer(java.util.function.Consumer<Player> c) { world.forEachPlayerHere(c); }
+        public void forEachConnectedPlayer(java.util.function.Consumer<Player> c) { world.forEachConnectedPlayerHere(c); }
         public org.domi.furnace.server.world.PlayerRoster.Level playerIndex() { return world.playerIndex(); }
         public boolean biomeIs(int x, int y, int z, String tag) {
             String b = lootWorld.biomeAt(x, y, z);
@@ -1663,6 +1664,7 @@ public final class ServerCore {
         @Override public float rainLevel() { return sky() ? super.rainLevel() : 0f; }
         @Override public float thunderLevel() { return sky() ? super.thunderLevel() : 0f; }
         @Override public void forEachPlayer(java.util.function.Consumer<Player> c) { w.forEachPlayerHere(c); }
+        @Override public void forEachConnectedPlayer(java.util.function.Consumer<Player> c) { w.forEachConnectedPlayerHere(c); }
         @Override public org.domi.furnace.server.world.PlayerRoster.Level playerIndex() { return w.playerIndex(); }
         @Override public org.domi.furnace.server.block.LevelServices.DimensionTravel dimensionTravel() { return w.travelService(); }
         @Override public String biomeAt(int x, int y, int z) { return lw.biomeAt(x, y, z); }

@@ -1066,6 +1066,9 @@ public final class World {
         public void forEachPlayer(java.util.function.Consumer<Player> c) { World.this.forEachPlayerHere(c); }
 
         @Override
+        public void forEachConnectedPlayer(java.util.function.Consumer<Player> c) { World.this.forEachConnectedPlayerHere(c); }
+
+        @Override
         public PlayerRoster.Level playerIndex() { return World.this.playerIndex(); }
 
         @Override
@@ -1149,6 +1152,20 @@ public final class World {
      * 들어온 순서(접속·차원 이동·리스폰 때 끝에 붙는다).
      */
     public void forEachPlayerHere(java.util.function.Consumer<Player> c) { playerIndex().forEach(c); }
+
+    /**
+     * 이 차원에 접속한 플레이어 전원(엔티티가 제거된 죽음 화면·크레딧 중 플레이어 포함 — 바닐라 PlayerList.broadcast). 소리·이벤트 방송용.
+     */
+    public void forEachConnectedPlayerHere(java.util.function.Consumer<Player> c) { playerIndex().forEachConnected(c); }
+
+    /**
+     * 플레이어 엔티티가 제거됐다(바닐라 Entity.remove(KILLED)·removePlayerImmediately → ServerLevel EntityCallbacks.onTrackingEnd): 죽고 20틱 뒤나
+     * 엔드 크레딧을 띄울 때. 이 차원 레벨 목록에서 빼고 잠 목록을 다시 센다. destroyed(죽음의 KILLED)면 청크 추적도 잃는다({@link Player#chunkUntracked}). 접속은 그대로다 — 리스폰하면 {@link #playerRespawned} 가 끝에 다시 올린다.
+     * 어느 스레드에서나 부를 수 있다(목록 쓰기는 잠금 안).
+     */
+    public void playerRemovedFromLevel(Player p, boolean destroyed) {
+        if (online.removeFromLevel(p, destroyed)) updateSleepingPlayerList();
+    }
 
     /** 리스폰(바닐라 PlayerList.respawn → addRespawnedPlayer): 이 플레이어를 지금 차원 목록 끝으로 옮긴다. */
     public void playerRespawned(Player p) { online.relist(p); }

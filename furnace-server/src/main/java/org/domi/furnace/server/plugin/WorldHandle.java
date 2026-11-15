@@ -352,8 +352,8 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         java.util.Objects.requireNonNull(sound, "sound");
         var pkt = ApiEffects.soundAt(sound, x, y, z, seed);
         double range = ApiEffects.range(sound.volume());
-        // PlayerList.broadcast: 같은 차원에서 거리 제곱 < range²
-        world.forEachPlayerHere(p -> {
+        // PlayerList.broadcast: 같은 차원에서 거리 제곱 < range² (죽음 화면·크레딧 중인 플레이어도 받는다)
+        world.forEachConnectedPlayerHere(p -> {
             if (p.isDisconnected()) return;
             double dx = x - p.x(), dy = y - p.y(), dz = z - p.z();
             if (dx * dx + dy * dy + dz * dz < range * range) p.send(pkt);

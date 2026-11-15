@@ -1678,9 +1678,14 @@ public final class Region {
                 handoff.add(p);
                 continue;
             }
-            updateChunks(p);
-            sendQueuedChunks(p);
-            loadCornerChunks(p);
+            if (p.chunkUntracked()) {
+                // 바닐라 ChunkMap.removeEntity(죽고 20틱 뒤 remove(KILLED) → onDestroyed): 청크 추적에서 빠졌다 — 더 보내지 않고 구독(=플레이어 티켓)을 푼다
+                if (!p.loadedChunks().isEmpty() || p.queuedCenter() != null || !p.pendingChunks().isEmpty()) dropChunkTracking(p);
+            } else {
+                updateChunks(p);
+                sendQueuedChunks(p);
+                loadCornerChunks(p);
+            }
         }
         lap(2);
         if (!players.isEmpty()) {
@@ -1982,6 +1987,7 @@ public final class Region {
         if (players.isEmpty()) return false;
         boolean spectators = world.levelServices().gameRule("spectatorsGenerateChunks");
         for (Player p : players.values()) {
+            if (p.chunkUntracked()) continue;   // 죽고 20틱 뒤 ChunkMap 에서 빠진 플레이어는 티켓을 달지 않는다(DistanceManager.removePlayer)
             if (!spectators && p.gameMode() == GameMode.SPECTATOR) continue;
             int pcx = (int) Math.floor(p.x()) >> 4, pcz = (int) Math.floor(p.z()) >> 4;
             if (Math.max(Math.abs(pcx - cx), Math.abs(pcz - cz)) <= range) return true;
@@ -2025,6 +2031,7 @@ public final class Region {
         long[] keys = spawnCountKeys;
         int k = 0;
         for (Player p : players.values()) {
+            if (p.chunkUntracked()) continue;   // ticketPlayerWithin 과 같다
             if (!spectators && p.gameMode() == GameMode.SPECTATOR) continue;
             keys[k++] = Regionizer.chunkKey((int) Math.floor(p.x()) >> 4, (int) Math.floor(p.z()) >> 4);
         }
@@ -2137,7 +2144,7 @@ public final class Region {
     private boolean closeToPlayer(int cx, int cz, int chunkRange) {
         double mx = cx * 16 + 8, mz = cz * 16 + 8;
         for (Player p : players.values()) {
-            if (p.gameMode() == GameMode.SPECTATOR) continue;
+            if (p.chunkUntracked() || p.gameMode() == GameMode.SPECTATOR) continue;   // anyPlayerCloseEnoughForSpawning 은 playerMap(추적 중인 플레이어)만 본다
             int pcx = (int) Math.floor(p.x()) >> 4, pcz = (int) Math.floor(p.z()) >> 4;
             if (Math.max(Math.abs(pcx - cx), Math.abs(pcz - cz)) > chunkRange) continue;
             double dx = mx - p.x(), dz = mz - p.z();
@@ -2584,7 +2591,10 @@ public final class Region {
         p.onClimbable = s.climbable() != null;
         if (level != null && s.chunkLoaded()) level.raids().tickOmens(p);   // 나쁜 징조·습격 징조(효과 틱 직전)
         if (s.chunkLoaded()) org.domi.furnace.server.entity.PlayerFire.tick(p, level, s.inWater());   // Entity.baseTick 의 불: 물에서 꺼짐·20틱마다 1 피해·용암
+        boolean removedBefore = p.vitals().removedAfterDeath();
         p.vitals().tick(s);
+        // LivingEntity.tickDeath: 죽고 20틱 뒤 remove(KILLED) → 차원 레벨 목록에서 빠진다(잠 비율·사라짐·스폰 판정에서 제외)
+        if (!removedBefore && p.vitals().removedAfterDeath()) world.playerRemovedFromLevel(p, true);
         p.wardenSpawnTracker().tick();   // ServerPlayer.tick
         if (p.stats() != null) {   // 바닐라 Player.tick 의 시간 통계(time_since_rest 는 깨어 있을 때만)
             p.awardStat("minecraft:play_time", 1);
@@ -2734,6 +2744,7 @@ public final class Region {
      */
     private void showEndCredits(Player p) {
         detachForDimensionChange(p);
+        world.playerRemovedFromLevel(p, false);   // removePlayerImmediately: 차원 레벨 목록에서 즉시(20틱 기다리지 않는다)
         if (!p.wonGame) {
             p.wonGame = true;
             p.send(new org.domi.furnace.server.net.protocol.play.GameEvent(org.domi.furnace.server.net.protocol.play.GameEvent.WIN_GAME, 0.0F));
@@ -2979,6 +2990,22 @@ public final class Region {
                 src.runAt(p.x(), p.z(), r -> r.adopt(p));   // 갈 곳이 없다 — 원래 자리로
             }
         });
+    }
+
+    /**
+     * 청크 추적을 잃은 플레이어(죽고 20틱 뒤, {@link Player#chunkUntracked}): 바닐라 {@code ChunkMap.updatePlayerStatus(player, false)} 대로 구독과 시야·대기 목록을 비운다.
+     * 틱마다 이어 받던 청크 전송·블록 변경·빛 방송이 멈추고, 그 구독이 붙들던 청크는 다른 이유(다른 플레이어·티켓)가 없으면 내려간다.
+     * 바닐라는 이때 클라이언트에 청크 잊기(ForgetLevelChunk)를 보내지 않는다(PlayerChunkSender.dropChunk 가 살아 있을 때만) — 죽음 화면 뒤 세계는 그대로 보인다.
+     * 리스폰하면 {@link Player#chunkUntracked} 가 거짓이 되고 새 플레이어처럼 시야 전체를 처음부터 다시 받는다(lastCenter·queuedCenter 가 비어 SetCenterChunk 도 다시 간다).
+     */
+    private void dropChunkTracking(Player p) {
+        for (ChunkPos cp : p.loadedChunks()) world.unsubscribeChunk(cp, p);
+        p.loadedChunks().clear();
+        p.pendingChunks().clear();
+        p.cornerLoads().clear();
+        p.lastCenter(null);
+        p.queuedCenter(null);
+        p.trackedViewDistance(-1);
     }
 
     /**
@@ -3543,11 +3570,13 @@ public final class Region {
         int playerRange = org.domi.furnace.server.config.EntityHandleSettings.current().playerRange() * world.levelServices().entityBroadcastRangePercentage() / 100;
         double range = Math.min(world.effectiveEntityChunks() * 16.0, playerRange);
         java.util.Set<Integer> seen = new java.util.HashSet<>();
+        // 바닐라 ChunkMap.removeEntity → TrackedEntity.removePlayer: 죽고 20틱 뒤 추적에서 빠진 관찰자는 보던 플레이어를 모두 잃고 새로 보지 못한다
+        boolean observerUntracked = a.chunkUntracked();
         for (EntityView b : candidates) {
             if (b.entityId() == a.entityId()) continue;
             seen.add(b.entityId());
             if (world.onlinePlayer(b.entityId()) == null) continue;   // 이미 퇴장 처리된 플레이어는 (재)스폰하지 않는다
-            boolean near = !b.removed() && within(a, b, range) && org.domi.furnace.server.entity.view.EntityViewRules.canSee(a, b.uuid());   // 사망 후 제거된 엔티티·플러그인이 숨긴 플레이어는 보이지 않는다
+            boolean near = !observerUntracked && !b.removed() && within(a, b, range) && org.domi.furnace.server.entity.view.EntityViewRules.canSee(a, b.uuid());   // 사망 후 제거된 엔티티·플러그인이 숨긴 플레이어는 보이지 않는다
             boolean tracking = a.tracked().containsKey(b.entityId());
             double[] tr = tracking ? a.tracked().get(b.entityId()) : null;
             if (near && tracking && ((int) tr[5] != b.generation() || (long) tr[7] != org.domi.furnace.server.entity.view.EntityViewRules.epochFor(a, b.uuid()))) {
