@@ -7,13 +7,11 @@ package org.domi.furnace.server.i18n;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 final class HangulTextScanner {
 
     private static final Pattern HANGUL = Pattern.compile("[\\uAC00-\\uD7A3]");
-    private static final Pattern UNICODE_ESCAPE = Pattern.compile("\\\\u+([0-9a-fA-F]{4})");
     private static final Pattern EXEMPT_OPENER = Pattern.compile(
             "(?:new\\s+[\\w.]*(?:Exception|Error)|\\.\\s*(?:debug|trace|fine|finer|finest)|requireNonNull)\\s*\\($");
 
@@ -79,12 +77,38 @@ final class HangulTextScanner {
         return Character.isLetterOrDigit(c) || c == '_';
     }
 
-    /** 자바는 소스의 \\uXXXX 를 먼저 글자로 바꾼다 — 한글을 이스케이프로 적어 가드를 피하지 못하게 같은 처리를 한다. */
+    /**
+     * 자바는 소스의 \\uXXXX 를 먼저 글자로 바꾼다 — 한글을 이스케이프로 적어 가드를 피하지 못하게 같은 처리를 한다.
+     * 단 앞에 역슬래시가 홀수 개 붙어 있으면(예: 정규식 문자열 "\\\\u0041") 자바도 이스케이프로 보지 않으므로 풀지 않는다.
+     */
     static String decodeUnicodeEscapes(String src) {
-        Matcher m = UNICODE_ESCAPE.matcher(src);
         StringBuilder sb = new StringBuilder(src.length());
-        while (m.find()) m.appendReplacement(sb, Matcher.quoteReplacement(String.valueOf((char) Integer.parseInt(m.group(1), 16))));
-        m.appendTail(sb);
+        int n = src.length();
+        int i = 0;
+        while (i < n) {
+            char c = src.charAt(i);
+            if (c == '\\') {
+                int j = i;
+                while (j < n && src.charAt(j) == '\\') j++;
+                int run = j - i;   // 연속 역슬래시 개수
+                // 마지막 역슬래시 하나만 뒤의 u 와 이스케이프를 이룰 수 있고, 그건 그 앞 역슬래시가 짝수 개일 때(= run 이 홀수)뿐이다
+                if (j < n && src.charAt(j) == 'u' && run % 2 == 1) {
+                    int k = j;
+                    while (k < n && src.charAt(k) == 'u') k++;
+                    if (k + 4 <= n && src.substring(k, k + 4).matches("[0-9a-fA-F]{4}")) {
+                        sb.append(src, i, j - 1);   // 앞의 짝수 개 역슬래시는 그대로
+                        sb.append((char) Integer.parseInt(src.substring(k, k + 4), 16));
+                        i = k + 4;
+                        continue;
+                    }
+                }
+                sb.append(src, i, j);
+                i = j;
+            } else {
+                sb.append(c);
+                i++;
+            }
+        }
         return sb.toString();
     }
 }
