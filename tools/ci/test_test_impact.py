@@ -182,6 +182,19 @@ class GlobTest(unittest.TestCase):
         self.assertFalse(g("tools/ci/**").match("tools/cix/a"))
 
 
+class ConstantNamesTest(unittest.TestCase):
+    def test_declarations(self):
+        c = ti.constant_names
+        self.assertEqual({"A"}, c("    public static final int A = 1;", False))
+        self.assertEqual({"A", "B", "C"}, c("    public static final int A = 1, B = 2, C = 3;", False))
+        self.assertEqual(set(), c("    private static final int A = 1, B = 2;", False))
+        self.assertEqual(set(), c("    int x = 5;", False))                      # 지역 변수
+        self.assertEqual(set(), c("    static final Object LOCK = new Object() { };".replace("LOCK =", "LOCK;"), False))
+        self.assertEqual({"MAX", "MIN"}, c("    int MAX = 5, MIN = 1;", True))     # 인터페이스 필드는 암묵적 상수
+        self.assertEqual(set(), c("    int count = 5;", True))                   # (소문자 이름은 상수로 안 본다 — 알려진 한계)
+        self.assertEqual({"X"}, c("    static final int X=1;", False))
+
+
 class SelectTest(unittest.TestCase):
     def test_small_change_selects_only_executing_tests(self):
         f = Fixture(self)
@@ -272,6 +285,17 @@ class SelectTest(unittest.TestCase):
         with self.assertRaises(ti.FullRun) as cm:
             f.select()
         self.assertIn("건너뛸 시험이 없다", str(cm.exception))
+
+    def test_second_declarator_on_a_line_is_a_constant_too(self):
+        f = Fixture(self)
+        f.write(MAIN + "A.java", "package p;\npublic class A {\n    public static final int FIRST = 1, SECOND = 2;\n    void run() {}\n}\n")
+        f.write(MAIN + "B.java", "package p;\npublic class B {\n    void run() { int x = A.SECOND; }\n}\n")
+        git(f.dir, "add", "-A"); git(f.dir, "commit", "-q", "-m", "setup")
+        f.map.commit = head_sha(f.dir)
+        f.write(MAIN + "A.java", "package p;\npublic class A {\n    public static final int FIRST = 1, SECOND = 3;\n    void run() {}\n}\n")
+        f.commit()
+        with self.assertRaises(ti.FullRun):      # SECOND 을 쓰는 B → BTest 까지 → 전부
+            f.select()
 
     def test_non_constant_change_does_not_reach_users(self):
         f = Fixture(self)

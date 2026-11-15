@@ -367,6 +367,21 @@ def changed_files(repo, base, head):
     return res
 
 
+def constant_names(line, is_interface):
+    """한 줄의 상수 선언 이름들. `static final int A = 1, B = 2;` 처럼 한 줄에 여럿이면 모두(둘째부터는 초기화 식 안의 쉼표도 이름으로 보는 쪽으로 넉넉히 센다)."""
+    names = set()
+    m = FINAL_FIELD.search(line)
+    if m and not re.search(r"\bprivate\b", line):
+        names.add(m.group(1))
+        names.update(re.findall(r",\s*([A-Za-z_$][\w$]*)\s*=(?!=)", line[m.end():]))
+    if is_interface:
+        m = INTERFACE_FIELD.match(line)
+        if m:
+            names.add(m.group(1))
+            names.update(re.findall(r",\s*([A-Z][A-Z0-9_]*)\s*=(?!=)", line[m.end():]))
+    return names
+
+
 def changed_constants(repo, base, head, path, is_interface):
     """이 파일의 바뀐 줄(추가·삭제)에서 상수 선언 이름을 모은다. javac 는 컴파일 시간 상수를 쓰는 쪽에 값으로 박아 넣으므로 쓰는 파일이 안 바뀌어도 동작이 바뀐다."""
     diff = run_git(repo, "diff", "-U0", "--no-renames", base, head, "--", path).decode("utf-8", "replace")
@@ -374,14 +389,7 @@ def changed_constants(repo, base, head, path, is_interface):
     for line in diff.splitlines():
         if line.startswith(("+++", "---")) or not line or line[0] not in "+-":
             continue
-        body = line[1:]
-        m = FINAL_FIELD.search(body)
-        if m and not re.search(r"\bprivate\b", body):
-            names.add(m.group(1))
-        if is_interface:
-            m = INTERFACE_FIELD.match(body)
-            if m:
-                names.add(m.group(1))
+        names |= constant_names(line[1:], is_interface)
     return names
 
 
@@ -489,9 +497,9 @@ def select(repo, impact, rules, head, times, opts):
             eff(r, "상수 `%s` 를 씀(컴파일할 때 값으로 박힘)" % name)
             for line in sources.text[r].splitlines():
                 if name in line:
-                    m2 = FINAL_FIELD.search(line)
-                    if m2 and m2.group(1) != name and not re.search(r"\bprivate\b", line):
-                        work.append((m2.group(1), r))
+                    for other in constant_names(line, False):
+                        if other != name:
+                            work.append((other, r))
 
     # 어떤 시험도 실행하지 않은 소스(상수·인터페이스·기록 클래스 등)는 그 타입을 쓰는 파일로 대신한다.
     executed_by = {}
