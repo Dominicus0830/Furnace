@@ -111,7 +111,7 @@ public final class FurnaceMain {
         if (migration != null) {
             log.info(Lang.t("config.migrated", migration.from(), migration.to(), migration.backup()));
             for (String c : migration.changes()) {
-                if (c.startsWith(org.domi.furnace.server.config.ConfigMigration.DEFAULT_CHANGE_MARK)) log.warn("  {}", c);
+                if (c.startsWith(org.domi.furnace.server.config.ConfigMigration.defaultChangeMark())) log.warn("  {}", c);
                 else log.info("  {}", c);
             }
         }

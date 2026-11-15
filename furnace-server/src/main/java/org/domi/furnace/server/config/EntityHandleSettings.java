@@ -7,6 +7,7 @@
 // collisions.skip-unpushable=false, collisions.allow-player-cramming-damage=true (또는 config.preset=vanilla).
 package org.domi.furnace.server.config;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -78,17 +79,17 @@ public record EntityHandleSettings(double itemMerge, double expMerge, int maxEnt
     public static EntityHandleSettings fromProperties(Properties p, Consumer<String> warn) {
         EntityHandleSettings d = DEFAULT;
         double item = dbl(p, ITEM_MERGE, d.itemMerge);
-        if (item < 0) throw bad(ITEM_MERGE, p, "0 이상의 수(블록, 0.5 = 바닐라)");
+        if (item < 0) throw bad(ITEM_MERGE, p, "cfg.expect-item-merge");
         double exp = dbl(p, EXP_MERGE, d.expMerge);
         int max = num(p, MAX_COLLISIONS, d.maxEntityCollisions);
-        if (max < UNLIMITED) throw bad(MAX_COLLISIONS, p, "-1(제한 없음 = 바닐라), 0(밀지 않음) 또는 양의 정수");
+        if (max < UNLIMITED) throw bad(MAX_COLLISIONS, p, "cfg.expect-max-collisions");
         boolean on = bool(p, TRACKING + "enabled", d.trackingEnabled);
         int[] r = new int[TRACKING_KEYS.length];
         int[] def = {d.trackPlayers, d.trackAnimals, d.trackMonsters, d.trackMisc, d.trackDisplay, d.trackOther};
         for (int i = 0; i < r.length; i++) {
             String key = TRACKING + TRACKING_KEYS[i][0];
             r[i] = num(p, key, def[i]);
-            if (r[i] < 0) throw bad(key, p, "0 이상의 정수(블록, 0 = 그 종류는 아무에게도 보내지 않음 — Paper 와 같다)");
+            if (r[i] < 0) throw bad(key, p, "cfg.expect-tracking");
         }
         boolean intoTicking = bool(p, ITEM_MERGE_INTO_TICKING, d.itemMergeIntoTicking);
         boolean skipUnpushable = bool(p, SKIP_UNPUSHABLE, d.skipUnpushableCollisions);
@@ -116,8 +117,8 @@ public record EntityHandleSettings(double itemMerge, double expMerge, int maxEnt
         return out;
     }
 
-    private static IllegalArgumentException bad(String key, Properties p, String want) {
-        return new IllegalArgumentException("설정 '" + key + "' 값 '" + p.getProperty(key) + "' 이(가) 잘못됐습니다: " + want);
+    private static IllegalArgumentException bad(String key, Properties p, String wantKey) {
+        return new IllegalArgumentException(Lang.t("cfg.invalid-value", key, p.getProperty(key), Lang.t(wantKey)));
     }
 
     private static double dbl(Properties p, String key, double def) {
@@ -129,7 +130,7 @@ public record EntityHandleSettings(double itemMerge, double expMerge, int maxEnt
         } catch (NumberFormatException ignored) {
             // 아래에서 알린다
         }
-        throw new IllegalArgumentException("설정 '" + key + "' 가 수가 아님: " + v);
+        throw new IllegalArgumentException(Lang.t("cfg.not-number", key, v));
     }
 
     private static int num(Properties p, String key, int def) {
@@ -138,7 +139,7 @@ public record EntityHandleSettings(double itemMerge, double expMerge, int maxEnt
         try {
             return Integer.parseInt(v.strip());
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("설정 '" + key + "' 가 정수가 아님: " + v, e);
+            throw new IllegalArgumentException(Lang.t("cfg.not-number", key, v), e);
         }
     }
 
@@ -147,7 +148,7 @@ public record EntityHandleSettings(double itemMerge, double expMerge, int maxEnt
         if (v == null) return def;
         v = v.strip();
         if (!v.equalsIgnoreCase("true") && !v.equalsIgnoreCase("false")) {
-            throw new IllegalArgumentException("설정 '" + key + "' 값 '" + v + "' 이(가) 잘못됐습니다: true 또는 false");
+            throw new IllegalArgumentException(Lang.t("cfg.invalid-bool", key, v));
         }
         return Boolean.parseBoolean(v);
     }

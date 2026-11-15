@@ -385,7 +385,7 @@ class ConfigToolsTest {
         List<String> w = new ArrayList<>();
         OptionKeys.audit(p, Map.of("autosve-ticks", 12), w::add);
         assertEquals(1, w.size());
-        assertTrue(w.get(0).contains("(12번째 줄)"), w.get(0));
+        assertTrue(w.get(0).contains("(line 12)"), w.get(0));
     }
 
     // ------------------------------------------------------------------ JVM 점검
@@ -403,7 +403,7 @@ class ConfigToolsTest {
         assertTrue(JvmCheck.check(21, 4L << 30, List.of("-XX:+UseSerialGC"), 8).get(0).contains("Serial"));
         assertTrue(JvmCheck.check(21, 4L << 30, List.of("-XX:+UseParallelGC"), 8).get(0).contains("Parallel"));
         assertTrue(JvmCheck.check(21, 4L << 30, List.of("-Xms1G", "-Xmx4G"), 8).get(0).contains("-Xms1G"));
-        assertTrue(JvmCheck.check(21, 4L << 30, List.of(), 1).get(0).contains("CPU"));
+        assertTrue(JvmCheck.check(21, 4L << 30, List.of(), 1).get(0).contains("CPUs"));
         assertTrue(JvmCheck.check(17, 4L << 30, List.of(), 8).get(0).contains("Java 21"));
     }
 

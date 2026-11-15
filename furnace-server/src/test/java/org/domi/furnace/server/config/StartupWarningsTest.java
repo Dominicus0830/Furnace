@@ -21,25 +21,25 @@ class StartupWarningsTest {
 
     @Test
     void rconWarnsOnRaisedAndLoweredLimits() {
-        assertTrue(has(StartupWarnings.rcon(true, "a-long-secret", RconLimits.DEFAULT.withMaxClientsPerIp(8)), "기본값 4 보다 높습니다"));
-        assertTrue(has(StartupWarnings.rcon(true, "a-long-secret", RconLimits.DEFAULT.withMaxClientsPerIp(16)), "전부 차지"));
+        assertTrue(has(StartupWarnings.rcon(true, "a-long-secret", RconLimits.DEFAULT.withMaxClientsPerIp(8)), "is higher than the default 4"));
+        assertTrue(has(StartupWarnings.rcon(true, "a-long-secret", RconLimits.DEFAULT.withMaxClientsPerIp(16)), "can take every connection"));
         assertTrue(has(StartupWarnings.rcon(true, "a-long-secret", RconLimits.DEFAULT.withMaxClientsPerIp(2)), "NAT"));
-        assertTrue(has(StartupWarnings.rcon(true, "a-long-secret", new RconLimits(16, 4, 5, 50)), "인증 실패 한도를 기본값"));
-        assertTrue(has(StartupWarnings.rcon(true, "a-long-secret", new RconLimits(16, 4, 1, 10)), "매우 낮습니다"));
-        assertTrue(has(StartupWarnings.rcon(true, "short", RconLimits.DEFAULT), "8자 미만"));
+        assertTrue(has(StartupWarnings.rcon(true, "a-long-secret", new RconLimits(16, 4, 5, 50)), "failure limits are above the defaults"));
+        assertTrue(has(StartupWarnings.rcon(true, "a-long-secret", new RconLimits(16, 4, 1, 10)), "are very low"));
+        assertTrue(has(StartupWarnings.rcon(true, "short", RconLimits.DEFAULT), "shorter than 8 characters"));
     }
 
     @Test
     void proxyWarnings() {
         assertEquals(List.of(), StartupWarnings.proxy(true, false, "", false, true));
-        assertTrue(has(StartupWarnings.proxy(false, true, "", false, true), "서명이 없습니다"));
+        assertTrue(has(StartupWarnings.proxy(false, true, "", false, true), "has no signature"));
         List<String> v = StartupWarnings.proxy(true, false, "abc", false, true);
-        assertTrue(has(v, "12자 미만"));
-        assertTrue(has(v, "online-mode=true 는 쓰이지 않습니다"));
+        assertTrue(has(v, "shorter than 12 characters"));
+        assertTrue(has(v, "online-mode=true in server.properties is not used"));
         assertEquals(List.of(), StartupWarnings.proxy(false, false, "a-strong-velocity-secret", false, true));
         List<String> both = StartupWarnings.proxy(false, true, "", true, true);
-        assertTrue(has(both, "함께 켜져"));
-        assertTrue(has(both, "trusted 가 비어"));
+        assertTrue(has(both, "are both on"));
+        assertTrue(has(both, "trusted is empty"));
         assertEquals(List.of(), StartupWarnings.proxy(false, false, "", true, true));   // PROXY 만 단독: NetworkServer 가 따로 경고
     }
 }

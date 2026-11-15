@@ -20,7 +20,7 @@ class LangBundlesTest {
 
     private static final Pattern SLOT = Pattern.compile("\\{(\\d*)}");
     private static final Pattern HANGUL = Pattern.compile("[\\uAC00-\\uD7A3]");
-    private static final Pattern LOG_CALL = Pattern.compile("(?:\\b\\w*(?:log|LOG|logger|LOGGER)\\w*|getLogger\\([^()]*\\))\\.(?:info|warn|error|severe|warning)\\(");
+    private static final Pattern LOG_CALL = Pattern.compile("(?:\\b\\w*(?:log|LOG|logger|LOGGER)\\w*|getLogger\\([^()]*\\))\\.(?:info|warn|error|severe|warning)\\(|\\bwarn(?:ings)?\\.(?:accept|add)\\(");
     private static final Pattern LANG_KEY = Pattern.compile("Lang\\.t\\(\\s*\"([^\"]+)\"");
     private static final List<Path> SOURCE_ROOTS = List.of(
             Path.of("src/main/java"), Path.of("../furnace-compat-paper/src/main/java"), Path.of("../furnace-api/src/main/java"));
@@ -107,9 +107,34 @@ class LangBundlesTest {
         assertTrue(stale.isEmpty(), "Already migrated - remove from src/test/resources/lang-migration-pending.txt: " + stale);
     }
 
+    /**
+     * 시작 설정 검증 예외(운영자가 기동 때 그대로 보는 문구)는 번역한다 - 설정 읽기 파일에는 한글 예외 문구를 새로 두지 않는다.
+     * 그 밖 파일의 한글 예외 문구(약 200개 파일)는 별도 작업이라 여기서 보지 않는다.
+     */
+    @Test
+    void settingsValidationExceptionsAreNotHardCodedKorean() throws IOException {
+        Pattern thrown = Pattern.compile("new (?:IllegalArgumentException|IllegalStateException)\\(");
+        List<String> bad = new ArrayList<>();
+        for (String rel : List.of("config", "plugin/PluginSettings.java", "net/TransportOptions.java", "net/ConnectionLimits.java",
+                "remote/RconLimits.java", "maintenance/MaintenanceOptions.java", "entity/spawn/SpawnConfig.java", "metrics/MetricsOptions.java")) {
+            Path root = Path.of("src/main/java/org/domi/furnace/server").resolve(rel);
+            if (!Files.exists(root)) continue;
+            try (Stream<Path> files = Files.walk(root)) {
+                for (Path f : (Iterable<Path>) files.filter(p -> p.toString().endsWith(".java"))::iterator) {
+                    if (hasHangulCall(thrown, Files.readString(f, StandardCharsets.UTF_8))) bad.add(f.getFileName().toString());
+                }
+            }
+        }
+        assertTrue(bad.isEmpty(), "Korean text hard-coded in a settings validation exception - use Lang.t(): " + bad);
+    }
+
     /** log.info/warn/error( ... ) 호출 안(괄호가 닫힐 때까지)에 한글이 든 문자열이 있는가. */
     static boolean hasHangulLog(String source) {
-        Matcher m = LOG_CALL.matcher(source);
+        return hasHangulCall(LOG_CALL, source);
+    }
+
+    static boolean hasHangulCall(Pattern call, String source) {
+        Matcher m = call.matcher(source);
         while (m.find()) {
             int depth = 1;
             boolean inString = false;
