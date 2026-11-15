@@ -18,6 +18,7 @@ import org.jline.reader.UserInterruptException;
 import org.jline.reader.impl.DefaultParser;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,7 +75,7 @@ final class ConsoleTerminal implements AutoCloseable {
             ConsoleBridge.install(c::printAbove);
             return c;
         } catch (Throwable e) {   // 네이티브 라이브러리·권한 문제도 서버 기동을 막으면 안 된다
-            log.warn("콘솔 줄 편집기(JLine)를 열 수 없어 일반 입력을 쓴다: {}", e.toString());
+            log.warn(Lang.t("console.jline-unavailable", e.toString()));
             return null;
         }
     }

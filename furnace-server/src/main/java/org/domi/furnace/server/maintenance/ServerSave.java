@@ -15,6 +15,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.domi.furnace.server.world.World;
 import org.domi.furnace.server.world.anvil.RegionFileStore;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -133,7 +134,7 @@ public final class ServerSave implements AutoCloseable {
                 if (flush) {
                     if (incomplete == null) incomplete = w.dimension() + " 청크 " + (left < 0 ? "?" : left) + "개를 IO 레인에 넣지 못했다";
                 } else {
-                    log.warn("save-all: {} 청크 {}개는 자동 저장으로 넘어갔다(IO 레인이 마감 안에 비지 않았다, -1 = 수 모름)", w.dimension(), left);
+                    log.warn(Lang.t("save.chunks-left", w.dimension(), left));
                 }
             }
         }
@@ -150,12 +151,12 @@ public final class ServerSave implements AutoCloseable {
             wait = Math.max(1, Math.min(PLAYER_TIMEOUT_NANOS, deadline - System.nanoTime()));
             CompletableFuture.runAsync(() -> { }, hooks.playerIo()).get(wait, TimeUnit.NANOSECONDS);
         } catch (TimeoutException | ExecutionException | RejectedExecutionException e) {
-            log.warn("save-all: 플레이어 데이터 저장이 마감 안에 끝나지 않았다", e);
+            log.warn(Lang.t("save.players-timeout"), e);
         }
         if (flush) {
             if (incomplete != null) {
                 // 바닐라 "All chunks are saved" 로그는 거짓이 되므로 찍지 않고 실패로 끝낸다(백업 스크립트가 덜 쓴 월드를 복사하지 않게 — 검토 R1)
-                log.error("save-all flush: 마감 안에 디스크까지 끝내지 못했다 — {}", incomplete);
+                log.error(Lang.t("save.flush-incomplete", incomplete));
                 throw new IncompleteSaveException(incomplete);
             }
             // 바닐라 MinecraftServer.saveAllChunks(flush) 의 로그(이름은 ChunkMap.getStorageName = 차원 저장 폴더 이름)
