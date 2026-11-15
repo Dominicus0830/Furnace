@@ -540,9 +540,6 @@ public final class Regionizer {
             r.ticking = false;
             r.tickThread = null;
             running.remove(r);
-            activeTicks.decrementAndGet();
-            pool.busy.decrementAndGet();
-            pool.slotFreed();   // helpDrainAny 로 남의 스레드가 돌렸으면 다시 고를 워커가 없다 — 상한 때문에 자던 워커를 깨운다
             r.drainPass = false;
             PENDING_DRAINS.decrementAndGet();
             r.nextTickNanos = r.savedNextTickNanos;
@@ -554,6 +551,7 @@ public final class Regionizer {
         } catch (Throwable t) {
             log.error("[REGION] region #{} drain 뒤 정리 실패", r.id, t);
         } finally {
+            releaseSlot();   // helpDrainAny 로 남의 스레드가 돌렸으면 다시 고를 워커가 없다 — 상한 때문에 자던 워커를 깨운다
             if (borrowWaiters > 0) borrowable.signalAll();
             lock.unlock();
         }
@@ -767,18 +765,30 @@ public final class Regionizer {
             r.ticking = false;
             r.tickThread = null;
             running.remove(r);
-            activeTicks.decrementAndGet();
-            pool.busy.decrementAndGet();
-            pool.slotFreed();   // 끝낸 워커는 곧바로 다시 고르지만 자리가 둘 열릴 수도 있다(차원별 상한 + 서버 전체 몫) — 상한 때문에 자던 워커 하나를 깨운다
             afterTick(r);
             // 틱 중에 들어온 급한 작업(다른 region 의 명령 블록이 기다린다)은 다음 틱까지 미루지 않는다
             if (r.alive && r.drainWanted()) urgentArrived(r, true);
         } catch (Throwable t) {
             log.error("[REGION] region #{} 틱 뒤 정리 실패", r.id, t);
         } finally {
+            // 끝낸 워커는 곧바로 다시 고르지만 자리가 둘 열릴 수도 있다(차원별 상한 + 서버 전체 몫) — 상한 때문에 자던 워커 하나를 깨운다
+            releaseSlot();
             if (borrowWaiters > 0) borrowable.signalAll();
             lock.unlock();
         }
+    }
+
+    /**
+     * 워커 자리를 돌려준다(잠금 안, 틱·drain 차례 끝의 맨 마지막). 반드시 다시 큐에 넣은(schedule) <b>뒤에</b> 내린다 — 먼저 내리면 그 사이
+     * 이 차원은 "도는 틱 0·큐 머리 없음"으로 보여, 깨어난(또는 막 고르는) 다른 워커의 잠금 없는 선택기가 이 차원을 쉬는 차원으로 여기고
+     * 무거운 차원에 마지막 워커(T번째)까지 내준다. 그러면 이 차원의 다음 틱이 그 긴 틱만큼 늦는다
+     * (T-161: SharedPoolS4Test.longTicksInOneDimensionLeaveAWorkerForOthers 가 상한 3 대신 4 를 본 흔들림).
+     * 순서(데커)는 그대로: 카운터를 내린 뒤 cappedSleepers 를 본다(slotFreed).
+     */
+    private void releaseSlot() {
+        activeTicks.decrementAndGet();
+        pool.busy.decrementAndGet();
+        pool.slotFreed();
     }
 
     /** 큐 머리 마감을 발행한다(잠금 안, 큐가 바뀐 자리 끝). 낡은 머리를 발행해도 앞당길 뿐 늦추지 않는다. */

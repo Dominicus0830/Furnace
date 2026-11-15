@@ -68,16 +68,36 @@ class BukkitChunkAsyncTest {
     }
 
     @Test
-    void generateFalseWithoutSavedChunkIsNull() {
+    void generateFalseWithoutSavedChunkIsNull() throws InterruptedException {
         int cx = -400, cz = 400;
         assertNull(await(world.getChunkAtAsync(cx, cz, false)));
         assertFalse(world.isChunkLoaded(cx, cz), "만들지 않는다");
         assertNull(await(world.getChunkAtAsyncUrgently(new org.bukkit.Location(world, cx * 16 + 3, 0, cz * 16 + 3), false)));
-        // 없음(false)도 그 청크 region 스레드에서 완료된다
+        // 없음(false)도 그 청크 region 스레드에서 완료된다. 이어 붙이기 전에 region 이 먼저 끝내면 이어 붙인 작업은 시험 스레드에서 돈다
+        // (CompletableFuture 규칙, API 문서에 적힘) — 그 region 을 잠시 붙잡아 두고 이어 붙인 뒤 놓는다(T-161 흔들림)
         var fw = server.overworld();
         BlockPos at = new BlockPos(cx * 16, 0, cz * 16);
-        boolean onOwner = await(fw.loadChunkAsync(cx, cz, false).thenApply(loaded -> !loaded && Owned.owns(fw.scheduler(at))));
-        assertTrue(onOwner);
+        var hold = new java.util.concurrent.CountDownLatch(1);
+        var held = new java.util.concurrent.CountDownLatch(1);
+        var blocker = fw.scheduler(at).submit(() -> {
+            held.countDown();
+            try {
+                return hold.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        });
+        CompletableFuture<Boolean> onOwner;
+        try {
+            assertTrue(held.await(10, TimeUnit.SECONDS), "region 을 붙잡지 못했다");
+            onOwner = fw.loadChunkAsync(cx, cz, false).thenApply(loaded -> !loaded && Owned.owns(fw.scheduler(at)));
+            assertFalse(onOwner.isDone(), "region 을 붙잡았는데 먼저 끝났다");
+        } finally {
+            hold.countDown();
+        }
+        assertTrue(await(blocker), "붙잡은 작업이 제때 풀렸다");
+        assertTrue(await(onOwner));
     }
 
     @Test

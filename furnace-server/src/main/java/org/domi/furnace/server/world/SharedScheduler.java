@@ -250,8 +250,13 @@ public final class SharedScheduler implements AutoCloseable {
         int pendingCount = 0, totalActive = 0;
         long min1 = Long.MAX_VALUE, min2 = Long.MAX_VALUE;   // 할 일이 있는 차원의 평균 틱 시간 가장 작은 둘
         for (Regionizer o : ds) {
-            totalActive += o.activeTicks();
-            if (o.headDue() != Long.MAX_VALUE) {
+            int oActive = o.activeTicks();
+            totalActive += oActive;
+            // 지금 틱을 도는 차원도 "할 일이 있다"로 센다. 틱 중인 region 은 큐에서 빠져 있어(headDue = MAX) 큐만 보면 그 틱 동안 이 차원이
+            // 쉬는 차원으로 보이고, 그때 고른 다른 워커가 상한 없는(MAX) 판단을 들고 늦게 tryTake 하면 무거운 차원이 마지막 워커까지 쓴다
+            // (T-161: SharedPoolS4Test 가 상한 3 대신 4 를 본 흔들림). Regionizer 는 큐에 다시 넣은 뒤에 activeTicks 를 내리므로
+            // region 이 있는 차원은 언제나 둘 중 하나로 보인다.
+            if (o.headDue() != Long.MAX_VALUE || oActive > 0) {
                 pendingCount++;
                 // 스스로 차원 상한(T−1)을 채운 차원은 남겨 둔 워커를 쓸 수 없다 — "가벼운 차원"으로 치면 무거운 차원만 T−1 로 묶이고
                 // 마지막 워커가 논다(작은 region 이 많은 오버월드 옆 무거운 네더 20→15 TPS, PR #206 검토 R1)

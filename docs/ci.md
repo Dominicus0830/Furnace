@@ -65,6 +65,12 @@
 | `TestPlayerPacketsTest.afterKick…` (:86), `SchemaPacketBridgeTest` decodeFailures | 5, 3 | 가짜 플레이어 읽기 스레드·decodeFailures 경합 | 11-14 f700bee5e·6eb9eee32 에서 고쳐짐(그 뒤 재발 없음) |
 | `JavaPluginWiringTest.permissionAndExceptions…` (:227) | 7 | 확정 못 함 — 11-13 17:43 UTC 뒤 약 110회 재발 없음, 부하 반복 0/60 | 다시 나오면 이제 로그에 받은 메시지 목록이 찍힌다 |
 
+## 재시도로 가려진 흔들림 모아 보기 (2026-11-15, T-161)
+- 서버 조각 재시도에서 통과한 시험은 실행이 초록이라 주석(`… — 처음 실패, 재시도에서 통과`)만 남는다. `python3 -I tools/ci/flaky-history.py` 가
+  산출물 `flaky-tests-N`(7일 보관)이 있는 실행의 주석을 모아 시험별 횟수·마지막 실행을 찍는다(`--logs 폴더` 를 주면 조각 로그를 받아 처음 실패 메시지도 붙인다).
+- 11-11~15 실행 53개에서 54건을 모아 원인을 고친 기록은 `docs/feature-parity/context-notes/2026-11-15-t161-flaky.md`(제품 결함 2건: 공유 풀 선택기가 틱 중인 차원을 쉬는 차원으로 본 것,
+  생성하지 않음 `loadChunkAsync` 완료 스레드). 두 번 넘게 나온 시험은 도구로 실패 메시지를 보고 원인부터 고친다.
+
 ## 로그 없이 취소된 조각 (2026-11-14, T-160)
 - PR #362 의 `server-tests (2/3)` 첫 시도(작업 132469604114): 서버 시험 단계가 13:57 에 시작해 **40분 뒤 취소**, 단계 로그는 404(올라가지 않음), 보고서 올리기(`always()`)도
   돌지 않았다. 주석은 "The job has exceeded the maximum execution time of 35m0s" 하나. 같은 커밋 두 번째 시도는 12.7분에 통과.
