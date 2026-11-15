@@ -83,8 +83,12 @@ class RegenerateChunkTest {
 
         w.subscribeChunk(C00, p).ready = true;
         ids(ch);
+        Object token = w.loadedChunkToken(0, 0);
+        assertNotNull(token);
+        assertFalse(token instanceof ChunkColumn, "로드 표시는 컬럼 자체가 아니다(쥐어도 청크를 붙잡지 않게)");
 
         assertTrue(w.regenerateChunk(0, 0, false, false).get(20, TimeUnit.SECONDS));
+        assertSame(token, w.loadedChunkToken(0, 0), "재생성은 로드 표시를 이어받는다(NMS shim 정체성 — Paper 는 같은 LevelChunk)");
 
         sched.region(R00).execute(() -> {
             Region r = w.regionAt(R00);

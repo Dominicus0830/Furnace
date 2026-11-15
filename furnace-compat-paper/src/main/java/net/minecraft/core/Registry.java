@@ -67,6 +67,23 @@ public interface Registry<T> extends IdMap<T> {
 
     Stream<Holder.Reference<T>> holders();
 
+    /** 바닐라: 손잡이 ↔ 레지스트리 번호 표(번호는 그 값의 번호, 없는 번호면 null). 팔레트 컨테이너의 바이옴 표로 쓰인다. */
+    default IdMap<Holder<T>> asHolderIdMap() {
+        return new IdMap<>() {
+            @Override
+            public int getId(Holder<T> holder) { return Registry.this.getId(holder.value()); }
+
+            @Override
+            public Holder<T> byId(int id) { return Registry.this.getHolder(id).orElse(null); }
+
+            @Override
+            public int size() { return Registry.this.size(); }
+
+            @Override
+            public java.util.Iterator<Holder<T>> iterator() { return Registry.this.holders().<Holder<T>>map(h -> h).iterator(); }
+        };
+    }
+
     /** 정의된 태그면 그 묶음(같은 TagKey 면 같은 객체), 없거나 다른 레지스트리의 태그면 empty. */
     Optional<HolderSet.Named<T>> getTag(net.minecraft.tags.TagKey<T> tag);
 

@@ -1,14 +1,18 @@
 package org.bukkit.block;
 
 import org.bukkit.inventory.BrewerInventory;
-import org.bukkit.inventory.InventoryHolder;
 
-/** 양조대 블록 상태(서명만 — Furnace 호환 계층은 아직 블록 상태 구현을 만들지 않는다, {@link BlockState} 참고). */
-public interface BrewingStand extends BlockState, InventoryHolder {
+/** Paper 1.21.1 BrewingStand: 양조대 블록 상태. */
+public interface BrewingStand extends Container {
 
     int getBrewingTime();
 
     void setBrewingTime(int brewTime);
+
+    /** Paper: 이번 양조에 드는 전체 시간(기본 400). */
+    void setRecipeBrewTime(int recipeBrewTime);
+
+    int getRecipeBrewTime();
 
     int getFuelLevel();
 
@@ -17,5 +21,6 @@ public interface BrewingStand extends BlockState, InventoryHolder {
     @Override
     BrewerInventory getInventory();
 
+    @Override
     BrewerInventory getSnapshotInventory();
 }

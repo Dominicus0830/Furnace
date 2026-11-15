@@ -51,7 +51,7 @@ public class TurtleEggBlock extends BlockBehavior {
     }
 
     /** decreaseEggs: 깨지는 소리, 하나뿐이면 부서지고 아니면 하나 줄인다. */
-    private void decreaseEggs(BlockLevel level, Pos pos, int state) {
+    public void decreaseEggs(BlockLevel level, Pos pos, int state) {
         level.playSound(null, pos, "minecraft:entity.turtle.egg_break", "blocks", 0.7F, 0.9F + level.random().nextFloat() * 0.2F);
         int eggs = EGGS.intValue(state);
         if (eggs <= 1) {

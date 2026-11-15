@@ -256,7 +256,8 @@ public abstract class BaseSpawner {
     public boolean onEventTriggered(int type) { return type == 1; }
 
     public void load(NbtCompound tag) {
-        spawnDelay = tag.getShort("Delay");
+        // Paper(Mob-Spawner-API-Enhancements): short 를 넘는 지연은 Paper.* int 키에 — 바닐라 저장물에는 없는 키라 바닐라 동작은 그대로
+        spawnDelay = tag.contains("Paper.Delay") ? tag.getInt("Paper.Delay") : tag.getShort("Delay");
         if (tag.tags().get("SpawnData") instanceof NbtCompound c) {
             SpawnData d = SpawnData.parse(c);
             nextSpawnData = d != null ? d : new SpawnData();
@@ -275,7 +276,11 @@ public abstract class BaseSpawner {
         } else {
             spawnPotentials = new ArrayList<>(List.of(new Weighted(nextSpawnData != null ? nextSpawnData : new SpawnData(), 1)));
         }
-        if (tag.containsNumber("MinSpawnDelay")) {
+        if (tag.containsNumber("Paper.MinSpawnDelay")) {
+            minSpawnDelay = tag.getInt("Paper.MinSpawnDelay");
+            maxSpawnDelay = tag.getInt("Paper.MaxSpawnDelay");
+            spawnCount = tag.getShort("SpawnCount");
+        } else if (tag.containsNumber("MinSpawnDelay")) {
             minSpawnDelay = tag.getShort("MinSpawnDelay");
             maxSpawnDelay = tag.getShort("MaxSpawnDelay");
             spawnCount = tag.getShort("SpawnCount");
@@ -288,9 +293,15 @@ public abstract class BaseSpawner {
     }
 
     public NbtCompound save(NbtCompound tag) {
-        tag.putShort("Delay", (short) spawnDelay);
-        tag.putShort("MinSpawnDelay", (short) minSpawnDelay);
-        tag.putShort("MaxSpawnDelay", (short) maxSpawnDelay);
+        // Paper: short 를 넘으면 Paper.* int 키도 적고 바닐라 키는 Short.MAX 로 자른다(범위 안이면 바닐라와 바이트까지 같다)
+        if (spawnDelay > Short.MAX_VALUE) tag.putInt("Paper.Delay", spawnDelay);
+        tag.putShort("Delay", (short) Math.min(Short.MAX_VALUE, spawnDelay));
+        if (minSpawnDelay > Short.MAX_VALUE || maxSpawnDelay > Short.MAX_VALUE) {
+            tag.putInt("Paper.MinSpawnDelay", minSpawnDelay);
+            tag.putInt("Paper.MaxSpawnDelay", maxSpawnDelay);
+        }
+        tag.putShort("MinSpawnDelay", (short) Math.min(Short.MAX_VALUE, minSpawnDelay));
+        tag.putShort("MaxSpawnDelay", (short) Math.min(Short.MAX_VALUE, maxSpawnDelay));
         tag.putShort("SpawnCount", (short) spawnCount);
         tag.putShort("MaxNearbyEntities", (short) maxNearbyEntities);
         tag.putShort("RequiredPlayerRange", (short) requiredPlayerRange);

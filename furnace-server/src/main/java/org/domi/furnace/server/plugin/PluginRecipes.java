@@ -42,6 +42,15 @@ public final class PluginRecipes implements RecipeRegistry {
         return rm;
     }
 
+    @Override
+    public java.util.OptionalInt cookingTime(org.domi.furnace.api.recipe.Recipe.CookingKind kind, org.domi.furnace.api.item.ItemStack input) {
+        java.util.Objects.requireNonNull(kind, "kind");
+        RecipeManager rm = host.core().recipes();
+        if (rm == null || input == null || input.isEmpty()) return java.util.OptionalInt.empty();
+        var e = rm.findCooking(kind.type(), toServer().apply(input));
+        return e == null ? java.util.OptionalInt.empty() : java.util.OptionalInt.of(e.recipe().cookingTime());
+    }
+
     private ApiRecipes.ToServer toServer() {
         var items = host.core().world().itemRegistry();
         return s -> org.domi.furnace.server.plugin.ApiConvert.item(s, items);

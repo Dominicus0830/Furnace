@@ -204,6 +204,12 @@ public interface Furnace {
     void shutdown();
 
     /**
+     * 서버가 시작한 뒤 센 서버 틱 번호(바닐라 MinecraftServer.tickCount — 틱 머리에서 하나 오른다, 0 부터). 저장되지 않고 /tick freeze 중에도 오른다.
+     * 아무 스레드.
+     */
+    default long currentTick() { throw new UnsupportedOperationException("currentTick"); }
+
+    /**
      * 종료가 시작됐는가(ServerShutdownEvent 이후 true). onDisable 에서 "리로드인가 종료인가"를 가릴 때 쓴다.
      * 종료 순서는 docs/api/lifecycle.md.
      */
@@ -214,6 +220,9 @@ public interface Furnace {
 
     /** 게임 규칙(바닐라 + 플러그인 규칙). */
     default org.domi.furnace.api.world.GameRuleRegistry gameRules() { throw new UnsupportedOperationException("gameRules"); }
+
+    /** 데이터 팩 목록·켜고 끄기. */
+    default org.domi.furnace.api.datapack.DataPacks dataPacks() { throw new UnsupportedOperationException("dataPacks"); }
 
     /** 난이도·난이도 프로필. */
     default org.domi.furnace.api.world.DifficultySettings difficulty() { throw new UnsupportedOperationException("difficulty"); }

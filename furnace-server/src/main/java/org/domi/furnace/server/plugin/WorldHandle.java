@@ -400,6 +400,66 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     @Override
     public boolean isChunkLoaded(int chunkX, int chunkZ) { return world.isChunkLoaded(chunkX, chunkZ); }
 
+    @Override
+    public CompletableFuture<Boolean> loadChunkAsync(int chunkX, int chunkZ, boolean generate) {
+        ChunkPos cp = new ChunkPos(chunkX, chunkZ);
+        // 그 청크의 region 스레드에서 이미 올라와 있으면 곧바로(Paper: 주 스레드에서 올라와 있으면 완료된 Future)
+        if (((ThreadOwner) world.chunkScheduler(chunkX, chunkZ)).isOwnerThread()) {
+            Region here = world.regionizer().ownerOf(chunkX, chunkZ);
+            if (here != null && here.chunkLoaded(cp)) {
+                world.addTicket(chunkX, chunkZ, 0, PLUGIN_TICKET_TICKS);
+                return CompletableFuture.completedFuture(true);
+            }
+        }
+        if (generate) return loadOnOwner(cp);
+        // 생성하지 않음: 올라와 있으면 그대로, 아니면 그 지역 파일 레인에서 디스크에 있는지 본다(앞선 저장 뒤에 줄 선다)
+        return world.submitAtChunk(cp, r -> r.chunkLoaded(cp)).thenCompose(loaded -> {
+            if (loaded) return loadOnOwner(cp);
+            if (!(world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource anvil)) return world.submitAtChunk(cp, r -> false);
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    return anvil.store().hasChunk(chunkX, chunkZ);
+                } catch (java.io.IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+            }, world.ioLane(chunkX, chunkZ)).thenCompose(onDisk -> onDisk ? loadOnOwner(cp) : world.submitAtChunk(cp, r -> false));
+        });
+    }
+
+    @Override
+    public boolean refreshChunk(int chunkX, int chunkZ) {
+        if (!world.isChunkLoaded(chunkX, chunkZ)) return false;
+        ChunkPos cp = new ChunkPos(chunkX, chunkZ);
+        world.runAtChunk(cp, r -> { if (r.chunkLoaded(cp)) r.resendChunk(cp); });
+        return true;
+    }
+
+    /**
+     * Paper Add-Plugin-Tickets-to-API-Chunk-Methods: getChunkAtAsync 로 얻은 청크는 PLUGIN 티켓(레벨 33 — 올려만 두고 틱은 안 함)을
+     * min(20, chunk-gc 주기) 틱 붙잡는다. 청크 퇴출 유예(chunk-eviction-grace-ticks)가 20 보다 짧아도 그만큼은 남게 같은 시간 티켓을 건다.
+     */
+    private static final long PLUGIN_TICKET_TICKS = 20;
+
+    /**
+     * 주인 region 에서 올리고 그 region 스레드에서 완료한다. 사슬을 주인 작업 안에서 잇는다 — 밖에서 thenCompose 로 이으면
+     * 주인 작업이 붙이기보다 먼저 끝났을 때 돌려준 Future 가 호출 스레드에서 끝난다(CompletableFuture 규칙).
+     */
+    private CompletableFuture<Boolean> loadOnOwner(ChunkPos cp) {
+        CompletableFuture<Boolean> out = new CompletableFuture<>();
+        world.submitAtChunk(cp, r -> r.loadChunk(cp).whenComplete((col, ex) -> {
+            if (ex != null) {
+                out.completeExceptionally(ex);
+                return;
+            }
+            if (col != null) world.addTicket(cp.x(), cp.z(), 0, PLUGIN_TICKET_TICKS);
+            out.complete(col != null);
+        })).exceptionally(ex -> {   // 내린 월드·주인 작업이 던짐
+            out.completeExceptionally(ex);
+            return null;
+        });
+        return out;
+    }
+
     // ------------------------------------------------------------------ 엔티티
 
     @Override
@@ -487,12 +547,12 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         return nearbyOn(r, center, radius);
     }
 
-    @Override
-    public List<Entity> entitiesInBoxNow(org.domi.furnace.api.world.Aabb box) {
-        if (!Double.isFinite(box.minX() + box.minY() + box.minZ() + box.maxX() + box.maxY() + box.maxZ())) return List.of();
+    /**
+     * 상자를 읽을 수 있는 region 들. region 스레드: 지금 스레드가 돌리는 region 하나(소유 구역 밖은 이 스레드가 만질 수 없다 — 상자 가운데가 어디든).
+     * 전역 스레드의 빌림 구간: 상자와 겹치는 region 을 모두 빌려 합친다. 그 밖의 스레드는 ThreadOwnershipException.
+     */
+    private List<Region> regionsForBox(org.domi.furnace.api.world.Aabb box, String what) {
         var rz = world.regionizer();
-        // region 스레드: 지금 스레드가 돌리는 region 하나의 엔티티만(소유 구역 밖은 이 스레드가 만질 수 없다). 상자 가운데가 어디든 상관없다.
-        // 전역 스레드의 빌림 구간: 상자와 겹치는 region 을 모두 빌려 합친다. 그 밖의 스레드는 소유 스레드가 아니다.
         List<Region> regions;
         Region own;
         if (!org.domi.furnace.server.world.RegionBorrow.active() && (own = rz.ownedByCurrentThread()) != null) {
@@ -507,8 +567,15 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
                 }
             }
         } else {
-            throw new ThreadOwnershipException("entitiesInBoxNow 는 region 스레드에서만 부를 수 있다 (현재 " + Thread.currentThread().getName() + ") — Async 판을 쓴다");
+            throw new ThreadOwnershipException(what + " 는 region 스레드에서만 부를 수 있다 (현재 " + Thread.currentThread().getName() + ") — Async 판을 쓴다");
         }
+        return regions;
+    }
+
+    @Override
+    public List<Entity> entitiesInBoxNow(org.domi.furnace.api.world.Aabb box) {
+        if (!Double.isFinite(box.minX() + box.minY() + box.minZ() + box.maxX() + box.maxY() + box.maxZ())) return List.of();
+        List<Region> regions = regionsForBox(box, "entitiesInBoxNow");
         var bb = ApiBoxes.of(box);
         List<Entity> out = new ArrayList<>();
         for (Region r : regions) {
@@ -669,16 +736,24 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     @Override
     public CompletableFuture<Optional<Inventory>> inventoryAt(BlockPos pos) {
         ChunkPos cp = new ChunkPos(pos.chunkX(), pos.chunkZ());
-        CompletableFuture<Optional<Inventory>> f = world.submitAtOwnedChunk(cp, r -> {
-            if (!inHeight(pos.y())) return Optional.empty();
-            var col = r.ownedColumn(cp);
-            if (col == null || !(col.blockEntityAt(pos.x(), pos.y(), pos.z()) instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity be)
-                    || be instanceof org.domi.furnace.server.block.entity.CampfireBlockEntity) {   // 모닥불은 Bukkit 에서도 Inventory 가 아니다
-                return Optional.empty();
-            }
-            return Optional.<Inventory>of(new OwnedInventory(host, be.type(), be.size(), blockRunner(pos, be)));
-        });
+        CompletableFuture<Optional<Inventory>> f = world.submitAtOwnedChunk(cp, r -> inventoryOn(r, pos));
         return RegionFuture.wrap(f != null ? f : CompletableFuture.completedFuture(Optional.empty()));
+    }
+
+    @Override
+    public Optional<Inventory> inventoryAtNow(BlockPos pos) {
+        Region r = ownedRegion(pos, "inventoryAtNow(" + pos + ")");
+        return r == null ? Optional.empty() : inventoryOn(r, pos);
+    }
+
+    private Optional<Inventory> inventoryOn(Region r, BlockPos pos) {
+        if (!inHeight(pos.y())) return Optional.empty();
+        var col = r.ownedColumn(new ChunkPos(pos.chunkX(), pos.chunkZ()));
+        if (col == null || !(col.blockEntityAt(pos.x(), pos.y(), pos.z()) instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity be)
+                || be instanceof org.domi.furnace.server.block.entity.CampfireBlockEntity) {   // 모닥불은 Bukkit 에서도 Inventory 가 아니다
+            return Optional.empty();
+        }
+        return Optional.<Inventory>of(new OwnedInventory(host, be.type(), be.size(), blockRunner(pos, be)));
     }
 
     /** 그 칸의 region 에서 처음 찾은 그 블록 엔티티가 아직 있으면 메뉴 문맥(MenuBlockContext) 안에서 op 를 돌린다 — 바뀐 칸은 저장 표시·비교기 갱신까지 메뉴 클릭과 같다. */
@@ -687,7 +762,22 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         return new OwnedInventory.Runner() {
             @Override
             public <T> CompletableFuture<T> run(java.util.function.Function<OwnedInventory.Slots, T> op) {
-                CompletableFuture<T> f = world.submitAtOwnedChunk(cp, r -> {
+                // 그 칸을 가진 region 스레드면 곧바로(Bukkit 블록 인벤토리처럼 동기로 읽고 쓰는 호출자용) — 결과는 끝난 Future
+                if (((ThreadOwner) world.chunkScheduler(cp.x(), cp.z())).isOwnerThread()) {
+                    Region here = world.regionizer().ownerOf(cp.x(), cp.z());
+                    if (here == null) return CompletableFuture.failedFuture(new IllegalStateException("청크가 로드돼 있지 않다: " + cp));
+                    try {
+                        return CompletableFuture.completedFuture(applyOn(here, op));
+                    } catch (RuntimeException e) {
+                        return CompletableFuture.failedFuture(e);
+                    }
+                }
+                CompletableFuture<T> f = world.submitAtOwnedChunk(cp, r -> applyOn(r, op));
+                return f != null ? f : CompletableFuture.failedFuture(new IllegalStateException("청크가 로드돼 있지 않다: " + cp));
+            }
+
+            private <T> T applyOn(Region r, java.util.function.Function<OwnedInventory.Slots, T> op) {
+                {
                     var col = r.ownedColumn(cp);
                     if (col == null || col.blockEntityAt(pos.x(), pos.y(), pos.z()) != original) throw new IllegalStateException("그 칸의 용기가 사라졌다: " + pos);
                     var c = new org.domi.furnace.server.world.BlockEntityContainer(original);
@@ -701,8 +791,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
                     }));
                     @SuppressWarnings("unchecked") T t = (T) out[0];
                     return t;
-                });
-                return f != null ? f : CompletableFuture.failedFuture(new IllegalStateException("청크가 로드돼 있지 않다: " + cp));
+                }
             }
         };
     }
@@ -845,4 +934,257 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
             return true;
         });
     }
+
+    @Override
+    public Optional<org.domi.furnace.api.nbt.NbtCompound> blockEntityNbtNow(BlockPos pos) {
+        Pos p = new Pos(pos.x(), pos.y(), pos.z());
+        var level = ownedLevelAt(pos, "blockEntityNbtNow(" + pos + ")");
+        if (level == null || !(level.getBlockEntity(p) instanceof org.domi.furnace.server.block.entity.BlockEntity be)) return Optional.empty();
+        return Optional.of(ApiNbt.toApi(org.domi.furnace.server.command.builtin.DataCommands.blockEntityData(level, be, p)));
+    }
+
+    @Override
+    public boolean setBlockEntityNbtNow(BlockPos pos, org.domi.furnace.api.nbt.NbtCompound nbt) {
+        java.util.Objects.requireNonNull(nbt, "nbt");
+        Pos p = new Pos(pos.x(), pos.y(), pos.z());
+        var level = ownedLevelAt(pos, "setBlockEntityNbtNow(" + pos + ")");
+        if (level == null || !(level.getBlockEntity(p) instanceof org.domi.furnace.server.block.entity.BlockEntity be)) return false;
+        org.domi.furnace.server.command.builtin.DataCommands.setBlockEntityData(level, be, p, ApiNbt.toServer(nbt));
+        level.broadcastChanges();
+        return true;
+    }
+
+    /** 소유 스레드 확인 뒤 그 칸의 레벨(높이 밖·로드 안 됨이면 null). */
+    private org.domi.furnace.server.world.RegionLevel ownedLevelAt(BlockPos pos, String what) {
+        Region r = ownedRegion(pos, what);
+        var level = r == null ? null : r.level();
+        if (level == null || !inHeight(pos.y()) || !level.hasChunkAt(new Pos(pos.x(), pos.y(), pos.z()))) return null;
+        return level;
+    }
+
+    // ------------------------------------------------------------------ 시간·날씨·스폰·폴더(T-141)
+
+    /** 시간·날씨의 주인: 주 오버월드(모든 차원이 그 시계를 함께 쓴다 — World.shareServerState). */
+    @Override
+    public boolean ownsClock() { return world == core().world(); }
+
+    @Override
+    public long dayTime() { return world.clock().dayTime(); }
+
+    @Override
+    public long gameTime() { return world.clock().gameTime(); }
+
+    @Override
+    public boolean setDayTime(long time) {
+        if (!ownsClock()) return false;
+        var clock = world.clock();
+        clock.setDayTime(time);
+        // Paper CraftWorld#setFullTime: 바뀐 시계를 쓰는 접속자에게 곧바로 시각을 보낸다(다음 20틱 동기화를 기다리지 않는다).
+        // Furnace 는 모든 차원이 이 시계를 함께 쓰므로 모든 접속자다(네더·엔드 클라이언트는 고정 시각이라 무해).
+        var pkt = clock.timePacket(core().gameRules());
+        for (var p : core().players()) if (!p.isDisconnected()) p.send(pkt);
+        return true;
+    }
+
+    @Override
+    public org.domi.furnace.api.world.WeatherState weather() {
+        var c = world.clock();
+        synchronized (c) {
+            return new org.domi.furnace.api.world.WeatherState(c.rainingFlag(), c.thunderingFlag(), c.rainTime(), c.thunderTime(), c.clearWeatherTime());
+        }
+    }
+
+    @Override
+    public boolean setWeather(Boolean raining, Boolean thundering, Integer rainTime, Integer thunderTime, Integer clearWeatherTime) {
+        if (!ownsClock()) return false;
+        world.clock().setWeather(raining, thundering, rainTime, thunderTime, clearWeatherTime);
+        return true;
+    }
+
+    @Override
+    public Location spawnLocation() {
+        var sp = world.defaultSpawn();
+        return new Location(world.dimension(), sp.x(), sp.y(), sp.z(), sp.yaw(), 0f);
+    }
+
+    @Override
+    public boolean setSpawnLocation(int x, int y, int z, float angle) {
+        if (world == core().world()) {
+            core().setWorldSpawn(x, y, z, angle);
+            return true;
+        }
+        if (!world.isExtraWorld()) return false;   // 네더·엔드: 오버월드 스폰을 함께 쓴다(바닐라 DerivedLevelData)
+        var old = world.defaultSpawn();
+        if (old.x() == x && old.y() == y && old.z() == z && old.yaw() == angle) return true;
+        world.defaultSpawn(new org.domi.furnace.server.world.SpawnPoint(x, y, z, angle));   // level.dat 에는 WorldManager 가 저장 때 옮긴다
+        var pkt = new org.domi.furnace.server.net.protocol.play.SetDefaultSpawnPosition(x, y, z, angle);
+        for (var p : core().players()) p.send(pkt);   // 바닐라 setDefaultSpawnPos: broadcastAll
+        return true;
+    }
+
+    @Override
+    public java.nio.file.Path folder() {
+        // CraftBukkit getDimensionPath = DimensionType.getStorageFolder(레벨 폴더, 차원 종류): 청크 저장소와 같은 폴더
+        // (네더 환경 추가 월드는 <이름>/DIM-1, 엔드 환경은 <이름>/DIM1).
+        return world.dimensionType().storageDir(world.levelRoot());
+    }
+
+    @Override
+    public List<Entity> entitiesSnapshot() {
+        List<Entity> out = new ArrayList<>();
+        // Paper 는 isValid 로 거른다: 지워졌거나 죽어 가는(체력 0) 생물·죽은 플레이어는 빠진다. 다른 스레드 읽기라 한 틱 경합은 허용.
+        for (var e : world.entityIndex().values()) if (e.isAlive()) out.add(EntityHandle.of(host, e));
+        for (var p : core().players()) {
+            if (!p.isDisconnected() && p.isAlive() && world.dimension().equals(p.dimension())) out.add(host.player(p));
+        }
+        return out;
+    }
+
+    @Override
+    public List<Entity> entitiesInChunkNow(int chunkX, int chunkZ) {
+        // 소유를 먼저 확인한다 — region 스레드면 지금 도는 region 만 보이므로 남의 청크에서 조용히 빈 목록이 되지 않게
+        if (!org.domi.furnace.server.world.RegionBorrow.active()) ownedRegion(new BlockPos(chunkX << 4, 0, chunkZ << 4), "entitiesInChunkNow");
+        double minX = chunkX << 4, minZ = chunkZ << 4;
+        var box = new org.domi.furnace.api.world.Aabb(minX, -1.0E7, minZ, minX + 16, 1.0E7, minZ + 16);
+        List<Entity> out = new ArrayList<>();
+        for (Region r : regionsForBox(box, "entitiesInChunkNow")) {
+            if (r.level() == null) continue;
+            // Paper ChunkEntitySlices.getChunkEntities: 그 청크 칸의 엔티티 중 isValid(살아 있음) 인 것
+            for (var e : r.level().getEntities(null, ApiBoxes.of(box), null)) {
+                if (e.isAlive() && inChunk(e.x(), e.z(), chunkX, chunkZ)) out.add(EntityHandle.of(host, e));
+            }
+            for (var p : r.players().values()) {
+                if (!p.isDisconnected() && p.isAlive() && inChunk(p.x(), p.z(), chunkX, chunkZ)) out.add(host.player(p));
+            }
+        }
+        return out;
+    }
+
+    private static boolean inChunk(double x, double z, int chunkX, int chunkZ) {
+        return ((int) Math.floor(x) >> 4) == chunkX && ((int) Math.floor(z) >> 4) == chunkZ;
+    }
+
+    @Override
+    public Entity dropItemNow(Location at, org.domi.furnace.api.item.ItemStack stack, boolean naturally, java.util.function.Consumer<Entity> beforeSpawn) {
+        java.util.Objects.requireNonNull(at, "Location cannot be null");
+        java.util.Objects.requireNonNull(stack, "ItemStack cannot be null");
+        if (!at.world().equals(world.dimension())) throw new IllegalArgumentException("다른 차원의 위치: " + at.world());
+        ChunkPos cp = ChunkPos.ofBlock(at.x(), at.z());
+        Region r = ownedRegion(new BlockPos(cp.x() << 4, 0, cp.z() << 4), "dropItemNow");
+        if (r == null || !r.chunkLoaded(cp)) throw new IllegalStateException("청크가 로드돼 있지 않다: " + cp);
+        var level = r.level();
+        double x = at.x(), y = at.y(), z = at.z();
+        if (naturally) {   // Paper CraftWorld#dropItemNaturally: 월드 난수 nextFloat 셋(x·y·z 순)
+            x += level.random().nextFloat() * 0.5F + 0.25D;
+            y += level.random().nextFloat() * 0.5F + 0.25D;
+            z += level.random().nextFloat() * 0.5F + 0.25D;
+        }
+        var item = new org.domi.furnace.server.entity.ItemEntity(level, level.nextEntityId(), x, y, z, ApiConvert.item(stack, world.itemRegistry()));
+        item.setDefaultPickUpDelay();   // Paper: pickupDelay = 10
+        Entity handle = EntityHandle.of(host, item);
+        if (beforeSpawn != null) beforeSpawn.accept(handle);
+        if (!level.addFreshEntityWithPassengers(item.spawnReason("CUSTOM"))) return null;
+        return handle;
+    }
+
+    // ------------------------------------------------------------------ 블록 빛·드롭·부수기(T-141 C, Paper CraftBlock)
+
+    /** 소유 스레드이고 청크가 로드된 칸의 레벨(아니면 ThreadOwnershipException / IllegalStateException). */
+    private org.domi.furnace.server.world.RegionLevel loadedLevel(BlockPos pos, String what) {
+        Region r = ownedRegion(pos, what + "(" + pos + ")");
+        if (r == null || !r.chunkLoaded(new ChunkPos(pos.chunkX(), pos.chunkZ()))) throw new IllegalStateException("청크가 로드돼 있지 않다: " + pos);
+        return r.level();
+    }
+
+    @Override
+    public int lightLevelNow(BlockPos pos) { return loadedLevel(pos, "lightLevelNow").getMaxLocalRawBrightness(new Pos(pos.x(), pos.y(), pos.z())); }
+
+    @Override
+    public int skyLightNow(BlockPos pos) { return loadedLevel(pos, "skyLightNow").getSkyLight(new Pos(pos.x(), pos.y(), pos.z())); }
+
+    @Override
+    public int blockLightNow(BlockPos pos) { return loadedLevel(pos, "blockLightNow").getBlockLight(new Pos(pos.x(), pos.y(), pos.z())); }
+
+    /** CraftBlockData.isPreferredTool: 도구가 필요 없는 블록이거나 맞는 도구. */
+    private static boolean preferredTool(int state, org.domi.furnace.server.entity.ItemStack tool) {
+        return !org.domi.furnace.server.block.BlockInfo.get().requiresCorrectToolForDrops(org.domi.furnace.server.block.Blocks.get().blockOf(state))
+                || org.domi.furnace.server.item.ItemTools.isCorrectToolForDrops(tool, state);
+    }
+
+    private org.domi.furnace.server.entity.ItemStack serverTool(org.domi.furnace.api.item.ItemStack tool) {
+        return tool == null ? org.domi.furnace.server.entity.ItemStack.EMPTY : ApiConvert.item(tool, world.itemRegistry());
+    }
+
+    @Override
+    public List<org.domi.furnace.api.item.ItemStack> dropsNow(BlockPos pos, org.domi.furnace.api.item.ItemStack tool) {
+        var level = loadedLevel(pos, "dropsNow");
+        Pos p = new Pos(pos.x(), pos.y(), pos.z());
+        int state = level.getBlockState(p);
+        var nms = serverTool(tool);
+        if (tool != null && !preferredTool(state, nms)) return List.of();
+        var drops = org.domi.furnace.server.block.BlockBehaviors.of(state).getDrops(state, level, p, level.getBlockEntity(p), null, nms);
+        List<org.domi.furnace.api.item.ItemStack> out = new ArrayList<>(drops.size());
+        for (var d : drops) out.add(ApiConvert.item(d, world.itemRegistry()));
+        return out;
+    }
+
+    /**
+     * Paper 1.21.1 CraftBlock#breakNaturally(item, triggerEffect, dropExperience) 순서 그대로: 드롭(경험치 빼고) → 효과 → 경험치 →
+     * removeBlock → destroy → 얼음·거북알 뒷처리. 드롭 조건의 "공기"는 minecraft:air 하나뿐이다(동굴 공기는 조건을 통과한다).
+     */
+    @Override
+    public boolean breakNaturallyNow(BlockPos pos, org.domi.furnace.api.item.ItemStack tool, boolean triggerEffect, boolean dropExperience) {
+        var level = loadedLevel(pos, "breakNaturallyNow");
+        Pos p = new Pos(pos.x(), pos.y(), pos.z());
+        int state = level.getBlockState(p);
+        var behavior = org.domi.furnace.server.block.BlockBehaviors.of(state);
+        var nms = serverTool(tool);
+        boolean result = false;
+        if (org.domi.furnace.server.block.Blocks.get().blockOf(state) != AIR_BLOCK && (tool == null || preferredTool(state, nms))) {
+            level.dropResources(state, p, level.getBlockEntity(p), null, nms, false);
+            if (triggerEffect) {
+                if (behavior instanceof org.domi.furnace.server.block.types.BaseFireBlock) level.levelEvent(null, 1009, p, 0);   // SOUND_EXTINGUISH_FIRE
+                else level.levelEvent(null, 2001, p, state);                                                                  // PARTICLES_DESTROY_BLOCK
+            }
+            if (dropExperience) level.popExperience(p, behavior.expDrop(state, level, p, nms));
+            result = true;
+        }
+        boolean destroyed = level.removeBlock(p, false);
+        if (destroyed) behavior.destroy(level, p, state);
+        if (result) {
+            if (behavior instanceof org.domi.furnace.server.block.types.IceBlock ice) ice.afterDestroy(level, p, nms);
+            else if (behavior instanceof org.domi.furnace.server.block.types.TurtleEggBlock egg) egg.decreaseEggs(level, p, state);
+        }
+        level.broadcastChanges();
+        return destroyed && result;
+    }
+
+    // ------------------------------------------------------------------ 나무 생성(T-141 E5, Paper CraftRegionAccessor#generateTree)
+
+    @Override
+    public org.domi.furnace.api.world.FeaturePlacement placeFeatureNow(String configuredFeature, BlockPos pos, java.util.Random random, boolean apply) {
+        java.util.Objects.requireNonNull(configuredFeature, "configuredFeature");
+        var level = loadedLevel(pos, "placeFeatureNow");
+        var r = level.placeFeatureWith(configuredFeature, new Pos(pos.x(), pos.y(), pos.z()),
+                new org.domi.furnace.server.world.JavaRandomWorldgen(random), apply);
+        if (r == null) throw new IllegalArgumentException("모르는 configured feature: " + configuredFeature);
+        return placement(r);
+    }
+
+    @Override
+    public org.domi.furnace.api.world.FeaturePlacement growChorusPlantNow(BlockPos pos, java.util.Random random, boolean apply) {
+        var level = loadedLevel(pos, "growChorusPlantNow");
+        return placement(level.chorusPlantWith(new Pos(pos.x(), pos.y(), pos.z()), new org.domi.furnace.server.world.JavaRandomWorldgen(random), apply));
+    }
+
+    private org.domi.furnace.api.world.FeaturePlacement placement(org.domi.furnace.server.world.LiveFeatures.Placement r) {
+        List<BlockSnapshot> out = new ArrayList<>(r.writes().size());
+        for (long[] w : r.writes()) {
+            out.add(new BlockSnapshot(world.dimension(), new BlockPos((int) w[0], (int) w[1], (int) w[2]),
+                    ApiConvert.block((int) w[3], world.blockRegistry())));
+        }
+        return new org.domi.furnace.api.world.FeaturePlacement(r.placed(), out);
+    }
+
+    private static final int AIR_BLOCK = org.domi.furnace.server.block.Blocks.get().block("minecraft:air");
 }

@@ -10,7 +10,8 @@ import org.domi.furnace.compat.nms.NmsChunks;
 /**
  * 로드된 청크 shim(Mojang 이름, N2a): 서버 청크의 <b>보기</b>({@link ChunkAccess} 참고). {@code ServerLevel#getChunk} 등이 돌려준다.
  * 블록 쓰기 {@link #setBlockState} 는 바닐라처럼 그 칸만 바꾼다(이웃·모양 갱신, 클라이언트 알림, POI 없음 — 블록 자체의 놓기·치우기 반응, 블록 엔티티,
- * 빛, 하이트맵, 저장 표시는 바닐라대로). 블록 엔티티 읽기(getBlockEntity)·엔티티·틱 상태(getFullStatus)는 아직 없다.
+ * 빛, 하이트맵, 저장 표시는 바닐라대로). 블록 엔티티 칸 목록(getBlockEntitiesPos)은 있고, 블록 엔티티 객체(getBlockEntity)·엔티티·틱 상태
+ * (getFullStatus)는 아직 없다. 다른 스레드에서 읽으면 공개 스냅샷(N2b-3, {@link ChunkAccess} 참고).
  */
 public class LevelChunk extends ChunkAccess {
 
@@ -21,20 +22,20 @@ public class LevelChunk extends ChunkAccess {
         this.level = level;
     }
 
-    /** 호환 모듈 전용: 로드된 청크의 보기(로드 여부는 부르는 쪽이 확인한다). */
+    /** 호환 모듈 전용: 로드된 청크의 새 보기(로드 여부는 부르는 쪽이 확인한다). 정체성 캐시({@code NmsChunks.loadedChunk})만 부른다. */
     public static LevelChunk furnaceView(Level level, int chunkX, int chunkZ) { return new LevelChunk(level, chunkX, chunkZ); }
 
     public Level getLevel() { return level; }
 
     /**
-     * 높이 밖·공기뿐인 섹션은 minecraft:air(바닐라 LevelChunk.getBlockState — 동굴 공기만 있는 섹션도 hasOnlyAir 라 air 를 준다).
+     * 높이 밖·공기뿐인 섹션은 minecraft:air(바닐라 LevelChunk.getBlockState — 섹션의 바닐라 hasOnlyAir(nonEmptyBlockCount == 0)를 본다. 동굴 공기만
+     * 있는 섹션도 air 를 주고, 컨테이너 원시 쓰기로 개수가 0 인 채 블록이 든 섹션도 바닐라처럼 air 를 준다).
      */
     @Override
     public BlockState getBlockState(BlockPos pos) {
         int y = pos.getY();
         if (isOutsideBuildHeight(y)) return Blocks.AIR.defaultBlockState();
-        if (furnaceSectionNonAir(getSectionIndex(y)) == 0) return Blocks.AIR.defaultBlockState();
-        return NmsChunks.state(furnaceStateIdAt(pos.getX(), y, pos.getZ()));
+        return NmsChunks.state(furnaceVanillaStateIdAt(pos.getX(), y, pos.getZ()));
     }
 
     public FluidState getFluidState(int x, int y, int z) { return getBlockState(new BlockPos(x, y, z)).getFluidState(); }

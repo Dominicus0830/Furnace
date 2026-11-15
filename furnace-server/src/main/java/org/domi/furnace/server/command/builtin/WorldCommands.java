@@ -147,10 +147,15 @@ public final class WorldCommands {
     }
 
     private static int setRule(CommandSource source, GameRules.Rule rule, int value) {
-        source.getServer().gameRules().set(rule.name(), value);
-        String shown = GameRules.serialize(rule, value);
+        GameRules rules = source.getServer().gameRules();
+        // Paper WorldGameRuleChangeEvent: 플러그인이 값(문자열)을 바꾸거나 취소한다. 취소돼도 값 바뀜 처리(onChanged)는 그대로 돌고 성공 알림은 지금 값으로 간다.
+        String v = source.getServer().gameEvents().gameRuleChange(source, rule.name(), GameRules.serialize(rule, value));
+        if (v == null) rules.set(rule.name(), rules.raw(rule.name()));
+        else rules.set(rule.name(), rule.isBoolean() ? (Boolean.parseBoolean(v) ? 1 : 0) : Integer.parseInt(v));
+        int now = rules.raw(rule.name());
+        String shown = GameRules.serialize(rule, now);
         source.sendSuccess(() -> Text.translatable("commands.gamerule.set", rule.name(), shown), true);
-        return value;
+        return now;
     }
 
     private static int queryRule(CommandSource source, GameRules.Rule rule) {

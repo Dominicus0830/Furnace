@@ -12,8 +12,8 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 
-/** 월드(차원 하나). 1차 호환 범위의 조회 메서드만 있다 — 스폰·시간·블록 쓰기·엔티티 목록은 H3. */
-public interface World extends Keyed, org.bukkit.metadata.Metadatable {
+/** 월드(차원 하나). Paper 1.21.1 World 의 일부(T-141 로 물결마다 넓힌다). */
+public interface World extends Keyed, org.bukkit.metadata.Metadatable, org.bukkit.generator.WorldInfo {
 
     String getName();
 
@@ -145,6 +145,69 @@ public interface World extends Keyed, org.bukkit.metadata.Metadatable {
 
     boolean isChunkLoaded(int x, int z);
 
+    /** 그 청크를 보는 플레이어에게 청크를 다시 보낸다. 올라와 있지 않으면 false(Paper 와 같다). */
+    boolean refreshChunk(int x, int z);
+
+    // ---- 비동기 청크(Paper async chunks API). 결과는 그 청크를 가진 region 스레드에서 완료된다(Paper 는 주 스레드).
+
+    /**
+     * 그 청크를 올린다. gen 이 거짓이면 저장된 청크만(없으면 null). urgent 는 Furnace 에 우선순위 줄이 없어 무시한다.
+     */
+    java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsync(int x, int z, boolean gen, boolean urgent);
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsync(int x, int z, boolean gen) { return getChunkAtAsync(x, z, gen, false); }
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsync(int x, int z) { return getChunkAtAsync(x, z, true); }
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsync(Location loc) { return getChunkAtAsync((int) Math.floor(loc.getX()) >> 4, (int) Math.floor(loc.getZ()) >> 4, true); }
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsync(Location loc, boolean gen) { return getChunkAtAsync((int) Math.floor(loc.getX()) >> 4, (int) Math.floor(loc.getZ()) >> 4, gen); }
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsync(Block block) { return getChunkAtAsync(block.getX() >> 4, block.getZ() >> 4, true); }
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsync(Block block, boolean gen) { return getChunkAtAsync(block.getX() >> 4, block.getZ() >> 4, gen); }
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsyncUrgently(int x, int z) { return getChunkAtAsync(x, z, true, true); }
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsyncUrgently(Location loc) { return getChunkAtAsync((int) Math.floor(loc.getX()) >> 4, (int) Math.floor(loc.getZ()) >> 4, true, true); }
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsyncUrgently(Location loc, boolean gen) { return getChunkAtAsync((int) Math.floor(loc.getX()) >> 4, (int) Math.floor(loc.getZ()) >> 4, gen, true); }
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsyncUrgently(Block block) { return getChunkAtAsync(block.getX() >> 4, block.getZ() >> 4, true, true); }
+
+    default java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsyncUrgently(Block block, boolean gen) { return getChunkAtAsync(block.getX() >> 4, block.getZ() >> 4, gen, true); }
+
+    /** 콜백판: 예외는 Paper 처럼 "Exception in chunk load callback" 경고로 남긴다. */
+    default void getChunkAtAsync(int x, int z, java.util.function.Consumer<? super Chunk> cb) { org.domi.furnace.compat.paper.ChunkCallbacks.run(getChunkAtAsync(x, z, true), cb); }
+
+    default void getChunkAtAsync(int x, int z, boolean gen, java.util.function.Consumer<? super Chunk> cb) { org.domi.furnace.compat.paper.ChunkCallbacks.run(getChunkAtAsync(x, z, gen), cb); }
+
+    default void getChunkAtAsync(Location loc, java.util.function.Consumer<? super Chunk> cb) { getChunkAtAsync((int) Math.floor(loc.getX()) >> 4, (int) Math.floor(loc.getZ()) >> 4, true, cb); }
+
+    default void getChunkAtAsync(Location loc, boolean gen, java.util.function.Consumer<? super Chunk> cb) { getChunkAtAsync((int) Math.floor(loc.getX()) >> 4, (int) Math.floor(loc.getZ()) >> 4, gen, cb); }
+
+    default void getChunkAtAsync(Block block, java.util.function.Consumer<? super Chunk> cb) { getChunkAtAsync(block.getX() >> 4, block.getZ() >> 4, true, cb); }
+
+    default void getChunkAtAsync(Block block, boolean gen, java.util.function.Consumer<? super Chunk> cb) { getChunkAtAsync(block.getX() >> 4, block.getZ() >> 4, gen, cb); }
+
+    /** @deprecated Paper 1.13.1 부터. Consumer 판과 같다. */
+    @Deprecated
+    interface ChunkLoadCallback extends java.util.function.Consumer<Chunk> {
+        void onLoad(Chunk chunk);
+
+        @Override
+        default void accept(Chunk chunk) { onLoad(chunk); }
+    }
+
+    @Deprecated
+    default void getChunkAtAsync(int x, int z, ChunkLoadCallback cb) { org.domi.furnace.compat.paper.ChunkCallbacks.run(getChunkAtAsync(x, z, true), cb); }
+
+    @Deprecated
+    default void getChunkAtAsync(Location loc, ChunkLoadCallback cb) { org.domi.furnace.compat.paper.ChunkCallbacks.run(getChunkAtAsync(loc, true), cb); }
+
+    @Deprecated
+    default void getChunkAtAsync(Block block, ChunkLoadCallback cb) { org.domi.furnace.compat.paper.ChunkCallbacks.run(getChunkAtAsync(block, true), cb); }
+
     List<Player> getPlayers();
 
     /** 레벨 이벤트를 64칸 안 플레이어에게(Paper World#playEffect). */
@@ -159,12 +222,152 @@ public interface World extends Keyed, org.bukkit.metadata.Metadatable {
     /** 데이터가 효과마다 정해진 종류인 레벨 이벤트를 radius 칸 안 플레이어에게. */
     <T> void playEffect(Location location, Effect effect, T data, int radius);
 
+    // ---- 시간·날씨·스폰·폴더(T-141). Furnace 는 모든 차원이 오버월드의 시계와 날씨를 함께 쓴다(바닐라 DerivedLevelData) —
+    // 오버월드가 아닌 월드에서 바꾸면 아무 일도 하지 않는다(경고 한 번). Paper 는 월드마다 따로 가진다.
+
+    /** 하루 시각 0..23999(getFullTime 의 24000 나머지). */
+    long getTime();
+
+    /** 하루 안의 시각을 바꾼다 — 앞으로만 간다(Paper: 차이를 24000 나머지로 더한다). */
+    void setTime(long time);
+
+    /** 하루 시각(계속 는다, /time set 이 바꾸는 값). */
+    long getFullTime();
+
+    /** 하루 시각을 바꾸고 이 월드 접속자에게 곧바로 알린다. */
+    void setFullTime(long time);
+
+    /** 월드가 흐른 틱(바꿀 수 없다). */
+    long getGameTime();
+
+    /** 비가 오는가(날씨 깃발 — 비 세기가 아니다). */
+    boolean hasStorm();
+
+    /** 비 깃발을 바꾸고 남은 비 시간·맑음 붙잡기를 0 으로(Paper 와 같다 — 다음 틱에 날씨 순환이 새 시간을 뽑는다). */
+    void setStorm(boolean hasStorm);
+
+    /** 비 깃발이 바뀔 때까지 남은 틱. */
+    int getWeatherDuration();
+
+    void setWeatherDuration(int duration);
+
+    boolean isThundering();
+
+    /** 천둥 깃발을 바꾸고 남은 천둥 시간·맑음 붙잡기를 0 으로. */
+    void setThundering(boolean thundering);
+
+    int getThunderDuration();
+
+    void setThunderDuration(int duration);
+
+    /** 비도 천둥도 아닌가. */
+    boolean isClearWeather();
+
+    /** /weather clear 처럼 맑음을 붙잡는 남은 틱. */
+    void setClearWeatherDuration(int duration);
+
+    int getClearWeatherDuration();
+
+    /** 월드 스폰(블록 좌표, 바라보는 각도). */
+    Location getSpawnLocation();
+
+    /** 이 월드의 위치가 아니면 false. */
+    boolean setSpawnLocation(Location location);
+
+    /** 월드 스폰을 바꾼다. 네더·엔드는 오버월드 스폰을 함께 써서 false. */
+    boolean setSpawnLocation(int x, int y, int z, float angle);
+
+    default boolean setSpawnLocation(int x, int y, int z) { return setSpawnLocation(x, y, z, 0.0F); }
+
+    /** 이 차원의 저장 폴더(Furnace 배치: 네더 = 월드/DIM-1, 엔드 = 월드/DIM1, 추가 월드 = 그 폴더). */
+    java.io.File getWorldFolder();
+
+    /**
+     * 이 월드의 모든 엔티티(플레이어 포함) 스냅숏 — 아무 스레드에서 부를 수 있다. 엔티티를 읽고 고치는 것은 그 엔티티를 가진 region 스레드에서만
+     * (Folia 와 같은 규칙).
+     */
+    List<Entity> getEntities();
+
+    List<LivingEntity> getLivingEntities();
+
+    /** 그 형인 엔티티만. */
+    @SuppressWarnings("unchecked")
+    default <T extends Entity> Collection<T> getEntitiesByClass(Class<T> cls) {
+        List<T> out = new ArrayList<>();
+        for (Entity e : getEntities()) if (cls.isAssignableFrom(e.getClass())) out.add((T) e);
+        return out;
+    }
+
+    /** 주어진 형 가운데 하나인 엔티티만. */
+    default Collection<Entity> getEntitiesByClasses(Class<?>... classes) {
+        List<Entity> out = new ArrayList<>();
+        for (Entity e : getEntities()) {
+            for (Class<?> c : classes) {
+                if (c.isAssignableFrom(e.getClass())) {
+                    out.add(e);
+                    break;
+                }
+            }
+        }
+        return out;
+    }
+
+    /** 그 자리에 떨어진 아이템을 만든다(줍기 지연 10틱). 그 자리를 가진 region 스레드에서만. */
+    default org.bukkit.entity.Item dropItem(Location location, org.bukkit.inventory.ItemStack item) { return dropItem(location, item, null); }
+
+    /** function 은 월드에 넣기 전에 부른다. */
+    org.bukkit.entity.Item dropItem(Location location, org.bukkit.inventory.ItemStack item, java.util.function.Consumer<? super org.bukkit.entity.Item> function);
+
+    /** 각 축 0.25~0.75 를 무작위로 더한 자리에 떨군다. */
+    default org.bukkit.entity.Item dropItemNaturally(Location location, org.bukkit.inventory.ItemStack item) { return dropItemNaturally(location, item, null); }
+
+    org.bukkit.entity.Item dropItemNaturally(Location location, org.bukkit.inventory.ItemStack item, java.util.function.Consumer<? super org.bukkit.entity.Item> function);
+
     int getMinHeight();
 
     int getMaxHeight();
 
-    /** 게임 규칙 값(문자열), 모르는 이름이면 null. */
+    /** 이 월드를 만들 때 준 플러그인 바이옴 공급자. Furnace 는 아직 그렇게 월드를 만들지 않아 늘 null(Paper 도 주지 않았으면 null). */
+    default org.bukkit.generator.BiomeProvider getBiomeProvider() { return null; }
+
+    // ---- 게임 규칙(T-141 E4a, Paper 1.21.1 CraftWorld). Furnace 게임 규칙은 서버 전체에 하나다 — 어느 월드로 읽고 바꿔도 같은 값이다
+    // (Paper 는 플러그인이 만든 월드마다 따로 둔다). 바닐라 규칙만 보인다(Furnace 플러그인 규칙 "ns:이름"은 없는 이름).
+
+    /** 게임 규칙 값(문자열 true/false/숫자). null 이면 null, 모르는 이름이면 빈 문자열(Paper 와 같다). */
     String getGameRuleValue(String rule);
+
+    /** 문자열로 값을 바꾼다. null 인자·모르는 이름·이벤트 취소면 false. 정수 규칙에 숫자가 아니면 0(바닐라 deserialize, 경고 한 줄). 빈 이름은 IllegalArgumentException. */
+    boolean setGameRuleValue(String rule, String value);
+
+    /** 바닐라 규칙 이름 전부. */
+    String[] getGameRules();
+
+    /** 바닐라 규칙 이름인가. null·빈 문자열은 IllegalArgumentException. */
+    boolean isGameRule(String rule);
+
+    <T> T getGameRuleValue(GameRule<T> rule);
+
+    <T> T getGameRuleDefault(GameRule<T> rule);
+
+    /** 값을 바꾼다(WorldGameRuleChangeEvent 를 부르고, 취소되면 false). 범위 검사는 하지 않는다(Paper 와 같다). */
+    <T> boolean setGameRule(GameRule<T> rule, T newValue);
+
+    /** spawnChunkRadius 가 0 보다 큰가(Paper 1.21.1). */
+    boolean getKeepSpawnInMemory();
+
+    /** true 면 spawnChunkRadius 를 기본값(2)으로, false 면 0 으로(Paper 1.21.1). */
+    void setKeepSpawnInMemory(boolean keepLoaded);
+
+    // ---- 나무 생성(T-141 E5, Paper CraftWorld·CraftRegionAccessor#generateTree). 소유 region 스레드 전용.
+
+    /** 서버 공용 난수로 나무를 키운다. 키웠으면 true. */
+    boolean generateTree(Location location, TreeType type);
+
+    /** 월드를 바꾸지 않고, 키웠으면 쓴 칸마다(처음 쓴 차례) delegate.setBlockData 를 부른 뒤 true. */
+    boolean generateTree(Location location, TreeType type, BlockChangeDelegate delegate);
+
+    /** 주어진 난수로 나무를 키운다(그 Random 의 상태가 나아간다). */
+    boolean generateTree(Location location, java.util.Random random, TreeType type);
 
     // ---- 소리(H4 묶음 C). 분류를 적지 않으면 MASTER, 씨앗을 적지 않으면 서버 난수(Paper 와 같다).
 

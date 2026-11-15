@@ -14,7 +14,6 @@ import org.domi.furnace.api.Furnace;
 import org.domi.furnace.api.world.BlockPos;
 import org.domi.furnace.compat.paper.Compat;
 import org.domi.furnace.compat.paper.CompatBlock;
-import org.domi.furnace.compat.paper.CompatChunk;
 import org.domi.furnace.compat.paper.CompatEffects;
 import org.domi.furnace.compat.paper.UnsupportedFeature;
 
@@ -80,7 +79,7 @@ public final class CraftWorld implements World {
     public Block getBlockAt(int x, int y, int z) { return new CompatBlock(handle.dimension(), new BlockPos(x, y, z)); }
 
     @Override
-    public Chunk getChunkAt(int x, int z) { return new CompatChunk(handle.dimension(), x, z); }
+    public Chunk getChunkAt(int x, int z) { return new CraftChunk(handle.dimension(), x, z); }
 
     @Override
     public org.bukkit.entity.Entity spawnEntity(org.bukkit.Location loc, org.bukkit.entity.EntityType type) {
@@ -302,12 +301,146 @@ public final class CraftWorld implements World {
     public boolean isChunkLoaded(int x, int z) { return handle.isChunkLoaded(x, z); }
 
     @Override
+    public boolean refreshChunk(int x, int z) { return handle.refreshChunk(x, z); }
+
+    /** 결과는 그 청크의 region 스레드에서 완료된다. 저장된 청크가 없고 gen 이 거짓이면 null(Paper 와 같다). */
+    @Override
+    public java.util.concurrent.CompletableFuture<Chunk> getChunkAtAsync(int x, int z, boolean gen, boolean urgent) {
+        return handle.loadChunkAsync(x, z, gen).thenApply(loaded -> loaded ? getChunkAt(x, z) : null);
+    }
+
+    @Override
     public List<Player> getPlayers() {
         List<Player> out = new ArrayList<>();
         for (var p : Furnace.server().onlinePlayers()) {
             if (p.location().world().equals(handle.dimension())) out.add(Compat.player(p));
         }
         return out;
+    }
+
+    // ---- 시간·날씨·스폰·폴더(T-141) — Paper CraftWorld 와 같은 계산. 시계 주인(오버월드)이 아닌 월드의 쓰기는 경고 한 번 뒤 무시.
+
+    private static final java.util.Set<String> WARNED_CLOCK = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    private void sharedClockWrite(boolean applied, String what) {
+        if (applied || !WARNED_CLOCK.add(handle.dimension() + "|" + what)) return;
+        System.getLogger("FurnaceCompat").log(System.Logger.Level.WARNING, "World#" + what + "(" + getName()
+                + "): Furnace 는 모든 월드가 오버월드의 시간·날씨·스폰을 함께 쓴다 — 오버월드가 아닌 월드에서 바꾸는 것은 무시했다");
+    }
+
+    @Override
+    public long getTime() {
+        long time = getFullTime() % 24000;
+        if (time < 0) time += 24000;
+        return time;
+    }
+
+    @Override
+    public void setTime(long time) {
+        long full = getFullTime();   // 한 번만 읽는다(사이에 전역 틱이 끼어도 한 값으로 계산)
+        long margin = (time - full) % 24000;
+        if (margin < 0) margin += 24000;
+        setFullTime(full + margin);
+    }
+
+    @Override
+    public long getFullTime() { return handle.dayTime(); }
+
+    @Override
+    public void setFullTime(long time) { sharedClockWrite(handle.setDayTime(time), "setFullTime"); }
+
+    @Override
+    public long getGameTime() { return handle.gameTime(); }
+
+    @Override
+    public boolean hasStorm() { return handle.weather().raining(); }
+
+    @Override
+    public void setStorm(boolean hasStorm) { sharedClockWrite(handle.setWeather(hasStorm, null, 0, null, 0), "setStorm"); }
+
+    @Override
+    public int getWeatherDuration() { return handle.weather().rainTime(); }
+
+    @Override
+    public void setWeatherDuration(int duration) { sharedClockWrite(handle.setWeather(null, null, duration, null, null), "setWeatherDuration"); }
+
+    @Override
+    public boolean isThundering() { return handle.weather().thundering(); }
+
+    @Override
+    public void setThundering(boolean thundering) { sharedClockWrite(handle.setWeather(null, thundering, null, 0, 0), "setThundering"); }
+
+    @Override
+    public int getThunderDuration() { return handle.weather().thunderTime(); }
+
+    @Override
+    public void setThunderDuration(int duration) { sharedClockWrite(handle.setWeather(null, null, null, duration, null), "setThunderDuration"); }
+
+    @Override
+    public boolean isClearWeather() { return !hasStorm() && !isThundering(); }
+
+    @Override
+    public void setClearWeatherDuration(int duration) { sharedClockWrite(handle.setWeather(null, null, null, null, duration), "setClearWeatherDuration"); }
+
+    @Override
+    public int getClearWeatherDuration() { return handle.weather().clearWeatherTime(); }
+
+    @Override
+    public org.bukkit.Location getSpawnLocation() {
+        org.domi.furnace.api.world.Location l = handle.spawnLocation();
+        return new org.bukkit.Location(this, l.x(), l.y(), l.z(), l.yaw(), 0.0F);
+    }
+
+    @Override
+    public boolean setSpawnLocation(org.bukkit.Location location) {
+        if (location == null) throw new IllegalArgumentException("location");
+        return equals(location.getWorld()) && setSpawnLocation(location.getBlockX(), location.getBlockY(), location.getBlockZ(), location.getYaw());
+    }
+
+    @Override
+    public boolean setSpawnLocation(int x, int y, int z, float angle) {
+        boolean ok = handle.setSpawnLocation(x, y, z, angle);
+        sharedClockWrite(ok, "setSpawnLocation");
+        return ok;
+    }
+
+    @Override
+    public java.io.File getWorldFolder() { return handle.folder().toFile(); }
+
+    @Override
+    public List<org.bukkit.entity.Entity> getEntities() {
+        List<org.bukkit.entity.Entity> out = new ArrayList<>();
+        for (var e : handle.entitiesSnapshot()) out.add(Compat.entity(e));
+        return out;
+    }
+
+    @Override
+    public List<org.bukkit.entity.LivingEntity> getLivingEntities() {
+        List<org.bukkit.entity.LivingEntity> out = new ArrayList<>();
+        for (var e : handle.entitiesSnapshot()) if (Compat.entity(e) instanceof org.bukkit.entity.LivingEntity l) out.add(l);
+        return out;
+    }
+
+    @Override
+    public org.bukkit.entity.Item dropItem(org.bukkit.Location loc, org.bukkit.inventory.ItemStack item, java.util.function.Consumer<? super org.bukkit.entity.Item> function) {
+        return drop(loc, item, false, function);
+    }
+
+    @Override
+    public org.bukkit.entity.Item dropItemNaturally(org.bukkit.Location loc, org.bukkit.inventory.ItemStack item, java.util.function.Consumer<? super org.bukkit.entity.Item> function) {
+        return drop(loc, item, true, function);
+    }
+
+    private org.bukkit.entity.Item drop(org.bukkit.Location loc, org.bukkit.inventory.ItemStack item, boolean naturally, java.util.function.Consumer<? super org.bukkit.entity.Item> function) {
+        if (loc == null) throw new IllegalArgumentException("Location cannot be null");
+        if (item == null) throw new IllegalArgumentException("ItemStack cannot be null");
+        org.bukkit.entity.Item[] out = new org.bukkit.entity.Item[1];
+        org.domi.furnace.api.entity.Entity e = handle.dropItemNow(Compat.location(loc), org.domi.furnace.compat.paper.CompatItems.toFurnace(item), naturally, h -> {
+            out[0] = (org.bukkit.entity.Item) Compat.entity(h);
+            if (function != null) function.accept(out[0]);
+        });
+        // Paper 는 스폰이 취소돼도 만든 Item 을 돌려준다(isValid 거짓)
+        return out[0] != null ? out[0] : e == null ? null : (org.bukkit.entity.Item) Compat.entity(e);
     }
 
     @Override
@@ -329,8 +462,164 @@ public final class CraftWorld implements World {
         };
     }
 
+    // ---- 게임 규칙(T-141 E4a): Paper 1.21.1 CraftWorld 와 같은 검사·이벤트 순서. 값은 Furnace 서버 게임 규칙(서버 전체 하나)에 읽고 쓴다
+
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger("Furnace");
+    private static final java.util.Map<String, org.domi.furnace.api.world.GameRule<?>> VANILLA_RULES = new java.util.HashMap<>();
+
+    static {
+        for (org.bukkit.GameRule<?> r : org.bukkit.GameRule.values())
+            VANILLA_RULES.put(r.getName(), r.getType() == Boolean.class ? org.domi.furnace.api.world.GameRule.bool(r.getName()) : org.domi.furnace.api.world.GameRule.integer(r.getName()));
+    }
+
+    private static org.domi.furnace.api.world.GameRuleRegistry gameRules() { return Compat.furnace().gameRules(); }
+
     @Override
-    public String getGameRuleValue(String rule) { return handle.gameRule(rule); }
+    public String getGameRuleValue(String rule) {
+        if (rule == null) return null;
+        var r = VANILLA_RULES.get(rule);
+        return r == null ? "" : String.valueOf(gameRules().get(r));
+    }
+
+    @Override
+    public boolean setGameRuleValue(String rule, String value) {
+        if (rule == null || value == null) return false;
+        if (!isGameRule(rule)) return false;
+        var event = new io.papermc.paper.event.world.WorldGameRuleChangeEvent(this, null, org.bukkit.GameRule.getByName(rule), value);
+        if (!event.callEvent()) return false;
+        deserialize(VANILLA_RULES.get(rule), event.getValue());
+        return true;
+    }
+
+    @Override
+    public String[] getGameRules() { return VANILLA_RULES.keySet().toArray(new String[0]); }
+
+    @Override
+    public boolean isGameRule(String rule) {
+        if (rule == null) throw new IllegalArgumentException("String rule cannot be null");
+        if (rule.isEmpty()) throw new IllegalArgumentException("String rule cannot be empty");
+        return VANILLA_RULES.containsKey(rule);
+    }
+
+    @Override
+    public <T> T getGameRuleValue(org.bukkit.GameRule<T> rule) {
+        if (rule == null) throw new IllegalArgumentException("GameRule cannot be null");
+        return rule.getType().cast(gameRules().get(VANILLA_RULES.get(rule.getName())));
+    }
+
+    @Override
+    public <T> T getGameRuleDefault(org.bukkit.GameRule<T> rule) {
+        if (rule == null) throw new IllegalArgumentException("GameRule cannot be null");
+        return rule.getType().cast(gameRules().defaultValue(VANILLA_RULES.get(rule.getName())));
+    }
+
+    @Override
+    public <T> boolean setGameRule(org.bukkit.GameRule<T> rule, T newValue) {
+        if (rule == null) throw new IllegalArgumentException("GameRule cannot be null");
+        if (newValue == null) throw new IllegalArgumentException("GameRule value cannot be null");
+        if (!isGameRule(rule.getName())) return false;
+        var event = new io.papermc.paper.event.world.WorldGameRuleChangeEvent(this, null, rule, String.valueOf(newValue));
+        if (!event.callEvent()) return false;
+        deserialize(VANILLA_RULES.get(rule.getName()), event.getValue());
+        return true;
+    }
+
+    /** 바닐라 GameRules.Value#deserialize: 불리언은 Boolean.parseBoolean, 정수는 빈 문자열·숫자 아님이면 0(숫자 아님은 경고 한 줄). */
+    @SuppressWarnings("unchecked")
+    private static void deserialize(org.domi.furnace.api.world.GameRule<?> rule, String value) {
+        if (rule.type() == Boolean.class) {
+            gameRules().set((org.domi.furnace.api.world.GameRule<Boolean>) rule, Boolean.parseBoolean(value));
+            return;
+        }
+        int v = 0;
+        if (!value.isEmpty()) {
+            try {
+                v = Integer.parseInt(value);
+            } catch (NumberFormatException e) {
+                LOG.warn("Failed to parse integer {}", value);
+            }
+        }
+        gameRules().set((org.domi.furnace.api.world.GameRule<Integer>) rule, v);
+    }
+
+    @Override
+    public boolean getKeepSpawnInMemory() { return getGameRuleValue(org.bukkit.GameRule.SPAWN_CHUNK_RADIUS) > 0; }
+
+    @Override
+    public void setKeepSpawnInMemory(boolean keepLoaded) {
+        if (keepLoaded) setGameRule(org.bukkit.GameRule.SPAWN_CHUNK_RADIUS, getGameRuleDefault(org.bukkit.GameRule.SPAWN_CHUNK_RADIUS));
+        else setGameRule(org.bukkit.GameRule.SPAWN_CHUNK_RADIUS, 0);
+    }
+
+    // ---- 나무 생성(T-141 E5) — Paper 1.21.1 CraftWorld·CraftRegionAccessor#generateTree
+
+    /** CraftWorld.rand: generateTree(loc, type) 가 쓰는 서버 공용 난수(시드 없음). */
+    private static final java.util.Random RAND = new java.util.Random();
+    private static final java.util.Set<String> WARNED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /** CraftRegionAccessor#generateTree 의 TreeType → TreeFeatures 표(CHORUS_PLANT 는 따로). 플러그인 월드는 늘 "보통 월드"라 균류는 planted. */
+    public static String treeFeature(org.bukkit.TreeType type) {   // 호환 모듈 전용(시험이 표를 확인한다)
+        return switch (type) {
+            case BIG_TREE -> "minecraft:fancy_oak";
+            case BIRCH -> "minecraft:birch";
+            case REDWOOD -> "minecraft:spruce";
+            case TALL_REDWOOD -> "minecraft:pine";
+            case JUNGLE -> "minecraft:mega_jungle_tree";
+            case SMALL_JUNGLE -> "minecraft:jungle_tree_no_vine";
+            case COCOA_TREE -> "minecraft:jungle_tree";
+            case JUNGLE_BUSH -> "minecraft:jungle_bush";
+            case RED_MUSHROOM -> "minecraft:huge_red_mushroom";
+            case BROWN_MUSHROOM -> "minecraft:huge_brown_mushroom";
+            case SWAMP -> "minecraft:swamp_oak";
+            case ACACIA -> "minecraft:acacia";
+            case DARK_OAK -> "minecraft:dark_oak";
+            case MEGA_REDWOOD -> "minecraft:mega_spruce";
+            case MEGA_PINE -> "minecraft:mega_pine";
+            case TALL_BIRCH -> "minecraft:super_birch_bees_0002";
+            case CHORUS_PLANT -> null;
+            case CRIMSON_FUNGUS -> "minecraft:crimson_fungus_planted";
+            case WARPED_FUNGUS -> "minecraft:warped_fungus_planted";
+            case AZALEA -> "minecraft:azalea_tree";
+            case MANGROVE -> "minecraft:mangrove";
+            case TALL_MANGROVE -> "minecraft:tall_mangrove";
+            case CHERRY -> "minecraft:cherry";
+            case TREE, CUSTOM -> "minecraft:oak";
+        };
+    }
+
+    @Override
+    public boolean generateTree(org.bukkit.Location location, org.bukkit.TreeType type) { return generateTree(location, RAND, type); }
+
+    @Override
+    public boolean generateTree(org.bukkit.Location location, java.util.Random random, org.bukkit.TreeType type) {
+        return placeTree(location, random, type, true).placed();
+    }
+
+    @Override
+    public boolean generateTree(org.bukkit.Location location, org.bukkit.TreeType type, org.bukkit.BlockChangeDelegate delegate) {
+        var r = placeTree(location, RAND, type, false);
+        if (!r.placed()) return false;
+        // Paper: 기록한 칸마다 delegate.setBlockData 뒤 실제 월드 칸에 notifyAndUpdatePhysics — 그 칸이 안 바뀌었으면 Furnace 는 이웃 갱신을 하지 않는다(맥락 노트)
+        for (var w : r.writes()) delegate.setBlockData(w.pos().x(), w.pos().y(), w.pos().z(), org.domi.furnace.compat.paper.CompatBlockData.of(w.data()));
+        return true;
+    }
+
+    private org.domi.furnace.api.world.FeaturePlacement placeTree(org.bukkit.Location location, java.util.Random random, org.bukkit.TreeType type, boolean apply) {
+        BlockPos pos = new BlockPos(location.getBlockX(), location.getBlockY(), location.getBlockZ());
+        String id = treeFeature(type);
+        if (!handle.isChunkLoaded(pos.chunkX(), pos.chunkZ())) {
+            // Paper 는 동기로 불러와 키운다. Furnace 는 나무가 닿지 못한 청크와 같이 실패로 둔다(맥락 노트)
+            if (WARNED.add("unloaded")) LOG.warn("World#generateTree: 로드되지 않은 청크({}, {})라 나무를 키우지 않고 false 를 준다", pos.chunkX(), pos.chunkZ());
+            return new org.domi.furnace.api.world.FeaturePlacement(false, List.of());
+        }
+        try {
+            return id == null ? handle.growChorusPlantNow(pos, random, apply) : handle.placeFeatureNow(id, pos, random, apply);
+        } catch (UnsupportedOperationException e) {
+            // Furnace 가 아직 구현하지 않은 feature(Noop): 다른 나무로 바꿔 키우지 않고 실패로 둔다(AGENTS.md 규칙 3)
+            if (WARNED.add(type.name())) LOG.warn("World#generateTree({}): {} — 나무를 키우지 않고 false 를 준다", type, e.getMessage());
+            return new org.domi.furnace.api.world.FeaturePlacement(false, List.of());
+        }
+    }
 
     // ---- 소리·입자(H4 묶음 C) — Paper CraftWorld 와 같이 null 인자는 조용히 넘어간다
 

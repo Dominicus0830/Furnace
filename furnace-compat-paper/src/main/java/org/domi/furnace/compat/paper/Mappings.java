@@ -148,10 +148,22 @@ final class Mappings {
                     var w = Compat.world(f.world());
                     return w == null ? null : new org.bukkit.event.world.WorldUnloadEvent(w);
                 }, (f, b) -> {});
+        // Paper WorldGameRuleChangeEvent(/gamerule): 바닐라 규칙만 Bukkit 에 보인다(플러그인 규칙 "ns:이름"은 GameRule 상수가 없어 보내지 않는다).
+        EventBridge.reg(org.domi.furnace.api.event.world.GameRuleChangeEvent.class, io.papermc.paper.event.world.WorldGameRuleChangeEvent.class,
+                f -> {
+                    var rule = org.bukkit.GameRule.getByName(f.rule());
+                    var w = rule == null ? null : Compat.world(f.world());
+                    return w == null ? null : new io.papermc.paper.event.world.WorldGameRuleChangeEvent(w, Compat.sender(f.sender()), rule, f.value());
+                },
+                (f, b) -> {
+                    if (!Objects.equals(b.getValue(), f.value())) f.value(b.getValue());
+                }, (f, b) -> {
+                    if (!Objects.equals(b.getValue(), f.value())) b.setValue(f.value());
+                });
         EventBridge.reg(org.domi.furnace.api.event.world.ChunkLoadEvent.class, org.bukkit.event.world.ChunkLoadEvent.class,
-                f -> new org.bukkit.event.world.ChunkLoadEvent(new CompatChunk(f.world(), f.chunkX(), f.chunkZ()), f.newChunk()), (f, b) -> {});
+                f -> new org.bukkit.event.world.ChunkLoadEvent(new org.bukkit.craftbukkit.CraftChunk(f.world(), f.chunkX(), f.chunkZ()), f.newChunk()), (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.world.ChunkUnloadEvent.class, org.bukkit.event.world.ChunkUnloadEvent.class,
-                f -> new org.bukkit.event.world.ChunkUnloadEvent(new CompatChunk(f.world(), f.chunkX(), f.chunkZ())), (f, b) -> {});
+                f -> new org.bukkit.event.world.ChunkUnloadEvent(new org.bukkit.craftbukkit.CraftChunk(f.world(), f.chunkX(), f.chunkZ())), (f, b) -> {});
     }
 
     private static void registerOther() {

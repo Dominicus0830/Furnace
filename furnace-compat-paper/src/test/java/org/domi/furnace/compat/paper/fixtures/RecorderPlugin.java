@@ -71,6 +71,8 @@ public final class RecorderPlugin extends JavaPlugin implements Listener {
 
     @EventHandler public void on(PlayerJoinEvent e) { rec(e); }
 
+    @EventHandler public void on(io.papermc.paper.event.world.WorldGameRuleChangeEvent e) { rec(e); }
+
     @EventHandler public void on(org.bukkit.event.player.PlayerInteractEvent e) { rec(e); }
 
     @EventHandler public void on(org.bukkit.event.player.PlayerItemHeldEvent e) { rec(e); }

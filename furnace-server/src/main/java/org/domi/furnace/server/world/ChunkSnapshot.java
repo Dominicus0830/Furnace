@@ -37,11 +37,19 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
      */
     public static final class Section {
         private final short nonAirCount;
+        /** 청크 패킷 섹션 머리의 nonEmptyBlockCount(바닐라 필드 값 — ChunkSection.packetNonEmptyCount). */
+        private final short packetNonEmpty;
         private final PaletteStorage blockSrc, biomeSrc;
         private volatile int[] blocks, biomes;
 
         public Section(short nonAirCount, int[] blocks, int[] biomes) {
+            this(nonAirCount, nonAirCount, blocks, biomes);
+        }
+
+        /** 패킷 개수를 따로 주는 판(시험이 같은 스냅샷을 다른 경로로 다시 만들 때). */
+        public Section(short nonAirCount, short packetNonEmpty, int[] blocks, int[] biomes) {
             this.nonAirCount = nonAirCount;
+            this.packetNonEmpty = packetNonEmpty;
             this.blockSrc = null;
             this.biomeSrc = null;
             this.blocks = blocks;
@@ -50,12 +58,16 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
 
         private Section(ChunkSection s) {
             this.nonAirCount = s.nonAirCount();
+            this.packetNonEmpty = (short) s.packetNonEmptyCount();
             this.blockSrc = s.blocksReadCopy();
             this.biomeSrc = s.biomesReadCopy();
             if (blockSrc == null) this.blocks = s.blocks();   // scratch 가 열려 있으면 예전처럼 즉시 복사
         }
 
         public short nonAirCount() { return nonAirCount; }
+
+        /** 청크 패킷에 쓰는 바닐라 nonEmptyBlockCount(유체 칸 두 번 셈 등 바닐라 그대로, ChunkSection.packetNonEmptyCount). */
+        public short packetNonEmpty() { return packetNonEmpty; }
 
         /** 블록 상태 id 4096개(YZX). 같은 배열을 돌려준다 — 고치지 않는다. */
         public int[] blocks() {

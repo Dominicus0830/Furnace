@@ -141,7 +141,7 @@ class PaletteDirectWriteParityTest {
     /** 같은 스냅샷을 펼친 배열만 가진 섹션으로 바꾼다 — 직렬화가 옛 경로(Palette.write·blockStatesFromArray)를 탄다. */
     static ChunkSnapshot flattened(ChunkSnapshot snap) {
         ChunkSnapshot.Section[] src = snap.sections(), out = new ChunkSnapshot.Section[src.length];
-        for (int i = 0; i < src.length; i++) out[i] = new ChunkSnapshot.Section(src[i].nonAirCount(), src[i].blocks().clone(), src[i].biomes().clone());
+        for (int i = 0; i < src.length; i++) out[i] = new ChunkSnapshot.Section(src[i].nonAirCount(), src[i].packetNonEmpty(), src[i].blocks().clone(), src[i].biomes().clone());
         return new ChunkSnapshot(snap.chunkX(), snap.chunkZ(), snap.heightmap(), snap.worldSurfaceHeightmap(), out,
                 snap.blockEntities(), snap.save(), snap.light());
     }
@@ -192,7 +192,7 @@ class PaletteDirectWriteParityTest {
     static byte[] rawStorageWire(ChunkColumn col) {
         ByteBuf b = Unpooled.buffer();
         for (ChunkSection s : col.sections()) {
-            b.writeShort(s.nonAirCount());
+            b.writeShort(s.packetNonEmptyCount());
             writeRaw(b, (PaletteStorage) field(s, "blocks"), s.blocks(), reg.directBits(), 4, 8);
             writeRaw(b, (PaletteStorage) field(s, "biomes"), s.biomes(), BIOME_DIRECT, 1, 3);
         }
@@ -217,7 +217,7 @@ class PaletteDirectWriteParityTest {
     static byte[] sectionsWire(ChunkSnapshot snap) {
         ByteBuf b = Unpooled.buffer();
         for (ChunkSnapshot.Section s : snap.sections()) {
-            b.writeShort(s.nonAirCount());
+            b.writeShort(s.packetNonEmpty());
             Palette.write(b, s.blocks(), reg.directBits(), 4, 8);
             Palette.write(b, s.biomes(), BIOME_DIRECT, 1, 3);
         }

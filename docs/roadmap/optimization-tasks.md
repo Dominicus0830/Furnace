@@ -261,7 +261,15 @@
 
 메모: 장면 R 의 region 스레드 구성비(자연 스폰 52%·`Regionizer.owns/ownerOf` 자기 시간 20%)는 y200 장면·인라인 미확인 값이라 T-019·자연 스폰 TASK 의 근거로 쓰지 않는다 — 땅 높이 장면과 `-XX:CompileCommand=dontinline` 판으로 다시 잰다.
 
-## 10. ProtocolLib 실측 점검 — NMS·패킷 구멍 (2026-11-14)
+## 10. 2차 CSP — B5 T-150 후속 (2026-11-14, PR #362 검토)
+
+T-150(①+②)·T-151 은 PR #362 로 끝났다(명령 59종 0.1~17ms, `CommandSelectorStageTest`). 독립 검토(`furnace/reviews/t150-pr362.md`) R2·R3 을 후속으로 둔다.
+
+| 번호 | 우선 | 종류 | 할 일 | 근거 | 수용 조건 | 크기 | 모델 | 선행 | 파일 |
+|---|---|---|---|---|---|---|---|---|---|
+| T-150a | P2(측정 먼저) | OPT | drain 재확인 비용 줄이기: `runDrainPass` 안에서 같은 스레드가 `drainWanted()` 동안 `runUrgentDrain()` 을 몇 번 더 돌린 뒤 내려놓기(예산·마감 그대로, 잠금·워커 넘김 없이 자기 홉을 이어 감). `drainWanted()` 의 `hasCommandTask()` O(inbox) 훑기를 표시 수(카운터)로(R3) | 검토 R2·R3: 소 200마리 `#tick` 3초에 drain 차례 65 → 79,278회(재-drain 15,031). 차례마다 잠금 2번·대기열 remove/add·`pool.wake` 는 문 예산(20ms)에 안 셈 | **먼저 측정**: T-170 60명 시험 또는 M-150 에서 워커 CPU·잠금 대기를 PR #362 전후로. 눈에 띄면 구현, 결과는 drain 시점만 바뀌므로 `CommandSelectorStageTest`·`CommandRegionDrainTest` 그대로 통과 | S | Sonnet high | M-150 | Regionizer, Region |
+
+## 11. ProtocolLib 실측 점검 — NMS·패킷 구멍 (2026-11-14)
 
 근거: `docs/feature-parity/compat-protocollib-audit-2026-11-14.md`(도미니코의 실제 ProtocolLib 5.4.0 jar 를 헤드리스 서버에 올려 61개 항목 실측, 재현물 `furnace/reviews/protocollib-audit/`). G 번호는 그 문서 2-2 절. 메타데이터 두 방향·NBT `TagTypes`·`CraftSound` 는 점검 PR 에서 고쳤다. 정답 기준은 Paper 1.21.1 에서 같은 ProtocolLib 호출이 내는 결과다(리스너가 보는 패킷 종류·값, 클라이언트에 닿는 바이트).
 
@@ -279,9 +287,9 @@
 | T-189 | P1 | FIX(호환) | 나머지 Furnace 송신 종류 되돌리기: `player_chat`·`disguised_chat`·`delete_chat`·`boss_event`·`commands`·`custom_payload`·`open_screen`·`merchant_offers`·`map_item_data`·`explode`·`block_entity_data`·`login`·`respawn`·`recipe`·`update_recipes`·`update_tags`·`update_advancements`·`award_stats`·`server_links` + `deepClone` 실패 4종(`boss_event`·`interact`·`update_advancements`·`status_response`) | G4·G13 | 채팅(InteractiveChat)·보스바·GUI 플러그인. 증명: `SchemaPacketReverseTest` 표에서 종류가 빠짐 + 종류별 왕복 | L(종류별로 쪼갬) | Sonnet high | T-180 뒤 | SchemaPacketReverse, TypedPacketBridge |
 | T-190 | P1 | ADD(호환) | 다른 플러그인 1.21.1 모듈의 없는 클래스: 발전 과제 6종·`DataComponentPatch`·`PlayerChatMessage`·`ChatDecorator`·`ComponentSerialization`·`Equipable`·`PlayerHeadItem`(InteractiveChat), `EntityDimensions`·`HumanoidArm`·`FeatureFlagSet`·`RegistryLayer`·`CraftRegistry`·`CraftNamespacedKey`·`CraftArt`·`CraftCat/Frog/Wolf`(LibsDisguises), `EmptyBlockGetter`·`BlockEntity`·`RegionFile`(Orebfuscator), 지도 `CraftMapView`·`CraftMapCursor`·`RenderData` | 감사 문서 4장 | 실제 jar 로 `NmsCompatReport` 멤버 단위 확인 뒤 범위 확정 | M~L | Sonnet high | — | nms shim |
 | T-191 | P2 | FIX(호환) | NBT 입출력 `NbtIo`·`NbtAccounter`(→ `NbtBinarySerializer`·`NbtTextSerializer`), `MinecraftReflection` 이 못 찾는 나머지(`Stats`·`ServerStatus$Version/$Players`·`GsonHelper`·`NbtOps`·`Crypt`·`PlayerList` 모양) | G12·G14 | 증명: 바닐라와 같은 NBT 바이트(기존 Furnace NBT 코덱과 대조) | M | Sonnet medium | — | nbt shim |
-| T-192 | P2 | FIX(운영) | 별명 시도 경고 정리(결정 D1, `docs/user-todo/entries/2026-11-14-protocollib-audit.md`) | 감사 2-3 | 기동 로그 21줄(많이 쓰면 수백 줄) → 결정대로 | S | Sonnet medium | D1 | NmsLinker |
+| T-192 | P2 | FIX(운영) | 별명 시도 경고 정리 — **D1 확정(11-15): 기동 때 플러그인마다 요약 한 줄, 이름별 상세는 설정 키로 켬**(`docs/user-todo/entries/2026-11-14-protocollib-audit.md`) | 감사 2-3 | 기동 로그 21줄(많이 쓰면 수백 줄) → 결정대로 | S | Sonnet medium | D1 | NmsLinker |
 | T-193 | — | FIX(호환) | FAWE 가 접속·상호작용마다 부르던 Bukkit API: `Material.isLegacy()`, `Player.isSneaking()`, `org.bukkit.Effect` | 도미니코 기동 로그 | **병합(PR #364)** — 남은 FAWE API 목록은 T-141 스레드가 맡는다 | S | — | — | Bukkit API |
 | T-194 | P2 | 측정 도구 | ProtocolLib Probe 를 수동 도구로(`tools/compat-probe/`, jar 경로를 인자로, 결과 표를 고치기 전·뒤 비교). jar 는 커밋하지 않음 | 감사 1장 | 위 TASK 의 회귀 확인. CI 에는 넣지 않음 | S | Sonnet medium | — | tools |
 | T-195 | P1 | FIX(호환) | 메타데이터 값 종류 vector3·quaternion·optional_global_pos 두 방향(JOML 을 호환 로더에, 필요할 때 내려받기 — 바닐라 libraries.list 에 있음) | PR #367 검토 R4 | 디스플레이 엔티티 홀로그램(텍스트 디스플레이 scale·translation·회전)과 회복 나침반 위치 메타데이터가 리스너·플러그인 보내기에서 동작. 증명: 종류별 왕복 + 클라이언트 바이트 | M | Sonnet high | — | EntityDataBridge, EntityDataSerializers |
 
-여는 순서: T-180 과 T-181 을 먼저 병렬로(파일이 다름), T-184 는 T-181 과 shimgen 이 겹치므로 같은 스레드나 바로 뒤. T-182 는 T-180 뒤. T-193 은 PR #364 로 끝났다. 나머지 P1 은 파일이 안 겹치게 둘씩.
+여는 순서(D2 확정 11-15: P0 먼저, T-141 병행): T-180 과 T-181 을 먼저 병렬로(파일이 다름), T-184 는 T-181 과 shimgen 이 겹치므로 같은 스레드나 바로 뒤. T-182 는 T-180 뒤. T-193 은 PR #364 로 끝났다. 나머지 P1 은 파일이 안 겹치게 둘씩.

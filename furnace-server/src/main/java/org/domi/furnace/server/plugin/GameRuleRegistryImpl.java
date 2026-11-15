@@ -79,6 +79,12 @@ final class GameRuleRegistryImpl implements GameRuleRegistry {
     }
 
     @Override
+    public <T> T defaultValue(GameRule<T> rule) {
+        GameRules.Rule r = require(rule);
+        return rule.type().cast(r.isBoolean() ? (Object) (r.defaultValue() != 0) : (Object) r.defaultValue());
+    }
+
+    @Override
     public <T> void set(GameRule<T> rule, T value) {
         GameRules.Rule r = require(rule);
         java.util.Objects.requireNonNull(value, "value");

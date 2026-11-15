@@ -41,6 +41,7 @@ public final class OptionKeys {
             new Option("region-merge-radius", "수", "1", "1 이상", "region 합치기 반경(구역 단위)"),
             new Option("light.async", "ON/OFF", "false", "true|false", "빛 계산을 따로 도는 빛 스레드에 맡긴다(바닐라 방식). 과부하 때 빛이 한두 틱 늦게 보인다"),
             new Option("light.async-threads", "수", "1", "1 이상", "light.async 빛 스레드 수(서버 전체)"),
+            new Option("worldgen.tick-guard", "ON/OFF", "false", "true|false", "생성 조절기: region 틱이 밀리면(가장 느린 1초 TPS < 19) 동시 청크 생성 수를 줄이고 회복하면 늘린다"),
             new Option("region-threads", "수", "CPU 수", "1 이상", "region 작업 스레드 수(공유 풀이면 서버 전체, 끄면 차원마다)"),
             new Option("shared-region-pool", "ON/OFF", "true", "true|false", "모든 차원·추가 월드가 region 워커 풀 하나를 쓴다. false 면 차원마다 region-threads 개"),
             new Option("region-pool-dim-cap", "수", "0", "0 이상", "다른 차원 큐에 일이 있을 때 한 차원이 쓸 수 있는 워커 상한(0 = 워커 수−1)"),

@@ -430,7 +430,8 @@ public abstract class ChunkLevel implements BlockLevel {
         int lx = pos.x() & 15, lz = pos.z() & 15;
         int old = col.getBlock(lx, pos.y(), lz);
         if (old == state) return -1;
-        if (info.isAir(state) && col.sectionHasOnlyAir(pos.y())) return -1;
+        // 바닐라 hasOnlyAir 는 nonEmptyBlockCount == 0 — 읽은 섹션에서 물을 지워 공기뿐이어도 거짓일 수 있고, NMS 컨테이너 원시 쓰기로 블록이 있어도 참일 수 있다(N2b-2)
+        if (info.isAir(state) && col.sectionVanillaHasOnlyAir(pos.y())) return -1;
         col.setBlock(lx, pos.y(), lz, state);
         markDirty(pos.x() >> 4, pos.z() >> 4);
         if (col.light() != null && org.domi.furnace.server.light.LightTables.hasDifferentLightProperties(old, state)) {
@@ -1732,6 +1733,24 @@ public abstract class ChunkLevel implements BlockLevel {
                 && org.domi.furnace.server.world.LiveFeatures.place(this, h, pos, random, featureSeed());
     }
 
+    /**
+     * 플러그인 나무 생성(Paper generateTree): configured feature 를 주어진 난수로 놓는다. 모르는 id 면 null,
+     * 구현되지 않은(Noop) feature 면 UnsupportedOperationException. apply 가 거짓이면 쓴 칸만 돌려준다.
+     */
+    public org.domi.furnace.server.world.LiveFeatures.Placement placeFeatureWith(String id, Pos pos,
+            org.domi.furnace.server.world.gen.carver.WorldgenRandom random, boolean apply) {
+        var h = org.domi.furnace.server.world.LiveFeatures.configured(featureData(), id);
+        if (h == null) return null;
+        if (!h.supported()) throw new UnsupportedOperationException("아직 구현되지 않은 feature: " + id);
+        return org.domi.furnace.server.world.LiveFeatures.placeWith(this, h, pos, random, featureSeed(), apply);
+    }
+
+    /** ChorusFlowerBlock.generatePlant(level, pos, random, 8)(Paper generateTree CHORUS_PLANT). */
+    public org.domi.furnace.server.world.LiveFeatures.Placement chorusPlantWith(Pos pos,
+            org.domi.furnace.server.world.gen.carver.WorldgenRandom random, boolean apply) {
+        return org.domi.furnace.server.world.LiveFeatures.chorusPlant(this, featureData(), pos, random, featureSeed(), apply);
+    }
+
     public void forEachPlayer(java.util.function.Consumer<Player> c) { services().forEachPlayer(c); }
 
     /** Level.isInWorldBounds: 높이 안이고 -30000000 <= x,z < 30000000(바닐라 isInWorldBoundsHorizontal — 음수 쪽 경계 칸은 안). */
@@ -2518,6 +2537,7 @@ public abstract class ChunkLevel implements BlockLevel {
 
     @Override
     public int getSkyLight(Pos pos) {
+        if (!hasSkyLight()) return 0;   // 바닐라: 하늘이 없는 차원(네더·엔드)은 하늘빛 층이 DUMMY 라 늘 0
         ChunkColumn col = chunkAt(pos);
         if (col == null || col.light() == null) return BlockLevel.super.getSkyLight(pos);
         if (pos.y() >= org.domi.furnace.server.light.ChunkLight.MAX_Y) return 15;
@@ -2671,9 +2691,11 @@ public abstract class ChunkLevel implements BlockLevel {
         }
         // 처리기가 옮겼으면 구역 목록을 맞춘다 — 추적기가 없는 동안에는 setPosRaw 가 구역 이동을 알리지 않는다(Paper 도 이벤트 뒤 위치로 넣는다)
         if (e.sectionKey() != addedKey) entities.moved(e);
+        // 번호 색인이 추적 시작(=보는 플레이어에게 스폰 묶음 보내기)보다 먼저다 — 바닐라·Paper 도 visibleEntityStorage(EntityLookup)에 넣은 뒤
+        // onTrackingStart 로 추적한다. 거꾸로면 네트워크 스레드의 패킷 리스너(ProtocolLib getEntityFromID)가 막 생긴 엔티티를 못 찾는다(T-160).
+        indexEntity(e, true);
         startTracking(e);
         for (var l : e.dynamicGameEventListeners()) l.add(this);
-        indexEntity(e, true);
         return true;
     }
 
@@ -2753,10 +2775,10 @@ public abstract class ChunkLevel implements BlockLevel {
             entities.remove(e);
             return;
         }
+        indexEntity(e, true);   // 추적(스폰 묶음)보다 먼저 — addFreshEntity 와 같다(T-160)
         if (e.tracker == null) startTracking(e);
         else adoptTracker(e);
         for (var l : e.dynamicGameEventListeners()) l.add(this);
-        indexEntity(e, true);
     }
 
     /** 엔티티가 지워졌다(setRemoved) — 저장소에서 빼고 보는 사람에게 지운다. */

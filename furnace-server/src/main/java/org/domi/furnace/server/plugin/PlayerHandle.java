@@ -92,6 +92,18 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     }
 
     @Override
+    public boolean allowFlight() { return p.vitals().mayfly(); }
+
+    @Override
+    public void setAllowFlight(boolean allow) { p.vitals().setMayfly(allow); }
+
+    @Override
+    public boolean isFlying() { return p.vitals().isFlying(); }
+
+    @Override
+    public void setFlying(boolean flying) { p.vitals().setFlyingByPlugin(flying); }
+
+    @Override
     public float health() { return p.vitals().health(); }
 
     @Override
@@ -124,6 +136,11 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     @Override
     public InetSocketAddress address() {
         return p.remoteAddress() instanceof InetSocketAddress a ? a : null;
+    }
+
+    @Override
+    public InetSocketAddress rawAddress() {
+        return p.rawAddress() instanceof InetSocketAddress a ? a : null;
     }
 
     @Override

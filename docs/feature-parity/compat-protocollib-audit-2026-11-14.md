@@ -87,7 +87,7 @@ Citizens2(현재 소스는 1.21.1 모듈 없음)·HolographicDisplays(1.21 모�
 
 **같은 로그에서 본 Bukkit API 구멍(NMS 아님)**: FAWE 가 접속·손 바꾸기·상호작용마다 `NoSuchMethodError: Material.isLegacy()`·`Player.isSneaking()`, `NoClassDefFoundError: org.bukkit.Effect` 를 낸다. 점검 기준 커밋에는 세 가지가 없었고, PR #364 로 들어갔다(T-193 끝, 남은 FAWE API 는 T-141). LuckPerms 는 종료 때 H2 의 JVM 종료 훅(`OnExitDatabaseCloser`)에서 `NoClassDefFoundError: org/h2/api/ErrorCode` — 플러그인 클래스 로더가 닫힌 뒤 훅이 돈 것으로 보이며 원인은 **가정**이다.
 
-## 5. 우선순위 (TASK 는 `docs/roadmap/optimization-tasks.md` 10장)
+## 5. 우선순위 (TASK 는 `docs/roadmap/optimization-tasks.md` 11장)
 
 - **P0**: G1 들어오는 패킷(2b-3) — 반치트·채팅 플러그인 전부가 기댄다. G2+G3 PLAYER_INFO 두 방향 + GameProfile. G4 중 `level_chunk_with_light`·`light_update`(Orebfuscator).
 - **P1**: G5 로그인·상태 단계 + `WrappedServerPing`. G6 fastutil·authlib 타입 살리기(shimgen). G7 팀. G8 입자. G9·G10 속성·주민. G11 엔티티 감시자·추적기. G4 의 채팅·보스바·점수판·명령 등 나머지. G13 복제. 다른 플러그인 모듈의 없는 클래스(발전 과제·지도·점수판·`ChunkMap`).

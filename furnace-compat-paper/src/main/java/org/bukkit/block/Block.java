@@ -53,6 +53,38 @@ public interface Block extends org.bukkit.metadata.Metadatable {
     /** 이 칸의 지금 상태 스냅숏(블록 엔티티 내용은 담지 않는다). */
     BlockState getState();
 
+    /** Paper getState(useSnapshot). Furnace 의 BlockState 는 블록 엔티티 내용을 담지 않으므로 두 값 모두 getState() 와 같다. */
+    BlockState getState(boolean useSnapshot);
+
+    /** 밝기(하늘빛은 지금 하늘 어두움을 뺀 값, 블록빛과 큰 값). 소유 스레드 전용. */
+    byte getLightLevel();
+
+    /** 하늘빛(낮밤 무관). 소유 스레드 전용. */
+    byte getLightFromSky();
+
+    /** 블록빛. 소유 스레드 전용. */
+    byte getLightFromBlocks();
+
+    /** 도구 없이 부순다(도구 검사 없음, 효과·경험치 없음). 소유 스레드 전용. */
+    boolean breakNaturally();
+
+    /** tool 이 null 이면 도구 검사 없음. 맞는 도구가 아니면 드롭 없이 칸만 지우고 false. */
+    boolean breakNaturally(org.bukkit.inventory.ItemStack tool);
+
+    default boolean breakNaturally(boolean triggerEffect) { return breakNaturally(triggerEffect, false); }
+
+    boolean breakNaturally(boolean triggerEffect, boolean dropExperience);
+
+    default boolean breakNaturally(org.bukkit.inventory.ItemStack tool, boolean triggerEffect) { return breakNaturally(tool, triggerEffect, false); }
+
+    boolean breakNaturally(org.bukkit.inventory.ItemStack tool, boolean triggerEffect, boolean dropExperience);
+
+    /** 도구 없이 부술 때의 드롭(전리품 표를 굴린다). 소유 스레드 전용. */
+    java.util.Collection<org.bukkit.inventory.ItemStack> getDrops();
+
+    /** tool 이 null 이면 도구 검사 없음, 맞는 도구가 아니면 빈 목록. */
+    java.util.Collection<org.bukkit.inventory.ItemStack> getDrops(org.bukkit.inventory.ItemStack tool);
+
     /** 이웃 갱신을 하며 기본 상태로 바꾼다. 블록이 아닌 종류면 IllegalArgumentException, 청크가 로드돼 있지 않으면 IllegalStateException. */
     void setType(Material type);
 

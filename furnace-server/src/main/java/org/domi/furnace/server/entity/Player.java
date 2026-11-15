@@ -1940,6 +1940,9 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         return a != null ? a : channel.remoteAddress();
     }
 
+    /** 소켓 상대 주소(포워딩·PROXY 프로토콜이어도 프록시 쪽, Paper Connection.getRawAddress). 연결 없는 시험용 Player 면 null. */
+    public java.net.SocketAddress rawAddress() { return channel != null ? channel.remoteAddress() : null; }
+
     /** 바닐라 ServerPlayer.getIpAddress — 포트 없는 IP 문자열. */
     public String ipAddress() {
         java.net.SocketAddress a = remoteAddress();
@@ -2380,6 +2383,18 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private final java.util.Set<org.domi.furnace.server.world.ChunkPos> chunkPrefetches = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     public java.util.Set<org.domi.furnace.server.world.ChunkPos> chunkPrefetches() { return chunkPrefetches; }
+
+    /** chunkPrefetches 중 디스크에 없다고 본(생성 칸을 쓰는) 것(T-170, 아무 스레드). 크기가 GenQueue.playerCap 을 넘지 않게 건다. */
+    private final java.util.Set<org.domi.furnace.server.world.ChunkPos> genPrefetches = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    public java.util.Set<org.domi.furnace.server.world.ChunkPos> genPrefetches() { return genPrefetches; }
+
+    /** 마지막으로 디스크에 없는 청크를 미리 불러오려 한 때(nanoTime, 칸이 차서 못 건 경우 포함). 생성 칸을 나눌 인원 수에 쓴다(T-170). */
+    private volatile long genWantNanos;   // 0 = 아직 없음
+
+    public long genWantNanos() { return genWantNanos; }
+
+    public void genWantNanos(long t) { this.genWantNanos = t; }
 
     /** 보낸 청크 배치의 Finished 가 아직 안 나갔다(auto·숫자 chunks-per-tick 모두, 아무 스레드). 열려 있으면 새 배치를 열지 않는다. */
     private volatile boolean chunkBatchOpen;

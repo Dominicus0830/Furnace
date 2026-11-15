@@ -22,6 +22,11 @@ public final class CompatBlockData extends CraftBlockData {
 
     public org.domi.furnace.api.world.BlockData furnace() { return data; }
 
+    @Override
+    public org.bukkit.block.BlockState createBlockState() {
+        return CompatBlockStates.create(null, new org.domi.furnace.api.world.BlockPos(0, 0, 0), of(data));
+    }
+
     /** Material 의 기본 상태. 블록이 아니면 IllegalArgumentException. */
     public static BlockData create(Material material) {
         Objects.requireNonNull(material, "Material cannot be null");
@@ -70,7 +75,7 @@ public final class CompatBlockData extends CraftBlockData {
         return new CompatBlockData(new org.domi.furnace.api.world.BlockData(type, all), Set.copyOf(given.keySet()));
     }
 
-    static BlockData of(org.domi.furnace.api.world.BlockData data) { return new CompatBlockData(data, null); }
+    public static BlockData of(org.domi.furnace.api.world.BlockData data) { return new CompatBlockData(data, null); }
 
     /** NMS 상태 → 모든 속성이 적힌 BlockData. */
     public static CompatBlockData ofState(net.minecraft.world.level.block.state.BlockState state) {

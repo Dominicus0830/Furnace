@@ -234,6 +234,7 @@ final class InventoryResultMappings {
         var loc = entity ? new org.bukkit.Location(w, at.x(), at.y(), at.z())
                 : new org.bukkit.Location(w, Math.floor(at.x()), Math.floor(at.y()), Math.floor(at.z()));
         if (t == InventoryType.BREWING) return new EventInventories.Brewer(snap.contents(), snap.size(), snap.type(), loc);
+        if (BlockInventories.cookingKind(t) != null) return new EventInventories.Furnace(t, snap.contents(), snap.size(), snap.type(), loc);
         return new SnapshotInventory(t, snap.contents(), snap.size(), snap.type(), i -> false, loc);
     }
 

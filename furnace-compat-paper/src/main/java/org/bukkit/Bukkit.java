@@ -60,6 +60,10 @@ public final class Bukkit {
 
     public static Collection<? extends Player> getOnlinePlayers() { return s().getOnlinePlayers(); }
 
+    public static void shutdown() { s().shutdown(); }
+
+    public static int getCurrentTick() { return s().getCurrentTick(); }
+
     public static int getMaxPlayers() { return s().getMaxPlayers(); }
 
     public static Player getPlayerExact(String name) { return s().getPlayerExact(name); }
@@ -96,6 +100,8 @@ public final class Bukkit {
     public static String getMotd() { return s().getMotd(); }
 
     public static int getViewDistance() { return s().getViewDistance(); }
+
+    public static io.papermc.paper.datapack.DatapackManager getDatapackManager() { return s().getDatapackManager(); }
 
     public static int getSimulationDistance() { return s().getSimulationDistance(); }
 

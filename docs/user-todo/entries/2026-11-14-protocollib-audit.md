@@ -1,8 +1,10 @@
 # ProtocolLib 실측 점검 — 도미니코 결정 (2026-11-14)
 
-근거: `docs/feature-parity/compat-protocollib-audit-2026-11-14.md`. TASK 는 `docs/roadmap/optimization-tasks.md` 10장(T-180~T-195).
+근거: `docs/feature-parity/compat-protocollib-audit-2026-11-14.md`. TASK 는 `docs/roadmap/optimization-tasks.md` 11장(T-180~T-195).
 
 ## D1. ProtocolLib 이 클래스 이름을 여러 개 시도할 때 나오는 경고를 어떻게 할까
+
+**확정(도미니코, 2026-11-15): A 쪽** — 기동 때는 플러그인마다 요약 한 줄만 찍고, 이름별 상세 목록은 설정 키로 켜서 본다(T-192).
 
 ProtocolLib 은 1.21.1 클래스를 찾을 때 Spigot 이름, Mojang 이름, 옛 이름을 차례로 시도합니다. 앞 이름이 없어도 뒤 이름으로 찾기 때문에 정상 동작입니다. 그런데 지금 Furnace 는 없는 이름마다 경고를 한 줄씩 냅니다. 도미니코 기동 로그에 21줄이 나왔고, 여러 기능을 쓰면 수백 줄까지 늘어납니다. Paper 는 이런 경우 아무것도 찍지 않습니다.
 
@@ -15,6 +17,8 @@ ProtocolLib 은 1.21.1 클래스를 찾을 때 Spigot 이름, Mojang 이름, 옛
 추천 이유: A 는 로그를 Paper 처럼 조용하게 하면서, 진짜 없는 클래스를 찾는 단서는 파일에 남깁니다. C 가 더 정확하지만 ProtocolLib 내부 호출 단위를 알아내야 해서 더 복잡합니다.
 
 ## D2. 다음 구현 순서를 추천대로 해도 될까
+
+**확정(도미니코, 2026-11-15)**: P0(T-180·T-181·T-182)을 먼저 하고, T-141 API 확장은 병행한다.
 
 | 순서 | 무엇 | 왜 |
 |---|---|---|

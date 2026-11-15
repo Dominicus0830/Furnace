@@ -205,6 +205,10 @@ public final class PluginHost implements Furnace {
     private final GameRegistriesImpl gameRegistries = new GameRegistriesImpl();
     private final GameRuleRegistryImpl gameRules = new GameRuleRegistryImpl(this);
     private final DifficultySettingsImpl difficulty = new DifficultySettingsImpl(this);
+    private final DataPacksImpl dataPacks = new DataPacksImpl(this);
+
+    @Override
+    public org.domi.furnace.api.datapack.DataPacks dataPacks() { return dataPacks; }
 
     @Override
     public org.domi.furnace.api.registry.GameRegistries gameRegistries() { return gameRegistries; }
@@ -486,6 +490,9 @@ public final class PluginHost implements Furnace {
 
     @Override
     public void shutdown() { core.halt(); }
+
+    @Override
+    public long currentTick() { return core.serverTickCount(); }
 
     private volatile boolean stopping;
 
