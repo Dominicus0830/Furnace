@@ -98,7 +98,7 @@ public final class ConfigMigration {
         }
         String versionText = KEY + "=" + current;
         if (versionLine >= 0) lines.set(versionLine, versionText);
-        else lines.add(0, latin("# 설정 형식 버전 — 서버가 키 이름을 바꿀 때 파일을 알아서 옮기는 데 쓴다. 지우지 마세요.") + "\n" + versionText);
+        else lines.add(0, latin("# " + Lang.t("cfg.file.version-comment")) + "\n" + versionText);
         changes.add(KEY + " " + version + " → " + current);
 
         Path backup = backupPath(file, version);
@@ -131,7 +131,7 @@ public final class ConfigMigration {
             if (!m.matches()) continue;
             if (targetExists) {
                 // 새 키를 이미 적어 둔 사람의 값을 덮어쓰지 않는다 — 옛 줄만 주석으로 돌린다.
-                lines.set(i, latin("# (옛 키 " + from + " 는 " + to + " 가 이미 있어 쓰지 않는다) ") + lines.get(i).strip());
+                lines.set(i, latin("# " + Lang.t("cfg.file.old-key-unused", from, to) + " ") + lines.get(i).strip());
                 warn.accept(Lang.t("cfg.migration-key-exists", from, to));
                 changes.add(Lang.t("cfg.change-commented-dup", from, to));
             } else {
@@ -146,7 +146,7 @@ public final class ConfigMigration {
         Pattern p = keyLine(key);
         for (int i = 0; i < lines.size(); i++) {
             if (p.matcher(lines.get(i)).matches()) {
-                lines.set(i, latin("# (형식 " + fromVersion + " 의 키라 더는 쓰지 않는다) ") + lines.get(i).strip());
+                lines.set(i, latin("# " + Lang.t("cfg.file.obsolete-key", fromVersion) + " ") + lines.get(i).strip());
                 changes.add(Lang.t("cfg.change-commented-obsolete", key));
             }
         }

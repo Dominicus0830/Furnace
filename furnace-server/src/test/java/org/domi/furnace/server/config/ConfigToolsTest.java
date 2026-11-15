@@ -235,7 +235,7 @@ class ConfigToolsTest {
         assertTrue(after.contains("new-name = 5"), after);
         assertTrue(after.contains("second-new: 9"), after);
         assertTrue(after.contains("unrelated=1"));
-        assertTrue(after.contains("# (형식 1 의 키라 더는 쓰지 않는다) gone-key=yes"), after);
+        assertTrue(after.contains("# (a key of format 1, no longer used) gone-key=yes"), after);
         assertTrue(after.contains("config-version=3"));
         assertTrue(Files.exists(r.backup()));
         assertTrue(Files.readString(r.backup(), StandardCharsets.UTF_8).contains("old-name = 5"), "백업은 원본");

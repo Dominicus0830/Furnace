@@ -74,6 +74,32 @@ class FurnacePropertiesFileTest {
         assertFalse(p.containsKey("plugins.libraries.offline"));
     }
 
+    /** 설명 주석·구역 제목·머리말은 파일을 만드는 때의 서버 언어를 따른다 — 영어 파일에는 한글이 없고 한국어 파일에는 한국어 설명이 있다. */
+    @Test
+    void generatedCommentsFollowTheServerLanguage(@TempDir Path dir) throws Exception {
+        String ko;
+        String en;
+        try {
+            org.domi.furnace.server.i18n.Lang.forceForTest("ko");
+            Path k = dir.resolve("ko.properties");
+            FurnacePropertiesFile.ensure(k);
+            ko = Files.readString(k, StandardCharsets.UTF_8);
+            org.domi.furnace.server.i18n.Lang.forceForTest("en");
+            Path e = dir.resolve("en.properties");
+            FurnacePropertiesFile.ensure(e);
+            en = Files.readString(e, StandardCharsets.UTF_8);
+        } finally {
+            org.domi.furnace.server.i18n.Lang.forceForTest("en");
+        }
+        assertFalse(en.codePoints().anyMatch(c -> Character.UnicodeScript.of(c) == Character.UnicodeScript.HANGUL), "English file has Korean text");
+        assertTrue(en.contains("# ===== Chunk sending and worlds ====="), en);
+        assertTrue(ko.contains("# ===== 청크 전송·월드 ====="), ko);
+        assertTrue(ko.contains("# 자동 저장 간격(틱). 6000 = 5분(바닐라).\nautosave-ticks=6000\n"), ko);
+        // 값 줄은 언어와 상관없이 같다
+        assertEquals(FurnacePropertiesFile.writtenKeys(en), FurnacePropertiesFile.writtenKeys(ko));
+        assertEquals(FurnacePropertiesFile.keys(), FurnacePropertiesFile.writtenKeys(en));
+    }
+
     @Test
     void existingFile_keepsUserValues_andAppendsOnlyMissing(@TempDir Path dir) throws Exception {
         Path f = dir.resolve("furnace.properties");
@@ -88,7 +114,7 @@ class FurnacePropertiesFileTest {
         assertFalse(added.contains("plugins.dev-mode="));
         assertFalse(added.contains("server-brand="));
         assertTrue(added.contains("\nio-threads=4\n"));
-        assertTrue(added.contains("(자동 추가)"));
+        assertTrue(added.contains("(auto-added)"));
         Config c = ConfigLoader.load(f);
         assertEquals(24, c.chunksPerTick());
         assertEquals("MyBrand", OperatorOptions.load(f, w -> {}).serverBrand());
