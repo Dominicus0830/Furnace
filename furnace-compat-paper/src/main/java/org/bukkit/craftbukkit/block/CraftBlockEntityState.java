@@ -40,6 +40,10 @@ public abstract class CraftBlockEntityState extends org.domi.furnace.compat.pape
     /** 하위 클래스 값과 영속 데이터를 사본에 적는다. 스냅숏이 아닌 상태는 영속 데이터를 지금 블록 엔티티 값으로 맞춘다(그쪽이 원본). */
     private void applyAll() {
         applyToSnapshot();
+        // 사본 인벤토리를 고쳤으면 Items 로(전리품 표가 있으면 바닐라 trySaveLootTable 처럼 아이템은 쓰지 않는다)
+        if (snapshotInventory != null && !snapshot.contains("LootTable")) {
+            snapshot.putList("Items", org.domi.furnace.compat.paper.BlockInventories.itemsNbt(snapshotInventory));
+        }
         if (live) {
             var now = Compat.furnace().world(dimension()).blockEntityNbtNow(position());
             if (now.isPresent() && now.get().get(PUBLIC_BUKKIT_VALUES) instanceof NbtCompound v) snapshot.putCompound(PUBLIC_BUKKIT_VALUES, v.copy());
@@ -144,9 +148,27 @@ public abstract class CraftBlockEntityState extends org.domi.furnace.compat.pape
         return live;
     }
 
-    /** Paper: 이 상태의 사본 인벤토리(update 때 싣는다). NBT 아이템 변환이 아직 없어 UnsupportedFeature. */
+    /** 사본 NBT 의 Items 로 칸을 들고 있는 블록 엔티티 종류(Paper getSnapshotInventory 가 있는 것). */
+    private static final java.util.Set<String> ITEMS_CONTAINERS = java.util.Set.of(
+            "minecraft:chest", "minecraft:trapped_chest", "minecraft:barrel", "minecraft:shulker_box", "minecraft:hopper",
+            "minecraft:dispenser", "minecraft:dropper", "minecraft:furnace", "minecraft:blast_furnace", "minecraft:smoker",
+            "minecraft:brewing_stand", "minecraft:crafter", "minecraft:chiseled_bookshelf");
+
+    private org.bukkit.inventory.Inventory snapshotInventory;
+
+    /**
+     * Paper: 이 상태의 사본 인벤토리(CraftInventory(스냅숏 블록 엔티티)) — 사본 NBT Items 를 메모리 칸으로 들고, 고친 것은 {@link #update} 때 실린다.
+     * 주인(getHolder)·위치(getLocation)는 Paper 의 스냅숏 블록 엔티티처럼 없다(null — 레벨이 없는 사본).
+     */
     public org.bukkit.inventory.Inventory getSnapshotInventory() {
-        throw new org.domi.furnace.compat.paper.UnsupportedFeature(getClass().getSimpleName() + "#getSnapshotInventory", "블록 상태의 스냅숏 인벤토리가 아직 없다");
+        if (snapshotInventory == null) {
+            String id = snapshot.getString("id");
+            if (!ITEMS_CONTAINERS.contains(id)) {
+                throw new org.domi.furnace.compat.paper.UnsupportedFeature(getClass().getSimpleName() + "#getSnapshotInventory", id + " 의 사본 인벤토리는 아직 없다");
+            }
+            snapshotInventory = org.domi.furnace.compat.paper.BlockInventories.snapshot(id, snapshot, () -> null, null);   // Paper: 사본 블록 엔티티는 레벨이 없어 위치도 null
+        }
+        return snapshotInventory;
     }
 
     @Override
