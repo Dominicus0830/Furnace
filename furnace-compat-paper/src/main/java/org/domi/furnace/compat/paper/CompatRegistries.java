@@ -36,6 +36,7 @@ public final class CompatRegistries {
         Registry<?> r;
         if (type == Art.class) r = Registry.ART;
         else if (type == Attribute.class) r = Registry.ATTRIBUTE;
+        else if (type == org.bukkit.block.banner.PatternType.class) r = Registry.BANNER_PATTERN;
         else if (type == Biome.class) r = Registry.BIOME;
         else if (type == Enchantment.class) r = Registry.ENCHANTMENT;
         else if (type == EntityType.class) r = Registry.ENTITY_TYPE;
