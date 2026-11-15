@@ -17,6 +17,8 @@ import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.ChunkWorkerPool;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.play.LevelEventPacket;
+import org.domi.furnace.server.net.protocol.play.SetCenterChunk;
+import org.domi.furnace.server.net.protocol.play.UnloadChunk;
 import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
 import org.junit.jupiter.api.AfterEach;
@@ -185,6 +187,129 @@ class DeadPlayerWorldListTest {
         assertTrue(level().isEmpty());
         assertEquals(3, w.onlinePlayers().size());
         assertTrue(w.playerIndex().isEmpty());
+    }
+
+    private boolean natural(int cx, int cz) throws Exception {
+        return sched.region(A).submit(() -> w.regionAt(A).naturalSpawningAllowed(cx, cz)).get();
+    }
+
+    // ------------------------------------------------------------------ 청크 추적(바닐라 ChunkMap.removeEntity — 죽고 20틱 뒤만)
+
+    @Test
+    void deadPlayerLosesChunkTrackingAndRegainsItOnRespawn() throws Exception {
+        tick(3);
+        ChunkPos c0 = new ChunkPos(0, 0);
+        assertTrue(w.subscribers(c0).contains(near), "죽기 전: 시야 청크를 구독한다");
+        assertFalse(near.loadedChunks().isEmpty());
+        drain(chNear);
+        near.vitals().kill();
+        tick(19);
+        assertTrue(w.subscribers(c0).contains(near), "19틱까지는 추적 중");
+        tick(1);
+        assertFalse(w.subscribers(c0).contains(near), "20틱째: 구독(블록 변경·빛 방송, 플레이어 티켓)을 푼다");
+        assertTrue(near.loadedChunks().isEmpty());
+        assertTrue(w.subscribers(c0).contains(other), "다른 플레이어의 구독은 그대로");
+        assertFalse(drain(chNear).contains(UnloadChunk.ID), "바닐라 PlayerChunkSender.dropChunk 는 죽은 플레이어에게 청크 잊기를 보내지 않는다");
+        tick(5);
+        assertTrue(near.loadedChunks().isEmpty(), "죽은 동안 시야를 다시 쌓지 않는다");
+        near.vitals().respawn();
+        w.playerRespawned(near);
+        tick(2);
+        assertFalse(near.loadedChunks().isEmpty(), "리스폰하면 새 플레이어처럼 시야 전체를 처음부터 다시 구독한다");
+        assertTrue(w.subscribers(c0).contains(near));
+        assertTrue(drain(chNear).contains(SetCenterChunk.ID), "시야 중심도 다시 보낸다");
+    }
+
+    @Test
+    void untrackedDeadPlayerHoldsNoTicketAndSeesNoPlayers() throws Exception {
+        tick(3);
+        assertFalse(near.tracked().isEmpty(), "죽기 전: 다른 플레이어를 보고 있다");
+        assertTrue(natural(0, 0));
+        for (Player p : List.of(near, far, other)) p.vitals().kill();
+        tick(19);
+        assertTrue(natural(0, 0), "19틱: 아직 티켓이 있다");
+        tick(1);
+        assertFalse(natural(0, 0), "모두 죽어 추적에서 빠지면 그 자리 청크에 플레이어 티켓이 없다(엔티티 틱·자연 스폰 범위 밖)");
+        assertTrue(near.tracked().isEmpty(), "추적에서 빠진 관찰자는 보던 플레이어를 잃는다(TrackedEntity.removePlayer)");
+        tick(3);
+        assertTrue(near.tracked().isEmpty(), "다시 보지 않는다");
+        near.vitals().respawn();
+        w.playerRespawned(near);
+        tick(3);
+        assertTrue(natural(0, 0), "리스폰한 플레이어가 티켓을 되찾는다");
+    }
+
+    @Test
+    void endCreditsPlayerKeepsChunkTracking() throws Exception {
+        // 엔드 크레딧의 removePlayerImmediately(CHANGED_DIMENSION)은 onDestroyed 가 아니라 레벨 목록에서만 빠진다
+        tick(3);
+        assertTrue(w.onlinePlayers().contains(near));
+        w.playerRemovedFromLevel(near, false);
+        assertFalse(level().contains(near));
+        assertTrue(connected().contains(near));
+        assertFalse(near.chunkUntracked());
+        tick(3);
+        assertTrue(w.subscribers(new ChunkPos(0, 0)).contains(near));
+        assertFalse(near.loadedChunks().isEmpty());
+    }
+
+    /** 독립 검토 F1: region 이 removedAfterDeath 를 읽은 뒤 IO 스레드 리스폰이 끝난 순서 — 살아난 플레이어는 빠지지 않는다. */
+    @Test
+    void lateRemovalAfterRespawnKeepsAliveRespawnedPlayer() throws Exception {
+        near.vitals().kill();
+        tick(20);
+        assertEquals(List.of(far, other), level());
+        near.vitals().respawn();          // IO 스레드: finishRespawn
+        w.playerRespawned(near);
+        assertEquals(List.of(far, other, near), level());
+        w.playerRemovedFromLevel(near, true);   // region 스레드: 이미 읽은 removedAfterDeath=true 로 뒤늦게 호출
+        assertEquals(List.of(far, other, near), level(), "살아 리스폰한 플레이어는 레벨 목록에 남는다");
+        assertFalse(near.removedFromLevel());
+        assertFalse(near.chunkUntracked());
+    }
+
+    /** 독립 검토 F2: 죽어서 빠진 플레이어를 다른 차원으로 옮겨도(/tp) 새 차원 레벨 목록에 오르지 않고, 리스폰이 올린다. */
+    @Test
+    void dimensionChangeOfRemovedDeadPlayerStaysOutOfLevelList() throws Exception {
+        near.vitals().kill();
+        tick(20);
+        assertEquals(List.of(far, other), level());
+        near.dimension("minecraft:the_nether");
+        List<Player> nether = new ArrayList<>();
+        near.rosterLevel().forEach(nether::add);
+        assertTrue(nether.isEmpty(), "새 차원 레벨 목록에 죽은 플레이어가 올라갔다: " + nether);
+        assertTrue(near.removedFromLevel());
+        assertTrue(near.chunkUntracked(), "추적 해제 상태도 그대로");
+        List<Player> connectedNether = new ArrayList<>();
+        near.rosterLevel().forEachConnected(connectedNether::add);
+        assertEquals(List.of(near), connectedNether, "방송 대상(접속자)으로는 새 차원에 있다");
+        assertEquals(List.of(far, other), level(), "옛 차원 목록·방송에서는 빠진다");
+        assertEquals(2, connected().size());
+        near.vitals().respawn();
+        w.playerRespawned(near);   // finishRespawn: p.dimension(target) 뒤 relist
+        nether.clear();
+        near.rosterLevel().forEach(nether::add);
+        assertEquals(List.of(near), nether, "리스폰하면 새 차원 레벨 목록에 오른다");
+        assertFalse(near.removedFromLevel());
+        assertFalse(near.chunkUntracked());
+        List<Player> connectedNether2 = new ArrayList<>();
+        near.rosterLevel().forEachConnected(connectedNether2::add);
+        assertEquals(List.of(near), connectedNether2, "방송 목록에 두 번 들지 않는다");
+    }
+
+    /** 엔드 크레딧 경로: 즉시 레벨 목록에서 빠지고(추적은 유지), 크레딧 중 퇴장·크레딧 뒤 리스폰이 정리한다. */
+    @Test
+    void endCreditsRemovalThenDisconnectOrRespawn() throws Exception {
+        w.playerRemovedFromLevel(near, false);
+        assertEquals(List.of(far, other), level());
+        assertTrue(connected().contains(near));
+        w.playerRespawned(near);   // 크레딧 뒤 finishWinRespawn
+        assertEquals(List.of(far, other, near), level());
+        assertFalse(near.removedFromLevel());
+        w.playerRemovedFromLevel(far, false);
+        w.playerOffline(far.entityId());   // 크레딧 중 퇴장
+        assertEquals(List.of(other, near), level());
+        assertEquals(List.of(other, near), connected(), "퇴장하면 방송 목록에서도 빠진다");
     }
 
     private static List<Integer> drain(EmbeddedChannel ch) {

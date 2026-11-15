@@ -98,8 +98,10 @@ public final class PlayerRoster {
         synchronized (map) {
             Level cur = p.rosterLevel();
             if (cur == null || cur.key.equals(p.dimension())) return;
+            boolean wasRemoved = p.removedFromLevel(), wasUntracked = p.chunkUntracked();
             detach(p);
-            attach(p);
+            if (wasRemoved) attachRemoved(p, wasUntracked);   // 제거된 엔티티는 차원을 옮겨도 레벨 목록에 다시 오르지 않는다 — 리스폰의 relist 가 올린다
+            else attach(p);
         }
     }
 
@@ -119,9 +121,19 @@ public final class PlayerRoster {
     private void attach(Player p) {
         Level l = levels.computeIfAbsent(p.dimension(), k -> new Level(this, k));
         p.rosterLevel(l);
+        p.levelRemoval(false, false);   // 목록에 (다시) 든다 — 리스폰·차원 이동
         p.gridCell = Snapshot.EMPTY_KEY;   // 먼저 "모름" — 이 사이 위치를 쓴 스레드는 moved 에서 잠금 쪽으로 온다
         p.gridCell = Level.cellOf(p.x(), p.z());
         l.publish(append(l.snap.players, p));
+    }
+
+    /** 레벨 목록이 아니라 새 차원의 "제거된 접속자"({@link Level#removed})로 붙인다(제거 상태 그대로). */
+    private void attachRemoved(Player p, boolean untracked) {
+        Level l = levels.computeIfAbsent(p.dimension(), k -> new Level(this, k));
+        p.rosterLevel(l);
+        p.levelRemoval(true, untracked);
+        p.gridCell = Snapshot.EMPTY_KEY;
+        l.removed = append(l.removed, p);
     }
 
     private void detach(Player p) {
@@ -139,16 +151,24 @@ public final class PlayerRoster {
      * 서버 전체 접속자 목록({@code PlayerList.players})과 접속은 그대로고, 이 차원의 "레벨 목록"(잠 비율·사라짐·스폰 판정·근접 조회·
      * {@code getPlayers})에서만 빠진다. 소리·이벤트 방송({@code PlayerList.broadcast})은 여전히 받는다 — {@link Level#forEachConnected}.
      * 리스폰·차원 이동·퇴장이 다시 올리거나 치운다. 이 차원 목록에 있었으면 참(처음 뺄 때만), 이미 뺐거나 목록에 없으면 거짓.
+     *
+     * @param destroyed 제거 사유가 파괴(KILLED, 죽고 20틱)면 참 — 바닐라 {@code onDestroyed} 가 ChunkMap 추적에서도 뺀다({@link Player#chunkUntracked}).
+     *                  엔드 크레딧의 {@code removePlayerImmediately(CHANGED_DIMENSION)} 은 거짓(레벨 목록에서만 빠진다).
+     *                  참이면 잠금 안에서 아직 죽어 있는지 다시 확인한다(리스폰이 끼어든 경우 살아난 플레이어를 빼지 않는다).
      */
-    public boolean removeFromLevel(Player p) {
+    public boolean removeFromLevel(Player p, boolean destroyed) {
         synchronized (map) {
             if (map.get(p.entityId()) != p) return false;
             Level l = p.rosterLevel();
             if (l == null) return false;
+            // 죽음 경로: 잠금 안에서 다시 확인 — region 이 removedAfterDeath 를 읽은 뒤 IO 스레드의 리스폰(respawn → relist)이 끼었다면 이미 살아 있다
+            if (destroyed && !p.vitals().isDeadOrDying()) return false;
             Player[] cur = l.snap.players, next = without(cur, p);
             if (next == cur) return false;
-            l.publish(next);
+            // 읽는 쪽(forEachConnected)이 snap → removed 순으로 읽으므로 쓰기는 removed 추가 → snap 발행 순서: 한 번의 방송을 못 받는 일은 없다(많아야 두 번)
             l.removed = append(l.removed, p);
+            p.levelRemoval(true, destroyed);
+            l.publish(next);
             return true;
         }
     }

@@ -114,6 +114,7 @@ public final class EntityActivation {
         maxRange = Math.min((simulationDistance << 4) - 8, maxRange);
         int height = level.maxBuildHeight() - level.minBuildHeight();
         for (Player p : players) {
+            if (p.removedFromLevel()) continue;   // Spigot 은 level.players() 를 돈다 — 제거된(죽고 20틱 뒤·크레딧) 플레이어는 없다
             if (s.ignoreSpectators() && p.isSpectator()) continue;
             AABB pb = p.boundingBox();
             for (byte t = 0; t < TYPES; t++) {

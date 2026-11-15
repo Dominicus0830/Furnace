@@ -1160,11 +1160,11 @@ public final class World {
 
     /**
      * 플레이어 엔티티가 제거됐다(바닐라 Entity.remove(KILLED)·removePlayerImmediately → ServerLevel EntityCallbacks.onTrackingEnd): 죽고 20틱 뒤나
-     * 엔드 크레딧을 띄울 때. 이 차원 레벨 목록에서 빼고 잠 목록을 다시 센다. 접속은 그대로다 — 리스폰하면 {@link #playerRespawned} 가 끝에 다시 올린다.
+     * 엔드 크레딧을 띄울 때. 이 차원 레벨 목록에서 빼고 잠 목록을 다시 센다. destroyed(죽음의 KILLED)면 청크 추적도 잃는다({@link Player#chunkUntracked}). 접속은 그대로다 — 리스폰하면 {@link #playerRespawned} 가 끝에 다시 올린다.
      * 어느 스레드에서나 부를 수 있다(목록 쓰기는 잠금 안).
      */
-    public void playerRemovedFromLevel(Player p) {
-        if (online.removeFromLevel(p)) updateSleepingPlayerList();
+    public void playerRemovedFromLevel(Player p, boolean destroyed) {
+        if (online.removeFromLevel(p, destroyed)) updateSleepingPlayerList();
     }
 
     /** 리스폰(바닐라 PlayerList.respawn → addRespawnedPlayer): 이 플레이어를 지금 차원 목록 끝으로 옮긴다. */
