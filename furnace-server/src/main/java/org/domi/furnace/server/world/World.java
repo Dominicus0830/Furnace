@@ -1,6 +1,7 @@
 // 월드: 공유 자원(청크 저장소·구독·접속자) + 동적 region(Regionizer). 월드 작업은 청크 주인 region 으로 보낸다(runAtChunk).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.server.i18n.Lang;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import java.util.ArrayList;
@@ -764,7 +765,7 @@ public final class World {
             }
             String msg = String.format("[SAVE] %s: region 파일 %d개 %.1f MB, 여유 %.1f GB, IO 레인 최대 대기열 %d · 최대 대기 %.1f ms",
                     dir, files, bytes / 1048576.0, usable / 1073741824.0, lane[0], lane[1] / 1e6);
-            if (usable < 1L << 30) log.warn("{} — 디스크 여유 1GB 미만", msg); else log.info(msg);
+            if (usable < 1L << 30) log.warn(Lang.t("world.disk-low", msg)); else log.info(msg);
         });
     }
 
@@ -786,15 +787,15 @@ public final class World {
             } catch (Exception e) {
                 var log = org.slf4j.LoggerFactory.getLogger(World.class);
                 if (attempt >= backoff.length) {
-                    log.error("[SAVE] {} 실패({}회 시도) — 포기", what, attempt + 1, e);
+                    log.error(Lang.t("world.save-gave-up", what, attempt + 1), e);
                     return false;
                 }
-                log.warn("[SAVE] {} 실패({}회째) — {}ms 뒤 재시도: {}", what, attempt + 1, backoff[attempt], e.toString());
+                log.warn(Lang.t("world.save-retry", what, attempt + 1, backoff[attempt], e.toString()));
                 try {
                     Thread.sleep(backoff[attempt]);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    log.error("[SAVE] {} 재시도 중 인터럽트 — 포기", what);
+                    log.error(Lang.t("world.save-retry-interrupted", what));
                     return false;
                 }
             }
@@ -2139,7 +2140,7 @@ public final class World {
             try {
                 t = plan.complete().apply(lvl);
             } catch (RuntimeException e) {
-                log.error("[PORTAL] 목적지 계산 실패 {}", plan.targetDimension(), e);
+                log.error(Lang.t("world.portal-destination-failed", plan.targetDimension()), e);
                 t = null;
             }
             arrive.accept(t == null ? null : lvl, t);
@@ -2160,7 +2161,7 @@ public final class World {
         }
         loadTravelChunks(plan).whenComplete((list, err) -> {
             if (err != null) {
-                log.warn("[PORTAL] 목적 청크 준비 실패 {}", plan.targetDimension(), err);
+                log.warn(Lang.t("world.portal-chunk-failed", plan.targetDimension()), err);
                 task.accept(null);
                 return;
             }

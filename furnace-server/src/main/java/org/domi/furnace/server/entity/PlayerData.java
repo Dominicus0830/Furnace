@@ -3,6 +3,7 @@
 // 바닐라 PlayerDataStorage 처럼 이전 파일을 <uuid>.dat_old 로 남기고, <uuid>.dat 이 없거나 깨졌으면 <uuid>.dat_old 를 읽는다(A05-02).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -165,19 +166,19 @@ public final class PlayerData {
                 throw e;   // 깨진 파일이 아니다 — 격리하지도 .dat_old 로 대체하지도 않는다
             } catch (IOException | RuntimeException e) {
                 failure = e;
-                LOG.warn("playerdata 읽기 실패 {} — {}.dat_old 로 되살려 본다", dat, id, e);
+                LOG.warn(Lang.t("playerdata.read-failed", dat, id), e);
                 if (quarantine) quarantine(dat);
             }
         }
         if (Files.exists(old)) {
             try {
                 T t = parse.apply(checkedVersion(readGzipFile(old), id));
-                LOG.warn("playerdata {} 를 이전 저장본 {} 에서 읽었다", id, old.getFileName());
+                LOG.warn(Lang.t("playerdata.restored-old", id, old.getFileName()));
                 return t;
             } catch (org.domi.furnace.server.world.anvil.UnsupportedDataVersionException e) {
                 throw e;
             } catch (IOException | RuntimeException e) {
-                LOG.warn("playerdata 이전 저장본 읽기 실패 {}", old, e);
+                LOG.warn(Lang.t("playerdata.old-read-failed", old), e);
                 if (quarantine) quarantine(old);
                 if (failure == null) failure = e; else failure.addSuppressed(e);
             }
@@ -206,7 +207,7 @@ public final class PlayerData {
             }
             Files.move(f, to, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException moveFail) {
-            LOG.warn("손상된 playerdata 백업 실패 {}", f, moveFail);
+            LOG.warn(Lang.t("playerdata.corrupt-backup-failed", f), moveFail);
         }
     }
 
@@ -421,7 +422,7 @@ public final class PlayerData {
             try {
                 return readWithFallback(worldDir, id, true, PlayerData::snapshotOf);
             } catch (UnreadablePlayerData e) {
-                LOG.warn("playerdata {} 를 .dat·.dat_old 어느 쪽에서도 읽지 못했다 — 새 플레이어로 시작한다(원본은 .corrupt)", id);
+                LOG.warn(Lang.t("playerdata.both-unreadable", id));
                 return null;
             }
         }

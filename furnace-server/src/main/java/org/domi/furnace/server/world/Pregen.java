@@ -7,6 +7,7 @@
 //  - 한 차원에 하나만. 진행 위치는 차원 data/furnace_pregen.properties 에 남겨 멈춘 뒤·재기동 뒤 이어 한다(자동으로 다시 시작하지는 않는다).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -346,7 +347,7 @@ public final class Pregen {
                 if (err != null) {
                     failed++;
                     kind = 2;
-                    LOG.warn("[PREGEN] 청크 {} 생성 실패 — 건너뛴다", cp, err);
+                    LOG.warn(Lang.t("pregen.chunk-failed", cp), err);
                 } else if (Boolean.TRUE.equals(made)) {
                     generated++;
                     kind = 0;
@@ -449,7 +450,7 @@ public final class Pregen {
                 }
                 Files.move(tmp, f, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (IOException e) {
-                LOG.warn("[PREGEN] 진행 파일 저장 실패 {}", f, e);
+                LOG.warn(Lang.t("pregen.progress-save-failed", f), e);
             }
         }
     }
@@ -588,7 +589,7 @@ public final class Pregen {
                     Long.parseLong(p.getProperty("skipped", "0")), Long.parseLong(p.getProperty("failed", "0")),
                     TimeUnit.MILLISECONDS.toNanos(Long.parseLong(p.getProperty("elapsedMs", "0"))));
         } catch (IOException | RuntimeException e) {
-            LOG.warn("[PREGEN] 진행 파일을 읽지 못했다 {}", f, e);
+            LOG.warn(Lang.t("pregen.progress-read-failed", f), e);
             return null;
         }
     }
@@ -599,7 +600,7 @@ public final class Pregen {
         try {
             Files.deleteIfExists(f);
         } catch (IOException e) {
-            LOG.warn("[PREGEN] 진행 파일 지우기 실패 {}", f, e);
+            LOG.warn(Lang.t("pregen.progress-delete-failed", f), e);
         }
     }
 }

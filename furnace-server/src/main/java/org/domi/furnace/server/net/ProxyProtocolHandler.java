@@ -13,6 +13,7 @@ import io.netty.util.AttributeKey;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,7 +53,7 @@ final class ProxyProtocolHandler extends ChannelInboundHandlerAdapter {
                 if (first != 'P' && first != 0x0D) {
                     io.netty.util.ReferenceCountUtil.release(msg);
                     if (warned.compareAndSet(false, true)) {
-                        log.warn("proxy-protocol=true 인데 PROXY 헤더 없이 접속한 연결을 거부했다 (앞단의 send-proxy 설정을 확인하세요)");
+                        log.warn(Lang.t("proxy.missing-header"));
                     }
                     ctx.close();
                     return;
@@ -77,8 +78,7 @@ final class ProxyProtocolHandler extends ChannelInboundHandlerAdapter {
         try {
             InetAddress peer = ctx.channel().remoteAddress() instanceof InetSocketAddress isa ? isa.getAddress() : null;
             if (!limits.proxyTrusts(peer)) {
-                log.warn("신뢰하지 않는 주소 {} 가 PROXY 헤더를 보내 거부했다 (proxy-protocol.trusted 확인)",
-                        ConnectionHandler.loggableAddress(logIps, peer));
+                log.warn(Lang.t("proxy.untrusted-sender", ConnectionHandler.loggableAddress(logIps, peer)));
                 ctx.close();
                 return;
             }
@@ -102,7 +102,7 @@ final class ProxyProtocolHandler extends ChannelInboundHandlerAdapter {
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         // 헤더가 없거나 깨진 접속(직접 접속·잘못된 앞단 설정). 로그가 넘치지 않게 처음 한 번만 알린다.
         if (warned.compareAndSet(false, true)) {
-            log.warn("proxy-protocol=true 인데 PROXY 헤더가 없거나 잘못된 접속을 거부했다 (앞단의 send-proxy 설정을 확인하세요): {}", cause.getMessage());
+            log.warn(Lang.t("proxy.bad-header", cause.getMessage()));
         } else {
             log.debug("PROXY 헤더 오류, 연결 종료: {}", cause.toString());
         }

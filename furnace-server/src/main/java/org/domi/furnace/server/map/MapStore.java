@@ -15,6 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,7 +74,7 @@ public final class MapStore {
                 return prev != null ? prev : loaded;
             }
         } catch (IOException | RuntimeException e) {
-            LOG.warn("지도 데이터 읽기 실패 map_{}", id, e);
+            LOG.warn(Lang.t("map.read-failed", id), e);
             MISSING.add(id);   // 매 틱 다시 읽으며 로그를 쏟지 않게
             return null;
         }
@@ -116,7 +117,7 @@ public final class MapStore {
                 if (data.containsNumber("map")) lastId = data.getIntOr0("map");
             }
         } catch (IOException | RuntimeException e) {
-            LOG.warn("idcounts.dat 읽기 실패", e);
+            LOG.warn(Lang.t("map.idcounts-read-failed"), e);
         }
     }
 
@@ -127,7 +128,7 @@ public final class MapStore {
         try {
             Files.createDirectories(dir);
         } catch (IOException e) {
-            LOG.warn("data 폴더를 만들지 못함", e);
+            LOG.warn(Lang.t("map.data-folder-failed"), e);
             return;
         }
         boolean writeIds;
@@ -162,7 +163,7 @@ public final class MapStore {
             }
             Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
-            LOG.error("지도 데이터 저장 실패 {}", file, e);
+            LOG.error(Lang.t("map.save-failed", file), e);
         }
     }
 }

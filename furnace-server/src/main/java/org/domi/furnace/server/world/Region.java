@@ -2,6 +2,7 @@
 // 합치기·나누기는 Regionizer 가 틱 사이에 하며, 그때 이 region 의 자료를 위치(청크)에 따라 옮긴다(absorbData·splitData).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.server.i18n.Lang;
 import io.netty.buffer.Unpooled;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -265,9 +266,9 @@ public final class Region {
         int n = MIRROR_FAILURES.incrementAndGet();
         String where = cx == Integer.MIN_VALUE ? "" : " (청크 " + cx + ", " + cz + ")";
         if (n <= 5) {
-            LOG.warn("[NMS] 청크 거울 맞추기가 실패했다{} — 그 거울의 남은 쓰기는 월드에 닿지 않았다. 호환 계층 버그일 수 있으니 이 쌓임을 알려 주세요", where, e);
+            LOG.warn(Lang.t("nms.mirror-failed", where), e);
         } else if (n % 100 == 0) {
-            LOG.warn("[NMS] 청크 거울 맞추기 실패가 {}번째다{}: {}", n, where, e.toString());
+            LOG.warn(Lang.t("nms.mirror-failed-again", n, where, e.toString()));
         }
     }
 
@@ -296,13 +297,9 @@ public final class Region {
                 String nth = n > 20 ? " [같은 경고 " + n + "번째]" : "";
                 if (level != null && level.hasChunkTicks(cx, cz)) {
                     // 예약 틱이 남은 청크는 저장 표시가 없어도 저장한다(아래 writeChunkTicks) — 그 변경도 함께 저장된다(PR #396 검토 R5, Paper 와 다를 수 있다)
-                    LOG.warn("[NMS] 청크 {}, {} ({}) 가 저장 표시 없이 플러그인이 바꾼 섹션을 든 채 내려간다 — 예약 틱이 남아 있어 이 청크는 저장되고 그 변경도 함께 저장된다"
-                            + "(저장 표시가 없으면 Paper 에서는 남지 않을 수 있다). 확실히 남기려면 플러그인이 LevelChunk#setUnsaved(true)(또는 markUnsaved)를 불러야 한다{}",
-                            cx, cz, world.dimension(), nth);
+                    LOG.warn(Lang.t("nms.unsaved-section-kept", cx, cz, world.dimension(), nth));
                 } else {
-                    LOG.warn("[NMS] 청크 {}, {} ({}) 가 저장 표시 없이 플러그인이 바꾼 섹션을 든 채 내려간다 — 바닐라·Paper 처럼 그 변경은 저장하지 않는다(다시 불러오면 옛 블록)."
-                            + " 남기려면 플러그인이 LevelChunk#setUnsaved(true)(또는 markUnsaved)를 불러야 한다{}",
-                            cx, cz, world.dimension(), nth);
+                    LOG.warn(Lang.t("nms.unsaved-section-dropped", cx, cz, world.dimension(), nth));
                 }
             }
         }

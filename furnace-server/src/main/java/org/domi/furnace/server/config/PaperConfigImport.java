@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.domi.furnace.api.config.ConfigSection;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -91,7 +92,7 @@ public final class PaperConfigImport {
             Result r = analyzeAndApply(serverDir, furnaceProps, report);
             if (r != null) logSummary(r, report);
         } catch (IOException | RuntimeException e) {
-            log.warn("Paper/Spigot 설정을 가져오지 못했다 — 건너뛴다(서버는 그대로 켠다). furnace.properties 를 손으로 맞춰라", e);
+            log.warn(Lang.t("paperimport.failed"), e);
         }
     }
 
@@ -127,9 +128,7 @@ public final class PaperConfigImport {
     }
 
     private static void logSummary(Result r, Path report) {
-        log.info("Paper/Spigot 설정 가져오기: 옮김 {} · 이미 있음 {} · Paper 기본값 {} · 직접 확인 {} · 대응 없음 {} · 모르는 키 {} — 자세한 내용: {}",
-                r.count(Kind.IMPORTED), r.count(Kind.KEPT), r.count(Kind.DEFAULT), r.count(Kind.MANUAL),
-                r.count(Kind.UNSUPPORTED), r.count(Kind.UNKNOWN), report.toAbsolutePath().normalize());
+        log.info(Lang.t("paperimport.summary", r.count(Kind.IMPORTED), r.count(Kind.KEPT), r.count(Kind.DEFAULT), r.count(Kind.MANUAL), r.count(Kind.UNSUPPORTED), r.count(Kind.UNKNOWN), report.toAbsolutePath().normalize()));
         for (Entry e : r.entries()) {
             if (e.kind == Kind.IMPORTED) log.info("  {} {} → {}", e.file, e.key, e.target);
         }
@@ -137,12 +136,12 @@ public final class PaperConfigImport {
         for (Entry e : r.entries()) {
             if (e.kind != Kind.MANUAL) continue;
             if (shown++ >= 8) {
-                log.warn("  … 직접 확인할 항목이 더 있다 — 보고서를 봐라");
+                log.warn(Lang.t("paperimport.more-manual"));
                 break;
             }
-            log.warn("  직접 확인: {} {} — {}", e.file, e.key, e.note);
+            log.warn(Lang.t("paperimport.manual-item", e.file, e.key, e.note));
         }
-        for (String f : r.filesFailed().keySet()) log.warn("  {} 을(를) 읽지 못했다: {}", f, r.filesFailed().get(f));
+        for (String f : r.filesFailed().keySet()) log.warn(Lang.t("paperimport.file-unreadable", f, r.filesFailed().get(f)));
     }
 
     // ------------------------------------------------------------------ 분석 (파일 쓰기 없음)
