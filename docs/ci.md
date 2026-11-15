@@ -18,12 +18,12 @@
 | `GeneratedVillageProfessionTest`, `DispenserBlockTest.arrowIsShotWithPickupAllowed` | 각 1 | 난수 | CI 재시도로 흡수 |
 
 ## 지금 구조
-- `server-tests (1/3~3/3)`: 서버 시험을 시험 클래스 이름 해시로 3조각으로 나눠 동시에 돈다(`-PtestShard=i/3`, `furnace-server/build.gradle.kts`).
+- `server-tests (1/4~4/4)`: 서버 시험을 4조각으로 나눠 동시에 돈다(`-PtestShard=i/4`, `furnace-server/build.gradle.kts`). 배정은 클래스별 실측 시간으로 고르게 맞춘다(아래 "조각 균형").
   한 조각이 실패하면 **처음에 실패한 시험 클래스만** 한 번 다시 돌린다(전체 재실행 12분 → 1분 안팎). 다시 돌려도 실패하면 진짜 실패다.
   재시도에서 통과한 시험은 "흔들린 시험" 주석(PR 의 Checks 화면)·실행 요약·산출물 `flaky-tests-N`(30일 보관)에 이름이 남는다 — 이 목록이 흔들리는 시험을 고칠 우선순위다(아래 "재시도 정책").
 - `light`: API 시험, 샘플 플러그인 컴파일, 시험 서버 모듈, 호환 계층 모듈, fatJar. 기준 브랜치 실행에서는 `user-todo-combined` 산출물도 올린다.
   시험 단계 셋은 하나가 실패해도 나머지를 돌고(`continue-on-error`), 실패하면 `light-test-reports` 산출물을 올린 뒤 맨 끝 "light 시험 판정"이 작업을 실패시킨다. **재시도는 없다**(아래 "light 작업 (T-160)").
-- `test`: 위 둘을 합친 판정(점검 이름은 예전과 같은 `test`). **병합 판단은 `test` 하나만 본다** — `light` 는 1~2분이면 초록이 되지만 `test` 는 서버 시험 3조각이 모두 끝나야 생긴다.
+- `test`: 위 둘을 합친 판정(점검 이름은 예전과 같은 `test`). **병합 판단은 `test` 하나만 본다** — `light` 는 1~2분이면 초록이 되지만 `test` 는 서버 시험 4조각이 모두 끝나야 생긴다.
 - `push` 는 기준 브랜치(`claude/quirky-wright-lra834`, `main`)에서만 돈다. 작업 브랜치는 PR 을 열면 `pull_request` 로 한 번 돈다.
   충돌이 있는 PR 은 `pull_request` 실행이 만들어지지 않는다 — 기준 브랜치를 합쳐 충돌을 풀면 다시 돈다.
 - Gradle 캐시는 기준 브랜치 실행에서만 저장하고 PR 은 읽기만 한다.
@@ -65,6 +65,12 @@
 | `TestPlayerPacketsTest.afterKick…` (:86), `SchemaPacketBridgeTest` decodeFailures | 5, 3 | 가짜 플레이어 읽기 스레드·decodeFailures 경합 | 11-14 f700bee5e·6eb9eee32 에서 고쳐짐(그 뒤 재발 없음) |
 | `JavaPluginWiringTest.permissionAndExceptions…` (:227) | 7 | 확정 못 함 — 11-13 17:43 UTC 뒤 약 110회 재발 없음, 부하 반복 0/60 | 다시 나오면 이제 로그에 받은 메시지 목록이 찍힌다 |
 
+## 재시도로 가려진 흔들림 모아 보기 (2026-11-15, T-161)
+- 서버 조각 재시도에서 통과한 시험은 실행이 초록이라 주석(`… — 처음 실패, 재시도에서 통과`)만 남는다. `python3 -I tools/ci/flaky-history.py` 가
+  산출물 `flaky-tests-N`(7일 보관)이 있는 실행의 주석을 모아 시험별 횟수·마지막 실행을 찍는다(`--logs 폴더` 를 주면 조각 로그를 받아 처음 실패 메시지도 붙인다).
+- 11-11~15 실행 53개에서 54건을 모아 원인을 고친 기록은 `docs/feature-parity/context-notes/2026-11-15-t161-flaky.md`(제품 결함 2건: 공유 풀 선택기가 틱 중인 차원을 쉬는 차원으로 본 것,
+  생성하지 않음 `loadChunkAsync` 완료 스레드). 두 번 넘게 나온 시험은 도구로 실패 메시지를 보고 원인부터 고친다.
+
 ## 로그 없이 취소된 조각 (2026-11-14, T-160)
 - PR #362 의 `server-tests (2/3)` 첫 시도(작업 132469604114): 서버 시험 단계가 13:57 에 시작해 **40분 뒤 취소**, 단계 로그는 404(올라가지 않음), 보고서 올리기(`always()`)도
   돌지 않았다. 주석은 "The job has exceeded the maximum execution time of 35m0s" 하나. 같은 커밋 두 번째 시도는 12.7분에 통과.
@@ -80,9 +86,40 @@
 
 ## 로컬에서
 - 전체: `./gradlew -PskipOracle=true :furnace-api:test :furnace-server:test` (조각 속성 없음 = 전부).
-- CI 와 같은 조각 하나만: `./gradlew -PskipOracle=true -PtestShard=2/3 :furnace-server:test` (조각 3개가 합쳐서 전체와 같다 — 4코어 로컬 기준 조각당 4~6분, 전체 13분).
-- 조각 시간이 한쪽으로 쏠리면 `python3 -I tools/ci/shard-balance.py` 로 새 `shardSalt` 를 구해 `furnace-server/build.gradle.kts` 에 넣는다(안 해도 정확성은 같고 균형만 달라진다).
+- CI 와 같은 조각 하나만: `./gradlew -PskipOracle=true -PtestShard=2/4 :furnace-server:test` (조각 4개가 합쳐서 전체와 같다 — 4코어 로컬 기준 전체 13분).
+- 조각 시간이 한쪽으로 쏠리면 아래 "조각 균형" 대로 시간 파일을 갱신한다.
 - 시험 하나가 흔들리면: `./gradlew -PskipOracle=true :furnace-server:test --tests '패키지.클래스'` 를 여러 번 돌려 재현한다.
+
+## 조각 4개와 문서만 바뀐 PR (2026-11-15)
+- 조각을 3개에서 4개로 늘렸다(근거: `furnace/reviews/ci-time-savings-2026-11-15.md`). 시험 합 2,098초 ÷ 4 ≈ 8.7분 + 러너 준비 1~1.5분이 목표다.
+  시간 파일로 LPT 배정을 4조각으로 돌리면 조각 합이 525초씩으로 같다(표본 안 계산. 다른 날 표본에서는 ±7% 가량). 가장 큰 클래스가 173초라 조각 하나의 하한은 3분 안쪽이라 아직 여유가 있다.
+  **실측 조각 시간은 이 PR 의 CI 실행에서 확인해 PR 본문에 적었다**(작업별 소요는 Actions 실행 화면의 `server-tests (n/4)`).
+- 러너 동시 작업: PR 하나가 `changes` 1 + 조각 4 + `light` 1 + `test` 1 이다(`changes`·`test` 는 몇 초). 동시 PR 이 여럿 겹치면 대기가 생길 수 있다.
+  병합 대기가 CI 때문에 길어지면 여기서 다시 판단한다(조각 수는 `matrix.shard` 와 `-PtestShard=…/4`, `retry` 문구, `shard-balance.py --shards` 기본값).
+- 커버리지(`coverage-tests`)는 3조각 그대로다(기준 브랜치 push 에서만 돌고 판정과 무관. 조각 번호가 `-PtestShard=i/3` 이라 판정용 4조각과 배정이 다르다).
+- **문서만 바뀐 PR 은 서버 시험·`light` 를 건너뛴다.** 가장 앞의 `changes` 작업이 PR 의 바뀐 파일(`base...head`)을 보고, 전부 `docs/` 아래이거나 저장소 맨 위의 `*.md` 일 때만 `code=false` 로 둔다. 단 **시험이 읽는 문서는 코드로 본다**: `docs/api/`(`CancelContractTest` 가 계약 문서를 읽음), `docs/feature-parity/`(`OptionKeysTest` 키 표, 호환 모듈 `compatReport`·`nmsReport` 입출력). 이름 바꾸기는 풀어서 본다(`--no-renames`).
+  이때 `server-tests`·`light` 는 `skipped` 이고 `test` 판정은 "둘 다 skipped" 일 때 초록이다(필수 점검 `test` 는 그대로 생긴다). 하나라도 실패·취소면 빨갛다.
+  `.github/`·`tools/`·`*.gradle*`·다른 폴더의 `.md`(예: 모듈 안 README) 는 코드로 본다(안전 쪽). 파일 목록을 못 읽거나 비면 `code=true` 로 시험이 돈다. 기준 브랜치 push 는 항상 돈다.
+- 가장 오래 걸리는 시험 클래스 5개(2026-11-15, 클래스 시간 실측 `test-shard-times.tsv`): `CancelResyncE2ETest` 173초, `GeneratedChunkSaveTest` 124초, `ChunkCornerLoadFollowupTest` 117초, `A04InventoryLineTest` 89초, `ContainerLockE2ETest` 82초(합 585초, 전체의 28%).
+  이 시험들을 건드릴 때만 돌리고, 줄이는 것은 후속 작업이다(각 절반이면 전체 약 5분 감소).
+
+## 조각 균형 (2026-11-15, T-162)
+- 실행 시간은 가장 느린 조각이 정한다. 배정 규칙(`furnace-server/build.gradle.kts`, `tools/ci/shard-balance.py` 의 `assign()` 과 같다):
+  `furnace-server/test-shard-times.tsv`(클래스별 시험 시간 실측)에 있는 클래스는 **오래 걸리는 것부터 지금 가장 가벼운 조각에** 넣고(LPT),
+  파일에 없는 새 클래스만 이름 해시(`shardSalt`)로 나눈다. 배정은 정확성과 무관하다(조각을 합치면 전체와 같다).
+- 해시 + `shardSalt` 고르기를 버린 까닭: 접미사 salt 는 조각 수 3 에서 **salt 길이마다 같은 나눔**(조각 이름표만 바뀜)을 낸다 —
+  0~19999 를 뒤져도 서로 다른 나눔은 다섯 개뿐이었다. 그래서 큰 클래스(`CancelResyncE2ETest` 173초, `GeneratedChunkSaveTest` 124초 …)가
+  몰린 조각을 풀 수 없었다. 11-15 기준 전체 1회 실측(851클래스, 2,101초)에서 해시 배정은 가장 느린 조각이 이상값의 1.23배,
+  가장 나은 salt 도 1.13배였다. 시간 파일 배정은 **다른 날 표본으로 만든 파일로 재도** 1.07배였다(같은 표본이면 1.004배).
+- 시간 기록: 한 번에 통과한 서버 시험 조각은 산출물 `shard-times-N`(클래스별 시간 TSV, 30일)을 올린다. CI 러너 실측이다.
+- **갱신하는 법**(조각 작업 시간이 눈에 띄게 벌어지거나, 해시로 가는 새 클래스 몫이 커질 때):
+  1. 최근 성공한 기준 브랜치 실행 몇 개에서 `shard-times-1~4` 을 받아 실행마다 한 폴더에 푼다(예: `runs/1617/`, `runs/1620/`).
+     로컬 전체 시험 결과(`furnace-server/build/test-results/test`)도 표본이 된다.
+     **조각 4개가 다 있는 실행만 쓴다** — 조각이 빠진 표본은 `--write` 가 합을 맞출 때 남은 클래스 시간이 부풀려진다
+     (한 조각이 재시도로 실패한 실행은 그 조각 산출물이 없다).
+  2. `python3 -I tools/ci/shard-balance.py runs/*` 로 지금 배정의 균형과 "시간 파일에 없는 클래스" 몫을 본다.
+  3. `python3 -I tools/ci/shard-balance.py --write runs/*` 로 시간 파일을 새로 쓰고 커밋한다(표본마다 합을 맞춘 뒤 클래스별 평균).
+- 안 해도 정확성은 같고 균형만 나빠진다. 시간 파일은 손으로 고치지 않는다.
 
 ## 기준 브랜치가 바뀌면
 `ci.yml` 의 `on.push.branches` 와 `env.BASE_BRANCH` 두 곳을 새 이름으로 바꾼다.

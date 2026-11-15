@@ -70,6 +70,12 @@ class EventBridgeTest {
         return (E) l.get(0);
     }
 
+    private static org.domi.furnace.api.event.block.BlockLockCheckEvent lockCheck(Player p, String w, BlockPos bp) {
+        return new org.domi.furnace.api.event.block.BlockLockCheckEvent(w, bp, p, "key", org.domi.furnace.api.item.ItemStack.of("minecraft:stick"),
+                Text.translatable("container.isLocked", Text.text("Chest")),
+                org.domi.furnace.api.audience.Sound.sound("minecraft:block.chest.locked", org.domi.furnace.api.audience.Sound.Source.BLOCK));
+    }
+
     /** 지원하는 24종을 모두 한 번씩 발행해 Bukkit 처리기에 닿는지 본다. */
     @Test
     void everyBridgedEventReachesTheBukkitHandler() throws Exception {
@@ -148,6 +154,7 @@ class EventBridgeTest {
                     org.domi.furnace.api.event.block.BlockIgniteEvent.Cause.FLINT_AND_STEEL, null, p));
             fire.put(org.bukkit.event.block.BlockRedstoneEvent.class, () -> new org.domi.furnace.api.event.block.BlockRedstoneEvent(w, bp, "minecraft:redstone_wire", 0, 15));
             fire.put(org.bukkit.event.block.LeavesDecayEvent.class, () -> new org.domi.furnace.api.event.block.LeavesDecayEvent(w, bp, org.domi.furnace.api.world.BlockData.of("minecraft:oak_leaves")));
+            fire.put(io.papermc.paper.event.block.BlockLockCheckEvent.class, () -> lockCheck(p, w, bp));
             fire.put(org.bukkit.event.inventory.FurnaceBurnEvent.class, () -> new org.domi.furnace.api.event.inventory.FurnaceBurnEvent(w, bp, "minecraft:furnace",
                     org.domi.furnace.api.item.ItemStack.of("minecraft:coal"), 1600));
             fire.put(org.bukkit.event.block.BlockCookEvent.class, () -> new org.domi.furnace.api.event.inventory.FurnaceSmeltEvent(w, bp, "minecraft:furnace",
@@ -305,6 +312,44 @@ class EventBridgeTest {
 
             RecorderPlugin.ACTIONS.put("PlayerToggleSneakEvent", e -> ((org.bukkit.event.Cancellable) e).setCancelled(true));
             assertTrue(bus.call(new org.domi.furnace.api.event.player.PlayerToggleSneakEvent(p, true)).isCancelled());
+
+            // Paper BlockLockCheckEvent: 결과·따로 정한 열쇠가 돌아오고, 기본 열쇠는 누를 때 든 것
+            var bp = new BlockPos(1, 64, 2);
+            org.bukkit.inventory.ItemStack[] defaultKey = {null};
+            RecorderPlugin.ACTIONS.put("BlockLockCheckEvent", e -> {
+                var l = (io.papermc.paper.event.block.BlockLockCheckEvent) e;
+                defaultKey[0] = l.getKeyItem();
+                assertFalse(l.isUsingCustomKeyItemStack());
+                l.setResult(org.bukkit.event.Event.Result.DENY);
+                l.setKeyItem(new org.bukkit.inventory.ItemStack(org.bukkit.Material.TRIPWIRE_HOOK));
+            });
+            var lc = bus.call(lockCheck(p, "minecraft:overworld", bp));
+            assertEquals(org.bukkit.Material.STICK, defaultKey[0].getType(), "기본 열쇠 = 누를 때 든 것");
+            assertEquals(org.domi.furnace.api.event.block.BlockLockCheckEvent.Result.DENY, lc.result());
+            assertTrue(lc.isUsingCustomKeyItem());
+            assertEquals("minecraft:tripwire_hook", lc.keyItem().type());
+            assertEquals("container.isLocked", lc.lockedMessage().translationKey(), "Bukkit 쪽에 없는 알림 글은 그대로");
+            RecorderPlugin.ACTIONS.put("BlockLockCheckEvent", e -> ((io.papermc.paper.event.block.BlockLockCheckEvent) e).resetKeyItem());
+            var reset = lockCheck(p, "minecraft:overworld", bp);
+            reset.setKeyItem(org.domi.furnace.api.item.ItemStack.of("minecraft:stone"));
+            assertFalse(bus.call(reset).isUsingCustomKeyItem(), "Bukkit 처리기가 지운 열쇠는 Furnace 쪽에서도 지워진다");
+            // #398 검토: Furnace 쪽에서 먼저 정한 열쇠가 Bukkit 처리기에 보이고, Bukkit ALLOW 가 돌아온다
+            boolean[] sawCustom = {false};
+            String[] sawType = {null};
+            RecorderPlugin.ACTIONS.put("BlockLockCheckEvent", e -> {
+                var l = (io.papermc.paper.event.block.BlockLockCheckEvent) e;
+                sawCustom[0] = l.isUsingCustomKeyItemStack();
+                sawType[0] = l.getKeyItem().getType().name();
+                l.setResult(org.bukkit.event.Event.Result.ALLOW);
+            });
+            var pre = lockCheck(p, "minecraft:overworld", bp);
+            pre.setKeyItem(org.domi.furnace.api.item.ItemStack.of("minecraft:stone"));
+            var preOut = bus.call(pre);
+            assertTrue(sawCustom[0], "Furnace 쪽 따로 정한 열쇠가 Bukkit 에 보인다");
+            assertEquals("STONE", sawType[0]);
+            assertEquals(org.domi.furnace.api.event.block.BlockLockCheckEvent.Result.ALLOW, preOut.result());
+            assertTrue(preOut.isUsingCustomKeyItem());
+            assertEquals("minecraft:stone", preOut.keyItem().type());
 
             RecorderPlugin.ACTIONS.put("BlockBreakEvent", e -> ((org.bukkit.event.Cancellable) e).setCancelled(true));
             assertTrue(bus.call(new org.domi.furnace.api.event.block.BlockBreakEvent("minecraft:overworld", new BlockPos(1, 64, 2), "minecraft:stone", p)).isCancelled());

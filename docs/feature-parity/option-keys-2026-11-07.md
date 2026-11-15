@@ -50,6 +50,19 @@
 | `entity-activation-range.tick-inactive-villagers` | ON/OFF | true | true\|false | 활성 범위: 비활성 주민도 두뇌(일정·기억)를 돌린다. false 면 두뇌 없이 거래 타이머 등만 |  |
 | `entity-activation-range.ignore-spectators` | ON/OFF | false | true\|false | 활성 범위: 관전자 주변은 활성으로 만들지 않는다 |  |
 | `entity-activation-range.villagers-active-for-panic` | ON/OFF | true | true\|false | 활성 범위: 숨기·습격 전·습격·공황 중인 주민은 5초 활성 |  |
+| `merge-radius.item` | 수 | 0.5 | 0 이상(소수) | 아이템 합치기 반경(T-122, spigot.yml 이름, Spigot 식 상자 inflate(r, r-0.5, r)). 0.5 = 바닐라·Paper 기본 | 0.5 가 아니면 경고 |
+| `merge-radius.exp` | 수 | -1 | 소수 | 경험치 구슬 합치기 반경(T-122). 0 이하(기본) = 바닐라. 켜면 새 구슬이 반경 안 같은 count 구슬 값을 흡수(Spigot·Paper) | 0 보다 크면 경고 |
+| `collisions.max-entity-collisions` | 수 | **8** | -1 이상 | 생물 하나가 한 틱에 미는 수 상한(T-122, Paper Cap Entity Collisions). **기본 8 = Paper 1.21.1 — 규칙 1 의 예외(도미니코 결정 B3-1, 2026-11-14)**. -1 = 제한 없음(바닐라), 0 = 밀지 않음(Paper 와 같은 뜻) | -1 이 아니면 시작 때 경고 |
+| `entity-tracking-range.enabled` | ON/OFF | **true** | true\|false | 종류별 추적 거리(T-122, Spigot·Paper). **기본 켜짐 = Paper 1.21.1 — 규칙 1 의 예외(결정 B3-1)**. false = 바닐라(종류마다 clientTrackingRange × 16, 플레이어 512) | 켜져 있으면 시작 때 경고 |
+| `entity-tracking-range.players` | 수 | 128 | 0 이상 | 추적 거리(블록): 플레이어. 실제는 min(값 × entity-broadcast-range-percentage/100, 시야 × 16) |  |
+| `entity-tracking-range.animals` | 수 | 96 | 0 이상 | 추적 거리: 동물·물 동물·주민(Paper 는 물 동물·주민도 동물 범위) |  |
+| `entity-tracking-range.monsters` | 수 | 96 | 0 이상 | 추적 거리: 적대·습격·나는 적대 몹(엔더 드래곤 포함 — Paper 의 드래곤 예외는 닿지 않는 코드) |  |
+| `entity-tracking-range.misc` | 수 | 96 | 0 이상 | 추적 거리: 떨어진 아이템·경험치 구슬·그림·아이템 액자 |  |
+| `entity-tracking-range.display` | 수 | 128 | 0 이상 | 추적 거리: 디스플레이 엔티티 |  |
+| `entity-tracking-range.other` | 수 | 64 | 0 이상 | 추적 거리: 그 밖(화살·탈것·폭발물·갑옷 거치대 등). 0 = 그 종류는 아무에게도 보내지 않음(Paper 와 같다) |  |
+| `item-merge.always-into-ticking` | ON/OFF | **true** | true\|false | 아이템을 합칠 때 늘 틱을 도는 쪽으로 모은다(T-122, Spigot·Paper 고정 변경 `if (true \|\| …)`). **기본 켬 — 규칙 1 의 예외(T122-1, 2026-11-15 위임 결정)**. false = 바닐라(적은 쪽을 많은 쪽에) | 켜져 있으면 시작 때 경고 |
+| `collisions.skip-unpushable` | ON/OFF | **true** | true\|false | 밀 수 없는 생물(사다리·덩굴에 매달림·관전자 등)은 남을 밀지 않고 cramming 피해도 없음(T-122, Paper "Don't run entity collision code if not needed"). **기본 켬 — 규칙 1 의 예외(T122-1)**. false = 바닐라 | 켜져 있으면 시작 때 경고 |
+| `collisions.allow-player-cramming-damage` | ON/OFF | **false** | true\|false | 플레이어가 maxEntityCramming 피해를 받는가(T-122 검토 N1, Paper "Don't apply cramming damage to players", 1/4 굴림은 그대로). **기본 false = Paper — 규칙 1 의 예외**. true = 바닐라 | false 면 시작 때 경고 |
 | `region-threads` | 수 | CPU 수 | 1 이상 | region 작업 스레드 수(공유 풀이면 서버 전체, 끄면 차원마다) | 워커가 코어의 2배를 넘으면 경고 |
 | `shared-region-pool` | ON/OFF | true | true|false | 모든 차원·추가 월드가 region 워커 풀 하나를 쓴다(Q5). false 면 차원마다 region-threads 개 | -D 와 충돌하면 경고 |
 | `region-pool-dim-cap` | 수 | 0 | 0 이상 | 다른 차원 큐에 일이 있을 때 한 차원이 쓸 수 있는 워커 상한(0 = 워커 수−1) | 공유 풀이 꺼져 있으면 쓰이지 않는다고 경고 |
@@ -118,6 +131,7 @@
 | `plugins.compat.nms.spigot-mappings.files` | 글자 | (빈칸) | 경로 구분자로 이은 세 파일 | files 모드의 Mojang server.txt, Spigot 클래스 csrg, Spigot 멤버 csrg 경로 |  |
 | `plugins.chunk-tickets.max-per-plugin` | 수 | 16384 | 1~100000000 | 플러그인 하나가 청크 티켓으로 붙잡을 수 있는 청크 수 상한(겹침 포함) |  |
 | `plugins.compat.config.paper-default-separator` | ON/OFF | false | true\|false | 플러그인이 `options().pathSeparator` 를 바꿨을 때 `addDefault` 기본값 트리를 Paper 처럼 언제나 '.' 로 쪼갠다(끄면 플러그인이 정한 구분자) | 잘못된 값은 기동 거부 |
+| `plugins.async-threads` | 글자 | platform | platform\|virtual | Furnace 플러그인 비동기 실행기(`asyncExecutor`·`PluginTasks.async`)의 스레드. platform: 이름 붙은 플랫폼 스레드 풀 `Furnace Async Thread - N`(Paper 비동기 스케줄러 모양), virtual: 가상 스레드(JDK 21 pinning 위험). 접속 전·구성 이벤트는 이 값과 상관없이 `User Authenticator #N` (T-034, 결정 D1) | 잘못된 값은 기동 거부 |
 | `plugins.compat.scheduler.async-threads` | 글자 | platform | platform\|virtual | Bukkit 비동기 작업을 도는 스레드. platform: 이름 붙은 플랫폼 스레드 풀(Paper 모양), virtual: 가상 스레드 | 잘못된 값은 기동 거부 |
 | `plugins.compat.libraries` | 글자 | needed | needed\|all\|off | Paper 가 싣는 라이브러리(Guava·Adventure·SnakeYAML·Brigadier 등)를 호환 플러그인 클래스가 쓸 때만(needed)·호환 플러그인이 있으면 전부(all) 받아 공유 로더에 붙인다(H4 묶음 B, `docs/api/plugin-libraries.md`). Guava·SnakeYAML 은 서버 jar 에 실려 받지 않고 꺼낸다 | 잘못된 값은 경고 후 needed |
 | `plugins.compat.libraries.mojang` | ON/OFF | true | true\|false | Brigadier·authlib·DataFixerUpper 를 Mojang 저장소에서 받는다 | off 인데 적혀 있으면 경고 |

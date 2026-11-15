@@ -27,6 +27,8 @@ public interface Registry<T extends Keyed> extends Iterable<T> {
     Registry<Art> ART = new SimpleRegistry<>(Art.class);
     /** 엔티티 속성. */
     Registry<Attribute> ATTRIBUTE = new SimpleRegistry<>(Attribute.class);
+    /** 현수막 무늬 종류(데이터 팩이 더한 것까지). */
+    Registry<org.bukkit.block.banner.PatternType> BANNER_PATTERN = new org.domi.furnace.compat.paper.BannerPatternRegistry();
     /** 바닐라 바이옴(CUSTOM 은 없다). */
     Registry<Biome> BIOME = new SimpleRegistry<>(Biome.class, b -> b != Biome.CUSTOM);
     /** 마법부여. */

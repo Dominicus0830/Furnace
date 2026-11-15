@@ -124,14 +124,24 @@ public final class ItemEntity extends Entity {
         setDeltaMovement(vx() * 0.95F, vy() + (double) (vy() < 0.06F ? 5.0E-4F : 0.0F), vz() * 0.95F);
     }
 
+    /**
+     * mergeWithNeighbours: 상자는 Spigot 식 inflate(r, r - 0.5, r)(merge-radius.item, T-122). 기본 0.5 는 바닐라 inflate(0.5, 0.0, 0.5) 와 같다.
+     * 합치는 방향(Spigot 의 "늘 이쪽으로")은 tryToMerge 가 item-merge.always-into-ticking 으로 고른다.
+     */
     private void mergeWithNeighbours() {
         if (!isMergable()) return;
-        for (ItemEntity other : level.getEntitiesOfClass(ItemEntity.class, boundingBox().inflate(0.5, 0.0, 0.5), e -> e != this && e.isMergable())) {
+        double r = org.domi.furnace.server.config.EntityHandleSettings.current().itemMerge();
+        for (ItemEntity other : level.getEntitiesOfClass(ItemEntity.class, sortedInflate(boundingBox(), r, r - 0.5, r), e -> e != this && e.isMergable())) {
             if (other.isMergable()) {
                 tryToMerge(other);
                 if (isRemoved()) break;
             }
         }
+    }
+
+    /** 바닐라 AABB 생성자는 min/max 를 정렬한다 — merge-radius.item < 0.375 면 y 가 뒤집히므로 Paper 처럼 정렬된 상자로(T-122 검토 R1). */
+    private static AABB sortedInflate(AABB b, double dx, double dy, double dz) {
+        return AABB.of(b.minX() - dx, b.minY() - dy, b.minZ() - dz, b.maxX() + dx, b.maxY() + dy, b.maxZ() + dz);
     }
 
     private boolean isMergable() {
@@ -142,7 +152,8 @@ public final class ItemEntity extends Entity {
     private void tryToMerge(ItemEntity other) {
         ItemStack mine = getItem(), theirs = other.getItem();
         if (java.util.Objects.equals(target, other.target) && areMergable(mine, theirs)) {
-            if (theirs.count() < mine.count()) merge(this, mine, other, theirs);
+            // Spigot·Paper 는 늘 이쪽으로 모은다(item-merge.always-into-ticking, 기본 켬 — T122-1). 끄면 바닐라
+            if (org.domi.furnace.server.config.EntityHandleSettings.current().itemMergeIntoTicking() || theirs.count() < mine.count()) merge(this, mine, other, theirs);
             else merge(other, theirs, this, mine);
         }
     }

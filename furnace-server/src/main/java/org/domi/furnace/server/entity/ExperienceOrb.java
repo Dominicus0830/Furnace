@@ -38,6 +38,22 @@ public final class ExperienceOrb extends Entity {
 
     public int count() { return count; }
 
+    /**
+     * Spigot·Paper 경험치 합치기(merge-radius.exp, T-122 — CraftEventFactory.doEntityAddEventCalling, 스폰 이벤트 뒤·추적 전): 새로 넣는 이 구슬이
+     * 상자 inflate(r, r, r) 안의 count 가 같은 구슬 값을 흡수하고 그 구슬을 지운다. 합이 int 를 넘으면 그 구슬은 건너뛴다.
+     * Paper 의 experience-merge-max-value 는 기본(-1, 상한 없음)만 따른다. r 이 0 이하(기본)면 부르지 않는다 — 바닐라.
+     */
+    public void absorbNearbyOnSpawn(ChunkLevel level, double r) {
+        for (Entity e : level.getEntitiesOfType(ExperienceOrb.class, boundingBox().inflate(r, r, r), x -> x != this)) {
+            ExperienceOrb o = (ExperienceOrb) e;
+            if (o.isRemoved() || o.count != count) continue;
+            long total = (long) value + (long) o.value;
+            if ((int) total < 0) continue;
+            value = (int) total;
+            o.discard();
+        }
+    }
+
     /** 클라이언트에 보내는 값은 합친 개수를 뺀 이 구슬 하나의 값(add_experience_orb 의 short). */
     @Override
     public org.domi.furnace.server.net.protocol.Packet customSpawnPacket(double bx, double by, double bz) {

@@ -2691,6 +2691,10 @@ public abstract class ChunkLevel implements BlockLevel {
         }
         // 처리기가 옮겼으면 구역 목록을 맞춘다 — 추적기가 없는 동안에는 setPosRaw 가 구역 이동을 알리지 않는다(Paper 도 이벤트 뒤 위치로 넣는다)
         if (e.sectionKey() != addedKey) entities.moved(e);
+        if (e instanceof org.domi.furnace.server.entity.ExperienceOrb orb) {   // Spigot·Paper merge-radius.exp(T-122, 기본 끔 = 바닐라)
+            double r = org.domi.furnace.server.config.EntityHandleSettings.current().expMerge();
+            if (r > 0) orb.absorbNearbyOnSpawn(this, r);
+        }
         // 번호 색인이 추적 시작(=보는 플레이어에게 스폰 묶음 보내기)보다 먼저다 — 바닐라·Paper 도 visibleEntityStorage(EntityLookup)에 넣은 뒤
         // onTrackingStart 로 추적한다. 거꾸로면 네트워크 스레드의 패킷 리스너(ProtocolLib getEntityFromID)가 막 생긴 엔티티를 못 찾는다(T-160).
         indexEntity(e, true);
@@ -2748,9 +2752,13 @@ public abstract class ChunkLevel implements BlockLevel {
         return true;
     }
 
-    /** ChunkMap.addEntity: 추적 거리(종류 × 16 × 방송 비율) 가 0 이면 추적하지 않는다. */
+    /**
+     * ChunkMap.addEntity: 추적 거리(종류 × 16 → Spigot·Paper TrackingRange(T-122, entity-tracking-range.*) → × 방송 비율)가 0 이면 추적하지 않는다.
+     * 거리는 추적을 시작할 때 한 번 정한다(바닐라·Paper 와 같다).
+     */
     protected void startTracking(Entity e) {
-        int range = e.type().clientTrackingRange() * 16;
+        int range = org.domi.furnace.server.entity.EntityTrackingRange.of(e, e.type().clientTrackingRange() * 16,
+                org.domi.furnace.server.config.EntityHandleSettings.current());
         if (range == 0) return;
         e.tracker = new EntityTracker(e, services().entityBroadcastRangePercentage() * range / 100);
         maxTrackRange = Math.max(maxTrackRange, e.tracker.range());

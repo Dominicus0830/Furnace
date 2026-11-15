@@ -240,7 +240,7 @@
 
 | ID | 우선 | 관점 | 내용 | 출처 | 근거·증명 | 크기 | 모델 | 의존 | 파일 |
 |---|---|---|---|---|---|---|---|---|---|
-| T-122 | P1 | ADD | Spigot·Paper 엔티티 손잡이 4종을 위 표의 Paper 기본값으로: `merge-radius.item`·`merge-radius.exp`(spigot.yml 이름), `collisions.max-entity-collisions`(paper-world-defaults 이름), `entity-tracking-range.*`(Paper 의 물·주민=동물 범위, 드래곤 예외 포함). D11 과 같은 설정 클래스·`PaperConfigImport` 규칙·`config.preset=vanilla` 에서 바닐라 값. 바닐라와 다른 두 개(밀기 상한·추적 거리)는 PR 본문에 예외로 명시 | P-O05-17, 2차 B3-1 | 시험 JVM 기본은 바닐라 값(D11 의 `EntityActivationOffExtension` 방식)이라 기존 금 파일 그대로. 새 장면(몹 20마리 한 칸 밀기, 추적 거리 경계)으로 켬/끔 차이 금 파일. 합치기 둘은 기본값이 바닐라와 같음을 시험으로 고정. 측정: 밀기 1.6%·추적 3.8~4.1%(봇 16명 땅), 몹 농장 장면에서 다시 잼 | M | Sonnet high | D11(#326) | entity/, config/EntityActivationSettings 옆, PaperConfigImport |
+| T-122 | P1(**구현 — PR, 2026-11-15**) | ADD | Spigot·Paper 엔티티 손잡이 4종을 위 표의 Paper 기본값으로: `merge-radius.item`·`merge-radius.exp`(spigot.yml 이름), `collisions.max-entity-collisions`(paper-world-defaults 이름), `entity-tracking-range.*`(Paper 의 물·주민=동물 범위, 드래곤 예외 포함). D11 과 같은 설정 클래스·`PaperConfigImport` 규칙·`config.preset=vanilla` 에서 바닐라 값. 바닐라와 다른 두 개(밀기 상한·추적 거리)는 PR 본문에 예외로 명시 | P-O05-17, 2차 B3-1 | 시험 JVM 기본은 바닐라 값(D11 의 `EntityActivationOffExtension` 방식)이라 기존 금 파일 그대로. 새 장면(몹 20마리 한 칸 밀기, 추적 거리 경계)으로 켬/끔 차이 금 파일. 합치기 둘은 기본값이 바닐라와 같음을 시험으로 고정. 측정: 밀기 1.6%·추적 3.8~4.1%(봇 16명 땅), 몹 농장 장면에서 다시 잼 | M | Sonnet high | D11(#326) | entity/, config/EntityActivationSettings 옆, PaperConfigImport |
 
 ## 9. 60명 동시 새 땅 탐험 (2026-11-14)
 
@@ -292,6 +292,7 @@ T-150(①+②)·T-151 은 PR #362 로 끝났다(명령 59종 0.1~17ms, `CommandS
 | T-193 | — | FIX(호환) | FAWE 가 접속·상호작용마다 부르던 Bukkit API: `Material.isLegacy()`, `Player.isSneaking()`, `org.bukkit.Effect` | 도미니코 기동 로그 | **병합(PR #364)** — 남은 FAWE API 목록은 T-141 스레드가 맡는다 | S | — | — | Bukkit API |
 | T-194 | P2 | 측정 도구 | ProtocolLib Probe 를 수동 도구로(`tools/compat-probe/`, jar 경로를 인자로, 결과 표를 고치기 전·뒤 비교). jar 는 커밋하지 않음 | 감사 1장 | 위 TASK 의 회귀 확인. CI 에는 넣지 않음 | S | Sonnet medium | — | tools |
 | T-195 | P1 | FIX(호환) | 메타데이터 값 종류 vector3·quaternion·optional_global_pos 두 방향(JOML 을 호환 로더에, 필요할 때 내려받기 — 바닐라 libraries.list 에 있음) | PR #367 검토 R4 | 디스플레이 엔티티 홀로그램(텍스트 디스플레이 scale·translation·회전)과 회복 나침반 위치 메타데이터가 리스너·플러그인 보내기에서 동작. 증명: 종류별 왕복 + 클라이언트 바이트 | M | Sonnet high | — | EntityDataBridge, EntityDataSerializers |
+| T-196 | P1 | ADD(호환) | 다른 region·다른 차원으로의 엔티티 `teleport()`: API 는 지금처럼 동기처럼 보이게 두고(Paper 처럼 `true`/`false` 와 `teleportAsync` Future), 안에서 현재 소유 region 이 엔티티를 떼어 도착지를 소유한 region 스레드에 넘긴다(핸드오프). **도미니코 승인 11-15** | `docs/user-todo/entries/2026-11-08-movement.md` 결정 | 플러그인이 `/tp`·`/warp`·`teleport(otherWorldLocation)` 를 먼 곳으로 불러도 Paper 처럼 성공하고 `true`. 증명: 같은 region·다른 region·다른 차원·탈것·승객 조합에서 이동 뒤 엔티티 수·NBT·이벤트 순서가 Paper 규칙과 같고, 핸드오프 도중 청크 언로드·접속 종료·사망에도 엔티티 복제·소실 없음(경합 시험) | M~L | Opus high | T-141 | Entity, Region, CraftEntity |
 
 여는 순서(D2 확정 11-15: P0 먼저, T-141 병행): T-180 과 T-181 을 먼저 병렬로(파일이 다름), T-184 는 T-181 과 shimgen 이 겹치므로 같은 스레드나 바로 뒤. T-182 는 T-180 뒤. T-193 은 PR #364 로 끝났다. 나머지 P1 은 파일이 안 겹치게 둘씩.
 

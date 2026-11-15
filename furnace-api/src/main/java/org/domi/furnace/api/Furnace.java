@@ -144,7 +144,11 @@ public interface Furnace {
 
     FurnaceScheduler scheduler();
 
-    /** 블로킹 작업용 실행기(가상 스레드). */
+    /**
+     * 블로킹 작업(파일·DB·HTTP)용 실행기. 기본은 이름 붙은 플랫폼 스레드 풀("Furnace Async Thread - N", Paper 비동기 스케줄러와 같은 모양 —
+     * {@code synchronized} 안에서 기다리는 옛 JDBC 드라이버도 다른 작업을 막지 않는다). 서버 설정 {@code plugins.async-threads=virtual} 이면 가상 스레드.
+     * 어느 쪽이든 월드·엔티티는 스케줄러로 넘겨 만진다.
+     */
     Executor asyncExecutor();
 
     /**

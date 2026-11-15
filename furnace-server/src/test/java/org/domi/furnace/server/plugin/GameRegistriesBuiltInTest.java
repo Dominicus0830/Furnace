@@ -3,10 +3,27 @@ package org.domi.furnace.server.plugin;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.domi.furnace.server.item.ItemContext;
+import org.domi.furnace.server.net.registry.TagSet;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /** GameRegistries.builtIn: 바닐라 1.21.1 reports/registries.json 의 protocol_id 순(NMS 호환 레지스트리 shim 의 바탕). */
 class GameRegistriesBuiltInTest {
+
+    // 태그 보기는 ItemContext 에 걸린 태그를 읽는다. 같은 JVM 의 앞선 시험(조리법 시험 등)이 합성 태그를 걸어 둔 채면 순서에 따라 깨졌다 —
+    // 이 시험은 "걸린 태그 없음 → 바닐라 태그" 경로를 보므로 비우고, 끝나면 되돌린다.
+    private TagSet saved;
+
+    @BeforeEach
+    void clearTags() {
+        saved = ItemContext.tagSet();
+        ItemContext.installTags(null);
+    }
+
+    @AfterEach
+    void restoreTags() { ItemContext.installTags(saved); }
 
     @Test
     void builtInListsFollowVanillaProtocolOrder() {

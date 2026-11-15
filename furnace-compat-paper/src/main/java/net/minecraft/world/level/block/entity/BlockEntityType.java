@@ -1,34 +1,38 @@
 package net.minecraft.world.level.block.entity;
 
-import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * 블록 엔티티 종류(Mojang 이름 shim, N2b-6). 종류 이름(키)과 "이 블록 상태에 붙을 수 있는가"만 둔다 — 생성기·레지스트리 상수는 없다.
- * 같은 키는 같은 객체다(호환 모듈 전용 {@link #furnaceOf}).
+ * 블록 엔티티 종류 shim(Mojang 이름, T-182). 지금은 레지스트리 값으로만 쓴다 — 청크 패킷의 블록 엔티티 항목(ClientboundLevelChunkPacketData.BlockEntityInfo)과
+ * {@code BuiltInRegistries.BLOCK_ENTITY_TYPE}. 종류 상수(CHEST 등)·블록 엔티티 만들기는 아직 없다.
  */
-public class BlockEntityType<T extends BlockEntity> {
+public final class BlockEntityType<T> {
 
-    private static final ConcurrentHashMap<String, BlockEntityType<?>> BY_KEY = new ConcurrentHashMap<>();
+    private final ResourceLocation id;
 
-    private final ResourceLocation key;
+    /** 이 모듈 전용(레지스트리가 만든다). */
+    public BlockEntityType(ResourceLocation id) { this.id = id; }
 
-    private BlockEntityType(ResourceLocation key) { this.key = key; }
-
-    /** 호환 모듈 전용 - 키("minecraft:chest")로 종류를 찾는다(없으면 만든다). */
-    public static BlockEntityType<?> furnaceOf(String key) {
-        return BY_KEY.computeIfAbsent(key, k -> new BlockEntityType<>(ResourceLocation.parse(k)));
+    /** 바닐라: 레지스트리 이름(없으면 null). */
+    public static ResourceLocation getKey(BlockEntityType<?> type) {
+        return net.minecraft.core.registries.BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(type);
     }
 
-    /** 바닐라 getKey: 종류의 레지스트리 키. */
-    public static ResourceLocation getKey(BlockEntityType<?> type) { return type.key; }
+    /** 이 모듈 전용: 이름("minecraft:chest"). */
+    public ResourceLocation furnaceId() { return id; }
 
-    /** 바닐라 isValid: 그 블록 상태의 블록이 이 종류의 블록인가(서버 표 기준). */
-    public boolean isValid(BlockState state) {
-        return key.toString().equals(org.domi.furnace.compat.nms.NmsBlockStates.bridge().blockEntityType(state.furnaceStateId()));
+    /** 호환 모듈 전용(N2b-6): 키("minecraft:chest")의 레지스트리 값. 모르는 키면 IllegalArgumentException. */
+    public static BlockEntityType<?> furnaceOf(String key) {
+        BlockEntityType<?> t = net.minecraft.core.registries.BuiltInRegistries.BLOCK_ENTITY_TYPE.get(ResourceLocation.parse(key));
+        if (t == null) throw new IllegalArgumentException("모르는 블록 엔티티 종류: " + key);
+        return t;
+    }
+
+    /** 바닐라 isValid: 그 블록 상태의 블록이 이 종류의 블록인가(서버 표 기준, N2b-6). */
+    public boolean isValid(net.minecraft.world.level.block.state.BlockState state) {
+        return id.toString().equals(org.domi.furnace.compat.nms.NmsBlockStates.bridge().blockEntityType(state.furnaceStateId()));
     }
 
     @Override
-    public String toString() { return "BlockEntityType{" + key + "}"; }
+    public String toString() { return "BlockEntityType[" + id + "]"; }
 }

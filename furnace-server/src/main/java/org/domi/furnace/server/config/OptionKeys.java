@@ -3,6 +3,8 @@
 // 규칙(R4, docs/feature-parity/option-keys-2026-11-07.md):
 //   1. 새 옵션의 기본값은 바닐라와 같은 동작이다.
 //      예외: entity-activation-range.enabled(기본 켜짐 — Spigot·Paper 와 같다. 도미니코 결정 D11, 2026-11-14). 끄면 바닐라.
+//      예외: collisions.max-entity-collisions(기본 8)·entity-tracking-range.enabled·item-merge.always-into-ticking·collisions.skip-unpushable(기본 켜짐)·collisions.allow-player-cramming-damage(기본 꺼짐)
+//      — Paper 1.21.1 과 같다(결정 B3-1·T122-1, T-122). -1·false 면 바닐라.
 //   2. 모든 새 옵션은 키로 ON/OFF 또는 수치를 바꿀 수 있다(코드 상수·-D 시스템 속성만으로 두지 않는다).
 //   3. 잘못된 값(true/false 가 아닌 글자, 범위 밖 수)은 조용히 넘기지 않고 기동 때 어느 키가 문제인지 알리며 멈춘다.
 //   4. 위험한 값(보안·바닐라와 다른 게임 속도 등)은 시작 로그에 경고한다 — {@link #audit}.
@@ -115,6 +117,7 @@ public final class OptionKeys {
             new Option("plugins.compat.nms.spigot-mappings.files", "글자", "", "경로 구분자로 이은 세 파일", "spigot-mappings=files 일 때 쓰는 Mojang server.txt, Spigot 클래스 csrg, Spigot 멤버 csrg 경로"),
             new Option("plugins.chunk-tickets.max-per-plugin", "수", "16384", "1~100000000", "플러그인 하나가 청크 티켓으로 붙잡을 수 있는 청크 수 상한(겹침 포함)"),
             new Option("plugins.compat.config.paper-default-separator", "ON/OFF", "false", "true|false", "플러그인이 options().pathSeparator 를 바꿨을 때 addDefault 기본값 트리를 Paper 처럼 언제나 '.' 로 쪼갠다(getDefaults() 구분자도 '.'). 끄면(기본) 플러그인이 정한 구분자로 쪼갠다 — 켜면 저장 파일 모양·contains·getKeys 와 setDefaults 와 섞어 쓸 때·저장 뒤 다시 읽을 때의 값도 Paper 와 같아진다(Paper 처럼 다시 읽으면 기본값이 빠질 수 있다)"),
+            new Option("plugins.async-threads", "글자", "platform", "platform|virtual", "Furnace 플러그인 비동기 작업(asyncExecutor·PluginTasks.async)을 도는 스레드 — platform: 이름 붙은 플랫폼 스레드 풀 \"Furnace Async Thread - N\"(Paper 비동기 스케줄러와 같은 모양, synchronized 안에서 기다리는 옛 DB 드라이버에도 안전), virtual: 가상 스레드"),
             new Option("plugins.compat.scheduler.async-threads", "글자", "platform", "platform|virtual", "Bukkit 비동기 작업(runTaskAsynchronously 등)을 도는 스레드 — platform: 이름 붙은 플랫폼 스레드 풀(Paper 와 같은 모양, synchronized 안에서 기다리는 옛 DB 드라이버에도 안전), virtual: 가상 스레드"),
             new Option("plugins.compat.libraries", "글자", "needed", "needed|all|off", "Paper 가 싣는 라이브러리(Guava·Adventure·SnakeYAML·Brigadier 등)를 호환 플러그인이 쓸 때만(needed)·호환 플러그인이 있으면 전부(all) 받아 준다, off 는 안 받는다"),
             new Option("plugins.compat.libraries.mojang", "ON/OFF", "true", "true|false", "Brigadier·authlib·DataFixerUpper 를 Mojang 저장소(libraries.minecraft.net)에서 받는다"),
@@ -141,6 +144,24 @@ public final class OptionKeys {
                 "엔티티 활성 범위(Spigot·Paper 와 같은 방식). 켜면(기본) 플레이어에게서 먼 몹이 AI·이동을 대부분 건너뛰어 바닐라와 결과가 다르다. false = 바닐라"));
         for (String[] k : EntityActivationSettings.INT_KEYS) out.add(new Option(ear + k[0], "수", k[1], "정수", "활성 범위: " + k[2]));
         for (String[] k : EntityActivationSettings.BOOL_KEYS) out.add(new Option(ear + k[0], "ON/OFF", k[1], "true|false", "활성 범위: " + k[2]));
+        // 엔티티 손잡이(T-122) — 기본은 Paper 1.21.1 값. 밀기 상한·추적 거리는 바닐라와 다르다(B3-1 결정)
+        out.add(new Option(EntityHandleSettings.ITEM_MERGE, "수", "0.5", "0 이상(소수)",
+                "아이템 합치기 반경(블록, Spigot 식 상자 inflate(r, r-0.5, r)). 0.5 = 바닐라·Paper 기본"));
+        out.add(new Option(EntityHandleSettings.EXP_MERGE, "수", "-1", "소수(0 이하 = 끔)",
+                "경험치 구슬 합치기 반경(블록). 0 이하(기본) = 바닐라. 켜면 새 구슬이 반경 안 같은 count 구슬의 값을 흡수한다(Spigot·Paper)"));
+        out.add(new Option(EntityHandleSettings.MAX_COLLISIONS, "수", "8", "-1 이상",
+                "생물 하나가 한 틱에 미는 엔티티 수 상한(Paper 기본 8 — 바닐라와 다름). -1 = 제한 없음(바닐라), 0 = 밀지 않음"));
+        out.add(new Option(EntityHandleSettings.TRACKING + "enabled", "ON/OFF", "true", "true|false",
+                "종류별 추적 거리(Spigot·Paper, 기본 켜짐 — 바닐라와 다름). false = 바닐라(종류마다 clientTrackingRange × 16)"));
+        for (String[] k : EntityHandleSettings.TRACKING_KEYS) {
+            out.add(new Option(EntityHandleSettings.TRACKING + k[0], "수", k[1], "0 이상", "추적 거리(블록): " + k[2] + ". 0 = 보내지 않음"));
+        }
+        out.add(new Option(EntityHandleSettings.ITEM_MERGE_INTO_TICKING, "ON/OFF", "true", "true|false",
+                "아이템을 합칠 때 늘 틱을 도는 쪽으로 모은다(Spigot·Paper, 기본 켬 — 바닐라와 다름). false = 바닐라(적은 쪽을 많은 쪽에)"));
+        out.add(new Option(EntityHandleSettings.SKIP_UNPUSHABLE, "ON/OFF", "true", "true|false",
+                "밀 수 없는 생물(사다리에 매달림·관전자 등)은 남을 밀지 않고 cramming 피해도 없음(Paper, 기본 켬 — 바닐라와 다름). false = 바닐라"));
+        out.add(new Option(EntityHandleSettings.PLAYER_CRAMMING, "ON/OFF", "false", "true|false",
+                "플레이어가 maxEntityCramming 피해를 받는가(Paper 기본 false — 바닐라와 다름). true = 바닐라"));
         for (String s : STATES) {
             out.add(new Option("connection." + s + ".packets-per-second", "수", "200", "0~1000000", s + " 단계 초당 패킷 평균 상한(0 = 제한 없음)"));
             out.add(new Option("connection." + s + ".packets-burst", "수", "400", "1~10000000", s + " 단계 순간 패킷 상한"));

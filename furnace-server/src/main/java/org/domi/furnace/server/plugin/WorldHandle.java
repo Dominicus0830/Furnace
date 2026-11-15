@@ -415,17 +415,51 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
             }
         }
         if (generate) return loadOnOwner(cp);
-        // 생성하지 않음: 올라와 있으면 그대로, 아니면 그 지역 파일 레인에서 디스크에 있는지 본다(앞선 저장 뒤에 줄 선다)
-        return world.submitAtChunk(cp, r -> r.chunkLoaded(cp)).thenCompose(loaded -> {
-            if (loaded) return loadOnOwner(cp);
-            if (!(world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource anvil)) return world.submitAtChunk(cp, r -> false);
-            return CompletableFuture.supplyAsync(() -> {
+        // 생성하지 않음: 올라와 있으면 그대로, 아니면 그 지역 파일 레인에서 디스크에 있는지 본다(앞선 저장 뒤에 줄 선다).
+        // 사슬은 주인 작업 안에서 잇는다 — 호출 스레드에서 thenCompose 로 이으면 앞 단계가 먼저 끝났을 때 다음 단계와 결과가
+        // 호출 스레드에서 돌고 끝난다(T-161: BukkitChunkAsyncTest 가 "없음(false)" 결과를 시험 스레드에서 받은 흔들림).
+        CompletableFuture<Boolean> out = new CompletableFuture<>();
+        world.submitAtChunk(cp, r -> {
+            if (r.chunkLoaded(cp)) {
+                loadOnOwner(cp, out);
+                return null;
+            }
+            if (!(world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource anvil)) {
+                out.complete(false);
+                return null;
+            }
+            CompletableFuture.supplyAsync(() -> {
                 try {
                     return anvil.store().hasChunk(chunkX, chunkZ);
                 } catch (java.io.IOException e) {
                     throw new java.io.UncheckedIOException(e);
                 }
-            }, world.ioLane(chunkX, chunkZ)).thenCompose(onDisk -> onDisk ? loadOnOwner(cp) : world.submitAtChunk(cp, r -> false));
+            }, world.ioLane(chunkX, chunkZ)).whenComplete((onDisk, ex) -> {
+                if (ex != null) failOnOwner(cp, out, ex);   // 디스크 확인 실패도 주인 스레드에서 끝낸다(PR #401 검토 N2)
+                else if (onDisk) loadOnOwner(cp, out);
+                else completeOnOwner(cp, out, false);
+            });
+            return null;
+        }).exceptionally(ex -> {   // 내린 월드·주인 작업이 던짐
+            out.completeExceptionally(ex);
+            return null;
+        });
+        return out;
+    }
+
+    /** 그 청크 주인 region 스레드에서 out 을 value 로 끝낸다. */
+    private void completeOnOwner(ChunkPos cp, CompletableFuture<Boolean> out, boolean value) {
+        world.submitAtChunk(cp, r -> out.complete(value)).exceptionally(ex -> {
+            out.completeExceptionally(ex);
+            return null;
+        });
+    }
+
+    /** 그 청크 주인 region 스레드에서 out 을 cause 로 실패시킨다(내린 월드면 그 거절로). */
+    private void failOnOwner(ChunkPos cp, CompletableFuture<Boolean> out, Throwable cause) {
+        world.submitAtChunk(cp, r -> out.completeExceptionally(cause)).exceptionally(ex -> {
+            out.completeExceptionally(cause);
+            return null;
         });
     }
 
@@ -449,6 +483,11 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
      */
     private CompletableFuture<Boolean> loadOnOwner(ChunkPos cp) {
         CompletableFuture<Boolean> out = new CompletableFuture<>();
+        loadOnOwner(cp, out);
+        return out;
+    }
+
+    private void loadOnOwner(ChunkPos cp, CompletableFuture<Boolean> out) {
         world.submitAtChunk(cp, r -> r.loadChunk(cp).whenComplete((col, ex) -> {
             if (ex != null) {
                 out.completeExceptionally(ex);
@@ -460,7 +499,6 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
             out.completeExceptionally(ex);
             return null;
         });
-        return out;
     }
 
     // ------------------------------------------------------------------ 엔티티

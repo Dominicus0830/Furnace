@@ -34,6 +34,7 @@ public class ConfigurationSerialization {
         registerClass(org.bukkit.craftbukkit.inventory.SerializableMeta.class);
         registerClass(org.bukkit.Color.class);
         registerClass(org.bukkit.FireworkEffect.class);
+        registerClass(org.bukkit.block.banner.Pattern.class);
         registerClass(org.bukkit.attribute.AttributeModifier.class);
         // Paper 기본 등록 가운데 호환 계층에 있는 것(A15-01) — 별칭과 클래스 이름 둘 다로 되읽힌다
         registerClass(org.bukkit.util.Vector.class);

@@ -29,5 +29,6 @@ public final class BuiltInRegistries {
     public static final DefaultedRegistry<Fluid> FLUID = NmsFluids.registry();
     public static final Registry<SoundEvent> SOUND_EVENT = NmsSounds.registry();
     public static final Registry<MobEffect> MOB_EFFECT = NmsMobEffects.registry();
+    public static final Registry<net.minecraft.world.level.block.entity.BlockEntityType<?>> BLOCK_ENTITY_TYPE = org.domi.furnace.compat.nms.NmsBlockEntityTypes.registry();
     public static final Registry<MapDecorationType> MAP_DECORATION_TYPE = NmsMapDecorations.registry();
 }

@@ -3539,7 +3539,9 @@ public final class Region {
 
     private void updateVisibility(Player a, List<EntityView> candidates) {
         syncTabList(a);
-        double range = world.effectiveEntityChunks() * 16.0;
+        // 바닐라 TrackedEntity.updatePlayer: min(플레이어 추적 거리 × 방송 비율, 시야 × 16). 플레이어 추적 거리는 바닐라 512, Paper 기본 128(T-122)
+        int playerRange = org.domi.furnace.server.config.EntityHandleSettings.current().playerRange() * world.levelServices().entityBroadcastRangePercentage() / 100;
+        double range = Math.min(world.effectiveEntityChunks() * 16.0, playerRange);
         java.util.Set<Integer> seen = new java.util.HashSet<>();
         for (EntityView b : candidates) {
             if (b.entityId() == a.entityId()) continue;

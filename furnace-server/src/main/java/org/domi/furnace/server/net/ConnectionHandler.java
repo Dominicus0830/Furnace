@@ -932,19 +932,25 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         this.profileProperties = profile.properties();
         org.domi.furnace.server.ServerCore core = login.core;
         if (core != null && core.events().hasSubscribers(org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent.class)) {
-            // 플러그인이 블로킹 작업(DB 등)을 해도 되도록 가상 스레드에서 부르고, 결과를 들고 연결 스레드로 돌아온다.
+            // 플러그인이 블로킹 작업(DB 등)을 해도 되도록 접속 이벤트 전용 플랫폼 스레드("User Authenticator #N", Paper 와 같은 풀 모양)에서
+            // 부르고, 결과를 들고 연결 스레드로 돌아온다. 플러그인 비동기 실행기와 나눠 두어 그쪽이 밀려도 접속이 줄 서지 않는다(T-034).
             java.net.InetAddress addr = clientAddress(ctx) instanceof java.net.InetSocketAddress isa ? isa.getAddress() : null;
-            core.plugins().asyncExecutor().execute(() -> {
-                var ev = core.events().call(new org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent(profile.name(), profile.id(), addr, info));
-                ctx.channel().eventLoop().execute(() -> {
-                    if (!ctx.channel().isActive()) return;
-                    if (ev.result() != org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent.Result.ALLOWED) {
-                        disconnect(ctx, ev.kickMessage());
-                        return;
-                    }
-                    finishVerifying(ctx, profile);
+            java.util.concurrent.Executor loginEvents = core.plugins().loginEventExecutor();
+            try {
+                loginEvents.execute(() -> {
+                    var ev = core.events().call(new org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent(profile.name(), profile.id(), addr, info));
+                    ctx.channel().eventLoop().execute(() -> {
+                        if (!ctx.channel().isActive()) return;
+                        if (ev.result() != org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent.Result.ALLOWED) {
+                            disconnect(ctx, ev.kickMessage());
+                            return;
+                        }
+                        finishVerifying(ctx, profile);
+                    });
                 });
-            });
+            } catch (java.util.concurrent.RejectedExecutionException closed) {
+                disconnect(ctx, Text.translatable("multiplayer.disconnect.server_shutdown"));   // 서버 종료 중(실행기가 닫혔다)
+            }
             return;
         }
         finishVerifying(ctx, profile);
@@ -1071,7 +1077,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /**
      * 구성 작업이 다 끝났다 → 구성 끝(FinishConfiguration). 플러그인 AsyncPlayerConfigureEvent 구독자가 있으면 처음 한 번은
-     * 가상 스레드에서 이벤트를 부르고(블로킹 허용) 돌아와서 보낸다 — 기다리는 동안 구성 keep-alive 로 클라이언트 시간 초과를 막는다.
+     * 접속 이벤트 전용 플랫폼 스레드("User Authenticator #N", T-034)에서 이벤트를 부르고(블로킹 허용) 돌아와서 보낸다 — 기다리는 동안 구성 keep-alive 로 클라이언트 시간 초과를 막는다.
      * 구독자가 없으면 바닐라와 똑같이 바로 보낸다.
      */
     private void finishConfiguration(ChannelHandlerContext ctx) {
@@ -1081,7 +1087,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             configureEventFired = true;
             awaitingConfigure = true;
             try {
-                core.plugins().asyncExecutor().execute(() -> {
+                core.plugins().loginEventExecutor().execute(() -> {
                     org.domi.furnace.api.event.player.AsyncPlayerConfigureEvent ev = null;
                     boolean run;
                     synchronized (configureLock) {   // 연결이 이미 끊겼으면 돌리지 않고, 돌리는 동안 끊기면 channelInactive 가 인터럽트로 깨운다
@@ -1117,7 +1123,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     }
                 });
             } catch (java.util.concurrent.RejectedExecutionException closed) {
-                awaitingConfigure = false;   // 플러그인 실행기가 닫혔다(종료 중) — 이벤트 없이 진행
+                awaitingConfigure = false;   // 접속 이벤트 실행기가 닫혔다(종료 중) — 이벤트 없이 진행
                 sendFinishConfiguration(ctx);
                 return;
             }
@@ -5193,7 +5199,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             } catch (RuntimeException e) {
                 title = Text.translatable("container.beacon");
             }
-            if (!canUnlock(p, held, beacon.lock, title)) return null;   // BeaconBlockEntity.createMenu
+            if (!canUnlock(p, held, level.world().dimension(), pos, beacon.lock, title)) return null;   // BeaconBlockEntity.createMenu
             return new OpenSpec(null, null, null, title, null, beacon);
         }
         if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.LecternBlockEntity lectern) {
@@ -5216,8 +5222,14 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             }
         }
         // BaseContainerBlockEntity.canOpen(잠금) — 큰 상자는 첫째부터(DoubleInventory.createMenu 의 &&), 막히면 전리품도 풀지 않는다
-        if (!canUnlock(p, held, first.lock, first.displayName())) return null;
-        if (second != null && !canUnlock(p, held, second.lock, second.displayName())) return null;
+        if (!canUnlock(p, held, level.world().dimension(), first.pos(), first.lock, first.displayName())) return null;
+        if (second != null && !canUnlock(p, held, level.world().dimension(), second.pos(), second.lock, second.displayName())) return null;
+        // RandomizableContainerBlockEntity.canOpen: 전리품 표가 남은 용기는 관전자가 못 연다(풀지도 않는다) →
+        // ServerPlayer.openMenu 가 메뉴 없음 + 관전자면 빨간 container.spectatorCantOpen 액션 바
+        if (p.isSpectator() && (first.lootTable != null || second != null && second.lootTable != null)) {
+            p.sendSystemMessage(Text.translatable("container.spectatorCantOpen").color(org.domi.furnace.api.text.NamedTextColor.RED), true);
+            return null;
+        }
         var core = login.core;
         for (var c : second == null ? java.util.List.of(first) : java.util.List.of(first, second)) {
             if (c.lootTable != null && core != null) {
@@ -5228,20 +5240,45 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         return new OpenSpec(first, second, null, containerTitle(first, second), null, null);
     }
 
+    /** 바닐라 잠금 알림 소리(SoundEvents.CHEST_LOCKED, BLOCKS, 1, 1). */
+    private static final org.domi.furnace.api.audience.Sound CHEST_LOCKED =
+            org.domi.furnace.api.audience.Sound.sound("minecraft:block.chest.locked", org.domi.furnace.api.audience.Sound.Source.BLOCK);
+
     /**
-     * BaseContainerBlockEntity.canUnlock: 관전자이거나 든 아이템이 열쇠면 연다. 아니면 "container.isLocked"(액션 바)와 block.chest.locked 소리를
-     * 그 플레이어에게만(playNotifySound — 씨앗은 플레이어 난수) 보내고 막는다.
+     * BaseContainerBlockEntity.canUnlock(Paper BlockLockCheckEvent 판): 관전자이거나 든 아이템이 열쇠면 연다. 아니면 "container.isLocked"(액션 바)와
+     * block.chest.locked 소리를 그 플레이어에게만(playNotifySound — 씨앗은 플레이어 난수) 보내고 막는다. 구독자가 있으면 이벤트가 결과(ALLOW·DENY)·
+     * 열쇠·알림 글·소리를 바꿀 수 있다 — 잠기지 않은 블록·관전자에게도 불린다(Paper 와 같다). held 는 누를 때의 주 손(null 이면 지금 손).
      */
-    private static boolean canUnlock(Player p, ItemStack held, String lock, Text displayName) {
-        if (p.isSpectator() || org.domi.furnace.server.block.entity.ContainerBlockEntity.unlocksWith(lock, held != null ? held : p.inventory().get(p.inventory().heldWindowSlot()))) return true;
-        p.sendSystemMessage(Text.translatable("container.isLocked", displayName), true);
-        // 플레이어 난수는 그 플레이어의 region 스레드에서만 — 큰 상자를 경계 너머에서 연 드문 경우는 씨앗만 따로(소리 한 가지라 들리는 것은 같다)
+    private boolean canUnlock(Player p, ItemStack held, String dim, org.domi.furnace.server.block.Pos pos, String lock, Text displayName) {
+        ItemStack key = held != null ? held : p.inventory().get(p.inventory().heldWindowSlot());
+        var c = login.core;
+        var events = c == null ? null : c.gameEvents();
+        // 구독자가 없으면 이벤트도 알림 글도 만들지 않는다(막힐 때만 글을 만든다)
+        var ev = events == null || !events.wantsBlockLockCheck() ? null
+                : events.blockLockCheck(p, dim, pos, lock, key, Text.translatable("container.isLocked", displayName), CHEST_LOCKED);
+        if (ev == null) {
+            if (p.isSpectator() || org.domi.furnace.server.block.entity.ContainerBlockEntity.unlocksWith(lock, key)) return true;
+            denyLocked(p, Text.translatable("container.isLocked", displayName), CHEST_LOCKED);
+            return false;
+        }
+        var result = ev.result();
+        if (result == org.domi.furnace.api.event.block.BlockLockCheckEvent.Result.ALLOW) return true;
+        if (result == org.domi.furnace.api.event.block.BlockLockCheckEvent.Result.DENY || (!p.isSpectator()
+                && !org.domi.furnace.server.block.entity.ContainerBlockEntity.unlocksWith(lock,
+                        ev.isUsingCustomKeyItem() ? org.domi.furnace.server.plugin.ApiConvert.item(ev.keyItem(), world.itemRegistry()) : key))) {
+            denyLocked(p, ev.lockedMessage(), ev.lockedSound());
+            return false;
+        }
+        return true;
+    }
+
+    /** 막힌 알림: 글은 액션 바, 소리는 그 플레이어 자리에서 그 플레이어에게만. null 이면 보내지 않는다. */
+    private static void denyLocked(Player p, Text message, org.domi.furnace.api.audience.Sound sound) {
+        if (message != null) p.sendSystemMessage(message, true);
+        if (sound == null) return;
+        // 플레이어 난수는 그 플레이어의 region 스레드에서만 — 큰 상자를 경계 너머에서 연 드문 경우는 씨앗만 따로(들리는 소리 이름·크기는 같다)
         long seed = p.onOwnerThread() ? p.random().nextLong() : java.util.concurrent.ThreadLocalRandom.current().nextLong();
-        Integer sid = org.domi.furnace.server.item.ItemContext.installed()
-                ? org.domi.furnace.server.item.ItemContext.id("minecraft:sound_event", "minecraft:block.chest.locked") : null;
-        p.send(new org.domi.furnace.server.net.protocol.play.SoundPacket(sid == null ? -1 : sid, "minecraft:block.chest.locked",
-                org.domi.furnace.server.net.protocol.play.SoundPacket.source("blocks"), p.x(), p.y(), p.z(), 1.0F, 1.0F, seed));
-        return false;
+        p.send(org.domi.furnace.server.plugin.ApiEffects.soundAt(sound, p.x(), p.y(), p.z(), seed));
     }
 
     /** 제목: 첫째의 이름 → 둘째의 이름 → 더블이면 container.chestDouble, 아니면 그 종류의 기본 번역 키. */

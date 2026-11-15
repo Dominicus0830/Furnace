@@ -55,6 +55,7 @@
 | `PlayerItemHeldEvent` | 같은 이름 | 취소 |
 | `BlockPhysicsEvent`, `BlockFromToEvent`, `BlockBurnEvent`, `BlockIgniteEvent`, `LeavesDecayEvent` | 같은 이름 | 취소 |
 | `BlockRedstoneEvent` | 같은 이름 | 새 세기 |
+| `io.papermc.paper.event.block.BlockLockCheckEvent` | `BlockLockCheckEvent` | 결과(`ALLOW`·`DEFAULT`·`DENY`), 따로 정한 열쇠(`setKeyItem`·`resetKeyItem`). 용기·신호기를 열 때 잠기지 않았어도 불리고, 큰 상자는 반쪽마다(type=right 부터). 기본 열쇠는 누를 때 주 손. Adventure 판 알림 글·소리(`getLockedMessage`·`setLockedSound`·`denyWithMessageAndSound`)는 없다(NoSuchMethodError) — Furnace 이벤트의 `setLockedMessage`·`setLockedSound` 를 쓴다 |
 | `FurnaceBurnEvent` | 같은 이름 | 태우는 시간, 불붙음, 취소 |
 | `FurnaceSmeltEvent` (처리기 목록은 `BlockCookEvent`) | `FurnaceSmeltEvent` | 결과 아이템, 취소 |
 | `CraftItemEvent` (처리기 목록은 `InventoryClickEvent` — 클릭 처리기도 받는다) | `CraftItemEvent` | 취소. `getRecipe()` 는 키(`Keyed`)와 결과만 아는 레시피 |
@@ -130,6 +131,7 @@ Furnace 이벤트가 알리지 않는 값은 지어내지 않는다. 읽기는 �
 - **플레이어별 거리(T-141 E4c)**: `Player#get/setViewDistance`·`get/setSendViewDistance`·`get/setSimulationDistance`·`getClientViewDistance`, `World` 의 같은 이름들. 서버 값 이하로 낮추기만 Paper 공식대로 되고 넘는 값은 잘린다(경고) — `docs/api/view-distance.md`.
 - **블록 상태 영속 데이터·이름(T-141 E6)**: `TileState#getPersistentDataContainer`(스냅숏 — `update` 때 실림, NBT `PublicBukkitValues`, 저장·`/data` 에는 있고 클라이언트로는 안 감), `isSnapshot`(`getState()` 는 true, `Block#getState(false)` 는 false — 그 상태의 영속 데이터는 살아 있는 블록 엔티티의 것이라 고치는 즉시 반영. 이름·표지판 글 등 다른 값은 Furnace 에서는 여전히 `update` 가 필요해 처음 한 번 경고), `Nameable#getCustomName`·`setCustomName`(용기·현수막·신호기, 엔티티도 Nameable). Adventure `customName(Component)` 은 없음.
 - **잠금(T-141 E7a)**: `Lockable#isLocked`·`getLock`·`setLock`(용기·신호기, `update` 때 실림). 서버가 바닐라처럼 잠긴 용기·신호기를 열쇠 이름 아이템 없이는 열지 않는다(관전자 제외). `BlockLockCheckEvent` 는 없음.
+- **현수막(T-141 E9)**: `Banner`(바탕 색·무늬 겹 읽기·쓰기, `update` 때 실림 — 바탕 색은 블록 종류가 정해 Paper 처럼 저장되지 않음), `org.bukkit.block.banner.Pattern`(설정 직렬화 `Pattern`), `PatternType`(`OldEnum` 인터페이스, 상수 43개, `getIdentifier`·`getByIdentifier`·`valueOf`·`values`), `Registry.BANNER_PATTERN`(데이터 팩 무늬 포함). 아이템 `BannerMeta`·`Skull` 은 아직 없음.
 - **사본 인벤토리·큰 상자(T-141 E7b)**: `getSnapshotInventory`(사본 NBT Items 의 메모리 칸, `update` 때 실림, 화로류·양조대는 FurnaceInventory·BrewerInventory, 주인·위치 null), 놓이지 않은 상태의 `getInventory` 도 사본. 큰 상자 `Chest#getInventory` 는 `DoubleChestInventory`(54칸, 왼쪽 = type=right 상자, 주인 `DoubleChest`), 블록 인벤토리 `getLocation` 은 그 칸. Paper 와 다른 점: 큰 상자 짝 칸이 다른 region 이면 `Chest#getInventory` 가 `ThreadOwnershipException`(반쪽은 `getBlockInventory`).
 - **월드 만들기(T-141 E4d)**: `Bukkit#createWorld`·`WorldCreator#createWorld`·`WorldType`. Paper 처럼 돌아올 때 월드가 돌고 있고 `WorldInitEvent`·`WorldLoadEvent` 가 지나갔다(서버 API `Furnace#createWorldNow`). 같은 이름(대소문자 무시)이 있으면 그 월드, 이름·키 중 하나만 겹치면 `IllegalArgumentException`, 폴더에 level.dat 이 있으면 저장된 생성기·구조물·시드(키·환경만 설명서 값), `load: STARTUP` 켜기 중이면 `IllegalStateException`, `CUSTOM` 환경은 `IllegalArgumentException`. `type` 은 오버월드에만 쓰이고 `FLAT` 의 `generatorSettings` 는 바닐라 평지 JSON(`layers`·`biome`). Bukkit `ChunkGenerator`·`BiomeProvider` 로 만드는 것은 아직 없어 `UnsupportedFeature`(Furnace 생성 훅은 `docs/api/worlds.md`). 하드코어·`keepSpawnLoaded`(Adventure TriState, 클래스 없음)는 서버 값을 따른다.
 - 생성 파일(`Material`·`EntityType`·`Enchantment`)은 `tools/compat/gen-bukkit-material.py`·`gen-bukkit-registries.py` 로 다시 만든다.
@@ -137,7 +139,7 @@ Furnace 이벤트가 알리지 않는 값은 지어내지 않는다. 읽기는 �
 
 ## Bukkit 비동기 작업의 스레드 (Paper 와 같은 풀)
 
-`runTaskAsynchronously` 등 옛 비동기 작업은 이름 붙은 **플랫폼 스레드 풀**에서 돈다(Paper 1.21.1 `CraftAsyncScheduler` 모양: 코어 4·최대 무제한·30초 놀면 정리·대기열 없음). 스레드 이름은 `Craft Scheduler Thread - N`, 작업이 도는 동안 `… - 플러그인이름`. 서버 옵션 `plugins.compat.scheduler.async-threads=virtual` 이면 서버의 가상 스레드 실행기를 쓴다. 가상 스레드는 JDK 21 에서 `synchronized` 안에서 소켓·파일을 기다리면 운반 스레드를 붙잡는다(옛 JDBC 드라이버·풀 라이브러리가 그런 모양이라 몇 개만 겹쳐도 모든 비동기 작업이 멈출 수 있다). 서버를 끌 때는 모든 `onDisable` 이 끝난 뒤 돌고 있는 비동기 일꾼을 최대 5초 기다리고, 남은 플러그인마다 `Nag author(s)…` 오류를 남긴다(Paper `Wait-for-Async-Tasks-during-shutdown`). `BukkitScheduler#getMainThreadExecutor(Plugin)`(Paper API)도 있다. 설계·남은 차이: `docs/feature-parity/context-notes/2026-11-08-p2.md`. 시험: `LegacySchedulerTest`, `AsyncSchedulerShutdownTest`.
+`runTaskAsynchronously` 등 옛 비동기 작업은 이름 붙은 **플랫폼 스레드 풀**에서 돈다(Paper 1.21.1 `CraftAsyncScheduler` 모양: 코어 4·최대 무제한·30초 놀면 정리·대기열 없음). 스레드 이름은 `Craft Scheduler Thread - N`, 작업이 도는 동안 `… - 플러그인이름`. 서버 옵션 `plugins.compat.scheduler.async-threads=virtual` 이면 가상 스레드(`Craft Scheduler Virtual Thread - N`)를 쓴다(서버의 `asyncExecutor` 는 `plugins.async-threads` 를 따로 따른다, T-034). 가상 스레드는 JDK 21 에서 `synchronized` 안에서 소켓·파일을 기다리면 운반 스레드를 붙잡는다(옛 JDBC 드라이버·풀 라이브러리가 그런 모양이라 몇 개만 겹쳐도 모든 비동기 작업이 멈출 수 있다). 서버를 끌 때는 모든 `onDisable` 이 끝난 뒤 돌고 있는 비동기 일꾼을 최대 5초 기다리고, 남은 플러그인마다 `Nag author(s)…` 오류를 남긴다(Paper `Wait-for-Async-Tasks-during-shutdown`). `BukkitScheduler#getMainThreadExecutor(Plugin)`(Paper API)도 있다. 설계·남은 차이: `docs/feature-parity/context-notes/2026-11-08-p2.md`. 시험: `LegacySchedulerTest`, `AsyncSchedulerShutdownTest`.
 
 ## JavaPlugin 의 명령·스케줄러·서비스 (H4 다음 묶음 A)
 
@@ -151,7 +153,7 @@ Furnace 이벤트가 알리지 않는 값은 지어내지 않는다. 읽기는 �
 
 `PermissibleBase`·`PermissionAttachment`·`PermissionAttachmentInfo`·`PermissionRemovedExecutor` 와 `Permissible` 의 첨부 메서드, `CraftHumanEntity.perm`(정확히 `PermissibleBase`, 권한 플러그인이 리플렉션으로 바꿔 끼운다), `Bukkit.getUnsafe()`(`UnsafeValues`/`CraftMagicNumbers`), `getOnlineMode`·`getOfflinePlayer`·`getOperators`, `Player#locale`·`updateCommands`. Bukkit 첨부는 같은 플러그인의 Furnace 첨부로 옮겨져 Furnace 쪽 판정에도 들어가고, 권한 객체를 바꿔 끼우면(LuckPerms) Furnace 쪽 판정도 그 객체에 맡긴다(서버 API `PermissionOverride`). 정확한 `PermissibleBase` 는 지금 끼워져 있을 때만 Furnace 판정에 묻는다(바꿔 끼운 객체가 옛 객체에 되물어도 재귀 없음). 아직: RCON 으로 친 Bukkit 플러그인 명령의 발신자는 `ConsoleCommandSender` 이고 출력이 콘솔로 간다(Paper 는 RCON 응답).
 
-이벤트 표에 더하는 것: `AsyncPlayerPreLoginEvent`(Furnace `AsyncPlayerPreLoginEvent`, 결과·사유 되돌림, 가상 스레드), `PlayerLoginEvent`(Furnace `PlayerCreateEvent` — Player 가 처음 생기는 때, 거부하면 월드에 넣지 않고 끊음), `RemoteServerCommandEvent`(Furnace `RemoteServerCommandEvent`, RCON 연결 스레드, 취소·명령 바꾸기; 발신자는 `RemoteConsoleCommandSender`). 설계·Paper 와 다른 점: `docs/feature-parity/compat-luckperms-2026-11-11.md`. 시험: `BukkitPermissionsTest`, 봇 `tools/bot-test/round-lp/lp.js`.
+이벤트 표에 더하는 것: `AsyncPlayerPreLoginEvent`(Furnace `AsyncPlayerPreLoginEvent`, 결과·사유 되돌림, 접속 이벤트 전용 스레드 `User Authenticator #N`), `PlayerLoginEvent`(Furnace `PlayerCreateEvent` — Player 가 처음 생기는 때, 거부하면 월드에 넣지 않고 끊음), `RemoteServerCommandEvent`(Furnace `RemoteServerCommandEvent`, RCON 연결 스레드, 취소·명령 바꾸기; 발신자는 `RemoteConsoleCommandSender`). 설계·Paper 와 다른 점: `docs/feature-parity/compat-luckperms-2026-11-11.md`. 시험: `BukkitPermissionsTest`, 봇 `tools/bot-test/round-lp/lp.js`.
 
 ## 스레드 (H2 가 H1 에 넘긴 D1·D2 에 대한 결정)
 

@@ -79,6 +79,30 @@ public final class FurnacePropertiesFile {
             for (String[] k : EntityActivationSettings.BOOL_KEYS) l.add(opt(EntityActivationSettings.PREFIX + k[0], k[1], k[2] + "."));
             s.add(new Section("엔티티 활성 범위(기본 켜짐 — 바닐라와 다름)", l));
         }
+        {   // 엔티티 손잡이(T-122) — 키 이름은 spigot.yml·paper-world-defaults.yml 과 같다
+            EntityHandleSettings h = EntityHandleSettings.DEFAULT;
+            List<Option> l = new ArrayList<>();
+            l.add(opt(EntityHandleSettings.ITEM_MERGE, h.itemMerge(),
+                    "떨어진 아이템을 합치는 반경(블록, Spigot 식). 0.5(기본) = 바닐라. 키우면 멀리 떨어진 아이템도 합쳐진다."));
+            l.add(opt(EntityHandleSettings.EXP_MERGE, (int) h.expMerge(),
+                    "경험치 구슬을 합치는 반경(블록). 0 이하(기본) = 바닐라. 켜면 새 구슬이 반경 안의 같은 묶음 수 구슬 값을 흡수한다(Spigot·Paper)."));
+            l.add(opt(EntityHandleSettings.MAX_COLLISIONS, h.maxEntityCollisions(),
+                    "생물 하나가 한 틱에 미는 엔티티 수 상한(Paper 기본 8). 좁은 우리에 몹을 몰아넣은 농장이 가벼워지지만 바닐라와 결과가 다르다. "
+                            + "-1 = 제한 없음(바닐라), 0 = 밀지 않음. maxEntityCramming 피해는 이 값과 상관없이 바닐라대로."));
+            l.add(opt(EntityHandleSettings.TRACKING + "enabled", h.trackingEnabled(),
+                    "종류별 추적 거리(이 거리 안 플레이어에게만 엔티티를 보낸다). true(기본) = 아래 Paper 기본값, false = 바닐라(종류마다 다름). "
+                            + "실제 거리는 min(이 값 × entity-broadcast-range-percentage/100, 시야 × 16)."));
+            for (String[] k : EntityHandleSettings.TRACKING_KEYS) {
+                l.add(opt(EntityHandleSettings.TRACKING + k[0], k[1], k[2] + ". 블록, 0 = 아무에게도 보내지 않음."));
+            }
+            l.add(opt(EntityHandleSettings.ITEM_MERGE_INTO_TICKING, h.itemMergeIntoTicking(),
+                    "아이템을 합칠 때 늘 지금 틱을 도는 아이템 쪽으로 모은다(Spigot·Paper). false = 바닐라(개수가 적은 쪽을 많은 쪽에) — 어느 아이템이 남는지가 달라진다."));
+            l.add(opt(EntityHandleSettings.SKIP_UNPUSHABLE, h.skipUnpushableCollisions(),
+                    "밀 수 없는 생물(사다리·덩굴에 매달린 몹, 관전자 등)은 남을 밀지 않고 maxEntityCramming 피해도 받지 않는다(Paper). false = 바닐라."));
+            l.add(opt(EntityHandleSettings.PLAYER_CRAMMING, h.allowPlayerCrammingDamage(),
+                    "플레이어가 maxEntityCramming 피해를 받는가. false(기본, Paper) = 한곳에 플레이어를 많이 모아도 죽지 않는다. true = 바닐라."));
+            s.add(new Section("엔티티 손잡이(Paper 기본값 — 밀기 상한·추적 거리·합치는 방향·밀 수 없는 생물·플레이어 cramming 피해는 바닐라와 다름)", l));
+        }
         s.add(new Section("채팅·운영", List.of(
                 opt("chat.strict-order", o.strictChatOrder(), "true(바닐라)면 순서가 어긋난 채팅에서 서명 체인을 끊는다. false 면 그 메시지만 버린다."),
                 opt("chat.unsigned-as-system", o.unsignedChatAsSystem(), "true 면 채팅을 서명 없는 시스템 메시지로 보낸다(채팅 신고 불가)."),
@@ -150,6 +174,7 @@ public final class FurnacePropertiesFile {
                 opt("plugins.compat.nms.spigot-mappings.files", "", "spigot-mappings=files 일 때: Mojang server.txt, Spigot 클래스 csrg, Spigot 멤버 csrg 경로를 경로 구분자(윈도 ; 그 밖 :)로 이어 적는다."),
                 opt("plugins.chunk-tickets.max-per-plugin", org.domi.furnace.api.world.ChunkTickets.MAX_CHUNKS_PER_OWNER, "플러그인 하나가 청크 티켓(chunkTickets API)으로 붙잡을 수 있는 청크 수 상한(겹침 포함, 1 이상). 넘으면 add 가 거부된다."),
                 opt("plugins.compat.config.paper-default-separator", false, "Bukkit 설정에서 플러그인이 options().pathSeparator 를 바꿨을 때 addDefault 기본값 트리를 Paper 처럼 언제나 '.' 로 쪼갠다(getDefaults() 구분자도 '.'). 끄면 플러그인이 정한 구분자로 쪼갠다. 켜면 저장 파일 모양·contains·getKeys 와 setDefaults 와 섞어 쓸 때·저장 뒤 다시 읽을 때의 값도 Paper 와 같아진다(Paper 처럼 다시 읽으면 기본값이 빠질 수 있다)."),
+                opt("plugins.async-threads", "platform", "Furnace 플러그인 비동기 작업(asyncExecutor·PluginTasks.async)을 도는 스레드. platform: 이름 붙은 플랫폼 스레드 풀 \"Furnace Async Thread - N\"(코어 4, 늘어나면 무제한, 30초 놀면 정리). virtual: 가상 스레드(JDK 21 에서는 synchronized 안에서 소켓·파일을 기다리는 옛 DB 드라이버가 운반 스레드를 붙잡아 다른 비동기 작업까지 멈출 수 있다). 접속 전·구성 이벤트는 이 값과 상관없이 따로 \"User Authenticator #N\" 스레드에서 돈다."),
                 opt("plugins.compat.scheduler.async-threads", "platform", "Bukkit 비동기 작업(runTaskAsynchronously 등)을 도는 스레드. platform: 이름 붙은 플랫폼 스레드 풀(Paper 와 같은 모양 — 코어 4, 늘어나면 무제한, 30초 놀면 정리). virtual: 가상 스레드(JDK 21 에서는 synchronized 안에서 소켓·파일을 기다리는 옛 DB 드라이버가 운반 스레드를 붙잡을 수 있다)."),
                 opt("plugins.compat.libraries", "needed", "Paper 가 싣는 라이브러리(Guava·Adventure·SnakeYAML·Brigadier 등)를 Furnace jar 에 넣지 않고 필요할 때 받는다. needed: 호환 플러그인 클래스가 쓰는 것만, all: 호환 플러그인이 있으면 전부, off: 받지 않는다(그것을 쓰는 플러그인은 실패)."),
                 opt("plugins.compat.libraries.mojang", true, "Brigadier·authlib·DataFixerUpper 는 Mojang 저장소(libraries.minecraft.net)에서 받는다. false 면 그 셋은 빼고 경고."),

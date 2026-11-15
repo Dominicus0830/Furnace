@@ -91,6 +91,7 @@ final class SchemaPacketReverse {
         if (d == null) return refuse(null, "play 연결 스키마에 없는 종류다");
         boolean in = d.direction() == PacketDirection.SERVERBOUND;
         if (t.typed()) return refuse(d, "Furnace 타입 레코드 종류다(" + (in ? "ServerboundBridge" : "TypedPacketBridge") + " 가 다룬다)");
+        if (!in && ChunkPacketBridge.handles(d.wireName())) return new Back(d, List.of(), List.of(), null, null, null);   // 손으로 쓴 shim(T-182)
         String no = in ? SchemaPacketBridge.receivedRefusal(d) : SchemaPacketBridge.refusal(d);
         if (no != null) return refuse(d, "shim → Furnace 변환이 없는 종류다: " + no);
         Class<?> cls;
@@ -200,6 +201,7 @@ final class SchemaPacketReverse {
         String call = "fromFurnace(" + g.type() + ")";
         if (b.refusal() != null) throw new UnsupportedNmsCall(call, b.refusal());
         if (!g.readable()) throw new UnsupportedNmsCall(call, "내용을 읽지 못한 패킷이다");
+        if (b.unpack() == null) return ChunkPacketBridge.fromFurnace(g);
         Object[] v = b.unpack().apply(g.fields(), b, b.def().wireName());
         try {
             return (net.minecraft.network.protocol.Packet<?>) b.maker().make(v);

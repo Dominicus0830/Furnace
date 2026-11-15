@@ -30,10 +30,12 @@ public final class PaperSchedulers implements AutoCloseable {
     private final Furnace server;
     private final PluginTaskBook<Handle> book = new PluginTaskBook<>(Handle::cancel);
     private final ScheduledExecutorService timer;
-    /** 비동기 작업이 도는 곳(Paper FoliaAsyncScheduler.executors). virtual 옵션이면 서버의 가상 스레드 실행기, 아니면 아래 우리 풀. */
+    /** 비동기 작업이 도는 곳(Paper FoliaAsyncScheduler.executors). virtual 옵션이면 우리 가상 스레드 실행기, 아니면 아래 우리 풀. */
     private final Executor asyncPool;
-    /** 우리가 만든 플랫폼 풀(virtual 이면 null — 서버 실행기는 서버가 닫는다). */
+    /** 우리가 만든 플랫폼 풀(virtual 이면 null). */
     private final ThreadPoolExecutor ownedPool;
+    /** virtual 옵션일 때 우리가 만든 가상 스레드 실행기(platform 이면 null). */
+    private final java.util.concurrent.ExecutorService virtualPool;
     private final Global global = new Global();
     private final Region region = new Region();
     private final Async async = new Async();
@@ -51,8 +53,11 @@ public final class PaperSchedulers implements AutoCloseable {
         });
         if ("virtual".equalsIgnoreCase(server.compatOption(LegacyScheduler.ASYNC_THREADS_OPTION))) {
             this.ownedPool = null;
-            this.asyncPool = server.asyncExecutor();
+            // 서버의 asyncExecutor 는 plugins.async-threads(기본 platform, T-034)를 따르므로 이 옵션의 가상 스레드는 여기서 따로 만든다
+            this.virtualPool = java.util.concurrent.Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("Folia Async Scheduler Virtual Thread #", 0).factory());
+            this.asyncPool = virtualPool;
         } else {
+            this.virtualPool = null;
             this.ownedPool = newPlatformPool();
             this.asyncPool = ownedPool;
         }
@@ -106,6 +111,7 @@ public final class PaperSchedulers implements AutoCloseable {
     public void close() {
         timer.shutdownNow();
         if (ownedPool != null) ownedPool.shutdown();   // 도는 작업은 끝까지 간다(인터럽트 없음)
+        if (virtualPool != null) virtualPool.shutdown();
     }
 
     // ---- 전역
@@ -251,7 +257,7 @@ public final class PaperSchedulers implements AutoCloseable {
 
     // ---- 비동기
 
-    /** Paper AsyncScheduler: 벽시계 시간 단위, 작업은 Paper 모양의 플랫폼 풀(plugins.compat.scheduler.async-threads=virtual 이면 서버의 가상 스레드)에서 돈다. */
+    /** Paper AsyncScheduler: 벽시계 시간 단위, 작업은 Paper 모양의 플랫폼 풀(plugins.compat.scheduler.async-threads=virtual 이면 가상 스레드)에서 돈다. */
     public final class Async {
         private Async() {}
 
