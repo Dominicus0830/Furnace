@@ -36,9 +36,15 @@ def main():
 
     runs = set()
     for shard in (1, 2, 3):
-        d = get(f"{API}/repos/{a.repo}/actions/artifacts?per_page=100&name=flaky-tests-{shard}")
-        for art in d.get("artifacts", []):
-            runs.add(art["workflow_run"]["id"])
+        page = 1
+        while True:   # 산출물이 100개를 넘으면 다음 쪽까지(PR #401 검토 N3)
+            d = get(f"{API}/repos/{a.repo}/actions/artifacts?per_page=100&page={page}&name=flaky-tests-{shard}")
+            arts = d.get("artifacts", [])
+            for art in arts:
+                runs.add(art["workflow_run"]["id"])
+            if len(arts) < 100:
+                break
+            page += 1
 
     seen = defaultdict(list)    # 시험 → [(실행, 조각)]
     first_msg = {}

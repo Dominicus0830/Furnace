@@ -432,7 +432,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
                     throw new java.io.UncheckedIOException(e);
                 }
             }, world.ioLane(chunkX, chunkZ)).whenComplete((onDisk, ex) -> {
-                if (ex != null) out.completeExceptionally(ex);
+                if (ex != null) failOnOwner(cp, out, ex);   // 디스크 확인 실패도 주인 스레드에서 끝낸다(PR #401 검토 N2)
                 else if (onDisk) loadOnOwner(cp, out);
                 else completeOnOwner(cp, out, false);
             });
@@ -448,6 +448,14 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     private void completeOnOwner(ChunkPos cp, CompletableFuture<Boolean> out, boolean value) {
         world.submitAtChunk(cp, r -> out.complete(value)).exceptionally(ex -> {
             out.completeExceptionally(ex);
+            return null;
+        });
+    }
+
+    /** 그 청크 주인 region 스레드에서 out 을 cause 로 실패시킨다(내린 월드면 그 거절로). */
+    private void failOnOwner(ChunkPos cp, CompletableFuture<Boolean> out, Throwable cause) {
+        world.submitAtChunk(cp, r -> out.completeExceptionally(cause)).exceptionally(ex -> {
+            out.completeExceptionally(cause);
             return null;
         });
     }
