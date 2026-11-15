@@ -66,7 +66,7 @@ while IFS= read -r t; do
   [ -n "$t" ] && echo "::warning title=흔들린 시험 (조각 ${shard}/4)::${t} — 처음 실패, 재시도에서 통과"
 done <<< "$failed"
 {
-  echo "### 흔들린 시험 (조각 ${shard}/3: 처음 실패, 재시도에서 통과)"
+  echo "### 흔들린 시험 (조각 ${shard}/4: 처음 실패, 재시도에서 통과)"
   printf '%s\n' "$failed" | sed 's/^/- /'
   echo
   echo "두 번 이상 나온 시험은 고칠 대상이다(docs/ci.md). 확률 실패를 잡는 시험은 재시도로 가리지 않도록 @NoRetry 를 붙인다."
