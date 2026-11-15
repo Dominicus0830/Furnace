@@ -231,7 +231,7 @@ final class GenericHand767 {
     private static Compiled stopSound(GenericCodec767 c, PacketDef d) {
         Node source = c.fieldNode(d, "source"), name = c.fieldNode(d, "name");
         Node optSource = GenericCodec767.optional(source, false), optName = GenericCodec767.optional(IDENTIFIER, false);
-        if (name != IDENTIFIER) throw new GenericCodec767.Unsupported("stop_sound name 이 identifier 가 아니다");
+        if (name != IDENTIFIER) throw new GenericCodec767.Unsupported("the stop_sound name is not an identifier");
         return GenericCodec767.shape(List.of("source", "name"), List.of(optSource, optName), hand((b, m) -> {
             int flags = b.readUnsignedByte();
             m.put("source", (flags & 1) != 0 ? Optional.of(source.read(b)) : Optional.empty());

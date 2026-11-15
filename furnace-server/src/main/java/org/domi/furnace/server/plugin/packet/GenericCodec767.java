@@ -124,7 +124,7 @@ public final class GenericCodec767 {
                 if (t.typed()) continue;
                 PacketDef d = find(t);
                 if (d == null) {
-                    unsupported.put(t, "스키마에 없다");
+                    unsupported.put(t, "not in the schema");
                     continue;
                 }
                 try {
@@ -243,8 +243,8 @@ public final class GenericCodec767 {
     private Compiled compile(PacketDef d) {
         Compiled h = GenericHand767.compile(this, d);   // custom 종류, 그리고 값 타입이 필드 나열로 안 떨어지는 종류(E5: update_tags·merchant_offers)
         if (h != null) return h;
-        if (d.custom()) throw new Unsupported("손으로 다뤄야 하는 와이어(custom) — 손 코덱이 아직 없다");
-        if (d.superType() != null) throw new Unsupported("부모 클래스 필드");
+        if (d.custom()) throw new Unsupported("a wire that needs hand handling (custom) - there is no hand codec yet");
+        if (d.superType() != null) throw new Unsupported("parent class fields");
         return compileFields(d.fields(), d.javaPackage(), d.binaryName());
     }
 
@@ -338,14 +338,14 @@ public final class GenericCodec767 {
         TypeDecl decl = bin == null ? null : schema.type(bin).orElse(null);
         StructDef struct = bin == null ? null : schema.struct(bin).orElse(null);
         List<String> c = decl != null ? decl.constants() : struct != null ? struct.constants() : List.of();
-        if (c.isEmpty()) throw new Unsupported("상수 목록이 없다: " + t);
+        if (c.isEmpty()) throw new Unsupported("no constant list: " + t);
         return c;
     }
 
     /** enum 타입(이진 이름)의 상수 목록. */
     List<String> enumConstants(String bin) {
         List<String> c = schema.type(bin).map(TypeDecl::constants).orElse(List.of());
-        if (c.isEmpty()) throw new Unsupported("상수 목록이 없다: " + bin);
+        if (c.isEmpty()) throw new Unsupported("no constant list: " + bin);
         return c;
     }
 
@@ -357,11 +357,11 @@ public final class GenericCodec767 {
 
     private static FieldDef field(PacketDef d, String name) {
         for (FieldDef f : d.fields()) if (f.name().equals(name)) return f;
-        throw new Unsupported(d.wireName() + " 에 필드 " + name + " 이 없다(스키마)");
+        throw new Unsupported(d.wireName() + " has no field " + name + " (schema)");
     }
 
     private Node node(TypeRef t, String wire, String pkg) {
-        if (t.bound() != TypeRef.Bound.NONE) throw new Unsupported("와일드카드 타입 " + t);
+        if (t.bound() != TypeRef.Bound.NONE) throw new Unsupported("wildcard type " + t);
         if (t.arrayDimensions() > 0) {
             if (t.arrayDimensions() == 1 && wire == null) {
                 switch (t.name()) {
@@ -371,7 +371,7 @@ public final class GenericCodec767 {
                     default: break;
                 }
             }
-            throw new Unsupported("배열 " + t);
+            throw new Unsupported("array " + t);
         }
         switch (t.name()) {
             case "int": return integer(wire == null ? "varint" : wire, Integer.class);
@@ -380,17 +380,17 @@ public final class GenericCodec767 {
             case "long":
                 if (wire == null || wire.equals("i64")) return I64;
                 if (wire.equals("varlong")) return VARLONG;
-                throw new Unsupported("long 와이어 " + wire);
+                throw new Unsupported("long wire " + wire);
             case "float": return plain(wire, "f32", F32);
             case "double": return plain(wire, "f64", F64);
             case "boolean": return plain(wire, "bool", BOOL);
             case "String": return plain(wire, "string", STRING);
             case "UUID": return plain(wire, "uuid", UUID_NODE);
             case "List", "Set", "Collection":
-                if (wire != null) throw new Unsupported("목록 명시 와이어 " + wire);
+                if (wire != null) throw new Unsupported("explicit list wire " + wire);
                 return list(node(t.arguments().get(0), null, pkg), t.name().equals("Set"));
             case "Optional":
-                if (wire != null) throw new Unsupported("Optional 명시 와이어 " + wire);
+                if (wire != null) throw new Unsupported("explicit Optional wire " + wire);
                 return optional(node(t.arguments().get(0), null, pkg), false);
             case "Holder": return holder(t.arguments().get(0));
             case "ResourceKey": return plain(wire, "identifier", IDENTIFIER);
@@ -408,7 +408,7 @@ public final class GenericCodec767 {
         } catch (IllegalArgumentException e) {
             throw new Unsupported(e.getMessage());
         }
-        if (bin == null) throw new Unsupported("타입 " + t);
+        if (bin == null) throw new Unsupported("type " + t);
         TypeDecl decl = schema.type(bin).orElse(null);
         StructDef struct = schema.struct(bin).orElse(null);
         boolean isEnum = (decl != null && decl.kind() == TypeDecl.Kind.ENUM) || (struct != null && struct.kind() == StructDef.Kind.ENUM);
@@ -416,7 +416,7 @@ public final class GenericCodec767 {
         if (wire != null) {   // 필드 줄 명시 와이어: 크기만 다른 정수
             if (isEnum) return enumNode(bin, constants, wire);
             if (struct != null || decl != null) return integer(wire, Integer.class);   // 예: game_event 의 Type(u8) — 바닐라 번호를 정수로
-            throw new Unsupported("명시 와이어 " + wire + " on " + t);
+            throw new Unsupported("explicit wire " + wire + " on " + t);
         }
         if (decl != null) {
             if (decl.kind() == TypeDecl.Kind.ENUM) {
@@ -424,7 +424,7 @@ public final class GenericCodec767 {
                 return enumNode(bin, constants, decl.wire() == null ? "varint" : decl.wire());
             }
             String w = decl.wire();
-            if (w == null) throw new Unsupported("와이어 없는 타입 " + bin);
+            if (w == null) throw new Unsupported("type without a wire " + bin);
             return switch (w) {
                 case "component" -> TEXT;
                 case "identifier" -> IDENTIFIER;
@@ -447,24 +447,24 @@ public final class GenericCodec767 {
                 case "varint" -> integer("varint", Integer.class);
                 case "registry_id" -> {
                     String reg = REGISTRY_IDS.get(bin);
-                    if (reg == null) throw new Unsupported("레지스트리 번호 " + bin);
+                    if (reg == null) throw new Unsupported("registry id " + bin);
                     yield registryId(reg);
                 }
-                default -> throw new Unsupported("와이어 " + w + " (" + bin + ")");
+                default -> throw new Unsupported("wire " + w + " (" + bin + ")");
             };
         }
         if (struct != null) {
             return switch (struct.kind()) {
                 case ENUM -> enumNode(bin, constants, "varint");
                 case RECORD, CLASS -> structNode(compileFields(struct.fields(), struct.javaPackage(), bin));
-                default -> throw new Unsupported("내포 " + struct.kind() + " " + bin);
+                default -> throw new Unsupported("nested " + struct.kind() + " " + bin);
             };
         }
-        throw new Unsupported("타입 " + bin);
+        throw new Unsupported("type " + bin);
     }
 
     private static Node plain(String wire, String expected, Node n) {
-        if (wire != null && !wire.equals(expected)) throw new Unsupported(expected + " 자리의 명시 와이어 " + wire);
+        if (wire != null && !wire.equals(expected)) throw new Unsupported("explicit wire " + wire + " on " + expected);
         return n;
     }
 
@@ -492,10 +492,10 @@ public final class GenericCodec767 {
             case "u16" -> { min = 0; max = 0xFFFF; }
             case "i8" -> { min = Byte.MIN_VALUE; max = Byte.MAX_VALUE; }
             case "u8" -> { min = 0; max = 0xFF; }
-            default -> throw new Unsupported("정수 와이어 " + wire);
+            default -> throw new Unsupported("integer wire " + wire);
         }
-        if (box == Byte.class && (min < Byte.MIN_VALUE || max > Byte.MAX_VALUE)) throw new Unsupported("byte 필드의 와이어 " + wire);
-        if (box == Short.class && (min < Short.MIN_VALUE || max > Short.MAX_VALUE)) throw new Unsupported("short 필드의 와이어 " + wire);
+        if (box == Byte.class && (min < Byte.MIN_VALUE || max > Byte.MAX_VALUE)) throw new Unsupported("wire of a byte field " + wire);
+        if (box == Short.class && (min < Short.MIN_VALUE || max > Short.MAX_VALUE)) throw new Unsupported("wire of a short field " + wire);
         return node(box, b -> {
             int v = switch (wire) {
                 case "varint" -> Types.readVarInt(b);
@@ -734,7 +734,7 @@ public final class GenericCodec767 {
      * Optional&lt;String&gt; 이다(previous_game_type).
      */
     static Node enumNode(String bin, List<String> constants, String wire) {
-        if (constants.isEmpty()) throw new Unsupported("상수 목록 없는 enum " + bin);
+        if (constants.isEmpty()) throw new Unsupported("enum without a constant list " + bin);
         if (wire.equals("i8")) {
             return node(Optional.class, b -> {
                 int i = b.readByte();

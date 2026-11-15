@@ -4849,7 +4849,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         ChannelHandlerContext c = this.ctx;
         if (c == null || !c.channel().isActive()) return java.util.concurrent.CompletableFuture.failedFuture(new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다"));
         ConnectionState st = state;
-        if (st != ConnectionState.CONFIGURATION && st != ConnectionState.PLAY) return notAllowed("리소스 팩은 구성·플레이 단계에서만 보낼 수 있다: " + st);
+        if (st != ConnectionState.CONFIGURATION && st != ConnectionState.PLAY) return notAllowed("A resource pack can only be sent in the configuration or play stage: " + st);
         var fresh = new PendingPack(new java.util.concurrent.CompletableFuture<>(), pack.required());
         PendingPack prev = pluginPacks.putIfAbsent(pack.id(), fresh);
         if (prev != null) return prev.future();
@@ -4907,7 +4907,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         checkCookieKey(key);
         ChannelHandlerContext c = this.ctx;
         if (c == null || !c.channel().isActive()) return java.util.concurrent.CompletableFuture.failedFuture(new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다"));
-        if (state != ConnectionState.CONFIGURATION) return notAllowed("쿠키 요청은 구성 단계에서만 쓸 수 있다: " + state);
+        if (state != ConnectionState.CONFIGURATION) return notAllowed("A cookie request can only be used in the configuration stage: " + state);
         var fresh = new java.util.concurrent.CompletableFuture<byte[]>();
         var prev = pendingCookies.putIfAbsent(key, fresh);
         if (prev != null) return prev;
@@ -4931,7 +4931,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var pkt = new StoreCookie(key, java.util.Objects.requireNonNull(value, "value").clone());
         ChannelHandlerContext c = this.ctx;
         if (c == null || !c.channel().isActive()) return;
-        requireConfiguration("쿠키 저장");
+        requireConfiguration("storing a cookie");
         eventLoopRun(c, () -> {
             if (c.channel().isActive() && state == ConnectionState.CONFIGURATION && !finishConfigSent) send(c, pkt);
         });

@@ -103,7 +103,7 @@ final class CommandRegistryImpl implements CommandRegistry {
 
     private LiteralArgumentBuilder<CommandSource> treeNode(FurnacePlugin plugin, String name, String label, CommandBuilder spec) {
         Timing exec = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label);
-        Timing tab = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label + " (자동완성)");
+        Timing tab = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label + " " + Lang.t("plugin.tab-completion-timing"));
         LiteralArgumentBuilder<CommandSource> b = literal(name);
         fill(plugin, b, spec, exec, tab);
         return b;
@@ -232,7 +232,7 @@ final class CommandRegistryImpl implements CommandRegistry {
     /** name 은 트리에 붙는 이름, label 은 /timings 에 보일 이름(플러그인: 접두어 없이 — 두 이름의 시간을 한 줄로 모은다). */
     private LiteralArgumentBuilder<CommandSource> node(FurnacePlugin plugin, String name, String label, BasicCommand cmd) {
         Timing exec = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label);
-        Timing tab = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label + " (자동완성)");
+        Timing tab = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label + " " + Lang.t("plugin.tab-completion-timing"));
         return literal(name)
                 .requires(src -> cmd.canUse(host.sender(src)))
                 .executes(ctx -> run(plugin, cmd, name, exec, ctx, new String[0]))

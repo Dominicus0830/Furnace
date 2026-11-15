@@ -70,7 +70,7 @@ public final class GenerationHookStore {
                 throw new IllegalArgumentException("다른 플러그인(" + prev.owner() + ")이 쓰는 월드젠 훅 키: " + full);
             }
             byKey.put(full, new Entry(owner, hooks));
-            if (logger != null) logger.fine("월드젠 훅 등록: " + full);
+            if (logger != null) logger.fine("worldgen hook registered: " + full);
             return full;
         }
     }

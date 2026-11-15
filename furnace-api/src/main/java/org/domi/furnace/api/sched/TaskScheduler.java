@@ -56,7 +56,7 @@ public interface TaskScheduler {
             try {
                 task.run();
             } catch (Throwable t) {
-                System.getLogger("Furnace").log(System.Logger.Level.ERROR, "반복 작업 실패", t);
+                System.getLogger("Furnace").log(System.Logger.Level.ERROR, "Repeating task failed", t);
             }
             if (!cancelled) owner.executeDelayed(this, period);
         }

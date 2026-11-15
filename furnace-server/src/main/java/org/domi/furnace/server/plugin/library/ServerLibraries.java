@@ -32,7 +32,7 @@ public final class ServerLibraries {
     public static final URI MOJANG = URI.create("https://libraries.minecraft.net/");
 
     public enum Repo {
-        CENTRAL("Maven Central"), MOJANG("Mojang 라이브러리 저장소(libraries.minecraft.net)");
+        CENTRAL("Maven Central"), MOJANG("Mojang library repository (libraries.minecraft.net)");
 
         public final String label;
 
@@ -86,7 +86,7 @@ public final class ServerLibraries {
                     new Artifact("com.google.guava:guava:32.1.2-jre", "bc65dea7cfd9e4dacf8419d8af0e741655857d27885bb35d943d7187fc3a8fce", C, B),
                     new Artifact("com.google.guava:failureaccess:1.0.1", "a171ee4c734dd2da837e4b16be9df4661afab72a41adaf31eb84dfdaf936ca26", C, B)),
                     List.of("com/google/common/", "com/google/thirdparty/"), List.of()),
-            new Group("adventure", "Kyori Adventure(API·MiniMessage·직렬화기)", List.of(
+            new Group("adventure", "Kyori Adventure (API, MiniMessage, serializers)", List.of(
                     new Artifact("net.kyori:adventure-api:4.17.0", "15c8c2eb1a69d8b1bc914f554353da8ee7cf074c05c8074da9898aee5c70d0d8", C),
                     new Artifact("net.kyori:adventure-key:4.17.0", "8e5cf570612d6ccedf943ac1716a449de2dd5a90207b7de6f73c0236935b766e", C),
                     new Artifact("net.kyori:examination-api:1.3.0", "c9237ffecb05428f6eff86216246ac70ce0b47b04c08ea7ca35020fde57f8492", C),
@@ -104,7 +104,7 @@ public final class ServerLibraries {
             new Group("snakeyaml", "SnakeYAML", List.of(
                     new Artifact("org.yaml:snakeyaml:2.2", "1467931448a0817696ae2805b7b8b20bfb082652bf9c4efaed528930dc49389b", C, B)),
                     List.of("org/yaml/snakeyaml/"), List.of()),
-            new Group("bungeecord-chat", "BungeeCord Chat(Spigot 채팅 컴포넌트)", List.of(
+            new Group("bungeecord-chat", "BungeeCord Chat (Spigot chat components)", List.of(
                     new Artifact("net.md-5:bungeecord-chat:1.20-R0.2", "5ea54c6a429331cc535f0bf912ce2aa1853b2f35e68e35d1ff3ef5e226e90596", C)),
                     // net.md_5.bungee.api.ChatColor(헥스 색) 만 쓰는 플러그인도 많다 — api/ 전체를 표지로. ChatColor·ComponentBuilder 등이 Guava Preconditions 를 쓴다
                     List.of("net/md_5/bungee/api/", "net/md_5/bungee/chat/"), List.of("guava")),
@@ -122,13 +122,13 @@ public final class ServerLibraries {
                     List.of("org/apache/commons/lang3/"), List.of()),
             // 옛 Bukkit API 가 싣던 commons-lang 2.x(org.apache.commons.lang.Validate 등). Paper·Spigot 서버 classpath 에 있어
             // ProtocolLib 같은 오래된 플러그인이 그대로 쓴다. commons-lang3 와 패키지가 다르다(lang/ 대 lang3/).
-            new Group("commons-lang", "Apache Commons Lang 2.x(옛 Bukkit API 가 싣던 것)", List.of(
+            new Group("commons-lang", "Apache Commons Lang 2.x (bundled by the old Bukkit API)", List.of(
                     new Artifact("commons-lang:commons-lang:2.6", "50f11b09f877c294d56f24463f47d28f929cf5044f648661c0f0cfbae9a2f49c", C)),
                     List.of("org/apache/commons/lang/"), List.of()),
             new Group("commons-io", "Apache Commons IO", List.of(
                     new Artifact("commons-io:commons-io:2.15.1", "a58af12ee1b68cfd2ebb0c27caef164f084381a00ec81a48cc275fd7ea54e154", C)),
                     List.of("org/apache/commons/io/"), List.of()),
-            new Group("log4j", "Log4j API(서버 로그로 보내는 slf4j 다리 포함)", List.of(
+            new Group("log4j", "Log4j API (including the slf4j bridge to the server log)", List.of(
                     new Artifact("org.apache.logging.log4j:log4j-api:2.22.1", "5d7beae7ff15d8516d6517121d7f12a79a6ac180df64b5fcec55d5be21056e53", C),
                     new Artifact("org.apache.logging.log4j:log4j-to-slf4j:2.22.1", "85a84842958e58dd8a89a3acf901a64b774704ce1511ece9f8eef70724884f92", C)),
                     List.of("org/apache/logging/log4j/"), List.of()),

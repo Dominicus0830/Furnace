@@ -85,5 +85,5 @@ public final class GenericPacket implements ClientboundPacket, ServerboundPacket
     public int hashCode() { return type.hashCode() * 31 + Objects.hashCode(fields); }
 
     @Override
-    public String toString() { return "GenericPacket[" + type + (fields == null ? ", 읽을 수 없음" : ", " + fields) + "]"; }
+    public String toString() { return "GenericPacket[" + type + (fields == null ? ", unreadable" : ", " + fields) + "]"; }
 }

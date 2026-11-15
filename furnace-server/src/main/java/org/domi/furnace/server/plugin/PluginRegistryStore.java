@@ -169,7 +169,7 @@ public final class PluginRegistryStore {
 
         @Override
         public <T> PluginRegistry<T> create(String key, Class<T> type) {
-            checkKey(key, namespace, "레지스트리");
+            checkKey(key, namespace, "registry");
             if (type == null) throw new NullPointerException("type");
             Reg<T> r = new Reg<>(key, type, owner);
             synchronized (PluginRegistryStore.this) {
@@ -215,7 +215,7 @@ public final class PluginRegistryStore {
 
         @Override
         public T register(String key, T value) {
-            checkKey(key, namespace, "항목");
+            checkKey(key, namespace, "entry");
             return reg.register(viewer, key, value);
         }
 

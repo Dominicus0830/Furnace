@@ -388,7 +388,7 @@ public final class PacketServiceImpl implements PacketService {
     private static final class EventImpl implements PacketEvent {
 
         /** 구분자 하나만 빠지면 짝이 어긋나 클라이언트가 뒤 패킷을 묶음으로 쌓다가(4096개) 끊긴다. */
-        private static final String BUNDLE_PAIR = "번들 구분자는 취소·바꾸기를 할 수 없다(짝이 어긋나면 클라이언트가 끊긴다) — 묶음 안의 패킷을 취소한다";
+        private static final String BUNDLE_PAIR = "A bundle delimiter cannot be cancelled or replaced (the client disconnects when the pair is broken) - cancel the packets inside the bundle instead";
 
         private final Player player;
         private final PacketType<?> type;

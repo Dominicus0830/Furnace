@@ -204,7 +204,7 @@ public final class EntityData767 {
             case "rotations" -> new Rotations(b.readFloat(), b.readFloat(), b.readFloat());
             case "block_pos" -> pos(b);
             case "optional_block_pos" -> b.readBoolean() ? Optional.of(pos(b)) : Optional.empty();
-            case "direction" -> enumAt(Direction.values(), Types.readVarInt(b), "방향");
+            case "direction" -> enumAt(Direction.values(), Types.readVarInt(b), "direction");
             case "optional_uuid" -> b.readBoolean() ? Optional.of(Types.readUuid(b)) : Optional.empty();
             case "block_state" -> ApiConvert.block(Types.readVarInt(b), blocks());
             case "optional_block_state" -> {
@@ -220,20 +220,20 @@ public final class EntityData767 {
                 for (int i = 0; i < n; i++) l.add(readParticle(b));
                 yield List.copyOf(l);
             }
-            case "villager_data" -> new VillagerData(nameAt(Villager.TYPES, Types.readVarInt(b), "주민 종류"),
-                    nameAt(Villager.PROFESSIONS, Types.readVarInt(b), "주민 직업"), Types.readVarInt(b));
+            case "villager_data" -> new VillagerData(nameAt(Villager.TYPES, Types.readVarInt(b), "villager type"),
+                    nameAt(Villager.PROFESSIONS, Types.readVarInt(b), "villager profession"), Types.readVarInt(b));
             case "optional_unsigned_int" -> {
                 int v = Types.readVarInt(b);
                 yield v == 0 ? OptionalInt.empty() : OptionalInt.of(v - 1);
             }
-            case "pose" -> enumAt(Pose.values(), Types.readVarInt(b), "자세");
+            case "pose" -> enumAt(Pose.values(), Types.readVarInt(b), "pose");
             case "cat_variant" -> registryName("minecraft:cat_variant", Types.readVarInt(b));
             case "wolf_variant" -> {   // 바닐라 holder(WOLF_VARIANT, 직접 코덱): 0 = 직접 정의, 등록된 종류 = 번호 + 1
                 int v = Types.readVarInt(b);
                 if (v == 0) throw new IllegalArgumentException("직접 정의된 늑대 종류는 읽지 않는다");
                 yield dataRegistryName("minecraft:wolf_variant", v - 1);
             }
-            case "frog_variant" -> nameAt(List.of(Frog.VARIANTS), Types.readVarInt(b), "개구리 종류");
+            case "frog_variant" -> nameAt(List.of(Frog.VARIANTS), Types.readVarInt(b), "frog variant");
             case "optional_global_pos" -> b.readBoolean() ? Optional.of(new GlobalPos(Types.readString(b, STRING_MAX), pos(b))) : Optional.empty();
             case "painting_variant" -> {
                 int v = Types.readVarInt(b);
@@ -298,8 +298,8 @@ public final class EntityData767 {
             }
             case "villager_data" -> {
                 VillagerData d = (VillagerData) v;
-                Types.writeVarInt(o, indexIn(Villager.TYPES, d.type(), "주민 종류"));
-                Types.writeVarInt(o, indexIn(Villager.PROFESSIONS, d.profession(), "주민 직업"));
+                Types.writeVarInt(o, indexIn(Villager.TYPES, d.type(), "villager type"));
+                Types.writeVarInt(o, indexIn(Villager.PROFESSIONS, d.profession(), "villager profession"));
                 Types.writeVarInt(o, d.level());
             }
             case "optional_unsigned_int" -> {
@@ -309,7 +309,7 @@ public final class EntityData767 {
             case "pose" -> Types.writeVarInt(o, ((Pose) v).id());
             case "cat_variant" -> Types.writeVarInt(o, registryId("minecraft:cat_variant", (String) v));
             case "wolf_variant" -> Types.writeVarInt(o, dataRegistryId("minecraft:wolf_variant", (String) v) + 1);   // 등록된 종류 = 번호 + 1(그림과 같음)
-            case "frog_variant" -> Types.writeVarInt(o, indexIn(List.of(Frog.VARIANTS), (String) v, "개구리 종류"));
+            case "frog_variant" -> Types.writeVarInt(o, indexIn(List.of(Frog.VARIANTS), (String) v, "frog variant"));
             case "optional_global_pos" -> {
                 Optional<?> opt = (Optional<?>) v;
                 o.writeBoolean(opt.isPresent());
@@ -320,8 +320,8 @@ public final class EntityData767 {
                 });
             }
             case "painting_variant" -> Types.writeVarInt(o, dataRegistryId("minecraft:painting_variant", (String) v) + 1);   // 등록된 종류 = 번호 + 1
-            case "sniffer_state" -> Types.writeVarInt(o, indexIn(SNIFFER_STATES, (String) v, "스니퍼 상태"));
-            case "armadillo_state" -> Types.writeVarInt(o, indexIn(ARMADILLO_STATES, (String) v, "아르마딜로 상태"));
+            case "sniffer_state" -> Types.writeVarInt(o, indexIn(SNIFFER_STATES, (String) v, "sniffer state"));
+            case "armadillo_state" -> Types.writeVarInt(o, indexIn(ARMADILLO_STATES, (String) v, "armadillo state"));
             case "vector3" -> {
                 Vector3f x = (Vector3f) v;
                 o.writeFloat(x.x());

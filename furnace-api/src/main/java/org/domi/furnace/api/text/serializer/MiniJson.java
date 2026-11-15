@@ -32,7 +32,7 @@ final class MiniJson {
         MiniJson p = new MiniJson(text);
         Object v = p.value(0);
         p.ws();
-        if (p.pos != text.length()) throw p.error("JSON 값 뒤에 글자가 남았다");
+        if (p.pos != text.length()) throw p.error("unexpected characters after the JSON value");
         return v;
     }
 
@@ -49,9 +49,9 @@ final class MiniJson {
     }
 
     private Object value(int depth) {
-        if (depth > MAX_DEPTH) throw error("중첩이 너무 깊다");
+        if (depth > MAX_DEPTH) throw error("nesting is too deep");
         ws();
-        if (pos >= s.length()) throw error("값이 필요하다");
+        if (pos >= s.length()) throw error("a value is required");
         char c = s.charAt(pos);
         switch (c) {
             case '{': return object(depth);
@@ -59,19 +59,19 @@ final class MiniJson {
             case '"': return string();
             case '\'':
                 if (lenient) return string();
-                throw error("예상치 못한 글자 '" + c + "'");
+                throw error("unexpected character '" + c + "'");
             case 't': if (lenient) return unquoted(); literal("true"); return Boolean.TRUE;
             case 'f': if (lenient) return unquoted(); literal("false"); return Boolean.FALSE;
             case 'n': if (lenient) return unquoted(); literal("null"); return null;
             default:
                 if (lenient) return unquoted();
                 if (c == '-' || c >= '0' && c <= '9') return number();
-                throw error("예상치 못한 글자 '" + c + "'");
+                throw error("unexpected character '" + c + "'");
         }
     }
 
     private void literal(String word) {
-        if (!s.startsWith(word, pos)) throw error("'" + word + "' 이어야 한다");
+        if (!s.startsWith(word, pos)) throw error("'" + word + "' expected");
         pos += word.length();
     }
 
@@ -85,21 +85,21 @@ final class MiniJson {
         }
         while (true) {
             ws();
-            if (pos >= s.length()) throw error("키(문자열)가 필요하다");
+            if (pos >= s.length()) throw error("a key (string) is required");
             char kc = s.charAt(pos);
             String k;
             if (kc == '"' || lenient && kc == '\'') k = string();
             else if (lenient) k = String.valueOf(unquoted());
-            else throw error("키(문자열)가 필요하다");
+            else throw error("a key (string) is required");
             ws();
-            if (pos >= s.length() || s.charAt(pos) != ':') throw error("':' 가 필요하다");
+            if (pos >= s.length() || s.charAt(pos) != ':') throw error("':' expected");
             pos++;
             m.put(k, value(depth + 1));
             ws();
-            if (pos >= s.length()) throw error("객체가 닫히지 않았다");
+            if (pos >= s.length()) throw error("object is not closed");
             char c = s.charAt(pos++);
             if (c == '}') return m;
-            if (c != ',') throw error("',' 또는 '}' 가 필요하다");
+            if (c != ',') throw error("',' or '}' expected");
         }
     }
 
@@ -114,10 +114,10 @@ final class MiniJson {
         while (true) {
             l.add(value(depth + 1));
             ws();
-            if (pos >= s.length()) throw error("배열이 닫히지 않았다");
+            if (pos >= s.length()) throw error("array is not closed");
             char c = s.charAt(pos++);
             if (c == ']') return l;
-            if (c != ',') throw error("',' 또는 ']' 가 필요하다");
+            if (c != ',') throw error("',' or ']' expected");
         }
     }
 
@@ -127,7 +127,7 @@ final class MiniJson {
         StringBuilder sb = null;
         int seg = pos;
         while (true) {
-            if (pos >= s.length()) throw error("문자열이 닫히지 않았다");
+            if (pos >= s.length()) throw error("string is not closed");
             char c = s.charAt(pos);
             if (c == quote) {
                 String r = sb == null ? s.substring(seg, pos) : sb.append(s, seg, pos).toString();
@@ -138,7 +138,7 @@ final class MiniJson {
                 if (sb == null) sb = new StringBuilder();
                 sb.append(s, seg, pos);
                 pos++;
-                if (pos >= s.length()) throw error("이스케이프가 끝났다");
+                if (pos >= s.length()) throw error("escape sequence ended unexpectedly");
                 char e = s.charAt(pos++);
                 switch (e) {
                     case '"', '\'', '\\', '/' -> sb.append(e);
@@ -148,17 +148,17 @@ final class MiniJson {
                     case 'r' -> sb.append('\r');
                     case 't' -> sb.append('\t');
                     case 'u' -> {
-                        if (pos + 4 > s.length()) throw error("\\u 뒤에 16진수 4자리가 필요하다");
+                        if (pos + 4 > s.length()) throw error("4 hex digits expected after \\u");
                         int v = 0;
                         for (int i = 0; i < 4; i++) {
                             int d = Character.digit(s.charAt(pos + i), 16);
-                            if (d < 0) throw error("\\u 뒤에 16진수 4자리가 필요하다");
+                            if (d < 0) throw error("4 hex digits expected after \\u");
                             v = v << 4 | d;
                         }
                         sb.append((char) v);
                         pos += 4;
                     }
-                    default -> throw error("알 수 없는 이스케이프 \\" + e);
+                    default -> throw error("unknown escape \\" + e);
                 }
                 seg = pos;
                 continue;
@@ -193,7 +193,7 @@ final class MiniJson {
             try {
                 return Double.parseDouble(t);
             } catch (NumberFormatException e2) {
-                throw error("숫자가 아니다: " + t);
+                throw error("not a number: " + t);
             }
         }
     }
@@ -202,7 +202,7 @@ final class MiniJson {
     private Object unquoted() {
         int start = pos;
         while (pos < s.length() && "/\\;#={}[]:, \t\f\r\n".indexOf(s.charAt(pos)) < 0) pos++;
-        if (pos == start) throw error("값이 필요하다");
+        if (pos == start) throw error("a value is required");
         String t = s.substring(start, pos);
         switch (t) {
             case "true": return Boolean.TRUE;

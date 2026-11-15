@@ -132,7 +132,7 @@ public final class ServerSave implements AutoCloseable {
             int left = w.flushAllDrained(flush ? budget : Math.min(CHUNK_TIMEOUT_NANOS, budget));
             if (left != 0) {
                 if (flush) {
-                    if (incomplete == null) incomplete = w.dimension() + " 청크 " + (left < 0 ? "?" : left) + "개를 IO 레인에 넣지 못했다";
+                    if (incomplete == null) incomplete = Lang.t("save.lane-not-queued", w.dimension(), left < 0 ? "?" : left);
                 } else {
                     log.warn(Lang.t("save.chunks-left", w.dimension(), left));
                 }
@@ -176,10 +176,10 @@ public final class ServerSave implements AutoCloseable {
             try {
                 w.ioBarrier().get(Math.max(1, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
             } catch (TimeoutException e) {
-                if (incomplete == null) incomplete = w.dimension() + " IO 레인이 마감 안에 비지 않았다";
+                if (incomplete == null) incomplete = Lang.t("save.lane-not-drained", w.dimension());
                 continue;
             } catch (ExecutionException | RejectedExecutionException e) {
-                if (incomplete == null) incomplete = w.dimension() + " IO 레인 대기 실패: " + e;
+                if (incomplete == null) incomplete = Lang.t("save.lane-wait-failed", w.dimension(), e);
                 continue;
             }
             for (RegionFileStore st : w.regionFileStores()) {

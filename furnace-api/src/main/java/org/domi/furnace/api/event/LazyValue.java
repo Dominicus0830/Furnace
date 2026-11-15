@@ -86,5 +86,5 @@ public final class LazyValue<T> implements Supplier<T> {
     public boolean isResolved() { return ready != null || VALUE.getVolatile(this) != null; }
 
     @Override
-    public String toString() { return isResolved() ? "LazyValue[" + get() + "]" : "LazyValue[미변환]"; }
+    public String toString() { return isResolved() ? "LazyValue[" + get() + "]" : "LazyValue[unresolved]"; }
 }

@@ -169,7 +169,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         // 모든 청크가 이 스레드 것인지 먼저 다 확인한다 — 하나라도 아니면 아무것도 바꾸지 않는다
         java.util.Map<Region, java.util.List<org.domi.furnace.server.world.BlockEditBuffer.ChunkEdit>> byRegion = new java.util.LinkedHashMap<>();
         for (var e : buf.chunks()) {
-            Region r = ownedRegion(new BlockPos(e.cx() << 4, 0, e.cz() << 4), "editBlocksNow(청크 " + e.cx() + ", " + e.cz() + ")");
+            Region r = ownedRegion(new BlockPos(e.cx() << 4, 0, e.cz() << 4), "editBlocksNow(chunk " + e.cx() + ", " + e.cz() + ")");
             if (r == null) throw new ThreadOwnershipException("editBlocksNow: 청크 " + e.cx() + ", " + e.cz() + " 의 region 이 없다");
             byRegion.computeIfAbsent(r, k -> new ArrayList<>()).add(e);
         }

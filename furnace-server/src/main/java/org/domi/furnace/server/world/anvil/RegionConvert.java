@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Stream;
+import org.domi.furnace.server.i18n.Lang;
 
 public final class RegionConvert {
 
@@ -60,10 +61,10 @@ public final class RegionConvert {
 
     public static void main(String[] args) throws IOException {
         if (args.length != 2) {
-            System.err.println("사용: RegionConvert <월드 폴더> <deflate|gzip|lz4|none|zstd>");
+            System.err.println(Lang.t("tool.region-convert.usage"));
             System.exit(2);
         }
         Result r = convert(Path.of(args[0]), args[1]);
-        System.out.println("region 파일 " + r.files() + "개, 청크 " + r.chunks() + "개를 " + args[1] + " 로 변환했다.");
+        System.out.println(Lang.t("tool.region-convert.done", r.files(), r.chunks(), args[1]));
     }
 }

@@ -183,21 +183,21 @@ final class ChunkInternalsImpl implements ChunkInternals {
         if (cellIndex < 0 || cellIndex >= 64) throw new IllegalArgumentException("바이옴 칸 번호 범위 밖: " + cellIndex);
         int biomes = biomeKeys().size();
         if (biomeId < 0 || (biomes > 0 && biomeId >= biomes)) throw new IllegalArgumentException("바이옴 번호 범위 밖: " + biomeId);
-        ChunkColumn col = column(world, chunkX, chunkZ, "PalettedContainer#set (바이옴)");
+        ChunkColumn col = column(world, chunkX, chunkZ, "PalettedContainer#set (biomes)");
         if (col == null) return -1;
         return col.setSectionBiomeRaw(checkSection(col, sectionIndex), cellIndex, biomeId);
     }
 
     @Override
     public int[] sectionCountsNow(org.domi.furnace.api.world.World world, int chunkX, int sectionIndex, int chunkZ) {
-        ChunkColumn col = column(world, chunkX, chunkZ, "LevelChunkSection 개수");
+        ChunkColumn col = column(world, chunkX, chunkZ, "LevelChunkSection count");
         return col == null ? null : col.sectionVanillaCounts(checkSection(col, sectionIndex));
     }
 
     @Override
     public boolean setSectionCountsNow(org.domi.furnace.api.world.World world, int chunkX, int sectionIndex, int chunkZ,
                                        int nonEmptyBlockCount, int tickingBlockCount, int tickingFluidCount) {
-        ChunkColumn col = column(world, chunkX, chunkZ, "LevelChunkSection 개수 대입");
+        ChunkColumn col = column(world, chunkX, chunkZ, "LevelChunkSection count assignment");
         if (col == null) return false;
         col.setSectionVanillaCounts(checkSection(col, sectionIndex), nonEmptyBlockCount, tickingBlockCount, tickingFluidCount);
         return true;
@@ -346,7 +346,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
             for (int id : biomes) if (id < 0 || (n > 0 && id >= n)) throw new IllegalArgumentException("바이옴 번호 범위 밖: " + id);
         }
         if (counts != null && counts.length != 3) throw new IllegalArgumentException("개수는 셋이어야 한다: " + counts.length);
-        ChunkColumn col = column(world, chunkX, chunkZ, "청크 섹션 들여오기");
+        ChunkColumn col = column(world, chunkX, chunkZ, "importing chunk sections");
         if (col == null) return false;
         col.importSection(checkSection(col, sectionIndex), states, biomes, counts);
         return true;
@@ -354,13 +354,13 @@ final class ChunkInternalsImpl implements ChunkInternals {
 
     @Override
     public ChunkView publishChunkViewNow(org.domi.furnace.api.world.World world, int chunkX, int chunkZ) {
-        Region r = ownedLoaded(world, chunkX, chunkZ, "청크 공개");
+        Region r = ownedLoaded(world, chunkX, chunkZ, "publishing a chunk");
         return r == null ? null : r.publishReadViewNow(chunkX, chunkZ);
     }
 
     @Override
     public long contentStampNow(org.domi.furnace.api.world.World world, int chunkX, int chunkZ) {
-        ChunkColumn col = column(world, chunkX, chunkZ, "청크 내용 판 번호");
+        ChunkColumn col = column(world, chunkX, chunkZ, "chunk content revision number");
         return col == null ? -1L : col.modCount();
     }
 

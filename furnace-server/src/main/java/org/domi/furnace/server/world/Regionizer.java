@@ -632,10 +632,10 @@ public final class Regionizer {
             java.util.Arrays.sort(dur);
             log.info(Lang.t("world.tickstats-region", world.dimension(), r.id, gap[n / 2] / 1_000_000, gap[n * 95 / 100] / 1_000_000, gap[n - 1] / 1_000_000, dur[n / 2] / 1_000_000, dur[n * 95 / 100] / 1_000_000, dur[n - 1] / 1_000_000));
             st[1] = 0;
-            String[] names = {"블록틱", "조명", "플레이어", "보임", "정리·저장"};
+            String[] names = {Lang.t("world.phase.block-tick"), Lang.t("world.phase.light"), Lang.t("world.phase.players"), Lang.t("world.phase.visible"), Lang.t("world.phase.cleanup-save")};
             StringBuilder b = new StringBuilder();
             for (int i = 0; i < names.length; i++) {
-                b.append(String.format(" %s 평균 %.1f/최대 %.0fms", names[i], r.phaseSum[i] / 1e8, r.phaseMax[i] / 1e6));
+                b.append(Lang.t("world.phase-line", names[i], String.format(java.util.Locale.ROOT, "%.1f", r.phaseSum[i] / 1e8), String.format(java.util.Locale.ROOT, "%.0f", r.phaseMax[i] / 1e6)));
                 r.phaseSum[i] = 0;
                 r.phaseMax[i] = 0;
             }
@@ -1223,20 +1223,20 @@ public final class Regionizer {
                 if (cur.yielded && absorbIntoBorrowed(me)) continue;
                 Thread other = cur.tickThread;
                 if (other != null && org.domi.furnace.api.concurrent.GlobalWait.isWaiting(other)) {
-                    why[0] = "그 region 스레드(" + other.getName() + ")가 전역 스레드의 결과를 막고 기다린다(서로 기다림)";
+                    why[0] = Lang.t("watchdog.wait-global", other.getName());
                     return null;
                 }
                 long now = System.nanoTime();
                 if (other != null && now - nextLockCheck >= 0) {   // 잠금 주인 확인은 비싸서 가끔만
                     nextLockCheck = now + LOCK_CHECK_NANOS;
                     if (waitsOnLockOf(other, me)) {
-                        why[0] = "그 region 스레드(" + other.getName() + ")가 이 스레드가 쥔 잠금을 기다린다(서로 기다림)";
+                        why[0] = Lang.t("watchdog.wait-lock", other.getName());
                         return null;
                     }
                 }
                 long left = deadline - now;
                 if (left <= 0) {
-                    why[0] = (waitNanos / 1_000_000L) + "ms 안에 틱이 끝나지 않았다" + (other == null ? "" : " — " + other.getName() + " 위치 " + topFrame(other));
+                    why[0] = Lang.t(other == null ? "watchdog.tick-timeout" : "watchdog.tick-timeout-at", waitNanos / 1_000_000L, other == null ? "" : other.getName(), other == null ? "" : topFrame(other));
                     return null;
                 }
                 try {

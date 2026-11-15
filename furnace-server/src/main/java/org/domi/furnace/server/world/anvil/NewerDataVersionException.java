@@ -4,6 +4,7 @@
 // Furnace 는 기동 때 level.dat 판을 보고 멈추고(LevelStorage), 청크 하나만 새 판이면 그 청크를 올리지 않는다(새로 생성해 덮지도 않는다).
 package org.domi.furnace.server.world.anvil;
 
+import org.domi.furnace.server.i18n.Lang;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
 public final class NewerDataVersionException extends UnsupportedDataVersionException {
@@ -15,8 +16,7 @@ public final class NewerDataVersionException extends UnsupportedDataVersionExcep
     public static final String IGNORE_PROPERTY = "Paper.ignoreWorldDataVersion";
 
     public NewerDataVersionException(String what, int dataVersion) {
-        super(what + " 의 데이터 버전 " + dataVersion + " 이 이 서버(" + CURRENT + ", 1.21.1)보다 새것이다 — 새 판에서 저장된 데이터는 열지 않는다"
-                + "(모르는 블록·아이템이 지워진다). 강제로 열려면 -D" + IGNORE_PROPERTY + "=true", dataVersion);
+        super(Lang.t("anvil.newer-data-version", what, dataVersion, CURRENT, IGNORE_PROPERTY), dataVersion);
     }
 
     /** 기본은 꺼짐 — 새 판 데이터를 거부한다. */
@@ -31,7 +31,7 @@ public final class NewerDataVersionException extends UnsupportedDataVersionExcep
             if (v > CURRENT && !ignored()) {
                 int x = chunkRoot.tags().get("xPos") instanceof Number nx ? nx.intValue() : 0;
                 int z = chunkRoot.tags().get("zPos") instanceof Number nz ? nz.intValue() : 0;
-                throw new NewerDataVersionException("청크 " + x + "," + z, v);
+                throw new NewerDataVersionException(Lang.t("anvil.what-chunk", x, z), v);
             }
         }
     }

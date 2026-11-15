@@ -61,7 +61,7 @@ public final class PluginManagerImpl implements PluginManager {
     /** plugins.fail-fast=true 이고 실패가 있었으면 던진다 — 서버 시작이 멈춘다. */
     private void failFastCheck(String stage) {
         if (settings.failFast() && !failures.isEmpty()) {
-            throw new IllegalStateException("plugins.fail-fast: 플러그인 " + stage + " 실패 — " + failures);
+            throw new IllegalStateException(Lang.t("plugin.fail-fast", Lang.t(stage), failures));
         }
     }
 
@@ -104,7 +104,7 @@ public final class PluginManagerImpl implements PluginManager {
         boot.worldsPhase(host, true);       // 형식 어댑터가 onLoad·STARTUP 동안 월드를 감춘다(Paper 는 그때 월드가 없다) — enableAll 이 드러낸다
         worldsPending = true;
         for (PluginBootstrapper.Prepared p : List.copyOf(boot.prepared())) load(p);
-        failFastCheck("불러오기");
+        failFastCheck("plugin.stage-load");
     }
 
     private Loaded load(PluginBootstrapper.Prepared c) {
@@ -277,7 +277,7 @@ public final class PluginManagerImpl implements PluginManager {
             }
         }
         for (Loaded l : plugins) enable(l);   // 이미 켠 것은 건너뛴다
-        failFastCheck("켜기");
+        failFastCheck("plugin.stage-enable");
     }
 
     @Override

@@ -249,7 +249,7 @@ public final class Protocol767 implements ProtocolCodec {
         return values[i];
     }
 
-    private static Hand hand(int i) { return enumOf(Hand.values(), i, "손"); }
+    private static Hand hand(int i) { return enumOf(Hand.values(), i, "hand"); }
 
     private static byte[] rest(ByteBuf b) {
         byte[] a = new byte[b.readableBytes()];
@@ -390,7 +390,7 @@ public final class Protocol767 implements ProtocolCodec {
             } else {
                 sound = registryName(SOUNDS, holder - 1);
             }
-            SoundCategory cat = enumOf(SoundCategory.values(), Types.readVarInt(b), "소리 분류");
+            SoundCategory cat = enumOf(SoundCategory.values(), Types.readVarInt(b), "sound category");
             double x = b.readInt() / 8.0, y = b.readInt() / 8.0, z = b.readInt() / 8.0;
             return new ClientboundSoundPacket(sound, range, cat, x, y, z, b.readFloat(), b.readFloat(), b.readLong());
         }, (p, o) -> {
@@ -655,7 +655,7 @@ public final class Protocol767 implements ProtocolCodec {
         codec(Serverbound.PLAYER_ACTION, (id, b) -> {
             var action = enumOf(ServerboundPlayerActionPacket.Action.values(), Types.readVarInt(b), "player_action");
             BlockPos pos = readPos(b);
-            BlockFace face = enumOf(BlockFace.values(), b.readUnsignedByte(), "면");
+            BlockFace face = enumOf(BlockFace.values(), b.readUnsignedByte(), "face");
             return new ServerboundPlayerActionPacket(action, pos, face, Types.readVarInt(b));
         }, (p, o) -> {
             Types.writeVarInt(o, p.action().ordinal());
@@ -704,7 +704,7 @@ public final class Protocol767 implements ProtocolCodec {
         codec(Serverbound.USE_ITEM_ON, (id, b) -> {
             Hand h = hand(Types.readVarInt(b));
             BlockPos pos = readPos(b);
-            BlockFace face = enumOf(BlockFace.values(), Types.readVarInt(b), "면");
+            BlockFace face = enumOf(BlockFace.values(), Types.readVarInt(b), "face");
             float cx = b.readFloat(), cy = b.readFloat(), cz = b.readFloat();
             boolean inside = b.readBoolean();
             return new ServerboundUseItemOnPacket(h, pos, face, cx, cy, cz, inside, Types.readVarInt(b));

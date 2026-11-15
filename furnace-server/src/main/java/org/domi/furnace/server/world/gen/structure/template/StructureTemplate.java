@@ -19,7 +19,7 @@ public final class StructureTemplate {
 
     /** 리소스에 없는 템플릿 — 구조물 생성은 건너뛴다(자료 보충 필요). */
     public static final class MissingTemplateException extends IllegalArgumentException {
-        public MissingTemplateException(String id) { super("구조물 템플릿 없음: " + id); }
+        public MissingTemplateException(String id) { super("Structure template not found: " + id); }
     }
 
 

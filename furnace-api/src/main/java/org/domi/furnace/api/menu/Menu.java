@@ -246,7 +246,7 @@ public final class Menu {
             if (any != null) any.accept(click);
         } catch (Throwable t) {
             click.deny();
-            LOG.log(System.Logger.Level.ERROR, "메뉴 클릭 처리기 오류", t);
+            LOG.log(System.Logger.Level.ERROR, "Menu click handler failed", t);
         }
     }
 
@@ -255,7 +255,7 @@ public final class Menu {
         try {
             h.accept(p);
         } catch (Throwable t) {
-            LOG.log(System.Logger.Level.ERROR, "메뉴 열기/닫기 처리기 오류", t);
+            LOG.log(System.Logger.Level.ERROR, "Menu open/close handler failed", t);
         }
     }
 }

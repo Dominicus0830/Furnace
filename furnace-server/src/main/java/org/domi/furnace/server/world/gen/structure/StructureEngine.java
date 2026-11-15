@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import org.domi.furnace.server.i18n.Lang;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.block.BlockShapes;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
@@ -388,7 +389,7 @@ public final class StructureEngine {
         try {
             s.generator().accept(b);
         } catch (StructureTemplate.MissingTemplateException e) {
-            if (warned.add(def.id())) System.err.println("[structures] " + def.id() + " 건너뜀: " + e.getMessage());
+            if (warned.add(def.id())) System.err.println(Lang.t("structures.skipped", def.id(), e.getMessage()));
             return false;
         }
         if (b.isEmpty()) return false;

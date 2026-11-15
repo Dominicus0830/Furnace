@@ -94,7 +94,7 @@ public final class InternalsImpl implements Internals {
             RegionFuture<T> f = new RegionFuture<>();
             p.runOnOwner(() -> {
                 try {
-                    f.complete(action.apply(cast(p, type, "플레이어 " + p.name())));
+                    f.complete(action.apply(cast(p, type, "player " + p.name())));
                 } catch (Throwable t) {
                     f.completeExceptionally(t);
                 }
@@ -102,7 +102,7 @@ public final class InternalsImpl implements Internals {
             return f;
         }
         if (entity instanceof EntityHandle eh) {
-            return eh.onEntity(e -> action.apply(cast(e, type, "엔티티 " + eh.type())), null, true);
+            return eh.onEntity(e -> action.apply(cast(e, type, "entity " + eh.type())), null, true);
         }
         return failed(new IllegalArgumentException("Furnace 서버가 만든 엔티티 핸들이 아니다: " + entity));
     }
@@ -113,15 +113,15 @@ public final class InternalsImpl implements Internals {
             Player p = ph.handle();
             org.domi.furnace.server.world.RegionBorrow.claim(() -> p.ownerRegion);   // 전역 빌림 구간이면 그 플레이어의 region 을 빌린다
             Region r = p.ownerRegion;
-            if (r == null || !r.ownsPlayer(p)) throw notOwner("플레이어 " + p.name());
-            return cast(p, type, "플레이어 " + p.name());
+            if (r == null || !r.ownsPlayer(p)) throw notOwner("player " + p.name());
+            return cast(p, type, "player " + p.name());
         }
         if (entity instanceof EntityHandle eh) {
             if (!(eh.tasks().owner() instanceof org.domi.furnace.server.entity.Entity e) || e.isRemoved()) {
                 throw new IllegalStateException("엔티티가 사라졌다: " + eh.uniqueId());
             }
-            if (!ownsOnCurrentThread(e)) throw notOwner("엔티티 " + eh.type());
-            return cast(e, type, "엔티티 " + eh.type());
+            if (!ownsOnCurrentThread(e)) throw notOwner("entity " + eh.type());
+            return cast(e, type, "entity " + eh.type());
         }
         throw new IllegalArgumentException("Furnace 서버가 만든 엔티티 핸들이 아니다: " + entity);
     }
@@ -145,7 +145,7 @@ public final class InternalsImpl implements Internals {
     public Entity wrapEntity(Object internalEntity) {
         if (internalEntity instanceof Player p) return host.player(p);   // 플레이어 핸들은 아무 스레드에서 안전하다
         if (internalEntity instanceof org.domi.furnace.server.entity.Entity e) {
-            if (!ownsOnCurrentThread(e)) throw notOwner("엔티티 " + e.type().name());
+            if (!ownsOnCurrentThread(e)) throw notOwner("entity " + e.type().name());
             return EntityHandle.of(host, e);
         }
         throw new IllegalArgumentException("서버 엔티티가 아니다: " + (internalEntity == null ? "null" : internalEntity.getClass().getName()));
@@ -161,7 +161,7 @@ public final class InternalsImpl implements Internals {
         ChunkPos cp = new ChunkPos(pos.chunkX(), pos.chunkZ());
         CompletableFuture<T> f = w.submitAtOwnedChunk(cp, r -> {
             if (!r.chunkLoaded(cp) || r.level() == null) throw new IllegalStateException("청크가 로드돼 있지 않다: " + cp);
-            return action.apply(cast(r.level(), type, "칸 " + pos + " 의 레벨"));
+            return action.apply(cast(r.level(), type, "the level at " + pos));
         });
         return f != null ? RegionFuture.wrap(f) : failed(new IllegalStateException("청크가 로드돼 있지 않다: " + cp));
     }
@@ -176,25 +176,25 @@ public final class InternalsImpl implements Internals {
             throw new ThreadOwnershipException("칸 " + pos + " 를 가진 region 스레드가 아니다(현재 " + Thread.currentThread().getName() + ") — withLevel 을 쓴다");
         }
         if (!r.chunkLoaded(cp) || r.level() == null) throw new IllegalStateException("청크가 로드돼 있지 않다: " + cp);
-        return cast(r.level(), type, "칸 " + pos + " 의 레벨");
+        return cast(r.level(), type, "the level at " + pos);
     }
 
     // ------------------------------------------------------------------ 월드·서버
 
     @Override
     public <H> H world(org.domi.furnace.api.world.World world, Class<H> type) {
-        return cast(worldHandle(world).handle(), type, "월드 " + world.dimension());
+        return cast(worldHandle(world).handle(), type, "world " + world.dimension());
     }
 
     @Override
-    public <H> H server(Class<H> type) { return cast(host.core(), type, "서버"); }
+    public <H> H server(Class<H> type) { return cast(host.core(), type, "server"); }
 
     @Override
     public <H, T> CompletableFuture<T> withServer(Class<H> type, Function<? super H, ? extends T> action) {
         java.util.Objects.requireNonNull(type, "type");
         java.util.Objects.requireNonNull(action, "action");
         var core = host.core();
-        return RegionFuture.wrap(core.scheduler().global().submit(() -> action.apply(cast(core, type, "서버"))));
+        return RegionFuture.wrap(core.scheduler().global().submit(() -> action.apply(cast(core, type, "server"))));
     }
 
 

@@ -129,7 +129,7 @@ public abstract class FurnacePlugin {
         try {
             c.close();
         } catch (Throwable t) {
-            logger().log(java.util.logging.Level.WARNING, "자원을 닫다가 예외", t);
+            logger().log(java.util.logging.Level.WARNING, "Exception while closing a resource", t);
         }
     }
 

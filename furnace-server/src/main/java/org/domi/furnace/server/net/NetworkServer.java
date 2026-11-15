@@ -94,7 +94,7 @@ public final class NetworkServer {
     static String ioUringUnavailableReason() {
         try {
             Throwable c = io.netty.incubator.channel.uring.IOUring.unavailabilityCause();
-            return c == null ? "알 수 없음" : String.valueOf(c.getMessage() != null ? c.getMessage() : c);
+            return c == null ? Lang.t("net.unknown") : String.valueOf(c.getMessage() != null ? c.getMessage() : c);
         } catch (Throwable t) {
             return t.toString();
         }

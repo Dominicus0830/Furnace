@@ -178,7 +178,7 @@ final class BrainValues {
                 return v;
             case UUID_LIST: {
                 List<UUID> out = new ArrayList<>();
-                for (Object o : (Collection<?>) v) out.add((UUID) java.util.Objects.requireNonNull(o, "목록에 null"));
+                for (Object o : (Collection<?>) v) out.add((UUID) java.util.Objects.requireNonNull(o, "a list cannot contain null"));
                 return out;
             }
             case ENTITY:
@@ -186,7 +186,7 @@ final class BrainValues {
             case ENTITY_LIST: case VISIBLE_ENTITIES: {
                 List<Object> out = new ArrayList<>();
                 for (Object o : (Collection<?>) v) {
-                    Object e = entity(mob, s, java.util.Objects.requireNonNull(o, "목록에 null"));
+                    Object e = entity(mob, s, java.util.Objects.requireNonNull(o, "a list cannot contain null"));
                     if (e == MISSING) return MISSING;
                     out.add(e);
                 }
@@ -200,7 +200,7 @@ final class BrainValues {
                 return toServer((GlobalBlockPos) v);
             case GLOBAL_POS_LIST: case GLOBAL_POS_SET: {
                 Collection<GlobalPos> out = s.kind() == Kind.GLOBAL_POS_SET ? new LinkedHashSet<>() : new ArrayList<>();
-                for (Object o : (Collection<?>) v) out.add(toServer((GlobalBlockPos) java.util.Objects.requireNonNull(o, "목록에 null")));
+                for (Object o : (Collection<?>) v) out.add(toServer((GlobalBlockPos) java.util.Objects.requireNonNull(o, "a list cannot contain null")));
                 return out;
             }
             case WALK_TARGET: {

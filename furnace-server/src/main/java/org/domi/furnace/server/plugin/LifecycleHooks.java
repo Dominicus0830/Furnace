@@ -10,6 +10,7 @@ import java.util.logging.Level;
 import org.domi.furnace.api.plugin.lifecycle.LifecycleEventHandler;
 import org.domi.furnace.api.plugin.lifecycle.LifecycleEventManager;
 import org.domi.furnace.api.plugin.lifecycle.LifecycleEventType;
+import org.domi.furnace.server.i18n.Lang;
 
 final class LifecycleHooks {
 
@@ -52,7 +53,7 @@ final class LifecycleHooks {
             try {
                 ((LifecycleEventHandler<R>) h.handler()).run(registrarFor.apply(h.owner()));
             } catch (Throwable t) {
-                h.logger().log(Level.SEVERE, "수명주기 훅 " + type + " 처리 중 예외", t);
+                h.logger().log(Level.SEVERE, Lang.t("plugin.lifecycle-hook-failed", type), t);
             }
         }
     }
@@ -65,7 +66,7 @@ final class LifecycleHooks {
             try {
                 ((LifecycleEventHandler<R>) h.handler()).run(registrar);
             } catch (Throwable t) {
-                h.logger().log(Level.SEVERE, "수명주기 훅 " + type + " 처리 중 예외", t);
+                h.logger().log(Level.SEVERE, Lang.t("plugin.lifecycle-hook-failed", type), t);
             }
         }
     }

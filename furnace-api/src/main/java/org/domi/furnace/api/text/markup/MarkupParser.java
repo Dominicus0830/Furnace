@@ -95,7 +95,7 @@ final class MarkupParser implements Context {
             if (kind != TagScanner.CLOSE && name.equals("pre")) {
                 int close = indexOfIgnoreCase(s, "</pre>", end);
                 if (close < 0) {
-                    if (strict) throw error("닫히지 않은 태그: <pre>", i);
+                    if (strict) throw error("unclosed tag: <pre>", i);
                     text.append(s, end, n);
                     i = n;
                 } else {
@@ -156,11 +156,11 @@ final class MarkupParser implements Context {
             }
         }
         if (idx < 0) {
-            if (strict) throw error("여는 태그가 없는 닫는 태그: </" + name + ">", pos);
+            if (strict) throw error("closing tag without an opening tag: </" + name + ">", pos);
             return resolver.has(name); // 아는 태그면 조용히 버리고, 모르면 글자로 남긴다
         }
         if (strict && idx != stack.size() - 1) {
-            throw error("닫는 태그 순서가 어긋났다: </" + name + "> 앞에 <" + stack.get(stack.size() - 1).display + "> 가 열려 있다", pos);
+            throw error("closing tags are out of order: </" + name + "> while <" + stack.get(stack.size() - 1).display + "> is still open", pos);
         }
         flushText();
         closeFrames(idx);
@@ -170,7 +170,7 @@ final class MarkupParser implements Context {
     private Text finish() {
         flushText();
         if (!stack.isEmpty()) {
-            if (strict) throw error("닫히지 않은 태그: <" + stack.get(stack.size() - 1).display + ">", -1);
+            if (strict) throw error("unclosed tag: <" + stack.get(stack.size() - 1).display + ">", -1);
             closeFrames(0);
         }
         return switch (root.size()) {
