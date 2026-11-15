@@ -216,8 +216,8 @@ class SchemaPacketReverseTest {
                 (PacketDelivery.reversible(t) ? yes : no).add(t.name().substring("minecraft:".length()));
             }
             assertEquals(new TreeSet<>(List.of(
-                    // 타입 레코드: 플레이어 정보·플러그인 메시지(2b-4). 메타데이터는 EntityDataBridge(2026-11-14)
-                    "custom_payload", "player_info_update",
+                    // 타입 레코드: 플러그인 메시지(2b-4). 메타데이터는 EntityDataBridge(2026-11-14), 탭 목록은 PlayerInfoBridge(T-181)
+                    "custom_payload",
                     // 값 shim 이 빈 껍데기(toFurnace 도 없다)
                     "block_entity_data", "delete_chat", "disguised_chat", "login", "open_screen", "respawn", "server_links",
                     // 손 코덱: toFurnace 도 없다(보스바·통계), 역변환이 아직 없다(팀·목표·속성·지도)

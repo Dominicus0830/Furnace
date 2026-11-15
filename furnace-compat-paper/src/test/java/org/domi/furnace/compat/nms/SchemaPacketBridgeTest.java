@@ -94,7 +94,7 @@ class SchemaPacketBridgeTest {
             assertNotNull(p);
             var conn = ((org.bukkit.craftbukkit.entity.CraftPlayer) p).getHandle().connection;
             tp.sync();
-            long failuresBefore = tp.decodeFailures();   // 접속 때 player_info_update 의 채팅 세션 초기화는 시험 클라이언트가 읽지 않는다(이 다리와 무관)
+            long failuresBefore = tp.decodeFailures();   // 이 다리가 보낸 것만 센다
             var at = tp.player().location();
             var region = new org.domi.furnace.api.world.BlockPos((int) Math.floor(at.x()), (int) Math.floor(at.y()), (int) Math.floor(at.z()));
             var item = net.minecraft.world.item.ItemStack.fromFurnace(new org.domi.furnace.api.item.ItemStack("minecraft:diamond", 3), 3);

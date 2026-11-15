@@ -16,6 +16,9 @@ public interface Player extends CommandSender, LivingEntity {
     @Override
     UUID uniqueId();
 
+    /** 게임 프로필 속성(세션 서버가 준 스킨 "textures" 등, 오프라인 서버면 빈 목록) — 탭 목록 패킷의 ADD_PLAYER 와 같은 값. */
+    default java.util.List<ProfileProperty> profileProperties() { return java.util.List.of(); }
+
     /** 바닐라 Player.getDisplayName: 이름 + "/tell 이름" 제안 클릭 + 삽입. */
     Text displayName();
 

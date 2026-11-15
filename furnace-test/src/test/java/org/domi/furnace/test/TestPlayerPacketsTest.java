@@ -115,22 +115,25 @@ class TestPlayerPacketsTest {
 
     /**
      * 실패 수는 받은 패킷 장벽 뒤에 센다: 읽기 스레드가 뒤처져도(바쁜 CI) 서버가 앞서 보낸 패킷의 실패가 빠지지 않는다.
-     * 접속 때 player_info_update(채팅 세션 초기화)는 시험 클라이언트가 읽지 않는 패킷이다 — 그 프레임에서 읽기 스레드를 일부러 늦춘다.
+     * 깨진 본문(빈 player_info_update)을 보내고 그 프레임에서 읽기 스레드를 일부러 늦춘다.
      * 장벽 없이 세던 때는 sync() 직후 0 이 나와 "전/후" 비교 시험(SchemaPacketBridgeTest)이 가끔 2 차이로 깨졌다.
      */
     @Test
     void decodeFailuresCountEverythingTheServerSentBefore() {
         try (var server = FurnaceTestServer.builder().plugin(CounterPlugin.class).start()) {
             int infoId = server.internals().plugins().packetsImpl().codec().ids(PacketTypes.Clientbound.PLAYER_INFO_UPDATE)[0];
+            TestPlayer steve = server.join("Steve");
+            server.tick(2);
+            steve.sync();
+            assertEquals(0, steve.decodeFailures(), "접속 때 받은 것은 모두 읽혔다(채팅 세션 초기화 포함): " + steve.recentDecodeFailures());
             TestPlayer.frameTap = (id, body) -> {
-                if (id == infoId) java.util.concurrent.locks.LockSupport.parkNanos(300_000_000L);
+                if (id == infoId && body.length == 0) java.util.concurrent.locks.LockSupport.parkNanos(300_000_000L);
             };
             try {
-                TestPlayer steve = server.join("Steve");
-                server.tick(2);
+                server.internals().playerByName("Steve").send(new RawPacket(infoId, new byte[0], null, true));
                 steve.sync();
                 long n = steve.decodeFailures();
-                assertTrue(n >= 1, "접속 때 받은 채팅 세션 초기화가 세어져 있다: " + n);
+                assertEquals(1, n, "늦게 읽은 깨진 패킷도 세어져 있다");
                 assertTrue(steve.recentDecodeFailures().stream().allMatch(f -> f.contains("player_info_update")), steve.recentDecodeFailures().toString());
                 assertEquals(n, steve.decodeFailures(), "더 보낸 것이 없으면 그대로");
             } finally {

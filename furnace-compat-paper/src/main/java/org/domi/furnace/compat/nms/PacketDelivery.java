@@ -71,9 +71,12 @@ public final class PacketDelivery {
         return t.typed() ? TypedPacketBridge.supports(t) : SchemaPacketReverse.supports(t);
     }
 
+    /** 되돌리지 못하는 까닭이 서버 설정으로 풀리는 것인가(로그에 까닭까지 적을 것). 지금은 authlib 없음 하나. */
+    public static boolean fixableBySetting(String why) { return Profiles.MISSING.equals(why); }
+
     /** 되돌리지 못하는 까닭(되면 null). */
     public static String irreversibleReason(org.domi.furnace.api.packet.PacketType<?> t) {
-        if (t.typed()) return TypedPacketBridge.supports(t) ? null : "이 타입 레코드 종류는 아직 shim 으로 되돌리지 못한다(2b-4)";
+        if (t.typed()) return TypedPacketBridge.refusal(t);
         return SchemaPacketReverse.refusal(t);
     }
 }
