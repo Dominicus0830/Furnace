@@ -139,7 +139,8 @@ class PacketShimVanillaBehaviorTest {
     void helperTypeConstructorsFollowVanillaVisibility() throws Exception {
         assertThrows(NoSuchMethodException.class,
                 () -> ClientboundLevelChunkPacketData.class.getConstructor(net.minecraft.nbt.CompoundTag.class, byte[].class, List.class));
-        assertEquals(0, ClientboundLightUpdatePacketData.class.getConstructors().length);
+        // 손으로 쓴 shim(T-182): 바닐라처럼 바이트 읽기 생성자만 공개(바닐라의 LevelLightEngine 생성자는 아직 없다)
+        assertEquals(1, ClientboundLightUpdatePacketData.class.getConstructors().length);
         assertEquals(0, ClientboundSetPlayerTeamPacket.Parameters.class.getConstructors().length);
         // 바닐라에 public 이 있는 것은 그대로
         assertTrue(Modifier.isPublic(ClientboundGameEventPacket.Type.class.getDeclaredConstructor(int.class).getModifiers()));

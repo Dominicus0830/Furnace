@@ -280,12 +280,18 @@ public final class PacketServiceImpl implements PacketService {
                 if (raw != null && raw.source() instanceof Packet src) {
                     value = src;
                 } else if (codec.readable(type)) {
-                    ByteBuf b = Unpooled.buffer();
-                    try {
-                        packet.write(b);
-                        bytes = ByteBufUtil.getBytes(b);
-                    } finally {
-                        b.release();
+                    if (packet instanceof org.domi.furnace.server.net.protocol.play.LevelChunkWithLight chunk) {
+                        // 청크 패킷의 write 는 본문을 놓는다 — 놓지 않고 복사해 읽는다. 손대지 않으면 원래 패킷(공유 압축 프레임 길)을 그대로,
+                        // 취소면 부른 쪽이 한 번만 놓는다(PR #399 검토 R2·S3: 예전엔 여기서 놓고 취소 때 또 놓아 IllegalReferenceCountException)
+                        bytes = ByteBufUtil.getBytes(chunk.body());
+                    } else {
+                        ByteBuf b = Unpooled.buffer();
+                        try {
+                            packet.write(b);
+                            bytes = ByteBufUtil.getBytes(b);
+                        } finally {
+                            b.release();
+                        }
                     }
                     value = codec.decode(type, id, Unpooled.wrappedBuffer(bytes));
                 } else {
@@ -294,20 +300,29 @@ public final class PacketServiceImpl implements PacketService {
             } catch (RuntimeException e) {
                 if (type.typed()) {
                     log.warn("패킷 디코드 실패({}), 리스너를 건너뛴다: {}", type, e.toString());
-                    return bytes != null ? new RawPacket(id, bytes, null, true) : packet;
+                    return unchanged(packet, id, bytes);
                 }
                 log.debug("범용 디코드 실패({}), 내용 없이 리스너에 넘긴다: {}", type, e.toString());
                 value = unreadable(type);
             }
             EventImpl ev = fire(rs, type, value, raw != null);
-            if (ev.cancelled) return null;
-            if (!ev.modified) return bytes != null ? new RawPacket(id, bytes, null, true) : packet;
+            if (ev.cancelled) return null;   // 부른 쪽이 원래 패킷을 놓는다(discard)
+            if (!ev.modified) return unchanged(packet, id, bytes);
+            RawPacket replaced;
             try {
-                return encodeOutbound((ClientboundPacket) ev.value, true);
+                replaced = encodeOutbound((ClientboundPacket) ev.value, true);
             } catch (RuntimeException e) {
                 log.warn("리스너가 바꾼 패킷을 인코딩하지 못했다({}), 원래 패킷을 보낸다: {}", type, e.toString());
-                return bytes != null ? new RawPacket(id, bytes, null, true) : packet;
+                return unchanged(packet, id, bytes);
             }
+            packet.discard();   // 바꾼 것을 보낸다 — 원래 패킷이 든 본문(청크)은 여기서 놓는다
+            return replaced;
+        }
+
+        /** 손대지 않은 원래 패킷: 이미 쓴 바이트가 있으면 그것(다시 쓰지 않게), 청크는 본문을 놓지 않았으므로 원래 패킷 그대로. */
+        private static org.domi.furnace.server.net.protocol.Packet unchanged(org.domi.furnace.server.net.protocol.Packet packet, int id, byte[] bytes) {
+            if (packet instanceof org.domi.furnace.server.net.protocol.play.LevelChunkWithLight) return packet;
+            return bytes != null ? new RawPacket(id, bytes, null, true) : packet;
         }
 
         @Override

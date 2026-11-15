@@ -71,6 +71,15 @@ public final class PacketDelivery {
         return t.typed() ? TypedPacketBridge.supports(t) : SchemaPacketReverse.supports(t);
     }
 
+    /**
+     * Furnace → shim → Furnace 가 값을 그대로 돌려주는 종류(청크·빛 — 시험이 지킨다). 다리는 이 종류에서 비교 기준을 다시 변환하지 않고
+     * 원래 값과 바로 비교한다(PR #399 검토 S2: 청크 하나 약 30µs).
+     */
+    public static boolean losslessRoundTrip(org.domi.furnace.api.packet.PacketType<?> t) {
+        String n = t.name();
+        return ChunkPacketBridge.handles(n.substring(n.indexOf(':') + 1));
+    }
+
     /** 되돌리지 못하는 까닭이 서버 설정으로 풀리는 것인가(로그에 까닭까지 적을 것). 지금은 authlib 없음 하나. */
     public static boolean fixableBySetting(String why) { return Profiles.MISSING.equals(why); }
 

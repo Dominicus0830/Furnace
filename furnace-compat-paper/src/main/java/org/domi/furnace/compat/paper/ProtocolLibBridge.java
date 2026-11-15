@@ -305,7 +305,8 @@ public final class ProtocolLibBridge {
         ClientboundPacket before;
         try {
             shim = PacketDelivery.fromFurnace(value);
-            before = PacketDelivery.convert(shim);   // 비교 기준(되돌리기가 값을 조금 바꿔도 리스너가 손대지 않았으면 원래 바이트를 보낸다)
+            // 비교 기준(되돌리기가 값을 조금 바꿔도 리스너가 손대지 않았으면 원래 바이트를 보낸다). 값이 그대로 도는 종류는 원래 값 그대로
+            before = PacketDelivery.losslessRoundTrip(value.type()) && value instanceof ClientboundPacket cp ? cp : PacketDelivery.convert(shim);
         } catch (RuntimeException ex) {
             warnOnce("from:" + value.type(), "Furnace 가 보내는 " + value.type().name() + " 패킷 하나를 ProtocolLib 리스너에 보여 주지 못했다(첫 오류): " + ex.getMessage());
             return;
@@ -330,7 +331,7 @@ public final class ProtocolLibBridge {
         try {
             out = PacketDelivery.convert(after);
         } catch (RuntimeException ex) {
-            warnOnce("to:" + value.type(), "ProtocolLib 리스너가 바꾼 " + value.type().name() + " 패킷을 Furnace 패킷으로 되돌리지 못해 원래 패킷을 보낸다(첫 오류): " + ex.getMessage());
+            warnOnce("to:" + value.type(), "ProtocolLib 리스너가 바꾼 " + value.type().name() + " 패킷을 Furnace 패킷으로 되돌리지 못해 리스너가 바꾸기 전 원래 패킷을 보낸다(첫 오류): " + ex.getMessage());
             return;
         }
         if (out.equals(before)) return;   // 리스너가 손대지 않았다
