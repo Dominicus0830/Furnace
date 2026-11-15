@@ -97,24 +97,22 @@ public record EntityHandleSettings(double itemMerge, double expMerge, int maxEnt
         if (warn != null) {
             List<String> diff = s.vanillaDifferences();
             if (!diff.isEmpty()) {
-                warn.accept("엔티티 손잡이가 Paper 기본값으로 켜져 있어 바닐라와 결과가 다릅니다: " + String.join(", ", diff)
-                        + ". 바닐라와 같게 하려면 furnace.properties 에 " + MAX_COLLISIONS + "=-1, " + TRACKING + "enabled=false, "
-                        + ITEM_MERGE_INTO_TICKING + "=false, " + SKIP_UNPUSHABLE + "=false, " + PLAYER_CRAMMING + "=true (또는 config.preset=vanilla)");
+                warn.accept(org.domi.furnace.server.i18n.Lang.t("config.entity-handles-differ", String.join(", ", diff)));
             }
         }
         return s;
     }
 
-    /** 바닐라와 결과가 달라지는 값(기동 경고용). 비었으면 바닐라와 같다. */
+    /** 바닐라와 결과가 달라지는 "키=값" 목록(기동 알림용 — 언어와 무관한 키 이름). 비었으면 바닐라와 같다. */
     public List<String> vanillaDifferences() {
         List<String> out = new ArrayList<>();
         if (itemMerge != 0.5) out.add(ITEM_MERGE + "=" + itemMerge);
         if (expMerge > 0) out.add(EXP_MERGE + "=" + expMerge);
-        if (maxEntityCollisions != UNLIMITED) out.add("몹 밀기 상한 " + MAX_COLLISIONS + "=" + maxEntityCollisions);
-        if (trackingEnabled) out.add("추적 거리 " + TRACKING + "*(플레이어 " + trackPlayers + "·몬스터 " + trackMonsters + "블록 등)");
-        if (itemMergeIntoTicking) out.add("아이템은 늘 틱 도는 쪽으로 합침(Spigot, " + ITEM_MERGE_INTO_TICKING + ")");
-        if (skipUnpushableCollisions) out.add("사다리에 매달린 몹 등 밀 수 없는 생물은 밀기·cramming 없음(Paper, " + SKIP_UNPUSHABLE + ")");
-        if (!allowPlayerCrammingDamage) out.add("플레이어는 cramming 피해 없음(Paper, " + PLAYER_CRAMMING + "=false)");
+        if (maxEntityCollisions != UNLIMITED) out.add(MAX_COLLISIONS + "=" + maxEntityCollisions);
+        if (trackingEnabled) out.add(TRACKING + "enabled=true");
+        if (itemMergeIntoTicking) out.add(ITEM_MERGE_INTO_TICKING + "=true");
+        if (skipUnpushableCollisions) out.add(SKIP_UNPUSHABLE + "=true");
+        if (!allowPlayerCrammingDamage) out.add(PLAYER_CRAMMING + "=false");
         return out;
     }
 

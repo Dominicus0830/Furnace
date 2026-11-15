@@ -172,7 +172,7 @@ public final class NetworkServer {
             throw e;
         }
         int boundPort = ((InetSocketAddress) channel.localAddress()).getPort();
-        log.info("네트워크 서버 listen: 포트 {} (압축 임계값 {})", boundPort, compressionThreshold);
+        log.debug("Network server listening on port {} (compression threshold {})", boundPort, compressionThreshold);
         return boundPort;
     }
 
@@ -189,6 +189,6 @@ public final class NetworkServer {
         // 다음 단계(FLUSH_WORLDS 저장 기준점)가 그 작업보다 먼저 서지 않게(A03-01·A04).
         if (workerGroup != null) workerGroup.shutdownGracefully(100, 5_000, java.util.concurrent.TimeUnit.MILLISECONDS).awaitUninterruptibly(6_000);
         if (bossGroup != null) bossGroup.shutdownGracefully();
-        log.info("네트워크 서버 종료");
+        log.debug("Network server stopped");
     }
 }
