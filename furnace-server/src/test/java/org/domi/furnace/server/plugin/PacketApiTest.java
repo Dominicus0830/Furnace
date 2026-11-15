@@ -179,6 +179,11 @@ class PacketApiTest {
                         org.domi.furnace.api.entity.GameMode.CREATIVE, true, 12, Text.text("표시")),
                 ClientboundPlayerInfoUpdatePacket.latency(u, 80),
                 ClientboundPlayerInfoUpdatePacket.listed(u, false),
+                new ClientboundPlayerInfoUpdatePacket(java.util.EnumSet.of(ClientboundPlayerInfoUpdatePacket.Action.INITIALIZE_CHAT,
+                        ClientboundPlayerInfoUpdatePacket.Action.UPDATE_LATENCY), List.of(
+                        new ClientboundPlayerInfoUpdatePacket.Entry(u, null, null, null, false, 5, null, new ClientboundPlayerInfoUpdatePacket.ChatSession(
+                                UUID.randomUUID(), java.time.Instant.ofEpochMilli(1_800_000_000_000L), rsaKey(), new byte[] {1, 2, 3})),
+                        new ClientboundPlayerInfoUpdatePacket.Entry(UUID.randomUUID(), null, null, null, false, 6, null))),
                 ClientboundPlayerInfoRemovePacket.of(u, UUID.randomUUID()),
                 new ServerboundChatPacket("hello", java.time.Instant.ofEpochMilli(5000), 42L, new byte[256], 3, 0b101),
                 new ServerboundChatCommandPacket("gamemode creative"),
@@ -242,8 +247,40 @@ class PacketApiTest {
         ByteBuf info = Unpooled.buffer();
         new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(List.of(new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry(u, "Bob",
                 List.of(new org.domi.furnace.server.players.GameProfile.Property("textures", "v", "sg")), null, 1, 33))).write(info);
-        // 서버 쪽 add 는 채팅 세션 초기화 비트를 늘 켠다(없으면 빈 옵션) — 이 래퍼는 그 비트를 읽지 않으므로 거절한다
-        assertThrows(IllegalArgumentException.class, () -> codec.decode(PacketTypes.Clientbound.PLAYER_INFO_UPDATE, org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.ID, info));
+        // 서버 쪽 add 는 채팅 세션 초기화 비트를 늘 켠다(없으면 빈 옵션) — 래퍼는 세션 없음(null)으로 읽는다
+        var read = (ClientboundPlayerInfoUpdatePacket) codec.decode(PacketTypes.Clientbound.PLAYER_INFO_UPDATE,
+                org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.ID, info);
+        assertEquals(java.util.EnumSet.allOf(ClientboundPlayerInfoUpdatePacket.Action.class), read.actions());
+        assertEquals(new ClientboundPlayerInfoUpdatePacket.Entry(u, "Bob", List.of(new org.domi.furnace.api.entity.ProfileProperty("textures", "v", "sg")),
+                org.domi.furnace.api.entity.GameMode.CREATIVE, true, 33, null, null), read.entries().get(0));
+        assertEquals(0, info.readableBytes(), "끝까지 읽었다");
+        // 채팅 세션 공개 키가 RSA 가 아니면 보낼 수 없다(바닐라 클라이언트는 읽다 끊는다)
+        var bad = new ClientboundPlayerInfoUpdatePacket(java.util.EnumSet.of(ClientboundPlayerInfoUpdatePacket.Action.INITIALIZE_CHAT), List.of(
+                new ClientboundPlayerInfoUpdatePacket.Entry(u, null, null, null, false, 0, null, new ClientboundPlayerInfoUpdatePacket.ChatSession(
+                        UUID.randomUUID(), java.time.Instant.EPOCH, new byte[] {1, 2}, new byte[0]))));
+        var e = assertThrows(IllegalArgumentException.class, () -> codec.encode(bad, Unpooled.buffer()));
+        assertTrue(e.getMessage().contains("RSA"), e.getMessage());
+        // 바닐라 RemoteChatSession.Data 읽기 상한: 공개 키 512, 키 서명 4096 바이트(넘으면 읽기 거절, PR #390 검토 S5)
+        for (int[] len : new int[][] {{513, 0, 512}, {512, 4097, 4096}}) {
+            ByteBuf over = Unpooled.buffer();
+            over.writeByte(1 << ClientboundPlayerInfoUpdatePacket.Action.INITIALIZE_CHAT.ordinal());
+            Types.writeVarInt(over, 1);
+            Types.writeUuid(over, u);
+            over.writeBoolean(true);
+            Types.writeUuid(over, UUID.randomUUID());
+            over.writeLong(1_800_000_000_000L);
+            Types.writeVarInt(over, len[0]);
+            over.writeBytes(new byte[len[0]]);
+            Types.writeVarInt(over, len[1]);
+            over.writeBytes(new byte[len[1]]);
+            var ex = assertThrows(IllegalArgumentException.class, () -> codec.decode(PacketTypes.Clientbound.PLAYER_INFO_UPDATE,
+                    org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.ID, over));
+            assertTrue(ex.getMessage().contains("상한 " + len[2]), ex.getMessage());
+        }
+        assertThrows(IllegalArgumentException.class, () -> new ClientboundPlayerInfoUpdatePacket.ChatSession(UUID.randomUUID(), java.time.Instant.EPOCH,
+                new byte[513], new byte[0]));
+        assertThrows(IllegalArgumentException.class, () -> new ClientboundPlayerInfoUpdatePacket.ChatSession(UUID.randomUUID(), java.time.Instant.EPOCH,
+                new byte[512], new byte[4097]));
     }
 
     @Test
@@ -517,5 +554,15 @@ class PacketApiTest {
         host.packets().listen(a, PacketTypes.Clientbound.SET_TITLE_TEXT, e -> e.setCancelled(true));
         host.packets().sendBundle(api, List.of(new ClientboundSetTitleTextPacket(Text.text("x"))));
         assertEquals("", shape(sent(p)), "모두 취소되면 빈 번들도 보내지 않는다");
+    }
+
+    private static byte[] rsaKey() {
+        try {
+            var g = java.security.KeyPairGenerator.getInstance("RSA");
+            g.initialize(1024);
+            return g.generateKeyPair().getPublic().getEncoded();
+        } catch (java.security.GeneralSecurityException e) {
+            throw new IllegalStateException(e);
+        }
     }
 }

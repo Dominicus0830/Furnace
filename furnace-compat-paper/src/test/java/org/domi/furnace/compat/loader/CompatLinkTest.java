@@ -1,6 +1,7 @@
 package org.domi.furnace.compat.loader;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.invoke.MethodHandles;
@@ -13,7 +14,8 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 /**
- * N-lib-1: 호환 계층의 모든 클래스가 선택 라이브러리(authlib·DFU·Brigadier·Adventure·Guava 등) 없이 링크되는가. 시험 클래스패스에는 그 라이브러리가 없다.
+ * N-lib-1: 호환 계층의 모든 클래스가 선택 라이브러리(authlib·DFU·Brigadier·Adventure·Guava 등) 없이 링크되는가. 시험 클래스패스에는 그 라이브러리가 없다
+ * (authlib 대역만 있어서 그것을 뺀 로더로 본다).
  * 서명에만 나오는 라이브러리 타입은 괜찮고(부를 때 해석), 본문이 하위 타입 대입·catch 로 건드리거나 상위 타입이 라이브러리면 클래스 전체가 링크에 실패한다 —
  * 그런 본문은 {@code …$Lib} 도우미로 뗀다(그 이름만 실패를 허용한다). 메서드 조회는 정적 초기화를 돌리지 않고 링크(검증)를 일으킨다.
  * 반사로 서명을 푸는 것({@code getDeclaredMethods})은 라이브러리가 있어야 하므로 여기서 하지 않는다 — 그래서 서명에 쓰는 묶음은 서버가 늘 준비한다
@@ -31,7 +33,15 @@ class CompatLinkTest {
                     .map(n -> n.substring(0, n.length() - 6).replace('/', '.')).filter(n -> !n.endsWith("module-info")).sorted().toList();
         }
         assertTrue(names.size() > 500, "클래스가 너무 적다: " + names.size());
-        ClassLoader loader = getClass().getClassLoader();
+        // 시험 클래스패스에는 authlib 대역(src/authlib)이 있다 — 그것을 뺀 새 로더로 호환 계층 클래스를 다시 올려 본다
+        List<String> stub = List.of(System.getProperty("furnace.test.authlibStub", "").split(java.io.File.pathSeparator));
+        List<java.net.URL> urls = new ArrayList<>();
+        for (String e : System.getProperty("java.class.path").split(java.io.File.pathSeparator)) {
+            if (!e.isEmpty() && !stub.contains(e)) urls.add(Path.of(e).toUri().toURL());
+        }
+        ClassLoader loader = new java.net.URLClassLoader(urls.toArray(java.net.URL[]::new), ClassLoader.getPlatformClassLoader());
+        assertTrue(stub.stream().anyMatch(s -> !s.isEmpty()), "authlib 대역 경로를 받았다");
+        assertThrows(ClassNotFoundException.class, () -> Class.forName("com.mojang.authlib.GameProfile", false, loader), "새 로더에는 authlib 이 없다");
         List<String> failures = new ArrayList<>();
         int linked = 0;
         for (String n : names) {

@@ -440,7 +440,6 @@ public final class Protocol767 implements ProtocolCodec {
         codec(Clientbound.PLAYER_INFO_UPDATE, (id, b) -> decodePlayerInfo(b), (p, o) -> {
             int mask = 0;
             for (ClientboundPlayerInfoUpdatePacket.Action a : p.actions()) mask |= 1 << a.ordinal();
-            if ((mask & 0x02) != 0) throw new IllegalArgumentException("채팅 세션 초기화는 보낼 수 없다");
             o.writeByte(mask);
             Types.writeVarInt(o, p.entries().size());
             for (ClientboundPlayerInfoUpdatePacket.Entry e : p.entries()) {
@@ -455,6 +454,7 @@ public final class Protocol767 implements ProtocolCodec {
                         if (pp.signature() != null) Types.writeString(o, pp.signature());
                     }
                 }
+                if ((mask & 0x02) != 0) writeChatSession(o, e.chatSession());
                 if ((mask & 0x04) != 0) Types.writeVarInt(o, e.gameMode().id());
                 if ((mask & 0x08) != 0) o.writeBoolean(e.listed());
                 if ((mask & 0x10) != 0) Types.writeVarInt(o, e.latencyMs());
@@ -502,7 +502,6 @@ public final class Protocol767 implements ProtocolCodec {
 
     private static ClientboundPlayerInfoUpdatePacket decodePlayerInfo(ByteBuf b) {
         int mask = b.readUnsignedByte();
-        if ((mask & 0x02) != 0) throw new IllegalArgumentException("채팅 세션 초기화는 읽지 않는다");
         java.util.EnumSet<ClientboundPlayerInfoUpdatePacket.Action> actions = java.util.EnumSet.noneOf(ClientboundPlayerInfoUpdatePacket.Action.class);
         for (ClientboundPlayerInfoUpdatePacket.Action a : ClientboundPlayerInfoUpdatePacket.Action.values()) if ((mask & (1 << a.ordinal())) != 0) actions.add(a);
         int n = Types.readVarInt(b);
@@ -516,6 +515,7 @@ public final class Protocol767 implements ProtocolCodec {
             boolean listed = false;
             int latency = 0;
             org.domi.furnace.api.text.Text display = null;
+            ClientboundPlayerInfoUpdatePacket.ChatSession session = null;
             if ((mask & 0x01) != 0) {
                 name = Types.readString(b, 16);
                 int pc = Types.readVarInt(b);
@@ -526,13 +526,48 @@ public final class Protocol767 implements ProtocolCodec {
                     props.add(new ProfileProperty(pn, pv, b.readBoolean() ? Types.readString(b, 1024) : null));
                 }
             }
+            if ((mask & 0x02) != 0) session = readChatSession(b);
             if ((mask & 0x04) != 0) mode = org.domi.furnace.api.entity.GameMode.byId(Types.readVarInt(b));
             if ((mask & 0x08) != 0) listed = b.readBoolean();
             if ((mask & 0x10) != 0) latency = Types.readVarInt(b);
             if ((mask & 0x20) != 0 && b.readBoolean()) display = NetworkText.read(b);
-            es.add(new ClientboundPlayerInfoUpdatePacket.Entry(uuid, name, props, mode, listed, latency, display));
+            es.add(new ClientboundPlayerInfoUpdatePacket.Entry(uuid, name, props, mode, listed, latency, display, session));
         }
         return new ClientboundPlayerInfoUpdatePacket(actions, es);
+    }
+
+    /** 채팅 세션(선택): 있음 표시, 세션 번호, 만료(밀리초), 공개 키(512바이트까지), 키 서명(4096바이트까지) — 바닐라 RemoteChatSession.Data. */
+    private static ClientboundPlayerInfoUpdatePacket.ChatSession readChatSession(ByteBuf b) {
+        if (!b.readBoolean()) return null;
+        java.util.UUID id = Types.readUuid(b);
+        java.time.Instant expires = java.time.Instant.ofEpochMilli(b.readLong());
+        return new ClientboundPlayerInfoUpdatePacket.ChatSession(id, expires, sizedBytes(b, 512), sizedBytes(b, 4096));
+    }
+
+    private static void writeChatSession(ByteBuf o, ClientboundPlayerInfoUpdatePacket.ChatSession s) {
+        o.writeBoolean(s != null);
+        if (s == null) return;
+        byte[] key = s.publicKey();
+        try {   // 바닐라 클라이언트는 RSA 가 아니면 읽다 끊는다
+            java.security.KeyFactory.getInstance("RSA").generatePublic(new java.security.spec.X509EncodedKeySpec(key));
+        } catch (java.security.GeneralSecurityException e) {
+            throw new IllegalArgumentException("채팅 세션 공개 키가 RSA 공개 키(X.509)가 아니다: " + e.getMessage());
+        }
+        Types.writeUuid(o, s.sessionId());
+        o.writeLong(s.expiresAt().toEpochMilli());
+        Types.writeVarInt(o, key.length);
+        o.writeBytes(key);
+        byte[] sig = s.keySignature();
+        Types.writeVarInt(o, sig.length);
+        o.writeBytes(sig);
+    }
+
+    private static byte[] sizedBytes(ByteBuf b, int max) {
+        int n = Types.readVarInt(b);
+        if (n < 0 || n > max || n > b.readableBytes()) throw new IllegalArgumentException("바이트 길이 오류: " + n + " (상한 " + max + ")");
+        byte[] a = new byte[n];
+        b.readBytes(a);
+        return a;
     }
 
     // ------------------------------------------------------------------ 클라이언트→서버
