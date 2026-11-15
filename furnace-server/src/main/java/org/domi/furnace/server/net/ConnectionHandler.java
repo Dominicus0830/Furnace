@@ -932,19 +932,25 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         this.profileProperties = profile.properties();
         org.domi.furnace.server.ServerCore core = login.core;
         if (core != null && core.events().hasSubscribers(org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent.class)) {
-            // 플러그인이 블로킹 작업(DB 등)을 해도 되도록 가상 스레드에서 부르고, 결과를 들고 연결 스레드로 돌아온다.
+            // 플러그인이 블로킹 작업(DB 등)을 해도 되도록 접속 이벤트 전용 플랫폼 스레드("User Authenticator #N", Paper 와 같은 풀 모양)에서
+            // 부르고, 결과를 들고 연결 스레드로 돌아온다. 플러그인 비동기 실행기와 나눠 두어 그쪽이 밀려도 접속이 줄 서지 않는다(T-034).
             java.net.InetAddress addr = clientAddress(ctx) instanceof java.net.InetSocketAddress isa ? isa.getAddress() : null;
-            core.plugins().asyncExecutor().execute(() -> {
-                var ev = core.events().call(new org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent(profile.name(), profile.id(), addr, info));
-                ctx.channel().eventLoop().execute(() -> {
-                    if (!ctx.channel().isActive()) return;
-                    if (ev.result() != org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent.Result.ALLOWED) {
-                        disconnect(ctx, ev.kickMessage());
-                        return;
-                    }
-                    finishVerifying(ctx, profile);
+            java.util.concurrent.Executor loginEvents = core.plugins().loginEventExecutor();
+            try {
+                loginEvents.execute(() -> {
+                    var ev = core.events().call(new org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent(profile.name(), profile.id(), addr, info));
+                    ctx.channel().eventLoop().execute(() -> {
+                        if (!ctx.channel().isActive()) return;
+                        if (ev.result() != org.domi.furnace.api.event.player.AsyncPlayerPreLoginEvent.Result.ALLOWED) {
+                            disconnect(ctx, ev.kickMessage());
+                            return;
+                        }
+                        finishVerifying(ctx, profile);
+                    });
                 });
-            });
+            } catch (java.util.concurrent.RejectedExecutionException closed) {
+                disconnect(ctx, Text.translatable("multiplayer.disconnect.server_shutdown"));   // 서버 종료 중(실행기가 닫혔다)
+            }
             return;
         }
         finishVerifying(ctx, profile);
@@ -1071,7 +1077,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /**
      * 구성 작업이 다 끝났다 → 구성 끝(FinishConfiguration). 플러그인 AsyncPlayerConfigureEvent 구독자가 있으면 처음 한 번은
-     * 가상 스레드에서 이벤트를 부르고(블로킹 허용) 돌아와서 보낸다 — 기다리는 동안 구성 keep-alive 로 클라이언트 시간 초과를 막는다.
+     * 접속 이벤트 전용 플랫폼 스레드("User Authenticator #N", T-034)에서 이벤트를 부르고(블로킹 허용) 돌아와서 보낸다 — 기다리는 동안 구성 keep-alive 로 클라이언트 시간 초과를 막는다.
      * 구독자가 없으면 바닐라와 똑같이 바로 보낸다.
      */
     private void finishConfiguration(ChannelHandlerContext ctx) {
@@ -1081,7 +1087,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             configureEventFired = true;
             awaitingConfigure = true;
             try {
-                core.plugins().asyncExecutor().execute(() -> {
+                core.plugins().loginEventExecutor().execute(() -> {
                     org.domi.furnace.api.event.player.AsyncPlayerConfigureEvent ev = null;
                     boolean run;
                     synchronized (configureLock) {   // 연결이 이미 끊겼으면 돌리지 않고, 돌리는 동안 끊기면 channelInactive 가 인터럽트로 깨운다
@@ -1117,7 +1123,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     }
                 });
             } catch (java.util.concurrent.RejectedExecutionException closed) {
-                awaitingConfigure = false;   // 플러그인 실행기가 닫혔다(종료 중) — 이벤트 없이 진행
+                awaitingConfigure = false;   // 접속 이벤트 실행기가 닫혔다(종료 중) — 이벤트 없이 진행
                 sendFinishConfiguration(ctx);
                 return;
             }

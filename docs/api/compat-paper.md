@@ -137,7 +137,7 @@ Furnace 이벤트가 알리지 않는 값은 지어내지 않는다. 읽기는 �
 
 ## Bukkit 비동기 작업의 스레드 (Paper 와 같은 풀)
 
-`runTaskAsynchronously` 등 옛 비동기 작업은 이름 붙은 **플랫폼 스레드 풀**에서 돈다(Paper 1.21.1 `CraftAsyncScheduler` 모양: 코어 4·최대 무제한·30초 놀면 정리·대기열 없음). 스레드 이름은 `Craft Scheduler Thread - N`, 작업이 도는 동안 `… - 플러그인이름`. 서버 옵션 `plugins.compat.scheduler.async-threads=virtual` 이면 서버의 가상 스레드 실행기를 쓴다. 가상 스레드는 JDK 21 에서 `synchronized` 안에서 소켓·파일을 기다리면 운반 스레드를 붙잡는다(옛 JDBC 드라이버·풀 라이브러리가 그런 모양이라 몇 개만 겹쳐도 모든 비동기 작업이 멈출 수 있다). 서버를 끌 때는 모든 `onDisable` 이 끝난 뒤 돌고 있는 비동기 일꾼을 최대 5초 기다리고, 남은 플러그인마다 `Nag author(s)…` 오류를 남긴다(Paper `Wait-for-Async-Tasks-during-shutdown`). `BukkitScheduler#getMainThreadExecutor(Plugin)`(Paper API)도 있다. 설계·남은 차이: `docs/feature-parity/context-notes/2026-11-08-p2.md`. 시험: `LegacySchedulerTest`, `AsyncSchedulerShutdownTest`.
+`runTaskAsynchronously` 등 옛 비동기 작업은 이름 붙은 **플랫폼 스레드 풀**에서 돈다(Paper 1.21.1 `CraftAsyncScheduler` 모양: 코어 4·최대 무제한·30초 놀면 정리·대기열 없음). 스레드 이름은 `Craft Scheduler Thread - N`, 작업이 도는 동안 `… - 플러그인이름`. 서버 옵션 `plugins.compat.scheduler.async-threads=virtual` 이면 가상 스레드(`Craft Scheduler Virtual Thread - N`)를 쓴다(서버의 `asyncExecutor` 는 `plugins.async-threads` 를 따로 따른다, T-034). 가상 스레드는 JDK 21 에서 `synchronized` 안에서 소켓·파일을 기다리면 운반 스레드를 붙잡는다(옛 JDBC 드라이버·풀 라이브러리가 그런 모양이라 몇 개만 겹쳐도 모든 비동기 작업이 멈출 수 있다). 서버를 끌 때는 모든 `onDisable` 이 끝난 뒤 돌고 있는 비동기 일꾼을 최대 5초 기다리고, 남은 플러그인마다 `Nag author(s)…` 오류를 남긴다(Paper `Wait-for-Async-Tasks-during-shutdown`). `BukkitScheduler#getMainThreadExecutor(Plugin)`(Paper API)도 있다. 설계·남은 차이: `docs/feature-parity/context-notes/2026-11-08-p2.md`. 시험: `LegacySchedulerTest`, `AsyncSchedulerShutdownTest`.
 
 ## JavaPlugin 의 명령·스케줄러·서비스 (H4 다음 묶음 A)
 
@@ -151,7 +151,7 @@ Furnace 이벤트가 알리지 않는 값은 지어내지 않는다. 읽기는 �
 
 `PermissibleBase`·`PermissionAttachment`·`PermissionAttachmentInfo`·`PermissionRemovedExecutor` 와 `Permissible` 의 첨부 메서드, `CraftHumanEntity.perm`(정확히 `PermissibleBase`, 권한 플러그인이 리플렉션으로 바꿔 끼운다), `Bukkit.getUnsafe()`(`UnsafeValues`/`CraftMagicNumbers`), `getOnlineMode`·`getOfflinePlayer`·`getOperators`, `Player#locale`·`updateCommands`. Bukkit 첨부는 같은 플러그인의 Furnace 첨부로 옮겨져 Furnace 쪽 판정에도 들어가고, 권한 객체를 바꿔 끼우면(LuckPerms) Furnace 쪽 판정도 그 객체에 맡긴다(서버 API `PermissionOverride`). 정확한 `PermissibleBase` 는 지금 끼워져 있을 때만 Furnace 판정에 묻는다(바꿔 끼운 객체가 옛 객체에 되물어도 재귀 없음). 아직: RCON 으로 친 Bukkit 플러그인 명령의 발신자는 `ConsoleCommandSender` 이고 출력이 콘솔로 간다(Paper 는 RCON 응답).
 
-이벤트 표에 더하는 것: `AsyncPlayerPreLoginEvent`(Furnace `AsyncPlayerPreLoginEvent`, 결과·사유 되돌림, 가상 스레드), `PlayerLoginEvent`(Furnace `PlayerCreateEvent` — Player 가 처음 생기는 때, 거부하면 월드에 넣지 않고 끊음), `RemoteServerCommandEvent`(Furnace `RemoteServerCommandEvent`, RCON 연결 스레드, 취소·명령 바꾸기; 발신자는 `RemoteConsoleCommandSender`). 설계·Paper 와 다른 점: `docs/feature-parity/compat-luckperms-2026-11-11.md`. 시험: `BukkitPermissionsTest`, 봇 `tools/bot-test/round-lp/lp.js`.
+이벤트 표에 더하는 것: `AsyncPlayerPreLoginEvent`(Furnace `AsyncPlayerPreLoginEvent`, 결과·사유 되돌림, 접속 이벤트 전용 스레드 `User Authenticator #N`), `PlayerLoginEvent`(Furnace `PlayerCreateEvent` — Player 가 처음 생기는 때, 거부하면 월드에 넣지 않고 끊음), `RemoteServerCommandEvent`(Furnace `RemoteServerCommandEvent`, RCON 연결 스레드, 취소·명령 바꾸기; 발신자는 `RemoteConsoleCommandSender`). 설계·Paper 와 다른 점: `docs/feature-parity/compat-luckperms-2026-11-11.md`. 시험: `BukkitPermissionsTest`, 봇 `tools/bot-test/round-lp/lp.js`.
 
 ## 스레드 (H2 가 H1 에 넘긴 D1·D2 에 대한 결정)
 

@@ -32,7 +32,15 @@ public final class PluginHost implements Furnace {
     private final CommandRegistryImpl commands = new CommandRegistryImpl(this);
     private final ConsoleSender console;
     private final PluginManagerImpl plugins;
-    private final ExecutorService async = Executors.newVirtualThreadPerTaskExecutor();
+    /** 플러그인 비동기 실행기: plugins.async-threads(platform 기본 | virtual) — T-034, 결정 D1. */
+    private final PluginAsyncExecutor async = new PluginAsyncExecutor();
+    /**
+     * 서버가 내는 접속 단계 비동기 이벤트(AsyncPlayerPreLoginEvent·AsyncPlayerConfigureEvent) 전용 플랫폼 풀(T-034).
+     * Paper 1.21.1 ServerLoginPacketListenerImpl.authenticatorPool 과 같은 모양: 접속마다 놀고 있는 스레드가 없으면 새 스레드
+     * "User Authenticator #N"(0부터), 60초 놀면 정리. 플러그인 비동기 작업과 나눠 두어, 그쪽이 밀리거나 운반 스레드가 붙잡혀도
+     * 접속이 줄 서지 않는다(B6 1.7: 접속 전 처리기 2초 + 16명 = 4명씩 4물결 9.1초 → 모두 약 2초).
+     */
+    private final ExecutorService loginEvents = newLoginEventPool();
     /** 플러그인에 주는 실행기·스케줄러 — 작업 시간을 만든 플러그인 몫으로 잰다. */
     private final ExecutorService profiledAsync = profiled.wrap(async);
     private volatile FurnaceScheduler profiledScheduler;
@@ -44,6 +52,24 @@ public final class PluginHost implements Furnace {
         this.plugins = new PluginManagerImpl(this, pluginsDir);
         if (PluginProfilerImpl.enabledByConfig()) profiler.start();
     }
+
+    private static ExecutorService newLoginEventPool() {
+        java.util.concurrent.atomic.AtomicInteger n = new java.util.concurrent.atomic.AtomicInteger();
+        return Executors.newCachedThreadPool(r -> {
+            Thread t = new Thread(r, LOGIN_EVENT_THREAD_PREFIX + n.getAndIncrement());
+            t.setDaemon(true);   // 처리기가 멈춰도 JVM 종료를 붙잡지 않게
+            return t;
+        });
+    }
+
+    /** 접속 단계 이벤트 스레드 이름 앞부분(Paper 와 같은 이름 — 플러그인 로그·스레드 덤프에서 같게 보인다). */
+    public static final String LOGIN_EVENT_THREAD_PREFIX = "User Authenticator #";
+
+    /** 접속 단계 비동기 이벤트(사전 로그인·구성)를 부를 실행기 — 서버 내부 전용, 플러그인에 주지 않는다. 닫혔으면 RejectedExecutionException. */
+    public ExecutorService loginEventExecutor() { return loginEvents; }
+
+    /** 플러그인 비동기 실행기 본체(감싸지 않은 것) — 설정 적용·시험용. */
+    public PluginAsyncExecutor asyncPool() { return async; }
 
     private boolean onGlobalThread() {
         return core != null && core.scheduler() != null && core.scheduler().global() instanceof org.domi.furnace.api.concurrent.ThreadOwner o
@@ -543,6 +569,9 @@ public final class PluginHost implements Furnace {
         return internals;
     }
 
-    /** 서버 종료 마지막 — 비동기 실행기를 닫는다. */
-    public void close() { async.shutdown(); }
+    /** 서버 종료 마지막 — 비동기 실행기·접속 이벤트 실행기를 닫는다(도는 작업은 끝까지 간다). */
+    public void close() {
+        async.shutdown();
+        loginEvents.shutdown();
+    }
 }

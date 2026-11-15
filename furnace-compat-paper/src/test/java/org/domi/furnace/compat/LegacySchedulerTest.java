@@ -409,7 +409,7 @@ class LegacySchedulerTest {
     }
 
     @Test
-    void virtualOptionRunsAsyncTasksOnTheServersVirtualThreads() throws Exception {
+    void virtualOptionRunsAsyncTasksOnVirtualThreads() throws Exception {
         try (var server = FurnaceTestServer.builder().exposeCompatToNative(true).plugin(CompatTestPlugin.class)
                 .compatOption(LegacyScheduler.ASYNC_THREADS_OPTION, "virtual").start()) {
             var p = server.plugin(CompatTestPlugin.class);

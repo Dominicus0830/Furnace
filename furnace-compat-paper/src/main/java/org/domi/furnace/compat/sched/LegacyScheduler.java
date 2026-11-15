@@ -13,7 +13,7 @@
 //    풀은 Paper 1.21.1 CraftAsyncScheduler 와 같은 모양이다: 코어 4·최대 무제한·30초 놀면 정리·대기열 없음(SynchronousQueue), 스레드 이름
 //    "Craft Scheduler Thread - N", 작업이 도는 동안은 "… - 플러그인이름"(Name-craft-scheduler-threads-according-to-the-plugin).
 //    JDK 21 의 가상 스레드는 synchronized 안에서 소켓·파일을 기다리면 운반 스레드를 붙잡으므로(옛 JDBC·풀 라이브러리가 그렇다)
-//    기본은 플랫폼 스레드 풀이고, 서버 옵션 plugins.compat.scheduler.async-threads=virtual 이면 서버의 가상 스레드 실행기를 쓴다.
+//    기본은 플랫폼 스레드 풀이고, 서버 옵션 plugins.compat.scheduler.async-threads=virtual 이면 가상 스레드("Craft Scheduler Virtual Thread - N")를 쓴다.
 //  - 취소된 비동기 작업도 몸통이 끝나기 전까지는 "일하는 중"이다(CraftAsyncTask.cancel0 는 일꾼이 있으면 runners 에서 안 뺀다) —
 //    getActiveWorkers·isCurrentlyRunning 이 그렇게 보고, 종료 때 {@link #awaitAsyncWorkers} 가 이것을 기다린다.
 //  - 인자 규칙은 CraftScheduler 와 같다: 지연 < 0 은 0, 주기 0 은 1, 주기 < -1 은 -1(반복 없음). 지연 0 과 1 은 둘 다 다음 틱.
@@ -67,8 +67,10 @@ public final class LegacyScheduler {
     private final Furnace server;
     /** 비동기 작업을 돌릴 곳. */
     private final Executor asyncPool;
-    /** 우리가 만든 플랫폼 풀(virtual 이면 null — 서버 실행기는 서버가 닫는다). */
+    /** 우리가 만든 플랫폼 풀(virtual 이면 null). */
     private final ThreadPoolExecutor ownedPool;
+    /** virtual 옵션일 때 우리가 만든 가상 스레드 실행기(platform 이면 null). */
+    private final java.util.concurrent.ExecutorService virtualPool;
     private final AtomicInteger ids = new AtomicInteger();
     private final Map<Integer, Task> tasks = new ConcurrentHashMap<>();
     /** 몸통이 도는 중인 비동기 작업(취소됐어도 끝나기 전까지 남는다). */
@@ -94,8 +96,11 @@ public final class LegacyScheduler {
         this.server = server;
         if ("virtual".equalsIgnoreCase(server.compatOption(ASYNC_THREADS_OPTION))) {
             this.ownedPool = null;
-            this.asyncPool = server.asyncExecutor();
+            // 서버의 asyncExecutor 는 plugins.async-threads(기본 platform, T-034)를 따르므로 이 옵션의 가상 스레드는 여기서 따로 만든다
+            this.virtualPool = java.util.concurrent.Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("Craft Scheduler Virtual Thread - ", 0).factory());
+            this.asyncPool = virtualPool;
         } else {
+            this.virtualPool = null;
             this.ownedPool = newPlatformPool();
             this.asyncPool = ownedPool;
         }
@@ -127,6 +132,7 @@ public final class LegacyScheduler {
         heartbeat.cancel();
         management.shutdown();   // 이미 받은 "이번 틱" 은 마저 비우고(닫힌 풀에 넘기려던 작업은 취소된다), 새 메시지는 안 받는다
         if (ownedPool != null) ownedPool.shutdown();
+        if (virtualPool != null) virtualPool.shutdown();
         List<Task> all;
         synchronized (queue) {
             all = new ArrayList<>(tasks.values());

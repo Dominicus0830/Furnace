@@ -50,7 +50,10 @@ public final class PluginManagerImpl implements PluginManager {
     /** 불러오기·켜기에서 실패한 플러그인 이름(plugins.fail-fast 가 켜져 있으면 시작을 멈추는 근거). */
     private final List<String> failures = new CopyOnWriteArrayList<>();
 
-    public void settings(PluginSettings s) { this.settings = s; }
+    public void settings(PluginSettings s) {
+        this.settings = s;
+        host.asyncPool().useVirtualThreads(s.asyncVirtual());
+    }
 
     public PluginSettings settings() { return settings; }
 

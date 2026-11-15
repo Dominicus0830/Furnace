@@ -40,7 +40,7 @@ public final class PluginTasks {
         return repeating(scheduler.region(region).runAtFixedRate(guard(task, PluginProfiler.Kind.TASK), delayTicks, periodTicks));
     }
 
-    /** 블록킹 작업(파일·DB·HTTP)용 비동기 실행(가상 스레드). */
+    /** 블록킹 작업(파일·DB·HTTP)용 비동기 실행({@link org.domi.furnace.api.Furnace#asyncExecutor()} — 기본 플랫폼 스레드 풀). */
     public void runAsync(Runnable task) { async.execute(guard(task, PluginProfiler.Kind.ASYNC)); }
 
     /** 원하는 스케줄러를 직접 쓸 때. 그렇게 만든 작업도 플러그인이 꺼지면 더 돌지 않지만(서버가 소유자를 보고 건너뛴다) 여기 추적에는 들지 않는다. */

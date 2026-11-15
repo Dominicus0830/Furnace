@@ -284,7 +284,7 @@ class PaperSchedulersTest {
     }
 
     @Test
-    void virtualOptionRunsPaperAsyncTasksOnTheServersVirtualThreads() throws Exception {
+    void virtualOptionRunsPaperAsyncTasksOnVirtualThreads() throws Exception {
         try (var server = FurnaceTestServer.builder().exposeCompatToNative(true).plugin(CompatTestPlugin.class)
                 .compatOption(org.domi.furnace.compat.sched.LegacyScheduler.ASYNC_THREADS_OPTION, "virtual").start()) {
             var p = server.plugin(CompatTestPlugin.class);

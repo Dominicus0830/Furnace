@@ -15,7 +15,7 @@ public interface PluginProfiler {
         LISTENER,
         /** 틱 스레드(전역·region·엔티티)에서 도는 예약 작업. */
         TASK,
-        /** 비동기 실행기(가상 스레드) 작업. */
+        /** 비동기 실행기(asyncExecutor) 작업. */
         ASYNC,
         /** 명령 실행·자동완성. */
         COMMAND,
@@ -31,7 +31,7 @@ public interface PluginProfiler {
         REGION,
         /** 전역 틱 스레드(명령·전역 작업). */
         GLOBAL,
-        /** 그 밖(비동기 가상 스레드·네트워크 스레드 등) — 틱을 늦추지 않는 시간. */
+        /** 그 밖(비동기 실행기·네트워크 스레드 등) — 틱을 늦추지 않는 시간. */
         OTHER
     }
 
