@@ -294,37 +294,3 @@ private static class InteractionAtLocationAction implements Action {
 
     @Override public ActionType getType() { return ActionType.INTERACT_AT; }
 }
-
-@@ net.minecraft.network.protocol.game.ClientboundLevelChunkPacketData
-// 바닐라 상수(N2b-6 — FAWE 가 리플렉션으로 이 필드가 있는지 본다)
-private static final int TWO_MEGABYTES = 2097152;
-
-@@ net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket
-// N2b-6: 청크 보기로 만드는 바닐라 생성자. Furnace 는 청크 본문·빛 바이트를 shim 에서 만들지 않고, 이 패킷을 보낼 때 그 청크를 보고 있는 플레이어에게
-// 서버가 지금 상태의 청크를 통째로 다시 보낸다(Paper World#refreshChunk — 같은 패킷 객체를 여러 플레이어에게 보내도 한 번). 그래서 getChunkData()·
-// getLightData() 는 null 이다. 빛 비트 집합 인자(바뀐 하늘빛·블록빛 섹션)와 Paper 의 엑스레이 막기 인자는 쓰지 않는다(서버가 늘 전부 보낸다).
-private transient net.minecraft.world.level.chunk.LevelChunk furnaceChunk;
-private transient volatile boolean furnaceSent;
-
-public ClientboundLevelChunkWithLightPacket(net.minecraft.world.level.chunk.LevelChunk chunk, net.minecraft.world.level.lighting.LevelLightEngine lightEngine,
-        java.util.BitSet skyChangedLightSectionFilter, java.util.BitSet blockChangedLightSectionFilter) {
-    this(chunk.getPos().x, chunk.getPos().z, null, null);
-    this.furnaceChunk = chunk;
-}
-
-public ClientboundLevelChunkWithLightPacket(net.minecraft.world.level.chunk.LevelChunk chunk, net.minecraft.world.level.lighting.LevelLightEngine lightEngine,
-        java.util.BitSet skyChangedLightSectionFilter, java.util.BitSet blockChangedLightSectionFilter, boolean modifyBlocks) {
-    this(chunk, lightEngine, skyChangedLightSectionFilter, blockChangedLightSectionFilter);
-}
-
-/** 호환 모듈 전용: 청크 보기로 만든 패킷이면 그 청크(보낼 때 다시 보내기로 바꾼다), 아니면 null. */
-public net.minecraft.world.level.chunk.LevelChunk furnaceRefreshChunk() { return furnaceChunk; }
-
-/** 호환 모듈 전용: 처음 부를 때만 참(같은 패킷 객체를 여러 플레이어에게 보내도 다시 보내기는 한 번). */
-public boolean furnaceClaimRefresh() {
-    synchronized (this) {
-        if (furnaceSent) return false;
-        furnaceSent = true;
-        return true;
-    }
-}
