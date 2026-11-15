@@ -39,8 +39,8 @@ final class MobBrainImpl implements MobBrain {
 
     private void check() {
         if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(mob) && !mob.level().isOwnerThread()) {
-            throw new ThreadOwnershipException("MobBrain(" + mob.uuid() + ") 는 그 몹을 가진 region 스레드에서만 쓸 수 있다 (현재 "
-                    + Thread.currentThread().getName() + ") — Mob.editAi 를 쓴다");
+            throw new ThreadOwnershipException("MobBrain(" + mob.uuid() + ") can only be used from the region thread that owns the mob (current thread: "
+                    + Thread.currentThread().getName() + ") - use Mob.editAi");
         }
     }
 
@@ -57,14 +57,14 @@ final class MobBrainImpl implements MobBrain {
     /** 바닐라 기억이면 API 모양이 서버 모양과 같은지 본다. */
     private static BrainValues.Shape shapeFor(MemoryModuleType<?> t, MemoryKey<?> key) {
         BrainValues.Shape s = BrainValues.shape(t);
-        if (s.api() == null) throw new IllegalArgumentException(key.key() + " 는 API 로 다루지 않는 내부 값이다");
-        if (!s.api().equals(key.type())) throw new IllegalArgumentException(key.key() + " 의 값 모양은 " + s.api() + " 다(받은 것: " + key.type() + ")");
+        if (s.api() == null) throw new IllegalArgumentException(key.key() + " is an internal value that is not exposed through the API");
+        if (!s.api().equals(key.type())) throw new IllegalArgumentException(key.key() + " has the value type " + s.api() + " (got: " + key.type() + ")");
         return s;
     }
 
     static Activity toServer(ActivityKey key) {
         Activity a = Activity.byKey(key.toString());
-        if (a == null) throw new IllegalArgumentException("이 판에 없는 바닐라 활동: " + key);
+        if (a == null) throw new IllegalArgumentException("vanilla activity that does not exist in this version: " + key);
         return a;
     }
 
@@ -115,7 +115,7 @@ final class MobBrainImpl implements MobBrain {
             Optional<ExpirableValue<?>> v = b.extraMemoryEntries().get(key.key());
             if (v == null || v.isEmpty()) return Optional.empty();
             Object o = v.get().getValue();
-            if (!key.type().javaType().isInstance(o)) throw new IllegalArgumentException(key.key() + " 의 값은 " + o.getClass().getName() + " 다");
+            if (!key.type().javaType().isInstance(o)) throw new IllegalArgumentException(key.key() + " does not accept a value of " + o.getClass().getName());
             return Optional.of((T) o);
         }
         MemoryModuleType<?> t = vanilla(key);
@@ -146,7 +146,7 @@ final class MobBrainImpl implements MobBrain {
 
     @Override
     public <T> boolean setMemory(MemoryKey<T> key, T value, long ttlTicks) {
-        if (ttlTicks < 1) throw new IllegalArgumentException("ttlTicks 는 1 이상: " + ttlTicks);
+        if (ttlTicks < 1) throw new IllegalArgumentException("ttlTicks must be at least 1: " + ttlTicks);
         return write(key, value, ttlTicks);
     }
 
@@ -155,7 +155,7 @@ final class MobBrainImpl implements MobBrain {
         if (mob.isRemoved()) return false;
         Brain<Mob> b = brain();
         if (value != null && !key.type().javaType().isInstance(value))
-            throw new IllegalArgumentException(key.key() + " 에는 " + key.type().javaType().getName() + " 값을 쓴다(받은 것: " + value.getClass().getName() + ")");
+            throw new IllegalArgumentException(key.key() + " takes a " + key.type().javaType().getName() + " value (got: " + value.getClass().getName() + ")");
         if (!key.isVanilla()) return b.setExtraMemory(key.key(), value, ttl);
         MemoryModuleType<?> t = vanilla(key);
         if (t == null || !b.memoryEntries().containsKey(t)) return false;
@@ -190,7 +190,7 @@ final class MobBrainImpl implements MobBrain {
             return;
         }
         MemoryModuleType<?> t = vanilla(key);
-        if (t == null) throw new IllegalArgumentException("이 판에 없는 바닐라 기억: " + key.key());
+        if (t == null) throw new IllegalArgumentException("vanilla memory that does not exist in this version: " + key.key());
         shapeFor(t, key);
         b.registerMemory(t);
     }
@@ -208,14 +208,14 @@ final class MobBrainImpl implements MobBrain {
     @Override
     public void addSensor(FurnacePlugin owner, BrainSensor sensor) {
         check();
-        if (owner == null || sensor == null) throw new NullPointerException("owner·sensor 는 null 일 수 없다");
+        if (owner == null || sensor == null) throw new NullPointerException("owner and sensor must not be null");
         if (mob.isRemoved()) return;
         Brain<Mob> b = brain();
         SensorKey key = sensor.key();
-        if (key == null) throw new IllegalArgumentException("센서 이름표(key)가 null 이다");
-        if (b.hasSensor(key.toString())) throw new IllegalArgumentException("이미 있는 센서: " + key);
+        if (key == null) throw new IllegalArgumentException("the sensor key is null");
+        if (b.hasSensor(key.toString())) throw new IllegalArgumentException("sensor already exists: " + key);
         int rate = sensor.scanRate();
-        if (rate < 1) throw new IllegalArgumentException("scanRate 는 1 이상: " + rate);
+        if (rate < 1) throw new IllegalArgumentException("scanRate must be at least 1: " + rate);
         PluginBrainSensor ps = new PluginBrainSensor(owner, sensor, key, rate, this);
         for (MemoryKey<?> m : sensor.memories()) register(b, m);
         b.addExtraSensor(key.toString(), ps);
@@ -304,7 +304,7 @@ final class MobBrainImpl implements MobBrain {
     @Override
     public void addBehavior(FurnacePlugin owner, ActivityKey activity, int priority, BrainBehavior behavior) {
         check();
-        if (owner == null || activity == null || behavior == null) throw new NullPointerException("owner·activity·behavior 는 null 일 수 없다");
+        if (owner == null || activity == null || behavior == null) throw new NullPointerException("owner, activity and behavior must not be null");
         Activity a = toServer(activity);
         if (mob.isRemoved()) return;
         Brain<Mob> b = brain();

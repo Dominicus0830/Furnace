@@ -126,7 +126,7 @@ public final class BlockSurvival implements BlockPredicate.Survival {
     @Override
     public void requireSupported(int stateId) {
         if (kindOf(stateId) == null) {
-            throw new IllegalArgumentException("would_survive 미지원 블록: " + registry.nameOf(stateId));
+            throw new IllegalArgumentException("block not supported by would_survive: " + registry.nameOf(stateId));
         }
     }
 

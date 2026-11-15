@@ -27,7 +27,7 @@ public final class TagSet {
     public static TagSet load(String resourcePath) {
         Map<String, Map<String, int[]>> map = new LinkedHashMap<>();
         try (InputStream in = TagSet.class.getClassLoader().getResourceAsStream(resourcePath)) {
-            if (in == null) throw new IllegalStateException("태그 리소스 없음: " + resourcePath);
+            if (in == null) throw new IllegalStateException("tag resource is missing: " + resourcePath);
             try (BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = r.readLine()) != null) {

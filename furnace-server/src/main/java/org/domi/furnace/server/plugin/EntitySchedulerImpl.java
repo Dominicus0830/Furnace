@@ -31,7 +31,7 @@ final class EntitySchedulerImpl implements EntityScheduler {
 
     @Override
     public ScheduledTask runAtFixedRate(Runnable task, Runnable retired, long initialDelayTicks, long periodTicks) {
-        if (periodTicks <= 0) throw new IllegalArgumentException("periodTicks 는 1 이상: " + periodTicks);
+        if (periodTicks <= 0) throw new IllegalArgumentException("periodTicks must be at least 1: " + periodTicks);
         Runnable r = w(retired);
         return handle(profiled.scheduleRepeating(task, PluginProfiler.Kind.TASK,
                 t -> tasks.schedule(t, r, initialDelayTicks, periodTicks), e -> e::cancel));

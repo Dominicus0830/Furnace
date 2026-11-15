@@ -231,8 +231,8 @@ public final class GenHooks {
         }
 
         private void check(int x, int z) {
-            if (closed) throw new IllegalStateException("훅이 끝난 뒤에는 청크를 쓸 수 없다");
-            if ((x & ~15) != 0 || (z & ~15) != 0) throw new IndexOutOfBoundsException("청크 안 좌표는 0..15: " + x + "," + z);
+            if (closed) throw new IllegalStateException("the chunk cannot be written after the hook has finished");
+            if ((x & ~15) != 0 || (z & ~15) != 0) throw new IndexOutOfBoundsException("coordinates inside a chunk must be 0..15: " + x + "," + z);
         }
 
         @Override public String world() { return world; }
@@ -310,7 +310,7 @@ public final class GenHooks {
         }
 
         private void open() {
-            if (closed) throw new IllegalStateException("훅이 끝난 뒤에는 영역을 쓸 수 없다");
+            if (closed) throw new IllegalStateException("the region cannot be written after the hook has finished");
         }
 
         private boolean inY(int y) { return y >= view.minY() && y <= view.maxY(); }

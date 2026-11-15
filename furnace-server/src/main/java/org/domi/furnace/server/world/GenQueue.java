@@ -458,7 +458,7 @@ public final class GenQueue extends AbstractExecutorService {
     public void execute(Runnable command) {
         lock.lock();
         try {
-            if (shutdown) throw new RejectedExecutionException("생성 대기열이 닫혔다");
+            if (shutdown) throw new RejectedExecutionException("the generation queue is closed");
             plain.add(new Task(command, null, 0, 0, null, false, seq++, System.nanoTime()));
             ready.signal();
         } finally {
@@ -471,7 +471,7 @@ public final class GenQueue extends AbstractExecutorService {
         int prio = background ? PRIO_BACKGROUND : settings.distanceOrder() ? nearestNow(w, cx, cz) : 0;
         lock.lock();
         try {
-            if (shutdown) throw new RejectedExecutionException("생성 대기열이 닫혔다");
+            if (shutdown) throw new RejectedExecutionException("the generation queue is closed");
             Task t = new Task(r, w, cx, cz, ticket, background, seq++, now);
             t.prio = prio;
             gen.add(t);

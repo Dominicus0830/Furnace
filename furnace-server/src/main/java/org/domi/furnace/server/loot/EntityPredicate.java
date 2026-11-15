@@ -50,7 +50,7 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
                 case "flags" -> { for (var x : f.getValue().getAsJsonObject().entrySet()) flags.put(x.getKey(), x.getValue().getAsBoolean()); }
                 case "equipment" -> {
                     for (var x : f.getValue().getAsJsonObject().entrySet()) {
-                        if (!SLOTS.contains(x.getKey())) throw new LootParseException("모르는 장비 칸: " + x.getKey());
+                        if (!SLOTS.contains(x.getKey())) throw new LootParseException("unknown equipment slot: " + x.getKey());
                         equipment.put(x.getKey(), ItemPredicate.parse(x.getValue(), regs));
                     }
                 }
@@ -77,7 +77,7 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
                     try {
                         nbt = org.domi.furnace.server.command.arguments.TagParser.parseTag(f.getValue().getAsString());
                     } catch (org.domi.furnace.server.command.brigadier.CommandSyntaxException ex) {
-                        throw new LootParseException("엔티티 조건 nbt 를 읽을 수 없다: " + ex.getMessage());
+                        throw new LootParseException("cannot read the nbt of an entity predicate: " + ex.getMessage());
                     }
                     nbtUsed = true;
                 }
@@ -96,7 +96,7 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
                 case "slots" -> {
                     slots = new LinkedHashMap<>();
                     for (var x : f.getValue().getAsJsonObject().entrySet()) {
-                        if (org.domi.furnace.server.command.arguments.SlotRanges.byName(x.getKey()) == null) throw new LootParseException("모르는 슬롯 범위: " + x.getKey());
+                        if (org.domi.furnace.server.command.arguments.SlotRanges.byName(x.getKey()) == null) throw new LootParseException("unknown slot range: " + x.getKey());
                         slots.put(x.getKey(), ItemPredicate.parse(x.getValue(), regs));
                     }
                 }

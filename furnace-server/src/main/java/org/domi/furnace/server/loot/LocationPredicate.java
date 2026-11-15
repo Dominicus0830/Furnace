@@ -50,7 +50,7 @@ public record LocationPredicate(Bounds x, Bounds y, Bounds z, HolderSet biomes, 
                         try {
                             blockNbt = org.domi.furnace.server.command.arguments.TagParser.parseTag(b.get("nbt").getAsString());
                         } catch (org.domi.furnace.server.command.brigadier.CommandSyntaxException ex) {
-                            throw new LootParseException("위치 조건 block.nbt 를 읽을 수 없다: " + ex.getMessage());
+                            throw new LootParseException("cannot read the block.nbt of a location predicate: " + ex.getMessage());
                         }
                     }
                 }
@@ -80,7 +80,7 @@ public record LocationPredicate(Bounds x, Bounds y, Bounds z, HolderSet biomes, 
         String s = e.getAsString();
         if (s.startsWith("#")) {
             List<String> members = org.domi.furnace.server.world.gen.structure.StructureRegistry.structureTag(LootJson.id(s.substring(1)));
-            if (members == null) throw new LootParseException("모르는 구조물 태그: " + s);
+            if (members == null) throw new LootParseException("unknown structure tag: " + s);
             return members::contains;
         }
         String id = LootJson.id(s);

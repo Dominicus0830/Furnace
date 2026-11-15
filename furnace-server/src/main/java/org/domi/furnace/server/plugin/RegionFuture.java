@@ -28,7 +28,7 @@ public final class RegionFuture<T> extends CompletableFuture<T> {
 
     private void guard() {
         if (!isDone() && onServerThread()) {
-            throw new IllegalStateException("서버 스레드(" + Thread.currentThread().getName() + ")에서 미완료 Future 를 get()/join() 으로 기다릴 수 없다 — thenAccept 로 잇는다");
+            throw new IllegalStateException("a pending Future cannot be waited on with get()/join() on a server thread (" + Thread.currentThread().getName() + ") - chain it with thenAccept");
         }
     }
 

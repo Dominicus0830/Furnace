@@ -31,7 +31,7 @@ public final class BlockHardness {
     private static BlockHardness load() {
         Map<String, Float> m = new HashMap<>();
         var in = BlockHardness.class.getClassLoader().getResourceAsStream("blocks/hardness_1.21.1.txt");
-        if (in == null) throw new IllegalStateException("blocks/hardness_1.21.1.txt 없음");
+        if (in == null) throw new IllegalStateException("blocks/hardness_1.21.1.txt is missing");
         try (BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
             String line;
             while ((line = r.readLine()) != null) {

@@ -36,13 +36,13 @@ public final class EntityViewsImpl implements EntityViews {
         Objects.requireNonNull(e, "target");
         if (e instanceof PlayerHandle ph) return new Target(ph.handle().uuid(), null, ph.handle());
         if (e instanceof EntityHandle eh) return new Target(eh.uniqueId(), eh.tasks(), null);
-        throw new IllegalArgumentException("이 서버의 엔티티가 아니다: " + e);
+        throw new IllegalArgumentException("not an entity of this server: " + e);
     }
 
     private static org.domi.furnace.server.entity.Player viewer(Player p) {
         Objects.requireNonNull(p, "viewer");
         if (p instanceof PlayerHandle ph) return ph.handle();
-        throw new IllegalArgumentException("이 서버의 플레이어가 아니다: " + p);
+        throw new IllegalArgumentException("not a player of this server: " + p);
     }
 
     /** 규칙이 바뀐 뒤: 그 엔티티를 가진 region 에서 viewer(null = 모두)에 대해 다시 추적, respawn 이면 지웠다 다시 스폰. */
@@ -152,7 +152,7 @@ public final class EntityViewsImpl implements EntityViews {
     Appearance appearance(Disguise d) {
         String type = d.entityType();
         int typeId = EntityType.registryId(type);
-        if (typeId < 0) throw new IllegalArgumentException("없는 엔티티 종류: " + type);
+        if (typeId < 0) throw new IllegalArgumentException("no such entity type: " + type);
         var packets = host.packetsImpl();
         java.util.function.IntFunction<org.domi.furnace.server.net.protocol.Packet> meta = null;
         int[] overridden = new int[d.metadata().size()];

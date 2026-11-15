@@ -275,7 +275,7 @@ public final class FluidTicker {
         final byte[] holes = new byte[W * W];   // 0 모름, 1 아님, 2 구멍
         static int idx(Pos origin, Pos p) {
             int dx = p.x() - origin.x() + R, dz = p.z() - origin.z() + R;
-            if ((dx | dz) < 0 || dx >= W || dz >= W) throw new IllegalStateException("유체 퍼짐 칸이 범위를 벗어남: " + dx + "," + dz);
+            if ((dx | dz) < 0 || dx >= W || dz >= W) throw new IllegalStateException("fluid spread cell is out of range: " + dx + "," + dz);
             return dx * W + dz;
         }
         int state(BlockLevel level, int i, Pos p) {

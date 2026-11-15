@@ -31,7 +31,7 @@ public final class BiomeTags {
     private static void add(Set<String> out, String tag) {
         String path = "worldgen/1.21.1/tags/worldgen/biome/" + tag.substring("minecraft:".length()) + ".json";
         try (InputStream in = BiomeTags.class.getClassLoader().getResourceAsStream(path)) {
-            if (in == null) throw new IllegalArgumentException("바이옴 태그 없음: " + tag);
+            if (in == null) throw new IllegalArgumentException("no such biome tag: " + tag);
             JsonObject j = JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
             for (JsonElement v : j.getAsJsonArray("values")) {
                 String s = v.isJsonObject() ? v.getAsJsonObject().get("id").getAsString() : v.getAsString();

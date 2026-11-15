@@ -157,7 +157,7 @@ public final class DataCommands {
             } catch (Throwable t) {
                 f.completeExceptionally(t);
             }
-        }, () -> f.completeExceptionally(new IllegalStateException("엔티티를 가진 region 을 찾지 못했다: " + r.typeName())));
+        }, () -> f.completeExceptionally(new IllegalStateException("could not find the region that owns the entity: " + r.typeName())));
         return f;
     }
 
@@ -168,7 +168,7 @@ public final class DataCommands {
 
     /** /data 쓰기: 바닐라 Entity.load + UUID 유지. 플레이어는 거부(바닐라 commands.data.entity.invalid) — UnsupportedOperationException. */
     public static void setEntityData(Rider entity, NbtCompound tag) {
-        if (entity instanceof Player) throw new UnsupportedOperationException("플레이어 NBT 는 쓸 수 없다(바닐라 /data 와 같다)");
+        if (entity instanceof Player) throw new UnsupportedOperationException("player NBT cannot be written (same as vanilla /data)");
         try {
             new EntityAccessor(entity).setData(tag);
         } catch (CommandSyntaxException e) {

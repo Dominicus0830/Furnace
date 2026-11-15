@@ -28,7 +28,7 @@ public final class DebugWorldSource implements WorldSource {
     /** minY..minY+16×sectionCount 가 60 과 70 을 품어야 한다(오버월드 높이). */
     public DebugWorldSource(BlockRegistry reg, int biomeId, int minY, int sectionCount) {
         if (minY > BARRIER_Y || minY + sectionCount * 16 <= STATE_Y) {
-            throw new IllegalArgumentException("디버그 월드는 y=" + BARRIER_Y + ".." + STATE_Y + " 를 품은 높이가 필요하다: " + minY + ".." + (minY + sectionCount * 16));
+            throw new IllegalArgumentException("a debug world needs a height range containing y=" + BARRIER_Y + ".." + STATE_Y + " but got: " + minY + ".." + (minY + sectionCount * 16));
         }
         this.totalStates = reg.totalStateCount();
         this.gridWidth = ceil((float) Math.sqrt((float) totalStates));

@@ -38,12 +38,12 @@ final class CompatJars {
             for (String line : new String(in.readAllBytes(), StandardCharsets.UTF_8).split("\n")) {
                 String n = line.trim();
                 if (n.isEmpty() || n.startsWith("#")) continue;
-                if (n.contains("/") || n.contains("\\") || n.contains("..")) throw new IOException("호환 jar 이름이 이상하다: " + n);
+                if (n.contains("/") || n.contains("\\") || n.contains("..")) throw new IOException("suspicious compat jar name: " + n);
                 names.add(n);
             }
             return names.isEmpty() ? null : new CompatJars(source, names);
         } catch (IOException e) {
-            throw new IllegalStateException("호환 모듈 색인을 읽지 못했다", e);
+            throw new IllegalStateException("could not read the compat module index", e);
         }
     }
 
@@ -60,7 +60,7 @@ final class CompatJars {
             String name = names.get(i);
             byte[] bytes;
             try (InputStream in = source.getResourceAsStream(DIR + name)) {
-                if (in == null) throw new IOException("색인에 있는 호환 jar 가 없다: " + name);
+                if (in == null) throw new IOException("compat jar listed in the index is missing: " + name);
                 bytes = in.readAllBytes();
             }
             String base = name.endsWith(".jar") ? name.substring(0, name.length() - 4) : name;

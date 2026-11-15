@@ -96,7 +96,7 @@ public final class ResourceOrIdArgument implements ArgumentType<ResourceOrIdArgu
             case long[] b -> { JsonArray a = new JsonArray(); for (long x : b) a.add(x); yield a; }
             case String s -> new JsonPrimitive(s);
             case Number n -> new JsonPrimitive(n);
-            default -> throw new IllegalArgumentException("NBT 값이 아님: " + tag);
+            default -> throw new IllegalArgumentException("not an NBT value: " + tag);
         };
     }
 

@@ -73,7 +73,7 @@ public final class StructureRegistry {
                 rings = new ConcentricRings(pj.get("distance").getAsInt(), pj.get("spread").getAsInt(), pj.get("count").getAsInt(),
                     resolveBiomes(pj.get("preferred_biomes")), pj.get("salt").getAsInt());
             } else {
-                throw new IllegalArgumentException("미지원 placement: " + ptype);
+                throw new IllegalArgumentException("unsupported placement: " + ptype);
             }
             ExclusionZone ez = null;
             if (pj.has("exclusion_zone")) {
@@ -176,7 +176,7 @@ public final class StructureRegistry {
 
     private static JsonObject readResource(String path) {
         try (InputStream in = StructureRegistry.class.getClassLoader().getResourceAsStream(path)) {
-            if (in == null) throw new IllegalArgumentException("리소스 없음: " + path);
+            if (in == null) throw new IllegalArgumentException("resource is missing: " + path);
             return JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
         } catch (IOException e) {
             throw new UncheckedIOException(e);

@@ -22,7 +22,7 @@ public final class CraftRemainders {
         if (t != null) return t;
         t = new HashMap<>();
         try (InputStream in = CraftRemainders.class.getResourceAsStream("/items/craft_remainders_1.21.1.txt")) {
-            if (in == null) throw new IllegalStateException("items/craft_remainders_1.21.1.txt 없음");
+            if (in == null) throw new IllegalStateException("items/craft_remainders_1.21.1.txt is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             for (String line; (line = r.readLine()) != null; ) {
                 if (line.isEmpty() || line.charAt(0) == '#') continue;

@@ -361,7 +361,7 @@ public record EntityType(String name, int id, float width, float height, float e
 
     private static EntityType of(String name, float w, float h, float eye, int range, int interval, boolean deltas, boolean fireImmune) {
         Integer id = IDS.get(name);
-        if (id == null) throw new IllegalStateException("엔티티 종류 없음: " + name);
+        if (id == null) throw new IllegalStateException("no such entity type: " + name);
         EntityType t = new EntityType(name, id, w, h, eye, range, interval, deltas, fireImmune);
         BY_NAME.put(name, t);
         return t;
@@ -370,7 +370,7 @@ public record EntityType(String name, int id, float width, float height, float e
     private static Map<String, Integer> loadIds() {
         Map<String, Integer> ids = new HashMap<>();
         var in = EntityType.class.getClassLoader().getResourceAsStream("registries/entity_types-1.21.1.txt");
-        if (in == null) throw new IllegalStateException("registries/entity_types-1.21.1.txt 없음");
+        if (in == null) throw new IllegalStateException("registries/entity_types-1.21.1.txt is missing");
         try (BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
             String line;
             int n = 0;

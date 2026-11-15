@@ -193,7 +193,7 @@ public final class PackRepository {
             for (String d : overlays) o.add(new PackResources.ZipPack(id, zip, prefix + d + "/"));
             return new PackResources.Composite(main, o);
         } catch (IOException e) {
-            throw new java.io.UncheckedIOException("팩 " + id + " 을(를) 열 수 없다", e);
+            throw new java.io.UncheckedIOException("pack " + id + " cannot be opened", e);
         }
     }
 

@@ -298,7 +298,7 @@ public final class PlayerData {
                 }
             });
         } catch (IOException e) {
-            throw new UncheckedIOException("playerdata 목록 읽기 실패", e);
+            throw new UncheckedIOException("failed to list playerdata", e);
         }
         return new java.util.ArrayList<>(out);
     }
@@ -312,7 +312,7 @@ public final class PlayerData {
             try {
                 return readWithFallback(worldDir, id, false, r -> r);
             } catch (UnreadablePlayerData e) {
-                throw new UncheckedIOException("playerdata 읽기 실패 " + id,
+                throw new UncheckedIOException("failed to read playerdata " + id,
                         e.getCause() instanceof IOException io ? io : new IOException(e.getCause()));
             }
         }
@@ -335,7 +335,7 @@ public final class PlayerData {
             try {
                 root = readWithFallback(worldDir, id, true, r -> r);
             } catch (UnreadablePlayerData e) {
-                throw new UncheckedIOException("playerdata 읽기 실패 " + id,
+                throw new UncheckedIOException("failed to read playerdata " + id,
                         e.getCause() instanceof IOException io ? io : new IOException(e.getCause()));
             }
             if (root == null) return EditResult.MISSING;
@@ -408,7 +408,7 @@ public final class PlayerData {
                 Files.move(tmp, f, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException e) {
-            throw new UncheckedIOException("playerdata 저장 실패 " + id, e);
+            throw new UncheckedIOException("failed to save playerdata " + id, e);
         }
     }
 

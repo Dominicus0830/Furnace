@@ -1742,7 +1742,7 @@ public abstract class ChunkLevel implements BlockLevel {
             org.domi.furnace.server.world.gen.carver.WorldgenRandom random, boolean apply) {
         var h = org.domi.furnace.server.world.LiveFeatures.configured(featureData(), id);
         if (h == null) return null;
-        if (!h.supported()) throw new UnsupportedOperationException("아직 구현되지 않은 feature: " + id);
+        if (!h.supported()) throw new UnsupportedOperationException("feature not implemented yet: " + id);
         return org.domi.furnace.server.world.LiveFeatures.placeWith(this, h, pos, random, featureSeed(), apply);
     }
 
@@ -2955,7 +2955,7 @@ public abstract class ChunkLevel implements BlockLevel {
      * (a)∪(b) 만 틱 목록 순서로 돈다(T-017). 보내는 패킷·순서·seenBy 는 전체 훑기와 같다(EntityTrackerCandidatesIdentityTest).
      */
     public void playerMoved(Player p) {
-        if (VERIFY_TRACK_CANDIDATES && !seenIndexCovers(p)) throw new AssertionError("추적 역색인에 빠진 엔티티가 있다: " + p);
+        if (VERIFY_TRACK_CANDIDATES && !seenIndexCovers(p)) throw new AssertionError("tracking reverse index is missing an entity: " + p);
         int n = entities.size();
         SeenList seen = seenIndex.get(p);
         // 엔티티가 적거나, p 가 이미 절반 넘게 본다(몰림 — 후보가 거의 전부라 모으고 늘어놓는 값만 더 든다)면 전체 훑기
@@ -3034,7 +3034,7 @@ public abstract class ChunkLevel implements BlockLevel {
             buf = candBuf;
             n = entities.orderAndDedupe(buf, candN);
             candN = 0;
-            if (VERIFY_TRACK_CANDIDATES && !candidatesComplete(p, buf, n)) throw new AssertionError("추적 후보에 빠진 엔티티가 있다: " + p);
+            if (VERIFY_TRACK_CANDIDATES && !candidatesComplete(p, buf, n)) throw new AssertionError("tracking candidates are missing an entity: " + p);
             long mods = entities.modCount();
             for (int i = 0; i < n; i++) {
                 Entity e = buf[i];
@@ -3379,7 +3379,7 @@ public abstract class ChunkLevel implements BlockLevel {
 
     /** 충돌 상태 표를 지금 만든다(서버 시작 때 — 블록 동작 표와 아이템 번호표가 깔린 뒤). */
     public static void warmCollisionTable() {
-        if (CollisionTable.FLAGS.length == 0) throw new IllegalStateException("충돌 상태 표가 비었다");
+        if (CollisionTable.FLAGS.length == 0) throw new IllegalStateException("the collision state table is empty");
     }
 
     /**

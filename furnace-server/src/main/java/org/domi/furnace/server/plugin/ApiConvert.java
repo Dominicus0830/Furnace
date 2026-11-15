@@ -32,7 +32,7 @@ public final class ApiConvert {
     public static ItemStack item(org.domi.furnace.api.item.ItemStack a, ItemRegistry items) {
         if (a.isEmpty()) return ItemStack.EMPTY;
         int id = items.idOf(a.type());
-        if (id < 0) throw new IllegalArgumentException("알 수 없는 아이템: " + a.type());
+        if (id < 0) throw new IllegalArgumentException("unknown item: " + a.type());
         Map<String, Object> raw = new LinkedHashMap<>();
         for (var e : a.components().entrySet()) raw.put(e.getKey(), Snbt.parse(e.getValue()));
         for (String r : a.removedComponents()) raw.put(r, null);
@@ -88,11 +88,11 @@ public final class ApiConvert {
         if (data.properties().isEmpty()) return def;
         Map<String, String> merged = new TreeMap<>(block(def, blocks).properties());
         for (var e : data.properties().entrySet()) {
-            if (!merged.containsKey(e.getKey())) throw new IllegalArgumentException("없는 속성: " + data);
+            if (!merged.containsKey(e.getKey())) throw new IllegalArgumentException("no such property: " + data);
             merged.put(e.getKey(), e.getValue());
         }
         int id = blocks.exactStateId(org.domi.furnace.server.world.BlockStateKey.of(data.type(), merged));
-        if (id < 0) throw new IllegalArgumentException("알 수 없는 블록 상태: " + data);
+        if (id < 0) throw new IllegalArgumentException("unknown block state: " + data);
         return id;
     }
 

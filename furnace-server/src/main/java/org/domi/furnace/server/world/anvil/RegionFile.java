@@ -218,7 +218,7 @@ public final class RegionFile implements Closeable {
         int offset = used.allocate(needed);          // 옛 섹터를 쥔 채 새 자리(바닐라와 같다 — in-place 덮어쓰기 없음)
         if ((long) offset + needed > 0xFFFFFF) {
             used.clear(offset, needed);
-            throw new IOException("영역 파일 섹터 오프셋 한도(24비트) 초과: " + path);
+            throw new IOException("region file sector offset limit (24 bits) exceeded: " + path);
         }
         // 실패하면 새 섹터는 표시된 채 둔다(누수일 뿐 손상은 아니다 — 헤더가 이미 새 자리를 가리켰을 수도 있다)
         byte[] buf = new byte[needed * SECTOR];      // 섹터 패딩 포함 — 파일 길이가 항상 섹터 배수

@@ -46,7 +46,7 @@ public final class ChunkPipeline {
             }
             return m;
         } catch (java.io.IOException e) {
-            throw new IllegalStateException("decorateRanks 읽기 실패: " + path, e);
+            throw new IllegalStateException("failed to read decorateRanks: " + path, e);
         }
     }
 

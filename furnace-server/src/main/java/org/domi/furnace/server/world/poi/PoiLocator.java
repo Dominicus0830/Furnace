@@ -92,7 +92,7 @@ public final class PoiLocator {
             ctx.memory(g, 0);
         }
         return CompletableFuture.allOf(parts.values().toArray(CompletableFuture[]::new)).thenApplyAsync(v -> {
-            if (cancelled.getAsBoolean()) throw new java.util.concurrent.CancellationException("locate poi 취소");
+            if (cancelled.getAsBoolean()) throw new java.util.concurrent.CancellationException("locate poi cancelled");
             Map<ChunkPos, List<Entry>> found = new HashMap<>();
             for (var e : parts.entrySet()) found.put(e.getKey(), e.getValue().join());
             return closest(order, found, origin, radius);

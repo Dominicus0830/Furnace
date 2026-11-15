@@ -46,7 +46,7 @@ public final class BlockAttrs {
 
     static BlockAttrs load(String resource) {
         try (InputStream in = BlockAttrs.class.getClassLoader().getResourceAsStream(resource)) {
-            if (in == null) throw new IllegalStateException("블록 속성 리소스 없음: " + resource);
+            if (in == null) throw new IllegalStateException("block attribute resource is missing: " + resource);
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             String line = r.readLine();
             int n = Integer.parseInt(line.substring("# states ".length()).strip());
@@ -69,7 +69,7 @@ public final class BlockAttrs {
                 collisionFull[i] = (byte) Integer.parseInt(p[4]);
                 i++;
             }
-            if (i != n) throw new IllegalStateException("블록 속성 줄 수 불일치: " + i + " != " + n);
+            if (i != n) throw new IllegalStateException("block attribute line count mismatch: " + i + " != " + n);
             return new BlockAttrs(flags, light, sturdy, block, collisionFull);
         } catch (IOException e) {
             throw new UncheckedIOException(e);

@@ -1237,7 +1237,7 @@ public final class ServerCore {
     public void setDifficultyProfile(String owner, org.domi.furnace.api.world.DifficultyProfile profile) {
         var base = org.domi.furnace.server.world.Difficulty.valueOf(profile.base().name());
         if (levelData.hardcore && base != org.domi.furnace.server.world.Difficulty.HARD) {
-            throw new IllegalStateException("하드코어 월드의 난이도는 HARD 뿐이다");
+            throw new IllegalStateException("a hardcore world can only use the HARD difficulty");
         }
         synchronized (difficultyLock) {
             levelData.difficulty = base;

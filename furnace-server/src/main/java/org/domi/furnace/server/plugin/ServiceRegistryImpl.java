@@ -32,12 +32,12 @@ final class ServiceRegistryImpl implements ServiceRegistry {
         java.util.Objects.requireNonNull(provider, "provider");
         java.util.Objects.requireNonNull(owner, "owner");
         java.util.Objects.requireNonNull(priority, "priority");
-        if (!service.isInstance(provider)) throw new IllegalArgumentException(provider.getClass().getName() + " 는 " + service.getName() + " 가 아니다");
+        if (!service.isInstance(provider)) throw new IllegalArgumentException(provider.getClass().getName() + " is not a " + service.getName());
         ServiceRegistration<T> reg = new ServiceRegistration<>(service, provider, owner, priority);
         synchronized (this) {
-            if (!owner.isEnabled()) throw new IllegalStateException("꺼진 플러그인은 서비스를 올릴 수 없다: " + owner.getClass().getName());
+            if (!owner.isEnabled()) throw new IllegalStateException("a disabled plugin cannot register services: " + owner.getClass().getName());
             List<ServiceRegistration<?>> list = new ArrayList<>(byService.getOrDefault(service, List.of()));
-            for (ServiceRegistration<?> r : list) if (r.provider() == provider) throw new IllegalArgumentException("이미 올린 제공자: " + service.getName());
+            for (ServiceRegistration<?> r : list) if (r.provider() == provider) throw new IllegalArgumentException("provider already registered: " + service.getName());
             list.add(reg);
             byService.put(service, List.copyOf(list));
         }

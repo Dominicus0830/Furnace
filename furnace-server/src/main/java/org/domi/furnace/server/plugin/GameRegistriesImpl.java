@@ -116,7 +116,7 @@ final class GameRegistriesImpl implements GameRegistries {
         private static java.util.Map<String, List<String>> load() {
             var out = new java.util.LinkedHashMap<String, java.util.List<String>>();
             try (var in = GameRegistriesImpl.class.getClassLoader().getResourceAsStream("registries/builtin-1.21.1.txt")) {
-                if (in == null) throw new IllegalStateException("registries/builtin-1.21.1.txt 없음");
+                if (in == null) throw new IllegalStateException("registries/builtin-1.21.1.txt is missing");
                 var r = new java.io.BufferedReader(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
                 String line;
                 while ((line = r.readLine()) != null) {
@@ -181,7 +181,7 @@ final class GameRegistriesImpl implements GameRegistries {
     public void disableEnchantment(FurnacePlugin owner, String key) {
         java.util.Objects.requireNonNull(owner, "owner");
         String k = normalize(key);
-        if (!contains(ENCHANTMENT, k)) throw new IllegalArgumentException("모르는 마법부여: " + key);
+        if (!contains(ENCHANTMENT, k)) throw new IllegalArgumentException("unknown enchantment: " + key);
         EnchantmentToggles.disable(owner.name(), k);
     }
 

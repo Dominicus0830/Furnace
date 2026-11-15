@@ -188,7 +188,7 @@ public final class WorldManager {
                         out.complete(c.world());
                     });
                 } catch (java.util.concurrent.RejectedExecutionException e) {
-                    out.completeExceptionally(new IllegalStateException("서버 종료 중"));
+                    out.completeExceptionally(new IllegalStateException("the server is stopping"));
                 }
             }
         });
@@ -208,13 +208,13 @@ public final class WorldManager {
         }
         if (WORKER_WAITING.get() != null) {
             // 월드 스레드가 이 전역 일(내리기 알림 등)이 끝나길 기다리는 중이라, 여기서 월드 스레드 차례를 기다리면 서로 멈춘다
-            throw new IllegalStateException("월드 '" + spec.name() + "' 를 " + WORKER_WAITING.get()
-                    + " 안에서 동기로 만들 수 없다 — createWorld(..) 의 future 를 쓰거나 다음 틱에(스케줄러 runTask) 만든다");
+            throw new IllegalStateException("cannot create world '" + spec.name() + "' synchronously inside " + WORKER_WAITING.get()
+                    + " - use the future of createWorld(..) or create it on the next tick (scheduler runTask)");
         }
         CompletableFuture<Created> made = submitCreate(spec);
         long deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(5);
         while (!made.isDone()) {
-            if (System.nanoTime() - deadline > 0) throw new IllegalStateException("월드 '" + spec.name() + "' 를 5분 안에 올리지 못했다");
+            if (System.nanoTime() - deadline > 0) throw new IllegalStateException("world '" + spec.name() + "' was not brought up within 5 minutes");
             Runnable r = globalHelp.poll(5, TimeUnit.MILLISECONDS);
             if (r != null) r.run();
         }
@@ -232,13 +232,13 @@ public final class WorldManager {
             Throwable c = e.getCause() != null ? e.getCause() : e;
             if (c instanceof RuntimeException r) throw r;
             if (c instanceof Error er) throw er;
-            throw new IllegalStateException("월드 '" + name + "' 올리기 실패", c);
+            throw new IllegalStateException("bringing up world '" + name + "' failed", c);
         } catch (java.util.concurrent.TimeoutException e) {
-            throw new IllegalStateException("월드 '" + name + "' 를 5분 안에 올리지 못했다", e);
+            throw new IllegalStateException("world '" + name + "' was not brought up within 5 minutes", e);
         } catch (InterruptedException | RuntimeException e) {
             throw e;
         } catch (Exception e) {
-            throw new IllegalStateException("월드 '" + name + "' 올리기 실패", e);
+            throw new IllegalStateException("bringing up world '" + name + "' failed", e);
         }
     }
 
@@ -255,7 +255,7 @@ public final class WorldManager {
 
     private CompletableFuture<Created> submitCreate(WorldCreator spec) {
         if (reservedName(spec.name())) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("쓸 수 없는 월드 이름: " + spec.name()));
+            return CompletableFuture.failedFuture(new IllegalArgumentException("invalid world name: " + spec.name()));
         }
         CompletableFuture<Created> out = new CompletableFuture<>();
         try {
@@ -269,7 +269,7 @@ public final class WorldManager {
                 }
             });
         } catch (java.util.concurrent.RejectedExecutionException e) {
-            out.completeExceptionally(new IllegalStateException("서버 종료 중"));
+            out.completeExceptionally(new IllegalStateException("the server is stopping"));
         }
         return out;
     }
@@ -320,14 +320,14 @@ public final class WorldManager {
         Extra existing = extras.get(spec.name());
         if (existing != null) {
             if (!sameWorld(existing.creator(), spec)) {
-                throw new IllegalArgumentException("이미 다른 설명서로 올라온 월드: " + spec.name());
+                throw new IllegalArgumentException("world already brought up with another spec: " + spec.name());
             }
             return existing.world();
         }
         World byKey = dimensions.get(spec.key());
-        if (byKey != null) throw new IllegalArgumentException("이미 쓰는 레벨 키: " + spec.key());
+        if (byKey != null) throw new IllegalArgumentException("level key already in use: " + spec.key());
         for (Extra e : extras.values()) {
-            if (e.name().equalsIgnoreCase(spec.name())) throw new IllegalArgumentException("대소문자만 다른 월드가 이미 있다: " + e.name());
+            if (e.name().equalsIgnoreCase(spec.name())) throw new IllegalArgumentException("a world differing only in case already exists: " + e.name());
         }
         NoiseWorldSource.Dimension family = family(spec.environment());
         DimensionType type = resolveType(spec, family);
@@ -428,9 +428,9 @@ public final class WorldManager {
         DimensionType vanilla = DimensionType.vanillaType(key);
         if (vanilla != null) return vanilla.forLevel(spec.key(), family);
         var def = hooks.pluginDimensionType(key);
-        if (def == null) throw new IllegalArgumentException("모르는 차원 타입(바닐라도, 켜진 플러그인 등록도 아니다): " + key);
+        if (def == null) throw new IllegalArgumentException("unknown dimension type (neither vanilla nor registered by an enabled plugin): " + key);
         if (parts.registries().indexOf("minecraft:dimension_type", key) < 0) {
-            throw new IllegalArgumentException("클라이언트 레지스트리에 없는 차원 타입(서버 시작 뒤 등록?): " + key);
+            throw new IllegalArgumentException("dimension type missing from the client registry (registered after server start?): " + key);
         }
         return DimensionType.fromDefinition(spec.key(), key, def, family);
     }
@@ -440,8 +440,8 @@ public final class WorldManager {
         boolean noise = spec.generator() != WorldGenerator.FLAT && spec.generator() != WorldGenerator.VOID
                 && spec.generator() != WorldGenerator.DEBUG_ALL_BLOCK_STATES;
         if (noise && (type.minY() != family.minY || type.sectionCount() != family.sectionCount)) {
-            throw new IllegalArgumentException("노이즈 생성기(" + spec.environment() + ")는 높이 " + family.minY + ".." + (family.minY + family.sectionCount * 16)
-                    + " 차원 타입만 쓸 수 있다: " + type.typeKey() + " 는 " + type.minY() + ".." + type.maxY() + " — FLAT·VOID 를 쓰거나 높이를 맞춘다");
+            throw new IllegalArgumentException("the noise generator (" + spec.environment() + ") only works with dimension types of height " + family.minY + ".." + (family.minY + family.sectionCount * 16)
+                    + ": " + type.typeKey() + " is " + type.minY() + ".." + type.maxY() + " - use FLAT or VOID, or match the height");
         }
     }
 
@@ -471,7 +471,7 @@ public final class WorldManager {
 
     private int biomeId(String biome) {
         int id = parts.registries().indexOf("minecraft:worldgen/biome", biome);
-        if (id < 0) throw new IllegalArgumentException("모르는 바이옴: " + biome);
+        if (id < 0) throw new IllegalArgumentException("unknown biome: " + biome);
         return id;
     }
 
@@ -567,7 +567,7 @@ public final class WorldManager {
     public CompletableFuture<World> load(String name) {
         try {
             WorldCreator c = storedCreator(name);
-            if (c == null) return CompletableFuture.failedFuture(new IllegalArgumentException("월드 폴더(level.dat)가 없다: " + name));
+            if (c == null) return CompletableFuture.failedFuture(new IllegalArgumentException("no world folder (level.dat): " + name));
             return create(c);
         } catch (Exception e) {
             return CompletableFuture.failedFuture(e);
@@ -582,7 +582,7 @@ public final class WorldManager {
      * region 스레드 닫기 → 저장소 닫기 → 폴더 잠금 풀기.
      */
     public CompletableFuture<Boolean> unload(World w, boolean save) {
-        if (!w.isExtraWorld()) return CompletableFuture.failedFuture(new IllegalArgumentException("기본 차원은 내릴 수 없다: " + w.dimension()));
+        if (!w.isExtraWorld()) return CompletableFuture.failedFuture(new IllegalArgumentException("the default dimension cannot be unloaded: " + w.dimension()));
         CompletableFuture<Boolean> out = new CompletableFuture<>();
         try {
             worker.execute(() -> {
@@ -593,7 +593,7 @@ public final class WorldManager {
                 }
             });
         } catch (java.util.concurrent.RejectedExecutionException e) {
-            out.completeExceptionally(new IllegalStateException("서버 종료 중"));
+            out.completeExceptionally(new IllegalStateException("the server is stopping"));
         }
         return out;
     }

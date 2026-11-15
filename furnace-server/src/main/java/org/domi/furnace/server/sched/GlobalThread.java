@@ -38,7 +38,7 @@ public final class GlobalThread implements GlobalScheduler, ThreadOwner, AutoClo
         try {
             exec.submit(() -> {}).get();
         } catch (Exception e) {
-            throw new RuntimeException("GlobalThread prime 실패", e);
+            throw new RuntimeException("GlobalThread prime failed", e);
         }
         // JDK 의 CompletableFuture 지연 실행기 스레드는 처음 쓰는 쪽 호출 스택(AccessControlContext·문맥 로더)을 평생 쥔다(A14-09).
         // 서버가 먼저 만들어 두면 플러그인이 처음 쓰는 경우(구조물 재시도 등)에도 플러그인 클래스로더가 붙잡히지 않는다.
@@ -296,7 +296,7 @@ public final class GlobalThread implements GlobalScheduler, ThreadOwner, AutoClo
 
     /** 전역 스레드에서: 시험 틱 하나 — 틱 번호를 올리고 때가 된 지연 작업을 돌린다. 지금 틱 번호를 돌려준다. */
     public long advanceManualTick() {
-        if (!isOwnerThread()) throw new IllegalStateException("전역 스레드에서 불러야 한다");
+        if (!isOwnerThread()) throw new IllegalStateException("must be called on the global thread");
         return advanceTick();
     }
 

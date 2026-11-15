@@ -61,7 +61,7 @@ public final class NbtIo {
                 for (Object item : l.items()) writePayload(out, l.elementType(), item);
             }
             case TAG_COMPOUND -> writeCompoundPayload(out, (NbtCompound) v);
-            default -> throw new IllegalArgumentException("미지원 태그: " + type);
+            default -> throw new IllegalArgumentException("unsupported tag: " + type);
         }
     }
 
@@ -78,7 +78,7 @@ public final class NbtIo {
         if (v instanceof long[]) return TAG_LONG_ARRAY;
         if (v instanceof NbtList) return TAG_LIST;
         if (v instanceof NbtCompound) return TAG_COMPOUND;
-        throw new IllegalArgumentException("미지원 값: " + v.getClass());
+        throw new IllegalArgumentException("unsupported value: " + v.getClass());
     }
 
     // ---- read ----
@@ -86,7 +86,7 @@ public final class NbtIo {
     /** 명명 루트 compound read. 루트 이름은 버린다. */
     public static NbtCompound read(java.io.DataInput in) throws java.io.IOException {
         byte type = in.readByte();
-        if (type != TAG_COMPOUND) throw new java.io.IOException("루트가 compound 아님: " + type);
+        if (type != TAG_COMPOUND) throw new java.io.IOException("the root is not a compound: " + type);
         in.readUTF(); // 루트 이름 버림
         return readCompoundPayload(in, 0);
     }
@@ -153,7 +153,7 @@ public final class NbtIo {
                 yield l;
             }
             case TAG_COMPOUND -> readCompoundPayload(in, depth);
-            default -> throw new java.io.IOException("미지원 태그: " + type);
+            default -> throw new java.io.IOException("unsupported tag: " + type);
         };
     }
 
@@ -175,7 +175,7 @@ public final class NbtIo {
     public static NbtCompound read(byte[] bytes) throws java.io.IOException {
         In in = new In(bytes);
         byte type = in.b();
-        if (type != TAG_COMPOUND) throw new java.io.IOException("루트가 compound 아님: " + type);
+        if (type != TAG_COMPOUND) throw new java.io.IOException("the root is not a compound: " + type);
         in.utf();
         return in.compound(0);
     }
@@ -256,7 +256,7 @@ public final class NbtIo {
                     for (Object item : list.items()) payload(list.elementType(), item);
                 }
                 case TAG_COMPOUND -> compound((NbtCompound) v);
-                default -> throw new IllegalArgumentException("미지원 태그: " + type);
+                default -> throw new IllegalArgumentException("unsupported tag: " + type);
             }
         }
     }
@@ -352,7 +352,7 @@ public final class NbtIo {
                     yield list;
                 }
                 case TAG_COMPOUND -> compound(depth);
-                default -> throw new java.io.IOException("미지원 태그: " + type);
+                default -> throw new java.io.IOException("unsupported tag: " + type);
             };
         }
     }

@@ -45,7 +45,7 @@ public final class Appearance {
         this.profile = profile;
         this.source = source;
         if (typeName != null && (kind == EntityKinds.PLAYER) != (profile != null)) {
-            throw new IllegalArgumentException("플레이어 변장에는 프로필이 있어야 하고, 다른 종류에는 없어야 한다");
+            throw new IllegalArgumentException("a player disguise needs a profile and any other type must not have one");
         }
     }
 

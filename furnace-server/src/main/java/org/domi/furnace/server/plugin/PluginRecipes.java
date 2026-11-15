@@ -39,7 +39,7 @@ public final class PluginRecipes implements RecipeRegistry {
 
     private RecipeManager manager() {
         RecipeManager rm = host.core().recipes();
-        if (rm == null) throw new IllegalStateException("레시피 데이터가 없다(데이터 팩 없이 뜬 서버)");
+        if (rm == null) throw new IllegalStateException("there is no recipe data (the server started without data packs)");
         return rm;
     }
 
@@ -65,7 +65,7 @@ public final class PluginRecipes implements RecipeRegistry {
     private static ResourceId key(String key) {
         java.util.Objects.requireNonNull(key, "key");
         ResourceId id = key.indexOf(':') > 0 ? ResourceId.tryParse(key) : null;
-        if (id == null) throw new IllegalArgumentException("레시피 키는 '네임스페이스:이름' 소문자 형식: " + key);
+        if (id == null) throw new IllegalArgumentException("a recipe key must be lowercase 'namespace:name': " + key);
         return id;
     }
 
@@ -75,7 +75,7 @@ public final class PluginRecipes implements RecipeRegistry {
         java.util.Objects.requireNonNull(recipe, "recipe");
         ResourceId id = key(key);
         RecipeManager rm = manager();
-        if (rm.recipe(id) != null) throw new IllegalArgumentException("이미 있는 레시피 키: " + key + " (바꾸려면 먼저 remove)");
+        if (rm.recipe(id) != null) throw new IllegalArgumentException("recipe key already exists: " + key + " (remove it first to replace it)");
         Recipe converted = ApiRecipes.toServer(recipe, rm.context(), toServer());
         rm.change(Map.of(id, converted), List.of());
         plugin.put(id, new Entry(owner, converted));

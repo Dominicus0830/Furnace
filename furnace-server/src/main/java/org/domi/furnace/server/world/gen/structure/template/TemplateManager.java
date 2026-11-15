@@ -96,13 +96,13 @@ public final class TemplateManager {
         StructureTemplate t;
         try {
             if (!root.contains("size") || !root.contains("blocks") || !(root.contains("palette") || root.contains("palettes"))) {
-                throw new IllegalArgumentException("구조물 NBT 에 size·blocks·palette 가 없다");
+                throw new IllegalArgumentException("the structure NBT has no size, blocks or palette");
             }
             t = read(id, root, "plugin");
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (RuntimeException e) {
-            throw new IllegalArgumentException("구조물 NBT 를 읽을 수 없다: " + e, e);
+            throw new IllegalArgumentException("cannot read the structure NBT: " + e, e);
         }
         repository.put(id, Optional.of(t));
         return t;

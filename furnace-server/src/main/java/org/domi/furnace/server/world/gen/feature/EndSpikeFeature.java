@@ -76,7 +76,7 @@ public final class EndSpikeFeature implements ConfiguredFeature {
             p.put("west", String.valueOf((bits & 8) != 0));
             p.put("waterlogged", "false");
             int id = registry.exactStateId(org.domi.furnace.server.world.BlockStateKey.of("minecraft:iron_bars", p));
-            if (id < 0) throw new IllegalStateException("iron_bars 상태를 찾지 못함: " + p);
+            if (id < 0) throw new IllegalStateException("iron_bars state not found: " + p);
             bars[bits] = id;
         }
         this.crystalInvulnerable = crystalInvulnerable;

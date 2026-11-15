@@ -181,7 +181,7 @@ public final class EntitySelector {
     /** 위치·거리 말고 옵션 필터(name·tag·type·gamemode 등)만 적용한 판정. */
     public boolean matchesFilters(Rider r) {
         if (!boardPredicates.isEmpty() || !serverPredicates.isEmpty())
-            throw new IllegalStateException("team=·scores=·advancements=·predicate= 는 서버가 필요하다 — matchesFilters(server, r) 를 쓴다");
+            throw new IllegalStateException("team=, scores=, advancements= and predicate= need the server - use matchesFilters(server, r)");
         for (Predicate<Rider> q : predicates) if (!q.test(r)) return false;
         return true;
     }

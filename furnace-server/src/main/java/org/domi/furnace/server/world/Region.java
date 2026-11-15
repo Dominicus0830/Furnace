@@ -617,7 +617,7 @@ public final class Region {
     private void claim(ChunkPos cp) {
         Region owner = rz().want(cp.x(), cp.z(), this);
         if (owner != this) {
-            throw new IllegalStateException("청크 " + cp + " 는 region #" + owner.id + " 것인데 #" + id + " 에서 접근");
+            throw new IllegalStateException("chunk " + cp + " belongs to region #" + owner.id + " but was accessed from region #" + id + " (wrong region)");
         }
     }
 
@@ -685,7 +685,7 @@ public final class Region {
                 world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource anvil
                         ? anvil.loadChunkAsync(cp.x(), cp.z(), world.ioLane(cp.x(), cp.z()), world.ioDecodeExecutor(), genExec, ticket::tryStart)
                         : CompletableFuture.supplyAsync(() -> {
-                            if (!ticket.tryStart()) throw new java.util.concurrent.CancellationException("시야 밖 생성 요청 취소");
+                            if (!ticket.tryStart()) throw new java.util.concurrent.CancellationException("generation request cancelled: out of view");
                             ChunkColumn made = world.worldSource().generate(cp.x(), cp.z());
                             if (made != null) made.newlyCreated(true);   // 저장소가 없는 월드 소스는 늘 새로 만든다
                             return made;

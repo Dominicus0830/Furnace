@@ -66,7 +66,7 @@ public interface LootEntry {
                 };
                 yield new Singleton(weight, quality, conditions, fns, all, expand ? tag : null);
             }
-            default -> throw new LootParseException("모르는 엔트리: " + type);
+            default -> throw new LootParseException("unknown entry: " + type);
         };
     }
 

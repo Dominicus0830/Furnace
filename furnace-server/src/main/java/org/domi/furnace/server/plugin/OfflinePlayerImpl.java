@@ -70,7 +70,7 @@ final class OfflinePlayerImpl implements OfflinePlayer {
         Player p = online();
         if (p != null) return ServerCore.profileOf(p);
         String n = name();
-        if (n == null) throw new IllegalStateException("이름을 모르는 플레이어는 목록에 쓸 수 없다: " + id);
+        if (n == null) throw new IllegalStateException("a player without a known name cannot be put on a list: " + id);
         return new GameProfile(id, n);
     }
 
@@ -172,7 +172,7 @@ final class OfflinePlayerImpl implements OfflinePlayer {
 
     @Override
     public void setOpLevel(int level) {
-        if (level < 0 || level > 4) throw new IllegalArgumentException("OP 레벨은 0~4: " + level);
+        if (level < 0 || level > 4) throw new IllegalArgumentException("the op level must be 0..4: " + level);
         if (level == 0) {
             if (!lists().isOp(lookupProfile())) return;
             lists().deop(lookupProfile());

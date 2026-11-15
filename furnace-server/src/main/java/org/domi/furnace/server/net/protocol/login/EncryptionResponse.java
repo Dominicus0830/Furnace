@@ -16,7 +16,7 @@ public record EncryptionResponse(byte[] sharedSecret, byte[] verifyToken) {
 
     private static byte[] readBytes(ByteBuf buf) {
         int n = Types.readVarInt(buf);
-        if (n < 0 || n > MAX_LENGTH || n > buf.readableBytes()) throw new ProtocolException("암호화 응답 길이 오류: " + n);
+        if (n < 0 || n > MAX_LENGTH || n > buf.readableBytes()) throw new ProtocolException("invalid encryption response length: " + n);
         byte[] b = new byte[n];
         buf.readBytes(b);
         return b;

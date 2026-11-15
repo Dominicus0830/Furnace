@@ -68,14 +68,14 @@ public final class JigsawStructure extends StructureType {
             if (lo > hi) return lo;
             return random.nextInt(hi - lo + 1) + lo;   // Mth.randomBetweenInclusive
         }
-        throw new IllegalArgumentException("미지원 start_height: " + h);
+        throw new IllegalArgumentException("unsupported start_height: " + h);
     }
 
     private static int anchor(JsonObject a, int minY, int genDepth) {
         if (a.has("absolute")) return a.get("absolute").getAsInt();
         if (a.has("above_bottom")) return minY + a.get("above_bottom").getAsInt();
         if (a.has("below_top")) return minY + genDepth - 1 - a.get("below_top").getAsInt();
-        throw new IllegalArgumentException("미지원 앵커: " + a);
+        throw new IllegalArgumentException("unsupported anchor: " + a);
     }
 
     @Override
@@ -417,7 +417,7 @@ public final class JigsawStructure extends StructureType {
                     JsonObject g = weighted(groups, r);
                     for (com.google.gson.JsonElement e : g.getAsJsonArray("data")) resolve(e.getAsJsonObject(), r, out);
                 }
-                default -> throw new IllegalArgumentException("미지원 pool alias: " + type);
+                default -> throw new IllegalArgumentException("unsupported pool alias: " + type);
             }
         }
 

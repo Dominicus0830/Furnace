@@ -76,7 +76,7 @@ public final class EntityOps {
 
     /** 주인을 끝내 못 찾았을 때의 실패(명령 오류로 보고된다). */
     public static IllegalStateException ownerNotFound(Rider r) {
-        return new IllegalStateException("대상을 가진 region 을 찾지 못했다: " + describe(r));
+        return new IllegalStateException("could not find the region that owns the target: " + describe(r));
     }
 
     /**
@@ -118,7 +118,7 @@ public final class EntityOps {
             } catch (Throwable t) {
                 f.completeExceptionally(t);
             }
-        }, () -> f.completeExceptionally(new IllegalStateException("엔티티를 가진 region 을 찾지 못했다: " + e.typeName())));
+        }, () -> f.completeExceptionally(new IllegalStateException("could not find the region that owns the entity: " + e.typeName())));
         return f;
     }
 
