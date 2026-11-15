@@ -155,7 +155,11 @@ class DispenserBlockTest {
         assertEquals(AbstractArrow.Pickup.ALLOWED, a.pickup);
         assertEquals(POS.x() + 0.5 + 0.7, a.x(), 1e-9);
         assertEquals(POS.y() + 0.5 + 0.1, a.y(), 1e-9);
-        assertTrue(a.vx() > 1.0, "힘 1.1");
+        // shoot(동쪽, 힘 1.1, 흩어짐 6): 축마다 triangle(0, 0.0172275×6) 를 더한 뒤 1.1 배 — vx 는 (1 ± 0.1034)×1.1.
+        // 예전 단언 vx > 1.0 은 흩어짐이 −0.091 아래로 뽑히면(약 0.7%) 깨졌다(T-161, CI 재시도로 가려진 흔들림). 흩어짐 범위 전체로 본다.
+        double spread = 0.0172275 * 6.0;
+        assertTrue(a.vx() >= (1 - spread) * 1.1 - 1e-6 && a.vx() <= (1 + spread) * 1.1 + 1e-6, "힘 1.1: vx=" + a.vx());
+        assertTrue(Math.abs(a.vy()) <= spread * 1.1 + 1e-6 && Math.abs(a.vz()) <= spread * 1.1 + 1e-6, "흩어짐 6: " + a.vy() + ", " + a.vz());
         assertArrayEquals(new int[] {1002, 0}, l.levelEvents.get(0));
         assertArrayEquals(new int[] {2000, Dir.EAST}, l.levelEvents.get(1));
     }

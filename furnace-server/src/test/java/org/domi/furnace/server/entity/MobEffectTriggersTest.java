@@ -117,11 +117,13 @@ class MobEffectTriggersTest {
     void weavingPlacesTwoOrThreeCobwebsOnSturdyFloor() {
         var h = new ChunkLevelHolder(new RuleLevel());
         var zombie = zombieAt(h, 5.5, 5.5, MobEffect.WEAVING);
+        // 15 번 뽑아 아래가 튼튼한 y = -60 층(27 칸 중 9 칸)만 붙는다 — 15 번 다 빗나갈 확률 (2/3)^15 ≈ 0.23% 라 씨앗 없는 난수로는
+        // 가끔 0 개가 나왔다(T-161, CI 재시도로 2번 가려짐). 엔티티 난수 씨앗을 고정해 결정적으로 본다.
+        ((org.domi.furnace.server.block.LegacyRandomSource) zombie.random()).setSeed(0x5EB);
         Pos c = zombie.blockPosition();
         killAndRemove(zombie);
         int n = cobwebs(h.level, c);
-        // 15 번 뽑아 아래가 튼튼한 y = -60 층(9 칸 중)만 붙는다 — 2~3 개(드물게 15 번 안에 못 채우면 그보다 적다)
-        assertTrue(n >= 1 && n <= 3, "거미줄 " + n);
+        assertTrue(n >= 2 && n <= 3, "거미줄 2~3 개(randomBetweenInclusive(2, 3)): " + n);
         int web = B.defaultState("minecraft:cobweb");
         for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++) {
             assertNotEquals(web, h.level.getBlockState(new Pos(c.x() + x, c.y() + 1, c.z() + z)), "공중에는 안 붙는다");
