@@ -45,11 +45,11 @@ class LangTest {
 
     @Test
     void settingPicksLanguageAndUnknownFallsBackToEnglish() {
-        assertTrue(Lang.select("ko"));
+        assertNull(Lang.select("ko"));
         assertEquals("ko", Lang.language());
-        assertTrue(Lang.select("en"));
+        assertNull(Lang.select("en"));
         assertEquals("en", Lang.language());
-        assertFalse(Lang.select("xx"));
+        assertEquals("xx", Lang.select(" xx "));   // 알 수 없는 값은 그 값을 돌려준다(호출한 쪽이 알림)
         assertEquals("en", Lang.language());
     }
 
@@ -57,18 +57,30 @@ class LangTest {
     void autoFollowsTheJvmLocale() {
         savedLocale = Locale.getDefault();
         Locale.setDefault(Locale.KOREA);
-        assertTrue(Lang.select("auto"));
+        assertNull(Lang.select("auto"));
         assertEquals("ko", Lang.language());
         Locale.setDefault(Locale.FRANCE);   // 번역 파일이 없는 언어 → 영어
-        assertTrue(Lang.select(null));
+        assertNull(Lang.select(null));
         assertEquals("en", Lang.language());
     }
 
     @Test
     void jvmPropertyBeatsTheFileSetting() {
         System.setProperty(Lang.PROPERTY, "ko");
-        assertTrue(Lang.select("en"));
+        assertNull(Lang.select("en"));
         assertEquals("ko", Lang.language());
+    }
+
+    @Test
+    void unknownJvmPropertyOnlyAndNoFileSettingIsReportedAndUsesEnglish() {
+        // 속성·환경변수로만 잘못된 값이 오고 furnace.properties 에는 키가 없어도(파일값 null) 문제 없이 알려진다(예전엔 NPE)
+        savedLocale = Locale.getDefault();
+        Locale.setDefault(Locale.KOREA);
+        System.setProperty(Lang.PROPERTY, "de");
+        assertEquals("de", Lang.select(null));
+        assertEquals("en", Lang.language());
+        Lang.reset();   // 선택 전 줄도 같은 판단: 잘못된 값이면 영어(로케일이 한국어여도)
+        assertEquals("en", Lang.language());
     }
 
     @Test

@@ -97,8 +97,8 @@ public final class FurnaceMain {
         // 콘솔 편집기 설정(console.jline, console.history-size)은 콘솔을 여는 지금 읽는다 — 틀린 값이면 여기서 멈춘다.
         java.util.Properties consoleProps = org.domi.furnace.server.config.FurnaceProps.read(Path.of("furnace.properties"));
         // 서버 메시지 언어(language): 이 줄부터 그 언어로 찍는다. 이전 줄은 실행 환경 언어를 따른다.
-        String languageSetting = consoleProps.getProperty(Lang.KEY);
-        if (!Lang.select(languageSetting)) log.warn(Lang.t("config.language-unknown", languageSetting.strip(), String.join(", ", Lang.SUPPORTED)));
+        String unknownLanguage = Lang.select(consoleProps.getProperty(Lang.KEY));
+        if (unknownLanguage != null) log.warn(Lang.t("config.language-unknown", unknownLanguage, String.join(", ", Lang.SUPPORTED)));
         ConsoleInput console = ConsoleInput.startEarly(   // 월드를 불러오기 전에 연다 — stop 은 바로, 나머지는 서버가 준비된 뒤 실행
                 org.domi.furnace.server.config.OptionKeys.strictBool(consoleProps, "console.jline", true),
                 org.domi.furnace.server.config.OptionKeys.strictInt(consoleProps, "console.history-size", ConsoleInput.DEFAULT_HISTORY_SIZE, 0, 100_000));
@@ -587,7 +587,6 @@ public final class FurnaceMain {
                         long failed = 0;
                         for (World w : dimensions.all()) failed += w.saveFailures();
                         if (failed > 0) log.error(Lang.t("stop.save-failures", failed));
-                        else log.info("All dimensions are saved");
                         regionStore.closeAll();
                         entityStore.closeAll();
                         poiStore.closeAll();
@@ -595,6 +594,7 @@ public final class FurnaceMain {
                         worldManager.closeAllForShutdown();   // 추가 월드 저장소·level.dat·폴더 잠금
                         saveLevelData.run();
                         storage.close();
+                        if (failed == 0) log.info("All dimensions are saved");   // 저장소를 다 닫은 뒤(Paper 도 저장이 끝난 뒤에 찍는다)
                     } catch (Exception e) {
                         log.error(Lang.t("stop.flush-failed"), e);
                     }

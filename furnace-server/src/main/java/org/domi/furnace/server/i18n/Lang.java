@@ -45,20 +45,21 @@ public final class Lang {
 
     /**
      * furnace.properties 의 language 값을 반영한다(없으면 null·"auto"). JVM 속성·환경변수가 있으면 그쪽이 이긴다.
-     * @return 값이 알 수 없는 언어라 영어로 돌아갔으면 false (호출한 쪽이 한 줄 알린다)
+     * @return 알 수 없는 언어라 영어로 돌아갔으면 그 값(속성·환경변수·파일 중 실제로 본 값 — 호출한 쪽이 한 줄 알린다), 아니면 null
      */
-    public static boolean select(String fileSetting) {
-        String c = code(override() != null ? override() : fileSetting);
+    public static String select(String fileSetting) {
+        String requested = override() != null ? override() : fileSetting;
+        String c = code(requested);
         if (c == null) {
             active = detect();
-            return true;
+            return null;
         }
         if (SUPPORTED.contains(c)) {
             active = c;
-            return true;
+            return null;
         }
         active = FALLBACK;
-        return false;
+        return requested.strip();
     }
 
     /** 시험·재설정용: 로케일 감지로 되돌린다. */
@@ -87,10 +88,11 @@ public final class Lang {
         return s.substring(0, cut);
     }
 
-    /** 감지: JVM 속성·환경변수 → JVM 로케일 → 영어. */
+    /** 감지: JVM 속성·환경변수(알 수 없는 언어면 영어) → JVM 로케일(번역이 없는 언어면 영어). */
     private static String detect() {
         String c = code(override());
-        if (c == null || !SUPPORTED.contains(c)) c = code(Locale.getDefault().getLanguage());
+        if (c != null) return SUPPORTED.contains(c) ? c : FALLBACK;
+        c = code(Locale.getDefault().getLanguage());
         return c != null && SUPPORTED.contains(c) ? c : FALLBACK;
     }
 
