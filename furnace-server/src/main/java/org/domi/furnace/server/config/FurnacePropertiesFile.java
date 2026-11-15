@@ -95,7 +95,11 @@ public final class FurnacePropertiesFile {
             for (String[] k : EntityHandleSettings.TRACKING_KEYS) {
                 l.add(opt(EntityHandleSettings.TRACKING + k[0], k[1], k[2] + ". 블록, 0 = 아무에게도 보내지 않음."));
             }
-            s.add(new Section("엔티티 손잡이(Paper 기본값 — 밀기 상한·추적 거리는 바닐라와 다름)", l));
+            l.add(opt(EntityHandleSettings.ITEM_MERGE_INTO_TICKING, h.itemMergeIntoTicking(),
+                    "아이템을 합칠 때 늘 지금 틱을 도는 아이템 쪽으로 모은다(Spigot·Paper). false = 바닐라(개수가 적은 쪽을 많은 쪽에) — 어느 아이템이 남는지가 달라진다."));
+            l.add(opt(EntityHandleSettings.SKIP_UNPUSHABLE, h.skipUnpushableCollisions(),
+                    "밀 수 없는 생물(사다리·덩굴에 매달린 몹, 관전자 등)은 남을 밀지 않고 maxEntityCramming 피해도 받지 않는다(Paper). false = 바닐라."));
+            s.add(new Section("엔티티 손잡이(Paper 기본값 — 밀기 상한·추적 거리·합치는 방향·밀 수 없는 생물은 바닐라와 다름)", l));
         }
         s.add(new Section("채팅·운영", List.of(
                 opt("chat.strict-order", o.strictChatOrder(), "true(바닐라)면 순서가 어긋난 채팅에서 서명 체인을 끊는다. false 면 그 메시지만 버린다."),

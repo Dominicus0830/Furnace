@@ -126,7 +126,7 @@ public final class ItemEntity extends Entity {
 
     /**
      * mergeWithNeighbours: 상자는 Spigot 식 inflate(r, r - 0.5, r)(merge-radius.item, T-122). 기본 0.5 는 바닐라 inflate(0.5, 0.0, 0.5) 와 같다.
-     * (Spigot 의 tryToMerge "늘 이쪽으로 합침"(if (true || …)) 은 따르지 않는다 — 손잡이가 아니라 바닐라와 다른 고정 변경이다.)
+     * 합치는 방향(Spigot 의 "늘 이쪽으로")은 tryToMerge 가 item-merge.always-into-ticking 으로 고른다.
      */
     private void mergeWithNeighbours() {
         if (!isMergable()) return;
@@ -147,7 +147,8 @@ public final class ItemEntity extends Entity {
     private void tryToMerge(ItemEntity other) {
         ItemStack mine = getItem(), theirs = other.getItem();
         if (java.util.Objects.equals(target, other.target) && areMergable(mine, theirs)) {
-            if (theirs.count() < mine.count()) merge(this, mine, other, theirs);
+            // Spigot·Paper 는 늘 이쪽으로 모은다(item-merge.always-into-ticking, 기본 켬 — T122-1). 끄면 바닐라
+            if (org.domi.furnace.server.config.EntityHandleSettings.current().itemMergeIntoTicking() || theirs.count() < mine.count()) merge(this, mine, other, theirs);
             else merge(other, theirs, this, mine);
         }
     }

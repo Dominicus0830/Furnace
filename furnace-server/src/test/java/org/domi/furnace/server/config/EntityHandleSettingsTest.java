@@ -26,6 +26,10 @@ class EntityHandleSettingsTest {
         assertTrue(s.trackingEnabled());
         assertEquals(List.of(128, 96, 96, 96, 128, 64),
                 List.of(s.trackPlayers(), s.trackAnimals(), s.trackMonsters(), s.trackMisc(), s.trackDisplay(), s.trackOther()));
+        assertTrue(s.itemMergeIntoTicking(), "T122-1: Paper 와 같게 켬");
+        assertTrue(s.skipUnpushableCollisions(), "T122-1: Paper 와 같게 켬");
+        assertFalse(parse("item-merge.always-into-ticking", "false").itemMergeIntoTicking());
+        assertFalse(parse("collisions.skip-unpushable", "false").skipUnpushableCollisions());
         assertTrue(EntityHandleSettings.VANILLA.vanillaDifferences().isEmpty());
     }
 
@@ -52,6 +56,8 @@ class EntityHandleSettingsTest {
         Properties v = new Properties();
         v.setProperty("collisions.max-entity-collisions", "-1");
         v.setProperty("entity-tracking-range.enabled", "false");
+        v.setProperty("item-merge.always-into-ticking", "false");
+        v.setProperty("collisions.skip-unpushable", "false");
         EntityHandleSettings.fromProperties(v, warns::add);
         assertTrue(warns.isEmpty(), warns.toString());
     }
@@ -70,7 +76,7 @@ class EntityHandleSettingsTest {
     @Test
     void keysAreKnownAndVanillaPresetIsVanilla() {
         for (String k : new String[]{"merge-radius.item", "merge-radius.exp", "collisions.max-entity-collisions", "entity-tracking-range.enabled",
-                "entity-tracking-range.players", "entity-tracking-range.other"}) {
+                "entity-tracking-range.players", "entity-tracking-range.other", "item-merge.always-into-ticking", "collisions.skip-unpushable"}) {
             assertTrue(OptionKeys.isKnown(k), k);
         }
         Properties p = new Properties();

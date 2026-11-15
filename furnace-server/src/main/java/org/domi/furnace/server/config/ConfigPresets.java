@@ -36,6 +36,8 @@ public final class ConfigPresets {
         vanilla.put(EntityHandleSettings.TRACKING + "enabled", "false");   // 추적 거리도 바닐라
         vanilla.put(EntityHandleSettings.ITEM_MERGE, "0.5");
         vanilla.put(EntityHandleSettings.EXP_MERGE, "-1");
+        vanilla.put(EntityHandleSettings.ITEM_MERGE_INTO_TICKING, "false");
+        vanilla.put(EntityHandleSettings.SKIP_UNPUSHABLE, "false");
         PRESETS.put("vanilla", vanilla);
         Map<String, String> perf = new LinkedHashMap<>();
         perf.put("entity-view-distance", "6");

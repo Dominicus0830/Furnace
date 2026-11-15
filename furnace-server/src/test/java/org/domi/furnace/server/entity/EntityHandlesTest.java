@@ -27,10 +27,13 @@ class EntityHandlesTest {
     @AfterEach
     void back() { EntityHandleSettings.install(EntityHandleSettings.VANILLA); }
 
-    private static EntityHandleSettings with(double item, double exp, int max) {
+    private static EntityHandleSettings with(double item, double exp, int max) { return with(item, exp, max, false, false); }
+
+    /** 손잡이 값 + Paper 고정 변경 둘(T122-1). 둘을 따로 보는 시험이 아니면 끈다(바닐라). */
+    private static EntityHandleSettings with(double item, double exp, int max, boolean intoTicking, boolean skipUnpushable) {
         EntityHandleSettings d = EntityHandleSettings.DEFAULT;
         return new EntityHandleSettings(item, exp, max, d.trackingEnabled(), d.trackPlayers(), d.trackAnimals(), d.trackMonsters(), d.trackMisc(),
-                d.trackDisplay(), d.trackOther());
+                d.trackDisplay(), d.trackOther(), intoTicking, skipUnpushable);
     }
 
     // ------------------------------------------------------------------ 추적 거리
@@ -173,6 +176,20 @@ class EntityHandlesTest {
         for (Cow c : cows) assertEquals(0.0, c.vx(), 0.0);
     }
 
+    @Test
+    void unpushableMobDoesNotPushWhenSkipping() {
+        for (boolean skip : new boolean[]{false, true}) {
+            EntityHandleSettings.install(with(0.5, -1, -1, false, skip));
+            var level = new PushEntitiesTest.Arena();
+            List<Cow> cows = pen(level, 3);
+            cows.get(0).collides = false;   // isPushable 거짓(사다리에 매달린 것과 같은 갈래)
+            cows.get(0).pushEntities();
+            int moved = 0;
+            for (Cow c : cows.subList(1, 3)) if (c.vx() != 0) moved++;
+            assertEquals(skip ? 0 : 2, moved, skip ? "Paper: 밀 수 없으면 밀지 않는다" : "바닐라: 밀 수 없어도 남은 민다");
+        }
+    }
+
     // ------------------------------------------------------------------ 합치기 반경
 
     private static void tick(ChunkLevel level, int n) {
@@ -197,6 +214,24 @@ class EntityHandlesTest {
         assertEquals(2, itemsAfterMerge(EntityHandleSettings.VANILLA), "바닐라: 2칸 떨어진 아이템은 합치지 않는다");
         assertEquals(2, itemsAfterMerge(EntityHandleSettings.DEFAULT), "Paper 기본 0.5 = 바닐라");
         assertEquals(1, itemsAfterMerge(with(2.5, -1, 8)), "Spigot 2.5: 합친다");
+    }
+
+    /** 1개(먼저 틱)와 5개(나중)를 겹쳐 둔다: 바닐라는 많은 쪽(나중)에, Spigot·Paper 는 늘 틱 도는 쪽(먼저)에 모은다. */
+    @Test
+    void itemMergeDirection() {
+        for (boolean intoTicking : new boolean[]{false, true}) {
+            EntityHandleSettings.install(with(0.5, -1, -1, intoTicking, false));
+            var level = new BlockPlacementTest.TestLevel();
+            ItemEntity a = new ItemEntity(level, level.nextEntityId(), 0.5, -60, 0.5, B.stack("minecraft:dirt", 1), 0, 0, 0);
+            ItemEntity b = new ItemEntity(level, level.nextEntityId(), 0.6, -60, 0.5, B.stack("minecraft:dirt", 5), 0, 0, 0);
+            assertTrue(level.addFreshEntity(a));
+            assertTrue(level.addFreshEntity(b));
+            tick(level, 40);
+            ItemEntity kept = intoTicking ? a : b, gone = intoTicking ? b : a;
+            assertFalse(kept.isRemoved(), "intoTicking=" + intoTicking);
+            assertTrue(gone.isRemoved(), "intoTicking=" + intoTicking);
+            assertEquals(6, kept.getItem().count());
+        }
     }
 
     private static List<ExperienceOrb> orbs(EntityHandleSettings s, int... values) {

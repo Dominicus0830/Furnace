@@ -119,6 +119,8 @@ public final class PushScratch {
      * 밀기만 관전자(noPhysics)면 막힌다.
      */
     public void pushFor(ChunkLevel level, Player p) {
+        // Paper(collisions.skip-unpushable, 기본 켬): 밀 수 없는 플레이어(관전자·사다리에 매달림)는 밀기·cramming 없음
+        if (!p.isPushableByEntities() && org.domi.furnace.server.config.EntityHandleSettings.current().skipUnpushableCollisions()) return;
         collect(level, p, p.boundingBox());
         int n = size();
         if (n == 0) { clear(); return; }
