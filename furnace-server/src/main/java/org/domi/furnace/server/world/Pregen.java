@@ -639,11 +639,11 @@ public final class Pregen {
             return new Label(kind, Long.parseLong(p.getProperty("labelSize", "0")), Integer.parseInt(p.getProperty("labelX", "0")),
                     Integer.parseInt(p.getProperty("labelZ", "0")), null);
         }
-        String legacy = p.getProperty("label", "?");   // 이름표를 문장으로 적던 옛 파일: 알아볼 수 있으면 종류+숫자로 올려 읽는다
-        for (String known : new String[] {"radius", "border"}) {
-            long[] v = matchOldSentence(Lang.pattern("ko", "pregen.label." + known), legacy);   // 옛 문장은 지금 한국어 문장틀과 같은 모양이었다
-            if (v != null) return new Label(known, v[0], (int) v[1], (int) v[2], null);
-        }
+        String legacy = p.getProperty("label", "?");   // 이름표를 문장으로 적던 옛 파일: 알아볼 수 있으면 종류+숫자로 올려 읽는다(옛 문장 틀은 번역과 무관하게 고정한 pregen.legacy-label.* 키)
+        long[] r = matchOldSentence(Lang.pattern("en", "pregen.legacy-label.radius"), legacy);
+        if (r != null) return new Label("radius", r[0], (int) r[1], (int) r[2], null);
+        long[] b = matchOldSentence(Lang.pattern("en", "pregen.legacy-label.border"), legacy);
+        if (b != null) return new Label("border", b[0], (int) b[1], (int) b[2], null);
         return Label.literal(legacy);
     }
 

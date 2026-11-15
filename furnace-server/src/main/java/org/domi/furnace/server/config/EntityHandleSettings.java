@@ -63,12 +63,12 @@ public record EntityHandleSettings(double itemMerge, double expMerge, int maxEnt
 
     /** 추적 거리 키(접두 뒤)·기본값·설명 — OptionKeys 키 표·설정 파일 설명이 쓴다. */
     public static final String[][] TRACKING_KEYS = {
-            {"players", "128", "플레이어(바닐라 512)"},
-            {"animals", "96", "동물·물 동물·주민(바닐라는 종류마다 — 소 160, 물고기 64 등)"},
-            {"monsters", "96", "적대 몹·습격 몹·나는 적대 몹(엔더 드래곤 포함, 바닐라는 종류마다 — 좀비 128, 드래곤 160 등)"},
-            {"misc", "96", "떨어진 아이템·경험치 구슬·그림·아이템 액자(바닐라 아이템·구슬 96, 그림·액자 160)"},
-            {"display", "128", "디스플레이 엔티티(바닐라 160)"},
-            {"other", "64", "그 밖(화살·탈것·폭발물·갑옷 거치대 등, 바닐라는 종류마다)"},
+            {"players", "128", "cfg.help.tracking.players"},
+            {"animals", "96", "cfg.help.tracking.animals"},
+            {"monsters", "96", "cfg.help.tracking.monsters"},
+            {"misc", "96", "cfg.help.tracking.misc"},
+            {"display", "128", "cfg.help.tracking.display"},
+            {"other", "64", "cfg.help.tracking.other"},
     };
 
     /** 블록 단위 추적 거리: 플레이어. 꺼져 있으면 바닐라 512. 방송 비율은 부르는 쪽이 곱한다. */

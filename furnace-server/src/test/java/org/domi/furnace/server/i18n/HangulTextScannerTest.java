@@ -25,6 +25,14 @@ class HangulTextScannerTest {
     }
 
     @Test
+    void unicodeEscapeNeedsAnEvenNumberOfBackslashesBeforeIt() {
+        // 자바 규칙: 정규식 문자열처럼 역슬래시가 둘이면 그 뒤 u 는 이스케이프가 아니다 — 한글로 풀면 오탐이다
+        assertEquals(List.of(), scan("Pattern.compile(\"\\\\uc548\");"));
+        assertEquals(List.of(1), scan("say(\"\\\\\\uc548\");"), "three backslashes: the last one starts a real escape");
+        assertEquals(List.of(1), scan("say(\"\\uuuc548\");"), "several u's are allowed by the language");
+    }
+
+    @Test
     void ignoresComments() {
         assertEquals(List.of(), scan("// 안녕 \"가\"\n/* 안녕\n \"가\" */\nint x;"));
     }

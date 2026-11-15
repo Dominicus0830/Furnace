@@ -27,6 +27,7 @@ import org.domi.furnace.server.command.brigadier.Arguments;
 import org.domi.furnace.server.command.brigadier.CommandDispatcher;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
+import org.domi.furnace.server.i18n.Lang;
 import org.domi.furnace.api.world.ServerTps;
 import org.domi.furnace.server.sched.TickWindows;
 import org.domi.furnace.server.world.Regionizer;
@@ -50,7 +51,10 @@ public final class TpsCommands {
 
     public static final int DEFAULT_REGION_LIMIT = 10;
     public static final int MAX_REGION_LIMIT = 100;
-    static final SimpleCommandExceptionType NO_REGION = new SimpleCommandExceptionType(org.domi.furnace.api.text.Text.text("그 위치를 가진 region 이 없다(청크가 로드돼 있지 않다)"));
+    /** 부를 때마다 새로 만든다(서버 언어가 바뀌어도 따라가게 — 클래스 로드 때 한 번 굳히지 않는다). */
+    static SimpleCommandExceptionType noRegion() {
+        return new SimpleCommandExceptionType(org.domi.furnace.api.text.Text.text(Lang.t("cmd.tps.no-region")));
+    }
 
     /** 차원 하나의 /tps 값: region 수와 가장 느린 region(잴 수 있는 것이 없으면 null). */
     public record DimRate(String dimension, int regions, Regionizer.RegionRate slowest) {}
@@ -116,7 +120,7 @@ public final class TpsCommands {
         Regionizer rz = w.regionizer();
         Regionizer.RegionView found = null;
         if (rz != null) for (Regionizer.RegionView v : rz.regionViews(REGION_WINDOW, REGION_MIN_HISTORY)) if (v.info().id() == id) found = v;
-        if (found == null) throw new SimpleCommandExceptionType(org.domi.furnace.api.text.Text.text(w.dimension() + " 에 region #" + id + " 가 없다(합쳐졌거나 나뉘어 사라졌을 수 있다 — /tps regions 로 번호를 본다)")).create();
+        if (found == null) throw new SimpleCommandExceptionType(org.domi.furnace.api.text.Text.text(Lang.t("cmd.tps.region-gone", w.dimension(), id))).create();
         return send(source, List.of(regionLine(new RegionLine(w.dimension(), found.info(), found.tps()), source.getServer().tickState().rate())));
     }
 
@@ -133,7 +137,7 @@ public final class TpsCommands {
     private static int at(CommandSource source, World w, int cx, int cz) throws CommandSyntaxException {
         Regionizer rz = w == null ? null : w.regionizer();
         Regionizer.RegionView v = rz == null ? null : rz.regionViewAt(cx, cz, REGION_WINDOW, REGION_MIN_HISTORY);
-        if (v == null) throw NO_REGION.create();
+        if (v == null) throw noRegion().create();
         return send(source, List.of(regionLine(new RegionLine(w.dimension(), v.info(), v.tps()), source.getServer().tickState().rate())));
     }
 
@@ -206,9 +210,8 @@ public final class TpsCommands {
     public static Text regionLine(RegionLine l, float rate) {
         Regionizer.RegionInfo r = l.info();
         return Text.text(l.dimension() + " region #" + r.id() + ": ", NamedTextColor.GOLD).append(tpsValue(l.tps(), rate))
-                .append(Text.text(" — 플레이어 " + r.players() + "명, 청크 " + r.chunks() + "개, 범위 청크 (" + r.minChunkX() + "," + r.minChunkZ() + ")~("
-                        + r.maxChunkX() + "," + r.maxChunkZ() + "), 직전 틱 " + f2(r.lastTickNanos() / 1.0E6) + " ms, 최장 " + f2(r.maxTickNanos() / 1.0E6)
-                        + " ms (목표 " + f1(rate) + ")", NamedTextColor.GRAY));
+                .append(Text.text(Lang.t("cmd.tps.region-details", r.players(), r.chunks(), r.minChunkX(), r.minChunkZ(), r.maxChunkX(), r.maxChunkZ(),
+                        f2(r.lastTickNanos() / 1.0E6), f2(r.maxTickNanos() / 1.0E6), f1(rate)), NamedTextColor.GRAY));
     }
 
     /** /tps regions: 가장 느린 region 부터 limit 개(잴 수 없는 region 은 뒤로). */
@@ -217,9 +220,9 @@ public final class TpsCommands {
         sorted.sort(java.util.Comparator.comparingDouble((RegionLine l) -> Double.isNaN(l.tps()) ? Double.MAX_VALUE : l.tps())
                 .thenComparing(RegionLine::dimension).thenComparingInt(l -> l.info().id()));
         List<Text> out = new ArrayList<>();
-        out.add(Text.text("== region TPS (최근 5초, 느린 순 " + Math.min(limit, sorted.size()) + "/" + sorted.size() + "개) ==", NamedTextColor.GOLD));
+        out.add(Text.text(Lang.t("cmd.tps.regions-header", Math.min(limit, sorted.size()), sorted.size()), NamedTextColor.GOLD));
         for (int i = 0; i < Math.min(limit, sorted.size()); i++) out.add(regionLine(sorted.get(i), rate));
-        if (sorted.size() > limit) out.add(Text.text("… 외 " + (sorted.size() - limit) + "개 (/tps regions <개수>)", NamedTextColor.GRAY));
+        if (sorted.size() > limit) out.add(Text.text(Lang.t("cmd.tps.regions-more", sorted.size() - limit), NamedTextColor.GRAY));
         return out;
     }
 
@@ -230,10 +233,10 @@ public final class TpsCommands {
         v.add(tpsValue(t.active1m(), rate));
         v.add(tpsValue(t.active5m(), rate));
         v.add(tpsValue(t.active15m(), rate));
-        String what = t.activeRegions() == 0 ? " — 플레이어가 있는 region 이 없어 전역 박동 값" : " — 플레이어 있는 region " + t.activeRegions() + "개, 플레이어 " + t.activePlayers()
-                + "명, 그중 가장 느린 region " + (Double.isNaN(t.slowestActive()) ? "-" : f2(t.slowestActive()));
-        return Text.text("활성 region 평균 TPS (최근 5초, 1분, 5분, 15분): ", NamedTextColor.GOLD).append(joined(v))
-                .append(Text.text(" (목표 " + f1(rate) + what + ")", NamedTextColor.GRAY));
+        String what = t.activeRegions() == 0 ? Lang.t("cmd.tps.active-none") : Lang.t("cmd.tps.active-some", t.activeRegions(), t.activePlayers(),
+                Double.isNaN(t.slowestActive()) ? "-" : f2(t.slowestActive()));
+        return Text.text(Lang.t("cmd.tps.active-head") + ": ", NamedTextColor.GOLD).append(joined(v))
+                .append(Text.text(" (" + Lang.t("cmd.tps.target", f1(rate)) + what + ")", NamedTextColor.GRAY));
     }
 
     public static List<Text> tpsReport(double[] global, ServerTps active, float rate, List<DimRate> dims) {
@@ -246,19 +249,19 @@ public final class TpsCommands {
         List<Text> out = new ArrayList<>();
         List<Text> g = new ArrayList<>();
         for (double v : global) g.add(tpsValue(v, TickState.DEFAULT_RATE));
-        out.add(Text.text("전역 TPS (최근 5초, 1분, 5분, 15분): ", NamedTextColor.GOLD).append(joined(g))
-                .append(Text.text(" (목표 " + f1(TickState.DEFAULT_RATE) + ")", NamedTextColor.GRAY)));
+        out.add(Text.text(Lang.t("cmd.tps.global-head") + ": ", NamedTextColor.GOLD).append(joined(g))
+                .append(Text.text(" (" + Lang.t("cmd.tps.target", f1(TickState.DEFAULT_RATE)) + ")", NamedTextColor.GRAY)));
         for (DimRate d : dims) {
-            Text line = Text.text(d.dimension() + " 가장 느린 region (최근 5초): ", NamedTextColor.GOLD);
+            Text line = Text.text(Lang.t("cmd.tps.dim-slowest-head", d.dimension()) + ": ", NamedTextColor.GOLD);
             Regionizer.RegionRate s = d.slowest();
             if (s == null) {
-                out.add(line.append(Text.text("잴 수 있는 region 없음 (region " + d.regions() + "개)", NamedTextColor.GRAY)));
+                out.add(line.append(Text.text(Lang.t("cmd.tps.dim-none", d.regions()), NamedTextColor.GRAY)));
                 continue;
             }
             Regionizer.RegionInfo r = s.region();
             out.add(line.append(tpsValue(s.tps(), rate))
-                    .append(Text.text(" — #" + r.id() + ", 청크 " + r.chunks() + "개, 범위 청크 (" + r.minChunkX() + "," + r.minChunkZ() + ")~("
-                            + r.maxChunkX() + "," + r.maxChunkZ() + "), region " + d.regions() + "개 (목표 " + f1(rate) + ")", NamedTextColor.GRAY)));
+                    .append(Text.text(Lang.t("cmd.tps.dim-details", r.id(), r.chunks(), r.minChunkX(), r.minChunkZ(), r.maxChunkX(), r.maxChunkZ(),
+                            d.regions(), f1(rate)), NamedTextColor.GRAY)));
         }
         return out;
     }
@@ -266,16 +269,16 @@ public final class TpsCommands {
     public static List<Text> msptReport(List<TickWindows.Window> global, float rate, List<DimTimes> dims) {
         double budget = 1.0E9 / rate;
         List<Text> out = new ArrayList<>();
-        out.add(Text.text("틱 소요 시간 ms, 평균/최소/최대 (최근 5초, 10초, 1분 — 틱 예산 " + f2(budget / 1.0E6) + " ms):", NamedTextColor.GOLD));
+        out.add(Text.text(Lang.t("cmd.tps.mspt-header", f2(budget / 1.0E6)) + ":", NamedTextColor.GOLD));
         // 전역 박동의 예산은 늘 50ms(박동 주기)
         double globalBudget = 1.0E9 / TickState.DEFAULT_RATE;
         List<Text> g = new ArrayList<>();
         for (TickWindows.Window w : global) g.add(msptValue(w, globalBudget));
-        out.add(Text.text("전역: ", NamedTextColor.GOLD).append(joined(g)));
+        out.add(Text.text(Lang.t("cmd.tps.mspt-global") + ": ", NamedTextColor.GOLD).append(joined(g)));
         for (DimTimes d : dims) {
             List<Text> parts = new ArrayList<>();
             for (TickWindows.Window w : d.windows()) parts.add(msptValue(w, budget));
-            out.add(Text.text(d.dimension() + " region: ", NamedTextColor.GOLD).append(joined(parts)));
+            out.add(Text.text(Lang.t("cmd.tps.mspt-dim", d.dimension()) + ": ", NamedTextColor.GOLD).append(joined(parts)));
         }
         return out;
     }
