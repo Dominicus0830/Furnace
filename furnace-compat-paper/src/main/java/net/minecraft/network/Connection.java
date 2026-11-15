@@ -18,8 +18,8 @@ import org.domi.furnace.compat.nms.VirtualChannel;
  * {@code "decoder"}·{@code "encoder"}(단계를 알리는 자리)와 이 연결({@code "packet_handler"})이 있다. 패킷 라이브러리(ProtocolLib)는 이 필드를 자기 프록시 채널로
  * 갈아 끼우고, {@link #send} 가 {@code channel.eventLoop().execute(…)} 로 올리는 작업 안의 패킷을 보고 바꾸거나 취소한다(바닐라와 같은 자리).
  * 작업이 실행되면 패킷이 파이프라인에 쓰이고(플러그인이 {@code channel.writeAndFlush(패킷)} 으로 직접 써도 같다) 끝 처리기가 Furnace 패킷으로 바꿔 내보낸다.
- * Furnace 가 스스로 보내는 패킷(채팅·엔티티 등)은 {@link #compatIntercept} 로 같은 자리를 지난다(2b-2). 들어오는 쪽(서버로 오는 패킷 가로채기)은 아직 이 파이프라인을
- * 지나지 않는다 — 다음 단계(docs/feature-parity/compat-protocollib-pipeline-2b-plan-2026-11-12.md).
+ * Furnace 가 스스로 보내는 패킷(채팅·엔티티 등)은 {@link #compatIntercept} 로 같은 자리를 지난다(2b-2). 클라이언트가 보낸 패킷은 {@link #compatReceive} 로
+ * 바닐라처럼 파이프라인 머리에서 읽혀 {@code "decoder"} 뒤의 라이브러리 처리기를 지나 {@link #read} 에 닿는다(2b-3).
  */
 public class Connection extends ChannelInboundHandlerAdapter {
 
@@ -191,9 +191,52 @@ public class Connection extends ChannelInboundHandlerAdapter {
         }
     }
 
-    /** 바닐라 {@code channelRead0} 에 해당(ProtocolLib 은 이름을 read 로 찾는다): 받은 패킷을 처리자에게 넘긴다 — 아직 지원하지 않는다. */
+    /**
+     * 호환 모듈 전용(ProtocolLib 다리 2b-3): 클라이언트가 보낸 패킷(shim 으로 바꾼 것)을 패킷 라이브러리에 보여 준다. 바닐라처럼 파이프라인 머리에서 읽혀
+     * ({@code fireChannelRead}) 라이브러리의 받는 처리기({@code "decoder"} 뒤)를 지나 {@link #read} 에 닿으면 그 패킷을 돌려준다 — 리스너가 바꿨으면 바꾼 것,
+     * 취소했으면 null. 라이브러리가 {@link #channel} 을 바꾸지 않았으면(주입 안 됨) 그대로 돌려준다. 가로채기는 이 스레드에서 그 자리에 끝난다.
+     * 라이브러리가 패킷을 나중으로 미루면(주 스레드로 되돌리기 등) 지금은 null 이고, 나중에 {@link #read} 에 닿을 때 서버에 넣는다.
+     */
+    public Packet<?> compatReceive(Packet<?> packet) {
+        if (packet == null || channel == virtual) return packet;
+        Receive r = new Receive();
+        RECEIVE.set(r);
+        try {
+            virtual.pipeline().fireChannelRead(packet);
+        } finally {
+            RECEIVE.remove();
+        }
+        return r.reached ? r.result : null;
+    }
+
+    /** {@link #compatReceive} 가 받아 둔 것. */
+    private static final class Receive {
+        boolean reached;
+        Packet<?> result;
+    }
+
+    /** 지금 이 스레드에서 받아 두는 중인 Receive(파이프라인 끝 {@link #read} 가 서버에 넣는 대신 여기에 남긴다). */
+    private static final ThreadLocal<Receive> RECEIVE = new ThreadLocal<>();
+
+    /**
+     * 바닐라 {@code channelRead0} 에 해당(ProtocolLib 은 이름을 read 로 찾는다): 받은 패킷을 서버에 넘긴다.
+     * {@link #compatReceive} 가 파이프라인으로 읽힌 패킷이면 받아 두고(그 결과를 Furnace 패킷 리스너가 쓴다), 그 밖(라이브러리 {@code receiveClientPacket} 이
+     * {@code read(null, 패킷)} 으로 부른 것, 라이브러리가 나중으로 미뤘다가 보낸 것)은 Furnace 패킷으로 바꿔 클라이언트가 보낸 것처럼 서버에 넣는다
+     * ({@code PacketService.receive} — Furnace 패킷 리스너도 본다, 라이브러리에는 다시 보이지 않는다). 바꿀 수 없는 패킷은 까닭을 밝혀 던진다.
+     */
     public void read(ChannelHandlerContext ctx, Packet<?> packet) {
-        throw new UnsupportedNmsCall("Connection#read", "들어오는 패킷을 서버에 되먹이는 다리가 아직 없다(ProtocolLib 다리 2b-3단계)");
+        Receive r = RECEIVE.get();
+        if (r != null && ctx != null && !r.reached) {
+            r.reached = true;
+            r.result = packet;
+            RECEIVE.remove();   // 한 번만 — 리스너가 이 안에서 넣는 다른 패킷은 보통대로 서버에 간다
+            return;
+        }
+        if (packet == null) return;
+        if (!(packetListener instanceof net.minecraft.server.network.ServerCommonPacketListenerImpl l)) {
+            throw new UnsupportedNmsCall("Connection#read", "이 연결에는 받을 서버 쪽 처리자가 없다");
+        }
+        org.domi.furnace.api.Furnace.server().packets().receive(l.furnacePlayer(), org.domi.furnace.compat.nms.ServerboundBridge.toFurnace(packet));
     }
 
     @Override

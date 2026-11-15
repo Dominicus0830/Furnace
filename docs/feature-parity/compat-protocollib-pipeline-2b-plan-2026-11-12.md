@@ -98,6 +98,19 @@ Furnace 서버가 받은 패킷(PacketService 리스너 HIGHEST, ProtocolLib 이
 - `receiveClientPacket`(ProtocolLib 이 서버에 받은 것처럼 넣기)은 `Connection.read(ctx=null, S)` 로 온다 → 같은 끝처리 → Furnace `PacketService.receive`(플러그인 패킷, 리스너 한 번 더 지나지 않도록 `receiveSilently`).
 - 채팅 서명(`ServerboundChatPacket`)처럼 바꾸면 서명이 맞지 않는 패킷은 Furnace 가 이미 문서화한 대로 관찰·취소만 의미가 있다 — ProtocolLib 으로 바꿔도 같다.
 
+### 4-1. 구현(2026-11-15, T-180) — 위 설계와 달라진 점
+
+- **구독**: Furnace 받는 패킷 리스너는 **LOWEST**(서버가 처리하기 전 가장 먼저 — Paper 에서 ProtocolLib 처리기는 디코더 바로 뒤라 다른 무엇보다 먼저 본다). 위 그림의 HIGHEST 는 틀렸다.
+  허용 목록은 `getReceivingWhitelist()` 의 `isClient()` 종류. 이동 패킷 넷(`Pos`·`PosRot`·`Rot`·`StatusOnly`)은 Furnace 의 `MOVE_PLAYER` 하나다.
+- **어디서 흘리나**: `"decoder"` 문맥이 아니라 **파이프라인 머리**(`virtual.pipeline().fireChannelRead`)에서. ProtocolLib 의 `protocol_lib_inbound_protocol_getter` 가 `"decoder"` **앞**에서 단계를 읽어 두고, 받는 처리기가 그것으로 패킷 종류를 찾기 때문이다(문맥에서 흘리면 단계가 비어 종류를 못 찾는다).
+- **변환**: 타입 레코드 12종은 `compat/nms/ServerboundBridge` 가 직접(블록에 쓰기의 칸 안 위치·상호작용 위치는 바닐라 와이어처럼 float, 채팅 확인 비트는 `BitSet` 20칸), 범용 종류는 `SchemaPacketBridge.toFurnaceReceived`·`SchemaPacketReverse`(손 코덱 serverbound 5종 대응표 — 열쇠 `s:<와이어>`). 값 shim 을 손으로 썼다: `MessageSignature`(+`Packed`)·`LastSeenMessages`(+`Packed`·`Update`)·`ArgumentSignatures`(+`Entry`)·`RemoteChatSession`(+`Data`)·`ProfilePublicKey`(+`Data`)·`HitResult`·`BlockHitResult`·`ClientInformation`·`HumanoidArm`. 범용 값 변환(명령 인자 서명·채팅 세션·본 메시지 확인)은 `compat/nms/ChatValues` — 서명 명령(`chat_command_signed`)·세션 갱신(`chat_session_update`)도 보인다.
+- **못 보여 주는 종류**: `custom_payload`(페이로드 shim 없음 — Bukkit `registerIncomingPluginChannel` 은 된다), `container_click`(fastutil `Int2ObjectMap` 이 지워짐 — Bukkit `InventoryClickEvent` 는 된다). 처음 한 번 INFO. 시험 `ServerboundBridgeTest.unsupportedKindsSayWhy` 가 표를 지킨다.
+- **결과 되돌리기**: 리스너가 손대지 않았으면(`toFurnace(S') == toFurnace(S)`) 아무것도 안 함 → 서버는 원래 바이트를 처리. 취소 → `setCancelled`. 같은 종류로 바꿈 → `setPacket`. 다른 종류로 바꿈 → 원래 취소 + `PacketService.receive`(바뀐 것).
+- **`receiveClientPacket`**·라이브러리가 나중으로 미뤘다가 흘린 패킷: `Connection#read` 가 `PacketService.receive`(**receiveSilently 아님** — Furnace 패킷 리스너는 보게, 플러그인 패킷 표시라 다리가 라이브러리에 다시 보이지 않는다). 위 설계의 receiveSilently 는 Furnace 플러그인이 그 패킷을 못 보는 차이가 있어 바꿨다.
+- **스레드**: 가로채는 동안 네트워크 스레드를 주 스레드로 표시(2b-2 D1-A 와 같음). Paper 는 받는 쪽 주 스레드 리스너를 다음 틱 주 스레드에서 부르고 패킷을 그때 처리한다 — 결정 기록 `docs/user-todo/entries/2026-11-15-protocollib-t180.md`.
+- **Furnace 플러그인이 `PacketService.receive` 로 넣은 패킷**은 라이브러리에 보이지 않는다(Paper 에는 같은 길이 없다 — ProtocolLib 자신의 `receiveClientPacket` 만 있고 그것은 넣을 때 리스너를 이미 부른다).
+- 시험: `ServerboundBridgeTest`(타입 레코드 21표본·범용 11종 왕복, 서버 코덱이 쓸 수 있는 값, 거절 표), `ProtocolLibInboundTest`(채널 프록시 + `"decoder"` 뒤 처리기로 흉내 낸 라이브러리가 명령·채팅·이동·범용 종류를 보고·바꾸고·취소하고·다른 종류로 바꿈, 주 스레드, `read(null, …)` 가 서버에 가고 다시 보이지 않음, 구독 풀림).
+
 ## 5. 가상 채널 사양 (2b-1 에서 구현)
 
 `VirtualChannel`(Netty `EmbeddedChannel` 하위 클래스, 접속마다 하나, 접속이 끊기면 닫힘):
@@ -137,7 +150,7 @@ Furnace 서버가 받은 패킷(PacketService 리스너 HIGHEST, ProtocolLib 이
 |---|---|---|---|
 | **2b-1** | 활성 가상 채널 + `decoder`·`encoder`·`packet_handler` + `Connection#send` 의 이벤트 루프 경로 + 접속 종료 시 닫기. `PacketDelivery` 로 끝처리 분리 | ProtocolLib 이 접속마다 **주입**되고, `sendServerPacket`·플러그인이 보낸 패킷이 도착하고 나가는 리스너가 그 패킷을 보고 바꾸고 취소한다 | 이 PR |
 | 2b-2 | `SchemaPacketReverse`(값 종류별 역변환) + `TypedPacketBridge`(타입 레코드 종류) + `ProtocolLibBridge`(구독 동기화·가로채기) | Furnace 가 스스로 보내는 패킷을 ProtocolLib 리스너가 본다·바꾼다·취소한다 | 구현(§10) |
-| 2b-3 | serverbound 변환 + 들어오는 가로채기 + `receiveClientPacket` | 클라이언트 패킷(이동·채팅·클릭)을 ProtocolLib 리스너가 본다·바꾼다·취소한다. `Connection#read` 가 실제로 동작 | |
+| 2b-3 | serverbound 변환 + 들어오는 가로채기 + `receiveClientPacket` | 클라이언트 패킷(이동·채팅·클릭)을 ProtocolLib 리스너가 본다·바꾼다·취소한다. `Connection#read` 가 실제로 동작 | 구현(T-180, §4-1) |
 | 2b-4 | 값 종류 확장: 남은 빈 껍데기(`global_pos`·`number_format`·`Holder` 직접 정의)·손 코덱(custom) 종류의 shim | 대부분의 종류가 shim 으로 오간다. 종류별 표를 문서에 | |
 
 각 단계의 시험은 (1) 저장소 단위 시험(shim 모양·변환 왕복·이벤트 루프 의미), (2) 진짜 ProtocolLib 5.4.0 jar 를 넣은 `liveProbe`/탐침(커밋하지 않음, 방법은 `compat-protocollib-registry-2026-11-12.md`), (3) 봇 접속 시험이다.
