@@ -44,6 +44,33 @@ public abstract class ContainerBlockEntity extends OpenersBlockEntity {
     /** 메뉴/깔때기가 setItem 으로 칸을 바꿀 때의 부수 효과(바닐라 화로 setItem). 기본은 없음. */
     public void onItemSet(int index, ItemStack old, ItemStack now, BlockLevel level) { }
 
+    /** LockCode.unlocksWith: 열쇠가 없으면 늘 열리고, 있으면 든 아이템의 custom_name 글자(getString)가 열쇠와 같아야 한다. */
+    public static boolean unlocksWith(String lock, ItemStack held) {
+        if (lock == null || lock.isEmpty()) return true;
+        if (held == null || held.isEmpty()) return false;
+        if (!(org.domi.furnace.server.item.ItemTools.component(held, "minecraft:custom_name") instanceof String json)) return false;
+        try {
+            return lock.equals(org.domi.furnace.server.item.FlatText.parse(json).getString());
+        } catch (RuntimeException badName) {
+            return false;
+        }
+    }
+
+    /** getDisplayName: 이름이 있으면 그것, 없으면 기본 제목 번역 키. */
+    public org.domi.furnace.api.text.Text displayName() { return displayName(customName, defaultTitleKey()); }
+
+    /** 이름(JSON, 없으면 null) → 화면에 쓰는 이름(읽지 못하면 기본 번역 키). */
+    public static org.domi.furnace.api.text.Text displayName(String customName, String defaultKey) {
+        if (customName != null) {
+            try {
+                return org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize(customName);
+            } catch (RuntimeException badName) {
+                // 이상한 이름은 기본 제목으로
+            }
+        }
+        return org.domi.furnace.api.text.Text.translatable(defaultKey);
+    }
+
     /** 바닐라 containerMenu 의 제목 번역 키(이름이 없을 때). */
     public abstract String defaultTitleKey();
 
@@ -51,7 +78,7 @@ public abstract class ContainerBlockEntity extends OpenersBlockEntity {
     public void load(NbtCompound tag) {
         Arrays.fill(items, ItemStack.EMPTY);
         customName = tag.tags().get("CustomName") instanceof String s ? s : null;
-        lock = tag.tags().get("Lock") instanceof String s ? s : null;
+        lock = tag.tags().get("Lock") instanceof String s && !s.isEmpty() ? s : null;   // LockCode.fromTag: 빈 열쇠 = 잠기지 않음(쓰지도 않는다)
         lootTable = null;
         lootSeed = 0L;
         if (tag.tags().get("LootTable") instanceof String t) {   // 열지 않은 전리품 상자는 아이템 대신 표를 든다

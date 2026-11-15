@@ -429,9 +429,21 @@ public class CompatInventory implements Inventory {
     @Override
     public InventoryHolder getHolder() { return holder.get(); }
 
+    /** 블록 인벤토리의 위치(Paper CraftInventory#getLocation — 블록 엔티티 칸 모서리). 모르면 null. */
+    private volatile org.bukkit.Location location;
+
+    /** 위치를 단다(만든 직후 한 번). */
+    final CompatInventory locatedAt(org.bukkit.Location at) {
+        this.location = at;
+        return this;
+    }
+
     /** 위치를 모르는 인벤토리(플러그인이 만든 인벤토리 등)는 null. */
     @Override
-    public org.bukkit.Location getLocation() { return null; }
+    public org.bukkit.Location getLocation() {
+        org.bukkit.Location l = location;
+        return l == null ? null : l.clone();
+    }
 
     /** Furnace 는 블록·엔티티 보관함을 누가 보고 있는지 알리지 않아 빈 목록이다(플러그인이 만든 인벤토리만 안다). */
     @Override

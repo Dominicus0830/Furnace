@@ -40,6 +40,11 @@ class SnapshotInventory extends CompatInventory {
         return s.isEmpty() ? null : CompatItems.copyOf(s);
     }
 
+    /** 모든 칸을 쓸 수 있는 메모리 칸(블록 상태의 사본 인벤토리용). */
+    static org.domi.furnace.api.inventory.Inventory memory(String type, List<org.domi.furnace.api.item.ItemStack> contents, int size) {
+        return new Slots(type, contents, size, i -> true);
+    }
+
     private static final class Slots implements org.domi.furnace.api.inventory.Inventory {
         private final String type;
         /**

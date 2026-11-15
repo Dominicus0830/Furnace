@@ -20,6 +20,27 @@ public final class BlockInventories {
             org.bukkit.block.BlockState s = Compat.block(dimension, pos).getState();
             return s instanceof InventoryHolder h ? h : null;
         };
+        return wrap(inv, holder).locatedAt(new org.bukkit.Location(Compat.world(dimension), pos.x(), pos.y(), pos.z()));
+    }
+
+    /**
+     * 블록 상태의 사본 인벤토리(Paper getSnapshotInventory = CraftInventory(스냅숏 블록 엔티티)): 메모리 안 칸이고, 고친 것은 그 상태의 update 때 실린다.
+     * blockEntityType 은 블록 엔티티 종류 id(minecraft:chest 등) — 화로류·양조대는 Paper 처럼 FurnaceInventory·BrewerInventory.
+     */
+    public static Inventory snapshot(String blockEntityType, org.domi.furnace.api.nbt.NbtCompound blockEntity,
+                                     java.util.function.Supplier<InventoryHolder> holder, org.bukkit.Location at) {
+        int size = InventoryResultMappings.containerType(blockEntityType).getDefaultSize();
+        var handle = SnapshotInventory.memory(blockEntityType, ItemNbtCodec.readItems(blockEntity, size), size);
+        return wrap(handle, holder).locatedAt(at);
+    }
+
+    /** 사본 인벤토리의 지금 칸 → NBT Items(비지 않은 칸만) — 상태가 update 때 되쓸 때. */
+    public static org.domi.furnace.api.nbt.NbtList itemsNbt(Inventory snapshot) {
+        return ItemNbtCodec.writeItems(((CompatInventory) snapshot).handle.contents().join());
+    }
+
+    /** 종류에 맞는 Bukkit 인벤토리 형으로 감싼다(양조대·화로류는 하위 인터페이스). */
+    static CompatInventory wrap(org.domi.furnace.api.inventory.Inventory inv, java.util.function.Supplier<InventoryHolder> holder) {
         var type = InventoryResultMappings.containerType(inv.type());
         if (type == org.bukkit.event.inventory.InventoryType.BREWING) return new Brewer(inv, holder);
         var kind = cookingKind(type);
