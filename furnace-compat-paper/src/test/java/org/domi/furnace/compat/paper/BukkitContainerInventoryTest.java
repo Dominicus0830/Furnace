@@ -3,6 +3,7 @@ package org.domi.furnace.compat.paper;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Map;
+import java.util.Set;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.block.Barrel;
@@ -10,6 +11,7 @@ import org.bukkit.block.Chest;
 import org.bukkit.block.Container;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.domi.furnace.api.nbt.NbtCompound;
 import org.domi.furnace.api.world.BlockData;
 import org.domi.furnace.api.world.BlockPos;
 import org.domi.furnace.test.FurnaceTestServer;
@@ -400,5 +402,147 @@ class BukkitContainerInventoryTest {
         assertTrue(f.isFuel(f.getFuel()));
         assertFalse(f.canSmelt(null));
         assertNull(f.getHolder());
+    }
+
+    // ------------------------------------------------------------------ #397 검토 시험(사본 NBT 왕복·전리품 표·방향별 칸 순서)
+
+    static org.domi.furnace.api.item.ItemStack api(String id, int n, Map<String, String> c, Set<String> removed) {
+        return new org.domi.furnace.api.item.ItemStack(id, n, c, removed);
+    }
+
+    static final org.domi.furnace.api.item.ItemStack[] RICH = {
+            api("minecraft:diamond_sword", 1, Map.of(
+                    "minecraft:damage", "5",
+                    "minecraft:custom_name", "'{\"text\":\"Key\",\"color\":\"red\"}'",
+                    "minecraft:enchantments", "{levels:{\"minecraft:sharpness\":5},show_in_tooltip:0b}",
+                    "minecraft:lore", "['\"line one\"','{\"text\":\"two\",\"italic\":false}']",
+                    "minecraft:unbreakable", "{}",
+                    "minecraft:attribute_modifiers", "{modifiers:[{type:\"minecraft:generic.attack_damage\",id:\"minecraft:review\",amount:3.25d,operation:\"add_value\",slot:\"mainhand\"}]}"),
+                    Set.of()),
+            api("minecraft:stick", 7, Map.of(
+                    "minecraft:custom_data", "{a:1b,arr:[I;1,2,3],big:9000000000L,d:1.5d,f:2.5f,l:[L;5L,6L],bytes:[B;1B,2B],s:3s,str:\"x'y\\\"z\",nested:[{z:1},{z:2}],\"odd key\":1}"),
+                    Set.of()),
+            api("minecraft:apple", 3, Map.of(), Set.of("minecraft:food")),
+            api("minecraft:shulker_box", 1, Map.of(
+                    "minecraft:container", "[{slot:0,item:{id:\"minecraft:stone\",count:3}},{slot:5,item:{id:\"minecraft:diamond\",count:1,components:{\"minecraft:custom_name\":'\"inner\"'}}}]"),
+                    Set.of()),
+            api("minecraft:potion", 1, Map.of("minecraft:potion_contents", "{potion:\"minecraft:swiftness\",custom_color:123456}"), Set.of()),
+    };
+
+    /** 살아 있는 칸에 넣은 아이템을 사본 인벤토리로 읽으면 API 아이템이 그대로(컴포넌트 SNBT 까지) 같고, 손대고 update 해도 그대로 돌아온다. */
+    @Test
+    void snapshotReadAndWriteRoundTripRichComponents() {
+        server.onRegion(pos, () -> {
+            var w = server.api().world(dim);
+            w.block(pos).set(new BlockData("minecraft:barrel", Map.of()));
+            try {
+                var liveInv = w.inventoryAtNow(pos).orElseThrow();
+                for (int i = 0; i < RICH.length; i++) liveInv.set(i * 3, RICH[i]).join();
+                var liveForms = liveInv.contents().join();
+                Barrel b = (Barrel) Compat.block(dim, pos).getState();
+                Inventory snap = b.getSnapshotInventory();
+                var snapForms = ((CompatInventory) snap).handle.contents().join();
+                for (int i = 0; i < liveForms.size(); i++) {
+                    assertEquals(liveForms.get(i), snapForms.get(i), "칸 " + i + " 사본 읽기");
+                    assertEquals(b.getInventory().getItem(i), snap.getItem(i), "칸 " + i + " Bukkit 아이템");
+                }
+                // 사본에 손대고(맨 끝 칸 하나 넣고) update → 다른 칸은 그대로
+                snap.setItem(26, new org.bukkit.inventory.ItemStack(org.bukkit.Material.DIRT, 1));
+                assertTrue(b.update());
+                var after = w.inventoryAtNow(pos).orElseThrow().contents().join();
+                for (int i = 0; i < 26; i++) assertEquals(liveForms.get(i), after.get(i), "칸 " + i + " 왕복");
+                assertEquals("minecraft:dirt", after.get(26).type());
+            } finally {
+                w.block(pos).set(BlockData.AIR);
+            }
+            return null;
+        });
+    }
+
+    /** 전리품 표가 있는 사본: 사본 인벤토리에 넣어도 update 때 Items 를 쓰지 않는다(바닐라 trySaveLootTable). */
+    @Test
+    void lootTableSnapshotDoesNotWriteItems() {
+        server.onRegion(pos, () -> {
+            var w = server.api().world(dim);
+            w.block(pos).set(new BlockData("minecraft:chest", Map.of("facing", "north", "type", "single")));
+            try {
+                NbtCompound n = w.blockEntityNbtNow(pos).orElseThrow();
+                n.putString("LootTable", "minecraft:chests/simple_dungeon");
+                assertTrue(w.setBlockEntityNbtNow(pos, n));
+                Chest c = (Chest) Compat.block(dim, pos).getState();
+                assertTrue(c.getSnapshotInventory().isEmpty());
+                c.getSnapshotInventory().setItem(0, new org.bukkit.inventory.ItemStack(org.bukkit.Material.DIAMOND, 1));
+                NbtCompound sn = ((org.bukkit.craftbukkit.block.CraftBlockEntityState) c).getSnapshotNBT();
+                assertFalse(sn.contains("Items") && !sn.getList("Items").values().isEmpty(), "전리품 표가 있으면 Items 를 쓰지 않는다: " + sn);
+            } finally {
+                w.block(pos).set(BlockData.AIR);
+            }
+            return null;
+        });
+    }
+
+    /** 네 방향 모두: Bukkit 왼쪽(칸 0..26) = type=right 상자. */
+    @Test
+    void doubleChestOrderAllFacings() {
+        record Case(String facing, int dx, int dz) {}
+        // type=left 의 짝은 facing 시계 방향 칸
+        var cases = java.util.List.of(new Case("north", 1, 0), new Case("east", 0, 1), new Case("south", -1, 0), new Case("west", 0, -1));
+        server.onRegion(pos, () -> {
+            var w = server.api().world(dim);
+            for (Case k : cases) {
+                BlockPos other = new BlockPos(pos.x() + k.dx, pos.y(), pos.z() + k.dz);
+                w.block(pos).set(new BlockData("minecraft:chest", Map.of("facing", k.facing, "type", "left")));
+                w.block(other).set(new BlockData("minecraft:chest", Map.of("facing", k.facing, "type", "right")));
+                try {
+                    w.inventoryAtNow(other).orElseThrow().set(0, api("minecraft:diamond", 1, Map.of(), Set.of())).join();
+                    w.inventoryAtNow(pos).orElseThrow().set(0, api("minecraft:emerald", 1, Map.of(), Set.of())).join();
+                    Inventory big = ((Chest) Compat.block(dim, pos).getState()).getInventory();
+                    assertEquals(54, big.getSize(), k.facing);
+                    assertEquals(org.bukkit.Material.DIAMOND, big.getItem(0).getType(), k.facing + " 왼쪽 = type=right");
+                    assertEquals(org.bukkit.Material.EMERALD, big.getItem(27).getType(), k.facing);
+                } finally {
+                    w.block(other).set(BlockData.AIR);
+                    w.block(pos).set(BlockData.AIR);
+                }
+            }
+            return null;
+        });
+    }
+
+    /** 사본 NBT 의 Items 에는 비지 않은 칸만 적힌다(바닐라 ContainerHelper.saveAllItems). */
+    @Test
+    void snapshotItemsSkipEmptySlots() {
+        server.onRegion(pos, () -> {
+            var w = server.api().world(dim);
+            w.block(pos).set(new BlockData("minecraft:barrel", Map.of()));
+            try {
+                Barrel b = (Barrel) Compat.block(dim, pos).getState();
+                b.getSnapshotInventory().setItem(4, new org.bukkit.inventory.ItemStack(org.bukkit.Material.DIRT, 2));
+                assertTrue(b.update());
+                var items = w.blockEntityNbtNow(pos).orElseThrow().getList("Items").values();
+                assertEquals(1, items.size(), "빈 칸은 쓰지 않는다: " + items);
+                assertEquals((byte) 4, ((org.domi.furnace.api.nbt.NbtCompound) items.get(0)).getByte("Slot"));
+            } finally {
+                w.block(pos).set(BlockData.AIR);
+            }
+            return null;
+        });
+    }
+
+    /** 사본 인벤토리 위치는 Paper 처럼 놓인 상태에서도 null(사본 블록 엔티티는 레벨이 없다). */
+    @Test
+    void placedSnapshotInventoryHasNoLocation() {
+        server.onRegion(pos, () -> {
+            var w = server.api().world(dim);
+            w.block(pos).set(new BlockData("minecraft:barrel", Map.of()));
+            try {
+                Barrel b = (Barrel) Compat.block(dim, pos).getState();
+                assertNull(b.getSnapshotInventory().getLocation());
+                assertNotNull(b.getInventory().getLocation(), "살아 있는 인벤토리는 그 칸");
+            } finally {
+                w.block(pos).set(BlockData.AIR);
+            }
+            return null;
+        });
     }
 }

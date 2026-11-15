@@ -158,7 +158,7 @@ public abstract class CraftBlockEntityState extends org.domi.furnace.compat.pape
 
     /**
      * Paper: 이 상태의 사본 인벤토리(CraftInventory(스냅숏 블록 엔티티)) — 사본 NBT Items 를 메모리 칸으로 들고, 고친 것은 {@link #update} 때 실린다.
-     * 주인(getHolder)은 Paper 의 스냅숏 블록 엔티티처럼 없다(null). 위치는 놓인 상태면 그 칸(가정 — Paper 스냅숏은 레벨이 없어 null 일 수 있다).
+     * 주인(getHolder)·위치(getLocation)는 Paper 의 스냅숏 블록 엔티티처럼 없다(null — 레벨이 없는 사본).
      */
     public org.bukkit.inventory.Inventory getSnapshotInventory() {
         if (snapshotInventory == null) {
@@ -166,7 +166,7 @@ public abstract class CraftBlockEntityState extends org.domi.furnace.compat.pape
             if (!ITEMS_CONTAINERS.contains(id)) {
                 throw new org.domi.furnace.compat.paper.UnsupportedFeature(getClass().getSimpleName() + "#getSnapshotInventory", id + " 의 사본 인벤토리는 아직 없다");
             }
-            snapshotInventory = org.domi.furnace.compat.paper.BlockInventories.snapshot(id, snapshot, () -> null, isPlaced() ? getLocation() : null);
+            snapshotInventory = org.domi.furnace.compat.paper.BlockInventories.snapshot(id, snapshot, () -> null, null);   // Paper: 사본 블록 엔티티는 레벨이 없어 위치도 null
         }
         return snapshotInventory;
     }
