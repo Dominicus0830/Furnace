@@ -463,8 +463,94 @@ public final class CraftWorld implements World {
         };
     }
 
+    // ---- 게임 규칙(T-141 E4a): Paper 1.21.1 CraftWorld 와 같은 검사·이벤트 순서. 값은 Furnace 서버 게임 규칙(서버 전체 하나)에 읽고 쓴다
+
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger("Furnace");
+    private static final java.util.Map<String, org.domi.furnace.api.world.GameRule<?>> VANILLA_RULES = new java.util.HashMap<>();
+
+    static {
+        for (org.bukkit.GameRule<?> r : org.bukkit.GameRule.values())
+            VANILLA_RULES.put(r.getName(), r.getType() == Boolean.class ? org.domi.furnace.api.world.GameRule.bool(r.getName()) : org.domi.furnace.api.world.GameRule.integer(r.getName()));
+    }
+
+    private static org.domi.furnace.api.world.GameRuleRegistry gameRules() { return Compat.furnace().gameRules(); }
+
     @Override
-    public String getGameRuleValue(String rule) { return handle.gameRule(rule); }
+    public String getGameRuleValue(String rule) {
+        if (rule == null) return null;
+        var r = VANILLA_RULES.get(rule);
+        return r == null ? "" : String.valueOf(gameRules().get(r));
+    }
+
+    @Override
+    public boolean setGameRuleValue(String rule, String value) {
+        if (rule == null || value == null) return false;
+        if (!isGameRule(rule)) return false;
+        var event = new io.papermc.paper.event.world.WorldGameRuleChangeEvent(this, null, org.bukkit.GameRule.getByName(rule), value);
+        if (!event.callEvent()) return false;
+        deserialize(VANILLA_RULES.get(rule), event.getValue());
+        return true;
+    }
+
+    @Override
+    public String[] getGameRules() { return VANILLA_RULES.keySet().toArray(new String[0]); }
+
+    @Override
+    public boolean isGameRule(String rule) {
+        if (rule == null) throw new IllegalArgumentException("String rule cannot be null");
+        if (rule.isEmpty()) throw new IllegalArgumentException("String rule cannot be empty");
+        return VANILLA_RULES.containsKey(rule);
+    }
+
+    @Override
+    public <T> T getGameRuleValue(org.bukkit.GameRule<T> rule) {
+        if (rule == null) throw new IllegalArgumentException("GameRule cannot be null");
+        return rule.getType().cast(gameRules().get(VANILLA_RULES.get(rule.getName())));
+    }
+
+    @Override
+    public <T> T getGameRuleDefault(org.bukkit.GameRule<T> rule) {
+        if (rule == null) throw new IllegalArgumentException("GameRule cannot be null");
+        return rule.getType().cast(gameRules().defaultValue(VANILLA_RULES.get(rule.getName())));
+    }
+
+    @Override
+    public <T> boolean setGameRule(org.bukkit.GameRule<T> rule, T newValue) {
+        if (rule == null) throw new IllegalArgumentException("GameRule cannot be null");
+        if (newValue == null) throw new IllegalArgumentException("GameRule value cannot be null");
+        if (!isGameRule(rule.getName())) return false;
+        var event = new io.papermc.paper.event.world.WorldGameRuleChangeEvent(this, null, rule, String.valueOf(newValue));
+        if (!event.callEvent()) return false;
+        deserialize(VANILLA_RULES.get(rule.getName()), event.getValue());
+        return true;
+    }
+
+    /** 바닐라 GameRules.Value#deserialize: 불리언은 Boolean.parseBoolean, 정수는 빈 문자열·숫자 아님이면 0(숫자 아님은 경고 한 줄). */
+    @SuppressWarnings("unchecked")
+    private static void deserialize(org.domi.furnace.api.world.GameRule<?> rule, String value) {
+        if (rule.type() == Boolean.class) {
+            gameRules().set((org.domi.furnace.api.world.GameRule<Boolean>) rule, Boolean.parseBoolean(value));
+            return;
+        }
+        int v = 0;
+        if (!value.isEmpty()) {
+            try {
+                v = Integer.parseInt(value);
+            } catch (NumberFormatException e) {
+                LOG.warn("Failed to parse integer {}", value);
+            }
+        }
+        gameRules().set((org.domi.furnace.api.world.GameRule<Integer>) rule, v);
+    }
+
+    @Override
+    public boolean getKeepSpawnInMemory() { return getGameRuleValue(org.bukkit.GameRule.SPAWN_CHUNK_RADIUS) > 0; }
+
+    @Override
+    public void setKeepSpawnInMemory(boolean keepLoaded) {
+        if (keepLoaded) setGameRule(org.bukkit.GameRule.SPAWN_CHUNK_RADIUS, getGameRuleDefault(org.bukkit.GameRule.SPAWN_CHUNK_RADIUS));
+        else setGameRule(org.bukkit.GameRule.SPAWN_CHUNK_RADIUS, 0);
+    }
 
     // ---- 소리·입자(H4 묶음 C) — Paper CraftWorld 와 같이 null 인자는 조용히 넘어간다
 

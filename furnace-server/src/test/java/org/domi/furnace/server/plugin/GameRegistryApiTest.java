@@ -146,6 +146,9 @@ class GameRegistryApiTest {
         host.gameRules().set(TestGameBoots.lives, 7);
         assertEquals(7, core.gameRules().getInt("game:lives"));
         assertTrue(host.gameRules().names().contains("game:lives"));
+        assertEquals(3, host.gameRules().defaultValue(TestGameBoots.lives), "등록 때 정한 기본값");
+        assertEquals(2, host.gameRules().defaultValue(org.domi.furnace.api.world.GameRule.integer("spawnChunkRadius")));
+        assertThrows(IllegalArgumentException.class, () -> host.gameRules().defaultValue(org.domi.furnace.api.world.GameRule.bool("nope")));
         assertThrows(IllegalArgumentException.class, () -> host.gameRules().registerBoolean(game, "other:x", false), "남의 namespace");
         assertThrows(IllegalArgumentException.class, () -> host.gameRules().registerBoolean(game, "pvpArena", false), "같은 이름 두 번");
 

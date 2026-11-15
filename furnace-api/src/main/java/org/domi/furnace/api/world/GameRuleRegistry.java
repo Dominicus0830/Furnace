@@ -20,6 +20,9 @@ public interface GameRuleRegistry {
     /** 값. 없는 규칙이면 IllegalArgumentException. */
     <T> T get(GameRule<T> rule);
 
+    /** 등록할 때 정한 기본값(바닐라 규칙은 바닐라 기본값). 없는 규칙이면 IllegalArgumentException. */
+    <T> T defaultValue(GameRule<T> rule);
+
     /** 값을 바꾼다(/gamerule 과 같은 효과·알림). 없는 규칙이면 IllegalArgumentException. */
     <T> void set(GameRule<T> rule, T value);
 
