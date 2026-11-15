@@ -2,6 +2,7 @@
 // 주인에게 보낸 일의 결과는 future 로 모으고, 모두 끝났으면(플레이어만 건드렸다면 즉시) 그 자리에서, 아니면 전역 스레드로 돌아와 이어 간다.
 package org.domi.furnace.server.command;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -234,7 +235,7 @@ public final class EntityOps {
 
     /** 명령 도중 예상 못한 실패: 로그를 남기고 사용자에게 알린다. */
     public static void reportFailure(CommandSource source, Throwable t) {
-        org.slf4j.LoggerFactory.getLogger(EntityOps.class).warn("명령 처리 실패", t);
+        org.slf4j.LoggerFactory.getLogger(EntityOps.class).warn(Lang.t("cmd.handling-failed"), t);
         source.sendFailure(org.domi.furnace.api.text.Text.translatable("command.failed"));
     }
 

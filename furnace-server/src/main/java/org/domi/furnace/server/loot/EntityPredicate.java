@@ -1,6 +1,7 @@
 // 바닐라 EntityPredicate 중 지금 엔티티 모델로 판단할 수 있는 부분. 판단할 수 없는 필드는 읽을 때 경고하고 거짓으로 본다.
 package org.domi.furnace.server.loot;
 
+import org.domi.furnace.server.i18n.Lang;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.LinkedHashMap;
@@ -102,7 +103,7 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
                 default -> unsupported = true;
             }
         }
-        if (unsupported) org.slf4j.LoggerFactory.getLogger(EntityPredicate.class).warn("아직 지원하지 않는 엔티티 조건 필드: {}", o.keySet());
+        if (unsupported) org.slf4j.LoggerFactory.getLogger(EntityPredicate.class).warn(Lang.t("loot.entity-condition-unsupported", o.keySet()));
         return new EntityPredicate(type, flags, equipment, typeSpecific, location, distance, unsupported, effects, nbt, movement,
                 steppingOn, affectedBy, periodic, vehicle, passenger, targeted, team, slots, struck);
     }

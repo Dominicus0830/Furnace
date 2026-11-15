@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen.pipeline;
 
+import org.domi.furnace.server.i18n.Lang;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.gen.NoiseWorldSource;
 import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
@@ -600,7 +601,7 @@ public final class ChunkPipeline {
             }
             if (!warnedLossyEvict) {
                 warnedLossyEvict = true;
-                LOG.warn("[WORLDGEN] 미완성 청크 보관함이 가득 차 오래된 것을 버렸다(그 근처를 다시 만들면 장식이 일부 빠질 수 있다)");
+                LOG.warn(Lang.t("worldgen.pending-store-full"));
             }
         }
         if (decoratedKeys.size() > (1 << 21)) decoratedKeys.clear();

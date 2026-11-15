@@ -2,6 +2,7 @@
 // 블록 변경 방송은 청크 구독(전달 전이면 청크 뒤로 보류)을 따르고, 블록 요청 ack 는 틱 끝 방송 뒤에 보낸다(바닐라 순서).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.domi.furnace.server.block.ChunkLevel;
@@ -132,7 +133,7 @@ public final class RegionLevel extends ChunkLevel {
             try {
                 task.accept(r.level());
             } catch (RuntimeException e) {
-                org.slf4j.LoggerFactory.getLogger(RegionLevel.class).error("[CMDBLOCK] 소유 스레드 작업 실패 {}", pos, e);
+                org.slf4j.LoggerFactory.getLogger(RegionLevel.class).error(Lang.t("cmdblock.task-failed", pos), e);
             }
             return null;
         });

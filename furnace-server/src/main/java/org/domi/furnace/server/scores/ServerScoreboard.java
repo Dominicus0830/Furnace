@@ -24,6 +24,7 @@ import org.domi.furnace.server.net.protocol.play.SetDisplayObjective;
 import org.domi.furnace.server.net.protocol.play.SetObjective;
 import org.domi.furnace.server.net.protocol.play.SetPlayerTeam;
 import org.domi.furnace.server.net.protocol.play.SetScore;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,7 +56,7 @@ public final class ServerScoreboard extends Scoreboard {
                 NbtCompound root = NbtIo.readGzip(in);
                 b.load(root.tags().get("data") instanceof NbtCompound d ? d : root);
             } catch (IOException | RuntimeException e) {
-                LOG.warn("scoreboard.dat 읽기 실패 — 빈 점수판으로 시작", e);
+                LOG.warn(Lang.t("scoreboard.read-failed"), e);
             }
         }
         b.dirty = false;
@@ -229,7 +230,7 @@ public final class ServerScoreboard extends Scoreboard {
             Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
             dirty = true;
-            LOG.error("scoreboard.dat 저장 실패", e);
+            LOG.error(Lang.t("scoreboard.save-failed"), e);
         }
     }
 

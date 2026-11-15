@@ -1,6 +1,7 @@
 // region 디렉토리의 .mca 핸들 캐시(LRU 256개, 바닐라 RegionFileStorage 와 같다) + 파일별 락 직렬화. 여러 region 스레드가 공유 안전.
 package org.domi.furnace.server.world.anvil;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.io.IOException;
 import java.nio.file.Path;
 
@@ -106,7 +107,7 @@ public final class RegionFileStore {
             drainClosed();
         } catch (IOException e) {
             // 내보낸 다른 파일 닫기 실패는 이 작업의 실패가 아니다 — 읽기를 "깨진 청크"로 보이게 하면 멀쩡한 청크를 새로 생성해 덮는다
-            org.slf4j.LoggerFactory.getLogger(RegionFileStore.class).warn("[REGION] 내보낸 region 파일 닫기 실패", e);
+            org.slf4j.LoggerFactory.getLogger(RegionFileStore.class).warn(Lang.t("region.export-close-failed"), e);
         }
         return result;
     }

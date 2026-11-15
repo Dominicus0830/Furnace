@@ -2,6 +2,7 @@
 // 플러그인 예외(RuntimeException·LinkageError — 핫 언로드 중 NoClassDefFoundError 포함)는 기록하고 그 훅만 건너뛴다. 훅이 없는 월드에는 이 객체가 없다(생성 경로가 바닐라 그대로).
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -62,7 +63,7 @@ public final class GenHooks {
             f.generationHooks(h);
             return h;
         }
-        LOG.warn("[WORLDGEN] {} 의 생성기({})에는 월드젠 훅을 걸 수 없다 — '{}' 무시", world, gen.getClass().getSimpleName(), key);
+        LOG.warn(Lang.t("genhook.unsupported-generator", world, gen.getClass().getSimpleName(), key));
         return null;
     }
 
@@ -98,7 +99,7 @@ public final class GenHooks {
         ChunkGenerationHooks h = lookup.apply(key);
         if (h == null && !warnedMissing) {
             warnedMissing = true;
-            LOG.warn("[WORLDGEN] {} 의 월드젠 훅 '{}' 이 등록돼 있지 않다 — 새 청크는 바닐라로 생성한다", world, key);
+            LOG.warn(Lang.t("genhook.not-registered", world, key));
         }
         return h;
     }
@@ -106,7 +107,7 @@ public final class GenHooks {
     private void failed(String what, int cx, int cz, Throwable e) {
         long n = failures.incrementAndGet();
         if (n <= 10 || n % 1000 == 0) {
-            LOG.warn("[WORLDGEN] 훅 '{}' {} 실패 ({},{}) — 이 훅만 건너뛴다 (누적 {}회)", key, what, cx, cz, n, e);
+            LOG.warn(Lang.t("genhook.failed", key, what, cx, cz, n), e);
         }
     }
 

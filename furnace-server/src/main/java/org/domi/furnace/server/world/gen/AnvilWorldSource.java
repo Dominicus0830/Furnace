@@ -4,6 +4,7 @@
 // (Paper "Do not let the server load chunks from newer versions" — 모르는 블록이 공기로 지워지지 않게, A05-03).
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.server.i18n.Lang;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
@@ -122,8 +123,7 @@ public final class AnvilWorldSource implements WorldSource {
     /** 바닐라 MinecraftServer.reportChunkLoadFailure 문구로 남기고, 덮어쓰이기 전에 원본을 백업한다. */
     private void corrupt(int chunkX, int chunkZ, Exception cause, RegionFile.Payload payload, byte[] nbtBytes) {
         Path backup = backupCorrupt(chunkX, chunkZ, payload, nbtBytes);
-        LOG.error("Failed to load chunk {},{} — 깨진 청크라 새로 생성한다(다음 저장에서 덮인다). 원본: {}",
-                chunkX, chunkZ, backup != null ? backup : "(백업할 본문 없음)", cause);
+        LOG.error(Lang.t("anvil.chunk-corrupt", chunkX, chunkZ, backup != null ? backup : Lang.t("anvil.no-backup-body")), cause);
     }
 
     /**
@@ -151,7 +151,7 @@ public final class AnvilWorldSource implements WorldSource {
             Files.write(f, out);
             return f;
         } catch (IOException | RuntimeException e) {
-            LOG.warn("깨진 청크 {},{} 원본 백업 실패", chunkX, chunkZ, e);
+            LOG.warn(Lang.t("anvil.backup-failed", chunkX, chunkZ), e);
             return null;
         }
     }
@@ -267,7 +267,7 @@ public final class AnvilWorldSource implements WorldSource {
             }
             if (bytes != null) col.poiNbt(NbtIo.read(bytes));
         } catch (IOException e) {
-            org.slf4j.LoggerFactory.getLogger(AnvilWorldSource.class).warn("[POI] {},{} 읽기 실패 — 블록에서 다시 만든다", chunkX, chunkZ, e);
+            org.slf4j.LoggerFactory.getLogger(AnvilWorldSource.class).warn(Lang.t("anvil.poi-read-failed", chunkX, chunkZ), e);
         }
         return col;
     }

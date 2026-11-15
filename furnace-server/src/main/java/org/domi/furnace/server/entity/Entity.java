@@ -3,6 +3,7 @@
 // 엔티티는 자기 청크를 가진 region 의 레벨(ChunkLevel)에 들어 있고 그 region 스레드만 만진다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.UUID;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockSounds;
@@ -679,7 +680,7 @@ public abstract non-sealed class Entity implements Rider {
                     Entity n = arrive(target, t, travel, ce, place);
                     if (n != null) riders.add(n);
                 } catch (RuntimeException ex) {
-                    org.slf4j.LoggerFactory.getLogger(Entity.class).error("[PORTAL] 승객 {} 도착 실패", ce.typeName(), ex);
+                    org.slf4j.LoggerFactory.getLogger(Entity.class).error(Lang.t("portal.passenger-arrive-failed", ce.typeName()), ex);
                 }
             }
             Entity made = Entities.create(target, c.typeName());
@@ -719,7 +720,7 @@ public abstract non-sealed class Entity implements Rider {
                     Entity n = restore(src, ce, travel);
                     if (n != null) riders.add(n);
                 } catch (RuntimeException ex) {
-                    org.slf4j.LoggerFactory.getLogger(Entity.class).error("[PORTAL] 승객 {} 되살리기 실패", ce.typeName(), ex);
+                    org.slf4j.LoggerFactory.getLogger(Entity.class).error(Lang.t("portal.passenger-revive-failed", ce.typeName()), ex);
                 }
             }
             Entity made = Entities.create(src, c.typeName());
