@@ -71,4 +71,14 @@ ignore .gitignore
 ignore .gitattributes
 ignore .graphifyignore
 
-# ---- 항상 돌리는 시험은 영향 표로 고른다(아래 always 줄) ----
+# ---- 항상 돌리는 시험 ----
+# (1) 서버 코드를 "다른 JVM"에서 돌리는 시험: JaCoCo 에이전트는 시험 JVM 에만 붙어 있어 자식 JVM 에서 실행된 코드는 영향 표에 안 잡힌다.
+#     장면 해시(SceneHash)·IdentityKit 금 파일 시험이 대표적이다 — 서버 코드가 바뀌면 이 시험들이 "결과가 그대로인가"를 본다. 합쳐 1분 안팎.
+#     새 시험이 ProcessBuilder·SceneHash·ForkMain 을 쓰면 여기에 넣어야 한다(test_test_impact.py 가 확인한다).
+always org/domi/furnace/server/ShutdownHookOrderTest
+always org/domi/furnace/server/block/RandomSeedsTest
+always org/domi/furnace/server/block/ScheduledTickSceneGoldenTest
+always org/domi/furnace/server/entity/EntityCollisionSceneGoldenTest
+always org/domi/furnace/server/identity/IdentityKitTest
+always org/domi/furnace/server/light/LightSceneIdentityTest
+always org/domi/furnace/server/scene/SceneLibraryTest

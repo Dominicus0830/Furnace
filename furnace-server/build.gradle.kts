@@ -115,6 +115,8 @@ tasks.test {
     if (findProperty("testImpact") != null) {
         val rawDir = layout.buildDirectory.dir("test-impact/raw").get().asFile
         forkEvery = 1
+        // 클래스마다 JVM 이 따로라 동시에 몇 개를 돌려도 구간이 섞이지 않는다. 시간이 오래 걸리니(에이전트+클래스당 JVM) 러너 코어에 맞춰 -PtestForks=n 으로 올린다.
+        maxParallelForks = (findProperty("testForks") as String?)?.toInt() ?: 1
         systemProperty("furnace.testImpact.dir", rawDir.absolutePath)
         doFirst { rawDir.deleteRecursively() }
     }
@@ -177,7 +179,11 @@ tasks.test { dependsOn("compileBenchJava") }
 //   ./gradlew -PskipOracle=true -Pcoverage :furnace-server:test :furnace-server:jacocoTestReport
 // CI 는 기준 브랜치 push 실행의 서버 시험 조각마다 test.exec 를 올리고, 합치는 작업(coverage)이 jacocoCoverageReport 로 표 하나를 만든다(docs/ci.md).
 tasks.test {
-    extensions.configure<JacocoTaskExtension> { isEnabled = findProperty("coverage") != null || findProperty("testImpact") != null }
+    extensions.configure<JacocoTaskExtension> {
+        isEnabled = findProperty("coverage") != null || findProperty("testImpact") != null
+        // 영향 표만 만들 때는 .exec 파일이 필요 없다(실행 데이터는 TestImpactListener 가 에이전트에서 직접 꺼낸다).
+        if (findProperty("coverage") == null) output = JacocoTaskExtension.Output.NONE
+    }
 }
 tasks.jacocoTestReport {
     reports { xml.required = true; html.required = true }

@@ -1,0 +1,117 @@
+name: Test impact map
+
+# V-08 시험 영향 표(시험 클래스 → 실제로 실행한 소스 파일)를 만든다. PR 의 CI(ci.yml 의 select 작업)가 이 표로 "바뀐 코드를 실행한 시험만" 고른다.
+# 설명·안전장치·비용: docs/ci.md "시험 영향 선택".
+#
+#  - 판정(게이트)이 아니다: 이 워크플로가 실패해도 병합은 막히지 않는다. 표가 없거나 낡으면 PR 은 전체 시험을 돈다(안전한 쪽).
+#  - 시험 클래스마다 새 JVM 에서 JaCoCo 에이전트를 붙여 돈다(-PtestImpact). 느리므로(전체 시험의 수 배) 기준 브랜치 push 마다 돌리지 않고,
+#    가장 최근 표가 MAP_MIN_AGE_HOURS 보다 새것이면 건너뛴다. 동시에 하나만 돌고(대기는 최신 push 하나), 돌던 것은 취소하지 않는다.
+#  - 조각 수·동시 JVM 수는 처음 실행의 실측으로 맞춘다(docs/ci.md). 조각이 하나라도 표를 못 올리면 합치지 않는다 — 이전 표가 그대로 쓰인다.
+#  - 기준 브랜치가 바뀌면 아래 on.push.branches 와 BASE_BRANCH 를 같이 바꾼다(ci.yml 과 같다).
+on:
+  push:
+    branches:
+      - claude/quirky-wright-lra834
+  workflow_dispatch:
+
+concurrency:
+  group: test-impact-map
+  cancel-in-progress: false
+
+env:
+  BASE_BRANCH: claude/quirky-wright-lra834
+  MAP_MIN_AGE_HOURS: 4
+  IMPACT_SHARDS: 8
+
+jobs:
+  gate:
+    name: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      run: ${{ steps.age.outputs.run }}
+    steps:
+      - name: 최근 표 나이 확인
+        id: age
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          run=true
+          if [ "$EVENT" = "push" ]; then
+            newest=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=test-impact-map&per_page=30" \
+              --jq "[.artifacts[] | select(.expired==false and .workflow_run.head_branch==\"$BASE_BRANCH\")] | sort_by(.created_at) | last | .created_at // empty" || true)
+            if [ -n "$newest" ]; then
+              age=$(( $(date +%s) - $(date -d "$newest" +%s) ))
+              echo "가장 최근 표: $newest (${age}초 전)"
+              if [ "$age" -lt $(( MAP_MIN_AGE_HOURS * 3600 )) ]; then run=false; fi
+            else
+              echo "표가 아직 없다 — 만든다"
+            fi
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "표 만들기: $run" >> "$GITHUB_STEP_SUMMARY"
+
+  impact-shards:
+    needs: [gate]
+    if: needs.gate.outputs.run == 'true'
+    name: impact (${{ matrix.shard }}/8)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]   # IMPACT_SHARDS 와 같아야 한다(합치는 작업이 센다)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
+      # 시험이 실패해도(에이전트가 느려 제한시간에 걸리는 시험 등) 그 시험은 표에서 "믿을 수 없음"으로 남아 PR 에서 항상 돈다.
+      - name: 서버 시험 + 실행 클래스 기록 (조각 ${{ matrix.shard }}/8)
+        continue-on-error: true
+        timeout-minutes: 80
+        run: ./gradlew -PskipOracle=true -PtestImpact -PtestForks=2 -PtestShard=${{ matrix.shard }}/${{ env.IMPACT_SHARDS }} :furnace-server:test
+      - name: 조각 표 만들기
+        run: python3 -I tools/ci/test-impact.py partial --raw furnace-server/build/test-impact/raw --repo . --commit "$GITHUB_SHA" --out /tmp/impact-part-${{ matrix.shard }}.tsv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-impact-part-${{ matrix.shard }}
+          path: /tmp/impact-part-${{ matrix.shard }}.tsv
+          retention-days: 1
+
+  impact-map:
+    needs: [gate, impact-shards]
+    if: always() && needs.gate.outputs.run == 'true'
+    name: impact-map
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: test-impact-part-*
+          path: /tmp/parts
+          merge-multiple: true
+      - name: 합치기
+        run: |
+          count=$(ls /tmp/parts/*.tsv 2>/dev/null | wc -l)
+          echo "조각 표 $count / $IMPACT_SHARDS 개"
+          if [ "$count" -ne "$IMPACT_SHARDS" ]; then
+            echo "::error::조각 표가 모자란다($count/$IMPACT_SHARDS) — 합치지 않는다(이전 표가 그대로 쓰인다)."
+            exit 1
+          fi
+          python3 -I tools/ci/test-impact.py merge /tmp/parts/*.tsv --commit "$GITHUB_SHA" --min-ok-ratio 0.5 --out /tmp/test-impact.tsv | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-impact-map
+          path: /tmp/test-impact.tsv
+          retention-days: 14

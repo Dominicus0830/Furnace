@@ -244,6 +244,10 @@ def cmd_merge(args):
             out.file_id(p)
         for name, (status, src, executed) in part.tests.items():
             out.add_test(name, status, src, executed)
+    ok = sum(1 for t in out.tests.values() if t[0] == OK)
+    if args.min_ok_ratio and (not out.tests or ok / len(out.tests) < args.min_ok_ratio):
+        raise SystemExit("영향 표를 쓰지 않는다: 믿을 수 있는 시험이 %d/%d 개뿐이다(최소 %d%%) — 에이전트·시험 JVM 설정을 확인한다" % (
+            ok, len(out.tests), round(args.min_ok_ratio * 100)))
     out.write(args.out)
     print("영향 표: 시험 %d 개, 소스 파일 %d 개, 믿을 수 없는 시험 %d 개 → %s" % (
         len(out.tests), len(out.files), sum(1 for t in out.tests.values() if t[0] != OK), args.out))
@@ -641,6 +645,7 @@ def main():
     p.add_argument("parts", nargs="+")
     p.add_argument("--commit", required=True)
     p.add_argument("--generated", default="")
+    p.add_argument("--min-ok-ratio", type=float, default=0.0, help="믿을 수 있는(ok) 시험 비율이 이보다 낮으면 표를 쓰지 않는다")
     p.add_argument("--out", required=True)
     p.set_defaults(fn=cmd_merge)
 

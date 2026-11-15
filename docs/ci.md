@@ -23,6 +23,7 @@
   재시도에서 통과한 시험은 "흔들린 시험" 주석(PR 의 Checks 화면)·실행 요약·산출물 `flaky-tests-N`(30일 보관)에 이름이 남는다 — 이 목록이 흔들리는 시험을 고칠 우선순위다(아래 "재시도 정책").
 - `light`: API 시험, 샘플 플러그인 컴파일, 시험 서버 모듈, 호환 계층 모듈, fatJar. 기준 브랜치 실행에서는 `user-todo-combined` 산출물도 올린다.
   시험 단계 셋은 하나가 실패해도 나머지를 돌고(`continue-on-error`), 실패하면 `light-test-reports` 산출물을 올린 뒤 맨 끝 "light 시험 판정"이 작업을 실패시킨다. **재시도는 없다**(아래 "light 작업 (T-160)").
+- `select`(코드가 바뀐 PR): 이 PR 에서 **어느 서버 시험을 건너뛸지**와 조각 수를 정한다. 표가 없거나 위험한 변경이면 전체 — 아래 "시험 영향 선택".
 - `test`: 위 둘을 합친 판정(점검 이름은 예전과 같은 `test`). **병합 판단은 `test` 하나만 본다** — `light` 는 1~2분이면 초록이 되지만 `test` 는 서버 시험 6조각이 모두 끝나야 생긴다.
 - `push` 는 기준 브랜치(`claude/quirky-wright-lra834`, `main`)에서만 돈다. 작업 브랜치는 PR 을 열면 `pull_request` 로 한 번 돈다.
   충돌이 있는 PR 은 `pull_request` 실행이 만들어지지 않는다 — 기준 브랜치를 합쳐 충돌을 풀면 다시 돈다.
@@ -87,6 +88,7 @@
 ## 로컬에서
 - 전체: `./gradlew -PskipOracle=true :furnace-api:test :furnace-server:test` (조각 속성 없음 = 전부).
 - CI 와 같은 조각 하나만: `./gradlew -PskipOracle=true -PtestShard=2/6 :furnace-server:test` (조각 6개가 합쳐서 전체와 같다 — 4코어 로컬 기준 전체 13분).
+- 시험 영향 선택과 같은 건너뛰기를 로컬에서: `./gradlew -PskipOracle=true -PtestSkip=<목록 파일> :furnace-server:test`(목록은 `select` 가 만든 `skip-tests.txt`, 아래 "시험 영향 선택").
 - 조각 시간이 한쪽으로 쏠리면 아래 "조각 균형" 대로 시간 파일을 갱신한다.
 - 시험 하나가 흔들리면: `./gradlew -PskipOracle=true :furnace-server:test --tests '패키지.클래스'` 를 여러 번 돌려 재현한다.
 
@@ -113,6 +115,62 @@
   `.github/`·`tools/`·`*.gradle*`·다른 폴더의 `.md`(예: 모듈 안 README) 는 코드로 본다(안전 쪽). 파일 목록을 못 읽거나 비면 `code=true` 로 시험이 돈다. 기준 브랜치 push 는 항상 돈다.
 - 가장 오래 걸리는 시험 클래스 5개(2026-11-15, 클래스 시간 실측 `test-shard-times.tsv`): `ContainerLockE2ETest` 223초, `CancelResyncE2ETest` 173초, `GeneratedChunkSaveTest` 124초, `ChunkCornerLoadFollowupTest` 117초, `A04InventoryLineTest` 89초(합 726초, 전체의 33%).
   이 시험들을 건드릴 때만 돌리고, 줄이는 것은 후속 작업이다(각 절반이면 전체 약 5분 감소).
+
+## 시험 영향 선택 (2026-11-16, V-08)
+PR 은 서버 시험 약 3,900개 중 **이 변경이 실제로 실행되는 시험만** 돈다. A 클래스를 고치면 A 를 실행한 시험만 돌고, A 와 상관없는 B 시험은 안 돈다.
+전체는 기준 브랜치 push 때마다(병합 뒤) 그대로 돈다 — 고르기가 놓친 것은 병합 뒤 여기서 잡힌다.
+
+### 어떻게 고르나
+1. **영향 표 만들기**(`.github/workflows/test-impact.yml`, 기준 브랜치 push): 시험 클래스 **하나마다 새 JVM**에서 JaCoCo 에이전트를 붙여 돌리고(`-PtestImpact`, `forkEvery=1`),
+   `TestImpactListener`(시험 소스, 켜는 속성이 없으면 아무것도 안 함)가 끝날 때 "이 시험이 실행한 클래스"를 에이전트에서 꺼내 적는다. `tools/ci/test-impact.py partial/merge` 가 클래스를
+   소스 파일로 바꿔(클래스 파일의 `SourceFile` 속성) 한 장의 표 `test-impact.tsv`(산출물 `test-impact-map`, 14일)로 합친다. 표는 커밋하지 않는다.
+   - 클래스마다 JVM 이 따로여야 하는 까닭: 같은 JVM 에서는 앞 시험이 만든 싱글턴·정적 초기화가 뒤 시험 구간에 안 잡혀, 그 코드를 고쳐도 뒤 시험이 선택되지 않는다.
+   - 시험이 실패·중단했거나 한 JVM 에 둘 이상 들어갔으면 그 시험은 `unreliable` 로 적히고 **항상 돈다**(일부 코드를 안 밟았을 수 있다).
+   - 에이전트는 시험을 느리게 하므로(전체의 수 배) 표는 최근 표가 4시간보다 새것이면 만들지 않는다(`MAP_MIN_AGE_HOURS`). 동시에 하나만 돌고 돌던 것은 취소하지 않는다.
+     조각(8개)이 하나라도 빠지면 합치지 않아 이전 표가 계속 쓰인다. 믿을 수 있는 시험이 절반 미만이면 표를 쓰지 않는다.
+2. **PR 에서 고르기**(`ci.yml` 의 `select` 작업 → `tools/ci/test-impact.py select`): 가장 최근 표를 받아, **표를 만든 커밋 X 의 트리와 지금 검사하는 트리(PR 병합 결과)의 파일 차이 전체**를 바뀐 것으로 본다.
+   이 PR 이 바꾼 것뿐 아니라 표를 만든 뒤 기준 브랜치에 들어온 변경도 포함한다 — 그 변경이 시험의 실행 경로를 바꿨을 수 있어서다(두 트리의 차이라 병합 기준이 어디든 성립한다).
+   - 바뀐 소스 파일 → 그것을 실행한 시험 + 바뀐 시험 자신. 시험 소스(도우미 포함)도 표에 있어 `TestServers` 같은 도우미를 고치면 그것을 쓰는 시험이 돈다.
+   - **표에 없는 시험(새 시험)은 건너뛰기 목록에 안 들어가므로 저절로 돈다.** 건너뛰는 것은 항상 이름으로 명시된 클래스뿐이다(`-PtestSkip=<파일>`, `furnace-server/build.gradle.kts`).
+   - 컴파일 시간 상수: javac 는 `static final` 상수 값을 쓰는 쪽에 박아 넣어, 쓰는 파일이 안 바뀌어도 동작이 바뀐다. 바뀐 줄에서 상수 선언(private 이 아닌 `final` 필드, 인터페이스의 대문자 필드)을 찾아 그 이름을 쓰는 파일을 바뀐 것으로 본다(상수끼리 이어지면 끝까지, 사용처가 250 개를 넘으면 전체).
+   - 어떤 시험도 실행한 적 없는 소스(인터페이스·상수 묶음·기록 클래스·실제로 안 쓰이는 코드)는 그 타입 이름을 쓰는 파일로 대신한다(최대 3 단계).
+   - 새 소스 파일(표에 없음)은 같은 패키지의 시험 클래스를 돌린다(반사·등록으로만 닿는 경우를 위해). 새 시험 소스는 시험이라 저절로 돈다.
+   - 읽는 쪽 규칙 `reads`: 시험이 데이터로 읽는 문서·도구 파일(`docs/api/**`, `tools/vanilla-data/**` 등)이 바뀌면 그 경로를 문자열로 쓰는 자바 소스를 바뀐 것으로 본다.
+3. **전체로 넘어가는 경우**(조각 수도 최대, 이유가 `select` 작업 요약에 나온다):
+   | 경우 | 까닭 |
+   |---|---|
+   | push·수동 실행 | 기준 브랜치는 언제나 전체 |
+   | 영향 표가 없다 / 7일 넘음 / 표의 커밋이 기록에 없음 / 형식이 다름 | 낡은 표로 고르지 않는다 |
+   | 표 이후 바뀐 파일이 400개 넘음 | 어차피 대부분이 선택된다 |
+   | 빌드·CI 파일, 리소스(`src/*/resources/**` — 금 파일·정답표·언어 파일·서비스 목록), 동시성 핵심 | `tools/ci/test-selection-rules.txt` 의 `full` 규칙 |
+   | 규칙 파일에 없는 종류의 파일이 바뀜 | 기본값이 전체(규칙을 아는 것만 건너뛴다) |
+   | `reads` 규칙이 읽는 소스를 하나도 못 찾음 | 규칙이 낡았다 |
+   | 선택분이 전체 시간의 70% 이상, 또는 건너뛸 시험이 없음 | 나눌 이득이 없다 |
+   | 상수 사용처 250개 넘음, 실행된 적 없는 소스의 사용처가 3단계로 안 끝남 | 따라갈 수 없다 |
+   | 선택 도구·영향 표 읽기 오류, 러너 오류 | 오류는 언제나 전체(`select` 작업은 어떤 경우에도 성공으로 끝난다) |
+   | PR 라벨 `full-tests` | 사람이 강제(붙인 뒤 "Re-run all jobs" — 실행 시점의 라벨을 본다) |
+4. 선택 실행은 조각 수를 줄인다: 추정 시험 시간(시간 파일 `test-shard-times.tsv`, 새 시험은 평균)을 300초로 나눠 올림, 1~`MAX_SHARDS`. 건너뛴 클래스를 뺀 나머지로 같은 LPT 규칙으로 배정한다.
+   선택 실행에서는 `shard-times-N` 산출물을 올리지 않는다(일부 클래스만 돈 표본이 시간 파일을 치우치게 하므로).
+5. `light`(API·호환·시험 서버 모듈 시험, fatJar)는 코드가 바뀐 PR 에서 늘 전부 돈다(3분 안팎, 서버 시험과 동시). 서버 시험이 0 개로 줄어드는 일은 없다: 새 시험·믿을 수 없는 시험·항상 도는 시험(`always`)이 남는다.
+
+### 읽는 법
+- PR 의 `select` 작업 요약: 전체/선택, 이유, 건너뛴 시험 수, 바뀐 소스별로 몇 개의 시험이 그것을 실행했는지, 도는 시험 목록. 산출물 `test-selection`(7일)에 `selection.json`·`skip-tests.txt`.
+- 서버 시험 조각 이름의 `/n` 은 그 PR 의 조각 수다(전체 실행이면 `MAX_SHARDS`).
+- 의심스러우면 라벨 `full-tests`. 고르기가 놓쳐서 병합 뒤 기준 브랜치 전체에서 빨강이 나오면 그 PR 을 되돌리거나 바로 고치고, **놓친 사례를 `tools/ci/test_test_impact.py` 에 시험으로 추가**한다(왜 놓쳤는지 이 문서에도 적는다).
+
+### 유지
+- 시험이 저장소 밖 파일(`../docs`, `../tools`)을 읽으면 `tools/ci/test-selection-rules.txt` 에 `reads` 규칙을 같이 넣는다(`test_test_impact.py` 의 점검이 빠진 폴더를 찾는다). 항상 돌릴 넓은 시험은 `always` 줄.
+- 조각 수(`MAX_SHARDS`, 폴백 `|| 6` 과 `[1,…]` 목록)·표 조각 수(`IMPACT_SHARDS`)는 한 수로 맞아야 한다 — `test_test_impact.py` 가 확인한다.
+- CI 도구 자체 시험: `python3 -I tools/ci/test_test_impact.py`(`light` 작업이 돈다).
+- 로컬에서 표를 만들어 보기: `./gradlew -PskipOracle=true -PtestImpact -PtestForks=2 :furnace-server:test --tests '패키지.*'` → `python3 -I tools/ci/test-impact.py partial --raw furnace-server/build/test-impact/raw --out /tmp/part.tsv`.
+  고르기 시험: `python3 -I tools/ci/test-impact.py select --map <표> --out-dir /tmp/sel --github-output ""`(현재 트리와 표의 커밋 사이 차이로 고른다).
+
+### 알려진 한계(정직하게)
+- 표는 **시험이 결정적**이라고 가정한다. 난수·경합으로 어떤 실행에서만 밟는 코드는 표에 빠질 수 있다 — 그런 시험의 실패는 병합 뒤 전체에서 잡힌다.
+- 에이전트가 느려서 제한시간·시간 의존 단언으로 실패한 시험은 `unreliable` 이라 항상 돈다. 이런 시험이 많으면 선택 효과가 줄어든다(표 생성 요약의 "믿을 수 없는 시험 n 개").
+- **다른 JVM 에서 서버 코드를 돌리는 시험은 에이전트가 못 본다**(장면 해시·IdentityKit 금 파일 시험이 자식 JVM 을 띄운다). 그래서 이런 시험 7개는 규칙 파일의 `always` 로 서버 코드가 바뀔 때마다 돈다(합쳐 1분 안팎). 새 시험이 `ProcessBuilder`·`SceneHash`·`ForkMain` 을 쓰면 `always` 에 넣어야 하고, 빠뜨리면 `test_test_impact.py` 가 실패한다.
+- 인터페이스의 소문자 이름 상수 선언은 상수로 인식하지 못한다(자바 관례상 대문자).
+- 표 생성 비용: 기준 브랜치 push 가 있을 때 4시간에 한 번 조각 8개 × (시험 클래스당 JVM + 에이전트) — 처음 실행의 실측으로 조각 수·동시 JVM 수·제한시간을 조정한다(아래 "실측" 절에 기록).
 
 ## 조각 균형 (2026-11-15, T-162)
 - 실행 시간은 가장 느린 조각이 정한다. 배정 규칙(`furnace-server/build.gradle.kts`, `tools/ci/shard-balance.py` 의 `assign()` 과 같다):

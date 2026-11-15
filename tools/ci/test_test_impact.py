@@ -471,5 +471,63 @@ class RepoAuditTest(unittest.TestCase):
             self.assertTrue(covered, "%s 폴더를 경로로 쓰는 시험·소스(%s)가 있는데 test-selection-rules.txt 에 %s/ 아래 reads/full 규칙이 없다" % (top, where, top))
 
 
+class SubprocessTestsLintTest(unittest.TestCase):
+    """에이전트는 시험 JVM 에만 붙는다. 서버 코드를 자식 JVM 에서 돌리는 시험은 영향 표에 안 잡히므로 항상 돌려야 한다(규칙 파일 always)."""
+
+    EXEMPT = {"org/domi/furnace/server/config/ConfigMigrationSafetyTest"}   # chattr 만 부른다(서버 코드를 자식 JVM 에서 돌리지 않음)
+
+    def test_tests_that_fork_jvms_are_always_run(self):
+        rules = ti.Rules.read(os.path.join(HERE, "test-selection-rules.txt"))
+        root = os.path.join(REPO, "furnace-server", "src", "test", "java")
+        pat = re.compile(r"ProcessBuilder|\bSceneHash\b|\bForkMain\b|Runtime\.getRuntime\(\)\.exec")
+        missing = []
+        for dirpath, _d, files in os.walk(root):
+            for fn in files:
+                if not fn.endswith("Test.java"):
+                    continue
+                with open(os.path.join(dirpath, fn), encoding="utf-8", errors="replace") as fh:
+                    text = fh.read()
+                if pat.search(text):
+                    name = os.path.relpath(os.path.join(dirpath, fn), root)[:-5].replace(os.sep, "/")
+                    if name not in rules.always and name not in self.EXEMPT:
+                        missing.append(name)
+        self.assertEqual([], missing, "자식 JVM 을 띄우는 시험은 test-selection-rules.txt 의 always 에 넣는다")
+
+    def test_always_names_exist(self):
+        rules = ti.Rules.read(os.path.join(HERE, "test-selection-rules.txt"))
+        for name in rules.always:
+            self.assertTrue(os.path.isfile(os.path.join(REPO, "furnace-server", "src", "test", "java", name + ".java")), name + " 시험 소스가 없다")
+
+
+class WorkflowLintTest(unittest.TestCase):
+    """워크플로에 같은 수가 여러 곳에 흩어져 있어(strategy 안에서는 env 를 못 쓴다) 어긋나면 조각이 빠진 채 초록이 될 수 있다 — 같은 수인지 확인한다."""
+
+    def read(self, name):
+        with open(os.path.join(REPO, ".github", "workflows", name), encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_ci_max_shards_matches_fallbacks(self):
+        ci = self.read("ci.yml")
+        max_shards = int(re.search(r"^  MAX_SHARDS: (\d+)$", ci, re.M).group(1))
+        literal = re.search(r"needs\.select\.outputs\.matrix \|\| '\[([\d,]+)\]'", ci).group(1)
+        self.assertEqual(list(range(1, max_shards + 1)), [int(x) for x in literal.split(",")])
+        counts = {int(n) for n in re.findall(r"needs\.select\.outputs\.shards \|\| (\d+)", ci)}
+        self.assertEqual({max_shards}, counts)
+        code = "\n".join(l for l in ci.splitlines() if not l.lstrip().startswith("#")).replace("needs.select.outputs.shards || 6", "")
+        self.assertNotRegex(code, r"/6\b", "조각 수를 숫자로 박은 곳이 남았다")
+
+    def test_impact_workflow_shards_match(self):
+        wf = self.read("test-impact.yml")
+        n = int(re.search(r"^  IMPACT_SHARDS: (\d+)$", wf, re.M).group(1))
+        matrix = re.search(r"shard: \[([\d, ]+)\]", wf).group(1)
+        self.assertEqual(list(range(1, n + 1)), [int(x) for x in matrix.split(",")])
+        self.assertIn("(${{ matrix.shard }}/%d)" % n, wf)
+
+    def test_ci_server_tests_runs_without_a_selection(self):
+        ci = self.read("ci.yml")
+        # select 가 못 돌아도 서버 시험이 돌아야 한다(always) — 빠지면 select 실패가 "시험 건너뜀"으로 초록이 된다
+        self.assertRegex(ci, r"server-tests:\n    needs: \[changes, select\]\n(?:    #.*\n)*    if: always\(\) && needs\.changes\.result == 'success'")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
