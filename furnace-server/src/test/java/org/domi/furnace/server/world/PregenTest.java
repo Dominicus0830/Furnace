@@ -23,6 +23,7 @@ import org.domi.furnace.server.world.gen.AnvilWorldSource;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
 import org.domi.furnace.server.world.gen.WorldSource;
 import org.junit.jupiter.api.AfterEach;
+import org.domi.furnace.server.i18n.Lang;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -262,6 +263,28 @@ class PregenTest {
         assertEquals(Set.of(Regionizer.chunkKey(10, 10), Regionizer.chunkKey(-1, -1)), Set.of(gen.order.get(0), gen.order.get(1)));
         assertEquals(Regionizer.chunkKey(0, 0), gen.order.get(2), "미리 생성은 그 뒤 넣은 순");
         assertEquals(10, gen.order.size());
+    }
+
+    @Test
+    void savedLabelKeepsKindAndNumbers_andReadsInTheServerLanguage(@TempDir Path dir) throws Exception {
+        OrderGen gen = new OrderGen();
+        World w = world(dir, gen);
+        CountDownLatch gate = block();
+        Pregen.Area area = Pregen.Area.ofRadius(0, 0, 40, Pregen.Label.radius(40, 0, 0));
+        pregen.start(w, area, null);
+        awaitTicket(w, new ChunkPos(0, 0));
+        assertTrue(pregen.stop(w));
+        Pregen.Saved saved = Pregen.loadSaved(w);
+        assertNotNull(saved);
+        assertEquals(area, saved.area(), "kind and numbers come back, not a sentence");
+        try {
+            assertEquals("radius 40 (center 0, 0)", saved.area().label().text());
+            Lang.forceForTest("ko");
+            assertEquals("반경 40 (가운데 0, 0)", saved.area().label().text(), "a file saved under one language reads in the other");
+        } finally {
+            Lang.forceForTest("en");
+            gate.countDown();
+        }
     }
 
     @Test

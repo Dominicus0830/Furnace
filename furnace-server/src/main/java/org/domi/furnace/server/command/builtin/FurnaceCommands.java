@@ -18,6 +18,7 @@ import org.domi.furnace.server.command.CommandSource;
 import org.domi.furnace.server.command.SharedSuggestions;
 import org.domi.furnace.server.command.brigadier.Arguments;
 import org.domi.furnace.server.command.brigadier.CommandDispatcher;
+import org.domi.furnace.server.i18n.Lang;
 
 public final class FurnaceCommands {
 
@@ -49,11 +50,11 @@ public final class FurnaceCommands {
     }
 
     private static int reload(CommandSource src, Furnace server, String name) {
-        src.sendSuccess(() -> Text.text("플러그인 " + name + " 을(를) 다시 읽는다…"), true);
+        src.sendSuccess(() -> Text.text(Lang.t("cmd.furnace.reloading", name)), true);
         server.plugins().reload(name).whenComplete((names, err) -> {
             if (err != null) {
                 Throwable t = err instanceof java.util.concurrent.CompletionException && err.getCause() != null ? err.getCause() : err;
-                src.sendFailure(Text.text("다시 읽기 실패: " + t.getMessage()));
+                src.sendFailure(Text.text(Lang.t("cmd.furnace.reload-failed", t.getMessage())));
             } else {
                 src.sendSuccess(() -> Text.text(reloadLine(name, names)), true);
             }
@@ -63,8 +64,8 @@ public final class FurnaceCommands {
 
     /** 다시 읽기 결과 한 줄. */
     public static String reloadLine(String name, List<String> enabled) {
-        if (enabled.isEmpty()) return "플러그인 " + name + " 을(를) 내렸다(켜진 플러그인 없음)";
-        return "다시 읽음: " + String.join(", ", enabled);
+        if (enabled.isEmpty()) return Lang.t("cmd.furnace.unloaded", name);
+        return Lang.t("cmd.furnace.reloaded", String.join(", ", enabled));
     }
 
     public static String versionLine(Furnace server) {
@@ -73,11 +74,11 @@ public final class FurnaceCommands {
 
     /** "플러그인 (2): A, B" 한 줄. 꺼진 플러그인은 이름 뒤에 (꺼짐). */
     public static String pluginsLine(List<FurnacePlugin> list, PluginManager pm) {
-        StringBuilder sb = new StringBuilder("플러그인 (").append(list.size()).append(")");
+        StringBuilder sb = new StringBuilder(Lang.t("cmd.furnace.plugins-head", list.size()));
         for (int i = 0; i < list.size(); i++) {
             FurnacePlugin p = list.get(i);
             sb.append(i == 0 ? ": " : ", ").append(p.name());
-            if (!pm.isEnabled(p.name())) sb.append("(꺼짐)");
+            if (!pm.isEnabled(p.name())) sb.append(Lang.t("cmd.furnace.plugin-disabled"));
         }
         return sb.toString();
     }

@@ -31,21 +31,21 @@ class PregenCommandsTest {
         ServerCore core = TestServers.core(tmp, sched);
         try {
             PregenCommands.register(core.commands().getDispatcher());
-            assertFalse(run(core, "furnace pregen start 100", 3).contains("시작"), "권한 4 미만은 못 쓴다");
+            assertFalse(run(core, "furnace pregen start 100", 3).contains("started"), "권한 4 미만은 못 쓴다");
 
             String border = run(core, "furnace pregen start border", 4);
-            assertTrue(border.contains("월드 경계가 기본값"), border);
+            assertTrue(border.contains("The world border is at its default"), border);
 
             String start = run(core, "furnace pregen start 4000 0 0", 4);   // 500×500 청크 — 시험 동안 끝나지 않는다
-            assertTrue(start.contains("미리 생성을 시작했다"), start);
+            assertTrue(start.contains("Pregeneration started"), start);
             String dup = run(core, "furnace pregen start 100", 4);
-            assertTrue(dup.contains("이미 미리 생성 중"), dup);
+            assertTrue(dup.contains("already running"), dup);
             String status = run(core, "furnace pregen status", 4);
-            assertTrue(status.contains("[미리 생성]") && status.contains("/250000 청크"), status);
+            assertTrue(status.contains("[Pregen]") && status.contains("/250000 chunks"), status);
             String stop = run(core, "furnace pregen stop", 4);
-            assertTrue(stop.contains("멈췄다"), stop);
+            assertTrue(stop.contains("stopped"), stop);
             String again = run(core, "furnace pregen stop", 4);
-            assertTrue(again.contains("돌고 있는 미리 생성이 없다"), again);
+            assertTrue(again.contains("No pregeneration is running"), again);
         } finally {
             core.pregen().shutdown();
             sched.close();

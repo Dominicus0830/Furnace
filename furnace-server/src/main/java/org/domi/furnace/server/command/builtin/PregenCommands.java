@@ -13,6 +13,7 @@ import org.domi.furnace.server.command.CommandSource;
 import org.domi.furnace.server.command.arguments.ColumnPosArgument;
 import org.domi.furnace.server.command.brigadier.Arguments;
 import org.domi.furnace.server.command.brigadier.CommandDispatcher;
+import org.domi.furnace.server.i18n.Lang;
 import org.domi.furnace.server.world.Pregen;
 import org.domi.furnace.server.world.World;
 
@@ -51,25 +52,24 @@ public final class PregenCommands {
         World w = s.level();
         double cx = center != null ? center.x() : w.border().getCenterX();   // 블록 경계 — 반경 160 이면 −160..159(20×20 청크)
         double cz = center != null ? center.z() : w.border().getCenterZ();
-        String label = "반경 " + radius + " (가운데 " + (int) Math.floor(cx) + ", " + (int) Math.floor(cz) + ")";
-        return start(s, w, Pregen.Area.ofRadius(cx, cz, radius, label));
+        return start(s, w, Pregen.Area.ofRadius(cx, cz, radius, Pregen.Label.radius(radius, (int) Math.floor(cx), (int) Math.floor(cz))));
     }
 
     private static int startBorder(CommandSource s) {
         World w = s.level();
         var b = w.border();
         if (b.getSize() >= UNBOUNDED_BORDER) {
-            s.sendFailure(Text.text("월드 경계가 기본값(사실상 없음)이다 — '/worldborder set <크기>' 로 경계를 정하거나 반경을 준다"));
+            s.sendFailure(Text.text(Lang.t("cmd.pregen.border-unbounded")));
             return 0;
         }
         double half = b.getSize() / 2.0;
-        String label = "월드 경계 (가운데 " + (int) Math.floor(b.getCenterX()) + ", " + (int) Math.floor(b.getCenterZ()) + ", 크기 " + (long) b.getSize() + ")";
+        Pregen.Label label = Pregen.Label.border((long) b.getSize(), (int) Math.floor(b.getCenterX()), (int) Math.floor(b.getCenterZ()));
         return start(s, w, Pregen.Area.ofRadius(b.getCenterX(), b.getCenterZ(), half, label));
     }
 
     private static int start(CommandSource s, World w, Pregen.Area area) {
         if (s.getServer().pregen().job(w) == null && Pregen.loadSaved(w) != null) {   // 멈춰 둔 진행을 모르고 덮지 않게
-            s.sendFailure(Text.text(w.dimension() + " 에 멈춰 둔 미리 생성이 있다 — '/furnace pregen resume' 으로 이어 하거나 '/furnace pregen cancel' 뒤 다시 시작한다"));
+            s.sendFailure(Text.text(Lang.t("cmd.pregen.paused-exists", w.dimension())));
             return 0;
         }
         var r = s.getServer().pregen().start(w, area, out(s));
@@ -77,18 +77,17 @@ public final class PregenCommands {
             s.sendFailure(Text.text(r.refused()));
             return 0;
         }
-        s.sendSuccess(() -> Text.text("미리 생성을 시작했다: " + w.dimension() + " " + area.label() + ", " + area.total() + " 청크"
-                ), true);
+        s.sendSuccess(() -> Text.text(Lang.t("cmd.pregen.started", w.dimension(), area.label().text(), area.total())), true);
         return (int) Math.min(Integer.MAX_VALUE, area.total());
     }
 
     private static int stop(CommandSource s) {
         World w = s.level();
         if (!s.getServer().pregen().stop(w)) {
-            s.sendFailure(Text.text(w.dimension() + " 에서 돌고 있는 미리 생성이 없다"));
+            s.sendFailure(Text.text(Lang.t("cmd.pregen.not-running", w.dimension())));
             return 0;
         }
-        s.sendSuccess(() -> Text.text("미리 생성을 멈췄다(" + w.dimension() + ") — '/furnace pregen resume' 으로 이어 한다"), true);
+        s.sendSuccess(() -> Text.text(Lang.t("cmd.pregen.stopped", w.dimension())), true);
         return 1;
     }
 
@@ -100,17 +99,17 @@ public final class PregenCommands {
             return 0;
         }
         var p = r.job().progress();
-        s.sendSuccess(() -> Text.text("미리 생성을 이어 한다: " + w.dimension() + " " + p.area().label() + ", " + p.processed() + "/" + p.total() + " 청크부터"), true);
+        s.sendSuccess(() -> Text.text(Lang.t("cmd.pregen.resumed", w.dimension(), p.area().label().text(), p.processed(), p.total())), true);
         return 1;
     }
 
     private static int cancel(CommandSource s) {
         World w = s.level();
         if (!s.getServer().pregen().cancel(w)) {
-            s.sendFailure(Text.text(w.dimension() + " 에 멈추거나 지울 미리 생성이 없다"));
+            s.sendFailure(Text.text(Lang.t("cmd.pregen.nothing-to-cancel", w.dimension())));
             return 0;
         }
-        s.sendSuccess(() -> Text.text("미리 생성을 취소하고 진행 위치를 지웠다(" + w.dimension() + ") — 이미 만든 청크는 그대로 둔다"), true);
+        s.sendSuccess(() -> Text.text(Lang.t("cmd.pregen.cancelled", w.dimension())), true);
         return 1;
     }
 
@@ -124,12 +123,12 @@ public final class PregenCommands {
         }
         Pregen.Saved saved = Pregen.loadSaved(w);
         if (saved != null) {
-            String line = String.format(java.util.Locale.ROOT, "[미리 생성] %s %s: 멈춤, %d/%d 청크 (%.2f%%) — '/furnace pregen resume' 으로 이어 한다",
-                    w.dimension(), saved.area().label(), saved.next(), saved.area().total(), saved.next() * 100.0 / saved.area().total());
+            String line = Lang.t("cmd.pregen.status-paused", w.dimension(), saved.area().label().text(), saved.next(), saved.area().total(),
+                    String.format(java.util.Locale.ROOT, "%.2f", saved.next() * 100.0 / saved.area().total()));
             s.sendSuccess(() -> Text.text(line), false);
             return 1;
         }
-        s.sendSuccess(() -> Text.text(w.dimension() + ": 미리 생성 없음. '/furnace pregen start <반경 블록> [가운데 x z]' 또는 '/furnace pregen start border'"), false);
+        s.sendSuccess(() -> Text.text(Lang.t("cmd.pregen.status-none", w.dimension())), false);
         return 0;
     }
 }

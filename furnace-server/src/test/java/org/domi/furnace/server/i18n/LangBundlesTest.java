@@ -128,6 +128,43 @@ class LangBundlesTest {
         assertTrue(bad.isEmpty(), "Korean text hard-coded in a settings validation exception - use Lang.t(): " + bad);
     }
 
+    /**
+     * 명령 결과 문장(Text.text·sendSuccess·문자열 반환 등)에 한글을 직접 적지 않는다 — command 패키지의 한글 문자열 가운데 예외 메시지·assert·DEBUG 가 아닌 것.
+     * 아직 안 옮긴 파일은 lang-migration-pending-commands.txt 에 있고, 옮기면 지운다.
+     */
+    @Test
+    void noHangulUserTextInCommandOutput() throws IOException {
+        Set<String> pending = new TreeSet<>(Files.readAllLines(Path.of("src/test/resources/lang-migration-pending-commands.txt"), StandardCharsets.UTF_8)
+                .stream().map(String::strip).filter(l -> !l.isEmpty() && !l.startsWith("#")).toList());
+        Set<String> found = new TreeSet<>();
+        try (Stream<Path> files = Files.walk(Path.of("src/main/java/org/domi/furnace/server/command"))) {
+            for (Path f : (Iterable<Path>) files.filter(p -> p.toString().endsWith(".java"))::iterator) {
+                if (hasHangulUserText(Files.readString(f, StandardCharsets.UTF_8))) found.add(f.getFileName().toString());
+            }
+        }
+        Set<String> added = new TreeSet<>(found);
+        added.removeAll(pending);
+        Set<String> stale = new TreeSet<>(pending);
+        stale.removeAll(found);
+        assertTrue(added.isEmpty(), "Korean text hard-coded in command output - put it in furnace-lang/{en,ko}.properties (cmd.* keys) and use Lang.t(): " + added);
+        assertTrue(stale.isEmpty(), "Already migrated - remove from src/test/resources/lang-migration-pending-commands.txt: " + stale);
+    }
+
+    private static final Pattern STRING_LITERAL = Pattern.compile("\"((?:[^\"\\\\\n]|\\\\.)*)\"");
+    private static final Pattern NOT_USER_TEXT = Pattern.compile("new \\w*(?:Exception|Error)\\w*\\(|\\bassert\\b|\\.(?:debug|trace)\\(");
+
+    /** 줄 단위로: 주석이 아니고, 예외 메시지·assert·DEBUG 가 아닌 줄에 한글이 든 문자열 리터럴이 있는가. */
+    static boolean hasHangulUserText(String source) {
+        for (String line : source.split("\n")) {
+            String st = line.strip();
+            if (st.startsWith("//") || st.startsWith("*") || st.startsWith("/*")) continue;
+            if (NOT_USER_TEXT.matcher(line).find()) continue;
+            Matcher m = STRING_LITERAL.matcher(line);
+            while (m.find()) if (HANGUL.matcher(m.group(1)).find()) return true;
+        }
+        return false;
+    }
+
     /** log.info/warn/error( ... ) 호출 안(괄호가 닫힐 때까지)에 한글이 든 문자열이 있는가. */
     static boolean hasHangulLog(String source) {
         return hasHangulCall(LOG_CALL, source);
