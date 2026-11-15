@@ -136,7 +136,7 @@ class PartialMergeTest(unittest.TestCase):
         self.assertEqual("unreliable", m.tests["a/ThirdTest"][0])
         self.assertIn(foo, m.index)                                          # 실행되지 않은 소스도 "아는 소스"로 남는다
         out = os.path.join(d, "map.tsv")
-        subprocess.run(["python3", "-I", os.path.join(HERE, "test-impact.py"), "merge", part, part, "--commit", "c", "--out", out, "--min-ok-ratio", "0.2"], check=True, capture_output=True)
+        subprocess.run(["python3", "-I", os.path.join(HERE, "test-impact.py"), "merge", part, part, "--commit", "c", "--out", out], check=True, capture_output=True)
         merged = ti.ImpactMap.read(out)
         self.assertEqual("unreliable", merged.tests["a/FooTest"][0])           # 같은 시험이 두 조각에 있으면 믿지 않는다
         bad = subprocess.run(["python3", "-I", os.path.join(HERE, "test-impact.py"), "merge", part, "--commit", "c", "--out", out + "2", "--min-ok-ratio", "0.9"],
