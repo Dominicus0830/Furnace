@@ -541,19 +541,35 @@ public final class Region {
 
     /** 시간 티켓(World.addTicket)의 로드: 티켓이 살아 있는 동안은 취소되지 않고, 끝난 뒤 시야 밖이면 시작 전에 취소될 수 있다. */
     CompletableFuture<ChunkColumn> loadChunkForTicket(ChunkPos cp, java.util.function.BooleanSupplier ticketAlive) {
-        return loadChunk(cp, true, ticketAlive, -1);
+        return loadChunk(cp, true, ticketAlive, -1, false);
+    }
+
+    /**
+     * 미리 생성(T-175): 생성 대기열 맨 뒤에 건다. 진행 중 로드가 있으면 그것을 기다릴 뿐 고정하지 않는다. 다른 요청자가 이 요청에 붙으면
+     * 맨 뒤에서 내려온다(GenQueue.Ticket.promote). 올린 청크에는 티켓이 없어 구독자가 없으면 유예 뒤 저장하고 내린다(evictIdleChunks).
+     */
+    CompletableFuture<ChunkColumn> loadChunkBackground(ChunkPos cp) {
+        return loadChunk(cp, true, null, -1, true);
     }
 
     private CompletableFuture<ChunkColumn> loadChunk(ChunkPos cp, boolean prefetch, java.util.function.BooleanSupplier keepAlive, int owner) {
+        return loadChunk(cp, prefetch, keepAlive, owner, false);
+    }
+
+    private CompletableFuture<ChunkColumn> loadChunk(ChunkPos cp, boolean prefetch, java.util.function.BooleanSupplier keepAlive, int owner,
+                                                     boolean background) {
         world.assertOwns(this);
         ChunkColumn present0 = world.loadedChunk(cp.x(), cp.z());
         if (present0 != null) return CompletableFuture.completedFuture(present0);
         long key = Regionizer.chunkKey(cp.x(), cp.z());
         CompletableFuture<ChunkColumn> inflight = world.loadingChunk(key);
         if (inflight != null) {
-            if (!prefetch || keepAlive != null) {   // 미리 불러오기 말고는 진행 중 요청을 고정한다(티켓 로드도 — 드묾)
+            if (!background) {
+                boolean pinning = !prefetch || keepAlive != null;   // 미리 불러오기 말고는 진행 중 요청을 고정한다(티켓 로드도 — 드묾)
                 GenQueue.Ticket t = world.genTicket(key);
-                if (t != null && !t.pin()) {
+                // 미리 생성이 걸어 둔 요청이면 누가 붙든 맨 뒤에서 꺼낸다(플레이어가 미리 생성 차례를 기다리지 않게, T-175)
+                boolean ok = t == null || (t.isBackground() ? t.promote() : !pinning || t.pin());
+                if (!ok && pinning) {
                     return inflight.handle((c, e) -> null)
                             .thenCompose(v -> world.submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(x -> x));
                 }
@@ -561,7 +577,7 @@ public final class Region {
             return inflight;
         }
         claim(cp);
-        final GenQueue.Ticket ticket = new GenQueue.Ticket(prefetch, keepAlive, owner);
+        final GenQueue.Ticket ticket = background ? GenQueue.Ticket.forBackground() : new GenQueue.Ticket(prefetch, keepAlive, owner);
         world.putGenTicket(key, ticket);
         java.util.concurrent.Executor genExec = world.genExecutor(cp.x(), cp.z(), ticket);
         CompletableFuture<ChunkColumn> sourceFuture =

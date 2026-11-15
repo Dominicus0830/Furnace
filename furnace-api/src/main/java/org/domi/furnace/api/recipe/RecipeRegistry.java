@@ -39,4 +39,15 @@ public interface RecipeRegistry {
 
     /** 키가 플러그인 레시피인가(데이터 팩 레시피는 false). */
     boolean isPluginRecipe(String key);
+
+    /**
+     * 그 종류의 화로(화로·용광로·훈연기, 모닥불은 CAMPFIRE)가 이 아이템을 구울 레시피가 있는가 — 서버 화로가 쓰는 조회와 같다
+     * (바닐라 RecipeManager.getRecipeFor). 빈 아이템이나 레시피 데이터 없이 뜬 서버면 거짓.
+     */
+    default boolean canCook(Recipe.CookingKind kind, org.domi.furnace.api.item.ItemStack input) { return cookingTime(kind, input).isPresent(); }
+
+    /** {@link #canCook} 와 같은 조회로 찾은 레시피의 굽는 시간(틱). 없으면 empty. */
+    default java.util.OptionalInt cookingTime(Recipe.CookingKind kind, org.domi.furnace.api.item.ItemStack input) {
+        throw new UnsupportedOperationException("cookingTime");
+    }
 }

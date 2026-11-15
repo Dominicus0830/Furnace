@@ -49,6 +49,9 @@ public interface GameRegistries {
      */
     default String blockEntityType(String block) { throw new UnsupportedOperationException("blockEntityType"); }
 
+    /** 그 아이템("minecraft:coal")을 화로 연료로 넣었을 때 타는 틱(연료가 아니면 0). 바닐라 AbstractFurnaceBlockEntity 연료 표와 같다. */
+    default int fuelBurnTime(String item) { throw new UnsupportedOperationException("fuelBurnTime"); }
+
     /** 항목을 낸 곳: "vanilla", 데이터 팩 id(예: "file/mypack"), "plugin:<이름>". 없거나 내장 목록이면 empty. */
     java.util.Optional<String> source(String registry, String key);
 
