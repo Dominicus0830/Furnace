@@ -132,6 +132,14 @@ public final class ServerLibraries {
                     new Artifact("org.apache.logging.log4j:log4j-api:2.22.1", "5d7beae7ff15d8516d6517121d7f12a79a6ac180df64b5fcec55d5be21056e53", C),
                     new Artifact("org.apache.logging.log4j:log4j-to-slf4j:2.22.1", "85a84842958e58dd8a89a3acf901a64b774704ce1511ece9f8eef70724884f92", C)),
                     List.of("org/apache/logging/log4j/"), List.of()),
+            // Paper 1.21.1 이 서버 jar 에 싣는 JDBC 드라이버 둘(META-INF/libraries.list 의 sha256 그대로, N2b-6). 플러그인이 Class.forName("org.sqlite.JDBC") 처럼
+            // 이름으로만 찾아도(FAWE 기록 DB) 점 표기 표지로 잡힌다.
+            new Group("sqlite-jdbc", "SQLite JDBC 드라이버(Paper 가 싣는 것)", List.of(
+                    new Artifact("org.xerial:sqlite-jdbc:3.46.0.0", "e697df15be3f95219d80773c5f1002030e33e932adda186c1c86fd51df6691a9", C)),
+                    List.of("org/sqlite/"), List.of()),
+            new Group("mysql-connector-j", "MySQL JDBC 드라이버(Paper 가 싣는 것)", List.of(
+                    new Artifact("com.mysql:mysql-connector-j:8.4.0", "d77962877d010777cff997015da90ee689f0f4bb76848340e1488f2b83332af5", C)),
+                    List.of("com/mysql/cj/", "com/mysql/jdbc/"), List.of()),
             new Group("brigadier", "Mojang Brigadier", List.of(
                     new Artifact("com.mojang:brigadier:1.3.10", "c8ee4136e474ac7723ca2b432ec8d1a2bc88ef7d1ec57c314ba9e33cdc83dd75", M)),
                     List.of("com/mojang/brigadier/"), List.of()),
