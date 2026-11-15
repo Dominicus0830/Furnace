@@ -130,6 +130,27 @@ public final class PlayerRoster {
         p.rosterLevel(null);
         Player[] cur = l.snap.players, next = without(cur, p);
         if (next != cur) l.publish(next);
+        Player[] rem = l.removed, remNext = without(rem, p);
+        if (remNext != rem) l.removed = remNext;
+    }
+
+    /**
+     * 엔티티 제거로 차원 목록에서 뺀다(바닐라 {@code Entity.remove(KILLED)} → {@code onTrackingEnd}: 죽고 20틱 뒤·엔드 크레딧을 띄울 때).
+     * 서버 전체 접속자 목록({@code PlayerList.players})과 접속은 그대로고, 이 차원의 "레벨 목록"(잠 비율·사라짐·스폰 판정·근접 조회·
+     * {@code getPlayers})에서만 빠진다. 소리·이벤트 방송({@code PlayerList.broadcast})은 여전히 받는다 — {@link Level#forEachConnected}.
+     * 리스폰·차원 이동·퇴장이 다시 올리거나 치운다. 이 차원 목록에 있었으면 참(처음 뺄 때만), 이미 뺐거나 목록에 없으면 거짓.
+     */
+    public boolean removeFromLevel(Player p) {
+        synchronized (map) {
+            if (map.get(p.entityId()) != p) return false;
+            Level l = p.rosterLevel();
+            if (l == null) return false;
+            Player[] cur = l.snap.players, next = without(cur, p);
+            if (next == cur) return false;
+            l.publish(next);
+            l.removed = append(l.removed, p);
+            return true;
+        }
     }
 
     /** 한 차원의 플레이어 목록(도착 순) + 청크 격자 색인. */
@@ -137,6 +158,8 @@ public final class PlayerRoster {
         final PlayerRoster roster;
         final String key;
         volatile Snapshot snap = Snapshot.EMPTY;
+        /** 이 차원에 접속해 있지만 엔티티가 제거된 플레이어(죽고 20틱 뒤·엔드 크레딧 중). 레벨 목록({@link #snap})에는 없고 방송에만 든다. */
+        volatile Player[] removed = new Player[0];
 
         Level(PlayerRoster roster, String key) {
             this.roster = roster;
@@ -150,6 +173,15 @@ public final class PlayerRoster {
         /** 목록 순서대로 모두. */
         public void forEach(Consumer<Player> c) {
             for (Player p : snap.players) c.accept(p);
+        }
+
+        /**
+         * 이 차원에 접속한 플레이어 모두 — 엔티티가 제거된 플레이어(죽음 화면·엔드 크레딧)도 포함(바닐라 {@code PlayerList.broadcast} 가 보는 서버 전체
+         * 목록에서 차원이 같은 것). 소리·레벨 이벤트·블록 이벤트 방송용. 순서는 레벨 목록 다음에 제거된 순.
+         */
+        public void forEachConnected(Consumer<Player> c) {
+            for (Player p : snap.players) c.accept(p);
+            for (Player p : removed) c.accept(p);
         }
 
         public boolean isEmpty() { return snap.players.length == 0; }

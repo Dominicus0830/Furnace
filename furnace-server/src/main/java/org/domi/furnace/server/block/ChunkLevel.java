@@ -480,7 +480,7 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public void destroyBlockProgress(int breakerId, Pos pos, int progress) {
         var pkt = new org.domi.furnace.server.net.protocol.play.BlockDestruction(breakerId, pos.x(), pos.y(), pos.z(), progress);
-        services().forEachPlayer(p -> {
+        services().forEachConnectedPlayer(p -> {
             if (p.entityId() == breakerId) return;
             double dx = pos.x() - p.x(), dy = pos.y() - p.y(), dz = pos.z() - p.z();
             if (dx * dx + dy * dy + dz * dz < 1024.0) p.send(pkt);
@@ -1086,7 +1086,7 @@ public abstract class ChunkLevel implements BlockLevel {
         double range = volume > 1.0F ? 16.0 * volume : 16.0;
         SoundPacket pkt = new SoundPacket(id == null ? -1 : id, sound, SoundPacket.source(source), x, y, z, volume, pitch, seed);
         Object skip = except == null ? null : except.handle();
-        services().forEachPlayer(p -> {
+        services().forEachConnectedPlayer(p -> {
             if (p == skip) return;
             double dx = x - p.x(), dy = y - p.y(), dz = z - p.z();
             if (dx * dx + dy * dy + dz * dz < range * range) p.send(pkt);
@@ -1122,7 +1122,7 @@ public abstract class ChunkLevel implements BlockLevel {
         org.domi.furnace.server.net.protocol.play.SoundEntity pkt = new org.domi.furnace.server.net.protocol.play.SoundEntity(
                 id == null ? -1 : id, sound, SoundPacket.source(source), entityId, volume, pitch, seed);
         Object skip = except == null ? null : except.handle();
-        services().forEachPlayer(p -> {
+        services().forEachConnectedPlayer(p -> {
             if (p == skip) return;
             double dx = x - p.x(), dy = y - p.y(), dz = z - p.z();
             if (dx * dx + dy * dy + dz * dz < range * range) p.send(pkt);
@@ -1133,7 +1133,7 @@ public abstract class ChunkLevel implements BlockLevel {
     public void levelEvent(BlockActor except, int type, Pos pos, int data) {
         LevelEventPacket pkt = new LevelEventPacket(type, pos.x(), pos.y(), pos.z(), data, false);
         Object skip = except == null ? null : except.handle();
-        services().forEachPlayer(p -> {
+        services().forEachConnectedPlayer(p -> {
             if (p == skip) return;
             double dx = pos.x() - p.x(), dy = pos.y() - p.y(), dz = pos.z() - p.z();
             if (dx * dx + dy * dy + dz * dz < 64.0 * 64.0) p.send(pkt);
@@ -1147,7 +1147,7 @@ public abstract class ChunkLevel implements BlockLevel {
             return;
         }
         LevelEventPacket pkt = new LevelEventPacket(type, pos.x(), pos.y(), pos.z(), data, true);
-        services().forEachPlayer(p -> p.send(pkt));
+        services().forEachConnectedPlayer(p -> p.send(pkt));
     }
 
     @Override
@@ -1181,7 +1181,7 @@ public abstract class ChunkLevel implements BlockLevel {
             if (blocks.blockOf(s) != e.block()) continue;
             if (BlockBehaviors.of(s).triggerEvent(s, this, pos, e.type(), e.data())) {
                 BlockEventPacket pkt = new BlockEventPacket(e.x(), e.y(), e.z(), e.type(), e.data(), e.block());
-                services().forEachPlayer(p -> {
+                services().forEachConnectedPlayer(p -> {
                     double dx = e.x() - p.x(), dy = e.y() - p.y(), dz = e.z() - p.z();
                     if (dx * dx + dy * dy + dz * dz < 64.0 * 64.0) p.send(pkt);
                 });
@@ -2635,7 +2635,7 @@ public abstract class ChunkLevel implements BlockLevel {
     /** 추적 대상 플레이어(이 레벨을 돌리는 region 의 플레이어). 기본은 서비스의 접속자. */
     protected Iterable<Player> trackingPlayers() {
         java.util.List<Player> out = new java.util.ArrayList<>();
-        services().forEachPlayer(out::add);
+        services().forEachConnectedPlayer(out::add);
         return out;
     }
 

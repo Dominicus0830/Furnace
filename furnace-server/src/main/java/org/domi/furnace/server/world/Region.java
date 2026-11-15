@@ -2584,7 +2584,10 @@ public final class Region {
         p.onClimbable = s.climbable() != null;
         if (level != null && s.chunkLoaded()) level.raids().tickOmens(p);   // 나쁜 징조·습격 징조(효과 틱 직전)
         if (s.chunkLoaded()) org.domi.furnace.server.entity.PlayerFire.tick(p, level, s.inWater());   // Entity.baseTick 의 불: 물에서 꺼짐·20틱마다 1 피해·용암
+        boolean removedBefore = p.vitals().removedAfterDeath();
         p.vitals().tick(s);
+        // LivingEntity.tickDeath: 죽고 20틱 뒤 remove(KILLED) → 차원 레벨 목록에서 빠진다(잠 비율·사라짐·스폰 판정에서 제외)
+        if (!removedBefore && p.vitals().removedAfterDeath()) world.playerRemovedFromLevel(p);
         p.wardenSpawnTracker().tick();   // ServerPlayer.tick
         if (p.stats() != null) {   // 바닐라 Player.tick 의 시간 통계(time_since_rest 는 깨어 있을 때만)
             p.awardStat("minecraft:play_time", 1);
@@ -2734,6 +2737,7 @@ public final class Region {
      */
     private void showEndCredits(Player p) {
         detachForDimensionChange(p);
+        world.playerRemovedFromLevel(p);   // removePlayerImmediately: 차원 레벨 목록에서 즉시(20틱 기다리지 않는다)
         if (!p.wonGame) {
             p.wonGame = true;
             p.send(new org.domi.furnace.server.net.protocol.play.GameEvent(org.domi.furnace.server.net.protocol.play.GameEvent.WIN_GAME, 0.0F));
