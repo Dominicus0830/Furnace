@@ -49,8 +49,8 @@ public record ClientboundPlayerInfoUpdatePacket(Set<Action> actions, List<Entry>
             Objects.requireNonNull(expiresAt, "expiresAt");
             publicKey = Objects.requireNonNull(publicKey, "publicKey").clone();
             keySignature = Objects.requireNonNull(keySignature, "keySignature").clone();
-            if (publicKey.length > 512) throw new IllegalArgumentException("공개 키는 512바이트까지: " + publicKey.length);
-            if (keySignature.length > 4096) throw new IllegalArgumentException("키 서명은 4096바이트까지: " + keySignature.length);
+            if (publicKey.length > 512) throw new IllegalArgumentException("the public key can be at most 512 bytes: " + publicKey.length);
+            if (keySignature.length > 4096) throw new IllegalArgumentException("the key signature can be at most 4096 bytes: " + keySignature.length);
         }
 
         @Override
@@ -78,7 +78,7 @@ public record ClientboundPlayerInfoUpdatePacket(Set<Action> actions, List<Entry>
         actions = actions.isEmpty() ? Set.of() : Set.copyOf(EnumSet.copyOf(actions));
         entries = List.copyOf(entries);
         if (name(actions, Action.ADD_PLAYER)) for (Entry e : entries) {
-            if (e.name() == null || e.name().length() > 16) throw new IllegalArgumentException("프로필 이름은 1~16자: " + e.name());
+            if (e.name() == null || e.name().length() > 16) throw new IllegalArgumentException("the profile name must be 1~16 characters: " + e.name());
         }
     }
 

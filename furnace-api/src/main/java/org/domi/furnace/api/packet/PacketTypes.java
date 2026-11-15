@@ -255,7 +255,7 @@ public final class PacketTypes {
     private static <P extends Packet> PacketType<P> register(PacketDirection d, String name, Class<P> c) {
         PacketType<P> t = new PacketType<>(d, "minecraft:" + name, c);
         Map<String, PacketType<?>> m = d == PacketDirection.CLIENTBOUND ? CLIENTBOUND_BY_NAME : SERVERBOUND_BY_NAME;
-        if (m.putIfAbsent(t.name(), t) != null) throw new IllegalStateException("중복 패킷 이름: " + t);
+        if (m.putIfAbsent(t.name(), t) != null) throw new IllegalStateException("duplicate packet name: " + t);
         return t;
     }
 

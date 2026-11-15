@@ -16,10 +16,10 @@ public record AttributeModifier(String id, double amount, Operation operation) {
     public AttributeModifier {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(operation, "operation");
-        if (id.isEmpty()) throw new IllegalArgumentException("수정자 id 가 비었다");
+        if (id.isEmpty()) throw new IllegalArgumentException("the modifier id is empty");
         if (id.indexOf(':') < 0) id = "minecraft:" + id;
         int c = id.indexOf(':');
-        if (!validNamespace(id, c) || !validPath(id, c + 1)) throw new IllegalArgumentException("수정자 id 는 소문자 키여야 한다: " + id);
+        if (!validNamespace(id, c) || !validPath(id, c + 1)) throw new IllegalArgumentException("the modifier id must be a lowercase key: " + id);
     }
 
     private static boolean validNamespace(String s, int end) {

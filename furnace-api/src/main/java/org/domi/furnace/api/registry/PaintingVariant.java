@@ -5,7 +5,7 @@ package org.domi.furnace.api.registry;
 public record PaintingVariant(int width, int height, String assetId) {
 
     public PaintingVariant {
-        if (width < 1 || width > 16 || height < 1 || height > 16) throw new IllegalArgumentException("크기는 1~16: " + width + "x" + height);
+        if (width < 1 || width > 16 || height < 1 || height > 16) throw new IllegalArgumentException("the size must be 1~16: " + width + "x" + height);
         java.util.Objects.requireNonNull(assetId, "assetId");
     }
 }

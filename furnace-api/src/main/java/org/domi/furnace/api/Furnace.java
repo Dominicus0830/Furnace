@@ -19,7 +19,7 @@ public interface Furnace {
     /** 실행 중인 서버. 서버가 시작될 때 한 번 정해진다. */
     static Furnace server() {
         Furnace s = Holder.server;
-        if (s == null) throw new IllegalStateException("서버가 아직 준비되지 않았다");
+        if (s == null) throw new IllegalStateException("the server is not ready yet");
         return s;
     }
 
@@ -29,7 +29,7 @@ public interface Furnace {
     /** 서버 구현 전용 — 한 번만 정할 수 있다. */
     static void setServer(Furnace server) {
         synchronized (Holder.class) {
-            if (Holder.server != null && Holder.server != server) throw new IllegalStateException("서버는 한 번만 정할 수 있다");
+            if (Holder.server != null && Holder.server != server) throw new IllegalStateException("the server can only be set once");
             Holder.server = server;
         }
     }
@@ -220,7 +220,7 @@ public interface Furnace {
      * ({@link org.domi.furnace.api.internal.Internals} 문서, docs/api/internals.md).
      */
     default org.domi.furnace.api.internal.Internals internals() {
-        throw new UnsupportedOperationException("이 서버 구현은 내부 접근을 제공하지 않는다");
+        throw new UnsupportedOperationException("this server implementation does not provide internals access");
     }
 
     /** 서버를 정상 종료한다(/stop 과 같다). */

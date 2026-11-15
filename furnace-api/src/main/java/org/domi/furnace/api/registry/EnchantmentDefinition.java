@@ -28,13 +28,13 @@ public record EnchantmentDefinition(Text description, List<String> supportedItem
         supportedItems = HolderSets.check("supportedItems", supportedItems, false);
         primaryItems = primaryItems == null ? null : HolderSets.check("primaryItems", primaryItems, false);
         exclusiveSet = exclusiveSet == null ? List.of() : HolderSets.check("exclusiveSet", exclusiveSet, true);
-        if (weight < 1 || weight > 1024) throw new IllegalArgumentException("weight 는 1~1024: " + weight);
-        if (maxLevel < 1 || maxLevel > 255) throw new IllegalArgumentException("maxLevel 은 1~255: " + maxLevel);
+        if (weight < 1 || weight > 1024) throw new IllegalArgumentException("weight must be 1~1024: " + weight);
+        if (maxLevel < 1 || maxLevel > 255) throw new IllegalArgumentException("maxLevel must be 1~255: " + maxLevel);
         java.util.Objects.requireNonNull(minCost, "minCost");
         java.util.Objects.requireNonNull(maxCost, "maxCost");
-        if (anvilCost < 0) throw new IllegalArgumentException("anvilCost 는 0 이상: " + anvilCost);
+        if (anvilCost < 0) throw new IllegalArgumentException("anvilCost must be at least 0: " + anvilCost);
         slots = List.copyOf(slots);
-        for (String s : slots) if (!SLOTS.contains(s)) throw new IllegalArgumentException("모르는 장비 칸 묶음: " + s);
+        for (String s : slots) if (!SLOTS.contains(s)) throw new IllegalArgumentException("unknown equipment slot group: " + s);
     }
 
     public static Builder builder(Text description) { return new Builder(description); }

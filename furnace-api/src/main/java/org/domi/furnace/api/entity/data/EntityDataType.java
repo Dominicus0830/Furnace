@@ -103,8 +103,8 @@ public final class EntityDataType<T> {
      */
     @SuppressWarnings("unchecked")
     public T check(Object value) {
-        Objects.requireNonNull(value, () -> name + " 값이 null 이다(없음은 Optional.empty() 로)");
-        if (!accepts.test(value)) throw new IllegalArgumentException(name + " 종류에 맞지 않는 값: " + value);
+        Objects.requireNonNull(value, () -> name + " value is null (use Optional.empty() for none)");
+        if (!accepts.test(value)) throw new IllegalArgumentException("value does not fit the " + name + " kind: " + value);
         if (this == OPTIONAL_BLOCK_STATE && value instanceof Optional<?> o && o.isPresent() && o.get() instanceof BlockData b
                 && b.type().equals("minecraft:air")) return (T) Optional.empty();
         return (T) value;

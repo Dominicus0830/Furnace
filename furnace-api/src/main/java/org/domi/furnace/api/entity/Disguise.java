@@ -36,13 +36,13 @@ public final class Disguise {
     public static Disguise as(String entityType) {
         Objects.requireNonNull(entityType, "entityType");
         String t = entityType.indexOf(':') < 0 ? "minecraft:" + entityType : entityType;
-        if (t.equals("minecraft:player")) throw new IllegalArgumentException("플레이어 모습은 Disguise.player 로 만든다");
+        if (t.equals("minecraft:player")) throw new IllegalArgumentException("create a player disguise with Disguise.player");
         return new Disguise(t, null, List.of(), true, 0, Map.of());
     }
 
     /** 플레이어 모습(프로필 이름 1~16자, 스킨 "textures" 속성 — 비면 기본 스킨). 탭 목록에는 올리지 않는다. */
     public static Disguise player(String profileName, List<ProfileProperty> skin) {
-        if (profileName == null || profileName.isEmpty() || profileName.length() > 16) throw new IllegalArgumentException("프로필 이름은 1~16자: " + profileName);
+        if (profileName == null || profileName.isEmpty() || profileName.length() > 16) throw new IllegalArgumentException("the profile name must be 1~16 characters: " + profileName);
         return new Disguise("minecraft:player", profileName, skin == null ? List.of() : List.copyOf(skin), true, 0, Map.of());
     }
 
@@ -68,15 +68,15 @@ public final class Disguise {
     public Map<Integer, Value> metadata() { return metadata; }
 
     private void requireReal() {
-        if (isNone()) throw new IllegalStateException("none() 은 고칠 수 없다");
+        if (isNone()) throw new IllegalStateException("none() cannot be modified");
     }
 
     /** 이 칸은 진짜 엔티티 값 대신 늘 이 값을 보낸다. */
     public Disguise withMetadata(int index, Value value) {
         requireReal();
-        if (index < 0 || index > 254) throw new IllegalArgumentException("칸 번호 범위 밖: " + index);
+        if (index < 0 || index > 254) throw new IllegalArgumentException("slot index out of range: " + index);
         Objects.requireNonNull(value, "value");
-        if (value instanceof Unsupported) throw new IllegalArgumentException("읽지 못한 값 종류는 정할 수 없다");
+        if (value instanceof Unsupported) throw new IllegalArgumentException("a value kind that could not be read cannot be set");
         Map<Integer, Value> m = new LinkedHashMap<>(metadata);
         m.put(index, value);
         return new Disguise(entityType, profileName, skin, nameTagVisible, spawnData, java.util.Collections.unmodifiableMap(m));
@@ -96,7 +96,7 @@ public final class Disguise {
     /** 플레이어 모습의 이름표(기본 보임). 숨기면 보는 사람에게만 숨김 팀을 보낸다. */
     public Disguise withNameTagVisible(boolean visible) {
         requireReal();
-        if (profileName == null) throw new IllegalStateException("이름표 설정은 플레이어 모습에만 있다");
+        if (profileName == null) throw new IllegalStateException("a name tag can only be set on a player disguise");
         return new Disguise(entityType, profileName, skin, visible, spawnData, metadata);
     }
 

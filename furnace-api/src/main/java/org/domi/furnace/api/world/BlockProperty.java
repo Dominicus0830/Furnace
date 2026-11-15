@@ -19,14 +19,14 @@ public final class BlockProperty<T> {
         this.type = type;
         this.parser = parser;
         this.formatter = formatter;
-        if (name.isEmpty()) throw new IllegalArgumentException("속성 이름이 비었다");
+        if (name.isEmpty()) throw new IllegalArgumentException("the property name is empty");
     }
 
     public static BlockProperty<Boolean> bool(String name) {
         return new BlockProperty<>(name, Boolean.class, s -> {
             if (s.equals("true")) return true;
             if (s.equals("false")) return false;
-            throw new IllegalArgumentException("true/false 가 아니다: " + s);
+            throw new IllegalArgumentException("not true/false: " + s);
         }, b -> b ? "true" : "false");
     }
 
@@ -55,7 +55,7 @@ public final class BlockProperty<T> {
         try {
             return parser.apply(text);
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(name + " 속성 값이 잘못됐다: " + text, e);
+            throw new IllegalArgumentException("invalid value for property " + name + ": " + text, e);
         }
     }
 

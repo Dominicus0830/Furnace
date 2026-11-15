@@ -22,7 +22,8 @@ class LangBundlesTest {
     private static final Pattern HANGUL = Pattern.compile("[\\uAC00-\\uD7A3]");
     private static final Pattern LANG_KEY = Pattern.compile("(?<![A-Za-z])Lang\\.t\\(\\s*\"([^\"]+)\"");
     private static final List<Path> SOURCE_ROOTS = List.of(
-            Path.of("src/main/java"), Path.of("../furnace-compat-paper/src/main/java"), Path.of("../furnace-api/src/main/java"));
+            Path.of("src/main/java"), Path.of("../furnace-compat-paper/src/main/java"), Path.of("../furnace-api/src/main/java"),
+            Path.of("../furnace-test/src/main/java"), Path.of("../furnace-plugin-test/src/main/java"));
 
     @Test
     void everySupportedLanguageHasAFileWithTheSameKeysAndSlots() {
@@ -118,31 +119,39 @@ class LangBundlesTest {
 
     /**
      * 예외·requireNonNull 안까지 보는 두 번째 가드: 개발자가 스택 트레이스로 보는 진단 문구는 영어를 코드에 직접 적는다.
-     * 아직 한글이 남은 파일은 lang-exception-english-pending.txt 에 있고(작업 목록을 겸한다), 옮기면 지운다.
+     * 아직 한글이 남은 파일은 `파일 줄수` 로 lang-exception-english-pending.txt 에 있다(작업 목록 겸용). 줄 수가 늘면 실패하고(새 한글 진단 금지),
+     * 줄어들었는데 목록을 안 고쳐도 실패한다(옮긴 만큼 낮춘다, 0 이 되면 줄을 지운다).
      */
     @Test
-    void noHangulDeveloperDiagnosticsOutsideThePendingList() throws IOException {
-        Set<String> pending = new TreeSet<>(Files.readAllLines(Path.of("src/test/resources/lang-exception-english-pending.txt"), StandardCharsets.UTF_8)
-                .stream().map(String::strip).filter(l -> !l.isEmpty() && !l.startsWith("#")).toList());
-        Set<String> found = new TreeSet<>();
+    void noNewHangulDeveloperDiagnostics() throws IOException {
+        java.util.Map<String, Integer> cap = new java.util.TreeMap<>();
+        for (String l : Files.readAllLines(Path.of("src/test/resources/lang-exception-english-pending.txt"), StandardCharsets.UTF_8)) {
+            l = l.strip();
+            if (l.isEmpty() || l.startsWith("#")) continue;
+            int sp = l.lastIndexOf(' ');
+            cap.put(l.substring(0, sp).strip(), Integer.parseInt(l.substring(sp + 1)));
+        }
+        java.util.Map<String, Integer> found = new java.util.TreeMap<>();
         for (Path root : SOURCE_ROOTS) {
             if (!Files.isDirectory(root)) continue;
             String module = root.toAbsolutePath().normalize().getParent().getParent().getParent().getFileName().toString();
             try (Stream<Path> files = Files.walk(root)) {
                 for (Path f : (Iterable<Path>) files.filter(p -> p.toString().endsWith(".java"))::iterator) {
-                    if (!HangulTextScanner.developerTextLines(Files.readString(f, StandardCharsets.UTF_8)).isEmpty()) {
-                        found.add(module + "/" + root.relativize(f).toString().replace('\\', '/'));
-                    }
+                    int n = HangulTextScanner.developerTextLines(Files.readString(f, StandardCharsets.UTF_8)).size();
+                    if (n > 0) found.put(module + "/" + root.relativize(f).toString().replace('\\', '/'), n);
                 }
             }
         }
-        Set<String> added = new TreeSet<>(found);
-        added.removeAll(pending);
-        Set<String> stale = new TreeSet<>(pending);
-        stale.removeAll(found);
-        assertTrue(added.isEmpty(), "Korean text in an exception/diagnostic message - write developer-facing diagnostics in English "
-                + "(or, for operator-facing console text, use Lang.t / CompatLang.t):\n" + String.join("\n", added));
-        assertTrue(stale.isEmpty(), "Already English - remove from src/test/resources/lang-exception-english-pending.txt:\n" + String.join("\n", stale));
+        List<String> more = new java.util.ArrayList<>(), fewer = new java.util.ArrayList<>();
+        for (var e : found.entrySet()) {
+            int allowed = cap.getOrDefault(e.getKey(), 0);
+            if (e.getValue() > allowed) more.add(e.getKey() + " " + e.getValue() + " (allowed " + allowed + ")");
+            else if (e.getValue() < allowed) fewer.add(e.getKey() + " " + e.getValue() + " (list says " + allowed + ")");
+        }
+        for (var e : cap.entrySet()) if (!found.containsKey(e.getKey())) fewer.add(e.getKey() + " 0 (list says " + e.getValue() + ")");
+        assertTrue(more.isEmpty(), "Korean text in an exception/diagnostic message - write developer-facing diagnostics in English "
+                + "(or, for operator-facing console text, use Lang.t / CompatLang.t). Do not raise the numbers in lang-exception-english-pending.txt:\n" + String.join("\n", more));
+        assertTrue(fewer.isEmpty(), "Already (partly) English - lower the line count, or delete the line at 0, in src/test/resources/lang-exception-english-pending.txt:\n" + String.join("\n", fewer));
     }
 
     /**

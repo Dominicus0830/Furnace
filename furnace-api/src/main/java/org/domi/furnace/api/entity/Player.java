@@ -180,7 +180,7 @@ public interface Player extends CommandSender, LivingEntity {
      * 메뉴 화면을 연다(열린 다른 화면은 닫힌다). 어느 스레드에서 불러도 되며 연결 스레드에서 이뤄진다.
      * InventoryOpenEvent 가 취소되면 열리지 않는다.
      */
-    default void openMenu(org.domi.furnace.api.menu.Menu menu) { throw new UnsupportedOperationException("메뉴를 열 수 없는 플레이어"); }
+    default void openMenu(org.domi.furnace.api.menu.Menu menu) { throw new UnsupportedOperationException("a player that cannot open menus"); }
 
     /** 열린 메뉴 화면이 이 플레이어의 것이면 닫는다(다른 화면이면 건드리지 않는다). */
     default void closeMenu() {}
@@ -259,7 +259,7 @@ public interface Player extends CommandSender, LivingEntity {
 
     @Override
     default CompletableFuture<Boolean> remove() {
-        return CompletableFuture.failedFuture(new UnsupportedOperationException("플레이어는 remove 할 수 없다 — kick 을 쓴다"));
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("a player cannot be removed - use kick"));
     }
 
     // ------------------------------------------------------------------ 레시피 북

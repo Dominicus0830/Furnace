@@ -26,7 +26,7 @@ public interface PermissionManager {
      * <p>칸이 하나뿐이라 Furnace 플러그인이 이것을 부르면 호환 계층의 공급자가 밀려난다(그때부터 바꿔 끼운 Bukkit 권한 객체가 Furnace 판정에
      * 반영되지 않는다). 앞 공급자를 이어 쓰려면 {@link #override()} 로 받아 두었다가 자기 공급자가 null 을 낼 때 넘긴다.
      */
-    default void setOverride(PermissionOverride override) { throw new UnsupportedOperationException("이 권한 등록소는 판정 공급자를 받지 않는다"); }
+    default void setOverride(PermissionOverride override) { throw new UnsupportedOperationException("this permission registry does not accept a verdict provider"); }
 
     /** 지금 둔 판정 공급자, 없으면 null. */
     default PermissionOverride override() { return null; }

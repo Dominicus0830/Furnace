@@ -13,7 +13,7 @@ public record ServerboundSignUpdatePacket(BlockPos pos, boolean frontText, List<
     public ServerboundSignUpdatePacket {
         Objects.requireNonNull(pos, "pos");
         lines = List.copyOf(lines);
-        if (lines.size() != 4) throw new IllegalArgumentException("줄은 4개: " + lines.size());
+        if (lines.size() != 4) throw new IllegalArgumentException("there must be 4 lines: " + lines.size());
     }
 
     @Override

@@ -14,10 +14,10 @@ public record MemoryKey<T>(String namespace, String name, MemoryValueType<T> typ
     private static final Pattern PART = Pattern.compile("[a-z0-9_.\\-/]+");
 
     public MemoryKey {
-        if (namespace == null || !PART.matcher(namespace).matches()) throw new IllegalArgumentException("이름공간이 잘못됐다: " + namespace);
-        if (name == null || !PART.matcher(name).matches()) throw new IllegalArgumentException("이름이 잘못됐다: " + name);
+        if (namespace == null || !PART.matcher(namespace).matches()) throw new IllegalArgumentException("invalid namespace: " + namespace);
+        if (name == null || !PART.matcher(name).matches()) throw new IllegalArgumentException("invalid name: " + name);
         if (type == null) throw new NullPointerException("type");
-        if (namespace.equals("minecraft") && type.isPluginType()) throw new IllegalArgumentException("바닐라 기억에는 object(…) 모양을 쓸 수 없다: " + name);
+        if (namespace.equals("minecraft") && type.isPluginType()) throw new IllegalArgumentException("a vanilla memory cannot use the object(...) shape: " + name);
     }
 
     public static <T> MemoryKey<T> of(String namespace, String name, MemoryValueType<T> type) {

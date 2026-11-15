@@ -100,7 +100,7 @@ class PacketSchemaTest {
         String unknownType = "state game\npacket clientbound x ClientboundXPacket record\n  Frobnicator f\n";
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> PacketSchema.parse(1, unknownType));
         assertTrue(e.getMessage().contains("Frobnicator"), e.getMessage());
-        assertTrue(e.getMessage().contains("2줄"), e.getMessage());
+        assertTrue(e.getMessage().contains("line 2"), e.getMessage());
 
         String dup = "state game\npacket clientbound x A record\npacket clientbound x B record\n";
         assertThrows(IllegalArgumentException.class, () -> PacketSchema.parse(1, dup));
