@@ -22,6 +22,7 @@ import org.domi.furnace.server.world.gen.WorldgenData;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.domi.furnace.server.world.gen.feature.BiomeFeatureData;
 import org.domi.furnace.server.world.gen.feature.BlockPos;
+import org.domi.furnace.server.world.gen.feature.ChorusPlantFeature;
 import org.domi.furnace.server.world.gen.feature.ConfiguredFeature;
 import org.domi.furnace.server.world.gen.feature.FeatureSupport;
 import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
@@ -112,6 +113,58 @@ public final class LiveFeatures {
     /** feature 를 pos 에 놓는다. 바닐라 place 의 반환값. 다른 region·미로드 청크에 닿았으면 아무것도 바꾸지 않고 false. */
     public static boolean place(ChunkLevel level, Handle h, Pos pos, RandomSource random, long worldSeed) {
         if (h == null || !h.supported()) return false;
+        WorldgenRandom wr = new WorldgenRandom();
+        Placement r = run(level, pos, worldSeed, true, liveFlags(h), wr,
+                view -> {
+                    bridgeIn(random, wr);
+                    try {
+                        return placeIn(h, view, wr, pos);
+                    } finally {
+                        bridgeOut(wr, random);
+                    }
+                });
+        return r.placed();
+    }
+
+    /**
+     * 놓은 결과. placed 는 feature 의 반환값(닿지 못한 청크가 있으면 false), writes 는 {x, y, z, 마지막 상태}를 칸마다 처음 쓴 차례로
+     * (바뀌지 않은 쓰기도 남는다 — CraftBukkit captureTreeGeneration 의 capturedBlockStates 와 같은 모양).
+     */
+    public record Placement(boolean placed, List<long[]> writes) {
+        static final Placement NONE = new Placement(false, List.of());
+    }
+
+    /**
+     * 플러그인용(Paper CraftRegionAccessor#generateTree): 주어진 난수를 feature 난수로 그대로 쓴다(레벨 난수와 잇지 않는다).
+     * apply 가 거짓이면 월드를 바꾸지 않고 쓴 칸만 돌려준다(가장자리 모양 갱신·블록 엔티티는 빠진다).
+     */
+    public static Placement placeWith(ChunkLevel level, Handle h, Pos pos, WorldgenRandom random, long worldSeed, boolean apply) {
+        if (h == null || !h.supported()) return Placement.NONE;
+        return run(level, pos, worldSeed, apply, liveFlags(h), random, view -> placeIn(h, view, random, pos));
+    }
+
+    /** ChorusFlowerBlock.generatePlant(level, pos, random, 8) 를 flag 2 로(Paper generateTree CHORUS_PLANT). 닿지 못하면 placed=false. */
+    public static Placement chorusPlant(ChunkLevel level, BiomeFeatureData data, Pos pos, WorldgenRandom random, long worldSeed, boolean apply) {
+        Handle h = configured(data, "minecraft:chorus_plant");
+        if (h == null || !(h.configured() instanceof ChorusPlantFeature chorus)) return Placement.NONE;
+        return run(level, pos, worldSeed, apply, 2, random, view -> {
+            chorus.generatePlant(view, pos.x(), pos.y(), pos.z(), random, 8);
+            return true;
+        });
+    }
+
+    /** 바닐라 TreeFeature: 통나무·잎·장식·잎 거리 모두 flag 19(UPDATE_KNOWN_SHAPE), 가장자리만 따로 모양 갱신. 그 밖은 Feature.setBlock 기본 3. */
+    private static int liveFlags(Handle h) { return h.configured() instanceof TreeFeature ? 19 : 3; }
+
+    private static boolean placeIn(Handle h, FeatureWorldView view, WorldgenRandom wr, Pos pos) {
+        return h.configured() != null
+                ? h.configured().place(view, wr, pos.x(), pos.y(), pos.z())
+                : h.placed().placeAt(view, wr, new BlockPos(pos.x(), pos.y(), pos.z()));
+    }
+
+    /** 사본 격자에 body 를 돌리고, 닿지 못한 청크가 없으면 apply 일 때 실제 월드에 옮긴다. */
+    private static Placement run(ChunkLevel level, Pos pos, long worldSeed, boolean apply, int flags, WorldgenRandom wr,
+                                 java.util.function.Predicate<FeatureWorldView> body) {
         int cx = pos.x() >> 4, cz = pos.z() >> 4, size = 2 * RADIUS + 1;
         ChunkColumn[] live = new ChunkColumn[size * size], copy = new ChunkColumn[size * size];
         boolean[] tried = new boolean[size * size];
@@ -127,26 +180,32 @@ public final class LiveFeatures {
         };
         int center = RADIUS * size + RADIUS;
         fill.accept(center);
-        if (copy[center] == null) return false;
+        if (copy[center] == null) return Placement.NONE;
         List<long[]> writes = new ArrayList<>();
         List<int[]> edges = new ArrayList<>();
         FeatureWorldView view = FeatureWorldView.lazyLiveGrid(copy, biomes, cx, cz, RADIUS, worldSeed, fill, writes, edges);
-        // 바닐라 TreeFeature: 통나무·잎·장식·잎 거리 모두 flag 19(UPDATE_KNOWN_SHAPE), 가장자리만 따로 모양 갱신
-        if (h.configured() instanceof TreeFeature) view.setLiveWriteFlags(19);
-        WorldgenRandom wr = new WorldgenRandom();
-        bridgeIn(random, wr);
-        boolean placed;
-        try {
-            placed = h.configured() != null
-                    ? h.configured().place(view, wr, pos.x(), pos.y(), pos.z())
-                    : h.placed().placeAt(view, wr, new BlockPos(pos.x(), pos.y(), pos.z()));
-        } finally {
-            bridgeOut(wr, random);
+        view.setLiveWriteFlags(flags);
+        boolean placed = body.test(view);
+        if (view.missingAccess() > 0) return Placement.NONE;
+        if (apply) {
+            commit(level, cx, cz, size, live, copy, writes);
+            updateShapeAtEdge(level, edges, 3);
         }
-        if (view.missingAccess() > 0) return false;
-        commit(level, cx, cz, size, live, copy, writes);
-        updateShapeAtEdge(level, edges, 3);
-        return placed;
+        return new Placement(placed, apply ? List.of() : captured(cx, cz, size, copy, writes));
+    }
+
+    /** 쓴 칸마다 처음 쓴 차례로 {x, y, z, 사본의 마지막 상태}. */
+    private static List<long[]> captured(int cx, int cz, int size, ChunkColumn[] copy, List<long[]> writes) {
+        Map<Long, long[]> order = new LinkedHashMap<>();
+        for (long[] w : writes) {
+            int x = (int) w[0], y = (int) w[1], z = (int) w[2];
+            order.computeIfAbsent(new Pos(x, y, z).asLong(), k -> new long[]{x, y, z, 0});
+        }
+        for (long[] w : order.values()) {
+            int x = (int) w[0], y = (int) w[1], z = (int) w[2];
+            w[3] = copy[index(cx, cz, size, x >> 4, z >> 4)].getBlock(x & 15, y, z & 15);
+        }
+        return new ArrayList<>(order.values());
     }
 
     /** 쓴 칸을 쓴 순서대로(칸마다 처음 쓴 차례) 실제 월드에 놓는다(flag 3 = Feature.setBlock 기본). 생성 NBT·엔티티도 옮긴다. */

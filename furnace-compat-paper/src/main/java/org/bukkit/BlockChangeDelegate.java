@@ -2,7 +2,7 @@ package org.bukkit;
 
 import org.bukkit.block.data.BlockData;
 
-/** 나무 생성 등이 블록을 놓을 대상(Bukkit). World#generateTree(…, BlockChangeDelegate) 가 쓴다 — Furnace 는 아직 그 생성기를 열지 않는다. */
+/** 나무 생성이 블록을 놓을 대상(Bukkit). World#generateTree(…, BlockChangeDelegate) 가 쓴 칸마다 setBlockData 를 부른다. */
 public interface BlockChangeDelegate {
 
     boolean setBlockData(int x, int y, int z, BlockData blockData);

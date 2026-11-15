@@ -1733,6 +1733,24 @@ public abstract class ChunkLevel implements BlockLevel {
                 && org.domi.furnace.server.world.LiveFeatures.place(this, h, pos, random, featureSeed());
     }
 
+    /**
+     * 플러그인 나무 생성(Paper generateTree): configured feature 를 주어진 난수로 놓는다. 모르는 id 면 null,
+     * 구현되지 않은(Noop) feature 면 UnsupportedOperationException. apply 가 거짓이면 쓴 칸만 돌려준다.
+     */
+    public org.domi.furnace.server.world.LiveFeatures.Placement placeFeatureWith(String id, Pos pos,
+            org.domi.furnace.server.world.gen.carver.WorldgenRandom random, boolean apply) {
+        var h = org.domi.furnace.server.world.LiveFeatures.configured(featureData(), id);
+        if (h == null) return null;
+        if (!h.supported()) throw new UnsupportedOperationException("아직 구현되지 않은 feature: " + id);
+        return org.domi.furnace.server.world.LiveFeatures.placeWith(this, h, pos, random, featureSeed(), apply);
+    }
+
+    /** ChorusFlowerBlock.generatePlant(level, pos, random, 8)(Paper generateTree CHORUS_PLANT). */
+    public org.domi.furnace.server.world.LiveFeatures.Placement chorusPlantWith(Pos pos,
+            org.domi.furnace.server.world.gen.carver.WorldgenRandom random, boolean apply) {
+        return org.domi.furnace.server.world.LiveFeatures.chorusPlant(this, featureData(), pos, random, featureSeed(), apply);
+    }
+
     public void forEachPlayer(java.util.function.Consumer<Player> c) { services().forEachPlayer(c); }
 
     /** Level.isInWorldBounds: 높이 안이고 -30000000 <= x,z < 30000000(바닐라 isInWorldBoundsHorizontal — 음수 쪽 경계 칸은 안). */

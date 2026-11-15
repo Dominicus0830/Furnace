@@ -1159,5 +1159,32 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         return destroyed && result;
     }
 
+    // ------------------------------------------------------------------ 나무 생성(T-141 E5, Paper CraftRegionAccessor#generateTree)
+
+    @Override
+    public org.domi.furnace.api.world.FeaturePlacement placeFeatureNow(String configuredFeature, BlockPos pos, java.util.Random random, boolean apply) {
+        java.util.Objects.requireNonNull(configuredFeature, "configuredFeature");
+        var level = loadedLevel(pos, "placeFeatureNow");
+        var r = level.placeFeatureWith(configuredFeature, new Pos(pos.x(), pos.y(), pos.z()),
+                new org.domi.furnace.server.world.JavaRandomWorldgen(random), apply);
+        if (r == null) throw new IllegalArgumentException("모르는 configured feature: " + configuredFeature);
+        return placement(r);
+    }
+
+    @Override
+    public org.domi.furnace.api.world.FeaturePlacement growChorusPlantNow(BlockPos pos, java.util.Random random, boolean apply) {
+        var level = loadedLevel(pos, "growChorusPlantNow");
+        return placement(level.chorusPlantWith(new Pos(pos.x(), pos.y(), pos.z()), new org.domi.furnace.server.world.JavaRandomWorldgen(random), apply));
+    }
+
+    private org.domi.furnace.api.world.FeaturePlacement placement(org.domi.furnace.server.world.LiveFeatures.Placement r) {
+        List<BlockSnapshot> out = new ArrayList<>(r.writes().size());
+        for (long[] w : r.writes()) {
+            out.add(new BlockSnapshot(world.dimension(), new BlockPos((int) w[0], (int) w[1], (int) w[2]),
+                    ApiConvert.block((int) w[3], world.blockRegistry())));
+        }
+        return new org.domi.furnace.api.world.FeaturePlacement(r.placed(), out);
+    }
+
     private static final int AIR_BLOCK = org.domi.furnace.server.block.Blocks.get().block("air");
 }
