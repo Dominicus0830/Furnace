@@ -73,12 +73,12 @@ class BukkitWorldReportTest {
         var report = BukkitWorldReport.build(universe, "world", main, imported);
 
         String all = String.join("\n", report.notImported());
-        assertTrue(all.contains("시간·날씨·스폰 지점·월드 보더는 가져오지 않는다"), all);
-        assertTrue(all.contains("world_nether/level.dat: 게임 규칙 1개가 주 월드와 다르다") && all.contains("keepInventory"), all);
+        assertTrue(all.contains("Time, weather, spawn point and world border"), all);
+        assertTrue(all.contains("world_nether/level.dat: 1 game rules differ from the main world") && all.contains("keepInventory"), all);
         assertFalse(all.contains("doDaylightCycle"), all);
-        assertTrue(all.contains("날씨(비 true, 천둥 false)"), all);
+        assertTrue(all.contains("weather (rain true, thunder false)"), all);
         assertTrue(all.contains("world_nether/paper-world.yml"), all);
-        assertTrue(all.contains("world_nether/mystery.bin: 모르는 파일"), all);
+        assertTrue(all.contains("world_nether/mystery.bin: unknown file"), all);
         assertTrue(report.extras().isEmpty());
     }
 
@@ -134,7 +134,7 @@ class BukkitWorldReportTest {
                 extras.stream().map(BukkitWorldReport.ExtraWorld::name).toList());
         var byName = extras.stream().collect(java.util.stream.Collectors.toMap(BukkitWorldReport.ExtraWorld::name, e -> e));
         assertNull(byName.get("bad name").creator());
-        assertTrue(byName.get("bad name").problem().contains("월드 이름"));
+        assertTrue(byName.get("bad name").problem().contains("world name"));
         assertNull(byName.get("brokenflat").creator(), "평지 설정을 못 읽으면 기본 생성기로 대신하지 않고 올리지 않는다");
         assertTrue(byName.get("brokenflat").problem().contains("생성기 설정을 읽지 못해"), byName.get("brokenflat").problem());
         assertEquals(WorldGenerator.LARGE_BIOMES, byName.get("big").creator().generator());
@@ -162,7 +162,7 @@ class BukkitWorldReportTest {
         var first = BukkitWorldImport.run(universe, "world", universe.resolve("world"), main);
         BukkitWorldReport.runIfNeeded(universe, universe, "world", main, first);
         String text = Files.readString(file);
-        assertTrue(text.contains("네더: IMPORTED"), text);
+        assertTrue(text.contains("Nether: IMPORTED"), text);
         assertTrue(text.contains("farm: NORMAL / DEFAULT"), text);
         assertTrue(text.contains("/worlds load"), text);
 
@@ -179,7 +179,7 @@ class BukkitWorldReportTest {
         var third = BukkitWorldImport.run(universe, "world", universe.resolve("world"), main);
         assertTrue(third.anyImported());
         BukkitWorldReport.runIfNeeded(universe, universe, "world", main, third);
-        assertTrue(Files.readString(file).contains("엔드: IMPORTED"));
+        assertTrue(Files.readString(file).contains("End: IMPORTED"));
     }
 
     @Test
