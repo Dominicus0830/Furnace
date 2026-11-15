@@ -118,6 +118,18 @@ public abstract class CraftBlockEntityState extends org.domi.furnace.compat.pape
                 .serialize(org.domi.furnace.api.text.serializer.LegacyTextSerializer.section().deserialize(name)));
     }
 
+    /** Lockable#isLocked 의 몸(용기·신호기만 그 인터페이스를 단다). Paper CraftContainer: !lockKey.key().isEmpty(). */
+    public boolean isLocked() { return !getLock().isEmpty(); }
+
+    /** Lockable#getLock 의 몸: 사본 Lock(없으면 빈 문자열). */
+    public String getLock() { return snapshot.get("Lock") instanceof String k ? k : ""; }
+
+    /** Lockable#setLock 의 몸: null·빈 문자열이면 뗀다(바닐라 LockCode.addToTag 는 빈 열쇠를 쓰지 않는다). update 때 실린다. */
+    public void setLock(String key) {
+        if (key == null || key.isEmpty()) snapshot.remove("Lock");
+        else snapshot.putString("Lock", key);
+    }
+
     /**
      * TileStateInventoryHolder#getInventory 의 몸(용기 형만 그 인터페이스를 단다). Paper: 놓인 상태면 그 칸 블록 엔티티의 살아 있는 인벤토리,
      * 놓이지 않았으면 스냅숏 인벤토리. 스냅숏 인벤토리(NBT Items ↔ 아이템)는 아직 없어 UnsupportedFeature.

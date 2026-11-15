@@ -5188,6 +5188,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             } catch (RuntimeException e) {
                 title = Text.translatable("container.beacon");
             }
+            if (!canUnlock(p, beacon.lock, title)) return null;   // BeaconBlockEntity.createMenu
             return new OpenSpec(null, null, null, title, null, beacon);
         }
         if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.LecternBlockEntity lectern) {
@@ -5209,6 +5210,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 }
             }
         }
+        // BaseContainerBlockEntity.canOpen(잠금) — 큰 상자는 첫째부터(DoubleInventory.createMenu 의 &&), 막히면 전리품도 풀지 않는다
+        if (!canUnlock(p, first.lock, first.displayName())) return null;
+        if (second != null && !canUnlock(p, second.lock, second.displayName())) return null;
         var core = login.core;
         for (var c : second == null ? java.util.List.of(first) : java.util.List.of(first, second)) {
             if (c.lootTable != null && core != null) {
@@ -5217,6 +5221,22 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             }
         }
         return new OpenSpec(first, second, null, containerTitle(first, second), null, null);
+    }
+
+    /**
+     * BaseContainerBlockEntity.canUnlock: 관전자이거나 든 아이템이 열쇠면 연다. 아니면 "container.isLocked"(액션 바)와 block.chest.locked 소리를
+     * 그 플레이어에게만(playNotifySound — 씨앗은 플레이어 난수) 보내고 막는다.
+     */
+    private static boolean canUnlock(Player p, String lock, Text displayName) {
+        if (p.isSpectator() || org.domi.furnace.server.block.entity.ContainerBlockEntity.unlocksWith(lock, p.inventory().get(p.inventory().heldWindowSlot()))) return true;
+        p.sendSystemMessage(Text.translatable("container.isLocked", displayName), true);
+        // 플레이어 난수는 그 플레이어의 region 스레드에서만 — 큰 상자를 경계 너머에서 연 드문 경우는 씨앗만 따로(소리 한 가지라 들리는 것은 같다)
+        long seed = p.onOwnerThread() ? p.random().nextLong() : java.util.concurrent.ThreadLocalRandom.current().nextLong();
+        Integer sid = org.domi.furnace.server.item.ItemContext.installed()
+                ? org.domi.furnace.server.item.ItemContext.id("minecraft:sound_event", "minecraft:block.chest.locked") : null;
+        p.send(new org.domi.furnace.server.net.protocol.play.SoundPacket(sid == null ? -1 : sid, "minecraft:block.chest.locked",
+                org.domi.furnace.server.net.protocol.play.SoundPacket.source("blocks"), p.x(), p.y(), p.z(), 1.0F, 1.0F, seed));
+        return false;
     }
 
     /** 제목: 첫째의 이름 → 둘째의 이름 → 더블이면 container.chestDouble, 아니면 그 종류의 기본 번역 키. */
