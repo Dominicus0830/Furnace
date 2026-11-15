@@ -16,10 +16,9 @@ import org.domi.furnace.server.world.gen.NoiseSettings;
 import org.domi.furnace.server.world.gen.WorldgenData;
 import org.domi.furnace.server.world.gen.noise.NormalNoise;
 import org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource;
+import org.domi.furnace.server.world.BiomeZoom;
 import org.domi.furnace.server.world.BlockRegistry;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -69,7 +68,7 @@ public final class SurfaceSystem {
         this.registryBiomeNames  = registryBiomeNames;
         this.biomeSampler        = biomeSampler;
         this.router              = router;
-        this.biomeZoomSeed       = obfuscateSeed(seed);
+        this.biomeZoomSeed       = BiomeZoom.obfuscateSeed(seed);
         this.clayBandsOffsetNoise = buildNoise("minecraft:clay_bands_offset");
         this.badlandsPillarNoise = buildNoise("minecraft:badlands_pillar");
         this.badlandsPillarRoofNoise = buildNoise("minecraft:badlands_pillar_roof");
@@ -966,24 +965,6 @@ public final class SurfaceSystem {
 
     private static double map(double value, double fromMin, double fromMax, double toMin, double toMax) {
         return toMin + (value - fromMin) * (toMax - toMin) / (fromMax - fromMin);
-    }
-
-    private static long obfuscateSeed(long seed) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] input = new byte[Long.BYTES];
-            for (int i = 0; i < Long.BYTES; i++) {
-                input[i] = (byte)(seed >>> (i * 8));
-            }
-            byte[] hash = digest.digest(input);
-            long result = 0L;
-            for (int i = 0; i < Long.BYTES; i++) {
-                result |= (hash[i] & 0xFFL) << (i * 8);
-            }
-            return result;
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
     }
 
     private record QuartKey(int x, int y, int z) {}

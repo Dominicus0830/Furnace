@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.server.world.BiomeZoom;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSection;
 
@@ -12,7 +13,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
     private final int[][] biomeIdsGrid;
     private final boolean writeCenterOnly;
     private final long worldSeed;
-    /** obfuscateSeed(worldSeed) — SHA-256 이라 view 마다 한 번만 계산한다. */
+    /** BiomeZoom.obfuscateSeed(worldSeed) — SHA-256 이라 view 마다 한 번만 계산한다. */
     private final long biomeZoomSeed;
     /** 차원 높이(중심 청크 열 기준) — 오버월드 -64..319, 네더·엔드 0..255. */
     private final int minY, maxY;
@@ -44,7 +45,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         this.biomeIdsGrid = null;
         this.writeCenterOnly = false;
         this.worldSeed = worldSeed;
-        this.biomeZoomSeed = obfuscateSeed(worldSeed);
+        this.biomeZoomSeed = BiomeZoom.obfuscateSeed(worldSeed);
         this.minY = col != null ? col.minY() : ChunkColumn.MIN_Y;
         this.maxY = col != null ? col.maxY() : ChunkColumn.MAX_Y;
         this.gridCenterX = cx;
@@ -84,7 +85,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         this.biomeIdsGrid = biomeIdsGrid;
         this.writeCenterOnly = writeCenterOnly;
         this.worldSeed = worldSeed;
-        this.biomeZoomSeed = obfuscateSeed(worldSeed);
+        this.biomeZoomSeed = BiomeZoom.obfuscateSeed(worldSeed);
         ChunkColumn ref = null;
         for (ChunkColumn c : grid) if (c != null) { ref = c; break; }
         this.minY = ref != null ? ref.minY() : ChunkColumn.MIN_Y;
@@ -421,26 +422,6 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
     private static double fiddle(long seed) {
         double d = Math.floorMod(seed >> 24, 1024) / 1024.0;
         return (d - 0.5) * 0.9;
-    }
-
-    // SurfaceSystem.obfuscateSeed와 동일 알고리즘(리틀엔디안 바이트 순서) — vanilla
-    // Hashing.sha256().hashLong(seed).asLong()의 실제 바이트 순서와 일치시킨 것을 그대로 재사용한다.
-    private static long obfuscateSeed(long seed) {
-        try {
-            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
-            byte[] input = new byte[Long.BYTES];
-            for (int i = 0; i < Long.BYTES; i++) {
-                input[i] = (byte) (seed >>> (i * 8));
-            }
-            byte[] hash = digest.digest(input);
-            long result = 0L;
-            for (int i = 0; i < Long.BYTES; i++) {
-                result |= (hash[i] & 0xFFL) << (i * 8);
-            }
-            return result;
-        } catch (java.security.NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
     }
 
     /** 차원 최저 블록 y(WorldGenLevel.getMinBuildHeight). */
