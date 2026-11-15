@@ -53,6 +53,7 @@ tasks.test {
     // 명령 블록이 명령을 같은 틱 안에 끝내려고 기다리는 시간 예산(서버 기본 20ms)을 시험 JVM 에서만 넉넉히 준다.
     // 20ms 로는 CI 처럼 바쁜 러너에서 다른 region 왕복이 늦어 CommandBlockOneTickTest 가 자주 실패했다(2026-11-05~07 집계 24건, 서버 동작 문제가 아니라 시험 시간 예산 문제).
     // 시험은 "그 틱 안에 끝난다"는 동작을 보는 것이라 예산 크기에는 기대지 않는다. 직접 정한 값(-Dfurnace.commandBlockWaitMicros=…)이 있으면 아래 반복문이 덮어쓴다.
+    systemProperty("furnace.language", "en")   // 문구를 확인하는 시험이 실행 환경 언어에 흔들리지 않게
     systemProperty("furnace.commandBlockWaitMicros", "500000")
     // @NoRetry 시험이 실패하면 NoRetryFailureListener 가 여기에 적는다. CI 의 재시도 단계가 읽는다(.github/workflows/ci.yml). 시작 전에 지운다.
     val noRetryReport = layout.buildDirectory.file("no-retry-failures.txt").get().asFile

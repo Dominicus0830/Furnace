@@ -37,6 +37,7 @@ import org.domi.furnace.api.event.Subscribe;
 import org.domi.furnace.api.plugin.FurnacePlugin;
 import org.domi.furnace.api.profiler.PluginProfiler;
 import org.domi.furnace.api.profiler.Timing;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -83,14 +84,14 @@ public final class EventBusImpl implements EventBus {
         for (Method m : methods) {
             Subscribe s = m.getAnnotation(Subscribe.class);
             if (m.getParameterCount() != 1 || !Event.class.isAssignableFrom(m.getParameterTypes()[0]) || Modifier.isStatic(m.getModifiers())) {
-                log.error("[{}] @Subscribe 메서드는 Event 하나를 받는 인스턴스 메서드여야 한다: {}", plugin.name(), m);
+                log.error(Lang.t("event.subscribe-signature", plugin.name(), m));
                 continue;
             }
             Consumer<Event> fn;
             try {
                 fn = dispatcher(m, listener);
             } catch (Throwable t) {
-                log.error("[{}] 리스너 메서드에 접근할 수 없다: {}", plugin.name(), m, t);
+                log.error(Lang.t("event.listener-inaccessible", plugin.name(), m), t);
                 continue;
             }
             warnIfDeprecated(plugin, m.getParameterTypes()[0]);
@@ -136,8 +137,7 @@ public final class EventBusImpl implements EventBus {
     private void warnIfDeprecated(FurnacePlugin plugin, Class<?> type) {
         DeprecatedApi d = type.getAnnotation(DeprecatedApi.class);
         if (d == null || !deprecationWarned.add(type)) return;
-        log.warn("[{}] 폐기된 이벤트 {} 를 받고 있다 (v{} 부터 폐기, v{} 이후 제거{})", plugin.name(), type.getSimpleName(), d.since(), d.removeIn(),
-                d.replacement().isEmpty() ? "" : ", 대체: " + d.replacement());
+        log.warn(Lang.t(d.replacement().isEmpty() ? "event.deprecated" : "event.deprecated-replaced", plugin.name(), type.getSimpleName(), d.since(), d.removeIn(), d.replacement()));
     }
 
     @Override
@@ -335,7 +335,7 @@ public final class EventBusImpl implements EventBus {
         invoke(h, event);
         // 꺼진 뒤(unregisterAll 뒤 돌던 발화)에는 기록하지 않는다 — 경고 집합이 옛 처리기를 다시 쥐지 않게
         if (c.isCancelled() != before && h.plugin().isEnabled() && monitorWarned.add(h)) {
-            log.warn("[{}] MONITOR 처리기 {} 가 {} 의 취소 상태를 바꿨다 — MONITOR 는 결과를 바꾸지 말고 관찰만 해야 한다", h.plugin().name(), h.where(), event.eventName());
+            log.warn(Lang.t("event.monitor-changed", h.plugin().name(), h.where(), event.eventName()));
         }
     }
 
@@ -376,8 +376,7 @@ public final class EventBusImpl implements EventBus {
         long total = System.nanoTime() - start;
         stats.record(event.getClass(), total);
         if (total > Stats.SLOW_NS) {
-            log.warn("[tickstats] 이벤트 {} 처리에 {} ms 걸렸다 (가장 느린 리스너: {})", event.eventName(), Stats.ms(total),
-                    slow == null ? "없음" : slow.plugin().name() + " " + slow.where());
+            log.warn(Lang.t("event.slow", event.eventName(), Stats.ms(total), slow == null ? Lang.t("event.none") : slow.plugin().name() + " " + slow.where()));
         }
         return event;
     }
@@ -441,7 +440,7 @@ public final class EventBusImpl implements EventBus {
             try {
                 report();
             } catch (Throwable t) {
-                log.warn("[tickstats] 통계 출력 실패", t);
+                log.warn(Lang.t("event.stats-failed"), t);
             }
         }
 
@@ -450,8 +449,7 @@ public final class EventBusImpl implements EventBus {
             types.entrySet().stream()
                     .sorted(Comparator.comparingLong((Map.Entry<Class<?>, TypeStat> e) -> e.getValue().totalNs.sum()).reversed())
                     .limit(5)
-                    .forEach(e -> log.info("[tickstats] {} 호출 {}회, 누적 {} ms, 최대 {} ms", e.getKey().getSimpleName(),
-                            e.getValue().count.sum(), ms(e.getValue().totalNs.sum()), ms(e.getValue().maxNs.get())));
+                    .forEach(e -> log.info(Lang.t("event.stats-line", e.getKey().getSimpleName(), e.getValue().count.sum(), ms(e.getValue().totalNs.sum()), ms(e.getValue().maxNs.get()))));
         }
     }
 }

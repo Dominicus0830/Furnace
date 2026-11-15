@@ -5,15 +5,25 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Locale;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class LangTest {
 
     private Locale savedLocale;
+    private String savedProperty;
+
+    @BeforeEach
+    void saveProperty() {
+        // 시험 JVM 은 -Dfurnace.language=en 으로 뜬다(build.gradle). 고르는 순서를 보는 이 시험은 속성 없이 시작하고 끝나면 되돌린다.
+        savedProperty = System.getProperty(Lang.PROPERTY);
+        System.clearProperty(Lang.PROPERTY);
+    }
 
     @AfterEach
     void restore() {
-        System.clearProperty(Lang.PROPERTY);
+        if (savedProperty != null) System.setProperty(Lang.PROPERTY, savedProperty);
+        else System.clearProperty(Lang.PROPERTY);
         if (savedLocale != null) Locale.setDefault(savedLocale);
         Lang.reset();
     }

@@ -14,6 +14,7 @@ import org.domi.furnace.api.registry.PluginRegistries;
 import org.domi.furnace.api.registry.PluginRegistry;
 import org.domi.furnace.api.registry.RegistryListener;
 import org.domi.furnace.server.data.ResourceId;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -142,7 +143,7 @@ public final class PluginRegistryStore {
                 try {
                     call.accept(l.listener(), k, v);
                 } catch (Throwable t) {
-                    log.error("플러그인 레지스트리 {} 알림 처리 중 예외 ({})", key, l.owner(), t);
+                    log.error(Lang.t("registry.notify-failed", key, l.owner()), t);
                 }
             }
         }

@@ -19,6 +19,7 @@ import org.domi.furnace.server.net.protocol.play.UpdateRecipes;
 import org.domi.furnace.server.recipe.ApiRecipes;
 import org.domi.furnace.server.recipe.Recipe;
 import org.domi.furnace.server.recipe.RecipeManager;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -171,7 +172,7 @@ public final class PluginRecipes implements RecipeRegistry {
         for (var it = plugin.entrySet().iterator(); it.hasNext(); ) {
             var e = it.next();
             if (fresh.recipe(e.getKey()) != null && !drop.contains(e.getKey())) {
-                log.warn("플러그인 레시피 {} 는 새 데이터 팩의 같은 키 때문에 올리지 못해 내린다", e.getKey());
+                log.warn(Lang.t("recipes.removed", e.getKey()));
                 it.remove();
                 continue;
             }

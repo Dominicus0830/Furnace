@@ -72,6 +72,21 @@ class LangBundlesTest {
     }
 
     @Test
+    void everyKeyIsUsedByTheCode() throws IOException {
+        StringBuilder all = new StringBuilder();
+        for (Path root : SOURCE_ROOTS) {
+            if (!Files.isDirectory(root)) continue;
+            try (Stream<Path> files = Files.walk(root)) {
+                for (Path f : (Iterable<Path>) files.filter(p -> p.toString().endsWith(".java"))::iterator) all.append(Files.readString(f, StandardCharsets.UTF_8));
+            }
+        }
+        String source = all.toString();
+        List<String> unused = new ArrayList<>();
+        for (String key : Lang.keys("en")) if (!source.contains("\"" + key + "\"")) unused.add(key);
+        assertTrue(unused.isEmpty(), "keys in en.properties that no code uses (typo in a Lang.t call, or leftover): " + unused);
+    }
+
+    @Test
     void noNewHangulLiteralsInLogCalls() throws IOException {
         Set<String> pending = new TreeSet<>(Files.readAllLines(Path.of("src/test/resources/lang-migration-pending.txt"), StandardCharsets.UTF_8)
                 .stream().map(String::strip).filter(l -> !l.isEmpty() && !l.startsWith("#")).toList());

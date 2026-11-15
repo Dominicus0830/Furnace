@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Level;
 import org.domi.furnace.server.plugin.library.LibrarySettings;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -229,12 +230,12 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
             try {
                 levels.put(k.substring(prefix.length()), Level.parse(v.toUpperCase(Locale.ROOT)));
             } catch (IllegalArgumentException e) {
-                log.warn("furnace.properties 의 '{}' 값 '{}' 은 로그 수준이 아니다 — 무시한다", k, v);
+                log.warn(Lang.t("plugin.settings-log-level", k, v));
             }
         }
         boolean dev = org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.dev-mode", false);
         boolean auto = org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.dev-mode.auto-reload", false);
-        if (auto && !dev) log.warn("plugins.dev-mode.auto-reload 는 plugins.dev-mode=true 일 때만 쓰인다 — 무시한다");
+        if (auto && !dev) log.warn(Lang.t("plugin.settings-auto-reload"));
         boolean compat = org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.compat.bukkit", true);
         boolean nms = org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.compat.nms.enabled", true);
         return new PluginSettings(failFast, root.isEmpty() ? null : Path.of(root), levels, dev, dev && auto,
