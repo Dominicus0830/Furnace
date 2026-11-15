@@ -54,4 +54,13 @@ class HangulTextScannerTest {
         assertEquals(List.of(), scan("say(\"it's fine\"); int x;"));
         assertEquals(List.of(2), scan("say(\"it's\");\nsay(\"안녕\");"));
     }
+
+    @Test
+    void developerModeAlsoSeesExceptionsAndRequireNonNullButStillSkipsDebugAndAssert() {
+        assertEquals(List.of(), scan("throw new IllegalStateException(\"안녕\");"), "user-text mode exempts exception constructors");
+        assertEquals(List.of(1), HangulTextScanner.developerTextLines("throw new IllegalStateException(\"안녕\");"));
+        assertEquals(List.of(1), HangulTextScanner.developerTextLines("Objects.requireNonNull(x, \"안녕\");"));
+        assertEquals(List.of(), HangulTextScanner.developerTextLines("LOG.debug(\"안녕\");"));
+        assertEquals(List.of(), HangulTextScanner.developerTextLines("assert ok : \"안녕\";"));
+    }
 }

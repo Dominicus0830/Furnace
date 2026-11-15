@@ -155,7 +155,7 @@ public final class Protocol767 implements ProtocolCodec {
 
     private static PacketType<?> lookup(PacketDirection d, String name) {
         PacketType<?> t = PacketTypes.byName(d, name);
-        if (t == null) throw new IllegalStateException("PacketTypes 에 없는 패킷: " + d + " " + name);
+        if (t == null) throw new IllegalStateException("packet missing from PacketTypes: " + d + " " + name);
         return t;
     }
 
@@ -176,7 +176,7 @@ public final class Protocol767 implements ProtocolCodec {
 
     private int id(PacketType<?> type) {
         int[] a = ids.get(type);
-        if (a == null) throw new IllegalArgumentException("이 서버 버전에 없는 패킷: " + type);
+        if (a == null) throw new IllegalArgumentException("packet does not exist in this server version: " + type);
         return a[0];
     }
 
@@ -206,12 +206,12 @@ public final class Protocol767 implements ProtocolCodec {
             return id(g.type());
         }
         Codec c = codecs.get(packet.type());
-        if (c == null) throw new IllegalArgumentException("이 서버 버전에서 보낼 수 없는 패킷: " + packet.type());
+        if (c == null) throw new IllegalArgumentException("packet cannot be sent by this server version: " + packet.type());
         return c.enc().encode(packet, out);
     }
 
     private <P extends Packet> void codec(PacketType<P> type, Decoder dec, Encoder<P> enc) {
-        if (!type.typed()) throw new IllegalStateException("타입 래퍼 없는 종류: " + type);
+        if (!type.typed()) throw new IllegalStateException("type without a typed wrapper: " + type);
         codecs.put(type, new Codec<>(dec, enc));
     }
 
@@ -245,7 +245,7 @@ public final class Protocol767 implements ProtocolCodec {
     private static void writePos(ByteBuf b, BlockPos p) { Types.writeBlockPos(b, p.x(), p.y(), p.z()); }
 
     private static <E extends Enum<E>> E enumOf(E[] values, int i, String what) {
-        if (i < 0 || i >= values.length) throw new IllegalArgumentException(what + " 범위 밖: " + i);
+        if (i < 0 || i >= values.length) throw new IllegalArgumentException(what + " out of range: " + i);
         return values[i];
     }
 
@@ -259,13 +259,13 @@ public final class Protocol767 implements ProtocolCodec {
 
     private static String registryName(String registry, int id) {
         String n = ItemContext.installed() ? ItemContext.name(registry, id) : null;
-        if (n == null) throw new IllegalArgumentException(registry + " 에 없는 번호: " + id);
+        if (n == null) throw new IllegalArgumentException(registry + " has no id: " + id);
         return n;
     }
 
     private static int registryId(String registry, String name) {
         Integer id = ItemContext.installed() ? ItemContext.id(registry, name) : null;
-        if (id == null) throw new IllegalArgumentException(registry + " 에 없는 이름: " + name);
+        if (id == null) throw new IllegalArgumentException(registry + " has no name: " + name);
         return id;
     }
 
@@ -324,7 +324,7 @@ public final class Protocol767 implements ProtocolCodec {
         });
         codec(Clientbound.REMOVE_ENTITIES, (id, b) -> {
             int n = Types.readVarInt(b);
-            if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("엔티티 수 오류: " + n);
+            if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("invalid entity count: " + n);
             List<Integer> l = new ArrayList<>(n);
             for (int i = 0; i < n; i++) l.add(Types.readVarInt(b));
             return new ClientboundRemoveEntitiesPacket(l);
@@ -366,7 +366,7 @@ public final class Protocol767 implements ProtocolCodec {
                 case 3 -> ClientboundAnimatePacket.Animation.SWING_OFF_HAND;
                 case 4 -> ClientboundAnimatePacket.Animation.CRITICAL_HIT;
                 case 5 -> ClientboundAnimatePacket.Animation.MAGIC_CRITICAL_HIT;
-                default -> throw new IllegalArgumentException("모르는 애니메이션");
+                default -> throw new IllegalArgumentException("unknown animation");
             };
             return new ClientboundAnimatePacket(eid, a);
         }, (p, o) -> {
@@ -415,7 +415,7 @@ public final class Protocol767 implements ProtocolCodec {
         codec(Clientbound.CUSTOM_PAYLOAD, (id, b) -> new ClientboundCustomPayloadPacket(Types.readString(b, STRING_MAX), rest(b)),
                 (p, o) -> {
                     byte[] data = p.data();
-                    if (data.length > 1048576) throw new IllegalArgumentException("페이로드가 너무 크다: " + data.length);
+                    if (data.length > 1048576) throw new IllegalArgumentException("payload too large: " + data.length);
                     Types.writeString(o, p.channel());
                     o.writeBytes(data);
                     return id(Clientbound.CUSTOM_PAYLOAD);
@@ -428,7 +428,7 @@ public final class Protocol767 implements ProtocolCodec {
         });
         codec(Clientbound.PLAYER_INFO_REMOVE, (id, b) -> {
             int n = Types.readVarInt(b);
-            if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("항목 수 오류: " + n);
+            if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("invalid entry count: " + n);
             List<java.util.UUID> l = new ArrayList<>(n);
             for (int i = 0; i < n; i++) l.add(Types.readUuid(b));
             return new ClientboundPlayerInfoRemovePacket(l);
@@ -470,7 +470,7 @@ public final class Protocol767 implements ProtocolCodec {
     /** 메타데이터 값 하나: 칸 번호, 직렬화 번호, 값(EntityData767). */
     private void writeDataEntry(ByteBuf o, ClientboundSetEntityDataPacket.Entry e) {
         var v = e.value();
-        if (v instanceof ClientboundSetEntityDataPacket.Unsupported x) throw new IllegalArgumentException("읽지 못한 값 종류는 보낼 수 없다: " + x.serializer());
+        if (v instanceof ClientboundSetEntityDataPacket.Unsupported x) throw new IllegalArgumentException("a value kind that could not be read cannot be sent: " + x.serializer());
         o.writeByte(e.index());
         Types.writeVarInt(o, EntityData767.serializerId(v.dataType()));
         if (v instanceof ClientboundSetEntityDataPacket.PoseValue x) Types.writeVarInt(o, x.pose());   // 번호 그대로(예전 동작)
@@ -505,7 +505,7 @@ public final class Protocol767 implements ProtocolCodec {
         java.util.EnumSet<ClientboundPlayerInfoUpdatePacket.Action> actions = java.util.EnumSet.noneOf(ClientboundPlayerInfoUpdatePacket.Action.class);
         for (ClientboundPlayerInfoUpdatePacket.Action a : ClientboundPlayerInfoUpdatePacket.Action.values()) if ((mask & (1 << a.ordinal())) != 0) actions.add(a);
         int n = Types.readVarInt(b);
-        if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("항목 수 오류: " + n);
+        if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("invalid entry count: " + n);
         List<ClientboundPlayerInfoUpdatePacket.Entry> es = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
             java.util.UUID uuid = Types.readUuid(b);
@@ -519,7 +519,7 @@ public final class Protocol767 implements ProtocolCodec {
             if ((mask & 0x01) != 0) {
                 name = Types.readString(b, 16);
                 int pc = Types.readVarInt(b);
-                if (pc < 0 || pc > 16) throw new IllegalArgumentException("속성 수 오류: " + pc);
+                if (pc < 0 || pc > 16) throw new IllegalArgumentException("invalid attribute count: " + pc);
                 props = new ArrayList<>(pc);
                 for (int k = 0; k < pc; k++) {
                     String pn = Types.readString(b, 64), pv = Types.readString(b, STRING_MAX);
@@ -551,7 +551,7 @@ public final class Protocol767 implements ProtocolCodec {
         try {   // 바닐라 클라이언트는 RSA 가 아니면 읽다 끊는다
             java.security.KeyFactory.getInstance("RSA").generatePublic(new java.security.spec.X509EncodedKeySpec(key));
         } catch (java.security.GeneralSecurityException e) {
-            throw new IllegalArgumentException("채팅 세션 공개 키가 RSA 공개 키(X.509)가 아니다: " + e.getMessage());
+            throw new IllegalArgumentException("the chat session public key is not an RSA public key (X.509): " + e.getMessage());
         }
         Types.writeUuid(o, s.sessionId());
         o.writeLong(s.expiresAt().toEpochMilli());
@@ -564,7 +564,7 @@ public final class Protocol767 implements ProtocolCodec {
 
     private static byte[] sizedBytes(ByteBuf b, int max) {
         int n = Types.readVarInt(b);
-        if (n < 0 || n > max || n > b.readableBytes()) throw new IllegalArgumentException("바이트 길이 오류: " + n + " (상한 " + max + ")");
+        if (n < 0 || n > max || n > b.readableBytes()) throw new IllegalArgumentException("invalid byte length: " + n + " (max " + max + ")");
         byte[] a = new byte[n];
         b.readBytes(a);
         return a;

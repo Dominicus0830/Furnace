@@ -213,7 +213,7 @@ final class BrainValues {
                 return t == null ? MISSING : t;
             }
             default:
-                throw new UnsupportedOperationException("API 로 쓸 수 없는 기억 값");
+                throw new UnsupportedOperationException("a memory value that cannot be written through the API");
         }
     }
 

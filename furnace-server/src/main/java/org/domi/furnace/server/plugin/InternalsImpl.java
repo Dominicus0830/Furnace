@@ -70,7 +70,7 @@ public final class InternalsImpl implements Internals {
     static <H> H cast(Object o, Class<H> type, String what) {
         java.util.Objects.requireNonNull(type, "type");
         if (!type.isInstance(o)) {
-            throw new ClassCastException(what + " 의 내부 객체는 " + o.getClass().getName() + " 이다 — " + type.getName() + " 가 아니다");
+            throw new ClassCastException("the internal object of " + what + " is " + o.getClass().getName() + ", not a " + type.getName());
         }
         return type.cast(o);
     }
@@ -79,7 +79,7 @@ public final class InternalsImpl implements Internals {
 
     private WorldHandle worldHandle(org.domi.furnace.api.world.World w) {
         if (w instanceof WorldHandle wh) return wh;
-        throw new IllegalArgumentException("Furnace 서버가 만든 월드 핸들이 아니다: " + w);
+        throw new IllegalArgumentException("not a world handle created by the Furnace server: " + w);
     }
 
     // ------------------------------------------------------------------ 엔티티
@@ -90,7 +90,7 @@ public final class InternalsImpl implements Internals {
         java.util.Objects.requireNonNull(action, "action");
         if (entity instanceof PlayerHandle ph) {
             Player p = ph.handle();
-            if (p.isDisconnected()) return failed(new IllegalStateException("접속이 끊긴 플레이어: " + p.name()));
+            if (p.isDisconnected()) return failed(new IllegalStateException("disconnected player: " + p.name()));
             RegionFuture<T> f = new RegionFuture<>();
             p.runOnOwner(() -> {
                 try {
@@ -104,7 +104,7 @@ public final class InternalsImpl implements Internals {
         if (entity instanceof EntityHandle eh) {
             return eh.onEntity(e -> action.apply(cast(e, type, "entity " + eh.type())), null, true);
         }
-        return failed(new IllegalArgumentException("Furnace 서버가 만든 엔티티 핸들이 아니다: " + entity));
+        return failed(new IllegalArgumentException("not an entity handle created by the Furnace server: " + entity));
     }
 
     @Override
@@ -118,17 +118,17 @@ public final class InternalsImpl implements Internals {
         }
         if (entity instanceof EntityHandle eh) {
             if (!(eh.tasks().owner() instanceof org.domi.furnace.server.entity.Entity e) || e.isRemoved()) {
-                throw new IllegalStateException("엔티티가 사라졌다: " + eh.uniqueId());
+                throw new IllegalStateException("the entity is gone: " + eh.uniqueId());
             }
             if (!ownsOnCurrentThread(e)) throw notOwner("entity " + eh.type());
             return cast(e, type, "entity " + eh.type());
         }
-        throw new IllegalArgumentException("Furnace 서버가 만든 엔티티 핸들이 아니다: " + entity);
+        throw new IllegalArgumentException("not an entity handle created by the Furnace server: " + entity);
     }
 
     private static ThreadOwnershipException notOwner(String what) {
-        return new ThreadOwnershipException(what + " 를 가진 region 스레드가 아니다(현재 " + Thread.currentThread().getName()
-                + ") — withEntity 를 쓰거나 entityScheduler() 작업 안에서 부른다");
+        return new ThreadOwnershipException("not on the region thread that owns " + what + " (current thread: " + Thread.currentThread().getName()
+                + ") - use withEntity or call it inside an entityScheduler() task");
     }
 
     /** 지금 스레드가 e 를 가진 region 을 돌리는 중인가 — e 가 있는 청크의 주인 region 이 이 스레드이고 그 region 에 e 가 들어 있어야 한다. */
@@ -148,7 +148,7 @@ public final class InternalsImpl implements Internals {
             if (!ownsOnCurrentThread(e)) throw notOwner("entity " + e.type().name());
             return EntityHandle.of(host, e);
         }
-        throw new IllegalArgumentException("서버 엔티티가 아니다: " + (internalEntity == null ? "null" : internalEntity.getClass().getName()));
+        throw new IllegalArgumentException("not a server entity: " + (internalEntity == null ? "null" : internalEntity.getClass().getName()));
     }
 
     // ------------------------------------------------------------------ 칸·region
@@ -160,10 +160,10 @@ public final class InternalsImpl implements Internals {
         World w = worldHandle(world).handle();
         ChunkPos cp = new ChunkPos(pos.chunkX(), pos.chunkZ());
         CompletableFuture<T> f = w.submitAtOwnedChunk(cp, r -> {
-            if (!r.chunkLoaded(cp) || r.level() == null) throw new IllegalStateException("청크가 로드돼 있지 않다: " + cp);
+            if (!r.chunkLoaded(cp) || r.level() == null) throw new IllegalStateException("the chunk is not loaded: " + cp);
             return action.apply(cast(r.level(), type, "the level at " + pos));
         });
-        return f != null ? RegionFuture.wrap(f) : failed(new IllegalStateException("청크가 로드돼 있지 않다: " + cp));
+        return f != null ? RegionFuture.wrap(f) : failed(new IllegalStateException("the chunk is not loaded: " + cp));
     }
 
     @Override
@@ -173,9 +173,9 @@ public final class InternalsImpl implements Internals {
         org.domi.furnace.server.world.RegionBorrow.claimChunk(w, cp.x(), cp.z());   // 전역 빌림 구간이면 그 region 을 빌린다
         Region r = w.regionizer().ownerOf(cp.x(), cp.z());
         if (r == null || !r.isOwnerThread()) {
-            throw new ThreadOwnershipException("칸 " + pos + " 를 가진 region 스레드가 아니다(현재 " + Thread.currentThread().getName() + ") — withLevel 을 쓴다");
+            throw new ThreadOwnershipException("not on the region thread that owns the cell " + pos + " (current thread: " + Thread.currentThread().getName() + ") - use withLevel");
         }
-        if (!r.chunkLoaded(cp) || r.level() == null) throw new IllegalStateException("청크가 로드돼 있지 않다: " + cp);
+        if (!r.chunkLoaded(cp) || r.level() == null) throw new IllegalStateException("the chunk is not loaded: " + cp);
         return cast(r.level(), type, "the level at " + pos);
     }
 
@@ -210,6 +210,6 @@ public final class InternalsImpl implements Internals {
             WorldHandle h = host.worldHandle(w.dimension());
             if (h != null && h.handle() == w) return h;
         }
-        throw new IllegalArgumentException("이 서버의 월드가 아니다: " + (internalWorld == null ? "null" : internalWorld.getClass().getName()));
+        throw new IllegalArgumentException("not a world of this server: " + (internalWorld == null ? "null" : internalWorld.getClass().getName()));
     }
 }

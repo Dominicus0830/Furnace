@@ -222,7 +222,7 @@ final class GenericComplex767 {
 
         private static Set<String> load() {
             try (var in = GenericComplex767.class.getClassLoader().getResourceAsStream("registries/client-registries-1.21.1.txt")) {
-                if (in == null) throw new IllegalStateException("registries/client-registries-1.21.1.txt 없음");
+                if (in == null) throw new IllegalStateException("registries/client-registries-1.21.1.txt is missing");
                 Set<String> names = new HashSet<>();
                 for (String line : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
                     line = line.strip();

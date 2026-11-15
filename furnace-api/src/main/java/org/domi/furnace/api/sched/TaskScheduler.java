@@ -24,7 +24,7 @@ public interface TaskScheduler {
      * 한 번 실행이 끝난 뒤 다음 실행을 예약하므로 실행끼리 겹치지 않는다.
      */
     default ScheduledTask runAtFixedRate(Runnable task, long initialDelayTicks, long periodTicks) {
-        if (periodTicks <= 0) throw new IllegalArgumentException("periodTicks 는 1 이상: " + periodTicks);
+        if (periodTicks <= 0) throw new IllegalArgumentException("periodTicks must be at least 1: " + periodTicks);
         Repeating r = new Repeating(this, task, periodTicks);
         executeDelayed(r, Math.max(0, initialDelayTicks));
         return r;

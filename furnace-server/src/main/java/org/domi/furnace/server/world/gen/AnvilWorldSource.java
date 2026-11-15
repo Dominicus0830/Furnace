@@ -192,7 +192,7 @@ public final class AnvilWorldSource implements WorldSource {
             return decoded.thenCompose(col -> {
                 if (col != null) return CompletableFuture.supplyAsync(() -> withPoi(chunkX, chunkZ, col), ioExecutor);
                 return CompletableFuture.supplyAsync(() -> {
-                    if (startGate != null && !startGate.getAsBoolean()) throw new java.util.concurrent.CancellationException("시야 밖 생성 요청 취소");
+                    if (startGate != null && !startGate.getAsBoolean()) throw new java.util.concurrent.CancellationException("generation request outside the view was cancelled");
                     ChunkColumn gen = generateFallback(chunkX, chunkZ);
                     gen.markDirty();
                     gen.newlyCreated(true);

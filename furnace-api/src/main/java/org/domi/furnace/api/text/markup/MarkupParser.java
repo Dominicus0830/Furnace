@@ -46,7 +46,7 @@ final class MarkupParser implements Context {
 
     /** 원문 치환(Placeholder.parsed)까지 처리하고 해석한다. */
     static Text parseFull(String input, TagResolver resolver, boolean strict, int nest) {
-        if (nest > MAX_NEST) throw new MarkupParseException("마크업 중첩이 너무 깊다", input, -1);
+        if (nest > MAX_NEST) throw new MarkupParseException("markup nesting is too deep", input, -1);
         String s = expand(input, resolver, 0);
         MarkupParser p = new MarkupParser(input, resolver, strict, nest);
         p.feed(s, 0);

@@ -91,7 +91,7 @@ public final class Menu {
     public int size() { return items.length; }
 
     private void check(int slot) {
-        if (slot < 0 || slot >= items.length) throw new IndexOutOfBoundsException("칸 " + slot + " (0.." + (items.length - 1) + ")");
+        if (slot < 0 || slot >= items.length) throw new IndexOutOfBoundsException("slot " + slot + " (0.." + (items.length - 1) + ")");
     }
 
     public ItemStack item(int slot) {

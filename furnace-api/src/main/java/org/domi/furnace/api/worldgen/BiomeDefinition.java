@@ -63,7 +63,7 @@ public record BiomeDefinition(
     public record AmbientParticle(String type, float probability) {
         public AmbientParticle {
             type = ResourceKeys.reference("particle type", type);
-            if (!(probability >= 0f && probability <= 1f)) throw new IllegalArgumentException("입자 확률은 0..1: " + probability);
+            if (!(probability >= 0f && probability <= 1f)) throw new IllegalArgumentException("particle probability must be 0..1: " + probability);
         }
     }
 
@@ -90,7 +90,7 @@ public record BiomeDefinition(
     public record Music(String sound, int minDelay, int maxDelay, boolean replaceCurrentMusic) {
         public Music {
             sound = ResourceKeys.reference("sound", sound);
-            if (minDelay < 0 || maxDelay < minDelay) throw new IllegalArgumentException("음악 대기 시간은 0 <= min <= max: " + minDelay + ", " + maxDelay);
+            if (minDelay < 0 || maxDelay < minDelay) throw new IllegalArgumentException("music delay must satisfy 0 <= min <= max: " + minDelay + ", " + maxDelay);
         }
     }
 
@@ -98,9 +98,9 @@ public record BiomeDefinition(
     public record Spawner(String entityType, int weight, int minCount, int maxCount) {
         public Spawner {
             entityType = ResourceKeys.reference("mob type", entityType);
-            if (entityType.equals("minecraft:player")) throw new IllegalArgumentException("플레이어는 스폰 목록에 넣을 수 없다");
-            if (weight < 0) throw new IllegalArgumentException("가중치는 0 이상: " + weight);
-            if (minCount < 1 || maxCount < minCount) throw new IllegalArgumentException("수는 1 <= min <= max: " + minCount + ", " + maxCount);
+            if (entityType.equals("minecraft:player")) throw new IllegalArgumentException("the player cannot be put in a spawn list");
+            if (weight < 0) throw new IllegalArgumentException("weight must be at least 0: " + weight);
+            if (minCount < 1 || maxCount < minCount) throw new IllegalArgumentException("count must satisfy 1 <= min <= max: " + minCount + ", " + maxCount);
         }
     }
 
@@ -118,7 +118,7 @@ public record BiomeDefinition(
         ResourceKeys.finite("downfall", downfall);
         if (ambientSound != null) ambientSound = ResourceKeys.reference("sound", ambientSound);
         if (!(creatureSpawnProbability >= 0f && creatureSpawnProbability < 1f)) {
-            throw new IllegalArgumentException("동물 생성 확률은 0 이상 1 미만: " + creatureSpawnProbability);
+            throw new IllegalArgumentException("creature spawn probability must be at least 0 and below 1: " + creatureSpawnProbability);
         }
         Map<SpawnCategory, List<Spawner>> sp = new EnumMap<>(SpawnCategory.class);
         for (var e : spawners.entrySet()) sp.put(e.getKey(), List.copyOf(e.getValue()));

@@ -61,7 +61,7 @@ final class CommandRegistryImpl implements CommandRegistry {
 
     @Override
     public synchronized Collection<String> register(FurnacePlugin plugin, CommandBuilder root, String description, List<String> aliases) {
-        if (!root.isLiteral()) throw new IllegalArgumentException("명령 트리의 루트는 literal 이어야 한다");
+        if (!root.isLiteral()) throw new IllegalArgumentException("the root of a command tree must be a literal");
         String name = normalize(root.name());
         return registerNames(plugin, name, aliases, (n, ns) -> treeNode(plugin, ns, n, root));
     }
@@ -225,7 +225,7 @@ final class CommandRegistryImpl implements CommandRegistry {
 
     private static String normalize(String label) {
         String n = label.toLowerCase(Locale.ROOT).trim();
-        if (n.isEmpty() || n.indexOf(' ') >= 0 || n.indexOf(':') >= 0) throw new IllegalArgumentException("명령 이름이 잘못됐다: '" + label + "'");
+        if (n.isEmpty() || n.indexOf(' ') >= 0 || n.indexOf(':') >= 0) throw new IllegalArgumentException("invalid command name: '" + label + "'");
         return n;
     }
 

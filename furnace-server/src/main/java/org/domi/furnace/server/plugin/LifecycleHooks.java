@@ -33,7 +33,7 @@ final class LifecycleHooks {
         @Override
         public <R> void register(LifecycleEventType<R> type, LifecycleEventHandler<? super R> handler) {
             if (type == null || handler == null) throw new NullPointerException(type == null ? "type" : "handler");
-            if (!open) throw new IllegalStateException("수명주기 훅은 부트스트랩 단계에서만 등록할 수 있다: " + type);
+            if (!open) throw new IllegalStateException("lifecycle hooks can only be registered in the bootstrap phase: " + type);
             handlers.add(new Handler(owner, logger, type, handler));
         }
 

@@ -117,6 +117,35 @@ class LangBundlesTest {
     }
 
     /**
+     * 예외·requireNonNull 안까지 보는 두 번째 가드: 개발자가 스택 트레이스로 보는 진단 문구는 영어를 코드에 직접 적는다.
+     * 아직 한글이 남은 파일은 lang-exception-english-pending.txt 에 있고(작업 목록을 겸한다), 옮기면 지운다.
+     */
+    @Test
+    void noHangulDeveloperDiagnosticsOutsideThePendingList() throws IOException {
+        Set<String> pending = new TreeSet<>(Files.readAllLines(Path.of("src/test/resources/lang-exception-english-pending.txt"), StandardCharsets.UTF_8)
+                .stream().map(String::strip).filter(l -> !l.isEmpty() && !l.startsWith("#")).toList());
+        Set<String> found = new TreeSet<>();
+        for (Path root : SOURCE_ROOTS) {
+            if (!Files.isDirectory(root)) continue;
+            String module = root.toAbsolutePath().normalize().getParent().getParent().getParent().getFileName().toString();
+            try (Stream<Path> files = Files.walk(root)) {
+                for (Path f : (Iterable<Path>) files.filter(p -> p.toString().endsWith(".java"))::iterator) {
+                    if (!HangulTextScanner.developerTextLines(Files.readString(f, StandardCharsets.UTF_8)).isEmpty()) {
+                        found.add(module + "/" + root.relativize(f).toString().replace('\\', '/'));
+                    }
+                }
+            }
+        }
+        Set<String> added = new TreeSet<>(found);
+        added.removeAll(pending);
+        Set<String> stale = new TreeSet<>(pending);
+        stale.removeAll(found);
+        assertTrue(added.isEmpty(), "Korean text in an exception/diagnostic message - write developer-facing diagnostics in English "
+                + "(or, for operator-facing console text, use Lang.t / CompatLang.t):\n" + String.join("\n", added));
+        assertTrue(stale.isEmpty(), "Already English - remove from src/test/resources/lang-exception-english-pending.txt:\n" + String.join("\n", stale));
+    }
+
+    /**
      * 시작 설정 검증 예외(운영자가 기동 때 그대로 보는 문구)는 번역한다 - 설정 읽기 파일에는 한글 예외 문구를 새로 두지 않는다.
      * 그 밖 파일의 한글 예외 문구(약 200개 파일)는 별도 작업이라 여기서 보지 않는다.
      */

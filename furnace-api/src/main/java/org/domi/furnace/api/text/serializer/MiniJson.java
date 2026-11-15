@@ -37,7 +37,7 @@ final class MiniJson {
     }
 
     private IllegalArgumentException error(String msg) {
-        return new IllegalArgumentException("JSON 오류: " + msg + " (위치 " + pos + ")");
+        return new IllegalArgumentException("JSON error: " + msg + " (position " + pos + ")");
     }
 
     private void ws() {

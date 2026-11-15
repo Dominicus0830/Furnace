@@ -170,7 +170,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         java.util.Map<Region, java.util.List<org.domi.furnace.server.world.BlockEditBuffer.ChunkEdit>> byRegion = new java.util.LinkedHashMap<>();
         for (var e : buf.chunks()) {
             Region r = ownedRegion(new BlockPos(e.cx() << 4, 0, e.cz() << 4), "editBlocksNow(chunk " + e.cx() + ", " + e.cz() + ")");
-            if (r == null) throw new ThreadOwnershipException("editBlocksNow: 청크 " + e.cx() + ", " + e.cz() + " 의 region 이 없다");
+            if (r == null) throw new ThreadOwnershipException("editBlocksNow: no region for chunk " + e.cx() + ", " + e.cz());
             byRegion.computeIfAbsent(r, k -> new ArrayList<>()).add(e);
         }
         return toApi(org.domi.furnace.server.world.BlockEdits.applyNow(byRegion, buf, mode));
@@ -221,7 +221,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
 
         @Override
         public void set(int x, int y, int z, BlockData data) {
-            if (closed) throw new IllegalStateException("editBlocks 함수가 끝난 뒤의 BlockEditor 는 쓸 수 없다");
+            if (closed) throw new IllegalStateException("a BlockEditor cannot be used after the editBlocks function has returned");
             java.util.Objects.requireNonNull(data, "data");
             int id;
             if (data == lastData) {
@@ -243,7 +243,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     Region ownedRegion(BlockPos pos, String what) {
         ThreadOwner owner = (ThreadOwner) world.chunkScheduler(pos.chunkX(), pos.chunkZ());
         if (!owner.isOwnerThread()) {
-            throw new ThreadOwnershipException(what + " 는 그 칸을 가진 region 스레드에서만 부를 수 있다 (현재 " + Thread.currentThread().getName() + ") — Async 판을 쓴다");
+            throw new ThreadOwnershipException(what + " can only be called on the region thread that owns that cell (current thread: " + Thread.currentThread().getName() + ") - use the Async variant");
         }
         Region r = world.regionizer().ownerOf(pos.chunkX(), pos.chunkZ());
         // 맞춤 지점(N2b-4, 설계 3.3-2 R10): 플러그인이 NMS 거울에 쓴 것이 들여오기를 기다리면 먼저 맞춘 뒤 읽고 쓴다 — 대기가 없으면 volatile 읽기 하나
@@ -298,10 +298,10 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         if (biome == null) throw new NullPointerException("biome");
         String key = biome.indexOf(':') < 0 ? "minecraft:" + biome : biome;
         int id = biomeNames().indexOf(key);
-        if (id < 0) throw new IllegalArgumentException("알 수 없는 바이옴: " + biome);
+        if (id < 0) throw new IllegalArgumentException("unknown biome: " + biome);
         GameRegistryStore store = host.pluginsImpl().gameRegistries();
         GameRegistryStore.Entry<?> custom = store == null ? null : store.biome(key);
-        if (custom != null && !custom.active()) throw new IllegalArgumentException("꺼진 플러그인의 바이옴: " + biome);
+        if (custom != null && !custom.active()) throw new IllegalArgumentException("biome of a disabled plugin: " + biome);
         return id;
     }
 
@@ -507,28 +507,28 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     public CompletableFuture<Entity> spawnEntity(String type, Location at) {
         String id = type.indexOf(':') < 0 ? "minecraft:" + type : type;
         if (!org.domi.furnace.server.command.arguments.EntityTypes.isKnown(id) || id.equals("minecraft:player") || id.equals("minecraft:fishing_bobber")) {
-            return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalArgumentException("소환할 수 없는 엔티티 종류: " + type)));
+            return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalArgumentException("entity type that cannot be spawned: " + type)));
         }
         if (!at.world().equals(world.dimension())) {
-            return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalArgumentException("다른 차원의 위치: " + at.world())));
+            return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalArgumentException("position in another dimension: " + at.world())));
         }
         if (!Double.isFinite(at.x()) || !Double.isFinite(at.y()) || !Double.isFinite(at.z()) || Math.abs(at.x()) >= 3.0E7 || Math.abs(at.z()) >= 3.0E7) {
-            return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalArgumentException("잘못된 위치: " + at)));
+            return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalArgumentException("invalid position: " + at)));
         }
         ChunkPos cp = ChunkPos.ofBlock(at.x(), at.z());
         CompletableFuture<Entity> f = world.submitAtOwnedChunk(cp, r -> spawnOn(r, cp, id, at));
-        return RegionFuture.wrap(f != null ? f : CompletableFuture.failedFuture(new IllegalStateException("청크가 로드돼 있지 않다: " + cp)));
+        return RegionFuture.wrap(f != null ? f : CompletableFuture.failedFuture(new IllegalStateException("the chunk is not loaded: " + cp)));
     }
 
     /** 소유 스레드에서: /summon 과 같은 경로로 만든다. 스폰 이벤트가 취소되면 null. */
     private Entity spawnOn(Region r, ChunkPos cp, String id, Location at) {
-        if (!r.chunkLoaded(cp)) throw new IllegalStateException("청크가 로드돼 있지 않다: " + cp);
+        if (!r.chunkLoaded(cp)) throw new IllegalStateException("the chunk is not loaded: " + cp);
         var level = r.level();
         // /summon 과 같은 경로(SummonCommand.summonAt): 종류 id 만 든 태그로 만들고, 몹은 finalizeSpawn(COMMAND)
         var tag = new org.domi.furnace.server.net.io.nbt.NbtCompound();
         tag.putString("id", id);
         var e = org.domi.furnace.server.entity.Entities.load(level, tag);
-        if (e == null) throw new IllegalArgumentException("만들 수 없는 엔티티 종류: " + id);
+        if (e == null) throw new IllegalArgumentException("entity type that cannot be created: " + id);
         e.moveTo(at.x(), at.y(), at.z(), at.yaw(), at.pitch());
         if (e instanceof org.domi.furnace.server.entity.Mob mob) {
             if (mob instanceof org.domi.furnace.server.entity.Villager v) v.setFinalizeReason(org.domi.furnace.server.entity.spawn.SpawnReason.COMMAND);
@@ -541,11 +541,11 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     private String spawnableId(String type, Location at) {
         String id = type.indexOf(':') < 0 ? "minecraft:" + type : type;
         if (!org.domi.furnace.server.command.arguments.EntityTypes.isKnown(id) || id.equals("minecraft:player") || id.equals("minecraft:fishing_bobber")) {
-            throw new IllegalArgumentException("소환할 수 없는 엔티티 종류: " + type);
+            throw new IllegalArgumentException("entity type that cannot be spawned: " + type);
         }
-        if (!at.world().equals(world.dimension())) throw new IllegalArgumentException("다른 차원의 위치: " + at.world());
+        if (!at.world().equals(world.dimension())) throw new IllegalArgumentException("position in another dimension: " + at.world());
         if (!Double.isFinite(at.x()) || !Double.isFinite(at.y()) || !Double.isFinite(at.z()) || Math.abs(at.x()) >= 3.0E7 || Math.abs(at.z()) >= 3.0E7) {
-            throw new IllegalArgumentException("잘못된 위치: " + at);
+            throw new IllegalArgumentException("invalid position: " + at);
         }
         return id;
     }
@@ -555,7 +555,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         String id = spawnableId(type, at);
         ChunkPos cp = ChunkPos.ofBlock(at.x(), at.z());
         Region r = ownedRegion(new BlockPos(cp.x() << 4, 0, cp.z() << 4), "spawnEntityNow");
-        if (r == null) throw new IllegalStateException("청크가 로드돼 있지 않다: " + cp);
+        if (r == null) throw new IllegalStateException("the chunk is not loaded: " + cp);
         return spawnOn(r, cp, id, at);
     }
 
@@ -580,7 +580,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
 
     @Override
     public List<Entity> nearbyEntitiesNow(Location center, double radius) {
-        if (!(radius >= 0 && radius <= 128)) throw new IllegalArgumentException("radius 는 0..128: " + radius);
+        if (!(radius >= 0 && radius <= 128)) throw new IllegalArgumentException("radius must be 0..128: " + radius);
         if (!center.world().equals(world.dimension())) return List.of();
         ChunkPos cp = ChunkPos.ofBlock(center.x(), center.z());
         Region r = ownedRegion(new BlockPos(cp.x() << 4, 0, cp.z() << 4), "nearbyEntitiesNow");
@@ -608,7 +608,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
                 }
             }
         } else {
-            throw new ThreadOwnershipException(what + " 는 region 스레드에서만 부를 수 있다 (현재 " + Thread.currentThread().getName() + ") — Async 판을 쓴다");
+            throw new ThreadOwnershipException(what + " can only be called on a region thread (current thread: " + Thread.currentThread().getName() + ") - use the Async variant");
         }
         return regions;
     }
@@ -651,7 +651,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
 
     @Override
     public CompletableFuture<List<Entity>> nearbyEntities(Location center, double radius) {
-        if (!(radius >= 0 && radius <= 128)) return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalArgumentException("radius 는 0..128: " + radius)));
+        if (!(radius >= 0 && radius <= 128)) return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalArgumentException("radius must be 0..128: " + radius)));
         if (!center.world().equals(world.dimension())) return RegionFuture.wrap(CompletableFuture.completedFuture(List.of()));
         ChunkPos cp = ChunkPos.ofBlock(center.x(), center.z());
         double r2 = radius * radius;
@@ -686,8 +686,8 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         boolean owned = (org.domi.furnace.server.world.RegionBorrow.claimEntity(e) || (e.level() != null && e.level().isOwnerThread()))
                 && e.level() != null && e.level().entities().contains(e);
         if (!owned) {
-            throw new ThreadOwnershipException("entityByIdNow 는 그 엔티티를 가진 region 스레드에서만 부를 수 있다 (현재 "
-                    + Thread.currentThread().getName() + ") — entityById 를 쓴다");
+            throw new ThreadOwnershipException("entityByIdNow can only be called on the region thread that owns that entity (current thread: "
+                    + Thread.currentThread().getName() + ") - use entityById");
         }
         return e.isRemoved() ? Optional.empty() : Optional.of(EntityHandle.of(host, e));
     }
@@ -806,7 +806,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
                 // 그 칸을 가진 region 스레드면 곧바로(Bukkit 블록 인벤토리처럼 동기로 읽고 쓰는 호출자용) — 결과는 끝난 Future
                 if (((ThreadOwner) world.chunkScheduler(cp.x(), cp.z())).isOwnerThread()) {
                     Region here = world.regionizer().ownerOf(cp.x(), cp.z());
-                    if (here == null) return CompletableFuture.failedFuture(new IllegalStateException("청크가 로드돼 있지 않다: " + cp));
+                    if (here == null) return CompletableFuture.failedFuture(new IllegalStateException("the chunk is not loaded: " + cp));
                     try {
                         return CompletableFuture.completedFuture(applyOn(here, op));
                     } catch (RuntimeException e) {
@@ -814,13 +814,13 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
                     }
                 }
                 CompletableFuture<T> f = world.submitAtOwnedChunk(cp, r -> applyOn(r, op));
-                return f != null ? f : CompletableFuture.failedFuture(new IllegalStateException("청크가 로드돼 있지 않다: " + cp));
+                return f != null ? f : CompletableFuture.failedFuture(new IllegalStateException("the chunk is not loaded: " + cp));
             }
 
             private <T> T applyOn(Region r, java.util.function.Function<OwnedInventory.Slots, T> op) {
                 {
                     var col = r.ownedColumn(cp);
-                    if (col == null || col.blockEntityAt(pos.x(), pos.y(), pos.z()) != original) throw new IllegalStateException("그 칸의 용기가 사라졌다: " + pos);
+                    if (col == null || col.blockEntityAt(pos.x(), pos.y(), pos.z()) != original) throw new IllegalStateException("the container at that cell is gone: " + pos);
                     var c = new org.domi.furnace.server.world.BlockEntityContainer(original);
                     Object[] out = new Object[1];
                     org.domi.furnace.server.world.MenuBlockContext.runIn(r, () -> out[0] = op.apply(new OwnedInventory.Slots() {
@@ -876,7 +876,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     @Override
     public CompletableFuture<List<org.domi.furnace.api.world.PointOfInterest>> pointsOfInterest(BlockPos center, int radius,
             java.util.Set<String> types, org.domi.furnace.api.world.PoiOccupancy occupancy) {
-        if (radius < 0 || radius > 128) return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalArgumentException("radius 는 0..128: " + radius)));
+        if (radius < 0 || radius > 128) return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalArgumentException("radius must be 0..128: " + radius)));
         java.util.Objects.requireNonNull(types, "types");
         java.util.Objects.requireNonNull(occupancy, "occupancy");
         java.util.Set<String> keys = new java.util.HashSet<>();
@@ -1152,10 +1152,10 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     public Entity dropItemNow(Location at, org.domi.furnace.api.item.ItemStack stack, boolean naturally, java.util.function.Consumer<Entity> beforeSpawn) {
         java.util.Objects.requireNonNull(at, "Location cannot be null");
         java.util.Objects.requireNonNull(stack, "ItemStack cannot be null");
-        if (!at.world().equals(world.dimension())) throw new IllegalArgumentException("다른 차원의 위치: " + at.world());
+        if (!at.world().equals(world.dimension())) throw new IllegalArgumentException("position in another dimension: " + at.world());
         ChunkPos cp = ChunkPos.ofBlock(at.x(), at.z());
         Region r = ownedRegion(new BlockPos(cp.x() << 4, 0, cp.z() << 4), "dropItemNow");
-        if (r == null || !r.chunkLoaded(cp)) throw new IllegalStateException("청크가 로드돼 있지 않다: " + cp);
+        if (r == null || !r.chunkLoaded(cp)) throw new IllegalStateException("the chunk is not loaded: " + cp);
         var level = r.level();
         double x = at.x(), y = at.y(), z = at.z();
         if (naturally) {   // Paper CraftWorld#dropItemNaturally: 월드 난수 nextFloat 셋(x·y·z 순)
@@ -1176,7 +1176,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     /** 소유 스레드이고 청크가 로드된 칸의 레벨(아니면 ThreadOwnershipException / IllegalStateException). */
     private org.domi.furnace.server.world.RegionLevel loadedLevel(BlockPos pos, String what) {
         Region r = ownedRegion(pos, what + "(" + pos + ")");
-        if (r == null || !r.chunkLoaded(new ChunkPos(pos.chunkX(), pos.chunkZ()))) throw new IllegalStateException("청크가 로드돼 있지 않다: " + pos);
+        if (r == null || !r.chunkLoaded(new ChunkPos(pos.chunkX(), pos.chunkZ()))) throw new IllegalStateException("the chunk is not loaded: " + pos);
         return r.level();
     }
 
@@ -1251,7 +1251,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         var level = loadedLevel(pos, "placeFeatureNow");
         var r = level.placeFeatureWith(configuredFeature, new Pos(pos.x(), pos.y(), pos.z()),
                 new org.domi.furnace.server.world.JavaRandomWorldgen(random), apply);
-        if (r == null) throw new IllegalArgumentException("모르는 configured feature: " + configuredFeature);
+        if (r == null) throw new IllegalArgumentException("unknown configured feature: " + configuredFeature);
         return placement(r);
     }
 

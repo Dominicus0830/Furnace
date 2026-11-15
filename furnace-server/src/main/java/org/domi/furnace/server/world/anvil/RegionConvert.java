@@ -55,7 +55,7 @@ public final class RegionConvert {
             case "none" -> Compression.NONE;
             case "lz4" -> Compression.LZ4;
             case "zstd" -> Compression.ZSTD;
-            default -> throw new IllegalArgumentException("모르는 압축 방식: " + method + " (deflate, gzip, lz4, none, zstd)");
+            default -> throw new IllegalArgumentException("unknown compression method: " + method + " (deflate, gzip, lz4, none, zstd)");
         };
     }
 

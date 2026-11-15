@@ -21,7 +21,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
 
     private static WorldHandle handle(org.domi.furnace.api.world.World w) {
         if (w instanceof WorldHandle wh) return wh;
-        throw new IllegalArgumentException("Furnace 서버가 만든 월드 핸들이 아니다: " + w);
+        throw new IllegalArgumentException("not a world handle created by the Furnace server: " + w);
     }
 
     @Override
@@ -63,7 +63,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
         ChunkColumn col = column(world, cx, cz, what);
         if (col == null) return null;
         int count = col.sectionCount();
-        if (index < 0 || index >= count) throw new IndexOutOfBoundsException("섹션 번호 " + index + " (0.." + (count - 1) + ")");
+        if (index < 0 || index >= count) throw new IndexOutOfBoundsException("section index " + index + " (0.." + (count - 1) + ")");
         return col.sectionForRead(index);
     }
 
@@ -129,7 +129,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
     @Override
     public int firstAvailableNow(org.domi.furnace.api.world.World world, String heightmap, int x, int z) {
         HeightmapType type = HeightmapType.byKey(heightmap.toLowerCase(java.util.Locale.ROOT));
-        if (type == null) throw new IllegalArgumentException("모르는 하이트맵: " + heightmap);
+        if (type == null) throw new IllegalArgumentException("unknown heightmap: " + heightmap);
         Region r = ownedLoaded(world, x >> 4, z >> 4, "Heightmap#getFirstAvailable");
         return r == null ? Integer.MIN_VALUE : r.heightAt(type, x, z);
     }
@@ -152,26 +152,26 @@ final class ChunkInternalsImpl implements ChunkInternals {
 
     private static HeightmapType heightmapType(String key) {
         HeightmapType type = HeightmapType.byKey(key.toLowerCase(java.util.Locale.ROOT));
-        if (type == null) throw new IllegalArgumentException("모르는 하이트맵: " + key);
+        if (type == null) throw new IllegalArgumentException("unknown heightmap: " + key);
         return type;
     }
 
     private static void checkState(int stateId) {
         if (stateId < 0 || stateId >= org.domi.furnace.server.block.Blocks.get().stateCount()) {
-            throw new IllegalArgumentException("블록 상태 번호 범위 밖: " + stateId);
+            throw new IllegalArgumentException("block state id out of range: " + stateId);
         }
     }
 
     private static int checkSection(ChunkColumn col, int index) {
         int count = col.sectionCount();
-        if (index < 0 || index >= count) throw new IndexOutOfBoundsException("섹션 번호 " + index + " (0.." + (count - 1) + ")");
+        if (index < 0 || index >= count) throw new IndexOutOfBoundsException("section index " + index + " (0.." + (count - 1) + ")");
         return index;
     }
 
     @Override
     public int setSectionStateRawNow(org.domi.furnace.api.world.World world, int chunkX, int sectionIndex, int chunkZ, int cellIndex, int stateId,
                                      boolean vanillaCounts) {
-        if (cellIndex < 0 || cellIndex >= 4096) throw new IllegalArgumentException("섹션 칸 번호 범위 밖: " + cellIndex);
+        if (cellIndex < 0 || cellIndex >= 4096) throw new IllegalArgumentException("section cell index out of range: " + cellIndex);
         checkState(stateId);
         ChunkColumn col = column(world, chunkX, chunkZ, "LevelChunkSection#setBlockState");
         if (col == null) return -1;
@@ -180,9 +180,9 @@ final class ChunkInternalsImpl implements ChunkInternals {
 
     @Override
     public int setSectionBiomeRawNow(org.domi.furnace.api.world.World world, int chunkX, int sectionIndex, int chunkZ, int cellIndex, int biomeId) {
-        if (cellIndex < 0 || cellIndex >= 64) throw new IllegalArgumentException("바이옴 칸 번호 범위 밖: " + cellIndex);
+        if (cellIndex < 0 || cellIndex >= 64) throw new IllegalArgumentException("biome cell index out of range: " + cellIndex);
         int biomes = biomeKeys().size();
-        if (biomeId < 0 || (biomes > 0 && biomeId >= biomes)) throw new IllegalArgumentException("바이옴 번호 범위 밖: " + biomeId);
+        if (biomeId < 0 || (biomes > 0 && biomeId >= biomes)) throw new IllegalArgumentException("biome id out of range: " + biomeId);
         ChunkColumn col = column(world, chunkX, chunkZ, "PalettedContainer#set (biomes)");
         if (col == null) return -1;
         return col.setSectionBiomeRaw(checkSection(col, sectionIndex), cellIndex, biomeId);
@@ -287,8 +287,8 @@ final class ChunkInternalsImpl implements ChunkInternals {
         // 전역의 빌림 구간은 위 claimChunk 에서 이미 주인이 된다 — 여기 온 것은 빌림이 바로 그 교착을 알아채고 포기했거나 구간 밖인 경우다.
         if (org.domi.furnace.server.world.Regionizer.isRegionWorkerThread() || org.domi.furnace.server.sched.GlobalThread.isGlobalThread()) {
             requestView(w, col, chunkX, chunkZ);
-            throw new IllegalStateException("청크 " + chunkX + ", " + chunkZ + " (" + w.dimension() + ") 는 다른 region 의 것이고 아직 공개 스냅샷이 없다 — "
-                    + "region·전역 스레드는 다른 region 을 기다릴 수 없다(교착). 공개를 부탁해 두었으니 다음 틱부터 읽힌다(getChunkNow 로 확인)");
+            throw new IllegalStateException("chunk " + chunkX + ", " + chunkZ + " (" + w.dimension() + ") belongs to another region and has no published snapshot yet - "
+                    + "region and global threads cannot wait for another region (deadlock). Publishing was requested, so it can be read from the next tick (check with getChunkNow)");
         }
         // region 이 아닌 스레드: 바닐라 getChunk 가 다른 스레드에서 주 스레드를 기다리는 것과 같은 간선. 주인이 없으면 region 을 만들지 않고(R4),
         // 종료 중 돌지 않을 작업을 영원히 기다리지 않게 상한을 둔다.
@@ -297,14 +297,14 @@ final class ChunkInternalsImpl implements ChunkInternals {
         try {
             return f.get(AWAIT_VIEW_SECONDS, java.util.concurrent.TimeUnit.SECONDS);
         } catch (java.util.concurrent.TimeoutException e) {
-            throw new IllegalStateException("청크 " + chunkX + ", " + chunkZ + " (" + w.dimension() + ") 의 주인 region 이 " + AWAIT_VIEW_SECONDS
-                    + "초 안에 공개하지 않았다(서버 종료 중이거나 region 이 멈춤)", e);
+            throw new IllegalStateException("the owning region of chunk " + chunkX + ", " + chunkZ + " (" + w.dimension() + ") did not publish it within " + AWAIT_VIEW_SECONDS
+                    + " seconds (the server is stopping or the region is stuck)", e);
         } catch (java.util.concurrent.ExecutionException e) {
             if (e.getCause() instanceof RuntimeException re) throw re;
             throw new IllegalStateException(e.getCause());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("공개 기다림이 끊겼다", e);
+            throw new IllegalStateException("waiting for the publication was interrupted", e);
         }
     }
 
@@ -337,15 +337,15 @@ final class ChunkInternalsImpl implements ChunkInternals {
     @Override
     public boolean importSectionNow(org.domi.furnace.api.world.World world, int chunkX, int sectionIndex, int chunkZ, int[] states, int[] biomes, int[] counts) {
         if (states != null) {
-            if (states.length != 4096) throw new IllegalArgumentException("블록 칸은 4096개여야 한다: " + states.length);
+            if (states.length != 4096) throw new IllegalArgumentException("there must be 4096 block cells: " + states.length);
             for (int id : states) checkState(id);
         }
         if (biomes != null) {
-            if (biomes.length != 64) throw new IllegalArgumentException("바이옴 칸은 64개여야 한다: " + biomes.length);
+            if (biomes.length != 64) throw new IllegalArgumentException("there must be 64 biome cells: " + biomes.length);
             int n = biomeKeys().size();
-            for (int id : biomes) if (id < 0 || (n > 0 && id >= n)) throw new IllegalArgumentException("바이옴 번호 범위 밖: " + id);
+            for (int id : biomes) if (id < 0 || (n > 0 && id >= n)) throw new IllegalArgumentException("biome id out of range: " + id);
         }
-        if (counts != null && counts.length != 3) throw new IllegalArgumentException("개수는 셋이어야 한다: " + counts.length);
+        if (counts != null && counts.length != 3) throw new IllegalArgumentException("there must be three counts: " + counts.length);
         ChunkColumn col = column(world, chunkX, chunkZ, "importing chunk sections");
         if (col == null) return false;
         col.importSection(checkSection(col, sectionIndex), states, biomes, counts);

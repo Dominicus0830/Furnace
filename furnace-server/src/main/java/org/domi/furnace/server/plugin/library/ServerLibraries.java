@@ -146,10 +146,10 @@ public final class ServerLibraries {
 
     public ServerLibraries(List<Group> groups) {
         for (Group g : groups) {
-            if (this.groups.putIfAbsent(g.id(), g) != null) throw new IllegalArgumentException("묶음 이름이 겹친다: " + g.id());
+            if (this.groups.putIfAbsent(g.id(), g) != null) throw new IllegalArgumentException("duplicate group id: " + g.id());
         }
         for (Group g : groups) {
-            for (String r : g.requires()) if (!this.groups.containsKey(r)) throw new IllegalArgumentException(g.id() + " 가 없는 묶음 " + r + " 를 요구한다");
+            for (String r : g.requires()) if (!this.groups.containsKey(r)) throw new IllegalArgumentException(g.id() + " requires a group that does not exist: " + r);
         }
     }
 

@@ -15,10 +15,21 @@ final class HangulTextScanner {
     private static final Pattern EXEMPT_OPENER = Pattern.compile(
             "(?:new\\s+[\\w.]*(?:Exception|Error)|\\.\\s*(?:debug|trace|fine|finer|finest)|requireNonNull)\\s*\\($");
 
+    /** 개발자 진단 문구 검사용: 예외 생성자·requireNonNull 안도 면제하지 않고 DEBUG 호출·assert 만 면제한다. */
+    private static final Pattern DEBUG_ONLY_OPENER = Pattern.compile("\\.\\s*(?:debug|trace|fine|finer|finest)\\s*\\($");
+
     private HangulTextScanner() {}
 
     /** 면제 범위 밖에서 한글이 든 문자열·문자 리터럴이 시작하는 줄 번호(1부터, 오름차순·중복 없음). */
-    static List<Integer> userTextLines(String rawSource) {
+    static List<Integer> userTextLines(String rawSource) { return scan(rawSource, EXEMPT_OPENER); }
+
+    /**
+     * 예외 생성자·requireNonNull 안까지 포함해(DEBUG 호출·assert 만 면제) 한글 문자열이 시작하는 줄 번호.
+     * 개발자가 스택 트레이스로 보는 영어 진단 문구를 끝까지 옮겼는지 세는 데 쓴다(`lang-exception-english-pending.txt`).
+     */
+    static List<Integer> developerTextLines(String rawSource) { return scan(rawSource, DEBUG_ONLY_OPENER); }
+
+    private static List<Integer> scan(String rawSource, Pattern exemptOpener) {
         String src = decodeUnicodeEscapes(rawSource);
         List<int[]> literals = new ArrayList<>();   // {시작, 끝}
         List<int[]> exempt = new ArrayList<>();
@@ -46,7 +57,7 @@ final class HangulTextScanner {
             } else {
                 if (c == '(') {
                     String before = src.substring(Math.max(0, i - 80), i + 1);
-                    parens.push(new int[] {i, EXEMPT_OPENER.matcher(before).find() ? 1 : 0});
+                    parens.push(new int[] {i, exemptOpener.matcher(before).find() ? 1 : 0});
                 } else if (c == ')' && !parens.isEmpty()) {
                     int[] open = parens.pop();
                     if (open[1] == 1) exempt.add(new int[] {open[0], i});

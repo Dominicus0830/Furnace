@@ -102,7 +102,7 @@ public final class StructureEngine {
             if (!name.contains(":")) name = "minecraft:" + name;
             int st = blocks.defaultStateId(name);
             for (Map.Entry<String, String> e : props.entrySet()) {
-                if (!table.has(st, e.getKey())) throw new IllegalArgumentException("속성 없음: " + sp);
+                if (!table.has(st, e.getKey())) throw new IllegalArgumentException("no such property: " + sp);
                 st = table.with(st, e.getKey(), e.getValue());
             }
             return st;

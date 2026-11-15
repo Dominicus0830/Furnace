@@ -701,7 +701,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         java.time.Instant timeStamp = java.time.Instant.ofEpochMilli(frame.readLong());
         long salt = frame.readLong();
         int n = Types.readVarInt(frame);
-        if (n < 0 || n > 8) throw new org.domi.furnace.server.net.protocol.ProtocolException("인자 서명 개수 오류: " + n);
+        if (n < 0 || n > 8) throw new org.domi.furnace.server.net.protocol.ProtocolException("invalid argument signature count: " + n);
         java.util.LinkedHashMap<String, org.domi.furnace.server.chat.MessageSignature> sigs = new java.util.LinkedHashMap<>();
         for (int i = 0; i < n; i++) sigs.put(Types.readString(frame, 16), org.domi.furnace.server.chat.MessageSignature.read(frame));
         var update = org.domi.furnace.server.chat.LastSeenMessages.Update.read(frame);
@@ -4801,7 +4801,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 연결이 끊겼다: 기다리던 Future 를 ConnectionClosedException 으로 끝내고, 구성 이벤트 처리기가 블로킹 중이면 인터럽트로 깨운다. */
     private void releaseWaiters() {
-        var closed = new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다");
+        var closed = new org.domi.furnace.api.net.ConnectionClosedException("the connection is closed");
         for (var e : pluginPacks.entrySet()) {
             if (pluginPacks.remove(e.getKey(), e.getValue())) completeAsync(e.getValue().future(), null, closed);
         }
@@ -4847,7 +4847,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     java.util.concurrent.CompletableFuture<org.domi.furnace.api.net.ResourcePackStatus> apiSendResourcePack(org.domi.furnace.api.net.ResourcePack pack) {
         java.util.Objects.requireNonNull(pack, "pack");
         ChannelHandlerContext c = this.ctx;
-        if (c == null || !c.channel().isActive()) return java.util.concurrent.CompletableFuture.failedFuture(new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다"));
+        if (c == null || !c.channel().isActive()) return java.util.concurrent.CompletableFuture.failedFuture(new org.domi.furnace.api.net.ConnectionClosedException("the connection is closed"));
         ConnectionState st = state;
         if (st != ConnectionState.CONFIGURATION && st != ConnectionState.PLAY) return notAllowed("A resource pack can only be sent in the configuration or play stage: " + st);
         var fresh = new PendingPack(new java.util.concurrent.CompletableFuture<>(), pack.required());
@@ -4857,15 +4857,15 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             if (!c.channel().isActive() || !canSendDuringConfigurationOrPlay()) {
                 pluginPacks.remove(pack.id(), fresh);
                 fresh.future().completeExceptionally(c.channel().isActive()
-                        ? new IllegalStateException("리소스 팩을 보낼 수 없는 단계다: " + state)
-                        : new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다"));
+                        ? new IllegalStateException("resource packs cannot be sent in this state: " + state)
+                        : new org.domi.furnace.api.net.ConnectionClosedException("the connection is closed"));
                 return;
             }
             send(c, new org.domi.furnace.server.net.protocol.play.ResourcePackPush(pack.id(), pack.url(), pack.hash(), pack.required(), pack.prompt(), state == ConnectionState.PLAY));
         };
         if (!eventLoopRun(c, send)) {
             pluginPacks.remove(pack.id(), fresh);
-            fresh.future().completeExceptionally(new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다"));
+            fresh.future().completeExceptionally(new org.domi.furnace.api.net.ConnectionClosedException("the connection is closed"));
         }
         return fresh.future();
     }
@@ -4890,23 +4890,23 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     private void requireConfigurationOrPlay() {
         ConnectionState st = state;
-        if (st != ConnectionState.CONFIGURATION && st != ConnectionState.PLAY) throw new IllegalStateException("구성·플레이 단계에서만 쓸 수 있다: " + st);
+        if (st != ConnectionState.CONFIGURATION && st != ConnectionState.PLAY) throw new IllegalStateException("only usable in the configuration and play states: " + st);
     }
 
     private void requireConfiguration(String what) {
-        if (state != ConnectionState.CONFIGURATION) throw new IllegalStateException(what + " 은(는) 구성 단계에서만 쓸 수 있다: " + state);
+        if (state != ConnectionState.CONFIGURATION) throw new IllegalStateException(what + " is only usable in the configuration state: " + state);
     }
 
     private static String checkCookieKey(String key) {
         java.util.Objects.requireNonNull(key, "key");
-        if (key.length() > 32767 || !COOKIE_KEY.matcher(key).matches()) throw new IllegalArgumentException("쿠키 키는 namespace:path 꼴이어야 한다: " + key);
+        if (key.length() > 32767 || !COOKIE_KEY.matcher(key).matches()) throw new IllegalArgumentException("a cookie key must look like namespace:path: " + key);
         return key;
     }
 
     java.util.concurrent.CompletableFuture<byte[]> apiRequestCookie(String key) {
         checkCookieKey(key);
         ChannelHandlerContext c = this.ctx;
-        if (c == null || !c.channel().isActive()) return java.util.concurrent.CompletableFuture.failedFuture(new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다"));
+        if (c == null || !c.channel().isActive()) return java.util.concurrent.CompletableFuture.failedFuture(new org.domi.furnace.api.net.ConnectionClosedException("the connection is closed"));
         if (state != ConnectionState.CONFIGURATION) return notAllowed("A cookie request can only be used in the configuration stage: " + state);
         var fresh = new java.util.concurrent.CompletableFuture<byte[]>();
         var prev = pendingCookies.putIfAbsent(key, fresh);
@@ -4914,14 +4914,14 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (!eventLoopRun(c, () -> {
             if (!c.channel().isActive() || state != ConnectionState.CONFIGURATION || finishConfigSent) {
                 pendingCookies.remove(key, fresh);
-                fresh.completeExceptionally(c.channel().isActive() ? new IllegalStateException("쿠키를 요청할 수 없는 단계다: " + state)
-                        : new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다"));
+                fresh.completeExceptionally(c.channel().isActive() ? new IllegalStateException("cookies cannot be requested in this state: " + state)
+                        : new org.domi.furnace.api.net.ConnectionClosedException("the connection is closed"));
                 return;
             }
             send(c, new CookieRequest(key));
         })) {
             pendingCookies.remove(key, fresh);
-            fresh.completeExceptionally(new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다"));
+            fresh.completeExceptionally(new org.domi.furnace.api.net.ConnectionClosedException("the connection is closed"));
         }
         return fresh;
     }
