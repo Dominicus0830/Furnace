@@ -80,6 +80,25 @@ class RunnerCompileTest {
     }
 
     @Test
+    void toolWithScratchOutputGetsItsFolder(@TempDir Path dir) throws Exception {
+        // shape-vectors 처럼 결과 목록이 없고 출력 파일을 {scratch} 아래에 두는 도구 — 폴더가 없으면 도구가 FileNotFoundException 으로 죽는다.
+        String writer = """
+                package furnacetools;
+                public class Scratchy {
+                    public static void main(String[] a) throws Exception {
+                        java.nio.file.Files.writeString(java.nio.file.Path.of(a[0]), String.join(",", a));
+                    }
+                }
+                """;
+        Runner r = runner(dir, Map.of("Vanilla", VANILLA, "Scratchy", writer));
+        Tool t = new Tool("shape-vectors", Tool.Kind.JAVA, "furnacetools.Scratchy", List.of(), List.of("{scratch}/shape-vectors-{mc}.txt", "{tool-args}"), false, "x");
+        r.compile(List.of(t));
+        Runner.Result res = r.run(t);
+        assertEquals(Runner.Status.OK, res.status(), res.error());
+        assertTrue(Files.isRegularFile(dir.resolve("out/scratch/shape-vectors-9.9.txt")));
+    }
+
+    @Test
     void shapeVectorsNeedsFourArgsAndOnlyThenIsBaselineable() {
         Options none = Options.parse(new String[] {"--mc", "1.21.1", "--tools", "shape-vectors"});
         assertThrows(IllegalArgumentException.class, () -> Main.select(none));

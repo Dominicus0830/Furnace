@@ -137,6 +137,8 @@ public final class Runner {
                 Path pth = outs.get(i);
                 toolPaths.add(t.outputs().get(i).gzipAfter() ? stripGz(pth) : pth);
             }
+            // 결과 목록이 없는 도구(shape-vectors)는 출력 파일을 {scratch} 아래에 두므로 그 폴더를 여기서 만든다.
+            if (t.args().stream().anyMatch(a -> a.contains("{scratch}"))) Files.createDirectories(o.out.resolve("scratch"));
             List<String> args = args(t, toolPaths);
             if (t.kind() == Tool.Kind.JAVA) {
                 List<String> cmd = new ArrayList<>(List.of(Procs.exe(o.javaHome, "java"), "-Dfurnace.repo=" + o.repo, "-Dfurnace.mc=" + o.mc,
