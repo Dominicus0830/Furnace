@@ -43,8 +43,6 @@ ServerWatchdog.java
 SharedScheduler.java
 StructureReferences.java
 WritabilityGuard.java
-BukkitWorldReport.java
-PaperConfigImport.java
 AnvilChunkCodec.java
 ChunkLevel.java
 Entity.java

@@ -40,10 +40,15 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
         }
     }
 
+    /** 이름 규칙(영문·숫자·{@code _ . -} 1~64자, "."·".." 는 안 됨)에 맞는가. 예외 문구를 읽지 않고 미리 걸러낼 때 쓴다. */
+    public static boolean isValidName(String name) {
+        return name != null && NAME.matcher(name).matches() && !name.equals(".") && !name.equals("..");
+    }
+
     public WorldCreator {
         Objects.requireNonNull(name, "name");
-        if (!NAME.matcher(name).matches() || name.equals(".") || name.equals("..")) {
-            throw new IllegalArgumentException("월드 이름은 영문·숫자·_ . - 1~64자: " + name);
+        if (!isValidName(name)) {
+            throw new IllegalArgumentException("World name must be 1-64 characters of letters, digits, '_', '.' or '-': " + name);
         }
         key = full("key", key == null ? "minecraft:" + name.toLowerCase(Locale.ROOT) : key);
         Objects.requireNonNull(environment, "environment");
