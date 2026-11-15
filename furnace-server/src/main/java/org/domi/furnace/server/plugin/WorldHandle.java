@@ -954,6 +954,36 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         return true;
     }
 
+    @Override
+    public boolean editBlockEntityPersistentDataNow(BlockPos pos, java.util.function.Consumer<org.domi.furnace.api.persistence.PersistentDataContainer> edit) {
+        java.util.Objects.requireNonNull(edit, "edit");
+        var level = ownedLevelAt(pos, "editBlockEntityPersistentDataNow(" + pos + ")");
+        if (level == null || !(level.getBlockEntity(new Pos(pos.x(), pos.y(), pos.z())) instanceof org.domi.furnace.server.block.entity.BlockEntity be)) return false;
+        editBukkitValues(level, be, edit);
+        return true;
+    }
+
+    @Override
+    public CompletableFuture<Boolean> editBlockEntityPersistentData(BlockPos pos, java.util.function.Consumer<org.domi.furnace.api.persistence.PersistentDataContainer> edit) {
+        java.util.Objects.requireNonNull(edit, "edit");
+        return atBlockEntity(pos, false, (level, be) -> {
+            editBukkitValues(level, be, edit);
+            return true;
+        });
+    }
+
+    /** 블록 엔티티 영속 데이터만 고친다(Paper: 살아 있는 블록 엔티티 PDC). 바뀌지 않았으면 바뀜 표시도 하지 않는다. */
+    private static void editBukkitValues(org.domi.furnace.server.block.BlockLevel level, org.domi.furnace.server.block.entity.BlockEntity be,
+                                         java.util.function.Consumer<org.domi.furnace.api.persistence.PersistentDataContainer> edit) {
+        var tag = be.bukkitValues(true);
+        var before = tag.copy();
+        try {
+            edit.accept(new NbtPersistentData(tag, false));
+        } finally {
+            be.settleBukkitValues(level, !org.domi.furnace.server.net.io.nbt.NbtTags.equal(tag, before));
+        }
+    }
+
     /** 소유 스레드 확인 뒤 그 칸의 레벨(높이 밖·로드 안 됨이면 null). */
     private org.domi.furnace.server.world.RegionLevel ownedLevelAt(BlockPos pos, String what) {
         Region r = ownedRegion(pos, what);

@@ -550,6 +550,11 @@ public final class ChunkColumn {
             c.lootTable = t;
             c.lootSeed = nbt.tags().get("LootTableSeed") instanceof Long l ? l : 0L;
         }
+        // 구조물 템플릿(데이터 팩·Paper 서버에서 저장한 것) 상자의 이름·잠금·컴포넌트·영속 데이터도 디스크 읽기와 같이 옮긴다
+        c.customName = nbt.tags().get("CustomName") instanceof String n ? n : null;
+        c.lock = nbt.tags().get("Lock") instanceof String lk ? lk : null;
+        c.readBukkitValues(nbt);
+        c.loadComponents(nbt);
         generatedBlockEntities.remove(local);
         blockEntities.put(blockEntityKey(x, y, z), c);
         touch();

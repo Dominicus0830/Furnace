@@ -79,15 +79,40 @@ public abstract class BlockEntity {
         readBukkitValues(tag);
     }
 
+    /**
+     * 살아 있는 영속 데이터 compound(Paper: 블록 엔티티의 persistentDataContainer). create 면 없을 때 빈 것을 만든다.
+     * 소유 region 스레드에서만. 고친 뒤 {@link #settleBukkitValues} 를 부른다.
+     */
+    public final NbtCompound bukkitValues(boolean create) {
+        if (bukkitValues == null && create) bukkitValues = new NbtCompound();
+        return bukkitValues;
+    }
+
+    /**
+     * 영속 데이터를 고친 뒤: 비었으면 떼고(저장 꼴에 빈 키를 쓰지 않게) changed 면 청크를 저장 대상으로 표시한다. 비교기 갱신·클라이언트 전송은
+     * 하지 않는다(영속 데이터는 둘 다에 안 보인다).
+     */
+    public final void settleBukkitValues(org.domi.furnace.server.block.BlockLevel level, boolean changed) {
+        if (bukkitValues != null && bukkitValues.tags().isEmpty()) bukkitValues = null;
+        if (changed) level.blockEntityChanged(pos);
+    }
+
     /** 저장 꼴에 영속 데이터를 붙인다(있을 때만). */
     public final void writeBukkitValues(NbtCompound tag) {
         NbtCompound v = bukkitValues;
         if (v != null) tag.putCompound(BUKKIT_VALUES, v.copy());
     }
 
-    /** 클라이언트로 보내는 갱신 태그(청크 패킷·block_entity_data): {@link #updateTag} 에서 영속 데이터를 뺀다(Paper sanitizeSentNbt). */
+    /** 클라이언트로 보내는 갱신 태그(청크 패킷·block_entity_data): {@link #updateTag} 에서 영속 데이터를 뺀다. */
     public final NbtCompound sentUpdateTag() {
-        NbtCompound t = updateTag();
+        return sanitizeSentNbt(updateTag());
+    }
+
+    /**
+     * Paper sanitizeSentNbt: 클라이언트로 나가는 블록 엔티티 태그에서 영속 데이터를 뺀다. 블록 엔티티 태그를 보내는 곳(청크 패킷·
+     * block_entity_data·명령 블록 화면)은 모두 이것을 거친다. 넘긴 태그를 바꾸지 않고, 뺄 것이 있으면 사본을 돌려준다.
+     */
+    public static NbtCompound sanitizeSentNbt(NbtCompound t) {
         if (t != null && t.contains(BUKKIT_VALUES)) {
             t = t.copy();
             t.tags().remove(BUKKIT_VALUES);

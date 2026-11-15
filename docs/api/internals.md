@@ -61,6 +61,9 @@ world.mergeBlockEntityNbt(pos, NbtCompound.parse("{CustomName:'\"Loot\"'}"));
 
 - 그 칸을 가진 region 스레드에서 돈다. 로드되지 않았거나 블록 엔티티가 없으면 `Optional.empty()`/`false`(청크를 만들지 않는다).
 - 쓰기는 `/data` 와 같은 경로(`loadWithComponents → setChanged → 클라이언트 갱신`).
+- 플러그인 영속 데이터만 고칠 때는 `editBlockEntityPersistentData(pos, c -> c.set("myplugin:owner", PersistentDataType.STRING, "Dana"))`
+  (소유 스레드에서는 `editBlockEntityPersistentDataNow`). 저장 위치는 Paper 와 같은 NBT `PublicBukkitValues` 이고, 나머지 블록 엔티티 필드를 다시 싣지 않으며
+  클라이언트로 아무것도 보내지 않는다(영속 데이터는 클라이언트로 가지 않는다). 바뀌었을 때만 청크를 저장 대상으로 표시한다.
 
 **버전 메모**: NBT 의 키 이름·구조는 마인크래프트 데이터 버전을 따른다(1.21.1 = 3955, `Internals.dataVersion()`). 이후 버전 지원 때 API 메서드는 그대로이고, 바닐라가 키를 바꾸면 그 키만 바뀐다 — `/data` 명령을 쓰는 데이터팩과 같은 처지다.
 

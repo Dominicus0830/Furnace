@@ -11,3 +11,13 @@
 - `Nameable`: 메서드 없는 표시 인터페이스였던 것을 Paper 처럼 `getCustomName`·`setCustomName` 을 가진 인터페이스로(표시 인터페이스는 invokeinterface 에서 NoSuchMethodError — #374·#376 함정). `Entity` 도 Paper 처럼 Nameable.
   블록 상태 몸은 `CraftBlockEntityState`(사본 CustomName JSON ↔ § 레거시, null·빈 문자열이면 뗌). Adventure 판 `customName(Component)` 은 빠짐.
 - 남은 것: 마법 부여대는 Furnace 가 블록 엔티티를 만들지 않아 이름이 실리지 않는다(기존 구멍). `getSnapshotInventory`, 큰 상자 합친 인벤토리, `Lockable` 은 다음 조각.
+
+## 검토 반영(PR #392 R1~R3, S1·S2)
+- R1: 명령 블록 편집 화면(`openCommandBlock`, 바닐라 `ClientboundBlockEntityDataPacket.create(be, saveCustomOnly)`)도 Paper 처럼 영속 데이터를 뺀다. 클라이언트로 블록 엔티티 태그를 보내는 곳은
+  모두 `BlockEntity.sanitizeSentNbt` 한 곳을 거친다(`sentUpdateTag`·`CommandBlockEntity.screenTag`). 새로 보내는 곳을 만들면 이것을 부를 것.
+- R2(결정 A): `Block#getState(false)` 의 TileState 는 `isSnapshot()=false` 이고 PDC 가 살아 있는 블록 엔티티의 것(Paper `API-to-get-a-BlockState-without-a-snapshot`).
+  furnace-api `World#editBlockEntityPersistentData(Now)` 로 영속 데이터만 고친다(전체 NBT 를 다시 싣지 않음, 바뀌었을 때만 청크 저장 표시, 비면 키를 뗀다).
+  소유 스레드 밖 읽기는 ThreadOwnershipException, 쓰기는 예약(엔티티 PDC 와 같은 `LivePdc`). 블록 엔티티가 사라지면 떨어져 나간 메모리 컨테이너(Paper 와 같이 블록에 안 남음, 경고 한 번).
+  다른 값(이름·표지판 글)은 Furnace 상태가 NBT 사본 위라 여전히 `update` 가 필요 — `setCustomName` 에 경고 한 번. 살아 있는 상태의 `update`·`getSnapshotNBT` 는 지금 블록 엔티티의 영속 데이터를 싣는다.
+- R3: 실제 패킷 길 시험 — 청크 패킷·되돌림(`BukkitValuesNotSentE2ETest`), block_entity_data 방송·명령 블록 화면·아이템 block_entity_data(`BlockEntityBukkitValuesTest`). 각 길을 updateTag/plain load 로 되돌리면 실패하는 것을 확인했다.
+- S1: 구조물 템플릿 상자(`ChunkColumn.adoptGeneratedChest`)도 CustomName·Lock·components·PublicBukkitValues 를 옮긴다. S2: update 뒤에도 블록 엔티티가 없으면(마법 부여대) 경고 한 번.
