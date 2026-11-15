@@ -102,6 +102,49 @@ class ClassFileTest(unittest.TestCase):
             ti.read_class_source(b"nope")
 
 
+class PartialMergeTest(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("javac"), "javac 없음")
+    def test_partial_resolves_classes_to_sources_and_merge_combines(self):
+        d = tempfile.mkdtemp(prefix="impact-partial-")
+        self.addCleanup(shutil.rmtree, d, True)
+        src = os.path.join(d, "furnace-server", "src", "main", "java", "a")
+        tsrc = os.path.join(d, "furnace-server", "src", "test", "java", "a")
+        os.makedirs(src)
+        os.makedirs(tsrc)
+        with open(os.path.join(src, "Foo.java"), "w") as fh:
+            fh.write("package a; public class Foo { class In {} }\nclass Hidden {}\n")
+        with open(os.path.join(tsrc, "FooTest.java"), "w") as fh:
+            fh.write("package a; class FooTest {}\n")
+        for sourceset, f in (("main", src + "/Foo.java"), ("test", tsrc + "/FooTest.java")):
+            out = os.path.join(d, "furnace-server", "build", "classes", "java", sourceset)
+            os.makedirs(out)
+            cp = os.path.join(d, "furnace-server", "build", "classes", "java", "main")
+            subprocess.run(["javac", "-cp", cp, "-d", out, f], check=True, capture_output=True)
+        raw = os.path.join(d, "raw")
+        os.makedirs(raw)
+        with open(os.path.join(raw, "one.imp"), "w") as fh:
+            fh.write("V1\nT\ta/FooTest\tok\nC\ta/Foo$In\nC\ta/FooTest\nC\tjava/lang/String\nC\ta/Hidden\n")
+        with open(os.path.join(raw, "two.imp"), "w") as fh:   # 한 JVM 에 시험 둘: 구간을 못 나눈다 → 둘 다 믿을 수 없음
+            fh.write("V1\nT\ta/AnotherTest\tok\nT\ta/ThirdTest\tok\nC\ta/Foo\n")
+        part = os.path.join(d, "part.tsv")
+        subprocess.run(["python3", "-I", os.path.join(HERE, "test-impact.py"), "partial", "--raw", raw, "--repo", d, "--out", part], check=True, capture_output=True)
+        m = ti.ImpactMap.read(part)
+        foo = "furnace-server/src/main/java/a/Foo.java"
+        ftest = "furnace-server/src/test/java/a/FooTest.java"
+        self.assertEqual(("ok", ftest, {foo, ftest}), m.tests["a/FooTest"])    # 중첩·같은 파일의 다른 클래스는 소스 파일 하나로
+        self.assertEqual("unreliable", m.tests["a/AnotherTest"][0])
+        self.assertEqual("unreliable", m.tests["a/ThirdTest"][0])
+        self.assertIn(foo, m.index)                                          # 실행되지 않은 소스도 "아는 소스"로 남는다
+        out = os.path.join(d, "map.tsv")
+        subprocess.run(["python3", "-I", os.path.join(HERE, "test-impact.py"), "merge", part, part, "--commit", "c", "--out", out, "--min-ok-ratio", "0.2"], check=True, capture_output=True)
+        merged = ti.ImpactMap.read(out)
+        self.assertEqual("unreliable", merged.tests["a/FooTest"][0])           # 같은 시험이 두 조각에 있으면 믿지 않는다
+        bad = subprocess.run(["python3", "-I", os.path.join(HERE, "test-impact.py"), "merge", part, "--commit", "c", "--out", out + "2", "--min-ok-ratio", "0.9"],
+                             capture_output=True)
+        self.assertNotEqual(0, bad.returncode)                                # 믿을 수 있는 시험이 너무 적으면 표를 쓰지 않는다
+        self.assertFalse(os.path.exists(out + "2"))
+
+
 class MapFormatTest(unittest.TestCase):
     def test_roundtrip_and_duplicate_test_becomes_unreliable(self):
         m = ti.ImpactMap("abc", "2026-11-16T00:00:00Z")

@@ -227,6 +227,8 @@ def cmd_partial(args):
             elif parts[0] == "C":
                 classes.append(parts[1])
         executed = {index[c] for c in classes if c in index}
+        if len(tests) != 1:   # 한 JVM 에 시험이 둘 이상(리스너도 이렇게 적지만 여기서도 확인): 구간을 나눌 수 없다
+            tests = [(n, UNRELIABLE) for n, _s in tests]
         for name, status in tests:
             src = index.get(name)
             m.add_test(name, status, src, executed)
