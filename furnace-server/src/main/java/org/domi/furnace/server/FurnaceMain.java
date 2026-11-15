@@ -461,7 +461,10 @@ public final class FurnaceMain {
         // 플러그인: 불러오기(onLoad) — 월드 준비 뒤·접속을 받기 전에 켠다(Bukkit POSTWORLD 와 같은 시점).
         org.domi.furnace.api.Furnace.setServer(core.plugins());
         core.plugins().pluginsImpl().settings(pluginSettings);
-        core.plugins().pluginsImpl().loadAll(pluginBoot);
+        // onLoad·onEnable 은 전역 스레드에서 부른다(N2b-6): Bukkit 의 주 스레드에 가장 가까운 곳이 전역 스레드이고(동기 작업·Bukkit 스케줄러가 도는 곳),
+        // Paper 처럼 켜는 스레드 = 동기 작업 스레드여야 켤 때 Thread.currentThread() 를 주 스레드로 적어 두는 플러그인(FAWE 등)이 맞게 돈다.
+        // 개발 모드 다시 읽기(reloadNow)도 이미 전역 스레드에서 켠다. 틱 박동은 아직 시작 전이라 전역 스레드는 비어 있다.
+        onGlobal(scheduler, () -> core.plugins().pluginsImpl().loadAll(pluginBoot));
         // 추가 월드 자동 불러오기(furnace.properties worlds.autoload, 기본 없음) — 플러그인 onLoad 뒤·onEnable 앞(onLoad 에서 단 WorldLoadEvent 처리기가 받는다)
         for (String name : worldSettings.autoload()) {
             try {
@@ -607,7 +610,7 @@ public final class FurnaceMain {
         // 바닐라 prepareLevels → overworld.setDefaultSpawnPos: 게임 규칙 spawnChunkRadius 의 START 티켓 — 플레이어가 없어도 스폰 청크가 올라와 돈다
         world.enableSpawnChunks();
         prepareSpawnArea(world, defaultSpawn, config.spawnChunkRadius());
-        core.plugins().pluginsImpl().enableAll();
+        onGlobal(scheduler, () -> core.plugins().pluginsImpl().enableAll());   // 위 loadAll 과 같은 까닭으로 전역 스레드에서
         core.plugins().pluginsImpl().startWatcher();   // plugins.dev-mode.auto-reload 일 때만
         core.loadFunctions();   // 플러그인(onLoad·onEnable)·Furnace 명령이 모두 등록된 뒤 함수를 파싱한다 — 그 명령을 쓰는 함수가 시작 때 빠지지 않게
         network.start();
@@ -635,6 +638,21 @@ public final class FurnaceMain {
                 String.format(java.util.Locale.ROOT, "%.3fs", (System.nanoTime() - startNanos) / 1.0E9));
         core.events().call(new org.domi.furnace.api.event.server.ServerLoadEvent());
         shutdown.await();
+    }
+
+    /** 전역 스레드에서 돌리고 끝날 때까지 기다린다. 던진 예외는 감싸지 않고 그대로 다시 던진다. */
+    private static void onGlobal(FurnaceSchedulerImpl scheduler, Runnable task) {
+        try {
+            scheduler.global().submit(() -> {
+                task.run();
+                return null;
+            }).join();
+        } catch (java.util.concurrent.CompletionException e) {
+            Throwable c = e.getCause();
+            if (c instanceof RuntimeException r) throw r;
+            if (c instanceof Error err) throw err;
+            throw e;
+        }
     }
 
     /** 빈 서버 일시정지와 주기 백업을 건다. 닫으면 유지보수 스레드를 멈춘다(종료 훅). */

@@ -60,6 +60,32 @@ public final class NmsBlockProperties {
         return INTERN.computeIfAbsent(info.kind() + "|" + info.name() + "|" + String.join(",", info.values()), k -> create(info));
     }
 
+    /**
+     * BlockStateProperties 상수(N2b-6): 블록 표를 먼저 만든 뒤, 같은 (종류, 이름, 값 집합)의 블록 속성이 있으면 그 객체(값 순서는 보지 않는다 — 블록이
+     * 쓰는 바닐라 순서를 따른다), 없으면 주어진 바닐라 순서로 새로 만든다.
+     */
+    public static Property<?> vanilla(BlockType.PropertyInfo.Kind kind, String name, String... values) {
+        NmsBlocks.registry();
+        Set<String> want = Set.of(values);
+        for (Property<?> p : INTERN.values()) {
+            if (p.getName().equals(name) && kindOf(p) == kind && new HashSet<>(names(p)).equals(want)) return p;
+        }
+        return of(new BlockType.PropertyInfo(name, kind, List.of(values)));
+    }
+
+    /** {@link #vanilla} 의 열거 전체 값 꼴(바닐라 EnumProperty.create(name, class)). */
+    public static Property<?> vanillaEnum(String name, Class<? extends Enum<?>> type) {
+        List<String> values = new ArrayList<>();
+        for (Enum<?> e : type.getEnumConstants()) values.add(((StringRepresentable) e).getSerializedName());
+        return vanilla(BlockType.PropertyInfo.Kind.ENUM, name, values.toArray(String[]::new));
+    }
+
+    private static BlockType.PropertyInfo.Kind kindOf(Property<?> p) {
+        if (p instanceof BooleanProperty) return BlockType.PropertyInfo.Kind.BOOLEAN;
+        if (p instanceof IntegerProperty) return BlockType.PropertyInfo.Kind.INTEGER;
+        return BlockType.PropertyInfo.Kind.ENUM;
+    }
+
     private static Property<?> create(BlockType.PropertyInfo info) {
         return switch (info.kind()) {
             case BOOLEAN -> BooleanProperty.create(info.name());
