@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.nms;
 
+import org.domi.furnace.compat.i18n.CompatLang;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -71,8 +72,7 @@ public final class NmsReflect {
         if (NmsGrades.gradeC(n) != null || missingClassLog(plugin) == MissingClassLog.EACH) {
             // 등급 C(Paper 1.21.1 에 있지만 Furnace 가 일부러 주지 않는 클래스)는 진짜 차이라 하나씩 경고한다. each 설정이면 켜는 중·켠 뒤 모두 하나씩(검토 R2)
             if (WARNED.add(plugin + "\0" + name)) {
-                LOG.warn("플러그인 {} 이(가) NMS 클래스 {} 를 리플렉션으로 찾았으나 이 서버에 없다 — {} (ClassNotFoundException 을 그대로 준다)",
-                        plugin, name, NmsGrades.reason(n));
+                LOG.warn(CompatLang.t("compat.nms-class-not-found", plugin, name, NmsGrades.reason(n)));
             } else {
                 LOG.debug("플러그인 {}: NMS 클래스 {} 없음", plugin, name);
             }
@@ -192,11 +192,8 @@ public final class NmsReflect {
     /** 요약 한 줄. 운영자에게는 "대개 정상", 플러그인 개발자에게는 이름을 모두 보는 설정(each)을 알린다(전체 이름 DEBUG 줄은 운영자가 켤 길이 없어 안내하지 않는다, 검토 R3). */
     static String summary(String plugin, java.util.List<String> names, boolean starting) {
         String shown = names.size() <= SHOWN ? String.join(", ", names)
-                : String.join(", ", names.subList(0, SHOWN)) + " 외 " + (names.size() - SHOWN) + "개";
-        return "플러그인 " + plugin + " 이(가) " + (starting ? "켜지는 동안 " : "") + "리플렉션으로 찾은 NMS 클래스 " + names.size()
-                + "개가 이 서버에 없어 ClassNotFoundException 을 그대로 줬다: " + shown
-                + " — 대개 이름을 차례로 시도하는 기능 감지라 Paper 1.21.1 에서도 없고 정상이다. 그 플러그인 기능이 안 될 때만 furnace.properties 에 "
-                + MISSING_CLASS_LOG_KEY + "=each 로 이름마다 본다";
+                : String.join(", ", names.subList(0, SHOWN)) + " " + CompatLang.t("compat.nms-missing-more", names.size() - SHOWN);
+        return CompatLang.t(starting ? "compat.nms-missing-summary-starting" : "compat.nms-missing-summary", plugin, names.size(), shown, MISSING_CLASS_LOG_KEY);
     }
 
     /** 시험용: 모은 것을 지금 알린다(켠 뒤 예약을 기다리지 않고). */
@@ -219,7 +216,7 @@ public final class NmsReflect {
         if (owner == null || !NmsSymbols.isNms(owner.getName().replace('.', '/'))) return;
         String target = owner.getName() + "#" + member;
         if (WARNED.add(plugin + "\0" + target)) {
-            LOG.warn("플러그인 {} 이(가) NMS 멤버 {} 를 리플렉션으로 찾았으나 shim 에 없다 — 원래 예외를 그대로 준다", plugin, target);
+            LOG.warn(CompatLang.t("compat.nms-member-not-found", plugin, target));
         } else {
             LOG.debug("플러그인 {}: NMS 멤버 {} 없음", plugin, target);
         }

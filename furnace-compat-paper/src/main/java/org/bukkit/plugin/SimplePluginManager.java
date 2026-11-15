@@ -1,5 +1,6 @@
 package org.bukkit.plugin;
 
+import org.domi.furnace.compat.i18n.CompatLang;
 import java.io.File;
 import java.lang.invoke.MethodHandle;
 import java.lang.reflect.InvocationTargetException;
@@ -136,14 +137,14 @@ public final class SimplePluginManager implements PluginManager {
     @Override
     public Plugin[] loadPlugins(File directory) {
         if (directory == null || !directory.isDirectory()) throw new IllegalArgumentException("Directory must be a directory");
-        server.getLogger().warning("Furnace 는 서버가 도는 중에 플러그인을 새로 불러오지 않는다 — loadPlugins(" + directory + ") 는 아무것도 불러오지 않았다");
+        server.getLogger().warning(CompatLang.t("compat.load-plugins-ignored", directory));
         return new Plugin[0];
     }
 
     @Override
     public Plugin[] loadPlugins(File[] files) {
         if (files == null) throw new IllegalArgumentException("File list cannot be null");
-        if (files.length > 0) server.getLogger().warning("Furnace 는 서버가 도는 중에 플러그인을 새로 불러오지 않는다 — loadPlugins 는 아무것도 불러오지 않았다");
+        if (files.length > 0) server.getLogger().warning(CompatLang.t("compat.load-plugins-ignored-list"));
         return new Plugin[0];
     }
 
@@ -242,7 +243,7 @@ public final class SimplePluginManager implements PluginManager {
             r = ListenerFallback.collect(listener.getClass());
         } catch (Throwable t) {
             plugin.getLogger().severe("Failed to register events for " + listener.getClass() + " because " + cause.getMessage() + " does not exist."
-                    + " (Furnace 호환 어댑터가 지원하는 이벤트 목록: docs/api/compat-paper.md)");
+                    + " " + CompatLang.t("compat.event-list-hint"));
             return;
         }
         for (String bad : r.invalid()) {
@@ -269,11 +270,11 @@ public final class SimplePluginManager implements PluginManager {
                     .append(" because the class does not exist:");
             for (ListenerFallback.Skipped s : r.skipped()) sb.append(" ").append(s.method()).append(" -> ").append(s.missingClass()).append(";");
             sb.append(" the other ").append(registered).append(" handler(s) of the listener were registered."
-                    + " (Furnace 호환 어댑터가 지원하는 이벤트 목록: docs/api/compat-paper.md)");
+                    + " " + CompatLang.t("compat.event-list-hint"));
             plugin.getLogger().warning(sb.toString());
         } else if (r.handlers().isEmpty() && r.invalid().isEmpty()) {
             plugin.getLogger().severe("Failed to register events for " + listener.getClass() + " because " + cause.getMessage() + " does not exist."
-                    + " (Furnace 호환 어댑터가 지원하는 이벤트 목록: docs/api/compat-paper.md)");
+                    + " " + CompatLang.t("compat.event-list-hint"));
         }
     }
 

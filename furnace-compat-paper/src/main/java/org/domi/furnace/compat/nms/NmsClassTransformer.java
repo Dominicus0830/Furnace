@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.nms;
 
+import org.domi.furnace.compat.i18n.CompatLang;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -111,7 +112,7 @@ public final class NmsClassTransformer implements ClassTransformer {
             }
             report = NmsCompatReport.analyze(plugin, read, NmsSymbols.RUNTIME, options.spigot());
         } catch (IOException e) {
-            LOG.warn("플러그인 {}: NMS 호환 보고를 만들지 못했다({}) — 변환은 그대로 한다", plugin, e.toString());
+            LOG.warn(CompatLang.t("compat.nms-report-failed", plugin, e.toString()));
             SpigotMappings.register(plugin, null);
             return new NmsClassTransformer(plugin, Set.of(), new Options(options.strict(), options.versionedPackage()), NmsSymbols.RUNTIME);
         }
@@ -178,7 +179,7 @@ public final class NmsClassTransformer implements ClassTransformer {
         reader.accept(new ClassRemapper(chain, remapper), 0);
         if (!changed[0] && !changed[1] && !changed[2] && !changed[3]) return null;
         if (changed[0] && announced.compareAndSet(false, true)) {
-            LOG.info("플러그인 {}: CraftBukkit 버전 접미사 이름({}) 을 이 서버의 접미사 없는 이름으로 바꿔 올린다", plugin, CraftNames.VERSION);
+            LOG.info(CompatLang.t("compat.nms-version-suffix", plugin, CraftNames.VERSION));
         }
         return writer.toByteArray();
     }

@@ -1,5 +1,6 @@
 package net.minecraft.world.level.chunk;
 
+import org.domi.furnace.compat.i18n.CompatLang;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.lang.ref.WeakReference;
@@ -127,7 +128,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
         try {
             if (!NmsChunks.bridge().requestMirrorSync(world, cx, cz, this)) dead = true;   // 내린 청크·옛 로드의 거울 — 쓰기는 월드에 닿지 않는다
         } catch (RuntimeException e) {
-            warnOnce("request", "주인에게 맞추기를 부탁하지 못했다(" + e + ") — 다음 틱 끝 훑기가 맞춘다");
+            warnOnce("request", CompatLang.t("compat.mirror.request-failed", e));
         }
     }
 
@@ -256,7 +257,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
             LevelChunkSection was = placed[i];
             Plan p = null;
             if (cur == null) {
-                if (was != null) warnOnce("null:" + i, "섹션 배열 칸 " + i + " 에 null 이 들어왔다 — 들여오지 않는다(바닐라 로드된 청크의 섹션은 null 이 아니다)");
+                if (was != null) warnOnce("null:" + i, CompatLang.t("compat.mirror.null-section", i));
                 continue;
             }
             if (cur != was || cur.furnaceChunk() == null) {
@@ -326,8 +327,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
                 cur.furnaceReadCountFields(counts, 0);   // 잡힌 섹션은 일지가 없다 — 지금 필드가 그 섹션의 개수(Paper)
             }
         } catch (RuntimeException e) {
-            warnOnce("invalid:" + i + ":" + e.getMessage(), "섹션 " + i + " 의 내용을 들여오지 않는다: " + e.getMessage()
-                    + " — 바닐라에서도 그런 섹션은 읽을 때 실패한다. 플러그인이 만든 섹션·컨테이너를 확인할 것");
+            warnOnce("invalid:" + i + ":" + e.getMessage(), CompatLang.t("compat.mirror.invalid-section", i, e.getMessage()));
             return null;
         }
         if (!NmsChunks.bridge().importSectionNow(world, cx, i, cz, states, biomes, counts)) {
@@ -428,7 +428,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
                 default -> throw new IllegalStateException("일지 종류 " + op.kind);
             }
         } catch (RuntimeException e) {
-            warnOnce("replay:" + op.kind + ":" + e.getClass().getName(), "다른 스레드가 쓴 칸을 재생하지 못했다(" + e + ") — 그 쓰기는 버린다");
+            warnOnce("replay:" + op.kind + ":" + e.getClass().getName(), CompatLang.t("compat.mirror.replay-failed", e));
         }
     }
 
@@ -468,7 +468,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
                         try {
                             s.furnaceDetach();
                         } catch (RuntimeException e) {
-                            warnOnce("unload", "내리는 청크의 섹션을 굳히지 못했다(" + e + ")");
+                            warnOnce("unload", CompatLang.t("compat.mirror.unload-failed", e));
                         }
                     }
                 }
@@ -696,7 +696,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
     /** 같은 거울·같은 원인은 한 번만. */
     void warnOnce(String key, String message) {
         if (warned.size() < 64 && warned.add(key)) {
-            LOG.warn("[NMS] 청크 {}, {} ({}) 거울: {}", cx, cz, world.dimension(), message);
+            LOG.warn(CompatLang.t("compat.mirror.line", cx, cz, world.dimension(), message));
         }
     }
 }

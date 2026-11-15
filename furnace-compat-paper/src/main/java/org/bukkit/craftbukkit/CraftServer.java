@@ -1,5 +1,6 @@
 package org.bukkit.craftbukkit;
 
+import org.domi.furnace.compat.i18n.CompatLang;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -335,7 +336,7 @@ public final class CraftServer implements Server {
 
     private void warnHardcore(org.bukkit.WorldCreator creator, String name) {
         if (creator.hardcore() && !f().worlds().get(0).isHardcore() && WARNED_CREATE.add(name + "|hardcore")) {
-            LOG.warning("[Furnace] createWorld('" + name + "'): hardcore(true) 는 무시한다 — Furnace 추가 월드는 주 월드의 하드코어 값(server.properties hardcore)을 따른다");
+            LOG.warning(CompatLang.t("compat.create-world-hardcore", name));
         }
     }
 
@@ -355,7 +356,7 @@ public final class CraftServer implements Server {
             throw new IllegalArgumentException("createWorld('" + name + "'): generatorSettings 가 JSON 객체가 아니다 — " + e.getMessage(), e);
         }
         if (!c.isList("layers")) {
-            if (!c.isEmpty()) LOG.warning("[Furnace] createWorld('" + name + "'): 평지 generatorSettings 에 layers 가 없다 — 기본 평지로 만든다(Paper 와 같다)");
+            if (!c.isEmpty()) LOG.warning(CompatLang.t("compat.create-world-flat-no-layers", name));
             return;
         }
         java.util.List<org.domi.furnace.api.world.WorldCreator.FlatLayer> layers = new ArrayList<>();
@@ -363,7 +364,7 @@ public final class CraftServer implements Server {
         b.flatLayers(layers);
         if (c.isString("biome")) b.flatBiome(c.getString("biome"));
         if ((c.getBoolean("features") || c.getBoolean("lakes")) && WARNED_CREATE.add(name + "|flat-features")) {
-            LOG.warning("[Furnace] createWorld('" + name + "'): 평지 features·lakes 는 아직 만들지 않는다 — 층만 깐다");
+            LOG.warning(CompatLang.t("compat.create-world-flat-partial", name));
         }
     }
 

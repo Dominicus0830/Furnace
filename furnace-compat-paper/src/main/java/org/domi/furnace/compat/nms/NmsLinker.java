@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.nms;
 
+import org.domi.furnace.compat.i18n.CompatLang;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -91,7 +92,7 @@ final class NmsLinker extends ClassVisitor {
             // (Paper 1.21.1 에서도 그 클래스는 링크에 실패한다). 시작 보고서도 이 클래스들을 "다른 버전"으로 빼고 센다.
             log.debug("플러그인 {}: 다른 버전 모듈 클래스 {} 정의 거부 — {} 상속", plugin, dots(cls), dots(parent));
         } else if (REFUSAL_WARNED.add(plugin + '\0' + cls)) {
-            log.warn("플러그인 {}: 클래스 {} 를 정의하지 않는다 — {} 를 상속한다: {}", plugin, dots(cls), dots(parent), why);
+            log.warn(CompatLang.t("compat.nms-class-inherits", plugin, dots(cls), dots(parent), why));
         } else {
             log.debug("플러그인 {}: 클래스 {} 정의 거부(다시)", plugin, dots(cls));
         }
