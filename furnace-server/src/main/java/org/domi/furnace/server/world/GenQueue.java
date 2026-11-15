@@ -86,6 +86,15 @@ public final class GenQueue extends AbstractExecutorService {
         final java.util.function.BooleanSupplier keepAlive;
         /** 이 요청을 건 플레이어(entityId, 차례 계산용). 없으면 -1. */
         final int owner;
+        /** 미리 생성(T-175)이 건 요청 — 맨 뒤. 다른 요청자가 붙으면 promote 로 내린다(그 뒤로는 고정 요청과 같다). */
+        private volatile boolean background;
+
+        /** 미리 생성 요청: 맨 뒤에 서고, 시야 밖 취소·차례와 무관하다. 미리 생성을 멈추면 시작 전에 cancelBackground 로 취소한다. */
+        public static Ticket forBackground() {
+            Ticket t = new Ticket(true, null, -1);
+            t.background = true;
+            return t;
+        }
 
         public Ticket(boolean cancellable) { this(cancellable, null, -1); }
 
@@ -116,6 +125,23 @@ public final class GenQueue extends AbstractExecutorService {
         }
 
         boolean tryCancel() { return state.compareAndSet(QUEUED, CANCELLED); }
+
+        /** 미리 생성 요청인가(다른 요청자가 붙어 내려오기 전). */
+        public boolean isBackground() { return background; }
+
+        /**
+         * 다른 요청자(플레이어·플러그인 등)가 미리 생성 요청에 붙는다: 고정하고 맨 뒤에서 꺼낸다 — 붙은 사람이 미리 생성 차례를 기다리지 않게.
+         * 이미 취소됐으면(미리 생성 멈춤) 거짓 — 그 로드는 실패로 끝난다(다시 걸어야 한다).
+         */
+        public boolean promote() {
+            if (!pin()) return false;
+            background = false;
+            return true;
+        }
+
+        /** 미리 생성을 멈출 때: 아직 시작 안 했고 아무도 안 붙은 미리 생성 요청만 취소한다. */
+        public boolean cancelBackground() { return background && state.compareAndSet(QUEUED, CANCELLED); }
+
         boolean cancellable() { return state.get() == QUEUED; }
         public boolean cancelled() { return state.get() == CANCELLED; }
     }
@@ -277,6 +303,9 @@ public final class GenQueue extends AbstractExecutorService {
 
     public Settings settings() { return settings; }
 
+    /** 생성 스레드 수. */
+    public int threads() { return threads; }
+
     /** 플레이어 수를 셀 차원(World 생성자가 부른다). */
     void addWorld(World w) { worlds.addIfAbsent(w); }
 
@@ -412,12 +441,17 @@ public final class GenQueue extends AbstractExecutorService {
 
     /** 위치를 단 실행기: 이 실행기로 낸 작업은 생성 요청으로 거리 순 대기열에 선다. ticket 은 null 이면 고정. */
     public Executor tagged(World w, int cx, int cz, Ticket ticket) {
-        return r -> submit(r, w, cx, cz, ticket, false);
+        return r -> submit(r, w, cx, cz, ticket, ticket != null && ticket.isBackground());
     }
 
-    /** 맨 뒤 작업(미리 생성 등). 플레이어 요청이 하나라도 있으면 그 뒤. */
+    /** 맨 뒤 작업(고정 — 취소·내리기 없음). 플레이어 요청이 하나라도 있으면 그 뒤. 미리 생성은 Ticket.forBackground() 로 tagged 를 쓴다. */
     public Executor background(World w, int cx, int cz) {
         return r -> submit(r, w, cx, cz, null, true);
+    }
+
+    /** 잠금 안: 지금 맨 뒤 작업인가(미리 생성 요청에 다른 요청자가 붙어 내려왔으면 아니다). */
+    private static boolean bg(Task t) {
+        return t.background && (t.ticket == null || t.ticket.isBackground());
     }
 
     @Override
@@ -490,7 +524,7 @@ public final class GenQueue extends AbstractExecutorService {
                 IdentityHashMap<World, Snap> snaps = new IdentityHashMap<>();
                 int stale = 0;
                 for (Task t : gen) {
-                    if (t.background || t.w == null) continue;
+                    if (bg(t) || t.w == null) continue;
                     Snap s = snaps.computeIfAbsent(t.w, w -> new Snap(w.playerIndex().toArray(), w.viewDistance(), settings.cancelMargin()));
                     if (!s.keeps(t.cx, t.cz)) stale++;
                 }
@@ -503,7 +537,7 @@ public final class GenQueue extends AbstractExecutorService {
         int stale = 0;
         for (int i = gen.size() - 1; i >= 0; i--) {
             Task t = gen.get(i);
-            if (t.background || t.w == null) continue;
+            if (bg(t) || t.w == null) continue;
             Snap s = snaps.computeIfAbsent(t.w, w -> new Snap(w.playerIndex().toArray(), w.viewDistance(), settings.cancelMargin()));
             int best = PRIO_NO_PLAYERS;
             boolean kept = false;
@@ -600,12 +634,14 @@ public final class GenQueue extends AbstractExecutorService {
         for (int i = 0, n = gen.size(); i < n; i++) {
             Task t = gen.get(i);
             long key;
-            if (!settings.distanceOrder()) key = 0;
-            else if (!t.background && (t.ticket == null || !t.ticket.cancellable()) && now - t.t0 >= settings.pinnedMaxWaitNanos()) key = -1;
+            boolean back = bg(t);
+            if (t.ticket != null && t.ticket.cancelled()) key = Long.MIN_VALUE;   // 취소된 요청(멈춘 미리 생성 등)은 만들지 않고 바로 끝낸다 — 붙은 요청자가 맨 뒤까지 기다리지 않게
+            else if (!settings.distanceOrder()) key = 0;
+            else if (!back && (t.ticket == null || !t.ticket.cancellable()) && now - t.t0 >= settings.pinnedMaxWaitNanos()) key = -1;
             else if (t.ticket != null && t.ticket.keepAlive != null && t.ticket.cancellable() && alive(t.ticket)) key = 0;   // 살아 있는 시간 티켓(바닐라 티켓 레벨이 플레이어 것보다 높다)
-            else if (turns && !t.background && !onTurn(t)) key = (1L << 32) + t.prio;   // 줄 선 사람 요청은 차례인 요청 뒤
+            else if (turns && !back && !onTurn(t)) key = (1L << 32) + t.prio;   // 줄 선 사람 요청은 차례인 요청 뒤
             else key = t.prio;
-            if (t.background && settings.distanceOrder()) key = (2L << 32) + key;   // 미리 생성은 줄 선 요청보다도 뒤
+            if (back && settings.distanceOrder() && key != Long.MIN_VALUE) key = (2L << 32) + key;   // 미리 생성은 줄 선 요청보다도 뒤
             if (key < bestKey || (key == bestKey && t.seq < bestSeq)) {
                 bestKey = key; bestSeq = t.seq; bi = i;
             }

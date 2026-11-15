@@ -475,6 +475,7 @@ public final class FurnaceMain {
         org.domi.furnace.server.command.builtin.TpsCommands.register(core.commands().getDispatcher());
         org.domi.furnace.server.command.builtin.TimingsCommands.register(core.commands().getDispatcher());
         org.domi.furnace.server.command.builtin.BackupCommands.register(core.commands().getDispatcher());
+        org.domi.furnace.server.command.builtin.PregenCommands.register(core.commands().getDispatcher());
         // /save-all·빈 서버 일시정지 저장(바닐라 saveEverything). 기다림은 전용 저장 스레드에서 — 전역 스레드를 막지 않는다(P-O14-10).
         org.domi.furnace.server.maintenance.ServerSave serverSave = new org.domi.furnace.server.maintenance.ServerSave(
                 new org.domi.furnace.server.maintenance.ServerSave.Hooks() {
@@ -511,6 +512,8 @@ public final class FurnaceMain {
                 .on(ShutdownSequence.Step.SHUTDOWN_EVENT, () -> {
                     log.info("종료 중 — dirty 청크/플레이어 flush");
                     core.plugins().beginShutdown();
+                    var pregen = core.pregenIfStarted();   // 미리 생성은 진행 위치를 남기고 멈춘다(/furnace pregen resume 으로 이어 함)
+                    if (pregen != null) pregen.shutdown();
                 })
                 // CraftBukkit 처럼 플러그인을 먼저 끈다(플레이어가 아직 접속해 있을 때 onDisable 이 돈다).
                 .on(ShutdownSequence.Step.DISABLE_PLUGINS, () -> core.plugins().pluginsImpl().disableAll())
