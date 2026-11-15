@@ -183,7 +183,7 @@ public final class BlockShapes {
     private static byte[] loadWallTests(int n) {
         byte[] t = new byte[n];
         try (InputStream raw = BlockShapes.class.getClassLoader().getResourceAsStream("blocks/blockwalltests_1.21.1.txt.gz")) {
-            if (raw == null) throw new IllegalStateException("담장 테스트 리소스 없음");
+            if (raw == null) throw new IllegalStateException("fence test resource is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(new GZIPInputStream(raw), StandardCharsets.UTF_8));
             String line;
             while ((line = r.readLine()) != null) {
@@ -199,7 +199,7 @@ public final class BlockShapes {
 
     private void loadSupports() {
         try (InputStream raw = BlockShapes.class.getClassLoader().getResourceAsStream("blocks/blocksupports_1.21.1.txt.gz")) {
-            if (raw == null) throw new IllegalStateException("지지 마스크 리소스 없음");
+            if (raw == null) throw new IllegalStateException("support mask resource is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(new GZIPInputStream(raw), StandardCharsets.UTF_8));
             String line;
             while ((line = r.readLine()) != null) {

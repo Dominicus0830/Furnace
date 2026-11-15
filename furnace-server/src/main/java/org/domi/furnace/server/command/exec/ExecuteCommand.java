@@ -128,6 +128,6 @@ public final class ExecuteCommand implements UnboundEntryAction {
     private static RuntimeException asRuntime(Throwable t) {
         if (t instanceof RuntimeException re) return re;
         if (t instanceof Error err) throw err;
-        return new RuntimeException("명령 결과 콜백 실패", t);
+        return new RuntimeException("command result callback failed", t);
     }
 }

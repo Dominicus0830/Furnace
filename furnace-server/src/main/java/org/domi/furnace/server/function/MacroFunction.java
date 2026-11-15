@@ -46,7 +46,7 @@ public final class MacroFunction implements CommandFunction {
     /** 매크로 함수는 인스턴스화해야 줄이 생긴다. */
     @Override
     public List<UnboundEntryAction> entries() {
-        throw new IllegalStateException("매크로 함수 " + id + " 는 instantiate 뒤에 실행해야 한다");
+        throw new IllegalStateException("macro function " + id + " must be run after instantiate");
     }
 
     public List<String> parameters() { return parameters; }

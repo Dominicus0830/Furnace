@@ -16,7 +16,7 @@ public final class SynchedData {
 
     /** define(id, 기본값) — 번호는 0 부터 빈틈없이. */
     public void define(int index, int serializer, Object initial) {
-        if (index != values.length) throw new IllegalStateException("엔티티 데이터 번호가 이어지지 않음: " + index);
+        if (index != values.length) throw new IllegalStateException("entity data indices are not contiguous: " + index);
         values = java.util.Arrays.copyOf(values, index + 1);
         defaults = java.util.Arrays.copyOf(defaults, index + 1);
         serializers = java.util.Arrays.copyOf(serializers, index + 1);

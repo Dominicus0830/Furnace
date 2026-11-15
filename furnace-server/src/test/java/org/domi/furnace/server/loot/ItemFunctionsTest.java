@@ -318,7 +318,7 @@ class ItemFunctionsTest {
             try {
                 LootFunction.parse(JsonParser.parseString("{\"function\":\"minecraft:" + t + "\"}"), regs);
             } catch (LootParseException e) {
-                assertFalse(e.getMessage().startsWith("아직 지원하지 않는 전리품 함수"), t + " 미지원: " + e.getMessage());
+                assertFalse(e.getMessage().startsWith("loot function not supported yet"), t + " 미지원: " + e.getMessage());
             } catch (RuntimeException ignored) {
                 // 필수 필드 누락 — 함수 종류는 알고 있다
             }

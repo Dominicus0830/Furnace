@@ -72,7 +72,7 @@ public abstract class StructurePiece {
      */
     public void postProcess(FeatureWorldView view, BlockRegistry blocks, WorldgenRandom random,
             org.domi.furnace.server.world.gen.noise.NoiseRandom regionRandom, BoundingBox writableBox) {
-        throw new UnsupportedOperationException(getClass().getSimpleName() + ": postProcess(PostCtx)를 구현해야 한다");
+        throw new UnsupportedOperationException(getClass().getSimpleName() + ": postProcess(PostCtx) must be implemented");
     }
 
     /** 바닐라 StructurePiece.postProcess(level, sm, generator, random, box, chunkPos, pivot) — 기본은 구형 시그니처로 위임. */

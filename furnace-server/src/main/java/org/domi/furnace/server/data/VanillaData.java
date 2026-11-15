@@ -118,17 +118,17 @@ public final class VanillaData {
         Path inner = work.resolve("server.jar");
         try (ZipFile zip = new ZipFile(bundler.toFile())) {
             ZipEntry list = zip.getEntry("META-INF/versions.list");
-            if (list == null) throw new IOException("번들러 jar 가 아니다(META-INF/versions.list 없음)");
+            if (list == null) throw new IOException("not a bundler jar (META-INF/versions.list is missing)");
             String line = new String(zip.getInputStream(list).readAllBytes(), StandardCharsets.UTF_8).trim().split("\n")[0];
             String[] parts = line.split("\t");   // sha256 \t id \t path
             ZipEntry e = zip.getEntry("META-INF/versions/" + parts[2]);
-            if (e == null) throw new IOException("번들러 안에 " + parts[2] + " 가 없다");
+            if (e == null) throw new IOException("the bundler has no entry " + parts[2] + " in it");
             MessageDigest sha256 = digest("SHA-256");
             try (InputStream in = new DigestInputStream(zip.getInputStream(e), sha256)) {
                 Files.copy(in, inner);
             }
             String h = HexFormat.of().formatHex(sha256.digest());
-            if (!h.equalsIgnoreCase(parts[0])) throw new IOException("내부 서버 jar sha256 이 다르다: " + h);
+            if (!h.equalsIgnoreCase(parts[0])) throw new IOException("inner server jar sha256 differs: " + h);
         }
         int files = 0;
         try (ZipFile zip = new ZipFile(inner.toFile())) {
@@ -138,7 +138,7 @@ public final class VanillaData {
                 String name = e.getName();
                 if (e.isDirectory() || !(name.startsWith("data/") || name.equals("version.json"))) continue;
                 Path target = work.resolve(name).normalize();
-                if (!target.startsWith(work)) throw new IOException("잘못된 경로: " + name);
+                if (!target.startsWith(work)) throw new IOException("invalid path: " + name);
                 Files.createDirectories(target.getParent());
                 try (InputStream in = zip.getInputStream(e); OutputStream o = Files.newOutputStream(target)) {
                     in.transferTo(o);

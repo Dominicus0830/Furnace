@@ -84,7 +84,7 @@ public final class ProfiledScheduling {
         if (p == null) return task;
         Lazy lazy = new Lazy(this, p, kind, taskName(task));
         return () -> {
-            if (lazy.dead()) throw new java.util.concurrent.CancellationException("플러그인이 꺼짐: " + p.name());
+            if (lazy.dead()) throw new java.util.concurrent.CancellationException("the plugin is disabled: " + p.name());
             Timing t = lazy.timing();
             long t0 = t.start();
             try {
@@ -100,7 +100,7 @@ public final class ProfiledScheduling {
         if (p == null) return task;
         Lazy lazy = new Lazy(this, p, kind, taskName(task));
         return () -> {
-            if (lazy.dead()) throw new java.util.concurrent.CancellationException("플러그인이 꺼짐: " + p.name());
+            if (lazy.dead()) throw new java.util.concurrent.CancellationException("the plugin is disabled: " + p.name());
             Timing t = lazy.timing();
             long t0 = t.start();
             try {

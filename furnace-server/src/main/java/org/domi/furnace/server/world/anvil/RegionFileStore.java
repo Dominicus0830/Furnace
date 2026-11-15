@@ -162,7 +162,7 @@ public final class RegionFileStore {
 
     /** 백업 스냅샷을 건다. dest 는 이 저장소 폴더(region/ 등)에 대응하는 백업 쪽 폴더. 이미 걸려 있으면 예외. */
     public synchronized Snapshot beginSnapshot(Path dest, CutPassed cut) {
-        if (snapshot != null) throw new IllegalStateException("이미 백업 스냅샷 중: " + regionDir);
+        if (snapshot != null) throw new IllegalStateException("a backup snapshot is already in progress: " + regionDir);
         Snapshot s = new Snapshot(dest, cut);
         snapshot = s;
         return s;

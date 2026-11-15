@@ -15,7 +15,7 @@ public final class Dimensions {
 
     /** 월드를 올린다 — 같은 서버 상태(접속자·시계·엔티티 id)를 첫 월드(오버월드)와 공유하게 묶는다. */
     public synchronized void register(World w) {
-        if (byKey.putIfAbsent(w.dimension(), w) != null) throw new IllegalStateException("이미 있는 차원: " + w.dimension());
+        if (byKey.putIfAbsent(w.dimension(), w) != null) throw new IllegalStateException("dimension already exists: " + w.dimension());
         if (!ordered.isEmpty()) w.shareServerState(ordered.get(0));
         ordered.add(w);
         w.dimensions(this);
@@ -23,7 +23,7 @@ public final class Dimensions {
 
     /** 월드를 목록에서 뗀다(추가 월드 내리기). 첫 월드(오버월드)는 뗄 수 없다. 떼었으면 true. */
     public synchronized boolean unregister(World w) {
-        if (!ordered.isEmpty() && ordered.get(0) == w) throw new IllegalArgumentException("오버월드는 내릴 수 없다");
+        if (!ordered.isEmpty() && ordered.get(0) == w) throw new IllegalArgumentException("the overworld cannot be unloaded");
         if (!byKey.remove(w.dimension(), w)) return false;
         ordered.remove(w);
         return true;

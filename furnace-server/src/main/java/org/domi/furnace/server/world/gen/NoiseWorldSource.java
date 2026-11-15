@@ -179,10 +179,10 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
      */
     public static NoiseWorldSource overworld(long seed, BlockRegistry reg, RegistrySet registries, String noiseSettings, String fixedBiome) {
         if (!OVERWORLD_NOISE_SETTINGS.contains(noiseSettings)) {
-            throw new IllegalArgumentException("지원하지 않는 오버월드 노이즈 설정: " + noiseSettings);
+            throw new IllegalArgumentException("unsupported overworld noise settings: " + noiseSettings);
         }
         if (fixedBiome != null && registries.indexOf("minecraft:worldgen/biome", fixedBiome) < 0) {
-            throw new IllegalArgumentException("모르는 바이옴: " + fixedBiome);
+            throw new IllegalArgumentException("unknown biome: " + fixedBiome);
         }
         return create(Dimension.OVERWORLD, noiseSettings, seed, reg, registries, fixedBiome);
     }
@@ -198,7 +198,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
      * 생성 문맥은 FlatLevelSource 값: getMinY 0, getGenDepth 384, getSeaLevel -63.
      */
     public static NoiseWorldSource flat(long seed, BlockRegistry reg, RegistrySet registries, FlatSpec spec) {
-        if (registries.indexOf("minecraft:worldgen/biome", spec.biome()) < 0) throw new IllegalArgumentException("모르는 바이옴: " + spec.biome());
+        if (registries.indexOf("minecraft:worldgen/biome", spec.biome()) < 0) throw new IllegalArgumentException("unknown biome: " + spec.biome());
         return create(Dimension.OVERWORLD, "minecraft:overworld", seed, reg, registries, spec.biome(), spec);
     }
 

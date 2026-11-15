@@ -36,7 +36,7 @@ public final class BlockTags {
     private static BlockTags load() {
         Map<String, List<String>> map = new HashMap<>();
         try (InputStream in = BlockTags.class.getClassLoader().getResourceAsStream(RESOURCE)) {
-            if (in == null) throw new IllegalStateException("블록 태그 리소스 없음: " + RESOURCE);
+            if (in == null) throw new IllegalStateException("block tag resource is missing: " + RESOURCE);
             try (BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = r.readLine()) != null) {
@@ -79,14 +79,14 @@ public final class BlockTags {
                 } else if (tags.containsKey(full)) {
                     r = List.of();
                 } else {
-                    throw new IllegalArgumentException("알 수 없는 블록 태그: " + tag);
+                    throw new IllegalArgumentException("unknown block tag: " + tag);
                 }
                 c.byTag.put(full, r);
             }
             return r;
         }
         List<String> r = tags.get(tag);
-        if (r == null) throw new IllegalArgumentException("알 수 없는 블록 태그: " + tag);
+        if (r == null) throw new IllegalArgumentException("unknown block tag: " + tag);
         return r;
     }
 }

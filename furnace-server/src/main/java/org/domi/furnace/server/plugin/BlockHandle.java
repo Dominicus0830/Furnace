@@ -26,7 +26,7 @@ final class BlockHandle implements Block {
 
     @Override
     public BlockData data() {
-        return snapshot().orElseThrow(() -> new IllegalStateException("청크가 로드돼 있지 않다: " + pos)).data();
+        return snapshot().orElseThrow(() -> new IllegalStateException("the chunk is not loaded: " + pos)).data();
     }
 
     @Override public Optional<BlockSnapshot> snapshot() { return world.blockNow(pos); }

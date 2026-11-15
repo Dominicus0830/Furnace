@@ -37,7 +37,7 @@ public final class BlockEditBuffer {
 
     /** minY 이상 maxY 미만이 월드 높이. 상태 번호는 0..65534 여야 한다(1.21.1 은 약 2.6만). */
     public BlockEditBuffer(int minY, int maxY) {
-        if (((maxY - minY) & 15) != 0) throw new IllegalArgumentException("높이가 16의 배수가 아니다: " + minY + ".." + maxY);
+        if (((maxY - minY) & 15) != 0) throw new IllegalArgumentException("the height is not a multiple of 16: " + minY + ".." + maxY);
         this.minY = minY;
         this.maxY = maxY;
     }
@@ -46,7 +46,7 @@ public final class BlockEditBuffer {
 
     /** 그 칸을 state 로 적는다. 높이 밖이면 세기만 하고 버린다. */
     public void set(int x, int y, int z, int state) {
-        if (state < 0 || state >= 0xFFFF) throw new IllegalArgumentException("상태 번호 범위 밖: " + state);
+        if (state < 0 || state >= 0xFFFF) throw new IllegalArgumentException("state id out of range: " + state);
         if (y < minY || y >= maxY) {
             outOfHeight++;
             return;

@@ -82,7 +82,7 @@ public final class BlockEdits {
         private void send(List<BlockEditBuffer.ChunkEdit> group) {
             if (failed) return;
             if (world.isUnloaded()) {   // 내린 월드 — 작업 큐가 버려지므로 기다리게 두지 않는다
-                fail(new java.util.concurrent.RejectedExecutionException("내린 월드: " + world.dimension()));
+                fail(new java.util.concurrent.RejectedExecutionException("unloaded world: " + world.dimension()));
                 return;
             }
             var head = group.get(0);
@@ -114,7 +114,7 @@ public final class BlockEdits {
                 unchanged.add(c.unchanged);
                 skipped.add(c.skipped);
                 if (limit < mine.size() && world.isUnloaded()) {
-                    fail(new java.util.concurrent.RejectedExecutionException("내린 월드: " + world.dimension()));
+                    fail(new java.util.concurrent.RejectedExecutionException("unloaded world: " + world.dimension()));
                 } else if (limit < mine.size()) {
                     List<BlockEditBuffer.ChunkEdit> rest = new ArrayList<>(mine.subList(limit, mine.size()));
                     var head = rest.get(0);

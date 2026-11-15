@@ -23,7 +23,7 @@ public class BlockEntityContainer extends OpenableContainer {
 
     private static Region writer() {
         Region r = MenuBlockContext.current();
-        if (r == null) throw new IllegalStateException("용기 쓰기는 소유 region 스레드의 MenuBlockContext.runIn 안에서만 가능");
+        if (r == null) throw new IllegalStateException("container writes are only allowed inside MenuBlockContext.runIn on the owning region thread");
         return r;
     }
 

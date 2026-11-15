@@ -31,7 +31,7 @@ final class PluginGoal extends Goal {
         this.ai = ai;
         this.set = set;
         this.key = goal.key();
-        if (key == null) throw new IllegalArgumentException("목표 이름표(key)가 null 이다");
+        if (key == null) throw new IllegalArgumentException("the goal key is null");
         this.interruptible = goal.interruptible();
         this.everyTick = goal.tickEveryTick();
         EnumSet<Flag> flags = EnumSet.noneOf(Flag.class);

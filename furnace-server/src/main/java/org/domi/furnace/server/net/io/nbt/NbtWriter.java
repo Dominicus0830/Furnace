@@ -80,7 +80,7 @@ public final class NbtWriter {
                 for (Object item : l.items()) writePayload(l.elementType(), item);
             }
             case TAG_COMPOUND -> { writeCompoundEntries((NbtCompound) v); buf.writeByte(TAG_END); }
-            default -> throw new IllegalArgumentException("미지원 태그: " + type);
+            default -> throw new IllegalArgumentException("unsupported tag: " + type);
         }
     }
 
@@ -102,7 +102,7 @@ public final class NbtWriter {
         if (v instanceof long[]) return TAG_LONG_ARRAY;
         if (v instanceof NbtList) return TAG_LIST;
         if (v instanceof NbtCompound) return TAG_COMPOUND;
-        throw new IllegalArgumentException("미지원 값: " + v.getClass());
+        throw new IllegalArgumentException("unsupported value: " + v.getClass());
     }
 
     private void writeName(String name) {

@@ -110,13 +110,13 @@ public final class SpreadPlayersCommand {
                             .get(60, TimeUnit.SECONDS);
                     if (r != null) return r;
                 } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException e) {
-                    last = new IllegalStateException("청크 " + cp + " 를 불러오지 못했다", e);
+                    last = new IllegalStateException("chunk " + cp + " could not be loaded", e);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new IllegalStateException(e);
                 }
             }
-            throw last != null ? last : new IllegalStateException("청크 " + cp + " 를 읽지 못했다");
+            throw last != null ? last : new IllegalStateException("chunk " + cp + " could not be read");
         }
     }
 

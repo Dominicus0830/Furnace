@@ -39,8 +39,8 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
 
     final void check() {
         if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(e) && !e.level().isOwnerThread()) {
-            throw new ThreadOwnershipException("EntityState(" + e.uuid() + ") 는 그 엔티티를 가진 region 스레드에서만 쓸 수 있다 (현재 "
-                    + Thread.currentThread().getName() + ") — Entity.editState 를 쓴다");
+            throw new ThreadOwnershipException("EntityState(" + e.uuid() + ") can only be used from the region thread that owns the entity (current thread: "
+                    + Thread.currentThread().getName() + ") - use Entity.editState");
         }
     }
 
@@ -197,17 +197,17 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
             World w = host.core().world(p.dimensionKey());
             ChunkPos cp = ChunkPos.ofBlock(p.x(), p.z());
             Region r = w == null ? null : w.regionizer().ownerOf(cp.x(), cp.z());
-            if (r == null || !r.isOwnerThread()) throw new ThreadOwnershipException("승객 " + p.name() + " 은 이 엔티티와 같은 region 에 있어야 한다");
+            if (r == null || !r.isOwnerThread()) throw new ThreadOwnershipException("passenger " + p.name() + " must be in the same region as this entity");
             return p;
         }
         if (h instanceof EntityHandle eh) {
             if (!(eh.tasks().owner() instanceof Entity pe) || pe.isRemoved()) return null;
             if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(pe) && !pe.level().isOwnerThread()) {
-                throw new ThreadOwnershipException("승객 " + pe.uuid() + " 은 이 엔티티와 같은 region 에 있어야 한다");
+                throw new ThreadOwnershipException("passenger " + pe.uuid() + " must be in the same region as this entity");
             }
             return pe;
         }
-        throw new IllegalArgumentException("Furnace 가 만든 엔티티 핸들이 아니다: " + h.getClass().getName());
+        throw new IllegalArgumentException("not an entity handle created by Furnace: " + h.getClass().getName());
     }
 
     @Override
@@ -254,7 +254,7 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
         private static org.domi.furnace.server.effect.MobEffect effectType(String key) {
             String k = key.indexOf(':') < 0 ? "minecraft:" + key : key;
             var t = org.domi.furnace.server.effect.MobEffect.byName(k);
-            if (t == null) throw new IllegalArgumentException("모르는 효과: " + key);
+            if (t == null) throw new IllegalArgumentException("unknown effect: " + key);
             return t;
         }
 

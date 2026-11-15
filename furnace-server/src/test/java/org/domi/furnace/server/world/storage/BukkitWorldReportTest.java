@@ -136,7 +136,7 @@ class BukkitWorldReportTest {
         assertNull(byName.get("bad name").creator());
         assertTrue(byName.get("bad name").problem().contains("world name"));
         assertNull(byName.get("brokenflat").creator(), "평지 설정을 못 읽으면 기본 생성기로 대신하지 않고 올리지 않는다");
-        assertTrue(byName.get("brokenflat").problem().contains("생성기 설정을 읽지 못해"), byName.get("brokenflat").problem());
+        assertTrue(byName.get("brokenflat").problem().contains("generator settings cannot be read"), byName.get("brokenflat").problem());
         assertEquals(WorldGenerator.LARGE_BIOMES, byName.get("big").creator().generator());
         WorldCreator desert = byName.get("desert").creator();
         assertEquals(WorldEnvironment.NORMAL, desert.environment());

@@ -53,7 +53,7 @@ public record BlockSetType(String name, boolean canOpenByHand, boolean canOpenBy
 
     public static BlockSetType byName(String name) {
         BlockSetType t = BY_NAME.get(name);
-        if (t == null) throw new IllegalArgumentException("알 수 없는 block_set_type: " + name);
+        if (t == null) throw new IllegalArgumentException("unknown block_set_type: " + name);
         return t;
     }
 

@@ -27,7 +27,7 @@ public final class TagRegistries {
 
     public TagRegistries(RegistrySet dynamic) {
         try (InputStream in = TagRegistries.class.getClassLoader().getResourceAsStream("registries/builtin-1.21.1.txt")) {
-            if (in == null) throw new IllegalStateException("registries/builtin-1.21.1.txt 없음");
+            if (in == null) throw new IllegalStateException("registries/builtin-1.21.1.txt is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             String line;
             while ((line = r.readLine()) != null) {

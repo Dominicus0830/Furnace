@@ -173,8 +173,8 @@ public final class ExecutionContext {
      */
     public void defer(CompletableFuture<Integer> future, Duration timeout) {
         checkThread();
-        if (!running) throw new IllegalStateException("명령 본문 밖에서 defer — 중첩 헬퍼 안쪽은 …Async 판을 써야 한다");
-        if (pendingDefer != null) throw new IllegalStateException("source.defer 는 명령 실행 하나에 한 번만 부를 수 있다");
+        if (!running) throw new IllegalStateException("defer called outside a command body - nested helpers must use the ...Async variant");
+        if (pendingDefer != null) throw new IllegalStateException("source.defer can be called only once per command execution");
         pendingDefer = future;
         pendingDeferTimeout = timeout;
     }
@@ -205,7 +205,7 @@ public final class ExecutionContext {
     /** 대기 한도를 정한 {@link #suspend(CompletableFuture, BiConsumer)}. */
     public <T> long suspend(CompletableFuture<T> f, Duration timeout, BiConsumer<T, Throwable> onDone) {
         checkThread();
-        if (suspended) throw new IllegalStateException("이미 멈춘 컨텍스트");
+        if (suspended) throw new IllegalStateException("context is already suspended");
         long token = ++generation;
         suspended = true;
         CompletableFuture<T> watched = f.copy();

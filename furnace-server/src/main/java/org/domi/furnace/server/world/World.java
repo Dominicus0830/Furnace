@@ -399,7 +399,7 @@ public final class World {
 
     /** 그 청크 주인 region 에서 task 실행(주인이 없으면 그 구역의 region 을 만든다). 실패는 로그로 남긴다. */
     public void runAtChunk(ChunkPos cp, java.util.function.Consumer<Region> task) {
-        if (unloaded) throw new java.util.concurrent.RejectedExecutionException("내린 월드: " + dimension());
+        if (unloaded) throw new java.util.concurrent.RejectedExecutionException("unloaded world: " + dimension());
         regionizer.enqueue(Regionizer.chunkKey(cp.x(), cp.z()), task);
     }
 
@@ -420,7 +420,7 @@ public final class World {
 
     /** runAtChunk 의 결과판. */
     public <T> CompletableFuture<T> submitAtChunk(ChunkPos cp, java.util.function.Function<Region, T> task) {
-        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("내린 월드: " + dimension()));
+        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("unloaded world: " + dimension()));
         CompletableFuture<T> f = new CompletableFuture<>();
         runAtChunk(cp, r -> {
             try { f.complete(task.apply(r)); } catch (Throwable t) { f.completeExceptionally(t); }
@@ -430,7 +430,7 @@ public final class World {
 
     /** submitAtChunk 의 조회판: 그 청크에 주인 region 이 없으면 region 을 만들지 않고 null. */
     public <T> CompletableFuture<T> submitAtOwnedChunk(ChunkPos cp, java.util.function.Function<Region, T> task) {
-        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("내린 월드: " + dimension()));
+        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("unloaded world: " + dimension()));
         CompletableFuture<T> f = new CompletableFuture<>();
         boolean sent = regionizer.enqueueIfOwned(Regionizer.chunkKey(cp.x(), cp.z()), r -> {
             try { f.complete(task.apply(r)); } catch (Throwable t) { f.completeExceptionally(t); }
@@ -1246,7 +1246,7 @@ public final class World {
      */
     public ChunkColumn awaitChunk(ChunkPos cp) {
         // 어느 region 워커든(다른 region·다른 차원 포함) 막으면 규칙 6 위반이고, 워커가 하나면 영구 교착이다
-        if (Regionizer.isRegionWorkerThread()) throw new IllegalStateException("region 스레드에서 awaitChunk 금지: " + cp);
+        if (Regionizer.isRegionWorkerThread()) throw new IllegalStateException("awaitChunk is not allowed on a region thread: " + cp);
         return submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(f -> f).join();
     }
 
@@ -1572,7 +1572,7 @@ public final class World {
     public Region regionAt(RegionPos chunk) {
         Region r = regionizer.ownerOf(chunk.x(), chunk.z());
         if (r == null || !r.isOwnerThread()) {
-            throw new IllegalStateException("청크 " + chunk + " 의 주인 region 스레드가 아니다: " + Thread.currentThread().getName());
+            throw new IllegalStateException("not on the owning region thread of chunk " + chunk + ": " + Thread.currentThread().getName());
         }
         return r;
     }
@@ -1889,7 +1889,7 @@ public final class World {
                 if (ticking) pluginTicking.merge(key, 1, Integer::sum);
             }
         }
-        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("내린 월드: " + dimension()));
+        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("unloaded world: " + dimension()));
         List<CompletableFuture<?>> loads = new ArrayList<>();
         for (int cz = minCz; cz <= maxCz; cz++) {
             for (int cx = minCx; cx <= maxCx; cx++) {

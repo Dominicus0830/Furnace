@@ -99,7 +99,7 @@ public final class PluginBootstrapper {
         if (embedded == null) return bootstrap(dir, settings, onClasspath, ServerLibraries.DEFAULT);
         if (onClasspath.available()) {
             // 같은 호환 클래스가 서버 로더와 공유 로더에 둘 다 정의되는 일을 구조로 막는다
-            throw new IllegalStateException("호환 모듈이 서버 클래스패스에도 있고 서버 jar 에 통째로도 실려 있다 — 한쪽만 있어야 한다");
+            throw new IllegalStateException("the compat module is both on the server classpath and bundled whole in the server jar - only one of them may exist");
         }
         PluginBootstrapper b = new PluginBootstrapper(dir, settings, null, ServerLibraries.DEFAULT);
         b.compatJars = embedded;
@@ -491,7 +491,7 @@ public final class PluginBootstrapper {
         if (cls != null && !cls.isBlank()) {
             try {
                 Class<?> type = Class.forName(cls, true, loader);
-                if (!PluginBootstrap.class.isAssignableFrom(type)) throw new IllegalArgumentException("bootstrapper 가 PluginBootstrap 을 구현하지 않는다: " + cls);
+                if (!PluginBootstrap.class.isAssignableFrom(type)) throw new IllegalArgumentException("the bootstrapper does not implement PluginBootstrap: " + cls);
                 boot = (PluginBootstrap) type.getDeclaredConstructor().newInstance();
                 logger.info("Bootstrapping " + d.fullName());
                 boot.bootstrap(ctx);
@@ -586,7 +586,7 @@ public final class PluginBootstrapper {
                 }
             } catch (IOException | RuntimeException e) {
                 closeQuietly(loader);
-                compatFailure = new IllegalStateException("Bukkit·Paper 호환 모듈 jar 를 꺼내 올리지 못했다", e);
+                compatFailure = new IllegalStateException("could not extract the Bukkit/Paper compat module jar", e);
                 throw compatFailure;
             }
             compatJarFiles = files;
@@ -879,7 +879,7 @@ public final class PluginBootstrapper {
 
         @Override
         public String discover(String pathInJar, String id, Text title) {
-            if (id == null || !id.matches("[a-z0-9_.-]+")) throw new IllegalArgumentException("잘못된 데이터 팩 id: " + id);
+            if (id == null || !id.matches("[a-z0-9_.-]+")) throw new IllegalArgumentException("invalid data pack id: " + id);
             String prefix = jarPrefix(pathInJar);
             String packId = "plugin/" + d.namespace() + "/" + id;
             out.add(new PackRepository.JarPack(packId, title != null ? title : Text.text(d.name() + "/" + id), jar, prefix));
@@ -895,7 +895,7 @@ public final class PluginBootstrapper {
         while (s.endsWith("/")) s = s.substring(0, s.length() - 1);
         if (s.isEmpty()) return "";
         for (String seg : s.split("/", -1)) {
-            if (seg.isEmpty() || seg.equals(".") || seg.equals("..")) throw new IllegalArgumentException("잘못된 jar 안 경로: " + path);
+            if (seg.isEmpty() || seg.equals(".") || seg.equals("..")) throw new IllegalArgumentException("invalid path inside the jar: " + path);
         }
         return s + "/";
     }

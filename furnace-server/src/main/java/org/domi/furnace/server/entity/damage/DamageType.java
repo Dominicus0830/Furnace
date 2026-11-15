@@ -73,7 +73,7 @@ public final class DamageType {
     private static Map<String, DamageType> load() {
         Map<String, DamageType> m = new LinkedHashMap<>();
         try (InputStream in = DamageType.class.getClassLoader().getResourceAsStream("registries/damage_types-1.21.1.txt")) {
-            if (in == null) throw new IllegalStateException("registries/damage_types-1.21.1.txt 없음");
+            if (in == null) throw new IllegalStateException("registries/damage_types-1.21.1.txt is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             for (String line; (line = r.readLine()) != null; ) {
                 line = line.strip();
@@ -91,7 +91,7 @@ public final class DamageType {
 
     private static DamageType require(String key) {
         DamageType t = BY_KEY.get(key);
-        if (t == null) throw new IllegalStateException("damage_type 없음: " + key);
+        if (t == null) throw new IllegalStateException("no such damage_type: " + key);
         return t;
     }
 

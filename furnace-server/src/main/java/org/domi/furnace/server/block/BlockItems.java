@@ -31,7 +31,7 @@ public final class BlockItems {
             if (loaded) return;
             Blocks b = Blocks.get();
             try (InputStream in = BlockItems.class.getClassLoader().getResourceAsStream("items/itemblocks_1.21.1.txt")) {
-                if (in == null) throw new IllegalStateException("items/itemblocks_1.21.1.txt 없음");
+                if (in == null) throw new IllegalStateException("items/itemblocks_1.21.1.txt is missing");
                 BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
                 String line;
                 while ((line = r.readLine()) != null) {

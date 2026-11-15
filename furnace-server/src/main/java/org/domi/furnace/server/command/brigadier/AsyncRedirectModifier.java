@@ -13,7 +13,7 @@ public interface AsyncRedirectModifier<S> extends RedirectModifier<S> {
     @Override
     default Collection<S> apply(CommandContext<S> context) throws CommandSyntaxException {
         CompletableFuture<Collection<S>> f = applyAsync(context);
-        if (!f.isDone()) throw new IllegalStateException("비동기 수정자는 실행 코어(BuildContexts)로만 돌릴 수 있다");
+        if (!f.isDone()) throw new IllegalStateException("an async modifier can only run through the execution core (BuildContexts)");
         try {
             return f.join();
         } catch (java.util.concurrent.CompletionException e) {

@@ -52,6 +52,6 @@ public final class JavaRandomWorldgen extends WorldgenRandom {
 
     @Override
     public void restoreState(long rawSeed, boolean haveGaussian, double gaussian) {
-        throw new UnsupportedOperationException("java.util.Random 난수의 상태는 옮기지 않는다");
+        throw new UnsupportedOperationException("the state of java.util.Random is not carried over");
     }
 }

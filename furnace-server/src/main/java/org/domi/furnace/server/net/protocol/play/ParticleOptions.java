@@ -111,7 +111,7 @@ public sealed interface ParticleOptions {
 
         static {
             try (var in = Registry.class.getClassLoader().getResourceAsStream("registries/particle_types-1.21.1.txt")) {
-                if (in == null) throw new IllegalStateException("registries/particle_types-1.21.1.txt 없음");
+                if (in == null) throw new IllegalStateException("registries/particle_types-1.21.1.txt is missing");
                 var r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
                 for (String line; (line = r.readLine()) != null; ) {
                     if (line.isBlank()) continue;
@@ -127,7 +127,7 @@ public sealed interface ParticleOptions {
 
         public static int id(String name) {
             Integer i = IDS.get(name);
-            if (i == null) throw new IllegalArgumentException("알 수 없는 입자 종류: " + name);
+            if (i == null) throw new IllegalArgumentException("unknown particle type: " + name);
             return i;
         }
 

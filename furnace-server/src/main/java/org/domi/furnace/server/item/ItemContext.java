@@ -36,7 +36,7 @@ public final class ItemContext {
 
     public static TagRegistries regs() {
         TagRegistries r = regs;
-        if (r == null) throw new IllegalStateException("아이템 레지스트리가 설치되지 않음");
+        if (r == null) throw new IllegalStateException("the item registry is not installed");
         return r;
     }
 

@@ -443,7 +443,7 @@ public final class BlockTicks {
         }
 
         boolean add(long p, int t) {
-            if (t == EMPTY) throw new IllegalArgumentException("종류 값 " + t);
+            if (t == EMPTY) throw new IllegalArgumentException("unexpected kind value " + t);
             int m = type.length - 1;
             int i = hash(p, t) & m;
             for (; type[i] != EMPTY; i = i + 1 & m) {

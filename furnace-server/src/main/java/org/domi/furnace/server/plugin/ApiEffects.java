@@ -38,7 +38,7 @@ public final class ApiEffects {
     /** API 입자 값 → 와이어 옵션. 모르는 종류·블록·아이템이면 IllegalArgumentException. */
     static ParticleOptions particle(ParticleEffect e, BlockRegistry blocks, ItemRegistry items) {
         java.util.Objects.requireNonNull(e, "particle");
-        if (!ParticleOptions.Registry.has(e.type())) throw new IllegalArgumentException("알 수 없는 입자 종류: " + e.type());
+        if (!ParticleOptions.Registry.has(e.type())) throw new IllegalArgumentException("unknown particle type: " + e.type());
         return switch (e) {
             case ParticleEffect.Simple s -> new ParticleOptions.Simple(s.type());
             case ParticleEffect.BlockState b -> new ParticleOptions.Block(b.type(), ApiConvert.stateId(b.block(), blocks));

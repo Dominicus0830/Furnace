@@ -152,7 +152,7 @@ public interface LootCondition extends Predicate<LootContext> {
                     return a == active;
                 };
             }
-            default -> throw new LootParseException("모르는 조건: " + type);
+            default -> throw new LootParseException("unknown condition: " + type);
         };
     }
 
@@ -175,7 +175,7 @@ public interface LootCondition extends Predicate<LootContext> {
             case "attacker" -> LootParams.ATTACKING_ENTITY;
             case "direct_attacker" -> LootParams.DIRECT_ATTACKING_ENTITY;
             case "attacking_player" -> LootParams.LAST_DAMAGE_PLAYER;
-            default -> throw new LootParseException("모르는 엔티티 대상: " + name);
+            default -> throw new LootParseException("unknown entity target: " + name);
         };
     }
 }

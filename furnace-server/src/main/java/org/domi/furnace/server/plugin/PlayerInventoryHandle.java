@@ -40,7 +40,7 @@ final class PlayerInventoryHandle implements org.domi.furnace.api.inventory.Inve
     @Override
     public CompletableFuture<Void> set(int slot, ItemStack item) {
         if (slot < 0 || slot >= SIZE) return RegionFuture.wrap(CompletableFuture.failedFuture(new IndexOutOfBoundsException("slot " + slot)));
-        if (p.isDisconnected()) return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalStateException("접속 중이 아니다")));
+        if (p.isDisconnected()) return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalStateException("not connected")));
         org.domi.furnace.server.entity.ItemStack converted;
         try {
             converted = ApiConvert.item(item, items());

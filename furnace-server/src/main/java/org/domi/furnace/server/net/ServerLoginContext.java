@@ -97,7 +97,7 @@ public final class ServerLoginContext {
 
     /** Velocity 모던 포워딩 비밀(빈 값이면 끔). */
     public ServerLoginContext velocitySecret(String secret) {
-        if (bungeecord && secret != null && !secret.isEmpty()) throw new IllegalStateException("BungeeCord 포워딩과 Velocity 포워딩은 함께 켤 수 없다");
+        if (bungeecord && secret != null && !secret.isEmpty()) throw new IllegalStateException("BungeeCord forwarding and Velocity forwarding cannot both be enabled");
         this.velocity = secret == null || secret.isEmpty() ? null : new org.domi.furnace.server.net.auth.VelocityForwarding(secret);
         return this;
     }
@@ -106,7 +106,7 @@ public final class ServerLoginContext {
     volatile boolean bungeecord;
 
     public ServerLoginContext bungeecord(boolean enabled) {
-        if (enabled && velocity != null) throw new IllegalStateException("BungeeCord 포워딩과 Velocity 포워딩은 함께 켤 수 없다");
+        if (enabled && velocity != null) throw new IllegalStateException("BungeeCord forwarding and Velocity forwarding cannot both be enabled");
         this.bungeecord = enabled;
         return this;
     }

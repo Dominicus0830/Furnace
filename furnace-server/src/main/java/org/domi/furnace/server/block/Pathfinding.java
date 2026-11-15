@@ -16,7 +16,7 @@ public final class Pathfinding {
 
     private static byte[] load() {
         try (var in = Pathfinding.class.getClassLoader().getResourceAsStream("blocks/pathfindable_1.21.1.txt")) {
-            if (in == null) throw new IllegalStateException("blocks/pathfindable_1.21.1.txt 없음");
+            if (in == null) throw new IllegalStateException("blocks/pathfindable_1.21.1.txt is missing");
             String line = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8)).readLine();
             byte[] out = new byte[line.length()];
             for (int i = 0; i < out.length; i++) out[i] = (byte) (line.charAt(i) - '0');

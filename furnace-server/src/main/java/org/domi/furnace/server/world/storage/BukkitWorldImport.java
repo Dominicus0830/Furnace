@@ -187,7 +187,7 @@ public final class BukkitWorldImport {
             return b.build();
         } catch (IllegalArgumentException e) {
             // 평지 설정을 읽지 못했는데 기본(노이즈) 생성기로 올리면 level.dat 에 설명서가 남아 지형이 영구히 섞인다 — 올리지 않는다.
-            throw new IllegalArgumentException(name + " 의 level.dat 생성기 설정을 읽지 못해 올리지 않는다: " + e.getMessage(), e);
+            throw new IllegalArgumentException(name + " is not loaded because its level.dat generator settings cannot be read: " + e.getMessage(), e);
         }
     }
 

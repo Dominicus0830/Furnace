@@ -120,9 +120,9 @@ public final class GameRegistryStore {
         }
 
         private GameRegistryHooks.DataRegistrar data() {
-            if (!open) throw new IllegalStateException("게임 레지스트리 등록기는 훅이 도는 동안만 쓸 수 있다");
+            if (!open) throw new IllegalStateException("the game registry registrar can only be used while the hook runs");
             GameRegistryHooks.DataRegistrar d = data;
-            if (d == null) throw new IllegalStateException("데이터 주도 레지스트리 항목은 서버 시작 때만 더할 수 있다");
+            if (d == null) throw new IllegalStateException("data-driven registry entries can only be added during server start");
             return d;
         }
 
@@ -144,9 +144,9 @@ public final class GameRegistryStore {
         private String fullKey(String key) {
             if (key == null) throw new NullPointerException("key");
             String full = key.indexOf(':') < 0 ? namespace + ":" + key : key;
-            if (!KEY.matcher(full).matches()) throw new IllegalArgumentException("키 형식이 잘못됐다(namespace:path): " + key);
+            if (!KEY.matcher(full).matches()) throw new IllegalArgumentException("invalid key format (namespace:path): " + key);
             if (!full.startsWith(namespace + ":")) {
-                throw new IllegalArgumentException("키의 namespace 는 이 플러그인의 '" + namespace + "' 여야 한다: " + key);
+                throw new IllegalArgumentException("the key namespace must be this plugin's '" + namespace + "': " + key);
             }
             return full;
         }
@@ -154,18 +154,18 @@ public final class GameRegistryStore {
         @Override
         public String registerBiome(String key, BiomeDefinition definition) {
             if (definition == null) throw new NullPointerException("definition");
-            if (!open) throw new IllegalStateException("게임 레지스트리 등록기는 훅이 도는 동안만 쓸 수 있다");
+            if (!open) throw new IllegalStateException("the game registry registrar can only be used while the hook runs");
             String full = fullKey(key);
             GameRegistryCodec.validate(definition);
             synchronized (GameRegistryStore.this) {
                 Entry<BiomeDefinition> old = biomes.get(full);
                 if (!frozen) {
-                    if (old != null || vanilla.indexOf(BIOME_REGISTRY, full) >= 0) throw new IllegalArgumentException("이미 있는 바이옴 키: " + full);
+                    if (old != null || vanilla.indexOf(BIOME_REGISTRY, full) >= 0) throw new IllegalArgumentException("biome key already exists: " + full);
                     old = new Entry<>(full, owner, definition);
                     biomes.put(full, old);
                 } else {
                     if (old == null || !old.owner.equals(owner)) {
-                        throw new IllegalStateException("레지스트리가 고정돼 새 바이옴 '" + full + "' 을 더할 수 없다 — 서버를 다시 시작해야 한다");
+                        throw new IllegalStateException("the registry is frozen; cannot add the new biome '" + full + "' - restart the server");
                     }
                     if (!old.definition.equals(definition)) {
                         logger.warning(Lang.t("registry.biome-changed", full));
@@ -181,16 +181,16 @@ public final class GameRegistryStore {
         @Override
         public String registerDimensionType(String key, DimensionTypeDefinition definition) {
             if (definition == null) throw new NullPointerException("definition");
-            if (!open) throw new IllegalStateException("게임 레지스트리 등록기는 훅이 도는 동안만 쓸 수 있다");
+            if (!open) throw new IllegalStateException("the game registry registrar can only be used while the hook runs");
             String full = fullKey(key);
             synchronized (GameRegistryStore.this) {
                 Entry<DimensionTypeDefinition> old = dimensionTypes.get(full);
                 if (!frozen) {
-                    if (old != null || vanilla.indexOf(DIMENSION_TYPE_REGISTRY, full) >= 0) throw new IllegalArgumentException("이미 있는 차원 타입 키: " + full);
+                    if (old != null || vanilla.indexOf(DIMENSION_TYPE_REGISTRY, full) >= 0) throw new IllegalArgumentException("dimension type key already exists: " + full);
                     dimensionTypes.put(full, new Entry<>(full, owner, definition));
                 } else {
                     if (old == null || !old.owner.equals(owner)) {
-                        throw new IllegalStateException("레지스트리가 고정돼 새 차원 타입 '" + full + "' 을 더할 수 없다 — 서버를 다시 시작해야 한다");
+                        throw new IllegalStateException("the registry is frozen; cannot add the new dimension type '" + full + "' - restart the server");
                     }
                     if (!old.definition.equals(definition)) {
                         logger.warning(Lang.t("registry.dimension-type-changed", full));

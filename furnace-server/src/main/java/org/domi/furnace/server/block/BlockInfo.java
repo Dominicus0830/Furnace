@@ -73,7 +73,7 @@ public final class BlockInfo {
 
     private static BufferedReader open(String path, boolean gz) throws IOException {
         InputStream in = BlockInfo.class.getClassLoader().getResourceAsStream(path);
-        if (in == null) throw new IllegalStateException(path + " 없음");
+        if (in == null) throw new IllegalStateException(path + " is missing");
         return new BufferedReader(new InputStreamReader(gz ? new GZIPInputStream(in) : in, StandardCharsets.UTF_8));
     }
 

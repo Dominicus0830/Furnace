@@ -17,7 +17,7 @@ public final class PerlinSimplexNoise {
         int k = last;
         int l = j + k + 1;
         if (l < 1) throw new IllegalArgumentException("Total number of octaves needs to be >= 1");
-        if (k > 0) throw new UnsupportedOperationException("양의 옥타브는 미지원(바닐라 사용처 없음)");
+        if (k > 0) throw new UnsupportedOperationException("positive octaves are not supported (vanilla never uses them)");
         SimplexNoise zero = new SimplexNoise(random);
         this.noiseLevels = new SimplexNoise[l];
         if (k >= 0 && k < l && octaves.contains(0)) noiseLevels[k] = zero;

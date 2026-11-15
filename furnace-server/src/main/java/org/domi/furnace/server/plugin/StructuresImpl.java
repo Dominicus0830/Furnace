@@ -72,11 +72,11 @@ public final class StructuresImpl implements Structures {
     private static World server(org.domi.furnace.api.world.World w) {
         Objects.requireNonNull(w, "world");
         if (w instanceof WorldHandle h) return h.handle();
-        throw new IllegalArgumentException("이 서버의 월드가 아니다: " + w);
+        throw new IllegalArgumentException("not a world of this server: " + w);
     }
 
     private static TemplateManager manager(World w) {
-        if (w.blockRegistry() == null || w.worldDir() == null) throw new IllegalStateException("블록 레지스트리가 없는 월드는 구조물 템플릿을 못 쓴다: " + w.dimension());
+        if (w.blockRegistry() == null || w.worldDir() == null) throw new IllegalStateException("a world without a block registry cannot use structure templates: " + w.dimension());
         return TemplateManager.forWorld(w.worldDir(), w.blockRegistry());
     }
 
@@ -161,14 +161,14 @@ public final class StructuresImpl implements Structures {
         try {
             root = NbtIo.readGzip(new ByteArrayInputStream(gzipNbt));
         } catch (IOException | RuntimeException e) {
-            throw new IllegalArgumentException("gzip NBT 를 읽을 수 없다: " + e, e);
+            throw new IllegalArgumentException("cannot read the gzip NBT: " + e, e);
         }
         return define(world, id, root, toDisk);
     }
 
     private boolean define(org.domi.furnace.api.world.World world, String id, org.domi.furnace.server.net.io.nbt.NbtCompound root, boolean toDisk) {
         ResourceId r = idOf(id);
-        if (r == null) throw new IllegalArgumentException("올바르지 않은 구조물 이름: " + id);
+        if (r == null) throw new IllegalArgumentException("invalid structure name: " + id);
         TemplateManager mgr = manager(server(world));
         mgr.define(r, root);
         return !toDisk || mgr.save(r);
@@ -353,20 +353,20 @@ public final class StructuresImpl implements Structures {
 
     /** 구조물 id 와 '#태그' 를 구조물 id 목록으로. 모르면 IllegalArgumentException. */
     private static List<String> resolve(Collection<String> structures) {
-        if (structures.isEmpty()) throw new IllegalArgumentException("structures 가 비었다");
+        if (structures.isEmpty()) throw new IllegalArgumentException("structures is empty");
         List<String> out = new ArrayList<>();
         for (String s : structures) {
             Objects.requireNonNull(s, "structure");
             boolean tag = s.startsWith("#");
             String raw = tag ? s.substring(1) : s;
             ResourceId id = ResourceId.tryParse(raw);
-            if (id == null) throw new IllegalArgumentException("올바르지 않은 구조물 이름: " + s);
+            if (id == null) throw new IllegalArgumentException("invalid structure name: " + s);
             if (tag) {
                 List<String> members = StructureRegistry.structureTag(id.toString());
-                if (members == null || members.isEmpty()) throw new IllegalArgumentException("모르는 구조물 태그: " + s);
+                if (members == null || members.isEmpty()) throw new IllegalArgumentException("unknown structure tag: " + s);
                 out.addAll(members);
             } else {
-                if (!StructureRegistry.structureJsons().containsKey(id.toString())) throw new IllegalArgumentException("모르는 구조물: " + s);
+                if (!StructureRegistry.structureJsons().containsKey(id.toString())) throw new IllegalArgumentException("unknown structure: " + s);
                 out.add(id.toString());
             }
         }

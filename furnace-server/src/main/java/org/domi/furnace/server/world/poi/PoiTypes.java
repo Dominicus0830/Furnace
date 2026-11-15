@@ -100,9 +100,9 @@ public final class PoiTypes {
 
     private static void allStates(PoiType[] arr, Blocks bl, String name, PoiType type) {
         int b = bl.block("minecraft:" + name);
-        if (b < 0) throw new IllegalStateException("POI 블록 없음: " + name);
+        if (b < 0) throw new IllegalStateException("no such POI block: " + name);
         for (int s = bl.firstState(b), e = s + bl.stateCountOf(b); s < e; s++) {
-            if (arr[s] != null) throw new IllegalStateException("POI 상태 중복: " + name);
+            if (arr[s] != null) throw new IllegalStateException("duplicate POI state: " + name);
             arr[s] = type;
         }
     }

@@ -30,7 +30,7 @@ final class TranslationServiceImpl implements TranslationService {
     public synchronized TranslationStore register(FurnacePlugin owner, TranslationStore store) {
         Objects.requireNonNull(owner, "owner");
         Objects.requireNonNull(store, "store");
-        if (!owner.isEnabled()) throw new IllegalStateException("꺼진 플러그인은 번역을 올릴 수 없다: " + owner.getClass().getName());
+        if (!owner.isEnabled()) throw new IllegalStateException("a disabled plugin cannot register translations: " + owner.getClass().getName());
         List<TranslationStore> list = new ArrayList<>(byOwner.getOrDefault(owner, List.of()));
         if (!list.contains(store)) {
             list.add(store);
@@ -50,8 +50,8 @@ final class TranslationServiceImpl implements TranslationService {
         Objects.requireNonNull(owner, "owner");
         Objects.requireNonNull(pattern, "pattern");
         Objects.requireNonNull(defaultLocale, "defaultLocale");
-        if (!pattern.contains("{locale}")) throw new IllegalArgumentException("pattern 에 {locale} 자리가 없다: " + pattern);
-        if (!owner.isEnabled()) throw new IllegalStateException("꺼진 플러그인은 번역을 올릴 수 없다: " + owner.getClass().getName());
+        if (!pattern.contains("{locale}")) throw new IllegalArgumentException("the pattern has no {locale} placeholder: " + pattern);
+        if (!owner.isEnabled()) throw new IllegalStateException("a disabled plugin cannot register translations: " + owner.getClass().getName());
         List<Locale> all = new ArrayList<>(List.of(locales));
         if (!all.contains(defaultLocale)) all.add(0, defaultLocale);
         TranslationStore store = TranslationStore.create(defaultLocale, format);
@@ -63,8 +63,8 @@ final class TranslationServiceImpl implements TranslationService {
             any = true;
             if (l.equals(defaultLocale)) hasDefault = true;
         }
-        if (!any) throw new IllegalArgumentException("번역 파일이 하나도 없다: " + pattern);
-        if (!hasDefault) throw new IllegalArgumentException("기본 언어 번역 파일이 없다: " + pattern.replace("{locale}", code(defaultLocale)));
+        if (!any) throw new IllegalArgumentException("there are no translation files: " + pattern);
+        if (!hasDefault) throw new IllegalArgumentException("the default language translation file is missing: " + pattern.replace("{locale}", code(defaultLocale)));
         return register(owner, store);
     }
 
@@ -77,7 +77,7 @@ final class TranslationServiceImpl implements TranslationService {
     /** 데이터 폴더 파일 우선, 없으면 jar 리소스. 둘 다 없으면 null. */
     private static Map<String, String> read(FurnacePlugin owner, String name) {
         Path file = owner.dataFolder().resolve(name).normalize();
-        if (!file.startsWith(owner.dataFolder().normalize())) throw new IllegalArgumentException("데이터 폴더 밖 경로: " + name);
+        if (!file.startsWith(owner.dataFolder().normalize())) throw new IllegalArgumentException("path outside the data folder: " + name);
         try {
             if (Files.isRegularFile(file)) {
                 try (var in = Files.newInputStream(file)) { return parse(in); }

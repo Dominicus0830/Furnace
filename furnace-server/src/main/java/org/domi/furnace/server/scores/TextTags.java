@@ -62,6 +62,6 @@ public final class TextTags {
             for (var e : c.tags().entrySet()) obj.add(e.getKey(), toJson(e.getValue()));
             return obj;
         }
-        throw new IllegalArgumentException("텍스트로 옮길 수 없는 NBT: " + o);
+        throw new IllegalArgumentException("NBT that cannot be converted to text: " + o);
     }
 }
