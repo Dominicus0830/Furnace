@@ -67,6 +67,7 @@ class ContainerLockE2ETest {
         core = TestServers.core(tmp, sched);
         host = core.plugins();
         core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"), org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        plugin.setEnabled(true);
         core.world().submitAtChunk(C00, r -> r.chunkAtBlocking(C00)).get(30, TimeUnit.SECONDS);
         join();
         p.vitals().setGameMode(org.domi.furnace.server.world.GameMode.SURVIVAL);
@@ -75,9 +76,15 @@ class ContainerLockE2ETest {
 
     /** 플레이어 옆 바닥 위 칸. */
     private Pos spot;
+    private final TestPlugins.Gamma plugin = new TestPlugins.Gamma();
+
+    private <E extends org.domi.furnace.api.event.Event> void on(Class<E> type, Consumer<? super E> h) {
+        host.eventsImpl().subscribe(plugin, type, h);
+    }
 
     @AfterEach
     void tearDown() throws Exception {
+        host.eventsImpl().unregisterAll(plugin);
         if (ch != null) ch.close();
         host.close();
         sched.close();
@@ -408,6 +415,252 @@ class ContainerLockE2ETest {
             assertEquals("k", be.saveWithoutMetadata().tags().get("Lock"));
             return null;
         });
+    }
+
+    // ------------------------------------------------------------------ Paper BlockLockCheckEvent
+
+    private void lockedBarrel(String lock) throws Exception {
+        at(r -> {
+            r.level().setBlock(spot, B.defaultState("minecraft:barrel"), 3);
+            ((ContainerBlockEntity) r.level().getBlockEntity(spot)).lock = lock;
+            return null;
+        });
+    }
+
+    /** ALLOW 면 열쇠 없이 열리고 알림·소리가 없다. 이벤트는 그 칸·열쇠 이름·누를 때 든 것을 준다. */
+    @Test
+    void lockCheckAllowOpensWithoutKey() throws Exception {
+        lockedBarrel("key");
+        List<org.domi.furnace.api.event.block.BlockLockCheckEvent> seen = new ArrayList<>();
+        on(org.domi.furnace.api.event.block.BlockLockCheckEvent.class, e -> {
+            seen.add(e);
+            e.setResult(org.domi.furnace.api.event.block.BlockLockCheckEvent.Result.ALLOW);
+        });
+        hold("\"wrong\"");
+        out.clear();
+        useItemOn(spot, 1);
+        settle();
+        assertEquals(1, count(OpenScreen.ID), "ALLOW 면 열린다");
+        assertEquals(0, lockedNotices());   // 소리는 통 여는 소리가 나므로 세지 않는다
+        assertEquals(1, seen.size());
+        var e = seen.get(0);
+        assertEquals(new org.domi.furnace.api.world.BlockPos(spot.x(), spot.y(), spot.z()), e.pos());
+        assertEquals("key", e.lock());
+        assertTrue(e.heldItem().components().get("minecraft:custom_name").contains("wrong"), "누를 때 든 것");
+        assertFalse(e.isUsingCustomKeyItem());
+    }
+
+    /** 잠기지 않은 통도 이벤트가 불리고, DENY 하면 막힌다. 알림 글·소리를 null 로 두면 아무것도 안 보낸다. */
+    @Test
+    void lockCheckDenyBlocksUnlockedSilently() throws Exception {
+        lockedBarrel(null);
+        int[] calls = {0};
+        on(org.domi.furnace.api.event.block.BlockLockCheckEvent.class, e -> {
+            calls[0]++;
+            assertNull(e.lock());
+            e.denyWithMessageAndSound(null, null);
+        });
+        hold(null);
+        out.clear();
+        useItemOn(spot, 1);
+        settle();
+        assertEquals(1, calls[0]);
+        assertEquals(0, count(OpenScreen.ID), "DENY 면 잠기지 않아도 막힌다");
+        assertEquals(0, count(SystemChat.ID));
+        assertEquals(0, count(SoundPacket.ID));
+    }
+
+    /** DENY 에 고친 알림 글·소리가 그대로 간다(글은 액션 바). */
+    @Test
+    void lockCheckCustomMessageAndSound() throws Exception {
+        lockedBarrel(null);
+        on(org.domi.furnace.api.event.block.BlockLockCheckEvent.class, e -> e.denyWithMessageAndSound(
+                org.domi.furnace.api.text.Text.text("nope-box"),
+                org.domi.furnace.api.audience.Sound.sound("minecraft:entity.villager.no", org.domi.furnace.api.audience.Sound.Source.NEUTRAL)));
+        hold(null);
+        out.clear();
+        useItemOn(spot, 1);
+        settle();
+        assertEquals(0, count(OpenScreen.ID));
+        var chat = out.stream().filter(k -> k.id() == SystemChat.ID && contains(k.body(), "nope-box".getBytes(StandardCharsets.UTF_8))).findFirst().orElseThrow();
+        assertEquals(1, chat.body()[chat.body().length - 1], "액션 바");
+        var s = out.stream().filter(k -> k.id() == SoundPacket.ID).findFirst().orElseThrow();
+        var bb = Unpooled.wrappedBuffer(s.body());
+        assertEquals((int) ItemContext.id("minecraft:sound_event", "minecraft:entity.villager.no"), Types.readVarInt(bb) - 1);
+        assertEquals(6, Types.readVarInt(bb), "neutral");
+    }
+
+    /** 따로 정한 열쇠로 검사한다(빈 손이어도 열린다). 기본 결과에서 알림 글은 바닐라 container.isLocked. */
+    @Test
+    void lockCheckCustomKeyItem() throws Exception {
+        lockedBarrel("key");
+        var key = ApiConvert.item(ItemTools.with(B.stack("minecraft:stick", 1), "minecraft:custom_name", "\"key\""), core.world().itemRegistry());
+        boolean[] defaultMessage = {false};
+        on(org.domi.furnace.api.event.block.BlockLockCheckEvent.class, e -> {
+            defaultMessage[0] = e.lockedMessage() != null && "container.isLocked".equals(e.lockedMessage().translationKey())
+                    && e.lockedSound() != null && e.lockedSound().key().equals("minecraft:block.chest.locked");
+            e.setKeyItem(key);
+        });
+        hold(null);
+        out.clear();
+        useItemOn(spot, 1);
+        settle();
+        assertTrue(defaultMessage[0], "기본 알림 글·소리는 바닐라 값");
+        assertEquals(1, count(OpenScreen.ID), "따로 정한 열쇠가 맞으면 열린다");
+        assertEquals(0, lockedNotices());
+    }
+
+    /**
+     * 큰 상자는 반쪽마다 첫째(type=right)부터 두 번 불린다. Paper 는 관전자에게도 부르지만 Furnace 관전자는 아직 용기를 열지 못해(기존 구멍)
+     * 검사까지 오지 않는다 — 관전자 용기 열기를 고칠 때 함께 시험한다.
+     */
+    @Test
+    void lockCheckFiresForEachChestHalf() throws Exception {
+        var c = doubleChest();
+        List<org.domi.furnace.api.world.BlockPos> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        on(org.domi.furnace.api.event.block.BlockLockCheckEvent.class, e -> seen.add(e.pos()));
+        hold(null);
+        out.clear();
+        useItemOn(spot, 1);
+        settle();
+        assertEquals(1, count(OpenScreen.ID));
+        Pos right = c[1].pos(), left = c[0].pos();
+        assertEquals(List.of(new org.domi.furnace.api.world.BlockPos(right.x(), right.y(), right.z()),
+                new org.domi.furnace.api.world.BlockPos(left.x(), left.y(), left.z())), seen, "첫째(type=right)부터");
+    }
+
+
+    // ------------------------------------------------------------------ #398 검토 시험(ReviewPr398)
+
+    private static final Class<org.domi.furnace.api.event.block.BlockLockCheckEvent> LCE = org.domi.furnace.api.event.block.BlockLockCheckEvent.class;
+
+    /** 구독자가 있어도 DEFAULT 면 바닐라 검사: 틀린 열쇠는 막히고 바닐라 알림(액션 바)·block.chest.locked 소리. */
+    @Test
+    void review398DefaultWithSubscriberWrongKeyBlocksWithVanillaNotice() throws Exception {
+        lockedBarrel("key");
+        int[] calls = {0};
+        on(LCE, e -> calls[0]++);
+        hold("\"wrong\"");
+        out.clear();
+        useItemOn(spot, 1);
+        settle();
+        assertEquals(1, calls[0]);
+        assertEquals(0, count(OpenScreen.ID), "DEFAULT + 틀린 열쇠 = 막힘");
+        assertEquals(1, lockedNotices());
+        assertTrue(noticeIsOverlay());
+        var s = out.stream().filter(k -> k.id() == SoundPacket.ID).findFirst().orElseThrow();
+        var bb = Unpooled.wrappedBuffer(s.body());
+        assertEquals((int) ItemContext.id("minecraft:sound_event", "minecraft:block.chest.locked"), Types.readVarInt(bb) - 1);
+        assertEquals(4, Types.readVarInt(bb), "blocks");
+    }
+
+    /** 구독자가 있어도 DEFAULT 면 맞는 열쇠는 연다. */
+    @Test
+    void review398DefaultWithSubscriberRightKeyOpens() throws Exception {
+        lockedBarrel("key");
+        on(LCE, e -> {});
+        hold("\"key\"");
+        out.clear();
+        useItemOn(spot, 1);
+        settle();
+        assertEquals(1, count(OpenScreen.ID));
+        assertEquals(0, lockedNotices());
+    }
+
+    /** 따로 정한 열쇠는 손을 대신한다(손에 맞는 열쇠가 있어도 따로 정한 것이 틀리면 막힌다 — Paper 의 ? : ). */
+    @Test
+    void review398CustomKeyReplacesHeld() throws Exception {
+        lockedBarrel("key");
+        on(LCE, e -> e.setKeyItem(org.domi.furnace.api.item.ItemStack.of("minecraft:stone")));
+        hold("\"key\"");
+        out.clear();
+        useItemOn(spot, 1);
+        settle();
+        assertEquals(0, count(OpenScreen.ID));
+        assertEquals(1, lockedNotices());
+    }
+
+    /** 큰 상자 첫째(type=right)가 DENY 되면 둘째에는 이벤트가 안 불린다(바닐라 && 단락). 알림·소리 한 번. */
+    @Test
+    void review398FirstHalfDenyStopsSecondEvent() throws Exception {
+        var c = doubleChest();
+        List<org.domi.furnace.api.world.BlockPos> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        on(LCE, e -> { seen.add(e.pos()); e.setResult(org.domi.furnace.api.event.block.BlockLockCheckEvent.Result.DENY); });
+        hold(null);
+        out.clear();
+        useItemOn(spot, 1);
+        settle();
+        Pos right = c[1].pos();
+        assertEquals(List.of(new org.domi.furnace.api.world.BlockPos(right.x(), right.y(), right.z())), seen);
+        assertEquals(0, count(OpenScreen.ID));
+        assertEquals(1, lockedNotices());
+        assertEquals(1, count(SoundPacket.ID));
+    }
+
+    /** 신호기도 이벤트가 불리고 ALLOW 면 열린다. 이름은 lock() 그대로. */
+    @Test
+    void review398BeaconFiresAndAllowOpens() throws Exception {
+        at(r -> {
+            r.level().setBlock(spot, B.defaultState("minecraft:beacon"), 3);
+            ((BeaconBlockEntity) r.level().getBlockEntity(spot)).lock = "key";
+            return null;
+        });
+        List<String> locks = new java.util.concurrent.CopyOnWriteArrayList<>();
+        on(LCE, e -> { locks.add(e.lock()); e.setResult(org.domi.furnace.api.event.block.BlockLockCheckEvent.Result.ALLOW); });
+        hold(null);
+        out.clear();
+        useItemOn(spot, 1);
+        settle();
+        assertEquals(List.of("key"), locks);
+        assertEquals(1, count(OpenScreen.ID));
+    }
+
+    /** 기본 알림 글의 이름 인자는 그 용기 이름(사용자 이름 포함), 플레이어·월드도 맞다. */
+    @Test
+    void review398EventCarriesPlayerWorldAndDefaultMessageName() throws Exception {
+        at(r -> {
+            r.level().setBlock(spot, B.defaultState("minecraft:barrel"), 3);
+            var be = (ContainerBlockEntity) r.level().getBlockEntity(spot);
+            be.lock = "key"; be.customName = "\"SecretBox\"";
+            return null;
+        });
+        Object[] got = new Object[3];
+        on(LCE, e -> { got[0] = e.player().uniqueId(); got[1] = e.world(); got[2] = e.lockedMessage(); });
+        hold(null);
+        out.clear();
+        useItemOn(spot, 1);
+        settle();
+        assertEquals(p.uuid(), got[0]);
+        assertEquals(core.world().dimension(), got[1]);
+        assertTrue(String.valueOf(got[2]).contains("SecretBox"), "알림 인자 = 용기 이름: " + got[2]);
+        assertTrue(noticeHas("SecretBox"));
+    }
+
+    /** 구독자가 있어도 열쇠는 누른 때의 손: 누른 직후 칸을 바꿔도 heldItem() 은 열쇠이고 열린다(#398 검토 M09). */
+    @Test
+    void review398HeldItemIsHandAtClick() throws Exception {
+        lockedBarrel("key");
+        List<String> held = new java.util.concurrent.CopyOnWriteArrayList<>();
+        on(LCE, e -> held.add(String.valueOf(e.heldItem().components().get("minecraft:custom_name"))));
+        int fails = 0;
+        for (int i = 0; i < 5; i++) {
+            p.inventory().setSelected(0);
+            p.inventory().set(36, ItemTools.with(B.stack("minecraft:stick", 1), "minecraft:custom_name", "\"key\""));
+            p.inventory().set(37, org.domi.furnace.server.entity.ItemStack.EMPTY);
+            if (p.hasOpenContainer()) {
+                int cid = p.containerMenu().containerId;
+                ch.writeInbound(frame(0x0F, b -> Types.writeVarInt(b, cid)));
+                settle();
+            }
+            out.clear();
+            useItemOn(spot, 20 + i);
+            ch.writeInbound(frame(0x2F, b -> b.writeShort(1)));   // 바로 다음 칸(빈 손)
+            settle();
+            if (count(OpenScreen.ID) != 1) fails++;
+        }
+        assertEquals(0, fails, "누른 뒤 칸을 바꿔도 열린다");
+        assertEquals(5, held.size());
+        assertTrue(held.stream().allMatch(h -> h.contains("key")), "heldItem() = 누른 때의 손: " + held);
     }
 
     @Test

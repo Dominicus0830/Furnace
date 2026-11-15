@@ -101,6 +101,7 @@ public final class PluginGameEvents implements GameEvents {
     private final EventBusImpl.Flag wPlayerMove;
     private final EventBusImpl.Flag wPlayerTeleport;
     private final EventBusImpl.Flag wPlayerInteract;
+    private final EventBusImpl.Flag wBlockLockCheck;
     private final EventBusImpl.Flag wPlayerInteractEntity;
     private final EventBusImpl.Flag wPlayerDropItem;
     private final EventBusImpl.Flag wBlockPlace;
@@ -173,6 +174,7 @@ public final class PluginGameEvents implements GameEvents {
         wPlayerMove = b.flag(PlayerMoveEvent.class);
         wPlayerTeleport = b.flag(PlayerTeleportEvent.class);
         wPlayerInteract = b.flag(PlayerInteractEvent.class);
+        wBlockLockCheck = b.flag(org.domi.furnace.api.event.block.BlockLockCheckEvent.class);
         wPlayerInteractEntity = b.flag(PlayerInteractEntityEvent.class);
         wPlayerDropItem = b.flag(PlayerDropItemEvent.class);
         wBlockPlace = b.flag(org.domi.furnace.api.event.block.BlockPlaceEvent.class);
@@ -337,6 +339,17 @@ public final class PluginGameEvents implements GameEvents {
         String w = p.dimension();
         return !bus().call(new PlayerTeleportEvent(host.player(p), new Location(w, p.x(), p.y(), p.z(), p.yaw(), p.pitch()),
                 new Location(w, x, y, z, yaw, pitch))).isCancelled();
+    }
+
+    @Override
+    public boolean wantsBlockLockCheck() { return wBlockLockCheck.on(); }
+
+    @Override
+    public org.domi.furnace.api.event.block.BlockLockCheckEvent blockLockCheck(Player p, String world, org.domi.furnace.server.block.Pos pos, String lock,
+            ItemStack heldKey, org.domi.furnace.api.text.Text lockedMessage, org.domi.furnace.api.audience.Sound lockedSound) {
+        if (!wBlockLockCheck.on()) return null;
+        return bus().call(new org.domi.furnace.api.event.block.BlockLockCheckEvent(world, new BlockPos(pos.x(), pos.y(), pos.z()), host.player(p), lock,
+                ApiConvert.item(heldKey, items()), lockedMessage, lockedSound));
     }
 
     @Override

@@ -73,6 +73,16 @@ public interface GameEvents {
     /** 회전까지 정한 텔레포트(플러그인 teleport) — 이벤트의 도착 회전이 요청한 값이 되게 한다. 기본은 회전 없는 판으로 모은다. */
     default boolean playerTeleport(Player p, double x, double y, double z, float yaw, float pitch) { return playerTeleport(p, x, y, z); }
 
+    /**
+     * Paper BlockLockCheckEvent — 용기·신호기 잠금 검사 직전, 블록의 region 스레드에서. 구독자가 없으면 null(호출하는 쪽이 바닐라 검사).
+     * 돌려준 이벤트의 결과·열쇠·알림 글·소리로 호출하는 쪽이 검사한다. heldKey 는 누를 때의 주 손, lockedMessage 는 바닐라 알림.
+     */
+    /** BlockLockCheckEvent 구독자가 있는가 — 없으면 호출하는 쪽이 알림 글·이벤트를 만들지 않는다. */
+    default boolean wantsBlockLockCheck() { return false; }
+
+    default org.domi.furnace.api.event.block.BlockLockCheckEvent blockLockCheck(Player p, String world, Pos pos, String lock, ItemStack heldKey,
+            org.domi.furnace.api.text.Text lockedMessage, org.domi.furnace.api.audience.Sound lockedSound) { return null; }
+
     /** blockPos 가 null 이면 공중 클릭. false 면 취소. */
     default boolean playerInteract(Player p, int hand, int[] blockPos, int blockState, int face, ItemStack inHand) { return true; }
 
