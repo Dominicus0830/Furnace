@@ -1,6 +1,7 @@
 // 단일 Anvil 영역 파일(.mca). 32x32 청크, 4KB 섹터, 8KB 헤더(위치+타임스탬프).
 package org.domi.furnace.server.world.anvil;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -52,7 +53,7 @@ public final class RegionFile implements Closeable {
         long size = raf.length();
         if (size < 2L * SECTOR) {
             raf.setLength(2L * SECTOR); // 빈 헤더 2섹터
-            if (size > 0) LOG.warn("[REGION] {} 헤더가 잘려 있음({}B)", path, size);
+            if (size > 0) LOG.warn(Lang.t("region.header-truncated", path, size));
             size = 2L * SECTOR;
         }
         raf.seek(0);
@@ -64,18 +65,18 @@ public final class RegionFile implements Closeable {
             if (loc == 0) continue;
             int off = loc >>> 8, cnt = loc & 0xFF;
             if (off < 2) {
-                LOG.warn("[REGION] {} 항목 {} 섹터 {} 가 헤더와 겹침", path, i, off);
+                LOG.warn(Lang.t("region.sector-overlaps-header", path, i, off));
                 loc = 0;
             } else if (cnt == 0) {
-                LOG.warn("[REGION] {} 항목 {} 섹터 수 0", path, i);
+                LOG.warn(Lang.t("region.sector-count-zero", path, i));
                 loc = 0;
             } else if ((long) off * SECTOR > size) {
-                LOG.warn("[REGION] {} 항목 {} 섹터 {} 가 파일 밖", path, i, off);
+                LOG.warn(Lang.t("region.sector-outside-file", path, i, off));
                 loc = 0;
             } else {
                 if (used.anySet(off, cnt)) {
                     overlapping = true;
-                    LOG.warn("[REGION] {} 항목 {} 섹터 {}+{} 가 다른 청크와 겹침", path, i, off, cnt);
+                    LOG.warn(Lang.t("region.sectors-overlap", path, i, off, cnt));
                 }
                 used.set(off, cnt);
             }
@@ -148,7 +149,7 @@ public final class RegionFile implements Closeable {
         long fileSectors = raf.length() / SECTOR;
         // 바닐라 RegionFile.getChunkDataInputStream 처럼 깨진 헤더는 로그 후 없는 청크로 본다
         if (offset < 2 || count == 0 || (long) offset + count > fileSectors) {
-            LOG.error("[REGION] {} 청크 {},{} 헤더 범위 이상(offset={}, count={}, 파일 {}섹터)", path, chunkX, chunkZ, offset, count, fileSectors);
+            LOG.error(Lang.t("region.header-range", path, chunkX, chunkZ, offset, count, fileSectors));
             return null;
         }
         raf.seek((long) offset * SECTOR);
@@ -157,14 +158,14 @@ public final class RegionFile implements Closeable {
         int len = readIntAt(head, 0);
         int compType = head[4] & 0xFF;
         if (len <= 0 || (long) len + 4 > (long) count * SECTOR) {
-            LOG.error("[REGION] {} 청크 {},{} 길이 이상(len={}, {}섹터)", path, chunkX, chunkZ, len, count);
+            LOG.error(Lang.t("region.bad-length", path, chunkX, chunkZ, len, count));
             return null;
         }
         if ((compType & EXTERNAL_FLAG) != 0) {
-            if (len != 1) LOG.warn("[REGION] {} 청크 {},{} 외부 청크인데 본문 {}B 무시", path, chunkX, chunkZ, len - 1);
+            if (len != 1) LOG.warn(Lang.t("region.external-body-ignored", path, chunkX, chunkZ, len - 1));
             Path ext = externalPath(chunkX, chunkZ);
             if (!Files.isRegularFile(ext)) {
-                LOG.error("[REGION] {} 외부 청크 파일 없음: {}", path, ext);
+                LOG.error(Lang.t("region.external-missing", path, ext));
                 return null;
             }
             return new Payload(compType & ~EXTERNAL_FLAG, Files.readAllBytes(ext));

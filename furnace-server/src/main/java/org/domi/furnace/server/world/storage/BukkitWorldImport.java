@@ -20,6 +20,7 @@ import org.domi.furnace.api.world.WorldEnvironment;
 import org.domi.furnace.api.world.WorldGenerator;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,7 +72,7 @@ public final class BukkitWorldImport {
             if (df != null) {
                 levelData.dragonFight = df;
                 fight = true;
-                log.info("엔드 드래곤 전투 상태를 {} 에서 가져왔다", universe.resolve(levelName + Dim.END.worldSuffix).resolve(LevelStorage.LEVEL_DAT));
+                log.info(Lang.t("import.dragon-fight", universe.resolve(levelName + Dim.END.worldSuffix).resolve(LevelStorage.LEVEL_DAT)));
             }
         }
         return new Result(nether, end, fight);
@@ -90,14 +91,13 @@ public final class BukkitWorldImport {
             if (Files.isRegularFile(dest.resolve(MARKER), LinkOption.NOFOLLOW_LINKS)) {
                 log.debug("{} 는 이미 {} 에서 가져왔다", dest, src);
             } else {
-                log.warn("{} 와 {} 가 모두 있다 — Furnace 는 {} 를 쓰고 Paper/Spigot 폴더는 읽지 않는다. "
-                        + "Paper/Spigot 쪽 차원을 쓰려면 서버를 끄고 {} 를 다른 곳으로 옮겨 둔 뒤 다시 켜라", src, dest, dest, dest);
+                log.warn(Lang.t("import.both-present", src, dest, dest, dest));
             }
             return Outcome.SKIPPED_EXISTING;
         }
-        log.info("Paper/Spigot 월드 배치를 감지했다 — {} 를 {} 로 복사한다(원본은 그대로 둔다)", src, dest);
+        log.info(Lang.t("import.detected", src, dest));
         if (Files.exists(tmp, LinkOption.NOFOLLOW_LINKS)) {
-            log.info("이전에 중단된 가져오기 임시 폴더 {} 를 지우고 다시 복사한다", tmp);
+            log.info(Lang.t("import.stale-temp", tmp));
             deleteTree(tmp);
         }
         Files.createDirectories(worldDir);
@@ -111,8 +111,7 @@ public final class BukkitWorldImport {
         } catch (java.nio.file.AtomicMoveNotSupportedException e) {
             Files.move(tmp, dest);
         }
-        log.info("{} 가져오기 완료: 파일 {}개, {} 바이트. 확인이 끝나면 {} 는 지워도 된다",
-                dest, stats[0], stats[1], bukkitWorld);
+        log.info(Lang.t("import.done", dest, stats[0], stats[1], bukkitWorld));
         return Outcome.IMPORTED;
     }
 
@@ -125,7 +124,7 @@ public final class BukkitWorldImport {
             NbtCompound data = root.getCompound("Data");
             return data.contains("DragonFight") ? data.getCompound("DragonFight").copy() : null;
         } catch (IOException | RuntimeException e) {
-            log.warn("{} 를 읽지 못해 엔드 드래곤 전투 상태는 새로 시작한다", levelDat, e);
+            log.warn(Lang.t("import.dragon-fight-unreadable", levelDat), e);
             return null;
         }
     }

@@ -33,6 +33,7 @@ import org.domi.furnace.server.world.gen.WorldSource;
 import org.domi.furnace.server.world.storage.BukkitWorldImport;
 import org.domi.furnace.server.world.storage.LevelData;
 import org.domi.furnace.server.world.storage.LevelStorage;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,7 +53,7 @@ public final class WorldManager {
                 try {
                     s.closeAll();
                 } catch (Exception e) {
-                    log.error("[WORLD] 저장소 닫기 실패 {}", s.regionDir(), e);
+                    log.error(Lang.t("world.store-close-failed", s.regionDir()), e);
                 }
             }
         }
@@ -245,7 +246,7 @@ public final class WorldManager {
         try {
             hooks.loaded(w);
         } catch (Throwable t) {
-            log.error("[WORLD] 월드 불러오기 알림 실패 {}", name, t);
+            log.error(Lang.t("world.load-notify-failed", name), t);
         }
     }
 
@@ -394,8 +395,7 @@ public final class WorldManager {
                 throw e;
             }
             extras.put(spec.name(), new Extra(spec.name(), w, storage, ld, built, spec));
-            log.info("[WORLD] 추가 월드 '{}' 올림 — 키 {}, 차원 타입 {}, 생성기 {}, 시드 {}{}", spec.name(), spec.key(), type.typeKey(),
-                    spec.generator(), seed, fresh ? " (새 월드)" : "");
+            log.info(Lang.t("world.extra-up", spec.name(), spec.key(), type.typeKey(), spec.generator(), seed, fresh ? Lang.t("world.extra-new") : ""));
             return w;
         } catch (Exception | Error e) {
             try {
@@ -606,7 +606,7 @@ public final class WorldManager {
         java.util.concurrent.atomic.AtomicInteger state = new java.util.concurrent.atomic.AtomicInteger();
         boolean go;
         try {
-            go = onGlobal("월드 내리기 알림(WorldUnloadEvent) 처리기", () -> {
+            go = onGlobal(Lang.t("world.what-unload-handler"), () -> {
                 if (!w.playersHere().isEmpty() || w.incomingTravels() > 0) return false;
                 if (!hooks.beforeUnload(w, save)) return false;
                 if (!w.playersHere().isEmpty() || w.incomingTravels() > 0) return false;   // 알림 처리기가 누군가 들여보냈다
@@ -628,14 +628,14 @@ public final class WorldManager {
         try {
             saveBarrier.get().get(10, TimeUnit.MINUTES);
         } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException | java.util.concurrent.CancellationException ex) {
-            log.warn("[WORLD] '{}' 진행 중 save-all 을 기다리지 못했다 — 그대로 내린다", e.name(), ex);
+            log.warn(Lang.t("world.save-all-wait-failed", e.name()), ex);
         }
         extras.remove(e.name(), e);
         if (w.genQueue() != null) w.genQueue().removeWorld(w);
         try {
             hooks.detached(w);
         } catch (Throwable t) {
-            log.warn("[WORLD] 월드 떼기 알림 실패 {}", e.name(), t);
+            log.warn(Lang.t("world.unload-notify-failed", e.name()), t);
         }
         w.stopTicking();
         // 떼기 직전에 이 월드로 떠난 이동(목적 청크 준비 중)이 있으면 도착한 뒤 저장한다 — 저장 뒤에 도착해 사라지지 않게(A03-01)
@@ -644,16 +644,16 @@ public final class WorldManager {
         while (w.incomingTravels() + w.outgoingTravels() > 0 && System.nanoTime() - arriveBy < 0) Thread.sleep(5);   // 나간 이동의 되돌림까지
         if (save) {
             w.forceSave(true);
-            awaitAll(w.flushAll(), "저장");
+            awaitAll(w.flushAll(), Lang.t("world.what-save"));
             // 저장 중 끝난 청크 읽기·생성이 다시 dirty 를 만들 수 있다 — 진행 중 로드가 빠질 때까지 잠깐 기다린 뒤 한 번 더
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
             while (w.pendingChunkLoads() > 0 && System.nanoTime() < deadline) Thread.sleep(20);
-            awaitAll(w.flushAll(), "저장(마무리)");
+            awaitAll(w.flushAll(), Lang.t("world.what-save-final"));
         }
         try {
             w.ioBarrier().get(60, TimeUnit.SECONDS);
         } catch (java.util.concurrent.TimeoutException te) {
-            log.error("[WORLD] '{}' IO 레인이 60초 안에 비지 않았다 — 저장소를 닫는다", e.name());
+            log.error(Lang.t("world.io-lane-busy", e.name()));
         }
         w.closeForUnload();
         e.built().closeStores();
@@ -664,8 +664,8 @@ public final class WorldManager {
             e.storage().saveLevelData(e.levelData());
         }
         e.storage().close();
-        if (w.saveFailures() > 0) log.error("[WORLD] '{}' 저장 실패 {}건", e.name(), w.saveFailures());
-        log.info("[WORLD] 추가 월드 '{}' 내림{}", e.name(), save ? "(저장)" : "(저장 안 함)");
+        if (w.saveFailures() > 0) log.error(Lang.t("world.save-failures", e.name(), w.saveFailures()));
+        log.info(Lang.t(save ? "world.extra-down-saved" : "world.extra-down-unsaved", e.name()));
         return true;
     }
 
@@ -684,7 +684,7 @@ public final class WorldManager {
             try {
                 f.get(Math.max(1, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
             } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException ex) {
-                log.error("[WORLD] {} 실패/지연", what, ex);
+                log.error(Lang.t("world.step-failed", what), ex);
             }
         }
     }
@@ -703,7 +703,7 @@ public final class WorldManager {
                 e.storage().saveLevelData(e.levelData());
                 e.storage().close();
             } catch (Exception ex) {
-                log.error("[STOP] 추가 월드 '{}' 닫기 실패", e.name(), ex);
+                log.error(Lang.t("world.extra-close-failed", e.name()), ex);
             }
         }
         extras.clear();
@@ -719,7 +719,7 @@ public final class WorldManager {
                 try {
                     e.storage().saveLevelData(e.levelData());
                 } catch (java.io.IOException ex) {
-                    log.error("[SAVE] 추가 월드 '{}' level.dat 저장 실패", e.name(), ex);
+                    log.error(Lang.t("world.extra-level-dat-failed", e.name()), ex);
                 }
             }
         }

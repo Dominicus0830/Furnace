@@ -8,6 +8,7 @@
 // 설계 문서: docs/feature-parity/backup-idle-pause-o4-2026-11-07.md
 package org.domi.furnace.server.maintenance;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -97,11 +98,11 @@ public final class WorldBackup {
         if (!Files.isDirectory(dir)) return;
         try (var ds = Files.newDirectoryStream(dir, STAGING_PREFIX + "*")) {
             for (Path p : ds) {
-                log.info("[BACKUP] 지난번에 끝나지 않은 임시 폴더를 지운다: {}", p);
+                log.info(Lang.t("backup.removing-temp", p));
                 deleteTree(p);
             }
         } catch (IOException e) {
-            log.warn("[BACKUP] 임시 폴더 정리 실패", e);
+            log.warn(Lang.t("backup.temp-cleanup-failed"), e);
         }
     }
 
@@ -111,7 +112,7 @@ public final class WorldBackup {
             log.debug("[BACKUP] 지난 백업 뒤 접속자가 없어 건너뛴다");
             return;
         }
-        run("주기");
+        run("scheduled");
     }
 
     /** 지금 백업한다(이 스레드에서 끝까지 — 전역·region 스레드에서 부르지 않는다). 이미 도는 중이면 실패 결과. */
@@ -124,7 +125,7 @@ public final class WorldBackup {
             r = runLocked(reason, t0);
             joinsAtLast = joins;
         } catch (Exception e) {
-            log.error("[BACKUP] 실패", e);
+            log.error(Lang.t("backup.failed"), e);
             r = new Result(false, "실패: " + e, null, 0, 0, 0, 0, (System.nanoTime() - t0) / 1_000_000L);
         } finally {
             running.set(false);
@@ -139,7 +140,7 @@ public final class WorldBackup {
         String name = STAMP.format(java.time.LocalDateTime.now());
         Path staging = root.resolve(STAGING_PREFIX + name);
         if (Files.exists(staging)) throw new IOException("임시 폴더가 이미 있음: " + staging);
-        log.info("[BACKUP] 시작({}): {}", reason, name);
+        log.info(Lang.t("backup.started", reason, name));
         List<World> worlds = hooks.worlds();
         // 백업할 월드 폴더(주 월드 + 추가 월드). 네더·엔드는 주 월드 폴더 안(DIM-1, DIM1)이다.
         java.util.LinkedHashSet<Path> roots = new java.util.LinkedHashSet<>();
@@ -178,12 +179,12 @@ public final class WorldBackup {
             List<CompletableFuture<Void>> quiet = new ArrayList<>();
             quiet.add(hooks.quiesceGlobal());
             for (World w : worlds) quiet.add(w.quiesce());
-            await(quiet, deadline, "틱 멈춤");
+            await(quiet, deadline, Lang.t("backup.what-tick-stop"));
             for (World w : worlds) w.snapshotSaving(true);
             try {
                 List<CompletableFuture<Void>> saves = new ArrayList<>(hooks.requestPlayerSaves());
                 for (World w : worlds) saves.addAll(w.flushAll());
-                await(saves, deadline, "기준점 저장");
+                await(saves, deadline, Lang.t("backup.what-baseline-save"));
             } finally {
                 for (World w : worlds) w.snapshotSaving(false);
             }
@@ -252,9 +253,9 @@ public final class WorldBackup {
         }
         prune(root);
         long total = (System.nanoTime() - t0) / 1_000_000L;
-        String msg = String.format(java.util.Locale.ROOT, "%s (파일 %d개, %.1f MB, 기준점 정지 %d ms, 쓰기 전 복사 %d개, 전체 %.1f s)",
-                out.getFileName(), files, bytes / 1048576.0, holdMillis, cow, total / 1000.0);
-        log.info("[BACKUP] 완료: {}", msg);
+        String msg = Lang.t("backup.summary", out.getFileName(), files, String.format(java.util.Locale.ROOT, "%.1f", bytes / 1048576.0),
+                holdMillis, cow, String.format(java.util.Locale.ROOT, "%.1f", total / 1000.0));
+        log.info(Lang.t("backup.finished", msg));
         return new Result(true, msg, out, files, bytes, holdMillis, cow, total);
     }
 
@@ -262,7 +263,7 @@ public final class WorldBackup {
         try {
             CompletableFuture.allOf(fs.toArray(new CompletableFuture[0])).get(Math.max(1, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
         } catch (java.util.concurrent.TimeoutException e) {
-            throw new IOException(what + " 이(가) backup.hold-timeout-seconds 안에 끝나지 않았다 — 이번 백업을 포기한다");
+            throw new IOException(Lang.t("backup.hold-timeout", what));
         }
     }
 
@@ -333,7 +334,7 @@ public final class WorldBackup {
         }
         backups.sort(java.util.Comparator.comparing(p -> p.getFileName().toString()));
         for (int i = 0; i < backups.size() - keep; i++) {
-            log.info("[BACKUP] 오래된 백업 지움: {}", backups.get(i).getFileName());
+            log.info(Lang.t("backup.pruned", backups.get(i).getFileName()));
             deleteTree(backups.get(i));
         }
     }
@@ -355,7 +356,7 @@ public final class WorldBackup {
         try {
             deleteTree(p);
         } catch (IOException e) {
-            log.warn("[BACKUP] 임시 폴더 지우기 실패 {}", p, e);
+            log.warn(Lang.t("backup.temp-delete-failed", p), e);
         }
     }
 }

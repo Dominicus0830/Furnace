@@ -30,7 +30,7 @@ public final class BackupCommands {
             return 0;
         }
         source.sendSuccess(() -> Text.text("백업을 시작한다 → " + backup.options().backupDirectory().toAbsolutePath()), true);
-        backup.runAsync("명령").thenAccept(r -> {
+        backup.runAsync("command").thenAccept(r -> {
             if (r.ok()) source.sendSuccess(() -> Text.text("백업 완료: " + r.message()), true);
             else source.sendFailure(Text.text("백업 실패: " + r.message()));
         });

@@ -16,6 +16,7 @@ import org.domi.furnace.server.players.GameProfileCache;
 import org.domi.furnace.server.players.PlayerLists;
 import org.domi.furnace.server.world.World;
 import org.domi.furnace.server.world.storage.LevelData;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -821,7 +822,7 @@ public final class ServerCore {
         var source = org.domi.furnace.server.command.CommandSource.block(this, w, sink).withCallback(
                 org.domi.furnace.server.command.exec.ResultCallback.sync((ok, r) -> { if (ok) success.incrementAndGet(); }));
         commands().performPrefixedCommandAsync(source, command).whenComplete((r, ex) -> {
-            if (ex != null) log.error("[CMDBLOCK] 명령 블록 명령 실행 실패: {}", command, ex);
+            if (ex != null) log.error(Lang.t("core.cmdblock-failed", command), ex);
             done.accept(success.get());
         });
     }
@@ -1099,7 +1100,7 @@ public final class ServerCore {
             try {
                 spawners.tick();
             } catch (RuntimeException e) {
-                log.error("[SPAWN] 포위·상인 스포너 실패", e);
+                log.error(Lang.t("core.raid-spawner-failed"), e);
             }
         }
         tickEmptyTimes();
@@ -1743,7 +1744,7 @@ public final class ServerCore {
             }
             fs.add(f.exceptionally(e -> {
                 Throwable c = e instanceof java.util.concurrent.CompletionException && e.getCause() != null ? e.getCause() : e;
-                if (!(c instanceof org.domi.furnace.server.command.brigadier.CommandSyntaxException)) log.warn("표지판 글 풀기 실패({},{},{})", x, y, z, c);
+                if (!(c instanceof org.domi.furnace.server.command.brigadier.CommandSyntaxException)) log.warn(Lang.t("core.sign-text-failed", x, y, z), c);
                 return line;
             }));
         }
@@ -2089,7 +2090,7 @@ public final class ServerCore {
         try {
             consoleLine = renderer.render(source, senderName, content, host.console());
         } catch (RuntimeException e) {
-            log.warn("채팅 렌더러 오류(콘솔)", e);
+            log.warn(Lang.t("core.chat-renderer-console"), e);
             consoleLine = org.domi.furnace.api.event.player.ChatRenderer.vanilla().render(source, senderName, content, host.console());
         }
         log.info("{}", consoleLine.getString());
@@ -2101,7 +2102,7 @@ public final class ServerCore {
             try {
                 line = renderer.render(source, senderName, content, host.player(p));
             } catch (RuntimeException e) {
-                log.warn("채팅 렌더러 오류({})", p.name(), e);
+                log.warn(Lang.t("core.chat-renderer-player", p.name()), e);
                 line = org.domi.furnace.api.event.player.ChatRenderer.vanilla().render(source, senderName, content, host.player(p));
             }
             p.sendSystemMessage(line, false);
