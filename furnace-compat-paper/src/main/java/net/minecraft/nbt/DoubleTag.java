@@ -3,6 +3,13 @@ package net.minecraft.nbt;
 /** double 태그(바닐라처럼 +0 은 공유 객체). */
 public final class DoubleTag extends NumericTag {
 
+    /** 바닐라 {@code DoubleTag.TYPE}: 이 클래스 안의 익명 종류(이름·표시 이름·isValue 는 바닐라 1.21.1 jar 와 대조). */
+    public static final TagType<DoubleTag> TYPE = new TagType<>() {
+        @Override public String getName() { return "DOUBLE"; }
+        @Override public String getPrettyName() { return "TAG_Double"; }
+        @Override public boolean isValue() { return true; }
+    };
+
     private final double data;
 
     DoubleTag(double data) { this.data = data; }

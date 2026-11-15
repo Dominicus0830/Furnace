@@ -3,6 +3,13 @@ package net.minecraft.nbt;
 /** 바이트 태그(바닐라처럼 256 값 모두 공유 객체). */
 public final class ByteTag extends NumericTag {
 
+    /** 바닐라 {@code ByteTag.TYPE}: 이 클래스 안의 익명 종류(이름·표시 이름·isValue 는 바닐라 1.21.1 jar 와 대조). */
+    public static final TagType<ByteTag> TYPE = new TagType<>() {
+        @Override public String getName() { return "BYTE"; }
+        @Override public String getPrettyName() { return "TAG_Byte"; }
+        @Override public boolean isValue() { return true; }
+    };
+
     private final byte data;
 
     ByteTag(byte data) { this.data = data; }

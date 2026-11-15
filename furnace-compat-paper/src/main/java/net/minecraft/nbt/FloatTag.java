@@ -3,6 +3,13 @@ package net.minecraft.nbt;
 /** float 태그(바닐라처럼 +0 은 공유 객체). */
 public final class FloatTag extends NumericTag {
 
+    /** 바닐라 {@code FloatTag.TYPE}: 이 클래스 안의 익명 종류(이름·표시 이름·isValue 는 바닐라 1.21.1 jar 와 대조). */
+    public static final TagType<FloatTag> TYPE = new TagType<>() {
+        @Override public String getName() { return "FLOAT"; }
+        @Override public String getPrettyName() { return "TAG_Float"; }
+        @Override public boolean isValue() { return true; }
+    };
+
     private final float data;
 
     FloatTag(float data) { this.data = data; }

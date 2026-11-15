@@ -239,6 +239,12 @@ public final class ProtocolLibBridge {
         if (e.isCancelled() || stopped) return;    // 앞선 Furnace 리스너가 버린 패킷은 나가지 않는다(라이브러리도 못 본다)
         net.minecraft.network.Connection c = connection(e.player());
         if (c == null) return;
+        String refusal = PacketDelivery.quickRefusal(value);
+        if (refusal != null) {   // 예외 없이 건너뛴다(원래 패킷은 그대로 나간다). 경고는 값 종류마다 한 번(검토 R2·R3)
+            warnOnce("from:" + value.type() + ":" + refusal, "Furnace 가 보내는 " + value.type().name() + " 패킷 중 값 종류 '" + refusal
+                    + "' 이(가) 든 것은 ProtocolLib 리스너에 보여 주지 못한다(그대로 내보낸다, 첫 사례)");
+            return;
+        }
         net.minecraft.network.protocol.Packet<?> shim;
         ClientboundPacket before;
         try {

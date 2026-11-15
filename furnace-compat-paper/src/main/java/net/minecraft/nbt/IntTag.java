@@ -3,6 +3,13 @@ package net.minecraft.nbt;
 /** int 태그. */
 public final class IntTag extends NumericTag {
 
+    /** 바닐라 {@code IntTag.TYPE}: 이 클래스 안의 익명 종류(이름·표시 이름·isValue 는 바닐라 1.21.1 jar 와 대조). */
+    public static final TagType<IntTag> TYPE = new TagType<>() {
+        @Override public String getName() { return "INT"; }
+        @Override public String getPrettyName() { return "TAG_Int"; }
+        @Override public boolean isValue() { return true; }
+    };
+
     private final int data;
 
     IntTag(int data) { this.data = data; }
