@@ -1,0 +1,74 @@
+# 시험 영향 선택 규칙 (tools/ci/test-impact.py select, docs/ci.md "시험 영향 선택")
+#
+# 영향 표(표를 만든 커밋 X)와 지금 검사하는 트리 사이에 바뀐 모든 파일에 대해, 위에서부터 처음 맞는 규칙 하나를 적용한다.
+# 어느 규칙에도 안 맞는 파일은 .java(<모듈>/src/<소스셋>/java) 면 영향 표로 따지고, 그 밖의 파일이면 전체 시험을 돈다.
+# 글롭은 저장소 맨 위 기준이다: ** 는 폴더를 넘고, * 와 ? 는 폴더를 안 넘는다.
+#
+#   full   <글롭>            이 파일이 바뀌면 전체 서버 시험(표로 따질 수 없거나 위험한 것)
+#   ignore <글롭>            시험이 읽지 않는 파일 — 선택에 영향 없음
+#   reads  <글롭> <정규식>   시험이 데이터로 읽는 파일 — 정규식에 맞는 자바 소스(시험·도우미)를 바뀐 것으로 보고 그것을 실행한 시험을 고른다.
+#                            맞는 소스가 하나도 없으면 규칙이 낡은 것이라 전체를 돈다.
+#   always <시험 클래스>     모든 서버 코드 변경에서 항상 돌리는 넓은 시험(표가 놓친 것을 잡는 그물, 컴파일 확인도 겸함)
+#
+# 새 시험이 저장소 밖 파일(../docs, ../tools 등)을 읽으면 아래 reads 규칙을 같이 추가한다 — tools/ci/test_test_impact.py 가 빠진 곳을 찾아낸다.
+
+# ---- 전체 시험 대상: 빌드·CI ----
+full .github/**
+full tools/ci/**
+full gradle/**
+full gradlew
+full gradlew.bat
+full *.kts
+full **/*.kts
+full **/*.gradle
+full gradle.properties
+full **/gradle.properties
+full **/*.toml
+# ---- 전체 시험 대상: 리소스(클래스 커버리지에 안 잡힌다. 금 파일·정답표·언어 파일·서비스 목록 포함) ----
+full **/src/*/resources/**
+# ---- 전체 시험 대상: 동시성 핵심(어디서 쓰이든 영향이 번지는 곳) ----
+full furnace-server/src/main/java/org/domi/furnace/server/sched/**
+full furnace-api/src/main/java/org/domi/furnace/api/concurrent/**
+full furnace-server/src/main/java/org/domi/furnace/server/world/Regionizer.java
+full furnace-server/src/main/java/org/domi/furnace/server/world/Region.java
+full furnace-server/src/main/java/org/domi/furnace/server/world/RegionBorrow.java
+full furnace-server/src/main/java/org/domi/furnace/server/world/RegionLevel.java
+full furnace-server/src/main/java/org/domi/furnace/server/world/SharedScheduler.java
+full furnace-server/src/main/java/org/domi/furnace/server/world/ChunkColumn.java
+full furnace-server/src/main/java/org/domi/furnace/server/world/TickState.java
+full furnace-server/src/main/java/org/domi/furnace/server/ServerCore.java
+
+# ---- 시험이 읽지 않는 파일 ----
+ignore furnace-server/test-shard-times.tsv
+ignore **/src/bench/**
+ignore docs/feature-parity/context-notes/**
+ignore docs/user-todo/**
+ignore docs/user-todo.md
+# ---- 시험이 데이터로 읽는 파일 ----
+reads docs/api/** docs[/"', ]+api
+reads docs/feature-parity/** feature-parity
+ignore tools/vanilla-data/*.java
+ignore tools/vanilla-data/README.md
+reads tools/vanilla-data/** tools[/"', ]+vanilla-data
+reads tools/compat/** tools[/"', ]+compat
+ignore tools/bot-test/**
+ignore tools/parity-audit/**
+ignore tools/block-oracle/**
+ignore tools/user-todo-combined.sh
+# ---- 나머지 문서·부속 파일 ----
+ignore docs/**
+ignore *.md
+ignore LLM-Wiki/**
+ignore graphify-out/**
+ignore .claude/**
+ignore licenses/**
+ignore NOTICE
+ignore LICENSE
+ignore start.sh
+ignore start.bat
+ignore jvm.args.example
+ignore .gitignore
+ignore .gitattributes
+ignore .graphifyignore
+
+# ---- 항상 돌리는 시험은 영향 표로 고른다(아래 always 줄) ----

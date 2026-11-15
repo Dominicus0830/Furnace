@@ -66,7 +66,17 @@ tasks.test {
     // 배정(T-162): test-shard-times.tsv(클래스별 시험 시간 실측)에 있는 클래스는 오래 걸리는 것부터 지금 가장 가벼운 조각에 넣는다(LPT).
     // 파일에 없는 새 클래스만 이름 해시로 나눈다. 배정은 정확성에 영향이 없고 균형만 달라진다. 시간 파일 갱신은 tools/ci/shard-balance.py --write(docs/ci.md).
     // 이 규칙을 바꾸면 tools/ci/shard-balance.py 의 assign() 도 같이 바꾼다(두 곳이 같은 배정을 내야 균형 계산이 맞다).
-    (findProperty("testShard") as String?)?.let { spec ->
+    //
+    // V-08 시험 영향 선택: -PtestSkip=<파일> 은 "이번 변경과 상관없다고 선택 도구가 판단한 시험 클래스"(줄마다 a/b/FooTest 경로 꼴)를 건너뛴다.
+    // 목록에 없는 클래스는 모두 돈다(표에 없는 새 시험 포함) — 건너뛰기는 항상 이름으로 명시된 것만이다(tools/ci/test-impact.py, docs/ci.md).
+    // 조각 배정은 건너뛴 클래스를 뺀 나머지로 한다(같은 LPT 규칙, 건너뛴 것까지 넣으면 조각이 한쪽으로 쏠린다).
+    val skipNames: Set<String> = (findProperty("testSkip") as String?)?.let { path ->
+        val f = file(path)
+        require(f.isFile) { "testSkip 파일이 없다: $path" }
+        inputs.file(f)
+        f.readLines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }.toSet()
+    } ?: emptySet()
+    val shardMatch: ((String) -> Boolean)? = (findProperty("testShard") as String?)?.let { spec ->
         val m = Regex("""(\d+)/(\d+)""").matchEntire(spec.trim()) ?: error("testShard 는 '번호/전체' 꼴이다(예: 2/3): $spec")
         val total = m.groupValues[2].toInt()
         val index = m.groupValues[1].toInt()
@@ -80,7 +90,7 @@ tasks.test {
                 val parts = line.split('\t')
                 require(parts.size == 2) { "${timesFile.name}: '클래스<TAB>초' 꼴이 아니다: $line" }
                 parts[0] to parts[1].toDouble()
-            }
+            }.filter { it.first !in skipNames }
             val load = DoubleArray(total)
             for ((name, sec) in rows.sortedWith(compareByDescending<Pair<String, Double>> { it.second }.thenBy { it.first })) {
                 var best = 0
@@ -89,11 +99,24 @@ tasks.test {
                 known[name] = best
             }
         }
+        val match: (String) -> Boolean = { key -> (known[key] ?: Math.floorMod((key + shardSalt).hashCode(), total)) == index - 1 }
+        match
+    }
+    if (shardMatch != null || skipNames.isNotEmpty()) {
         include(Spec<FileTreeElement> { el ->
             if (el.isDirectory) return@Spec true
             val key = el.path.substringBefore('$').removeSuffix(".class")
-            (known[key] ?: Math.floorMod((key + shardSalt).hashCode(), total)) == index - 1
+            key !in skipNames && (shardMatch?.invoke(key) ?: true)
         })
+    }
+    // V-08 시험 영향 표 만들기(-PtestImpact): 시험 클래스마다 새 JVM 에서 JaCoCo 에이전트를 붙여 돌리고, TestImpactListener 가 클래스별 실행 목록을
+    // build/test-impact/raw 에 남긴다(tools/ci/test-impact.py partial 이 읽는다). forkEvery=1 이 필요한 까닭은 TestImpactListener 머리 주석.
+    // 판정용 조각에는 쓰지 않는다 — 에이전트와 클래스당 JVM 이 시험을 훨씬 느리게 한다(기준 브랜치 push 의 coverage-tests 작업에서만).
+    if (findProperty("testImpact") != null) {
+        val rawDir = layout.buildDirectory.dir("test-impact/raw").get().asFile
+        forkEvery = 1
+        systemProperty("furnace.testImpact.dir", rawDir.absolutePath)
+        doFirst { rawDir.deleteRecursively() }
     }
 }
 
@@ -154,7 +177,7 @@ tasks.test { dependsOn("compileBenchJava") }
 //   ./gradlew -PskipOracle=true -Pcoverage :furnace-server:test :furnace-server:jacocoTestReport
 // CI 는 기준 브랜치 push 실행의 서버 시험 조각마다 test.exec 를 올리고, 합치는 작업(coverage)이 jacocoCoverageReport 로 표 하나를 만든다(docs/ci.md).
 tasks.test {
-    extensions.configure<JacocoTaskExtension> { isEnabled = findProperty("coverage") != null }
+    extensions.configure<JacocoTaskExtension> { isEnabled = findProperty("coverage") != null || findProperty("testImpact") != null }
 }
 tasks.jacocoTestReport {
     reports { xml.required = true; html.required = true }
