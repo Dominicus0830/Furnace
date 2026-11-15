@@ -64,6 +64,12 @@ public final class ChunkColumn {
         viewHolder = old.viewHolder;   // 같은 shim(Paper regenerateChunk 는 같은 LevelChunk) — 공개도 이어 간다
         viewVersion = old.viewVersion;
         viewTouched = old.viewTouched || old.readView != null;
+        // 거울(N2b-4)도 이어 간다 — 들여오지 않은 쓰기는 새 컬럼에 맞춘다. 내용 판 번호는 옛 것보다 크게(거울이 실체화한 Data 가 낡았음을 알게)
+        mirrorHeld = old.mirrorHeld;
+        mirrorPending = old.mirrorPending;
+        old.mirrorPending = 0;   // 대기 수는 새 컬럼이 이어 센다
+        importedUnsaved = old.importedUnsaved;
+        modCount = Math.max(modCount, old.modCount) + 1;
     }
 
     // ------------------------------------------------------------------ 공개 스냅샷(N2b-3, 설계 3.6)
@@ -110,17 +116,160 @@ public final class ChunkColumn {
     }
 
     /** shim 을 붙인다 — 살아 있는 것이 이미 있으면 그것(먼저 붙은 쪽이 이긴다). 아무 스레드. */
-    public Object attachViewHolder(Object shim) {
+    public Object attachViewHolder(Object shim) { return attachViewHolder(shim, null); }
+
+    /** shim 과 그 거울(N2b-4, null 이면 없음)을 함께 붙인다 — 살아 있는 shim 이 이미 있으면 그것(먼저 붙은 쪽이 이긴다, 거울도 그쪽 것). 아무 스레드. */
+    public Object attachViewHolder(Object shim, org.domi.furnace.api.internal.ChunkInternals.ChunkMirror mirror) {
         java.util.Objects.requireNonNull(shim, "shim");
         while (true) {
             var cur = viewHolder;
             Object alive = cur == null ? null : cur.get();
             if (alive != null) return alive;
-            if (VIEW_HOLDER.compareAndSet(this, cur, new java.lang.ref.WeakReference<>(shim))) {
+            if (VIEW_HOLDER.compareAndSet(this, cur, new ShimRef(shim, mirror))) {
                 viewTouched = true;   // 주인이 받아 볼 때까지 지금 판을 버리지 않게
                 return shim;
             }
         }
+    }
+
+    /**
+     * 붙은 shim 의 약한 참조와 그 거울의 약한 참조(N2b-4). shim 과 거울은 서로를 강하게 쥐어 함께 사라진다 — 따로 두는 것은 서버가 shim 의 클래스(호환 계층)를
+     * 모르고 거울 인터페이스로만 부르기 위해서다.
+     */
+    private static final class ShimRef extends java.lang.ref.WeakReference<Object> {
+        final java.lang.ref.WeakReference<org.domi.furnace.api.internal.ChunkInternals.ChunkMirror> mirror;
+
+        ShimRef(Object shim, org.domi.furnace.api.internal.ChunkInternals.ChunkMirror mirror) {
+            super(shim);
+            this.mirror = mirror == null ? null : new java.lang.ref.WeakReference<>(mirror);
+        }
+    }
+
+    // ------------------------------------------------------------------ 거울·들여오기(N2b-4, 설계 3.2·3.4)
+    // 플러그인이 고친 NMS 청크 shim(거울)을 주인 region 스레드가 맞춤 지점마다 서버 청크로 들여온다. 대기 상태는 이 컬럼에 둔다(R8 — region 나누기·합치기·
+    // 재생성 때 청크와 함께 간다). 들여오기는 표시를 보고 그때의 거울 상태로 서버를 맞추는 멱등 연산이다.
+
+    /** 들여오지 않은 거울 쓰기가 있다(0/1). 아무 스레드가 CAS 로 세우고(세운 쪽이 주인을 깨운다) 주인이 맞출 때 내린다. */
+    private volatile int mirrorPending;
+    /** 대기 동안 거울을 강하게 쥔다(R14 — 플러그인이 참조를 모두 놓아도 들여올 쓰기를 잃지 않게). 아무 스레드가 세우고 주인이 맞춘 뒤 내린다. */
+    private volatile org.domi.furnace.api.internal.ChunkInternals.ChunkMirror mirrorHeld;
+    /** 주인 전용: 맞추는 중(거울이 다리로 서버에 쓰는 동안 다시 들어오지 않게). */
+    private boolean mirrorSyncing;
+    /** 주인 전용: 저장 표시 없이 들여왔거나 원시로 쓴 내용이 있고 그 뒤 저장되지 않았다(D3 — 이대로 내려가면 경고). */
+    private boolean importedUnsaved;
+
+    private static final java.lang.invoke.VarHandle MIRROR_PENDING;
+    static {
+        try {
+            MIRROR_PENDING = java.lang.invoke.MethodHandles.lookup().findVarHandle(ChunkColumn.class, "mirrorPending", int.class);
+        } catch (ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    /** 붙은 거울(없거나 shim 이 사라졌으면 null, 대기 중이면 쥐고 있는 것). 아무 스레드. */
+    public org.domi.furnace.api.internal.ChunkInternals.ChunkMirror mirror() {
+        var held = mirrorHeld;
+        if (held != null) return held;
+        return viewHolder instanceof ShimRef r && r.mirror != null ? r.mirror.get() : null;
+    }
+
+    /**
+     * 아무 스레드: 거울에 들여오지 않은 쓰기가 생겼다. 이 로드에 붙은 거울이 아니면 false(그 쓰기는 월드에 닿지 않는다). 대기 표시를 처음 세운 호출만
+     * {@code woke[0]} 이 참 — 그 호출자가 주인을 깨운다(대기 청크 수도 센다).
+     */
+    public boolean markMirrorPending(org.domi.furnace.api.internal.ChunkInternals.ChunkMirror m, boolean[] woke) {
+        var r = viewHolder;
+        if (!(r instanceof ShimRef ref) || ref.mirror == null || ref.mirror.get() != m) return false;
+        mirrorHeld = m;   // 대기 표시보다 먼저 — 주인이 표시를 보고 내리는 순서와 맞물린다(syncMirror)
+        woke[0] = mirrorPending == 0 && MIRROR_PENDING.compareAndSet(this, 0, 1);
+        if (woke[0]) mirrorHeld = m;   // 위 쓰기와 CAS 사이에 주인이 표시 0 을 보고 쥠을 내렸을 수 있다 — 세운 쪽이 다시 쥔다(PR #396 검토 R4)
+        return true;
+    }
+
+    /** 대기 표시를 거둔다(부탁을 보내지 못했거나 내린 컬럼). 거뒀으면 true(부르는 쪽이 대기 청크 수를 줄인다). 아무 스레드. */
+    public boolean dropMirrorPending() {
+        boolean dropped = MIRROR_PENDING.compareAndSet(this, 1, 0);
+        if (dropped) mirrorHeld = null;
+        return dropped;
+    }
+
+    /** 들여오지 않은 거울 쓰기가 있는가(아무 스레드, volatile 하나). */
+    public boolean mirrorPending() { return mirrorPending != 0; }
+
+    /** 주인 전용: 저장 표시 없이 들여온 내용이 있는가(D3). */
+    public boolean importedUnsaved() { return importedUnsaved; }
+
+    /**
+     * 주인 스레드: 거울을 맞춘다. force 면 대기 표시가 없어도 훑는다(틱 끝·저장·언로드 — 장벽이 못 본 필드·배열 대입을 잡는 정식 경로, 설계 3.3-1).
+     * 대기 표시를 내리면 pendingChunks(월드의 대기 청크 수)를 하나 줄인다. 맞추는 중에 다시 불리면 아무것도 하지 않는다. 거울이 낸 예외는 그대로 던진다
+     * (대기 표시는 내린 채 — 남은 쓰기는 다음 맞춤 지점의 훑기가 다시 본다).
+     */
+    public void syncMirror(boolean force, java.util.concurrent.atomic.AtomicInteger pendingChunks) {
+        if (mirrorSyncing) return;
+        var m = mirror();
+        try {
+            for (int round = 0; round < 4; round++) {   // 맞추는 동안 들어온 쓰기는 몇 번 더 — 그래도 남으면 다음 맞춤 지점에
+                boolean pending = mirrorPending != 0;
+                if (!pending && !(force && round == 0)) break;
+                if (pending && MIRROR_PENDING.compareAndSet(this, 1, 0)) pendingChunks.decrementAndGet();
+                if (m == null) break;
+                mirrorSyncing = true;
+                boolean left;
+                try {
+                    left = m.sync();
+                } finally {
+                    mirrorSyncing = false;
+                }
+                if (!left && mirrorPending == 0) break;
+            }
+        } finally {
+            if (mirrorPending == 0 && mirrorHeld != null) {
+                mirrorHeld = null;
+                if (mirrorPending != 0) mirrorHeld = m;   // 내린 사이 다른 스레드가 세웠다 — 다시 쥔다(세우는 쪽은 mirrorHeld 를 먼저 쓴다)
+            }
+        }
+    }
+
+    /** 주인 스레드: 틱 끝 공개 뒤 거울에 알린다(개수 필드·덧칠 새로 고침). */
+    public void mirrorPublished() {
+        var m = mirror();
+        if (m != null) m.published(readView);
+    }
+
+    /** 주인 스레드, 내리기 직전(맞춘 뒤): 거울을 떼어 낸다(남은 대기는 버린다 — 바닐라: 죽은 LevelChunk 에 쓴 것). */
+    public void mirrorUnloaded(java.util.concurrent.atomic.AtomicInteger pendingChunks) {
+        var m = mirror();
+        if (MIRROR_PENDING.compareAndSet(this, 1, 0)) pendingChunks.decrementAndGet();
+        mirrorHeld = null;
+        if (m != null) m.unloaded();
+    }
+
+    /**
+     * 거울 들여오기 단일 입구(N2b-4, 설계 3.4 R9): 섹션 하나의 블록·바이옴·바닐라 개수를 그 값으로. 바닐라에 없는 경로라 바닐라가 하지 않는 일은 하지 않는다 —
+     * <b>저장 표시·빛·하늘빛 원천·하이트맵 재계산·POI·블록 엔티티·패킷·이웃 갱신 없음</b>(블록을 바꾸면 하이트맵은 고정 모드로 들어가 낡은 값을 든다).
+     * Furnace 전용 파생 캐시(직렬화 본문·스냅샷·하이트맵 캐시·비공기 수·무작위 틱 마스크·COW·빛 작업 얼림·공개 스냅샷 재사용)는 ownSection·섹션 판 올림·
+     * touch 가 맞춘다(필드 전수 시험 ChunkFieldCensusTest). 디스크 로드 경로(loadSectionIndexed — 저장 표시·하이트맵 UNSET)는 쓰지 않는다.
+     * null 인 구성 요소는 그대로. counts 가 null 이면 바닐라 개수도 그대로다(바닐라는 컨테이너 데이터를 갈아도 다시 세지 않는다). 주인 스레드.
+     */
+    public void importSection(int index, int[] states, int[] biomes, int[] counts) {
+        if (states != null && states.length != 4096) throw new IllegalArgumentException("블록 칸은 4096개여야 한다: " + states.length);
+        if (biomes != null && biomes.length != 64) throw new IllegalArgumentException("바이옴 칸은 64개여야 한다: " + biomes.length);
+        if (counts != null && counts.length != 3) throw new IllegalArgumentException("개수는 셋이어야 한다: " + counts.length);
+        if (states == null && biomes == null && counts == null) return;
+        // 바닐라 하이트맵은 섹션을 갈아도 낡은 값을 든다 — 블록·개수(nonEmpty 0 섹션은 바닐라 하이트맵 갱신이 공기로 훑는다)를 바꾸기 전에 고정
+        if (states != null || counts != null) fixHeightmaps();
+        ChunkSection s = ownSection(index);
+        if (states != null) {
+            int[] keep = counts != null ? counts : s.vanillaCounts();   // 모르면 바꾸기 전 블록에서 세 둔다(바닐라 필드는 옛 블록의 값)
+            s.replaceBlocks(states, 0);
+            s.setVanillaCounts(keep[0], keep[1], keep[2]);
+        } else if (counts != null) {
+            s.setVanillaCounts(counts[0], counts[1], counts[2]);
+        }
+        if (biomes != null) s.replaceBiomes(biomes, 0);
+        if (states != null || biomes != null) importedUnsaved = true;
+        touch();
     }
 
     /** 다른 스레드: 주인에게 공개를 부탁해야 하는가(처음 부탁한 스레드만 true — 그 스레드가 작업을 보낸다). */
@@ -829,6 +978,7 @@ public final class ChunkColumn {
     public int setSectionStateRaw(int sectionIndex, int cellIndex, int stateId, boolean vanillaCounts) {
         fixHeightmaps();
         int old = ownSection(sectionIndex).setBlockAt(cellIndex, stateId, vanillaCounts);
+        if (old != stateId) importedUnsaved = true;   // 저장 표시 없는 내용 변경(D3)
         touch();
         return old;
     }
@@ -836,6 +986,7 @@ public final class ChunkColumn {
     /** 섹션 바이옴 칸 원시 쓰기(바닐라 바이옴 컨테이너 getAndSet — 저장 표시·패킷 없음). 옛 바이옴 번호. */
     public int setSectionBiomeRaw(int sectionIndex, int cellIndex, int biomeId) {
         int old = ownSection(sectionIndex).setBiomeAt(cellIndex, biomeId);
+        if (old != biomeId) importedUnsaved = true;
         touch();
         return old;
     }
@@ -884,7 +1035,11 @@ public final class ChunkColumn {
         dirty = true;
         return true;
     }
-    public void clearDirty() { dirty = false; }
+    /** 저장했다(저장 경로가 스냅샷을 뜬 뒤 부른다) — 저장 표시 없이 들여온 내용도 이 저장에 들어갔다(D3). */
+    public void clearDirty() {
+        dirty = false;
+        importedUnsaved = false;
+    }
 
     /** 블록 자체는 안 바뀌었지만(체스트 아이템 등 블록엔티티 내용 변경) 저장이 필요할 때 호출(§3.6). */
     public void markDirty() {

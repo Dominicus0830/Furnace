@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.function.Supplier;
@@ -22,7 +21,6 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import org.bukkit.Bukkit;
 import org.bukkit.craftbukkit.CraftServer;
 import org.bukkit.craftbukkit.CraftWorld;
-import org.domi.furnace.api.concurrent.ThreadOwnershipException;
 import org.domi.furnace.api.packet.PacketTypes;
 import org.domi.furnace.compat.paper.Compat;
 import org.domi.furnace.server.world.ChunkColumn;
@@ -36,6 +34,7 @@ import org.junit.jupiter.api.TestInstance;
 /**
  * N2b-2 주인 스레드 원시 쓰기: 섹션 setBlockState·컨테이너 set·Heightmap.setRawData/update 가 서버 청크에 바로 들어가되 바닐라처럼 조용한가
  * (패킷·저장 표시·빛·하늘빛 원천 그대로, 하이트맵은 낡은 값). 개수·하이트맵 수치 자체는 VanillaRawWriteOracleTest(바닐라 jar 정답기)가 본다.
+ * 주인이 아닌 스레드의 쓰기(일지·거울, N2b-4)는 NmsMirrorTest.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class NmsOwnerRawWriteTest {
@@ -211,18 +210,5 @@ class NmsOwnerRawWriteTest {
             assertSame(old, b.get(1, 2, 3));
             return null;
         });
-    }
-
-    /** 주인 아닌 스레드의 쓰기는 지금은 거절(다른 스레드 쓰기 일지는 N2b-4, D1). */
-    @Test
-    void offThreadRawWritesThrow() {
-        LevelChunk c = level.getChunk(cx, cz);   // 기다리는 조회 — 공개 스냅샷이 없으면 주인이 낼 때까지(N2b-3)
-        assertNotNull(c);
-        BlockState stone = Blocks.STONE.defaultBlockState();
-        assertThrows(ThreadOwnershipException.class, () -> c.getSection(0).setBlockState(0, 0, 0, stone));
-        assertThrows(ThreadOwnershipException.class, () -> c.getSection(0).getStates().set(0, 0, 0, stone));
-        Heightmap hm = c.heightmaps.get(Heightmap.Types.WORLD_SURFACE);
-        assertThrows(ThreadOwnershipException.class, () -> hm.setRawData(c, Heightmap.Types.WORLD_SURFACE, new long[37]));
-        assertThrows(ThreadOwnershipException.class, () -> hm.update(0, 0, 0, stone));
     }
 }

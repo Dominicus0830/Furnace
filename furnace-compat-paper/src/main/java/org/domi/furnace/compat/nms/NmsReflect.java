@@ -26,6 +26,36 @@ public final class NmsReflect {
 
     private NmsReflect() {}
 
+    // ------------------------------------------------------------------ 필드 쓰기 장벽(N2b-4, 설계 3.3-3) — NMS 이름 힌트가 있는 클래스의 Field.get·set 이 온다
+
+    /**
+     * {@code Field.get(target)} 앞: 로드된 청크 섹션 보기 컨테이너의 {@code data} 를 읽으면 그 순간 내용으로 바닐라 배치를 실체화한다(FAWE 가 섹션을 읽는 길).
+     * 아무것도 던지지 않는다(실패하면 원래 필드 값 그대로).
+     */
+    public static void beforeFieldGet(Field field, Object target) {
+        if (target instanceof net.minecraft.world.level.chunk.PalettedContainer<?>) {
+            try {
+                net.minecraft.world.level.chunk.ChunkAccess.furnaceBarrierFieldGet(field, target);
+            } catch (RuntimeException | LinkageError ignored) {
+                // 필드 값 그대로
+            }
+        }
+    }
+
+    /**
+     * {@code Field.set*(target, …)} 뒤: 로드된 청크의 섹션·컨테이너 필드를 바꿨으면 그 거울에 알린다(주인이 다음 맞춤 지점에서 들여온다 — 정확성은 틱 끝
+     * 훑기가 보장하고 이 알림은 지연을 줄인다). 아무것도 던지지 않는다.
+     */
+    public static void afterFieldSet(Field field, Object target) {
+        if (target instanceof net.minecraft.world.level.chunk.LevelChunkSection || target instanceof net.minecraft.world.level.chunk.PalettedContainer<?>) {
+            try {
+                net.minecraft.world.level.chunk.ChunkAccess.furnaceBarrierFieldSet(target);
+            } catch (RuntimeException | LinkageError ignored) {
+                // 훑기가 잡는다
+            }
+        }
+    }
+
     // ------------------------------------------------------------------ 클래스 이름 찾기 실패 기록 (CraftNames 가 부른다)
 
     /** NMS 이름 클래스를 찾지 못했다. 다른 버전 접미사·1.17 이전 패키지(버전 모듈 고르기 탐색)는 DEBUG. */

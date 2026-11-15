@@ -311,6 +311,19 @@ public final class World {
     /** 로드된 컬럼(아무 스레드, 최근 값). 주인이 아닌 스레드는 공개 스냅샷·shim 칸(ChunkColumn 의 volatile 칸)만 만진다(N2b-3). */
     public ChunkColumn loadedChunkColumn(int cx, int cz) { return loadedChunk(cx, cz); }
 
+    /**
+     * 들여오지 않은 NMS 거울 쓰기가 있는 청크 수(N2b-4). Bukkit·World 읽기 진입(맞춤 지점, 설계 3.3-2 R10)이 0 이면 컬럼을 찾지 않고 지나간다 —
+     * 비용은 volatile 읽기 하나. 세우는 쪽(ChunkColumn.markMirrorPending 이 처음 세운 호출)이 올리고 내리는 쪽(맞추기·내리기)이 내린다.
+     */
+    public final java.util.concurrent.atomic.AtomicInteger mirrorPendingChunks = new java.util.concurrent.atomic.AtomicInteger();
+
+    /** 주인 스레드: 대기 중인 거울이 있으면 그 청크를 맞춘다(Bukkit·World 읽기·쓰기 진입의 맞춤 지점). 대기가 없으면 volatile 읽기 하나. */
+    public void syncMirrorIfPending(Region r, int cx, int cz) {
+        if (mirrorPendingChunks.get() == 0 || r == null) return;
+        ChunkColumn c = r.ownedChunk(cx, cz);
+        if (c != null && c.mirrorPending()) r.syncMirror(c);
+    }
+
     /** 로드된 청크의 이번 로드를 나타내는 불투명 객체(컬럼이 아닌 전용 표시 — 쥐어도 청크 내용을 붙잡지 않는다), 없으면 null. 아무 스레드. */
     public Object loadedChunkToken(int cx, int cz) {
         ChunkColumn c = loadedChunk(cx, cz);

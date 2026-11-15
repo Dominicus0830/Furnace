@@ -308,6 +308,62 @@ final class ChunkInternalsImpl implements ChunkInternals {
         }
     }
 
+    // ------------------------------------------------------------------ 거울·들여오기(N2b-4)
+
+    @Override
+    public boolean requestMirrorSync(org.domi.furnace.api.world.World world, int chunkX, int chunkZ, ChunkMirror mirror) {
+        java.util.Objects.requireNonNull(mirror, "mirror");
+        var w = handle(world).handle();
+        ChunkColumn col = loadedAny(world, chunkX, chunkZ);
+        if (col == null) return false;
+        boolean[] woke = {false};
+        if (!col.markMirrorPending(mirror, woke)) return false;
+        if (!woke[0]) return true;   // 이미 부탁이 가 있다
+        w.mirrorPendingChunks.incrementAndGet();
+        // 작업이 거울을 강하게 쥔다(돌 때까지 사라지지 않게). 주인이 없으면(그 사이 내려감) region 을 만들지 않고 표시를 거둔다(R4)
+        boolean sent;
+        try {
+            sent = w.submitAtOwnedChunk(new ChunkPos(chunkX, chunkZ), r -> {
+                r.syncMirrorTask(col, chunkX, chunkZ, mirror);
+                return null;
+            }) != null;
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            sent = false;   // 내린 월드
+        }
+        if (!sent && col.dropMirrorPending()) w.mirrorPendingChunks.decrementAndGet();
+        return true;
+    }
+
+    @Override
+    public boolean importSectionNow(org.domi.furnace.api.world.World world, int chunkX, int sectionIndex, int chunkZ, int[] states, int[] biomes, int[] counts) {
+        if (states != null) {
+            if (states.length != 4096) throw new IllegalArgumentException("블록 칸은 4096개여야 한다: " + states.length);
+            for (int id : states) checkState(id);
+        }
+        if (biomes != null) {
+            if (biomes.length != 64) throw new IllegalArgumentException("바이옴 칸은 64개여야 한다: " + biomes.length);
+            int n = biomeKeys().size();
+            for (int id : biomes) if (id < 0 || (n > 0 && id >= n)) throw new IllegalArgumentException("바이옴 번호 범위 밖: " + id);
+        }
+        if (counts != null && counts.length != 3) throw new IllegalArgumentException("개수는 셋이어야 한다: " + counts.length);
+        ChunkColumn col = column(world, chunkX, chunkZ, "청크 섹션 들여오기");
+        if (col == null) return false;
+        col.importSection(checkSection(col, sectionIndex), states, biomes, counts);
+        return true;
+    }
+
+    @Override
+    public ChunkView publishChunkViewNow(org.domi.furnace.api.world.World world, int chunkX, int chunkZ) {
+        Region r = ownedLoaded(world, chunkX, chunkZ, "청크 공개");
+        return r == null ? null : r.publishReadViewNow(chunkX, chunkZ);
+    }
+
+    @Override
+    public long contentStampNow(org.domi.furnace.api.world.World world, int chunkX, int chunkZ) {
+        ChunkColumn col = column(world, chunkX, chunkZ, "청크 내용 판 번호");
+        return col == null ? -1L : col.modCount();
+    }
+
     /** 비 region 스레드가 주인의 공개를 기다리는 상한(초). 바닐라 getChunk 의 join 은 상한이 없지만 Furnace 는 종료 중 region 작업이 돌지 않는다. */
     private static final int AWAIT_VIEW_SECONDS = 30;
 
@@ -319,10 +375,15 @@ final class ChunkInternalsImpl implements ChunkInternals {
 
     @Override
     public Object attachChunkShim(org.domi.furnace.api.world.World world, int chunkX, int chunkZ, Object shim) {
+        return attachChunkShim(world, chunkX, chunkZ, shim, null);
+    }
+
+    @Override
+    public Object attachChunkShim(org.domi.furnace.api.world.World world, int chunkX, int chunkZ, Object shim, ChunkMirror mirror) {
         var w = handle(world).handle();
         ChunkColumn col = loadedAny(world, chunkX, chunkZ);
         if (col == null) return null;
-        Object won = col.attachViewHolder(shim);
+        Object won = col.attachViewHolder(shim, mirror);
         Region r = w.regionizer().ownerOf(chunkX, chunkZ);
         if (r != null && r.isOwnerThread()) {
             r.publishReadViewNow(chunkX, chunkZ);   // 주인 스레드면 그 자리에서 — 이 shim 이 곧바로 다른 스레드로 넘어가도 읽히게(R16)
