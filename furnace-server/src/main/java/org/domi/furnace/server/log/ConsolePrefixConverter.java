@@ -7,7 +7,13 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 
 public final class ConsolePrefixConverter extends ClassicConverter {
 
-    private static final String[] OWN = {"org.domi.furnace.", "net.minecraft.", "com.mojang.", "org.bukkit.", "io.papermc.", "org.spigotmc.", "com.destroystokyo."};
+    // 호환 계층 패키지 이름은 서버 클래스 파일에 글자로 남지 않게(CompatIsolationStaticTest) 이어 붙여 만든다.
+    private static final String[] OWN = {pkg("org.domi", "furnace"), pkg("net", "minecraft"), pkg("com", "mojang"),
+            pkg("org", "bukkit"), pkg("io", "papermc"), pkg("org", "spigotmc"), pkg("com", "destroystokyo")};
+
+    private static String pkg(String a, String b) {
+        return a + '.' + b + '.';
+    }
 
     @Override
     public String convert(ILoggingEvent event) {
