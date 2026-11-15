@@ -66,7 +66,7 @@ icon.set(EntityDataKeys.Display.LEFT_ROTATION, Quaternionf.rotationY(45));
 
 `SET_ENTITY_DATA`(칸 번호 + 값: byte·int·long·float·boolean·string·텍스트·옵션 텍스트·자세), `PLAYER_INFO_UPDATE`, `PLAYER_INFO_REMOVE` 가 타입 래퍼가 됐다(34종).
 - `SET_ENTITY_DATA` 는 값 종류 31개를 모두 읽는다(E1). 이 서버 버전이 모르는 직렬화 번호를 만날 때만 `Unsupported` 로 멈춘다.
-- `PLAYER_INFO_UPDATE` 는 채팅 세션 초기화 비트가 든 패킷을 읽지 않는다(관찰·취소만).
+- `PLAYER_INFO_UPDATE` 는 채팅 세션 초기화(INITIALIZE_CHAT)도 `Entry.chatSession` 으로 읽고 쓴다(2026-11-15, null = 세션 없음, 공개 키는 RSA X.509 여야 보낸다).
 - 장비(`set_equipment`)·팀(`set_player_team`)은 아직 타입 래퍼가 아니다. 가상 엔티티 서비스가 서버 내부 패킷으로 보낸다.
 
 ## 한계

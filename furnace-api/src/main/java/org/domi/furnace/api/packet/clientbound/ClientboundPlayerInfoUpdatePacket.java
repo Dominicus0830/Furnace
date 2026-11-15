@@ -1,8 +1,10 @@
 // 플레이어 정보 갱신(player_info_update) — 탭 목록 항목과 플레이어 스킨/이름. 서버에 접속하지 않은 가짜 항목(NPC·가짜 탭 줄)을 만들 때 쓴다.
 // actions 에 든 동작만 entries 의 해당 필드가 뜻이 있다. ADD_PLAYER 가 없으면 이미 알려진 uuid 의 갱신이다.
-// 채팅 세션 초기화(INITIALIZE_CHAT)는 읽지 못한다 — 그런 패킷은 관찰·취소는 되지만 이 래퍼로는 만들 수 없다.
+// 채팅 세션 초기화(INITIALIZE_CHAT)는 Entry.chatSession(null = 세션 없음 — 바닐라도 서명 채팅을 끈 플레이어는 빈 값을 보낸다).
 package org.domi.furnace.api.packet.clientbound;
 
+import java.time.Instant;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
@@ -20,12 +22,55 @@ public record ClientboundPlayerInfoUpdatePacket(Set<Action> actions, List<Entry>
     /** 와이어 비트 순서와 같다. */
     public enum Action { ADD_PLAYER, INITIALIZE_CHAT, UPDATE_GAME_MODE, UPDATE_LISTED, UPDATE_LATENCY, UPDATE_DISPLAY_NAME }
 
-    /** name·properties = ADD_PLAYER, gameMode, listed, latencyMs, displayName(null = 없음). */
-    public record Entry(UUID uuid, String name, List<ProfileProperty> properties, GameMode gameMode, boolean listed, int latencyMs, Text displayName) {
+    /**
+     * name·properties = ADD_PLAYER, gameMode, listed, latencyMs, displayName(null = 없음), chatSession = INITIALIZE_CHAT(null = 세션 없음).
+     */
+    public record Entry(UUID uuid, String name, List<ProfileProperty> properties, GameMode gameMode, boolean listed, int latencyMs, Text displayName,
+                        ChatSession chatSession) {
         public Entry {
             Objects.requireNonNull(uuid, "uuid");
             properties = properties == null ? List.of() : List.copyOf(properties);
             if (gameMode == null) gameMode = GameMode.SURVIVAL;
+        }
+
+        /** 채팅 세션 없는 항목(INITIALIZE_CHAT 을 쓰지 않을 때). */
+        public Entry(UUID uuid, String name, List<ProfileProperty> properties, GameMode gameMode, boolean listed, int latencyMs, Text displayName) {
+            this(uuid, name, properties, gameMode, listed, latencyMs, displayName, null);
+        }
+    }
+
+    /**
+     * 플레이어 채팅 세션(바닐라 RemoteChatSession.Data): 세션 번호, 공개 키 만료 시각, 공개 키(X.509 RSA, 512바이트까지), Mojang 이 붙인 키 서명(4096바이트까지).
+     * 바이트 배열은 복사해 들고, 같음은 내용으로 본다. 키가 RSA 가 아니면 보낼 때 IllegalArgumentException(바닐라 클라이언트는 읽다 끊는다).
+     */
+    public record ChatSession(UUID sessionId, Instant expiresAt, byte[] publicKey, byte[] keySignature) {
+        public ChatSession {
+            Objects.requireNonNull(sessionId, "sessionId");
+            Objects.requireNonNull(expiresAt, "expiresAt");
+            publicKey = Objects.requireNonNull(publicKey, "publicKey").clone();
+            keySignature = Objects.requireNonNull(keySignature, "keySignature").clone();
+            if (publicKey.length > 512) throw new IllegalArgumentException("공개 키는 512바이트까지: " + publicKey.length);
+            if (keySignature.length > 4096) throw new IllegalArgumentException("키 서명은 4096바이트까지: " + keySignature.length);
+        }
+
+        @Override
+        public byte[] publicKey() { return publicKey.clone(); }
+
+        @Override
+        public byte[] keySignature() { return keySignature.clone(); }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof ChatSession c && sessionId.equals(c.sessionId) && expiresAt.equals(c.expiresAt) && Arrays.equals(publicKey, c.publicKey)
+                    && Arrays.equals(keySignature, c.keySignature);
+        }
+
+        @Override
+        public int hashCode() { return Objects.hash(sessionId, expiresAt, Arrays.hashCode(publicKey), Arrays.hashCode(keySignature)); }
+
+        @Override
+        public String toString() {
+            return "ChatSession[sessionId=" + sessionId + ", expiresAt=" + expiresAt + ", publicKey=" + publicKey.length + "B, keySignature=" + keySignature.length + "B]";
         }
     }
 
