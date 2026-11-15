@@ -38,8 +38,8 @@ public final class NmsReflect {
             LOG.debug("플러그인 {}: NMS 클래스 {} 없음(다른 버전 모듈 탐색)", plugin, name);
             return;
         }
-        if (NmsGrades.gradeC(n) != null || (ENABLED.contains(plugin) && missingClassLog(plugin) == MissingClassLog.EACH)) {
-            // 등급 C(Paper 1.21.1 에 있지만 Furnace 가 일부러 주지 않는 클래스)는 진짜 차이라 하나씩 경고한다. each 설정이면 켠 뒤 실패도 하나씩
+        if (NmsGrades.gradeC(n) != null || missingClassLog(plugin) == MissingClassLog.EACH) {
+            // 등급 C(Paper 1.21.1 에 있지만 Furnace 가 일부러 주지 않는 클래스)는 진짜 차이라 하나씩 경고한다. each 설정이면 켜는 중·켠 뒤 모두 하나씩(검토 R2)
             if (WARNED.add(plugin + "\0" + name)) {
                 LOG.warn("플러그인 {} 이(가) NMS 클래스 {} 를 리플렉션으로 찾았으나 이 서버에 없다 — {} (ClassNotFoundException 을 그대로 준다)",
                         plugin, name, NmsGrades.reason(n));
@@ -49,18 +49,27 @@ public final class NmsReflect {
             return;
         }
         // 그 밖은 대개 기능 감지다(ProtocolLib 은 Spigot 이름 → Mojang 이름 → 옛 이름을 차례로 찔러 본다 — Paper 1.21.1 도 같은 ClassNotFoundException 을
-        // 주고 아무것도 찍지 않는다). 하나씩 경고하면 첫 접속에 수십 줄이라 모았다가 플러그인마다 한 줄로 알린다(D1, 2026-11-15). 이름은 DEBUG 와 each 설정으로 본다.
+        // 주고 아무것도 찍지 않는다). 하나씩 경고하면 첫 접속에 수십 줄이라 모았다가 플러그인마다 한 줄로 알린다(D1, 2026-11-15). 이름마다 보려면 each 설정.
         if (!WARNED.add(plugin + "\0" + name)) {
             LOG.debug("플러그인 {}: NMS 클래스 {} 없음", plugin, name);
             return;
         }
-        Set<String> batch = MISSES.computeIfAbsent(plugin, k -> java.util.Collections.synchronizedSet(new java.util.LinkedHashSet<>()));
-        batch.add(name);
+        // compute 안에서 넣어야 flush 의 MISSES.remove 와 원자적이다(computeIfAbsent 뒤 add 는 막 떼어 낸 묶음에 들어가 사라질 수 있다, 검토 R1)
+        MISSES.compute(plugin, (k, s) -> {
+            if (s == null) s = new java.util.LinkedHashSet<>();
+            s.add(name);
+            return s;
+        });
         LOG.debug("플러그인 {}: NMS 클래스 {} 없음 — 모아서 한 줄로 알린다", plugin, name);
         // 켜는 중이면 켜기 끝(pluginEnabled)에 알린다. 켠 뒤면 잠시 모았다가(첫 접속 때처럼 한꺼번에 찔러 보는 묶음을 한 줄로) 알린다
         if (ENABLED.contains(plugin) && PENDING.add(plugin)) {
-            java.util.concurrent.CompletableFuture.delayedExecutor(BATCH_MILLIS, java.util.concurrent.TimeUnit.MILLISECONDS)
-                    .execute(() -> { PENDING.remove(plugin); flush(plugin, false); });
+            long gen = generation(plugin);
+            java.util.concurrent.CompletableFuture.delayedExecutor(BATCH_MILLIS, java.util.concurrent.TimeUnit.MILLISECONDS).execute(() -> {
+                // 그 사이 껐다 켰으면(핫 리로드·시험 초기화) 이 예약은 지난 기간의 것이다 — 새 기간의 이름을 "켜지는 동안" 표시 없이 일찍 알리지 않는다(검토 S1)
+                if (generation(plugin) != gen) return;
+                PENDING.remove(plugin);
+                flush(plugin, false);
+            });
         }
     }
 
@@ -73,6 +82,19 @@ public final class NmsReflect {
     private static final java.util.Map<String, Set<String>> MISSES = new ConcurrentHashMap<>();
     /** 켠 뒤 모으는 중인(알림이 예약된) 플러그인. */
     private static final Set<String> PENDING = ConcurrentHashMap.newKeySet();
+    /** 플러그인마다 켜고 끈 횟수(예약 알림이 자기 기간의 것인지 본다). */
+    private static final java.util.Map<String, Long> GENERATION = new ConcurrentHashMap<>();
+    /** 시험 초기화 횟수(초기화 전에 건 예약을 무효로). */
+    private static final java.util.concurrent.atomic.AtomicLong RESETS = new java.util.concurrent.atomic.AtomicLong();
+
+    private static long generation(String plugin) { return GENERATION.getOrDefault(plugin, 0L) * 1_000_003L + RESETS.get(); }
+
+    /** 새 기간을 연다: 지난 기간의 예약 알림을 무효로 하고 다음 실패가 새로 예약하게 한다. */
+    private static void nextGeneration(String plugin) {
+        GENERATION.merge(plugin, 1L, Long::sum);
+        PENDING.remove(plugin);
+    }
+
     /** 플러그인별 알림 방식(설정 plugins.compat.nms.missing-class-log). 없으면 SUMMARY. */
     private static final java.util.Map<String, MissingClassLog> MISSING_CLASS_LOG = new ConcurrentHashMap<>();
 
@@ -81,9 +103,9 @@ public final class NmsReflect {
 
     /** 리플렉션으로 찾다 없는 NMS 클래스를 어떻게 알릴까. */
     public enum MissingClassLog {
-        /** 기본: 모았다가 플러그인마다 한 줄(개수·앞 몇 개 이름), 전체 이름은 DEBUG. */
+        /** 기본: 모았다가 플러그인마다 한 줄(개수·앞 몇 개 이름). */
         SUMMARY,
-        /** 이름마다 WARN 한 줄(플러그인 개발자가 어느 이름에서 실패하는지 볼 때). 켜는 동안의 실패는 그래도 켜기 끝에 한 줄로 모은다. */
+        /** 이름마다 WARN 한 줄 — 켜는 중이든 켠 뒤든(플러그인 개발자가 어느 이름에서 실패하는지 볼 때). */
         EACH;
 
         /** 설정 값(summary|each, 대소문자 무시) → 값. 모르는 값이면 null. */
@@ -113,6 +135,7 @@ public final class NmsReflect {
      */
     public static void pluginEnabled(String plugin) {
         if (plugin == null) return;
+        nextGeneration(plugin);
         ENABLED.add(plugin);
         flush(plugin, true);
     }
@@ -120,6 +143,7 @@ public final class NmsReflect {
     /** 플러그인을 껐다(켜기에 이르지 못하고 꺼진 것 포함) — 남은 목록을 알리고, 다시 켜면(핫 리로드) 다시 켜는 중으로 모은다. */
     public static void pluginDisabled(String plugin) {
         if (plugin == null) return;
+        nextGeneration(plugin);
         flush(plugin, !ENABLED.contains(plugin));
         ENABLED.remove(plugin);
     }
@@ -130,20 +154,19 @@ public final class NmsReflect {
     private static void flush(String plugin, boolean starting) {
         Set<String> misses = MISSES.remove(plugin);
         if (misses == null || misses.isEmpty()) return;
-        java.util.List<String> names;
-        synchronized (misses) { names = java.util.List.copyOf(misses); }
+        java.util.List<String> names = java.util.List.copyOf(misses);   // 떼어 낸 묶음에는 더 넣는 스레드가 없다(R1)
         LOG.warn(summary(plugin, names, starting));
         LOG.debug("플러그인 {}: 없던 NMS 클래스 전체 {}개: {}", plugin, names.size(), names);
     }
 
-    /** 요약 한 줄. 운영자에게는 "대개 정상", 플러그인 개발자에게는 이름을 보는 두 길(DEBUG·each)을 알린다. */
+    /** 요약 한 줄. 운영자에게는 "대개 정상", 플러그인 개발자에게는 이름을 모두 보는 설정(each)을 알린다(전체 이름 DEBUG 줄은 운영자가 켤 길이 없어 안내하지 않는다, 검토 R3). */
     static String summary(String plugin, java.util.List<String> names, boolean starting) {
         String shown = names.size() <= SHOWN ? String.join(", ", names)
                 : String.join(", ", names.subList(0, SHOWN)) + " 외 " + (names.size() - SHOWN) + "개";
         return "플러그인 " + plugin + " 이(가) " + (starting ? "켜지는 동안 " : "") + "리플렉션으로 찾은 NMS 클래스 " + names.size()
                 + "개가 이 서버에 없어 ClassNotFoundException 을 그대로 줬다: " + shown
-                + " — 대개 다른 버전·Spigot 이름을 차례로 시도하는 기능 감지라 Paper 1.21.1 에서도 없고 정상이다. 그 플러그인 기능이 안 될 때만: 이름 전체는 DEBUG 로그, "
-                + "이름마다 한 줄은 " + MISSING_CLASS_LOG_KEY + "=each, 지원 상태는 docs/feature-parity/compat-h7-2026-11-08.md";
+                + " — 대개 이름을 차례로 시도하는 기능 감지라 Paper 1.21.1 에서도 없고 정상이다. 그 플러그인 기능이 안 될 때만 furnace.properties 에 "
+                + MISSING_CLASS_LOG_KEY + "=each 로 이름마다 본다";
     }
 
     /** 시험용: 모은 것을 지금 알린다(켠 뒤 예약을 기다리지 않고). */
@@ -154,9 +177,11 @@ public final class NmsReflect {
 
     /** 시험용. */
     static void resetStartupMisses() {
+        RESETS.incrementAndGet();
         ENABLED.clear();
         MISSES.clear();
         PENDING.clear();
+        GENERATION.clear();
         MISSING_CLASS_LOG.clear();
     }
 
