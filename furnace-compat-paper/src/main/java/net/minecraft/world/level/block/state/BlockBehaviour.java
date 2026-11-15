@@ -94,9 +94,17 @@ public abstract class BlockBehaviour {
 
         public int getLightEmission() { return org.domi.furnace.compat.nms.NmsBlockStates.table().lightEmission()[furnaceStateId]; }
 
+        /**
+         * 피스톤 반응. Paper 1.21.1 은 부술 수 없는 블록(Block#isDestroyable 이 거짓 — 기반암·차단벽·엔드 차원문과 그 틀·엔드 관문·명령 블록 3종·구조물 블록·
+         * 직소, 기본 설정)을 늘 BLOCK 으로 준다(N2b-6 — Paper 와 대조). 나머지는 블록 속성 그대로(바닐라).
+         */
         public net.minecraft.world.level.material.PushReaction getPistonPushReaction() {
+            if (!owner.isDestroyable()) return net.minecraft.world.level.material.PushReaction.BLOCK;
             return net.minecraft.world.level.material.PushReaction.values()[org.domi.furnace.compat.nms.NmsBlockStates.table().pushReaction()[furnaceStateId]];
         }
+
+        /** Paper: 블록이 부술 수 있는 것인가(Block#isDestroyable). */
+        public boolean isDestroyable() { return owner.isDestroyable(); }
 
         public boolean blocksMotion() { return (flagBits() & org.domi.furnace.api.internal.BlockStateInternals.BLOCKS_MOTION) != 0; }
 

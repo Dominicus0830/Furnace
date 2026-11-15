@@ -6,7 +6,7 @@ import java.util.function.UnaryOperator;
 
 /**
  * 생성·불러오기 단계표(Mojang 이름 shim, N2b-6). 단계별 이웃 요구는 바닐라 1.21.1 그대로(생성: 구조물 시작 8, 바이옴 1, 지형 장식 앞 조각 1,
- * 빛 앞 빛 초기화 1, 스폰 앞 바이옴 1 / 불러오기: 빛 앞 빛 초기화 1). 생성 작업은 없다.
+ * 빛 앞 빛 초기화 1, 스폰 앞 바이옴 1 / 불러오기: 이웃 요구 없음 — Paper 1.21.1 에서 잰 누적 반경 표와 같다). 생성 작업은 없다.
  */
 public record ChunkPyramid(java.util.List<ChunkStep> steps) {
 
@@ -35,7 +35,7 @@ public record ChunkPyramid(java.util.List<ChunkStep> steps) {
             .step(ChunkStatus.CARVERS, s -> s)
             .step(ChunkStatus.FEATURES, s -> s)
             .step(ChunkStatus.INITIALIZE_LIGHT, s -> s)
-            .step(ChunkStatus.LIGHT, s -> s.addRequirement(ChunkStatus.INITIALIZE_LIGHT, 1))
+            .step(ChunkStatus.LIGHT, s -> s)
             .step(ChunkStatus.SPAWN, s -> s)
             .step(ChunkStatus.FULL, s -> s)
             .build();
