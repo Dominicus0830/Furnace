@@ -185,7 +185,7 @@ Furnace 서버 패킷 P (네트워크 스레드, PacketService 리스너 EventPr
 
 | 묶음 | 종류 | 까닭 |
 |---|---|---|
-| 타입 레코드 | `set_entity_data`·`player_info_update`·`custom_payload` | shim 이 아직 없다(메타데이터 값 직렬화·GameProfile·페이로드 종류) — 2b-4 |
+| 타입 레코드 | `custom_payload` | shim 이 아직 없다(페이로드 종류) — 2b-4. `set_entity_data` 는 EntityDataBridge(2026-11-14), `player_info_update` 는 PlayerInfoBridge(T-181, §11 — authlib 이 있을 때만) |
 | 빈 값 shim | `block_entity_data`·`delete_chat`·`disguised_chat`·`login`·`open_screen`·`respawn`·`server_links` | `toFurnace` 도 없다(값 shim 이 빈 껍데기) |
 | 손 코덱 | `boss_event`·`award_stats` | `toFurnace` 도 없다 |
 | 손 코덱 | `set_player_team`·`set_objective`·`update_attributes`·`map_item_data` | 역변환이 아직 없다 — 2b-4 |
@@ -206,3 +206,16 @@ Furnace 서버 패킷 P (네트워크 스레드, PacketService 리스너 EventPr
 - **R5 정보** — `damage_event` 의 피해 종류, `Holder<Attribute>`·`Holder<DimensionType>` 역변환은 키만 든 `Holder.Reference` 다. 리스너가 `holder.value()` 를 부르면 바닐라처럼 "묶이지 않은 값" 예외가 날 수 있다(키·`is(...)` 는 된다).
 - **R6 정보** — 주 스레드가 아닌 곳에서 섞어 보내면(`sendMessage(A)`·`sendServerPacket(T)`·`sendMessage(B)`) Furnace 는 `A, B, T`(ProtocolLib 이 T 만 다음 틱으로 미룸), Paper 는 셋 다 미뤄 `A, T, B` 로 추정. ProtocolLib 규칙대로의 결과라 고치지 않는다.
 - 시험 추가: `ProtocolLibBridgeTest.spawnListenersCanLookUpTheNewEntity`(R1), `sendsFromInsideListenersGoBeforeTheInterceptedPacket`(Furnace 리스너·라이브러리 리스너 안에서 보낸 것이 앞, 묶음이면 묶음 앞, 다른 종류로 바꾼 것은 그 자리, 다른 필드만 바꾼 속도 16380 그대로·0.0001 은 버림).
+
+## 11. 탭 목록 패킷·GameProfile (T-181, 2026-11-15)
+
+- **shim**: `ClientboundPlayerInfoUpdatePacket` 을 손으로 썼다(생성 shim 대신). 바닐라 1.21.1 모양 — `actions`(EnumSet)·`entries`(List), 공개 생성자 `(EnumSet<Action>, Collection<ServerPlayer>)`·`(Action, ServerPlayer)`, `createPlayerInitializing`, `newEntries()`. 항목 `Entry(UUID profileId, GameProfile profile, boolean listed, int latency, GameType gameMode, Component displayName, RemoteChatSession.Data chatSession)` 은 공개 생성자(ProtocolLib `PlayerInfoData` 변환기가 찾음).
+- **안쪽 클래스 순서**: ProtocolLib 은 항목 클래스를 `getClasses()[0]`, 동작 enum 을 `getClasses()[1]` 로 찾는다(바닐라 jar 의 InnerClasses 순서). javac 는 멤버 클래스를 **선언의 거꾸로** InnerClasses 에 적으므로 `Action` 을 `Entry` 보다 먼저 선언한다. `RemoteChatSession.getClasses()[0]`·`ProfilePublicKey.getClasses()[0]` 는 각각 `Data`(안쪽 클래스가 하나뿐).
+- **빈 패킷 만들기**: ProtocolLib `StructureCache` → `InstanceCreator` 는 매개변수가 가장 적은 생성자를 기본값(null)으로 불러 예외가 안 나는 것을 쓴다. private `(EnumSet, List)` 생성자가 null 을 빈 집합·빈 목록으로 받아 그 자리를 맡는다.
+- **GameProfile**: authlib 은 그것을 쓰는 플러그인이 있을 때만 받는다(R1·11-12 결정). `compat/nms/Profiles` 가 있는지 한 번 보고 기억한다. NMS `Player` shim 에 `GameProfile gameProfile` 필드 하나(ProtocolLib `WrappedGameProfile.fromPlayer`·`WrappedServerPing` 이 형식으로 찾는다) — uuid·이름·속성(스킨, 새 API `Player.profileProperties()`). authlib 이 없으면 필드는 null 이고, 탭 목록 되돌리기는 까닭(`Profiles.MISSING` — 켜는 설정 키와 닿아야 하는 호스트)을 밝히고 하지 않는다(처음 한 번 INFO, 원래 패킷은 그대로 나감).
+- **변환**(`compat/nms/PlayerInfoBridge`): Furnace → shim 은 ADD_PLAYER 항목만 이름·속성으로 프로필을 만들고 그 밖은 바닐라 클라이언트 해독처럼 `GameProfile(uuid, "")`. shim → Furnace 는 ADD_PLAYER 항목에 프로필이 없으면(바닐라도 쓰다 NPE) 항목 번호를 담은 `IllegalArgumentException`. 채팅 세션은 INITIALIZE_CHAT 일 때만(공개 키 X.509 RSA ↔ `PublicKey`).
+- **API**: `ClientboundPlayerInfoUpdatePacket.Entry` 에 8번째 값 `ChatSession chatSession`(INITIALIZE_CHAT, 예전 7개 생성자 유지). 이제 서버가 접속 때 보내는 탭 목록 패킷(동작 6개)을 플러그인 코덱이 읽고 쓴다(예전엔 INITIALIZE_CHAT 비트에서 예외).
+- **한계**: `Entry(ServerPlayer)`(플러그인이 바닐라 생성자로 만든 것)의 채팅 세션은 null — Furnace 플레이어 API 로 채팅 세션을 읽지 못한다. 접속하는 플레이어 **자신**이 접속 때 받는 패킷은 아직 Bukkit 플레이어를 감싸기 전이라 다리에 안 보인다(다른 플레이어가 받는 그 플레이어의 탭 목록 패킷은 보인다) — Paper 에서는 ProtocolLib 이 로그인 때 주입해 보인다. 로그인 단계 주입(T-183)과 함께 다룬다.
+- **시험**: `PlayerInfoShimTest`(안쪽 클래스 순서, 공개 항목 생성자, 빈 패킷 만들기, 동작 6개 왕복·속성·채팅 세션, ADD_PLAYER 없는 갱신의 빈 이름 프로필, 프로필 없는 ADD_PLAYER 의 오류 문구, authlib 없을 때의 까닭), `ProtocolLibBridgeTest.tabListPacketsAtJoinPassTheLibraryWithTheProfile`(NMS 플레이어 GameProfile 필드 하나, 새 플레이어 접속 때 기존 플레이어에게 가는 탭 목록 패킷을 라이브러리가 보고 표시 이름을 바꾸면 클라이언트가 바뀐 이름을 받음), `CompatLinkTest`(authlib 대역을 뺀 로더에서 호환 클래스가 이어짐), `SchemaPacketReverseTest.reversibleKindsTable`.
+- **시험용 authlib 대역**: `libraries.minecraft.net` 은 샌드박스·CI 에서 막혀 있어 `furnace-compat-paper/src/authlib/java` 에 시험·컴파일 전용 대역(`GameProfile`·`Property`·`PropertyMap`, 쓰는 멤버만)을 둔다. jar 에는 들어가지 않는다(compileOnly·testRuntimeOnly). `CompatLinkTest` 는 이 대역을 뺀 로더로 authlib 없는 서버를 흉내 낸다.
+

@@ -68,6 +68,16 @@ val generateNmsProtocolShims by tasks.registering(JavaExec::class) {
 }
 the<SourceSetContainer>()["main"].java.srcDir(generateNmsProtocolShims)
 
+// T-181: authlib(GameProfile·Property·PropertyMap) 대역. Mojang 저장소에만 있어 컴파일 경로에 받지 않는다 — 호환 계층이 부르는 멤버만
+// 진짜 authlib 6.0.54 와 같은 서술자로 손으로 쓴 것을 컴파일·시험에만 쓰고 jar 에는 넣지 않는다(서버는 쓰는 플러그인이 있으면 진짜를 받는다).
+// CompatLinkTest 는 이 대역을 뺀 로더로 링크를 본다.
+val authlibStub: SourceSet = the<SourceSetContainer>().create("authlib")
+dependencies {
+    compileOnly(authlibStub.output)
+    testCompileOnly(authlibStub.output)
+    testRuntimeOnly(authlibStub.output)
+}
+
 // 경로 목록은 태스크 실행 때 푼다 — 설정 단계에서 풀면 다른 모듈의 시험(:furnace-server:test)도 jar 13개를 받으려 든다.
 class RealWorldJars(@get:InputFiles @get:PathSensitive(PathSensitivity.NONE) val jars: FileCollection) : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String> =
@@ -134,6 +144,9 @@ tasks.test {
     enableAssertions = true
     maxHeapSize = "2g"
     jvmArgumentProviders.add(RealWorldJars(realWorld))
+    // CompatLinkTest 가 authlib 대역을 뺀 클래스패스로 링크를 본다
+    val stubDirs = authlibStub.output.classesDirs
+    jvmArgumentProviders.add(CommandLineArgumentProvider { listOf("-Dfurnace.test.authlibStub=" + stubDirs.asPath) })
     // T-075: -Dfurnace.identity.bless=<금 파일 이름> 등 furnace.* 속성을 시험 JVM 에 넘긴다(서버 시험과 같다)
     System.getProperties().forEach { k, v ->
         if (k.toString().startsWith("furnace.")) systemProperty(k.toString(), v.toString())

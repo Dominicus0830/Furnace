@@ -334,6 +334,63 @@ class ProtocolLibBridgeTest {
         }
     }
 
+    /**
+     * T-181: 접속 때 서버가 보내는 탭 목록 패킷(동작 6개)이 라이브러리를 지난다 — 프로필(GameProfile)이 실리고, 라이브러리가 바꾼 표시 이름이
+     * 클라이언트에 간다. NMS 플레이어에는 GameProfile 형식 필드가 하나(ProtocolLib WrappedGameProfile.fromPlayer 가 형식으로 찾는다).
+     */
+    @Test
+    void tabListPacketsAtJoinPassTheLibraryWithTheProfile() throws Exception {
+        try (FurnaceTestServer server = start()) {
+            TestPlayer tp = server.join("Lib");
+            server.tick(2);
+            tp.sync();
+            var handle = ((CraftPlayer) Bukkit.getPlayer("Lib")).getHandle();
+            assertEquals("Lib", handle.getGameProfile().getName());
+            assertEquals(Bukkit.getPlayer("Lib").getUniqueId(), handle.getGameProfile().getId());
+            List<Field> profileFields = new java.util.ArrayList<>();
+            for (Class<?> k = handle.getClass(); k != null; k = k.getSuperclass()) {
+                for (Field f : k.getDeclaredFields()) if (f.getType() == com.mojang.authlib.GameProfile.class) profileFields.add(f);
+            }
+            assertEquals(1, profileFields.size(), "GameProfile 형식 필드는 하나: " + profileFields);
+
+            var shimClass = net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket.class;
+            ProtocolLibBridge bridge = ProtocolLibBridge.start(owner(), () -> List.of(shimClass));
+            try {
+                bridge.resync();
+                assertEquals(Set.of(PacketTypes.Clientbound.PLAYER_INFO_UPDATE), bridge.types());
+                List<Seen> seen = install(connectionOf("Lib"), packet -> {
+                    if (!(packet instanceof net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket p)
+                            || !p.actions().contains(net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER)) {
+                        return packet;
+                    }
+                    // 라이브러리처럼 항목을 바꿔 다시 담는다: 표시 이름에 머리말
+                    var entries = p.entries().stream().map(e -> new net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket.Entry(e.profileId(),
+                            e.profile(), e.listed(), e.latency(), e.gameMode(), net.minecraft.network.chat.Component.literal("[VIP] " + e.profile().getName()),
+                            e.chatSession())).toList();
+                    var actions = java.util.EnumSet.copyOf(p.actions());
+                    actions.add(net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME);
+                    return net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket.of(actions, entries);
+                });
+                tp.clearReceived();
+                TestPlayer other = server.join("Newbie");
+                server.tick(2);   // 다른 플레이어에게 알리는 것은 틱에서
+                var got = tp.awaitPacket(PacketTypes.Clientbound.PLAYER_INFO_UPDATE,
+                        u -> u.entries().stream().anyMatch(e -> "Newbie".equals(e.name())));
+                var entry = got.entries().stream().filter(e -> "Newbie".equals(e.name())).findFirst().orElseThrow();
+                assertEquals("[VIP] Newbie", entry.displayName().plainText(), "라이브러리가 바꾼 표시 이름이 나간다");
+                assertEquals(other.player().uniqueId(), entry.uuid());
+
+                var lib = seen.stream().map(Seen::packet).filter(shimClass::isInstance).map(shimClass::cast)
+                        .filter(p -> p.newEntries().stream().anyMatch(e -> e.profile() != null && "Newbie".equals(e.profile().getName())))
+                        .findFirst().orElseThrow(() -> new AssertionError("라이브러리가 새 플레이어의 탭 목록 패킷을 봐야 한다: " + seen));
+                assertTrue(lib.actions().contains(net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket.Action.INITIALIZE_CHAT));
+                assertEquals(other.player().uniqueId(), lib.newEntries().getFirst().profile().getId());
+            } finally {
+                bridge.stop();
+            }
+        }
+    }
+
     @Test
     void withoutAnInjectedChannelNothingChanges() throws Exception {
         try (FurnaceTestServer server = start()) {

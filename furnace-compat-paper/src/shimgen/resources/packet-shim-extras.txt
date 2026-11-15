@@ -132,12 +132,6 @@ public ClientboundMoveVehiclePacket(net.minecraft.world.entity.Entity entity) {
     this(entity.getX(), entity.getY(), entity.getZ(), entity.getYRot(), entity.getXRot());
 }
 
-@@ net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket
-/** ADD_PLAYER 동작이 있을 때만 항목 전체(바닐라: 새로 보이는 플레이어 목록). */
-public java.util.List<Entry> newEntries() {
-    return actions.contains(Action.ADD_PLAYER) ? entries : java.util.List.of();
-}
-
 @@ net.minecraft.network.protocol.game.ClientboundPlayerLookAtPacket
 public ClientboundPlayerLookAtPacket(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor fromAnchor, double x, double y, double z) {
     this(x, y, z, 0, fromAnchor, null, false);

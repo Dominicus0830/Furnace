@@ -73,7 +73,7 @@ public final class PacketDelivery {
 
     /** 되돌리지 못하는 까닭(되면 null). */
     public static String irreversibleReason(org.domi.furnace.api.packet.PacketType<?> t) {
-        if (t.typed()) return TypedPacketBridge.supports(t) ? null : "이 타입 레코드 종류는 아직 shim 으로 되돌리지 못한다(2b-4)";
+        if (t.typed()) return TypedPacketBridge.refusal(t);
         return SchemaPacketReverse.refusal(t);
     }
 }

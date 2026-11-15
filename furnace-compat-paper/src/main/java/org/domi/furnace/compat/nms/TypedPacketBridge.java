@@ -31,8 +31,8 @@ import org.domi.furnace.api.world.SoundCategory;
  * <p>손으로 쓴 shim({@link NmsPacket})은 이미 shim → Furnace 가 있어 반대(Furnace → shim)만 둔다. 스키마로 생성한 shim 중 타입 레코드 종류
  * (엔티티 생성·머리 회전·애니메이션·순간 이동·블록 바꾸기·소리)는 두 방향을 모두 여기서 한다 — 바닐라 와이어 값(1/256 바퀴 각도, 1/8000 속도,
  * 1/8 좌표)을 shim 필드에 그대로 담고, Furnace 쪽은 서버 코덱이 읽는 것과 같은 값으로 바꾼다.
- * 메타데이터(set_entity_data)는 {@link EntityDataBridge} 가 값 종류별로 두 방향을 맡는다(2026-11-14). 플레이어 정보·플러그인 메시지는 아직(2b-4)
- * — {@link #supports} 가 false.
+ * 메타데이터(set_entity_data)는 {@link EntityDataBridge} 가 값 종류별로 두 방향을 맡는다(2026-11-14). 탭 목록 갱신(player_info_update)은 {@link PlayerInfoBridge}
+ * (authlib 이 있을 때만, T-181). 플러그인 메시지는 아직(2b-4) — {@link #supports} 가 false.
  */
 public final class TypedPacketBridge {
 
@@ -48,7 +48,15 @@ public final class TypedPacketBridge {
             PacketTypes.Clientbound.TELEPORT_ENTITY, PacketTypes.Clientbound.BLOCK_UPDATE, PacketTypes.Clientbound.SOUND,
             PacketTypes.Clientbound.SET_ENTITY_DATA);
 
-    public static boolean supports(PacketType<?> t) { return SUPPORTED.contains(t); }
+    /** 탭 목록 갱신은 authlib(GameProfile)이 있을 때만 되돌린다(T-181, {@link PlayerInfoBridge}). */
+    public static boolean supports(PacketType<?> t) { return refusal(t) == null; }
+
+    /** 되돌리지 못하는 까닭(되면 null). */
+    static String refusal(PacketType<?> t) {
+        if (SUPPORTED.contains(t)) return null;
+        if (t == PacketTypes.Clientbound.PLAYER_INFO_UPDATE) return PlayerInfoBridge.irreversibleReason();
+        return "이 타입 레코드 종류는 아직 shim 으로 되돌리지 못한다(2b-4)";
+    }
 
     /** 스키마 키가 이 다리가 두 방향을 맡는 타입 레코드 종류인가(생성 shim → Furnace). */
     static boolean handlesSchema(String schemaKey) {
@@ -95,6 +103,7 @@ public final class TypedPacketBridge {
             case ClientboundSoundPacket t -> make(SOUND, sound(t.sound(), t.fixedRange()), net.minecraft.sounds.SoundSource.valueOf(t.category().name()),
                     (int) (t.x() * 8.0), (int) (t.y() * 8.0), (int) (t.z() * 8.0), t.volume(), t.pitch(), t.seed());
             case org.domi.furnace.api.packet.clientbound.ClientboundSetEntityDataPacket t -> EntityDataBridge.fromFurnace(t);
+            case org.domi.furnace.api.packet.clientbound.ClientboundPlayerInfoUpdatePacket t -> PlayerInfoBridge.fromFurnace(t);
             default -> throw new UnsupportedNmsCall("fromFurnace(" + p.type() + ")", "이 타입 레코드 종류는 아직 shim 으로 되돌리지 못한다(2b-4)");
         };
     }
