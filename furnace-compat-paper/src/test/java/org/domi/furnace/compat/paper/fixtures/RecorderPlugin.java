@@ -201,6 +201,8 @@ public final class RecorderPlugin extends JavaPlugin implements Listener {
 
     @EventHandler public void on(ServerLoadEvent e) { rec(e); }
 
+    @EventHandler public void on(org.bukkit.event.world.WorldInitEvent e) { rec(e); }
+
     @EventHandler public void on(WorldLoadEvent e) { rec(e); }
 
     @EventHandler public void on(WorldUnloadEvent e) { rec(e); }

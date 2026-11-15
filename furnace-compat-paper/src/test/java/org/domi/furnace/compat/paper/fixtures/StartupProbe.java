@@ -14,6 +14,9 @@ public final class StartupProbe extends JavaPlugin implements Listener {
 
     public static final List<String> LOG = new CopyOnWriteArrayList<>();
 
+    /** null 이 아니면 onEnable 에서 이 이름으로 Bukkit.createWorld 를 부르고 결과를 적는다. */
+    public static volatile String CREATE_ON_ENABLE;
+
     /** Paper 는 모든 플러그인의 onLoad 를 월드를 만들기 전에 부른다 — 0·false 여야 한다. */
     @Override
     public void onLoad() { LOG.add(getName() + ":onload worlds=" + Bukkit.getWorlds().size() + " byName=" + (Bukkit.getWorld("world") != null)); }
@@ -21,6 +24,13 @@ public final class StartupProbe extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         LOG.add(getName() + ":enable worlds=" + Bukkit.getWorlds().size() + " byName=" + (Bukkit.getWorld("world") != null));
+        if (CREATE_ON_ENABLE != null) {
+            try {
+                LOG.add(getName() + ":create " + Bukkit.createWorld(new org.bukkit.WorldCreator(CREATE_ON_ENABLE)).getName());
+            } catch (RuntimeException e) {
+                LOG.add(getName() + ":create " + e.getClass().getSimpleName() + " " + e.getMessage());
+            }
+        }
         getServer().getPluginManager().registerEvents(this, this);
     }
 

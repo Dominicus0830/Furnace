@@ -969,6 +969,19 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     public boolean ownsClock() { return world == core().world(); }
 
     @Override
+    public boolean isFlat() { return world.isFlatLevel(); }
+
+    @Override
+    public boolean generatesStructures() { return world.generatesStructures(); }
+
+    /** 추가 월드도 주 월드 level.dat 값을 쓴다(WorldManager 가 그 값으로 만든다). */
+    @Override
+    public boolean isHardcore() {
+        var ld = core().levelData();
+        return ld != null && ld.hardcore;
+    }
+
+    @Override
     public long dayTime() { return world.clock().dayTime(); }
 
     @Override

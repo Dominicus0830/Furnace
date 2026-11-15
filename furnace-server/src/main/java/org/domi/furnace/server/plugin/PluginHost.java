@@ -163,6 +163,31 @@ public final class PluginHost implements Furnace {
     }
 
     @Override
+    public org.domi.furnace.api.world.World createWorldNow(org.domi.furnace.api.world.WorldCreator creator) {
+        if (creator == null) throw new NullPointerException("creator");
+        var m = core.worldManager();
+        if (m == null) throw new UnsupportedOperationException("이 서버는 다중 월드를 켜지 않았다");
+        try {
+            return handleFor(m.createAndWait(creator));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("월드 '" + creator.name() + "' 를 기다리다 끊겼다", e);
+        }
+    }
+
+    @Override
+    public org.domi.furnace.api.world.WorldCreator storedWorldCreator(String name) {
+        if (name == null) throw new NullPointerException("name");
+        var m = core.worldManager();
+        if (m == null || !name.matches("[A-Za-z0-9_.-]{1,64}") || name.equals(".") || name.equals("..")) return null;   // 폴더 밖을 읽지 않게
+        try {
+            return m.storedCreator(name);
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException("월드 '" + name + "' 의 level.dat 를 읽지 못했다", e);
+        }
+    }
+
+    @Override
     public java.util.concurrent.CompletableFuture<Boolean> unloadWorld(org.domi.furnace.api.world.World world, boolean save) {
         if (world == null) throw new NullPointerException("world");
         var m = core.worldManager();
@@ -171,8 +196,9 @@ public final class PluginHost implements Furnace {
         return m.unload(h.handle(), save);
     }
 
-    /** 추가 월드가 올라왔다(전역 스레드) — WorldLoadEvent. */
+    /** 추가 월드가 올라왔다(전역 스레드) — WorldInitEvent 뒤 WorldLoadEvent(Paper initWorld → loadWorld 순서). */
     public void worldLoaded(org.domi.furnace.server.world.World w) {
+        events.call(new org.domi.furnace.api.event.world.WorldInitEvent(w.dimension(), w.levelName()));
         events.call(new org.domi.furnace.api.event.world.WorldLoadEvent(w.dimension(), w.levelName()));
     }
 

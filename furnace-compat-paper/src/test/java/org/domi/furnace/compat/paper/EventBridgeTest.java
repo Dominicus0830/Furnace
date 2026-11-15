@@ -115,6 +115,7 @@ class EventBridgeTest {
             fire.put(org.bukkit.event.server.RemoteServerCommandEvent.class, () -> new org.domi.furnace.api.event.server.RemoteServerCommandEvent(
                     ((org.domi.furnace.server.plugin.PluginHost) server.api()).rconSender(t -> {}), "list"));
             fire.put(org.bukkit.event.world.WorldLoadEvent.class, () -> new org.domi.furnace.api.event.world.WorldLoadEvent(w, "world"));
+            fire.put(org.bukkit.event.world.WorldInitEvent.class, () -> new org.domi.furnace.api.event.world.WorldInitEvent(w, "world"));
             fire.put(org.bukkit.event.world.WorldUnloadEvent.class, () -> new org.domi.furnace.api.event.world.WorldUnloadEvent(w, "world", false));
             fire.put(org.bukkit.event.world.ChunkLoadEvent.class, () -> new org.domi.furnace.api.event.world.ChunkLoadEvent(w, 3, 4, true));
             fire.put(org.bukkit.event.world.ChunkUnloadEvent.class, () -> new org.domi.furnace.api.event.world.ChunkUnloadEvent(w, 3, 4));

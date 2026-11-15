@@ -313,6 +313,7 @@ public final class FurnaceMain {
                         config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool, genPool);
         world.worldDir(worldDir);
         world.levelKind(levelData.isFlatWorld(), levelData.isDebugWorld());   // 클라이언트 login/respawn 의 is_flat·is_debug
+        world.generatesStructures(levelData.generateFeatures);
         if (!levelData.initialized) {
             // 새 월드: 바닐라 setInitialSpawn 에 해당하는 생성기 기본 스폰을 정해 level.dat 에 남긴다.
             if (debugSource != null) {
@@ -427,6 +428,7 @@ public final class FurnaceMain {
             extraStores.addAll(built.stores());
             World w = built.world();
             w.levelKind(levelData.isFlatWorld(), levelData.isDebugWorld());   // 바닐라: 월드 하나의 모든 차원이 같은 값
+            w.generatesStructures(levelData.generateFeatures);
             w.seed(dimSeed);
             w.defaultSpawn(defaultSpawn);
             if (type == org.domi.furnace.server.world.DimensionType.END) {   // ServerLevel: 엔드는 드래곤 전투를 가진다(level.dat DragonFight)

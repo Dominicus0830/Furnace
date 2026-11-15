@@ -175,7 +175,7 @@ class InteractAndBlockEventsTest {
 
     @Test
     void notYetFiredEventsAreKnownAndUnbridged() {
-        for (String n : List.of("org.bukkit.event.block.BlockDispenseEvent", "org.bukkit.event.block.NotePlayEvent", "org.bukkit.event.world.WorldInitEvent")) {
+        for (String n : List.of("org.bukkit.event.block.BlockDispenseEvent", "org.bukkit.event.block.NotePlayEvent")) {
             Class<? extends org.bukkit.event.Event> c;
             try {
                 c = Class.forName(n).asSubclass(org.bukkit.event.Event.class);
@@ -191,7 +191,8 @@ class InteractAndBlockEventsTest {
         for (Class<? extends org.bukkit.event.Event> c : List.of(org.bukkit.event.block.BlockPlaceEvent.class, org.bukkit.event.block.BlockGrowEvent.class,
                 org.bukkit.event.block.BlockFadeEvent.class, org.bukkit.event.block.BlockExplodeEvent.class, org.bukkit.event.entity.EntitySpawnEvent.class,
                 org.bukkit.event.player.PlayerDropItemEvent.class,
-                org.bukkit.event.player.PlayerCommandSendEvent.class, com.destroystokyo.paper.event.server.AsyncTabCompleteEvent.class)) {
+                org.bukkit.event.player.PlayerCommandSendEvent.class, com.destroystokyo.paper.event.server.AsyncTabCompleteEvent.class,
+                org.bukkit.event.world.WorldInitEvent.class)) {   // T-141 E4d: 추가 월드에도 알린다
             assertTrue(EventBridge.isBridged(c), c.getName());
             assertFalse(EventBridge.isKnownButNotFired(c), c.getName());
         }

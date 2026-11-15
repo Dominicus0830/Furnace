@@ -173,23 +173,96 @@ public final class WorldManager {
      * 월드 스레드에서 한다. 등록·틱 켜기 뒤 전역 스레드에서 hooks.loaded 를 부르고 완료된다.
      */
     public CompletableFuture<World> create(WorldCreator spec) {
+        CompletableFuture<World> out = new CompletableFuture<>();
+        CompletableFuture<Created> made = submitCreate(spec);
+        made.whenComplete((c, t) -> {
+            if (t != null) {
+                out.completeExceptionally(t instanceof java.util.concurrent.CompletionException ce && ce.getCause() != null ? ce.getCause() : t);
+            } else if (!c.fresh()) {
+                out.complete(c.world());   // 이미 올라와 있던 월드 — 알림은 처음 올릴 때 한 번
+            } else {
+                try {
+                    parts.scheduler().global().execute(() -> {
+                        loaded(c.world(), spec.name());
+                        out.complete(c.world());
+                    });
+                } catch (java.util.concurrent.RejectedExecutionException e) {
+                    out.completeExceptionally(new IllegalStateException("서버 종료 중"));
+                }
+            }
+        });
+        return out.thenApply(w -> w);   // hooks.loaded 이전 상태를 밖에서 complete 하지 못하게 사본
+    }
+
+    /**
+     * {@link #create} 를 끝까지 기다린다(Bukkit 의 동기 createWorld). 전역 스레드에서 부르면 hooks.loaded 를 이 스레드에서 바로 부르고,
+     * 기다리는 동안 월드 스레드가 전역 스레드에 맡긴 일(내리기의 플레이어 확인)을 대신 돌려 서로 기다리지 않게 한다. 다른 스레드면 전역 완료까지 기다린다.
+     * 실패는 원래 예외(IllegalArgumentException 등)를 그대로 던진다.
+     */
+    public World createAndWait(WorldCreator spec) throws InterruptedException {
+        if (!onGlobalThread()) {
+            try (var m = org.domi.furnace.api.concurrent.GlobalWait.begin()) {
+                return unwrap(() -> create(spec).get(5, TimeUnit.MINUTES), spec.name());
+            }
+        }
+        if (WORKER_WAITING.get() != null) {
+            // 월드 스레드가 이 전역 일(내리기 알림 등)이 끝나길 기다리는 중이라, 여기서 월드 스레드 차례를 기다리면 서로 멈춘다
+            throw new IllegalStateException("월드 '" + spec.name() + "' 를 " + WORKER_WAITING.get()
+                    + " 안에서 동기로 만들 수 없다 — createWorld(..) 의 future 를 쓰거나 다음 틱에(스케줄러 runTask) 만든다");
+        }
+        CompletableFuture<Created> made = submitCreate(spec);
+        long deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(5);
+        while (!made.isDone()) {
+            if (System.nanoTime() - deadline > 0) throw new IllegalStateException("월드 '" + spec.name() + "' 를 5분 안에 올리지 못했다");
+            Runnable r = globalHelp.poll(5, TimeUnit.MILLISECONDS);
+            if (r != null) r.run();
+        }
+        Created c = unwrap(made::get, spec.name());
+        if (c.fresh()) loaded(c.world(), spec.name());
+        return c.world();
+    }
+
+    private interface Get<T> { T get() throws Exception; }
+
+    private static <T> T unwrap(Get<T> g, String name) throws InterruptedException {
+        try {
+            return g.get();
+        } catch (java.util.concurrent.ExecutionException | java.util.concurrent.CompletionException e) {
+            Throwable c = e.getCause() != null ? e.getCause() : e;
+            if (c instanceof RuntimeException r) throw r;
+            if (c instanceof Error er) throw er;
+            throw new IllegalStateException("월드 '" + name + "' 올리기 실패", c);
+        } catch (java.util.concurrent.TimeoutException e) {
+            throw new IllegalStateException("월드 '" + name + "' 를 5분 안에 올리지 못했다", e);
+        } catch (InterruptedException | RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("월드 '" + name + "' 올리기 실패", e);
+        }
+    }
+
+    private void loaded(World w, String name) {
+        try {
+            hooks.loaded(w);
+        } catch (Throwable t) {
+            log.error("[WORLD] 월드 불러오기 알림 실패 {}", name, t);
+        }
+    }
+
+    /** 월드 스레드에서 만든 결과: fresh 면 이번에 새로 올렸다(hooks.loaded 를 불러야 한다). */
+    private record Created(World world, boolean fresh) {}
+
+    private CompletableFuture<Created> submitCreate(WorldCreator spec) {
         if (reservedName(spec.name())) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("쓸 수 없는 월드 이름: " + spec.name()));
         }
-        CompletableFuture<World> out = new CompletableFuture<>();
+        CompletableFuture<Created> out = new CompletableFuture<>();
         try {
             worker.execute(() -> {
                 try {
+                    Extra existing = extras.get(spec.name());
                     World w = createNow(spec);
-                    if (w == null) return;   // 이미 out 을 끝냈다
-                    parts.scheduler().global().execute(() -> {
-                        try {
-                            hooks.loaded(w);
-                        } catch (Throwable t) {
-                            log.error("[WORLD] 월드 불러오기 알림 실패 {}", spec.name(), t);
-                        }
-                        out.complete(w);
-                    });
+                    out.complete(new Created(w, existing == null || existing.world() != w));
                 } catch (Throwable t) {
                     out.completeExceptionally(t);
                 }
@@ -197,8 +270,49 @@ public final class WorldManager {
         } catch (java.util.concurrent.RejectedExecutionException e) {
             out.completeExceptionally(new IllegalStateException("서버 종료 중"));
         }
-        return out.thenApply(w -> w);   // hooks.loaded 이전 상태를 밖에서 complete 하지 못하게 사본
+        return out;
     }
+
+    private boolean onGlobalThread() {
+        return parts.scheduler().global() instanceof org.domi.furnace.api.concurrent.ThreadOwner o && o.isOwnerThread();
+    }
+
+    /**
+     * 월드 스레드가 전역 스레드에서 돌려야 하는 일. 전역 대기열에 넣고, 전역 스레드가 {@link #createAndWait} 로 막혀 있으면 그쪽이 대신 돌린다
+     * (FutureTask 라 먼저 잡은 쪽만 돈다). 도는 동안 전역 스레드에 {@code what} 을 표시해, 그 안의 동기 월드 만들기를 곧바로 거절한다.
+     * 시간 초과면 아직 안 돈 일은 취소한다(늦게 돌지 않는다). 이미 도는 중인 몸체는 스스로 {@code abandoned} 를 보고 그만둬야 한다.
+     */
+    private <T> T onGlobal(String what, java.util.concurrent.Callable<T> body, long timeout, TimeUnit unit) throws Exception {
+        java.util.concurrent.FutureTask<T> task = new java.util.concurrent.FutureTask<>(() -> {
+            String prev = WORKER_WAITING.get();
+            WORKER_WAITING.set(what);
+            try {
+                return body.call();
+            } finally {
+                WORKER_WAITING.set(prev);
+            }
+        });
+        globalHelp.add(task);
+        try {
+            parts.scheduler().global().execute(() -> {
+                globalHelp.remove(task);
+                task.run();
+            });
+            try {
+                return task.get(timeout, unit);
+            } catch (java.util.concurrent.TimeoutException te) {
+                task.cancel(false);
+                throw te;
+            }
+        } finally {
+            globalHelp.remove(task);
+        }
+    }
+
+    /** 전역 스레드가 지금 월드 스레드가 기다리는 일({@link #onGlobal})을 돌리는 중이면 그 이름. */
+    private static final ThreadLocal<String> WORKER_WAITING = new ThreadLocal<>();
+
+    private final java.util.concurrent.LinkedBlockingQueue<Runnable> globalHelp = new java.util.concurrent.LinkedBlockingQueue<>();
 
     /** 이미 올라와 있으면 그 월드를(설명서가 다르면 예외), 아니면 새로 올린다. 월드 스레드 전용. */
     private World createNow(WorldCreator spec) throws Exception {
@@ -252,6 +366,7 @@ public final class WorldManager {
             w.markExtraWorld(spec.name());
             w.levelKind(spec.generator() == WorldGenerator.FLAT || spec.generator() == WorldGenerator.VOID, spec.generator() == WorldGenerator.DEBUG_ALL_BLOCK_STATES);
             w.seed(seed);
+            w.generatesStructures(spec.generateStructures());   // 생성기도 설명서 값을 쓴다(structures(..))
             if (!ld.initialized) {
                 SpawnPoint sp = initialSpawn(spec, type, gen);
                 ld.spawnX = sp.x();
@@ -487,13 +602,27 @@ public final class WorldManager {
         Extra e = extras.get(w.levelName());
         if (e == null || e.world() != w) return false;   // 이미 내렸다
         // 전역 스레드에서: 플레이어 확인과 알림, 목록에서 떼기를 한 번에(그 사이 명령이 이 월드로 보내지 못하게)
-        boolean go = parts.scheduler().global().<Boolean>submit(() -> {
-            if (!w.playersHere().isEmpty() || w.incomingTravels() > 0) return false;
-            if (!hooks.beforeUnload(w, save)) return false;
-            if (!w.playersHere().isEmpty() || w.incomingTravels() > 0) return false;   // 알림 처리기가 누군가 들여보냈다
-            dimensions.unregister(w);
-            return true;
-        }).get(30, TimeUnit.SECONDS);
+        // 0=기다림, 1·3=전역이 목록에서 떼는 중·뗌, 2=월드 스레드가 시간 초과로 포기 — 포기한 뒤 늦게 돈 몸체가 반쯤 내린 월드를 남기지 않게
+        java.util.concurrent.atomic.AtomicInteger state = new java.util.concurrent.atomic.AtomicInteger();
+        boolean go;
+        try {
+            go = onGlobal("월드 내리기 알림(WorldUnloadEvent) 처리기", () -> {
+                if (!w.playersHere().isEmpty() || w.incomingTravels() > 0) return false;
+                if (!hooks.beforeUnload(w, save)) return false;
+                if (!w.playersHere().isEmpty() || w.incomingTravels() > 0) return false;   // 알림 처리기가 누군가 들여보냈다
+                if (!state.compareAndSet(0, 1)) return false;
+                try {
+                    dimensions.unregister(w);
+                } finally {
+                    state.set(3);
+                }
+                return true;
+            }, 30, TimeUnit.SECONDS);
+        } catch (java.util.concurrent.TimeoutException te) {
+            if (state.compareAndSet(0, 2)) throw te;
+            while (state.get() != 3) Thread.onSpinWait();   // 시간 초과와 같은 순간에 목록에서 떼는 중 — 끝나면 내리기를 마저 한다
+            go = true;
+        }
         if (!go) return false;
         // 목록에서 뗐으니 새 save-all 은 이 월드를 고르지 않는다. 이미 고른 저장(진행 중·대기 중)이 끝나길 기다린다
         try {

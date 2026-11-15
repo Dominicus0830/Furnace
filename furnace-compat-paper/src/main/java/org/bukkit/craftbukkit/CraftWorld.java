@@ -76,6 +76,15 @@ public final class CraftWorld implements World {
     public long getSeed() { return handle.seed(); }
 
     @Override
+    public org.bukkit.WorldType getWorldType() { return handle.isFlat() ? org.bukkit.WorldType.FLAT : org.bukkit.WorldType.NORMAL; }
+
+    @Override
+    public boolean canGenerateStructures() { return handle.generatesStructures(); }
+
+    @Override
+    public boolean isHardcore() { return handle.isHardcore(); }
+
+    @Override
     public Block getBlockAt(int x, int y, int z) { return new CompatBlock(handle.dimension(), new BlockPos(x, y, z)); }
 
     @Override

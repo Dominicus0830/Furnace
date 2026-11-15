@@ -432,6 +432,15 @@ public interface World {
     /** 이 월드가 시간·날씨의 주인인가(오버월드만 true). */
     default boolean ownsClock() { return true; }
 
+    /** level.dat 의 생성기가 평지(또는 빈 월드)인가 — 바닐라 isFlatWorld, 클라이언트의 지평선·안개가 달라진다. 불변. */
+    default boolean isFlat() { return false; }
+
+    /** level.dat 의 구조물 생성 깃발(바닐라 WorldOptions.generateStructures). 불변. */
+    default boolean generatesStructures() { return true; }
+
+    /** 하드코어 월드인가(level.dat hardcore — 추가 월드는 주 월드 값을 따른다). */
+    default boolean isHardcore() { return false; }
+
     /** 날씨 상태(level.dat 의 raining·thundering·rainTime·thunderTime·clearWeatherTime). */
     default WeatherState weather() { throw new UnsupportedOperationException("weather"); }
 

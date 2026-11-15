@@ -374,6 +374,13 @@ public final class World {
         this.debugLevel = debug;
     }
 
+    // 바닐라 WorldOptions.generateStructures(level.dat WorldGenSettings.generate_features) — 플러그인 조회용(Bukkit canGenerateStructures)
+    private volatile boolean generateStructures = true;
+
+    public boolean generatesStructures() { return generateStructures; }
+
+    public void generatesStructures(boolean v) { this.generateStructures = v; }
+
     // ------------------------------------------------------------------ 작업 보내기
 
     /** 그 청크 주인 region 에서 task 실행(주인이 없으면 그 구역의 region 을 만든다). 실패는 로그로 남긴다. */

@@ -143,6 +143,13 @@ final class Mappings {
                     var w = Compat.world(f.world());
                     return w == null ? null : new org.bukkit.event.world.WorldLoadEvent(w);
                 }, (f, b) -> {});
+        // Paper initWorld: 추가 월드가 목록에 들어간 뒤 WorldLoadEvent 바로 앞(서버 시작의 기본 월드 몫은 Compat.revealWorldsAfterStartup)
+        EventBridge.reg(org.domi.furnace.api.event.world.WorldInitEvent.class, org.bukkit.event.world.WorldInitEvent.class,
+                f -> {
+                    if (!Compat.worldVisible(f.world())) return null;
+                    var w = Compat.world(f.world());
+                    return w == null ? null : new org.bukkit.event.world.WorldInitEvent(w);
+                }, (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.world.WorldUnloadEvent.class, org.bukkit.event.world.WorldUnloadEvent.class,
                 f -> {
                     var w = Compat.world(f.world());
