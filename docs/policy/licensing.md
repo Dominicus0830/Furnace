@@ -20,7 +20,14 @@
 | asm / asm-commons | BSD-3-Clause | 가능 |
 | slf4j-api | MIT | 가능 |
 | logback-classic | EPL-1.0 / LGPL-2.1 이중 | LGPL 쪽을 택하면 GPL 로 전환 가능해 호환 (LGPL-2.1 §3) |
+| Guava, SnakeYAML (플러그인 호환용으로 jar 포함 — 2026-11-12 결정) | Apache-2.0 | 가능 |
+| Brigadier, DataFixerUpper (Mojang 이 MIT 로 공개, 필요할 때 내려받기) | MIT | 가능 |
+| Adventure, JOML (필요할 때 내려받기) | MIT | 가능 |
+| bungeecord-chat (`compileOnly`, 배포물에 안 들어감) | BSD-3-Clause 계열 | 해당 없음 |
+| authlib (Mojang, 컴파일용 stub 만 쓰고 실행 때 내려받기) | Mojang 라이선스(재배포 불가) | 저장소·jar 에 넣지 않으므로 충돌 없음. 계속 내려받기만 할 것 |
 | JUnit (시험 전용) | EPL-2.0 | 배포물에 들어가지 않음 |
 | scoreboard-library (`nmsSurvey`, 조사 전용) | 배포물에 포함되지 않음 | 해당 없음 |
 
 `furnace-api` 는 MIT 라 GPLv3 서버에 포함돼도 문제없고, 플러그인은 API 만 쓰면 GPL 의무가 없다. 서버 내부(`Internals`)를 링크하는 플러그인은 GPLv3 의 결합 저작물 해석 대상일 수 있다.
+
+2026-11-16 점검: 위 표에 GPLv3 와 충돌하는 의존성은 없다. 단 Guava·SnakeYAML·Brigadier·DFU·Adventure·JOML·authlib 행은 build.gradle.kts 가 아니라 호환 계층·내려받기 목록에서 확인한 것이므로 릴리스 전에 실제 jar 의 라이선스 파일로 재확인한다.
