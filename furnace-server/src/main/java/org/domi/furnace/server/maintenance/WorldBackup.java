@@ -82,7 +82,7 @@ public final class WorldBackup {
 
     /** 유지보수 스레드에서 백업한다(명령용 — 부르는 스레드는 기다리지 않는다). */
     public CompletableFuture<Result> runAsync(String reason) {
-        if (running.get()) return CompletableFuture.completedFuture(new Result(false, "이미 백업 중", null, 0, 0, 0, 0, 0));
+        if (running.get()) return CompletableFuture.completedFuture(new Result(false, Lang.t("backup.already-running"), null, 0, 0, 0, 0, 0));
         return CompletableFuture.supplyAsync(() -> run(reason), executor);
     }
 
@@ -117,7 +117,7 @@ public final class WorldBackup {
 
     /** 지금 백업한다(이 스레드에서 끝까지 — 전역·region 스레드에서 부르지 않는다). 이미 도는 중이면 실패 결과. */
     public Result run(String reason) {
-        if (!running.compareAndSet(false, true)) return new Result(false, "이미 백업 중", null, 0, 0, 0, 0, 0);
+        if (!running.compareAndSet(false, true)) return new Result(false, Lang.t("backup.already-running"), null, 0, 0, 0, 0, 0);
         long t0 = System.nanoTime();
         Result r;
         long joins = hooks.joinCount();
@@ -126,7 +126,7 @@ public final class WorldBackup {
             joinsAtLast = joins;
         } catch (Exception e) {
             log.error(Lang.t("backup.failed"), e);
-            r = new Result(false, "실패: " + e, null, 0, 0, 0, 0, (System.nanoTime() - t0) / 1_000_000L);
+            r = new Result(false, e.toString(), null, 0, 0, 0, 0, (System.nanoTime() - t0) / 1_000_000L);
         } finally {
             running.set(false);
         }
@@ -139,7 +139,7 @@ public final class WorldBackup {
         Files.createDirectories(root);
         String name = STAMP.format(java.time.LocalDateTime.now());
         Path staging = root.resolve(STAGING_PREFIX + name);
-        if (Files.exists(staging)) throw new IOException("임시 폴더가 이미 있음: " + staging);
+        if (Files.exists(staging)) throw new IOException(Lang.t("backup.staging-exists", staging));
         log.info(Lang.t("backup.started", reason, name));
         List<World> worlds = hooks.worlds();
         // 백업할 월드 폴더(주 월드 + 추가 월드). 네더·엔드는 주 월드 폴더 안(DIM-1, DIM1)이다.
@@ -148,14 +148,14 @@ public final class WorldBackup {
         for (World w : worlds) roots.add(w.levelRoot().toAbsolutePath().normalize());
         Path absRoot = root.toAbsolutePath().normalize();
         for (Path r : roots) {
-            if (absRoot.startsWith(r)) throw new IOException("backup.directory 가 월드 폴더 안에 있다: " + absRoot);
+            if (absRoot.startsWith(r)) throw new IOException(Lang.t("backup.directory-inside-world", absRoot));
         }
         java.util.Map<Path, Path> destOf = new java.util.HashMap<>();
         for (Path r : roots) destOf.put(r, staging.resolve(r.getFileName().toString()));
         java.util.function.Function<Path, Path> dest = p -> {
             Path a = p.toAbsolutePath().normalize();
             for (Path r : roots) if (a.startsWith(r)) return destOf.get(r).resolve(r.relativize(a).toString());
-            throw new IllegalStateException("월드 폴더 밖: " + a);
+            throw new IllegalStateException(Lang.t("backup.outside-world", a));
         };
         // 지역 파일 폴더(복사기가 따로 뜬다)와 플레이어 데이터 폴더(그 실행기 차례에 뜬다)는 작은 파일 복사에서 뺀다
         java.util.Set<Path> skip = new java.util.HashSet<>();

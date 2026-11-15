@@ -41,18 +41,28 @@ public final class Pregen {
     static final long RETRY_MILLIS = 200L;
 
     /**
-     * 미리 생성할 청크 사각형(양 끝 포함)과 도는 가운데 청크. label 은 보고·진행 파일용("반경 1000" / "월드 경계").
+     * 미리 생성할 청크 사각형(양 끝 포함)과 도는 가운데 청크. label 은 보고용 이름표다(진행 파일에는 말이 아니라 종류와 숫자로 적는다 —
+     * 서버 언어를 바꿔도 이어 하는 줄이 그 언어로 나온다).
      */
-    public record Area(int centerX, int centerZ, int minX, int minZ, int maxX, int maxZ, String label) {
+    public record Area(int centerX, int centerZ, int minX, int minZ, int maxX, int maxZ, Label label) {
         public Area {
-            if (minX > maxX || minZ > maxZ) throw new IllegalArgumentException("빈 영역");
+            if (minX > maxX || minZ > maxZ) throw new IllegalArgumentException("empty area");
+        }
+
+        /** 글 그대로인 이름표(시험용·옛 진행 파일의 label 값). */
+        public Area(int centerX, int centerZ, int minX, int minZ, int maxX, int maxZ, String literalLabel) {
+            this(centerX, centerZ, minX, minZ, maxX, maxZ, Label.literal(literalLabel));
         }
 
         /** 블록 가운데 (bx, bz) 둘레 반경 r 블록 정사각형 [b − r, b + r) 에 걸치는 청크. */
-        public static Area ofRadius(double bx, double bz, double radius, String label) {
+        public static Area ofRadius(double bx, double bz, double radius, Label label) {
             int minX = (int) Math.floor(bx - radius) >> 4, maxX = ((int) Math.ceil(bx + radius) - 1) >> 4;
             int minZ = (int) Math.floor(bz - radius) >> 4, maxZ = ((int) Math.ceil(bz + radius) - 1) >> 4;
             return new Area((int) Math.floor(bx) >> 4, (int) Math.floor(bz) >> 4, minX, minZ, Math.max(minX, maxX), Math.max(minZ, maxZ), label);
+        }
+
+        public static Area ofRadius(double bx, double bz, double radius, String literalLabel) {
+            return ofRadius(bx, bz, radius, Label.literal(literalLabel));
         }
 
         public long total() { return (long) (maxX - minX + 1) * (maxZ - minZ + 1); }
@@ -63,6 +73,36 @@ public final class Pregen {
         int rings() {
             return Math.max(Math.max(centerX - minX, maxX - centerX), Math.max(centerZ - minZ, maxZ - centerZ));
         }
+    }
+
+    /**
+     * 영역 이름표: 종류(radius·border)와 숫자만 갖고, 글은 보일 때 {@link Lang} 으로 만든다. literal 은 말 그대로(옛 진행 파일·시험).
+     * size 는 radius 면 반경, border 면 경계 크기(블록).
+     */
+    public record Label(String kind, long size, int x, int z, String literal) {
+        public Label {
+            if (!"radius".equals(kind) && !"border".equals(kind)) {   // 모르는 종류(손으로 고친 파일)는 글 그대로로 본다 — "null" 이 찍히지 않게
+                if (literal == null) literal = String.valueOf(kind);
+                kind = "literal";
+            }
+        }
+
+        public static Label radius(long radius, int cx, int cz) { return new Label("radius", radius, cx, cz, null); }
+
+        public static Label border(long size, int cx, int cz) { return new Label("border", size, cx, cz, null); }
+
+        public static Label literal(String text) { return new Label("literal", 0, 0, 0, text); }
+
+        /** 지금 서버 언어의 글. */
+        public String text() {
+            return switch (kind) {
+                case "radius" -> Lang.t("pregen.label.radius", size, x, z);
+                case "border" -> Lang.t("pregen.label.border", size, x, z);
+                default -> literal;
+            };
+        }
+
+        @Override public String toString() { return text(); }
     }
 
     /**
@@ -147,9 +187,9 @@ public final class Pregen {
 
         public String line() {
             long eta = etaSeconds();
-            return String.format(Locale.ROOT, "[미리 생성] %s %s: %d/%d 청크 (%.2f%%), 새로 만든 %d · 건너뛴 %d%s, %.1f 청크/초, 남은 시간 %s%s",
-                    dimension, area.label(), processed, total, percent(), generated, skipped, failed > 0 ? " · 실패 " + failed : "",
-                    rate, eta < 0 ? "?" : hms(eta), waiting ? " (저장 대기)" : "");
+            return Lang.t("pregen.line", dimension, area.label().text(), processed, total, String.format(Locale.ROOT, "%.2f", percent()), generated, skipped,
+                    failed > 0 ? Lang.t("pregen.failed-part", failed) : "", String.format(Locale.ROOT, "%.1f", rate), eta < 0 ? "?" : hms(eta),
+                    waiting ? Lang.t("pregen.waiting-part") : "");
         }
     }
 
@@ -238,7 +278,7 @@ public final class Pregen {
                 try {
                     out.accept(line);
                 } catch (RuntimeException e) {
-                    LOG.debug("[PREGEN] 보고 실패", e);
+                    LOG.debug("[PREGEN] report failed", e);
                 }
             }
         }
@@ -257,7 +297,7 @@ public final class Pregen {
         private void pumpLocked() {
             if (state != State.RUNNING) return;
             if (world.isUnloaded()) {
-                end(State.STOPPED, "월드가 내려가 멈춘다");
+                end(State.STOPPED, "world-unloaded");
                 return;
             }
             while (inflight.size() < window && spiral.hasNext()) {
@@ -298,7 +338,7 @@ public final class Pregen {
                     pump();
                 }, RETRY_MILLIS, TimeUnit.MILLISECONDS);
             } catch (java.util.concurrent.RejectedExecutionException e) {   // 관리자가 닫혔다(서버 종료) — 멈춘다
-                end(State.STOPPED, "서버 종료");
+                end(State.STOPPED, "shutdown");
             }
         }
 
@@ -328,7 +368,7 @@ public final class Pregen {
                     GenQueue q = world.genQueue();
                     if (q != null && q.isShutdown()) {
                         // 생성 대기열이 닫힌다(서버 종료) — 이 청크부터 이어 하게 남기고 멈춘다
-                        end(State.STOPPED, "생성 대기열이 닫혀 멈춘다");
+                        end(State.STOPPED, "queue-closed");
                         inflight.remove(idx);
                         inflightKeys.remove(key, idx);
                         return;
@@ -369,6 +409,17 @@ public final class Pregen {
             return true;
         }
 
+        private static String whyText(String why) {
+            return switch (why) {
+                case "command" -> Lang.t("pregen.why.command");
+                case "cancel" -> Lang.t("pregen.why.cancel");
+                case "shutdown" -> Lang.t("pregen.why.shutdown");
+                case "world-unloaded" -> Lang.t("pregen.why.world-unloaded");
+                case "queue-closed" -> Lang.t("pregen.why.queue-closed");
+                default -> why;
+            };
+        }
+
         private void end(State s, String why) {
             long resume = resumeIndex();
             Progress pr = progress();
@@ -382,12 +433,11 @@ public final class Pregen {
             if (s == State.DONE) {
                 deleteFile();
                 say(pr.line());
-                say("[미리 생성] " + world.dimension() + " 끝: " + area.total() + " 청크, 새로 만든 " + generated + " · 건너뛴 " + skipped
-                        + (failed > 0 ? " · 실패 " + failed : "") + ", 걸린 시간 " + hms(pr.elapsedNanos() / 1_000_000_000L));
+                say(Lang.t("pregen.done", world.dimension(), area.total(), generated, skipped, failed > 0 ? Lang.t("pregen.failed-part", failed) : "",
+                        hms(pr.elapsedNanos() / 1_000_000_000L)));
             } else {
                 write(snapshot(resume, pr.elapsedNanos()));
-                say("[미리 생성] " + world.dimension() + " 멈춤" + (why != null ? "(" + why + ")" : "") + ": " + resume + "/" + area.total()
-                        + " 청크까지 — '/furnace pregen resume' 으로 이어 한다");
+                say(Lang.t("pregen.stopped", world.dimension(), why != null ? "(" + whyText(why) + ")" : "", resume, area.total()));
             }
         }
 
@@ -413,7 +463,15 @@ public final class Pregen {
             p.setProperty("minZ", Integer.toString(area.minZ()));
             p.setProperty("maxX", Integer.toString(area.maxX()));
             p.setProperty("maxZ", Integer.toString(area.maxZ()));
-            p.setProperty("label", area.label());
+            Label l = area.label();
+            p.setProperty("labelKind", l.kind());
+            if ("literal".equals(l.kind())) {
+                p.setProperty("label", l.literal());
+            } else {
+                p.setProperty("labelSize", Long.toString(l.size()));
+                p.setProperty("labelX", Integer.toString(l.x()));
+                p.setProperty("labelZ", Integer.toString(l.z()));
+            }
             p.setProperty("next", Long.toString(resume));
             p.setProperty("generated", Long.toString(g));
             p.setProperty("skipped", Long.toString(sk));
@@ -446,7 +504,7 @@ public final class Pregen {
                 Files.createDirectories(f.getParent());
                 Path tmp = f.resolveSibling(FILE + ".tmp");
                 try (OutputStream o = Files.newOutputStream(tmp)) {
-                    p.store(o, "Furnace /furnace pregen 진행 위치");
+                    p.store(o, "Furnace /furnace pregen progress");
                 }
                 Files.move(tmp, f, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (IOException e) {
@@ -515,21 +573,20 @@ public final class Pregen {
     /** 진행 파일에서 이어 한다. 파일이 없거나 이미 돌고 있으면 거절. */
     public synchronized Started resume(World w, Consumer<String> out) {
         Saved s = loadSaved(w);
-        if (s == null) return new Started(null, "이어 할 미리 생성이 없다");
+        if (s == null) return new Started(null, Lang.t("pregen.refused.nothing-to-resume"));
         return begin(w, s.area(), s.next(), new long[] {s.generated(), s.skipped(), s.failed()}, s.elapsedNanos(), out);
     }
 
     private Started begin(World w, Area area, long next, long[] counts, long elapsed, Consumer<String> out) {
-        if (jobs.containsKey(w)) return new Started(null, "이 차원에서 이미 미리 생성 중이다 — '/furnace pregen status' 로 보고, 멈추려면 '/furnace pregen stop'");
-        if (w.isUnloaded()) return new Started(null, "내려간 월드다");
+        if (jobs.containsKey(w)) return new Started(null, Lang.t("pregen.refused.already-running"));
+        if (w.isUnloaded()) return new Started(null, Lang.t("pregen.refused.world-unloaded"));
         Job j = new Job(w, area, Math.min(next, area.total()), counts, elapsed, window(w), out);
         jobs.put(w, j);
         synchronized (j) {
             j.saveQuietly();
         }
-        j.say("[미리 생성] " + w.dimension() + " " + area.label() + " 시작: 청크 (" + area.minX() + "," + area.minZ() + ")~(" + area.maxX() + ","
-                + area.maxZ() + "), " + area.total() + " 청크" + (next > 0 ? ", " + next + " 번째부터 이어 함" : "")
-                + " — 플레이어 요청이 늘 먼저다");
+        j.say(Lang.t("pregen.started", w.dimension(), area.label().text(), area.minX(), area.minZ(), area.maxX(), area.maxZ(), area.total(),
+                next > 0 ? Lang.t("pregen.resumed-part", next) : ""));
         j.begin(DEFAULT_REPORT_SECONDS);
         return new Started(j, null);
     }
@@ -537,13 +594,13 @@ public final class Pregen {
     /** 멈춘다(이어 할 수 있다). 돌고 있지 않으면 거짓. */
     public boolean stop(World w) {
         Job j = jobs.get(w);
-        return j != null && j.stop("명령");
+        return j != null && j.stop("command");
     }
 
     /** 멈추고 진행 파일도 지운다. 무엇이든 지웠으면 참. */
     public synchronized boolean cancel(World w) {
         Job j = jobs.get(w);
-        boolean any = j != null && j.stop("취소");
+        boolean any = j != null && j.stop("cancel");
         if (j != null) j.deleteFile();
         Path f = file(w);
         if (f != null && Files.exists(f)) any = true;
@@ -553,7 +610,7 @@ public final class Pregen {
 
     /** 서버 종료: 모두 멈추고 진행 파일을 남긴다. */
     public void shutdown() {
-        for (Job j : jobs.values()) j.stop("서버 종료");
+        for (Job j : jobs.values()) j.stop("shutdown");
         timer.shutdownNow();
     }
 
@@ -575,6 +632,45 @@ public final class Pregen {
         return w.dimensionType().storageDir(w.levelRoot()).resolve("data").resolve(FILE);
     }
 
+    /** 진행 파일의 이름표: 종류+숫자(새 파일) 또는 글 그대로(옛 파일 — 언어를 따르지 못하지만 그대로 보인다). */
+    private static Label loadLabel(Properties p) {
+        String kind = p.getProperty("labelKind");
+        if ("radius".equals(kind) || "border".equals(kind)) {
+            return new Label(kind, Long.parseLong(p.getProperty("labelSize", "0")), Integer.parseInt(p.getProperty("labelX", "0")),
+                    Integer.parseInt(p.getProperty("labelZ", "0")), null);
+        }
+        String legacy = p.getProperty("label", "?");   // 이름표를 문장으로 적던 옛 파일: 알아볼 수 있으면 종류+숫자로 올려 읽는다
+        for (String known : new String[] {"radius", "border"}) {
+            long[] v = matchOldSentence(Lang.pattern("ko", "pregen.label." + known), legacy);   // 옛 문장은 지금 한국어 문장틀과 같은 모양이었다
+            if (v != null) return new Label(known, v[0], (int) v[1], (int) v[2], null);
+        }
+        return Label.literal(legacy);
+    }
+
+    /** 문장틀({0} {1} {2} 자리)로 문장을 읽어 자리 번호 순서대로 숫자를 돌려준다(안 맞으면 null). */
+    private static long[] matchOldSentence(String pattern, String sentence) {
+        if (pattern == null) return null;
+        StringBuilder regex = new StringBuilder();
+        java.util.List<Integer> slots = new java.util.ArrayList<>();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\{(\\d+)}").matcher(pattern);
+        int last = 0;
+        while (m.find()) {
+            regex.append(java.util.regex.Pattern.quote(pattern.substring(last, m.start()))).append("(-?\\d+)");
+            slots.add(Integer.parseInt(m.group(1)));
+            last = m.end();
+        }
+        regex.append(java.util.regex.Pattern.quote(pattern.substring(last)));
+        java.util.regex.Matcher sm = java.util.regex.Pattern.compile(regex.toString()).matcher(sentence);
+        if (!sm.matches() || slots.size() != 3) return null;
+        long[] out = new long[3];
+        try {
+            for (int g = 0; g < 3; g++) out[slots.get(g)] = Long.parseLong(sm.group(g + 1));
+        } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
+            return null;
+        }
+        return out;
+    }
+
     /** 진행 파일(없거나 못 읽으면 null). */
     public static Saved loadSaved(World w) {
         Path f = file(w);
@@ -584,7 +680,7 @@ public final class Pregen {
             p.load(in);
             Area a = new Area(Integer.parseInt(p.getProperty("centerX")), Integer.parseInt(p.getProperty("centerZ")),
                     Integer.parseInt(p.getProperty("minX")), Integer.parseInt(p.getProperty("minZ")),
-                    Integer.parseInt(p.getProperty("maxX")), Integer.parseInt(p.getProperty("maxZ")), p.getProperty("label", "?"));
+                    Integer.parseInt(p.getProperty("maxX")), Integer.parseInt(p.getProperty("maxZ")), loadLabel(p));
             return new Saved(a, Long.parseLong(p.getProperty("next", "0")), Long.parseLong(p.getProperty("generated", "0")),
                     Long.parseLong(p.getProperty("skipped", "0")), Long.parseLong(p.getProperty("failed", "0")),
                     TimeUnit.MILLISECONDS.toNanos(Long.parseLong(p.getProperty("elapsedMs", "0"))));
