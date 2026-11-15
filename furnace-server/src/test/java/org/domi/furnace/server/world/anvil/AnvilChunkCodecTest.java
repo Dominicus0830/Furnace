@@ -164,6 +164,30 @@ class AnvilChunkCodecTest {
         assertFalse(f.sentUpdateTag() != null && f.sentUpdateTag().contains("PublicBukkitValues"), "클라이언트로는 보내지 않는다");
     }
 
+    /** 디스크의 빈 Lock("")은 잠금이 아니다(바닐라 LockCode.fromTag — 빈 열쇠는 NO_LOCK, 다시 쓰지 않는다). */
+    @Test
+    void emptyChestLockOnDiskIsNoLock() {
+        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
+        AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0, items);
+        ChunkColumn col = new SuperflatWorldSource(reg, 0).generate(0, 0);
+        col.setBlock(1, -60, 2, reg.defaultStateId("minecraft:chest"));
+        ChestBlockEntity chest = ChestBlockEntity.empty("minecraft:chest", 1, -60, 2);
+        chest.lock = "key";
+        col.putChest(chest);
+        NbtCompound root = codec.toNbt(col, 0, 0);
+        int found = 0;
+        for (Object o : root.getList("block_entities").items()) {
+            if (o instanceof NbtCompound be && be.contains("Lock")) { be.putString("Lock", ""); found++; }
+        }
+        assertEquals(1, found, "상자의 Lock 이 디스크에 적혔다");
+        ChunkColumn back = codec.fromNbt(root);
+        assertNull(back.chestAt(1, -60, 2).lock, "빈 Lock 은 잠금 없음");
+        for (Object o : codec.toNbt(back, 0, 0).getList("block_entities").items()) {
+            assertFalse(((NbtCompound) o).contains("Lock"), "다시 쓰지 않는다");
+        }
+    }
+
     /** 갱신 태그가 saveCustomOnly 인 종류(표지판)도 클라이언트로는 영속 데이터를 보내지 않는다(Paper Sanitize-sent-BlockEntity-NBT). */
     @Test
     void sentUpdateTagDropsBukkitValues() {

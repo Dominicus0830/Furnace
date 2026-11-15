@@ -1,6 +1,5 @@
-// 생성됨: tools/compat/gen-bukkit-block-state-classes.py — 손으로 고치려면 이 줄을 지운다.
 package io.papermc.paper.block;
 
-/** Paper 1.21.1 LockableTileState 의 형(종류 가르기용). 메서드는 아직 없다. */
+/** Paper 1.21.1 LockableTileState: 잠글 수 있고 이름을 가진 블록 엔티티 상태(용기·신호기). 몸은 CraftBlockEntityState. */
 public interface LockableTileState extends org.bukkit.block.TileState, org.bukkit.block.Lockable, org.bukkit.Nameable {
 }
