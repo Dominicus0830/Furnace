@@ -131,6 +131,7 @@
 | `plugins.compat.nms.spigot-mappings.files` | 글자 | (빈칸) | 경로 구분자로 이은 세 파일 | files 모드의 Mojang server.txt, Spigot 클래스 csrg, Spigot 멤버 csrg 경로 |  |
 | `plugins.chunk-tickets.max-per-plugin` | 수 | 16384 | 1~100000000 | 플러그인 하나가 청크 티켓으로 붙잡을 수 있는 청크 수 상한(겹침 포함) |  |
 | `plugins.compat.config.paper-default-separator` | ON/OFF | false | true\|false | 플러그인이 `options().pathSeparator` 를 바꿨을 때 `addDefault` 기본값 트리를 Paper 처럼 언제나 '.' 로 쪼갠다(끄면 플러그인이 정한 구분자) | 잘못된 값은 기동 거부 |
+| `plugins.async-threads` | 글자 | platform | platform\|virtual | Furnace 플러그인 비동기 실행기(`asyncExecutor`·`PluginTasks.async`)의 스레드. platform: 이름 붙은 플랫폼 스레드 풀 `Furnace Async Thread - N`(Paper 비동기 스케줄러 모양), virtual: 가상 스레드(JDK 21 pinning 위험). 접속 전·구성 이벤트는 이 값과 상관없이 `User Authenticator #N` (T-034, 결정 D1) | 잘못된 값은 기동 거부 |
 | `plugins.compat.scheduler.async-threads` | 글자 | platform | platform\|virtual | Bukkit 비동기 작업을 도는 스레드. platform: 이름 붙은 플랫폼 스레드 풀(Paper 모양), virtual: 가상 스레드 | 잘못된 값은 기동 거부 |
 | `plugins.compat.libraries` | 글자 | needed | needed\|all\|off | Paper 가 싣는 라이브러리(Guava·Adventure·SnakeYAML·Brigadier 등)를 호환 플러그인 클래스가 쓸 때만(needed)·호환 플러그인이 있으면 전부(all) 받아 공유 로더에 붙인다(H4 묶음 B, `docs/api/plugin-libraries.md`). Guava·SnakeYAML 은 서버 jar 에 실려 받지 않고 꺼낸다 | 잘못된 값은 경고 후 needed |
 | `plugins.compat.libraries.mojang` | ON/OFF | true | true\|false | Brigadier·authlib·DataFixerUpper 를 Mojang 저장소에서 받는다 | off 인데 적혀 있으면 경고 |

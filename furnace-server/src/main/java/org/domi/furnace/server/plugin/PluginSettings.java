@@ -7,6 +7,7 @@
 //   plugins.libraries.*            라이브러리 자동 로딩(기본 꺼짐) — library/LibrarySettings 참고
 //   plugins.compat.bukkit=true     Bukkit·Paper 플러그인 호환 어댑터(클래스패스에 furnace-compat-paper 가 있을 때) — false 면 plugin.yml jar 를 읽지 않는다
 //   plugins.chunk-tickets.max-per-plugin=16384  플러그인 하나가 청크 티켓으로 붙잡을 수 있는 청크 수(겹침 포함, 1 이상)
+//   plugins.async-threads=platform  Furnace 플러그인 비동기 실행기(asyncExecutor·PluginTasks.async)를 이름 붙은 플랫폼 스레드 풀에서 — virtual 이면 가상 스레드(T-034)
 //   plugins.compat.scheduler.async-threads=platform  Bukkit 비동기 작업(runTaskAsynchronously 등)을 이름 붙은 플랫폼 스레드 풀(Paper 모양)에서 돌린다 — virtual 이면 가상 스레드
 //   plugins.compat.nms.enabled=true  호환 플러그인 클래스를 올릴 때 NMS·CraftBukkit 이름 변환(버전 접미사 v1_21_R1 풀기 등)을 한다 — false 면 바이트 그대로 올린다
 //   plugins.compat.nms.strict=false   미지원 NMS 심볼이 있는 플러그인은 불러오지 않는다(기본: 그 호출만 실패)
@@ -34,7 +35,7 @@ import org.slf4j.LoggerFactory;
 
 public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels, boolean devMode, boolean autoReload,
                              LibrarySettings libraries, boolean compat, boolean compatNms, int chunkTicketLimit,
-                             boolean exposeCompatToNative, Map<String, String> compatOptions) {
+                             boolean exposeCompatToNative, Map<String, String> compatOptions, boolean asyncVirtual) {
 
     public static final PluginSettings DEFAULT = new PluginSettings(false, null, Map.of());
 
@@ -79,28 +80,40 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         this(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, chunkTicketLimit, exposeCompatToNative, Map.of());
     }
 
+    /** 플러그인 비동기 실행기는 플랫폼 스레드 풀(기본, 결정 D1). */
+    public PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels, boolean devMode, boolean autoReload,
+                          LibrarySettings libraries, boolean compat, boolean compatNms, int chunkTicketLimit, boolean exposeCompatToNative,
+                          Map<String, String> compatOptions) {
+        this(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, chunkTicketLimit, exposeCompatToNative, compatOptions, false);
+    }
+
     /**
      * 시험용 문: true 면 Furnace 네이티브 플러그인에도 호환 클래스(org.bukkit.*·호환 코어 등)가 보인다. 서버 설정(furnace.properties)에는 없다 —
      * 지향점은 네이티브 플러그인이 Furnace API 만 쓰는 것이다. 호환 코어를 네이티브 시험 플러그인으로 직접 부리는 호환 모듈 시험만 켠다.
      */
     /** 시험 전용. 호환 모듈이 서버 jar 에 jar 째로 실린 경로(N-lib-1)에서는 서버 로더에 호환 클래스가 없어 효과가 없다. */
-    public PluginSettings withExposeCompatToNative(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, chunkTicketLimit, on, compatOptions); }
+    public PluginSettings withExposeCompatToNative(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, chunkTicketLimit, on, compatOptions, asyncVirtual); }
 
-    public PluginSettings withLibraries(LibrarySettings l) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, l, compat, compatNms, chunkTicketLimit, exposeCompatToNative, compatOptions); }
+    public PluginSettings withLibraries(LibrarySettings l) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, l, compat, compatNms, chunkTicketLimit, exposeCompatToNative, compatOptions, asyncVirtual); }
 
-    public PluginSettings withCompat(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, on, compatNms, chunkTicketLimit, exposeCompatToNative, compatOptions); }
+    public PluginSettings withCompat(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, on, compatNms, chunkTicketLimit, exposeCompatToNative, compatOptions, asyncVirtual); }
 
-    public PluginSettings withCompatNms(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, on, chunkTicketLimit, exposeCompatToNative, compatOptions); }
+    public PluginSettings withCompatNms(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, on, chunkTicketLimit, exposeCompatToNative, compatOptions, asyncVirtual); }
 
     /** 호환 어댑터가 읽는 plugins.compat.* 값(적힌 글자 그대로, 키는 소문자 그대로). 시험이 직접 정할 때 쓴다. */
     public PluginSettings withCompatOptions(Map<String, String> options) {
-        return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, chunkTicketLimit, exposeCompatToNative, options);
+        return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, chunkTicketLimit, exposeCompatToNative, options, asyncVirtual);
+    }
+
+    /** plugins.async-threads: true 면 플러그인 비동기 실행기가 가상 스레드(시험이 직접 정할 때). */
+    public PluginSettings withAsyncVirtual(boolean on) {
+        return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, chunkTicketLimit, exposeCompatToNative, compatOptions, on);
     }
 
     /** {@code Furnace#compatOption} 의 값: 적힌 글자 그대로, 안 적었으면 null. */
     public String compatOption(String key) { return compatOptions.get(key); }
 
-    public PluginSettings withChunkTicketLimit(int n) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, n, exposeCompatToNative, compatOptions); }
+    public PluginSettings withChunkTicketLimit(int n) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, n, exposeCompatToNative, compatOptions, asyncVirtual); }
 
     public PluginSettings {
         Map<String, Level> m = new HashMap<>();
@@ -199,6 +212,9 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
     /** addDefault 기본값 트리를 Paper 처럼 언제나 '.' 로 쪼갠다(기본 false) — 호환 어댑터가 읽는다. */
     public static final String PAPER_DEFAULT_SEPARATOR_KEY = "plugins.compat.config.paper-default-separator";
 
+    /** Furnace 플러그인 비동기 실행기(asyncExecutor·PluginTasks.async)의 스레드: platform(기본) | virtual. T-034, 결정 D1. */
+    public static final String PLUGIN_ASYNC_THREADS_KEY = "plugins.async-threads";
+
     /** Bukkit 비동기 작업을 돌릴 스레드: platform(기본, 이름 붙은 플랫폼 스레드 풀) | virtual(가상 스레드). */
     public static final String ASYNC_THREADS_KEY = "plugins.compat.scheduler.async-threads";
 
@@ -225,6 +241,17 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
                 LibrarySettings.from(p, log), compat, nms,
                 org.domi.furnace.server.config.OptionKeys.strictInt(p, "plugins.chunk-tickets.max-per-plugin",
                         org.domi.furnace.api.world.ChunkTickets.MAX_CHUNKS_PER_OWNER, 1, 100_000_000),
-                false, compatOptionsFrom(p));
+                false, compatOptionsFrom(p), asyncVirtualFrom(p));
+    }
+
+    /** plugins.async-threads: platform(기본) | virtual. 모양이 틀리면 기동을 멈춘다(호환 키와 같은 규칙). */
+    private static boolean asyncVirtualFrom(Properties p) {
+        String v = p.getProperty(PLUGIN_ASYNC_THREADS_KEY);
+        if (v == null) return false;
+        String t = v.strip().toLowerCase(Locale.ROOT);
+        if (!t.equals("platform") && !t.equals("virtual")) {
+            throw new IllegalArgumentException("설정 '" + PLUGIN_ASYNC_THREADS_KEY + "' 값 '" + v.strip() + "' 이(가) 잘못됐습니다: platform 또는 virtual");
+        }
+        return t.equals("virtual");
     }
 }
