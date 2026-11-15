@@ -83,12 +83,7 @@ final class GameRegistriesImpl implements GameRegistries {
 
     /** 데이터 팩 관리자가 건 태그, 없으면(시험 서버처럼 데이터 팩을 안 거는 경우) 바닐라 1.21.1 태그 — 다른 서버 부품(ItemTags·EntityTypeTags)과 같은 바탕. */
     private static org.domi.furnace.server.net.registry.TagSet currentTags() {
-        var t = org.domi.furnace.server.item.ItemContext.tagSet();
-        return t != null ? t : VanillaTags.SET;
-    }
-
-    private static final class VanillaTags {
-        static final org.domi.furnace.server.net.registry.TagSet SET = org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt");
+        return org.domi.furnace.server.item.ItemContext.gameplayTags();
     }
 
     /** 태그 숫자 id 의 이름표: 내장 레지스트리면 내장 목록, 아니면 동기화 레지스트리(태그 번호는 TagRegistries 와 같은 순서). */
