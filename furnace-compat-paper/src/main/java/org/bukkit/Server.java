@@ -102,6 +102,9 @@ public interface Server extends org.bukkit.plugin.messaging.PluginMessageRecipie
 
     int getViewDistance();
 
+    /** Paper: 데이터 팩 목록·켜고 끄기(T-141 E4b). */
+    default io.papermc.paper.datapack.DatapackManager getDatapackManager() { return org.domi.furnace.compat.paper.CompatDatapacks.INSTANCE; }
+
     int getSimulationDistance();
 
     /** 옛 스케줄러(틱 단위). 동기 작업은 전역(주) 스레드에서 한 줄로 돈다. */

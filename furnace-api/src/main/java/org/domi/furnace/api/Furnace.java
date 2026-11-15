@@ -221,6 +221,9 @@ public interface Furnace {
     /** 게임 규칙(바닐라 + 플러그인 규칙). */
     default org.domi.furnace.api.world.GameRuleRegistry gameRules() { throw new UnsupportedOperationException("gameRules"); }
 
+    /** 데이터 팩 목록·켜고 끄기. */
+    default org.domi.furnace.api.datapack.DataPacks dataPacks() { throw new UnsupportedOperationException("dataPacks"); }
+
     /** 난이도·난이도 프로필. */
     default org.domi.furnace.api.world.DifficultySettings difficulty() { throw new UnsupportedOperationException("difficulty"); }
 
