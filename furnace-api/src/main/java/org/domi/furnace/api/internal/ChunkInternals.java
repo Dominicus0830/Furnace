@@ -181,6 +181,12 @@ public interface ChunkInternals {
     long contentStampNow(World world, int chunkX, int chunkZ);
 
     /**
+     * 주인 스레드: 그 청크의 공개 스냅샷을 지금 낸다(바뀐 것이 없으면 앞 판). 로드돼 있지 않으면 null. 거울이 들여온 섹션을 보기로 붙이기 직전에 부른다 —
+     * 붙은 보기를 읽는 다른 스레드가 들여온 내용을 보게.
+     */
+    ChunkView publishChunkViewNow(World world, int chunkX, int chunkZ);
+
+    /**
      * 청크 shim 의 거울(호환 계층이 만든다, 플러그인이 볼 수 없는 내부 객체). 서버는 그 청크의 주인 region 스레드에서만 부르고, 이 객체의 모니터를 쓰지 않는다.
      */
     interface ChunkMirror {

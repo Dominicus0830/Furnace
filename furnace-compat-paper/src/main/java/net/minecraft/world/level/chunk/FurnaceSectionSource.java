@@ -24,7 +24,12 @@ final class FurnaceSectionSource implements PalettedContainer.FurnaceSource {
     public int[] ids() { return biome ? chunk.furnaceSectionBiomes(index) : chunk.furnaceSectionStates(index); }
 
     @Override
-    public int setId(int cell, int id) { return biome ? chunk.furnaceSetSectionBiome(index, cell, id) : chunk.furnaceContainerSet(index, cell, id); }
+    public int setId(PalettedContainer<?> self, int cell, int id) {
+        return biome ? chunk.furnaceSetSectionBiome(self, this, index, cell, id) : chunk.furnaceContainerSet(self, this, index, cell, id);
+    }
+
+    @Override
+    public FurnaceChunkMirror mirror() { return chunk.furnaceMirror; }
 
     @Override
     public int[] idsStamped(long[] stampOut) { return chunk.furnaceSectionIdsStamped(index, biome, stampOut); }

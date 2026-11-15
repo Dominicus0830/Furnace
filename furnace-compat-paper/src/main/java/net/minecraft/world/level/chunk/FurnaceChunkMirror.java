@@ -31,10 +31,12 @@ import org.slf4j.LoggerFactory;
  *   <li><b>훑기</b>(정식 경로): 배열 칸 객체, 섹션의 {@code biomes}, 컨테이너의 {@code data} 를 기준(placed)과 정체성으로, 개수 필드 셋을 값으로 비교해
  *       바뀐 구성 요소만 들여온다({@code ChunkInternals#importSectionNow} — 저장 표시·빛·하이트맵 재계산·패킷 없음). 장벽(VarHandle·Field 알림)은 지연을 줄일 뿐이다.</li>
  * </ol>
- * 재생이 훑기보다 먼저다 — 배열에서 빠진 옛 섹션에 쓴 칸은 들여온 새 섹션이 덮는다(Paper 에서도 교체된 섹션에 쓴 것은 남지 않는다).
+ * 재생이 훑기보다 먼저다 — 배열에서 빠진 옛 섹션에 쓴 칸은 들여온 새 섹션이 덮는다(Paper 에서도 교체된 섹션에 쓴 것은 남지 않는다). 계획 뒤 떼어 내기 전에
+ * 옛 섹션에 쓴 칸도 떼어 내기 직전에 먼저 재생해 옛 객체에 남긴다(일지 줄마다 쓴 객체를 단다 — PR #396 검토 R2).
  * 들여온 플러그인 섹션·컨테이너는 그 자리의 보기로 붙이고(정체성 유지 — FAWE 의 다음 CAS 기대값), 빠진 옛 보기는 떼어 낸다(그 뒤 쓰기는 월드에 닿지 않는다).
+ * 들여올 떨어진 컨테이너는 계획 때 잡는다 — 그 뒤 그 컨테이너의 바닐라 칸 쓰기는 잠금 아래에서 해, 읽기·들여오기·공개·붙이기(잠금 한 번)에 끼지 못한다(검토 R1·R3).
  * <p>잠금: Furnace 전용 {@link #lock} 하나 — 플러그인이 볼 수 있는 객체(청크·섹션·컨테이너)의 모니터는 쓰지 않는다(설계 R12, FAWE 는 그것들에 synchronized 한다).
- * 잠금 안에서 기다리거나 다리로 다른 스레드를 부르지 않는다.
+ * 잠금 안에서 다른 스레드를 기다리지 않는다(주인은 잠금 안에서 자기 서버 청크만 고친다 — 들여오기·재생·공개).
  */
 final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
 
@@ -46,8 +48,11 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
 
     private static final int SECTION_SET = 0, CONTAINER_SET = 1, BIOME_SET = 2, CHUNK_SET = 3, HM_RAW = 4, HM_UPDATE = 5, UNSAVED = 6;
 
-    /** 일지 한 줄. */
-    private record Op(int kind, int slot, int cell, int id, int x, int y, int z, boolean flag, Heightmap.Types type, long[] raw) {}
+    /**
+     * 일지 한 줄. target 은 쓴 객체(섹션 쓰기·청크 쓰기 = 그때 그 자리 섹션, 컨테이너·바이옴 쓰기 = 그 컨테이너, 그 밖 null) — 재생 전에 그 객체가 배열에서
+     * 빠지면 떼어 내기 직전에 먼저 재생한다(검토 R2). seq 는 덧칠 순번.
+     */
+    private record Op(int kind, int slot, int cell, int id, int x, int y, int z, boolean flag, Heightmap.Types type, long[] raw, Object target, long seq) {}
 
     final ChunkAccess chunk;
     final World world;
@@ -170,11 +175,31 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
 
     // ------------------------------------------------------------------ ChunkMirror(서버가 주인 스레드에서 부른다)
 
-    /** 한 자리의 들여오기 계획(잠금 안에서 정한다 — 일지를 떼어 내는 순간과 같은 순간). */
-    private record Plan(int slot, LevelChunkSection was, LevelChunkSection cur, boolean replace, boolean states, Object statesData,
-                        boolean biomeField, Object biomes, boolean biomeData, Object biomesData, int[] counts, int[] expectedAtPlan) {}
+    /** 한 자리의 들여오기 계획(잠금 안에서 정한다 — 일지를 떼어 내는 순간과 같은 순간). counts·expectedAtPlan 은 섹션을 그대로 둔 개수 대입에만. */
+    private record Plan(int slot, LevelChunkSection was, LevelChunkSection cur, boolean replace, boolean states, boolean biomeField, boolean biomeData,
+                        int[] counts, int[] expectedAtPlan) {}
 
-    /** 서버가 주인 스레드에서 부른다. 다른 스레드에서 부르면 아무것도 안 한다({@code ChunkAccess#furnaceMirror()} 는 공개라 플러그인도 부를 수 있다). */
+    /** 들여온 한 자리(잠금 안): 읽은 data(그것이 기준이 된다 — 공급원에서 읽었으면 null)·바이옴 컨테이너·개수. */
+    private record Imported(Plan plan, Object statesData, Object biomes, Object biomesData, int[] counts) {}
+
+    /**
+     * 시험 이음매(O15 허용): 맞추기가 일지를 떼어 내고 계획한 뒤(잠금 밖, 재생 뒤) 들여오기 잠금 전에 주인 스레드에서 부른다 — 그 틈에 다른 스레드의 쓰기를
+     * 결정적으로 끼워 넣는 시험용(검토 R2·R3·M3). 운영에서는 늘 null(읽기 하나).
+     */
+    static volatile java.util.function.Consumer<ChunkAccess> testAfterPlan;
+
+    /** 이번 맞추기가 잡은 떨어진 컨테이너(붙이지 못한 것은 끝에 놓는다). 주인 전용. */
+    private final ArrayList<PalettedContainer<?>> claimed = new ArrayList<>();
+
+    /**
+     * 서버가 주인 스레드에서 부른다. 다른 스레드에서 부르면 아무것도 안 한다({@code ChunkAccess#furnaceMirror()} 는 공개라 플러그인도 부를 수 있다).
+     * <ol>
+     *   <li>잠금 안: 일지를 떼어 내고 훑기 계획을 정한다(들여올 떨어진 컨테이너를 잡는다 — 그 뒤 바닐라 길 쓰기는 잠금 아래).</li>
+     *   <li>잠금 밖: 일지 재생(그 칸만, 바닐라 원시 의미).</li>
+     *   <li>잠금 한 번에: 자리마다 옛 보기 떼어 내기(계획 뒤 그 객체 앞으로 든 쓰기는 먼저 재생) → 새 내용 읽기 → 들여오기, 다 들여온 뒤 새 판 공개 →
+     *       그 판으로 붙이기. 읽기부터 붙이기까지 잡힌 컨테이너 쓰기가 끼지 못하고(검토 R3), 붙은 보기를 읽는 다른 스레드는 늘 들여온 내용을 본다(검토 R1).</li>
+     * </ol>
+     */
     @Override
     public boolean sync() {
         if (dead || !owner() || syncing) return false;
@@ -190,16 +215,40 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
                 upTo = seq;
                 plans = plan();
             }
-            for (Op op : ops) replay(op);   // 재생이 먼저 — 그 뒤 들여오는 섹션이 덮는다(교체된 섹션에 쓴 칸은 남지 않는다)
+            for (Op op : ops) replay(op);   // 재생이 먼저 — 그 뒤 들여오는 섹션이 덮는다(교체 전 옛 섹션에 쓴 칸은 남지 않는다)
             if (!ops.isEmpty()) replayedSeq = upTo;
-            for (Plan p : plans) execute(p);
+            var seam = testAfterPlan;
+            if (seam != null) seam.accept(chunk);   // 시험 이음매(O15) — 운영에서는 null
+            if (plans.isEmpty()) return dirty;
+            ChunkInternals.ChunkView view = null;
+            synchronized (lock) {
+                try {
+                    List<Imported> done = new ArrayList<>(plans.size());
+                    for (Plan p : plans) {
+                        if (dead) break;
+                        Imported d = execute(p);
+                        if (d != null) done.add(d);
+                    }
+                    if (!done.isEmpty() && !dead) {
+                        // 붙이기 전에 새 판을 낸다 — 붙은 보기를 다른 스레드가 읽는 순간 들여온 내용이 보이게(그 전에는 그 객체 자신의 data, 검토 R1)
+                        var b = NmsChunks.bridge();
+                        view = b.publishChunkViewNow(world, cx, cz);
+                        long stamp = view != null ? view.contentStamp() : b.contentStampNow(world, cx, cz);
+                        for (Imported d : done) attach(d, stamp);
+                    }
+                } finally {
+                    for (PalettedContainer<?> c : claimed) if (!c.furnaceAttached() && c.furnaceClaimant() == this) c.furnaceClaim(null);
+                    claimed.clear();
+                }
+            }
+            if (view != null) published(view);
             return dirty;
         } finally {
             syncing = false;
         }
     }
 
-    /** 잠금 안: 자리마다 바뀐 구성 요소. */
+    /** 잠금 안: 자리마다 바뀐 구성 요소. 들여올 떨어진 컨테이너는 이때 잡는다(그 뒤 그 컨테이너의 바닐라 쓰기는 이 잠금 아래). */
     private List<Plan> plan() {
         List<Plan> out = null;
         for (int i = 0; i < n; i++) {
@@ -211,21 +260,16 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
                 continue;
             }
             if (cur != was || cur.furnaceChunk() == null) {
-                int[] f = new int[3];
-                cur.furnaceReadCountFields(f, 0);
-                p = new Plan(i, was, cur, true, true, null, true, null, false, null, f, null);
+                p = new Plan(i, was, cur, true, true, true, false, null, null);
+                claim(cur.getStates());
+                claim(cur.furnaceBiomesField());
             } else if (cur.furnaceChunk() == chunk && cur.furnaceIndex() == i) {
                 PalettedContainer<BlockState> st = cur.getStates();
-                Object sd = st.furnaceData();
-                boolean states = sd != st.furnacePlaced();
+                boolean states = st.furnaceData() != st.furnacePlaced();
                 Object bf = cur.furnaceBiomesField();
                 boolean biomeField = bf != placedBiomes[i];
-                boolean biomeData = false;
-                Object bd = null;
-                if (!biomeField && bf instanceof PalettedContainer<?> pb && pb.furnaceAttached()) {
-                    bd = pb.furnaceData();
-                    biomeData = bd != pb.furnacePlaced();
-                }
+                boolean biomeData = !biomeField && bf instanceof PalettedContainer<?> pb && pb.furnaceAttached() && pb.furnaceData() != pb.furnacePlaced();
+                if (biomeField) claim(bf);
                 int[] counts = null;
                 if (cur.furnaceCountFieldsDiffer(expected, 3 * i)) {
                     counts = new int[3];
@@ -233,7 +277,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
                 }
                 if (states || biomeField || biomeData || counts != null) {
                     int[] e = counts == null ? null : java.util.Arrays.copyOfRange(expected, 3 * i, 3 * i + 3);
-                    p = new Plan(i, was, cur, false, states, sd, biomeField, bf, biomeData, bd, counts, e);
+                    p = new Plan(i, was, cur, false, states, biomeField, biomeData, counts, e);
                 }
             }
             if (p != null) {
@@ -244,62 +288,119 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
         return out == null ? List.of() : out;
     }
 
-    /** 주인: 계획 하나를 들여온다. 플러그인 내용이 잘못됐으면(팔레트 null·레지스트리에 없는 값) 들여오지 않고 한 번 경고한다. */
-    private void execute(Plan p) {
-        var b = NmsChunks.bridge();
+    /** 잠금 안: 들여올 떨어진 컨테이너를 잡는다(붙은 보기·다른 거울이 잡은 것은 그대로). */
+    private void claim(Object o) {
+        if (o instanceof PalettedContainer<?> c && c.furnaceClaimant() == null) {
+            c.furnaceClaim(this);
+            claimed.add(c);
+        }
+    }
+
+    /**
+     * 주인, 잠금 안: 계획 하나를 들여온다(붙이기는 공개 뒤 {@link #attach}). 빠진 옛 보기를 먼저 그 순간(옛) 내용으로 굳혀 떼어 낸다 — 그 뒤 쓰기는 월드에
+     * 닿지 않고, 다시 넣으면 옛 내용이 들어간다(Paper 그대로). 플러그인 내용이 잘못됐으면(팔레트 null·레지스트리에 없는 값) 들여오지 않고 한 번 경고한다.
+     */
+    private Imported execute(Plan p) {
         int i = p.slot;
         LevelChunkSection cur = p.cur;
-        int[] states = null, biomes = null;
+        if (p.replace && p.was != null && p.was.furnaceChunk() == chunk && p.was.furnaceIndex() == i) {
+            Object wb = p.was.furnaceBiomesField();
+            replayTargeted(p.was, p.was.getStates(), wb instanceof PalettedContainer<?> c && p.was.furnaceOwnsBiomeSource(c) ? c : null);
+            p.was.furnaceDetach();   // 배열에서 빠진 옛 섹션(바이옴 컨테이너를 새 섹션이 나눠 쥐면 아래에서 다시 잡아 붙인다 — FAWE)
+        } else if (p.biomeField && placedBiomes[i] instanceof PalettedContainer<?> oc && cur.furnaceOwnsBiomeSource(oc)) {
+            replayTargeted(null, null, oc);
+            oc.furnaceDetach();   // biomes 필드에서 빠진 옛 바이옴 컨테이너
+        }
+        int[] states = null, biomes = null, counts = p.counts;
+        Object[] sd = new Object[1], bd = new Object[1];
+        Object bc = null;
         try {
-            if (p.states) states = cur.getStates().furnaceReadIds(BlockState::furnaceStateId);
-            if (p.biomeField || p.biomeData) biomes = readBiomes(p.replace ? cur.furnaceBiomesField() : p.biomes);
+            if (p.states) states = cur.getStates().furnaceReadIds(BlockState::furnaceStateId, sd);
+            if (p.replace || p.biomeField || p.biomeData) {
+                bc = cur.furnaceBiomesField();
+                claim(bc);   // 떼어 낸 옛 섹션과 나눠 쥔 것(FAWE)이면 방금 떨어졌다 — 다시 잡는다
+                biomes = readBiomes(bc, bd);
+            }
+            if (p.replace) {
+                counts = new int[3];
+                cur.furnaceReadCountFields(counts, 0);   // 잡힌 섹션은 일지가 없다 — 지금 필드가 그 섹션의 개수(Paper)
+            }
         } catch (RuntimeException e) {
             warnOnce("invalid:" + i + ":" + e.getMessage(), "섹션 " + i + " 의 내용을 들여오지 않는다: " + e.getMessage()
                     + " — 바닐라에서도 그런 섹션은 읽을 때 실패한다. 플러그인이 만든 섹션·컨테이너를 확인할 것");
-            return;
+            return null;
         }
-        // 빠진 옛 보기는 들여오기 <b>전</b>에 그 순간(옛) 내용으로 굳혀 떼어 낸다 — 그 뒤 쓰기는 월드에 닿지 않고, 다시 넣으면 옛 내용이 들어간다(Paper 그대로)
-        if (p.replace && p.was != null && p.was.furnaceChunk() == chunk && p.was.furnaceIndex() == i) {
-            synchronized (lock) {
-                p.was.furnaceDetach();   // 배열에서 빠진 옛 섹션
-            }
-        } else if (p.biomeField && placedBiomes[i] instanceof PalettedContainer<?> oc && cur.furnaceOwnsBiomeSource(oc)) {
-            synchronized (lock) {
-                oc.furnaceDetach();   // biomes 필드에서 빠진 옛 바이옴 컨테이너
-            }
-        }
-        if (!b.importSectionNow(world, cx, i, cz, states, biomes, p.counts)) {
+        if (!NmsChunks.bridge().importSectionNow(world, cx, i, cz, states, biomes, counts)) {
             dead = true;   // 그 사이 내려감
+            return null;
+        }
+        return new Imported(p, sd[0], bc, bd[0], counts);
+    }
+
+    /** 주인, 잠금 안, 공개 뒤: 들여온 객체를 그 자리의 보기로 붙이고 기준을 옮긴다. */
+    private void attach(Imported d, long stamp) {
+        Plan p = d.plan;
+        int i = p.slot;
+        LevelChunkSection cur = p.cur;
+        if (p.replace) {
+            placed[i] = cur;
+            placedBiomes[i] = d.biomes;   // 들여온 바이옴 컨테이너 — 그 사이 필드가 바뀌었으면 다음 맞추기가 들여온다
+            if (cur.furnaceChunk() == null) cur.furnaceAttach(chunk, i, d.statesData, d.biomes, d.biomesData, stamp);   // 그 자리의 보기로(정체성 유지). 다른 곳에 붙은 섹션은 내용만
+            System.arraycopy(d.counts, 0, expected, 3 * i, 3);
             return;
         }
-        long stamp = b.contentStampNow(world, cx, cz);
-        synchronized (lock) {
-            if (p.replace) {
-                placed[i] = cur;
-                Object bf = cur.furnaceBiomesField();
-                placedBiomes[i] = bf;
-                if (cur.furnaceChunk() == null) cur.furnaceAttach(chunk, i, stamp);   // 그 자리의 보기로(정체성 유지). 다른 곳에 붙은 섹션은 내용만
-                System.arraycopy(p.counts, 0, expected, 3 * i, 3);
-                return;
+        if (p.states && d.statesData != null) cur.getStates().furnaceMarkPlaced(d.statesData, stamp);
+        if (p.biomeField) {
+            placedBiomes[i] = d.biomes;
+            if (d.biomes instanceof PalettedContainer<?> nb && !nb.furnaceAttached()) cur.furnaceAttachBiomes(nb, d.biomesData, stamp);
+        } else if (p.biomeData && d.biomes instanceof PalettedContainer<?> pb && d.biomesData != null && pb.furnaceAttached()) {
+            pb.furnaceMarkPlaced(d.biomesData, stamp);
+        }
+        if (p.counts != null) {
+            // 계획 뒤 일지 ±1 은 필드와 기준에 함께 더해졌고 서버에는 재생으로 더해진다 — 들여온 대입량만큼만 기준을 옮긴다(필드 - 기준 이 0 이 되게)
+            for (int k = 0; k < 3; k++) expected[3 * i + k] += p.counts[k] - p.expectedAtPlan[k];
+        }
+    }
+
+    /**
+     * 주인, 잠금 안, 떼어 내기 직전: 계획 뒤 그 객체(섹션·블록 컨테이너·바이옴 컨테이너) 앞으로 일지에 든 쓰기를 지금(옛 내용) 서버에 재생하고 일지·덧칠에서 뺀다 —
+     * 떼어 낸 객체에 남고 들여오는 새 내용이 그 자리를 덮는다(Paper: 교체 전 옛 섹션에 쓴 것. 검토 R2 — 다음 맞추기에서 새 섹션 위에 재생되지 않게).
+     */
+    private void replayTargeted(Object section, Object states, Object biomes) {
+        if (journal.isEmpty()) return;
+        ArrayList<Op> keep = null;
+        for (int k = 0; k < journal.size(); k++) {
+            Op op = journal.get(k);
+            Object t = op.target;
+            if (t != null && (t == section || t == states || t == biomes)) {
+                if (keep == null) keep = new ArrayList<>(journal.subList(0, k));
+                replay(op);
+                dropOverlay(op);
+            } else if (keep != null) {
+                keep.add(op);
             }
-            if (p.states) cur.getStates().furnaceMarkPlaced(p.statesData, stamp);
-            if (p.biomeField) {
-                placedBiomes[i] = p.biomes;
-                if (p.biomes instanceof PalettedContainer<?> nb && !nb.furnaceAttached()) cur.furnaceAttachBiomes(nb, stamp);
-            } else if (p.biomeData && p.biomes instanceof PalettedContainer<?> pb) {
-                pb.furnaceMarkPlaced(p.biomesData, stamp);
+        }
+        if (keep != null) journal = keep;
+    }
+
+    /** 잠금 안: 그 일지 줄의 덧칠을 지운다(뒤에 같은 칸을 덮은 쓰기가 없을 때만). */
+    private void dropOverlay(Op op) {
+        if (op.slot < 0) return;
+        if (op.kind == BIOME_SET) {
+            if (biomeOver != null && biomeOver[op.slot] != null && biomeOver[op.slot][op.cell] >= 0 && biomeOverSeq[op.slot][op.cell] == op.seq) {
+                biomeOver[op.slot][op.cell] = -1;
+                overlayCount--;
             }
-            if (p.counts != null) {
-                // 계획 뒤 일지 ±1 은 필드와 기준에 함께 더해졌고 서버에는 재생으로 더해진다 — 들여온 대입량만큼만 기준을 옮긴다(필드 - 기준 이 0 이 되게)
-                for (int k = 0; k < 3; k++) expected[3 * i + k] += p.counts[k] - p.expectedAtPlan[k];
-            }
+        } else if (cellOver != null && cellOver[op.slot] != null && cellOver[op.slot][op.cell] >= 0 && cellOverSeq[op.slot][op.cell] == op.seq) {
+            cellOver[op.slot][op.cell] = -1;
+            overlayCount--;
         }
     }
 
     @SuppressWarnings("unchecked")
-    private static int[] readBiomes(Object container) {
+    private static int[] readBiomes(Object container, Object[] dataOut) {
         if (container instanceof PalettedContainer<?> pc) {
-            return ((PalettedContainer<Holder<Biome>>) pc).furnaceReadIds(NmsChunks.BIOME_IDS::getId);
+            return ((PalettedContainer<Holder<Biome>>) pc).furnaceReadIds(NmsChunks.BIOME_IDS::getId, dataOut);
         }
         if (!(container instanceof PalettedContainerRO<?> ro)) throw new IllegalStateException("biomes 가 null 이다");
         int[] out = new int[64];
@@ -378,12 +479,17 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
 
     // ------------------------------------------------------------------ 다른 스레드의 쓰기(일지, 결정 D1)
 
-    /** LevelChunkSection#setBlockState(붙은 보기, 주인이 아닌 스레드): 일지 + 덧칠 + 개수 필드 ±1(바닐라 그대로). 옛 상태 번호. */
+    /**
+     * LevelChunkSection#setBlockState(붙은 보기, 주인이 아닌 스레드): 일지 + 덧칠 + 개수 필드 ±1(바닐라 그대로). 옛 상태 번호. 그 사이 섹션이 배열에서 빠져
+     * 떼어 내졌으면 {@link PalettedContainer#FURNACE_DETACHED} — 부른 쪽이 그 섹션에 바닐라로 쓴다(검토 R2).
+     */
     int sectionSet(LevelChunkSection s, int slot, int cell, int id, int oldId) {
         synchronized (lock) {
+            if (s.furnaceChunk() != chunk || s.furnaceIndex() != slot) return PalettedContainer.FURNACE_DETACHED;
             if (dead) return oldId;   // 내린 청크(떼어 내는 사이에 온 쓰기) — 월드에 닿지 않는다
-            journal.add(new Op(SECTION_SET, slot, cell, id, 0, 0, 0, false, null, null));
-            overlayCell(slot, cell, id, ++seq);
+            long q = ++seq;
+            journal.add(new Op(SECTION_SET, slot, cell, id, 0, 0, 0, false, null, null, s, q));
+            overlayCell(slot, cell, id, q);
             int[] d = LevelChunkSection.furnaceCountDelta(oldId, id);
             s.furnaceAddCountFields(d);
             for (int k = 0; k < 3; k++) expected[3 * slot + k] += d[k];
@@ -392,58 +498,75 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
         return oldId;
     }
 
-    /** 블록 컨테이너 칸 쓰기(붙은 보기, 주인이 아닌 스레드): 일지 + 덧칠(개수 그대로). */
-    void containerSet(int slot, int cell, int id) {
+    /** 블록 컨테이너 칸 쓰기(붙은 보기 self, 주인이 아닌 스레드): 일지 + 덧칠(개수 그대로). self 가 그 사이 그 공급원에서 떼어 내졌으면 false. */
+    boolean containerSet(PalettedContainer<?> self, Object src, int slot, int cell, int id) {
         synchronized (lock) {
-            if (dead) return;
-            journal.add(new Op(CONTAINER_SET, slot, cell, id, 0, 0, 0, false, null, null));
-            overlayCell(slot, cell, id, ++seq);
+            if (self.furnaceSourceObject() != src) return false;
+            if (dead) return true;
+            long q = ++seq;
+            journal.add(new Op(CONTAINER_SET, slot, cell, id, 0, 0, 0, false, null, null, self, q));
+            overlayCell(slot, cell, id, q);
         }
         noteWrite();
+        return true;
     }
 
-    /** 바이옴 칸 쓰기(붙은 보기, 주인이 아닌 스레드). */
-    void biomeSet(int slot, int cell, int id) {
+    /** 바이옴 칸 쓰기(붙은 보기 self, 주인이 아닌 스레드). self 가 그 사이 떼어 내졌으면 false. */
+    boolean biomeSet(PalettedContainer<?> self, Object src, int slot, int cell, int id) {
         synchronized (lock) {
-            if (dead) return;
-            journal.add(new Op(BIOME_SET, slot, cell, id, 0, 0, 0, false, null, null));
-            if (biomeOver == null) {
-                biomeOver = new int[n][];
-                biomeOverSeq = new long[n][];
-            }
-            if (biomeOver[slot] == null) {
-                biomeOver[slot] = new int[64];
-                java.util.Arrays.fill(biomeOver[slot], -1);
-                biomeOverSeq[slot] = new long[64];
-            }
-            if (biomeOver[slot][cell] < 0) overlayCount++;
-            biomeOver[slot][cell] = id;
-            biomeOverSeq[slot][cell] = ++seq;
+            if (self.furnaceSourceObject() != src) return false;
+            if (dead) return true;
+            long q = ++seq;
+            journal.add(new Op(BIOME_SET, slot, cell, id, 0, 0, 0, false, null, null, self, q));
+            overlayBiome(slot, cell, id, q);
+        }
+        noteWrite();
+        return true;
+    }
+
+    /**
+     * 잡힌 컨테이너에 잠금 없이 쓴 직후 잡혔다(드문 경쟁, {@code PalettedContainer#furnaceWrite}): 그 사이 붙어 그 data 가 기준이 됐으면 서버에 닿게 일지로
+     * 넘긴다(들여오기가 읽었으면 같은 값을 한 번 더 쓴다). 아직 들여오는 중이면 들여오기가 그 data 를 읽는다.
+     */
+    @SuppressWarnings("unchecked")
+    void lateWrite(PalettedContainer<?> c, Object writtenData, int index, Object value) {
+        synchronized (lock) {
+            if (dead || !(c.furnaceSourceObject() instanceof FurnaceSectionSource src) || src.chunk != chunk || writtenData != c.furnacePlaced()) return;
+            int id = src.biome ? (value instanceof Holder<?> h ? NmsChunks.BIOME_IDS.getId((Holder<Biome>) h) : -1)
+                    : (value instanceof BlockState st ? st.furnaceStateId() : -1);
+            if (id < 0) return;
+            long q = ++seq;
+            journal.add(new Op(src.biome ? BIOME_SET : CONTAINER_SET, src.index, index, id, 0, 0, 0, false, null, null, c, q));
+            if (src.biome) overlayBiome(src.index, index, id, q);
+            else overlayCell(src.index, index, id, q);
         }
         noteWrite();
     }
 
     /**
      * LevelChunk#setBlockState(주인이 아닌 스레드, 그 자리가 붙은 보기): 일지(주인이 바닐라 LevelChunk.setBlockState 를 그대로 — 블록 엔티티·빛·하이트맵·
-     * 저장 표시까지) + 덧칠 + 그 섹션 개수 필드 ±1.
+     * 저장 표시까지) + 덧칠 + 그 섹션 개수 필드 ±1. 그 사이 그 섹션이 떼어 내졌으면 false(부른 쪽이 그 섹션에 바닐라로 쓴다).
      */
-    void chunkSet(LevelChunkSection s, int slot, int x, int y, int z, int id, int oldId, boolean moved) {
+    boolean chunkSet(LevelChunkSection s, int slot, int x, int y, int z, int id, int oldId, boolean moved) {
         int cell = (y & 15) << 8 | (z & 15) << 4 | (x & 15);
         synchronized (lock) {
-            if (dead) return;
-            journal.add(new Op(CHUNK_SET, slot, cell, id, x, y, z, moved, null, null));
-            overlayCell(slot, cell, id, ++seq);
+            if (s.furnaceChunk() != chunk || s.furnaceIndex() != slot || !s.getStates().furnaceLiveNow()) return false;
+            if (dead) return true;
+            long q = ++seq;
+            journal.add(new Op(CHUNK_SET, slot, cell, id, x, y, z, moved, null, null, s, q));
+            overlayCell(slot, cell, id, q);
             int[] d = LevelChunkSection.furnaceCountDelta(oldId, id);
             s.furnaceAddCountFields(d);
             for (int k = 0; k < 3; k++) expected[3 * slot + k] += d[k];
         }
         noteWrite();
+        return true;
     }
 
     void heightmapRaw(Heightmap.Types type, long[] raw) {
         synchronized (lock) {
             if (dead) return;
-            journal.add(new Op(HM_RAW, -1, 0, 0, 0, 0, 0, false, type, raw.clone()));
+            journal.add(new Op(HM_RAW, -1, 0, 0, 0, 0, 0, false, type, raw.clone(), null, 0));
             seq++;
         }
         noteWrite();
@@ -452,7 +575,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
     void heightmapUpdate(Heightmap.Types type, int x, int y, int z, int id) {
         synchronized (lock) {
             if (dead) return;
-            journal.add(new Op(HM_UPDATE, -1, 0, id, x, y, z, false, type, null));
+            journal.add(new Op(HM_UPDATE, -1, 0, id, x, y, z, false, type, null, null, 0));
             seq++;
         }
         noteWrite();
@@ -461,7 +584,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
     void unsaved() {
         synchronized (lock) {
             if (dead) return;
-            journal.add(new Op(UNSAVED, -1, 0, 0, 0, 0, 0, false, null, null));
+            journal.add(new Op(UNSAVED, -1, 0, 0, 0, 0, 0, false, null, null, null, 0));
             seq++;
         }
         noteWrite();
@@ -480,6 +603,21 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
         if (cellOver[slot][cell] < 0) overlayCount++;
         cellOver[slot][cell] = id;
         cellOverSeq[slot][cell] = s;
+    }
+
+    private void overlayBiome(int slot, int cell, int id, long s) {
+        if (biomeOver == null) {
+            biomeOver = new int[n][];
+            biomeOverSeq = new long[n][];
+        }
+        if (biomeOver[slot] == null) {
+            biomeOver[slot] = new int[64];
+            java.util.Arrays.fill(biomeOver[slot], -1);
+            biomeOverSeq[slot] = new long[64];
+        }
+        if (biomeOver[slot][cell] < 0) overlayCount++;
+        biomeOver[slot][cell] = id;
+        biomeOverSeq[slot][cell] = s;
     }
 
     /** lock 안: 재생돼 공개 판에 든 덧칠을 지운다. */

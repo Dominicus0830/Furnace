@@ -163,18 +163,21 @@ public class LevelChunkSection {
         return d;
     }
 
-    /** 들여온 섹션을 그 자리의 보기로 붙인다(주인, 거울 잠금 아래) — 컨테이너도(다른 곳에 붙은 것은 그대로). 개수 필드는 들여온 값 그대로. */
-    void furnaceAttach(ChunkAccess chunk, int index, long stamp) {
-        if (!states.furnaceAttached()) states.furnaceAttach(new FurnaceSectionSource(chunk, index, false), stamp);
-        if (furnaceBiomesField() instanceof PalettedContainer<?> b && !b.furnaceAttached()) b.furnaceAttach(new FurnaceSectionSource(chunk, index, true), stamp);
+    /**
+     * 들여온 섹션을 그 자리의 보기로 붙인다(주인, 거울 잠금 아래) — 컨테이너도(다른 곳에 붙은 것은 그대로). statesData·biomesData 는 들여온 내용을 읽은
+     * data(그것이 기준이 된다), biomes 는 들여온 바이옴 컨테이너(그 사이 필드가 바뀌었으면 다음 맞추기가 들여온다). 개수 필드는 그대로.
+     */
+    void furnaceAttach(ChunkAccess chunk, int index, Object statesData, Object biomes, Object biomesData, long stamp) {
+        if (!states.furnaceAttached()) states.furnaceAttach(new FurnaceSectionSource(chunk, index, false), statesData, stamp);
+        if (biomes instanceof PalettedContainer<?> b && !b.furnaceAttached()) b.furnaceAttach(new FurnaceSectionSource(chunk, index, true), biomesData, stamp);
         furnaceIndex = index;
         furnaceChunk = chunk;
     }
 
-    /** 들여온 바이옴 컨테이너를 이 자리의 보기로 붙인다(주인, 거울 잠금 아래). */
-    void furnaceAttachBiomes(PalettedContainer<?> b, long stamp) {
+    /** 들여온 바이옴 컨테이너(그 data 를 읽었다)를 이 자리의 보기로 붙인다(주인, 거울 잠금 아래). */
+    void furnaceAttachBiomes(PalettedContainer<?> b, Object data, long stamp) {
         ChunkAccess c = furnaceChunk;
-        if (c != null) b.furnaceAttach(new FurnaceSectionSource(c, furnaceIndex, true), stamp);
+        if (c != null) b.furnaceAttach(new FurnaceSectionSource(c, furnaceIndex, true), data, stamp);
     }
 
     /** 그 컨테이너가 이 섹션 자리의 공급원을 쓰는가. */
@@ -219,12 +222,15 @@ public class LevelChunkSection {
      */
     public BlockState setBlockState(int x, int y, int z, BlockState state, boolean useLocks) {
         ChunkAccess c = liveChunk();
-        if (c != null) {   // 바닐라 원시 의미 — 개수 ±1 은 서버가 같은 규칙으로
+        int idx = furnaceIndex;   // 한 번만 읽는다 — 떼어 내는 사이 -1 이 될 수 있다(PR #396 검토 R2)
+        if (c != null && idx >= 0) {   // 바닐라 원시 의미 — 개수 ±1 은 서버가 같은 규칙으로
             int cell = PalettedContainer.Strategy.SECTION_STATES.getIndex(x, y, z);
             if (cell < 0 || cell >= SECTION_SIZE) {
                 throw new IllegalArgumentException(String.format("The value %s is not in the specified inclusive range of %s to %s", (long) cell, 0L, 4095L));
             }
-            return NmsChunks.state(c.furnaceSectionSet(this, furnaceIndex, cell, state.furnaceStateId()));
+            int old = c.furnaceSectionSet(this, idx, cell, state.furnaceStateId());
+            if (old != PalettedContainer.FURNACE_DETACHED) return NmsChunks.state(old);
+            // 그 사이 배열에서 빠져 떼어 내졌다 — 아래 바닐라 길로 이 섹션에(월드에 닿지 않는다, Paper 에서 교체된 섹션과 같다)
         }
         BlockState old = useLocks ? states.getAndSet(x, y, z, state) : states.getAndSetUnchecked(x, y, z, state);
         FluidState oldFluid = old.getFluidState();

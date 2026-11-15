@@ -52,6 +52,15 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
     private volatile Object furnacePlaced;
     /** Furnace: furnacePlaced 를 실체화한 판(서버 내용 판 번호, 다른 스레드는 공개 스냅샷의 것). 거울 잠금 아래. */
     private long furnacePlacedStamp = Long.MIN_VALUE;
+    /**
+     * Furnace: 거울이 들여오려고 잡은 떨어진 컨테이너면 그 거울(아니면 null, PR #396 검토 R3). 잡힌 동안 바닐라 길의 칸 쓰기는 거울 잠금 아래에서 한다 —
+     * 주인이 잠금 안에서 내용을 읽고·들여오고·붙이는 사이에 쓴 칸을 잃지 않게. 붙으면 공급원이, 떼어 내면 null 이 이어받는다. 형을 Object 로 둔다.
+     */
+    private volatile Object furnaceClaim;
+
+    /** 공급원 쓰기가 그 사이 떨어진 컨테이너라 하지 못했다(부른 쪽이 바닐라 길로 이 객체에 쓴다). */
+    static final int FURNACE_DETACHED = Integer.MIN_VALUE;
+    private static final Object DETACHED_VALUE = new Object();
 
     private static final java.lang.invoke.VarHandle DATA;
     static {
@@ -68,8 +77,14 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
 
         int[] ids();
 
-        /** 칸 하나를 쓰고 옛 번호(주인 스레드는 서버에 바로, 그 밖은 거울 칸 일지 — N2b-4). */
-        int setId(int index, int id);
+        /**
+         * 칸 하나를 쓰고 옛 번호(주인 스레드는 서버에 바로, 그 밖은 거울 칸 일지 — N2b-4). self 가 그 사이 떼어 내져 이 공급원의 보기가 아니면
+         * {@link #FURNACE_DETACHED}(부른 쪽이 self 에 바닐라로 쓴다 — 배열에서 빠진 컨테이너에 쓴 칸은 월드에 닿지 않는다, PR #396 검토 R2).
+         */
+        int setId(PalettedContainer<?> self, int index, int id);
+
+        /** 이 공급원의 거울(잡힌 컨테이너의 바닐라 쓰기가 그 잠금 아래에서 한다). */
+        FurnaceChunkMirror mirror();
 
         /** 실체화용: 그 순간의 칸 번호 전부와 그 판 번호(stampOut[0]) — 한 출처에서. */
         int[] idsStamped(long[] stampOut);
@@ -126,13 +141,64 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
         }
     }
 
-    /** 보기 칸 쓰기: 값의 레지스트리 번호로 쓰고 옛 값. 이 서버 레지스트리에 없는 값은 IllegalArgumentException(서버 칸에 넣을 수 없다). */
+    /**
+     * 보기 칸 쓰기: 값의 레지스트리 번호로 쓰고 옛 값. 이 서버 레지스트리에 없는 값은 IllegalArgumentException(서버 칸에 넣을 수 없다).
+     * 그 사이 떼어 내졌으면 {@link #DETACHED_VALUE}(부른 쪽이 바닐라 길로).
+     */
+    @SuppressWarnings("unchecked")
     private T furnaceSet(FurnaceSource src, int index, T value) {
         checkIndex(index, strategy.size());
         int id = registry.getId(value);
         if (id < 0) throw new IllegalArgumentException("이 서버 레지스트리에 없는 값이라 로드된 청크에 쓸 수 없다: " + value);
-        return registry.byId(src.setId(index, id));
+        int old = src.setId(this, index, id);
+        return old == FURNACE_DETACHED ? (T) DETACHED_VALUE : registry.byId(old);
     }
+
+    /**
+     * 칸 쓰기 공통(N2b-4): 붙은 보기면 공급원으로(그 사이 떨어졌으면 바닐라로), 거울이 잡은 컨테이너(들여오는 중·플러그인이 data 를 바꾼 붙은 보기)면
+     * 거울 잠금 아래에서 바닐라로, 아니면 바닐라. 잡히기 직전에 잠금 없이 쓴 칸은 거울에 넘긴다(드문 경쟁 — {@code FurnaceChunkMirror#lateWrite}).
+     */
+    @SuppressWarnings("unchecked")
+    private T furnaceWrite(int index, T value, boolean wantOld) {
+        FurnaceSource src = liveSource();
+        if (src != null) {
+            T r = furnaceSet(src, index, value);
+            if (r != DETACHED_VALUE) return r;
+        }
+        FurnaceChunkMirror m = furnaceClaimant();
+        if (m != null) {
+            synchronized (m.lock) {
+                if (furnaceClaimant() == m) {
+                    src = liveSource();   // 기다리는 사이 붙었다 — 보기 길로(잠금은 다시 들어간다)
+                    if (src != null) {
+                        T r = furnaceSet(src, index, value);
+                        if (r != DETACHED_VALUE) return r;
+                    }
+                    return wantOld ? getAndSet(index, value) : setAndNull(index, value);
+                }
+            }
+        }
+        T old = wantOld ? getAndSet(index, value) : setAndNull(index, value);
+        m = furnaceClaimant();
+        if (m != null) m.lateWrite(this, data, index, value);   // 쓰는 사이 잡혔다 — 거울이 그 data 가 기준이 됐는지 본다
+        return old;
+    }
+
+    private T setAndNull(int index, T value) {
+        set(index, value);
+        return null;
+    }
+
+    /** 이 컨테이너를 잡은 거울: 들여오려고 잡은 것, 아니면 붙은 공급원의 것(떨어진 보통 컨테이너면 null). */
+    FurnaceChunkMirror furnaceClaimant() {
+        Object c = furnaceClaim;
+        if (c != null) return (FurnaceChunkMirror) c;
+        FurnaceSource src = furnaceSource;
+        return src == null ? null : src.mirror();
+    }
+
+    /** 들여오기가 이 떨어진 컨테이너를 잡는다/놓는다(주인, 거울 잠금 아래). */
+    void furnaceClaim(Object mirror) { furnaceClaim = mirror; }
 
     /**
      * 붙은 보기의 읽기·쓰기 출처: 플러그인이 {@code data} 필드를 바꿨으면(들여오기 전) null — 이 컨테이너는 그 data 를 바닐라처럼 읽고 쓴다(자기 쓰기를 읽고,
@@ -191,10 +257,14 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
         furnacePlacedStamp = stamp;
     }
 
-    /** 들여오기가 이 컨테이너를 서버 섹션의 보기로 붙인다(주인, 거울 잠금 아래). 지금 data(들여온 내용)가 기준이 된다. */
-    void furnaceAttach(FurnaceSource src, long stamp) {
-        furnacePlaced = data;
+    /**
+     * 들여오기가 이 컨테이너를 서버 섹션의 보기로 붙인다(주인, 거울 잠금 아래). placed(들여온 내용을 읽은 data)가 기준이 된다 — 그 사이 플러그인이 data 를
+     * 바꿨으면 그 data 를 그대로 읽고 쓰다 다음 맞추기가 들여온다. 공급원 쓰기가 마지막이다(그 뒤로 읽기가 서버로 — 부르는 쪽은 그 전에 새 판을 낸다, 검토 R1).
+     */
+    void furnaceAttach(FurnaceSource src, Object placed, long stamp) {
+        furnacePlaced = placed;
         furnacePlacedStamp = stamp;
+        furnaceClaim = null;
         furnaceSource = src;
     }
 
@@ -211,6 +281,7 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
             DATA.compareAndSet(this, d, next);
         }
         furnacePlaced = null;
+        furnaceClaim = null;
         furnaceSource = null;
     }
 
@@ -218,10 +289,14 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
      * 들여오기용: 칸마다 서버 번호(값 → 서버 레지스트리 번호는 toId). 값이 null 이거나 번호가 없으면 IllegalStateException(그 섹션은 들여오지 않는다).
      * 붙은 보기면 그 공급원(또는 플러그인이 바꾼 data)에서.
      */
-    int[] furnaceReadIds(java.util.function.ToIntFunction<T> toId) {
+    int[] furnaceReadIds(java.util.function.ToIntFunction<T> toId) { return furnaceReadIds(toId, null); }
+
+    /** 위와 같고, 이 컨테이너의 data 에서 읽었으면 그 data 를 dataOut[0] 에(공급원에서 읽었으면 null) — 들여온 뒤 그 data 를 기준으로 삼는다. */
+    int[] furnaceReadIds(java.util.function.ToIntFunction<T> toId, Object[] dataOut) {
         FurnaceSource src = liveSource();
         if (src != null) return src.ids();
         Data<T> d = data;
+        if (dataOut != null) dataOut[0] = d;
         if (d == null) throw new IllegalStateException("data 가 null 이다");
         int size = strategy.size();
         if (d.storage().getSize() != size) throw new IllegalStateException("저장소 칸 수가 " + d.storage().getSize() + " 이다(바닐라 " + size + ")");
@@ -315,21 +390,15 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
     }
 
     public T getAndSet(int x, int y, int z, T value) {
-        FurnaceSource src = liveSource();
-        if (src != null) return furnaceSet(src, strategy.getIndex(x, y, z), value);
         acquire();
         try {
-            return getAndSet(strategy.getIndex(x, y, z), value);
+            return furnaceWrite(strategy.getIndex(x, y, z), value, true);
         } finally {
             release();
         }
     }
 
-    public T getAndSetUnchecked(int x, int y, int z, T value) {
-        FurnaceSource src = liveSource();
-        if (src != null) return furnaceSet(src, strategy.getIndex(x, y, z), value);
-        return getAndSet(strategy.getIndex(x, y, z), value);
-    }
+    public T getAndSetUnchecked(int x, int y, int z, T value) { return furnaceWrite(strategy.getIndex(x, y, z), value, true); }
 
     private T getAndSet(int index, T value) {
         int id = data.palette().idFor(value);
@@ -338,14 +407,9 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
     }
 
     public void set(int x, int y, int z, T value) {
-        FurnaceSource src = liveSource();
-        if (src != null) {
-            furnaceSet(src, strategy.getIndex(x, y, z), value);
-            return;
-        }
         acquire();
         try {
-            set(strategy.getIndex(x, y, z), value);
+            furnaceWrite(strategy.getIndex(x, y, z), value, false);
         } finally {
             release();
         }
@@ -400,18 +464,30 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
      * 붙은 보기는 늘 새 data 에 읽는다(N2b-4 — data 필드가 바뀌어 들여오기가 그 내용을 서버로 가져간다, 그때까지 이 컨테이너는 그 data 를 읽는다).
      */
     public void read(FriendlyByteBuf buf) {
+        FurnaceChunkMirror m = furnaceClaimant();
+        if (m == null) {
+            readData(buf, false);
+            return;
+        }
+        // 거울이 잡은 컨테이너(붙은 보기·들여오는 중): 늘 새 data 에, 거울 잠금 아래에서 — 붙은 보기의 기준 data 를 고치지 않고, 주인이 잠금 안에서 읽는 내용이 찢기지 않게
+        synchronized (m.lock) {
+            readData(buf, true);
+        }
         FurnaceSource src = furnaceSource;
+        if (src != null) src.fieldWritten();
+    }
+
+    private void readData(FriendlyByteBuf buf, boolean fresh) {
         acquire();
         try {
             int bits = buf.readByte();
-            Data<T> d = createOrReuseData(src != null && data == furnacePlaced ? null : data, bits);
+            Data<T> d = createOrReuseData(fresh ? null : data, bits);
             d.palette().read(buf);
             readLongArray(buf, d.storage().getRaw());
             data = d;
         } finally {
             release();
         }
-        if (src != null) src.fieldWritten();
     }
 
     /** 바닐라 FriendlyByteBuf.readLongArray(long[]) — 길이가 같으면 그 배열에, 다르면 새 배열에 읽는다(새 배열은 버려진다). */

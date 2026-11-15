@@ -295,46 +295,55 @@ public abstract class ChunkAccess implements BlockGetter {
         return v.stateId((pos.x << 4) + (cell & 15), getMinBuildHeight() + (index << 4) + (cell >> 8), (pos.z << 4) + (cell >> 4 & 15));
     }
 
-    /** LevelChunkSection#setBlockState(붙은 보기, 칸 = y*256+z*16+x): 개수 ±1 — 주인은 서버가, 그 밖은 섹션 필드에 곧바로. 옛 상태 번호. */
+    /**
+     * LevelChunkSection#setBlockState(붙은 보기, 칸 = y*256+z*16+x): 개수 ±1 — 주인은 서버가, 그 밖은 섹션 필드에 곧바로. 옛 상태 번호. 그 사이 섹션이
+     * 배열에서 빠져 떼어 내졌으면 {@link PalettedContainer#FURNACE_DETACHED}(부른 쪽이 그 섹션에 바닐라로 쓴다 — 월드에 닿지 않는다, PR #396 검토 R2).
+     */
     int furnaceSectionSet(LevelChunkSection section, int index, int cell, int stateId) {
         var v = furnaceForeignView("LevelChunkSection#setBlockState");
         if (v != null) return furnaceMirror.sectionSet(section, index, cell, stateId, foreignCellId(v, index, cell));
         furnaceMirror.ownerSync(index);
+        if (section.furnaceChunk() != this || section.furnaceIndex() != index) return PalettedContainer.FURNACE_DETACHED;   // 맞추는 사이 배열에서 빠졌다
         int old = NmsChunks.bridge().setSectionStateRawNow(furnaceWorld, pos.x, index, pos.z, cell, stateId, true);
         if (old < 0) throw notLoaded("LevelChunkSection#setBlockState");
         return old;
     }
 
-    /** 블록 컨테이너 칸 쓰기(개수 그대로). 옛 상태 번호. */
-    int furnaceContainerSet(int index, int cell, int stateId) {
+    /** 블록 컨테이너 칸 쓰기(개수 그대로, 붙은 보기 self — 공급원 src). 옛 상태 번호. 그 사이 떼어 내졌으면 FURNACE_DETACHED. */
+    int furnaceContainerSet(PalettedContainer<?> self, Object src, int index, int cell, int stateId) {
         var v = furnaceForeignView("PalettedContainer#set");
         if (v != null) {
             int old = foreignCellId(v, index, cell);
-            furnaceMirror.containerSet(index, cell, stateId);
-            return old;
+            return furnaceMirror.containerSet(self, src, index, cell, stateId) ? old : PalettedContainer.FURNACE_DETACHED;
         }
         furnaceMirror.ownerSync(index);
+        if (self.furnaceSourceObject() != src) return PalettedContainer.FURNACE_DETACHED;   // 맞추는 사이 떼어 내졌다
         int old = NmsChunks.bridge().setSectionStateRawNow(furnaceWorld, pos.x, index, pos.z, cell, stateId, false);
         if (old < 0) throw notLoaded("PalettedContainer#set");
         return old;
     }
 
-    /** 섹션 칸 원시 쓰기(칸 = y*256+z*16+x). vanillaCounts 면 LevelChunkSection.setBlockState(주인 스레드 — 개수는 서버가), 아니면 컨테이너 set. 옛 상태 번호. */
+    /**
+     * 섹션 칸 원시 쓰기(칸 = y*256+z*16+x) — 지금 그 자리 섹션으로. vanillaCounts 면 LevelChunkSection.setBlockState(개수 ±1), 아니면 컨테이너 set.
+     * 옛 상태 번호.
+     */
     public int furnaceSetSectionState(int index, int cell, int stateId, boolean vanillaCounts) {
-        if (!vanillaCounts) return furnaceContainerSet(index, cell, stateId);
         LevelChunkSection s = sections[index];
-        return furnaceSectionSet(s, index, cell, stateId);
+        BlockState state = NmsChunks.state(stateId);
+        BlockState old = vanillaCounts ? s.setBlockState(cell & 15, cell >> 8, cell >> 4 & 15, state)
+                : s.getStates().getAndSet(cell & 15, cell >> 8, cell >> 4 & 15, state);
+        return old.furnaceStateId();
     }
 
-    /** 섹션 바이옴 칸 쓰기(칸 = y*16+z*4+x). 옛 바이옴 번호. */
-    public int furnaceSetSectionBiome(int index, int cell, int biomeId) {
+    /** 섹션 바이옴 칸 쓰기(칸 = y*16+z*4+x, 붙은 보기 self — 공급원 src). 옛 바이옴 번호. 그 사이 떼어 내졌으면 FURNACE_DETACHED. */
+    int furnaceSetSectionBiome(PalettedContainer<?> self, Object src, int index, int cell, int biomeId) {
         var v = furnaceForeignView("PalettedContainer#set (바이옴)");
         if (v != null) {
             int old = furnaceMirror.overlayBiomes(index, v.sectionBiomes(index))[cell];
-            furnaceMirror.biomeSet(index, cell, biomeId);
-            return old;
+            return furnaceMirror.biomeSet(self, src, index, cell, biomeId) ? old : PalettedContainer.FURNACE_DETACHED;
         }
         furnaceMirror.ownerSync(index);
+        if (self.furnaceSourceObject() != src) return PalettedContainer.FURNACE_DETACHED;
         int old = NmsChunks.bridge().setSectionBiomeRawNow(furnaceWorld, pos.x, index, pos.z, cell, biomeId);
         if (old < 0) throw notLoaded("PalettedContainer#set (바이옴)");
         return old;

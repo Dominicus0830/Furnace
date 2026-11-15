@@ -67,8 +67,8 @@ public class LevelChunk extends ChunkAccess {
         if (!furnaceMirror.dead() && s.furnaceChunk() == this && s.furnaceIndex() == slot && s.getStates().furnaceLiveNow()) {
             BlockState old = s.getBlockState(x & 15, y & 15, z & 15);
             if (old == state) return null;
-            furnaceMirror.chunkSet(s, slot, x, y, z, state.furnaceStateId(), old.furnaceStateId(), moved);
-            return old;
+            if (furnaceMirror.chunkSet(s, slot, x, y, z, state.furnaceStateId(), old.furnaceStateId(), moved)) return old;
+            // 그 사이 그 섹션이 배열에서 빠져 떼어 내졌다 — 아래 바닐라 길로 그 섹션에(PR #396 검토 R2)
         }
         BlockState old = s.setBlockState(x & 15, y & 15, z & 15, state);
         return old == state ? null : old;

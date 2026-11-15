@@ -293,9 +293,17 @@ public final class Region {
         if (col.importedUnsaved() && !col.dirty()) {
             int n = UNSAVED_IMPORT_WARNINGS.incrementAndGet();
             if (n <= 20 || n % 1000 == 0) {
-                LOG.warn("[NMS] 청크 {}, {} ({}) 가 저장 표시 없이 플러그인이 바꾼 섹션을 든 채 내려간다 — 바닐라·Paper 처럼 그 변경은 저장하지 않는다(다시 불러오면 옛 블록)."
-                        + " 남기려면 플러그인이 LevelChunk#setUnsaved(true)(또는 markUnsaved)를 불러야 한다{}",
-                        cx, cz, world.dimension(), n > 20 ? " [같은 경고 " + n + "번째]" : "");
+                String nth = n > 20 ? " [같은 경고 " + n + "번째]" : "";
+                if (level != null && level.hasChunkTicks(cx, cz)) {
+                    // 예약 틱이 남은 청크는 저장 표시가 없어도 저장한다(아래 writeChunkTicks) — 그 변경도 함께 저장된다(PR #396 검토 R5, Paper 와 다를 수 있다)
+                    LOG.warn("[NMS] 청크 {}, {} ({}) 가 저장 표시 없이 플러그인이 바꾼 섹션을 든 채 내려간다 — 예약 틱이 남아 있어 이 청크는 저장되고 그 변경도 함께 저장된다"
+                            + "(저장 표시가 없으면 Paper 에서는 남지 않을 수 있다). 확실히 남기려면 플러그인이 LevelChunk#setUnsaved(true)(또는 markUnsaved)를 불러야 한다{}",
+                            cx, cz, world.dimension(), nth);
+                } else {
+                    LOG.warn("[NMS] 청크 {}, {} ({}) 가 저장 표시 없이 플러그인이 바꾼 섹션을 든 채 내려간다 — 바닐라·Paper 처럼 그 변경은 저장하지 않는다(다시 불러오면 옛 블록)."
+                            + " 남기려면 플러그인이 LevelChunk#setUnsaved(true)(또는 markUnsaved)를 불러야 한다{}",
+                            cx, cz, world.dimension(), nth);
+                }
             }
         }
         try {

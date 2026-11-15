@@ -183,6 +183,7 @@ public final class ChunkColumn {
         if (!(r instanceof ShimRef ref) || ref.mirror == null || ref.mirror.get() != m) return false;
         mirrorHeld = m;   // 대기 표시보다 먼저 — 주인이 표시를 보고 내리는 순서와 맞물린다(syncMirror)
         woke[0] = mirrorPending == 0 && MIRROR_PENDING.compareAndSet(this, 0, 1);
+        if (woke[0]) mirrorHeld = m;   // 위 쓰기와 CAS 사이에 주인이 표시 0 을 보고 쥠을 내렸을 수 있다 — 세운 쪽이 다시 쥔다(PR #396 검토 R4)
         return true;
     }
 

@@ -353,6 +353,12 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public ChunkView publishChunkViewNow(org.domi.furnace.api.world.World world, int chunkX, int chunkZ) {
+        Region r = ownedLoaded(world, chunkX, chunkZ, "청크 공개");
+        return r == null ? null : r.publishReadViewNow(chunkX, chunkZ);
+    }
+
+    @Override
     public long contentStampNow(org.domi.furnace.api.world.World world, int chunkX, int chunkZ) {
         ChunkColumn col = column(world, chunkX, chunkZ, "청크 내용 판 번호");
         return col == null ? -1L : col.modCount();
