@@ -110,6 +110,40 @@ class ChunkPacketShimTest {
         assertEquals(1, light.getSkyUpdates().size());
     }
 
+    /**
+     * ProtocolLib ZeroBuffer 모양: 읽을 바이트 0, 그런데 읽기는 늘 0 을 준다(라이브러리가 빈 자료를 만들 때 쓰는 버퍼).
+     * 진짜 ZeroBuffer 처럼 readableBytes 를 믿고 스트림으로 읽으면 EOF 가 난다(PR #399 검토 R1).
+     */
+    static final class ZeroLikeBuffer extends io.netty.buffer.SwappedByteBuf {
+        ZeroLikeBuffer() { super(Unpooled.EMPTY_BUFFER); }
+        @Override public int readableBytes() { return 0; }
+        @Override public boolean isReadable() { return false; }
+        @Override public boolean isReadable(int n) { return false; }
+        @Override public byte readByte() { return 0; }
+        @Override public short readUnsignedByte() { return 0; }
+        @Override public boolean readBoolean() { return false; }
+        @Override public short readShort() { return 0; }
+        @Override public int readUnsignedShort() { return 0; }
+        @Override public int readInt() { return 0; }
+        @Override public long readLong() { return 0; }
+        @Override public io.netty.buffer.ByteBuf readBytes(byte[] dst) { java.util.Arrays.fill(dst, (byte) 0); return this; }
+        @Override public io.netty.buffer.ByteBuf readBytes(byte[] dst, int off, int len) { java.util.Arrays.fill(dst, off, off + len, (byte) 0); return this; }
+    }
+
+    @Test
+    void theLibrarysZeroBufferGivesEmptyData() throws Exception {
+        // ProtocolLib StructureCache 의 빈 자료용 직렬화기는 NbtAccounter 를 이름으로 찾는다 — 없으면 fromValues·createPacket 이 NPE
+        Class<?> accounter = Class.forName("net.minecraft.nbt.NbtAccounter");
+        assertNotNull(accounter.getMethod("unlimitedHeap").invoke(null));
+        var chunk = new ClientboundLevelChunkPacketData(new RegistryFriendlyByteBuf(new ZeroLikeBuffer(), null), 0, 0);
+        assertTrue(chunk.getHeightmaps().isEmpty());
+        assertEquals(0, chunk.furnaceBuffer().length);
+        assertTrue(chunk.furnaceBlockEntities().isEmpty());
+        var light = new ClientboundLightUpdatePacketData(new FriendlyByteBuf(new ZeroLikeBuffer()), 0, 0);
+        assertTrue(light.getSkyYMask().isEmpty() && light.getBlockYMask().isEmpty());
+        assertTrue(light.getSkyUpdates().isEmpty() && light.getBlockUpdates().isEmpty());
+    }
+
     @Test
     void chunkAndLightGoToTheShimAndBackUnchanged() throws Exception {
         try (FurnaceTestServer server = start()) {
@@ -179,6 +213,17 @@ class ChunkPacketShimTest {
             var lshim = assertInstanceOf(ClientboundLightUpdatePacket.class, PacketDelivery.fromFurnace(update));
             assertEquals(update, lshim.toFurnace());
             assertTrue(PacketDelivery.reversible(PacketTypes.Clientbound.LIGHT_UPDATE));
+
+            // 서버 값에서 만든 자료의 빛 목록도 리스너가 바꿀 수 있다(비동기 처리기·리스너가 getSkyUpdates().set/add 한다 — 검토 S4 M3)
+            lshim.getLightData().getSkyUpdates().set(0, layer(9));
+            lshim.getLightData().getBlockUpdates().add(layer(1));
+            assertEquals(2, lshim.getLightData().getSkyUpdates().size());
+
+            // 블록 엔티티 종류 번호는 바닐라 등록 순서(서버 패킷 코덱과 같은 표) — write·바이트 생성자를 직접 부르는 플러그인용(검토 S4 M12)
+            var reg = net.minecraft.core.registries.BuiltInRegistries.BLOCK_ENTITY_TYPE;
+            assertEquals(0, reg.getId(NmsBlockEntityTypes.byName("minecraft:furnace", "시험")));
+            assertEquals(1, reg.getId(NmsBlockEntityTypes.byName("minecraft:chest", "시험")));
+            assertEquals(7, reg.getId(NmsBlockEntityTypes.byName("minecraft:sign", "시험")));
         }
     }
 

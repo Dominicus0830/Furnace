@@ -26,9 +26,11 @@ public final class NbtWire {
     /** 뿌리 compound(태그 0 = 없음 → null). 뿌리가 compound 가 아니면 IllegalArgumentException(바닐라 readNbt 도 compound 만). */
     public static NbtCompound read(ByteBuf buf) {
         try {
-            DataInput in = new DataInputStream(new ByteBufInputStream(buf));
-            int t = in.readByte();
+            // 첫 태그 바이트는 버퍼에서 바로 읽는다: ProtocolLib ZeroBuffer(읽을 바이트 0, readByte 는 늘 0)로 빈 자료를 만들 때
+            // 스트림으로 읽으면 EOF 가 난다(PR #399 검토 R1)
+            int t = buf.readByte();
             if (t == 0) return null;
+            DataInput in = new DataInputStream(new ByteBufInputStream(buf));
             if (t != 10) throw new IllegalArgumentException("패킷 NBT 뿌리가 compound(10)가 아니다: " + t);
             return compound(in, 0);
         } catch (IOException e) {

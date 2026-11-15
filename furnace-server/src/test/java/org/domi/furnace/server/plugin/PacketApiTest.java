@@ -389,6 +389,53 @@ class PacketApiTest {
         assertEquals(201, n.get());
     }
 
+    /**
+     * 청크 패킷의 write 는 본문을 놓는다 — 리스너가 듣는 탭은 본문을 놓지 않고 읽어, 손대지 않으면 원래 패킷(공유 압축 프레임 길)을, 취소면 한 번만 놓고,
+     * 바꾸면 바꾼 것을 보내며 원래 본문을 놓는다(PR #399 검토 R2·S3: 예전엔 취소 때 두 번 놓아 IllegalReferenceCountException).
+     */
+    @Test
+    void chunkListenersKeepCancelAndChangeWithoutReleasingTwice() {
+        Player p = online("P");
+        ByteBuf raw = Unpooled.buffer();
+        raw.writeInt(2);
+        raw.writeInt(3);
+        raw.writeByte(10);   // 하이트맵: 빈 compound
+        raw.writeByte(0);
+        for (int i = 0; i < 8; i++) Types.writeVarInt(raw, 0);   // buffer·블록 엔티티·마스크 넷·빛 목록 둘
+        byte[] body = ByteBufUtil.getBytes(raw);
+        raw.release();
+        java.util.concurrent.atomic.AtomicReference<String> mode = new java.util.concurrent.atomic.AtomicReference<>("keep");
+        AtomicInteger seen = new AtomicInteger();
+        host.packets().listen(a, PacketTypes.Clientbound.LEVEL_CHUNK_WITH_LIGHT, e -> {
+            seen.incrementAndGet();
+            assertEquals(2, e.packet().get("x"));
+            switch (mode.get()) {
+                case "cancel" -> e.setCancelled(true);
+                case "move" -> e.setPacket(e.packet().with("x", 9));
+                default -> { }
+            }
+        });
+        PacketTap tap = p.channel().attr(PacketTap.KEY).get();
+        var keep = org.domi.furnace.server.net.protocol.play.LevelChunkWithLight.ofShared(body);
+        assertSame(keep, tap.outbound(keep), "손대지 않으면 원래 패킷 그대로");
+        assertEquals(1, keep.body().refCnt(), "본문을 놓지 않았다");
+        keep.discard();
+
+        mode.set("cancel");
+        var cancelled = new org.domi.furnace.server.net.protocol.play.LevelChunkWithLight(Unpooled.wrappedBuffer(body.clone()));
+        assertNull(org.domi.furnace.server.net.io.SharedChunkFrames.encode(p.channel(), cancelled));
+        assertEquals(0, cancelled.body().refCnt(), "취소: 한 번만 놓인다");
+
+        mode.set("move");
+        var moved = new org.domi.furnace.server.net.protocol.play.LevelChunkWithLight(Unpooled.wrappedBuffer(body.clone()));
+        ByteBuf out = (ByteBuf) org.domi.furnace.server.net.io.SharedChunkFrames.encode(p.channel(), moved);
+        assertEquals(0, moved.body().refCnt(), "바꿈: 원래 본문을 놓는다");
+        assertEquals(org.domi.furnace.server.net.protocol.play.LevelChunkWithLight.ID, Types.readVarInt(out));
+        assertEquals(9, out.readInt());
+        out.release();
+        assertEquals(3, seen.get());
+    }
+
     @Test
     void inboundTapModifiesAndCancels() {
         Player p = online("P");
