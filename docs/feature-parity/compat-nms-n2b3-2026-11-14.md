@@ -11,8 +11,8 @@
 | 부르는 스레드 | NMS 읽기(`getBlockState`·섹션·컨테이너·하이트맵·`getBlockEntitiesPos`) | 기다리지 않는 조회(`getChunkNow`·`getChunkAtIfLoadedImmediately`·`getChunkIfLoaded`) | 기다리는 조회(`getChunk(x,z)`·`getChunk(.., true)`·`CraftChunk.getHandle`) |
 |---|---|---|---|
 | 주인 region / 전역 빌림 구간 | 살아 있는 값(N2a 그대로) | shim(붙이면 그 자리에서 공개) | shim |
-| region 이 아닌 스레드 | 공개 스냅샷 | 공개본 있으면 shim, 없으면 **null** + 주인에게 공개 부탁(다음 틱부터 보임) | 공개본 없으면 주인이 낼 때까지 기다림(바닐라 `ServerChunkCache.getChunk` 의 주 스레드 join 과 같은 간선) |
-| 다른 region 의 스레드(D4) | 공개 스냅샷 | 같음 | 공개본 없으면 **기다리지 않고** `IllegalStateException`(create=false 는 null) — region 끼리 기다리면 교착 |
+| region·전역이 아닌 스레드 | 공개 스냅샷 | 공개본 있으면 shim, 없으면 **null** + 주인에게 공개 부탁(다음 틱부터 보임) | 공개본 없으면 주인이 낼 때까지 기다림(바닐라 `ServerChunkCache.getChunk` 의 주 스레드 join 과 같은 간선, 상한 30초 — 종료 중 영원히 기다리지 않게) |
+| 다른 region 의 스레드(D4)·전역 스레드 | 공개 스냅샷 | 같음 | 공개본 없으면 **기다리지 않고** `IllegalStateException`(create=false 는 null) — region 끼리, 또는 region 이 기다리는 전역이 region 을 기다리면 교착(검토 R1). 전역의 빌림 구간에서 빌림이 성공하면 주인이라 살아 있는 값 |
 
 로드 안 된 청크는 그대로: 기다리지 않는 조회 null, 기다리는 조회 `IllegalStateException`(Furnace 는 동기로 불러오지 않는다). 쓰기는 여전히 주인만(다른 스레드 쓰기 일지는 N2b-4, D1).
 
@@ -49,13 +49,13 @@
 |---|---|
 | #373 R6 MBNL 훑기 줄이기 | `ChunkColumn.mbnlLocalY`: MBNL 술어는 MOTION_BLOCKING 의 부분집합이라 MB 꼭대기(지연 캐시) 위에는 답이 없다 — MB 꼭대기가 잎이 아니면 그 칸, 잎이면 그 아래부터 훑는다. MB 캐시가 낡을 수 있는 길에 대비해 MB 꼭대기 칸이 정말 MB 인지 확인하고 아니면 처음부터 훑는다. 시험 `ChunkReadViewTest.motionBlockingNoLeavesMatchesFullScan` |
 | #373 N3 보기 `getBlockState` 의 `int[3]` 할당 | 다리 `vanillaStateIdNow`(섹션 바닐라 nonEmpty == 0 이면 공기)로 배열 없이 한 번에. 공개본도 같은 판정(`vanillaStateId`) |
-| #373 5장 2 청크 패킷 섹션 개수 | 바닐라 `LevelChunkSection.write` 처럼 섹션의 바닐라 nonEmpty 를 보낸다(`ChunkSection.packetNonEmptyCount` — 섹션을 바꾸지 않는다). 읽은 섹션은 물 칸이 두 번 세어지고 칸 쓰기는 공기 여부로만 ±1(바닐라 그대로). 다만 바닐라 값이 0 인데 블록이 있으면(hasOnlyAir 틈) Furnace 비공기 수 — 결정 `entries/2026-11-14-n2b2-hasonlyair-gap.md` 가 A 인 동안 서버 읽기와 클라이언트가 다른 블록을 보지 않게. 시험 `packetSectionCountIsVanillaNonEmpty` |
+| #373 5장 2 청크 패킷 섹션 개수 | 바닐라 `LevelChunkSection.write` 처럼 섹션의 바닐라 nonEmpty 를 보낸다(`ChunkSection.packetNonEmptyCount` — 섹션을 바꾸지 않는다). 읽은 섹션은 물 칸이 두 번 세어지고 칸 쓰기는 공기 여부로만 ±1(바닐라 그대로). 다만 바닐라 값이 비공기 수보다 작으면(원시 쓰기 뒤, hasOnlyAir 틈 포함) 비공기 수 — `max(바닐라, 비공기)`, 검토 R2 — 결정 `entries/2026-11-14-n2b2-hasonlyair-gap.md` 가 A 인 동안 서버 읽기와 클라이언트가 다른 블록을 보지 않게. 시험 `packetSectionCountIsVanillaNonEmpty` |
 | #365 R7 `CHUNK_LOCK` | 위 3장 — 잠금 없음 |
 
 ## 5. 시험
 
-- 서버 `ChunkReadViewTest`(7): 공개본 = 살아 있는 값(칸·개수·하이트맵 네 종류), 안 바뀌면 같은 판, 바뀐 섹션만 새 사본·판 번호 오름·낸 판은 불변, 개수 대입도 판 올림, scratch 뒤 쓰기가 새지 않음, MBNL(R6), 패킷 nonEmpty.
-- 호환 `NmsSnapshotReadTest`(8, V5 읽기·교착 장면): 기다리지 않는 조회는 공개 전 null → 다음 틱 shim, 비 region 스레드 기다리는 조회, 주인 쓰기가 틱 뒤 보이고 판이 오름·안 바뀌면 같은 판, 블록 엔티티 칸, **다른 region 스레드(D4)**(공개본 읽기·기다리는 조회는 예외·부탁이 다음 틱에 보임), **플러그인 잠금 교착 장면**(잠금을 쥔 비동기 스레드가 읽는 동안 region 이 같은 잠금을 기다림 — 끝남), **동시 읽기 일관성**(읽는 스레드 셋 × 30틱: 한 판 안의 두 섹션 칸이 늘 같음·판 번호 안 줄어듦), `getChunkAtAsync` + `CraftChunk.getHandle`.
+- 서버 `ChunkReadViewTest`(8, 검토 뒤 14): 공개본 = 살아 있는 값(칸·개수·하이트맵 네 종류), 안 바뀌면 같은 판, 바뀐 섹션만 새 사본·판 번호 오름·낸 판은 불변, 개수 대입도 판 올림, scratch 뒤 쓰기가 새지 않음, MBNL(R6), 패킷 nonEmpty.
+- 호환 `NmsSnapshotReadTest`(8, 검토 뒤 11 — 전역 스레드 교착 장면 2개·대조군 1개, V5 읽기·교착 장면): 기다리지 않는 조회는 공개 전 null → 다음 틱 shim, 비 region 스레드 기다리는 조회, 주인 쓰기가 틱 뒤 보이고 판이 오름·안 바뀌면 같은 판, 블록 엔티티 칸, **다른 region 스레드(D4)**(공개본 읽기·기다리는 조회는 예외·부탁이 다음 틱에 보임), **플러그인 잠금 교착 장면**(잠금을 쥔 비동기 스레드가 읽는 동안 region 이 같은 잠금을 기다림 — 끝남), **동시 읽기 일관성**(읽는 스레드 셋 × 30틱: 한 판 안의 두 섹션 칸이 늘 같음·판 번호 안 줄어듦), `getChunkAtAsync` + `CraftChunk.getHandle`.
 - 변이 확인: 섹션 재사용 판정에서 판 번호 비교를 빼면 `ownerWritesBecomeVisibleAfterTickWithNewVersion`·`concurrentReadersSeeConsistentVersions` 가 실패한다.
 - 바꾼 기존 시험: `NmsChunkShimsTest.unloadedAndOffThreadBehaviour`(다른 스레드 읽기가 예외 → 공개본 값), `NmsOwnerRawWriteTest.offThreadRawWritesThrow`(shim 을 기다리는 조회로 얻음), `ChunkFieldCensusTest`(새 필드 분류: `readView`·섹션 `version` = FURNACE_CACHE — N2b-4 들여오기는 `touch()`·섹션 판 올림을 빠뜨리면 안 된다).
 
@@ -66,3 +66,22 @@
 3. 언로드 뒤 옛 shim 의 읽기는 같은 좌표의 새 로드를 볼 수 있다(N2a 부터 같은 성질 — shim 에 로드 표시를 묶는 것은 N2b-4 상태 기계에서).
 4. 공개 비용은 shim 이 붙었거나 최근 다른 스레드가 읽은 청크에만 든다. 판이 바뀐 틱에만 바뀐 섹션의 팔레트 복제(섹션당 저장소 long 배열 하나와 팔레트)를 한다. 대량 편집 실측(FAWE 64³)은 N2b-6 노트북에서.
 5. `getChunkAtAsync` 이음이 이미 끝난 Future 에 붙으면 부른 스레드에서 돈다(Paper 도 같다). 그때 `getHandle` 은 주인을 기다린다 — 그 스레드가 주인이 원하는 잠금을 쥐고 있으면 Paper 의 주 스레드 join 과 같은 위험(새 위험 아님).
+   그 스레드가 **다른 region 스레드**(이벤트 처리기에서 남의 region 청크를 `getChunkAtAsync(..).thenApply(getHandle)`)면 D4 규칙대로 `getHandle` 이 `IllegalStateException` 일 수 있다(경쟁에 따라 가끔). 그런 자리에서는 이음을 그 청크의 region 스케줄러로 넘긴다(`thenApplyAsync(.., 그 칸의 스케줄러::execute)`) — 검토 N1.
+6. 패킷 섹션 개수의 "바닐라 개수 ≥ 비공기 수" 보정은 플러그인이 개수 **필드**를 대입한 경우(FAWE `clearCounts` 꼴)에도 걸린다. 필드 대입이 서버에 닿는 것은 N2b-4 부터다.
+
+## 7. 독립 검토 반영(PR #382, 보고서 `furnace/reviews/n2b3-pr382.md`)
+
+판정 조건부 승인. 구조(틱 끝 불변 사본·섹션 판 번호 재사용·shim 약한 참조 CAS·기다리지 않는 읽기) 확인, 새 시험 통과.
+
+| 항목 | 반영 |
+|---|---|
+| R1(필수) 전역 스레드의 기다리는 조회가 region 을 join → 교착(region 이 전역을 기다리거나 전역이 쥔 잠금을 기다릴 때, 재현 2장면) | `awaitChunkView` 의 기다리지 않는 조건에 전역 스레드 추가. 재현 장면을 `NmsSnapshotReadTest` 로 옮김(`globalLookupWhileRegionWaitsOnGlobalDoesNotDeadlock`·`globalHoldingPluginLockDoesNotDeadlockWithRegion`, 대조군 `globalBorrowGetsChunkWhenRegionIdle`) — 고침을 되돌리면 둘 다 "교착"으로 실패, 고친 뒤 통과 확인 |
+| R2(권장) 패킷 개수 보정이 "보내는 순간 0" 만 막음 → 원시 쓰기 섹션(개수 1·블록 4096)에서 클라이언트 개수가 블록이 남은 채 0 | `packetNonEmptyCount` = `max(바닐라 개수, 비공기 수)`. 원시 쓰기가 없으면 바닐라 개수 ≥ 비공기 수라 값 그대로. 시험 `packetCountNeverBelowNonAir` |
+| R3 거두는 순간의 μs 틈(새로 붙인 shim 이 판 없음 예외) | 최소 완화: 다른 스레드 읽기에서 판이 없는데 이 shim 이 붙은 shim 이면 최대 약 2ms 다시 본다(주인은 거둔 뒤 붙은 shim 을 보고 곧바로 다시 낸다). 슬롯 CAS 로 닫는 것은 N2b-4 상태 기계에서 |
+| R4 비 region join 상한 없음·`runAtChunk` 가 없는 region 생성 | 상한 30초(`AWAIT_VIEW_SECONDS`, 넘으면 이유를 담은 ISE), 공개 부탁·기다림 모두 `submitAtOwnedChunk`(주인 없으면 만들지 않음) |
+| R5 변이 생존 빈틈 | 시험 추가: 섹션 바이옴 직접 쓰기, 인덱스 통째 교체, scratch → compact, 고정 하이트맵 사본, 생성 블록 엔티티 칸(`ChunkReadViewTest`). 재생성·나누기 지켜보기·경쟁 경로(M1·M10·M12·M13·M15)는 남김 |
+| R6 바뀐 공개 ≈9.4µs 중 하이트맵 재계산 8.3µs | 후속(N2b-6 실측 때 바뀐 열만 다시 세기) |
+| N1 | 위 6장 5 |
+| N2 재생성 설치와 공개 사이 틈 | 설치(`putChunk`) 전에 새 컬럼의 판을 낸다 |
+| N3 붙잡힌 차례는 공개 안 함 / N4 주인 스레드 조회 때 공개 | 기록만 / 하지 않음(주인 조회마다 공개 비교 비용) |
+| N5 시험 수 | 고침 |

@@ -133,7 +133,7 @@ public final class NmsChunks {
 
     /**
      * {@link #loadedChunk} 의 기다리는 판(바닐라 ServerChunkCache.getChunk 가 주 스레드가 아닌 곳에서 주 스레드를 기다리는 것과 같은 간선): 로드돼 있는데
-     * 공개본이 없으면 region 이 아닌 스레드는 주인이 공개할 때까지 기다린다. 다른 region 스레드는 기다리지 않고 IllegalStateException(교착 방지).
+     * 공개본이 없으면 region 이 아닌 스레드는 주인이 공개할 때까지 기다린다. 다른 region 스레드·전역 스레드는 기다리지 않고 IllegalStateException(교착 방지).
      * 로드돼 있지 않으면 null.
      */
     public static net.minecraft.world.level.chunk.LevelChunk awaitLoadedChunk(net.minecraft.world.level.Level level, int chunkX, int chunkZ) {

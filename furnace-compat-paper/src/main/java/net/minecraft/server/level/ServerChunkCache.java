@@ -21,7 +21,7 @@ public class ServerChunkCache extends ChunkSource {
 
     /**
      * 바닐라는 주 스레드가 아니면 주 스레드에 맡기고 기다린다 — 여기서는 로드된 청크에 공개본이 아직 없을 때만 주인 region 을 기다린다(region 이 아닌
-     * 스레드). 다른 region 의 스레드는 기다리지 않는다(교착) — create=true 면 IllegalStateException, false 면 null.
+     * 스레드, 상한 30초). 다른 region 의 스레드와 전역 스레드는 기다리지 않는다(교착) — create=true 면 IllegalStateException, false 면 null.
      */
     @Override
     public ChunkAccess getChunk(int x, int z, ChunkStatus status, boolean create) {

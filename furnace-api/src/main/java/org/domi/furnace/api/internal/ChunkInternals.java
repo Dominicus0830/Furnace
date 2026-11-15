@@ -140,7 +140,7 @@ public interface ChunkInternals {
 
     /**
      * {@link #chunkView} 의 기다리는 판(바닐라 ServerChunkCache.getChunk 가 다른 스레드에서 주 스레드를 기다리는 것과 같은 간선): 주인 스레드면 곧바로 공개해
-     * 주고, region 이 아닌 스레드면 주인이 공개할 때까지 기다린다. 다른 region 의 스레드에서는 기다리지 않는다(교착 — 규칙 6) — 그때 공개본이 없으면
+     * 주고, region·전역이 아닌 스레드면 주인이 공개할 때까지 기다린다(상한 있음). 다른 region 의 스레드와 전역 스레드에서는 기다리지 않는다(교착 — 규칙 6) — 그때 공개본이 없으면
      * IllegalStateException. 로드돼 있지 않으면 null.
      */
     ChunkView awaitChunkView(World world, int chunkX, int chunkZ);

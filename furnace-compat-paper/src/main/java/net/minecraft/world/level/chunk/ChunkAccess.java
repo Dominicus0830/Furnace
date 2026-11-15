@@ -130,6 +130,15 @@ public abstract class ChunkAccess implements BlockGetter {
         var v = b.chunkView(furnaceWorld, pos.x, pos.z);
         if (v != null) return v;
         if (!b.isLoaded(furnaceWorld, pos.x, pos.z)) throw notLoaded(what);
+        // 붙은 shim 인데 판이 없다 = 주인이 오래 안 읽힌 판을 거두는 바로 그 순간(PR #382 검토 R3). 주인은 거둔 뒤 붙은 shim 을 보고 곧바로(수 µs)
+        // 다시 내므로 잠깐 다시 본다(최대 약 2ms).
+        if (b.chunkShim(furnaceWorld, pos.x, pos.z) == this) {
+            for (int i = 0; i < 100 && v == null; i++) {
+                java.util.concurrent.locks.LockSupport.parkNanos(20_000L);
+                v = b.chunkView(furnaceWorld, pos.x, pos.z);
+            }
+            if (v != null) return v;
+        }
         throw new org.domi.furnace.api.concurrent.ThreadOwnershipException(what + ": 청크 " + pos.x + ", " + pos.z + " (" + furnaceWorld.dimension()
                 + ") 의 공개 스냅샷이 아직 없다 — 주인 region 이 아닌 스레드는 주인이 틱 끝에 낸 사본을 읽는다. 공개를 부탁했으니 다음 틱부터 읽힌다"
                 + " (현재 " + Thread.currentThread().getName() + ")");

@@ -49,7 +49,7 @@ public final class CraftChunk implements Chunk {
 
     /**
      * Paper CraftChunk.getHandle(status): 그 청크의 NMS 청크(이번 로드 동안 같은 객체). 주인 region 이 아닌 스레드에서는 공개 스냅샷을 읽는 보기이고,
-     * 공개본이 아직 없으면 주인이 낼 때까지 기다린다(Paper 가 주 스레드를 기다리는 것과 같은 간선, N2b-3). 다른 region 스레드는 기다리지 않는다.
+     * 공개본이 아직 없으면 주인이 낼 때까지 기다린다(Paper 가 주 스레드를 기다리는 것과 같은 간선, N2b-3). 다른 region 스레드·전역 스레드는 기다리지 않는다.
      * 로드돼 있지 않으면 IllegalStateException(Paper 는 동기로 불러온다 — Furnace 는 불러오지 않는다).
      */
     public net.minecraft.world.level.chunk.ChunkAccess getHandle(net.minecraft.world.level.chunk.status.ChunkStatus status) {

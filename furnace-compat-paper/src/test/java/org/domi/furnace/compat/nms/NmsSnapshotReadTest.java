@@ -269,6 +269,100 @@ class NmsSnapshotReadTest {
         assertEquals(stone, v.stateId(x, yb, z));
     }
 
+    // ------------------------------------------------------------------ PR #382 검토 R1: 전역 스레드는 region 을 기다리지 않는다
+
+    org.domi.furnace.api.sched.GlobalScheduler global() { return server.api().scheduler().global(); }
+
+    /** 대조군: 빌림 구간 안, region 이 한가하면 빌림이 성공해 주인으로 바로 공개한다. */
+    @Test
+    void globalBorrowGetsChunkWhenRegionIdle() {
+        int[] c = nearChunk(4, 4);
+        LevelChunk ch = server.onGlobal(() -> {
+            try (var a = global().openRegionAccess()) {
+                return level.getChunk(c[0], c[1]);
+            }
+        });
+        assertNotNull(ch);
+        assertNotNull(bridge().chunkView(world, c[0], c[1]));
+    }
+
+    /**
+     * region 이 전역 작업 결과를 막고 기다리는데(GlobalWait) 그 전역 작업이 그 region 의 공개본 없는 청크를 기다리는 조회로 얻는다 — 빌림은 서로
+     * 기다림을 알아채고 포기한다. 전역이 region 을 join 하면 둘 다 멈춘다. 고친 뒤: 전역은 곧바로 IllegalStateException.
+     */
+    @Test
+    void globalLookupWhileRegionWaitsOnGlobalDoesNotDeadlock() throws Exception {
+        int[] c = nearChunk(-4, 4);
+        AtomicReference<CompletableFuture<Object>> inner = new AtomicReference<>();
+        CountDownLatch globalStarted = new CountDownLatch(1);
+        CompletableFuture<Object> regionTask = world.scheduler(new org.domi.furnace.api.world.BlockPos(c[0] * 16, 64, c[1] * 16)).submit(() -> {
+            CompletableFuture<Object> g = global().submit(() -> {
+                globalStarted.countDown();
+                try (var a = global().openRegionAccess()) {
+                    return level.getChunk(c[0], c[1]);
+                } catch (Throwable t) {
+                    return t;
+                }
+            });
+            inner.set(g);
+            return g.join();   // GlobalWait 표시가 달린 기다림
+        });
+        assertTrue(globalStarted.await(10, TimeUnit.SECONDS));
+        Object result;
+        try {
+            result = regionTask.get(10, TimeUnit.SECONDS);
+        } catch (java.util.concurrent.TimeoutException e) {
+            inner.get().complete("released-by-test");   // 풀어 주고 실패로
+            regionTask.get(10, TimeUnit.SECONDS);
+            throw new AssertionError("교착: region 은 전역을, 전역은 region 공개를 기다렸다");
+        }
+        assertTrue(result instanceof IllegalStateException, "전역은 기다리지 않고 예외: " + result);
+    }
+
+    /** 전역(옛 동기 작업)이 플러그인 잠금을 쥔 채 기다리는 조회를 부르고 그 region 이 같은 잠금을 기다린다 — 전역은 기다리지 않고 예외로 끝난다. */
+    @Test
+    void globalHoldingPluginLockDoesNotDeadlockWithRegion() throws Exception {
+        int[] c = nearChunk(4, -4);
+        java.util.concurrent.locks.ReentrantLock pluginLock = new java.util.concurrent.locks.ReentrantLock();
+        CountDownLatch globalHolds = new CountDownLatch(1);
+        AtomicReference<Thread> regionThread = new AtomicReference<>();
+        CompletableFuture<Object> g = global().submit(() -> {
+            pluginLock.lock();
+            try {
+                globalHolds.countDown();
+                try { Thread.sleep(100); } catch (InterruptedException ignored) { }   // region 이 잠금 앞에서 멈출 시간
+                try (var a = global().openRegionAccess()) {
+                    return level.getChunk(c[0], c[1]);
+                }
+            } catch (Throwable t) {
+                return t;
+            } finally {
+                pluginLock.unlock();
+            }
+        });
+        assertTrue(globalHolds.await(10, TimeUnit.SECONDS));
+        CompletableFuture<Object> regionTask = world.scheduler(new org.domi.furnace.api.world.BlockPos(c[0] * 16, 64, c[1] * 16)).submit(() -> {
+            regionThread.set(Thread.currentThread());
+            try {
+                pluginLock.lockInterruptibly();
+                pluginLock.unlock();
+                return "locked";
+            } catch (InterruptedException e) {
+                return "interrupted";
+            }
+        });
+        Object result;
+        try {
+            result = g.get(10, TimeUnit.SECONDS);
+        } catch (java.util.concurrent.TimeoutException e) {
+            if (regionThread.get() != null) regionThread.get().interrupt();   // 풀어 주고 실패로
+            g.get(10, TimeUnit.SECONDS);
+            throw new AssertionError("교착: 전역은 잠금을 쥐고 region 공개를, region 은 잠금을 기다렸다");
+        }
+        assertTrue(result instanceof IllegalStateException, "전역은 기다리지 않고 예외: " + result);
+        assertEquals("locked", regionTask.get(10, TimeUnit.SECONDS));
+    }
+
     /**
      * FAWE 꼴: getChunkAtAsync 의 이음에서 CraftChunk.getHandle — 이음은 주인 스레드(Paper 처럼 주인이 끝냄)거나, 이미 끝난 Future 면 부른 스레드다.
      * 어느 쪽이든 받은 shim 은 곧바로 다른 스레드에서 읽힌다(R16: 주인이면 그 자리에서 공개, 아니면 기다리는 조회가 공개를 기다림).

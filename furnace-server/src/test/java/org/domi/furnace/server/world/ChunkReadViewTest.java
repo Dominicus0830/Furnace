@@ -122,6 +122,84 @@ class ChunkReadViewTest {
         return l;
     }
 
+    // ------------------------------------------------------------------ PR #382 검토 R5: 판 번호·사본이 빠지면 잡히는가
+
+    @Test
+    void directSectionBiomeWriteRepublishes() {
+        ChunkColumn col = column();
+        ChunkReadView a = col.publishReadView(0, 0);
+        col.sections()[3].setBiome(0, 0, 0, 5);   // region /fillbiome 길 — 컬럼을 거치지 않는다
+        ChunkReadView b = col.publishReadView(0, 0);
+        assertNotSame(a, b);
+        assertEquals(5, b.sectionBiomes(3)[0]);
+        assertEquals(0, a.sectionBiomes(3)[0], "앞 판은 그대로");
+    }
+
+    @Test
+    void indexedReplaceRepublishes() {
+        ChunkColumn col = column();
+        int glass = state("minecraft:glass");
+        ChunkReadView a = col.publishReadView(0, 0);
+        BitStorage idx = new BitStorage(4, 4096);
+        idx.set(0, 1);
+        col.sections()[2].replaceBlocksIndexed(new int[] {ChunkSection.AIR, glass}, idx);
+        ChunkReadView b = col.publishReadView(0, 0);
+        assertEquals(glass, b.stateId(0, -64 + 32, 0));
+        assertEquals(ChunkSection.AIR, b.stateId(1, -64 + 32, 0));
+        assertNotSame(a.section(2), b.section(2));
+    }
+
+    @Test
+    void scratchWriteThenCompactRepublishes() {
+        ChunkColumn col = column();
+        int glass = state("minecraft:glass");
+        int[] raw = col.sectionBlocks(1);
+        col.publishReadView(0, 0);
+        raw[5] = glass;
+        col.compactSections();
+        ChunkReadView b = col.publishReadView(0, 0);
+        assertEquals(glass, b.stateId(5, -64 + 16, 0), "scratch 를 닫은 뒤 공개는 닫을 때의 값");
+    }
+
+    @Test
+    void fixedHeightmapIsCopiedIntoView() {
+        ChunkColumn col = column();
+        col.setSectionVanillaCounts(10, 0, 0, 0);   // 고정 모드로
+        assertTrue(col.heightmapsFixed());
+        ChunkReadView a = col.publishReadView(0, 0);
+        int before = a.firstAvailable("WORLD_SURFACE", 0, 0);
+        assertTrue(col.heightmapUpdate(HeightmapType.WORLD_SURFACE, 0, 200, 0, state("minecraft:stone")));
+        assertEquals(before, a.firstAvailable("WORLD_SURFACE", 0, 0), "낸 판의 하이트맵은 고정 배열과 공유하지 않는다");
+        assertEquals(201, col.publishReadView(0, 0).firstAvailable("WORLD_SURFACE", 0, 0));
+    }
+
+    @Test
+    void generatedBlockEntityPositionsIncluded() {
+        ChunkColumn col = column();
+        col.putGeneratedBlockEntity(3, 10, 4, new org.domi.furnace.server.net.io.nbt.NbtCompound());
+        long[] pos = col.publishReadView(2, -3).blockEntityPositions();
+        assertArrayEquals(new long[] {ChunkReadView.packPos(2 * 16 + 3, 10, -3 * 16 + 4)}, pos);
+    }
+
+    /** R2: 원시 쓰기로 바닐라 개수가 비공기 수보다 작아진 섹션도 패킷 개수는 비공기 수 이상 — 클라이언트 개수(±1)가 블록이 남은 채 0 이 되지 않는다. */
+    @Test
+    void packetCountNeverBelowNonAir() {
+        int stone = state("minecraft:stone");
+        ChunkSection s = new ChunkSection();
+        s.setVanillaCounts(0, 0, 0);
+        s.setBlockAt(0, stone, true);                                    // 보통 쓰기: nonEmpty 1
+        for (int i = 1; i < 4096; i++) s.setBlockAt(i, stone, false);    // 컨테이너 원시 쓰기: 개수 그대로
+        assertEquals(1, s.vanillaCounts()[0]);
+        int client = s.packetNonEmptyCount();
+        assertEquals(4096, client);
+        for (int i = 0; i < 4095; i++) {
+            s.setBlockAt(i, ChunkSection.AIR, true);
+            client--;   // 클라이언트 LevelChunkSection.setBlockState 흉내
+            assertTrue(client >= s.nonAirCount(), "칸 " + i);
+        }
+        assertTrue(client > 0);
+    }
+
     // ------------------------------------------------------------------ PR #373 검토 후속
 
     /** R6: MB 꼭대기에서 시작하는 MBNL 훑기가 처음부터 훑는 답과 같다(잎·물·빈 기둥). */

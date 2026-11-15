@@ -732,8 +732,9 @@ public final class Region {
         fresh.light(light);
         fresh.lightPrecomputed(false);
         fresh.inheritLoadToken(old);   // NMS shim 정체성 유지(Paper 는 재생성해도 같은 LevelChunk)
+        if (old.readView() != null) fresh.publishReadView(cx, cz);   // 설치 전에 — 바꿔 넣는 사이 다른 스레드가 판 없음을 보지 않게(검토 N2)
         world.putChunk(cx, cz, fresh);
-        if (old.readView() != null) publishReadViewNow(cx, cz);   // 다른 스레드가 읽던 공개본을 새 블록으로 곧바로(N2b-3)
+        if (old.readView() != null) publishReadViewNow(cx, cz);   // 지켜보기 대상에 넣는다(판은 위에서 낸 것 그대로)
         lv.chunkUnloaded();   // 청크 조회 캐시가 옛 객체를 들고 있지 않게
         if (fresh.extraNbt() != null && (fresh.extraNbt().contains("block_ticks") || fresh.extraNbt().contains("fluid_ticks"))) {
             lv.loadChunkTicks(fresh.extraNbt(), cx, cz);   // 청크를 넣자마자(위 설치 경로와 같은 이유)

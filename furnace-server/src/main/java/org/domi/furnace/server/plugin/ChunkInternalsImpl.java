@@ -266,7 +266,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
     private static void requestView(org.domi.furnace.server.world.World w, ChunkColumn col, int cx, int cz) {
         if (!col.claimViewRequest()) return;
         try {
-            w.runAtChunk(new ChunkPos(cx, cz), r -> r.publishReadViewNow(cx, cz));
+            if (w.submitAtOwnedChunk(new ChunkPos(cx, cz), r -> r.publishReadViewNow(cx, cz)) == null) col.publishRequestFailed();   // 그 사이 내려감 — region 을 만들지 않는다(R4)
         } catch (java.util.concurrent.RejectedExecutionException e) {
             col.publishRequestFailed();   // 내린 월드 — 다음 부탁이 다시 보낼 수 있게
         }
@@ -283,14 +283,33 @@ final class ChunkInternalsImpl implements ChunkInternals {
         if (col == null) return null;
         ChunkView v = col.readViewTouch();
         if (v != null) return v;
-        if (org.domi.furnace.server.world.Regionizer.isRegionWorkerThread()) {
+        // region 스레드와 전역 스레드는 기다리지 않는다: region 이 전역을 기다리는 길(GlobalWait·전역이 쥔 잠금)이 있어 서로 기다리게 된다(PR #382 검토 R1).
+        // 전역의 빌림 구간은 위 claimChunk 에서 이미 주인이 된다 — 여기 온 것은 빌림이 바로 그 교착을 알아채고 포기했거나 구간 밖인 경우다.
+        if (org.domi.furnace.server.world.Regionizer.isRegionWorkerThread() || org.domi.furnace.server.sched.GlobalThread.isGlobalThread()) {
             requestView(w, col, chunkX, chunkZ);
             throw new IllegalStateException("청크 " + chunkX + ", " + chunkZ + " (" + w.dimension() + ") 는 다른 region 의 것이고 아직 공개 스냅샷이 없다 — "
-                    + "region 스레드는 다른 region 을 기다릴 수 없다(교착). 공개를 부탁해 두었으니 다음 틱부터 읽힌다(getChunkNow 로 확인)");
+                    + "region·전역 스레드는 다른 region 을 기다릴 수 없다(교착). 공개를 부탁해 두었으니 다음 틱부터 읽힌다(getChunkNow 로 확인)");
         }
-        // region 이 아닌 스레드: 바닐라 getChunk 가 다른 스레드에서 주 스레드를 기다리는 것과 같은 간선
-        return w.submitAtChunk(new ChunkPos(chunkX, chunkZ), r -> r.publishReadViewNow(chunkX, chunkZ)).join();
+        // region 이 아닌 스레드: 바닐라 getChunk 가 다른 스레드에서 주 스레드를 기다리는 것과 같은 간선. 주인이 없으면 region 을 만들지 않고(R4),
+        // 종료 중 돌지 않을 작업을 영원히 기다리지 않게 상한을 둔다.
+        var f = w.submitAtOwnedChunk(new ChunkPos(chunkX, chunkZ), r -> r.publishReadViewNow(chunkX, chunkZ));
+        if (f == null) return null;
+        try {
+            return f.get(AWAIT_VIEW_SECONDS, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (java.util.concurrent.TimeoutException e) {
+            throw new IllegalStateException("청크 " + chunkX + ", " + chunkZ + " (" + w.dimension() + ") 의 주인 region 이 " + AWAIT_VIEW_SECONDS
+                    + "초 안에 공개하지 않았다(서버 종료 중이거나 region 이 멈춤)", e);
+        } catch (java.util.concurrent.ExecutionException e) {
+            if (e.getCause() instanceof RuntimeException re) throw re;
+            throw new IllegalStateException(e.getCause());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("공개 기다림이 끊겼다", e);
+        }
     }
+
+    /** 비 region 스레드가 주인의 공개를 기다리는 상한(초). 바닐라 getChunk 의 join 은 상한이 없지만 Furnace 는 종료 중 region 작업이 돌지 않는다. */
+    private static final int AWAIT_VIEW_SECONDS = 30;
 
     @Override
     public Object chunkShim(org.domi.furnace.api.world.World world, int chunkX, int chunkZ) {

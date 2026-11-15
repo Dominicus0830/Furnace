@@ -163,8 +163,8 @@ public final class ChunkSection {
 
     /**
      * 청크 패킷 섹션 머리의 nonEmptyBlockCount(바닐라 LevelChunkSection.write 는 필드 값을 그대로 쓴다): 바닐라 개수를 고치지 않고 본다 —
-     * 모르면 바닐라 recalcBlockCounts 의 nonEmpty(공기 아닌 칸 + 유체 있는 칸)를 센다. 단 바닐라 값이 0 인데 실제 블록이 있으면(NMS 컨테이너
-     * 원시 쓰기로 빈 섹션에 넣고 다시 세지 않은 섹션) Furnace 서버 읽기와 맞게 Furnace 비공기 수를 쓴다 — 결정 entries/2026-11-14-n2b2-hasonlyair-gap.md
+     * 모르면 바닐라 recalcBlockCounts 의 nonEmpty(공기 아닌 칸 + 유체 있는 칸)를 센다. 단 바닐라 값이 실제 비공기 수보다 작으면(NMS 컨테이너
+     * 원시 쓰기·개수 대입 뒤) 비공기 수를 쓴다 — 클라이언트는 받은 값 위에 ±1 하므로 그 아래에서 시작하면 블록이 남은 섹션이 0 이 될 수 있다 — 결정 entries/2026-11-14-n2b2-hasonlyair-gap.md
      * 가 A(그대로)인 동안 클라이언트가 서버와 다른 블록을 보지 않게. 섹션을 바꾸지 않으므로 아무 스레드에서 불러도 된다(주인이 쓰는 중이 아니면).
      */
     public int packetNonEmptyCount() {
@@ -175,7 +175,7 @@ public final class ChunkSection {
             for (int v : s) if (!isAir(v)) nonAir++;
         }
         int v = tickingCount != UNKNOWN ? nonEmpty : nonAir + countFluidPresent(fluidPresent);
-        return v == 0 && nonAir > 0 ? nonAir : v;
+        return Math.max(v, nonAir);   // 결정 A 동안: 클라이언트 개수(받은 값 ±1)가 서버 비공기 수 아래로 내려가 0 이 되지 않게(PR #382 검토 R2) — 원시 쓰기가 없으면 v >= nonAir 라 v 그대로
     }
 
     /** 바닐라 hasOnlyAir(nonEmptyBlockCount == 0). 모르면 먼저 센다. */
