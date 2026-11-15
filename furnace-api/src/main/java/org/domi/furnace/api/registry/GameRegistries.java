@@ -52,6 +52,13 @@ public interface GameRegistries {
     /** 그 아이템("minecraft:coal")을 화로 연료로 넣었을 때 타는 틱(연료가 아니면 0). 바닐라 AbstractFurnaceBlockEntity 연료 표와 같다. */
     default int fuelBurnTime(String item) { throw new UnsupportedOperationException("fuelBurnTime"); }
 
+    /**
+     * 월드젠 레지스트리(minecraft:worldgen/configured_feature · placed_feature · structure)의 항목 id → 연결 정보(id 순). NMS 호환용.
+     * configured_feature·structure 는 그 항목의 "type"(예: minecraft:tree), placed_feature 는 가리키는 configured_feature id(안에 직접 적었으면 빈 문자열).
+     * 모르는 레지스트리면 빈 맵.
+     */
+    default java.util.Map<String, String> worldgen(String registry) { throw new UnsupportedOperationException("worldgen"); }
+
     /** 항목을 낸 곳: "vanilla", 데이터 팩 id(예: "file/mypack"), "plugin:<이름>". 없거나 내장 목록이면 empty. */
     java.util.Optional<String> source(String registry, String key);
 

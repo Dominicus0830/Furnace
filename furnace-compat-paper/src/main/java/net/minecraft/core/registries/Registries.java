@@ -9,7 +9,7 @@ import net.minecraft.world.level.block.Block;
 /**
  * 레지스트리 키(Mojang 이름 shim, N0). 키만 있다 — 레지스트리 자체는 {@link BuiltInRegistries} 가 가진 것(블록·아이템)만 꺼낼 수 있다.
  * 값 타입 shim 이 아직 없는 레지스트리는 값 타입을 {@code Object} 로 두었다(바이트코드 설명자는 ResourceKey 하나라 바닐라로 컴파일한 플러그인과 링크된다).
- * 키 이름은 Furnace 내장·동기화 레지스트리 목록(registries/*.txt)에 있는 것과 dimension(바닐라 DIMENSION·LEVEL_STEM, 같은 키)만 두었다.
+ * 키 이름은 Furnace 내장·동기화 레지스트리 목록(registries/*.txt)에 있는 것, dimension(바닐라 DIMENSION·LEVEL_STEM, 같은 키), 월드젠(CONFIGURED_FEATURE·PLACED_FEATURE·STRUCTURE)만 두었다.
  */
 public final class Registries {
 
@@ -44,6 +44,9 @@ public final class Registries {
     public static final ResourceKey<Registry<Object>> TRIM_PATTERN = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("trim_pattern"));
     public static final ResourceKey<Registry<Object>> WOLF_VARIANT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("wolf_variant"));
     public static final ResourceKey<Registry<net.minecraft.world.level.biome.Biome>> BIOME = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("worldgen/biome"));
+    public static final ResourceKey<Registry<net.minecraft.world.level.levelgen.feature.ConfiguredFeature<?, ?>>> CONFIGURED_FEATURE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("worldgen/configured_feature"));
+    public static final ResourceKey<Registry<net.minecraft.world.level.levelgen.placement.PlacedFeature>> PLACED_FEATURE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("worldgen/placed_feature"));
+    public static final ResourceKey<Registry<net.minecraft.world.level.levelgen.structure.Structure>> STRUCTURE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("worldgen/structure"));
     public static final ResourceKey<Registry<net.minecraft.world.level.Level>> DIMENSION = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("dimension"));
     public static final ResourceKey<Registry<Object>> LEVEL_STEM = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("dimension"));
 }
