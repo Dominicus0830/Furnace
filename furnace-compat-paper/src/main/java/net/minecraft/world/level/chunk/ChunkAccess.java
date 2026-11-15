@@ -177,9 +177,9 @@ public abstract class ChunkAccess implements BlockGetter {
             }
             if (v != null) return v;
         }
-        throw new org.domi.furnace.api.concurrent.ThreadOwnershipException(what + ": 청크 " + pos.x + ", " + pos.z + " (" + furnaceWorld.dimension()
-                + ") 의 공개 스냅샷이 아직 없다 — 주인 region 이 아닌 스레드는 주인이 틱 끝에 낸 사본을 읽는다. 공개를 부탁했으니 다음 틱부터 읽힌다"
-                + " (현재 " + Thread.currentThread().getName() + ")");
+        throw new org.domi.furnace.api.concurrent.ThreadOwnershipException(what + ": chunk " + pos.x + ", " + pos.z + " (" + furnaceWorld.dimension()
+                + ") has no published snapshot yet - a thread that is not the owning region reads the copy the owner publishes at the end of its tick. Publishing was requested, so it can be read from the next tick"
+                + " (current thread: " + Thread.currentThread().getName() + ")");
     }
 
     /** 지금 스레드가 이 청크의 주인 region 스레드(전역 빌림 구간 포함)인가. */

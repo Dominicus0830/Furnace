@@ -536,7 +536,7 @@ class SchemaPacketBridgeTest {
                 var wide = assertThrows(IllegalArgumentException.class, () -> conn.send(new net.minecraft.network.protocol.game.ClientboundMapItemDataPacket(
                         new net.minecraft.world.level.saveddata.maps.MapId(2), (byte) 0, false, (java.util.Collection) null,
                         new net.minecraft.world.level.saveddata.maps.MapItemSavedData.MapPatch(0, 0, 256, 1, new byte[256]))));
-                assertTrue(wide.getMessage().contains("8비트"), wide.getMessage());
+                assertTrue(wide.getMessage().contains("8 bits"), wide.getMessage());
                 conn.send(new net.minecraft.network.protocol.game.ClientboundSetExperiencePacket(0.25f, 1, 99));
                 return null;
             });

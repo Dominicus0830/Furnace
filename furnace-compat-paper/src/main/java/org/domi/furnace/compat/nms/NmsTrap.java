@@ -32,11 +32,11 @@ public final class NmsTrap {
                 "Not in the Furnace NMS shim: " + target + " - " + why + " (plugin=" + plugin + ", call site=" + site + ")");
         if (otherVersionSite(site)) {
             // 다른 버전용 모듈(버전 고르기가 찔러 보는 v1_21_9·v26_1 어댑터 등) 안의 호출은 1.21.1 몫이 아니다 — 같은 대상의 1.21.1 몫 경고는 남겨 둔다
-            LOG.debug("미지원 NMS 호출(다른 버전 모듈): 플러그인={}, 호출 위치={}, 대상={}", plugin, site, target);
+            LOG.debug("Unsupported NMS call (other version module): plugin={}, call site={}, target={}", plugin, site, target);
         } else if (WARNED.add(plugin + '\0' + target)) {
             LOG.warn(CompatLang.t("compat.nms-unsupported-call", plugin, site, target, why));
         } else {
-            LOG.debug("미지원 NMS 호출: 플러그인={}, 호출 위치={}, 대상={}", plugin, site, target);
+            LOG.debug("Unsupported NMS call: plugin={}, call site={}, target={}", plugin, site, target);
         }
         throw e;
     }

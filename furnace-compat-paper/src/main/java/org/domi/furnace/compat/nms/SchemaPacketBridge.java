@@ -489,8 +489,8 @@ public final class SchemaPacketBridge {
         m.put("color_patch", ((Optional<?>) need(v[4], at + ".colorPatch")).map(o -> {
             var c = (net.minecraft.world.level.saveddata.maps.MapItemSavedData.MapPatch) o;
             if (c.width() != 0 && (c.width() & 0xFF) == 0) {
-                throw new IllegalArgumentException(at + ".colorPatch: width " + c.width() + " 이 바닐라 writeByte 처럼 아래 8비트로 잘려 0(= 조각 없음)이 된다"
-                        + " — 바닐라도 클라이언트가 남는 바이트로 끊긴다(검토 PR #267 R4)");
+                throw new IllegalArgumentException(at + ".colorPatch: width " + c.width() + " is truncated to its low 8 bits like vanilla writeByte and becomes 0 (= no patch)"
+                        + " - vanilla also disconnects the client on the leftover bytes");
             }
             LinkedHashMap<String, Object> e = new LinkedHashMap<>();
             e.put("width", c.width() & 0xFF);
@@ -742,8 +742,8 @@ public final class SchemaPacketBridge {
             if (key.isPresent()) {
                 var loc = key.get().location();
                 if (registry.equals("SoundEvent") && !net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.containsKey(loc)) {
-                    throw new IllegalArgumentException(at + ": 소리 레지스트리에 없는 Reference 다(바닐라도 번호를 못 찾아 인코딩이 실패한다) — "
-                            + "리소스 팩 소리는 Holder.direct(SoundEvent.createVariableRangeEvent(…)) 로 보낸다: " + loc);
+                    throw new IllegalArgumentException(at + ": a Reference that is not in the sound registry (vanilla also fails to encode it, no id found) - "
+                            + "send resource pack sounds as Holder.direct(SoundEvent.createVariableRangeEvent(...)): " + loc);
                 }
                 return loc.toString();
             }
@@ -759,8 +759,8 @@ public final class SchemaPacketBridge {
                 return loc.toString();
             }
             if (h.value() != null) {
-                throw new IllegalArgumentException(at + ": " + registry + " 직접 정의 — 바닐라는 값이 레지스트리에 있으면 그 번호로 보내지만 Furnace 는 아직 이 레지스트리 값을 찾지 못한다."
-                        + " Holder.Reference 로 보낸다: " + v);
+                throw new IllegalArgumentException(at + ": " + registry + " direct definition - vanilla sends the registry id when the value is in the registry, but Furnace cannot find values of this registry yet."
+                        + " Send it as a Holder.Reference: " + v);
             }
         }
         throw new IllegalArgumentException(at + ": " + registry + " Holder 가 아니거나 값이 없다: " + v);

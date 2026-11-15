@@ -218,7 +218,7 @@ public class CompatInventoryView implements InventoryView {
 
         @Override
         public int getEnchantmentSeed() {
-            throw new UnsupportedFeature("EnchantmentView#getEnchantmentSeed", "the Furnace API does not tell the enchantment seed of the player");
+            throw new UnsupportedFeature("EnchantmentView#getEnchantmentSeed", "the Furnace API does not expose the enchantment seed of the player");
         }
 
         @Override
@@ -227,7 +227,7 @@ public class CompatInventoryView implements InventoryView {
         }
 
         private org.bukkit.enchantments.EnchantmentOffer[] offers(String what) {
-            if (offers == null) throw new UnsupportedFeature(what, "offers are only told while Furnace decides them (PrepareItemEnchantEvent)");
+            if (offers == null) throw new UnsupportedFeature(what, "offers are only exposed while Furnace decides them (PrepareItemEnchantEvent)");
             return offers;
         }
 

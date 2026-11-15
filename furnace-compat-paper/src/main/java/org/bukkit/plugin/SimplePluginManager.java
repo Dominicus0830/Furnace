@@ -129,8 +129,8 @@ public final class SimplePluginManager implements PluginManager {
     @Override
     public Plugin loadPlugin(File file) throws InvalidPluginException {
         if (file == null) throw new IllegalArgumentException("File cannot be null");
-        throw new InvalidPluginException("Furnace 는 서버가 도는 중에 플러그인 jar 를 새로 불러오지 않는다(" + file
-                + ") — plugins/ 에 두고 서버를 다시 켜거나, 개발 모드에서 /plugins reload <이름> 을 쓴다");
+        throw new InvalidPluginException("Furnace does not load new plugin jars while the server is running (" + file
+                + ") - put it in plugins/ and restart the server, or use /plugins reload <name> in development mode");
     }
 
     /** Paper 처럼 오류는 던지지 않고 로그에 남긴다 — 불러온 것이 없으니 빈 배열. */
@@ -286,7 +286,7 @@ public final class SimplePluginManager implements PluginManager {
     @Override
     public void registerEvent(Class<? extends Event> event, Listener listener, EventPriority priority, EventExecutor executor, Plugin plugin,
                               boolean ignoreCancelled) {
-        if (listener == null || priority == null || executor == null || plugin == null) throw new IllegalArgumentException("registerEvent 인자가 null");
+        if (listener == null || priority == null || executor == null || plugin == null) throw new IllegalArgumentException("registerEvent argument is null");
         if (!plugin.isEnabled()) throw new IllegalPluginAccessException("Plugin attempted to register " + event + " while not enabled");
         BukkitPluginAdapter owner = CompatPluginManager.adapter(plugin);
         Class<? extends Event> owning = CompatPluginManager.registrationClass(event);

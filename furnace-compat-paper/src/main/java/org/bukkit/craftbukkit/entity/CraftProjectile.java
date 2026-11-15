@@ -45,13 +45,13 @@ public class CraftProjectile extends CraftEntity implements Projectile {
     public void setShooter(ProjectileSource source) { throw new UnsupportedFeature("Projectile#setShooter", "the Furnace handle has no way yet to change the owner of a projectile"); }
 
     @Override
-    public boolean hasLeftShooter() { throw new UnsupportedFeature("Projectile#hasLeftShooter", "the Furnace handle does not tell whether the projectile has left its shooter"); }
+    public boolean hasLeftShooter() { throw new UnsupportedFeature("Projectile#hasLeftShooter", "the Furnace handle does not report whether the projectile has left its shooter"); }
 
     @Override
     public void setHasLeftShooter(boolean leftShooter) { throw new UnsupportedFeature("Projectile#setHasLeftShooter", "the Furnace handle has no way to write this yet"); }
 
     @Override
-    public boolean hasBeenShot() { throw new UnsupportedFeature("Projectile#hasBeenShot", "the Furnace handle does not tell whether it has been shot"); }
+    public boolean hasBeenShot() { throw new UnsupportedFeature("Projectile#hasBeenShot", "the Furnace handle does not report whether it has been shot"); }
 
     @Override
     public void setHasBeenShot(boolean beenShot) { throw new UnsupportedFeature("Projectile#setHasBeenShot", "the Furnace handle has no way to write this yet"); }

@@ -105,7 +105,7 @@ class SnapshotInventory extends CompatInventory {
                 return CompletableFuture.completedFuture(null);
             }
             return CompletableFuture.failedFuture(new UnsupportedFeature("Inventory#setItem(" + type + ")",
-                    "the Furnace inventory event does not tell the block or entity of that window, so this slot cannot be written - cancel the event or write with the Furnace block API"));
+                    "the Furnace inventory event does not expose the block or entity of that window, so this slot cannot be written - cancel the event or write with the Furnace block API"));
         }
 
         @Override

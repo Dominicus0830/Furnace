@@ -289,7 +289,7 @@ class PluginProfilerTest {
         assertTrue(lines.get(0).contains("measured 10.0 s") && lines.get(0).contains("measuring"), lines.get(0));
         // 10초 = 틱 200개 → 100ms / 200 = 0.5ms
         assertEquals("1. Alpha: 100.00 ms (0.500 ms per tick), calls 4 - region 90.00 / global 10.00 / other 0.00", lines.get(1));
-        assertEquals("   listener PlayerMoveEvent a.B.on: calls 4, self 100.00 ms (including inner 120.00), average 25000.0 µs, max 60.00 ms, over 50 ms: 1 times",
+        assertEquals("   listener PlayerMoveEvent a.B.on: calls 4, self 100.00 ms (including inner 120.00), average 25000.0 µs, max 60.00 ms, over 50 ms: 1x",
                 lines.get(2));
         assertEquals(lines.subList(1, 3), TimingsCommands.detail(r, "alpha").stream().map(t -> t.getString()).toList().subList(1, 3), "이름은 대소문자 무시");
         assertTrue(TimingsCommands.detail(r, "none").get(1).getString().contains("No record for"));

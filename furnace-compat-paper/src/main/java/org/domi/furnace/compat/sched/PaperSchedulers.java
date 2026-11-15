@@ -24,6 +24,7 @@ import org.domi.furnace.api.sched.TaskScheduler;
 import org.domi.furnace.api.world.BlockPos;
 import org.domi.furnace.api.world.Location;
 import org.domi.furnace.api.world.World;
+import org.domi.furnace.compat.i18n.CompatLang;
 
 public final class PaperSchedulers implements AutoCloseable {
 
@@ -239,7 +240,7 @@ public final class PaperSchedulers implements AutoCloseable {
                     try {
                         retired.run();
                     } catch (Throwable t) {
-                        h.plugin.logger().log(Level.WARNING, "retired callback threw an exception", t);
+                        h.plugin.logger().log(Level.WARNING, CompatLang.t("compat.retired-callback-failed"), t);
                     }
                 }
             };

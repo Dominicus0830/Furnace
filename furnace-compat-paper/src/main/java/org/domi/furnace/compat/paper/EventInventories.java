@@ -78,7 +78,7 @@ final class EventInventories {
     }
 
     static UnsupportedFeature anvilUnknown(String what) {
-        return new UnsupportedFeature(what, "anvil cost and name are only told while Furnace decides the anvil result (PrepareAnvilEvent)");
+        return new UnsupportedFeature(what, "anvil cost and name are only exposed while Furnace decides the anvil result (PrepareAnvilEvent)");
     }
 
     static UnsupportedFeature anvilFixed(String what) {
