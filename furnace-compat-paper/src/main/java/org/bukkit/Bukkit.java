@@ -101,6 +101,8 @@ public final class Bukkit {
 
     public static int getViewDistance() { return s().getViewDistance(); }
 
+    public static io.papermc.paper.datapack.DatapackManager getDatapackManager() { return s().getDatapackManager(); }
+
     public static int getSimulationDistance() { return s().getSimulationDistance(); }
 
     public static BukkitScheduler getScheduler() { return s().getScheduler(); }
