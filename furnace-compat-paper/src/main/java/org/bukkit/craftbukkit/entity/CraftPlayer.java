@@ -22,6 +22,20 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
     @Override
     public com.destroystokyo.paper.profile.PlayerProfile getPlayerProfile() { return new com.destroystokyo.paper.profile.CraftPlayerProfile(this); }
 
+    /**
+     * Paper setPlayerProfile: asAuthlibCopy 처럼 빈 id 는 NIL UUID, 빈 이름은 "" 로 복사해 넘긴다(고친 프로필 객체는 이어지지 않는다).
+     * 적용(관찰자 재등록·본인 갱신)은 서버가 소유 스레드에서 한다.
+     */
+    @Override
+    public void setPlayerProfile(com.destroystokyo.paper.profile.PlayerProfile profile) {
+        java.util.Objects.requireNonNull(profile, "profile");
+        java.util.UUID id = profile.getId() != null ? profile.getId() : new java.util.UUID(0L, 0L);
+        String name = profile.getName() != null ? profile.getName() : "";
+        java.util.List<org.domi.furnace.api.entity.ProfileProperty> props = new java.util.ArrayList<>();
+        for (var q : profile.getProperties()) props.add(new org.domi.furnace.api.entity.ProfileProperty(q.getName(), q.getValue(), q.getSignature()));
+        handle.profile(new org.domi.furnace.api.entity.ProfileData(id, name, props));
+    }
+
     /** 호환 모듈 전용 — 이 플레이어의 Furnace 핸들(접속 동안 같다). */
     @Override
     public org.domi.furnace.api.entity.Player furnaceHandle() { return handle; }

@@ -104,6 +104,16 @@ final class Mappings {
                     var from = Compat.world(f.from());
                     return from == null ? null : new org.bukkit.event.player.PlayerChangedWorldEvent(p(f.player()), from);
                 }, (f, b) -> {});
+        EventBridge.reg(org.domi.furnace.api.event.player.PlayerShowEntityEvent.class, org.bukkit.event.player.PlayerShowEntityEvent.class,
+                f -> {
+                    var e = Compat.entity(f.entity());
+                    return e == null ? null : new org.bukkit.event.player.PlayerShowEntityEvent(p(f.player()), e);
+                }, (f, b) -> {});
+        EventBridge.reg(org.domi.furnace.api.event.player.PlayerHideEntityEvent.class, org.bukkit.event.player.PlayerHideEntityEvent.class,
+                f -> {
+                    var e = Compat.entity(f.entity());
+                    return e == null ? null : new org.bukkit.event.player.PlayerHideEntityEvent(p(f.player()), e);
+                }, (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerGameModeChangeEvent.class, org.bukkit.event.player.PlayerGameModeChangeEvent.class,
                 f -> new org.bukkit.event.player.PlayerGameModeChangeEvent(p(f.player()), GameMode.valueOf(f.newGameMode().name())), (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerToggleSneakEvent.class, org.bukkit.event.player.PlayerToggleSneakEvent.class,

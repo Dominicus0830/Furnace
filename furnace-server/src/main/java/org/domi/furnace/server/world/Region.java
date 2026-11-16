@@ -3124,10 +3124,10 @@ public final class Region {
 
     /** 탭 목록에 올려둔 eid가 있으면 PlayerInfoRemove로 빼고 기록을 지운다. */
     private static void removeFromTabList(Player a, int eid) {
-        java.util.UUID uuid = a.listed().remove(eid);
+        Player.Listed was = a.listed().remove(eid);
         a.tabEpoch = -1;   // 다음 동기화에서 다시 훑는다(아직 접속 중이면 다시 올린다)
         a.missingTicks().remove(eid);
-        if (uuid != null) a.send(new PlayerInfoRemove(java.util.List.of(uuid)));
+        if (was != null) a.send(new PlayerInfoRemove(java.util.List.of(was.uuid())));
     }
 
     /**
@@ -3522,7 +3522,7 @@ public final class Region {
             if (b == null || b.isDisconnected() || b != a && !org.domi.furnace.server.entity.view.EntityViewRules.canSee(a, b.uuid())) {   // 퇴장 또는 플러그인이 숨김(Bukkit hidePlayer 처럼 탭에서도 뺀다)
                 if (stopTracking(a, e.getKey())) a.send(new RemoveEntities(java.util.List.of(e.getKey())));
                 a.missingTicks().remove(e.getKey());
-                gone.add(e.getValue());
+                gone.add(e.getValue().uuid());
                 it.remove();
             }
         }
@@ -3531,15 +3531,64 @@ public final class Region {
         for (Player b : world.onlinePlayers()) {
             if (b.isDisconnected() || b.tabListingHeld()   // 조인 이벤트가 끝나기 전 — 보류를 풀 때 번호가 올라 다음 틱에 올린다
                     || b != a && !org.domi.furnace.server.entity.view.EntityViewRules.canSee(a, b.uuid())) continue;
-            if (a.listed().putIfAbsent(b.entityId(), b.uuid()) == null) {
+            Player.ProfileState st = b.profileState();   // 한 번 읽어 이름·속성·세대를 같은 묶음에서
+            Player.Listed was = a.listed().get(b.entityId());
+            if (was == null) {
+                a.listed().put(b.entityId(), new Player.Listed(b.uuid(), st.generation()));
                 if (add == null) add = new ArrayList<>();
-                var session = b.chat().session();
-                add.add(new PlayerInfoUpdate.Entry(b.uuid(), b.name(), b.profileProperties(), session == null ? null : session.asData(),
-                        b.gameMode().id(), b.latencyMs()));
+                add.add(tabEntry(b, st, b.uuid()));
+            } else if (was.generation() != st.generation()) {
+                // 다른 region·월드에서 프로필이 바뀌었다(Paper setPlayerProfile 은 canSee 인 모두에게): 엔티티·탭을 엔티티 UUID 로 빼고
+                // 새 프로필 id 로 다시 올린다(trackAndShowEntity 의 uuid 덮어쓰기). 보고 있었다면 이어지는 가시성 갱신이 다시 스폰한다.
+                if (stopTracking(a, b.entityId())) a.send(new RemoveEntities(java.util.List.of(b.entityId())));
+                a.send(new PlayerInfoRemove(java.util.List.of(was.uuid())));
+                a.listed().put(b.entityId(), new Player.Listed(b.uuid(), st.generation()));
+                a.send(new PlayerInfoUpdate(java.util.List.of(tabEntry(b, st, st.profile().id()))));
+                world.levelServices().gameEvents().playerShowPlayer(a, b);   // Paper trackAndShowEntity → PlayerShowEntityEvent
             }
         }
         if (add != null) a.send(new PlayerInfoUpdate(add));
         a.tabEpoch = epoch;
+    }
+
+    /** 탭 항목(createPlayerInitializing): UUID 칸은 보통 엔티티 UUID, 프로필을 바꿔 다시 올릴 때만 새 프로필 id(Paper uuid 덮어쓰기). */
+    public static PlayerInfoUpdate.Entry tabEntry(Player b, Player.ProfileState st, UUID uuid) {
+        var session = b.chat().session();
+        return new PlayerInfoUpdate.Entry(uuid, st.profile().name(), st.profile().properties(), session == null ? null : session.asData(),
+                b.gameMode().id(), b.latencyMs());
+    }
+
+    /**
+     * Paper CraftPlayer.setPlayerProfile(소유 스레드, 접속 탭을 보낸 뒤): 이 region 에서 대상을 볼 수 있는 모두(본인 포함)에게서 엔티티·탭 항목을
+     * 빼고({@code unregisterEntity}: 보고 있었으면 RemoveEntities, 늘 PlayerInfoRemove(엔티티 UUID)) → 프로필 교체 → 같은 사람들에게 새 프로필 id 로
+     * 탭을 다시 올리고 시야 안이면 그 자리에서 엔티티 UUID 로 스폰 → PlayerShowEntityEvent → 본인 화면 갱신(refreshPlayer). 엔티티를 볼 수 있는
+     * 관찰자는 모두 같은 region 이라 같은 틱에 끝난다. 다른 region·월드 관찰자는 세대가 어긋난 탭 항목을 다음 틱에 다시 올린다({@link #syncTabList}).
+     */
+    public void applyProfileChange(Player t, org.domi.furnace.server.players.GameProfile profile) {
+        assert ownsPlayer(t);
+        int eid = t.entityId();
+        List<Player> viewers = new ArrayList<>();
+        for (Player v : players.values()) {
+            // 접속 탭을 아직 안 받은 관찰자는 빼 둔다(그 접속 탭이 새 프로필로 올린다). 지금은 보류가 region 편입 전에 풀려 닿지 않는 지킴이다.
+            if (v.isDisconnected() || v.tabListingHeld()) continue;
+            if (v == t || org.domi.furnace.server.entity.view.EntityViewRules.canSee(v, t.uuid())) viewers.add(v);
+        }
+        for (Player v : viewers) {   // 옛 프로필로 등록된 것을 모두 뺀다
+            if (stopTracking(v, eid)) v.send(new RemoveEntities(java.util.List.of(eid)));
+            v.listed().remove(eid);
+            v.missingTicks().remove(eid);
+            v.send(new PlayerInfoRemove(java.util.List.of(t.uuid())));
+        }
+        Player.ProfileState st = t.swapProfile(profile);
+        EntityView tv = EntityView.of(t);
+        double range = playerTrackRange();
+        for (Player v : viewers) {   // 새 프로필로 다시 등록
+            v.listed().put(eid, new Player.Listed(t.uuid(), st.generation()));
+            v.send(new PlayerInfoUpdate(java.util.List.of(tabEntry(t, st, st.profile().id()))));
+            if (v != t && seesPlayerEntity(v, tv, range)) spawnPlayerFor(v, tv);
+            world.levelServices().gameEvents().playerShowPlayer(v, t);
+        }
+        t.refreshAfterProfileChange();
     }
 
     /** 바닐라처럼 600틱마다 접속자 전원의 핑을 모든 플레이어에게 갱신해 보낸다. */
@@ -3569,17 +3618,14 @@ public final class Region {
 
     private void updateVisibility(Player a, List<EntityView> candidates) {
         syncTabList(a);
-        // 바닐라 TrackedEntity.updatePlayer: min(플레이어 추적 거리 × 방송 비율, 시야 × 16). 플레이어 추적 거리는 바닐라 512, Paper 기본 128(T-122)
-        int playerRange = org.domi.furnace.server.config.EntityHandleSettings.current().playerRange() * world.levelServices().entityBroadcastRangePercentage() / 100;
-        double range = Math.min(world.effectiveEntityChunks() * 16.0, playerRange);
+        double range = playerTrackRange();
         java.util.Set<Integer> seen = new java.util.HashSet<>();
         // 바닐라 ChunkMap.removeEntity → TrackedEntity.removePlayer: 죽고 20틱 뒤 추적에서 빠진 관찰자는 보던 플레이어를 모두 잃고 새로 보지 못한다
-        boolean observerUntracked = a.chunkUntracked();
         for (EntityView b : candidates) {
             if (b.entityId() == a.entityId()) continue;
             seen.add(b.entityId());
             if (world.onlinePlayer(b.entityId()) == null) continue;   // 이미 퇴장 처리된 플레이어는 (재)스폰하지 않는다
-            boolean near = !observerUntracked && !b.removed() && within(a, b, range) && org.domi.furnace.server.entity.view.EntityViewRules.canSee(a, b.uuid());   // 사망 후 제거된 엔티티·플러그인이 숨긴 플레이어는 보이지 않는다
+            boolean near = seesPlayerEntity(a, b, range);
             boolean tracking = a.tracked().containsKey(b.entityId());
             double[] tr = tracking ? a.tracked().get(b.entityId()) : null;
             if (near && tracking && ((int) tr[5] != b.generation() || (long) tr[7] != org.domi.furnace.server.entity.view.EntityViewRules.epochFor(a, b.uuid()))) {
@@ -3590,22 +3636,7 @@ public final class Region {
             }
             if (near && !tracking) {
                 if (!a.listed().containsKey(b.entityId())) continue;   // syncTabList가 올리지 않은(퇴장 경합) 대상은 스폰 안 함
-                // ServerEntity.addPairing: 생성 묶음은 바닐라처럼 번들 하나로(맨몸·기본 모습·변장 전 모습이 한 프레임 보이지 않게)
-                var bundle = new java.util.ArrayList<org.domi.furnace.server.net.protocol.Packet>(6);
-                bundle.add(new SpawnEntity(b.entityId(), b.uuid(), b.x(), b.y(), b.z(), b.yaw(), b.pitch()));
-                bundle.add(new SetHeadRotation(b.entityId(), b.yaw()));
-                Player bp = world.onlinePlayer(b.entityId());   // ServerEntity.sendPairingData: 탄 플레이어면 탈것의 승객 목록
-                var bd = bp == null ? null : bp.pairingData();   // 웅크림·자세·사용 중(활·방패·먹기) 손 비트
-                if (bd != null) bundle.add(bd);
-                var ba = bp == null ? null : bp.pairingAttributes();   // 속성(update_attributes) — 엔티티 데이터 다음, 장비 앞
-                if (ba != null) bundle.add(ba);
-                var be = bp == null ? null : bp.pairingEquipment();   // 든 아이템·방어구(set_equipment)
-                if (be != null) bundle.add(be);
-                var bv = bp == null ? null : bp.vehicle();
-                if (bv != null) bundle.add(org.domi.furnace.server.net.protocol.play.SetPassengers.of(bv));
-                a.sendBundle(bundle);
-                startTracking(a, b.entityId(), new double[]{b.x(), b.y(), b.z(), b.yaw(), b.pitch(), b.generation(), headRotp(b.yaw()),
-                        org.domi.furnace.server.entity.view.EntityViewRules.epochFor(a, b.uuid())});
+                spawnPlayerFor(a, b);
             } else if (!near && tracking) {
                 a.send(new RemoveEntities(java.util.List.of(b.entityId())));
                 stopTracking(a, b.entityId());
@@ -3635,6 +3666,36 @@ public final class Region {
     static boolean fitsDelta(double d) {
         long v = Math.round(d * 4096);
         return v >= Short.MIN_VALUE && v <= Short.MAX_VALUE;
+    }
+
+    /** 바닐라 TrackedEntity.updatePlayer: min(플레이어 추적 거리 × 방송 비율, 시야 × 16). 플레이어 추적 거리는 바닐라 512, Paper 기본 128(T-122). */
+    private double playerTrackRange() {
+        int playerRange = org.domi.furnace.server.config.EntityHandleSettings.current().playerRange() * world.levelServices().entityBroadcastRangePercentage() / 100;
+        return Math.min(world.effectiveEntityChunks() * 16.0, playerRange);
+    }
+
+    /** 관찰자 a 가 플레이어 b 의 엔티티를 볼 수 있는가(관찰자 쪽 추적 해제는 부르는 쪽이 본다). 사망 후 제거된 엔티티·플러그인이 숨긴 플레이어는 보이지 않는다. */
+    private boolean seesPlayerEntity(Player a, EntityView b, double range) {
+        return !a.chunkUntracked() && !b.removed() && within(a, b, range) && org.domi.furnace.server.entity.view.EntityViewRules.canSee(a, b.uuid());
+    }
+
+    /** ServerEntity.addPairing: 생성 묶음은 바닐라처럼 번들 하나로(맨몸·기본 모습·변장 전 모습이 한 프레임 보이지 않게). 스폰은 늘 엔티티 UUID. */
+    private void spawnPlayerFor(Player a, EntityView b) {
+        var bundle = new java.util.ArrayList<org.domi.furnace.server.net.protocol.Packet>(6);
+        bundle.add(new SpawnEntity(b.entityId(), b.uuid(), b.x(), b.y(), b.z(), b.yaw(), b.pitch()));
+        bundle.add(new SetHeadRotation(b.entityId(), b.yaw()));
+        Player bp = world.onlinePlayer(b.entityId());   // ServerEntity.sendPairingData: 탄 플레이어면 탈것의 승객 목록
+        var bd = bp == null ? null : bp.pairingData();   // 웅크림·자세·사용 중(활·방패·먹기) 손 비트
+        if (bd != null) bundle.add(bd);
+        var ba = bp == null ? null : bp.pairingAttributes();   // 속성(update_attributes) — 엔티티 데이터 다음, 장비 앞
+        if (ba != null) bundle.add(ba);
+        var be = bp == null ? null : bp.pairingEquipment();   // 든 아이템·방어구(set_equipment)
+        if (be != null) bundle.add(be);
+        var bv = bp == null ? null : bp.vehicle();
+        if (bv != null) bundle.add(org.domi.furnace.server.net.protocol.play.SetPassengers.of(bv));
+        a.sendBundle(bundle);
+        startTracking(a, b.entityId(), new double[]{b.x(), b.y(), b.z(), b.yaw(), b.pitch(), b.generation(), headRotp(b.yaw()),
+                org.domi.furnace.server.entity.view.EntityViewRules.epochFor(a, b.uuid())});
     }
 
     private static boolean within(Player a, EntityView b, double range) {
