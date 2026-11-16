@@ -1,6 +1,7 @@
 package org.domi.furnace.compat.nms;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -109,7 +110,7 @@ class NmsSideEffectsTest {
     /** 장면 번호 k 의 두 자리(A, B) 원점 — 서로 떨어져 서로의 물·신호가 닿지 않는다. */
     BlockPos siteA(int k) { return new BlockPos(baseX + 4, Y, baseZ + 8 + 10 * (k - 4)); }
 
-    BlockPos siteB(int k) { return new BlockPos(baseX + 4 + 24, Y, baseZ + 8 + 10 * (k - 4)); }
+    BlockPos siteB(int k) { return new BlockPos(baseX + 4 + 32, Y, baseZ + 8 + 10 * (k - 4)); }   // A 와 청크 안 위치가 같다
 
     void platform(BlockPos o) {
         for (int dz = -2; dz <= 2; dz++)
@@ -281,5 +282,98 @@ class NmsSideEffectsTest {
         server.tick(6);
         assertArrayEquals(box(a), box(b), "다른 스레드 조각 = setBlock");
         assertNotEquals(Blocks.REDSTONE_WIRE.defaultBlockState().furnaceStateId(), truth(b.getX(), Y + 1, b.getZ()), "선이 켜졌다");
+    }
+
+    /** 두 칸의 청크를 같은 region 이 가졌는가. */
+    boolean sameOwner(BlockPos p, BlockPos q) {
+        return on(p, () -> server.internals().world().regionizer().ownerOf(p.getX() >> 4, p.getZ() >> 4)
+                == server.internals().world().regionizer().ownerOf(q.getX() >> 4, q.getZ() >> 4));
+    }
+
+    /** 청크 경계를 사이에 둔 (원천, 등) 두 칸 — 같은 region 의 것. */
+    BlockPos[] acrossChunkEdge(int z) {
+        BlockPos src = new BlockPos(baseX + 15, Y, z), lamp = src.east();
+        if (!sameOwner(src, lamp)) {
+            src = new BlockPos(baseX, Y, z);
+            lamp = src.west();
+        }
+        assertTrue(sameOwner(src, lamp), "경계 두 청크가 같은 region");
+        return new BlockPos[] {src, lamp};
+    }
+
+    /**
+     * 맞춤 지점(검토 #472): 주인 스레드가 자기 작업 안에서 다른 스레드의 이웃 청크 쓰기(거울 일지)를 기다린 뒤 바로 이웃 갱신을 부르면, 그 쓰기의 맞춤 작업은
+     * 아직 돌지 않았다. 효과 전 둘레 청크 맞춤이 그 쓰기를 먼저 서버에 넣어 옆 청크의 등이 켜진다(맞춤을 빼면 공기에 알려 등이 꺼진 채 남는다).
+     */
+    @Test
+    void neighborChunkSyncedBeforeEffect() throws Exception {
+        BlockPos[] e = acrossChunkEdge(baseZ + 48);
+        BlockPos src = e[0], lamp = e[1];
+        quiet(src, Blocks.REDSTONE_BLOCK.defaultBlockState());
+        server.tick(2);
+        LevelChunk lampChunk = on(lamp, () -> level.getChunkAt(lamp));
+        BlockState unlit = Blocks.REDSTONE_LAMP.defaultBlockState();
+        var err = new Throwable[1];
+        run(src, () -> {
+            Thread t = new Thread(() -> {
+                try {
+                    lampChunk.setBlockState(lamp, unlit, false);   // 다른 스레드 — 거울 일지(맞춤 작업은 이 주인 작업 뒤에 줄 선다)
+                } catch (Throwable ex) {
+                    err[0] = ex;
+                }
+            }, "worker");
+            t.start();
+            try {
+                t.join(5_000);
+            } catch (InterruptedException ex) {
+                throw new AssertionError(ex);
+            }
+            assertFalse(t.isAlive(), "다른 스레드 쓰기는 주인을 기다리지 않는다");
+            level.updateNeighborsAt(src, Blocks.REDSTONE_BLOCK);   // 주인 스레드 — 바로
+        });
+        if (err[0] != null) throw new AssertionError(err[0]);
+        server.tick(2);
+        int got = truth(lamp.getX(), lamp.getY(), lamp.getZ());
+        assertEquals(Blocks.REDSTONE_LAMP, Block.stateById(got).getBlock(), "등이 놓였다");
+        assertNotEquals(unlit.furnaceStateId(), got, "옆 청크의 등이 켜졌다");
+    }
+
+    /** 값 없는 조각의 가장자리 규칙: 로드 안 된 원점은 무시, 가짜 레벨은 UnsupportedNmsCall, 다른 region 스레드는 넘기고 돌아와 주인이 한다, 실패는 한 번 경고. */
+    @Test
+    void voidEffectEdges() throws Exception {
+        // 로드 안 된 원점: 어느 스레드든 아무것도 하지 않는다
+        BlockPos unloaded = new BlockPos(baseX + 90_000, Y, baseZ);
+        assertDoesNotThrow(() -> level.updateNeighborsAt(unloaded, Blocks.STONE));
+        BlockPos o = siteA(6);
+        assertDoesNotThrow(() -> run(o, () -> level.updateNeighborsAt(unloaded, Blocks.STONE)));
+
+        // 가짜 레벨(FAWE 의 PaperweightLevelProxy 처럼 생성자 없이 만든 ServerLevel — 월드가 없다)
+        var uf = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+        uf.setAccessible(true);
+        ServerLevel fake = (ServerLevel) ((sun.misc.Unsafe) uf.get(null)).allocateInstance(ServerLevel.class);
+        assertThrows(UnsupportedNmsCall.class, () -> fake.updateNeighborsAt(o, Blocks.STONE));
+        assertThrows(UnsupportedNmsCall.class, () -> Blocks.NOTE_BLOCK.defaultBlockState().triggerEvent(fake, o, 0, 0));
+
+        // 다른 region 스레드: 기다리지 않고 넘긴다 — 다음 틱에 주인이 이웃 갱신을 해 등이 켜진다
+        BlockPos[] e = acrossChunkEdge(baseZ + 58);
+        BlockPos src = e[0], lamp = e[1];
+        quiet(src, Blocks.REDSTONE_BLOCK.defaultBlockState());
+        quiet(lamp, Blocks.REDSTONE_LAMP.defaultBlockState());
+        server.tick(2);
+        assertEquals(Blocks.REDSTONE_LAMP.defaultBlockState().furnaceStateId(), truth(lamp.getX(), Y, lamp.getZ()), "조용히 깐 등은 꺼져 있다");
+        BlockPos far = new BlockPos(baseX + 4000, Y, baseZ);
+        server.loadChunk(far.getX() >> 4, far.getZ() >> 4);
+        assertDoesNotThrow(() -> run(far, () -> level.updateNeighborsAt(src, Blocks.REDSTONE_BLOCK)));
+        server.tick(2);
+        assertNotEquals(Blocks.REDSTONE_LAMP.defaultBlockState().furnaceStateId(), truth(lamp.getX(), Y, lamp.getZ()), "주인이 넘겨받아 등이 켜졌다");
+
+        // 넘긴 작업이 주인에서 실패하면 플러그인·조각마다 한 번 경고
+        NmsEffects.resetWarnings();
+        BlockPos p = o.offset(0, 1, 0);
+        Thread t = new Thread(() -> NmsEffects.run(level, p, NmsEffects.ON_PLACE, -5, 0, 0, 0L, "test#badState"), "worker");
+        t.start();
+        t.join(5_000);
+        for (int i = 0; i < 100 && !NmsEffects.warned("test#badState"); i++) server.tick();
+        assertTrue(NmsEffects.warned("test#badState"), "실패 경고");
     }
 }
