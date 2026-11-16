@@ -78,3 +78,4 @@ jvm.args
 
 # 서버 콘솔 명령 기록(JLine)
 .console_history
+__pycache__/
