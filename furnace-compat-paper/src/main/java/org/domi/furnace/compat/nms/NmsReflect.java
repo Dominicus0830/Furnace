@@ -215,11 +215,22 @@ public final class NmsReflect {
     private static void memberMissing(String plugin, Class<?> owner, String member) {
         if (owner == null || !NmsSymbols.isNms(owner.getName().replace('.', '/'))) return;
         String target = owner.getName() + "#" + member;
-        if (WARNED.add(plugin + "\0" + target)) {
+        if (absentInPaper(owner, member)) {
+            // 진짜 Paper 1.21.1 에도 없는 이름(옛 판 이름·기능 감지용 후보)이라 같은 예외가 나는 것이다 — 구멍이 아니므로 경고하지 않는다
+            LOG.debug("Plugin {}: the NMS member {} does not exist in Paper 1.21.1 either", plugin, target);
+        } else if (WARNED.add(plugin + "\0" + target)) {
             LOG.warn(CompatLang.t("compat.nms-member-not-found", plugin, target));
         } else {
             LOG.debug("플러그인 {}: NMS 멤버 {} 없음", plugin, target);
         }
+    }
+
+    /** 그 멤버 이름이 진짜 Paper 1.21.1 의 그 클래스(와 조상)에도 없다고 확실히 아는가(표가 모르면 false). 생성자·알 수 없는 꼴은 늘 false. */
+    static boolean absentInPaper(Class<?> owner, String member) {
+        if (member.startsWith("<")) return false;
+        int paren = member.indexOf('(');
+        Boolean has = paren < 0 ? NmsPaperMembers.hasField(owner.getName(), member) : NmsPaperMembers.hasMethod(owner.getName(), member.substring(0, paren));
+        return has != null && !has;
     }
 
     // ------------------------------------------------------------------ Spigot 이름 (H7d)
