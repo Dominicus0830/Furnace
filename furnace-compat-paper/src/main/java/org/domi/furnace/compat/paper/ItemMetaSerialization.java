@@ -1,8 +1,9 @@
 // ItemMeta ↔ 설정 맵(Paper 1.21.1 의 {@code ==: ItemMeta} 모양). 키 이름·값 모양은 Paper 를 따른다:
 // meta-type, display-name·item-name·lore(JSON 문자열), custom-model-data, enchants, repair-cost, ItemFlags, hide-tool-tip, Unbreakable,
 // enchantment-glint-override, fire-resistant, max-stack-size, rarity, Damage, max-damage, unhandled·removed·custom(base64 압축 NBT·목록), PublicBukkitValues(SNBT).
-// 호환 ItemMeta 가 다루지 못하는 컴포넌트(포션·머리·가죽 색 …)는 Paper 처럼 "unhandled" 에 컴포넌트 패치(NBT)째 담아 잃지 않는다.
-// 다른 점(meta-type 은 항상 UNSPECIFIC, 종류별 키 없음 등)은 docs/feature-parity/compat-item-serialization-2026-11-08.md.
+// 종류별 하위 메타(MetaKind: 지금은 LEATHER_ARMOR)는 meta-type 과 종류별 키(color …)를 Paper 와 같이 쓰고 읽는다.
+// 호환 ItemMeta 가 다루지 못하는 컴포넌트(포션·책 …)는 Paper 처럼 "unhandled" 에 컴포넌트 패치(NBT)째 담아 잃지 않는다.
+// 다른 점(아직 없는 종류는 meta-type 이 UNSPECIFIC, 그 종류별 키는 무시 등)은 docs/feature-parity/compat-item-serialization-2026-11-08.md.
 package org.domi.furnace.compat.paper;
 
 import org.domi.furnace.api.GameVersion;
@@ -36,7 +37,7 @@ public final class ItemMetaSerialization {
     /** Paper 1.21.1 의 데이터 버전 — ItemStack 맵의 {@code v}. */
     public static final int DATA_VERSION = GameVersion.DATA_VERSION;
     public static final String TYPE_FIELD = "meta-type";
-    /** 호환 ItemMeta 는 종류별 하위 메타가 없어 항상 이 값이다(Paper 는 아이템에 따라 ARMOR·POTION·SKULL 등). */
+    /** 종류별 데이터가 없는 메타의 meta-type(아직 없는 종류 — ARMOR·POTION 등 — 도 이 값으로 적는다). */
     static final String UNSPECIFIC = "UNSPECIFIC";
 
     /** Paper 1.21.1 SerializableMeta 가 알아보는 meta-type — 읽을 때 모두 받아들이고(종류별 키는 무시, "unhandled" 로 컴포넌트는 산다), 모르는 값은 거절한다. */
@@ -77,7 +78,7 @@ public final class ItemMetaSerialization {
         ItemStack w = meta.work();
         Map<String, String> comps = w.components();
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put(TYPE_FIELD, UNSPECIFIC);
+        out.put(TYPE_FIELD, meta.kind().serialName());
 
         if (comps.containsKey(CUSTOM_NAME)) {
             Text t = w.get(ItemComponents.CUSTOM_NAME);
@@ -115,7 +116,7 @@ public final class ItemMetaSerialization {
 
         NbtCompound unhandled = new NbtCompound();
         for (var e : comps.entrySet()) {
-            if (!HANDLED.contains(e.getKey())) unhandled.put(e.getKey(), Snbt.parse(e.getValue()));
+            if (!HANDLED.contains(e.getKey()) && !meta.kind().handledComponents().contains(e.getKey())) unhandled.put(e.getKey(), Snbt.parse(e.getValue()));
         }
         if (!unhandled.isEmpty()) out.put("unhandled", Base64.getEncoder().encodeToString(NbtBinary.writeCompressed(unhandled)));
 
@@ -128,6 +129,7 @@ public final class ItemMetaSerialization {
             if (pbv instanceof NbtCompound values && !values.isEmpty()) out.put(PBV, Snbt.write(values));
             if (!custom.isEmpty()) out.put("custom", Base64.getEncoder().encodeToString(NbtBinary.writeCompressed(custom)));
         }
+        meta.serializeKind(out);
         return out;
     }
 
@@ -217,7 +219,11 @@ public final class ItemMetaSerialization {
         }
         if (!customData.isEmpty()) w = w.withComponent(CUSTOM_DATA, Snbt.write(customData));
 
-        CompatItemMeta meta = CompatItemMeta.of(w);
+        // 아직 없는 종류(BOOK 등)는 일반 메타로 읽는다 — 그 종류의 컴포넌트는 위 "unhandled" 로 산다
+        MetaKind kind = MetaKind.bySerialName(type);
+        if (kind == null) kind = MetaKind.UNSPECIFIC;
+        CompatItemMeta meta = CompatItemMeta.of(kind, w);
+        meta.deserializeKind(map);
         Iterable<?> flags = get(map, "ItemFlags", Iterable.class);
         if (flags != null) {
             for (Object f : flags) {
@@ -229,7 +235,7 @@ public final class ItemMetaSerialization {
             }
         }
         // 표시 항목을 컴포넌트(showInTooltip)에 반영한 모양으로 맞춘다 — 스택에서 꺼낸 메타와 같은 꼴이어야 equals 가 같다
-        CompatItemMeta normalized = CompatItemMeta.of(meta.applyTo(w));
+        CompatItemMeta normalized = CompatItemMeta.of(kind, meta.applyTo(meta.work()));
         normalized.flagSet().addAll(meta.flagSet());
         return normalized;
     }

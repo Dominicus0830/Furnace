@@ -84,6 +84,9 @@ public final class CraftServer implements Server {
     private static Furnace f() { return Compat.furnace(); }
 
     @Override
+    public org.bukkit.inventory.ItemFactory getItemFactory() { return org.bukkit.craftbukkit.inventory.CraftItemFactory.instance(); }
+
+    @Override
     public org.bukkit.block.data.BlockData createBlockData(org.bukkit.Material material) { return CompatBlockData.create(material); }
 
     @Override

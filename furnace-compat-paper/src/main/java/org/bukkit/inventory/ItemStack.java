@@ -9,7 +9,9 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.domi.furnace.api.item.ItemComponents;
 import org.domi.furnace.api.item.ItemEnchantments;
+import org.bukkit.craftbukkit.inventory.CraftItemFactory;
 import org.domi.furnace.compat.paper.CompatItemMeta;
+import org.domi.furnace.compat.paper.MetaKind;
 import org.domi.furnace.compat.paper.CompatItems;
 import org.domi.furnace.compat.paper.ItemMetaSerialization;
 import org.domi.furnace.compat.paper.ItemSlot;
@@ -90,18 +92,26 @@ public class ItemStack implements Cloneable, ConfigurationSerializable, io.paper
         return !s.components().isEmpty() || !s.removedComponents().isEmpty();
     }
 
-    /** 메타의 사본. 바꾼 뒤 {@link #setItemMeta} 로 돌려놓아야 반영된다. */
+    /** 메타의 사본(재료에 맞는 종류 — 머리면 SkullMeta 등). 바꾼 뒤 {@link #setItemMeta} 로 돌려놓아야 반영된다. 공기는 null. */
     public ItemMeta getItemMeta() { return CompatItemMeta.of(slot.get()); }
 
-    /** 메타를 넣는다. null 이면 메타(구성 요소)를 모두 없앤다. Furnace 메타가 아니면 IllegalArgumentException. */
+    /**
+     * 메타를 넣는다(Paper CraftItemStack#setItemMeta). null 이거나 비어 있으면 메타(구성 요소)를 모두 없앤다. 이 아이템에 붙일 수 없는 종류의 메타
+     * (예: 머리 메타를 돌에)면 아무것도 바꾸지 않고 false. Furnace 가 만든 메타가 아니면 IllegalArgumentException.
+     */
     public boolean setItemMeta(ItemMeta meta) {
         var cur = slot.get();
         if (meta == null) {
             slot.set(new org.domi.furnace.api.item.ItemStack(cur.type(), cur.amount()));
             return true;
         }
-        if (!(meta instanceof CompatItemMeta cm)) throw new IllegalArgumentException("not an ItemMeta created by Furnace: " + meta.getClass().getName());
-        slot.set(cm.applyTo(cur));
+        if (!(meta instanceof CompatItemMeta cm)) throw new IllegalArgumentException("Meta of " + meta.getClass() + " not created by " + CraftItemFactory.class.getName());
+        if (cm.isEmpty()) {
+            slot.set(new org.domi.furnace.api.item.ItemStack(cur.type(), cur.amount()));
+            return true;
+        }
+        if (!cm.applicableTo(cur.type())) return false;
+        slot.set(cm.asKind(MetaKind.of(cur.type())).applyTo(cur));
         return true;
     }
 

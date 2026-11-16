@@ -100,9 +100,12 @@ class T076BridgeLegacyDifferentialTest {
             case 1 -> b.getItem().setAmount(b.getItem().getAmount());
             case 2 -> b.getItem().setType(r.nextBoolean() ? Material.STONE : Material.DIRT);
             case 3 -> {
-                var meta = b.getItem().getItemMeta();
-                meta.setDisplayName("m" + r.nextInt(2));
-                b.getItem().setItemMeta(meta);
+                var meta = b.getItem().getItemMeta();   // 개수 0 으로 빈 거울 스택은 메타가 null(Paper 도 공기)
+                int name = r.nextInt(2);
+                if (meta != null) {
+                    meta.setDisplayName("m" + name);
+                    b.getItem().setItemMeta(meta);
+                }
             }
             case 4 -> b.getItem().addUnsafeEnchantment(Enchantment.SHARPNESS, 1 + r.nextInt(2));
             case 5 -> b.setItem(new org.bukkit.inventory.ItemStack(r.nextBoolean() ? Material.STONE : Material.DIAMOND, 1 + r.nextInt(3)));

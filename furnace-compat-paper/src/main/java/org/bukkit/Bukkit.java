@@ -45,6 +45,8 @@ public final class Bukkit {
     @Deprecated
     public static UnsafeValues getUnsafe() { return s().getUnsafe(); }
 
+    public static org.bukkit.inventory.ItemFactory getItemFactory() { return s().getItemFactory(); }
+
     /** 서버가 없어도(시험·정적 초기화) 답한다 — 값이 고정 목록이라서. */
     public static <T extends Keyed> Registry<T> getRegistry(Class<T> tClass) { return org.domi.furnace.compat.paper.CompatRegistries.forType(tClass); }
 
