@@ -1,4 +1,4 @@
-// 번역 저장소 — 플러그인이 정의한 번역 키를 언어별로 보관한다(locale → key → 패턴). 바닐라 형식(%s, %1$s)과 MessageFormat 형식({0})을 받는다.
+// 번역 저장소다. 플러그인이 정의한 번역 키를 언어별로 보관한다(locale, key 순으로 패턴을 찾는다). 바닐라 형식(%s, %1$s)과 MessageFormat 형식({0})을 받는다.
 // Translators 에 등록하면 Text.plainText 등이 쓰고, GlobalRenderer 로 플레이어 언어에 맞게 미리 렌더링할 수 있다.
 package org.domi.furnace.api.text.translation;
 
@@ -73,7 +73,7 @@ public final class TranslationStore implements Translator {
     }
 
     /**
-     * 바닐라 형식 패턴을 찾는다. 순서: 정확한 로케일 → 같은 언어(국가·변형 제거) → 기본 로케일 → 기본 로케일의 언어. 없으면 null.
+     * 바닐라 형식 패턴을 찾는다. 정확한 로케일, 같은 언어(국가·변형 제거), 기본 로케일, 기본 로케일의 언어 순으로 찾는다. 없으면 null.
      */
     public String lookup(String key, Locale locale) {
         String p = find(key, locale);

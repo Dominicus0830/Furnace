@@ -1,4 +1,4 @@
-// 유체 상태 하나(바닐라 FluidState) — 블록 상태가 품은 물·용암. 읽기 전용 값.
+// 유체 상태 하나(바닐라 FluidState). 블록 상태가 품은 물·용암이다. 읽기 전용 값.
 package org.domi.furnace.api.world;
 
 /**

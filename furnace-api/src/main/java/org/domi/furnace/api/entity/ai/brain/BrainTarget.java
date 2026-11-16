@@ -1,4 +1,4 @@
-// 바라보거나 걸어갈 대상: 엔티티(그 엔티티를 따라간다) 또는 고정 블록 한 칸.
+// 바라보거나 걸어갈 대상. 엔티티(그 엔티티를 따라간다)이거나 고정된 블록 한 칸이다.
 package org.domi.furnace.api.entity.ai.brain;
 
 import java.util.UUID;

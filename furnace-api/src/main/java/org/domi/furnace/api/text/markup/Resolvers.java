@@ -15,7 +15,7 @@ final class Resolvers {
         @Override public boolean has(String name) { return false; }
     };
 
-    /** has() 시험용 문맥 — 인자 해석은 할 수 없다. */
+    /** has() 시험용 문맥. 인자 해석은 할 수 없다. */
     static final Context PROBE = new Context() {
         @Override public Text deserialize(String markup) { throw newException("probe"); }
 

@@ -1,6 +1,7 @@
-// 클라이언트 연결 하나 — 핸드셰이크부터 끊길 때까지 같은 객체다. 접속 단계 이벤트(핸드셰이크·사전 로그인·로그인·구성)와
-// 접속한 Player 가 같은 연결을 가리키므로 id() 로 단계 사이를 이을 수 있다. 읽기는 어느 스레드에서나 안전하다(최근 값).
-// 내부 패킷 타입을 드러내지 않는다 — 마인크래프트 버전이 바뀌어도 이 형태는 그대로다.
+// 클라이언트 연결 하나다. 핸드셰이크부터 끊길 때까지 같은 객체다.
+// 접속 단계 이벤트(핸드셰이크, 사전 로그인, 로그인, 구성)와 접속한 Player 가 같은 연결을 가리키므로, id() 로 단계 사이를 이을 수 있다.
+// 읽기는 어느 스레드에서나 안전하다(최근 값).
+// 내부 패킷 타입을 드러내지 않으므로 마인크래프트 버전이 바뀌어도 이 형태는 그대로다.
 package org.domi.furnace.api.net;
 
 import java.net.InetSocketAddress;
@@ -23,8 +24,8 @@ public interface PlayerConnection {
     InetSocketAddress address();
 
     /**
-     * 클라이언트가 핸드셰이크에 적은 서버 주소(가상 호스트, 예: "play.example.com"). 끝의 점과 FML 표식은 떼고,
-     * BungeeCord 포워딩이면 첫 칸만 남긴다. 핸드셰이크 전이면 null.
+     * 클라이언트가 핸드셰이크에 적은 서버 주소(가상 호스트, 예: "play.example.com").
+     * 끝의 점과 FML 표식은 떼고, BungeeCord 포워딩이면 첫 칸만 남긴다. 핸드셰이크 전이면 null.
      */
     String hostname();
 
@@ -50,7 +51,8 @@ public interface PlayerConnection {
     String locale();
 
     /**
-     * 사유를 보여 주고 끊는다. 어느 스레드에서 불러도 된다. 단계에 맞는 끊기 패킷을 쓴다(상태·핸드셰이크 단계는 사유 없이 닫는다).
+     * 사유를 보여 주고 끊는다. 어느 스레드에서 불러도 된다.
+     * 단계에 맞는 끊기 패킷을 쓴다(상태·핸드셰이크 단계는 사유 없이 닫는다).
      * 플레이 단계면 Player.kick 과 같다(PlayerKickEvent 를 거친다). 이미 끊겼으면 아무 일도 없다.
      */
     void disconnect(Text reason);
@@ -62,17 +64,24 @@ public interface PlayerConnection {
     QuitReason quitReason();
 
     // ---- 구성·플레이 중 클라이언트와 주고받기 ----
-    // 아래 메서드는 어느 스레드에서나 부를 수 있다(패킷은 연결의 이벤트 루프로 넘겨 보낸다). Future 는 응답이 오면 완료되고,
-    // 연결이 끊기면 ConnectionClosedException 으로 완료된다 — AsyncPlayerConfigureEvent 처리기가 get()/join() 으로 기다려도
-    // 연결이 끊기면 풀려난다. 응답을 영원히 안 주는 클라이언트에 대비해 orTimeout 을 거는 것은 부르는 쪽 몫이다.
-    // 허용되지 않는 단계에서 부르면 Future 를 돌려주는 메서드는 IllegalStateException 으로 이미 완료된 Future 를, 돌려주지 않는
-    // 메서드는 IllegalStateException 을 던진다. 인자가 잘못되면(쿠키 키 꼴·값 크기) 둘 다 IllegalArgumentException 을 던진다.
+    // 아래 메서드는 어느 스레드에서나 부를 수 있다(패킷은 연결의 이벤트 루프로 넘겨 보낸다).
+    // Future 는 응답이 오면 완료되고, 연결이 끊기면 ConnectionClosedException 으로 완료된다.
+    // 그래서 AsyncPlayerConfigureEvent 처리기가 get()/join() 으로 기다려도 연결이 끊기면 풀려난다.
+    // 응답을 영원히 안 주는 클라이언트에 대비해 orTimeout 을 거는 것은 부르는 쪽 몫이다.
+    //
+    // 허용되지 않는 단계에서 부르면 다음과 같이 된다.
+    //   - Future 를 돌려주는 메서드는 IllegalStateException 으로 이미 완료된 Future 를 돌려준다.
+    //   - Future 를 돌려주지 않는 메서드는 IllegalStateException 을 던진다.
+    // 인자가 잘못되면(쿠키 키 꼴, 값 크기) 둘 다 IllegalArgumentException 을 던진다.
+    //
     // Future 의 후속 처리(thenApply 등)는 연결의 네트워크 스레드가 아니라 플러그인 비동기 실행기에서 돈다.
 
     /**
-     * 리소스 팩을 내려받게 한다(구성·플레이 단계). 돌려준 Future 는 클라이언트의 끝 상태 응답(적용 성공·거절·실패…)이 오면 그 값으로
-     * 완료된다. 필수 팩({@link ResourcePack#required()})을 거절하면 서버가 클라이언트를 내보내고(Future 는 DECLINED 로 완료),
-     * 그 밖의 실패는 그대로 알려 줄 뿐 연결을 끊지 않는다. 같은 id 를 이미 기다리는 중이면 그 Future 를 돌려준다.
+     * 리소스 팩을 내려받게 한다(구성·플레이 단계).
+     * 돌려준 Future 는 클라이언트의 끝 상태 응답(적용 성공, 거절, 실패 등)이 오면 그 값으로 완료된다.
+     * 필수 팩({@link ResourcePack#required()})을 거절하면 서버가 클라이언트를 내보낸다(Future 는 DECLINED 로 완료).
+     * 그 밖의 실패는 그대로 알려 줄 뿐 연결을 끊지 않는다.
+     * 같은 id 를 이미 기다리는 중이면 그 Future 를 돌려준다.
      */
     CompletableFuture<ResourcePackStatus> sendResourcePack(ResourcePack pack);
 
@@ -83,12 +92,12 @@ public interface PlayerConnection {
     void removeAllResourcePacks();
 
     /**
-     * 클라이언트에 저장된 쿠키를 읽어 오게 한다(구성 단계만). 키는 {@code namespace:path} 꼴이고 없는 쿠키는 null 로 완료된다.
+     * 클라이언트에 저장된 쿠키를 읽어 오게 한다(구성 단계만). 키는 {@code namespace:path} 꼴이다. 없는 쿠키는 null 로 완료된다.
      * 같은 키를 이미 기다리는 중이면 그 Future 를 돌려준다.
      */
     CompletableFuture<byte[]> requestCookie(String key);
 
-    /** 클라이언트에 쿠키를 저장하게 한다(구성 단계만, 바닐라 상한: 값 5120바이트). 전송(transfer)으로 다른 서버에 넘어가도 남는다. */
+    /** 클라이언트에 쿠키를 저장하게 한다(구성 단계만, 바닐라 상한은 값 5120바이트). 전송(transfer)으로 다른 서버에 넘어가도 남는다. */
     void storeCookie(String key, byte[] value);
 
     /** 클라이언트를 다른 서버로 옮긴다(구성·플레이 단계). 받는 서버가 전송을 받아야 한다. */

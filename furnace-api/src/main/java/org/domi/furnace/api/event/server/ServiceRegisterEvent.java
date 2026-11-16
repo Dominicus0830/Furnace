@@ -1,4 +1,4 @@
-// 서비스 제공자가 등록된 직후. 전역 스레드가 아닐 수 있다(등록을 부른 스레드에서 불린다).
+// 서비스 제공자가 등록된 직후에 불린다. 등록을 부른 스레드에서 불리므로 전역 스레드가 아닐 수 있다.
 package org.domi.furnace.api.event.server;
 
 import org.domi.furnace.api.event.Event;

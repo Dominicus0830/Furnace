@@ -1,4 +1,4 @@
-// 좀비류가 문을 부수기 직전(EntityChangeBlockEvent 의 하위 — 그 이벤트 구독자도 받는다). 취소하면 문은 그대로이고 부수기를 처음부터 다시 센다.
+// 좀비류가 문을 부수기 직전에 불린다. EntityChangeBlockEvent 의 하위 이벤트라 그 이벤트 구독자도 받는다. 취소하면 문은 그대로이고 부수기를 처음부터 다시 센다.
 package org.domi.furnace.api.event.entity;
 
 import org.domi.furnace.api.entity.LivingEntity;

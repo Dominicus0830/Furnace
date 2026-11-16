@@ -1,4 +1,4 @@
-// 플레이어가 블록을 부수기 직전 — 그 블록을 소유한 region 스레드에서 불린다(그 자리에서 월드를 안전하게 볼 수 있다). 취소하면 블록이 돌아온다.
+// 플레이어가 블록을 부수기 직전에 그 블록을 소유한 region 스레드에서 불린다. 그 자리에서 월드를 안전하게 볼 수 있다. 취소하면 블록이 돌아온다.
 package org.domi.furnace.api.event.block;
 
 import org.domi.furnace.api.entity.Player;

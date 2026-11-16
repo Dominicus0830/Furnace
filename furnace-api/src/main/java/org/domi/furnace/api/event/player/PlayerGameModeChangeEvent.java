@@ -1,4 +1,4 @@
-// 게임 모드가 바뀌기 직전 — 취소할 수 있다. 바꾸는 쪽 스레드(명령 등)에서 불린다.
+// 게임 모드가 바뀌기 직전에 바꾸는 쪽 스레드(명령 등)에서 불린다. 취소할 수 있다.
 package org.domi.furnace.api.event.player;
 
 import org.domi.furnace.api.entity.GameMode;

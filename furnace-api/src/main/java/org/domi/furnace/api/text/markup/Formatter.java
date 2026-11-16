@@ -1,4 +1,4 @@
-// 서식 플레이스홀더 — 숫자·날짜·개수에 따른 문구·참/거짓 문구·목록 잇기. 서식은 태그 인자로 고른다: <n:'ko-KR':'#.##'>.
+// 서식 플레이스홀더다. 숫자, 날짜, 개수에 따른 문구, 참/거짓 문구, 목록 잇기를 한다. 서식은 태그 인자로 고른다. 예: <n:'ko-KR':'#.##'>.
 package org.domi.furnace.api.text.markup;
 
 import java.text.ChoiceFormat;

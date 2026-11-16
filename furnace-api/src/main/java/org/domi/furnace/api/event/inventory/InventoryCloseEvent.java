@@ -1,4 +1,4 @@
-// 창이 닫히기 직전(커서·제작 격자를 돌려주기 전) — 닫기를 처리하는 스레드에서 불린다. reason() 은 닫힌 까닭(Paper InventoryCloseEvent.Reason 과 같은 값).
+// 창이 닫히기 직전(커서와 제작 격자를 돌려주기 전)에 닫기를 처리하는 스레드에서 불린다. reason() 은 닫힌 까닭이다(Paper InventoryCloseEvent.Reason 과 같은 값).
 package org.domi.furnace.api.event.inventory;
 
 import java.util.Objects;
@@ -13,7 +13,7 @@ public final class InventoryCloseEvent extends InventoryEvent {
         UNKNOWN,
         /** 플러그인 텔레포트(Player#teleport)가 닫았다. */
         TELEPORT,
-        /** 더 쓸 수 없다(블록이 사라짐·너무 멂 등 stillValid 실패). */
+        /** 더 쓸 수 없다(블록이 사라졌거나 너무 먼 경우 등 stillValid 실패). */
         CANT_USE,
         /** 창이 매인 블록의 청크가 내려갔다. */
         UNLOADED,
@@ -25,7 +25,7 @@ public final class InventoryCloseEvent extends InventoryEvent {
         DISCONNECT,
         /** 죽었다. */
         DEATH,
-        /** 플러그인이 닫았다(Player#closeMenu·closeContainer). */
+        /** 플러그인이 닫았다(Player#closeMenu, closeContainer). */
         PLUGIN
     }
 

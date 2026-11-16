@@ -1,6 +1,6 @@
-// 메뉴 — 상자·발사기·깔때기 모양의 화면에 아이템을 늘어놓고, 칸마다 클릭 처리기를 다는 GUI.
-// 플레이어의 실제 인벤토리나 블록과 무관하다: 칸은 이 객체가 갖고, 열려 있는 모든 사람에게 같은 내용이 보인다.
-// 메뉴 안에서 아이템은 꺼내지거나 넣어지지 않는다(MenuClick.allow 를 부르기 전까지). 내용을 바꾸면 보고 있는 사람 화면이 곧바로 따라온다.
+// 메뉴. 상자·발사기·깔때기 모양의 화면에 아이템을 늘어놓고, 칸마다 클릭 처리기를 다는 GUI 다.
+// 플레이어의 실제 인벤토리나 블록과는 무관하다. 칸은 이 객체가 갖고, 열려 있는 모든 사람에게 같은 내용이 보인다.
+// MenuClick.allow 를 부르기 전까지는 메뉴 안에서 아이템을 꺼내거나 넣을 수 없다. 내용을 바꾸면 보고 있는 사람의 화면이 곧바로 따라온다.
 //
 //   Menu menu = Menu.chest(Text.text("상점"), 3)
 //       .fillEmpty(ItemStack.of("gray_stained_glass_pane"))
@@ -8,7 +8,7 @@
 //       .onClose(p -> p.sendMessage(Text.text("안녕히!")));
 //   player.openMenu(menu);
 //
-// 보관함 메뉴(storage(true))는 상자처럼 움직인다: 허용된 클릭이 메뉴 칸을 실제로 바꾸고, 보는 사람 모두 같은 칸을 쓴다(Bukkit createInventory 와 같은 뜻).
+// 보관함 메뉴(storage(true))는 상자처럼 움직인다. 허용된 클릭이 메뉴 칸을 실제로 바꾸고, 보는 사람 모두가 같은 칸을 쓴다(Bukkit createInventory 와 같은 뜻이다).
 //
 // 어느 스레드에서 만들고 바꿔도 된다. 처리기는 그 플레이어의 연결 스레드에서 불린다.
 package org.domi.furnace.api.menu;
@@ -48,8 +48,9 @@ public final class Menu {
     private volatile Consumer<Player> openHandler, closeHandler;
     private volatile boolean storage;
     /**
-     * 모든 보관함 메뉴가 함께 쓰는 잠금 하나. 메뉴마다 두면 A 의 클릭 처리기가 B 에 쓰고 B 의 처리기가 A 에 쓸 때(이어진 두 창) 연결 스레드끼리
-     * 교착한다. 보관함 클릭·칸 쓰기는 짧아 하나로 줄 세워도 된다(Paper 는 주 스레드 하나로 같은 순서를 만든다).
+     * 모든 보관함 메뉴가 함께 쓰는 잠금 하나다.
+     * 메뉴마다 잠금을 두면, A 의 클릭 처리기가 B 에 쓰고 B 의 처리기가 A 에 쓸 때(이어진 두 창) 연결 스레드끼리 교착한다.
+     * 보관함 클릭과 칸 쓰기는 짧아서 하나로 줄 세워도 된다(Paper 는 주 스레드 하나로 같은 순서를 만든다).
      */
     private static final Object STORAGE_LOCK = new Object();
     private final Set<Player> viewers = new LinkedHashSet<>();
@@ -74,9 +75,10 @@ public final class Menu {
     public Text title() { return title; }
 
     /**
-     * 제목을 바꾼다. 열려 있는 화면에는 같은 창 번호로 화면을 다시 열어(open_screen) 제목을 갈아 끼우고 내용·커서를 다시 보낸다 —
+     * 제목을 바꾼다. 열려 있는 화면에는 같은 창 번호로 화면을 다시 열어(open_screen) 제목을 갈아 끼우고 내용과 커서를 다시 보낸다.
      * 클라이언트에서 화면이 한 번 다시 그려지지만 창은 닫히지 않는다(Paper InventoryView.setTitle 과 같은 방식).
-     * 보는 사람 모두와 다음에 여는 사람에게 적용된다 — 한 사람 창만 바꾸려면 Player#retitleMenu.
+     *
+     * <p>보는 사람 모두와 다음에 여는 사람에게 적용된다. 한 사람의 창만 바꾸려면 Player#retitleMenu 를 쓴다.
      * 단 retitleMenu 로 따로 제목을 준 사람의 창은 그 창이 닫힐 때까지 그 값이 이긴다.
      */
     public Menu setTitle(Text title) {
@@ -117,8 +119,9 @@ public final class Menu {
     }
 
     /**
-     * 칸의 지금 값을 fn 에 넘겨 돌려받은 값으로 바꾼다 — 읽기와 쓰기가 다른 쓰기에 끼이지 않는다(보관함 메뉴는 클릭 처리와 한 줄로).
-     * fn 이 null 이거나 받은 것 그대로를 돌려주면 바꾸지 않는다. 바꿨으면 true. fn 은 짧게, 이 메뉴를 다시 건드리지 말 것.
+     * 칸의 지금 값을 fn 에 넘겨 돌려받은 값으로 바꾼다. 읽기와 쓰기 사이에 다른 쓰기가 끼어들지 않는다(보관함 메뉴는 클릭 처리와 한 줄로 선다).
+     * fn 이 null 을 돌려주거나 받은 것 그대로를 돌려주면 바꾸지 않는다. 바꿨으면 true.
+     * fn 은 짧게 끝내고, 이 메뉴를 다시 건드리지 말 것.
      */
     public boolean update(int slot, java.util.function.UnaryOperator<ItemStack> fn) {
         check(slot);
@@ -209,10 +212,14 @@ public final class Menu {
     // ------------------------------------------------------------------ 보관함
 
     /**
-     * 보관함 메뉴로 만든다(기본은 false — 보여 주기만 하는 메뉴). 보관함이면 처리기가 allow() 한 클릭이 바닐라 규칙대로 이 메뉴의 칸을
-     * 바꾸고(꺼내기·넣기·나누기·끌어 놓기), 그 결과가 {@link #item(int)} 과 다른 보는 사람 화면에 곧바로 보인다. 보는 사람들의 클릭은
-     * 한 번에 하나씩 처리된다(두 사람이 같은 아이템을 동시에 꺼내 복제되지 않는다). 보여 주기만 하는 메뉴에서 allow() 한 클릭은
-     * 그 사람 화면에서만 아이템이 움직이고 메뉴 내용은 그대로다. 열기 전에 정한다(연 뒤에 바꾸면 다음 클릭부터 따른다).
+     * 보관함 메뉴로 만든다. 기본은 false 이며 보여 주기만 하는 메뉴다.
+     *
+     * <p>보관함이면 처리기가 allow() 한 클릭이 바닐라 규칙대로 이 메뉴의 칸을 바꾼다(꺼내기, 넣기, 나누기, 끌어 놓기).
+     * 그 결과는 {@link #item(int)} 과 다른 보는 사람의 화면에 곧바로 보인다.
+     * 보는 사람들의 클릭은 한 번에 하나씩 처리된다(두 사람이 같은 아이템을 동시에 꺼내 복제되지 않는다).
+     *
+     * <p>보여 주기만 하는 메뉴에서 allow() 한 클릭은 그 사람 화면에서만 아이템이 움직이고 메뉴 내용은 그대로다.
+     * 열기 전에 정한다. 연 뒤에 바꾸면 다음 클릭부터 따른다.
      */
     public Menu storage(boolean storage) {
         this.storage = storage;
@@ -221,7 +228,7 @@ public final class Menu {
 
     public boolean isStorage() { return storage; }
 
-    /** 서버 구현 전용: 보관함 메뉴의 클릭 하나를 처리하는 동안 쥐는 잠금(칸 쓰기도 이 잠금 안에서 한다). 모든 보관함 메뉴가 같은 잠금이다. */
+    /** 서버 구현 전용. 보관함 메뉴의 클릭 하나를 처리하는 동안 쥐는 잠금이다(칸 쓰기도 이 잠금 안에서 한다). 모든 보관함 메뉴가 같은 잠금을 쓴다. */
     public Object storageLock() { return STORAGE_LOCK; }
 
     // ------------------------------------------------------------------ 열기·닫기 처리기
@@ -253,20 +260,20 @@ public final class Menu {
     /** 서버 구현 전용. */
     public void removeListener(Listener l) { listeners.remove(l); }
 
-    /** 서버 구현 전용: 화면이 열렸다. */
+    /** 서버 구현 전용. 화면이 열렸다. */
     public void viewerOpened(Player p) {
         synchronized (lock) { viewers.add(p); }
         run(openHandler, p);
     }
 
-    /** 서버 구현 전용: 화면이 닫혔다. */
+    /** 서버 구현 전용. 화면이 닫혔다. */
     public void viewerClosed(Player p) {
         boolean was;
         synchronized (lock) { was = viewers.remove(p); }
         if (was) run(closeHandler, p);
     }
 
-    /** 서버 구현 전용: 클릭을 처리기에 전한다. 처리기가 던진 예외는 기록하고 클릭은 취소로 둔다. */
+    /** 서버 구현 전용. 클릭을 처리기에 전한다. 처리기가 던진 예외는 기록하고 클릭은 취소로 둔다. */
     public void dispatchClick(MenuClick click) {
         Consumer<MenuClick> slotHandler = null;
         int s = click.slot();

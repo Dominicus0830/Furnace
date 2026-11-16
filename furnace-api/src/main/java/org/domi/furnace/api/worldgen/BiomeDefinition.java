@@ -1,5 +1,5 @@
 // 플러그인이 등록하는 바이옴 정의. 클라이언트가 받는 기후·색·소리와 서버가 쓰는 몹 스폰 설정을 한 곳에 모은다.
-// 필드 이름은 마인크래프트 버전과 상관없이 유지된다(버전 중립) — 새 버전이 필드를 더하면 빌더에 더하고 기본값은 이전 동작을 지킨다.
+// 필드 이름은 마인크래프트 버전과 상관없이 유지된다(버전 중립). 새 버전이 필드를 더하면 빌더에 더하고, 기본값은 이전 동작을 지킨다.
 // 값 객체라 equals 로 같은 정의인지 비교한다(핫 리로드에서 달라졌는지 알아낼 때 쓴다).
 package org.domi.furnace.api.worldgen;
 
@@ -24,7 +24,7 @@ import java.util.OptionalInt;
  * @param grassColor       풀 색 고정값(없으면 온도·강수량으로 계산)
  * @param grassColorModifier 풀 색 보정
  * @param ambientParticle  주변 입자(없으면 null)
- * @param ambientSound     주변 소리 id(없으면 null) — 리소스 팩의 소리도 된다
+ * @param ambientSound     주변 소리 id(없으면 null). 리소스 팩의 소리도 된다
  * @param moodSound        동굴 소리(없으면 null)
  * @param additionsSound   무작위 추가 소리(없으면 null)
  * @param music            배경 음악(없으면 null)

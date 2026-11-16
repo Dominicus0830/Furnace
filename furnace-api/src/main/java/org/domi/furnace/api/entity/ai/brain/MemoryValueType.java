@@ -1,5 +1,6 @@
-// 기억 값이 API 에서 어떤 모양인가(버전 중립). 서버는 바닐라 기억마다 맞는 모양을 알고, 다른 모양으로 읽고 쓰면 IllegalArgumentException.
-// 엔티티를 가리키는 기억은 UUID 로 읽고 쓴다(쓸 때 같은 region 에서 그 엔티티를 찾는다). 플러그인 기억은 object(클래스)로 아무 값이나.
+// 기억 값이 API 에서 어떤 모양인가(버전 중립). 서버는 바닐라 기억마다 맞는 모양을 알며, 다른 모양으로 읽고 쓰면 IllegalArgumentException 을 던진다.
+// 엔티티를 가리키는 기억은 UUID 로 읽고 쓴다. 쓸 때 같은 region 에서 그 엔티티를 찾는다.
+// 플러그인 기억은 object(클래스)로 아무 값이나 담을 수 있다.
 package org.domi.furnace.api.entity.ai.brain;
 
 import java.util.List;
@@ -18,7 +19,7 @@ public final class MemoryValueType<T> {
         this.plugin = plugin;
     }
 
-    /** 표시(값 없는 표지) 기억: 있으면 Boolean.TRUE 로 읽는다. true 를 쓰면 켜고, false 를 쓰면 지운다. */
+    /** 표시(값 없는 표지) 기억. 있으면 Boolean.TRUE 로 읽는다. true 를 쓰면 켜고, false 를 쓰면 지운다. */
     public static final MemoryValueType<Boolean> FLAG = new MemoryValueType<>("flag", Boolean.class, false);
     public static final MemoryValueType<Boolean> BOOLEAN = new MemoryValueType<>("boolean", Boolean.class, false);
     public static final MemoryValueType<Integer> INTEGER = new MemoryValueType<>("integer", Integer.class, false);
