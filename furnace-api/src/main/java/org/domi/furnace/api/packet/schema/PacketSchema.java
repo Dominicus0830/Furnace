@@ -2,8 +2,8 @@
 // 바닐라 코드나 생성 결과물이 아니라 이름과 타입 목록뿐이다.
 //
 // 쓰는 곳은 두 군데다.
-//   - 호환 계층이 빌드 때 net.minecraft 패킷 shim 을 만들 때
-//   - 서버 범용 코덱이 와이어를 읽고 쓸 때
+//   호환 계층이 빌드 때 net.minecraft 패킷 shim 을 만들 때
+//   서버 범용 코덱이 와이어를 읽고 쓸 때
 //
 // 문법은 스키마 파일 머리말에 있다.
 package org.domi.furnace.api.packet.schema;

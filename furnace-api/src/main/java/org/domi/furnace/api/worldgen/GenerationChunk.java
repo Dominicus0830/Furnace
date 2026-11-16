@@ -27,7 +27,7 @@ public interface GenerationChunk {
 
     BlockData block(int x, int y, int z);
 
-    /** 블록 id 만(속성 없이) — block() 보다 싸다. */
+    /** 블록 id 만(속성 없이) 돌려준다. block() 보다 싸다. */
     String blockType(int x, int y, int z);
 
     /**

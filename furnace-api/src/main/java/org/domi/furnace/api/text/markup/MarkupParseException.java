@@ -1,4 +1,4 @@
-// 마크업 해석 오류 — 잘못된 태그 인자, strict 모드의 닫히지 않은/어긋난 태그 등. 가능하면 원문 위치를 담는다.
+// 마크업 해석 오류다. 잘못된 태그 인자, strict 모드의 닫히지 않은/어긋난 태그 등이 원인이다. 가능하면 원문 위치를 담는다.
 package org.domi.furnace.api.text.markup;
 
 public class MarkupParseException extends IllegalArgumentException {

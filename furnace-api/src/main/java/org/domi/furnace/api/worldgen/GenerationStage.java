@@ -10,6 +10,6 @@ public enum GenerationStage {
     CARVERS,
     /** 구조물(마을·요새·폐광 …) 시작점과 조각 배치. */
     STRUCTURES,
-    /** 장식(지형지물 — 나무·광석·꽃·호수 …). */
+    /** 장식(지형지물. 나무·광석·꽃·호수 …). */
     FEATURES
 }

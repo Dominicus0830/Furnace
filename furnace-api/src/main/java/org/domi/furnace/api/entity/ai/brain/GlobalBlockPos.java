@@ -1,4 +1,4 @@
-// 차원 + 블록 좌표(집·일터·만남 장소 같은 기억 값). dimension 은 차원 키(예: minecraft:overworld).
+// 차원과 블록 좌표(집·일터·만남 장소 같은 기억 값). dimension 은 차원 키다(예: minecraft:overworld).
 package org.domi.furnace.api.entity.ai.brain;
 
 import org.domi.furnace.api.world.BlockPos;

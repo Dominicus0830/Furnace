@@ -1,4 +1,4 @@
-// ConfigSection 을 블록 스타일 YAML 로 직렬화 — 2칸 들여쓰기, 필요할 때만 따옴표, 주석 보존
+// ConfigSection 을 블록 스타일 YAML 로 직렬화한다. 2칸 들여쓰기를 쓰고, 필요할 때만 따옴표를 붙이며, 주석을 보존한다
 package org.domi.furnace.api.config;
 
 import java.time.LocalDate;

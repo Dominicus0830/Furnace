@@ -1,4 +1,4 @@
-// 글자 색 — RGB 값 하나. 바닐라 16색은 이름을 가진 인스턴스(NamedTextColor)로 직렬화 때 이름이 쓰인다.
+// 글자 색. RGB 값 하나다. 바닐라 16색은 이름을 가진 인스턴스(NamedTextColor)이며, 직렬화할 때 이름이 쓰인다.
 package org.domi.furnace.api.text;
 
 public final class TextColor {
@@ -15,7 +15,7 @@ public final class TextColor {
 
     /**
      * RGB(0xRRGGBB). 바닐라 16색과 값이 같으면 그 이름 있는 색을 돌려준다(Adventure TextColor.color 와 같다).
-     * 바닐라 TextColor.fromRgb 는 이름을 붙이지 않는다 — 그쪽과 같은 직렬화("#FF5555")가 필요하면 {@link #rgb(int)}.
+     * 바닐라 TextColor.fromRgb 는 이름을 붙이지 않는다. 그쪽과 같은 직렬화("#FF5555")가 필요하면 {@link #rgb(int)} 를 쓴다.
      */
     public static TextColor color(int rgb) {
         NamedTextColor.ensureLoaded();
@@ -24,7 +24,8 @@ public final class TextColor {
     }
 
     /**
-     * 이름 없는 RGB 색(바닐라 TextColor.fromRgb 와 같다): 16색과 값이 같아도 직렬화는 "#RRGGBB" 다. {@link #equals} 는 값만 보므로 같은 값의 이름 있는 색과 같다.
+     * 이름 없는 RGB 색이다(바닐라 TextColor.fromRgb 와 같다). 16색과 값이 같아도 직렬화는 "#RRGGBB" 다.
+     * {@link #equals} 는 값만 보므로 같은 값의 이름 있는 색과 같다.
      */
     public static TextColor rgb(int rgb) { return new TextColor(rgb, null, (char) 0); }
 
@@ -69,10 +70,10 @@ public final class TextColor {
     /** "#RRGGBB"(대문자, 바닐라 formatValue). */
     public String asHexString() { return String.format("#%06X", value); }
 
-    /** 직렬화 값 — 이름 있는 색은 이름, 아니면 "#RRGGBB"(바닐라 TextColor.serialize). */
+    /** 직렬화 값. 이름 있는 색은 이름, 아니면 "#RRGGBB" 다(바닐라 TextColor.serialize). */
     public String serialize() { return name != null ? name : asHexString(); }
 
-    /** 두 색 사이 보간(t 0..1) — 그라디언트용. */
+    /** 두 색 사이 보간(t 는 0..1). 그라디언트용이다. */
     public static TextColor lerp(float t, TextColor a, TextColor b) {
         float c = Math.min(1f, Math.max(0f, t));
         int r = Math.round(a.red() + c * (b.red() - a.red()));

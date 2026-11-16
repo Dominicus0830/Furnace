@@ -23,7 +23,7 @@ import java.util.OptionalLong;
  * @param piglinSafe       피글린이 좀비화하지 않는가
  * @param hasRaids         습격이 일어나는가
  * @param monsterSpawnLightMin 몬스터가 나오는 밝기 상한 범위의 아래(포함)
- * @param monsterSpawnLightMax 몬스터가 나오는 밝기 상한 범위의 위(포함, 15 이하) — 둘이 같으면 고정값
+ * @param monsterSpawnLightMax 몬스터가 나오는 밝기 상한 범위의 위(포함, 15 이하). 둘이 같으면 고정값
  * @param monsterSpawnBlockLightLimit 블록 빛이 이 값보다 밝으면 몬스터가 나오지 않는다(0..15)
  */
 public record DimensionTypeDefinition(

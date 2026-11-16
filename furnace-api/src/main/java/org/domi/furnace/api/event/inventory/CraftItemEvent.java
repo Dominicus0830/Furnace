@@ -1,5 +1,5 @@
-// 플레이어가 제작 결과 칸(작업대·인벤토리 2×2)을 클릭해 꺼내기 직전 — InventoryClickEvent 하위라 그 구독자도 받는다.
-// 취소하면 꺼내지 않고 창을 다시 보낸다(재료도 줄지 않는다). 결과 칸이 비어 있으면 부르지 않는다(보통 InventoryClickEvent).
+// 플레이어가 제작 결과 칸(작업대, 인벤토리 2×2)을 클릭해 꺼내기 직전에 불린다. InventoryClickEvent 의 하위 이벤트라 그 구독자도 받는다.
+// 취소하면 꺼내지 않고 창을 다시 보낸다(재료도 줄지 않는다). 결과 칸이 비어 있으면 부르지 않는다(보통 InventoryClickEvent 가 불린다).
 package org.domi.furnace.api.event.inventory;
 
 import org.domi.furnace.api.entity.Player;

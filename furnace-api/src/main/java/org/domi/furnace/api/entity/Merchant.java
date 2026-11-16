@@ -6,12 +6,12 @@ import java.util.concurrent.CompletableFuture;
 
 public interface Merchant extends LivingEntity {
 
-    /** 지금 거래 목록(사본). 엔티티가 사라졌거나 다른 region 으로 넘어갔으면 null 로 완료. */
+    /** 지금 거래 목록(사본). 엔티티가 사라졌거나 다른 region 으로 넘어갔으면 null 로 완료한다. */
     CompletableFuture<List<MerchantRecipe>> trades();
 
     /**
      * 거래 목록을 통째로 바꾼다. 거래 창을 연 플레이어가 있으면 그 창은 다음에 열 때 새 목록을 본다(바닐라도 열린 창을 갱신하지 않는다).
-     * 엔티티가 없으면 false, 알 수 없는 아이템이면 IllegalArgumentException 으로 완료.
+     * 엔티티가 없으면 false, 알 수 없는 아이템이면 IllegalArgumentException 으로 완료한다.
      */
     CompletableFuture<Boolean> setTrades(List<MerchantRecipe> recipes);
 

@@ -1,4 +1,4 @@
-// 보낼 입자 하나의 종류와 옵션(바닐라 ParticleOptions). 종류마다 옵션 모양이 정해져 있다 — 맞지 않으면 IllegalArgumentException.
+// 보낼 입자 하나의 종류와 옵션(바닐라 ParticleOptions). 종류마다 옵션 모양이 정해져 있고, 맞지 않으면 IllegalArgumentException 을 던진다.
 package org.domi.furnace.api.world;
 
 import java.util.Objects;
@@ -37,7 +37,7 @@ public sealed interface ParticleEffect {
         }
     }
 
-    /** block·block_marker·falling_dust·dust_pillar — 블록 상태. */
+    /** block·block_marker·falling_dust·dust_pillar 의 옵션인 블록 상태. */
     record BlockState(String type, BlockData block) implements ParticleEffect {
         public BlockState {
             type = key(type);
@@ -46,24 +46,24 @@ public sealed interface ParticleEffect {
         }
     }
 
-    /** dust — 색(0xRRGGBB)과 크기(바닐라처럼 0.01~4 로 죈다). */
+    /** dust 의 색(0xRRGGBB)과 크기. 크기는 바닐라처럼 0.01~4 로 죈다. */
     record Dust(int rgb, float size) implements ParticleEffect {
         public Dust { rgb &= 0xFFFFFF; }
         @Override public String type() { return "minecraft:dust"; }
     }
 
-    /** dust_color_transition — 시작색·끝색(0xRRGGBB)과 크기. */
+    /** dust_color_transition 의 시작색·끝색(0xRRGGBB)과 크기. */
     record DustTransition(int fromRgb, int toRgb, float size) implements ParticleEffect {
         public DustTransition { fromRgb &= 0xFFFFFF; toRgb &= 0xFFFFFF; }
         @Override public String type() { return "minecraft:dust_color_transition"; }
     }
 
-    /** entity_effect — 알파 포함 색(0xAARRGGBB). */
+    /** entity_effect 의 알파 포함 색(0xAARRGGBB). */
     record ColorEffect(int argb) implements ParticleEffect {
         @Override public String type() { return "minecraft:entity_effect"; }
     }
 
-    /** item — 아이템(빈 칸이면 IllegalArgumentException, 바닐라와 같다). */
+    /** item 의 아이템. 빈 칸이면 IllegalArgumentException 을 던진다(바닐라와 같다). */
     record Item(ItemStack item) implements ParticleEffect {
         public Item {
             Objects.requireNonNull(item, "item");
@@ -72,18 +72,18 @@ public sealed interface ParticleEffect {
         @Override public String type() { return "minecraft:item"; }
     }
 
-    /** sculk_charge — 회전(라디안). */
+    /** sculk_charge 의 회전(라디안). */
     record SculkCharge(float roll) implements ParticleEffect {
         @Override public String type() { return "minecraft:sculk_charge"; }
     }
 
-    /** shriek — 나타나기까지 지연 틱. */
+    /** shriek 의 나타나기까지 지연 틱. */
     record Shriek(int delay) implements ParticleEffect {
         @Override public String type() { return "minecraft:shriek"; }
     }
 
     /**
-     * vibration — 진동이 날아갈 곳과 도착까지 틱. 곳은 블록 칸이나 엔티티(엔티티 번호와 눈높이 보정).
+     * vibration 의 진동이 날아갈 곳과 도착까지 틱. 곳은 블록 칸이나 엔티티다(엔티티 번호와 눈높이 보정).
      * 출발점은 입자를 내는 좌표다.
      */
     record Vibration(BlockPos block, int entityId, float entityYOffset, int arrivalTicks) implements ParticleEffect {

@@ -1,5 +1,7 @@
-// 바닐라 텍스트 JSON ↔ Text. 읽기는 문자열·배열(첫 원소 + 나머지는 형제)·객체의 모든 내용 종류와 스타일 필드를 받고,
-// 예전 형식(hoverEvent.value, SNBT 문자열 contents)도 너그럽게 읽는다. 쓰기는 Text.toJson() 그대로(바닐라와 같은 바이트).
+// 바닐라 텍스트 JSON 과 Text 사이의 변환기다.
+// 읽기는 문자열, 배열(첫 원소가 본체이고 나머지는 형제), 객체의 모든 내용 종류와 스타일 필드를 받는다.
+// 예전 형식(hoverEvent.value, SNBT 문자열 contents)도 너그럽게 읽는다.
+// 쓰기는 Text.toJson() 그대로다(바닐라와 같은 바이트).
 package org.domi.furnace.api.text.serializer;
 
 import java.util.ArrayList;

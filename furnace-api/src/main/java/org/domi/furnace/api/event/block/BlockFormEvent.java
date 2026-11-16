@@ -1,5 +1,6 @@
-// 블록이 저절로 만들어지기 직전 — 그 블록의 region 스레드에서 불린다. 눈 쌓임·물 얼음·용암+물(흑요석·조약돌·현무암)·콘크리트 가루 굳기가 해당한다.
-// 취소하면 그 칸은 그대로다. 번짐(풀·균사체·버섯·덩굴·불)은 하위 BlockSpreadEvent.
+// 블록이 저절로 만들어지기 직전에 그 블록의 region 스레드에서 불린다.
+// 눈이 쌓이는 경우, 물이 어는 경우, 용암과 물이 만나 흑요석·조약돌·현무암이 되는 경우, 콘크리트 가루가 굳는 경우가 해당한다.
+// 취소하면 그 칸은 그대로다. 풀·균사체·버섯·덩굴·불이 번지는 경우는 하위 이벤트 BlockSpreadEvent 가 맡는다.
 package org.domi.furnace.api.event.block;
 
 import org.domi.furnace.api.event.Cancellable;

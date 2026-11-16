@@ -1,4 +1,4 @@
-// ConfigSection 을 2칸 들여쓰기 pretty JSON 으로 직렬화 (주석은 JSON 에 없으므로 무시)
+// ConfigSection 을 2칸 들여쓰기 pretty JSON 으로 직렬화한다(JSON 에는 주석이 없으므로 무시한다)
 package org.domi.furnace.api.config;
 
 import java.time.LocalDate;

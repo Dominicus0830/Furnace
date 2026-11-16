@@ -1,5 +1,6 @@
-// 속성 수정자 하나(바닐라 AttributeModifier 의 값) — 같은 속성에서 겹치지 않는 id, 양, 연산. 불변.
-// 연산은 아이템 attribute_modifiers 와 같은 {@link AttributeModifiers.Operation} 이다. 값 = ((기본 + Σ ADD_VALUE) + 기본×Σ ADD_MULTIPLIED_BASE) × Π(1 + ADD_MULTIPLIED_TOTAL).
+// 속성 수정자 하나(바닐라 AttributeModifier 의 값). 같은 속성에서 겹치지 않는 id, 양, 연산을 가진다. 불변.
+// 연산은 아이템 attribute_modifiers 와 같은 {@link AttributeModifiers.Operation} 이다.
+// 값은 ((기본 + Σ ADD_VALUE) + 기본×Σ ADD_MULTIPLIED_BASE) × Π(1 + ADD_MULTIPLIED_TOTAL) 이다.
 package org.domi.furnace.api.entity.attribute;
 
 import java.util.Objects;
@@ -7,8 +8,8 @@ import org.domi.furnace.api.item.AttributeModifiers;
 import org.domi.furnace.api.item.AttributeModifiers.Operation;
 
 /**
- * @param id        수정자 키(minecraft:my_plugin_boost 꼴, 네임스페이스가 없으면 minecraft: 를 붙인다). 플러그인은 자기 네임스페이스를 쓰는 편이 좋다
- * @param amount    양. NaN·무한대도 막지 않는다(Bukkit 과 같다) — 속성 값은 마지막에 범위로 잘린다
+ * @param id        수정자 키(minecraft:my_plugin_boost 꼴. 네임스페이스가 없으면 minecraft: 를 붙인다). 플러그인은 자기 네임스페이스를 쓰는 편이 좋다
+ * @param amount    양. NaN·무한대도 막지 않는다(Bukkit 과 같다). 속성 값은 마지막에 범위로 잘린다
  * @param operation 연산
  */
 public record AttributeModifier(String id, double amount, Operation operation) {
@@ -40,7 +41,7 @@ public record AttributeModifier(String id, double amount, Operation operation) {
         return true;
     }
 
-    /** 아이템 쪽 항목으로(slot: any, mainhand, … — {@link AttributeModifiers.Entry}). */
+    /** 아이템 쪽 항목으로 바꾼다(slot 은 any, mainhand 등. {@link AttributeModifiers.Entry}). */
     public AttributeModifiers.Entry toEntry(Attribute attribute, String slot) {
         return new AttributeModifiers.Entry(attribute.key(), id, amount, operation, slot);
     }

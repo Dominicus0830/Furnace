@@ -1,4 +1,4 @@
-// TOML v1.0.0 파서 — 단일 패스 문자 스캐너, 중복 키/테이블 재정의를 명세대로 오류 처리
+// TOML v1.0.0 파서다. 단일 패스 문자 스캐너이며, 중복 키와 테이블 재정의는 명세대로 오류로 처리한다
 package org.domi.furnace.api.config;
 
 import java.time.DateTimeException;
@@ -19,9 +19,9 @@ final class TomlParser {
     private static final int IMPLICIT = 1;
     /** [헤더] 또는 루트로 명시 정의된 테이블. */
     private static final int EXPLICIT = 2;
-    /** 점 키(a.b = 1)로 만들어진 테이블 — 헤더로 재정의 불가, 하위 테이블 추가만 가능. */
+    /** 점 키(a.b = 1)로 만들어진 테이블. 헤더로 재정의할 수 없고 하위 테이블 추가만 된다. */
     private static final int DOTTED = 3;
-    /** 인라인 테이블 — 닫힌 값이라 확장 불가. */
+    /** 인라인 테이블. 닫힌 값이라 확장할 수 없다. */
     private static final int INLINE = 4;
 
     private final String src;

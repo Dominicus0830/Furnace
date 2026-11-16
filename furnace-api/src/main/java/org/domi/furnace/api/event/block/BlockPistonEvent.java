@@ -1,4 +1,4 @@
-// 피스톤이 움직이기 직전 이벤트의 바탕 — 피스톤의 region 스레드에서 불린다. pos 는 피스톤 칸, direction 은 피스톤이 바라보는 쪽.
+// 피스톤이 움직이기 직전 이벤트의 바탕. 피스톤의 region 스레드에서 불린다. pos 는 피스톤 칸이고 direction 은 피스톤이 바라보는 쪽이다.
 package org.domi.furnace.api.event.block;
 
 import java.util.List;
@@ -30,6 +30,6 @@ public abstract class BlockPistonEvent extends BlockEvent implements Cancellable
 
     public boolean isSticky() { return sticky; }
 
-    /** 밀리거나(끌리거나) 부서질 블록 칸들 — 바꿀 수 없다. */
+    /** 밀리거나(끌리거나) 부서질 블록 칸들. 바꿀 수 없다. */
     public List<BlockPos> blocks() { return blocks; }
 }

@@ -12,7 +12,7 @@ public sealed interface Content {
     }
 
     /**
-     * 바닐라 TranslatableContents. args 원소는 {@link Text} 또는 원시값(String·Number·Boolean) — 바닐라처럼 원시값 그대로 직렬화된다.
+     * 바닐라 TranslatableContents. args 원소는 {@link Text} 또는 원시값(String·Number·Boolean)이며, 바닐라처럼 원시값 그대로 직렬화된다.
      *
      * @param fallback 클라이언트가 키를 모를 때 쓸 문장(없으면 null)
      */
@@ -28,7 +28,7 @@ public sealed interface Content {
         }
     }
 
-    /** 바닐라 KeybindContents(key.jump 등 — 클라이언트 키 설정으로 보인다). */
+    /** 바닐라 KeybindContents(key.jump 등). 클라이언트 키 설정에 따라 보인다. */
     record Keybind(String keybind) implements Content {
         public Keybind { Objects.requireNonNull(keybind, "keybind"); }
     }

@@ -1,14 +1,17 @@
-// 엔티티 메타데이터 칸 상수 — 바닐라 1.21.1 의 SynchedEntityData 정의 전부(207칸). 부류 이름·칸 이름은 Mojang 이름을 따른다
-// (클래스 이름, 필드 이름에서 DATA_·_ID 를 뺀 것). 칸 번호는 API 에 없다 — 서버가 버전마다 정한다. 주석의 "1.21.1 칸 n" 은 참고용이다.
+// 엔티티 메타데이터 칸 상수. 바닐라 1.21.1 의 SynchedEntityData 정의 전부(207칸)다.
+// 부류 이름과 칸 이름은 Mojang 이름을 따른다(클래스 이름, 그리고 필드 이름에서 DATA_·_ID 를 뺀 것).
+// 칸 번호는 API 에 없고 서버가 버전마다 정한다. 주석의 "1.21.1 칸 n" 은 참고용이다.
 //
-// 칸은 그 부류와 하위 부류에만 있다: 예) Display.SCALE 은 block_display·item_display·text_display, LivingEntity.HEALTH 는 살아 있는 모든 엔티티.
-// 예)
+// 칸은 그 부류와 하위 부류에만 있다.
+// 예를 들어 Display.SCALE 은 block_display·item_display·text_display 에, LivingEntity.HEALTH 는 살아 있는 모든 엔티티에 있다.
+//
+// 사용 예
 //   packet.with(EntityDataKeys.Entity.SHARED_FLAGS, (byte) 0x40)                       // 발광
 //   virtualEntity.set(EntityDataKeys.TextDisplay.TEXT, Text.text("상점"))
 //   virtualEntity.set(EntityDataKeys.Display.SCALE, new Vector3f(2, 2, 2))
 //
-// 이 파일은 서버 엔티티 정의에서 만든 표다(서버 시험 EntityDataKeysTest 가 칸·값 종류를 서버 엔티티와 하나하나 대조한다).
-// 부류·번호·값 종류·칸 이름은 바닐라 1.21.1 서버 jar 바이트코드(defineId 순서·클래스 계층)와도 대조했다(2026-11-12 독립 검토).
+// 이 파일은 서버 엔티티 정의에서 만든 표다. 서버 시험 EntityDataKeysTest 가 칸과 값 종류를 서버 엔티티와 하나하나 대조한다.
+// 부류, 번호, 값 종류, 칸 이름은 바닐라 1.21.1 서버 jar 바이트코드(defineId 순서와 클래스 계층)와도 대조했다(2026-11-12 독립 검토).
 package org.domi.furnace.api.entity.data;
 
 import java.lang.invoke.MethodHandles;

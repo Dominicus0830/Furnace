@@ -1,5 +1,5 @@
 // 목표 이름표 "이름공간:이름"(예: minecraft:melee_attack, myplugin:guard). 같은 이름표로 찾고 뺀다.
-// 바닐라 목표는 minecraft: 아래 목표 종류 이름(MeleeAttackGoal → melee_attack)이다. 판마다 바뀔 수 있는 내부 클래스 대신 이 문자열로 다룬다.
+// 바닐라 목표는 minecraft: 아래 목표 종류 이름이다(MeleeAttackGoal 은 melee_attack). 버전마다 바뀔 수 있는 내부 클래스 대신 이 문자열로 다룬다.
 package org.domi.furnace.api.entity.ai;
 
 import java.util.Locale;
