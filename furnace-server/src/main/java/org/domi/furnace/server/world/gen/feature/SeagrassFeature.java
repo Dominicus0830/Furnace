@@ -57,7 +57,7 @@ public final class SeagrassFeature implements ConfiguredFeature {
 
     // SeagrassBlock.mayPlaceOn: 위쪽 면이 단단한(isFaceSturdy UP, SupportType.FULL) 블록이어야 한다. 바닐라 export 표(BlockAttrs)로 그대로 판정 —
     // BlockSurvival 의 SEAGRASS 와 같은 규칙이다(마그마 블록 제외는 place 가 따로 본다).
-    private static boolean isSolidFloor(int stateId) {
+    static boolean isSolidFloor(int stateId) {
         return BlockAttrs.get().isFaceSturdy(stateId, BlockAttrs.UP);
     }
 
