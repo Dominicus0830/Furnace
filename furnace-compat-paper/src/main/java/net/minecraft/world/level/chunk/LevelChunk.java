@@ -16,7 +16,7 @@ import org.domi.furnace.compat.nms.NmsChunks;
  */
 public class LevelChunk extends ChunkAccess {
 
-    /** 이 청크의 월드(Paper 는 공개 필드 — FAWE 가 바로 읽는다). */
+    /** 이 청크의 월드(Paper 는 공개 필드 — 어댑터가 바로 읽는다). */
     public final net.minecraft.server.level.ServerLevel level;
     /** Paper 가 더한 청크 좌표 필드(N2b-6). */
     public final int locX;
@@ -111,7 +111,7 @@ public class LevelChunk extends ChunkAccess {
 
         @Override
         public net.minecraft.world.level.block.entity.BlockEntity remove(Object key) {
-            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunk#blockEntities.remove", "청크 블록 엔티티 표를 직접 고치는 길은 아직 없다");
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunk#blockEntities.remove", "editing the chunk block entity table directly does not exist yet");
         }
     };
 
@@ -136,12 +136,19 @@ public class LevelChunk extends ChunkAccess {
 
     /** 바닐라 removeBlockEntity: 아직 없다 — 다른 스레드의 블록 엔티티 지우기는 거울 일지에 블록 엔티티가 들어가야 한다(N2b-4 4장 2, TASK). */
     public void removeBlockEntity(net.minecraft.core.BlockPos pos) {
-        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunk#removeBlockEntity", "NMS 로 블록 엔티티를 지우는 길은 아직 없다(블록 엔티티 일지 — TASK)");
+        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunk#removeBlockEntity", "removing block entities through NMS does not exist yet (block entity journal)");
     }
 
-    /** 바닐라 private 도우미(FAWE 가 리플렉션으로 있는지 본다). 블록 엔티티를 지우는 길이 아직 없어 아무것도 하지 않는다. */
-    private <T extends net.minecraft.world.level.block.entity.BlockEntity> void removeGameEventListener(T blockEntity, net.minecraft.server.level.ServerLevel level) {}
+    /**
+     * 바닐라 private 도우미(Paper 와 같은 이름·서명 — 어댑터가 리플렉션으로 찾아 부른다): 블록 엔티티의 게임 이벤트 청취를 청크에서 뗀다.
+     * 블록 엔티티를 이 청크에서 떼는 길 자체가 아직 없다({@link #removeBlockEntity} 와 같은 블록 엔티티 일지 — TASK)라 {@code removeBlockEntity} 처럼 던진다.
+     */
+    private <T extends net.minecraft.world.level.block.entity.BlockEntity> void removeGameEventListener(T blockEntity, net.minecraft.server.level.ServerLevel level) {
+        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunk#removeGameEventListener", "detaching a block entity's game event listener needs the block entity journal, which does not exist yet");
+    }
 
-    /** 바닐라 private 도우미(FAWE 가 리플렉션으로 있는지 본다). 블록 엔티티를 지우는 길이 아직 없어 아무것도 하지 않는다. */
-    private void removeBlockEntityTicker(net.minecraft.core.BlockPos pos) {}
+    /** 바닐라 private 도우미(위와 같은 규칙): 그 칸의 블록 엔티티 틱터를 청크에서 뗀다. 블록 엔티티 일지가 생길 때까지 던진다. */
+    private void removeBlockEntityTicker(net.minecraft.core.BlockPos pos) {
+        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunk#removeBlockEntityTicker", "detaching a block entity ticker needs the block entity journal, which does not exist yet");
+    }
 }

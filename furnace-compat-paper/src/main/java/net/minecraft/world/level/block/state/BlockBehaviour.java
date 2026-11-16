@@ -36,6 +36,9 @@ public abstract class BlockBehaviour {
 
         protected abstract BlockState asState();
 
+        @Override
+        public BlockState furnaceDefaultState() { return owner.defaultBlockState(); }
+
         public Block getBlock() { return owner; }
 
         public Holder<Block> getBlockHolder() { return owner.builtInRegistryHolder(); }

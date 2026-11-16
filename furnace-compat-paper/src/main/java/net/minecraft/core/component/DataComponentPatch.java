@@ -7,9 +7,10 @@ import java.util.Set;
  * 아이템 구성 요소 패치(Mojang 이름 shim, N2b-6): 기본 구성 요소에서 바뀐 값과 지운 종류. Furnace 아이템({@code org.domi.furnace.api.item.ItemStack})의
  * {@code components}(키 → SNBT)·{@code removedComponents} 를 그대로 쥔다.
  *
- * <p>{@link #CODEC} 은 진짜 DataFixerUpper {@code Codec} 객체라 {@code optionalFieldOf(..)} 같은 조합은 되지만, 인코딩·디코딩 자체는 아직
- * 오류 결과({@code DataResult.error})를 준다 — NBT 와 Furnace 구성 요소 사이의 바꾸기(NbtOps·직렬화 문맥)가 아직 없다(TASK). FAWE 는
- * 어댑터를 올릴 때 이 상수로 코덱을 만들어 두기만 하고, 쓰는 곳은 아이템 변환(완드·브러시 아이템 주기)뿐이다.
+ * <p>{@link #CODEC} 은 진짜 DataFixerUpper {@code Codec} 객체라 {@code optionalFieldOf(..)} 같은 조합은 되지만, 인코딩·디코딩을 <b>부르면</b>
+ * {@link org.domi.furnace.compat.nms.UnsupportedNmsCall} 을 던진다 — NBT({@code NbtOps} 는 아직 {@code DynamicOps} 가 아니다)와 Furnace 구성 요소(키 → SNBT)
+ * 사이를 바닐라와 같은 결과로 바꾸는 길이 아직 없다(T-191·T-200). 오류 결과({@code DataResult.error})로 조용히 넘기지 않아 부른 자리에서 이유와 대체
+ * (Furnace 아이템 API)가 바로 보인다. 코덱을 만들어 두기만 하는 어댑터는 영향이 없다.
  */
 public final class DataComponentPatch {
 
@@ -63,18 +64,23 @@ public final class DataComponentPatch {
             return new com.mojang.serialization.Codec<>() {
                 @Override
                 public <T> com.mojang.serialization.DataResult<T> encode(DataComponentPatch input, com.mojang.serialization.DynamicOps<T> ops, T prefix) {
-                    return com.mojang.serialization.DataResult.error(() -> "Furnace: 아이템 구성 요소 패치 코덱은 아직 없다(인코딩 " + input + ")");
+                    throw unsupported("encode");
                 }
 
                 @Override
                 public <T> com.mojang.serialization.DataResult<com.mojang.datafixers.util.Pair<DataComponentPatch, T>> decode(
                         com.mojang.serialization.DynamicOps<T> ops, T input) {
-                    return com.mojang.serialization.DataResult.error(() -> "Furnace: 아이템 구성 요소 패치 코덱은 아직 없다(디코딩)");
+                    throw unsupported("decode");
                 }
 
                 @Override
                 public String toString() { return "DataComponentPatch.CODEC[Furnace]"; }
             };
+        }
+
+        private static org.domi.furnace.compat.nms.UnsupportedNmsCall unsupported(String what) {
+            return new org.domi.furnace.compat.nms.UnsupportedNmsCall("DataComponentPatch.CODEC#" + what,
+                    "converting item component patches to and from NBT or JSON is not available yet (it needs the NbtOps DynamicOps). Use the Furnace item API (ItemStack components) instead");
         }
     }
 }

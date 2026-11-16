@@ -1,4 +1,8 @@
 package com.mojang.serialization;
 
-/** DataFixerUpper 대역(컴파일 전용) — 형식 인자로만 쓴다. */
-public interface DynamicOps<T> {}
+/** DataFixerUpper 8.0.16 대역(컴파일 전용): 호환 계층이 쓰는 멤버만(진짜와 같은 서술자). */
+public interface DynamicOps<T> {
+    DataResult<String> getStringValue(T input);
+
+    T createString(String value);
+}

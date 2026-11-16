@@ -7,8 +7,8 @@ import net.minecraft.world.level.chunk.LevelChunk;
 /**
  * 청크 자리 하나(Mojang 이름 shim, N2b-6): {@code ChunkMap#getVisibleChunkIfPresent} 가 준다. Furnace 는 청크 자리 객체를 따로 두지 않으므로
  * 부를 때마다 서버 청크를 본다 — 로드돼 있으면 그 청크 보기({@link LevelChunk}), 아니면 {@link #UNLOADED_LEVEL_CHUNK}.
- * Furnace 의 로드된 청크는 늘 다 만든 청크이고 서버가 틱 등급을 알려 주지 않으므로, 틱·엔티티 틱 미래도 로드된 청크를 준다(가정 — Paper 는
- * 그 등급이 아니면 아직 안 끝난 미래를 준다). 블록 변경 알림(blockChanged)은 아직 없다.
+ * Furnace 의 로드된 청크는 늘 다 만든 청크이고 서버가 틱 등급을 알려 주지 않으므로, 틱·엔티티 틱 미래도 로드된 청크를 준다 —
+ * <b>Paper 와 다른 점</b>: Paper 는 청크가 그 틱 등급에 못 미치면 아직 안 끝난 미래를 준다(문서 compat-nms-n2b6 "Paper 와 다른 점"). 블록 변경 알림(blockChanged)은 아직 없다.
  */
 public class ChunkHolder {
 
@@ -44,7 +44,7 @@ public class ChunkHolder {
 
     public LevelChunk getChunkToSend() { return getFullChunkNow(); }
 
-    /** Paper 새 청크 시스템에는 대응이 없어 FAWE 도 참으로 본다 — 여기서는 로드돼 있으면 참. */
+    /** Paper(Moonrise) 청크 시스템에는 이 필드의 대응이 없어 어댑터들이 늘 참으로 본다 — 여기서도 로드돼 있으면 참. */
     public boolean wasAccessibleSinceLastSave() { return getFullChunkNow() != null; }
 
     @Override

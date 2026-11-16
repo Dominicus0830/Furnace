@@ -284,11 +284,68 @@ class NmsFaweSurfaceTest {
     }
 
     @Test
-    void dataComponentPatchCodecExistsButReportsUnsupported() {
+    void dataComponentPatchCodecExistsButFailsLoudlyWhenUsed() {
         assertTrue(net.minecraft.core.component.DataComponentPatch.EMPTY.isEmpty());
         assertNotNull(net.minecraft.core.component.DataComponentPatch.CODEC);
-        assertTrue(net.minecraft.core.component.DataComponentPatch.CODEC.encode(net.minecraft.core.component.DataComponentPatch.EMPTY, null, null)
-                .toString().contains("아직 없다"));
+        var enc = org.junit.jupiter.api.Assertions.assertThrows(UnsupportedNmsCall.class,
+                () -> net.minecraft.core.component.DataComponentPatch.CODEC.encode(net.minecraft.core.component.DataComponentPatch.EMPTY, null, null));
+        assertTrue(enc.getMessage().contains("DataComponentPatch.CODEC#encode") && enc.getMessage().contains("Furnace item API"), enc.getMessage());
+        var dec = org.junit.jupiter.api.Assertions.assertThrows(UnsupportedNmsCall.class,
+                () -> net.minecraft.core.component.DataComponentPatch.CODEC.decode(null, null));
+        assertTrue(dec.getMessage().contains("DataComponentPatch.CODEC#decode"), dec.getMessage());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void craftServerWorldsIsALiveReadOnlyViewOfTheServerWorlds() throws Exception {
+        Field f = org.bukkit.craftbukkit.CraftServer.class.getDeclaredField("worlds");
+        f.setAccessible(true);
+        java.util.Map<String, org.bukkit.World> worlds = (java.util.Map<String, org.bukkit.World>) f.get(org.bukkit.craftbukkit.CraftServer.INSTANCE);
+        var expected = Bukkit.getWorlds();
+        assertFalse(expected.isEmpty());
+        assertEquals(expected.size(), worlds.size());
+        for (org.bukkit.World w : expected) {
+            String key = w.getName().toLowerCase(java.util.Locale.ROOT);
+            assertSame(w, worlds.get(key), key);
+            assertTrue(worlds.containsKey(key));
+            assertSame(w, worlds.get(key), "같은 월드 객체");
+        }
+        assertNull(worlds.get("no_such_world"));
+        assertNull(worlds.remove("no_such_world"), "이미 없는 이름을 지우는 것은 아무 일도 없다(월드를 내린 뒤 표를 정리하는 코드)");
+        var first = expected.get(0);
+        assertTrue(org.junit.jupiter.api.Assertions.assertThrows(UnsupportedNmsCall.class, () -> worlds.put("x", first)).getMessage().contains("Server#createWorld"));
+        var rm = org.junit.jupiter.api.Assertions.assertThrows(UnsupportedNmsCall.class, () -> worlds.remove(first.getName().toLowerCase(java.util.Locale.ROOT)));
+        assertTrue(rm.getMessage().contains("Furnace#unloadWorld"), rm.getMessage());
+        org.junit.jupiter.api.Assertions.assertThrows(UnsupportedNmsCall.class, worlds::clear);
+        assertEquals(expected.size(), worlds.size(), "고치려던 시도가 월드를 바꾸지 않는다");
+    }
+
+    @Test
+    void privateBlockEntityHelpersExistWithPaperSignaturesAndFailLikeRemoveBlockEntity() throws Exception {
+        LevelChunk chunk = level.getChunkAt(new BlockPos(at.x(), at.y(), at.z()));
+        Method listener = LevelChunk.class.getDeclaredMethod("removeGameEventListener", net.minecraft.world.level.block.entity.BlockEntity.class, ServerLevel.class);
+        Method ticker = LevelChunk.class.getDeclaredMethod("removeBlockEntityTicker", BlockPos.class);
+        listener.setAccessible(true);
+        ticker.setAccessible(true);
+        var e1 = org.junit.jupiter.api.Assertions.assertThrows(java.lang.reflect.InvocationTargetException.class, () -> listener.invoke(chunk, null, level));
+        assertTrue(e1.getCause() instanceof UnsupportedNmsCall, String.valueOf(e1.getCause()));
+        var e2 = org.junit.jupiter.api.Assertions.assertThrows(java.lang.reflect.InvocationTargetException.class, () -> ticker.invoke(chunk, BlockPos.ZERO));
+        assertTrue(e2.getCause() instanceof UnsupportedNmsCall, String.valueOf(e2.getCause()));
+        assertTrue(org.junit.jupiter.api.Assertions.assertThrows(UnsupportedNmsCall.class, () -> chunk.removeBlockEntity(BlockPos.ZERO)).getMessage().contains("block entit"));
+    }
+
+    @Test
+    void statesCarryARealPropertiesCodecWhenDataFixerUpperIsVisible() throws Exception {
+        Field f = net.minecraft.world.level.block.state.StateHolder.class.getDeclaredField("propertiesCodec");
+        f.setAccessible(true);
+        // 시험 클래스패스에는 DFU 대역이 있어 보인다 — 코덱 객체가 상태마다 있다(null 이 아니다). 안 보이는 서버에서는 null 이다.
+        assertTrue(NmsDfu.visible());
+        for (Block b : new Block[] {net.minecraft.world.level.block.Blocks.OAK_STAIRS, net.minecraft.world.level.block.Blocks.STONE, net.minecraft.world.level.block.Blocks.WATER}) {
+            assertNotNull(f.get(b.defaultBlockState()), b.toString());
+            assertNotNull(f.get(b.defaultBlockState().getFluidState()), b.toString());
+        }
+        assertNotNull(f.get(Fluids.WATER.defaultFluidState()));
+        assertEquals("PropertiesCodec[BlockState]", f.get(net.minecraft.world.level.block.Blocks.STONE.defaultBlockState()).toString());
     }
 
     @Test

@@ -92,4 +92,51 @@ class NmsEntityBlockTest {
         assertEquals(ZERO, be.getBlockPos());
         assertEquals(Blocks.BEACON.defaultBlockState(), be.getBlockState());
     }
+
+    @Test
+    void everyBlockEntityBlockMakesTheVanillaClassOfItsKind() {
+        var ids = new java.util.HashSet<String>();
+        for (int id = 0; id < NmsBlockStates.table().flags().length; id++) {
+            BlockState st = Block.stateById(id);
+            if (!(st.getBlock() instanceof EntityBlock eb) || st.getBlock().defaultBlockState() != st) continue;
+            BlockEntity be = eb.newBlockEntity(ZERO, st);
+            if (be == null) {
+                assertEquals(Blocks.MOVING_PISTON, st.getBlock(), "바닐라에서 null 인 것은 움직이는 피스톤뿐: " + st);
+                continue;
+            }
+            String type = NmsBlockStates.bridge().blockEntityType(st.getBlock().defaultBlockState().furnaceStateId());
+            assertEquals(type, be.getType().furnaceId().toString(), st.toString());
+            assertFalse(be.getClass().isAnonymousClass(), "표에 없는 종류라 일반 껍데기가 됐다: " + type + " " + be.getClass());
+            ids.add(type);
+        }
+        assertTrue(ids.size() >= 40, "블록 엔티티 종류 " + ids.size());
+    }
+
+    @Test
+    void blockEntityClassesFollowTheVanillaHierarchy() {
+        assertTrue(make(Blocks.CHEST) instanceof net.minecraft.world.level.block.entity.ChestBlockEntity);
+        assertFalse(make(Blocks.CHEST) instanceof net.minecraft.world.level.block.entity.TrappedChestBlockEntity);
+        assertTrue(make(Blocks.TRAPPED_CHEST) instanceof net.minecraft.world.level.block.entity.ChestBlockEntity);
+        assertTrue(make(Blocks.TRAPPED_CHEST) instanceof net.minecraft.world.level.block.entity.TrappedChestBlockEntity);
+        assertTrue(make(Blocks.OAK_SIGN) instanceof net.minecraft.world.level.block.entity.SignBlockEntity);
+        assertFalse(make(Blocks.OAK_SIGN) instanceof net.minecraft.world.level.block.entity.HangingSignBlockEntity);
+        assertTrue(make(Blocks.OAK_HANGING_SIGN) instanceof net.minecraft.world.level.block.entity.SignBlockEntity);
+        assertTrue(make(Blocks.OAK_HANGING_SIGN) instanceof net.minecraft.world.level.block.entity.HangingSignBlockEntity);
+        for (Block f : new Block[] {Blocks.FURNACE, Blocks.SMOKER, Blocks.BLAST_FURNACE}) {
+            assertTrue(make(f) instanceof net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity, f.toString());
+            assertTrue(make(f) instanceof net.minecraft.world.level.block.entity.BaseContainerBlockEntity, f.toString());
+        }
+        assertTrue(make(Blocks.DROPPER) instanceof net.minecraft.world.level.block.entity.DispenserBlockEntity);
+        for (Block c : new Block[] {Blocks.CHEST, Blocks.BARREL, Blocks.HOPPER, Blocks.DISPENSER, Blocks.WHITE_SHULKER_BOX, Blocks.CRAFTER}) {
+            assertTrue(make(c) instanceof net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity, c.toString());
+        }
+        assertFalse(make(Blocks.ENDER_CHEST) instanceof net.minecraft.world.level.block.entity.BaseContainerBlockEntity);
+        assertTrue(make(Blocks.END_GATEWAY) instanceof net.minecraft.world.level.block.entity.TheEndPortalBlockEntity);
+        assertTrue(make(Blocks.CALIBRATED_SCULK_SENSOR) instanceof net.minecraft.world.level.block.entity.SculkSensorBlockEntity);
+        assertTrue(make(Blocks.VAULT) instanceof net.minecraft.world.level.block.entity.vault.VaultBlockEntity);
+        assertTrue(make(Blocks.SPAWNER) instanceof net.minecraft.world.level.block.entity.SpawnerBlockEntity);
+        assertTrue(make(Blocks.SKELETON_SKULL) instanceof net.minecraft.world.level.block.entity.SkullBlockEntity);
+        assertTrue(make(Blocks.WHITE_BANNER) instanceof net.minecraft.world.level.block.entity.BannerBlockEntity);
+        assertTrue(make(Blocks.WHITE_BED) instanceof net.minecraft.world.level.block.entity.BedBlockEntity);
+    }
 }

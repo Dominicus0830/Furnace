@@ -117,10 +117,16 @@ class NmsLinkerTest {
     /** shim 의 상위 클래스가 final 인 경우(바닐라는 상속 가능 — H1): 껍데기는 Object 위에 서야 정의가 깨지지 않는다. */
     private static final String SUB_FINAL = """
             package linky;
-            public class MyFinalParent extends net.minecraft.nbt.ListTag {
+            public class MyFinalParent extends net.minecraft.world.entity.animal.sniffer.Sniffer {
                 public MyFinalParent() { super(); }
                 public static String marker() { return "static-ok"; }
             }
+            """;
+
+    /** 컴파일용 스텁: 바닐라의 Sniffer 는 상속할 수 있지만 shim 은 final 이다(플러그인은 바닐라 모양으로 컴파일한다). */
+    private static final String SNIFFER_STUB = """
+            package net.minecraft.world.entity.animal.sniffer;
+            public class Sniffer { public Sniffer() {} }
             """;
 
     @TempDir
@@ -137,6 +143,7 @@ class NmsLinkerTest {
         src.put("linky.MyEntity", SUB);
         src.put("linky.MyChunk", SUB_MISSING);
         src.put("linky.MyFinalParent", SUB_FINAL);
+        src.put("net.minecraft.world.entity.animal.sniffer.Sniffer", SNIFFER_STUB);
         Path jar = JarCompiler.jar(tmp.resolve("linky.jar"), "name: Linky\nversion: '1'\nmain: linky.User\n", src, Set.of("net.minecraft."));
         classes = read(jar);
     }
@@ -306,7 +313,7 @@ class NmsLinkerTest {
     @Test
     void huskOnAFinalShimParentIsDefinedOnObjectAndKeepsItsStaticMembers() throws Throwable {
         // H1: 상위 shim 이 final 이면 그 위에 정의하면 IncompatibleClassChangeError — Object 위에 세우고 정적 멤버는 그대로 쓴다
-        assertTrue(java.lang.reflect.Modifier.isFinal(net.minecraft.nbt.ListTag.class.getModifiers()), "premise: the shim parent is final");
+        assertTrue(java.lang.reflect.Modifier.isFinal(net.minecraft.world.entity.animal.sniffer.Sniffer.class.getModifiers()), "premise: the shim parent is final");
         NmsClassTransformer t = new NmsClassTransformer("Linky", Set.of(), NmsClassTransformer.Options.DEFAULT, NmsSymbols.RUNTIME);
         Loader loader = new Loader(classes, t);
         Class<?> c = loader.loadClass("linky.MyFinalParent");

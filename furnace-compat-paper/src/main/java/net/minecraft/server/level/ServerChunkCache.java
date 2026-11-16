@@ -39,7 +39,7 @@ public class ServerChunkCache extends ChunkSource {
 
     /**
      * 바닐라(주 스레드 전용) 청크 미래 — Furnace: 로드돼 있으면 끝난 미래, 아니면 그 청크를 가진 region 이 불러온 뒤(create 면 만들어서) 끝난다.
-     * 못 얻으면 {@link ChunkHolder#UNLOADED_LEVEL_CHUNK}. FAWE 어댑터가 리플렉션으로 이 메서드가 있는지 본다.
+     * 못 얻으면 {@link ChunkHolder#UNLOADED_LEVEL_CHUNK}. Paper 의 이 메서드를 리플렉션으로 찾는 어댑터가 쓴다.
      */
     private java.util.concurrent.CompletableFuture<ChunkResult<ChunkAccess>> getChunkFutureMainThread(int x, int z, ChunkStatus status, boolean create) {
         ChunkAccess now = getChunk(x, z, status, false);
