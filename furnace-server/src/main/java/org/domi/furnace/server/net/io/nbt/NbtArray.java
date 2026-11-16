@@ -4,7 +4,9 @@ package org.domi.furnace.server.net.io.nbt;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.nbt.ByteArrayTag", "net.minecraft.nbt.IntArrayTag", "net.minecraft.nbt.LongArrayTag"})
 public final class NbtArray {
 
     private final byte type;

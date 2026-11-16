@@ -2,8 +2,10 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundSetTimePacket")
 public record SetTime(long gameTime, long dayTime) implements Packet {
 
     public static final int ID = 0x64;

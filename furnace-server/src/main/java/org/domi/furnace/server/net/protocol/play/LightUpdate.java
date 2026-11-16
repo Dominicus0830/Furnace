@@ -3,10 +3,12 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.light.ChunkLight;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundLightUpdatePacket")
 public record LightUpdate(int chunkX, int chunkZ, long skyMask, long blockMask, long emptySkyMask, long emptyBlockMask,
                           byte[][] skyData, byte[][] blockData) implements Packet {
 

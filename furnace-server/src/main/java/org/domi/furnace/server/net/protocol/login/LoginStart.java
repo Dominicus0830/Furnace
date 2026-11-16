@@ -4,8 +4,10 @@ package org.domi.furnace.server.net.protocol.login;
 import io.netty.buffer.ByteBuf;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 
+@VanillaPort("net.minecraft.network.protocol.login.ServerboundHelloPacket")
 public record LoginStart(String name, UUID uuid) {
 
     public static final int ID = 0x00;

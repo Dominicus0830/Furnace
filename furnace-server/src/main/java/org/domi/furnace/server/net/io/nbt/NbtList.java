@@ -3,7 +3,9 @@ package org.domi.furnace.server.net.io.nbt;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.nbt.ListTag")
 public final class NbtList {
 
     private byte elementType;

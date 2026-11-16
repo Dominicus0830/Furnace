@@ -2,9 +2,11 @@
 package org.domi.furnace.server.net.protocol.configuration;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.common.ClientboundStoreCookiePacket")
 public record StoreCookie(String key, byte[] payload) implements Packet {
 
     public static final int ID = 0x0A;

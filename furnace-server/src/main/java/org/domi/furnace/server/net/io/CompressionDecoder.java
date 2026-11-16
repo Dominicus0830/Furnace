@@ -6,8 +6,10 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import java.util.List;
 import java.util.zip.Inflater;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.ProtocolException;
 
+@VanillaPort("net.minecraft.network.CompressionDecoder")
 public final class CompressionDecoder extends ByteToMessageDecoder {
 
     // 바닐라 상한은 8 MiB(CompressionDecoder.MAXIMUM_UNCOMPRESSED_LENGTH)지만 C→S 패킷 중 가장 큰 것도 1 MiB(로그인 커스텀 응답)라

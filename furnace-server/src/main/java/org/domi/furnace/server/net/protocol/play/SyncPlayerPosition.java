@@ -2,9 +2,11 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket")
 public record SyncPlayerPosition(double x, double y, double z, float yaw, float pitch, int flags, int teleportId) implements Packet {
 
     /** RelativeMovement 다섯 축(X·Y·Z·Y_ROT·X_ROT) 모두 상대값. */

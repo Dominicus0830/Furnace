@@ -3,10 +3,12 @@ package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundRecipePacket")
 public record RecipeBookUpdate(int state, boolean[] settings, List<ResourceId> recipes, List<ResourceId> highlight) implements Packet {
 
     public static final int ID = 0x41;

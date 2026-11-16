@@ -1,6 +1,9 @@
 // 리소스 팩 응답(serverbound resource_pack: 구성 0x06 / play 0x2B) 해석 — 바닐라 ServerboundResourcePackPacket.Action.
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.network.protocol.common.ServerboundResourcePackPacket")
 public final class ResourcePackResponses {
     private ResourcePackResponses() { }
 
