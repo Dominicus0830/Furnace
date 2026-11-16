@@ -1,0 +1,94 @@
+# 시험 영향 선택 규칙 (tools/ci/test-impact.py select, docs/ci.md "시험 영향 선택")
+#
+# 영향 표(표를 만든 커밋 X)와 지금 검사하는 트리 사이에 바뀐 모든 파일에 대해, 위에서부터 처음 맞는 규칙 하나를 적용한다.
+# 어느 규칙에도 안 맞는 파일은 .java(<모듈>/src/<소스셋>/java) 면 영향 표로 따지고, 그 밖의 파일이면 전체 시험을 돈다.
+# 글롭은 저장소 맨 위 기준이다: ** 는 폴더를 넘고, * 와 ? 는 폴더를 안 넘는다.
+#
+#   full   <글롭>            이 파일이 바뀌면 전체 서버 시험(표로 따질 수 없거나 위험한 것)
+#   ignore <글롭>            시험이 읽지 않는 파일 — 선택에 영향 없음
+#   reads  <글롭> <정규식>   시험이 데이터로 읽는 파일 — 정규식에 맞는 자바 소스(시험·도우미)를 바뀐 것으로 보고 그것을 실행한 시험을 고른다.
+#                            맞는 소스가 하나도 없으면 규칙이 낡은 것이라 전체를 돈다.
+#   always <시험 클래스>     모든 서버 코드 변경에서 항상 돌리는 넓은 시험(표가 놓친 것을 잡는 그물, 컴파일 확인도 겸함)
+#
+# 새 시험이 저장소 밖 파일(../docs, ../tools 등)을 읽으면 아래 reads 규칙을 같이 추가한다 — tools/ci/test_test_impact.py 가 빠진 곳을 찾아낸다.
+
+# ---- 전체 시험 대상: 빌드·CI ----
+full .github/**
+full tools/ci/**
+full gradle/**
+full gradlew
+full gradlew.bat
+full *.kts
+full **/*.kts
+full **/*.gradle
+full gradle.properties
+full **/gradle.properties
+full **/*.toml
+# 표를 만드는 도구: 표 이후에 이 파일들이 바뀌었으면 옛 도구로 만든 표를 믿지 않는다(tools/ci/** · .github/** 는 위에서 이미 전체).
+full furnace-server/src/test/java/org/domi/furnace/server/TestImpactListener.java
+# ---- 전체 시험 대상: 리소스(클래스 커버리지에 안 잡힌다. 금 파일·정답표·언어 파일·서비스 목록 포함) ----
+full **/src/*/resources/**
+# ---- 전체 시험 대상: 동시성 핵심(어디서 쓰이든 영향이 번지는 곳) ----
+full furnace-server/src/main/java/org/domi/furnace/server/sched/**
+full furnace-api/src/main/java/org/domi/furnace/api/concurrent/**
+full furnace-server/src/main/java/org/domi/furnace/server/world/Regionizer.java
+full furnace-server/src/main/java/org/domi/furnace/server/world/Region.java
+full furnace-server/src/main/java/org/domi/furnace/server/world/RegionBorrow.java
+full furnace-server/src/main/java/org/domi/furnace/server/world/RegionLevel.java
+full furnace-server/src/main/java/org/domi/furnace/server/world/SharedScheduler.java
+full furnace-server/src/main/java/org/domi/furnace/server/world/ChunkColumn.java
+full furnace-server/src/main/java/org/domi/furnace/server/world/TickState.java
+full furnace-server/src/main/java/org/domi/furnace/server/ServerCore.java
+
+# ---- 시험이 읽지 않는 파일 ----
+ignore furnace-server/test-shard-times.tsv
+ignore **/src/bench/**
+ignore docs/feature-parity/context-notes/**
+ignore docs/user-todo/**
+ignore docs/user-todo.md
+# ---- 시험이 데이터로 읽는 파일 ----
+reads docs/api/** docs[/"', ]+api
+reads docs/feature-parity/** feature-parity
+ignore tools/vanilla-data/*.java
+ignore tools/vanilla-data/README.md
+reads tools/vanilla-data/** tools[/"', ]+vanilla-data
+reads tools/compat/** tools[/"', ]+compat
+ignore tools/bot-test/**
+ignore tools/parity-audit/**
+ignore tools/block-oracle/**
+ignore tools/user-todo-combined.sh
+# ---- 나머지 문서·부속 파일 ----
+ignore docs/**
+ignore *.md
+ignore LLM-Wiki/**
+ignore graphify-out/**
+ignore .claude/**
+ignore licenses/**
+ignore NOTICE
+ignore LICENSE
+ignore start.sh
+ignore start.bat
+ignore jvm.args.example
+ignore .gitignore
+ignore .gitattributes
+ignore .graphifyignore
+
+# ---- 항상 돌리는 시험 ----
+# (1) 서버 코드를 "다른 JVM"에서 돌리는 시험: JaCoCo 에이전트는 시험 JVM 에만 붙어 있어 자식 JVM 에서 실행된 코드는 영향 표에 안 잡힌다.
+#     장면 해시(SceneHash)·IdentityKit 금 파일 시험이 대표적이다 — 서버 코드가 바뀌면 이 시험들이 "결과가 그대로인가"를 본다. 합쳐 1분 안팎.
+#     새 시험이 ProcessBuilder·SceneHash·ForkMain 을 쓰면 여기에 넣어야 한다(test_test_impact.py 가 확인한다).
+always org/domi/furnace/server/ShutdownHookOrderTest
+always org/domi/furnace/server/block/RandomSeedsTest
+always org/domi/furnace/server/block/ScheduledTickSceneGoldenTest
+always org/domi/furnace/server/entity/EntityCollisionSceneGoldenTest
+always org/domi/furnace/server/identity/IdentityKitTest
+always org/domi/furnace/server/light/LightSceneIdentityTest
+always org/domi/furnace/server/scene/SceneLibraryTest
+# (2) 다른 파일의 "내용"을 읽어 검사하는 시험: 검사 대상은 이 시험이 실행하는 코드가 아니라 파일이라서, 그 파일이 바뀌어도 영향 표에 안 잡힌다.
+#     LangBundlesTest: 모든 모듈 src/main/java 의 한글 문자열 직접 사용·Lang 키 존재(CLAUDE.md 콘솔 메시지 규칙). 몇 초.
+#     CompatIsolationStaticTest: 서버·API 클래스 파일 전부에 금지 이름(org/bukkit 등)이 있는지.
+#     CancelContractTest: API 의 Cancellable 이벤트 클래스를 클래스 파일에서 찾아 표와 대조(새 이벤트가 생기면 표를 채우게 한다).
+#     새 시험이 src/main/java·../furnace-·getCodeSource() 로 다른 파일을 읽으면 여기에 넣는다(test_test_impact.py 의 SourceScanTestsLintTest 가 확인한다).
+always org/domi/furnace/server/i18n/LangBundlesTest
+always org/domi/furnace/server/plugin/CompatIsolationStaticTest
+always org/domi/furnace/server/plugin/CancelContractTest

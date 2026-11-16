@@ -6,11 +6,12 @@
 #   3) @NoRetry 가 붙은 시험의 실패(확률 실패를 잡으려는 반복 시험은 재시도로 가리면 의미가 없다 — NoRetryFailureListener)
 # 재시도에서 통과한 시험은 "흔들린 시험" 주석(::warning)·실행 요약·flaky-tests.txt 로 남긴다.
 #
-# 사용: tools/ci/retry-failed-tests.sh <조각 번호>
+# 사용: tools/ci/retry-failed-tests.sh <조각 번호> [조각 수(기본 6)]
 # 환경 변수(시험용 재정의): SHARD_LOG, TEST_RESULTS_DIR, NO_RETRY_REPORT, FIRST_RUN_DIR, GRADLE_CMD, REPORTS_DIR, GITHUB_STEP_SUMMARY
 set -euo pipefail
 
 shard="${1:?조각 번호가 필요하다}"
+shards="${2:-6}"
 log="${SHARD_LOG:-/tmp/shard-run.log}"
 dir="${TEST_RESULTS_DIR:-furnace-server/build/test-results/test}"
 noretry="${NO_RETRY_REPORT:-furnace-server/build/no-retry-failures.txt}"
@@ -63,10 +64,10 @@ for c in $classes; do args+=(--tests "$c"); done
 # 여기까지 왔으면 재시도에서 통과한 것이다 — 처음에 실패했다는 기록을 남긴다(초록 뒤에 가려지지 않게).
 printf '%s\n' "$failed" > "$out/flaky-tests.txt"
 while IFS= read -r t; do
-  [ -n "$t" ] && echo "::warning title=흔들린 시험 (조각 ${shard}/6)::${t} — 처음 실패, 재시도에서 통과"
+  [ -n "$t" ] && echo "::warning title=흔들린 시험 (조각 ${shard}/${shards})::${t} — 처음 실패, 재시도에서 통과"
 done <<< "$failed"
 {
-  echo "### 흔들린 시험 (조각 ${shard}/6: 처음 실패, 재시도에서 통과)"
+  echo "### 흔들린 시험 (조각 ${shard}/${shards}: 처음 실패, 재시도에서 통과)"
   printf '%s\n' "$failed" | sed 's/^/- /'
   echo
   echo "두 번 이상 나온 시험은 고칠 대상이다(docs/ci.md). 확률 실패를 잡는 시험은 재시도로 가리지 않도록 @NoRetry 를 붙인다."

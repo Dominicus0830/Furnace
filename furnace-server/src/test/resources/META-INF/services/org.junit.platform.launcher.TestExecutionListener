@@ -1,1 +1,2 @@
 org.domi.furnace.server.NoRetryFailureListener
+org.domi.furnace.server.TestImpactListener
