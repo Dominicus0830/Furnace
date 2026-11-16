@@ -32,9 +32,12 @@
   `createItemStack(String)`·`enchantItem`×3·`enchantWithLevels`·`getI18NDisplayName` 은 `UnsupportedFeature`(이 계층에 아이템 문자열 파서·서버 마법 부여·번역표가 없다). Adventure·Bungee 내용물을 쓰는 메서드(`asHoverEvent` 등)와 `RegistryKeySet` 판은 해당 형이 없어 인터페이스에 없다.
 - 이전에는 `ItemStack(Material.AIR).getItemMeta()` 가 빈 메타였지만 Paper 는 `null` 이다(위).
 
-## PR2 계획 (SkullMeta·BannerMeta)
-- `SkullMeta`: `profile`(E10 의 `ProfileValue` 로 NBT 읽기·쓰기)·`note_block_sound`. `setOwner(name)` 은 접속 중인 플레이어면 그 프로필, 아니면 UUID 0 + 이름(Paper). 길이 16 초과 false. `setOwningPlayer(CraftPlayer)` 는 프로필 사본.
-  직렬화 키 `skull-owner`(Paper `PlayerProfile` 객체 또는 옛 문자열 이름)·`note_block_sound`.
-- `BannerMeta`: `banner_patterns` `[{pattern, color}]`, 읽을 때 20겹까지·인라인 무늬는 건너뜀(Paper), 빈 목록은 컴포넌트를 쓰지 않음. 키 `patterns`.
-- `Player#setPlayerProfile`: E10 의 `PlayerProfile` 재사용.
-- Paper `applyToItem` 은 이름만 있는 머리(텍스처 없음)를 적용한 뒤 `update()` 로 비동기로 스킨을 채워 그 스택에 다시 쓴다(SPIGOT-6558). 결정 항목 참고(user-todo entries).
+## PR2 (E11b) — SkullMeta·BannerMeta (구현됨)
+- `SkullMeta`: 소유자는 `minecraft:profile`(E10 의 `ProfileValue` 로 NBT 읽기·쓰기), 음표 소리는 `minecraft:note_block_sound`. `setOwner(name)` 은 접속 중인 플레이어면 그 프로필, 아니면 UUID 0 + 이름(Paper — 블록 `CraftSkull.setOwner` 와 달리 사용자 캐시를 보지 않는다).
+  길이 16 초과 false, `setOwningPlayer`·`setPlayerProfile`·`setOwnerProfile`(이름·UUID+텍스처 검사, 이 계층이 만든 프로필이 아니면 지움). 직렬화 `skull-owner`(Paper `PlayerProfile` 객체, 옛 문자열 이름도 읽음)·`note_block_sound`.
+- `BannerMeta`: `banner_patterns` `[{pattern, color}]`(블록 상태와 같은 `BannerLayers` 로 읽고 쓴다). 읽을 때 앞의 20겹·인라인 무늬는 건너뛰고, 메타를 만들 때 한 번 맞춰 두어 적용하면 읽을 수 있던 겹만 남는다(Paper 와 같다).
+  **함정:** 현수막은 빈 무늬 목록이 아이템 기본값이라 무늬를 비울 때 "지움 표시"(`!banner_patterns`)가 남으면 같은 현수막끼리 쌓이지 않는다 → `clearComponent` 로 값도 표시도 지워 기본값으로 되돌린다(가죽 색도 같은 방식).
+  잘못된 겹(null·null 색·등록 안 된 무늬)은 Paper 가 적용할 때 던지는 것을 Furnace 는 그 겹을 넣는 순간 `IllegalArgumentException("Banner pattern N …")` 으로 던진다(블록 상태와 같은 메시지).
+- **머리 아이템 스킨 자동 채우기는 이 PR 에 없다.** Paper 는 이름만 있는 머리를 적용한 뒤 `update()` 로 비동기로 스킨을 채워 그 스택에 다시 쓴다(SPIGOT-6558). 그런데 Furnace 에는 바닐라 `PlayerHeadItem.verifyComponentsAfterLoad`
+  (`/give` 나 아이템 로드 때 불완전한 프로필을 비동기로 확인해 같은 스택에 다시 쓰는 것)에 해당하는 서버 기능도 아직 없다 — 메타 안에서 흉내 내면 플러그인이 만든 스택이 인벤토리에 들어갈 때 복사돼 결과가 어디로 가는지 알 수 없다. 서버 쪽 규칙(아이템이 칸에 들어간 뒤 그 칸에 다시 쓰기)으로 한 번에 풀 일이라 후속(결정 항목 1).
+- `Player#setPlayerProfile` 은 이 PR 에 없다: Paper 는 게임 프로필을 바꾸고 모든 플레이어에게 엔티티를 지웠다 다시 보여 주며(탭 목록 포함) 본인 화면을 새로 고치는 서버 기능이다(E11c).

@@ -356,6 +356,22 @@ public class CompatItemMeta implements ItemMeta, Damageable, Repairable {
         return kind() == MetaKind.UNSPECIFIC || kind().accepts(MetaKind.of(itemType));
     }
 
+    /** 컴포넌트를 정해진 값(SNBT)으로 둔다. */
+    final void setComponent(String id, String snbt) { work = work.withComponent(id, snbt); }
+
+    /**
+     * 컴포넌트를 "정하지 않은" 상태로 되돌린다 — 값도 지움 표시도 없앤다(Paper 는 적용할 때 정한 것만 쓰므로 아이템 종류의 기본값이 남는다).
+     * 기본값이 있는 컴포넌트(현수막의 빈 무늬 목록)에 지움 표시가 남으면 같은 현수막끼리 쌓이지 않는다.
+     */
+    final void clearComponent(String id) {
+        if (!work.components().containsKey(id) && !work.removedComponents().contains(id)) return;
+        Map<String, String> comps = new java.util.TreeMap<>(work.components());
+        comps.remove(id);
+        Set<String> removed = new java.util.TreeSet<>(work.removedComponents());
+        removed.remove(id);
+        work = new ItemStack(work.type(), work.amount(), comps, removed);
+    }
+
     /** 직렬화 전용: 종류별 키를 맵에 적는다. */
     void serializeKind(Map<String, Object> out) {}
 
