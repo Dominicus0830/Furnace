@@ -19,7 +19,7 @@
 
 `worldgen-oracle` 은 `:worldgen-oracle:run` 이 `-Doracle.resourceTag=<RESOURCE_TAG>` 를 넘기고, paperweight 개발 번들도 같은 파일에서 읽는다.
 
-이름에 판이 들어간 클래스(`Protocol767`, `EntityData767` …)와 번호 상수 묶음(`StateIds`·`PacketIds`·`EntityDataIds`)은 V-02~V-04 몫이다(`docs/roadmap/version-upgrade-plan-2026-11-16.md`).
+이름에 판이 들어간 클래스 중 `Protocol767` 계열은 V-03 에서 `ProtocolTable`·`GenericCodec` 등으로 바뀌었다. `EntityData767` 과 번호 상수 묶음 `EntityDataIds` 는 V-04 몫이다(`docs/roadmap/version-upgrade-plan-2026-11-16.md`).
 
 ## 바이트코드 동일 증명: `tools/ci/javap-same.sh`
 

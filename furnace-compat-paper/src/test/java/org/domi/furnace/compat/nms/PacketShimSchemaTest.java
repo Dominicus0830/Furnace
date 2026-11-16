@@ -31,7 +31,7 @@ import org.junit.jupiter.api.Test;
 
 class PacketShimSchemaTest {
 
-    private static final PacketSchema S = PacketSchema.protocol767();
+    private static final PacketSchema S = PacketSchema.current();
 
     /** 손으로 쓴 shim 중 스키마 필드와 일부러 다른 것(이유). */
     private static final Map<String, String> HAND_WRITTEN_DIFFERENCES = Map.of(

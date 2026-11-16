@@ -50,7 +50,7 @@ public final class PacketSchema {
 
     private static final Set<String> PRIMITIVES = Set.of("int", "long", "short", "byte", "float", "double", "boolean", "char");
 
-    private static volatile PacketSchema protocol767;
+    private static volatile PacketSchema current;
 
     private final int protocol;
     private final List<PacketDef> packets;
@@ -81,12 +81,12 @@ public final class PacketSchema {
     }
 
     /** 1.21.1(프로토콜 767) 스키마. 처음 부를 때 리소스를 읽는다. */
-    public static PacketSchema protocol767() {
-        PacketSchema s = protocol767;
+    public static PacketSchema current() {
+        PacketSchema s = current;
         if (s == null) {
             synchronized (PacketSchema.class) {
-                s = protocol767;
-                if (s == null) protocol767 = s = load(GameVersion.PROTOCOL, "protocol-" + GameVersion.PROTOCOL + ".schema");
+                s = current;
+                if (s == null) current = s = load(GameVersion.PROTOCOL, "protocol-" + GameVersion.PROTOCOL + ".schema");
             }
         }
         return s;

@@ -7,21 +7,31 @@
 # 그러므로 "손으로 쓴 숫자"가 "생성 상수 참조"로 바뀌어도 javac 가 같은 값을 박았다면 통과하고,
 # 실행 중 getstatic/호출이 새로 생기거나 값이 달라지면 그 클래스만 diff 로 보인다.
 # 후 폴더에만 있는 클래스(생성된 GameVersion 등)는 --allow-new 정규식에 맞을 때만 허용한다. 종료 코드: 0 같음, 1 다름.
+# 이름만 바꾼 정리(V-03: Protocol767 → ProtocolTable 등)는 --rename 'sed -E 식' 으로 "전" 쪽 javap 글자와 클래스 경로에 그 식을 먼저 적용해 견준다
+#   (식은 이름만 바꿔야 한다 — 명령이 달라지는 변경을 이 식으로 가리지 않는다).
 set -euo pipefail
 before=${1:?전 폴더}; after=${2:?후 폴더}; shift 2
-allow_new='^$'
-if [[ ${1:-} == --allow-new ]]; then allow_new=${2:?정규식}; fi
+allow_new='^$'; rename_expr=''
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --allow-new) allow_new=${2:?정규식}; shift 2 ;;
+    --rename) rename_expr=${2:?sed 식}; shift 2 ;;
+    *) echo "알 수 없는 인자: $1" >&2; exit 2 ;;
+  esac
+done
 
 # 클래스 하나씩 javap 를 띄우면 JVM 시작이 6천 번이라 느리다 → 폴더 전체를 한 번에 뜨고(xargs 묶음) 클래스별 파일로 나눈다.
-dump() {   # dump <폴더> <출력 폴더>
-  local dir=$1 out=$2; mkdir -p "$out"
+dump() {   # dump <폴더> <출력 폴더> [sed 식 — 이름 바꾸기]
+  local dir=$1 out=$2 rn=${3:-}; mkdir -p "$out"
   ( cd "$dir" && find . -name '*.class' | sort > "$out/.list" )
   ( cd "$dir" && xargs -a "$out/.list" -n 1500 javap -v -p -c 2>/dev/null ) \
+    | { if [[ -n $rn ]]; then sed -E "$rn"; else cat; fi; } \
     | python3 "$(dirname "${BASH_SOURCE[0]}")/javap-norm.py" "$out" "$(cd "$dir" && pwd)/"
+  if [[ -n $rn ]]; then sed -E "$rn" "$out/.list" | sort > "$out/.list.new" && mv "$out/.list.new" "$out/.list"; fi
 }
 
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-dump "$before" "$tmp/b"; dump "$after" "$tmp/a"
+dump "$before" "$tmp/b" "$rename_expr"; dump "$after" "$tmp/a"
 sed 's#^\./##' "$tmp/b/.list" | sort > "$tmp/b.txt"
 sed 's#^\./##' "$tmp/a/.list" | sort > "$tmp/a.txt"
 

@@ -42,7 +42,7 @@ class SchemaPacketBridgeTest {
         try (FurnaceTestServer server = start()) {
             var packets = Furnace.server().packets();
             Set<String> bridged = new TreeSet<>(), missing = new TreeSet<>();
-            for (PacketDef d : PacketSchema.protocol767().packets()) {
+            for (PacketDef d : PacketSchema.current().packets()) {
                 if (d.direction() != PacketDirection.CLIENTBOUND || !Set.of("game", "common", "cookie", "ping").contains(d.state())) continue;
                 PacketType<?> t = PacketTypes.byName(PacketDirection.CLIENTBOUND, "minecraft:" + d.wireName());
                 if (t == null || t.typed() || d.custom() || !packets.isReadable(t)) continue;
@@ -64,7 +64,7 @@ class SchemaPacketBridgeTest {
         try (FurnaceTestServer server = start()) {
             var packets = Furnace.server().packets();
             Set<String> bridged = new TreeSet<>(), missing = new TreeSet<>();
-            for (PacketDef d : PacketSchema.protocol767().packets()) {
+            for (PacketDef d : PacketSchema.current().packets()) {
                 if (d.direction() != PacketDirection.CLIENTBOUND || !Set.of("game", "common", "cookie", "ping").contains(d.state())) continue;
                 PacketType<?> t = PacketTypes.byName(PacketDirection.CLIENTBOUND, "minecraft:" + d.wireName());
                 if (t == null || t.typed() || !d.custom() || !packets.isReadable(t)) continue;
@@ -179,7 +179,7 @@ class SchemaPacketBridgeTest {
     }
     @Test
     void refusalsSayWhy() {
-        var schema = PacketSchema.protocol767();
+        var schema = PacketSchema.current();
         assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.SERVERBOUND, "swing").orElseThrow()).contains("serverbound"));
         assertTrue(SchemaPacketBridge.refusal(schema.packet("configuration", PacketDirection.CLIENTBOUND, "finish_configuration").orElseThrow())
                 .contains("a configuration stage packet"));

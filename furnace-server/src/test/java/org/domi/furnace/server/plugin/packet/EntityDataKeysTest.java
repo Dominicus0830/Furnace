@@ -59,12 +59,12 @@ class EntityDataKeysTest {
 
     private static final BlockRegistry BLOCKS = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
     private static final ItemRegistry ITEMS = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
-    private static Protocol767 codec;
+    private static ProtocolTable codec;
 
     @BeforeAll
     static void install() {
         ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
-        codec = new Protocol767(() -> BLOCKS, () -> ITEMS);
+        codec = new ProtocolTable(() -> BLOCKS, () -> ITEMS);
     }
 
     // ------------------------------------------------------------------ 표가 서버 엔티티와 맞는가

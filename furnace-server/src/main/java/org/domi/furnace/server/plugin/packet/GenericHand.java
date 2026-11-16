@@ -1,19 +1,19 @@
 // E4b 손 코덱: 스키마에서 custom(와이어가 필드 나열로 떨어지지 않는 것 — 비트 묶음·조건부·순서 다름)인 종류를 바닐라 1.21.1 와이어 그대로 읽고 쓴다.
 // 필드 이름은 Mojang 필드 이름의 snake_case, 필드 순서는 와이어 순서다. 비트 묶음은 Boolean 필드 여럿, 조건부 묶음은 Optional<PacketStruct>.
 // 값 모양 표는 docs/api/packets.md "손 코덱 종류 (E4b)", 바닐라 근거는 docs/feature-parity/context-notes/2026-11-12-easy-nms-e4b.md.
-// 여기 없는 custom 종류는 아직 readable=false(GenericCodec767 이 까닭을 남긴다).
+// 여기 없는 custom 종류는 아직 readable=false(GenericCodec 이 까닭을 남긴다).
 package org.domi.furnace.server.plugin.packet;
 
-import static org.domi.furnace.server.plugin.packet.GenericCodec767.BLOCK_POS;
-import static org.domi.furnace.server.plugin.packet.GenericCodec767.BOOL;
-import static org.domi.furnace.server.plugin.packet.GenericCodec767.F32;
-import static org.domi.furnace.server.plugin.packet.GenericCodec767.F64;
-import static org.domi.furnace.server.plugin.packet.GenericCodec767.I64;
-import static org.domi.furnace.server.plugin.packet.GenericCodec767.IDENTIFIER;
-import static org.domi.furnace.server.plugin.packet.GenericCodec767.STRING;
-import static org.domi.furnace.server.plugin.packet.GenericCodec767.TEXT;
-import static org.domi.furnace.server.plugin.packet.GenericCodec767.VARLONG;
-import static org.domi.furnace.server.plugin.packet.GenericCodec767.VEC3;
+import static org.domi.furnace.server.plugin.packet.GenericCodec.BLOCK_POS;
+import static org.domi.furnace.server.plugin.packet.GenericCodec.BOOL;
+import static org.domi.furnace.server.plugin.packet.GenericCodec.F32;
+import static org.domi.furnace.server.plugin.packet.GenericCodec.F64;
+import static org.domi.furnace.server.plugin.packet.GenericCodec.I64;
+import static org.domi.furnace.server.plugin.packet.GenericCodec.IDENTIFIER;
+import static org.domi.furnace.server.plugin.packet.GenericCodec.STRING;
+import static org.domi.furnace.server.plugin.packet.GenericCodec.TEXT;
+import static org.domi.furnace.server.plugin.packet.GenericCodec.VARLONG;
+import static org.domi.furnace.server.plugin.packet.GenericCodec.VEC3;
 
 import io.netty.buffer.ByteBuf;
 import java.util.ArrayList;
@@ -31,22 +31,22 @@ import org.domi.furnace.api.packet.schema.PacketDef;
 import org.domi.furnace.api.world.BlockData;
 import org.domi.furnace.api.world.BlockPos;
 import org.domi.furnace.server.net.io.Types;
-import org.domi.furnace.server.plugin.packet.GenericCodec767.Compiled;
-import org.domi.furnace.server.plugin.packet.GenericCodec767.Hand;
-import org.domi.furnace.server.plugin.packet.GenericCodec767.Node;
+import org.domi.furnace.server.plugin.packet.GenericCodec.Compiled;
+import org.domi.furnace.server.plugin.packet.GenericCodec.Hand;
+import org.domi.furnace.server.plugin.packet.GenericCodec.Node;
 
-final class GenericHand767 {
+final class GenericHand {
 
-    private GenericHand767() {}
+    private GenericHand() {}
 
-    private static final Node VARINT = GenericCodec767.integer("varint", Integer.class);
-    private static final Node I8 = GenericCodec767.integer("i8", Byte.class);
-    private static final Node I16 = GenericCodec767.integer("i16", Short.class);
-    private static final Node I8_INT = GenericCodec767.integer("i8", Integer.class);
-    private static final Node I16_INT = GenericCodec767.integer("i16", Integer.class);
+    private static final Node VARINT = GenericCodec.integer("varint", Integer.class);
+    private static final Node I8 = GenericCodec.integer("i8", Byte.class);
+    private static final Node I16 = GenericCodec.integer("i16", Short.class);
+    private static final Node I8_INT = GenericCodec.integer("i8", Integer.class);
+    private static final Node I16_INT = GenericCodec.integer("i16", Integer.class);
 
     /** 이 종류의 손 코덱(없으면 null). */
-    static Compiled compile(GenericCodec767 c, PacketDef d) {
+    static Compiled compile(GenericCodec c, PacketDef d) {
         boolean cb = d.direction() == PacketDirection.CLIENTBOUND;
         return switch ((cb ? "c:" : "s:") + d.wireName()) {
             // ---------------------------------------------------------- clientbound
@@ -58,8 +58,8 @@ final class GenericHand767 {
             case "c:stop_sound" -> stopSound(c, d);
             case "c:player_look_at" -> new Seq()     // atEntity 가 참일 때만 대상 번호·대상 기준점
                     .f("from_anchor", c.fieldNode(d, "fromAnchor")).f("x", F64).f("y", F64).f("z", F64)
-                    .f("at_entity", GenericCodec767.optional(GenericCodec767.structNode(
-                            GenericCodec767.shape(List.of("entity", "to_anchor"), List.of(VARINT, c.fieldNode(d, "toAnchor")), null)), false))
+                    .f("at_entity", GenericCodec.optional(GenericCodec.structNode(
+                            GenericCodec.shape(List.of("entity", "to_anchor"), List.of(VARINT, c.fieldNode(d, "toAnchor")), null)), false))
                     .build();
             case "c:player_position" -> new Seq()
                     .f("x", F64).f("y", F64).f("z", F64).f("y_rot", F32).f("x_rot", F32)
@@ -77,16 +77,16 @@ final class GenericHand767 {
             case "c:boss_event" -> bossEvent();
             case "c:set_player_team" -> setPlayerTeam();
             case "c:update_attributes" -> new Seq()   // 와이어가 필드 나열 그대로다(custom 표시는 접근자 이름 때문)
-                    .f("entity_id", VARINT).f("attributes", GenericCodec767.list(GenericCodec767.structNode(GenericCodec767.shape(
+                    .f("entity_id", VARINT).f("attributes", GenericCodec.list(GenericCodec.structNode(GenericCodec.shape(
                             List.of("attribute", "base", "modifiers"),
-                            List.of(GenericCodec767.registryId("minecraft:attribute"), F64, GenericCodec767.list(ATTRIBUTE_MODIFIER, false)), null)), false))
+                            List.of(GenericCodec.registryId("minecraft:attribute"), F64, GenericCodec.list(ATTRIBUTE_MODIFIER, false)), null)), false))
                     .build();
             case "c:map_item_data" -> mapItemData();
             case "c:award_stats" -> new Seq().f("stats", STATS).build();
             case "c:damage_event" -> new Seq()       // 원인·직접 원인 번호는 id + 1(0 = 없음 = 필드 값 -1)
-                    .f("entity_id", VARINT).f("source_type", GenericCodec767.registryId("minecraft:damage_type"))
+                    .f("entity_id", VARINT).f("source_type", GenericCodec.registryId("minecraft:damage_type"))
                     .f("source_cause_id", PLUS_ONE).f("source_direct_id", PLUS_ONE)
-                    .f("source_position", GenericCodec767.optional(VEC3, false)).build();
+                    .f("source_position", GenericCodec.optional(VEC3, false)).build();
             // ---------------------------------------------------------- serverbound
             case "s:player_abilities" -> new Seq().flags(null, "is_flying").build();   // 비트 2 만 쓴다
             case "s:player_input" -> new Seq()
@@ -105,7 +105,7 @@ final class GenericHand767 {
                     .f("container_id", I8_INT).f("state_id", VARINT).f("slot_num", I16_INT).f("button_num", I8_INT)
                     .f("click_type", c.fieldNode(d, "clickType"))
                     .f("changed_slots", changedSlots(c)).f("carried_item", c.itemStack()).build();
-            default -> GenericComplex767.compile(c, d);   // E5: 입자·청크·빛·명령 트리·레시피·발전 과제·태그·서명 채팅·상인 거래·번들 구분자
+            default -> GenericComplex.compile(c, d);   // E5: 입자·청크·빛·명령 트리·레시피·발전 과제·태그·서명 채팅·상인 거래·번들 구분자
         };
     }
 
@@ -152,7 +152,7 @@ final class GenericHand767 {
         }
 
         Compiled build() {
-            return GenericCodec767.shape(names, kinds, hand((b, m) -> reads.forEach(r -> r.accept(b, m)), (o, m) -> writes.forEach(w -> w.accept(o, m))));
+            return GenericCodec.shape(names, kinds, hand((b, m) -> reads.forEach(r -> r.accept(b, m)), (o, m) -> writes.forEach(w -> w.accept(o, m))));
         }
     }
 
@@ -228,11 +228,11 @@ final class GenericHand767 {
     // ------------------------------------------------------------------ 종류별
 
     /** 플래그 바이트(1 = 소리 범주, 2 = 이름) 다음에 범주(varint 서수), 이름 순서. */
-    private static Compiled stopSound(GenericCodec767 c, PacketDef d) {
+    private static Compiled stopSound(GenericCodec c, PacketDef d) {
         Node source = c.fieldNode(d, "source"), name = c.fieldNode(d, "name");
-        Node optSource = GenericCodec767.optional(source, false), optName = GenericCodec767.optional(IDENTIFIER, false);
-        if (name != IDENTIFIER) throw new GenericCodec767.Unsupported("the stop_sound name is not an identifier");
-        return GenericCodec767.shape(List.of("source", "name"), List.of(optSource, optName), hand((b, m) -> {
+        Node optSource = GenericCodec.optional(source, false), optName = GenericCodec.optional(IDENTIFIER, false);
+        if (name != IDENTIFIER) throw new GenericCodec.Unsupported("the stop_sound name is not an identifier");
+        return GenericCodec.shape(List.of("source", "name"), List.of(optSource, optName), hand((b, m) -> {
             int flags = b.readUnsignedByte();
             m.put("source", (flags & 1) != 0 ? Optional.of(source.read(b)) : Optional.empty());
             m.put("name", (flags & 2) != 0 ? Optional.of(name.read(b)) : Optional.empty());
@@ -245,15 +245,15 @@ final class GenericHand767 {
     }
 
     /** 이름, 방식(i8: 0 추가·1 제거·2 바꿈), 방식이 0·2 일 때만 parameters{display_name, render_type, number_format}. */
-    private static Compiled setObjective(GenericCodec767 c, PacketDef d) {
-        Compiled params = GenericCodec767.shape(List.of("display_name", "render_type", "number_format"),
-                List.of(TEXT, c.fieldNode(d, "renderType"), GenericCodec767.optional(GenericCodec767.NUMBER_FORMAT, false)), null);
-        Node paramsNode = GenericCodec767.optional(GenericCodec767.structNode(params), false);
-        return GenericCodec767.shape(List.of("objective_name", "method", "parameters"), List.of(STRING, I8_INT, paramsNode), hand((b, m) -> {
+    private static Compiled setObjective(GenericCodec c, PacketDef d) {
+        Compiled params = GenericCodec.shape(List.of("display_name", "render_type", "number_format"),
+                List.of(TEXT, c.fieldNode(d, "renderType"), GenericCodec.optional(GenericCodec.NUMBER_FORMAT, false)), null);
+        Node paramsNode = GenericCodec.optional(GenericCodec.structNode(params), false);
+        return GenericCodec.shape(List.of("objective_name", "method", "parameters"), List.of(STRING, I8_INT, paramsNode), hand((b, m) -> {
             m.put("objective_name", STRING.read(b));
             int method = b.readByte();
             m.put("method", method);
-            m.put("parameters", method == 0 || method == 2 ? Optional.of(GenericCodec767.readStruct(params, b)) : Optional.empty());
+            m.put("parameters", method == 0 || method == 2 ? Optional.of(GenericCodec.readStruct(params, b)) : Optional.empty());
         }, (o, m) -> {
             int method = (Integer) m.get("method");
             Optional<?> p = (Optional<?>) m.get("parameters");
@@ -263,18 +263,18 @@ final class GenericHand767 {
             }
             STRING.write(o, m.get("objective_name"));
             I8_INT.write(o, method);
-            if (p.isPresent()) GenericCodec767.writeStruct(params, (PacketStruct) p.get(), o, "parameters");
+            if (p.isPresent()) GenericCodec.writeStruct(params, (PacketStruct) p.get(), o, "parameters");
         }));
     }
 
     /** 엔티티 번호, 그다음 칸마다 (칸 서수 | 뒤에 더 있으면 0x80) 바이트 + 아이템. 바닐라 읽기는 적어도 하나를 읽으므로 빈 목록은 못 쓴다. */
-    private static Compiled setEquipment(GenericCodec767 c, PacketDef d) {
+    private static Compiled setEquipment(GenericCodec c, PacketDef d) {
         List<String> slots = c.enumConstants("net.minecraft.world.entity.EquipmentSlot");
-        Node slot = GenericCodec767.enumNode("EquipmentSlot", slots, "varint");
+        Node slot = GenericCodec.enumNode("EquipmentSlot", slots, "varint");
         Node item = c.itemStack();
-        Compiled entry = GenericCodec767.shape(List.of("slot", "item"), List.of(slot, item), null);
+        Compiled entry = GenericCodec.shape(List.of("slot", "item"), List.of(slot, item), null);
         Node list = node(List.class, null, null);
-        return GenericCodec767.shape(List.of("entity", "slots"), List.of(VARINT, list), hand((b, m) -> {
+        return GenericCodec.shape(List.of("entity", "slots"), List.of(VARINT, list), hand((b, m) -> {
             m.put("entity", VARINT.read(b));
             List<Object> l = new ArrayList<>();
             int head;
@@ -292,7 +292,7 @@ final class GenericHand767 {
             VARINT.write(o, m.get("entity"));
             for (int i = 0; i < l.size(); i++) {
                 if (!(l.get(i) instanceof PacketStruct s)) throw new IllegalArgumentException("slots[" + i + "] must be {slot, item}: " + l.get(i));
-                Map<String, Object> e = GenericCodec767.checked(entry, s, "slots[" + i + "]");
+                Map<String, Object> e = GenericCodec.checked(entry, s, "slots[" + i + "]");
                 int ord = slots.indexOf(e.get("slot"));
                 if (ord < 0) throw new IllegalArgumentException("slots[" + i + "].slot must be an EquipmentSlot constant: " + e.get("slot") + " " + slots);
                 o.writeByte(ord | (i < l.size() - 1 ? 0x80 : 0));
@@ -302,9 +302,9 @@ final class GenericHand767 {
     }
 
     /** 구역 위치(i64), 바뀐 칸 수, 칸마다 varlong(상태 번호 &lt;&lt; 12 | 구역 안 위치 x&lt;&lt;8|z&lt;&lt;4|y). */
-    private static Compiled sectionBlocks(GenericCodec767 c) {
+    private static Compiled sectionBlocks(GenericCodec c) {
         Node state = c.blockState();
-        return GenericCodec767.shape(List.of("section_pos", "positions", "states"), List.of(I64, node(List.class, null, null), node(List.class, null, null)),
+        return GenericCodec.shape(List.of("section_pos", "positions", "states"), List.of(I64, node(List.class, null, null), node(List.class, null, null)),
                 hand((b, m) -> {
                     m.put("section_pos", b.readLong());
                     int n = Types.readVarInt(b);
@@ -333,9 +333,9 @@ final class GenericHand767 {
     }
 
     /** 동작(varint 서수), OPENED_TAB 일 때만 탭 이름. */
-    private static Compiled seenAdvancements(GenericCodec767 c, PacketDef d) {
+    private static Compiled seenAdvancements(GenericCodec c, PacketDef d) {
         Node action = c.fieldNode(d, "action");
-        return GenericCodec767.shape(List.of("action", "tab"), List.of(action, GenericCodec767.optional(IDENTIFIER, false)), hand((b, m) -> {
+        return GenericCodec.shape(List.of("action", "tab"), List.of(action, GenericCodec.optional(IDENTIFIER, false)), hand((b, m) -> {
             Object a = action.read(b);
             m.put("action", a);
             m.put("tab", "OPENED_TAB".equals(a) ? Optional.of(IDENTIFIER.read(b)) : Optional.empty());
@@ -349,16 +349,16 @@ final class GenericHand767 {
     }
 
     /** 바뀐 칸: varint 개수(바닐라 상한 128), 칸마다 i16 칸 번호 + 아이템(빈 칸 가능). 바닐라는 Int2ObjectMap 이라 같은 칸 번호는 하나다. */
-    private static Node changedSlots(GenericCodec767 c) {
+    private static Node changedSlots(GenericCodec c) {
         Node item = c.itemStack();
-        Compiled entry = GenericCodec767.shape(List.of("slot", "item"), List.of(I16_INT, item), null);
+        Compiled entry = GenericCodec.shape(List.of("slot", "item"), List.of(I16_INT, item), null);
         return node(List.class, b -> {
             int n = Types.readVarInt(b);
             if (n < 0 || n > 128) throw new IllegalArgumentException("too many changed slots: " + n + " > 128");
             // 바닐라·서버는 Int2ObjectMap 이라 같은 칸 번호가 다시 오면 마지막 값만 남는다 — 읽기도 그렇게 합친다(검토 R3)
             LinkedHashMap<Object, Object> bySlot = new LinkedHashMap<>();
             for (int i = 0; i < n; i++) {
-                PacketStruct e = GenericCodec767.readStruct(entry, b);
+                PacketStruct e = GenericCodec.readStruct(entry, b);
                 bySlot.put(e.asMap().get("slot"), e);
             }
             return List.copyOf(bySlot.values());
@@ -368,10 +368,10 @@ final class GenericHand767 {
             HashSet<Object> seen = new HashSet<>();
             for (int i = 0; i < l.size(); i++) {
                 if (!(l.get(i) instanceof PacketStruct s)) throw new IllegalArgumentException("[" + i + "] must be {slot, item}: " + l.get(i));
-                if (!seen.add(GenericCodec767.checked(entry, s, "[" + i + "]").get("slot"))) throw new IllegalArgumentException("the same slot number appears twice: " + s);
+                if (!seen.add(GenericCodec.checked(entry, s, "[" + i + "]").get("slot"))) throw new IllegalArgumentException("the same slot number appears twice: " + s);
             }
             Types.writeVarInt(o, l.size());
-            for (int i = 0; i < l.size(); i++) GenericCodec767.writeStruct(entry, (PacketStruct) l.get(i), o, "[" + i + "]");
+            for (int i = 0; i < l.size(); i++) GenericCodec.writeStruct(entry, (PacketStruct) l.get(i), o, "[" + i + "]");
         });
     }
 
@@ -420,12 +420,12 @@ final class GenericHand767 {
     }
 
     private static Node struct(List<String> names, List<Node> nodes) {
-        return GenericCodec767.structNode(GenericCodec767.shape(names, nodes, null));
+        return GenericCodec.structNode(GenericCodec.shape(names, nodes, null));
     }
 
     /** 목록 + 원소 수 상한. */
     static Node limitedList(Node elem, int max) {
-        Node l = GenericCodec767.list(elem, false);
+        Node l = GenericCodec.list(elem, false);
         return node(List.class, b -> {
             int n = Types.readVarInt(b.duplicate());
             if (n > max) throw new IllegalArgumentException("too many elements: " + n + " > " + max);
@@ -441,8 +441,8 @@ final class GenericHand767 {
         return node(String.class, b -> {
             int v = Types.readVarInt(b);
             if (v == 0) throw new IllegalArgumentException(registry + " direct definitions are not read yet");
-            return GenericCodec767.registryName(registry, v - 1);
-        }, (o, v) -> Types.writeVarInt(o, GenericCodec767.registryNumber(registry, (String) v) + 1));
+            return GenericCodec.registryName(registry, v - 1);
+        }, (o, v) -> Types.writeVarInt(o, GenericCodec.registryNumber(registry, (String) v) + 1));
     }
 
     /** MessageSignature.Packed: {id, full_signature} — 와이어 varint id + 1, 0 이면 256바이트 서명 전체(id = -1). */
@@ -471,11 +471,11 @@ final class GenericHand767 {
 
     /** ChatType.Bound: 채팅 종류(등록된 것, 번호 + 1), 이름, 대상 이름(선택). */
     static final Node CHAT_TYPE_BOUND = struct(List.of("chat_type", "name", "target_name"),
-            List.of(registeredPlusOne("minecraft:chat_type"), TEXT, GenericCodec767.optional(TEXT, false)));
+            List.of(registeredPlusOne("minecraft:chat_type"), TEXT, GenericCodec.optional(TEXT, false)));
 
     /** MapDecoration: 종류(map_decoration_type 번호), x·y(i8), 방향(i8, 0~15), 이름(선택). */
     static final Node MAP_DECORATION = struct(List.of("type", "x", "y", "rot", "name"),
-            List.of(GenericCodec767.registryId("minecraft:map_decoration_type"), I8, I8, I8, GenericCodec767.optional(TEXT, false)));
+            List.of(GenericCodec.registryId("minecraft:map_decoration_type"), I8, I8, I8, GenericCodec.optional(TEXT, false)));
 
     /** RSA 공개 키(X.509, 바닐라 readPublicKey = readByteArray(512) 후 해석 — 해석이 안 되면 바닐라 디코드 실패). 읽기·쓰기 둘 다 해석해 본다. */
     private static final Node PUBLIC_KEY = node(byte[].class, b -> checkRsaKey((byte[]) bytes(512).read(b)), (o, v) -> bytes(512).write(o, checkRsaKey((byte[]) v)));
@@ -490,12 +490,12 @@ final class GenericHand767 {
     }
 
     /** RemoteChatSession.Data: {session_id, profile_public_key {expires_at(epoch ms), key, key_signature(4096바이트까지)}}. */
-    static final Node CHAT_SESSION = struct(List.of("session_id", "profile_public_key"), List.of(GenericCodec767.UUID_NODE,
+    static final Node CHAT_SESSION = struct(List.of("session_id", "profile_public_key"), List.of(GenericCodec.UUID_NODE,
             struct(List.of("expires_at", "key", "key_signature"), List.of(I64, PUBLIC_KEY, bytes(4096)))));
 
     /** AttributeModifier: {id, amount, operation}. operation 번호는 서수(ADD_VALUE·ADD_MULTIPLIED_BASE·ADD_MULTIPLIED_TOTAL). */
     static final Node ATTRIBUTE_MODIFIER = struct(List.of("id", "amount", "operation"), List.of(IDENTIFIER, F64,
-            GenericCodec767.enumNode("AttributeModifier$Operation", List.of("ADD_VALUE", "ADD_MULTIPLIED_BASE", "ADD_MULTIPLIED_TOTAL"), "varint")));
+            GenericCodec.enumNode("AttributeModifier$Operation", List.of("ADD_VALUE", "ADD_MULTIPLIED_BASE", "ADD_MULTIPLIED_TOTAL"), "varint")));
 
     /** ArgumentSignatures: 8개까지 {name(16자), signature(256바이트)}. */
     static final Node ARGUMENT_SIGNATURES = limitedList(struct(List.of("name", "signature"), List.of(string(16), fixedBytes(256))), 8);
@@ -522,7 +522,7 @@ final class GenericHand767 {
     /** ServerLinks.KnownLinkType(번호 = 서수, 바이트코드 확인). */
     private static final List<String> KNOWN_LINKS = List.of("BUG_REPORT", "COMMUNITY_GUIDELINES", "SUPPORT", "STATUS", "FEEDBACK", "COMMUNITY",
             "WEBSITE", "FORUMS", "NEWS", "ANNOUNCEMENTS");
-    private static final Node KNOWN_LINK = GenericCodec767.enumNode("ServerLinks$KnownLinkType", KNOWN_LINKS, "varint");
+    private static final Node KNOWN_LINK = GenericCodec.enumNode("ServerLinks$KnownLinkType", KNOWN_LINKS, "varint");
 
     /** ServerLinks.UntrustedEntry: {known_type, label, url} — 알려진 종류(Either 왼쪽)나 글 이름(오른쪽) 가운데 하나만. */
     static final Node SERVER_LINK = node(PacketStruct.class, b -> {
@@ -579,8 +579,8 @@ final class GenericHand767 {
         if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("invalid statistic count: " + n);
         LinkedHashMap<List<String>, PacketStruct> m = new LinkedHashMap<>();
         for (int i = 0; i < n; i++) {
-            String type = GenericCodec767.registryName("minecraft:stat_type", Types.readVarInt(b));
-            String value = GenericCodec767.registryName(statRegistry(type), Types.readVarInt(b));
+            String type = GenericCodec.registryName("minecraft:stat_type", Types.readVarInt(b));
+            String value = GenericCodec.registryName(statRegistry(type), Types.readVarInt(b));
             LinkedHashMap<String, Object> e = new LinkedHashMap<>();
             e.put("type", type);
             e.put("value", value);
@@ -590,20 +590,20 @@ final class GenericHand767 {
         return List.copyOf(m.values());
     }, (o, v) -> {
         List<?> l = (List<?>) v;
-        Compiled entry = GenericCodec767.shape(List.of("type", "value", "amount"), List.of(STRING, STRING, VARINT), null);
+        Compiled entry = GenericCodec.shape(List.of("type", "value", "amount"), List.of(STRING, STRING, VARINT), null);
         HashSet<List<Object>> seen = new HashSet<>();
         for (int i = 0; i < l.size(); i++) {
             if (!(l.get(i) instanceof PacketStruct s)) throw new IllegalArgumentException("[" + i + "] must be {type, value, amount}: " + l.get(i));
-            Map<String, Object> e = GenericCodec767.checked(entry, s, "[" + i + "]");
-            String type = GenericCodec767.identifier((String) e.get("type"));
-            if (!seen.add(List.of(type, GenericCodec767.identifier((String) e.get("value"))))) throw new IllegalArgumentException("the same statistic appears twice: " + s);
+            Map<String, Object> e = GenericCodec.checked(entry, s, "[" + i + "]");
+            String type = GenericCodec.identifier((String) e.get("type"));
+            if (!seen.add(List.of(type, GenericCodec.identifier((String) e.get("value"))))) throw new IllegalArgumentException("the same statistic appears twice: " + s);
         }
         Types.writeVarInt(o, l.size());
         for (Object x : l) {
             Map<String, Object> e = ((PacketStruct) x).asMap();
-            String type = GenericCodec767.identifier((String) e.get("type"));
-            Types.writeVarInt(o, GenericCodec767.registryNumber("minecraft:stat_type", type));
-            Types.writeVarInt(o, GenericCodec767.registryNumber(statRegistry(type), (String) e.get("value")));
+            String type = GenericCodec.identifier((String) e.get("type"));
+            Types.writeVarInt(o, GenericCodec.registryNumber("minecraft:stat_type", type));
+            Types.writeVarInt(o, GenericCodec.registryNumber(statRegistry(type), (String) e.get("value")));
             Types.writeVarInt(o, (Integer) e.get("amount"));
         }
     });
@@ -617,8 +617,8 @@ final class GenericHand767 {
     // ------------------------------------------------------------------ E4b-2: 종류별
 
     private static final List<String> BOSS_OPS = List.of("ADD", "REMOVE", "UPDATE_PROGRESS", "UPDATE_NAME", "UPDATE_STYLE", "UPDATE_PROPERTIES");
-    private static final Node BOSS_COLOR = GenericCodec767.enumNode("BossEvent$BossBarColor", List.of("PINK", "BLUE", "RED", "GREEN", "YELLOW", "PURPLE", "WHITE"), "varint");
-    private static final Node BOSS_OVERLAY = GenericCodec767.enumNode("BossEvent$BossBarOverlay",
+    private static final Node BOSS_COLOR = GenericCodec.enumNode("BossEvent$BossBarColor", List.of("PINK", "BLUE", "RED", "GREEN", "YELLOW", "PURPLE", "WHITE"), "varint");
+    private static final Node BOSS_OVERLAY = GenericCodec.enumNode("BossEvent$BossBarOverlay",
             List.of("PROGRESS", "NOTCHED_6", "NOTCHED_10", "NOTCHED_12", "NOTCHED_20"), "varint");
 
     /**
@@ -639,7 +639,7 @@ final class GenericHand767 {
             String type = constantAt(BOSS_OPS, Types.readVarInt(b));
             LinkedHashMap<String, Object> m = new LinkedHashMap<>();
             m.put("type", type);
-            m.putAll(GenericCodec767.readStruct(ops.get(type), b).asMap());
+            m.putAll(GenericCodec.readStruct(ops.get(type), b).asMap());
             return PacketStruct.of(m);
         }, (o, v) -> {
             PacketStruct s = (PacketStruct) v;
@@ -649,9 +649,9 @@ final class GenericHand767 {
             LinkedHashMap<String, Object> rest = new LinkedHashMap<>(s.asMap());
             rest.remove("type");
             Types.writeVarInt(o, BOSS_OPS.indexOf(type));
-            GenericCodec767.writeStruct(ops.get(type), PacketStruct.of(rest), o, "operation(" + type + ")");
+            GenericCodec.writeStruct(ops.get(type), PacketStruct.of(rest), o, "operation(" + type + ")");
         });
-        return new Seq().f("id", GenericCodec767.UUID_NODE).f("operation", op).build();
+        return new Seq().f("id", GenericCodec.UUID_NODE).f("operation", op).build();
     }
 
     /** ChatFormatting 상수(서수 = 번호, 바이트코드 확인). */
@@ -665,16 +665,16 @@ final class GenericHand767 {
      * 방식 0·3·4 면 players(이름 목록).
      */
     private static Compiled setPlayerTeam() {
-        Compiled params = GenericCodec767.shape(
+        Compiled params = GenericCodec.shape(
                 List.of("display_name", "options", "nametag_visibility", "collision_rule", "color", "player_prefix", "player_suffix"),
-                List.of(TEXT, I8_INT, string(40), string(40), GenericCodec767.enumNode("ChatFormatting", CHAT_FORMATTING, "varint"), TEXT, TEXT), null);
-        Node players = GenericCodec767.list(STRING, false);
-        return GenericCodec767.shape(List.of("name", "method", "parameters", "players"), List.of(STRING, I8_INT,
-                GenericCodec767.optional(GenericCodec767.structNode(params), false), GenericCodec767.optional(players, false)), hand((b, m) -> {
+                List.of(TEXT, I8_INT, string(40), string(40), GenericCodec.enumNode("ChatFormatting", CHAT_FORMATTING, "varint"), TEXT, TEXT), null);
+        Node players = GenericCodec.list(STRING, false);
+        return GenericCodec.shape(List.of("name", "method", "parameters", "players"), List.of(STRING, I8_INT,
+                GenericCodec.optional(GenericCodec.structNode(params), false), GenericCodec.optional(players, false)), hand((b, m) -> {
             m.put("name", STRING.read(b));
             int method = b.readByte();
             m.put("method", method);
-            m.put("parameters", method == 0 || method == 2 ? Optional.of(GenericCodec767.readStruct(params, b)) : Optional.empty());
+            m.put("parameters", method == 0 || method == 2 ? Optional.of(GenericCodec.readStruct(params, b)) : Optional.empty());
             m.put("players", method == 0 || method == 3 || method == 4 ? Optional.of(players.read(b)) : Optional.empty());
         }, (o, m) -> {
             int method = (Integer) m.get("method");
@@ -687,7 +687,7 @@ final class GenericHand767 {
             if (pl.isPresent() && !(pl.get() instanceof List<?>)) throw new IllegalArgumentException("players must be a List<String>");
             STRING.write(o, m.get("name"));
             I8_INT.write(o, method);
-            if (p.isPresent()) GenericCodec767.writeStruct(params, (PacketStruct) p.get(), o, "parameters");
+            if (p.isPresent()) GenericCodec.writeStruct(params, (PacketStruct) p.get(), o, "parameters");
             if (pl.isPresent()) players.write(o, pl.get());
         }));
     }
@@ -697,15 +697,15 @@ final class GenericHand767 {
      * color_patch Optional&lt;{width, height, start_x, start_y, map_colors}&gt; — 색 조각은 bool 머리 없이 width 0 = 없음(u8 넷 + 바이트).
      */
     private static Compiled mapItemData() {
-        Node u8 = GenericCodec767.integer("u8", Integer.class);
-        Compiled patch = GenericCodec767.shape(List.of("width", "height", "start_x", "start_y", "map_colors"),
-                List.of(u8, u8, u8, u8, GenericCodec767.BYTES), null);
+        Node u8 = GenericCodec.integer("u8", Integer.class);
+        Compiled patch = GenericCodec.shape(List.of("width", "height", "start_x", "start_y", "map_colors"),
+                List.of(u8, u8, u8, u8, GenericCodec.BYTES), null);
         Node patchNode = node(Optional.class, b -> {
             if (b.getUnsignedByte(b.readerIndex()) == 0) {
                 b.skipBytes(1);
                 return Optional.empty();
             }
-            return Optional.of(GenericCodec767.readStruct(patch, b));
+            return Optional.of(GenericCodec.readStruct(patch, b));
         }, (o, v) -> {
             Optional<?> p = (Optional<?>) v;
             if (p.isEmpty()) {
@@ -721,10 +721,10 @@ final class GenericHand767 {
                 if (c.length != w * h) throw new IllegalArgumentException("map_colors length must be width*height (" + w * h + "): " + c.length);
                 if (x + w > 128 || y + h > 128) throw new IllegalArgumentException("the color patch goes outside the map (128×128): start=(" + x + "," + y + "), size " + w + "×" + h);
             }
-            GenericCodec767.writeStruct(patch, s, o, "color_patch");
+            GenericCodec.writeStruct(patch, s, o, "color_patch");
         });
         return new Seq().f("map_id", VARINT).f("scale", I8).f("locked", BOOL)
-                .f("decorations", GenericCodec767.optional(GenericCodec767.list(MAP_DECORATION, false), false))
+                .f("decorations", GenericCodec.optional(GenericCodec.list(MAP_DECORATION, false), false))
                 .f("color_patch", patchNode).build();
     }
 }

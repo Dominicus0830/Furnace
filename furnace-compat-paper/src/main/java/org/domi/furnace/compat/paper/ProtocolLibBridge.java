@@ -282,7 +282,7 @@ public final class ProtocolLibBridge {
     /** shim 클래스 → Furnace play 단계 clientbound 종류(없으면 null). */
     static PacketType<?> furnaceType(Class<?> shim) {
         if (shim == null) return null;
-        PacketDef d = PacketSchema.protocol767().packetByClass(shim.getName()).orElse(null);
+        PacketDef d = PacketSchema.current().packetByClass(shim.getName()).orElse(null);
         if (d == null || d.direction() != PacketDirection.CLIENTBOUND || !PLAY_STATES.contains(d.state())) return null;
         return PacketTypes.byName(PacketDirection.CLIENTBOUND, "minecraft:" + d.wireName());
     }

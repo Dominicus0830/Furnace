@@ -46,7 +46,7 @@ public class PacketSchemaCheck {
     static Path shimRoot;
     static final Map<String, ClassNode> shimCache = new HashMap<>();
     static final List<String> notes = new ArrayList<>();
-    static PacketSchema schema = PacketSchema.protocol767();
+    static PacketSchema schema = PacketSchema.current();
     static final Map<String, ClassNode> cache = new HashMap<>();
     static final Map<String, String> m2o = new HashMap<>();   // Mojang 내부 이름 → 난독화
     static final Map<String, String> o2m = new HashMap<>();

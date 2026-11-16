@@ -29,7 +29,7 @@ import org.domi.furnace.server.plugin.ApiConvert;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ItemRegistry;
 
-public final class Protocol767 implements ProtocolCodec {
+public final class ProtocolTable implements ProtocolCodec {
 
     public static final int PROTOCOL = GameVersion.PROTOCOL;
 
@@ -89,15 +89,15 @@ public final class Protocol767 implements ProtocolCodec {
     private final Supplier<BlockRegistry> blocks;
     private final Supplier<ItemRegistry> items;
     private final EntityData767 entityData;
-    private final GenericCodec767 generic;
+    private final GenericCodec generic;
 
-    public Protocol767(Supplier<BlockRegistry> blocks) { this(blocks, () -> null); }
+    public ProtocolTable(Supplier<BlockRegistry> blocks) { this(blocks, () -> null); }
 
-    public Protocol767(Supplier<BlockRegistry> blocks, Supplier<ItemRegistry> items) {
+    public ProtocolTable(Supplier<BlockRegistry> blocks, Supplier<ItemRegistry> items) {
         this.blocks = blocks;
         this.items = items;
         this.entityData = new EntityData767(this::blocks, this::items);
-        this.generic = new GenericCodec767(this::blocks, this::items);
+        this.generic = new GenericCodec(this::blocks, this::items);
         Map<PacketType<?>, List<Integer>> tmp = new IdentityHashMap<>();
         for (int i = 0; i < CLIENTBOUND.length; i++) {
             cbTypes[i] = lookup(PacketDirection.CLIENTBOUND, CLIENTBOUND[i]);
@@ -121,7 +121,7 @@ public final class Protocol767 implements ProtocolCodec {
         if (r != null) return r;
         r = fallbackBlocks;
         if (r == null) {
-            synchronized (Protocol767.class) {
+            synchronized (ProtocolTable.class) {
                 if (fallbackBlocks == null) fallbackBlocks = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
                 r = fallbackBlocks;
             }
@@ -137,7 +137,7 @@ public final class Protocol767 implements ProtocolCodec {
         if (r != null) return r;
         r = fallbackItems;
         if (r == null) {
-            synchronized (Protocol767.class) {
+            synchronized (ProtocolTable.class) {
                 if (fallbackItems == null) fallbackItems = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
                 r = fallbackItems;
             }

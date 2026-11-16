@@ -303,7 +303,7 @@ class PacketClassIdsTest {
     );
 
     private static int tableId(Row r) {
-        var hits = ProtocolIds.protocol767().entries(r.protocol(), r.direction()).stream()
+        var hits = ProtocolIds.current().entries(r.protocol(), r.direction()).stream()
                 .filter(e -> e.wireName().equals(r.wireName())).toList();
         assertEquals(1, hits.size(), "번호표에서 이름이 하나여야 한다: " + r);
         return hits.get(0).id();

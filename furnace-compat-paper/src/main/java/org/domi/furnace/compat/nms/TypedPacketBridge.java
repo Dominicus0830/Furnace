@@ -113,7 +113,7 @@ public final class TypedPacketBridge {
     }
 
     /**
-     * Furnace 속도 → 와이어 정수(1/8000). 플러그인 패킷 코덱(Protocol767.velocityUnits)과 같은 식 — 바닐라 (int) 버림이되, 와이어에서 읽은
+     * Furnace 속도 → 와이어 정수(1/8000). 플러그인 패킷 코덱(ProtocolTable.velocityUnits)과 같은 식 — 바닐라 (int) 버림이되, 와이어에서 읽은
      * {@code s / 8000} 처럼 정수에서 부동소수 오차만큼만 모자란 값은 그 정수(버리면 16380 등 374개 값에서 s−1, 검토 R4).
      */
     static int velocity(double v) {
