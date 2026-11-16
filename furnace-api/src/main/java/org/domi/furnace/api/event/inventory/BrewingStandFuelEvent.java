@@ -1,5 +1,5 @@
-// 양조대가 연료 칸의 블레이즈 가루를 연료로 쓰기 직전(연료가 0 이고 연료 칸에 블레이즈 가루가 있을 때) — 양조대의 region 스레드에서 불린다.
-// 취소하면 연료로 쓰지 않는다. fuelPower 는 채울 연료 횟수(기본 20), consuming 이 false 면 블레이즈 가루를 줄이지 않는다.
+// 양조대가 연료 칸의 블레이즈 가루를 연료로 쓰기 직전(연료가 0 이고 연료 칸에 블레이즈 가루가 있을 때)에 양조대의 region 스레드에서 불린다.
+// 취소하면 연료로 쓰지 않는다. fuelPower 는 채울 연료 횟수(기본 20)이고, consuming 이 false 면 블레이즈 가루를 줄이지 않는다.
 package org.domi.furnace.api.event.inventory;
 
 import org.domi.furnace.api.event.Cancellable;

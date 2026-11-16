@@ -1,4 +1,4 @@
-// 공통 상태 비트(EntityDataKeys.Entity.SHARED_FLAGS, 바닐라 Entity.FLAG_*) — 이름으로 비트를 다룬다.
+// 공통 상태 비트(EntityDataKeys.Entity.SHARED_FLAGS, 바닐라 Entity.FLAG_*). 이름으로 비트를 다룬다.
 // 예) byte f = EntityFlags.set(old, EntityFlags.GLOWING, true);
 package org.domi.furnace.api.entity.data;
 

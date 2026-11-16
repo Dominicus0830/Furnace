@@ -1,6 +1,10 @@
-// 가상 엔티티·가짜 플레이어(NPC)·가짜 탭 줄의 입구 — Furnace.server().virtualEntities().
-// 패킷 API(Furnace.server().packets()) 위에 쌓은 것이다: 보이는 범위 추적, 플레이어별 보이기/숨기기, 월드 이동 뒤 다시 보내기,
-// 클릭 잡기, 플러그인이 꺼질 때 정리를 이 서비스가 맡는다.
+// 가상 엔티티, 가짜 플레이어(NPC), 가짜 탭 줄의 입구다. Furnace.server().virtualEntities() 로 얻는다.
+// 패킷 API(Furnace.server().packets()) 위에 쌓은 것이며, 이 서비스가 다음을 맡는다.
+//   보이는 범위 추적
+//   플레이어별 보이기/숨기기
+//   월드 이동 뒤 다시 보내기
+//   클릭 잡기
+//   플러그인이 꺼질 때 정리
 package org.domi.furnace.api.virtual;
 
 import java.util.Collection;

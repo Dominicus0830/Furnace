@@ -1,5 +1,5 @@
-// 두뇌 활동 이름표 "이름공간:이름"(예: minecraft:work, myplugin:guard). 판마다 바뀔 수 있는 내부 활동 객체 대신 이 문자열로 다룬다.
-// minecraft 이름공간은 바닐라 활동(아래 상수는 1.21.1 의 활동 전부), 다른 이름공간은 플러그인이 행동을 붙여 쓰는 새 활동이다.
+// 두뇌 활동 이름표 "이름공간:이름"(예: minecraft:work, myplugin:guard). 버전마다 바뀔 수 있는 내부 활동 객체 대신 이 문자열로 다룬다.
+// minecraft 이름공간은 바닐라 활동이다(아래 상수는 1.21.1 의 활동 전부). 다른 이름공간은 플러그인이 행동을 붙여 쓰는 새 활동이다.
 package org.domi.furnace.api.entity.ai.brain;
 
 import java.util.Locale;

@@ -10,18 +10,18 @@
 // 종류마다 어떤 필드가 있는지는 PacketService.fields(type) 로 안다.
 //
 // 필드 값은 다음 종류로 읽고 쓴다(버전 중립).
-//   - int·long·short·byte·float·double·boolean 은 Integer·Long·Short·Byte·Float·Double·Boolean 이다.
+//   int·long·short·byte·float·double·boolean 은 Integer·Long·Short·Byte·Float·Double·Boolean 이다.
 //     바닐라 필드에 담긴 단위 그대로다(회전은 1/256 바퀴 byte, 속도는 1/8000 블록/틱 정수). 단위를 바꾼 편의 값은 타입 레코드가 준다.
-//   - String·UUID 는 그대로 String·UUID 다. Component 는 Text 다.
-//   - ResourceLocation·ResourceKey 는 이름 문자열이다("minecraft:overworld").
-//   - 아이템·블록·엔티티 종류·메뉴 종류·효과 같은 레지스트리 값도 이름 문자열이다("minecraft:stone").
-//   - BlockPos·GlobalPos 는 그대로 BlockPos·GlobalPos 다. BlockState 는 BlockData, ItemStack 은 ItemStack, CompoundTag 는 NbtCompound 다.
-//   - enum 은 바닐라 상수 이름 문자열이다("MAIN_HAND").
-//   - byte[]·int[]·long[] 는 배열이고, List·Set 은 List 다. Optional 과 없을 수 있는 값은 Optional 이다.
-//   - 패킷 안에 내포된 구조는 PacketStruct 다.
-//   - ChunkPos·SectionPos 는 바닐라가 쓰는 묶은 long 이다.
-//   - Vec3 은 PacketStruct{x, y, z}(Double) 다.
-//   - NumberFormat 은 PacketStruct{type:"minecraft:blank"|"minecraft:styled"(+ style NbtCompound)|"minecraft:fixed"(+ value Text)} 다.
+//   String·UUID 는 그대로 String·UUID 다. Component 는 Text 다.
+//   ResourceLocation·ResourceKey 는 이름 문자열이다("minecraft:overworld").
+//   아이템·블록·엔티티 종류·메뉴 종류·효과 같은 레지스트리 값도 이름 문자열이다("minecraft:stone").
+//   BlockPos·GlobalPos 는 그대로 BlockPos·GlobalPos 다. BlockState 는 BlockData, ItemStack 은 ItemStack, CompoundTag 는 NbtCompound 다.
+//   enum 은 바닐라 상수 이름 문자열이다("MAIN_HAND").
+//   byte[]·int[]·long[] 는 배열이고, List·Set 은 List 다. Optional 과 없을 수 있는 값은 Optional 이다.
+//   패킷 안에 내포된 구조는 PacketStruct 다.
+//   ChunkPos·SectionPos 는 바닐라가 쓰는 묶은 long 이다.
+//   Vec3 은 PacketStruct{x, y, z}(Double) 다.
+//   NumberFormat 은 PacketStruct{type:"minecraft:blank"|"minecraft:styled"(+ style NbtCompound)|"minecraft:fixed"(+ value Text)} 다.
 //
 // 종류마다 모양이 다른 값(number_format, boss_event 의 operation)은 type 필드가 나머지 필드를 정한다.
 //

@@ -1,4 +1,4 @@
-// 태그 해석기 — 태그 이름과 인자를 받아 Tag 를 돌려준다(모르는 이름이면 null → 글자 그대로 남는다). 표준 태그·플레이스홀더·사용자 태그를 모두 이걸로 만든다.
+// 태그 해석기다. 태그 이름과 인자를 받아 Tag 를 돌려준다(모르는 이름이면 null 이고, 그 태그는 글자 그대로 남는다). 표준 태그, 플레이스홀더, 사용자 태그를 모두 이것으로 만든다.
 package org.domi.furnace.api.text.markup;
 
 import java.util.ArrayList;
@@ -26,8 +26,8 @@ public interface TagResolver {
     }
 
     /**
-     * 이 이름이 "원문 치환" 플레이스홀더(Placeholder.parsed)면 치환할 값, 아니면 null. 태그 인자 안의 플레이스홀더까지 풀기 위해
-     * 해석 전에 한 번 훑는 데 쓴다. 보통은 구현할 필요가 없다.
+     * 이 이름이 "원문 치환" 플레이스홀더(Placeholder.parsed)면 치환할 값을, 아니면 null 을 돌려준다.
+     * 태그 인자 안의 플레이스홀더까지 풀기 위해 해석 전에 한 번 훑는 데 쓴다. 보통은 구현할 필요가 없다.
      */
     default String preProcessValue(String name) { return null; }
 
@@ -68,7 +68,7 @@ public interface TagResolver {
 
     static Builder builder() { return new Builder(); }
 
-    /** 태그 이름 규칙 검사 + 소문자화: 영문 소문자·숫자·_ ! ? - 만 허용. */
+    /** 태그 이름 규칙을 검사하고 소문자로 바꾼다. 영문 소문자, 숫자, _ ! ? - 만 허용한다. */
     static String checkName(String name) {
         if (name.isEmpty()) throw new IllegalArgumentException("the tag name is empty");
         for (int i = 0; i < name.length(); i++) {

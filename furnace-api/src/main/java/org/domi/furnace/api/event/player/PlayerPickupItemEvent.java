@@ -1,4 +1,4 @@
-// 플레이어가 바닥 아이템을 줍기 직전 — 그 아이템 엔티티를 가진 region 스레드에서 불린다. 취소하면 줍지 않는다.
+// 플레이어가 바닥 아이템을 줍기 직전에 그 아이템 엔티티를 가진 region 스레드에서 불린다. 취소하면 줍지 않는다.
 package org.domi.furnace.api.event.player;
 
 import org.domi.furnace.api.entity.Player;

@@ -2,10 +2,10 @@
 // 엔티티 번호는 PacketService.nextEntityId() 로 받는다. 서버 엔티티와 겹치지 않는다.
 //
 // 필드는 다음과 같다.
-//   - entityType 은 "minecraft:zombie" 같은 레지스트리 이름이다.
-//   - 각도는 도(degree)다.
-//   - 속도는 블록/틱이다. 축마다 ±3.9 로 잘린다.
-//   - data 는 종류별 추가 값이다(낙하 블록의 상태, 투사체 주인 번호 등). 바닐라와 같다.
+//   entityType 은 "minecraft:zombie" 같은 레지스트리 이름이다.
+//   각도는 도(degree)다.
+//   속도는 블록/틱이다. 축마다 ±3.9 로 잘린다.
+//   data 는 종류별 추가 값이다(낙하 블록의 상태, 투사체 주인 번호 등). 바닐라와 같다.
 package org.domi.furnace.api.packet.clientbound;
 
 import java.util.Objects;

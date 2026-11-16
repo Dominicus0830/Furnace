@@ -1,4 +1,4 @@
-// 이름 붙은 NBT 태그 묶음(바닐라 CompoundTag 와 같은 규칙). 바꿀 수 있고 스레드 안전하지 않다 — 한 스레드에서 만들고 고친다.
+// 이름 붙은 NBT 태그 묶음(바닐라 CompoundTag 와 같은 규칙). 바꿀 수 있고 스레드 안전하지 않으므로, 한 스레드에서 만들고 고친다.
 // 게터는 바닐라처럼 키가 없거나 형이 맞지 않으면 기본값(0·false·""·빈 배열·빈 묶음)을 돌려준다. 숫자 태그끼리는 변환한다.
 // SNBT 로 만들기: NbtCompound.parse("{NoAI:1b,Tags:[\"boss\"]}"), toString() 은 같은 꼴의 한 줄 SNBT(키 정렬).
 // 이 타입은 서버 버전과 무관하다. 다만 엔티티·블록 엔티티 NBT 의 "키 이름과 구조"는 마인크래프트 데이터 버전을 따른다(Furnace.server().minecraftVersion()).
@@ -156,7 +156,7 @@ public final class NbtCompound {
     /** 살아 있는 리스트. 없거나 리스트가 아니면 붙지 않은 새 빈 리스트. 고쳐서 넣으려면 {@link #list(String)}. */
     public NbtList getList(String key) { return tags.get(key) instanceof NbtList l ? l : new NbtList(); }
 
-    /** 하위 묶음을 돌려주되, 없거나 묶음이 아니면 새로 만들어 이 키에 넣는다 — 깊은 경로를 고칠 때: {@code nbt.compound("Brain").compound("memories")}. */
+    /** 하위 묶음을 돌려주되, 없거나 묶음이 아니면 새로 만들어 이 키에 넣는다. 깊은 경로를 고칠 때 쓴다(예: {@code nbt.compound("Brain").compound("memories")}). */
     public NbtCompound compound(String key) {
         if (tags.get(key) instanceof NbtCompound c) return c;
         NbtCompound c = new NbtCompound();
@@ -221,7 +221,7 @@ public final class NbtCompound {
         return h;
     }
 
-    /** 한 줄 SNBT(키 정렬) — {@link #parse} 로 다시 읽힌다. */
+    /** 한 줄 SNBT(키 정렬). {@link #parse} 로 다시 읽힌다. */
     @Override
     public String toString() { return Snbt.write(this); }
 }

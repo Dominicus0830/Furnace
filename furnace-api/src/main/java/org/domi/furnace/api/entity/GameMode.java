@@ -1,4 +1,4 @@
-// 게임 모드(바닐라 GameType) — id 와 이름이 프로토콜·설정과 같다.
+// 게임 모드(바닐라 GameType). id 와 이름이 프로토콜·설정과 같다.
 package org.domi.furnace.api.entity;
 
 public enum GameMode {

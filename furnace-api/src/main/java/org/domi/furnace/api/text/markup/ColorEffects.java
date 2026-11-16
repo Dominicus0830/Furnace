@@ -1,6 +1,7 @@
-// 글자별 색 태그(패키지 내부): gradient · rainbow · transition · pride.
-// 방식: 태그가 닫힐 때 이미 해석된 자식 목록을 받아, 보이는 글자 단위(코드포인트; 글자가 아닌 내용은 1칸)를 센 뒤 글자마다 색을 입힌다.
-// 이미 색이 정해진 마디(와 그 후손)는 색을 바꾸지 않되 위치는 글자 수만큼 흘려보낸다. 같은 색이 이어지면 한 마디로 합친다.
+// 글자별 색 태그(패키지 내부): gradient, rainbow, transition, pride.
+// 태그가 닫힐 때 이미 해석된 자식 목록을 받는다. 보이는 글자 수를 센 뒤(코드포인트 단위, 글자가 아닌 내용은 1칸) 글자마다 색을 입힌다.
+// 이미 색이 정해진 마디(와 그 후손)는 색을 바꾸지 않되, 위치는 글자 수만큼 흘려보낸다.
+// 같은 색이 이어지면 한 마디로 합친다.
 package org.domi.furnace.api.text.markup;
 
 import java.util.ArrayList;
@@ -97,7 +98,7 @@ final class ColorEffects {
         };
     }
 
-    /** HSV(s=v=1) → RGB — Adventure TextColor.color(HSVLike) 와 같은 float 식(각 채널은 255 를 곱해 내림). */
+    /** HSV(s=v=1)를 RGB 로 바꾼다. Adventure TextColor.color(HSVLike) 와 같은 float 식이다(각 채널은 255 를 곱해 내린다). */
     static TextColor hsv(float hue) {
         final float s = 1f, v = 1f;
         float h = hue * 6;

@@ -1,4 +1,4 @@
-// 리스폰 직전 — 리스폰 위치를 바꿀 수 있다. 연결 스레드에서 불린다.
+// 리스폰 직전에 연결 스레드에서 불린다. 리스폰 위치를 바꿀 수 있다.
 package org.domi.furnace.api.event.player;
 
 import org.domi.furnace.api.entity.Player;

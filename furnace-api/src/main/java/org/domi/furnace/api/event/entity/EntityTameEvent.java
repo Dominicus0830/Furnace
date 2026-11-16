@@ -1,4 +1,4 @@
-// 늑대·고양이·앵무새·말 등을 길들이기 직전(길들이기 확률에 성공한 뒤) — 그 엔티티의 region 스레드에서 불린다. 취소하면 실패로 처리한다(연기 입자).
+// 늑대, 고양이, 앵무새, 말 등을 길들이기 직전에(길들이기 확률에 성공한 뒤) 그 엔티티의 region 스레드에서 불린다. 취소하면 실패로 처리한다(연기 입자).
 package org.domi.furnace.api.event.entity;
 
 import org.domi.furnace.api.entity.Entity;
