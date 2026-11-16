@@ -161,7 +161,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private boolean ig = true;
     // 서버가 보낸 보정 텔레포트의 id(-1=없음). 보정 중엔 클라가 confirm할 때까지 위치 패킷을 무시한다(옛 위치 패킷이 연쇄 보정을 부르지 않게).
     private int correctionTpId = -1;
-    private int teleportId = 2;                  // 다음 보정 id는 ++teleportId (스폰이 1·2를 썼다)
+    // 마지막으로 보낸 텔레포트 id. 스폰이 1(SPAWN_TELEPORT_ID)을 쓰고, 그 뒤 서버가 보내는 텔레포트(게이트 재고정 포함)는 모두 ++teleportId —
+    // 보낸 순서대로 커진다. 게이트 해제 때 아직 1 이면 그 사이 서버 텔레포트가 없었다.
+    private int teleportId = SPAWN_TELEPORT_ID;
+    private static final int SPAWN_TELEPORT_ID = 1;
+    // 조인 이벤트를 부르는 중(이벤트 루프 전용) — 이 동안 이 연결 스레드에서 한 텔레포트는 대기열에 넣지 않고 그 자리에서 한다.
+    private boolean joinEventRunning;
     private static final double MAX_COORD = 3.0e7;   // 월드 경계 수준
     private static final double MAX_STEP = 100;       // 패킷당 허용 이동(블록) — 넘으면 되돌림
     private static final double REACH_SQ = 8 * 8;     // 블록 요청 도달 거리²(크리에이티브 5 + 여유), 눈 높이 기준
@@ -1539,13 +1544,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         p.locale(clientLocale);
         p.clientOptions(clientSkinParts, clientMainArm);
         log.info("{}[{}] logged in with entity id {} at ({}, {}, {})", p.name(), loggableAddress(ctx), eid, sx, sy, sz);
+        // 서버 쪽 위치도 지금 정한다 — 조인 이벤트(region 편입 전)의 getLocation·상대 텔레포트가 스폰 자리를 본다(Paper: 이미 그 자리의 ServerPlayer).
+        // 아직 어느 region 에도 없어 이 연결 스레드가 쓴다.
+        p.setPosRaw(sx, sy, sz);
+        p.setRotRaw(syaw, spitch);
         p.publishPosition(sx, sy, sz, syaw, spitch, true);
         p.pushTeleport(sx, sy, sz);
         p.clientViewDistance(clientViewDistance);
         p.viewDistance(effVd);
         this.player = p;
         // 서버가 플레이어를 옮긴다(엔더 진주 등): 어느 스레드에서 불러도 IO 스레드에서 한다.
-        p.teleporter(t -> ctx.executor().execute(() -> {
+        p.teleporter(t -> runTeleport(ctx, () -> {
             if (t.length == 8) { teleportPlayerRelative(ctx, t[0], t[1], t[2], t[5], t[6], t[7]); return; }   // Player.teleportRelative
             if (t.length >= 5) { iyaw = (float) t[3]; ipitch = (float) t[4]; }
             teleportPlayer(ctx, t[0], t[1], t[2]);
@@ -1575,8 +1584,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
         // Paper placeNewPlayer(Fire-PlayerJoinEvent-when-Player-is-actually-ready): 위치 → server_data → 접속자 목록에 넣기(탭·추적 보류)
         // → 보스바 → PlayerJoinEvent·접속 알림 → 탭(본인, 그다음 기존 접속자) → sendLevelInfo → 청크 중심 → 인벤토리
-        send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
-        pendingTeleportId = 1; // 스폰 청크 도착(타이머)까지 클라 이동 무시
+        send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, SPAWN_TELEPORT_ID));
+        pendingTeleportId = SPAWN_TELEPORT_ID; // 스폰 청크 도착(타이머)까지 클라 이동 무시
         if (coreJ != null) send(ctx, new org.domi.furnace.server.net.protocol.play.ServerData(
                 Motd.parse(login.motd), login.faviconBytes()));
         // 조인 이벤트 안에서 getOnlinePlayers·명령·방송이 이 플레이어를 본다(Paper 는 이벤트 전에 players 에 넣는다). 다른 접속자의 탭·엔티티에는
@@ -1597,7 +1606,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // CraftBukkit 은 구성 단계의 REGISTER 마다 PlayerRegisterChannelEvent 를 부른다 — 그때 알린 채널을 접속 알림 직전에 한꺼번에
         if (login.core != null) fireChannelEvents(p, java.util.List.copyOf(pluginChannels.snapshot()), org.domi.furnace.api.event.player.PlayerChannelEvent.Action.REGISTER);
         if (login.core != null) login.core.customBossEvents().onPlayerConnect(p);   // Paper: 조인 이벤트 전(addNewPlayer 와 함께)
-        Text joinMessage = login.core != null ? callJoinEvent(login.core, p) : null;
+        Text joinMessage;
+        joinEventRunning = true;   // 이벤트 안 텔레포트는 Paper 처럼 이벤트 중에 보내고 위치를 바꾼다(아래 청크 중심·스폰 청크가 그 자리를 쓴다)
+        try {
+            joinMessage = login.core != null ? callJoinEvent(login.core, p) : null;
+        } finally {
+            joinEventRunning = false;
+        }
         // CraftBukkit: 조인 이벤트에서 내보냈으면(isAcceptingMessages 거짓) 접속 알림·탭·레벨 정보 없이 끝낸다 — 다른 접속자의 탭에도 올라가지 않는다.
         // 남은 정리(퇴장 이벤트·저장·접속자 목록에서 빼기)는 연결이 닫힐 때 channelInactive 가 한다.
         if (p.kickReason() != null || !ctx.channel().isActive()) return;
@@ -1634,7 +1649,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         send(ctx, new org.domi.furnace.server.net.protocol.play.TickingState(world.tickState().rate(), world.tickState().frozen()));
         send(ctx, new org.domi.furnace.server.net.protocol.play.TickingStep(world.tickState().globalStepsLeft()));
         for (Packet effectPacket : p.vitals().effectPackets()) send(ctx, effectPacket);   // 바닐라: sendLevelInfo 다음 활성 효과
-        ChunkPos centerCp = ChunkPos.ofBlock(sx, sz);
+        // 조인 이벤트에서 옮겼으면 그 자리(ix·iz)가 청크 중심 — Paper 는 틱에서 지금 위치 둘레 청크를 보낸다(스폰 자리 청크를 보내지 않는다).
+        final double cx = ix, cz = iz;
+        ChunkPos centerCp = ChunkPos.ofBlock(cx, cz);
         // SetCenterChunk 먼저 — 클라 viewCenter를 스폰으로 맞춰 스폰 청크가 "not in view range"로 안 버려지게.
         send(ctx, new SetCenterChunk(centerCp.x(), centerCp.z()));
         // 서버가 아는 인벤토리를 클라이언트에도 맞춘다(바닐라 initInventoryMenu).
@@ -1669,7 +1686,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         for (ChunkPos cp : spawnChunks) subs.put(cp, world.subscribeChunk(cp, p));
         java.util.List<java.util.concurrent.CompletableFuture<byte[]>> futs =
                 spawnChunks.stream().map(world::serializedChunkBody).toList();
-        sendSpawnChunkBatchAsync(ctx, p, spawnChunks, subs, futs, sx, sz);
+        sendSpawnChunkBatchAsync(ctx, p, spawnChunks, subs, futs, cx, cz);
         scheduleKeepAlive();
         scheduleAutosave(ctx);
         final ChannelHandlerContext saveCtx = ctx;
@@ -1810,15 +1827,27 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     private void releaseSpawnGate() {
         if (pendingTeleportId == -1) return;
-        // 스폰 좌표로 위치 재확정(클라가 갭 중 떨어졌으면 끌어올림) 후 클라 이동 수용 시작.
-        send(ctx, new SyncPlayerPosition(spawnX, spawnY, spawnZ, spawnYaw, spawnPitch, 2));
         pendingTeleportId = -1;
+        // 게이트 동안 서버가 다시 옮겼으면(조인 이벤트·접속 직후 플러그인 텔레포트 등) 그 텔레포트가 최종 위치다 — 재고정하지 않는다.
+        // Paper 에는 게이트가 없어 그 텔레포트가 남는다. 클라 이동은 그 텔레포트 확인(correctionTpId) 뒤부터 받는다.
+        if (teleportId != SPAWN_TELEPORT_ID) return;
+        // 스폰 좌표로 위치 재확정(클라가 갭 중 떨어졌으면 끌어올림) 후 클라 이동 수용 시작.
+        send(ctx, new SyncPlayerPosition(spawnX, spawnY, spawnZ, spawnYaw, spawnPitch, ++teleportId));
         ix = spawnX; iy = spawnY; iz = spawnZ; iyaw = spawnYaw; ipitch = spawnPitch; ig = true;   // 클라가 스폰으로 되돌아간다
         Player p = player;
         if (p != null) {
             p.pushTeleport(ix, iy, iz);
             publishInput(p);
         }
+    }
+
+    /**
+     * 서버 텔레포트를 연결 스레드에서 한다. 조인 이벤트 안(이 연결의 이벤트 루프)에서 불렀으면 그 자리에서 — Paper 처럼 텔레포트 패킷이
+     * 이벤트 중에 나가고 접속 순서의 뒤(청크 중심·스폰 청크·region 편입)가 옮긴 자리를 쓴다. 그 밖에는 대기열 순서대로.
+     */
+    private void runTeleport(ChannelHandlerContext ctx, Runnable r) {
+        if (joinEventRunning && ctx.executor().inEventLoop()) r.run();
+        else ctx.executor().execute(r);
     }
 
     private void handlePlay(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {

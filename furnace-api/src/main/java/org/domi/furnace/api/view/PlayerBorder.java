@@ -1,6 +1,6 @@
-// 한 플레이어에게만 보이는 월드 보더 — PlayerViews.border(plugin, viewer). 서버의 진짜 보더는 그대로이고 이 사람 화면(벽·경고 빨간 테두리)만 바뀐다.
+// 한 플레이어에게만 보이는 월드 보더(PlayerViews.border(plugin, viewer)). 서버의 진짜 보더는 그대로이고 이 사람 화면(벽·경고 빨간 테두리)만 바뀐다.
 // 값을 바꾸면 바로 그 사람에게 가며 아무 스레드에서 불러도 된다. 만든 값은 그 접속 동안만 산다(다시 접속하면 서버 보더로 돌아온다).
-// enforce(true) 면 서버 판정(보더 밖 피해·보더 밖 블록 상호작용)도 이 값을 쓴다 — 기본은 보이는 것만.
+// enforce(true) 면 서버 판정(보더 밖 피해·보더 밖 블록 상호작용)도 이 값을 쓴다. 기본은 보이는 것만이다.
 package org.domi.furnace.api.view;
 
 public interface PlayerBorder {
@@ -34,7 +34,7 @@ public interface PlayerBorder {
 
     void warningTime(int seconds);
 
-    /** 보더 밖 피해(블록당)·안전 거리 — {@link #enforce} 일 때만 쓰인다(화면에는 영향 없음). */
+    /** 보더 밖 피해(블록당)·안전 거리. {@link #enforce} 일 때만 쓰인다(화면에는 영향 없음). */
     double damagePerBlock();
 
     void damagePerBlock(double damage);

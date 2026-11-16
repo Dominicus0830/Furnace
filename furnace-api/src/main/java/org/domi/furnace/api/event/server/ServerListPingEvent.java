@@ -1,4 +1,4 @@
-// 서버 목록(멀티플레이 화면)이 상태를 물을 때 — 네트워크 스레드에서 불린다(월드 상태를 직접 보지 말 것). 응답의 MOTD·인원을 바꿀 수 있다.
+// 서버 목록(멀티플레이 화면)이 상태를 물을 때 네트워크 스레드에서 불린다. 월드 상태를 직접 보지 않는다. 응답의 MOTD 와 인원을 바꿀 수 있다.
 package org.domi.furnace.api.event.server;
 
 import java.net.InetAddress;

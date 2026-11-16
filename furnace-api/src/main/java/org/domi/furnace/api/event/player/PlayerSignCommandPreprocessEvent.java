@@ -1,5 +1,6 @@
-// 표지판 클릭(run_command)이 명령을 실행하기 직전 — PlayerCommandPreprocessEvent 의 하위라서 그 처리기도 받는다(Paper 1.21.1 과 같다).
-// 취소하면 명령을 돌리지 않고, 메시지를 바꾸면 바뀐 명령으로 돈다. 실행 권한은 표지판 소스(권한 2) 그대로다 — 플레이어가 평소 못 치는 명령도 표지판으로는 돈다.
+// 표지판 클릭(run_command)이 명령을 실행하기 직전에 불린다. PlayerCommandPreprocessEvent 의 하위 이벤트라서 그 처리기도 받는다(Paper 1.21.1 과 같다).
+// 취소하면 명령을 돌리지 않고, 메시지를 바꾸면 바뀐 명령으로 돈다.
+// 실행 권한은 표지판 소스(권한 2) 그대로다. 플레이어가 평소 못 치는 명령도 표지판으로는 돈다.
 // 불리는 스레드: 그 표지판 칸을 가진 region 스레드.
 package org.domi.furnace.api.event.player;
 

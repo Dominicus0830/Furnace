@@ -1,4 +1,4 @@
-// 엔티티 동작 애니메이션(팔 휘두르기·치명타 입자 등).
+// 엔티티 동작 애니메이션. 팔 휘두르기, 치명타 입자 등이 있다.
 package org.domi.furnace.api.packet.clientbound;
 
 import java.util.Objects;

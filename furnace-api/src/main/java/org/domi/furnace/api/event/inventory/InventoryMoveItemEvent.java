@@ -1,6 +1,7 @@
-// 깔때기(블록·광산 수레)가 용기에서 용기로 아이템을 옮기기 직전 — 깔때기의 region 스레드에서 불린다.
-// 취소하면 옮기지 않고, 블록 깔때기는 8 틱 쉰다. setItem 으로 옮길 아이템을 바꿀 수 있다(꺼낸 원래 아이템은 다른 걸로 바뀌어도 빠진다 — Bukkit 과 같다).
-// source·destination 은 이벤트 시점 스냅샷(type 은 블록 엔티티·엔티티 종류, 꺼낸 한 개는 source 에서 이미 빠져 있다).
+// 깔때기(블록, 광산 수레)가 용기에서 용기로 아이템을 옮기기 직전에 깔때기의 region 스레드에서 불린다.
+// 취소하면 옮기지 않고, 블록 깔때기는 8 틱 쉰다.
+// setItem 으로 옮길 아이템을 바꿀 수 있다. 꺼낸 원래 아이템은 다른 것으로 바뀌어도 빠진다(Bukkit 과 같다).
+// source 와 destination 은 이벤트 시점 스냅샷이다(type 은 블록 엔티티나 엔티티 종류이며, 꺼낸 한 개는 source 에서 이미 빠져 있다).
 package org.domi.furnace.api.event.inventory;
 
 import java.util.Objects;
@@ -50,7 +51,7 @@ public final class InventoryMoveItemEvent extends Event implements Cancellable {
 
     public void setItem(ItemStack item) { this.item = Objects.requireNonNull(item, "item"); }
 
-    /** true = 꺼내는 쪽 깔때기가 밀어 넣음, false = 받는 쪽 깔때기가 빨아들임. */
+    /** true 면 꺼내는 쪽 깔때기가 밀어 넣은 것이고, false 면 받는 쪽 깔때기가 빨아들인 것이다. */
     public boolean initiatorIsSource() { return initiatorIsSource; }
 
     /** 일을 벌인 깔때기 쪽 용기. */

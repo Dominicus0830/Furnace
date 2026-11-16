@@ -1,4 +1,4 @@
-// 추가 월드가 올라와 틱을 돌기 시작한 직후(Bukkit WorldLoadEvent). 서버 시작 때의 기본 세 차원에는 오지 않는다 — 그때는 ServerLoadEvent.
+// 추가 월드가 올라와 틱을 돌기 시작한 직후(Bukkit WorldLoadEvent). 서버 시작 때의 기본 세 차원에는 오지 않는다. 그때는 ServerLoadEvent 가 불린다.
 package org.domi.furnace.api.event.world;
 
 public final class WorldLoadEvent extends WorldEvent {

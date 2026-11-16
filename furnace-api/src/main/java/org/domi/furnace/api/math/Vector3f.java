@@ -1,4 +1,4 @@
-// 실수 3차원 벡터(디스플레이 엔티티의 이동·크기 등). 불변.
+// 실수 3차원 벡터. 디스플레이 엔티티의 이동·크기 등에 쓰며 불변이다.
 package org.domi.furnace.api.math;
 
 public record Vector3f(float x, float y, float z) {

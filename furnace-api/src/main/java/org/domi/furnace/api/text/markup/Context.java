@@ -1,4 +1,4 @@
-// 태그를 해석하는 동안 쓰는 문맥 — 인자 안의 마크업 해석(호버 텍스트 등)과 오류 만들기.
+// 태그를 해석하는 동안 쓰는 문맥이다. 인자 안의 마크업 해석(호버 텍스트 등)과 오류 만들기를 맡는다.
 package org.domi.furnace.api.text.markup;
 
 import org.domi.furnace.api.text.Text;

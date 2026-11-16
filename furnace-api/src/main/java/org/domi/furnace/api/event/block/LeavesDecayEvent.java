@@ -1,4 +1,4 @@
-// 나무에서 떨어진 잎이 무작위 틱으로 사라지기 직전 — 그 블록의 region 스레드에서 불린다. 취소하면 사라지지 않는다(드롭도 없다).
+// 나무에서 떨어진 잎이 무작위 틱으로 사라지기 직전에 그 블록의 region 스레드에서 불린다. 취소하면 사라지지 않는다(드롭도 없다).
 package org.domi.furnace.api.event.block;
 
 import org.domi.furnace.api.event.Cancellable;

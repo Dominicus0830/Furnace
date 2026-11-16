@@ -23,7 +23,7 @@ public interface Audience {
     /** 그 사람이 있는 자리에서 소리를 들려준다(그 사람에게만). */
     default void playSound(Sound sound) {}
 
-    /** 월드의 한 지점에서 나는 것처럼 들려준다(그 사람에게만 — 멀면 크기에 따라 작게 들린다). */
+    /** 월드의 한 지점에서 나는 것처럼 들려준다(그 사람에게만 들리며, 멀면 크기에 따라 작게 들린다). */
     default void playSound(Sound sound, double x, double y, double z) {}
 
     /** 위와 같되 소리 변형을 고르는 씨앗을 정한다(바닐라 sound 패킷의 seed). */
@@ -33,7 +33,7 @@ public interface Audience {
     default void playSound(Sound sound, org.domi.furnace.api.entity.Entity emitter, long seed) {}
 
     /**
-     * 그 사람에게만 입자를 보낸다(거리와 관계없이 — Paper Player#spawnParticle 과 같다). 퍼짐·속도는 float 로 줄여 싣는다.
+     * 그 사람에게만 입자를 보낸다(거리와 관계없이. Paper Player#spawnParticle 과 같다). 퍼짐·속도는 float 로 줄여 싣는다.
      * 모르는 입자 종류면 IllegalArgumentException.
      */
     default void spawnParticle(org.domi.furnace.api.world.ParticleEffect particle, double x, double y, double z, int count,
@@ -60,7 +60,7 @@ public interface Audience {
     /** 이 사이드바가 보이는 중이면 숨긴다. */
     default void hideSidebar(org.domi.furnace.api.scoreboard.Sidebar sidebar) {}
 
-    /** 여러 대상을 하나로 — 같은 메시지는 한 번만 인코딩된다(Text 가 인코딩을 품는다). */
+    /** 여러 대상을 하나로 묶는다. 같은 메시지는 한 번만 인코딩된다(Text 가 인코딩을 품는다). */
     static Audience audience(Collection<? extends Audience> members) {
         return new Audience() {
             public void sendMessage(Text m) { for (Audience a : members) a.sendMessage(m); }

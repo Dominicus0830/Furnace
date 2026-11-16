@@ -1,4 +1,4 @@
-// 호버 이벤트(바닐라 HoverEvent): 텍스트·아이템·엔티티 보여주기.
+// 호버 이벤트(바닐라 HoverEvent). 텍스트, 아이템, 엔티티를 보여 준다.
 package org.domi.furnace.api.text;
 
 import java.util.Objects;
@@ -17,8 +17,8 @@ public sealed interface HoverEvent {
 
     /**
      * @param item       아이템 레지스트리 키(minecraft:diamond)
-     * @param count      개수(1 이면 직렬화에서 생략 — 바닐라와 같다)
-     * @param components 아이템 컴포넌트를 SNBT 문자열로(없으면 null) — 아이템 시스템이 생기면 구조화한다
+     * @param count      개수(1 이면 직렬화에서 생략한다. 바닐라와 같다)
+     * @param components 아이템 컴포넌트를 SNBT 문자열로 담는다(없으면 null). 아이템 시스템이 생기면 구조화한다
      */
     record ShowItem(String item, int count, String components) implements HoverEvent {
         public ShowItem { Objects.requireNonNull(item, "item"); }

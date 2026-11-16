@@ -15,7 +15,7 @@ import org.domi.furnace.api.permission.PermissionDefault;
  * @param softDepend 있으면 먼저 켜지는 플러그인
  * @param loadBefore 이 플러그인보다 나중에 켜져야 하는 플러그인
  * @param prefix     로그 접두어(없으면 이름)
- * @param bootstrapper 부트스트랩 클래스(PluginBootstrap 구현, 없으면 null) — 레지스트리·데이터 팩·월드 전에 불린다
+ * @param bootstrapper 부트스트랩 클래스(PluginBootstrap 구현, 없으면 null). 레지스트리·데이터 팩·월드 전에 불린다
  * @param libraries  자동으로 받아 올 Maven 라이브러리(서버 설정 plugins.libraries.enabled=true 일 때만 받는다)
  */
 public record PluginDescription(String name, String version, String main, String description, List<String> authors, String website,
@@ -28,7 +28,7 @@ public record PluginDescription(String name, String version, String main, String
      * 또는 {@code coordinate}·{@code sha256} 를 가진 항목으로 적는다.
      *
      * @param coordinate 그룹:아티팩트:버전[:분류자]
-     * @param sha256     jar 의 SHA-256(소문자 16진수) — 있으면 이 값과 다른 파일은 받지 않는다(없으면 null)
+     * @param sha256     jar 의 SHA-256(소문자 16진수). 있으면 이 값과 다른 파일은 받지 않는다(없으면 null)
      */
     public record Library(String coordinate, String sha256) {
         private static final java.util.regex.Pattern PART = java.util.regex.Pattern.compile("[A-Za-z0-9_.+-]+");
@@ -71,7 +71,7 @@ public record PluginDescription(String name, String version, String main, String
                 bootstrapper, List.of());
     }
 
-    /** 설명 파일의 명령 항목(실제 실행기는 코드에서 등록한다 — 설명·별칭·권한은 여기서 채워진다). */
+    /** 설명 파일의 명령 항목. 실제 실행기는 코드에서 등록하고, 설명·별칭·권한은 여기서 채워진다. */
     public record CommandInfo(String description, List<String> aliases, String permission, String usage) {}
 
     public PluginDescription {
@@ -90,15 +90,15 @@ public record PluginDescription(String name, String version, String main, String
     /** 로그에 쓰는 이름(prefix 가 있으면 그것). */
     public String logPrefix() { return prefix != null ? prefix : name; }
 
-    /** 키 namespace — 이름을 소문자로, 공백은 '_' 로(영속 데이터·플러그인 레지스트리·플러그인 데이터 팩이 쓴다). */
+    /** 키 namespace. 이름을 소문자로, 공백은 '_' 로 바꾼 것이다(영속 데이터, 플러그인 레지스트리, 플러그인 데이터 팩이 쓴다). */
     public String namespace() { return name.toLowerCase(java.util.Locale.ROOT).replace(' ', '_'); }
 
     /** "이름 v버전". */
     public String fullName() { return name + " v" + version; }
 
     /**
-     * 플러그인 이름으로 쓸 수 없는 예약어(대소문자 무시). 서버·바닐라·API 의 이름공간과 겹치기 때문이다 —
-     * Paper 1.21.1 {@code PluginConfigConstraints.RESERVED_KEYS} 와 같은 목록(Spigot 형식·paper-plugin.yml 모두 거부).
+     * 플러그인 이름으로 쓸 수 없는 예약어(대소문자 무시)다. 서버·바닐라·API 의 이름공간과 겹치기 때문이다.
+     * Paper 1.21.1 {@code PluginConfigConstraints.RESERVED_KEYS} 와 같은 목록이다(Spigot 형식과 paper-plugin.yml 모두 거부한다).
      */
     public static final java.util.Set<String> RESERVED_NAMES = java.util.Set.of("bukkit", "minecraft", "mojang", "spigot", "paper");
 

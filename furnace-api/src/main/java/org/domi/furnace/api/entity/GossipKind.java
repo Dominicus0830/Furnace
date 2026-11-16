@@ -1,4 +1,4 @@
-// 주민 소문 종류(바닐라 GossipType). 평판 = 종류별 값 × 가중치의 합. 키 문자열은 마인크래프트 버전과 상관없이 같다.
+// 주민 소문 종류(바닐라 GossipType). 평판은 종류별 값 × 가중치의 합이다. 키 문자열은 마인크래프트 버전과 상관없이 같다.
 package org.domi.furnace.api.entity;
 
 public enum GossipKind {

@@ -1,5 +1,6 @@
-// 전역 렌더러 — 번역 저장소가 아는 키의 번역 텍스트를 지정한 언어의 완성된 텍스트로 바꾼다(플레이어마다 언어가 다른 서버용).
-// 저장소가 모르는 키(바닐라 키 등)는 번역 텍스트로 남겨 클라이언트가 번역하게 한다. 바뀐 곳이 없으면 같은 인스턴스를 돌려줘 인코딩 캐시를 지킨다.
+// 전역 렌더러다. 번역 저장소가 아는 키의 번역 텍스트를 지정한 언어의 완성된 텍스트로 바꾼다(플레이어마다 언어가 다른 서버용).
+// 저장소가 모르는 키(바닐라 키 등)는 번역 텍스트로 남겨 클라이언트가 번역하게 한다.
+// 바뀐 곳이 없으면 같은 인스턴스를 돌려줘서 인코딩 캐시를 지킨다.
 package org.domi.furnace.api.text.translation;
 
 import java.util.ArrayList;
@@ -42,7 +43,7 @@ public final class GlobalRenderer {
     }
 
     /** 이 렌더러의 저장소로 text 를 locale 에 맞게 렌더링한다. */
-    /** 저장소가 하나라도 있는가 — 없으면 {@link #apply} 는 받은 텍스트를 그대로 돌려준다. */
+    /** 저장소가 하나라도 있는가. 없으면 {@link #apply} 는 받은 텍스트를 그대로 돌려준다. */
     public boolean isActive() { return !(stores != null ? stores : GLOBAL).isEmpty(); }
 
     public Text apply(Text text, Locale locale) { return isActive() ? rend(text, locale) : text; }

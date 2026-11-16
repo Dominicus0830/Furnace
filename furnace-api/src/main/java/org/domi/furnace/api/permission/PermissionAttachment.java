@@ -1,4 +1,4 @@
-// 권한 첨부 — 한 플러그인이 한 대상에게 준 권한 값 묶음.
+// 권한 첨부. 한 플러그인이 한 대상에게 준 권한 값 묶음.
 package org.domi.furnace.api.permission;
 
 import java.util.Map;

@@ -1,4 +1,4 @@
-// 손에 든 아이템 사용(허공 우클릭). yaw·pitch 는 그때 시선(도).
+// 손에 든 아이템 사용(허공 우클릭). yaw 와 pitch 는 그때 시선 방향이며 단위는 도다.
 package org.domi.furnace.api.packet.serverbound;
 
 import java.util.Objects;

@@ -1,4 +1,4 @@
-// 블록이 주체인 이벤트의 바탕 — 좌표와 블록 종류(레지스트리 키, minecraft:stone).
+// 블록이 주체인 이벤트의 바탕. 좌표와 블록 종류(레지스트리 키, minecraft:stone)를 가진다.
 package org.domi.furnace.api.event.block;
 
 import org.domi.furnace.api.event.Event;
@@ -19,7 +19,7 @@ public abstract class BlockEvent extends Event {
 
     public BlockPos pos() { return pos; }
 
-    /** 이 칸의 살아 있는 손잡이(읽지 않는다). 처리기는 그 칸을 가진 region 스레드에서 돌므로 바로 읽고 쓸 수 있다. */
+    /** 이 칸의 살아 있는 손잡이. 처리기는 그 칸을 가진 region 스레드에서 돌므로 바로 읽고 쓸 수 있다. */
     public Block liveBlock() {
         var w = org.domi.furnace.api.Furnace.server().world(world);
         if (w == null) throw new IllegalStateException("no such dimension: " + world);

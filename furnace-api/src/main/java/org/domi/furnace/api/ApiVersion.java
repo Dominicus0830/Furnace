@@ -1,4 +1,4 @@
-// 플러그인 API 버전(major.minor). Minecraft 버전과 따로 매긴다 — 설명 파일의 api-version 과 비교한다.
+// 플러그인 API 버전(major.minor). Minecraft 버전과 따로 매긴다. 설명 파일의 api-version 과 비교한다.
 // 규칙(semver): major 가 같고 서버 minor 가 플러그인이 요구한 minor 이상이면 호환. 폐기(@DeprecatedApi)는 최소 두 마이너 동안 남긴다.
 package org.domi.furnace.api;
 

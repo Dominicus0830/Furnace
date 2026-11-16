@@ -1,4 +1,4 @@
-// 데이터 팩 함수 실행 직전 — 취소하면 그 함수 본문을 통째로 건너뛴다. 전역 스레드(명령 큐)에서 불린다.
+// 데이터 팩 함수 실행 직전에 전역 스레드(명령 큐)에서 불린다. 취소하면 그 함수 본문을 통째로 건너뛴다.
 package org.domi.furnace.api.event.server;
 
 import org.domi.furnace.api.command.CommandSender;
@@ -11,11 +11,11 @@ public final class FunctionExecuteEvent extends Event implements Cancellable {
     public enum Trigger {
         /** 매 틱 #minecraft:tick 태그. */
         TICK,
-        /** 서버 시작·/reload 뒤 #minecraft:load 태그. */
+        /** 서버 시작이나 /reload 뒤 #minecraft:load 태그. */
         LOAD,
         /** /schedule 로 예약한 함수. */
         SCHEDULED,
-        /** /function · execute if function · /return run function 등 명령이 직접 부른 최상위 호출. */
+        /** /function, execute if function, /return run function 등 명령이 직접 부른 최상위 호출. */
         COMMAND,
         /** 업적 보상 함수. */
         ADVANCEMENT,
@@ -41,7 +41,7 @@ public final class FunctionExecuteEvent extends Event implements Cancellable {
 
     public Trigger trigger() { return trigger; }
 
-    /** 이 호출의 명령 소스(tick·load·schedule 은 권한 2의 서버 소스). */
+    /** 이 호출의 명령 소스(tick, load, schedule 은 권한 2의 서버 소스). */
     public CommandSender sender() { return sender; }
 
     /** 호출 깊이(최상위 0, 중첩 함수마다 +1). */

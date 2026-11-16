@@ -1,6 +1,7 @@
-// 프로토콜 767(1.21.1) 패킷 종류·번호 표 — 스키마(packet/schema/protocol-767.schema)와 한 쌍이다.
-// 스키마는 패킷의 "모양"(필드)이고 이것은 "어느 프로토콜(단계·방향)에서 몇 번인가". 호환 계층 shim 생성기(패킷 등록부 shim)와
-// 시험이 쓴다. 표 파일은 tools/compat/protocol-ids-extract.py 가 바닐라 클래스에서 뽑은 번호·이름만 담는다(바닐라 코드 아님).
+// 프로토콜 767(1.21.1)의 패킷 종류와 번호 표. 스키마(packet/schema/protocol-767.schema)와 한 쌍이다.
+// 스키마는 패킷의 "모양"(필드)을 담고, 이 표는 "어느 프로토콜(단계·방향)에서 몇 번인가"를 담는다.
+// 호환 계층의 shim 생성기(패킷 등록부 shim)와 시험이 쓴다.
+// 표 파일은 tools/compat/protocol-ids-extract.py 가 바닐라 클래스에서 뽑은 번호와 이름만 담는다. 바닐라 코드는 들어 있지 않다.
 package org.domi.furnace.api.packet.schema;
 
 import org.domi.furnace.api.GameVersion;
@@ -16,10 +17,10 @@ import org.domi.furnace.api.packet.PacketDirection;
 
 public final class ProtocolIds {
 
-    /** 한 PacketTypes 클래스(holder = common·configuration·cookie·game·handshake·login·ping·status)가 선언한 종류. */
+    /** 한 PacketTypes 클래스가 선언한 종류. holder 는 common·configuration·cookie·game·handshake·login·ping·status 중 하나다. */
     public record Type(String holder, PacketDirection direction, String wireName) {}
 
-    /** 프로토콜 등록부의 번호 하나. holder·wireName 은 {@link Type} 과 같은 뜻. */
+    /** 프로토콜 등록부의 번호 하나. holder 와 wireName 은 {@link Type} 과 뜻이 같다. */
     public record Entry(int id, String holder, String wireName) {}
 
     private static volatile ProtocolIds protocol767;
@@ -90,18 +91,18 @@ public final class ProtocolIds {
         };
     }
 
-    /** 모든 종류(holder 마다 선언 순서). */
+    /** 모든 종류. holder 마다 선언 순서를 따른다. */
     public List<Type> types() { return types; }
 
-    /** holder 의 종류들(선언 순서). */
+    /** holder 의 종류들. 선언 순서를 따른다. */
     public List<Type> types(String holder) { return types.stream().filter(t -> t.holder().equals(holder)).toList(); }
 
-    /** 프로토콜(configuration·game·handshake·login·status)의 한 방향 등록부(번호 순서). 없으면 빈 목록. */
+    /** 프로토콜(configuration·game·handshake·login·status)의 한 방향 등록부. 번호 순서이며, 없으면 빈 목록이다. */
     public List<Entry> entries(String protocol, PacketDirection direction) {
         return entries.getOrDefault(protocol + "/" + direction.name().toLowerCase(java.util.Locale.ROOT), List.of());
     }
 
-    /** 이 표가 아는 프로토콜 이름. */
+    /** 이 표가 아는 프로토콜 이름들. */
     public List<String> protocols() {
         return entries.keySet().stream().map(k -> k.substring(0, k.indexOf('/'))).distinct().toList();
     }

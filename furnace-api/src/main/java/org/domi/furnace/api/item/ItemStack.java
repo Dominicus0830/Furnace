@@ -1,4 +1,4 @@
-// 아이템 스택 — 불변 값 객체. 종류는 레지스트리 키, 컴포넌트는 id → SNBT 문자열(기본값과 다른 것만).
+// 아이템 스택. 불변 값 객체이며, 종류는 레지스트리 키, 컴포넌트는 id 별 SNBT 문자열이다(기본값과 다른 것만).
 package org.domi.furnace.api.item;
 
 import java.util.Map;
@@ -54,7 +54,7 @@ public record ItemStack(String type, int amount, Map<String, String> components,
         return id.indexOf(':') < 0 ? "minecraft:" + id : id;
     }
 
-    /** 종류와 컴포넌트가 같은가(개수 무시) — 바닐라 isSameItemSameComponents. */
+    /** 종류와 컴포넌트가 같은가(개수 무시). 바닐라 isSameItemSameComponents. */
     public boolean isSimilar(ItemStack o) {
         return type.equals(o.type) && components.equals(o.components) && removedComponents.equals(o.removedComponents);
     }
@@ -72,7 +72,7 @@ public record ItemStack(String type, int amount, Map<String, String> components,
 
     // ------------------------------------------------------------------ 타입 있는 컴포넌트·영속 데이터(서버 안에서만)
 
-    /** 컴포넌트의 실제 값(붙은 것 → 아이템 기본값). 없거나 지워졌으면 null. */
+    /** 컴포넌트의 실제 값(붙은 것, 없으면 아이템 기본값). 없거나 지워졌으면 null. */
     public <T> T get(ItemComponent<T> component) { return ItemSupport.get().get(this, component); }
 
     public <T> T getOrDefault(ItemComponent<T> component, T fallback) {
@@ -96,7 +96,7 @@ public record ItemStack(String type, int amount, Map<String, String> components,
     public ItemStack without(ItemComponent<?> component) { return ItemSupport.get().remove(this, component); }
 
     /**
-     * 플러그인 영속 데이터(minecraft:custom_data 안 PublicBukkitValues — Paper 와 같은 자리)의 읽기 전용 사본.
+     * 플러그인 영속 데이터(minecraft:custom_data 안 PublicBukkitValues. Paper 와 같은 자리)의 읽기 전용 사본.
      * 아이템은 불변이라 어느 스레드에서 읽어도 된다.
      */
     public PersistentDataView persistentData() { return ItemSupport.get().persistentData(this); }

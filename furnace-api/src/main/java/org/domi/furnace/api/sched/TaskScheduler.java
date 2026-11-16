@@ -13,8 +13,8 @@ public interface TaskScheduler {
     <T> CompletableFuture<T> submit(Supplier<T> task);
 
     /**
-     * delayTicks 틱 후 owner 스레드에서 task 실행. delayTicks는 서버 틱 단위 지연이다(전역·region 모두 /tick rate 를 따른다 —
-     * rate 5 면 20틱은 4초. 전역은 /tick freeze 중에도 세고, /tick sprint 중에는 sprint 틱마다 센다).
+     * delayTicks 틱 후 owner 스레드에서 task 실행. delayTicks는 서버 틱 단위 지연이며 전역·region 모두 /tick rate 를 따른다.
+     * rate 5 면 20틱은 4초다. 전역은 /tick freeze 중에도 세고, /tick sprint 중에는 sprint 틱마다 센다.
      * 0과 1은 다음 틱에 실행된다. owner 스레드가 밀리면 그만큼 늦게 실행된다.
      */
     CompletableFuture<Void> executeDelayed(Runnable task, long delayTicks);
@@ -30,7 +30,7 @@ public interface TaskScheduler {
         return r;
     }
 
-    /** delayTicks 뒤 한 번 — 취소할 수 있는 손잡이를 돌려준다. */
+    /** delayTicks 뒤 한 번 실행한다. 취소할 수 있는 손잡이를 돌려준다. */
     default ScheduledTask runLater(Runnable task, long delayTicks) {
         Once o = new Once(task);
         executeDelayed(o, Math.max(0, delayTicks));

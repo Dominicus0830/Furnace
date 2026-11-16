@@ -1,4 +1,4 @@
-// 청크 좌표 핸들 — 가볍고 불변이며 청크를 로드하지 않는다. 읽기·쓰기는 그 청크를 가진 region 스레드에서 실행되고,
+// 청크 좌표 핸들. 가볍고 불변이며 청크를 로드하지 않는다. 읽기·쓰기는 그 청크를 가진 region 스레드에서 실행되고,
 // 로드되지 않은 청크는 빈 값/false 로 끝난다.
 package org.domi.furnace.api.world;
 
@@ -29,7 +29,7 @@ public interface Chunk {
     CompletableFuture<List<Entity>> entities();
 
     /**
-     * 이 청크 안의 엔티티 수(플레이어 포함) — 종류별·자연 스폰 종류 묶음별. region 의 엔티티 색인을 읽을 뿐 핸들을 만들지 않아
+     * 이 청크 안의 엔티티 수(플레이어 포함)를 종류별, 자연 스폰 종류 묶음별로 센다. region 의 엔티티 색인을 읽을 뿐 핸들을 만들지 않아
      * {@link #entities()} 보다 싸다. 로드되지 않았으면 {@link EntityCounts#EMPTY}.
      */
     default CompletableFuture<EntityCounts> entityCounts() {
