@@ -62,6 +62,6 @@ case "$cmd" in
     git rev-parse -q --verify "refs/tags/$tag" >/dev/null && { echo "거부: 태그가 이미 있다: $tag (태그는 옮기지 않는다)" >&2; exit 1; }
     git tag -a "$tag" "$sha" -m "${msg:-$tag}"
     echo "만듦: $tag -> $sha"
-    [[ $push -eq 1 ]] && git push origin "refs/tags/$tag" ;;
+    if [[ $push -eq 1 ]]; then git push origin "refs/tags/$tag"; fi ;;
   *) sed -n 2,8p "$0"; exit 2 ;;
 esac

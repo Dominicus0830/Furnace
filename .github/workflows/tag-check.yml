@@ -11,6 +11,9 @@ on:
       - 'tools/release/**'
       - '.github/workflows/tag-check.yml'
 
+permissions:
+  contents: read
+
 jobs:
   tag-check:
     runs-on: ubuntu-latest
