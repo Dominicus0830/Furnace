@@ -162,10 +162,30 @@ class NmsBlockEntityWriteTest {
         return items.size() == 1 && "minecraft:diamond".equals(items.getCompound(0).getString("id")) && items.getCompound(0).getInt("count") == 5;
     }
 
+    /** 그 region 의 저장 대상 청크 표(Region.dirtyChunks — 바닐라 setUnsaved 자리). 주인 스레드에서. */
+    @SuppressWarnings("unchecked")
+    java.util.Set<org.domi.furnace.server.world.ChunkPos> dirtyChunks(BlockPos p) {
+        try {
+            var f = Region.class.getDeclaredField("dirtyChunks");
+            f.setAccessible(true);
+            return (java.util.Set<org.domi.furnace.server.world.ChunkPos>) f.get(region(p));
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    boolean unsaved(BlockPos p) { return on(p, () -> dirtyChunks(p).contains(new org.domi.furnace.server.world.ChunkPos(p.getX() >> 4, p.getZ() >> 4))); }
+
+    void clearUnsaved(BlockPos p) { onRun(p, () -> dirtyChunks(p).remove(new org.domi.furnace.server.world.ChunkPos(p.getX() >> 4, p.getZ() >> 4))); }
+
+    ChunkColumn col(BlockPos p) { return region(p).loadedOwnedChunk(p.getX() >> 4, p.getZ() >> 4); }
+
+    /** 게임이 놓은 상자처럼 — 서버 길로 놓고 채운다(호환 보기를 만들지 않는다: 실제 FAWE 가 만나는 묶이지 않은 상태, 검토 M3). */
     void placeChestWithDiamonds(BlockPos p) {
         onRun(p, () -> {
-            level.setBlock(p, Blocks.CHEST.defaultBlockState(), 3);
-            level.getBlockEntity(p).loadWithComponents(TagParser.parseTag(ITEMS), reg);
+            region(p).level().setBlock(new org.domi.furnace.server.block.Pos(p.getX(), p.getY(), p.getZ()), Blocks.CHEST.defaultBlockState().furnaceStateId(), 3);
+            var sb = col(p).blockEntityAt(p.getX(), p.getY(), p.getZ());
+            sb.loadWithBukkitValues(org.domi.furnace.server.plugin.ApiNbt.toServer(TagParser.parseTag(ITEMS).furnace()));
         });
         assertTrue(hasDiamonds(serverSave(p)), "준비: 서버 상자에 다이아몬드");
         server.tick(1);   // 다른 스레드는 주인이 틱 끝에 낸 공개 판을 읽는다(N2b-3)
@@ -223,11 +243,21 @@ class NmsBlockEntityWriteTest {
 
     @Test
     void setChangedOnOwnerAndOffThread() {
-        BlockPos p = at(0, 0, 7, 7);
+        BlockPos p = at(2, -2, 7, 7);
         placeChestWithDiamonds(p);
-        onRun(p, () -> level.getBlockEntity(p).setChanged());
-        offThreadRun(() -> level.getChunkAt(p).getBlockEntity(p).setChanged());
+        server.tick(2);
+        // 주인: 저장 표시가 바로
+        clearUnsaved(p);
         server.tick(1);
+        assertFalse(unsaved(p), "대조: 아무것도 안 하면 저장 표시 없음");
+        onRun(p, () -> level.getBlockEntity(p).setChanged());
+        assertTrue(unsaved(p), "주인 setChanged = 바닐라 blockEntityChanged(저장 표시)");
+        // 다른 스레드: 주인이 재생한 뒤
+        clearUnsaved(p);
+        server.tick(1);
+        assertFalse(unsaved(p), "대조: 아무것도 안 하면 저장 표시 없음");
+        offThreadRun(() -> level.getChunkAt(p).getBlockEntity(p).setChanged());
+        eventually("주인이 setChanged 를 재생해 저장 표시", () -> unsaved(p));
         assertTrue(hasDiamonds(serverSave(p)));
     }
 
@@ -324,6 +354,116 @@ class NmsBlockEntityWriteTest {
         onRun(p, () -> level.getBlockEntity(p).loadWithComponents(stored, reg));   // //undo·//paste 의 동기 작업
         String saved = serverSave(p);
         assertEquals("minecraft:zombie", TagParser.parseTag(saved).getCompound("SpawnData").getCompound("entity").getString("id"), saved);
+    }
+
+    /** 작업 스레드가 지운 타일들의 저장은 첫 하나만 주인을 기다린다 — 주인이 지우기를 재생하며 지운 것마다 꼴을 떠 둔다(검토 위험 1). */
+    @Test
+    void offThreadRemovedTilesSaveWithoutWaitingEach() {
+        java.util.List<BlockPos> ps = new java.util.ArrayList<>();
+        for (int i = 0; i < 12; i++) ps.add(at(2, 2, i, 3 + (i & 1) * 4));
+        for (BlockPos p : ps) placeChestWithDiamonds(p);
+        java.util.List<BlockEntity> tiles = offThread(() -> {
+            LevelChunk c = level.getChunkAt(ps.get(0));
+            java.util.List<BlockEntity> out = new java.util.ArrayList<>();
+            for (BlockPos p : ps) {
+                BlockEntity t = c.getBlockEntity(p);
+                assertNull(t.furnaceHandle(), "준비: 게임이 놓은 상자 — 묶이지 않은 보기");
+                c.removeBlockEntity(p);
+                out.add(t);
+            }
+            assertTrue(hasDiamonds(out.get(0).saveWithId(reg)));   // 첫 저장: 주인이 맞추며 지우기를 재생
+            return out;
+        });
+        for (BlockEntity t : tiles) {
+            assertNotNull(t.furnaceSnapshot(), "주인이 지우기 직전에 뜬 꼴: " + t);
+            assertTrue(t.isRemoved());
+        }
+        for (BlockEntity t : tiles) assertTrue(hasDiamonds(offThread(() -> t.saveWithId(reg))));
+        for (BlockPos p : ps) assertNull(serverBe(p));
+    }
+
+    // ------------------------------------------------------------------ 검토 재현(PR #447)
+
+    boolean listenerAt(BlockPos p) {
+        return on(p, () -> {
+            var r = col(p).listenerRegistry(p.getY() >> 4, false);
+            return r != null && !r.isEmpty();
+        });
+    }
+
+    /** R1: NMS removeBlockEntity 가 스컬크 감지기의 게임 이벤트 리스너도 뗀다(Paper LevelChunk.removeBlockEntity → removeGameEventListener). */
+    @Test
+    void removeBlockEntityDetachesGameEventListener() {
+        BlockPos p = at(-2, 0, 3, 3);
+        assertFalse(listenerAt(p), "준비: 처음엔 리스너 없음");
+        onRun(p, () -> level.setBlock(p, Blocks.SCULK_SENSOR.defaultBlockState(), 3));
+        server.tick(1);
+        assertTrue(listenerAt(p), "준비: 리스너 등록됨");
+        onRun(p, () -> level.getChunkAt(p).removeBlockEntity(p));
+        assertNull(serverBe(p));
+        assertFalse(listenerAt(p));
+    }
+
+    /** R1(게임 길): 감지기를 돌로 바꾸면 리스너가 빠진다(바닐라). */
+    @Test
+    void replacingSculkSensorDetachesGameEventListener() {
+        BlockPos p = at(-2, 0, 9, 9);
+        onRun(p, () -> level.setBlock(p, Blocks.SCULK_SENSOR.defaultBlockState(), 3));
+        server.tick(1);
+        assertTrue(listenerAt(p));
+        onRun(p, () -> level.setBlock(p, Blocks.STONE.defaultBlockState(), 3));
+        server.tick(1);
+        assertFalse(listenerAt(p));
+    }
+
+    /** R2: 다른 스레드가 얻은(묶이지 않은) 보기도 청크가 내려간 뒤 그 객체의 내용을 저장한다(FAWE 게으른 타일 저장 — Paper 는 객체가 내용을 든다). */
+    @Test
+    void unboundViewStillSavesAfterUnload() {
+        BlockPos p = at(-2, 2, 2, 2);
+        placeChestWithDiamonds(p);
+        LevelChunk c = level.getChunk(p.getX() >> 4, p.getZ() >> 4);
+        BlockEntity view = offThread(() -> c.getBlockEntity(p));   // //copy
+        assertNotNull(view);
+        onRun(p, () -> c.furnaceMirror().unloaded());               // 청크가 내려감(주인, 맞춘 뒤)
+        assertTrue(hasDiamonds(offThread(() -> view.saveWithId(reg))));
+    }
+
+    /** R2(틱 끝 공개): 다른 스레드가 얻은 보기는 다음 공개 때 지금 서버 객체에 묶인다. */
+    @Test
+    void unboundViewIsBoundAtTheNextPublish() {
+        BlockPos p = at(0, 2, 2, 2);
+        placeChestWithDiamonds(p);
+        BlockEntity view = offThread(() -> level.getChunkAt(p).getBlockEntity(p));
+        assertNull(view.furnaceHandle());
+        server.tick(1);
+        assertNotNull(view.furnaceHandle());
+        assertSame(serverBe(p), view.furnaceHandle());
+    }
+
+    /** R3: 다른 스레드의 IMMEDIATE 는 들여오기 전 옛 블록(다른 블록 엔티티 종류)으로 만들지 않는다 — 그 스레드가 넣은 상자로. */
+    @Test
+    void offThreadImmediateDoesNotUseTheStaleOldBlock() {
+        BlockPos p = at(0, 2, 6, 9);
+        onRun(p, () -> level.setBlock(p, Blocks.FURNACE.defaultBlockState(), 3));
+        // 지우기는 블록 변경 방송 뒤에 — 바닐라 broadcastBlockEntityIfNeeded 가 Level#getBlockEntity(IMMEDIATE)로 바뀐 칸의 블록 엔티티를 다시 만든다
+        server.tick(1);
+        onRun(p, () -> level.getChunkAt(p).removeBlockEntity(p));   // 블록은 화로, 블록 엔티티 없음
+        server.tick(1);
+        assertNull(serverBe(p), "준비: 화로 블록, 블록 엔티티 없음");
+        LevelChunk c = level.getChunk(p.getX() >> 4, p.getZ() >> 4);
+        int si = si(p);
+        // 주인 작업 안에서 다른 스레드를 돌린다 — 그동안 주인은 맞추지 않아, 섹션 바꾸기와 만들기가 한 맞춤에 같이 든다(재생이 들여오기보다 먼저)
+        onRun(p, () -> offThreadRun(() -> {
+            LevelChunkSection existing = c.getSections()[si];
+            var fresh = freshWith(existing, p.getX() & 15, p.getY() & 15, p.getZ() & 15, Blocks.CHEST.defaultBlockState());
+            assertTrue(NmsArrays.compareAndSet(OBJ, c.getSections(), si, existing, fresh));
+            BlockEntity be = c.getBlockEntity(p, LevelChunk.EntityCreationType.IMMEDIATE);
+            assertTrue(be instanceof ChestBlockEntity);
+            be.loadWithComponents(TagParser.parseTag(ITEMS), reg);
+        }));
+        eventually("주인이 상자 블록 엔티티를 만든다", () -> serverBe(p) != null);
+        assertEquals("minecraft:chest", serverBe(p).type());
+        assertTrue(hasDiamonds(serverSave(p)));
     }
 
     // ------------------------------------------------------------------ 신호기(FAWE removeBeacon + 동기 작업 3)

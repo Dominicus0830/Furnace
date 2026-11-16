@@ -27,12 +27,16 @@ FAWE 2.16.2 는 블록 엔티티가 든 섹션을 바꿀 때 아래 순서로 NM
 - `LevelChunk#getBlockEntity(pos, EntityCreationType)`·`removeBlockEntity`·`blockEntities`(읽기·`remove` 되는 표, `put` 은 아직 없음 → `UnsupportedNmsCall`)·private `removeGameEventListener`·`removeBlockEntityTicker`(떨어진 것이면 할 일 없음 — `remove` 가 이미 뗐다).
 - `Level#getBlockEntity`(주인 스레드 IMMEDIATE, 아니면 null — Paper 가 틱 스레드 밖에서 null 인 것과 같다), `Level#removeBlockEntity`, `Level#playSound(null, pos, …)`.
 - 다른 스레드의 쓰기는 **거울 일지**(N2b-4)에 넣고 주인이 맞춤 지점에서 재생한다: `BE_REMOVE`·`BE_CREATE`·`BE_LOAD`·`BE_CHANGED`. 쓴 스레드는 자기 쓰기를 바로 본다(블록 엔티티 덧칠). 블록이 아직 들어오지 않아 만들 수 없는 `BE_CREATE` 는 그 맞춤의 섹션 들여오기 뒤로 미루고, 같은 칸의 뒤 작업도 함께 미룬다(FAWE: 섹션 CAS 직후 IMMEDIATE).
-- 다른 스레드의 저장(`saveWithId`)은 주인 region 에 넘겨 최대 10초 기다린다. region·전역 스레드는 기다리지 않고 `ThreadOwnershipException`(교착 규칙 — PR #382 R1).
+- 다른 스레드의 저장(`saveWithId`)은 주인 region 에 넘겨 최대 10초 기다린다. region·전역 스레드는 기다리지 않고 `ThreadOwnershipException`(교착 규칙 — PR #382 R1). 전역 스레드의 빌림 구간(Bukkit 동기 작업)은 먼저 그 region 을 빌려 본다(`ownsChunk`) — 빌리면 바로 읽는다.
+- **지운 타일의 꼴(검토 위험 1)**: 다른 스레드가 지운 블록 엔티티는 주인이 지우기를 재생할 때 지우기 직전 꼴을 떠 보기에 둔다. 지운 객체는 더 바뀌지 않으므로, FAWE 가 지운 타일을 되돌리기 기록에 저장할 때 첫 하나만 주인을 기다리고(그 맞춤이 그 청크의 지우기를 모두 재생한다) 나머지는 바로 쓴다. 보기에 다시 실으면 꼴은 버린다.
+- **보기 묶기(검토 R2)**: 다른 스레드가 공개 판에서 얻은 보기(아직 서버 객체에 묶이지 않은 것)는 주인이 틱 끝 공개 때와 청크를 내리기 직전에 그 칸의 지금 서버 객체에 묶는다 — FAWE 가 `//copy` 한 타일을 원본 청크가 내려간 뒤 게으르게 저장해도 그 객체의 내용이 나온다(Paper 는 객체가 내용을 든다).
+- **다른 스레드 IMMEDIATE(검토 R3)**: 재생은 그 스레드가 본 블록(자기가 바꾼 섹션 포함)이 서버 칸에 들어온 뒤에만 만든다 — 들여오기 전 옛 블록(예: 화로)으로 다른 종류를 만들지 않는다.
 - `BeaconBlockEntity.playSound`(생성기 `tools/compat/gen-nms-block-entities.py`), Paper `BeaconDeactivatedEvent`, `CraftBlock.at`, `CraftBlockEntityState#getTileEntity`, `ClientboundBlockEntityDataPacket` 공개 생성자·`create(BlockEntity, BiFunction)`.
 
 ## 3. 시험
 
 - 새 `NmsBlockEntityWriteTest`(호환, 실서버): 주인 보기 = 서버 객체·지운 뒤 마지막 내용·IMMEDIATE 다시 만들기, 다른 스레드 `Level#getBlockEntity` null, setChanged(주인·다른 스레드), **`//set` 순서**(작업 스레드 지우기 → 저장에 내용물), **`//paste` 순서**(섹션 CAS → 동기 작업 IMMEDIATE + 싣기 → 서버 상자에 내용물), 다른 스레드 IMMEDIATE 가 블록 들여오기를 기다림, 스포너 `//set`·`//paste`, 신호기 지우기 길 전체, 떨어진 블록 엔티티·패킷.
+- 검토(PR #447) 뒤 더한 것: 게임이 놓은 상자(묶이지 않은 보기)로 준비, 지운 타일 여러 개 저장(첫 하나만 기다림·꼴), 스컬크 감지기 리스너(NMS 지우기·게임 길), 내린 뒤 저장, 다음 공개 때 묶기, 다른 스레드 IMMEDIATE 가 옛 블록을 쓰지 않음(주인 작업 안에서 돌려 한 맞춤에 넣음 — 수정을 빼면 실패함을 확인), setChanged 는 region 저장 대상 표시를 단언.
 - 새 `BlockEntityImmediateTest`(서버): 빠진 블록 엔티티 다시 만들기, 블록 엔티티 없는 블록, 생성 NBT 를 덮지 않음.
 - 바꾼 시험: `NmsLiveBlockEntityTest`(옛 `furnaceInWorld` → `Level#getBlockEntity`·청크 `getBlockEntity`).
 
@@ -42,7 +46,12 @@ FAWE 2.16.2 는 블록 엔티티가 든 섹션을 바꿀 때 아래 순서로 NM
 
 ## 5. 남은 것·가정
 
+- **서버 버그 함께 고침(검토 R1)**: `RegionLevel.removeBlockEntity` 가 게임 이벤트 리스너를 떼지 않았다 — 스컬크 감지기를 부수거나 바꿔도 리스너가 남아 진동을 받았다(이 PR 전부터). 바닐라처럼 뗀다.
+- **바닐라 확인**: `broadcastBlockEntityIfNeeded`(틱 끝 블록 변경 방송)는 바닐라도 `Level#getBlockEntity`(IMMEDIATE)라, 같은 틱에 블록을 놓고 블록 엔티티만 지우면 방송 때 다시 만들어진다(서버가 이제 바닐라처럼 그렇게 한다).
+
 1. **수용 조건 실측은 아직** — "상자·스포너가 있는 곳 `//set`, 상자 `//copy`·`//paste`(내용물 포함)가 Paper 와 같은 region 결과"는 FAWE 실제 jar 로 데스크탑에서 잰다(N2b-6 시나리오에 블록 엔티티 장면 추가). 이 PR 의 시험은 FAWE 가 부르는 순서를 그대로 흉내 낸 것이다.
 2. `blockEntities.put`·`setBlockEntity`(블록 엔티티 객체를 청크에 바로 넣기)는 없다 — FAWE 2.16.2 는 부르지 않는다. 부르면 `UnsupportedNmsCall` 로 알린다.
-3. 가정: 다른 스레드가 읽는 블록 엔티티 목록은 주인이 틱 끝에 낸 공개 판 + 자기 쓰기(N2b-3 과 같은 규칙). 주인이 같은 틱에 놓은 블록 엔티티는 다음 틱부터 보인다.
-4. 종류별 필드·메서드(컨테이너 `getItem` 등)는 여전히 없다 — 내용은 NBT 로만 오간다.
+3. **실측할 위험(검토)**: 살아 있는 타일을 다른 스레드가 저장하면(`//copy` 의 게으른 저장) 타일마다 주인 region 인박스를 한 번 기다린다(인박스는 틱마다 비움 — 평균 반 틱~한 틱). 상자 512개 `//copy`·`//stack`, `//set`·`//undo`, 다른 region 으로 `//stack` 을 데스크탑 시나리오(`tools/compat/fawe-paper/scenario_t198.py` B6~B9)에서 Paper 와 걸린 시간·결과로 잰다. 결과에 따라 묶어 저장하기를 정한다.
+4. `Level#getBlockEntity` 는 로드돼 있지 않은 청크면 null — Paper 1.21.1 은 틱 스레드에서 불러온다(region 스레드에서 멈춰 서서 불러오지 않는다는 스케줄러 규칙 6 때문의 차이).
+5. 가정: 다른 스레드가 읽는 블록 엔티티 목록은 주인이 틱 끝에 낸 공개 판 + 자기 쓰기(N2b-3 과 같은 규칙). 주인이 같은 틱에 놓은 블록 엔티티는 다음 틱부터 보인다.
+6. 종류별 필드·메서드(컨테이너 `getItem` 등)는 여전히 없다 — 내용은 NBT 로만 오간다.

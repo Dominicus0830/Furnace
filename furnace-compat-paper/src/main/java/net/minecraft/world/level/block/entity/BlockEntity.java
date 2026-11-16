@@ -39,6 +39,8 @@ public abstract class BlockEntity {
     private volatile Object furnaceHandle;
     /** 떨어진 블록 엔티티의 내용(saveWithoutMetadata 꼴, id 포함). null 이면 그 상태의 갓 만든 모습. */
     private volatile NbtCompound furnaceData;
+    /** 월드의 보기: 다른 스레드가 지운 서버 블록 엔티티를 주인이 지우기 직전에 저장한 꼴(saveWithFullMetadata). 지운 객체는 더 바뀌지 않아 다른 스레드가 기다리지 않고 쓴다. */
+    private volatile NbtCompound furnaceSnapshot;
 
     public BlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
         this.type = type;
@@ -64,6 +66,12 @@ public abstract class BlockEntity {
 
     /** 호환 모듈 전용: 묶인 서버 손잡이(없으면 null). */
     public final Object furnaceHandle() { return furnaceHandle; }
+
+    /** 호환 모듈 전용: 지운 뒤의 저장 꼴(없으면 null — 복사하지 않은 그 객체). */
+    public final NbtCompound furnaceSnapshot() { return furnaceSnapshot; }
+
+    /** 호환 모듈 전용(주인 스레드): 지운 뒤의 저장 꼴을 둔다. */
+    public final void furnaceSnapshot(NbtCompound saved) { furnaceSnapshot = saved; }
 
     /** 호환 모듈 전용(주인 스레드): 아직 묶이지 않았으면 묶는다. */
     public final void furnaceBind(Object handle) {
@@ -102,6 +110,7 @@ public abstract class BlockEntity {
     public final void loadWithComponents(CompoundTag tag, HolderLookup.Provider registries) {
         NbtCompound n = (NbtCompound) NbtBridge.toFurnace(tag);
         if (furnaceChunk != null) {
+            furnaceSnapshot = null;   // 지운 객체에도 실을 수 있다(바닐라) — 그 뒤 저장은 객체에서
             furnaceChunk.furnaceBlockEntityLoad(this, n);
             return;
         }

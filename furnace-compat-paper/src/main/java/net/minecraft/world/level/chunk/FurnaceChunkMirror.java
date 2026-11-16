@@ -459,12 +459,21 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
         try {
             switch (op.kind) {
                 case BE_CREATE -> {
+                    // 그 스레드가 본 블록(자기가 바꾼 섹션 포함)이 아직 서버 칸에 없으면 — 들여오기 전 옛 블록으로 만들지 않는다(검토 R3)
+                    var v = (net.minecraft.world.level.block.entity.BlockEntity) op.target;
+                    int now = b.stateIdNow(world, op.x, op.y, op.z);
+                    if (now < 0 || net.minecraft.world.level.block.Block.stateById(now).getBlock() != v.getBlockState().getBlock()) return false;
                     Object h = b.blockEntityNow(world, op.x, op.y, op.z, true);
                     if (h == null) return false;
-                    ((net.minecraft.world.level.block.entity.BlockEntity) op.target).furnaceBind(h);
+                    v.furnaceBind(h);
                 }
                 case BE_REMOVE -> {
-                    if (op.target instanceof net.minecraft.world.level.block.entity.BlockEntity v) ChunkAccess.furnaceBindNow(world, v);   // 지우기 전에 묶는다 — 지운 뒤에도 마지막 내용을 저장한다
+                    if (op.target instanceof net.minecraft.world.level.block.entity.BlockEntity v) {
+                        // 지우기 전에 묶는다 — 지운 뒤에도 마지막 내용을 저장한다. 그 꼴을 여기서 떠 두면 지운 스레드(FAWE 되돌리기 기록)가 타일마다 주인을
+                        // 기다리지 않는다(검토 위험 1 — 지운 객체는 더 바뀌지 않는다)
+                        Object h = ChunkAccess.furnaceBindNow(world, v);
+                        if (h != null && v.furnaceSnapshot() == null) v.furnaceSnapshot(b.blockEntitySaveNow(h));
+                    }
                     b.removeBlockEntityNow(world, op.x, op.y, op.z);
                 }
                 case BE_LOAD -> {
@@ -487,9 +496,18 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
         return true;
     }
 
+    private void bindViews() {
+        try {
+            chunk.furnaceBindViews();
+        } catch (RuntimeException e) {
+            warnOnce("bind:" + e.getClass().getName(), CompatLang.t("compat.mirror.bind-failed", e));
+        }
+    }
+
     @Override
     public void published(ChunkInternals.ChunkView view) {
         if (dead || view == null || !owner()) return;
+        bindViews();   // 다른 스레드가 얻은 보기를 지금 서버 객체에(검토 R2)
         synchronized (lock) {
             if ((overlayCount > 0 || beOverlayCount > 0) && replayedSeq > 0) clearOverlays(replayedSeq);
             // 개수 필드: 붙은 섹션의 필드가 기준과 같으면(플러그인 대입 없음) 공개 판의 바닐라 개수로 — 아직 재생하지 않은 일지가 있으면 다음 판에
@@ -508,6 +526,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
     @Override
     public void unloaded() {
         if (!owner()) return;
+        if (!dead) bindViews();   // 내린 뒤에도 보기가 그 객체의 내용을 저장하게(검토 R2 — FAWE 게으른 타일 저장)
         synchronized (lock) {
             dead = true;   // 잠금 안에서 — 그 뒤 일지 쓰기는 버려진다
             journal = new ArrayList<>();

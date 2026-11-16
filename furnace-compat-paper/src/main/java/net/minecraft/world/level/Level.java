@@ -143,7 +143,7 @@ public abstract class Level implements LevelAccessor {
     /**
      * Paper Level#getBlockEntity(pos): 그 칸의 블록 엔티티 보기 — 없고 블록이 블록 엔티티를 가지는 종류면 만든다(바닐라 IMMEDIATE). 높이 밖이면 null.
      * Paper 는 틱 스레드가 아니면 null 을 준다 — Furnace 는 그 칸의 주인 region 스레드(이벤트 처리기·entityScheduler·Bukkit 동기 작업의 빌림 구간)가 아니면 null.
-     * 로드돼 있지 않은 청크는 Paper 처럼 불러오지 않고 null.
+     * 로드돼 있지 않은 청크는 null — Paper 1.21.1 은 틱 스레드에서 getChunkAt 으로 불러온다(차이: region 스레드에서 멈춰 서서 불러오는 일은 하지 않는다 — 스케줄러 규칙 6).
      */
     public net.minecraft.world.level.block.entity.BlockEntity getBlockEntity(BlockPos pos) {
         if (isOutsideBuildHeight(pos)) return null;

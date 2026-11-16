@@ -55,6 +55,29 @@ we(P + "pos1 -61,79,-41"); we(P + "pos2 -51,81,-39"); we(P + "copy"); we(P + "st
 # B5 //move 10 up — 옮기기(옛 칸 지우기 + 새 칸 싣기)
 we(P + "pos1 -61,79,-31"); we(P + "pos2 -51,81,-29"); we(P + "move 10 up")
 
+
+def timed(label, line, **kw):
+    t0 = time.time()
+    we(line, **kw)
+    log(f"TIME {label} {time.time() - t0:.1f}s")
+
+
+# B6 다른 region 으로 붙여 넣기(검토 위험 2): region 은 16청크 변 — x<0 쪽 원본을 //stack 으로 x>=0 쪽에. 원본 줄은 x -20..-12
+row(-20, 80, -20)
+time.sleep(2)
+we(P + "pos1 -21,79,-21"); we(P + "pos2 -11,81,-19"); we(P + "copy")
+timed("B6-stack-cross-region", P + "stack 3 east")
+# B7 상자 많은 곳 //set(검토 위험 1 — 지운 타일마다 되돌리기 기록에 저장): 16×2×16 = 512 상자, 내용물 있음
+s.cmd('fill 20 79 -100 35 80 -85 minecraft:chest{Items:[{Slot:0b,id:"minecraft:diamond",count:5}]}', settle=2)
+time.sleep(2)
+we(P + "pos1 20,79,-100"); we(P + "pos2 35,80,-85")
+timed("B7-set-512-chests", P + "set stone", timeout=600, settle=3)
+# B8 그 //set 을 되돌림(512 상자 내용물을 다시 싣는다)
+timed("B8-undo-512-chests", P + "undo", timeout=600, settle=3)
+# B9 상자 많은 곳 //copy → //stack(살아 있는 타일 저장 — 타일마다 주인 region 을 기다리는 길)
+we(P + "pos1 20,79,-100"); we(P + "pos2 35,80,-85"); we(P + "copy")
+timed("B9-stack-512-chests", P + "stack 1 up", timeout=600, settle=3)
+
 time.sleep(5)
 s.cmd("save-all flush", wait=r"(Saved the game|저장|saved)", timeout=300, settle=2)
 s.stop()

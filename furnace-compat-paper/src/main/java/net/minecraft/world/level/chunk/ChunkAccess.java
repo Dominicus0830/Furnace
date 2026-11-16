@@ -274,6 +274,17 @@ public abstract class ChunkAccess implements BlockGetter {
         return view.furnaceHandle();
     }
 
+    /**
+     * 호환 모듈 전용(주인 스레드, 맞춘 뒤): 아직 묶이지 않은 살아 있는 보기(다른 스레드가 공개 판에서 얻은 것)를 그 칸의 지금 서버 블록 엔티티에 묶는다.
+     * 틱 끝 공개와 내리기 직전에 부른다 — 청크가 내려간 뒤에도 그 객체의 내용을 저장하고, 얻은 뒤 주인이 같은 칸을 갈아 끼운 경쟁 창을 한 틱으로 줄인다.
+     */
+    public void furnaceBindViews() {
+        if (furnaceBlockEntityViews.isEmpty()) return;
+        for (var v : furnaceBlockEntityViews.values()) {
+            if (v.furnaceHandle() == null && !v.isRemoved()) furnaceBindNow(furnaceWorld, v);
+        }
+    }
+
     /** 보기를 기다려 읽을 때의 상한(초) — 다른 region 의 주인이 그 블록 엔티티를 저장해 줄 때까지. */
     private static final long BLOCK_ENTITY_WAIT_SECONDS = 10;
 
@@ -285,6 +296,8 @@ public abstract class ChunkAccess implements BlockGetter {
     public org.domi.furnace.api.nbt.NbtCompound furnaceBlockEntitySave(net.minecraft.world.level.block.entity.BlockEntity view) {
         var b = NmsChunks.bridge();
         var p = view.getBlockPos();
+        var snap = view.furnaceSnapshot();
+        if (snap != null) return snap.copy();   // 다른 스레드가 지운 것: 주인이 지우기 직전에 뜬 꼴
         if (furnaceMirror.dead()) {   // 내린 청크: 묶인 객체는 월드에서 떨어졌다 — 그 내용 그대로
             Object h = view.furnaceHandle();
             if (h == null) throw new IllegalStateException("the chunk of this block entity was unloaded: " + p);

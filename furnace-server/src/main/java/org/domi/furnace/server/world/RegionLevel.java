@@ -226,7 +226,7 @@ public final class RegionLevel extends ChunkLevel {
     @Override
     protected void removeBlockEntity(ChunkColumn col, Pos p) {
         ChestBlockEntity chest = col.chestAt(p.x(), p.y(), p.z());
-        col.removeBlockEntityAt(p.x(), p.y(), p.z());
+        super.removeBlockEntity(col, p);   // 바닐라 LevelChunk.removeBlockEntity: 게임 이벤트 리스너도 뗀다(스컬크 감지기 등)
         if (chest != null) chest.setRemoved();   // 다른 region 의 플레이어가 연 메뉴도 stillValid 에서 걸러진다
         region.closeChestScreens(p.x(), p.y(), p.z());
     }
