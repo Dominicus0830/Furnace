@@ -62,6 +62,10 @@ def timed(label, line, **kw):
     log(f"TIME {label} {time.time() - t0:.1f}s")
 
 
+# B6~B9 는 보기 거리 밖이라 청크를 붙잡아 둔다(setblock 이 "That position is not loaded" 로 실패하던 것)
+s.cmd("forceload add -21 -21 -11 -19", settle=1)
+s.cmd("forceload add -10 -21 20 -19", settle=1)
+s.cmd("forceload add 20 -100 35 -85", settle=1)
 # B6 다른 region 으로 붙여 넣기(검토 위험 2): region 은 16청크 변 — x<0 쪽 원본을 //stack 으로 x>=0 쪽에. 원본 줄은 x -20..-12
 row(-20, 80, -20)
 time.sleep(2)
@@ -77,7 +81,7 @@ s.cmd("mspt", settle=1)   # 검토(PR #447): 지운 타일 꼴 뜨기가 주인 
 # B8 그 //set 을 되돌림(512 상자 내용물을 다시 싣는다)
 timed("B8-undo-512-chests", P + "undo", timeout=600, settle=3)
 # B9 상자 많은 곳 //copy → //stack(살아 있는 타일 저장 — 타일마다 주인 region 을 기다리는 길)
-we(P + "pos1 20,79,-100"); we(P + "pos2 35,80,-85"); we(P + "copy")
+we(P + "copy")   # 선택은 B7 에서 정해 둔 그대로(다시 지정하면 "Position already set" 이 나온다)
 timed("B9-stack-512-chests", P + "stack 1 up", timeout=600, settle=3)
 
 time.sleep(5)

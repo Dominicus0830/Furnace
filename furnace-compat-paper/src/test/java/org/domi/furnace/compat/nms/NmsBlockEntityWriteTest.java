@@ -500,6 +500,7 @@ class NmsBlockEntityWriteTest {
     @Test
     void beaconRemovalPath() throws Exception {
         BlockPos p = at(2, 0, 1, 1);
+        assertFalse(level.isClientSide);   // FAWE removeBeacon 이 필드로 읽는다(실측에서 빠져 있던 것)
         onRun(p, () -> level.setBlock(p, Blocks.BEACON.defaultBlockState(), 3));
         server.tick(1);
         Method listener = LevelChunk.class.getDeclaredMethod("removeGameEventListener", BlockEntity.class, ServerLevel.class);

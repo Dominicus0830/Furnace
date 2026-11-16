@@ -1,0 +1,20 @@
+# T-198 블록 엔티티 데스크탑 FAWE 실측 (2026-11-16)
+
+PR #447 브랜치로 만든 Furnace 서버에 FAWE 2.16.2 를 올려 `tools/compat/fawe-paper/scenario_t198.py` 를 Paper(133)와 같은 기준 월드에서 돌려 대조했다(`anvil-diff.py --ignore sectionKeys`).
+
+## 결과
+
+- 블록 칸 차이 0. 줄 네 개(상자·덫 상자·스포너·화로·신호기)의 `//set stone`·`//set air`+`//undo`·`//copy`+`//stack`·`//move`, 다른 region 으로 `//stack`, 상자 512개 `//set`·`//undo`·`//copy`+`//stack` 모두 Paper 와 같은 블록. 내용물(`Items`)·스포너 몹 종류(`SpawnData`)·좌표·id 도 같다.
+- 틱 시간: 512 상자 `//set` 직후 Furnace region 틱 평균 0.33 ms·최대 4.25 ms(편집 전 0.36/4.92) — 악화 없음.
+- 빛 차이는 T-197 몫(이 장면의 수용 조건 밖).
+
+## 실측에서 찾아 고친 것
+
+- 신호기 `//set` 에서 Furnace 만 `Error removing beacon`: FAWE `removeBeacon` 이 `Level#isClientSide` 를 **필드**로 읽는데 shim 에는 메서드만 있었다(`UnsupportedNmsLink$Field`). 필드 추가 + `NmsBlockEntityWriteTest.beaconRemovalPath` 에 확인. 같은 장면을 다시 돌려 오류 0.
+- 시나리오 B6~B9 가 보기 거리 밖이라 `That position is not loaded` 로 멈췄다(Paper 도 동일) — `forceload` 추가. B9 의 `pos1/pos2` 재지정은 "Position already set" 응답이라 스크립트가 멈춰 `//copy` 만 남겼다.
+
+## 남은 차이(수용 조건 밖, 따로 다룬다)
+
+- **`keepPacked`**: Paper(=바닐라 `LevelChunk#getBlockEntityNbtForSaving`)는 저장하는 모든 블록 엔티티에 `keepPacked:0b` 를 넣는데 Furnace 는 자기가 저장한 타일에 넣지 않는다(FAWE 와 무관 — `setblock` 상자도 같음; 기준 월드에서 읽어 온 타일만 가진다). 바닐라 대조 항목.
+- `Paper.Range`(신호기)·`Paper.CookSpeedMultiplier`(화로)는 Paper 전용 필드라 Furnace 에 없는 게 맞다.
+- **FAWE 편집 시간**: 상자 512개 `//set` 이 Paper 는 한 번에 끝나는데(콘솔 대기 3.2 s 가 대기 시간 그대로) Furnace 는 FAWE 가 `12.2 s`(42 blocks/s), `//stack` 512개는 28.7 s 걸렸다. 틱에는 영향이 없다(타일마다 주인 region 을 기다리는 길). 틱이 아니라 편집 처리량의 차이라 최적화 후보.
