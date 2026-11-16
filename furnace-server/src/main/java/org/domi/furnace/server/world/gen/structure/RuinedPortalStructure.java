@@ -13,6 +13,7 @@ import org.domi.furnace.server.world.gen.structure.template.PlaceSettings;
 import org.domi.furnace.server.world.gen.structure.template.Processors;
 import org.domi.furnace.server.world.gen.structure.template.StructureTemplate;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.structure.structures.RuinedPortalStructure", "net.minecraft.world.level.levelgen.structure.structures.RuinedPortalPiece"})
 public final class RuinedPortalStructure extends StructureType {
 
     enum VP { ON_LAND_SURFACE, PARTLY_BURIED, ON_OCEAN_FLOOR, IN_MOUNTAIN, UNDERGROUND, IN_NETHER;

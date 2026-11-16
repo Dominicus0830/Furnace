@@ -1,7 +1,9 @@
 package org.domi.furnace.server.command.brigadier;
 
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.brigadier.exceptions.Dynamic4CommandExceptionType")
 public final class Dynamic4CommandExceptionType {
 
     /** 인자 네 개를 받아 메시지를 만드는 함수. */

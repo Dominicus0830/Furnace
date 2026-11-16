@@ -4,7 +4,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.brigadier.context.CommandContextBuilder")
 public class CommandContextBuilder<S> {
 
     private final Map<String, ParsedArgument<S, ?>> arguments = new LinkedHashMap<>();

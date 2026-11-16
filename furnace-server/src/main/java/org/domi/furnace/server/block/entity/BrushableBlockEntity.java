@@ -3,6 +3,7 @@
 // 저장 꼴: 표가 남았으면 LootTable(+Seed), 아니면 비어 있지 않은 item. hit_direction 은 갱신 태그(클라이언트용)에만 싣는다.
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -16,6 +17,7 @@ import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.entity.ItemStackNbt;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.block.entity.BrushableBlockEntity")
 public class BrushableBlockEntity extends BlockEntity {
 
     /** 솔질 한 번의 간격(틱) · 마지막 솔질 뒤 되돌리기 시작까지(틱) · 되돌릴 때 감소 간격 · 완료까지 횟수. */

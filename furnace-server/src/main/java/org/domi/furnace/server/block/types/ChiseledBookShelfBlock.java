@@ -1,6 +1,7 @@
 // 바닐라 ChiseledBookShelfBlock: 조각된 책장. 앞면 6칸(위 3·아래 3) 중 맞은 칸에 책을 꽂거나 뺀다(칸 내용은 블록 엔티티).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -14,6 +15,7 @@ import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.block.entity.ChiseledBookShelfBlockEntity;
 
+@VanillaPort("net.minecraft.world.level.block.ChiseledBookShelfBlock")
 public class ChiseledBookShelfBlock extends BaseEntityBlock {
 
     static final Prop FACING = B.prop("facing");

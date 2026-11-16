@@ -64,7 +64,9 @@ import org.domi.furnace.server.world.BiomeZoom;
 import org.domi.furnace.server.world.ChunkPos;
 import org.domi.furnace.server.world.RegionLevel;
 import org.domi.furnace.server.world.World;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.ExecuteCommand")
 final class ExecuteConditions {
     private ExecuteConditions() { }
 

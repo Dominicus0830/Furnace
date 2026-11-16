@@ -10,6 +10,7 @@ import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 //
 // 부착 가능 판정은 vanilla의 셰이프 계산 대신 "부착 불가 블록 집합"(공기·유체·식물류·부분 블록) 블랙리스트
 // 근사 — 집합은 BiomeFeatureData가 blockstates 테이블에서 구성한다. fixture 대조로 검증.
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.VinesFeature")
 public final class VinesFeature implements ConfiguredFeature {
     private final Set<Integer> nonAttachable;
     private final int[] vineStates; // TreeFeature.Direction.horizontalIndex() 순서 (S,W,N,E)

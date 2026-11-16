@@ -4,7 +4,9 @@ package org.domi.furnace.server.menu;
 
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.entity.PlayerInventory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.InventoryMenu")
 public class InventoryMenu extends AbstractContainerMenu implements RecipeBookMenu {
 
     public static final int RESULT_SLOT = 0, CRAFT_SLOT_START = 1, CRAFT_SLOT_END = 5, ARMOR_SLOT_START = 5, ARMOR_SLOT_END = 9,

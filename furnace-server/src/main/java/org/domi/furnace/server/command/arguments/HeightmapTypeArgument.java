@@ -16,7 +16,9 @@ import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.command.brigadier.Suggestions;
 import org.domi.furnace.server.command.brigadier.SuggestionsBuilder;
 import org.domi.furnace.server.world.HeightmapType;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.HeightmapTypeArgument")
 public final class HeightmapTypeArgument implements ArgumentType<HeightmapType> {
 
     private static final DynamicCommandExceptionType ERROR_INVALID = new DynamicCommandExceptionType(v -> Text.translatable("argument.enum.invalid", v));

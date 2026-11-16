@@ -1,6 +1,7 @@
 // 바닐라 CaveVines: 동굴 덩굴 공통 — 발광 열매(berries) 따기.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.InteractionResult;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.CaveVines")
 final class CaveVines {
     private CaveVines() {}
 

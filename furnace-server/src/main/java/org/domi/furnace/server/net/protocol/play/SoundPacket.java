@@ -2,9 +2,11 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundSoundPacket")
 public record SoundPacket(int soundId, String directSound, int source, double x, double y, double z, float volume, float pitch, long seed)
         implements Packet {
 

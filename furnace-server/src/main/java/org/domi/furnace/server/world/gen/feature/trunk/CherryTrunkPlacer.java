@@ -12,6 +12,7 @@ import org.domi.furnace.server.world.gen.feature.TreeIntProvider;
 // vanilla CherryTrunkPlacer 포팅 (cherry_grove). 곧은 몸통 위에서 1~2개의 가지가 옆으로 뻗다가
 // 위/아래로 꺾여 foliage attachment로 이어진다. 가지의 로그는 뻗는 방향(가로 이동)일 때만 axis를
 // 그 방향으로 세팅하고, 위/아래로 꺾이는 구간은 기본(y축) 상태를 쓴다.
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.trunkplacers.CherryTrunkPlacer")
 public final class CherryTrunkPlacer extends TrunkPlacer {
     private final TreeIntProvider branchCount;
     private final TreeIntProvider branchHorizontalLength;

@@ -18,6 +18,7 @@ import org.domi.furnace.server.entity.Vec3;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.gameevent.vibrations.VibrationSystem")
 public interface VibrationSystem {
 
     Data getVibrationData();

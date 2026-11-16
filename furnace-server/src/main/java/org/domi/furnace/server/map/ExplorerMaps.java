@@ -4,7 +4,9 @@ package org.domi.furnace.server.map;
 
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.ItemTools;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.world.entity.npc.VillagerTrades$TreasureMapForEmeralds", "net.minecraft.world.level.storage.loot.functions.ExplorationMapFunction"})
 public final class ExplorerMaps {
     private ExplorerMaps() { }
 

@@ -1,6 +1,7 @@
 // 바닐라 ComparatorBlock: 레드스톤 비교기(mode compare/subtract). 뒤 입력(아날로그 신호 포함)과 옆 입력을 비교해 출력을 블록 엔티티에 둔다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -12,6 +13,7 @@ import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.block.entity.ComparatorBlockEntity;
 
+@VanillaPort("net.minecraft.world.level.block.ComparatorBlock")
 public class ComparatorBlock extends DiodeBlock {
 
     static final Prop MODE = B.prop("mode");

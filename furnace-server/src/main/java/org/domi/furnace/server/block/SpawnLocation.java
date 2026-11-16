@@ -3,9 +3,11 @@
 // 레벨 소유 region 스레드에서 부른다(블록·높이 지도를 읽는다).
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.AABB;
 import org.domi.furnace.server.world.ChunkColumn;
 
+@VanillaPort("net.minecraft.server.level.ServerPlayer")
 public final class SpawnLocation {
 
     private SpawnLocation() {}

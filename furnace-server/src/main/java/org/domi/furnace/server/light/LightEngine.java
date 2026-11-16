@@ -2,6 +2,9 @@
 // 플래그는 하위 4비트가 밝기, 비트 4..9 가 방향별 전파 여부, 비트 10 이 "빈 모양에서 왔다", 비트 11 이 "발광에서 시작"이다.
 package org.domi.furnace.server.light;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.world.level.lighting.LightEngine")
 public abstract class LightEngine {
     public static final int DOWN = 0, UP = 1, NORTH = 2, SOUTH = 3, WEST = 4, EAST = 5;
     protected static final int[] DX = {0, 0, 0, 0, -1, 1}, DY = {-1, 1, 0, 0, 0, 0}, DZ = {0, 0, -1, 1, 0, 0};

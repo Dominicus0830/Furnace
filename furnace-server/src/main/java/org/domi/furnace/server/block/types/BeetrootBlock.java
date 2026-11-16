@@ -1,10 +1,12 @@
 // 바닐라 BeetrootBlock: 나이 0~3 작물. 무작위 틱의 1/3 은 건너뛰고, 뼛가루 증가량이 1/3.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.BeetrootBlock")
 public class BeetrootBlock extends CropBlock {
 
     public BeetrootBlock(int block) { super(block); }

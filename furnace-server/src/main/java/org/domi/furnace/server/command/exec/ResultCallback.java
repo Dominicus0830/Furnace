@@ -4,7 +4,9 @@
 package org.domi.furnace.server.command.exec;
 
 import java.util.concurrent.CompletableFuture;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.CommandResultCallback")
 @FunctionalInterface
 public interface ResultCallback {
 

@@ -3,7 +3,7 @@ package org.domi.furnace.api.world;
 
 /**
  * @param changed   바뀐 칸 수(바닐라 Level.setBlock 이 참을 돌려준 칸)
- * @param unchanged 이미 그 상태였거나 바닐라가 바꾸지 않은 칸 수(같은 상태, 공기만 있는 섹션에 공기 등)
+ * @param unchanged 이미 그 상태였거나 바닐라가 바꾸지 않은 칸 수(같은 상태이거나 공기만 있는 섹션에 공기를 쓴 경우 등)
  * @param skipped   청크가 로드돼 있지 않았거나 월드 높이 밖이라 건너뛴 칸 수(청크를 불러오거나 만들지 않는다)
  */
 public record BlockEditResult(int changed, int unchanged, int skipped) {

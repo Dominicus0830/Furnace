@@ -24,7 +24,9 @@ import org.domi.furnace.server.effect.MobEffectInstance;
 import org.domi.furnace.server.entity.LivingEntity;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.Rider;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.EffectCommands")
 public final class EffectCommand {
     private EffectCommand() { }
 

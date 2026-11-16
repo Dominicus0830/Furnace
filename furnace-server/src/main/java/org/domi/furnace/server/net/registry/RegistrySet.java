@@ -13,8 +13,10 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.core.RegistrySynchronization")
 public final class RegistrySet {
 
     // 삽입 순서 유지 — 레지스트리 순서/엔트리 순서가 곧 클라가 받는 인덱스가 된다.

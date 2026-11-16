@@ -9,6 +9,7 @@ import org.domi.furnace.server.world.gen.structure.template.PlaceSettings;
 import org.domi.furnace.server.world.gen.structure.template.Processors;
 import org.domi.furnace.server.world.gen.structure.template.StructureTemplate;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.structure.structures.ShipwreckStructure", "net.minecraft.world.level.levelgen.structure.structures.ShipwreckPieces"})
 public final class ShipwreckStructure extends StructureType {
 
     private static final String[] BEACHED = {

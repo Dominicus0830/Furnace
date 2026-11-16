@@ -1,5 +1,8 @@
 package org.domi.furnace.server.command.brigadier;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("com.mojang.brigadier.builder.LiteralArgumentBuilder")
 public class LiteralArgumentBuilder<S> extends ArgumentBuilder<S, LiteralArgumentBuilder<S>> {
 
     private final String literal;

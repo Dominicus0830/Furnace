@@ -1,4 +1,8 @@
-// 플레이스홀더 — "<name>" 태그를 값으로 바꾼다. parsed 는 값을 마크업으로 다시 해석, unparsed 는 글자 그대로, component 는 Text 를 그대로, styling 은 감싼 내용에 스타일을 입힌다.
+// 플레이스홀더. "<name>" 태그를 값으로 바꾼다.
+//   parsed: 값을 마크업으로 다시 해석한다.
+//   unparsed: 값을 글자 그대로 넣는다.
+//   component: Text 를 그대로 넣는다.
+//   styling: 감싼 내용에 스타일을 입힌다.
 package org.domi.furnace.api.text.markup;
 
 import org.domi.furnace.api.text.Style;
@@ -10,7 +14,7 @@ public final class Placeholder {
 
     private Placeholder() {}
 
-    /** 값을 원문에 그대로 끼워 마크업으로 해석한다(값 안의 태그가 동작한다 — 신뢰할 수 없는 입력에는 쓰지 말 것). 태그 인자 안에서도 동작한다. */
+    /** 값을 원문에 그대로 끼워 마크업으로 해석한다. 값 안의 태그가 동작하므로 신뢰할 수 없는 입력에는 쓰지 말 것. 태그 인자 안에서도 동작한다. */
     public static TagResolver parsed(String name, String value) {
         return new Resolvers.Named(TagResolver.checkName(name), Tag.preProcessParsed(value));
     }

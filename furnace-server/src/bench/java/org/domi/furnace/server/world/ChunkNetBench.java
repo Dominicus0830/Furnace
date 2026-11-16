@@ -1,6 +1,8 @@
 // 청크 송출·저장소 경로 마이크로벤치(:furnace-server:bench 작업에서만 돈다). 실제 바닐라 청크 본문으로 잰다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -29,7 +31,7 @@ class ChunkNetBench {
         var biomes = RegistrySet.load("registries/1.21.1.txt").entries("minecraft:worldgen/biome");
         var codec = new AnvilChunkCodec(reg, ItemRegistry.load("items/1.21.1.txt"), biomes,
                 biomes.indexOf("minecraft:plains"), ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT);
-        try (InputStream in = ChunkNetBench.class.getResourceAsStream("/storage/vanilla-chunk--25.-4.nbt.gz")) {
+        try (InputStream in = ChunkNetBench.class.getResourceAsStream("/storage/" + GameVersion.RESOURCE_TAG + "/vanilla-chunk--25.-4.nbt.gz")) {
             column = codec.fromNbt(NbtIo.readGzip(in));
         }
         ByteBuf b = Unpooled.buffer();

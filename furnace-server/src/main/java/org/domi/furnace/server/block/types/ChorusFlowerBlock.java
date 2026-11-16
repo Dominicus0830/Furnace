@@ -1,6 +1,7 @@
 // 바닐라 ChorusFlowerBlock: 후렴화(age 0..5). 무작위 틱마다 위로 자라거나 옆으로 가지를 치고, 다 자라면(5) 멈춘다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -10,6 +11,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.ChorusFlowerBlock")
 public class ChorusFlowerBlock extends BlockBehavior {
 
     static final Prop AGE = B.prop("age");

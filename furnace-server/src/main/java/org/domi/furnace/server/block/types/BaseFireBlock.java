@@ -1,6 +1,7 @@
 // 바닐라 BaseFireBlock: 불·영혼 불의 바탕. 놓이면(오버월드·네더) 흑요석 틀 안이면 지옥문을 만들고, 살 수 없으면 사라진다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockBehavior;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.BaseFireBlock")
 public abstract class BaseFireBlock extends BlockBehavior {
 
     static final int FIRE = B.id("fire"), SOUL_FIRE = B.id("soul_fire"), OBSIDIAN = B.id("obsidian");

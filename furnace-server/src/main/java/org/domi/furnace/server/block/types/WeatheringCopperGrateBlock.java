@@ -1,10 +1,12 @@
 // 바닐라 WeatheringCopperGrateBlock: 구리 격자 + 무작위 틱 산화.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.WeatheringCopperGrateBlock")
 public class WeatheringCopperGrateBlock extends WaterloggedTransparentBlock {
 
     public WeatheringCopperGrateBlock(int block) { super(block); }

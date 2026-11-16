@@ -4,6 +4,7 @@ import java.util.Set;
 import org.domi.furnace.server.world.ChunkSection;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.SpringFeature")
 public final class SpringFeature implements ConfiguredFeature {
 
     private final int stateId;

@@ -1,6 +1,6 @@
-// /gamerule 로 규칙 값을 바꾸기 직전 — 값(문자열 true/false/숫자)을 바꾸거나 취소할 수 있다. 명령을 실행하는 스레드에서 불린다.
+// /gamerule 로 규칙 값을 바꾸기 직전에 명령을 실행하는 스레드에서 불린다. 값(문자열 true/false/숫자)을 바꾸거나 취소할 수 있다.
 // 취소하면 값은 그대로지만 명령은 성공으로 끝나고 지금 값을 알린다(Paper WorldGameRuleChangeEvent 와 같다).
-// 바꾼 값이 정수 규칙에 숫자가 아니면 명령이 실패한다. Furnace 게임 규칙은 서버 전체에 하나라 world 는 명령을 낸 쪽의 월드다.
+// 정수 규칙에 숫자가 아닌 값을 넣으면 명령이 실패한다. Furnace 게임 규칙은 서버 전체에 하나라서 world 는 명령을 낸 쪽의 월드다.
 package org.domi.furnace.api.event.world;
 
 import org.domi.furnace.api.command.CommandSender;

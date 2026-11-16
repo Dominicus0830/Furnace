@@ -7,6 +7,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Entity;
 import org.domi.furnace.server.entity.Vec3;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.gameevent.PositionSource")
 public interface PositionSource {
 
     Optional<Vec3> getPosition(ChunkLevel level);

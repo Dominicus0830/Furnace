@@ -15,7 +15,9 @@ import org.domi.furnace.server.command.brigadier.CommandContext;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.net.io.nbt.NbtTags;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.blocks.BlockPredicateArgument")
 public final class BlockPredicateArgument implements ArgumentType<BlockPredicateArgument.Predicate> {
 
     private static final List<String> EXAMPLES = List.of("stone", "minecraft:stone", "stone[foo=bar]", "#stone", "#stone[foo=bar]{baz=nbt}");

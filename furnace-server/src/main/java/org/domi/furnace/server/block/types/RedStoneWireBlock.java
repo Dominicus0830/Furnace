@@ -2,6 +2,7 @@
 // 세기가 바뀌면 자신과 여섯 이웃을 HashSet 순회 순서대로 갱신한다(바닐라와 같은 순서를 재현).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -13,6 +14,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.RedStoneWireBlock")
 public class RedStoneWireBlock extends BlockBehavior {
 
     static final Prop NORTH = B.prop("north"), EAST = B.prop("east"), SOUTH = B.prop("south"), WEST = B.prop("west"), POWER = B.prop("power");

@@ -14,7 +14,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Predicate;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.server.packs.resources.MultiPackResourceManager", "net.minecraft.server.packs.resources.FallbackResourceManager"})
 public final class ResourceManager implements AutoCloseable {
 
     /** 찾은 리소스 하나 — 어느 팩에서 왔는지와 열기. */

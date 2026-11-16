@@ -3,6 +3,7 @@ package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtWriter;
@@ -11,6 +12,7 @@ import org.domi.furnace.server.world.ChunkSnapshot;
 import org.domi.furnace.server.world.FirstSeenIndex;
 import org.domi.furnace.server.world.Palette;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundLevelChunkPacketData")
 public final class ChunkSerializer {
 
     private static final byte[] FULL_SKYLIGHT = new byte[2048];

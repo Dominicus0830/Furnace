@@ -2,7 +2,9 @@
 package org.domi.furnace.server.command;
 
 import org.domi.furnace.server.command.brigadier.SuggestionProvider;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.synchronization.SuggestionProviders")
 public interface NamedSuggestionProvider extends SuggestionProvider<CommandSource> {
 
     String ASK_SERVER = "minecraft:ask_server";

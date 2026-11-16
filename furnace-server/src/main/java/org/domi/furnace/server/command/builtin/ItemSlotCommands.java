@@ -37,7 +37,9 @@ import org.domi.furnace.server.entity.Rider;
 import org.domi.furnace.server.loot.LootFunction;
 import org.domi.furnace.server.loot.LootParams;
 import org.domi.furnace.server.world.RegionLevel;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.ItemCommands")
 public final class ItemSlotCommands {
     private ItemSlotCommands() {}
 

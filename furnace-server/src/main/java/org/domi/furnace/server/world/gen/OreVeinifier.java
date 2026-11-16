@@ -13,6 +13,7 @@ import org.domi.furnace.server.world.gen.df.DensityFunction;
  *   → veinRidged.compute(>=0컷) → nextFloat(richness,<d2) → veinGap.compute(>-0.3) → nextFloat(rawChance,<0.02).
  * no-vein early return 경로선 후속 노이즈/난수 미소비 = byte-exact 핵심.
  */
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.OreVeinifier")
 public final class OreVeinifier {
 
     public static final int NO_VEIN = -1;

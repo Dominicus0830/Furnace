@@ -161,7 +161,12 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private boolean ig = true;
     // 서버가 보낸 보정 텔레포트의 id(-1=없음). 보정 중엔 클라가 confirm할 때까지 위치 패킷을 무시한다(옛 위치 패킷이 연쇄 보정을 부르지 않게).
     private int correctionTpId = -1;
-    private int teleportId = 2;                  // 다음 보정 id는 ++teleportId (스폰이 1·2를 썼다)
+    // 마지막으로 보낸 텔레포트 id. 스폰이 1(SPAWN_TELEPORT_ID)을 쓰고, 그 뒤 서버가 보내는 텔레포트(게이트 재고정 포함)는 모두 ++teleportId —
+    // 보낸 순서대로 커진다. 게이트 해제 때 아직 1 이면 그 사이 서버 텔레포트가 없었다.
+    private int teleportId = SPAWN_TELEPORT_ID;
+    private static final int SPAWN_TELEPORT_ID = 1;
+    // 조인 이벤트를 부르는 중(이벤트 루프 전용) — 이 동안 이 연결 스레드에서 한 텔레포트는 대기열에 넣지 않고 그 자리에서 한다.
+    private boolean joinEventRunning;
     private static final double MAX_COORD = 3.0e7;   // 월드 경계 수준
     private static final double MAX_STEP = 100;       // 패킷당 허용 이동(블록) — 넘으면 되돌림
     private static final double REACH_SQ = 8 * 8;     // 블록 요청 도달 거리²(크리에이티브 5 + 여유), 눈 높이 기준
@@ -1539,18 +1544,29 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         p.locale(clientLocale);
         p.clientOptions(clientSkinParts, clientMainArm);
         log.info("{}[{}] logged in with entity id {} at ({}, {}, {})", p.name(), loggableAddress(ctx), eid, sx, sy, sz);
+        // 서버 쪽 위치도 지금 정한다 — 조인 이벤트(region 편입 전)의 getLocation·상대 텔레포트가 스폰 자리를 본다(Paper: 이미 그 자리의 ServerPlayer).
+        // 아직 어느 region 에도 없어 이 연결 스레드가 쓴다.
+        p.setPosRaw(sx, sy, sz);
+        p.setRotRaw(syaw, spitch);
         p.publishPosition(sx, sy, sz, syaw, spitch, true);
         p.pushTeleport(sx, sy, sz);
         p.clientViewDistance(clientViewDistance);
         p.viewDistance(effVd);
         this.player = p;
         // 서버가 플레이어를 옮긴다(엔더 진주 등): 어느 스레드에서 불러도 IO 스레드에서 한다.
-        p.teleporter(t -> ctx.executor().execute(() -> {
+        p.teleporter(t -> runTeleport(ctx, () -> {
             if (t.length == 8) { teleportPlayerRelative(ctx, t[0], t[1], t[2], t[5], t[6], t[7]); return; }   // Player.teleportRelative
             if (t.length >= 5) { iyaw = (float) t[3]; ipitch = (float) t[4]; }
             teleportPlayer(ctx, t[0], t[1], t[2]);
         }));
         p.connectionTasks(r -> ctx.executor().execute(r));   // 텔레포트 뒤에 이어 할 일(탈것째 관문을 건넌 승객 편입)
+        // 플러그인 다른 월드 텔레포트: 조인 이벤트 안(이 연결 스레드)이면 Paper 처럼 그 자리에서 옮기고 접속 순서를 목적 월드에서 잇는다.
+        // 그 밖에는 소유 region 이 다음 틱에 떼어 보낸다(목적 region 이 changeForPlugin 으로 돌려준다).
+        p.worldTeleporter(req -> {
+            if (joinEventRunning && ctx.executor().inEventLoop()) joinWorldChange(ctx, req);
+            else p.requestWorldTeleport(req);
+        });
+        p.profileRefresher(v -> ctx.executor().execute(() -> refreshAfterProfileChange(ctx, v)));   // setPlayerProfile 뒤 본인 화면(Paper refreshPlayer)
         // 차원 이동 도착(목적 region 스레드에서 부른다): 연결 스레드에서 리스폰 패킷부터 보내고 목적 region 에 넣는다.
         // 패킷을 다 보내면 handoff 로 편입을 넘긴다 — 기다리던 목적 region 이 그 자리에서 편입한다(같은 틱 도착, M10).
         p.dimensionChanger(new Player.DimensionChanger() {
@@ -1563,6 +1579,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             @Override public void change(World target, org.domi.furnace.server.entity.DimensionTransition t, int cooldown, Player.ArrivalHandoff handoff) {
                 ctx.executor().execute(() -> applyDimensionChange(ctx, target, t, cooldown, handoff));
             }
+
+            @Override public void changeForPlugin(World target, org.domi.furnace.server.entity.DimensionTransition t, Player.ArrivalHandoff handoff,
+                                                  java.util.function.Consumer<Boolean> done) {
+                ctx.executor().execute(() -> applyPluginWorldChange(ctx, target, t, handoff, done));
+            }
         });
         joinSavedRoot = saved != null ? saved.root() : null;   // RootVehicle 은 region 에 들어간 뒤 태운다
         if (saved != null && saved.root() != null) {
@@ -1574,8 +1595,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
         // Paper placeNewPlayer(Fire-PlayerJoinEvent-when-Player-is-actually-ready): 위치 → server_data → 접속자 목록에 넣기(탭·추적 보류)
         // → 보스바 → PlayerJoinEvent·접속 알림 → 탭(본인, 그다음 기존 접속자) → sendLevelInfo → 청크 중심 → 인벤토리
-        send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
-        pendingTeleportId = 1; // 스폰 청크 도착(타이머)까지 클라 이동 무시
+        send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, SPAWN_TELEPORT_ID));
+        pendingTeleportId = SPAWN_TELEPORT_ID; // 스폰 청크 도착(타이머)까지 클라 이동 무시
         if (coreJ != null) send(ctx, new org.domi.furnace.server.net.protocol.play.ServerData(
                 Motd.parse(login.motd), login.faviconBytes()));
         // 조인 이벤트 안에서 getOnlinePlayers·명령·방송이 이 플레이어를 본다(Paper 는 이벤트 전에 players 에 넣는다). 다른 접속자의 탭·엔티티에는
@@ -1596,21 +1617,32 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // CraftBukkit 은 구성 단계의 REGISTER 마다 PlayerRegisterChannelEvent 를 부른다 — 그때 알린 채널을 접속 알림 직전에 한꺼번에
         if (login.core != null) fireChannelEvents(p, java.util.List.copyOf(pluginChannels.snapshot()), org.domi.furnace.api.event.player.PlayerChannelEvent.Action.REGISTER);
         if (login.core != null) login.core.customBossEvents().onPlayerConnect(p);   // Paper: 조인 이벤트 전(addNewPlayer 와 함께)
-        Text joinMessage = login.core != null ? callJoinEvent(login.core, p) : null;
+        Text joinMessage;
+        // Paper placeNewPlayer 는 이벤트 뒤 sendLevelInfo 를 접속한 월드(worldserver1)로 한다 — 이벤트에서 다른 월드로 옮겼어도
+        final World loginWorld = world;
+        joinEventRunning = true;   // 이벤트 안 텔레포트는 Paper 처럼 이벤트 중에 보내고 위치를 바꾼다(아래 청크 중심·스폰 청크가 그 자리를 쓴다)
+        try {
+            joinMessage = login.core != null ? callJoinEvent(login.core, p) : null;
+        } finally {
+            joinEventRunning = false;
+        }
         // CraftBukkit: 조인 이벤트에서 내보냈으면(isAcceptingMessages 거짓) 접속 알림·탭·레벨 정보 없이 끝낸다 — 다른 접속자의 탭에도 올라가지 않는다.
         // 남은 정리(퇴장 이벤트·저장·접속자 목록에서 빼기)는 연결이 닫힐 때 channelInactive 가 한다.
         if (p.kickReason() != null || !ctx.channel().isActive()) return;
+        if (world != loginWorld) effVd = effectiveViewDistance();   // 이벤트에서 다른 월드로 옮겼다 — 스폰 청크도 목적 월드 시야 모양으로
         if (joinMessage != null) login.core.broadcastSystemMessage(joinMessage, false);   // 접속 알림은 내보내기를 확인한 뒤(Paper)
         // 접속 탭: 본인 항목 먼저, 그다음 이 플레이어가 볼 수 있는 기존 접속자를 한 패킷으로(없으면 보내지 않는다 — Paper
         // Use-single-player-info-update-packet-on-join). 조인 이벤트에서 숨긴 접속자는 처음부터 빠진다. 아직 adopt 전이라 p.listed()는 이 스레드 전용.
-        send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(java.util.List.of(tabEntry(p))));
-        p.listed().put(p.entityId(), p.uuid());
+        Player.ProfileState ps = p.profileState();   // 조인 이벤트에서 바꿨으면 새 프로필(Paper: 탭을 보내기 전엔 gameProfile 만 바꾼다)
+        send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(java.util.List.of(org.domi.furnace.server.world.Region.tabEntry(p, ps, p.uuid()))));
+        p.listed().put(p.entityId(), new Player.Listed(p.uuid(), ps.generation()));
         java.util.List<org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry> existing = new java.util.ArrayList<>();
         for (Player b : world.onlinePlayers()) {
             // 아직 조인 이벤트 중인 다른 접속자는 그쪽이 보류를 풀 때 이 플레이어의 region 이 올린다
             if (b == p || b.isDisconnected() || b.tabListingHeld() || !org.domi.furnace.server.entity.view.EntityViewRules.canSee(p, b.uuid())) continue;
-            existing.add(tabEntry(b));
-            p.listed().put(b.entityId(), b.uuid());
+            Player.ProfileState bs = b.profileState();
+            existing.add(org.domi.furnace.server.world.Region.tabEntry(b, bs, b.uuid()));
+            p.listed().put(b.entityId(), new Player.Listed(b.uuid(), bs.generation()));
         }
         if (!existing.isEmpty()) send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(existing));
         p.releaseTabListing();   // 이제 다른 접속자의 region 이 다음 틱에 이 플레이어를 탭·엔티티에 올린다(Paper sentListPacket = true)
@@ -1622,16 +1654,18 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             send(ctx, new SetTime(world.gameTime(), world.dayTime()));
         }
         send(ctx, new SetDefaultSpawnPosition(defaultSpawn.x(), defaultSpawn.y(), defaultSpawn.z(), defaultSpawn.yaw()));
-        if (coreJ != null && coreJ.clock().isRaining() && world.dimensionType().hasSkyLight()) {
+        if (coreJ != null && coreJ.clock().isRaining() && loginWorld.dimensionType().hasSkyLight()) {
             send(ctx, new GameEvent(GameEvent.START_RAINING, 0f));
             send(ctx, new GameEvent(GameEvent.RAIN_LEVEL_CHANGE, coreJ.clock().rainLevel()));
             send(ctx, new GameEvent(GameEvent.THUNDER_LEVEL_CHANGE, coreJ.clock().thunderLevel()));
         }
         send(ctx, new GameEvent(GameEvent.START_WAITING_FOR_CHUNKS, 0f));
-        send(ctx, new org.domi.furnace.server.net.protocol.play.TickingState(world.tickState().rate(), world.tickState().frozen()));
-        send(ctx, new org.domi.furnace.server.net.protocol.play.TickingStep(world.tickState().globalStepsLeft()));
+        send(ctx, new org.domi.furnace.server.net.protocol.play.TickingState(loginWorld.tickState().rate(), loginWorld.tickState().frozen()));
+        send(ctx, new org.domi.furnace.server.net.protocol.play.TickingStep(loginWorld.tickState().globalStepsLeft()));
         for (Packet effectPacket : p.vitals().effectPackets()) send(ctx, effectPacket);   // 바닐라: sendLevelInfo 다음 활성 효과
-        ChunkPos centerCp = ChunkPos.ofBlock(sx, sz);
+        // 조인 이벤트에서 옮겼으면 그 자리(ix·iz)가 청크 중심 — Paper 는 틱에서 지금 위치 둘레 청크를 보낸다(스폰 자리 청크를 보내지 않는다).
+        final double cx = ix, cz = iz;
+        ChunkPos centerCp = ChunkPos.ofBlock(cx, cz);
         // SetCenterChunk 먼저 — 클라 viewCenter를 스폰으로 맞춰 스폰 청크가 "not in view range"로 안 버려지게.
         send(ctx, new SetCenterChunk(centerCp.x(), centerCp.z()));
         // 서버가 아는 인벤토리를 클라이언트에도 맞춘다(바닐라 initInventoryMenu).
@@ -1666,7 +1700,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         for (ChunkPos cp : spawnChunks) subs.put(cp, world.subscribeChunk(cp, p));
         java.util.List<java.util.concurrent.CompletableFuture<byte[]>> futs =
                 spawnChunks.stream().map(world::serializedChunkBody).toList();
-        sendSpawnChunkBatchAsync(ctx, p, spawnChunks, subs, futs, sx, sz);
+        sendSpawnChunkBatchAsync(ctx, p, spawnChunks, subs, futs, cx, cz);
         scheduleKeepAlive();
         scheduleAutosave(ctx);
         final ChannelHandlerContext saveCtx = ctx;
@@ -1740,13 +1774,6 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         return items.nameOf(s.itemId());
     }
 
-    /** 탭 목록 항목(바닐라 ClientboundPlayerInfoUpdatePacket.createPlayerInitializing 의 한 줄). */
-    private static org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry tabEntry(Player b) {
-        var session = b.chat().session();
-        return new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry(b.uuid(), b.name(), b.profileProperties(),
-                session == null ? null : session.asData(), b.gameMode().id(), b.latencyMs());
-    }
-
     private void sendSpawnChunkBatchAsync(ChannelHandlerContext ctx, Player p,
             java.util.List<ChunkPos> spawnChunks,
             java.util.Map<ChunkPos, World.Subscription> subs,
@@ -1814,15 +1841,42 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     private void releaseSpawnGate() {
         if (pendingTeleportId == -1) return;
-        // 스폰 좌표로 위치 재확정(클라가 갭 중 떨어졌으면 끌어올림) 후 클라 이동 수용 시작.
-        send(ctx, new SyncPlayerPosition(spawnX, spawnY, spawnZ, spawnYaw, spawnPitch, 2));
         pendingTeleportId = -1;
+        // 게이트 동안 서버가 다시 옮겼으면(조인 이벤트·접속 직후 플러그인 텔레포트 등) 그 텔레포트가 최종 위치다 — 재고정하지 않는다.
+        // Paper 에는 게이트가 없어 그 텔레포트가 남는다. 클라 이동은 그 텔레포트 확인(correctionTpId) 뒤부터 받는다.
+        if (teleportId != SPAWN_TELEPORT_ID) return;
+        // 스폰 좌표로 위치 재확정(클라가 갭 중 떨어졌으면 끌어올림) 후 클라 이동 수용 시작.
+        send(ctx, new SyncPlayerPosition(spawnX, spawnY, spawnZ, spawnYaw, spawnPitch, ++teleportId));
         ix = spawnX; iy = spawnY; iz = spawnZ; iyaw = spawnYaw; ipitch = spawnPitch; ig = true;   // 클라가 스폰으로 되돌아간다
         Player p = player;
         if (p != null) {
             p.pushTeleport(ix, iy, iz);
             publishInput(p);
         }
+    }
+
+    /**
+     * 서버 텔레포트를 연결 스레드에서 한다. 조인 이벤트 안(이 연결의 이벤트 루프)에서 불렀으면 그 자리에서 — Paper 처럼 텔레포트 패킷이
+     * 이벤트 중에 나가고 접속 순서의 뒤(청크 중심·스폰 청크·region 편입)가 옮긴 자리를 쓴다. 그 밖에는 대기열 순서대로.
+     */
+    private void runTeleport(ChannelHandlerContext ctx, Runnable r) {
+        if (joinEventRunning && ctx.executor().inEventLoop()) {
+            r.run();
+            Player p = player;
+            if (p != null) placeServerPosition(p);   // Paper: 이벤트 안 getLocation() 이 곧바로 목적지
+        } else {
+            ctx.executor().execute(r);
+        }
+    }
+
+    /**
+     * 수락 위치(ix·iy·iz·회전)를 서버 위치로 곧바로 쓴다 — 플레이어가 어느 region 에도 없을 때만(조인 이벤트 안·차원 이동 도착 전) 이 연결
+     * 스레드가 쓸 수 있다. 보낸 텔레포트 이동 표본은 그대로 남아 편입 뒤 region 이 같은 자리로 처리한다.
+     */
+    private void placeServerPosition(Player p) {
+        p.setPosRaw(ix, iy, iz);
+        p.setRotRaw(iyaw, ipitch);
+        p.publishPosition(ix, iy, iz, iyaw, ipitch, ig);
     }
 
     private void handlePlay(ChannelHandlerContext ctx, int packetId, ByteBuf frame) {
@@ -3919,6 +3973,167 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         handoff.sent(target, t.x(), t.z(), r -> r.adoptAfterDimensionChange(p, arrived, from));
     }
 
+    /**
+     * 플러그인 다른 월드 텔레포트 도착(목적 region 이 넘긴 연결 스레드 작업): Paper PlayerList.respawn(플레이어, true, CHANGED_DIMENSION, null,
+     * 목적지) 순서 — {@link #sendPluginWorldChange} 다음 목적 월드에 넣고(addRespawnedPlayer) sendAllPlayerInfo(인벤토리·엔티티 데이터·든 칸)
+     * → 능력 → 효과. 편입은 목적 region 이 하고 그 뒤 차원 발전 과제·PlayerChangedWorldEvent, 끝으로 done(참).
+     */
+    private void applyPluginWorldChange(ChannelHandlerContext ctx, World target, org.domi.furnace.server.entity.DimensionTransition t,
+                                        Player.ArrivalHandoff handoff, java.util.function.Consumer<Boolean> done) {
+        Player p = player;
+        if (p == null || p.isDisconnected() || !ctx.channel().isActive()) {
+            handoff.detach();
+            done.accept(false);
+            return;
+        }
+        String from = world.dimension();
+        World arrived = sendPluginWorldChange(ctx, p, target, t.x(), t.y(), t.z(), t.yRot(), t.xRot());
+        if (arrived != target) t = spawnTransition(arrived);   // 가는 사이 내린 추가 월드 — 오버월드 스폰으로 갔다
+        ChunkPos c = ChunkPos.ofBlock(t.x(), t.z());
+        send(ctx, new SetCenterChunk(c.x(), c.z()));   // addRespawnedPlayer: 목적 월드 청크 추적의 중심
+        p.lastCenter(c);   // 어느 region 에도 없는 동안이라 연결 스레드가 써도 된다 — 편입 뒤 region 이 이 중심으로 청크를 보낸다
+        sendPluginWorldChangeTail(ctx, p);
+        final var tr = t;
+        // CraftBukkit 은 triggerDimensionChangeTriggers 에 목적 월드를 넘긴다 — changed_dimension 이 (목적 → 목적)이고 nether_travel 은 없다.
+        handoff.sent(arrived, t.x(), t.z(), r -> {
+            r.adoptAfterDimensionChange(p, tr, arrived.dimension(), from);
+            done.accept(true);
+        });
+    }
+
+    /**
+     * 조인 이벤트 안 플러그인 다른 월드 텔레포트(Paper: 이벤트 중 PlayerList.respawn(위치) 를 그 자리에서): 같은 패킷을 이벤트 중(접속 탭 앞)에
+     * 보내고, 서버 위치·차원을 목적지로 바꾼다. 접속 순서의 뒤(청크 중심·스폰 청크·region 편입)는 바뀐 world·자리(ix·iz)로 이어진다.
+     * 차원 발전 과제는 편입 뒤 소유 스레드에서, PlayerChangedWorldEvent 는 Paper 처럼 이벤트 안에서 곧바로.
+     */
+    private void joinWorldChange(ChannelHandlerContext ctx, Player.WorldTeleport req) {
+        Player p = player;
+        if (p == null || p.isDisconnected() || !ctx.channel().isActive()) {
+            req.done().accept(false);
+            return;
+        }
+        String from = world.dimension();
+        p.portalProcess(null);
+        // 탈것·잠은 아직 없다(RootVehicle 은 편입 뒤에 태운다)
+        World arrived = sendPluginWorldChange(ctx, p, req.target(), req.x(), req.y(), req.z(), req.yaw(), req.pitch());
+        sendPluginWorldChangeTail(ctx, p);
+        p.vitals().resetSentInfo();
+        // 잠 목록: 떠난 월드와 온 월드(EntityCallbacks.onTrackingStart/End)
+        if (login.core != null) {
+            for (World w : login.core.worlds()) w.updateSleepingPlayerList();
+        }
+        String to = arrived.dimension();
+        p.runOnOwner(() -> org.domi.furnace.server.world.Region.triggerDimensionChange(p, to, to));
+        if (!from.equals(to)) arrived.levelServices().gameEvents().playerChangedWorld(p, from);
+        req.done().accept(true);
+    }
+
+    /**
+     * Paper PlayerList.respawn(위치) 의 앞부분(편입 전): 리스폰(목적 월드, 속성만 유지) → 청크 반경(월드 시야) → 시뮬레이션 거리 → 위치(텔레포트)
+     * → 스폰 지점 → 난이도 → 경험치 → 효과 → 레벨 정보 → 권한. 연결의 world·플레이어 차원·접속자 목록 순서(players 끝)도 바꾼다.
+     * 가는 사이 내린 추가 월드면 오버월드 스폰으로 간다. 실제로 간 월드를 돌려준다.
+     */
+    private World sendPluginWorldChange(ChannelHandlerContext ctx, Player p, World target, double x, double y, double z, float yaw, float pitch) {
+        org.domi.furnace.server.ServerCore core = login.core;
+        if (worldGone(core, target)) {
+            log.warn(Lang.t("net.target-world-unloaded", p.name(), target.dimension()));
+            target = core.world();
+            var sp = spawnTransition(target);
+            x = sp.x(); y = sp.y(); z = sp.z(); yaw = sp.yRot(); pitch = sp.xRot();
+        }
+        var vitals = p.vitals();
+        var prev = vitals.previousGameMode();
+        long hashedSeed = core != null ? core.biomeZoomSeed(target) : 0L;
+        send(ctx, new org.domi.furnace.server.net.protocol.play.Respawn(dimensionTypeIndex(target), target.dimension(), hashedSeed,
+                vitals.gameMode().id(), prev == null ? -1 : prev.id(), target.isDebugLevel(), target.isFlatLevel(),
+                vitals.lastDeathDimension(), vitals.lastDeathPos(), p.portalCooldown,
+                org.domi.furnace.server.net.protocol.play.Respawn.KEEP_ATTRIBUTES));
+        send(ctx, new org.domi.furnace.server.net.protocol.play.SetChunkCacheRadius(target.viewDistance()));   // Spigot 월드 시야
+        send(ctx, new org.domi.furnace.server.net.protocol.play.SetSimulationDistance(
+                core != null ? core.simulationDistance() : target.viewDistance()));
+        world = target;
+        p.viewDistance(effectiveViewDistance());   // 목적 월드 시야로 스트리밍(위 SetChunkCacheRadius 와 맞게) — 어느 region 에도 없는 동안
+        p.dimension(target.dimension());
+        target.playerRespawned(p);   // PlayerList.respawn: players 에서 빼고 끝에 다시
+        p.clearMoves();
+        ix = x; iy = y; iz = z; iyaw = yaw; ipitch = pitch; ig = false;
+        correctionTpId = ++teleportId;
+        send(ctx, new SyncPlayerPosition(x, y, z, yaw, pitch, correctionTpId));
+        p.pushTeleport(x, y, z);
+        publishInput(p);
+        placeServerPosition(p);   // PlayerList.respawn: forceSetPositionRotation — 끝났을 때 location() 이 목적지
+        SpawnPoint spawn = target.defaultSpawn();
+        send(ctx, new SetDefaultSpawnPosition(spawn.x(), spawn.y(), spawn.z(), spawn.yaw()));
+        if (core != null) {
+            send(ctx, new ChangeDifficulty(core.levelData().difficulty.id(), core.levelData().difficultyLocked));
+        } else {
+            send(ctx, new ChangeDifficulty(1, false));
+        }
+        send(ctx, vitals.experiencePacket());
+        for (Packet effectPacket : vitals.effectPackets()) send(ctx, effectPacket);
+        sendLevelInfo(ctx, target);
+        if (core != null) core.sendPlayerPermissionLevel(p);
+        return target;
+    }
+
+    /**
+     * Paper PlayerList.respawn(위치) 의 뒷부분(addRespawnedPlayer 뒤): sendAllPlayerInfo(인벤토리 전체 → 본인 엔티티 데이터 다시 → 든 칸) →
+     * 능력 → 효과. 리스폰이 속성만 유지해 클라이언트는 엔티티 데이터를 기본값으로 새로 만들었다 — 다음 동기화에서 다시 보낸다.
+     */
+    private void sendPluginWorldChangeTail(ChannelHandlerContext ctx, Player p) {
+        var vitals = p.vitals();
+        synchronized (p.menuLock()) { p.inventoryMenu().sendAllDataToRemote(); }
+        p.resendOwnEntityData();
+        send(ctx, new SetHeldSlot(inv.selected()));
+        send(ctx, vitals.abilitiesPacket());
+        for (Packet effectPacket : vitals.effectPackets()) send(ctx, effectPacket);
+    }
+
+    /**
+     * Paper CraftPlayer.refreshPlayer(setPlayerProfile 뒤, 본인 탭 Remove·Update 다음): 같은 차원 Respawn(데이터 모두 보존) → 능력 →
+     * internalTeleport(이벤트 없이 지금 위치·회전, 승인 번호만 — 연결이 아는 서버 확정 위치) → 권한 엔티티 이벤트만(명령 트리는 다시 보내지 않는다 — sendPlayerPermissionLevel(…, false)) →
+     * sendLevelInfo → sendAllPlayerInfo(인벤토리 전체, 최대 체력을 바꿔 끼운 속성 + 체력, 엔티티 데이터 전부, 든 칸, reducedDebugInfo 22/23,
+     * 즉시 리스폰 게임 이벤트) → 경험치 → 효과(blend 끔). 청크 재전송·추적 초기화·리스폰 이벤트·체력 초기화는 없다.
+     */
+    private void refreshAfterProfileChange(ChannelHandlerContext ctx, Player.ProfileRefresh v) {
+        Player p = player;
+        if (p == null || p.isDisconnected() || !ctx.channel().isActive()) return;
+        org.domi.furnace.server.ServerCore core = login.core;
+        var vitals = p.vitals();
+        var prev = vitals.previousGameMode();
+        long hashedSeed = core != null ? core.biomeZoomSeed(world) : 0L;
+        send(ctx, new org.domi.furnace.server.net.protocol.play.Respawn(dimensionTypeIndex(world), world.dimension(), hashedSeed,
+                vitals.gameMode().id(), prev == null ? -1 : prev.id(), world.isDebugLevel(), world.isFlatLevel(),
+                vitals.lastDeathDimension(), vitals.lastDeathPos(), v.portalCooldown(),
+                org.domi.furnace.server.net.protocol.play.Respawn.KEEP_ALL));
+        send(ctx, vitals.abilitiesPacket());
+        // internalTeleport(getLocation): 검증을 거친 region 위치·회전. ix 는 보통 region 검증 전의 클라이언트 위치라 쓰지 않는다 — 서버 텔레포트
+        // (스폰 게이트·보정·플러그인 텔레포트)가 확인을 기다리는 동안만 ix 가 서버가 정한 목적지다(막 보낸 텔레포트를 되돌리지 않게).
+        // 확인은 왔지만 region 이 그 텔레포트를 아직 반영하지 않았으면(뜬 위치가 텔레포트 전) 대기열에 남은 그 목적지를 쓴다.
+        Player.MoveSample tp = p.pendingTeleport();
+        if (correctionTpId != -1 || pendingTeleportId != -1) {
+            teleportPlayer(ctx, ix, iy, iz);
+        } else if (tp != null) {
+            teleportPlayer(ctx, tp.x(), tp.y(), tp.z());
+        } else {
+            iyaw = v.yaw();
+            ipitch = v.pitch();
+            teleportPlayer(ctx, v.x(), v.y(), v.z());
+        }
+        if (core != null) send(ctx, org.domi.furnace.server.net.protocol.play.EntityEvent.permissionLevel(p.entityId(), core.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(p))));
+        sendLevelInfo(ctx, world);
+        synchronized (p.menuLock()) { p.inventoryMenu().sendAllDataToRemote(); }
+        send(ctx, v.attributes());   // CraftPlayer.updateScaledHealth: 속성 → 체력
+        send(ctx, vitals.currentHealthPacket());
+        send(ctx, v.entityData());   // refreshEntityData
+        send(ctx, new SetHeldSlot(inv.selected()));
+        var rules = core != null ? core.gameRules() : null;
+        send(ctx, new org.domi.furnace.server.net.protocol.play.EntityEvent(p.entityId(), (byte) (rules != null && rules.getBoolean("reducedDebugInfo") ? 22 : 23)));
+        send(ctx, new GameEvent(GameEvent.IMMEDIATE_RESPAWN, rules != null && rules.getBoolean("doImmediateRespawn") ? 1.0F : 0.0F));
+        send(ctx, vitals.experiencePacket());
+        for (Packet effectPacket : vitals.effectPackets()) send(ctx, effectPacket);
+    }
+
     /** 내린 추가 월드인가(목록에서 떼었거나 닫혔다). */
     private static boolean worldGone(org.domi.furnace.server.ServerCore core, World w) {
         return core != null && w.isExtraWorld() && (w.isUnloaded() || core.world(w.dimension()) != w);
@@ -4572,6 +4787,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 ig = true;
             }
             p.markDisconnected(); // 소유 region이 다음 틱에 정리(라우팅 불필요). 이제부터 인벤토리 줄에서 꺼낸 패킷 작업은 버려진다
+            p.cancelWorldTeleport();   // 걸어 둔 플러그인 텔레포트는 거짓으로(편입 전에 끊겨 꺼낼 region 이 없을 수도 있다)
             saveOnLine(p);
             world.playerOffline(p.entityId());   // adopt 전에 끊긴 경우에도 접속자 집합에서 즉시 제거(누수 방지, 관찰자는 다음 틱에 탭 제거)
         }

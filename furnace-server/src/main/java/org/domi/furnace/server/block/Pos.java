@@ -1,6 +1,9 @@
 // 블록 좌표(바닐라 BlockPos, 불변).
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.core.BlockPos")
 public record Pos(int x, int y, int z) {
 
     public static final Pos ZERO = new Pos(0, 0, 0);

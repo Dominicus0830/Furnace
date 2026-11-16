@@ -26,7 +26,9 @@ import org.domi.furnace.server.command.brigadier.DynamicCommandExceptionType;
 import org.domi.furnace.server.command.brigadier.LiteralArgumentBuilder;
 import org.domi.furnace.server.command.brigadier.SuggestionProvider;
 import org.domi.furnace.server.entity.Player;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.AdvancementCommands")
 public final class AdvancementCommands {
 
     private static final DynamicCommandExceptionType ERROR_UNKNOWN = new DynamicCommandExceptionType(id -> Text.translatable("advancement.advancementNotFound", id));

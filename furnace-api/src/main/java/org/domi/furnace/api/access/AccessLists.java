@@ -11,7 +11,7 @@ public interface AccessLists {
     /** server.properties 의 white-list 가 켜져 있는가. */
     boolean isWhitelistEnabled();
 
-    /** /whitelist on|off — server.properties 도 갱신한다. 켜면서 enforce-whitelist 면 목록에 없는 접속자를 내보낸다. */
+    /** /whitelist on|off. server.properties 도 갱신한다. 켜면서 enforce-whitelist 면 목록에 없는 접속자를 내보낸다. */
     void setWhitelistEnabled(boolean enabled);
 
     /** whitelist.json 을 다시 읽는다(/whitelist reload). 파일을 손으로 고친 뒤에. */

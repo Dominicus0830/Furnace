@@ -1,7 +1,9 @@
 package org.domi.furnace.server.command.brigadier;
 
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.brigadier.suggestion.IntegerSuggestion")
 public final class IntegerSuggestion extends Suggestion {
 
     private final int value;

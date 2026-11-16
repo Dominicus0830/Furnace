@@ -1,6 +1,7 @@
 // 구조물 조각/StructureStart 의 3D 정수 경계상자 — 바닐라 BoundingBox 최소 이식(minX..maxZ, intersects, isInside).
 package org.domi.furnace.server.world.gen.structure;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.structure.BoundingBox")
 public final class BoundingBox {
     private int minX;
     private int minY;

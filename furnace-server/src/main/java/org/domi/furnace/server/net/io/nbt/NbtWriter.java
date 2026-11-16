@@ -3,7 +3,9 @@ package org.domi.furnace.server.net.io.nbt;
 
 import io.netty.buffer.ByteBuf;
 import java.nio.charset.StandardCharsets;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.nbt.NbtIo", "net.minecraft.nbt.Tag"})
 public final class NbtWriter {
 
     private static final byte TAG_END = 0x00;

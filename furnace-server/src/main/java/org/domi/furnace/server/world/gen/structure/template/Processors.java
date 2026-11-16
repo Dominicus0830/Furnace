@@ -12,6 +12,7 @@ import org.domi.furnace.server.world.gen.carver.LegacyRandom;
 import org.domi.furnace.server.world.gen.feature.BlockTags;
 import org.domi.furnace.server.world.gen.structure.template.StructureTemplate.BlockInfo;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessor")
 public final class Processors {
 
     private Processors() {}

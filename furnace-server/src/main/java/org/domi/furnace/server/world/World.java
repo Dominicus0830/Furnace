@@ -1003,7 +1003,7 @@ public final class World {
     /** 지금 START 티켓(시험·관측용, 없으면 null). */
     SpawnTicket spawnTicket() { return spawnTicket; }
 
-    private boolean spawnTicketWithin(int cx, int cz, int less) {
+    boolean spawnTicketWithin(int cx, int cz, int less) {
         SpawnTicket t = spawnTicket;
         return t != null && t.chebyshev(cx, cz) <= t.distance() - less;
     }

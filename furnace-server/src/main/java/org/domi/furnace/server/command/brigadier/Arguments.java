@@ -7,7 +7,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import org.domi.furnace.server.net.io.Types;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"com.mojang.brigadier.arguments.BoolArgumentType", "com.mojang.brigadier.arguments.IntegerArgumentType", "com.mojang.brigadier.arguments.LongArgumentType", "com.mojang.brigadier.arguments.FloatArgumentType", "com.mojang.brigadier.arguments.DoubleArgumentType", "com.mojang.brigadier.arguments.StringArgumentType"})
 public final class Arguments {
 
     private Arguments() {}

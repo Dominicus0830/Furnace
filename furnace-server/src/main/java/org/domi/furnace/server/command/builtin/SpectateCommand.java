@@ -21,7 +21,9 @@ import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.Rider;
 import org.domi.furnace.server.world.GameMode;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.SpectateCommand")
 public final class SpectateCommand {
     private SpectateCommand() { }
 

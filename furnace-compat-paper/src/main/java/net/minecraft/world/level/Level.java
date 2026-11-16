@@ -31,7 +31,13 @@ public abstract class Level implements LevelAccessor {
 
     private final CraftWorld world;
 
-    protected Level(CraftWorld world) { this.world = java.util.Objects.requireNonNull(world, "world"); }
+    /** 바닐라 Level#isClientSide 필드(FAWE removeBeacon 이 필드로 읽는다). 서버 월드라 늘 거짓이다. */
+    public final boolean isClientSide;
+
+    protected Level(CraftWorld world) {
+        this.world = java.util.Objects.requireNonNull(world, "world");
+        this.isClientSide = false;
+    }
 
     /** CraftBukkit 이 더한 메서드: 이 월드의 Bukkit 객체. */
     public CraftWorld getWorld() { return world; }
@@ -41,7 +47,7 @@ public abstract class Level implements LevelAccessor {
     /** 서버 레지스트리 묶음(H7b, {@link net.minecraft.server.MinecraftServer#registryAccess()} 와 같다). */
     public net.minecraft.core.RegistryAccess registryAccess() { return net.minecraft.core.RegistryAccess.SERVER; }
 
-    public boolean isClientSide() { return false; }
+    public boolean isClientSide() { return isClientSide; }
 
     /** 이 월드의 차원 키(minecraft:overworld 등). */
     public ResourceKey<Level> dimension() { return ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(furnace().dimension())); }
@@ -138,6 +144,46 @@ public abstract class Level implements LevelAccessor {
         return getChunk(x >> 4, z >> 4).getHeight(type, x & 15, z & 15) + 1;
     }
 
+    // ------------------------------------------------------------------ 블록 엔티티(T-198)
+
+    /**
+     * Paper Level#getBlockEntity(pos): 그 칸의 블록 엔티티 보기 — 없고 블록이 블록 엔티티를 가지는 종류면 만든다(바닐라 IMMEDIATE). 높이 밖이면 null.
+     * Paper 는 틱 스레드가 아니면 null 을 준다 — Furnace 는 그 칸의 주인 region 스레드(이벤트 처리기·entityScheduler·Bukkit 동기 작업의 빌림 구간)가 아니면 null.
+     * 로드돼 있지 않은 청크는 null — Paper 1.21.1 은 틱 스레드에서 getChunkAt 으로 불러온다(차이: region 스레드에서 멈춰 서서 불러오는 일은 하지 않는다 — 스케줄러 규칙 6).
+     */
+    public net.minecraft.world.level.block.entity.BlockEntity getBlockEntity(BlockPos pos) {
+        if (isOutsideBuildHeight(pos)) return null;
+        int cx = pos.getX() >> 4, cz = pos.getZ() >> 4;
+        if (!hasChunk(cx, cz) || !NmsChunks.bridge().ownsChunk(furnace(), cx, cz)) return null;
+        return getChunk(cx, cz).getBlockEntity(pos, LevelChunk.EntityCreationType.IMMEDIATE);
+    }
+
+    /** 바닐라 Level#removeBlockEntity: 그 칸 청크의 removeBlockEntity(높이 밖은 아무것도 안 함). 주인이 아닌 스레드는 거울 일지(LevelChunk 참고). */
+    public void removeBlockEntity(BlockPos pos) {
+        if (isOutsideBuildHeight(pos)) return;
+        getChunkAt(pos).removeBlockEntity(pos);
+    }
+
+    /**
+     * 호환 모듈 전용 — 바닐라 Level#blockEntityChanged + 정적 BlockEntity.setChanged 의 나머지(그 칸 블록이 공기가 아니면 updateNeighbourForOutputSignal).
+     * 청크가 로드돼 있지 않으면 아무것도 하지 않는다. 주인이 아닌 스레드는 그 청크의 거울 일지로.
+     */
+    public void furnaceBlockEntityChanged(BlockPos pos) {
+        LevelChunk c = getChunkIfLoaded(pos.getX() >> 4, pos.getZ() >> 4);
+        if (c != null) c.furnaceBlockEntityChanged(pos);
+    }
+
+    /**
+     * 바닐라 Level#playSound(제외할 플레이어, 칸, 소리, 분류, 크기, 높이): 칸 가운데(+0.5)에서 그 소리 — 근처 플레이어가 듣는다(바닐라 ServerLevel 처럼 난수 씨앗은
+     * 스레드 안전 난수). 특정 플레이어를 빼는 것(except 가 null 이 아님)은 아직 없다(UnsupportedNmsCall).
+     */
+    public void playSound(net.minecraft.world.entity.player.Player except, BlockPos pos, net.minecraft.sounds.SoundEvent sound,
+                          net.minecraft.sounds.SoundSource source, float volume, float pitch) {
+        if (except != null) throw new UnsupportedNmsCall("Level#playSound(except a player)", "playing a sound to everyone except one player does not exist yet");
+        world.playSound(new org.bukkit.Location(world, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5), sound.getLocation().toString(),
+                org.bukkit.SoundCategory.valueOf(source.name()), volume, pitch, java.util.concurrent.ThreadLocalRandom.current().nextLong());
+    }
+
     // ------------------------------------------------------------------ 블록 쓰기(N1)
 
     /** 바닐라 Block.UPDATE_MOVE_BY_PISTON. */
@@ -166,6 +212,39 @@ public abstract class Level implements LevelAccessor {
         FluidState fluid = getFluidState(pos);
         return setBlock(pos, fluid.createLegacyBlock(), 3 | (moved ? UPDATE_MOVE_BY_PISTON : 0));
     }
+
+    // ------------------------------------------------------------------ 쪼갠 setBlock 조각(T-204 — FAWE NativeAccess 등)
+    // 서버 setBlock 과 같은 코드를 부른다. 원점 칸의 주인 region 스레드면 바로, 다른 스레드는 주인 작업으로(최대 한 틱 늦다 — NmsEffects).
+
+    /** 바닐라 ServerLevel#sendBlockUpdated: 변경 방송(틱 끝에 섹션별로 모아 보낸다) + 충돌 모양이 바뀌었으면 길찾기 다시. flags 는 바닐라도 서버에서 보지 않는다. */
+    public void sendBlockUpdated(BlockPos pos, BlockState oldState, BlockState newState, int flags) {
+        org.domi.furnace.compat.nms.NmsEffects.run(this, pos, org.domi.furnace.compat.nms.NmsEffects.SEND_BLOCK_UPDATED, oldState.furnaceStateId(),
+                newState.furnaceStateId(), 0, 0L, "Level#sendBlockUpdated");
+    }
+
+    /** 바닐라 Level#blockUpdated: 6방향 이웃 갱신(updateNeighborsAt — 플러그인 BlockPhysicsEvent 포함). */
+    public void blockUpdated(BlockPos pos, net.minecraft.world.level.block.Block block) { updateNeighborsAt(pos, block); }
+
+    /** 바닐라 Level#updateNeighborsAt: 서쪽·동쪽·아래·위·북쪽·남쪽 이웃의 neighborChanged(서버 갱신기 — 플러그인 BlockPhysicsEvent 포함). */
+    public void updateNeighborsAt(BlockPos pos, net.minecraft.world.level.block.Block block) {
+        org.domi.furnace.compat.nms.NmsEffects.run(this, pos, org.domi.furnace.compat.nms.NmsEffects.UPDATE_NEIGHBORS, block.defaultBlockState().furnaceStateId(),
+                0, 0, 0L, "Level#updateNeighborsAt");
+    }
+
+    /** 바닐라 Level#updateNeighbourForOutputSignal: 옆(또는 단단한 블록 건너) 비교기에 알린다. */
+    public void updateNeighbourForOutputSignal(BlockPos pos, net.minecraft.world.level.block.Block block) {
+        org.domi.furnace.compat.nms.NmsEffects.run(this, pos, org.domi.furnace.compat.nms.NmsEffects.OUTPUT_SIGNAL, block.defaultBlockState().furnaceStateId(),
+                0, 0, 0L, "Level#updateNeighbourForOutputSignal");
+    }
+
+    /** 바닐라 ServerLevel#onBlockStateChange: POI 종류가 바뀌면 POI 를 지우고 더한다(서버 setBlock 과 같이 미루지 않는다). */
+    public void onBlockStateChange(BlockPos pos, BlockState oldState, BlockState newState) {
+        org.domi.furnace.compat.nms.NmsEffects.run(this, pos, org.domi.furnace.compat.nms.NmsEffects.POI, oldState.furnaceStateId(), newState.furnaceStateId(),
+                0, 0L, "Level#onBlockStateChange");
+    }
+
+    /** CraftBukkit Level#getCraftServer. */
+    public org.bukkit.craftbukkit.CraftServer getCraftServer() { return org.bukkit.craftbukkit.CraftServer.INSTANCE; }
 
     @Override
     public String toString() { return getClass().getSimpleName() + "[" + world.getName() + "]"; }

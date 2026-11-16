@@ -56,6 +56,7 @@ class ProfileSplitTest {
         core.plugins().close();
         sched.close();
         TestServers.drainIoPools();
+        org.domi.furnace.server.entity.view.EntityViewRules.clearForTest();   // 숨김 시험이 남긴 규칙을 지운다(#454 재검토 참고)
     }
 
     private Player awaitListed(UUID entity) throws InterruptedException {
@@ -99,9 +100,10 @@ class ProfileSplitTest {
                 assertEquals(PROFILE_NAME, firstEntry(seen)[1], "다른 사람 탭에도 엔티티 UUID + 프로필 이름");
             }
 
-            // 접속자 조회·선택자: 프로필 이름(의도한 차이 §8 — 옛 접속 이름으로는 못 찾는다), UUID 조회는 엔티티 UUID
-            assertSame(p, core.playerByName(PROFILE_NAME));
-            assertNull(core.playerByName("Alex"));
+            // 접속자 이름 조회·선택자: 접속 때의 이름(D2, Paper playersByName — 프로필 이름으로는 못 찾는다), UUID 조회는 엔티티 UUID
+            assertSame(p, core.playerByName("Alex"));
+            assertSame(p, core.playerByName("aLEX"), "대소문자 무시");
+            assertNull(core.playerByName(PROFILE_NAME));
             assertSame(p, core.playerByUuid(entity));
             assertNull(core.playerByUuid(PROFILE_ID));
             assertEquals(PROFILE_NAME, p.selectorName());
@@ -149,6 +151,29 @@ class ProfileSplitTest {
         for (int i = 0; i < 1000 && !Files.exists(stats.resolve(entity + ".json")); i++) Thread.sleep(10);
         assertTrue(Files.exists(stats.resolve(entity + ".json")), "통계는 엔티티 UUID 파일");
         assertFalse(Files.exists(stats.resolve(PROFILE_ID + ".json")), "프로필 id 로 통계 파일을 쓰지 않는다");
+    }
+
+    /**
+     * D2: 이름으로 찾는 길(getPlayerExact·바닐라 선택자·/ban 의 getPlayerByName)은 접속 때의 이름으로 찾고, 프로필 이름이 다른 접속자의 접속 이름과
+     * 같아도 그 접속자를 돌려준다(Paper 와 같다). 퇴장하면 옛 이름 항목이 남지 않는다(Paper 누수는 따르지 않는다).
+     */
+    @Test
+    void nameLookupsUseTheLoginNameAndLeaveNothingBehind() throws Exception {
+        try (TestClient bobby = TestClient.join(port, PROFILE_NAME)) {   // 접속 이름이 Alex 의 프로필 이름과 같다
+            Player bobbyP = awaitListed(bobby.uuid);
+            try (TestClient alex = TestClient.join(port, "Alex")) {
+                Player alexP = awaitListed(alex.uuid);
+                assertEquals(PROFILE_NAME, alexP.name());
+                assertSame(bobbyP, core.playerByName(PROFILE_NAME), "프로필 이름이 같아도 접속 이름이 Bobby 인 사람");
+                assertSame(alexP, core.playerByName("Alex"));
+                assertSame(alexP, core.plugins().player("Alex").handle(), "플러그인 API 의 이름 조회(getPlayerExact)도 같은 길");
+                assertNull(core.plugins().player("Nobody"));
+                assertTrue(core.plugins().offlinePlayerCached("Alex") != null, "캐시 조회도 접속 이름");
+            }
+            for (int i = 0; i < 1000 && core.playerByUuid(GameProfile.offlineUuid("Alex")) != null; i++) Thread.sleep(10);
+            assertNull(core.playerByName("Alex"), "퇴장하면 옛 이름 항목이 남지 않는다");
+            assertSame(bobbyP, core.playerByName(PROFILE_NAME));
+        }
     }
 
     /** 숨김 규칙(EntityViewRules.TARGETS)은 엔티티 UUID 키 — 숨기면 관찰자 탭에서 엔티티 UUID 로 빠지고, 프로필 id 로는 규칙이 없다. */

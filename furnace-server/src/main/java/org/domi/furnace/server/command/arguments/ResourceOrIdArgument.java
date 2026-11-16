@@ -19,7 +19,9 @@ import org.domi.furnace.server.command.brigadier.DynamicCommandExceptionType;
 import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.ResourceOrIdArgument")
 public final class ResourceOrIdArgument implements ArgumentType<ResourceOrIdArgument.Ref> {
 
     public static final DynamicCommandExceptionType ERROR_FAILED_TO_PARSE =

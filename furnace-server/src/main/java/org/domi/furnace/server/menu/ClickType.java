@@ -1,6 +1,9 @@
 // 바닐라 ClickType — 순서가 container_click 패킷의 clickType 번호다.
 package org.domi.furnace.server.menu;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.world.inventory.ClickType")
 public enum ClickType {
     PICKUP, QUICK_MOVE, SWAP, CLONE, THROW, QUICK_CRAFT, PICKUP_ALL;
 

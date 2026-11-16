@@ -45,11 +45,11 @@ public final class Tools {
         // 프로토콜
         java("protocol-ids", "ExportProtocolIds", "프로토콜 패킷 종류·번호 표", Output.of(API + "protocol-{protocol}-ids.txt"));
         // 시험 정답표
-        java("context-collision-shapes", "ExportContextCollisionShapes", "문맥별 충돌 모양(비계·물·용암) 정답표", Output.of(T + "collision/context-shapes-{mc}.tsv"));
-        java("section-oracle", "ExportSectionOracle", "섹션 개수·하이트맵 정답표", Output.gz(T + "n2b/section-oracle-{mc}.txt.gz"));
-        java("raw-write-oracle", "ExportRawWriteOracle", "원시 쓰기 뒤 하이트맵·섹션 개수 정답표", Output.gz(T + "n2b/rawwrite-oracle-{mc}.txt.gz"));
+        java("context-collision-shapes", "ExportContextCollisionShapes", "문맥별 충돌 모양(비계·물·용암) 정답표", Output.of(T + "collision/{mc}/context-shapes.tsv"));
+        java("section-oracle", "ExportSectionOracle", "섹션 개수·하이트맵 정답표", Output.gz(T + "n2b/{mc}/section-oracle.txt.gz"));
+        java("raw-write-oracle", "ExportRawWriteOracle", "원시 쓰기 뒤 하이트맵·섹션 개수 정답표", Output.gz(T + "n2b/{mc}/rawwrite-oracle.txt.gz"));
         ALL.put("palette-oracle", new Tool("palette-oracle", Kind.JAVA, "furnacetools.ExportPaletteOracle",
-                List.of(Output.gz(C + "n2b/palette-oracle-{mc}.txt.gz")), List.of("{out0}", "{serverJar}"), true, "떨어진 PalettedContainer·섹션 직렬화 정답표"));
+                List.of(Output.gz(C + "n2b/{mc}/palette-oracle.txt.gz")), List.of("{out0}", "{serverJar}"), true, "떨어진 PalettedContainer·섹션 직렬화 정답표"));
         // 데이터 생성기 출력(JSON)을 읽는 도구
         python("tags", "extract_tags.py", List.of("{generated}", "{repo}/" + S + "registries/{mc}.txt", "{out0}", "{mc}"),
                 "Update Tags 리소스(숫자 id)", Output.of(S + "registries/tags-{mc}.txt"));

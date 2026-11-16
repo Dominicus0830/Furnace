@@ -15,7 +15,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.rcon.thread.QueryThreadGs4")
 public final class QueryHandler {
 
     /** 상태 응답에 쓰는 서버 정보. 질의 IO 스레드에서 불리므로 스레드 안전해야 한다. */

@@ -22,7 +22,7 @@ class LegacyOracleRulesTest {
     private static final Pattern HEADER = Pattern.compile("^// LEGACY-ORACLE since ([0-9a-f]{7,40}): \\S.*");
 
     static Path testSourceRoot() {
-        Path resources = Golden.sourceDir().getParent();   // src/test/resources
+        Path resources = Golden.sourceDir().getParent().getParent();   // src/test/resources (identity/<판>/ 두 단계 위)
         return resources.getParent().resolve("java");
     }
 

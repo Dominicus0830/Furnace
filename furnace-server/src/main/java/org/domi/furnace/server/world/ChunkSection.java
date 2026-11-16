@@ -1,6 +1,7 @@
 // 청크 섹션: 블록 16³ + 바이옴 4³ palette 저장 + 비공기 수. 인덱스는 바닐라 YZX 순.
 package org.domi.furnace.server.world;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.chunk.LevelChunkSection")
 public final class ChunkSection {
 
     public static final int AIR = StateIds.AIR;

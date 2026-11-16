@@ -3,7 +3,9 @@ package org.domi.furnace.server.menu;
 
 import java.util.Arrays;
 import org.domi.furnace.server.entity.ItemStack;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.SimpleContainer")
 public class SimpleContainer implements Container {
 
     private final ItemStack[] items;

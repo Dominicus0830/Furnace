@@ -5,6 +5,7 @@ import java.util.List;
 import org.domi.furnace.server.world.gen.feature.BlockPos;
 import org.domi.furnace.server.world.gen.feature.TreeFeature;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.treedecorators.BeehiveDecorator")
 public record BeehiveDecorator(float probability) implements TreeDecorator {
     // vanilla WORLDGEN_FACING = SOUTH, SPAWN_DIRECTIONS = HORIZONTAL(NORTH,EAST,SOUTH,WEST)에서 SOUTH의
     // opposite(NORTH)를 뺀 나머지 — 순서 EAST, SOUTH, WEST 그대로 유지(shuffle 순서가 RNG 소비 순서에 영향).

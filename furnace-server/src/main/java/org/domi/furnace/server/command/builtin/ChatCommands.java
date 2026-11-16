@@ -15,7 +15,9 @@ import org.domi.furnace.server.command.brigadier.CommandDispatcher;
 import org.domi.furnace.server.command.brigadier.LiteralCommandNode;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.server.commands.EmoteCommands", "net.minecraft.server.commands.MsgCommand", "net.minecraft.server.commands.SayCommand"})
 public final class ChatCommands {
 
     private ChatCommands() {}

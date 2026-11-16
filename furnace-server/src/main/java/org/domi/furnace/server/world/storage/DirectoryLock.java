@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.util.DirectoryLock")
 public final class DirectoryLock implements AutoCloseable {
 
     public static final String LOCK_FILE = "session.lock";

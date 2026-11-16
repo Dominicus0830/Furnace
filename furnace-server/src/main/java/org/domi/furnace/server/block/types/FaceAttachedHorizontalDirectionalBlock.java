@@ -1,6 +1,7 @@
 // 바닐라 FaceAttachedHorizontalDirectionalBlock: 바닥·벽·천장에 붙는 블록(버튼·레버·숫돌). 붙은 면이 단단해야 산다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.FaceAttachedHorizontalDirectionalBlock")
 public abstract class FaceAttachedHorizontalDirectionalBlock extends HorizontalDirectionalBlock {
 
     protected static final Prop FACE = B.prop("face");

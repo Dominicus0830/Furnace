@@ -10,8 +10,8 @@ import org.domi.furnace.compat.nms.NmsChunks;
 /**
  * 로드된 청크 shim(Mojang 이름, N2a): 서버 청크의 <b>보기</b>({@link ChunkAccess} 참고). {@code ServerLevel#getChunk} 등이 돌려준다.
  * 블록 쓰기 {@link #setBlockState} 는 바닐라처럼 그 칸만 바꾼다(이웃·모양 갱신, 클라이언트 알림, POI 없음 — 블록 자체의 놓기·치우기 반응, 블록 엔티티,
- * 빛, 하이트맵, 저장 표시는 바닐라대로). 블록 엔티티 칸 목록(getBlockEntitiesPos)은 있고, 블록 엔티티 객체(getBlockEntity)·엔티티·틱 상태
- * (getFullStatus)는 아직 없다. 다른 스레드에서 읽으면 공개 스냅샷과 자기 쓰기(N2b-3·4), 다른 스레드의 쓰기는 거울 일지로 주인이 재생한다(N2b-4,
+ * 빛, 하이트맵, 저장 표시는 바닐라대로). 블록 엔티티는 읽기·만들기(IMMEDIATE)·지우기가 있고(T-198 — 보기는 서버 블록 엔티티에 묶인다), 틱 상태
+ * (getFullStatus)는 바닐라 티켓 값(T-204), 엔티티는 아직 없다. 다른 스레드에서 읽으면 공개 스냅샷과 자기 쓰기(N2b-3·4), 다른 스레드의 쓰기는 거울 일지로 주인이 재생한다(N2b-4,
  * {@link ChunkAccess} 참고). 청크가 내려가면 이 shim 의 섹션은 그 순간 내용으로 굳는다(바닐라: 떨어진 LevelChunk).
  */
 public class LevelChunk extends ChunkAccess {
@@ -72,13 +72,19 @@ public class LevelChunk extends ChunkAccess {
      * 바닐라 LevelChunk.setBlockState 그대로(서버의 바닐라 포팅): 그 칸만 바꾸고 옛 상태를 돌려준다. 이웃·모양 갱신, 클라이언트 알림, POI 갱신은 없다.
      * 같은 상태·공기뿐인 섹션에 공기류·치우기 반응이 칸을 갈아 치움이면 null. 높이 밖이면 바닐라는 섹션 배열 밖 예외지만 여기서는 null.
      */
-    public BlockState setBlockState(BlockPos pos, BlockState state, boolean moved) {
+    public BlockState setBlockState(BlockPos pos, BlockState state, boolean moved) { return setBlockState(pos, state, moved, true); }
+
+    /**
+     * Paper LevelChunk.setBlockState(pos, state, moved, doPlace): doPlace 가 거짓이면 새 블록의 놓기 반응(onPlace)을 건너뛴다(블록 엔티티는 그대로 만든다 —
+     * Paper 와 같다). 그 밖은 3인자 판과 같다(다른 스레드는 거울 일지 — 재생도 놓기 반응을 건너뛴다). 플러그인이 넣은 떨어진 섹션에는 반응이 없다.
+     */
+    public BlockState setBlockState(BlockPos pos, BlockState state, boolean moved, boolean doPlace) {
         int y = pos.getY();
         if (isOutsideBuildHeight(y)) return null;
         int slot = getSectionIndex(y);
         if (!furnaceMirror.dead() && furnaceOwner()) {
             furnaceMirror.ownerSync(slot);
-            int old = NmsChunks.bridge().setBlockStateNow(furnaceWorld, pos.getX(), y, pos.getZ(), state.furnaceStateId(), moved);
+            int old = NmsChunks.bridge().setBlockStateNow(furnaceWorld, pos.getX(), y, pos.getZ(), state.furnaceStateId(), moved, doPlace);
             return old < 0 ? null : NmsChunks.state(old);
         }
         // 다른 스레드(N2b-4, 결정 D1): 바닐라처럼 그 자리 섹션을 본다. 서버 섹션의 보기면 일지에 쌓아 주인이 바닐라 LevelChunk.setBlockState 를 그대로 재생한다
@@ -90,18 +96,37 @@ public class LevelChunk extends ChunkAccess {
         if (!furnaceMirror.dead() && s.furnaceChunk() == this && s.furnaceIndex() == slot && s.getStates().furnaceLiveNow()) {
             BlockState old = s.getBlockState(x & 15, y & 15, z & 15);
             if (old == state) return null;
-            if (furnaceMirror.chunkSet(s, slot, x, y, z, state.furnaceStateId(), old.furnaceStateId(), moved)) return old;
+            if (furnaceMirror.chunkSet(s, slot, x, y, z, state.furnaceStateId(), old.furnaceStateId(), moved, doPlace)) return old;
             // 그 사이 그 섹션이 배열에서 빠져 떼어 내졌다 — 아래 바닐라 길로 그 섹션에(PR #396 검토 R2)
         }
         BlockState old = s.setBlockState(x & 15, y & 15, z & 15, state);
         return old == state ? null : old;
     }
 
-    // ------------------------------------------------------------------ 블록 엔티티(N2b-6 — 읽기 보기만)
+    /**
+     * 바닐라 LevelChunk.getFullStatus: 청크 홀더의 단계(바닐라 티켓 레벨 — Paper 는 플레이어 티켓을 시뮬레이션 거리로 걸어 다를 수 있다, T-204 설계 4장).
+     * 내린 청크(이 로드가 끝난 보기)는 INACCESSIBLE. 주인 스레드면 바로, 틱 스레드가 아닌 스레드는 주인을 기다리고(최대 10초), 다른 region·전역 스레드는
+     * ThreadOwnershipException({@link org.domi.furnace.compat.nms.NmsOwner}).
+     */
+    public net.minecraft.server.level.FullChunkStatus getFullStatus() {
+        if (furnaceMirror.dead()) return net.minecraft.server.level.FullChunkStatus.INACCESSIBLE;
+        var p = getPos();
+        int s = org.domi.furnace.compat.nms.NmsOwner.call(furnaceWorld, p.getMinBlockX(), org.domi.furnace.compat.nms.NmsOwner.CHUNK_LEVEL, p.getMinBlockZ(), "LevelChunk#getFullStatus",
+                () -> NmsChunks.bridge().fullChunkStatusNow(furnaceWorld, p.x, p.z));
+        return net.minecraft.server.level.FullChunkStatus.furnaceOf(s);
+    }
+
+    // ------------------------------------------------------------------ 블록 엔티티(N2b-6 읽기, T-198 쓰기)
+
+    /** 바닐라 LevelChunk.EntityCreationType: IMMEDIATE 는 없으면 만들고, QUEUED·CHECK 는 있는 것만(1.21.1 서버에서 둘은 같다). */
+    public enum EntityCreationType {
+        IMMEDIATE, QUEUED, CHECK
+    }
 
     /**
-     * Paper: 청크의 블록 엔티티 표(공개 필드). Furnace: 부를 때마다 서버의 블록 엔티티 칸으로 만드는 읽기 보기({@link #getBlockEntities()} 와 같다).
-     * 지우기·넣기는 아직 없다(UnsupportedNmsCall — 블록 엔티티 일지는 TASK).
+     * Paper: 청크의 블록 엔티티 표(공개 필드). Furnace: 서버 블록 엔티티로 만드는 보기 — 읽기(get·containsKey·entrySet 등)는 {@link #getBlockEntities()} 와 같고,
+     * {@code remove(pos)} 는 {@link #removeBlockEntity} 처럼 그 칸의 블록 엔티티를 청크에서 떼고(지움 표시·틱·게임 이벤트까지 — FAWE 의 신호기 지우기가 뒤이어
+     * 리스너·틱을 떼고 지움 필드를 세우는 것과 끝 상태가 같다) 뗀 것을 돌려준다. {@code put} 은 없다(UnsupportedNmsCall — setBlockEntity 길이 아직 없다).
      */
     public final java.util.Map<net.minecraft.core.BlockPos, net.minecraft.world.level.block.entity.BlockEntity> blockEntities = new java.util.AbstractMap<>() {
         @Override
@@ -110,45 +135,54 @@ public class LevelChunk extends ChunkAccess {
         }
 
         @Override
+        public net.minecraft.world.level.block.entity.BlockEntity get(Object key) {
+            return key instanceof net.minecraft.core.BlockPos p ? getBlockEntity(p) : null;
+        }
+
+        @Override
+        public boolean containsKey(Object key) { return get(key) != null; }
+
+        @Override
         public net.minecraft.world.level.block.entity.BlockEntity remove(Object key) {
-            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunk#blockEntities.remove", "editing the chunk block entity table directly does not exist yet");
+            return key instanceof net.minecraft.core.BlockPos p ? furnaceRemoveBlockEntity(p) : null;
+        }
+
+        @Override
+        public net.minecraft.world.level.block.entity.BlockEntity put(net.minecraft.core.BlockPos key, net.minecraft.world.level.block.entity.BlockEntity value) {
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunk#blockEntities.put", "adding a block entity object to the chunk table directly does not exist yet");
         }
     };
 
     /**
-     * 바닐라 getBlockEntities: 이 청크의 블록 엔티티(칸 → 블록 엔티티). Furnace: 서버의 블록 엔티티 칸마다 살아 있는 블록 엔티티 보기({@code BlockEntity#furnaceInWorld})
-     * 로 만든 새 표 — 고쳐도 청크에 닿지 않는다. 아무 스레드(다른 스레드는 공개 스냅샷의 칸 목록과 그 칸의 블록).
+     * 바닐라 getBlockEntities: 이 청크의 블록 엔티티(칸 → 블록 엔티티 보기, 새 표 — 고쳐도 청크에 닿지 않는다). 아무 스레드(다른 스레드는 공개 판 + 자기 쓰기).
+     * 보기는 칸·서버 블록 엔티티마다 같은 객체다.
      */
-    public java.util.Map<net.minecraft.core.BlockPos, net.minecraft.world.level.block.entity.BlockEntity> getBlockEntities() {
-        java.util.Map<net.minecraft.core.BlockPos, net.minecraft.world.level.block.entity.BlockEntity> out = new java.util.HashMap<>();
-        for (net.minecraft.core.BlockPos p : getBlockEntitiesPos()) {
-            var be = net.minecraft.world.level.block.entity.BlockEntity.furnaceInWorld(level, p, getBlockState(p).furnaceStateId());
-            if (be != null) out.put(p, be);
-        }
-        return out;
-    }
+    public java.util.Map<net.minecraft.core.BlockPos, net.minecraft.world.level.block.entity.BlockEntity> getBlockEntities() { return furnaceBlockEntities(); }
 
-    /** 바닐라 getBlockEntity(pos): 그 칸의 블록 엔티티 보기, 없으면 null(만들지 않는다 — 바닐라 CHECK 와 같다). */
-    public net.minecraft.world.level.block.entity.BlockEntity getBlockEntity(net.minecraft.core.BlockPos pos) {
-        if (!getBlockEntitiesPos().contains(pos)) return null;
-        return net.minecraft.world.level.block.entity.BlockEntity.furnaceInWorld(level, pos, getBlockState(pos).furnaceStateId());
-    }
-
-    /** 바닐라 removeBlockEntity: 아직 없다 — 다른 스레드의 블록 엔티티 지우기는 거울 일지에 블록 엔티티가 들어가야 한다(N2b-4 4장 2, TASK). */
-    public void removeBlockEntity(net.minecraft.core.BlockPos pos) {
-        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunk#removeBlockEntity", "removing block entities through NMS does not exist yet (block entity journal)");
+    /** 바닐라 getBlockEntity(pos, 종류): IMMEDIATE 는 없고 블록이 블록 엔티티를 가지는 종류면 만든다(바닐라 Level#getBlockEntity 길). */
+    public net.minecraft.world.level.block.entity.BlockEntity getBlockEntity(net.minecraft.core.BlockPos pos, EntityCreationType type) {
+        return furnaceBlockEntity(pos, type == EntityCreationType.IMMEDIATE);
     }
 
     /**
-     * 바닐라 private 도우미(Paper 와 같은 이름·서명 — 어댑터가 리플렉션으로 찾아 부른다): 블록 엔티티의 게임 이벤트 청취를 청크에서 뗀다.
-     * 블록 엔티티를 이 청크에서 떼는 길 자체가 아직 없다({@link #removeBlockEntity} 와 같은 블록 엔티티 일지 — TASK)라 {@code removeBlockEntity} 처럼 던진다.
+     * 바닐라 removeBlockEntity: 그 칸의 블록 엔티티를 청크에서 떼고 지움 표시, 틱·게임 이벤트에서 뺀다(블록은 그대로, 저장 표시 없음). 주인이 아닌 스레드
+     * (FAWE 일꾼)는 거울 일지 — 주인이 다음 맞춤 지점에 그 순서대로 지운다(같은 맞추기에서 들여오는 섹션보다 먼저, Paper 의 FAWE 순서와 같다).
+     */
+    public void removeBlockEntity(net.minecraft.core.BlockPos pos) { furnaceRemoveBlockEntity(pos); }
+
+    /**
+     * 바닐라 private 도우미(Paper 와 같은 이름·서명 — 어댑터가 리플렉션으로 찾아 부른다): 블록 엔티티의 게임 이벤트 청취를 청크에서 뗀다. Furnace 는 블록 엔티티를
+     * 청크에서 뗄 때({@link #removeBlockEntity}·{@code blockEntities.remove}) 리스너도 함께 떼므로, 이미 떨어진 블록 엔티티면 할 일이 없다. 청크에 붙은 채
+     * 리스너만 떼는 것은 없다(UnsupportedNmsCall).
      */
     private <T extends net.minecraft.world.level.block.entity.BlockEntity> void removeGameEventListener(T blockEntity, net.minecraft.server.level.ServerLevel level) {
-        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunk#removeGameEventListener", "detaching a block entity's game event listener needs the block entity journal, which does not exist yet");
+        if (blockEntity.isRemoved() || getBlockEntity(blockEntity.getBlockPos()) != blockEntity) return;
+        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunk#removeGameEventListener", "detaching only the game event listener of a block entity that stays in the chunk does not exist");
     }
 
-    /** 바닐라 private 도우미(위와 같은 규칙): 그 칸의 블록 엔티티 틱터를 청크에서 뗀다. 블록 엔티티 일지가 생길 때까지 던진다. */
+    /** 바닐라 private 도우미(위와 같은 규칙): 그 칸의 블록 엔티티 틱터를 뗀다. 그 칸에 블록 엔티티가 없으면(이미 뗐다) 할 일이 없다. 붙은 채 틱만 끄는 것은 없다. */
     private void removeBlockEntityTicker(net.minecraft.core.BlockPos pos) {
-        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunk#removeBlockEntityTicker", "detaching a block entity ticker needs the block entity journal, which does not exist yet");
+        if (getBlockEntity(pos) == null) return;
+        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunk#removeBlockEntityTicker", "stopping the ticker of a block entity that stays in the chunk does not exist");
     }
 }

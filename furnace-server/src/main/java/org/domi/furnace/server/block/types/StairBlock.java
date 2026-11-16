@@ -1,6 +1,7 @@
 // 바닐라 StairBlock: 바라보는 방향·위아래 반쪽·이웃 계단에 따른 모양(안쪽·바깥쪽 꺾임). 물에 잠길 수 있다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.StairBlock")
 public class StairBlock extends BlockBehavior {
 
     protected static final Prop FACING = B.prop("facing");

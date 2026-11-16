@@ -4,6 +4,7 @@ package org.domi.furnace.server.world.gen.structure.template;
 import java.util.List;
 import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessor")
 public abstract class Processor {
 
     /** processBlock에 필요한 월드 접근. */

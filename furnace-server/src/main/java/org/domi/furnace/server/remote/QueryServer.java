@@ -11,7 +11,9 @@ import java.net.SocketTimeoutException;
 import java.security.SecureRandom;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.rcon.thread.QueryThreadGs4")
 public final class QueryServer implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(QueryServer.class);

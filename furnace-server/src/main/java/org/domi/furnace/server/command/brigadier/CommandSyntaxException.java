@@ -2,7 +2,9 @@
 package org.domi.furnace.server.command.brigadier;
 
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.brigadier.exceptions.CommandSyntaxException")
 public class CommandSyntaxException extends Exception {
 
     public static final int CONTEXT_AMOUNT = 10;

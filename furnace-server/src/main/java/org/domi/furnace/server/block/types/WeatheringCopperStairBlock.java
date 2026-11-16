@@ -1,10 +1,12 @@
 // 바닐라 WeatherinCopperStairBlock: 계단 + 무작위 틱 산화.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.WeatheringCopperStairBlock")
 public class WeatheringCopperStairBlock extends StairBlock {
 
     public WeatheringCopperStairBlock(int block) { super(block); }

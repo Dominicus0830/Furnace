@@ -3,7 +3,9 @@ package org.domi.furnace.server.light;
 
 import org.domi.furnace.server.world.StateIds;
 import org.domi.furnace.server.world.ChunkSection;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.world.level.lighting.SkyLightEngine", "net.minecraft.world.level.lighting.ChunkSkyLightSources"})
 public final class SkyLightEngine extends LightEngine {
     private static final long DECREASE_ALL_15 = decreaseAllDirections(15);
     private static final long DECREASE_SKIP_UP_15 = decreaseSkipOneDirection(15, UP);

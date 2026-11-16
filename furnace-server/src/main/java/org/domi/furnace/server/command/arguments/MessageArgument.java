@@ -12,7 +12,9 @@ import org.domi.furnace.server.command.brigadier.Dynamic2CommandExceptionType;
 import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.MessageArgument")
 public final class MessageArgument implements ArgumentType<MessageArgument.Message> {
 
     public static final Dynamic2CommandExceptionType TOO_LONG = new Dynamic2CommandExceptionType((len, max) -> Text.translatable("argument.message.too_long", len, max));

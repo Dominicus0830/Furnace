@@ -28,7 +28,9 @@ import org.domi.furnace.server.net.protocol.play.SetScore;
 import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.ServerScoreboard")
 public final class ServerScoreboard extends Scoreboard {
 
     private static final Logger LOG = LoggerFactory.getLogger("Scoreboard");

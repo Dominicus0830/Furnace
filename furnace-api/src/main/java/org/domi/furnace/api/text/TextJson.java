@@ -1,6 +1,7 @@
 // 바닐라 JSON 직렬화(ComponentSerialization + JsonOps, Gson disableHtmlEscaping)와 같은 문자열을 만든다.
-// 필드 순서는 바닐라 출력을 그대로 따른다(DFU RecordCodecBuilder 의 인코딩 순서): 내용 → extra → 스타일
-// (hoverEvent, insertion, font, obfuscated, clickEvent, italic, underlined, strikethrough, color, bold), 호버는 contents → action.
+// 필드 순서는 바닐라 출력을 그대로 따른다(DFU RecordCodecBuilder 의 인코딩 순서).
+// 내용, extra, 스타일 순이다. 스타일 안은 hoverEvent, insertion, font, obfuscated, clickEvent, italic, underlined, strikethrough, color, bold 순이다.
+// 호버는 contents, action 순이다.
 package org.domi.furnace.api.text;
 
 import java.util.List;

@@ -3,7 +3,9 @@ package org.domi.furnace.server.scores;
 
 import org.domi.furnace.api.text.NamedTextColor;
 import org.domi.furnace.api.text.TextColor;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.ChatFormatting")
 public enum ChatFormatting {
     BLACK("black", 0, NamedTextColor.BLACK),
     DARK_BLUE("dark_blue", 1, NamedTextColor.DARK_BLUE),

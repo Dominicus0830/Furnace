@@ -3,7 +3,9 @@ package org.domi.furnace.server.players;
 
 import com.google.gson.JsonObject;
 import java.nio.file.Path;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.players.ServerOpList")
 public final class ServerOpList extends StoredUserList<GameProfile, ServerOpListEntry> {
 
     public ServerOpList(Path file) { super(file); }

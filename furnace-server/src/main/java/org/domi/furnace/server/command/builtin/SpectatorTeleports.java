@@ -5,7 +5,9 @@ package org.domi.furnace.server.command.builtin;
 import org.domi.furnace.server.ServerCore;
 import org.domi.furnace.server.command.CommandSource;
 import org.domi.furnace.server.entity.Player;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.network.ServerGamePacketListenerImpl")
 public final class SpectatorTeleports {
     private SpectatorTeleports() { }
 

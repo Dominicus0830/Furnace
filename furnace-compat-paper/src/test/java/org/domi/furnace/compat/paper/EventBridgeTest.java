@@ -102,6 +102,8 @@ class EventBridgeTest {
             fire.put(org.bukkit.event.player.PlayerTeleportEvent.class, () -> new org.domi.furnace.api.event.player.PlayerTeleportEvent(p, at, to));
             fire.put(org.bukkit.event.player.PlayerRespawnEvent.class, () -> new org.domi.furnace.api.event.player.PlayerRespawnEvent(p, at, true));
             fire.put(org.bukkit.event.player.PlayerChangedWorldEvent.class, () -> new org.domi.furnace.api.event.player.PlayerChangedWorldEvent(p, w));
+            fire.put(org.bukkit.event.player.PlayerShowEntityEvent.class, () -> new org.domi.furnace.api.event.player.PlayerShowEntityEvent(p, pig));
+            fire.put(org.bukkit.event.player.PlayerHideEntityEvent.class, () -> new org.domi.furnace.api.event.player.PlayerHideEntityEvent(p, pig));
             fire.put(org.bukkit.event.player.PlayerGameModeChangeEvent.class, () -> new org.domi.furnace.api.event.player.PlayerGameModeChangeEvent(p, GameMode.CREATIVE));
             fire.put(org.bukkit.event.player.PlayerToggleSneakEvent.class, () -> new org.domi.furnace.api.event.player.PlayerToggleSneakEvent(p, true));
             fire.put(org.bukkit.event.player.PlayerToggleSprintEvent.class, () -> new org.domi.furnace.api.event.player.PlayerToggleSprintEvent(p, true));

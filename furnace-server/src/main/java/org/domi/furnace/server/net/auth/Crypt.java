@@ -14,7 +14,9 @@ import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.util.Crypt")
 public final class Crypt {
 
     private Crypt() {}

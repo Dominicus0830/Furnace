@@ -4,6 +4,7 @@ package org.domi.furnace.server.world.gen.surface;
 import java.util.List;
 import java.util.Set;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.SurfaceRules")
 public sealed interface SurfaceRule {
 
     // ── Rule 타입 ─────────────────────────────────────────────────────────

@@ -47,10 +47,10 @@ import org.junit.jupiter.api.TestInstance;
  * N2b-1(V1): 떨어진 섹션 객체(LevelChunkSection·PalettedContainer·팔레트 4종·비트 저장소)가 바닐라 1.21.1 과 같은가.
  * 정답은 바닐라 jar 로 계산한 표 두 개 — 같은 입력(시드로 다시 만든다)에 바닐라가 낸 숫자뿐이다.
  * <ul>
- * <li>{@code n2b/palette-oracle-1.21.1.txt.gz}({@code tools/vanilla-data/ExportPaletteOracle}): 컨테이너 240개(기본 생성자·5인자 생성자·
+ * <li>{@code n2b/1.21.1/palette-oracle.txt.gz}({@code tools/vanilla-data/ExportPaletteOracle}): 컨테이너 240개(기본 생성자·5인자 생성자·
  *     설정과 저장소 비트가 어긋난 FAWE 모양·섹션)의 쓰기 뒤 직렬화 바이트 해시, 크기, maybeHas, count 합, copy·recreate 직렬화, 섹션 개수 3개,
  *     바닐라가 예외를 낸 쓰기 번호와 종류. 바이옴 레지스트리 크기.</li>
- * <li>{@code n2b/section-oracle-1.21.1.txt.gz}(N2b-0, 서버 시험 자원): 상태별 개수 깃발 26,684개, 섹션 300개의 개수 3개(하나씩 놓기 →
+ * <li>{@code n2b/1.21.1/section-oracle.txt.gz}(N2b-0, 서버 시험 자원): 상태별 개수 깃발 26,684개, 섹션 300개의 개수 3개(하나씩 놓기 →
  *     다시 세기 → 다시 센 뒤 하나씩 바꾸기 — 유체 이중 셈·물 tickingFluid·음수 포함).</li>
  * </ul>
  */
@@ -84,7 +84,7 @@ class NmsDetachedSectionOracleTest {
 
     @Test
     void paletteContainersMatchVanillaOracle() throws Exception {
-        List<String[]> lines = lines("/n2b/palette-oracle-" + GameVersion.RESOURCE_TAG + ".txt.gz");
+        List<String[]> lines = lines("/n2b/" + GameVersion.RESOURCE_TAG + "/palette-oracle.txt.gz");
         assertEquals("1", value(lines, "version"));
         int n = Integer.parseInt(value(lines, "states"));
         assertEquals(n, Block.BLOCK_STATE_REGISTRY.size(), "상태 수");
@@ -256,7 +256,7 @@ class NmsDetachedSectionOracleTest {
 
     @Test
     void stateFlagsThroughShimMatchVanilla() throws Exception {
-        List<String[]> lines = lines("/n2b/section-oracle-" + GameVersion.RESOURCE_TAG + ".txt.gz");
+        List<String[]> lines = lines("/n2b/" + GameVersion.RESOURCE_TAG + "/section-oracle.txt.gz");
         String flags = value(lines, "flags");
         List<String> bad = new ArrayList<>();
         for (int s = 0; s < flags.length(); s++) {
@@ -273,7 +273,7 @@ class NmsDetachedSectionOracleTest {
     /** 하나씩 놓기(A) → 그 블록으로 새 섹션 = 다시 세기(B) → B 에 하나씩 바꾸기(C). 떨어진 LevelChunkSection 의 개수 3개가 바닐라 숫자와 같다. */
     @Test
     void detachedSectionCountsMatchVanillaOracle() throws Exception {
-        List<String[]> lines = lines("/n2b/section-oracle-" + GameVersion.RESOURCE_TAG + ".txt.gz");
+        List<String[]> lines = lines("/n2b/" + GameVersion.RESOURCE_TAG + "/section-oracle.txt.gz");
         String flagText = value(lines, "flags");
         int[] flags = new int[flagText.length()];
         for (int i = 0; i < flags.length; i++) flags[i] = Character.digit(flagText.charAt(i), 16);
@@ -327,7 +327,7 @@ class NmsDetachedSectionOracleTest {
 
     @Test
     void biomeRegistrySizeMatchesVanilla() throws Exception {
-        int want = Integer.parseInt(value(lines("/n2b/palette-oracle-" + GameVersion.RESOURCE_TAG + ".txt.gz"), "biomes"));
+        int want = Integer.parseInt(value(lines("/n2b/" + GameVersion.RESOURCE_TAG + "/palette-oracle.txt.gz"), "biomes"));
         assertEquals(want, NmsChunks.BIOME_IDS.size(), "바이옴 레지스트리 크기(전역 팔레트 비트 수가 여기서 정해진다)");
         Holder<Biome> plains = NmsChunks.biome("minecraft:plains");
         assertSame(plains, NmsChunks.BIOME_IDS.byId(NmsChunks.BIOME_IDS.getId(plains)));

@@ -1,6 +1,7 @@
 // 바닐라 PoiType: 관심 지점 종류(레지스트리 이름, 최대 티켓 수, 유효 거리). 블록 상태 대응은 PoiTypes 가 들고 있다.
 package org.domi.furnace.server.world.poi;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.village.poi.PoiType")
 public final class PoiType {
     private final String name;
     private final int index;

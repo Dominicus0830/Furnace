@@ -2,8 +2,10 @@
 package org.domi.furnace.server.net.protocol.handshake;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 
+@VanillaPort("net.minecraft.network.protocol.handshake.ClientIntentionPacket")
 public record Handshake(int protocolVersion, String serverAddress, int serverPort, int nextState) {
 
     public static final int ID = 0x00;

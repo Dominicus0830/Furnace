@@ -4,7 +4,9 @@ package org.domi.furnace.server.menu;
 
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.entity.PlayerInventory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.entity.player.Inventory")
 public class PlayerInventoryContainer implements Container {
 
     public static final int SIZE = 41;

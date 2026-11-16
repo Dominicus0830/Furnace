@@ -2,7 +2,9 @@
 package org.domi.furnace.server.function;
 
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.FunctionInstantiationException")
 public final class FunctionInstantiationException extends Exception {
 
     private final transient Text messageComponent;

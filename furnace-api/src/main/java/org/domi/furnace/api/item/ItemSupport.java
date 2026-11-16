@@ -35,7 +35,7 @@ public interface ItemSupport {
         return s;
     }
 
-    /** 서버 구현 전용 — 한 번만 정할 수 있다(같은 객체를 다시 넣는 것은 괜찮다). */
+    /** 서버 구현 전용. 한 번만 정할 수 있다(같은 객체를 다시 넣는 것은 괜찮다). */
     static void install(ItemSupport support) {
         synchronized (Holder.class) {
             if (Holder.support != null && Holder.support != support) throw new IllegalStateException("ItemSupport can only be set once");

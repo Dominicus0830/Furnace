@@ -16,6 +16,7 @@ import org.domi.furnace.server.world.gen.feature.TreeIntProvider;
 // canPlaceRoot의 canGrowThrough(#minecraft:mangrove_roots_can_grow_through) 분기는 의도적으로 미구현 —
 // worldgen-oracle(OracleMain)이 이 태그를 바인딩하지 않아 oracle(ground truth) 기준으로도 항상 공집합이므로,
 // 표준 validTreePos만으로 oracle과 byte-exact 일치한다(UpwardsBranchingTrunkPlacer와 동일 근거).
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.rootplacers.MangroveRootPlacer")
 public final class MangroveRootPlacer {
     // vanilla Direction.Plane.HORIZONTAL 순회 순서 (NORTH, EAST, SOUTH, WEST).
     private static final TreeFeature.Direction[] HORIZONTALS = {

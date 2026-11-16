@@ -2,10 +2,11 @@
 package org.domi.furnace.api.world;
 
 /**
- * 바꿀 칸 목록. {@link World#editBlocks} 에 넘긴 함수 안에서만 쓴다 — 함수가 끝나면 닫히고 그 뒤 부르면 {@link IllegalStateException}.
- * 월드를 읽지 않는다(목록만 쌓는다). 같은 칸을 여러 번 적으면 마지막 값이 남는다.
- * 월드 높이 밖 칸은 버리고 결과의 {@link BlockEditResult#skipped()} 로 센다.
- * 알 수 없는 블록·속성이면 그 자리에서 {@link IllegalArgumentException}.
+ * 바꿀 칸 목록. {@link World#editBlocks} 에 넘긴 함수 안에서만 쓴다. 함수가 끝나면 닫히고, 그 뒤에 부르면 {@link IllegalStateException} 을 던진다.
+ *
+ * <p>월드를 읽지 않고 목록만 쌓는다. 같은 칸을 여러 번 적으면 마지막 값이 남는다.
+ * <p>월드 높이 밖 칸은 버리고 결과의 {@link BlockEditResult#skipped()} 로 센다.
+ * <p>알 수 없는 블록·속성이면 그 자리에서 {@link IllegalArgumentException} 을 던진다.
  */
 public interface BlockEditor {
 
@@ -14,7 +15,7 @@ public interface BlockEditor {
 
     default void set(BlockPos pos, BlockData data) { set(pos.x(), pos.y(), pos.z(), data); }
 
-    /** 두 꼭짓점(양끝 포함)이 이루는 상자 전체를 data 로. */
+    /** 두 꼭짓점(양끝 포함)이 이루는 상자 전체를 data 로 바꾸도록 적는다. */
     default void fill(BlockPos a, BlockPos b, BlockData data) {
         int minX = Math.min(a.x(), b.x()), minY = Math.min(a.y(), b.y()), minZ = Math.min(a.z(), b.z());
         int maxX = Math.max(a.x(), b.x()), maxY = Math.max(a.y(), b.y()), maxZ = Math.max(a.z(), b.z());

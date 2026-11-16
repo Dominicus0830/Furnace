@@ -8,6 +8,7 @@ import org.domi.furnace.server.world.RegionLevel;
 import org.domi.furnace.server.world.gen.NoiseWorldSource;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.structure.pools.JigsawPlacement")
 public final class JigsawGenerate {
 
     private JigsawGenerate() {}

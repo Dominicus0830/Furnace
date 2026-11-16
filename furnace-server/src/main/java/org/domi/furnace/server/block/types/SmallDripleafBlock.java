@@ -1,6 +1,7 @@
 // 바닐라 SmallDripleafBlock: 두 칸 작은 흘림잎. 놓을 수 있는 땅이거나 물속 흙 위. 뼛가루로 큰 흘림잎이 된다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -12,6 +13,7 @@ import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.SmallDripleafBlock")
 public class SmallDripleafBlock extends DoublePlantBlock implements BonemealableBlock {
 
     private static final Prop FACING = B.prop("facing");

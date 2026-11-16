@@ -4,7 +4,9 @@ package org.domi.furnace.server.chat;
 
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.network.ServerGamePacketListenerImpl")
 public final class PlayerChatState {
 
     public static final int VISIBILITY_FULL = 0, VISIBILITY_SYSTEM = 1, VISIBILITY_HIDDEN = 2;

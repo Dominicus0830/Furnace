@@ -4,11 +4,13 @@ package org.domi.furnace.server.block.entity;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.block.entity.BlockEntity")
 public abstract class BlockEntity {
 
     /** block_entity_type 프로토콜 순서(1.21.1 registries.json). */

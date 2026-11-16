@@ -1,4 +1,4 @@
-// 창(인벤토리 메뉴)을 보는 플레이어가 주체인 이벤트의 바탕. inventory() 는 이벤트 시점 스냅샷이다(창의 모든 칸 — 위쪽 칸 뒤에 플레이어 인벤토리).
+// 창(인벤토리 메뉴)을 보는 플레이어가 주체인 이벤트의 바탕. inventory() 는 이벤트 시점 스냅샷이다. 창의 모든 칸이며 위쪽 칸 뒤에 플레이어 인벤토리가 붙는다.
 // menu() 는 그 창이 플러그인 메뉴(Player#openMenu)면 그 메뉴, 아니면 null 이다.
 package org.domi.furnace.api.event.inventory;
 

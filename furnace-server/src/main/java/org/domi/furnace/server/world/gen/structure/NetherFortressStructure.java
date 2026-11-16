@@ -8,6 +8,7 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.world.gen.carver.LegacyRandom;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.structure.structures.NetherFortressStructure", "net.minecraft.world.level.levelgen.structure.structures.NetherFortressPieces"})
 public final class NetherFortressStructure extends StructureType {
 
     public NetherFortressStructure(StructureRegistry.Def def) {}

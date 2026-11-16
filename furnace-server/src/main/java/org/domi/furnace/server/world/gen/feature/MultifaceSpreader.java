@@ -7,6 +7,7 @@ import org.domi.furnace.server.world.BlockAttrs;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.block.MultifaceSpreader")
 public final class MultifaceSpreader {
 
     static final int[] DX = {0, 0, 0, 0, -1, 1};

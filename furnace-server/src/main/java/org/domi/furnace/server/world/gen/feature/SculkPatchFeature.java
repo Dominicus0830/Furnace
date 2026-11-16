@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.SculkPatchFeature")
 public final class SculkPatchFeature implements ConfiguredFeature {
 
     private static final int DOWN = 0, UP = 1;

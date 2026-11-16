@@ -2,6 +2,7 @@
 // 청크를 어디서 얻는지(소유 region 의 로드된 청크)와 변경 방송·저장 표시는 하위 클래스가 정한다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.world.StateIds;
 import org.domi.furnace.server.i18n.Lang;
 import java.util.TreeMap;
@@ -24,6 +25,10 @@ import org.domi.furnace.server.net.protocol.play.SoundPacket;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSection;
 
+@VanillaPort({
+    "net.minecraft.world.level.Level",
+    "net.minecraft.world.level.chunk.LevelChunk"
+})
 public abstract class ChunkLevel implements BlockLevel {
 
     protected final Blocks blocks = Blocks.get();
@@ -361,10 +366,7 @@ public abstract class ChunkLevel implements BlockLevel {
         if (old < 0) return false;
         int now = getBlockState(pos);
         if (now == state) {
-            if ((flags & UPDATE_CLIENTS) != 0) {
-                markChanged(pos);
-                updateNavigations(pos, old, state);   // ServerLevel.sendBlockUpdated 의 길찾기 부분
-            }
+            if ((flags & UPDATE_CLIENTS) != 0) sendBlockUpdated(pos, old, state);
             if ((flags & UPDATE_NEIGHBORS) != 0) {
                 blockUpdated(pos, blocks.blockOf(old));
                 if (BlockBehaviors.of(state).hasAnalogOutputSignal(state)) updateNeighbourForOutputSignal(pos, blocks.blockOf(state));
@@ -378,6 +380,15 @@ public abstract class ChunkLevel implements BlockLevel {
             poiManager.onBlockStateChange(pos, old, now);   // 바닐라 onBlockStateChange(server.execute 로 미루지 않고 바로)
         }
         return true;
+    }
+
+    /**
+     * ServerLevel.sendBlockUpdated(pos, old, new, flags): 변경 방송(ServerChunkCache.blockChanged — 청크가 없으면 아무것도) + 길찾기 부분.
+     * setBlock 과 호환 계층의 쪼갠 호출(T-204)이 같이 쓴다.
+     */
+    public void sendBlockUpdated(Pos pos, int old, int now) {
+        if (hasChunkAt(pos)) markChanged(pos);
+        updateNavigations(pos, old, now);
     }
 
     /** ServerLevel.isUpdatingNavigations: 길 다시 찾기 도중 다시 들어오면 바닐라는 오류만 남기고 계속한다. */
@@ -421,14 +432,19 @@ public abstract class ChunkLevel implements BlockLevel {
      * 바닐라 LevelChunk.setBlockState 만(이웃·모양 갱신, 클라이언트 알림, POI 없음) — 호환 계층 NMS shim 용. 높이 밖·로드돼 있지 않음·
      * 바뀌지 않음·onRemove 가 갈아 치움이면 -1, 아니면 이전 상태.
      */
-    public int setBlockStateInChunkOnly(Pos pos, int state, boolean moved) {
+    public int setBlockStateInChunkOnly(Pos pos, int state, boolean moved) { return setBlockStateInChunkOnly(pos, state, moved, true); }
+
+    /** Paper LevelChunk.setBlockState(pos, state, moved, doPlace) — doPlace 가 거짓이면 놓기 반응(onPlace)을 건너뛴다(T-204). */
+    public int setBlockStateInChunkOnly(Pos pos, int state, boolean moved, boolean doPlace) {
         if (isOutsideBuildHeight(pos.y())) return -1;
         ChunkColumn col = chunkAt(pos);
-        return col == null ? -1 : setBlockStateInChunk(col, pos, state, moved);
+        return col == null ? -1 : setBlockStateInChunk(col, pos, state, moved, doPlace);
     }
 
+    private int setBlockStateInChunk(ChunkColumn col, Pos pos, int state, boolean moved) { return setBlockStateInChunk(col, pos, state, moved, true); }
+
     /** LevelChunk.setBlockState — 바뀌지 않았거나 onRemove 가 블록을 갈아 치웠으면 -1, 아니면 이전 상태. */
-    private int setBlockStateInChunk(ChunkColumn col, Pos pos, int state, boolean moved) {
+    private int setBlockStateInChunk(ChunkColumn col, Pos pos, int state, boolean moved, boolean doPlace) {
         int lx = pos.x() & 15, lz = pos.z() & 15;
         int old = col.getBlock(lx, pos.y(), lz);
         if (old == state) return -1;
@@ -441,7 +457,7 @@ public abstract class ChunkLevel implements BlockLevel {
         }
         BlockBehaviors.of(old).onRemove(old, this, pos, state, moved);
         if (blocks.blockOf(col.getBlock(lx, pos.y(), lz)) != blocks.blockOf(state)) return -1;
-        BlockBehaviors.of(state).onPlace(state, this, pos, old, moved);
+        if (doPlace) BlockBehaviors.of(state).onPlace(state, this, pos, old, moved);
         if (info.hasBlockEntity(state)) createBlockEntity(col, pos, state);
         return old;
     }
@@ -1476,10 +1492,33 @@ public abstract class ChunkLevel implements BlockLevel {
         if (hasChunkAt(pos)) markDirty(pos.x() >> 4, pos.z() >> 4);
     }
 
+    /**
+     * 바닐라 Level.getBlockEntity(pos) = LevelChunk.getBlockEntity(pos, IMMEDIATE): 없고 그 칸 블록이 블록 엔티티를 가지는 종류면 블록이 새로 만들어
+     * 청크에 둔다(addAndRegisterBlockEntity — 틱·게임 이벤트 등록, 저장 표시 없음). 보통은 블록을 놓을 때 이미 만들어져 있어 만들 일이 없다 — 플러그인이
+     * 섹션을 통째로 바꿨거나(NMS 들여오기, T-198) 블록 엔티티 없이 저장된 청크에서만 생긴다. 아직 해석하지 않은 생성 NBT 가 있는 칸은 만들지 않는다.
+     */
     @Override
     public Object getBlockEntity(Pos pos) {
         ChunkColumn c = chunkAt(pos);
+        if (c == null) return null;
+        Object be = blockEntity(c, pos);
+        return be != null ? be : createMissingBlockEntity(c, pos);
+    }
+
+    /** 바닐라 LevelChunk.getBlockEntity(pos, CHECK): 있는 것만(생성 상자 NBT 는 바닐라 promotePendingBlockEntity 처럼 상자로 바꾼다). */
+    public Object getBlockEntityIfPresent(Pos pos) {
+        ChunkColumn c = chunkAt(pos);
         return c == null ? null : blockEntity(c, pos);
+    }
+
+    /** LevelChunk.getBlockEntity 의 IMMEDIATE 부분(createBlockEntity + addAndRegisterBlockEntity). */
+    private Object createMissingBlockEntity(ChunkColumn c, Pos pos) {
+        if (isOutsideBuildHeight(pos.y())) return null;
+        int state = c.getBlock(pos.x() & 15, pos.y(), pos.z() & 15);
+        if (!info.hasBlockEntity(state)) return null;
+        if (c.generatedBlockEntity(pos.x() & 15, pos.y(), pos.z() & 15) != null) return null;   // 아직 해석하지 않은 생성 NBT(종류를 모르는 것)
+        createBlockEntity(c, pos, state);
+        return blockEntity(c, pos);
     }
 
     @Override

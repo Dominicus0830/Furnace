@@ -2,6 +2,7 @@
 package org.domi.furnace.server.recipe;
 
 import org.domi.furnace.api.GameVersion;
+import org.domi.furnace.server.VanillaPort;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -14,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+@VanillaPort("net.minecraft.world.level.block.SuspiciousEffectHolder")
 public final class StewEffects {
 
     private StewEffects() { }

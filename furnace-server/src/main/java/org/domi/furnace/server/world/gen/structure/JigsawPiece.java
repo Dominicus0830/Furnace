@@ -4,6 +4,7 @@ package org.domi.furnace.server.world.gen.structure;
 import java.util.ArrayList;
 import java.util.List;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece")
 public final class JigsawPiece extends StructurePiece {
 
     /** 바닐라 JigsawJunction(sourceX, sourceGroundY, sourceZ, deltaY, destProjection) — Beardifier 가 쓴다. */

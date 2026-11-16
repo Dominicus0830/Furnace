@@ -3,7 +3,9 @@ package org.domi.furnace.server.advancement;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.advancements.AdvancementNode")
 public final class AdvancementNode {
 
     private final Advancement advancement;

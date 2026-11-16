@@ -26,7 +26,7 @@ class VanillaChunkFormatTest {
     }
 
     private static NbtCompound load(String name) throws Exception {
-        try (InputStream in = VanillaChunkFormatTest.class.getResourceAsStream("/storage/" + name)) {
+        try (InputStream in = VanillaChunkFormatTest.class.getResourceAsStream("/storage/" + GameVersion.RESOURCE_TAG + "/" + name)) {
             return NbtIo.readGzip(in);
         }
     }

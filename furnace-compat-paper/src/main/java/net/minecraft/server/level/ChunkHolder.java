@@ -29,6 +29,18 @@ public class ChunkHolder {
 
     public LevelChunk getFullChunkNowUnchecked() { return getFullChunkNow(); }
 
+    /**
+     * 바닐라 ChunkHolder.getFullStatus: 로드된 청크면 그 단계({@link LevelChunk#getFullStatus} 와 같은 규칙), 아니면 INACCESSIBLE(아무 스레드 — 주인을 찾기 전에 본다).
+     * 바닐라는 홀더의 레벨이라 다 불러오기 전에도 FULL 일 수 있다 — Furnace 는 로드가 끝난 청크만 단계를 준다(T-204 설계 9장 가정).
+     */
+    public FullChunkStatus getFullStatus() {
+        var w = level.getWorld().furnaceHandle();
+        if (!org.domi.furnace.compat.nms.NmsChunks.bridge().isLoaded(w, pos.x, pos.z)) return FullChunkStatus.INACCESSIBLE;
+        int s = org.domi.furnace.compat.nms.NmsOwner.call(w, pos.getMinBlockX(), org.domi.furnace.compat.nms.NmsOwner.CHUNK_LEVEL, pos.getMinBlockZ(), "ChunkHolder#getFullStatus",
+                () -> org.domi.furnace.compat.nms.NmsChunks.bridge().fullChunkStatusNow(w, pos.x, pos.z));
+        return FullChunkStatus.furnaceOf(s);
+    }
+
     private CompletableFuture<ChunkResult<LevelChunk>> loadedFuture() {
         LevelChunk c = getFullChunkNow();
         return c == null ? UNLOADED_LEVEL_CHUNK_FUTURE : CompletableFuture.completedFuture(ChunkResult.of(c));

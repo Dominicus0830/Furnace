@@ -3,9 +3,11 @@ package org.domi.furnace.server.net.protocol.configuration;
 
 import io.netty.buffer.ByteBuf;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.configuration.ClientboundUpdateEnabledFeaturesPacket")
 public record FeatureFlags(List<String> flags) implements Packet {
 
     public static final int ID = 0x0C;

@@ -4,7 +4,9 @@ package org.domi.furnace.server.players;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.authlib.GameProfile")
 public record GameProfile(UUID id, String name, List<Property> properties) {
 
     public record Property(String name, String value, String signature) {}

@@ -1,6 +1,8 @@
-// 엔티티 속성 종류(바닐라 1.21.1 minecraft:attribute 레지스트리 전부) — 키·기본값·최소·최대. 불변 값이라 어느 스레드에서나 쓴다.
-// 키는 1.21.1 이름(minecraft:generic.movement_speed)이다. 1.21.2 이후의 접두사 없는 이름(minecraft:movement_speed)과 옛 Bukkit 이름
-// (generic.movementSpeed, horse.jumpStrength)도 find/of 가 받아 같은 속성으로 돌려준다 — 코드는 어느 쪽 이름을 써도 된다.
+// 엔티티 속성 종류(바닐라 1.21.1 minecraft:attribute 레지스트리 전부). 키, 기본값, 최소, 최대를 가진다. 불변 값이라 어느 스레드에서나 쓴다.
+//
+// 키는 1.21.1 이름(minecraft:generic.movement_speed)이다.
+// 1.21.2 이후의 접두사 없는 이름(minecraft:movement_speed)과 옛 Bukkit 이름(generic.movementSpeed, horse.jumpStrength)도
+// find/of 가 받아 같은 속성으로 돌려준다. 코드는 어느 쪽 이름을 써도 된다.
 package org.domi.furnace.api.entity.attribute;
 
 import java.util.ArrayList;
@@ -15,7 +17,7 @@ public final class Attribute {
 
     private static final List<Attribute> ALL = new ArrayList<>();
     private static final Map<String, Attribute> BY_KEY = new HashMap<>();
-    /** generic./player./zombie. 접두사를 뗀 이름 → 속성(1.21.2 이후 이름). */
+    /** generic./player./zombie. 접두사를 뗀 이름으로 속성을 찾는 표(1.21.2 이후 이름). */
     private static final Map<String, Attribute> BY_SHORT = new HashMap<>();
 
     public static final Attribute ARMOR = of("generic.armor", 0, 0, 30);
@@ -72,9 +74,16 @@ public final class Attribute {
     public static List<Attribute> values() { return Collections.unmodifiableList(ALL); }
 
     /**
-     * 키로 찾는다. 받는 이름: 1.21.1 키(minecraft:generic.movement_speed), 접두사 없는 이름(movement_speed, generic.movement_speed),
-     * 1.21.2 이후 이름(minecraft:movement_speed), Paper 가 옛 Bukkit 이름을 바꿔 주던 것(generic.movementSpeed, "Movement Speed",
-     * horse.jump_strength). 대소문자는 구별한다(바닐라 키는 소문자). 모르면 empty.
+     * 키로 찾는다. 다음 이름을 받는다.
+     *
+     * <ul>
+     * <li>1.21.1 키(minecraft:generic.movement_speed)
+     * <li>접두사 없는 이름(movement_speed, generic.movement_speed)
+     * <li>1.21.2 이후 이름(minecraft:movement_speed)
+     * <li>Paper 가 옛 Bukkit 이름을 바꿔 주던 것(generic.movementSpeed, "Movement Speed", horse.jump_strength)
+     * </ul>
+     *
+     * <p>대소문자는 구별한다(바닐라 키는 소문자). 모르면 empty.
      */
     public static Optional<Attribute> find(String name) {
         if (name == null) return Optional.empty();
@@ -86,12 +95,12 @@ public final class Attribute {
         return Optional.ofNullable(a);
     }
 
-    /** {@link #find} 인데 모르는 이름이면 IllegalArgumentException. */
+    /** {@link #find} 와 같지만 모르는 이름이면 IllegalArgumentException 을 던진다. */
     public static Attribute of(String name) {
         return find(name).orElseThrow(() -> new IllegalArgumentException("unknown attribute: " + name));
     }
 
-    // Paper CraftAttributeMap.legacyNMS 와 같은 목록(옛 Bukkit·NBT 이름 → 1.21.1 이름)
+    // Paper CraftAttributeMap.legacyNMS 와 같은 목록(옛 Bukkit·NBT 이름을 1.21.1 이름으로 바꾼다)
     private static final Map<String, String> LEGACY = Map.ofEntries(
             Map.entry("generic.maxHealth", "generic.max_health"), Map.entry("Max Health", "generic.max_health"),
             Map.entry("zombie.spawnReinforcements", "zombie.spawn_reinforcements"), Map.entry("Spawn Reinforcements Chance", "zombie.spawn_reinforcements"),
@@ -106,7 +115,7 @@ public final class Attribute {
     /** 1.21.1 키(minecraft:generic.movement_speed). */
     public String key() { return key; }
 
-    /** 이 속성의 기본값(엔티티 종류가 다른 시작 값을 정할 수 있다 — 플레이어 이동 속도 0.1. 그 엔티티의 현재 기본값은 {@code AttributeHandle#baseValue}). */
+    /** 이 속성의 기본값. 엔티티 종류가 다른 시작 값을 정할 수 있다(플레이어 이동 속도는 0.1). 그 엔티티의 현재 기본값은 {@code AttributeHandle#baseValue} 다. */
     public double defaultValue() { return defaultValue; }
 
     /** 값이 잘리는 최소(바닐라 RangedAttribute). */

@@ -7,7 +7,8 @@ import net.minecraft.world.level.block.state.properties.Property;
 
 /**
  * 블록 동작의 바탕(Mojang 이름 shim, N0). 바닐라의 동작 메서드(모양·충돌·틱·상호작용)는 Furnace 블록 동작이 서버 안에 있어
- * 두지 않았다 — 부르면 H7 덫. 블록 속성 묶음({@code Properties}) 도 플러그인이 블록을 만들 수 없어 두지 않았다.
+ * 대부분 두지 않았다 — 부르면 H7 덫. 쪼갠 setBlock 조각(onPlace·handleNeighborChanged·updateNeighbourShapes·updateIndirectNeighbourShapes·triggerEvent,
+ * T-204)은 서버 블록 동작을 그 칸의 주인 region 에서 부른다. 블록 속성 묶음({@code Properties}) 도 플러그인이 블록을 만들 수 없어 두지 않았다.
  */
 public abstract class BlockBehaviour {
 
@@ -112,5 +113,53 @@ public abstract class BlockBehaviour {
         public boolean blocksMotion() { return (flagBits() & org.domi.furnace.api.internal.BlockStateInternals.BLOCKS_MOTION) != 0; }
 
         public boolean canBeReplaced() { return (flagBits() & org.domi.furnace.api.internal.BlockStateInternals.REPLACEABLE) != 0; }
+
+        /** 바닐라: 비교기가 이 블록의 신호를 읽는가(상자·화로·책장 받침대 …). 고정 표 — 아무 스레드. */
+        public boolean hasAnalogOutputSignal() { return (flagBits() & org.domi.furnace.api.internal.BlockStateInternals.ANALOG_OUTPUT) != 0; }
+
+        // ---------------------------------------------------------- 쪼갠 setBlock 조각(T-204) — 서버 블록 동작을 그 칸의 주인 region 에서({@code NmsEffects})
+
+        /** 바닐라 onPlace: 이 블록이 놓였을 때의 반응(레드스톤 선의 이웃 알림, 유체 틱 예약 …). 다른 스레드면 주인 작업으로. */
+        public void onPlace(net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos, BlockState oldState, boolean moved) {
+            org.domi.furnace.compat.nms.NmsEffects.run(level, pos, org.domi.furnace.compat.nms.NmsEffects.ON_PLACE, furnaceStateId, oldState.furnaceStateId(),
+                    moved ? 1 : 0, 0L, "BlockState#onPlace");
+        }
+
+        /** 바닐라 handleNeighborChanged: 이 블록의 neighborChanged 를 직접(갱신기·BlockPhysicsEvent 를 거치지 않는다 — 바닐라와 같다). */
+        public void handleNeighborChanged(net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos, Block sourceBlock,
+                                          net.minecraft.core.BlockPos sourcePos, boolean moved) {
+            org.domi.furnace.compat.nms.NmsEffects.run(level, pos, org.domi.furnace.compat.nms.NmsEffects.NEIGHBOR_CHANGED, furnaceStateId,
+                    sourceBlock.defaultBlockState().furnaceStateId(), moved ? 1 : 0, sourcePos.asLong(), "BlockState#handleNeighborChanged");
+        }
+
+        /** 바닐라 updateNeighbourShapes(level, pos, flags): 남은 깊이 512. */
+        public final void updateNeighbourShapes(net.minecraft.world.level.LevelAccessor level, net.minecraft.core.BlockPos pos, int flags) {
+            updateNeighbourShapes(level, pos, flags, 512);
+        }
+
+        /** 바닐라 updateNeighbourShapes: 6방향(서·동·북·남·아래·위) 이웃에 모양 갱신(updateShape → 바뀌면 updateOrDestroy). */
+        public final void updateNeighbourShapes(net.minecraft.world.level.LevelAccessor level, net.minecraft.core.BlockPos pos, int flags, int maxUpdateDepth) {
+            org.domi.furnace.compat.nms.NmsEffects.run(level, pos, org.domi.furnace.compat.nms.NmsEffects.NEIGHBOUR_SHAPES, furnaceStateId, flags,
+                    maxUpdateDepth, 0L, "BlockState#updateNeighbourShapes");
+        }
+
+        public final void updateIndirectNeighbourShapes(net.minecraft.world.level.LevelAccessor level, net.minecraft.core.BlockPos pos, int flags) {
+            updateIndirectNeighbourShapes(level, pos, flags, 512);
+        }
+
+        /** 바닐라 updateIndirectNeighbourShapes: 레드스톤 선만 대각선 이웃 모양을 고친다(그 밖 블록은 아무것도 안 한다). */
+        public void updateIndirectNeighbourShapes(net.minecraft.world.level.LevelAccessor level, net.minecraft.core.BlockPos pos, int flags, int maxUpdateDepth) {
+            org.domi.furnace.compat.nms.NmsEffects.run(level, pos, org.domi.furnace.compat.nms.NmsEffects.INDIRECT_SHAPES, furnaceStateId, flags,
+                    maxUpdateDepth, 0L, "BlockState#updateIndirectNeighbourShapes");
+        }
+
+        /**
+         * 바닐라 triggerEvent(level, pos, 종류, 값): 블록 이벤트 처리(음 블록·피스톤·상자·종 …) — 처리했으면 true. 값이 있어 다른 스레드는 주인을 기다리거나
+         * (틱 스레드가 아닐 때, 최대 10초) ThreadOwnershipException(region·전역 스레드, {@code NmsOwner}). 청크가 로드돼 있지 않으면 IllegalStateException.
+         */
+        public boolean triggerEvent(net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos, int type, int data) {
+            return org.domi.furnace.compat.nms.NmsEffects.call(level, pos, org.domi.furnace.compat.nms.NmsEffects.TRIGGER_EVENT, furnaceStateId, type, data,
+                    "BlockState#triggerEvent") != 0;
+        }
     }
 }

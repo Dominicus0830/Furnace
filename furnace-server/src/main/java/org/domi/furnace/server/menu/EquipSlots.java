@@ -3,7 +3,9 @@
 package org.domi.furnace.server.menu;
 
 import java.util.Set;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.item.Equipable")
 public final class EquipSlots {
 
     private static final Set<String> HEAD = Set.of("carved_pumpkin", "player_head", "zombie_head", "creeper_head", "dragon_head", "piglin_head",

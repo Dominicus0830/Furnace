@@ -2,6 +2,14 @@
 // 블록은 OUTLINE 모양(상호작용 모양이 더 가까우면 그 면으로), 유체는 모드(NONE·SOURCE_ONLY·ANY·WATER)에 맞으면 높이 모양.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort({
+    "net.minecraft.world.item.Item",
+    "net.minecraft.world.level.Level",
+    "net.minecraft.world.level.ClipContext",
+    "net.minecraft.world.level.BlockGetter"
+})
 public final class Clip {
 
     private Clip() {}

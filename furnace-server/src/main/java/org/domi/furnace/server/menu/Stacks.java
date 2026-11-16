@@ -3,7 +3,9 @@ package org.domi.furnace.server.menu;
 
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.ItemStackCodecs;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.item.ItemStack")
 public final class Stacks {
 
     private Stacks() { }

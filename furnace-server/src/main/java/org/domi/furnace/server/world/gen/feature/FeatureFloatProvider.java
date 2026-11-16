@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.util.valueproviders.FloatProvider")
 public interface FeatureFloatProvider {
 
     float sample(WorldgenRandom random);

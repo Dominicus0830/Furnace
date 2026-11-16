@@ -1,6 +1,9 @@
-// 플레이 단계 텍스트 NBT 인코딩 — 바닐라 ComponentSerialization + NbtOps 와 같은 바이트.
-// 규칙: 스타일·자식 없는 글자는 String 태그로 접힘, CompoundTag 는 HashMap 순서(같은 삽입 순서의 HashMap 으로 재현),
-// 리스트는 원소 종류가 같으면 그 종류의 리스트(byte·int·long 만으로 된 리스트는 배열 태그), 섞이면 compound 가 아닌 원소를 {"": 값} 으로 감싼다(NbtOps 이종 리스트).
+// 플레이 단계 텍스트 NBT 인코딩이다. 바닐라 ComponentSerialization + NbtOps 와 같은 바이트를 만든다.
+// 규칙은 다음과 같다.
+//   스타일·자식 없는 글자는 String 태그로 접힌다.
+//   CompoundTag 는 HashMap 순서를 따른다(같은 삽입 순서의 HashMap 으로 재현한다).
+//   리스트는 원소 종류가 같으면 그 종류의 리스트가 된다(byte·int·long 만으로 된 리스트는 배열 태그).
+//   종류가 섞이면 compound 가 아닌 원소를 {"": 값} 으로 감싼다(NbtOps 이종 리스트).
 package org.domi.furnace.api.text;
 
 import java.io.ByteArrayOutputStream;
@@ -19,7 +22,7 @@ final class TextNbt {
 
     private TextNbt() {}
 
-    /** NBT 리스트 값(원소 태그 종류 + 원소들). */
+    /** NBT 리스트 값(원소 태그 종류와 원소들). */
     private record ListTag(byte type, List<Object> items) {}
 
     /** {"": 값} 감싸기(NbtOps 이종 리스트). */
@@ -37,7 +40,7 @@ final class TextNbt {
         return bos.toByteArray();
     }
 
-    /** 스타일만의 compound(바닐라 Style.Serializer.CODEC + NbtOps) — 점수판 styled 숫자 형식이 쓴다. 빈 스타일은 빈 compound. */
+    /** 스타일만의 compound(바닐라 Style.Serializer.CODEC + NbtOps). 점수판 styled 숫자 형식이 쓴다. 빈 스타일은 빈 compound 다. */
     static byte[] encodeStyle(Style s) {
         Map<String, Object> m = new HashMap<>();
         putStyle(s, m);

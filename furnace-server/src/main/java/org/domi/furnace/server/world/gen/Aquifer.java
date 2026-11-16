@@ -3,6 +3,7 @@ package org.domi.furnace.server.world.gen;
 
 import org.domi.furnace.server.world.gen.df.DensityFunction;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.Aquifer")
 public sealed interface Aquifer permits DisabledAquifer, NoiseBasedAquifer {
     /**
      * Called for every block where density <= 0.

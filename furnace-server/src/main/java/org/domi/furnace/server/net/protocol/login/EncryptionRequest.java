@@ -2,9 +2,11 @@
 package org.domi.furnace.server.net.protocol.login;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.login.ClientboundHelloPacket")
 public record EncryptionRequest(String serverId, byte[] publicKey, byte[] verifyToken, boolean shouldAuthenticate) implements Packet {
 
     public static final int ID = 0x01;

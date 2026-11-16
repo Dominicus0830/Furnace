@@ -3,11 +3,13 @@
 package org.domi.furnace.server.block.dispenser;
 
 import java.util.function.IntPredicate;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.state.pattern.BlockPattern")
 final class BlockPatternFind {
 
     private BlockPatternFind() {}

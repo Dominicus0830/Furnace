@@ -1,6 +1,7 @@
 // 바닐라 SculkBlock: 스컬크(경험치 1). 스컬크 촉매의 퍼짐(SculkSpreader)이 이 블록 위에서 전하를 써서 감지체·비명체를 키운다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Fluids;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.SculkBlock")
 public class SculkBlock extends DropExperienceBlock implements SculkBehaviour {
 
     private static final int SENSOR = B.id("sculk_sensor"), SHRIEKER = B.id("sculk_shrieker"), WATER = B.id("water");

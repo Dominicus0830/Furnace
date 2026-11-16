@@ -1,6 +1,7 @@
 // 바닐라 CoralWallFanBlock: 벽에 붙은 살아 있는 산호 부채. 물이 없으면 죽은 벽 산호 부채가 된다(방향 유지).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Blocks;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.CoralWallFanBlock")
 public class CoralWallFanBlock extends BaseCoralWallFanBlock {
 
     private final int dead;

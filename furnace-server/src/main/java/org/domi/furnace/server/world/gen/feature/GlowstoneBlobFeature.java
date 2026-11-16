@@ -5,6 +5,7 @@ import org.domi.furnace.server.world.BlockAttrs;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.GlowstoneFeature")
 public final class GlowstoneBlobFeature implements ConfiguredFeature {
 
     private static final int[][] DIRS = {{0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}};   // Direction.values()

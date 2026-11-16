@@ -13,7 +13,9 @@ import org.domi.furnace.server.command.brigadier.ContextChain;
 import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.execution.tasks.ExecuteCommand")
 public final class ExecuteCommand implements UnboundEntryAction {
 
     private static final Logger log = LoggerFactory.getLogger(ExecuteCommand.class);

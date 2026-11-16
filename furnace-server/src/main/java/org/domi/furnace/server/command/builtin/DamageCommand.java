@@ -27,7 +27,9 @@ import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.Rider;
 import org.domi.furnace.server.entity.damage.DamageSource;
 import org.domi.furnace.server.entity.damage.DamageType;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.DamageCommand")
 public final class DamageCommand {
     private DamageCommand() { }
 

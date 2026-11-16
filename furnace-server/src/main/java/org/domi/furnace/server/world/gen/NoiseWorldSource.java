@@ -40,6 +40,7 @@ import java.util.Set;
  *
  * router/settings/ids 는 생성 시 한 번만 빌드하며 generate() 는 thread-safe.
  */
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator")
 public final class NoiseWorldSource implements WorldSource, org.domi.furnace.server.world.gen.structure.TerrainAccess {
 
     private final NoiseRouter router;

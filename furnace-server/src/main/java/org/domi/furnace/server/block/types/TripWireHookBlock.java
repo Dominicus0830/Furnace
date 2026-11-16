@@ -1,6 +1,7 @@
 // 바닐라 TripWireHookBlock: 덫걸이. 마주 보는 덫걸이 사이(최대 41칸)를 덫줄로 이으면 걸리고(attached), 덫줄을 밟으면 신호.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockBehavior;
@@ -12,6 +13,7 @@ import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.TripWireHookBlock")
 public class TripWireHookBlock extends BlockBehavior {
 
     static final Prop FACING = B.prop("facing"), POWERED = B.prop("powered"), ATTACHED = B.prop("attached"), DISARMED = B.prop("disarmed");

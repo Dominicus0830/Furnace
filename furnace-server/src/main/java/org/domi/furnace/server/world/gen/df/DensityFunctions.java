@@ -5,6 +5,7 @@ import org.domi.furnace.server.world.gen.MathHelper;
 import org.domi.furnace.server.world.gen.noise.BlendedNoise;
 import org.domi.furnace.server.world.gen.noise.NormalNoise;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.DensityFunctions")
 public final class DensityFunctions {
 
     private DensityFunctions() {}

@@ -2,6 +2,7 @@
 package org.domi.furnace.server.block.types;
 
 import java.util.Collection;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -10,6 +11,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.SculkVeinBlock")
 public class SculkVeinBlock extends MultifaceBlock implements SculkBehaviour {
 
     private static final int SCULK = B.id("sculk"), SCULK_CATALYST = B.id("sculk_catalyst"), SCULK_VEIN = B.id("sculk_vein"),

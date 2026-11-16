@@ -10,7 +10,9 @@ import org.domi.furnace.server.command.brigadier.CommandContext;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.DynamicCommandExceptionType;
 import org.domi.furnace.server.command.brigadier.StringReader;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.SlotsArgument")
 public final class SlotsArgument implements ArgumentType<SlotRanges.Range> {
 
     private static final List<String> EXAMPLES = List.of("container.*", "container.5", "weapon");

@@ -1,4 +1,4 @@
-// 화로(화로·용광로·훈연기)가 연료 하나를 태우기 시작하기 직전 — 화로의 region 스레드에서 불린다.
+// 화로(화로, 용광로, 훈연기)가 연료 하나를 태우기 시작하기 직전에 화로의 region 스레드에서 불린다.
 // 취소하면 연료를 쓰지 않고 불도 켜지지 않는다. burnTime 을 바꿀 수 있고, setBurning(false) 면 불은 켜지되 연료는 줄지 않는다.
 package org.domi.furnace.api.event.inventory;
 

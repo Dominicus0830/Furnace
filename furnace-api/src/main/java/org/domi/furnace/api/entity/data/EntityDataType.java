@@ -1,7 +1,9 @@
-// 엔티티 메타데이터 값 종류(바닐라 EntityDataSerializers 31종). 이름은 바닐라 필드 이름을 소문자로 쓴 것이고 버전과 상관없다.
-// 와이어 번호(직렬화기 id)는 서버가 버전마다 정한다 — API 에는 드러나지 않는다.
+// 엔티티 메타데이터 값 종류(바닐라 EntityDataSerializers 31종). 이름은 바닐라 필드 이름을 소문자로 쓴 것이며 버전과 상관없다.
+// 와이어 번호(직렬화기 id)는 서버가 버전마다 정하며 API 에는 드러나지 않는다.
 //
-// 자바 값: 레지스트리 값(고양이·늑대·개구리·그림 종류)은 이름 문자열("minecraft:tabby"), 스니퍼·아르마딜로 상태는 소문자 상태 이름("idling"·"scared").
+// 자바 값은 다음과 같다.
+//   레지스트리 값(고양이·늑대·개구리·그림 종류)은 이름 문자열이다("minecraft:tabby").
+//   스니퍼와 아르마딜로 상태는 소문자 상태 이름이다("idling"·"scared").
 package org.domi.furnace.api.entity.data;
 
 import java.util.Collections;
@@ -46,7 +48,7 @@ public final class EntityDataType<T> {
     public static final EntityDataType<Direction> DIRECTION = of("direction", Direction.class);
     public static final EntityDataType<Optional<UUID>> OPTIONAL_UUID = optional("optional_uuid", UUID.class);
     public static final EntityDataType<BlockData> BLOCK_STATE = of("block_state", BlockData.class);
-    /** 비어 있으면 Optional.empty()(공기와 같다 — 바닐라도 공기를 "없음"으로 보낸다). */
+    /** 비어 있으면 Optional.empty() 다. 공기와 같으며, 바닐라도 공기를 "없음"으로 보낸다. */
     public static final EntityDataType<Optional<BlockData>> OPTIONAL_BLOCK_STATE = optional("optional_block_state", BlockData.class);
     public static final EntityDataType<NbtCompound> COMPOUND_TAG = of("compound_tag", NbtCompound.class);
     public static final EntityDataType<Particle> PARTICLE = of("particle", Particle.class);
@@ -99,7 +101,7 @@ public final class EntityDataType<T> {
 
     /**
      * 이 종류의 값으로 맞는지 확인하고 돌려준다. 아니면 IllegalArgumentException.
-     * optional_block_state 의 공기(minecraft:air)는 Optional.empty() 로 바꾼다 — 바닐라 와이어에서 공기(0)와 없음이 같다.
+     * optional_block_state 의 공기(minecraft:air)는 Optional.empty() 로 바꾼다. 바닐라 와이어에서 공기(0)와 없음이 같기 때문이다.
      */
     @SuppressWarnings("unchecked")
     public T check(Object value) {

@@ -1,4 +1,4 @@
-// 인증이 끝난 뒤 접속을 받기 전 — 블로킹 작업(DB 조회 등)을 해도 되는 비동기 스레드에서 불린다. 거부하면 사유와 함께 끊는다.
+// 인증이 끝난 뒤 접속을 받기 전에 불린다. 블로킹 작업(DB 조회 등)을 해도 되는 비동기 스레드에서 불린다. 거부하면 사유와 함께 끊는다.
 package org.domi.furnace.api.event.player;
 
 import java.net.InetAddress;

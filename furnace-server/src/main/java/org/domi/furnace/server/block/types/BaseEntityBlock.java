@@ -1,10 +1,12 @@
 // 바닐라 BaseEntityBlock: 블록 엔티티를 가진 블록의 바탕. 블록 이벤트를 블록 엔티티에도 넘긴다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.BaseEntityBlock")
 public abstract class BaseEntityBlock extends BlockBehavior {
 
     protected BaseEntityBlock(int block) { super(block); }

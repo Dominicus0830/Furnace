@@ -7,7 +7,9 @@ import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.MessageToByteEncoder;
 import java.nio.ByteBuffer;
 import java.util.zip.Deflater;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.network.CompressionEncoder")
 public final class CompressionEncoder extends MessageToByteEncoder<ByteBuf> {
 
     /** 네트워크 zlib 레벨(-Dfurnace.network.compressionLevel, 기본 = zlib 기본 6, 바닐라와 같음). 0~9 또는 -1. */

@@ -5,7 +5,9 @@ import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.trade.ItemCost;
 import org.domi.furnace.server.trade.Merchant;
 import org.domi.furnace.server.trade.MerchantOffer;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.MerchantMenu")
 public class MerchantMenu extends AbstractContainerMenu {
 
     public static final int PAYMENT1_SLOT = 0, PAYMENT2_SLOT = 1, RESULT_SLOT = 2, INV_SLOT_START = 3, INV_SLOT_END = 30, USE_ROW_START = 30, USE_ROW_END = 39;

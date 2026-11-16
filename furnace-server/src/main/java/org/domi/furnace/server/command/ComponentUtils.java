@@ -23,7 +23,9 @@ import org.domi.furnace.server.item.Snbt;
 import org.domi.furnace.server.net.io.nbt.NbtTags;
 import org.domi.furnace.server.scores.NumberFormat;
 import org.domi.furnace.server.scores.ScoreHolder;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.network.chat.ComponentUtils")
 public final class ComponentUtils {
 
     private static final int MAX_DEPTH = 100;

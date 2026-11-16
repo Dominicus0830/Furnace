@@ -5,10 +5,12 @@ package org.domi.furnace.server.item;
 import io.netty.buffer.ByteBuf;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.item.ItemStack")
 public final class ItemStackCodecs {
     private ItemStackCodecs() {}
 

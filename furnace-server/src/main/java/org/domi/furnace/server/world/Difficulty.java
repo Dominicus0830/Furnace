@@ -1,6 +1,7 @@
 // 바닐라 Difficulty. id 순서·이름이 프로토콜(Change Difficulty)과 server.properties 에 그대로 쓰인다.
 package org.domi.furnace.server.world;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.Difficulty")
 public enum Difficulty {
     PEACEFUL(0, "peaceful"), EASY(1, "easy"), NORMAL(2, "normal"), HARD(3, "hard");
 

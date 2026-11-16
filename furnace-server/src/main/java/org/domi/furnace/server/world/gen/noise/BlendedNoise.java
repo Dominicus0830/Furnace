@@ -11,6 +11,7 @@ import java.util.stream.IntStream;
  * createLegacyForBlendedNoise 레거시 경로로 생성.
  * compute() 로직을 calculate(int,int,int) 에 그대로 이식.
  */
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.synth.BlendedNoise")
 public final class BlendedNoise {
 
     private final PerlinNoise minLimitNoise;

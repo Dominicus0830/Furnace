@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.chunk.storage.ChunkSerializer")
 public final class AnvilChunkCodec {
 
     public static final int DATA_VERSION = GameVersion.DATA_VERSION;

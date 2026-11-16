@@ -1,6 +1,7 @@
 // 바닐라 MultifaceSpreader: 다면 블록이 한 면에서 이웃 면·옆 칸·모서리 너머로 번지는 규칙(뼛가루·스컬크 퍼짐).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.MultifaceSpreader")
 public final class MultifaceSpreader {
 
     /** SpreadType: 같은 칸의 다른 면 / 옆 칸의 같은 면 / 모서리를 돌아 너머 칸. */

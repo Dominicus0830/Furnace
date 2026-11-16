@@ -1,4 +1,4 @@
-// 축(바닐라 Direction.Axis) — axis 속성 값 x/y/z.
+// 축(바닐라 Direction.Axis). axis 속성 값은 x/y/z 이다.
 package org.domi.furnace.api.world;
 
 public enum Axis {

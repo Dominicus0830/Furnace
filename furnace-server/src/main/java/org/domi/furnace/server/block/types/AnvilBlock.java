@@ -1,6 +1,7 @@
 // 바닐라 AnvilBlock: 모루. 플레이어 방향의 시계 방향을 보게 놓인다. 쓰면 수리 화면. 떨어지면 피해·손상(엔티티).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -11,6 +12,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.AnvilBlock")
 public class AnvilBlock extends FallingBlock {
 
     static final Prop FACING = B.prop("facing");

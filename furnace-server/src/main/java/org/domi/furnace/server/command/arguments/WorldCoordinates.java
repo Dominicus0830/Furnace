@@ -2,7 +2,9 @@
 package org.domi.furnace.server.command.arguments;
 
 import org.domi.furnace.server.command.CommandSource;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.coordinates.WorldCoordinates")
 public record WorldCoordinates(WorldCoordinate x, WorldCoordinate y, WorldCoordinate z) {
 
     /** 실행 위치를 기준으로 푼 절대 좌표 {x, y, z}. */

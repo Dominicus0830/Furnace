@@ -5,6 +5,7 @@ import org.domi.furnace.server.world.gen.noise.PositionalRandom;
 import org.domi.furnace.server.world.gen.WorldgenData;
 import java.util.Map;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.SurfaceRules")
 public final class SurfaceContext {
     public int blockX, blockY, blockZ;
     public String biomeName;

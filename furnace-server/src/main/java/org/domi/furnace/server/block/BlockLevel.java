@@ -1,8 +1,14 @@
 // 블록 동작이 보는 월드(바닐라 Level/LevelAccessor/LevelReader 중 블록 코드가 쓰는 부분). 서버 쪽만(isClientSide = false).
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort({
+    "net.minecraft.world.level.Level",
+    "net.minecraft.world.level.LevelAccessor",
+    "net.minecraft.world.level.LevelReader"
+})
 public interface BlockLevel {
 
     // ------------------------------------------------------------------ 읽기

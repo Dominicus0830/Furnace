@@ -3,10 +3,12 @@ package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundExplodePacket")
 public record ExplodePacket(double x, double y, double z, float power, List<Pos> toBlow, float kx, float ky, float kz, int blockInteraction,
                             int smallParticle, int largeParticle, int soundId) implements Packet {
 

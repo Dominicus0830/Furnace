@@ -1,4 +1,4 @@
-// 블록 종류 + 속성 — 이름 기반 불변 값. 숫자 state id 는 노출하지 않는다.
+// 블록 종류와 속성. 이름 기반 불변 값이며, 숫자 state id 는 노출하지 않는다.
 // 문자열 형식은 바닐라 명령과 같다: minecraft:oak_stairs[facing=north,half=top]
 package org.domi.furnace.api.world;
 
@@ -46,7 +46,7 @@ public record BlockData(String type, Map<String, String> properties) {
 
     // ------------------------------------------------------------------ 타입 있는 속성
 
-    /** 이 상태가 그 속성을 적어 두었는가(적지 않은 속성은 기본값이라는 뜻이라 false 일 수 있다 — 정확한 값은 서버가 채운 읽기 결과에서 본다). */
+    /** 이 상태가 그 속성을 적어 두었는가. 적지 않은 속성은 기본값이라는 뜻이라 false 일 수 있다. 정확한 값은 서버가 채운 읽기 결과에서 본다. */
     public boolean has(BlockProperty<?> property) { return properties.containsKey(property.name()); }
 
     /** 속성 값, 적혀 있지 않으면 empty. 값 형식이 속성 종류와 맞지 않으면 IllegalArgumentException. */

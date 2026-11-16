@@ -3,10 +3,12 @@ package org.domi.furnace.server.net.protocol.configuration;
 
 import io.netty.buffer.ByteBuf;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.net.registry.TagSet;
 
+@VanillaPort("net.minecraft.network.protocol.common.ClientboundUpdateTagsPacket")
 public record UpdateTags(TagSet tags) implements Packet {
 
     public static final int ID = 0x0D;

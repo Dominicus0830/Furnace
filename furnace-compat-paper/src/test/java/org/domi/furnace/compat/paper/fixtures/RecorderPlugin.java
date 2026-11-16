@@ -170,6 +170,8 @@ public final class RecorderPlugin extends JavaPlugin implements Listener {
     @EventHandler public void on(PlayerRespawnEvent e) { rec(e); }
 
     @EventHandler public void on(PlayerChangedWorldEvent e) { rec(e); }
+    @EventHandler public void on(org.bukkit.event.player.PlayerShowEntityEvent e) { rec(e); }
+    @EventHandler public void on(org.bukkit.event.player.PlayerHideEntityEvent e) { rec(e); }
 
     @EventHandler public void on(PlayerGameModeChangeEvent e) { rec(e); }
 

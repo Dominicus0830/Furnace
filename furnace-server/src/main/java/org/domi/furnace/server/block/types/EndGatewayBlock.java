@@ -4,6 +4,7 @@
 // Furnace 는 출구 쪽 청크가 다른 region 스레드 소유이고 아직 없을 수 있어 청크를 비동기로 올린 뒤 그 region 스레드에서 계산한다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.i18n.Lang;
 import java.util.function.BiConsumer;
 import org.domi.furnace.server.block.BlockLevel;
@@ -18,6 +19,7 @@ import org.domi.furnace.server.entity.Portal;
 import org.domi.furnace.server.entity.PortalTravel;
 import org.domi.furnace.server.entity.Traveler;
 
+@VanillaPort("net.minecraft.world.level.block.EndGatewayBlock")
 public class EndGatewayBlock extends BaseEntityBlock implements Portal {
 
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(EndGatewayBlock.class);

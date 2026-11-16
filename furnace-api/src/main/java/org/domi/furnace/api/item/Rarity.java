@@ -1,4 +1,4 @@
-// 아이템 희귀도(minecraft:rarity) — 이름 색을 정한다.
+// 아이템 희귀도(minecraft:rarity). 이름 색을 정한다.
 package org.domi.furnace.api.item;
 
 public enum Rarity {

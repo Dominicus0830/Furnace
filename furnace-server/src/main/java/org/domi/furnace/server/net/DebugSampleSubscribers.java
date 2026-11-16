@@ -8,9 +8,11 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.protocol.play.DebugSample;
 
+@VanillaPort("net.minecraft.util.debugchart.DebugSampleSubscriptionTracker")
 public final class DebugSampleSubscribers {
 
     private static final long TICK_NANOS = 50_000_000L;

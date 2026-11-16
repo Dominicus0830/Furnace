@@ -11,7 +11,9 @@ import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.net.io.Types;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.ResourceOrTagKeyArgument")
 public final class ResourceOrTagKeyArgument implements ArgumentType<ResourceOrTagKeyArgument.Result> {
 
     /** id 또는 태그(tag=true 면 id 가 태그 이름). */

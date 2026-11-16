@@ -5,8 +5,10 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.item.alchemy.PotionBrewing")
 public final class PotionBrewing {
     private PotionBrewing() { }
 

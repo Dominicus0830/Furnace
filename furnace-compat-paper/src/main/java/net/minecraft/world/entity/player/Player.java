@@ -8,13 +8,19 @@ public abstract class Player extends LivingEntity {
 
     /**
      * 바닐라처럼 GameProfile 필드(ProtocolLib WrappedGameProfile.fromPlayer·WrappedServerPing 이 타입으로 찾는다). uuid·이름·속성(스킨)은
-     * 이 shim 을 만들 때의 플레이어 값이다. authlib 이 서버에 없으면 null(그때는 그것을 읽는 플러그인도 authlib 을 쓰지 않는다).
+     * 지금 프로필 값이다 — setPlayerProfile 뒤에는 getGameProfile 이 다시 맞춘다(필드를 직접 읽는 쪽은 그 뒤에 새 값을 본다).
+     * authlib 이 서버에 없으면 null(그때는 그것을 읽는 플러그인도 authlib 을 쓰지 않는다).
      */
-    private final com.mojang.authlib.GameProfile gameProfile;
+    private volatile com.mojang.authlib.GameProfile gameProfile;
+    /** gameProfile 을 만든 때의 Furnace 프로필(setPlayerProfile 로 바뀌면 다시 만든다). */
+    private volatile org.domi.furnace.api.entity.ProfileData gameProfileOf;
 
     protected Player(CraftHumanEntity bukkit) {
         super(bukkit);
-        this.gameProfile = bukkit instanceof org.bukkit.craftbukkit.entity.CraftPlayer cp ? org.domi.furnace.compat.nms.Profiles.of(cp.furnaceHandle()) : null;
+        if (bukkit instanceof org.bukkit.craftbukkit.entity.CraftPlayer cp) {
+            this.gameProfileOf = cp.furnaceHandle().profile();
+            this.gameProfile = org.domi.furnace.compat.nms.Profiles.of(cp.furnaceHandle());
+        }
     }
 
     @Override
@@ -24,5 +30,14 @@ public abstract class Player extends LivingEntity {
     public String getScoreboardName() { return getBukkitEntity().getName(); }
 
     /** 바닐라: 플레이어 프로필(authlib 이 없으면 null). */
-    public com.mojang.authlib.GameProfile getGameProfile() { return gameProfile; }
+    public com.mojang.authlib.GameProfile getGameProfile() {
+        if (getBukkitEntity() instanceof org.bukkit.craftbukkit.entity.CraftPlayer cp && gameProfile != null) {
+            var now = cp.furnaceHandle().profile();   // ServerPlayer.gameProfile 은 setPlayerProfile 이 바꾼다 — 바뀌었으면 필드도 새 값으로
+            if (!now.equals(gameProfileOf)) {
+                gameProfile = org.domi.furnace.compat.nms.Profiles.of(cp.furnaceHandle());
+                gameProfileOf = now;
+            }
+        }
+        return gameProfile;
+    }
 }

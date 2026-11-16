@@ -11,6 +11,7 @@ import org.domi.furnace.server.world.BlockAttrs;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.CoralFeature")
 public abstract class CoralFeature implements ConfiguredFeature {
 
     public enum Shape { TREE, CLAW, MUSHROOM }

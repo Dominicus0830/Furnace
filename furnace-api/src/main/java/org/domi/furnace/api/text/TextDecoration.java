@@ -1,4 +1,4 @@
-// 글자 꾸밈(바닐라 Style 의 bold·italic·underlined·strikethrough·obfuscated). legacyCode 는 § 서식 코드 글자.
+// 글자 꾸밈(바닐라 Style 의 bold·italic·underlined·strikethrough·obfuscated)이다. legacyCode 는 § 서식 코드 글자다.
 package org.domi.furnace.api.text;
 
 public enum TextDecoration {

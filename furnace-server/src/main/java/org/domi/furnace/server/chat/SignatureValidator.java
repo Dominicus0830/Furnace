@@ -5,7 +5,9 @@ import java.security.PublicKey;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.util.SignatureValidator")
 @FunctionalInterface
 public interface SignatureValidator {
 

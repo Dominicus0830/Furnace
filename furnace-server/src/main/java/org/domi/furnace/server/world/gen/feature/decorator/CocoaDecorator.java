@@ -4,6 +4,7 @@ import java.util.List;
 import org.domi.furnace.server.world.gen.feature.BlockPos;
 import org.domi.furnace.server.world.gen.feature.TreeFeature;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.treedecorators.CocoaDecorator")
 public record CocoaDecorator(float probability) implements TreeDecorator {
     // vanilla는 Plane.HORIZONTAL(N,E,S,W)을 돌며 opposite 쪽에 배치 — 배치 위치 기준으로는 S,W,N,E 순서와
     // 동치라서 HORIZONTAL_DIRECTIONS(S,W,N,E) 순회 + dir 쪽 배치 + facing=dir.opposite()가 vanilla와 같은

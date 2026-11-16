@@ -6,7 +6,9 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.entity.ai.attributes.AttributeInstance")
 public final class AttributeInstance {
     private final Attribute attribute;
     private double base;

@@ -2,6 +2,7 @@
 // 머리(age 0~25)와 몸통이 짝. 붙은 쪽(자라는 방향의 반대)이 받쳐야 산다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -11,6 +12,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.GrowingPlantBlock")
 public abstract class GrowingPlantBlock extends BlockBehavior {
 
     /** 덩굴 종류별 정보: 머리, 몸통, 자라는 방향, 물 틱(켈프), 무작위 틱 자랄 확률. */

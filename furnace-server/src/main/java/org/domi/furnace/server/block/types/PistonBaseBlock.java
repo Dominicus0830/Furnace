@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -17,6 +18,7 @@ import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.entity.PistonMovingBlockEntity;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.piston.PistonBaseBlock")
 public class PistonBaseBlock extends DirectionalBlock {
 
     static final Prop EXTENDED = B.prop("extended");

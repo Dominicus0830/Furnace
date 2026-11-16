@@ -2,11 +2,13 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtWriter;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket")
 public record BlockEntityDataPacket(int x, int y, int z, int typeId, NbtCompound tag) implements Packet {
 
     public static final int ID = 0x07;

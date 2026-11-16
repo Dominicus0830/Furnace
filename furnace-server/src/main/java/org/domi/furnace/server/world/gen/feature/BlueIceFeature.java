@@ -6,6 +6,7 @@ import org.domi.furnace.server.world.BlockAttrs;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.BlueIceFeature")
 public final class BlueIceFeature implements ConfiguredFeature {
 
     private static final int SEA_LEVEL = 63;

@@ -4,6 +4,7 @@ package org.domi.furnace.server.world.gen.carver;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.carver.CarverConfiguration")
 public sealed interface CarverConfig permits CarverConfig.Cave, CarverConfig.Canyon {
 
     float probability();

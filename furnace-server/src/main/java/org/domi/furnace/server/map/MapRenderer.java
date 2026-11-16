@@ -7,7 +7,9 @@ import org.domi.furnace.server.block.BlockBehaviors;
 import org.domi.furnace.server.block.BlockInfo;
 import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Fluids;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.item.MapItem")
 public final class MapRenderer {
     private MapRenderer() { }
 

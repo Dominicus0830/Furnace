@@ -1,6 +1,9 @@
 // 바닐라 RandomSource(블록 동작이 쓰는 부분). 레벨 난수는 LegacyRandomSource(java.util.Random 과 같은 LCG).
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.util.RandomSource")
 public interface RandomSource {
     int nextInt();
 

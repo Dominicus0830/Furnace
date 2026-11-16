@@ -3,6 +3,7 @@ package org.domi.furnace.server.world.anvil;
 
 import java.util.BitSet;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.chunk.storage.RegionBitmap")
 final class SectorBitmap {
     private final BitSet bits = new BitSet();
 

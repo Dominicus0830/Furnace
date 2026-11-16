@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
@@ -20,6 +21,12 @@ import org.domi.furnace.server.menu.Stacks;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.recipe.RecipeManager;
 
+@VanillaPort({
+    "net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity",
+    "net.minecraft.world.level.block.entity.FurnaceBlockEntity",
+    "net.minecraft.world.level.block.entity.BlastFurnaceBlockEntity",
+    "net.minecraft.world.level.block.entity.SmokerBlockEntity"
+})
 public class FurnaceBlockEntity extends ContainerBlockEntity {
 
     private static final Prop LIT = B.prop("lit");

@@ -19,7 +19,7 @@ class LevelStorageTest {
 
     @Test
     void readsVanillaLevelDat(@TempDir Path dir) throws Exception {
-        try (InputStream in = getClass().getResourceAsStream("/storage/vanilla-" + GameVersion.RESOURCE_TAG + "-level.dat")) {
+        try (InputStream in = getClass().getResourceAsStream("/storage/" + GameVersion.RESOURCE_TAG + "/vanilla-level.dat")) {
             Files.copy(in, dir.resolve("level.dat"));
         }
         try (LevelStorage s = LevelStorage.open(dir)) {

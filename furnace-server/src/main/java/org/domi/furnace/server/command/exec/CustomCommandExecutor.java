@@ -6,7 +6,9 @@ import org.domi.furnace.server.command.brigadier.Command;
 import org.domi.furnace.server.command.brigadier.CommandContext;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.ContextChain;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.execution.CustomCommandExecutor")
 public interface CustomCommandExecutor {
 
     void run(CommandSource source, ContextChain<CommandSource> chain, ChainModifiers modifiers, ExecutionControl control);

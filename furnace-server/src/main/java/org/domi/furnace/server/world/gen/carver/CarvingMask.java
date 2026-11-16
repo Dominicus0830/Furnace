@@ -1,6 +1,7 @@
 // 바닐라 CarvingMask 포팅 — 중복 carving 방지용 비트셋
 package org.domi.furnace.server.world.gen.carver;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.chunk.CarvingMask")
 public final class CarvingMask {
 
     private final boolean[] carved;

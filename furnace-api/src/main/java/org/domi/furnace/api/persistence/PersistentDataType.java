@@ -1,4 +1,4 @@
-// 영속 데이터 값의 종류 — NBT 태그 하나에 대응한다(Bukkit PersistentDataType 의 기본 종류와 같은 저장 꼴: BOOLEAN 은 byte 0/1).
+// 영속 데이터 값의 종류. NBT 태그 하나에 대응하며, Bukkit PersistentDataType 의 기본 종류와 저장 꼴이 같다(BOOLEAN 은 byte 0/1).
 package org.domi.furnace.api.persistence;
 
 public final class PersistentDataType<T> {

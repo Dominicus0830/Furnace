@@ -1,6 +1,9 @@
 // 바닐라 ExecutionControl(ht) — 사용자 정의 실행기가 같은 프레임으로 항목을 넣을 때 쓰는 손잡이.
 package org.domi.furnace.server.command.exec;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.commands.execution.ExecutionControl")
 public interface ExecutionControl {
 
     void queueNext(EntryAction action);

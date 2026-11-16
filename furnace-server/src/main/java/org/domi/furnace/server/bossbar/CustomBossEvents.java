@@ -15,7 +15,9 @@ import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.bossevents.CustomBossEvents")
 public final class CustomBossEvents {
 
     private final Map<ResourceId, CustomBossEvent> events = new LinkedHashMap<>();

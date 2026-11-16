@@ -4,6 +4,7 @@ package org.domi.furnace.server.world.gen.structure;
 import java.util.Optional;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.structure.SinglePieceStructure")
 public class SinglePieceStructure extends StructureType {
 
     @FunctionalInterface

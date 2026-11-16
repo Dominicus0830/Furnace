@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen.feature.size;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.featuresize.ThreeLayersFeatureSize")
 public record ThreeLayersFeatureSize(int limit, int upperLimit, int lowerSize, int middleSize, int upperSize, int minClippedHeight)
         implements FeatureSize {
     public ThreeLayersFeatureSize(int limit, int upperLimit, int lowerSize, int middleSize, int upperSize) {

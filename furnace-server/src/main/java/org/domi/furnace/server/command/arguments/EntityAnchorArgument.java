@@ -15,7 +15,9 @@ import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.command.brigadier.Suggestions;
 import org.domi.furnace.server.command.brigadier.SuggestionsBuilder;
 import org.domi.furnace.server.entity.Rider;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.EntityAnchorArgument")
 public final class EntityAnchorArgument implements ArgumentType<EntityAnchorArgument.Anchor> {
 
     private static final List<String> EXAMPLES = List.of("eyes", "feet");

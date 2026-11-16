@@ -1,4 +1,4 @@
-// 태그 인자 큐 — "<tag:a:'b c':d>" 의 a, b c, d 를 차례로 꺼낸다(따옴표·이스케이프는 이미 풀린 값). 태그 하나를 해석하는 동안만 쓴다.
+// 태그 인자 큐다. "<tag:a:'b c':d>" 의 a, b c, d 를 차례로 꺼낸다(따옴표와 이스케이프는 이미 풀린 값). 태그 하나를 해석하는 동안만 쓴다.
 package org.domi.furnace.api.text.markup;
 
 import java.util.OptionalDouble;
@@ -58,7 +58,7 @@ public interface ArgumentQueue {
     /** 빈 큐(태그 존재 확인용). */
     static ArgumentQueue empty() { return Impl.EMPTY; }
 
-    /** 구현 — 값 배열 하나를 감싼다. */
+    /** 구현체. 값 배열 하나를 감싼다. */
     final class Impl implements ArgumentQueue {
         static final Impl EMPTY = new Impl(new String[0], 0);
 

@@ -5,7 +5,9 @@ import java.util.Map;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.item.ItemTools;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.item.trading.ItemCost")
 public record ItemCost(String item, int count, Map<String, Object> components) {
 
     public ItemCost(String item, int count) { this(item, count, Map.of()); }

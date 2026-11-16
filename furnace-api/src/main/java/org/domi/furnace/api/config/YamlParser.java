@@ -1,4 +1,4 @@
-// YAML 서브셋 파서 — 줄 단위 블록 구조 + 문자 단위 플로우/따옴표 스캐너 (단일 패스, 정규식 없음)
+// YAML 서브셋 파서다. 블록 구조는 줄 단위로, 플로우/따옴표는 문자 단위로 훑는다(단일 패스, 정규식 없음)
 package org.domi.furnace.api.config;
 
 import java.util.ArrayList;
